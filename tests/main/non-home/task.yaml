@@ -1,5 +1,22 @@
 summary: Ensure running on none /home dirs gives a useful error
 
+details: |
+    Snap applications execute in a mount namespace that is quite different from
+    that of the host system. Traditional system put user accounts in /home, with
+    the exception of the root account at /root. The start-up program for snap
+    applications, snap-confine, sets up the mount namespace so that the /home
+    and /root directories from the host are represented in the snap mount
+    namespace.
+
+    Once snapd has become more popular, two problems were encountered. Some
+    systems are configured in a quite unusual way, with seemingly random
+    directories in /, like /home2, are encountered in the field. In response, in
+    absence of a perfect solution, snapd was extended to display a message that
+    such configuration is just not supported.
+
+    The test creates conditions sufficient for the message to be displayed and
+    measures it.
+
 # limit to ubuntu for easier user creation, skip 14.04 due to missing session
 # setup
 systems: [ubuntu-16*, ubuntu-18*, ubuntu-2*]
