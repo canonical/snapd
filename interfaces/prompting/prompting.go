@@ -20,8 +20,6 @@
 package prompting
 
 import (
-	"encoding/base32"
-	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -147,17 +145,4 @@ func ValidateLifespanParseDuration(lifespan LifespanType, duration string) (time
 		return expiration, fmt.Errorf(`lifespan must be %q, %q, or %q`, LifespanForever, LifespanSingle, LifespanTimespan)
 	}
 	return expiration, nil
-}
-
-// NewIDAndTimestamp returns a new unique ID and corresponding timestamp.
-//
-// The ID is the current unix time in nanoseconds encoded as a string in base32.
-// The timestamp is the same time, encoded as a string in time.RFC3339Nano.
-func NewIDAndTimestamp() (id string, timestamp time.Time) {
-	now := time.Now()
-	nowUnix := uint64(now.UnixNano())
-	nowBytes := make([]byte, 8)
-	binary.BigEndian.PutUint64(nowBytes, nowUnix)
-	id = base32.StdEncoding.EncodeToString(nowBytes)
-	return id, now
 }

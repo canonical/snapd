@@ -20,8 +20,6 @@
 package prompting_test
 
 import (
-	"encoding/base32"
-	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"testing"
@@ -212,24 +210,4 @@ func (s *promptingSuite) TestValidateLifespanParseDuration(c *C) {
 	c.Check(err, IsNil)
 	c.Check(expiration.After(time.Now()), Equals, true)
 	c.Check(expiration.Before(time.Now().Add(parsedValidDuration)), Equals, true)
-}
-
-func (s *promptingSuite) TestNewIDAndTimestamp(c *C) {
-	before := time.Now()
-	id, _ := prompting.NewIDAndTimestamp()
-	idPaired, timestampPaired := prompting.NewIDAndTimestamp()
-	after := time.Now()
-	data1, err := base32.StdEncoding.DecodeString(id)
-	c.Assert(err, IsNil)
-	data2, err := base32.StdEncoding.DecodeString(idPaired)
-	c.Assert(err, IsNil)
-	parsedNs := int64(binary.BigEndian.Uint64(data1))
-	parsedNsPaired := int64(binary.BigEndian.Uint64(data2))
-	parsedTime := time.Unix(parsedNs/1000000000, parsedNs%1000000000)
-	parsedTimePaired := time.Unix(parsedNsPaired/1000000000, parsedNsPaired%1000000000)
-	c.Assert(parsedTime.After(before), Equals, true)
-	c.Assert(parsedTime.Before(after), Equals, true)
-	c.Assert(parsedTimePaired.After(before), Equals, true)
-	c.Assert(parsedTimePaired.Before(after), Equals, true)
-	c.Assert(parsedTimePaired.Equal(timestampPaired), Equals, true)
 }
