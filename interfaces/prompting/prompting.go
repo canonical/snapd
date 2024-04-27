@@ -22,6 +22,7 @@ package prompting
 import (
 	"encoding/base32"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"time"
 )
@@ -33,6 +34,21 @@ const (
 	OutcomeAllow OutcomeType = "allow"
 	OutcomeDeny  OutcomeType = "deny"
 )
+
+func (outcome *OutcomeType) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+	value := OutcomeType(s)
+	switch value {
+	case OutcomeAllow, OutcomeDeny:
+		*outcome = value
+	default:
+		return fmt.Errorf(`outcome must be %q or %q: %q`, OutcomeAllow, OutcomeDeny, value)
+	}
+	return nil
+}
 
 // IsAllow returns true if the outcome is OutcomeAllow, false if the outcome is
 // OutcomeDeny, or an error if it cannot be parsed.
@@ -47,16 +63,6 @@ func (outcome OutcomeType) IsAllow() (bool, error) {
 	}
 }
 
-// ValidateOutcome returns nil if the given outcome is valid, otherwise an error.
-func ValidateOutcome(outcome OutcomeType) error {
-	switch outcome {
-	case OutcomeAllow, OutcomeDeny:
-		return nil
-	default:
-		return fmt.Errorf(`outcome must be %q or %q: %q`, OutcomeAllow, OutcomeDeny, outcome)
-	}
-}
-
 type LifespanType string
 
 const (
@@ -67,6 +73,21 @@ const (
 	// TODO: add LifespanSession which expires after the user logs out
 	// LifespanSession  LifespanType = "session"
 )
+
+func (lifespan *LifespanType) UnmarshalJSON(data []byte) error {
+	var lifespanStr string
+	if err := json.Unmarshal(data, &lifespanStr); err != nil {
+		return err
+	}
+	value := LifespanType(lifespanStr)
+	switch value {
+	case LifespanForever, LifespanSingle, LifespanTimespan:
+		*lifespan = value
+	default:
+		return fmt.Errorf(`lifespan must be %q, %q, or %q`, LifespanForever, LifespanSingle, LifespanTimespan)
+	}
+	return nil
+}
 
 // ValidateLifespanExpiration checks that the given lifespan is valid and that
 // the given expiration is valid for that lifespan.
@@ -88,7 +109,8 @@ func ValidateLifespanExpiration(lifespan LifespanType, expiration time.Time, cur
 			return fmt.Errorf("expiration time has already passed: %q", expiration)
 		}
 	default:
-		return fmt.Errorf(`invalid lifespan: %q`, lifespan)
+		// Should not occur, since lifespan is validated when unmarshalled
+		return fmt.Errorf(`lifespan must be %q, %q, or %q`, LifespanForever, LifespanSingle, LifespanTimespan)
 	}
 	return nil
 }
@@ -121,7 +143,8 @@ func ValidateLifespanParseDuration(lifespan LifespanType, duration string) (time
 		}
 		expiration = time.Now().Add(parsedDuration)
 	default:
-		return expiration, fmt.Errorf(`invalid lifespan: %q`, lifespan)
+		// Should not occur, since lifespan is validated when unmarshalled
+		return expiration, fmt.Errorf(`lifespan must be %q, %q, or %q`, LifespanForever, LifespanSingle, LifespanTimespan)
 	}
 	return expiration, nil
 }
