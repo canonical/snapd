@@ -20,6 +20,7 @@
 package configcore
 
 import (
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/sysconfig"
@@ -89,5 +90,11 @@ func MockApparmorSetupSnapConfineSnippets(f func() (bool, error)) func() {
 func MockApparmorReloadAllSnapProfiles(f func() error) func() {
 	r := testutil.Backup(&apparmorReloadAllSnapProfiles)
 	apparmorReloadAllSnapProfiles = f
+	return r
+}
+
+func MockLoggerSimpleSetup(f func(opts *logger.LoggerOptions) error) func() {
+	r := testutil.Backup(&loggerSimpleSetup)
+	loggerSimpleSetup = f
 	return r
 }

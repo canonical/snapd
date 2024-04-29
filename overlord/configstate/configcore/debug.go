@@ -39,6 +39,8 @@ const (
 	coreOptionDebugSystemdLogLevel = "core." + optionDebugSystemdLogLevel
 )
 
+var loggerSimpleSetup = logger.SimpleSetup
+
 func init() {
 	supportedConfigurations[coreOptionDebugSnapdLog] = true
 	supportedConfigurations[coreOptionDebugSystemdLogLevel] = true
@@ -67,6 +69,7 @@ func handleDebugSnapdLogConfiguration(tr RunTransaction, opts *fsOnlyContext) er
 
 	snapdEnvPath := filepath.Join(envDir, "snapd.conf")
 
+	var enableDebug bool
 	switch debugLog {
 	case "true":
 		if err := os.Mkdir(envDir, 0755); err != nil && !os.IsExist(err) {
@@ -78,6 +81,7 @@ func handleDebugSnapdLogConfiguration(tr RunTransaction, opts *fsOnlyContext) er
 		}); err != nil {
 			return err
 		}
+		enableDebug = true
 	case "false", "":
 		// We simply remove the env file as for the moment we use it
 		// just for SNAPD_DEBUG. If we change that we will need to
@@ -85,12 +89,15 @@ func handleDebugSnapdLogConfiguration(tr RunTransaction, opts *fsOnlyContext) er
 		if err := os.Remove(snapdEnvPath); err != nil && !os.IsNotExist(err) {
 			return err
 		}
+		enableDebug = false
 	default:
 		return fmt.Errorf("%s must be true of false, not: %q", optionDebugSnapdLog, debugLog)
 	}
 
-	// TODO change logger to debug enabled. Change
-	// tests/core/debug/task.yaml too when this is done.
+	// Enable/disable debug logging for current snapd instance
+	if err := loggerSimpleSetup(&logger.LoggerOptions{ForceDebug: enableDebug}); err != nil {
+		return err
+	}
 
 	return nil
 }
