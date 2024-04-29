@@ -42,15 +42,39 @@ type Constraints struct {
 // ValidateForInterface returns nil if the constraints are valid for the given
 // interface, otherwise returns an error.
 func (c *Constraints) ValidateForInterface(iface string) error {
-	// TODO: change to this once PR #13730 is merged:
+	// TODO: change to this once PR #13866 is merged:
 	// if err := ValidatePathPattern(c.PathPattern); err != nil {
 	//	return err
 	// }
-	permissions, err := AbstractPermissionsFromList(iface, c.Permissions)
-	if err != nil {
-		return err
+	return c.validatePermissions(iface)
+}
+
+// validatePermissions checks that the permissions for the given constraints
+// are valid for the given interface. If not, returns an error, otherwise
+// ensures that the permissions are in the order in which they occur in the
+// list of available permissions for that interface.
+func (c *Constraints) validatePermissions(iface string) error {
+	availablePerms, ok := interfacePermissionsAvailable[iface]
+	if !ok {
+		return fmt.Errorf("unsupported interface: %q", iface)
 	}
-	c.Permissions = permissions
+	permsSet := make(map[string]bool, len(c.Permissions))
+	for _, perm := range c.Permissions {
+		if !strutil.ListContains(availablePerms, perm) {
+			return fmt.Errorf("unsupported permission for %q interface: %q", iface, perm)
+		}
+		permsSet[perm] = true
+	}
+	if len(permsSet) == 0 {
+		return ErrPermissionsListEmpty
+	}
+	newPermissions := make([]string, 0, len(permsSet))
+	for _, perm := range availablePerms {
+		if exists := permsSet[perm]; exists {
+			newPermissions = append(newPermissions, perm)
+		}
+	}
+	c.Permissions = newPermissions
 	return nil
 }
 
@@ -58,7 +82,7 @@ func (c *Constraints) ValidateForInterface(iface string) error {
 //
 // If the constraints or path are invalid, returns an error.
 func (c *Constraints) Match(path string) (bool, error) {
-	// TODO: change to this once PR #13730 is merged:
+	// TODO: change to this once PR #13866 is merged:
 	// return PathPatternMatch(c.PathPattern, path)
 	return true, nil
 }
@@ -175,40 +199,13 @@ func abstractPermissionsFromAppArmorFilePermissions(iface string, permissions in
 	return abstractPerms, nil
 }
 
-// AbstractPermissionsFromList validates the given permissions list for the
-// given interface and returns a list containing those permissions in the order
-// in which they occur in the list of available permissions for that interface.
-func AbstractPermissionsFromList(iface string, permissions []string) ([]string, error) {
-	availablePerms, ok := interfacePermissionsAvailable[iface]
-	if !ok {
-		return nil, fmt.Errorf("unsupported interface: %q", iface)
-	}
-	permsSet := make(map[string]bool, len(permissions))
-	for _, perm := range permissions {
-		if !strutil.ListContains(availablePerms, perm) {
-			return nil, fmt.Errorf("unsupported permission for %q interface: %q", iface, perm)
-		}
-		permsSet[perm] = true
-	}
-	if len(permsSet) == 0 {
-		return nil, ErrPermissionsListEmpty
-	}
-	permissionsList := make([]string, 0, len(permsSet))
-	for _, perm := range availablePerms {
-		if exists := permsSet[perm]; exists {
-			permissionsList = append(permissionsList, perm)
-		}
-	}
-	return permissionsList, nil
-}
-
 // AbstractPermissionsToAppArmorPermissions returns AppArmor permissions
 // corresponding to the given permissions for the given interface.
 func AbstractPermissionsToAppArmorPermissions(iface string, permissions []string) (interface{}, error) {
 	return abstractPermissionsToAppArmorFilePermissions(iface, permissions)
 }
 
-// AbstractPermissionsToAppArmorFilePermissions returns AppArmor file
+// abstractPermissionsToAppArmorFilePermissions returns AppArmor file
 // permissions corresponding to the given permissions for the given interface.
 func abstractPermissionsToAppArmorFilePermissions(iface string, permissions []string) (notify.FilePermission, error) {
 	if len(permissions) == 0 {

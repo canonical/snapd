@@ -92,6 +92,74 @@ func (s *promptingSuite) TestConstraintsValidateForInterface(c *C) {
 	}
 }
 
+func (s *promptingSuite) TestValidatePermissionsHappy(c *C) {
+	cases := []struct {
+		iface   string
+		initial []string
+		final   []string
+	}{
+		{
+			"home",
+			[]string{"write", "read", "execute"},
+			[]string{"read", "write", "execute"},
+		},
+		{
+			"home",
+			[]string{"execute", "write", "read"},
+			[]string{"read", "write", "execute"},
+		},
+		{
+			"home",
+			[]string{"write", "write", "write"},
+			[]string{"write"},
+		},
+	}
+	for _, testCase := range cases {
+		constraints := prompting.Constraints{
+			Permissions: testCase.initial,
+		}
+		err := constraints.ValidatePermissions(testCase.iface)
+		c.Check(err, IsNil, Commentf("testCase: %+v", testCase))
+		c.Check(constraints.Permissions, DeepEquals, testCase.final, Commentf("testCase: %+v", testCase))
+	}
+}
+
+func (s *promptingSuite) TestValidatePermissionsUnhappy(c *C) {
+	cases := []struct {
+		iface  string
+		perms  []string
+		errStr string
+	}{
+		{
+			"foo",
+			[]string{"read"},
+			"unsupported interface.*",
+		},
+		{
+			"home",
+			[]string{"access"},
+			"unsupported permission.*",
+		},
+		{
+			"home",
+			[]string{"read", "write", "access"},
+			"unsupported permission.*",
+		},
+		{
+			"home",
+			[]string{},
+			fmt.Sprintf("%v", prompting.ErrPermissionsListEmpty),
+		},
+	}
+	for _, testCase := range cases {
+		constraints := prompting.Constraints{
+			Permissions: testCase.perms,
+		}
+		err := constraints.ValidatePermissions(testCase.iface)
+		c.Check(err, ErrorMatches, testCase.errStr, Commentf("testCase: %+v", testCase))
+	}
+}
+
 func (*promptingSuite) TestConstraintsMatch(c *C) {
 	cases := []struct {
 		pattern string
@@ -407,69 +475,6 @@ func (s *promptingSuite) TestAbstractPermissionsFromAppArmorFilePermissionsUnhap
 		perms, err := prompting.AbstractPermissionsFromAppArmorPermissions(testCase.iface, testCase.perms)
 		c.Check(perms, IsNil, Commentf("received unexpected non-nil permissions list for test case: %+v", testCase))
 		c.Check(err, ErrorMatches, testCase.errStr)
-	}
-}
-
-func (s *promptingSuite) TestAbstractPermissionsFromListHappy(c *C) {
-	cases := []struct {
-		iface   string
-		initial []string
-		final   []string
-	}{
-		{
-			"home",
-			[]string{"write", "read", "execute"},
-			[]string{"read", "write", "execute"},
-		},
-		{
-			"home",
-			[]string{"execute", "write", "read"},
-			[]string{"read", "write", "execute"},
-		},
-		{
-			"home",
-			[]string{"write", "write", "write"},
-			[]string{"write"},
-		},
-	}
-	for _, testCase := range cases {
-		perms, err := prompting.AbstractPermissionsFromList(testCase.iface, testCase.initial)
-		c.Check(err, IsNil, Commentf("testCase: %+v", testCase))
-		c.Check(perms, DeepEquals, testCase.final, Commentf("testCase: %+v", testCase))
-	}
-}
-
-func (s *promptingSuite) TestAbstractPermissionsFromListUnhappy(c *C) {
-	cases := []struct {
-		iface  string
-		perms  []string
-		errStr string
-	}{
-		{
-			"foo",
-			[]string{"read"},
-			"unsupported interface.*",
-		},
-		{
-			"home",
-			[]string{"access"},
-			"unsupported permission.*",
-		},
-		{
-			"home",
-			[]string{"read", "write", "access"},
-			"unsupported permission.*",
-		},
-		{
-			"home",
-			[]string{},
-			fmt.Sprintf("%v", prompting.ErrPermissionsListEmpty),
-		},
-	}
-	for _, testCase := range cases {
-		perms, err := prompting.AbstractPermissionsFromList(testCase.iface, testCase.perms)
-		c.Check(perms, IsNil, Commentf("testCase: %+v", testCase))
-		c.Check(err, ErrorMatches, testCase.errStr, Commentf("testCase: %+v", testCase))
 	}
 }
 
