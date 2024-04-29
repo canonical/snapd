@@ -249,9 +249,9 @@ func (s *clientSuite) TestServicesStartWithDisabledServices(c *C) {
 		var inst client.ServiceInstruction
 		c.Assert(decoder.Decode(&inst), IsNil)
 		if r.Host == "42" {
-			c.Check(inst.Services, DeepEquals, []string{"service2.service"})
+			c.Check(inst.Services, DeepEquals, []string{"service2.service", "service3.service"})
 		} else if r.Host == "1000" {
-			c.Check(inst.Services, DeepEquals, []string{"service1.service"})
+			c.Check(inst.Services, DeepEquals, []string{"service1.service", "service3.service"})
 		} else {
 			c.FailNow()
 		}
@@ -264,9 +264,11 @@ func (s *clientSuite) TestServicesStartWithDisabledServices(c *C) {
 	})
 	startFailures, stopFailures, err := s.cli.ServicesStart(
 		context.Background(),
-		[]string{"service1.service", "service2.service"},
+		[]string{"service1.service", "service2.service", "service3.service", "service4.service"},
 		client.ClientServicesStartOptions{
 			DisabledServices: map[int][]string{
+				// This one must affect both 42 and 1000
+				-1:   {"service4.service"},
 				42:   {"service1.service"},
 				1000: {"service2.service"},
 			},
