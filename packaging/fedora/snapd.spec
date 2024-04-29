@@ -646,6 +646,7 @@ install -d -p %{buildroot}%{_sharedstatedir}/snapd/dbus-1/services
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/dbus-1/system-services
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/desktop/applications
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/device
+install -d -p %{buildroot}%{_sharedstatedir}/snapd/environment
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/hostfs
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/inhibit
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/lib/gl

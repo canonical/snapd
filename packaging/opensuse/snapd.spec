@@ -403,6 +403,7 @@ fi
 %dir %{_sharedstatedir}/snapd/desktop
 %dir %{_sharedstatedir}/snapd/desktop/applications
 %dir %{_sharedstatedir}/snapd/device
+%dir %{_sharedstatedir}/snapd/environment
 %dir %{_sharedstatedir}/snapd/hostfs
 %dir %{_sharedstatedir}/snapd/inhibit
 %dir %{_sharedstatedir}/snapd/lib
