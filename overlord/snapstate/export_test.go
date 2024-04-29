@@ -324,6 +324,7 @@ var (
 )
 
 type AuxStoreInfo = auxStoreInfo
+type DisabledServices = disabledServices
 
 // link, misc handlers
 var (

@@ -221,9 +221,148 @@ func (s *handlersSuite) TestComputeMissingDisabledServices(c *C) {
 	} {
 		info := &snap.Info{Apps: tt.apps}
 
-		found, missing, err := snapstate.MissingDisabledServices(tt.stDisabledSvcsList, info)
-		c.Assert(missing, DeepEquals, tt.missing, Commentf(tt.comment))
-		c.Assert(found, DeepEquals, tt.found, Commentf(tt.comment))
+		overview, err := snapstate.MissingDisabledServices(tt.stDisabledSvcsList, nil, info)
+		c.Assert(overview.MissingSystemServices, DeepEquals, tt.missing, Commentf(tt.comment))
+		c.Assert(overview.FoundSystemServices, DeepEquals, tt.found, Commentf(tt.comment))
+		c.Assert(overview.MissingUserServices, HasLen, 0)
+		c.Assert(overview.FoundUserServices, HasLen, 0)
+		c.Assert(err, Equals, tt.err, Commentf(tt.comment))
+	}
+}
+
+func (s *handlersSuite) TestComputeMissingDisabledUserServices(c *C) {
+	// Just like TestComputeMissingDisabledServices, but more focused on
+	// the user services part
+	for _, tt := range []struct {
+		// inputs
+		stDisabledSvcsList map[int][]string
+		apps               map[string]*snap.AppInfo
+		// outputs
+		missing map[int][]string
+		found   map[int][]string
+		err     error
+		comment string
+	}{
+		// no apps
+		{
+			map[int][]string{},
+			nil,
+			map[int][]string{},
+			map[int][]string{},
+			nil,
+			"no apps",
+		},
+		// only apps, no services
+		{
+			map[int][]string{},
+			map[string]*snap.AppInfo{
+				"app": {
+					Daemon:      "",
+					DaemonScope: snap.UserDaemon,
+				},
+			},
+			map[int][]string{},
+			map[int][]string{},
+			nil,
+			"no services",
+		},
+		// services in snap, but not disabled
+		{
+			map[int][]string{},
+			map[string]*snap.AppInfo{
+				"svc1": {
+					Daemon:      "simple",
+					DaemonScope: snap.UserDaemon,
+				},
+			},
+			map[int][]string{},
+			map[int][]string{},
+			nil,
+			"no disabled services",
+		},
+		// all disabled services, but not present in snap
+		{
+			map[int][]string{
+				1337: {"svc1"},
+			},
+			nil,
+			map[int][]string{
+				1337: {"svc1"},
+			},
+			map[int][]string{
+				1337: {},
+			},
+			nil,
+			"all missing disabled services",
+		},
+		// all disabled services, and found in snap
+		{
+			map[int][]string{
+				1337: {"svc1"},
+			},
+			map[string]*snap.AppInfo{
+				"svc1": {
+					Daemon:      "simple",
+					DaemonScope: snap.UserDaemon,
+				},
+			},
+			map[int][]string{
+				1337: {},
+			},
+			map[int][]string{
+				1337: {"svc1"},
+			},
+			nil,
+			"all found disabled services",
+		},
+		// some disabled services, some missing, some present in snap
+		{
+			map[int][]string{
+				1337: {"svc1", "svc2"},
+			},
+			map[string]*snap.AppInfo{
+				"svc1": {
+					Daemon:      "simple",
+					DaemonScope: snap.UserDaemon,
+				},
+			},
+			map[int][]string{
+				1337: {"svc2"},
+			},
+			map[int][]string{
+				1337: {"svc1"},
+			},
+			nil,
+			"some missing, some found disabled services",
+		},
+		// some disabled services, but app is not service
+		{
+			map[int][]string{
+				1337: {"svc1"},
+			},
+			map[string]*snap.AppInfo{
+				"svc1": {
+					Daemon:      "",
+					DaemonScope: snap.UserDaemon,
+				},
+			},
+			map[int][]string{
+				1337: {"svc1"},
+			},
+			map[int][]string{
+				1337: {},
+			},
+			nil,
+			"some disabled services that are now apps",
+		},
+	} {
+		info := &snap.Info{Apps: tt.apps}
+
+		overview, err := snapstate.MissingDisabledServices(nil, tt.stDisabledSvcsList, info)
+		c.Assert(overview.MissingUserServices, DeepEquals, tt.missing, Commentf(tt.comment))
+		c.Assert(overview.FoundUserServices, DeepEquals, tt.found, Commentf(tt.comment))
+		c.Assert(overview.MissingSystemServices, HasLen, 0)
+		c.Assert(overview.FoundSystemServices, HasLen, 0)
 		c.Assert(err, Equals, tt.err, Commentf(tt.comment))
 	}
 }
