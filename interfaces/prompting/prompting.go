@@ -87,13 +87,13 @@ func (lifespan *LifespanType) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// ValidateLifespanExpiration checks that the given lifespan is valid and that
-// the given expiration is valid for that lifespan.
+// ValidateExpiration checks that the given expiration is valid for the
+// receiver lifespan.
 //
 // If the lifespan is LifespanTimespan LifespanTimespan, then expiration must
 // be non-zero and be after the given currTime. Otherwise, it must be zero.
 // Returns an error if any of the above are invalid.
-func ValidateLifespanExpiration(lifespan LifespanType, expiration time.Time, currTime time.Time) error {
+func (lifespan LifespanType) ValidateExpiration(expiration time.Time, currTime time.Time) error {
 	switch lifespan {
 	case LifespanForever, LifespanSingle:
 		if !expiration.IsZero() {
@@ -113,15 +113,15 @@ func ValidateLifespanExpiration(lifespan LifespanType, expiration time.Time, cur
 	return nil
 }
 
-// ValidateLifespanParseDuration checks that the given lifespan is valid and
-// that the given duration is valid for that lifespan.
+// ParseDuration checks that the given duration is valid for the receiver
+// lifespan and parses it into an expiration timestamp.
 //
 // If the lifespan is LifespanTimespan, then duration must be a string parsable
 // by time.ParseDuration(), representing the duration of time for which the rule
 // should be valid. Otherwise, it must be empty. Returns an error if any of the
 // above are invalid, otherwise computes the expiration time of the rule based
-// on the current time and the given duration and returns it.
-func ValidateLifespanParseDuration(lifespan LifespanType, duration string) (time.Time, error) {
+// on the given currTime and the given duration and returns it.
+func (lifespan LifespanType) ParseDuration(duration string, currTime time.Time) (time.Time, error) {
 	var expiration time.Time
 	switch lifespan {
 	case LifespanForever, LifespanSingle:
@@ -139,7 +139,7 @@ func ValidateLifespanParseDuration(lifespan LifespanType, duration string) (time
 		if parsedDuration <= 0 {
 			return expiration, fmt.Errorf(`duration must be greater than zero: %q`, duration)
 		}
-		expiration = time.Now().Add(parsedDuration)
+		expiration = currTime.Add(parsedDuration)
 	default:
 		// Should not occur, since lifespan is validated when unmarshalled
 		return expiration, fmt.Errorf(`lifespan must be %q, %q, or %q`, LifespanForever, LifespanSingle, LifespanTimespan)
