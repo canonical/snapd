@@ -1,5 +1,15 @@
 summary: verify booting into recovery mode on UC20 systems
 
+details: |
+    In recovery mode, the device boots to a temporary system and operates
+    as it would from a pristine initial installation, including its snaps.
+    This allows you to log in to the system using prior credentials to recover
+    the data, either via SSH or locally after setting up a password for the user.
+
+    This test veryfies that it is possible to transition and transition back from
+    the run mode to a recovery mode. In recovery mode the test checks that the seed
+    is mounted in recover mode too and the host data is accessible.
+
 systems:
   - ubuntu-core-20-*
   - ubuntu-core-22-*

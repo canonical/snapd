@@ -1,5 +1,13 @@
 summary: Check that snapd failure handling works
 
+details: |
+    Snapd has a failure handling mechanism to auto revert when a refresh process fails. 
+    This test verifies this mechanism by trying to install a broken snapd snap
+    multiple times to validate that if a device wants to keep trying a refresh to a
+    broken snapd snap for some reason it will be able to revert and fallback
+    as many times as needed. Also checks that after the revert, the snapd snap
+    revision has to be the same than before the broken one was installed.
+
 prepare: |
     # on UC16, we should transition to using the snapd snap before running the 
     # test because it by default uses the core snap
