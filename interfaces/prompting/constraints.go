@@ -67,19 +67,16 @@ func (c *Constraints) Match(path string) (bool, error) {
 // permissions list associated with the constraints. If the permission does
 // not exist in the list, returns ErrPermissionNotInList.
 func (c *Constraints) RemovePermission(permission string) error {
-	origLen := len(c.Permissions)
-	for i := 0; i < len(c.Permissions); {
-		perm := c.Permissions[i]
+	newPermissions := make([]string, 0, len(c.Permissions))
+	for _, perm := range c.Permissions {
 		if perm != permission {
-			i++
-			continue
+			newPermissions = append(newPermissions, perm)
 		}
-		copy(c.Permissions[i:], c.Permissions[i+1:])
-		c.Permissions = c.Permissions[:len(c.Permissions)-1]
 	}
-	if origLen == len(c.Permissions) {
+	if len(newPermissions) == len(c.Permissions) {
 		return ErrPermissionNotInList
 	}
+	c.Permissions = newPermissions
 	return nil
 }
 
