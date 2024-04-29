@@ -80,8 +80,9 @@ type fakeOp struct {
 	unlinkSkipBinaries     bool
 	skipKernelExtraction   bool
 
-	services         []string
-	disabledServices []string
+	services             []string
+	disabledServices     []string
+	disabledUserServices map[int][]string
 
 	vitalityRank int
 
@@ -903,7 +904,8 @@ type fakeSnappyBackend struct {
 	copySnapDataFailTrigger string
 	emptyContainer          snap.Container
 
-	servicesCurrentlyDisabled []string
+	servicesCurrentlyDisabled     []string
+	userServicesCurrentlyDisabled map[int][]string
 
 	lockDir string
 
@@ -1318,27 +1320,44 @@ func (f *fakeSnappyBackend) KillSnapApps(snapName string, reason snap.AppKillRea
 }
 
 func (f *fakeSnappyBackend) QueryDisabledServices(info *snap.Info, meter progress.Meter) (*wrappers.DisabledServices, error) {
-	var l []string
-
 	// return the disabled services as disabled and nothing else
 	m := make(map[string]bool)
 	for _, svc := range f.servicesCurrentlyDisabled {
-		m[svc] = false
+		m[svc] = true
 	}
 
-	for name, enabled := range m {
-		if !enabled {
-			l = append(l, name)
+	um := make(map[int]map[string]bool)
+	for uid, svcs := range f.userServicesCurrentlyDisabled {
+		umi := make(map[string]bool)
+		for _, svc := range svcs {
+			umi[svc] = true
+		}
+		um[uid] = umi
+	}
+
+	var l []string
+	ul := make(map[int][]string)
+	for _, svc := range info.Services() {
+		if m[svc.Name] {
+			l = append(l, svc.Name)
+		} else {
+			for uid, umi := range um {
+				if umi[svc.Name] {
+					ul[uid] = append(ul[uid], svc.Name)
+				}
+			}
 		}
 	}
 
 	f.appendOp(&fakeOp{
-		op:               "current-snap-service-states",
-		disabledServices: f.servicesCurrentlyDisabled,
+		op:                   "current-snap-service-states",
+		disabledServices:     f.servicesCurrentlyDisabled,
+		disabledUserServices: f.userServicesCurrentlyDisabled,
 	})
 
 	return &wrappers.DisabledServices{
 		SystemServices: l,
+		UserServices:   ul,
 	}, f.maybeErrForLastOp()
 }
 

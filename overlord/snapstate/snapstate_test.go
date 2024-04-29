@@ -7577,6 +7577,7 @@ func (s *snapmgrTestSuite) TestStopSnapServicesUndo(c *C) {
 	c.Check(t.Get("disabled-services", &disabled), IsNil)
 	c.Check(disabled, DeepEquals, wrappers.DisabledServices{
 		SystemServices: []string{"svc1"},
+		UserServices:   map[int][]string{},
 	})
 }
 
