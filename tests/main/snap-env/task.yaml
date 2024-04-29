@@ -1,5 +1,13 @@
 summary: inspect all the set environment variables prefixed with SNAP_ and XDG_
 
+details: |
+    Environment variables are widely used across Linux to provide convenient access to system
+    and application properties. Snapd uses specific environment variables to support running
+    snaps.
+
+    This test verifies that all the environment variables sued by snapd start with
+    SNAP_, XDG_ and EXTRA_.
+
 environment:
     NAME/regular: test-snapd-tools
     INSTANCE_KEY/regular: ""

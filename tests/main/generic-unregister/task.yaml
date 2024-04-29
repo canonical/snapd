@@ -1,5 +1,7 @@
-summary: |
-    Ensure that unregistration API works.
+summary: Ensure that unregistration API works.
+
+details: |
+   
 
 # ubuntu-14.04: curl does not have --unix-socket option
 systems: [-ubuntu-core-*, -ubuntu-14.04-*]

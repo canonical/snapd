@@ -1,4 +1,10 @@
-summary: "Check that refresh-modes works"
+summary: Check that refresh-modes works
+
+details: |
+    Snapd maintains the process id when a service snap is refreshed.
+    The test verifies that if we install and refresh the test-snapd-service
+    snap, the service keeps the process id. Also it checks the service is
+    stopped when the snap is removed.
 
 # takes >1.5min to run
 backends: [-autopkgtest]

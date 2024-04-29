@@ -1,5 +1,15 @@
 summary: Check that `snap get` works as expected
 
+details: |
+    Certain snaps, such as those providing a background service, expose
+    configuration options that can be viewed and changed. The commands
+    for viewing and changing these configuration options are snap get,
+    snap set and snap unset.
+
+    This test verifies that through the `snap get` command can be obtained
+    the snap configuration set with `snap set` command. Is it also checked
+    the json output format and error scenarios.
+
 prepare: |
     snap install --devmode jq
 
