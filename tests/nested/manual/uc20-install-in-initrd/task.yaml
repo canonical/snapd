@@ -4,7 +4,7 @@ details: |
   This test checks that we are able to perform a single-boot installation in
   various scenarios.
 
-systems: [ubuntu-22.04-64, ubuntu-24.04-64]
+systems: [ubuntu-20.04-64, ubuntu-22.04-64, ubuntu-24.04-64]
 
 environment:
   # There are 4 modes:
