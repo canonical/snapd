@@ -21,7 +21,6 @@ package prompting_test
 
 import (
 	"fmt"
-	"time"
 
 	// TODO: remove once PR #13849 is merged
 	"testing"
@@ -550,70 +549,4 @@ func (s *promptingSuite) TestAbstractPermissionsToAppArmorFilePermissionsUnhappy
 		_, err := prompting.AbstractPermissionsToAppArmorPermissions(testCase.iface, testCase.perms)
 		c.Check(err, ErrorMatches, testCase.errStr)
 	}
-}
-
-func (s *promptingSuite) TestValidateConstraintsOutcomeLifespanExpiration(c *C) {
-	goodInterface := "home"
-	badInterface := "foo"
-	goodConstraints := &prompting.Constraints{
-		PathPattern: "/path/to/something",
-		Permissions: []string{"read", "write", "execute"},
-	}
-	badConstraints := &prompting.Constraints{
-		PathPattern: "/path{with*,groups?}/**",
-		Permissions: []string{"read", "write", "append"},
-	}
-	goodOutcome := prompting.OutcomeDeny
-	badOutcome := prompting.OutcomeUnset
-	goodLifespan := prompting.LifespanTimespan
-	badLifespan := prompting.LifespanType("foo")
-	currTime := time.Now()
-	goodExpiration := currTime.Add(10 * time.Second)
-	badExpiration := currTime.Add(-1 * time.Second)
-
-	err := prompting.ValidateConstraintsOutcomeLifespanExpiration(goodInterface, goodConstraints, goodOutcome, goodLifespan, &goodExpiration, currTime)
-	c.Check(err, IsNil)
-	err = prompting.ValidateConstraintsOutcomeLifespanExpiration(badInterface, goodConstraints, goodOutcome, goodLifespan, &goodExpiration, currTime)
-	c.Check(err, NotNil)
-	err = prompting.ValidateConstraintsOutcomeLifespanExpiration(goodInterface, badConstraints, goodOutcome, goodLifespan, &goodExpiration, currTime)
-	c.Check(err, ErrorMatches, "unsupported permission.*")
-	err = prompting.ValidateConstraintsOutcomeLifespanExpiration(goodInterface, goodConstraints, badOutcome, goodLifespan, &goodExpiration, currTime)
-	c.Check(err, ErrorMatches, "invalid outcome.*")
-	err = prompting.ValidateConstraintsOutcomeLifespanExpiration(goodInterface, goodConstraints, goodOutcome, badLifespan, &goodExpiration, currTime)
-	c.Check(err, ErrorMatches, "invalid lifespan.*")
-	err = prompting.ValidateConstraintsOutcomeLifespanExpiration(goodInterface, goodConstraints, goodOutcome, goodLifespan, &badExpiration, currTime)
-	c.Check(err, ErrorMatches, "invalid expiration.*")
-}
-
-func (s *promptingSuite) TestValidateConstraintsOutcomeLifespanDuration(c *C) {
-	goodInterface := "home"
-	badInterface := "foo"
-	goodConstraints := &prompting.Constraints{
-		PathPattern: "/path/to/something",
-		Permissions: []string{"read"},
-	}
-	// badConstraints := &prompting.Constraints{
-	//	PathPattern: "bad\\path",
-	//	Permissions: []string{"read"},
-	// }
-	goodOutcome := prompting.OutcomeAllow
-	badOutcome := prompting.OutcomeUnset
-	goodLifespan := prompting.LifespanTimespan
-	badLifespan := prompting.LifespanUnset
-	goodDuration := "10s"
-	badDuration := "foo"
-
-	_, err := prompting.ValidateConstraintsOutcomeLifespanDuration(goodInterface, goodConstraints, goodOutcome, goodLifespan, goodDuration)
-	c.Check(err, IsNil)
-	_, err = prompting.ValidateConstraintsOutcomeLifespanDuration(badInterface, goodConstraints, goodOutcome, goodLifespan, goodDuration)
-	c.Check(err, NotNil)
-	// TODO: add this once PR #13730 is merged:
-	// _, err = prompting.ValidateConstraintsOutcomeLifespanDuration(goodInterface, badConstraints, goodOutcome, goodLifespan, goodDuration)
-	// c.Check(err, ErrorMatches, "invalid path pattern.*")
-	_, err = prompting.ValidateConstraintsOutcomeLifespanDuration(goodInterface, goodConstraints, badOutcome, goodLifespan, goodDuration)
-	c.Check(err, ErrorMatches, "invalid outcome.*")
-	_, err = prompting.ValidateConstraintsOutcomeLifespanDuration(goodInterface, goodConstraints, goodOutcome, badLifespan, goodDuration)
-	c.Check(err, ErrorMatches, "invalid lifespan.*")
-	_, err = prompting.ValidateConstraintsOutcomeLifespanDuration(goodInterface, goodConstraints, goodOutcome, goodLifespan, badDuration)
-	c.Check(err, ErrorMatches, "invalid duration.*")
 }

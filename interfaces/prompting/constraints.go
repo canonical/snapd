@@ -22,7 +22,6 @@ package prompting
 import (
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/strutil"
@@ -229,29 +228,4 @@ func abstractPermissionsToAppArmorFilePermissions(iface string, permissions []st
 		filePerms |= notify.AA_MAY_OPEN
 	}
 	return filePerms, nil
-}
-
-// ValidateConstraintsOutcomeLifespanExpiration returns an error if the given
-// constraints, outcome, lifespan, or duration are invalid, else returns nil.
-func ValidateConstraintsOutcomeLifespanExpiration(iface string, constraints *Constraints, outcome OutcomeType, lifespan LifespanType, expiration *time.Time, currTime time.Time) error {
-	if err := constraints.ValidateForInterface(iface); err != nil {
-		return err
-	}
-	if err := ValidateOutcome(outcome); err != nil {
-		return err
-	}
-	return ValidateLifespanExpiration(lifespan, expiration, currTime)
-}
-
-// ValidateConstraintsOutcomeLifespanDuration returns an error if the given
-// constraints, outcome, lifespan, or duration are invalid. Otherwise, converts
-// the given duration to an expiration timestamp and returns it and nil error.
-func ValidateConstraintsOutcomeLifespanDuration(iface string, constraints *Constraints, outcome OutcomeType, lifespan LifespanType, duration string) (*time.Time, error) {
-	if err := constraints.ValidateForInterface(iface); err != nil {
-		return nil, err
-	}
-	if err := ValidateOutcome(outcome); err != nil {
-		return nil, err
-	}
-	return ValidateLifespanParseDuration(lifespan, duration)
 }
