@@ -20,6 +20,7 @@
 package testutil_test
 
 import (
+	"os"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -31,15 +32,75 @@ var _ = Suite(&TimeoutTestSuite{})
 
 type TimeoutTestSuite struct{}
 
+func mockEnvVar(envVar, value string) (restore func()) {
+	oldVal, ok := os.LookupEnv(envVar)
+	if value == "" {
+		os.Unsetenv(envVar)
+	} else {
+		os.Setenv(envVar, value)
+	}
+
+	return func() {
+		if ok {
+			os.Setenv(envVar, oldVal)
+		} else {
+			os.Unsetenv(envVar)
+		}
+	}
+}
+
 func (ts *TimeoutTestSuite) TestHostScaledTimeout(c *C) {
-	restore := testutil.MockRuntimeARCH("some-fast-arch")
+	restore := mockEnvVar("GO_TEST_RACE", "")
 	defer restore()
-	default_timeout := testutil.HostScaledTimeout(2 * time.Second)
 
-	restore = testutil.MockRuntimeARCH("riscv64")
+	restore = testutil.MockRuntimeARCH("default")
 	defer restore()
-	riscv64_timeout := testutil.HostScaledTimeout(2 * time.Second)
 
-	c.Check(default_timeout, Equals, 2*time.Second)
-	c.Check(riscv64_timeout > default_timeout, Equals, true)
+	origDuration := 2 * time.Second
+
+	type testcase struct {
+		name     string
+		setup    func() (restore func())
+		expected time.Duration
+	}
+
+	testcases := []testcase{
+		{
+			name:     "default ",
+			setup:    func() func() { return testutil.MockRuntimeARCH("some-fast-arch") },
+			expected: origDuration,
+		},
+		{
+			name:     "riscv64 arch",
+			setup:    func() func() { return testutil.MockRuntimeARCH("riscv64") },
+			expected: 6 * origDuration,
+		},
+		{
+
+			name:     "go test -race",
+			setup:    func() func() { return mockEnvVar("GO_TEST_RACE", "1") },
+			expected: 5 * origDuration,
+		},
+		{
+
+			name: "go test -race and riscv64 arch",
+			setup: func() func() {
+				archRestore := testutil.MockRuntimeARCH("riscv64")
+				envVarRestore := mockEnvVar("GO_TEST_RACE", "1")
+				return func() {
+					archRestore()
+					envVarRestore()
+				}
+			},
+			// the arch scaling takes precedence
+			expected: 6 * origDuration,
+		},
+	}
+
+	for _, tc := range testcases {
+		restore := tc.setup()
+		out := testutil.HostScaledTimeout(origDuration)
+		c.Check(out, Equals, tc.expected, Commentf("test %q failed", tc.name))
+		restore()
+	}
 }
