@@ -188,6 +188,7 @@ purge() {
     rm -rf /var/lib/snapd/dbus-1/services/*
     rm -rf /var/lib/snapd/dbus-1/system-services/*
     rm -rf /var/lib/snapd/desktop/applications/*
+    rm -rf /var/lib/snapd/environment/*
     rm -rf /var/lib/snapd/seccomp/bpf/*
     rm -rf /var/lib/snapd/device/*
     rm -rf /var/lib/snapd/assertions/*
