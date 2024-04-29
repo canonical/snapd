@@ -28,6 +28,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
@@ -57,6 +58,13 @@ func (s *debugSuite) SetUpTest(c *C) {
 }
 
 func (s *debugSuite) testConfigureDebugSnapdLogGoodVals(c *C, valChanges bool) {
+	var loggerOpts *logger.LoggerOptions
+	r := configcore.MockLoggerSimpleSetup(func(opts *logger.LoggerOptions) error {
+		loggerOpts = opts
+		return nil
+	})
+	defer r()
+
 	for _, val := range []string{"true", "false", ""} {
 		prevVal := val
 		if valChanges {
@@ -77,8 +85,10 @@ func (s *debugSuite) testConfigureDebugSnapdLogGoodVals(c *C, valChanges bool) {
 		switch val {
 		case "true":
 			c.Check(s.snapdEnvPath, testutil.FileEquals, "SNAPD_DEBUG=1\n")
+			c.Check(loggerOpts, DeepEquals, &logger.LoggerOptions{ForceDebug: true})
 		case "false", "":
 			c.Check(s.snapdEnvPath, testutil.FileAbsent)
+			c.Check(loggerOpts, DeepEquals, &logger.LoggerOptions{ForceDebug: false})
 		}
 	}
 }
@@ -94,6 +104,12 @@ func (s *debugSuite) TestConfigureDebugSnapdLogGoodValsNoChange(c *C) {
 }
 
 func (s *debugSuite) TestConfigureDebugSnapdLogBadVals(c *C) {
+	r := configcore.MockLoggerSimpleSetup(func(opts *logger.LoggerOptions) error {
+		c.Error("loggerSimpleSetup should not have been called")
+		return nil
+	})
+	defer r()
+
 	for _, val := range []string{"1", "foo"} {
 		err := configcore.Run(coreDev, &mockConf{
 			state:   s.state,
