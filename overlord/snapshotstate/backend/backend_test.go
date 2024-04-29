@@ -444,7 +444,7 @@ func (s *snapshotSuite) TestIterSetIDoverride(c *check.C) {
 	if os.Geteuid() == 0 {
 		c.Skip("this test cannot run as root (runuser will fail)")
 	}
-	logger.SimpleSetup()
+	logger.SimpleSetup(nil)
 
 	epoch := snap.E("42*")
 	info := &snap.Info{SideInfo: snap.SideInfo{RealName: "hello-snap", Revision: snap.R(42), SnapID: "hello-id"}, Version: "v1.33", Epoch: epoch}
@@ -712,7 +712,7 @@ func (s *snapshotSuite) testHappyRoundtrip(c *check.C, marker string) {
 	if os.Geteuid() == 0 {
 		c.Skip("this test cannot run as root (runuser will fail)")
 	}
-	logger.SimpleSetup()
+	logger.SimpleSetup(nil)
 
 	epoch := snap.E("42*")
 	info := &snap.Info{SideInfo: snap.SideInfo{RealName: "hello-snap", Revision: snap.R(42), SnapID: "hello-id"}, Version: "v1.33", Epoch: epoch}
@@ -804,7 +804,7 @@ func (s *snapshotSuite) TestOpenSetIDoverride(c *check.C) {
 	if os.Geteuid() == 0 {
 		c.Skip("this test cannot run as root (runuser will fail)")
 	}
-	logger.SimpleSetup()
+	logger.SimpleSetup(nil)
 
 	epoch := snap.E("42*")
 	info := &snap.Info{SideInfo: snap.SideInfo{RealName: "hello-snap", Revision: snap.R(42), SnapID: "hello-id"}, Version: "v1.33", Epoch: epoch}
@@ -828,7 +828,7 @@ func (s *snapshotSuite) TestRestoreRoundtripDifferentRevision(c *check.C) {
 	if os.Geteuid() == 0 {
 		c.Skip("this test cannot run as root (runuser will fail)")
 	}
-	logger.SimpleSetup()
+	logger.SimpleSetup(nil)
 
 	epoch := snap.E("42*")
 	info := &snap.Info{SideInfo: snap.SideInfo{RealName: "hello-snap", Revision: snap.R(42), SnapID: "hello-id"}, Version: "v1.33", Epoch: epoch}
