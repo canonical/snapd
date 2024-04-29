@@ -1,5 +1,15 @@
 summary: Check that prepare-image can prepare UC20+ classic models
 
+details: |
+    Snapd contains intricate implementation details needed for the first-boot
+    process, also known as seeding. It is only natural that it also carries
+    logic for validating and preparing seed directories.
+
+    The test prepares the environment to run "snap prepare-image --classic",
+    where the seed for is prepared for systems other than Ubuntu Core. Once the
+    seed is created the test looks that certain key pieces, such as snaps and
+    assertions, are in place.
+
 # running this on one machine is enough
 systems: [ubuntu-22.04-64]
 

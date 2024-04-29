@@ -1,5 +1,19 @@
 summary: Checks handling of common snap directories of parallel installed snaps
 
+details: |
+    Snapd allows installation of the same snap more than once by combining the
+    same snap name with different values of an instance key.
+
+    Installation of a snap under an instance key is somewhat different than
+    installation of a snap with an empty instance key, because the a set of
+    directories without the key must also be created as anchor points for the
+    bind mount system used at runtime.
+
+    The test installs a specially crafted snap, which fails to install
+    correctly, with an instance key and observes that the directories that do
+    not contain the instance key, but are required for operation, are removed by
+    the undo handler of the appropriate task.
+
 prepare: |
     snap set system experimental.parallel-instances=true
 

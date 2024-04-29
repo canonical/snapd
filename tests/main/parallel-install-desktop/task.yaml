@@ -1,5 +1,22 @@
 summary: Checks for parallel installation of sideloaded snaps containing desktop applications
 
+details: |
+    Snapd allows installation of the same snap more than once by combining the
+    same snap name with different values of an instance key.
+
+    One aspect of the instance system is that applications with desktop files
+    need a mechanism to alter each desktop file so that each instance can be
+    individually found and started in the desktop shell.
+
+    The test installs a snap with a desktop file and looks at the contents of
+    the instance-aware desktop file written by snapd, to ensure that in each
+    case the launched application is correct, and that some attributes contain
+    the name of the instance.
+
+    The test also checks that removal of one instance does not affect the
+    desktop files of other instances, for example by careless use of a glob
+    pattern to remove generated files.
+
 restore: |
     snap set system experimental.parallel-instances=null
 
