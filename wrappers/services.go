@@ -1310,7 +1310,9 @@ func RestartServices(apps []*snap.AppInfo, explicitServices []string,
 // in one instance per user.
 type DisabledServices struct {
 	SystemServices []string
-	UserServices   map[int][]string
+	// UserServices is a map of services that should stay disabled on a per-user basis
+	// and is indexed by a users uid. To affect all users, use the index '-1'.
+	UserServices map[int][]string
 }
 
 func disabledServiceNames(sts []*internal.ServiceStatus) []string {
