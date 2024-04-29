@@ -1,5 +1,10 @@
 summary: "Check that refresh-modes sigkill works"
 
+details: |
+    Check that a snap service can be configured to be stopped with the SIGTERM
+    signal, optionally using it to terminate child processes as well (i.e.,
+    with the sigterm and sigterm-all settings respectively).
+
 # slow in autopkgtest (>1m)
 backends: [-autopkgtest]
 
