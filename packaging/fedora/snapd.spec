@@ -78,6 +78,8 @@
 %define gobuild_static(o:) go build -compiler gc -tags="rpm_crashtraceback ${BUILDTAGS:-}" -ldflags "-B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -linkmode external -extldflags '%__global_ldflags -static'" -a -v %{?**};
 %endif
 
+%define gobuild_static_nocgo(o:) CGO_ENABLED=0 go build -buildmode pie -compiler gc -tags="rpm_crashtraceback ${BUILDTAGS:-}" -ldflags "-B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n')" -a -v %{?**};
+
 # These macros are missing BUILDTAGS in RHEL 8/9, see RHBZ#1825138
 %if 0%{?rhel} >= 8 || 0%{?amzn2023}
 %define gobuild(o:) go build -buildmode pie -compiler gc -tags="rpm_crashtraceback ${BUILDTAGS:-}" -ldflags "-B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -linkmode external -extldflags '%__global_ldflags'" -a -v %{?**};
@@ -564,6 +566,17 @@ BUILDTAGS="${BUILDTAGS} nomanagers"
 # To ensure things work correctly with base snaps,
 # snap-exec, snap-update-ns, and snapctl need to be built statically
 (
+    # attempt to deal with Go toolchain differences between Fedora and RHEL, where
+    # Go is a FIPS compliant fork which pulls in openssl though dlopen()
+
+    # snap-exec does not need CGO and can be built with Go toolchain only
+    %gobuild_static_nocgo -o bin/snap-exec $GOFLAGS %{import_path}/cmd/snap-exec
+
+    # on RHEL9 the Go FIPS enabled goolchain appears to be broken when building with
+    # no_openssl, so disable CGO completely, but do not set no_openssl build tag
+    # as the no_openssl builds do not build at all
+    %gobuild_static_nocgo -o bin/snapctl $GOFLAGS %{import_path}/cmd/snapctl
+
 %if 0%{?rhel} >= 7
     # since RH Developer tools 2018.4 (and later releases),
     # the go-toolset module is built with FIPS compliance that
@@ -571,9 +584,8 @@ BUILDTAGS="${BUILDTAGS} nomanagers"
     # disable that functionality for statically built binaries
     BUILDTAGS="${BUILDTAGS} no_openssl"
 %endif
-    %gobuild_static -o bin/snap-exec $GOFLAGS %{import_path}/cmd/snap-exec
+    # snap-update-ns requires CGO to build the C bootstrap code
     %gobuild_static -o bin/snap-update-ns $GOFLAGS %{import_path}/cmd/snap-update-ns
-    %gobuild_static -o bin/snapctl $GOFLAGS %{import_path}/cmd/snapctl
 )
 
 %if 0%{?rhel}
@@ -788,7 +800,7 @@ sort -u -o devel.file-list devel.file-list
 
 %check
 for binary in snap-exec snap-update-ns snapctl; do
-    ldd bin/$binary 2>&1 | grep 'not a dynamic executable'
+    ldd bin/$binary 2>&1 | grep -E '(statically linked|not a dynamic executable)'
 done
 
 # snapd tests
