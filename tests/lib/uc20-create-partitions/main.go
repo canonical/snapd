@@ -62,7 +62,7 @@ func (c uc20Constraints) Classic() bool             { return false }
 func (c uc20Constraints) Grade() asserts.ModelGrade { return asserts.ModelSigned }
 
 func main() {
-	if err := logger.SimpleSetup(); err != nil {
+	if err := logger.SimpleSetup(nil); err != nil {
 		fmt.Fprintf(os.Stderr, i18n.G("WARNING: failed to activate logging: %v\n"), err)
 	}
 

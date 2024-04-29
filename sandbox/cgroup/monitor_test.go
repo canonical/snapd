@@ -46,7 +46,7 @@ type monitorSuite struct {
 var _ = Suite(&monitorSuite{})
 
 func (s *monitorSuite) SetUpTest(c *C) {
-	logger.SimpleSetup()
+	logger.SimpleSetup(nil)
 	s.BaseTest.SetUpTest(c)
 
 	dirs.SetRootDir(c.MkDir())
