@@ -39,7 +39,10 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-var CreateQuotaValues = createQuotaValues
+var (
+	CreateQuotaValues = createQuotaValues
+	ParseOptionalTime = parseOptionalTime
+)
 
 func APICommands() []*Command {
 	return api

@@ -1519,7 +1519,7 @@ func (s *snapshotSuite) TestIterWithMockedSnapshotFiles(c *check.C) {
 	c.Check(callbackCalled, check.Equals, 0)
 }
 
-func (s *snapshotSuite) TestCleanupAbandondedImports(c *check.C) {
+func (s *snapshotSuite) TestCleanupAbandonedImports(c *check.C) {
 	err := os.MkdirAll(dirs.SnapshotsDir, 0755)
 	c.Assert(err, check.IsNil)
 
@@ -1546,7 +1546,7 @@ func (s *snapshotSuite) TestCleanupAbandondedImports(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// run cleanup
-	cleaned, err := backend.CleanupAbandondedImports()
+	cleaned, err := backend.CleanupAbandonedImports()
 	c.Check(cleaned, check.Equals, 1)
 	c.Check(err, check.IsNil)
 
@@ -1558,7 +1558,7 @@ func (s *snapshotSuite) TestCleanupAbandondedImports(c *check.C) {
 	c.Check(snapshotFiles[2][1], testutil.FileAbsent)
 }
 
-func (s *snapshotSuite) TestCleanupAbandondedImportsFailMany(c *check.C) {
+func (s *snapshotSuite) TestCleanupAbandonedImportsFailMany(c *check.C) {
 	restore := backend.MockFilepathGlob(func(string) ([]string, error) {
 		return []string{
 			"/var/lib/snapd/snapshots/NaN_importing",
@@ -1568,7 +1568,7 @@ func (s *snapshotSuite) TestCleanupAbandondedImportsFailMany(c *check.C) {
 	})
 	defer restore()
 
-	_, err := backend.CleanupAbandondedImports()
+	_, err := backend.CleanupAbandonedImports()
 	c.Assert(err, check.ErrorMatches, `cannot cleanup imports:
 - cannot determine snapshot id from "/var/lib/snapd/snapshots/NaN_importing"
 - cannot cancel import for set id 11:

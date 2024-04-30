@@ -1,5 +1,9 @@
 summary: smoke test for the os.paths tool
 
+details: |
+    Check the os.paths tool properly retrieves the snap-mount-dir,
+    media-dir and libexec-dir in the current system.
+
 backends: [google]
 
 execute: |

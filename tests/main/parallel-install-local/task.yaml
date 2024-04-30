@@ -1,5 +1,9 @@
 summary: Checks parallel installation of snaps from local files
 
+details: |
+    Check it is allowed to install parallel instances through
+    parallel-instances config using local snaps.
+
 restore: |
     snap set system experimental.parallel-instances=null
 

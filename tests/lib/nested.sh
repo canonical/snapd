@@ -74,10 +74,10 @@ nested_wait_vm_ready() {
         fi
 
         # Check no infinite loops during boot
-        if nested_is_core_20_system || nested_is_core_22_system; then
+        if nested_is_core_ge 20; then
             test "$(grep -c -E "Command line:.*snapd_recovery_mode=install" "$serial_log")" -le 1
             test "$(grep -c -E "Command line:.*snapd_recovery_mode=run" "$serial_log")" -le 1
-        elif nested_is_core_16_system || nested_is_core_18_system; then
+        else
             test "$(grep -c -E "Command line:.*BOOT_IMAGE=\(loop\)/kernel.img" "$serial_log")" -le 1
         fi
 
@@ -146,8 +146,8 @@ nested_uc20_transition_to_system_mode() {
     local recovery_system="$1"
     local mode="$2"
 
-    if ! nested_is_core_20_system && ! nested_is_core_22_system; then
-        echo "Transition can be done just on uc20 and uc22 systems, exiting..."
+    if nested_is_core_le 18; then
+        echo "Transition can be done just on uc20+ systems, exiting..."
         exit 1
     fi
 
@@ -166,17 +166,23 @@ nested_uc20_transition_to_system_mode() {
 }
 
 nested_prepare_ssh() {
-    remote.exec "sudo adduser --uid 12345 --extrausers --quiet --disabled-password --gecos '' test"
-    remote.exec "echo test:ubuntu | sudo chpasswd"
+    if nested_is_core_ge 24; then
+        remote.exec "sudo useradd --uid 12345 --extrausers test"
+        remote.exec "sudo useradd --extrausers external"
+    else 
+        remote.exec "sudo adduser --uid 12345 --extrausers --quiet --disabled-password --gecos '' test"
+        remote.exec "sudo adduser --extrausers --quiet --disabled-password --gecos '' external"
+    fi
+    
+    remote.exec "echo test:ubuntu123 | sudo chpasswd"
     remote.exec "echo 'test ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/create-user-test"
     # Check we can connect with the new test user and make sudo
-    remote.exec --user test --pass ubuntu "sudo true"
+    remote.exec --user test --pass ubuntu123 "sudo true"
 
-    remote.exec "sudo adduser --extrausers --quiet --disabled-password --gecos '' external"
-    remote.exec "echo external:ubuntu | sudo chpasswd"
+    remote.exec "echo external:ubuntu123 | sudo chpasswd"
     remote.exec "echo 'external ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/create-user-external"
     # Check we can connect with the new external user and make sudo
-    remote.exec --user external --pass ubuntu "sudo true"
+    remote.exec --user external --pass ubuntu123 "sudo true"
 }
 
 
@@ -323,6 +329,30 @@ nested_is_classic_system() {
     test "$NESTED_TYPE" = "classic"
 }
 
+nested_is_core_ge() {
+    local VERSION=$1
+    os.query is-ubuntu-ge "${VERSION}.04"
+}
+
+nested_is_core_gt() {
+    local VERSION=$1
+    os.query is-ubuntu-gt "${VERSION}.04"
+}
+
+nested_is_core_le() {
+    local VERSION=$1
+    os.query is-ubuntu-le "${VERSION}.04"
+}
+
+nested_is_core_lt() {
+    local VERSION=$1
+    os.query is-ubuntu-lt "${VERSION}.04"
+}
+
+nested_is_core_24_system() {
+    os.query is-noble
+}
+
 nested_is_core_22_system() {
     os.query is-jammy
 }
@@ -352,7 +382,7 @@ nested_refresh_to_new_core() {
             remote.exec "snap info core" | grep -E "^tracking: +latest/${NEW_CHANNEL}"
         fi
 
-        if nested_is_core_18_system || nested_is_core_20_system || nested_is_core_22_system; then
+        if nested_is_core_ge 18; then
             remote.exec "sudo snap refresh snapd --${NEW_CHANNEL}"
             remote.exec "snap info snapd" | grep -E "^tracking: +latest/${NEW_CHANNEL}"
         else
@@ -370,8 +400,10 @@ nested_refresh_to_new_core() {
 
 nested_get_snakeoil_key() {
     local KEYNAME="PkKek-1-snakeoil"
-    wget -q https://raw.githubusercontent.com/snapcore/pc-amd64-gadget/20/snakeoil/$KEYNAME.key
-    wget -q https://raw.githubusercontent.com/snapcore/pc-amd64-gadget/20/snakeoil/$KEYNAME.pem
+    local VERSION
+    VERSION="$(nested_get_version)"
+    wget -q https://raw.githubusercontent.com/snapcore/pc-amd64-gadget/"$VERSION"/snakeoil/"$KEYNAME".key
+    wget -q https://raw.githubusercontent.com/snapcore/pc-amd64-gadget/"$VERSION"/snakeoil/"$KEYNAME".pem
     echo "$KEYNAME"
 }
 
@@ -502,6 +534,8 @@ nested_get_version() {
         echo "20"
     elif nested_is_core_22_system; then
         echo "22"
+    elif nested_is_core_24_system; then
+        echo "24"
     fi
 }
 
@@ -528,6 +562,9 @@ nested_get_model() {
             ;;
         ubuntu-22.04-arm-64)
             echo "$TESTSLIB/assertions/nested-22-arm64.model"
+            ;;
+         ubuntu-24.04-64)
+            echo "$TESTSLIB/assertions/nested-24-amd64.model"
             ;;
         *)
             echo "unsupported system"
@@ -589,11 +626,11 @@ nested_prepare_kernel() {
         version="$(nested_get_version)"
 
         if [ ! -f "$NESTED_ASSETS_DIR/$output_name" ]; then
-            if nested_is_core_16_system || nested_is_core_18_system; then
+            if nested_is_core_le 18; then
                 kernel_snap=pc-kernel-new.snap
                 repack_kernel_snap "$kernel_snap"
 
-            elif nested_is_core_20_system || nested_is_core_22_system; then
+            elif nested_is_core_ge 20; then
                 snap download --basename=pc-kernel --channel="$version/${NESTED_KERNEL_CHANNEL}" pc-kernel
 
                 # set the unix bump time if the NESTED_* var is set,
@@ -604,7 +641,11 @@ nested_prepare_kernel() {
                     epochBumpTime="--epoch-bump-time=$epochBumpTime"
                 fi
 
-                uc20_build_initramfs_kernel_snap "pc-kernel.snap" "$NESTED_ASSETS_DIR" "$epochBumpTime"
+                if nested_is_core_24_system; then
+                    uc24_build_initramfs_kernel_snap "pc-kernel.snap" "$NESTED_ASSETS_DIR" "$epochBumpTime"
+                else
+                    uc20_build_initramfs_kernel_snap "pc-kernel.snap" "$NESTED_ASSETS_DIR" "$epochBumpTime"
+                fi
                 rm -f "pc-kernel.snap" "pc-kernel.assert"
 
                 # Prepare the pc kernel snap
@@ -624,7 +665,7 @@ nested_prepare_kernel() {
 
 nested_prepare_gadget() {
     if [ "$NESTED_REPACK_GADGET_SNAP" = "true" ]; then
-        if nested_is_core_20_system || nested_is_core_22_system; then
+        if nested_is_core_ge 20; then
             # Prepare the pc gadget snap (unless provided by extra-snaps)
             local snap_id version gadget_snap
             version="$(nested_get_version)"
@@ -720,6 +761,9 @@ nested_prepare_base() {
         elif nested_is_core_22_system; then
             snap_name="core22"
             snap_id="amcUKQILKXHHTlmSa7NMdnXSx02dNeeT"
+        elif nested_is_core_24_system; then
+            snap_name="core24"
+            snap_id="dwTAh7MZZ01zyriOZErqd1JynQLiOGvM"
         fi
         output_name="${snap_name}.snap"
 
@@ -766,7 +810,7 @@ nested_configure_default_user() {
     IMAGE_NAME="$(nested_get_image_name core)"
     # Configure the user for the vm
     if [ "$NESTED_USE_CLOUD_INIT" = "true" ]; then
-        if nested_is_core_20_system || nested_is_core_22_system; then
+        if nested_is_core_ge 20; then
             nested_configure_cloud_init_on_core20_vm "$NESTED_IMAGES_DIR/$IMAGE_NAME"
         else
             nested_configure_cloud_init_on_core_vm "$NESTED_IMAGES_DIR/$IMAGE_NAME"
@@ -948,7 +992,7 @@ nested_create_cloud_init_uc20_config() {
     local CONFIG_PATH=$1
     cat << 'EOF' > "$CONFIG_PATH"
 #cloud-config
-datasource_list: [NoCloud]
+datasource_list: [ None ]
 users:
   - name: user1
     sudo: "ALL=(ALL) NOPASSWD:ALL"
@@ -1145,7 +1189,7 @@ nested_start_core_vm_unit() {
         # storage to
         PARAM_ASSERTIONS="-drive if=none,id=stick,format=raw,file=$NESTED_ASSETS_DIR/assertions.disk,cache=none,format=raw -device nec-usb-xhci,id=xhci -device usb-storage,bus=xhci.0,removable=true,drive=stick"
     fi
-    if nested_is_core_20_system || nested_is_core_22_system; then
+    if nested_is_core_ge 20; then
         # use a bundle EFI bios by default
         if os.query is-arm; then
             PARAM_BIOS="-bios /usr/share/AAVMF/AAVMF_CODE.fd"
@@ -1156,7 +1200,7 @@ nested_start_core_vm_unit() {
         OVMF_CODE="secboot"
         OVMF_VARS="ms"
 
-        if nested_is_core_22_system; then
+        if nested_is_core_ge 22; then
             wget -q https://storage.googleapis.com/snapd-spread-tests/dependencies/OVMF_CODE.secboot.fd
             mv OVMF_CODE.secboot.fd /usr/share/OVMF/OVMF_CODE.secboot.fd
             wget -q https://storage.googleapis.com/snapd-spread-tests/dependencies/OVMF_VARS.snakeoil.fd
@@ -1273,7 +1317,11 @@ nested_start_core_vm_unit() {
         nested_prepare_tools
         # Wait for cloud init to be done if the system is using cloud-init
         if [ "$NESTED_USE_CLOUD_INIT" = true ]; then
-            remote.exec "retry --wait 1 -n 5 sh -c 'cloud-init status --wait'"
+            if ! remote.exec "retry --wait 1 -n 5 sh -c 'cloud-init status --wait'"; then
+                # In uc24 the command `cloud-init status --wait` fails even when
+                # the status is done.
+                remote.exec "cloud-init status" | MATCH "status: done"
+            fi
         fi
     fi
 }

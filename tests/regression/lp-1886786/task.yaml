@@ -1,5 +1,11 @@
 summary: regression test for LP:#1886786
 
+details: |
+  Snapd has special logic that is only active during unit-testing. This is
+  detected by looking for the .test suffix of the running executable. At one
+  point in time this logic was buggy, causing any snap application with the word
+  "test" in it, to misbehave and crash.
+
 prepare: |
   "$TESTSTOOLS"/snaps-state install-local test-snapd-app-with-test-name
 

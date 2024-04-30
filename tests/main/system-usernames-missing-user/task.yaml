@@ -1,5 +1,10 @@
 summary: ensure snap fails to install if one of user or group doesn't exist
 
+details: |
+    When a snap package declares that it needs the snap_daemon user to exist,
+    and the host system has only the group but not the user itself, then such
+    snap cannot be installed.
+
 # List of expected snap install failures due to libseccomp/golang-seccomp being
 # too old. Since the illegal name check happens after verifying system support,
 # we can ignore these. Ignore ubuntu-core since groupdel doesn't support

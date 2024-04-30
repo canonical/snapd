@@ -2,7 +2,7 @@ summary: End-to-end test for install via muinstaller
 
 details: End-to-end test for install via muinstaller
 
-systems: [ubuntu-22.04-64]
+systems: [ubuntu-22.04-64, ubuntu-24.04-64]
 
 environment:
   # No partial gadget by default

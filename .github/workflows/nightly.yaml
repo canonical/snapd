@@ -76,16 +76,22 @@ jobs:
         COVERAGE_OUT=.coverage/coverage.txt ./run-checks --unit
         gocover-cobertura < .coverage/coverage.txt > .coverage/coverage.xml
 
+    - name: Install TICS dependencies
+      run: |
+          sudo snap refresh --channel=latest/stable go
+          go install honnef.co/go/tools/cmd/staticcheck@latest
+
     - name: TICS scan
       run: |
         set -x
         export TICSAUTHTOKEN="${{ secrets.TICSAUTHTOKEN }}"
 
-        # Install the TICS
+        # Install and run TICS
         curl --silent --show-error "https://canonical.tiobe.com/tiobeweb/TICS/api/public/v1/fapi/installtics/Script?cfg=default&platform=linux&url=https://canonical.tiobe.com/tiobeweb/TICS/" > install_tics.sh
         . ./install_tics.sh
 
         TICSQServer -project snapd -tmpdir /tmp/tics -branchdir "${{ github.workspace }}/src/github.com/snapcore/snapd"
+        tar -cvzf tics-logs.tar.gz /tmp/tics
 
     - name: Uploading TICS logs
       uses: actions/upload-artifact@v4

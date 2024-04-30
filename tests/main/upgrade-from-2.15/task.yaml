@@ -1,5 +1,11 @@
 summary: Ensure upgrades from snapd 2.15 work
 
+details: |
+    Check that upgrading core from a very old version (2.15) to the
+    current one works. Verify that snap confine profiles are fine
+    after upgrade and ensure that the old/obsolete snap-confine
+    apparmor profile was removed
+
 systems: [ubuntu-16.04-64]
 
 prepare: |

@@ -1,6 +1,10 @@
 summary: Verify that snapd correctly removes expired users created with assertions.
 
-systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+details: |
+  Check snapd removes expired users created with assertions, and also is able to
+  reimports the user with a new expiration date.
+
+systems: [ubuntu-2*]
 
 environment:
   # use snapd from the spread run so that we have testkeys trusted in the

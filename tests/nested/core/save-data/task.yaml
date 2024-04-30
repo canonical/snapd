@@ -5,7 +5,7 @@ details: |
     ubuntu-save partition. It then verifies that we can write data to that folder
     and that the folder is removed again once the snap is removed.
 
-systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+systems: [ubuntu-2*]
 
 debug: |
     remote.exec "lsblk" || true

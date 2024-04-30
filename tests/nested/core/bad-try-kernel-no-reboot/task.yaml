@@ -3,7 +3,7 @@ summary: Make sure that a bad try-kernel.efi does not provoke reboot loops
 details: |
   Make sure that a bad try-kernel.efi does not provoke reboot loops
 
-systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+systems: [ubuntu-2*]
 
 execute: |
   echo "Wait for the system to be seeded first"

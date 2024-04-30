@@ -148,6 +148,9 @@ static void sc_must_read_filter_from_file(FILE *file, uint32_t len_bytes,
 		die("%s filter may only be empty in unrestricted profiles",
 		    what);
 	}
+	if (len_bytes > MAX_BPF_SIZE) {
+		die("%s filter size too big %u", what, len_bytes);
+	}
 	prog->len = len_bytes / sizeof(struct sock_filter);
 	prog->filter = malloc(len_bytes);
 	if (prog->filter == NULL) {

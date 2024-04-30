@@ -4,7 +4,7 @@ details: |
   This test remodels on a hybrid system to install a new kernel snap and new
   application snaps.
 
-systems: [ubuntu-22.04-64]
+systems: [ubuntu-22.04-64, ubuntu-24.04-64]
 
 environment:
   NESTED_BUILD_SNAPD_FROM_CURRENT: true

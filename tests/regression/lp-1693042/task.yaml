@@ -1,7 +1,9 @@
 summary: Regression check for https://bugs.launchpad.net/snapd/+bug/1693042
 
 details: |
-  When attempting to refresh to a bogus channel, detect it and fail.
+  Snapd allows refreshing a snap package a different channel. Channel names are
+  specific, and not all names represent valid channels. Snapd detects attempts
+  to use unsupported channel names and fails with "not available" error message.
 
 execute: |
   # precondition check

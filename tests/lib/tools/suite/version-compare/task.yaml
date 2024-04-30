@@ -1,5 +1,9 @@
 summary: integration tests for "$TESTSTOOLS"/version-compare
 
+details: |
+    Check the version-compare tools allows comparing applications
+    and snap versions.
+
 execute: |
     # ==
     "$TESTSTOOLS"/version-compare --strict 1 -eq 1

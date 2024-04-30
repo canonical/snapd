@@ -1,5 +1,11 @@
 summary: Ensure that the system-packages-doc interface works.
 
+details: |
+    Check the system-packages-doc interface allows accessing the desired
+    files and that it works well after discarding the namespace to verify
+    that snap-update-ns rules are correct. Check the interface doesn't allow
+    accessing the files when it is disconnected.
+
 systems: [-ubuntu-core-*]
 
 prepare: |
