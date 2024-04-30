@@ -10,7 +10,7 @@ details: |
 
     This test verifies that if snapd is not running, the `snap auto-import` command
     spools assertions into /run/snapd/auto-import, and then when snapd is started
-    `snap auto-import` command reads the assertinos from the auto-import dir.
+    `snap auto-import` command reads the assertions from the auto-import dir.
 
 systems: [ubuntu-core-*-64]
 
