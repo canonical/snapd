@@ -1,5 +1,9 @@
 summary: Check that the refresh hold works
 
+details: |
+    Check that we can configure the refresh.hold option to hold refreshes and
+    the hold is reflected in `snap refresh --time`.
+
 # date had a bug where extended format would not be used for --iso-8601, this
 # got fixed in 2015 (released in 8.25), see
 # https://git.savannah.gnu.org/cgit/coreutils.git/commit/src/date.c?id=17bbf6ce44eb543a95695fa9d2cbd70fb52c6f42 for details
