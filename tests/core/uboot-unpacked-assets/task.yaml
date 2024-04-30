@@ -1,5 +1,13 @@
 summary: Ensure we have unpacked kernel.img/initrd.img on uboot systems
 
+details: |
+    In Ubuntu Core systems the kernel is unpacked in different locations depending
+    on the version.
+
+    This test verifies that in Ubuntu Core 20+ the the kernel snap is extracted
+    onto ubuntu-seed and in previous systems the kernel snap is extracted onto
+    /boot/uboot.
+
 systems: [ubuntu-core-*-arm-*]
 
 environment:

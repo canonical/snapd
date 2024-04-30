@@ -1,5 +1,13 @@
 summary: Ensure snap userd returns an error for xdg-open requests on Core
 
+details: |
+    Snapd contains a system where XDG utility programs, that applications may
+    commonly call, are replaced with programs that communicate the request back
+    to snapd user session daemon, to present a question to the user.
+
+    The test verifies that the 'xdg-open' program is not supported in Ubuntu Core
+    systems
+
 prepare: |
     if ! tests.session has-session-systemd-and-dbus; then
         exit 0
