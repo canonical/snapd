@@ -691,7 +691,7 @@ func (g *grub) BootChains(runBl Bootloader, kernelPath string) ([][]BootFile, er
 	return chains, nil
 }
 
-// ConstructShimEfiLoadOption returns a serialized load option for the
+// ParametersForEfiLoadOption returns a serialized load option for the
 // shim binary. It should be called on a UefiBootloader.
 // updatedAssets is a list of assets that were installed/updated. This
 // only expects trusted assets.
