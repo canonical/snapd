@@ -1,5 +1,18 @@
 summary: "Check that snap services with 'install-mode: disable'"
 
+details: |
+    Snap package with service may choose to not enable them automatically, thus
+    not start them automatically upon installation and after reboot, by using
+    specific "install-mode: disable" in snap.yaml. Snap package may also choose
+    to govern the install mode dynamically, with hooks that use "snapctl".
+
+    The test installs a snap with such services and observes that the setting is
+    respected. The test then checks that refreshing such snap does not break the
+    property governed by "install-mode: disable". Lastly services like that may
+    be enabled and retain their enabled state across refreshes. The test then
+    follows up with another refresh to a different version to see how configured
+    state is retained across refreshes.
+
 restore: |
     snap remove svc
 

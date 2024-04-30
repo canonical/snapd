@@ -1,5 +1,10 @@
 summary: Check that 'current' symlink is created with 'snap run'
 
+details: |
+  Running a snap creates the symbolic link that points to the per-revision data
+  of a given user. The test manipulates the symbolic link to show that running a
+  snap command creates or re-creates the symbolic link as necessary.
+
 systems: [-ubuntu-core-*]
 
 prepare: |
