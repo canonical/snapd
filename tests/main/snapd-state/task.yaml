@@ -4,7 +4,7 @@ details: |
     The snapd-state tool is used in tests to manage the snapd state by editing
     the state.json file. 
 
-    This test verifies the different funcionalities provided by such tool.
+    This test verifies the different functionalities provided by such tool.
 
 backends: [google, qemu]
 
