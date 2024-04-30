@@ -3277,17 +3277,25 @@ func (s *servicesTestSuite) TestStopStartServicesWithSocketsDisableAndEnable(c *
 	c.Check(s.sysdLog, DeepEquals, [][]string{
 		{"daemon-reload"},
 		{"--user", "daemon-reload"},
-		{"stop", "snap.hello-snap.svc1.sock1.socket", "snap.hello-snap.svc1.sock2.socket", "snap.hello-snap.svc1.service"},
-		{"show", "--property=ActiveState", "snap.hello-snap.svc1.sock1.socket"},
-		{"show", "--property=ActiveState", "snap.hello-snap.svc1.sock2.socket"},
-		{"show", "--property=ActiveState", "snap.hello-snap.svc1.service"},
+		// Expect that we are stopping the user services
 		{"--user", "stop", "snap.hello-snap.svc2.sock1.socket"},
 		{"--user", "show", "--property=ActiveState", "snap.hello-snap.svc2.sock1.socket"},
 		{"--user", "stop", "snap.hello-snap.svc2.sock2.socket"},
 		{"--user", "show", "--property=ActiveState", "snap.hello-snap.svc2.sock2.socket"},
 		{"--user", "stop", "snap.hello-snap.svc2.service"},
 		{"--user", "show", "--property=ActiveState", "snap.hello-snap.svc2.service"},
-		{"--no-reload", "disable", "snap.hello-snap.svc1.sock1.socket", "snap.hello-snap.svc1.sock2.socket", "snap.hello-snap.svc1.service", "snap.hello-snap.svc2.sock1.socket", "snap.hello-snap.svc2.sock2.socket", "snap.hello-snap.svc2.service"},
+		// Expect that we are disabling the user services afterwards
+		{"--user", "--no-reload", "disable", "snap.hello-snap.svc2.sock1.socket", "snap.hello-snap.svc2.sock2.socket", "snap.hello-snap.svc2.service"},
+		{"--user", "daemon-reload"},
+		// Expect that we then stop the system services
+		{"stop", "snap.hello-snap.svc1.sock1.socket"},
+		{"show", "--property=ActiveState", "snap.hello-snap.svc1.sock1.socket"},
+		{"stop", "snap.hello-snap.svc1.sock2.socket"},
+		{"show", "--property=ActiveState", "snap.hello-snap.svc1.sock2.socket"},
+		{"stop", "snap.hello-snap.svc1.service"},
+		{"show", "--property=ActiveState", "snap.hello-snap.svc1.service"},
+		// And then disable them :-)
+		{"--no-reload", "disable", "snap.hello-snap.svc1.sock1.socket", "snap.hello-snap.svc1.sock2.socket", "snap.hello-snap.svc1.service"},
 		{"daemon-reload"},
 	})
 
