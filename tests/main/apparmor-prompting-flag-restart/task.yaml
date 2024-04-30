@@ -36,7 +36,7 @@ execute: |
     # Check that snapd has restarted and now has a new PID, then set SNAPD_PID to that new PID.
     check_snapd_restarted() {
         #shellcheck disable=SC2016
-        retry --wait 1 -n 100 --env SNAPD_PID="$SNAPD_PID" sh -x -c 'systemctl is-active snapd.service snapd.socket && test ! "$(systemctl show --property MainPID snapd.service | cut -f2 -d=)" = "$SNAPD_PID"'
+        retry --wait 1 -n 100 --env SNAPD_PID="$SNAPD_PID" sh -x -c 'NEW_PID="$(systemctl show --property MainPID snapd.service | cut -f2 -d=)"; test ! "$NEW_PID" = "0" && test ! "$NEW_PID" = "$SNAPD_PID" && systemctl is-active snapd.service snapd.socket'
         # Set SNAPD_PID so future checks use most recent PID
         SNAPD_PID="$(systemctl show --property MainPID snapd.service | cut -f2 -d=)"
     }
@@ -102,16 +102,16 @@ execute: |
 
         echo "Set same value again, which should not trigger a restart"
         snap set system experimental.apparmor-prompting="$value"
-        # Wait a second to let snapd handle the change, in case it erroneously causes a restart
-        sleep 1
+        # snap changes blocks until the change is done, or errors if snapd is restarting
+        snap changes
         systemctl is-active snapd.service snapd.socket
         echo "Check that snapd has not restarted"
         test "$SNAPD_PID" = "$(systemctl show --property MainPID snapd.service | cut -f2 -d=)"
 
         echo "Set same value again, which should not trigger a restart"
         snap set system experimental.apparmor-prompting="$value"
-        # Wait a second to let snapd handle the change, in case it erroneously causes a restart
-        sleep 1
+        # snap changes blocks until the change is done, or errors if snapd is restarting
+        snap changes
         systemctl is-active snapd.service snapd.socket
         echo "Check that snapd has not restarted"
         test "$SNAPD_PID" = "$(systemctl show --property MainPID snapd.service | cut -f2 -d=)"
