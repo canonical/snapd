@@ -2339,3 +2339,8 @@ func (s *infoSuite) TestComponentMountDir(c *C) {
 	dir := snap.ComponentMountDir("comp", snap.R(1), "snap")
 	c.Check(dir, Equals, filepath.Join(dirs.SnapMountDir, "snap", "components", "mnt", "comp", "1"))
 }
+
+func (s *infoSuite) TestComponentHookSecurityTag(c *C) {
+	c.Check(snap.ComponentHookSecurityTag("snap", "comp", "install"), Equals, "snap.snap+comp.hook.install")
+	c.Check(snap.ComponentHookSecurityTag("snap_name", "comp", "install"), Equals, "snap.snap_name+comp.hook.install")
+}

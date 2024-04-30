@@ -218,6 +218,11 @@ func AppSecurityTag(snapName, appName string) string {
 	return fmt.Sprintf("%s.%s", SecurityTag(snapName), appName)
 }
 
+// ComponentSecurityTag returns a snap component's hook-specific security tag.
+func ComponentHookSecurityTag(snapInstance, componentName, hookName string) string {
+	return ScopedSecurityTag(fmt.Sprintf("%s+%s", snapInstance, componentName), "hook", hookName)
+}
+
 // HookSecurityTag returns the hook-specific security tag.
 func HookSecurityTag(snapName, hookName string) string {
 	return ScopedSecurityTag(snapName, "hook", hookName)
