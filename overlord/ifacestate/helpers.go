@@ -1394,14 +1394,14 @@ func hasActiveConnection(st *state.State, iface string) (bool, error) {
 }
 
 func appSetForTask(t *state.Task, info *snap.Info) (*interfaces.SnapAppSet, error) {
-	compsups, err := componentSetupsForTask(t)
+	compsups, err := snapstate.ComponentSetupsForTask(t)
 	if err != nil {
 		return nil, err
 	}
 
 	compInfos := make([]*snap.ComponentInfo, 0, len(compsups))
 	for _, compsup := range compsups {
-		compInfo, err := componentInfoFromComponentSetup(compsup, info)
+		compInfo, err := snapstate.ComponentInfoFromComponentSetup(compsup, info)
 		if err != nil {
 			return nil, err
 		}

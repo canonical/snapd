@@ -42,7 +42,6 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/quota"
-	"github.com/snapcore/snapd/snap/snapdir"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -201,41 +200,6 @@ func setPendingProfilesSideInfo(st *state.State, instanceName string, si *snap.S
 	}
 	snapstate.Set(st, instanceName, &snapst)
 	return nil
-}
-
-func componentSetupsForTask(t *state.Task) ([]*snapstate.ComponentSetup, error) {
-	switch {
-	case t.Has("component-setup") || t.Has("component-setup-task"):
-		// task comes from a component installation
-		compsup, _, err := snapstate.TaskComponentSetup(t)
-		if err != nil {
-			return nil, err
-		}
-		return []*snapstate.ComponentSetup{compsup}, nil
-	case t.Has("component-setups") || t.Has("component-setups-task"):
-		// TODO: test this branch once we know more about refreshing snaps with
-		// components
-		// task comes from a snap refresh
-		compsups, _, err := snapstate.TaskComponentSetups(t)
-		if err != nil {
-			return nil, err
-		}
-		return compsups, nil
-	default:
-		// task comes from a snap installation
-		return nil, nil
-	}
-}
-
-func componentInfoFromComponentSetup(compsup *snapstate.ComponentSetup, info *snap.Info) (*snap.ComponentInfo, error) {
-	cpi := snap.MinimalComponentContainerPlaceInfo(
-		compsup.ComponentName(),
-		compsup.CompSideInfo.Revision,
-		info.InstanceName(),
-	)
-
-	container := snapdir.New(cpi.MountDir())
-	return snap.ReadComponentInfoFromContainer(container, info)
 }
 
 func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, snapInfo *snap.Info, opts interfaces.ConfinementOptions, tm timings.Measurer) error {
