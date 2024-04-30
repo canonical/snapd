@@ -4,7 +4,7 @@ details: |
     The confinement command will print the confinement mode (strict,
     partial or none) the system operates in. 
 
-    This test verifies the `snap debug confiment` comand it strict in
+    This test verifies the `snap debug confinement` command it strict in
     ubuntu classic and core systems and it is partial in the rest.
 
 execute: |
