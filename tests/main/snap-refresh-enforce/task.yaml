@@ -1,6 +1,12 @@
 summary: |
   Ensure `snap validate --enforce --refresh` resolves validation set enforcement errors automatically.
 
+details: |
+  Check that snapd enforces validation sets, preventing snaps from being
+  installed or removed if it would violate a constraint. Check that the
+  `snap validate --refresh --enforce` command automatically resolves unmet
+  validation set constraints except when it would require removing snaps.
+
 environment:
   ACCOUNT_ID: NI7Jstuu8gffcoXr02i1kYt898p6Co0A
 

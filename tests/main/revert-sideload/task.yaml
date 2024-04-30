@@ -1,5 +1,9 @@
 summary: Checks for snap sideload reverts
 
+details: |
+    Check that `snap revert` can be used to revert a sideloaded snap to a
+    previous revision.
+
 prepare: |
     snap pack "$TESTSLIB"/snaps/basic
 
