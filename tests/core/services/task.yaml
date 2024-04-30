@@ -1,8 +1,8 @@
 summary: Ensure all services on Core are active
 
 details: |
-    The test verifies that the snapd.autoimport and snapd.sshd-keygen,
-    snapd and snapd.snap-repair services are active in Ubuntu Core systems.
+    The test verifies that the snapd.autoimport, snapd.sshd-keygen, snapd,
+    and snapd.snap-repair services are active in Ubuntu Core systems.
 
 execute: |
     echo "Ensure one-shot services are working"
