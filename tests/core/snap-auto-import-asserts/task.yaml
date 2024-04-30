@@ -8,8 +8,8 @@ details: |
     Assertions to be imported must be made available in the auto-import.assert file
     in the root of the filesystem.
 
-    Having created a ramdisk with the account-key assertion. This test verifies that
-    an account key can be imported by the `snap auto-import` commamnd from the
+    Having created a ramdisk with the account-key assertion, this test verifies that
+    an account key can be imported by the `snap auto-import` command from the
     mounted ramdisk. 
 
 systems: [ubuntu-core-*-64]
