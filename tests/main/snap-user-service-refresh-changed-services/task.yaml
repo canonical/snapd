@@ -1,0 +1,89 @@
+summary: Snap services are correctly tracked during snap refreshed
+
+details: |
+    Verify that when the services snap is refreshed, that we correctly 
+    keep track of services during the refresh
+
+systems:
+    # Ubuntu 14.04's systemd doesn't have user@.service
+    - -ubuntu-14.04-*
+    # Amazon Linux 2 gives error "Unit user@12345.service not loaded."
+    - -amazon-linux-2-*
+    # Centos 7 gives error "Unit user@12345.service not loaded."
+    - -centos-7-*
+
+kill-timeout: 10m
+
+prepare: |
+    # Ensure that snapd.session-agent.socket is enabled.  This may not
+    # be the case on distributions where presets have been used to
+    # disable it.
+    if [ ! -L /usr/lib/systemd/user/sockets.target.wants/snapd.session-agent.socket ] &&
+            ! systemctl --user --global is-enabled snapd.session-agent.socket; then
+        systemctl --user --global enable snapd.session-agent.socket
+        touch agent-was-enabled
+    fi
+    
+    snap set system experimental.user-daemons=true
+    tests.session kill-leaked
+    tests.session -u test prepare
+    if ! useradd -m -d /home/test2 test2; then
+        # Ubuntu Core requires using extrausers db
+        useradd --extrausers -m -d /home/test2 test2
+    fi
+
+restore: |
+    tests.session -u test2 restore
+    if ! userdel -rf test2; then
+        userdel --extrausers -rf test2
+    fi
+
+    tests.session -u test restore
+    snap unset system experimental.user-daemons
+
+    if [ -f agent-was-enabled ]; then
+        systemctl --user --global disable snapd.session-agent.socket
+    fi
+
+debug: |
+    tests.session dump
+    tests.session -u test exec systemctl --user status snapd.session-agent.service || true
+    tests.session -u test exec journalctl --user || true
+
+execute: |
+    function systemctl_user() {
+      tests.session -u test exec systemctl --user "$@"
+    }
+
+    function systemctl_user2() {
+      tests.session -u test2 exec systemctl --user "$@"
+    }
+
+    echo "Install the a snap with user services while a user session is active"
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-user-refresh-service
+
+    echo "(sys) we can see the services running"
+    systemctl is-active snap.test-snapd-user-refresh-service.foo
+    systemctl is-active snap.test-snapd-user-refresh-service.boo
+
+    echo "(test) we can see the services running"
+    systemctl_user is-active snap.test-snapd-user-refresh-service.bar
+    systemctl_user is-active snap.test-snapd-user-refresh-service.baz
+    
+    echo "(test2) we can see the services running"
+    systemctl_user2 is-active snap.test-snapd-user-refresh-service.bar
+    systemctl_user2 is-active snap.test-snapd-user-refresh-service.baz
+
+    echo "(sys) disable both of them"
+    snap stop --disable test-snapd-user-refresh-service.foo
+    snap stop --disable test-snapd-user-refresh-service.boo
+
+    # TODO: do a disable track test with user services once we correctly
+    # handle per-user disable in StopServices
+
+    echo "When it is re-installed"
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-user-refresh-service-v2
+
+    echo "(sys) we can see foo still being disabled"
+    systemctl status snap.test-snapd-user-refresh-service.foo | MATCH "inactive"
+    systemctl status snap.test-snapd-user-refresh-service.boo-second | MATCH "active"

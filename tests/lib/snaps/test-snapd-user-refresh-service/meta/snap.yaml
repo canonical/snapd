@@ -1,0 +1,17 @@
+name: test-snapd-user-refresh-service
+version: 1.0
+apps:
+    foo:
+        command: bin/start
+        daemon: simple
+    boo:
+        command: bin/start
+        daemon: simple
+    bar:
+        command: bin/start
+        daemon: simple
+        daemon-scope: user
+    baz:
+        command: bin/start
+        daemon: simple
+        daemon-scope: user
