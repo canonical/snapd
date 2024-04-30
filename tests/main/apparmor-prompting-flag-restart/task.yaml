@@ -96,6 +96,7 @@ execute: |
         systemctl is-active snapd.service snapd.socket
         echo "Check that snapd has not restarted"
         test "$SNAPD_PID" = "$(systemctl show --property MainPID snapd.service | cut -f2 -d=)"
+        check_prompting_setting "$value"
 
         echo "Set same value again, which should not trigger a restart"
         snap set system experimental.apparmor-prompting="$value"
@@ -104,4 +105,5 @@ execute: |
         systemctl is-active snapd.service snapd.socket
         echo "Check that snapd has not restarted"
         test "$SNAPD_PID" = "$(systemctl show --property MainPID snapd.service | cut -f2 -d=)"
+        check_prompting_setting "$value"
     done
