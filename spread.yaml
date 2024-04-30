@@ -793,17 +793,19 @@ prepare: |
         apt-get update && apt-get install -y eatmydata
     fi
 
+    # Enable EPEL see https://docs.fedoraproject.org/en-US/epel/
     case "$SPREAD_SYSTEM" in
         centos-7-*)
-            # make sure EPEL is enabled
             yum install -y epel-release
             ;;
         centos-8-*)
             # enable powertools repository
             dnf config-manager --set-enabled powertools
-            # CentOS Stream requires EPEL Next too, see https://docs.fedoraproject.org/en-US/epel/
             dnf install -y epel-release epel-next-release
             ;;
+        centos-9-*)
+            dnf config-manager --set-enabled crb
+            dnf install -y epel-release epel-next-release
     esac
 
     case "$SPREAD_SYSTEM" in
