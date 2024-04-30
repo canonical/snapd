@@ -6,7 +6,8 @@ details: |
     snaps.
 
     This test verifies that all the environment variables used by snapd start with
-    SNAP_, XDG_ and EXTRA_.
+    SNAP_, XDG_ and EXTRA_ and their content is what we expect. Also it is checked
+    that SNAP, PATH and HOME env vars have the expected content.
 
 environment:
     NAME/regular: test-snapd-tools
