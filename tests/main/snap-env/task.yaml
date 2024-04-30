@@ -5,7 +5,7 @@ details: |
     and application properties. Snapd uses specific environment variables to support running
     snaps.
 
-    This test verifies that all the environment variables sued by snapd start with
+    This test verifies that all the environment variables used by snapd start with
     SNAP_, XDG_ and EXTRA_.
 
 environment:
