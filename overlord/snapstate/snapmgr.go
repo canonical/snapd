@@ -44,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/snap/snapdir"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/store"
@@ -213,6 +214,55 @@ func (compsu *ComponentSetup) ComponentName() string {
 
 func (compsu *ComponentSetup) Revision() snap.Revision {
 	return compsu.CompSideInfo.Revision
+}
+
+// ComponentSetupFromSnapSetup returns a list of ComponentSetup structs for the
+// given task. Since the task could originate from one of a few different
+// scenarios, we inspect the task for various keys to determine how to find the
+// component setups.
+//
+// The task could originate from:
+// * Installing a singular component for an already installed snap
+// * Installing/refreshing a snap with components
+// * Installing/refreshing a snap without any components
+func ComponentSetupsForTask(t *state.Task) ([]*ComponentSetup, error) {
+	switch {
+	case t.Has("component-setup") || t.Has("component-setup-task"):
+		// task comes from a component installation
+		compsup, _, err := TaskComponentSetup(t)
+		if err != nil {
+			return nil, err
+		}
+		return []*ComponentSetup{compsup}, nil
+	case t.Has("component-setups") || t.Has("component-setups-task"):
+		// TODO: test this branch once we know more about refreshing/installing
+		// snaps with components
+
+		// task comes from a snap refresh/install that contains components
+		compsups, _, err := TaskComponentSetups(t)
+		if err != nil {
+			return nil, err
+		}
+		return compsups, nil
+	default:
+		// task comes from a snap installation that doesn't contain any
+		// components
+		return nil, nil
+	}
+}
+
+// ComponentInfoFromComponentSetup returns a snap.ComponentInfo for the given
+// ComponentSetup and snap.Info. It is assumed that the component represented by
+// compsup has already been mounted.
+func ComponentInfoFromComponentSetup(compsup *ComponentSetup, info *snap.Info) (*snap.ComponentInfo, error) {
+	cpi := snap.MinimalComponentContainerPlaceInfo(
+		compsup.ComponentName(),
+		compsup.CompSideInfo.Revision,
+		info.InstanceName(),
+	)
+
+	container := snapdir.New(cpi.MountDir())
+	return snap.ReadComponentInfoFromContainer(container, info)
 }
 
 // RevertStatus is a status of a snap revert; anything other than DefaultStatus

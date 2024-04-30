@@ -24,6 +24,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/snap/snaptest"
 	. "gopkg.in/check.v1"
 )
 
@@ -92,4 +93,113 @@ func (s *handlersComponentsSuite) TestComponentSetupTaskLaterTask(c *C) {
 	c.Assert(err, IsNil)
 	// and is the expected task
 	c.Assert(setupTask.ID(), Equals, t.ID())
+}
+
+func (s *handlersComponentsSuite) TestComponentSetupsForTaskComponentInstall(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	t := s.state.NewTask("prepare-component", "test")
+
+	const snapName = "mysnap"
+	const compName = "mycomp"
+	compRev := snap.R(7)
+	cref := naming.NewComponentRef(snapName, compName)
+	csi := snap.NewComponentSideInfo(cref, compRev)
+	compsup := snapstate.NewComponentSetup(csi, snap.KernelModulesComponent, "")
+	// setup component-setup for the first task
+	t.Set("component-setup", compsup)
+	t.Set("snap-setup", snapstate.SnapSetup{
+		Version: "1.0",
+	})
+
+	// make a new task and reference the first one in component-setup-task
+	t2 := s.state.NewTask("next-task-comp", "test2")
+	t2.Set("component-setup-task", t.ID())
+	t2.Set("snap-setup-task", t.ID())
+
+	chg := s.state.NewChange("sample", "...")
+	chg.AddTask(t)
+	chg.AddTask(t2)
+
+	setups, err := snapstate.ComponentSetupsForTask(t2)
+	c.Assert(err, IsNil)
+
+	c.Check(setups, HasLen, 1)
+	c.Check(setups[0], DeepEquals, compsup)
+
+	setups, err = snapstate.ComponentSetupsForTask(t)
+	c.Assert(err, IsNil)
+
+	c.Check(setups, HasLen, 1)
+	c.Check(setups[0], DeepEquals, compsup)
+}
+
+func (s *handlersComponentsSuite) TestComponentSetupsForTaskSnapWithoutComponents(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	t := s.state.NewTask("prepare-component", "test")
+
+	const snapName = "mysnap"
+	t.Set("snap-setup", snapstate.SnapSetup{
+		Version: "1.0",
+	})
+
+	// make a new task and reference the first one in component-setup-task
+	t2 := s.state.NewTask("next-task-comp", "test2")
+	t2.Set("snap-setup-task", t.ID())
+
+	chg := s.state.NewChange("sample", "...")
+	chg.AddTask(t)
+	chg.AddTask(t2)
+
+	setups, err := snapstate.ComponentSetupsForTask(t2)
+	c.Assert(err, IsNil)
+
+	c.Check(setups, HasLen, 0)
+
+	setups, err = snapstate.ComponentSetupsForTask(t)
+	c.Assert(err, IsNil)
+
+	c.Check(setups, HasLen, 0)
+}
+
+func (s *handlersComponentsSuite) TestComponentInfoFromComponentSetup(c *C) {
+	s.testComponentInfoFromComponentSetup(c, "key")
+}
+
+func (s *handlersComponentsSuite) TestComponentInfoFromComponentSetupInstance(c *C) {
+	s.testComponentInfoFromComponentSetup(c, "")
+}
+
+func (s *handlersComponentsSuite) testComponentInfoFromComponentSetup(c *C, instanceKey string) {
+	const snapName = "mysnap"
+	const compName = "mycomp"
+	compRev := snap.R(7)
+	cref := naming.NewComponentRef(snapName, compName)
+	csi := snap.NewComponentSideInfo(cref, compRev)
+
+	info := &snap.Info{
+		SideInfo: snap.SideInfo{
+			RealName: snapName,
+			Revision: snap.R(2),
+		},
+		InstanceKey: instanceKey,
+		Components: map[string]*snap.Component{
+			"mycomp": {
+				Type: snap.TestComponent,
+				Name: compName,
+			},
+		},
+	}
+
+	realCompInfo := snaptest.MockComponent(c, "component: mysnap+mycomp\ntype: test\nversion: 1", info, *csi)
+	_ = realCompInfo
+
+	compsup := snapstate.NewComponentSetup(csi, snap.KernelModulesComponent, "")
+
+	compInfo, err := snapstate.ComponentInfoFromComponentSetup(compsup, info)
+	c.Assert(err, IsNil)
+
+	c.Check(compInfo.Component, Equals, cref)
+	c.Check(compInfo.Type, Equals, snap.TestComponent)
 }
