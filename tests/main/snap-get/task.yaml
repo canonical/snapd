@@ -6,7 +6,7 @@ details: |
     for viewing and changing these configuration options are snap get,
     snap set and snap unset.
 
-    This test verifies that through the `snap get` command can be obtained
+    This test verifies that using the `snap get` command one can obtain
     the snap configuration set with `snap set` command. Is it also checked
     the json output format and error scenarios.
 
