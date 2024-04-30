@@ -7,9 +7,9 @@ details: |
 
   The problem is reproduced when we refresh snapd itself after having written out some systemd
   units that include the Requires= above (which could happen for app snap refreshes or new
-  installs after snapd 2.49.2 is installed), now we will unmount/stop usr-lib-snapd.mount,
-  which due to how Requires= works, will forcibly stop all services which have the Requires=
-  bit in it. Then after snapd finishes refreshing itself those services will be left in the
+  installs after snapd 2.49.2 is installed), then unmount/stop usr-lib-snapd.mount which,
+  due to how Requires= works, will forcibly stop all services which have the Requires= bit in it.
+  Then, after snapd finishes refreshing itself, those services will be left in the
   terminated state, effectively killing the services when snapd refreshes itself.
 
 # TODO: we should also run it on classic later
