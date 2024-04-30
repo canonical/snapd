@@ -32,6 +32,15 @@ prepare: |
         useradd --extrausers -m -d /home/test2 test2
     fi
 
+    cat <<\EOF >/etc/polkit-1/localauthority/50-local.d/spread.pkla
+    [Normal Staff Permissions]
+    Identity=unix-user:test;unix-user:test2
+    Action=io.snapcraft.snapd.manage
+    ResultAny=yes
+    ResultInactive=no
+    ResultActive=yes
+    EOF
+
 restore: |
     tests.session -u test2 restore
     if ! userdel -rf test2; then
@@ -44,6 +53,7 @@ restore: |
     if [ -f agent-was-enabled ]; then
         systemctl --user --global disable snapd.session-agent.socket
     fi
+    rm -f /etc/polkit-1/localauthority/50-local.d/spread.pkla
 
 debug: |
     tests.session dump
@@ -78,8 +88,9 @@ execute: |
     snap stop --disable test-snapd-user-refresh-service.foo
     snap stop --disable test-snapd-user-refresh-service.boo
 
-    # TODO: do a disable track test with user services once we correctly
-    # handle per-user disable in StopServices
+    echo "(test2) disable both services"
+    tests.session -u test2 exec snap stop --disable --user test-snapd-user-refresh-service.bar
+    tests.session -u test2 exec snap stop --disable --user test-snapd-user-refresh-service.baz
 
     echo "When it is re-installed"
     "$TESTSTOOLS"/snaps-state install-local test-snapd-user-refresh-service-v2
@@ -87,3 +98,11 @@ execute: |
     echo "(sys) we can see foo still being disabled"
     systemctl status snap.test-snapd-user-refresh-service.foo | MATCH "inactive"
     systemctl status snap.test-snapd-user-refresh-service.boo-second | MATCH "active"
+
+    echo "(test) and we can see services running"
+    systemctl_user status snap.test-snapd-user-refresh-service.bar | MATCH "active"
+    systemctl_user status snap.test-snapd-user-refresh-service.baz-second | MATCH "active"
+
+    echo "(test2) and we can see bar being disabled"
+    systemctl_user2 status snap.test-snapd-user-refresh-service.bar | MATCH "inactive"
+    systemctl_user2 status snap.test-snapd-user-refresh-service.baz-second | MATCH "active"
