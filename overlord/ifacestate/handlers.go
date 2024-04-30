@@ -238,60 +238,6 @@ func componentInfoFromComponentSetup(compsup *snapstate.ComponentSetup, info *sn
 	return snap.ReadComponentInfoFromContainer(container, info)
 }
 
-func appSetForTask(t *state.Task, info *snap.Info) (*interfaces.SnapAppSet, error) {
-	compsups, err := componentSetupsForTask(t)
-	if err != nil {
-		return nil, err
-	}
-
-	compInfos := make([]*snap.ComponentInfo, 0, len(compsups))
-	for _, compsup := range compsups {
-		compInfo, err := componentInfoFromComponentSetup(compsup, info)
-		if err != nil {
-			return nil, err
-		}
-		compInfos = append(compInfos, compInfo)
-	}
-
-	st := t.State()
-
-	var snapst snapstate.SnapState
-	if err := snapstate.Get(st, info.InstanceName(), &snapst); err != nil {
-		// if the snap isn't in the state, then we know that there aren't any
-		// pre-existing components to consider
-		if errors.Is(err, state.ErrNoState) {
-			return interfaces.NewSnapAppSet(info, compInfos)
-		}
-		return nil, err
-	}
-
-	// if we're installing/refreshing a component then we need to consider the
-	// components that are already installed
-	if snapst.LastIndex(info.Revision) != -1 {
-		compsForRevision, err := snapst.ComponentInfosForRevision(info.Revision)
-		if err != nil {
-			return nil, err
-		}
-		compInfos = append(compInfos, compsForRevision...)
-	}
-
-	return interfaces.NewSnapAppSet(info, compInfos)
-}
-
-func appSetForSnapRevision(st *state.State, info *snap.Info) (*interfaces.SnapAppSet, error) {
-	var snapst snapstate.SnapState
-	if err := snapstate.Get(st, info.InstanceName(), &snapst); err != nil {
-		return nil, err
-	}
-
-	compInfos, err := snapst.ComponentInfosForRevision(info.Revision)
-	if err != nil {
-		return nil, err
-	}
-
-	return interfaces.NewSnapAppSet(info, compInfos)
-}
-
 func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, snapInfo *snap.Info, opts interfaces.ConfinementOptions, tm timings.Measurer) error {
 	st := task.State()
 
