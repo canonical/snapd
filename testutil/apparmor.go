@@ -9,7 +9,6 @@ import (
 )
 
 func AppArmorParseAndHashHelper(profile string) (string, error) {
-
 	// Create app_armor parser command with arguments to only return the compiled
 	// policy to stdout. The profile is not cached or loaded.
 	apparmorParser := exec.Command("apparmor_parser", "-QKS")

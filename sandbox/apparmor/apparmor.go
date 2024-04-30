@@ -71,8 +71,10 @@ type AAREExclusionPatternsOptions struct {
 	// need in the home interface
 }
 
+// InsertAAREExclusionPatterns replaces a ###EXCL{<pref>,<suf>}### snippet
+// with matching prefix and comma separated suffixes with a set of rules generated
+// by GenerateAAREExclusionPatterns.
 func InsertAAREExclusionPatterns(aaRules string, excludePatterns []string, opts *AAREExclusionPatternsOptions) (string, error) {
-
 	exclussionPatterns, err := GenerateAAREExclusionPatterns(excludePatterns, opts)
 	if err != nil {
 		return "", err
@@ -81,7 +83,7 @@ func InsertAAREExclusionPatterns(aaRules string, excludePatterns []string, opts 
 	placeHolder := fmt.Sprintf("###EXCL{%s<>%s:%s}###", opts.Prefix, opts.Suffix, strings.Join(excludePatterns[:], ","))
 
 	if !strings.Contains(aaRules, placeHolder) {
-		return "", errors.New("place holder not be found in apparmor rules")
+		return "", fmt.Errorf("placeholder pattern %q not found", placeHolder)
 	}
 	return strings.Replace(aaRules, placeHolder, exclussionPatterns, -1), nil
 }
@@ -151,7 +153,7 @@ func InsertAAREExclusionPatterns(aaRules string, excludePatterns []string, opts 
 // This functionality can be added in a subsequent PR if needed in the future
 func GenerateAAREExclusionPatterns(excludePatterns []string, opts *AAREExclusionPatternsOptions) (string, error) {
 	if len(excludePatterns) == 0 {
-		return "", fmt.Errorf("no patterns provided")
+		return "", errors.New("no patterns provided")
 	}
 	seen := map[string]bool{}
 	for _, patt := range excludePatterns {
@@ -182,7 +184,6 @@ func GenerateAAREExclusionPatterns(excludePatterns []string, opts *AAREExclusion
 }
 
 func generateAAREExclusionPatternsGenericImpl(excludePatterns []string, opts *AAREExclusionPatternsOptions) (string, error) {
-
 	// Find the length of longest pattern (size)
 	size := 0
 	for _, pattern := range excludePatterns {
@@ -209,7 +210,6 @@ findCommonPrefix:
 	// (charInd+1) characters of the excludePatterns.
 	builder := &strings.Builder{}
 	for charInd := 1; charInd < size; charInd++ {
-
 		// This loop will group the subpatterns properly, generating the subpatterns map, where:
 		//     - the key would be the subpatternPrefix, considering as such the subpattern except
 		//       its last character (pattern[0:charInd]).

@@ -646,7 +646,7 @@ change_profile /a[^b]** -> suf,
 			excludePatterns: []string{"/ab"},
 			prefix:          "change_profile ",
 			suffix:          " -> suf,",
-			err:             "place holder not be found in apparmor rules",
+			err:             "placeholder pattern \\\"###EXCL{change_profile <> -> suf,:/ab}###\\\" not found",
 		},
 	}
 
