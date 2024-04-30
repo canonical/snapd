@@ -20,8 +20,6 @@
 package interfaces
 
 import (
-	"fmt"
-
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -30,6 +28,6 @@ import (
 func SecurityTagGlobs(snapName string) []string {
 	return []string{
 		snap.AppSecurityTag(snapName, "*"),
-		fmt.Sprintf("snap.%s+*.hook.*", snapName),
+		snap.ComponentHookSecurityTag(snapName, "*", "*"),
 	}
 }
