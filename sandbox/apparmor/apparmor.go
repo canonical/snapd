@@ -193,16 +193,7 @@ func generateAAREExclusionPatternsGenericImpl(excludePatterns []string, opts *AA
 	}
 
 	// Find the longest prefix common to ALL patterns.
-	commonPrefix := ""
-findCommonPrefix:
-	for charInd := 0; charInd < size; charInd++ {
-		for _, pattern := range excludePatterns {
-			if (charInd >= len(pattern)) || (pattern[charInd] != excludePatterns[0][charInd]) {
-				break findCommonPrefix
-			}
-		}
-		commonPrefix = excludePatterns[0][:charInd+1]
-	}
+	commonPrefix, _ := strutil.FindCommonPrefix(excludePatterns)
 
 	// This loop will iterate over the length of the longest excludePattern
 	// (charInd = 1..size), generating an apparmor rule on each iteration
