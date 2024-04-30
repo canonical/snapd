@@ -569,12 +569,10 @@ BUILDTAGS="${BUILDTAGS} nomanagers"
     # attempt to deal with Go toolchain differences between Fedora and RHEL, where
     # Go is a FIPS compliant fork which pulls in openssl though dlopen()
 
-    # snap-exec does not need CGO and can be built with Go toolchain only
-    %gobuild_static_nocgo -o bin/snap-exec $GOFLAGS %{import_path}/cmd/snap-exec
-
     # on RHEL9 the Go FIPS enabled goolchain appears to be broken when building with
     # no_openssl, so disable CGO completely, but do not set no_openssl build tag
-    # as the no_openssl builds do not build at all
+    # as the no_openssl builds do not build at all, note that the binary produced this way
+    # is not static, and still expects an interpreter
     %gobuild_static_nocgo -o bin/snapctl $GOFLAGS %{import_path}/cmd/snapctl
 
 %if 0%{?rhel} >= 7
@@ -584,6 +582,10 @@ BUILDTAGS="${BUILDTAGS} nomanagers"
     # disable that functionality for statically built binaries
     BUILDTAGS="${BUILDTAGS} no_openssl"
 %endif
+
+    # snap-exec does not need CGO but we need a purely static binary to deal with bare base
+    %gobuild_static -o bin/snap-exec $GOFLAGS %{import_path}/cmd/snap-exec
+
     # snap-update-ns requires CGO to build the C bootstrap code
     %gobuild_static -o bin/snap-update-ns $GOFLAGS %{import_path}/cmd/snap-update-ns
 )
