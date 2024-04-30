@@ -6,7 +6,7 @@ details: |
     entire set. If the process fails, all affected snaps revert to their state before the
     process started, even snaps that successfully updated.
 
-    This test verifies that multiple snapd can be installed with the command 
+    This test verifies that multiple snaps can be installed with the command 
     `snap install --transaction`. It is checked that when --transaction=all-snaps is used, the
     full transaction is reverted, and when --transaction=per-snap is used, only the one that
     failed is reverted.
