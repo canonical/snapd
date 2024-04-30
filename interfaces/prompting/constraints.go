@@ -149,12 +149,6 @@ func AvailablePermissions(iface string) ([]string, error) {
 // AbstractPermissionsFromAppArmorPermissions returns the list of permissions
 // corresponding to the given AppArmor permissions for the given interface.
 func AbstractPermissionsFromAppArmorPermissions(iface string, permissions interface{}) ([]string, error) {
-	return abstractPermissionsFromAppArmorFilePermissions(iface, permissions)
-}
-
-// abstractPermissionsFromAppArmorFilePermissions returns the list of permissions
-// corresponding to the given AppArmor file permissions for the given interface.
-func abstractPermissionsFromAppArmorFilePermissions(iface string, permissions interface{}) ([]string, error) {
 	filePerms, ok := permissions.(notify.FilePermission)
 	if !ok {
 		return nil, fmt.Errorf("failed to parse the given permissions as file permissions")
@@ -201,12 +195,6 @@ func abstractPermissionsFromAppArmorFilePermissions(iface string, permissions in
 // AbstractPermissionsToAppArmorPermissions returns AppArmor permissions
 // corresponding to the given permissions for the given interface.
 func AbstractPermissionsToAppArmorPermissions(iface string, permissions []string) (interface{}, error) {
-	return abstractPermissionsToAppArmorFilePermissions(iface, permissions)
-}
-
-// abstractPermissionsToAppArmorFilePermissions returns AppArmor file
-// permissions corresponding to the given permissions for the given interface.
-func abstractPermissionsToAppArmorFilePermissions(iface string, permissions []string) (notify.FilePermission, error) {
 	if len(permissions) == 0 {
 		return notify.FilePermission(0), ErrPermissionsListEmpty
 	}

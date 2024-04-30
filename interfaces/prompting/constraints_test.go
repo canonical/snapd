@@ -399,10 +399,10 @@ func (s *promptingSuite) TestAvailablePermissions(c *C) {
 	c.Check(available, IsNil)
 }
 
-func (s *promptingSuite) TestAbstractPermissionsFromAppArmorFilePermissionsHappy(c *C) {
+func (s *promptingSuite) TestAbstractPermissionsFromAppArmorPermissionsHappy(c *C) {
 	cases := []struct {
 		iface string
-		mask  notify.FilePermission
+		perms interface{}
 		list  []string
 	}{
 		{
@@ -437,13 +437,13 @@ func (s *promptingSuite) TestAbstractPermissionsFromAppArmorFilePermissionsHappy
 		},
 	}
 	for _, testCase := range cases {
-		perms, err := prompting.AbstractPermissionsFromAppArmorPermissions(testCase.iface, testCase.mask)
+		perms, err := prompting.AbstractPermissionsFromAppArmorPermissions(testCase.iface, testCase.perms)
 		c.Check(err, IsNil, Commentf("testCase: %+v", testCase))
 		c.Check(perms, DeepEquals, testCase.list)
 	}
 }
 
-func (s *promptingSuite) TestAbstractPermissionsFromAppArmorFilePermissionsUnhappy(c *C) {
+func (s *promptingSuite) TestAbstractPermissionsFromAppArmorPermissionsUnhappy(c *C) {
 	cases := []struct {
 		iface  string
 		perms  interface{}
@@ -477,11 +477,11 @@ func (s *promptingSuite) TestAbstractPermissionsFromAppArmorFilePermissionsUnhap
 	}
 }
 
-func (s *promptingSuite) TestAbstractPermissionsToAppArmorFilePermissionsHappy(c *C) {
+func (s *promptingSuite) TestAbstractPermissionsToAppArmorPermissionsHappy(c *C) {
 	cases := []struct {
 		iface string
 		list  []string
-		mask  notify.FilePermission
+		perms interface{}
 	}{
 		{
 			"home",
@@ -514,11 +514,11 @@ func (s *promptingSuite) TestAbstractPermissionsToAppArmorFilePermissionsHappy(c
 		c.Check(err, IsNil)
 		perms, ok := ret.(notify.FilePermission)
 		c.Check(ok, Equals, true, Commentf("failed to parse return value as FilePermission for test case: %+v", testCase))
-		c.Check(perms, Equals, testCase.mask)
+		c.Check(perms, Equals, testCase.perms)
 	}
 }
 
-func (s *promptingSuite) TestAbstractPermissionsToAppArmorFilePermissionsUnhappy(c *C) {
+func (s *promptingSuite) TestAbstractPermissionsToAppArmorPermissionsUnhappy(c *C) {
 	cases := []struct {
 		iface  string
 		perms  []string
