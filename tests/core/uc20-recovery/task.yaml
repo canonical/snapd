@@ -6,8 +6,8 @@ details: |
     This allows you to log in to the system using prior credentials to recover
     the data, either via SSH or locally after setting up a password for the user.
 
-    This test veryfies that it is possible to transition and transition back from
-    the run mode to a recovery mode. In recovery mode the test checks that the seed
+    This test verifies that it is possible to transition from run mode to recovery
+    mode and back again. In recovery mode the test checks that the seed
     is mounted in recover mode too and the host data is accessible.
 
 systems:
