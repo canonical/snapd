@@ -100,7 +100,7 @@ dbus (send)
     bus=system
     path=/org/freedesktop/login1{,/**}
     interface=org.freedesktop.login1.Manager
-    member={CanPowerOff,CanSuspend,CanHibernate,CanHybridSleep,PowerOff,Suspend,Hibernate,HybridSleep,Inhibit}
+    member={CanPowerOff,CanSuspend,CanHibernate,CanSuspendThenHibernate,CanHybridSleep,PowerOff,Suspend,Hibernate,SuspendThenHybernate,HybridSleep,Inhibit}
     peer=(label=unconfined),
 `
 
