@@ -1,5 +1,21 @@
 summary: Check that symlinks to /usr/bin/snap trigger `snap run`
 
+details: |
+    While snap applications are mounted, executing programs directly is not
+    desirable since this way bypasses both the security sandbox and the extra
+    elements that allow applications to work correctly, finding the right
+    libraries and data.
+
+    To allow users to start applications, snapd maintains a system of symbolic
+    links from all entry points (all snap commands and aliases), to the "snap"
+    program. When invoked the snap program determines which snap name, instance
+    key and application to invoke.
+
+    Historically such files were not symbolic links but dedicated wrappers. The
+    test shows that one can replace the wrapper with the symbolic link. This
+    test is probably not useful anymore and could be removed. Snapd has not been
+    generating "wrappers" for many years.
+
 systems: [-ubuntu-core-*]
 
 environment:
