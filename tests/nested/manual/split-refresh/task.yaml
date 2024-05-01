@@ -1,0 +1,215 @@
+summary: Check app refreshes don't wait for a reboot in hybrid systems
+
+details: |
+  Check that (on hybrid systems) refreshes of both essential (e.g., kernel,
+  gadget) and non-essential snaps don't make apps and non-model bases wait for
+  a reboot like the essential snaps. Check that if an app depends on the model
+  base, it does wait for its refresh (and a reboot) because the base must be
+  refreshed before the kernel and gadget since those depend on it.
+
+systems: [ubuntu-22.04-64, ubuntu-24.04-64]
+
+environment:
+    NESTED_ENABLE_TPM: false
+    NESTED_ENABLE_SECURE_BOOT: false
+    NESTED_BUILD_SNAPD_FROM_CURRENT: true
+    NESTED_ENABLE_OVMF: true
+    NESTED_REPACK_KERNEL_SNAP: true
+    # store related setup
+    STORE_ADDR: localhost:11028
+    STORE_DIR: $(pwd)/fake-store-blobdir
+
+prepare: |
+  if [ "$TRUST_TEST_KEYS" = "false" ]; then
+      echo "This test needs test keys to be trusted"
+      exit
+  fi
+  echo "Install used snaps"
+  snap install test-snapd-curl --devmode --edge
+  snap install jq --devmode --edge
+  if [ -d /var/lib/snapd/seed ]; then
+    mv /var/lib/snapd/seed /var/lib/snapd/seed.orig
+  fi
+  "$TESTSTOOLS"/store-state setup-fake-store "$STORE_DIR"
+
+
+restore: |
+  if [ "$TRUST_TEST_KEYS" = "false" ]; then
+      echo "This test needs test keys to be trusted"
+      exit
+  fi
+  rm -rf /var/lib/snapd/seed
+  if [ -d /var/lib/snapd/seed.orig ]; then
+      mv /var/lib/snapd/seed.orig /var/lib/snapd/seed
+  fi
+  "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"
+  rm -rf ./classic-root
+
+debug: |
+  if remote.exec true; then
+    remote.exec snap changes
+    CHG_ID=$(remote.exec snap changes | grep "Install.*from files" | awk '{print $1}')
+    remote.exec snap change "$CHG_ID"
+  fi
+
+execute: |
+  if [ "$TRUST_TEST_KEYS" = "false" ]; then
+      echo "This test needs test keys to be trusted"
+      exit
+  fi
+
+  echo Expose the needed assertions through the fakestore
+  cp "$TESTSLIB"/assertions/developer1.account "$STORE_DIR/asserts"
+  cp "$TESTSLIB"/assertions/developer1.account-key "$STORE_DIR/asserts"
+  cp "$TESTSLIB"/assertions/testrootorg-store.account-key "$STORE_DIR/asserts"
+  export SNAPPY_FORCE_SAS_URL=http://$STORE_ADDR
+
+  # shellcheck source=tests/lib/prepare.sh
+  . "$TESTSLIB/prepare.sh"
+  #shellcheck source=tests/lib/nested.sh
+  . "$TESTSLIB"/nested.sh
+  version="$(nested_get_version)"
+
+  snap download --basename=pc-kernel --channel="$version/stable" pc-kernel
+  uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
+  mv "${NESTED_ASSETS_DIR}"/pc-kernel_*.snap pc-kernel.snap
+
+  # Prepare gadget with the right gadget.yaml
+  snap download --basename=pc --channel="$version/stable" pc
+  unsquashfs -d pc pc.snap
+  sed -i 's/name: ubuntu-seed/name: EFI System partition/' pc/meta/gadget.yaml
+  sed -i 's/role: system-seed/role: system-seed-null/' pc/meta/gadget.yaml
+  snap pack --filename=pc-new.snap pc
+
+  version="$(nested_get_version)"
+  gendeveloper1 sign-model < "$TESTSLIB"/assertions/developer1-"$version"-classic-dangerous.json > my.model
+
+  # prepare a classic seed
+  snap prepare-image --classic \
+      --channel=edge \
+      --snap ./pc-kernel.snap \
+      --snap ./pc-new.snap \
+      my.model \
+      ./classic-seed
+
+  # make the seed label more predictable for muinstaller auto-mode
+  LABEL=classic
+  mv ./classic-seed/system-seed/systems/* ./classic-seed/system-seed/systems/"$LABEL"
+  cp -a ./classic-seed/system-seed/ /var/lib/snapd/seed
+
+  # do some light checking that the system is valid
+  test-snapd-curl.curl -s --unix-socket /run/snapd.socket http://localhost/v2/systems | jq '.result.systems[0].label' | MATCH "$LABEL"
+  test-snapd-curl.curl -s --unix-socket /run/snapd.socket http://localhost/v2/systems/"$LABEL" > system
+  jq '.result.model.distribution' system | MATCH "ubuntu"
+  # build muinstaller and put in place
+  go build -o muinstaller "$TESTSLIB"/muinstaller/main.go
+
+  # create fake disk for the installer to work on
+  truncate --size=5G fake-disk.img
+  loop_device=$(losetup --show -f ./fake-disk.img)
+  # and "install" the current seed to the fake disk
+  ./muinstaller "$LABEL" "$loop_device" "$TESTSLIB"/muinstaller/mk-classic-rootfs.sh
+  # validate that the fake installer created the expected partitions
+  sfdisk -d "$loop_device" > fdisk_output
+  MATCH "${loop_device}p1 .* name=\"BIOS Boot\""   < fdisk_output
+  # TODO: the real MVP hybrid device will not contain a ubuntu-seed
+  #       partition (needs a different gadget)
+  MATCH "${loop_device}p2 .* name=\"EFI System partition\"" < fdisk_output
+  MATCH "${loop_device}p3 .* name=\"ubuntu-boot\"" < fdisk_output
+  MATCH "${loop_device}p4 .* name=\"ubuntu-save\"" < fdisk_output
+  MATCH "${loop_device}p5 .* name=\"ubuntu-data\"" < fdisk_output
+
+  # image partitions are not mounted anymore
+  for d in ubuntu-seed ubuntu-boot ubuntu-data ubuntu-save; do
+      test -d /run/mnt/"$d"
+      not mountpoint /run/mnt/"$d"
+  done
+
+  # mount image to inspect data
+  mount -o ro "${loop_device}"p3 /run/mnt/ubuntu-boot
+  mount -o ro "${loop_device}"p5 /run/mnt/ubuntu-data
+
+  # seed is populated
+  test -d /run/mnt/ubuntu-data/var/lib/snapd/seed/systems/"$LABEL"
+  # rootfs is there
+  test -x /run/mnt/ubuntu-data/usr/lib/systemd/systemd
+  # ensure not "ubuntu-data/system-data" is generated, this is a dir only
+  # used on core and should not be there on classic
+  not test -d /run/mnt/ubuntu-data/system-data
+  # TODO: ensure we don't have this
+  #not test -d /run/mnt/ubuntu-data/_writable_defaults
+  # and the boot assets are in the right place
+  test -e /run/mnt/ubuntu-boot/EFI/ubuntu/kernel.efi
+  test -e /run/mnt/ubuntu-boot/EFI/ubuntu/grubenv
+  test -e /run/mnt/ubuntu-boot/EFI/boot/grubx64.efi
+  # and we have a modenv in the image
+  MATCH "mode=run" < /run/mnt/ubuntu-data/var/lib/snapd/modeenv
+  MATCH "classic=true" < /run/mnt/ubuntu-data/var/lib/snapd/modeenv
+  umount /run/mnt/ubuntu-{boot,data}
+
+  # HACK: better to change nested_start_vm() to take an image name
+  # Note that use "core" here as the boot is so close to core that classic
+  # does not work
+  IMAGE_NAME="$(nested_get_image_name core)"
+  mv fake-disk.img "$NESTED_IMAGES_DIR/$IMAGE_NAME"
+
+  # boot into the created image
+  # Note that use "core" here as the boot is so close to core that classic
+  # does not work
+  touch "$NESTED_IMAGES_DIR/$IMAGE_NAME.configured"
+  tests.nested create-vm core
+
+  remote.exec "cat /etc/os-release" | MATCH 'NAME="Ubuntu"'
+  remote.exec "snap changes" | MATCH "Done.* Initialize system state"
+
+  echo "Install the required apps and check for expected snaps"
+  remote.exec "sudo snap install test-snapd-tools-core22 test-snapd-sh"
+
+  for snap in snapd core22 pc pc-kernel test-snapd-tools-core22 test-snapd-sh; do
+    remote.exec "snap list" | MATCH "$snap"
+  done
+
+  echo "Downloads and pack snaps (snapd, gadget, kernel and apps) to update"
+  snap download --basename=pc --channel="$version/edge" pc
+  rm -r pc
+  unsquashfs -d pc pc.snap
+  sed -i 's/name: ubuntu-seed/name: EFI System partition/' pc/meta/gadget.yaml
+  sed -i 's/role: system-seed/role: system-seed-null/' pc/meta/gadget.yaml
+  snap pack --filename=pc-edge.snap pc
+  remote.push pc-edge.snap
+
+  remote.exec "snap download --basename=snapd-edge --channel=latest/edge snapd"
+  remote.exec "snap download --basename=core22-edge --channel=latest/edge core22"
+  remote.exec "snap download --basename=pc-kernel-edge --channel=\"$version/edge\" pc-kernel"
+  remote.exec "snap download --basename=test-snapd-sh-edge --channel=latest/edge test-snapd-sh"
+  remote.exec "snap download --basename=test-snapd-tools-core22-edge --channel=latest/edge test-snapd-tools-core22"
+
+  echo "Update all snaps at once"
+  remote.exec "sudo snap install --dangerous ./snapd-edge.snap ./pc-kernel-edge.snap ./pc-edge.snap ./core22-edge.snap ./test-snapd-sh-edge.snap ./test-snapd-tools-core22-edge.snap"
+  CHG_ID=$(remote.exec snap changes | grep "Install.*from files" | awk '{print $1}')
+
+  echo "Check that the essential snaps' refresh is pending on a reboot"
+  remote.retry -n 20 "snap change $CHG_ID | MATCH \"Task set to wait until a system restart\""
+  remote.exec "snap change $CHG_ID" | MATCH "Wait.*Make snap \"pc-kernel\".*available"
+  for snap in pc core22; do
+    remote.exec "snap change $CHG_ID" | MATCH "Done.*Make snap \"$snap\".* available to the system"
+    remote.exec "snap change $CHG_ID" | MATCH "Do.*Automatically connect eligible plugs.*snap \"$snap\""
+  done
+
+  echo "Check that the app that depends on the model base is also pending"
+  remote.exec "snap change $CHG_ID" | MATCH "Do.*Ensure prerequisites for \"test-snapd-tools-core22\" are available"
+
+  echo "But snapd and the other app's refresh has finished"
+  remote.retry --wait 3 -n 10 "snap change $CHG_ID | MATCH \"Done.*Run health check.*snapd\""
+  remote.retry --wait 3 -n 10 "snap change $CHG_ID | MATCH \"Done.*Run health check.*test-snapd-sh\""
+
+  BOOT_ID=$(tests.nested boot-id)
+  remote.exec sudo reboot || true
+  remote.wait-for reboot --wait 10 -n 90 "$BOOT_ID"
+
+  echo "After a reboot, the kernel and gadget snaps' refresh is done"
+  remote.retry --wait 5 -n 20 "snap changes | MATCH \"$CHG_ID.*Done.*Install\""
+  remote.exec "snap change $CHG_ID" | MATCH "Done.*Run health check.*pc"
+  remote.exec "snap change $CHG_ID" | MATCH "Done.*Run health check.*pc-kernel"
+  remote.exec "snap change $CHG_ID" | MATCH "Done.*Run health check.*core22"
+  remote.exec "snap change $CHG_ID" | MATCH "Done.*Run health check.*test-snapd-tools-core22"
