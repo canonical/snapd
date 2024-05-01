@@ -427,17 +427,27 @@ func testBuildKernelDriversTreeWithComps(c *C, opts *kernel.KernelDriversTreeOpt
 		snap.NewComponentSideInfo(naming.NewComponentRef("pc-kernel", "comp2"), snap.R(22)),
 	}
 
-	// Now build the tree
-	c.Assert(kernel.EnsureKernelDriversTree("pc-kernel", snap.R(1), mountDir, kmods, opts), IsNil)
-
 	ksubdir := "pc-kernel_tmp"
 	if opts.KernelInstall {
 		ksubdir = "pc-kernel"
 	}
 	treeRoot := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "kernel", ksubdir, "1")
-	c.Assert(mockCmd.Calls(), DeepEquals, [][]string{
-		{"depmod", "-b", treeRoot, kversion},
-	})
+	// Find out if the directory already exists, as in that case
+	// there are no calls to depmod
+	exists, isDir, err := osutil.DirExists(treeRoot)
+	c.Assert(err, IsNil)
+
+	// Now build the tree
+	c.Assert(kernel.EnsureKernelDriversTree("pc-kernel", snap.R(1), mountDir, kmods, opts), IsNil)
+
+	if exists {
+		c.Assert(isDir, Equals, true)
+		c.Assert(mockCmd.Calls(), IsNil)
+	} else {
+		c.Assert(mockCmd.Calls(), DeepEquals, [][]string{
+			{"depmod", "-b", treeRoot, kversion},
+		})
+	}
 
 	// Check modules root dir is as expected
 	modsRoot := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "kernel", "pc-kernel", "1", "lib", "modules", kversion)

@@ -194,7 +194,8 @@ func setupModsFromComp(kernelTree, kversion, kname string, krev snap.Revision, c
 }
 
 func driversTreeDir(kernelSubdir string, rev snap.Revision) string {
-	return filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "kernel", kernelSubdir, rev.String())
+	return filepath.Join(dirs.SnapKernelDriversTreesDirUnder(dirs.GlobalRootDir),
+		kernelSubdir, rev.String())
 }
 
 // RemoveKernelDriversTree cleans-up the writable kernel tree in snapd data
@@ -233,6 +234,13 @@ func EnsureKernelDriversTree(ksnapName string, rev snap.Revision, kernelMount st
 	ksnapDir := ksnapName + "_tmp"
 	if opts.KernelInstall {
 		ksnapDir = ksnapName
+		treeDir := driversTreeDir(ksnapDir, rev)
+		exists, isDir, _ := osutil.DirExists(treeDir)
+		if exists && isDir {
+			logger.Debugf("device tree %q already created on installation, not re-creating",
+				treeDir)
+			return nil
+		}
 	}
 	// Initial clean-up to make the function idempotent
 	if rmErr := RemoveKernelDriversTree(ksnapDir, rev); rmErr != nil &&
