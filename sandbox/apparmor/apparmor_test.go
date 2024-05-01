@@ -392,6 +392,7 @@ profile snap-test flags=(unconfined) {
 profile snap-test {
  prompt /foo r,
 }
+
 `)
 	}
 
