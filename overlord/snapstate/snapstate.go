@@ -1640,7 +1640,19 @@ func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.Sid
 		return nil, flagsByInstanceName[name], stateByInstanceName[name]
 	}
 
-	_, updateTss, err := doUpdate(ctx, st, names, updates, params, userID, flags, nil, deviceCtx, "")
+	var updateTss *UpdateTaskSets
+	if essential, nonEssential, ok := canSplitRefresh(deviceCtx, updates, flags); ok {
+		// if we're on classic with a kernel/gadget, split installs with essential
+		// snaps and apps so that the apps don't have to wait for a reboot
+		updateFunc := func(updates []minimalInstallInfo) ([]string, *UpdateTaskSets, error) {
+			// extra names are ignored so it's fine to passed all of them in each call
+			return doUpdate(ctx, st, names, updates, params, userID, flags, nil, deviceCtx, "")
+		}
+		_, updateTss, err = splitRefresh(essential, nonEssential, updateFunc)
+	} else {
+		_, updateTss, err = doUpdate(ctx, st, names, updates, params, userID, flags, nil, deviceCtx, "")
+	}
+
 	if err != nil {
 		return nil, err
 	}
