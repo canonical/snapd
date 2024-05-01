@@ -1,16 +1,24 @@
 summary: Checks for snap exit codes
 
+details: |
+    Snap command return different exit codes on error.
+
+    This test verifies the exit codes in the following scenarios:
+    1. snap command with unknown command return exit code 64
+    2. snap command with unknown flag return exit code 64
+    3. snap command with broken mksquashfs returns exit code 20
+
 systems: [ubuntu-1*, ubuntu-2*]
 
 execute: |
-    echo "snap command with unknown command return exit code 5"
+    echo "snap command with unknown command return exit code 64"
     set +e
     snap unknown-command
     RET=$?
     set -e
     test "$RET" -eq 64
 
-    echo "snap command with unknown flag return exit code 5"
+    echo "snap command with unknown flag return exit code 64"
     set +e
     snap pack --unknown-option
     RET=$?
