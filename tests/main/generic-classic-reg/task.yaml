@@ -1,7 +1,9 @@
-summary: |
-    Ensure device initialisation registration works with the fallback
-    generic/generi-classic model and we have a serial and can acquire
-    a session macaroon
+summary: Verify the device initialization registration with generic model
+
+details: |
+    Ensure device initialization registration works with the fallback
+    generic/generic-classic model and we have a serial and can acquire
+    a session macaroon.
 
 systems: [-ubuntu-core-*]
 
@@ -9,7 +11,7 @@ execute: |
     #shellcheck source=tests/lib/core-config.sh
     . "$TESTSLIB"/core-config.sh
 
-    echo "Wait for device initialisation to have been done"
+    echo "Wait for device initialization to have been done"
     wait_for_device_initialized_change
 
     echo "We have a model assertion"
