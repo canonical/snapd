@@ -619,7 +619,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	if snapsup.Type == snap.TypeKernel && needsKernelSetup(deviceCtx) {
 		// This task needs to run after we're back and running the new
 		// kernel after a reboot was requested in link-snap handler.
-		setupKernel := st.NewTask("discard-old-kernel-snap-setup", fmt.Sprintf(i18n.G("Discard kernel driver tree for %q%s"), snapsup.InstanceName(), revisionStr))
+		setupKernel := st.NewTask("discard-old-kernel-snap-setup", fmt.Sprintf(i18n.G("Discard previous kernel driver tree for %q%s"), snapsup.InstanceName(), revisionStr))
 		addTask(setupKernel)
 		prev = setupKernel
 	}
