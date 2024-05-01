@@ -2418,7 +2418,7 @@ func (s *backendSuite) TestPtraceTraceRule(c *C) {
 }
 
 func (s *backendSuite) TestHomeIxRule(c *C) {
-	restoreTemplate := apparmor.MockTemplate("template\n###SNIPPETS###\nneedle rwkl###HOME_IX###,\n")
+	restoreTemplate := apparmor.MockTemplate("template\n###SNIPPETS###\n")
 	defer restoreTemplate()
 	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
 	defer restore()

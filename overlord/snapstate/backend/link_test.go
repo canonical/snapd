@@ -512,6 +512,7 @@ func (s *linkSuite) TestLinkSnapdSnapOnCore(c *C) {
 	mountUnit := fmt.Sprintf(`[Unit]
 Description=Make the snapd snap tooling available for the system
 Before=snapd.service
+Before=systemd-udevd.service
 
 [Mount]
 What=%s/usr/lib/snapd

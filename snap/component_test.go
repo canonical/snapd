@@ -310,6 +310,20 @@ func (s *componentSuite) TestComponentSideInfoEqual(c *C) {
 }
 
 func (s *componentSuite) TestReadComponentInfoFinishedWithSnapInfo(c *C) {
+	restore := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {
+		// remove the "*-bad" interfaces, this helps us test that sanitized plugs
+		// do not end up in the plugs for any hooks in a ComponentInfo
+		delete(snapInfo.Plugs, "implicit-bad")
+		delete(snapInfo.Plugs, "explicit-bad")
+		for _, comp := range snapInfo.Components {
+			for _, hook := range comp.ExplicitHooks {
+				delete(hook.Plugs, "explicit-bad")
+				delete(hook.Plugs, "implicit-bad")
+			}
+		}
+	})
+	defer restore()
+
 	const componentYaml = `component: snap+component
 type: test
 version: 1.0
@@ -332,10 +346,11 @@ components:
     type: test
     hooks:
       install:
-        plugs: [network]
+        plugs: [network, implicit-bad]
       remove:
 plugs:
   network-client:
+  explicit-bad:
 `
 
 	snapInfo, err := snap.InfoFromSnapYaml([]byte(snapYaml))
@@ -361,6 +376,11 @@ plugs:
 	c.Check(installHook.Plugs, HasLen, 2)
 	c.Check(installHook.Plugs["network-client"], NotNil)
 	c.Check(installHook.Plugs["network"], NotNil)
+
+	// should be missing, since it was removed as a from the plugs on all
+	// ExplicitHooks
+	c.Check(installHook.Plugs["implicit-bad"], IsNil)
+	c.Check(installHook.Plugs["explicit-bad"], IsNil)
 
 	preRefreshHook := ci.Hooks["pre-refresh"]
 	c.Assert(preRefreshHook, NotNil)

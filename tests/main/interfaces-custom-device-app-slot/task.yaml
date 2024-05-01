@@ -1,12 +1,12 @@
 summary: Test that apps can be allowed to sport and self-connect custom-device slots
 
 details: |
-    Usually custom-device slots are meant to be provided by gadgets,
-    but we support allowing app snaps to carry them, e.g.
-    for custom hardware dedicated apps for wide distribution.
+    Usually custom-device slots are meant to be provided by gadgets, but we
+    support allowing app snaps to carry them, e.g. for custom hardware dedicated
+    apps for wide distribution.
 
-    The test checks that with an appropriate snap-declaration
-    this is allowed including self-connection if desired.
+    The test checks that with an appropriate snap-declaration this is allowed
+    including self-connection if desired.
 
 systems:
     - -ubuntu-14.04*

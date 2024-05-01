@@ -1,5 +1,22 @@
 summary: Parallel installed snaps have non-conflicting icons
 
+details: |
+    Snapd allows installation of the same snap more than once by combining the
+    same snap name with different values of an instance key.
+
+    One aspect of the instance system is that applications with desktop files
+    need a mechanism to alter the icon referenced by desktop files, so that the
+    desktop shell can correctly associate the icon with the desktop file of each
+    instance.
+
+    The test installs a snap with a desktop file and a matching icon, and looks
+    at the contents of the instance-aware desktop file written by snapd, to
+    ensure that in each case the icon is using the instance key correctly.
+
+    The test also checks that removal on one instance does not affect the icons
+    of other instances, for example by careless use of a glob pattern to remove
+    copied files.
+
 restore: |
     snap unset system experimental.parallel-instances
 

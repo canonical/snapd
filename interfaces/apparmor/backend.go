@@ -54,6 +54,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
 )
@@ -664,7 +665,9 @@ func addUpdateNSProfile(snapInfo *snap.Info, snippets string, content map[string
 			}
 			return ""
 		default:
-			// TODO: Warn that an invalid pattern is being used.
+			if snapdenv.Testing() || osutil.IsTestBinary() {
+				panic(fmt.Sprintf("cannot expand snippet for pattern %q", placeholder))
+			}
 		}
 		return ""
 	})
@@ -966,6 +969,12 @@ func (b *Backend) addContent(securityTag string, snapInfo *snap.Info, cmdName st
 			}
 
 			return tagSnippets
+		default:
+			if snapdenv.Testing() || osutil.IsTestBinary() {
+				panic(fmt.Sprintf("cannot expand snippet for pattern %q", placeholder))
+			} else {
+				logger.Noticef("WARNING: cannto expand snippet for pattern %q", placeholder)
+			}
 		}
 		return ""
 	})

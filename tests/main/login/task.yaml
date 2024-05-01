@@ -1,5 +1,19 @@
 summary: Checks for snap login
 
+details: |
+    The "snap login" command allows authenticating to snapd as a known user in
+    the snap store (with an email, password and an optional 2FA token). Once
+    logged in, the snap command sends the stored authentication cookie to each
+    snapd request. Since the login command requires the use of "sudo", snapd
+    also remembers that an user had super-user permissions and allows performing
+    certain operations, such as installing or removing snaps, that are normally
+    reserved to the root user, to an unprivileged user.
+
+    The test attempts to authenticate, both unsuccessfully and successfully.
+    Using the "snap managed" command, the test checks that the authentication
+    was correctly recorded for future requests and lastly that the "snap logout"
+    command works as expected.
+
 # ppc64el disabled because of https://bugs.launchpad.net/snappy/+bug/1655594
 systems: [-ubuntu-core-*, -ubuntu-*-ppc64el]
 

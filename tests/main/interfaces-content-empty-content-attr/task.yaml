@@ -1,5 +1,14 @@
 summary: Ensure that the content sharing interface with defaults work.
 
+details: |
+    The content interface allows two or more snaps to access the same location
+    under different names by creating a bind mount visible to the snap
+    application process.
+
+    This test checks that two snaps can take advantage of the implicit value of
+    the content attribute, which is the name of the plug or slot itself, to
+    successfully establish an interface connection and share data.
+
 prepare: |
     echo "Given a snap declaring a content sharing slot is installed"
     snap install --edge test-snapd-content-slot-no-content-attr

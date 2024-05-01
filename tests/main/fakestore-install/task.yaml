@@ -1,5 +1,9 @@
 summary: Ensure that the fakestore works
 
+details: |
+    Check that the fakestore can be used to make a local snap installable
+    via the normal mechanism (i.e., not a path install).
+
 # ubuntu-14.04: systemd-run not supported
 systems: [-ubuntu-14.04*]
 

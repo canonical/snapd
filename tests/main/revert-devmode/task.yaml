@@ -1,5 +1,10 @@
 summary: Check that revert of a snap in devmode restores devmode
 
+details: |
+    Check that reverting a refresh preserves the mode it was refreshed with
+    (i.e., reverting a snap refreshed with --devmode results in it being run
+    in devmode after being reverted).
+
 # slow in autopkgtest (>1m)
 backends: [-autopkgtest]
 

@@ -1,4 +1,8 @@
-summary: Check remove command errors
+summary: Check remove command errors for important snaps
+
+details: |
+    Check that some snaps (e.g., kernel/gadget snaps that are in use) cannot be
+    removed freely.
 
 execute: |
     BASE_SNAP=core

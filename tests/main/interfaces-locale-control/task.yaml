@@ -1,14 +1,16 @@
 summary: Ensure that the locale-control interface works.
 
 details: |
-    The locale-control interface allows a snap to access the locale configuration.
+    The locale-control interface allows a snap to access the locale
+    configuration.
 
-    A snap which defines the locale-control plug must be shown in the interfaces list.
-    The plug must not be autoconnected on install and, as usual, must be able to be
-    reconnected.
+    A snap which defines the locale-control plug must be shown in the interfaces
+    list. The plug must not be auto-connected on install and, as usual, must be
+    able to be reconnected.
 
-    A snap declaring a plug on this interface must be able to access the /etc/default/locale
-    file both for reading and writing. This path doesn't exist on the excluded distributions.
+    A snap declaring a plug on this interface must be able to access the
+    /etc/default/locale file both for reading and writing. This path doesn't
+    exist on the excluded distributions.
 
 systems: [-fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*]
 

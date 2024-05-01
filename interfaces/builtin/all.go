@@ -118,6 +118,11 @@ func SanitizePlugsSlots(snapInfo *snap.Info) {
 		for _, hook := range snapInfo.Hooks {
 			delete(hook.Plugs, plugName)
 		}
+		for _, component := range snapInfo.Components {
+			for _, hook := range component.ExplicitHooks {
+				delete(hook.Plugs, plugName)
+			}
+		}
 	}
 	for _, slotName := range badSlots {
 		delete(snapInfo.Slots, slotName)
@@ -135,6 +140,8 @@ func SanitizePlugsSlots(snapInfo *snap.Info) {
 		for _, hook := range snapInfo.Hooks {
 			delete(hook.Slots, slotName)
 		}
+		// TODO: if component ever get slots, then we'll need to sanitize them
+		// here
 	}
 }
 

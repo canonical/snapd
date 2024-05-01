@@ -1,5 +1,12 @@
 summary: Ensure "snap set core" works
 
+details: |
+    Check that through the command `snap set core` the config
+    "service.rsyslog.disable" can be used to enable and disable the
+    systemd rsyslog service. Also verify that work the configs
+    system.power-key-action, ctrl-alt-del-action and
+    proxy.${proto} among others
+
 systems: [ubuntu-core-*]
 
 # TODO: use `snap set system` instead of `snap set core`
@@ -131,9 +138,20 @@ execute: |
     sysctl -n kernel.printk|MATCH "^4\s+"
 
     echo "setting the timezone works"
-    tests.cleanup defer timedatectl set-timezone "$(cat /etc/timezone)"
+
+    get_tz() {
+        if os.query is-core-le 18; then
+            current_tz=$(cat /etc/timezone)
+        else
+            current_tz=$(timedatectl show | sed -n 's/^Timezone=//p')
+        fi
+    }
+
+    get_tz
+    tests.cleanup defer timedatectl set-timezone "$current_tz"
     snap set system system.timezone=Europe/Malta
-    MATCH "Europe/Malta" < /etc/timezone
+    get_tz
+    test "$current_tz" = "Europe/Malta"
     test "$(readlink -f /etc/localtime)" = "/usr/share/zoneinfo/Europe/Malta"
 
     echo "and timezone setting shows up in the document"
@@ -143,7 +161,8 @@ execute: |
 
     echo "and setting it again in snapd also works"
     snap set system system.timezone=America/Lima
-    MATCH "America/Lima" < /etc/timezone
+    get_tz
+    test "$current_tz" = "America/Lima"
     test "$(readlink -f /etc/localtime)" = "/usr/share/zoneinfo/America/Lima"
     
     echo "and setting the timezone outside of snapd is reflected by snap get"

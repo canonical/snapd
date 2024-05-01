@@ -1,5 +1,11 @@
 summary: check the container validator logs on error
 
+details: |
+    Snapd contains logic to validate the contents of the squashfs and ensure
+    that files are readable and that application entry points are executable.
+    The test mounts a snap with violates those rules to test that snapd detects
+    and reports the problems accurately.
+
 environment:
     SNAP: test-snapd-validate-container-failures
 

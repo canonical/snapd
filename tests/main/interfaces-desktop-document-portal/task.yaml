@@ -1,11 +1,10 @@
 summary: The document portal is mounted by snaps using the desktop interface
 
 details: |
-    The document portal is a component of xdg-desktop-portal that
-    provides a way to share files with a confined application in a
-    controlled fashion.  To provide proper security, a subtree of the
-    portal needs to be mounted over $XDG_RUNTIME_DIR/doc inside the
-    sandbox.
+    The document portal is a component of xdg-desktop-portal that provides a way
+    to share files with a confined application in a controlled fashion.  To
+    provide proper security, a subtree of the portal needs to be mounted over
+    $XDG_RUNTIME_DIR/doc inside the sandbox.
 
 # Ubuntu 14.04 has special version of systemd which doesn't have StartTransientUnit API.
 systems: [-ubuntu-core-*,-ubuntu-14.04*]

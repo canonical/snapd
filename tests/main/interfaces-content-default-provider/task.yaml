@@ -1,5 +1,10 @@
 summary: Ensure that the content default-provider download works
 
+details: |
+    Check that a snap with no default-provider in the content interface
+    can be refreshed to a new version with default-provider.
+    Verify that the default-provider got pulled in during the refresh.
+
 # This test purges the state which causes the device to reinitialize
 # with (potentially) a different core snap. Running this on core will
 # also trigger a reboot in the middle of the tests because the new

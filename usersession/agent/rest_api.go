@@ -88,6 +88,7 @@ func sessionInfo(c *Command, r *http.Request) Response {
 	}
 	return SyncResponse(m)
 }
+
 func serviceStart(inst *client.ServiceInstruction, sysd systemd.Systemd) Response {
 	// Refuse to start non-snap services
 	for _, service := range inst.Services {
@@ -97,6 +98,32 @@ func serviceStart(inst *client.ServiceInstruction, sysd systemd.Systemd) Respons
 	}
 
 	startErrors := make(map[string]string)
+	var err error
+	if inst.Enable {
+		if err = sysd.EnableNoReload(inst.Services); err != nil {
+			return InternalError("cannot enable snap services %q: %v", inst.Services, err)
+		}
+
+		// Setup undo logic for the enable in case of errors
+		defer func() {
+			if err == nil && len(startErrors) == 0 {
+				return
+			}
+
+			// Only log errors in this case to avoid overriding the initial error
+			if err := sysd.DisableNoReload(inst.Services); err != nil {
+				logger.Noticef("cannot disable previously enabled services %q: %v", inst.Services, err)
+			}
+			if err := sysd.DaemonReload(); err != nil {
+				logger.Noticef("cannot reload systemd: %v", err)
+			}
+		}()
+
+		if err = sysd.DaemonReload(); err != nil {
+			return InternalError("cannot reload systemd: %v", err)
+		}
+	}
+
 	var started []string
 	for _, service := range inst.Services {
 		if err := sysd.Start([]string{service}); err != nil {
@@ -105,18 +132,20 @@ func serviceStart(inst *client.ServiceInstruction, sysd systemd.Systemd) Respons
 		}
 		started = append(started, service)
 	}
-	// If we got any failures, attempt to stop the services we started.
-	stopErrors := make(map[string]string)
-	if len(startErrors) != 0 {
-		for _, service := range started {
-			if err := sysd.Stop([]string{service}); err != nil {
-				stopErrors[service] = err.Error()
-			}
-		}
-	}
+
 	if len(startErrors) == 0 {
 		return SyncResponse(nil)
 	}
+
+	// If we got any failures, attempt to stop the services we started, and
+	// then re-disable if enable was requested
+	stopErrors := make(map[string]string)
+	for _, service := range started {
+		if err := sysd.Stop([]string{service}); err != nil {
+			stopErrors[service] = err.Error()
+		}
+	}
+
 	return SyncResponse(&resp{
 		Type:   ResponseTypeError,
 		Status: 500,
@@ -181,20 +210,30 @@ func serviceStop(inst *client.ServiceInstruction, sysd systemd.Systemd) Response
 			stopErrors[service] = err.Error()
 		}
 	}
-	if len(stopErrors) == 0 {
-		return SyncResponse(nil)
-	}
-	return SyncResponse(&resp{
-		Type:   ResponseTypeError,
-		Status: 500,
-		Result: &errorResult{
-			Message: "some user services failed to stop",
-			Kind:    errorKindServiceControl,
-			Value: map[string]interface{}{
-				"stop-errors": stopErrors,
+
+	if len(stopErrors) != 0 {
+		return SyncResponse(&resp{
+			Type:   ResponseTypeError,
+			Status: 500,
+			Result: &errorResult{
+				Message: "some user services failed to stop",
+				Kind:    errorKindServiceControl,
+				Value: map[string]interface{}{
+					"stop-errors": stopErrors,
+				},
 			},
-		},
-	})
+		})
+	}
+
+	if inst.Disable {
+		if err := sysd.DisableNoReload(inst.Services); err != nil {
+			return InternalError(fmt.Sprintf("cannot disable services %q: %v", inst.Services, err))
+		}
+		if err := sysd.DaemonReload(); err != nil {
+			return InternalError(fmt.Sprintf("cannot reload systemd: %v", err))
+		}
+	}
+	return SyncResponse(nil)
 }
 
 func serviceDaemonReload(inst *client.ServiceInstruction, sysd systemd.Systemd) Response {

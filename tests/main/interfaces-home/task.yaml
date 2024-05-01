@@ -3,8 +3,8 @@ summary: Ensure that the home interface works.
 details: |
     The home interface allows a snap to access non-hidden files in $HOME
 
-    A snap which defines the home plug must be shown in the interfaces list.
-    The plug must be autoconnected on install for classic systems and disconnected
+    A snap which defines the home plug must be shown in the interfaces list. The
+    plug must be auto-connected on install for classic systems and disconnected
     on all-snaps and, as usual, must be able to be reconnected. When connected
     it must grant access to non hidden home files.
 

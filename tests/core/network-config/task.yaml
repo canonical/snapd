@@ -1,5 +1,13 @@
 summary: Check that `snap set {system,core} network.disable-ipv6` works
 
+details: |
+    In Ubuntu Core systems network.disable-ipv6 core/system config can be used
+    to enable and disable the ip v6 protocol.
+
+    This test verifies that when network.disable-ipv6 core/system config is set
+    to true, then the ipv6 is disable in the system. Also it is verified that when
+    the config is set to false, then the ipv6 is enabled in the system.
+
 environment:
     snap_nick/system: system
     snap_nick/core: core

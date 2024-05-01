@@ -1,5 +1,9 @@
 summary: Verify that updating all of base, gadget and kernel only needs one reboot
 
+details: |
+    Check that when all of base, gadget and kernel are refreshed together, only one reboot
+    is needed. Verify that all the refreshed snaps can be reverted to the initial version.
+
 # TODO make the test work with ubuntu-core-20
 systems: [ubuntu-core-18-*]
 

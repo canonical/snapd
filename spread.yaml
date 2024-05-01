@@ -43,7 +43,7 @@ environment:
     TRUST_TEST_KEYS: '$(HOST: echo "${SPREAD_TRUST_TEST_KEYS:-true}")'
     # a global setting for LXD channel to use in the tests
     # TODO: Consider reverting to latest/candidate after Snapcraft compatibility with LXD 5.21 extended version string "5.21 LTS" is fixed
-    LXD_SNAP_CHANNEL: "latest/edge"
+    LXD_SNAP_CHANNEL: "latest/candidate"
     UBUNTU_IMAGE_SNAP_CHANNEL: "2/stable"
     # controls whether ubuntu-image is built using the current snapd tree as a
     # dependency or the one listed in its go.mod
@@ -602,6 +602,8 @@ debug-each: |
         echo
 
         remote.exec "sudo journalctl --no-pager -u snapd" || true
+
+        exit
     fi
 
     echo "# definition of snapd.service"
@@ -671,8 +673,11 @@ debug-each: |
 
     # Keep it as the last step in debug-each
     echo '# tasks executed on system'
-    # since the runs file does not have a newline at EOF, add one 
-    echo "" | cat "$RUNTIME_STATE_PATH/runs" - || true
+    if [ -f "$RUNTIME_STATE_PATH/runs" ]; then
+        echo "EXECUTED_TESTS=$(cat $RUNTIME_STATE_PATH/runs)"
+    fi
+    # Add new line at the end of the debug output
+    echo ''
 
 rename:
     # Move content into a directory, so that deltas computed by repack benefit

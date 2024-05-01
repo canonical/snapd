@@ -1,5 +1,13 @@
 summary: ensure snap can be installed twice (reusing the created groups)
 
+details: |
+    Snapd has limited capability to create a non-root accounts, so that certain
+    services that would normally run as root, perform initial configuration as
+    root but then drop to a less privileged user.
+
+    The test checks that such user accounts remain after such snap is removed,
+    and are reused when it is reinstalled.
+
 # List of expected snap install failures due to libseccomp/golang-seccomp being
 # too old. Since the illegal name check happens after verifying system support,
 # we can ignore these. Ignore ubuntu-core since groupdel doesn't support

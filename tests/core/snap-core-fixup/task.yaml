@@ -1,5 +1,13 @@
 summary: Check that the core-fixup-sh script works
 
+details: |
+    Ubuntu Core systems previous to UC20 have a service which is used to fix
+    broken uboot environments. This has been added because of this issue
+    https://bugs.launchpad.net/snappy/+bug/1769669
+
+    This test verifies that having a broken uboot environment (two uboot.env files),
+    running the core-fixup script is able to correct the problem and fix the image. 
+
 # currently no fixups for UC20, so don't run this test there
 systems: [ubuntu-core-1*]
 

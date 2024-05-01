@@ -1,15 +1,14 @@
-summary: Test the auto-connect behaviour of the cups-control interface.
+summary: Test the auto-connect behavior of the cups-control interface.
 
 details: |
-    The cups-control interface is provided as an implicit slot on
-    classic systems. It is also provided as a slot by the cups
-    snap. Normally snapd will not auto-connect a plug if there are
-    multiple candidate slots available.
+    The cups-control interface is provided as an implicit slot on classic
+    systems. It is also provided as a slot by the cups snap. Normally snapd will
+    not auto-connect a plug if there are multiple candidate slots available.
 
-    However the cups-control interface is set up to only make one slot
-    a candidate: if a non-snap cupsd appears to be on the system then
-    system:cups-control is favoured. And if there is no non-snap
-    cupsd, the reverse is true.
+    However the cups-control interface is set up to only make one slot a
+    candidate: if a non-snap cupsd appears to be on the system then
+    system:cups-control is favoured. And if there is no non-snap cupsd, the
+    reverse is true.
 
 systems:
     - -ubuntu-core-*
