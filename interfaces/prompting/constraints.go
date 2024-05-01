@@ -55,12 +55,12 @@ func (c *Constraints) ValidateForInterface(iface string) error {
 func (c *Constraints) validatePermissions(iface string) error {
 	availablePerms, ok := interfacePermissionsAvailable[iface]
 	if !ok {
-		return fmt.Errorf("unsupported interface: %q", iface)
+		return fmt.Errorf("unsupported interface: %s", iface)
 	}
 	permsSet := make(map[string]bool, len(c.Permissions))
 	for _, perm := range c.Permissions {
 		if !strutil.ListContains(availablePerms, perm) {
-			return fmt.Errorf("unsupported permission for %q interface: %q", iface, perm)
+			return fmt.Errorf("unsupported permission for %s interface: %q", iface, perm)
 		}
 		permsSet[perm] = true
 	}
@@ -141,7 +141,7 @@ var (
 func AvailablePermissions(iface string) ([]string, error) {
 	available, exist := interfacePermissionsAvailable[iface]
 	if !exist {
-		return nil, fmt.Errorf("cannot get available permissions: unsupported interface: %q", iface)
+		return nil, fmt.Errorf("cannot get available permissions: unsupported interface: %s", iface)
 	}
 	return available, nil
 }
@@ -151,17 +151,20 @@ func AvailablePermissions(iface string) ([]string, error) {
 func AbstractPermissionsFromAppArmorPermissions(iface string, permissions interface{}) ([]string, error) {
 	filePerms, ok := permissions.(notify.FilePermission)
 	if !ok {
-		return nil, fmt.Errorf("failed to parse the given permissions as file permissions")
+		return nil, fmt.Errorf("cannot parse the given permissions as file permissions: %v", permissions)
+	}
+	if filePerms == notify.FilePermission(0) {
+		return nil, fmt.Errorf("cannot get abstract permissions from empty AppArmor permissions: %q", filePerms)
 	}
 	abstractPermsAvailable, exists := interfacePermissionsAvailable[iface]
 	if !exists {
-		// This should never happen, since iface is checked in the calling function.
-		return nil, fmt.Errorf("internal error: no permissions list defined for interface: %q", iface)
+		return nil, fmt.Errorf("cannot map the given interface to list of available permissions: %s", iface)
 	}
 	abstractPermsMap, exists := interfaceFilePermissionsMaps[iface]
 	if !exists {
-		// This should never happen, since iface is checked in the calling function.
-		return nil, fmt.Errorf("internal error: no file permissions map defined for interface: %q", iface)
+		// This should never happen, since we just found a permissions list
+		// for the given interface and thus a map should exist for it as well.
+		return nil, fmt.Errorf("cannot map the given interface to map from abstract permissions to AppArmor permissions: %s", iface)
 	}
 	if filePerms == notify.AA_MAY_OPEN {
 		// Should not occur, but if a request is received for only open, treat it as read.
@@ -175,7 +178,7 @@ func AbstractPermissionsFromAppArmorPermissions(iface string, permissions interf
 		if !exists {
 			// This should never happen, since permission mappings are
 			// predefined and should be checked for correctness.
-			return nil, fmt.Errorf("internal error: no permission map defined for abstract permission %q for interface %q", abstractPerm, iface)
+			return nil, fmt.Errorf("internal error: cannot map abstract permission to AppArmor permissions for the %s interface: %q", iface, abstractPerm)
 		}
 		if filePerms&aaPermMapping != 0 {
 			abstractPerms = append(abstractPerms, abstractPerm)
@@ -183,11 +186,7 @@ func AbstractPermissionsFromAppArmorPermissions(iface string, permissions interf
 		}
 	}
 	if filePerms != notify.FilePermission(0) {
-		return nil, fmt.Errorf("received unexpected permission for interface %q in AppArmor permission mask: %q", iface, filePerms)
-	}
-	if len(abstractPerms) == 0 {
-		origMask := permissions.(notify.FilePermission)
-		return nil, fmt.Errorf("no abstract permissions after parsing AppArmor permissions for interface: %q; original file permissions: %v", iface, origMask)
+		return nil, fmt.Errorf("cannot map AppArmor permission to abstract permission for the %s interface: %q", iface, filePerms)
 	}
 	return abstractPerms, nil
 }
@@ -200,15 +199,14 @@ func AbstractPermissionsToAppArmorPermissions(iface string, permissions []string
 	}
 	filePermsMap, exists := interfaceFilePermissionsMaps[iface]
 	if !exists {
-		// This should never happen, since iface is checked in the calling function
-		return notify.FilePermission(0), fmt.Errorf("internal error: no AppArmor file permissions map defined for interface: %q", iface)
+		return notify.FilePermission(0), fmt.Errorf("cannot map the given interface to map from abstract permissions to AppArmor permissions: %s", iface)
 	}
 	filePerms := notify.FilePermission(0)
 	for _, perm := range permissions {
 		permMask, exists := filePermsMap[perm]
 		if !exists {
 			// Should not occur, since stored permissions list should have been validated
-			return notify.FilePermission(0), fmt.Errorf("no AppArmor file permission mapping for %q interface with abstract permission: %q", iface, perm)
+			return notify.FilePermission(0), fmt.Errorf("cannot map abstract permission to AppArmor permissions for the %s interface: %q", iface, perm)
 		}
 		filePerms |= permMask
 	}

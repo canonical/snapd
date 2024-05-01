@@ -452,22 +452,27 @@ func (s *promptingSuite) TestAbstractPermissionsFromAppArmorPermissionsUnhappy(c
 		{
 			"home",
 			"not a file permission",
-			"failed to parse the given permissions as file permissions",
-		},
-		{
-			"home",
-			notify.FilePermission(1 << 17),
-			"received unexpected permission for interface.*",
-		},
-		{
-			"home",
-			notify.AA_MAY_GETATTR | notify.AA_MAY_READ,
-			"received unexpected permission for interface.*",
+			"cannot parse the given permissions as file permissions.*",
 		},
 		{
 			"home",
 			notify.FilePermission(0),
-			"no abstract permissions.*",
+			"cannot get abstract permissions from empty AppArmor permissions.*",
+		},
+		{
+			"foo",
+			notify.AA_MAY_READ,
+			"cannot map the given interface to list of available permissions.*",
+		},
+		{
+			"home",
+			notify.FilePermission(1 << 17),
+			"cannot map AppArmor permission to abstract permission for the home interface.*",
+		},
+		{
+			"home",
+			notify.AA_MAY_GETATTR | notify.AA_MAY_READ,
+			"cannot map AppArmor permission to abstract permission for the home interface.*",
 		},
 	}
 	for _, testCase := range cases {
@@ -530,19 +535,24 @@ func (s *promptingSuite) TestAbstractPermissionsToAppArmorPermissionsUnhappy(c *
 			fmt.Sprintf("%v", prompting.ErrPermissionsListEmpty),
 		},
 		{
+			"foo",
+			[]string{"read"},
+			"cannot map the given interface to map from abstract permissions to AppArmor permissions.*",
+		},
+		{
 			"home",
 			[]string{"foo"},
-			"no AppArmor file permission mapping .* abstract permission.*",
+			"cannot map abstract permission to AppArmor permissions for the home interface.*",
 		},
 		{
 			"home",
 			[]string{"access"},
-			"no AppArmor file permission mapping .* abstract permission.*",
+			"cannot map abstract permission to AppArmor permissions for the home interface.*",
 		},
 		{
 			"home",
 			[]string{"read", "foo", "write"},
-			"no AppArmor file permission mapping .* abstract permission.*",
+			"cannot map abstract permission to AppArmor permissions for the home interface.*",
 		},
 	}
 	for _, testCase := range cases {
