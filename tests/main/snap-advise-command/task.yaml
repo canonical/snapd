@@ -1,5 +1,13 @@
 summary: Ensure that `snap advise-snap` works
 
+details: |
+    `snap advise-snap` searches for a snap that provides the given
+    command line or package name. This test verifies that the database
+    downloaded from the store used by `advise-snap` is readable to all
+    users. It verifies that it can lookup by both command lines and
+    package name.  And it verifies that it can work as a replacement
+    for `command-not-found`.
+
 # On some slow external devices the test fails to restart snapd on restore
 backends:
     - -external
