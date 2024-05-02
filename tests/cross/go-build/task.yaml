@@ -1,5 +1,9 @@
 summary: Build Go commands across multiple arches
 
+details: |
+    This test verifies that the go commands in ./cmd/... can be built
+    for the different supported architectures.
+
 environment:
     X_DEBARCH/armhf: armhf
     X_GOARCH/armhf: arm
