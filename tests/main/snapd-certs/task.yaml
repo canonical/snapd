@@ -2,7 +2,7 @@ summary: Ensure that store ssl certs for snapd work
 
 details: |
     Verify that we can set, get and unset SSL certs for the snap store. These
-    operations are done via setting config options on the core snap.
+    operations are done via setting system config options.
 
     Additionally, we check that configuration options that are set on a revision
     of a snap are reverted if the snap is reverted to a previous revision. Note

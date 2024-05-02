@@ -1,7 +1,7 @@
 summary: Check that firstboot assertions are imported and snaps installed also on classic
 
 details: |
-    Verifies that the snapd.seeded.service unit is able to import assertions from
+    Verify that the snapd.seeded.service unit is able to import assertions from
     the seed directory and install the seed snaps on classic systems. This test
     specifically makes sure that the classic system can install snapd as a snap
     from the seed.

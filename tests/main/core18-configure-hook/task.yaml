@@ -1,7 +1,7 @@
 summary: Check that snaps with configure work on core18 only
 
 details: |
-    Verify that the we can run snaps with configure hooks while only having the
+    Verify that we can run snaps with configure hooks while only having the
     "core18" base snap present. This test stems from reports that configure hooks
     were only working on systems that had the "core" snap installed.
 
