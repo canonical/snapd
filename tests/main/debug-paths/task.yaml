@@ -2,7 +2,7 @@ summary: Verify paths are correctly reported
 
 details: |
     This test checks that the command `snap debug paths` shows
-    properly the paths for SNAPD_MOUNT, SNAPD_BIN and SNAPD_LIBEXEC
+    the correct paths for the SNAPD_MOUNT, SNAPD_BIN and SNAPD_LIBEXEC
     environment variables. 
 
 execute: |
