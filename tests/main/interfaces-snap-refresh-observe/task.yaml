@@ -35,8 +35,8 @@ execute: |
     # TODO: Check it can only access /v2/snaps?select=refresh-inhibited
     echo "Check snap can access snaps /v2/snaps"
     api-client --socket /run/snapd-snap.socket "/v2/snaps" | jq '."status-code"' | MATCH '^200$'
-    echo "But not a specific snap /v2/snaps/<instance-name>"
-    api-client --socket /run/snapd-snap.socket "/v2/snaps/api-client" | jq '."status-code"' | MATCH '^403$'
+    echo "And also a specific snap /v2/snaps/<instance-name>"
+    api-client --socket /run/snapd-snap.socket "/v2/snaps/api-client" | jq '."status-code"' | MATCH '^200$'
 
     echo "Without snap-refresh-observe the snap cannot access those API endpoints"
     snap disconnect api-client:snap-refresh-observe
@@ -45,3 +45,4 @@ execute: |
     api-client --socket /run/snapd-snap.socket "/v2/changes" | jq '."status-code"' | MATCH '^403$'
     api-client --socket /run/snapd-snap.socket "/v2/changes/$CHANGE_ID" | jq '."status-code"' | MATCH '^403$'
     api-client --socket /run/snapd-snap.socket "/v2/snaps" | jq '."status-code"' | MATCH '^403$'
+    api-client --socket /run/snapd-snap.socket "/v2/snaps/api-client" | jq '."status-code"' | MATCH '^403$'
