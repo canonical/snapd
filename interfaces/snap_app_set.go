@@ -10,7 +10,6 @@ import (
 
 // SnapAppSet is a helper that provides information about executable elements of
 // a snap. This currently includes snap apps and hooks.
-// TODO: include component hooks when they are implemented
 type SnapAppSet struct {
 	info       *snap.Info
 	components []*snap.ComponentInfo
