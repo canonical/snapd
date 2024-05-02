@@ -1,5 +1,10 @@
 summary: smoke test for the snaps.name tool
 
+details: |
+    Check the snaps.name tool properly retrieves the names of the
+    gadget and kernel snaps installed in the system. Also verifies
+    the snap-sufix command works properly.
+
 backends: [google]
 
 execute: |
@@ -9,5 +14,17 @@ execute: |
     test -z "$(snaps.name gadget)"
     test -z "$(snaps.name kernel)"
     test "$(snaps.name core)" = "core"
+
+    if os.query is-core18; then
+        test "$(snaps.name snap-sufix)" = "-core18"
+    elif os.query is-core20; then
+        test "$(snaps.name snap-sufix)" = "-core20"
+    elif os.query is-core22; then
+        test "$(snaps.name snap-sufix)" = "-core22"
+    elif os.query is-core24; then
+        test "$(snaps.name snap-sufix)" = "-core24"
+    else
+        test -z "$(snaps.name snap-sufix)"
+    fi
 
     snaps.name my-snap 2>&1 | MATCH "snaps.name: unknown snap my-snap"
