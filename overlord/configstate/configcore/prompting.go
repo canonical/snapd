@@ -26,6 +26,8 @@ import (
 	"github.com/snapcore/snapd/overlord/restart"
 )
 
+var restartRequest = restart.Request
+
 // Trigger a security profile regeneration by restarting snapd if a change in
 // the experimental apparmor-prompting flag causes a need to do so.
 func doExperimentalApparmorPromptingDaemonRestart(c RunTransaction, opts *fsOnlyContext) error {
@@ -55,7 +57,7 @@ func doExperimentalApparmorPromptingDaemonRestart(c RunTransaction, opts *fsOnly
 	st.Lock()
 	defer st.Unlock()
 
-	restart.Request(st, restart.RestartDaemon, nil)
+	restartRequest(st, restart.RestartDaemon, nil)
 
 	return nil
 }
