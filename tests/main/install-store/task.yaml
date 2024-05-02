@@ -1,5 +1,10 @@
 summary: Checks for special cases of snap install from the store
 
+details: |
+    Test that installing from different channels, installing non-devmode snaps
+    with devmode and vice-versa and installing snaps with bash-completion
+    scripts all work as expected.
+
 # run on ubuntu-14,16,18,20+ but not on ubuntu-core, fedora etc
 systems: [ubuntu-1*, ubuntu-2*, ubuntu-3*]
 
