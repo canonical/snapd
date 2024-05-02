@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2018 Canonical Ltd
+ * Copyright (C) 2016-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -52,7 +52,7 @@ const homeConnectedPlugAppArmor = `
 # Note, @{HOME} is the user's $HOME, not the snap's $HOME
 
 # Allow read access to toplevel $HOME for the user
-owner @{HOME}/ r,
+###PROMPT### owner @{HOME}/ r,
 
 # Allow read/write access to all files in @{HOME}, except snap application
 # data in @{HOME}/snap and toplevel hidden directories in @{HOME}.

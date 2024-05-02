@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2018 Canonical Ltd
+ * Copyright (C) 2016-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -146,7 +146,7 @@ func (s *HomeInterfaceSuite) TestConnectedPlugAppArmorWithoutAttrib(c *C) {
 	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
-	c.Check(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `owner @{HOME}/ r,`)
+	c.Check(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `###PROMPT### owner @{HOME}/ r,`)
 	c.Check(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `audit deny @{HOME}/bin/{,**} wl,`)
 	c.Check(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `audit deny @{HOME}/bin wl,`)
 	c.Check(apparmorSpec.SnippetForTag("snap.other.app"), Not(testutil.Contains), `# Allow non-owner read`)
@@ -172,7 +172,7 @@ apps:
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.home-plug-snap.app2"})
 	c.Check(apparmorSpec.SnippetForTag("snap.home-plug-snap.app2"), testutil.Contains, `audit deny @{HOME}/bin/{,**} wl,`)
-	c.Check(apparmorSpec.SnippetForTag("snap.home-plug-snap.app2"), testutil.Contains, `owner @{HOME}/ r,`)
+	c.Check(apparmorSpec.SnippetForTag("snap.home-plug-snap.app2"), testutil.Contains, `###PROMPT### owner @{HOME}/ r,`)
 	c.Check(apparmorSpec.SnippetForTag("snap.home-plug-snap.app2"), testutil.Contains, `audit deny @{HOME}/bin wl,`)
 	c.Check(apparmorSpec.SnippetForTag("snap.home-plug-snap.app2"), testutil.Contains, `# Allow non-owner read`)
 }
