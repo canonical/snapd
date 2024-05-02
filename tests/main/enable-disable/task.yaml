@@ -1,7 +1,7 @@
 summary: Check that enable/disable works
 
 details: |
-    Snapd allow to enable and disable snaps through the `snap enable` and
+    Snapd allows enabling and disabling snaps through the `snap enable` and
     `snap disable` commands. When a snap is disabled, the binaries and services
     of the snap will no longer be available, but all the data is still available
     and the snap can easily be enabled again.
