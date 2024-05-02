@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2020-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -2852,12 +2852,12 @@ func (s *assetsSuite) TestUpdateBootEntryOnUpdate(c *C) {
 	uc20Model := boottest.MakeMockUC20Model()
 
 	efiVariablesSet := 0
-	boot.MockSetEfiBootVariables(func(description string, assetPath string, optionalData []byte) error {
+	defer boot.MockSetEfiBootVariables(func(description string, assetPath string, optionalData []byte) error {
 		c.Check(description, Equals, "bootentry")
 		c.Check(assetPath, Equals, "/some/path")
 		efiVariablesSet += 1
 		return nil
-	})
+	})()
 
 	d := c.MkDir()
 
@@ -2939,12 +2939,12 @@ func (s *assetsSuite) TestUpdateBootEntryOnInstall(c *C) {
 	uc20Model := boottest.MakeMockUC20Model()
 
 	efiVariablesSet := 0
-	boot.MockSetEfiBootVariables(func(description string, assetPath string, optionalData []byte) error {
+	defer boot.MockSetEfiBootVariables(func(description string, assetPath string, optionalData []byte) error {
 		c.Check(description, Equals, "bootentry")
 		c.Check(assetPath, Equals, "/some/path")
 		efiVariablesSet += 1
 		return nil
-	})
+	})()
 
 	d := c.MkDir()
 

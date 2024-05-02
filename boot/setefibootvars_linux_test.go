@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2023 Canonical Ltd
+ * Copyright (C) 2023-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -751,4 +751,198 @@ func (s *setEfiBootVarsSuite) TestSetEfiBootOrderVarAttrs(c *C) {
 			c.Fatalf("BootOrder was not written with attrs: %+v", attrs)
 		}
 	}
+}
+
+func (s *setEfiBootVarsSuite) TestSetEfiBootVariables(c *C) {
+	bootOption := efi.LoadOption{
+		Attributes:  efi.LoadOptionActive | efi.LoadOptionCategoryBoot,
+		Description: "ubuntu",
+		FilePath:    stringToDevicePath("/run/mnt/ubuntu-seed/EFI/BOOT/BOOTX64.efi"),
+	}
+	bootOptionBytes, err := bootOption.Bytes()
+	c.Assert(err, IsNil)
+
+	fakeVariableData := map[efi.VariableDescriptor]*varDataAttrs{
+		{
+			Name: "Boot0000",
+			GUID: efi.GlobalVariable,
+		}: {
+			bootOptionBytes,
+			defaultVarAttrs,
+		},
+		{
+			Name: "BootOrder",
+			GUID: efi.GlobalVariable,
+		}: {
+			[]byte{0x00, 0x00},
+			defaultVarAttrs,
+		},
+	}
+
+	defer boot.MockEfiReadVariable(func(name string, guid efi.GUID) ([]byte, efi.VariableAttributes, error) {
+		descriptor := efi.VariableDescriptor{
+			Name: name,
+			GUID: guid,
+		}
+		if varDA, exists := fakeVariableData[descriptor]; exists {
+			return varDA.data, varDA.attrs, nil
+		}
+		return nil, 0, efi.ErrVarNotExist
+	})()
+
+	defer boot.MockEfiListVariables(func() ([]efi.VariableDescriptor, error) {
+		varDescriptorList := make([]efi.VariableDescriptor, 0, len(fakeVariableData))
+		for key := range fakeVariableData {
+			varDescriptorList = append(varDescriptorList, key)
+		}
+		return varDescriptorList, nil
+	})()
+
+	written := 0
+	defer boot.MockEfiWriteVariable(func(name string, guid efi.GUID, attrs efi.VariableAttributes, data []byte) error {
+		written += 1
+		if name == "BootOrder" && guid == efi.GlobalVariable {
+			return nil
+		}
+		for varDesc := range fakeVariableData {
+			if varDesc.Name == name && varDesc.GUID == guid {
+				return errShouldNotOverwrite
+			}
+		}
+		return nil
+	})()
+
+	defer boot.MockLinuxFilePathToDevicePath(func(path string, mode linux.FilePathToDevicePathMode) (out efi.DevicePath, err error) {
+		return stringToDevicePath(path), nil
+	})()
+
+	optionalData := []byte("This is the boot entry for ubuntu")
+
+	err = boot.SetEfiBootVariables("myentry", "EFI/myentry/shimx64.efi", optionalData)
+	c.Assert(err, IsNil)
+	c.Check(written, Equals, 2)
+}
+
+func (s *setEfiBootVarsSuite) TestSetEfiBootVariablesConstructError(c *C) {
+	bootOption := efi.LoadOption{
+		Attributes:  efi.LoadOptionActive | efi.LoadOptionCategoryBoot,
+		Description: "ubuntu",
+		FilePath:    stringToDevicePath("/run/mnt/ubuntu-seed/EFI/BOOT/BOOTX64.efi"),
+	}
+	bootOptionBytes, err := bootOption.Bytes()
+	c.Assert(err, IsNil)
+
+	fakeVariableData := map[efi.VariableDescriptor]*varDataAttrs{
+		{
+			Name: "Boot0000",
+			GUID: efi.GlobalVariable,
+		}: {
+			bootOptionBytes,
+			defaultVarAttrs,
+		},
+		{
+			Name: "BootOrder",
+			GUID: efi.GlobalVariable,
+		}: {
+			[]byte{0x00, 0x00},
+			defaultVarAttrs,
+		},
+	}
+
+	defer boot.MockEfiReadVariable(func(name string, guid efi.GUID) ([]byte, efi.VariableAttributes, error) {
+		descriptor := efi.VariableDescriptor{
+			Name: name,
+			GUID: guid,
+		}
+		if varDA, exists := fakeVariableData[descriptor]; exists {
+			return varDA.data, varDA.attrs, nil
+		}
+		return nil, 0, efi.ErrVarNotExist
+	})()
+
+	defer boot.MockEfiListVariables(func() ([]efi.VariableDescriptor, error) {
+		varDescriptorList := make([]efi.VariableDescriptor, 0, len(fakeVariableData))
+		for key := range fakeVariableData {
+			varDescriptorList = append(varDescriptorList, key)
+		}
+		return varDescriptorList, nil
+	})()
+
+	defer boot.MockEfiWriteVariable(func(name string, guid efi.GUID, attrs efi.VariableAttributes, data []byte) error {
+		c.Fatalf("Not execpted to write variables")
+		return nil
+	})()
+
+	defer boot.MockLinuxFilePathToDevicePath(func(path string, mode linux.FilePathToDevicePathMode) (out efi.DevicePath, err error) {
+		return nil, fmt.Errorf("INJECT ERROR")
+	})()
+
+	optionalData := []byte("This is the boot entry for ubuntu")
+
+	err = boot.SetEfiBootVariables("myentry", "EFI/myentry/shimx64.efi", optionalData)
+	c.Assert(err, NotNil)
+	c.Check(err, ErrorMatches, `.*INJECT ERROR`)
+}
+
+func (s *setEfiBootVarsSuite) TestSetEfiBootVariablesErrorSetVariable(c *C) {
+	bootOption := efi.LoadOption{
+		Attributes:  efi.LoadOptionActive | efi.LoadOptionCategoryBoot,
+		Description: "ubuntu",
+		FilePath:    stringToDevicePath("/run/mnt/ubuntu-seed/EFI/BOOT/BOOTX64.efi"),
+	}
+	bootOptionBytes, err := bootOption.Bytes()
+	c.Assert(err, IsNil)
+
+	fakeVariableData := map[efi.VariableDescriptor]*varDataAttrs{
+		{
+			Name: "Boot0000",
+			GUID: efi.GlobalVariable,
+		}: {
+			bootOptionBytes,
+			defaultVarAttrs,
+		},
+		{
+			Name: "BootOrder",
+			GUID: efi.GlobalVariable,
+		}: {
+			[]byte{0x00, 0x00},
+			defaultVarAttrs,
+		},
+	}
+
+	defer boot.MockEfiReadVariable(func(name string, guid efi.GUID) ([]byte, efi.VariableAttributes, error) {
+		descriptor := efi.VariableDescriptor{
+			Name: name,
+			GUID: guid,
+		}
+		if varDA, exists := fakeVariableData[descriptor]; exists {
+			return varDA.data, varDA.attrs, nil
+		}
+		return nil, 0, efi.ErrVarNotExist
+	})()
+
+	defer boot.MockEfiListVariables(func() ([]efi.VariableDescriptor, error) {
+		varDescriptorList := make([]efi.VariableDescriptor, 0, len(fakeVariableData))
+		for key := range fakeVariableData {
+			varDescriptorList = append(varDescriptorList, key)
+		}
+		return varDescriptorList, nil
+	})()
+
+	written := 0
+	defer boot.MockEfiWriteVariable(func(name string, guid efi.GUID, attrs efi.VariableAttributes, data []byte) error {
+		written += 1
+		return fmt.Errorf(`INJECT ERROR`)
+	})()
+
+	defer boot.MockLinuxFilePathToDevicePath(func(path string, mode linux.FilePathToDevicePathMode) (out efi.DevicePath, err error) {
+		return stringToDevicePath(path), nil
+	})()
+
+	optionalData := []byte("This is the boot entry for ubuntu")
+
+	err = boot.SetEfiBootVariables("myenty", "EFI/myentry/shimx64.efi", optionalData)
+	c.Assert(err, NotNil)
+	c.Check(err, ErrorMatches, `.*INJECT ERROR`)
+	c.Check(written, Equals, 1)
 }
