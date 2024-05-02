@@ -1,5 +1,11 @@
 summary: tests.invariant is detecting problems
 
+details: |
+    The invariants are used to verify the state of the system under test is no
+    leaving leftovers.
+    This test checks the tests.invariants tool verifies the different invariants
+    are ok when the tests are restored.    
+
 execute: |
     # Invariant tool presents the usage screen when invoked without arguments
     # or with the -h or --help options.
