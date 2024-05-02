@@ -516,7 +516,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	}
 
 	// run refresh hooks when updating existing snap, otherwise run install hook further down.
-	runRefreshHooks := (snapst.IsInstalled() && !snapsup.Flags.Revert)
+	runRefreshHooks := snapst.IsInstalled() && !snapsup.Flags.Revert
 	if runRefreshHooks {
 		preRefreshHook := SetupPreRefreshHook(st, snapsup.InstanceName())
 		addTask(preRefreshHook)
@@ -1969,7 +1969,21 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, re
 		return nil, nil, err
 	}
 
-	updated, updateTss, err := doUpdate(ctx, st, names, toUpdate, params, userID, flags, nil, deviceCtx, fromChange)
+	var updated []string
+	var updateTss *UpdateTaskSets
+	if essential, nonEssential, ok := canSplitRefresh(deviceCtx, toUpdate, flags); ok {
+		// if we're on classic with a kernel/gadget, split refreshes with essential
+		// snaps and apps so that the apps don't have to wait for a reboot
+		updateFunc := func(updates []minimalInstallInfo) ([]string, *UpdateTaskSets, error) {
+			// names are used to determine if the refresh is general, if it was
+			// requested for a snap to update aliases and if it should be reported
+			// so it's fine to pass them all into each call (extra are ignored)
+			return doUpdate(ctx, st, names, updates, params, userID, flags, nil, deviceCtx, fromChange)
+		}
+		updated, updateTss, err = splitRefresh(essential, nonEssential, updateFunc)
+	} else {
+		updated, updateTss, err = doUpdate(ctx, st, names, toUpdate, params, userID, flags, nil, deviceCtx, fromChange)
+	}
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1978,8 +1992,133 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, re
 	if len(updateTss.Refresh) > 0 {
 		updateTss.Refresh = finalizeUpdate(st, updateTss.Refresh, len(updates) > 0, updated, userID, flags)
 	}
-
 	return updated, updateTss, nil
+}
+
+// canSplitRefresh returns whether the refresh is a standard refresh of a mix
+// of essential and non-essential snaps on a hybrid system. If the refresh
+// can be split, it also returns the two split update groups.
+func canSplitRefresh(deviceCtx DeviceContext, infos []minimalInstallInfo, flags *Flags) (essential, nonEssential []minimalInstallInfo, split bool) {
+	// TODO: support split refresh for auto-refresh as well
+	if !deviceCtx.IsCoreBoot() || !release.OnClassic || flags.IsAutoRefresh {
+		return nil, nil, false
+	}
+
+	essential, nonEssential = splitEssentialUpdates(deviceCtx, infos)
+	if len(essential) == 0 || len(nonEssential) == 0 {
+		return nil, nil, false
+	}
+
+	return essential, nonEssential, true
+}
+
+// splitRefresh creates two separate tasksets for the essential and non-essential
+// snap refresh groups, creating dependencies between specific tasks when
+// appropriate (e.g., snapd is present and should go first or an app uses the
+// model base as its base and must wait for its update).
+func splitRefresh(essential, nonEssential []minimalInstallInfo, updateFunc func([]minimalInstallInfo) ([]string, *UpdateTaskSets, error)) ([]string, *UpdateTaskSets, error) {
+	// taskset with essential snaps (snapd, kernel, gadget and the model base)
+	essentialUpdated, essentialTss, err := updateFunc(essential)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// taskset with non-essential snaps (apps and their bases)
+	nonEssentialUpdated, nonEssentialTss, err := updateFunc(nonEssential)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	allUpdated := append(essentialUpdated, nonEssentialUpdated...)
+
+	// if snapd is in the essential snaps set, the non-essentials must wait for it
+	if strutil.ListContains(allUpdated, "snapd") {
+		snapdTss, err := maybeFindTasksetForSnap(essentialTss.Refresh, "snapd")
+		if err != nil {
+			return nil, nil, err
+		}
+
+		// make non-essential snaps also wait for snapd
+		snapdEndTask := snapdTss.MaybeEdge(EndEdge)
+		if snapdEndTask == nil {
+			return nil, nil, fmt.Errorf("internal error: cannot find last task in snapd's update taskset")
+		}
+
+		for _, ts := range nonEssentialTss.Refresh {
+			startTask := ts.MaybeEdge(BeginEdge)
+			if startTask == nil {
+				return nil, nil, fmt.Errorf("internal error: cannot find first task in snap's taskset")
+			}
+			startTask.WaitFor(snapdEndTask)
+		}
+	}
+
+	// add dependencies between apps and the boot base, if required
+	for _, base := range essential {
+		if base.Type() != snap.TypeBase {
+			continue
+		}
+
+		for _, app := range nonEssential {
+			if app.SnapBase() != base.InstanceName() {
+				continue
+			}
+
+			baseTaskset, err := maybeFindTasksetForSnap(essentialTss.Refresh, base.InstanceName())
+			if err != nil {
+				return nil, nil, err
+			}
+
+			appTaskset, err := maybeFindTasksetForSnap(nonEssentialTss.Refresh, app.InstanceName())
+			if err != nil {
+				return nil, nil, err
+			}
+
+			if baseTaskset == nil || appTaskset == nil {
+				// one of the snaps is not being updated
+				continue
+			}
+
+			// make the app wait for the base
+			baseEndTask := baseTaskset.MaybeEdge(EndEdge)
+			if baseEndTask == nil {
+				return nil, nil, fmt.Errorf("internal error: cannot find last task in base's update taskset")
+			}
+			appStartTask := appTaskset.MaybeEdge(BeginEdge)
+			if appStartTask == nil {
+				return nil, nil, fmt.Errorf("internal error: cannot find first task in snap's taskset")
+			}
+
+			appStartTask.WaitFor(baseEndTask)
+		}
+	}
+
+	return allUpdated, &UpdateTaskSets{
+		// only non-essential snaps can trigger pre-downloads
+		PreDownload: nonEssentialTss.PreDownload,
+		Refresh:     append(essentialTss.Refresh, nonEssentialTss.Refresh...),
+	}, nil
+}
+
+func maybeFindTasksetForSnap(tss []*state.TaskSet, name string) (*state.TaskSet, error) {
+	for _, ts := range tss {
+		for _, t := range ts.Tasks() {
+			var snapsup SnapSetup
+			err := t.Get("snap-setup", &snapsup)
+			if err != nil {
+				if errors.Is(err, state.ErrNoState) {
+					continue
+				}
+				return nil, err
+			}
+			if snapsup.InstanceName() != name {
+				break
+			}
+			return ts, nil
+		}
+	}
+
+	return nil, nil
 }
 
 // filterHeldSnaps filters held snaps from being updated in a general refresh.
@@ -2075,8 +2214,11 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 			transactionLane = globalFlags.Lane
 		} else {
 			transactionLane = st.NewLane()
+			// keep this in case doUpdate is called again (e.g., in a split refresh)
+			globalFlags.Lane = transactionLane
 		}
 	}
+
 	for _, update := range updates {
 		snapsup, snapst, err := update.(readyUpdateInfo).SnapSetupForUpdate(st, params, userID, globalFlags, prqt)
 		if err != nil {
@@ -2143,6 +2285,43 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 		PreDownload: preDlTasksets,
 	}
 	return updated, updateTss, nil
+}
+
+func splitEssentialUpdates(deviceCtx DeviceContext, updates []minimalInstallInfo) (essential, nonEssential []minimalInstallInfo) {
+	var snapd minimalInstallInfo
+	var modelBase minimalInstallInfo
+
+	for _, update := range updates {
+		switch update.Type() {
+		case snap.TypeSnapd:
+			snapd = update
+		case snap.TypeBase:
+			if update.InstanceName() == deviceCtx.Base() {
+				modelBase = update
+			} else {
+				nonEssential = append(nonEssential, update)
+			}
+		case snap.TypeGadget, snap.TypeKernel:
+			// snaps that require a reboot
+			essential = append(essential, update)
+		default:
+			nonEssential = append(nonEssential, update)
+		}
+	}
+
+	// if there's no other essential snaps, snapd and the model base can be
+	// refreshed with the apps (order doesn't matter here, we sort later)
+	for _, info := range []minimalInstallInfo{snapd, modelBase} {
+		if info != nil {
+			if len(essential) > 0 {
+				essential = append(essential, info)
+			} else {
+				nonEssential = append(nonEssential, info)
+			}
+		}
+	}
+
+	return essential, nonEssential
 }
 
 func finalizeUpdate(st *state.State, tasksets []*state.TaskSet, hasUpdates bool, updated []string, userID int, globalFlags *Flags) []*state.TaskSet {
