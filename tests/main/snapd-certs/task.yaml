@@ -1,5 +1,13 @@
 summary: Ensure that store ssl certs for snapd work
 
+details: |
+    Verify that we can set, get and unset SSL certs for the snap store. These
+    operations are done via setting config options on the core snap.
+
+    Additionally, we check that configuration options that are set on a revision
+    of a snap are reverted if the snap is reverted to a previous revision. Note
+    that the certificate is not removed in this case.
+
 systems: [ubuntu-1*, ubuntu-2*]
 
 environment:

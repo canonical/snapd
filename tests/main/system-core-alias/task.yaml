@@ -1,5 +1,9 @@
 summary: Verify that 'system' can be used as an alias for 'core'
 
+details: |
+    Verify that 'system' can be used as an alias for 'core' when setting and
+    getting configuration options.
+
 debug: |
     snap get core -d || true
     snap get system -d || true

@@ -1,5 +1,9 @@
 summary: Check that snapd can be built without cgo
 
+details: |
+    This test builds snapd with CGO_ENABLED=0 and checks that the resulting
+    binary is not a dynamic executable.
+
 # debian-sid uses a different packaging with quilt patches applied on top
 # of the verbatim tree
 systems: [-ubuntu-core-*, -debian-sid-*]
