@@ -6,10 +6,10 @@ details: |
     snap, not of the apps it contains; it's up to the snap developer to determine how the
     health of the individual apps add up to the health of the snap as a whole.
 
-    In this test it is installed a snap with a check-health hook which sets the health
-    'snapctl set-health okay', then it is is verified that in the state.json file, the
-    value for .data.health.<SNAP>.status is set to 1.
-    Also it is checked that a snap app and a snap hook (different from check-health) can
+    This test installs a snap with a check-health hook which sets the health with
+    'snapctl set-health okay'. Then it verifies that the value of 
+    .data.health.<SNAP>.status in the state.json file is set to 1.
+    It also checks that a snap app and a snap hook (other than check-health) can
     run 'snapctl set-health' and change the health value and message.
 
 prepare: |
