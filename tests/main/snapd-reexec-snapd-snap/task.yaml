@@ -1,5 +1,12 @@
 summary: Test that snapd reexecs itself into the snapd snap
 
+details: |
+    This test ensures that snap cli reexecs itself into the snapd snap under the
+    right conditions (when SNAP_REEXEC is set and when experimental.snapd-snap=true)
+
+    We also check that the snapd snap is automatically installed when the
+    experimental.snapd-snap feature is enabled.
+
 # Disable for Fedora, openSUSE and Arch as re-exec is not support there yet
 systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*]
 

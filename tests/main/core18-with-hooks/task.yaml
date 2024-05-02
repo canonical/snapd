@@ -1,5 +1,9 @@
 summary: Ensure that snaps with hooks work with base core18
 
+details: |
+    Verify that snap hooks for snaps with "base: core18" can use snapctl. This
+    test installs a snap with a hook that uses snapctl.
+
 restore: |
     snap remove --purge test-snapd-snapctl-core18
 
