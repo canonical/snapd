@@ -1,5 +1,14 @@
 summary: Ensure our debs are correctly built
 
+details: |
+    When snapd is tested in Ubuntu and Debian, .deb files are created using
+    the snapd code from the local branch.
+
+    This test verifies that the debs have the 'built-using' header. It also
+    checks that Apparmor & Seccomp are compiled (only in Ubuntu), that
+    the snapd.session-agent.socket symlink is part of the deb and that
+    it has the right (relative) target.
+
 systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*]
 
 execute: |
