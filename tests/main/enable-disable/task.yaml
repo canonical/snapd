@@ -7,8 +7,8 @@ details: |
     and the snap can easily be enabled again.
 
     This test verifies that when a snap is disabled, it is listed as disabled and
-    the command and the security profiles are no longer there. Then, it is checked
-    it runs normally after it is enabled.
+    the command and the security profiles are no longer there. Then it checks
+    that the snap runs normally after it is enabled.
 
     It also checks that the important snaps (core, gadget and kernel) can't
     be disabled.    
