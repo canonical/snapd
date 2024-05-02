@@ -22,9 +22,6 @@ package prompting_test
 import (
 	"fmt"
 
-	// TODO: remove once PR #13849 is merged
-	"testing"
-
 	. "gopkg.in/check.v1"
 
 	// TODO: add this once PR #13730 is merged:
@@ -32,29 +29,13 @@ import (
 
 	"github.com/snapcore/snapd/interfaces/prompting"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
-
-	// TODO: remove once PR #13849 is merged
-	"github.com/snapcore/snapd/dirs"
 )
 
-// TODO: remove once PR #13849 is merged
-func Test(t *testing.T) { TestingT(t) }
+type constraintsSuite struct{}
 
-// TODO: remove once PR #13849 is merged
-type promptingSuite struct {
-	tmpdir string
-}
+var _ = Suite(&constraintsSuite{})
 
-// TODO: remove once PR #13849 is merged
-var _ = Suite(&promptingSuite{})
-
-// TODO: remove once PR #13849 is merged
-func (s *promptingSuite) SetUpTest(c *C) {
-	s.tmpdir = c.MkDir()
-	dirs.SetRootDir(s.tmpdir)
-}
-
-func (s *promptingSuite) TestConstraintsValidateForInterface(c *C) {
+func (s *constraintsSuite) TestConstraintsValidateForInterface(c *C) {
 	cases := []struct {
 		iface   string
 		pattern string
@@ -91,7 +72,7 @@ func (s *promptingSuite) TestConstraintsValidateForInterface(c *C) {
 	}
 }
 
-func (s *promptingSuite) TestValidatePermissionsHappy(c *C) {
+func (s *constraintsSuite) TestValidatePermissionsHappy(c *C) {
 	cases := []struct {
 		iface   string
 		initial []string
@@ -123,7 +104,7 @@ func (s *promptingSuite) TestValidatePermissionsHappy(c *C) {
 	}
 }
 
-func (s *promptingSuite) TestValidatePermissionsUnhappy(c *C) {
+func (s *constraintsSuite) TestValidatePermissionsUnhappy(c *C) {
 	cases := []struct {
 		iface  string
 		perms  []string
@@ -159,7 +140,7 @@ func (s *promptingSuite) TestValidatePermissionsUnhappy(c *C) {
 	}
 }
 
-func (*promptingSuite) TestConstraintsMatch(c *C) {
+func (*constraintsSuite) TestConstraintsMatch(c *C) {
 	cases := []struct {
 		pattern string
 		path    string
@@ -188,7 +169,7 @@ func (*promptingSuite) TestConstraintsMatch(c *C) {
 	}
 }
 
-func (s *promptingSuite) TestConstraintsMatchUnhappy(c *C) {
+func (s *constraintsSuite) TestConstraintsMatchUnhappy(c *C) {
 	badPath := `bad\pattern\`
 	badConstraints := &prompting.Constraints{
 		PathPattern: badPath,
@@ -202,7 +183,7 @@ func (s *promptingSuite) TestConstraintsMatchUnhappy(c *C) {
 	c.Check(matches, Equals, true)
 }
 
-func (s *promptingSuite) TestConstraintsRemovePermission(c *C) {
+func (s *constraintsSuite) TestConstraintsRemovePermission(c *C) {
 	cases := []struct {
 		initial []string
 		remove  string
@@ -269,7 +250,7 @@ func (s *promptingSuite) TestConstraintsRemovePermission(c *C) {
 	}
 }
 
-func (s *promptingSuite) TestConstraintsContainPermissions(c *C) {
+func (s *constraintsSuite) TestConstraintsContainPermissions(c *C) {
 	cases := []struct {
 		constPerms []string
 		queryPerms []string
@@ -341,7 +322,7 @@ func constructPermissionsMaps() []map[string]map[string]interface{} {
 	return permissionsMaps
 }
 
-func (s *promptingSuite) TestInterfacesAndPermissionsCompleteness(c *C) {
+func (s *constraintsSuite) TestInterfacesAndPermissionsCompleteness(c *C) {
 	permissionsMaps := constructPermissionsMaps()
 	// Check that every interface in interfacePriorities is also in
 	// interfacePermissionsAvailable and exactly one of the permissions maps.
@@ -375,7 +356,7 @@ func (s *promptingSuite) TestInterfacesAndPermissionsCompleteness(c *C) {
 	}
 }
 
-func (s *promptingSuite) TestInterfaceFilePermissionsMapsCorrectness(c *C) {
+func (s *constraintsSuite) TestInterfaceFilePermissionsMapsCorrectness(c *C) {
 	for iface, permsMap := range prompting.InterfaceFilePermissionsMaps {
 		seenPermissions := notify.FilePermission(0)
 		for name, mask := range permsMap {
@@ -388,7 +369,7 @@ func (s *promptingSuite) TestInterfaceFilePermissionsMapsCorrectness(c *C) {
 	}
 }
 
-func (s *promptingSuite) TestAvailablePermissions(c *C) {
+func (s *constraintsSuite) TestAvailablePermissions(c *C) {
 	for iface, perms := range prompting.InterfacePermissionsAvailable {
 		available, err := prompting.AvailablePermissions(iface)
 		c.Check(err, IsNil)
@@ -399,7 +380,7 @@ func (s *promptingSuite) TestAvailablePermissions(c *C) {
 	c.Check(available, IsNil)
 }
 
-func (s *promptingSuite) TestAbstractPermissionsFromAppArmorPermissionsHappy(c *C) {
+func (s *constraintsSuite) TestAbstractPermissionsFromAppArmorPermissionsHappy(c *C) {
 	cases := []struct {
 		iface string
 		perms interface{}
@@ -443,7 +424,7 @@ func (s *promptingSuite) TestAbstractPermissionsFromAppArmorPermissionsHappy(c *
 	}
 }
 
-func (s *promptingSuite) TestAbstractPermissionsFromAppArmorPermissionsUnhappy(c *C) {
+func (s *constraintsSuite) TestAbstractPermissionsFromAppArmorPermissionsUnhappy(c *C) {
 	cases := []struct {
 		iface  string
 		perms  interface{}
@@ -482,7 +463,7 @@ func (s *promptingSuite) TestAbstractPermissionsFromAppArmorPermissionsUnhappy(c
 	}
 }
 
-func (s *promptingSuite) TestAbstractPermissionsToAppArmorPermissionsHappy(c *C) {
+func (s *constraintsSuite) TestAbstractPermissionsToAppArmorPermissionsHappy(c *C) {
 	cases := []struct {
 		iface string
 		list  []string
@@ -523,7 +504,7 @@ func (s *promptingSuite) TestAbstractPermissionsToAppArmorPermissionsHappy(c *C)
 	}
 }
 
-func (s *promptingSuite) TestAbstractPermissionsToAppArmorPermissionsUnhappy(c *C) {
+func (s *constraintsSuite) TestAbstractPermissionsToAppArmorPermissionsUnhappy(c *C) {
 	cases := []struct {
 		iface  string
 		perms  []string
