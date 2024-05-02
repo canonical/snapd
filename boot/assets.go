@@ -175,7 +175,7 @@ var ErrObserverNotApplicable = errors.New("observer not applicable")
 // for use during installation of the run mode system to track trusted and
 // control managed assets, provided the device model indicates this might be
 // needed. Otherwise, nil and ErrObserverNotApplicable is returned.
-func TrustedAssetsInstallObserverForModel(model *asserts.Model, gadgetDir string, useEncryption bool) (*TrustedAssetsInstallObserver, error) {
+func TrustedAssetsInstallObserverForModel(model *asserts.Model, gadgetDir string, useEncryption bool) (TrustedAssetsInstallObserver, error) {
 	if model.Grade() == asserts.ModelGradeUnset {
 		// no need to observe updates when assets are not managed
 		return nil, ErrObserverNotApplicable
@@ -216,7 +216,7 @@ func TrustedAssetsInstallObserverForModel(model *asserts.Model, gadgetDir string
 		return nil, ErrObserverNotApplicable
 	}
 
-	return &TrustedAssetsInstallObserver{
+	return &trustedAssetsInstallObserverImpl{
 		model:     model,
 		cache:     newTrustedAssetsCache(dirs.SnapBootAssetsDir),
 		gadgetDir: gadgetDir,
@@ -253,7 +253,15 @@ func isAssetHashTrackedInMap(bam bootAssetsMap, assetName, assetHash string) boo
 
 // TrustedAssetsInstallObserver tracks the installation of trusted or managed
 // boot assets.
-type TrustedAssetsInstallObserver struct {
+type TrustedAssetsInstallObserver interface {
+	BootLoaderSupportsEfiVariables() bool
+	ObserveExistingTrustedRecoveryAssets(recoveryRootDir string) error
+	ChosenEncryptionKeys(key, saveKey keys.EncryptionKey)
+	UpdateBootEntry() error
+	Observe(op gadget.ContentOperation, partRole, root, relativeTarget string, data *gadget.ContentChange) (gadget.ContentChangeAction, error)
+}
+
+type trustedAssetsInstallObserverImpl struct {
 	model     *asserts.Model
 	gadgetDir string
 	cache     *trustedAssetsCache
@@ -278,7 +286,7 @@ type TrustedAssetsInstallObserver struct {
 	seedBootloader bootloader.Bootloader
 }
 
-func (o *TrustedAssetsInstallObserver) BootLoaderSupportsEfiVariables() bool {
+func (o *trustedAssetsInstallObserverImpl) BootLoaderSupportsEfiVariables() bool {
 	_, seedBlHasEfiEntries := o.seedBootloader.(bootloader.UefiBootloader)
 	return seedBlHasEfiEntries
 }
@@ -289,7 +297,7 @@ func (o *TrustedAssetsInstallObserver) BootLoaderSupportsEfiVariables() bool {
 // measured as part of the secure boot or the bootloader configuration.
 //
 // Implements gadget.ContentObserver.
-func (o *TrustedAssetsInstallObserver) Observe(op gadget.ContentOperation, partRole, root, relativeTarget string, data *gadget.ContentChange) (gadget.ContentChangeAction, error) {
+func (o *trustedAssetsInstallObserverImpl) Observe(op gadget.ContentOperation, partRole, root, relativeTarget string, data *gadget.ContentChange) (gadget.ContentChangeAction, error) {
 	if partRole != gadget.SystemBoot {
 		// only care about system-boot
 		return gadget.ChangeApply, nil
@@ -325,7 +333,7 @@ func (o *TrustedAssetsInstallObserver) Observe(op gadget.ContentOperation, partR
 
 // ObserveExistingTrustedRecoveryAssets observes existing trusted assets of a
 // recovery bootloader located inside a given root directory.
-func (o *TrustedAssetsInstallObserver) ObserveExistingTrustedRecoveryAssets(recoveryRootDir string) error {
+func (o *trustedAssetsInstallObserverImpl) ObserveExistingTrustedRecoveryAssets(recoveryRootDir string) error {
 	if len(o.trustedRecoveryAssets) == 0 {
 		// not a trusted assets bootloader or has no trusted assets
 		return nil
@@ -352,21 +360,21 @@ func (o *TrustedAssetsInstallObserver) ObserveExistingTrustedRecoveryAssets(reco
 	return nil
 }
 
-func (o *TrustedAssetsInstallObserver) currentTrustedBootAssetsMap() bootAssetsMap {
+func (o *trustedAssetsInstallObserverImpl) currentTrustedBootAssetsMap() bootAssetsMap {
 	return o.trackedAssets
 }
 
-func (o *TrustedAssetsInstallObserver) currentTrustedRecoveryBootAssetsMap() bootAssetsMap {
+func (o *trustedAssetsInstallObserverImpl) currentTrustedRecoveryBootAssetsMap() bootAssetsMap {
 	return o.trackedRecoveryAssets
 }
 
-func (o *TrustedAssetsInstallObserver) ChosenEncryptionKeys(key, saveKey keys.EncryptionKey) {
+func (o *trustedAssetsInstallObserverImpl) ChosenEncryptionKeys(key, saveKey keys.EncryptionKey) {
 	o.useEncryption = true
 	o.dataEncryptionKey = key
 	o.saveEncryptionKey = saveKey
 }
 
-func (o *TrustedAssetsInstallObserver) UpdateBootEntry() error {
+func (o *trustedAssetsInstallObserverImpl) UpdateBootEntry() error {
 	if o.seedBootloader == nil {
 		return nil
 	}

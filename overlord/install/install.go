@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2021-2023 Canonical Ltd
+ * Copyright (C) 2021-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -219,7 +219,7 @@ func CheckEncryptionSupport(model *asserts.Model, tpmMode secboot.TPMProvisionMo
 // The observer if any is also returned as non-nil trustedObserver if
 // encryption is in use.
 func BuildInstallObserver(model *asserts.Model, gadgetDir string, useEncryption bool) (
-	observer gadget.ContentObserver, trustedObserver *boot.TrustedAssetsInstallObserver, err error) {
+	observer gadget.ContentObserver, trustedObserver boot.TrustedAssetsInstallObserver, err error) {
 
 	// observer will be a nil interface by default
 	trustedObserver, err = boot.TrustedAssetsInstallObserverForModel(model, gadgetDir, useEncryption)
@@ -242,7 +242,9 @@ func BuildInstallObserver(model *asserts.Model, gadgetDir string, useEncryption 
 // * provides trustedInstallObserver with the chosen keys
 // * uses trustedInstallObserver to track any trusted assets in ubuntu-seed
 // * save keys and markers for ubuntu-data being able to safely open ubuntu-save
-func PrepareEncryptedSystemData(model *asserts.Model, keyForRole map[string]keys.EncryptionKey, trustedInstallObserver *boot.TrustedAssetsInstallObserver) error {
+// It is the responsibility of the caller to call
+// ObserveExistingTrustedRecoveryAssets on trustedInstallObserver.
+func PrepareEncryptedSystemData(model *asserts.Model, keyForRole map[string]keys.EncryptionKey, trustedInstallObserver boot.TrustedAssetsInstallObserver) error {
 	// validity check
 	if len(keyForRole) == 0 || keyForRole[gadget.SystemData] == nil || keyForRole[gadget.SystemSave] == nil {
 		return fmt.Errorf("internal error: system encryption keys are unset")

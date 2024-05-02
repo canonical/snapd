@@ -346,8 +346,11 @@ func (s *assetsSuite) TestInstallObserverObserveSystemBootRealGrub(c *C) {
 		filepath.Join(dirs.SnapBootAssetsDir, "grub", fmt.Sprintf("grubx64.efi-%s", dataHash)),
 	})
 
+	observerImpl, ok := obs.(*boot.TrustedAssetsInstallObserverImpl)
+	c.Assert(ok, Equals, true)
+
 	// let's see what the observer has tracked
-	tracked := obs.CurrentTrustedBootAssetsMap()
+	tracked := observerImpl.CurrentTrustedBootAssetsMap()
 	c.Check(tracked, DeepEquals, boot.BootAssetsMap{
 		"grubx64.efi": []string{dataHash},
 	})
@@ -406,8 +409,12 @@ func (s *assetsSuite) TestInstallObserverObserveSystemBootMocked(c *C) {
 		filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("asset-%s", dataHash)),
 		filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("other-asset-%s", dataHash)),
 	})
+
+	observerImpl, ok := obs.(*boot.TrustedAssetsInstallObserverImpl)
+	c.Assert(ok, Equals, true)
+
 	// let's see what the observer has tracked
-	tracked := obs.CurrentTrustedBootAssetsMap()
+	tracked := observerImpl.CurrentTrustedBootAssetsMap()
 	c.Check(tracked, DeepEquals, boot.BootAssetsMap{
 		"asset":       []string{dataHash},
 		"other-asset": []string{dataHash},
@@ -468,8 +475,12 @@ func (s *assetsSuite) TestInstallObserverNonTrustedBootloader(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(obs, NotNil)
 	obs.ChosenEncryptionKeys(keys.EncryptionKey{1, 2, 3, 4}, keys.EncryptionKey{5, 6, 7, 8})
-	c.Check(obs.CurrentDataEncryptionKey(), DeepEquals, keys.EncryptionKey{1, 2, 3, 4})
-	c.Check(obs.CurrentSaveEncryptionKey(), DeepEquals, keys.EncryptionKey{5, 6, 7, 8})
+
+	observerImpl, ok := obs.(*boot.TrustedAssetsInstallObserverImpl)
+	c.Assert(ok, Equals, true)
+
+	c.Check(observerImpl.CurrentDataEncryptionKey(), DeepEquals, keys.EncryptionKey{1, 2, 3, 4})
+	c.Check(observerImpl.CurrentSaveEncryptionKey(), DeepEquals, keys.EncryptionKey{5, 6, 7, 8})
 }
 
 func (s *assetsSuite) TestInstallObserverTrustedButNoAssets(c *C) {
@@ -489,8 +500,12 @@ func (s *assetsSuite) TestInstallObserverTrustedButNoAssets(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(obs, NotNil)
 	obs.ChosenEncryptionKeys(keys.EncryptionKey{1, 2, 3, 4}, keys.EncryptionKey{5, 6, 7, 8})
-	c.Check(obs.CurrentDataEncryptionKey(), DeepEquals, keys.EncryptionKey{1, 2, 3, 4})
-	c.Check(obs.CurrentSaveEncryptionKey(), DeepEquals, keys.EncryptionKey{5, 6, 7, 8})
+
+	observerImpl, ok := obs.(*boot.TrustedAssetsInstallObserverImpl)
+	c.Assert(ok, Equals, true)
+
+	c.Check(observerImpl.CurrentDataEncryptionKey(), DeepEquals, keys.EncryptionKey{1, 2, 3, 4})
+	c.Check(observerImpl.CurrentSaveEncryptionKey(), DeepEquals, keys.EncryptionKey{5, 6, 7, 8})
 }
 
 func (s *assetsSuite) TestInstallObserverTrustedReuseNameErr(c *C) {
@@ -566,8 +581,12 @@ func (s *assetsSuite) TestInstallObserverObserveExistingRecoveryMocked(c *C) {
 	})
 	// the list of trusted assets for recovery was asked for
 	c.Check(tab.TrustedAssetsCalls, Equals, 2)
+
+	observerImpl, ok := obs.(*boot.TrustedAssetsInstallObserverImpl)
+	c.Assert(ok, Equals, true)
+
 	// let's see what the observer has tracked
-	tracked := obs.CurrentTrustedRecoveryBootAssetsMap()
+	tracked := observerImpl.CurrentTrustedRecoveryBootAssetsMap()
 	c.Check(tracked, DeepEquals, boot.BootAssetsMap{
 		"asset":       []string{dataHash},
 		"other-asset": []string{dataHash},

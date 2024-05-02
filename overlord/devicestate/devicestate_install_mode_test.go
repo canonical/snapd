@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2021 Canonical Ltd
+ * Copyright (C) 2021-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -307,7 +307,7 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 	}
 
 	bootMakeBootableCalled := 0
-	restore = devicestate.MockBootMakeSystemRunnable(func(model *asserts.Model, bootWith *boot.BootableSet, seal *boot.TrustedAssetsInstallObserver) error {
+	restore = devicestate.MockBootMakeSystemRunnable(func(model *asserts.Model, bootWith *boot.BootableSet, obs boot.TrustedAssetsInstallObserver) error {
 		c.Check(model, DeepEquals, mockModel)
 		c.Check(bootWith.KernelPath, Matches, ".*/var/lib/snapd/snaps/pc-kernel_1.snap")
 		c.Check(bootWith.BasePath, Matches, ".*/var/lib/snapd/snaps/core20_2.snap")
@@ -315,9 +315,9 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 		c.Check(bootWith.RecoverySystemDir, Equals, "")
 		c.Check(bootWith.UnpackedGadgetDir, Equals, filepath.Join(dirs.SnapMountDir, "pc/1"))
 		if tc.encrypt {
-			c.Check(seal, NotNil)
+			c.Check(obs, NotNil)
 		} else {
-			c.Check(seal, IsNil)
+			c.Check(obs, IsNil)
 		}
 		bootMakeBootableCalled++
 		return nil
@@ -368,7 +368,7 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 		// inteface is not nil
 		c.Assert(installSealingObserver, NotNil)
 		// we expect a very specific type
-		trustedInstallObserver, ok := installSealingObserver.(*boot.TrustedAssetsInstallObserver)
+		trustedInstallObserver, ok := installSealingObserver.(boot.TrustedAssetsInstallObserver)
 		c.Assert(ok, Equals, true, Commentf("unexpected type: %T", installSealingObserver))
 		c.Assert(trustedInstallObserver, NotNil)
 	} else {
@@ -1233,7 +1233,7 @@ func (s *deviceMgrInstallModeSuite) mockInstallModeChange(c *C, modelGrade, gadg
 	s.state.Unlock()
 	c.Check(mockModel.Grade(), Equals, asserts.ModelGrade(modelGrade))
 
-	restore = devicestate.MockBootMakeSystemRunnable(func(model *asserts.Model, bootWith *boot.BootableSet, seal *boot.TrustedAssetsInstallObserver) error {
+	restore = devicestate.MockBootMakeSystemRunnable(func(model *asserts.Model, bootWith *boot.BootableSet, obs boot.TrustedAssetsInstallObserver) error {
 		return nil
 	})
 	defer restore()
@@ -1645,7 +1645,7 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 	})()
 
 	bootMakeBootableCalled := 0
-	restore = devicestate.MockBootMakeSystemRunnableAfterDataReset(func(makeRunnableModel *asserts.Model, bootWith *boot.BootableSet, seal *boot.TrustedAssetsInstallObserver) error {
+	restore = devicestate.MockBootMakeSystemRunnableAfterDataReset(func(makeRunnableModel *asserts.Model, bootWith *boot.BootableSet, obs boot.TrustedAssetsInstallObserver) error {
 		c.Check(makeRunnableModel, DeepEquals, model)
 		c.Check(bootWith.KernelPath, Matches, ".*/var/lib/snapd/snaps/pc-kernel_1.snap")
 		c.Check(bootWith.BasePath, Matches, ".*/var/lib/snapd/snaps/core20_2.snap")
@@ -1653,9 +1653,9 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 		c.Check(bootWith.RecoverySystemDir, Equals, "")
 		c.Check(bootWith.UnpackedGadgetDir, Equals, filepath.Join(dirs.SnapMountDir, "pc/1"))
 		if tc.encrypt {
-			c.Check(seal, NotNil)
+			c.Check(obs, NotNil)
 		} else {
-			c.Check(seal, IsNil)
+			c.Check(obs, IsNil)
 		}
 		bootMakeBootableCalled++
 
@@ -1738,7 +1738,7 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 		// inteface is not nil
 		c.Assert(installSealingObserver, NotNil)
 		// we expect a very specific type
-		trustedInstallObserver, ok := installSealingObserver.(*boot.TrustedAssetsInstallObserver)
+		trustedInstallObserver, ok := installSealingObserver.(boot.TrustedAssetsInstallObserver)
 		c.Assert(ok, Equals, true, Commentf("unexpected type: %T", installSealingObserver))
 		c.Assert(trustedInstallObserver, NotNil)
 	} else {
