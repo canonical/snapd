@@ -1,5 +1,15 @@
 summary: Check that snap timer services work
 
+details: |
+    A snap service may define a timer declaring when the service must
+    be run automatically. Those timers translate to systemd timer
+    units.
+
+    This test verifies that the installation of a snap with timers, or
+    enabling of the snap, will create corresponding systemd timer. It
+    will also verify that removal or disabling of the snap will also
+    remove the timer units.
+
 execute: |
     echo "When the service snap is installed"
     "$TESTSTOOLS"/snaps-state install-local test-snapd-timer-service
