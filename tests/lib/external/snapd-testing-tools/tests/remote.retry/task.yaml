@@ -1,5 +1,10 @@
 summary: smoke test for the remote.retry tool
 
+details: |
+    This test checks the remote.retry tool properly handles retrying
+    a command in the remote instance. Also Verifies that on failure
+    the exit code from the final attempt is returned.   
+
 backends: [google]
 
 # Amazon linux is skipped because no sshpass available
