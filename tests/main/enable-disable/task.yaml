@@ -10,7 +10,7 @@ details: |
     the command and the security profiles are no longer there. Then, it is checked
     it runs normally after it is enabled.
 
-    Also it is verified that the important snaps (core, gadget and kernel) can not
+    It also checks that the important snaps (core, gadget and kernel) can't
     be disabled.    
 
 prepare: |
