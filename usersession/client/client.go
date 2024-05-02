@@ -364,6 +364,7 @@ type ClientServicesStartOptions struct {
 	Enable bool
 	// DisabledServices is a list of services per-uid that can be provided
 	// which will then be ignored for the start or enable operation.
+	// Using the uid index '-1' will be used to filter services for all user clients.
 	DisabledServices map[int][]string
 }
 

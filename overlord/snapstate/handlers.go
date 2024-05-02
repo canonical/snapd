@@ -3024,11 +3024,6 @@ func (m *SnapManager) startSnapServices(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	logger.Noticef("previously disabled system-services: %v", snapst.LastActiveDisabledServices)
-	for uid, svcs := range snapst.LastActiveDisabledUserServices {
-		logger.Noticef("previously disabled user-services [%d]: %v", uid, svcs)
-	}
-
 	// check if any previously disabled services are now no longer services and
 	// log messages about that
 	for _, svc := range snapst.LastActiveDisabledServices {
@@ -3057,15 +3052,19 @@ func (m *SnapManager) startSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
-	// append services that were disabled by hooks (they should not get re-enabled)
-	svcsToDisable = append(svcsToDisable, snapst.ServicesDisabledByHooks...)
 
 	// Insert it into the overview, into the 'found' list. Re-use the entire
 	// list for all users (-1) as there won't be any difference between users
-	// in this specific case (and to allow us to keep a singular list of services
-	// that need to be disabled).
+	// in the case of install modes
 	missingSvcsOverview.FoundSystemServices = append(missingSvcsOverview.FoundSystemServices, svcsToDisable...)
 	missingSvcsOverview.FoundUserServices[-1] = svcsToDisable
+
+	// append system services that were disabled by hooks (they should not get re-enabled)
+	missingSvcsOverview.FoundSystemServices = append(missingSvcsOverview.FoundSystemServices, snapst.ServicesDisabledByHooks...)
+	// merge user services disabled by hooks
+	for uid, svcs := range snapst.UserServicesDisabledByHooks {
+		missingSvcsOverview.FoundUserServices[uid] = append(missingSvcsOverview.FoundUserServices[uid], svcs...)
+	}
 
 	// save the current last-active-disabled-services before we re-write it in case we
 	// need to undo this
@@ -3096,10 +3095,6 @@ func (m *SnapManager) startSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	pb := NewTaskProgressAdapterUnlocked(t)
 
 	st.Unlock()
-	logger.Noticef("ignore system-services: %v", missingSvcsOverview.FoundSystemServices)
-	for uid, svcs := range missingSvcsOverview.FoundUserServices {
-		logger.Noticef("ignore user-services [%d]: %v", uid, svcs)
-	}
 	err = m.backend.StartServices(startupOrdered, &wrappers.DisabledServices{
 		SystemServices: missingSvcsOverview.FoundSystemServices,
 		UserServices:   missingSvcsOverview.FoundUserServices,
@@ -3226,19 +3221,13 @@ func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) error {
 		snapst.LastActiveDisabledServices,
 		disabledServices.SystemServices...,
 	)
-	// Merge the two user-services maps, ideally we would have one struct but we must
-	// preserve the backwards-compat with the json layout
+	// and merge the two user-services maps...
 	if len(snapst.LastActiveDisabledUserServices) > 0 {
 		for uid, svcs := range disabledServices.UserServices {
 			snapst.LastActiveDisabledUserServices[uid] = append(snapst.LastActiveDisabledUserServices[uid], svcs...)
 		}
 	} else {
 		snapst.LastActiveDisabledUserServices = disabledServices.UserServices
-	}
-
-	logger.Noticef("queried disabled system-services: %v", disabledServices.SystemServices)
-	for uid, svcs := range disabledServices.UserServices {
-		logger.Noticef("queried disabled user-services [%d]: %v", uid, svcs)
 	}
 
 	// reset services tracked by operations from hooks

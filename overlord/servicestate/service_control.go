@@ -145,7 +145,7 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 			if err := snapstate.Get(st, sc.SnapName, &snapst); err != nil {
 				return err
 			}
-			changed, err := updateSnapstateServices(&snapst, nil, services)
+			changed, err := updateSnapstateServices(&snapst, nil, services, sc.ScopeOptions)
 			if err != nil {
 				return err
 			}
@@ -170,7 +170,7 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 			if err := snapstate.Get(st, sc.SnapName, &snapst); err != nil {
 				return err
 			}
-			changed, err := updateSnapstateServices(&snapst, startupOrdered, nil)
+			changed, err := updateSnapstateServices(&snapst, startupOrdered, nil, sc.ScopeOptions)
 			if err != nil {
 				return err
 			}
