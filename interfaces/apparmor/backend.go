@@ -617,12 +617,10 @@ var (
 
 func (b *Backend) deriveContent(spec *Specification, appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions) (content map[string]osutil.FileState) {
 	runnables := appSet.Runnables()
-
 	content = make(map[string]osutil.FileState, len(runnables))
-
 	snapInfo := appSet.Info()
 
-	// Add profile for each app.
+	// Add profile for apps and hooks.
 	for _, r := range runnables {
 		b.addContent(r.SecurityTag, snapInfo, r.CommandName, opts, spec.SnippetForTag(r.SecurityTag), content, spec)
 	}
