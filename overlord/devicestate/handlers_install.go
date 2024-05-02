@@ -292,6 +292,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	if trustedInstallObserver != nil {
+		// We are required to call ObserveExistingTrustedRecoveryAssets on trusted observers
 		if err := trustedInstallObserver.ObserveExistingTrustedRecoveryAssets(boot.InitramfsUbuntuSeedDir); err != nil {
 			return fmt.Errorf("cannot observe existing trusted recovery assets: %v", err)
 		}
@@ -572,6 +573,7 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 	logger.Noticef("devs: %+v", installedSystem.DeviceForRole)
 
 	if trustedInstallObserver != nil {
+		// We are required to call ObserveExistingTrustedRecoveryAssets on trusted observers
 		if err := trustedInstallObserver.ObserveExistingTrustedRecoveryAssets(boot.InitramfsUbuntuSeedDir); err != nil {
 			return fmt.Errorf("cannot observe existing trusted recovery assets: %v", err)
 		}
@@ -1077,6 +1079,7 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	if trustedInstallObserver != nil {
+		// We are required to call ObserveExistingTrustedRecoveryAssets on trusted observers
 		if err := trustedInstallObserver.ObserveExistingTrustedRecoveryAssets(boot.InitramfsUbuntuSeedDir); err != nil {
 			return fmt.Errorf("cannot observe existing trusted recovery assets: %v", err)
 		}

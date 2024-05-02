@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2021-2023 Canonical Ltd
+ * Copyright (C) 2021-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -889,6 +889,7 @@ func (s *installSuite) TestPrepareEncryptedSystemData(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(to, NotNil)
 
+	// We are required to call ObserveExistingTrustedRecoveryAssets on trusted observers
 	err = to.ObserveExistingTrustedRecoveryAssets(boot.InitramfsUbuntuSeedDir)
 	c.Assert(err, IsNil)
 

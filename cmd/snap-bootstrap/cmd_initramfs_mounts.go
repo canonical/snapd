@@ -350,6 +350,7 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 	}
 
 	if trustedInstallObserver != nil {
+		// We are required to call ObserveExistingTrustedRecoveryAssets on trusted observers
 		if err := trustedInstallObserver.ObserveExistingTrustedRecoveryAssets(boot.InitramfsUbuntuSeedDir); err != nil {
 			return fmt.Errorf("cannot observe existing trusted recovery assets: %v", err)
 		}
