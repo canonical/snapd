@@ -4,7 +4,7 @@ details: |
     The sandbox command prints tags describing features of individual sandbox
     components used by snapd on a given system.
 
-    This test checks that in the supported systemd the command 
+    This test checks that in the supported systems the command 
     `snap debug sandbox-feature` reports the proper information like
     the supported features for: apparmor, seccomp, udev, etc.
 
