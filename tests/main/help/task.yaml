@@ -1,5 +1,9 @@
 summary: Check commands help
 
+details: |
+    This test checks the output for the `snap <CMD> help` command
+    follows the expected format and content.
+
 execute: |
     bad=""
     for CMD in $( GO_FLAGS_COMPLETION=1 snap | grep -evFx 'help|blame' ); do

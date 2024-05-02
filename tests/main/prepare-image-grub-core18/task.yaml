@@ -1,5 +1,14 @@
 summary: Check that prepare-image works for grub-systems
 
+details: |
+    The `snap prepare-image` command performs some of the steps necessary for
+    creating device images.
+
+    This test verifies that in classic and Ubuntu Core systems with grub as boot
+    loader, the prepare-image command prepares properly an ubuntu-core 18 image.
+    It is checked that the fundamental snaps are present, the snap assertions as
+    retrieved and the core snap in absent.
+
 backends: [-autopkgtest]
 
 systems: [-ubuntu-core-16-*, -fedora-*, -opensuse-*, -arch-*]

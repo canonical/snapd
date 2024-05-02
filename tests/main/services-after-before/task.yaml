@@ -1,5 +1,12 @@
 summary: Check that snap after/before ordering works
 
+details: |
+    Snap services of the same snap can be configured to follow an specific
+    order on how those are launched. 
+
+    This test verifies that the services defined in the test-snapd-after-before-service
+    snap are started following the defined order by defining the before and after options.
+
 execute: |
     echo "When the service snap is installed"
 
