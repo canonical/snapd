@@ -223,27 +223,22 @@ func (compsu *ComponentSetup) Revision() snap.Revision {
 //
 // The task could originate from:
 // * Installing a singular component for an already installed snap
+// * Installing multiple components for an already installed snap
 // * Installing/refreshing a snap with components
 // * Installing/refreshing a snap without any components
 func ComponentSetupsForTask(t *state.Task) ([]*ComponentSetup, error) {
+	// TODO: handle remaining cases in this switch:
+	// * installing multiple components for an already installed snap
+	// * installing/refreshing a snap with components
 	switch {
 	case t.Has("component-setup") || t.Has("component-setup-task"):
-		// task comes from a component installation
+		// task comes from a singular component installation for an already
+		// installed snap
 		compsup, _, err := TaskComponentSetup(t)
 		if err != nil {
 			return nil, err
 		}
 		return []*ComponentSetup{compsup}, nil
-	case t.Has("component-setups") || t.Has("component-setups-task"):
-		// TODO: test this branch once we know more about refreshing/installing
-		// snaps with components
-
-		// task comes from a snap refresh/install that contains components
-		compsups, _, err := TaskComponentSetups(t)
-		if err != nil {
-			return nil, err
-		}
-		return compsups, nil
 	default:
 		// task comes from a snap installation that doesn't contain any
 		// components
