@@ -18,11 +18,11 @@ details: |
   `snap validate --forget` command.
 
   This test verifies that setting validation set in enforce mode fails when snap
-  is not installed. Then, once the validation set is enforced, it is checked that
+  is not installed. Then, once the validation set is enforced, it checks that
   the validation set is listed and an invalid snap cannot be installed, but it can
-  be installed with --ignore-validation flag. It is also verified that a snap cannot
-  be removed when required and it can be removed once validation set is forgotten.
-  Finally, it is validated that a the snap can be refreshed to newer revision and
+  be installed with --ignore-validation flag. It also verifies that a snap cannot
+  be removed when required until the validation set is forgotten.
+  Finally, it validates that a snap can be refreshed to a newer revision and
   the validation set status remains valid.
 
 # This test uses validation set assertions from the store uploaded upfront
