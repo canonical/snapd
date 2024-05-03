@@ -1,5 +1,13 @@
 summary: Check that snap install respects after/before ordering of services
 
+details: |
+    Snap services of the same snap can be configured to follow an specific
+    order on how those are launched. 
+
+    This test install many times the test-snapd-after-before-service snap and verifies that
+    the services defined in it are started following the defined order by using the before
+    and after service options.
+
 # slow in autopkgtest (>3m)
 backends: [-autopkgtest]
 

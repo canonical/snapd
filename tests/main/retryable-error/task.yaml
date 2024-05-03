@@ -1,5 +1,12 @@
 summary: Ensure exit code for retryable error works
 
+details: |
+    In snapd, the retryable errors are the ones that can be retried later, and 
+    snapd uses a different exit code for retryable errors.
+    
+    This test forces an error installing 2 times the same snap and checks the
+    exit code for the the retryable error is 10.
+
 # autopkgtest is sometimes super slow and this test is timing dependent
 backends: [-autopkgtest]
 
@@ -8,7 +15,7 @@ execute: |
     snap pack test-snapd-sleep-install
     snap install --dangerous test-snapd-sleep-install_*.snap &
 
-    echo "And try to install it again which results in a change confict error"
+    echo "And try to install it again which results in a change conflict error"
     while true; do
         snap changes
         if snap changes | grep "Doing.*Install"; then
