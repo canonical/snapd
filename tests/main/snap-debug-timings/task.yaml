@@ -1,5 +1,10 @@
 summary: Ensure `snap debug change-timings` works
 
+details: |
+    The command `snap debug timings` must be able to provide timing
+    information for changes. This is a smoke test verifying requesting
+    the timings of last change does not fail.
+
 execute: |
     echo "When a snap gets installed"
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
