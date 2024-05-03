@@ -1,5 +1,10 @@
 summary: |
-  Check that `snapctl stop --disable` actually stops services on post-refresh
+    Check that `snapctl stop --disable` actually stops services on post-refresh
+
+details: |
+    Install a snap with both simple and forking services running and a refresh
+    hook which includes `snapctl stop --disable`, then check that the refresh
+    hook successfully stops those services when the snap is refreshed.
 
 execute: |
     echo "Installing snap first time starts services"
@@ -7,7 +12,7 @@ execute: |
 
     echo "Services are running after install hook"
     for service in simple forking; do
-        echo "Verify that the $service service isn't running"
+        echo "Verify that the $service service is running"
         snap services | MATCH "test-snapd-svcs-disable-refresh-hook\\.$service\\s+enabled\\s+active"
     done
 

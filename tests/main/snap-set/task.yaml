@@ -1,5 +1,30 @@
 summary: Check that `snap set` runs configure hook.
 
+details: |
+    The `snap set` command modifies configuration options for snaps. As part of
+    this process, configure hooks defined in the snap are run. This test checks
+    the following scenarios related to `snap set`:
+
+    1. If a snap has no configure hook defined, `snap set` fails.
+
+    2. If a configure hook errors, `snap set` fails.
+
+    3. Configuration options set via `snap set` can be retrieved by the
+    resulting configure hook.
+
+    4. Configuration options can be set to `null`, which removes the option.
+
+    5. Configuration options can be unset, which removes the option.
+
+    6. Setting an invalid key results in an error.
+
+    7. If a snap has a configure hook which results in an error, installation
+    of the snap fails.
+
+    8. If `snap set` is called multiple times, the order in which these calls
+    are handled is deterministic, with the most recent value set for a given
+    option taking precedence.
+
 prepare: |
     echo "Build basic test package (without hooks)"
     "$TESTSTOOLS"/snaps-state install-local basic
