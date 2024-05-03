@@ -21,6 +21,7 @@ package agentnotify
 
 import (
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -28,7 +29,7 @@ var (
 	NotifyAgentOnLinkageChange = notifyAgentOnLinkageChange
 )
 
-func MockSendClientFinishRefreshNotification(f func(*snapstate.SnapSetup)) (restore func()) {
+func MockSendClientFinishRefreshNotification(f func(*state.State, *snapstate.SnapSetup)) (restore func()) {
 	r := testutil.Backup(&sendClientFinishRefreshNotification)
 	sendClientFinishRefreshNotification = f
 	return r

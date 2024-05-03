@@ -48,7 +48,7 @@ func (s *agentNotifySuite) TestNotifyAgentOnLinkChange(c *C) {
 	defer s.st.Unlock()
 
 	var callCount int
-	r := agentnotify.MockSendClientFinishRefreshNotification(func(snapsup *snapstate.SnapSetup) {
+	r := agentnotify.MockSendClientFinishRefreshNotification(func(st *state.State, snapsup *snapstate.SnapSetup) {
 		c.Check(snapsup.InstanceName(), Equals, "some-snap")
 		callCount++
 	})
