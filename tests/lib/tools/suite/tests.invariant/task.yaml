@@ -1,8 +1,7 @@
 summary: tests.invariant is detecting problems
 
 details: |
-    The invariants are used to verify the state of the system under test is no
-    leaving leftovers.
+    The invariants are used to verify that the state of a system following a test is unchanged.
     This test checks the tests.invariants tool verifies the different invariants
     are ok when the tests are restored.    
 
