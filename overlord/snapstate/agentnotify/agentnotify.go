@@ -22,8 +22,11 @@ package agentnotify
 import (
 	"context"
 	"errors"
+	"fmt"
 
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	userclient "github.com/snapcore/snapd/usersession/client"
@@ -48,27 +51,24 @@ func notifyAgentOnLinkageChange(st *state.State, snapsup *snapstate.SnapSetup) e
 	// the only use-case right now is snaps going from inactive->active
 	// for continued-auto-refreshes
 	if snapst.Active {
-		return notifyLinkSnap(snapsup)
+		return notifyLinkSnap(st, snapsup)
 	}
 	return nil
 }
 
-func notifyLinkSnap(snapsup *snapstate.SnapSetup) error {
+func notifyLinkSnap(st *state.State, snapsup *snapstate.SnapSetup) error {
 	// Note that we only show a notification here if the refresh was
 	// triggered by a "continued-auto-refresh", i.e. when the user
 	// closed an application that had a auto-refresh ready.
 	if snapsup.Flags.IsContinuedAutoRefresh {
 		logger.Debugf("notifying user client about continued refresh for %q", snapsup.InstanceName())
-		sendClientFinishRefreshNotification(snapsup)
+		sendClientFinishRefreshNotification(st, snapsup)
 	}
 
 	return nil
 }
 
-var sendClientFinishRefreshNotification = func(snapsup *snapstate.SnapSetup) {
-	refreshInfo := &userclient.FinishedSnapRefreshInfo{
-		InstanceName: snapsup.InstanceName(),
-	}
+var asyncFinishRefreshNotification = func(refreshInfo *userclient.FinishedSnapRefreshInfo) {
 	client := userclient.New()
 	// run in a go-routine to avoid potentially slow operation
 	go func() {
@@ -76,4 +76,32 @@ var sendClientFinishRefreshNotification = func(snapsup *snapstate.SnapSetup) {
 			logger.Noticef("cannot send finish refresh notification: %v", err)
 		}
 	}()
+}
+
+var sendClientFinishRefreshNotification = func(st *state.State, snapsup *snapstate.SnapSetup) {
+	tr := config.NewTransaction(st)
+	experimentalRefreshAppAwarenessUX, err := features.Flag(tr, features.RefreshAppAwarenessUX)
+	if err != nil && !config.IsNoOption(err) {
+		logger.Noticef("Cannot send notification about pending refresh: %v", err)
+		return
+	}
+	if experimentalRefreshAppAwarenessUX {
+		// use notices + warnings fallback flow instead
+		return
+	}
+
+	fmt.Println("Checking hasActiveConnection")
+	markerExists, err := snapstate.HasActiveConnection(st, "snap-refresh-observe")
+	if err != nil {
+		logger.Noticef("Cannot send notification about pending refresh: %v", err)
+		return
+	}
+	if markerExists {
+		// found snap with marker interface, skip notification
+		return
+	}
+	refreshInfo := &userclient.FinishedSnapRefreshInfo{
+		InstanceName: snapsup.InstanceName(),
+	}
+	asyncFinishRefreshNotification(refreshInfo)
 }
