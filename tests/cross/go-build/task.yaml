@@ -1,7 +1,7 @@
 summary: Build Go commands across multiple arches
 
 details: |
-    This test verifies that the go commands in ./cmd/... can be built
+    This test verifies that the go commands in cmd/ can be built
     for the different supported architectures.
 
 environment:
