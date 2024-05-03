@@ -1,5 +1,10 @@
 summary: Snaps can install icon theme icons
 
+details: |
+    Snaps can provide icons and desktop files using those icons. They
+    are exported to "/var/lib/snapd/desktop" on installation. They
+    are removed when the snap is uninstalled.
+
 execute: |
     echo "Install a snap providing icons"
     "$TESTSTOOLS"/snaps-state install-local test-snapd-icon-theme

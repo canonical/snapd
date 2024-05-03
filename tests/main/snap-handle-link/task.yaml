@@ -1,5 +1,11 @@
 summary: Ensure the "snap handle-link" command works
 
+details: |
+    The command `snap handle-link` should be capable of calling snap-store
+    snap for "snap://" urls. If snap-store is not installed, it should
+    report a correct error. "snap://" urls should also be registered
+    on the desktop to be handle by "snap handle-link".
+
 systems:
     - -amazon-linux-2-*  # does not support systemd --user
     - -centos-7-*  # does not support systemd --user
