@@ -1,5 +1,11 @@
 summary: Check that snap connect works
 
+details: |
+    This test verifies multiple ways to invoke "snap connect". It
+    checks proper errors are reported. It makes sure slot in some
+    contexts can be implicit. Calls are idempotent. It tests
+    connections to snapd as well as other snaps.
+
 prepare: |
     echo "Install a test snap"
     "$TESTSTOOLS"/snaps-state install-local home-consumer
