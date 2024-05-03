@@ -1295,8 +1295,13 @@ func (f *fakeSnappyBackend) StartServices(svcs []*snap.AppInfo, disabledSvcs *wr
 		services: services,
 	}
 	// only add the services to the op if there's something to add
-	if disabledSvcs != nil && len(disabledSvcs.SystemServices) != 0 {
-		op.disabledServices = disabledSvcs.SystemServices
+	if disabledSvcs != nil {
+		if len(disabledSvcs.SystemServices) != 0 {
+			op.disabledServices = disabledSvcs.SystemServices
+		}
+		if len(disabledSvcs.UserServices) != 0 {
+			op.disabledUserServices = disabledSvcs.UserServices
+		}
 	}
 	f.appendOp(&op)
 	return f.maybeErrForLastOp()

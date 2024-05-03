@@ -1404,7 +1404,6 @@ func (s *serviceControlSuite) TestUpdateSnapstateUserServices(c *C) {
 			disable: []string{"a"},
 			users:   []string{"root"},
 			expectedSnapstateEnabled: map[int][]string{
-				0:    {},
 				1000: {"a"},
 			},
 			expectedSnapstateDisabled: map[int][]string{
@@ -1420,10 +1419,8 @@ func (s *serviceControlSuite) TestUpdateSnapstateUserServices(c *C) {
 				0:    {"a", "c"},
 				1000: {"a"},
 			},
-			expectedSnapstateDisabled: map[int][]string{
-				0: {},
-			},
-			changed: true,
+			expectedSnapstateDisabled: map[int][]string{},
+			changed:                   true,
 		},
 		// We now mix it up with disabling for everyone
 		{

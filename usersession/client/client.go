@@ -333,19 +333,8 @@ func (client *Client) ServicesDaemonReload(ctx context.Context) error {
 	return err
 }
 
-func filterDisabledServices(all []string, disabledSvcs map[int][]string, uid int) []string {
+func filterDisabledServices(all, disabled []string) []string {
 	var filtered []string
-	var disabled []string
-
-	// Any services marked for all users
-	if svcs, ok := disabledSvcs[-1]; ok {
-		disabled = append(disabled, svcs...)
-	}
-	// Any services marked for this one
-	if svcs, ok := disabledSvcs[uid]; ok {
-		disabled = append(disabled, svcs...)
-	}
-
 ServiceLoop:
 	for _, svc := range all {
 		for _, disabledSvc := range disabled {
@@ -364,7 +353,6 @@ type ClientServicesStartOptions struct {
 	Enable bool
 	// DisabledServices is a list of services per-uid that can be provided
 	// which will then be ignored for the start or enable operation.
-	// Using the uid index '-1' will be used to filter services for all user clients.
 	DisabledServices map[int][]string
 }
 
@@ -398,7 +386,7 @@ func (client *Client) ServicesStart(ctx context.Context, services []string, opts
 
 	for _, uid := range uids {
 		headers := map[string]string{"Content-Type": "application/json"}
-		filtered := filterDisabledServices(services, opts.DisabledServices, uid)
+		filtered := filterDisabledServices(services, opts.DisabledServices[uid])
 		if len(filtered) == 0 {
 			// Save an expensive call
 			continue

@@ -22,11 +22,10 @@ package servicestate
 import (
 	"fmt"
 	"os/user"
-	"path/filepath"
 	"sort"
 	"strconv"
 
-	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/wrappers"
@@ -34,30 +33,8 @@ import (
 
 var userLookup = user.Lookup
 
-// availableUsers returns a list of available valid user-session targets for
-// snapd.
-func availableUsers() ([]int, error) {
-	sockets, err := filepath.Glob(filepath.Join(dirs.XdgRuntimeDirGlob, "snapd-session-agent.socket"))
-	if err != nil {
-		return nil, err
-	}
-
-	var uids []int
-	for _, sock := range sockets {
-		uidStr := filepath.Base(filepath.Dir(sock))
-		uid, err := strconv.Atoi(uidStr)
-		if err != nil {
-			// Ignore directories that do not
-			// appear to be valid XDG runtime dirs
-			// (i.e. /run/user/NNNN).
-			continue
-		}
-		uids = append(uids, uid)
-	}
-	return uids, nil
-}
-
-// usernamesToUids converts a list of usernames, to a list of uids
+// usernamesToUids converts a list of usernames, to a list of uids by
+// looking up the usernames.
 func usernamesToUids(usernames []string) ([]int, error) {
 	uids := make([]int, 0, len(usernames))
 	for _, username := range usernames {
@@ -72,6 +49,25 @@ func usernamesToUids(usernames []string) ([]int, error) {
 		uids = append(uids, uid)
 	}
 	return uids, nil
+}
+
+func affectedUids(users []string) (map[int]bool, error) {
+	var uids []int
+	var err error
+	if len(users) == 0 {
+		uids, err = clientutil.AvailableUserSessions()
+	} else {
+		uids, err = usernamesToUids(users)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	uidsAffected := make(map[int]bool, len(users))
+	for _, uid := range uids {
+		uidsAffected[uid] = true
+	}
+	return uidsAffected, nil
 }
 
 func splitServicesIntoSystemAndUser(apps []*snap.AppInfo) (sys, usr []*snap.AppInfo) {
@@ -146,23 +142,7 @@ func updateSnapstateSystemServices(snapst *snapstate.SnapState, apps []*snap.App
 	return true
 }
 
-func updateSnapstateUserServices(snapst *snapstate.SnapState, apps []*snap.AppInfo, enable bool, users []string) (bool, error) {
-	var uids []int
-	var err error
-	if len(users) == 0 {
-		uids, err = availableUsers()
-	} else {
-		uids, err = usernamesToUids(users)
-	}
-	if err != nil {
-		return false, nil
-	}
-
-	uidTargets := make(map[int]bool, len(users))
-	for _, uid := range uids {
-		uidTargets[uid] = true
-	}
-
+func updateSnapstateUserServices(snapst *snapstate.SnapState, apps []*snap.AppInfo, enable bool, uids map[int]bool) bool {
 	// populate helper lookups of already enabled/disabled services from
 	// snapst.
 	alreadyEnabled := make(map[int]map[string]bool)
@@ -187,7 +167,7 @@ func updateSnapstateUserServices(snapst *snapstate.SnapState, apps []*snap.AppIn
 		for _, service := range services {
 			for uid := range toState {
 				// otherwise migrate only if the user is a match
-				if !uidTargets[uid] {
+				if !uids[uid] {
 					continue
 				}
 
@@ -211,7 +191,7 @@ func updateSnapstateUserServices(snapst *snapstate.SnapState, apps []*snap.AppIn
 	}
 
 	// ensure uids are in target
-	for _, uid := range uids {
+	for uid := range uids {
 		if toState[uid] == nil {
 			toState[uid] = make(map[string]bool)
 		}
@@ -219,35 +199,36 @@ func updateSnapstateUserServices(snapst *snapstate.SnapState, apps []*snap.AppIn
 
 	if changed := toggleServices(apps, fromState, toState); !changed {
 		// nothing changed
-		return false, nil
+		return false
+	}
+
+	convertStateMap := func(svcState map[int]map[string]bool) map[int][]string {
+		result := make(map[int][]string, len(svcState))
+		for uid, svcs := range svcState {
+			if len(svcs) == 0 {
+				continue
+			}
+
+			l := make([]string, 0, len(svcs))
+			for srv := range svcs {
+				l = append(l, srv)
+			}
+			sort.Strings(l)
+			result[uid] = l
+		}
+		return result
 	}
 
 	// reset and recreate the state
 	snapst.UserServicesEnabledByHooks = nil
 	snapst.UserServicesDisabledByHooks = nil
 	if len(alreadyEnabled) != 0 {
-		snapst.UserServicesEnabledByHooks = make(map[int][]string, len(alreadyEnabled))
-		for uid, svcs := range alreadyEnabled {
-			l := make([]string, 0, len(svcs))
-			for srv := range svcs {
-				l = append(l, srv)
-			}
-			sort.Strings(l)
-			snapst.UserServicesEnabledByHooks[uid] = l
-		}
+		snapst.UserServicesEnabledByHooks = convertStateMap(alreadyEnabled)
 	}
 	if len(alreadyDisabled) != 0 {
-		snapst.UserServicesDisabledByHooks = make(map[int][]string, len(alreadyDisabled))
-		for uid, svcs := range alreadyDisabled {
-			l := make([]string, 0, len(svcs))
-			for srv := range svcs {
-				l = append(l, srv)
-			}
-			sort.Strings(l)
-			snapst.UserServicesDisabledByHooks[uid] = l
-		}
+		snapst.UserServicesDisabledByHooks = convertStateMap(alreadyDisabled)
 	}
-	return true, nil
+	return true
 }
 
 // updateSnapstateServices uses {User,}ServicesEnabledByHooks and {User,}ServicesDisabledByHooks in
@@ -271,21 +252,26 @@ func updateSnapstateServices(snapst *snapstate.SnapState, enable, disable []*sna
 		sys, usr = splitServicesIntoSystemAndUser(disable)
 	}
 
-	var sysChanged, usrChanged bool
 	isEnable := len(enable) > 0
 	switch scopeOpts.Scope {
 	case wrappers.ServiceScopeAll:
-		// Update user-services first as that one can error out
-		if changed, err := updateSnapstateUserServices(snapst, usr, isEnable, scopeOpts.Users); err != nil {
+		// Retrieve the uids affected
+		affectedUids, err := affectedUids(scopeOpts.Users)
+		if err != nil {
 			return false, err
-		} else {
-			usrChanged = changed
 		}
-		sysChanged = updateSnapstateSystemServices(snapst, sys, isEnable)
+		sysChanged := updateSnapstateSystemServices(snapst, sys, isEnable)
+		usrChanged := updateSnapstateUserServices(snapst, usr, isEnable, affectedUids)
+		return sysChanged || usrChanged, nil
 	case wrappers.ServiceScopeSystem:
-		sysChanged = updateSnapstateSystemServices(snapst, sys, isEnable)
+		return updateSnapstateSystemServices(snapst, sys, isEnable), nil
 	case wrappers.ServiceScopeUser:
-		return updateSnapstateUserServices(snapst, sys, isEnable, scopeOpts.Users)
+		// Retrieve the uids affected
+		affectedUids, err := affectedUids(scopeOpts.Users)
+		if err != nil {
+			return false, err
+		}
+		return updateSnapstateUserServices(snapst, sys, isEnable, affectedUids), nil
 	}
-	return sysChanged || usrChanged, nil
+	return false, nil
 }
