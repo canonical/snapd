@@ -1,4 +1,8 @@
-summary: Check that core refresh will create the userd dbus serivce file
+summary: Check that core refresh will create the userd dbus service file
+
+details: |
+    Check that snapd will create the userd dbus service file if
+    it is missing when the core snap is refreshed.
 
 # only run on systems that re-exec
 systems: [ubuntu-1*, ubuntu-2*, debian-*]
@@ -8,7 +12,7 @@ environment:
     SNAPD_NO_MEMORY_LIMIT: 1
 
 restore: |
-    # Remove the locale revision of core, if we installed one.
+    # Remove the local revision of core, if we installed one.
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     if [ "$(readlink "$SNAP_MOUNT_DIR/core/current")" = x1 ]; then
         snap revert core
