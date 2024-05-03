@@ -1,5 +1,7 @@
 summary: this is the summary
 
+details: test
+
 manual: false
 
 prepare: |
