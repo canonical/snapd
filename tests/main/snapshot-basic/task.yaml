@@ -1,5 +1,20 @@
 summary: Check that the basic snapshots functionality is ok
 
+details: |
+    A snapshot is a copy of the user, system and configuration data stored
+    by snapd for one or more snaps on your system. This data can be found
+    in $HOME/snap/<snap-name> and /var/snap/<snap-name>.
+
+    Snapshots are generated manually with the snap save command and
+    automatically when a snap is removed (unless --purge is used with
+    remove, in which case no snapshot is created).
+
+    Having few snaps installed in the system, this test checks that
+    `snap save` command shows the created snapshots for the snaps. Then it runs
+    `snap check-snapshot` to check the snapshot created for the snaps are
+    valid. Finally, it verifies that the snapshots can be exported and restored
+    (the data is restored properly) and removed by running `snap forge` command.
+
 environment:
     # tar invoked when creating snapshots triggers OOM
     SNAPD_NO_MEMORY_LIMIT: 1
