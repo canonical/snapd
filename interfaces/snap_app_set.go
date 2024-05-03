@@ -157,9 +157,6 @@ type Runnable struct {
 	// tags are used by various security subsystems as "profile names" and
 	// sometimes also as a part of the file name.
 	SecurityTag string
-	// Type is the type of the runnable, either an app, a hook, or a component
-	// hook.
-	Type RunnableType
 }
 
 // Runnables returns a list of all runnables known by the app set.
@@ -170,7 +167,6 @@ func (a *SnapAppSet) Runnables() []Runnable {
 		runnables = append(runnables, Runnable{
 			CommandName: app.Name,
 			SecurityTag: app.SecurityTag(),
-			Type:        RunnableApp,
 		})
 	}
 
@@ -178,7 +174,6 @@ func (a *SnapAppSet) Runnables() []Runnable {
 		runnables = append(runnables, Runnable{
 			CommandName: fmt.Sprintf("hook.%s", hook.Name),
 			SecurityTag: hook.SecurityTag(),
-			Type:        RunnableHook,
 		})
 	}
 
@@ -187,17 +182,9 @@ func (a *SnapAppSet) Runnables() []Runnable {
 			runnables = append(runnables, Runnable{
 				CommandName: fmt.Sprintf("%s.hook.%s", component.Component, hook.Name),
 				SecurityTag: hook.SecurityTag(),
-				Type:        RunnableComponentHook,
 			})
 		}
 	}
-
-	sort.Slice(runnables, func(i, j int) bool {
-		if runnables[i].Type != runnables[j].Type {
-			return runnables[i].Type < runnables[j].Type
-		}
-		return runnables[i].CommandName < runnables[j].CommandName
-	})
 
 	return runnables
 }

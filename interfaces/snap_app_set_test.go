@@ -276,26 +276,22 @@ components:
 	set, err := interfaces.NewSnapAppSet(info, []*snap.ComponentInfo{compInfo})
 	c.Assert(err, IsNil)
 
-	c.Check(set.Runnables(), DeepEquals, []interfaces.Runnable{
+	c.Check(set.Runnables(), testutil.DeepUnsortedMatches, []interfaces.Runnable{
 		{
 			CommandName: "app1",
 			SecurityTag: "snap.name.app1",
-			Type:        interfaces.RunnableApp,
 		},
 		{
 			CommandName: "app2",
 			SecurityTag: "snap.name.app2",
-			Type:        interfaces.RunnableApp,
 		},
 		{
 			CommandName: "hook.install",
 			SecurityTag: "snap.name.hook.install",
-			Type:        interfaces.RunnableHook,
 		},
 		{
 			CommandName: "name+comp.hook.install",
 			SecurityTag: "snap.name+comp.hook.install",
-			Type:        interfaces.RunnableComponentHook,
 		},
 	})
 }

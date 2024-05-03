@@ -1707,11 +1707,11 @@ func (s *interfaceManagerSuite) testDisconnect(c *C, plugSnap, plugName, slotSna
 
 	consumerAppSet := s.secBackend.SetupCalls[0].AppSet
 	c.Check(consumerAppSet.InstanceName(), Equals, "consumer")
-	c.Check(consumerAppSet.Runnables(), DeepEquals, consumerRunnablesFullSet)
+	c.Check(consumerAppSet.Runnables(), testutil.DeepUnsortedMatches, consumerRunnablesFullSet)
 
 	producerAppSet := s.secBackend.SetupCalls[1].AppSet
 	c.Check(producerAppSet.InstanceName(), Equals, "producer")
-	c.Check(producerAppSet.Runnables(), DeepEquals, producerRunnablesFullSet)
+	c.Check(producerAppSet.Runnables(), testutil.DeepUnsortedMatches, producerRunnablesFullSet)
 
 }
 
@@ -1809,21 +1809,19 @@ components:
 
 	producerAppSet := s.secBackend.SetupCalls[2].AppSet
 	c.Check(producerAppSet.InstanceName(), Equals, "producer")
-	c.Check(producerAppSet.Runnables(), DeepEquals, []interfaces.Runnable{
+	c.Check(producerAppSet.Runnables(), testutil.DeepUnsortedMatches, []interfaces.Runnable{
 		{
 			CommandName: "producer+comp.hook.install",
 			SecurityTag: "snap.producer+comp.hook.install",
-			Type:        interfaces.RunnableComponentHook,
 		},
 	})
 
 	consumerAppSet := s.secBackend.SetupCalls[3].AppSet
 	c.Check(consumerAppSet.InstanceName(), Equals, "consumer")
-	c.Check(consumerAppSet.Runnables(), DeepEquals, []interfaces.Runnable{
+	c.Check(consumerAppSet.Runnables(), testutil.DeepUnsortedMatches, []interfaces.Runnable{
 		{
 			CommandName: "consumer+comp.hook.install",
 			SecurityTag: "snap.consumer+comp.hook.install",
-			Type:        interfaces.RunnableComponentHook,
 		},
 	})
 }
@@ -2508,47 +2506,38 @@ var consumerRunnablesFullSet = []interfaces.Runnable{
 	{
 		CommandName: "hook.connect-plug-otherplug",
 		SecurityTag: "snap.consumer.hook.connect-plug-otherplug",
-		Type:        interfaces.RunnableHook,
 	},
 	{
 		CommandName: "hook.connect-plug-plug",
 		SecurityTag: "snap.consumer.hook.connect-plug-plug",
-		Type:        interfaces.RunnableHook,
 	},
 	{
 		CommandName: "hook.disconnect-plug-otherplug",
 		SecurityTag: "snap.consumer.hook.disconnect-plug-otherplug",
-		Type:        interfaces.RunnableHook,
 	},
 	{
 		CommandName: "hook.disconnect-plug-plug",
 		SecurityTag: "snap.consumer.hook.disconnect-plug-plug",
-		Type:        interfaces.RunnableHook,
 	},
 	{
 		CommandName: "hook.prepare-plug-otherplug",
 		SecurityTag: "snap.consumer.hook.prepare-plug-otherplug",
-		Type:        interfaces.RunnableHook,
 	},
 	{
 		CommandName: "hook.prepare-plug-plug",
 		SecurityTag: "snap.consumer.hook.prepare-plug-plug",
-		Type:        interfaces.RunnableHook,
 	},
 	{
 		CommandName: "hook.unprepare-plug-otherplug",
 		SecurityTag: "snap.consumer.hook.unprepare-plug-otherplug",
-		Type:        interfaces.RunnableHook,
 	},
 	{
 		CommandName: "hook.unprepare-plug-plug",
 		SecurityTag: "snap.consumer.hook.unprepare-plug-plug",
-		Type:        interfaces.RunnableHook,
 	},
 	{
 		CommandName: "consumer+comp.hook.install",
 		SecurityTag: "snap.consumer+comp.hook.install",
-		Type:        interfaces.RunnableComponentHook,
 	},
 }
 
@@ -2601,27 +2590,22 @@ var producerRunnablesFullSet = []interfaces.Runnable{
 	{
 		CommandName: "hook.connect-slot-slot",
 		SecurityTag: "snap.producer.hook.connect-slot-slot",
-		Type:        interfaces.RunnableHook,
 	},
 	{
 		CommandName: "hook.disconnect-slot-slot",
 		SecurityTag: "snap.producer.hook.disconnect-slot-slot",
-		Type:        interfaces.RunnableHook,
 	},
 	{
 		CommandName: "hook.prepare-slot-slot",
 		SecurityTag: "snap.producer.hook.prepare-slot-slot",
-		Type:        interfaces.RunnableHook,
 	},
 	{
 		CommandName: "hook.unprepare-slot-slot",
 		SecurityTag: "snap.producer.hook.unprepare-slot-slot",
-		Type:        interfaces.RunnableHook,
 	},
 	{
 		CommandName: "producer+comp.hook.install",
 		SecurityTag: "snap.producer+comp.hook.install",
-		Type:        interfaces.RunnableComponentHook,
 	},
 }
 
@@ -4040,16 +4024,14 @@ version: 1.0
 
 	// the snap defines another component, comp2. note that it is not listed
 	// here because it is not installed.
-	c.Check(appSet.Runnables(), DeepEquals, []interfaces.Runnable{
+	c.Check(appSet.Runnables(), testutil.DeepUnsortedMatches, []interfaces.Runnable{
 		{
 			CommandName: "app",
 			SecurityTag: "snap.snap.app",
-			Type:        interfaces.RunnableApp,
 		},
 		{
 			CommandName: "snap+comp1.hook.install",
 			SecurityTag: "snap.snap+comp1.hook.install",
-			Type:        interfaces.RunnableComponentHook,
 		},
 	})
 }
@@ -4124,21 +4106,18 @@ version: 1.0
 
 	// the snap defines another component, comp2. note that it is not listed
 	// here because it is not installed.
-	c.Check(appSet.Runnables(), DeepEquals, []interfaces.Runnable{
+	c.Check(appSet.Runnables(), testutil.DeepUnsortedMatches, []interfaces.Runnable{
 		{
 			CommandName: "app",
 			SecurityTag: "snap.snap.app",
-			Type:        interfaces.RunnableApp,
 		},
 		{
 			CommandName: "snap+comp1.hook.install",
 			SecurityTag: "snap.snap+comp1.hook.install",
-			Type:        interfaces.RunnableComponentHook,
 		},
 		{
 			CommandName: "snap+comp2.hook.pre-refresh",
 			SecurityTag: "snap.snap+comp2.hook.pre-refresh",
-			Type:        interfaces.RunnableComponentHook,
 		},
 	})
 }
@@ -4190,21 +4169,18 @@ version: 1.0
 
 	// the snap defines another component, comp2. note that it is not listed
 	// here because it is not installed.
-	c.Check(appSet.Runnables(), DeepEquals, []interfaces.Runnable{
+	c.Check(appSet.Runnables(), testutil.DeepUnsortedMatches, []interfaces.Runnable{
 		{
 			CommandName: "app",
 			SecurityTag: "snap.snap.app",
-			Type:        interfaces.RunnableApp,
 		},
 		{
 			CommandName: "snap+comp1.hook.install",
 			SecurityTag: "snap.snap+comp1.hook.install",
-			Type:        interfaces.RunnableComponentHook,
 		},
 		{
 			CommandName: "snap+comp2.hook.pre-refresh",
 			SecurityTag: "snap.snap+comp2.hook.pre-refresh",
-			Type:        interfaces.RunnableComponentHook,
 		},
 	})
 }
@@ -4303,47 +4279,40 @@ version: 1.0
 
 	// the snap defines another component, comp2. note that it is not listed
 	// here because it is not installed.
-	c.Check(firstAppSet.Runnables(), DeepEquals, []interfaces.Runnable{
+	c.Check(firstAppSet.Runnables(), testutil.DeepUnsortedMatches, []interfaces.Runnable{
 		{
 			CommandName: "app",
 			SecurityTag: "snap.snap.app",
-			Type:        interfaces.RunnableApp,
 		},
 		{
 			CommandName: "snap+comp1.hook.install",
 			SecurityTag: "snap.snap+comp1.hook.install",
-			Type:        interfaces.RunnableComponentHook,
 		},
 		{
 			CommandName: "snap+comp2.hook.pre-refresh",
 			SecurityTag: "snap.snap+comp2.hook.pre-refresh",
-			Type:        interfaces.RunnableComponentHook,
 		},
 	})
 
-	c.Check(secondAppSet.Runnables(), DeepEquals, []interfaces.Runnable{
+	c.Check(secondAppSet.Runnables(), testutil.DeepUnsortedMatches, []interfaces.Runnable{
 		{
 			CommandName: "app",
 			SecurityTag: "snap.snap.app",
-			Type:        interfaces.RunnableApp,
 		},
 		{
 			CommandName: "snap+comp1.hook.install",
 			SecurityTag: "snap.snap+comp1.hook.install",
-			Type:        interfaces.RunnableComponentHook,
 		},
 		{
 			CommandName: "snap+comp2.hook.pre-refresh",
 			SecurityTag: "snap.snap+comp2.hook.pre-refresh",
-			Type:        interfaces.RunnableComponentHook,
 		},
 	})
 
-	c.Check(thirdAppSet.Runnables(), DeepEquals, []interfaces.Runnable{
+	c.Check(thirdAppSet.Runnables(), testutil.DeepUnsortedMatches, []interfaces.Runnable{
 		{
 			CommandName: "ubuntu-core+comp.hook.install",
 			SecurityTag: "snap.ubuntu-core+comp.hook.install",
-			Type:        interfaces.RunnableComponentHook,
 		},
 	})
 }
@@ -4861,8 +4830,8 @@ func (s *interfaceManagerSuite) TestConnectWithComponentsSetsUpSecurity(c *C) {
 	c.Check(producerAppSet.InstanceName(), Equals, "producer")
 	c.Check(consumerAppSet.InstanceName(), Equals, "consumer")
 
-	c.Check(producerAppSet.Runnables(), DeepEquals, producerRunnablesFullSet)
-	c.Check(consumerAppSet.Runnables(), DeepEquals, consumerRunnablesFullSet)
+	c.Check(producerAppSet.Runnables(), testutil.DeepUnsortedMatches, producerRunnablesFullSet)
+	c.Check(consumerAppSet.Runnables(), testutil.DeepUnsortedMatches, consumerRunnablesFullSet)
 }
 
 func (s *interfaceManagerSuite) TestConnectSetsHotplugKeyFromTheSlot(c *C) {
@@ -6095,16 +6064,16 @@ func (s *interfaceManagerSuite) TestUndoConnect(c *C) {
 	c.Check(s.secBackend.SetupCalls[1].AppSet.InstanceName(), Equals, "consumer")
 	c.Check(s.secBackend.SetupCalls[0].Options, DeepEquals, interfaces.ConfinementOptions{})
 	c.Check(s.secBackend.SetupCalls[1].Options, DeepEquals, interfaces.ConfinementOptions{})
-	c.Check(s.secBackend.SetupCalls[0].AppSet.Runnables(), DeepEquals, producerRunnablesFullSet)
-	c.Check(s.secBackend.SetupCalls[1].AppSet.Runnables(), DeepEquals, consumerRunnablesFullSet)
+	c.Check(s.secBackend.SetupCalls[0].AppSet.Runnables(), testutil.DeepUnsortedMatches, producerRunnablesFullSet)
+	c.Check(s.secBackend.SetupCalls[1].AppSet.Runnables(), testutil.DeepUnsortedMatches, consumerRunnablesFullSet)
 
 	// by undo
 	c.Check(s.secBackend.SetupCalls[2].AppSet.InstanceName(), Equals, "producer")
 	c.Check(s.secBackend.SetupCalls[3].AppSet.InstanceName(), Equals, "consumer")
 	c.Check(s.secBackend.SetupCalls[2].Options, DeepEquals, interfaces.ConfinementOptions{})
 	c.Check(s.secBackend.SetupCalls[3].Options, DeepEquals, interfaces.ConfinementOptions{})
-	c.Check(s.secBackend.SetupCalls[2].AppSet.Runnables(), DeepEquals, producerRunnablesFullSet)
-	c.Check(s.secBackend.SetupCalls[3].AppSet.Runnables(), DeepEquals, consumerRunnablesFullSet)
+	c.Check(s.secBackend.SetupCalls[2].AppSet.Runnables(), testutil.DeepUnsortedMatches, producerRunnablesFullSet)
+	c.Check(s.secBackend.SetupCalls[3].AppSet.Runnables(), testutil.DeepUnsortedMatches, consumerRunnablesFullSet)
 }
 
 func (s *interfaceManagerSuite) TestUndoConnectUndesired(c *C) {
@@ -6154,11 +6123,11 @@ func (s *interfaceManagerSuite) TestUndoConnectUndesired(c *C) {
 
 	producerAppSet := s.secBackend.SetupCalls[2].AppSet
 	c.Check(producerAppSet.InstanceName(), Equals, "producer")
-	c.Check(producerAppSet.Runnables(), DeepEquals, producerRunnablesFullSet)
+	c.Check(producerAppSet.Runnables(), testutil.DeepUnsortedMatches, producerRunnablesFullSet)
 
 	consumerAppSet := s.secBackend.SetupCalls[3].AppSet
 	c.Check(consumerAppSet.InstanceName(), Equals, "consumer")
-	c.Check(consumerAppSet.Runnables(), DeepEquals, consumerRunnablesFullSet)
+	c.Check(consumerAppSet.Runnables(), testutil.DeepUnsortedMatches, consumerRunnablesFullSet)
 }
 
 func (s *interfaceManagerSuite) TestUndoConnectNoSetupProfilesWithDelayedSetupProfiles(c *C) {
