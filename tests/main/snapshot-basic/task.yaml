@@ -13,7 +13,7 @@ details: |
     `snap save` command shows the created snapshots for the snaps. Then it runs
     `snap check-snapshot` to check the snapshot created for the snaps are
     valid. Finally, it verifies that the snapshots can be exported and restored
-    (the data is restored properly) and removed by running `snap forge` command.
+    (the data is restored properly) and removed by running `snap forget` command.
 
 environment:
     # tar invoked when creating snapshots triggers OOM
