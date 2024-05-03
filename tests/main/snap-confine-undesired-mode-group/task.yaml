@@ -1,5 +1,12 @@
 summary: the snap-{run,confine,exec} chain does not create files with undesired properties.
 
+details: |
+    Running a snap as user may create user writable files in
+    directories /run/snapd, /sys/fs/cgroup and
+    /tmp/snap-private-tmp. When the exection finishes, those files must be
+    cleaned up. This test verifies that after running a snap, no user
+    writable file is left in those directories.
+
 # ubuntu-14.04: the test sets up a user session, which requires more recent systemd
 systems: [-ubuntu-14.04-*]
 
