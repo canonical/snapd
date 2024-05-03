@@ -2,7 +2,7 @@ summary: Check that snaps can not access the session agent
 
 details: |
     This test demonstrates that the session-agent service unit cannot
-    be accessed by confined applications or Confined apps running as
+    be accessed by confined applications or confined apps running as
     root.
 
 systems:
