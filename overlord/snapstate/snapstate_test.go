@@ -7868,8 +7868,8 @@ func (s *snapmgrTestSuite) TestInstallModeDisableFreshInstallEnabledByHookMixedS
 	c.Assert(op, Not(IsNil))
 	c.Check(op.disabledServices, DeepEquals, []string{"svc-disable-foo"})
 	c.Check(op.disabledUserServices, testutil.DeepUnsortedMatches, map[int][]string{
-		// Because it was disabled specifically for user 0, and the available users
-		// are 0 and 1000
+		// Because it was enabled specifically for user 0, and the available users
+		// are 0 and 1000, then it must now be disabled just for 1000
 		1000: {"svc-disable-bar-user"},
 	})
 }
