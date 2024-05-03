@@ -5,7 +5,7 @@ details: |
     creating device images.
 
     This test verifies that in classic and Ubuntu Core systems, the prepare-image
-    command prepares properly an ubuntu-core 18 image with grub as boot loader.
+    command properly prepares an ubuntu-core 18 image with grub as boot loader.
     It is checked that the fundamental snaps are present, the snap assertions are
     retrieved and the core snap in absent.
 
