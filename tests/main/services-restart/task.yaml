@@ -1,4 +1,21 @@
-summary: Check that snap restarts affects only running services
+summary: Check that snap restarts affects only running or enabled services
+
+details: |
+    When a snap is restarted, each of its services should be restarted so long
+    as the service in question is either running or enabled. This is the case
+    regardless of whether the `--reload` argument is given. This test checks the
+    following scenarios.
+
+    1. disabled and running -> restart -> running
+    2. enabled and running -> restart -> running
+    3. disabled and stopped -> restart -> stopped
+    4. enabled and stopped -> restart -> running
+
+    Additionally, if a service is explicitly mentioned in the command line
+    arguments of `snap restart`, it should be always be restarted, regardless
+    of its current state. The test checks this as well.
+
+    5. disabled and stopped -> explicitly restart service by name -> running
 
 environment:
     EXTRA_FLAGS/restart: ""

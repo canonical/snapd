@@ -1,5 +1,17 @@
 summary: Check that snaps can use start-timeout
 
+details: |
+    Snaps may have forking services, which are expected to call fork() as part
+    of start-up and the parent process is then expected to exit when start-up
+    is complete.
+
+    A forking service may have a `start-timeout` value set, where if the parent
+    process does not exit within the given timeout, the installation fails.
+
+    This test verifies that if a forking service fails to exit within the
+    timeout, the installation fails, and if it does exit within the timeout,
+    the installation is successful.
+
 # this test is expected to fail once we run the tests for SELinux
 # distros in Enforce mode
 

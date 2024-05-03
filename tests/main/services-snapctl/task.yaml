@@ -1,5 +1,35 @@
 summary: Check that own services can be controlled by snapctl
 
+details: |
+    Snaps should be able to control their own services via snapctl.
+
+    This test verifies that this is the case by installing a snap with multiple
+    services and a configure hook which allows for two capabilities:
+
+    1. Controlling one of those services via snapctl according to the command
+    to which the `command` configuration is set.
+
+    2. Setting another service option via snapctl according to the value of the
+    `service-option-source` configuration which is itself retrieved via snapctl.
+
+    The test then verifies the following:
+
+    1. After installing, the service is initially running.
+
+    2. Changing the configuration to stop, start, stop, and restart each result
+    in the service being controlled accordingly via snapctl.
+
+    3. When the configuration was set to restart, the restart command was
+    executed as part of the change associated with the configure hook.
+
+    4. The `service-option-source` configuration can be successfully retrieved
+    in a configure hook via snapctl and used to set another option via snapctl
+    as well.
+
+    5. Reinstalling the snap with the configure hook set to call
+    `snapctl restart` results in the snap being successfully reinstalled and
+    the service successfully restarted.
+
 # takes >1.5min to run
 backends: [-autopkgtest]
 
