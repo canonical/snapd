@@ -27,6 +27,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -110,7 +111,14 @@ func aareExclusivePatterns(orig string) []string {
 // dirs.SnapDesktopFilesDir, but explicitly denies access to all other snaps'
 // desktop files since xdg libraries may try to read all the desktop files
 // in the dir, causing excessive noise. (LP: #1868051)
-func getDesktopFileRules(snapInstanceName string) []string {
+func getDesktopFileRules(snapInstanceName string, spec *apparmor.Specification) []string {
+	// desktop-launch allows to read all .desktop files; but "deny" rules overrule any "allow"
+	// rule, so we must not add these rules if this snap uses the desktop-launch interface
+	if spec != nil {
+		if _, ok := spec.SnapAppSet().Info().Plugs["desktop-launch"]; ok {
+			return nil
+		}
+	}
 	baseDir := dirs.SnapDesktopFilesDir
 
 	rules := []string{

@@ -385,7 +385,7 @@ type desktopLegacyInterface struct {
 }
 
 func (iface *desktopLegacyInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	snippet := strings.Join(getDesktopFileRules(plug.Snap().DesktopPrefix()), "\n")
+	snippet := strings.Join(getDesktopFileRules(plug.Snap().DesktopPrefix(), spec), "\n")
 	spec.AddSnippet(strings.Replace(desktopLegacyConnectedPlugAppArmor, "###SNAP_DESKTOP_FILE_RULES###", snippet+"\n", -1))
 
 	return nil
