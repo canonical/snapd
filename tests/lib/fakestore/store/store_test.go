@@ -22,10 +22,13 @@ package store
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 	"text/template"
 
@@ -47,8 +50,6 @@ type storeTestSuite struct {
 
 var _ = Suite(&storeTestSuite{})
 
-var defaultAddr = "localhost:23321"
-
 func getSha(fn string) (string, uint64) {
 	snapDigest, size, err := asserts.SnapFileSHA3_384(fn)
 	if err != nil {
@@ -61,7 +62,7 @@ func (s *storeTestSuite) SetUpTest(c *C) {
 	topdir := c.MkDir()
 	err := os.Mkdir(filepath.Join(topdir, "asserts"), 0755)
 	c.Assert(err, IsNil)
-	s.store = NewStore(topdir, defaultAddr, false)
+	s.store = NewStore(topdir, "localhost:0", false)
 	err = s.store.Start()
 	c.Assert(err, IsNil)
 
@@ -88,7 +89,22 @@ func (s *storeTestSuite) StorePostJSON(path string, content []byte) (*http.Respo
 }
 
 func (s *storeTestSuite) TestStoreURL(c *C) {
-	c.Assert(s.store.URL(), Equals, "http://"+defaultAddr)
+	u, err := url.Parse(s.store.URL())
+	c.Assert(err, IsNil)
+	c.Check(u.Hostname(), Equals, "127.0.0.1")
+	c.Check(u.Port(), Not(Equals), "")
+}
+
+func (s *storeTestSuite) TestStoreListenAddr(c *C) {
+	u, err := url.Parse(s.store.URL())
+	c.Assert(err, IsNil)
+	// use the same address as the fake store started by the tests so that
+	// this will fail with addr-in-use error
+	topdir := c.MkDir()
+	newstore := NewStore(topdir, u.Host, false)
+	err = newstore.Start()
+	c.Assert(err, NotNil)
+	c.Check(errors.Is(err, syscall.EADDRINUSE), Equals, true)
 }
 
 func (s *storeTestSuite) TestTrivialGetWorks(c *C) {
