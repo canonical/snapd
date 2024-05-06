@@ -123,6 +123,7 @@ install::
 	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/dbus-1/system-services
 	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/desktop/applications
 	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/device
+	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/environment
 	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/hostfs
 	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/inhibit
 	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/lib/gl
