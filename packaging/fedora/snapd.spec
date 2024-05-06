@@ -124,7 +124,9 @@ ExclusiveArch:  %{ix86} x86_64 %{arm} aarch64 ppc64le s390x
 BuildRequires: make
 BuildRequires:  %{?go_compiler:compiler(go-compiler)}%{!?go_compiler:golang >= 1.9}
 BuildRequires:  systemd
+%if ! 0%{?amzn2}
 BuildRequires:  fakeroot
+%endif
 BuildRequires:  squashfs-tools
 %{?systemd_requires}
 
