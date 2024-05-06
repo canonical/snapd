@@ -116,7 +116,7 @@ func (s *refreshHintsTestSuite) SetUpTest(c *C) {
 	restoreModel := snapstatetest.MockDeviceModel(DefaultModel())
 	s.AddCleanup(restoreModel)
 	restoreEnforcedValidationSets := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
-		return nil, nil
+		return snapasserts.NewValidationSets(), nil
 	})
 	s.AddCleanup(restoreEnforcedValidationSets)
 	s.AddCleanup(func() {

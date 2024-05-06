@@ -59,7 +59,7 @@ func (s *downloadSnapSuite) SetUpTest(c *C) {
 	s.AddCleanup(snapstatetest.UseFallbackDeviceModel())
 
 	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
-		return nil, nil
+		return snapasserts.NewValidationSets(), nil
 	})
 	s.AddCleanup(restore)
 }

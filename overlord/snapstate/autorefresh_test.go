@@ -152,7 +152,7 @@ func (s *autoRefreshTestSuite) SetUpTest(c *C) {
 	s.AddCleanup(snapstatetest.MockDeviceModel(DefaultModel()))
 
 	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
-		return nil, nil
+		return snapasserts.NewValidationSets(), nil
 	})
 	s.AddCleanup(restore)
 }

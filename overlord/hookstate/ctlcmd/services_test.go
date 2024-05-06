@@ -222,7 +222,7 @@ func (s *servicectlSuite) SetUpTest(c *C) {
 		snapstate.EnforcedValidationSets = old
 	})
 	snapstate.EnforcedValidationSets = func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
-		return nil, nil
+		return snapasserts.NewValidationSets(), nil
 	}
 }
 
