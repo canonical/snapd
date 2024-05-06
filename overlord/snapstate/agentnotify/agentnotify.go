@@ -22,7 +22,6 @@ package agentnotify
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/logger"
@@ -90,7 +89,6 @@ var sendClientFinishRefreshNotification = func(st *state.State, snapsup *snapsta
 		return
 	}
 
-	fmt.Println("Checking hasActiveConnection")
 	markerExists, err := snapstate.HasActiveConnection(st, "snap-refresh-observe")
 	if err != nil {
 		logger.Noticef("Cannot send notification about pending refresh: %v", err)
