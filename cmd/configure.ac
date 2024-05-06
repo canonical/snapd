@@ -1,5 +1,5 @@
-AC_PREREQ([2.69])
-AC_INIT([snap-confine], m4_esyscmd_s([cat VERSION]), [snapcraft@lists.ubuntu.com])
+AC_PREREQ([2.71])
+AC_INIT([snap-confine],[m4_esyscmd_s(cat VERSION)],[snapcraft@lists.ubuntu.com])
 AC_CONFIG_SRCDIR([snap-confine/snap-confine.c])
 AC_CONFIG_HEADERS([config.h])
 AC_USE_SYSTEM_EXTENSIONS
@@ -7,7 +7,7 @@ AM_INIT_AUTOMAKE([foreign subdir-objects])
 AM_MAINTAINER_MODE([enable])
 
 # Checks for programs.
-AC_PROG_CC_C99
+AC_REQUIRE(AC_PROG_CC)
 AC_PROG_CPP
 AC_PROG_INSTALL
 AC_PROG_MAKE_SET
@@ -39,7 +39,7 @@ AC_FUNC_STRNLEN
 AC_CHECK_FUNCS([mkdir regcomp setenv strdup strerror secure_getenv])
 
 AC_ARG_WITH([unit-tests],
-    AC_HELP_STRING([--without-unit-tests], [do not build unit test programs]),
+    AS_HELP_STRING([--without-unit-tests],[do not build unit test programs]),
     [case "${withval}" in
         yes) with_unit_tests=yes ;;
         no)  with_unit_tests=no ;;
