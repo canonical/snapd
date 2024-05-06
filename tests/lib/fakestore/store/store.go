@@ -122,6 +122,8 @@ func (s *Store) Start() error {
 		return err
 	}
 
+	s.url = fmt.Sprintf("http://%s", l.Addr())
+
 	go s.srv.Serve(l)
 	return nil
 }
