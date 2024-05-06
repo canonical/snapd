@@ -218,11 +218,15 @@ func (s *utilsSuite) TestGetDesktopFileRulesWithDesktopLaunchPlug(c *C) {
 	// fake apparmor.Specification
 	info := snap.Info{}
 	snapSet := interfaces.NewSnapAppSet(&info)
+	// although usually the name is equal to the interface, this is not
+	// guaranteed, so to test it right we must try with a name that is
+	// different than the interface.
 	plugInfo := snap.PlugInfo{
-		Name: "desktop-launch",
+		Name:      "desktop-launch-iface",
+		Interface: "desktop-launch",
 	}
 	snapSet.Info().Plugs = make(map[string]*snap.PlugInfo)
-	snapSet.Info().Plugs["desktop-launch"] = &plugInfo
+	snapSet.Info().Plugs["desktop-launch-iface"] = &plugInfo
 	spec := apparmor.NewSpecification(snapSet)
 
 	res := builtin.GetDesktopFileRules("foo-bar", spec)
