@@ -680,7 +680,7 @@ func (s *prereqSuite) TestDoPrereqBaseNoRevision(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	c.Check(chg.Status(), Equals, state.ErrorStatus)
-	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*- test \(cannot install snap base "some-base": no snap revision available as specified\)`)
+	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*- test \(cannot install snap base "some-base": cannot install snap "some-base": no snap revision available as specified\)`)
 }
 
 func (s *prereqSuite) TestDoPrereqNoRevision(c *C) {
@@ -708,7 +708,7 @@ func (s *prereqSuite) TestDoPrereqNoRevision(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	c.Check(chg.Status(), Equals, state.ErrorStatus)
-	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*- test \(cannot install prerequisite "prereq1": no snap revision available as specified\)`)
+	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*- test \(cannot install prerequisite "prereq1": cannot install snap "prereq1": no snap revision available as specified\)`)
 }
 
 func (s *prereqSuite) TestDoPrereqSnapdNoRevision(c *C) {
@@ -736,7 +736,7 @@ func (s *prereqSuite) TestDoPrereqSnapdNoRevision(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	c.Check(chg.Status(), Equals, state.ErrorStatus)
-	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*- test \(cannot install system snap "snapd": no snap revision available as specified\)`)
+	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*- test \(cannot install system snap "snapd": cannot install snap "snapd": no snap revision available as specified\)`)
 }
 
 func (s *prereqSuite) TestPreReqContentAttrsNotSatisfied(c *C) {

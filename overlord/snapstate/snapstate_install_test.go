@@ -358,7 +358,10 @@ func (s *snapmgrTestSuite) TestInstallWithDeviceContext(c *C) {
 	// unset the global store, it will need to come via the device context
 	snapstate.ReplaceStore(s.state, nil)
 
-	deviceCtx := &snapstatetest.TrivialDeviceContext{CtxStore: s.fakeStore}
+	deviceCtx := &snapstatetest.TrivialDeviceContext{
+		CtxStore:    s.fakeStore,
+		DeviceModel: &asserts.Model{},
+	}
 
 	prqt := new(testPrereqTracker)
 
@@ -381,7 +384,10 @@ func (s *snapmgrTestSuite) TestInstallPathWithDeviceContext(c *C) {
 	// unset the global store, it will need to come via the device context
 	snapstate.ReplaceStore(s.state, nil)
 
-	deviceCtx := &snapstatetest.TrivialDeviceContext{CtxStore: s.fakeStore}
+	deviceCtx := &snapstatetest.TrivialDeviceContext{
+		CtxStore:    s.fakeStore,
+		DeviceModel: &asserts.Model{},
+	}
 
 	si := &snap.SideInfo{RealName: "some-snap", Revision: snap.R(7)}
 	mockSnap := makeTestSnap(c, `name: some-snap
@@ -745,8 +751,8 @@ func (s *snapmgrTestSuite) TestInstallTooEarly(c *C) {
 	s.state.Set("seeded", nil)
 
 	_, err := snapstate.Install(context.Background(), s.state, "some-snap", nil, 0, snapstate.Flags{})
-	c.Check(err, FitsTypeOf, &snapstate.ChangeConflictError{})
-	c.Assert(err, ErrorMatches, `too early for operation, device not yet seeded or device model not acknowledged`)
+	c.Check(err, testutil.ErrorIs, &snapstate.ChangeConflictError{})
+	c.Assert(err, ErrorMatches, `.*too early for operation, device not yet seeded or device model not acknowledged`)
 }
 
 func (s *snapmgrTestSuite) TestInstallConflict(c *C) {
@@ -990,7 +996,7 @@ func (s *snapmgrTestSuite) TestInstallStateConflict(c *C) {
 	snapstate.ReplaceStore(s.state, sneakyStore{fakeStore: s.fakeStore, state: s.state})
 
 	_, err := snapstate.Install(context.Background(), s.state, "some-snap", nil, 0, snapstate.Flags{})
-	c.Check(err, FitsTypeOf, &snapstate.ChangeConflictError{})
+	c.Check(err, testutil.ErrorIs, &snapstate.ChangeConflictError{})
 	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
 }
 
@@ -1003,9 +1009,8 @@ func (s *snapmgrTestSuite) TestInstallPathTooEarly(c *C) {
 
 	mockSnap := makeTestSnap(c, "name: some-snap\nversion: 1.0")
 	_, _, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap"}, mockSnap, "", "", snapstate.Flags{}, nil)
-	c.Check(err, FitsTypeOf, &snapstate.ChangeConflictError{})
-	c.Assert(err, ErrorMatches, `too early for operation, device model not yet acknowledged`)
-
+	c.Check(err, testutil.ErrorIs, &snapstate.ChangeConflictError{})
+	c.Assert(err, ErrorMatches, `.*too early for operation, device model not yet acknowledged`)
 }
 
 func (s *snapmgrTestSuite) TestInstallPathConflict(c *C) {
@@ -3829,7 +3834,7 @@ func (s *snapmgrTestSuite) TestInstallManyTransactionallyFails(c *C) {
 		[]string{"some-snap", "some-other-snap"}, nil, 0,
 		&snapstate.Flags{Transaction: client.TransactionAllSnaps})
 	c.Assert(err, IsNil)
-	c.Check(installed, DeepEquals, []string{"some-snap", "some-other-snap"})
+	c.Check(installed, testutil.DeepUnsortedMatches, []string{"some-snap", "some-other-snap"})
 	for _, ts := range tts {
 		chg.AddAll(ts)
 	}
@@ -3887,8 +3892,8 @@ func (s *snapmgrTestSuite) TestInstallManyTooEarly(c *C) {
 	s.state.Set("seeded", nil)
 
 	_, _, err := snapstate.InstallMany(s.state, []string{"one", "two"}, nil, 0, nil)
-	c.Check(err, FitsTypeOf, &snapstate.ChangeConflictError{})
-	c.Assert(err, ErrorMatches, `too early for operation, device not yet seeded or device model not acknowledged`)
+	c.Check(err, testutil.ErrorIs, &snapstate.ChangeConflictError{})
+	c.Assert(err, ErrorMatches, `.*too early for operation, device not yet seeded or device model not acknowledged`)
 }
 
 func (s *snapmgrTestSuite) TestInstallManyChecksPreconditions(c *C) {
@@ -5780,7 +5785,7 @@ func (s *snapmgrTestSuite) TestInstallManyTransactionalWithLane(c *C) {
 	}
 	affected, tss, err := snapstate.InstallMany(s.state, []string{"some-snap", "some-other-snap"}, nil, s.user.ID, flags)
 	c.Assert(err, IsNil)
-	c.Check(affected, DeepEquals, []string{"some-snap", "some-other-snap"})
+	c.Check(affected, testutil.DeepUnsortedMatches, []string{"some-snap", "some-other-snap"})
 	c.Check(tss, HasLen, 2)
 
 	for _, ts := range tss {
@@ -5882,20 +5887,6 @@ epoch: 1
 	flags.Transaction = client.TransactionPerSnap
 	tss, err = snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, 0, flags)
 	c.Assert(err, ErrorMatches, "cannot specify a lane without setting transaction to \"all-snaps\"")
-	c.Check(tss, IsNil)
-}
-
-func (s *snapmgrTestSuite) TestInstallPathWithTransactionLaneForbidden(c *C) {
-	si := &snap.SideInfo{RealName: "some-snap", Revision: snap.R("3")}
-	tss, info, err := snapstate.InstallPath(s.state, si, "", "", "", snapstate.Flags{Lane: 1}, nil)
-	c.Assert(err, ErrorMatches, "transaction lane is unsupported in InstallPath")
-	c.Check(tss, IsNil)
-	c.Check(info, IsNil)
-}
-
-func (s *snapmgrTestSuite) TestInstallWithTransactionLaneForbidden(c *C) {
-	tss, err := snapstate.InstallWithDeviceContext(context.Background(), s.state, "some-snap", nil, 0, snapstate.Flags{Lane: 1}, nil, nil, "")
-	c.Assert(err, ErrorMatches, "transaction lane is unsupported in InstallWithDeviceContext")
 	c.Check(tss, IsNil)
 }
 
