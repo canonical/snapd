@@ -2,7 +2,7 @@
 //go:build !nosecboot
 
 /*
- * Copyright (C) 2021 Canonical Ltd
+ * Copyright (C) 2021, 2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -56,11 +56,11 @@ var (
 	sbefiAddPCRProfile                              = sb_efi.AddPCRProfile
 	sbefiAddSystemdStubProfile                      = sb_efi.AddSystemdStubProfile
 	sbAddSnapModelProfile                           = sb_tpm2.AddSnapModelProfile
-	sbSealKeyToTPMMultiple                          = sb_tpm2.SealKeyToTPMMultiple
 	sbUpdateKeyPCRProtectionPolicyMultiple          = sb_tpm2.UpdateKeyPCRProtectionPolicyMultiple
 	sbSealedKeyObjectRevokeOldPCRProtectionPolicies = (*sb_tpm2.SealedKeyObject).RevokeOldPCRProtectionPolicies
 	sbNewKeyDataFromSealedKeyObjectFile             = sb_tpm2.NewKeyDataFromSealedKeyObjectFile
 	sbReadSealedKeyObjectFromFile                   = sb_tpm2.ReadSealedKeyObjectFromFile
+	sbNewTPMProtectedKey                            = sb_tpm2.NewTPMProtectedKey
 
 	randutilRandomKernelUUID = randutil.RandomKernelUUID
 
@@ -293,7 +293,7 @@ func unlockEncryptedPartitionWithSealedKey(mapperName, sourceDevice, keyfile str
 		return NotUnlocked, fmt.Errorf("cannot build an auth requestor: %v", err)
 	}
 
-	err = sbActivateVolumeWithKeyData(mapperName, sourceDevice, authRequestor, sb.Argon2iKDF(), options, keyData)
+	err = sbActivateVolumeWithKeyData(mapperName, sourceDevice, authRequestor, options, keyData)
 	if err == sb.ErrRecoveryKeyUsed {
 		logger.Noticef("successfully activated encrypted device %q using a fallback activation method", sourceDevice)
 		return UnlockedWithRecoveryKey, nil
@@ -398,31 +398,22 @@ func SealKeys(keys []SealKeyRequest, params *SealKeysParams) error {
 
 	pcrHandle := params.PCRPolicyCounterHandle
 	logger.Noticef("sealing with PCR handle %#x", pcrHandle)
-	// Seal the provided keys to the TPM
-	creationParams := sb_tpm2.KeyCreationParams{
-		PCRProfile:             pcrProfile,
-		PCRPolicyCounterHandle: tpm2.Handle(pcrHandle),
-		AuthKey:                params.TPMPolicyAuthKey,
-	}
 
-	sbKeys := make([]*sb_tpm2.SealKeyRequest, 0, len(keys))
-	for i := range keys {
-		sbKeys = append(sbKeys, &sb_tpm2.SealKeyRequest{
-			Key:  sb.DiskUnlockKey(keys[i].Key),
-			Path: keys[i].KeyFile,
-		})
-	}
-
-	authKey, err := sbSealKeyToTPMMultiple(tpm, sbKeys, &creationParams)
-	if err != nil {
-		logger.Debugf("seal key error: %v", err)
-		return err
-	}
-	if params.TPMPolicyAuthKeyFile != "" {
-		if err := osutil.AtomicWriteFile(params.TPMPolicyAuthKeyFile, authKey, 0600, 0); err != nil {
-			return fmt.Errorf("cannot write the policy auth key file: %v", err)
+	for _, key := range keys {
+		creationParams := &sb_tpm2.ProtectKeyParams{
+			PCRProfile:             pcrProfile,
+			Role:                   "run",
+			PCRPolicyCounterHandle: tpm2.Handle(pcrHandle),
+		}
+		_ /*protectedKey*/, _ /*primaryKey*/, unlockKey, err := sbNewTPMProtectedKey(tpm, creationParams)
+		if err != nil {
+			return err
+		}
+		if err := key.Resetter.Reset(unlockKey); err != nil {
+			return err
 		}
 	}
+
 	return nil
 }
 

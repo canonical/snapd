@@ -2,7 +2,7 @@
 //go:build !nosecboot
 
 /*
- * Copyright (C) 2022 Canonical Ltd
+ * Copyright (C) 2022, 2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -44,7 +44,6 @@ import (
 	installLogic "github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
-	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
@@ -528,7 +527,7 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 			return nil
 		})
 		s.AddCleanup(restore)
-		restore = boot.MockSealKeyToModeenv(func(key, saveKey keys.EncryptionKey, model *asserts.Model, modeenv *boot.Modeenv, flags boot.MockSealKeyToModeenvFlags) error {
+		restore = boot.MockSealKeyToModeenv(func(key, saveKey secboot.KeyResetter, model *asserts.Model, modeenv *boot.Modeenv, flags boot.MockSealKeyToModeenvFlags) error {
 			c.Check(model.Classic(), Equals, opts.installClassic)
 			// Note that we cannot compare the full structure and we check
 			// separately bits as the types for these are not exported.
@@ -628,7 +627,6 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 	if opts.encrypted {
 		expectedFiles = append(expectedFiles, dirs.RunDir,
 			filepath.Join(dirs.RunDir, snapdVarDir, "device/fde/marker"),
-			filepath.Join(dirs.RunDir, snapdVarDir, "device/fde/ubuntu-save.key"),
 			filepath.Join(dirs.RunDir, "mnt/ubuntu-save/device/fde/marker"))
 	}
 	for _, f := range expectedFiles {

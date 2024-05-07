@@ -47,7 +47,7 @@ const metadataKiBSize = 2048     // 2MB
 // FormatEncryptedDevice initializes an encrypted volume on the block device
 // given by node, setting the specified label. The key used to unlock the volume
 // is provided using the key argument.
-func FormatEncryptedDevice(key keys.EncryptionKey, encType EncryptionType, label, node string) error {
+func FormatEncryptedDevice(key []byte, encType EncryptionType, label, node string) error {
 	if !encType.IsLUKS() {
 		return fmt.Errorf("internal error: FormatEncryptedDevice for %q expects a LUKS encryption type, not %q", node, encType)
 	}
@@ -60,15 +60,8 @@ func FormatEncryptedDevice(key keys.EncryptionKey, encType EncryptionType, label
 		// enough room
 		MetadataKiBSize:     metadataKiBSize,
 		KeyslotsAreaKiBSize: keyslotsAreaKiBSize,
-
-		// Use fixed parameters for the KDF to avoid the
-		// benchmark. This is okay because we have a high
-		// entropy key and the KDF does not gain us much.
-		KDFOptions: &sb.KDFOptions{
-			MemoryKiB:       32,
-			ForceIterations: 4,
-		},
-		InlineCryptoEngine: useICE,
+		InlineCryptoEngine:  useICE,
+		InitialKeyslotName:  "installation-key",
 	}
 	return sbInitializeLUKS2Container(node, label, sb.DiskUnlockKey(key), opts)
 }

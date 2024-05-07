@@ -43,7 +43,6 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/secboot"
-	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/squashfs"
@@ -244,19 +243,21 @@ func BuildInstallObserver(model *asserts.Model, gadgetDir string, useEncryption 
 // * save keys and markers for ubuntu-data being able to safely open ubuntu-save
 // It is the responsibility of the caller to call
 // ObserveExistingTrustedRecoveryAssets on trustedInstallObserver.
-func PrepareEncryptedSystemData(model *asserts.Model, keyForRole map[string]keys.EncryptionKey, trustedInstallObserver boot.TrustedAssetsInstallObserver) error {
+func PrepareEncryptedSystemData(model *asserts.Model, resetterForRole map[string]secboot.KeyResetter, trustedInstallObserver boot.TrustedAssetsInstallObserver) error {
 	// validity check
-	if len(keyForRole) == 0 || keyForRole[gadget.SystemData] == nil || keyForRole[gadget.SystemSave] == nil {
+	if len(resetterForRole) == 0 || resetterForRole[gadget.SystemData] == nil || resetterForRole[gadget.SystemSave] == nil {
 		return fmt.Errorf("internal error: system encryption keys are unset")
 	}
-	dataEncryptionKey := keyForRole[gadget.SystemData]
-	saveEncryptionKey := keyForRole[gadget.SystemSave]
+	dataResetter := resetterForRole[gadget.SystemData]
+	saveResetter := resetterForRole[gadget.SystemSave]
 
 	// make note of the encryption keys
-	trustedInstallObserver.ChosenEncryptionKeys(dataEncryptionKey, saveEncryptionKey)
+	trustedInstallObserver.ChosenEncryptionKeys(dataResetter, saveResetter)
 
-	if err := saveKeys(model, keyForRole); err != nil {
-		return err
+	// XXX is the asset cache problematic from initramfs?
+	// keep track of recovery assets
+	if err := trustedInstallObserver.ObserveExistingTrustedRecoveryAssets(boot.InitramfsUbuntuSeedDir); err != nil {
+		return fmt.Errorf("cannot observe existing trusted recovery assets: %v", err)
 	}
 	// write markers containing a secret to pair data and save
 	if err := writeMarkers(model); err != nil {
@@ -282,22 +283,6 @@ func writeMarkers(model *asserts.Model) error {
 	}
 
 	return device.WriteEncryptionMarkers(boot.InstallHostFDEDataDir(model), boot.InstallHostFDESaveDir, markerSecret)
-}
-
-func saveKeys(model *asserts.Model, keyForRole map[string]keys.EncryptionKey) error {
-	saveEncryptionKey := keyForRole[gadget.SystemSave]
-	if saveEncryptionKey == nil {
-		// no system-save support
-		return nil
-	}
-	// ensure directory for keys exists
-	if err := os.MkdirAll(boot.InstallHostFDEDataDir(model), 0755); err != nil {
-		return err
-	}
-	if err := saveEncryptionKey.Save(device.SaveKeyUnder(boot.InstallHostFDEDataDir(model))); err != nil {
-		return fmt.Errorf("cannot store system save key: %v", err)
-	}
-	return nil
 }
 
 // PrepareRunSystemData prepares the run system:

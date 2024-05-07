@@ -46,7 +46,6 @@ import (
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/osutil/kcmdline"
 	"github.com/snapcore/snapd/secboot"
-	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
@@ -8174,9 +8173,6 @@ echo '{"features":[]}'
 
 	writeGadget(c, "ubuntu-seed", "system-seed", "")
 
-	dataKey := keys.EncryptionKey{'d', 'a', 't', 'a', 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
-	saveKey := keys.EncryptionKey{'s', 'a', 'v', 'e', 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
-
 	gadgetInstallCalled := false
 	restoreGadgetInstall := main.MockGadgetInstallRun(func(model gadget.Model, gadgetRoot string, kernelSnapInfo *gadgetInstall.KernelSnapInfo, bootDevice string, options gadgetInstall.Options, observer gadget.ContentObserver, perfTimings timings.Measurer) (*gadgetInstall.InstalledSystemSideData, error) {
 		gadgetInstallCalled = true
@@ -8188,11 +8184,11 @@ echo '{"features":[]}'
 		c.Assert(gadgetRoot, Equals, filepath.Join(boot.InitramfsRunMntDir, "gadget"))
 		c.Assert(kernelSnapInfo.MountPoint, Equals, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
 
-		keyForRole := map[string]keys.EncryptionKey{
-			gadget.SystemData: dataKey,
-			gadget.SystemSave: saveKey,
+		resetterForRole := map[string]secboot.KeyResetter{
+			gadget.SystemData: &secboot.MockKeyResetter{},
+			gadget.SystemSave: &secboot.MockKeyResetter{},
 		}
-		return &gadgetInstall.InstalledSystemSideData{KeyForRole: keyForRole}, nil
+		return &gadgetInstall.InstalledSystemSideData{ResetterForRole: resetterForRole}, nil
 	})
 	defer restoreGadgetInstall()
 

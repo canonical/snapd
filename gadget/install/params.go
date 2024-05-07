@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019-2022 Canonical Ltd
+ * Copyright (C) 2019-2022, 2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,10 +20,11 @@
 package install
 
 import (
+	sb "github.com/snapcore/secboot"
+
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/secboot"
-	"github.com/snapcore/snapd/secboot/keys"
 )
 
 type Options struct {
@@ -37,7 +38,7 @@ type Options struct {
 // to access its partitions.
 type InstalledSystemSideData struct {
 	// KeysForRoles contains key sets for the relevant structure roles.
-	KeyForRole map[string]keys.EncryptionKey
+	ResetterForRole map[string]secboot.KeyResetter
 	// DeviceForRole maps a roles to their corresponding device nodes. For
 	// structures with roles that require data to be encrypted, the device
 	// is the raw encrypted device node (eg. /dev/mmcblk0p1).
@@ -51,7 +52,7 @@ type partEncryptionData struct {
 	encryptedDevice string
 
 	volName       string
-	encryptionKey keys.EncryptionKey
+	encryptionKey sb.DiskUnlockKey
 	// TODO: this is currently not used
 	encryptedSectorSize quantity.Size
 	encryptionParams    gadget.StructureEncryptionParameters
@@ -89,7 +90,7 @@ func MockEncryptionSetupData(labelToEncDevice map[string]*MockEncryptedDeviceAnd
 		esd.parts[label] = partEncryptionData{
 			role:                encryptData.Role,
 			encryptedDevice:     encryptData.EncryptedDevice,
-			encryptionKey:       keys.EncryptionKey{1, 2, 3},
+			encryptionKey:       sb.DiskUnlockKey([]byte{1, 2, 3}),
 			encryptedSectorSize: 512,
 		}
 	}

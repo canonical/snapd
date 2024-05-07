@@ -21,7 +21,7 @@ require (
 	github.com/mvo5/libseccomp-golang v0.9.1-0.20180308152521-f4de83b52afb // old trusty builds only
 	github.com/seccomp/libseccomp-golang v0.9.2-0.20220502024300-f57e1d55ea18
 	github.com/snapcore/go-gettext v0.0.0-20191107141714-82bbea49e785
-	github.com/snapcore/secboot v0.0.0-20240105133534-42c7ea9715b3
+	github.com/snapcore/secboot v0.0.0-20240315160953-f8dedd0209e6
 	golang.org/x/crypto v0.13.0
 	golang.org/x/net v0.15.0 // indirect
 	golang.org/x/sys v0.12.0
@@ -47,3 +47,5 @@ require (
 	golang.org/x/term v0.12.0 // indirect
 	maze.io/x/crypto v0.0.0-20190131090603-9b94c9afe066 // indirect
 )
+
+replace github.com/snapcore/secboot => github.com/chrisccoulson/secboot v0.0.0-20240404180734-cf489d604eb0

@@ -84,15 +84,7 @@ func MockSbAddSnapModelProfile(f func(profile *sb_tpm2.PCRProtectionProfileBranc
 	}
 }
 
-func MockSbSealKeyToTPMMultiple(f func(tpm *sb_tpm2.Connection, keys []*sb_tpm2.SealKeyRequest, params *sb_tpm2.KeyCreationParams) (sb.AuxiliaryKey, error)) (restore func()) {
-	old := sbSealKeyToTPMMultiple
-	sbSealKeyToTPMMultiple = f
-	return func() {
-		sbSealKeyToTPMMultiple = old
-	}
-}
-
-func MockSbUpdateKeyPCRProtectionPolicyMultiple(f func(tpm *sb_tpm2.Connection, keys []*sb_tpm2.SealedKeyObject, authKey sb.AuxiliaryKey, pcrProfile *sb_tpm2.PCRProtectionProfile) error) (restore func()) {
+func MockSbUpdateKeyPCRProtectionPolicyMultiple(f func(tpm *sb_tpm2.Connection, keys []*sb_tpm2.SealedKeyObject, authKey sb.PrimaryKey, pcrProfile *sb_tpm2.PCRProtectionProfile) error) (restore func()) {
 	old := sbUpdateKeyPCRProtectionPolicyMultiple
 	sbUpdateKeyPCRProtectionPolicyMultiple = f
 	return func() {
@@ -100,7 +92,7 @@ func MockSbUpdateKeyPCRProtectionPolicyMultiple(f func(tpm *sb_tpm2.Connection, 
 	}
 }
 
-func MockSbSealedKeyObjectRevokeOldPCRProtectionPolicies(f func(sko *sb_tpm2.SealedKeyObject, tpm *sb_tpm2.Connection, authKey sb.AuxiliaryKey) error) (restore func()) {
+func MockSbSealedKeyObjectRevokeOldPCRProtectionPolicies(f func(sko *sb_tpm2.SealedKeyObject, tpm *sb_tpm2.Connection, authKey sb.PrimaryKey) error) (restore func()) {
 	old := sbSealedKeyObjectRevokeOldPCRProtectionPolicies
 	sbSealedKeyObjectRevokeOldPCRProtectionPolicies = f
 	return func() {
@@ -134,7 +126,7 @@ func MockSbActivateVolumeWithKey(f func(volumeName, sourceDevicePath string, key
 	}
 }
 
-func MockSbActivateVolumeWithKeyData(f func(volumeName, sourceDevicePath string, authRequestor sb.AuthRequestor, kdf sb.KDF, options *sb.ActivateVolumeOptions, keys ...*sb.KeyData) error) (restore func()) {
+func MockSbActivateVolumeWithKeyData(f func(volumeName, sourceDevicePath string, authRequestor sb.AuthRequestor, options *sb.ActivateVolumeOptions, keys ...*sb.KeyData) error) (restore func()) {
 	oldSbActivateVolumeWithKeyData := sbActivateVolumeWithKeyData
 	sbActivateVolumeWithKeyData = f
 	return func() {
@@ -217,4 +209,12 @@ func MockSbLockoutAuthSet(f func(tpm *sb_tpm2.Connection) bool) (restore func())
 	restore = testutil.Backup(&lockoutAuthSet)
 	lockoutAuthSet = f
 	return restore
+}
+
+func MockSbNewTPMProtectedKey(f func(tpm *sb_tpm2.Connection, params *sb_tpm2.ProtectKeyParams) (protectedKey *sb.KeyData, primaryKey sb.PrimaryKey, unlockKey sb.DiskUnlockKey, err error)) (restore func()) {
+	old := sbNewTPMProtectedKey
+	sbNewTPMProtectedKey = f
+	return func() {
+		sbNewTPMProtectedKey = old
+	}
 }

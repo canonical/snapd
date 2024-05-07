@@ -31,6 +31,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	sb "github.com/snapcore/secboot"
 	_ "golang.org/x/crypto/sha3"
 	"gopkg.in/tomb.v2"
 
@@ -75,6 +76,9 @@ var (
 	secbootTransitionEncryptionKeyChange = secboot.TransitionEncryptionKeyChange
 
 	installLogicPrepareRunSystemData = installLogic.PrepareRunSystemData
+
+	sbGetDiskUnlockKeyFromKernel = sb.GetDiskUnlockKeyFromKernel
+	sbAddLUKS2ContainerUnlockKey = sb.AddLUKS2ContainerUnlockKey
 )
 
 func writeLogs(rootdir string, fromMode string) error {
@@ -299,7 +303,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	if useEncryption {
-		if err := installLogic.PrepareEncryptedSystemData(model, installedSystem.KeyForRole, trustedInstallObserver); err != nil {
+		if err := installLogic.PrepareEncryptedSystemData(model, installedSystem.ResetterForRole, trustedInstallObserver); err != nil {
 			return err
 		}
 	}
@@ -594,16 +598,6 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 			return fmt.Errorf("cannot cleanup obsolete key file: %v", err)
 		}
 
-		// it is ok if the recovery key file on disk does not exist;
-		// ubuntu-save was opened during boot, so the removal operation
-		// can be authorized with a key from the keyring
-		err = secbootRemoveRecoveryKeys(map[secboot.RecoveryKeyDevice]string{
-			{Mountpoint: boot.InitramfsUbuntuSaveDir}: device.RecoveryKeyUnder(boot.InstallHostFDEDataDir(model)),
-		})
-		if err != nil {
-			return fmt.Errorf("cannot remove recovery key: %v", err)
-		}
-
 		// new encryption key for save
 		saveEncryptionKey, err := keys.NewEncryptionKey()
 		if err != nil {
@@ -615,13 +609,21 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 			return fmt.Errorf("internal error: no system-save device")
 		}
 
-		if err := secbootStageEncryptionKeyChange(saveNode, saveEncryptionKey); err != nil {
-			return fmt.Errorf("cannot change encryption keys: %v", err)
+		unlockKey, err := sbGetDiskUnlockKeyFromKernel("", saveNode, false)
+		if err != nil {
+			return fmt.Errorf("cannot get key for unlocked disk: %v", err)
 		}
-		// keep track of the new ubuntu-save encryption key
-		installedSystem.KeyForRole[gadget.SystemSave] = saveEncryptionKey
 
-		if err := installLogic.PrepareEncryptedSystemData(model, installedSystem.KeyForRole, trustedInstallObserver); err != nil {
+		if err := sbAddLUKS2ContainerUnlockKey(saveNode, "installation-key", sb.DiskUnlockKey(unlockKey), sb.DiskUnlockKey(saveEncryptionKey)); err != nil {
+			return fmt.Errorf("cannot enroll new installation key: %v", err)
+		}
+
+		//TODO: remove other keyslots?
+
+		// keep track of the new ubuntu-save encryption key
+		installedSystem.ResetterForRole[gadget.SystemSave] = secboot.CreateKeyResetter(sb.DiskUnlockKey(saveEncryptionKey), saveNode)
+
+		if err := installLogic.PrepareEncryptedSystemData(model, installedSystem.ResetterForRole, trustedInstallObserver); err != nil {
 			return err
 		}
 	}
@@ -1085,7 +1087,7 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 
 	if useEncryption {
 		if trustedInstallObserver != nil {
-			if err := installLogic.PrepareEncryptedSystemData(systemAndSnaps.Model, install.KeysForRole(encryptSetupData), trustedInstallObserver); err != nil {
+			if err := installLogic.PrepareEncryptedSystemData(systemAndSnaps.Model, install.ResetterForRole(encryptSetupData), trustedInstallObserver); err != nil {
 				return err
 			}
 		}

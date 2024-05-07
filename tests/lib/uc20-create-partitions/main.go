@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019-2020 Canonical Ltd
+ * Copyright (C) 2019-2020, 2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -24,6 +24,7 @@ import (
 	"os"
 
 	"github.com/jessevdk/go-flags"
+	sb "github.com/snapcore/secboot"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/gadget"
@@ -97,16 +98,30 @@ func main() {
 	}
 
 	if args.Encrypt {
-		if installSideData == nil || len(installSideData.KeyForRole) == 0 {
+		if installSideData == nil || len(installSideData.ResetterForRole) == 0 {
 			panic("expected encryption keys")
 		}
-		dataKey := installSideData.KeyForRole[gadget.SystemData]
-		if dataKey == nil {
+		dataKeyResetter := installSideData.ResetterForRole[gadget.SystemData]
+		if dataKeyResetter == nil {
 			panic("ubuntu-data encryption key is unset")
 		}
-		saveKey := installSideData.KeyForRole[gadget.SystemSave]
-		if saveKey == nil {
+		dataKey, err := keys.NewEncryptionKey()
+		if err != nil {
+			panic("cannot create data key")
+		}
+		if err := dataKeyResetter.Reset(sb.DiskUnlockKey(dataKey)); err != nil {
+			panic("cannot reset data key")
+		}
+		saveKeyResetter := installSideData.ResetterForRole[gadget.SystemSave]
+		if saveKeyResetter == nil {
 			panic("ubuntu-save encryption key is unset")
+		}
+		saveKey, err := keys.NewEncryptionKey()
+		if err != nil {
+			panic("cannot create save key")
+		}
+		if err := saveKeyResetter.Reset(sb.DiskUnlockKey(saveKey)); err != nil {
+			panic("cannot reset save key")
 		}
 		toWrite := map[string][]byte{
 			"unsealed-key": dataKey[:],

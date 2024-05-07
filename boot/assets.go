@@ -37,7 +37,7 @@ import (
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/secboot/keys"
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -280,8 +280,8 @@ type trustedAssetsInstallObserverImpl struct {
 	trackedRecoveryAssets bootAssetsMap
 
 	useEncryption     bool
-	dataEncryptionKey keys.EncryptionKey
-	saveEncryptionKey keys.EncryptionKey
+	dataKeyResetter secboot.KeyResetter
+	saveKeyResetter secboot.KeyResetter
 
 	seedBootloader bootloader.Bootloader
 }
@@ -368,10 +368,10 @@ func (o *trustedAssetsInstallObserverImpl) currentTrustedRecoveryBootAssetsMap()
 	return o.trackedRecoveryAssets
 }
 
-func (o *trustedAssetsInstallObserverImpl) ChosenEncryptionKeys(key, saveKey keys.EncryptionKey) {
+func (o *TrustedAssetsInstallObserver) ChosenEncryptionKeys(resetter, saveResetter secboot.KeyResetter) {
 	o.useEncryption = true
-	o.dataEncryptionKey = key
-	o.saveEncryptionKey = saveKey
+	o.dataKeyResetter = resetter
+	o.saveKeyResetter = saveResetter
 }
 
 func (o *trustedAssetsInstallObserverImpl) UpdateBootEntry() error {

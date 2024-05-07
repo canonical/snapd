@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2021-2022 Canonical Ltd
+ * Copyright (C) 2021-2022, 2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -25,7 +25,7 @@ package secboot
 // Debian does run "go list" without any support for passing -tags.
 
 import (
-	"crypto/ecdsa"
+	sb "github.com/snapcore/secboot"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
@@ -65,14 +65,15 @@ func NewLoadChain(bf bootloader.BootFile, next ...*LoadChain) *LoadChain {
 	}
 }
 
+type KeyResetter interface {
+	Reset(newKey sb.DiskUnlockKey) error
+}
+
 type SealKeyRequest struct {
-	// The key to seal
-	Key keys.EncryptionKey
 	// The key name; identical keys should have identical names
 	KeyName string
-	// The path to store the sealed key file. The same Key/KeyName
-	// can be stored under multiple KeyFile names for safety.
-	KeyFile string
+
+	Resetter KeyResetter
 }
 
 // ModelForSealing provides information about the model for use in the context
@@ -116,11 +117,6 @@ const (
 type SealKeysParams struct {
 	// The parameters we're sealing the key to
 	ModelParams []*SealKeyModelParams
-	// The authorization policy update key file (only relevant for TPM)
-	TPMPolicyAuthKey *ecdsa.PrivateKey
-	// The path to the authorization policy update key file (only relevant for TPM,
-	// if empty the key will not be saved)
-	TPMPolicyAuthKeyFile string
 	// The handle at which to create a NV index for dynamic authorization policy revocation support
 	PCRPolicyCounterHandle uint32
 }
@@ -130,9 +126,6 @@ type SealKeysWithFDESetupHookParams struct {
 	Model ModelForSealing
 	// AuxKey is the auxiliary key used to bind models.
 	AuxKey keys.AuxKey
-	// The path to the aux key file (if empty the key will not be
-	// saved)
-	AuxKeyFile string
 }
 
 type ResealKeysParams struct {

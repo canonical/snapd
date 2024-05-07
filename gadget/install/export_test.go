@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2020, 2024, 2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -22,6 +22,8 @@ package install
 import (
 	"fmt"
 	"time"
+
+	sb "github.com/snapcore/secboot"
 
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/quantity"
@@ -101,4 +103,20 @@ func CheckEncryptionSetupData(encryptSetup *EncryptionSetupData, labelToEncDevic
 	}
 
 	return nil
+}
+
+func MockCryptsetupOpen(f func(key sb.DiskUnlockKey, node, name string) error) func() {
+	old := cryptsetupOpen
+	cryptsetupOpen = f
+	return func() {
+		cryptsetupOpen = old
+	}
+}
+
+func MockCryptsetupClose(f func(name string) error) func() {
+	old := cryptsetupClose
+	cryptsetupClose = f
+	return func() {
+		cryptsetupClose = old
+	}
 }

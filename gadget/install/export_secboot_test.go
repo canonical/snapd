@@ -2,7 +2,7 @@
 //go:build !nosecboot
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2020, 2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -24,7 +24,6 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/secboot"
-	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -33,7 +32,7 @@ var (
 	NewEncryptedDeviceLUKS = newEncryptedDeviceLUKS
 )
 
-func MockSecbootFormatEncryptedDevice(f func(key keys.EncryptionKey, encType secboot.EncryptionType, label, node string) error) (restore func()) {
+func MockSecbootFormatEncryptedDevice(f func(key []byte, encType secboot.EncryptionType, label, node string) error) (restore func()) {
 	r := testutil.Backup(&secbootFormatEncryptedDevice)
 	secbootFormatEncryptedDevice = f
 	return r
