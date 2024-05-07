@@ -23,9 +23,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	userclient "github.com/snapcore/snapd/usersession/client"
@@ -78,24 +76,12 @@ var asyncFinishRefreshNotification = func(refreshInfo *userclient.FinishedSnapRe
 }
 
 var maybeSendClientFinishRefreshNotification = func(st *state.State, snapsup *snapstate.SnapSetup) {
-	tr := config.NewTransaction(st)
-	experimentalRefreshAppAwarenessUX, err := features.Flag(tr, features.RefreshAppAwarenessUX)
-	if err != nil && !config.IsNoOption(err) {
-		logger.Noticef("Cannot send notification about finished refresh: %v", err)
-		return
-	}
-	if experimentalRefreshAppAwarenessUX {
-		// use notices + warnings fallback flow instead
-		return
-	}
-
-	markerExists, err := snapstate.HasActiveConnection(st, "snap-refresh-observe")
+	sendNotification, err := snapstate.ShouldSendNotificationsToTheUser(st)
 	if err != nil {
 		logger.Noticef("Cannot send notification about finished refresh: %v", err)
 		return
 	}
-	if markerExists {
-		// found snap with marker interface, skip notification
+	if !sendNotification {
 		return
 	}
 	refreshInfo := &userclient.FinishedSnapRefreshInfo{

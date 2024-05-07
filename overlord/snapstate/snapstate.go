@@ -249,6 +249,33 @@ func (e *InsufficientSpaceError) Error() string {
 	return fmt.Sprintf("insufficient space in %q", e.Path)
 }
 
+// Allows to know if snapd should send desktop notifications to the user.
+// If there is a snap connected to the snap-refresh-observe slot, then
+// no notification should be sent, delegating all the job to that snap.
+func ShouldSendNotificationsToTheUser(st *state.State) (bool, error) {
+	tr := config.NewTransaction(st)
+	experimentalRefreshAppAwarenessUX, err := features.Flag(tr, features.RefreshAppAwarenessUX)
+	if err != nil && !config.IsNoOption(err) {
+		logger.Noticef("Cannot send notification about pending refresh: %v", err)
+		return false, err
+	}
+	if experimentalRefreshAppAwarenessUX {
+		// use notices + warnings fallback flow instead
+		return false, nil
+	}
+
+	markerExists, err := HasActiveConnection(st, "snap-refresh-observe")
+	if err != nil {
+		logger.Noticef("Cannot send notification about pending refresh: %v", err)
+		return false, err
+	}
+	if markerExists {
+		// found snap with marker interface, skip notification
+		return false, nil
+	}
+	return true, nil
+}
+
 // safetyMarginDiskSpace returns size plus a safety margin (5Mb)
 func safetyMarginDiskSpace(size uint64) uint64 {
 	return size + 5*1024*1024
