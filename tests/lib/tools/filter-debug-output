@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import io
 import re
 import sys
 
@@ -18,7 +19,7 @@ def match_time(time):
     return re.findall(r'\d{2}:\d{2}:\d{2}', time)
 
 # Debug line starts with 
-def match_debug(line):
+def is_debug_start(line):
     parts = line.strip().split(' ')
     return len(parts) > 5 and \
         match_date(parts[0]) and \
@@ -28,7 +29,7 @@ def match_debug(line):
         parts[4] == 'for'
 
 # Debug output finishes when a new other line starts
-def is_debug_finished(line):
+def is_debug_finished(line: str) -> bool:
     parts = line.strip().split(' ')
     return len(parts) > 3 and \
         match_date(parts[0]) and \
@@ -39,49 +40,39 @@ def get_debug_tag(debug_num):
     return "###DEBUG-{}###".format(debug_num)
 
 # Prints the debug line and the tag that helps for cross-referencing
-def print_debug_line(line, debug_num):
+def print_debug_line(line: str, debug_num: int):
     print(line)
     print("-----")
     print(get_debug_tag(debug_num))
     print("-----")
 
-# Writes in the file the debug output lines including the tag that
-# helps for cross-referencing
-def write_debug_lines(debug_lines, debug_num, debug_file):
-    with open(debug_file, 'a+') as myfile:
-        myfile.write(get_debug_tag(debug_num) + '\n')
-        myfile.write(debug_lines)
+def process_debug(from_stream: io.TextIOWrapper, start_line: str, debug_count: int, debug_file) -> str:
+    """Process lines from the start of the debug section until the last line,
+    returns the first line right after the debug section
+    """
+    with open(debug_file, "a+") as myfile:
+        # Writes in the file the debug output lines including the tag that
+        # helps for cross-referencing
+        myfile.write(get_debug_tag(debug_count) + '\n')
+        myfile.write(start_line.strip())
+        for line in from_stream:
+            if is_debug_finished(line):
+                myfile.write('\n')
+                return line
+            
+            myfile.write(line.strip())
+        
 
-# Process spread output lines
 def process_spread_output(debug_file):
     debug_num = 0
-    debug_lines = ""
     for line in sys.stdin:
-        if debug_lines:
-            if is_debug_finished(line):
-                write_debug_lines(debug_lines, debug_num, debug_file)
+        # A Debug section starts
+        if is_debug_start(line):
+            debug_num += 1
+            print_debug_line(line.strip(), debug_num)
+            line = process_debug(sys.stdin, line, debug_num, debug_file)
 
-                # There is a Debug output right after
-                if match_debug(line):
-                    debug_lines = line
-                else:
-                    print(line.strip())
-                    debug_lines = ""
-                continue
-            else:
-                debug_lines = debug_lines + line
-                continue
-        else:
-            # A Debug section starts
-            if match_debug(line):
-                debug_num += 1
-                debug_lines = line
-                print_debug_line(line.strip(), debug_num)
-
-                continue
-            # No debug line, just print it
-            else:
-                print(line.strip())
+        print(line.strip())
 
 def _make_parser():
     # type: () -> argparse.ArgumentParser
