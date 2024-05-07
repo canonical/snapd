@@ -139,7 +139,6 @@ func (s *handlersComponentsSuite) TestComponentSetupsForTaskSnapWithoutComponent
 	defer s.state.Unlock()
 	t := s.state.NewTask("prepare-component", "test")
 
-	const snapName = "mysnap"
 	t.Set("snap-setup", snapstate.SnapSetup{
 		Version: "1.0",
 	})
