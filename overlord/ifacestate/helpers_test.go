@@ -395,7 +395,7 @@ apps:
 	// function that writes the new system key with one always panics.
 	restore = ifacestate.MockProfilesNeedRegeneration(func(m *ifacestate.InterfaceManager) bool { return true })
 	defer restore()
-	restore = ifacestate.MockWriteSystemKey(func(currentAppArmorPrompting bool) error { panic("should not attempt to write system key") })
+	restore = ifacestate.MockWriteSystemKey(func(promptingFlagEnabled bool) error { panic("should not attempt to write system key") })
 	defer restore()
 	// Put a fake system key in place, we just want to see that file being removed.
 	err := os.MkdirAll(filepath.Dir(dirs.SnapSystemKeyFile), 0755)
@@ -470,7 +470,7 @@ func (s *helpersSuite) TestProfileRegenerationSetupMany(c *C) {
 	// Pretend that security profiles are out of date.
 	restore = ifacestate.MockProfilesNeedRegeneration(func(m *ifacestate.InterfaceManager) bool { return true })
 	defer restore()
-	restore = ifacestate.MockWriteSystemKey(func(currentAppArmorPrompting bool) error {
+	restore = ifacestate.MockWriteSystemKey(func(promptingFlagEnabled bool) error {
 		writeKey = true
 		return nil
 	})
@@ -518,7 +518,7 @@ func (s *helpersSuite) TestProfileRegenerationSetupManyFailsSystemKeyNotWritten(
 	// Pretend that security profiles are out of date.
 	restore = ifacestate.MockProfilesNeedRegeneration(func(m *ifacestate.InterfaceManager) bool { return true })
 	defer restore()
-	restore = ifacestate.MockWriteSystemKey(func(currentAppArmorPrompting bool) error {
+	restore = ifacestate.MockWriteSystemKey(func(promptingFlagEnabled bool) error {
 		writeKey = true
 		return nil
 	})

@@ -249,6 +249,9 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer) er
 	}
 
 	if shouldWriteSystemKey {
+		// m.useAppArmorPrompting() is supported&&enabled, but use it in place
+		// of enabled, since if prompting is not supported, the system key
+		// values related to prompting will both be false anyway.
 		if err := writeSystemKey(m.useAppArmorPrompting()); err != nil {
 			logger.Noticef("cannot write system key: %v", err)
 		}

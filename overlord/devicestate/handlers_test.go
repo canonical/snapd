@@ -632,10 +632,10 @@ func (s *preseedingBaseSuite) SetUpTest(c *C, preseed, classic bool) {
 	// can use cleanup only after having called base SetUpTest
 	s.AddCleanup(r)
 
-	currentAppArmorPrompting := false
+	promptingFlagEnabled := false
 
 	s.AddCleanup(interfaces.MockSystemKey(`{"build-id":"abcde"}`))
-	c.Assert(interfaces.WriteSystemKey(currentAppArmorPrompting), IsNil)
+	c.Assert(interfaces.WriteSystemKey(promptingFlagEnabled), IsNil)
 
 	s.cmdUmount = testutil.MockCommand(c, "umount", "")
 	s.cmdSystemctl = testutil.MockCommand(c, "systemctl", "")

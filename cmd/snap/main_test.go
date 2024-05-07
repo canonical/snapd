@@ -91,8 +91,8 @@ func (s *BaseSnapSuite) SetUpTest(c *C) {
 }`))
 	err := os.MkdirAll(filepath.Dir(dirs.SnapSystemKeyFile), 0755)
 	c.Assert(err, IsNil)
-	currentAppArmorPrompting := false
-	err = interfaces.WriteSystemKey(currentAppArmorPrompting)
+	promptingFlagEnabled := false
+	err = interfaces.WriteSystemKey(promptingFlagEnabled)
 	c.Assert(err, IsNil)
 
 	s.AddCleanup(snap.MockIsStdoutTTY(false))

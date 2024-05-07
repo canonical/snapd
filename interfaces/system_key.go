@@ -31,6 +31,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sandbox/apparmor"
@@ -72,19 +73,20 @@ type systemKey struct {
 	//
 	// As an exception, the NFSHome is not renamed to RemoteFSHome
 	// to avoid needless re-computation.
-	AppArmorFeatures       []string `json:"apparmor-features"`
-	AppArmorParserMtime    int64    `json:"apparmor-parser-mtime"`
-	AppArmorParserFeatures []string `json:"apparmor-parser-features"`
-	AppArmorPrompting      bool     `json:"apparmor-prompting"`
-	NFSHome                bool     `json:"nfs-home"`
-	OverlayRoot            string   `json:"overlay-root"`
-	SecCompActions         []string `json:"seccomp-features"`
-	SeccompCompilerVersion string   `json:"seccomp-compiler-version"`
-	CgroupVersion          string   `json:"cgroup-version"`
+	AppArmorFeatures                     []string `json:"apparmor-features"`
+	AppArmorParserMtime                  int64    `json:"apparmor-parser-mtime"`
+	AppArmorParserFeatures               []string `json:"apparmor-parser-features"`
+	AppArmorPromptingSupported           bool     `json:"apparmor-prompting-supported"`
+	AppArmorPromptingSupportedAndEnabled bool     `json:"apparmor-prompting-supported-and-enabled"`
+	NFSHome                              bool     `json:"nfs-home"`
+	OverlayRoot                          string   `json:"overlay-root"`
+	SecCompActions                       []string `json:"seccomp-features"`
+	SeccompCompilerVersion               string   `json:"seccomp-compiler-version"`
+	CgroupVersion                        string   `json:"cgroup-version"`
 }
 
 // IMPORTANT: when adding/removing/changing inputs bump this
-const systemKeyVersion = 11
+const systemKeyVersion = 12
 
 var (
 	isHomeUsingRemoteFS   = osutil.IsHomeUsingRemoteFS
@@ -98,7 +100,7 @@ func seccompCompilerVersionInfo(path string) (seccomp.VersionInfo, error) {
 	return seccomp.CompilerVersionInfo(func(name string) (string, error) { return filepath.Join(path, name), nil })
 }
 
-func generateSystemKey(withAppArmorPrompting bool) (*systemKey, error) {
+func generateSystemKey() (*systemKey, error) {
 	// for testing only
 	if mockedSystemKey != nil {
 		return mockedSystemKey, nil
@@ -122,9 +124,6 @@ func generateSystemKey(withAppArmorPrompting bool) (*systemKey, error) {
 
 	// Add apparmor-parser-mtime
 	sk.AppArmorParserMtime = apparmor.ParserMtime()
-
-	// Add apparmor-prompting
-	sk.AppArmorPrompting = withAppArmorPrompting
 
 	// Add if home is using a remote file system, if so we need to have a
 	// different security profile and if this changes we need to change our
@@ -177,8 +176,8 @@ func UnmarshalJSONSystemKey(r io.Reader) (interface{}, error) {
 }
 
 // WriteSystemKey will write the current system-key to disk
-func WriteSystemKey(withAppArmorPrompting bool) error {
-	sk, err := generateSystemKey(withAppArmorPrompting)
+func WriteSystemKey(promptingFlagEnabled bool) error {
+	sk, err := generateSystemKey()
 	if err != nil {
 		return err
 	}
@@ -191,7 +190,11 @@ func WriteSystemKey(withAppArmorPrompting bool) error {
 		// Since we calculate the mtime() as part of generateSystemKey, we can
 		// simply unconditionally write this out here.
 		sk.AppArmorParserFeatures, _ = apparmor.ParserFeatures()
+		// AppArmorPrompting.IsSupported() depends on AA kernel and parser
+		sk.AppArmorPromptingSupported = features.AppArmorPrompting.IsSupported()
 	}
+
+	sk.AppArmorPromptingSupportedAndEnabled = sk.AppArmorPromptingSupported && promptingFlagEnabled
 
 	sks, err := json.Marshal(sk)
 	if err != nil {
@@ -232,8 +235,8 @@ func WriteSystemKey(withAppArmorPrompting bool) error {
 // to disk whenever apparmor-parser-mtime changes (in this manner
 // snap run only has to obtain the mtime of apparmor_parser and
 // doesn't have to invoke it)
-func SystemKeyMismatch(currentAppArmorPrompting bool) (bool, error) {
-	mySystemKey, err := generateSystemKey(currentAppArmorPrompting)
+func SystemKeyMismatch(promptingFlagEnabled bool) (bool, error) {
+	mySystemKey, err := generateSystemKey()
 	if err != nil {
 		return false, err
 	}
@@ -270,8 +273,32 @@ func SystemKeyMismatch(currentAppArmorPrompting bool) (bool, error) {
 	diskSystemKey.AppArmorParserFeatures = nil
 	mySystemKey.AppArmorParserFeatures = nil
 
+	// We don't want to check AppArmorPrompting.IsSupported() unless absolutely
+	// necessary, since when called by `snap run`, there will be no AppArmor
+	// parser features cached, and we will need to exec the parser to check.
+	// Preserve disk prompting supported and supported&&enabled values
+	diskPromptingSupported := diskSystemKey.AppArmorPromptingSupported
+	diskPromptingSAndE := diskSystemKey.AppArmorPromptingSupportedAndEnabled
+	// Zero out both values for both system keys, then check them later.
+	diskSystemKey.AppArmorPromptingSupported = false
+	diskSystemKey.AppArmorPromptingSupportedAndEnabled = false
+	mySystemKey.AppArmorPromptingSupported = false
+	mySystemKey.AppArmorPromptingSupportedAndEnabled = false
+
 	ok, err := SystemKeysMatch(mySystemKey, diskSystemKey)
-	return !ok, err
+	if err != nil || !ok {
+		return true, err
+	}
+
+	// System keys match, which means AppArmor kernel and parser features are
+	// unchanged, so prompting support is also unchanged. Thus, the only
+	// scenario in which prompting supported&&enabled is changed is if prompting
+	// is supported and the value of the AppArmorPrompting flag has changed.
+	if diskPromptingSupported {
+		return promptingFlagEnabled != diskPromptingSAndE, nil
+	}
+
+	return false, nil
 }
 
 func readSystemKey() (*systemKey, error) {
@@ -299,8 +326,8 @@ func RecordedSystemKey() (interface{}, error) {
 }
 
 // CurrentSystemKey calculates and returns the current system key as opaque interface{}.
-func CurrentSystemKey(withAppArmorPrompting bool) (interface{}, error) {
-	currentSystemKey, err := generateSystemKey(withAppArmorPrompting)
+func CurrentSystemKey() (interface{}, error) {
+	currentSystemKey, err := generateSystemKey()
 	return currentSystemKey, err
 }
 
