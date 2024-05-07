@@ -13,10 +13,10 @@ OPERATIONS = [
     ]
 
 def match_date(date):
-    return re.findall(r'\d{4}-\d{2}-\d{2}', date)
+    return re.match(r'\d{4}-\d{2}-\d{2}', date)
 
 def match_time(time):
-    return re.findall(r'\d{2}:\d{2}:\d{2}', time)
+    return re.match(r'\d{2}:\d{2}:\d{2}', time)
 
 # Debug line starts with 
 def is_debug_start(line):
