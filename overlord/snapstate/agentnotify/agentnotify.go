@@ -81,7 +81,7 @@ var sendClientFinishRefreshNotification = func(st *state.State, snapsup *snapsta
 	tr := config.NewTransaction(st)
 	experimentalRefreshAppAwarenessUX, err := features.Flag(tr, features.RefreshAppAwarenessUX)
 	if err != nil && !config.IsNoOption(err) {
-		logger.Noticef("Cannot send notification about pending refresh: %v", err)
+		logger.Noticef("Cannot send notification about finished refresh: %v", err)
 		return
 	}
 	if experimentalRefreshAppAwarenessUX {
