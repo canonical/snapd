@@ -61,7 +61,7 @@ func notifyLinkSnap(st *state.State, snapsup *snapstate.SnapSetup) error {
 	// closed an application that had a auto-refresh ready.
 	if snapsup.Flags.IsContinuedAutoRefresh {
 		logger.Debugf("notifying user client about continued refresh for %q", snapsup.InstanceName())
-		sendClientFinishRefreshNotification(st, snapsup)
+		maybeSendClientFinishRefreshNotification(st, snapsup)
 	}
 
 	return nil
@@ -77,7 +77,7 @@ var asyncFinishRefreshNotification = func(refreshInfo *userclient.FinishedSnapRe
 	}()
 }
 
-var sendClientFinishRefreshNotification = func(st *state.State, snapsup *snapstate.SnapSetup) {
+var maybeSendClientFinishRefreshNotification = func(st *state.State, snapsup *snapstate.SnapSetup) {
 	tr := config.NewTransaction(st)
 	experimentalRefreshAppAwarenessUX, err := features.Flag(tr, features.RefreshAppAwarenessUX)
 	if err != nil && !config.IsNoOption(err) {
