@@ -75,8 +75,10 @@ func (s *RemovableMediaInterfaceSuite) TestSanitizePlug(c *C) {
 
 func (s *RemovableMediaInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	apparmorSpec := apparmor.NewSpecification(appSet)
+	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.other"})
 	c.Check(apparmorSpec.SnippetForTag("snap.client-snap.other"), testutil.Contains, "/{,run/}media/*/ r")

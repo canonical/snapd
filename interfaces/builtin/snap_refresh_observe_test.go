@@ -76,19 +76,27 @@ func (s *SnapRefreshObserveInterfaceSuite) TestSanitizePlug(c *C) {
 
 func (s *SnapRefreshObserveInterfaceSuite) TestAppArmor(c *C) {
 	// The interface generates no AppArmor rules
-	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Check(spec.SecurityTags(), HasLen, 0)
 
-	spec = apparmor.NewSpecification(interfaces.NewSnapAppSet(s.slot.Snap()))
+	appSet, err = interfaces.NewSnapAppSet(s.slot.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec = apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
 	c.Check(spec.SecurityTags(), HasLen, 0)
 
-	spec = apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plugInfo.Snap))
+	appSet, err = interfaces.NewSnapAppSet(s.plugInfo.Snap, nil)
+	c.Assert(err, IsNil)
+	spec = apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddPermanentPlug(s.iface, s.plugInfo), IsNil)
 	c.Check(spec.SecurityTags(), HasLen, 0)
 
-	spec = apparmor.NewSpecification(interfaces.NewSnapAppSet(s.slotInfo.Snap))
+	appSet, err = interfaces.NewSnapAppSet(s.slotInfo.Snap, nil)
+	c.Assert(err, IsNil)
+	spec = apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
 	c.Check(spec.SecurityTags(), HasLen, 0)
 }

@@ -72,8 +72,10 @@ func (s *systemFilesInterfaceSuite) TestName(c *C) {
 }
 
 func (s *systemFilesInterfaceSuite) TestConnectedPlugAppArmor(c *C) {
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	apparmorSpec := apparmor.NewSpecification(appSet)
+	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Check(apparmorSpec.SnippetForTag("snap.other.app"), Equals, `
@@ -165,8 +167,10 @@ apps:
 	s.plugInfo = plugSnap.Plugs["system-files"]
 	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	apparmorSpec := apparmor.NewSpecification(appSet)
+	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, ErrorMatches, `cannot connect plug system-files: 123 \(int64\) is not a string`)
 }
 

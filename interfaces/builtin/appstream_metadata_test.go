@@ -79,7 +79,9 @@ func (s *AppstreamMetadataInterfaceSuite) TestSanitize(c *C) {
 }
 
 func (s *AppstreamMetadataInterfaceSuite) TestAppArmorConnectedPlug(c *C) {
-	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 1)
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/var/cache/{app-info,swcatalog}/** r,`)
