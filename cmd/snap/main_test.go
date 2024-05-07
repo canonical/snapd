@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -91,7 +91,8 @@ func (s *BaseSnapSuite) SetUpTest(c *C) {
 }`))
 	err := os.MkdirAll(filepath.Dir(dirs.SnapSystemKeyFile), 0755)
 	c.Assert(err, IsNil)
-	err = interfaces.WriteSystemKey()
+	currentAppArmorPrompting := false
+	err = interfaces.WriteSystemKey(currentAppArmorPrompting)
 	c.Assert(err, IsNil)
 
 	s.AddCleanup(snap.MockIsStdoutTTY(false))

@@ -31,7 +31,6 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sandbox/apparmor"
@@ -99,7 +98,7 @@ func seccompCompilerVersionInfo(path string) (seccomp.VersionInfo, error) {
 	return seccomp.CompilerVersionInfo(func(name string) (string, error) { return filepath.Join(path, name), nil })
 }
 
-func generateSystemKey() (*systemKey, error) {
+func generateSystemKey(withAppArmorPrompting bool) (*systemKey, error) {
 	// for testing only
 	if mockedSystemKey != nil {
 		return mockedSystemKey, nil
@@ -124,10 +123,8 @@ func generateSystemKey() (*systemKey, error) {
 	// Add apparmor-parser-mtime
 	sk.AppArmorParserMtime = apparmor.ParserMtime()
 
-	if features.AppArmorPrompting.IsEnabled() {
-		// Add AppArmor prompting status
-		sk.AppArmorPrompting = features.AppArmorPrompting.IsSupported()
-	}
+	// Add apparmor-prompting
+	sk.AppArmorPrompting = withAppArmorPrompting
 
 	// Add if home is using a remote file system, if so we need to have a
 	// different security profile and if this changes we need to change our
@@ -180,8 +177,8 @@ func UnmarshalJSONSystemKey(r io.Reader) (interface{}, error) {
 }
 
 // WriteSystemKey will write the current system-key to disk
-func WriteSystemKey() error {
-	sk, err := generateSystemKey()
+func WriteSystemKey(withAppArmorPrompting bool) error {
+	sk, err := generateSystemKey(withAppArmorPrompting)
 	if err != nil {
 		return err
 	}
@@ -235,8 +232,8 @@ func WriteSystemKey() error {
 // to disk whenever apparmor-parser-mtime changes (in this manner
 // snap run only has to obtain the mtime of apparmor_parser and
 // doesn't have to invoke it)
-func SystemKeyMismatch() (bool, error) {
-	mySystemKey, err := generateSystemKey()
+func SystemKeyMismatch(currentAppArmorPrompting bool) (bool, error) {
+	mySystemKey, err := generateSystemKey(currentAppArmorPrompting)
 	if err != nil {
 		return false, err
 	}
@@ -302,8 +299,8 @@ func RecordedSystemKey() (interface{}, error) {
 }
 
 // CurrentSystemKey calculates and returns the current system key as opaque interface{}.
-func CurrentSystemKey() (interface{}, error) {
-	currentSystemKey, err := generateSystemKey()
+func CurrentSystemKey(withAppArmorPrompting bool) (interface{}, error) {
+	currentSystemKey, err := generateSystemKey(withAppArmorPrompting)
 	return currentSystemKey, err
 }
 

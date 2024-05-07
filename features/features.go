@@ -150,6 +150,12 @@ var featuresExported = map[SnapdFeature]bool{
 	AppArmorPrompting:     true,
 }
 
+var (
+	releaseSystemctlSupportsUserUnits = release.SystemctlSupportsUserUnits
+	apparmorKernelFeatures            = apparmor.KernelFeatures
+	apparmorParserFeatures            = apparmor.ParserFeatures
+)
+
 // featuresSupportedCallbacks maps features to a callback function which may be
 // run to determine if the feature is supported and, if not, return false along
 // with a reason why the feature is unsupported. If a function has no callback
@@ -191,12 +197,6 @@ var featuresSupportedCallbacks = map[SnapdFeature]func() (bool, string){
 		// TODO: return true once snapd supports prompting
 	},
 }
-
-var (
-	releaseSystemctlSupportsUserUnits = release.SystemctlSupportsUserUnits
-	apparmorKernelFeatures            = apparmor.KernelFeatures
-	apparmorParserFeatures            = apparmor.ParserFeatures
-)
 
 // String returns the name of a snapd feature.
 // The function panics for bogus feature values.

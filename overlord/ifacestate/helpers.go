@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2022 Canonical Ltd
+ * Copyright (C) 2016-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -30,6 +30,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/policy"
@@ -37,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/ifacestate/schema"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -51,7 +53,6 @@ func init() {
 
 var (
 	snapdAppArmorServiceIsDisabled = snapdAppArmorServiceIsDisabledImpl
-	profilesNeedRegeneration       = profilesNeedRegenerationImpl
 
 	writeSystemKey = interfaces.WriteSystemKey
 )
@@ -144,13 +145,29 @@ func (m *InterfaceManager) addSnaps(snaps []*snap.Info) error {
 	return nil
 }
 
-func profilesNeedRegenerationImpl() bool {
-	mismatch, err := interfaces.SystemKeyMismatch()
+func (m *InterfaceManager) profilesNeedRegeneration() bool {
+	return profilesNeedRegenerationImpl(m)
+}
+
+var profilesNeedRegenerationImpl = func(m *InterfaceManager) bool {
+	mismatch, err := interfaces.SystemKeyMismatch(m.useAppArmorPrompting())
 	if err != nil {
 		logger.Noticef("error trying to compare the snap system key: %v", err)
 		return true
 	}
 	return mismatch
+}
+
+// Checks whether AppArmor Prompting should be used. Caller must lock m.state.
+func (m *InterfaceManager) useAppArmorPrompting() bool {
+	m.useAppArmorPromptingChecker.Do(func() {
+		tr := config.NewTransaction(m.state)
+		if promptingEnabled, err := features.Flag(tr, features.AppArmorPrompting); err == nil {
+			// If error while getting AppArmorPrompting flag, don't include it
+			m.useAppArmorPromptingValue = promptingEnabled && features.AppArmorPrompting.IsSupported()
+		}
+	})
+	return m.useAppArmorPromptingValue
 }
 
 // snapdAppArmorServiceIsDisabledImpl returns true if the snapd.apparmor
@@ -210,7 +227,7 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer) er
 			logger.Noticef("cannot get current info for snap %q: %s", snapName, err)
 			return interfaces.ConfinementOptions{}
 		}
-		opts, err := buildConfinementOptions(m.state, snapInfo, snapst.Flags)
+		opts, err := m.buildConfinementOptions(m.state, snapInfo, snapst.Flags)
 		if err != nil {
 			logger.Noticef("cannot get confinement options for snap %q: %s", snapName, err)
 		}
@@ -232,7 +249,7 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer) er
 	}
 
 	if shouldWriteSystemKey {
-		if err := writeSystemKey(); err != nil {
+		if err := writeSystemKey(m.useAppArmorPrompting()); err != nil {
 			logger.Noticef("cannot write system key: %v", err)
 		}
 	}

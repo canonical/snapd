@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2019 Canonical Ltd
+ * Copyright (C) 2015-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -238,8 +238,10 @@ func (s *firstbootPreseedingClassic16Suite) SetUpTest(c *C) {
 	err := os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "assertions"), 0755)
 	c.Assert(err, IsNil)
 
+	currentAppArmorPrompting := false
+
 	s.AddCleanup(interfaces.MockSystemKey(`{"core": "123"}`))
-	c.Assert(interfaces.WriteSystemKey(), IsNil)
+	c.Assert(interfaces.WriteSystemKey(currentAppArmorPrompting), IsNil)
 
 	restoreRelease := release.MockOnClassic(true)
 	s.AddCleanup(restoreRelease)

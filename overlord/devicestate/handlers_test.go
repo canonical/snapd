@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019-2020 Canonical Ltd
+ * Copyright (C) 2019-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -632,8 +632,10 @@ func (s *preseedingBaseSuite) SetUpTest(c *C, preseed, classic bool) {
 	// can use cleanup only after having called base SetUpTest
 	s.AddCleanup(r)
 
+	currentAppArmorPrompting := false
+
 	s.AddCleanup(interfaces.MockSystemKey(`{"build-id":"abcde"}`))
-	c.Assert(interfaces.WriteSystemKey(), IsNil)
+	c.Assert(interfaces.WriteSystemKey(currentAppArmorPrompting), IsNil)
 
 	s.cmdUmount = testutil.MockCommand(c, "umount", "")
 	s.cmdSystemctl = testutil.MockCommand(c, "systemctl", "")
