@@ -91,7 +91,7 @@ var sendClientFinishRefreshNotification = func(st *state.State, snapsup *snapsta
 
 	markerExists, err := snapstate.HasActiveConnection(st, "snap-refresh-observe")
 	if err != nil {
-		logger.Noticef("Cannot send notification about pending refresh: %v", err)
+		logger.Noticef("Cannot send notification about finished refresh: %v", err)
 		return
 	}
 	if markerExists {
