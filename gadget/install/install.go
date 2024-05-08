@@ -398,7 +398,7 @@ func Run(model gadget.Model, gadgetRoot string, kernelSnapInfo *KernelSnapInfo, 
 			if resetterForRole == nil {
 				resetterForRole = map[string]secboot.KeyResetter{}
 			}
-			resetterForRole[vs.Role] = secboot.CreateKeyResetter(encryptionKey, fsDevice)
+			resetterForRole[vs.Role] = secboot.CreateKeyResetter(encryptionKey, onDiskStruct.Node)
 			partsEncrypted[vs.Name] = createEncryptionParams(options.EncryptionType)
 		}
 		if options.Mount && vs.Label != "" && vs.HasFilesystem() {
