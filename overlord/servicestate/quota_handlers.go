@@ -846,7 +846,7 @@ func restartSnapServices(st *state.State, appsToRestartBySnap map[*snap.Info][]*
 		}
 
 		err = wrappers.RestartServices(startupOrdered, nil,
-			&wrappers.RestartServicesFlags{Reload: false},
+			&wrappers.RestartServicesOptions{Reload: false},
 			progress.Null, &timings.Timings{})
 		if err != nil {
 			return err
