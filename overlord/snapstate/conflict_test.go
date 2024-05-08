@@ -23,6 +23,8 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -44,4 +46,70 @@ func (s *conflictSuite) TestChangeConflictErrorIs(c *C) {
 		ChangeID:   "b",
 	}
 	c.Check(this, testutil.ErrorIs, that)
+}
+
+func (s *conflictSuite) TestSnapsAffectedByTaskKind(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	t := st.NewTask("test-task", "task")
+	// no affected snaps
+	snaps, err := snapstate.SnapsAffectedByTask(t)
+	c.Assert(err, IsNil)
+	c.Check(snaps, HasLen, 0)
+
+	// register kind callback
+	restore := snapstate.MockAffectedSnapsByKind(map[string]snapstate.AffectedSnapsFunc{
+		"test-task": func(t *state.Task) ([]string, error) {
+			return []string{"some-snap"}, nil
+		},
+	})
+	defer restore()
+	// affected snaps calculated by callback
+	snaps, err = snapstate.SnapsAffectedByTask(t)
+	c.Assert(err, IsNil)
+	c.Check(snaps, DeepEquals, []string{"some-snap"})
+}
+
+func (s *conflictSuite) TestSnapsAffectedByTaskAttr(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	t := st.NewTask("test-task", "task")
+	t.Set("test-attr", true)
+	// no affected snaps
+	snaps, err := snapstate.SnapsAffectedByTask(t)
+	c.Assert(err, IsNil)
+	c.Check(snaps, HasLen, 0)
+
+	// register kind callback
+	restore := snapstate.MockAffectedSnapsByAttr(map[string]snapstate.AffectedSnapsFunc{
+		"test-attr": func(t *state.Task) ([]string, error) {
+			return []string{"some-snap"}, nil
+		},
+	})
+	defer restore()
+	// affected snaps calculated by callback
+	snaps, err = snapstate.SnapsAffectedByTask(t)
+	c.Assert(err, IsNil)
+	c.Check(snaps, DeepEquals, []string{"some-snap"})
+}
+
+func (s *conflictSuite) TestSnapsAffectedByTaskSnapSetup(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	t := st.NewTask("test-task", "task")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "some-snap",
+		},
+	})
+	// affected snap based on snap setup
+	snaps, err := snapstate.SnapsAffectedByTask(t)
+	c.Assert(err, IsNil)
+	c.Check(snaps, DeepEquals, []string{"some-snap"})
 }
