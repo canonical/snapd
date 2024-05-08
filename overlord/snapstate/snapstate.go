@@ -1648,7 +1648,7 @@ func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.Sid
 			// extra names are ignored so it's fine to passed all of them in each call
 			return doUpdate(ctx, st, names, updates, params, userID, flags, nil, deviceCtx, "")
 		}
-		_, updateTss, err = splitRefresh(essential, nonEssential, updateFunc)
+		_, updateTss, err = splitRefresh(st, essential, nonEssential, userID, flags, updateFunc)
 	} else {
 		_, updateTss, err = doUpdate(ctx, st, names, updates, params, userID, flags, nil, deviceCtx, "")
 	}
@@ -1992,10 +1992,12 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, re
 			// so it's fine to pass them all into each call (extra are ignored)
 			return doUpdate(ctx, st, names, updates, params, userID, flags, nil, deviceCtx, fromChange)
 		}
-		updated, updateTss, err = splitRefresh(essential, nonEssential, updateFunc)
-	} else {
-		updated, updateTss, err = doUpdate(ctx, st, names, toUpdate, params, userID, flags, nil, deviceCtx, fromChange)
+
+		// splitRefresh already creates a check-rerefresh task as needed
+		return splitRefresh(st, essential, nonEssential, userID, flags, updateFunc)
 	}
+
+	updated, updateTss, err = doUpdate(ctx, st, names, toUpdate, params, userID, flags, nil, deviceCtx, fromChange)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -2028,7 +2030,7 @@ func canSplitRefresh(deviceCtx DeviceContext, infos []minimalInstallInfo, flags 
 // snap refresh groups, creating dependencies between specific tasks when
 // appropriate (e.g., snapd is present and should go first or an app uses the
 // model base as its base and must wait for its update).
-func splitRefresh(essential, nonEssential []minimalInstallInfo, updateFunc func([]minimalInstallInfo) ([]string, *UpdateTaskSets, error)) ([]string, *UpdateTaskSets, error) {
+func splitRefresh(st *state.State, essential, nonEssential []minimalInstallInfo, userID int, flags *Flags, updateFunc func([]minimalInstallInfo) ([]string, *UpdateTaskSets, error)) ([]string, *UpdateTaskSets, error) {
 	// taskset with essential snaps (snapd, kernel, gadget and the model base)
 	essentialUpdated, essentialTss, err := updateFunc(essential)
 	if err != nil {
@@ -2066,6 +2068,7 @@ func splitRefresh(essential, nonEssential []minimalInstallInfo, updateFunc func(
 	}
 
 	// add dependencies between apps and the boot base, if required
+	var crossSetDependency bool
 	for _, base := range essential {
 		if base.Type() != snap.TypeBase {
 			continue
@@ -2102,7 +2105,32 @@ func splitRefresh(essential, nonEssential []minimalInstallInfo, updateFunc func(
 			}
 
 			appStartTask.WaitFor(baseEndTask)
+			crossSetDependency = true
 		}
+	}
+
+	// essential snaps don't use epochs at the moment so we only need to consider
+	// re-refreshes for the non-essential refreshes
+	if len(nonEssentialTss.Refresh) > 0 && !flags.NoReRefresh {
+		rerefreshSetup := reRefreshSetup{
+			UserID: userID,
+			Flags:  flags,
+		}
+
+		// if there are no cross-set dependencies, the rerefresh can be done
+		// before the reboot. If some app does need to wait for the reboot, the
+		// rerefresh check needs to wait for it so we do it at the end as usual
+		if !crossSetDependency {
+			for _, ts := range nonEssentialTss.Refresh {
+				for _, t := range ts.Tasks() {
+					rerefreshSetup.TaskIDs = append(rerefreshSetup.TaskIDs, t.ID())
+				}
+			}
+		}
+
+		rerefresh := st.NewTask("check-rerefresh", reRefreshSummary(nonEssentialUpdated, flags))
+		rerefresh.Set("rerefresh-setup", rerefreshSetup)
+		nonEssentialTss.Refresh = append(nonEssentialTss.Refresh, state.NewTaskSet(rerefresh))
 	}
 
 	return allUpdated, &UpdateTaskSets{
