@@ -195,8 +195,12 @@ type ComponentSetup struct {
 	CompSideInfo *snap.ComponentSideInfo `json:"comp-side-info,omitempty"`
 	// CompType is needed as some types need special handling
 	CompType snap.ComponentType
-	// CompPath is the path to the file
+	// CompPath is the path to the file. Will be an empty string if the
+	// component should be downloaded from the store.
 	CompPath string `json:"comp-path,omitempty"`
+	// DownloadInfo contains information about how to download this component.
+	// Will be nil if the component should be sourced from a local file.
+	DownloadInfo *snap.DownloadInfo `json:"download-info,omitempty"`
 }
 
 func NewComponentSetup(csi *snap.ComponentSideInfo, compType snap.ComponentType, compPath string) *ComponentSetup {
