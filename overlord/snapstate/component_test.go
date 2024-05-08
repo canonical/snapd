@@ -28,6 +28,8 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 	. "gopkg.in/check.v1"
 )
 
@@ -56,6 +58,8 @@ version: 1.0
 }
 
 func (s *snapmgrTestSuite) TestComponentHelpers(c *C) {
+	defer snapstate.MockSnapReadInfo(snap.ReadInfo)()
+
 	const snapName = "mysnap"
 	const compName = "mycomp"
 	const compName2 = "mycomp2"
@@ -65,6 +69,15 @@ func (s *snapmgrTestSuite) TestComponentHelpers(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	const snapYaml = `name: mysnap
+version: 1
+components:
+  mycomp:
+    type: test
+  mycomp2:
+    type: test
+`
 
 	ssi := &snap.SideInfo{RealName: snapName, Revision: snapRev,
 		SnapID: "some-snap-id"}
@@ -85,6 +98,8 @@ func (s *snapmgrTestSuite) TestComponentHelpers(c *C) {
 					[]*sequence.ComponentState{sequence.NewComponentState(csi2, snap.TestComponent), sequence.NewComponentState(csi, snap.TestComponent)})}),
 		Current: snapRev,
 	}
+	snaptest.MockSnap(c, snapYaml, ssi)
+	snaptest.MockSnap(c, snapYaml, ssi2)
 	snapstate.Set(s.state, snapName, snapSt)
 
 	c.Check(snapSt.IsComponentInCurrentSeq(cref), Equals, true)
@@ -99,6 +114,10 @@ func (s *snapmgrTestSuite) TestComponentHelpers(c *C) {
 	foundCi2, err := snapSt.CurrentComponentInfo(cref2)
 	c.Check(err, IsNil)
 	c.Check(foundCi2, NotNil)
+
+	comps, err := snapSt.CurrentComponentInfos()
+	c.Assert(err, IsNil)
+	c.Check(comps, testutil.DeepUnsortedMatches, []*snap.ComponentInfo{foundCi, foundCi2})
 
 	snapSt = &snapstate.SnapState{
 		Active: true,
@@ -119,6 +138,14 @@ func (s *snapmgrTestSuite) TestComponentHelpers(c *C) {
 	c.Check(err, ErrorMatches, "snap has no current revision")
 	c.Check(foundCi, IsNil)
 
+	comps, err = snapSt.CurrentComponentInfos()
+	c.Assert(err, IsNil)
+	c.Check(comps, HasLen, 0)
+
+	comps, err = snapSt.ComponentInfosForRevision(ssi2.Revision)
+	c.Assert(err, IsNil)
+	c.Check(comps, HasLen, 0)
+
 	snapSt = &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
@@ -134,4 +161,41 @@ func (s *snapmgrTestSuite) TestComponentHelpers(c *C) {
 	c.Check(snapSt.IsComponentRevPresent(csi), Equals, false)
 	c.Check(snapSt.CurrentComponentSideInfo(cref), IsNil)
 	c.Check(snapSt.CurrentComponentSideInfo(cref2), IsNil)
+
+	comps, err = snapSt.CurrentComponentInfos()
+	c.Assert(err, IsNil)
+	c.Check(comps, HasLen, 0)
+
+	snapSt = &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
+			[]*sequence.RevisionSideState{
+				sequence.NewRevisionSideState(ssi2, []*sequence.ComponentState{sequence.NewComponentState(csi2, snap.TestComponent)}),
+				sequence.NewRevisionSideState(ssi, []*sequence.ComponentState{sequence.NewComponentState(csi, snap.TestComponent)}),
+			}),
+		Current: snapRev,
+	}
+	snapstate.Set(s.state, snapName, snapSt)
+
+	foundCi, err = snapSt.CurrentComponentInfo(cref)
+	c.Check(err, IsNil)
+
+	snapSt.Current = snapRev2
+	foundCi2, err = snapSt.CurrentComponentInfo(cref2)
+	c.Check(err, IsNil)
+
+	snapSt.Current = snapRev
+
+	comps, err = snapSt.CurrentComponentInfos()
+	c.Assert(err, IsNil)
+	c.Check(comps, testutil.DeepUnsortedMatches, []*snap.ComponentInfo{foundCi})
+
+	comps, err = snapSt.ComponentInfosForRevision(snapRev2)
+	c.Assert(err, IsNil)
+	c.Check(comps, testutil.DeepUnsortedMatches, []*snap.ComponentInfo{foundCi2})
+
+	snapSt = &snapstate.SnapState{}
+
+	_, err = snapSt.CurrentComponentInfos()
+	c.Assert(err, testutil.ErrorIs, snapstate.ErrNoCurrent)
 }

@@ -53,6 +53,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	seccomp_compiler "github.com/snapcore/snapd/sandbox/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/testutil"
@@ -1639,8 +1640,11 @@ func (s *interfaceManagerSuite) testDisconnect(c *C, plugSnap, plugName, slotSna
 	// Put two snaps in place They consumer has an plug that can be connected
 	// to slot on the producer.
 	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
-	s.mockSnap(c, consumerYaml)
-	s.mockSnap(c, producerYaml)
+	consumer := s.mockSnap(c, consumerWithComponentYaml)
+	producer := s.mockSnap(c, producerWithComponentYaml)
+
+	s.mockComponentForSnap(c, "comp", "component: consumer+comp\ntype: test", consumer)
+	s.mockComponentForSnap(c, "comp", "component: producer+comp\ntype: test", producer)
 
 	// Put a connection in the state so that it automatically gets set up when
 	// we create the manager.
@@ -1697,11 +1701,18 @@ func (s *interfaceManagerSuite) testDisconnect(c *C, plugSnap, plugName, slotSna
 	// Ensure that the backend was used to setup security of both snaps
 	c.Assert(s.secBackend.SetupCalls, HasLen, 2)
 	c.Assert(s.secBackend.RemoveCalls, HasLen, 0)
-	c.Check(s.secBackend.SetupCalls[0].AppSet.InstanceName(), Equals, "consumer")
-	c.Check(s.secBackend.SetupCalls[1].AppSet.InstanceName(), Equals, "producer")
 
 	c.Check(s.secBackend.SetupCalls[0].Options, DeepEquals, interfaces.ConfinementOptions{})
 	c.Check(s.secBackend.SetupCalls[1].Options, DeepEquals, interfaces.ConfinementOptions{})
+
+	consumerAppSet := s.secBackend.SetupCalls[0].AppSet
+	c.Check(consumerAppSet.InstanceName(), Equals, "consumer")
+	c.Check(consumerAppSet.Runnables(), testutil.DeepUnsortedMatches, consumerRunnablesFullSet)
+
+	producerAppSet := s.secBackend.SetupCalls[1].AppSet
+	c.Check(producerAppSet.InstanceName(), Equals, "producer")
+	c.Check(producerAppSet.Runnables(), testutil.DeepUnsortedMatches, producerRunnablesFullSet)
+
 }
 
 func (s *interfaceManagerSuite) TestDisconnectUndo(c *C) {
@@ -1713,6 +1724,15 @@ plugs:
  plug:
   interface: test
   static: plug-static-value
+components:
+ comp:
+  type: test
+  hooks:
+   install:
+ not-installed:
+  type: test
+  hooks:
+   install:
 `
 	var producerYaml = `
 name: producer
@@ -1721,9 +1741,21 @@ slots:
  slot:
   interface: test
   static: slot-static-value
+components:
+ comp:
+  type: test
+  hooks:
+   install:
+ not-installed:
+  type: test
+  hooks:
+   install:
 `
-	s.mockSnap(c, consumerYaml)
-	s.mockSnap(c, producerYaml)
+	consumer := s.mockSnap(c, consumerYaml)
+	producer := s.mockSnap(c, producerYaml)
+
+	s.mockComponentForSnap(c, "comp", "component: consumer+comp\ntype: test", consumer)
+	s.mockComponentForSnap(c, "comp", "component: producer+comp\ntype: test", producer)
 
 	connState := map[string]interface{}{
 		"consumer:plug producer:slot": map[string]interface{}{
@@ -1772,6 +1804,26 @@ slots:
 	c.Assert(conns, DeepEquals, connState)
 
 	_ = s.getConnection(c, "consumer", "plug", "producer", "slot")
+
+	c.Assert(s.secBackend.SetupCalls, HasLen, 4)
+
+	producerAppSet := s.secBackend.SetupCalls[2].AppSet
+	c.Check(producerAppSet.InstanceName(), Equals, "producer")
+	c.Check(producerAppSet.Runnables(), testutil.DeepUnsortedMatches, []interfaces.Runnable{
+		{
+			CommandName: "producer+comp.hook.install",
+			SecurityTag: "snap.producer+comp.hook.install",
+		},
+	})
+
+	consumerAppSet := s.secBackend.SetupCalls[3].AppSet
+	c.Check(consumerAppSet.InstanceName(), Equals, "consumer")
+	c.Check(consumerAppSet.Runnables(), testutil.DeepUnsortedMatches, []interfaces.Runnable{
+		{
+			CommandName: "consumer+comp.hook.install",
+			SecurityTag: "snap.consumer+comp.hook.install",
+		},
+	})
 }
 
 func (s *interfaceManagerSuite) TestForgetUndo(c *C) {
@@ -2147,6 +2199,83 @@ func (s *interfaceManagerSuite) addSetupSnapSecurityChange(c *C, snapsup *snapst
 	return s.addSetupSnapSecurityChangeWithOptions(c, snapsup, setupSnapSecurityChangeOptions{active: false})
 }
 
+func (s *interfaceManagerSuite) addSetupSnapSecurityChangeFromComponent(c *C, snapsup *snapstate.SnapSetup, compsup *snapstate.ComponentSetup) *state.Change {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.o.TaskRunner().AddHandler("mock-link-component-n-witness", func(task *state.Task, tomb *tomb.Tomb) error { // do handler
+		s.state.Lock()
+		defer s.state.Unlock()
+
+		var snapst snapstate.SnapState
+		err := snapstate.Get(s.state, snapsup.InstanceName(), &snapst)
+		if err != nil && !errors.Is(err, state.ErrNoState) {
+			return err
+		}
+
+		info, err := snapst.CurrentInfo()
+		if err != nil {
+			return err
+		}
+
+		cs := sequence.NewComponentState(compsup.CompSideInfo, compsup.CompType)
+
+		if err := snapst.Sequence.AddComponentForRevision(info.Revision, cs); err != nil {
+			return fmt.Errorf("internal error while linking component: %w", err)
+		}
+
+		snapstate.Set(s.state, snapsup.InstanceName(), &snapst)
+
+		return nil
+	}, func(task *state.Task, tomb *tomb.Tomb) error { // undo handler
+		s.state.Lock()
+		defer s.state.Unlock()
+		var snapst snapstate.SnapState
+		err := snapstate.Get(s.state, snapsup.InstanceName(), &snapst)
+		if err != nil && !errors.Is(err, state.ErrNoState) {
+			return err
+		}
+
+		info, err := snapst.CurrentInfo()
+		if err != nil {
+			return err
+		}
+
+		snapst.Sequence.RemoveComponentForRevision(
+			info.Revision, compsup.CompSideInfo.Component,
+		)
+
+		snapstate.Set(s.state, snapsup.InstanceName(), &snapst)
+
+		return nil
+	})
+
+	// snap should already be installed if calling this function
+	var snapst snapstate.SnapState
+	err := snapstate.Get(s.state, snapsup.InstanceName(), &snapst)
+	c.Assert(err, IsNil)
+
+	change := s.state.NewChange("test", "")
+
+	task1 := s.state.NewTask("setup-profiles", "")
+	task1.Set("snap-setup", snapsup)
+	task1.Set("component-setup", compsup)
+	change.AddTask(task1)
+
+	task2 := s.state.NewTask("mock-link-component-n-witness", "")
+	task2.Set("snap-setup", snapsup)
+	task2.Set("component-setup", compsup)
+	task2.WaitFor(task1)
+	change.AddTask(task2)
+
+	task3 := s.state.NewTask("auto-connect", "")
+	task3.Set("snap-setup", snapsup)
+	task3.WaitFor(task2)
+	change.AddTask(task3)
+
+	return change
+}
+
 func (s *interfaceManagerSuite) addSetupSnapSecurityChangeWithOptions(c *C, snapsup *snapstate.SnapSetup, opts setupSnapSecurityChangeOptions) *state.Change {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -2271,6 +2400,14 @@ version: 1
 type: os
 `
 
+var ubuntuCoreSnapWithComponentYaml = ubuntuCoreSnapYaml + `
+components:
+  comp:
+    type: test
+    hooks:
+      install:
+`
+
 var ubuntuCoreSnapYaml2 = `
 name: ubuntu-core
 version: 1
@@ -2302,6 +2439,18 @@ plugs:
   interface: network
  unrelated:
   interface: unrelated
+`
+
+var sampleSnapWithComponentsYaml = sampleSnapYaml + `
+components:
+  comp1:
+    type: test
+    hooks:
+      install:
+  comp2:
+    type: test
+    hooks:
+      pre-refresh:
 `
 
 var sampleSnapYamlManyPlugs = `
@@ -2341,6 +2490,57 @@ hooks:
  disconnect-plug-otherplug:
 `
 
+var consumerWithComponentYaml = consumerYaml + `
+components:
+  comp:
+    type: test
+    hooks:
+      install:
+  not-installed-comp:
+    type: test
+    hooks:
+      install:
+`
+
+var consumerRunnablesFullSet = []interfaces.Runnable{
+	{
+		CommandName: "hook.connect-plug-otherplug",
+		SecurityTag: "snap.consumer.hook.connect-plug-otherplug",
+	},
+	{
+		CommandName: "hook.connect-plug-plug",
+		SecurityTag: "snap.consumer.hook.connect-plug-plug",
+	},
+	{
+		CommandName: "hook.disconnect-plug-otherplug",
+		SecurityTag: "snap.consumer.hook.disconnect-plug-otherplug",
+	},
+	{
+		CommandName: "hook.disconnect-plug-plug",
+		SecurityTag: "snap.consumer.hook.disconnect-plug-plug",
+	},
+	{
+		CommandName: "hook.prepare-plug-otherplug",
+		SecurityTag: "snap.consumer.hook.prepare-plug-otherplug",
+	},
+	{
+		CommandName: "hook.prepare-plug-plug",
+		SecurityTag: "snap.consumer.hook.prepare-plug-plug",
+	},
+	{
+		CommandName: "hook.unprepare-plug-otherplug",
+		SecurityTag: "snap.consumer.hook.unprepare-plug-otherplug",
+	},
+	{
+		CommandName: "hook.unprepare-plug-plug",
+		SecurityTag: "snap.consumer.hook.unprepare-plug-plug",
+	},
+	{
+		CommandName: "consumer+comp.hook.install",
+		SecurityTag: "snap.consumer+comp.hook.install",
+	},
+}
+
 var consumer2Yaml = `
 name: consumer2
 version: 1
@@ -2373,6 +2573,41 @@ hooks:
   connect-slot-slot:
   disconnect-slot-slot:
 `
+
+var producerWithComponentYaml = producerYaml + `
+components:
+  comp:
+    type: test
+    hooks:
+      install:
+  not-installed-comp:
+    type: test
+    hooks:
+      install:
+`
+
+var producerRunnablesFullSet = []interfaces.Runnable{
+	{
+		CommandName: "hook.connect-slot-slot",
+		SecurityTag: "snap.producer.hook.connect-slot-slot",
+	},
+	{
+		CommandName: "hook.disconnect-slot-slot",
+		SecurityTag: "snap.producer.hook.disconnect-slot-slot",
+	},
+	{
+		CommandName: "hook.prepare-slot-slot",
+		SecurityTag: "snap.producer.hook.prepare-slot-slot",
+	},
+	{
+		CommandName: "hook.unprepare-slot-slot",
+		SecurityTag: "snap.producer.hook.unprepare-slot-slot",
+	},
+	{
+		CommandName: "producer+comp.hook.install",
+		SecurityTag: "snap.producer+comp.hook.install",
+	},
+}
 
 var producer2Yaml = `
 name: producer2
@@ -3221,8 +3456,8 @@ slots:
 	// just the first version of both in the state.
 	s.mockSnap(c, producerV1Yaml)
 	s.mockSnap(c, consumerV1Yaml)
-	snaptest.MockSnapInstance(c, "", consumerV2Yaml, &snap.SideInfo{Revision: snap.R(2)})
-	snaptest.MockSnapInstance(c, "", producerV2Yaml, &snap.SideInfo{Revision: snap.R(2)})
+	snaptest.MockSnapInstance(c, "", consumerV2Yaml, &snap.SideInfo{Revision: snap.R(2), RealName: "consumer"})
+	snaptest.MockSnapInstance(c, "", producerV2Yaml, &snap.SideInfo{Revision: snap.R(2), RealName: "producer"})
 
 	// Mock two unrelated snaps, those will show that the state of unrelated
 	// snaps is not clobbered by the refresh process.
@@ -3289,8 +3524,11 @@ slots:
 	s.state.Lock()
 	for _, snapName := range []string{"producer", "consumer"} {
 		snapstate.Set(s.state, snapName, &snapstate.SnapState{
-			Active:   true,
-			Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{Revision: snap.R(1)}, {Revision: snap.R(2)}}),
+			Active: true,
+			Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+				{Revision: snap.R(1), RealName: snapName},
+				{Revision: snap.R(2), RealName: snapName},
+			}),
 			Current:  snap.R(2),
 			SnapType: string("app"),
 		})
@@ -3310,6 +3548,7 @@ slots:
 	s.settle(c)
 	s.state.Lock()
 	defer s.state.Unlock()
+	c.Logf("change failure: %v", change.Err())
 	c.Assert(change.Status(), Equals, state.DoneStatus)
 
 	// We expect our security backend to be invoked for both snaps. See above
@@ -3393,8 +3632,11 @@ slots:
 	s.state.Lock()
 	for _, snapName := range []string{"producer", "consumer"} {
 		snapstate.Set(s.state, snapName, &snapstate.SnapState{
-			Active:   true,
-			Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{Revision: snap.R(1)}, {Revision: snap.R(2)}}),
+			Active: true,
+			Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+				{Revision: snap.R(1), RealName: snapName},
+				{Revision: snap.R(2), RealName: snapName},
+			}),
 			Current:  snap.R(2),
 			SnapType: string("app"),
 		})
@@ -3738,6 +3980,343 @@ func (s *interfaceManagerSuite) TestSetupProfilesOnInstall(c *C) {
 	c.Check(s.secBackend.SetupCalls[0].AppSet.Info().Revision, Equals, installSnapInfo.Revision)
 }
 
+func (s *interfaceManagerSuite) TestSetupProfilesInstallComponent(c *C) {
+	s.MockModel(c, nil)
+
+	snapInfo := s.mockSnap(c, sampleSnapWithComponentsYaml)
+
+	const compomentYaml = `
+component: snap+comp1
+type: test
+version: 1.0
+`
+	compInfo := snaptest.MockComponent(c, compomentYaml, snapInfo, snap.ComponentSideInfo{
+		Revision: snap.R(1),
+	})
+
+	// initialize the manager
+	_ = s.manager(c)
+
+	change := s.addSetupSnapSecurityChangeFromComponent(c, &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: snapInfo.SnapName(),
+			Revision: snapInfo.Revision,
+		},
+	}, &snapstate.ComponentSetup{
+		CompSideInfo: &snap.ComponentSideInfo{
+			Component: compInfo.Component,
+			Revision:  snap.R(1),
+		},
+	})
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Assert(change.Err(), IsNil)
+	c.Check(change.Status(), Equals, state.DoneStatus)
+
+	c.Assert(s.secBackend.SetupCalls, HasLen, 1)
+
+	appSet := s.secBackend.SetupCalls[0].AppSet
+	c.Check(appSet.InstanceName(), Equals, snapInfo.InstanceName())
+	c.Check(appSet.Info().Revision, Equals, snapInfo.Revision)
+
+	// the snap defines another component, comp2. note that it is not listed
+	// here because it is not installed.
+	c.Check(appSet.Runnables(), testutil.DeepUnsortedMatches, []interfaces.Runnable{
+		{
+			CommandName: "app",
+			SecurityTag: "snap.snap.app",
+		},
+		{
+			CommandName: "snap+comp1.hook.install",
+			SecurityTag: "snap.snap+comp1.hook.install",
+		},
+	})
+}
+
+func (s *interfaceManagerSuite) mockComponentForSnap(c *C, compName string, compYaml string, snapInfo *snap.Info) *snap.ComponentInfo {
+	compInfo := snaptest.MockComponent(c, compYaml, snapInfo, snap.ComponentSideInfo{
+		Revision: snap.R(1),
+	})
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, snapInfo.InstanceName(), &snapst), IsNil)
+
+	snapst.Sequence.AddComponentForRevision(snapInfo.Revision, &sequence.ComponentState{
+		SideInfo: &snap.ComponentSideInfo{
+			Component: naming.NewComponentRef(snapInfo.SnapName(), compName),
+			Revision:  snap.R(1),
+		},
+		CompType: snap.TestComponent,
+	})
+
+	snapstate.Set(s.state, snapInfo.InstanceName(), &snapst)
+
+	return compInfo
+}
+
+func (s *interfaceManagerSuite) TestSetupProfilesInstallComponentSnapHasPreexistingComponent(c *C) {
+	s.MockModel(c, nil)
+
+	snapInfo := s.mockSnap(c, sampleSnapWithComponentsYaml)
+	s.mockComponentForSnap(c, "comp2", "component: snap+comp2\ntype: test", snapInfo)
+
+	const compomentYaml = `
+component: snap+comp1
+type: test
+version: 1.0
+`
+	compInfo := snaptest.MockComponent(c, compomentYaml, snapInfo, snap.ComponentSideInfo{
+		Revision: snap.R(1),
+	})
+
+	// initialize the manager
+	_ = s.manager(c)
+
+	change := s.addSetupSnapSecurityChangeFromComponent(c, &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: snapInfo.SnapName(),
+			Revision: snapInfo.Revision,
+		},
+	}, &snapstate.ComponentSetup{
+		CompSideInfo: &snap.ComponentSideInfo{
+			Component: compInfo.Component,
+			Revision:  snap.R(1),
+		},
+	})
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// ensure that the task succeeded.
+	c.Assert(change.Err(), IsNil)
+	c.Check(change.Status(), Equals, state.DoneStatus)
+
+	c.Assert(s.secBackend.SetupCalls, HasLen, 1)
+
+	appSet := s.secBackend.SetupCalls[0].AppSet
+	c.Check(appSet.InstanceName(), Equals, snapInfo.InstanceName())
+	c.Check(appSet.Info().Revision, Equals, snapInfo.Revision)
+
+	// the snap defines another component, comp2. note that it is not listed
+	// here because it is not installed.
+	c.Check(appSet.Runnables(), testutil.DeepUnsortedMatches, []interfaces.Runnable{
+		{
+			CommandName: "app",
+			SecurityTag: "snap.snap.app",
+		},
+		{
+			CommandName: "snap+comp1.hook.install",
+			SecurityTag: "snap.snap+comp1.hook.install",
+		},
+		{
+			CommandName: "snap+comp2.hook.pre-refresh",
+			SecurityTag: "snap.snap+comp2.hook.pre-refresh",
+		},
+	})
+}
+
+func (s *interfaceManagerSuite) TestSetupProfilesUpdateSnapWithComponents(c *C) {
+	s.MockModel(c, nil)
+
+	snapInfo := s.mockSnap(c, sampleSnapWithComponentsYaml)
+
+	s.mockComponentForSnap(c, "comp2", "component: snap+comp2\ntype: test", snapInfo)
+
+	const compomentYaml = `
+component: snap+comp1
+type: test
+version: 1.0
+`
+	compInfo := snaptest.MockComponent(c, compomentYaml, snapInfo, snap.ComponentSideInfo{
+		Revision: snap.R(1),
+	})
+
+	// initialize the manager
+	_ = s.manager(c)
+
+	change := s.addSetupSnapSecurityChangeFromComponent(c, &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: snapInfo.SnapName(),
+			Revision: snapInfo.Revision,
+		},
+	}, &snapstate.ComponentSetup{
+		CompSideInfo: &snap.ComponentSideInfo{
+			Component: compInfo.Component,
+			Revision:  snap.R(1),
+		},
+	})
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// ensure that the task succeeded.
+	c.Assert(change.Err(), IsNil)
+	c.Check(change.Status(), Equals, state.DoneStatus)
+
+	c.Assert(s.secBackend.SetupCalls, HasLen, 1)
+
+	appSet := s.secBackend.SetupCalls[0].AppSet
+	c.Check(appSet.InstanceName(), Equals, snapInfo.InstanceName())
+	c.Check(appSet.Info().Revision, Equals, snapInfo.Revision)
+
+	// the snap defines another component, comp2. note that it is not listed
+	// here because it is not installed.
+	c.Check(appSet.Runnables(), testutil.DeepUnsortedMatches, []interfaces.Runnable{
+		{
+			CommandName: "app",
+			SecurityTag: "snap.snap.app",
+		},
+		{
+			CommandName: "snap+comp1.hook.install",
+			SecurityTag: "snap.snap+comp1.hook.install",
+		},
+		{
+			CommandName: "snap+comp2.hook.pre-refresh",
+			SecurityTag: "snap.snap+comp2.hook.pre-refresh",
+		},
+	})
+}
+
+func (s *interfaceManagerSuite) TestSetupProfilesOfAffectedSnapWithComponents(c *C) {
+	s.MockModel(c, nil)
+
+	snapInfo := s.mockSnap(c, sampleSnapWithComponentsYaml)
+	snaptest.MockComponent(c, "component: snap+comp2\ntype: test", snapInfo, snap.ComponentSideInfo{
+		Revision: snap.R(1),
+	})
+
+	// core snap is here so that it appears as an affected snap when "snap" has
+	// its profiles setup
+	coreSnapInfo := s.mockSnap(c, ubuntuCoreSnapWithComponentYaml)
+	snaptest.MockComponent(c, "component: ubuntu-core+comp\ntype: test", coreSnapInfo, snap.ComponentSideInfo{
+		Revision: snap.R(1),
+	})
+
+	s.state.Lock()
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, snapInfo.InstanceName(), &snapst), IsNil)
+
+	// add a preexisting component to make sure that we create an app set that
+	// includes it
+	snapst.Sequence.AddComponentForRevision(snapInfo.Revision, &sequence.ComponentState{
+		SideInfo: &snap.ComponentSideInfo{
+			Component: naming.NewComponentRef(snapInfo.SnapName(), "comp2"),
+			Revision:  snap.R(1),
+		},
+		CompType: snap.TestComponent,
+	})
+
+	// add a component to the affected snap, we should see this in the final
+	// call to Setup in the backend
+	var coreSnapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, coreSnapInfo.InstanceName(), &coreSnapst), IsNil)
+	coreSnapst.Sequence.AddComponentForRevision(snapInfo.Revision, &sequence.ComponentState{
+		SideInfo: &snap.ComponentSideInfo{
+			Component: naming.NewComponentRef(snapInfo.SnapName(), "comp"),
+			Revision:  snap.R(1),
+		},
+		CompType: snap.TestComponent,
+	})
+
+	snapstate.Set(s.state, snapInfo.InstanceName(), &snapst)
+	snapstate.Set(s.state, coreSnapInfo.InstanceName(), &coreSnapst)
+
+	s.state.Unlock()
+
+	const compomentYaml = `
+component: snap+comp1
+type: test
+version: 1.0
+`
+	compInfo := snaptest.MockComponent(c, compomentYaml, snapInfo, snap.ComponentSideInfo{
+		Revision: snap.R(1),
+	})
+
+	// initialize the manager
+	_ = s.manager(c)
+
+	change := s.addSetupSnapSecurityChangeFromComponent(c, &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: snapInfo.SnapName(),
+			Revision: snapInfo.Revision,
+		},
+	}, &snapstate.ComponentSetup{
+		CompSideInfo: &snap.ComponentSideInfo{
+			Component: compInfo.Component,
+			Revision:  snap.R(1),
+		},
+	})
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// ensure that the task succeeded.
+	c.Assert(change.Err(), IsNil)
+	c.Check(change.Status(), Equals, state.DoneStatus)
+
+	c.Assert(s.secBackend.SetupCalls, HasLen, 3)
+
+	firstAppSet := s.secBackend.SetupCalls[0].AppSet
+	c.Check(firstAppSet.InstanceName(), Equals, snapInfo.InstanceName())
+	c.Check(firstAppSet.Info().Revision, Equals, snapInfo.Revision)
+
+	secondAppSet := s.secBackend.SetupCalls[1].AppSet
+	c.Check(secondAppSet.InstanceName(), Equals, snapInfo.InstanceName())
+	c.Check(secondAppSet.Info().Revision, Equals, snapInfo.Revision)
+
+	thirdAppSet := s.secBackend.SetupCalls[2].AppSet
+	c.Check(thirdAppSet.InstanceName(), Equals, coreSnapInfo.InstanceName())
+	c.Check(thirdAppSet.Info().Revision, Equals, coreSnapInfo.Revision)
+
+	// the snap defines another component, comp2. note that it is not listed
+	// here because it is not installed.
+	c.Check(firstAppSet.Runnables(), testutil.DeepUnsortedMatches, []interfaces.Runnable{
+		{
+			CommandName: "app",
+			SecurityTag: "snap.snap.app",
+		},
+		{
+			CommandName: "snap+comp1.hook.install",
+			SecurityTag: "snap.snap+comp1.hook.install",
+		},
+		{
+			CommandName: "snap+comp2.hook.pre-refresh",
+			SecurityTag: "snap.snap+comp2.hook.pre-refresh",
+		},
+	})
+
+	c.Check(secondAppSet.Runnables(), testutil.DeepUnsortedMatches, []interfaces.Runnable{
+		{
+			CommandName: "app",
+			SecurityTag: "snap.snap.app",
+		},
+		{
+			CommandName: "snap+comp1.hook.install",
+			SecurityTag: "snap.snap+comp1.hook.install",
+		},
+		{
+			CommandName: "snap+comp2.hook.pre-refresh",
+			SecurityTag: "snap.snap+comp2.hook.pre-refresh",
+		},
+	})
+
+	c.Check(thirdAppSet.Runnables(), testutil.DeepUnsortedMatches, []interfaces.Runnable{
+		{
+			CommandName: "ubuntu-core+comp.hook.install",
+			SecurityTag: "snap.ubuntu-core+comp.hook.install",
+		},
+	})
+}
+
 func (s *interfaceManagerSuite) TestSetupProfilesKeepsUndesiredConnection(c *C) {
 	undesired := true
 	byGadget := false
@@ -3885,6 +4464,7 @@ func (s *interfaceManagerSuite) TestAutoConnectSetupSecurityForConnectedSlots(c 
 	// 1st call is for initial setup-profiles, 2nd call is for setup-profiles after connect task.
 	c.Check(s.secBackend.SetupCalls[0].AppSet.InstanceName(), Equals, snapInfo.InstanceName())
 	c.Check(s.secBackend.SetupCalls[0].AppSet.Info().Revision, Equals, snapInfo.Revision)
+
 	c.Check(s.secBackend.SetupCalls[1].AppSet.InstanceName(), Equals, snapInfo.InstanceName())
 	c.Check(s.secBackend.SetupCalls[1].AppSet.Info().Revision, Equals, snapInfo.Revision)
 
@@ -4203,6 +4783,55 @@ func (s *interfaceManagerSuite) TestConnectSetsUpSecurity(c *C) {
 
 	c.Check(s.secBackend.SetupCalls[0].Options, DeepEquals, interfaces.ConfinementOptions{})
 	c.Check(s.secBackend.SetupCalls[1].Options, DeepEquals, interfaces.ConfinementOptions{})
+}
+
+func (s *interfaceManagerSuite) TestConnectWithComponentsSetsUpSecurity(c *C) {
+	s.MockModel(c, nil)
+
+	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
+
+	consumerInfo := s.mockSnap(c, consumerWithComponentYaml)
+	producerInfo := s.mockSnap(c, producerWithComponentYaml)
+	s.mockComponentForSnap(c, "comp", "component: consumer+comp\ntype: test", consumerInfo)
+	s.mockComponentForSnap(c, "comp", "component: producer+comp\ntype: test", producerInfo)
+
+	_ = s.manager(c)
+
+	s.state.Lock()
+	ts, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
+	c.Assert(err, IsNil)
+	ts.Tasks()[0].Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "consumer",
+		},
+	})
+
+	change := s.state.NewChange("connect", "")
+	change.AddAll(ts)
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Assert(change.Err(), IsNil)
+	c.Check(change.Status(), Equals, state.DoneStatus)
+
+	c.Assert(s.secBackend.SetupCalls, HasLen, 2)
+	c.Assert(s.secBackend.RemoveCalls, HasLen, 0)
+
+	c.Check(s.secBackend.SetupCalls[0].Options, DeepEquals, interfaces.ConfinementOptions{})
+	c.Check(s.secBackend.SetupCalls[1].Options, DeepEquals, interfaces.ConfinementOptions{})
+
+	producerAppSet := s.secBackend.SetupCalls[0].AppSet
+	consumerAppSet := s.secBackend.SetupCalls[1].AppSet
+
+	c.Check(producerAppSet.InstanceName(), Equals, "producer")
+	c.Check(consumerAppSet.InstanceName(), Equals, "consumer")
+
+	c.Check(producerAppSet.Runnables(), testutil.DeepUnsortedMatches, producerRunnablesFullSet)
+	c.Check(consumerAppSet.Runnables(), testutil.DeepUnsortedMatches, consumerRunnablesFullSet)
 }
 
 func (s *interfaceManagerSuite) TestConnectSetsHotplugKeyFromTheSlot(c *C) {
@@ -5359,8 +5988,11 @@ func (s *interfaceManagerSuite) mockConnectForUndo(c *C, conns map[string]interf
 
 	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"})
 	s.manager(c)
-	producer := s.mockSnap(c, producerYaml)
-	consumer := s.mockSnap(c, consumerYaml)
+	producer := s.mockSnap(c, producerWithComponentYaml)
+	consumer := s.mockSnap(c, consumerWithComponentYaml)
+
+	s.mockComponentForSnap(c, "comp", "component: consumer+comp\ntype: test", consumer)
+	s.mockComponentForSnap(c, "comp", "component: producer+comp\ntype: test", producer)
 
 	repo := s.manager(c).Repository()
 	err := repo.AddPlug(&snap.PlugInfo{
@@ -5432,12 +6064,16 @@ func (s *interfaceManagerSuite) TestUndoConnect(c *C) {
 	c.Check(s.secBackend.SetupCalls[1].AppSet.InstanceName(), Equals, "consumer")
 	c.Check(s.secBackend.SetupCalls[0].Options, DeepEquals, interfaces.ConfinementOptions{})
 	c.Check(s.secBackend.SetupCalls[1].Options, DeepEquals, interfaces.ConfinementOptions{})
+	c.Check(s.secBackend.SetupCalls[0].AppSet.Runnables(), testutil.DeepUnsortedMatches, producerRunnablesFullSet)
+	c.Check(s.secBackend.SetupCalls[1].AppSet.Runnables(), testutil.DeepUnsortedMatches, consumerRunnablesFullSet)
 
 	// by undo
 	c.Check(s.secBackend.SetupCalls[2].AppSet.InstanceName(), Equals, "producer")
 	c.Check(s.secBackend.SetupCalls[3].AppSet.InstanceName(), Equals, "consumer")
 	c.Check(s.secBackend.SetupCalls[2].Options, DeepEquals, interfaces.ConfinementOptions{})
 	c.Check(s.secBackend.SetupCalls[3].Options, DeepEquals, interfaces.ConfinementOptions{})
+	c.Check(s.secBackend.SetupCalls[2].AppSet.Runnables(), testutil.DeepUnsortedMatches, producerRunnablesFullSet)
+	c.Check(s.secBackend.SetupCalls[3].AppSet.Runnables(), testutil.DeepUnsortedMatches, consumerRunnablesFullSet)
 }
 
 func (s *interfaceManagerSuite) TestUndoConnectUndesired(c *C) {
@@ -5482,6 +6118,16 @@ func (s *interfaceManagerSuite) TestUndoConnectUndesired(c *C) {
 	_, err := s.manager(c).Repository().Connection(cref)
 	notConnected, _ := err.(*interfaces.NotConnectedError)
 	c.Check(notConnected, NotNil)
+
+	c.Assert(s.secBackend.SetupCalls, HasLen, 4)
+
+	producerAppSet := s.secBackend.SetupCalls[2].AppSet
+	c.Check(producerAppSet.InstanceName(), Equals, "producer")
+	c.Check(producerAppSet.Runnables(), testutil.DeepUnsortedMatches, producerRunnablesFullSet)
+
+	consumerAppSet := s.secBackend.SetupCalls[3].AppSet
+	c.Check(consumerAppSet.InstanceName(), Equals, "consumer")
+	c.Check(consumerAppSet.Runnables(), testutil.DeepUnsortedMatches, consumerRunnablesFullSet)
 }
 
 func (s *interfaceManagerSuite) TestUndoConnectNoSetupProfilesWithDelayedSetupProfiles(c *C) {

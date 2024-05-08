@@ -261,11 +261,16 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 		return fmt.Errorf("cannot obtain expected security files for snap %q: %s", snapName, err)
 	}
 
-	glob := interfaces.SecurityTagGlob(snapName) + ".src"
 	dir := dirs.SnapSeccompDir
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("cannot create directory for seccomp profiles %q: %s", dir, err)
 	}
+
+	var globs []string
+	for _, g := range interfaces.SecurityTagGlobs(snapName) {
+		globs = append(globs, fmt.Sprintf("%s.src", g))
+	}
+
 	// There is a delicate interaction between `snap run`, `snap-confine`
 	// and compilation of profiles:
 	// - whenever profiles need to be rebuilt due to system-key change,
@@ -275,7 +280,7 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 	// - whenever the binary file does not exist, `snap-confine` will poll
 	//   and wait for SNAP_CONFINE_MAX_PROFILE_WAIT, if the profile does not
 	//   appear in that time, `snap-confine` will fail and die
-	changed, removed, err := osutil.EnsureDirState(dir, glob, content)
+	changed, removed, err := osutil.EnsureDirStateGlobs(dir, globs, content)
 	if err != nil {
 		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, err)
 	}
@@ -291,8 +296,8 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 
 // Remove removes seccomp profiles of a given snap.
 func (b *Backend) Remove(snapName string) error {
-	glob := interfaces.SecurityTagGlob(snapName)
-	_, _, err := osutil.EnsureDirState(dirs.SnapSeccompDir, glob, nil)
+	globs := interfaces.SecurityTagGlobs(snapName)
+	_, _, err := osutil.EnsureDirStateGlobs(dirs.SnapSeccompDir, globs, nil)
 	if err != nil {
 		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, err)
 	}
@@ -327,31 +332,17 @@ func (b *Backend) deriveContent(spec *Specification, opts interfaces.Confinement
 		uidGidChownSyscalls.WriteString(rootSetUidGidSyscalls)
 	}
 
-	for _, hookInfo := range snapInfo.Hooks {
+	for _, r := range appSet.Runnables() {
 		if content == nil {
 			content = make(map[string]osutil.FileState)
 		}
-		securityTag := hookInfo.SecurityTag()
 
-		path := securityTag + ".src"
+		path := r.SecurityTag + ".src"
 		content[path] = &osutil.MemoryFileState{
-			Content: generateContent(opts, spec.SnippetForTag(securityTag), addSocketcall, b.versionInfo, uidGidChownSyscalls.String()),
+			Content: generateContent(opts, spec.SnippetForTag(r.SecurityTag), addSocketcall, b.versionInfo, uidGidChownSyscalls.String()),
 			Mode:    0644,
 		}
 	}
-	for _, appInfo := range snapInfo.Apps {
-		if content == nil {
-			content = make(map[string]osutil.FileState)
-		}
-		securityTag := appInfo.SecurityTag()
-		path := securityTag + ".src"
-		content[path] = &osutil.MemoryFileState{
-			Content: generateContent(opts, spec.SnippetForTag(securityTag), addSocketcall, b.versionInfo, uidGidChownSyscalls.String()),
-			Mode:    0644,
-		}
-	}
-
-	// TODO: something with component hooks will need to happen here
 
 	return content, nil
 }

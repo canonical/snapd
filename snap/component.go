@@ -250,6 +250,12 @@ func (ci *ComponentInfo) FullName() string {
 	return ci.Component.String()
 }
 
+// HooksForPlug returns the component hooks that are associated with the given
+// plug.
+func (ci *ComponentInfo) HooksForPlug(plug *PlugInfo) []*HookInfo {
+	return hooksForPlug(plug, ci.Hooks)
+}
+
 // Validate performs some basic validations on component.yaml values.
 func (ci *ComponentInfo) validate() error {
 	if ci.Component.SnapName == "" {

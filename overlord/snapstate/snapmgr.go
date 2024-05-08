@@ -44,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/snap/snapdir"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/store"
@@ -213,6 +214,50 @@ func (compsu *ComponentSetup) ComponentName() string {
 
 func (compsu *ComponentSetup) Revision() snap.Revision {
 	return compsu.CompSideInfo.Revision
+}
+
+// ComponentSetupFromSnapSetup returns a list of ComponentSetup structs for the
+// given task. Since the task could originate from one of a few different
+// scenarios, we inspect the task for various keys to determine how to find the
+// component setups.
+//
+// The task could originate from:
+// * Installing a singular component for an already installed snap
+// * Installing multiple components for an already installed snap
+// * Installing/refreshing a snap with components
+// * Installing/refreshing a snap without any components
+func ComponentSetupsForTask(t *state.Task) ([]*ComponentSetup, error) {
+	// TODO: handle remaining cases in this switch:
+	// * installing multiple components for an already installed snap
+	// * installing/refreshing a snap with components
+	switch {
+	case t.Has("component-setup") || t.Has("component-setup-task"):
+		// task comes from a singular component installation for an already
+		// installed snap
+		compsup, _, err := TaskComponentSetup(t)
+		if err != nil {
+			return nil, err
+		}
+		return []*ComponentSetup{compsup}, nil
+	default:
+		// task comes from a snap installation that doesn't contain any
+		// components
+		return nil, nil
+	}
+}
+
+// ComponentInfoFromComponentSetup returns a snap.ComponentInfo for the given
+// ComponentSetup and snap.Info. It is assumed that the component represented by
+// compsup has already been mounted.
+func ComponentInfoFromComponentSetup(compsup *ComponentSetup, info *snap.Info) (*snap.ComponentInfo, error) {
+	cpi := snap.MinimalComponentContainerPlaceInfo(
+		compsup.ComponentName(),
+		compsup.CompSideInfo.Revision,
+		info.InstanceName(),
+	)
+
+	container := snapdir.New(cpi.MountDir())
+	return snap.ReadComponentInfoFromContainer(container, info)
 }
 
 // RevertStatus is a status of a snap revert; anything other than DefaultStatus
@@ -504,6 +549,50 @@ func (snapst *SnapState) CurrentInfo() (*snap.Info, error) {
 
 	name := snap.InstanceName(cur.RealName, snapst.InstanceKey)
 	return readInfo(name, cur, withAuxStoreInfo)
+}
+
+// CurrentComponentInfos return a snap.ComponentInfo slice that contains all of
+// the components for the current active revision or the last active revision.
+// It returns the ErrNoCurrent error if snapst.Current is unset.
+func (snapst *SnapState) CurrentComponentInfos() ([]*snap.ComponentInfo, error) {
+	if !snapst.IsInstalled() {
+		return nil, ErrNoCurrent
+	}
+
+	return snapst.ComponentInfosForRevision(snapst.Current)
+}
+
+// CurrentComponentInfos return a snap.ComponentInfo slice that contains all of
+// the components for the last appearance of the specified revision. Returns an
+// error if the revision is not found in the sequence of snaps.
+func (snapst *SnapState) ComponentInfosForRevision(rev snap.Revision) ([]*snap.ComponentInfo, error) {
+	index := snapst.LastIndex(rev)
+	if index == -1 {
+		return nil, fmt.Errorf("revision %s not found in sequence", rev)
+	}
+
+	revState := snapst.Sequence.Revisions[index]
+
+	instanceName := snap.InstanceName(revState.Snap.RealName, snapst.InstanceKey)
+	si, err := readInfo(instanceName, revState.Snap, withAuxStoreInfo)
+	if err != nil {
+		return nil, err
+	}
+
+	compInfos := make([]*snap.ComponentInfo, 0, len(revState.Components))
+	for _, comp := range revState.Components {
+		cpi := snap.MinimalComponentContainerPlaceInfo(comp.SideInfo.Component.ComponentName,
+			comp.SideInfo.Revision, si.InstanceName())
+
+		compInfo, err := readComponentInfo(cpi.MountDir(), si)
+		if err != nil {
+			return nil, err
+		}
+
+		compInfos = append(compInfos, compInfo)
+	}
+
+	return compInfos, nil
 }
 
 // CurrentComponentInfo returns the information about the current active

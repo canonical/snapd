@@ -181,14 +181,21 @@ plugs:
 slots:
   slot:`
 	info, connectedPlug := mockInfoAndConnectedPlug(c, yaml, nil, "plug")
-	compInfo := snaptest.MockComponent(c, "component: name+comp\ntype: test\nversion: 1", info)
+	compInfo := snaptest.MockComponent(c, "component: name+comp\ntype: test\nversion: 1", info, snap.ComponentSideInfo{
+		Revision: snap.R(1),
+	})
 
 	set, err := interfaces.NewSnapAppSet(info, []*snap.ComponentInfo{compInfo})
 	c.Assert(err, IsNil)
 
 	tags, err := set.SecurityTagsForConnectedPlug(connectedPlug)
 	c.Assert(err, IsNil)
-	c.Assert(tags, DeepEquals, []string{"snap.name.app1", "snap.name.app2", "snap.name.hook.install"})
+	c.Assert(tags, DeepEquals, []string{
+		"snap.name+comp.hook.install",
+		"snap.name.app1",
+		"snap.name.app2",
+		"snap.name.hook.install",
+	})
 }
 
 func (s *snapAppSetSuite) TestPlugSecurityTagsWrongSnap(c *C) {
@@ -244,6 +251,49 @@ slots:
 
 	_, err = set.SecurityTagsForConnectedSlot(connectedSlot)
 	c.Assert(err, ErrorMatches, `internal error: slot "slot" is from snap "other-name", security tags can only be computed for processed target snap: "name"`)
+}
+
+func (s *snapAppSetSuite) TestRunnables(c *C) {
+	const yaml = `name: name
+version: 1
+apps:
+  app1:
+  app2:
+hooks:
+  install:
+components:
+  comp:
+    type: test
+    hooks:
+      install:
+`
+	info := snaptest.MockInfo(c, yaml, nil)
+
+	compInfo := snaptest.MockComponent(c, "component: name+comp\ntype: test\nversion: 1.0", info, snap.ComponentSideInfo{
+		Revision: snap.R(1),
+	})
+
+	set, err := interfaces.NewSnapAppSet(info, []*snap.ComponentInfo{compInfo})
+	c.Assert(err, IsNil)
+
+	c.Check(set.Runnables(), testutil.DeepUnsortedMatches, []interfaces.Runnable{
+		{
+			CommandName: "app1",
+			SecurityTag: "snap.name.app1",
+		},
+		{
+			CommandName: "app2",
+			SecurityTag: "snap.name.app2",
+		},
+		{
+			CommandName: "hook.install",
+			SecurityTag: "snap.name.hook.install",
+		},
+		{
+			CommandName: "name+comp.hook.install",
+			SecurityTag: "snap.name+comp.hook.install",
+		},
+	})
 }
 
 func (s *snapAppSetSuite) TestInfo(c *C) {

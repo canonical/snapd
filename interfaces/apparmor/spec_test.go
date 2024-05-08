@@ -295,7 +295,10 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
 	restore := apparmor.SetSpecScope(s.spec, []string{"snap.vanguard.vanguard"})
 	defer restore()
 
-	s.spec.AddLayout(snapInfo)
+	appSet, err := interfaces.NewSnapAppSet(snapInfo, nil)
+	c.Assert(err, IsNil)
+
+	s.spec.AddLayout(appSet)
 
 	c.Assert(s.spec.Snippets(), DeepEquals, map[string][]string{
 		"snap.vanguard.vanguard": {

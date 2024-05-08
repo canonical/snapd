@@ -30,5 +30,8 @@ type NamingSuite struct{}
 var _ = Suite(&NamingSuite{})
 
 func (s *NamingSuite) TestSecurityTagGlob(c *C) {
-	c.Check(SecurityTagGlob("http"), Equals, "snap.http.*")
+	c.Check(SecurityTagGlobs("http"), DeepEquals, []string{
+		"snap.http.*",
+		"snap.http+*.hook.*",
+	})
 }

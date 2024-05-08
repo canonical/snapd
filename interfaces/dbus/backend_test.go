@@ -106,6 +106,41 @@ func (s *backendSuite) TestInstallingSnapWithHookWritesConfigFiles(c *C) {
 	}
 }
 
+func (s *backendSuite) TestInstallingComponentWritesConfigFiles(c *C) {
+	const instanceName = ""
+	s.testInstallingComponentWritesConfigFiles(c, instanceName)
+}
+
+func (s *backendSuite) TestInstallingComponentWritesConfigFilesInstance(c *C) {
+	const instanceName = "snap_instance"
+	s.testInstallingComponentWritesConfigFiles(c, instanceName)
+}
+
+func (s *backendSuite) testInstallingComponentWritesConfigFiles(c *C, instanceName string) {
+	// NOTE: Hand out a permanent snippet so that .conf file is generated.
+	s.Iface.DBusPermanentSlotCallback = func(spec *dbus.Specification, slot *snap.SlotInfo) error {
+		spec.AddSnippet("<policy/>")
+		return nil
+	}
+	s.Iface.DBusPermanentPlugCallback = func(spec *dbus.Specification, plug *snap.PlugInfo) error {
+		spec.AddSnippet("<policy/>")
+		return nil
+	}
+
+	for _, opts := range testedConfinementOpts {
+		snapInfo := s.InstallSnapWithComponents(c, opts, instanceName, ifacetest.SnapWithComponentsYaml, 0, []string{ifacetest.ComponentYaml})
+
+		expectedName := snapInfo.InstanceName()
+
+		profile := filepath.Join(dirs.SnapDBusSystemPolicyDir, fmt.Sprintf("snap.%s+comp.hook.install.conf", expectedName))
+
+		// verify that "snap.snap+comp.hook.install.conf" was created
+		c.Check(profile, testutil.FilePresent)
+
+		s.RemoveSnap(c, snapInfo)
+	}
+}
+
 func (s *backendSuite) TestRemovingSnapRemovesConfigFiles(c *C) {
 	// NOTE: Hand out a permanent snippet so that .conf file is generated.
 	s.Iface.DBusPermanentSlotCallback = func(spec *dbus.Specification, slot *snap.SlotInfo) error {
@@ -140,6 +175,36 @@ func (s *backendSuite) TestRemovingSnapWithHookRemovesConfigFiles(c *C) {
 		// Verify that "snap.foo.hook.configure.conf" was removed
 		_, err := os.Stat(profile)
 		c.Check(os.IsNotExist(err), Equals, true)
+	}
+}
+
+func (s *backendSuite) TestRemovingSnapWithComponentRemovesConfigFiles(c *C) {
+	const instanceName = ""
+	s.testRemovingSnapWithComponentRemovesConfigFiles(c, instanceName)
+}
+
+func (s *backendSuite) TestRemovingSnapWithComponentRemovesConfigFilesInstance(c *C) {
+	const instanceName = "snap_instance"
+	s.testRemovingSnapWithComponentRemovesConfigFiles(c, instanceName)
+}
+
+func (s *backendSuite) testRemovingSnapWithComponentRemovesConfigFiles(c *C, instanceName string) {
+	// NOTE: Hand out a permanent snippet so that .conf file is generated.
+	s.Iface.DBusPermanentSlotCallback = func(spec *dbus.Specification, slot *snap.SlotInfo) error {
+		spec.AddSnippet("<policy/>")
+		return nil
+	}
+	s.Iface.DBusPermanentPlugCallback = func(spec *dbus.Specification, plug *snap.PlugInfo) error {
+		spec.AddSnippet("<policy/>")
+		return nil
+	}
+
+	for _, opts := range testedConfinementOpts {
+		info := s.InstallSnapWithComponents(c, opts, instanceName, ifacetest.SnapWithComponentsYaml, 0, []string{ifacetest.ComponentYaml})
+		s.RemoveSnap(c, info)
+		expectedName := info.InstanceName()
+		profile := filepath.Join(dirs.SnapDBusSystemPolicyDir, fmt.Sprintf("snap.%s+comp.hook.install.conf", expectedName))
+		c.Check(profile, testutil.FileAbsent)
 	}
 }
 
@@ -182,6 +247,41 @@ func (s *backendSuite) TestUpdatingSnapToOneWithMoreHooks(c *C) {
 	}
 }
 
+func (s *backendSuite) TestUpdatingSnapToOneWithMoreComponents(c *C) {
+	const instanceName = ""
+	s.testUpdatingSnapToOneWithMoreComponents(c, instanceName)
+}
+
+func (s *backendSuite) TestUpdatingSnapToOneWithMoreComponentsInstance(c *C) {
+	const instanceName = "snap_instance"
+	s.testUpdatingSnapToOneWithMoreComponents(c, instanceName)
+}
+
+func (s *backendSuite) testUpdatingSnapToOneWithMoreComponents(c *C, instanceName string) {
+	// NOTE: Hand out a permanent snippet so that .conf file is generated.
+	s.Iface.DBusPermanentSlotCallback = func(spec *dbus.Specification, slot *snap.SlotInfo) error {
+		spec.AddSnippet("<policy/>")
+		return nil
+	}
+	s.Iface.DBusPermanentPlugCallback = func(spec *dbus.Specification, plug *snap.PlugInfo) error {
+		spec.AddSnippet("<policy/>")
+		return nil
+	}
+	for _, opts := range testedConfinementOpts {
+		info := s.InstallSnap(c, opts, instanceName, ifacetest.SnapWithComponentsYaml, 1)
+		info = s.UpdateSnapWithComponents(c, info, opts, ifacetest.SnapWithComponentsYaml, 1, []string{ifacetest.ComponentYaml})
+
+		expectedName := info.InstanceName()
+
+		profile := filepath.Join(dirs.SnapDBusSystemPolicyDir, fmt.Sprintf("snap.%s+comp.hook.install.conf", expectedName))
+
+		// verify that profile "snap.snap+comp.hook.install" was created
+		c.Check(profile, testutil.FilePresent)
+
+		s.RemoveSnap(c, info)
+	}
+}
+
 func (s *backendSuite) TestUpdatingSnapToOneWithFewerApps(c *C) {
 	// NOTE: Hand out a permanent snippet so that .conf file is generated.
 	s.Iface.DBusPermanentSlotCallback = func(spec *dbus.Specification, slot *snap.SlotInfo) error {
@@ -218,6 +318,42 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerHooks(c *C) {
 		_, err := os.Stat(profile)
 		c.Check(os.IsNotExist(err), Equals, true)
 		s.RemoveSnap(c, snapInfo)
+	}
+}
+
+func (s *backendSuite) TestUpdatingSnapToOneWithFewerComponents(c *C) {
+	const instanceName = ""
+	s.testUpdatingSnapToOneWithFewerComponents(c, instanceName)
+}
+
+func (s *backendSuite) TestUpdatingSnapToOneWithFewerComponentsInstance(c *C) {
+	const instanceName = "snap_instance"
+	s.testUpdatingSnapToOneWithFewerComponents(c, instanceName)
+}
+
+func (s *backendSuite) testUpdatingSnapToOneWithFewerComponents(c *C, instanceName string) {
+	// NOTE: Hand out a permanent snippet so that .conf file is generated.
+	s.Iface.DBusPermanentSlotCallback = func(spec *dbus.Specification, slot *snap.SlotInfo) error {
+		spec.AddSnippet("<policy/>")
+		return nil
+	}
+	s.Iface.DBusPermanentPlugCallback = func(spec *dbus.Specification, plug *snap.PlugInfo) error {
+		spec.AddSnippet("<policy/>")
+		return nil
+	}
+
+	for _, opts := range testedConfinementOpts {
+		info := s.InstallSnapWithComponents(c, opts, instanceName, ifacetest.SnapWithComponentsYaml, 0, []string{ifacetest.ComponentYaml})
+		info = s.UpdateSnap(c, info, opts, ifacetest.SnapWithComponentsYaml, 0)
+
+		expectedName := info.InstanceName()
+
+		profile := filepath.Join(dirs.SnapDBusSystemPolicyDir, fmt.Sprintf("snap.%s+comp.hook.install.conf", expectedName))
+
+		// verify that "snap.snap+comp.hook.install.conf" was removed
+		c.Check(profile, testutil.FileAbsent)
+
+		s.RemoveSnap(c, info)
 	}
 }
 
