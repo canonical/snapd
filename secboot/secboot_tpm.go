@@ -281,9 +281,13 @@ func newAuthRequestor() (sb.AuthRequestor, error) {
 // device. If activation with the sealed key fails, this function will attempt to
 // activate it with the fallback recovery key instead.
 func unlockEncryptedPartitionWithSealedKey(mapperName, sourceDevice, keyfile string, allowRecovery bool) (UnlockMethod, error) {
-	keyData, err := sbNewKeyDataFromSealedKeyObjectFile(keyfile)
-	if err != nil {
-		return NotUnlocked, fmt.Errorf("cannot read key data: %v", err)
+	var keys []*sb.KeyData
+	if osutil.FileExists(keyfile) {
+		keyData, err := sbNewKeyDataFromSealedKeyObjectFile(keyfile)
+		if err != nil {
+			return NotUnlocked, fmt.Errorf("cannot read key data: %v", err)
+		}
+		keys = append(keys, keyData)
 	}
 	options := activateVolOpts(allowRecovery)
 	options.Model = sb.SkipSnapModelCheck
@@ -293,7 +297,7 @@ func unlockEncryptedPartitionWithSealedKey(mapperName, sourceDevice, keyfile str
 		return NotUnlocked, fmt.Errorf("cannot build an auth requestor: %v", err)
 	}
 
-	err = sbActivateVolumeWithKeyData(mapperName, sourceDevice, authRequestor, options, keyData)
+	err = sbActivateVolumeWithKeyData(mapperName, sourceDevice, authRequestor, options, keys...)
 	if err == sb.ErrRecoveryKeyUsed {
 		logger.Noticef("successfully activated encrypted device %q using a fallback activation method", sourceDevice)
 		return UnlockedWithRecoveryKey, nil
@@ -405,11 +409,15 @@ func SealKeys(keys []SealKeyRequest, params *SealKeysParams) error {
 			Role:                   "run",
 			PCRPolicyCounterHandle: tpm2.Handle(pcrHandle),
 		}
-		_ /*protectedKey*/, _ /*primaryKey*/, unlockKey, err := sbNewTPMProtectedKey(tpm, creationParams)
+		protectedKey, _ /*primaryKey*/, unlockKey, err := sbNewTPMProtectedKey(tpm, creationParams)
 		if err != nil {
 			return err
 		}
-		if err := key.Resetter.Reset(unlockKey); err != nil {
+		writer, err := key.Resetter.Reset(unlockKey)
+		if err != nil {
+			return err
+		}
+		if err := protectedKey.WriteAtomic(writer); err != nil {
 			return err
 		}
 	}

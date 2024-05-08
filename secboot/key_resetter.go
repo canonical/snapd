@@ -37,17 +37,35 @@ func CreateKeyResetter(key sb.DiskUnlockKey, devicePath string) KeyResetter {
 	}
 }
 
-func (kr *sbKeyResetter) Reset(newKey sb.DiskUnlockKey) error {
-	defaultKeySlotName := ""
+func (kr *sbKeyResetter) Reset(newKey sb.DiskUnlockKey) (sb.KeyDataWriter, error) {
+	defaultKeySlotName := "default"
 	if err := sb.AddLUKS2ContainerUnlockKey(kr.devicePath, defaultKeySlotName, kr.oldKey, newKey); err != nil {
-		return err
+		return nil, err
 	}
-	return sb.DeleteLUKS2ContainerKey(kr.devicePath, kr.oldContainerKeySlot)
+	if err := sb.DeleteLUKS2ContainerKey(kr.devicePath, kr.oldContainerKeySlot); err != nil {
+		return nil, err
+	}
+	writer, err := sb.NewLUKS2KeyDataWriter(kr.devicePath, defaultKeySlotName)
+	if err != nil {
+		return nil, err
+	}
+	return writer, nil
 }
 
 type MockKeyResetter struct {
 }
 
-func (kr *MockKeyResetter) Reset(newKey sb.DiskUnlockKey) error {
+type MockKeyDataWriter struct {
+}
+
+func (kdw *MockKeyDataWriter) Write(p []byte) (n int, err error) {
+	return len(p), nil
+}
+
+func (kdw *MockKeyDataWriter) Commit() error {
 	return nil
+}
+
+func (kr *MockKeyResetter) Reset(newKey sb.DiskUnlockKey) (sb.KeyDataWriter, error) {
+	return &MockKeyDataWriter{}, nil
 }

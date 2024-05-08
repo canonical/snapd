@@ -66,7 +66,7 @@ func NewLoadChain(bf bootloader.BootFile, next ...*LoadChain) *LoadChain {
 }
 
 type KeyResetter interface {
-	Reset(newKey sb.DiskUnlockKey) error
+	Reset(newKey sb.DiskUnlockKey) (sb.KeyDataWriter, error)
 }
 
 type SealKeyRequest struct {

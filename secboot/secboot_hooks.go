@@ -102,11 +102,15 @@ func SealKeysWithFDESetupHook(runHook fde.RunSetupHookFunc, keys []SealKeyReques
 				"run",
 			},
 		}
-		_ /*protectedKey*/, _ /*primaryKeyOut*/, unlockKey, err := sb_hooks.NewProtectedKey(rand.Reader, params)
+		protectedKey, _ /*primaryKeyOut*/, unlockKey, err := sb_hooks.NewProtectedKey(rand.Reader, params)
 		if err != nil {
 			return err
 		}
-		if err := skr.Resetter.Reset(unlockKey); err != nil {
+		writer, err := skr.Resetter.Reset(unlockKey)
+		if err != nil {
+			return err
+		}
+		if err := protectedKey.WriteAtomic(writer); err != nil {
 			return err
 		}
 	}
