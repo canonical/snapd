@@ -205,8 +205,8 @@ func (b Backend) LinkComponent(cpi snap.ContainerPlaceInfo, snapRev snap.Revisio
 }
 
 func (b Backend) StartServices(apps []*snap.AppInfo, disabledSvcs *wrappers.DisabledServices, meter progress.Meter, tm timings.Measurer) error {
-	flags := &wrappers.StartServicesFlags{Enable: true}
-	return wrappers.StartServices(apps, disabledSvcs, flags, meter, tm)
+	opts := &wrappers.StartServicesOptions{Enable: true}
+	return wrappers.StartServices(apps, disabledSvcs, opts, meter, tm)
 }
 
 func (b Backend) StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter, tm timings.Measurer) error {
