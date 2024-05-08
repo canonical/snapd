@@ -74,12 +74,12 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *sn
 	// The file passed around is temporary, make sure it gets removed.
 	// TODO probably this should be part of a flags type in the future.
 	removeComponentPath := true
-	return doInstallComponent(st, &snapst, compSetup, snapsup, path, removeComponentPath, "")
+	return doInstallComponent(st, &snapst, compSetup, snapsup, removeComponentPath, "")
 }
 
 // doInstallComponent might be called with the owner snap installed or not.
 func doInstallComponent(st *state.State, snapst *SnapState, compSetup *ComponentSetup,
-	snapsup *SnapSetup, path string, removeComponentPath bool, fromChange string) (*state.TaskSet, error) {
+	snapsup *SnapSetup, removeComponentPath bool, fromChange string) (*state.TaskSet, error) {
 
 	// TODO check for experimental flag that will hide temporarily components
 
@@ -105,13 +105,12 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup *Component
 
 	var prepare, prev *state.Task
 	// if we have a local revision here we go back to that
-	if path != "" || revisionIsPresent {
+	if compSetup.CompPath != "" || revisionIsPresent {
 		prepare = st.NewTask("prepare-component",
 			fmt.Sprintf(i18n.G("Prepare component %q%s"),
-				path, revisionStr))
+				compSetup.CompPath, revisionStr))
 	} else {
-		// TODO implement download-component
-		return nil, fmt.Errorf("download-component not implemented yet")
+		prepare = st.NewTask("download-component", fmt.Sprintf(i18n.G("Download component %q%s"), compSetup, revisionStr))
 	}
 	prepare.Set("component-setup", compSetup)
 	prepare.Set("snap-setup", snapsup)
@@ -143,7 +142,7 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup *Component
 			// side-loading a local revision again. The path is
 			// only needed in the "mount-snap" handler and that is
 			// skipped for local revisions.
-			if err := os.Remove(path); err != nil {
+			if err := os.Remove(compSetup.CompPath); err != nil {
 				return nil, err
 			}
 		}
