@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // Options contains optional parameters for the snapstate operations. All of
@@ -68,16 +69,14 @@ type target struct {
 	// setup is a partially initialized SnapSetup that contains the data needed
 	// to find the snap file that will be installed.
 	setup *SnapSetup
-	// components is a list of partially initialized ComponentSetup structs that
-	// contain the data needed to find the component files that will be
-	// installed.
-	components []*ComponentSetup
 	// info contains the snap.info for the snap to be installed.
 	info *snap.Info
 	// snapst is the current state of the target snap, prior to installation.
 	// This must be retrieved prior to unlocking the state for any reason (for
 	// example, talking to the store).
 	snapst SnapState
+	// components is a list of components to install with this snap.
+	components []ComponentTarget
 }
 
 // snapsup returns the completed SnapSetup for the target snap.
@@ -117,6 +116,15 @@ func (t *target) snapsup(st *state.State, opts Options) (SnapSetup, error) {
 type InstallGoal interface {
 	// toInstall returns the data needed to setup the snaps for installation.
 	toInstall(context.Context, *state.State, Options) ([]target, error)
+}
+
+// ComponentTarget represents the data needed to setup a component for installation.
+type ComponentTarget struct {
+	// Setup is a partially initialized ComponentSetup struct that contains the
+	// data needed to find the component that will be installed.
+	Setup *ComponentSetup
+	// Info contains the snap.ComponentInfo for the component to be installed.
+	Info *snap.ComponentInfo
 }
 
 // storeInstallGoal implements the InstallGoal interface and represents a group of
@@ -162,6 +170,10 @@ func StoreInstallGoal(snaps ...StoreSnap) InstallGoal {
 
 		if sn.RevOpts.Channel == "" {
 			sn.RevOpts.Channel = "stable"
+		}
+
+		if len(sn.Components) > 0 {
+			sn.Components = strutil.Deduplicate(sn.Components)
 		}
 
 		seen[sn.InstanceName] = true
@@ -266,13 +278,16 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 			snapst = &SnapState{}
 		}
 
-		// TODO: extract components from resources
-
 		// TODO: is it safe to pull the channel from here? i'm not sure what
 		// this will actually look like as a response from the real store
 		channel := r.RedirectChannel
 		if r.RedirectChannel == "" {
 			channel = sn.RevOpts.Channel
+		}
+
+		comps, err := requestedComponentsFromActionResult(sn, r)
+		if err != nil {
+			return nil, fmt.Errorf("cannot extract components from snap resources: %w", err)
 		}
 
 		installs = append(installs, target{
@@ -283,11 +298,62 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 			},
 			info:       r.Info,
 			snapst:     *snapst,
-			components: nil,
+			components: comps,
 		})
 	}
 
 	return installs, err
+}
+
+func requestedComponentsFromActionResult(sn StoreSnap, sar store.SnapActionResult) ([]ComponentTarget, error) {
+	mapping := make(map[string]store.SnapResourceResult, len(sar.Resources))
+	for _, res := range sar.Resources {
+		mapping[res.Name] = res
+	}
+
+	installables := make([]ComponentTarget, 0, len(sn.Components))
+	for _, comp := range sn.Components {
+		res, ok := mapping[comp]
+		if !ok {
+			return nil, fmt.Errorf("cannot find component %q in snap resources", comp)
+		}
+
+		installable, err := componentFromResource(comp, res, sar.Info)
+		if err != nil {
+			return nil, err
+		}
+
+		installables = append(installables, installable)
+	}
+	return installables, nil
+}
+
+func componentFromResource(name string, sar store.SnapResourceResult, info *snap.Info) (ComponentTarget, error) {
+	comp, ok := info.Components[name]
+	if !ok {
+		return ComponentTarget{}, fmt.Errorf("%q is not a component for snap %q", name, info.SnapName())
+	}
+
+	if fmt.Sprintf("component/%s", comp.Type) != sar.Type {
+		return ComponentTarget{}, fmt.Errorf("inconsistent component type (%q in snap, %q in component)", comp.Type, sar.Type)
+	}
+
+	compName := naming.NewComponentRef(info.SnapName(), name)
+
+	return ComponentTarget{
+		Setup: &ComponentSetup{
+			DownloadInfo: &sar.DownloadInfo,
+		},
+		Info: &snap.ComponentInfo{
+			Component: compName,
+			Type:      comp.Type,
+			Version:   sar.Version,
+			ComponentSideInfo: snap.ComponentSideInfo{
+				Component: compName,
+				Revision:  snap.R(sar.Revision),
+			},
+		},
+	}, nil
 }
 
 func installActionForStoreTarget(t StoreSnap, opts Options, enforcedSets func() (*snapasserts.ValidationSets, error)) (*store.SnapAction, error) {
@@ -297,6 +363,7 @@ func installActionForStoreTarget(t StoreSnap, opts Options, enforcedSets func() 
 		Channel:      t.RevOpts.Channel,
 		Revision:     t.RevOpts.Revision,
 		CohortKey:    t.RevOpts.CohortKey,
+		Resources:    t.Components,
 	}
 
 	switch {
@@ -485,12 +552,23 @@ func InstallWithGoal(ctx context.Context, st *state.State, goal InstallGoal, opt
 			return nil, nil, err
 		}
 
+		compsups := make([]*ComponentSetup, 0, len(t.components))
+		for _, comp := range t.components {
+			compsups = append(compsups, &ComponentSetup{
+				DownloadInfo: comp.Setup.DownloadInfo,
+				CompPath:     comp.Setup.CompPath,
+
+				CompSideInfo: &comp.Info.ComponentSideInfo,
+				CompType:     comp.Info.Type,
+			})
+		}
+
 		var instFlags int
 		if opts.Flags.SkipConfigure {
 			instFlags |= skipConfigure
 		}
 
-		ts, err := doInstall(st, &t.snapst, &snapsup, nil, instFlags, opts.FromChange, inUseFor(opts.DeviceCtx))
+		ts, err := doInstall(st, &t.snapst, &snapsup, compsups, instFlags, opts.FromChange, inUseFor(opts.DeviceCtx))
 		if err != nil {
 			return nil, nil, err
 		}
