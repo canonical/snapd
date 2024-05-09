@@ -119,8 +119,8 @@ func validateRevisionOpts(opts RevisionOptions) error {
 
 // Installables returns the data needed to setup the snaps from the store for
 // installation.
-func (s *StoreTarget) Installables(ctx context.Context, st *state.State, snaps map[string]*SnapState, opts Options) ([]Installable, error) {
-	if err := s.validateAndPrune(snaps); err != nil {
+func (s *StoreTarget) Installables(ctx context.Context, st *state.State, installedSnaps map[string]*SnapState, opts Options) ([]Installable, error) {
+	if err := s.validateAndPrune(installedSnaps); err != nil {
 		return nil, err
 	}
 
@@ -280,7 +280,7 @@ func installActionForStoreTarget(t StoreSnap, opts Options, enforcedSets func() 
 	return action, nil
 }
 
-func (s *StoreTarget) validateAndPrune(snaps map[string]*SnapState) error {
+func (s *StoreTarget) validateAndPrune(installedSnaps map[string]*SnapState) error {
 	for name, t := range s.snaps {
 		if err := snap.ValidateInstanceName(name); err != nil {
 			return fmt.Errorf("invalid instance name: %v", err)
@@ -290,7 +290,7 @@ func (s *StoreTarget) validateAndPrune(snaps map[string]*SnapState) error {
 			return fmt.Errorf("invalid revision options for snap %q: %w", name, err)
 		}
 
-		snapst, ok := snaps[name]
+		snapst, ok := installedSnaps[name]
 		if ok && snapst.IsInstalled() {
 			if !t.SkipIfPresent {
 				return &snap.AlreadyInstalledError{Snap: name}
@@ -489,7 +489,7 @@ func (p *PathTarget) InitOptions(st *state.State, opts *Options) error {
 }
 
 // Installables returns the data needed to setup the snap from disk.
-func (p *PathTarget) Installables(ctx context.Context, st *state.State, snaps map[string]*SnapState, opts Options) ([]Installable, error) {
+func (p *PathTarget) Installables(ctx context.Context, st *state.State, installedSnaps map[string]*SnapState, opts Options) ([]Installable, error) {
 	si := p.SideInfo
 
 	if si.RealName == "" {
@@ -530,7 +530,7 @@ func (p *PathTarget) Installables(ctx context.Context, st *state.State, snaps ma
 	info.InstanceKey = instanceKey
 
 	var trackingChannel string
-	if snapst, ok := snaps[p.InstanceName]; ok && snapst.IsInstalled() {
+	if snapst, ok := installedSnaps[p.InstanceName]; ok && snapst.IsInstalled() {
 		trackingChannel = snapst.TrackingChannel
 	}
 
