@@ -329,7 +329,21 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 	}
 
 	bootDevice := ""
-	installedSystem, err := gadgetInstallRun(model, gadgetMountDir, kernelMountDir, bootDevice, options, installObserver, timings.New(nil))
+	kernelSnapInfo := &gadgetInstall.KernelSnapInfo{
+		Name:       kernelSnap.SnapName(),
+		MountPoint: kernelMountDir,
+		Revision:   kernelSnap.Revision,
+		// Should be true always anyway
+		IsCore: !model.Classic(),
+	}
+	switch model.Base() {
+	case "core20", "core22", "core22-desktop":
+		kernelSnapInfo.NeedsDriversTree = false
+	default:
+		kernelSnapInfo.NeedsDriversTree = true
+	}
+
+	installedSystem, err := gadgetInstallRun(model, gadgetMountDir, kernelSnapInfo, bootDevice, options, installObserver, timings.New(nil))
 	if err != nil {
 		return err
 	}
