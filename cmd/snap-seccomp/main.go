@@ -19,7 +19,7 @@
 
 package main
 
-//#cgo CFLAGS: -D_FILE_OFFSET_BITS=64
+//#cgo CFLAGS: -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE
 //#cgo pkg-config: libseccomp
 //#cgo LDFLAGS:
 //
