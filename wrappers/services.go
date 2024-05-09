@@ -197,36 +197,34 @@ func reloadOrRestartServices(sysd systemd.Systemd, cli *userServiceClient, reloa
 	return nil
 }
 
-// userServices is a wrapper around stopping a list of systemd services. This function
-// only stops them and does not do any disable of these. A user service client must be
-// provided to be able to stop user services.
-func stopService(sysd systemd.Systemd, cli *userServiceClient, scope snap.DaemonScope, svcs []string) error {
-	switch scope {
-	case snap.SystemDaemon:
-		if err := sysd.Stop(svcs); err != nil {
-			return err
-		}
-
-	case snap.UserDaemon:
-		// Only called as a part of undoing in StartServices, thus we will not
-		// disable them as this is handled elsewhere.
-		const disable = false
-		if err := cli.stopServices(disable, svcs...); err != nil {
-			return err
-		}
-	default:
-		panic("unknown app.DaemonScope")
-	}
-
-	return nil
-}
-
 func serviceIsActivated(app *snap.AppInfo) bool {
 	return len(app.Sockets) > 0 || app.Timer != nil || len(app.ActivatesOn) > 0
 }
 
 func serviceIsSlotActivated(app *snap.AppInfo) bool {
 	return len(app.ActivatesOn) > 0
+}
+
+func filterServicesForStart(apps []*snap.AppInfo, disabledSvcs *DisabledServices, scope ServiceScope) []*snap.AppInfo {
+	isSystemSvcDisabled := func(name string) bool {
+		return disabledSvcs != nil && strutil.ListContains(disabledSvcs.SystemServices, name)
+	}
+
+	var filteredApps []*snap.AppInfo
+	for _, app := range apps {
+		if !app.IsService() {
+			continue
+		}
+		// Verify that scope covers this service
+		if !scope.matches(app.DaemonScope) {
+			continue
+		}
+		if isSystemSvcDisabled(app.Name) {
+			continue
+		}
+		filteredApps = append(filteredApps, app)
+	}
+	return filteredApps
 }
 
 // StartServicesOptions carries additional parameters for StartService.
@@ -244,139 +242,90 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs *DisabledServices, opts *S
 	}
 
 	systemSysd := systemd.New(systemd.SystemMode, inter)
-	userSysd := systemd.New(systemd.GlobalUserMode, inter)
-	cli, err := newUserServiceClientNames(opts.Users, inter)
+	userGlobalSysd := systemd.New(systemd.GlobalUserMode, inter)
+	cli, err := newUserServiceClientNames(flags.Users, inter)
 	if err != nil {
 		return err
 	}
 
-	var toEnableSystem []string
-	var toEnableUser []string
-	systemServices := make([]string, 0, len(apps))
-	userServices := make([]string, 0, len(apps))
-	servicesStarted := false
+	// When starting and enabling services, act on the activated units instead of
+	// the services activated by those units. And since 'static' service units does
+	// not need to be enabled, we can save that.
+	const includeActivatedServices = false
 
+	filteredApps := filterServicesForStart(apps, disabledSvcs, flags.Scope)
+	systemServices, userServices := categorizeServices(filteredApps, includeActivatedServices)
+	var undoStart bool
 	defer func() {
 		if err == nil {
 			return
 		}
-		// apps could have been sorted according to their startup
-		// ordering, stop them in reverse order
-		if servicesStarted {
-			for i := len(apps) - 1; i >= 0; i-- {
-				app := apps[i]
-				svc, activators := internal.SnapServiceUnits(app)
-				if e := stopService(systemSysd, cli, app.DaemonScope, append(activators, svc)); e != nil {
-					inter.Notify(fmt.Sprintf("While trying to stop previously started service %q: %v", app.ServiceName(), e))
-				}
+
+		// Undo logic for user services is handled by user session agent,
+		// we only handle undo logic for system services in this function
+		if undoStart && len(systemServices) > 0 {
+			// filteredApps could have been sorted according to their startup
+			// ordering, stop them in reverse order
+			for i, j := 0, len(filteredApps)-1; i < j; i, j = i+1, j-1 {
+				filteredApps[i], filteredApps[j] = filteredApps[j], filteredApps[i]
+			}
+
+			// when collecting service units again here, for stopping, we want to ensure
+			// we include activated service units this time, as they might have been started
+			// in the mean time.
+			const includeActivatedServices = true
+			systemServices, _ := categorizeServices(filteredApps, includeActivatedServices)
+			if e := systemSysd.Stop(systemServices); e != nil {
+				inter.Notify(fmt.Sprintf("While trying to stop previously started services %q: %v", systemServices, e))
 			}
 		}
-		if len(toEnableSystem) > 0 {
-			if e := systemSysd.DisableNoReload(toEnableSystem); e != nil {
-				inter.Notify(fmt.Sprintf("While trying to disable previously enabled services %q: %v", toEnableSystem, e))
+
+		// always disable, as we do this pre-start
+		if len(systemServices) != 0 && flags.Enable {
+			if e := systemSysd.DisableNoReload(systemServices); e != nil {
+				inter.Notify(fmt.Sprintf("While trying to disable previously enabled services %q: %v", systemServices, e))
 			}
 			if e := systemSysd.DaemonReload(); e != nil {
 				inter.Notify(fmt.Sprintf("While trying to do daemon-reload: %v", e))
 			}
 		}
-		if len(toEnableUser) > 0 {
-			if e := userSysd.DisableNoReload(toEnableUser); e != nil {
-				inter.Notify(fmt.Sprintf("While trying to disable previously enabled user services %q: %v", toEnableUser, e))
+
+		if len(userServices) > 0 {
+			if e := userGlobalSysd.DisableNoReload(userServices); e != nil {
+				inter.Notify(fmt.Sprintf("While trying to disable previously enabled user services %q: %v", userServices, e))
 			}
 		}
 	}()
-	// process all services of the snap in the order specified by the
-	// caller; before batched calls were introduced, the sockets and timers
-	// were started first, followed by other non-activated services
-	markServicesForStart := func(svcs []string, scope snap.DaemonScope) {
-		switch scope {
-		case snap.SystemDaemon:
-			systemServices = append(systemServices, svcs...)
-		case snap.UserDaemon:
-			userServices = append(userServices, svcs...)
-		}
-	}
-	markServicesForEnable := func(svcs []string, scope snap.DaemonScope) {
-		switch scope {
-		case snap.SystemDaemon:
-			toEnableSystem = append(toEnableSystem, svcs...)
-		case snap.UserDaemon:
-			toEnableUser = append(toEnableUser, svcs...)
-		}
-	}
 
-	isSystemSvcDisabled := func(name string) bool {
-		return disabledSvcs != nil && strutil.ListContains(disabledSvcs.SystemServices, name)
-	}
-
-	// first, gather all socket and timer units
-	for _, app := range apps {
-		if !app.IsService() {
-			continue
-		}
-		// Verify that scope covers this service
-		if !opts.Scope.matches(app.DaemonScope) {
-			continue
-		}
-		if isSystemSvcDisabled(app.Name) {
-			continue
-		}
-		// Get all units for the service, but we only deal with
-		// the activators here.
-		_, activators := internal.SnapServiceUnits(app)
-		if len(activators) == 0 {
-			// just skip if there are no activated units
-			continue
-		}
-		markServicesForStart(activators, app.DaemonScope)
-		if opts.Enable {
-			markServicesForEnable(activators, app.DaemonScope)
-		}
-	}
-
-	// now collect all services
-	for _, app := range apps {
-		if !app.IsService() {
-			continue
-		}
-		// Verify that scope covers this service
-		if !opts.Scope.matches(app.DaemonScope) {
-			continue
-		}
-		if serviceIsActivated(app) {
-			continue
-		}
-		if isSystemSvcDisabled(app.Name) {
-			continue
-		}
-		svcName := app.ServiceName()
-		markServicesForStart([]string{svcName}, app.DaemonScope)
-		if opts.Enable {
-			markServicesForEnable([]string{svcName}, app.DaemonScope)
-		}
-	}
-
-	timings.Run(tm, "enable-services", fmt.Sprintf("enable services %q", toEnableSystem), func(nested timings.Measurer) {
-		if len(toEnableSystem) > 0 {
-			if err = systemSysd.EnableNoReload(toEnableSystem); err != nil {
-				return
+	if flags.Enable {
+		timings.Run(tm, "enable-services", fmt.Sprintf("enable services %q", systemServices), func(nested timings.Measurer) {
+			if len(systemServices) != 0 {
+				if err = systemSysd.EnableNoReload(systemServices); err != nil {
+					return
+				}
+				if err = systemSysd.DaemonReload(); err != nil {
+					return
+				}
+				undoStart = true
 			}
-			if err = systemSysd.DaemonReload(); err != nil {
-				return
+			if len(userServices) > 0 {
+				if err = userGlobalSysd.EnableNoReload(userServices); err == nil {
+					// make sure we atleast disable them again if we successfully enabled
+					// them
+					undoStart = true
+				}
 			}
+		})
+		if err != nil {
+			return err
 		}
-		if len(toEnableUser) > 0 {
-			err = userSysd.EnableNoReload(toEnableUser)
-		}
-	})
-	if err != nil {
-		return err
 	}
 
 	timings.Run(tm, "start-services", "start services", func(nestedTm timings.Measurer) {
 		for _, srv := range systemServices {
 			// let the cleanup know some services may have been started
-			servicesStarted = true
+			undoStart = true
+
 			// starting all services at once does not create a
 			// single transaction, but instead spawns multiple jobs,
 			// make sure the services started in the original order
@@ -391,27 +340,21 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs *DisabledServices, opts *S
 			}
 		}
 	})
-	if servicesStarted && err != nil {
+	if undoStart && err != nil {
 		// cleanup is handled in a defer
 		return err
 	}
 
 	if len(userServices) != 0 {
-		var disabledUserSvcs map[int][]string
-		if disabledSvcs != nil {
-			disabledUserSvcs = disabledSvcs.UserServices
-		}
-
+		// Undo logic is handled by user session agent, we only handle undo logic for system services
+		// in this function
 		timings.Run(tm, "start-user-services", "start user services", func(nested timings.Measurer) {
-			err = cli.startServices(opts.Enable, disabledUserSvcs, userServices...)
+			err = cli.startServices(flags.Enable, disabledUserSvcs, userServices...)
 		})
-		// let the cleanup know some services may have been started
-		servicesStarted = true
 		if err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
