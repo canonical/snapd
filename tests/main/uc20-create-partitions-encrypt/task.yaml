@@ -150,7 +150,7 @@ execute: |
     echo "Run the snap-bootstrap tool"
     uc20-create-partitions \
         --encrypt \
-        ./gadget-dir "$kerneldir" "$LOOP"
+        ./gadget-dir pc-kernel "$kerneldir" x1 "$LOOP"
     # keep for later
 
     echo "Check that the ubuntu-data key files were created"
