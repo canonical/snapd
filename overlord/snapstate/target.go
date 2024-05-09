@@ -358,20 +358,6 @@ func InstallTarget(ctx context.Context, st *state.State, target Target, opts Opt
 		return nil, nil, err
 	}
 
-	laneGenerator := func() int {
-		// If transactional, use a single lane for all snaps, so when
-		// one fails the changes for all affected snaps will be
-		// undone. Otherwise, have different lanes per snap so failures
-		// only affect the culprit snap.
-		switch opts.Flags.Transaction {
-		case client.TransactionAllSnaps:
-			return opts.Flags.Lane
-		case client.TransactionPerSnap:
-			return st.NewLane()
-		}
-		return 0
-	}
-
 	tasksets := make([]*state.TaskSet, 0, len(installables))
 	infos := make([]*snap.Info, 0, len(installables))
 	for _, inst := range installables {
@@ -427,13 +413,27 @@ func InstallTarget(ctx context.Context, st *state.State, target Target, opts Opt
 			return nil, nil, err
 		}
 
-		ts.JoinLane(laneGenerator())
+		ts.JoinLane(laneGenerator(st, opts))
 
 		tasksets = append(tasksets, ts)
 		infos = append(infos, info)
 	}
 
 	return infos, tasksets, nil
+}
+
+func laneGenerator(st *state.State, opts Options) int {
+	// If transactional, use a single lane for all snaps, so when
+	// one fails the changes for all affected snaps will be
+	// undone. Otherwise, have different lanes per snap so failures
+	// only affect the culprit snap.
+	switch opts.Flags.Transaction {
+	case client.TransactionAllSnaps:
+		return opts.Flags.Lane
+	case client.TransactionPerSnap:
+		return st.NewLane()
+	}
+	return 0
 }
 
 func setDefaultSnapstateOptions(st *state.State, opts *Options) error {
