@@ -35,8 +35,7 @@ type Installable struct {
 	Info *snap.Info
 }
 
-// Target is an interface that represents a single snap or a group of snaps that
-// are to be installed.
+// Target represents a single snap or a group of snaps to be installed.
 type Target interface {
 	// Installables returns the data needed to setup the snaps for installation.
 	Installables(context.Context, *state.State, map[string]*SnapState, SnapstateOptions) ([]Installable, error)
@@ -62,7 +61,7 @@ type StoreSnap struct {
 	SkipIfPresent bool
 }
 
-// StoreTarget implements the TargetGroup interface and represents a group of
+// StoreTarget implements the Target interface and represents a group of
 // snaps that are to be installed from the store.
 type StoreTarget struct {
 	snaps map[string]StoreSnap
@@ -71,7 +70,7 @@ type StoreTarget struct {
 // verify that StoreTarget implements the Target interface
 var _ Target = &StoreTarget{}
 
-// NewStoreTarget creates a new StoreGroup from the given StoreTargets.
+// NewStoreTarget creates a new StoreTarget from the given StoreSnaps.
 func NewStoreTarget(snaps ...StoreSnap) *StoreTarget {
 	mapping := make(map[string]StoreSnap, len(snaps))
 	for _, sn := range snaps {
@@ -100,7 +99,7 @@ func validateRevisionOpts(opts RevisionOptions) error {
 }
 
 // Installables returns the data needed to setup the snaps from the store for
-// installation. Implements the Target interface.
+// installation.
 func (s *StoreTarget) Installables(ctx context.Context, st *state.State, snaps map[string]*SnapState, opts SnapstateOptions) ([]Installable, error) {
 	if err := s.validateAndPrune(snaps); err != nil {
 		return nil, err
@@ -428,8 +427,7 @@ func setDefaultSnapstateOptions(st *state.State, opts *SnapstateOptions) error {
 	return nil
 }
 
-// PathTarget implements the Target interface and represents a single snap to be
-// installed from a path on disk.
+// PathTarget represents a single snap to be installed from a path on disk.
 type PathTarget struct {
 	// Path is the path to the snap on disk.
 	Path string
@@ -471,8 +469,7 @@ func (p *PathTarget) InitOptions(st *state.State, opts *SnapstateOptions) error 
 	return nil
 }
 
-// Installables returns the data needed to setup the snap from disk. Implements
-// the Target interface.
+// Installables returns the data needed to setup the snap from disk.
 func (p *PathTarget) Installables(ctx context.Context, st *state.State, snaps map[string]*SnapState, opts SnapstateOptions) ([]Installable, error) {
 	si := p.SideInfo
 
