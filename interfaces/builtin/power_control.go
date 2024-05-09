@@ -50,10 +50,15 @@ const powerControlConnectedPlugAppArmor = `
 # for android kernels, see https://android.googlesource.com/kernel/msm/+/android-msm-bullhead-3.10-marshmallow-dr/Documentation/devicetree/bindings/arm/msm/lpm-levels.txt
 /sys/module/lpm_levels/parameters/sleep_disabled rw,
 
-# Needed for ACPI modules to read and set values for battery charging thresholds
-/sys/devices/**/power_supply/BAT[0-9]*/charge_start_threshold rw,
-/sys/devices/**/power_supply/BAT[0-9]*/charge_stop_threshold rw,
-`
+# Needed for ACPI modules to read and set values for battery charging thresholds & other functionality
+# required by auto-cpufreq, reference: https://github.com/snapcore/snapd/pull/13722
+/sys/devices/**/power_supply/BAT[0-9]*/charge_start_threshold rw, 
+/sys/devices/**/power_supply/BAT[0-9]*/charge_stop_threshold rw, 
+/sys/devices/**/power_supply/BAT[0-9]*/type r,
+/sys/devices/**/power_supply/BAT[0-9]*/status r,
+/sys/devices/**/power_supply/AC/type r,
+/sys/devices/**/power_supply/AC/online r,
+@{PROC}/@{pid}/cmdline r,
 
 func init() {
 	registerIface(&commonInterface{
