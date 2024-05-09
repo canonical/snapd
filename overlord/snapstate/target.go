@@ -32,11 +32,11 @@ import (
 	"github.com/snapcore/snapd/store"
 )
 
-// SnapstateOptions contains optional parameters for the snapstate operations.
-// All of these fields are optional and can be left unset. The options in this
-// struct apply to all snaps that are part of an operation. Options that apply
-// to individual snaps can be found in RevisionOptions.
-type SnapstateOptions struct {
+// Options contains optional parameters for the snapstate operations. All of
+// these fields are optional and can be left unset. The options in this struct
+// apply to all snaps that are part of an operation. Options that apply to
+// individual snaps can be found in RevisionOptions.
+type Options struct {
 	Flags         Flags
 	UserID        int
 	FromChange    string
@@ -57,7 +57,7 @@ type Installable struct {
 // Target represents a single snap or a group of snaps to be installed.
 type Target interface {
 	// Installables returns the data needed to setup the snaps for installation.
-	Installables(context.Context, *state.State, map[string]*SnapState, SnapstateOptions) ([]Installable, error)
+	Installables(context.Context, *state.State, map[string]*SnapState, Options) ([]Installable, error)
 }
 
 // OptionInitializer is an interface that can be implemented by a Target to
@@ -65,7 +65,7 @@ type Target interface {
 type OptionInitializer interface {
 	// InitOptions initializes the SnapstateOptions before the installation of
 	// the snaps.
-	InitOptions(*state.State, *SnapstateOptions) error
+	InitOptions(*state.State, *Options) error
 }
 
 // StoreSnap represents a snap that is to be installed from the store.
@@ -119,7 +119,7 @@ func validateRevisionOpts(opts RevisionOptions) error {
 
 // Installables returns the data needed to setup the snaps from the store for
 // installation.
-func (s *StoreTarget) Installables(ctx context.Context, st *state.State, snaps map[string]*SnapState, opts SnapstateOptions) ([]Installable, error) {
+func (s *StoreTarget) Installables(ctx context.Context, st *state.State, snaps map[string]*SnapState, opts Options) ([]Installable, error) {
 	if err := s.validateAndPrune(snaps); err != nil {
 		return nil, err
 	}
@@ -202,7 +202,7 @@ func (s *StoreTarget) Installables(ctx context.Context, st *state.State, snaps m
 	return installs, err
 }
 
-func installActionForStoreTarget(t StoreSnap, opts SnapstateOptions, enforcedSets func() (*snapasserts.ValidationSets, error)) (*store.SnapAction, error) {
+func installActionForStoreTarget(t StoreSnap, opts Options, enforcedSets func() (*snapasserts.ValidationSets, error)) (*store.SnapAction, error) {
 	action := &store.SnapAction{
 		Action:       "install",
 		InstanceName: t.Name,
@@ -301,7 +301,7 @@ func (s *StoreTarget) validateAndPrune(snaps map[string]*SnapState) error {
 	return nil
 }
 
-func InstallOne(ctx context.Context, st *state.State, target Target, opts SnapstateOptions) (*snap.Info, *state.TaskSet, error) {
+func InstallOne(ctx context.Context, st *state.State, target Target, opts Options) (*snap.Info, *state.TaskSet, error) {
 	infos, tasksets, err := InstallTarget(ctx, st, target, opts)
 	if err != nil {
 		return nil, nil, err
@@ -314,7 +314,7 @@ func InstallOne(ctx context.Context, st *state.State, target Target, opts Snapst
 	return infos[0], tasksets[0], nil
 }
 
-func InstallTarget(ctx context.Context, st *state.State, target Target, opts SnapstateOptions) ([]*snap.Info, []*state.TaskSet, error) {
+func InstallTarget(ctx context.Context, st *state.State, target Target, opts Options) ([]*snap.Info, []*state.TaskSet, error) {
 	if opts.PrereqTracker == nil {
 		opts.PrereqTracker = snap.SimplePrereqTracker{}
 	}
@@ -436,7 +436,7 @@ func InstallTarget(ctx context.Context, st *state.State, target Target, opts Sna
 	return infos, tasksets, nil
 }
 
-func setDefaultSnapstateOptions(st *state.State, opts *SnapstateOptions) error {
+func setDefaultSnapstateOptions(st *state.State, opts *Options) error {
 	var err error
 	opts.DeviceCtx, err = DevicePastSeeding(st, opts.DeviceCtx)
 	if err != nil {
@@ -478,7 +478,7 @@ func NewPathTarget(name, path string, si *snap.SideInfo, opts RevisionOptions) *
 
 // InitOptions initializes the SnapstateOptions before the installation of the
 // snaps. Implements the OptionInitializer interface.
-func (p *PathTarget) InitOptions(st *state.State, opts *SnapstateOptions) error {
+func (p *PathTarget) InitOptions(st *state.State, opts *Options) error {
 	var err error
 	opts.DeviceCtx, err = DeviceCtxFromState(st, opts.DeviceCtx)
 	if err != nil {
@@ -489,7 +489,7 @@ func (p *PathTarget) InitOptions(st *state.State, opts *SnapstateOptions) error 
 }
 
 // Installables returns the data needed to setup the snap from disk.
-func (p *PathTarget) Installables(ctx context.Context, st *state.State, snaps map[string]*SnapState, opts SnapstateOptions) ([]Installable, error) {
+func (p *PathTarget) Installables(ctx context.Context, st *state.State, snaps map[string]*SnapState, opts Options) ([]Installable, error) {
 	si := p.SideInfo
 
 	if si.RealName == "" {

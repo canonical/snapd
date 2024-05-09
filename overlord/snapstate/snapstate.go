@@ -1327,7 +1327,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 	target := NewPathTarget(instanceName, path, si, RevisionOptions{
 		Channel: channel,
 	})
-	info, ts, err := InstallOne(context.Background(), st, target, SnapstateOptions{
+	info, ts, err := InstallOne(context.Background(), st, target, Options{
 		Flags:         flags,
 		PrereqTracker: prqt,
 	})
@@ -1374,7 +1374,7 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 		RevOpts: *opts,
 	})
 
-	_, ts, err := InstallOne(ctx, st, target, SnapstateOptions{
+	_, ts, err := InstallOne(ctx, st, target, Options{
 		Flags:         flags,
 		UserID:        userID,
 		FromChange:    fromChange,
@@ -1405,7 +1405,7 @@ func InstallPathWithDeviceContext(st *state.State, si *snap.SideInfo, path, name
 
 	target := NewPathTarget(name, path, si, *opts)
 
-	_, ts, err := InstallOne(context.Background(), st, target, SnapstateOptions{
+	_, ts, err := InstallOne(context.Background(), st, target, Options{
 		Flags:         flags,
 		UserID:        userID,
 		FromChange:    fromChange,
@@ -1631,7 +1631,7 @@ func InstallMany(st *state.State, names []string, revOpts []*RevisionOptions, us
 	}
 
 	target := NewStoreTarget(snaps...)
-	infos, tss, err := InstallTarget(context.Background(), st, target, SnapstateOptions{
+	infos, tss, err := InstallTarget(context.Background(), st, target, Options{
 		Flags:  *flags,
 		UserID: userID,
 	})
