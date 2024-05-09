@@ -1050,7 +1050,26 @@ func StopServices(apps []*snap.AppInfo, flags *StopServicesFlags, reason snap.Se
 				err = sysd.Stop([]string{srv})
 			})
 			if err != nil {
-				return
+				// Sometimes, services can fail to stop for weird reasons due to weird host setup. For instance,
+				// the fwupd services can fail their systemctl stop call if the host already has fwupd installed
+				// through the deb package (because of dbus allocations), and this blocks updating/removal of the
+				// fwupd snap, even though the service is not actually (ever) running.
+				// So to combat this, when a stop call fails, we check whether it is actually running, and if it is
+				// not running, then it was probably not a reason to abort everything.
+				sts, serr := sysd.Status([]string{srv})
+				if serr != nil || len(sts) != 1 {
+					// okay this is completely off, lets just abort
+					return
+				}
+
+				// Let's only abort if the service is still running
+				if sts[0].Active {
+					return
+				}
+
+				// Still log the issue though!
+				logger.Noticef("cannot stop service %q: %v", srv, err)
+				err = nil
 			}
 		}
 	})
