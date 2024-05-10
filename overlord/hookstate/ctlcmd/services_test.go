@@ -481,10 +481,11 @@ func (s *servicectlSuite) TestQueuedCommands(c *C) {
 
 	for _, ts := range tts {
 		tsTasks := ts.Tasks()
-		// assumes configure task is last
-		task := tsTasks[len(tsTasks)-1]
+
+		// default-configure hook runs before start-snap-services which runs before the configure hook
+		task := tsTasks[len(tsTasks)-4]
 		c.Assert(task.Kind(), Equals, "run-hook")
-		setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "configure"}
+		setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "default-configure"}
 		context, err := hookstate.NewContext(task, task.State(), setup, s.mockHandler, "")
 		c.Assert(err, IsNil)
 
@@ -494,19 +495,43 @@ func (s *servicectlSuite) TestQueuedCommands(c *C) {
 		c.Check(err, IsNil)
 		_, _, err = ctlcmd.Run(context, []string{"restart", "test-snap.test-service"}, 0)
 		c.Check(err, IsNil)
+
+		// configure hook is second to last, just before the check-health hook
+		task = tsTasks[len(tsTasks)-2]
+		c.Assert(task.Kind(), Equals, "run-hook")
+		setup = &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "configure"}
+		context, err = hookstate.NewContext(task, task.State(), setup, s.mockHandler, "")
+		c.Assert(err, IsNil)
+
+		_, _, err = ctlcmd.Run(context, []string{"stop", "test-snap.another-service"}, 0)
+		c.Check(err, IsNil)
+		_, _, err = ctlcmd.Run(context, []string{"start", "test-snap.another-service"}, 0)
+		c.Check(err, IsNil)
+		_, _, err = ctlcmd.Run(context, []string{"restart", "test-snap.another-service"}, 0)
+		c.Check(err, IsNil)
 	}
 
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	expectedTaskKinds := append(installTaskKinds, "exec-command", "service-control", "exec-command", "service-control", "exec-command", "service-control")
+	expectedTaskKinds := append(installTaskKinds,
+		"exec-command", "service-control", "exec-command", "service-control", "exec-command", "service-control",
+		"exec-command", "service-control", "exec-command", "service-control", "exec-command", "service-control",
+	)
 	checkLaneTasks := func(lane int) {
 		laneTasks := chg.LaneTasks(lane)
 		c.Assert(taskKinds(laneTasks), DeepEquals, expectedTaskKinds)
+		c.Check(laneTasks[11].Summary(), Matches, `Run default-configure hook of .* snap if present`)
+		c.Check(laneTasks[12].Summary(), Matches, `Start snap .* services`)
 		c.Check(laneTasks[13].Summary(), Matches, `Run configure hook of .* snap if present`)
+		// services started by the default-configure hook
 		c.Check(laneTasks[15].Summary(), Equals, "stop of [test-snap.test-service]")
 		c.Check(laneTasks[17].Summary(), Equals, "start of [test-snap.test-service]")
 		c.Check(laneTasks[19].Summary(), Equals, "restart of [test-snap.test-service]")
+		// services started by the default-configure hook
+		c.Check(laneTasks[21].Summary(), Equals, "stop of [test-snap.another-service]")
+		c.Check(laneTasks[23].Summary(), Equals, "start of [test-snap.another-service]")
+		c.Check(laneTasks[25].Summary(), Equals, "restart of [test-snap.another-service]")
 	}
 	checkLaneTasks(1)
 	checkLaneTasks(2)
@@ -672,10 +697,11 @@ func (s *servicectlSuite) TestQueuedCommandsSingleLane(c *C) {
 	s.st.Unlock()
 
 	tsTasks := ts.Tasks()
-	// assumes configure task is last
-	task := tsTasks[len(tsTasks)-1]
+
+	// default-configure hook runs before start-snap-services which runs before the configure hook
+	task := tsTasks[len(tsTasks)-4]
 	c.Assert(task.Kind(), Equals, "run-hook")
-	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "configure"}
+	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "default-configure"}
 	context, err := hookstate.NewContext(task, task.State(), setup, s.mockHandler, "")
 	c.Assert(err, IsNil)
 
@@ -686,15 +712,39 @@ func (s *servicectlSuite) TestQueuedCommandsSingleLane(c *C) {
 	_, _, err = ctlcmd.Run(context, []string{"restart", "test-snap.test-service"}, 0)
 	c.Check(err, IsNil)
 
+	// configure hook is second to last, just before the check-health hook
+	task = tsTasks[len(tsTasks)-2]
+	c.Assert(task.Kind(), Equals, "run-hook")
+	setup = &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "configure"}
+	context, err = hookstate.NewContext(task, task.State(), setup, s.mockHandler, "")
+	c.Assert(err, IsNil)
+
+	_, _, err = ctlcmd.Run(context, []string{"stop", "test-snap.another-service"}, 0)
+	c.Check(err, IsNil)
+	_, _, err = ctlcmd.Run(context, []string{"start", "test-snap.another-service"}, 0)
+	c.Check(err, IsNil)
+	_, _, err = ctlcmd.Run(context, []string{"restart", "test-snap.another-service"}, 0)
+	c.Check(err, IsNil)
+
 	s.st.Lock()
 	defer s.st.Unlock()
 
 	laneTasks := chg.LaneTasks(0)
-	c.Assert(taskKinds(laneTasks), DeepEquals, append(installTaskKinds, "exec-command", "service-control", "exec-command", "service-control", "exec-command", "service-control"))
+	c.Assert(taskKinds(laneTasks), DeepEquals, append(installTaskKinds,
+		"exec-command", "service-control", "exec-command", "service-control", "exec-command", "service-control",
+		"exec-command", "service-control", "exec-command", "service-control", "exec-command", "service-control",
+	))
+	c.Check(laneTasks[11].Summary(), Matches, `Run default-configure hook of .* snap if present`)
+	c.Check(laneTasks[12].Summary(), Matches, `Start snap .* services`)
 	c.Check(laneTasks[13].Summary(), Matches, `Run configure hook of .* snap if present`)
+	// services started by the default-configure hook
 	c.Check(laneTasks[15].Summary(), Equals, "stop of [test-snap.test-service]")
 	c.Check(laneTasks[17].Summary(), Equals, "start of [test-snap.test-service]")
 	c.Check(laneTasks[19].Summary(), Equals, "restart of [test-snap.test-service]")
+	// services started by the default-configure hook
+	c.Check(laneTasks[21].Summary(), Equals, "stop of [test-snap.another-service]")
+	c.Check(laneTasks[23].Summary(), Equals, "start of [test-snap.another-service]")
+	c.Check(laneTasks[25].Summary(), Equals, "restart of [test-snap.another-service]")
 }
 
 func (s *servicectlSuite) TestTwoServices(c *C) {

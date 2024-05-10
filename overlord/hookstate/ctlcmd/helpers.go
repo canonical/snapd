@@ -149,7 +149,7 @@ func runServiceCommand(context *hookstate.Context, inst *servicestate.Instructio
 		return err
 	}
 
-	if !context.IsEphemeral() && context.HookName() == "configure" {
+	if !context.IsEphemeral() && (context.HookName() == "configure" || context.HookName() == "default-configure") {
 		return queueCommand(context, tts)
 	}
 
