@@ -45,9 +45,7 @@ func (e *ValidationError) addErr(label string, errs ...error) {
 	if e.SystemErrors == nil {
 		e.SystemErrors = make(map[string][]error)
 	}
-	for _, err := range errs {
-		e.SystemErrors[label] = append(e.SystemErrors[label], err)
-	}
+	e.SystemErrors[label] = append(e.SystemErrors[label], errs...)
 }
 
 func (e ValidationError) hasErrors() bool {
