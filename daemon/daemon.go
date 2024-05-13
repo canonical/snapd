@@ -495,12 +495,13 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	}
 	restartSocket := d.restartSocket
 	rebootInfo := d.rebootInfo
+	requestedRestart := d.requestedRestart
 	d.mu.Unlock()
 
 	// before not accepting any new client connections we need to write the
 	// maintenance.json file for potential clients to see after the daemon stops
 	// responding so they can read it correctly and handle the maintenance
-	if err := d.updateMaintenanceFile(d.requestedRestart); err != nil {
+	if err := d.updateMaintenanceFile(requestedRestart); err != nil {
 		logger.Noticef("error writing maintenance file: %v", err)
 	}
 
