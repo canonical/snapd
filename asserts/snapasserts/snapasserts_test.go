@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -35,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -788,4 +790,321 @@ provenance: prov`, nil)
 
 	_, err = snapasserts.DeriveSideInfoFromDigestAndSize(withProv, digest, size, nil, s.localDB)
 	c.Check(err, ErrorMatches, `safely handling snaps with different provenance but same hash not yet supported`)
+}
+
+func (s *snapassertsSuite) TestCrossCheckResource(c *C) {
+	digest := makeDigest(12)
+	componentRev := snap.R(24)
+	snapRev := snap.R(12)
+	const size = uint64(1024)
+	const resourceName = "test-component"
+	const snapID = "snap-id-1"
+
+	revHeaders := map[string]interface{}{
+		"snap-id":           snapID,
+		"resource-name":     resourceName,
+		"resource-sha3-384": digest,
+		"resource-revision": componentRev.String(),
+		"resource-size":     strconv.Itoa(int(size)),
+		"developer-id":      s.dev1Acct.AccountID(),
+		"timestamp":         time.Now().Format(time.RFC3339),
+	}
+
+	resourceRev, err := s.storeSigning.Sign(asserts.SnapResourceRevisionType, revHeaders, nil, "")
+	c.Assert(err, IsNil)
+	err = s.localDB.Add(resourceRev)
+	c.Assert(err, IsNil)
+
+	pairHeaders := map[string]interface{}{
+		"snap-id":           snapID,
+		"resource-name":     resourceName,
+		"resource-revision": componentRev.String(),
+		"snap-revision":     snapRev.String(),
+		"developer-id":      s.dev1Acct.AccountID(),
+		"timestamp":         time.Now().Format(time.RFC3339),
+	}
+
+	resourcePair, err := s.storeSigning.Sign(asserts.SnapResourcePairType, pairHeaders, nil, "")
+	c.Assert(err, IsNil)
+	err = s.localDB.Add(resourcePair)
+	c.Assert(err, IsNil)
+
+	si := &snap.SideInfo{
+		SnapID:   "snap-id-1",
+		Revision: snap.R(12),
+	}
+
+	csi := &snap.ComponentSideInfo{
+		Component: naming.NewComponentRef("snap", "test-component"),
+		Revision:  snap.R(24),
+	}
+
+	// everything cross checks, with the regular snap name
+	err = snapasserts.CrossCheckResource(resourceName, digest, "", size, csi, si, nil, s.localDB)
+	c.Assert(err, IsNil)
+}
+
+func (s *snapassertsSuite) TestCrossCheckResourceMissingRevisionAssertion(c *C) {
+	s.testCrossCheckResourceMissingRevisionAssertion(c, "")
+}
+
+func (s *snapassertsSuite) TestCrossCheckResourceProvenanceMissingRevisionAssertion(c *C) {
+	s.testCrossCheckResourceMissingRevisionAssertion(c, "prov")
+}
+
+func (s *snapassertsSuite) testCrossCheckResourceMissingRevisionAssertion(c *C, provenance string) {
+	digest := makeDigest(12)
+	const resourceName = "test-component"
+
+	si := &snap.SideInfo{
+		SnapID:   "snap-id-1",
+		Revision: snap.R(12),
+	}
+
+	csi := &snap.ComponentSideInfo{
+		Component: naming.NewComponentRef("snap", "test-component"),
+		Revision:  snap.R(24),
+	}
+
+	err := snapasserts.CrossCheckResource(resourceName, digest, provenance, uint64(1024), csi, si, nil, s.localDB)
+	c.Assert(err, NotNil)
+
+	var suffix string
+	if provenance != "" {
+		suffix = fmt.Sprintf(" provenance: %s", provenance)
+	}
+	c.Assert(err, ErrorMatches, fmt.Sprintf("internal error: cannot find pre-populated snap-resource-revision assertion for %q: %s%s", resourceName, digest, suffix))
+}
+
+func (s *snapassertsSuite) TestCrossCheckResourceProvenance(c *C) {
+	snapRev := snap.R(12)
+	const (
+		snapID     = "snap-id-1"
+		provenance = "prov"
+	)
+
+	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+		"series":       "16",
+		"snap-id":      snapID,
+		"snap-name":    "foo",
+		"publisher-id": s.dev1Acct.AccountID(),
+		"revision":     "1",
+		"revision-authority": []interface{}{
+			map[string]interface{}{
+				"account-id": s.dev1Acct.AccountID(),
+				"provenance": []interface{}{
+					provenance,
+				},
+			},
+		},
+		"timestamp": time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = s.localDB.Add(snapDecl)
+	c.Assert(err, IsNil)
+
+	digest := makeDigest(12)
+	componentRev := snap.R(24)
+	const (
+		size         = uint64(1024)
+		resourceName = "test-component"
+	)
+
+	revHeaders := map[string]interface{}{
+		"authority-id":      s.dev1Acct.AccountID(),
+		"snap-id":           snapID,
+		"resource-name":     resourceName,
+		"resource-sha3-384": digest,
+		"resource-revision": componentRev.String(),
+		"resource-size":     strconv.Itoa(int(size)),
+		"developer-id":      s.dev1Acct.AccountID(),
+		"timestamp":         time.Now().Format(time.RFC3339),
+		"provenance":        provenance,
+	}
+
+	resourceRev, err := s.dev1Signing.Sign(asserts.SnapResourceRevisionType, revHeaders, nil, "")
+	c.Assert(err, IsNil)
+	err = s.localDB.Add(resourceRev)
+	c.Assert(err, IsNil)
+
+	pairHeaders := map[string]interface{}{
+		"authority-id":      s.dev1Acct.AccountID(),
+		"snap-id":           snapID,
+		"resource-name":     resourceName,
+		"resource-revision": componentRev.String(),
+		"snap-revision":     snapRev.String(),
+		"developer-id":      s.dev1Acct.AccountID(),
+		"timestamp":         time.Now().Format(time.RFC3339),
+		"provenance":        provenance,
+	}
+
+	resourcePair, err := s.dev1Signing.Sign(asserts.SnapResourcePairType, pairHeaders, nil, "")
+	c.Assert(err, IsNil)
+	err = s.localDB.Add(resourcePair)
+	c.Assert(err, IsNil)
+
+	si := &snap.SideInfo{
+		SnapID:   "snap-id-1",
+		Revision: snap.R(12),
+	}
+
+	csi := &snap.ComponentSideInfo{
+		Component: naming.NewComponentRef("snap", "test-component"),
+		Revision:  snap.R(24),
+	}
+
+	err = snapasserts.CrossCheckResource(resourceName, digest, provenance, size, csi, si, nil, s.localDB)
+	c.Assert(err, IsNil)
+
+	// update the snap-decl with a mismatch provenance and check that the cross
+	// check fails
+	snapDecl, err = s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+		"series":       "16",
+		"snap-id":      snapID,
+		"snap-name":    "foo",
+		"publisher-id": s.dev1Acct.AccountID(),
+		"revision":     "2",
+		"revision-authority": []interface{}{
+			map[string]interface{}{
+				"account-id": s.dev1Acct.AccountID(),
+				"provenance": []interface{}{
+					"new-prov",
+				},
+			},
+		},
+		"timestamp": time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = s.localDB.Add(snapDecl)
+	c.Assert(err, IsNil)
+
+	err = snapasserts.CrossCheckResource(resourceName, digest, provenance, size, csi, si, nil, s.localDB)
+	c.Assert(err, ErrorMatches, `snap resource \"test-component\" revision assertion with provenance \"prov\" is not signed by an authority authorized on this device:.*`)
+}
+
+func (s *snapassertsSuite) TestCrossCheckResourceErrors(c *C) {
+	digest := makeDigest(12)
+	componentRev := snap.R(24)
+	snapRev := snap.R(12)
+	const (
+		size         = uint64(1024)
+		resourceName = "test-component"
+		snapID       = "snap-id-1"
+	)
+
+	originalRevHeaders := map[string]interface{}{
+		"snap-id":           snapID,
+		"resource-name":     resourceName,
+		"resource-sha3-384": digest,
+		"resource-revision": componentRev.String(),
+		"resource-size":     strconv.Itoa(int(size)),
+		"developer-id":      s.dev1Acct.AccountID(),
+		"timestamp":         time.Now().Format(time.RFC3339),
+	}
+
+	originalPairHeaders := map[string]interface{}{
+		"snap-id":           snapID,
+		"resource-name":     resourceName,
+		"resource-revision": componentRev.String(),
+		"snap-revision":     snapRev.String(),
+		"developer-id":      s.dev1Acct.AccountID(),
+		"timestamp":         time.Now().Format(time.RFC3339),
+	}
+
+	headers := map[string]interface{}{
+		"series":       "16",
+		"snap-id":      "snap-id-1",
+		"snap-name":    "foo",
+		"publisher-id": s.dev1Acct.AccountID(),
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}
+	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
+	c.Assert(err, IsNil)
+
+	type test struct {
+		revisionOverrides map[string]interface{}
+		pairOverrides     map[string]interface{}
+		err               string
+	}
+
+	tests := []test{
+		{
+			revisionOverrides: map[string]interface{}{
+				"resource-size": "1023",
+			},
+			err: `resource \"test-component\" file does not have expected size according to signatures \(download is broken or tampered\): 1024 != 1023`,
+		},
+		{
+			revisionOverrides: map[string]interface{}{
+				"resource-revision": "25",
+			},
+			err: `resource \"test-component\" does not have expected revision according to assertions \(metadata is broken or tampered\): 24 != 25`,
+		},
+		{
+			pairOverrides: map[string]interface{}{
+				"resource-revision": "25",
+			},
+			err: `cannot find snap-resource-pair for test-component: snap-resource-pair assertion not found`,
+		},
+		{
+			revisionOverrides: map[string]interface{}{
+				"resource-name": "nope",
+			},
+			err: `internal error: cannot find pre-populated snap-resource-revision assertion for \"test-component\": .*`,
+		},
+	}
+
+	for _, t := range tests {
+		localDB, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+			Backstore: asserts.NewMemoryBackstore(),
+			Trusted:   s.storeSigning.Trusted,
+		})
+		c.Assert(err, IsNil)
+
+		err = localDB.Add(s.storeSigning.StoreAccountKey(""))
+		c.Assert(err, IsNil)
+		err = localDB.Add(s.dev1Acct)
+		c.Assert(err, IsNil)
+
+		revHeaders := copyMapWithOverrides(originalRevHeaders, t.revisionOverrides)
+		pairHeaders := copyMapWithOverrides(originalPairHeaders, t.pairOverrides)
+
+		err = localDB.Add(snapDecl)
+		c.Assert(err, IsNil)
+
+		resourceRev, err := s.storeSigning.Sign(asserts.SnapResourceRevisionType, revHeaders, nil, "")
+		c.Assert(err, IsNil)
+		err = localDB.Add(resourceRev)
+		c.Assert(err, IsNil)
+
+		resourcePair, err := s.storeSigning.Sign(asserts.SnapResourcePairType, pairHeaders, nil, "")
+		c.Assert(err, IsNil)
+		err = localDB.Add(resourcePair)
+		c.Assert(err, IsNil)
+
+		si := &snap.SideInfo{
+			SnapID:   "snap-id-1",
+			Revision: snap.R(12),
+		}
+
+		csi := &snap.ComponentSideInfo{
+			Component: naming.NewComponentRef("snap", "test-component"),
+			Revision:  snap.R(24),
+		}
+
+		// everything cross checks, with the regular snap name
+		err = snapasserts.CrossCheckResource(resourceName, digest, "", size, csi, si, nil, localDB)
+		c.Assert(err, ErrorMatches, t.err)
+	}
+}
+
+func copyMapWithOverrides(m map[string]interface{}, overrides map[string]interface{}) map[string]interface{} {
+	c := make(map[string]interface{}, len(m))
+	for k, v := range m {
+		c[k] = v
+	}
+	for k, v := range overrides {
+		c[k] = v
+	}
+	return c
 }
