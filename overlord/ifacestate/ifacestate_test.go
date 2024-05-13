@@ -281,6 +281,11 @@ slots:
 	s.plug = consumer.Plugs["plug"]
 	producer := snaptest.MockInfo(c, producerYaml4, nil)
 	s.slot = producer.Slots["slot"]
+
+	s.AddCleanup(ifacestate.MockSnapdAppArmorServiceIsDisabled(func() bool {
+		// pretend the snapd.apparmor.service is enabled
+		return false
+	}))
 }
 
 func (s *interfaceManagerSuite) TearDownTest(c *C) {
