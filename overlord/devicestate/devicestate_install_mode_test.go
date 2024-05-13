@@ -127,6 +127,9 @@ func (s *deviceMgrInstallModeSuite) SetUpTest(c *C) {
 		return &fakeSeed{}, nil
 	})
 	s.AddCleanup(restore)
+
+	mcmd := testutil.MockCommand(c, "snap", "echo 'snap is not mocked'; exit 1")
+	s.AddCleanup(mcmd.Restore)
 }
 
 const (
