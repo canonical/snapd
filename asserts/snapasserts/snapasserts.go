@@ -379,6 +379,36 @@ func FetchSnapAssertions(f asserts.Fetcher, snapSHA3_384, provenance string) err
 	return f.Fetch(ref)
 }
 
+// FetchComponentAssertions fetches the assertions matching the information
+// described in the given SideInfo and ComponentSideInfo using the given
+// fetcher.
+func FetchComponentAssertions(f asserts.Fetcher, si *snap.SideInfo, csi *snap.ComponentSideInfo, hash, provenance string) error {
+	// for now starting from the snap-resource-revision will get us all other relevant assertions
+	ref := &asserts.Ref{
+		Type:       asserts.SnapResourceRevisionType,
+		PrimaryKey: []string{si.SnapID, csi.Component.ComponentName, hash},
+	}
+	if provenance != "" {
+		ref.PrimaryKey = append(ref.PrimaryKey, provenance)
+	}
+
+	if err := f.Fetch(ref); err != nil {
+		return err
+	}
+
+	// fetch the snap-resource-pair as well
+	ref = &asserts.Ref{
+		Type:       asserts.SnapResourcePairType,
+		PrimaryKey: []string{si.SnapID, csi.Component.ComponentName, csi.Revision.String(), si.Revision.String()},
+	}
+
+	if provenance != "" {
+		ref.PrimaryKey = append(ref.PrimaryKey, provenance)
+	}
+
+	return f.Fetch(ref)
+}
+
 // FetchSnapDeclaration fetches the snap declaration and its prerequisites for the given snap id using the given fetcher.
 func FetchSnapDeclaration(f asserts.Fetcher, snapID string) error {
 	ref := &asserts.Ref{
