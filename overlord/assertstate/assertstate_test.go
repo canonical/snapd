@@ -528,7 +528,7 @@ version: %d
 	return snaptest.MakeTestSnapWithFiles(c, yaml, nil)
 }
 
-func (s *assertMgrSuite) prereqSnapAssertions(c *C, revisions ...int) (paths map[int]string, digests map[int]string) {
+func (s *assertMgrSuite) prereqSnapAssertions(c *C, provenance string, revisions ...int) (paths map[int]string, digests map[int]string) {
 	headers := map[string]interface{}{
 		"series":       "16",
 		"snap-id":      "snap-id-1",
@@ -536,6 +536,17 @@ func (s *assertMgrSuite) prereqSnapAssertions(c *C, revisions ...int) (paths map
 		"publisher-id": s.dev1Acct.AccountID(),
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}
+	if provenance != "" {
+		headers["revision-authority"] = []interface{}{
+			map[string]interface{}{
+				"account-id": s.dev1Acct.AccountID(),
+				"provenance": []interface{}{
+					provenance,
+				},
+			},
+		}
+	}
+
 	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
 	c.Assert(err, IsNil)
 	err = s.storeSigning.Add(snapDecl)
@@ -559,7 +570,13 @@ func (s *assertMgrSuite) prereqSnapAssertions(c *C, revisions ...int) (paths map
 			"developer-id":  s.dev1Acct.AccountID(),
 			"timestamp":     time.Now().Format(time.RFC3339),
 		}
-		snapRev, err := s.storeSigning.Sign(asserts.SnapRevisionType, headers, nil, "")
+		signer := assertstest.SignerDB(s.storeSigning)
+		if provenance != "" {
+			headers["provenance"] = provenance
+			signer = s.dev1Signing
+		}
+
+		snapRev, err := signer.Sign(asserts.SnapRevisionType, headers, nil, "")
 		c.Assert(err, IsNil)
 		err = s.storeSigning.Add(snapRev)
 		c.Assert(err, IsNil)
@@ -568,7 +585,7 @@ func (s *assertMgrSuite) prereqSnapAssertions(c *C, revisions ...int) (paths map
 	return paths, digests
 }
 
-func (s *assertMgrSuite) prereqComponentAssertions(c *C, snapRev, compRev snap.Revision) (compPath string, digest string) {
+func (s *assertMgrSuite) prereqComponentAssertions(c *C, provenance string, snapRev, compRev snap.Revision) (compPath string, digest string) {
 	const (
 		resourceName  = "test-component"
 		snapID        = "snap-id-1"
@@ -593,7 +610,13 @@ version: 1.0.2
 		"timestamp":         time.Now().Format(time.RFC3339),
 	}
 
-	resourceRev, err := s.storeSigning.Sign(asserts.SnapResourceRevisionType, revHeaders, nil, "")
+	signer := assertstest.SignerDB(s.storeSigning)
+	if provenance != "" {
+		revHeaders["provenance"] = provenance
+		signer = s.dev1Signing
+	}
+
+	resourceRev, err := signer.Sign(asserts.SnapResourceRevisionType, revHeaders, nil, "")
 	c.Assert(err, IsNil)
 	err = s.storeSigning.Add(resourceRev)
 	c.Assert(err, IsNil)
@@ -606,8 +629,11 @@ version: 1.0.2
 		"developer-id":      s.dev1Acct.AccountID(),
 		"timestamp":         time.Now().Format(time.RFC3339),
 	}
+	if provenance != "" {
+		pairHeaders["provenance"] = provenance
+	}
 
-	resourcePair, err := s.storeSigning.Sign(asserts.SnapResourcePairType, pairHeaders, nil, "")
+	resourcePair, err := signer.Sign(asserts.SnapResourcePairType, pairHeaders, nil, "")
 	c.Assert(err, IsNil)
 	err = s.storeSigning.Add(resourcePair)
 	c.Assert(err, IsNil)
@@ -616,7 +642,7 @@ version: 1.0.2
 }
 
 func (s *assertMgrSuite) TestDoFetch(c *C) {
-	_, digests := s.prereqSnapAssertions(c, 10)
+	_, digests := s.prereqSnapAssertions(c, "", 10)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -637,7 +663,7 @@ func (s *assertMgrSuite) TestDoFetch(c *C) {
 }
 
 func (s *assertMgrSuite) TestFetchIdempotent(c *C) {
-	_, digests := s.prereqSnapAssertions(c, 10, 11)
+	_, digests := s.prereqSnapAssertions(c, "", 10, 11)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -793,7 +819,7 @@ func (s *assertMgrSuite) setupModelAndStore(c *C) *asserts.Store {
 }
 
 func (s *assertMgrSuite) TestValidateSnap(c *C) {
-	paths, digests := s.prereqSnapAssertions(c, 10)
+	paths, digests := s.prereqSnapAssertions(c, "", 10)
 	snapPath := paths[10]
 
 	s.state.Lock()
@@ -840,7 +866,7 @@ func (s *assertMgrSuite) TestValidateSnap(c *C) {
 }
 
 func (s *assertMgrSuite) TestValidateSnapStoreNotFound(c *C) {
-	paths, digests := s.prereqSnapAssertions(c, 10)
+	paths, digests := s.prereqSnapAssertions(c, "", 10)
 
 	snapPath := paths[10]
 
@@ -932,7 +958,7 @@ func (s *assertMgrSuite) TestValidateSnapNotFound(c *C) {
 }
 
 func (s *assertMgrSuite) TestValidateSnapCrossCheckFail(c *C) {
-	paths, _ := s.prereqSnapAssertions(c, 10)
+	paths, _ := s.prereqSnapAssertions(c, "", 10)
 
 	snapPath := paths[10]
 
@@ -5267,12 +5293,22 @@ func (s *assertMgrSuite) TestAspectBundle(c *C) {
 }
 
 func (s *assertMgrSuite) TestValidateComponent(c *C) {
+	const provenance = ""
+	s.testValidateComponent(c, provenance)
+}
+
+func (s *assertMgrSuite) TestValidateComponentProvenance(c *C) {
+	const provenance = "provenance"
+	s.testValidateComponent(c, provenance)
+}
+
+func (s *assertMgrSuite) testValidateComponent(c *C, provenance string) {
 	snapRev, compRev := snap.R(10), snap.R(20)
 
-	paths, _ := s.prereqSnapAssertions(c, 10)
+	paths, _ := s.prereqSnapAssertions(c, provenance, 10)
 	snapPath := paths[10]
 
-	compPath, compDigest := s.prereqComponentAssertions(c, snapRev, compRev)
+	compPath, compDigest := s.prereqComponentAssertions(c, provenance, snapRev, compRev)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -5285,8 +5321,9 @@ func (s *assertMgrSuite) TestValidateComponent(c *C) {
 	chg := s.state.NewChange("install", "...")
 	t := s.state.NewTask("validate-component", "Fetch and check snap assertions")
 	snapsup := snapstate.SnapSetup{
-		SnapPath: snapPath,
-		UserID:   0,
+		SnapPath:           snapPath,
+		UserID:             0,
+		ExpectedProvenance: provenance,
 		SideInfo: &snap.SideInfo{
 			RealName: "foo",
 			SnapID:   "snap-id-1",
@@ -5313,11 +5350,16 @@ func (s *assertMgrSuite) TestValidateComponent(c *C) {
 
 	db := assertstate.DB(s.state)
 
-	a, err := db.Find(asserts.SnapResourceRevisionType, map[string]string{
+	headers := map[string]string{
 		"resource-sha3-384": compDigest,
 		"resource-name":     "test-component",
 		"snap-id":           "snap-id-1",
-	})
+	}
+	if provenance != "" {
+		headers["provenance"] = provenance
+	}
+
+	a, err := db.Find(asserts.SnapResourceRevisionType, headers)
 	c.Assert(err, IsNil)
 	c.Check(a.(*asserts.SnapResourceRevision).ResourceRevision(), Equals, 20)
 
