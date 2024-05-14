@@ -57,7 +57,8 @@ const powerControlConnectedPlugAppArmor = `
 /sys/devices/**/power_supply/BAT[0-9]*/type r,
 /sys/devices/**/power_supply/BAT[0-9]*/status r,
 /sys/devices/**/power_supply/AC/type r,
-/sys/devices/**/power_supply/AC/online r,`
+/sys/devices/**/power_supply/AC/online r,
+`
 
 func init() {
 	registerIface(&commonInterface{
