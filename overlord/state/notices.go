@@ -22,6 +22,7 @@ import (
 	"os/signal"
 	"sort"
 	"strconv"
+	"sync"
 	"syscall"
 	"time"
 )
@@ -451,26 +452,26 @@ func (s *State) WaitNotices(ctx context.Context, filter *NoticeFilter) ([]*Notic
 	defer stop()
 
 	chKill := make(chan os.Signal, 2)
-	chWaitThread := make(chan bool, 1)
 	signal.Notify(chKill, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
+	var wait sync.WaitGroup
+	wait.Add(1)
+	go func(chKillf *chan os.Signal, waitf *sync.WaitGroup) {
 		// SIGxxx thread
-		a := <-chKill
-		signal.Stop(chKill)
+		a := <-*chKillf
+		signal.Stop(*chKillf)
 		if a != nil {
 			// SIGTERM or SIGKILL has been received
 			daemonTerminated = true
 			// unlock the wait
 			s.noticeCond.Broadcast()
 		}
-		chWaitThread <- true // notify the main thread that we have finished
-	}()
+		waitf.Done() // notify the main thread that we have finished
+	}(&chKill, &wait)
 	defer func() {
 		// this will also notify the SIGxxx thread to exit
 		close(chKill)
 		// wait for the thread to fully exit, to avoid problems with shared variables and channels
-		<-chWaitThread
-		close(chWaitThread)
+		wait.Wait()
 	}()
 
 	for {
