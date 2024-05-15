@@ -71,15 +71,21 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *sn
 		CompType:     compInfo.Type,
 		CompPath:     path,
 	}
-	// The file passed around is temporary, make sure it gets removed.
-	// TODO probably this should be part of a flags type in the future.
-	removeComponentPath := true
-	return doInstallComponent(st, &snapst, compSetup, snapsup, removeComponentPath, "")
+
+	return doInstallComponent(st, &snapst, compSetup, snapsup, componentInstallFlags{
+		// The file passed around is temporary, make sure it gets removed.
+		RemoveComponentPath: true,
+	}, "")
+}
+
+type componentInstallFlags struct {
+	RemoveComponentPath bool
+	SkipSecurity        bool
 }
 
 // doInstallComponent might be called with the owner snap installed or not.
 func doInstallComponent(st *state.State, snapst *SnapState, compSetup *ComponentSetup,
-	snapsup *SnapSetup, removeComponentPath bool, fromChange string) (*state.TaskSet, error) {
+	snapsup *SnapSetup, flags componentInstallFlags, fromChange string) (*state.TaskSet, error) {
 
 	// TODO check for experimental flag that will hide temporarily components
 
@@ -136,7 +142,7 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup *Component
 				compSi.Component, revisionStr))
 		addTask(mount)
 	} else {
-		if removeComponentPath {
+		if flags.RemoveComponentPath {
 			// If the revision is local, we will not need the
 			// temporary snap. This can happen when e.g.
 			// side-loading a local revision again. The path is
@@ -167,9 +173,10 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup *Component
 	}
 
 	// security
-	setupSecurity := st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup component %q%s security profiles"), compSi.Component, revisionStr))
-	addTask(setupSecurity)
-	prev = setupSecurity
+	if !flags.SkipSecurity {
+		setupSecurity := st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup component %q%s security profiles"), compSi.Component, revisionStr))
+		addTask(setupSecurity)
+	}
 
 	// finalize (sets SnapState)
 	linkSnap := st.NewTask("link-component",
