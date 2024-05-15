@@ -534,6 +534,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, compsups 
 		t.Set("snap-setup-task", prepare.ID())
 		t.WaitFor(prev)
 		tasks = append(tasks, t)
+		prev = t
 	}
 	addTasksFromTaskSet := func(ts *state.TaskSet) {
 		ts.WaitFor(prev)
@@ -546,14 +547,12 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, compsups 
 		// fetch and check assertions
 		checkAsserts = st.NewTask("validate-snap", fmt.Sprintf(i18n.G("Fetch and check assertions for snap %q%s"), snapsup.InstanceName(), revisionStr))
 		addTask(checkAsserts)
-		prev = checkAsserts
 	}
 
 	// mount
 	if !revisionIsLocal {
 		mount := st.NewTask("mount-snap", fmt.Sprintf(i18n.G("Mount snap %q%s"), snapsup.InstanceName(), revisionStr))
 		addTask(mount)
-		prev = mount
 	} else {
 		if snapsup.Flags.RemoveSnapPath {
 			// If the revision is local, we will not need the
@@ -572,7 +571,6 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, compsups 
 	if runRefreshHooks {
 		preRefreshHook := SetupPreRefreshHook(st, snapsup.InstanceName())
 		addTask(preRefreshHook)
-		prev = preRefreshHook
 	}
 
 	if snapst.IsInstalled() {
@@ -580,17 +578,14 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, compsups 
 		stop := st.NewTask("stop-snap-services", fmt.Sprintf(i18n.G("Stop snap %q services"), snapsup.InstanceName()))
 		stop.Set("stop-reason", snap.StopReasonRefresh)
 		addTask(stop)
-		prev = stop
 
 		removeAliases := st.NewTask("remove-aliases", fmt.Sprintf(i18n.G("Remove aliases for snap %q"), snapsup.InstanceName()))
 		removeAliases.Set("remove-reason", removeAliasesReasonRefresh)
 		addTask(removeAliases)
-		prev = removeAliases
 
 		unlink := st.NewTask("unlink-current-snap", fmt.Sprintf(i18n.G("Make current revision for snap %q unavailable"), snapsup.InstanceName()))
 		unlink.Set("unlink-reason", unlinkReasonRefresh)
 		addTask(unlink)
-		prev = unlink
 	}
 
 	// we need to know some of the characteristics of the device - it is
@@ -607,14 +602,12 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, compsups 
 	if snapsup.Type == snap.TypeKernel && NeedsKernelSetup(deviceCtx.Model()) {
 		setupKernel := st.NewTask("prepare-kernel-snap", fmt.Sprintf(i18n.G("Prepare kernel driver tree for %q%s"), snapsup.InstanceName(), revisionStr))
 		addTask(setupKernel)
-		prev = setupKernel
 	}
 
 	if deviceCtx.IsCoreBoot() && (snapsup.Type == snap.TypeGadget || (snapsup.Type == snap.TypeKernel && !TestingLeaveOutKernelUpdateGadgetAssets)) {
 		// gadget update currently for core boot systems only
 		gadgetUpdate := st.NewTask("update-gadget-assets", fmt.Sprintf(i18n.G("Update assets from %s %q%s"), snapsup.Type, snapsup.InstanceName(), revisionStr))
 		addTask(gadgetUpdate)
-		prev = gadgetUpdate
 	}
 	// kernel command line from gadget is for core boot systems only
 	if deviceCtx.IsCoreBoot() && snapsup.Type == snap.TypeGadget {
@@ -624,14 +617,12 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, compsups 
 		}
 		gadgetCmdline := st.NewTask("update-gadget-cmdline", fmt.Sprintf(i18n.G("Update kernel command line from gadget %q%s"), snapsup.InstanceName(), revisionStr))
 		addTask(gadgetCmdline)
-		prev = gadgetCmdline
 	}
 
 	// copy-data (needs stopped services by unlink)
 	if !snapsup.Flags.Revert {
 		copyData := st.NewTask("copy-snap-data", fmt.Sprintf(i18n.G("Copy snap %q data"), snapsup.InstanceName()))
 		addTask(copyData)
-		prev = copyData
 	}
 
 	tasksAfterLinkSnap := make([]*state.Task, 0, len(compsups))
@@ -653,7 +644,6 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, compsups 
 
 		for _, t := range beforeLink {
 			addTask(t)
-			prev = t
 		}
 
 		tasksAfterLinkSnap = append(tasksAfterLinkSnap, afterLink...)
@@ -662,7 +652,6 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, compsups 
 	// security
 	setupSecurity := st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup snap %q%s security profiles"), snapsup.InstanceName(), revisionStr))
 	addTask(setupSecurity)
-	prev = setupSecurity
 
 	// finalize (wrappers+current symlink)
 	//
@@ -677,11 +666,9 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, compsups 
 	// additional tasks.
 	linkSnap := st.NewTask("link-snap", fmt.Sprintf(i18n.G("Make snap %q%s available to the system"), snapsup.InstanceName(), revisionStr))
 	addTask(linkSnap)
-	prev = linkSnap
 
 	for _, t := range tasksAfterLinkSnap {
 		addTask(t)
-		prev = t
 	}
 
 	// auto-connections
@@ -696,29 +683,24 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, compsups 
 	// performs some reboot-verification code.
 	autoConnect := st.NewTask("auto-connect", fmt.Sprintf(i18n.G("Automatically connect eligible plugs and slots of snap %q"), snapsup.InstanceName()))
 	addTask(autoConnect)
-	prev = autoConnect
 
 	if snapsup.Type == snap.TypeKernel && NeedsKernelSetup(deviceCtx.Model()) {
 		// This task needs to run after we're back and running the new
 		// kernel after a reboot was requested in link-snap handler.
 		setupKernel := st.NewTask("discard-old-kernel-snap-setup", fmt.Sprintf(i18n.G("Discard previous kernel driver tree for %q%s"), snapsup.InstanceName(), revisionStr))
 		addTask(setupKernel)
-		prev = setupKernel
 	}
 
 	// setup aliases
 	setAutoAliases := st.NewTask("set-auto-aliases", fmt.Sprintf(i18n.G("Set automatic aliases for snap %q"), snapsup.InstanceName()))
 	addTask(setAutoAliases)
-	prev = setAutoAliases
 
 	setupAliases := st.NewTask("setup-aliases", fmt.Sprintf(i18n.G("Setup snap %q aliases"), snapsup.InstanceName()))
 	addTask(setupAliases)
-	prev = setupAliases
 
 	if snapsup.Flags.Prefer {
 		prefer := st.NewTask("prefer-aliases", fmt.Sprintf(i18n.G("Prefer aliases for snap %q"), snapsup.InstanceName()))
 		addTask(prefer)
-		prev = prefer
 	}
 
 	if deviceCtx.IsCoreBoot() && snapsup.Type == snap.TypeSnapd {
@@ -730,13 +712,11 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, compsups 
 		// so that the task is executed by the new snapd
 		bootConfigUpdate := st.NewTask("update-managed-boot-config", fmt.Sprintf(i18n.G("Update managed boot config assets from %q%s"), snapsup.InstanceName(), revisionStr))
 		addTask(bootConfigUpdate)
-		prev = bootConfigUpdate
 	}
 
 	if runRefreshHooks {
 		postRefreshHook := SetupPostRefreshHook(st, snapsup.InstanceName())
 		addTask(postRefreshHook)
-		prev = postRefreshHook
 	}
 
 	var installHook *state.Task
@@ -744,7 +724,6 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, compsups 
 	if !snapst.IsInstalled() {
 		installHook = SetupInstallHook(st, snapsup.InstanceName())
 		addTask(installHook)
-		prev = installHook
 	}
 
 	if snapsup.QuotaGroupName != "" {
@@ -753,7 +732,6 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, compsups 
 			return nil, err
 		}
 		addTask(quotaAddSnapTask)
-		prev = quotaAddSnapTask
 	}
 
 	// only run default-configure hook if installing the snap for the first time and
@@ -766,7 +744,6 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, compsups 
 	// run new services
 	startSnapServices := st.NewTask("start-snap-services", fmt.Sprintf(i18n.G("Start snap %q%s services"), snapsup.InstanceName(), revisionStr))
 	addTask(startSnapServices)
-	prev = startSnapServices
 
 	// Do not do that if we are reverting to a local revision
 	var cleanupTask *state.Task
