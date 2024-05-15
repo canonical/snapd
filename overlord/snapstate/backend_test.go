@@ -60,6 +60,11 @@ type fakeOp struct {
 	sinfo snap.SideInfo
 	stype snap.Type
 
+	componentName     string
+	componentPath     string
+	componentRev      snap.Revision
+	componentSideInfo snap.ComponentSideInfo
+
 	curSnaps []store.CurrentSnap
 	action   store.SnapAction
 
@@ -1440,12 +1445,21 @@ func (f *fakeSnappyBackend) CurrentInfo(curInfo *snap.Info) {
 	})
 }
 
-func (f *fakeSnappyBackend) ForeignTask(kind string, status state.Status, snapsup *snapstate.SnapSetup) error {
-	f.appendOp(&fakeOp{
+func (f *fakeSnappyBackend) ForeignTask(kind string, status state.Status, snapsup *snapstate.SnapSetup, compsup *snapstate.ComponentSetup) error {
+	op := &fakeOp{
 		op:    kind + ":" + status.String(),
 		name:  snapsup.InstanceName(),
 		revno: snapsup.Revision(),
-	})
+	}
+
+	if compsup != nil {
+		op.componentName = compsup.ComponentName()
+		op.componentPath = compsup.CompPath
+		op.componentRev = compsup.Revision()
+		op.componentSideInfo = *compsup.CompSideInfo
+	}
+
+	f.appendOp(op)
 	return f.maybeErrForLastOp()
 }
 

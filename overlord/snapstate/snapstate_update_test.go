@@ -12463,7 +12463,7 @@ type: snapd
 				panic(err)
 			}
 		}
-		return s.fakeBackend.ForeignTask(kind, status, snapsup)
+		return s.fakeBackend.ForeignTask(kind, status, snapsup, nil)
 	}
 
 	s.o.TaskRunner().AddHandler("auto-connect", fakeAutoConnect, fakeAutoConnect)

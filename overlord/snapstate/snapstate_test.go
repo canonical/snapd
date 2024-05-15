@@ -352,22 +352,30 @@ func (s *snapmgrBaseTest) TearDownTest(c *C) {
 }
 
 type ForeignTaskTracker interface {
-	ForeignTask(kind string, status state.Status, snapsup *snapstate.SnapSetup) error
+	ForeignTask(kind string, status state.Status, snapsup *snapstate.SnapSetup, compsup *snapstate.ComponentSetup) error
 }
 
 func AddForeignTaskHandlers(runner *state.TaskRunner, tracker ForeignTaskTracker) {
 	// Add fake handlers for tasks handled by interfaces manager
 	fakeHandler := func(task *state.Task, _ *tomb.Tomb) error {
 		task.State().Lock()
+		defer task.State().Unlock()
 		kind := task.Kind()
 		status := task.Status()
 		snapsup, err := snapstate.TaskSnapSetup(task)
-		task.State().Unlock()
 		if err != nil {
 			return err
 		}
 
-		return tracker.ForeignTask(kind, status, snapsup)
+		var compsup *snapstate.ComponentSetup
+		if task.Has("component-setup") || task.Has("component-setup-task") {
+			compsup, _, err = snapstate.TaskComponentSetup(task)
+			if err != nil {
+				return err
+			}
+		}
+
+		return tracker.ForeignTask(kind, status, snapsup, compsup)
 	}
 	runner.AddHandler("setup-profiles", fakeHandler, fakeHandler)
 	runner.AddHandler("auto-connect", fakeHandler, fakeHandler)
