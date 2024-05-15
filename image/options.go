@@ -69,6 +69,8 @@ type Options struct {
 	Architecture string
 
 	Customizations Customizations
+
+	AutoImport string
 }
 
 // Customizatons defines possible image customizations. Not all of
