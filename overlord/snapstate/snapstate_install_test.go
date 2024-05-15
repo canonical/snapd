@@ -63,7 +63,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-func expectedDoInstallTasks(typ snap.Type, opts, discards int, startTasks []string, filterOut map[string]bool) []string {
+func expectedDoInstallTasks(typ snap.Type, opts, discards int, startTasks []string, components []string, filterOut map[string]bool) []string {
 	if !release.OnClassic || opts&isHybrid != 0 {
 		switch typ {
 		case snap.TypeGadget:
@@ -108,11 +108,24 @@ func expectedDoInstallTasks(typ snap.Type, opts, discards int, startTasks []stri
 	if opts&updatesGadget != 0 {
 		expected = append(expected, "update-gadget-cmdline")
 	}
-	expected = append(expected,
-		"copy-snap-data",
-		"setup-profiles",
-		"link-snap",
-		"auto-connect")
+
+	expected = append(expected, "copy-snap-data")
+
+	afterLinkSnap := make([]string, 0, len(components))
+	for range components {
+		compTasks := expectedComponentInstallTasks(compOptSkipSecurity)
+		for i, t := range compTasks {
+			if t == "link-component" {
+				afterLinkSnap = append(afterLinkSnap, compTasks[i:]...)
+				break
+			}
+			expected = append(expected, t)
+		}
+	}
+
+	expected = append(expected, "setup-profiles", "link-snap")
+	expected = append(expected, afterLinkSnap...)
+	expected = append(expected, "auto-connect")
 	if opts&updatesGadgetAssets != 0 && opts&needsKernelSetup != 0 {
 		expected = append(expected, "discard-old-kernel-snap-setup")
 	}
@@ -165,9 +178,13 @@ func expectedDoInstallTasks(typ snap.Type, opts, discards int, startTasks []stri
 }
 
 func verifyInstallTasks(c *C, typ snap.Type, opts, discards int, ts *state.TaskSet) {
+	verifyInstallTasksWithComponents(c, typ, opts, discards, nil, ts)
+}
+
+func verifyInstallTasksWithComponents(c *C, typ snap.Type, opts, discards int, components []string, ts *state.TaskSet) {
 	kinds := taskKinds(ts.Tasks())
 
-	expected := expectedDoInstallTasks(typ, opts, discards, nil, nil)
+	expected := expectedDoInstallTasks(typ, opts, discards, nil, components, nil)
 
 	c.Assert(kinds, DeepEquals, expected)
 
@@ -180,6 +197,18 @@ func verifyInstallTasks(c *C, typ snap.Type, opts, discards int, ts *state.TaskS
 			c.Assert(te.Kind(), Equals, "validate-snap")
 		}
 	}
+
+	var count int
+	for _, t := range ts.Tasks() {
+		switch t.Kind() {
+		case "prepare-component", "download-component":
+			compsup, _, err := snapstate.TaskComponentSetup(t)
+			c.Assert(err, IsNil)
+			c.Check(compsup.CompSideInfo.Component.ComponentName, Equals, components[count])
+			count++
+		}
+	}
+	c.Check(count, Equals, len(components), Commentf("expected %d components, found %d", len(components), count))
 }
 
 func (s *snapmgrTestSuite) TestInstallDevModeConfinementFiltering(c *C) {

@@ -45,6 +45,8 @@ const (
 	compTypeIsKernMods
 	// Current component is discarded at the end
 	compCurrentIsDiscarded
+	// Component is being installed with a snap, so skip setup-profiles
+	compOptSkipSecurity
 )
 
 // opts is a bitset with compOpt* as possible values.
@@ -69,7 +71,9 @@ func expectedComponentInstallTasks(opts int) []string {
 		startTasks = append(startTasks, "unlink-current-component")
 	}
 
-	startTasks = append(startTasks, "setup-profiles")
+	if opts&compOptSkipSecurity == 0 {
+		startTasks = append(startTasks, "setup-profiles")
+	}
 
 	// link-component is always present
 	startTasks = append(startTasks, "link-component")
