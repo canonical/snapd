@@ -10229,7 +10229,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshCreatePreDownload(c *C) {
 		Flags:    snapstate.Flags{IsAutoRefresh: true},
 	}
 
-	ts, err := snapstate.DoInstall(s.state, snapst, snapsup, 0, "", inUseCheck)
+	ts, err := snapstate.DoInstall(s.state, snapst, snapsup, nil, 0, "", inUseCheck)
 
 	var busyErr *snapstate.TimedBusySnapError
 	c.Assert(errors.As(err, &busyErr), Equals, true)
@@ -10657,7 +10657,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshBusySnapButOngoingPreDownload(c *C) {
 	// don't create a pre-download task if one exists w/ these statuses
 	for _, status := range []state.Status{state.DoStatus, state.DoingStatus} {
 		task.SetStatus(status)
-		ts, err := snapstate.DoInstall(s.state, snapst, snapsup, 0, "", inUseCheck)
+		ts, err := snapstate.DoInstall(s.state, snapst, snapsup, nil, 0, "", inUseCheck)
 
 		var busyErr *snapstate.TimedBusySnapError
 		c.Assert(errors.As(err, &busyErr), Equals, true)
@@ -10675,7 +10675,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshBusySnapButOngoingPreDownload(c *C) {
 
 	// a "Done" pre-download is ignored since the auto-refresh it causes might also be done
 	task.SetStatus(state.DoneStatus)
-	ts, err := snapstate.DoInstall(s.state, snapst, snapsup, 0, "", inUseCheck)
+	ts, err := snapstate.DoInstall(s.state, snapst, snapsup, nil, 0, "", inUseCheck)
 	c.Assert(err, FitsTypeOf, &snapstate.TimedBusySnapError{})
 	c.Assert(ts.Tasks(), HasLen, 1)
 }

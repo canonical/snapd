@@ -371,7 +371,33 @@ func isCoreSnap(snapName string) bool {
 	return snapName == defaultCoreSnapName
 }
 
-func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int, fromChange string, inUseCheck func(snap.Type) (boot.InUseFunc, error)) (*state.TaskSet, error) {
+func componentTasksForInstallWithSnap(ts *state.TaskSet) (beforeLink []*state.Task, linkAndAfter []*state.Task, err error) {
+	link, err := ts.Edge(MaybeRebootEdge)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	isBeforeLink := true
+
+	// this depends on the order of the tasks in the set, but if we want to
+	// maintain a logical ordering of the snaps in the task set returned by
+	// doInstall, then requiring this order simplifies the code a lot
+	for _, t := range ts.Tasks() {
+		if t.ID() == link.ID() {
+			isBeforeLink = false
+		}
+
+		if isBeforeLink {
+			beforeLink = append(beforeLink, t)
+		} else {
+			linkAndAfter = append(linkAndAfter, t)
+		}
+	}
+
+	return beforeLink, linkAndAfter, nil
+}
+
+func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, compsups []*ComponentSetup, flags int, fromChange string, inUseCheck func(snap.Type) (boot.InUseFunc, error)) (*state.TaskSet, error) {
 	tr := config.NewTransaction(st)
 	experimentalRefreshAppAwareness, err := features.Flag(tr, features.RefreshAppAwareness)
 	if err != nil && !config.IsNoOption(err) {
@@ -2091,7 +2117,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 
 		// Do not set any default restart boundaries, we do it when we have access to all
 		// the task-sets in preparation for single-reboot.
-		ts, err := doInstall(st, snapst, snapsup, noRestartBoundaries, fromChange, inUseFor(deviceCtx))
+		ts, err := doInstall(st, snapst, snapsup, nil, noRestartBoundaries, fromChange, inUseFor(deviceCtx))
 		if err != nil {
 			if errors.Is(err, &timedBusySnapError{}) && ts != nil {
 				// snap is busy and pre-download tasks were made for it
@@ -3905,7 +3931,7 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 		PlugsOnly:   len(info.Slots) == 0,
 		InstanceKey: snapst.InstanceKey,
 	}
-	return doInstall(st, &snapst, snapsup, 0, fromChange, nil)
+	return doInstall(st, &snapst, snapsup, nil, 0, fromChange, nil)
 }
 
 // TransitionCore transitions from an old core snap name to a new core
@@ -3947,7 +3973,7 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 			SideInfo:     &newInfo.SideInfo,
 			Type:         newInfo.Type(),
 			Version:      newInfo.Version,
-		}, 0, "", nil)
+		}, nil, 0, "", nil)
 		if err != nil {
 			return nil, err
 		}
