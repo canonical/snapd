@@ -333,6 +333,17 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 				DaemonScope: "user",
 			},
 		}
+	case "channel-for-components":
+		info.Components = map[string]*snap.Component{
+			"test-component": {
+				Type: snap.TestComponent,
+				Name: "test-component",
+			},
+			"kernel-modules-component": {
+				Type: snap.KernelModulesComponent,
+				Name: "kernel-modules-component",
+			},
+		}
 	case "channel-for-dbus-activation":
 		slot := &snap.SlotInfo{
 			Snap:      info,
