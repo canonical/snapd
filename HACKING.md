@@ -46,10 +46,15 @@ the `snapd` project, please see [Contributing to snapd](./CONTRIBUTING.md).
 Build dependencies can automatically be resolved using `build-dep` on Ubuntu:
 
     cd ~/snapd
-    sudo apt-get build-dep .
+    sudo apt build-dep .
 
 Package build dependencies for other distributions can be found under the
-[./packaging/](./packaging/) directory.
+[./packaging/](./packaging/) directory. Eg. for Fedora use:
+
+    cd packaging/fedora
+    sudo dnf install -y rpmdevtools
+    sudo dnf install -y $(rpmspec -q --buildrequires snapd.spec)
+    sudo dnf install glibc-static.i686 glibc-devel.i686
 
 Source dependencies are automatically retrieved at build time.
 Sometimes, it might be useful to pull them without building:
