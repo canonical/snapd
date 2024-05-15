@@ -153,12 +153,9 @@ func (m *SnapManager) doDownloadComponent(t *state.Task, tomb *tomb.Tomb) error 
 		return err
 	}
 
-	// TODO: actually get the user ID here, like in doDownloadSnap, and do
-	// something with it. this will require some plumbing
-	const userID = 0
-	user, err := userFromUserID(st, userID)
+	user, err := userFromUserID(st, snapsup.UserID)
 	if err != nil {
-		return fmt.Errorf("cannot get user for user ID %d: %w", userID, err)
+		return fmt.Errorf("cannot get user for user ID %d: %w", snapsup.UserID, err)
 	}
 
 	var rate int64
