@@ -282,13 +282,11 @@ func newAuthRequestor() (sb.AuthRequestor, error) {
 // activate it with the fallback recovery key instead.
 func unlockEncryptedPartitionWithSealedKey(mapperName, sourceDevice, keyfile string, allowRecovery bool) (UnlockMethod, error) {
 	var keys []*sb.KeyData
-	if osutil.FileExists(keyfile) {
-		keyData, err := sbNewKeyDataFromSealedKeyObjectFile(keyfile)
-		if err != nil {
-			return NotUnlocked, fmt.Errorf("cannot read key data: %v", err)
-		}
-		keys = append(keys, keyData)
+	keyData, err := sbNewKeyDataFromSealedKeyObjectFile(keyfile)
+	if err != nil {
+		return NotUnlocked, fmt.Errorf("cannot read key data: %v", err)
 	}
+	keys = append(keys, keyData)
 	options := activateVolOpts(allowRecovery)
 	options.Model = sb.SkipSnapModelCheck
 	// ignoring model checker as it doesn't work with tpm "legacy" platform key data
@@ -403,22 +401,33 @@ func SealKeys(keys []SealKeyRequest, params *SealKeysParams) error {
 	pcrHandle := params.PCRPolicyCounterHandle
 	logger.Noticef("sealing with PCR handle %#x", pcrHandle)
 
+	var primaryKey sb.PrimaryKey
 	for _, key := range keys {
 		creationParams := &sb_tpm2.ProtectKeyParams{
 			PCRProfile:             pcrProfile,
 			Role:                   "run",
 			PCRPolicyCounterHandle: tpm2.Handle(pcrHandle),
+			PrimaryKey:             primaryKey,
 		}
-		protectedKey, _ /*primaryKey*/, unlockKey, err := sbNewTPMProtectedKey(tpm, creationParams)
+		protectedKey, primaryKeyOut, unlockKey, err := sbNewTPMProtectedKey(tpm, creationParams)
+		if primaryKey == nil {
+			primaryKey = primaryKeyOut
+		}
 		if err != nil {
 			return err
 		}
-		writer, err := key.Resetter.Reset(unlockKey)
-		if err != nil {
+		const token = false
+		if _, err := key.Resetter.Reset(unlockKey, token); err != nil {
 			return err
 		}
+		writer := sb.NewFileKeyDataWriter(key.KeyFile)
 		if err := protectedKey.WriteAtomic(writer); err != nil {
 			return err
+		}
+	}
+	if primaryKey != nil {
+		if err := osutil.AtomicWriteFile(params.TPMPolicyAuthKeyFile, primaryKey, 0600, 0); err != nil {
+			return fmt.Errorf("cannot write the policy auth key file: %v", err)
 		}
 	}
 

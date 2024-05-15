@@ -37,13 +37,16 @@ func CreateKeyResetter(key sb.DiskUnlockKey, devicePath string) KeyResetter {
 	}
 }
 
-func (kr *sbKeyResetter) Reset(newKey sb.DiskUnlockKey) (sb.KeyDataWriter, error) {
+func (kr *sbKeyResetter) Reset(newKey sb.DiskUnlockKey, token bool) (sb.KeyDataWriter, error) {
 	defaultKeySlotName := "default"
 	if err := sb.AddLUKS2ContainerUnlockKey(kr.devicePath, defaultKeySlotName, kr.oldKey, newKey); err != nil {
 		return nil, err
 	}
 	if err := sb.DeleteLUKS2ContainerKey(kr.devicePath, kr.oldContainerKeySlot); err != nil {
 		return nil, err
+	}
+	if !token {
+		return nil, nil
 	}
 	writer, err := sb.NewLUKS2KeyDataWriter(kr.devicePath, defaultKeySlotName)
 	if err != nil {
@@ -66,6 +69,10 @@ func (kdw *MockKeyDataWriter) Commit() error {
 	return nil
 }
 
-func (kr *MockKeyResetter) Reset(newKey sb.DiskUnlockKey) (sb.KeyDataWriter, error) {
-	return &MockKeyDataWriter{}, nil
+func (kr *MockKeyResetter) Reset(newKey sb.DiskUnlockKey, token bool) (sb.KeyDataWriter, error) {
+	if token {
+		return &MockKeyDataWriter{}, nil
+	} else {
+		return nil, nil
+	}
 }

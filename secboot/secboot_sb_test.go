@@ -859,6 +859,8 @@ func (s *secbootSuite) TestSealKey(c *C) {
 					Model:          &asserts.Model{},
 				},
 			},
+			TPMPolicyAuthKeyFile:   filepath.Join(tmpDir, "policy-auth-key-file"),
+
 			PCRPolicyCounterHandle: 42,
 		}
 
@@ -871,9 +873,11 @@ func (s *secbootSuite) TestSealKey(c *C) {
 
 		myKeys := []secboot.SealKeyRequest{
 			{
+				KeyFile: "keyfile",
 				Resetter: &secboot.MockKeyResetter{},
 			},
 			{
+				KeyFile: "keyfile2",
 				Resetter: &secboot.MockKeyResetter{},
 			},
 		}
@@ -1472,15 +1476,18 @@ func (s *secbootSuite) TestSealKeysWithFDESetupHookHappy(c *C) {
 		return json.Marshal(res)
 	}
 
-	auxKey := keys.AuxKey{9, 10, 11, 12}
+	tmpdir := c.MkDir()
+	key1Fn := filepath.Join(tmpdir, "key1.key")
+	key2Fn := filepath.Join(tmpdir, "key2.key")
+	auxKeyFn := filepath.Join(tmpdir, "aux-key")
 	params := secboot.SealKeysWithFDESetupHookParams{
-		Model:  fakeModel,
-		AuxKey: auxKey,
+		Model:      fakeModel,
+		AuxKeyFile: auxKeyFn,
 	}
 	err := secboot.SealKeysWithFDESetupHook(runFDESetupHook,
 		[]secboot.SealKeyRequest{
-			{KeyName: "key1", Resetter: &secboot.MockKeyResetter{}},
-			{KeyName: "key2", Resetter: &secboot.MockKeyResetter{}},
+			{KeyName: "key1", KeyFile: key1Fn, Resetter: &secboot.MockKeyResetter{}},
+			{KeyName: "key2", KeyFile: key2Fn, Resetter: &secboot.MockKeyResetter{}},
 		}, &params)
 	c.Assert(err, IsNil)
 	// check that runFDESetupHook was called the expected way

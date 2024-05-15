@@ -66,12 +66,15 @@ func NewLoadChain(bf bootloader.BootFile, next ...*LoadChain) *LoadChain {
 }
 
 type KeyResetter interface {
-	Reset(newKey sb.DiskUnlockKey) (sb.KeyDataWriter, error)
+	Reset(newKey sb.DiskUnlockKey, token bool) (sb.KeyDataWriter, error)
 }
 
 type SealKeyRequest struct {
 	// The key name; identical keys should have identical names
 	KeyName string
+	// The path to store the sealed key file. The same Key/KeyName
+	// can be stored under multiple KeyFile names for safety.
+	KeyFile string
 
 	Resetter KeyResetter
 }
@@ -119,6 +122,9 @@ type SealKeysParams struct {
 	ModelParams []*SealKeyModelParams
 	// The handle at which to create a NV index for dynamic authorization policy revocation support
 	PCRPolicyCounterHandle uint32
+	// The path to the authorization policy update key file (only relevant for TPM,
+	// if empty the key will not be saved)
+	TPMPolicyAuthKeyFile string
 }
 
 type SealKeysWithFDESetupHookParams struct {
@@ -126,6 +132,9 @@ type SealKeysWithFDESetupHookParams struct {
 	Model ModelForSealing
 	// AuxKey is the auxiliary key used to bind models.
 	AuxKey keys.AuxKey
+	// The path to the aux key file (if empty the key will not be
+	// saved)
+	AuxKeyFile string
 }
 
 type ResealKeysParams struct {
