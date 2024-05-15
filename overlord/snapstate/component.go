@@ -106,23 +106,23 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup *Component
 
 	// Check if we already have the revision in the snaps folder (alters tasks).
 	// Note that this will search for all snap revisions in the system.
-	revisionIsPresent := snapst.IsComponentRevPresent(compSi) == true
+	revisionIsPresent := snapst.IsComponentRevPresent(compSi)
 	revisionStr := fmt.Sprintf(" (%s)", compSi.Revision)
 
-	var prepare, prev *state.Task
+	fromStore := compSetup.CompPath == "" && !revisionIsPresent
+
+	var prepare *state.Task
 	// if we have a local revision here we go back to that
-	if compSetup.CompPath != "" || revisionIsPresent {
-		prepare = st.NewTask("prepare-component",
-			fmt.Sprintf(i18n.G("Prepare component %q%s"),
-				compSetup.CompPath, revisionStr))
+	if fromStore {
+		prepare = st.NewTask("download-component", fmt.Sprintf(i18n.G("Download component %q%s"), compSetup.ComponentName(), revisionStr))
 	} else {
-		prepare = st.NewTask("download-component", fmt.Sprintf(i18n.G("Download component %q%s"), compSetup, revisionStr))
+		prepare = st.NewTask("prepare-component", fmt.Sprintf(i18n.G("Prepare component %q%s"), compSetup.CompPath, revisionStr))
 	}
 	prepare.Set("component-setup", compSetup)
 	prepare.Set("snap-setup", snapsup)
 
 	tasks := []*state.Task{prepare}
-	prev = prepare
+	prev := prepare
 
 	addTask := func(t *state.Task) {
 		t.Set("component-setup-task", prepare.ID())
@@ -132,8 +132,12 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup *Component
 		prev = t
 	}
 
-	// TODO task to fetch and check assertions for component if from store
-	// (equivalent to "validate-snap")
+	if fromStore {
+		validate := st.NewTask("validate-component", fmt.Sprintf(
+			i18n.G("Fetch and check assertions for component %q%s"), compSetup.ComponentName(), revisionStr),
+		)
+		addTask(validate)
+	}
 
 	// Task that copies the file and creates mount units
 	if !revisionIsPresent {

@@ -54,8 +54,9 @@ func expectedComponentInstallTasks(opts int) []string {
 	if opts&compOptIsLocal != 0 {
 		startTasks = []string{"prepare-component"}
 	} else {
-		startTasks = []string{"download-component"}
+		startTasks = []string{"download-component", "validate-component"}
 	}
+
 	// Revision is not the same as the current one installed
 	if opts&compOptRevisionPresent == 0 {
 		startTasks = append(startTasks, "mount-component")
