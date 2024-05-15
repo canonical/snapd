@@ -634,6 +634,31 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, compsups 
 		prev = copyData
 	}
 
+	tasksAfterLinkSnap := make([]*state.Task, 0, len(compsups))
+	for _, compsup := range compsups {
+		compTaskSet, err := doInstallComponent(st, snapst, compsup, snapsup, componentInstallFlags{
+			// if we are removing the snap, we can assume that we should remove
+			// the component too
+			RemoveComponentPath: snapsup.RemoveSnapPath,
+			SkipSecurity:        true,
+		}, "")
+		if err != nil {
+			return nil, fmt.Errorf("cannot install component %q: %v", compsup.CompSideInfo.Component, err)
+		}
+
+		beforeLink, afterLink, err := componentTasksForInstallWithSnap(compTaskSet)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, t := range beforeLink {
+			addTask(t)
+			prev = t
+		}
+
+		tasksAfterLinkSnap = append(tasksAfterLinkSnap, afterLink...)
+	}
+
 	// security
 	setupSecurity := st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup snap %q%s security profiles"), snapsup.InstanceName(), revisionStr))
 	addTask(setupSecurity)
@@ -653,6 +678,11 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, compsups 
 	linkSnap := st.NewTask("link-snap", fmt.Sprintf(i18n.G("Make snap %q%s available to the system"), snapsup.InstanceName(), revisionStr))
 	addTask(linkSnap)
 	prev = linkSnap
+
+	for _, t := range tasksAfterLinkSnap {
+		addTask(t)
+		prev = t
+	}
 
 	// auto-connections
 	//

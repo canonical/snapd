@@ -383,6 +383,7 @@ func AddForeignTaskHandlers(runner *state.TaskRunner, tracker ForeignTaskTracker
 	runner.AddHandler("remove-profiles", fakeHandler, fakeHandler)
 	runner.AddHandler("discard-conns", fakeHandler, fakeHandler)
 	runner.AddHandler("validate-snap", fakeHandler, nil)
+	runner.AddHandler("validate-component", fakeHandler, nil)
 	runner.AddHandler("transition-ubuntu-core", fakeHandler, nil)
 	runner.AddHandler("transition-to-snapd-snap", fakeHandler, nil)
 	runner.AddHandler("update-gadget-assets", fakeHandler, nil)
