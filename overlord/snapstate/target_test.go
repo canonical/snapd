@@ -42,7 +42,7 @@ func (s *TargetTestSuite) TestInstallWithComponents(c *C) {
 		}
 	}
 
-	goal := snapstate.StoreGoal(snapstate.StoreSnap{
+	goal := snapstate.StoreInstallGoal(snapstate.StoreSnap{
 		InstanceName: "test-snap",
 		Components:   []string{"test-component"},
 		RevOpts: snapstate.RevisionOptions{
