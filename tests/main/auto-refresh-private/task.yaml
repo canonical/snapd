@@ -7,6 +7,11 @@ details: |
     snap set in the environment variables SPREAD_STORE_USER and SPREAD_STORE_PASSWORD, if
     they are not present then only the negative check is performed.
 
+meta:
+    features: [refresh] # available features are listed in spread.meta.yaml
+    groups: [smoke, core-validation] # available groups are listed in spread.meta.yaml
+    tags: [] # tags are free labels used to identify the test
+
 # we don't have expect available on ubuntu-core, so the authenticated check need to be skipped on those systems
 systems: [-ubuntu-core-*]
 
