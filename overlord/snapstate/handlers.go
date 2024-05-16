@@ -661,21 +661,17 @@ func (m *SnapManager) undoPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 		return nil
 	}
 
-	var logMsg []string
 	var snapSetup string
 	dupSig := []string{"snap-install:"}
 	chg := t.Change()
-	logMsg = append(logMsg, fmt.Sprintf("change %q: %q", chg.Kind(), chg.Summary()))
 	for _, t := range chg.Tasks() {
 		// TODO: report only tasks in intersecting lanes?
 		tintro := fmt.Sprintf("%s: %s", t.Kind(), t.Status())
-		logMsg = append(logMsg, tintro)
 		dupSig = append(dupSig, tintro)
 		if snapsup, err := TaskSnapSetup(t); err == nil && snapsup.SideInfo != nil {
 			snapSetup1 := fmt.Sprintf(" snap-setup: %q (%v) %q", snapsup.SideInfo.RealName, snapsup.SideInfo.Revision, snapsup.SideInfo.Channel)
 			if snapSetup1 != snapSetup {
 				snapSetup = snapSetup1
-				logMsg = append(logMsg, snapSetup)
 				dupSig = append(dupSig, fmt.Sprintf(" snap-setup: %q", snapsup.SideInfo.RealName))
 			}
 		}
@@ -688,7 +684,6 @@ func (m *SnapManager) undoPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 			}
 			// not tStampLen+1 because the indent is nice
 			entry := l[tStampLen:]
-			logMsg = append(logMsg, entry)
 			dupSig = append(dupSig, entry)
 		}
 	}
