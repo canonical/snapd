@@ -53,7 +53,7 @@ def check_pr_title(pr_number: int):
     # package, otherpackage/subpackage: this is a title
     # tests/regression/lp-12341234: foo
     # [RFC] foo: bar
-    if not re.match(r"[a-zA-Z0-9_\-\*/,. \[\]{}]+: .*", title):
+    if not re.match(r"[a-zA-Z0-9_\-\*/,. \[\](){}]+: .*", title):
         raise InvalidPRTitle(title)
 
 
