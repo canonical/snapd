@@ -122,13 +122,15 @@ build_rpm() {
 
     # Cleanup all artifacts from previous builds
     rm -rf "$rpm_dir"/BUILD/*
+    # Install build dependencies
+    distro_install_package rpmdevtools
+    # shellcheck disable=SC2046
+    distro_install_package $(rpmspec -q --buildrequires --with testkeys \
+                             "$packaging_path/snapd.spec")
 
     # Build our source package
     unshare -n -- \
             rpmbuild --with testkeys -bs "$rpm_dir/SOURCES/snapd.spec"
-
-    # .. and we need all necessary build dependencies available
-    install_snapd_rpm_dependencies "$rpm_dir"/SRPMS/snapd-1337.*.src.rpm
 
     # And now build our binary package
     unshare -n -- \
