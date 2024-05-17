@@ -81,7 +81,6 @@ func (r *hookKeyRevealer) RevealKey(handle, ciphertext, aad []byte) (plaintext [
 }
 
 func SealKeysWithFDESetupHook(runHook fde.RunSetupHookFunc, keys []SealKeyRequest, params *SealKeysWithFDESetupHookParams) error {
-	//primaryKey := sb.PrimaryKey(params.AuxKey[:])
 	var primaryKey sb.PrimaryKey
 
 	for _, skr := range keys {
@@ -111,7 +110,7 @@ func SealKeysWithFDESetupHook(runHook fde.RunSetupHookFunc, keys []SealKeyReques
 			primaryKey = primaryKeyOut
 		}
 		const token = false
-		if _, err := skr.Resetter.Reset(unlockKey, token); err != nil {
+		if _, err := skr.Resetter.AddKey(skr.SlotName, unlockKey, token); err != nil {
 			return err
 		}
 		writer := sb.NewFileKeyDataWriter(skr.KeyFile)
@@ -122,6 +121,13 @@ func SealKeysWithFDESetupHook(runHook fde.RunSetupHookFunc, keys []SealKeyReques
 	if primaryKey != nil {
 		if err := osutil.AtomicWriteFile(params.AuxKeyFile, primaryKey, 0600, 0); err != nil {
 			return fmt.Errorf("cannot write the policy auth key file: %v", err)
+		}
+	}
+
+	for _, skr := range keys {
+		if err := skr.Resetter.RemoveInstallationKey(); err != nil {
+			// This could be a warning
+			return err
 		}
 	}
 

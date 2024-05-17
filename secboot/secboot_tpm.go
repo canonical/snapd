@@ -417,7 +417,7 @@ func SealKeys(keys []SealKeyRequest, params *SealKeysParams) error {
 			return err
 		}
 		const token = false
-		if _, err := key.Resetter.Reset(unlockKey, token); err != nil {
+		if _, err := key.Resetter.AddKey(key.SlotName, unlockKey, token); err != nil {
 			return err
 		}
 		writer := sb.NewFileKeyDataWriter(key.KeyFile)
@@ -428,6 +428,13 @@ func SealKeys(keys []SealKeyRequest, params *SealKeysParams) error {
 	if primaryKey != nil {
 		if err := osutil.AtomicWriteFile(params.TPMPolicyAuthKeyFile, primaryKey, 0600, 0); err != nil {
 			return fmt.Errorf("cannot write the policy auth key file: %v", err)
+		}
+	}
+
+	for _, key := range keys {
+		if err := key.Resetter.RemoveInstallationKey(); err != nil {
+			// This could be a warning
+			return err
 		}
 	}
 

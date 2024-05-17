@@ -1899,6 +1899,10 @@ echo "mock output of: $(basename "$0") $*"
 		return nil
 	})()
 
+	defer secboot.MockCreateKeyResetter(func (key sb.DiskUnlockKey, devicePath string) secboot.KeyResetter {
+		return &secboot.MockKeyResetter{}
+	})()
+
 	err = s.doRunFactoryResetChange(c, model, resetTestCase{
 		tpm: true, encrypt: true, trustedBootloader: true,
 	})
@@ -1969,6 +1973,10 @@ echo "mock output of: $(basename "$0") $*"
 
 	defer devicestate.MockAddLUKS2ContainerUnlockKey(func(devicePath string, keyslotName string, existingKey, newKey sb.DiskUnlockKey) error {
 		return nil
+	})()
+
+	defer secboot.MockCreateKeyResetter(func (key sb.DiskUnlockKey, devicePath string) secboot.KeyResetter {
+		return &secboot.MockKeyResetter{}
 	})()
 
 	err = s.doRunFactoryResetChange(c, model, resetTestCase{

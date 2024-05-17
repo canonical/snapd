@@ -1203,10 +1203,13 @@ func (s *secbootSuite) TestResealKey(c *C) {
 func (s *secbootSuite) TestSealKeyNoModelParams(c *C) {
 	myKeys := []secboot.SealKeyRequest{
 		{
+			KeyFile:  "keyfile",
 			Resetter: &secboot.MockKeyResetter{},
 		},
 	}
-	myParams := secboot.SealKeysParams{}
+	myParams := secboot.SealKeysParams{
+		TPMPolicyAuthKeyFile: "policy-auth-key-file",
+	}
 
 	err := secboot.SealKeys(myKeys, &myParams)
 	c.Assert(err, ErrorMatches, "at least one set of model-specific parameters is required")

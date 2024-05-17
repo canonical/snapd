@@ -275,14 +275,26 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 			sealKeysCalls++
 			switch sealKeysCalls {
 			case 1:
-				c.Check(keys, DeepEquals, []secboot.SealKeyRequest{{KeyName: "ubuntu-data", Resetter: dataResetter}})
+				// the run object seals only the ubuntu-data key
+				c.Check(params.TPMPolicyAuthKeyFile, Equals, filepath.Join(boot.InstallHostFDESaveDir, "tpm-policy-auth-key"))
+				dataKeyFile := filepath.Join(rootdir, "/run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key")
+				c.Check(keys, DeepEquals, []secboot.SealKeyRequest{{KeyName: "ubuntu-data", Resetter: dataResetter, KeyFile: dataKeyFile}})
 				if tc.pcrHandleOfKey == secboot.FallbackObjectPCRPolicyCounterHandle {
 					c.Check(params.PCRPolicyCounterHandle, Equals, secboot.AltRunObjectPCRPolicyCounterHandle)
 				} else {
 					c.Check(params.PCRPolicyCounterHandle, Equals, secboot.RunObjectPCRPolicyCounterHandle)
 				}
 			case 2:
-				c.Check(keys, DeepEquals, []secboot.SealKeyRequest{{KeyName: "ubuntu-save", Resetter: saveResetter}})
+				// the fallback object seals the ubuntu-data and the ubuntu-save keys
+				c.Check(params.TPMPolicyAuthKeyFile, Equals, "")
+
+				dataKeyFile := filepath.Join(rootdir, "/run/mnt/ubuntu-seed/device/fde/ubuntu-data.recovery.sealed-key")
+				saveKeyFile := filepath.Join(rootdir, "/run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key")
+				if tc.factoryReset {
+					// during factory reset we use a different key location
+					saveKeyFile = filepath.Join(rootdir, "/run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key.factory-reset")
+				}
+				c.Check(keys, DeepEquals, []secboot.SealKeyRequest{{KeyName: "ubuntu-data", SlotName: "default-fallback", Resetter: dataResetter, KeyFile: dataKeyFile}, {KeyName: "ubuntu-save", Resetter: saveResetter, KeyFile: saveKeyFile}})
 				if tc.pcrHandleOfKey == secboot.FallbackObjectPCRPolicyCounterHandle {
 					c.Check(params.PCRPolicyCounterHandle, Equals, secboot.AltFallbackObjectPCRPolicyCounterHandle)
 				} else {
@@ -648,6 +660,8 @@ func (s *sealSuite) TestResealKeyToModeenvWithSystemFallback(c *C) {
 		// set mock key resealing
 		resealKeysCalls := 0
 		restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+			c.Check(params.TPMPolicyAuthKeyFile, Equals, filepath.Join(dirs.SnapSaveDir, "device/fde", "tpm-policy-auth-key"))
+
 			resealKeysCalls++
 			c.Assert(params.ModelParams, HasLen, 1)
 
@@ -1110,6 +1124,8 @@ func (s *sealSuite) TestResealKeyToModeenvRecoveryKeysForGoodSystemsOnly(c *C) {
 	// set mock key resealing
 	resealKeysCalls := 0
 	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+		c.Check(params.TPMPolicyAuthKeyFile, Equals, filepath.Join(dirs.SnapSaveDir, "device/fde", "tpm-policy-auth-key"))
+
 		resealKeysCalls++
 		c.Assert(params.ModelParams, HasLen, 1)
 
@@ -2133,13 +2149,14 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookHappy(c *C) {
 	sealedKeys := make(map[string][]byte)
 	restore = boot.MockSecbootSealKeysWithFDESetupHook(func(runHook fde.RunSetupHookFunc, skrs []secboot.SealKeyRequest, params *secboot.SealKeysWithFDESetupHookParams) error {
 		c.Check(params.Model.Model(), Equals, model.Model())
+		c.Check(params.AuxKeyFile, Equals, filepath.Join(boot.InstallHostFDESaveDir, "aux-key"))
 		for _, skr := range skrs {
 			out, err := runHook(&fde.SetupRequest{
 				Key:     []byte{1, 2, 3, 4},
 				KeyName: skr.KeyName,
 			})
 			c.Assert(err, IsNil)
-			sealedKeys[skr.KeyName] = out
+			sealedKeys[skr.KeyFile] = out
 		}
 		return nil
 	})
@@ -2163,12 +2180,14 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookHappy(c *C) {
 	// check that runFDESetupHook was called the expected way
 	c.Check(runFDESetupHookReqs, DeepEquals, []*fde.SetupRequest{
 		{Key: []byte{1, 2, 3, 4}, KeyName: "ubuntu-data"},
+		{Key: []byte{1, 2, 3, 4}, KeyName: "ubuntu-data"},
 		{Key: []byte{1, 2, 3, 4}, KeyName: "ubuntu-save"},
 	})
 	// check that the sealed keys got written to the expected places
 	for i, p := range []string{
-		"ubuntu-data",
-		"ubuntu-save",
+		filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key"),
+		filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
+		filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
 	} {
 		// Check for a valid platform handle, encrypted payload (base64)
 		mockedSealedKey := []byte(fmt.Sprintf("key-%v", strconv.Itoa(i+1)))

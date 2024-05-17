@@ -33,6 +33,8 @@ import (
 	"path/filepath"
 	"time"
 
+	sb "github.com/snapcore/secboot"
+
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
@@ -43,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/squashfs"
@@ -259,6 +262,21 @@ func PrepareEncryptedSystemData(model *asserts.Model, resetterForRole map[string
 	if err := trustedInstallObserver.ObserveExistingTrustedRecoveryAssets(boot.InitramfsUbuntuSeedDir); err != nil {
 		return fmt.Errorf("cannot observe existing trusted recovery assets: %v", err)
 	}
+
+	if saveResetter != nil {
+		// TODO: use plainkey from secboot
+		saveKey, err := keys.NewEncryptionKey()
+		if err != nil {
+			return err
+		}
+		const token = false
+		if _, err := saveResetter.AddKey("save", sb.DiskUnlockKey(saveKey), token); err != nil {
+			return err
+		}
+		if err := saveKeys(model, saveKey); err != nil {
+			return err
+		}
+	}
 	// write markers containing a secret to pair data and save
 	if err := writeMarkers(model); err != nil {
 		return err
@@ -283,6 +301,16 @@ func writeMarkers(model *asserts.Model) error {
 	}
 
 	return device.WriteEncryptionMarkers(boot.InstallHostFDEDataDir(model), boot.InstallHostFDESaveDir, markerSecret)
+}
+
+func saveKeys(model *asserts.Model, saveKey keys.EncryptionKey) error {
+	if err := os.MkdirAll(boot.InstallHostFDEDataDir(model), 0755); err != nil {
+		return err
+	}
+	if err := saveKey.Save(device.SaveKeyUnder(boot.InstallHostFDEDataDir(model))); err != nil {
+		return fmt.Errorf("cannot store system save key: %v", err)
+	}
+	return nil
 }
 
 // PrepareRunSystemData prepares the run system:

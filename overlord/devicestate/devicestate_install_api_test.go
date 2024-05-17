@@ -28,6 +28,8 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	sb "github.com/snapcore/secboot"
+
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
@@ -563,6 +565,10 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 		bootDir := filepath.Join(dirs.RunDir, "mnt/ubuntu-boot/EFI/boot/")
 		c.Assert(os.MkdirAll(bootDir, 0755), IsNil)
 		c.Assert(os.WriteFile(filepath.Join(bootDir, "grubx64.efi"), []byte{}, 0755), IsNil)
+
+		s.AddCleanup(secboot.MockCreateKeyResetter(func (key sb.DiskUnlockKey, devicePath string) secboot.KeyResetter {
+			return &secboot.MockKeyResetter{}
+		}))
 	}
 
 	s.state.Lock()
@@ -627,6 +633,7 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 	if opts.encrypted {
 		expectedFiles = append(expectedFiles, dirs.RunDir,
 			filepath.Join(dirs.RunDir, snapdVarDir, "device/fde/marker"),
+			filepath.Join(dirs.RunDir, snapdVarDir, "device/fde/ubuntu-save.key"),
 			filepath.Join(dirs.RunDir, "mnt/ubuntu-save/device/fde/marker"))
 	}
 	for _, f := range expectedFiles {

@@ -701,19 +701,31 @@ version: 5.0
 		case 1:
 			c.Check(keys, HasLen, 1)
 			c.Check(keys[0].Resetter, Equals, dataResetter)
+			c.Check(keys[0].KeyFile, Equals,
+				filepath.Join(s.rootdir, "/run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key"))
 			if factoryReset {
 				c.Check(params.PCRPolicyCounterHandle, Equals, secboot.AltRunObjectPCRPolicyCounterHandle)
 			} else {
 				c.Check(params.PCRPolicyCounterHandle, Equals, secboot.RunObjectPCRPolicyCounterHandle)
 			}
 		case 2:
-			c.Check(keys, HasLen, 1)
-			c.Check(keys[0].Resetter, Equals, saveResetter)
+			c.Check(keys, HasLen, 2)
+			c.Check(keys[0].Resetter, Equals, dataResetter)
+			c.Check(keys[0].KeyFile, Equals,
+				filepath.Join(s.rootdir,
+					"/run/mnt/ubuntu-seed/device/fde/ubuntu-data.recovery.sealed-key"))
+
+			c.Check(keys[1].Resetter, Equals, saveResetter)
 			if factoryReset {
 				c.Check(params.PCRPolicyCounterHandle, Equals, secboot.AltFallbackObjectPCRPolicyCounterHandle)
-
+				c.Check(keys[1].KeyFile, Equals,
+					filepath.Join(s.rootdir,
+						"/run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key.factory-reset"))
 			} else {
 				c.Check(params.PCRPolicyCounterHandle, Equals, secboot.FallbackObjectPCRPolicyCounterHandle)
+				c.Check(keys[1].KeyFile, Equals,
+					filepath.Join(s.rootdir,
+						"/run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key"))
 			}
 		default:
 			c.Errorf("unexpected additional call to secboot.SealKeys (call # %d)", sealKeysCalls)

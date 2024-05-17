@@ -66,12 +66,15 @@ func NewLoadChain(bf bootloader.BootFile, next ...*LoadChain) *LoadChain {
 }
 
 type KeyResetter interface {
-	Reset(newKey sb.DiskUnlockKey, token bool) (sb.KeyDataWriter, error)
+	AddKey(slotName string, newKey sb.DiskUnlockKey, token bool) (sb.KeyDataWriter, error)
+	RemoveInstallationKey() error
 }
 
 type SealKeyRequest struct {
 	// The key name; identical keys should have identical names
 	KeyName string
+
+	SlotName string
 	// The path to store the sealed key file. The same Key/KeyName
 	// can be stored under multiple KeyFile names for safety.
 	KeyFile string

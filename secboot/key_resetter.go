@@ -20,6 +20,8 @@
 package secboot
 
 import (
+	"fmt"
+
 	sb "github.com/snapcore/secboot"
 )
 
@@ -27,9 +29,10 @@ type sbKeyResetter struct {
 	devicePath          string
 	oldKey              sb.DiskUnlockKey
 	oldContainerKeySlot string
+	finished            bool
 }
 
-func CreateKeyResetter(key sb.DiskUnlockKey, devicePath string) KeyResetter {
+func createKeyResetterImpl(key sb.DiskUnlockKey, devicePath string) KeyResetter {
 	return &sbKeyResetter{
 		devicePath:          devicePath,
 		oldKey:              key,
@@ -37,25 +40,39 @@ func CreateKeyResetter(key sb.DiskUnlockKey, devicePath string) KeyResetter {
 	}
 }
 
-func (kr *sbKeyResetter) Reset(newKey sb.DiskUnlockKey, token bool) (sb.KeyDataWriter, error) {
-	defaultKeySlotName := "default"
-	if err := sb.AddLUKS2ContainerUnlockKey(kr.devicePath, defaultKeySlotName, kr.oldKey, newKey); err != nil {
-		return nil, err
+var CreateKeyResetter = createKeyResetterImpl
+
+func (kr *sbKeyResetter) AddKey(slotName string, newKey sb.DiskUnlockKey, token bool) (sb.KeyDataWriter, error) {
+	if kr.finished {
+		return nil, fmt.Errorf("internal error: key resetter was a already finished")
 	}
-	if err := sb.DeleteLUKS2ContainerKey(kr.devicePath, kr.oldContainerKeySlot); err != nil {
+	if slotName == "" {
+		slotName = "default"
+	}
+	if err := sb.AddLUKS2ContainerUnlockKey(kr.devicePath, slotName, kr.oldKey, newKey); err != nil {
 		return nil, err
 	}
 	if !token {
 		return nil, nil
 	}
-	writer, err := sb.NewLUKS2KeyDataWriter(kr.devicePath, defaultKeySlotName)
+	writer, err := sb.NewLUKS2KeyDataWriter(kr.devicePath, slotName)
 	if err != nil {
 		return nil, err
 	}
 	return writer, nil
 }
 
+func (kr *sbKeyResetter) RemoveInstallationKey() error {
+	if kr.finished {
+		return nil
+	}
+	kr.finished = true
+	return sb.DeleteLUKS2ContainerKey(kr.devicePath, kr.oldContainerKeySlot)
+}
+
+
 type MockKeyResetter struct {
+	finished bool
 }
 
 type MockKeyDataWriter struct {
@@ -69,10 +86,27 @@ func (kdw *MockKeyDataWriter) Commit() error {
 	return nil
 }
 
-func (kr *MockKeyResetter) Reset(newKey sb.DiskUnlockKey, token bool) (sb.KeyDataWriter, error) {
+func (kr *MockKeyResetter) AddKey(slotName string, newKey sb.DiskUnlockKey, token bool) (sb.KeyDataWriter, error) {
+	if kr.finished {
+		return nil, fmt.Errorf("internal error: key resetter was a already finished")
+	}
+
 	if token {
 		return &MockKeyDataWriter{}, nil
 	} else {
 		return nil, nil
+	}
+}
+
+func (kr *MockKeyResetter) RemoveInstallationKey() error {
+	kr.finished = true
+	return nil
+}
+
+func MockCreateKeyResetter(f func (key sb.DiskUnlockKey, devicePath string) KeyResetter) func() {
+	old := CreateKeyResetter
+	CreateKeyResetter = f
+	return func() {
+		CreateKeyResetter = old
 	}
 }
