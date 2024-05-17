@@ -318,27 +318,55 @@ func (m *SnapManager) installOneBaseOrRequired(t *state.Task, snapName string, c
 	if err != nil {
 		return nil, err
 	}
-	if isInstalled {
-		return updatePrereqIfOutdated(t, snapName, contentAttrs, userID, flags)
-	}
 
 	deviceCtx, err := DeviceCtx(st, t, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	// in progress?
-	if linkTask, err := findLinkSnapTaskForSnap(st, snapName); err != nil {
-		return nil, err
-	} else if linkTask != nil {
+	inProgress := func(snapName string) (bool, error) {
+		linkTask, err := findLinkSnapTaskForSnap(st, snapName)
+		if err != nil {
+			return false, err
+		}
+
+		if linkTask == nil {
+			// snap is not being installed
+			return false, nil
+		}
+
 		// if we are remodeling, then we should return early due to the way that
 		// tasks are ordered by the remodeling code. specifically, all snap
 		// downloads during a remodel happen prior to snap installation. thus,
 		// we cannot wait for snaps to be installed here. see remodelTasks for
 		// more information on how the tasks are ordered.
 		if deviceCtx.ForRemodeling() {
-			return nil, nil
+			return false, nil
 		}
+
+		// snap is being installed, retry later
+		return true, nil
+	}
+
+	if isInstalled {
+		if len(contentAttrs) > 0 {
+			// the default provider is already installed, update it if it's missing content attributes the snap needs
+			return updatePrereqIfOutdated(t, snapName, contentAttrs, userID, flags)
+		}
+
+		// other kind of dependency, check if it's in progress
+		if ok, err := inProgress(snapName); err != nil {
+			return nil, err
+		} else if ok {
+			return nil, onInFlight
+		}
+		return nil, nil
+	}
+
+	// not installed, wait for it if it is. If not, we'll install it
+	if ok, err := inProgress(snapName); err != nil {
+		return nil, err
+	} else if ok {
 		return nil, onInFlight
 	}
 
@@ -361,10 +389,6 @@ func (m *SnapManager) installOneBaseOrRequired(t *state.Task, snapName string, c
 
 // updates a prerequisite, if it's not providing a content interface that a plug expects it to
 func updatePrereqIfOutdated(t *state.Task, snapName string, contentAttrs []string, userID int, flags Flags) (*state.TaskSet, error) {
-	if len(contentAttrs) == 0 {
-		return nil, nil
-	}
-
 	st := t.State()
 
 	// check if the default provider has all expected content tags
