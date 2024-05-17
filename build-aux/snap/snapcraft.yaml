@@ -189,7 +189,7 @@ parts:
     plugin: nil
     source: .
     build-snaps:
-      - go/1.18/stable
+      - go/1.18/stable # the default Go toolchain
     after:
       - apparmor
     build-packages:
@@ -206,12 +206,31 @@ parts:
     override-pull: |
       craftctl default
       # set version, this needs dpkg-parsechangelog (from dpkg-dev) and git
-      craftctl set version="$(./mkversion.sh --output-only)"
+      VERSION="$(./mkversion.sh --output-only)"
+      if [ -f fips-build ] ; then
+          echo "-- appending FIPS tag to version $VERSION"
+          VERSION="$VERSION-fips"
+      fi
+      craftctl set version="$VERSION"
+
       ./get-deps.sh --skip-unused-check
     override-build: |
-      echo "--- go is at $(which go)"
+      # this should be passed through build environment, but we're already
+      # anchoring dynamic linker env variables
+      GO_TOOLCHAIN_FIPS_CHANNEL="1.18-fips/stable"
+
+      VERSION="$(craftctl get version)"
+      if [ -f fips-build ] ; then
+          # use the fips channel of Go
+          snap refresh --channel "$GO_TOOLCHAIN_FIPS_CHANNEL" go
+      fi
+      # make sure to set the version we declared in pull
+      ./mkversion.sh "$VERSION"
+
+      # double check the toolchain
       echo "--- go version $(go version)"
-      ./mkversion.sh
+      echo "--- go is at $(which go)"
+
       cd "${CRAFT_PART_BUILD}/cmd"
 
       autoreconf -fvi
@@ -226,8 +245,6 @@ parts:
       #  * When building in a git worktree, snapcraft does not share
       #    the main directory, and it fails.
       EXTRA_GO_FLAGS="-buildvcs=false"
-
-      VERSION="$(craftctl get version)"
 
       CMDS=(bin/snap
             lib/snapd/snapd
@@ -263,9 +280,14 @@ parts:
              ;;
         esac
 
+        TAGS=()
+
+        # general build tags, note that version 1337 is used only in CI and
+        # triggers testing specific build tags which produce binaries that are
+        # insecure for use in production systems
         case "${cmd}" in
           bin/snap)
-            TAGS=(nomanagers)
+            TAGS+=(nomanagers)
             case "${VERSION}" in
               1337.*)
                 TAGS+=(withtestkeys faultinject)
@@ -273,7 +295,6 @@ parts:
             esac
             ;;
           *)
-            TAGS=()
             case "${VERSION}" in
               1337.*)
                 TAGS+=(withtestkeys withbootassetstesting faultinject)
@@ -281,6 +302,18 @@ parts:
             esac
             ;;
         esac
+
+        # FIPS specific build tags
+        if [ -f fips-build ]; then
+          case "${cmd}" in
+            # per snapd FIPS spec, FIPS build tags are only relevant for snapd,
+            # snap, snap-repair and snap-bootstrap (where snap-bootstrap isn't
+            # part of the snapd snap)
+            bin/snap|lib/snapd/snapd|lib/snapd/snap-repair)
+              TAGS+=(goexperiment.opensslcrypto requirefips)
+              ;;
+          esac
+        fi
 
         output="${CRAFT_PART_INSTALL}/usr/${cmd}"
         go build -mod=vendor -tags "${TAGS[*]}" "${GO_LD_FLAGS[@]}" ${EXTRA_GO_FLAGS-} -o "${output}" "github.com/snapcore/snapd/cmd/$(basename ${cmd})"
