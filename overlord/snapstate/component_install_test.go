@@ -81,6 +81,11 @@ func expectedComponentInstallTasks(opts int) []string {
 		startTasks = append(startTasks, "discard-component")
 	}
 
+	// expect the install hook if the snap wasn't already installed
+	if opts&compOptIsActive == 0 {
+		startTasks = append(startTasks, "run-hook[install]")
+	}
+
 	return startTasks
 }
 
