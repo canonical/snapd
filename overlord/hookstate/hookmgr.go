@@ -80,13 +80,28 @@ type HandlerGenerator func(*Context) Handler
 
 // HookSetup is a reference to a hook within a specific snap.
 type HookSetup struct {
-	Snap        string        `json:"snap"`
-	Revision    snap.Revision `json:"revision"`
-	Hook        string        `json:"hook"`
-	Timeout     time.Duration `json:"timeout,omitempty"`
-	Optional    bool          `json:"optional,omitempty"`     // do not error if script is missing
-	Always      bool          `json:"always,omitempty"`       // run handler even if script is missing
-	IgnoreError bool          `json:"ignore-error,omitempty"` // do not run handler's Error() on error
+	Snap     string        `json:"snap"`
+	Revision snap.Revision `json:"revision"`
+	Hook     string        `json:"hook"`
+	Timeout  time.Duration `json:"timeout,omitempty"`
+
+	// Optional is true if we should not error if the script is missing.
+	Optional bool `json:"optional,omitempty"`
+
+	// Always is true if we should run the handler even if the script is
+	// missing.
+	Always bool `json:"always,omitempty"`
+
+	// IgnoreError is true if we should not run the handler's Error() on error.
+	IgnoreError bool `json:"ignore-error,omitempty"`
+
+	// Component is the component name that the hook is associated with. If the
+	// hook is not associated with a component, the string will be empty.
+	Component string `json:"component,omitempty"`
+
+	// ComponentRevision is the revision of the component that the hook is
+	// associated with. Only valid if Component is not empty.
+	ComponentRevision snap.Revision `json:"component-revision,omitempty"`
 }
 
 // Manager returns a new HookManager.

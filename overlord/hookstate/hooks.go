@@ -34,6 +34,7 @@ import (
 
 func init() {
 	snapstate.SetupInstallHook = SetupInstallHook
+	snapstate.SetupInstallComponentHook = SetupInstallComponentHook
 	snapstate.SetupPreRefreshHook = SetupPreRefreshHook
 	snapstate.SetupPostRefreshHook = SetupPostRefreshHook
 	snapstate.SetupRemoveHook = SetupRemoveHook
@@ -48,6 +49,20 @@ func SetupInstallHook(st *state.State, snapName string) *state.Task {
 	}
 
 	summary := fmt.Sprintf(i18n.G("Run install hook of %q snap if present"), hooksup.Snap)
+	task := HookTask(st, summary, hooksup, nil)
+
+	return task
+}
+
+func SetupInstallComponentHook(st *state.State, snap, component string) *state.Task {
+	hooksup := &HookSetup{
+		Snap:      snap,
+		Component: component,
+		Hook:      "install",
+		Optional:  true,
+	}
+
+	summary := fmt.Sprintf(i18n.G(`Run install hook of "%s+%s" component if present`), hooksup.Snap, hooksup.Component)
 	task := HookTask(st, summary, hooksup, nil)
 
 	return task
