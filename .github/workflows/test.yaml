@@ -22,12 +22,35 @@ concurrency:
 jobs:
   snap-builds:
     runs-on: ubuntu-20.04
+    strategy:
+      matrix:
+        toolchain:
+          - default
+          - FIPS
     # only build the snap for pull requests, it's not needed on release branches
     # or on master since we have launchpad build recipes which do this already
     if: ${{ github.event_name == 'pull_request' }}
     steps:
     - name: Checkout code
       uses: actions/checkout@v3
+
+    - name: Select Go toolchain
+      run: |
+        case "${{ matrix.toolchain }}" in
+            default)
+                ;;
+            FIPS)
+                sed -i -e \
+                's|- go/\(.*\)/stable # XXX Go toolchain|- go/\1-fips/stable # toolchain channel patched|' \
+                build-aux/snap/snapcraft.yaml
+                # this should be true now
+                grep '# toolchain channel patched' build-aux/snap/snapcraft.yaml
+                ;;
+            *)
+                echo "unknown toolchain ${{ matrix.toolchain }}"
+                exit 1
+                ;;
+        esac
 
     - name: Build snapd snap
       uses: snapcore/action-build@v1
@@ -51,7 +74,7 @@ jobs:
     - name: Uploading snapd snap artifact
       uses: actions/upload-artifact@v3
       with:
-        name: snap-files
+        name: snap-files-${{ matrix.toolchain }}
         path: "*.snap"
 
   cache-build-deps:
