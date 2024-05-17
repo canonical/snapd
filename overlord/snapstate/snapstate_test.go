@@ -184,6 +184,8 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 
 	oldSetupInstallHook := snapstate.SetupInstallHook
 	oldSetupInstallComponentHook := snapstate.SetupInstallComponentHook
+	oldSetupPostRefreshComponentHook := snapstate.SetupPostRefreshComponentHook
+	oldSetupPreRefreshComponentHook := snapstate.SetupPreRefreshComponentHook
 	oldSetupPreRefreshHook := snapstate.SetupPreRefreshHook
 	oldSetupPostRefreshHook := snapstate.SetupPostRefreshHook
 	oldSetupRemoveHook := snapstate.SetupRemoveHook
@@ -191,6 +193,8 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 	oldEnsureSnapAbsentFromQuotaGroup := snapstate.EnsureSnapAbsentFromQuotaGroup
 	snapstate.SetupInstallHook = hookstate.SetupInstallHook
 	snapstate.SetupInstallComponentHook = hookstate.SetupInstallComponentHook
+	snapstate.SetupPostRefreshComponentHook = hookstate.SetupPostRefreshComponentHook
+	snapstate.SetupPreRefreshComponentHook = hookstate.SetupPreRefreshComponentHook
 	snapstate.SetupPreRefreshHook = hookstate.SetupPreRefreshHook
 	snapstate.SetupPostRefreshHook = hookstate.SetupPostRefreshHook
 	snapstate.SetupRemoveHook = hookstate.SetupRemoveHook
@@ -229,6 +233,8 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 	s.BaseTest.AddCleanup(func() {
 		snapstate.SetupInstallHook = oldSetupInstallHook
 		snapstate.SetupInstallComponentHook = oldSetupInstallComponentHook
+		snapstate.SetupPostRefreshComponentHook = oldSetupPostRefreshComponentHook
+		snapstate.SetupPreRefreshComponentHook = oldSetupPreRefreshComponentHook
 		snapstate.SetupPreRefreshHook = oldSetupPreRefreshHook
 		snapstate.SetupPostRefreshHook = oldSetupPostRefreshHook
 		snapstate.SetupRemoveHook = oldSetupRemoveHook

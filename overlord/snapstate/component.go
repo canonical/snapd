@@ -161,7 +161,12 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup *Component
 		}
 	}
 
-	// TODO hooks for components
+	compInstalled := snapst.IsComponentInCurrentSeq(compSi.Component)
+
+	if !snapsup.Revert && compInstalled {
+		preRefreshHook := SetupPreRefreshComponentHook(st, snapsup.InstanceName(), compSi.Component.ComponentName)
+		addTask(preRefreshHook)
+	}
 
 	if compSetup.CompType == snap.KernelModulesComponent {
 		kmodSetup := st.NewTask("prepare-kernel-modules-components",
@@ -172,15 +177,13 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup *Component
 
 	changingSnapRev := snapst.IsInstalled() && snapst.Current != snapSi.Revision
 
-	// We might be replacing a component
-	compInstalled := snapst.IsComponentInCurrentSeq(compSi.Component)
-
 	// note that we don't unlink the currect component if we're also changing
 	// snap revisions while installing this component. that is because we don't
 	// want to remove the component from the state of the previous snap revision
 	// (for the purpose of something like a revert). additionally, this is
 	// consistent with us keeping previous snap revisions mounted after changing
-	// their revision.
+	// their revision. so we really only want to create this task if we are
+	// replacing a component in the current snap revision
 	if !changingSnapRev && compInstalled {
 		unlink := st.NewTask("unlink-current-component", fmt.Sprintf(i18n.G(
 			"Make current revision for component %q unavailable"),
@@ -212,9 +215,19 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup *Component
 		addTask(discardComp)
 	}
 
+	var postOpHook *state.Task
+	if !compInstalled {
+		postOpHook = SetupInstallComponentHook(st, snapsup.InstanceName(), compSi.Component.ComponentName)
+	} else {
+		postOpHook = SetupPostRefreshComponentHook(st, snapsup.InstanceName(), compSi.Component.ComponentName)
+	}
+
+	addTask(postOpHook)
+
 	installSet := state.NewTaskSet(tasks...)
 	installSet.MarkEdge(prepare, BeginEdge)
 	installSet.MarkEdge(linkSnap, MaybeRebootEdge)
+	installSet.MarkEdge(postOpHook, PostOpHookEdge)
 
 	// TODO do we need to set restart boundaries here? (probably
 	// for kernel-modules components if installed along the kernel)

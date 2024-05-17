@@ -108,24 +108,24 @@ func expectedDoInstallTasks(typ snap.Type, opts, discards int, startTasks []stri
 		)
 	}
 
-	afterLinkSnap := make([]string, 0, len(components))
+	var tasksBeforeCurrentUnlink, tasksAfterLinkSnap, tasksAfterPostOpHook []string
 	for range components {
 		compOpts := compOptSkipSecurity
 		if opts&localSnap != 0 {
 			compOpts |= compOptIsLocal
 		}
 		if opts&unlinkBefore != 0 {
-			compOpts |= compOptIsActive
+			compOpts |= compOptIsActive | compOptDuringSnapRefresh
 		}
-		compTasks := expectedComponentInstallTasks(compOpts)
-		for i, t := range compTasks {
-			if t == "link-component" {
-				afterLinkSnap = append(afterLinkSnap, compTasks[i:]...)
-				break
-			}
-			expected = append(expected, t)
-		}
+
+		beforeLink, linkToHooks, hooksAndAfter := expectedComponentInstallTasksSplit(compOpts)
+
+		tasksBeforeCurrentUnlink = append(tasksBeforeCurrentUnlink, beforeLink...)
+		tasksAfterLinkSnap = append(tasksAfterLinkSnap, linkToHooks...)
+		tasksAfterPostOpHook = append(tasksAfterPostOpHook, hooksAndAfter...)
 	}
+
+	expected = append(expected, tasksBeforeCurrentUnlink...)
 
 	if opts&unlinkBefore != 0 {
 		expected = append(expected, "unlink-current-snap")
@@ -143,7 +143,7 @@ func expectedDoInstallTasks(typ snap.Type, opts, discards int, startTasks []stri
 	expected = append(expected, "copy-snap-data")
 
 	expected = append(expected, "setup-profiles", "link-snap")
-	expected = append(expected, afterLinkSnap...)
+	expected = append(expected, tasksAfterLinkSnap...)
 	expected = append(expected, "auto-connect")
 	if opts&updatesGadgetAssets != 0 && opts&needsKernelSetup != 0 {
 		expected = append(expected, "discard-old-kernel-snap-setup")
@@ -161,10 +161,14 @@ func expectedDoInstallTasks(typ snap.Type, opts, discards int, startTasks []stri
 		expected = append(expected, "run-hook[post-refresh]")
 	} else {
 		expected = append(expected, "run-hook[install]")
-		if opts&(noConfigure|runCoreConfigure) == 0 {
-			expected = append(expected, "run-hook[default-configure]")
-		}
 	}
+
+	expected = append(expected, tasksAfterPostOpHook...)
+
+	if opts&unlinkBefore == 0 && opts&(noConfigure|runCoreConfigure) == 0 {
+		expected = append(expected, "run-hook[default-configure]")
+	}
+
 	expected = append(expected, "start-snap-services")
 	for i := 0; i < discards; i++ {
 		expected = append(expected,

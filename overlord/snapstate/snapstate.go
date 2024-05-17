@@ -79,6 +79,7 @@ const (
 	AfterMaybeRebootWaitEdge         = state.TaskSetEdge("after-maybe-reboot-wait")
 	LastBeforeLocalModificationsEdge = state.TaskSetEdge("last-before-local-modifications")
 	EndEdge                          = state.TaskSetEdge("end")
+	PostOpHookEdge                   = state.TaskSetEdge("post-op-hook-edge")
 )
 
 const (
@@ -267,30 +268,45 @@ func isCoreSnap(snapName string) bool {
 	return snapName == defaultCoreSnapName
 }
 
-func componentTasksForInstallWithSnap(ts *state.TaskSet) (beforeLink []*state.Task, linkAndAfter []*state.Task, err error) {
+func componentTasksForInstallWithSnap(ts *state.TaskSet) (beforeLink, linkToHook, postOpHookAndAfter []*state.Task, err error) {
 	link, err := ts.Edge(MaybeRebootEdge)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
+	}
+
+	postOpHook, err := ts.Edge(PostOpHookEdge)
+	if err != nil {
+		return nil, nil, nil, err
 	}
 
 	isBeforeLink := true
+	isBeforePostOpHook := true
 
 	// this depends on the order of the tasks in the set, but if we want to
 	// maintain a logical ordering of the snaps in the task set returned by
 	// doInstall, then requiring this order simplifies the code a lot
 	for _, t := range ts.Tasks() {
-		if t.ID() == link.ID() {
+		switch t.ID() {
+		case link.ID():
 			isBeforeLink = false
+		case postOpHook.ID():
+			isBeforePostOpHook = false
+			if isBeforeLink {
+				return nil, nil, nil, errors.New("internal error: post-op hook should be after link")
+			}
 		}
 
-		if isBeforeLink {
+		switch {
+		case isBeforeLink:
 			beforeLink = append(beforeLink, t)
-		} else {
-			linkAndAfter = append(linkAndAfter, t)
+		case isBeforePostOpHook:
+			linkToHook = append(linkToHook, t)
+		default:
+			postOpHookAndAfter = append(postOpHookAndAfter, t)
 		}
 	}
 
-	return beforeLink, linkAndAfter, nil
+	return beforeLink, linkToHook, postOpHookAndAfter, nil
 }
 
 func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups []ComponentSetup, flags int, fromChange string, inUseCheck func(snap.Type) (boot.InUseFunc, error)) (*state.TaskSet, error) {
@@ -469,25 +485,9 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 		addTask(preRefreshHook)
 	}
 
-	var tasksAfterLinkSnap []*state.Task
-	var tasksBeforeCurrentUnlink []*state.Task
-	for _, compsup := range compsups {
-		compTaskSet, err := doInstallComponent(st, snapst, &compsup, &snapsup, fromChange)
-		if err != nil {
-			return nil, fmt.Errorf("cannot install component %q: %v", compsup.CompSideInfo.Component, err)
-		}
-
-		beforeLink, afterLink, err := componentTasksForInstallWithSnap(compTaskSet)
-		if err != nil {
-			return nil, err
-		}
-
-		tasksBeforeCurrentUnlink = append(tasksBeforeCurrentUnlink, beforeLink...)
-		tasksAfterLinkSnap = append(tasksAfterLinkSnap, afterLink...)
-
-		// TODO:COMPS: once component hooks are fully merged, we will need to
-		// take care to correctly order the tasks that are created for running
-		// component and snap hooks
+	tasksAfterLinkSnap, tasksBeforeCurrentUnlink, tasksAfterPostOpHook, err := splitComponentTasksForInstall(compsups, st, snapst, snapsup, fromChange)
+	if err != nil {
+		return nil, err
 	}
 
 	if snapst.IsInstalled() {
@@ -631,6 +631,10 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 		addTask(installHook)
 	}
 
+	for _, t := range tasksAfterPostOpHook {
+		addTask(t)
+	}
+
 	if snapsup.QuotaGroupName != "" {
 		quotaAddSnapTask, err := AddSnapToQuotaGroup(st, snapsup.InstanceName(), snapsup.QuotaGroupName)
 		if err != nil {
@@ -758,6 +762,34 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 	return installSet, nil
 }
 
+func splitComponentTasksForInstall(
+	compsups []ComponentSetup,
+	st *state.State,
+	snapst *SnapState,
+	snapsup SnapSetup,
+	fromChange string,
+) (
+	tasksAfterLinkSnap, tasksBeforeCurrentUnlink, tasksAfterPostOpHook []*state.Task,
+	err error,
+) {
+	for _, compsup := range compsups {
+		compTaskSet, err := doInstallComponent(st, snapst, &compsup, &snapsup, fromChange)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("cannot install component %q: %v", compsup.CompSideInfo.Component, err)
+		}
+
+		beforeLink, linkToHooks, hooksAndAfter, err := componentTasksForInstallWithSnap(compTaskSet)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+
+		tasksBeforeCurrentUnlink = append(tasksBeforeCurrentUnlink, beforeLink...)
+		tasksAfterLinkSnap = append(tasksAfterLinkSnap, linkToHooks...)
+		tasksAfterPostOpHook = append(tasksAfterPostOpHook, hooksAndAfter...)
+	}
+	return tasksAfterLinkSnap, tasksBeforeCurrentUnlink, tasksAfterPostOpHook, nil
+}
+
 func NeedsKernelSetup(model *asserts.Model) bool {
 	// Checkinf if it has modeenv - it must be UC20+ or hybrid
 	if model.Grade() == asserts.ModelGradeUnset {
@@ -821,6 +853,14 @@ var SetupInstallHook = func(st *state.State, snapName string) *state.Task {
 
 var SetupInstallComponentHook = func(st *state.State, snap, component string) *state.Task {
 	panic("internal error: snapstate.SetupInstallComponentHook is unset")
+}
+
+var SetupPreRefreshComponentHook = func(st *state.State, snap, component string) *state.Task {
+	panic("internal error: snapstate.SetupPreRefreshComponentHook is unset")
+}
+
+var SetupPostRefreshComponentHook = func(st *state.State, snap, component string) *state.Task {
+	panic("internal error: snapstate.SetupPostRefreshComponentHook is unset")
 }
 
 var SetupPreRefreshHook = func(st *state.State, snapName string) *state.Task {
