@@ -2,7 +2,7 @@ name: "Static code analysis"
 on: [pull_request]
 
 jobs:
-  static-analysis:
+  tiobe-static-analysis:
     runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
