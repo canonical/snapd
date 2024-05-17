@@ -1,8 +1,6 @@
 summary: this is the summary
 
-unsupported: not supported
-
-systems: [ ubuntu-20.04-64 ]
+details: details
 
 execute: |
     echo "execute"
