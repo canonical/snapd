@@ -334,8 +334,8 @@ func componentFromResource(name string, sar store.SnapResourceResult, info *snap
 		return ComponentTarget{}, fmt.Errorf("%q is not a component for snap %q", name, info.SnapName())
 	}
 
-	if fmt.Sprintf("component/%s", comp.Type) != sar.Type {
-		return ComponentTarget{}, fmt.Errorf("inconsistent component type (%q in snap, %q in component)", comp.Type, sar.Type)
+	if typ := fmt.Sprintf("component/%s", comp.Type); typ != sar.Type {
+		return ComponentTarget{}, fmt.Errorf("inconsistent component type (%q in snap, %q in component)", typ, sar.Type)
 	}
 
 	compName := naming.NewComponentRef(info.SnapName(), name)
