@@ -204,6 +204,18 @@ func sealKeyToModeenvUsingFDESetupHook(resetter, saveResetter secboot.KeyResette
 		return err
 	}
 
+	for _, resetter := range []secboot.KeyResetter{
+		resetter,
+		saveResetter,
+	} {
+		if resetter != nil {
+			if err := resetter.RemoveInstallationKey(); err != nil {
+				// This could be a warning
+				return err
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -314,6 +326,18 @@ func sealKeyToModeenvUsingSecboot(resetter, saveResetter secboot.KeyResetter, mo
 		fallbackObjectKeyPCRHandle)
 	if err != nil {
 		return err
+	}
+
+	for _, resetter := range []secboot.KeyResetter{
+		resetter,
+		saveResetter,
+	} {
+		if resetter != nil {
+			if err := resetter.RemoveInstallationKey(); err != nil {
+				// This could be a warning
+				return err
+			}
+		}
 	}
 
 	if err := device.StampSealedKeys(InstallHostWritableDir(model), device.SealingMethodTPM); err != nil {

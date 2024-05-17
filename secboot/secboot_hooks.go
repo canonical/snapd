@@ -124,13 +124,6 @@ func SealKeysWithFDESetupHook(runHook fde.RunSetupHookFunc, keys []SealKeyReques
 		}
 	}
 
-	for _, skr := range keys {
-		if err := skr.Resetter.RemoveInstallationKey(); err != nil {
-			// This could be a warning
-			return err
-		}
-	}
-
 	return nil
 }
 

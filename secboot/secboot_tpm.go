@@ -431,13 +431,6 @@ func SealKeys(keys []SealKeyRequest, params *SealKeysParams) error {
 		}
 	}
 
-	for _, key := range keys {
-		if err := key.Resetter.RemoveInstallationKey(); err != nil {
-			// This could be a warning
-			return err
-		}
-	}
-
 	return nil
 }
 
