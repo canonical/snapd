@@ -881,6 +881,10 @@ var SetupInstallHook = func(st *state.State, snapName string) *state.Task {
 	panic("internal error: snapstate.SetupInstallHook is unset")
 }
 
+var SetupInstallComponentHook = func(st *state.State, snap, component string) *state.Task {
+	panic("internal error: snapstate.SetupInstallComponentHook is unset")
+}
+
 var SetupPreRefreshHook = func(st *state.State, snapName string) *state.Task {
 	panic("internal error: snapstate.SetupPreRefreshHook is unset")
 }

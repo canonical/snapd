@@ -193,7 +193,7 @@ func (s *hookManagerSuite) TestHookSetupJsonMarshal(c *C) {
 	hookSetup := &hookstate.HookSetup{Snap: "snap-name", Revision: snap.R(1), Hook: "hook-name"}
 	out, err := json.Marshal(hookSetup)
 	c.Assert(err, IsNil)
-	c.Check(string(out), Equals, "{\"snap\":\"snap-name\",\"revision\":\"1\",\"hook\":\"hook-name\"}")
+	c.Check(string(out), Equals, "{\"snap\":\"snap-name\",\"revision\":\"1\",\"hook\":\"hook-name\",\"component-revision\":\"unset\"}")
 }
 
 func (s *hookManagerSuite) TestHookSetupJsonUnmarshal(c *C) {
