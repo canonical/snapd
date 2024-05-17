@@ -48,3 +48,6 @@ execute: |
     fi
     MATCH "Permission denied" < process-kill.error
     kill -s 0 "$pid"
+    
+    # Test passed, clean (kill) process now
+    tests.cleanup pop
