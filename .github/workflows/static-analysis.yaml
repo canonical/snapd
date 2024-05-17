@@ -1,7 +1,5 @@
 name: "Static code analysis"
-on:
-  pull_request_target:
-    branches: [ "master", "release/**" ]
+on: [pull_request]
 
 jobs:
   static-analysis:
