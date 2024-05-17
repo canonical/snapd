@@ -1,0 +1,224 @@
+#!/usr/bin/env python3
+
+import argparse
+import io
+import re
+import sys
+
+DEBUG = 'Debug'
+ERROR = 'Error'
+FAILED = 'Failed'
+WARNING = 'WARNING:'
+
+OPERATIONS = [
+    'Preparing', 'Executing', 'Restoring',
+    'Rebooting', 'Discarding', 'Allocating', 'Waiting',
+    'Allocated', 'Connecting', 'Connected', 'Sending',
+    ERROR, DEBUG, WARNING, FAILED, 'Successful', 'Aborted'
+    ]
+SUPPORTED_RULES = [ ERROR, DEBUG, FAILED, WARNING]
+
+def match_date(date):
+    return re.match(r'\d{4}-\d{2}-\d{2}', date)
+
+def match_time(time):
+    return re.match(r'\d{2}:\d{2}:\d{2}', time)
+
+def print_line(line: str):
+    if not line:
+        print()
+    else:
+        print(line.strip())
+
+def write_line(line: str, to_stream: io.TextIOWrapper):
+    if not line:
+        to_stream.write('\n')
+    else:
+        to_stream.write(line.strip() + '\n')
+
+
+# Debug line starts with the operation
+def is_line(line, operation):
+    if not line:
+        return False
+
+    parts = line.strip().split(' ')
+    return len(parts) > 2 and \
+        match_date(parts[0]) and \
+        match_time(parts[1]) and \
+        parts[2] == operation
+
+def is_line_excluded(line, exclude_lines):
+    if not line:
+        return False
+    
+    parts = line.strip().split(' ')
+    return len(parts) > 2 and \
+        match_date(parts[0]) and \
+        match_time(parts[1]) and \
+        parts[2] in exclude_lines
+
+def is_detail_start(line):
+    return is_line(line, DEBUG) or \
+        is_line(line, ERROR) or \
+        is_line(line, WARNING) or \
+        is_line(line, FAILED)
+
+# Error/Debug/Failed output finishes when a new other line starts
+def is_detail_finished(line: str) -> bool:
+    parts = line.strip().split(' ')
+    return len(parts) > 3 and \
+        match_date(parts[0]) and \
+        match_time(parts[1]) and \
+        parts[2] in OPERATIONS
+
+
+def compile_rules(rules, operation):
+    patterns = []
+    regex_list = []
+
+    for rule in rules:
+        parts = rule.split('=',1)
+        if len(parts) != 2:
+            raise ValueError("Error: Rule '{}' does not follow the OPERATION=PATTERN format".format(rule))
+
+        rule_operation = parts[0]
+        rule_pattern = parts[1]
+
+        if rule_operation not in SUPPORTED_RULES:
+            raise ValueError("Error: Rule operation '{}' not in supported list: {}".format(rule_operation, SUPPORTED_RULES))
+
+        if operation == rule_operation:
+            patterns.append(rule_pattern)
+
+    for pattern in patterns:
+        regex_list.append(re.compile(pattern))
+    return regex_list
+
+
+def process_detail_line(line: str, regex_list: list, to_stream: io.TextIOWrapper):
+        if not regex_list:
+            write_line(line, to_stream)
+        else:
+            for regex in regex_list:
+                matches = regex.findall(line)
+                for match in matches:
+                    write_line(match, to_stream)
+
+def process_detail(from_stream: io.TextIOWrapper, start_line: str, regex_list: list, to_stream: io.TextIOWrapper) -> str:
+    """Process lines from the start of the details section until the last line,
+    returns the first line right after the details section
+    """
+    write_line(start_line, to_stream)
+    for line in sys.stdin:
+        print_line(line)
+
+        if not line:
+            continue
+
+        # Check if the detail is finished
+        if is_detail_finished(line):
+            return line
+
+        # Print all the lines
+        process_detail_line(line, regex_list,  to_stream)
+
+            
+def skip_detail(from_stream: io.TextIOWrapper) -> str:
+    """Skip lines from the start of the details section until the last line,
+    returns the first line right after the details section
+    """
+    for line in sys.stdin:
+        print_line(line)
+        if not line:
+            continue
+
+        # Check if the detail is finished
+        if is_detail_finished(line):
+            return line
+
+def process_spread_output(output_file, exclude_lines, filter_rules):
+    error_regex = compile_rules(filter_rules, ERROR)
+    debug_regex = compile_rules(filter_rules, DEBUG)
+    failed_regex = compile_rules(filter_rules, FAILED)
+    warning_regex = compile_rules(filter_rules, WARNING)
+
+    with open(output_file, "w") as myfile:
+        for line in sys.stdin:
+            print_line(line)
+
+            while is_detail_start(line):
+                regex_list = []
+                if is_line(line, DEBUG):
+                    if DEBUG in exclude_lines:
+                        line = skip_detail(sys.stdin)
+                        continue
+                    else:
+                        regex_list = debug_regex
+                
+                if is_line(line, ERROR):
+                    if ERROR in exclude_lines:
+                        line = skip_detail(sys.stdin)
+                        continue
+                    else:
+                        regex_list = error_regex
+
+                if is_line(line, WARNING):
+                    if WARNING in exclude_lines:
+                        line = skip_detail(sys.stdin)
+                        continue
+                    else:
+                        regex_list = warning_regex
+
+                if is_line(line, FAILED):
+                    if FAILED in exclude_lines:
+                        line = skip_detail(sys.stdin)
+                        continue
+                    else:
+                        regex_list = failed_regex
+                    
+                line = process_detail(sys.stdin, line, regex_list, myfile)
+
+            if not exclude_lines or not is_line_excluded(line, exclude_lines):
+                write_line(line, myfile)
+
+def _make_parser():
+    # type: () -> argparse.ArgumentParser
+    parser = argparse.ArgumentParser(
+        description="""
+This tool is used to save a filtered version of the spread output. It parses the spread output and filters
+sections and debug/error details to the file passed as parameter (all the lines are printed).
+When a output file is not provided the debug output is sent to spread_filtered.log
+""")
+    parser.add_argument(
+        "-o",
+        "--output-file", 
+        metavar="PATH",
+        default="spread.filtered.log",
+        help="path to the filtered output file"
+    )
+    parser.add_argument(
+        "-e",
+        "--exclude", 
+        action="append",
+        default=[],
+        choices=OPERATIONS,
+        help="A line section to exclude from the output"
+    )
+    parser.add_argument(
+        "-f",
+        "--filter", 
+        action="append",
+        metavar="OPERATION=PATTERN",
+        default=[],
+        help="It is used to extract specific data from errors. Allowed operations are Error, Debug, Failed and WARNING:"
+    )
+
+    return parser
+
+
+if __name__ == "__main__":
+    parser = _make_parser()
+    args = parser.parse_args()
+    process_spread_output(args.output_file, args.exclude, args.filter)
+    
