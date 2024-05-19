@@ -30,6 +30,10 @@ func MockSendReply(f func(listenerReq *listener.Request, reply interface{}) erro
 	return restore
 }
 
+func (pdb *PromptDB) PerUser() map[uint32]*userPromptDB {
+	return pdb.perUser
+}
+
 func (pdb *PromptDB) MaxID() uint64 {
 	return pdb.maxID
 }

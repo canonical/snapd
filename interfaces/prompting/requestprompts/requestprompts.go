@@ -2,11 +2,16 @@ package requestprompts
 
 import (
 	"fmt"
+	"io"
+	"os"
+	"path/filepath"
 	"strconv"
 	"sync"
 	"time"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces/prompting"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -31,6 +36,7 @@ type promptConstraints struct {
 	AvailablePermissions []string `json:"available-permissions"`
 }
 
+// equals returns true if the two prompt constraints are identical.
 func (pc *promptConstraints) equals(other *promptConstraints) bool {
 	if pc.Path != other.Path || len(pc.Permissions) != len(other.Permissions) {
 		return false
@@ -60,6 +66,7 @@ func (pc *promptConstraints) subtractPermissions(permissions []string) bool {
 	return false
 }
 
+// userPromptDB maps prompt IDs to prompts for a single user.
 type userPromptDB struct {
 	ByID map[string]*Prompt
 }
@@ -67,9 +74,10 @@ type userPromptDB struct {
 // PromptDB stores outstanding prompts and ensures that new prompts are created
 // with a unique ID.
 type PromptDB struct {
-	perUser map[uint32]*userPromptDB
-	maxID   uint64
-	mutex   sync.Mutex
+	perUser   map[uint32]*userPromptDB
+	maxID     uint64
+	maxIDPath string
+	mutex     sync.Mutex
 	// Function to issue a notice for a change in a prompt
 	notifyPrompt func(userID uint32, promptID string) error
 }
@@ -84,7 +92,50 @@ func New(notifyPrompt func(userID uint32, promptID string) error) *PromptDB {
 		perUser:      make(map[uint32]*userPromptDB),
 		notifyPrompt: notifyPrompt,
 	}
+	// Importantly, set maxIDPath before attempting to load max ID
+	pdb.maxIDPath = filepath.Join(dirs.GlobalRootDir, "/tmp/snapd-request-prompt-max-id")
+	// XXX: is /tmp guaranteed to exist, and if not, should we create it here?
+	// Otherwise, should a non-/tmp location be used?
+	err := pdb.loadMaxID()
+	if err != nil {
+		// If cannot read max existing prompt ID, start again from 0.
+		pdb.maxID = 0
+	}
 	return &pdb
+}
+
+// loadMaxID reads the previous ID from the file at maxIDPath and sets maxID.
+//
+// If no file exists at maxIDPath, sets maxID to be 0. If another error occurs,
+// returns it and does not set maxID.
+func (pdb *PromptDB) loadMaxID() error {
+	pdb.mutex.Lock()
+	defer pdb.mutex.Unlock()
+
+	target := pdb.maxIDPath
+	f, err := os.Open(target)
+	if os.IsNotExist(err) {
+		pdb.maxID = 0
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("cannot read maximum prompt ID: %w", err)
+	}
+	defer f.Close()
+
+	idBuf := [16]byte{}
+	_, err = io.ReadFull(f, idBuf[:])
+	if err != nil {
+		return fmt.Errorf("cannot read maximum prompt ID: %w", err)
+	}
+
+	maxID, err := strconv.ParseUint(string(idBuf[:]), 16, 64)
+	if err != nil {
+		return fmt.Errorf("cannot parse maximum prompt ID: %w", err)
+	}
+
+	pdb.maxID = maxID
+	return nil
 }
 
 // nextID advances the internal monotonically-increasing maxID integer.
@@ -93,6 +144,7 @@ func New(notifyPrompt func(userID uint32, promptID string) error) *PromptDB {
 func (pdb *PromptDB) nextID() string {
 	pdb.maxID += 1
 	padded := pdb.paddedMaxIDString()
+	osutil.AtomicWriteFile(pdb.maxIDPath, []byte(padded), 0600, 0)
 	return padded
 }
 

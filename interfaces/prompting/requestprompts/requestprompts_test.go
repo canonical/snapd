@@ -2,15 +2,20 @@ package requestprompts_test
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
+	"strconv"
 	"testing"
 	"time"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces/prompting"
 	"github.com/snapcore/snapd/interfaces/prompting/patterns"
 	"github.com/snapcore/snapd/interfaces/prompting/requestprompts"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -35,6 +40,9 @@ func (s *requestpromptsSuite) SetUpTest(c *C) {
 		return nil
 	}
 	s.noticePromptIDs = make([]string, 0)
+	s.tmpdir = c.MkDir()
+	dirs.SetRootDir(s.tmpdir)
+	c.Assert(os.Mkdir(filepath.Join(s.tmpdir, "/tmp"), 0700), IsNil)
 }
 
 func (s *requestpromptsSuite) TestNew(c *C) {
@@ -43,7 +51,101 @@ func (s *requestpromptsSuite) TestNew(c *C) {
 		return nil
 	}
 	pdb := requestprompts.New(notifyPrompt)
+	c.Check(pdb.PerUser(), HasLen, 0)
 	c.Check(pdb.MaxID(), Equals, uint64(0))
+}
+
+func (s *requestpromptsSuite) TestLoadMaxID(c *C) {
+	notifyPrompt := func(userID uint32, promptID string) error {
+		c.Fatalf("unexpected notice with userID %d and ID %s", userID, promptID)
+		return nil
+	}
+	for _, testCase := range []struct {
+		fileContents []byte
+		initialMaxID uint64
+	}{
+		{
+			[]byte("0000000000000000"),
+			0,
+		},
+		{
+			[]byte("0000000000000001"),
+			1,
+		},
+		{
+			[]byte("1000000000000001"),
+			0x1000000000000001,
+		},
+		{
+			[]byte("1234"),
+			0,
+		},
+		{
+			[]byte("deadbeefdeadbeef"),
+			0xdeadbeefdeadbeef,
+		},
+		{
+			[]byte("deadbeef"),
+			0,
+		},
+		{
+			[]byte("foo"),
+			0,
+		},
+		{
+			[]byte("foobarbazqux1234"),
+			0,
+		},
+	} {
+		osutil.AtomicWriteFile(filepath.Join(s.tmpdir, "/tmp/snapd-request-prompt-max-id"), testCase.fileContents, 0600, 0)
+		pdb := requestprompts.New(notifyPrompt)
+		c.Check(pdb.MaxID(), Equals, testCase.initialMaxID)
+	}
+}
+
+func (s *requestpromptsSuite) TestLoadMaxIDNextID(c *C) {
+	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, reply interface{}) error {
+		c.Fatalf("should not have called sendReply")
+		return nil
+	})
+	defer restore()
+
+	var prevMaxID uint64 = 42
+	maxIDStr := strconv.FormatUint(prevMaxID, 16)
+	padded := "0000000000000000"[:16-len(maxIDStr)] + maxIDStr
+	osutil.AtomicWriteFile(filepath.Join(s.tmpdir, "/tmp/snapd-request-prompt-max-id"), []byte(padded), 0600, 0)
+
+	pdb1 := requestprompts.New(s.defaultNotifyPrompt)
+	c.Check(pdb1.PerUser(), HasLen, 0)
+	c.Check(pdb1.MaxID(), Equals, prevMaxID)
+
+	user := s.defaultUser
+	snap := "nextcloud"
+	iface := "home"
+	path := "/home/test/Documents/foo.txt"
+	permissions := []string{"read", "write", "execute"}
+
+	listenerReq := &listener.Request{}
+	prompt, merged := pdb1.AddOrMerge(user, snap, iface, path, permissions, listenerReq)
+	c.Assert(merged, Equals, false)
+	s.checkWrittenMaxID(c, prompt.ID)
+
+	expectedID := prevMaxID + 1
+	expectedIDStr := strconv.FormatUint(expectedID, 16)
+	padded = "0000000000000000"[:16-len(expectedIDStr)] + expectedIDStr
+	s.checkWrittenMaxID(c, padded)
+
+	pdb2 := requestprompts.New(s.defaultNotifyPrompt)
+	// New prompt DB should not have existing prompts, but should start from previous max ID
+	c.Check(pdb2.PerUser(), HasLen, 0)
+	c.Check(pdb1.MaxID(), Equals, prevMaxID+1)
+}
+
+func (s *requestpromptsSuite) checkWrittenMaxID(c *C, id string) {
+	maxIDPath := filepath.Join(s.tmpdir, "/tmp/snapd-request-prompt-max-id")
+	data, err := os.ReadFile(maxIDPath)
+	c.Assert(err, IsNil)
+	c.Assert(string(data), Equals, id)
 }
 
 func (s *requestpromptsSuite) TestAddOrMerge(c *C) {
@@ -75,6 +177,7 @@ func (s *requestpromptsSuite) TestAddOrMerge(c *C) {
 
 	s.checkNewNotices(c, []string{prompt1.ID})
 	c.Check(pdb.MaxID(), Equals, uint64(1))
+	s.checkWrittenMaxID(c, prompt1.ID)
 
 	prompt2, merged := pdb.AddOrMerge(user, snap, iface, path, permissions, listenerReq2)
 	c.Assert(merged, Equals, true)
@@ -84,6 +187,7 @@ func (s *requestpromptsSuite) TestAddOrMerge(c *C) {
 	s.checkNewNotices(c, []string{})
 	// Merged prompts should not advance the max ID
 	c.Check(pdb.MaxID(), Equals, uint64(1))
+	s.checkWrittenMaxID(c, prompt1.ID)
 
 	c.Check(prompt1.Timestamp.After(before), Equals, true)
 	c.Check(prompt1.Timestamp.Before(after), Equals, true)
@@ -112,6 +216,7 @@ func (s *requestpromptsSuite) TestAddOrMerge(c *C) {
 	s.checkNewNotices(c, []string{})
 	// Merged prompts should not advance the max ID
 	c.Check(pdb.MaxID(), Equals, uint64(1))
+	s.checkWrittenMaxID(c, prompt1.ID)
 }
 
 func (s *requestpromptsSuite) checkNewNotices(c *C, expectedPromptIDs []string) {
