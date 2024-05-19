@@ -639,3 +639,49 @@ func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 	stored = pdb.Prompts(user)
 	c.Check(stored, HasLen, 0)
 }
+
+func (s *requestpromptsSuite) TestCleanUp(c *C) {
+	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, reply interface{}) error {
+		c.Fatalf("should not have called sendReply")
+		return nil
+	})
+	defer restore()
+
+	pdb := requestprompts.New(s.defaultNotifyPrompt)
+
+	user := s.defaultUser
+	snap := "nextcloud"
+	iface := "home"
+	permissions := []string{"read", "write", "execute"}
+
+	paths := []string{
+		"/home/test/1.txt",
+		"/home/test/2.txt",
+		"/home/test/3.txt",
+	}
+
+	prompts := make([]*requestprompts.Prompt, 0, 3)
+	for _, path := range paths {
+		listenerReq := &listener.Request{}
+		prompt, merged := pdb.AddOrMerge(user, snap, iface, path, permissions, listenerReq)
+		c.Assert(merged, Equals, false)
+		prompts = append(prompts, prompt)
+	}
+
+	expectedPromptIDs := make([]string, 0, 3)
+	for _, prompt := range prompts {
+		expectedPromptIDs = append(expectedPromptIDs, prompt.ID)
+	}
+	c.Check(pdb.MaxID(), Equals, uint64(3))
+
+	// One notice for each prompt when created
+	s.checkNewNotices(c, expectedPromptIDs)
+
+	pdb.CleanUp()
+
+	// Once notice for each prompt when cleaned up
+	s.checkNewNoticesUnordered(c, expectedPromptIDs)
+
+	// All prompts have been cleared, and all per-user maps deleted
+	c.Check(pdb.PerUser(), HasLen, 0)
+}

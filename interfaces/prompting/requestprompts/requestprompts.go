@@ -333,3 +333,19 @@ func (pdb *PromptDB) HandleNewRule(user uint32, snap string, iface string, const
 	}
 	return satisfiedPromptIDs, nil
 }
+
+// CleanUp removes all outstanding prompts and records a notice for each one.
+//
+// This should be called when snapd is shutting down, to notify prompt clients
+// that the given prompts are no longer awaiting a reply.
+func (pdb *PromptDB) CleanUp() {
+	pdb.mutex.Lock()
+	defer pdb.mutex.Unlock()
+	for user, userEntry := range pdb.perUser {
+		for id := range userEntry.ByID {
+			pdb.notifyPrompt(user, id)
+		}
+	}
+	// Clear all outstanding prompts
+	pdb.perUser = make(map[uint32]*userPromptDB)
+}
