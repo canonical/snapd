@@ -116,7 +116,11 @@ func expectedDoInstallTasks(typ snap.Type, opts, discards int, startTasks []stri
 
 	afterLinkSnap := make([]string, 0, len(components))
 	for range components {
-		compTasks := expectedComponentInstallTasks(compOptSkipSecurity)
+		compOpts := compOptSkipSecurity
+		if opts&localSnap != 0 {
+			compOpts |= compOptIsLocal
+		}
+		compTasks := expectedComponentInstallTasks(compOpts)
 		for i, t := range compTasks {
 			if t == "link-component" {
 				afterLinkSnap = append(afterLinkSnap, compTasks[i:]...)
