@@ -1387,7 +1387,7 @@ func (f *fakeSnappyBackend) RemoveSnapDataDir(info *snap.Info, otherInstances bo
 	f.appendOp(&fakeOp{
 		op:             "remove-snap-data-dir",
 		name:           info.InstanceName(),
-		path:           snap.BaseDataDir(info.SnapName()),
+		path:           snap.BaseDataDir(info.InstanceName()),
 		otherInstances: otherInstances,
 	})
 	return f.maybeErrForLastOp()
@@ -1405,7 +1405,7 @@ func (f *fakeSnappyBackend) RemoveSnapDir(s snap.PlaceInfo, otherInstances bool)
 	f.appendOp(&fakeOp{
 		op:             "remove-snap-dir",
 		name:           s.InstanceName(),
-		path:           snap.BaseDir(s.SnapName()),
+		path:           snap.BaseDir(s.InstanceName()),
 		otherInstances: otherInstances,
 	})
 	return f.maybeErrForLastOp()
