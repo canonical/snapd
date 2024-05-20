@@ -382,12 +382,12 @@ func (iw *infoWriter) maybePrintBuildDate() {
 }
 
 func (iw *infoWriter) maybePrintLinks() {
+	if len(iw.theSnap.Links) == 0 {
+		return
+	}
 	contact := strings.TrimPrefix(iw.theSnap.Contact, "mailto:")
 	if contact != "" {
 		fmt.Fprintf(iw, "contact:\t%s\n", contact)
-	}
-	if !iw.verbose || len(iw.theSnap.Links) == 0 {
-		return
 	}
 	links := iw.theSnap.Links
 	fmt.Fprintln(iw, "links:")

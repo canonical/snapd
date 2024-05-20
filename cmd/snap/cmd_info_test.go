@@ -339,23 +339,6 @@ func (s *infoSuite) TestMaybePrintSum(c *check.C) {
 	c.Check(buf.String(), check.Equals, "")
 }
 
-func (s *infoSuite) TestMaybePrintLinksContact(c *check.C) {
-	var buf flushBuffer
-	iw := snap.NewInfoWriter(&buf)
-
-	for contact, expected := range map[string]string{
-		"mailto:joe@example.com": "contact:\tjoe@example.com\n",
-		// gofmt 1.9 being silly
-		"foo": "contact:\tfoo\n",
-		"":    "",
-	} {
-		buf.Reset()
-		snap.SetupDiskSnap(iw, "", &client.Snap{Contact: contact})
-		snap.MaybePrintLinks(iw)
-		c.Check(buf.String(), check.Equals, expected, check.Commentf("%q", contact))
-	}
-}
-
 func (s *infoSuite) TestMaybePrintHoldingInfo(c *check.C) {
 	var buf flushBuffer
 	iw := snap.NewInfoWriterWithFmtTime(&buf, timeutil.Human)
@@ -450,18 +433,19 @@ func (s *infoSuite) TestMaybePrintHoldingNonUTCLocalTime(c *check.C) {
 	c.Assert(buf.String(), check.Equals, "hold:\tin 4 days, at 14:00 UTC+4\n")
 }
 
-func (s *infoSuite) TestMaybePrintLinksVerbose(c *check.C) {
+func (s *infoSuite) TestMaybePrintLinks(c *check.C) {
 	var buf flushBuffer
 	iw := snap.NewInfoWriter(&buf)
-	snap.SetVerbose(iw, true)
 
 	const contact = "mailto:joe@example.com"
 	const website1 = "http://example.com/www1"
 	const website2 = "http://example.com/www2"
+	const sourcecode = "git://example.com/repo.git"
 	snap.SetupDiskSnap(iw, "", &client.Snap{
 		Links: map[string][]string{
-			"contact": {contact},
-			"website": {website1, website2},
+			"contact":     {contact},
+			"source-code": {sourcecode},
+			"website":     {website1, website2},
 		},
 		Contact: contact,
 		Website: website1,
@@ -472,6 +456,8 @@ func (s *infoSuite) TestMaybePrintLinksVerbose(c *check.C) {
 		`links:
   contact:
     - mailto:joe@example.com
+  source-code:
+    - git://example.com/repo.git
   website:
     - http://example.com/www1
     - http://example.com/www2
