@@ -6284,6 +6284,9 @@ func (s *snapmgrTestSuite) testInstallComponentsRunThrough(c *C, snapName, insta
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	// sort these so that we can predict the order of the ops
+	sort.Strings(components)
+
 	if instanceKey != "" {
 		tr := config.NewTransaction(s.state)
 		tr.Set("core", "experimental.parallel-instances", true)

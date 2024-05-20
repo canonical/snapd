@@ -23,6 +23,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
@@ -523,6 +524,14 @@ func InstallWithGoal(ctx context.Context, st *state.State, goal InstallGoal, opt
 	// we should check it here as well to be safe
 	if opts.ExpectOneSnap && len(targets) != 1 {
 		return nil, nil, ErrExpectedOneSnap
+	}
+
+	for _, t := range targets {
+		// sort the components by name to ensure we always install components in the
+		// same order
+		sort.Slice(t.components, func(i, j int) bool {
+			return t.components[i].Info.Component.String() < t.components[j].Info.Component.String()
+		})
 	}
 
 	installInfos := make([]minimalInstallInfo, 0, len(targets))
