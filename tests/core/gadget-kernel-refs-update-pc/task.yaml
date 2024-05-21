@@ -22,6 +22,7 @@ environment:
     START_REVISION: 1000
     # uploading a large snap makes OOM kill snapd
     SNAPD_NO_MEMORY_LIMIT: 1
+    CONF_OVERRIDE: /etc/systemd/system/snapd.service.d/90-$(basename $SPREAD_TASK).conf
 
 prepare: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -92,7 +93,10 @@ prepare: |
 
     # make sure that the snapd daemon gives us time for comms before
     # closing the socket
-    sed -i '/^Environment=/ s/$/ SNAPD_SHUTDOWN_DELAY=1/' /etc/systemd/system/snapd.service.d/local.conf
+    cp /etc/systemd/system/snapd.service.d/00-prepare.conf "$CONF_OVERRIDE"
+    sed -i '/^Environment=/ s/$/ SNAPD_SHUTDOWN_DELAY=1/' "$CONF_OVERRIDE"
+
+    systemctl daemon-reload
     systemctl restart snapd
     
 restore: |
@@ -109,7 +113,8 @@ restore: |
     #      restore requires a reboot :/
 
     # remove SNAPD_SHUTDOWN_DELAY again
-    sed -i 's/SNAPD_SHUTDOWN_DELAY=1//g' /etc/systemd/system/snapd.service.d/local.conf
+    rm "$CONF_OVERRIDE"
+    systemctl daemon-reload
     systemctl restart snapd
     
 execute: |

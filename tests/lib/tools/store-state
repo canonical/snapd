@@ -1,6 +1,6 @@
 #!/bin/bash
 
-STORE_CONFIG=/etc/systemd/system/snapd.service.d/store.conf
+STORE_CONFIG=/etc/systemd/system/snapd.service.d/35-store.conf
 
 show_help() {
     echo "usage: store-state setup-fake-store <DIR>"

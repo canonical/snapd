@@ -201,8 +201,8 @@ check_segmentation_violations() {
 
 check_fakestore_cleaned() {
     # Check if fakestore was properly cleaned to avoid leaking into other tests.
-    if [ -f "/etc/systemd/system/snapd.service.d/store.conf" ]; then
-        echo "/etc/systemd/system/snapd.service.d/store.conf was not cleaned properly"
+    if [ -f "/etc/systemd/system/snapd.service.d/35-store.conf" ]; then
+        echo "/etc/systemd/system/snapd.service.d/35-store.conf was not cleaned properly"
         exit 1
     fi
 }

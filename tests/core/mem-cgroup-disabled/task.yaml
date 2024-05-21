@@ -16,6 +16,7 @@ systems: [ubuntu-core-2*]
 
 environment:
   SVC_UNIT: /etc/systemd/system/snap.test-snapd-simple-service.test-snapd-simple-service.service
+  CONF_OVERRIDE: /etc/systemd/system/snapd.service.d/90-$(basename $SPREAD_TASK).conf
 
 prepare: |
   if not os.query is-pc-amd64; then
@@ -45,12 +46,15 @@ prepare: |
   
   # make sure that the snapd daemon gives us time for comms before
   # closing the socket
-  sed -i '/^Environment=/ s/$/ SNAPD_SHUTDOWN_DELAY=1/' /etc/systemd/system/snapd.service.d/local.conf
+  cp /etc/systemd/system/snapd.service.d/00-prepare.conf "$CONF_OVERRIDE"
+  sed -i '/^Environment=/ s/$/ SNAPD_SHUTDOWN_DELAY=1/' "$CONF_OVERRIDE"
+  systemctl daemon-reload
   systemctl restart snapd
 
 restore: |
   # remove SNAPD_SHUTDOWN_DELAY again
-  sed -i 's/SNAPD_SHUTDOWN_DELAY=1//g' /etc/systemd/system/snapd.service.d/local.conf
+  rm "$CONF_OVERRIDE"
+  systemctl daemon-reload
   systemctl restart snapd
 
 execute: |

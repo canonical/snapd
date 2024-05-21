@@ -7,10 +7,12 @@ details: |
 # apt hook only available on 18.04+ and aws-cli only for amd64
 systems: [ubuntu-18.04-64, ubuntu-2*-64]
 
+environment:
+    CONF_OVERRIDE: /etc/systemd/system/snapd.service.d/90-$(basename $SPREAD_TASK).conf
+
 prepare: |
-    cp /etc/systemd/system/snapd.service.d/local.conf /etc/systemd/system/snapd.service.d/local.conf.bak
     # enable catalog refresh requests
-    cat <<EOF >> /etc/systemd/system/snapd.service.d/local.conf
+    cat <<EOF >> "$CONF_OVERRIDE"
     # added by apt-hooks test
     [Service]
     Environment=SNAPD_CATALOG_REFRESH=1
@@ -19,7 +21,7 @@ prepare: |
     systemctl restart snapd.socket
 
 restore: |
-    mv /etc/systemd/system/snapd.service.d/local.conf.bak /etc/systemd/system/snapd.service.d/local.conf
+    rm "$CONF_OVERRIDE"
     systemctl daemon-reload
     systemctl restart snapd.socket
 

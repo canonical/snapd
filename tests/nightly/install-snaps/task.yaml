@@ -66,10 +66,11 @@ environment:
     SNAP/snapcraft: snapcraft
     SNAP/solc: solc
     SNAP/vault: vault
+    CONF_OVERRIDE: /etc/systemd/system/snapd.service.d/90-$(basename $SPREAD_TASK).conf
 
 prepare: |
-    cp /etc/systemd/system/snapd.service.d/local.conf /etc/systemd/system/snapd.service.d/local.conf.bak
-    sed 's/SNAPD_CONFIGURE_HOOK_TIMEOUT=.*s/SNAPD_CONFIGURE_HOOK_TIMEOUT=180s/g' -i /etc/systemd/system/snapd.service.d/local.conf
+    cp /etc/systemd/system/snapd.service.d/00-prepare.conf "$CONF_OVERRIDE"
+    sed 's/SNAPD_CONFIGURE_HOOK_TIMEOUT=.*s/SNAPD_CONFIGURE_HOOK_TIMEOUT=180s/g' -i "$CONF_OVERRIDE"
     systemctl daemon-reload
     systemctl restart snapd.socket
 
@@ -79,7 +80,7 @@ prepare: |
     fi
 
 restore: |
-    mv /etc/systemd/system/snapd.service.d/local.conf.bak /etc/systemd/system/snapd.service.d/local.conf
+    rm "$CONF_OVERRIDE"
     systemctl daemon-reload
     systemctl restart snapd.socket
 

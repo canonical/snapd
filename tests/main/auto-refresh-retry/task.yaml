@@ -6,11 +6,14 @@ details: |
 
 systems: [-ubuntu-14.04-*]
 
+environment:
+    CONF_OVERRIDE: /etc/systemd/system/snapd.service.d/90-$(basename $SPREAD_TASK).conf
+
 prepare: |
     snap install --devmode jq
 
 restore: |
-    rm -f /etc/systemd/system/snapd.service.d/override.conf
+    rm -f "$CONF_OVERRIDE"
     ip netns delete testns || true
     umount /run/netns || true
 
@@ -36,9 +39,9 @@ execute: |
 
     # restart snapd in a network namespace
     ip netns add testns
-    echo "[Service]" > /etc/systemd/system/snapd.service.d/override.conf
-    echo "ExecStart=" >> /etc/systemd/system/snapd.service.d/override.conf
-    systemctl cat snapd.service | sed 's+ExecStart=\(.*\)+ExecStart=/usr/bin/nsenter --net=/var/run/netns/testns \1+' >> /etc/systemd/system/snapd.service.d/override.conf
+    echo "[Service]" > "$CONF_OVERRIDE"
+    echo "ExecStart=" >> "$CONF_OVERRIDE"
+    systemctl cat snapd.service | sed 's+ExecStart=\(.*\)+ExecStart=/usr/bin/nsenter --net=/var/run/netns/testns \1+' >> "$CONF_OVERRIDE"
     systemctl daemon-reload
     systemctl start snapd.{socket,service}
 
@@ -56,7 +59,7 @@ execute: |
 
     # restart snapd with network access back
     systemctl stop snapd.{service,socket}
-    rm -f /etc/systemd/system/snapd.service.d/override.conf
+    rm -f "$CONF_OVERRIDE"
     systemctl daemon-reload
     systemctl start snapd.{socket,service}
 

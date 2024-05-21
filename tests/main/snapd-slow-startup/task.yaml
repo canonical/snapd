@@ -10,10 +10,14 @@ details: |
 
 systems: [ubuntu-18.04-64]
 
+environment:
+    CONF_OVERRIDE: /etc/systemd/system/snapd.service.d/90-$(basename $SPREAD_TASK).conf
+
 restore: |
     # extra cleanup in case something in this test went wrong
-    rm -f /etc/systemd/system/snapd.service.d/slow-startup.conf
-    systemctl stop snapd.service snapd.socket
+    rm -f "$CONF_OVERRIDE"
+    systemctl daemon-reload
+    systemctl restart snapd.socket
 
 debug: |
     ls /etc/systemd/system/snapd.service.d
@@ -35,7 +39,7 @@ execute: |
 
     echo "Simulate a slow startup"
     systemctl stop snapd.service snapd.socket
-    cat > /etc/systemd/system/snapd.service.d/slow-startup.conf <<EOF
+    cat > "$CONF_OVERRIDE" <<EOF
     [Service]
     Environment=SNAPD_SLOW_STARTUP=55s
     Restart=no

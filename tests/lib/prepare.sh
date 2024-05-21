@@ -120,7 +120,7 @@ disable_refreshes() {
 
 setup_systemd_snapd_overrides() {
     mkdir -p /etc/systemd/system/snapd.service.d
-    cat <<EOF > /etc/systemd/system/snapd.service.d/local.conf
+    cat <<EOF > /etc/systemd/system/snapd.service.d/00-prepare.conf
 [Service]
 Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_REBOOT_DELAY=10m SNAPD_CONFIGURE_HOOK_TIMEOUT=30s SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE
 ExecStartPre=/bin/touch /dev/iio:device0
@@ -279,7 +279,7 @@ prepare_memory_limit_override() {
 
     if [ "$set_limit" = "0" ]; then
         # make sure the file does not exist then
-        rm -f /etc/systemd/system/snapd.service.d/memory-max.conf
+        rm -f /etc/systemd/system/snapd.service.d/05-memory-max.conf
     else
         mkdir -p /etc/systemd/system/snapd.service.d
         # Use MemoryMax to set the memory limit for snapd.service, that is the
@@ -291,7 +291,7 @@ prepare_memory_limit_override() {
         # This ought to set MemoryMax, but on systems with older systemd we need to
         # use MemoryLimit, which is deprecated and replaced by MemoryMax now, but
         # systemd is backwards compatible so the limit is still set.
-        cat <<EOF > /etc/systemd/system/snapd.service.d/memory-max.conf
+        cat <<EOF > /etc/systemd/system/snapd.service.d/05-memory-max.conf
 [Service]
 MemoryLimit=200M
 EOF
@@ -303,7 +303,7 @@ EOF
 }
 
 prepare_reexec_override() {
-    local reexec_file=/etc/systemd/system/snapd.service.d/reexec.conf
+    local reexec_file=/etc/systemd/system/snapd.service.d/09-reexec.conf
  
     # First time it is needed to save the initial env var value
     if not tests.env is-set initial SNAP_REEXEC; then
@@ -330,8 +330,8 @@ EOF
 }
 
 prepare_each_classic() {
-    if [ ! -f /etc/systemd/system/snapd.service.d/local.conf ]; then
-        echo "/etc/systemd/system/snapd.service.d/local.conf vanished!"
+    if [ ! -f /etc/systemd/system/snapd.service.d/00-prepare.conf ]; then
+        echo "/etc/systemd/system/snapd.service.d/00-prepare.conf vanished!"
         exit 1
     fi
 

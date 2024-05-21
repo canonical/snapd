@@ -26,6 +26,7 @@ environment:
     CHANNEL/edge: 1.25-strict/edge
     # apparmor profile of microk8s can make snapd exceed its spread memory limit
     SNAPD_NO_MEMORY_LIMIT: 1
+    CONF_OVERRIDE: /etc/systemd/system/snapd.service.d/90-$(basename $SPREAD_TASK).conf
 
 prepare: |
     # ensure curl is available (needed for Ubuntu Core)
@@ -38,9 +39,9 @@ prepare: |
     # The default timeout for the configure hook is 5min - however in the
     # testsuite this is lowered to 30 seconds. We need to undo this for the
     # microk8s spread test because it really take a bit to get configured.
-    cp /etc/systemd/system/snapd.service.d/local.conf /etc/systemd/system/snapd.service.d/local.conf.bak
-    sed 's/SNAPD_CONFIGURE_HOOK_TIMEOUT=.*s/SNAPD_CONFIGURE_HOOK_TIMEOUT=180s/g' -i /etc/systemd/system/snapd.service.d/local.conf
-    tests.cleanup defer mv /etc/systemd/system/snapd.service.d/local.conf.bak /etc/systemd/system/snapd.service.d/local.conf
+    cp /etc/systemd/system/snapd.service.d/00-prepare.conf "$CONF_OVERRIDE"
+    sed 's/SNAPD_CONFIGURE_HOOK_TIMEOUT=.*s/SNAPD_CONFIGURE_HOOK_TIMEOUT=180s/g' -i "$CONF_OVERRIDE"
+    tests.cleanup defer rm "$CONF_OVERRIDE"
     systemctl daemon-reload
     tests.cleanup defer systemctl daemon-reload
     systemctl restart snapd.socket

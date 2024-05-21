@@ -7,6 +7,9 @@ details: |
 # Some systemctl calls are not supported on UC16
 systems: [-ubuntu-core-16-*]
 
+environment:
+  CONF_OVERRIDE: /etc/systemd/system/snapd.service.d/90-$(basename $SPREAD_TASK).conf
+
 execute: |
   get_log_level() {
       if os.query is-core-le 18; then
@@ -18,7 +21,12 @@ execute: |
 
   if [ "$SPREAD_REBOOT" = 0 ]; then
       # Remove the variable introduced by prepare.sh
-      sed -i 's/SNAPD_DEBUG=1//' /etc/systemd/system/snapd.service.d/local.conf
+      cp /etc/systemd/system/snapd.service.d/00-prepare.conf "$CONF_OVERRIDE"
+      sed -i 's/SNAPD_DEBUG=1//' "$CONF_OVERRIDE"
+      tests.cleanup defer rm "$CONF_OVERRIDE"
+      tests.cleanup systemctl defer daemon-reload
+      tests.cleanup systemctl defer restart snapd
+
       systemctl daemon-reload
       systemctl restart snapd
       NOMATCH SNAPD_DEBUG=1 < /proc/"$(pgrep snapd)"/environ

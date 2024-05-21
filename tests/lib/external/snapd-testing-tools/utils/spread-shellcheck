@@ -127,6 +127,7 @@ def checksection(data, env: Dict[str, str]):
     script_data.append('export SPREAD_SYSTEM_PASSWORD=placeholder')
     script_data.append('export SPREAD_SYSTEM_ADDRESS=placeholder')
     script_data.append('export SPREAD_REBOOT=123')
+    script_data.append('export SPREAD_TASK=placeholder')
 
     for key, value in env.items():
         value = str(value)

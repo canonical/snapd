@@ -25,7 +25,7 @@ prepare: |
     "$TESTSTOOLS"/store-state setup-fake-store "$BLOB_DIR"
     # undo the setup through envvars
     systemctl stop snapd.service snapd.socket
-    rm /etc/systemd/system/snapd.service.d/store.conf
+    rm /etc/systemd/system/snapd.service.d/35-store.conf
     systemctl daemon-reload
     systemctl start snapd.socket
 

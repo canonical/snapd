@@ -13,7 +13,7 @@ environment:
   # window).
   SNAPD_MIN_DOWNLOAD_SPEED: 99000
   SNAPD_DOWNLOAD_MEAS_WINDOW: 15s
-  OVERRIDES_FILE: /etc/systemd/system/snapd.service.d/local.conf
+  CONF_OVERRIDE: /etc/systemd/system/snapd.service.d/90-$(basename $SPREAD_TASK).conf
 
 prepare: |
   if not os.query is-pc-amd64; then
@@ -21,8 +21,8 @@ prepare: |
       exit
   fi
 
-  cp "$OVERRIDES_FILE" "$OVERRIDES_FILE".bak
-  sed "s/Environment=/Environment=SNAPD_MIN_DOWNLOAD_SPEED=${SNAPD_MIN_DOWNLOAD_SPEED} SNAPD_DOWNLOAD_MEAS_WINDOW=${SNAPD_DOWNLOAD_MEAS_WINDOW} /" -i "$OVERRIDES_FILE"
+  cp /etc/systemd/system/snapd.service.d/00-prepare.conf "$CONF_OVERRIDE"
+  sed "s/Environment=/Environment=SNAPD_MIN_DOWNLOAD_SPEED=${SNAPD_MIN_DOWNLOAD_SPEED} SNAPD_DOWNLOAD_MEAS_WINDOW=${SNAPD_DOWNLOAD_MEAS_WINDOW} /" -i "$CONF_OVERRIDE"
 
   systemctl daemon-reload
   systemctl restart snapd.{socket,service}
@@ -40,7 +40,7 @@ restore: |
   fi
   tc qdisc del dev ens4 ingress
 
-  mv "$OVERRIDES_FILE".bak "$OVERRIDES_FILE"
+  rm -f "$CONF_OVERRIDE"
   systemctl daemon-reload
   systemctl restart snapd.{socket,service}
 

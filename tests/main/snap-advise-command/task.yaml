@@ -20,16 +20,15 @@ systems:
     - ubuntu-2*
     - ubuntu-core-16*
 
+environment:
+    CONF_OVERRIDE: /etc/systemd/system/snapd.service.d/90-$(basename $SPREAD_TASK).conf
+
 prepare: |
     if ! os.query is-core16 && [ -e /usr/lib/command-not-found ]; then
         mv /usr/lib/command-not-found /usr/lib/command-not-found.orig
     fi
-    if [ -e /etc/systemd/system/snapd.service.d/local.conf ]; then
-        cp /etc/systemd/system/snapd.service.d/local.conf /etc/systemd/system/snapd.service.d/local.conf.bak
-    fi
-    mkdir -p /etc/systemd/system/snapd.service.d
     # enable catalog refresh requests
-    cat <<EOF >> /etc/systemd/system/snapd.service.d/local.conf
+    cat <<EOF >> "$CONF_OVERRIDE"
     # added by snap-advise-command test
     [Service]
     Environment=SNAPD_CATALOG_REFRESH=1
@@ -41,9 +40,7 @@ restore: |
     if [ -e /usr/lib/command-not-found.orig ]; then
         mv /usr/lib/command-not-found.orig /usr/lib/command-not-found
     fi
-    if [ -e /etc/systemd/system/snapd.service.d/local.conf.bak ]; then
-        mv /etc/systemd/system/snapd.service.d/local.conf.bak /etc/systemd/system/snapd.service.d/local.conf
-    fi
+    rm "$CONF_OVERRIDE"
     systemctl daemon-reload
     systemctl restart snapd.socket
 
