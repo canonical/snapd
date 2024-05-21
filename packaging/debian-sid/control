@@ -55,6 +55,7 @@ Build-Depends: autoconf,
                python3-docutils,
                python3-markdown,
                squashfs-tools,
+               systemd-dev,
                tzdata,
                udev,
                xfslibs-dev
