@@ -199,6 +199,7 @@ backends:
                   workers: 6
                   storage: preserve-size
                   image: centos-9-64
+                  manual: true
 
             - opensuse-15.5-64:
                   workers: 6
