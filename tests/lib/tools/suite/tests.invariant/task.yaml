@@ -69,3 +69,26 @@ execute: |
         systemctl stop superfluous-dbus.service
         tests.invariant check stray-dbus-daemon 2>&1 | MATCH 'tests.invariant: stray-dbus-daemon ok'
     fi
+    
+    # check we don't fail if the directory is missing
+    tests.invariant check snapd-svc-conf
+
+    mkdir -p /etc/systemd/system/snapd.service.d 
+    tests.cleanup defer rm -r /etc/systemd/system/snapd.service.d
+ 
+    # we expect **some** 0X file to exist
+    tests.invariant check snapd-svc-conf | MATCH "tests.invariant.snapd-svc-conf: /etc/systemd/system/snapd.service.d must contain a base conf file (e.g., 00-prepare.conf)"
+
+    # if it only contains non-test harness files, list them
+    touch /etc/systemd/system/snapd.service.d/15-fail-check.conf
+    tests.invariant check snapd-svc-conf | MATCH "tests.invariant.snapd-svc-conf: /etc/systemd/system/snapd.service.d must contain a base conf file (e.g., 00-prepare.conf) but instead contains: 15-fail-check.conf"
+
+    # fail if we have an expected file but a test didn't clean up a config
+    touch /etc/systemd/system/snapd.service.d/05-no-fail-check.conf
+    tests.invariant check snapd-svc-conf | MATCH "tests.invariant.snapd-svc-conf: /etc/systemd/system/snapd.service.d contains unexpected files: 15-fail-check.conf"
+    rm /etc/systemd/system/snapd.service.d/15-fail-check.conf
+
+    # if the directory only contains a base 0X-<name>.conf file, the check passes
+    tests.invariant check snapd-svc-conf
+    
+    tests.cleanup restore

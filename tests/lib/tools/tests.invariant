@@ -199,12 +199,47 @@ check_segmentation_violations() {
 	fi
 }
 
-check_fakestore_cleaned() {
-    # Check if fakestore was properly cleaned to avoid leaking into other tests.
-    if [ -f "/etc/systemd/system/snapd.service.d/35-store.conf" ]; then
-        echo "/etc/systemd/system/snapd.service.d/35-store.conf was not cleaned properly"
-        exit 1
-    fi
+# Check that there is only configuration files left are created by the test
+# harness (0X-xyz.conf) since others might override its values and affect tests
+check_snapd_svc_conf() {
+	local n="$1" # invariant name
+	local conf_dir="/etc/systemd/system/snapd.service.d/"
+
+	# some test suites don't configure snapd so don't fail (prepare.sh already
+	# fails when this is missing)
+	if [ ! -d "$conf_dir" ]; then
+			exit 0
+	fi
+
+	local leaked_files
+	local found_prepare_conf="false"
+	for file_path in /etc/systemd/system/snapd.service.d/*; do
+		local file_name
+		file_name="$(basename "$file_path")"
+
+		# ignore config files added by the test harness
+		if echo "$file_name" | grep -q -v "^0[0-9]-.*\.conf"; then
+			leaked_files="$leaked_files $file_name"
+		else
+			found_prepare_conf="true"
+		fi
+	done
+
+	if [ "$found_prepare_conf" = "false" ]; then
+		echo -n "tests.invariant.$n: $conf_dir must contain a base conf file (e.g., 00-prepare.conf)"
+		if [ -n "$leaked_files" ]; then
+			echo "but instead contains unexpected files:$leaked_files"
+		else
+			echo ""
+		fi
+
+		exit 1
+	fi
+
+	if [ -n "$leaked_files" ]; then
+		echo "tests.invariant.$n: $conf_dir contains:$leaked_files"
+		exit 1
+	fi
 }
 
 check_invariant() {
@@ -233,8 +268,8 @@ check_invariant() {
 		segmentation-violations)
 			check_segmentation_violations "$1"
 			;;
-		check-fakestore-cleaned)
-			check_fakestore_cleaned
+		snapd-svc-conf)
+			check_snapd_svc_conf "$1"
 			;;
 		*)
 			echo "tests.invariant: unknown invariant $1" >&2
@@ -244,7 +279,7 @@ check_invariant() {
 }
 
 main() {
-	ALL_INVARIANTS="root-files-in-home crashed-snap-confine lxcfs-mounted stray-dbus-daemon leftover-defer-sh broken-snaps cgroup-scopes segmentation-violations check-fakestore-cleaned"
+	ALL_INVARIANTS="root-files-in-home crashed-snap-confine lxcfs-mounted stray-dbus-daemon leftover-defer-sh broken-snaps cgroup-scopes segmentation-violations snapd-svc-conf"
 
 	case "$action" in
 		check)
