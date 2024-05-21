@@ -26,7 +26,6 @@ import (
 	"mime"
 	"mime/multipart"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -135,6 +134,7 @@ func (s *SnapOpSuite) TestWait(c *check.C) {
 	// should always result in a connection refused error, since port zero isn't
 	// valid
 	snap.ClientConfig.BaseURL = "http://localhost:0"
+	s.BaseTest.AddCleanup(func() { snap.ClientConfig.BaseURL = "" })
 
 	cli := snap.Client()
 	chg, err := snap.Wait(cli, "x")
@@ -211,10 +211,9 @@ func (s *SnapOpSuite) TestWaitDaemonUnavailableWithMaintenance(c *check.C) {
 	// write the maintenance json
 	os.WriteFile(dirs.SnapdMaintenanceFile, b, 0666)
 
-	// lazy way of getting a URL that won't work nor break stuff
-	server := httptest.NewServer(nil)
-	snap.ClientConfig.BaseURL = server.URL
-	server.Close()
+	// use a port that we can't connect to anyway
+	snap.ClientConfig.BaseURL = "http://localhost:0"
+	s.BaseTest.AddCleanup(func() { snap.ClientConfig.BaseURL = "" })
 
 	cli := snap.Client()
 	chg, err := snap.Wait(cli, "x")
