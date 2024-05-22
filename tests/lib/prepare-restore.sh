@@ -124,9 +124,11 @@ build_rpm() {
     rm -rf "$rpm_dir"/BUILD/*
     # Install build dependencies
     distro_install_package rpmdevtools
+    # XXX we should pass --with testkeys for completeness, but older versions of
+    # rpmspec do not support it, and in any case testkeys does not result in any
+    # additional build packages
     # shellcheck disable=SC2046
-    distro_install_package $(rpmspec -q --buildrequires --with testkeys \
-                             "$packaging_path/snapd.spec")
+    distro_install_package $(rpmspec -q --buildrequires "$packaging_path/snapd.spec")
 
     # Build our source package
     unshare -n -- \
