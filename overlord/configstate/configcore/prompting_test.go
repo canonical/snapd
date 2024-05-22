@@ -58,7 +58,7 @@ func (s *promptingSuite) TestDoExperimentalApparmorPromptingDaemonRestartNoPrist
 		rt.Set(snap, confName, expectedRestart)
 		s.state.Unlock()
 
-		// Sanity check set values
+		// Precondition check set values
 		var value bool
 		err := rt.GetPristine(snap, confName, &value)
 		c.Check(config.IsNoOption(err), Equals, true)
@@ -125,7 +125,7 @@ func (s *promptingSuite) TestDoExperimentalApparmorPromptingDaemonRestartWithPri
 		rt.Set(snap, confName, testCase.final)
 		s.state.Unlock()
 
-		// Sanity check set values
+		// Precondition check set values
 		var value bool
 		err := rt.GetPristine(snap, confName, &value)
 		c.Check(err, Equals, nil)

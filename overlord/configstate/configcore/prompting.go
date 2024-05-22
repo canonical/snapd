@@ -28,8 +28,8 @@ import (
 
 var restartRequest = restart.Request
 
-// Trigger a security profile regeneration by restarting snapd if a change in
-// the experimental apparmor-prompting flag causes a need to do so.
+// Trigger a security profile regeneration by restarting snapd if the
+// experimental apparmor-prompting flag changed.
 func doExperimentalApparmorPromptingDaemonRestart(c RunTransaction, opts *fsOnlyContext) error {
 	st := c.State()
 
