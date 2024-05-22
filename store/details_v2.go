@@ -355,8 +355,10 @@ func infoFromStoreSnap(d *storeSnap) (*snap.Info, error) {
 }
 
 func componentFromStoreResource(r storeResource) (*snap.Component, error) {
-	typeString, ok := strings.CutPrefix(r.Type, "component/")
-	if !ok {
+	typeString := strings.TrimPrefix(r.Type, "component/")
+
+	// nothing was trimmed, so the type must not be a component
+	if typeString == r.Type {
 		return nil, fmt.Errorf("resource is not a component: %s", r.Type)
 	}
 
