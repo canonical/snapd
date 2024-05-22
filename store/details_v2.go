@@ -354,33 +354,41 @@ func infoFromStoreSnap(d *storeSnap) (*snap.Info, error) {
 	return info, nil
 }
 
-func componentFromStoreResource(r storeResource) (*snap.Component, bool) {
-	compType, ok := strings.CutPrefix(r.Type, "component/")
+func componentFromStoreResource(r storeResource) (*snap.Component, error) {
+	typeString, ok := strings.CutPrefix(r.Type, "component/")
 	if !ok {
-		return nil, false
+		return nil, fmt.Errorf("resource is not a component: %s", r.Type)
+	}
+
+	compType, err := snap.ComponentTypeFromString(typeString)
+	if err != nil {
+		return nil, err
 	}
 
 	comp := &snap.Component{
 		Name:        r.Name,
 		Summary:     r.Description.Clean(),
 		Description: r.Description.Clean(),
-		Type:        snap.ComponentType(compType),
+		Type:        compType,
 
 		// unable to fill the rest of the struct from a store resource
 	}
 
-	return comp, true
+	return comp, nil
 }
 
 func addComponents(info *snap.Info, resources []storeResource) {
 	for _, r := range resources {
-		if comp, ok := componentFromStoreResource(r); ok {
-			if info.Components == nil {
-				info.Components = make(map[string]*snap.Component)
-			}
-
-			info.Components[comp.Name] = comp
+		comp, err := componentFromStoreResource(r)
+		if err != nil {
+			continue
 		}
+
+		if info.Components == nil {
+			info.Components = make(map[string]*snap.Component)
+		}
+
+		info.Components[comp.Name] = comp
 	}
 }
 

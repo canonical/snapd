@@ -93,6 +93,19 @@ const (
     },
     {
       "download": {
+        "sha3-384": "6d001da919b965dc3a4672b9d7ddce374d165452a2285f2753988842092ea6b9946645375cff3ede89a991c9698bfcea",
+        "size": 20000021,
+        "url": "https://api.snapcraft.io/api/v1/snaps/download/ABCEfjn4WJYnm0FzDKwqqRZZI77awQEV_21.snap"
+      },
+      "type": "component/unknown-type",
+      "name": "unknown-component",
+      "revision": 1,
+      "version": "1.0",
+      "created-at": "2018-01-26T11:38:35.536410+00:00",
+      "description": "Unknown component"
+    },
+    {
+      "download": {
         "sha3-384": "e6da7b15f767111ce34f22fa2059d23b43cb756e73256279e1d7f98a2eaab0d93725c2bfb25dd1deb1261223d961ee61",
         "size": 20000023,
         "url": "https://api.snapcraft.io/api/v1/snaps/download/123Efjn4WJYnm0FzDKwqqRZZI77awQEV_21.snap"
@@ -251,7 +264,8 @@ func (s *detailsV2Suite) TestInfoFromStoreSnapSimpleAndLegacy(c *C) {
 		StoreURL:      "https://snapcraft.io/core",
 
 		// components are derived from resources in this case, rather than
-		// snap-yaml
+		// snap-yaml. note that non-component resources are ignored and unknown
+		// components types are ignored
 		Components: map[string]*snap.Component{
 			"some-component": {
 				Name:        "some-component",
