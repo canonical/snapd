@@ -50,8 +50,8 @@ var ExcludedSyscalls = getExcludedSyscalls()
 
 func findStrace(u *user.User) (stracePath string, userOpts []string, err error) {
 	if path := filepath.Join(dirs.SnapMountDir, "strace-static", "current", "bin", "strace"); osutil.FileExists(path) {
-		// strace-static cannot resolve usernames, pass uid/gid instead
-		return path, []string{"--uid", u.Uid, "--gid", u.Gid}, nil
+		// Strace v6.9 supports -u UID:GID which avoids the need to resolve usernames with nss.
+		return path, []string{"-u", fmt.Sprintf("%s:%s", u.Uid, u.Gid)}, nil
 	}
 
 	stracePath, err = exec.LookPath("strace")
