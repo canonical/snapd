@@ -834,7 +834,7 @@ prepare: |
 
     # Make sure ssh service is restarted after it is killed by spread (pkill -o -HUP sshd)
     # during the machine setup in google systems. For more details see lp:2011458
-    if [ "$SPREAD_BACKEND" = "google" ] && [[ "$SPREAD_SYSTEM" == ubuntu-2* ]] && ! systemctl is-active ssh; then
+    if [[ "$SPREAD_BACKEND" =~ google ]] && [[ "$SPREAD_SYSTEM" == ubuntu-2* ]] && ! systemctl is-active ssh; then
         systemctl restart ssh
     fi
 
