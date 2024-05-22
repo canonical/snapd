@@ -32,7 +32,7 @@ prepare: |
     chown -R test:12345 /tmp/cross-build
 
     UBUNTU_ARCHIVE="http://archive.ubuntu.com/ubuntu/"
-    if [ "$SPREAD_BACKEND" = "google" ]; then
+    if [[ "$SPREAD_BACKEND" =~ google ]]; then
         UBUNTU_ARCHIVE="http://$(cloud-id -l | cut -f2).gce.archive.ubuntu.com/ubuntu/"
     fi
 
