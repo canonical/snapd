@@ -195,6 +195,16 @@ const (
 
 var validComponentTypes = [...]ComponentType{TestComponent, KernelModulesComponent}
 
+// ComponentTypeFromString returns true if the given component type is valid.
+func ComponentTypeFromString(t string) (ComponentType, error) {
+	for _, valid := range validComponentTypes {
+		if t == string(valid) {
+			return valid, nil
+		}
+	}
+	return "", fmt.Errorf("invalid component type %q", t)
+}
+
 // Component represents a snap component.
 type Component struct {
 	Type          ComponentType
