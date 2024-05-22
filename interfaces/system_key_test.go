@@ -26,7 +26,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"strconv"
 	"strings"
 
 	. "gopkg.in/check.v1"
@@ -326,10 +325,10 @@ func (s *systemKeySuite) TestInterfaceSystemKeyMismatchAppArmorPromptingHappy(c 
 		s.AddCleanup(interfaces.MockSystemKey(fmt.Sprintf(`
 {
 "build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
-"apparmor-prompting-supported": %s,
-"apparmor-prompting-supported-and-enabled": %s
+"apparmor-prompting-supported": %t,
+"apparmor-prompting-supported-and-enabled": %t
 }
-`, strconv.FormatBool(testCase.supported), strconv.FormatBool(testCase.supportedAndEnabled))))
+`, testCase.supported, testCase.supportedAndEnabled)))
 
 		err = interfaces.WriteSystemKey(testCase.supportedAndEnabled)
 		c.Assert(err, IsNil)
@@ -486,8 +485,8 @@ func (s *systemKeySuite) TestSystemKeysUnmarshalSame(c *C) {
 		],
 		"apparmor-parser-features": [],
 		"apparmor-parser-mtime": 1589907589,
-		"apparmor-prompting-supported": %s,
-		"apparmor-prompting-supported-and-enabled": %s,
+		"apparmor-prompting-supported": %t,
+		"apparmor-prompting-supported-and-enabled": %t,
 		"build-id": "cb94e5eeee4cf7ecda53f8308a984cb155b55732",
 		"cgroup-version": "1",
 		"nfs-home": false,
@@ -504,7 +503,7 @@ func (s *systemKeySuite) TestSystemKeysUnmarshalSame(c *C) {
 			"user_notif"
 		],
 		"version": 12
-	}`, strconv.FormatBool(promptingSupported), strconv.FormatBool(promptingSupportedAndEnabled))
+	}`, promptingSupported, promptingSupportedAndEnabled)
 
 	// write the mocked system key to disk
 	restore := interfaces.MockSystemKey(systemKeyJSON)
