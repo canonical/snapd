@@ -59,7 +59,16 @@ execute: |
 
         echo "Verify that a random signal does not trigger the failure handling"
         echo "and snapd is just restarted"
-        systemctl kill --signal=SIGKILL snapd.service
+
+        if os.query is-core-le 22; then
+            systemctl kill --signal=SIGKILL snapd.service
+        else
+            # Work around systemctl kill issue, where it may fail when the cgroup
+            # is recycled after the main process is killed. This seems to be a bug
+            # in systemd made more common by faster cgroup recycling by the kernel.
+            # shellcheck disable=SC2046
+            kill -9 $(cat /sys/fs/cgroup/system.slice/snapd.service/cgroup.procs)
+        fi
 
         started_after_rand_sig="$("$TESTSTOOLS"/journal-state get-log -u snapd.failure | grep -c 'Started Failure handling of the snapd snap.' || true)"
 
