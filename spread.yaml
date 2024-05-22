@@ -110,7 +110,7 @@ environment:
 backends:
     google:
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
-        location: snapd-spread/us-east1-b
+        location: snapd-spread/europe-west2-b
         halt-timeout: 2h
         systems:
             - ubuntu-14.04-64:
@@ -126,6 +126,26 @@ backends:
             - ubuntu-20.04-64:
                   storage: 12G
                   workers: 8
+            - ubuntu-secboot-20.04-64:
+                  image: ubuntu-20.04-64
+                  workers: 1
+                  secure-boot: true
+            - ubuntu-22.04-64:
+                  storage: 12G
+                  workers: 8
+            - ubuntu-23.10-64:
+                  storage: 12G
+                  workers: 8
+            - ubuntu-24.04-64:
+                  storage: 12G
+                  workers: 8
+
+    google-core:
+        type: google
+        key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
+        location: snapd-spread/europe-west1-b
+        halt-timeout: 2h
+        systems:
             - ubuntu-core-16-64:
                   image: ubuntu-16.04-64
                   workers: 6
@@ -144,24 +164,11 @@ backends:
                   image: ubuntu-24.04-64
                   workers: 8
                   storage: 20G
-            - ubuntu-secboot-20.04-64:
-                  image: ubuntu-20.04-64
-                  workers: 1
-                  secure-boot: true
-            - ubuntu-22.04-64:
-                  storage: 12G
-                  workers: 8
-            - ubuntu-23.10-64:
-                  storage: 12G
-                  workers: 8
-            - ubuntu-24.04-64:
-                  storage: 12G
-                  workers: 8
 
-    google-central:
+    google-distro-1:
         type: google
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
-        location: snapd-spread/us-central1-b
+        location: snapd-spread/europe-west3-b
         halt-timeout: 2h
         systems:
             - debian-11-64:
@@ -177,15 +184,22 @@ backends:
             - fedora-39-64:
                   workers: 6
 
-            - arch-linux-64:
-                  workers: 6
-                  storage: 12G
             - amazon-linux-2-64:
                   workers: 6
                   storage: preserve-size
             - amazon-linux-2023-64:
                   workers: 6
                   storage: preserve-size
+
+    google-distro-2:
+        type: google
+        key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
+        location: snapd-spread/europe-west4-b
+        halt-timeout: 2h
+        systems:
+            - arch-linux-64:
+                  workers: 6
+                  storage: 12G
 
             - centos-7-64:
                   workers: 6
@@ -228,7 +242,7 @@ backends:
     google-sru:
         type: google
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
-        location: snapd-spread/us-east1-b
+        location: snapd-spread/us-central1-a
         halt-timeout: 2h
         systems:
             - ubuntu-20.04-64:
@@ -243,7 +257,7 @@ backends:
     google-nested:
         type: google
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
-        location: snapd-spread/us-east1-b
+        location: snapd-spread/us-central1-a
         plan: n2-standard-2
         halt-timeout: 2h
         cpu-family: "Intel Cascade Lake"

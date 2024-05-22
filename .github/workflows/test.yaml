@@ -592,25 +592,25 @@ jobs:
       matrix:
         include:
           - group: amazon-linux
-            backend: google-central
+            backend: google-distro-1
             systems: 'amazon-linux-2-64 amazon-linux-2023-64'
           - group: arch-linux
-            backend: google-central
+            backend: google-distro-2
             systems: 'arch-linux-64'
           - group: centos
-            backend: google-central
+            backend: google-distro-2
             systems: 'centos-7-64 centos-8-64 centos-9-64'
           - group: debian-req
-            backend: google-central
+            backend: google-distro-1
             systems: 'debian-11-64'
           - group: debian-no-req
-            backend: google-central
+            backend: google-distro-1
             systems: 'debian-12-64 debian-sid-64'
           - group: fedora
-            backend: google-central
+            backend: google-distro-1
             systems: 'fedora-38-64 fedora-39-64'
           - group: opensuse
-            backend: google-central
+            backend: google-distro-2
             systems: 'opensuse-15.5-64 opensuse-tumbleweed-64'
           - group: ubuntu-trusty-xenial
             backend: google
@@ -628,19 +628,19 @@ jobs:
             backend: google
             systems: 'ubuntu-24.04-64'
           - group: ubuntu-core-16
-            backend: google
+            backend: google-core
             systems: 'ubuntu-core-16-64'
           - group: ubuntu-core-18
-            backend: google
+            backend: google-core
             systems: 'ubuntu-core-18-64'
           - group: ubuntu-core-20
-            backend: google
+            backend: google-core
             systems: 'ubuntu-core-20-64'
           - group: ubuntu-core-22
-            backend: google
+            backend: google-core
             systems: 'ubuntu-core-22-64'
           - group: ubuntu-core-24
-            backend: google
+            backend: google-core
             systems: 'ubuntu-core-24-64'
           - group: ubuntu-arm
             backend: google-arm
