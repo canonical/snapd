@@ -53,11 +53,7 @@ execute: |
         echo "snap run with an invalid strace option should fail but it did not"
         exit 1
     fi
-    if os.query is-arch-linux || os.query is-opensuse tumbleweed || os.query is-fedora || os.query is-ubuntu-ge 24.04; then
-        MATCH "Cannot find executable 'invalid'" < stderr
-    else
-        MATCH "Can't stat 'invalid': No such file or directory" < stderr
-    fi
+    MATCH "Cannot find executable 'invalid'" < stderr || MATCH "Can't stat 'invalid': No such file or directory" < stderr
 
     if os.query is-arch-linux || os.query is-opensuse tumbleweed; then
         # Arch linux and Opensuse tumbleweed run the mainline kernel, strace

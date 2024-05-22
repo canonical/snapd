@@ -89,7 +89,7 @@ func (s *straceSuite) TestStraceCommandHappyFromSnap(c *C) {
 	c.Check(cmd.Args, DeepEquals, []string{
 		s.mockSudo.Exe(), "-E",
 		mockStraceStatic.Exe(),
-		"--uid", u.Uid, "--gid", u.Gid,
+		"-u", u.Uid + ":" + u.Gid,
 		"-f",
 		"-e", strace.ExcludedSyscalls,
 		// the command
