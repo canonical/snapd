@@ -401,6 +401,8 @@ func downloadInfoFromStoreDownload(d storeDownload) snap.DownloadInfo {
 		Sha3_384:    d.Sha3_384,
 	}
 
+	// resources don't have deltas right now, so this slice will always be empty
+	// for them
 	if len(d.Deltas) > 0 {
 		downloadInfo.Deltas = make([]snap.DeltaInfo, 0, len(d.Deltas))
 		for _, d := range d.Deltas {
