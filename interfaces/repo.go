@@ -953,7 +953,8 @@ func (r *Repository) AddAppSet(appSet *SnapAppSet) error {
 
 	snapName := snapInfo.InstanceName()
 
-	if r.appSets[snapName] != nil || r.plugs[snapName] != nil || r.slots[snapName] != nil {
+	// just checking for the name's existence in r.appSets should be enough
+	if r.appSets[snapName] != nil {
 		return fmt.Errorf("cannot register interfaces for snap %q more than once", snapName)
 	}
 
