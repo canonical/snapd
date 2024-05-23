@@ -188,8 +188,7 @@ var featuresSupportedCallbacks = map[SnapdFeature]func() (bool, string){
 		if !strutil.ListContains(parserFeatures, "prompt") {
 			return false, "apparmor parser does not support the prompt qualifier"
 		}
-		return false, "requires newer version of snapd"
-		// TODO: return true once snapd supports prompting
+		return true, ""
 	},
 }
 
