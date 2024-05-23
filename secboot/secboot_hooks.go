@@ -51,7 +51,7 @@ type hookKeyProtector struct {
 	keyName string
 }
 
-func (h *hookKeyProtector) ProtectKey(cleartext, aad []byte) (ciphertext []byte, handle []byte, err error) {
+func (h *hookKeyProtector) ProtectKey(rand io.Reader, cleartext, aad []byte) (ciphertext []byte, handle []byte, err error) {
 	keyParams := &fde.InitialSetupParams{
 		Key:     cleartext,
 		KeyName: h.keyName,
