@@ -234,13 +234,6 @@ func ComponentSetupsForTask(t *state.Task) ([]*ComponentSetup, error) {
 	case t.Has("component-setup") || t.Has("component-setup-task"):
 		// task comes from a singular component installation for an already
 		// installed snap
-		// if the task isn't being done right now (we may be undoing it), then
-		// we shouldn't consider the new component when setting up profiles.
-		if t.Status() != state.DoingStatus {
-			return nil, nil
-		}
-
-		// task comes from a component installation
 		compsup, _, err := TaskComponentSetup(t)
 		if err != nil {
 			return nil, err
