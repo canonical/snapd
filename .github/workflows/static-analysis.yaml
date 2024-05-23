@@ -11,4 +11,3 @@ jobs:
         with:
           projectName: snapd
           ticsConfiguration: https://canonical.tiobe.com/tiobeweb/TICS/api/cfg?name=default
-          installTics: true
