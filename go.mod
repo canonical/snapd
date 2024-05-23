@@ -48,4 +48,4 @@ require (
 	maze.io/x/crypto v0.0.0-20190131090603-9b94c9afe066 // indirect
 )
 
-replace github.com/snapcore/secboot => github.com/chrisccoulson/secboot v0.0.0-20240404180734-cf489d604eb0
+replace github.com/snapcore/secboot => github.com/chrisccoulson/secboot v0.0.0-20240429172638-871668d49d4e
