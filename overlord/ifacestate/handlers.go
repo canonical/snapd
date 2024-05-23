@@ -173,7 +173,19 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 		return err
 	}
 
-	if err := m.setupProfilesForSnap(task, snapInfo, opts, perfTimings); err != nil {
+	if err := addImplicitSlots(task.State(), snapInfo); err != nil {
+		return err
+	}
+
+	// this app set is derived from the current task, which will include any
+	// components that are already installed, with the addition of any new
+	// components that are getting setup up by this task
+	appSet, err := appSetForTask(task, snapInfo)
+	if err != nil {
+		return err
+	}
+
+	if err := m.setupProfilesForAppSet(task, appSet, opts, perfTimings); err != nil {
 		return err
 	}
 	return setPendingProfilesSideInfo(task.State(), snapsup.InstanceName(), snapsup.SideInfo)
@@ -202,14 +214,11 @@ func setPendingProfilesSideInfo(st *state.State, instanceName string, si *snap.S
 	return nil
 }
 
-func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, snapInfo *snap.Info, opts interfaces.ConfinementOptions, tm timings.Measurer) error {
+func (m *InterfaceManager) setupProfilesForAppSet(task *state.Task, appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, tm timings.Measurer) error {
 	st := task.State()
 
-	if err := addImplicitSlots(task.State(), snapInfo); err != nil {
-		return err
-	}
-
-	snapName := snapInfo.InstanceName()
+	snapInfo := appSet.Info()
+	snapName := appSet.InstanceName()
 
 	// The snap may have been updated so perform the following operation to
 	// ensure that we are always working on the correct state:
@@ -271,11 +280,6 @@ func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, snapInfo *snap
 	// cannot be found and compute the confinement options that apply to it.
 	affectedSnapSets := make([]*interfaces.SnapAppSet, 0, len(affectedSet))
 	confinementOpts := make([]interfaces.ConfinementOptions, 0, len(affectedSet))
-
-	appSet, err := appSetForTask(task, snapInfo)
-	if err != nil {
-		return err
-	}
 
 	// For the snap being setup we know exactly what was requested.
 	affectedSnapSets = append(affectedSnapSets, appSet)
@@ -407,7 +411,20 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 		if err != nil {
 			return err
 		}
-		if err := m.setupProfilesForSnap(task, snapInfo, opts, perfTimings); err != nil {
+
+		if err := addImplicitSlots(st, snapInfo); err != nil {
+			return err
+		}
+
+		// this app set is derived from the currently installed revision of the
+		// snap (not the revision that we are reverting from). it only includes
+		// components that were installed with that revision.
+		appSet, err := appSetForSnapRevision(st, snapInfo)
+		if err != nil {
+			return err
+		}
+
+		if err := m.setupProfilesForAppSet(task, appSet, opts, perfTimings); err != nil {
 			return err
 		}
 		return setPendingProfilesSideInfo(task.State(), snapName, sideInfo)
