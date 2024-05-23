@@ -47,6 +47,22 @@ type ComponentInfo struct {
 	ComponentSideInfo
 }
 
+// NewComponentInfo creates a new ComponentInfo.
+func NewComponentInfo(cref naming.ComponentRef, ctype ComponentType, version, summary, description string, csi *ComponentSideInfo) *ComponentInfo {
+	if csi == nil {
+		csi = &ComponentSideInfo{}
+	}
+
+	return &ComponentInfo{
+		Component:         cref,
+		Type:              ctype,
+		Version:           version,
+		Summary:           summary,
+		Description:       description,
+		ComponentSideInfo: *csi,
+	}
+}
+
 // ComponentSideInfo is the equivalent of SideInfo for components, and
 // includes relevant information for which the canonical source is a
 // snap store.
