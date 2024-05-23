@@ -441,11 +441,11 @@ func (s *sideloadSuite) sideloadComponentCheck(c *check.C, content string,
 	})()
 
 	defer daemon.MockReadComponentInfoFromCont(func(tempPath string, csi *snap.ComponentSideInfo) (*snap.ComponentInfo, error) {
-		return &snap.ComponentInfo{
-			Component: expectedCompSideInfo.Component,
-			Type:      snap.TestComponent,
-			Version:   "1.0",
-		}, nil
+		return snap.NewComponentInfo(
+			expectedCompSideInfo.Component,
+			snap.TestComponent,
+			"1.0", "", "", nil,
+		), nil
 	})()
 
 	defer daemon.MockSnapstateInstallComponentPath(func(st *state.State, csi *snap.ComponentSideInfo, info *snap.Info,

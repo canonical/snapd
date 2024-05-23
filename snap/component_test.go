@@ -64,13 +64,14 @@ description: long description
 
 	ci, err := snap.ReadComponentInfoFromContainer(compf, nil, nil)
 	c.Assert(err, IsNil)
-	c.Assert(ci, DeepEquals, &snap.ComponentInfo{
-		Component:   naming.NewComponentRef("mysnap", "test-info"),
-		Type:        snap.ComponentType("test"),
-		Version:     "1.0",
-		Summary:     "short description",
-		Description: "long description",
-	})
+	c.Assert(ci, DeepEquals, snap.NewComponentInfo(
+		naming.NewComponentRef("mysnap", "test-info"),
+		snap.ComponentType("test"),
+		"1.0",
+		"short description",
+		"long description",
+		nil,
+	))
 	c.Assert(ci.FullName(), Equals, compName)
 
 	// since we didn't pass a side info, then ComponentSideInfo should be empty
@@ -93,11 +94,12 @@ version: 1.0.2
 
 	ci, err := snap.ReadComponentInfoFromContainer(compf, nil, nil)
 	c.Assert(err, IsNil)
-	c.Assert(ci, DeepEquals, &snap.ComponentInfo{
-		Component: naming.NewComponentRef("mysnap", "test-info"),
-		Type:      snap.ComponentType("test"),
-		Version:   "1.0.2",
-	})
+	c.Assert(ci, DeepEquals, snap.NewComponentInfo(
+		naming.NewComponentRef("mysnap", "test-info"),
+		snap.ComponentType("test"),
+		"1.0.2",
+		"", "", nil,
+	))
 	c.Assert(ci.FullName(), Equals, compName)
 }
 

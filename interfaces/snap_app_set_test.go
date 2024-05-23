@@ -314,9 +314,9 @@ func (s *snapAppSetSuite) TestInstanceName(c *C) {
 
 func (s *snapAppSetSuite) TestNewAppSetWithWrongComponent(c *C) {
 	info := snaptest.MockInfo(c, yaml, nil)
-	_, err := interfaces.NewSnapAppSet(info, []*snap.ComponentInfo{{
-		Component: naming.NewComponentRef("other-name", "comp"),
-	}})
+	_, err := interfaces.NewSnapAppSet(info, []*snap.ComponentInfo{
+		snap.NewComponentInfo(naming.NewComponentRef("other-name", "comp"), snap.TestComponent, "", "", "", nil),
+	})
 	c.Assert(err, ErrorMatches, `internal error: snap "test-snap" does not own component "other-name\+comp"`)
 }
 
