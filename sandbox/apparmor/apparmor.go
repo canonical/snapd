@@ -208,9 +208,7 @@ func PromptingSupportedByFeatures(apparmorFeatures *FeaturesSupported) (bool, st
 	if !strutil.ListContains(apparmorFeatures.ParserFeatures, "prompt") {
 		return false, "apparmor parser does not support the prompt qualifier"
 	}
-	// TODO: return true once the prompting API is merged and ready
-	// return true, ""
-	return false, "requires newer version of snapd"
+	return true, ""
 }
 
 // probe related code

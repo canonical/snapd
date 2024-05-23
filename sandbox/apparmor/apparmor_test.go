@@ -549,11 +549,8 @@ func (s *apparmorSuite) TestPromptingSupported(c *C) {
 	defer restore()
 
 	supported, reason := apparmor.PromptingSupported()
-	// TODO: change this once snapd supports prompting
-	c.Check(supported, Equals, false)
-	c.Check(reason, Equals, "requires newer version of snapd")
-	// c.Check(supported, Equals, true)
-	// c.Check(reason, Equals, "")
+	c.Check(supported, Equals, true)
+	c.Check(reason, Equals, "")
 }
 
 func (s *apparmorSuite) TestValidateFreeFromAAREUnhappy(c *C) {
