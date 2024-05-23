@@ -118,7 +118,7 @@ func SealKeysWithFDESetupHook(runHook fde.RunSetupHookFunc, keys []SealKeyReques
 			return err
 		}
 	}
-	if primaryKey != nil {
+	if primaryKey != nil && params.AuxKeyFile != "" {
 		if err := osutil.AtomicWriteFile(params.AuxKeyFile, primaryKey, 0600, 0); err != nil {
 			return fmt.Errorf("cannot write the policy auth key file: %v", err)
 		}

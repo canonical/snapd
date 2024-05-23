@@ -425,7 +425,7 @@ func SealKeys(keys []SealKeyRequest, params *SealKeysParams) error {
 			return err
 		}
 	}
-	if primaryKey != nil {
+	if primaryKey != nil && params.TPMPolicyAuthKeyFile != "" {
 		if err := osutil.AtomicWriteFile(params.TPMPolicyAuthKeyFile, primaryKey, 0600, 0); err != nil {
 			return fmt.Errorf("cannot write the policy auth key file: %v", err)
 		}

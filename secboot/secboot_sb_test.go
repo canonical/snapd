@@ -46,6 +46,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/kernel/fde"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
@@ -1019,6 +1020,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 			c.Assert(err, IsNil)
 			c.Assert(addPCRProfileCalls, Equals, 2)
 			c.Assert(addSnapModelCalls, Equals, 2)
+			c.Assert(osutil.FileExists(myParams.TPMPolicyAuthKeyFile), Equals, true)
 		} else {
 			c.Assert(err, ErrorMatches, tc.expectedErr)
 		}
