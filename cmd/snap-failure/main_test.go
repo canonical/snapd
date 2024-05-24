@@ -42,6 +42,8 @@ type failureSuite struct {
 	stderr *bytes.Buffer
 	stdout *bytes.Buffer
 	log    *bytes.Buffer
+
+	systemctlCmd *testutil.MockCmd
 }
 
 func (r *failureSuite) SetUpTest(c *C) {
@@ -64,6 +66,9 @@ func (r *failureSuite) SetUpTest(c *C) {
 	log, restore := logger.MockLogger()
 	r.log = log
 	r.AddCleanup(restore)
+
+	r.systemctlCmd = testutil.MockCommand(c, "systemctl", "")
+	r.AddCleanup(r.systemctlCmd.Restore)
 }
 
 func (r *failureSuite) Stderr() string {
