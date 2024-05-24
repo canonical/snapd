@@ -149,11 +149,7 @@ func IsReexecEnabled() bool {
 
 	// If we are asked not to re-execute use distribution packages. This is
 	// "spiritual" re-exec so use the same environment variable to decide.
-	if !osutil.GetenvBool(reExecKey, true) {
-		// TODO
-		return false
-	}
-	return true
+	return osutil.GetenvBool(reExecKey, true)
 }
 
 // mustUnsetenv will unset the given environment key or panic if it
