@@ -31,6 +31,7 @@ import (
 	failure "github.com/snapcore/snapd/cmd/snap-failure"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -437,4 +438,39 @@ func (r *failureSuite) TestStickySnapdSocket(c *C) {
 
 	// make sure the socket file was deleted
 	c.Assert(osutil.FileExists(dirs.SnapdSocket), Equals, false)
+}
+
+func (r *failureSuite) testNoReexec(c *C) {
+	origArgs := os.Args
+	defer func() { os.Args = origArgs }()
+
+	writeSeqFile(c, "snapd", snap.R(100), []*snap.SideInfo{
+		{Revision: snap.R(99)},
+		{Revision: snap.R(100)},
+	})
+
+	// mock snapd command from 'previous' revision
+	snapdCmd := testutil.MockCommand(c, filepath.Join(dirs.SnapMountDir, "snapd", "99", "/usr/lib/snapd/snapd"), "exit 1")
+	defer snapdCmd.Restore()
+
+	os.Args = []string{"snap-failure", "snapd"}
+	err := failure.Run()
+	c.Check(err, IsNil)
+
+	c.Check(snapdCmd.Calls(), HasLen, 0)
+	c.Check(r.systemctlCmd.Calls(), HasLen, 0)
+	c.Check(r.log.String(), testutil.Contains, "re-exec unsupported or disabled")
+}
+
+func (r *failureSuite) TestReexecDisabled(c *C) {
+	os.Setenv("SNAP_REEXEC", "0")
+	defer os.Unsetenv("SNAP_REEXEC")
+	r.testNoReexec(c)
+
+}
+
+func (r *failureSuite) TestReexecUnsupported(c *C) {
+	r.AddCleanup(release.MockReleaseInfo(&release.OS{ID: "fedora"}))
+	dirs.SetRootDir(r.rootdir)
+	r.testNoReexec(c)
 }
