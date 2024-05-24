@@ -41,7 +41,7 @@ execute: |
     # Check that snapd has restarted and now has a new PID, then set SNAPD_PID to that new PID.
     check_snapd_restarted() {
         #shellcheck disable=SC2016
-        retry --wait 1 -n 300 --env SNAPD_PID="$SNAPD_PID" sh -x -c 'systemctl show --property=Result snapd.service ; NEW_PID="$(systemctl show --property MainPID snapd.service | cut -f2 -d=)"; test ! "$NEW_PID" = "0" && test ! "$NEW_PID" = "$SNAPD_PID" && systemctl is-active snapd.service snapd.socket'
+        retry --wait 1 -n 300 --env SNAPD_PID="$SNAPD_PID" sh -x -c 'if systemctl show --property=Result snapd.service | grep "start-limit-hit" ; then systemctl stop snapd.service snapd.socket ; systemctl reset-failed snapd.service snapd.socket ; systemctl start snapd.service ; fi ; NEW_PID="$(systemctl show --property MainPID snapd.service | cut -f2 -d=)" ; test ! "$NEW_PID" = "0" && test ! "$NEW_PID" = "$SNAPD_PID" && systemctl is-active snapd.service snapd.socket'
         # Set SNAPD_PID so future checks use most recent PID
         SNAPD_PID="$(systemctl show --property MainPID snapd.service | cut -f2 -d=)"
     }
