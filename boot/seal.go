@@ -159,7 +159,7 @@ func runKeySealRequests(resetter secboot.KeyResetter) []secboot.SealKeyRequest {
 		{
 			KeyName:  "ubuntu-data",
 			Resetter: resetter,
-			KeyFile: device.DataSealedKeyUnder(InitramfsBootEncryptionKeyDir),
+			KeyFile:  device.DataSealedKeyUnder(InitramfsBootEncryptionKeyDir),
 		},
 	}
 }
@@ -176,15 +176,15 @@ func fallbackKeySealRequests(resetter, saveResetter secboot.KeyResetter, factory
 
 	return []secboot.SealKeyRequest{
 		{
-			KeyName: "ubuntu-data",
+			KeyName:  "ubuntu-data",
 			SlotName: "default-fallback",
 			Resetter: resetter,
-			KeyFile: device.FallbackDataSealedKeyUnder(InitramfsSeedEncryptionKeyDir),
+			KeyFile:  device.FallbackDataSealedKeyUnder(InitramfsSeedEncryptionKeyDir),
 		},
 		{
 			KeyName:  "ubuntu-save",
 			Resetter: saveResetter,
-			KeyFile: saveFallbackKey,
+			KeyFile:  saveFallbackKey,
 		},
 	}
 }

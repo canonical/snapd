@@ -860,7 +860,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 					Model:          &asserts.Model{},
 				},
 			},
-			TPMPolicyAuthKeyFile:   filepath.Join(tmpDir, "policy-auth-key-file"),
+			TPMPolicyAuthKeyFile: filepath.Join(tmpDir, "policy-auth-key-file"),
 
 			PCRPolicyCounterHandle: 42,
 		}
@@ -874,11 +874,11 @@ func (s *secbootSuite) TestSealKey(c *C) {
 
 		myKeys := []secboot.SealKeyRequest{
 			{
-				KeyFile: "keyfile",
+				KeyFile:  "keyfile",
 				Resetter: &secboot.MockKeyResetter{},
 			},
 			{
-				KeyFile: "keyfile2",
+				KeyFile:  "keyfile2",
 				Resetter: &secboot.MockKeyResetter{},
 			},
 		}

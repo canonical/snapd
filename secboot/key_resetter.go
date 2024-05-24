@@ -70,7 +70,6 @@ func (kr *sbKeyResetter) RemoveInstallationKey() error {
 	return sb.DeleteLUKS2ContainerKey(kr.devicePath, kr.oldContainerKeySlot)
 }
 
-
 type MockKeyResetter struct {
 	finished bool
 }
@@ -103,7 +102,7 @@ func (kr *MockKeyResetter) RemoveInstallationKey() error {
 	return nil
 }
 
-func MockCreateKeyResetter(f func (key sb.DiskUnlockKey, devicePath string) KeyResetter) func() {
+func MockCreateKeyResetter(f func(key sb.DiskUnlockKey, devicePath string) KeyResetter) func() {
 	old := CreateKeyResetter
 	CreateKeyResetter = f
 	return func() {

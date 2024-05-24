@@ -1899,7 +1899,7 @@ echo "mock output of: $(basename "$0") $*"
 		return nil
 	})()
 
-	defer secboot.MockCreateKeyResetter(func (key sb.DiskUnlockKey, devicePath string) secboot.KeyResetter {
+	defer secboot.MockCreateKeyResetter(func(key sb.DiskUnlockKey, devicePath string) secboot.KeyResetter {
 		return &secboot.MockKeyResetter{}
 	})()
 
@@ -1975,7 +1975,7 @@ echo "mock output of: $(basename "$0") $*"
 		return nil
 	})()
 
-	defer secboot.MockCreateKeyResetter(func (key sb.DiskUnlockKey, devicePath string) secboot.KeyResetter {
+	defer secboot.MockCreateKeyResetter(func(key sb.DiskUnlockKey, devicePath string) secboot.KeyResetter {
 		return &secboot.MockKeyResetter{}
 	})()
 

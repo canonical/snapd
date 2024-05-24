@@ -566,7 +566,7 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 		c.Assert(os.MkdirAll(bootDir, 0755), IsNil)
 		c.Assert(os.WriteFile(filepath.Join(bootDir, "grubx64.efi"), []byte{}, 0755), IsNil)
 
-		s.AddCleanup(secboot.MockCreateKeyResetter(func (key sb.DiskUnlockKey, devicePath string) secboot.KeyResetter {
+		s.AddCleanup(secboot.MockCreateKeyResetter(func(key sb.DiskUnlockKey, devicePath string) secboot.KeyResetter {
 			return &secboot.MockKeyResetter{}
 		}))
 	}
