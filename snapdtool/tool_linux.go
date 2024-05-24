@@ -55,12 +55,12 @@ var (
 	osReadlink  = os.Readlink
 )
 
-// distroSupportsReExec returns true if the distribution we are running on can use re-exec.
+// DistroSupportsReExec returns true if the distribution we are running on can use re-exec.
 //
 // This is true by default except for a "core/all" snap system where it makes
 // no sense and in certain distributions that we don't want to enable re-exec
 // yet because of missing validation or other issues.
-func distroSupportsReExec() bool {
+func DistroSupportsReExec() bool {
 	if !release.OnClassic {
 		return false
 	}
@@ -195,7 +195,7 @@ func ExecInSnapdOrCoreSnap() {
 	}
 
 	// If the distribution doesn't support re-exec or run-from-core then don't do it.
-	if !distroSupportsReExec() {
+	if !DistroSupportsReExec() {
 		return
 	}
 
