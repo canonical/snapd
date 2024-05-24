@@ -65,6 +65,11 @@ execute: |
         # test that random signals don't trigger snapd-failure
         current=$(readlink /snap/snapd/current)
 
+        # make sure that snapd is being executed within the cgroup assigned to snapd.service
+        echo "Ensure snapd is running as part of the snapd.service unit"
+        # shellcheck disable=SC2046,SC2002
+        cat /proc/$(pidof snapd)/cgroup | MATCH /snapd.service
+
         echo "Verify that a random signal does not trigger the failure handling"
         echo "and snapd is just restarted"
 
@@ -78,12 +83,21 @@ execute: |
             kill -9 $(cat /sys/fs/cgroup/system.slice/snapd.service/cgroup.procs)
         fi
 
+        # TODO this check is incorrect and is essentially racing with systemd
+        # which could try to active the failure service, as we're essentially
+        # testing that an event does not happen
+        sleep 5
         started_after_rand_sig="$("$TESTSTOOLS"/journal-state get-log -u snapd.failure | grep -c 'Started Failure handling of the snapd snap.' || true)"
 
         if [ "$started_after_rand_sig" -gt "$started_before" ] ; then
             echo "snapd.failure inadvertently started with a random signal!"
             exit 1
         fi
+
+        # make sure that snapd is being executed within the cgroup assigned to snapd.service
+        echo "Ensure snapd is still running as part of the snapd.service unit"
+        # shellcheck disable=SC2046,SC2002
+        cat /proc/$(pidof snapd)/cgroup | MATCH /snapd.service
 
         echo "Snap list is working still"
         snap list | MATCH "^snapd .* $current .*"
@@ -129,6 +143,10 @@ execute: |
 
             echo "Double check the status of snapd.socket"
             systemctl is-active snapd.socket
+
+            echo "Ensure snapd is running as part of the snapd.service unit"
+            # shellcheck disable=SC2046,SC2002
+            cat /proc/$(pidof snapd)/cgroup | MATCH /snapd.service
 
             echo "restart snapd and ensure we can still talk to it"
             systemctl restart snapd.socket snapd.service
