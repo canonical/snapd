@@ -21,9 +21,11 @@
 package secboot
 
 import (
+	"bytes"
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -58,9 +60,11 @@ var (
 	sbAddSnapModelProfile                           = sb_tpm2.AddSnapModelProfile
 	sbUpdateKeyPCRProtectionPolicyMultiple          = sb_tpm2.UpdateKeyPCRProtectionPolicyMultiple
 	sbSealedKeyObjectRevokeOldPCRProtectionPolicies = (*sb_tpm2.SealedKeyObject).RevokeOldPCRProtectionPolicies
-	sbNewKeyDataFromSealedKeyObjectFile             = sb_tpm2.NewKeyDataFromSealedKeyObjectFile
+	sbNewFileKeyDataReader                          = sb.NewFileKeyDataReader
+	sbReadKeyData                                   = sb.ReadKeyData
 	sbReadSealedKeyObjectFromFile                   = sb_tpm2.ReadSealedKeyObjectFromFile
 	sbNewTPMProtectedKey                            = sb_tpm2.NewTPMProtectedKey
+	sbNewKeyDataFromSealedKeyObjectFile             = sb_tpm2.NewKeyDataFromSealedKeyObjectFile
 
 	randutilRandomKernelUUID = randutil.RandomKernelUUID
 
@@ -277,12 +281,37 @@ func newAuthRequestor() (sb.AuthRequestor, error) {
 	)
 }
 
+func readKeyFile(keyfile string) (*sb.KeyData, error) {
+	f, err := os.Open(keyfile)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	var rawPrefix = []byte("USK$")
+
+	buf := make([]byte, len(rawPrefix))
+	if _, err := io.ReadFull(f, buf); err != nil {
+		return nil, err
+	}
+	if bytes.HasPrefix(buf, rawPrefix) {
+		return sbNewKeyDataFromSealedKeyObjectFile(keyfile)
+	} else {
+		reader, err := sbNewFileKeyDataReader(keyfile)
+		if err != nil {
+			return nil, fmt.Errorf("cannot open key data: %v", err)
+		}
+		return sbReadKeyData(reader)
+	}
+}
+
 // unlockEncryptedPartitionWithSealedKey unseals the keyfile and opens an encrypted
 // device. If activation with the sealed key fails, this function will attempt to
 // activate it with the fallback recovery key instead.
 func unlockEncryptedPartitionWithSealedKey(mapperName, sourceDevice, keyfile string, allowRecovery bool) (UnlockMethod, error) {
 	var keys []*sb.KeyData
-	keyData, err := sbNewKeyDataFromSealedKeyObjectFile(keyfile)
+
+	keyData, err := readKeyFile(keyfile)
 	if err != nil {
 		return NotUnlocked, fmt.Errorf("cannot read key data: %v", err)
 	}
