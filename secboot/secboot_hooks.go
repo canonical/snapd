@@ -67,19 +67,6 @@ func (h *hookKeyProtector) ProtectKey(rand io.Reader, cleartext, aad []byte) (ci
 	}
 }
 
-type hookKeyRevealer struct {
-}
-
-func (r *hookKeyRevealer) RevealKey(handle, ciphertext, aad []byte) (plaintext []byte, err error) {
-	h := json.RawMessage(handle)
-	p := fde.RevealParams{
-		SealedKey: ciphertext,
-		Handle:    &h,
-		V2Payload: true,
-	}
-	return fde.Reveal(&p)
-}
-
 func SealKeysWithFDESetupHook(runHook fde.RunSetupHookFunc, keys []SealKeyRequest, params *SealKeysWithFDESetupHookParams) error {
 	var primaryKey sb.PrimaryKey
 
