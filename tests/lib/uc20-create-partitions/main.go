@@ -109,7 +109,8 @@ func main() {
 		if err != nil {
 			panic("cannot create data key")
 		}
-		if err := dataKeyResetter.Reset(sb.DiskUnlockKey(dataKey)); err != nil {
+		const token = false
+		if _, err := dataKeyResetter.AddKey("", sb.DiskUnlockKey(dataKey), token); err != nil {
 			panic("cannot reset data key")
 		}
 		saveKeyResetter := installSideData.ResetterForRole[gadget.SystemSave]
@@ -120,7 +121,7 @@ func main() {
 		if err != nil {
 			panic("cannot create save key")
 		}
-		if err := saveKeyResetter.Reset(sb.DiskUnlockKey(saveKey)); err != nil {
+		if _, err := saveKeyResetter.AddKey("", sb.DiskUnlockKey(saveKey), token); err != nil {
 			panic("cannot reset save key")
 		}
 		toWrite := map[string][]byte{
@@ -131,6 +132,13 @@ func main() {
 			if err := os.WriteFile(keyFileName, keyData, 0644); err != nil {
 				panic(err)
 			}
+		}
+
+		if err := dataKeyResetter.RemoveInstallationKey(); err != nil {
+			panic(err)
+		}
+		if err := saveKeyResetter.RemoveInstallationKey(); err != nil {
+			panic(err)
 		}
 	}
 }
