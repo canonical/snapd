@@ -142,6 +142,20 @@ func InternalToolPath(tool string) (string, error) {
 	return distroTool, nil
 }
 
+// IsReexecEnabled checks the environment and configuration to assert whether
+// reexec has been explicitly enabled/disabled.
+func IsReexecEnabled() bool {
+	// XXX for now we are only checking environment variables
+
+	// If we are asked not to re-execute use distribution packages. This is
+	// "spiritual" re-exec so use the same environment variable to decide.
+	if !osutil.GetenvBool(reExecKey, true) {
+		// TODO
+		return false
+	}
+	return true
+}
+
 // mustUnsetenv will unset the given environment key or panic if it
 // cannot do that
 func mustUnsetenv(key string) {
@@ -170,9 +184,7 @@ func ExecInSnapdOrCoreSnap() {
 		return
 	}
 
-	// If we are asked not to re-execute use distribution packages. This is
-	// "spiritual" re-exec so use the same environment variable to decide.
-	if !osutil.GetenvBool(reExecKey, true) {
+	if !IsReexecEnabled() {
 		logger.Debugf("re-exec disabled by user")
 		return
 	}
