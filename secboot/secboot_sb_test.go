@@ -872,13 +872,15 @@ func (s *secbootSuite) TestSealKey(c *C) {
 			myKey2[i] = byte(128 + i)
 		}
 
+		keyFiles := c.MkDir()
+
 		myKeys := []secboot.SealKeyRequest{
 			{
-				KeyFile:  "keyfile",
+				KeyFile:  filepath.Join(keyFiles, "keyfile"),
 				Resetter: &secboot.MockKeyResetter{},
 			},
 			{
-				KeyFile:  "keyfile2",
+				KeyFile:  filepath.Join(keyFiles, "keyfile2"),
 				Resetter: &secboot.MockKeyResetter{},
 			},
 		}
