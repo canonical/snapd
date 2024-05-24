@@ -26,9 +26,22 @@ import (
 	doublestar "github.com/bmatcuk/doublestar/v4"
 )
 
-// Limit the number of groups which are allowed to occur in a pattern.
-// This number includes all groups, including those nested or in series.
-const maxGroupsInPattern = 10
+type countStack []int
+
+func (c *countStack) push(x int) {
+	*c = append(*c, x)
+}
+
+func (c *countStack) pop() int {
+	x := (*c)[len(*c)-1]
+	*c = (*c)[:len(*c)-1]
+	return x
+}
+
+// Limit the number of expanded path patterns for a particular pattern.
+// When fully expanded, the number of patterns for a given unexpanded pattern
+// may not exceed this limit.
+const maxExpandedPatterns = 1000
 
 // ValidatePathPattern returns nil if the pattern is valid, otherwise an error.
 func ValidatePathPattern(pattern string) error {
@@ -36,7 +49,11 @@ func ValidatePathPattern(pattern string) error {
 		return fmt.Errorf("invalid path pattern: must start with '/': %q", pattern)
 	}
 	depth := 0
-	totalGroups := 0
+	var currentGroupStack countStack
+	var currentOptionStack countStack
+	// Final currentOptionCount will be total expanded patterns for full pattern
+	currentGroupCount := 0
+	currentOptionCount := 1
 	reader := strings.NewReader(pattern)
 	for {
 		r, _, err := reader.ReadRune()
@@ -46,16 +63,27 @@ func ValidatePathPattern(pattern string) error {
 		}
 		switch r {
 		case '{':
-			depth += 1
-			totalGroups += 1
-			if totalGroups > maxGroupsInPattern {
-				return fmt.Errorf("invalid path pattern: exceeded maximum number of groups (%d): %q", maxGroupsInPattern, pattern)
+			depth++
+			currentGroupStack.push(currentGroupCount)
+			currentOptionStack.push(currentOptionCount)
+			currentGroupCount = 0
+			currentOptionCount = 1
+		case ',':
+			if depth == 0 {
+				// Ignore commas outside of groups
+				break
 			}
+			currentGroupCount += currentOptionCount
+			currentOptionCount = 1
 		case '}':
-			depth -= 1
+			depth--
 			if depth < 0 {
 				return fmt.Errorf("invalid path pattern: unmatched '}' character: %q", pattern)
 			}
+			currentGroupCount += currentOptionCount
+			currentOptionCount = currentOptionStack.pop() // option count of parent
+			currentOptionCount *= currentGroupCount       // parent option count * current group count
+			currentGroupCount = currentGroupStack.pop()   // group count of parent
 		case '\\':
 			// Skip next rune
 			_, _, err = reader.ReadRune()
@@ -68,6 +96,9 @@ func ValidatePathPattern(pattern string) error {
 	}
 	if depth != 0 {
 		return fmt.Errorf("invalid path pattern: unmatched '{' character: %q", pattern)
+	}
+	if currentOptionCount > maxExpandedPatterns {
+		return fmt.Errorf("invalid path pattern: exceeded maximum number of expanded path patterns (%d): %q expands to %d patterns", maxExpandedPatterns, pattern, currentOptionCount)
 	}
 	if !doublestar.ValidatePattern(pattern) {
 		return fmt.Errorf("invalid path pattern: %q", pattern)

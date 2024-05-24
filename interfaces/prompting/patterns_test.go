@@ -121,9 +121,11 @@ func (s *patternsSuite) TestValidatePathPattern(c *C) {
 		"/foo{bar,/baz}{fizz,buzz}",
 		"/foo{bar,/baz}/{fizz,buzz}",
 		"/foo?bar",
-		"/foo/{a,b}{c,d}{e,f}{g,h}{i,j}{k,l}{m,n}{o,p}{q,r}{s,t}",
-		"/foo/{a,{b,{c,{d,{e,{f,{g,{h,{i,{j,k}}}}}}}}}}",
-		"/foo/{{{{{{{{{{a,b},c},d},e},f},g},h},i},j},k}",
+		"/foo/{a,b}{c,d}{e,f}{g,h}{i,j}{k,l}{m,n}{o,p}{q,r}", // expands to 512
+		"/foo/{a,{b,{c,{d,{e,{f,{g,{h,{i,{j,{k,{l,{m,{n,{o,p}}}}}}}}}}}}}}}",
+		"/foo/{{{{{{{{{{{{{{{a,b},c},d},e},f},g},h},i},j},k},l},m},n},o},p}",
+		"/foo/{a,b}{c,d}{e,f}{g,h,i,j,k}{l,m,n,o,p}{q,r,s,t,u}",       // expands to 1000
+		"/foo/{a,b}{c,d}{e,f}{g,h,i,j,k}{l,m,n,o,p}{q,r,s,t,u},1,2,3", // expands to 1000, with commas outside groups
 	} {
 		c.Check(prompting.ValidatePathPattern(pattern), IsNil, Commentf("valid path pattern %q was incorrectly not allowed", pattern))
 	}
@@ -138,9 +140,8 @@ func (s *patternsSuite) TestValidatePathPattern(c *C) {
 		"{/,foo}",
 		"/foo/ba[rz]",
 		`/foo/bar\`,
-		"/foo/{a,b}{c,d}{e,f}{g,h}{i,j}{k,l}{m,n}{o,p}{q,r}{s,t}{w,x}",
-		"/foo/{a,{b,{c,{d,{e,{f,{g,{h,{i,{j,{k,l}}}}}}}}}}}",
-		"/foo/{{{{{{{{{{{a,b},c},d},e},f},g},h},i},j},k},l}",
+		"/foo/{a,b}{c,d}{e,f}{g,h}{i,j}{k,l}{m,n}{o,p}{q,r}{s,t}",                // expands to 1024
+		"/foo/{a,b,c,d,e,f,g}{h,i,j,k,l,m,n,o,p,q,r}{s,t,u,v,w,x,y,z,1,2,3,4,5}", // expands to 1001
 	} {
 		c.Check(prompting.ValidatePathPattern(pattern), ErrorMatches, "invalid path pattern.*", Commentf("invalid path pattern %q was incorrectly allowed", pattern))
 	}
