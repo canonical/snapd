@@ -24,8 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	// TODO: add this once PR #13730 is merged:
-	// doublestar "github.com/bmatcuk/doublestar/v4"
+	doublestar "github.com/bmatcuk/doublestar/v4"
 
 	"github.com/snapcore/snapd/interfaces/prompting"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
@@ -44,17 +43,16 @@ func (s *constraintsSuite) TestConstraintsValidateForInterface(c *C) {
 	}{
 		{
 			"foo",
-			"invalid/path",
+			"/invalid/path",
 			[]string{"read"},
 			"unsupported interface.*",
 		},
-		// TODO: add this once PR #13730 is merged:
-		// {
-		//	"home",
-		//	"invalid/path",
-		//	[]string{"read"},
-		//	"invalid path pattern.*",
-		// },
+		{
+			"home",
+			"invalid/path",
+			[]string{"read"},
+			"invalid path pattern.*",
+		},
 		{
 			"home",
 			"/valid/path",
@@ -151,12 +149,11 @@ func (*constraintsSuite) TestConstraintsMatch(c *C) {
 			"/home/test/Documents/foo.txt",
 			true,
 		},
-		// TODO: add this once PR #13730 is merged:
-		// {
-		//	"/home/test/Documents/foo",
-		//	"/home/test/Documents/foo.txt",
-		//	false,
-		// },
+		{
+			"/home/test/Documents/foo",
+			"/home/test/Documents/foo.txt",
+			false,
+		},
 	}
 	for _, testCase := range cases {
 		constraints := &prompting.Constraints{
@@ -176,11 +173,8 @@ func (s *constraintsSuite) TestConstraintsMatchUnhappy(c *C) {
 		Permissions: []string{"read"},
 	}
 	matches, err := badConstraints.Match(badPath)
-	// TODO: change to this once PR #13730 is merged:
-	// c.Check(err, Equals, doublestar.ErrBadPattern)
-	// c.Check(matches, Equals, false)
-	c.Check(err, Equals, nil)
-	c.Check(matches, Equals, true)
+	c.Check(err, Equals, doublestar.ErrBadPattern)
+	c.Check(matches, Equals, false)
 }
 
 func (s *constraintsSuite) TestConstraintsRemovePermission(c *C) {
