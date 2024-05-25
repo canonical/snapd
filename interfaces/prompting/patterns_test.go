@@ -33,194 +33,7 @@ type patternsSuite struct{}
 
 var _ = Suite(&patternsSuite{})
 
-func (s *patternsSuite) TestExpandPathPattern(c *C) {
-	for _, testCase := range []struct {
-		pattern  string
-		expanded []string
-	}{
-		{
-			`/foo`,
-			[]string{`/foo`},
-		},
-		{
-			`/{foo,bar/}`,
-			[]string{`/foo`, `/bar/`},
-		},
-		{
-			`{/foo,/bar/}`,
-			[]string{`/foo`, `/bar/`},
-		},
-		{
-			`/foo**/bar/*/**baz/**/fizz*buzz/**`,
-			[]string{`/foo*/bar/*/*baz/**/fizz*buzz/**`},
-		},
-		{
-			`/{,//foo**/bar/*/**baz/**/fizz*buzz/**}`,
-			[]string{`/`, `/foo*/bar/*/*baz/**/fizz*buzz/**`},
-		},
-		{
-			`/{foo,bar,/baz}`,
-			[]string{`/foo`, `/bar`, `/baz`},
-		},
-		{
-			`/{foo,/bar,bar,/baz}`,
-			[]string{`/foo`, `/bar`, `/baz`},
-		},
-		{
-			`/foo/bar\**baz`,
-			[]string{`/foo/bar\**baz`},
-		},
-		{
-			`/foo/bar/baz/**/*.txt`,
-			[]string{`/foo/bar/baz/**/*.txt`},
-		},
-		{
-			`/foo/bar/baz/***.txt`,
-			[]string{`/foo/bar/baz/*.txt`},
-		},
-		{
-			`/foo/bar/baz******.txt`,
-			[]string{`/foo/bar/baz*.txt`},
-		},
-		{
-			`/foo/bar/baz/{?***,*?**,**?*,***?}.txt`,
-			[]string{`/foo/bar/baz/?*.txt`},
-		},
-		{
-			`/foo/bar/baz/{?***?,*?**?,**?*?,***??}.txt`,
-			[]string{`/foo/bar/baz/??*.txt`},
-		},
-		{
-			`/foo/bar/baz/{?***??,*?**??,**?*??,***???}.txt`,
-			[]string{`/foo/bar/baz/???*.txt`},
-		},
-		{
-			`/foo///bar/**/**/**/baz/***.txt/**/**/*`,
-			[]string{`/foo/bar/**/baz/*.txt/**`},
-		},
-		{
-			`{a,b}c{d,e}f{g,h}`,
-			[]string{
-				`acdfg`,
-				`acdfh`,
-				`acefg`,
-				`acefh`,
-				`bcdfg`,
-				`bcdfh`,
-				`bcefg`,
-				`bcefh`,
-			},
-		},
-		{
-			`a{{b,c},d,{e{f,{,g}}}}h`,
-			[]string{
-				`abh`,
-				`ach`,
-				`adh`,
-				`aefh`,
-				`aeh`,
-				`aegh`,
-			},
-		},
-		{
-			`a{{b,c},d,\{e{f,{,g\}}}}h`,
-			[]string{
-				`abh`,
-				`ach`,
-				`adh`,
-				`a\{efh`,
-				`a\{eh`,
-				`a\{eg\}h`,
-			},
-		},
-		{
-			"/foo/{a,{b,{c,{d,{e,{f,{g,{h,{i,{j,k}}}}}}}}}}",
-			[]string{
-				"/foo/a",
-				"/foo/b",
-				"/foo/c",
-				"/foo/d",
-				"/foo/e",
-				"/foo/f",
-				"/foo/g",
-				"/foo/h",
-				"/foo/i",
-				"/foo/j",
-				"/foo/k",
-			},
-		},
-		{
-			"/foo/{{{{{{{{{{a,b},c},d},e},f},g},h},i},j},k}",
-			[]string{
-				"/foo/a",
-				"/foo/b",
-				"/foo/c",
-				"/foo/d",
-				"/foo/e",
-				"/foo/f",
-				"/foo/g",
-				"/foo/h",
-				"/foo/i",
-				"/foo/j",
-				"/foo/k",
-			},
-		},
-	} {
-		expanded, err := prompting.ExpandPathPattern(testCase.pattern)
-		c.Check(err, IsNil, Commentf("test case: %+v", testCase))
-		c.Check(expanded, DeepEquals, testCase.expanded, Commentf("test case: %+v", testCase))
-	}
-}
-
-func (s *patternsSuite) TestExpandPathPatternUnhappy(c *C) {
-	for _, testCase := range []struct {
-		pattern string
-		errStr  string
-	}{
-		{
-			``,
-			`invalid path pattern: pattern has length 0`,
-		},
-		{
-			`/foo{bar`,
-			`invalid path pattern: unmatched '{' character.*`,
-		},
-		{
-			`/foo}bar`,
-			`invalid path pattern: unmatched '}' character.*`,
-		},
-		{
-			`/foo/bar\`,
-			`invalid path pattern: trailing unescaped '\\' character.*`,
-		},
-		{
-			`/foo/bar{`,
-			`invalid path pattern: unmatched '{' character.*`,
-		},
-		{
-			`/foo/bar{baz\`,
-			`invalid path pattern: trailing unescaped '\\' character.*`,
-		},
-		{
-			`/foo/bar{baz{\`,
-			`invalid path pattern: trailing unescaped '\\' character.*`,
-		},
-		{
-			`/foo/bar{baz{`,
-			`invalid path pattern: unmatched '{' character.*`,
-		},
-		{
-			`/foo/{a,b}{c,d}{e,f}{g,h}{i,j}{k,l}{m,n}{o,p}{q,r}{s,t}{w,x}`,
-			`invalid path pattern: exceeded maximum number of expanded path patterns.*`,
-		},
-	} {
-		result, err := prompting.ExpandPathPattern(testCase.pattern)
-		c.Check(result, IsNil)
-		c.Check(err, ErrorMatches, testCase.errStr)
-	}
-}
-
-func (s *patternsSuite) TestValidatePathPattern(c *C) {
+func (s *patternsSuite) TestParsePathPatternHappy(c *C) {
 	for _, pattern := range []string{
 		"/",
 		"/*",
@@ -318,32 +131,297 @@ func (s *patternsSuite) TestValidatePathPattern(c *C) {
 		"/" + strings.Repeat("{a,", 999) + "a" + strings.Repeat("}", 999),
 		"/" + strings.Repeat("{", 999) + "a" + strings.Repeat(",a}", 999),
 	} {
-		c.Check(prompting.ValidatePathPattern(pattern), IsNil, Commentf("valid path pattern %q was incorrectly not allowed", pattern))
+		_, err := prompting.ParsePathPattern(pattern)
+		c.Check(err, IsNil, Commentf("valid path pattern %q was incorrectly not allowed", pattern))
 	}
+}
 
-	for _, pattern := range []string{
-		"file.txt",
-		"/foo/bar{/**/*.txt",
-		"/foo/bar}/**/*.txt",
-		"/foo/bar/**/*.{txt",
-		"/foo/bar/**/*.}txt",
-		"{,/foo}",
-		"{/,foo}",
-		"/foo/ba[rz]",
-		`/foo/bar\`,
-		"/foo/{a,b}{c,d}{e,f}{g,h}{i,j}{k,l}{m,n}{o,p}{q,r}{s,t}",                // expands to 1024
-		"/foo/{a,b,c,d,e,f,g}{h,i,j,k,l,m,n,o,p,q,r}{s,t,u,v,w,x,y,z,1,2,3,4,5}", // expands to 1001
+func (s *patternsSuite) TestParsePathPatternUnhappy(c *C) {
+	for _, testCase := range []struct {
+		pattern string
+		errStr  string
+	}{
+		{
+			``,
+			`invalid path pattern: pattern has length 0`,
+		},
+		{
+			`file.txt`,
+			`invalid path pattern: pattern must start with '/'.*`,
+		},
+		{
+			`{/,/foo}`,
+			`invalid path pattern: pattern must start with '/'.*`,
+		},
+		{
+			`/foo{bar`,
+			`invalid path pattern: unmatched '{' character.*`,
+		},
+		{
+			`/foo}bar`,
+			`invalid path pattern: unmatched '}' character.*`,
+		},
+		{
+			`/foo/bar\`,
+			`invalid path pattern: trailing unescaped '\\' character.*`,
+		},
+		{
+			`/foo/bar{`,
+			`invalid path pattern: unmatched '{' character.*`,
+		},
+		{
+			`/foo/bar{baz\`,
+			`invalid path pattern: trailing unescaped '\\' character.*`,
+		},
+		{
+			`/foo/bar{baz{\`,
+			`invalid path pattern: trailing unescaped '\\' character.*`,
+		},
+		{
+			`/foo/bar{baz{`,
+			`invalid path pattern: unmatched '{' character.*`,
+		},
+		{
+			`/foo/ba[rz]`,
+			`invalid path pattern: cannot contain unescaped '\[' or '\]' character.*`,
+		},
+		{
+			`/foo/{a,b}{c,d}{e,f}{g,h}{i,j}{k,l}{m,n}{o,p}{q,r}{s,t}`, // expands to 1024
+			`invalid path pattern: exceeded maximum number of expanded path patterns.*`,
+		},
+		{
+			`/foo/{a,b,c,d,e,f,g}{h,i,j,k,l,m,n,o,p,q,r}{s,t,u,v,w,x,y,z,1,2,3,4,5}`, // expands to 1001
+			`invalid path pattern: exceeded maximum number of expanded path patterns.*`,
+		},
+		{
+			"/" + strings.Repeat("{a,", 1000) + "a" + strings.Repeat("}", 1000),
+			`invalid path pattern: nested group depth exceeded maximum number of expanded path patterns.*`,
+		},
+		{
+			"/" + strings.Repeat("{", 1000) + "a" + strings.Repeat(",a}", 1000),
+			`invalid path pattern: nested group depth exceeded maximum number of expanded path patterns.*`,
+		},
+		{
+			"/" + strings.Repeat("{", 10000),
+			`invalid path pattern: nested group depth exceeded maximum number of expanded path patterns.*`,
+		},
 	} {
-		c.Check(prompting.ValidatePathPattern(pattern), ErrorMatches, "invalid path pattern.*", Commentf("invalid path pattern %q was incorrectly allowed", pattern))
+		pathPattern, err := prompting.ParsePathPattern(testCase.pattern)
+		c.Check(err, ErrorMatches, testCase.errStr, Commentf("testCase: %+v", testCase))
+		c.Check(pathPattern, IsNil)
 	}
+}
 
-	// Check that too-deeply-nested patterns throw an error before fully expanding
+func (s *patternsSuite) TestPathPatternString(c *C) {
 	for _, pattern := range []string{
-		"/" + strings.Repeat("{a,", 1000) + "a" + strings.Repeat("}", 1000),
-		"/" + strings.Repeat("{", 1000) + "a" + strings.Repeat(",a}", 1000),
-		"/" + strings.Repeat("{", 10000),
+		"/foo",
+		"/foo/ba{r,s}/**",
+		"/{a,b}{c,d}{e,f}{g,h}",
 	} {
-		c.Check(prompting.ValidatePathPattern(pattern), ErrorMatches, "invalid path pattern: nested group depth exceeded maximum number of expanded path patterns.*")
+		pathPattern, err := prompting.ParsePathPattern(pattern)
+		c.Check(err, IsNil)
+		c.Check(pathPattern.String(), Equals, pattern)
+	}
+}
+
+func (s *patternsSuite) TestPathPatternMarshalJSON(c *C) {
+	for _, pattern := range []string{
+		"/foo",
+		"/foo/ba{r,s}/**",
+		"/{a,b}{c,d}{e,f}{g,h}",
+	} {
+		pathPattern, err := prompting.ParsePathPattern(pattern)
+		c.Check(err, IsNil)
+		marshalled, err := pathPattern.MarshalJSON()
+		c.Check(err, IsNil)
+		c.Check(marshalled, DeepEquals, []byte(pattern))
+	}
+}
+
+func (s *patternsSuite) TestPathPatternUnmarshalJSONHappy(c *C) {
+	for _, pattern := range [][]byte{
+		[]byte(`"/foo"`),
+		[]byte(`"/foo/ba{r,s}/**"`),
+		[]byte(`"/{a,b}{c,d}{e,f}{g,h}"`),
+	} {
+		pathPattern := prompting.PathPattern{}
+		err := pathPattern.UnmarshalJSON(pattern)
+		c.Check(err, IsNil)
+		marshalled, err := pathPattern.MarshalJSON()
+		c.Check(err, IsNil)
+		// Marshalled pattern excludes surrounding '"' for some reason
+		c.Check(marshalled, DeepEquals, pattern[1:len(pattern)-1])
+	}
+}
+
+func (s *patternsSuite) TestPathPatternUnmarshalJSONUnhappy(c *C) {
+	for _, testCase := range []struct {
+		json []byte
+		err  string
+	}{
+		{
+			[]byte(`"foo"`),
+			`invalid path pattern: pattern must start with '/'.*`,
+		},
+		{
+			[]byte{'"', 0x00, '"'},
+			`invalid character '\\x00' in string literal`,
+		},
+	} {
+		pathPattern := prompting.PathPattern{}
+		err := pathPattern.UnmarshalJSON(testCase.json)
+		c.Check(err, ErrorMatches, testCase.err)
+	}
+}
+
+func (s *patternsSuite) TestPathPatternNext(c *C) {
+	for _, testCase := range []struct {
+		pattern  string
+		expanded []string
+	}{
+		{
+			`/foo`,
+			[]string{`/foo`},
+		},
+		{
+			`/{foo,bar/}`,
+			[]string{`/foo`, `/bar/`},
+		},
+		{
+			`/{/foo,/bar/}`,
+			[]string{`/foo`, `/bar/`},
+		},
+		{
+			`/foo**/bar/*/**baz/**/fizz*buzz/**`,
+			[]string{`/foo*/bar/*/*baz/**/fizz*buzz/**`},
+		},
+		{
+			`/{,//foo**/bar/*/**baz/**/fizz*buzz/**}`,
+			[]string{`/`, `/foo*/bar/*/*baz/**/fizz*buzz/**`},
+		},
+		{
+			`/{foo,bar,/baz}`,
+			[]string{`/foo`, `/bar`, `/baz`},
+		},
+		{
+			`/{foo,/bar,bar,/baz}`,
+			[]string{`/foo`, `/bar`, `/bar`, `/baz`},
+		},
+		{
+			`/foo/bar\**baz`,
+			[]string{`/foo/bar\**baz`},
+		},
+		{
+			`/foo/bar/baz/**/*.txt`,
+			[]string{`/foo/bar/baz/**/*.txt`},
+		},
+		{
+			`/foo/bar/baz/***.txt`,
+			[]string{`/foo/bar/baz/*.txt`},
+		},
+		{
+			`/foo/bar/baz******.txt`,
+			[]string{`/foo/bar/baz*.txt`},
+		},
+		{
+			`/foo/bar/baz/{?***,*?**,**?*,***?}.txt`,
+			[]string{`/foo/bar/baz/?*.txt`, `/foo/bar/baz/?*.txt`, `/foo/bar/baz/?*.txt`, `/foo/bar/baz/?*.txt`},
+		},
+		{
+			`/foo/bar/baz/{?***?,*?**?,**?*?,***??}.txt`,
+			[]string{`/foo/bar/baz/??*.txt`, `/foo/bar/baz/??*.txt`, `/foo/bar/baz/??*.txt`, `/foo/bar/baz/??*.txt`},
+		},
+		{
+			`/foo/bar/baz/{?***??,*?**??,**?*??,***???}.txt`,
+			[]string{`/foo/bar/baz/???*.txt`, `/foo/bar/baz/???*.txt`, `/foo/bar/baz/???*.txt`, `/foo/bar/baz/???*.txt`},
+		},
+		{
+			`/foo///bar/**/**/**/baz/***.txt/**/**/*`,
+			[]string{`/foo/bar/**/baz/*.txt/**`},
+		},
+		{
+			`/{a,b}c{d,e}f{g,h}`,
+			[]string{
+				`/acdfg`,
+				`/acdfh`,
+				`/acefg`,
+				`/acefh`,
+				`/bcdfg`,
+				`/bcdfh`,
+				`/bcefg`,
+				`/bcefh`,
+			},
+		},
+		{
+			`/a{{b,c},d,{e{f,{,g}}}}h`,
+			[]string{
+				`/abh`,
+				`/ach`,
+				`/adh`,
+				`/aefh`,
+				`/aeh`,
+				`/aegh`,
+			},
+		},
+		{
+			`/a{{b,c},d,\{e{f,{,g\}}}}h`,
+			[]string{
+				`/abh`,
+				`/ach`,
+				`/adh`,
+				`/a\{efh`,
+				`/a\{eh`,
+				`/a\{eg\}h`,
+			},
+		},
+		{
+			"/foo/{a,{b,{c,{d,{e,{f,{g,{h,{i,{j,k}}}}}}}}}}",
+			[]string{
+				"/foo/a",
+				"/foo/b",
+				"/foo/c",
+				"/foo/d",
+				"/foo/e",
+				"/foo/f",
+				"/foo/g",
+				"/foo/h",
+				"/foo/i",
+				"/foo/j",
+				"/foo/k",
+			},
+		},
+		{
+			"/foo/{{{{{{{{{{a,b},c},d},e},f},g},h},i},j},k}",
+			[]string{
+				"/foo/a",
+				"/foo/b",
+				"/foo/c",
+				"/foo/d",
+				"/foo/e",
+				"/foo/f",
+				"/foo/g",
+				"/foo/h",
+				"/foo/i",
+				"/foo/j",
+				"/foo/k",
+			},
+		},
+		{
+			"/foo,bar,baz",
+			[]string{"/foo,bar,baz"},
+		},
+	} {
+		pathPattern, err := prompting.ParsePathPattern(testCase.pattern)
+		c.Check(err, IsNil, Commentf("testcase: %+v", testCase))
+		expanded := make([]string, 0, pathPattern.NumConfigurations())
+		for {
+			pattern, final := pathPattern.Next()
+			expanded = append(expanded, pattern)
+			if final {
+				break
+			}
+		}
+		c.Check(expanded, DeepEquals, testCase.expanded, Commentf("test case: %+v", testCase))
 	}
 }
 

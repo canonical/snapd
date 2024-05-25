@@ -20,8 +20,9 @@
 package prompting
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
-	"io"
 	"regexp"
 	"strings"
 
@@ -33,197 +34,283 @@ import (
 // may not exceed this limit.
 const maxExpandedPatterns = 1000
 
-// The default previously-expanded prefixes to which new patterns or expanded
-// groups are concatenated. This must be a slice containing the empty string,
-// since at the beginning of the pattern, we have only one prefix to which to
-// concatenate, and that prefix is the empty string. Importantly, this cannot
-// be an empty slice, since concatenating every entry in an empty slice with
-// every entry in a slice of expanded patterns would again result in an empty
-// slice.
-var defaultPrefixes = []string{""}
+// patternComponent is a component of a path pattern which has one or more
+// configurations which may be rendered into an expanded path pattern.
+type patternComponent interface {
+	// Next advances the pattern component to its next configuration.
+	// If all configurations have been explored, resets to the initial
+	// configuration, after which subsequent calls to Next continue to cycle
+	// through configurations again. Returns true if the Next call resulted in
+	// the pattern component being reset to its initial configuration.
+	Next() bool
+	// NumConfigurations returns the number of configurations into which the
+	// pattern component is able to be set.
+	NumConfigurations() int
+	// Render writes the current configuration of the pattern component to the
+	// given buffer.
+	Render(*bytes.Buffer)
+}
 
-// ExpandPathPattern expands all groups in the given path pattern.
-//
-// Groups are enclosed by '{' '}'. Returns a list of all the expanded path
-// patterns, or an error if the given pattern is invalid.
-func ExpandPathPattern(pattern string) ([]string, error) {
-	if len(pattern) == 0 {
-		return nil, fmt.Errorf(`invalid path pattern: pattern has length 0`)
+// patternLiteral is a literal string which does not contain any groups.
+type patternLiteral string
+
+func (l patternLiteral) Next() bool {
+	return true
+}
+
+func (l patternLiteral) NumConfigurations() int {
+	return 1
+}
+
+func (l patternLiteral) Render(b *bytes.Buffer) {
+	b.Write([]byte(l))
+}
+
+// patternSequence is a sequence of path components, which may themselves be
+// either literals or groups, which are all concatenated when rendering.
+type patternSequence []patternComponent
+
+func newPatternSequence() patternSequence {
+	var s patternSequence
+	return s
+}
+
+func (s *patternSequence) add(c patternComponent) {
+	*s = append(*s, c)
+}
+
+func (s patternSequence) Next() bool {
+	for i := len(s) - 1; i >= 0; i-- {
+		if !(s)[i].Next() {
+			return false
+		}
+	}
+	return true
+}
+
+func (s patternSequence) NumConfigurations() int {
+	count := 1
+	for _, component := range s {
+		count *= component.NumConfigurations()
+	}
+	return count
+}
+
+func (s patternSequence) Render(b *bytes.Buffer) {
+	for _, component := range s {
+		component.Render(b)
+	}
+}
+
+// patternGroup is a list of options, one of which is rendered at a time.
+// If an option has more than one configuration, Next advances the
+// configuration of that option recursively before continuing on to the next
+// option.
+type patternGroup struct {
+	options []patternComponent
+	index   int
+}
+
+func newPatternGroup() *patternGroup {
+	var s patternGroup
+	return &s
+}
+
+func (g *patternGroup) add(c patternComponent) {
+	g.options = append(g.options, c)
+}
+
+func (g *patternGroup) Next() bool {
+	if !g.options[g.index].Next() {
+		return false
+	}
+	g.index = (g.index + 1) % len(g.options)
+	return g.index == 0
+}
+
+func (g *patternGroup) NumConfigurations() int {
+	count := 0
+	for _, option := range g.options {
+		count += option.NumConfigurations()
+	}
+	return count
+}
+
+func (g *patternGroup) Render(b *bytes.Buffer) {
+	g.options[g.index].Render(b)
+}
+
+type sequenceStack []patternSequence
+
+func (s *sequenceStack) push(x patternSequence) {
+	*s = append(*s, x)
+}
+
+func (s *sequenceStack) pop() patternSequence {
+	x := (*s)[len(*s)-1]
+	*s = (*s)[:len(*s)-1]
+	return x
+}
+
+type groupStack []*patternGroup
+
+func (s *groupStack) push(x *patternGroup) {
+	*s = append(*s, x)
+}
+
+func (s *groupStack) pop() *patternGroup {
+	x := (*s)[len(*s)-1]
+	*s = (*s)[:len(*s)-1]
+	return x
+}
+
+// PathPattern is an iterator which yields expanded path patterns.
+type PathPattern struct {
+	original   string
+	components patternSequence
+	renderBuf  bytes.Buffer
+}
+
+// ParsePathPattern validates the given pattern and parses it into a PathPattern
+// from which expanded path patterns can be iterated, and returns it.
+func ParsePathPattern(pattern string) (*PathPattern, error) {
+	pathPattern := &PathPattern{}
+	if err := pathPattern.Parse(pattern); err != nil {
+		return nil, err
+	}
+	return pathPattern, nil
+}
+
+// Parse validates the given pattern and parses it into a PathPattern from
+// which expanded path patterns can be iterated, overwriting the receiver.
+func (p *PathPattern) Parse(pattern string) error {
+	if pattern == "" {
+		return fmt.Errorf("invalid path pattern: pattern has length 0")
+	}
+	if pattern[0] != '/' {
+		return fmt.Errorf("invalid path pattern: pattern must start with '/': %q", pattern)
 	}
 	if strings.HasSuffix(pattern, `\`) && !strings.HasSuffix(pattern, `\\`) {
-		return nil, fmt.Errorf(`invalid path pattern: trailing unescaped '\' character: %q`, pattern)
+		return fmt.Errorf(`invalid path pattern: trailing unescaped '\' character: %q`, pattern)
 	}
+	var currentSequenceStack sequenceStack
+	var currentGroupStack groupStack
+	currentSequence := newPatternSequence()
+	currentGroup := newPatternGroup()
+	depth := 0
 	reader := strings.NewReader(pattern)
-	currPrefixes := defaultPrefixes
-	currLiteralStart := 0
+	currentStartIndex := 0
+	// index of current rune
+	currentIndex := 0
+	// index of next rune
+	nextIndex := 0
 	for {
-		r, _, err := reader.ReadRune()
+		currentIndex = nextIndex
+		r, size, err := reader.ReadRune()
 		if err != nil {
-			// No more runes
+			// No more runes.
+			// Append final literal, which may be empty.
+			currentLiteral := patternLiteral(pattern[currentStartIndex:])
+			currentSequence.add(currentLiteral)
 			break
 		}
-		if r == '\\' {
-			// Skip next rune.
-			reader.ReadRune() // Since suffix is not '\\', must have next rune
-			continue
-		}
-		if r == '}' {
-			return nil, fmt.Errorf(`invalid path pattern: unmatched '}' character: %q`, pattern)
-		}
-		if r != '{' {
-			continue
-		}
-		// Saw start of new group, so get the string from currLiteralStart to
-		// the opening '{' of the new group. Do this before expanding.
-		infix := prevStringFromIndex(reader, currLiteralStart)
-		groupExpanded, err := expandPathPatternRecursively(reader)
-		if err != nil {
-			return nil, err
-		}
-		// Now that group has been expanded, record index of next rune in reader
-		currLiteralStart = indexOfNextRune(reader)
-		newCount := len(currPrefixes) * len(groupExpanded)
-		if newCount > maxExpandedPatterns {
-			return nil, fmt.Errorf("invalid path pattern: exceeded maximum number of expanded path patterns (%d): %q", maxExpandedPatterns, pattern)
-		}
-		newExpanded := make([]string, 0, newCount)
-		for _, prefix := range currPrefixes {
-			for _, suffix := range groupExpanded {
-				newExpanded = append(newExpanded, prefix+infix+suffix)
+		nextIndex += size
+		switch r {
+		case '{':
+			depth++
+			if depth >= maxExpandedPatterns {
+				return fmt.Errorf("invalid path pattern: nested group depth exceeded maximum number of expanded path patterns (%d): %q", maxExpandedPatterns, pattern)
 			}
+			currentLiteral := patternLiteral(pattern[currentStartIndex:currentIndex])
+			currentStartIndex = nextIndex
+			currentSequence.add(currentLiteral)
+			currentSequenceStack.push(currentSequence)
+			currentGroupStack.push(currentGroup)
+			currentSequence = newPatternSequence()
+			currentGroup = newPatternGroup()
+		case ',':
+			if depth == 0 {
+				// Ignore commas outside of groups
+				break
+			}
+			currentLiteral := patternLiteral(pattern[currentStartIndex:currentIndex])
+			currentStartIndex = nextIndex
+			currentSequence.add(currentLiteral)
+			currentGroup.add(currentSequence)
+			currentSequence = newPatternSequence()
+		case '}':
+			depth--
+			if depth < 0 {
+				return fmt.Errorf("invalid path pattern: unmatched '}' character: %q", pattern)
+			}
+			currentLiteral := patternLiteral(pattern[currentStartIndex:currentIndex])
+			currentStartIndex = nextIndex
+			currentSequence.add(currentLiteral)
+			currentGroup.add(currentSequence)
+			// done with current sequence
+			currentSequence = currentSequenceStack.pop()
+			currentSequence.add(currentGroup)
+			// done with current group
+			currentGroup = currentGroupStack.pop()
+		case '\\':
+			// Skip next rune, already verified can't have trailing '/'
+			_, size, _ = reader.ReadRune()
+			nextIndex += size
+		case '[', ']':
+			return fmt.Errorf("invalid path pattern: cannot contain unescaped '[' or ']' character: %q", pattern)
 		}
-		currPrefixes = newExpanded
 	}
-	expanded := currPrefixes
-	if len(expanded) == 1 && expanded[0] == "" {
-		// Didn't expand any groups, so return whole pattern.
-		return []string{cleanPattern(pattern)}, nil
+	if depth != 0 {
+		return fmt.Errorf("invalid path pattern: unmatched '{' character: %q", pattern)
 	}
-	// Append trailing literal string, if any, to all previously-expanded
-	// patterns, and clean the resulting patterns.
-	alreadySeen := make(map[string]bool, len(expanded))
-	uniqueExpanded := make([]string, 0, len(expanded))
-	suffix := pattern[currLiteralStart:]
-	for _, prefix := range expanded {
-		cleaned := cleanPattern(prefix + suffix)
-		if alreadySeen[cleaned] {
-			continue
-		}
-		alreadySeen[cleaned] = true
-		uniqueExpanded = append(uniqueExpanded, cleaned)
+	// currentSequence is sequence for complete path
+	if count := currentSequence.NumConfigurations(); count > maxExpandedPatterns {
+		return fmt.Errorf("invalid path pattern: exceeded maximum number of expanded path patterns (%d): %q expands to %d patterns", maxExpandedPatterns, pattern, count)
 	}
-	return uniqueExpanded, nil
+	if !doublestar.ValidatePattern(pattern) {
+		return fmt.Errorf("invalid path pattern: %q", pattern)
+	}
+	p.original = pattern
+	p.components = currentSequence
+	return nil
 }
 
-// Return the substring from the given start index until the index of the
-// previous rune read by the reader.
-func prevStringFromIndex(reader *strings.Reader, startIndex int) string {
-	if err := reader.UnreadRune(); err != nil {
-		panic(err) // should only occur if used incorrectly internally
+// String returns the original path pattern string, without group expansion.
+func (p *PathPattern) String() string {
+	return p.original
+}
+
+// MarshalJSON implements json.Marshaller for PathPattern.
+func (p *PathPattern) MarshalJSON() ([]byte, error) {
+	return []byte(p.original), nil
+}
+
+// UnmarshalJSON implements json.Unmarshaller for PathPattern.
+func (p *PathPattern) UnmarshalJSON(b []byte) error {
+	var s string
+	if err := json.Unmarshal(b, &s); err != nil {
+		return err
 	}
-	defer reader.ReadRune() // re-read rune so index is unchanged
-	currIndex := indexOfNextRune(reader)
-	buf := make([]byte, currIndex-startIndex)
-	reader.ReadAt(buf, int64(startIndex))
-	return string(buf)
+	return p.Parse(s)
 }
 
-// Return the byte index of the next rune in the reader.
-func indexOfNextRune(reader *strings.Reader) int {
-	index, _ := reader.Seek(0, io.SeekCurrent)
-	return int(index)
+// NumConfigurations returns the total number of expanded path patterns for the
+// given path pattern.
+func (p *PathPattern) NumConfigurations() int {
+	return p.components.NumConfigurations()
 }
 
-// Expands the contents of a group in the path pattern read by the given reader
-// until a '}' is seen. Also takes the current number of groups seen prior to
-// the group which this function call will expand.
-//
-// The reader current position of the reader should be the rune immediately
-// following the opening '{' character of the group.
-//
-// Returns the list of expanded strings. Whenever a ',' character is
-// encountered, cuts off the current sub-pattern and begins a new one.
-// Any '\'-escaped '{', ',', and '}' characters are treated as literals.
-//
-// If the pattern terminates before a non-escaped '}' is seen, returns an error.
-func expandPathPatternRecursively(reader *strings.Reader) ([]string, error) {
-	// Record total list of expanded patterns, to which other lists are appended
-	expanded := []string{}
-	alreadySeenExpanded := make(map[string]bool)
-	// Within the current group option, record the current list of previously-
-	// expanded prefixes, and the start index of the subpattern following the
-	// most recent group.
-	currPrefixes := defaultPrefixes
-	currSubpatternStart := indexOfNextRune(reader)
-	for {
-		r, _, err := reader.ReadRune()
-		if err != nil {
-			break
-		}
-		if r == '\\' {
-			// Skip next rune.
-			reader.ReadRune() // Since suffix is not '\\', must have next rune
-			continue
-		}
-		if r == '{' {
-			infix := prevStringFromIndex(reader, currSubpatternStart)
-			groupExpanded, err := expandPathPatternRecursively(reader)
-			if err != nil {
-				return nil, err
-			}
-			// Now that group has been expanded, record index of next rune in reader
-			currSubpatternStart = indexOfNextRune(reader)
-			newCount := len(currPrefixes) * len(groupExpanded)
-			if newCount > maxExpandedPatterns {
-				return nil, fmt.Errorf("invalid path pattern: exceeded maximum number of expanded path patterns (%d): %q", maxExpandedPatterns, origPatternFromReader(reader))
-			}
-			alreadySeen := make(map[string]bool, newCount)
-			newPrefixes := make([]string, 0, newCount)
-			for _, prefix := range currPrefixes {
-				for _, suffix := range groupExpanded {
-					newPrefix := prefix + infix + suffix
-					if alreadySeen[newPrefix] {
-						continue
-					}
-					alreadySeen[newPrefix] = true
-					newPrefixes = append(newPrefixes, newPrefix)
-				}
-			}
-			currPrefixes = newPrefixes
-			continue
-		}
-		if r == ',' || r == '}' {
-			suffix := prevStringFromIndex(reader, currSubpatternStart)
-			newCount := len(expanded) + len(currPrefixes)
-			if newCount > maxExpandedPatterns {
-				return nil, fmt.Errorf("invalid path pattern: exceeded maximum number of expanded path patterns (%d): %q", maxExpandedPatterns, origPatternFromReader(reader))
-			}
-			newExpanded := make([]string, len(expanded), newCount)
-			copy(newExpanded, expanded)
-			expanded = newExpanded
-			for _, prefix := range currPrefixes {
-				newSubPattern := prefix + suffix
-				if alreadySeenExpanded[newSubPattern] {
-					continue
-				}
-				alreadySeenExpanded[newSubPattern] = true
-				expanded = append(expanded, newSubPattern)
-			}
-			currPrefixes = defaultPrefixes
-			currSubpatternStart = indexOfNextRune(reader)
-		}
-		if r == '}' {
-			return expanded, nil
-		}
-	}
-	// Group missing closing '}' character, so return an error.
-	return nil, fmt.Errorf(`invalid path pattern: unmatched '{' character: %q`, origPatternFromReader(reader))
-}
-
-func origPatternFromReader(reader *strings.Reader) string {
-	origPatternBuf := make([]byte, reader.Size())
-	reader.ReadAt(origPatternBuf, 0)
-	return string(origPatternBuf)
+// Next renders the current path pattern expansion, advances it to the next
+// configuration, then returns the rendered expansion along with true if the
+// next configuration is the initial one, indicating that all expansions have
+// been explored and returned.
+func (p *PathPattern) Next() (string, bool) {
+	p.renderBuf.Truncate(0)
+	p.components.Render(&p.renderBuf)
+	expansion := p.renderBuf.String()
+	cleaned := cleanPattern(expansion)
+	finished := p.components.Next()
+	return cleaned, finished
 }
 
 var (
@@ -253,84 +340,6 @@ func cleanPattern(pattern string) string {
 		return pattern[:len(pattern)-len("/*")]
 	}
 	return pattern
-}
-
-type countStack []int
-
-func (c *countStack) push(x int) {
-	*c = append(*c, x)
-}
-
-func (c *countStack) pop() int {
-	x := (*c)[len(*c)-1]
-	*c = (*c)[:len(*c)-1]
-	return x
-}
-
-// ValidatePathPattern returns nil if the pattern is valid, otherwise an error.
-func ValidatePathPattern(pattern string) error {
-	if pattern == "" || pattern[0] != '/' {
-		return fmt.Errorf("invalid path pattern: must start with '/': %q", pattern)
-	}
-	depth := 0
-	var currentGroupStack countStack
-	var currentOptionStack countStack
-	// Final currentOptionCount will be total expanded patterns for full pattern
-	currentGroupCount := 0
-	currentOptionCount := 1
-	reader := strings.NewReader(pattern)
-	for {
-		r, _, err := reader.ReadRune()
-		if err != nil {
-			// No more runes
-			break
-		}
-		switch r {
-		case '{':
-			depth++
-			if depth >= maxExpandedPatterns {
-				return fmt.Errorf("invalid path pattern: nested group depth exceeded maximum number of expanded path patterns (%d): %q", maxExpandedPatterns, pattern)
-			}
-			currentGroupStack.push(currentGroupCount)
-			currentOptionStack.push(currentOptionCount)
-			currentGroupCount = 0
-			currentOptionCount = 1
-		case ',':
-			if depth == 0 {
-				// Ignore commas outside of groups
-				break
-			}
-			currentGroupCount += currentOptionCount
-			currentOptionCount = 1
-		case '}':
-			depth--
-			if depth < 0 {
-				return fmt.Errorf("invalid path pattern: unmatched '}' character: %q", pattern)
-			}
-			currentGroupCount += currentOptionCount
-			currentOptionCount = currentOptionStack.pop() // option count of parent
-			currentOptionCount *= currentGroupCount       // parent option count * current group count
-			currentGroupCount = currentGroupStack.pop()   // group count of parent
-		case '\\':
-			// Skip next rune
-			_, _, err = reader.ReadRune()
-			if err != nil {
-				return fmt.Errorf(`invalid path pattern: trailing unescaped '\' character: %q`, pattern)
-			}
-		case '[', ']':
-			return fmt.Errorf("invalid path pattern: cannot contain unescaped '[' or ']': %q", pattern)
-		}
-	}
-	if depth != 0 {
-		return fmt.Errorf("invalid path pattern: unmatched '{' character: %q", pattern)
-	}
-	if currentOptionCount > maxExpandedPatterns {
-		return fmt.Errorf("invalid path pattern: exceeded maximum number of expanded path patterns (%d): %q expands to %d patterns", maxExpandedPatterns, pattern, currentOptionCount)
-	}
-	if !doublestar.ValidatePattern(pattern) {
-		return fmt.Errorf("invalid path pattern: %q", pattern)
-	}
-	return nil
 }
 
 // PathPatternMatch returns true if the given pattern matches the given path.
