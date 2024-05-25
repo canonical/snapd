@@ -34,14 +34,21 @@ var (
 )
 
 type Constraints struct {
-	PathPattern string   `json:"path-pattern,omitempty"`
-	Permissions []string `json:"permissions,omitempty"`
+	PathPattern *PathPattern `json:"path-pattern,omitempty"`
+	Permissions []string     `json:"permissions,omitempty"`
 }
 
 // ValidateForInterface returns nil if the constraints are valid for the given
 // interface, otherwise returns an error.
 func (c *Constraints) ValidateForInterface(iface string) error {
-	return c.validatePermissions(iface)
+	prefix := "invalid constraints"
+	if c.PathPattern == nil {
+		return fmt.Errorf("%s: no path pattern", prefix)
+	}
+	if err := c.validatePermissions(iface); err != nil {
+		return fmt.Errorf("%s: %w", prefix, err)
+	}
+	return nil
 }
 
 // validatePermissions checks that the permissions for the given constraints
@@ -77,7 +84,10 @@ func (c *Constraints) validatePermissions(iface string) error {
 //
 // If the constraints or path are invalid, returns an error.
 func (c *Constraints) Match(path string) (bool, error) {
-	return PathPatternMatch(c.PathPattern, path)
+	if c.PathPattern == nil {
+		return false, fmt.Errorf("invalid constraints: no path pattern")
+	}
+	return PathPatternMatch(c.PathPattern.String(), path)
 }
 
 // RemovePermission removes every instance of the given permission from the
