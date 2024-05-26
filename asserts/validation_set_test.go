@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 )
 
@@ -64,8 +65,8 @@ func (vss *validationSetSuite) TestDecodeOK(c *C) {
 	encoded := strings.Replace(validationSetExample, "TSLINE", vss.tsLine, 1)
 	encoded = strings.Replace(encoded, "OTHER", "", 1)
 
-	a, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	c.Check(a.Type(), Equals, asserts.ValidationSetType)
 	_, ok := a.(asserts.SequenceMember)
 	c.Assert(ok, Equals, true)
@@ -132,10 +133,9 @@ func (vss *validationSetSuite) TestDecodeInvalid(c *C) {
 	for _, test := range invalidTests {
 		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
 		invalid = strings.Replace(invalid, "OTHER", "", 1)
-		_, err := asserts.Decode([]byte(invalid))
+		_ := mylog.Check2(asserts.Decode([]byte(invalid)))
 		c.Check(err, ErrorMatches, validationSetErrPrefix+test.expectedErr)
 	}
-
 }
 
 func (vss *validationSetSuite) TestSnapPresenceOptionalDefaultRequired(c *C) {
@@ -143,8 +143,8 @@ func (vss *validationSetSuite) TestSnapPresenceOptionalDefaultRequired(c *C) {
 	encoded = strings.Replace(encoded, "OTHER", "", 1)
 	encoded = strings.Replace(encoded, "    presence: optional\n", "", 1)
 
-	a, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	c.Check(a.Type(), Equals, asserts.ValidationSetType)
 	valset := a.(*asserts.ValidationSet)
 	snaps := valset.Snaps()
@@ -157,8 +157,8 @@ func (vss *validationSetSuite) TestSnapRevisionOptional(c *C) {
 	encoded = strings.Replace(encoded, "OTHER", "", 1)
 	encoded = strings.Replace(encoded, "    revision: 99\n", "", 1)
 
-	a, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	c.Check(a.Type(), Equals, asserts.ValidationSetType)
 	valset := a.(*asserts.ValidationSet)
 	snaps := valset.Snaps()
@@ -190,8 +190,8 @@ func (vss *validationSetSuite) TestValidationSetSequenceKey(c *C) {
 	encoded := strings.Replace(validationSetExample, "TSLINE", vss.tsLine, 1)
 	encoded = strings.Replace(encoded, "OTHER", "", 1)
 
-	a, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 
 	_, ok := a.(asserts.SequenceMember)
 	c.Assert(ok, Equals, true)

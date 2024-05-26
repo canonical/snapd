@@ -27,6 +27,7 @@ import (
 	"path/filepath"
 	"regexp"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
@@ -54,11 +55,10 @@ func detectCompletion(base string) (string, completionMode) {
 		return "", noCompletion
 	}
 
-	fd, err := os.Open(dirs.BashCompletionScript)
-	if err != nil {
-		// Cannot read file, disable completion
-		return "", noCompletion
-	}
+	fd := mylog.Check2(os.Open(dirs.BashCompletionScript))
+
+	// Cannot read file, disable completion
+
 	defer fd.Close()
 
 	// Up to 2.5
@@ -79,20 +79,17 @@ func detectCompletion(base string) (string, completionMode) {
 			break
 		}
 	}
-	if err := s.Err(); err != nil {
-		// Cannot read file, disable completion
-		return "", noCompletion
-	}
+	mylog.Check(s.Err())
+	// Cannot read file, disable completion
+
 	if matched == nil {
 		// Unknown version: disable completion
 		return "", noCompletion
 	}
 
-	versionComp, err := strutil.VersionCompare(matched[1], "2.2")
-	if err != nil {
-		// Cannot parse version, disable completion
-		return "", noCompletion
-	}
+	versionComp := mylog.Check2(strutil.VersionCompare(matched[1], "2.2"))
+
+	// Cannot parse version, disable completion
 
 	if versionComp < 0 {
 		if !osutil.IsWritable(dirs.LegacyCompletersDir) {
@@ -110,10 +107,8 @@ func detectCompletion(base string) (string, completionMode) {
 // Note: Only base names are returned and not the full paths of the completers.
 func findExistingCompleters(s *snap.Info, dir string) (existingCompleters []string, err error) {
 	for _, glob := range s.BinaryNameGlobs() {
-		completers, err := filepath.Glob(filepath.Join(dir, glob))
-		if err != nil {
-			return nil, err
-		}
+		completers := mylog.Check2(filepath.Glob(filepath.Join(dir, glob)))
+
 		for _, completer := range completers {
 			if osutil.FileExists(completer) && !dirs.IsCompleteShSymlink(completer) {
 				existingCompleters = append(existingCompleters, filepath.Base(completer))
@@ -141,37 +136,28 @@ func ensureDirStateGlobsWithKeep(dir string, globs []string, content map[string]
 
 // ensureSnapBinariesWithContent applies snap binary content but keeps existing completers unchanged.
 func ensureSnapBinariesWithContent(s *snap.Info, binariesContent, completersContent map[string]osutil.FileState, completionVariant completionMode) error {
-	// Create directories
-	if err := os.MkdirAll(dirs.SnapBinariesDir, 0755); err != nil {
-		return err
-	}
+	mylog.Check(
+		// Create directories
+		os.MkdirAll(dirs.SnapBinariesDir, 0755))
+
 	switch completionVariant {
 	case normalCompletion:
-		if err := os.MkdirAll(dirs.CompletersDir, 0755); err != nil {
-			return err
-		}
+		mylog.Check(os.MkdirAll(dirs.CompletersDir, 0755))
+
 	case legacyCompletion:
-		if err := os.MkdirAll(dirs.LegacyCompletersDir, 0755); err != nil {
-			return err
-		}
+		mylog.Check(os.MkdirAll(dirs.LegacyCompletersDir, 0755))
+
 	}
 
 	// Ensure binaries
-	_, _, err := osutil.EnsureDirStateGlobs(dirs.SnapBinariesDir, s.BinaryNameGlobs(), binariesContent)
-	if err != nil {
-		return err
-	}
+	_, _ := mylog.Check3(osutil.EnsureDirStateGlobs(dirs.SnapBinariesDir, s.BinaryNameGlobs(), binariesContent))
 
 	// Ensure completers
 	// First find existing completers that were not created by us
-	existingCompleters, err := findExistingCompleters(s, dirs.CompletersDir)
-	if err != nil {
-		return err
-	}
-	existingLegacyCompleters, err := findExistingCompleters(s, dirs.LegacyCompletersDir)
-	if err != nil {
-		return err
-	}
+	existingCompleters := mylog.Check2(findExistingCompleters(s, dirs.CompletersDir))
+
+	existingLegacyCompleters := mylog.Check2(findExistingCompleters(s, dirs.LegacyCompletersDir))
+
 	// Then determine which completers will be added/removed
 	var normalCompletersContent, legacyCompletersContent map[string]osutil.FileState
 	switch completionVariant {
@@ -189,14 +175,9 @@ func ensureSnapBinariesWithContent(s *snap.Info, binariesContent, completersCont
 		legacyCompletersContent = nil
 	}
 	// Finally add/remove completers
-	_, _, err = ensureDirStateGlobsWithKeep(dirs.CompletersDir, s.BinaryNameGlobs(), normalCompletersContent, existingCompleters)
-	if err != nil {
-		return err
-	}
-	_, _, err = ensureDirStateGlobsWithKeep(dirs.LegacyCompletersDir, s.BinaryNameGlobs(), legacyCompletersContent, existingLegacyCompleters)
-	if err != nil {
-		return err
-	}
+	_, _ = mylog.Check3(ensureDirStateGlobsWithKeep(dirs.CompletersDir, s.BinaryNameGlobs(), normalCompletersContent, existingCompleters))
+
+	_, _ = mylog.Check3(ensureDirStateGlobsWithKeep(dirs.LegacyCompletersDir, s.BinaryNameGlobs(), legacyCompletersContent, existingLegacyCompleters))
 
 	return nil
 }

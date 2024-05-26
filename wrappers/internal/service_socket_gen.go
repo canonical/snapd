@@ -26,6 +26,7 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/snap"
@@ -107,19 +108,14 @@ WantedBy={{.SocketsTarget}}
 	default:
 		panic("unknown snap.DaemonScope")
 	}
-
-	if err := t.Execute(&templateOut, wrapperData); err != nil {
-		// this can never happen, except we forget a variable
-		logger.Panicf("Unable to execute template: %v", err)
-	}
+	mylog.Check(t.Execute(&templateOut, wrapperData))
+	// this can never happen, except we forget a variable
 
 	return templateOut.Bytes()
 }
 
 func GenerateSnapSocketUnitFiles(app *snap.AppInfo) (map[string][]byte, error) {
-	if err := snap.ValidateApp(app); err != nil {
-		return nil, err
-	}
+	mylog.Check(snap.ValidateApp(app))
 
 	socketFiles := make(map[string][]byte)
 	for name := range app.Sockets {

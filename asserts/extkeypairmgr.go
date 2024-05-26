@@ -31,6 +31,7 @@ import (
 
 	"golang.org/x/crypto/openpgp/packet"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -54,9 +55,8 @@ func NewExternalKeypairManager(keyMgrPath string) (*ExternalKeypairManager, erro
 		nameToID:   make(map[string]string),
 		cache:      make(map[string]*cachedExtKey),
 	}
-	if err := em.checkFeatures(); err != nil {
-		return nil, err
-	}
+	mylog.Check(em.checkFeatures())
+
 	return em, nil
 }
 
@@ -71,18 +71,14 @@ func (em *ExternalKeypairManager) keyMgr(op string, args []string, in []byte, ou
 	}
 	cmd.Stdout = &outBuf
 	cmd.Stderr = &errBuf
+	mylog.Check(cmd.Run())
 
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("external keypair manager %q %v failed: %v (%q)", em.keyMgrPath, args, err, errBuf.Bytes())
-
-	}
 	switch o := out.(type) {
 	case *[]byte:
 		*o = outBuf.Bytes()
 	default:
-		if err := json.Unmarshal(outBuf.Bytes(), out); err != nil {
-			return fmt.Errorf("cannot decode external keypair manager %q %v output: %v", em.keyMgrPath, args, err)
-		}
+		mylog.Check(json.Unmarshal(outBuf.Bytes(), out))
+
 	}
 	return nil
 }
@@ -92,9 +88,8 @@ func (em *ExternalKeypairManager) checkFeatures() error {
 		Signing    []string `json:"signing"`
 		PublicKeys []string `json:"public-keys"`
 	}
-	if err := em.keyMgr("features", nil, nil, &feats); err != nil {
-		return err
-	}
+	mylog.Check(em.keyMgr("features", nil, nil, &feats))
+
 	if !strutil.ListContains(feats.Signing, "RSA-PKCS") {
 		return fmt.Errorf("external keypair manager %q missing support for RSA-PKCS signing", em.keyMgrPath)
 	}
@@ -108,22 +103,17 @@ func (em *ExternalKeypairManager) keyNames() ([]string, error) {
 	var knames struct {
 		Names []string `json:"key-names"`
 	}
-	if err := em.keyMgr("key-names", nil, nil, &knames); err != nil {
-		return nil, fmt.Errorf("cannot get all external keypair manager key names: %v", err)
-	}
+	mylog.Check(em.keyMgr("key-names", nil, nil, &knames))
+
 	return knames.Names, nil
 }
 
 func (em *ExternalKeypairManager) findByName(name string) (PublicKey, *rsa.PublicKey, error) {
 	var k []byte
-	err := em.keyMgr("get-public-key", []string{"-f", "DER", "-k", name}, nil, &k)
-	if err != nil {
-		return nil, nil, &keyNotFoundError{msg: fmt.Sprintf("cannot find external key pair: %v", err)}
-	}
-	pubk, err := x509.ParsePKIXPublicKey(k)
-	if err != nil {
-		return nil, nil, fmt.Errorf("cannot decode external key %q: %v", name, err)
-	}
+	mylog.Check(em.keyMgr("get-public-key", []string{"-f", "DER", "-k", name}, nil, &k))
+
+	pubk := mylog.Check2(x509.ParsePKIXPublicKey(k))
+
 	rsaPub, ok := pubk.(*rsa.PublicKey)
 	if !ok {
 		return nil, nil, fmt.Errorf("expected RSA public key, got instead: %T", pubk)
@@ -133,10 +123,8 @@ func (em *ExternalKeypairManager) findByName(name string) (PublicKey, *rsa.Publi
 }
 
 func (em *ExternalKeypairManager) Export(keyName string) ([]byte, error) {
-	pubKey, _, err := em.findByName(keyName)
-	if err != nil {
-		return nil, err
-	}
+	pubKey, _ := mylog.Check3(em.findByName(keyName))
+
 	return EncodePublicKey(pubKey)
 }
 
@@ -145,10 +133,8 @@ func (em *ExternalKeypairManager) loadKey(name string) (*cachedExtKey, error) {
 	if ok {
 		return em.cache[id], nil
 	}
-	pubKey, rsaPub, err := em.findByName(name)
-	if err != nil {
-		return nil, err
-	}
+	pubKey, rsaPub := mylog.Check3(em.findByName(name))
+
 	id = pubKey.ID()
 	em.nameToID[name] = id
 	cachedKey := &cachedExtKey{
@@ -183,10 +169,8 @@ func (em *ExternalKeypairManager) privateKey(cachedKey *cachedExtKey) PrivateKey
 }
 
 func (em *ExternalKeypairManager) GetByName(keyName string) (PrivateKey, error) {
-	cachedKey, err := em.loadKey(keyName)
-	if err != nil {
-		return nil, err
-	}
+	cachedKey := mylog.Check2(em.loadKey(keyName))
+
 	return em.privateKey(cachedKey), nil
 }
 
@@ -217,14 +201,10 @@ func (em *ExternalKeypairManager) Generate(keyName string) error {
 }
 
 func (em *ExternalKeypairManager) loadAllKeys() ([]string, error) {
-	names, err := em.keyNames()
-	if err != nil {
-		return nil, err
-	}
+	names := mylog.Check2(em.keyNames())
+
 	for _, name := range names {
-		if _, err := em.loadKey(name); err != nil {
-			return nil, err
-		}
+		mylog.Check2(em.loadKey(name))
 	}
 	return names, nil
 }
@@ -232,10 +212,10 @@ func (em *ExternalKeypairManager) loadAllKeys() ([]string, error) {
 func (em *ExternalKeypairManager) Get(keyID string) (PrivateKey, error) {
 	cachedKey, ok := em.cache[keyID]
 	if !ok {
-		// try to load all keys
-		if _, err := em.loadAllKeys(); err != nil {
-			return nil, err
-		}
+		mylog.Check2(
+			// try to load all keys
+			em.loadAllKeys())
+
 		cachedKey, ok = em.cache[keyID]
 		if !ok {
 			return nil, &keyNotFoundError{msg: "cannot find external key pair"}
@@ -245,10 +225,8 @@ func (em *ExternalKeypairManager) Get(keyID string) (PrivateKey, error) {
 }
 
 func (em *ExternalKeypairManager) List() ([]ExternalKeyInfo, error) {
-	names, err := em.loadAllKeys()
-	if err != nil {
-		return nil, err
-	}
+	names := mylog.Check2(em.loadAllKeys())
+
 	res := make([]ExternalKeyInfo, len(names))
 	for i, name := range names {
 		res[i].Name = name
@@ -269,11 +247,8 @@ func (em *ExternalKeypairManager) signWith(keyName string, digest []byte) (signa
 	toSign := &bytes.Buffer{}
 	toSign.Write(digestInfoSHA512Prefix)
 	toSign.Write(digest)
+	mylog.Check(em.keyMgr("sign", []string{"-m", "RSA-PKCS", "-k", keyName}, toSign.Bytes(), &signature))
 
-	err = em.keyMgr("sign", []string{"-m", "RSA-PKCS", "-k", keyName}, toSign.Bytes(), &signature)
-	if err != nil {
-		return nil, err
-	}
 	return signature, nil
 }
 

@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/snap/quota"
 )
@@ -53,7 +54,7 @@ func (s *resourcesTestSuite) TestQuotaValidationFails(c *C) {
 	}
 
 	for _, t := range tests {
-		err := t.limits.Validate()
+		mylog.Check(t.limits.Validate())
 		c.Check(err, ErrorMatches, t.err)
 	}
 }
@@ -98,7 +99,7 @@ func (s *resourcesTestSuite) TestQuotaValidationPasses(c *C) {
 	}
 
 	for _, t := range tests {
-		err := t.limits.Validate()
+		mylog.Check(t.limits.Validate())
 		c.Check(err, IsNil)
 	}
 }
@@ -208,7 +209,7 @@ func (s *resourcesTestSuite) TestQuotaChangeValidationFails(c *C) {
 	}
 
 	for _, t := range tests {
-		err := t.limits.Change(t.updateLimits)
+		mylog.Check(t.limits.Change(t.updateLimits))
 		c.Check(err, ErrorMatches, t.err)
 	}
 }
@@ -306,7 +307,7 @@ func (s *resourcesTestSuite) TestQuotaChangeValidationPasses(c *C) {
 	}
 
 	for _, t := range tests {
-		err := t.limits.Change(t.updateLimits)
+		mylog.Check(t.limits.Change(t.updateLimits))
 		c.Check(err, IsNil)
 		c.Check(t.limits, DeepEquals, t.newLimits)
 	}

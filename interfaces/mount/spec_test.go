@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/interfaces/mount"
@@ -143,7 +144,8 @@ func (s *specSuite) TestSpecificationIface(c *C) {
 		{Dir: "dir-a", Name: "connected-plug"},
 		{Dir: "dir-b", Name: "connected-slot"},
 		{Dir: "dir-c", Name: "permanent-plug"},
-		{Dir: "dir-d", Name: "permanent-slot"}})
+		{Dir: "dir-d", Name: "permanent-slot"},
+	})
 }
 
 const snapWithLayout = `
@@ -302,8 +304,8 @@ func (s *specSuite) TestAddUserEnsureDirHappy(c *C) {
 		{MustExistDir: "$HOME", EnsureDir: "$HOME/other/other"},
 		{MustExistDir: "/dir1", EnsureDir: "/dir1/dir2"},
 	}
-	err := s.spec.AddUserEnsureDirs(ensureDirSpecs)
-	c.Assert(err, IsNil)
+	mylog.Check(s.spec.AddUserEnsureDirs(ensureDirSpecs))
+
 	c.Assert(s.spec.UserMountEntries(), DeepEquals, []osutil.MountEntry{
 		{Dir: "$HOME/.local/share", Options: []string{"x-snapd.kind=ensure-dir", "x-snapd.must-exist-dir=$HOME"}},
 		{Dir: "$HOME/other/other", Options: []string{"x-snapd.kind=ensure-dir", "x-snapd.must-exist-dir=$HOME"}},
@@ -318,6 +320,6 @@ func (s *specSuite) TestAddUserEnsureErrorValidate(c *C) {
 		{MustExistDir: "$SNAP_HOME", EnsureDir: "$SNAP_HOME/dir"},
 		{MustExistDir: "/dir1", EnsureDir: "/dir1/dir2"},
 	}
-	err := s.spec.AddUserEnsureDirs(ensureDirSpecs)
+	mylog.Check(s.spec.AddUserEnsureDirs(ensureDirSpecs))
 	c.Assert(err, ErrorMatches, `internal error: cannot use ensure-dir mount specification: directory that must exist "\$SNAP_HOME" prefix "\$SNAP_HOME" is not allowed`)
 }

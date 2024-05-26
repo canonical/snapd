@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
 )
 
@@ -41,7 +42,7 @@ func (s *hooktestSuite) SetUpTest(c *C) {
 }
 
 func (s *hooktestSuite) TestBefore(c *C) {
-	var callbackCalled = false
+	callbackCalled := false
 	s.mockHandler.BeforeCallback = func() {
 		callbackCalled = true
 	}
@@ -58,7 +59,7 @@ func (s *hooktestSuite) TestBeforeError(c *C) {
 }
 
 func (s *hooktestSuite) TestDone(c *C) {
-	var callbackCalled = false
+	callbackCalled := false
 	s.mockHandler.DoneCallback = func() {
 		callbackCalled = true
 	}
@@ -75,7 +76,7 @@ func (s *hooktestSuite) TestDoneError(c *C) {
 }
 
 func (s *hooktestSuite) TestError(c *C) {
-	err := fmt.Errorf("test error")
+	mylog.Check(fmt.Errorf("test error"))
 	c.Check(s.mockHandler.ErrorCalled, Equals, false)
 	ignore, herr := s.mockHandler.Error(err)
 	c.Check(ignore, Equals, false)
@@ -86,7 +87,7 @@ func (s *hooktestSuite) TestError(c *C) {
 
 func (s *hooktestSuite) TestErrorError(c *C) {
 	s.mockHandler.ErrorError = true
-	err := fmt.Errorf("test error")
+	mylog.Check(fmt.Errorf("test error"))
 	ignore, herr := s.mockHandler.Error(err)
 	c.Check(ignore, Equals, false)
 	c.Check(herr, NotNil)
@@ -96,7 +97,7 @@ func (s *hooktestSuite) TestErrorError(c *C) {
 
 func (s *hooktestSuite) TestIgnoreError(c *C) {
 	s.mockHandler.IgnoreOriginalErr = true
-	err := fmt.Errorf("test error")
+	mylog.Check(fmt.Errorf("test error"))
 	ignore, herr := s.mockHandler.Error(err)
 	c.Check(ignore, Equals, true)
 	c.Check(herr, IsNil)

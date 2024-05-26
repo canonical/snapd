@@ -20,6 +20,7 @@
 package builtin
 
 import (
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
@@ -69,10 +70,7 @@ func (iface *userNSInterface) userNSAppArmorSupported() (bool, error) {
 		return false, nil
 	}
 
-	features, err := apparmor_sandbox.ParserFeatures()
-	if err != nil {
-		return false, err
-	}
+	features := mylog.Check2(apparmor_sandbox.ParserFeatures())
 
 	if !strutil.ListContains(features, "userns") {
 		return false, nil
@@ -82,10 +80,8 @@ func (iface *userNSInterface) userNSAppArmorSupported() (bool, error) {
 }
 
 func (iface *userNSInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	supported, err := iface.userNSAppArmorSupported()
-	if err != nil {
-		return err
-	}
+	supported := mylog.Check2(iface.userNSAppArmorSupported())
+
 	if supported {
 		spec.AddSnippet(userNSConnectedPlugAppArmorSupported)
 	}

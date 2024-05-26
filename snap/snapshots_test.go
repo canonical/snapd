@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapdir"
 )
@@ -154,12 +155,12 @@ func (s *snapshotSuite) TestReadSnapshotYamlOpenFails(c *C) {
 
 	// Try a generic error, this is reported as such
 	returnedError = errors.New("Some error")
-	_, err := snap.ReadSnapshotYaml(info)
+	_ := mylog.Check2(snap.ReadSnapshotYaml(info))
 	c.Check(err, ErrorMatches, "Some error")
 
 	// But if the file is not found, that's just a nil error
 	returnedError = os.ErrNotExist
-	_, err = snap.ReadSnapshotYaml(info)
+	_ = mylog.Check2(snap.ReadSnapshotYaml(info))
 	c.Check(err, IsNil)
 }
 
@@ -167,7 +168,7 @@ func (s *snapshotSuite) TestReadSnapshotYamlFromSnapFileFails(c *C) {
 	container := &FakeContainer{
 		readFileError: errors.New("cannot do stuff"),
 	}
-	opts, err := snap.ReadSnapshotYamlFromSnapFile(container)
+	opts := mylog.Check2(snap.ReadSnapshotYamlFromSnapFile(container))
 	c.Check(container.readFileInput, Equals, "meta/snapshots.yaml")
 	c.Check(opts, IsNil)
 	c.Check(err, ErrorMatches, "cannot do stuff")
@@ -177,7 +178,7 @@ func (s *snapshotSuite) TestReadSnapshotYamlFromSnapFileHappy(c *C) {
 	container := &FakeContainer{
 		readFileOutput: snapshotHappyYaml,
 	}
-	opts, err := snap.ReadSnapshotYamlFromSnapFile(container)
+	opts := mylog.Check2(snap.ReadSnapshotYamlFromSnapFile(container))
 	c.Check(container.readFileInput, Equals, "meta/snapshots.yaml")
 	c.Check(err, IsNil)
 	c.Check(opts, DeepEquals, &snap.SnapshotOptions{
@@ -203,21 +204,21 @@ func (s *snapshotSuite) TestReadSnapshotYamlFailures(c *C) {
 		},
 	} {
 		manifestFile := filepath.Join(c.MkDir(), "snapshots.yaml")
-		err := os.WriteFile(manifestFile, []byte(testData.contents), 0644)
-		c.Assert(err, IsNil)
+		mylog.Check(os.WriteFile(manifestFile, []byte(testData.contents), 0644))
+
 		defer snap.MockOsOpen(func(string) (*os.File, error) {
 			return os.Open(manifestFile)
 		})()
 
-		_, err = snap.ReadSnapshotYaml(info)
+		_ = mylog.Check2(snap.ReadSnapshotYaml(info))
 		c.Check(err, ErrorMatches, testData.expectedError, Commentf("%s", testData.contents))
 	}
 }
 
 func (s *snapshotSuite) TestReadSnapshotYamlHappy(c *C) {
 	manifestFile := filepath.Join(c.MkDir(), "snapshots.yaml")
-	err := os.WriteFile(manifestFile, []byte(snapshotHappyYaml), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(manifestFile, []byte(snapshotHappyYaml), 0644))
+
 
 	defer snap.MockOsOpen(func(path string) (*os.File, error) {
 		return os.Open(manifestFile)
@@ -225,7 +226,7 @@ func (s *snapshotSuite) TestReadSnapshotYamlHappy(c *C) {
 
 	info := &snap.Info{SideInfo: snap.SideInfo{RealName: "hello-snap", Revision: snap.R(42), SnapID: "hello-id"}}
 
-	opts, err := snap.ReadSnapshotYaml(info)
+	opts := mylog.Check2(snap.ReadSnapshotYaml(info))
 	c.Check(err, IsNil)
 	c.Check(opts, DeepEquals, &snap.SnapshotOptions{
 		Exclude: snapshotHappyExpectedExclude,

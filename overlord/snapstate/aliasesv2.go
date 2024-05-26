@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
@@ -135,9 +136,7 @@ func applyAliasesChange(snapName string, prevAutoDisabled bool, prevAliases map[
 		}
 	}
 	if !dryRun {
-		if err := be.UpdateAliases(add, remove); err != nil {
-			return nil, nil, err
-		}
+		mylog.Check(be.UpdateAliases(add, remove))
 	}
 	return add, remove, nil
 }
@@ -152,19 +151,13 @@ var AutoAliases func(st *state.State, info *snap.Info) (map[string]string, error
 func autoAliasesDelta(st *state.State, names []string) (changed map[string][]string, dropped map[string][]string, err error) {
 	var snapStates map[string]*SnapState
 	if len(names) == 0 {
-		var err error
-		snapStates, err = All(st)
-		if err != nil {
-			return nil, nil, err
-		}
+		snapStates = mylog.Check2(All(st))
 	} else {
 		snapStates = make(map[string]*SnapState, len(names))
 		for _, name := range names {
 			var snapst SnapState
-			err := Get(st, name, &snapst)
-			if err != nil {
-				return nil, nil, err
-			}
+			mylog.Check(Get(st, name, &snapst))
+
 			snapStates[name] = &snapst
 		}
 	}
@@ -173,20 +166,10 @@ func autoAliasesDelta(st *state.State, names []string) (changed map[string][]str
 	dropped = make(map[string][]string)
 	for instanceName, snapst := range snapStates {
 		aliases := snapst.Aliases
-		info, err := snapst.CurrentInfo()
-		if err != nil {
-			if firstErr == nil {
-				firstErr = err
-			}
-			continue
-		}
-		autoAliases, err := AutoAliases(st, info)
-		if err != nil {
-			if firstErr == nil {
-				firstErr = err
-			}
-			continue
-		}
+		info := mylog.Check2(snapst.CurrentInfo())
+
+		autoAliases := mylog.Check2(AutoAliases(st, info))
+
 		for alias, target := range autoAliases {
 			curTarget := aliases[alias]
 			if curTarget == nil || curTarget.Auto != target {
@@ -206,10 +189,7 @@ func autoAliasesDelta(st *state.State, names []string) (changed map[string][]str
 // considering which applications exist in info and produces new aliases
 // for the snap.
 func refreshAliases(st *state.State, info *snap.Info, curAliases map[string]*AliasTarget) (newAliases map[string]*AliasTarget, err error) {
-	autoAliases, err := AutoAliases(st, info)
-	if err != nil {
-		return nil, err
-	}
+	autoAliases := mylog.Check2(AutoAliases(st, info))
 
 	newAliases = make(map[string]*AliasTarget, len(autoAliases))
 	// apply the current auto-aliases
@@ -274,10 +254,8 @@ func (e *AliasConflictError) Error() string {
 }
 
 func addAliasConflicts(st *state.State, skipSnap string, testAliases map[string]bool, aliasConflicts map[string][]string, changing map[string]*SnapState) error {
-	snapStates, err := All(st)
-	if err != nil {
-		return err
-	}
+	snapStates := mylog.Check2(All(st))
+
 	for otherSnap, snapst := range snapStates {
 		if otherSnap == skipSnap {
 			// skip
@@ -316,7 +294,7 @@ func addAliasConflicts(st *state.State, skipSnap string, testAliases map[string]
 // then be considered.
 func checkAliasesConflicts(st *state.State, snapName string, candAutoDisabled bool, candAliases map[string]*AliasTarget, changing map[string]*SnapState) (conflicts map[string][]string, err error) {
 	var snapNames map[string]*json.RawMessage
-	err = st.Get("snaps", &snapNames)
+	mylog.Check(st.Get("snaps", &snapNames))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
@@ -344,9 +322,8 @@ func checkAliasesConflicts(st *state.State, snapName string, candAutoDisabled bo
 
 	// check against enabled aliases
 	conflicts = make(map[string][]string)
-	if err := addAliasConflicts(st, snapName, enabled, conflicts, changing); err != nil {
-		return nil, err
-	}
+	mylog.Check(addAliasConflicts(st, snapName, enabled, conflicts, changing))
+
 	if len(conflicts) != 0 {
 		return conflicts, &AliasConflictError{Snap: snapName, Conflicts: conflicts}
 	}
@@ -357,10 +334,8 @@ func checkAliasesConflicts(st *state.State, snapName string, candAutoDisabled bo
 // namespace conflicts against installed snap aliases.
 func checkSnapAliasConflict(st *state.State, instanceName string) error {
 	prefix := fmt.Sprintf("%s.", instanceName)
-	snapStates, err := All(st)
-	if err != nil {
-		return err
-	}
+	snapStates := mylog.Check2(All(st))
+
 	for otherSnap, snapst := range snapStates {
 		autoDisabled := snapst.AutoAliasesDisabled
 		for alias, target := range snapst.Aliases {
@@ -450,7 +425,7 @@ func (m *SnapManager) ensureAliasesV2() error {
 	defer m.state.Unlock()
 
 	var aliasesV1 map[string]interface{}
-	err := m.state.Get("aliases", &aliasesV1)
+	mylog.Check(m.state.Get("aliases", &aliasesV1))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
@@ -462,10 +437,7 @@ func (m *SnapManager) ensureAliasesV2() error {
 		return nil
 	}
 
-	snapStates, err := All(m.state)
-	if err != nil {
-		return err
-	}
+	snapStates := mylog.Check2(All(m.state))
 
 	// mark pending "alias" tasks as errored
 	// they were never parts of lanes but either standalone or at
@@ -473,7 +445,7 @@ func (m *SnapManager) ensureAliasesV2() error {
 	for _, t := range m.state.Tasks() {
 		if t.Kind() == "alias" && !t.Status().Ready() {
 			var param interface{}
-			err := t.Get("aliases", &param)
+			mylog.Check(t.Get("aliases", &param))
 			if errors.Is(err, state.ErrNoState) {
 				// not the old variant, leave alone
 				continue
@@ -485,22 +457,12 @@ func (m *SnapManager) ensureAliasesV2() error {
 
 	withAliases := make(map[string]*SnapState, len(snapStates))
 	for instanceName, snapst := range snapStates {
-		err := m.backend.RemoveSnapAliases(instanceName)
-		if err != nil {
-			logger.Noticef("cannot cleanup aliases for %q: %v", instanceName, err)
-			continue
-		}
+		mylog.Check(m.backend.RemoveSnapAliases(instanceName))
 
-		info, err := snapst.CurrentInfo()
-		if err != nil {
-			logger.Noticef("cannot get info for %q: %v", instanceName, err)
-			continue
-		}
-		newAliases, err := refreshAliases(m.state, info, nil)
-		if err != nil {
-			logger.Noticef("cannot get automatic aliases for %q: %v", instanceName, err)
-			continue
-		}
+		info := mylog.Check2(snapst.CurrentInfo())
+
+		newAliases := mylog.Check2(refreshAliases(m.state, info, nil))
+
 		// TODO: check for conflicts
 		if len(newAliases) != 0 {
 			snapst.Aliases = newAliases
@@ -514,13 +476,9 @@ func (m *SnapManager) ensureAliasesV2() error {
 
 	for instanceName, snapst := range withAliases {
 		if !snapst.AliasesPending {
-			_, _, err := applyAliasesChange(instanceName, autoDis, nil, autoEn, snapst.Aliases, m.backend, doApply)
-			if err != nil {
-				// try to clean up and disable
-				logger.Noticef("cannot create automatic aliases for %q: %v", instanceName, err)
-				m.backend.RemoveSnapAliases(instanceName)
-				snapst.AutoAliasesDisabled = true
-			}
+			_, _ := mylog.Check3(applyAliasesChange(instanceName, autoDis, nil, autoEn, snapst.Aliases, m.backend, doApply))
+
+			// try to clean up and disable
 		}
 		Set(m.state, instanceName, snapst)
 	}
@@ -531,21 +489,14 @@ func (m *SnapManager) ensureAliasesV2() error {
 
 // Alias sets up a manual alias from alias to app in snapName.
 func Alias(st *state.State, instanceName, app, alias string) (*state.TaskSet, error) {
-	if err := snap.ValidateAlias(alias); err != nil {
-		return nil, err
-	}
+	mylog.Check(snap.ValidateAlias(alias))
 
 	var snapst SnapState
-	err := Get(st, instanceName, &snapst)
+	mylog.Check(Get(st, instanceName, &snapst))
 	if errors.Is(err, state.ErrNoState) {
 		return nil, &snap.NotInstalledError{Snap: instanceName}
 	}
-	if err != nil {
-		return nil, err
-	}
-	if err := CheckChangeConflict(st, instanceName, nil); err != nil {
-		return nil, err
-	}
+	mylog.Check(CheckChangeConflict(st, instanceName, nil))
 
 	snapName, instanceKey := snap.SplitInstanceName(instanceName)
 	snapsup := &SnapSetup{
@@ -593,17 +544,11 @@ func manualAlias(info *snap.Info, curAliases map[string]*AliasTarget, target, al
 // DisableAllAliases disables all aliases of a snap, removing all manual ones.
 func DisableAllAliases(st *state.State, instanceName string) (*state.TaskSet, error) {
 	var snapst SnapState
-	err := Get(st, instanceName, &snapst)
+	mylog.Check(Get(st, instanceName, &snapst))
 	if errors.Is(err, state.ErrNoState) {
 		return nil, &snap.NotInstalledError{Snap: instanceName}
 	}
-	if err != nil {
-		return nil, err
-	}
-
-	if err := CheckChangeConflict(st, instanceName, nil); err != nil {
-		return nil, err
-	}
+	mylog.Check(CheckChangeConflict(st, instanceName, nil))
 
 	snapName, instanceKey := snap.SplitInstanceName(instanceName)
 	snapsup := &SnapSetup{
@@ -619,14 +564,8 @@ func DisableAllAliases(st *state.State, instanceName string) (*state.TaskSet, er
 
 // RemoveManualAlias removes a manual alias.
 func RemoveManualAlias(st *state.State, alias string) (ts *state.TaskSet, instanceName string, err error) {
-	instanceName, err = findSnapOfManualAlias(st, alias)
-	if err != nil {
-		return nil, "", err
-	}
-
-	if err := CheckChangeConflict(st, instanceName, nil); err != nil {
-		return nil, "", err
-	}
+	instanceName = mylog.Check2(findSnapOfManualAlias(st, alias))
+	mylog.Check(CheckChangeConflict(st, instanceName, nil))
 
 	snapName, instanceKey := snap.SplitInstanceName(instanceName)
 	snapsup := &SnapSetup{
@@ -642,10 +581,8 @@ func RemoveManualAlias(st *state.State, alias string) (ts *state.TaskSet, instan
 }
 
 func findSnapOfManualAlias(st *state.State, alias string) (snapName string, err error) {
-	snapStates, err := All(st)
-	if err != nil {
-		return "", err
-	}
+	snapStates := mylog.Check2(All(st))
+
 	for instanceName, snapst := range snapStates {
 		target := snapst.Aliases[alias]
 		if target != nil && target.Manual != "" {
@@ -680,17 +617,11 @@ func manualUnalias(curAliases map[string]*AliasTarget, alias string) (newAliases
 // of other snaps whose aliases will be disabled (removed for manual ones).
 func Prefer(st *state.State, name string) (*state.TaskSet, error) {
 	var snapst SnapState
-	err := Get(st, name, &snapst)
+	mylog.Check(Get(st, name, &snapst))
 	if errors.Is(err, state.ErrNoState) {
 		return nil, &snap.NotInstalledError{Snap: name}
 	}
-	if err != nil {
-		return nil, err
-	}
-
-	if err := CheckChangeConflict(st, name, nil); err != nil {
-		return nil, err
-	}
+	mylog.Check(CheckChangeConflict(st, name, nil))
 
 	snapName, instanceKey := snap.SplitInstanceName(name)
 	snapsup := &SnapSetup{

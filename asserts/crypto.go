@@ -36,6 +36,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"golang.org/x/crypto/openpgp/packet"
 	"golang.org/x/crypto/sha3"
 )
@@ -85,10 +86,8 @@ type keyEncoder interface {
 
 func encodeKey(key keyEncoder, kind string) ([]byte, error) {
 	buf := new(bytes.Buffer)
-	err := key.keyEncode(buf)
-	if err != nil {
-		return nil, fmt.Errorf("cannot encode %s: %v", kind, err)
-	}
+	mylog.Check(key.keyEncode(buf))
+
 	return encodeV1(buf.Bytes()), nil
 }
 
@@ -102,16 +101,10 @@ func signContent(content []byte, privateKey PrivateKey) ([]byte, error) {
 		panic(fmt.Errorf("not an internally supported PrivateKey: %T", privateKey))
 	}
 
-	sig, err := signer.sign(content)
-	if err != nil {
-		return nil, err
-	}
+	sig := mylog.Check2(signer.sign(content))
 
 	buf := new(bytes.Buffer)
-	err = sig.Serialize(buf)
-	if err != nil {
-		return nil, err
-	}
+	mylog.Check(sig.Serialize(buf))
 
 	return encodeV1(buf.Bytes()), nil
 }
@@ -121,10 +114,8 @@ func decodeV1(b []byte, kind string) (packet.Packet, error) {
 		return nil, fmt.Errorf("cannot decode %s: no data", kind)
 	}
 	buf := make([]byte, base64.StdEncoding.DecodedLen(len(b)))
-	n, err := base64.StdEncoding.Decode(buf, b)
-	if err != nil {
-		return nil, fmt.Errorf("cannot decode %s: %v", kind, err)
-	}
+	n := mylog.Check2(base64.StdEncoding.Decode(buf, b))
+
 	if n == 0 {
 		return nil, fmt.Errorf("cannot decode %s: base64 without data", kind)
 	}
@@ -133,10 +124,8 @@ func decodeV1(b []byte, kind string) (packet.Packet, error) {
 		return nil, fmt.Errorf("unsupported %s format version: %d", kind, buf[0])
 	}
 	rd := bytes.NewReader(buf[1:])
-	pkt, err := packet.Read(rd)
-	if err != nil {
-		return nil, fmt.Errorf("cannot decode %s: %v", kind, err)
-	}
+	pkt := mylog.Check2(packet.Read(rd))
+
 	if rd.Len() != 0 {
 		return nil, fmt.Errorf("%s has spurious trailing data", kind)
 	}
@@ -144,10 +133,8 @@ func decodeV1(b []byte, kind string) (packet.Packet, error) {
 }
 
 func decodeSignature(signature []byte) (*packet.Signature, error) {
-	pkt, err := decodeV1(signature, "signature")
-	if err != nil {
-		return nil, err
-	}
+	pkt := mylog.Check2(decodeV1(signature, "signature"))
+
 	sig, ok := pkt.(*packet.Signature)
 	if !ok {
 		return nil, fmt.Errorf("expected signature, got instead: %T", pkt)
@@ -188,14 +175,10 @@ func (opgPubKey openpgpPubKey) keyEncode(w io.Writer) error {
 func newOpenPGPPubKey(intPubKey *packet.PublicKey) *openpgpPubKey {
 	h := sha3.New384()
 	h.Write(v1Header)
-	err := intPubKey.Serialize(h)
-	if err != nil {
-		panic("internal error: cannot compute public key sha3-384")
-	}
-	sha3_384, err := EncodeDigest(crypto.SHA3_384, h.Sum(nil))
-	if err != nil {
-		panic("internal error: cannot compute public key sha3-384")
-	}
+	mylog.Check(intPubKey.Serialize(h))
+
+	sha3_384 := mylog.Check2(EncodeDigest(crypto.SHA3_384, h.Sum(nil)))
+
 	return &openpgpPubKey{pubKey: intPubKey, sha3_384: sha3_384}
 }
 
@@ -207,10 +190,8 @@ func RSAPublicKey(pubKey *rsa.PublicKey) PublicKey {
 
 // DecodePublicKey deserializes a public key.
 func DecodePublicKey(pubKey []byte) (PublicKey, error) {
-	pkt, err := decodeV1(pubKey, "public key")
-	if err != nil {
-		return nil, err
-	}
+	pkt := mylog.Check2(decodeV1(pubKey, "public key"))
+
 	pubk, ok := pkt.(*packet.PublicKey)
 	if !ok {
 		return nil, fmt.Errorf("expected public key, got instead: %T", pkt)
@@ -260,20 +241,14 @@ func (opgPrivK openpgpPrivateKey) sign(content []byte) (*packet.Signature, error
 
 	h := openpgpConfig.Hash().New()
 	h.Write(content)
-
-	err := sig.Sign(h, privk, openpgpConfig)
-	if err != nil {
-		return nil, err
-	}
+	mylog.Check(sig.Sign(h, privk, openpgpConfig))
 
 	return sig, nil
 }
 
 func decodePrivateKey(privKey []byte) (PrivateKey, error) {
-	pkt, err := decodeV1(privKey, "private key")
-	if err != nil {
-		return nil, err
-	}
+	pkt := mylog.Check2(decodeV1(privKey, "private key"))
+
 	privk, ok := pkt.(*packet.PrivateKey)
 	if !ok {
 		return nil, fmt.Errorf("expected private key, got instead: %T", pkt)
@@ -292,10 +267,8 @@ func RSAPrivateKey(privk *rsa.PrivateKey) PrivateKey {
 
 // GenerateKey generates a private/public key pair.
 func GenerateKey() (PrivateKey, error) {
-	priv, err := rsa.GenerateKey(rand.Reader, 4096)
-	if err != nil {
-		return nil, err
-	}
+	priv := mylog.Check2(rsa.GenerateKey(rand.Reader, 4096))
+
 	return RSAPrivateKey(priv), nil
 }
 
@@ -322,9 +295,7 @@ func newExtPGPPrivateKey(exportedPubKeyStream io.Reader, from string, sign func(
 		if err == io.EOF {
 			break
 		}
-		if err != nil {
-			return nil, fmt.Errorf("cannot read exported public key: %v", err)
-		}
+
 		cand, ok := pkt.(*packet.PublicKey)
 		if ok {
 			if cand.IsSubkey {
@@ -339,7 +310,6 @@ func newExtPGPPrivateKey(exportedPubKeyStream io.Reader, from string, sign func(
 
 	if pubKey == nil {
 		return nil, fmt.Errorf("cannot read exported public key, found none (broken export)")
-
 	}
 
 	rsaPubKey, ok := pubKey.PublicKey.(*rsa.PublicKey)
@@ -369,21 +339,14 @@ func (expk *extPGPPrivateKey) sign(content []byte) (*packet.Signature, error) {
 		return nil, fmt.Errorf("signing needs at least a 4096 bits key, got %d", expk.bitLen)
 	}
 
-	sig, err := expk.doSign(content)
-	if err != nil {
-		return nil, err
-	}
+	sig := mylog.Check2(expk.doSign(content))
 
 	badSig := fmt.Sprintf("bad %s produced signature: ", expk.from)
 
 	if sig.Hash != crypto.SHA512 {
 		return nil, errors.New(badSig + "expected SHA512 digest")
 	}
-
-	err = expk.pubKey.verify(content, sig)
-	if err != nil {
-		return nil, fmt.Errorf("%sit does not verify: %v", badSig, err)
-	}
+	mylog.Check(expk.pubKey.verify(content, sig))
 
 	return sig, nil
 }

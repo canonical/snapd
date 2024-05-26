@@ -23,6 +23,4 @@ type (
 	ConnectivityStatus = connectivityStatus
 )
 
-var (
-	MinLane = minLane
-)
+var MinLane = minLane

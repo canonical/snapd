@@ -30,6 +30,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -94,8 +95,8 @@ func (cs *changeSuite) TestGetSet(c *C) {
 	chg.Set("a", 1)
 
 	var v int
-	err := chg.Get("a", &v)
-	c.Assert(err, IsNil)
+	mylog.Check(chg.Get("a", &v))
+
 	c.Check(v, Equals, 1)
 }
 
@@ -483,8 +484,8 @@ func (cs *changeSuite) TestAbort(c *C) {
 	tasks := chg.Tasks()
 	for _, t := range tasks {
 		var s state.Status
-		err := t.Get("old-status", &s)
-		c.Assert(err, IsNil)
+		mylog.Check(t.Get("old-status", &s))
+
 
 		c.Logf("Checking %s task after abort", t.Summary())
 		switch s {
@@ -581,21 +582,23 @@ var abortLanesTests = []struct {
 	abort  []int
 	result string
 }{
-
 	// Some basics.
 	{
 		setup:  "*:do",
 		abort:  []int{},
 		result: "*:do",
-	}, {
+	},
+	{
 		setup:  "*:do",
 		abort:  []int{1},
 		result: "*:do",
-	}, {
+	},
+	{
 		setup:  "*:do",
 		abort:  []int{0},
 		result: "*:hold",
-	}, {
+	},
+	{
 		setup:  "t11:done t12:doing t22:do",
 		abort:  []int{0},
 		result: "t11:undo t12:abort t22:hold",
@@ -610,31 +613,38 @@ var abortLanesTests = []struct {
 		setup:  "t11:do:1 t12:do:1 t21:do:2 t22:do:2 t31:do:3 t32:do:3 t41:do:4 t42:do:4",
 		abort:  []int{0},
 		result: "*:do",
-	}, {
+	},
+	{
 		setup:  "t11:do:1 t12:do:1 t21:do:2 t22:do:2 t31:do:3 t32:do:3 t41:do:4 t42:do:4",
 		abort:  []int{1},
 		result: "*:hold",
-	}, {
+	},
+	{
 		setup:  "t11:do:1 t12:do:1 t21:do:2 t22:do:2 t31:do:3 t32:do:3 t41:do:4 t42:do:4",
 		abort:  []int{2},
 		result: "t21:hold t22:hold t41:hold t42:hold *:do",
-	}, {
+	},
+	{
 		setup:  "t11:done:1 t12:wait:1 t21:do:2 t22:do:2 t31:do:3 t32:do:3 t41:do:4 t42:do:4",
 		abort:  []int{2},
 		result: "t21:hold t22:hold t41:hold t42:hold t11:done t12:wait *:do",
-	}, {
+	},
+	{
 		setup:  "t11:do:1 t12:do:1 t21:do:2 t22:do:2 t31:do:3 t32:do:3 t41:do:4 t42:do:4",
 		abort:  []int{3},
 		result: "t31:hold t32:hold t41:hold t42:hold *:do",
-	}, {
+	},
+	{
 		setup:  "t11:do:1 t12:do:1 t21:do:2 t22:do:2 t31:do:3 t32:do:3 t41:do:4 t42:do:4",
 		abort:  []int{2, 3},
 		result: "t21:hold t22:hold t31:hold t32:hold t41:hold t42:hold *:do",
-	}, {
+	},
+	{
 		setup:  "t11:do:1 t12:do:1 t21:do:2 t22:do:2 t31:do:3 t32:do:3 t41:do:4 t42:do:4",
 		abort:  []int{4},
 		result: "t41:hold t42:hold *:do",
-	}, {
+	},
+	{
 		setup:  "t11:do:1 t12:do:1 t21:do:2 t22:do:2 t31:do:3 t32:do:3 t41:do:4 t42:do:4",
 		abort:  []int{5},
 		result: "*:do",
@@ -649,11 +659,13 @@ var abortLanesTests = []struct {
 		setup:  "t11:do:2,3 t12:do:2,3 t21:do:2 t22:do:2 t31:do:3 t32:do:3 t41:do:4 t42:do:4",
 		abort:  []int{2},
 		result: "t21:hold t22:hold t41:hold t42:hold *:do",
-	}, {
+	},
+	{
 		setup:  "t11:do:2,3 t12:do:2,3 t21:do:2 t22:do:2 t31:do:3 t32:do:3 t41:do:4 t42:do:4",
 		abort:  []int{3},
 		result: "t31:hold t32:hold t41:hold t42:hold *:do",
-	}, {
+	},
+	{
 		setup:  "t11:do:2,3 t12:do:2,3 t21:do:2 t22:do:2 t31:do:3 t32:do:3 t41:do:4 t42:do:4",
 		abort:  []int{2, 3},
 		result: "*:hold",
@@ -672,7 +684,6 @@ var abortLanesTests = []struct {
 }
 
 func (ts *taskRunnerSuite) TestAbortLanes(c *C) {
-
 	names := strings.Fields("t11 t12 t21 t22 t31 t32 t41 t42")
 
 	for _, test := range abortLanesTests {
@@ -733,8 +744,8 @@ func (ts *taskRunnerSuite) TestAbortLanes(c *C) {
 			if len(parts) > 2 {
 				lanes := strings.Split(parts[2], ",")
 				for _, lane := range lanes {
-					n, err := strconv.Atoi(lane)
-					c.Assert(err, IsNil)
+					n := mylog.Check2(strconv.Atoi(lane))
+
 					task.JoinLane(n)
 				}
 			}
@@ -747,7 +758,7 @@ func (ts *taskRunnerSuite) TestAbortLanes(c *C) {
 		c.Logf("Expected result: %s", test.result)
 
 		seen = make(map[string]bool)
-		var expected = strings.Fields(test.result)
+		expected := strings.Fields(test.result)
 		var obtained []string
 		for i := 0; i < len(expected); i++ {
 			item := expected[i]
@@ -781,18 +792,20 @@ var abortUnreadyLanesTests = []struct {
 	order  string
 	result string
 }{
-
 	// Some basics.
 	{
 		setup:  "*:do",
 		result: "*:hold",
-	}, {
+	},
+	{
 		setup:  "*:wait",
 		result: "*:undo",
-	}, {
+	},
+	{
 		setup:  "*:done",
 		result: "*:done",
-	}, {
+	},
+	{
 		setup:  "*:error",
 		result: "*:error",
 	},
@@ -803,11 +816,13 @@ var abortUnreadyLanesTests = []struct {
 		setup:  "t11:do:1 t12:do:1 t21:do:1 t22:do:1 t31:do:2 t32:do:2 t41:do:2 t42:do:2",
 		order:  "t11->t12 t12->t21 t21->t22 t31->t32 t32->t41 t41->t42",
 		result: "*:hold",
-	}, {
+	},
+	{
 		setup:  "t11:done:1 t12:done:1 t21:done:1 t22:done:1 t31:do:2 t32:do:2 t41:do:2 t42:do:2",
 		order:  "t11->t12 t12->t21 t21->t22 t31->t32 t32->t41 t41->t42",
 		result: "t11:done t12:done t21:done t22:done t31:hold t32:hold t41:hold t42:hold",
-	}, {
+	},
+	{
 		setup:  "t11:done:1 t12:done:1 t21:done:1 t22:done:1 t31:done:2 t32:done:2 t41:done:2 t42:do:2",
 		order:  "t11->t12 t12->t21 t21->t22 t31->t32 t32->t41 t41->t42",
 		result: "t11:done t12:done t21:done t22:done t31:undo t32:undo t41:undo t42:hold",
@@ -821,17 +836,20 @@ var abortUnreadyLanesTests = []struct {
 		setup:  "t11:do:2,3 t12:do:2,3 t21:do:2 t22:do:2 t31:do:3 t32:do:3 t41:do:4 t42:do:4",
 		order:  "t11->t12 t12->t21 t12->t31 t21->t22 t31->t32 t22->t41 t32->t41 t41->t42",
 		result: "*:hold",
-	}, {
+	},
+	{
 		setup: "t11:done:2,3 t12:done:2,3 t21:done:2 t22:done:2 t31:doing:3 t32:do:3 t41:do:4 t42:do:4",
 		order: "t11->t12 t12->t21 t12->t31 t21->t22 t31->t32 t22->t41 t32->t41 t41->t42",
 		// lane 2 is fully complete so it does not get aborted
 		result: "t11:done t12:done t21:done t22:done t31:abort t32:hold t41:hold t42:hold *:undo",
-	}, {
+	},
+	{
 		setup: "t11:done:2,3 t12:done:2,3 t21:done:2 t22:done:2 t31:wait:3 t32:do:3 t41:do:4 t42:do:4",
 		order: "t11->t12 t12->t21 t12->t31 t21->t22 t31->t32 t22->t41 t32->t41 t41->t42",
 		// lane 2 is fully complete so it does not get aborted
 		result: "t11:done t12:done t21:done t22:done t31:undo t32:hold t41:hold t42:hold *:undo",
-	}, {
+	},
+	{
 		setup:  "t11:done:2,3 t12:done:2,3 t21:doing:2 t22:do:2 t31:doing:3 t32:do:3 t41:do:4 t42:do:4",
 		order:  "t11->t12 t12->t21 t12->t31 t21->t22 t31->t32 t22->t41 t32->t41 t41->t42",
 		result: "t21:abort t22:hold t31:abort t32:hold t41:hold t42:hold *:undo",
@@ -845,7 +863,8 @@ var abortUnreadyLanesTests = []struct {
 		setup:  "t11:do:1 t12:do:1 t21:do:2 t22:do:2 t31:do:3 t32:do:3 t41:do:4 t42:do:4",
 		order:  "t11->t12 t21->t22 t31->t32 t41->t42",
 		result: "*:hold",
-	}, {
+	},
+	{
 		setup:  "t11:do:1 t12:do:1 t21:doing:2 t22:do:2 t31:done:3 t32:doing:3 t41:undone:4 t42:error:4",
 		order:  "t11->t12 t21->t22 t31->t32 t41->t42",
 		result: "t11:hold t12:hold t21:abort t22:hold t31:undo t32:abort t41:undone t42:error",
@@ -862,7 +881,8 @@ var abortUnreadyLanesTests = []struct {
 		setup:  "t11:done:1 t12:done:1 t21:done:2 t22:done:2 t31:doing:3 t32:do:3 t41:do:4 t42:do:4",
 		order:  "t11->t12 t12->t21 t21->t22 t22->t31 t22->t41 t31->t32 t41->t42",
 		result: "t11:done t12:done t21:done t22:done t31:abort *:hold",
-	}, {
+	},
+	{
 		//
 		setup:  "t11:done:1 t12:done:1 t21:done:2 t22:do:2 t31:do:3 t32:do:3 t41:do:4 t42:do:4",
 		order:  "t11->t12 t12->t21 t21->t22 t22->t31 t22->t41 t31->t32 t41->t42",
@@ -885,7 +905,6 @@ var abortUnreadyLanesTests = []struct {
 }
 
 func (ts *taskRunnerSuite) TestAbortUnreadyLanes(c *C) {
-
 	names := strings.Fields("t11 t12 t21 t22 t31 t32 t41 t42")
 
 	for i, test := range abortUnreadyLanesTests {
@@ -947,8 +966,8 @@ func (ts *taskRunnerSuite) TestAbortUnreadyLanes(c *C) {
 			if len(parts) > 2 {
 				lanes := strings.Split(parts[2], ",")
 				for _, lane := range lanes {
-					n, err := strconv.Atoi(lane)
-					c.Assert(err, IsNil)
+					n := mylog.Check2(strconv.Atoi(lane))
+
 					task.JoinLane(n)
 				}
 			}
@@ -961,7 +980,7 @@ func (ts *taskRunnerSuite) TestAbortUnreadyLanes(c *C) {
 		c.Logf("Expected result: %s", test.result)
 
 		seen = make(map[string]bool)
-		var expected = strings.Fields(test.result)
+		expected := strings.Fields(test.result)
 		var obtained []string
 		for i := 0; i < len(expected); i++ {
 			item := expected[i]
@@ -996,16 +1015,18 @@ var cyclicDependencyTests = []struct {
 	err    string
 	errIDs []string
 }{
-
 	// Some basics.
 	{
 		setup: "t1",
-	}, {
+	},
+	{
 		setup: "",
-	}, {
+	},
+	{
 		// independent tasks
 		setup: "t1 t2 t3",
-	}, {
+	},
+	{
 		// some independent and some ordered tasks
 		setup: "t1 t2 t3 t4",
 		order: "t2->t3",
@@ -1017,7 +1038,8 @@ var cyclicDependencyTests = []struct {
 	{
 		setup: "t1 t2 t3 t4",
 		order: "t1->t2 t1->t3 t2->t3 t1->t4 t2->t4 t3->t4",
-	}, {
+	},
+	{
 		// simple loop
 		setup:  "t1 t2",
 		order:  "t1->t2 t2->t1",
@@ -1086,7 +1108,6 @@ var cyclicDependencyTests = []struct {
 }
 
 func (ts *taskRunnerSuite) TestCheckTaskDependencies(c *C) {
-
 	for i, test := range cyclicDependencyTests {
 		names := strings.Fields(test.setup)
 		sb := &stateBackend{}
@@ -1116,8 +1137,7 @@ func (ts *taskRunnerSuite) TestCheckTaskDependencies(c *C) {
 			// task1->task2
 			tasks[pair[1]].WaitFor(tasks[pair[0]])
 		}
-
-		err := chg.CheckTaskDependencies()
+		mylog.Check(chg.CheckTaskDependencies())
 
 		if test.err != "" {
 			c.Assert(err, ErrorMatches, test.err)
@@ -1125,7 +1145,7 @@ func (ts *taskRunnerSuite) TestCheckTaskDependencies(c *C) {
 			errTasksDepCycle := err.(*state.TaskDependencyCycleError)
 			c.Assert(errTasksDepCycle.IDs, DeepEquals, test.errIDs)
 		} else {
-			c.Assert(err, IsNil)
+
 		}
 	}
 }
@@ -1570,12 +1590,12 @@ func (cs *changeSuite) TestChangeLastRecordedNoitceStatusPersisted(c *C) {
 	chg := st.NewChange("change", "summary...")
 	chg.SetStatus(state.DoingStatus)
 
-	data, err := json.Marshal(chg)
-	c.Assert(err, IsNil)
+	data := mylog.Check2(json.Marshal(chg))
+
 
 	var chgData map[string]any
-	err = json.Unmarshal(data, &chgData)
-	c.Assert(err, IsNil)
+	mylog.Check(json.Unmarshal(data, &chgData))
+
 	obtainedStatus := state.Status(chgData["last-recorded-notice-status"].(float64))
 	c.Check(obtainedStatus, Equals, state.DoingStatus)
 }

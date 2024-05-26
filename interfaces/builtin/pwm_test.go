@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -161,8 +162,8 @@ func (s *PwmInterfaceSuite) TestSanitizePlug(c *C) {
 
 func (s *PwmInterfaceSuite) TestSystemdConnectedSlot(c *C) {
 	spec := &systemd.Specification{}
-	err := spec.AddConnectedSlot(s.iface, s.gadgetPlug, s.gadgetPwmSlot)
-	c.Assert(err, IsNil)
+	mylog.Check(spec.AddConnectedSlot(s.iface, s.gadgetPlug, s.gadgetPwmSlot))
+
 	c.Assert(spec.Services(), DeepEquals, map[string]*systemd.Service{
 		"pwmchip10-pwm100": {
 			Type:            "oneshot",
@@ -182,11 +183,11 @@ func (s *PwmInterfaceSuite) TestApparmorConnectedPlugIgnoresMissingSymlink(c *C)
 		return "", os.ErrNotExist
 	})
 
-	appSet, err := interfaces.NewSnapAppSet(s.gadgetPlug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.gadgetPlug.Snap(), nil))
+
 	spec := apparmor.NewSpecification(appSet)
-	err = spec.AddConnectedPlug(s.iface, s.gadgetPlug, s.gadgetPwmSlot)
-	c.Assert(err, IsNil)
+	mylog.Check(spec.AddConnectedPlug(s.iface, s.gadgetPlug, s.gadgetPwmSlot))
+
 	c.Assert(spec.Snippets(), HasLen, 0)
 	c.Assert(log.String(), testutil.Contains, "cannot find not existing pwm chipbase /sys/class/pwm/pwmchip10")
 }
@@ -202,10 +203,10 @@ func (s *PwmInterfaceSuite) TestApparmorConnectedPlug(c *C) {
 		return "/sys/dev/foo/class/pwm/pwmchip10", nil
 	})
 
-	appSet, err := interfaces.NewSnapAppSet(s.gadgetPlug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.gadgetPlug.Snap(), nil))
+
 	spec := apparmor.NewSpecification(appSet)
-	err = spec.AddConnectedPlug(s.iface, s.gadgetPlug, s.gadgetPwmSlot)
-	c.Assert(err, IsNil)
+	mylog.Check(spec.AddConnectedPlug(s.iface, s.gadgetPlug, s.gadgetPwmSlot))
+
 	c.Assert(spec.SnippetForTag("snap.my-device.svc"), testutil.Contains, `/sys/dev/foo/class/pwm/pwmchip10/pwm100/* rwk`)
 }

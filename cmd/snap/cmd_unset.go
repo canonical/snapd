@@ -20,13 +20,15 @@
 package main
 
 import (
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/i18n"
 )
 
-var shortUnsetHelp = i18n.G("Remove configuration options")
-var longUnsetHelp = i18n.G(`
+var (
+	shortUnsetHelp = i18n.G("Remove configuration options")
+	longUnsetHelp  = i18n.G(`
 The unset command removes the provided configuration options as requested.
 
 	$ snap unset snap-name name address
@@ -38,6 +40,7 @@ Nested values may be removed via a dotted path:
 
 	$ snap unset snap-name user.name
 `)
+)
 
 var longAspectUnsetHelp = i18n.G(`
 If the first argument passed into unset is an aspect identifier matching the
@@ -55,7 +58,7 @@ type cmdUnset struct {
 }
 
 func init() {
-	if err := validateAspectFeatureFlag(); err == nil {
+	if mylog.Check(validateAspectFeatureFlag()); err == nil {
 		longUnsetHelp += longAspectUnsetHelp
 	}
 
@@ -81,34 +84,19 @@ func (x *cmdUnset) Execute(args []string) error {
 
 	snapName := string(x.Positional.Snap)
 	var id string
-	var err error
 
 	if isAspectID(snapName) {
-		if err := validateAspectFeatureFlag(); err != nil {
-			return err
-		}
+		mylog.Check(validateAspectFeatureFlag())
 
 		// first argument is an aspectID, use the aspects API
 		aspectID := snapName
-		if err := validateAspectID(aspectID); err != nil {
-			return err
-		}
+		mylog.Check(validateAspectID(aspectID))
 
-		id, err = x.client.AspectSet(aspectID, patchValues)
+		id = mylog.Check2(x.client.AspectSet(aspectID, patchValues))
 	} else {
-		id, err = x.client.SetConf(snapName, patchValues)
+		id = mylog.Check2(x.client.SetConf(snapName, patchValues))
 	}
-
-	if err != nil {
-		return err
-	}
-
-	if _, err := x.wait(id); err != nil {
-		if err == noWait {
-			return nil
-		}
-		return err
-	}
+	mylog.Check2(x.wait(id))
 
 	return nil
 }

@@ -25,17 +25,16 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 )
 
-var (
-	routineConsoleConfStartCmd = &Command{
-		Path:        "/v2/internal/console-conf-start",
-		POST:        consoleConfStartRoutine,
-		WriteAccess: authenticatedAccess{},
-	}
-)
+var routineConsoleConfStartCmd = &Command{
+	Path:        "/v2/internal/console-conf-start",
+	POST:        consoleConfStartRoutine,
+	WriteAccess: authenticatedAccess{},
+}
 
 var delayTime = 20 * time.Minute
 
@@ -62,10 +61,7 @@ func consoleConfStartRoutine(c *Command, r *http.Request, _ *auth.UserState) Res
 	st.Lock()
 	defer st.Unlock()
 
-	snapAutoRefreshChanges, err := c.d.overlord.SnapManager().EnsureAutoRefreshesAreDelayed(delayTime)
-	if err != nil {
-		return InternalError(err.Error())
-	}
+	snapAutoRefreshChanges := mylog.Check2(c.d.overlord.SnapManager().EnsureAutoRefreshesAreDelayed(delayTime))
 
 	logger.Debugf("Ensured that new auto refreshes are delayed by %s to allow console-conf to run", delayTime)
 
@@ -80,10 +76,8 @@ func consoleConfStartRoutine(c *Command, r *http.Request, _ *auth.UserState) Res
 	for _, chg := range snapAutoRefreshChanges {
 		chgIds = append(chgIds, chg.ID())
 		var updatedSnaps []string
-		err := chg.Get("snap-names", &updatedSnaps)
-		if err != nil {
-			return InternalError(err.Error())
-		}
+		mylog.Check(chg.Get("snap-names", &updatedSnaps))
+
 		snapNames = append(snapNames, updatedSnaps...)
 	}
 
@@ -92,5 +86,4 @@ func consoleConfStartRoutine(c *Command, r *http.Request, _ *auth.UserState) Res
 		ActiveAutoRefreshChanges: chgIds,
 		ActiveAutoRefreshSnaps:   snapNames,
 	})
-
 }

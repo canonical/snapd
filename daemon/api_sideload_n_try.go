@@ -29,6 +29,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
@@ -71,10 +72,8 @@ func (f *Form) RemoveAllExcept(paths []string) {
 			if strutil.ListContains(paths, ref.TmpPath) {
 				continue
 			}
+			mylog.Check(os.Remove(ref.TmpPath))
 
-			if err := os.Remove(ref.TmpPath); err != nil {
-				logger.Noticef("cannot remove temporary file: %v", err)
-			}
 		}
 	}
 }
@@ -144,10 +143,7 @@ func sideloadOrTrySnap(c *Command, body io.ReadCloser, boundary string, user *au
 		form.RemoveAllExcept(pathsToNotRemove)
 	}()
 
-	flags, err := modeFlags(isTrue(form, "devmode"), isTrue(form, "jailmode"), isTrue(form, "classic"))
-	if err != nil {
-		return BadRequest(err.Error())
-	}
+	flags := mylog.Check2(modeFlags(isTrue(form, "devmode"), isTrue(form, "jailmode"), isTrue(form, "classic")))
 
 	if len(form.Values["action"]) > 0 && form.Values["action"][0] == "try" {
 		if len(form.Values["snap-path"]) == 0 {
@@ -223,10 +219,7 @@ type sideloadedInfo struct {
 }
 
 func sideloadInfo(st *state.State, snapFiles []*uploadedSnap, flags sideloadFlags) (*sideloadedInfo, *apiError) {
-	deviceCtx, err := snapstate.DevicePastSeeding(st, nil)
-	if err != nil {
-		return nil, InternalError(err.Error())
-	}
+	deviceCtx := mylog.Check2(snapstate.DevicePastSeeding(st, nil))
 
 	names := make([]string, len(snapFiles))
 	origPaths := make([]string, len(snapFiles))
@@ -245,8 +238,10 @@ func sideloadInfo(st *state.State, snapFiles []*uploadedSnap, flags sideloadFlag
 		tmpPaths[i] = snapFile.tmpPath
 	}
 
-	return &sideloadedInfo{sideInfos: sideInfos, names: names,
-		origPaths: origPaths, tmpPaths: tmpPaths}, nil
+	return &sideloadedInfo{
+		sideInfos: sideInfos, names: names,
+		origPaths: origPaths, tmpPaths: tmpPaths,
+	}, nil
 }
 
 func sideloadManySnaps(st *state.State, snapFiles []*uploadedSnap, flags sideloadFlags, user *auth.UserState) (*state.Change, *apiError) {
@@ -260,10 +255,7 @@ func sideloadManySnaps(st *state.State, snapFiles []*uploadedSnap, flags sideloa
 		userID = user.ID
 	}
 
-	tss, err := snapstateInstallPathMany(context.TODO(), st, slInfo.sideInfos, slInfo.tmpPaths, userID, &flags.Flags)
-	if err != nil {
-		return nil, errToResponse(err, slInfo.names, InternalError, "cannot install snap files: %v")
-	}
+	tss := mylog.Check2(snapstateInstallPathMany(context.TODO(), st, slInfo.sideInfos, slInfo.tmpPaths, userID, &flags.Flags))
 
 	msg := fmt.Sprintf(i18n.G("Install snaps %s from files %s"), strutil.Quoted(slInfo.names), strutil.Quoted(slInfo.origPaths))
 	chg := newChange(st, "install-snap", msg, tss, slInfo.names)
@@ -277,15 +269,11 @@ func sideloadSnap(st *state.State, snapFile *uploadedSnap, flags sideloadFlags) 
 	if snapFile.instanceName != "" {
 		// caller has specified desired instance name
 		instanceName = snapFile.instanceName
-		if err := snap.ValidateInstanceName(instanceName); err != nil {
-			return nil, BadRequest(err.Error())
-		}
+		mylog.Check(snap.ValidateInstanceName(instanceName))
+
 	}
 
-	deviceCtx, err := snapstate.DevicePastSeeding(st, nil)
-	if err != nil {
-		return nil, InternalError(err.Error())
-	}
+	deviceCtx := mylog.Check2(snapstate.DevicePastSeeding(st, nil))
 
 	// These two are filled only for components
 	var compInfo *snap.ComponentInfo
@@ -326,14 +314,11 @@ func sideloadSnap(st *state.State, snapFile *uploadedSnap, flags sideloadFlags) 
 	var tset *state.TaskSet
 	container := "snap"
 	if compInfo == nil {
-		tset, _, err = snapstateInstallPath(st, sideInfo, snapFile.tmpPath, instanceName, "", flags.Flags, nil)
+		tset, _ = mylog.Check3(snapstateInstallPath(st, sideInfo, snapFile.tmpPath, instanceName, "", flags.Flags, nil))
 	} else {
 		// It is a component
 		container = "component"
-		tset, err = snapstateInstallComponentPath(st, snap.NewComponentSideInfo(compInfo.Component, snap.Revision{}), snapInfo, snapFile.tmpPath, flags.Flags)
-	}
-	if err != nil {
-		return nil, errToResponse(err, []string{sideInfo.RealName}, InternalError, "cannot install %s file: %v", container)
+		tset = mylog.Check2(snapstateInstallComponentPath(st, snap.NewComponentSideInfo(compInfo.Component, snap.Revision{}), snapInfo, snapFile.tmpPath, flags.Flags))
 	}
 
 	msg := fmt.Sprintf(i18n.G("Install %q %s from file %q"), instanceName, container, snapFile.filename)
@@ -354,7 +339,7 @@ func readSideInfo(st *state.State, tempPath string, origPath string, flags sidel
 	var sideInfo *snap.SideInfo
 
 	if !flags.dangerousOK {
-		si, err := snapasserts.DeriveSideInfo(tempPath, model, assertstate.DB(st))
+		si := mylog.Check2(snapasserts.DeriveSideInfo(tempPath, model, assertstate.DB(st)))
 		switch {
 		case err == nil:
 			sideInfo = si
@@ -376,10 +361,8 @@ func readSideInfo(st *state.State, tempPath string, origPath string, flags sidel
 
 	if sideInfo == nil {
 		// potentially dangerous but dangerous or devmode params were set
-		info, err := unsafeReadSnapInfo(tempPath)
-		if err != nil {
-			return nil, BadRequest("cannot read snap file: %v", err)
-		}
+		info := mylog.Check2(unsafeReadSnapInfo(tempPath))
+
 		sideInfo = &snap.SideInfo{RealName: info.SnapName()}
 	}
 	return sideInfo, nil
@@ -388,10 +371,7 @@ func readSideInfo(st *state.State, tempPath string, origPath string, flags sidel
 var readComponentInfoFromCont = readComponentInfoFromContImpl
 
 func readComponentInfoFromContImpl(tempPath string) (*snap.ComponentInfo, error) {
-	compf, err := snapfile.Open(tempPath)
-	if err != nil {
-		return nil, fmt.Errorf("cannot open container: %w", err)
-	}
+	compf := mylog.Check2(snapfile.Open(tempPath))
 
 	// hook information isn't loaded here, but it shouldn't be needed in this
 	// context
@@ -408,36 +388,22 @@ func readComponentInfo(st *state.State, tempPath, instanceName string, flags sid
 		return nil, nil, BadRequest("only unasserted installation of local component with --dangerous is supported at the moment")
 	}
 
-	ci, err := readComponentInfoFromCont(tempPath)
-	if err != nil {
-		return nil, nil, BadRequest("cannot read component metadata: %v", err)
-	}
+	ci := mylog.Check2(readComponentInfoFromCont(tempPath))
 
 	// If no instance was provided in the request we use the snap name from the component
 	if instanceName == "" {
 		instanceName = ci.Component.SnapName
 	}
-	si, err := installedSnapInfo(st, instanceName)
-	if err != nil {
-		if errors.Is(err, state.ErrNoState) {
-			return nil, nil, SnapNotInstalled(instanceName, fmt.Errorf("snap owning %q not installed", ci.Component))
-		}
-		return nil, nil, BadRequest("cannot retrieve information for %q: %v", instanceName, err)
-	}
+	si := mylog.Check2(installedSnapInfo(st, instanceName))
 
 	return ci, si, nil
 }
 
 func installedSnapInfo(st *state.State, instanceName string) (*snap.Info, error) {
 	var snapst snapstate.SnapState
-	if err := snapstate.Get(st, instanceName, &snapst); err != nil {
-		return nil, err
-	}
+	mylog.Check(snapstate.Get(st, instanceName, &snapst))
 
-	snapInfo, err := snapst.CurrentInfo()
-	if err != nil {
-		return nil, err
-	}
+	snapInfo := mylog.Check2(snapst.CurrentInfo())
 
 	return snapInfo, nil
 }
@@ -465,12 +431,6 @@ func readForm(reader *multipart.Reader) (_ *Form, apiErr *apiError) {
 
 	for {
 		part, err := reader.NextPart()
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				break
-			}
-			return nil, BadRequest("cannot read POST form: %v", err)
-		}
 
 		name := part.FormName()
 		if name == "" {
@@ -497,32 +457,25 @@ func readForm(reader *multipart.Reader) (_ *Form, apiErr *apiError) {
 			continue
 		}
 
-		tmpPath, err := writeToTempFile(part)
+		tmpPath := mylog.Check2(writeToTempFile(part))
 
 		// add it to the form even if err != nil, so it gets deleted
 		ref := &FileReference{TmpPath: tmpPath, Filename: filename}
 		form.FileRefs[name] = append(form.FileRefs[name], ref)
 
-		if err != nil {
-			return nil, InternalError(err.Error())
-		}
 	}
 
 	// sync the parent directory where the files were written to
 	if len(form.FileRefs) > 0 {
-		dir, err := os.Open(dirs.SnapBlobDir)
-		if err != nil {
-			return nil, InternalError("cannot open parent dir of temp files: %v", err)
-		}
+		dir := mylog.Check2(os.Open(dirs.SnapBlobDir))
+
 		defer func() {
 			if cerr := dir.Close(); apiErr == nil && cerr != nil {
 				apiErr = InternalError("cannot close parent dir of temp files: %v", cerr)
 			}
 		}()
+		mylog.Check(dir.Sync())
 
-		if err := dir.Sync(); err != nil {
-			return nil, InternalError("cannot sync parent dir of temp files: %v", err)
-		}
 	}
 
 	return form, nil
@@ -532,24 +485,18 @@ func readForm(reader *multipart.Reader) (_ *Form, apiErr *apiError) {
 // its path. If the path is not empty then a file was written and it's the
 // caller's responsibility to clean it up (even if the error is non-nil).
 func writeToTempFile(reader io.Reader) (path string, err error) {
-	tmpf, err := os.CreateTemp(dirs.SnapBlobDir, dirs.LocalInstallBlobTempPrefix+"*.snap")
-	if err != nil {
-		return "", fmt.Errorf("cannot create temp file for form data file part: %v", err)
-	}
+	tmpf := mylog.Check2(os.CreateTemp(dirs.SnapBlobDir, dirs.LocalInstallBlobTempPrefix+"*.snap"))
+
 	defer func() {
 		if cerr := tmpf.Close(); err == nil && cerr != nil {
-			err = fmt.Errorf("cannot close temp file: %v", cerr)
+			mylog.Check(fmt.Errorf("cannot close temp file: %v", cerr))
 		}
 	}()
+	mylog.Check2(
 
-	// TODO: limit the file part size by wrapping it w/ http.MaxBytesReader
-	if _, err = io.Copy(tmpf, reader); err != nil {
-		return tmpf.Name(), fmt.Errorf("cannot write file part: %v", err)
-	}
-
-	if err := tmpf.Sync(); err != nil {
-		return tmpf.Name(), fmt.Errorf("cannot sync file: %v", err)
-	}
+		// TODO: limit the file part size by wrapping it w/ http.MaxBytesReader
+		io.Copy(tmpf, reader))
+	mylog.Check(tmpf.Sync())
 
 	return tmpf.Name(), nil
 }
@@ -566,7 +513,7 @@ func trySnap(st *state.State, trydir string, flags snapstate.Flags) Response {
 	}
 
 	// the developer asked us to do this with a trusted snap dir
-	info, err := unsafeReadSnapInfo(trydir)
+	info := mylog.Check2(unsafeReadSnapInfo(trydir))
 	if _, ok := err.(snap.NotSnapError); ok {
 		return &apiError{
 			Status:  400,
@@ -574,15 +521,9 @@ func trySnap(st *state.State, trydir string, flags snapstate.Flags) Response {
 			Kind:    client.ErrorKindNotSnap,
 		}
 	}
-	if err != nil {
-		return BadRequest("cannot read snap info for %s: %s", trydir, err)
-	}
 
 	// TODO consider support for trying snaps plus components
-	tset, err := snapstateTryPath(st, info.InstanceName(), trydir, flags)
-	if err != nil {
-		return errToResponse(err, []string{info.InstanceName()}, BadRequest, "cannot try %s: %s", trydir)
-	}
+	tset := mylog.Check2(snapstateTryPath(st, info.InstanceName(), trydir, flags))
 
 	msg := fmt.Sprintf(i18n.G("Try %q snap from %s"), info.InstanceName(), trydir)
 	chg := newChange(st, "try-snap", msg, []*state.TaskSet{tset}, []string{info.InstanceName()})
@@ -600,9 +541,7 @@ var unsafeReadSnapInfo = unsafeReadSnapInfoImpl
 
 func unsafeReadSnapInfoImpl(snapPath string) (*snap.Info, error) {
 	// Condider using DeriveSideInfo before falling back to this!
-	snapf, err := snapfile.Open(snapPath)
-	if err != nil {
-		return nil, err
-	}
+	snapf := mylog.Check2(snapfile.Open(snapPath))
+
 	return snap.ReadInfoFromSnapFile(snapf, nil)
 }

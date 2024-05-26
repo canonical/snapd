@@ -24,6 +24,7 @@ import (
 	"io"
 	"text/tabwriter"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
@@ -41,13 +42,15 @@ type cmdAlias struct {
 
 // TODO: implement a completer for snapApp
 
-var shortAliasHelp = i18n.G("Set up a manual alias")
-var longAliasHelp = i18n.G(`
+var (
+	shortAliasHelp = i18n.G("Set up a manual alias")
+	longAliasHelp  = i18n.G(`
 The alias command aliases the given snap application to the given alias.
 
 Once this manual alias is setup the respective application command can be
 invoked just using the alias.
 `)
+)
 
 func init() {
 	addCommand("alias", shortAliasHelp, longAliasHelp, func() flags.Commander {
@@ -67,17 +70,9 @@ func (x *cmdAlias) Execute(args []string) error {
 	snapName, appName := snap.SplitSnapApp(string(x.Positionals.SnapApp))
 	alias := x.Positionals.Alias
 
-	id, err := x.client.Alias(snapName, appName, alias)
-	if err != nil {
-		return err
-	}
-	chg, err := x.wait(id)
-	if err != nil {
-		if err == noWait {
-			return nil
-		}
-		return err
-	}
+	id := mylog.Check2(x.client.Alias(snapName, appName, alias))
+
+	chg := mylog.Check2(x.wait(id))
 
 	return showAliasChanges(chg)
 }
@@ -90,10 +85,10 @@ type changedAlias struct {
 
 func showAliasChanges(chg *client.Change) error {
 	var added, removed []*changedAlias
-	if err := chg.Get("aliases-added", &added); err != nil && err != client.ErrNoData {
+	if mylog.Check(chg.Get("aliases-added", &added)); err != nil && err != client.ErrNoData {
 		return err
 	}
-	if err := chg.Get("aliases-removed", &removed); err != nil && err != client.ErrNoData {
+	if mylog.Check(chg.Get("aliases-removed", &removed)); err != nil && err != client.ErrNoData {
 		return err
 	}
 	w := tabwriter.NewWriter(Stdout, 2, 2, 1, ' ', 0)

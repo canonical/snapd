@@ -28,6 +28,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/desktop/desktopentry"
 )
 
@@ -63,8 +64,8 @@ Icon=${SNAP}/private.png
 
 func (s *desktopentrySuite) TestParse(c *C) {
 	r := bytes.NewBufferString(browserDesktopEntry)
-	de, err := desktopentry.Parse("/path/browser.desktop", r)
-	c.Assert(err, IsNil)
+	de := mylog.Check2(desktopentry.Parse("/path/browser.desktop", r))
+
 
 	c.Check(de.Name, Equals, "Web Browser")
 	c.Check(de.Icon, Equals, "${SNAP}/default256.png")
@@ -117,7 +118,7 @@ NoEqualsSign
 	}} {
 		c.Logf("tc %d", i)
 		r := bytes.NewBufferString(tc.in)
-		de, err := desktopentry.Parse("/path/foo.desktop", r)
+		de := mylog.Check2(desktopentry.Parse("/path/foo.desktop", r))
 		c.Check(de, IsNil)
 		c.Check(err, ErrorMatches, tc.err)
 	}
@@ -125,18 +126,18 @@ NoEqualsSign
 
 func (s *desktopentrySuite) TestRead(c *C) {
 	path := filepath.Join(c.MkDir(), "foo.desktop")
-	err := os.WriteFile(path, []byte(browserDesktopEntry), 0o644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(path, []byte(browserDesktopEntry), 0o644))
 
-	de, err := desktopentry.Read(path)
-	c.Assert(err, IsNil)
+
+	de := mylog.Check2(desktopentry.Read(path))
+
 	c.Check(de.Filename, Equals, path)
 	c.Check(de.Name, Equals, "Web Browser")
 }
 
 func (s *desktopentrySuite) TestReadNotFound(c *C) {
 	path := filepath.Join(c.MkDir(), "foo.desktop")
-	_, err := desktopentry.Read(path)
+	_ := mylog.Check2(desktopentry.Read(path))
 	c.Check(err, ErrorMatches, `open .*: no such file or directory`)
 }
 
@@ -237,7 +238,7 @@ X-GNOME-Autostart-enabled=true
 	}} {
 		c.Logf("tc %d", i)
 		r := bytes.NewBufferString(tc.in)
-		de, err := desktopentry.Parse("/path/foo.desktop", r)
+		de := mylog.Check2(desktopentry.Parse("/path/foo.desktop", r))
 		c.Check(err, IsNil)
 		currentDesktop := strings.Split(tc.current, ":")
 		c.Check(de.ShouldAutostart(currentDesktop), Equals, tc.autostart)
@@ -246,40 +247,40 @@ X-GNOME-Autostart-enabled=true
 
 func (s *desktopentrySuite) TestExpandExec(c *C) {
 	r := bytes.NewBufferString(browserDesktopEntry)
-	de, err := desktopentry.Parse("/path/browser.desktop", r)
-	c.Assert(err, IsNil)
+	de := mylog.Check2(desktopentry.Parse("/path/browser.desktop", r))
 
-	args, err := de.ExpandExec([]string{"http://example.org"})
-	c.Assert(err, IsNil)
+
+	args := mylog.Check2(de.ExpandExec([]string{"http://example.org"}))
+
 	c.Check(args, DeepEquals, []string{"browser", "http://example.org"})
 
 	// When called with no URIs, the %U code expands to nothing
-	args, err = de.ExpandExec(nil)
-	c.Assert(err, IsNil)
+	args = mylog.Check2(de.ExpandExec(nil))
+
 	c.Check(args, DeepEquals, []string{"browser"})
 
 	// If the Exec line is missing, an error is returned
 	de.Exec = ""
-	_, err = de.ExpandExec(nil)
+	_ = mylog.Check2(de.ExpandExec(nil))
 	c.Check(err, ErrorMatches, `desktop file "/path/browser.desktop" has no Exec line`)
 }
 
 func (s *desktopentrySuite) TestExpandActionExec(c *C) {
 	r := bytes.NewBufferString(browserDesktopEntry)
-	de, err := desktopentry.Parse("/path/browser.desktop", r)
-	c.Assert(err, IsNil)
+	de := mylog.Check2(desktopentry.Parse("/path/browser.desktop", r))
 
-	args, err := de.ExpandActionExec("NewWindow", nil)
-	c.Assert(err, IsNil)
+
+	args := mylog.Check2(de.ExpandActionExec("NewWindow", nil))
+
 	c.Check(args, DeepEquals, []string{"browser", "-new-window"})
 
 	// Expanding a non-existent action, an error is returned
-	_, err = de.ExpandActionExec("UnknownAction", nil)
+	_ = mylog.Check2(de.ExpandActionExec("UnknownAction", nil))
 	c.Check(err, ErrorMatches, `desktop file "/path/browser.desktop" does not have action "UnknownAction"`)
 
 	// If the action is missing its Exec line, an error is returned
 	de.Actions["NewWindow"].Exec = ""
-	_, err = de.ExpandActionExec("NewWindow", nil)
+	_ = mylog.Check2(de.ExpandActionExec("NewWindow", nil))
 	c.Check(err, ErrorMatches, `desktop file "/path/browser.desktop" action "NewWindow" has no Exec line`)
 }
 
@@ -582,8 +583,8 @@ Exec=env BAMF_DESKTOP_FILE_HINT=/var/lib/snapd/desktop/applications/chromium_chr
 
 func (s *desktopentrySuite) TestParseChromiumDesktopEntry(c *C) {
 	r := bytes.NewBufferString(chromiumDesktopEntry)
-	de, err := desktopentry.Parse("/path/chromium_chromium.desktop", r)
-	c.Assert(err, IsNil)
+	de := mylog.Check2(desktopentry.Parse("/path/chromium_chromium.desktop", r))
+
 
 	c.Check(de.Name, Equals, "Chromium Web Browser")
 	c.Check(de.Icon, Equals, "/snap/chromium/1193/chromium.png")
@@ -605,11 +606,11 @@ func (s *desktopentrySuite) TestParseChromiumDesktopEntry(c *C) {
 	c.Check(de.Actions["TempProfile"].Icon, Equals, "")
 	c.Check(de.Actions["TempProfile"].Exec, Equals, "env BAMF_DESKTOP_FILE_HINT=/var/lib/snapd/desktop/applications/chromium_chromium.desktop /snap/bin/chromium --temp-profile")
 
-	args, err := de.ExpandExec([]string{"http://example.org"})
-	c.Assert(err, IsNil)
+	args := mylog.Check2(de.ExpandExec([]string{"http://example.org"}))
+
 	c.Check(args, DeepEquals, []string{"env", "BAMF_DESKTOP_FILE_HINT=/var/lib/snapd/desktop/applications/chromium_chromium.desktop", "/snap/bin/chromium", "http://example.org"})
 
-	args, err = de.ExpandActionExec("Incognito", nil)
-	c.Assert(err, IsNil)
+	args = mylog.Check2(de.ExpandActionExec("Incognito", nil))
+
 	c.Check(args, DeepEquals, []string{"env", "BAMF_DESKTOP_FILE_HINT=/var/lib/snapd/desktop/applications/chromium_chromium.desktop", "/snap/bin/chromium", "--incognito"})
 }

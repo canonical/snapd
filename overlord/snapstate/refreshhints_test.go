@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/dirs"
@@ -128,7 +129,7 @@ func (s *refreshHintsTestSuite) SetUpTest(c *C) {
 
 func (s *refreshHintsTestSuite) TestLastRefresh(c *C) {
 	rh := snapstate.NewRefreshHints(s.state)
-	err := rh.Ensure()
+	mylog.Check(rh.Ensure())
 	c.Check(err, IsNil)
 	c.Check(s.store.ops, DeepEquals, []string{"list-refresh"})
 }
@@ -139,7 +140,7 @@ func (s *refreshHintsTestSuite) TestLastRefreshNoRefreshNeeded(c *C) {
 	s.state.Unlock()
 
 	rh := snapstate.NewRefreshHints(s.state)
-	err := rh.Ensure()
+	mylog.Check(rh.Ensure())
 	c.Check(err, IsNil)
 	c.Check(s.store.ops, HasLen, 0)
 }
@@ -154,7 +155,7 @@ func (s *refreshHintsTestSuite) TestLastRefreshNoRefreshNeededBecauseOfFullAutoR
 	s.state.Unlock()
 
 	rh := snapstate.NewRefreshHints(s.state)
-	err := rh.Ensure()
+	mylog.Check(rh.Ensure())
 	c.Check(err, IsNil)
 	c.Check(s.store.ops, HasLen, 0)
 }
@@ -167,27 +168,30 @@ func (s *refreshHintsTestSuite) TestAtSeedPolicy(c *C) {
 	defer s.state.Unlock()
 
 	rh := snapstate.NewRefreshHints(s.state)
+	mylog.
 
-	// on core, does nothing
-	err := rh.AtSeed()
-	c.Assert(err, IsNil)
+		// on core, does nothing
+		Check(rh.AtSeed())
+
 	var t1 time.Time
-	err = s.state.Get("last-refresh-hints", &t1)
+	mylog.Check(s.state.Get("last-refresh-hints", &t1))
 	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 
 	release.MockOnClassic(true)
-	// on classic it sets last-refresh-hints to now,
-	// postponing it of 24h
-	err = rh.AtSeed()
-	c.Assert(err, IsNil)
-	err = s.state.Get("last-refresh-hints", &t1)
-	c.Check(err, IsNil)
+	mylog.
+		// on classic it sets last-refresh-hints to now,
+		// postponing it of 24h
+		Check(rh.AtSeed())
 
-	// nop if tried again
-	err = rh.AtSeed()
-	c.Assert(err, IsNil)
+	mylog.Check(s.state.Get("last-refresh-hints", &t1))
+	c.Check(err, IsNil)
+	mylog.
+
+		// nop if tried again
+		Check(rh.AtSeed())
+
 	var t2 time.Time
-	err = s.state.Get("last-refresh-hints", &t2)
+	mylog.Check(s.state.Get("last-refresh-hints", &t2))
 	c.Check(err, IsNil)
 	c.Check(t1.Equal(t2), Equals, true)
 }
@@ -196,8 +200,8 @@ func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
 	s.state.Lock()
 	repo := interfaces.NewRepository()
 	for _, iface := range builtin.Interfaces() {
-		err := repo.AddInterface(iface)
-		c.Assert(err, IsNil)
+		mylog.Check(repo.AddInterface(iface))
+
 	}
 	ifacerepo.Replace(s.state, repo)
 
@@ -235,7 +239,8 @@ func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
 				"content":          "some-content",
 			},
 			Apps: map[string]*snap.AppInfo{},
-		}}
+		},
+	}
 	info2.Plugs = plugs
 
 	s.store.refreshedSnaps = []*snap.Info{{
@@ -253,7 +258,7 @@ func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
 	}, info2}
 
 	rh := snapstate.NewRefreshHints(s.state)
-	err := rh.Ensure()
+	mylog.Check(rh.Ensure())
 	c.Check(err, IsNil)
 	c.Check(s.store.ops, DeepEquals, []string{"list-refresh"})
 
@@ -281,11 +286,11 @@ func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
 	c.Check(cand2.Version, Equals, "v1")
 
 	var snapst1 snapstate.SnapState
-	err = snapstate.Get(s.state, "some-snap", &snapst1)
-	c.Assert(err, IsNil)
+	mylog.Check(snapstate.Get(s.state, "some-snap", &snapst1))
 
-	sup, snapst, err := cand1.SnapSetupForUpdate(s.state, nil, 0, nil, nil)
-	c.Assert(err, IsNil)
+
+	sup, snapst := mylog.Check3(cand1.SnapSetupForUpdate(s.state, nil, 0, nil, nil))
+
 	c.Check(sup, DeepEquals, &snapstate.SnapSetup{
 		Base:    "some-base",
 		Type:    "app",
@@ -307,11 +312,11 @@ func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
 	c.Check(snapst, DeepEquals, &snapst1)
 
 	var snapst2 snapstate.SnapState
-	err = snapstate.Get(s.state, "other-snap", &snapst2)
-	c.Assert(err, IsNil)
+	mylog.Check(snapstate.Get(s.state, "other-snap", &snapst2))
 
-	sup, snapst, err = cand2.SnapSetupForUpdate(s.state, nil, 0, nil, nil)
-	c.Assert(err, IsNil)
+
+	sup, snapst = mylog.Check3(cand2.SnapSetupForUpdate(s.state, nil, 0, nil, nil))
+
 	c.Check(sup, DeepEquals, &snapstate.SnapSetup{
 		Type:    "app",
 		Version: "v1",
@@ -521,17 +526,20 @@ func (s *refreshHintsTestSuite) TestRefreshHintsAbortsMonitoringForRemovedCandid
 	})
 	s.state.Unlock()
 
-	s.store.refreshedSnaps = []*snap.Info{{
-		SideInfo: snap.SideInfo{
-			RealName: "some-snap",
-			Revision: snap.R(1),
-		}},
+	s.store.refreshedSnaps = []*snap.Info{
+		{
+			SideInfo: snap.SideInfo{
+				RealName: "some-snap",
+				Revision: snap.R(1),
+			},
+		},
 		{
 			SideInfo: snap.SideInfo{
 				RealName: "other-snap",
 				Revision: snap.R(2),
 			},
-		}}
+		},
+	}
 
 	s.state.Lock()
 	s.state.Set("refresh-candidates", map[string]*snapstate.RefreshCandidate{
@@ -550,7 +558,7 @@ func (s *refreshHintsTestSuite) TestRefreshHintsAbortsMonitoringForRemovedCandid
 	s.state.Unlock()
 
 	rh := snapstate.NewRefreshHints(s.state)
-	err := rh.Ensure()
+	mylog.Check(rh.Ensure())
 	c.Check(err, IsNil)
 	c.Check(s.store.ops, DeepEquals, []string{"list-refresh"})
 
@@ -610,14 +618,13 @@ func (s *refreshHintsTestSuite) TestSnapStoreOffline(c *C) {
 	setStoreAccess(s.state, "offline")
 
 	rh := snapstate.NewRefreshHints(s.state)
-	err := rh.Ensure()
+	mylog.Check(rh.Ensure())
 	c.Check(err, IsNil)
 
 	c.Check(s.store.ops, HasLen, 0)
 
 	setStoreAccess(s.state, nil)
-
-	err = rh.Ensure()
+	mylog.Check(rh.Ensure())
 	c.Check(err, IsNil)
 
 	c.Check(s.store.ops, DeepEquals, []string{"list-refresh"})
@@ -628,20 +635,18 @@ func (s *refreshHintsTestSuite) TestUpdateCandidatesNonDiscriminating(c *C) {
 	defer s.state.Unlock()
 
 	var hints map[string]*snapstate.RefreshCandidate
+	mylog.Check(snapstate.UpdateRefreshCandidates(s.state, nil, nil))
 
-	err := snapstate.UpdateRefreshCandidates(s.state, nil, nil)
-	c.Assert(err, IsNil)
 	s.state.Get("refresh-candidates", &hints)
 	c.Check(hints, HasLen, 0)
-
-	err = snapstate.UpdateRefreshCandidates(s.state, map[string]*snapstate.RefreshCandidate{
+	mylog.Check(snapstate.UpdateRefreshCandidates(s.state, map[string]*snapstate.RefreshCandidate{
 		"foo": {SnapSetup: snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "foo", Revision: snap.R(1)}}},
 		"bar": {
 			SnapSetup: snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "bar", Revision: snap.R(1)}},
 			Monitored: true,
 		},
-	}, nil)
-	c.Assert(err, IsNil)
+	}, nil))
+
 
 	hints = nil
 	s.state.Get("refresh-candidates", &hints)
@@ -650,8 +655,7 @@ func (s *refreshHintsTestSuite) TestUpdateCandidatesNonDiscriminating(c *C) {
 	c.Assert(hints["bar"], NotNil)
 	c.Check(hints["bar"].SideInfo.Revision, Equals, snap.R(1))
 	c.Check(hints["bar"].Monitored, Equals, true)
-
-	err = snapstate.UpdateRefreshCandidates(s.state, map[string]*snapstate.RefreshCandidate{
+	mylog.Check(snapstate.UpdateRefreshCandidates(s.state, map[string]*snapstate.RefreshCandidate{
 		// bar with Monitored flag preserved by the caller, as in
 		// refreshHintsFromCandidates()
 		"bar": {
@@ -659,8 +663,8 @@ func (s *refreshHintsTestSuite) TestUpdateCandidatesNonDiscriminating(c *C) {
 			Monitored: true,
 		},
 		"baz": {SnapSetup: snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "baz", Revision: snap.R(4)}}},
-	}, nil)
-	c.Assert(err, IsNil)
+	}, nil))
+
 
 	hints = nil
 	s.state.Get("refresh-candidates", &hints)
@@ -680,20 +684,18 @@ func (s *refreshHintsTestSuite) TestUpdateCandidatesDiscriminating(c *C) {
 	defer s.state.Unlock()
 
 	var hints map[string]*snapstate.RefreshCandidate
+	mylog.Check(snapstate.UpdateRefreshCandidates(s.state, nil, nil))
 
-	err := snapstate.UpdateRefreshCandidates(s.state, nil, nil)
-	c.Assert(err, IsNil)
 	s.state.Get("refresh-candidates", &hints)
 	c.Check(hints, HasLen, 0)
-
-	err = snapstate.UpdateRefreshCandidates(s.state, map[string]*snapstate.RefreshCandidate{
+	mylog.Check(snapstate.UpdateRefreshCandidates(s.state, map[string]*snapstate.RefreshCandidate{
 		"foo": {SnapSetup: snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "foo", Revision: snap.R(1)}}},
 		"bar": {
 			SnapSetup: snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "bar", Revision: snap.R(1)}},
 			Monitored: true,
 		},
-	}, nil)
-	c.Assert(err, IsNil)
+	}, nil))
+
 
 	hints = nil
 	s.state.Get("refresh-candidates", &hints)
@@ -702,10 +704,11 @@ func (s *refreshHintsTestSuite) TestUpdateCandidatesDiscriminating(c *C) {
 	c.Assert(hints["bar"], NotNil)
 	c.Check(hints["bar"].SideInfo.Revision, Equals, snap.R(1))
 	c.Check(hints["bar"].Monitored, Equals, true)
+	mylog.
 
-	// like re-refresh code path would eventually call it
-	err = snapstate.UpdateRefreshCandidates(s.state, nil, []string{"foo"})
-	c.Assert(err, IsNil)
+		// like re-refresh code path would eventually call it
+		Check(snapstate.UpdateRefreshCandidates(s.state, nil, []string{"foo"}))
+
 
 	hints = nil
 	s.state.Get("refresh-candidates", &hints)

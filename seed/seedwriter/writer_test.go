@@ -31,6 +31,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/snapasserts"
@@ -69,9 +70,7 @@ type writerSuite struct {
 
 var _ = Suite(&writerSuite{})
 
-var (
-	brandPrivKey, _ = assertstest.GenerateKey(752)
-)
+var brandPrivKey, _ = assertstest.GenerateKey(752)
 
 func (s *writerSuite) createFetcher(db *asserts.Database, c *C) seedwriter.SeedAssertionFetcher {
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
@@ -79,24 +78,18 @@ func (s *writerSuite) createFetcher(db *asserts.Database, c *C) seedwriter.SeedA
 	}
 	retrieveSeq := func(seq *asserts.AtSequence) (asserts.Assertion, error) {
 		if seq.Sequence <= 0 {
-			hdrs, err := asserts.HeadersFromSequenceKey(seq.Type, seq.SequenceKey)
-			if err != nil {
-				return nil, err
-			}
+			hdrs := mylog.Check2(asserts.HeadersFromSequenceKey(seq.Type, seq.SequenceKey))
+
 			return s.StoreSigning.FindSequence(seq.Type, hdrs, -1, seq.Type.MaxSupportedFormat())
 		}
 		return seq.Resolve(s.StoreSigning.Find)
 	}
 	newFetcher := func(save func(asserts.Assertion) error) asserts.Fetcher {
 		save2 := func(a asserts.Assertion) error {
-			// for checking
-			err := db.Add(a)
-			if err != nil {
-				if _, ok := err.(*asserts.RevisionError); ok {
-					return nil
-				}
-				return err
-			}
+			mylog.
+				// for checking
+				Check(db.Add(a))
+
 			return save(a)
 		}
 		return asserts.NewSequenceFormingFetcher(db, retrieve, retrieveSeq, save2)
@@ -110,8 +103,8 @@ func (s *writerSuite) SetUpTest(c *C) {
 
 	dir := c.MkDir()
 	seedDir := filepath.Join(dir, "seed")
-	err := os.Mkdir(seedDir, 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.Mkdir(seedDir, 0755))
+
 
 	s.opts = &seedwriter.Options{
 		SeedDir: seedDir,
@@ -129,11 +122,11 @@ func (s *writerSuite) SetUpTest(c *C) {
 	}, "")
 	assertstest.AddMany(s.StoreSigning, s.devAcct)
 
-	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+	db := mylog.Check2(asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
 		Trusted:   s.StoreSigning.Trusted,
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	s.db = db
 	s.rf = s.createFetcher(db, c)
 
@@ -223,10 +216,8 @@ func (s *writerSuite) fetchAsserts(c *C) seedwriter.AssertsFetchFunc {
 		aRefs := s.aRefs[sn.SnapName()]
 		if aRefs == nil {
 			prev := len(s.rf.Refs())
-			err := s.rf.Fetch(s.AssertedSnapRevision(sn.SnapName()).Ref())
-			if err != nil {
-				return nil, err
-			}
+			mylog.Check(s.rf.Fetch(s.AssertedSnapRevision(sn.SnapName()).Ref()))
+
 			aRefs = s.rf.Refs()[prev:]
 			s.aRefs[sn.SnapName()] = aRefs
 		}
@@ -237,8 +228,8 @@ func (s *writerSuite) fetchAsserts(c *C) seedwriter.AssertsFetchFunc {
 func (s *writerSuite) doFillMetaDownloadedSnap(c *C, w *seedwriter.Writer, sn *seedwriter.SeedSnap) *snap.Info {
 	info := s.AssertedSnapInfo(sn.SnapName())
 	c.Assert(info, NotNil, Commentf("%s not defined", sn.SnapName()))
-	err := w.SetInfo(sn, info)
-	c.Assert(err, IsNil)
+	mylog.Check(w.SetInfo(sn, info))
+
 	return info
 }
 
@@ -246,8 +237,8 @@ func (s *writerSuite) fillDownloadedSnap(c *C, w *seedwriter.Writer, sn *seedwri
 	info := s.doFillMetaDownloadedSnap(c, w, sn)
 
 	c.Assert(sn.Path, Equals, filepath.Join(s.opts.SeedDir, "snaps", info.Filename()))
-	err := os.Rename(s.AssertedSnap(sn.SnapName()), sn.Path)
-	c.Assert(err, IsNil)
+	mylog.Check(os.Rename(s.AssertedSnap(sn.SnapName()), sn.Path))
+
 }
 
 func (s *writerSuite) fillMetaDownloadedSnap(c *C, w *seedwriter.Writer, sn *seedwriter.SeedSnap) {
@@ -264,7 +255,7 @@ func (s *writerSuite) TestNewDefaultChannelError(c *C) {
 	})
 
 	s.opts.DefaultChannel = "foo/bar"
-	w, err := seedwriter.New(model, s.opts)
+	w := mylog.Check2(seedwriter.New(model, s.opts))
 	c.Assert(w, IsNil)
 	c.Check(err, ErrorMatches, `cannot use global default option channel: invalid risk in channel name: foo/bar`)
 }
@@ -292,8 +283,8 @@ func (s writerSuite) TestSetOptionsSnapsErrors(c *C) {
 	}
 
 	for _, t := range tests {
-		w, err := seedwriter.New(model, s.opts)
-		c.Assert(err, IsNil)
+		w := mylog.Check2(seedwriter.New(model, s.opts))
+
 
 		c.Check(w.SetOptionsSnaps(t.snaps), ErrorMatches, t.err)
 	}
@@ -308,17 +299,15 @@ func (s *writerSuite) TestSnapsToDownloadCore16(c *C) {
 		"required-snaps": []interface{}{"required"},
 	})
 
-	w, err := seedwriter.New(model, s.opts)
-	c.Assert(err, IsNil)
+	w := mylog.Check2(seedwriter.New(model, s.opts))
 
-	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "pc", Channel: "edge"}})
-	c.Assert(err, IsNil)
+	mylog.Check(w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "pc", Channel: "edge"}}))
 
-	err = w.Start(s.db, s.rf)
-	c.Assert(err, IsNil)
+	mylog.Check(w.Start(s.db, s.rf))
 
-	snaps, err := w.SnapsToDownload()
-	c.Assert(err, IsNil)
+
+	snaps := mylog.Check2(w.SnapsToDownload())
+
 	c.Check(snaps, HasLen, 4)
 
 	c.Check(naming.SameSnap(snaps[0], naming.Snap("core")), Equals, true)
@@ -338,17 +327,15 @@ func (s *writerSuite) TestSnapsToDownloadOptionTrack(c *C) {
 		"required-snaps": []interface{}{"required"},
 	})
 
-	w, err := seedwriter.New(model, s.opts)
-	c.Assert(err, IsNil)
+	w := mylog.Check2(seedwriter.New(model, s.opts))
 
-	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "pc", Channel: "track/edge"}})
-	c.Assert(err, IsNil)
+	mylog.Check(w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "pc", Channel: "track/edge"}}))
 
-	err = w.Start(s.db, s.rf)
-	c.Assert(err, IsNil)
+	mylog.Check(w.Start(s.db, s.rf))
 
-	snaps, err := w.SnapsToDownload()
-	c.Assert(err, IsNil)
+
+	snaps := mylog.Check2(w.SnapsToDownload())
+
 	c.Check(snaps, HasLen, 4)
 
 	c.Check(naming.SameSnap(snaps[2], naming.Snap("pc")), Equals, true)
@@ -369,17 +356,15 @@ func (s *writerSuite) TestDownloadedCore16(c *C) {
 	s.makeSnap(c, "pc", "")
 	s.makeSnap(c, "required", "developerid")
 
-	w, err := seedwriter.New(model, s.opts)
-	c.Assert(err, IsNil)
+	w := mylog.Check2(seedwriter.New(model, s.opts))
 
-	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "pc", Channel: "edge"}})
-	c.Assert(err, IsNil)
+	mylog.Check(w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "pc", Channel: "edge"}}))
 
-	err = w.Start(s.db, s.rf)
-	c.Assert(err, IsNil)
+	mylog.Check(w.Start(s.db, s.rf))
 
-	snaps, err := w.SnapsToDownload()
-	c.Assert(err, IsNil)
+
+	snaps := mylog.Check2(w.SnapsToDownload())
+
 	c.Check(snaps, HasLen, 4)
 
 	for _, sn := range snaps {
@@ -388,12 +373,12 @@ func (s *writerSuite) TestDownloadedCore16(c *C) {
 
 	s.expectedSysSnap = "core"
 
-	complete, err := w.Downloaded(s.fetchAsserts(c))
-	c.Assert(err, IsNil)
+	complete := mylog.Check2(w.Downloaded(s.fetchAsserts(c)))
+
 	c.Check(complete, Equals, true)
 
-	essSnaps, err := w.BootSnaps()
-	c.Assert(err, IsNil)
+	essSnaps := mylog.Check2(w.BootSnaps())
+
 	c.Check(essSnaps, DeepEquals, snaps[:3])
 	c.Check(naming.SameSnap(essSnaps[2], naming.Snap("pc")), Equals, true)
 	c.Check(essSnaps[2].Channel, Equals, "edge")
@@ -416,17 +401,15 @@ func (s *writerSuite) TestDownloadedCore18(c *C) {
 	s.makeSnap(c, "cont-producer", "developerid")
 	s.makeSnap(c, "cont-consumer", "developerid")
 
-	w, err := seedwriter.New(model, s.opts)
-	c.Assert(err, IsNil)
+	w := mylog.Check2(seedwriter.New(model, s.opts))
 
-	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "pc", Channel: "edge"}})
-	c.Assert(err, IsNil)
+	mylog.Check(w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "pc", Channel: "edge"}}))
 
-	err = w.Start(s.db, s.rf)
-	c.Assert(err, IsNil)
+	mylog.Check(w.Start(s.db, s.rf))
 
-	snaps, err := w.SnapsToDownload()
-	c.Assert(err, IsNil)
+
+	snaps := mylog.Check2(w.SnapsToDownload())
+
 	c.Check(snaps, HasLen, 6)
 	c.Check(naming.SameSnap(snaps[0], naming.Snap("snapd")), Equals, true)
 	c.Check(naming.SameSnap(snaps[1], naming.Snap("pc-kernel")), Equals, true)
@@ -438,12 +421,12 @@ func (s *writerSuite) TestDownloadedCore18(c *C) {
 		s.fillDownloadedSnap(c, w, sn)
 	}
 
-	complete, err := w.Downloaded(s.fetchAsserts(c))
-	c.Assert(err, IsNil)
+	complete := mylog.Check2(w.Downloaded(s.fetchAsserts(c)))
+
 	c.Check(complete, Equals, true)
 
-	essSnaps, err := w.BootSnaps()
-	c.Assert(err, IsNil)
+	essSnaps := mylog.Check2(w.BootSnaps())
+
 	c.Check(essSnaps, DeepEquals, snaps[:4])
 
 	c.Check(w.Warnings(), HasLen, 0)
@@ -466,16 +449,14 @@ func (s *writerSuite) TestSnapsToDownloadCore18IncompatibleTrack(c *C) {
 	s.makeSnap(c, "cont-producer", "developerid")
 	s.makeSnap(c, "cont-consumer", "developerid")
 
-	w, err := seedwriter.New(model, s.opts)
-	c.Assert(err, IsNil)
+	w := mylog.Check2(seedwriter.New(model, s.opts))
 
-	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "pc-kernel", Channel: "18.1"}})
-	c.Assert(err, IsNil)
+	mylog.Check(w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "pc-kernel", Channel: "18.1"}}))
 
-	err = w.Start(s.db, s.rf)
-	c.Assert(err, IsNil)
+	mylog.Check(w.Start(s.db, s.rf))
 
-	_, err = w.SnapsToDownload()
+
+	_ = mylog.Check2(w.SnapsToDownload())
 	c.Check(err, ErrorMatches, `option channel "18.1" for kernel "pc-kernel" has a track incompatible with the pinned track from model assertion: 18`)
 }
 
@@ -497,17 +478,15 @@ func (s *writerSuite) TestSnapsToDownloadDefaultChannel(c *C) {
 	s.makeSnap(c, "cont-consumer", "developerid")
 
 	s.opts.DefaultChannel = "candidate"
-	w, err := seedwriter.New(model, s.opts)
-	c.Assert(err, IsNil)
+	w := mylog.Check2(seedwriter.New(model, s.opts))
 
-	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "pc", Channel: "edge"}})
-	c.Assert(err, IsNil)
+	mylog.Check(w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "pc", Channel: "edge"}}))
 
-	err = w.Start(s.db, s.rf)
-	c.Assert(err, IsNil)
+	mylog.Check(w.Start(s.db, s.rf))
 
-	snaps, err := w.SnapsToDownload()
-	c.Assert(err, IsNil)
+
+	snaps := mylog.Check2(w.SnapsToDownload())
+
 	c.Check(snaps, HasLen, 6)
 
 	for i, name := range []string{"snapd", "pc-kernel", "core18", "pc", "cont-consumer", "cont-producer"} {
@@ -524,25 +503,24 @@ func (s *writerSuite) TestSnapsToDownloadDefaultChannel(c *C) {
 }
 
 func (s *writerSuite) upToDownloaded(c *C, model *asserts.Model, fill func(c *C, w *seedwriter.Writer, sn *seedwriter.SeedSnap), fetchAsserts seedwriter.AssertsFetchFunc, optSnaps ...*seedwriter.OptionsSnap) (complete bool, w *seedwriter.Writer, err error) {
-	w, err = seedwriter.New(model, s.opts)
-	c.Assert(err, IsNil)
+	w = mylog.Check2(seedwriter.New(model, s.opts))
+
 
 	if len(optSnaps) != 0 {
-		err := w.SetOptionsSnaps(optSnaps)
-		c.Assert(err, IsNil)
+		mylog.Check(w.SetOptionsSnaps(optSnaps))
+
 	}
+	mylog.Check(w.Start(s.db, s.rf))
 
-	err = w.Start(s.db, s.rf)
-	c.Assert(err, IsNil)
 
-	snaps, err := w.SnapsToDownload()
-	c.Assert(err, IsNil)
+	snaps := mylog.Check2(w.SnapsToDownload())
+
 
 	for _, sn := range snaps {
 		fill(c, w, sn)
 	}
 
-	complete, err = w.Downloaded(fetchAsserts)
+	complete = mylog.Check2(w.Downloaded(fetchAsserts))
 	return complete, w, err
 }
 
@@ -560,9 +538,8 @@ func (s *writerSuite) TestDownloadedCheckBaseGadget(c *C) {
 	s.makeSnap(c, "pc-kernel=18", "")
 	s.makeSnap(c, "pc", "")
 
-	_, _, err := s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c))
+	_, _ := mylog.Check3(s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c)))
 	c.Check(err, ErrorMatches, `cannot use gadget snap because its base "" is different from model base "core18"`)
-
 }
 
 func (s *writerSuite) TestDownloadedCheckBase(c *C) {
@@ -581,9 +558,8 @@ func (s *writerSuite) TestDownloadedCheckBase(c *C) {
 
 	s.expectedSysSnap = "core"
 
-	_, _, err := s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c))
+	_, _ := mylog.Check3(s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c)))
 	c.Check(err, ErrorMatches, `cannot add snap "cont-producer" without also adding its base "core18" explicitly`)
-
 }
 
 func (s *writerSuite) TestOutOfOrder(c *C) {
@@ -595,23 +571,21 @@ func (s *writerSuite) TestOutOfOrder(c *C) {
 		"required-snaps": []interface{}{"required"},
 	})
 
-	w, err := seedwriter.New(model, s.opts)
-	c.Assert(err, IsNil)
+	w := mylog.Check2(seedwriter.New(model, s.opts))
+
 
 	c.Check(w.WriteMeta(), ErrorMatches, "internal error: seedwriter.Writer expected Start|SetOptionsSnaps to be invoked on it at this point, not WriteMeta")
 	c.Check(w.SeedSnaps(nil), ErrorMatches, "internal error: seedwriter.Writer expected Start|SetOptionsSnaps to be invoked on it at this point, not SeedSnaps")
+	mylog.Check(w.Start(s.db, s.rf))
 
-	err = w.Start(s.db, s.rf)
-	c.Assert(err, IsNil)
-	_, err = w.Downloaded(nil)
+	_ = mylog.Check2(w.Downloaded(nil))
 	c.Check(err, ErrorMatches, "internal error: seedwriter.Writer expected SnapToDownload|LocalSnaps to be invoked on it at this point, not Downloaded")
 
-	_, err = w.BootSnaps()
+	_ = mylog.Check2(w.BootSnaps())
 	c.Check(err, ErrorMatches, "internal error: seedwriter.Writer cannot query seed snaps before Downloaded signaled complete")
 
-	_, err = w.UnassertedSnaps()
+	_ = mylog.Check2(w.UnassertedSnaps())
 	c.Check(err, ErrorMatches, "internal error: seedwriter.Writer cannot query seed snaps before Downloaded signaled complete")
-
 }
 
 func (s *writerSuite) TestOutOfOrderWithLocalSnaps(c *C) {
@@ -623,24 +597,22 @@ func (s *writerSuite) TestOutOfOrderWithLocalSnaps(c *C) {
 		"required-snaps": []interface{}{"required"},
 	})
 
-	w, err := seedwriter.New(model, s.opts)
-	c.Assert(err, IsNil)
+	w := mylog.Check2(seedwriter.New(model, s.opts))
+
 
 	requiredFn := s.makeLocalSnap(c, "required")
+	mylog.Check(w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Path: requiredFn}}))
 
-	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Path: requiredFn}})
-	c.Assert(err, IsNil)
+	mylog.Check(w.Start(s.db, s.rf))
 
-	err = w.Start(s.db, s.rf)
-	c.Assert(err, IsNil)
 
-	_, err = w.SnapsToDownload()
+	_ = mylog.Check2(w.SnapsToDownload())
 	c.Check(err, ErrorMatches, `internal error: seedwriter.Writer expected LocalSnaps to be invoked on it at this point, not SnapsToDownload`)
 
-	_, err = w.LocalSnaps()
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(w.LocalSnaps())
 
-	_, err = w.SnapsToDownload()
+
+	_ = mylog.Check2(w.SnapsToDownload())
 	c.Check(err, ErrorMatches, `internal error: seedwriter.Writer expected InfoDerived to be invoked on it at this point, not SnapsToDownload`)
 }
 
@@ -655,7 +627,7 @@ func (s *writerSuite) TestDownloadedInfosNotSet(c *C) {
 
 	doNothingFill := func(*C, *seedwriter.Writer, *seedwriter.SeedSnap) {}
 
-	_, _, err := s.upToDownloaded(c, model, doNothingFill, nil)
+	_, _ := mylog.Check3(s.upToDownloaded(c, model, doNothingFill, nil))
 	c.Check(err, ErrorMatches, `internal error: before seedwriter.Writer.Downloaded snap \"core\" Info should have been set`)
 }
 
@@ -675,7 +647,7 @@ func (s *writerSuite) TestDownloadedUnexpectedClassicSnap(c *C) {
 
 	s.expectedSysSnap = "core"
 
-	_, _, err := s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c))
+	_, _ := mylog.Check3(s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c)))
 	c.Check(err, ErrorMatches, `cannot use classic snap "classic-snap" in a core system`)
 }
 
@@ -693,7 +665,7 @@ func (s *writerSuite) TestDownloadedPublisherMismatchKernel(c *C) {
 
 	s.expectedSysSnap = "core"
 
-	_, _, err := s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c))
+	_, _ := mylog.Check3(s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c)))
 	c.Check(err, ErrorMatches, `cannot use kernel "pc-kernel" published by "developerid" for model by "my-brand"`)
 }
 
@@ -711,7 +683,7 @@ func (s *writerSuite) TestDownloadedPublisherMismatchGadget(c *C) {
 
 	s.expectedSysSnap = "core"
 
-	_, _, err := s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c))
+	_, _ := mylog.Check3(s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c)))
 	c.Check(err, ErrorMatches, `cannot use gadget "pc" published by "developerid" for model by "my-brand"`)
 }
 
@@ -731,7 +703,7 @@ func (s *writerSuite) TestDownloadedMissingDefaultProvider(c *C) {
 	s.makeSnap(c, "pc=18", "")
 	s.makeSnap(c, "cont-consumer", "developerid")
 
-	_, _, err := s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c))
+	_, _ := mylog.Check3(s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c)))
 	c.Check(err, ErrorMatches, `prerequisites need to be added explicitly: cannot use snap "cont-consumer": default provider "cont-producer" or any alternative provider for content "cont" is missing`)
 }
 
@@ -774,7 +746,7 @@ func (s *writerSuite) TestDownloadedCheckType(c *C) {
 			t.header: wrongTypeSnap,
 		})
 
-		_, _, err := s.upToDownloaded(c, model, s.fillMetaDownloadedSnap, s.fetchAsserts(c))
+		_, _ := mylog.Check3(s.upToDownloaded(c, model, s.fillMetaDownloadedSnap, s.fetchAsserts(c)))
 
 		expErr := fmt.Sprintf("%s %q has unexpected type: %v", t.what, t.wrongTypeSnap, s.AssertedSnapInfo(t.wrongTypeSnap).Type())
 		c.Check(err, ErrorMatches, expErr)
@@ -797,7 +769,7 @@ func (s *writerSuite) TestDownloadedCheckTypeSnapd(c *C) {
 
 	// break type
 	s.AssertedSnapInfo("snapd").SnapType = snap.TypeGadget
-	_, _, err := s.upToDownloaded(c, model, s.fillMetaDownloadedSnap, s.fetchAsserts(c))
+	_, _ := mylog.Check3(s.upToDownloaded(c, model, s.fillMetaDownloadedSnap, s.fetchAsserts(c)))
 	c.Check(err, ErrorMatches, `snapd snap has unexpected type: gadget`)
 }
 
@@ -815,7 +787,7 @@ func (s *writerSuite) TestDownloadedCheckTypeCore(c *C) {
 
 	// break type
 	s.AssertedSnapInfo("core").SnapType = snap.TypeBase
-	_, _, err := s.upToDownloaded(c, model, s.fillMetaDownloadedSnap, s.fetchAsserts(c))
+	_, _ := mylog.Check3(s.upToDownloaded(c, model, s.fillMetaDownloadedSnap, s.fetchAsserts(c)))
 	c.Check(err, ErrorMatches, `core snap has unexpected type: base`)
 }
 
@@ -832,17 +804,15 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore16(c *C) {
 	s.makeSnap(c, "pc-kernel", "")
 	s.makeSnap(c, "pc", "")
 
-	w, err := seedwriter.New(model, s.opts)
-	c.Assert(err, IsNil)
+	w := mylog.Check2(seedwriter.New(model, s.opts))
 
-	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "pc", Channel: "edge"}})
-	c.Assert(err, IsNil)
+	mylog.Check(w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "pc", Channel: "edge"}}))
 
-	err = w.Start(s.db, s.rf)
-	c.Assert(err, IsNil)
+	mylog.Check(w.Start(s.db, s.rf))
 
-	snaps, err := w.SnapsToDownload()
-	c.Assert(err, IsNil)
+
+	snaps := mylog.Check2(w.SnapsToDownload())
+
 	c.Check(snaps, HasLen, 3)
 
 	for _, sn := range snaps {
@@ -851,19 +821,17 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore16(c *C) {
 
 	s.expectedSysSnap = "core"
 
-	complete, err := w.Downloaded(s.fetchAsserts(c))
-	c.Assert(err, IsNil)
+	complete := mylog.Check2(w.Downloaded(s.fetchAsserts(c)))
+
 	c.Check(complete, Equals, true)
+	mylog.Check(w.SeedSnaps(nil))
 
-	err = w.SeedSnaps(nil)
-	c.Assert(err, IsNil)
+	mylog.Check(w.WriteMeta())
 
-	err = w.WriteMeta()
-	c.Assert(err, IsNil)
 
 	// check seed
-	seedYaml, err := seedwriter.InternalReadSeedYaml(filepath.Join(s.opts.SeedDir, "seed.yaml"))
-	c.Assert(err, IsNil)
+	seedYaml := mylog.Check2(seedwriter.InternalReadSeedYaml(filepath.Join(s.opts.SeedDir, "seed.yaml")))
+
 
 	c.Check(seedYaml.Snaps, HasLen, 3)
 
@@ -889,8 +857,8 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore16(c *C) {
 		})
 	}
 
-	l, err := os.ReadDir(filepath.Join(s.opts.SeedDir, "snaps"))
-	c.Assert(err, IsNil)
+	l := mylog.Check2(os.ReadDir(filepath.Join(s.opts.SeedDir, "snaps")))
+
 	c.Check(l, HasLen, 3)
 
 	// check assertions
@@ -947,17 +915,15 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore18(c *C) {
 	s.makeSnap(c, "cont-producer", "developerid")
 	s.makeSnap(c, "cont-consumer", "developerid")
 
-	w, err := seedwriter.New(model, s.opts)
-	c.Assert(err, IsNil)
+	w := mylog.Check2(seedwriter.New(model, s.opts))
 
-	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "pc", Channel: "edge"}})
-	c.Assert(err, IsNil)
+	mylog.Check(w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "pc", Channel: "edge"}}))
 
-	err = w.Start(s.db, s.rf)
-	c.Assert(err, IsNil)
+	mylog.Check(w.Start(s.db, s.rf))
 
-	snaps, err := w.SnapsToDownload()
-	c.Assert(err, IsNil)
+
+	snaps := mylog.Check2(w.SnapsToDownload())
+
 	c.Check(snaps, HasLen, 6)
 
 	s.AssertedSnapInfo("cont-producer").EditedLinks = map[string][]string{
@@ -967,19 +933,17 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore18(c *C) {
 		s.fillDownloadedSnap(c, w, sn)
 	}
 
-	complete, err := w.Downloaded(s.fetchAsserts(c))
-	c.Assert(err, IsNil)
+	complete := mylog.Check2(w.Downloaded(s.fetchAsserts(c)))
+
 	c.Check(complete, Equals, true)
+	mylog.Check(w.SeedSnaps(nil))
 
-	err = w.SeedSnaps(nil)
-	c.Assert(err, IsNil)
+	mylog.Check(w.WriteMeta())
 
-	err = w.WriteMeta()
-	c.Assert(err, IsNil)
 
 	// check seed
-	seedYaml, err := seedwriter.InternalReadSeedYaml(filepath.Join(s.opts.SeedDir, "seed.yaml"))
-	c.Assert(err, IsNil)
+	seedYaml := mylog.Check2(seedwriter.InternalReadSeedYaml(filepath.Join(s.opts.SeedDir, "seed.yaml")))
+
 
 	c.Check(seedYaml.Snaps, HasLen, 6)
 
@@ -1008,8 +972,8 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore18(c *C) {
 		})
 	}
 
-	l, err := os.ReadDir(filepath.Join(s.opts.SeedDir, "snaps"))
-	c.Assert(err, IsNil)
+	l := mylog.Check2(os.ReadDir(filepath.Join(s.opts.SeedDir, "snaps")))
+
 	c.Check(l, HasLen, 6)
 
 	// check assertions
@@ -1051,14 +1015,14 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore18(c *C) {
 
 func (s *writerSuite) TestSeedSnapsWriteMetaCore18StoreAssertion(c *C) {
 	// add store assertion
-	storeAs, err := s.StoreSigning.Sign(asserts.StoreType, map[string]interface{}{
+	storeAs := mylog.Check2(s.StoreSigning.Sign(asserts.StoreType, map[string]interface{}{
 		"store":       "my-store",
 		"operator-id": "canonical",
 		"timestamp":   time.Now().UTC().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	err = s.StoreSigning.Add(storeAs)
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
+	mylog.Check(s.StoreSigning.Add(storeAs))
+
 
 	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
 		"display-name": "my model",
@@ -1074,15 +1038,13 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore18StoreAssertion(c *C) {
 	s.makeSnap(c, "pc-kernel=18", "")
 	s.makeSnap(c, "pc=18", "")
 
-	complete, w, err := s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c))
-	c.Assert(err, IsNil)
+	complete, w := mylog.Check3(s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c)))
+
 	c.Check(complete, Equals, true)
+	mylog.Check(w.SeedSnaps(nil))
 
-	err = w.SeedSnaps(nil)
-	c.Assert(err, IsNil)
+	mylog.Check(w.WriteMeta())
 
-	err = w.WriteMeta()
-	c.Assert(err, IsNil)
 
 	// check assertions
 	seedAssertsDir := filepath.Join(s.opts.SeedDir, "assertions")
@@ -1106,22 +1068,20 @@ func (s *writerSuite) TestLocalSnaps(c *C) {
 	pcFn := s.makeLocalSnap(c, "pc=18")
 	contConsumerFn := s.makeLocalSnap(c, "cont-consumer")
 
-	w, err := seedwriter.New(model, s.opts)
-	c.Assert(err, IsNil)
+	w := mylog.Check2(seedwriter.New(model, s.opts))
 
-	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{
+	mylog.Check(w.SetOptionsSnaps([]*seedwriter.OptionsSnap{
 		{Path: core18Fn},
 		{Path: pcFn, Channel: "edge"},
 		{Path: pcKernelFn},
 		{Path: contConsumerFn},
-	})
-	c.Assert(err, IsNil)
+	}))
 
-	err = w.Start(s.db, s.rf)
-	c.Assert(err, IsNil)
+	mylog.Check(w.Start(s.db, s.rf))
 
-	localSnaps, err := w.LocalSnaps()
-	c.Assert(err, IsNil)
+
+	localSnaps := mylog.Check2(w.LocalSnaps())
+
 	c.Assert(localSnaps, HasLen, 4)
 	c.Check(localSnaps[0].Path, Equals, core18Fn)
 	c.Check(localSnaps[1].Path, Equals, pcFn)
@@ -1147,44 +1107,41 @@ func (s *writerSuite) TestLocalSnapsCore18FullUse(c *C) {
 	pcFn := s.makeLocalSnap(c, "pc=18")
 	contConsumerFn := s.makeLocalSnap(c, "cont-consumer")
 
-	w, err := seedwriter.New(model, s.opts)
-	c.Assert(err, IsNil)
+	w := mylog.Check2(seedwriter.New(model, s.opts))
 
-	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{
+	mylog.Check(w.SetOptionsSnaps([]*seedwriter.OptionsSnap{
 		{Path: core18Fn},
 		{Name: "pc-kernel", Channel: "candidate"},
 		{Path: pcFn, Channel: "edge"},
 		{Path: pcKernelFn},
 		{Path: s.AssertedSnap("cont-producer")},
 		{Path: contConsumerFn},
-	})
-	c.Assert(err, IsNil)
+	}))
 
-	err = w.Start(s.db, s.rf)
-	c.Assert(err, IsNil)
+	mylog.Check(w.Start(s.db, s.rf))
 
-	localSnaps, err := w.LocalSnaps()
-	c.Assert(err, IsNil)
+
+	localSnaps := mylog.Check2(w.LocalSnaps())
+
 	c.Assert(localSnaps, HasLen, 5)
 
 	for _, sn := range localSnaps {
-		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, model, s.rf, s.db)
+		si, aRefs := mylog.Check3(seedwriter.DeriveSideInfo(sn.Path, model, s.rf, s.db))
 		if !errors.Is(err, &asserts.NotFoundError{}) {
-			c.Assert(err, IsNil)
+
 		}
-		f, err := snapfile.Open(sn.Path)
-		c.Assert(err, IsNil)
-		info, err := snap.ReadInfoFromSnapFile(f, si)
-		c.Assert(err, IsNil)
+		f := mylog.Check2(snapfile.Open(sn.Path))
+
+		info := mylog.Check2(snap.ReadInfoFromSnapFile(f, si))
+
 		w.SetInfo(sn, info)
 		s.aRefs[sn.SnapName()] = aRefs
 	}
+	mylog.Check(w.InfoDerived())
 
-	err = w.InfoDerived()
-	c.Assert(err, IsNil)
 
-	snaps, err := w.SnapsToDownload()
-	c.Assert(err, IsNil)
+	snaps := mylog.Check2(w.SnapsToDownload())
+
 	c.Check(snaps, HasLen, 1)
 	c.Check(naming.SameSnap(snaps[0], naming.Snap("snapd")), Equals, true)
 
@@ -1192,23 +1149,21 @@ func (s *writerSuite) TestLocalSnapsCore18FullUse(c *C) {
 		s.fillDownloadedSnap(c, w, sn)
 	}
 
-	complete, err := w.Downloaded(s.fetchAsserts(c))
-	c.Assert(err, IsNil)
+	complete := mylog.Check2(w.Downloaded(s.fetchAsserts(c)))
+
 	c.Check(complete, Equals, true)
 
 	copySnap := func(name, src, dst string) error {
 		return osutil.CopyFile(src, dst, 0)
 	}
+	mylog.Check(w.SeedSnaps(copySnap))
 
-	err = w.SeedSnaps(copySnap)
-	c.Assert(err, IsNil)
+	mylog.Check(w.WriteMeta())
 
-	err = w.WriteMeta()
-	c.Assert(err, IsNil)
 
 	// check seed
-	seedYaml, err := seedwriter.InternalReadSeedYaml(filepath.Join(s.opts.SeedDir, "seed.yaml"))
-	c.Assert(err, IsNil)
+	seedYaml := mylog.Check2(seedwriter.InternalReadSeedYaml(filepath.Join(s.opts.SeedDir, "seed.yaml")))
+
 
 	c.Check(seedYaml.Snaps, HasLen, 6)
 
@@ -1246,8 +1201,8 @@ func (s *writerSuite) TestLocalSnapsCore18FullUse(c *C) {
 	}
 	c.Check(assertedNum, Equals, 2)
 
-	l, err := os.ReadDir(filepath.Join(s.opts.SeedDir, "snaps"))
-	c.Assert(err, IsNil)
+	l := mylog.Check2(os.ReadDir(filepath.Join(s.opts.SeedDir, "snaps")))
+
 	c.Check(l, HasLen, 6)
 
 	// check the snap assertions are in place
@@ -1265,8 +1220,8 @@ func (s *writerSuite) TestLocalSnapsCore18FullUse(c *C) {
 		c.Check(rev[0].HeaderString("snap-id"), Equals, s.AssertedSnapID(snapName))
 	}
 
-	unassertedSnaps, err := w.UnassertedSnaps()
-	c.Assert(err, IsNil)
+	unassertedSnaps := mylog.Check2(w.UnassertedSnaps())
+
 	c.Check(unassertedSnaps, HasLen, 4)
 	unassertedSet := naming.NewSnapSet(unassertedSnaps)
 	for _, snapName := range []string{"core18", "pc-kernel", "pc", "cont-consumer"} {
@@ -1290,17 +1245,15 @@ func (s *writerSuite) TestSeedSnapsWriteMetaDefaultTrackCore18(c *C) {
 	s.makeSnap(c, "pc=18", "")
 	s.makeSnap(c, "required18", "developerid")
 
-	w, err := seedwriter.New(model, s.opts)
-	c.Assert(err, IsNil)
+	w := mylog.Check2(seedwriter.New(model, s.opts))
 
-	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "required18", Channel: "candidate"}})
-	c.Assert(err, IsNil)
+	mylog.Check(w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "required18", Channel: "candidate"}}))
 
-	err = w.Start(s.db, s.rf)
-	c.Assert(err, IsNil)
+	mylog.Check(w.Start(s.db, s.rf))
 
-	snaps, err := w.SnapsToDownload()
-	c.Assert(err, IsNil)
+
+	snaps := mylog.Check2(w.SnapsToDownload())
+
 	c.Check(snaps, HasLen, 5)
 
 	for _, sn := range snaps {
@@ -1311,19 +1264,17 @@ func (s *writerSuite) TestSeedSnapsWriteMetaDefaultTrackCore18(c *C) {
 		}
 	}
 
-	complete, err := w.Downloaded(s.fetchAsserts(c))
-	c.Assert(err, IsNil)
+	complete := mylog.Check2(w.Downloaded(s.fetchAsserts(c)))
+
 	c.Check(complete, Equals, true)
+	mylog.Check(w.SeedSnaps(nil))
 
-	err = w.SeedSnaps(nil)
-	c.Assert(err, IsNil)
+	mylog.Check(w.WriteMeta())
 
-	err = w.WriteMeta()
-	c.Assert(err, IsNil)
 
 	// check seed
-	seedYaml, err := seedwriter.InternalReadSeedYaml(filepath.Join(s.opts.SeedDir, "seed.yaml"))
-	c.Assert(err, IsNil)
+	seedYaml := mylog.Check2(seedwriter.InternalReadSeedYaml(filepath.Join(s.opts.SeedDir, "seed.yaml")))
+
 
 	c.Check(seedYaml.Snaps, HasLen, 5)
 
@@ -1336,7 +1287,6 @@ func (s *writerSuite) TestSeedSnapsWriteMetaDefaultTrackCore18(c *C) {
 		Channel: "default-track/candidate",
 		File:    fn,
 	})
-
 }
 
 func (s *writerSuite) TestSetRedirectChannelErrors(c *C) {
@@ -1355,14 +1305,13 @@ func (s *writerSuite) TestSetRedirectChannelErrors(c *C) {
 	s.makeSnap(c, "pc=18", "")
 	s.makeSnap(c, "required18", "developerid")
 
-	w, err := seedwriter.New(model, s.opts)
-	c.Assert(err, IsNil)
+	w := mylog.Check2(seedwriter.New(model, s.opts))
 
-	err = w.Start(s.db, s.rf)
-	c.Assert(err, IsNil)
+	mylog.Check(w.Start(s.db, s.rf))
 
-	snaps, err := w.SnapsToDownload()
-	c.Assert(err, IsNil)
+
+	snaps := mylog.Check2(w.SnapsToDownload())
+
 	c.Check(snaps, HasLen, 5)
 
 	sn := snaps[4]
@@ -1389,23 +1338,20 @@ func (s *writerSuite) TestInfoDerivedInfosNotSet(c *C) {
 	pcKernelFn := s.makeLocalSnap(c, "pc-kernel=18")
 	pcFn := s.makeLocalSnap(c, "pc=18")
 
-	w, err := seedwriter.New(model, s.opts)
-	c.Assert(err, IsNil)
+	w := mylog.Check2(seedwriter.New(model, s.opts))
 
-	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{
+	mylog.Check(w.SetOptionsSnaps([]*seedwriter.OptionsSnap{
 		{Path: core18Fn},
 		{Path: pcFn, Channel: "edge"},
 		{Path: pcKernelFn},
-	})
-	c.Assert(err, IsNil)
+	}))
 
-	err = w.Start(s.db, s.rf)
-	c.Assert(err, IsNil)
+	mylog.Check(w.Start(s.db, s.rf))
 
-	_, err = w.LocalSnaps()
-	c.Assert(err, IsNil)
 
-	err = w.InfoDerived()
+	_ = mylog.Check2(w.LocalSnaps())
+
+	mylog.Check(w.InfoDerived())
 	c.Assert(err, ErrorMatches, `internal error: before seedwriter.Writer.InfoDerived snap ".*/core18.*.snap" Info should have been set`)
 }
 
@@ -1423,33 +1369,30 @@ func (s *writerSuite) TestInfoDerivedRepeatedLocalSnap(c *C) {
 	pcKernelFn := s.makeLocalSnap(c, "pc-kernel=18")
 	pcFn := s.makeLocalSnap(c, "pc=18")
 
-	w, err := seedwriter.New(model, s.opts)
-	c.Assert(err, IsNil)
+	w := mylog.Check2(seedwriter.New(model, s.opts))
 
-	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{
+	mylog.Check(w.SetOptionsSnaps([]*seedwriter.OptionsSnap{
 		{Path: core18Fn},
 		{Path: pcFn, Channel: "edge"},
 		{Path: pcKernelFn},
 		{Path: core18Fn},
-	})
-	c.Assert(err, IsNil)
+	}))
 
-	err = w.Start(s.db, s.rf)
-	c.Assert(err, IsNil)
+	mylog.Check(w.Start(s.db, s.rf))
 
-	localSnaps, err := w.LocalSnaps()
-	c.Assert(err, IsNil)
+
+	localSnaps := mylog.Check2(w.LocalSnaps())
+
 	c.Check(localSnaps, HasLen, 4)
 
 	for _, sn := range localSnaps {
-		f, err := snapfile.Open(sn.Path)
-		c.Assert(err, IsNil)
-		info, err := snap.ReadInfoFromSnapFile(f, nil)
-		c.Assert(err, IsNil)
+		f := mylog.Check2(snapfile.Open(sn.Path))
+
+		info := mylog.Check2(snap.ReadInfoFromSnapFile(f, nil))
+
 		w.SetInfo(sn, info)
 	}
-
-	err = w.InfoDerived()
+	mylog.Check(w.InfoDerived())
 	c.Assert(err, ErrorMatches, `local snap "core18" is repeated in options`)
 }
 
@@ -1467,33 +1410,30 @@ func (s *writerSuite) TestInfoDerivedInconsistentChannel(c *C) {
 	pcKernelFn := s.makeLocalSnap(c, "pc-kernel=18")
 	pcFn := s.makeLocalSnap(c, "pc=18")
 
-	w, err := seedwriter.New(model, s.opts)
-	c.Assert(err, IsNil)
+	w := mylog.Check2(seedwriter.New(model, s.opts))
 
-	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{
+	mylog.Check(w.SetOptionsSnaps([]*seedwriter.OptionsSnap{
 		{Path: core18Fn},
 		{Path: pcFn, Channel: "edge"},
 		{Path: pcKernelFn},
 		{Name: "pc", Channel: "beta"},
-	})
-	c.Assert(err, IsNil)
+	}))
 
-	err = w.Start(s.db, s.rf)
-	c.Assert(err, IsNil)
+	mylog.Check(w.Start(s.db, s.rf))
 
-	localSnaps, err := w.LocalSnaps()
-	c.Assert(err, IsNil)
+
+	localSnaps := mylog.Check2(w.LocalSnaps())
+
 	c.Check(localSnaps, HasLen, 3)
 
 	for _, sn := range localSnaps {
-		f, err := snapfile.Open(sn.Path)
-		c.Assert(err, IsNil)
-		info, err := snap.ReadInfoFromSnapFile(f, nil)
-		c.Assert(err, IsNil)
+		f := mylog.Check2(snapfile.Open(sn.Path))
+
+		info := mylog.Check2(snap.ReadInfoFromSnapFile(f, nil))
+
 		w.SetInfo(sn, info)
 	}
-
-	err = w.InfoDerived()
+	mylog.Check(w.InfoDerived())
 	c.Assert(err, ErrorMatches, `option snap has different channels specified: ".*/pc.*.snap"="edge" vs "pc"="beta"`)
 }
 
@@ -1508,31 +1448,28 @@ func (s *writerSuite) TestSetRedirectChannelLocalError(c *C) {
 
 	core18Fn := s.makeLocalSnap(c, "core18")
 
-	w, err := seedwriter.New(model, s.opts)
-	c.Assert(err, IsNil)
+	w := mylog.Check2(seedwriter.New(model, s.opts))
 
-	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{
+	mylog.Check(w.SetOptionsSnaps([]*seedwriter.OptionsSnap{
 		{Path: core18Fn},
-	})
-	c.Assert(err, IsNil)
+	}))
 
-	err = w.Start(s.db, s.rf)
-	c.Assert(err, IsNil)
+	mylog.Check(w.Start(s.db, s.rf))
 
-	localSnaps, err := w.LocalSnaps()
-	c.Assert(err, IsNil)
+
+	localSnaps := mylog.Check2(w.LocalSnaps())
+
 	c.Check(localSnaps, HasLen, 1)
 
 	sn := localSnaps[0]
-	f, err := snapfile.Open(sn.Path)
-	c.Assert(err, IsNil)
-	info, err := snap.ReadInfoFromSnapFile(f, nil)
-	c.Assert(err, IsNil)
-	err = w.SetInfo(sn, info)
-	c.Assert(err, IsNil)
+	f := mylog.Check2(snapfile.Open(sn.Path))
+
+	info := mylog.Check2(snap.ReadInfoFromSnapFile(f, nil))
+
+	mylog.Check(w.SetInfo(sn, info))
+
 
 	c.Check(w.SetRedirectChannel(sn, "foo"), ErrorMatches, `internal error: cannot set redirect channel for local snap .*`)
-
 }
 
 func (s *writerSuite) TestSeedSnapsWriteMetaClassicWithCore(c *C) {
@@ -1551,34 +1488,32 @@ func (s *writerSuite) TestSeedSnapsWriteMetaClassicWithCore(c *C) {
 	// no kernel
 	s.expectedKernSnap = ""
 
-	complete, w, err := s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c))
-	c.Assert(err, IsNil)
+	complete, w := mylog.Check3(s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c)))
+
 	c.Check(complete, Equals, false)
 
-	snaps, err := w.SnapsToDownload()
-	c.Assert(err, IsNil)
+	snaps := mylog.Check2(w.SnapsToDownload())
+
 	c.Assert(snaps, HasLen, 1)
 
 	s.fillDownloadedSnap(c, w, snaps[0])
 
 	s.expectedSysSnap = "core"
 
-	complete, err = w.Downloaded(s.fetchAsserts(c))
-	c.Assert(err, IsNil)
+	complete = mylog.Check2(w.Downloaded(s.fetchAsserts(c)))
+
 	c.Check(complete, Equals, true)
 
-	_, err = w.BootSnaps()
+	_ = mylog.Check2(w.BootSnaps())
 	c.Check(err, ErrorMatches, "no snaps participating in boot on classic")
+	mylog.Check(w.SeedSnaps(nil))
 
-	err = w.SeedSnaps(nil)
-	c.Assert(err, IsNil)
+	mylog.Check(w.WriteMeta())
 
-	err = w.WriteMeta()
-	c.Assert(err, IsNil)
 
 	// check seed
-	seedYaml, err := seedwriter.InternalReadSeedYaml(filepath.Join(s.opts.SeedDir, "seed.yaml"))
-	c.Assert(err, IsNil)
+	seedYaml := mylog.Check2(seedwriter.InternalReadSeedYaml(filepath.Join(s.opts.SeedDir, "seed.yaml")))
+
 
 	c.Check(seedYaml.Snaps, HasLen, 3)
 
@@ -1616,29 +1551,27 @@ func (s *writerSuite) TestSeedSnapsWriteMetaClassicSnapdOnly(c *C) {
 	// no kernel
 	s.expectedKernSnap = ""
 
-	complete, w, err := s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c))
-	c.Assert(err, IsNil)
+	complete, w := mylog.Check3(s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c)))
+
 	c.Check(complete, Equals, false)
 
-	snaps, err := w.SnapsToDownload()
-	c.Assert(err, IsNil)
+	snaps := mylog.Check2(w.SnapsToDownload())
+
 	c.Assert(snaps, HasLen, 1)
 
 	s.fillDownloadedSnap(c, w, snaps[0])
 
-	complete, err = w.Downloaded(s.fetchAsserts(c))
-	c.Assert(err, IsNil)
+	complete = mylog.Check2(w.Downloaded(s.fetchAsserts(c)))
+
 	c.Check(complete, Equals, true)
+	mylog.Check(w.SeedSnaps(nil))
 
-	err = w.SeedSnaps(nil)
-	c.Assert(err, IsNil)
+	mylog.Check(w.WriteMeta())
 
-	err = w.WriteMeta()
-	c.Assert(err, IsNil)
 
 	// check seed
-	seedYaml, err := seedwriter.InternalReadSeedYaml(filepath.Join(s.opts.SeedDir, "seed.yaml"))
-	c.Assert(err, IsNil)
+	seedYaml := mylog.Check2(seedwriter.InternalReadSeedYaml(filepath.Join(s.opts.SeedDir, "seed.yaml")))
+
 	c.Assert(seedYaml.Snaps, HasLen, 4)
 
 	// check the files are in place
@@ -1674,43 +1607,41 @@ func (s *writerSuite) TestSeedSnapsWriteMetaClassicMinModelNoSysSnap(c *C) {
 	// no kernel
 	s.expectedKernSnap = ""
 
-	complete, w, err := s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c), &seedwriter.OptionsSnap{Name: "required18"}, &seedwriter.OptionsSnap{Name: "core18"})
-	c.Assert(err, IsNil)
+	complete, w := mylog.Check3(s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c), &seedwriter.OptionsSnap{Name: "required18"}, &seedwriter.OptionsSnap{Name: "core18"}))
+
 	c.Check(complete, Equals, false)
 
-	snaps, err := w.SnapsToDownload()
-	c.Assert(err, IsNil)
+	snaps := mylog.Check2(w.SnapsToDownload())
+
 	c.Assert(snaps, HasLen, 2)
 
 	s.fillDownloadedSnap(c, w, snaps[0])
 	s.fillDownloadedSnap(c, w, snaps[1])
 
-	complete, err = w.Downloaded(s.fetchAsserts(c))
-	c.Assert(err, IsNil)
+	complete = mylog.Check2(w.Downloaded(s.fetchAsserts(c)))
+
 	c.Check(complete, Equals, false)
 
-	snaps, err = w.SnapsToDownload()
-	c.Assert(err, IsNil)
+	snaps = mylog.Check2(w.SnapsToDownload())
+
 	c.Assert(snaps, HasLen, 0)
 
-	complete, err = w.Downloaded(s.fetchAsserts(c))
-	c.Assert(err, IsNil)
+	complete = mylog.Check2(w.Downloaded(s.fetchAsserts(c)))
+
 	c.Check(complete, Equals, true)
 
 	c.Check(s.fetchAssertsCalled, Equals, true)
 
-	_, err = w.BootSnaps()
+	_ = mylog.Check2(w.BootSnaps())
 	c.Check(err, ErrorMatches, "no snaps participating in boot on classic")
+	mylog.Check(w.SeedSnaps(nil))
 
-	err = w.SeedSnaps(nil)
-	c.Assert(err, IsNil)
+	mylog.Check(w.WriteMeta())
 
-	err = w.WriteMeta()
-	c.Assert(err, IsNil)
 
 	// check seed
-	seedYaml, err := seedwriter.InternalReadSeedYaml(filepath.Join(s.opts.SeedDir, "seed.yaml"))
-	c.Assert(err, IsNil)
+	seedYaml := mylog.Check2(seedwriter.InternalReadSeedYaml(filepath.Join(s.opts.SeedDir, "seed.yaml")))
+
 
 	c.Check(seedYaml.Snaps, HasLen, 2)
 
@@ -1744,43 +1675,41 @@ func (s *writerSuite) TestSeedSnapsWriteMetaClassicMinModelCore(c *C) {
 	// no kernel
 	s.expectedKernSnap = ""
 
-	complete, w, err := s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c), &seedwriter.OptionsSnap{Name: "core"}, &seedwriter.OptionsSnap{Name: "required"})
-	c.Assert(err, IsNil)
+	complete, w := mylog.Check3(s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c), &seedwriter.OptionsSnap{Name: "core"}, &seedwriter.OptionsSnap{Name: "required"}))
+
 	c.Check(complete, Equals, false)
 
-	snaps, err := w.SnapsToDownload()
-	c.Assert(err, IsNil)
+	snaps := mylog.Check2(w.SnapsToDownload())
+
 	c.Assert(snaps, HasLen, 2)
 
 	s.fillDownloadedSnap(c, w, snaps[0])
 	s.fillDownloadedSnap(c, w, snaps[1])
 
-	complete, err = w.Downloaded(s.fetchAsserts(c))
-	c.Assert(err, IsNil)
+	complete = mylog.Check2(w.Downloaded(s.fetchAsserts(c)))
+
 	c.Check(complete, Equals, false)
 
-	snaps, err = w.SnapsToDownload()
-	c.Assert(err, IsNil)
+	snaps = mylog.Check2(w.SnapsToDownload())
+
 	c.Assert(snaps, HasLen, 0)
 
-	complete, err = w.Downloaded(s.fetchAsserts(c))
-	c.Assert(err, IsNil)
+	complete = mylog.Check2(w.Downloaded(s.fetchAsserts(c)))
+
 	c.Check(complete, Equals, true)
 
 	c.Check(s.fetchAssertsCalled, Equals, true)
 
-	_, err = w.BootSnaps()
+	_ = mylog.Check2(w.BootSnaps())
 	c.Check(err, ErrorMatches, "no snaps participating in boot on classic")
+	mylog.Check(w.SeedSnaps(nil))
 
-	err = w.SeedSnaps(nil)
-	c.Assert(err, IsNil)
+	mylog.Check(w.WriteMeta())
 
-	err = w.WriteMeta()
-	c.Assert(err, IsNil)
 
 	// check seed
-	seedYaml, err := seedwriter.InternalReadSeedYaml(filepath.Join(s.opts.SeedDir, "seed.yaml"))
-	c.Assert(err, IsNil)
+	seedYaml := mylog.Check2(seedwriter.InternalReadSeedYaml(filepath.Join(s.opts.SeedDir, "seed.yaml")))
+
 
 	c.Check(seedYaml.Snaps, HasLen, 2)
 
@@ -1815,44 +1744,42 @@ func (s *writerSuite) TestSeedSnapsWriteMetaClassicMinModelSnapdFromOptionsWins(
 	// no kernel
 	s.expectedKernSnap = ""
 
-	complete, w, err := s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c), &seedwriter.OptionsSnap{Name: "core"}, &seedwriter.OptionsSnap{Name: "required"}, &seedwriter.OptionsSnap{Name: "snapd"})
-	c.Assert(err, IsNil)
+	complete, w := mylog.Check3(s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c), &seedwriter.OptionsSnap{Name: "core"}, &seedwriter.OptionsSnap{Name: "required"}, &seedwriter.OptionsSnap{Name: "snapd"}))
+
 	c.Check(complete, Equals, false)
 
-	snaps, err := w.SnapsToDownload()
-	c.Assert(err, IsNil)
+	snaps := mylog.Check2(w.SnapsToDownload())
+
 	c.Assert(snaps, HasLen, 3)
 
 	s.fillDownloadedSnap(c, w, snaps[0])
 	s.fillDownloadedSnap(c, w, snaps[1])
 	s.fillDownloadedSnap(c, w, snaps[2])
 
-	complete, err = w.Downloaded(s.fetchAsserts(c))
-	c.Assert(err, IsNil)
+	complete = mylog.Check2(w.Downloaded(s.fetchAsserts(c)))
+
 	c.Check(complete, Equals, false)
 
-	snaps, err = w.SnapsToDownload()
-	c.Assert(err, IsNil)
+	snaps = mylog.Check2(w.SnapsToDownload())
+
 	c.Assert(snaps, HasLen, 0)
 
-	complete, err = w.Downloaded(s.fetchAsserts(c))
-	c.Assert(err, IsNil)
+	complete = mylog.Check2(w.Downloaded(s.fetchAsserts(c)))
+
 	c.Check(complete, Equals, true)
 
 	c.Check(s.fetchAssertsCalled, Equals, true)
 
-	_, err = w.BootSnaps()
+	_ = mylog.Check2(w.BootSnaps())
 	c.Check(err, ErrorMatches, "no snaps participating in boot on classic")
+	mylog.Check(w.SeedSnaps(nil))
 
-	err = w.SeedSnaps(nil)
-	c.Assert(err, IsNil)
+	mylog.Check(w.WriteMeta())
 
-	err = w.WriteMeta()
-	c.Assert(err, IsNil)
 
 	// check seed
-	seedYaml, err := seedwriter.InternalReadSeedYaml(filepath.Join(s.opts.SeedDir, "seed.yaml"))
-	c.Assert(err, IsNil)
+	seedYaml := mylog.Check2(seedwriter.InternalReadSeedYaml(filepath.Join(s.opts.SeedDir, "seed.yaml")))
+
 
 	c.Check(seedYaml.Snaps, HasLen, 3)
 
@@ -1888,32 +1815,30 @@ func (s *writerSuite) TestSeedSnapsWriteMetaClassicMinModelSnapdFromModelWins(c 
 	// no kernel
 	s.expectedKernSnap = ""
 
-	complete, w, err := s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c))
-	c.Assert(err, IsNil)
+	complete, w := mylog.Check3(s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c)))
+
 	c.Check(complete, Equals, false)
 
-	snaps, err := w.SnapsToDownload()
-	c.Assert(err, IsNil)
+	snaps := mylog.Check2(w.SnapsToDownload())
+
 	c.Assert(snaps, HasLen, 0)
 
-	complete, err = w.Downloaded(s.fetchAsserts(c))
-	c.Assert(err, IsNil)
+	complete = mylog.Check2(w.Downloaded(s.fetchAsserts(c)))
+
 	c.Check(complete, Equals, true)
 
 	c.Check(s.fetchAssertsCalled, Equals, true)
 
-	_, err = w.BootSnaps()
+	_ = mylog.Check2(w.BootSnaps())
 	c.Check(err, ErrorMatches, "no snaps participating in boot on classic")
+	mylog.Check(w.SeedSnaps(nil))
 
-	err = w.SeedSnaps(nil)
-	c.Assert(err, IsNil)
+	mylog.Check(w.WriteMeta())
 
-	err = w.WriteMeta()
-	c.Assert(err, IsNil)
 
 	// check seed
-	seedYaml, err := seedwriter.InternalReadSeedYaml(filepath.Join(s.opts.SeedDir, "seed.yaml"))
-	c.Assert(err, IsNil)
+	seedYaml := mylog.Check2(seedwriter.InternalReadSeedYaml(filepath.Join(s.opts.SeedDir, "seed.yaml")))
+
 
 	c.Check(seedYaml.Snaps, HasLen, 3)
 
@@ -1954,17 +1879,15 @@ func (s *writerSuite) TestSeedSnapsWriteMetaExtraSnaps(c *C) {
 	s.makeSnap(c, "core", "")
 	s.makeSnap(c, "required", "developerid")
 
-	w, err := seedwriter.New(model, s.opts)
-	c.Assert(err, IsNil)
+	w := mylog.Check2(seedwriter.New(model, s.opts))
 
-	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "required", Channel: "beta"}})
-	c.Assert(err, IsNil)
+	mylog.Check(w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "required", Channel: "beta"}}))
 
-	err = w.Start(s.db, s.rf)
-	c.Assert(err, IsNil)
+	mylog.Check(w.Start(s.db, s.rf))
 
-	snaps, err := w.SnapsToDownload()
-	c.Assert(err, IsNil)
+
+	snaps := mylog.Check2(w.SnapsToDownload())
+
 	c.Assert(snaps, HasLen, 6)
 
 	s.AssertedSnapInfo("cont-producer").EditedLinks = map[string][]string{
@@ -1974,41 +1897,39 @@ func (s *writerSuite) TestSeedSnapsWriteMetaExtraSnaps(c *C) {
 		s.fillDownloadedSnap(c, w, sn)
 	}
 
-	complete, err := w.Downloaded(s.fetchAsserts(c))
-	c.Assert(err, IsNil)
+	complete := mylog.Check2(w.Downloaded(s.fetchAsserts(c)))
+
 	c.Assert(complete, Equals, false)
 
-	snaps, err = w.SnapsToDownload()
-	c.Assert(err, IsNil)
+	snaps = mylog.Check2(w.SnapsToDownload())
+
 	c.Assert(snaps, HasLen, 1)
 	c.Check(naming.SameSnap(snaps[0], naming.Snap("required")), Equals, true)
 
 	s.fillDownloadedSnap(c, w, snaps[0])
 
-	complete, err = w.Downloaded(s.fetchAsserts(c))
-	c.Assert(err, IsNil)
+	complete = mylog.Check2(w.Downloaded(s.fetchAsserts(c)))
+
 	c.Assert(complete, Equals, false)
 
-	snaps, err = w.SnapsToDownload()
-	c.Assert(err, IsNil)
+	snaps = mylog.Check2(w.SnapsToDownload())
+
 	c.Assert(snaps, HasLen, 1)
 	c.Check(naming.SameSnap(snaps[0], naming.Snap("core")), Equals, true)
 
 	s.fillDownloadedSnap(c, w, snaps[0])
 
-	complete, err = w.Downloaded(s.fetchAsserts(c))
-	c.Assert(err, IsNil)
+	complete = mylog.Check2(w.Downloaded(s.fetchAsserts(c)))
+
 	c.Assert(complete, Equals, true)
+	mylog.Check(w.SeedSnaps(nil))
 
-	err = w.SeedSnaps(nil)
-	c.Assert(err, IsNil)
+	mylog.Check(w.WriteMeta())
 
-	err = w.WriteMeta()
-	c.Assert(err, IsNil)
 
 	// check seed
-	seedYaml, err := seedwriter.InternalReadSeedYaml(filepath.Join(s.opts.SeedDir, "seed.yaml"))
-	c.Assert(err, IsNil)
+	seedYaml := mylog.Check2(seedwriter.InternalReadSeedYaml(filepath.Join(s.opts.SeedDir, "seed.yaml")))
+
 	c.Assert(seedYaml.Snaps, HasLen, 8)
 
 	// check the files are in place
@@ -2036,8 +1957,8 @@ func (s *writerSuite) TestSeedSnapsWriteMetaExtraSnaps(c *C) {
 		})
 	}
 
-	l, err := os.ReadDir(filepath.Join(s.opts.SeedDir, "snaps"))
-	c.Assert(err, IsNil)
+	l := mylog.Check2(os.ReadDir(filepath.Join(s.opts.SeedDir, "snaps")))
+
 	c.Check(l, HasLen, 8)
 
 	// check the snap assertions are also in place
@@ -2079,37 +2000,34 @@ func (s *writerSuite) TestSeedSnapsWriteMetaLocalExtraSnaps(c *C) {
 	s.makeSnap(c, "core", "")
 	requiredFn := s.makeLocalSnap(c, "required")
 
-	w, err := seedwriter.New(model, s.opts)
-	c.Assert(err, IsNil)
+	w := mylog.Check2(seedwriter.New(model, s.opts))
 
-	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Path: requiredFn}})
-	c.Assert(err, IsNil)
+	mylog.Check(w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Path: requiredFn}}))
 
-	err = w.Start(s.db, s.rf)
-	c.Assert(err, IsNil)
+	mylog.Check(w.Start(s.db, s.rf))
 
-	localSnaps, err := w.LocalSnaps()
-	c.Assert(err, IsNil)
+
+	localSnaps := mylog.Check2(w.LocalSnaps())
+
 	c.Assert(localSnaps, HasLen, 1)
 
 	for _, sn := range localSnaps {
-		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, model, s.rf, s.db)
+		si, aRefs := mylog.Check3(seedwriter.DeriveSideInfo(sn.Path, model, s.rf, s.db))
 		if !errors.Is(err, &asserts.NotFoundError{}) {
-			c.Assert(err, IsNil)
+
 		}
-		f, err := snapfile.Open(sn.Path)
-		c.Assert(err, IsNil)
-		info, err := snap.ReadInfoFromSnapFile(f, si)
-		c.Assert(err, IsNil)
+		f := mylog.Check2(snapfile.Open(sn.Path))
+
+		info := mylog.Check2(snap.ReadInfoFromSnapFile(f, si))
+
 		w.SetInfo(sn, info)
 		s.aRefs[sn.SnapName()] = aRefs
 	}
+	mylog.Check(w.InfoDerived())
 
-	err = w.InfoDerived()
-	c.Assert(err, IsNil)
 
-	snaps, err := w.SnapsToDownload()
-	c.Assert(err, IsNil)
+	snaps := mylog.Check2(w.SnapsToDownload())
+
 	c.Assert(snaps, HasLen, 6)
 
 	s.AssertedSnapInfo("cont-producer").EditedLinks = map[string][]string{
@@ -2119,42 +2037,40 @@ func (s *writerSuite) TestSeedSnapsWriteMetaLocalExtraSnaps(c *C) {
 		s.fillDownloadedSnap(c, w, sn)
 	}
 
-	complete, err := w.Downloaded(s.fetchAsserts(c))
-	c.Assert(err, IsNil)
+	complete := mylog.Check2(w.Downloaded(s.fetchAsserts(c)))
+
 	c.Assert(complete, Equals, false)
 
-	snaps, err = w.SnapsToDownload()
-	c.Assert(err, IsNil)
+	snaps = mylog.Check2(w.SnapsToDownload())
+
 	c.Assert(snaps, HasLen, 0)
 
-	complete, err = w.Downloaded(s.fetchAsserts(c))
-	c.Assert(err, IsNil)
+	complete = mylog.Check2(w.Downloaded(s.fetchAsserts(c)))
+
 	c.Assert(complete, Equals, false)
 
-	snaps, err = w.SnapsToDownload()
-	c.Assert(err, IsNil)
+	snaps = mylog.Check2(w.SnapsToDownload())
+
 	c.Assert(snaps, HasLen, 1)
 	c.Check(naming.SameSnap(snaps[0], naming.Snap("core")), Equals, true)
 
 	s.fillDownloadedSnap(c, w, snaps[0])
 
-	complete, err = w.Downloaded(s.fetchAsserts(c))
-	c.Assert(err, IsNil)
+	complete = mylog.Check2(w.Downloaded(s.fetchAsserts(c)))
+
 	c.Assert(complete, Equals, true)
 
 	copySnap := func(name, src, dst string) error {
 		return osutil.CopyFile(src, dst, 0)
 	}
+	mylog.Check(w.SeedSnaps(copySnap))
 
-	err = w.SeedSnaps(copySnap)
-	c.Assert(err, IsNil)
+	mylog.Check(w.WriteMeta())
 
-	err = w.WriteMeta()
-	c.Assert(err, IsNil)
 
 	// check seed
-	seedYaml, err := seedwriter.InternalReadSeedYaml(filepath.Join(s.opts.SeedDir, "seed.yaml"))
-	c.Assert(err, IsNil)
+	seedYaml := mylog.Check2(seedwriter.InternalReadSeedYaml(filepath.Join(s.opts.SeedDir, "seed.yaml")))
+
 	c.Assert(seedYaml.Snaps, HasLen, 8)
 
 	// check the files are in place
@@ -2193,26 +2109,26 @@ func (s *writerSuite) TestSeedSnapsWriteMetaLocalExtraSnaps(c *C) {
 		})
 	}
 
-	l, err := os.ReadDir(filepath.Join(s.opts.SeedDir, "snaps"))
-	c.Assert(err, IsNil)
+	l := mylog.Check2(os.ReadDir(filepath.Join(s.opts.SeedDir, "snaps")))
+
 	c.Check(l, HasLen, 8)
 
-	unassertedSnaps, err := w.UnassertedSnaps()
-	c.Assert(err, IsNil)
+	unassertedSnaps := mylog.Check2(w.UnassertedSnaps())
+
 	c.Check(unassertedSnaps, HasLen, 1)
 	c.Check(naming.SameSnap(unassertedSnaps[0], naming.Snap("required")), Equals, true)
 }
 
 func (s *writerSuite) TestSeedSnapsWriteMetaCore20(c *C) {
 	// add store assertion
-	storeAs, err := s.StoreSigning.Sign(asserts.StoreType, map[string]interface{}{
+	storeAs := mylog.Check2(s.StoreSigning.Sign(asserts.StoreType, map[string]interface{}{
 		"store":       "my-store",
 		"operator-id": "canonical",
 		"timestamp":   time.Now().UTC().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	err = s.StoreSigning.Add(storeAs)
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
+	mylog.Check(s.StoreSigning.Add(storeAs))
+
 
 	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
 		"display-name": "my model",
@@ -2260,14 +2176,13 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20(c *C) {
 	s.makeSnap(c, "cont-consumer", "developerid")
 
 	s.opts.Label = "20191003"
-	w, err := seedwriter.New(model, s.opts)
-	c.Assert(err, IsNil)
+	w := mylog.Check2(seedwriter.New(model, s.opts))
 
-	err = w.Start(s.db, s.rf)
-	c.Assert(err, IsNil)
+	mylog.Check(w.Start(s.db, s.rf))
 
-	snaps, err := w.SnapsToDownload()
-	c.Assert(err, IsNil)
+
+	snaps := mylog.Check2(w.SnapsToDownload())
+
 	c.Check(snaps, HasLen, 7)
 
 	s.AssertedSnapInfo("cont-producer").EditedLinks = map[string][]string{
@@ -2287,15 +2202,13 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20(c *C) {
 		s.fillDownloadedSnap(c, w, sn)
 	}
 
-	complete, err := w.Downloaded(s.fetchAsserts(c))
-	c.Assert(err, IsNil)
+	complete := mylog.Check2(w.Downloaded(s.fetchAsserts(c)))
+
 	c.Check(complete, Equals, true)
+	mylog.Check(w.SeedSnaps(nil))
 
-	err = w.SeedSnaps(nil)
-	c.Assert(err, IsNil)
+	mylog.Check(w.WriteMeta())
 
-	err = w.WriteMeta()
-	c.Assert(err, IsNil)
 
 	// check seed
 	systemDir := filepath.Join(s.opts.SeedDir, "systems", s.opts.Label)
@@ -2310,8 +2223,8 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20(c *C) {
 		c.Check(p, testutil.FilePresent)
 	}
 
-	l, err := os.ReadDir(filepath.Join(s.opts.SeedDir, "snaps"))
-	c.Assert(err, IsNil)
+	l := mylog.Check2(os.ReadDir(filepath.Join(s.opts.SeedDir, "snaps")))
+
 	c.Check(l, HasLen, 7)
 
 	// check assertions
@@ -2380,15 +2293,15 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20(c *C) {
 	c.Check(filepath.Join(systemDir, "extra-snaps"), testutil.FileAbsent)
 
 	// check auxiliary store info
-	l, err = os.ReadDir(filepath.Join(systemDir, "snaps"))
-	c.Assert(err, IsNil)
+	l = mylog.Check2(os.ReadDir(filepath.Join(systemDir, "snaps")))
+
 	c.Check(l, HasLen, 1)
 
-	b, err := os.ReadFile(filepath.Join(systemDir, "snaps", "aux-info.json"))
-	c.Assert(err, IsNil)
+	b := mylog.Check2(os.ReadFile(filepath.Join(systemDir, "snaps", "aux-info.json")))
+
 	var auxInfos map[string]map[string]interface{}
-	err = json.Unmarshal(b, &auxInfos)
-	c.Assert(err, IsNil)
+	mylog.Check(json.Unmarshal(b, &auxInfos))
+
 	c.Check(auxInfos, DeepEquals, map[string]map[string]interface{}{
 		s.AssertedSnapID("cont-consumer"): {
 			"private": true,
@@ -2439,7 +2352,7 @@ func (s *writerSuite) TestCore20InvalidLabel(c *C) {
 
 	for _, inv := range invalid {
 		s.opts.Label = inv
-		w, err := seedwriter.New(model, s.opts)
+		w := mylog.Check2(seedwriter.New(model, s.opts))
 		c.Assert(w, IsNil)
 		c.Check(err, ErrorMatches, fmt.Sprintf(`invalid seed system label: %q`, inv))
 	}
@@ -2482,7 +2395,7 @@ func (s *writerSuite) TestDownloadedCore20CheckBase(c *C) {
 	s.makeSnap(c, "cont-producer", "developerid")
 
 	s.opts.Label = "20191003"
-	_, _, err := s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c))
+	_, _ := mylog.Check3(s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c)))
 	c.Check(err, ErrorMatches, `cannot add snap "cont-producer" without also adding its base "core18" explicitly`)
 }
 
@@ -2529,7 +2442,7 @@ func (s *writerSuite) TestDownloadedCore20CheckBaseModes(c *C) {
 	s.makeSnap(c, "cont-producer", "developerid")
 
 	s.opts.Label = "20191003"
-	_, _, err := s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c))
+	_, _ := mylog.Check3(s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c)))
 	c.Check(err, ErrorMatches, `cannot add snap "cont-producer" without also adding its base "core18" explicitly for all relevant modes \(run, ephemeral\)`)
 }
 
@@ -2577,7 +2490,7 @@ func (s *writerSuite) TestDownloadedCore20CheckBaseEphemeralOK(c *C) {
 	s.makeSnap(c, "cont-producer", "developerid")
 
 	s.opts.Label = "20191003"
-	_, _, err := s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c))
+	_, _ := mylog.Check3(s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c)))
 	c.Check(err, IsNil)
 }
 
@@ -2635,7 +2548,7 @@ func (s *writerSuite) TestDownloadedCore20CheckBaseCoreXX(c *C) {
 			"snaps":        snaps,
 		})
 
-		_, _, err := s.upToDownloaded(c, model, s.fillMetaDownloadedSnap, s.fetchAsserts(c))
+		_, _ := mylog.Check3(s.upToDownloaded(c, model, s.fillMetaDownloadedSnap, s.fetchAsserts(c)))
 		if t.err == "" {
 			c.Check(err, IsNil)
 		} else {
@@ -2643,6 +2556,7 @@ func (s *writerSuite) TestDownloadedCore20CheckBaseCoreXX(c *C) {
 		}
 	}
 }
+
 func (s *writerSuite) TestDownloadedCore20MissingDefaultProviderModes(c *C) {
 	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
 		"display-name": "my model",
@@ -2692,7 +2606,7 @@ func (s *writerSuite) TestDownloadedCore20MissingDefaultProviderModes(c *C) {
 	s.makeSnap(c, "cont-consumer", "developerid")
 
 	s.opts.Label = "20191003"
-	_, _, err := s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c))
+	_, _ := mylog.Check3(s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c)))
 	c.Check(err, ErrorMatches, `prerequisites need to be added explicitly for relevant mode recover: cannot use snap "cont-consumer": default provider "cont-producer" or any alternative provider for content "cont" is missing`)
 }
 
@@ -2751,8 +2665,8 @@ func (s *writerSuite) TestDownloadedCore20AlternativeProviderModes(c *C) {
 	s.makeSnap(c, "alt-cont-producer", "developerid")
 
 	s.opts.Label = "20191003"
-	complete, w, err := s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c))
-	c.Assert(err, IsNil)
+	complete, w := mylog.Check3(s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c)))
+
 	c.Check(complete, Equals, true)
 	warns := w.Warnings()
 	c.Assert(warns, HasLen, 1)
@@ -2760,7 +2674,6 @@ func (s *writerSuite) TestDownloadedCore20AlternativeProviderModes(c *C) {
 }
 
 func (s *writerSuite) TestCore20NonDangerousDisallowedDevmodeSnaps(c *C) {
-
 	s.makeSnap(c, "my-devmode", "canonical")
 
 	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
@@ -2791,17 +2704,16 @@ func (s *writerSuite) TestCore20NonDangerousDisallowedDevmodeSnaps(c *C) {
 
 	s.opts.Label = "20191107"
 
-	w, err := seedwriter.New(model, s.opts)
-	c.Assert(err, IsNil)
+	w := mylog.Check2(seedwriter.New(model, s.opts))
 
-	err = w.Start(s.db, s.rf)
-	c.Assert(err, IsNil)
+	mylog.Check(w.Start(s.db, s.rf))
 
-	localSnaps, err := w.LocalSnaps()
-	c.Assert(err, IsNil)
+
+	localSnaps := mylog.Check2(w.LocalSnaps())
+
 	c.Assert(localSnaps, HasLen, 0)
 
-	snaps, err := w.SnapsToDownload()
+	snaps := mylog.Check2(w.SnapsToDownload())
 	c.Check(err, IsNil)
 	c.Assert(snaps, HasLen, 5)
 
@@ -2810,7 +2722,7 @@ func (s *writerSuite) TestCore20NonDangerousDisallowedDevmodeSnaps(c *C) {
 
 	info := s.AssertedSnapInfo(sn.SnapName())
 	c.Assert(info, NotNil, Commentf("%s not defined", sn.SnapName()))
-	err = w.SetInfo(sn, info)
+	mylog.Check(w.SetInfo(sn, info))
 	c.Assert(err, ErrorMatches, "cannot override channels, add devmode snaps, local snaps, or extra snaps with a model of grade higher than dangerous")
 	c.Check(sn.Info, Not(Equals), info)
 }
@@ -2853,41 +2765,34 @@ func (s *writerSuite) TestCore20NonDangerousDisallowedOptionsSnaps(c *C) {
 
 	for idx, t := range tests {
 		s.opts.Label = fmt.Sprintf("%s%d", baseLabel, idx)
-		w, err := seedwriter.New(model, s.opts)
-		c.Assert(err, IsNil)
+		w := mylog.Check2(seedwriter.New(model, s.opts))
 
-		err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{t.optSnap})
-		if err != nil {
-			c.Check(err, ErrorMatches, expectedErr)
-			continue
-		}
+		mylog.Check(w.SetOptionsSnaps([]*seedwriter.OptionsSnap{t.optSnap}))
+		mylog.Check(w.Start(s.db, s.rf))
 
-		err = w.Start(s.db, s.rf)
-		c.Assert(err, IsNil)
 
 		if t.optSnap.Path != "" {
-			localSnaps, err := w.LocalSnaps()
-			c.Assert(err, IsNil)
+			localSnaps := mylog.Check2(w.LocalSnaps())
+
 			c.Assert(localSnaps, HasLen, 1)
 
 			for _, sn := range localSnaps {
-				si, _, err := seedwriter.DeriveSideInfo(sn.Path, model, s.rf, s.db)
+				si, _ := mylog.Check3(seedwriter.DeriveSideInfo(sn.Path, model, s.rf, s.db))
 				if !errors.Is(err, &asserts.NotFoundError{}) {
-					c.Assert(err, IsNil)
+
 				}
-				f, err := snapfile.Open(sn.Path)
-				c.Assert(err, IsNil)
-				info, err := snap.ReadInfoFromSnapFile(f, si)
-				c.Assert(err, IsNil)
+				f := mylog.Check2(snapfile.Open(sn.Path))
+
+				info := mylog.Check2(snap.ReadInfoFromSnapFile(f, si))
+
 				w.SetInfo(sn, info)
 			}
-
-			err = w.InfoDerived()
+			mylog.Check(w.InfoDerived())
 			c.Check(err, ErrorMatches, expectedErr)
 			continue
 		}
 
-		_, err = w.SnapsToDownload()
+		_ = mylog.Check2(w.SnapsToDownload())
 		c.Check(err, ErrorMatches, expectedErr)
 	}
 }
@@ -2916,21 +2821,21 @@ func (s *writerSuite) TestCore20NonDangerousNoChannelOverride(c *C) {
 
 	s.opts.DefaultChannel = "stable"
 	s.opts.Label = "20191107"
-	w, err := seedwriter.New(model, s.opts)
+	w := mylog.Check2(seedwriter.New(model, s.opts))
 	c.Assert(w, IsNil)
 	c.Check(err, ErrorMatches, `cannot override channels, add devmode snaps, local snaps, or extra snaps with a model of grade higher than dangerous`)
 }
 
 func (s *writerSuite) TestSeedSnapsWriteMetaCore20LocalSnaps(c *C) {
 	// add store assertion
-	storeAs, err := s.StoreSigning.Sign(asserts.StoreType, map[string]interface{}{
+	storeAs := mylog.Check2(s.StoreSigning.Sign(asserts.StoreType, map[string]interface{}{
 		"store":       "my-store",
 		"operator-id": "canonical",
 		"timestamp":   time.Now().UTC().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	err = s.StoreSigning.Add(storeAs)
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
+	mylog.Check(s.StoreSigning.Add(storeAs))
+
 
 	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
 		"display-name": "my model",
@@ -2968,34 +2873,31 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20LocalSnaps(c *C) {
 	requiredFn := s.makeLocalSnap(c, "required20")
 
 	s.opts.Label = "20191030"
-	w, err := seedwriter.New(model, s.opts)
-	c.Assert(err, IsNil)
+	w := mylog.Check2(seedwriter.New(model, s.opts))
 
-	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Path: requiredFn}})
-	c.Assert(err, IsNil)
+	mylog.Check(w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Path: requiredFn}}))
 
-	err = w.Start(s.db, s.rf)
-	c.Assert(err, IsNil)
+	mylog.Check(w.Start(s.db, s.rf))
 
-	localSnaps, err := w.LocalSnaps()
-	c.Assert(err, IsNil)
+
+	localSnaps := mylog.Check2(w.LocalSnaps())
+
 	c.Assert(localSnaps, HasLen, 1)
 
 	for _, sn := range localSnaps {
-		_, _, err := seedwriter.DeriveSideInfo(sn.Path, model, s.rf, s.db)
+		_, _ := mylog.Check3(seedwriter.DeriveSideInfo(sn.Path, model, s.rf, s.db))
 		c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
-		f, err := snapfile.Open(sn.Path)
-		c.Assert(err, IsNil)
-		info, err := snap.ReadInfoFromSnapFile(f, nil)
-		c.Assert(err, IsNil)
+		f := mylog.Check2(snapfile.Open(sn.Path))
+
+		info := mylog.Check2(snap.ReadInfoFromSnapFile(f, nil))
+
 		w.SetInfo(sn, info)
 	}
+	mylog.Check(w.InfoDerived())
 
-	err = w.InfoDerived()
-	c.Assert(err, IsNil)
 
-	snaps, err := w.SnapsToDownload()
-	c.Assert(err, IsNil)
+	snaps := mylog.Check2(w.SnapsToDownload())
+
 	c.Check(snaps, HasLen, 4)
 
 	for _, sn := range snaps {
@@ -3011,33 +2913,31 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20LocalSnaps(c *C) {
 		s.fillDownloadedSnap(c, w, sn)
 	}
 
-	complete, err := w.Downloaded(s.fetchAsserts(c))
-	c.Assert(err, IsNil)
+	complete := mylog.Check2(w.Downloaded(s.fetchAsserts(c)))
+
 	c.Check(complete, Equals, true)
 
 	copySnap := func(name, src, dst string) error {
 		return osutil.CopyFile(src, dst, 0)
 	}
+	mylog.Check(w.SeedSnaps(copySnap))
 
-	err = w.SeedSnaps(copySnap)
-	c.Assert(err, IsNil)
+	mylog.Check(w.WriteMeta())
 
-	err = w.WriteMeta()
-	c.Assert(err, IsNil)
 
 	// check seed
 	systemDir := filepath.Join(s.opts.SeedDir, "systems", s.opts.Label)
 	c.Check(systemDir, testutil.FilePresent)
 
-	l, err := os.ReadDir(filepath.Join(s.opts.SeedDir, "snaps"))
-	c.Assert(err, IsNil)
+	l := mylog.Check2(os.ReadDir(filepath.Join(s.opts.SeedDir, "snaps")))
+
 	c.Check(l, HasLen, 4)
 
 	// local unasserted snap was put in system snaps dir
 	c.Check(filepath.Join(systemDir, "snaps", "required20_1.0.snap"), testutil.FilePresent)
 
-	options20, err := seedwriter.InternalReadOptions20(filepath.Join(systemDir, "options.yaml"))
-	c.Assert(err, IsNil)
+	options20 := mylog.Check2(seedwriter.InternalReadOptions20(filepath.Join(systemDir, "options.yaml")))
+
 
 	c.Check(options20.Snaps, DeepEquals, []*seedwriter.InternalSnap20{
 		{
@@ -3050,14 +2950,14 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20LocalSnaps(c *C) {
 
 func (s *writerSuite) TestSeedSnapsWriteMetaCore20ChannelOverrides(c *C) {
 	// add store assertion
-	storeAs, err := s.StoreSigning.Sign(asserts.StoreType, map[string]interface{}{
+	storeAs := mylog.Check2(s.StoreSigning.Sign(asserts.StoreType, map[string]interface{}{
 		"store":       "my-store",
 		"operator-id": "canonical",
 		"timestamp":   time.Now().UTC().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	err = s.StoreSigning.Add(storeAs)
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
+	mylog.Check(s.StoreSigning.Add(storeAs))
+
 
 	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
 		"display-name": "my model",
@@ -3096,43 +2996,39 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20ChannelOverrides(c *C) {
 
 	s.opts.Label = "20191030"
 	s.opts.DefaultChannel = "candidate"
-	w, err := seedwriter.New(model, s.opts)
-	c.Assert(err, IsNil)
+	w := mylog.Check2(seedwriter.New(model, s.opts))
 
-	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "pc", Channel: "edge"}})
-	c.Assert(err, IsNil)
+	mylog.Check(w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "pc", Channel: "edge"}}))
 
-	err = w.Start(s.db, s.rf)
-	c.Assert(err, IsNil)
+	mylog.Check(w.Start(s.db, s.rf))
 
-	snaps, err := w.SnapsToDownload()
-	c.Assert(err, IsNil)
+
+	snaps := mylog.Check2(w.SnapsToDownload())
+
 	c.Check(snaps, HasLen, 5)
 
 	for _, sn := range snaps {
 		s.fillDownloadedSnap(c, w, sn)
 	}
 
-	complete, err := w.Downloaded(s.fetchAsserts(c))
-	c.Assert(err, IsNil)
+	complete := mylog.Check2(w.Downloaded(s.fetchAsserts(c)))
+
 	c.Check(complete, Equals, true)
+	mylog.Check(w.SeedSnaps(nil))
 
-	err = w.SeedSnaps(nil)
-	c.Assert(err, IsNil)
+	mylog.Check(w.WriteMeta())
 
-	err = w.WriteMeta()
-	c.Assert(err, IsNil)
 
 	// check seed
 	systemDir := filepath.Join(s.opts.SeedDir, "systems", s.opts.Label)
 	c.Check(systemDir, testutil.FilePresent)
 
-	l, err := os.ReadDir(filepath.Join(s.opts.SeedDir, "snaps"))
-	c.Assert(err, IsNil)
+	l := mylog.Check2(os.ReadDir(filepath.Join(s.opts.SeedDir, "snaps")))
+
 	c.Check(l, HasLen, 5)
 
-	options20, err := seedwriter.InternalReadOptions20(filepath.Join(systemDir, "options.yaml"))
-	c.Assert(err, IsNil)
+	options20 := mylog.Check2(seedwriter.InternalReadOptions20(filepath.Join(systemDir, "options.yaml")))
+
 
 	c.Check(options20.Snaps, DeepEquals, []*seedwriter.InternalSnap20{
 		{
@@ -3186,7 +3082,8 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20ModelOverrideSnapd(c *C) {
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
-			}},
+			},
+		},
 	})
 
 	// validity
@@ -3198,14 +3095,13 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20ModelOverrideSnapd(c *C) {
 	s.makeSnap(c, "pc=20", "")
 
 	s.opts.Label = "20191121"
-	w, err := seedwriter.New(model, s.opts)
-	c.Assert(err, IsNil)
+	w := mylog.Check2(seedwriter.New(model, s.opts))
 
-	err = w.Start(s.db, s.rf)
-	c.Assert(err, IsNil)
+	mylog.Check(w.Start(s.db, s.rf))
 
-	snaps, err := w.SnapsToDownload()
-	c.Assert(err, IsNil)
+
+	snaps := mylog.Check2(w.SnapsToDownload())
+
 	c.Check(snaps, HasLen, 4)
 
 	for _, sn := range snaps {
@@ -3223,15 +3119,13 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20ModelOverrideSnapd(c *C) {
 		s.fillDownloadedSnap(c, w, sn)
 	}
 
-	complete, err := w.Downloaded(s.fetchAsserts(c))
-	c.Assert(err, IsNil)
+	complete := mylog.Check2(w.Downloaded(s.fetchAsserts(c)))
+
 	c.Check(complete, Equals, true)
+	mylog.Check(w.SeedSnaps(nil))
 
-	err = w.SeedSnaps(nil)
-	c.Assert(err, IsNil)
+	mylog.Check(w.WriteMeta())
 
-	err = w.WriteMeta()
-	c.Assert(err, IsNil)
 
 	// check seed
 	systemDir := filepath.Join(s.opts.SeedDir, "systems", s.opts.Label)
@@ -3246,8 +3140,8 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20ModelOverrideSnapd(c *C) {
 		c.Check(p, testutil.FilePresent)
 	}
 
-	l, err := os.ReadDir(filepath.Join(s.opts.SeedDir, "snaps"))
-	c.Assert(err, IsNil)
+	l := mylog.Check2(os.ReadDir(filepath.Join(s.opts.SeedDir, "snaps")))
+
 	c.Check(l, HasLen, 4)
 
 	c.Check(filepath.Join(systemDir, "extra-snaps"), testutil.FileAbsent)
@@ -3286,7 +3180,8 @@ func (s *writerSuite) TestSnapsToDownloadCore20OptionalSnaps(c *C) {
 				"name":     "optional20-b",
 				"id":       s.AssertedSnapID("optional20-b"),
 				"presence": "optional",
-			}},
+			},
+		},
 	})
 
 	// validity
@@ -3301,17 +3196,15 @@ func (s *writerSuite) TestSnapsToDownloadCore20OptionalSnaps(c *C) {
 	s.makeSnap(c, "optional20-b", "developerid")
 
 	s.opts.Label = "20191122"
-	w, err := seedwriter.New(model, s.opts)
-	c.Assert(err, IsNil)
+	w := mylog.Check2(seedwriter.New(model, s.opts))
 
-	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "optional20-b"}})
-	c.Assert(err, IsNil)
+	mylog.Check(w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "optional20-b"}}))
 
-	err = w.Start(s.db, s.rf)
-	c.Assert(err, IsNil)
+	mylog.Check(w.Start(s.db, s.rf))
 
-	snaps, err := w.SnapsToDownload()
-	c.Assert(err, IsNil)
+
+	snaps := mylog.Check2(w.SnapsToDownload())
+
 	c.Check(snaps, HasLen, 6)
 	c.Check(snaps[5].SnapName(), Equals, "optional20-b")
 }
@@ -3334,7 +3227,8 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20ExtraSnaps(c *C) {
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
-			}},
+			},
+		},
 	})
 
 	// validity
@@ -3349,34 +3243,31 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20ExtraSnaps(c *C) {
 	contConsumerFn := s.makeLocalSnap(c, "cont-consumer")
 
 	s.opts.Label = "20191122"
-	w, err := seedwriter.New(model, s.opts)
-	c.Assert(err, IsNil)
+	w := mylog.Check2(seedwriter.New(model, s.opts))
 
-	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "cont-producer", Channel: "edge"}, {Name: "core18"}, {Path: contConsumerFn}})
-	c.Assert(err, IsNil)
+	mylog.Check(w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "cont-producer", Channel: "edge"}, {Name: "core18"}, {Path: contConsumerFn}}))
 
-	err = w.Start(s.db, s.rf)
-	c.Assert(err, IsNil)
+	mylog.Check(w.Start(s.db, s.rf))
 
-	localSnaps, err := w.LocalSnaps()
-	c.Assert(err, IsNil)
+
+	localSnaps := mylog.Check2(w.LocalSnaps())
+
 	c.Assert(localSnaps, HasLen, 1)
 
 	for _, sn := range localSnaps {
-		_, _, err := seedwriter.DeriveSideInfo(sn.Path, model, s.rf, s.db)
+		_, _ := mylog.Check3(seedwriter.DeriveSideInfo(sn.Path, model, s.rf, s.db))
 		c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
-		f, err := snapfile.Open(sn.Path)
-		c.Assert(err, IsNil)
-		info, err := snap.ReadInfoFromSnapFile(f, nil)
-		c.Assert(err, IsNil)
+		f := mylog.Check2(snapfile.Open(sn.Path))
+
+		info := mylog.Check2(snap.ReadInfoFromSnapFile(f, nil))
+
 		w.SetInfo(sn, info)
 	}
+	mylog.Check(w.InfoDerived())
 
-	err = w.InfoDerived()
-	c.Assert(err, IsNil)
 
-	snaps, err := w.SnapsToDownload()
-	c.Assert(err, IsNil)
+	snaps := mylog.Check2(w.SnapsToDownload())
+
 	c.Check(snaps, HasLen, 4)
 
 	for _, sn := range snaps {
@@ -3389,12 +3280,12 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20ExtraSnaps(c *C) {
 		s.fillDownloadedSnap(c, w, sn)
 	}
 
-	complete, err := w.Downloaded(s.fetchAsserts(c))
-	c.Assert(err, IsNil)
+	complete := mylog.Check2(w.Downloaded(s.fetchAsserts(c)))
+
 	c.Check(complete, Equals, false)
 
-	snaps, err = w.SnapsToDownload()
-	c.Assert(err, IsNil)
+	snaps = mylog.Check2(w.SnapsToDownload())
+
 	c.Assert(snaps, HasLen, 2)
 	c.Check(snaps[0].SnapName(), Equals, "cont-producer")
 	c.Check(snaps[1].SnapName(), Equals, "core18")
@@ -3410,30 +3301,28 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20ExtraSnaps(c *C) {
 		info := s.doFillMetaDownloadedSnap(c, w, sn)
 
 		c.Assert(sn.Path, Equals, filepath.Join(s.opts.SeedDir, "systems", s.opts.Label, "snaps", info.Filename()))
-		err := os.Rename(s.AssertedSnap(sn.SnapName()), sn.Path)
-		c.Assert(err, IsNil)
+		mylog.Check(os.Rename(s.AssertedSnap(sn.SnapName()), sn.Path))
+
 	}
 
-	complete, err = w.Downloaded(s.fetchAsserts(c))
-	c.Assert(err, IsNil)
+	complete = mylog.Check2(w.Downloaded(s.fetchAsserts(c)))
+
 	c.Check(complete, Equals, true)
 
 	copySnap := func(name, src, dst string) error {
 		return osutil.CopyFile(src, dst, 0)
 	}
+	mylog.Check(w.SeedSnaps(copySnap))
 
-	err = w.SeedSnaps(copySnap)
-	c.Assert(err, IsNil)
+	mylog.Check(w.WriteMeta())
 
-	err = w.WriteMeta()
-	c.Assert(err, IsNil)
 
 	// check seed
 	systemDir := filepath.Join(s.opts.SeedDir, "systems", s.opts.Label)
 	c.Check(systemDir, testutil.FilePresent)
 
-	l, err := os.ReadDir(filepath.Join(s.opts.SeedDir, "snaps"))
-	c.Assert(err, IsNil)
+	l := mylog.Check2(os.ReadDir(filepath.Join(s.opts.SeedDir, "snaps")))
+
 	c.Check(l, HasLen, 4)
 
 	// extra snaps were put in system snaps dir
@@ -3469,8 +3358,8 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20ExtraSnaps(c *C) {
 		snapRevUniq("cont-producer", 1): true,
 	})
 
-	options20, err := seedwriter.InternalReadOptions20(filepath.Join(systemDir, "options.yaml"))
-	c.Assert(err, IsNil)
+	options20 := mylog.Check2(seedwriter.InternalReadOptions20(filepath.Join(systemDir, "options.yaml")))
+
 
 	c.Check(options20.Snaps, DeepEquals, []*seedwriter.InternalSnap20{
 		{
@@ -3508,7 +3397,8 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20LocalAssertedSnaps(c *C) {
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
-			}},
+			},
+		},
 	})
 
 	// validity
@@ -3521,35 +3411,32 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20LocalAssertedSnaps(c *C) {
 	s.makeSnap(c, "required20", "developerid")
 
 	s.opts.Label = "20191122"
-	w, err := seedwriter.New(model, s.opts)
-	c.Assert(err, IsNil)
+	w := mylog.Check2(seedwriter.New(model, s.opts))
 
-	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Path: s.AssertedSnap("pc"), Channel: "edge"}, {Path: s.AssertedSnap("required20")}})
-	c.Assert(err, IsNil)
+	mylog.Check(w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Path: s.AssertedSnap("pc"), Channel: "edge"}, {Path: s.AssertedSnap("required20")}}))
 
-	err = w.Start(s.db, s.rf)
-	c.Assert(err, IsNil)
+	mylog.Check(w.Start(s.db, s.rf))
 
-	localSnaps, err := w.LocalSnaps()
-	c.Assert(err, IsNil)
+
+	localSnaps := mylog.Check2(w.LocalSnaps())
+
 	c.Assert(localSnaps, HasLen, 2)
 
 	for _, sn := range localSnaps {
-		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, model, s.rf, s.db)
-		c.Assert(err, IsNil)
-		f, err := snapfile.Open(sn.Path)
-		c.Assert(err, IsNil)
-		info, err := snap.ReadInfoFromSnapFile(f, si)
-		c.Assert(err, IsNil)
+		si, aRefs := mylog.Check3(seedwriter.DeriveSideInfo(sn.Path, model, s.rf, s.db))
+
+		f := mylog.Check2(snapfile.Open(sn.Path))
+
+		info := mylog.Check2(snap.ReadInfoFromSnapFile(f, si))
+
 		w.SetInfo(sn, info)
 		s.aRefs[sn.SnapName()] = aRefs
 	}
+	mylog.Check(w.InfoDerived())
 
-	err = w.InfoDerived()
-	c.Assert(err, IsNil)
 
-	snaps, err := w.SnapsToDownload()
-	c.Assert(err, IsNil)
+	snaps := mylog.Check2(w.SnapsToDownload())
+
 	c.Check(snaps, HasLen, 3)
 
 	for _, sn := range snaps {
@@ -3562,34 +3449,32 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20LocalAssertedSnaps(c *C) {
 		s.fillDownloadedSnap(c, w, sn)
 	}
 
-	complete, err := w.Downloaded(s.fetchAsserts(c))
-	c.Assert(err, IsNil)
+	complete := mylog.Check2(w.Downloaded(s.fetchAsserts(c)))
+
 	c.Check(complete, Equals, false)
 
-	snaps, err = w.SnapsToDownload()
-	c.Assert(err, IsNil)
+	snaps = mylog.Check2(w.SnapsToDownload())
+
 	c.Assert(snaps, HasLen, 0)
 
-	complete, err = w.Downloaded(s.fetchAsserts(c))
-	c.Assert(err, IsNil)
+	complete = mylog.Check2(w.Downloaded(s.fetchAsserts(c)))
+
 	c.Check(complete, Equals, true)
 
 	copySnap := func(name, src, dst string) error {
 		return osutil.CopyFile(src, dst, 0)
 	}
+	mylog.Check(w.SeedSnaps(copySnap))
 
-	err = w.SeedSnaps(copySnap)
-	c.Assert(err, IsNil)
+	mylog.Check(w.WriteMeta())
 
-	err = w.WriteMeta()
-	c.Assert(err, IsNil)
 
 	// check seed
 	systemDir := filepath.Join(s.opts.SeedDir, "systems", s.opts.Label)
 	c.Check(systemDir, testutil.FilePresent)
 
-	l, err := os.ReadDir(filepath.Join(s.opts.SeedDir, "snaps"))
-	c.Assert(err, IsNil)
+	l := mylog.Check2(os.ReadDir(filepath.Join(s.opts.SeedDir, "snaps")))
+
 	c.Check(l, HasLen, 4)
 
 	// local asserted model snap was put in /snaps
@@ -3597,8 +3482,8 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20LocalAssertedSnaps(c *C) {
 	// extra snaps were put in system snaps dir
 	c.Check(filepath.Join(systemDir, "snaps", "required20_1.snap"), testutil.FilePresent)
 
-	options20, err := seedwriter.InternalReadOptions20(filepath.Join(systemDir, "options.yaml"))
-	c.Assert(err, IsNil)
+	options20 := mylog.Check2(seedwriter.InternalReadOptions20(filepath.Join(systemDir, "options.yaml")))
+
 
 	c.Check(options20.Snaps, DeepEquals, []*seedwriter.InternalSnap20{
 		{
@@ -3632,7 +3517,8 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20SignedLocalAssertedSnaps(c *C)
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
-			}},
+			},
+		},
 	})
 
 	// soundness
@@ -3644,36 +3530,35 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20SignedLocalAssertedSnaps(c *C)
 	s.makeSnap(c, "pc=20", "")
 
 	s.opts.Label = "20191122"
-	w, err := seedwriter.New(model, s.opts)
-	c.Assert(err, IsNil)
+	w := mylog.Check2(seedwriter.New(model, s.opts))
 
-	// use a local asserted snap with signed, which is supported
-	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Path: s.AssertedSnap("pc")}})
-	c.Assert(err, IsNil)
+	mylog.
 
-	err = w.Start(s.db, s.rf)
-	c.Assert(err, IsNil)
+		// use a local asserted snap with signed, which is supported
+		Check(w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Path: s.AssertedSnap("pc")}}))
 
-	localSnaps, err := w.LocalSnaps()
-	c.Assert(err, IsNil)
+	mylog.Check(w.Start(s.db, s.rf))
+
+
+	localSnaps := mylog.Check2(w.LocalSnaps())
+
 	c.Assert(localSnaps, HasLen, 1)
 
 	for _, sn := range localSnaps {
-		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, model, s.rf, s.db)
-		c.Assert(err, IsNil)
-		f, err := snapfile.Open(sn.Path)
-		c.Assert(err, IsNil)
-		info, err := snap.ReadInfoFromSnapFile(f, si)
-		c.Assert(err, IsNil)
+		si, aRefs := mylog.Check3(seedwriter.DeriveSideInfo(sn.Path, model, s.rf, s.db))
+
+		f := mylog.Check2(snapfile.Open(sn.Path))
+
+		info := mylog.Check2(snap.ReadInfoFromSnapFile(f, si))
+
 		w.SetInfo(sn, info)
 		s.aRefs[sn.SnapName()] = aRefs
 	}
+	mylog.Check(w.InfoDerived())
 
-	err = w.InfoDerived()
-	c.Assert(err, IsNil)
 
-	snaps, err := w.SnapsToDownload()
-	c.Assert(err, IsNil)
+	snaps := mylog.Check2(w.SnapsToDownload())
+
 	c.Check(snaps, HasLen, 3)
 
 	for _, sn := range snaps {
@@ -3686,26 +3571,24 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20SignedLocalAssertedSnaps(c *C)
 		s.fillDownloadedSnap(c, w, sn)
 	}
 
-	complete, err := w.Downloaded(s.fetchAsserts(c))
-	c.Assert(err, IsNil)
+	complete := mylog.Check2(w.Downloaded(s.fetchAsserts(c)))
+
 	c.Check(complete, Equals, true)
 
 	copySnap := func(name, src, dst string) error {
 		return osutil.CopyFile(src, dst, 0)
 	}
+	mylog.Check(w.SeedSnaps(copySnap))
 
-	err = w.SeedSnaps(copySnap)
-	c.Assert(err, IsNil)
+	mylog.Check(w.WriteMeta())
 
-	err = w.WriteMeta()
-	c.Assert(err, IsNil)
 
 	// check seed
 	systemDir := filepath.Join(s.opts.SeedDir, "systems", s.opts.Label)
 	c.Check(systemDir, testutil.FilePresent)
 
-	l, err := os.ReadDir(filepath.Join(s.opts.SeedDir, "snaps"))
-	c.Assert(err, IsNil)
+	l := mylog.Check2(os.ReadDir(filepath.Join(s.opts.SeedDir, "snaps")))
+
 	c.Check(l, HasLen, 4)
 
 	// local asserted model snap was put in /snaps
@@ -3733,17 +3616,16 @@ func (s *writerSuite) TestSeedSnapsWriteCore20ErrWhenDirExists(c *C) {
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
-			}},
+			},
+		},
 	})
+	mylog.Check(os.MkdirAll(filepath.Join(s.opts.SeedDir, "systems", "1234"), 0755))
 
-	err := os.MkdirAll(filepath.Join(s.opts.SeedDir, "systems", "1234"), 0755)
-	c.Assert(err, IsNil)
 	s.opts.Label = "1234"
-	w, err := seedwriter.New(model, s.opts)
-	c.Assert(err, IsNil)
-	c.Assert(w, NotNil)
+	w := mylog.Check2(seedwriter.New(model, s.opts))
 
-	err = w.Start(s.db, s.rf)
+	c.Assert(w, NotNil)
+	mylog.Check(w.Start(s.db, s.rf))
 	c.Assert(err, ErrorMatches, `system "1234" already exists`)
 	c.Assert(seedwriter.IsSytemDirectoryExistsError(err), Equals, true)
 }
@@ -3798,27 +3680,27 @@ func (s *writerSuite) testDownloadedCore20CheckClassic(c *C, modelGrade asserts.
 	s.makeSnap(c, "classic-snap", "developerid")
 
 	s.opts.Label = "20221125"
-	_, _, err := s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c))
+	_, _ := mylog.Check3(s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c)))
 	return err
 }
 
 func (s *writerSuite) TestDownloadedCore20CheckClassicDangerous(c *C) {
-	err := s.testDownloadedCore20CheckClassic(c, asserts.ModelDangerous, false)
+	mylog.Check(s.testDownloadedCore20CheckClassic(c, asserts.ModelDangerous, false))
 	c.Check(err, IsNil)
 }
 
 func (s *writerSuite) TestDownloadedCore20CheckClassicSignedNoFlag(c *C) {
-	err := s.testDownloadedCore20CheckClassic(c, asserts.ModelSigned, false)
+	mylog.Check(s.testDownloadedCore20CheckClassic(c, asserts.ModelSigned, false))
 	c.Check(err, ErrorMatches, `cannot use classic snap "classic-snap" with a model of grade higher than dangerous that does not allow it explicitly \(missing classic: true in snap stanza\)`)
 }
 
 func (s *writerSuite) TestDownloadedCore20CheckClassicSignedWithFlag(c *C) {
-	err := s.testDownloadedCore20CheckClassic(c, asserts.ModelSigned, true)
+	mylog.Check(s.testDownloadedCore20CheckClassic(c, asserts.ModelSigned, true))
 	c.Check(err, IsNil)
 }
 
 func (s *writerSuite) setupValidationSets(c *C) {
-	valSetA, err := s.StoreSigning.Sign(asserts.ValidationSetType, map[string]interface{}{
+	valSetA := mylog.Check2(s.StoreSigning.Sign(asserts.ValidationSetType, map[string]interface{}{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
@@ -3840,12 +3722,12 @@ func (s *writerSuite) setupValidationSets(c *C) {
 			},
 		},
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	err = s.StoreSigning.Add(valSetA)
+	}, nil, ""))
+
+	mylog.Check(s.StoreSigning.Add(valSetA))
 	c.Check(err, IsNil)
 
-	valSetB, err := s.StoreSigning.Sign(asserts.ValidationSetType, map[string]interface{}{
+	valSetB := mylog.Check2(s.StoreSigning.Sign(asserts.ValidationSetType, map[string]interface{}{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
@@ -3867,12 +3749,12 @@ func (s *writerSuite) setupValidationSets(c *C) {
 			},
 		},
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	err = s.StoreSigning.Add(valSetB)
+	}, nil, ""))
+
+	mylog.Check(s.StoreSigning.Add(valSetB))
 	c.Check(err, IsNil)
 
-	valSetC, err := s.StoreSigning.Sign(asserts.ValidationSetType, map[string]interface{}{
+	valSetC := mylog.Check2(s.StoreSigning.Sign(asserts.ValidationSetType, map[string]interface{}{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
@@ -3888,9 +3770,9 @@ func (s *writerSuite) setupValidationSets(c *C) {
 			},
 		},
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	err = s.StoreSigning.Add(valSetC)
+	}, nil, ""))
+
+	mylog.Check(s.StoreSigning.Add(valSetC))
 	c.Check(err, IsNil)
 }
 
@@ -3912,7 +3794,8 @@ func (s *writerSuite) TestValidateValidationSetsCore20EnforcedInvalid(c *C) {
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
-			}},
+			},
+		},
 		"validation-sets": []interface{}{
 			map[string]interface{}{
 				"account-id": "canonical",
@@ -3940,31 +3823,29 @@ func (s *writerSuite) TestValidateValidationSetsCore20EnforcedInvalid(c *C) {
 	s.makeSnap(c, "pc=20", "")
 
 	s.opts.Label = "20191122"
-	w, err := seedwriter.New(model, s.opts)
-	c.Assert(err, IsNil)
+	w := mylog.Check2(seedwriter.New(model, s.opts))
 
-	err = w.Start(s.db, s.rf)
-	c.Assert(err, IsNil)
+	mylog.Check(w.Start(s.db, s.rf))
 
-	localSnaps, err := w.LocalSnaps()
-	c.Assert(err, IsNil)
+
+	localSnaps := mylog.Check2(w.LocalSnaps())
+
 	c.Assert(localSnaps, HasLen, 0)
 
 	for _, sn := range localSnaps {
-		_, _, err := seedwriter.DeriveSideInfo(sn.Path, model, s.rf, s.db)
+		_, _ := mylog.Check3(seedwriter.DeriveSideInfo(sn.Path, model, s.rf, s.db))
 		c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
-		f, err := snapfile.Open(sn.Path)
-		c.Assert(err, IsNil)
-		info, err := snap.ReadInfoFromSnapFile(f, nil)
-		c.Assert(err, IsNil)
+		f := mylog.Check2(snapfile.Open(sn.Path))
+
+		info := mylog.Check2(snap.ReadInfoFromSnapFile(f, nil))
+
 		w.SetInfo(sn, info)
 	}
+	mylog.Check(w.InfoDerived())
 
-	err = w.InfoDerived()
-	c.Assert(err, IsNil)
 
-	snaps, err := w.SnapsToDownload()
-	c.Assert(err, IsNil)
+	snaps := mylog.Check2(w.SnapsToDownload())
+
 	c.Check(snaps, HasLen, 4)
 
 	for _, sn := range snaps {
@@ -3977,11 +3858,10 @@ func (s *writerSuite) TestValidateValidationSetsCore20EnforcedInvalid(c *C) {
 		s.fillDownloadedSnap(c, w, sn)
 	}
 
-	complete, err := w.Downloaded(s.fetchAsserts(c))
-	c.Assert(err, IsNil)
-	c.Check(complete, Equals, true)
+	complete := mylog.Check2(w.Downloaded(s.fetchAsserts(c)))
 
-	err = w.CheckValidationSets()
+	c.Check(complete, Equals, true)
+	mylog.Check(w.CheckValidationSets())
 	c.Assert(err, NotNil)
 	valErr := err.(*snapasserts.ValidationSetsValidationError)
 	c.Check(valErr.MissingSnaps, DeepEquals, map[string]map[snap.Revision][]string{
@@ -4018,7 +3898,8 @@ func (s *writerSuite) TestValidateValidationSetsCore20EnforcedHappy(c *C) {
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
-			}},
+			},
+		},
 		"validation-sets": []interface{}{
 			map[string]interface{}{
 				"account-id": "canonical",
@@ -4043,31 +3924,29 @@ func (s *writerSuite) TestValidateValidationSetsCore20EnforcedHappy(c *C) {
 	s.makeSnap(c, "pc=20", "")
 
 	s.opts.Label = "20191122"
-	w, err := seedwriter.New(model, s.opts)
-	c.Assert(err, IsNil)
+	w := mylog.Check2(seedwriter.New(model, s.opts))
 
-	err = w.Start(s.db, s.rf)
-	c.Assert(err, IsNil)
+	mylog.Check(w.Start(s.db, s.rf))
 
-	localSnaps, err := w.LocalSnaps()
-	c.Assert(err, IsNil)
+
+	localSnaps := mylog.Check2(w.LocalSnaps())
+
 	c.Assert(localSnaps, HasLen, 0)
 
 	for _, sn := range localSnaps {
-		_, _, err := seedwriter.DeriveSideInfo(sn.Path, model, s.rf, s.db)
+		_, _ := mylog.Check3(seedwriter.DeriveSideInfo(sn.Path, model, s.rf, s.db))
 		c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
-		f, err := snapfile.Open(sn.Path)
-		c.Assert(err, IsNil)
-		info, err := snap.ReadInfoFromSnapFile(f, nil)
-		c.Assert(err, IsNil)
+		f := mylog.Check2(snapfile.Open(sn.Path))
+
+		info := mylog.Check2(snap.ReadInfoFromSnapFile(f, nil))
+
 		w.SetInfo(sn, info)
 	}
+	mylog.Check(w.InfoDerived())
 
-	err = w.InfoDerived()
-	c.Assert(err, IsNil)
 
-	snaps, err := w.SnapsToDownload()
-	c.Assert(err, IsNil)
+	snaps := mylog.Check2(w.SnapsToDownload())
+
 	c.Check(snaps, HasLen, 4)
 
 	for _, sn := range snaps {
@@ -4080,28 +3959,25 @@ func (s *writerSuite) TestValidateValidationSetsCore20EnforcedHappy(c *C) {
 		s.fillDownloadedSnap(c, w, sn)
 	}
 
-	complete, err := w.Downloaded(s.fetchAsserts(c))
-	c.Assert(err, IsNil)
+	complete := mylog.Check2(w.Downloaded(s.fetchAsserts(c)))
+
 	c.Check(complete, Equals, true)
+	mylog.Check(w.CheckValidationSets())
 
-	err = w.CheckValidationSets()
-	c.Assert(err, IsNil)
-
-	err = w.SeedSnaps(func(name, src, dst string) error {
+	mylog.Check(w.SeedSnaps(func(name, src, dst string) error {
 		return osutil.CopyFile(src, dst, 0)
-	})
-	c.Assert(err, IsNil)
+	}))
 
-	err = w.WriteMeta()
-	c.Assert(err, IsNil)
+	mylog.Check(w.WriteMeta())
+
 
 	// check seed
 	systemDir := filepath.Join(s.opts.SeedDir, "systems", s.opts.Label)
 	c.Check(systemDir, testutil.FilePresent)
 
 	// check snaps
-	l, err := os.ReadDir(filepath.Join(s.opts.SeedDir, "snaps"))
-	c.Assert(err, IsNil)
+	l := mylog.Check2(os.ReadDir(filepath.Join(s.opts.SeedDir, "snaps")))
+
 	c.Check(l, HasLen, 4)
 
 	// check model-etc contains the validation set assertion
@@ -4152,31 +4028,29 @@ func (s *writerSuite) TestValidateValidationSetsCore18EnforcedHappy(c *C) {
 	s.makeSnap(c, "pc=18", "")
 
 	s.opts.Label = "20191122"
-	w, err := seedwriter.New(model, s.opts)
-	c.Assert(err, IsNil)
+	w := mylog.Check2(seedwriter.New(model, s.opts))
 
-	err = w.Start(s.db, s.rf)
-	c.Assert(err, IsNil)
+	mylog.Check(w.Start(s.db, s.rf))
 
-	localSnaps, err := w.LocalSnaps()
-	c.Assert(err, IsNil)
+
+	localSnaps := mylog.Check2(w.LocalSnaps())
+
 	c.Assert(localSnaps, HasLen, 0)
 
 	for _, sn := range localSnaps {
-		_, _, err := seedwriter.DeriveSideInfo(sn.Path, model, s.rf, s.db)
+		_, _ := mylog.Check3(seedwriter.DeriveSideInfo(sn.Path, model, s.rf, s.db))
 		c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
-		f, err := snapfile.Open(sn.Path)
-		c.Assert(err, IsNil)
-		info, err := snap.ReadInfoFromSnapFile(f, nil)
-		c.Assert(err, IsNil)
+		f := mylog.Check2(snapfile.Open(sn.Path))
+
+		info := mylog.Check2(snap.ReadInfoFromSnapFile(f, nil))
+
 		w.SetInfo(sn, info)
 	}
+	mylog.Check(w.InfoDerived())
 
-	err = w.InfoDerived()
-	c.Assert(err, IsNil)
 
-	snaps, err := w.SnapsToDownload()
-	c.Assert(err, IsNil)
+	snaps := mylog.Check2(w.SnapsToDownload())
+
 	c.Check(snaps, HasLen, 4)
 
 	for _, sn := range snaps {
@@ -4189,29 +4063,26 @@ func (s *writerSuite) TestValidateValidationSetsCore18EnforcedHappy(c *C) {
 		s.fillDownloadedSnap(c, w, sn)
 	}
 
-	complete, err := w.Downloaded(s.fetchAsserts(c))
-	c.Assert(err, IsNil)
+	complete := mylog.Check2(w.Downloaded(s.fetchAsserts(c)))
+
 	c.Check(complete, Equals, true)
+	mylog.Check(w.CheckValidationSets())
 
-	err = w.CheckValidationSets()
-	c.Assert(err, IsNil)
-
-	err = w.SeedSnaps(func(name, src, dst string) error {
+	mylog.Check(w.SeedSnaps(func(name, src, dst string) error {
 		return osutil.CopyFile(src, dst, 0)
-	})
-	c.Assert(err, IsNil)
+	}))
 
-	err = w.WriteMeta()
-	c.Assert(err, IsNil)
+	mylog.Check(w.WriteMeta())
+
 
 	// check seed
-	seedYaml, err := seedwriter.InternalReadSeedYaml(filepath.Join(s.opts.SeedDir, "seed.yaml"))
-	c.Assert(err, IsNil)
+	seedYaml := mylog.Check2(seedwriter.InternalReadSeedYaml(filepath.Join(s.opts.SeedDir, "seed.yaml")))
+
 	c.Assert(seedYaml.Snaps, HasLen, 4)
 
 	// check snaps
-	l, err := os.ReadDir(filepath.Join(s.opts.SeedDir, "snaps"))
-	c.Assert(err, IsNil)
+	l := mylog.Check2(os.ReadDir(filepath.Join(s.opts.SeedDir, "snaps")))
+
 	c.Check(l, HasLen, 4)
 
 	// check assertions directory contains the validation set assertion
@@ -4256,14 +4127,14 @@ func (s *writerSuite) TestCheckValidateValidationSetsToEarly(c *C) {
 	s.makeSnap(c, "pc=18", "")
 
 	s.opts.Label = "20191122"
-	w, err := seedwriter.New(model, s.opts)
-	c.Assert(err, IsNil)
+	w := mylog.Check2(seedwriter.New(model, s.opts))
 
-	// Perform the test after starting
-	err = w.Start(s.db, s.rf)
-	c.Assert(err, IsNil)
+	mylog.
 
-	err = w.CheckValidationSets()
+		// Perform the test after starting
+		Check(w.Start(s.db, s.rf))
+
+	mylog.Check(w.CheckValidationSets())
 	c.Check(err, ErrorMatches, `internal error: seedwriter.Writer cannot check validation-sets before Downloaded signaled complete`)
 }
 
@@ -4285,7 +4156,8 @@ func (s *writerSuite) TestManifestCorrectlyProduced(c *C) {
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
-			}},
+			},
+		},
 	})
 	c.Assert(model.Grade(), Equals, asserts.ModelDangerous)
 
@@ -4296,31 +4168,29 @@ func (s *writerSuite) TestManifestCorrectlyProduced(c *C) {
 
 	s.opts.Label = "20191122"
 	s.opts.ManifestPath = path.Join(s.opts.SeedDir, "seed.manifest")
-	w, err := seedwriter.New(model, s.opts)
-	c.Assert(err, IsNil)
+	w := mylog.Check2(seedwriter.New(model, s.opts))
 
-	err = w.Start(s.db, s.rf)
-	c.Assert(err, IsNil)
+	mylog.Check(w.Start(s.db, s.rf))
 
-	localSnaps, err := w.LocalSnaps()
-	c.Assert(err, IsNil)
+
+	localSnaps := mylog.Check2(w.LocalSnaps())
+
 	c.Assert(localSnaps, HasLen, 0)
 
 	for _, sn := range localSnaps {
-		_, _, err := seedwriter.DeriveSideInfo(sn.Path, model, s.rf, s.db)
+		_, _ := mylog.Check3(seedwriter.DeriveSideInfo(sn.Path, model, s.rf, s.db))
 		c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
-		f, err := snapfile.Open(sn.Path)
-		c.Assert(err, IsNil)
-		info, err := snap.ReadInfoFromSnapFile(f, nil)
-		c.Assert(err, IsNil)
+		f := mylog.Check2(snapfile.Open(sn.Path))
+
+		info := mylog.Check2(snap.ReadInfoFromSnapFile(f, nil))
+
 		w.SetInfo(sn, info)
 	}
+	mylog.Check(w.InfoDerived())
 
-	err = w.InfoDerived()
-	c.Assert(err, IsNil)
 
-	snaps, err := w.SnapsToDownload()
-	c.Assert(err, IsNil)
+	snaps := mylog.Check2(w.SnapsToDownload())
+
 	c.Check(snaps, HasLen, 4)
 
 	for _, sn := range snaps {
@@ -4333,20 +4203,18 @@ func (s *writerSuite) TestManifestCorrectlyProduced(c *C) {
 		s.fillDownloadedSnap(c, w, sn)
 	}
 
-	complete, err := w.Downloaded(s.fetchAsserts(c))
-	c.Assert(err, IsNil)
+	complete := mylog.Check2(w.Downloaded(s.fetchAsserts(c)))
+
 	c.Check(complete, Equals, true)
-
-	err = w.SeedSnaps(func(name, src, dst string) error {
+	mylog.Check(w.SeedSnaps(func(name, src, dst string) error {
 		return osutil.CopyFile(src, dst, 0)
-	})
-	c.Assert(err, IsNil)
+	}))
 
-	err = w.WriteMeta()
-	c.Assert(err, IsNil)
+	mylog.Check(w.WriteMeta())
 
-	b, err := os.ReadFile(path.Join(s.opts.SeedDir, "seed.manifest"))
-	c.Assert(err, IsNil)
+
+	b := mylog.Check2(os.ReadFile(path.Join(s.opts.SeedDir, "seed.manifest")))
+
 	c.Check(string(b), Equals, `core20 1
 pc 1
 pc-kernel 1
@@ -4372,7 +4240,8 @@ func (s *writerSuite) TestManifestPreProvidedFailsMarkSeeding(c *C) {
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
-			}},
+			},
+		},
 	})
 	c.Assert(model.Grade(), Equals, asserts.ModelDangerous)
 
@@ -4389,31 +4258,29 @@ func (s *writerSuite) TestManifestPreProvidedFailsMarkSeeding(c *C) {
 	}, nil, nil, nil)
 
 	s.opts.Label = "20191122"
-	w, err := seedwriter.New(model, s.opts)
-	c.Assert(err, IsNil)
+	w := mylog.Check2(seedwriter.New(model, s.opts))
 
-	err = w.Start(s.db, s.rf)
-	c.Assert(err, IsNil)
+	mylog.Check(w.Start(s.db, s.rf))
 
-	localSnaps, err := w.LocalSnaps()
-	c.Assert(err, IsNil)
+
+	localSnaps := mylog.Check2(w.LocalSnaps())
+
 	c.Assert(localSnaps, HasLen, 0)
 
 	for _, sn := range localSnaps {
-		_, _, err := seedwriter.DeriveSideInfo(sn.Path, model, s.rf, s.db)
+		_, _ := mylog.Check3(seedwriter.DeriveSideInfo(sn.Path, model, s.rf, s.db))
 		c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
-		f, err := snapfile.Open(sn.Path)
-		c.Assert(err, IsNil)
-		info, err := snap.ReadInfoFromSnapFile(f, nil)
-		c.Assert(err, IsNil)
+		f := mylog.Check2(snapfile.Open(sn.Path))
+
+		info := mylog.Check2(snap.ReadInfoFromSnapFile(f, nil))
+
 		w.SetInfo(sn, info)
 	}
+	mylog.Check(w.InfoDerived())
 
-	err = w.InfoDerived()
-	c.Assert(err, IsNil)
 
-	snaps, err := w.SnapsToDownload()
-	c.Assert(err, IsNil)
+	snaps := mylog.Check2(w.SnapsToDownload())
+
 	c.Check(snaps, HasLen, 4)
 
 	for _, sn := range snaps {
@@ -4426,13 +4293,12 @@ func (s *writerSuite) TestManifestPreProvidedFailsMarkSeeding(c *C) {
 		s.fillDownloadedSnap(c, w, sn)
 	}
 
-	complete, err := w.Downloaded(s.fetchAsserts(c))
-	c.Assert(err, IsNil)
-	c.Check(complete, Equals, true)
+	complete := mylog.Check2(w.Downloaded(s.fetchAsserts(c)))
 
-	err = w.SeedSnaps(func(name, src, dst string) error {
+	c.Check(complete, Equals, true)
+	mylog.Check(w.SeedSnaps(func(name, src, dst string) error {
 		return osutil.CopyFile(src, dst, 0)
-	})
+	}))
 	c.Assert(err, ErrorMatches, `cannot record snap for manifest: snap "core20" \(1\) does not match the allowed revision 20`)
 }
 
@@ -4454,7 +4320,8 @@ func (s *writerSuite) TestManifestPreProvidedSequenceNotMatchingModelSequence(c 
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
-			}},
+			},
+		},
 		"validation-sets": []interface{}{
 			map[string]interface{}{
 				"account-id": "canonical",
@@ -4470,10 +4337,9 @@ func (s *writerSuite) TestManifestPreProvidedSequenceNotMatchingModelSequence(c 
 	s.opts.Manifest.SetAllowedValidationSet("canonical", "base-set", 1, true)
 
 	s.opts.Label = "20191122"
-	w, err := seedwriter.New(model, s.opts)
-	c.Assert(err, IsNil)
+	w := mylog.Check2(seedwriter.New(model, s.opts))
 
-	err = w.Start(s.db, s.rf)
+	mylog.Check(w.Start(s.db, s.rf))
 	c.Assert(err, ErrorMatches, `cannot use sequence 1 of "canonical/base-set": model requires sequence 2`)
 }
 
@@ -4495,7 +4361,8 @@ func (s *writerSuite) TestManifestPreProvidedSequenceNotMatchingModelPinned(c *C
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
-			}},
+			},
+		},
 		"validation-sets": []interface{}{
 			map[string]interface{}{
 				"account-id": "canonical",
@@ -4510,10 +4377,9 @@ func (s *writerSuite) TestManifestPreProvidedSequenceNotMatchingModelPinned(c *C
 	s.opts.Manifest.SetAllowedValidationSet("canonical", "base-set", 1, true)
 
 	s.opts.Label = "20191122"
-	w, err := seedwriter.New(model, s.opts)
-	c.Assert(err, IsNil)
+	w := mylog.Check2(seedwriter.New(model, s.opts))
 
-	err = w.Start(s.db, s.rf)
+	mylog.Check(w.Start(s.db, s.rf))
 	c.Assert(err, ErrorMatches, `pinning of "canonical/base-set" is not allowed by the model`)
 }
 
@@ -4535,7 +4401,8 @@ func (s *writerSuite) TestValidateValidationSetsManifestsCorrectly(c *C) {
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
-			}},
+			},
+		},
 		"validation-sets": []interface{}{
 			map[string]interface{}{
 				"account-id": "canonical",
@@ -4567,31 +4434,29 @@ func (s *writerSuite) TestValidateValidationSetsManifestsCorrectly(c *C) {
 	s.opts.ManifestPath = path.Join(s.opts.SeedDir, "seed.manifest")
 
 	s.opts.Label = "20191122"
-	w, err := seedwriter.New(model, s.opts)
-	c.Assert(err, IsNil)
+	w := mylog.Check2(seedwriter.New(model, s.opts))
 
-	err = w.Start(s.db, s.rf)
-	c.Assert(err, IsNil)
+	mylog.Check(w.Start(s.db, s.rf))
 
-	localSnaps, err := w.LocalSnaps()
-	c.Assert(err, IsNil)
+
+	localSnaps := mylog.Check2(w.LocalSnaps())
+
 	c.Assert(localSnaps, HasLen, 0)
 
 	for _, sn := range localSnaps {
-		_, _, err := seedwriter.DeriveSideInfo(sn.Path, model, s.rf, s.db)
+		_, _ := mylog.Check3(seedwriter.DeriveSideInfo(sn.Path, model, s.rf, s.db))
 		c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
-		f, err := snapfile.Open(sn.Path)
-		c.Assert(err, IsNil)
-		info, err := snap.ReadInfoFromSnapFile(f, nil)
-		c.Assert(err, IsNil)
+		f := mylog.Check2(snapfile.Open(sn.Path))
+
+		info := mylog.Check2(snap.ReadInfoFromSnapFile(f, nil))
+
 		w.SetInfo(sn, info)
 	}
+	mylog.Check(w.InfoDerived())
 
-	err = w.InfoDerived()
-	c.Assert(err, IsNil)
 
-	snaps, err := w.SnapsToDownload()
-	c.Assert(err, IsNil)
+	snaps := mylog.Check2(w.SnapsToDownload())
+
 	c.Check(snaps, HasLen, 4)
 
 	for _, sn := range snaps {
@@ -4604,20 +4469,17 @@ func (s *writerSuite) TestValidateValidationSetsManifestsCorrectly(c *C) {
 		s.fillDownloadedSnap(c, w, sn)
 	}
 
-	complete, err := w.Downloaded(s.fetchAsserts(c))
-	c.Assert(err, IsNil)
+	complete := mylog.Check2(w.Downloaded(s.fetchAsserts(c)))
+
 	c.Check(complete, Equals, true)
+	mylog.Check(w.CheckValidationSets())
 
-	err = w.CheckValidationSets()
-	c.Assert(err, IsNil)
-
-	err = w.SeedSnaps(func(name, src, dst string) error {
+	mylog.Check(w.SeedSnaps(func(name, src, dst string) error {
 		return osutil.CopyFile(src, dst, 0)
-	})
-	c.Assert(err, IsNil)
+	}))
 
-	err = w.WriteMeta()
-	c.Assert(err, IsNil)
+	mylog.Check(w.WriteMeta())
+
 
 	// check seed
 	systemDir := filepath.Join(s.opts.SeedDir, "systems", s.opts.Label)
@@ -4636,8 +4498,8 @@ sequence: 1`)
 	// the manifest is tracking validation-sets, then we should not
 	// see pc/pc-kernel in the manifest, instead it should just show
 	// the validation-set tracking those.
-	m, err := os.ReadFile(s.opts.ManifestPath)
-	c.Assert(err, IsNil)
+	m := mylog.Check2(os.ReadFile(s.opts.ManifestPath))
+
 	c.Check(string(m), Equals, `canonical/base-set 1
 core20 1
 snapd 1

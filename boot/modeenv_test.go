@@ -27,6 +27,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/mvo5/goconfigparser"
 	. "gopkg.in/check.v1"
 
@@ -81,16 +82,16 @@ func (s *modeenvSuite) TestKnownKnown(c *C) {
 }
 
 func (s *modeenvSuite) TestReadEmptyErrors(c *C) {
-	modeenv, err := boot.ReadModeenv("/no/such/file")
+	modeenv := mylog.Check2(boot.ReadModeenv("/no/such/file"))
 	c.Assert(os.IsNotExist(err), Equals, true)
 	c.Assert(modeenv, IsNil)
 }
 
 func (s *modeenvSuite) makeMockModeenvFile(c *C, content string) {
-	err := os.MkdirAll(filepath.Dir(s.mockModeenvPath), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(s.mockModeenvPath, []byte(content), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Dir(s.mockModeenvPath), 0755))
+
+	mylog.Check(os.WriteFile(s.mockModeenvPath, []byte(content), 0644))
+
 }
 
 func (s *modeenvSuite) TestWasReadValidity(c *C) {
@@ -101,7 +102,7 @@ func (s *modeenvSuite) TestWasReadValidity(c *C) {
 func (s *modeenvSuite) TestReadEmpty(c *C) {
 	s.makeMockModeenvFile(c, "")
 
-	modeenv, err := boot.ReadModeenv(s.tmpdir)
+	modeenv := mylog.Check2(boot.ReadModeenv(s.tmpdir))
 	c.Assert(err, ErrorMatches, "internal error: mode is unset")
 	c.Assert(modeenv, IsNil)
 }
@@ -109,8 +110,8 @@ func (s *modeenvSuite) TestReadEmpty(c *C) {
 func (s *modeenvSuite) TestReadMode(c *C) {
 	s.makeMockModeenvFile(c, "mode=run")
 
-	modeenv, err := boot.ReadModeenv(s.tmpdir)
-	c.Assert(err, IsNil)
+	modeenv := mylog.Check2(boot.ReadModeenv(s.tmpdir))
+
 	c.Check(modeenv.Mode, Equals, "run")
 	c.Check(modeenv.RecoverySystem, Equals, "")
 	c.Check(modeenv.Base, Equals, "")
@@ -126,8 +127,8 @@ try_base=core20_124.snap
 base_status=try
 `)
 
-	diskModeenv, err := boot.ReadModeenv(s.tmpdir)
-	c.Assert(err, IsNil)
+	diskModeenv := mylog.Check2(boot.ReadModeenv(s.tmpdir))
+
 	inMemoryModeenv := &boot.Modeenv{
 		Mode:           "recovery",
 		RecoverySystem: "20191126",
@@ -150,8 +151,8 @@ current_trusted_boot_assets={"thing1":["hash1","hash2"],"thing2":["hash3"]}
 current_kernel_command_lines=["foo", "bar"]
 `)
 
-	diskModeenv, err := boot.ReadModeenv(s.tmpdir)
-	c.Assert(err, IsNil)
+	diskModeenv := mylog.Check2(boot.ReadModeenv(s.tmpdir))
+
 	inMemoryModeenv := &boot.Modeenv{
 		Mode:           "recovery",
 		RecoverySystem: "20191126",
@@ -170,15 +171,15 @@ current_kernel_command_lines=["foo", "bar"]
 	c.Assert(inMemoryModeenv.DeepEqual(diskModeenv), Equals, true)
 	c.Assert(diskModeenv.DeepEqual(inMemoryModeenv), Equals, true)
 
-	diskModeenv2, err := diskModeenv.Copy()
-	c.Assert(err, IsNil)
+	diskModeenv2 := mylog.Check2(diskModeenv.Copy())
+
 	c.Assert(diskModeenv.DeepEqual(diskModeenv2), Equals, true)
 	c.Assert(diskModeenv2.DeepEqual(diskModeenv), Equals, true)
 	c.Assert(inMemoryModeenv.DeepEqual(diskModeenv2), Equals, true)
 	c.Assert(diskModeenv2.DeepEqual(inMemoryModeenv), Equals, true)
 
-	inMemoryModeenv2, err := inMemoryModeenv.Copy()
-	c.Assert(err, IsNil)
+	inMemoryModeenv2 := mylog.Check2(inMemoryModeenv.Copy())
+
 	c.Assert(inMemoryModeenv.DeepEqual(inMemoryModeenv2), Equals, true)
 	c.Assert(inMemoryModeenv2.DeepEqual(inMemoryModeenv), Equals, true)
 	c.Assert(inMemoryModeenv2.DeepEqual(diskModeenv), Equals, true)
@@ -193,23 +194,25 @@ try_base=core20_124.snap
 base_status=try
 `)
 
-	diskModeenv, err := boot.ReadModeenv(s.tmpdir)
-	c.Assert(err, IsNil)
-	dupDiskModeenv, err := diskModeenv.Copy()
-	c.Assert(err, IsNil)
+	diskModeenv := mylog.Check2(boot.ReadModeenv(s.tmpdir))
 
-	// move the original file out of the way
-	err = os.Rename(dirs.SnapModeenvFileUnder(s.tmpdir), dirs.SnapModeenvFileUnder(s.tmpdir)+".orig")
-	c.Assert(err, IsNil)
+	dupDiskModeenv := mylog.Check2(diskModeenv.Copy())
+
+	mylog.
+
+		// move the original file out of the way
+		Check(os.Rename(dirs.SnapModeenvFileUnder(s.tmpdir), dirs.SnapModeenvFileUnder(s.tmpdir)+".orig"))
+
 	c.Assert(dirs.SnapModeenvFileUnder(s.tmpdir), testutil.FileAbsent)
+	mylog.
 
-	// write the duplicate, it should write to the same original location and it
-	// should be the same content
-	err = dupDiskModeenv.Write()
-	c.Assert(err, IsNil)
+		// write the duplicate, it should write to the same original location and it
+		// should be the same content
+		Check(dupDiskModeenv.Write())
+
 	c.Assert(dirs.SnapModeenvFileUnder(s.tmpdir), testutil.FilePresent)
-	origBytes, err := os.ReadFile(dirs.SnapModeenvFileUnder(s.tmpdir) + ".orig")
-	c.Assert(err, IsNil)
+	origBytes := mylog.Check2(os.ReadFile(dirs.SnapModeenvFileUnder(s.tmpdir) + ".orig"))
+
 	// the files should be the same
 	c.Assert(dirs.SnapModeenvFileUnder(s.tmpdir), testutil.FileEquals, string(origBytes))
 }
@@ -222,11 +225,12 @@ func (s *modeenvSuite) TestCopyMemoryWriteFails(c *C) {
 		TryBase:        "core20_124.snap",
 		BaseStatus:     "try",
 	}
-	dupInMemoryModeenv, err := inMemoryModeenv.Copy()
-	c.Assert(err, IsNil)
+	dupInMemoryModeenv := mylog.Check2(inMemoryModeenv.Copy())
 
-	// write the duplicate, it should fail
-	err = dupInMemoryModeenv.Write()
+	mylog.
+
+		// write the duplicate, it should fail
+		Check(dupInMemoryModeenv.Write())
 	c.Assert(err, ErrorMatches, "internal error: must use WriteTo with modeenv not read from disk")
 }
 
@@ -356,8 +360,8 @@ func (s *modeenvSuite) TestReadModeWithRecoverySystem(c *C) {
 recovery_system=20191126
 `)
 
-	modeenv, err := boot.ReadModeenv(s.tmpdir)
-	c.Assert(err, IsNil)
+	modeenv := mylog.Check2(boot.ReadModeenv(s.tmpdir))
+
 	c.Check(modeenv.Mode, Equals, "recovery")
 	c.Check(modeenv.RecoverySystem, Equals, "20191126")
 }
@@ -370,8 +374,8 @@ unknown_key=some unknown value
 a_key=other
 `)
 
-	modeenv, err := boot.ReadModeenv(s.tmpdir)
-	c.Assert(err, IsNil)
+	modeenv := mylog.Check2(boot.ReadModeenv(s.tmpdir))
+
 	c.Check(modeenv.Mode, Equals, "recovery")
 	c.Check(modeenv.RecoverySystem, Equals, "20191126")
 
@@ -397,8 +401,8 @@ current_trusted_recovery_boot_assets={"bootx64.efi":["shimhash1","shimhash2"],"g
 a_key=other
 `)
 
-	modeenvWithExtraKeys, err := boot.ReadModeenv(s.tmpdir)
-	c.Assert(err, IsNil)
+	modeenvWithExtraKeys := mylog.Check2(boot.ReadModeenv(s.tmpdir))
+
 	c.Check(modeenvWithExtraKeys.Mode, Equals, "recovery")
 	c.Check(modeenvWithExtraKeys.RecoverySystem, Equals, "20191126")
 
@@ -426,8 +430,8 @@ try_base=core20_124.snap
 base_status=try
 `)
 
-	modeenv, err := boot.ReadModeenv(s.tmpdir)
-	c.Assert(err, IsNil)
+	modeenv := mylog.Check2(boot.ReadModeenv(s.tmpdir))
+
 	c.Check(modeenv.Mode, Equals, "recovery")
 	c.Check(modeenv.RecoverySystem, Equals, "20191126")
 	c.Check(modeenv.Base, Equals, "core20_123.snap")
@@ -439,16 +443,16 @@ func (s *modeenvSuite) TestReadModeWithGrade(c *C) {
 	s.makeMockModeenvFile(c, `mode=run
 grade=dangerous
 `)
-	modeenv, err := boot.ReadModeenv(s.tmpdir)
-	c.Assert(err, IsNil)
+	modeenv := mylog.Check2(boot.ReadModeenv(s.tmpdir))
+
 	c.Check(modeenv.Mode, Equals, "run")
 	c.Check(modeenv.Grade, Equals, "dangerous")
 
 	s.makeMockModeenvFile(c, `mode=run
 grade=some-random-grade-string
 `)
-	modeenv, err = boot.ReadModeenv(s.tmpdir)
-	c.Assert(err, IsNil)
+	modeenv = mylog.Check2(boot.ReadModeenv(s.tmpdir))
+
 	c.Check(modeenv.Mode, Equals, "run")
 	c.Check(modeenv.Grade, Equals, "some-random-grade-string")
 }
@@ -480,8 +484,8 @@ func (s *modeenvSuite) TestReadModeWithModel(c *C) {
 	for _, t := range tt {
 		s.makeMockModeenvFile(c, `mode=run
 model=`+t.entry+"\n")
-		modeenv, err := boot.ReadModeenv(s.tmpdir)
-		c.Assert(err, IsNil)
+		modeenv := mylog.Check2(boot.ReadModeenv(s.tmpdir))
+
 		c.Check(modeenv.Mode, Equals, "run")
 		c.Check(modeenv.Model, Equals, t.model)
 		c.Check(modeenv.BrandID, Equals, t.brand)
@@ -489,7 +493,6 @@ model=`+t.entry+"\n")
 }
 
 func (s *modeenvSuite) TestReadModeWithCurrentKernels(c *C) {
-
 	tt := []struct {
 		kernelString    string
 		expectedKernels []string
@@ -520,8 +523,8 @@ func (s *modeenvSuite) TestReadModeWithCurrentKernels(c *C) {
 recovery_system=20191126
 current_kernels=`+t.kernelString+"\n")
 
-		modeenv, err := boot.ReadModeenv(s.tmpdir)
-		c.Assert(err, IsNil)
+		modeenv := mylog.Check2(boot.ReadModeenv(s.tmpdir))
+
 		c.Check(modeenv.Mode, Equals, "recovery")
 		c.Check(modeenv.RecoverySystem, Equals, "20191126")
 		c.Check(len(modeenv.CurrentKernels), Equals, len(t.expectedKernels))
@@ -535,8 +538,8 @@ func (s *modeenvSuite) TestWriteToNonExisting(c *C) {
 	c.Assert(s.mockModeenvPath, testutil.FileAbsent)
 
 	modeenv := &boot.Modeenv{Mode: "run"}
-	err := modeenv.WriteTo(s.tmpdir)
-	c.Assert(err, IsNil)
+	mylog.Check(modeenv.WriteTo(s.tmpdir))
+
 
 	c.Assert(s.mockModeenvPath, testutil.FileEquals, "mode=run\n")
 }
@@ -544,11 +547,11 @@ func (s *modeenvSuite) TestWriteToNonExisting(c *C) {
 func (s *modeenvSuite) TestWriteToExisting(c *C) {
 	s.makeMockModeenvFile(c, "mode=run")
 
-	modeenv, err := boot.ReadModeenv(s.tmpdir)
-	c.Assert(err, IsNil)
+	modeenv := mylog.Check2(boot.ReadModeenv(s.tmpdir))
+
 	modeenv.Mode = "recovery"
-	err = modeenv.WriteTo(s.tmpdir)
-	c.Assert(err, IsNil)
+	mylog.Check(modeenv.WriteTo(s.tmpdir))
+
 
 	c.Assert(s.mockModeenvPath, testutil.FileEquals, "mode=recovery\n")
 }
@@ -556,19 +559,18 @@ func (s *modeenvSuite) TestWriteToExisting(c *C) {
 func (s *modeenvSuite) TestWriteExisting(c *C) {
 	s.makeMockModeenvFile(c, "mode=run")
 
-	modeenv, err := boot.ReadModeenv(s.tmpdir)
-	c.Assert(err, IsNil)
+	modeenv := mylog.Check2(boot.ReadModeenv(s.tmpdir))
+
 	modeenv.Mode = "recovery"
-	err = modeenv.Write()
-	c.Assert(err, IsNil)
+	mylog.Check(modeenv.Write())
+
 
 	c.Assert(s.mockModeenvPath, testutil.FileEquals, "mode=recovery\n")
 }
 
 func (s *modeenvSuite) TestWriteFreshError(c *C) {
 	modeenv := &boot.Modeenv{Mode: "recovery"}
-
-	err := modeenv.Write()
+	mylog.Check(modeenv.Write())
 	c.Assert(err, ErrorMatches, `internal error: must use WriteTo with modeenv not read from disk`)
 }
 
@@ -577,26 +579,25 @@ func (s *modeenvSuite) TestWriteIncompleteModelBrand(c *C) {
 		Mode:  "run",
 		Grade: "dangerous",
 	}
-
-	err := modeenv.WriteTo(s.tmpdir)
+	mylog.Check(modeenv.WriteTo(s.tmpdir))
 	c.Assert(err, ErrorMatches, `internal error: model is unset`)
 
 	modeenv.Model = "bar"
-	err = modeenv.WriteTo(s.tmpdir)
+	mylog.Check(modeenv.WriteTo(s.tmpdir))
 	c.Assert(err, ErrorMatches, `internal error: brand is unset`)
 
 	modeenv.BrandID = "foo"
 	modeenv.TryGrade = "dangerous"
-	err = modeenv.WriteTo(s.tmpdir)
+	mylog.Check(modeenv.WriteTo(s.tmpdir))
 	c.Assert(err, ErrorMatches, `internal error: try model is unset`)
 
 	modeenv.TryModel = "bar"
-	err = modeenv.WriteTo(s.tmpdir)
+	mylog.Check(modeenv.WriteTo(s.tmpdir))
 	c.Assert(err, ErrorMatches, `internal error: try brand is unset`)
 
 	modeenv.TryBrandID = "foo"
-	err = modeenv.WriteTo(s.tmpdir)
-	c.Assert(err, IsNil)
+	mylog.Check(modeenv.WriteTo(s.tmpdir))
+
 }
 
 func (s *modeenvSuite) TestWriteToNonExistingFull(c *C) {
@@ -612,8 +613,8 @@ func (s *modeenvSuite) TestWriteToNonExistingFull(c *C) {
 		BaseStatus:     boot.TryStatus,
 		CurrentKernels: []string{"pc-kernel_1.snap", "pc-kernel_2.snap"},
 	}
-	err := modeenv.WriteTo(s.tmpdir)
-	c.Assert(err, IsNil)
+	mylog.Check(modeenv.WriteTo(s.tmpdir))
+
 
 	c.Assert(s.mockModeenvPath, testutil.FileEquals, `mode=run
 recovery_system=20191128
@@ -633,7 +634,8 @@ func (s *modeenvSuite) TestReadRecoverySystems(c *C) {
 		{
 			"20191126",
 			[]string{"20191126"},
-		}, {
+		},
+		{
 			"20191128,2020-02-03,20240101-FOO",
 			[]string{"20191128", "2020-02-03", "20240101-FOO"},
 		},
@@ -649,8 +651,8 @@ current_recovery_systems=%[1]s
 good_recovery_systems=%[1]s
 `, t.systemsString))
 
-		modeenv, err := boot.ReadModeenv(s.tmpdir)
-		c.Assert(err, IsNil)
+		modeenv := mylog.Check2(boot.ReadModeenv(s.tmpdir))
+
 		c.Check(modeenv.Mode, Equals, "recovery")
 		c.Check(modeenv.RecoverySystem, Equals, "20191126")
 		c.Check(modeenv.CurrentRecoverySystems, DeepEquals, t.expectedSystems)
@@ -695,31 +697,31 @@ func (s *modeenvSuite) TestFancyMarshalUnmarshal(c *C) {
 	var buf bytes.Buffer
 
 	dboth := fancyDataBothMarshallers{Foo: []string{"1", "two"}}
-	err := boot.MarshalModeenvEntryTo(&buf, "fancy", &dboth)
-	c.Assert(err, IsNil)
+	mylog.Check(boot.MarshalModeenvEntryTo(&buf, "fancy", &dboth))
+
 	c.Check(buf.String(), Equals, `fancy=1#two
 `)
 
 	djson := fancyDataJSONOnly{Foo: []string{"1", "two", "with\nnewline"}}
-	err = boot.MarshalModeenvEntryTo(&buf, "fancy_json", &djson)
-	c.Assert(err, IsNil)
+	mylog.Check(boot.MarshalModeenvEntryTo(&buf, "fancy_json", &djson))
+
 	c.Check(buf.String(), Equals, `fancy=1#two
 fancy_json=["1","two","with\nnewline"]
 `)
 
 	cfg := goconfigparser.New()
 	cfg.AllowNoSectionHeader = true
-	err = cfg.Read(&buf)
-	c.Assert(err, IsNil)
+	mylog.Check(cfg.Read(&buf))
+
 
 	var dbothRev fancyDataBothMarshallers
-	err = boot.UnmarshalModeenvValueFromCfg(cfg, "fancy", &dbothRev)
-	c.Assert(err, IsNil)
+	mylog.Check(boot.UnmarshalModeenvValueFromCfg(cfg, "fancy", &dbothRev))
+
 	c.Check(dbothRev, DeepEquals, dboth)
 
 	var djsonRev fancyDataJSONOnly
-	err = boot.UnmarshalModeenvValueFromCfg(cfg, "fancy_json", &djsonRev)
-	c.Assert(err, IsNil)
+	mylog.Check(boot.UnmarshalModeenvValueFromCfg(cfg, "fancy_json", &djsonRev))
+
 	c.Check(djsonRev, DeepEquals, djson)
 }
 
@@ -728,12 +730,12 @@ func (s *modeenvSuite) TestFancyUnmarshalJSONEmpty(c *C) {
 
 	cfg := goconfigparser.New()
 	cfg.AllowNoSectionHeader = true
-	err := cfg.Read(&buf)
-	c.Assert(err, IsNil)
+	mylog.Check(cfg.Read(&buf))
+
 
 	var djsonRev fancyDataJSONOnly
-	err = boot.UnmarshalModeenvValueFromCfg(cfg, "fancy_json", &djsonRev)
-	c.Assert(err, IsNil)
+	mylog.Check(boot.UnmarshalModeenvValueFromCfg(cfg, "fancy_json", &djsonRev))
+
 	c.Check(djsonRev.Foo, IsNil)
 }
 
@@ -751,8 +753,8 @@ func (s *modeenvSuite) TestMarshalCurrentTrustedBootAssets(c *C) {
 			"bootx64.efi": []string{"shimhash1", "shimhash2"},
 		},
 	}
-	err := modeenv.WriteTo(s.tmpdir)
-	c.Assert(err, IsNil)
+	mylog.Check(modeenv.WriteTo(s.tmpdir))
+
 
 	c.Assert(s.mockModeenvPath, testutil.FileEquals, `mode=run
 recovery_system=20191128
@@ -760,8 +762,8 @@ current_trusted_boot_assets={"grubx64.efi":["hash1","hash2"]}
 current_trusted_recovery_boot_assets={"bootx64.efi":["shimhash1","shimhash2"],"grubx64.efi":["recovery-hash1"]}
 `)
 
-	modeenvRead, err := boot.ReadModeenv(s.tmpdir)
-	c.Assert(err, IsNil)
+	modeenvRead := mylog.Check2(boot.ReadModeenv(s.tmpdir))
+
 	c.Assert(modeenvRead.CurrentTrustedBootAssets, DeepEquals, boot.BootAssetsMap{
 		"grubx64.efi": []string{"hash1", "hash2"},
 	})
@@ -782,16 +784,16 @@ func (s *modeenvSuite) TestMarshalKernelCommandLines(c *C) {
 			`snapd_recovery_mode=run candidate panic=-1 console=ttyS0,io,9600n8`,
 		},
 	}
-	err := modeenv.WriteTo(s.tmpdir)
-	c.Assert(err, IsNil)
+	mylog.Check(modeenv.WriteTo(s.tmpdir))
+
 
 	c.Assert(s.mockModeenvPath, testutil.FileEquals, `mode=run
 recovery_system=20191128
 current_kernel_command_lines=["snapd_recovery_mode=run panic=-1 console=ttyS0,io,9600n8","snapd_recovery_mode=run candidate panic=-1 console=ttyS0,io,9600n8"]
 `)
 
-	modeenvRead, err := boot.ReadModeenv(s.tmpdir)
-	c.Assert(err, IsNil)
+	modeenvRead := mylog.Check2(boot.ReadModeenv(s.tmpdir))
+
 	c.Assert(modeenvRead.CurrentKernelCommandLines, DeepEquals, boot.BootCommandLines{
 		`snapd_recovery_mode=run panic=-1 console=ttyS0,io,9600n8`,
 		`snapd_recovery_mode=run candidate panic=-1 console=ttyS0,io,9600n8`,
@@ -808,8 +810,8 @@ try_grade=secured
 try_model_sign_key_id=EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu
 `)
 
-	modeenv, err := boot.ReadModeenv(s.tmpdir)
-	c.Assert(err, IsNil)
+	modeenv := mylog.Check2(boot.ReadModeenv(s.tmpdir))
+
 	c.Check(modeenv.Model, Equals, "ubuntu-core-20-amd64")
 	c.Check(modeenv.BrandID, Equals, "canonical")
 	c.Check(modeenv.Classic, Equals, false)
@@ -856,8 +858,8 @@ try_grade=secured
 try_model_sign_key_id=EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu
 `)
 
-	modeenv, err := boot.ReadModeenv(s.tmpdir)
-	c.Assert(err, IsNil)
+	modeenv := mylog.Check2(boot.ReadModeenv(s.tmpdir))
+
 	c.Check(modeenv.Model, Equals, "ubuntu-classic-20-amd64")
 	c.Check(modeenv.BrandID, Equals, "canonical")
 	c.Check(modeenv.Classic, Equals, true)
@@ -904,8 +906,8 @@ try_grade=secured
 try_model_sign_key_id=EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu
 `)
 
-	modeenv, err := boot.ReadModeenv(s.tmpdir)
-	c.Assert(err, IsNil)
+	modeenv := mylog.Check2(boot.ReadModeenv(s.tmpdir))
+
 
 	modelForSealing := modeenv.ModelForSealing()
 	c.Check(modelForSealing.Model(), Equals, "ubuntu-core-20-amd64")
@@ -939,8 +941,8 @@ try_grade=secured
 try_model_sign_key_id=EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu
 `)
 
-	modeenv, err := boot.ReadModeenv(s.tmpdir)
-	c.Assert(err, IsNil)
+	modeenv := mylog.Check2(boot.ReadModeenv(s.tmpdir))
+
 
 	modelForSealing := modeenv.ModelForSealing()
 	c.Check(modelForSealing.Model(), Equals, "ubuntu-core-20-amd64")
@@ -967,10 +969,10 @@ func (s *modeenvSuite) TestModeenvAccessFailsDuringPreseeding(c *C) {
 	restore := snapdenv.MockPreseeding(true)
 	defer restore()
 
-	_, err := boot.ReadModeenv(s.tmpdir)
+	_ := mylog.Check2(boot.ReadModeenv(s.tmpdir))
 	c.Assert(err, ErrorMatches, `internal error: modeenv cannot be read during preseeding`)
 
 	var modeenv boot.Modeenv
-	err = modeenv.WriteTo(s.tmpdir)
+	mylog.Check(modeenv.WriteTo(s.tmpdir))
 	c.Assert(err, ErrorMatches, `internal error: modeenv cannot be written during preseeding`)
 }

@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
@@ -90,29 +91,29 @@ func (s *cupsControlSuite) TestAppArmorSpecCore(c *C) {
 	defer restore()
 
 	// core to consumer on core is empty for ConnectedPlug
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 
 	// core to consumer on core is empty for PermanentSlot
-	appSet, err = interfaces.NewSnapAppSet(s.coreSlotInfo.Snap, nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.coreSlotInfo.Snap, nil))
+
 	spec = apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 
 	// core to consumer on core is empty for ConnectedSlot
-	appSet, err = interfaces.NewSnapAppSet(s.coreSlot.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.coreSlot.Snap(), nil))
+
 	spec = apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 
 	// consumer to provider on core for ConnectedPlug
-	appSet, err = interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	spec = apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.providerSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
@@ -122,8 +123,8 @@ func (s *cupsControlSuite) TestAppArmorSpecCore(c *C) {
 	c.Assert(spec.SnippetForTag("snap.provider.app"), Not(testutil.Contains), "# Allow daemon access to create the CUPS socket")
 
 	// provider to consumer on core for PermanentSlot
-	appSet, err = interfaces.NewSnapAppSet(s.providerSlotInfo.Snap, nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.providerSlotInfo.Snap, nil))
+
 	spec = apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddPermanentSlot(s.iface, s.providerSlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.provider.app"})
@@ -131,8 +132,8 @@ func (s *cupsControlSuite) TestAppArmorSpecCore(c *C) {
 	c.Assert(spec.SnippetForTag("snap.provider.app"), Not(testutil.Contains), "label=\"snap.consumer.app\"")
 
 	// provider to consumer on core for ConnectedSlot
-	appSet, err = interfaces.NewSnapAppSet(s.providerSlot.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.providerSlot.Snap(), nil))
+
 	spec = apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.providerSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.provider.app"})
@@ -144,8 +145,8 @@ func (s *cupsControlSuite) TestAppArmorSpecClassic(c *C) {
 	defer restore()
 
 	// consumer to core on classic for ConnectedPlug
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
@@ -155,22 +156,22 @@ func (s *cupsControlSuite) TestAppArmorSpecClassic(c *C) {
 	c.Assert(spec.SnippetForTag("snap.provider.app"), Not(testutil.Contains), "# Allow daemon access to create the CUPS socket")
 
 	// core to consumer on classic is empty for PermanentSlot
-	appSet, err = interfaces.NewSnapAppSet(s.coreSlotInfo.Snap, nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.coreSlotInfo.Snap, nil))
+
 	spec = apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 
 	// core to consumer on classic is empty for ConnectedSlot
-	appSet, err = interfaces.NewSnapAppSet(s.coreSlot.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.coreSlot.Snap(), nil))
+
 	spec = apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 
 	// consumer to provider on classic for ConnectedPlug
-	appSet, err = interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	spec = apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.providerSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
@@ -180,8 +181,8 @@ func (s *cupsControlSuite) TestAppArmorSpecClassic(c *C) {
 	c.Assert(spec.SnippetForTag("snap.provider.app"), Not(testutil.Contains), "# Allow daemon access to create the CUPS socket")
 
 	// provider to consumer on classic for PermanentSlot
-	appSet, err = interfaces.NewSnapAppSet(s.providerSlotInfo.Snap, nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.providerSlotInfo.Snap, nil))
+
 	spec = apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddPermanentSlot(s.iface, s.providerSlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.provider.app"})
@@ -189,8 +190,8 @@ func (s *cupsControlSuite) TestAppArmorSpecClassic(c *C) {
 	c.Assert(spec.SnippetForTag("snap.provider.app"), Not(testutil.Contains), "label=\"snap.consumer.app\"")
 
 	// provider to consumer on classic for ConnectedSlot
-	appSet, err = interfaces.NewSnapAppSet(s.providerSlot.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.providerSlot.Snap(), nil))
+
 	spec = apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.providerSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.provider.app"})

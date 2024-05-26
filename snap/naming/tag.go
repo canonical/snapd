@@ -23,6 +23,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 var errInvalidSecurityTag = errors.New("invalid security tag")
@@ -113,14 +115,10 @@ func ParseSecurityTag(tag string) (SecurityTag, error) {
 	}
 
 	snapName, componentName, isComponent := strings.Cut(snapName, "+")
-	if err := ValidateInstance(snapName); err != nil {
-		return nil, errInvalidSecurityTag
-	}
+	mylog.Check(ValidateInstance(snapName))
 
 	if isComponent {
-		if err := ValidateSnap(componentName); err != nil {
-			return nil, errInvalidSecurityTag
-		}
+		mylog.Check(ValidateSnap(componentName))
 	}
 
 	// Depending on the type of the tag we either expect application name or
@@ -132,9 +130,8 @@ func ParseSecurityTag(tag string) (SecurityTag, error) {
 		}
 
 		appName := parts[2]
-		if err := ValidateApp(appName); err != nil {
-			return nil, errInvalidSecurityTag
-		}
+		mylog.Check(ValidateApp(appName))
+
 		return &appSecurityTag{instanceName: snapName, appName: appName}, nil
 	}
 
@@ -142,9 +139,7 @@ func ParseSecurityTag(tag string) (SecurityTag, error) {
 	if hookLiteral != "hook" {
 		return nil, errInvalidSecurityTag
 	}
-	if err := ValidateHook(hookName); err != nil {
-		return nil, errInvalidSecurityTag
-	}
+	mylog.Check(ValidateHook(hookName))
 
 	return &hookSecurityTag{
 		instanceName:  snapName,
@@ -155,10 +150,8 @@ func ParseSecurityTag(tag string) (SecurityTag, error) {
 
 // ParseAppSecurityTag parses an app security tag.
 func ParseAppSecurityTag(tag string) (AppSecurityTag, error) {
-	parsedTag, err := ParseSecurityTag(tag)
-	if err != nil {
-		return nil, err
-	}
+	parsedTag := mylog.Check2(ParseSecurityTag(tag))
+
 	if parsedAppTag, ok := parsedTag.(AppSecurityTag); ok {
 		return parsedAppTag, nil
 	}
@@ -167,10 +160,8 @@ func ParseAppSecurityTag(tag string) (AppSecurityTag, error) {
 
 // ParseHookSecurityTag parses a hook security tag.
 func ParseHookSecurityTag(tag string) (HookSecurityTag, error) {
-	parsedTag, err := ParseSecurityTag(tag)
-	if err != nil {
-		return nil, err
-	}
+	parsedTag := mylog.Check2(ParseSecurityTag(tag))
+
 	if parsedHookTag, ok := parsedTag.(HookSecurityTag); ok {
 		return parsedHookTag, nil
 	}

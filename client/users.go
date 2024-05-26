@@ -23,6 +23,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // CreateUserResult holds the result of a user creation.
@@ -62,12 +64,9 @@ type userAction struct {
 }
 
 func (client *Client) doUserAction(act *userAction, result interface{}) error {
-	data, err := json.Marshal(act)
-	if err != nil {
-		return err
-	}
+	data := mylog.Check2(json.Marshal(act))
 
-	_, err = client.doSync("POST", "/v2/users", nil, nil, bytes.NewReader(data), result)
+	_ = mylog.Check2(client.doSync("POST", "/v2/users", nil, nil, bytes.NewReader(data), result))
 	return err
 }
 
@@ -78,10 +77,8 @@ func (client *Client) CreateUser(options *CreateUserOptions) (*CreateUserResult,
 	}
 
 	var result []*CreateUserResult
-	err := client.doUserAction(&userAction{Action: "create", CreateUserOptions: options}, &result)
-	if err != nil {
-		return nil, fmt.Errorf("while creating user: %v", err)
-	}
+	mylog.Check(client.doUserAction(&userAction{Action: "create", CreateUserOptions: options}, &result))
+
 	return result[0], nil
 }
 
@@ -99,12 +96,8 @@ func (client *Client) CreateUsers(options []*CreateUserOptions) ([]*CreateUserRe
 	var errs []error
 	for _, opts := range options {
 		var result []*CreateUserResult
-		err := client.doUserAction(&userAction{Action: "create", CreateUserOptions: opts}, &result)
-		if err != nil {
-			errs = append(errs, err)
-		} else {
-			results = append(results, result...)
-		}
+		mylog.Check(client.doUserAction(&userAction{Action: "create", CreateUserOptions: opts}, &result))
+
 	}
 
 	if len(errs) == 1 {
@@ -128,18 +121,15 @@ func (client *Client) RemoveUser(options *RemoveUserOptions) (removed []*User, e
 	var result struct {
 		Removed []*User `json:"removed"`
 	}
-	if err := client.doUserAction(&userAction{Action: "remove", RemoveUserOptions: options}, &result); err != nil {
-		return nil, err
-	}
+	mylog.Check(client.doUserAction(&userAction{Action: "remove", RemoveUserOptions: options}, &result))
+
 	return result.Removed, nil
 }
 
 // Users returns the local users.
 func (client *Client) Users() ([]*User, error) {
 	var result []*User
+	mylog.Check2(client.doSync("GET", "/v2/users", nil, nil, nil, &result))
 
-	if _, err := client.doSync("GET", "/v2/users", nil, nil, nil, &result); err != nil {
-		return nil, fmt.Errorf("while getting users: %v", err)
-	}
 	return result, nil
 }

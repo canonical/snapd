@@ -23,9 +23,7 @@ import (
 	"strings"
 )
 
-var (
-	AutostartCmd = autostartCmd
-)
+var AutostartCmd = autostartCmd
 
 func MockCurrentDesktop(current string) func() {
 	old := currentDesktop

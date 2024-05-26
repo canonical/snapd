@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/dirs"
@@ -53,8 +54,8 @@ func (s *snapmgrTestSuite) TestRemoveTasks(c *C) {
 		SnapType: "app",
 	})
 
-	ts, err := snapstate.Remove(s.state, "foo", snap.R(0), nil)
-	c.Assert(err, IsNil)
+	ts := mylog.Check2(snapstate.Remove(s.state, "foo", snap.R(0), nil))
+
 
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 	verifyRemoveTasks(c, ts)
@@ -77,8 +78,8 @@ func (s *snapmgrTestSuite) TestRemoveTasksAutoSnapshotDisabled(c *C) {
 		SnapType: "app",
 	})
 
-	ts, err := snapstate.Remove(s.state, "foo", snap.R(0), nil)
-	c.Assert(err, IsNil)
+	ts := mylog.Check2(snapstate.Remove(s.state, "foo", snap.R(0), nil))
+
 
 	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
 		"stop-snap-services",
@@ -105,8 +106,8 @@ func (s *snapmgrTestSuite) TestRemoveTasksAutoSnapshotDisabledByPurgeFlag(c *C) 
 		SnapType: "app",
 	})
 
-	ts, err := snapstate.Remove(s.state, "foo", snap.R(0), &snapstate.RemoveFlags{Purge: true})
-	c.Assert(err, IsNil)
+	ts := mylog.Check2(snapstate.Remove(s.state, "foo", snap.R(0), &snapstate.RemoveFlags{Purge: true}))
+
 
 	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
 		"stop-snap-services",
@@ -133,8 +134,8 @@ func (s *snapmgrTestSuite) TestRemoveHookNotExecutedIfNotLastRevison(c *C) {
 		Current: snap.R(12),
 	})
 
-	ts, err := snapstate.Remove(s.state, "foo", snap.R(11), nil)
-	c.Assert(err, IsNil)
+	ts := mylog.Check2(snapstate.Remove(s.state, "foo", snap.R(11), nil))
+
 
 	runHooks := tasksWithKind(ts, "run-hook")
 	// no 'remove' hook task
@@ -151,12 +152,12 @@ func (s *snapmgrTestSuite) TestRemoveConflict(c *C) {
 		Current:  snap.R(11),
 	})
 
-	ts, err := snapstate.Remove(s.state, "some-snap", snap.R(0), nil)
-	c.Assert(err, IsNil)
+	ts := mylog.Check2(snapstate.Remove(s.state, "some-snap", snap.R(0), nil))
+
 	// need a change to make the tasks visible
 	s.state.NewChange("remove", "...").AddAll(ts)
 
-	_, err = snapstate.Remove(s.state, "some-snap", snap.R(0), nil)
+	_ = mylog.Check2(snapstate.Remove(s.state, "some-snap", snap.R(0), nil))
 	c.Assert(err, ErrorMatches, `snap "some-snap" has "remove" change in progress`)
 }
 
@@ -196,7 +197,7 @@ func (s *snapmgrTestSuite) testRemoveDiskSpaceCheck(c *C, featureFlag, automatic
 		SnapType: "app",
 	})
 
-	_, err := snapstate.Remove(s.state, "some-snap", snap.R(0), nil)
+	_ := mylog.Check2(snapstate.Remove(s.state, "some-snap", snap.R(0), nil))
 	c.Assert(automaticSnapshotCalled, Equals, true)
 	return err
 }
@@ -204,23 +205,24 @@ func (s *snapmgrTestSuite) testRemoveDiskSpaceCheck(c *C, featureFlag, automatic
 func (s *snapmgrTestSuite) TestRemoveDiskSpaceCheckDoesNothingWhenNoSnapshot(c *C) {
 	featureFlag := true
 	snapshot := false
-	err := s.testRemoveDiskSpaceCheck(c, featureFlag, snapshot)
-	c.Assert(err, IsNil)
+	mylog.Check(s.testRemoveDiskSpaceCheck(c, featureFlag, snapshot))
+
 }
 
 func (s *snapmgrTestSuite) TestRemoveDiskSpaceCheckDisabledByFeatureFlag(c *C) {
 	featureFlag := false
 	snapshot := true
-	err := s.testRemoveDiskSpaceCheck(c, featureFlag, snapshot)
-	c.Assert(err, IsNil)
+	mylog.Check(s.testRemoveDiskSpaceCheck(c, featureFlag, snapshot))
+
 }
 
 func (s *snapmgrTestSuite) TestRemoveDiskSpaceForSnapshotError(c *C) {
 	featureFlag := true
 	snapshot := true
-	// both the snapshot and disk check feature are enabled, so we should hit
-	// the disk check (which fails).
-	err := s.testRemoveDiskSpaceCheck(c, featureFlag, snapshot)
+	mylog.
+		// both the snapshot and disk check feature are enabled, so we should hit
+		// the disk check (which fails).
+		Check(s.testRemoveDiskSpaceCheck(c, featureFlag, snapshot))
 	c.Assert(err, NotNil)
 
 	diskSpaceErr := err.(*snapstate.InsufficientSpaceError)
@@ -250,8 +252,8 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 	})
 
 	chg := s.state.NewChange("remove", "remove a snap")
-	ts, err := snapstate.Remove(s.state, "some-snap", snap.R(0), nil)
-	c.Assert(err, IsNil)
+	ts := mylog.Check2(snapstate.Remove(s.state, "some-snap", snap.R(0), nil))
+
 	chg.AddAll(ts)
 
 	s.settle(c)
@@ -329,8 +331,8 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 		if t.Kind() == "save-snapshot" {
 			continue
 		}
-		snapsup, err := snapstate.TaskSnapSetup(t)
-		c.Assert(err, IsNil)
+		snapsup := mylog.Check2(snapstate.TaskSnapSetup(t))
+
 
 		var expSnapSetup *snapstate.SnapSetup
 		switch t.Kind() {
@@ -367,10 +369,9 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 
 	// verify snaps in the system state
 	var snapst snapstate.SnapState
-	err = snapstate.Get(s.state, "some-snap", &snapst)
+	mylog.Check(snapstate.Get(s.state, "some-snap", &snapst))
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 	c.Check(snapstate.AuxStoreInfoFilename("some-snap-id"), testutil.FileAbsent)
-
 }
 
 func (s *snapmgrTestSuite) TestParallelInstanceRemoveRunThrough(c *C) {
@@ -398,8 +399,8 @@ func (s *snapmgrTestSuite) TestParallelInstanceRemoveRunThrough(c *C) {
 	})
 
 	chg := s.state.NewChange("remove", "remove a snap")
-	ts, err := snapstate.Remove(s.state, "some-snap_instance", snap.R(0), nil)
-	c.Assert(err, IsNil)
+	ts := mylog.Check2(snapstate.Remove(s.state, "some-snap_instance", snap.R(0), nil))
+
 	chg.AddAll(ts)
 
 	s.settle(c)
@@ -479,8 +480,8 @@ func (s *snapmgrTestSuite) TestParallelInstanceRemoveRunThrough(c *C) {
 		if t.Kind() == "save-snapshot" {
 			continue
 		}
-		snapsup, err := snapstate.TaskSnapSetup(t)
-		c.Assert(err, IsNil)
+		snapsup := mylog.Check2(snapstate.TaskSnapSetup(t))
+
 
 		var expSnapSetup *snapstate.SnapSetup
 		switch t.Kind() {
@@ -518,12 +519,13 @@ func (s *snapmgrTestSuite) TestParallelInstanceRemoveRunThrough(c *C) {
 
 	// verify snaps in the system state
 	var snapst snapstate.SnapState
-	err = snapstate.Get(s.state, "some-snap_instance", &snapst)
+	mylog.Check(snapstate.Get(s.state, "some-snap_instance", &snapst))
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
+	mylog.
 
-	// the non-instance snap is still there
-	err = snapstate.Get(s.state, "some-snap", &snapst)
-	c.Assert(err, IsNil)
+		// the non-instance snap is still there
+		Check(snapstate.Get(s.state, "some-snap", &snapst))
+
 }
 
 func (s *snapmgrTestSuite) TestParallelInstanceRemoveRunThroughOtherInstances(c *C) {
@@ -552,8 +554,8 @@ func (s *snapmgrTestSuite) TestParallelInstanceRemoveRunThroughOtherInstances(c 
 	})
 
 	chg := s.state.NewChange("remove", "remove a snap")
-	ts, err := snapstate.Remove(s.state, "some-snap_instance", snap.R(0), nil)
-	c.Assert(err, IsNil)
+	ts := mylog.Check2(snapstate.Remove(s.state, "some-snap_instance", snap.R(0), nil))
+
 	chg.AddAll(ts)
 
 	s.settle(c)
@@ -626,12 +628,13 @@ func (s *snapmgrTestSuite) TestParallelInstanceRemoveRunThroughOtherInstances(c 
 
 	// verify snaps in the system state
 	var snapst snapstate.SnapState
-	err = snapstate.Get(s.state, "some-snap_instance", &snapst)
+	mylog.Check(snapstate.Get(s.state, "some-snap_instance", &snapst))
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
+	mylog.
 
-	// the other instance is still there
-	err = snapstate.Get(s.state, "some-snap_other", &snapst)
-	c.Assert(err, IsNil)
+		// the other instance is still there
+		Check(snapstate.Get(s.state, "some-snap_other", &snapst))
+
 }
 
 func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
@@ -664,8 +667,8 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 	})
 
 	chg := s.state.NewChange("remove", "remove a snap")
-	ts, err := snapstate.Remove(s.state, "some-snap", snap.R(0), nil)
-	c.Assert(err, IsNil)
+	ts := mylog.Check2(snapstate.Remove(s.state, "some-snap", snap.R(0), nil))
+
 	chg.AddAll(ts)
 
 	s.settle(c)
@@ -762,8 +765,8 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 		if t.Kind() == "save-snapshot" {
 			continue
 		}
-		snapsup, err := snapstate.TaskSnapSetup(t)
-		c.Assert(err, IsNil)
+		snapsup := mylog.Check2(snapstate.TaskSnapSetup(t))
+
 
 		var expSnapSetup *snapstate.SnapSetup
 		switch t.Kind() {
@@ -805,7 +808,7 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 
 	// verify snaps in the system state
 	var snapst snapstate.SnapState
-	err = snapstate.Get(s.state, "some-snap", &snapst)
+	mylog.Check(snapstate.Get(s.state, "some-snap", &snapst))
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 }
 
@@ -836,8 +839,8 @@ func (s *snapmgrTestSuite) TestRemoveOneRevisionRunThrough(c *C) {
 	})
 
 	chg := s.state.NewChange("remove", "remove a snap")
-	ts, err := snapstate.Remove(s.state, "some-snap", snap.R(3), nil)
-	c.Assert(err, IsNil)
+	ts := mylog.Check2(snapstate.Remove(s.state, "some-snap", snap.R(3), nil))
+
 	chg.AddAll(ts)
 
 	s.settle(c)
@@ -864,8 +867,8 @@ func (s *snapmgrTestSuite) TestRemoveOneRevisionRunThrough(c *C) {
 		if t.Kind() == "save-snapshot" {
 			continue
 		}
-		snapsup, err := snapstate.TaskSnapSetup(t)
-		c.Assert(err, IsNil)
+		snapsup := mylog.Check2(snapstate.TaskSnapSetup(t))
+
 
 		expSnapSetup := &snapstate.SnapSetup{
 			SideInfo: &snap.SideInfo{
@@ -880,8 +883,8 @@ func (s *snapmgrTestSuite) TestRemoveOneRevisionRunThrough(c *C) {
 
 	// verify snaps in the system state
 	var snapst snapstate.SnapState
-	err = snapstate.Get(s.state, "some-snap", &snapst)
-	c.Assert(err, IsNil)
+	mylog.Check(snapstate.Get(s.state, "some-snap", &snapst))
+
 	c.Check(snapst.Sequence.Revisions, HasLen, 2)
 }
 
@@ -916,16 +919,16 @@ func (s *snapmgrTestSuite) TestRemoveOneRevisionDropsRevertStatus(c *C) {
 	})
 
 	chg := s.state.NewChange("remove", "remove a snap")
-	ts, err := snapstate.Remove(s.state, "some-snap", snap.R(3), nil)
-	c.Assert(err, IsNil)
+	ts := mylog.Check2(snapstate.Remove(s.state, "some-snap", snap.R(3), nil))
+
 	chg.AddAll(ts)
 
 	s.settle(c)
 
 	// verify snaps in the system state
 	var snapst snapstate.SnapState
-	err = snapstate.Get(s.state, "some-snap", &snapst)
-	c.Assert(err, IsNil)
+	mylog.Check(snapstate.Get(s.state, "some-snap", &snapst))
+
 	c.Check(snapst.Sequence.Revisions, HasLen, 2)
 	// revert status of revision 3 got dropped
 	c.Check(snapst.RevertStatus, DeepEquals, map[int]snapstate.RevertStatus{
@@ -950,8 +953,8 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 	})
 
 	chg := s.state.NewChange("remove", "remove a snap")
-	ts, err := snapstate.Remove(s.state, "some-snap", snap.R(2), nil)
-	c.Assert(err, IsNil)
+	ts := mylog.Check2(snapstate.Remove(s.state, "some-snap", snap.R(2), nil))
+
 	chg.AddAll(ts)
 
 	s.settle(c)
@@ -1016,8 +1019,8 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 		if t.Kind() == "save-snapshot" {
 			continue
 		}
-		snapsup, err := snapstate.TaskSnapSetup(t)
-		c.Assert(err, IsNil)
+		snapsup := mylog.Check2(snapstate.TaskSnapSetup(t))
+
 
 		expSnapSetup := &snapstate.SnapSetup{
 			SideInfo: &snap.SideInfo{
@@ -1038,7 +1041,7 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 
 	// verify snaps in the system state
 	var snapst snapstate.SnapState
-	err = snapstate.Get(s.state, "some-snap", &snapst)
+	mylog.Check(snapstate.Get(s.state, "some-snap", &snapst))
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 }
 
@@ -1058,7 +1061,7 @@ func (s *snapmgrTestSuite) TestRemoveCurrentActiveRevisionRefused(c *C) {
 		SnapType: "app",
 	})
 
-	_, err := snapstate.Remove(s.state, "some-snap", snap.R(2), nil)
+	_ := mylog.Check2(snapstate.Remove(s.state, "some-snap", snap.R(2), nil))
 
 	c.Check(err, ErrorMatches, `cannot remove active revision 2 of snap "some-snap"`)
 }
@@ -1079,7 +1082,7 @@ func (s *snapmgrTestSuite) TestRemoveCurrentRevisionOfSeveralRefused(c *C) {
 		SnapType: "app",
 	})
 
-	_, err := snapstate.Remove(s.state, "some-snap", snap.R(2), nil)
+	_ := mylog.Check2(snapstate.Remove(s.state, "some-snap", snap.R(2), nil))
 	c.Assert(err, NotNil)
 	c.Check(err.Error(), Equals, `cannot remove active revision 2 of snap "some-snap" (revert first?)`)
 }
@@ -1100,7 +1103,7 @@ func (s *snapmgrTestSuite) TestRemoveMissingRevisionRefused(c *C) {
 		SnapType: "app",
 	})
 
-	_, err := snapstate.Remove(s.state, "some-snap", snap.R(1), nil)
+	_ := mylog.Check2(snapstate.Remove(s.state, "some-snap", snap.R(1), nil))
 
 	c.Check(err, ErrorMatches, `revision 1 of snap "some-snap" is not installed`)
 }
@@ -1121,7 +1124,7 @@ func (s *snapmgrTestSuite) TestRemoveRefused(c *C) {
 		SnapType: "gadget",
 	})
 
-	_, err := snapstate.Remove(s.state, "brand-gadget", snap.R(0), nil)
+	_ := mylog.Check2(snapstate.Remove(s.state, "brand-gadget", snap.R(0), nil))
 
 	c.Check(err, ErrorMatches, `snap "brand-gadget" is not removable: snap is used by the model`)
 }
@@ -1142,7 +1145,7 @@ func (s *snapmgrTestSuite) TestRemoveRefusedLastRevision(c *C) {
 		SnapType: "gadget",
 	})
 
-	_, err := snapstate.Remove(s.state, "brand-gadget", snap.R(7), nil)
+	_ := mylog.Check2(snapstate.Remove(s.state, "brand-gadget", snap.R(7), nil))
 
 	c.Check(err, ErrorMatches, `snap "brand-gadget" is not removable: snap is used by the model`)
 }
@@ -1185,19 +1188,19 @@ func (s *snapmgrTestSuite) TestRemoveDeletesConfigOnLastRevision(c *C) {
 	c.Assert(tr.Get("another-snap", "bar", &res), IsNil)
 
 	chg := s.state.NewChange("remove", "remove a snap")
-	ts, err := snapstate.Remove(s.state, "some-snap", snap.R(0), nil)
-	c.Assert(err, IsNil)
+	ts := mylog.Check2(snapstate.Remove(s.state, "some-snap", snap.R(0), nil))
+
 	chg.AddAll(ts)
 
 	s.settle(c)
 
 	// verify snaps in the system state
 	var snapst snapstate.SnapState
-	err = snapstate.Get(s.state, "some-snap", &snapst)
+	mylog.Check(snapstate.Get(s.state, "some-snap", &snapst))
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 
 	tr = config.NewTransaction(s.state)
-	err = tr.Get("some-snap", "foo", &res)
+	mylog.Check(tr.Get("some-snap", "foo", &res))
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `snap "some-snap" has no "foo" configuration option`)
 
@@ -1235,16 +1238,16 @@ func (s *snapmgrTestSuite) TestRemoveDoesntDeleteConfigIfNotLastRevision(c *C) {
 	c.Assert(tr.Get("some-snap", "foo", &res), IsNil)
 
 	chg := s.state.NewChange("remove", "remove a snap")
-	ts, err := snapstate.Remove(s.state, "some-snap", si1.Revision, nil)
-	c.Assert(err, IsNil)
+	ts := mylog.Check2(snapstate.Remove(s.state, "some-snap", si1.Revision, nil))
+
 	chg.AddAll(ts)
 
 	s.settle(c)
 
 	// verify snaps in the system state
 	var snapst snapstate.SnapState
-	err = snapstate.Get(s.state, "some-snap", &snapst)
-	c.Assert(err, IsNil)
+	mylog.Check(snapstate.Get(s.state, "some-snap", &snapst))
+
 
 	tr = config.NewTransaction(s.state)
 	c.Assert(tr.Get("some-snap", "foo", &res), IsNil)
@@ -1270,8 +1273,8 @@ func (s *snapmgrTestSuite) TestRemoveMany(c *C) {
 		Current: snap.R(1),
 	})
 
-	removed, tts, err := snapstate.RemoveMany(s.state, []string{"one", "two"}, nil)
-	c.Assert(err, IsNil)
+	removed, tts := mylog.Check3(snapstate.RemoveMany(s.state, []string{"one", "two"}, nil))
+
 	c.Assert(tts, HasLen, 2)
 	c.Check(removed, DeepEquals, []string{"one", "two"})
 
@@ -1361,7 +1364,7 @@ func (s *snapmgrTestSuite) testRemoveManyDiskSpaceCheck(c *C, featureFlag, autom
 		Current: snap.R(1),
 	})
 
-	_, _, err := snapstate.RemoveMany(s.state, []string{"one", "two"}, nil)
+	_, _ := mylog.Check3(snapstate.RemoveMany(s.state, []string{"one", "two"}, nil))
 	if featureFlag && automaticSnapshot {
 		c.Check(snapshotSizeCall, Equals, 2)
 		c.Check(checkFreeSpaceCall, Equals, 1)
@@ -1378,7 +1381,7 @@ func (s *snapmgrTestSuite) TestRemoveManyDiskSpaceError(c *C) {
 	featureFlag := true
 	automaticSnapshot := true
 	freeSpaceCheckFail := true
-	err := s.testRemoveManyDiskSpaceCheck(c, featureFlag, automaticSnapshot, freeSpaceCheckFail)
+	mylog.Check(s.testRemoveManyDiskSpaceCheck(c, featureFlag, automaticSnapshot, freeSpaceCheckFail))
 
 	diskSpaceErr := err.(*snapstate.InsufficientSpaceError)
 	c.Check(diskSpaceErr.Path, Equals, filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd"))
@@ -1390,23 +1393,23 @@ func (s *snapmgrTestSuite) TestRemoveManyDiskSpaceCheckDisabled(c *C) {
 	featureFlag := false
 	automaticSnapshot := true
 	freeSpaceCheckFail := true
-	err := s.testRemoveManyDiskSpaceCheck(c, featureFlag, automaticSnapshot, freeSpaceCheckFail)
-	c.Assert(err, IsNil)
+	mylog.Check(s.testRemoveManyDiskSpaceCheck(c, featureFlag, automaticSnapshot, freeSpaceCheckFail))
+
 }
 
 func (s *snapmgrTestSuite) TestRemoveManyDiskSpaceSnapshotDisabled(c *C) {
 	featureFlag := true
 	automaticSnapshot := false
 	freeSpaceCheckFail := true
-	err := s.testRemoveManyDiskSpaceCheck(c, featureFlag, automaticSnapshot, freeSpaceCheckFail)
-	c.Assert(err, IsNil)
+	mylog.Check(s.testRemoveManyDiskSpaceCheck(c, featureFlag, automaticSnapshot, freeSpaceCheckFail))
+
 }
 
 func (s *snapmgrTestSuite) TestRemoveManyDiskSpaceCheckPasses(c *C) {
 	featureFlag := true
 	automaticSnapshot := true
 	freeSpaceCheckFail := false
-	err := s.testRemoveManyDiskSpaceCheck(c, featureFlag, automaticSnapshot, freeSpaceCheckFail)
+	mylog.Check(s.testRemoveManyDiskSpaceCheck(c, featureFlag, automaticSnapshot, freeSpaceCheckFail))
 	c.Check(err, IsNil)
 }
 
@@ -1416,25 +1419,22 @@ type snapdBackend struct {
 
 func (f *snapdBackend) RemoveSnapData(info *snap.Info, opts *dirs.SnapDirOptions) error {
 	dir := snap.DataDir(info.SnapName(), info.Revision)
-	if err := os.Remove(dir); err != nil {
-		return fmt.Errorf("unexpected error: %v", err)
-	}
+	mylog.Check(os.Remove(dir))
+
 	return f.fakeSnappyBackend.RemoveSnapData(info, nil)
 }
 
 func (f *snapdBackend) RemoveSnapCommonData(info *snap.Info, opts *dirs.SnapDirOptions) error {
 	dir := snap.CommonDataDir(info.SnapName())
-	if err := os.Remove(dir); err != nil {
-		return fmt.Errorf("unexpected error: %v", err)
-	}
+	mylog.Check(os.Remove(dir))
+
 	return f.fakeSnappyBackend.RemoveSnapCommonData(info, nil)
 }
 
 func (f *snapdBackend) RemoveSnapSaveData(info *snap.Info, dev snap.Device) error {
 	dir := snap.CommonDataSaveDir(info.InstanceName())
-	if err := os.RemoveAll(dir); err != nil {
-		return fmt.Errorf("unexpected error: %v", err)
-	}
+	mylog.Check(os.RemoveAll(dir))
+
 	return f.fakeSnappyBackend.RemoveSnapSaveData(info, dev)
 }
 
@@ -1455,8 +1455,8 @@ func injectError(c *C, chg *state.Change, beforeTaskKind string, snapRev snap.Re
 		if t.Kind() != beforeTaskKind {
 			continue
 		}
-		sup, err := snapstate.TaskSnapSetup(t)
-		c.Assert(err, IsNil)
+		sup := mylog.Check2(snapstate.TaskSnapSetup(t))
+
 		if sup.Revision() != snapRev {
 			continue
 		}
@@ -1507,8 +1507,8 @@ func (s *snapmgrTestSuite) TestRemoveManyUndoRestoresCurrent(c *C) {
 	makeTestSnaps(c, s.state)
 
 	chg := s.state.NewChange("remove", "remove a snap")
-	ts, err := snapstate.Remove(s.state, "some-snap", snap.R(0), nil)
-	c.Assert(err, IsNil)
+	ts := mylog.Check2(snapstate.Remove(s.state, "some-snap", snap.R(0), nil))
+
 	chg.AddAll(ts)
 
 	// inject an error before clear-snap of revision 1 (current), after
@@ -1585,8 +1585,8 @@ func (s *snapmgrTestSuite) TestRemoveManyUndoLeavesInactiveSnapAfterDataIsLost(c
 	makeTestSnaps(c, s.state)
 
 	chg := s.state.NewChange("remove", "remove a snap")
-	ts, err := snapstate.Remove(s.state, "some-snap", snap.R(0), nil)
-	c.Assert(err, IsNil)
+	ts := mylog.Check2(snapstate.Remove(s.state, "some-snap", snap.R(0), nil))
+
 	chg.AddAll(ts)
 
 	// inject an error after removing data of both revisions (which includes
@@ -1715,33 +1715,33 @@ func (s *snapmgrTestSuite) TestRemovePrunesRefreshGatingDataOnLastRevision(c *C)
 	}
 	st.Set("refresh-candidates", rc)
 
-	_, err := snapstate.HoldRefresh(st, snapstate.HoldAutoRefresh, "some-snap", 0, "foo-snap")
-	c.Assert(err, IsNil)
-	_, err = snapstate.HoldRefresh(st, snapstate.HoldAutoRefresh, "another-snap", 0, "some-snap")
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(snapstate.HoldRefresh(st, snapstate.HoldAutoRefresh, "some-snap", 0, "foo-snap"))
 
-	held, err := snapstate.HeldSnaps(st, snapstate.HoldAutoRefresh)
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(snapstate.HoldRefresh(st, snapstate.HoldAutoRefresh, "another-snap", 0, "some-snap"))
+
+
+	held := mylog.Check2(snapstate.HeldSnaps(st, snapstate.HoldAutoRefresh))
+
 	c.Check(held, DeepEquals, map[string][]string{
 		"foo-snap":  {"some-snap"},
 		"some-snap": {"another-snap"},
 	})
 
 	chg := st.NewChange("remove", "remove a snap")
-	ts, err := snapstate.Remove(st, "some-snap", snap.R(0), nil)
-	c.Assert(err, IsNil)
+	ts := mylog.Check2(snapstate.Remove(st, "some-snap", snap.R(0), nil))
+
 	chg.AddAll(ts)
 
 	s.settle(c)
 
 	// verify snaps in the system state
 	var snapst snapstate.SnapState
-	err = snapstate.Get(st, "some-snap", &snapst)
+	mylog.Check(snapstate.Get(st, "some-snap", &snapst))
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 
 	// held snaps were updated
-	held, err = snapstate.HeldSnaps(st, snapstate.HoldAutoRefresh)
-	c.Assert(err, IsNil)
+	held = mylog.Check2(snapstate.HeldSnaps(st, snapstate.HoldAutoRefresh))
+
 	c.Check(held, HasLen, 0)
 
 	// refresh-candidates were updated
@@ -1775,19 +1775,21 @@ func (s *snapmgrTestSuite) TestRemoveKeepsGatingDataIfNotLastRevision(c *C) {
 					RealName: "some-snap",
 					Revision: snap.R(11),
 				},
-			}}}
+			},
+		},
+	}
 	st.Set("refresh-candidates", rc)
 
-	_, err := snapstate.HoldRefresh(st, snapstate.HoldAutoRefresh, "some-snap", 0, "some-snap")
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(snapstate.HoldRefresh(st, snapstate.HoldAutoRefresh, "some-snap", 0, "some-snap"))
 
-	held, err := snapstate.HeldSnaps(st, snapstate.HoldAutoRefresh)
-	c.Assert(err, IsNil)
+
+	held := mylog.Check2(snapstate.HeldSnaps(st, snapstate.HoldAutoRefresh))
+
 	c.Check(held, DeepEquals, map[string][]string{"some-snap": {"some-snap"}})
 
 	chg := st.NewChange("remove", "remove a snap")
-	ts, err := snapstate.Remove(st, "some-snap", snap.R(12), nil)
-	c.Assert(err, IsNil)
+	ts := mylog.Check2(snapstate.Remove(st, "some-snap", snap.R(12), nil))
+
 	chg.AddAll(ts)
 
 	s.settle(c)
@@ -1797,8 +1799,8 @@ func (s *snapmgrTestSuite) TestRemoveKeepsGatingDataIfNotLastRevision(c *C) {
 	c.Assert(snapstate.Get(st, "some-snap", &snapst), IsNil)
 
 	// held snaps are intact
-	held, err = snapstate.HeldSnaps(st, snapstate.HoldAutoRefresh)
-	c.Assert(err, IsNil)
+	held = mylog.Check2(snapstate.HeldSnaps(st, snapstate.HoldAutoRefresh))
+
 	c.Check(held, DeepEquals, map[string][]string{"some-snap": {"some-snap"}})
 
 	// refresh-candidates are intact
@@ -1844,25 +1846,26 @@ func (s *validationSetsSuite) removeSnapReferencedByValidationSet(c *C, presence
 	}
 	assertstate.UpdateValidationSet(s.state, &tr)
 
-	_, err := snapstate.Remove(s.state, "some-snap", snap.R(0), nil)
+	_ := mylog.Check2(snapstate.Remove(s.state, "some-snap", snap.R(0), nil))
 	return err
 }
 
 func (s *validationSetsSuite) TestRemoveSnapRequiredByValidationSetRefused(c *C) {
-	err := s.removeSnapReferencedByValidationSet(c, "required")
+	mylog.Check(s.removeSnapReferencedByValidationSet(c, "required"))
 	c.Check(err, ErrorMatches, `snap "some-snap" is not removable: snap "some-snap" is required by validation sets: 16/foo/bar/1`)
 }
 
 func (s *validationSetsSuite) TestRemoveOptionalSnapOK(c *C) {
-	err := s.removeSnapReferencedByValidationSet(c, "optional")
-	c.Assert(err, IsNil)
+	mylog.Check(s.removeSnapReferencedByValidationSet(c, "optional"))
+
 }
 
 func (s *validationSetsSuite) TestRemoveInvalidSnapOK(c *C) {
-	// this case is artificial, since we should never be in a situation where
-	// a snap is installed while its presence is invalid.
-	err := s.removeSnapReferencedByValidationSet(c, "invalid")
-	c.Assert(err, IsNil)
+	mylog.
+		// this case is artificial, since we should never be in a situation where
+		// a snap is installed while its presence is invalid.
+		Check(s.removeSnapReferencedByValidationSet(c, "invalid"))
+
 }
 
 func (s *validationSetsSuite) TestRemoveSnapRequiredByValidationSetAtSpecificRevisionRefused(c *C) {
@@ -1910,12 +1913,12 @@ func (s *validationSetsSuite) TestRemoveSnapRequiredByValidationSetAtSpecificRev
 	}
 	assertstate.UpdateValidationSet(s.state, &tr)
 
-	_, err := snapstate.Remove(s.state, "some-snap", snap.R(0), nil)
+	_ := mylog.Check2(snapstate.Remove(s.state, "some-snap", snap.R(0), nil))
 	c.Assert(err, ErrorMatches, `snap "some-snap" is not removable: snap "some-snap" at revision 2 is required by validation sets: 16/foo/bar/1`)
 
 	// it's ok to remove an unused revision
-	_, err = snapstate.Remove(s.state, "some-snap", snap.R(3), nil)
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(snapstate.Remove(s.state, "some-snap", snap.R(3), nil))
+
 }
 
 func (s *validationSetsSuite) TestRemoveSnapRequiredByValidationSetAtSpecificRevisionNotActive(c *C) {
@@ -1963,7 +1966,7 @@ func (s *validationSetsSuite) TestRemoveSnapRequiredByValidationSetAtSpecificRev
 
 	// remove inactive revision 2 fails as it is required
 	// XXX: is this a viable scenario? the required revision isn't the active one?
-	_, err := snapstate.Remove(s.state, "some-snap", snap.R(2), nil)
+	_ := mylog.Check2(snapstate.Remove(s.state, "some-snap", snap.R(2), nil))
 	c.Assert(err, ErrorMatches, `snap "some-snap" is not removable: snap "some-snap" at revision 2 is required by validation sets: 16/foo/bar/1`)
 }
 
@@ -1971,7 +1974,7 @@ func (s *snapmgrTestSuite) TestRemoveFailsWithInvalidSnapName(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	removed, ts, err := snapstate.RemoveMany(s.state, []string{"some-snap", "rev=", "123"}, nil)
+	removed, ts := mylog.Check3(snapstate.RemoveMany(s.state, []string{"some-snap", "rev=", "123"}, nil))
 	c.Check(removed, HasLen, 0)
 	c.Check(ts, HasLen, 0)
 	c.Check(err.Error(), Equals, "cannot remove invalid snap names: rev=, 123")
@@ -1981,7 +1984,7 @@ func (s *snapmgrTestSuite) TestRemoveSucceedsWithInstanceName(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	removed, ts, err := snapstate.RemoveMany(s.state, []string{"some-snap", "ab_c"}, nil)
+	removed, ts := mylog.Check3(snapstate.RemoveMany(s.state, []string{"some-snap", "ab_c"}, nil))
 	c.Check(removed, NotNil)
 	c.Check(ts, NotNil)
 	c.Check(err, IsNil)
@@ -2011,8 +2014,8 @@ func (s *snapmgrTestSuite) TestRemoveDeduplicatesSnapNames(c *C) {
 		Active:  true,
 	})
 
-	removed, ts, err := snapstate.RemoveMany(s.state, []string{"some-snap", "some-base", "some-snap", "some-base"}, nil)
-	c.Assert(err, IsNil)
+	removed, ts := mylog.Check3(snapstate.RemoveMany(s.state, []string{"some-snap", "some-base", "some-snap", "some-base"}, nil))
+
 	c.Check(removed, testutil.DeepUnsortedMatches, []string{"some-snap", "some-base"})
 	c.Check(ts, HasLen, 2)
 }
@@ -2039,7 +2042,7 @@ func (s *snapmgrTestSuite) TestRemoveManyWithPurge(c *C) {
 		Active:   true,
 	})
 
-	removed, tss, err := snapstate.RemoveMany(s.state, []string{"some-snap", "foo"}, &snapstate.RemoveFlags{Purge: true})
+	removed, tss := mylog.Check3(snapstate.RemoveMany(s.state, []string{"some-snap", "foo"}, &snapstate.RemoveFlags{Purge: true}))
 	c.Check(removed, DeepEquals, []string{"some-snap", "foo"})
 	c.Check(tss, NotNil)
 	c.Check(err, IsNil)
@@ -2057,5 +2060,4 @@ func (s *snapmgrTestSuite) TestRemoveManyWithPurge(c *C) {
 			"discard-snap",
 		})
 	}
-
 }

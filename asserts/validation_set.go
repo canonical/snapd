@@ -25,6 +25,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -49,10 +50,8 @@ func presencesAsStrings(presences ...Presence) []string {
 var validValidationSetSnapPresences = presencesAsStrings(PresenceRequired, PresenceOptional, PresenceInvalid)
 
 func checkPresence(snap map[string]interface{}, which string, valid []string) (Presence, error) {
-	presence, err := checkOptionalStringWhat(snap, "presence", which)
-	if err != nil {
-		return Presence(""), err
-	}
+	presence := mylog.Check2(checkOptionalStringWhat(snap, "presence", which))
+
 	if presence != "" && !strutil.ListContains(valid, presence) {
 		return Presence(""), fmt.Errorf("presence %s must be one of %s", which, strings.Join(valid, "|"))
 	}
@@ -80,33 +79,18 @@ func (s *ValidationSetSnap) ID() string {
 }
 
 func checkValidationSetSnap(snap map[string]interface{}) (*ValidationSetSnap, error) {
-	name, err := checkNotEmptyStringWhat(snap, "name", "of snap")
-	if err != nil {
-		return nil, err
-	}
-	if err := naming.ValidateSnap(name); err != nil {
-		return nil, fmt.Errorf("invalid snap name %q", name)
-	}
+	name := mylog.Check2(checkNotEmptyStringWhat(snap, "name", "of snap"))
+	mylog.Check(naming.ValidateSnap(name))
 
 	what := fmt.Sprintf("of snap %q", name)
 
-	snapID, err := checkStringMatchesWhat(snap, "id", what, naming.ValidSnapID)
-	if err != nil {
-		return nil, err
-	}
+	snapID := mylog.Check2(checkStringMatchesWhat(snap, "id", what, naming.ValidSnapID))
 
-	presence, err := checkPresence(snap, what, validValidationSetSnapPresences)
-	if err != nil {
-		return nil, err
-	}
+	presence := mylog.Check2(checkPresence(snap, what, validValidationSetSnapPresences))
 
 	var snapRevision int
 	if _, ok := snap["revision"]; ok {
-		var err error
-		snapRevision, err = checkSnapRevisionWhat(snap, "revision", what)
-		if err != nil {
-			return nil, err
-		}
+		snapRevision = mylog.Check2(checkSnapRevisionWhat(snap, "revision", what))
 	}
 	if snapRevision != 0 && presence == PresenceInvalid {
 		return nil, fmt.Errorf(`cannot specify revision %s at the same time as stating its presence is invalid`, what)
@@ -136,10 +120,7 @@ func checkValidationSetSnaps(snapList interface{}) ([]*ValidationSetSnap, error)
 		if !ok {
 			return nil, fmt.Errorf(wrongHeaderType)
 		}
-		valSetSnap, err := checkValidationSetSnap(snap)
-		if err != nil {
-			return nil, err
-		}
+		valSetSnap := mylog.Check2(checkValidationSetSnap(snap))
 
 		if seen[valSetSnap.Name] {
 			return nil, fmt.Errorf("cannot list the same snap %q multiple times", valSetSnap.Name)
@@ -217,19 +198,15 @@ func (vs *ValidationSet) Timestamp() time.Time {
 }
 
 func checkSequence(headers map[string]interface{}, name string) (int, error) {
-	seqnum, err := checkInt(headers, name)
-	if err != nil {
-		return -1, err
-	}
+	seqnum := mylog.Check2(checkInt(headers, name))
+
 	if seqnum < 1 {
 		return -1, fmt.Errorf("%q must be >=1: %v", name, seqnum)
 	}
 	return seqnum, nil
 }
 
-var (
-	validValidationSetName = regexp.MustCompile("^[a-z0-9](?:-?[a-z0-9])*$")
-)
+var validValidationSetName = regexp.MustCompile("^[a-z0-9](?:-?[a-z0-9])*$")
 
 func assembleValidationSet(assert assertionBase) (Assertion, error) {
 	authorityID := assert.AuthorityID()
@@ -238,29 +215,17 @@ func assembleValidationSet(assert assertionBase) (Assertion, error) {
 		return nil, fmt.Errorf("authority-id and account-id must match, validation-set assertions are expected to be signed by the issuer account: %q != %q", authorityID, accountID)
 	}
 
-	_, err := checkStringMatches(assert.headers, "name", validValidationSetName)
-	if err != nil {
-		return nil, err
-	}
+	_ := mylog.Check2(checkStringMatches(assert.headers, "name", validValidationSetName))
 
-	seq, err := checkSequence(assert.headers, "sequence")
-	if err != nil {
-		return nil, err
-	}
+	seq := mylog.Check2(checkSequence(assert.headers, "sequence"))
 
 	snapList, ok := assert.headers["snaps"]
 	if !ok {
 		return nil, fmt.Errorf(`"snaps" header is mandatory`)
 	}
-	snaps, err := checkValidationSetSnaps(snapList)
-	if err != nil {
-		return nil, err
-	}
+	snaps := mylog.Check2(checkValidationSetSnaps(snapList))
 
-	timestamp, err := checkRFC3339Date(assert.headers, "timestamp")
-	if err != nil {
-		return nil, err
-	}
+	timestamp := mylog.Check2(checkRFC3339Date(assert.headers, "timestamp"))
 
 	return &ValidationSet{
 		assertionBase: assert,

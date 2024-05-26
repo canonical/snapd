@@ -20,6 +20,7 @@
 package hotplug
 
 import (
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces/utils"
 	"github.com/snapcore/snapd/snap"
 )
@@ -56,9 +57,7 @@ func (slot *ProposedSlot) Clean() (*ProposedSlot, error) {
 	// only validate name if not empty, otherwise name is created by hotplug
 	// subsystem later on when the proposed slot is processed.
 	if slot.Name != "" {
-		if err := snap.ValidateSlotName(slot.Name); err != nil {
-			return nil, err
-		}
+		mylog.Check(snap.ValidateSlotName(slot.Name))
 	}
 	attrs := slot.Attrs
 	if attrs == nil {

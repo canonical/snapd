@@ -22,14 +22,14 @@ package main
 import (
 	"os"
 	"syscall"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 func maybeReserveDiskSpace(f *os.File, size int64) error {
-	const fallocKeepSize = 1 // This is FALLOC_FL_KEEP_SIZE
-	if err := syscall.Fallocate(int(f.Fd()), fallocKeepSize, 0, size); err != nil {
-		if err != syscall.EOPNOTSUPP && err != syscall.ENOSYS {
-			return err
-		}
-	}
+	const fallocKeepSize = 1
+	mylog.Check( // This is FALLOC_FL_KEEP_SIZE
+		syscall.Fallocate(int(f.Fd()), fallocKeepSize, 0, size))
+
 	return nil
 }

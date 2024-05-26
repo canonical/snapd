@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
 )
@@ -42,16 +43,12 @@ func (p *ProxySettings) Conf(req *http.Request) (*url.URL, error) {
 	p.st.Unlock()
 
 	var proxy string
-	err := tr.Get("core", fmt.Sprintf("proxy.%s", req.URL.Scheme), &proxy)
+	mylog.Check(tr.Get("core", fmt.Sprintf("proxy.%s", req.URL.Scheme), &proxy))
 	if proxy == "" || config.IsNoOption(err) {
 		return http.ProxyFromEnvironment(req)
 	}
-	if err != nil {
-		return nil, err
-	}
-	url, err := url.Parse(proxy)
-	if err != nil {
-		return nil, err
-	}
+
+	url := mylog.Check2(url.Parse(proxy))
+
 	return url, nil
 }

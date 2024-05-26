@@ -29,6 +29,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 )
@@ -41,11 +42,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	l, err := net.Listen("tcp", os.Args[1])
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "cannot listen: %v\n", err)
-		os.Exit(1)
-	}
+	l := mylog.Check2(net.Listen("tcp", os.Args[1]))
 
 	s := &http.Server{Handler: http.HandlerFunc(handle)}
 	go s.Serve(l)
@@ -71,26 +68,14 @@ func handle(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
 		io.WriteString(w, `{"request-id": "REQ-ID"}`)
 	case "/serial":
-		db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{})
-		if err != nil {
-			internalError(w, "cannot open signing db: %v", err)
-			return
-		}
-		err = db.ImportKey(devPrivKey)
-		if err != nil {
-			internalError(w, "cannot import signing key: %v", err)
-			return
-		}
+		db := mylog.Check2(asserts.OpenDatabase(&asserts.DatabaseConfig{}))
+		mylog.Check(db.ImportKey(devPrivKey))
 
 		defer r.Body.Close()
 
 		dec := asserts.NewDecoder(r.Body)
 
-		a, err := dec.Decode()
-		if err != nil {
-			internalError(w, "cannot read/decode request: %v", err)
-			return
-		}
+		a := mylog.Check2(dec.Decode())
 
 		serialReq, ok := a.(*asserts.SerialRequest)
 		if !ok {
@@ -99,11 +84,7 @@ func handle(w http.ResponseWriter, r *http.Request) {
 
 		}
 
-		a, err = dec.Decode()
-		if err != nil {
-			internalError(w, "cannot read/decode model: %v", err)
-			return
-		}
+		a = mylog.Check2(dec.Decode())
 
 		mod, ok := a.(*asserts.Model)
 		if !ok {
@@ -116,12 +97,7 @@ func handle(w http.ResponseWriter, r *http.Request) {
 			badRequestError(w, "model and serial-request do not cross check")
 			return
 		}
-
-		err = asserts.SignatureCheck(serialReq, serialReq.DeviceKey())
-		if err != nil {
-			badRequestError(w, "bad serial-request: %v", err)
-			return
-		}
+		mylog.Check(asserts.SignatureCheck(serialReq, serialReq.DeviceKey()))
 
 		serialStr := "7777"
 		if r.Header.Get("X-Use-Proposed") == "yes" {
@@ -129,7 +105,7 @@ func handle(w http.ResponseWriter, r *http.Request) {
 			serialStr = serialReq.Serial()
 		}
 
-		serial, err := db.Sign(asserts.SerialType, map[string]interface{}{
+		serial := mylog.Check2(db.Sign(asserts.SerialType, map[string]interface{}{
 			"authority-id":        "developer1",
 			"brand-id":            "developer1",
 			"model":               serialReq.Model(),
@@ -137,11 +113,7 @@ func handle(w http.ResponseWriter, r *http.Request) {
 			"device-key":          serialReq.HeaderString("device-key"),
 			"device-key-sha3-384": serialReq.SignKeyID(),
 			"timestamp":           time.Now().Format(time.RFC3339),
-		}, serialReq.Body(), devPrivKey.PublicKey().ID())
-		if err != nil {
-			internalError(w, "cannot sign serial: %v", err)
-			return
-		}
+		}, serialReq.Body(), devPrivKey.PublicKey().ID()))
 
 		w.Header().Set("Content-Type", asserts.MediaType)
 		w.WriteHeader(200)

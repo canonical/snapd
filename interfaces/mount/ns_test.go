@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/release"
@@ -64,14 +65,16 @@ func (s *nsSuite) TestDiscardNamespaceMnt(c *C) {
 			cmd:    "echo failure; exit 1;",
 			mnt:    true,
 			errStr: `cannot discard preserved namespace of snap "snap-name": failure`,
-			res:    [][]string{{"snap-discard-ns", "snap-name"}}},
+			res:    [][]string{{"snap-discard-ns", "snap-name"}},
+		},
 		// The mnt file is present so we use snap-discard-ns;
 		// The command fails silently and we forward this fact using a generic message.
 		{
 			cmd:    "exit 1;",
 			mnt:    true,
 			errStr: `cannot discard preserved namespace of snap "snap-name": exit status 1`,
-			res:    [][]string{{"snap-discard-ns", "snap-name"}}},
+			res:    [][]string{{"snap-discard-ns", "snap-name"}},
+		},
 	} {
 		cmd := testutil.MockCommand(c, "snap-discard-ns", t.cmd)
 		dirs.DistroLibExecDir = cmd.BinDir()
@@ -83,8 +86,7 @@ func (s *nsSuite) TestDiscardNamespaceMnt(c *C) {
 		} else {
 			c.Assert(os.RemoveAll(dirs.SnapRunNsDir), IsNil)
 		}
-
-		err := mount.DiscardSnapNamespace("snap-name")
+		mylog.Check(mount.DiscardSnapNamespace("snap-name"))
 		if t.errStr != "" {
 			c.Check(err, ErrorMatches, t.errStr)
 		} else {
@@ -112,14 +114,16 @@ func (s *nsSuite) TestUpdateNamespaceMnt(c *C) {
 			cmd:    "echo failure; exit 1;",
 			mnt:    true,
 			errStr: `cannot update preserved namespace of snap "snap-name": failure`,
-			res:    [][]string{{"snap-update-ns", "snap-name"}}},
+			res:    [][]string{{"snap-update-ns", "snap-name"}},
+		},
 		// The mnt file is present so we use snap-update-ns;
 		// The command fails silently and we forward this fact using a generic message.
 		{
 			cmd:    "exit 1;",
 			mnt:    true,
 			errStr: `cannot update preserved namespace of snap "snap-name": exit status 1`,
-			res:    [][]string{{"snap-update-ns", "snap-name"}}},
+			res:    [][]string{{"snap-update-ns", "snap-name"}},
+		},
 	} {
 		cmd := testutil.MockCommand(c, "snap-update-ns", t.cmd)
 		dirs.DistroLibExecDir = cmd.BinDir()
@@ -131,8 +135,7 @@ func (s *nsSuite) TestUpdateNamespaceMnt(c *C) {
 		} else {
 			c.Assert(os.RemoveAll(dirs.SnapRunNsDir), IsNil)
 		}
-
-		err := mount.UpdateSnapNamespace("snap-name")
+		mylog.Check(mount.UpdateSnapNamespace("snap-name"))
 		if t.errStr != "" {
 			c.Check(err, ErrorMatches, t.errStr)
 		} else {

@@ -28,6 +28,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/dirs"
@@ -50,43 +51,41 @@ var _ = Suite(&proxySuite{})
 
 func (s *proxySuite) SetUpTest(c *C) {
 	s.configcoreSuite.SetUpTest(c)
+	mylog.Check(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/"), 0755))
 
-	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/"), 0755)
-	c.Assert(err, IsNil)
 	s.mockEtcEnvironment = filepath.Join(dirs.GlobalRootDir, "/etc/environment")
 
 	s.storeSigning = assertstest.NewStoreStack("canonical", nil)
 
-	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+	db := mylog.Check2(asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore:       asserts.NewMemoryBackstore(),
 		Trusted:         s.storeSigning.Trusted,
 		OtherPredefined: s.storeSigning.Generic,
-	})
-	c.Assert(err, IsNil)
+	}))
+
 
 	s.state.Lock()
 	assertstate.ReplaceDB(s.state, db)
 	s.state.Unlock()
+	mylog.Check(db.Add(s.storeSigning.StoreAccountKey("")))
 
-	err = db.Add(s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
 }
 
 func (s *proxySuite) makeMockEtcEnvironment(c *C) {
-	err := os.WriteFile(s.mockEtcEnvironment, []byte(`
+	mylog.Check(os.WriteFile(s.mockEtcEnvironment, []byte(`
 PATH="/usr/bin"
-`), 0644)
-	c.Assert(err, IsNil)
+`), 0644))
+
 }
 
 func (s *proxySuite) TestConfigureProxyUnhappy(c *C) {
 	dirs.SetRootDir(c.MkDir())
-	err := configcore.Run(coreDev, &mockConf{
+	mylog.Check(configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"proxy.http": "http://example.com",
 		},
-	})
+	}))
 	c.Assert(err, ErrorMatches, "open .*/etc/environment: no such file or directory")
 }
 
@@ -94,14 +93,13 @@ func (s *proxySuite) TestConfigureProxy(c *C) {
 	for _, proto := range []string{"http", "https", "ftp"} {
 		// populate with content
 		s.makeMockEtcEnvironment(c)
-
-		err := configcore.Run(coreDev, &mockConf{
+		mylog.Check(configcore.Run(coreDev, &mockConf{
 			state: s.state,
 			conf: map[string]interface{}{
 				fmt.Sprintf("proxy.%s", proto): fmt.Sprintf("%s://example.com", proto),
 			},
-		})
-		c.Assert(err, IsNil)
+		}))
+
 
 		c.Check(s.mockEtcEnvironment, testutil.FileEquals, fmt.Sprintf(`
 PATH="/usr/bin"
@@ -112,13 +110,13 @@ PATH="/usr/bin"
 func (s *proxySuite) TestConfigureNoProxy(c *C) {
 	// populate with content
 	s.makeMockEtcEnvironment(c)
-	err := configcore.Run(coreDev, &mockConf{
+	mylog.Check(configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"proxy.no-proxy": "example.com,bar.com",
 		},
-	})
-	c.Assert(err, IsNil)
+	}))
+
 
 	c.Check(s.mockEtcEnvironment, testutil.FileEquals, `
 PATH="/usr/bin"
@@ -133,29 +131,32 @@ func (s *proxySuite) TestConfigureProxyStore(c *C) {
 		sessionResets++
 		return nil
 	})()
+	mylog.
 
-	// no change
-	err := configcore.Run(classicDev, &mockConf{
-		state: s.state,
-	})
+		// no change
+		Check(configcore.Run(classicDev, &mockConf{
+			state: s.state,
+		}))
 	c.Check(err, IsNil)
+	mylog.
 
-	// no related change
-	err = configcore.Run(classicDev, &mockConf{
-		state: s.state,
-		changes: map[string]interface{}{
-			"refresh.rate-limit": "1MB",
-		},
-	})
+		// no related change
+		Check(configcore.Run(classicDev, &mockConf{
+			state: s.state,
+			changes: map[string]interface{}{
+				"refresh.rate-limit": "1MB",
+			},
+		}))
 	c.Check(err, IsNil)
+	mylog.
 
-	// set to ""
-	err = configcore.Run(classicDev, &mockConf{
-		state: s.state,
-		conf: map[string]interface{}{
-			"proxy.store": "",
-		},
-	})
+		// set to ""
+		Check(configcore.Run(classicDev, &mockConf{
+			state: s.state,
+			conf: map[string]interface{}{
+				"proxy.store": "",
+			},
+		}))
 	c.Check(err, IsNil)
 
 	// no assertion
@@ -165,28 +166,26 @@ func (s *proxySuite) TestConfigureProxyStore(c *C) {
 			"proxy.store": "foo",
 		},
 	}
-
-	err = configcore.Run(classicDev, conf)
+	mylog.Check(configcore.Run(classicDev, conf))
 	c.Check(err, ErrorMatches, `cannot set proxy.store to "foo" without a matching store assertion`)
 
 	c.Check(sessionResets, Equals, 0)
 
 	operatorAcct := assertstest.NewAccount(s.storeSigning, "foo-operator", nil, "")
 	// have a store assertion
-	stoAs, err := s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
+	stoAs := mylog.Check2(s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
 		"store":       "foo",
 		"operator-id": operatorAcct.AccountID(),
 		"url":         "http://store.interal:9943",
 		"timestamp":   time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
 	func() {
 		s.state.Lock()
 		defer s.state.Unlock()
 		assertstatetest.AddMany(s.state, operatorAcct, stoAs)
 	}()
-
-	err = configcore.Run(classicDev, conf)
+	mylog.Check(configcore.Run(classicDev, conf))
 	c.Check(err, IsNil)
 
 	c.Check(sessionResets, Equals, 1)
@@ -201,8 +200,7 @@ func (s *proxySuite) TestConfigureProxyStore(c *C) {
 			"proxy.store": "foo",
 		},
 	}
-
-	err = configcore.Run(classicDev, conf)
+	mylog.Check(configcore.Run(classicDev, conf))
 	c.Check(err, IsNil)
 
 	c.Check(sessionResets, Equals, 1)
@@ -218,18 +216,17 @@ func (s *proxySuite) TestConfigureProxyStoreNoURL(c *C) {
 
 	operatorAcct := assertstest.NewAccount(s.storeSigning, "foo-operator", nil, "")
 	// have a store assertion but no url
-	stoAs, err := s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
+	stoAs := mylog.Check2(s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
 		"store":       "foo",
 		"operator-id": operatorAcct.AccountID(),
 		"timestamp":   time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
 	func() {
 		s.state.Lock()
 		defer s.state.Unlock()
 		assertstatetest.AddMany(s.state, operatorAcct, stoAs)
 	}()
-
-	err = configcore.Run(coreDev, conf)
+	mylog.Check(configcore.Run(coreDev, conf))
 	c.Check(err, ErrorMatches, `cannot set proxy.store to "foo" with a matching store assertion with url unset`)
 }

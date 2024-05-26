@@ -85,5 +85,4 @@ func init() {
 		connectedPlugAppArmor: hostnameControlConnectedPlugAppArmor,
 		connectedPlugSecComp:  hostnameControlConnectedPlugSecComp,
 	})
-
 }

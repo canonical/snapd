@@ -28,6 +28,7 @@ import (
 
 	"gopkg.in/yaml.v2"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/metautil"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timeout"
@@ -176,31 +177,22 @@ func infoFromSnapYaml(yamlData []byte, strk *scopedTracker) (*Info, error) {
 	var y snapYaml
 	// Customize hints for the typo detector.
 	y.TypoLayouts.Hint = `use singular "layout" instead of plural "layouts"`
-	err := yaml.Unmarshal(yamlData, &y)
-	if err != nil {
-		return nil, fmt.Errorf("cannot parse snap.yaml: %s", err)
-	}
+	mylog.Check(yaml.Unmarshal(yamlData, &y))
 
 	snap := infoSkeletonFromSnapYaml(y)
+	mylog.Check(
 
-	// Collect top-level definitions of plugs and slots
-	if err := setPlugsFromSnapYaml(y, snap); err != nil {
-		return nil, err
-	}
-	if err := setSlotsFromSnapYaml(y, snap); err != nil {
-		return nil, err
-	}
+		// Collect top-level definitions of plugs and slots
+		setPlugsFromSnapYaml(y, snap))
+	mylog.Check(setSlotsFromSnapYaml(y, snap))
 
 	strk.init(len(y.Apps) + len(y.Hooks))
+	mylog.Check(setComponentsFromSnapYaml(y, snap, strk))
+	mylog.Check(
 
-	if err := setComponentsFromSnapYaml(y, snap, strk); err != nil {
-		return nil, err
-	}
+		// Collect all apps, their aliases and hooks
+		setAppsFromSnapYaml(y, snap, strk))
 
-	// Collect all apps, their aliases and hooks
-	if err := setAppsFromSnapYaml(y, snap, strk); err != nil {
-		return nil, err
-	}
 	setHooksFromSnapYaml(y, snap, strk)
 
 	// Bind plugs and slots that are not scoped to all known apps and hooks.
@@ -213,10 +205,8 @@ func infoFromSnapYaml(yamlData []byte, strk *scopedTracker) (*Info, error) {
 		for path, l := range y.Layout {
 			var mode os.FileMode = 0755
 			if l.Mode != "" {
-				m, err := strconv.ParseUint(l.Mode, 8, 32)
-				if err != nil {
-					return nil, err
-				}
+				m := mylog.Check2(strconv.ParseUint(l.Mode, 8, 32))
+
 				mode = os.FileMode(m)
 			}
 			user := "root"
@@ -240,15 +230,11 @@ func infoFromSnapYaml(yamlData []byte, strk *scopedTracker) (*Info, error) {
 
 	snap.BadInterfaces = make(map[string]string)
 	SanitizePlugsSlots(snap)
+	mylog.Check(
 
-	// Collect system usernames
-	if err := setSystemUsernamesFromSnapYaml(y, snap); err != nil {
-		return nil, err
-	}
-
-	if err := setLinksFromSnapYaml(y, snap); err != nil {
-		return nil, err
-	}
+		// Collect system usernames
+		setSystemUsernamesFromSnapYaml(y, snap))
+	mylog.Check(setLinksFromSnapYaml(y, snap))
 
 	// FIXME: validation of the fields
 	return snap, nil
@@ -366,10 +352,8 @@ func setComponentsFromSnapYaml(y snapYaml, snap *Info, strk *scopedTracker) erro
 
 func setPlugsFromSnapYaml(y snapYaml, snap *Info) error {
 	for name, data := range y.Plugs {
-		iface, label, attrs, err := convertToSlotOrPlugData("plug", name, data)
-		if err != nil {
-			return err
-		}
+		iface, label, attrs := mylog.Check4(convertToSlotOrPlugData("plug", name, data))
+
 		snap.Plugs[name] = &PlugInfo{
 			Snap:      snap,
 			Name:      name,
@@ -387,10 +371,8 @@ func setPlugsFromSnapYaml(y snapYaml, snap *Info) error {
 
 func setSlotsFromSnapYaml(y snapYaml, snap *Info) error {
 	for name, data := range y.Slots {
-		iface, label, attrs, err := convertToSlotOrPlugData("slot", name, data)
-		if err != nil {
-			return err
-		}
+		iface, label, attrs := mylog.Check4(convertToSlotOrPlugData("slot", name, data))
+
 		snap.Slots[name] = &SlotInfo{
 			Snap:      snap,
 			Name:      name,
@@ -601,10 +583,8 @@ func setSystemUsernamesFromSnapYaml(y snapYaml, snap *Info) error {
 		if user == "" {
 			return fmt.Errorf("system username cannot be empty")
 		}
-		scope, attrs, err := convertToUsernamesData(user, data)
-		if err != nil {
-			return err
-		}
+		scope, attrs := mylog.Check3(convertToUsernamesData(user, data))
+
 		if scope == "" {
 			return fmt.Errorf("system username %q does not specify a scope", user)
 		}
@@ -715,12 +695,12 @@ func convertToSlotOrPlugData(plugOrSlot, name string, data interface{}) (iface, 
 		for keyData, valueData := range data.(map[interface{}]interface{}) {
 			key, ok := keyData.(string)
 			if !ok {
-				err := fmt.Errorf("%s %q has attribute key that is not a string (found %T)",
-					plugOrSlot, name, keyData)
+				mylog.Check(fmt.Errorf("%s %q has attribute key that is not a string (found %T)",
+					plugOrSlot, name, keyData))
 				return "", "", nil, err
 			}
 			if strings.HasPrefix(key, "$") {
-				err := fmt.Errorf("%s %q uses reserved attribute %q", plugOrSlot, name, key)
+				mylog.Check(fmt.Errorf("%s %q uses reserved attribute %q", plugOrSlot, name, key))
 				return "", "", nil, err
 			}
 			switch key {
@@ -729,16 +709,16 @@ func convertToSlotOrPlugData(plugOrSlot, name string, data interface{}) (iface, 
 			case "interface":
 				value, ok := valueData.(string)
 				if !ok {
-					err := fmt.Errorf("interface name on %s %q is not a string (found %T)",
-						plugOrSlot, name, valueData)
+					mylog.Check(fmt.Errorf("interface name on %s %q is not a string (found %T)",
+						plugOrSlot, name, valueData))
 					return "", "", nil, err
 				}
 				iface = value
 			case "label":
 				value, ok := valueData.(string)
 				if !ok {
-					err := fmt.Errorf("label of %s %q is not a string (found %T)",
-						plugOrSlot, name, valueData)
+					mylog.Check(fmt.Errorf("label of %s %q is not a string (found %T)",
+						plugOrSlot, name, valueData))
 					return "", "", nil, err
 				}
 				label = value
@@ -746,16 +726,14 @@ func convertToSlotOrPlugData(plugOrSlot, name string, data interface{}) (iface, 
 				if attrs == nil {
 					attrs = make(map[string]interface{})
 				}
-				value, err := metautil.NormalizeValue(valueData)
-				if err != nil {
-					return "", "", nil, fmt.Errorf("attribute %q of %s %q: %v", key, plugOrSlot, name, err)
-				}
+				value := mylog.Check2(metautil.NormalizeValue(valueData))
+
 				attrs[key] = value
 			}
 		}
 		return iface, label, attrs, nil
 	default:
-		err := fmt.Errorf("%s %q has malformed definition (found %T)", plugOrSlot, name, data)
+		mylog.Check(fmt.Errorf("%s %q has malformed definition (found %T)", plugOrSlot, name, data))
 		return "", "", nil, err
 	}
 }
@@ -784,14 +762,14 @@ func convertToUsernamesData(user string, data interface{}) (scope string, attrs 
 		for keyData, valueData := range data.(map[interface{}]interface{}) {
 			key, ok := keyData.(string)
 			if !ok {
-				err := fmt.Errorf("system username %q has attribute key that is not a string (found %T)", user, keyData)
+				mylog.Check(fmt.Errorf("system username %q has attribute key that is not a string (found %T)", user, keyData))
 				return "", nil, err
 			}
 			switch key {
 			case "scope":
 				value, ok := valueData.(string)
 				if !ok {
-					err := fmt.Errorf("scope on system username %q is not a string (found %T)", user, valueData)
+					mylog.Check(fmt.Errorf("scope on system username %q is not a string (found %T)", user, valueData))
 					return "", nil, err
 				}
 				scope = value
@@ -801,16 +779,14 @@ func convertToUsernamesData(user string, data interface{}) (scope string, attrs 
 				if attrs == nil {
 					attrs = make(map[string]interface{})
 				}
-				value, err := metautil.NormalizeValue(valueData)
-				if err != nil {
-					return "", nil, fmt.Errorf("attribute %q of system username %q: %v", key, user, err)
-				}
+				value := mylog.Check2(metautil.NormalizeValue(valueData))
+
 				attrs[key] = value
 			}
 		}
 		return scope, attrs, nil
 	default:
-		err := fmt.Errorf("system username %q has malformed definition (found %T)", user, data)
+		mylog.Check(fmt.Errorf("system username %q has malformed definition (found %T)", user, data))
 		return "", nil, err
 	}
 }

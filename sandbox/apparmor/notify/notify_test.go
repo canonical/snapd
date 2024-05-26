@@ -7,6 +7,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/testutil"
@@ -38,10 +39,10 @@ func (*notifySuite) TestSupportAvailable(c *C) {
 	newRoot := c.MkDir()
 	dirs.SetRootDir(newRoot)
 	c.Assert(notify.SupportAvailable(), Equals, false)
-	err := os.MkdirAll(filepath.Dir(notify.SysPath), 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Dir(notify.SysPath), 0755))
+
 	c.Assert(notify.SupportAvailable(), Equals, false)
-	_, err = os.Create(notify.SysPath)
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(os.Create(notify.SysPath))
+
 	c.Assert(notify.SupportAvailable(), Equals, true)
 }

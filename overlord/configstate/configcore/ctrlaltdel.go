@@ -22,6 +22,7 @@ package configcore
 import (
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/systemd"
 )
@@ -80,10 +81,8 @@ func switchCtrlAltDelAction(action string, opts *fsOnlyContext) error {
 		//     The ctrl-alt-del.target unit is an alias for reboot.target. This means that
 		//     if reboot.target is enabled, a ctrl-alt-del.target symlink will be created
 		//     under /etc/systemd/system, which is not needed and will prevent masking
-		status, err := sysd.Status([]string{ctrlAltDelTarget})
-		if err != nil {
-			return err
-		}
+		status := mylog.Check2(sysd.Status([]string{ctrlAltDelTarget}))
+
 		switch {
 		case len(status) != 1:
 			return fmt.Errorf("internal error: expected status of target %s, got %v", ctrlAltDelTarget, status)
@@ -99,15 +98,15 @@ func switchCtrlAltDelAction(action string, opts *fsOnlyContext) error {
 	// "unset" state, which complicates the problem unnecessarily, for not much benefit.
 	switch action {
 	case ctrlAltDelNone:
-		// the unit is masked and cannot be started
-		if err := sysd.Mask(ctrlAltDelTarget); err != nil {
-			return err
-		}
+		mylog.Check(
+			// the unit is masked and cannot be started
+			sysd.Mask(ctrlAltDelTarget))
+
 	case ctrlAltDelReboot:
-		// the unit is no longer masked and thus can be started on demand causing a reboot
-		if err := sysd.Unmask(ctrlAltDelTarget); err != nil {
-			return err
-		}
+		mylog.Check(
+			// the unit is no longer masked and thus can be started on demand causing a reboot
+			sysd.Unmask(ctrlAltDelTarget))
+
 	default:
 		// We already checked the action against the list of defined actions. This is an
 		// internal double check to see if any of the actions are unhandled with in this switch.
@@ -117,17 +116,13 @@ func switchCtrlAltDelAction(action string, opts *fsOnlyContext) error {
 }
 
 func handleCtrlAltDelConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyContext) error {
-	output, err := coreCfg(tr, "system.ctrl-alt-del-action")
-	if err != nil {
-		return err
-	}
+	output := mylog.Check2(coreCfg(tr, "system.ctrl-alt-del-action"))
+
 	// The coreCfg() function returns an empty string ("") if
 	// the config key was unset (not found). We only react on
 	// explicitly set actions.
 	if output != "" {
-		if err := switchCtrlAltDelAction(output, opts); err != nil {
-			return err
-		}
+		mylog.Check(switchCtrlAltDelAction(output, opts))
 	}
 	return nil
 }

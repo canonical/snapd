@@ -26,6 +26,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/udev"
@@ -67,15 +68,13 @@ func (iface *uioInterface) path(slotRef *interfaces.SlotRef, attrs interfaces.At
 }
 
 func (iface *uioInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
-	_, err := verifySlotPathAttribute(&interfaces.SlotRef{Snap: slot.Snap.InstanceName(), Name: slot.Name}, slot, uioPattern, invalidUioDeviceNodeSlotPathErrFmt)
+	_ := mylog.Check2(verifySlotPathAttribute(&interfaces.SlotRef{Snap: slot.Snap.InstanceName(), Name: slot.Name}, slot, uioPattern, invalidUioDeviceNodeSlotPathErrFmt))
 	return err
 }
 
 func (iface *uioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	path, err := iface.path(slot.Ref(), slot)
-	if err != nil {
-		return nil
-	}
+	path := mylog.Check2(iface.path(slot.Ref(), slot))
+
 	spec.AddSnippet(fmt.Sprintf("%s rw,", path))
 	// Assuming sysfs_base is /sys/class/uio/uio[0-9]+ where the leaf directory
 	// name matches /dev/uio[0-9]+ device name, the following files exists or
@@ -106,24 +105,20 @@ func (iface *uioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 
 	// Allow uio configuration
 	uioConfigPath := filepath.Join("/sys/class/uio/", strings.TrimPrefix(path, "/dev/"), "/device/config")
-	dereferencedPath, err := evalSymlinks(uioConfigPath)
+	dereferencedPath := mylog.Check2(evalSymlinks(uioConfigPath))
 	if err != nil && os.IsNotExist(err) {
 		// This should not block the interface connection operation
 		logger.Noticef("cannot configure not existing uio device config file %s", uioConfigPath)
 		return nil
 	}
-	if err != nil {
-		return err
-	}
+
 	spec.AddSnippet(fmt.Sprintf("%s rwk,", dereferencedPath))
 	return nil
 }
 
 func (iface *uioInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	path, err := iface.path(slot.Ref(), slot)
-	if err != nil {
-		return nil
-	}
+	path := mylog.Check2(iface.path(slot.Ref(), slot))
+
 	spec.TagDevice(fmt.Sprintf(`SUBSYSTEM=="uio", KERNEL=="%s"`, strings.TrimPrefix(path, "/dev/")))
 	return nil
 }

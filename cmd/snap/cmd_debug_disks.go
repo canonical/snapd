@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/gadget"
@@ -47,13 +48,9 @@ func (x *cmdDiskMapping) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 	resp := []gadget.OnDiskVolume{}
-	if err := x.client.DebugGet("disks", &resp, nil); err != nil {
-		return err
-	}
-	b, err := json.Marshal(resp)
-	if err != nil {
-		return err
-	}
+	mylog.Check(x.client.DebugGet("disks", &resp, nil))
+
+	b := mylog.Check2(json.Marshal(resp))
 
 	fmt.Fprintf(Stdout, "%s\n", string(b))
 	return nil

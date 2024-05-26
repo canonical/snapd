@@ -21,6 +21,7 @@
 package assets
 
 import (
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/logger"
 )
 
@@ -37,9 +38,7 @@ func SnippetsForEditions(name string) []ForEditions {
 // InjectSnippetForEditions injects a set of snippets under a given key.
 func InjectSnippetsForEditions(name string, snippets []ForEditions) {
 	logger.Noticef("injecting bootloader asset edition snippets for %q", name)
+	mylog.Check(sanitizeSnippets(snippets))
 
-	if err := sanitizeSnippets(snippets); err != nil {
-		panic(err)
-	}
 	registeredEditionSnippets[name] = snippets
 }

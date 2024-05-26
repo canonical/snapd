@@ -24,6 +24,7 @@ import (
 	"os/user"
 	"strconv"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
@@ -153,24 +154,15 @@ func (s *svcStatus) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
+	mylog.Check(s.validateArguments())
 
-	if err := s.validateArguments(); err != nil {
-		return err
-	}
-
-	u, err := userCurrent()
-	if err != nil {
-		return fmt.Errorf(i18n.G("cannot get the current user: %s."), err)
-	}
+	u := mylog.Check2(userCurrent())
 
 	isGlobal := s.showGlobalEnablement(u)
-	services, err := s.client.Apps(svcNames(s.Positional.ServiceNames), client.AppOptions{
+	services := mylog.Check2(s.client.Apps(svcNames(s.Positional.ServiceNames), client.AppOptions{
 		Service: true,
 		Global:  isGlobal,
-	})
-	if err != nil {
-		return err
-	}
+	}))
 
 	if len(services) == 0 {
 		fmt.Fprintln(Stderr, i18n.G("There are no services provided by installed snaps."))
@@ -194,17 +186,14 @@ func (s *svcLogs) Execute(args []string) error {
 
 	sN := -1
 	if s.N != "all" {
-		n, err := strconv.ParseInt(s.N, 0, 32)
+		n := mylog.Check2(strconv.ParseInt(s.N, 0, 32))
 		if n < 0 || err != nil {
 			return fmt.Errorf(i18n.G("invalid argument for flag ‘-n’: expected a non-negative integer argument, or “all”."))
 		}
 		sN = int(n)
 	}
 
-	logs, err := s.client.Logs(svcNames(s.Positional.ServiceNames), client.LogOptions{N: sN, Follow: s.Follow})
-	if err != nil {
-		return err
-	}
+	logs := mylog.Check2(s.client.Logs(svcNames(s.Positional.ServiceNames), client.LogOptions{N: sN, Follow: s.Follow}))
 
 	for log := range logs {
 		if s.AbsTime {
@@ -239,20 +228,11 @@ func (s *svcStart) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
-	if err := s.Validate(); err != nil {
-		return err
-	}
+	mylog.Check(s.Validate())
+
 	names := svcNames(s.Positional.ServiceNames)
-	changeID, err := s.client.Start(names, s.Scope(), s.Users(), client.StartOptions{Enable: s.Enable})
-	if err != nil {
-		return err
-	}
-	if _, err := s.wait(changeID); err != nil {
-		if err == noWait {
-			return nil
-		}
-		return err
-	}
+	changeID := mylog.Check2(s.client.Start(names, s.Scope(), s.Users(), client.StartOptions{Enable: s.Enable}))
+	mylog.Check2(s.wait(changeID))
 
 	fmt.Fprintln(Stdout, i18n.G("Started."))
 
@@ -272,20 +252,11 @@ func (s *svcStop) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
-	if err := s.Validate(); err != nil {
-		return err
-	}
+	mylog.Check(s.Validate())
+
 	names := svcNames(s.Positional.ServiceNames)
-	changeID, err := s.client.Stop(names, s.Scope(), s.Users(), client.StopOptions{Disable: s.Disable})
-	if err != nil {
-		return err
-	}
-	if _, err := s.wait(changeID); err != nil {
-		if err == noWait {
-			return nil
-		}
-		return err
-	}
+	changeID := mylog.Check2(s.client.Stop(names, s.Scope(), s.Users(), client.StopOptions{Disable: s.Disable}))
+	mylog.Check2(s.wait(changeID))
 
 	fmt.Fprintln(Stdout, i18n.G("Stopped."))
 
@@ -305,20 +276,11 @@ func (s *svcRestart) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
-	if err := s.Validate(); err != nil {
-		return err
-	}
+	mylog.Check(s.Validate())
+
 	names := svcNames(s.Positional.ServiceNames)
-	changeID, err := s.client.Restart(names, s.Scope(), s.Users(), client.RestartOptions{Reload: s.Reload})
-	if err != nil {
-		return err
-	}
-	if _, err := s.wait(changeID); err != nil {
-		if err == noWait {
-			return nil
-		}
-		return err
-	}
+	changeID := mylog.Check2(s.client.Restart(names, s.Scope(), s.Users(), client.RestartOptions{Reload: s.Reload}))
+	mylog.Check2(s.wait(changeID))
 
 	fmt.Fprintln(Stdout, i18n.G("Restarted."))
 

@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/godbus/dbus"
 
 	"github.com/snapcore/snapd/dirs"
@@ -39,12 +40,12 @@ func isSessionBusLikelyPresent() bool {
 		return true
 	}
 	uid := os.Getuid()
-	if fi, err := os.Stat(fmt.Sprintf("%s/%d/dbus-session", dirs.XdgRuntimeDirBase, uid)); err == nil {
+	if fi := mylog.Check2(os.Stat(fmt.Sprintf("%s/%d/dbus-session", dirs.XdgRuntimeDirBase, uid))); err == nil {
 		if fi.Mode()&os.ModeType == 0 {
 			return true
 		}
 	}
-	if fi, err := os.Stat(fmt.Sprintf("%s/%d/bus", dirs.XdgRuntimeDirBase, uid)); err == nil {
+	if fi := mylog.Check2(os.Stat(fmt.Sprintf("%s/%d/bus", dirs.XdgRuntimeDirBase, uid))); err == nil {
 		if fi.Mode()&os.ModeType == os.ModeSocket {
 			return true
 		}
@@ -117,17 +118,9 @@ func SessionBusPrivate() (*dbus.Conn, error) {
 	if !isSessionBusLikelyPresent() {
 		return nil, fmt.Errorf("cannot find session bus")
 	}
-	conn, err := dbus.SessionBusPrivate()
-	if err != nil {
-		return nil, err
-	}
-	if err := conn.Auth(nil); err != nil {
-		conn.Close()
-		return nil, err
-	}
-	if err := conn.Hello(); err != nil {
-		conn.Close()
-		return nil, err
-	}
+	conn := mylog.Check2(dbus.SessionBusPrivate())
+	mylog.Check(conn.Auth(nil))
+	mylog.Check(conn.Hello())
+
 	return conn, nil
 }

@@ -31,6 +31,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
@@ -72,7 +73,7 @@ const (
 
 func restartBoundaryDirections(value string) RestartBoundaryDirection {
 	var boundaries RestartBoundaryDirection
-	var tokens = strings.Split(value, "|")
+	tokens := strings.Split(value, "|")
 	for _, t := range tokens {
 		if t == "do" {
 			boundaries |= RestartBoundaryDirectionDo
@@ -100,9 +101,8 @@ func (rb RestartBoundaryDirection) MarshalJSON() ([]byte, error) {
 
 func (rb *RestartBoundaryDirection) UnmarshalJSON(data []byte) error {
 	var asStr string
-	if err := json.Unmarshal(data, &asStr); err != nil {
-		return err
-	}
+	mylog.Check(json.Unmarshal(data, &asStr))
+
 	*rb = restartBoundaryDirections(asStr)
 	return nil
 }
@@ -141,14 +141,12 @@ func Manager(st *state.State, curBootID string, h Handler) (*RestartManager, err
 		bootID: curBootID,
 	}
 	var fromBootID string
-	err := st.Get("system-restart-from-boot-id", &fromBootID)
+	mylog.Check(st.Get("system-restart-from-boot-id", &fromBootID))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 	st.Cache(restartManagerKey{}, rm)
-	if err := rm.init(fromBootID, curBootID); err != nil {
-		return nil, err
-	}
+	mylog.Check(rm.init(fromBootID, curBootID))
 
 	st.RegisterPendingChangeByAttr("wait-for-system-restart", rm.pendingForSystemRestart)
 	rm.changeCallbackID = st.AddChangeStatusChangedHandler(processRestartForChange)
@@ -202,12 +200,7 @@ func (m *RestartManager) StartUp() error {
 			}
 
 			var waitBootId string
-			if err := t.Get("wait-for-system-restart-from-boot-id", &waitBootId); err != nil {
-				if errors.Is(err, state.ErrNoState) {
-					continue
-				}
-				return err
-			}
+			mylog.Check(t.Get("wait-for-system-restart-from-boot-id", &waitBootId))
 
 			if m.bootID == waitBootId {
 				// no boot has intervened yet
@@ -272,13 +265,7 @@ func (rm *RestartManager) pendingForSystemRestart(chg *state.Change) bool {
 		}
 
 		var waitBootId string
-		if err := t.Get("wait-for-system-restart-from-boot-id", &waitBootId); err != nil {
-			if errors.Is(err, state.ErrNoState) {
-				continue
-			}
-			logger.Noticef("internal error: cannot retrieve task state: %v", err)
-			continue
-		}
+		mylog.Check(t.Get("wait-for-system-restart-from-boot-id", &waitBootId))
 
 		if rm.bootID != waitBootId {
 			// this should not happen as it
@@ -367,7 +354,7 @@ func notifyRebootRequiredClassic(rebootRequiredSnap string) error {
 			// reboot required pkg as commandline argument
 			fmt.Sprintf("DPKG_MAINTSCRIPT_PACKAGE=%s", snapStr),
 			"DPKG_MAINTSCRIPT_NAME=postinst")
-		if output, err := cmd.CombinedOutput(); err != nil {
+		if output := mylog.Check2(cmd.CombinedOutput()); err != nil {
 			return osutil.OutputErr(output, err)
 		}
 	}
@@ -432,12 +419,8 @@ func restartParametersFromChange(chg *state.Change) (*RestartParameters, error) 
 	}
 
 	var rp RestartParameters
-	if err := chg.Get("pending-system-restart", &rp); err != nil {
-		if errors.Is(err, &state.NoStateError{}) {
-			return &RestartParameters{}, nil
-		}
-		return nil, err
-	}
+	mylog.Check(chg.Get("pending-system-restart", &rp))
+
 	return &rp, nil
 }
 
@@ -456,9 +439,8 @@ func boundaryDirectionFromStatus(status state.Status) RestartBoundaryDirection {
 // given direction.
 func TaskIsRestartBoundary(t *state.Task, dir RestartBoundaryDirection) bool {
 	var boundary RestartBoundaryDirection
-	if err := t.Get("restart-boundary", &boundary); err != nil {
-		return false
-	}
+	mylog.Check(t.Get("restart-boundary", &boundary))
+
 	return (boundary & dir) != 0
 }
 
@@ -497,10 +479,7 @@ func FinishTaskWithRestart(t *state.Task, status state.Status, restartType Resta
 	}
 
 	chg := t.Change()
-	rp, err := restartParametersFromChange(chg)
-	if err != nil {
-		return err
-	}
+	rp := mylog.Check2(restartParametersFromChange(chg))
 
 	// always re-init restart parameters
 	if snapName == "" {
@@ -583,24 +562,19 @@ func processRestartForChange(chg *state.Change, old, new state.Status) {
 	// XXX: Take into consideration the direction of a requested snap
 
 	var rp RestartParameters
-	if err := chg.Get("pending-system-restart", &rp); err != nil {
-		// Changes might need a restart when they go into DoneStatus, but it's
-		// not guaranteed, so only log a warning if the change was in WaitStatus
-		if new == state.WaitStatus {
-			logger.Noticef("change %s is waiting to continue but failed to get parameters for reboot: %v", chg.ID(), err)
-		}
-		return
-	}
+	mylog.Check(chg.Get("pending-system-restart", &rp))
+	// Changes might need a restart when they go into DoneStatus, but it's
+	// not guaranteed, so only log a warning if the change was in WaitStatus
 
 	// clear out the restart context for this change before restarting
 	chg.Set("pending-system-restart", nil)
 
 	// perform the restart
 	if release.OnClassic {
-		// Notify the system that a reboot is required.
-		if err := notifyRebootRequiredClassic(rp.SnapName); err != nil {
-			logger.Noticef("cannot notify about pending reboot: %v", err)
-		}
+		mylog.Check(
+			// Notify the system that a reboot is required.
+			notifyRebootRequiredClassic(rp.SnapName))
+
 		logger.Noticef("Postponing restart until a manual system restart allows to continue")
 		return
 	}

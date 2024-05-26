@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/agentnotify"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
@@ -67,8 +68,10 @@ func (s *agentNotifySuite) TestNotifyAgentOnLinkChange(c *C) {
 		callCount = 0
 		snapstate.Set(s.st, "some-snap", &snapstate.SnapState{
 			Active: tc.active,
-			Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{
-				RealName: "some-snap", Revision: snap.R(1)},
+			Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+				{
+					RealName: "some-snap", Revision: snap.R(1),
+				},
 			}),
 			Current: snap.R(1),
 		})
@@ -78,8 +81,8 @@ func (s *agentNotifySuite) TestNotifyAgentOnLinkChange(c *C) {
 				RealName: "some-snap",
 			},
 		}
-		err := agentnotify.NotifyAgentOnLinkageChange(s.st, snapsup)
-		c.Assert(err, IsNil)
+		mylog.Check(agentnotify.NotifyAgentOnLinkageChange(s.st, snapsup))
+
 		c.Check(callCount, Equals, tc.expectedCallCount)
 	}
 }

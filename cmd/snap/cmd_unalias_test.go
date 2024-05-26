@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	. "github.com/snapcore/snapd/cmd/snap"
 )
 
@@ -62,8 +63,8 @@ func (s *SnapSuite) TestUnalias(c *C) {
 			c.Fatalf("unexpected path %q", r.URL.Path)
 		}
 	})
-	rest, err := Parser(Client()).ParseArgs([]string{"unalias", "alias1"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(Parser(Client()).ParseArgs([]string{"unalias", "alias1"}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	c.Assert(s.Stdout(), Equals, ""+
 		"Removed:\n"+

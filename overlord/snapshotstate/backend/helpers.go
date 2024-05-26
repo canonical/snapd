@@ -29,6 +29,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
@@ -38,25 +39,18 @@ import (
 
 // zipMember returns an io.ReadCloser for the 'member' file in the 'f' zip file.
 func zipMember(f *os.File, member string) (r io.ReadCloser, sz int64, err error) {
-	// rewind the file
-	// (shouldn't be needed, but doesn't hurt too much)
-	if _, err := f.Seek(0, 0); err != nil {
-		return nil, -1, err
-	}
+	mylog.Check2(
+		// rewind the file
+		// (shouldn't be needed, but doesn't hurt too much)
+		f.Seek(0, 0))
 
-	fi, err := f.Stat()
-	if err != nil {
-		return nil, -1, err
-	}
+	fi := mylog.Check2(f.Stat())
 
-	arch, err := zip.NewReader(f, fi.Size())
-	if err != nil {
-		return nil, -1, err
-	}
+	arch := mylog.Check2(zip.NewReader(f, fi.Size()))
 
 	for _, fh := range arch.File {
 		if fh.Name == member {
-			r, err = fh.Open()
+			r = mylog.Check2(fh.Open())
 			return r, int64(fh.UncompressedSize64), err
 		}
 	}
@@ -100,32 +94,28 @@ func usersForUsernamesImpl(usernames []string, opts *dirs.SnapDirOptions) ([]*us
 	}
 	users := make([]*user.User, 0, len(usernames))
 	for _, username := range usernames {
-		usr, err := userLookup(username)
-		if err != nil {
-			// Treat all non-nil errors as user.Unknown{User,Group}Error's, as
-			// currently Go's handling of returned errno from get{pw,gr}nam_r
-			// in the cgo implementation of user.Lookup is lacking, and thus
-			// user.Unknown{User,Group}Error is returned only when errno is 0
-			// and the list of users/groups is empty, but as per the man page
-			// for get{pw,gr}nam_r, there are many other errno's that typical
-			// systems could return to indicate that the user/group wasn't
-			// found, however unfortunately the POSIX standard does not actually
-			// dictate what errno should be used to indicate "user/group not
-			// found", and so even if Go is more robust, it may not ever be
-			// fully robust. See from the man page:
-			//
-			// > It [POSIX.1-2001] does not call "not found" an error, hence
-			// > does not specify what value errno might have in this situation.
-			// > But that makes it impossible to recognize errors.
-			//
-			// See upstream Go issue: https://github.com/golang/go/issues/40334
-			u, e := userLookupId(username)
-			if e != nil {
-				// return first error, as it's usually clearer
-				return nil, err
-			}
-			usr = u
-		}
+		usr := mylog.Check2(userLookup(username))
+
+		// Treat all non-nil errors as user.Unknown{User,Group}Error's, as
+		// currently Go's handling of returned errno from get{pw,gr}nam_r
+		// in the cgo implementation of user.Lookup is lacking, and thus
+		// user.Unknown{User,Group}Error is returned only when errno is 0
+		// and the list of users/groups is empty, but as per the man page
+		// for get{pw,gr}nam_r, there are many other errno's that typical
+		// systems could return to indicate that the user/group wasn't
+		// found, however unfortunately the POSIX standard does not actually
+		// dictate what errno should be used to indicate "user/group not
+		// found", and so even if Go is more robust, it may not ever be
+		// fully robust. See from the man page:
+		//
+		// > It [POSIX.1-2001] does not call "not found" an error, hence
+		// > does not specify what value errno might have in this situation.
+		// > But that makes it impossible to recognize errors.
+		//
+		// See upstream Go issue: https://github.com/golang/go/issues/40334
+
+		// return first error, as it's usually clearer
+
 		users = append(users, usr)
 
 	}
@@ -145,7 +135,7 @@ func pickUserWrapper() string {
 	// runuser, and we support some distros that ship things older than that
 	// (e.g. Ubuntu 14.04)
 	for _, cmd := range []string{"runuser", "sudo"} {
-		if lp, err := execLookPath(cmd); err == nil {
+		if lp := mylog.Check2(execLookPath(cmd)); err == nil {
 			return lp
 		}
 	}

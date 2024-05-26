@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/testutil"
@@ -38,12 +39,11 @@ var _ = Suite(&timezoneSuite{})
 
 func (s *timezoneSuite) SetUpTest(c *C) {
 	s.configcoreSuite.SetUpTest(c)
+	mylog.Check(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/writable"), 0755))
 
-	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/writable"), 0755)
-	c.Assert(err, IsNil)
 	localtimePath := filepath.Join(dirs.GlobalRootDir, "/etc/writable/localtime")
-	err = os.Symlink("/usr/share/zoneinfo/WET", localtimePath)
-	c.Assert(err, IsNil)
+	mylog.Check(os.Symlink("/usr/share/zoneinfo/WET", localtimePath))
+
 }
 
 func (s *timezoneSuite) TestConfigureTimezoneInvalid(c *C) {
@@ -52,12 +52,12 @@ func (s *timezoneSuite) TestConfigureTimezoneInvalid(c *C) {
 	}
 
 	for _, tz := range invalidTimezones {
-		err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
+		mylog.Check(configcore.FilesystemOnlyRun(coreDev, &mockConf{
 			state: s.state,
 			conf: map[string]interface{}{
 				"system.timezone": tz,
 			},
-		})
+		}))
 		c.Assert(err, ErrorMatches, `cannot set timezone.*`)
 	}
 }
@@ -73,13 +73,13 @@ func (s *timezoneSuite) TestConfigureTimezoneIntegration(c *C) {
 	}
 
 	for _, tz := range validTimezones {
-		err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
+		mylog.Check(configcore.FilesystemOnlyRun(coreDev, &mockConf{
 			state: s.state,
 			conf: map[string]interface{}{
 				"system.timezone": tz,
 			},
-		})
-		c.Assert(err, IsNil)
+		}))
+
 		c.Check(mockedTimedatectl.Calls(), DeepEquals, [][]string{
 			{"timedatectl", "set-timezone", tz},
 		}, Commentf("tested timezone: %v", tz))
@@ -95,7 +95,7 @@ func (s *timezoneSuite) TestFilesystemOnlyApply(c *C) {
 	c.Assert(configcore.FilesystemOnlyApply(coreDev, tmpDir, conf), IsNil)
 
 	c.Check(filepath.Join(tmpDir, "/etc/writable/timezone"), testutil.FileEquals, "Europe/Berlin\n")
-	p, err := os.Readlink(filepath.Join(tmpDir, "/etc/writable/localtime"))
-	c.Assert(err, IsNil)
+	p := mylog.Check2(os.Readlink(filepath.Join(tmpDir, "/etc/writable/localtime")))
+
 	c.Check(p, Equals, "/usr/share/zoneinfo/Europe/Berlin")
 }

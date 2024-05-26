@@ -28,6 +28,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/gadgettest"
@@ -199,19 +200,18 @@ func (s *partitionTestSuite) TestBuildPartitionList(c *C) {
 
 	restore := disks.MockDeviceNameToDiskMapping(m)
 	defer restore()
+	mylog.Check(gadgettest.MakeMockGadget(s.gadgetRoot, gptGadgetContentWithSave))
 
-	err := gadgettest.MakeMockGadget(s.gadgetRoot, gptGadgetContentWithSave)
-	c.Assert(err, IsNil)
-	pv, err := gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod)
-	c.Assert(err, IsNil)
+	pv := mylog.Check2(gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod))
 
-	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
-	c.Assert(err, IsNil)
+
+	dl := mylog.Check2(gadget.OnDiskVolumeFromDevice("/dev/node"))
+
 
 	// the expected expanded writable partition size is:
 	// start offset = (2M + 1200M), expanded size in sectors = (8388575*512 - start offset)/512
-	sfdiskInput, create, err := install.BuildPartitionList(dl, pv.Volume, nil)
-	c.Assert(err, IsNil)
+	sfdiskInput, create := mylog.Check3(install.BuildPartitionList(dl, pv.Volume, nil))
+
 	c.Assert(sfdiskInput.String(), Equals,
 		`/dev/node3 : start=     2461696, size=      262144, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Save"
 /dev/node4 : start=     2723840, size=     5664735, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Writable"
@@ -236,22 +236,23 @@ func (s *partitionTestSuite) TestBuildPartitionListPartsNotInGadget(c *C) {
 
 	restore := disks.MockDeviceNameToDiskMapping(m)
 	defer restore()
+	mylog.
 
-	// This gadget does not specify the bios partition, but it is on the disk
-	err := gadgettest.MakeMockGadget(s.gadgetRoot, gptGadgetContentWithGap)
-	c.Assert(err, IsNil)
-	pv, err := gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod)
-	c.Assert(err, IsNil)
+		// This gadget does not specify the bios partition, but it is on the disk
+		Check(gadgettest.MakeMockGadget(s.gadgetRoot, gptGadgetContentWithGap))
 
-	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
-	c.Assert(err, IsNil)
+	pv := mylog.Check2(gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod))
+
+
+	dl := mylog.Check2(gadget.OnDiskVolumeFromDevice("/dev/node"))
+
 
 	// the expected expanded writable partition size is: start
 	// offset = (2M + 1200M), expanded size in sectors =
 	// (8388575*512 - start offset)/512
-	sfdiskInput, create, err := install.BuildPartitionList(dl, pv.Volume,
-		&install.CreateOptions{})
-	c.Assert(err, IsNil)
+	sfdiskInput, create := mylog.Check3(install.BuildPartitionList(dl, pv.Volume,
+		&install.CreateOptions{}))
+
 	c.Assert(sfdiskInput.String(), Equals,
 		`/dev/node3 : start=     2461696, size=      262144, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Save"
 /dev/node4 : start=     2723840, size=     5664735, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Writable"
@@ -282,16 +283,15 @@ func (s *partitionTestSuite) TestBuildPartitionListOnlyCreatablePartitions(c *C)
 
 	restore := disks.MockDeviceNameToDiskMapping(m)
 	defer restore()
+	mylog.Check(gadgettest.MakeMockGadget(s.gadgetRoot, gptGadgetContentWithSave))
 
-	err := gadgettest.MakeMockGadget(s.gadgetRoot, gptGadgetContentWithSave)
-	c.Assert(err, IsNil)
-	pv, err := gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod)
-	c.Assert(err, IsNil)
+	pv := mylog.Check2(gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod))
 
-	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
-	c.Assert(err, IsNil)
 
-	_, _, err = install.BuildPartitionList(dl, pv.Volume, nil)
+	dl := mylog.Check2(gadget.OnDiskVolumeFromDevice("/dev/node"))
+
+
+	_, _ = mylog.Check3(install.BuildPartitionList(dl, pv.Volume, nil))
 	c.Assert(err, ErrorMatches, `gadget and boot device /dev/node partition table not compatible: cannot find gadget structure "BIOS Boot" on disk`)
 }
 
@@ -302,23 +302,24 @@ func (s *partitionTestSuite) TestBuildPartitionListExistingPartsInSizeRange(c *C
 
 	restore := disks.MockDeviceNameToDiskMapping(m)
 	defer restore()
+	mylog.
 
-	// The gadget has size rage of [1000, 1400]MiB for the seed partition,
-	// and the actual size on disk is 1200MiB. The partition on disk should
-	// match the one in the gadget and we will created save and data
-	// partitions right after it.
-	err := gadgettest.MakeMockGadget(s.gadgetRoot, gptGadgetContentWithRangeForSeed)
-	c.Assert(err, IsNil)
-	pv, err := gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod)
-	c.Assert(err, IsNil)
+		// The gadget has size rage of [1000, 1400]MiB for the seed partition,
+		// and the actual size on disk is 1200MiB. The partition on disk should
+		// match the one in the gadget and we will created save and data
+		// partitions right after it.
+		Check(gadgettest.MakeMockGadget(s.gadgetRoot, gptGadgetContentWithRangeForSeed))
 
-	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
-	c.Assert(err, IsNil)
+	pv := mylog.Check2(gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod))
+
+
+	dl := mylog.Check2(gadget.OnDiskVolumeFromDevice("/dev/node"))
+
 
 	// the expected expanded writable partition size is:
 	// start offset = (2M + 1200M), expanded size in sectors = (8388575*512 - start offset)/512
-	sfdiskInput, create, err := install.BuildPartitionList(dl, pv.Volume, nil)
-	c.Assert(err, IsNil)
+	sfdiskInput, create := mylog.Check3(install.BuildPartitionList(dl, pv.Volume, nil))
+
 	c.Assert(sfdiskInput.String(), Equals,
 		`/dev/node3 : start=     2461696, size=      262144, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Save"
 /dev/node4 : start=     2723840, size=     5664735, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Writable"
@@ -358,19 +359,18 @@ func (s *partitionTestSuite) TestCreatePartitions(c *C) {
 		return nil
 	})
 	defer restore()
+	mylog.Check(gadgettest.MakeMockGadget(s.gadgetRoot, gadgetContent))
 
-	err := gadgettest.MakeMockGadget(s.gadgetRoot, gadgetContent)
-	c.Assert(err, IsNil)
-	pv, err := gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod)
-	c.Assert(err, IsNil)
+	pv := mylog.Check2(gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod))
 
-	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
-	c.Assert(err, IsNil)
+
+	dl := mylog.Check2(gadget.OnDiskVolumeFromDevice("/dev/node"))
+
 	opts := &install.CreateOptions{
 		GadgetRootDir: s.gadgetRoot,
 	}
-	created, err := install.TestCreateMissingPartitions(dl, pv.Volume, opts)
-	c.Assert(err, IsNil)
+	created := mylog.Check2(install.TestCreateMissingPartitions(dl, pv.Volume, opts))
+
 	c.Assert(created, DeepEquals, []*gadget.OnDiskAndGadgetStructurePair{
 		{
 			DiskStructure:   &mockOnDiskStructureWritable,
@@ -418,20 +418,19 @@ func (s *partitionTestSuite) TestCreatePartitionsNonRolePartitions(c *C) {
 		return nil
 	})
 	defer restore()
+	mylog.Check(gadgettest.MakeMockGadget(s.gadgetRoot, gadgetContent))
 
-	err := gadgettest.MakeMockGadget(s.gadgetRoot, gadgetContent)
-	c.Assert(err, IsNil)
-	pv, err := gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod)
-	c.Assert(err, IsNil)
+	pv := mylog.Check2(gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod))
 
-	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
-	c.Assert(err, IsNil)
+
+	dl := mylog.Check2(gadget.OnDiskVolumeFromDevice("/dev/node"))
+
 	opts := &install.CreateOptions{
 		GadgetRootDir:              s.gadgetRoot,
 		CreateAllMissingPartitions: true,
 	}
-	created, err := install.TestCreateMissingPartitions(dl, pv.Volume, opts)
-	c.Assert(err, IsNil)
+	created := mylog.Check2(install.TestCreateMissingPartitions(dl, pv.Volume, opts))
+
 	c.Assert(created, HasLen, 3)
 	c.Assert(calls, Equals, 1)
 }
@@ -444,17 +443,15 @@ func (s *partitionTestSuite) TestRemovePartitionsTrivial(c *C) {
 
 	restore := disks.MockDeviceNameToDiskMapping(m)
 	defer restore()
+	mylog.Check(gadgettest.MakeMockGadget(s.gadgetRoot, gadgetContent))
 
-	err := gadgettest.MakeMockGadget(s.gadgetRoot, gadgetContent)
-	c.Assert(err, IsNil)
-	gInfo, err := gadget.ReadInfoAndValidate(s.gadgetRoot, uc20Mod, nil)
-	c.Assert(err, IsNil)
+	gInfo := mylog.Check2(gadget.ReadInfoAndValidate(s.gadgetRoot, uc20Mod, nil))
 
-	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
-	c.Assert(err, IsNil)
 
-	err = install.RemoveCreatedPartitions(s.gadgetRoot, gInfo.Volumes["pc"], dl)
-	c.Assert(err, IsNil)
+	dl := mylog.Check2(gadget.OnDiskVolumeFromDevice("/dev/node"))
+
+	mylog.Check(install.RemoveCreatedPartitions(s.gadgetRoot, gInfo.Volumes["pc"], dl))
+
 }
 
 func (s *partitionTestSuite) TestRemovePartitions(c *C) {
@@ -522,16 +519,14 @@ func (s *partitionTestSuite) TestRemovePartitions(c *C) {
 	cmdUdevadm := testutil.MockCommand(c, "udevadm", "")
 	defer cmdUdevadm.Restore()
 
-	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
-	c.Assert(err, IsNil)
+	dl := mylog.Check2(gadget.OnDiskVolumeFromDevice("/dev/node"))
 
-	err = gadgettest.MakeMockGadget(s.gadgetRoot, gadgetContent)
-	c.Assert(err, IsNil)
-	gInfo, err := gadget.ReadInfoAndValidate(s.gadgetRoot, uc20Mod, nil)
-	c.Assert(err, IsNil)
+	mylog.Check(gadgettest.MakeMockGadget(s.gadgetRoot, gadgetContent))
 
-	err = install.RemoveCreatedPartitions(s.gadgetRoot, gInfo.Volumes["pc"], dl)
-	c.Assert(err, IsNil)
+	gInfo := mylog.Check2(gadget.ReadInfoAndValidate(s.gadgetRoot, uc20Mod, nil))
+
+	mylog.Check(install.RemoveCreatedPartitions(s.gadgetRoot, gInfo.Volumes["pc"], dl))
+
 
 	c.Assert(cmdSfdisk.Calls(), DeepEquals, [][]string{
 		{"sfdisk", "--no-reread", "--delete", "/dev/node", "3"},
@@ -621,14 +616,13 @@ func (s *partitionTestSuite) TestRemovePartitionsWithDeviceRescan(c *C) {
 			},
 		},
 	}
+	mylog.
 
-	// make empty device rescan file
+		// make empty device rescan file
+		Check(os.MkdirAll(filepath.Join(devPath, "device"), 0755))
 
-	err := os.MkdirAll(filepath.Join(devPath, "device"), 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(devPath, "device", "rescan"), nil, 0755))
 
-	err = os.WriteFile(filepath.Join(devPath, "device", "rescan"), nil, 0755)
-	c.Assert(err, IsNil)
 
 	restore := disks.MockDeviceNameToDiskMapping(m)
 	defer restore()
@@ -639,21 +633,20 @@ func (s *partitionTestSuite) TestRemovePartitionsWithDeviceRescan(c *C) {
 	cmdUdevadm := testutil.MockCommand(c, "udevadm", "")
 	defer cmdUdevadm.Restore()
 
-	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
-	c.Assert(err, IsNil)
+	dl := mylog.Check2(gadget.OnDiskVolumeFromDevice("/dev/node"))
 
-	err = gadgettest.MakeMockGadget(s.gadgetRoot, gadgetContent)
-	c.Assert(err, IsNil)
+	mylog.Check(gadgettest.MakeMockGadget(s.gadgetRoot, gadgetContent))
 
-	// add the file to indicate we should do the device/rescan trick
-	err = os.WriteFile(filepath.Join(s.gadgetRoot, "meta", "force-partition-table-reload-via-device-rescan"), nil, 0755)
-	c.Assert(err, IsNil)
+	mylog.
 
-	gInfo, err := gadget.ReadInfoAndValidate(s.gadgetRoot, uc20Mod, nil)
-	c.Assert(err, IsNil)
+		// add the file to indicate we should do the device/rescan trick
+		Check(os.WriteFile(filepath.Join(s.gadgetRoot, "meta", "force-partition-table-reload-via-device-rescan"), nil, 0755))
 
-	err = install.RemoveCreatedPartitions(s.gadgetRoot, gInfo.Volumes["pc"], dl)
-	c.Assert(err, IsNil)
+
+	gInfo := mylog.Check2(gadget.ReadInfoAndValidate(s.gadgetRoot, uc20Mod, nil))
+
+	mylog.Check(install.RemoveCreatedPartitions(s.gadgetRoot, gInfo.Volumes["pc"], dl))
+
 
 	c.Assert(cmdSfdisk.Calls(), DeepEquals, [][]string{
 		{"sfdisk", "--no-reread", "--delete", "/dev/node", "3"},
@@ -785,16 +778,14 @@ func (s *partitionTestSuite) TestRemovePartitionsNonAdjacent(c *C) {
 	cmdUdevadm := testutil.MockCommand(c, "udevadm", "")
 	defer cmdUdevadm.Restore()
 
-	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
-	c.Assert(err, IsNil)
+	dl := mylog.Check2(gadget.OnDiskVolumeFromDevice("/dev/node"))
 
-	err = gadgettest.MakeMockGadget(s.gadgetRoot, gadgetContentDifferentOrder)
-	c.Assert(err, IsNil)
-	gInfo, err := gadget.ReadInfoAndValidate(s.gadgetRoot, uc20Mod, nil)
-	c.Assert(err, IsNil)
+	mylog.Check(gadgettest.MakeMockGadget(s.gadgetRoot, gadgetContentDifferentOrder))
 
-	err = install.RemoveCreatedPartitions(s.gadgetRoot, gInfo.Volumes["pc"], dl)
-	c.Assert(err, IsNil)
+	gInfo := mylog.Check2(gadget.ReadInfoAndValidate(s.gadgetRoot, uc20Mod, nil))
+
+	mylog.Check(install.RemoveCreatedPartitions(s.gadgetRoot, gInfo.Volumes["pc"], dl))
+
 
 	c.Assert(cmdSfdisk.Calls(), DeepEquals, [][]string{
 		{"sfdisk", "--no-reread", "--delete", "/dev/node", "2"},
@@ -835,16 +826,16 @@ func (s *partitionTestSuite) TestEnsureNodesExist(c *C) {
 		c.Logf("utErr:%q err:%q", tc.utErr, tc.err)
 
 		node := filepath.Join(c.MkDir(), "node")
-		err := os.WriteFile(node, nil, 0644)
-		c.Assert(err, IsNil)
+		mylog.Check(os.WriteFile(node, nil, 0644))
+
 
 		cmdUdevadm := testutil.MockCommand(c, "udevadm", fmt.Sprintf(mockUdevadmScript, tc.utErr))
 		defer cmdUdevadm.Restore()
 
 		nodes := []string{node}
-		err = install.EnsureNodesExist(nodes, 10*time.Millisecond)
+		mylog.Check(install.EnsureNodesExist(nodes, 10*time.Millisecond))
 		if tc.err == "" {
-			c.Assert(err, IsNil)
+
 		} else {
 			c.Assert(err, ErrorMatches, tc.err)
 		}
@@ -863,7 +854,7 @@ func (s *partitionTestSuite) TestEnsureNodesExistTimeout(c *C) {
 	nodes := []string{node}
 	t := time.Now()
 	timeout := 1 * time.Second
-	err := install.EnsureNodesExist(nodes, timeout)
+	mylog.Check(install.EnsureNodesExist(nodes, timeout))
 	c.Assert(err, ErrorMatches, fmt.Sprintf("device %s not available", node))
 	c.Assert(time.Since(t) >= timeout, Equals, true)
 	c.Assert(cmdUdevadm.Calls(), HasLen, 0)
@@ -1075,28 +1066,28 @@ func (s *partitionTestSuite) TestCreatedDuringInstallGPT(c *C) {
 
 	restore := disks.MockDeviceNameToDiskMapping(m)
 	defer restore()
+	mylog.Check(gadgettest.MakeMockGadget(s.gadgetRoot, gptGadgetContentWithSave))
 
-	err := gadgettest.MakeMockGadget(s.gadgetRoot, gptGadgetContentWithSave)
-	c.Assert(err, IsNil)
-	pv, err := gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod)
-	c.Assert(err, IsNil)
+	pv := mylog.Check2(gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod))
 
-	dl, err := gadget.OnDiskVolumeFromDevice("node")
-	c.Assert(err, IsNil)
+
+	dl := mylog.Check2(gadget.OnDiskVolumeFromDevice("node"))
+
 
 	list := install.CreatedDuringInstall(pv.Volume, dl)
 	// only save and writable should show up
 	c.Check(list, DeepEquals, []string{"/dev/node3", "/dev/node4"})
+	mylog.
 
-	// min-size for ubuntu-save for this gadget will match the third partition size
-	// (but size wouldn't)
-	err = gadgettest.MakeMockGadget(s.gadgetRoot, gptGadgetContentWithMinSize)
-	c.Assert(err, IsNil)
-	pv, err = gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod)
-	c.Assert(err, IsNil)
+		// min-size for ubuntu-save for this gadget will match the third partition size
+		// (but size wouldn't)
+		Check(gadgettest.MakeMockGadget(s.gadgetRoot, gptGadgetContentWithMinSize))
 
-	dl, err = gadget.OnDiskVolumeFromDevice("node")
-	c.Assert(err, IsNil)
+	pv = mylog.Check2(gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod))
+
+
+	dl = mylog.Check2(gadget.OnDiskVolumeFromDevice("node"))
+
 
 	list = install.CreatedDuringInstall(pv.Volume, dl)
 	// only save and writable should show up
@@ -1137,7 +1128,6 @@ const mbrGadgetContentWithSave = `volumes:
 `
 
 func (s *partitionTestSuite) TestCreatedDuringInstallMBR(c *C) {
-
 	const (
 		twoMeg                   = 2 * 1024 * 1024
 		oneHundredTwentyEightMeg = 128 * 1024 * 1024
@@ -1212,13 +1202,12 @@ func (s *partitionTestSuite) TestCreatedDuringInstallMBR(c *C) {
 	restore := disks.MockDeviceNameToDiskMapping(m)
 	defer restore()
 
-	dl, err := gadget.OnDiskVolumeFromDevice("node")
-	c.Assert(err, IsNil)
+	dl := mylog.Check2(gadget.OnDiskVolumeFromDevice("node"))
 
-	err = gadgettest.MakeMockGadget(s.gadgetRoot, mbrGadgetContentWithSave)
-	c.Assert(err, IsNil)
-	pv, err := gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod)
-	c.Assert(err, IsNil)
+	mylog.Check(gadgettest.MakeMockGadget(s.gadgetRoot, mbrGadgetContentWithSave))
+
+	pv := mylog.Check2(gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod))
+
 
 	list := install.CreatedDuringInstall(pv.Volume, dl)
 	c.Assert(list, DeepEquals, []string{"/dev/node2", "/dev/node3", "/dev/node4"})

@@ -22,6 +22,8 @@ package spdx
 import (
 	"fmt"
 	"io"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 const (
@@ -80,9 +82,8 @@ func (p *parser) validate(depth int) error {
 			if last == opWITH {
 				return fmt.Errorf("%q not allowed after WITH", tok)
 			}
-			if err := p.validate(depth + 1); err != nil {
-				return err
-			}
+			mylog.Check(p.validate(depth + 1))
+
 			if p.s.Text() != ")" {
 				return fmt.Errorf(`expected ")" got %q`, p.s.Text())
 			}
@@ -110,16 +111,14 @@ func (p *parser) validate(depth int) error {
 		default:
 			switch {
 			case last == opWITH:
-				if _, err := newLicenseExceptionID(tok); err != nil {
-					return err
-				}
+				mylog.Check2(newLicenseExceptionID(tok))
+
 			case last == "", last == opAND, last == opOR:
-				if _, err := newLicenseID(tok); err != nil {
-					return err
-				}
+				mylog.Check2(newLicenseID(tok))
+
 			default:
-				if _, err := newLicenseID(last); err == nil {
-					if _, err := newLicenseID(tok); err == nil {
+				if _ := mylog.Check2(newLicenseID(last)); err == nil {
+					if _ := mylog.Check2(newLicenseID(tok)); err == nil {
 						return fmt.Errorf("missing AND or OR between %q and %q", last, tok)
 					}
 				}
@@ -129,9 +128,8 @@ func (p *parser) validate(depth int) error {
 		}
 		last = tok
 	}
-	if err := p.s.Err(); err != nil {
-		return err
-	}
+	mylog.Check(p.s.Err())
+
 	if isOperator(last) {
 		return fmt.Errorf("missing license after %s", last)
 	}

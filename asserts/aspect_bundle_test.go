@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 )
 
@@ -90,8 +91,8 @@ const schema = `{
 func (s *aspectBundleSuite) TestDecodeOK(c *C) {
 	encoded := strings.Replace(aspectBundleExample, "TSLINE", s.tsLine, 1)
 
-	a, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	c.Check(a, NotNil)
 	c.Check(a.Type(), Equals, asserts.AspectBundleType)
 	ab := a.(*asserts.AspectBundle)
@@ -143,7 +144,7 @@ func (s *aspectBundleSuite) TestDecodeInvalid(c *C) {
 
 	for i, test := range invalidTests {
 		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
-		_, err := asserts.Decode([]byte(invalid))
+		_ := mylog.Check2(asserts.Decode([]byte(invalid)))
 		c.Check(err, ErrorMatches, validationSetErrPrefix+test.expectedErr, Commentf("test %d/%d failed", i+1, len(invalidTests)))
 	}
 }
@@ -174,8 +175,8 @@ func (s *aspectBundleSuite) TestAssembleAndSignChecksSchemaFormatOK(c *C) {
     }
   }
 }`
-	acct1, err := asserts.AssembleAndSignInTest(asserts.AspectBundleType, headers, []byte(schema), testPrivKey0)
-	c.Assert(err, IsNil)
+	acct1 := mylog.Check2(asserts.AssembleAndSignInTest(asserts.AspectBundleType, headers, []byte(schema), testPrivKey0))
+
 	c.Assert(string(acct1.Body()), Equals, schema)
 }
 
@@ -196,6 +197,6 @@ func (s *aspectBundleSuite) TestAssembleAndSignChecksSchemaFormatFail(c *C) {
 	}
 
 	schema := `{ "storage": { "schema": { "foo": "any" } } }`
-	_, err := asserts.AssembleAndSignInTest(asserts.AspectBundleType, headers, []byte(schema), testPrivKey0)
+	_ := mylog.Check2(asserts.AssembleAndSignInTest(asserts.AspectBundleType, headers, []byte(schema), testPrivKey0))
 	c.Assert(err, ErrorMatches, `assertion aspect-bundle: JSON in body must be indented with 2 spaces and sort object entries by key`)
 }

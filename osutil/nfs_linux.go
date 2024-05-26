@@ -22,6 +22,8 @@ package osutil
 import (
 	"fmt"
 	"strings"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 var etcFstab = "/etc/fstab"
@@ -32,10 +34,8 @@ var etcFstab = "/etc/fstab"
 // and possible mounted filesystems). If either of those describes NFS
 // filesystem mounted under or beneath /home/ then the return value is true.
 var isHomeUsingRemoteFS = func() (bool, error) {
-	mountinfo, err := LoadMountInfo()
-	if err != nil {
-		return false, fmt.Errorf("cannot parse mountinfo: %s", err)
-	}
+	mountinfo := mylog.Check2(LoadMountInfo())
+
 	for _, entry := range mountinfo {
 		switch entry.FsType {
 		case "nfs4", "nfs", "autofs", "cifs":
@@ -44,10 +44,8 @@ var isHomeUsingRemoteFS = func() (bool, error) {
 			}
 		}
 	}
-	fstab, err := LoadMountProfile(etcFstab)
-	if err != nil {
-		return false, fmt.Errorf("cannot parse %s: %s", etcFstab, err)
-	}
+	fstab := mylog.Check2(LoadMountProfile(etcFstab))
+
 	for _, entry := range fstab.Entries {
 		switch entry.Type {
 		case "nfs4", "nfs", "autofs", "cifs":

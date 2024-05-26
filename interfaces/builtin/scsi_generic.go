@@ -28,6 +28,7 @@ const scsiGenericBaseDeclarationSlots = `
         - core
     deny-auto-connection: true
 `
+
 const scsiGenericBaseDeclarationPlugs = `
   block-devices:
     allow-installation: false

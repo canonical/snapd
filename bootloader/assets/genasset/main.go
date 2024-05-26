@@ -29,6 +29,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -62,10 +63,12 @@ func init() {
 }
 `
 
-var inFile = flag.String("in", "", "asset input file")
-var outFile = flag.String("out", "", "asset output file")
-var assetName = flag.String("name", "", "asset name")
-var assetTemplate = template.Must(template.New("asset").Parse(assetTemplateText))
+var (
+	inFile        = flag.String("in", "", "asset input file")
+	outFile       = flag.String("out", "", "asset output file")
+	assetName     = flag.String("name", "", "asset name")
+	assetTemplate = template.Must(template.New("asset").Parse(assetTemplateText))
+)
 
 // formatLines generates a list of strings, each carrying a line containing hex
 // encoded data
@@ -94,21 +97,15 @@ func formatLines(data []byte) []string {
 }
 
 func run(assetName, inputFile, outputFile string) error {
-	inf, err := os.Open(inputFile)
-	if err != nil {
-		return fmt.Errorf("cannot open input file: %v", err)
-	}
+	inf := mylog.Check2(os.Open(inputFile))
+
 	defer inf.Close()
 
 	var inData bytes.Buffer
-	if _, err := io.Copy(&inData, inf); err != nil {
-		return fmt.Errorf("cannot copy input data: %v", err)
-	}
+	mylog.Check2(io.Copy(&inData, inf))
 
-	outf, err := osutil.NewAtomicFile(outputFile, 0644, 0, osutil.NoChown, osutil.NoChown)
-	if err != nil {
-		return fmt.Errorf("cannot open output file: %v", err)
-	}
+	outf := mylog.Check2(osutil.NewAtomicFile(outputFile, 0644, 0, osutil.NoChown, osutil.NoChown))
+
 	defer outf.Cancel()
 
 	templateData := struct {
@@ -128,9 +125,8 @@ func run(assetName, inputFile, outputFile string) error {
 		//      like real build-system we can re-enable this
 		Year: strconv.Itoa(time.Now().Year()),
 	}
-	if err := assetTemplate.Execute(outf, &templateData); err != nil {
-		return fmt.Errorf("cannot generate content: %v", err)
-	}
+	mylog.Check(assetTemplate.Execute(outf, &templateData))
+
 	return outf.Commit()
 }
 
@@ -149,12 +145,6 @@ func parseArgs() error {
 }
 
 func main() {
-	if err := parseArgs(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
-	if err := run(*assetName, *inFile, *outFile); err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(1)
-	}
+	mylog.Check(parseArgs())
+	mylog.Check(run(*assetName, *inFile, *outFile))
 }

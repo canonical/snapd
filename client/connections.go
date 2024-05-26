@@ -21,6 +21,8 @@ package client
 
 import (
 	"net/url"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // Connection describes a connection between a plug and a slot.
@@ -76,6 +78,6 @@ func (client *Client) Connections(opts *ConnectionOptions) (Connections, error) 
 	if opts != nil && opts.All {
 		query.Set("select", "all")
 	}
-	_, err := client.doSync("GET", "/v2/connections", query, nil, nil, &conns)
+	_ := mylog.Check2(client.doSync("GET", "/v2/connections", query, nil, nil, &conns))
 	return conns, err
 }

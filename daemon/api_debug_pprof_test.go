@@ -26,6 +26,7 @@ import (
 	"net/http/httptest"
 	"os"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"gopkg.in/check.v1"
 )
 
@@ -38,7 +39,7 @@ type pprofDebugSuite struct {
 func (s *pprofDebugSuite) TestGetPprofCmdline(c *check.C) {
 	s.daemon(c)
 
-	req, err := http.NewRequest("GET", "/v2/debug/pprof/cmdline", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/debug/pprof/cmdline", nil))
 	c.Assert(err, check.IsNil)
 	// as root
 	s.asRootAuth(req)
@@ -50,10 +51,10 @@ func (s *pprofDebugSuite) TestGetPprofCmdline(c *check.C) {
 	c.Assert(rsp, check.NotNil)
 
 	c.Assert(rsp.StatusCode, check.Equals, 200)
-	data, err := io.ReadAll(rsp.Body)
+	data := mylog.Check2(io.ReadAll(rsp.Body))
 	c.Assert(err, check.IsNil)
 
-	cmdline, err := os.ReadFile("/proc/self/cmdline")
+	cmdline := mylog.Check2(os.ReadFile("/proc/self/cmdline"))
 	c.Assert(err, check.IsNil)
 	cmdline = bytes.TrimRight(cmdline, "\x00")
 	c.Assert(string(data), check.DeepEquals, string(cmdline))

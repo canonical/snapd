@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
@@ -109,7 +110,7 @@ func hasSnapdSnapID(snapst patch62SnapState) bool {
 //   - ensure snapd snaps have TypeSnapd in pending install tasks.
 func patch6_2(st *state.State) error {
 	var snaps map[string]*json.RawMessage
-	if err := st.Get("snaps", &snaps); err != nil && !errors.Is(err, state.ErrNoState) {
+	if mylog.Check(st.Get("snaps", &snaps)); err != nil && !errors.Is(err, state.ErrNoState) {
 		return fmt.Errorf("internal error: cannot get snaps: %s", err)
 	}
 
@@ -119,9 +120,8 @@ func patch6_2(st *state.State) error {
 	// one snapd snap.
 	for _, raw := range snaps {
 		var snapst patch62SnapState
-		if err := json.Unmarshal([]byte(*raw), &snapst); err != nil {
-			return err
-		}
+		mylog.Check(json.Unmarshal([]byte(*raw), &snapst))
+
 		if hasSnapdSnapID(snapst) && snapst.SnapType == string(snap.TypeSnapd) {
 			hasSnapdSnap = true
 			break
@@ -132,15 +132,12 @@ func patch6_2(st *state.State) error {
 	if !hasSnapdSnap {
 		for name, raw := range snaps {
 			var snapst patch62SnapState
-			if err := json.Unmarshal([]byte(*raw), &snapst); err != nil {
-				return err
-			}
+			mylog.Check(json.Unmarshal([]byte(*raw), &snapst))
+
 			if hasSnapdSnapID(snapst) {
 				snapst.SnapType = string(snap.TypeSnapd)
-				data, err := json.Marshal(snapst)
-				if err != nil {
-					return err
-				}
+				data := mylog.Check2(json.Marshal(snapst))
+
 				newRaw := json.RawMessage(data)
 				snaps[name] = &newRaw
 				st.Set("snaps", snaps)
@@ -158,7 +155,7 @@ func patch6_2(st *state.State) error {
 		}
 
 		var snapsup patch62SnapSetup
-		err := task.Get("snap-setup", &snapsup)
+		mylog.Check(task.Get("snap-setup", &snapsup))
 		if err != nil && !errors.Is(err, state.ErrNoState) {
 			return fmt.Errorf("internal error: cannot get snap-setup of task %s: %s", task.ID(), err)
 		}

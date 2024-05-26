@@ -28,6 +28,7 @@ import (
 	"regexp"
 	"syscall"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -46,10 +47,7 @@ var utsRelease = regexp.MustCompile(`^([0-9]+\.){2}[0-9]+`)
 // assumes that there is a folder named modules/$(uname -r) inside the snap.
 func KernelVersionFromModulesDir(mountPoint string) (string, error) {
 	modsDir := filepath.Join(mountPoint, "modules")
-	entries, err := os.ReadDir(modsDir)
-	if err != nil {
-		return "", err
-	}
+	entries := mylog.Check2(os.ReadDir(modsDir))
 
 	kversion := ""
 	for _, node := range entries {
@@ -73,46 +71,35 @@ func KernelVersionFromModulesDir(mountPoint string) (string, error) {
 
 func createFirmwareSymlinks(fwMount, fwDest string) error {
 	fwOrig := filepath.Join(fwMount, "firmware")
-	if err := os.MkdirAll(fwDest, 0755); err != nil {
-		return err
-	}
+	mylog.Check(os.MkdirAll(fwDest, 0755))
 
 	// Symbolic links inside firmware folder - it cannot be directly a
 	// symlink to "firmware" as we will use firmware/updates/ subfolder for
 	// components.
-	entries, err := os.ReadDir(fwOrig)
-	if err != nil {
-		if os.IsNotExist(err) {
-			// Bit of a corner case, but maybe possible. Log anyway.
-			logger.Noticef("no firmware found in %q", fwOrig)
-			return nil
-		}
-		return err
-	}
+	entries := mylog.Check2(os.ReadDir(fwOrig))
+
+	// Bit of a corner case, but maybe possible. Log anyway.
 
 	for _, node := range entries {
 		lpath := filepath.Join(fwDest, node.Name())
 		origPath := filepath.Join(fwOrig, node.Name())
 		switch node.Type() {
 		case 0, fs.ModeDir:
-			// Create link for regular files or directories
-			if err := os.Symlink(origPath, lpath); err != nil {
-				return err
-			}
+			mylog.Check(
+				// Create link for regular files or directories
+				os.Symlink(origPath, lpath))
+
 		case fs.ModeSymlink:
 			// Replicate link (it should be relative)
 			// TODO check this in snap pack
 			lpath := filepath.Join(fwDest, node.Name())
-			dest, err := os.Readlink(origPath)
-			if err != nil {
-				return err
-			}
+			dest := mylog.Check2(os.Readlink(origPath))
+
 			if filepath.IsAbs(dest) {
 				return fmt.Errorf("symlink %q points to absolute path %q", lpath, dest)
 			}
-			if err := os.Symlink(dest, lpath); err != nil {
-				return err
-			}
+			mylog.Check(os.Symlink(dest, lpath))
+
 		default:
 			return fmt.Errorf("%q has unexpected file type: %s",
 				node.Name(), node.Type())
@@ -127,23 +114,19 @@ func createModulesSubtree(kernelMount, kernelTree, kversion, kname string, krev 
 	// "/lib/modules/<kernel_version>" to the directory passed with option
 	// "-b".
 	modsRoot := filepath.Join(kernelTree, "lib", "modules", kversion)
-	if err := os.MkdirAll(modsRoot, 0755); err != nil {
-		return err
-	}
+	mylog.Check(os.MkdirAll(modsRoot, 0755))
 
 	// Copy modinfo files from the snap (these might be overwritten if
 	// kernel-modules components are installed).
 	modsGlob := filepath.Join(kernelMount, "modules", kversion, "modules.*")
-	modFiles, err := filepath.Glob(modsGlob)
-	if err != nil {
-		// Should not really happen (only possible error is ErrBadPattern)
-		return err
-	}
+	modFiles := mylog.Check2(filepath.Glob(modsGlob))
+
+	// Should not really happen (only possible error is ErrBadPattern)
+
 	for _, orig := range modFiles {
 		target := filepath.Join(modsRoot, filepath.Base(orig))
-		if err := osutil.CopyFile(orig, target, osutil.CopyFlagDefault); err != nil {
-			return err
-		}
+		mylog.Check(osutil.CopyFile(orig, target, osutil.CopyFlagDefault))
+
 	}
 
 	// Symbolic links to early mount kernel snap
@@ -151,9 +134,8 @@ func createModulesSubtree(kernelMount, kernelTree, kversion, kname string, krev 
 	for _, d := range []string{"kernel", "vdso"} {
 		lname := filepath.Join(modsRoot, d)
 		to := filepath.Join(earlyMntDir, d)
-		if err := osSymlink(to, lname); err != nil {
-			return err
-		}
+		mylog.Check(osSymlink(to, lname))
+
 	}
 
 	// If necessary, add modules from components and run depmod
@@ -164,9 +146,7 @@ func setupModsFromComp(kernelTree, kversion, kname string, krev snap.Revision, c
 	// This folder needs to exist always to allow for directory swapping
 	// in the future, even if right now we don't have components.
 	compsRoot := filepath.Join(kernelTree, "lib", "modules", kversion, "updates")
-	if err := os.MkdirAll(compsRoot, 0755); err != nil {
-		return err
-	}
+	mylog.Check(os.MkdirAll(compsRoot, 0755))
 
 	if len(compInfos) == 0 {
 		return nil
@@ -178,16 +158,13 @@ func setupModsFromComp(kernelTree, kversion, kname string, krev snap.Revision, c
 			ci.Revision, kname)
 		lname := filepath.Join(compsRoot, ci.Component.ComponentName)
 		to := filepath.Join(compPI.MountDir(), "modules", kversion)
-		if err := osSymlink(to, lname); err != nil {
-			return err
-		}
+		mylog.Check(osSymlink(to, lname))
+
 	}
 
 	// Run depmod
-	stdout, stderr, err := osutil.RunSplitOutput("depmod", "-b", kernelTree, kversion)
-	if err != nil {
-		return osutil.OutputErrCombine(stdout, stderr, err)
-	}
+	stdout, stderr := mylog.Check3(osutil.RunSplitOutput("depmod", "-b", kernelTree, kversion))
+
 	logger.Noticef("depmod output:\n%s\n", string(osutil.CombineStdOutErr(stdout, stderr)))
 
 	return nil
@@ -254,12 +231,10 @@ func EnsureKernelDriversTree(ksnapName string, rev snap.Revision, kernelMount st
 	treeRoot := driversTreeDir(ksnapDir, rev)
 
 	// Create drivers tree
-	kversion, err := KernelVersionFromModulesDir(kernelMount)
+	kversion := mylog.Check2(KernelVersionFromModulesDir(kernelMount))
 	if err == nil {
-		if err := createModulesSubtree(kernelMount, treeRoot,
-			kversion, ksnapName, rev, kmodsInfos); err != nil {
-			return err
-		}
+		mylog.Check(createModulesSubtree(kernelMount, treeRoot,
+			kversion, ksnapName, rev, kmodsInfos))
 	} else {
 		// Bit of a corner case, but maybe possible. Log anyway.
 		// TODO detect this issue in snap pack, should be enforced
@@ -269,23 +244,21 @@ func EnsureKernelDriversTree(ksnapName string, rev snap.Revision, kernelMount st
 
 	fwDir := filepath.Join(treeRoot, "lib", "firmware")
 	if opts.KernelInstall {
-		// symlinks in /lib/firmware are not affected by components
-		if err := createFirmwareSymlinks(kernelMount, fwDir); err != nil {
-			return err
-		}
+		mylog.Check(
+			// symlinks in /lib/firmware are not affected by components
+			createFirmwareSymlinks(kernelMount, fwDir))
 	}
 	updateFwDir := filepath.Join(fwDir, "updates")
-	// This folder needs to exist always to allow for directory swapping
-	// in the future, even if right now we don't have components.
-	if err := os.MkdirAll(updateFwDir, 0755); err != nil {
-		return err
-	}
+	mylog.Check(
+		// This folder needs to exist always to allow for directory swapping
+		// in the future, even if right now we don't have components.
+		os.MkdirAll(updateFwDir, 0755))
+
 	for _, kmi := range kmodsInfos {
 		compPI := snap.MinimalComponentContainerPlaceInfo(kmi.Component.ComponentName,
 			kmi.Revision, ksnapName)
-		if err := createFirmwareSymlinks(compPI.MountDir(), updateFwDir); err != nil {
-			return err
-		}
+		mylog.Check(createFirmwareSymlinks(compPI.MountDir(), updateFwDir))
+
 	}
 
 	// Sync before returning successfully (install kernel case) and also
@@ -306,19 +279,12 @@ func EnsureKernelDriversTree(ksnapName string, rev snap.Revision, kernelMount st
 
 		// Swap updates directory inside firmware dir
 		oldFwUpdates := filepath.Join(oldRoot, "lib", "firmware", "updates")
-		if err := osutil.SwapDirs(oldFwUpdates, updateFwDir); err != nil {
-			return fmt.Errorf("while swapping %q <-> %q: %w", oldFwUpdates, updateFwDir, err)
-		}
+		mylog.Check(osutil.SwapDirs(oldFwUpdates, updateFwDir))
 
 		newMods := filepath.Join(treeRoot, "lib", "modules", kversion)
 		oldMods := filepath.Join(oldRoot, "lib", "modules", kversion)
-		if err := osutil.SwapDirs(oldMods, newMods); err != nil {
-			// Undo firmware swap
-			if err := osutil.SwapDirs(oldFwUpdates, updateFwDir); err != nil {
-				logger.Noticef("while reverting modules swap: %v", err)
-			}
-			return fmt.Errorf("while swapping %q <-> %q: %w", newMods, oldMods, err)
-		}
+		mylog.Check(osutil.SwapDirs(oldMods, newMods))
+		// Undo firmware swap
 
 		// Make sure that changes are written
 		syscall.Sync()

@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/jsonutil"
 )
 
@@ -38,7 +39,7 @@ var _ = Suite(&utilSuite{})
 func (s *utilSuite) TestDecodeError(c *C) {
 	input := "{]"
 	var output interface{}
-	err := jsonutil.DecodeWithNumber(strings.NewReader(input), &output)
+	mylog.Check(jsonutil.DecodeWithNumber(strings.NewReader(input), &output))
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `invalid character ']' looking for beginning of object key string`)
 }
@@ -46,7 +47,7 @@ func (s *utilSuite) TestDecodeError(c *C) {
 func (s *utilSuite) TestDecodeErrorOnExcessData(c *C) {
 	input := "1000000000[1,2]"
 	var output interface{}
-	err := jsonutil.DecodeWithNumber(strings.NewReader(input), &output)
+	mylog.Check(jsonutil.DecodeWithNumber(strings.NewReader(input), &output))
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `cannot parse json value`)
 }
@@ -54,8 +55,8 @@ func (s *utilSuite) TestDecodeErrorOnExcessData(c *C) {
 func (s *utilSuite) TestDecodeSuccess(c *C) {
 	input := `{"a":1000000000, "b": 1.2, "c": "foo", "d":null}`
 	var output interface{}
-	err := jsonutil.DecodeWithNumber(strings.NewReader(input), &output)
-	c.Assert(err, IsNil)
+	mylog.Check(jsonutil.DecodeWithNumber(strings.NewReader(input), &output))
+
 	c.Assert(output, DeepEquals, map[string]interface{}{
 		"a": json.Number("1000000000"),
 		"b": json.Number("1.2"),

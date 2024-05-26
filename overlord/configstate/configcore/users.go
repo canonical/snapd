@@ -22,6 +22,8 @@ package configcore
 
 import (
 	"strings"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 func init() {
@@ -41,10 +43,7 @@ func validateUsersSettings(tr RunTransaction) error {
 }
 
 func handleUserSettings(tr RunTransaction, opts *fsOnlyContext) error {
-	output, err := coreCfg(tr, "users.create.automatic")
-	if err != nil {
-		return nil
-	}
+	output := mylog.Check2(coreCfg(tr, "users.create.automatic"))
 
 	// normalize the value in case
 	switch output {

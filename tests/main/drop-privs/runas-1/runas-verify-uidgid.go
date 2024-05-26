@@ -5,11 +5,14 @@ import (
 	"runtime"
 	"sync"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil/sys"
 )
 
-var wg sync.WaitGroup
-var mu sync.Mutex
+var (
+	wg sync.WaitGroup
+	mu sync.Mutex
+)
 
 func check(uids []sys.UserID, n int) {
 	// spin
@@ -27,10 +30,10 @@ func main() {
 	orig := sys.Geteuid()
 	before := fmt.Sprintf("%d/%d", sys.Geteuid(), sys.Getegid())
 	var during string
-	err := sys.RunAsUidGid(12345, 12345, func() error {
+	mylog.Check(sys.RunAsUidGid(12345, 12345, func() error {
 		during = fmt.Sprintf("%d/%d", sys.Geteuid(), sys.Getegid())
 		return nil
-	})
+	}))
 	after := fmt.Sprintf("%d/%d", sys.Geteuid(), sys.Getegid())
 
 	N := 2 * runtime.NumCPU()

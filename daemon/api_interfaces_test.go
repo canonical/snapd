@@ -29,6 +29,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/interfaces"
@@ -51,7 +52,7 @@ func (s *interfacesSuite) SetUpTest(c *check.C) {
 }
 
 func mockIface(c *check.C, d *daemon.Daemon, iface interfaces.Interface) {
-	err := d.Overlord().InterfaceManager().Repository().AddInterface(iface)
+	mylog.Check(d.Overlord().InterfaceManager().Repository().AddInterface(iface))
 	c.Assert(err, check.IsNil)
 }
 
@@ -142,16 +143,16 @@ func (s *interfacesSuite) TestConnectPlugSuccess(c *check.C) {
 		Plugs:  []client.Plug{{Snap: "CONSUMER", Name: "plug"}},
 		Slots:  []client.Slot{{Snap: "PRODUCER", Name: "slot"}},
 	}
-	text, err := json.Marshal(action)
+	text := mylog.Check2(json.Marshal(action))
 	c.Assert(err, check.IsNil)
 	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/interfaces", buf))
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 202)
 	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	mylog.Check(json.Unmarshal(rec.Body.Bytes(), &body))
 	c.Check(err, check.IsNil)
 	id := body["change"].(string)
 
@@ -164,7 +165,7 @@ func (s *interfacesSuite) TestConnectPlugSuccess(c *check.C) {
 	<-chg.Ready()
 
 	st.Lock()
-	err = chg.Err()
+	mylog.Check(chg.Err())
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 
@@ -190,16 +191,16 @@ func (s *interfacesSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
 		Plugs:  []client.Plug{{Snap: "consumer", Name: "plug"}},
 		Slots:  []client.Slot{{Snap: "producer", Name: "slot"}},
 	}
-	text, err := json.Marshal(action)
+	text := mylog.Check2(json.Marshal(action))
 	c.Assert(err, check.IsNil)
 	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/interfaces", buf))
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 400)
 	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	mylog.Check(json.Unmarshal(rec.Body.Bytes(), &body))
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
@@ -227,17 +228,17 @@ func (s *interfacesSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
 		Plugs:  []client.Plug{{Snap: "consumer", Name: "missingplug"}},
 		Slots:  []client.Slot{{Snap: "producer", Name: "slot"}},
 	}
-	text, err := json.Marshal(action)
+	text := mylog.Check2(json.Marshal(action))
 	c.Assert(err, check.IsNil)
 	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/interfaces", buf))
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 400)
 
 	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	mylog.Check(json.Unmarshal(rec.Body.Bytes(), &body))
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
@@ -270,7 +271,7 @@ func (s *interfacesSuite) TestConnectAlreadyConnected(c *check.C) {
 	d.Overlord().Loop()
 	defer d.Overlord().Stop()
 
-	_, err := repo.Connect(connRef, nil, nil, nil, nil, nil)
+	_ := mylog.Check2(repo.Connect(connRef, nil, nil, nil, nil, nil))
 	c.Assert(err, check.IsNil)
 	conns := map[string]interface{}{
 		"consumer:plug producer:slot": map[string]interface{}{
@@ -287,16 +288,16 @@ func (s *interfacesSuite) TestConnectAlreadyConnected(c *check.C) {
 		Plugs:  []client.Plug{{Snap: "consumer", Name: "plug"}},
 		Slots:  []client.Slot{{Snap: "producer", Name: "slot"}},
 	}
-	text, err := json.Marshal(action)
+	text := mylog.Check2(json.Marshal(action))
 	c.Assert(err, check.IsNil)
 	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/interfaces", buf))
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 202)
 	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	mylog.Check(json.Unmarshal(rec.Body.Bytes(), &body))
 	c.Check(err, check.IsNil)
 	id := body["change"].(string)
 
@@ -320,17 +321,17 @@ func (s *interfacesSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
 		Plugs:  []client.Plug{{Snap: "consumer", Name: "plug"}},
 		Slots:  []client.Slot{{Snap: "producer", Name: "missingslot"}},
 	}
-	text, err := json.Marshal(action)
+	text := mylog.Check2(json.Marshal(action))
 	c.Assert(err, check.IsNil)
 	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/interfaces", buf))
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 400)
 
 	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	mylog.Check(json.Unmarshal(rec.Body.Bytes(), &body))
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
@@ -368,17 +369,17 @@ func (s *interfacesSuite) testConnectFailureNoSnap(c *check.C, installedSnap str
 		Plugs:  []client.Plug{{Snap: "consumer", Name: "plug"}},
 		Slots:  []client.Slot{{Snap: "producer", Name: "slot"}},
 	}
-	text, err := json.Marshal(action)
+	text := mylog.Check2(json.Marshal(action))
 	c.Assert(err, check.IsNil)
 	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/interfaces", buf))
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 400)
 
 	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	mylog.Check(json.Unmarshal(rec.Body.Bytes(), &body))
 	c.Check(err, check.IsNil)
 	if producer {
 		c.Check(body, check.DeepEquals, map[string]interface{}{
@@ -424,17 +425,17 @@ func (s *interfacesSuite) TestConnectPlugChangeConflict(c *check.C) {
 		Plugs:  []client.Plug{{Snap: "consumer", Name: "plug"}},
 		Slots:  []client.Slot{{Snap: "producer", Name: "slot"}},
 	}
-	text, err := json.Marshal(action)
+	text := mylog.Check2(json.Marshal(action))
 	c.Assert(err, check.IsNil)
 	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/interfaces", buf))
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 409)
 
 	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	mylog.Check(json.Unmarshal(rec.Body.Bytes(), &body))
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"status-code": 409.,
@@ -447,7 +448,8 @@ func (s *interfacesSuite) TestConnectPlugChangeConflict(c *check.C) {
 				"snap-name":   "consumer",
 			},
 		},
-		"type": "error"})
+		"type": "error",
+	})
 }
 
 func (s *interfacesSuite) TestConnectCoreSystemAlias(c *check.C) {
@@ -466,16 +468,16 @@ func (s *interfacesSuite) TestConnectCoreSystemAlias(c *check.C) {
 		Plugs:  []client.Plug{{Snap: "consumer", Name: "plug"}},
 		Slots:  []client.Slot{{Snap: "system", Name: "slot"}},
 	}
-	text, err := json.Marshal(action)
+	text := mylog.Check2(json.Marshal(action))
 	c.Assert(err, check.IsNil)
 	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/interfaces", buf))
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 202)
 	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	mylog.Check(json.Unmarshal(rec.Body.Bytes(), &body))
 	c.Check(err, check.IsNil)
 	id := body["change"].(string)
 
@@ -488,7 +490,7 @@ func (s *interfacesSuite) TestConnectCoreSystemAlias(c *check.C) {
 	<-chg.Ready()
 
 	st.Lock()
-	err = chg.Err()
+	mylog.Check(chg.Err())
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 
@@ -497,7 +499,8 @@ func (s *interfacesSuite) TestConnectCoreSystemAlias(c *check.C) {
 	c.Assert(ifaces.Connections, check.HasLen, 1)
 	c.Check(ifaces.Connections, check.DeepEquals, []*interfaces.ConnRef{{
 		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
-		SlotRef: interfaces.SlotRef{Snap: "core", Name: "slot"}}})
+		SlotRef: interfaces.SlotRef{Snap: "core", Name: "slot"},
+	}})
 }
 
 func (s *interfacesSuite) testDisconnect(c *check.C, plugSnap, plugName, slotSnap, slotName string) {
@@ -516,7 +519,7 @@ func (s *interfacesSuite) testDisconnect(c *check.C, plugSnap, plugName, slotSna
 		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
 		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
 	}
-	_, err := repo.Connect(connRef, nil, nil, nil, nil, nil)
+	_ := mylog.Check2(repo.Connect(connRef, nil, nil, nil, nil, nil))
 	c.Assert(err, check.IsNil)
 
 	st := d.Overlord().State()
@@ -536,16 +539,16 @@ func (s *interfacesSuite) testDisconnect(c *check.C, plugSnap, plugName, slotSna
 		Plugs:  []client.Plug{{Snap: plugSnap, Name: plugName}},
 		Slots:  []client.Slot{{Snap: slotSnap, Name: slotName}},
 	}
-	text, err := json.Marshal(action)
+	text := mylog.Check2(json.Marshal(action))
 	c.Assert(err, check.IsNil)
 	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/interfaces", buf))
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 202)
 	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	mylog.Check(json.Unmarshal(rec.Body.Bytes(), &body))
 	c.Check(err, check.IsNil)
 	id := body["change"].(string)
 
@@ -557,7 +560,7 @@ func (s *interfacesSuite) testDisconnect(c *check.C, plugSnap, plugName, slotSna
 	<-chg.Ready()
 
 	st.Lock()
-	err = chg.Err()
+	mylog.Check(chg.Err())
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 
@@ -590,16 +593,16 @@ func (s *interfacesSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
 		Plugs:  []client.Plug{{Snap: "consumer", Name: "missingplug"}},
 		Slots:  []client.Slot{{Snap: "producer", Name: "slot"}},
 	}
-	text, err := json.Marshal(action)
+	text := mylog.Check2(json.Marshal(action))
 	c.Assert(err, check.IsNil)
 	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/interfaces", buf))
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 400)
 	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	mylog.Check(json.Unmarshal(rec.Body.Bytes(), &body))
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
@@ -633,16 +636,16 @@ func (s *interfacesSuite) testDisconnectFailureNoSnap(c *check.C, installedSnap 
 		Plugs:  []client.Plug{{Snap: "consumer", Name: "plug"}},
 		Slots:  []client.Slot{{Snap: "producer", Name: "slot"}},
 	}
-	text, err := json.Marshal(action)
+	text := mylog.Check2(json.Marshal(action))
 	c.Assert(err, check.IsNil)
 	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/interfaces", buf))
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 400)
 	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	mylog.Check(json.Unmarshal(rec.Body.Bytes(), &body))
 	c.Check(err, check.IsNil)
 
 	if producer {
@@ -687,16 +690,16 @@ func (s *interfacesSuite) TestDisconnectPlugNothingToDo(c *check.C) {
 		Plugs:  []client.Plug{{Snap: "consumer", Name: "plug"}},
 		Slots:  []client.Slot{{Snap: "", Name: ""}},
 	}
-	text, err := json.Marshal(action)
+	text := mylog.Check2(json.Marshal(action))
 	c.Assert(err, check.IsNil)
 	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/interfaces", buf))
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 400)
 	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	mylog.Check(json.Unmarshal(rec.Body.Bytes(), &body))
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
@@ -722,17 +725,17 @@ func (s *interfacesSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
 		Plugs:  []client.Plug{{Snap: "consumer", Name: "plug"}},
 		Slots:  []client.Slot{{Snap: "producer", Name: "missingslot"}},
 	}
-	text, err := json.Marshal(action)
+	text := mylog.Check2(json.Marshal(action))
 	c.Assert(err, check.IsNil)
 	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/interfaces", buf))
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	s.req(c, req, nil).ServeHTTP(rec, req)
 
 	c.Check(rec.Code, check.Equals, 400)
 	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	mylog.Check(json.Unmarshal(rec.Body.Bytes(), &body))
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
@@ -757,17 +760,17 @@ func (s *interfacesSuite) TestDisconnectPlugFailureNotConnected(c *check.C) {
 		Plugs:  []client.Plug{{Snap: "consumer", Name: "plug"}},
 		Slots:  []client.Slot{{Snap: "producer", Name: "slot"}},
 	}
-	text, err := json.Marshal(action)
+	text := mylog.Check2(json.Marshal(action))
 	c.Assert(err, check.IsNil)
 	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/interfaces", buf))
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	s.req(c, req, nil).ServeHTTP(rec, req)
 
 	c.Check(rec.Code, check.Equals, 400)
 	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	mylog.Check(json.Unmarshal(rec.Body.Bytes(), &body))
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
@@ -793,17 +796,17 @@ func (s *interfacesSuite) TestDisconnectForgetPlugFailureNotConnected(c *check.C
 		Plugs:  []client.Plug{{Snap: "consumer", Name: "plug"}},
 		Slots:  []client.Slot{{Snap: "producer", Name: "slot"}},
 	}
-	text, err := json.Marshal(action)
+	text := mylog.Check2(json.Marshal(action))
 	c.Assert(err, check.IsNil)
 	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/interfaces", buf))
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	s.req(c, req, nil).ServeHTTP(rec, req)
 
 	c.Check(rec.Code, check.Equals, 400)
 	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	mylog.Check(json.Unmarshal(rec.Body.Bytes(), &body))
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
@@ -828,7 +831,7 @@ func (s *interfacesSuite) TestDisconnectConflict(c *check.C) {
 		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
 		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
 	}
-	_, err := repo.Connect(connRef, nil, nil, nil, nil, nil)
+	_ := mylog.Check2(repo.Connect(connRef, nil, nil, nil, nil, nil))
 	c.Assert(err, check.IsNil)
 
 	st := d.Overlord().State()
@@ -847,10 +850,10 @@ func (s *interfacesSuite) TestDisconnectConflict(c *check.C) {
 		Plugs:  []client.Plug{{Snap: "consumer", Name: "plug"}},
 		Slots:  []client.Slot{{Snap: "producer", Name: "slot"}},
 	}
-	text, err := json.Marshal(action)
+	text := mylog.Check2(json.Marshal(action))
 	c.Assert(err, check.IsNil)
 	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/interfaces", buf))
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	s.req(c, req, nil).ServeHTTP(rec, req)
@@ -858,7 +861,7 @@ func (s *interfacesSuite) TestDisconnectConflict(c *check.C) {
 	c.Check(rec.Code, check.Equals, 409)
 
 	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	mylog.Check(json.Unmarshal(rec.Body.Bytes(), &body))
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"status-code": 409.,
@@ -871,7 +874,8 @@ func (s *interfacesSuite) TestDisconnectConflict(c *check.C) {
 				"snap-name":   "consumer",
 			},
 		},
-		"type": "error"})
+		"type": "error",
+	})
 }
 
 func (s *interfacesSuite) TestDisconnectCoreSystemAlias(c *check.C) {
@@ -887,7 +891,7 @@ func (s *interfacesSuite) TestDisconnectCoreSystemAlias(c *check.C) {
 		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
 		SlotRef: interfaces.SlotRef{Snap: "core", Name: "slot"},
 	}
-	_, err := repo.Connect(connRef, nil, nil, nil, nil, nil)
+	_ := mylog.Check2(repo.Connect(connRef, nil, nil, nil, nil, nil))
 	c.Assert(err, check.IsNil)
 
 	st := d.Overlord().State()
@@ -907,16 +911,16 @@ func (s *interfacesSuite) TestDisconnectCoreSystemAlias(c *check.C) {
 		Plugs:  []client.Plug{{Snap: "consumer", Name: "plug"}},
 		Slots:  []client.Slot{{Snap: "system", Name: "slot"}},
 	}
-	text, err := json.Marshal(action)
+	text := mylog.Check2(json.Marshal(action))
 	c.Assert(err, check.IsNil)
 	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/interfaces", buf))
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 202)
 	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	mylog.Check(json.Unmarshal(rec.Body.Bytes(), &body))
 	c.Check(err, check.IsNil)
 	id := body["change"].(string)
 
@@ -928,7 +932,7 @@ func (s *interfacesSuite) TestDisconnectCoreSystemAlias(c *check.C) {
 	<-chg.Ready()
 
 	st.Lock()
-	err = chg.Err()
+	mylog.Check(chg.Err())
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 
@@ -939,13 +943,13 @@ func (s *interfacesSuite) TestDisconnectCoreSystemAlias(c *check.C) {
 func (s *interfacesSuite) TestUnsupportedInterfaceRequest(c *check.C) {
 	s.daemon(c)
 	buf := bytes.NewBuffer([]byte(`garbage`))
-	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/interfaces", buf))
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 400)
 	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	mylog.Check(json.Unmarshal(rec.Body.Bytes(), &body))
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
@@ -960,16 +964,16 @@ func (s *interfacesSuite) TestUnsupportedInterfaceRequest(c *check.C) {
 func (s *interfacesSuite) TestMissingInterfaceAction(c *check.C) {
 	s.daemon(c)
 	action := &client.InterfaceAction{}
-	text, err := json.Marshal(action)
+	text := mylog.Check2(json.Marshal(action))
 	c.Assert(err, check.IsNil)
 	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/interfaces", buf))
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 400)
 	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	mylog.Check(json.Unmarshal(rec.Body.Bytes(), &body))
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
@@ -984,16 +988,16 @@ func (s *interfacesSuite) TestMissingInterfaceAction(c *check.C) {
 func (s *interfacesSuite) TestUnsupportedInterfaceAction(c *check.C) {
 	s.daemon(c)
 	action := &client.InterfaceAction{Action: "foo"}
-	text, err := json.Marshal(action)
+	text := mylog.Check2(json.Marshal(action))
 	c.Assert(err, check.IsNil)
 	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/interfaces", buf))
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 400)
 	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	mylog.Check(json.Unmarshal(rec.Body.Bytes(), &body))
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
@@ -1016,7 +1020,7 @@ func (s *interfacesSuite) TestInterfacesLegacy(c *check.C) {
 
 	d := s.daemon(c)
 
-	var anotherConsumerYaml = `
+	anotherConsumerYaml := `
 name: another-consumer-%s
 version: 1
 apps:
@@ -1037,7 +1041,7 @@ plugs:
 		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
 		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
 	}
-	_, err := repo.Connect(connRef, nil, nil, nil, nil, nil)
+	_ := mylog.Check2(repo.Connect(connRef, nil, nil, nil, nil, nil))
 	c.Assert(err, check.IsNil)
 
 	st := d.Overlord().State()
@@ -1060,13 +1064,13 @@ plugs:
 	})
 	st.Unlock()
 
-	req, err := http.NewRequest("GET", "/v2/interfaces", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/interfaces", nil))
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 200)
 	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	mylog.Check(json.Unmarshal(rec.Body.Bytes(), &body))
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
@@ -1144,16 +1148,16 @@ func (s *interfacesSuite) TestInterfacesModern(c *check.C) {
 		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
 		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
 	}
-	_, err := repo.Connect(connRef, nil, nil, nil, nil, nil)
+	_ := mylog.Check2(repo.Connect(connRef, nil, nil, nil, nil, nil))
 	c.Assert(err, check.IsNil)
 
-	req, err := http.NewRequest("GET", "/v2/interfaces?select=connected&doc=true&plugs=true&slots=true", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/interfaces?select=connected&doc=true&plugs=true&slots=true", nil))
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 200)
 	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	mylog.Check(json.Unmarshal(rec.Body.Bytes(), &body))
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": []interface{}{
@@ -1167,7 +1171,8 @@ func (s *interfacesSuite) TestInterfacesModern(c *check.C) {
 						"attrs": map[string]interface{}{
 							"key": "value",
 						},
-					}},
+					},
+				},
 				"slots": []interface{}{
 					map[string]interface{}{
 						"snap":  "producer",

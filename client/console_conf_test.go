@@ -20,6 +20,7 @@
 package client_test
 
 import (
+	"github.com/ddkwork/golibrary/mylog"
 	. "gopkg.in/check.v1"
 )
 
@@ -32,10 +33,10 @@ func (cs *clientSuite) TestClientInternalConsoleConfEndpointEmpty(c *C) {
         "result": {}
 	}`
 
-	chgs, snaps, err := cs.cli.InternalConsoleConfStart()
+	chgs, snaps := mylog.Check3(cs.cli.InternalConsoleConfStart())
 	c.Assert(chgs, HasLen, 0)
 	c.Assert(snaps, HasLen, 0)
-	c.Assert(err, IsNil)
+
 	c.Check(cs.req.Method, Equals, "POST")
 	c.Check(cs.req.URL.Path, Equals, "/v2/internal/console-conf-start")
 	c.Check(cs.doCalls, Equals, 1)
@@ -53,8 +54,8 @@ func (cs *clientSuite) TestClientInternalConsoleConfEndpoint(c *C) {
 		}
 	}`
 
-	chgs, snaps, err := cs.cli.InternalConsoleConfStart()
-	c.Assert(err, IsNil)
+	chgs, snaps := mylog.Check3(cs.cli.InternalConsoleConfStart())
+
 	c.Assert(chgs, DeepEquals, []string{"1"})
 	c.Assert(snaps, DeepEquals, []string{"pc-kernel"})
 	c.Check(cs.req.Method, Equals, "POST")

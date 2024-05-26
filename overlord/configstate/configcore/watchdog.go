@@ -26,6 +26,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sysconfig"
@@ -58,9 +59,7 @@ func updateWatchdogConfig(config map[string]uint, opts *fsOnlyContext) error {
 		}
 	}
 	if len(configStr) > 0 {
-		if err := os.MkdirAll(dir, 0755); err != nil {
-			return err
-		}
+		mylog.Check(os.MkdirAll(dir, 0755))
 
 		// We order the variables to have predictable output
 		sort.Strings(configStr)
@@ -72,10 +71,7 @@ func updateWatchdogConfig(config map[string]uint, opts *fsOnlyContext) error {
 	}
 
 	glob := name
-	changed, removed, err := osutil.EnsureDirState(dir, glob, dirContent)
-	if err != nil {
-		return err
-	}
+	changed, removed := mylog.Check3(osutil.EnsureDirState(dir, glob, dirContent))
 
 	// something was changed, reexec systemd manager
 	if sysd != nil && (len(changed) > 0 || len(removed) > 0) {
@@ -89,14 +85,10 @@ func handleWatchdogConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnly
 	config := map[string]uint{}
 
 	for _, key := range []string{"runtime-timeout", "shutdown-timeout"} {
-		output, err := coreCfg(tr, "watchdog."+key)
-		if err != nil {
-			return err
-		}
-		secs, err := getSystemdConfSeconds(output)
-		if err != nil {
-			return fmt.Errorf("cannot set timer to %q: %v", output, err)
-		}
+		output := mylog.Check2(coreCfg(tr, "watchdog."+key))
+
+		secs := mylog.Check2(getSystemdConfSeconds(output))
+
 		switch key {
 		case "runtime-timeout":
 			config["RuntimeWatchdogSec"] = secs
@@ -104,10 +96,7 @@ func handleWatchdogConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnly
 			config["ShutdownWatchdogSec"] = secs
 		}
 	}
-
-	if err := updateWatchdogConfig(config, opts); err != nil {
-		return err
-	}
+	mylog.Check(updateWatchdogConfig(config, opts))
 
 	return nil
 }
@@ -117,10 +106,8 @@ func getSystemdConfSeconds(timeStr string) (uint, error) {
 		return 0, nil
 	}
 
-	dur, err := time.ParseDuration(timeStr)
-	if err != nil {
-		return 0, fmt.Errorf("cannot parse %q: %v", timeStr, err)
-	}
+	dur := mylog.Check2(time.ParseDuration(timeStr))
+
 	if dur < 0 {
 		return 0, fmt.Errorf("cannot use negative duration %q: %v", timeStr, err)
 	}
@@ -130,13 +117,9 @@ func getSystemdConfSeconds(timeStr string) (uint, error) {
 
 func validateWatchdogOptions(tr ConfGetter) error {
 	for _, key := range []string{"runtime-timeout", "shutdown-timeout"} {
-		option, err := coreCfg(tr, "watchdog."+key)
-		if err != nil {
-			return err
-		}
-		if _, err = getSystemdConfSeconds(option); err != nil {
-			return err
-		}
+		option := mylog.Check2(coreCfg(tr, "watchdog."+key))
+		mylog.Check2(getSystemdConfSeconds(option))
+
 	}
 
 	return nil

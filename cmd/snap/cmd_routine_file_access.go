@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
@@ -39,8 +40,9 @@ type cmdRoutineFileAccess struct {
 	} `positional-args:"true" required:"true"`
 }
 
-var shortRoutineFileAccessHelp = i18n.G("Return information about file access by a snap")
-var longRoutineFileAccessHelp = i18n.G(`
+var (
+	shortRoutineFileAccessHelp = i18n.G("Return information about file access by a snap")
+	longRoutineFileAccessHelp  = i18n.G(`
 The file-access command returns information about a snap's file system access.
 
 This command is used by the xdg-document-portal service to identify
@@ -52,6 +54,7 @@ return false negatives (e.g. report that a file path is unreadable,
 despite being readable under a different path).  It also does not
 check if file system permissions would render a file unreadable.
 `)
+)
 
 func init() {
 	addRoutineCommand("file-access", shortRoutineFileAccessHelp, longRoutineFileAccessHelp, func() flags.Commander {
@@ -80,18 +83,13 @@ func (x *cmdRoutineFileAccess) Execute(args []string) error {
 	snapName := string(x.FileAccessOptions.Snap)
 	path := string(x.FileAccessOptions.Path)
 
-	snap, _, err := x.client.Snap(snapName)
-	if err != nil {
-		return fmt.Errorf("cannot retrieve info for snap %q: %v", snapName, err)
-	}
+	snap, _ := mylog.Check3(x.client.Snap(snapName))
 
 	// Check whether the snap has home or removable-media plugs connected
-	connections, err := x.client.Connections(&client.ConnectionOptions{
+	connections := mylog.Check2(x.client.Connections(&client.ConnectionOptions{
 		Snap: snap.Name,
-	})
-	if err != nil {
-		return fmt.Errorf("cannot get connections for snap %q: %v", snap.Name, err)
-	}
+	}))
+
 	var hasHome, hasRemovableMedia bool
 	for _, conn := range connections.Established {
 		if conn.Plug.Snap != snap.Name {
@@ -105,10 +103,8 @@ func (x *cmdRoutineFileAccess) Execute(args []string) error {
 		}
 	}
 
-	access, err := x.checkAccess(snap, hasHome, hasRemovableMedia, path)
-	if err != nil {
-		return err
-	}
+	access := mylog.Check2(x.checkAccess(snap, hasHome, hasRemovableMedia, path))
+
 	fmt.Fprintln(Stdout, access)
 	return nil
 }
@@ -123,10 +119,8 @@ const (
 
 func splitPathAbs(path string) ([]string, error) {
 	// Abs also cleans the path, removing any ".." components
-	path, err := filepath.Abs(path)
-	if err != nil {
-		return nil, err
-	}
+	path := mylog.Check2(filepath.Abs(path))
+
 	// Ignore the empty component before the first slash
 	return strings.Split(path, string(os.PathSeparator))[1:], nil
 }
@@ -150,10 +144,7 @@ func (x *cmdRoutineFileAccess) checkAccess(snap *client.Snap, hasHome, hasRemova
 		return FileAccessReadWrite, nil
 	}
 
-	pathParts, err := splitPathAbs(path)
-	if err != nil {
-		return "", err
-	}
+	pathParts := mylog.Check2(splitPathAbs(path))
 
 	// Snaps have access to $SNAP_DATA and $SNAP_COMMON
 	if pathHasPrefix(pathParts, []string{"var", "snap", snap.Name}) {
@@ -176,15 +167,10 @@ func (x *cmdRoutineFileAccess) checkAccess(snap *client.Snap, hasHome, hasRemova
 		}
 	}
 
-	usr, err := userCurrent()
-	if err != nil {
-		return "", fmt.Errorf("cannot get the current user: %v", err)
-	}
+	usr := mylog.Check2(userCurrent())
 
-	home, err := splitPathAbs(usr.HomeDir)
-	if err != nil {
-		return "", err
-	}
+	home := mylog.Check2(splitPathAbs(usr.HomeDir))
+
 	if pathHasPrefix(pathParts, home) {
 		pathInHome := pathParts[len(home):]
 		// Snaps have access to $SNAP_USER_DATA and $SNAP_USER_COMMON

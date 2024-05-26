@@ -22,6 +22,7 @@ package strutil_test
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -97,7 +98,7 @@ func (s *VersionTestSuite) TestVersionCompare(c *C) {
 		{"12-20220319-1ubuntu1", "13-1-1", -1, nil},  // two "-" are legal
 		{"0--0", "0", 1, nil},                        // also legal (urgh)
 	} {
-		res, err := strutil.VersionCompare(t.A, t.B)
+		res := mylog.Check2(strutil.VersionCompare(t.A, t.B))
 		if t.err != nil {
 			c.Check(err, DeepEquals, t.err)
 		} else {

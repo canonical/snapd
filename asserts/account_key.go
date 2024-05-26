@@ -24,6 +24,8 @@ import (
 	"fmt"
 	"regexp"
 	"time"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 var validAccountKeyName = regexp.MustCompile(`^(?:[a-z0-9]+-?)*[a-z](?:-?[a-z0-9])*$`)
@@ -43,15 +45,10 @@ type sinceUntil struct {
 }
 
 func checkSinceUntilWhat(m map[string]interface{}, what string) (*sinceUntil, error) {
-	since, err := checkRFC3339DateWhat(m, "since", what)
-	if err != nil {
-		return nil, err
-	}
+	since := mylog.Check2(checkRFC3339DateWhat(m, "since", what))
 
-	until, err := checkRFC3339DateWithDefaultWhat(m, "until", what, time.Time{})
-	if err != nil {
-		return nil, err
-	}
+	until := mylog.Check2(checkRFC3339DateWithDefaultWhat(m, "until", what, time.Time{}))
+
 	if !until.IsZero() && until.Before(since) {
 		return nil, fmt.Errorf("'until' time cannot be before 'since' time")
 	}
@@ -161,14 +158,10 @@ func (ak *AccountKey) canSign(a Assertion) bool {
 }
 
 func checkPublicKey(ab *assertionBase, keyIDName string) (PublicKey, error) {
-	pubKey, err := DecodePublicKey(ab.Body())
-	if err != nil {
-		return nil, err
-	}
-	keyID, err := checkNotEmptyString(ab.headers, keyIDName)
-	if err != nil {
-		return nil, err
-	}
+	pubKey := mylog.Check2(DecodePublicKey(ab.Body()))
+
+	keyID := mylog.Check2(checkNotEmptyString(ab.headers, keyIDName))
+
 	if keyID != pubKey.ID() {
 		return nil, fmt.Errorf("public key does not match provided key id")
 	}
@@ -180,15 +173,13 @@ func (ak *AccountKey) checkConsistency(db RODatabase, acck *AccountKey) error {
 	if !db.IsTrustedAccount(ak.AuthorityID()) {
 		return fmt.Errorf("account-key assertion for %q is not signed by a directly trusted authority: %s", ak.AccountID(), ak.AuthorityID())
 	}
-	_, err := db.Find(AccountType, map[string]string{
+	_ := mylog.Check2(db.Find(AccountType, map[string]string{
 		"account-id": ak.AccountID(),
-	})
+	}))
 	if errors.Is(err, &NotFoundError{}) {
 		return fmt.Errorf("account-key assertion for %q does not have a matching account assertion", ak.AccountID())
 	}
-	if err != nil {
-		return err
-	}
+
 	// XXX: Make this unconditional once account-key assertions are required to have a name.
 	if ak.Name() != "" {
 		// Check that we don't end up with multiple keys with
@@ -196,10 +187,10 @@ func (ak *AccountKey) checkConsistency(db RODatabase, acck *AccountKey) error {
 		// Note that this is a non-transactional check-then-add, so
 		// is not a hard guarantee.  Backstores that can implement a
 		// unique constraint should do so.
-		assertions, err := db.FindMany(AccountKeyType, map[string]string{
+		assertions := mylog.Check2(db.FindMany(AccountKeyType, map[string]string{
 			"account-id": ak.AccountID(),
 			"name":       ak.Name(),
-		})
+		}))
 		if err != nil && !errors.Is(err, &NotFoundError{}) {
 			return err
 		}
@@ -224,36 +215,21 @@ func (ak *AccountKey) Prerequisites() []*Ref {
 }
 
 func assembleAccountKey(assert assertionBase) (Assertion, error) {
-	_, err := checkNotEmptyString(assert.headers, "account-id")
-	if err != nil {
-		return nil, err
-	}
+	_ := mylog.Check2(checkNotEmptyString(assert.headers, "account-id"))
 
 	// XXX: We should require name to be present after backfilling existing assertions.
 	_, ok := assert.headers["name"]
 	if ok {
-		_, err = checkStringMatches(assert.headers, "name", validAccountKeyName)
-		if err != nil {
-			return nil, err
-		}
+		_ = mylog.Check2(checkStringMatches(assert.headers, "name", validAccountKeyName))
 	}
 
-	sinceUntil, err := checkSinceUntilWhat(assert.headers, "header")
-	if err != nil {
-		return nil, err
-	}
+	sinceUntil := mylog.Check2(checkSinceUntilWhat(assert.headers, "header"))
 
-	pubk, err := checkPublicKey(&assert, "public-key-sha3-384")
-	if err != nil {
-		return nil, err
-	}
+	pubk := mylog.Check2(checkPublicKey(&assert, "public-key-sha3-384"))
 
 	var matchers []attrMatcher
 	if cs, ok := assert.headers["constraints"]; ok {
-		matchers, err = checkAKConstraints(cs)
-		if err != nil {
-			return nil, err
-		}
+		matchers = mylog.Check2(checkAKConstraints(cs))
 	}
 
 	// ignore extra headers for future compatibility
@@ -280,10 +256,8 @@ func checkAKConstraints(cs interface{}) ([]attrMatcher, error) {
 		if !ok {
 			return nil, fmt.Errorf("assertions constraints must be a list of maps")
 		}
-		hm, err := checkMapWhat(m, "headers", "constraint")
-		if err != nil {
-			return nil, err
-		}
+		hm := mylog.Check2(checkMapWhat(m, "headers", "constraint"))
+
 		if hm == nil {
 			return nil, fmt.Errorf(`"headers" constraint mandatory in asserions constraints`)
 		}
@@ -301,10 +275,8 @@ func checkAKConstraints(cs interface{}) ([]attrMatcher, error) {
 		cc := compileContext{
 			opts: &compileAttrMatcherOptions{},
 		}
-		matcher, err := compileAttrMatcher(cc, hm)
-		if err != nil {
-			return nil, fmt.Errorf("cannot compile headers constraint: %v", err)
-		}
+		matcher := mylog.Check2(compileAttrMatcher(cc, hm))
+
 		matchers = append(matchers, matcher)
 	}
 	return matchers, nil
@@ -357,15 +329,13 @@ func (akr *AccountKeyRequest) signKey() PublicKey {
 
 // Implement further consistency checks.
 func (akr *AccountKeyRequest) checkConsistency(db RODatabase, acck *AccountKey) error {
-	_, err := db.Find(AccountType, map[string]string{
+	_ := mylog.Check2(db.Find(AccountType, map[string]string{
 		"account-id": akr.AccountID(),
-	})
+	}))
 	if errors.Is(err, &NotFoundError{}) {
 		return fmt.Errorf("account-key-request assertion for %q does not have a matching account assertion", akr.AccountID())
 	}
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 
@@ -383,25 +353,13 @@ func (akr *AccountKeyRequest) Prerequisites() []*Ref {
 }
 
 func assembleAccountKeyRequest(assert assertionBase) (Assertion, error) {
-	_, err := checkNotEmptyString(assert.headers, "account-id")
-	if err != nil {
-		return nil, err
-	}
+	_ := mylog.Check2(checkNotEmptyString(assert.headers, "account-id"))
 
-	_, err = checkStringMatches(assert.headers, "name", validAccountKeyName)
-	if err != nil {
-		return nil, err
-	}
+	_ = mylog.Check2(checkStringMatches(assert.headers, "name", validAccountKeyName))
 
-	sinceUntil, err := checkSinceUntilWhat(assert.headers, "header")
-	if err != nil {
-		return nil, err
-	}
+	sinceUntil := mylog.Check2(checkSinceUntilWhat(assert.headers, "header"))
 
-	pubk, err := checkPublicKey(&assert, "public-key-sha3-384")
-	if err != nil {
-		return nil, err
-	}
+	pubk := mylog.Check2(checkPublicKey(&assert, "public-key-sha3-384"))
 
 	// XXX TODO: support constraints also in account-key-request when
 	// implementing more fully automated registration flows

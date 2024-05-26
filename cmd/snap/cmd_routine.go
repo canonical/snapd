@@ -25,11 +25,13 @@ import (
 
 type cmdRoutine struct{}
 
-var shortRoutineHelp = i18n.G("Run routine commands")
-var longRoutineHelp = i18n.G(`
+var (
+	shortRoutineHelp = i18n.G("Run routine commands")
+	longRoutineHelp  = i18n.G(`
 The routine command contains a selection of additional sub-commands.
 
 Routine commands are not intended to be directly invoked by the user.
 Instead, they are intended to be called by other programs and produce
 machine readable output.
 `)
+)

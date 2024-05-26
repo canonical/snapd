@@ -22,6 +22,7 @@ package boot_test
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/bootloader/efi"
@@ -46,8 +47,8 @@ func (s *bootedKernelPartitionSuite) TestFindPartitionUUIDForBootedKernelDisk(c 
 	}, nil)
 	defer restore()
 
-	partuuid, err := boot.FindPartitionUUIDForBootedKernelDisk()
-	c.Assert(err, IsNil)
+	partuuid := mylog.Check2(boot.FindPartitionUUIDForBootedKernelDisk())
+
 	c.Assert(partuuid, Equals, "a9f5c949-ab89-5b47-a7bf-56dd28f96e65")
 }
 
@@ -55,6 +56,6 @@ func (s *bootedKernelPartitionSuite) TestFindPartitionUUIDForBootedKernelDiskNoE
 	restore := efi.MockVars(nil, nil)
 	defer restore()
 
-	_, err := boot.FindPartitionUUIDForBootedKernelDisk()
+	_ := mylog.Check2(boot.FindPartitionUUIDForBootedKernelDisk())
 	c.Check(err, Equals, efi.ErrNoEFISystem)
 }

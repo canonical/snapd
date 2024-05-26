@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
@@ -154,8 +155,8 @@ func (s *bootchainSuite) TestBootChainMarshalFull(c *C) {
 	predictableBc := boot.ToPredictableBootChain(bc)
 	c.Check(predictableBc, DeepEquals, expectedPredictableBc)
 
-	d, err := json.Marshal(predictableBc)
-	c.Assert(err, IsNil)
+	d := mylog.Check2(json.Marshal(predictableBc))
+
 	c.Check(string(d), Equals, `{"brand-id":"mybrand","model":"foo","grade":"dangerous","model-sign-key-id":"my-key-id","asset-chain":[{"role":"recovery","name":"shim","hashes":["b","a"]},{"role":"recovery","name":"loader","hashes":["d"]},{"role":"run-mode","name":"loader","hashes":["c","d"]}],"kernel":"pc-kernel","kernel-revision":"1234","kernel-cmdlines":["a=1","foo=bar baz=0x123"]}`)
 	expectedOriginal := &boot.BootChain{
 		BrandID:        "mybrand",
@@ -315,12 +316,12 @@ func (s *bootchainSuite) TestPredictableBootChainsFullMarshal(c *C) {
 	}
 
 	predictableChains := boot.ToPredictableBootChains(chains)
-	d, err := json.Marshal(predictableChains)
-	c.Assert(err, IsNil)
+	d := mylog.Check2(json.Marshal(predictableChains))
+
 
 	var data []map[string]interface{}
-	err = json.Unmarshal(d, &data)
-	c.Assert(err, IsNil)
+	mylog.Check(json.Unmarshal(d, &data))
+
 	c.Check(data, DeepEquals, []map[string]interface{}{
 		{
 			"model":             "foo",
@@ -972,8 +973,8 @@ var nbf = bootloader.NewBootFile
 func (s *bootchainSuite) TestBootAssetsToLoadChainTrivialKernel(c *C) {
 	kbl := bootloader.NewBootFile("pc-kernel", "kernel.efi", bootloader.RoleRunMode)
 
-	chains, err := boot.BootAssetsToLoadChains(nil, kbl, nil, false)
-	c.Assert(err, IsNil)
+	chains := mylog.Check2(boot.BootAssetsToLoadChains(nil, kbl, nil, false))
+
 
 	c.Check(chains, DeepEquals, []*secboot.LoadChain{
 		secboot.NewLoadChain(nbf("pc-kernel", "kernel.efi", bootloader.RoleRunMode)),
@@ -994,7 +995,7 @@ func (s *bootchainSuite) TestBootAssetsToLoadChainErr(c *C) {
 		// missing bootloader name for role "run-mode"
 	}
 	// fails when probing the shim asset in the cache
-	chains, err := boot.BootAssetsToLoadChains(assets, kbl, blNames, false)
+	chains := mylog.Check2(boot.BootAssetsToLoadChains(assets, kbl, blNames, false))
 	c.Assert(err, ErrorMatches, "file .*/recovery-bl/shim-hash0 not found in boot assets cache")
 	c.Check(chains, IsNil)
 	// make it work now
@@ -1002,7 +1003,7 @@ func (s *bootchainSuite) TestBootAssetsToLoadChainErr(c *C) {
 	c.Assert(os.WriteFile(cPath("recovery-bl/shim-hash0"), nil, 0644), IsNil)
 
 	// nested error bubbled up
-	chains, err = boot.BootAssetsToLoadChains(assets, kbl, blNames, false)
+	chains = mylog.Check2(boot.BootAssetsToLoadChains(assets, kbl, blNames, false))
 	c.Assert(err, ErrorMatches, "file .*/recovery-bl/loader-recovery-hash0 not found in boot assets cache")
 	c.Check(chains, IsNil)
 	// again, make it work
@@ -1010,7 +1011,7 @@ func (s *bootchainSuite) TestBootAssetsToLoadChainErr(c *C) {
 	c.Assert(os.WriteFile(cPath("recovery-bl/loader-recovery-hash0"), nil, 0644), IsNil)
 
 	// fails on missing bootloader name for role "run-mode"
-	chains, err = boot.BootAssetsToLoadChains(assets, kbl, blNames, false)
+	chains = mylog.Check2(boot.BootAssetsToLoadChains(assets, kbl, blNames, false))
 	c.Assert(err, ErrorMatches, `internal error: no bootloader name for boot asset role "run-mode"`)
 	c.Check(chains, IsNil)
 }
@@ -1040,8 +1041,8 @@ func (s *bootchainSuite) TestBootAssetsToLoadChainSimpleChain(c *C) {
 		bootloader.RoleRunMode:  "run-bl",
 	}
 
-	chains, err := boot.BootAssetsToLoadChains(assets, kbl, blNames, false)
-	c.Assert(err, IsNil)
+	chains := mylog.Check2(boot.BootAssetsToLoadChains(assets, kbl, blNames, false))
+
 
 	c.Logf("got:")
 	for _, ch := range chains {
@@ -1082,8 +1083,8 @@ func (s *bootchainSuite) TestBootAssetsToLoadChainWithAlternativeChains(c *C) {
 		bootloader.RoleRecovery: "recovery-bl",
 		bootloader.RoleRunMode:  "run-bl",
 	}
-	chains, err := boot.BootAssetsToLoadChains(assets, kbl, blNames, false)
-	c.Assert(err, IsNil)
+	chains := mylog.Check2(boot.BootAssetsToLoadChains(assets, kbl, blNames, false))
+
 
 	c.Logf("got:")
 	for _, ch := range chains {
@@ -1150,28 +1151,30 @@ func (s *sealSuite) TestReadWriteBootChains(c *C) {
 
 	expected := `{"reseal-count":0,"boot-chains":[{"brand-id":"mybrand","model":"foo","grade":"dangerous","model-sign-key-id":"my-key-id","asset-chain":[{"role":"recovery","name":"shim","hashes":["y","x"]},{"role":"recovery","name":"loader","hashes":["c","d"]}],"kernel":"pc-kernel-recovery","kernel-revision":"1234","kernel-cmdlines":["snapd_recovery_mode=recover foo"]},{"brand-id":"mybrand","model":"foo","grade":"signed","model-sign-key-id":"my-key-id","asset-chain":[{"role":"recovery","name":"shim","hashes":["x","y"]},{"role":"recovery","name":"loader","hashes":["c","d"]},{"role":"run-mode","name":"loader","hashes":["z","x"]}],"kernel":"pc-kernel-other","kernel-revision":"2345","kernel-cmdlines":["snapd_recovery_mode=run foo"]}]}
 `
-	// creates a complete tree and writes a file
-	err := boot.WriteBootChains(pbc, filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), 0)
-	c.Assert(err, IsNil)
+	mylog.
+		// creates a complete tree and writes a file
+		Check(boot.WriteBootChains(pbc, filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), 0))
+
 	c.Check(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), testutil.FileEquals, expected)
 
-	fi, err := os.Stat(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"))
-	c.Assert(err, IsNil)
+	fi := mylog.Check2(os.Stat(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains")))
+
 	c.Check(fi.Mode().Perm(), Equals, os.FileMode(0600))
 
-	loaded, cnt, err := boot.ReadBootChains(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"))
-	c.Assert(err, IsNil)
+	loaded, cnt := mylog.Check3(boot.ReadBootChains(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains")))
+
 	c.Check(loaded, DeepEquals, pbc)
 	c.Check(cnt, Equals, 0)
 	// boot chains should be same for reseal purpose
 	c.Check(boot.PredictableBootChainsEqualForReseal(pbc, loaded), Equals, boot.BootChainEquivalent)
+	mylog.
 
-	// write them again with count > 0
-	err = boot.WriteBootChains(pbc, filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), 99)
-	c.Assert(err, IsNil)
+		// write them again with count > 0
+		Check(boot.WriteBootChains(pbc, filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), 99))
 
-	_, cnt, err = boot.ReadBootChains(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"))
-	c.Assert(err, IsNil)
+
+	_, cnt = mylog.Check3(boot.ReadBootChains(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains")))
+
 	c.Check(cnt, Equals, 99)
 
 	// make device/fde directory read only so that writing fails
@@ -1179,21 +1182,20 @@ func (s *sealSuite) TestReadWriteBootChains(c *C) {
 	c.Assert(os.MkdirAll(dirs.SnapFDEDirUnder(otherRootdir), 0755), IsNil)
 	c.Assert(os.Chmod(dirs.SnapFDEDirUnder(otherRootdir), 0000), IsNil)
 	defer os.Chmod(dirs.SnapFDEDirUnder(otherRootdir), 0755)
-
-	err = boot.WriteBootChains(pbc, filepath.Join(dirs.SnapFDEDirUnder(otherRootdir), "boot-chains"), 0)
+	mylog.Check(boot.WriteBootChains(pbc, filepath.Join(dirs.SnapFDEDirUnder(otherRootdir), "boot-chains"), 0))
 	c.Assert(err, ErrorMatches, `cannot create a temporary boot chains file: open .*/boot-chains\.[a-zA-Z0-9]+~: permission denied`)
 
 	// make the original file non readable
 	c.Assert(os.Chmod(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), 0000), IsNil)
 	defer os.Chmod(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), 0755)
-	loaded, _, err = boot.ReadBootChains(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"))
+	loaded, _ = mylog.Check3(boot.ReadBootChains(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains")))
 	c.Assert(err, ErrorMatches, "cannot open existing boot chains data file: open .*/boot-chains: permission denied")
 	c.Check(loaded, IsNil)
 
 	// loading from a file that does not exist yields a nil boot chain
 	// and 0 count
-	loaded, cnt, err = boot.ReadBootChains("does-not-exist")
-	c.Assert(err, IsNil)
+	loaded, cnt = mylog.Check3(boot.ReadBootChains("does-not-exist"))
+
 	c.Check(loaded, IsNil)
 	c.Check(cnt, Equals, 0)
 }
@@ -1214,7 +1216,6 @@ func (s *bootchainSuite) TestModelForSealing(c *C) {
 	c.Check(modelForSealing.SignKeyID(), Equals, "my-key-id")
 	c.Check(modelForSealing.Series(), Equals, "16")
 	c.Check(boot.ModelUniqueID(modelForSealing), Equals, "my-brand/my-model,signed,my-key-id")
-
 }
 
 func (s *bootchainSuite) TestClassicModelForSealing(c *C) {

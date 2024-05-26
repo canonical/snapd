@@ -22,6 +22,7 @@ package builtin_test
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -43,7 +44,7 @@ var _ = Suite(&jack1InterfaceSuite{
 })
 
 func (s *jack1InterfaceSuite) SetUpTest(c *C) {
-	var mockPlugSnapInfoYaml = `name: other
+	mockPlugSnapInfoYaml := `name: other
 version: 1.0
 apps:
  app:
@@ -74,8 +75,8 @@ func (s *jack1InterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *jack1InterfaceSuite) TestAppArmorSpec(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.other.app"})

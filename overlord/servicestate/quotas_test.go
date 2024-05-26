@@ -22,6 +22,7 @@ package servicestate_test
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/servicestate/servicestatetest"
@@ -47,8 +48,8 @@ func (s *servicestateQuotasSuite) TestQuotas(c *C) {
 	defer st.Unlock()
 
 	// with nothing in state we don't get any quotas
-	quotaMap, err := servicestate.AllQuotas(st)
-	c.Assert(err, IsNil)
+	quotaMap := mylog.Check2(servicestate.AllQuotas(st))
+
 	c.Assert(quotaMap, HasLen, 0)
 
 	// we can add some basic quotas to state
@@ -56,15 +57,15 @@ func (s *servicestateQuotasSuite) TestQuotas(c *C) {
 		Name:        "foogroup",
 		MemoryLimit: quantity.SizeGiB,
 	}
-	newGrps, err := servicestatetest.PatchQuotas(st, grp)
-	c.Assert(err, IsNil)
+	newGrps := mylog.Check2(servicestatetest.PatchQuotas(st, grp))
+
 	c.Assert(newGrps, DeepEquals, map[string]*quota.Group{
 		"foogroup": grp,
 	})
 
 	// now we get back the same quota
-	quotaMap, err = servicestate.AllQuotas(st)
-	c.Assert(err, IsNil)
+	quotaMap = mylog.Check2(servicestate.AllQuotas(st))
+
 	c.Assert(quotaMap, DeepEquals, map[string]*quota.Group{
 		"foogroup": grp,
 	})
@@ -76,40 +77,40 @@ func (s *servicestateQuotasSuite) TestQuotas(c *C) {
 		MemoryLimit: quantity.SizeGiB,
 		ParentGroup: "foogroup",
 	}
-	_, err = servicestatetest.PatchQuotas(st, grp2)
+	_ = mylog.Check2(servicestatetest.PatchQuotas(st, grp2))
 	c.Assert(err, ErrorMatches, `cannot update quota "group-2": group "foogroup" does not reference necessary child group "group-2"`)
 
 	// we also can't add a sub-group to the parent without adding the sub-group
 	// itself
 	grp.SubGroups = append(grp.SubGroups, "group-2")
-	_, err = servicestatetest.PatchQuotas(st, grp)
+	_ = mylog.Check2(servicestatetest.PatchQuotas(st, grp))
 	c.Assert(err, ErrorMatches, `cannot update quota "foogroup": missing group "group-2" referenced as the sub-group of group "foogroup"`)
 
 	// but if we update them both at the same time we succeed
-	newGrps, err = servicestatetest.PatchQuotas(st, grp, grp2)
-	c.Assert(err, IsNil)
+	newGrps = mylog.Check2(servicestatetest.PatchQuotas(st, grp, grp2))
+
 	c.Assert(newGrps, DeepEquals, map[string]*quota.Group{
 		"foogroup": grp,
 		"group-2":  grp2,
 	})
 
 	// and now we see both in the state
-	quotaMap, err = servicestate.AllQuotas(st)
-	c.Assert(err, IsNil)
+	quotaMap = mylog.Check2(servicestate.AllQuotas(st))
+
 	c.Assert(quotaMap, DeepEquals, map[string]*quota.Group{
 		"foogroup": grp,
 		"group-2":  grp2,
 	})
 
 	// and we can get individual quotas too
-	res, err := servicestate.GetQuota(st, "foogroup")
-	c.Assert(err, IsNil)
+	res := mylog.Check2(servicestate.GetQuota(st, "foogroup"))
+
 	c.Assert(res, DeepEquals, grp)
 
-	res2, err := servicestate.GetQuota(st, "group-2")
-	c.Assert(err, IsNil)
+	res2 := mylog.Check2(servicestate.GetQuota(st, "group-2"))
+
 	c.Assert(res2, DeepEquals, grp2)
 
-	_, err = servicestate.GetQuota(st, "unknown")
+	_ = mylog.Check2(servicestate.GetQuota(st, "unknown"))
 	c.Assert(err, Equals, servicestate.ErrQuotaNotFound)
 }

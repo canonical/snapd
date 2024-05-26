@@ -28,6 +28,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dbusutil"
 	"github.com/snapcore/snapd/dbusutil/dbustest"
 	"github.com/snapcore/snapd/dirs"
@@ -81,42 +82,42 @@ func (*dbusutilSuite) TestIsSessionBusLikelyPresentAddrFile(c *C) {
 func (*dbusutilSuite) TestIsSessionBusLikelyPresentSocket(c *C) {
 	f := fmt.Sprintf("%s/%d/bus", dirs.XdgRuntimeDirBase, os.Getuid())
 	c.Assert(os.MkdirAll(filepath.Dir(f), 0755), IsNil)
-	l, err := net.Listen("unix", f)
-	c.Assert(err, IsNil)
+	l := mylog.Check2(net.Listen("unix", f))
+
 	defer l.Close()
 
 	c.Assert(dbusutil.IsSessionBusLikelyPresent(), Equals, true)
 }
 
 func (*dbusutilSuite) TestSessionBusWithoutBus(c *C) {
-	_, err := dbusutil.SessionBus()
+	_ := mylog.Check2(dbusutil.SessionBus())
 	c.Assert(err, ErrorMatches, "cannot find session bus")
 }
 
 func (*dbusutilSuite) TestMockOnlySessionBusAvailable(c *C) {
-	stub, err := dbustest.StubConnection()
-	c.Assert(err, IsNil)
+	stub := mylog.Check2(dbustest.StubConnection())
+
 	defer stub.Close()
 	restore := dbusutil.MockOnlySessionBusAvailable(stub)
 	defer restore()
 
-	conn, err := dbusutil.SessionBus()
-	c.Assert(err, IsNil)
+	conn := mylog.Check2(dbusutil.SessionBus())
+
 	c.Check(conn, Equals, stub)
 
 	c.Check(func() { dbusutil.SystemBus() }, PanicMatches, "DBus system bus should not have been used")
 }
 
 func (*dbusutilSuite) TestMockOnlySystemBusAvailable(c *C) {
-	stub, err := dbustest.StubConnection()
-	c.Assert(err, IsNil)
+	stub := mylog.Check2(dbustest.StubConnection())
+
 	defer stub.Close()
 	restore := dbusutil.MockOnlySystemBusAvailable(stub)
 	defer restore()
 
 	c.Check(func() { dbusutil.SessionBus() }, PanicMatches, "DBus session bus should not have been used")
 
-	conn, err := dbusutil.SystemBus()
-	c.Assert(err, IsNil)
+	conn := mylog.Check2(dbusutil.SystemBus())
+
 	c.Check(conn, Equals, stub)
 }

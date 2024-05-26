@@ -24,6 +24,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // InternalSnapctlCmdNeedsStdin returns true if the given snapctl command
@@ -71,28 +73,20 @@ func (client *Client) RunSnapctl(options *SnapCtlOptions, stdin io.Reader) (stdo
 	var stdinData []byte
 	if stdin != nil {
 		limitedStdin := &io.LimitedReader{R: stdin, N: stdinReadLimit + 1}
-		stdinData, err = io.ReadAll(limitedStdin)
-		if err != nil {
-			return nil, nil, fmt.Errorf("cannot read stdin: %v", err)
-		}
+		stdinData = mylog.Check2(io.ReadAll(limitedStdin))
+
 		if limitedStdin.N <= 0 {
 			return nil, nil, fmt.Errorf("cannot read more than %v bytes of data from stdin", stdinReadLimit)
 		}
 	}
 
-	b, err := json.Marshal(SnapCtlPostData{
+	b := mylog.Check2(json.Marshal(SnapCtlPostData{
 		SnapCtlOptions: *options,
 		Stdin:          stdinData,
-	})
-	if err != nil {
-		return nil, nil, fmt.Errorf("cannot marshal options: %s", err)
-	}
+	}))
 
 	var output snapctlOutput
-	_, err = client.doSync("POST", "/v2/snapctl", nil, nil, bytes.NewReader(b), &output)
-	if err != nil {
-		return nil, nil, err
-	}
+	_ = mylog.Check2(client.doSync("POST", "/v2/snapctl", nil, nil, bytes.NewReader(b), &output))
 
 	return []byte(output.Stdout), []byte(output.Stderr), nil
 }

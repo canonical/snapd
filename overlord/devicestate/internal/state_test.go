@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate/internal"
 	"github.com/snapcore/snapd/overlord/state"
@@ -43,15 +44,15 @@ func (s *internalSuite) SetUpTest(c *C) {
 
 func (s *internalSuite) TestSetDevice(c *C) {
 	s.state.Lock()
-	device, err := internal.Device(s.state)
+	device := mylog.Check2(internal.Device(s.state))
 	s.state.Unlock()
 	c.Check(err, IsNil)
 	c.Check(device, DeepEquals, &auth.DeviceState{})
 
 	s.state.Lock()
-	err = internal.SetDevice(s.state, &auth.DeviceState{Brand: "some-brand"})
+	mylog.Check(internal.SetDevice(s.state, &auth.DeviceState{Brand: "some-brand"}))
 	c.Check(err, IsNil)
-	device, err = internal.Device(s.state)
+	device = mylog.Check2(internal.Device(s.state))
 	s.state.Unlock()
 	c.Check(err, IsNil)
 	c.Check(device, DeepEquals, &auth.DeviceState{Brand: "some-brand"})

@@ -29,6 +29,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
@@ -122,8 +123,8 @@ func validateCore20Seed(c *C, name string, expectedModel *asserts.Model, trusted
 	const usesSnapd = true
 	sd := seedtest.ValidateSeed(c, boot.InitramfsUbuntuSeedDir, name, usesSnapd, trusted)
 
-	snaps, err := sd.ModeSnaps(boot.ModeRun)
-	c.Assert(err, IsNil)
+	snaps := mylog.Check2(sd.ModeSnaps(boot.ModeRun))
+
 	seenSnaps := []string{}
 	for _, sn := range snaps {
 		seenSnaps = append(seenSnaps, sn.SnapName())
@@ -227,8 +228,8 @@ func (s *createSystemSuite) TestCreateSystemFromAssertedSnaps(c *C) {
 		return nil
 	}
 
-	dir, err := devicestate.CreateSystemForModelFromValidatedSnaps(model, "1234", s.db, infoGetter, snapWriteObserver)
-	c.Assert(err, IsNil)
+	dir := mylog.Check2(devicestate.CreateSystemForModelFromValidatedSnaps(model, "1234", s.db, infoGetter, snapWriteObserver))
+
 	c.Check(newFiles, DeepEquals, []string{
 		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/snapd_4.snap"),
 		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/pc-kernel_1.snap"),
@@ -320,8 +321,8 @@ func (s *createSystemSuite) TestCreateSystemFromUnassertedSnaps(c *C) {
 		return nil
 	}
 
-	dir, err := devicestate.CreateSystemForModelFromValidatedSnaps(model, "1234", s.db, infoGetter, snapWriteObserver)
-	c.Assert(err, IsNil)
+	dir := mylog.Check2(devicestate.CreateSystemForModelFromValidatedSnaps(model, "1234", s.db, infoGetter, snapWriteObserver))
+
 	c.Check(newFiles, DeepEquals, []string{
 		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/snapd_4.snap"),
 		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/pc-kernel_1.snap"),
@@ -403,14 +404,15 @@ func (s *createSystemSuite) TestCreateSystemWithSomeSnapsAlreadyExisting(c *C) {
 
 	assertedSnapsDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps")
 	c.Assert(os.MkdirAll(assertedSnapsDir, 0755), IsNil)
-	// procure the file in place
-	err := osutil.CopyFile(infos["core20"].MountFile(), filepath.Join(assertedSnapsDir, "core20_3.snap"), 0)
-	c.Assert(err, IsNil)
+	mylog.
+		// procure the file in place
+		Check(osutil.CopyFile(infos["core20"].MountFile(), filepath.Join(assertedSnapsDir, "core20_3.snap"), 0))
+
 
 	// when a given snap in asserted snaps directory already exists, it is
 	// not copied over
-	dir, err := devicestate.CreateSystemForModelFromValidatedSnaps(model, "1234", s.db, infoGetter, snapWriteObserver)
-	c.Assert(err, IsNil)
+	dir := mylog.Check2(devicestate.CreateSystemForModelFromValidatedSnaps(model, "1234", s.db, infoGetter, snapWriteObserver))
+
 	c.Check(newFiles, DeepEquals, []string{
 		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/snapd_4.snap"),
 		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/pc-kernel_1.snap"),
@@ -467,16 +469,16 @@ func (s *createSystemSuite) TestCreateSystemWithSomeSnapsAlreadyExisting(c *C) {
 
 	unassertedSnapsDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234unasserted/snaps")
 	c.Assert(os.MkdirAll(unassertedSnapsDir, 0755), IsNil)
-	err = osutil.CopyFile(infos["other-unasserted"].MountFile(),
-		filepath.Join(unassertedSnapsDir, "other-unasserted_1.0.snap"), 0)
-	c.Assert(err, IsNil)
+	mylog.Check(osutil.CopyFile(infos["other-unasserted"].MountFile(),
+		filepath.Join(unassertedSnapsDir, "other-unasserted_1.0.snap"), 0))
+
 
 	newFiles = nil
 	// the unasserted snap goes into the snaps directory under the system
 	// directory, which triggers the error in creating the directory by
 	// seed writer
-	dir, err = devicestate.CreateSystemForModelFromValidatedSnaps(modelWithUnasserted, "1234unasserted", s.db,
-		infoGetter, snapWriteObserver)
+	dir = mylog.Check2(devicestate.CreateSystemForModelFromValidatedSnaps(modelWithUnasserted, "1234unasserted", s.db,
+		infoGetter, snapWriteObserver))
 
 	c.Assert(err, ErrorMatches, `system "1234unasserted" already exists`)
 	// we failed early, no files were written yet
@@ -545,8 +547,8 @@ func (s *createSystemSuite) TestCreateSystemInfoAndAssertsChecks(c *C) {
 
 	// when a given snap in asserted snaps directory already exists, it is
 	// not copied over
-	dir, err := devicestate.CreateSystemForModelFromValidatedSnaps(model, "1234", s.db,
-		infoGetter, snapWriteObserver)
+	dir := mylog.Check2(devicestate.CreateSystemForModelFromValidatedSnaps(model, "1234", s.db,
+		infoGetter, snapWriteObserver))
 	c.Assert(err, ErrorMatches, `internal error: essential snap "pc" not present`)
 	c.Check(dir, Equals, "")
 	c.Check(observerCalls, Equals, 0)
@@ -558,8 +560,8 @@ func (s *createSystemSuite) TestCreateSystemInfoAndAssertsChecks(c *C) {
 	infos["pc"] = s.makeSnap(c, "pc", snap.R(2))
 
 	// and try with with a non essential snap
-	dir, err = devicestate.CreateSystemForModelFromValidatedSnaps(model, "1234", s.db,
-		infoGetter, snapWriteObserver)
+	dir = mylog.Check2(devicestate.CreateSystemForModelFromValidatedSnaps(model, "1234", s.db,
+		infoGetter, snapWriteObserver))
 	c.Assert(err, ErrorMatches, `internal error: non-essential but required snap "other-required" not present`)
 	c.Check(dir, Equals, "")
 	c.Check(observerCalls, Equals, 0)
@@ -573,8 +575,8 @@ func (s *createSystemSuite) TestCreateSystemInfoAndAssertsChecks(c *C) {
 	randomSnap := snaptest.MakeTestSnapWithFiles(c, `name: random
 version: 1`, nil)
 	c.Assert(osutil.CopyFile(randomSnap, infos["pc"].MountFile(), osutil.CopyFlagOverwrite), IsNil)
-	dir, err = devicestate.CreateSystemForModelFromValidatedSnaps(model, "1234", s.db,
-		infoGetter, snapWriteObserver)
+	dir = mylog.Check2(devicestate.CreateSystemForModelFromValidatedSnaps(model, "1234", s.db,
+		infoGetter, snapWriteObserver))
 	c.Assert(err, ErrorMatches, `internal error: no assertions for asserted snap with ID: pcididididididididididididididid`)
 	// we're past the start, so the system directory is there
 	c.Check(dir, Equals, systemDir)
@@ -649,8 +651,8 @@ func (s *createSystemSuite) TestCreateSystemGetInfoErr(c *C) {
 	// not copied over
 
 	failOn["pc"] = true
-	dir, err := devicestate.CreateSystemForModelFromValidatedSnaps(model, "1234", s.db,
-		infoGetter, snapWriteObserver)
+	dir := mylog.Check2(devicestate.CreateSystemForModelFromValidatedSnaps(model, "1234", s.db,
+		infoGetter, snapWriteObserver))
 	c.Assert(err, ErrorMatches, `cannot obtain essential snap information: mock failure for snap "pc"`)
 	c.Check(dir, Equals, "")
 	c.Check(observerCalls, Equals, 0)
@@ -658,8 +660,8 @@ func (s *createSystemSuite) TestCreateSystemGetInfoErr(c *C) {
 
 	failOn["pc"] = false
 	failOn["other-required"] = true
-	dir, err = devicestate.CreateSystemForModelFromValidatedSnaps(model, "1234", s.db,
-		infoGetter, snapWriteObserver)
+	dir = mylog.Check2(devicestate.CreateSystemForModelFromValidatedSnaps(model, "1234", s.db,
+		infoGetter, snapWriteObserver))
 	c.Assert(err, ErrorMatches, `cannot obtain non-essential but required snap information: mock failure for snap "other-required"`)
 	c.Check(dir, Equals, "")
 	c.Check(observerCalls, Equals, 0)
@@ -688,8 +690,8 @@ func (s *createSystemSuite) TestCreateSystemNonUC20(c *C) {
 		c.Fatalf("unexpected call")
 		return fmt.Errorf("unexpected call")
 	}
-	dir, err := devicestate.CreateSystemForModelFromValidatedSnaps(model, "1234", s.db,
-		infoGetter, snapWriteObserver)
+	dir := mylog.Check2(devicestate.CreateSystemForModelFromValidatedSnaps(model, "1234", s.db,
+		infoGetter, snapWriteObserver))
 	c.Assert(err, ErrorMatches, `cannot create a system for pre-UC20 model`)
 	c.Check(dir, Equals, "")
 }
@@ -741,9 +743,9 @@ func (s *createSystemSuite) TestCreateSystemImplicitSnaps(c *C) {
 		return nil
 	}
 
-	dir, err := devicestate.CreateSystemForModelFromValidatedSnaps(model, "1234", s.db,
-		infoGetter, snapWriteObserver)
-	c.Assert(err, IsNil)
+	dir := mylog.Check2(devicestate.CreateSystemForModelFromValidatedSnaps(model, "1234", s.db,
+		infoGetter, snapWriteObserver))
+
 	c.Check(newFiles, DeepEquals, []string{
 		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/snapd_4.snap"),
 		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/pc-kernel_1.snap"),
@@ -802,8 +804,8 @@ func (s *createSystemSuite) TestCreateSystemObserverErr(c *C) {
 		return nil
 	}
 
-	dir, err := devicestate.CreateSystemForModelFromValidatedSnaps(model, "1234", s.db,
-		infoGetter, snapWriteObserver)
+	dir := mylog.Check2(devicestate.CreateSystemForModelFromValidatedSnaps(model, "1234", s.db,
+		infoGetter, snapWriteObserver))
 	c.Assert(err, ErrorMatches, "mocked observer failure")
 	c.Check(newFiles, DeepEquals, []string{
 		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/snapd_4.snap"),

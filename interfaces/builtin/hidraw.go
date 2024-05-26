@@ -25,6 +25,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/udev"
@@ -146,13 +147,11 @@ func (iface *hidrawInterface) AppArmorConnectedPlug(spec *apparmor.Specification
 
 	// Path to fixed device node
 	var path string
-	if err := slot.Attr("path", &path); err != nil {
-		return err
-	}
+	mylog.Check(slot.Attr("path", &path))
+
 	cleanedPath := filepath.Clean(path)
 	spec.AddSnippet(fmt.Sprintf("%s rw,", cleanedPath))
 	return nil
-
 }
 
 func (iface *hidrawInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
@@ -164,17 +163,15 @@ func (iface *hidrawInterface) UDevConnectedPlug(spec *udev.Specification, plug *
 	var usbVendor int64
 	var usbProduct int64
 	var path string
-
-	err := slot.Attr("usb-vendor", &usbVendor)
+	mylog.Check(slot.Attr("usb-vendor", &usbVendor))
 	if err != nil && !hasOnlyPath {
 		return nil
 	}
-	err = slot.Attr("usb-product", &usbProduct)
+	mylog.Check(slot.Attr("usb-product", &usbProduct))
 	if err != nil && !hasOnlyPath {
 		return nil
 	}
-
-	err = slot.Attr("path", &path)
+	mylog.Check(slot.Attr("path", &path))
 	if err != nil && hasOnlyPath {
 		return nil
 	}
@@ -195,10 +192,10 @@ func (iface *hidrawInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 
 func (iface *hidrawInterface) hasUsbAttrs(attrs interfaces.Attrer) bool {
 	var v int64
-	if err := attrs.Attr("usb-vendor", &v); err == nil {
+	if mylog.Check(attrs.Attr("usb-vendor", &v)); err == nil {
 		return true
 	}
-	if err := attrs.Attr("usb-product", &v); err == nil {
+	if mylog.Check(attrs.Attr("usb-product", &v)); err == nil {
 		return true
 	}
 	return false

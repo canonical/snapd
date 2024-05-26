@@ -29,6 +29,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -39,23 +40,23 @@ var _ = Suite(&flockSuite{})
 // Test that an existing lock file can be opened.
 func (s *flockSuite) TestOpenExistingLockForReading(c *C) {
 	fname := filepath.Join(c.MkDir(), "name")
-	lock, err := osutil.OpenExistingLockForReading(fname)
+	lock := mylog.Check2(osutil.OpenExistingLockForReading(fname))
 	c.Assert(err, ErrorMatches, ".* no such file or directory")
 	c.Assert(lock, IsNil)
 
-	lock, err = osutil.NewFileLockWithMode(fname, 0644)
-	c.Assert(err, IsNil)
+	lock = mylog.Check2(osutil.NewFileLockWithMode(fname, 0644))
+
 	lock.Close()
 
 	// Having created the lock above, we can now open it correctly.
-	lock, err = osutil.OpenExistingLockForReading(fname)
-	c.Assert(err, IsNil)
+	lock = mylog.Check2(osutil.OpenExistingLockForReading(fname))
+
 	defer lock.Close()
 
 	// The lock file is read-only though.
 	file := lock.File()
 	defer file.Close()
-	n, err := file.Write([]byte{1, 2, 3})
+	n := mylog.Check2(file.Write([]byte{1, 2, 3}))
 	// write(2) returns EBADF if the file descriptor is read only.
 	c.Assert(err, ErrorMatches, ".* bad file descriptor")
 	c.Assert(n, Equals, 0)
@@ -63,31 +64,31 @@ func (s *flockSuite) TestOpenExistingLockForReading(c *C) {
 
 // Test that opening and closing a lock works as expected, and that the mode is right.
 func (s *flockSuite) TestNewFileLockWithMode(c *C) {
-	lock, err := osutil.NewFileLockWithMode(filepath.Join(c.MkDir(), "name"), 0644)
-	c.Assert(err, IsNil)
+	lock := mylog.Check2(osutil.NewFileLockWithMode(filepath.Join(c.MkDir(), "name"), 0644))
+
 	defer lock.Close()
 
-	fi, err := os.Stat(lock.Path())
-	c.Assert(err, IsNil)
+	fi := mylog.Check2(os.Stat(lock.Path()))
+
 	c.Assert(fi.Mode().Perm(), Equals, os.FileMode(0644))
 }
 
 // Test that opening and closing a lock works as expected.
 func (s *flockSuite) TestNewFileLock(c *C) {
-	lock, err := osutil.NewFileLock(filepath.Join(c.MkDir(), "name"))
-	c.Assert(err, IsNil)
+	lock := mylog.Check2(osutil.NewFileLock(filepath.Join(c.MkDir(), "name")))
+
 	defer lock.Close()
 
-	fi, err := os.Stat(lock.Path())
-	c.Assert(err, IsNil)
+	fi := mylog.Check2(os.Stat(lock.Path()))
+
 	c.Assert(fi.Mode().Perm(), Equals, os.FileMode(0600))
 }
 
 // Test that we can access the underlying open file.
 func (s *flockSuite) TestFile(c *C) {
 	fname := filepath.Join(c.MkDir(), "name")
-	lock, err := osutil.NewFileLock(fname)
-	c.Assert(err, IsNil)
+	lock := mylog.Check2(osutil.NewFileLock(fname))
+
 	defer lock.Close()
 
 	f := lock.File()
@@ -96,8 +97,8 @@ func (s *flockSuite) TestFile(c *C) {
 }
 
 func flockSupportsConflictExitCodeSwitch(c *C) bool {
-	output, err := exec.Command("flock", "--help").CombinedOutput()
-	c.Assert(err, IsNil)
+	output := mylog.Check2(exec.Command("flock", "--help").CombinedOutput())
+
 	return bytes.Contains(output, []byte("--conflict-exit-code"))
 }
 
@@ -107,8 +108,8 @@ func (s *flockSuite) TestLockUnlockWorks(c *C) {
 		c.Skip("flock too old for this test")
 	}
 
-	lock, err := osutil.NewFileLock(filepath.Join(c.MkDir(), "name"))
-	c.Assert(err, IsNil)
+	lock := mylog.Check2(osutil.NewFileLock(filepath.Join(c.MkDir(), "name")))
+
 	defer lock.Close()
 
 	// Run a flock command in another process, it should succeed because it can
@@ -140,8 +141,8 @@ func (s *flockSuite) TestReadLockUnlockWorks(c *C) {
 		c.Skip("flock too old for this test")
 	}
 
-	lock, err := osutil.NewFileLock(filepath.Join(c.MkDir(), "name"))
-	c.Assert(err, IsNil)
+	lock := mylog.Check2(osutil.NewFileLock(filepath.Join(c.MkDir(), "name")))
+
 	defer lock.Close()
 
 	// Run a flock command in another process, it should succeed because it can
@@ -176,8 +177,8 @@ func (s *flockSuite) TestReadLockUnlockWorks(c *C) {
 
 // Test that locking a locked lock does nothing.
 func (s *flockSuite) TestLockLocked(c *C) {
-	lock, err := osutil.NewFileLock(filepath.Join(c.MkDir(), "name"))
-	c.Assert(err, IsNil)
+	lock := mylog.Check2(osutil.NewFileLock(filepath.Join(c.MkDir(), "name")))
+
 	defer lock.Close()
 
 	// NOTE: technically this replaces the lock type but we only use LOCK_EX.
@@ -187,8 +188,8 @@ func (s *flockSuite) TestLockLocked(c *C) {
 
 // Test that unlocking an unlocked lock does nothing.
 func (s *flockSuite) TestUnlockUnlocked(c *C) {
-	lock, err := osutil.NewFileLock(filepath.Join(c.MkDir(), "name"))
-	c.Assert(err, IsNil)
+	lock := mylog.Check2(osutil.NewFileLock(filepath.Join(c.MkDir(), "name")))
+
 	defer lock.Close()
 
 	c.Assert(lock.Unlock(), IsNil)
@@ -196,8 +197,8 @@ func (s *flockSuite) TestUnlockUnlocked(c *C) {
 
 // Test that locking or unlocking a closed lock fails.
 func (s *flockSuite) TestUsingClosedLock(c *C) {
-	lock, err := osutil.NewFileLock(filepath.Join(c.MkDir(), "name"))
-	c.Assert(err, IsNil)
+	lock := mylog.Check2(osutil.NewFileLock(filepath.Join(c.MkDir(), "name")))
+
 	lock.Close()
 
 	c.Assert(lock.Lock(), ErrorMatches, "bad file descriptor")
@@ -229,8 +230,8 @@ func (s *flockSuite) TestLockUnlockNonblockingWorks(c *C) {
 	}
 
 	// Try to acquire the same lock file and see that it is busy.
-	lock, err := osutil.NewFileLock(lockPath)
-	c.Assert(err, IsNil)
+	lock := mylog.Check2(osutil.NewFileLock(lockPath))
+
 	c.Assert(lock, NotNil)
 	defer lock.Close()
 

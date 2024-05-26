@@ -24,6 +24,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -41,8 +42,7 @@ func (mkdacSuite) TestSlashySlashy(c *check.C) {
 		d := c.MkDir()
 		// just in case
 		c.Assert(strings.HasSuffix(d, "/"), check.Equals, false)
-		err := osutil.MkdirAllChown(d+dir, 0755, osutil.NoChown, osutil.NoChown)
+		mylog.Check(osutil.MkdirAllChown(d+dir, 0755, osutil.NoChown, osutil.NoChown))
 		c.Assert(err, check.IsNil, check.Commentf("%q", dir))
 	}
-
 }

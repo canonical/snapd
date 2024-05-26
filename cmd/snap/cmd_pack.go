@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 	"golang.org/x/xerrors"
 
@@ -45,8 +46,9 @@ type packCmd struct {
 	} `positional-args:"yes"`
 }
 
-var shortPackHelp = i18n.G("Pack the given directory as a snap")
-var longPackHelp = i18n.G(`
+var (
+	shortPackHelp = i18n.G("Pack the given directory as a snap")
+	longPackHelp  = i18n.G(`
 The pack command packs the given snap-dir as a snap and writes the result to
 target-dir. If target-dir is omitted, the result is written to current
 directory. If both source-dir and target-dir are omitted, the pack command packs
@@ -63,10 +65,11 @@ in snap metadata file, but appearing with incorrect permission bits result in an
 error. Commands that are missing from snap-dir are listed in diagnostic
 messages.`,
 
-/*
-When used with --append-integrity-data, pack will append dm-verity data at the end
-of the snap to be used with snapd's snap integrity verification mechanism.
-*/
+	/*
+	   When used with --append-integrity-data, pack will append dm-verity data at the end
+	   of the snap to be used with snapd's snap integrity verification mechanism.
+	*/
+	)
 )
 
 func init() {
@@ -108,25 +111,23 @@ func (x *packCmd) Execute([]string) error {
 	}
 
 	if x.CheckSkeleton {
-		err := pack.CheckSkeleton(Stderr, x.Positional.SnapDir)
+		mylog.Check(pack.CheckSkeleton(Stderr, x.Positional.SnapDir))
 		if err == snap.ErrMissingPaths {
 			return nil
 		}
 		return err
 	}
 
-	snapPath, err := pack.Pack(x.Positional.SnapDir, &pack.Options{
+	snapPath := mylog.Check2(pack.Pack(x.Positional.SnapDir, &pack.Options{
 		TargetDir:   x.Positional.TargetDir,
 		SnapName:    x.Filename,
 		Compression: x.Compression,
 		Integrity:   x.AppendVerity,
-	})
-	if err != nil {
-		// TRANSLATORS: the %q is the snap-dir (the first positional
-		// argument to the command); the %v is an error
-		return xerrors.Errorf(i18n.G("cannot pack %q: %w"), x.Positional.SnapDir, err)
+	}))
 
-	}
+	// TRANSLATORS: the %q is the snap-dir (the first positional
+	// argument to the command); the %v is an error
+
 	// TRANSLATORS: %s is the path to the built snap file
 	fmt.Fprintf(Stdout, i18n.G("built: %s\n"), snapPath)
 	return nil

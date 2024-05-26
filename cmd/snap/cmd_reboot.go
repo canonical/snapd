@@ -22,6 +22,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/i18n"
@@ -39,8 +40,9 @@ type cmdReboot struct {
 	FactoryResetMode bool `long:"factory-reset"`
 }
 
-var shortRebootHelp = i18n.G("Reboot into selected system and mode")
-var longRebootHelp = i18n.G(`
+var (
+	shortRebootHelp = i18n.G("Reboot into selected system and mode")
+	longRebootHelp  = i18n.G(`
 The reboot command reboots the system into a particular mode of the selected
 recovery system.
 
@@ -53,6 +55,7 @@ default recovery system will be used for "recover", "factory-reset" and
 
 Note that the "run" mode is only available for the current system.
 `)
+)
 
 func init() {
 	addCommand("reboot", shortRebootHelp, longRebootHelp, func() flags.Commander {
@@ -105,14 +108,8 @@ func (x *cmdReboot) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	mode, err := x.modeFromCommandline()
-	if err != nil {
-		return err
-	}
-
-	if err := x.client.RebootToSystem(x.Positional.Label, mode); err != nil {
-		return err
-	}
+	mode := mylog.Check2(x.modeFromCommandline())
+	mylog.Check(x.client.RebootToSystem(x.Positional.Label, mode))
 
 	switch {
 	case x.Positional.Label != "" && mode != "":

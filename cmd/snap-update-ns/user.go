@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"syscall"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 )
@@ -59,10 +60,8 @@ func isPlausibleHome(path string) error {
 		return fmt.Errorf("cannot allow relative path")
 	}
 	const openFlags = syscall.O_NOFOLLOW | syscall.O_CLOEXEC | syscall.O_DIRECTORY
-	fd, err := sysOpen(path, openFlags, 0)
-	if err != nil {
-		return err
-	}
+	fd := mylog.Check2(sysOpen(path, openFlags, 0))
+
 	sysClose(fd)
 	return nil
 }
@@ -74,9 +73,7 @@ func NewUserProfileUpdateContext(instanceName string, fromSnapConfine bool, uid 
 	if realHome == "" {
 		realHomeError = fmt.Errorf("cannot retrieve home directory")
 	}
-	if err := isPlausibleHome(realHome); err != nil {
-		realHomeError = fmt.Errorf("cannot use invalid home directory %q: %v", realHome, err)
-	}
+	mylog.Check(isPlausibleHome(realHome))
 
 	return &UserProfileUpdateContext{
 		CommonProfileUpdateContext: CommonProfileUpdateContext{
@@ -114,16 +111,13 @@ func (upCtx *UserProfileUpdateContext) Assumptions() *Assumptions {
 
 // LoadDesiredProfile loads the desired, per-user mount profile, expanding user-specific variables.
 func (upCtx *UserProfileUpdateContext) LoadDesiredProfile() (*osutil.MountProfile, error) {
-	profile, err := upCtx.CommonProfileUpdateContext.LoadDesiredProfile()
-	if err != nil {
-		return nil, err
-	}
+	profile := mylog.Check2(upCtx.CommonProfileUpdateContext.LoadDesiredProfile())
+
 	home := func() (path string, err error) {
 		return upCtx.home, upCtx.homeError
 	}
-	if err := expandHomeDir(profile, home); err != nil {
-		return nil, err
-	}
+	mylog.Check(expandHomeDir(profile, home))
+
 	// TODO: when SNAP_USER_DATA, SNAP_USER_COMMON or other variables relating
 	// to the user name and their home directory need to be expanded then
 	// handle them here.

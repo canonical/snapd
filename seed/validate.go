@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"sort"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/timings"
@@ -87,40 +88,18 @@ func ValidateFromYaml(seedYamlFile string) error {
 	// What about full empty seed dir?
 	seedDir := filepath.Dir(seedYamlFile)
 
-	seed, err := Open(seedDir, "")
-	if err != nil {
-		return newValidationError("", err)
-	}
-
-	if err := seed.LoadAssertions(nil, nil); err != nil {
-		return newValidationError("", err)
-	}
+	seed := mylog.Check2(Open(seedDir, ""))
+	mylog.Check(seed.LoadAssertions(nil, nil))
 
 	tm := timings.New(nil)
-	if err := seed.LoadMeta(AllModes, nil, tm); err != nil {
-		if missingErr, ok := err.(*essentialSnapMissingError); ok {
-			if seed.Model().Classic() && missingErr.SnapName == "core" {
-				err = fmt.Errorf("essential snap core or snapd must be part of the seed")
-			}
-		}
-		return newValidationError("", err)
-	}
+	mylog.Check(seed.LoadMeta(AllModes, nil, tm))
 
 	ve := &ValidationError{}
 	// read the snap infos
 	snapInfos := make([]*snap.Info, 0, seed.NumSnaps())
 	seed.Iter(func(sn *Snap) error {
-		snapf, err := snapfile.Open(sn.Path)
-		if err != nil {
-			ve.addErr("", err)
-		} else {
-			info, err := snap.ReadInfoFromSnapFile(snapf, sn.SideInfo)
-			if err != nil {
-				ve.addErr("", fmt.Errorf("cannot use snap %q: %v", sn.Path, err))
-			} else {
-				snapInfos = append(snapInfos, info)
-			}
-		}
+		snapf := mylog.Check2(snapfile.Open(sn.Path))
+
 		return nil
 	})
 

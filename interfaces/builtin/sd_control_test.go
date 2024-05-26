@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
@@ -76,7 +77,6 @@ func (s *sdControlSuite) SetUpTest(c *C) {
 	s.dualSDPlug, s.dualSDPlugInfo = MockConnectedPlug(c, sdControlMockPlugSnapInfoYaml, nil, "dual-sd")
 	s.noFlavorPlug, s.noFlavorPlugInfo = MockConnectedPlug(c, sdControlMockPlugSnapInfoYaml, nil, "no-flavor")
 	s.slot, s.slotInfo = MockConnectedSlot(c, coreSDControlSlotYaml, nil, "sd-control")
-
 }
 
 func (s *sdControlSuite) TestName(c *C) {
@@ -93,20 +93,20 @@ func (s *sdControlSuite) TestSanitizeSlot(c *C) {
 }
 
 func (s *sdControlSuite) TestApparmorConnectedPlugDualSD(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.dualSDPlug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.dualSDPlug.Snap(), nil))
+
 	spec := apparmor.NewSpecification(appSet)
-	err = spec.AddConnectedPlug(s.iface, s.dualSDPlug, s.slot)
-	c.Assert(err, IsNil)
+	mylog.Check(spec.AddConnectedPlug(s.iface, s.dualSDPlug, s.slot))
+
 	c.Assert(spec.SnippetForTag("snap.my-device.svc"), testutil.Contains, "/dev/DualSD rw,\n")
 }
 
 func (s *sdControlSuite) TestUDevConnectedPlugDualSD(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.dualSDPlug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.dualSDPlug.Snap(), nil))
+
 	spec := udev.NewSpecification(appSet)
-	err = spec.AddConnectedPlug(s.iface, s.dualSDPlug, s.slot)
-	c.Assert(err, IsNil)
+	mylog.Check(spec.AddConnectedPlug(s.iface, s.dualSDPlug, s.slot))
+
 	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets(), testutil.Contains, `# sd-control
 KERNEL=="DualSD", TAG+="snap_my-device_svc"`)
@@ -114,20 +114,20 @@ KERNEL=="DualSD", TAG+="snap_my-device_svc"`)
 }
 
 func (s *sdControlSuite) TestUDevConnectedPlugNoFlavor(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.noFlavorPlug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.noFlavorPlug.Snap(), nil))
+
 	spec := udev.NewSpecification(appSet)
-	err = spec.AddConnectedPlug(s.iface, s.noFlavorPlug, s.slot)
-	c.Assert(err, IsNil)
+	mylog.Check(spec.AddConnectedPlug(s.iface, s.noFlavorPlug, s.slot))
+
 	c.Assert(spec.Snippets(), HasLen, 0)
 }
 
 func (s *sdControlSuite) TestApparmorConnectedPlugNoFlavor(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.noFlavorPlug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.noFlavorPlug.Snap(), nil))
+
 	spec := apparmor.NewSpecification(appSet)
-	err = spec.AddConnectedPlug(s.iface, s.noFlavorPlug, s.slot)
-	c.Assert(err, IsNil)
+	mylog.Check(spec.AddConnectedPlug(s.iface, s.noFlavorPlug, s.slot))
+
 	c.Assert(spec.Snippets(), HasLen, 0)
 }
 

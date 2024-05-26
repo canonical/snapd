@@ -27,6 +27,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/logger"
 )
 
@@ -218,10 +219,8 @@ func (c *Change) UnmarshalJSON(data []byte) error {
 		c.state.writing()
 	}
 	var unmarshalled marshalledChange
-	err := json.Unmarshal(data, &unmarshalled)
-	if err != nil {
-		return err
-	}
+	mylog.Check(json.Unmarshal(data, &unmarshalled))
+
 	c.id = unmarshalled.ID
 	c.kind = unmarshalled.Kind
 	c.summary = unmarshalled.Summary
@@ -435,7 +434,7 @@ func (c *Change) addNotice() error {
 	opts := &AddNoticeOptions{
 		Data: map[string]string{"kind": c.Kind()},
 	}
-	_, err := c.state.AddNotice(nil, ChangeUpdateNotice, c.id, opts)
+	_ := mylog.Check2(c.state.AddNotice(nil, ChangeUpdateNotice, c.id, opts))
 	return err
 }
 
@@ -450,10 +449,10 @@ func (c *Change) notifyStatusChange(new Status) {
 		c.lastObservedStatus = new
 	}
 	if !shouldSkipChangeUpdateNotice(c.lastRecordedNoticeStatus, new) {
-		// NOTE: Implies State.writing()
-		if err := c.addNotice(); err != nil {
-			logger.Panicf(`internal error: failed to add "change-update" notice on status change: %v`, err)
-		}
+		mylog.Check(
+			// NOTE: Implies State.writing()
+			c.addNotice())
+
 		c.lastRecordedNoticeStatus = new
 	}
 }
@@ -730,8 +729,8 @@ func taskEffectiveStatus(t *Task) Status {
 }
 
 func (c *Change) abortLanes(lanes []int, abortedLanes map[int]bool, seenTasks map[string]bool) {
-	var hasLive = make(map[int]bool)
-	var hasDead = make(map[int]bool)
+	hasLive := make(map[int]bool)
+	hasDead := make(map[int]bool)
 	var laneTasks []*Task
 NextChangeTask:
 	for _, tid := range c.taskIDs {

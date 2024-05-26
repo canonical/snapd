@@ -25,6 +25,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"gopkg.in/check.v1"
 )
 
@@ -59,20 +60,16 @@ func (c *symlinkTargetChecker) Check(params []interface{}, names []string) (resu
 		if !ok {
 			return false, "Regex must be a string"
 		}
-		rx, err := regexp.Compile(regexpr)
-		if err != nil {
-			return false, fmt.Sprintf("Cannot compile regexp %q: %v", regexpr, err)
-		}
+		rx := mylog.Check2(regexp.Compile(regexpr))
+
 		params[1] = rx
 	}
 	return symlinkTargetCheck(filename, params[1], c.exact)
 }
 
 func symlinkTargetCheck(filename string, expectedTarget interface{}, exact bool) (result bool, error string) {
-	target, err := os.Readlink(filename)
-	if err != nil {
-		return false, fmt.Sprintf("Cannot read symbolic link: %v", err)
-	}
+	target := mylog.Check2(os.Readlink(filename))
+
 	if exact {
 		switch expectedTarget := expectedTarget.(type) {
 		case string:

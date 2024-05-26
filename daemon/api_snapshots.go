@@ -28,6 +28,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -65,20 +66,14 @@ func listSnapshots(c *Command, r *http.Request, user *auth.UserState) Response {
 	query := r.URL.Query()
 	var setID uint64
 	if sid := query.Get("set"); sid != "" {
-		var err error
-		setID, err = strconv.ParseUint(sid, 10, 64)
-		if err != nil {
-			return BadRequest("'set', if given, must be a positive base 10 number; got %q", sid)
-		}
+		setID = mylog.Check2(strconv.ParseUint(sid, 10, 64))
 	}
 
 	st := c.d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	sets, err := snapshotList(context.TODO(), st, setID, strutil.CommaSeparatedList(r.URL.Query().Get("snaps")))
-	if err != nil {
-		return InternalError("%v", err)
-	}
+	sets := mylog.Check2(snapshotList(context.TODO(), st, setID, strutil.CommaSeparatedList(r.URL.Query().Get("snaps"))))
+
 	return SyncResponse(sets)
 }
 
@@ -112,9 +107,8 @@ func changeSnapshots(c *Command, r *http.Request, user *auth.UserState) Response
 
 	var action snapshotAction
 	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&action); err != nil {
-		return BadRequest("cannot decode request body into snapshot operation: %v", err)
-	}
+	mylog.Check(decoder.Decode(&action))
+
 	if decoder.More() {
 		return BadRequest("extra content found after snapshot operation")
 	}
@@ -129,7 +123,6 @@ func changeSnapshots(c *Command, r *http.Request, user *auth.UserState) Response
 
 	var affected []string
 	var ts *state.TaskSet
-	var err error
 
 	st := c.d.overlord.State()
 	st.Lock()
@@ -137,14 +130,14 @@ func changeSnapshots(c *Command, r *http.Request, user *auth.UserState) Response
 
 	switch action.Action {
 	case "check":
-		affected, ts, err = snapshotCheck(st, action.SetID, action.Snaps, action.Users)
+		affected, ts = mylog.Check3(snapshotCheck(st, action.SetID, action.Snaps, action.Users))
 	case "restore":
-		affected, ts, err = snapshotRestore(st, action.SetID, action.Snaps, action.Users)
+		affected, ts = mylog.Check3(snapshotRestore(st, action.SetID, action.Snaps, action.Users))
 	case "forget":
 		if len(action.Users) != 0 {
 			return BadRequest(`snapshot "forget" operation cannot specify users`)
 		}
-		affected, ts, err = snapshotForget(st, action.SetID, action.Snaps)
+		affected, ts = mylog.Check3(snapshotForget(st, action.SetID, action.Snaps))
 	default:
 		return BadRequest("unknown snapshot operation %q", action.Action)
 	}
@@ -176,22 +169,14 @@ func getSnapshotExport(c *Command, r *http.Request, user *auth.UserState) Respon
 
 	vars := muxVars(r)
 	sid := vars["id"]
-	setID, err := strconv.ParseUint(sid, 10, 64)
-	if err != nil {
-		return BadRequest("'id' must be a positive base 10 number; got %q", sid)
-	}
+	setID := mylog.Check2(strconv.ParseUint(sid, 10, 64))
 
-	export, err := snapshotExport(context.TODO(), st, setID)
-	if err != nil {
-		return BadRequest("cannot export %v: %v", setID, err)
-	}
+	export := mylog.Check2(snapshotExport(context.TODO(), st, setID))
+
 	// init (size calculation) can be slow so drop the lock
 	st.Unlock()
-	err = export.Init()
+	mylog.Check(export.Init())
 	st.Lock()
-	if err != nil {
-		return BadRequest("cannot calculate size of exported snapshot %v: %v", setID, err)
-	}
 
 	return &snapshotExportResponse{SnapshotExport: export, setID: setID, st: st}
 }
@@ -199,29 +184,21 @@ func getSnapshotExport(c *Command, r *http.Request, user *auth.UserState) Respon
 func doSnapshotImport(c *Command, r *http.Request, user *auth.UserState) Response {
 	defer r.Body.Close()
 
-	expectedSize, err := strconv.ParseInt(r.Header.Get("Content-Length"), 10, 64)
-	if err != nil {
-		return BadRequest("cannot parse Content-Length: %v", err)
-	}
+	expectedSize := mylog.Check2(strconv.ParseInt(r.Header.Get("Content-Length"), 10, 64))
+
 	// ensure we don't read more than we expect
 	limitedBodyReader := io.LimitReader(r.Body, expectedSize)
 
 	// XXX: check that we have enough space to import the compressed snapshots
 	st := c.d.overlord.State()
-	setID, snapNames, err := snapshotImport(context.TODO(), st, limitedBodyReader)
-	if err != nil {
-		return BadRequest(err.Error())
-	}
+	setID, snapNames := mylog.Check3(snapshotImport(context.TODO(), st, limitedBodyReader))
 
 	result := map[string]interface{}{"set-id": setID, "snaps": snapNames}
 	return SyncResponse(result)
 }
 
 func snapshotMany(inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {
-	setID, snapshotted, ts, err := snapshotSave(st, inst.Snaps, inst.Users, inst.SnapshotOptions)
-	if err != nil {
-		return nil, err
-	}
+	setID, snapshotted, ts := mylog.Check4(snapshotSave(st, inst.Snaps, inst.Users, inst.SnapshotOptions))
 
 	var msg string
 	if len(inst.Snaps) == 0 {

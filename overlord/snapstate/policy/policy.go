@@ -21,6 +21,7 @@
 package policy
 
 import (
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -54,10 +55,8 @@ func ephemeral(dev snap.Device) bool {
 }
 
 func inUse(name string, rev snap.Revision, typ snap.Type, dev snap.Device) error {
-	check, err := boot.InUse(typ, dev)
-	if err != nil {
-		return err
-	}
+	check := mylog.Check2(boot.InUse(typ, dev))
+
 	if check(name, rev) {
 		return errInUseForBoot
 	}

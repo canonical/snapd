@@ -33,6 +33,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
@@ -84,9 +85,8 @@ func (action *snapDownloadAction) validate() error {
 func postSnapDownload(c *Command, r *http.Request, user *auth.UserState) Response {
 	var action snapDownloadAction
 	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&action); err != nil {
-		return BadRequest("cannot decode request body into download operation: %v", err)
-	}
+	mylog.Check(decoder.Decode(&action))
+
 	if decoder.More() {
 		return BadRequest("extra content found after download operation")
 	}
@@ -95,24 +95,20 @@ func postSnapDownload(c *Command, r *http.Request, user *auth.UserState) Respons
 		//  that contains a range unit it does not understand."
 		subs := validRangeRegexp.FindStringSubmatch(rangestr)
 		if len(subs) == 2 {
-			n, err := strconv.ParseInt(subs[1], 10, 64)
+			n := mylog.Check2(strconv.ParseInt(subs[1], 10, 64))
 			if err == nil {
 				action.resumePosition = n
 			}
 		}
 	}
-	if err := action.validate(); err != nil {
-		return BadRequest(err.Error())
-	}
+	mylog.Check(action.validate())
 
 	return streamOneSnap(c, action, user)
 }
 
 func streamOneSnap(c *Command, action snapDownloadAction, user *auth.UserState) Response {
-	secret, err := downloadTokensSecret(c.d)
-	if err != nil {
-		return InternalError(err.Error())
-	}
+	secret := mylog.Check2(downloadTokensSecret(c.d))
+
 	theStore := storeFrom(c.d)
 
 	var ss *snapStream
@@ -125,33 +121,25 @@ func streamOneSnap(c *Command, action snapDownloadAction, user *auth.UserState) 
 			CohortKey:    action.CohortKey,
 			Channel:      action.Channel,
 		}}
-		results, _, err := theStore.SnapAction(context.TODO(), nil, actions, nil, user, nil)
-		if err != nil {
-			return errToResponse(err, []string{action.SnapName}, InternalError, "cannot download snap: %v")
-		}
+		results, _ := mylog.Check3(theStore.SnapAction(context.TODO(), nil, actions, nil, user, nil))
+
 		if len(results) != 1 {
 			return InternalError("internal error: unexpected number %v of results for a single download", len(results))
 		}
 		info = results[0].Info
 
-		ss, err = newSnapStream(action.SnapName, info, secret)
-		if err != nil {
-			return InternalError(err.Error())
-		}
+		ss = mylog.Check2(newSnapStream(action.SnapName, info, secret))
+
 	} else {
-		var err error
-		ss, err = newResumingSnapStream(action.SnapName, action.ResumeToken, secret)
-		if err != nil {
-			return BadRequest(err.Error())
-		}
+
+		ss = mylog.Check2(newResumingSnapStream(action.SnapName, action.ResumeToken, secret))
+
 		ss.resume = action.resumePosition
 	}
 
 	if !action.HeaderPeek {
-		stream, status, err := theStore.DownloadStream(context.TODO(), action.SnapName, ss.Info, action.resumePosition, user)
-		if err != nil {
-			return InternalError(err.Error())
-		}
+		stream, status := mylog.Check3(theStore.DownloadStream(context.TODO(), action.SnapName, ss.Info, action.resumePosition, user))
+
 		ss.stream = stream
 		if status != 206 {
 			// store/cdn has no partial content (valid
@@ -172,10 +160,8 @@ func newSnapStream(snapName string, info *snap.Info, secret []byte) (*snapStream
 		Filename: fname,
 		Info:     dlInfo,
 	}
-	tokStr, err := sealDownloadToken(&tokenJSON, secret)
-	if err != nil {
-		return nil, err
-	}
+	tokStr := mylog.Check2(sealDownloadToken(&tokenJSON, secret))
+
 	return &snapStream{
 		SnapName: snapName,
 		Filename: fname,
@@ -185,10 +171,8 @@ func newSnapStream(snapName string, info *snap.Info, secret []byte) (*snapStream
 }
 
 func newResumingSnapStream(snapName string, tokStr string, secret []byte) (*snapStream, error) {
-	d, err := unsealDownloadToken(tokStr, secret)
-	if err != nil {
-		return nil, err
-	}
+	d := mylog.Check2(unsealDownloadToken(tokStr, secret))
+
 	if d.SnapName != snapName {
 		return nil, fmt.Errorf("resume snap name does not match original snap name")
 	}
@@ -207,10 +191,8 @@ type downloadTokenJSON struct {
 }
 
 func sealDownloadToken(d *downloadTokenJSON, secret []byte) (string, error) {
-	b, err := json.Marshal(d)
-	if err != nil {
-		return "", err
-	}
+	b := mylog.Check2(json.Marshal(d))
+
 	mac := hmac.New(sha256.New, secret)
 	mac.Write(b)
 	// append the HMAC hash to b to build the full raw token tok
@@ -221,10 +203,8 @@ func sealDownloadToken(d *downloadTokenJSON, secret []byte) (string, error) {
 var errInvalidDownloadToken = errors.New("download token is invalid")
 
 func unsealDownloadToken(tokStr string, secret []byte) (*downloadTokenJSON, error) {
-	tok, err := base64.RawURLEncoding.DecodeString(tokStr)
-	if err != nil {
-		return nil, errInvalidDownloadToken
-	}
+	tok := mylog.Check2(base64.RawURLEncoding.DecodeString(tokStr))
+
 	sz := len(tok)
 	if sz < sha256.Size {
 		return nil, errInvalidDownloadToken
@@ -237,9 +217,8 @@ func unsealDownloadToken(tokStr string, secret []byte) (*downloadTokenJSON, erro
 		return nil, errInvalidDownloadToken
 	}
 	var d downloadTokenJSON
-	if err := json.Unmarshal(b, &d); err != nil {
-		return nil, err
-	}
+	mylog.Check(json.Unmarshal(b, &d))
+
 	return &d, nil
 }
 
@@ -248,17 +227,15 @@ func downloadTokensSecret(d *Daemon) (secret []byte, err error) {
 	st.Lock()
 	defer st.Unlock()
 	const k = "api-download-tokens-secret"
-	err = st.Get(k, &secret)
+	mylog.Check(st.Get(k, &secret))
 	if err == nil {
 		return secret, nil
 	}
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
-	secret, err = randutil.CryptoTokenBytes(32)
-	if err != nil {
-		return nil, err
-	}
+	secret = mylog.Check2(randutil.CryptoTokenBytes(32))
+
 	st.Set(k, secret)
 	st.Set(k+"-time", time.Now().UTC())
 	return secret, nil

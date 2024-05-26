@@ -19,6 +19,4 @@
 
 package pack
 
-var (
-	DebArchitecture = debArchitecture
-)
+var DebArchitecture = debArchitecture

@@ -93,7 +93,8 @@ func (s *specSuite) TestSmoke(c *C) {
 	c.Assert(s.spec.AddModule(m1), IsNil)
 	c.Assert(s.spec.AddModule(m2), IsNil)
 	c.Assert(s.spec.Modules(), DeepEquals, map[string]bool{
-		"module1": true, "module2": true})
+		"module1": true, "module2": true,
+	})
 }
 
 // AddModule ignores duplicated modules
@@ -114,7 +115,8 @@ func (s *specSuite) TestDeduplication(c *C) {
 	c.Assert(r.AddPermanentPlug(s.iface2, s.plugInfo), IsNil)
 	c.Assert(r.AddPermanentSlot(s.iface2, s.slotInfo), IsNil)
 	c.Assert(s.spec.Modules(), DeepEquals, map[string]bool{
-		"module1": true, "module2": true, "module3": true, "module4": true, "module5": true, "module6": true})
+		"module1": true, "module2": true, "module3": true, "module4": true, "module5": true, "module6": true,
+	})
 }
 
 // The kmod.Specification can be used through the interfaces.Specification interface
@@ -125,5 +127,6 @@ func (s *specSuite) TestSpecificationIface(c *C) {
 	c.Assert(r.AddPermanentPlug(s.iface1, s.plugInfo), IsNil)
 	c.Assert(r.AddPermanentSlot(s.iface1, s.slotInfo), IsNil)
 	c.Assert(s.spec.Modules(), DeepEquals, map[string]bool{
-		"module1": true, "module2": true, "module3": true, "module4": true})
+		"module1": true, "module2": true, "module3": true, "module4": true,
+	})
 }

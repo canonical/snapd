@@ -24,6 +24,8 @@ import (
 	"sort"
 	"strings"
 	"sync"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 var secCompProber = &secCompProbe{}
@@ -61,10 +63,8 @@ func (scp *secCompProbe) actions() []string {
 var osReadFile = os.ReadFile
 
 func probeActions() []string {
-	contents, err := osReadFile("/proc/sys/kernel/seccomp/actions_avail")
-	if err != nil {
-		return []string{}
-	}
+	contents := mylog.Check2(osReadFile("/proc/sys/kernel/seccomp/actions_avail"))
+
 	actions := strings.Split(strings.TrimRight(string(contents), "\n"), " ")
 	sort.Strings(actions)
 	return actions

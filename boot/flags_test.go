@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
@@ -48,13 +49,12 @@ func (s *bootFlagsSuite) TestBootFlagsFamilyClassic(c *C) {
 	bootloader.ForceError(errors.New("broken bootloader"))
 	defer bootloader.ForceError(nil)
 
-	_, err := boot.NextBootFlags(classicDev)
+	_ := mylog.Check2(boot.NextBootFlags(classicDev))
+	c.Assert(err, ErrorMatches, `cannot get boot flags on pre-UC20 device`)
+	mylog.Check(boot.SetNextBootFlags(classicDev, "", []string{"foo"}))
 	c.Assert(err, ErrorMatches, `cannot get boot flags on pre-UC20 device`)
 
-	err = boot.SetNextBootFlags(classicDev, "", []string{"foo"})
-	c.Assert(err, ErrorMatches, `cannot get boot flags on pre-UC20 device`)
-
-	_, err = boot.BootFlags(classicDev)
+	_ = mylog.Check2(boot.BootFlags(classicDev))
 	c.Assert(err, ErrorMatches, `cannot get boot flags on pre-UC20 device`)
 }
 
@@ -65,13 +65,12 @@ func (s *bootFlagsSuite) TestBootFlagsFamilyUC16(c *C) {
 	bootloader.ForceError(errors.New("broken bootloader"))
 	defer bootloader.ForceError(nil)
 
-	_, err := boot.NextBootFlags(coreDev)
+	_ := mylog.Check2(boot.NextBootFlags(coreDev))
+	c.Assert(err, ErrorMatches, `cannot get boot flags on pre-UC20 device`)
+	mylog.Check(boot.SetNextBootFlags(coreDev, "", []string{"foo"}))
 	c.Assert(err, ErrorMatches, `cannot get boot flags on pre-UC20 device`)
 
-	err = boot.SetNextBootFlags(coreDev, "", []string{"foo"})
-	c.Assert(err, ErrorMatches, `cannot get boot flags on pre-UC20 device`)
-
-	_, err = boot.BootFlags(coreDev)
+	_ = mylog.Check2(boot.BootFlags(coreDev))
 	c.Assert(err, ErrorMatches, `cannot get boot flags on pre-UC20 device`)
 }
 
@@ -80,18 +79,17 @@ func setupRealGrub(c *C, rootDir, baseDir string, opts *bootloader.Options) boot
 		rootDir = dirs.GlobalRootDir
 	}
 	grubCfg := filepath.Join(rootDir, baseDir, "grub.cfg")
-	err := os.MkdirAll(filepath.Dir(grubCfg), 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Dir(grubCfg), 0755))
 
-	err = os.WriteFile(grubCfg, nil, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(grubCfg, nil, 0644))
+
 
 	genv := grubenv.NewEnv(filepath.Join(rootDir, baseDir, "grubenv"))
-	err = genv.Save()
-	c.Assert(err, IsNil)
+	mylog.Check(genv.Save())
 
-	grubBl, err := bootloader.Find(rootDir, opts)
-	c.Assert(err, IsNil)
+
+	grubBl := mylog.Check2(bootloader.Find(rootDir, opts))
+
 	c.Assert(grubBl.Name(), Equals, "grub")
 
 	return grubBl
@@ -107,18 +105,18 @@ func (s *bootFlagsSuite) TestInitramfsActiveBootFlagsUC20InstallModeHappy(c *C) 
 
 	setupRealGrub(c, blDir, "EFI/ubuntu", &bootloader.Options{Role: bootloader.RoleRecovery})
 
-	flags, err := boot.InitramfsActiveBootFlags(boot.ModeInstall, filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
-	c.Assert(err, IsNil)
+	flags := mylog.Check2(boot.InitramfsActiveBootFlags(boot.ModeInstall, filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data")))
+
 	c.Assert(flags, HasLen, 0)
+	mylog.
 
-	// if we set some flags via ubuntu-image customizations then we get them
-	// back
+		// if we set some flags via ubuntu-image customizations then we get them
+		// back
+		Check(boot.SetBootFlagsInBootloader([]string{"factory"}, blDir))
 
-	err = boot.SetBootFlagsInBootloader([]string{"factory"}, blDir)
-	c.Assert(err, IsNil)
 
-	flags, err = boot.InitramfsActiveBootFlags(boot.ModeInstall, filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
-	c.Assert(err, IsNil)
+	flags = mylog.Check2(boot.InitramfsActiveBootFlags(boot.ModeInstall, filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data")))
+
 	c.Assert(flags, DeepEquals, []string{"factory"})
 }
 
@@ -135,18 +133,18 @@ func (s *bootFlagsSuite) TestInitramfsActiveBootFlagsUC20FactoryResetModeHappy(c
 
 	setupRealGrub(c, blDir, "EFI/ubuntu", &bootloader.Options{Role: bootloader.RoleRecovery})
 
-	flags, err := boot.InitramfsActiveBootFlags(boot.ModeFactoryReset, filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
-	c.Assert(err, IsNil)
+	flags := mylog.Check2(boot.InitramfsActiveBootFlags(boot.ModeFactoryReset, filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data")))
+
 	c.Assert(flags, HasLen, 0)
+	mylog.
 
-	// if we set some flags via ubuntu-image customizations then we get them
-	// back
+		// if we set some flags via ubuntu-image customizations then we get them
+		// back
+		Check(boot.SetBootFlagsInBootloader([]string{"factory"}, blDir))
 
-	err = boot.SetBootFlagsInBootloader([]string{"factory"}, blDir)
-	c.Assert(err, IsNil)
 
-	flags, err = boot.InitramfsActiveBootFlags(boot.ModeFactoryReset, filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
-	c.Assert(err, IsNil)
+	flags = mylog.Check2(boot.InitramfsActiveBootFlags(boot.ModeFactoryReset, filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data")))
+
 	c.Assert(flags, DeepEquals, []string{"factory"})
 }
 
@@ -160,11 +158,9 @@ func (s *bootFlagsSuite) TestSetImageBootFlagsVerification(c *C) {
 	defer r()
 
 	blVars := make(map[string]string)
-
-	err := boot.SetImageBootFlags([]string{"not-a-real-flag"}, blVars)
+	mylog.Check(boot.SetImageBootFlags([]string{"not-a-real-flag"}, blVars))
 	c.Assert(err, ErrorMatches, `unknown boot flags \[not-a-real-flag\] not allowed`)
-
-	err = boot.SetImageBootFlags([]string{longVal}, blVars)
+	mylog.Check(boot.SetImageBootFlags([]string{longVal}, blVars))
 	c.Assert(err, ErrorMatches, "internal error: boot flags too large to fit inside bootenv value")
 }
 
@@ -184,27 +180,24 @@ func (s *bootFlagsSuite) TestInitramfsActiveBootFlagsUC20RecoverModeNoop(c *C) {
 		Mode:      boot.ModeRun,
 		BootFlags: []string{},
 	}
+	mylog.Check(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"), 0755))
 
-	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"), 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(m.WriteTo(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data")))
 
-	err = m.WriteTo(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
-	c.Assert(err, IsNil)
 
-	flags, err := boot.InitramfsActiveBootFlags(boot.ModeRecover, filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
-	c.Assert(err, IsNil)
+	flags := mylog.Check2(boot.InitramfsActiveBootFlags(boot.ModeRecover, filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data")))
+
 	c.Assert(flags, HasLen, 0)
+	mylog.Check(grubBl.SetBootVars(map[string]string{"snapd_boot_flags": "factory"}))
 
-	err = grubBl.SetBootVars(map[string]string{"snapd_boot_flags": "factory"})
-	c.Assert(err, IsNil)
 
 	m.BootFlags = []string{"modeenv-boot-flag"}
-	err = m.WriteTo(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
-	c.Assert(err, IsNil)
+	mylog.Check(m.WriteTo(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data")))
+
 
 	// still no flags since we are in recovery mode
-	flags, err = boot.InitramfsActiveBootFlags(boot.ModeRecover, filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
-	c.Assert(err, IsNil)
+	flags = mylog.Check2(boot.InitramfsActiveBootFlags(boot.ModeRecover, filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data")))
+
 	c.Assert(flags, HasLen, 0)
 }
 
@@ -219,24 +212,22 @@ func (s *bootFlagsSuite) testInitramfsActiveBootFlagsUC20RRunModeHappy(c *C, fla
 		Mode:      boot.ModeRun,
 		BootFlags: []string{},
 	}
+	mylog.Check(os.MkdirAll(flagsDir, 0755))
 
-	err := os.MkdirAll(flagsDir, 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(m.WriteTo(flagsDir))
 
-	err = m.WriteTo(flagsDir)
-	c.Assert(err, IsNil)
 
-	flags, err := boot.InitramfsActiveBootFlags(boot.ModeRun, flagsDir)
-	c.Assert(err, IsNil)
+	flags := mylog.Check2(boot.InitramfsActiveBootFlags(boot.ModeRun, flagsDir))
+
 	c.Assert(flags, HasLen, 0)
 
 	m.BootFlags = []string{"factory", "other-flag"}
-	err = m.WriteTo(flagsDir)
-	c.Assert(err, IsNil)
+	mylog.Check(m.WriteTo(flagsDir))
+
 
 	// now some flags after we set them in the modeenv
-	flags, err = boot.InitramfsActiveBootFlags(boot.ModeRun, flagsDir)
-	c.Assert(err, IsNil)
+	flags = mylog.Check2(boot.InitramfsActiveBootFlags(boot.ModeRun, flagsDir))
+
 	c.Assert(flags, DeepEquals, []string{"factory", "other-flag"})
 }
 
@@ -279,19 +270,19 @@ func (s *bootFlagsSuite) TestInitramfsSetBootFlags(c *C) {
 	uc20Dev := boottest.MockUC20Device("run", nil)
 
 	for _, t := range tt {
-		err := boot.InitramfsExposeBootFlagsForSystem(t.flags)
-		c.Assert(err, IsNil)
+		mylog.Check(boot.InitramfsExposeBootFlagsForSystem(t.flags))
+
 		c.Assert(filepath.Join(dirs.SnapRunDir, "boot-flags"), testutil.FileEquals, t.expFlagFile)
 
 		// also read the flags as if from user space to make sure they match
-		flags, err := boot.BootFlags(uc20Dev)
+		flags := mylog.Check2(boot.BootFlags(uc20Dev))
 		if t.bootFlagsErr != "" {
 			c.Assert(err, ErrorMatches, t.bootFlagsErr)
 			if t.bootFlagsErrUnknown {
 				c.Assert(boot.IsUnknownBootFlagError(err), Equals, true)
 			}
 		} else {
-			c.Assert(err, IsNil)
+
 		}
 		c.Assert(flags, DeepEquals, t.expFlags)
 	}
@@ -341,26 +332,25 @@ func (s *bootFlagsSuite) TestUserspaceBootFlagsUC20(c *C) {
 
 	for _, t := range tt {
 		m.BootFlags = t.beforeFlags
-		err := m.WriteTo("")
-		c.Assert(err, IsNil)
+		mylog.Check(m.WriteTo(""))
 
-		err = boot.SetNextBootFlags(uc20Dev, "", t.flags)
+		mylog.Check(boot.SetNextBootFlags(uc20Dev, "", t.flags))
 		if t.err != "" {
 			c.Assert(err, ErrorMatches, t.err)
 			continue
 		}
 
-		c.Assert(err, IsNil)
+
 
 		// re-read modeenv
-		m2, err := boot.ReadModeenv("")
-		c.Assert(err, IsNil)
+		m2 := mylog.Check2(boot.ReadModeenv(""))
+
 		c.Assert(m2.BootFlags, DeepEquals, t.expFlags)
 
 		// get the next boot flags with NextBootFlags and compare with expected
-		flags, err := boot.NextBootFlags(uc20Dev)
+		flags := mylog.Check2(boot.NextBootFlags(uc20Dev))
 		c.Assert(flags, DeepEquals, t.expFlags)
-		c.Assert(err, IsNil)
+
 	}
 }
 
@@ -531,21 +521,20 @@ func (s *bootFlagsSuite) TestRunModeRootfs(c *C) {
 			defer func() { dirs.SetRootDir("") }()
 
 			degradedJSON := filepath.Join(dirs.SnapBootstrapRunDir, "degraded.json")
-			err := os.MkdirAll(dirs.SnapBootstrapRunDir, 0755)
+			mylog.Check(os.MkdirAll(dirs.SnapBootstrapRunDir, 0755))
 			c.Assert(err, IsNil, comment)
-
-			err = os.WriteFile(degradedJSON, []byte(t.degradedJSON), 0644)
+			mylog.Check(os.WriteFile(degradedJSON, []byte(t.degradedJSON), 0644))
 			c.Assert(err, IsNil, comment)
 		}
 
 		if t.createExpDirs {
 			for _, dir := range t.expDirs {
-				err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, dir), 0755)
+				mylog.Check(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, dir), 0755))
 				c.Assert(err, IsNil, comment)
 			}
 		}
 
-		dataMountDirs, err := boot.HostUbuntuDataForMode(t.mode, t.dev.Model())
+		dataMountDirs := mylog.Check2(boot.HostUbuntuDataForMode(t.mode, t.dev.Model()))
 		if t.err != "" {
 			c.Assert(err, ErrorMatches, t.err, comment)
 			c.Assert(dataMountDirs, IsNil)

@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
@@ -53,38 +54,39 @@ func (s *snapFileTestSuite) TestOpenSquashfs(c *C) {
 	// make a squashfs snap and try to open it with just the filename, then
 	// install it somewhere
 	tmp := c.MkDir()
-	err := os.MkdirAll(filepath.Join(tmp, "meta"), 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Join(tmp, "meta"), 0755))
 
-	// our regular snap.yaml
-	err = os.WriteFile(filepath.Join(tmp, "meta", "snap.yaml"), []byte("name: foo"), 0644)
-	c.Assert(err, IsNil)
+	mylog.
+
+		// our regular snap.yaml
+		Check(os.WriteFile(filepath.Join(tmp, "meta", "snap.yaml"), []byte("name: foo"), 0644))
+
 
 	// build it
 	dir := c.MkDir()
 	snFilename := filepath.Join(dir, "foo.snap")
 	buildSn := squashfs.New(snFilename)
-	err = buildSn.Build(tmp, &squashfs.BuildOpts{SnapType: "app"})
-	c.Assert(err, IsNil)
+	mylog.Check(buildSn.Build(tmp, &squashfs.BuildOpts{SnapType: "app"}))
 
-	sn, err := snapfile.Open(snFilename)
-	c.Assert(err, IsNil)
+
+	sn := mylog.Check2(snapfile.Open(snFilename))
+
 
 	targetPath := filepath.Join(c.MkDir(), "target.snap")
 	mountDir := c.MkDir()
 	// we should have copied it
-	didNothing, err := sn.Install(targetPath, mountDir, nil)
-	c.Assert(err, IsNil)
+	didNothing := mylog.Check2(sn.Install(targetPath, mountDir, nil))
+
 	c.Assert(didNothing, Equals, false)
 	c.Check(osutil.FileExists(targetPath), Equals, true)
 
-	r, err := sn.RandomAccessFile("meta/snap.yaml")
-	c.Assert(err, IsNil)
+	r := mylog.Check2(sn.RandomAccessFile("meta/snap.yaml"))
+
 	defer r.Close()
 
 	b := make([]byte, 5)
-	n, err := r.ReadAt(b, 4)
-	c.Assert(err, IsNil)
+	n := mylog.Check2(r.ReadAt(b, 4))
+
 	c.Assert(n, Equals, 5)
 	c.Check(string(b), Equals, ": foo")
 }
@@ -93,31 +95,32 @@ func (s *snapFileTestSuite) TestOpenSnapdir(c *C) {
 	// make a snapdir snap and try to open it with just the filename, then
 	// install it somewhere
 	tmp := c.MkDir()
-	err := os.MkdirAll(filepath.Join(tmp, "meta"), 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Join(tmp, "meta"), 0755))
 
-	// our regular snap.yaml
-	err = os.WriteFile(filepath.Join(tmp, "meta", "snap.yaml"), []byte("name: foo"), 0644)
-	c.Assert(err, IsNil)
+	mylog.
 
-	sn, err := snapfile.Open(tmp)
-	c.Assert(err, IsNil)
+		// our regular snap.yaml
+		Check(os.WriteFile(filepath.Join(tmp, "meta", "snap.yaml"), []byte("name: foo"), 0644))
+
+
+	sn := mylog.Check2(snapfile.Open(tmp))
+
 
 	targetPath := filepath.Join(c.MkDir(), "target.snap")
 	mountDir := c.MkDir()
 	// we should have copied it
-	didNothing, err := sn.Install(targetPath, mountDir, nil)
-	c.Assert(err, IsNil)
+	didNothing := mylog.Check2(sn.Install(targetPath, mountDir, nil))
+
 	c.Assert(didNothing, Equals, false)
 	c.Check(osutil.FileExists(targetPath), Equals, true)
 
-	r, err := sn.RandomAccessFile("meta/snap.yaml")
-	c.Assert(err, IsNil)
+	r := mylog.Check2(sn.RandomAccessFile("meta/snap.yaml"))
+
 	defer r.Close()
 
 	b := make([]byte, 5)
-	n, err := r.ReadAt(b, 4)
-	c.Assert(err, IsNil)
+	n := mylog.Check2(r.ReadAt(b, 4))
+
 	c.Assert(n, Equals, 5)
 	c.Check(string(b), Equals, ": foo")
 }
@@ -126,42 +129,42 @@ func (s *snapFileTestSuite) TestOpenSnapdirUnsupportedFormat(c *C) {
 	// make a file with garbage data
 	tmp := c.MkDir()
 	fn := filepath.Join(tmp, "some-format")
-	err := os.WriteFile(fn, []byte("not-a-real-header"), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(fn, []byte("not-a-real-header"), 0644))
 
-	_, err = snapfile.Open(fn)
+
+	_ = mylog.Check2(snapfile.Open(fn))
 	c.Assert(err, FitsTypeOf, snap.NotSnapError{})
 	c.Check(err, ErrorMatches, `cannot process snap or snapdir: file ".*" is invalid \(header \[110 111 116 45 97 45 114 101 97 108 45 104 101 97 100\] "not-a-real-head"\)`)
 }
 
 func (s *snapFileTestSuite) TestOpenSnapdirFileNoExists(c *C) {
 	dir := c.MkDir()
-	_, err := snapfile.Open(filepath.Join(dir, "non-existing-file"))
+	_ := mylog.Check2(snapfile.Open(filepath.Join(dir, "non-existing-file")))
 	c.Assert(err, FitsTypeOf, snap.NotSnapError{})
 	c.Check(err, ErrorMatches, `cannot process snap or snapdir: open /.*/non-existing-file: no such file or directory`)
 }
 
 func (s *snapFileTestSuite) TestOpenSnapdirFileEmpty(c *C) {
 	emptyFile := filepath.Join(c.MkDir(), "foo")
-	err := os.WriteFile(emptyFile, nil, 0644)
-	c.Assert(err, IsNil)
-	_, err = snapfile.Open(emptyFile)
+	mylog.Check(os.WriteFile(emptyFile, nil, 0644))
+
+	_ = mylog.Check2(snapfile.Open(emptyFile))
 	c.Assert(err, FitsTypeOf, snap.NotSnapError{})
 	c.Check(err, ErrorMatches, `cannot process snap or snapdir: cannot read "/.*/foo": EOF`)
 }
 
 func (s *snapFileTestSuite) TestFileOpenForSnapDirErrors(c *C) {
 	// no snap.yaml file
-	_, err := snapfile.Open(c.MkDir())
+	_ := mylog.Check2(snapfile.Open(c.MkDir()))
 	c.Assert(err, FitsTypeOf, snap.NotSnapError{})
 	c.Assert(err, ErrorMatches, `cannot process snap or snapdir: directory ".*" is empty`)
 }
 
 func (s *snapFileTestSuite) TestNotSnapErrorInvalidDir(c *C) {
 	tmpdir := c.MkDir()
-	err := os.WriteFile(filepath.Join(tmpdir, "foo"), nil, 0644)
-	c.Assert(err, IsNil)
-	_, err = snapfile.Open(tmpdir)
+	mylog.Check(os.WriteFile(filepath.Join(tmpdir, "foo"), nil, 0644))
+
+	_ = mylog.Check2(snapfile.Open(tmpdir))
 	c.Assert(err, FitsTypeOf, snap.NotSnapError{})
 	c.Check(err, ErrorMatches, `cannot process snap or snapdir: directory ".*" is invalid`)
 }

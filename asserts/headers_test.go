@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 )
 
@@ -32,9 +33,9 @@ type headersSuite struct{}
 var _ = Suite(&headersSuite{})
 
 func (s *headersSuite) TestParseHeadersSimple(c *C) {
-	m, err := asserts.ParseHeaders([]byte(`foo: 1
-bar: baz`))
-	c.Assert(err, IsNil)
+	m := mylog.Check2(asserts.ParseHeaders([]byte(`foo: 1
+bar: baz`)))
+
 	c.Check(m, DeepEquals, map[string]interface{}{
 		"foo": "1",
 		"bar": "baz",
@@ -42,41 +43,41 @@ bar: baz`))
 }
 
 func (s *headersSuite) TestParseHeadersMultiline(c *C) {
-	m, err := asserts.ParseHeaders([]byte(`foo:
+	m := mylog.Check2(asserts.ParseHeaders([]byte(`foo:
     abc
     
-bar: baz`))
-	c.Assert(err, IsNil)
+bar: baz`)))
+
 	c.Check(m, DeepEquals, map[string]interface{}{
 		"foo": "abc\n",
 		"bar": "baz",
 	})
 
-	m, err = asserts.ParseHeaders([]byte(`foo: 1
+	m = mylog.Check2(asserts.ParseHeaders([]byte(`foo: 1
 bar:
-    baz`))
-	c.Assert(err, IsNil)
+    baz`)))
+
 	c.Check(m, DeepEquals, map[string]interface{}{
 		"foo": "1",
 		"bar": "baz",
 	})
 
-	m, err = asserts.ParseHeaders([]byte(`foo: 1
+	m = mylog.Check2(asserts.ParseHeaders([]byte(`foo: 1
 bar:
     baz
-    `))
-	c.Assert(err, IsNil)
+    `)))
+
 	c.Check(m, DeepEquals, map[string]interface{}{
 		"foo": "1",
 		"bar": "baz\n",
 	})
 
-	m, err = asserts.ParseHeaders([]byte(`foo: 1
+	m = mylog.Check2(asserts.ParseHeaders([]byte(`foo: 1
 bar:
     baz
     
-    baz2`))
-	c.Assert(err, IsNil)
+    baz2`)))
+
 	c.Check(m, DeepEquals, map[string]interface{}{
 		"foo": "1",
 		"bar": "baz\n\nbaz2",
@@ -84,12 +85,12 @@ bar:
 }
 
 func (s *headersSuite) TestParseHeadersSimpleList(c *C) {
-	m, err := asserts.ParseHeaders([]byte(`foo:
+	m := mylog.Check2(asserts.ParseHeaders([]byte(`foo:
   - x
   - y
   - z
-bar: baz`))
-	c.Assert(err, IsNil)
+bar: baz`)))
+
 	c.Check(m, DeepEquals, map[string]interface{}{
 		"foo": []interface{}{"x", "y", "z"},
 		"bar": "baz",
@@ -97,21 +98,21 @@ bar: baz`))
 }
 
 func (s *headersSuite) TestParseHeadersListNestedMultiline(c *C) {
-	m, err := asserts.ParseHeaders([]byte(`foo:
+	m := mylog.Check2(asserts.ParseHeaders([]byte(`foo:
   - x
   -
       y1
       y2
       
   - z
-bar: baz`))
-	c.Assert(err, IsNil)
+bar: baz`)))
+
 	c.Check(m, DeepEquals, map[string]interface{}{
 		"foo": []interface{}{"x", "y1\ny2\n", "z"},
 		"bar": "baz",
 	})
 
-	m, err = asserts.ParseHeaders([]byte(`bar: baz
+	m = mylog.Check2(asserts.ParseHeaders([]byte(`bar: baz
 foo:
   -
     - u1
@@ -119,8 +120,8 @@ foo:
   -
       y1
       y2
-      `))
-	c.Assert(err, IsNil)
+      `)))
+
 	c.Check(m, DeepEquals, map[string]interface{}{
 		"foo": []interface{}{[]interface{}{"u1", "u2"}, "y1\ny2\n"},
 		"bar": "baz",
@@ -128,12 +129,12 @@ foo:
 }
 
 func (s *headersSuite) TestParseHeadersSimpleMap(c *C) {
-	m, err := asserts.ParseHeaders([]byte(`foo:
+	m := mylog.Check2(asserts.ParseHeaders([]byte(`foo:
   x: X
   yy: YY
   z5: 
-bar: baz`))
-	c.Assert(err, IsNil)
+bar: baz`)))
+
 	c.Check(m, DeepEquals, map[string]interface{}{
 		"foo": map[string]interface{}{
 			"x":  "X",
@@ -145,7 +146,7 @@ bar: baz`))
 }
 
 func (s *headersSuite) TestParseHeadersMapNestedMultiline(c *C) {
-	m, err := asserts.ParseHeaders([]byte(`foo:
+	m := mylog.Check2(asserts.ParseHeaders([]byte(`foo:
   x: X
   yy:
       YY1
@@ -153,8 +154,8 @@ func (s *headersSuite) TestParseHeadersMapNestedMultiline(c *C) {
   u:
     - u1
     - u2
-bar: baz`))
-	c.Assert(err, IsNil)
+bar: baz`)))
+
 	c.Check(m, DeepEquals, map[string]interface{}{
 		"foo": map[string]interface{}{
 			"x":  "X",
@@ -164,10 +165,10 @@ bar: baz`))
 		"bar": "baz",
 	})
 
-	m, err = asserts.ParseHeaders([]byte(`one:
+	m = mylog.Check2(asserts.ParseHeaders([]byte(`one:
   two:
-    three: `))
-	c.Assert(err, IsNil)
+    three: `)))
+
 	c.Check(m, DeepEquals, map[string]interface{}{
 		"one": map[string]interface{}{
 			"two": map[string]interface{}{
@@ -176,20 +177,20 @@ bar: baz`))
 		},
 	})
 
-	m, err = asserts.ParseHeaders([]byte(`one:
+	m = mylog.Check2(asserts.ParseHeaders([]byte(`one:
   two:
-      three`))
-	c.Assert(err, IsNil)
+      three`)))
+
 	c.Check(m, DeepEquals, map[string]interface{}{
 		"one": map[string]interface{}{
 			"two": "three",
 		},
 	})
 
-	m, err = asserts.ParseHeaders([]byte(`map-within-map:
+	m = mylog.Check2(asserts.ParseHeaders([]byte(`map-within-map:
   lev1:
-    lev2: x`))
-	c.Assert(err, IsNil)
+    lev2: x`)))
+
 	c.Check(m, DeepEquals, map[string]interface{}{
 		"map-within-map": map[string]interface{}{
 			"lev1": map[string]interface{}{
@@ -198,13 +199,13 @@ bar: baz`))
 		},
 	})
 
-	m, err = asserts.ParseHeaders([]byte(`list-of-maps:
+	m = mylog.Check2(asserts.ParseHeaders([]byte(`list-of-maps:
   -
     entry: foo
     bar: baz
   -
-    entry: bar`))
-	c.Assert(err, IsNil)
+    entry: bar`)))
+
 	c.Check(m, DeepEquals, map[string]interface{}{
 		"list-of-maps": []interface{}{
 			map[string]interface{}{
@@ -219,39 +220,39 @@ bar: baz`))
 }
 
 func (s *headersSuite) TestParseHeadersMapErrors(c *C) {
-	_, err := asserts.ParseHeaders([]byte(`foo:
+	_ := mylog.Check2(asserts.ParseHeaders([]byte(`foo:
   x X
-bar: baz`))
+bar: baz`)))
 	c.Check(err, ErrorMatches, `map entry missing ':' separator: "x X"`)
 
-	_, err = asserts.ParseHeaders([]byte(`foo:
+	_ = mylog.Check2(asserts.ParseHeaders([]byte(`foo:
   0x: X
-bar: baz`))
+bar: baz`)))
 	c.Check(err, ErrorMatches, `invalid map entry key: "0x"`)
 
-	_, err = asserts.ParseHeaders([]byte(`foo:
+	_ = mylog.Check2(asserts.ParseHeaders([]byte(`foo:
   a: a
-  a: b`))
+  a: b`)))
 	c.Check(err, ErrorMatches, `repeated map entry: "a"`)
 }
 
 func (s *headersSuite) TestParseHeadersErrors(c *C) {
-	_, err := asserts.ParseHeaders([]byte(`foo: 1
-bar:baz`))
+	_ := mylog.Check2(asserts.ParseHeaders([]byte(`foo: 1
+bar:baz`)))
 	c.Check(err, ErrorMatches, `header entry should have a space or newline \(for multiline\) before value: "bar:baz"`)
 
-	_, err = asserts.ParseHeaders([]byte(`foo:
+	_ = mylog.Check2(asserts.ParseHeaders([]byte(`foo:
  - x
   - y
   - z
-bar: baz`))
+bar: baz`)))
 	c.Check(err, ErrorMatches, `expected 4 chars nesting prefix after multiline introduction "foo:": " - x"`)
 
-	_, err = asserts.ParseHeaders([]byte(`foo:
+	_ = mylog.Check2(asserts.ParseHeaders([]byte(`foo:
   - x
   - y
   - z
-bar:`))
+bar:`)))
 	c.Check(err, ErrorMatches, `expected 4 chars nesting prefix after multiline introduction "bar:": EOF`)
 }
 
@@ -260,8 +261,8 @@ func (s *headersSuite) TestAppendEntrySimple(c *C) {
 
 	asserts.AppendEntry(buf, "bar:", "baz", 0)
 
-	m, err := asserts.ParseHeaders(buf.Bytes())
-	c.Assert(err, IsNil)
+	m := mylog.Check2(asserts.ParseHeaders(buf.Bytes()))
+
 	c.Check(m, DeepEquals, map[string]interface{}{
 		"start": ".",
 		"bar":   "baz",
@@ -282,8 +283,8 @@ func (s *headersSuite) TestAppendEntryMultiline(c *C) {
 
 		asserts.AppendEntry(buf, "bar:", multiline, 0)
 
-		m, err := asserts.ParseHeaders(buf.Bytes())
-		c.Assert(err, IsNil)
+		m := mylog.Check2(asserts.ParseHeaders(buf.Bytes()))
+
 		c.Check(m, DeepEquals, map[string]interface{}{
 			"start": ".",
 			"bar":   multiline,
@@ -298,8 +299,8 @@ func (s *headersSuite) TestAppendEntrySimpleList(c *C) {
 
 	asserts.AppendEntry(buf, "bar:", lst, 0)
 
-	m, err := asserts.ParseHeaders(buf.Bytes())
-	c.Assert(err, IsNil)
+	m := mylog.Check2(asserts.ParseHeaders(buf.Bytes()))
+
 	c.Check(m, DeepEquals, map[string]interface{}{
 		"start": ".",
 		"bar":   lst,
@@ -313,8 +314,8 @@ func (s *headersSuite) TestAppendEntryListNested(c *C) {
 
 	asserts.AppendEntry(buf, "bar:", lst, 0)
 
-	m, err := asserts.ParseHeaders(buf.Bytes())
-	c.Assert(err, IsNil)
+	m := mylog.Check2(asserts.ParseHeaders(buf.Bytes()))
+
 	c.Check(m, DeepEquals, map[string]interface{}{
 		"start": ".",
 		"bar":   lst,
@@ -332,8 +333,8 @@ func (s *headersSuite) TestAppendEntrySimpleMap(c *C) {
 
 	asserts.AppendEntry(buf, "bar:", mp, 0)
 
-	m, err := asserts.ParseHeaders(buf.Bytes())
-	c.Assert(err, IsNil)
+	m := mylog.Check2(asserts.ParseHeaders(buf.Bytes()))
+
 	c.Check(m, DeepEquals, map[string]interface{}{
 		"start": ".",
 		"bar":   mp,
@@ -352,8 +353,8 @@ func (s *headersSuite) TestAppendEntryNestedMap(c *C) {
 
 	asserts.AppendEntry(buf, "bar:", mp, 0)
 
-	m, err := asserts.ParseHeaders(buf.Bytes())
-	c.Assert(err, IsNil)
+	m := mylog.Check2(asserts.ParseHeaders(buf.Bytes()))
+
 	c.Check(m, DeepEquals, map[string]interface{}{
 		"start": ".",
 		"bar":   mp,
@@ -365,8 +366,8 @@ func (s *headersSuite) TestAppendEntryOmitting(c *C) {
 
 	asserts.AppendEntry(buf, "bar:", []interface{}{}, 0)
 
-	m, err := asserts.ParseHeaders(buf.Bytes())
-	c.Assert(err, IsNil)
+	m := mylog.Check2(asserts.ParseHeaders(buf.Bytes()))
+
 	c.Check(m, DeepEquals, map[string]interface{}{
 		"start": ".",
 	})
@@ -377,8 +378,8 @@ func (s *headersSuite) TestAppendEntryOmitting(c *C) {
 
 	asserts.AppendEntry(buf, "bar:", lst, 0)
 
-	m, err = asserts.ParseHeaders(buf.Bytes())
-	c.Assert(err, IsNil)
+	m = mylog.Check2(asserts.ParseHeaders(buf.Bytes()))
+
 	c.Check(m, DeepEquals, map[string]interface{}{
 		"start": ".",
 		"bar":   []interface{}{"z"},
@@ -388,8 +389,8 @@ func (s *headersSuite) TestAppendEntryOmitting(c *C) {
 
 	asserts.AppendEntry(buf, "bar:", map[string]interface{}{}, 0)
 
-	m, err = asserts.ParseHeaders(buf.Bytes())
-	c.Assert(err, IsNil)
+	m = mylog.Check2(asserts.ParseHeaders(buf.Bytes()))
+
 	c.Check(m, DeepEquals, map[string]interface{}{
 		"start": ".",
 	})

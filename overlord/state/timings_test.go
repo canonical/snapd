@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
@@ -66,8 +67,8 @@ func (s *timingsSuite) TestTagTimingsWithChange(c *C) {
 	state.TagTimingsWithChange(timing, chg)
 	timing.Save(s.st)
 
-	tims, err := timings.Get(s.st, 1, func(tags map[string]string) bool { return true })
-	c.Assert(err, IsNil)
+	tims := mylog.Check2(timings.Get(s.st, 1, func(tags map[string]string) bool { return true }))
+
 	c.Assert(tims, HasLen, 1)
 	c.Check(tims[0].NestedTimings, HasLen, 0)
 	c.Check(tims[0].Tags, DeepEquals, map[string]string{
@@ -89,8 +90,8 @@ func (s *timingsSuite) TestTimingsForTask(c *C) {
 	span.Stop()
 	troot.Save(s.st)
 
-	tims, err := timings.Get(s.st, 1, func(tags map[string]string) bool { return true })
-	c.Assert(err, IsNil)
+	tims := mylog.Check2(timings.Get(s.st, 1, func(tags map[string]string) bool { return true }))
+
 	c.Assert(tims, HasLen, 1)
 	c.Check(tims[0].NestedTimings, HasLen, 1)
 	c.Check(tims[0].Tags, DeepEquals, map[string]string{

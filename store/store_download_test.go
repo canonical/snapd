@@ -36,6 +36,7 @@ import (
 	. "gopkg.in/check.v1"
 	"gopkg.in/retry.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/osutil"
@@ -98,8 +99,8 @@ func (s *storeDownloadSuite) TestDownloadOK(c *C) {
 	snap.Size = int64(len(expectedContent))
 
 	path := filepath.Join(c.MkDir(), "downloaded-file")
-	err := s.store.Download(s.ctx, "foo", path, &snap.DownloadInfo, nil, nil, nil)
-	c.Assert(err, IsNil)
+	mylog.Check(s.store.Download(s.ctx, "foo", path, &snap.DownloadInfo, nil, nil, nil))
+
 	defer os.Remove(path)
 
 	c.Assert(path, testutil.FileEquals, expectedContent)
@@ -125,11 +126,10 @@ func (s *storeDownloadSuite) TestDownloadRangeRequest(c *C) {
 	snap.Size = int64(len(expectedContentStr))
 
 	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
-	err := os.WriteFile(targetFn+".partial", []byte(partialContentStr), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(targetFn+".partial", []byte(partialContentStr), 0644))
 
-	err = s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, nil, nil)
-	c.Assert(err, IsNil)
+	mylog.Check(s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, nil, nil))
+
 
 	c.Assert(targetFn, testutil.FileEquals, expectedContentStr)
 }
@@ -144,11 +144,10 @@ func (s *storeDownloadSuite) TestResumeOfCompleted(c *C) {
 	snap.Size = int64(len(expectedContentStr))
 
 	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
-	err := os.WriteFile(targetFn+".partial", []byte(expectedContentStr), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(targetFn+".partial", []byte(expectedContentStr), 0644))
 
-	err = s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, nil, nil)
-	c.Assert(err, IsNil)
+	mylog.Check(s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, nil, nil))
+
 
 	c.Assert(targetFn, testutil.FileEquals, expectedContentStr)
 }
@@ -190,8 +189,8 @@ func (s *storeDownloadSuite) TestDownloadEOFHandlesResumeHashCorrectly(c *C) {
 	snap.Size = 50000
 
 	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
-	err := s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, nil, nil)
-	c.Assert(err, IsNil)
+	mylog.Check(s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, nil, nil))
+
 	c.Assert(targetFn, testutil.FileEquals, buf)
 	c.Assert(s.logbuf.String(), Matches, "(?s).*Retrying .* attempt 2, .*")
 }
@@ -233,8 +232,8 @@ func (s *storeDownloadSuite) TestDownloadRetryHashErrorIsFullyRetried(c *C) {
 	snap.Size = 50000
 
 	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
-	err := s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, nil, nil)
-	c.Assert(err, IsNil)
+	mylog.Check(s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, nil, nil))
+
 
 	c.Assert(targetFn, testutil.FileEquals, buf)
 
@@ -269,8 +268,8 @@ func (s *storeDownloadSuite) TestResumeOfCompletedRetriedOnHashFailure(c *C) {
 
 	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
 	c.Assert(os.WriteFile(targetFn+".partial", badbuf, 0644), IsNil)
-	err := s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, nil, nil)
-	c.Assert(err, IsNil)
+	mylog.Check(s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, nil, nil))
+
 
 	c.Assert(targetFn, testutil.FileEquals, buf)
 
@@ -304,8 +303,8 @@ func (s *storeDownloadSuite) TestResumeOfTooMuchDataWorks(c *C) {
 
 	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
 	c.Assert(os.WriteFile(targetFn+".partial", []byte(tooMuchLocalData), 0644), IsNil)
-	err := s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, nil, nil)
-	c.Assert(err, IsNil)
+	mylog.Check(s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, nil, nil))
+
 	c.Assert(n, Equals, 1)
 
 	c.Assert(targetFn, testutil.FileEquals, snapContent)
@@ -332,7 +331,7 @@ func (s *storeDownloadSuite) TestDownloadRetryHashErrorIsFullyRetriedOnlyOnce(c 
 	snap.Size = int64(len("something invalid"))
 
 	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
-	err := s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, nil, nil)
+	mylog.Check(s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, nil, nil))
 
 	_, ok := err.(store.HashError)
 	c.Assert(ok, Equals, true)
@@ -364,11 +363,10 @@ func (s *storeDownloadSuite) TestDownloadRangeRequestRetryOnHashError(c *C) {
 	snap.Size = int64(len(expectedContentStr))
 
 	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
-	err := os.WriteFile(targetFn+".partial", []byte(partialContentStr), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(targetFn+".partial", []byte(partialContentStr), 0644))
 
-	err = s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, nil, nil)
-	c.Assert(err, IsNil)
+	mylog.Check(s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, nil, nil))
+
 	c.Assert(n, Equals, 2)
 
 	c.Assert(targetFn, testutil.FileEquals, expectedContentStr)
@@ -391,10 +389,9 @@ func (s *storeDownloadSuite) TestDownloadRangeRequestFailOnHashError(c *C) {
 	snap.Size = int64(len(partialContentStr) + 1)
 
 	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
-	err := os.WriteFile(targetFn+".partial", []byte(partialContentStr), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(targetFn+".partial", []byte(partialContentStr), 0644))
 
-	err = s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, nil, nil)
+	mylog.Check(s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, nil, nil))
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `sha3-384 mismatch for "foo": got 1234 but expected 5678`)
 	c.Assert(n, Equals, 2)
@@ -418,8 +415,8 @@ func (s *storeDownloadSuite) TestDownloadWithUser(c *C) {
 	snap.Size = int64(len(expectedContent))
 
 	path := filepath.Join(c.MkDir(), "downloaded-file")
-	err := s.store.Download(s.ctx, "foo", path, &snap.DownloadInfo, nil, s.user, nil)
-	c.Assert(err, IsNil)
+	mylog.Check(s.store.Download(s.ctx, "foo", path, &snap.DownloadInfo, nil, s.user, nil))
+
 	defer os.Remove(path)
 
 	c.Assert(path, testutil.FileEquals, expectedContent)
@@ -439,7 +436,7 @@ func (s *storeDownloadSuite) TestDownloadFails(c *C) {
 	snap.Size = 1
 	// simulate a failed download
 	path := filepath.Join(c.MkDir(), "downloaded-file")
-	err := s.store.Download(s.ctx, "foo", path, &snap.DownloadInfo, nil, nil, nil)
+	mylog.Check(s.store.Download(s.ctx, "foo", path, &snap.DownloadInfo, nil, nil, nil))
 	c.Assert(err, ErrorMatches, "uh, it failed")
 	// ... and ensure that the tempfile is removed
 	c.Assert(osutil.FileExists(tmpfile.Name()), Equals, false)
@@ -462,7 +459,7 @@ func (s *storeDownloadSuite) TestDownloadFailsLeavePartial(c *C) {
 	snap.Size = 1
 	// simulate a failed download
 	path := filepath.Join(c.MkDir(), "downloaded-file")
-	err := s.store.Download(s.ctx, "foo", path, &snap.DownloadInfo, nil, nil, &store.DownloadOptions{LeavePartialOnError: true})
+	mylog.Check(s.store.Download(s.ctx, "foo", path, &snap.DownloadInfo, nil, nil, &store.DownloadOptions{LeavePartialOnError: true}))
 	c.Assert(err, ErrorMatches, "uh, it failed")
 	// ... and ensure that the tempfile is *NOT* removed
 	c.Assert(osutil.FileExists(tmpfile.Name()), Equals, true)
@@ -485,7 +482,7 @@ func (s *storeDownloadSuite) TestDownloadFailsDoesNotLeavePartialIfEmpty(c *C) {
 	snap.Size = 1
 	// simulate a failed download
 	path := filepath.Join(c.MkDir(), "downloaded-file")
-	err := s.store.Download(s.ctx, "foo", path, &snap.DownloadInfo, nil, nil, &store.DownloadOptions{LeavePartialOnError: true})
+	mylog.Check(s.store.Download(s.ctx, "foo", path, &snap.DownloadInfo, nil, nil, &store.DownloadOptions{LeavePartialOnError: true}))
 	c.Assert(err, ErrorMatches, "uh, it failed")
 	// ... and ensure that the tempfile *is* removed
 	c.Assert(osutil.FileExists(tmpfile.Name()), Equals, false)
@@ -498,8 +495,8 @@ func (s *storeDownloadSuite) TestDownloadSyncFails(c *C) {
 	restore := store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *store.DownloadOptions) error {
 		tmpfile = w.(*os.File)
 		w.Write([]byte("sync will fail"))
-		err := tmpfile.Close()
-		c.Assert(err, IsNil)
+		mylog.Check(tmpfile.Close())
+
 		return nil
 	})
 	defer restore()
@@ -511,7 +508,7 @@ func (s *storeDownloadSuite) TestDownloadSyncFails(c *C) {
 
 	// simulate a failed sync
 	path := filepath.Join(c.MkDir(), "downloaded-file")
-	err := s.store.Download(s.ctx, "foo", path, &snap.DownloadInfo, nil, nil, nil)
+	mylog.Check(s.store.Download(s.ctx, "foo", path, &snap.DownloadInfo, nil, nil, nil))
 	c.Assert(err, ErrorMatches, `(sync|fsync:) .*`)
 	// ... and ensure that the tempfile is removed
 	c.Assert(osutil.FileExists(tmpfile.Name()), Equals, false)
@@ -598,21 +595,20 @@ func (s *storeDownloadSuite) TestDownloadDelta(c *C) {
 		})
 		defer restore()
 
-		w, err := os.CreateTemp("", "")
-		c.Assert(err, IsNil)
+		w := mylog.Check2(os.CreateTemp("", ""))
+
 		defer os.Remove(w.Name())
 
 		authedUser := s.user
 		if !testCase.withUser {
 			authedUser = nil
 		}
-
-		err = sto.DownloadDelta("snapname", &testCase.info, w, nil, authedUser, &store.DownloadOptions{Scheduled: true})
+		mylog.Check(sto.DownloadDelta("snapname", &testCase.info, w, nil, authedUser, &store.DownloadOptions{Scheduled: true}))
 
 		if testCase.expectError {
 			c.Assert(err, NotNil)
 		} else {
-			c.Assert(err, IsNil)
+
 			c.Assert(w.Name(), testutil.FileEquals, "I was downloaded")
 		}
 	}
@@ -646,28 +642,28 @@ func (s *storeDownloadSuite) TestApplyDelta(c *C) {
 		currentSnapPath := filepath.Join(dirs.SnapBlobDir, currentSnapName)
 		targetSnapName := fmt.Sprintf("%s_%d.snap", name, testCase.deltaInfo.ToRevision)
 		targetSnapPath := filepath.Join(dirs.SnapBlobDir, targetSnapName)
-		err := os.MkdirAll(filepath.Dir(currentSnapPath), 0755)
-		c.Assert(err, IsNil)
-		err = os.WriteFile(currentSnapPath, nil, 0644)
-		c.Assert(err, IsNil)
+		mylog.Check(os.MkdirAll(filepath.Dir(currentSnapPath), 0755))
+
+		mylog.Check(os.WriteFile(currentSnapPath, nil, 0644))
+
 		deltaPath := filepath.Join(dirs.SnapBlobDir, "the.delta")
-		err = os.WriteFile(deltaPath, nil, 0644)
-		c.Assert(err, IsNil)
+		mylog.Check(os.WriteFile(deltaPath, nil, 0644))
+
 		// When testing a case where the call to the external
 		// xdelta3 is successful,
 		// simulate the resulting .partial.
 		if testCase.error == "" {
-			err = os.WriteFile(targetSnapPath+".partial", nil, 0644)
-			c.Assert(err, IsNil)
+			mylog.Check(os.WriteFile(targetSnapPath+".partial", nil, 0644))
+
 		}
 
 		// make a fresh store object to circumvent the caching of xdelta3 info
 		// between test cases
 		sto := &store.Store{}
-		err = store.ApplyDelta(sto, name, deltaPath, &testCase.deltaInfo, targetSnapPath, "")
+		mylog.Check(store.ApplyDelta(sto, name, deltaPath, &testCase.deltaInfo, targetSnapPath, ""))
 
 		if testCase.error == "" {
-			c.Assert(err, IsNil)
+
 			c.Assert(s.mockXDelta.Calls(), DeepEquals, [][]string{
 				// since we don't cache xdelta3 in this test, we always check if
 				// xdelta3 config is successful before using xdelta3 (and at
@@ -676,8 +672,8 @@ func (s *storeDownloadSuite) TestApplyDelta(c *C) {
 				{"xdelta3", "-d", "-s", currentSnapPath, deltaPath, targetSnapPath + ".partial"},
 			})
 			c.Assert(osutil.FileExists(targetSnapPath+".partial"), Equals, false)
-			st, err := os.Stat(targetSnapPath)
-			c.Assert(err, IsNil)
+			st := mylog.Check2(os.Stat(targetSnapPath))
+
 			c.Check(st.Mode(), Equals, os.FileMode(0600))
 			c.Assert(os.Remove(targetSnapPath), IsNil)
 		} else {
@@ -727,8 +723,8 @@ func (s *storeDownloadSuite) TestDownloadCacheHit(c *C) {
 	snap.Sha3_384 = "the-snaps-sha3_384"
 
 	path := filepath.Join(c.MkDir(), "downloaded-file")
-	err := s.store.Download(s.ctx, "foo", path, &snap.DownloadInfo, nil, nil, nil)
-	c.Assert(err, IsNil)
+	mylog.Check(s.store.Download(s.ctx, "foo", path, &snap.DownloadInfo, nil, nil, nil))
+
 
 	c.Check(obs.gets, DeepEquals, []string{fmt.Sprintf("%s:%s", snap.Sha3_384, path)})
 	c.Check(obs.puts, IsNil)
@@ -750,8 +746,8 @@ func (s *storeDownloadSuite) TestDownloadCacheMiss(c *C) {
 	snap.Sha3_384 = "the-snaps-sha3_384"
 
 	path := filepath.Join(c.MkDir(), "downloaded-file")
-	err := s.store.Download(s.ctx, "foo", path, &snap.DownloadInfo, nil, nil, nil)
-	c.Assert(err, IsNil)
+	mylog.Check(s.store.Download(s.ctx, "foo", path, &snap.DownloadInfo, nil, nil, nil))
+
 	c.Check(downloadWasCalled, Equals, true)
 
 	c.Check(obs.gets, DeepEquals, []string{fmt.Sprintf("the-snaps-sha3_384:%s", path)})
@@ -779,16 +775,16 @@ func (s *storeDownloadSuite) TestDownloadStreamOK(c *C) {
 	snap.DownloadURL = "URL"
 	snap.Size = int64(len(expectedContent))
 
-	stream, status, err := s.store.DownloadStream(context.TODO(), "foo", &snap.DownloadInfo, 0, nil)
-	c.Assert(err, IsNil)
+	stream, status := mylog.Check3(s.store.DownloadStream(context.TODO(), "foo", &snap.DownloadInfo, 0, nil))
+
 	c.Assert(status, Equals, 200)
 
 	buf := new(bytes.Buffer)
 	buf.ReadFrom(stream)
 	c.Check(buf.String(), Equals, string(expectedContent))
 
-	stream, status, err = s.store.DownloadStream(context.TODO(), "foo", &snap.DownloadInfo, 2, nil)
-	c.Assert(err, IsNil)
+	stream, status = mylog.Check3(s.store.DownloadStream(context.TODO(), "foo", &snap.DownloadInfo, 2, nil))
+
 	c.Check(status, Equals, 206)
 
 	buf = new(bytes.Buffer)
@@ -815,7 +811,7 @@ func (s *storeDownloadSuite) TestDownloadStreamCachedOK(c *C) {
 	snap.Size = int64(len(expectedContent))
 	snap.Sha3_384 = "sha3_384-of-foo"
 
-	stream, status, err := s.store.DownloadStream(context.TODO(), "foo", &snap.DownloadInfo, 0, nil)
+	stream, status := mylog.Check3(s.store.DownloadStream(context.TODO(), "foo", &snap.DownloadInfo, 0, nil))
 	c.Check(err, IsNil)
 	c.Check(status, Equals, 200)
 
@@ -823,8 +819,8 @@ func (s *storeDownloadSuite) TestDownloadStreamCachedOK(c *C) {
 	buf.ReadFrom(stream)
 	c.Check(buf.String(), Equals, string(expectedContent))
 
-	stream, status, err = s.store.DownloadStream(context.TODO(), "foo", &snap.DownloadInfo, 2, nil)
-	c.Assert(err, IsNil)
+	stream, status = mylog.Check3(s.store.DownloadStream(context.TODO(), "foo", &snap.DownloadInfo, 2, nil))
+
 	c.Check(status, Equals, 206)
 
 	buf = new(bytes.Buffer)
@@ -872,7 +868,7 @@ func (s *storeDownloadSuite) TestDownloadTimeout(c *C) {
 	snap.Size = 50000
 
 	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
-	err := s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, nil, nil)
+	mylog.Check(s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, nil, nil))
 	ok, speed := store.IsTransferSpeedError(err)
 	c.Assert(ok, Equals, true)
 	// in reality speed can be 0, but here it's an extra quick check.
@@ -897,8 +893,8 @@ func (s *storeDownloadSuite) TestTransferSpeedMonitoringWriterHappy(c *C) {
 	// measure windows defined above; 100 iterations ensures we hit a few
 	// measurement windows.
 	for i := 0; i < 100; i++ {
-		n, err := w.Write(data)
-		c.Assert(err, IsNil)
+		n := mylog.Check2(w.Write(data))
+
 		c.Assert(n, Equals, len(data))
 		time.Sleep(5 * time.Millisecond)
 	}
@@ -924,8 +920,8 @@ func (s *storeDownloadSuite) TestTransferSpeedMonitoringWriterUnhappy(c *C) {
 	// write just one byte every ~5ms, this will trigger download timeout
 	// since the writer expects 1000 bytes per 50ms as defined above.
 	for i := 0; i < 100; i++ {
-		n, err := w.Write(data)
-		c.Assert(err, IsNil)
+		n := mylog.Check2(w.Write(data))
+
 		c.Assert(n, Equals, len(data))
 		time.Sleep(5 * time.Millisecond)
 	}
@@ -963,7 +959,7 @@ func (s *storeDownloadSuite) TestDownloadTimeoutOnHeaders(c *C) {
 	snap.Size = 50000
 
 	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
-	err := s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, nil, nil)
+	mylog.Check(s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, nil, nil))
 	close(quit)
 	c.Assert(err, ErrorMatches, `.*net/http: timeout awaiting response headers`)
 }
@@ -996,7 +992,7 @@ func (s *storeDownloadSuite) TestDownloadRedirectHideAuthHeaders(c *C) {
 	sto := store.New(&store.Config{}, dauthCtx)
 
 	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
-	err := sto.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, s.user, nil)
+	mylog.Check(sto.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, s.user, nil))
 	c.Assert(err, Equals, nil)
 	c.Assert(targetFn, testutil.FileEquals, "test-download")
 }
@@ -1035,6 +1031,6 @@ func (s *storeDownloadSuite) TestDownloadInfiniteRedirect(c *C) {
 	snap.DownloadURL = mockServer.URL
 
 	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
-	err := s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, s.user, nil)
+	mylog.Check(s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, s.user, nil))
 	c.Assert(err, ErrorMatches, fmt.Sprintf("Get %q: stopped after 10 redirects", mockServer.URL))
 }

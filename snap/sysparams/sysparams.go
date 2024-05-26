@@ -25,6 +25,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 )
@@ -75,10 +76,8 @@ func parseSystemParams(contents string) (*SystemParams, error) {
 			return nil, fmt.Errorf("invalid line: %q", line)
 		}
 	}
+	mylog.Check(scanner.Err())
 
-	if err := scanner.Err(); err != nil {
-		return nil, err
-	}
 	return params, nil
 }
 
@@ -98,15 +97,10 @@ func Open(rootdir string) (*SystemParams, error) {
 		return &SystemParams{rootdir: rootdir}, nil
 	}
 
-	data, err := os.ReadFile(sspFile)
-	if err != nil {
-		return nil, fmt.Errorf("cannot read system-params: %v", err)
-	}
+	data := mylog.Check2(os.ReadFile(sspFile))
 
-	params, err := parseSystemParams(string(data))
-	if err != nil {
-		return nil, fmt.Errorf("cannot parse system-params: %v", err)
-	}
+	params := mylog.Check2(parseSystemParams(string(data)))
+
 	params.rootdir = rootdir
 	return params, nil
 }
@@ -116,8 +110,7 @@ func Open(rootdir string) (*SystemParams, error) {
 func (ssp *SystemParams) Write() error {
 	sspFile := sysparamsFile(ssp.rootdir)
 	contents := fmt.Sprintf("homedirs=%s\n", ssp.Homedirs)
-	if err := osutilAtomicWriteFile(sspFile, []byte(contents), 0644, 0); err != nil {
-		return fmt.Errorf("cannot write system-params: %v", err)
-	}
+	mylog.Check(osutilAtomicWriteFile(sspFile, []byte(contents), 0644, 0))
+
 	return nil
 }

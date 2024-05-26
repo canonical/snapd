@@ -30,6 +30,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/snap"
 )
@@ -57,7 +58,6 @@ func (cs *clientSuite) TestClientSnapshotIsValid(c *check.C) {
 	} {
 		c.Check(snapshot.IsValid(), check.Equals, false, check.Commentf("%s", desc))
 	}
-
 }
 
 func (cs *clientSuite) TestClientSnapshotSetTime(c *check.C) {
@@ -87,7 +87,7 @@ func (cs *clientSuite) TestClientSnapshotSets(c *check.C) {
 		"type": "sync",
 		"result": [{"id": 1}, {"id":2}]
 }`
-	sets, err := cs.cli.SnapshotSets(42, []string{"foo", "bar"})
+	sets := mylog.Check2(cs.cli.SnapshotSets(42, []string{"foo", "bar"}))
 	c.Assert(err, check.IsNil)
 	c.Check(sets, check.DeepEquals, []client.SnapshotSet{{ID: 1}, {ID: 2}})
 	c.Check(cs.req.Method, check.Equals, "GET")
@@ -105,13 +105,13 @@ func (cs *clientSuite) testClientSnapshotActionFull(c *check.C, action string, u
 		"type": "async",
 		"change": "1too3"
 	}`
-	id, err := f()
+	id := mylog.Check2(f())
 	c.Assert(err, check.IsNil)
 	c.Check(id, check.Equals, "1too3")
 
 	c.Assert(cs.req.Header.Get("Content-Type"), check.Equals, "application/json")
 
-	act, err := client.UnmarshalSnapshotAction(cs.req.Body)
+	act := mylog.Check2(client.UnmarshalSnapshotAction(cs.req.Body))
 	c.Assert(err, check.IsNil)
 	c.Check(act.SetID, check.Equals, uint64(42))
 	c.Check(act.Action, check.Equals, action)
@@ -149,7 +149,7 @@ func (cs *clientSuite) TestClientExportSnapshotSpecificErr(c *check.C) {
 	cs.rsp = content
 	cs.status = 400
 	cs.header = http.Header{"Content-Type": []string{"application/json"}}
-	_, _, err := cs.cli.SnapshotExport(42)
+	_, _ := mylog.Check3(cs.cli.SnapshotExport(42))
 	c.Check(err, check.ErrorMatches, "boom")
 }
 
@@ -174,7 +174,7 @@ func (cs *clientSuite) TestClientExportSnapshot(c *check.C) {
 		cs.rsp = t.content
 		cs.status = t.status
 
-		r, size, err := cs.cli.SnapshotExport(42)
+		r, size := mylog.Check3(cs.cli.SnapshotExport(42))
 		if t.status == 200 {
 			c.Assert(err, check.IsNil, comm)
 			c.Assert(cs.countingCloser.closeCalled, check.Equals, 0)
@@ -185,7 +185,7 @@ func (cs *clientSuite) TestClientExportSnapshot(c *check.C) {
 		}
 
 		if t.status == 200 {
-			buf, err := io.ReadAll(r)
+			buf := mylog.Check2(io.ReadAll(r))
 			c.Assert(err, check.IsNil)
 			c.Assert(string(buf), check.Equals, t.content)
 		}
@@ -212,7 +212,7 @@ func (cs *clientSuite) TestClientSnapshotImport(c *check.C) {
 
 		fakeSnapshotData := "fake"
 		r := strings.NewReader(fakeSnapshotData)
-		importSet, err := cs.cli.SnapshotImport(r, int64(len(fakeSnapshotData)))
+		importSet := mylog.Check2(cs.cli.SnapshotImport(r, int64(len(fakeSnapshotData))))
 		if t.error != "" {
 			c.Assert(err, check.NotNil, comm)
 			c.Check(err.Error(), check.Equals, t.error, comm)
@@ -223,7 +223,7 @@ func (cs *clientSuite) TestClientSnapshotImport(c *check.C) {
 		c.Assert(cs.req.Header.Get("Content-Length"), check.Equals, strconv.Itoa(len(fakeSnapshotData)))
 		c.Check(importSet.ID, check.Equals, t.setID, comm)
 		c.Check(importSet.Snaps, check.DeepEquals, []string{"baz", "bar", "foo"}, comm)
-		d, err := io.ReadAll(cs.req.Body)
+		d := mylog.Check2(io.ReadAll(cs.req.Body))
 		c.Assert(err, check.IsNil)
 		c.Check(string(d), check.Equals, fakeSnapshotData)
 	}
@@ -240,24 +240,24 @@ func (cs *clientSuite) TestClientSnapshotContentHash(c *check.C) {
 	// sh1, sh2 are the same except setID
 	sh2 := &client.Snapshot{SetID: 2, Time: now, Snap: "asnap", Revision: revno, SHA3_384: sums}
 
-	h1, err := sh1.ContentHash()
+	h1 := mylog.Check2(sh1.ContentHash())
 	c.Assert(err, check.IsNil)
 	// content hash uses sha256 internally
 	c.Check(h1, check.HasLen, sha256.Size)
 
 	// same except time means same hash
-	h1_1, err := sh1_1.ContentHash()
+	h1_1 := mylog.Check2(sh1_1.ContentHash())
 	c.Assert(err, check.IsNil)
 	c.Check(h1, check.DeepEquals, h1_1)
 
 	// same except set means same hash
-	h2, err := sh2.ContentHash()
+	h2 := mylog.Check2(sh2.ContentHash())
 	c.Assert(err, check.IsNil)
 	c.Check(h1, check.DeepEquals, h2)
 
 	// sh3 is different because of snap name
 	sh3 := &client.Snapshot{SetID: 1, Time: now, Snap: "other-snap", Revision: revno, SHA3_384: sums}
-	h3, err := sh3.ContentHash()
+	h3 := mylog.Check2(sh3.ContentHash())
 	c.Assert(err, check.IsNil)
 	c.Check(h1, check.Not(check.DeepEquals), h3)
 
@@ -265,13 +265,13 @@ func (cs *clientSuite) TestClientSnapshotContentHash(c *check.C) {
 	sums4 := map[string]string{"user/foo.tgz": "some other hash"}
 	sh4 := &client.Snapshot{SetID: 1, Time: now, Snap: "asnap", Revision: revno, SHA3_384: sums4}
 	// same except sha3_384 means different hash
-	h4, err := sh4.ContentHash()
+	h4 := mylog.Check2(sh4.ContentHash())
 	c.Assert(err, check.IsNil)
 	c.Check(h4, check.Not(check.DeepEquals), h1)
 
 	// same except options means same hash
 	sh5 := &client.Snapshot{SetID: 1, Time: now, Snap: "asnap", Revision: revno, SHA3_384: sums, Options: &snap.SnapshotOptions{Exclude: []string{"$SNAP_DATA/exclude"}}}
-	h5, err := sh5.ContentHash()
+	h5 := mylog.Check2(sh5.ContentHash())
 	c.Assert(err, check.IsNil)
 	c.Check(h5, check.DeepEquals, h1)
 }
@@ -293,13 +293,13 @@ func (cs *clientSuite) TestClientSnapshotSetContentHash(c *check.C) {
 		{SetID: 2, Snap: "snap4", Size: 4, SHA3_384: sums, Options: &snap.SnapshotOptions{Exclude: []string{"$SNAP_DATA/exclude"}}},
 	}}
 
-	h1, err := ss1.ContentHash()
+	h1 := mylog.Check2(ss1.ContentHash())
 	c.Assert(err, check.IsNil)
 	// content hash uses sha256 internally
 	c.Check(h1, check.HasLen, sha256.Size)
 
 	// h1 and h2 have the same hash
-	h2, err := ss2.ContentHash()
+	h2 := mylog.Check2(ss2.ContentHash())
 	c.Assert(err, check.IsNil)
 	c.Check(h2, check.DeepEquals, h1)
 
@@ -310,8 +310,7 @@ func (cs *clientSuite) TestClientSnapshotSetContentHash(c *check.C) {
 		{SetID: 1, Snap: "snap1", Size: 1},
 	}}
 	// h1 and h3 are different
-	h3, err := ss3.ContentHash()
+	h3 := mylog.Check2(ss3.ContentHash())
 	c.Assert(err, check.IsNil)
 	c.Check(h3, check.Not(check.DeepEquals), h1)
-
 }

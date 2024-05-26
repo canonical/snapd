@@ -30,6 +30,7 @@ const gpioControlBaseDeclarationPlugs = `
     allow-installation: false
     deny-auto-connection: true
 `
+
 const gpioControlBaseDeclarationSlots = `
   gpio-control:
     allow-installation:

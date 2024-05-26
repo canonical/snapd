@@ -22,6 +22,7 @@ package builtin_test
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -70,38 +71,38 @@ func (s *microStackSupportInterfaceSuite) TestName(c *C) {
 
 func (s *microStackSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	apparmorSpec := apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
-	c.Assert(err, IsNil)
+	mylog.Check(apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot))
+
 	c.Assert(apparmorSpec.SecurityTags(), HasLen, 1)
 
 	// connected plugs have a non-nil security snippet for seccomp
-	appSet, err = interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	seccompSpec := seccomp.NewSpecification(appSet)
-	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
-	c.Assert(err, IsNil)
+	mylog.Check(seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot))
+
 	c.Assert(seccompSpec.Snippets(), HasLen, 1)
 }
 
 func (s *microStackSupportInterfaceSuite) TestConnectedPlugSnippet(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	apparmorSpec := apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
-	c.Assert(err, IsNil)
+	mylog.Check(apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot))
+
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.microstack.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.microstack.app"), testutil.Contains, "/dev/vhost-net rw,\n")
 	c.Assert(apparmorSpec.SnippetForTag("snap.microstack.app"), testutil.Contains, "/dev/microstack-*/{,**} rw,\n")
 	c.Assert(apparmorSpec.SnippetForTag("snap.microstack.app"), testutil.Contains, "unmount /run/netns/ovnmeta-*,\n")
 
-	appSet, err = interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	seccompSpec := seccomp.NewSpecification(appSet)
-	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
-	c.Assert(err, IsNil)
+	mylog.Check(seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot))
+
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.microstack.app"})
 	c.Check(seccompSpec.SnippetForTag("snap.microstack.app"), testutil.Contains, "mknod - |S_IFBLK -\nmknodat - - |S_IFBLK -")
 }
@@ -116,8 +117,8 @@ func (s *microStackSupportInterfaceSuite) TestSanitizePlug(c *C) {
 
 func (s *microStackSupportInterfaceSuite) TestKModConnectedPlug(c *C) {
 	spec := &kmod.Specification{}
-	err := spec.AddConnectedPlug(s.iface, s.plug, s.slot)
-	c.Assert(err, IsNil)
+	mylog.Check(spec.AddConnectedPlug(s.iface, s.plug, s.slot))
+
 	c.Assert(spec.Modules(), DeepEquals, map[string]bool{
 		"vhost":           true,
 		"vhost-net":       true,
@@ -136,12 +137,13 @@ func (s *microStackSupportInterfaceSuite) TestKModConnectedPlug(c *C) {
 }
 
 func (s *microStackSupportInterfaceSuite) TestUDevConnectedPlug(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	spec := udev.NewSpecification(appSet)
-	// no udev specs because the interface controls it's own device cgroups
-	err = spec.AddConnectedPlug(s.iface, s.plug, s.slot)
-	c.Assert(err, IsNil)
+	mylog.
+		// no udev specs because the interface controls it's own device cgroups
+		Check(spec.AddConnectedPlug(s.iface, s.plug, s.slot))
+
 	c.Assert(spec.Snippets(), HasLen, 0)
 }
 

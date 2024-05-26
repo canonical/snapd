@@ -134,7 +134,6 @@ func (s *mountSnapSuite) TestDoUndoMountSnap(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "core"),
 		},
 	})
-
 }
 
 func (s *mountSnapSuite) TestDoMountSnapErrorReadInfo(c *C) {

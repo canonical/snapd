@@ -26,6 +26,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/ddkwork/golibrary/mylog"
 	sb "github.com/snapcore/secboot"
 	. "gopkg.in/check.v1"
 
@@ -67,8 +68,8 @@ func (s *keymgrSuite) SetUpTest(c *C) {
 	c.Assert(os.MkdirAll(dirs.RunDir, 0755), IsNil)
 
 	mockedMeminfoFile := filepath.Join(c.MkDir(), "meminfo")
-	err := os.WriteFile(mockedMeminfoFile, []byte(mockedMeminfo), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(mockedMeminfoFile, []byte(mockedMeminfo), 0644))
+
 	s.AddCleanup(osutil.MockProcMeminfo(mockedMeminfoFile))
 }
 
@@ -125,8 +126,8 @@ func (s *keymgrSuite) TestAddRecoveryKeyToDeviceUnlockFromKeyring(c *C) {
 
 	cmd := s.mockCryptsetupForAddKey(c)
 	defer cmd.Restore()
-	err := keymgr.AddRecoveryKeyToLUKSDevice(mockRecoveryKey, "/dev/foobar")
-	c.Assert(err, IsNil)
+	mylog.Check(keymgr.AddRecoveryKeyToLUKSDevice(mockRecoveryKey, "/dev/foobar"))
+
 	c.Assert(getCalls, Equals, 1)
 	s.verifyCryptsetupAddKey(c, cmd, []byte(unlockKey), mockRecoveryKey[:])
 }
@@ -142,7 +143,7 @@ func (s *keymgrSuite) TestAddRecoveryKeyToDeviceNoUnlockKey(c *C) {
 
 	cmd := s.mockCryptsetupForAddKey(c)
 	defer cmd.Restore()
-	err := keymgr.AddRecoveryKeyToLUKSDevice(mockRecoveryKey, "/dev/foobar")
+	mylog.Check(keymgr.AddRecoveryKeyToLUKSDevice(mockRecoveryKey, "/dev/foobar"))
 	c.Assert(err, ErrorMatches, "cannot obtain current unlock key for /dev/foobar: cannot find key in kernel keyring")
 	c.Assert(getCalls, Equals, 1)
 	c.Assert(cmd.Calls(), HasLen, 0)
@@ -160,7 +161,7 @@ echo "Other error, cryptsetup boom"
 exit 1
 `)
 	defer cmd.Restore()
-	err := keymgr.AddRecoveryKeyToLUKSDevice(mockRecoveryKey, "/dev/foobar")
+	mylog.Check(keymgr.AddRecoveryKeyToLUKSDevice(mockRecoveryKey, "/dev/foobar"))
 	c.Assert(err, ErrorMatches, "cannot add key: cryptsetup failed with: Other error, cryptsetup boom")
 	// should match the keyslot full error too
 	c.Assert(keymgr.IsKeyslotAlreadyUsed(err), Equals, false)
@@ -183,7 +184,7 @@ echo "Key slot 1 is full, please select another one." >&2
 exit 1
 `)
 	defer cmd.Restore()
-	err := keymgr.AddRecoveryKeyToLUKSDevice(mockRecoveryKey, "/dev/foobar")
+	mylog.Check(keymgr.AddRecoveryKeyToLUKSDevice(mockRecoveryKey, "/dev/foobar"))
 	c.Assert(err, ErrorMatches, "cannot add key: cryptsetup failed with: Key slot 1 is full.*")
 	c.Assert(getCalls, Equals, 1)
 	calls := cmd.Calls()
@@ -203,8 +204,8 @@ func (s *keymgrSuite) TestAddRecoveryKeyToDeviceUsingExistingKey(c *C) {
 	cmd := s.mockCryptsetupForAddKey(c)
 	defer cmd.Restore()
 	key := bytes.Repeat([]byte{1}, 32)
-	err := keymgr.AddRecoveryKeyToLUKSDeviceUsingKey(mockRecoveryKey, keys.EncryptionKey(key), "/dev/foobar")
-	c.Assert(err, IsNil)
+	mylog.Check(keymgr.AddRecoveryKeyToLUKSDeviceUsingKey(mockRecoveryKey, keys.EncryptionKey(key), "/dev/foobar"))
+
 	s.verifyCryptsetupAddKey(c, cmd, []byte(key), mockRecoveryKey[:])
 }
 
@@ -219,9 +220,8 @@ func (s *keymgrSuite) TestRemoveRecoveryKeyFromDevice(c *C) {
 		return []byte(unlockKey), nil
 	})
 	defer restore()
+	mylog.Check(keymgr.RemoveRecoveryKeyFromLUKSDevice("/dev/foobar"))
 
-	err := keymgr.RemoveRecoveryKeyFromLUKSDevice("/dev/foobar")
-	c.Assert(err, IsNil)
 	c.Assert(getCalls, Equals, 1)
 	calls := s.cryptsetupCmd.Calls()
 	c.Assert(calls, DeepEquals, [][]string{
@@ -243,9 +243,8 @@ echo "Keyslot 1 is not active." >&2
 exit 1
 `)
 	defer cmd.Restore()
+	mylog.Check(keymgr.RemoveRecoveryKeyFromLUKSDevice("/dev/foobar"))
 
-	err := keymgr.RemoveRecoveryKeyFromLUKSDevice("/dev/foobar")
-	c.Assert(err, IsNil)
 	c.Assert(getCalls, Equals, 1)
 	calls := cmd.Calls()
 	c.Assert(calls, DeepEquals, [][]string{
@@ -261,8 +260,7 @@ func (s *keymgrSuite) TestRemoveRecoveryKeyFromDeviceKeyNotInKeyring(c *C) {
 		return nil, fmt.Errorf("cannot find key in kernel keyring")
 	})
 	defer restore()
-
-	err := keymgr.RemoveRecoveryKeyFromLUKSDevice("/dev/foobar")
+	mylog.Check(keymgr.RemoveRecoveryKeyFromLUKSDevice("/dev/foobar"))
 	c.Assert(err, ErrorMatches, "cannot obtain current unlock key for /dev/foobar: cannot find key in kernel keyring")
 	c.Assert(getCalls, Equals, 1)
 	c.Assert(s.cryptsetupCmd.Calls(), HasLen, 0)
@@ -291,8 +289,8 @@ done
 	defer cryptsetupCmd.Restore()
 
 	key := bytes.Repeat([]byte{1}, 32)
-	err := keymgr.RemoveRecoveryKeyFromLUKSDeviceUsingKey(keys.EncryptionKey(key), "/dev/foobar")
-	c.Assert(err, IsNil)
+	mylog.Check(keymgr.RemoveRecoveryKeyFromLUKSDeviceUsingKey(keys.EncryptionKey(key), "/dev/foobar"))
+
 	calls := cryptsetupCmd.Calls()
 	c.Assert(calls, DeepEquals, [][]string{
 		{"cryptsetup", "luksKillSlot", "--type", "luks2", "--key-file", "-", "/dev/foobar", "1"},
@@ -328,12 +326,12 @@ done
 	defer cmd.Restore()
 	// try a too short key
 	key := bytes.Repeat([]byte{1}, 12)
-	err := keymgr.StageLUKSDeviceEncryptionKeyChange(key, "/dev/foobar")
+	mylog.Check(keymgr.StageLUKSDeviceEncryptionKeyChange(key, "/dev/foobar"))
 	c.Assert(err, ErrorMatches, "cannot use a key of size different than 32")
 
 	key = bytes.Repeat([]byte{1}, 32)
-	err = keymgr.StageLUKSDeviceEncryptionKeyChange(key, "/dev/foobar")
-	c.Assert(err, IsNil)
+	mylog.Check(keymgr.StageLUKSDeviceEncryptionKeyChange(key, "/dev/foobar"))
+
 	c.Assert(getCalls, Equals, 1)
 	calls := cmd.Calls()
 	c.Assert(calls, HasLen, 2)
@@ -384,8 +382,8 @@ fi
 	defer cmd.Restore()
 
 	key := bytes.Repeat([]byte{1}, 32)
-	err := keymgr.StageLUKSDeviceEncryptionKeyChange(key, "/dev/foobar")
-	c.Assert(err, IsNil)
+	mylog.Check(keymgr.StageLUKSDeviceEncryptionKeyChange(key, "/dev/foobar"))
+
 	calls := cmd.Calls()
 	c.Assert(calls, HasLen, 2)
 	c.Assert(calls[0], DeepEquals, []string{
@@ -414,7 +412,7 @@ func (s *keymgrSuite) TestStageEncryptionKeyGetUnlockFail(c *C) {
 	defer restore()
 
 	key := bytes.Repeat([]byte{1}, 32)
-	err := keymgr.StageLUKSDeviceEncryptionKeyChange(key, "/dev/foobar")
+	mylog.Check(keymgr.StageLUKSDeviceEncryptionKeyChange(key, "/dev/foobar"))
 	c.Assert(err, ErrorMatches, "cannot obtain current unlock key for /dev/foobar: cannot find key in kernel keyring")
 	c.Assert(s.cryptsetupCmd.Calls(), HasLen, 0)
 }
@@ -449,7 +447,7 @@ done
 	defer cmd.Restore()
 
 	key := bytes.Repeat([]byte{1}, 32)
-	err := keymgr.StageLUKSDeviceEncryptionKeyChange(key, "/dev/foobar")
+	mylog.Check(keymgr.StageLUKSDeviceEncryptionKeyChange(key, "/dev/foobar"))
 	c.Assert(err, ErrorMatches, "cannot add temporary key: cryptsetup failed with: mock failure")
 	c.Assert(getCalls, Equals, 1)
 	calls := cmd.Calls()
@@ -491,12 +489,12 @@ fi
 	defer cmd.Restore()
 	// try a too short key
 	key := bytes.Repeat([]byte{1}, 12)
-	err := keymgr.TransitionLUKSDeviceEncryptionKeyChange(key, "/dev/foobar")
+	mylog.Check(keymgr.TransitionLUKSDeviceEncryptionKeyChange(key, "/dev/foobar"))
 	c.Assert(err, ErrorMatches, "cannot use a key of size different than 32")
 
 	key = bytes.Repeat([]byte{1}, 32)
-	err = keymgr.TransitionLUKSDeviceEncryptionKeyChange(key, "/dev/foobar")
-	c.Assert(err, IsNil)
+	mylog.Check(keymgr.TransitionLUKSDeviceEncryptionKeyChange(key, "/dev/foobar"))
+
 	calls := cmd.Calls()
 	c.Assert(calls, HasLen, 5)
 	// probing the key slot use
@@ -578,12 +576,12 @@ fi
 	defer cmd.Restore()
 	// try a too short key
 	key := bytes.Repeat([]byte{1}, 12)
-	err := keymgr.TransitionLUKSDeviceEncryptionKeyChange(key, "/dev/foobar")
+	mylog.Check(keymgr.TransitionLUKSDeviceEncryptionKeyChange(key, "/dev/foobar"))
 	c.Assert(err, ErrorMatches, "cannot use a key of size different than 32")
 
 	key = bytes.Repeat([]byte{1}, 32)
-	err = keymgr.TransitionLUKSDeviceEncryptionKeyChange(key, "/dev/foobar")
-	c.Assert(err, IsNil)
+	mylog.Check(keymgr.TransitionLUKSDeviceEncryptionKeyChange(key, "/dev/foobar"))
+
 	calls := cmd.Calls()
 	c.Assert(calls, HasLen, 5)
 	// probing the key slot use
@@ -654,7 +652,7 @@ fi
 `)
 	defer cmd.Restore()
 	key := bytes.Repeat([]byte{1}, 32)
-	err := keymgr.TransitionLUKSDeviceEncryptionKeyChange(key, "/dev/foobar")
+	mylog.Check(keymgr.TransitionLUKSDeviceEncryptionKeyChange(key, "/dev/foobar"))
 	c.Assert(err, ErrorMatches, "cannot add new encryption key: cryptsetup failed with: mock error")
 	calls := cmd.Calls()
 	c.Assert(calls, HasLen, 3)
@@ -711,7 +709,7 @@ fi
 	defer cmd.Restore()
 
 	key := bytes.Repeat([]byte{1}, 32)
-	err := keymgr.TransitionLUKSDeviceEncryptionKeyChange(key, "/dev/foobar")
+	mylog.Check(keymgr.TransitionLUKSDeviceEncryptionKeyChange(key, "/dev/foobar"))
 	c.Assert(err, ErrorMatches, "cannot add new encryption key: cryptsetup failed with: No key available with this passphrase.")
 	calls := cmd.Calls()
 	c.Assert(calls, HasLen, 1)
@@ -752,8 +750,8 @@ done
 	defer cmd.Restore()
 
 	key := bytes.Repeat([]byte{1}, 32)
-	err := keymgr.TransitionLUKSDeviceEncryptionKeyChange(key, "/dev/foobar")
-	c.Assert(err, IsNil)
+	mylog.Check(keymgr.TransitionLUKSDeviceEncryptionKeyChange(key, "/dev/foobar"))
+
 	calls := cmd.Calls()
 	c.Assert(calls, HasLen, 2)
 	c.Assert(calls[0], HasLen, 17)
@@ -807,7 +805,7 @@ fi
 	defer cmd.Restore()
 
 	key := bytes.Repeat([]byte{1}, 32)
-	err := keymgr.TransitionLUKSDeviceEncryptionKeyChange(key, "/dev/foobar")
+	mylog.Check(keymgr.TransitionLUKSDeviceEncryptionKeyChange(key, "/dev/foobar"))
 	c.Assert(err, ErrorMatches, "cannot kill temporary key slot: cryptsetup failed with: mock error")
 	calls := cmd.Calls()
 	c.Assert(calls, HasLen, 2)
@@ -825,13 +823,13 @@ func (s *keymgrSuite) TestRecoveryKDF(c *C) {
 	mockedMeminfoFile := filepath.Join(c.MkDir(), "meminfo")
 	s.AddCleanup(osutil.MockProcMeminfo(mockedMeminfoFile))
 
-	_, err := keymgr.RecoveryKDF()
+	_ := mylog.Check2(keymgr.RecoveryKDF())
 	c.Assert(err, ErrorMatches, "cannot get usable memory for KDF parameters when adding the recovery key: open .*")
 
 	c.Assert(os.WriteFile(mockedMeminfoFile, []byte(mockedMeminfo), 0644), IsNil)
 
-	opts, err := keymgr.RecoveryKDF()
-	c.Assert(err, IsNil)
+	opts := mylog.Check2(keymgr.RecoveryKDF())
+
 	c.Assert(opts, DeepEquals, &luks2.KDFOptions{
 		MemoryKiB:       202834,
 		ForceIterations: 4,
@@ -841,8 +839,8 @@ func (s *keymgrSuite) TestRecoveryKDF(c *C) {
 CmaTotal:         131072 kB
 `
 	c.Assert(os.WriteFile(mockedMeminfoFile, []byte(lotsOfMem), 0644), IsNil)
-	opts, err = keymgr.RecoveryKDF()
-	c.Assert(err, IsNil)
+	opts = mylog.Check2(keymgr.RecoveryKDF())
+
 	c.Assert(opts, DeepEquals, &luks2.KDFOptions{
 		MemoryKiB:       786432,
 		ForceIterations: 4,
@@ -852,8 +850,8 @@ CmaTotal:         131072 kB
 CmaTotal:         131072 kB
 `
 	c.Assert(os.WriteFile(mockedMeminfoFile, []byte(littleMem), 0644), IsNil)
-	opts, err = keymgr.RecoveryKDF()
-	c.Assert(err, IsNil)
+	opts = mylog.Check2(keymgr.RecoveryKDF())
+
 	c.Assert(opts, DeepEquals, &luks2.KDFOptions{
 		MemoryKiB:       32,
 		ForceIterations: 4,

@@ -27,6 +27,7 @@ import (
 	"golang.org/x/crypto/openpgp/packet"
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 )
@@ -86,12 +87,12 @@ func (s *helperSuite) TestStoreStack(c *C) {
 	c.Check(store.GenericAccount.AccountID(), Equals, "generic")
 	c.Check(store.GenericAccount.Validation(), Equals, "verified")
 
-	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+	db := mylog.Check2(asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore:       asserts.NewMemoryBackstore(),
 		Trusted:         store.Trusted,
 		OtherPredefined: store.Generic,
-	})
-	c.Assert(err, IsNil)
+	}))
+
 
 	storeAccKey := store.StoreAccountKey("")
 	c.Assert(storeAccKey, NotNil)
@@ -107,59 +108,55 @@ func (s *helperSuite) TestStoreStack(c *C) {
 	c.Check(store.GenericModelsKey.AccountID(), Equals, "generic")
 	c.Check(store.GenericModelsKey.Name(), Equals, "models")
 
-	g, err := store.Find(asserts.AccountType, map[string]string{
+	g := mylog.Check2(store.Find(asserts.AccountType, map[string]string{
 		"account-id": "generic",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Assert(g.Headers(), DeepEquals, store.GenericAccount.Headers())
 
-	g, err = store.Find(asserts.AccountKeyType, map[string]string{
+	g = mylog.Check2(store.Find(asserts.AccountKeyType, map[string]string{
 		"public-key-sha3-384": store.GenericKey.PublicKeyID(),
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Assert(g.Headers(), DeepEquals, store.GenericKey.Headers())
 
-	g, err = store.Find(asserts.AccountKeyType, map[string]string{
+	g = mylog.Check2(store.Find(asserts.AccountKeyType, map[string]string{
 		"public-key-sha3-384": store.GenericModelsKey.PublicKeyID(),
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Assert(g.Headers(), DeepEquals, store.GenericModelsKey.Headers())
 
 	acct := assertstest.NewAccount(store, "devel1", nil, "")
 	c.Check(acct.Username(), Equals, "devel1")
 	c.Check(acct.AccountID(), HasLen, 32)
 	c.Check(acct.Validation(), Equals, "unproven")
+	mylog.Check(db.Add(storeAccKey))
 
-	err = db.Add(storeAccKey)
-	c.Assert(err, IsNil)
+	mylog.Check(db.Add(acct))
 
-	err = db.Add(acct)
-	c.Assert(err, IsNil)
 
 	devKey, _ := assertstest.GenerateKey(752)
 
 	acctKey := assertstest.NewAccountKey(store, acct, nil, devKey.PublicKey(), "")
+	mylog.Check(db.Add(acctKey))
 
-	err = db.Add(acctKey)
-	c.Assert(err, IsNil)
 
 	c.Check(acctKey.Name(), Equals, "default")
 
-	a, err := db.Find(asserts.AccountType, map[string]string{
+	a := mylog.Check2(db.Find(asserts.AccountType, map[string]string{
 		"account-id": "generic",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Assert(a.Headers(), DeepEquals, store.GenericAccount.Headers())
 
 	c.Check(store.GenericClassicModel.AuthorityID(), Equals, "generic")
 	c.Check(store.GenericClassicModel.BrandID(), Equals, "generic")
 	c.Check(store.GenericClassicModel.Model(), Equals, "generic-classic")
 	c.Check(store.GenericClassicModel.Classic(), Equals, true)
-	err = db.Check(store.GenericClassicModel)
-	c.Assert(err, IsNil)
+	mylog.Check(db.Check(store.GenericClassicModel))
 
-	err = db.Add(store.GenericKey)
-	c.Assert(err, IsNil)
+	mylog.Check(db.Add(store.GenericKey))
+
 }
 
 func (s *helperSuite) TestSigningAccounts(c *C) {
@@ -205,18 +202,18 @@ func (s *helperSuite) TestSigningAccountsAccountsAndKeysPlusAddMany(c *C) {
 		"validation": "verified",
 	})
 
-	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+	db := mylog.Check2(asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
 		Trusted:   store.Trusted,
-	})
-	c.Assert(err, IsNil)
-	err = db.Add(store.StoreAccountKey(""))
-	c.Assert(err, IsNil)
+	}))
+
+	mylog.Check(db.Add(store.StoreAccountKey("")))
+
 
 	assertstest.AddMany(db, sa.AccountsAndKeys("my-brand")...)
-	as, err := db.FindMany(asserts.AccountKeyType, map[string]string{
+	as := mylog.Check2(db.FindMany(asserts.AccountKeyType, map[string]string{
 		"account-id": "my-brand",
-	})
+	}))
 	c.Check(err, IsNil)
 	c.Check(as, HasLen, 1)
 

@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	main "github.com/snapcore/snapd/cmd/snap-bootstrap"
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/triggerwatch"
 	"github.com/snapcore/snapd/testutil"
@@ -49,8 +50,8 @@ func (s *cmdSuite) TestRecoveryChooserTriggerDefaults(c *C) {
 	})
 	defer restore()
 
-	rest, err := main.Parser().ParseArgs([]string{"recovery-chooser-trigger"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(main.Parser().ParseArgs([]string{"recovery-chooser-trigger"}))
+
 	c.Assert(rest, HasLen, 0)
 	c.Check(n, Equals, 1)
 	c.Check(passedTimeout, Equals, main.DefaultTimeout)
@@ -71,8 +72,8 @@ func (s *cmdSuite) TestRecoveryChooserTriggerNoTrigger(c *C) {
 	})
 	defer restore()
 
-	_, err := main.Parser().ParseArgs([]string{"recovery-chooser-trigger"})
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(main.Parser().ParseArgs([]string{"recovery-chooser-trigger"}))
+
 	c.Check(n, Equals, 1)
 	c.Check(marker, testutil.FileAbsent)
 }
@@ -92,13 +93,13 @@ func (s *cmdSuite) TestRecoveryChooserTriggerTakesOptions(c *C) {
 	})
 	defer restore()
 
-	rest, err := main.Parser().ParseArgs([]string{
+	rest := mylog.Check2(main.Parser().ParseArgs([]string{
 		"recovery-chooser-trigger",
 		"--device-timeout", "1m",
 		"--wait-timeout", "2m",
 		"--marker-file", marker,
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Assert(rest, HasLen, 0)
 	c.Check(n, Equals, 1)
 	c.Check(passedTimeout, Equals, 2*time.Minute)
@@ -114,15 +115,14 @@ func (s *cmdSuite) TestRecoveryChooserTriggerDoesNothingWhenMarkerPresent(c *C) 
 		return errors.New("unexpected call")
 	})
 	defer restore()
+	mylog.Check(os.WriteFile(marker, nil, 0644))
 
-	err := os.WriteFile(marker, nil, 0644)
-	c.Assert(err, IsNil)
 
-	rest, err := main.Parser().ParseArgs([]string{
+	rest := mylog.Check2(main.Parser().ParseArgs([]string{
 		"recovery-chooser-trigger",
 		"--marker-file", marker,
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Assert(rest, HasLen, 0)
 	// not called
 	c.Check(n, Equals, 0)
@@ -142,11 +142,11 @@ func (s *cmdSuite) TestRecoveryChooserTriggerBadDurationFallback(c *C) {
 	})
 	defer restore()
 
-	_, err := main.Parser().ParseArgs([]string{
+	_ := mylog.Check2(main.Parser().ParseArgs([]string{
 		"recovery-chooser-trigger",
 		"--wait-timeout=foobar",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(n, Equals, 1)
 	c.Check(passedTimeout, Equals, main.DefaultTimeout)
 }
@@ -165,11 +165,11 @@ func (s *cmdSuite) TestRecoveryChooserTriggerBadDeviceDurationFallback(c *C) {
 	})
 	defer restore()
 
-	_, err := main.Parser().ParseArgs([]string{
+	_ := mylog.Check2(main.Parser().ParseArgs([]string{
 		"recovery-chooser-trigger",
 		"--device-timeout=foobar",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(n, Equals, 1)
 	c.Check(passedTimeout, Equals, main.DefaultDeviceTimeout)
 }
@@ -187,9 +187,9 @@ func (s *cmdSuite) TestRecoveryChooserTriggerNoInputDevsNoError(c *C) {
 	})
 	defer restore()
 
-	_, err := main.Parser().ParseArgs([]string{"recovery-chooser-trigger"})
+	_ := mylog.Check2(main.Parser().ParseArgs([]string{"recovery-chooser-trigger"}))
 	// does not trigger an error
-	c.Assert(err, IsNil)
+
 	c.Check(n, Equals, 1)
 	c.Check(marker, testutil.FileAbsent)
 }

@@ -24,6 +24,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/dirs"
@@ -76,13 +77,10 @@ func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.Sid
 			meter.Notify(fmt.Sprintf("while trying to clean up due to previous failure: %v", e))
 		}
 	}()
-
-	if err := os.MkdirAll(instdir, 0755); err != nil {
-		return snapType, nil, err
-	}
+	mylog.Check(os.MkdirAll(instdir, 0755))
 
 	if s.InstanceKey != "" {
-		err := os.MkdirAll(snap.BaseDir(s.SnapName()), 0755)
+		mylog.Check(os.MkdirAll(snap.BaseDir(s.SnapName()), 0755))
 		if err != nil && !os.IsExist(err) {
 			return snapType, nil, err
 		}
@@ -96,7 +94,7 @@ func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.Sid
 	}
 
 	var didNothing bool
-	if didNothing, err = snapf.Install(s.MountFile(), instdir, opts); err != nil {
+	if didNothing = mylog.Check2(snapf.Install(s.MountFile(), instdir, opts)); err != nil {
 		return snapType, nil, err
 	}
 
@@ -108,14 +106,10 @@ func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.Sid
 		// systemd seems to be buggy if we enable this.
 		StartBeforeDriversLoad: t == snap.TypeKernel && dev.HasModeenv(),
 	}
-	if err := addMountUnit(s, mountFlags, newSystemd(b.preseed, meter)); err != nil {
-		return snapType, nil, err
-	}
+	mylog.Check(addMountUnit(s, mountFlags, newSystemd(b.preseed, meter)))
 
 	if !setupOpts.SkipKernelExtraction {
-		if err := boot.Kernel(s, t, dev).ExtractKernelAssets(snapf); err != nil {
-			return snapType, nil, fmt.Errorf("cannot install kernel: %s", err)
-		}
+		mylog.Check(boot.Kernel(s, t, dev).ExtractKernelAssets(snapf))
 	}
 
 	installRecord = &InstallRecord{TargetSnapExisted: didNothing}
@@ -158,9 +152,7 @@ func (b Backend) SetupComponent(compFilePath string, compPi snap.ContainerPlaceI
 
 	// Create mount dir for the component
 	mntDir := compPi.MountDir()
-	if err := os.MkdirAll(mntDir, 0755); err != nil {
-		return nil, err
-	}
+	mylog.Check(os.MkdirAll(mntDir, 0755))
 
 	// in uc20+ and classic with modes run mode, all snaps must be on the
 	// same device
@@ -171,7 +163,7 @@ func (b Backend) SetupComponent(compFilePath string, compPi snap.ContainerPlaceI
 
 	// Copy file to snaps folder
 	var didNothing bool
-	if didNothing, err = snapf.Install(compPi.MountFile(), mntDir, opts); err != nil {
+	if didNothing = mylog.Check2(snapf.Install(compPi.MountFile(), mntDir, opts)); err != nil {
 		return nil, err
 	}
 
@@ -182,9 +174,7 @@ func (b Backend) SetupComponent(compFilePath string, compPi snap.ContainerPlaceI
 		// systemd seems to be buggy if we enable this.
 		StartBeforeDriversLoad: compInfo.Type == snap.KernelModulesComponent && dev.HasModeenv(),
 	}
-	if err := addMountUnit(compPi, mountFlags, newSystemd(b.preseed, meter)); err != nil {
-		return nil, err
-	}
+	mylog.Check(addMountUnit(compPi, mountFlags, newSystemd(b.preseed, meter)))
 
 	installRecord = &InstallRecord{TargetSnapExisted: didNothing}
 	return installRecord, nil
@@ -193,32 +183,26 @@ func (b Backend) SetupComponent(compFilePath string, compPi snap.ContainerPlaceI
 // RemoveSnapFiles removes the snap files from the disk after unmounting the snap.
 func (b Backend) RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, installRecord *InstallRecord, dev snap.Device, meter progress.Meter) error {
 	mountDir := s.MountDir()
+	mylog.Check(
 
-	// this also ensures that the mount unit stops
-	if err := removeMountUnit(mountDir, meter); err != nil {
-		return err
-	}
-
-	if err := os.RemoveAll(mountDir); err != nil {
-		return err
-	}
+		// this also ensures that the mount unit stops
+		removeMountUnit(mountDir, meter))
+	mylog.Check(os.RemoveAll(mountDir))
 
 	// snapPath may either be a file or a (broken) symlink to a dir
 	snapPath := s.MountFile()
-	if _, err := os.Lstat(snapPath); err == nil {
-		// remove the kernel assets (if any)
-		if err := boot.Kernel(s, typ, dev).RemoveKernelAssets(); err != nil {
-			return err
-		}
+	if _ := mylog.Check2(os.Lstat(snapPath)); err == nil {
+		mylog.Check(
+			// remove the kernel assets (if any)
+			boot.Kernel(s, typ, dev).RemoveKernelAssets())
 
 		// don't remove snap path if it existed before snap installation was attempted
 		// and is a symlink, which is the case with kernel/core snaps during seeding.
 		keepSeededSnap := installRecord != nil && installRecord.TargetSnapExisted && osutil.IsSymlink(snapPath)
 		if !keepSeededSnap {
-			// remove the snap
-			if err := os.RemoveAll(snapPath); err != nil {
-				return err
-			}
+			mylog.Check(
+				// remove the snap
+				os.RemoveAll(snapPath))
 		}
 	}
 
@@ -227,22 +211,19 @@ func (b Backend) RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, installRecord 
 
 // RemoveComponentFiles unmounts and removes component files from the disk.
 func (b Backend) RemoveComponentFiles(cpi snap.ContainerPlaceInfo, installRecord *InstallRecord, dev snap.Device, meter progress.Meter) error {
-	// this also ensures that the mount unit stops
-	if err := removeMountUnit(cpi.MountDir(), meter); err != nil {
-		return err
-	}
+	mylog.Check(
+		// this also ensures that the mount unit stops
+		removeMountUnit(cpi.MountDir(), meter))
+	mylog.Check(
 
-	// Remove /snap/<snap_instance>/components/mnt/<comp_name>/<comp_rev>
-	if err := os.RemoveAll(cpi.MountDir()); err != nil {
-		return err
-	}
+		// Remove /snap/<snap_instance>/components/mnt/<comp_name>/<comp_rev>
+		os.RemoveAll(cpi.MountDir()))
 
 	compFilePath := cpi.MountFile()
-	if _, err := os.Lstat(compFilePath); err == nil {
-		// remove the component
-		if err := os.RemoveAll(compFilePath); err != nil {
-			return err
-		}
+	if _ := mylog.Check2(os.Lstat(compFilePath)); err == nil {
+		mylog.Check(
+			// remove the component
+			os.RemoveAll(compFilePath))
 	}
 
 	return nil
@@ -273,9 +254,8 @@ func (b Backend) RemoveComponentDir(cpi snap.ContainerPlaceInfo) error {
 	// revisions are handled by UnlinkComponent.
 	for i := 0; i < 3; i++ {
 		compMountDir = filepath.Dir(compMountDir)
-		if err := os.Remove(compMountDir); err != nil {
-			break
-		}
+		mylog.Check(os.Remove(compMountDir))
+
 	}
 
 	return nil
@@ -349,20 +329,9 @@ func mergeCompSideInfosUpdatingRev(comps1, comps2 []*snap.ComponentSideInfo) (me
 // finalComps, for the kernel/revision specified by ksnapName/ksnapRev.
 func moveKModsComponentsState(currentComps, finalComps []*snap.ComponentSideInfo, ksnapName string, ksnapRev snap.Revision, sysd systemd.Systemd, cleanErrMsg string) (err error) {
 	cpi := snap.MinimalSnapContainerPlaceInfo(ksnapName, ksnapRev)
-	if err := kernel.EnsureKernelDriversTree(ksnapName, ksnapRev,
+	mylog.Check(kernel.EnsureKernelDriversTree(ksnapName, ksnapRev,
 		cpi.MountDir(), finalComps,
-		&kernel.KernelDriversTreeOptions{KernelInstall: false}); err != nil {
-
-		if e := kernel.EnsureKernelDriversTree(ksnapName, ksnapRev,
-			cpi.MountDir(),
-			currentComps,
-			&kernel.KernelDriversTreeOptions{
-				KernelInstall: false}); e != nil {
-			logger.Noticef("while restoring kernel tree %s: %v", cleanErrMsg, e)
-		}
-
-		return err
-	}
+		&kernel.KernelDriversTreeOptions{KernelInstall: false}))
 
 	return nil
 }

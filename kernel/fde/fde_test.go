@@ -33,6 +33,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/osutil"
@@ -67,20 +68,22 @@ func (s *fdeSuite) TestHasRevealKey(c *C) {
 	mockRoot := c.MkDir()
 	os.Setenv("PATH", mockRoot+"/bin")
 	mockBin := mockRoot + "/bin/"
-	err := os.Mkdir(mockBin, 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.Mkdir(mockBin, 0755))
+
 
 	// no fde-reveal-key binary
 	c.Check(fde.HasRevealKey(), Equals, false)
+	mylog.
 
-	// fde-reveal-key without +x
-	err = os.WriteFile(mockBin+"fde-reveal-key", nil, 0644)
-	c.Assert(err, IsNil)
+		// fde-reveal-key without +x
+		Check(os.WriteFile(mockBin+"fde-reveal-key", nil, 0644))
+
 	c.Check(fde.HasRevealKey(), Equals, false)
+	mylog.
 
-	// correct fde-reveal-key, no logging
-	err = os.Chmod(mockBin+"fde-reveal-key", 0755)
-	c.Assert(err, IsNil)
+		// correct fde-reveal-key, no logging
+		Check(os.Chmod(mockBin+"fde-reveal-key", 0755))
+
 
 	c.Check(fde.HasRevealKey(), Equals, true)
 }
@@ -103,8 +106,8 @@ func (s *fdeSuite) TestInitialSetupV2(c *C) {
 		Key:     mockKey,
 		KeyName: "some-key-name",
 	}
-	res, err := fde.InitialSetup(runSetupHook, params)
-	c.Assert(err, IsNil)
+	res := mylog.Check2(fde.InitialSetup(runSetupHook, params))
+
 	expectedHandle := json.RawMessage([]byte(`{"some":"handle"}`))
 	c.Check(res, DeepEquals, &fde.InitialSetupResult{
 		EncryptedKey: []byte("the-encrypted-key"),
@@ -129,7 +132,7 @@ func (s *fdeSuite) TestInitialSetupError(c *C) {
 		Key:     mockKey,
 		KeyName: "some-key-name",
 	}
-	_, err := fde.InitialSetup(runSetupHook, params)
+	_ := mylog.Check2(fde.InitialSetup(runSetupHook, params))
 	c.Check(err, Equals, errHook)
 }
 
@@ -150,8 +153,8 @@ func (s *fdeSuite) TestInitialSetupV1(c *C) {
 		Key:     mockKey,
 		KeyName: "some-key-name",
 	}
-	res, err := fde.InitialSetup(runSetupHook, params)
-	c.Assert(err, IsNil)
+	res := mylog.Check2(fde.InitialSetup(runSetupHook, params))
+
 	expectedHandle := json.RawMessage(`{"v1-no-handle":true}`)
 	c.Assert(json.Valid(expectedHandle), Equals, true)
 	c.Check(res, DeepEquals, &fde.InitialSetupResult{
@@ -171,17 +174,16 @@ func (s *fdeSuite) TestInitialSetupBadJSON(c *C) {
 		Key:     mockKey,
 		KeyName: "some-key-name",
 	}
-	_, err := fde.InitialSetup(runSetupHook, params)
+	_ := mylog.Check2(fde.InitialSetup(runSetupHook, params))
 	c.Check(err, ErrorMatches, `cannot decode hook output "bad json": invalid char.*`)
 }
 
 func checkSystemdRunOrSkip(c *C) {
 	// this test uses a real systemd-run --user so check here if that
 	// actually works
-	if output, err := exec.Command("systemd-run", "--user", "--wait", "--collect", "--service-type=exec", "/bin/true").CombinedOutput(); err != nil {
+	if output := mylog.Check2(exec.Command("systemd-run", "--user", "--wait", "--collect", "--service-type=exec", "/bin/true").CombinedOutput()); err != nil {
 		c.Skip(fmt.Sprintf("systemd-run not working: %v", osutil.OutputErr(output, err)))
 	}
-
 }
 
 func (s *fdeSuite) TestLockSealedKeysCallsFdeReveal(c *C) {
@@ -192,9 +194,8 @@ func (s *fdeSuite) TestLockSealedKeysCallsFdeReveal(c *C) {
 cat - > %s
 `, fdeRevealKeyStdin))
 	defer mockSystemdRun.Restore()
+	mylog.Check(fde.LockSealedKeys())
 
-	err := fde.LockSealedKeys()
-	c.Assert(err, IsNil)
 	c.Check(mockSystemdRun.Calls(), DeepEquals, [][]string{
 		{"fde-reveal-key"},
 	})
@@ -212,8 +213,7 @@ func (s *fdeSuite) TestLockSealedKeysHonorsRuntimeMax(c *C) {
 
 	restore := fde.MockFdeRevealKeyRuntimeMax(100 * time.Millisecond)
 	defer restore()
-
-	err := fde.LockSealedKeys()
+	mylog.Check(fde.LockSealedKeys())
 	c.Assert(err, ErrorMatches, `cannot run \["fde-reveal-key"\]: exit status 1`)
 }
 
@@ -239,8 +239,8 @@ printf '{"key": "%s"}'
 		Handle:    &handle,
 		V2Payload: true,
 	}
-	res, err := fde.Reveal(&p)
-	c.Assert(err, IsNil)
+	res := mylog.Check2(fde.Reveal(&p))
+
 	c.Check(res, DeepEquals, v2payload)
 	c.Check(mockSystemdRun.Calls(), DeepEquals, [][]string{
 		{"fde-reveal-key"},
@@ -269,8 +269,8 @@ printf "unsealed-key-64-chars-long-when-not-json-to-match-denver-project"
 	p := fde.RevealParams{
 		SealedKey: sealedKey,
 	}
-	res, err := fde.Reveal(&p)
-	c.Assert(err, IsNil)
+	res := mylog.Check2(fde.Reveal(&p))
+
 	c.Check(res, DeepEquals, []byte("unsealed-key-64-chars-long-when-not-json-to-match-denver-project"))
 	c.Check(mockSystemdRun.Calls(), DeepEquals, [][]string{
 		{"fde-reveal-key"},
@@ -303,8 +303,8 @@ printf %q
 		Handle:    &handle,
 		V2Payload: true,
 	}
-	res, err := fde.Reveal(&p)
-	c.Assert(err, IsNil)
+	res := mylog.Check2(fde.Reveal(&p))
+
 	c.Check(res, DeepEquals, v2payload)
 	c.Check(mockSystemdRun.Calls(), DeepEquals, [][]string{
 		{"fde-reveal-key"},
@@ -337,8 +337,8 @@ printf 'invalid-json'
 		Handle:    &handle,
 		V2Payload: true,
 	}
-	res, err := fde.Reveal(&p)
-	c.Assert(err, IsNil)
+	res := mylog.Check2(fde.Reveal(&p))
+
 	// we just get the bad json out
 	c.Check(res, DeepEquals, []byte("invalid-json"))
 	c.Check(mockSystemdRun.Calls(), DeepEquals, [][]string{
@@ -367,7 +367,7 @@ printf "bad-size"
 	p := fde.RevealParams{
 		SealedKey: sealedKey,
 	}
-	_, err := fde.Reveal(&p)
+	_ := mylog.Check2(fde.Reveal(&p))
 	c.Assert(err, ErrorMatches, `cannot decode fde-reveal-key \"reveal\" result: .*`)
 
 	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/run/fde-reveal-key")), Equals, false)
@@ -386,10 +386,10 @@ func (s *fdeSuite) TestRevealErr(c *C) {
 	p := fde.RevealParams{
 		SealedKey: sealedKey,
 	}
-	_, err := fde.Reveal(&p)
+	_ := mylog.Check2(fde.Reveal(&p))
 	c.Assert(err, ErrorMatches, `(?s)cannot run [[]"fde-reveal-key"[]]: .*failed.*`)
 
-	//root := dirs.GlobalRootDir
+	// root := dirs.GlobalRootDir
 	calls := mockSystemdRun.Calls()
 	c.Check(calls, DeepEquals, [][]string{
 		{

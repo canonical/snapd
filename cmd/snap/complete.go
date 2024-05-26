@@ -26,6 +26,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/asserts/signtool"
@@ -38,10 +39,7 @@ import (
 type installedSnapName string
 
 func (s installedSnapName) Complete(match string) []flags.Completion {
-	snaps, err := mkClient().List(nil, nil)
-	if err != nil {
-		return nil
-	}
+	snaps := mylog.Check2(mkClient().List(nil, nil))
 
 	ret := make([]flags.Completion, 0, len(snaps))
 	for _, snap := range snaps {
@@ -63,10 +61,8 @@ func installedSnapNames(snaps []installedSnapName) []string {
 }
 
 func completeFromSortedFile(filename, match string) ([]flags.Completion, error) {
-	file, err := os.Open(filename)
-	if err != nil {
-		return nil, err
-	}
+	file := mylog.Check2(os.Open(filename))
+
 	defer file.Close()
 
 	var ret []flags.Completion
@@ -98,20 +94,18 @@ func completeFromSortedFile(filename, match string) ([]flags.Completion, error) 
 type remoteSnapName string
 
 func (s remoteSnapName) Complete(match string) []flags.Completion {
-	if ret, err := completeFromSortedFile(dirs.SnapNamesFile, match); err == nil {
+	if ret := mylog.Check2(completeFromSortedFile(dirs.SnapNamesFile, match)); err == nil {
 		return ret
 	}
 
 	if len(match) < 3 {
 		return nil
 	}
-	snaps, _, err := mkClient().Find(&client.FindOptions{
+	snaps, _ := mylog.Check3(mkClient().Find(&client.FindOptions{
 		Query:  match,
 		Prefix: true,
-	})
-	if err != nil {
-		return nil
-	}
+	}))
+
 	ret := make([]flags.Completion, len(snaps))
 	for i, snap := range snaps {
 		ret[i] = flags.Completion{Item: snap.Name}
@@ -149,10 +143,7 @@ func (s anySnapName) Complete(match string) []flags.Completion {
 type changeID string
 
 func (s changeID) Complete(match string) []flags.Completion {
-	changes, err := mkClient().Changes(&client.ChangesOptions{Selector: client.ChangesAll})
-	if err != nil {
-		return nil
-	}
+	changes := mylog.Check2(mkClient().Changes(&client.ChangesOptions{Selector: client.ChangesAll}))
 
 	ret := make([]flags.Completion, 0, len(changes))
 	for _, change := range changes {
@@ -168,10 +159,8 @@ type assertTypeName string
 
 func (n assertTypeName) Complete(match string) []flags.Completion {
 	cli := mkClient()
-	names, err := cli.AssertionTypes()
-	if err != nil {
-		return nil
-	}
+	names := mylog.Check2(cli.AssertionTypes())
+
 	ret := make([]flags.Completion, 0, len(names))
 	for _, name := range names {
 		if strings.HasPrefix(name, match) {
@@ -185,14 +174,10 @@ func (n assertTypeName) Complete(match string) []flags.Completion {
 type keyName string
 
 func (s keyName) Complete(match string) []flags.Completion {
-	keypairManager, err := signtool.GetKeypairManager()
-	if err != nil {
-		return nil
-	}
-	keys, err := keypairManager.List()
-	if err != nil {
-		return nil
-	}
+	keypairManager := mylog.Check2(signtool.GetKeypairManager())
+
+	keys := mylog.Check2(keypairManager.List())
+
 	var res []flags.Completion
 	for _, k := range keys {
 		if strings.HasPrefix(k.Name, match) {
@@ -307,10 +292,7 @@ func (spec *interfaceSpec) Complete(match string) []flags.Completion {
 	opts := client.ConnectionOptions{
 		All: true,
 	}
-	ifaces, err := mkClient().Connections(&opts)
-	if err != nil {
-		return nil
-	}
+	ifaces := mylog.Check2(mkClient().Connections(&opts))
 
 	snaps := make(map[string]bool)
 
@@ -398,10 +380,7 @@ func (spec *interfaceSpec) Complete(match string) []flags.Completion {
 type interfaceName string
 
 func (s interfaceName) Complete(match string) []flags.Completion {
-	ifaces, err := mkClient().Interfaces(nil)
-	if err != nil {
-		return nil
-	}
+	ifaces := mylog.Check2(mkClient().Interfaces(nil))
 
 	ret := make([]flags.Completion, 0, len(ifaces))
 	for _, iface := range ifaces {
@@ -417,10 +396,7 @@ type appName string
 
 func (s appName) Complete(match string) []flags.Completion {
 	cli := mkClient()
-	apps, err := cli.Apps(nil, client.AppOptions{})
-	if err != nil {
-		return nil
-	}
+	apps := mylog.Check2(cli.Apps(nil, client.AppOptions{}))
 
 	var ret []flags.Completion
 	for _, app := range apps {
@@ -450,10 +426,7 @@ func serviceNames(services []serviceName) []string {
 
 func (s serviceName) Complete(match string) []flags.Completion {
 	cli := mkClient()
-	apps, err := cli.Apps(nil, client.AppOptions{Service: true})
-	if err != nil {
-		return nil
-	}
+	apps := mylog.Check2(cli.Apps(nil, client.AppOptions{Service: true}))
 
 	snaps := map[string]int{}
 	var ret []flags.Completion
@@ -482,10 +455,8 @@ func (s serviceName) Complete(match string) []flags.Completion {
 type aliasOrSnap string
 
 func (s aliasOrSnap) Complete(match string) []flags.Completion {
-	aliases, err := mkClient().Aliases()
-	if err != nil {
-		return nil
-	}
+	aliases := mylog.Check2(mkClient().Aliases())
+
 	var ret []flags.Completion
 	for snap, aliases := range aliases {
 		if strings.HasPrefix(snap, match) {
@@ -506,10 +477,8 @@ func (s aliasOrSnap) Complete(match string) []flags.Completion {
 type snapshotID string
 
 func (snapshotID) Complete(match string) []flags.Completion {
-	shots, err := mkClient().SnapshotSets(0, nil)
-	if err != nil {
-		return nil
-	}
+	shots := mylog.Check2(mkClient().SnapshotSets(0, nil))
+
 	var ret []flags.Completion
 	for _, sg := range shots {
 		sid := strconv.FormatUint(sg.ID, 10)
@@ -522,9 +491,7 @@ func (snapshotID) Complete(match string) []flags.Completion {
 }
 
 func (s snapshotID) ToUint() (uint64, error) {
-	setID, err := strconv.ParseUint((string)(s), 10, 64)
-	if err != nil {
-		return 0, fmt.Errorf(i18n.G("invalid argument for snapshot set id: expected a non-negative integer argument (see 'snap help saved')"))
-	}
+	setID := mylog.Check2(strconv.ParseUint((string)(s), 10, 64))
+
 	return setID, nil
 }

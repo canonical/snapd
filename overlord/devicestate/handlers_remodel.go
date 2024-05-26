@@ -23,6 +23,7 @@ import (
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/gadget"
@@ -57,28 +58,22 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) (err error) {
 	st.Lock()
 	defer st.Unlock()
 
-	remodCtx, err := remodelCtxFromTask(t)
-	if err != nil {
-		return err
-	}
+	remodCtx := mylog.Check2(remodelCtxFromTask(t))
+
 	new := remodCtx.Model()
 
 	// unmark no-longer required snaps
 	var cleanedRequiredSnaps []string
 	requiredSnaps := getAllRequiredSnapsForModel(new)
 	// TODO|XXX: have AllByRef
-	snapStates, err := snapstate.All(st)
-	if err != nil {
-		return err
-	}
+	snapStates := mylog.Check2(snapstate.All(st))
+
 	for snapName, snapst := range snapStates {
 		// TODO: remove this type restriction once we remodel
 		//       gadgets and add tests that ensure
 		//       that the required flag is properly set/unset
-		typ, err := snapst.Type()
-		if err != nil {
-			return err
-		}
+		typ := mylog.Check2(snapst.Type())
+
 		if typ != snap.TypeApp && typ != snap.TypeBase && typ != snap.TypeKernel {
 			continue
 		}
@@ -99,21 +94,19 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) (err error) {
 		}
 		var snapst snapstate.SnapState
 		for _, snapName := range cleanedRequiredSnaps {
-			if err := snapstate.Get(st, snapName, &snapst); err == nil {
+			if mylog.Check(snapstate.Get(st, snapName, &snapst)); err == nil {
 				snapst.Flags.Required = true
 				snapstate.Set(st, snapName, &snapst)
 			}
 		}
 	}()
 
-	currentSets, err := trackedValidationSetsFromModel(st, remodCtx.GroundContext().Model())
+	currentSets := mylog.Check2(trackedValidationSetsFromModel(st, remodCtx.GroundContext().Model()))
 
 	for _, old := range currentSets {
-		if err := assertstate.ForgetValidationSet(st, old.AccountID(), old.Name(), assertstate.ForgetValidationSetOpts{
+		mylog.Check(assertstate.ForgetValidationSet(st, old.AccountID(), old.Name(), assertstate.ForgetValidationSetOpts{
 			ForceForget: true,
-		}); err != nil {
-			return err
-		}
+		}))
 	}
 
 	newSets := new.ValidationSets()
@@ -122,50 +115,41 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) (err error) {
 		if err == nil {
 			return
 		}
+		mylog.Check(
 
-		// restore the old validation sets if something went wrong
-		if err := rollBackValidationSets(st, currentSets, newSets, remodCtx); err != nil {
-			logger.Debugf("cannot rollback validation sets: %v", err)
-		}
+			// restore the old validation sets if something went wrong
+			rollBackValidationSets(st, currentSets, newSets, remodCtx))
 	}()
-
-	if err := enforceValidationSetsForRemodel(st, newSets); err != nil {
-		return err
-	}
+	mylog.Check(enforceValidationSetsForRemodel(st, newSets))
 
 	// only useful for testing
 	if injectedSetModelError != nil {
 		return injectedSetModelError
 	}
+	mylog.
 
-	// add the assertion only after everything else was successful
-	err = assertstate.Add(st, new)
+		// add the assertion only after everything else was successful
+		Check(assertstate.Add(st, new))
 	if err != nil && !isSameAssertsRevision(err) {
 		return err
 	}
 
 	// hybrid core/classic systems might have a system-seed-null; in that case,
 	// we cannot create a recovery system
-	hasSystemSeed, err := checkForSystemSeed(st, remodCtx)
-	if err != nil {
-		return fmt.Errorf("cannot find ubuntu seed role: %w", err)
-	}
+	hasSystemSeed := mylog.Check2(checkForSystemSeed(st, remodCtx))
 
 	var recoverySetup *recoverySystemSetup
 	if new.Grade() != asserts.ModelGradeUnset && hasSystemSeed {
 		var triedSystems []string
-		if err := st.Get("tried-systems", &triedSystems); err != nil {
-			return fmt.Errorf("cannot obtain tried recovery systems: %v", err)
-		}
-		recoverySetup, err = taskRecoverySystemSetup(t)
-		if err != nil {
-			return err
-		}
-		// should promoting or any of the later steps fails, the cleanup
-		// will be done in finalize-recovery-system undo
-		if err := boot.PromoteTriedRecoverySystem(remodCtx, recoverySetup.Label, triedSystems); err != nil {
-			return err
-		}
+		mylog.Check(st.Get("tried-systems", &triedSystems))
+
+		recoverySetup = mylog.Check2(taskRecoverySystemSetup(t))
+		mylog.Check(
+
+			// should promoting or any of the later steps fails, the cleanup
+			// will be done in finalize-recovery-system undo
+			boot.PromoteTriedRecoverySystem(remodCtx, recoverySetup.Label, triedSystems))
+
 		remodCtx.setRecoverySystemLabel(recoverySetup.Label)
 	}
 
@@ -173,12 +157,11 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) (err error) {
 		t.Logf(format, args)
 		logger.Noticef(format, args)
 	}
+	mylog.Check(
 
-	// and finish (this will set the new model), note that changes done in
-	// here are not recoverable even if an error occurs
-	if err := remodCtx.Finish(); err != nil {
-		logEverywhere("cannot complete remodel: %v", err)
-	}
+		// and finish (this will set the new model), note that changes done in
+		// here are not recoverable even if an error occurs
+		remodCtx.Finish())
 
 	t.SetStatus(state.DoneStatus)
 
@@ -186,10 +169,7 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) (err error) {
 }
 
 func trackedValidationSetsFromModel(st *state.State, model *asserts.Model) ([]*asserts.ValidationSet, error) {
-	currentSets, err := assertstate.TrackedEnforcedValidationSets(st)
-	if err != nil {
-		return nil, err
-	}
+	currentSets := mylog.Check2(assertstate.TrackedEnforcedValidationSets(st))
 
 	var fromModel []*asserts.ValidationSet
 	for _, mvs := range model.ValidationSets() {
@@ -204,11 +184,9 @@ func trackedValidationSetsFromModel(st *state.State, model *asserts.Model) ([]*a
 
 func rollBackValidationSets(st *state.State, oldSets []*asserts.ValidationSet, newSets []*asserts.ModelValidationSet, deviceCtx snapstate.DeviceContext) error {
 	for _, set := range newSets {
-		if err := assertstate.ForgetValidationSet(st, set.AccountID, set.Name, assertstate.ForgetValidationSetOpts{
+		mylog.Check(assertstate.ForgetValidationSet(st, set.AccountID, set.Name, assertstate.ForgetValidationSetOpts{
 			ForceForget: true,
-		}); err != nil {
-			return err
-		}
+		}))
 	}
 
 	vSetKeys := make(map[string][]string, len(oldSets))
@@ -217,10 +195,7 @@ func rollBackValidationSets(st *state.State, oldSets []*asserts.ValidationSet, n
 		vSetKeys[sequenceName] = vs.At().PrimaryKey
 	}
 
-	snaps, ignore, err := snapstate.InstalledSnaps(st)
-	if err != nil {
-		return err
-	}
+	snaps, ignore := mylog.Check3(snapstate.InstalledSnaps(st))
 
 	// we must ignore all snaps that are currently installed, since those snaps
 	// were installed in accordance to the new model and validation sets.
@@ -233,20 +208,15 @@ func rollBackValidationSets(st *state.State, oldSets []*asserts.ValidationSet, n
 	for _, sn := range snaps {
 		ignore[sn.SnapName()] = true
 	}
-
-	if err := assertstate.ApplyLocalEnforcedValidationSets(st, vSetKeys, nil, snaps, ignore); err != nil {
-		return err
-	}
+	mylog.Check(assertstate.ApplyLocalEnforcedValidationSets(st, vSetKeys, nil, snaps, ignore))
 
 	return nil
 }
 
 func resolveValidationSetAssertion(seq *asserts.AtSequence, db asserts.RODatabase) (asserts.Assertion, error) {
 	if seq.Sequence <= 0 {
-		hdrs, err := asserts.HeadersFromSequenceKey(seq.Type, seq.SequenceKey)
-		if err != nil {
-			return nil, err
-		}
+		hdrs := mylog.Check2(asserts.HeadersFromSequenceKey(seq.Type, seq.SequenceKey))
+
 		return db.FindSequence(seq.Type, hdrs, -1, seq.Type.MaxSupportedFormat())
 	}
 	return seq.Resolve(db.Find)
@@ -256,10 +226,8 @@ func enforceValidationSetsForRemodel(st *state.State, sets []*asserts.ModelValid
 	vsPrimaryKeys := make(map[string][]string, len(sets))
 	db := assertstate.DB(st)
 	for _, vs := range sets {
-		a, err := resolveValidationSetAssertion(vs.AtSequence(), db)
-		if err != nil {
-			return err
-		}
+		a := mylog.Check2(resolveValidationSetAssertion(vs.AtSequence(), db))
+
 		vsPrimaryKeys[vs.SequenceKey()] = a.At().PrimaryKey
 	}
 
@@ -270,16 +238,13 @@ func enforceValidationSetsForRemodel(st *state.State, sets []*asserts.ModelValid
 		}
 	}
 
-	snaps, ignoreValidation, err := snapstate.InstalledSnaps(st)
-	if err != nil {
-		return fmt.Errorf("cannot list installed snaps for validation: %w", err)
-	}
+	snaps, ignoreValidation := mylog.Check3(snapstate.InstalledSnaps(st))
+	mylog.Check(
 
-	// validation sets should already be downloaded, so we can use the local
-	// version of this function
-	if err := assertstate.ApplyLocalEnforcedValidationSets(st, vsPrimaryKeys, pinnedValidationSeqs, snaps, ignoreValidation); err != nil {
-		return fmt.Errorf("cannot enforce validation sets: %v", err)
-	}
+		// validation sets should already be downloaded, so we can use the local
+		// version of this function
+		assertstate.ApplyLocalEnforcedValidationSets(st, vsPrimaryKeys, pinnedValidationSeqs, snaps, ignoreValidation))
+
 	return nil
 }
 
@@ -297,14 +262,9 @@ func (m *DeviceManager) doPrepareRemodeling(t *state.Task, tmb *tomb.Tomb) error
 	st.Lock()
 	defer st.Unlock()
 
-	remodCtx, err := remodelCtxFromTask(t)
-	if err != nil {
-		return err
-	}
-	current, err := findModel(st)
-	if err != nil {
-		return err
-	}
+	remodCtx := mylog.Check2(remodelCtxFromTask(t))
+
+	current := mylog.Check2(findModel(st))
 
 	sto := remodCtx.Store()
 	if sto == nil {
@@ -312,18 +272,12 @@ func (m *DeviceManager) doPrepareRemodeling(t *state.Task, tmb *tomb.Tomb) error
 	}
 	// ensure a new session accounting for the new brand/model
 	st.Unlock()
-	err = sto.EnsureDeviceSession()
+	mylog.Check(sto.EnsureDeviceSession())
 	st.Lock()
-	if err != nil {
-		return fmt.Errorf("cannot get a store session based on the new model assertion: %v", err)
-	}
 
 	chgID := t.Change().ID()
 
-	tss, err := remodelTasks(tmb.Context(nil), st, current, remodCtx.Model(), remodCtx, chgID, nil, nil, RemodelOptions{})
-	if err != nil {
-		return err
-	}
+	tss := mylog.Check2(remodelTasks(tmb.Context(nil), st, current, remodCtx.Model(), remodCtx, chgID, nil, nil, RemodelOptions{}))
 
 	allTs := state.NewTaskSet()
 	for _, ts := range tss {
@@ -337,9 +291,7 @@ func (m *DeviceManager) doPrepareRemodeling(t *state.Task, tmb *tomb.Tomb) error
 	return nil
 }
 
-var (
-	gadgetIsCompatible = gadget.IsCompatible
-)
+var gadgetIsCompatible = gadget.IsCompatible
 
 func checkGadgetRemodelCompatible(st *state.State, snapInfo, curInfo *snap.Info, snapf snap.Container, flags snapstate.Flags, deviceCtx snapstate.DeviceContext) error {
 	if release.OnClassic {
@@ -363,18 +315,10 @@ func checkGadgetRemodelCompatible(st *state.State, snapInfo, curInfo *snap.Info,
 		return fmt.Errorf("cannot identify the current gadget snap")
 	}
 
-	pendingInfo, err := gadget.ReadInfoFromSnapFile(snapf, deviceCtx.Model())
-	if err != nil {
-		return fmt.Errorf("cannot read new gadget metadata: %v", err)
-	}
+	pendingInfo := mylog.Check2(gadget.ReadInfoFromSnapFile(snapf, deviceCtx.Model()))
 
-	currentData, err := gadgetDataFromInfo(curInfo, deviceCtx.GroundContext().Model())
-	if err != nil {
-		return fmt.Errorf("cannot read current gadget metadata: %v", err)
-	}
+	currentData := mylog.Check2(gadgetDataFromInfo(curInfo, deviceCtx.GroundContext().Model()))
+	mylog.Check(gadgetIsCompatible(currentData.Info, pendingInfo))
 
-	if err := gadgetIsCompatible(currentData.Info, pendingInfo); err != nil {
-		return fmt.Errorf("cannot remodel to an incompatible gadget: %v", err)
-	}
 	return nil
 }

@@ -23,6 +23,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/bootloader/androidbootenv"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
@@ -65,9 +66,7 @@ func (a *androidboot) configFile() string {
 
 func (a *androidboot) GetBootVars(names ...string) (map[string]string, error) {
 	env := androidbootenv.NewEnv(a.configFile())
-	if err := env.Load(); err != nil {
-		return nil, err
-	}
+	mylog.Check(env.Load())
 
 	out := make(map[string]string, len(names))
 	for _, name := range names {
@@ -79,7 +78,7 @@ func (a *androidboot) GetBootVars(names ...string) (map[string]string, error) {
 
 func (a *androidboot) SetBootVars(values map[string]string) error {
 	env := androidbootenv.NewEnv(a.configFile())
-	if err := env.Load(); err != nil && !os.IsNotExist(err) {
+	if mylog.Check(env.Load()); err != nil && !os.IsNotExist(err) {
 		return err
 	}
 	for k, v := range values {
@@ -90,7 +89,6 @@ func (a *androidboot) SetBootVars(values map[string]string) error {
 
 func (a *androidboot) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 	return nil
-
 }
 
 func (a *androidboot) RemoveKernelAssets(s snap.PlaceInfo) error {

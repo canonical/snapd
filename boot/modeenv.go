@@ -31,6 +31,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/mvo5/goconfigparser"
 
 	"github.com/snapcore/snapd/asserts"
@@ -166,9 +167,7 @@ func ReadModeenv(rootdir string) (*Modeenv, error) {
 	modeenvPath := modeenvFile(rootdir)
 	cfg := goconfigparser.New()
 	cfg.AllowNoSectionHeader = true
-	if err := cfg.ReadFile(modeenvPath); err != nil {
-		return nil, err
-	}
+	mylog.Check(cfg.ReadFile(modeenvPath))
 
 	// TODO:UC20: should we check these errors and try to do something?
 	m := Modeenv{
@@ -212,16 +211,12 @@ func ReadModeenv(rootdir string) (*Modeenv, error) {
 	unmarshalModeenvValueFromCfg(cfg, "current_kernel_command_lines", &m.CurrentKernelCommandLines)
 
 	// save all the rest of the keys we don't understand
-	keys, err := cfg.Options("")
-	if err != nil {
-		return nil, err
-	}
+	keys := mylog.Check2(cfg.Options(""))
+
 	for _, k := range keys {
 		if !modeenvKnownKeys[k] {
-			val, err := cfg.Get("", k)
-			if err != nil {
-				return nil, err
-			}
+			val := mylog.Check2(cfg.Get("", k))
+
 			m.extrakeys[k] = val
 		}
 	}
@@ -234,14 +229,10 @@ func ReadModeenv(rootdir string) (*Modeenv, error) {
 // in memory. It also does not sort or otherwise mutate any sub-objects,
 // performing simple strict verification of sub-objects.
 func (m *Modeenv) deepEqual(m2 *Modeenv) bool {
-	b, err := json.Marshal(m)
-	if err != nil {
-		return false
-	}
-	b2, err := json.Marshal(m2)
-	if err != nil {
-		return false
-	}
+	b := mylog.Check2(json.Marshal(m))
+
+	b2 := mylog.Check2(json.Marshal(m2))
+
 	return bytes.Equal(b, b2)
 }
 
@@ -250,15 +241,10 @@ func (m *Modeenv) Copy() (*Modeenv, error) {
 	// to avoid hard-coding all fields here and manually copying everything, we
 	// take the easy way out and serialize to json then re-import into a
 	// empty Modeenv
-	b, err := json.Marshal(m)
-	if err != nil {
-		return nil, err
-	}
+	b := mylog.Check2(json.Marshal(m))
+
 	m2 := &Modeenv{}
-	err = json.Unmarshal(b, m2)
-	if err != nil {
-		return nil, err
-	}
+	mylog.Check(json.Unmarshal(b, m2))
 
 	// manually copy the unexported fields as they won't be in the JSON
 	m2.read = m.read
@@ -282,10 +268,8 @@ func (m *Modeenv) WriteTo(rootdir string) error {
 	}
 
 	modeenvPath := modeenvFile(rootdir)
+	mylog.Check(os.MkdirAll(filepath.Dir(modeenvPath), 0755))
 
-	if err := os.MkdirAll(filepath.Dir(modeenvPath), 0755); err != nil {
-		return err
-	}
 	buf := bytes.NewBuffer(nil)
 	if m.Mode == "" {
 		return fmt.Errorf("internal error: mode is unset")
@@ -340,10 +324,8 @@ func (m *Modeenv) WriteTo(rootdir string) error {
 	for _, k := range extraKeys {
 		marshalModeenvEntryTo(buf, k, m.extrakeys[k])
 	}
+	mylog.Check(osutil.AtomicWriteFile(modeenvPath, buf.Bytes(), 0644, 0))
 
-	if err := osutil.AtomicWriteFile(modeenvPath, buf.Bytes(), 0644, 0); err != nil {
-		return err
-	}
 	return nil
 }
 
@@ -447,16 +429,12 @@ func marshalModeenvEntryTo(out io.Writer, key string, what interface{}) error {
 		asString = strconv.FormatBool(v)
 	default:
 		if vm, ok := what.(modeenvValueMarshaller); ok {
-			marshalled, err := vm.MarshalModeenvValue()
-			if err != nil {
-				return fmt.Errorf("cannot marshal value for key %q: %v", key, err)
-			}
+			marshalled := mylog.Check2(vm.MarshalModeenvValue())
+
 			asString = marshalled
 		} else if jm, ok := what.(json.Marshaler); ok {
-			marshalled, err := jm.MarshalJSON()
-			if err != nil {
-				return fmt.Errorf("cannot marshal value for key %q as JSON: %v", key, err)
-			}
+			marshalled := mylog.Check2(jm.MarshalJSON())
+
 			asString = string(marshalled)
 			if asString == "null" {
 				//  no need to keep nulls in the modeenv
@@ -466,7 +444,7 @@ func marshalModeenvEntryTo(out io.Writer, key string, what interface{}) error {
 			return fmt.Errorf("internal error: cannot marshal unsupported type %T value %v for key %q", what, what, key)
 		}
 	}
-	_, err := fmt.Fprintf(out, "%s=%s\n", key, asString)
+	_ := mylog.Check2(fmt.Fprintf(out, "%s=%s\n", key, asString))
 	return err
 }
 
@@ -489,25 +467,21 @@ func unmarshalModeenvValueFromCfg(cfg *goconfigparser.ConfigParser, key string, 
 			*v = false
 			return nil
 		}
-		var err error
-		*v, err = strconv.ParseBool(kv)
-		if err != nil {
-			return fmt.Errorf("cannot parse modeenv value %q to bool: %v", kv, err)
-		}
+
+		*v = mylog.Check2(strconv.ParseBool(kv))
+
 	default:
 		if vm, ok := v.(modeenvValueUnmarshaller); ok {
-			if err := vm.UnmarshalModeenvValue(kv); err != nil {
-				return fmt.Errorf("cannot unmarshal modeenv value %q to %T: %v", kv, dest, err)
-			}
+			mylog.Check(vm.UnmarshalModeenvValue(kv))
+
 			return nil
 		} else if jm, ok := v.(json.Unmarshaler); ok {
 			if len(kv) == 0 {
 				// leave jm empty
 				return nil
 			}
-			if err := jm.UnmarshalJSON([]byte(kv)); err != nil {
-				return fmt.Errorf("cannot unmarshal modeenv value %q as JSON to %T: %v", kv, dest, err)
-			}
+			mylog.Check(jm.UnmarshalJSON([]byte(kv)))
+
 			return nil
 		}
 		return fmt.Errorf("internal error: cannot unmarshal value %q for unsupported type %T", kv, dest)
@@ -562,9 +536,8 @@ func (b bootAssetsMap) MarshalJSON() ([]byte, error) {
 
 func (b *bootAssetsMap) UnmarshalJSON(data []byte) error {
 	var asMap map[string][]string
-	if err := json.Unmarshal(data, &asMap); err != nil {
-		return err
-	}
+	mylog.Check(json.Unmarshal(data, &asMap))
+
 	*b = bootAssetsMap(asMap)
 	return nil
 }
@@ -575,9 +548,8 @@ func (s bootCommandLines) MarshalJSON() ([]byte, error) {
 
 func (s *bootCommandLines) UnmarshalJSON(data []byte) error {
 	var asList []string
-	if err := json.Unmarshal(data, &asList); err != nil {
-		return err
-	}
+	mylog.Check(json.Unmarshal(data, &asList))
+
 	*s = bootCommandLines(asList)
 	return nil
 }

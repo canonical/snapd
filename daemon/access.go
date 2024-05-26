@@ -26,10 +26,11 @@ import (
 	"path/filepath"
 	"strconv"
 
+	"github.com/ddkwork/golibrary/mylog"
+
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/polkit"
@@ -47,24 +48,19 @@ func checkPolkitActionImpl(r *http.Request, ucred *ucrednet, action string) *api
 	var flags polkit.CheckFlags
 	allowHeader := r.Header.Get(client.AllowInteractionHeader)
 	if allowHeader != "" {
-		if allow, err := strconv.ParseBool(allowHeader); err != nil {
-			logger.Noticef("error parsing %s header: %s", client.AllowInteractionHeader, err)
-		} else if allow {
+		allow := mylog.Check2(strconv.ParseBool(allowHeader))
+		if allow {
 			flags |= polkit.CheckAllowInteraction
 		}
 	}
 	// Pass both pid and uid from the peer ucred to avoid pid race
-	switch authorized, err := polkitCheckAuthorization(ucred.Pid, ucred.Uid, action, nil, flags); err {
-	case nil:
-		if authorized {
-			// polkit says user is authorised
-			return nil
-		}
-	case polkit.ErrDismissed:
-		return AuthCancelled("cancelled")
-	default:
-		logger.Noticef("polkit error: %s", err)
+	authorized := mylog.Check2(polkitCheckAuthorization(ucred.Pid, ucred.Uid, action, nil, flags))
+	if authorized {
+		// polkit says user is authorised
+		return nil
 	}
+	//case polkit.ErrDismissed:
+	//	return AuthCancelled("cancelled")
 	return Unauthorized("access denied")
 }
 
@@ -183,27 +179,20 @@ func requireInterfaceApiAccessImpl(d *Daemon, r *http.Request, ucred *ucrednet, 
 	}
 
 	// Access on snapd-snap.socket requires a connected plug.
-	snapName, err := cgroupSnapNameFromPid(int(ucred.Pid))
-	if err != nil {
-		return Forbidden("could not determine snap name for pid: %s", err)
-	}
+	snapName := mylog.Check2(cgroupSnapNameFromPid(int(ucred.Pid)))
 
 	st := d.state
 	st.Lock()
 	defer st.Unlock()
-	conns, err := ifacestate.ConnectionStates(st)
-	if err != nil {
-		return Forbidden("internal error: cannot get connections: %s", err)
-	}
+	conns := mylog.Check2(ifacestate.ConnectionStates(st))
+
 	foundMatchingInterface := false
 	for refStr, connState := range conns {
 		if !connState.Active() || !strutil.ListContains(interfaceNames, connState.Interface) {
 			continue
 		}
-		connRef, err := interfaces.ParseConnRef(refStr)
-		if err != nil {
-			return Forbidden("internal error: %s", err)
-		}
+		connRef := mylog.Check2(interfaces.ParseConnRef(refStr))
+
 		if connRef.PlugRef.Snap == snapName {
 			r.RemoteAddr = ucrednetAttachInterface(r.RemoteAddr, connState.Interface)
 			// Do not return here, but keep processing connections for the side
@@ -266,14 +255,9 @@ func (ac interfaceAuthenticatedAccess) CheckAccess(d *Daemon, r *http.Request, u
 // It checks that the request process "/proc/PID/exe" points to one of the
 // known locations of the snap command. This not a security-oriented check.
 func isRequestFromSnapCmd(r *http.Request) (bool, error) {
-	ucred, err := ucrednetGet(r.RemoteAddr)
-	if err != nil {
-		return false, err
-	}
-	exe, err := osReadlink(fmt.Sprintf("/proc/%d/exe", ucred.Pid))
-	if err != nil {
-		return false, err
-	}
+	ucred := mylog.Check2(ucrednetGet(r.RemoteAddr))
+
+	exe := mylog.Check2(osReadlink(fmt.Sprintf("/proc/%d/exe", ucred.Pid)))
 
 	// SNAP_REEXEC=0
 	if exe == filepath.Join(dirs.GlobalRootDir, "/usr/bin/snap") {
@@ -282,17 +266,15 @@ func isRequestFromSnapCmd(r *http.Request) (bool, error) {
 
 	// Check if re-exec in snapd
 	path := filepath.Join(dirs.SnapMountDir, "snapd/*/usr/bin/snap")
-	if matched, err := filepath.Match(path, exe); err != nil {
-		return false, err
-	} else if matched {
+	matched := mylog.Check2(filepath.Match(path, exe))
+	if matched {
 		return true, nil
 	}
 
 	// Check if re-exec in core
 	path = filepath.Join(dirs.SnapMountDir, "core/*/usr/bin/snap")
-	if matched, err := filepath.Match(path, exe); err != nil {
-		return false, err
-	} else if matched {
+	matched = mylog.Check2(filepath.Match(path, exe))
+	if matched {
 		return true, nil
 	}
 

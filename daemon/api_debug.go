@@ -26,6 +26,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/osutil/disks"
@@ -62,24 +63,19 @@ type connectivityStatus struct {
 }
 
 func getBaseDeclaration(st *state.State) Response {
-	bd, err := assertstate.BaseDeclaration(st)
-	if err != nil {
-		return InternalError("cannot get base declaration: %s", err)
-	}
+	bd := mylog.Check2(assertstate.BaseDeclaration(st))
+
 	return SyncResponse(map[string]interface{}{
 		"base-declaration": string(asserts.Encode(bd)),
 	})
-
 }
 
 func checkConnectivity(st *state.State) Response {
 	theStore := snapstate.Store(st, nil)
 	st.Unlock()
 	defer st.Lock()
-	checkResult, err := theStore.ConnectivityCheck()
-	if err != nil {
-		return InternalError("cannot run connectivity check: %v", err)
-	}
+	checkResult := mylog.Check2(theStore.ConnectivityCheck())
+
 	status := connectivityStatus{Connectivity: true}
 	for host, reachable := range checkResult {
 		if !reachable {
@@ -133,10 +129,7 @@ func collectChangeTimings(st *state.State, changeID string) (map[string]*changeT
 	}
 
 	// collect "timings" for tasks of given change
-	stateTimings, err := timings.Get(st, -1, func(tags map[string]string) bool { return tags["change-id"] == changeID })
-	if err != nil {
-		return nil, fmt.Errorf("cannot get timings of change %s: %v", changeID, err)
-	}
+	stateTimings := mylog.Check2(timings.Get(st, -1, func(tags map[string]string) bool { return tags["change-id"] == changeID }))
 
 	doingTimingsByTask := make(map[string][]*timings.TimingJSON)
 	undoingTimingsByTask := make(map[string][]*timings.TimingJSON)
@@ -172,12 +165,10 @@ func collectChangeTimings(st *state.State, changeID string) (map[string]*changeT
 }
 
 func collectEnsureTimings(st *state.State, ensureTag string, allEnsures bool) ([]*debugTimings, error) {
-	ensures, err := timings.Get(st, -1, func(tags map[string]string) bool {
+	ensures := mylog.Check2(timings.Get(st, -1, func(tags map[string]string) bool {
 		return tags["ensure"] == ensureTag
-	})
-	if err != nil {
-		return nil, fmt.Errorf("cannot get timings of ensure %s: %v", ensureTag, err)
-	}
+	}))
+
 	if len(ensures) == 0 {
 		return nil, fmt.Errorf("cannot find ensure: %v", ensureTag)
 	}
@@ -194,7 +185,7 @@ func collectEnsureTimings(st *state.State, ensureTag string, allEnsures bool) ([
 		// change is optional for ensure timings
 		if ensureChangeID != "" {
 			// ignore an error when getting a change, it may no longer be present in the state
-			changeTimings, _ = collectChangeTimings(st, ensureChangeID)
+			changeTimings = mylog.Check2(collectChangeTimings(st, ensureChangeID))
 		}
 		debugTm := &debugTimings{
 			ChangeID:      ensureChangeID,
@@ -209,12 +200,10 @@ func collectEnsureTimings(st *state.State, ensureTag string, allEnsures bool) ([
 }
 
 func collectStartupTimings(st *state.State, startupTag string, allStarts bool) ([]*debugTimings, error) {
-	starts, err := timings.Get(st, -1, func(tags map[string]string) bool {
+	starts := mylog.Check2(timings.Get(st, -1, func(tags map[string]string) bool {
 		return tags["startup"] == startupTag
-	})
-	if err != nil {
-		return nil, fmt.Errorf("cannot get timings of startup %s: %v", startupTag, err)
-	}
+	}))
+
 	if len(starts) == 0 {
 		return nil, fmt.Errorf("cannot find startup: %v", startupTag)
 	}
@@ -240,26 +229,19 @@ func getChangeTimings(st *state.State, changeID, ensureTag, startupTag string, a
 	// If ensure tag was passed by the client, find its related changes;
 	// we can have many ensure executions and their changes in the responseData array.
 	if ensureTag != "" {
-		responseData, err := collectEnsureTimings(st, ensureTag, all)
-		if err != nil {
-			return BadRequest(err.Error())
-		}
+		responseData := mylog.Check2(collectEnsureTimings(st, ensureTag, all))
+
 		return SyncResponse(responseData)
 	}
 
 	if startupTag != "" {
-		responseData, err := collectStartupTimings(st, startupTag, all)
-		if err != nil {
-			return BadRequest(err.Error())
-		}
+		responseData := mylog.Check2(collectStartupTimings(st, startupTag, all))
+
 		return SyncResponse(responseData)
 	}
 
 	// timings for single change ID
-	changeTimings, err := collectChangeTimings(st, changeID)
-	if err != nil {
-		return BadRequest(err.Error())
-	}
+	changeTimings := mylog.Check2(collectChangeTimings(st, changeID))
 
 	responseData := []*debugTimings{
 		{
@@ -271,22 +253,15 @@ func getChangeTimings(st *state.State, changeID, ensureTag, startupTag string, a
 }
 
 func getGadgetDiskMapping(st *state.State) Response {
-	deviceCtx, err := devicestate.DeviceCtx(st, nil, nil)
-	if err != nil {
-		return InternalError("cannot get device context: %v", err)
-	}
-	gadgetInfo, err := snapstate.GadgetInfo(st, deviceCtx)
-	if err != nil {
-		return InternalError("cannot get gadget info: %v", err)
-	}
+	deviceCtx := mylog.Check2(devicestate.DeviceCtx(st, nil, nil))
+
+	gadgetInfo := mylog.Check2(snapstate.GadgetInfo(st, deviceCtx))
+
 	gadgetDir := gadgetInfo.MountDir()
 
 	mod := deviceCtx.Model()
 
-	info, err := gadget.ReadInfoAndValidate(gadgetDir, mod, nil)
-	if err != nil {
-		return InternalError("cannot get all disk volume device traits: cannot read gadget: %v", err)
-	}
+	info := mylog.Check2(gadget.ReadInfoAndValidate(gadgetDir, mod, nil))
 
 	// TODO: allow passing in encrypted options info here
 
@@ -298,26 +273,18 @@ func getGadgetDiskMapping(st *state.State) Response {
 		}
 	}
 
-	res, err := gadget.AllDiskVolumeDeviceTraits(info.Volumes, optsMap)
-	if err != nil {
-		return InternalError("cannot get all disk volume device traits: %v", err)
-	}
+	res := mylog.Check2(gadget.AllDiskVolumeDeviceTraits(info.Volumes, optsMap))
 
 	return SyncResponse(res)
 }
 
 func getDisks(st *state.State) Response {
+	disks := mylog.Check2(disks.AllPhysicalDisks())
 
-	disks, err := disks.AllPhysicalDisks()
-	if err != nil {
-		return InternalError("cannot get all physical disks: %v", err)
-	}
 	vols := make([]*gadget.OnDiskVolume, 0, len(disks))
 	for _, d := range disks {
-		vol, err := gadget.OnDiskVolumeFromDisk(d)
-		if err != nil {
-			return InternalError("cannot get on disk volume for device %s: %v", d.KernelDeviceNode(), err)
-		}
+		vol := mylog.Check2(gadget.OnDiskVolumeFromDisk(d))
+
 		vols = append(vols, vol)
 	}
 
@@ -328,12 +295,10 @@ func createRecovery(st *state.State, label string) Response {
 	if label == "" {
 		return BadRequest("cannot create a recovery system with no label")
 	}
-	chg, err := devicestate.CreateRecoverySystem(st, label, devicestate.CreateRecoverySystemOptions{
+	chg := mylog.Check2(devicestate.CreateRecoverySystem(st, label, devicestate.CreateRecoverySystemOptions{
 		TestSystem: true,
-	})
-	if err != nil {
-		return InternalError("cannot create recovery system %q: %v", label, err)
-	}
+	}))
+
 	ensureStateSoon(st)
 	return AsyncResponse(nil, chg.ID())
 }
@@ -350,10 +315,8 @@ func getDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 	case "connectivity":
 		return checkConnectivity(st)
 	case "model":
-		model, err := c.d.overlord.DeviceManager().Model()
-		if err != nil {
-			return InternalError("cannot get model: %v", err)
-		}
+		model := mylog.Check2(c.d.overlord.DeviceManager().Model())
+
 		return SyncResponse(map[string]interface{}{
 			"model": string(asserts.Encode(model)),
 		})
@@ -378,9 +341,7 @@ func getDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 	var a debugAction
 	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&a); err != nil {
-		return BadRequest("cannot decode request body into a debug action: %v", err)
-	}
+	mylog.Check(decoder.Decode(&a))
 
 	st := c.d.overlord.State()
 	st.Lock()
@@ -399,10 +360,8 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 	case "can-manage-refreshes":
 		return SyncResponse(devicestate.CanManageRefreshes(st))
 	case "prune":
-		opTime, err := c.d.overlord.DeviceManager().StartOfOperationTime()
-		if err != nil {
-			return BadRequest("cannot get start of operation time: %s", err)
-		}
+		opTime := mylog.Check2(c.d.overlord.DeviceManager().StartOfOperationTime())
+
 		st.Prune(opTime, 0, 0, 0)
 		return SyncResponse(true)
 	case "stacktraces":

@@ -21,6 +21,8 @@ package snap
 
 import (
 	"errors"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // RestartCondition encapsulates the different systemd 'restart' options
@@ -61,10 +63,7 @@ func (rc RestartCondition) String() string {
 // UnmarshalYAML so RestartCondition implements yaml's Unmarshaler interface
 func (rc *RestartCondition) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var v string
-
-	if err := unmarshal(&v); err != nil {
-		return err
-	}
+	mylog.Check(unmarshal(&v))
 
 	nrc, ok := RestartMap[v]
 	if !ok {

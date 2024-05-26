@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
@@ -105,8 +106,8 @@ func (s *DesktopInterfaceSuite) TestAppArmorSpec(c *C) {
 
 	// On an all-snaps system, the desktop interface grants access
 	// to system fonts.
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.appSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
@@ -124,8 +125,8 @@ func (s *DesktopInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Check(updateNS, testutil.Contains, "  # Read-only access to /var/cache/fontconfig\n")
 
 	// There are permanent rules on the slot side
-	appSet, err = interfaces.NewSnapAppSet(s.appSlotInfo.Snap, nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.appSlotInfo.Snap, nil))
+
 	spec = apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddPermanentSlot(s.iface, s.appSlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.provider.app"})
@@ -135,8 +136,8 @@ func (s *DesktopInterfaceSuite) TestAppArmorSpec(c *C) {
 	// On a classic system, additional permissions are granted
 	restore = release.MockOnClassic(true)
 	defer restore()
-	appSet, err = interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	spec = apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 
@@ -157,8 +158,8 @@ func (s *DesktopInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Check(updateNS, testutil.Contains, "  # Read-only access to /var/cache/fontconfig\n")
 
 	// connected plug to core slot
-	appSet, err = interfaces.NewSnapAppSet(s.coreSlotInfo.Snap, nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.coreSlotInfo.Snap, nil))
+
 	spec = apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
 	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.coreSlot), IsNil)

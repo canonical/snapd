@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
@@ -78,10 +79,8 @@ func formatPath(ip interface{}) (string, error) {
 
 func allowPathAccess(buf *bytes.Buffer, perm filesAAPerm, paths []interface{}) error {
 	for _, rawPath := range paths {
-		p, err := formatPath(rawPath)
-		if err != nil {
-			return err
-		}
+		p := mylog.Check2(formatPath(rawPath))
+
 		fmt.Fprintf(buf, "%s %s,\n", p, perm)
 	}
 	return nil
@@ -93,9 +92,8 @@ func (iface *commonFilesInterface) validatePaths(attrName string, paths []interf
 		if !ok {
 			return fmt.Errorf("%q must be a list of strings", attrName)
 		}
-		if err := iface.validateSinglePath(np); err != nil {
-			return err
-		}
+		mylog.Check(iface.validateSinglePath(np))
+
 	}
 	return nil
 }
@@ -111,18 +109,15 @@ func (iface *commonFilesInterface) validateSinglePath(np string) error {
 	if strings.Contains(p, "~") {
 		return fmt.Errorf(`%q cannot contain "~"`, p)
 	}
-	if err := apparmor_sandbox.ValidateNoAppArmorRegexp(p); err != nil {
-		return err
-	}
+	mylog.Check(apparmor_sandbox.ValidateNoAppArmorRegexp(p))
 
 	// extraPathValidation must be implemented by the interface
 	// that build on top of the abstract commonFilesInterface
 	if iface.extraPathValidate == nil {
 		panic("extraPathValidate must be set when using the commonFilesInterface")
 	}
-	if err := iface.extraPathValidate(np); err != nil {
-		return err
-	}
+	mylog.Check(iface.extraPathValidate(np))
+
 	return nil
 }
 
@@ -136,9 +131,8 @@ func (iface *commonFilesInterface) BeforePreparePlug(plug *snap.PlugInfo) error 
 		if !ok {
 			return fmt.Errorf("cannot add %s plug: %q must be a list of strings", iface.name, att)
 		}
-		if err := iface.validatePaths(att, paths); err != nil {
-			return fmt.Errorf("cannot add %s plug: %s", iface.name, err)
-		}
+		mylog.Check(iface.validatePaths(att, paths))
+
 		hasValidAttr = true
 	}
 	if !hasValidAttr {
@@ -155,12 +149,9 @@ func (iface *commonFilesInterface) AppArmorConnectedPlug(spec *apparmor.Specific
 
 	errPrefix := fmt.Sprintf(`cannot connect plug %s: `, plug.Name())
 	buf := bytes.NewBufferString(iface.apparmorHeader)
-	if err := allowPathAccess(buf, filesRead, reads); err != nil {
-		return fmt.Errorf("%s%v", errPrefix, err)
-	}
-	if err := allowPathAccess(buf, filesWrite, writes); err != nil {
-		return fmt.Errorf("%s%v", errPrefix, err)
-	}
+	mylog.Check(allowPathAccess(buf, filesRead, reads))
+	mylog.Check(allowPathAccess(buf, filesWrite, writes))
+
 	spec.AddSnippet(buf.String())
 
 	return nil

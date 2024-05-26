@@ -26,6 +26,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -36,10 +37,10 @@ type unlinkSuite struct {
 var _ = check.Suite(&unlinkSuite{})
 
 func (s *unlinkSuite) checkDirnames(c *check.C, names []string) {
-	dir, err := os.Open(s.d)
+	dir := mylog.Check2(os.Open(s.d))
 	c.Assert(err, check.IsNil)
 	defer dir.Close()
-	found, err := dir.Readdirnames(-1)
+	found := mylog.Check2(dir.Readdirnames(-1))
 	c.Assert(err, check.IsNil)
 	sort.Strings(names)
 	sort.Strings(found)
@@ -53,14 +54,14 @@ func (s *unlinkSuite) SetUpTest(c *check.C) {
 
 func (s *unlinkSuite) mkFixture(c *check.C) {
 	for _, fname := range []string{"foo", "bar", "baz", "quux"} {
-		f, err := os.Create(filepath.Join(s.d, fname))
+		f := mylog.Check2(os.Create(filepath.Join(s.d, fname)))
 		if err == nil {
 			f.Close()
 		} else if !os.IsExist(err) {
 			c.Fatal(err)
 		}
 	}
-	if err := os.Mkdir(filepath.Join(s.d, "dir"), 0700); err != nil && !os.IsExist(err) {
+	if mylog.Check(os.Mkdir(filepath.Join(s.d, "dir"), 0700)); err != nil && !os.IsExist(err) {
 		c.Fatal(err)
 	}
 }
@@ -72,7 +73,7 @@ func (s *unlinkSuite) TestUnlinkMany(c *check.C) {
 }
 
 func (s *unlinkSuite) TestUnlinkManyAt(c *check.C) {
-	d, err := os.Open(s.d)
+	d := mylog.Check2(os.Open(s.d))
 	c.Assert(err, check.IsNil)
 	c.Assert(osutil.UnlinkManyAt(d, []string{"bar", "does-not-exist", "baz"}), check.IsNil)
 

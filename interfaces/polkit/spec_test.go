@@ -62,7 +62,9 @@ var _ = Suite(&specSuite{
 				Snap: &snap.Info{
 					SuggestedName: "snap1",
 				},
-				Name: "app1"}},
+				Name: "app1",
+			},
+		},
 	},
 	slotInfo: &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "snap2"},
@@ -73,7 +75,9 @@ var _ = Suite(&specSuite{
 				Snap: &snap.Info{
 					SuggestedName: "snap2",
 				},
-				Name: "app2"}},
+				Name: "app2",
+			},
+		},
 	},
 })
 

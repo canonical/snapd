@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
@@ -48,18 +49,14 @@ const (
 	ModeRunCVM = "cloudimg-rootfs"
 )
 
-var (
-	validModes = []string{ModeInstall, ModeRecover, ModeFactoryReset, ModeRun, ModeRunCVM}
-)
+var validModes = []string{ModeInstall, ModeRecover, ModeFactoryReset, ModeRun, ModeRunCVM}
 
 // ModeAndRecoverySystemFromKernelCommandLine returns the current system mode
 // and the recovery system label as passed in the kernel command line by the
 // bootloader.
 func ModeAndRecoverySystemFromKernelCommandLine() (mode, sysLabel string, err error) {
-	m, err := kcmdline.KeyValues("snapd_recovery_mode", "snapd_recovery_system")
-	if err != nil {
-		return "", "", err
-	}
+	m := mylog.Check2(kcmdline.KeyValues("snapd_recovery_mode", "snapd_recovery_system"))
+
 	var modeOk bool
 	mode, modeOk = m["snapd_recovery_mode"]
 
@@ -92,10 +89,8 @@ func ModeAndRecoverySystemFromKernelCommandLine() (mode, sysLabel string, err er
 var errBootConfigNotManaged = errors.New("boot config is not managed")
 
 func getBootloaderManagingItsAssets(where string, opts *bootloader.Options) (bootloader.TrustedAssetsBootloader, error) {
-	bl, err := bootloader.Find(where, opts)
-	if err != nil {
-		return nil, fmt.Errorf("internal error: cannot find trusted assets bootloader under %q: %v", where, err)
-	}
+	bl := mylog.Check2(bootloader.Find(where, opts))
+
 	mbl, ok := bl.(bootloader.TrustedAssetsBootloader)
 	if !ok {
 		// the bootloader cannot manage its scripts
@@ -109,10 +104,8 @@ func getBootloaderManagingItsAssets(where string, opts *bootloader.Options) (boo
 // gadget and some system options (cmdlineApped). This is only useful
 // if snapd is managing the boot config.
 func bootVarsForTrustedCommandLineFromGadget(gadgetDirOrSnapPath, cmdlineAppend string, defaultCmdline string, model gadget.Model) (map[string]string, error) {
-	extraOrFull, full, removeArgs, err := gadget.KernelCommandLineFromGadget(gadgetDirOrSnapPath, model)
-	if err != nil {
-		return nil, fmt.Errorf("cannot use kernel command line from gadget: %v", err)
-	}
+	extraOrFull, full, removeArgs := mylog.Check4(gadget.KernelCommandLineFromGadget(gadgetDirOrSnapPath, model))
+
 	logger.Debugf("trusted command line: from gadget: %q, from options: %q",
 		extraOrFull, cmdlineAppend)
 
@@ -173,19 +166,12 @@ func composeCommandLine(currentOrCandidate int, mode, system, gadgetDirOrSnapPat
 			SystemArg: fmt.Sprintf("snapd_recovery_system=%v", system),
 		}
 	}
-	mbl, err := getBootloaderManagingItsAssets(bootloaderRootDir, opts)
-	if err != nil {
-		if err == errBootConfigNotManaged {
-			return "", nil
-		}
-		return "", err
-	}
+	mbl := mylog.Check2(getBootloaderManagingItsAssets(bootloaderRootDir, opts))
+
 	if gadgetDirOrSnapPath != "" {
-		extraOrFull, full, removeArgs, err := gadget.KernelCommandLineFromGadget(gadgetDirOrSnapPath, model)
+		extraOrFull, full, removeArgs := mylog.Check4(gadget.KernelCommandLineFromGadget(gadgetDirOrSnapPath, model))
 		components.RemoveArgs = removeArgs
-		if err != nil {
-			return "", fmt.Errorf("cannot use kernel command line from gadget: %v", err)
-		}
+
 		// gadget provides some part of the kernel command line
 		if full {
 			components.FullArgs = extraOrFull
@@ -267,16 +253,11 @@ func observeSuccessfulCommandLine(model *asserts.Model, m *Modeenv) (*Modeenv, e
 // entries carried in the modeenv. One of those entries must match the current
 // kernel command line of a running system and will be recorded alone as in use.
 func observeSuccessfulCommandLineUpdate(m *Modeenv) (*Modeenv, error) {
-	newM, err := m.Copy()
-	if err != nil {
-		return nil, err
-	}
+	newM := mylog.Check2(m.Copy())
 
 	// get the current command line
-	cmdlineBootedWith, err := kcmdline.KernelCommandLine()
-	if err != nil {
-		return nil, err
-	}
+	cmdlineBootedWith := mylog.Check2(kcmdline.KernelCommandLine())
+
 	if !strutil.ListContains([]string(m.CurrentKernelCommandLines), cmdlineBootedWith) {
 		return nil, fmt.Errorf("current command line content %q not matching any expected entry",
 			cmdlineBootedWith)
@@ -295,27 +276,21 @@ func observeSuccessfulCommandLineUpdate(m *Modeenv) (*Modeenv, error) {
 func observeSuccessfulCommandLineCompatBoot(model *asserts.Model, m *Modeenv) (*Modeenv, error) {
 	// since this is a compatibility scenario, the kernel command line
 	// arguments would not have come from the gadget before either
-	cmdlineExpected, err := ComposeCommandLine(model, "")
-	if err != nil {
-		return nil, err
-	}
+	cmdlineExpected := mylog.Check2(ComposeCommandLine(model, ""))
+
 	if cmdlineExpected == "" {
 		// there is no particular command line expected for this model
 		// and system bootloader, indicating that the command line is
 		// not being tracked
 		return m, nil
 	}
-	cmdlineBootedWith, err := kcmdline.KernelCommandLine()
-	if err != nil {
-		return nil, err
-	}
+	cmdlineBootedWith := mylog.Check2(kcmdline.KernelCommandLine())
+
 	if cmdlineExpected != cmdlineBootedWith {
 		return nil, fmt.Errorf("unexpected current command line: %q", cmdlineBootedWith)
 	}
-	newM, err := m.Copy()
-	if err != nil {
-		return nil, err
-	}
+	newM := mylog.Check2(m.Copy())
+
 	newM.CurrentKernelCommandLines = bootCommandLines{cmdlineExpected}
 	return newM, nil
 }
@@ -334,10 +309,7 @@ const (
 func observeCommandLineUpdate(model *asserts.Model, reason commandLineUpdateReason, gadgetSnapOrDir, cmdlineOpt string) (updated bool, err error) {
 	// TODO:UC20: consider updating a recovery system command line
 
-	m, err := loadModeenv()
-	if err != nil {
-		return false, err
-	}
+	m := mylog.Check2(loadModeenv())
 
 	if len(m.CurrentKernelCommandLines) == 0 {
 		return false, fmt.Errorf("internal error: current kernel command lines is unset")
@@ -350,14 +322,12 @@ func observeCommandLineUpdate(model *asserts.Model, reason commandLineUpdateReas
 	switch reason {
 	case commandLineUpdateReasonSnapd:
 		// pending boot config update
-		candidateCmdline, err = ComposeCandidateCommandLine(model, gadgetSnapOrDir)
+		candidateCmdline = mylog.Check2(ComposeCandidateCommandLine(model, gadgetSnapOrDir))
 	case commandLineUpdateReasonGadget:
 		// pending gadget update
-		candidateCmdline, err = ComposeCommandLine(model, gadgetSnapOrDir)
+		candidateCmdline = mylog.Check2(ComposeCommandLine(model, gadgetSnapOrDir))
 	}
-	if err != nil {
-		return false, err
-	}
+
 	// Add part coming from options
 	candidateCmdline = strutil.JoinNonEmpty(
 		[]string{candidateCmdline, cmdlineOpt}, " ")
@@ -368,15 +338,11 @@ func observeCommandLineUpdate(model *asserts.Model, reason commandLineUpdateReas
 	logger.Debugf("kernel commandline changes from %q to %q", cmdline, candidateCmdline)
 	// actual change of the command line content
 	m.CurrentKernelCommandLines = bootCommandLines{cmdline, candidateCmdline}
-
-	if err := m.Write(); err != nil {
-		return false, err
-	}
+	mylog.Check(m.Write())
 
 	expectReseal := true
-	if err := resealKeyToModeenv(dirs.GlobalRootDir, m, expectReseal, nil); err != nil {
-		return false, err
-	}
+	mylog.Check(resealKeyToModeenv(dirs.GlobalRootDir, m, expectReseal, nil))
+
 	return true, nil
 }
 
@@ -392,9 +358,7 @@ func kernelCommandLinesForResealWithFallback(modeenv *Modeenv) (cmdlines []strin
 	// there would be no kernel command lines arguments coming from the
 	// gadget either
 	gadgetDir := ""
-	cmdline, err := composeCommandLine(currentEdition, ModeRun, "", gadgetDir, modeenv.ModelForSealing())
-	if err != nil {
-		return nil, err
-	}
+	cmdline := mylog.Check2(composeCommandLine(currentEdition, ModeRun, "", gadgetDir, modeenv.ModelForSealing()))
+
 	return []string{cmdline}, nil
 }

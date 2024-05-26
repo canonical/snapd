@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -53,8 +54,8 @@ func (s *ValidateSuite) TestValidateName(c *C) {
 		"u-94903713687486543234157734673284536758",
 	}
 	for _, name := range validNames {
-		err := naming.ValidateSnap(name)
-		c.Assert(err, IsNil)
+		mylog.Check(naming.ValidateSnap(name))
+
 	}
 	invalidNames := []string{
 		// name cannot be empty
@@ -83,7 +84,7 @@ func (s *ValidateSuite) TestValidateName(c *C) {
 		"日本語", "한글", "ру́сский язы́к",
 	}
 	for _, name := range invalidNames {
-		err := naming.ValidateSnap(name)
+		mylog.Check(naming.ValidateSnap(name))
 		c.Assert(err, ErrorMatches, `invalid snap name: ".*"`)
 	}
 }
@@ -100,8 +101,8 @@ func (s *ValidateSuite) TestValidateInstanceName(c *C) {
 		"foo_1", "foo_1234abcd",
 	}
 	for _, name := range validNames {
-		err := naming.ValidateInstance(name)
-		c.Assert(err, IsNil)
+		mylog.Check(naming.ValidateInstance(name))
+
 	}
 	invalidNames := []string{
 		// invalid names are also invalid instance names, just a few
@@ -117,7 +118,7 @@ func (s *ValidateSuite) TestValidateInstanceName(c *C) {
 		"ру́сский_язы́к",
 	}
 	for _, name := range invalidNames {
-		err := naming.ValidateInstance(name)
+		mylog.Check(naming.ValidateInstance(name))
 		c.Assert(err, ErrorMatches, `invalid snap name: ".*"`)
 	}
 	invalidInstanceKeys := []string{
@@ -126,10 +127,9 @@ func (s *ValidateSuite) TestValidateInstanceName(c *C) {
 		"foo__bar",
 	}
 	for _, name := range invalidInstanceKeys {
-		err := naming.ValidateInstance(name)
+		mylog.Check(naming.ValidateInstance(name))
 		c.Assert(err, ErrorMatches, `invalid instance key: ".*"`)
 	}
-
 }
 
 func (s *ValidateSuite) TestValidateHookName(c *C) {
@@ -143,8 +143,8 @@ func (s *ValidateSuite) TestValidateHookName(c *C) {
 		"valid",
 	}
 	for _, hook := range validHooks {
-		err := naming.ValidateHook(hook)
-		c.Assert(err, IsNil)
+		mylog.Check(naming.ValidateHook(hook))
+
 	}
 	invalidHooks := []string{
 		"",
@@ -158,7 +158,7 @@ func (s *ValidateSuite) TestValidateHookName(c *C) {
 		"日本語",
 	}
 	for _, hook := range invalidHooks {
-		err := naming.ValidateHook(hook)
+		mylog.Check(naming.ValidateHook(hook))
 		c.Assert(err, ErrorMatches, `invalid hook name: ".*"`)
 	}
 	// Regression test for https://bugs.launchpad.net/snapd/+bug/1638988
@@ -178,7 +178,7 @@ func (s *ValidateSuite) TestValidateAppName(c *C) {
 		"ру́сский язы́к", "ໄຂ່​ອີ​ສ​ເຕີ້", ":a", "a:", "a:a", "_a", "a_", "a_a",
 	}
 	for _, name := range invalidAppNames {
-		err := naming.ValidateApp(name)
+		mylog.Check(naming.ValidateApp(name))
 		c.Assert(err, ErrorMatches, `invalid app name: ".*"`)
 	}
 }
@@ -194,8 +194,8 @@ func (s *ValidateSuite) TestValidateAlias(c *C) {
 		"0.1game", "1_or_2",
 	}
 	for _, alias := range validAliases {
-		err := naming.ValidateAlias(alias)
-		c.Assert(err, IsNil)
+		mylog.Check(naming.ValidateAlias(alias))
+
 	}
 	invalidAliases := []string{
 		"",
@@ -205,7 +205,7 @@ func (s *ValidateSuite) TestValidateAlias(c *C) {
 		"foo$",
 	}
 	for _, alias := range invalidAliases {
-		err := naming.ValidateAlias(alias)
+		mylog.Check(naming.ValidateAlias(alias))
 		c.Assert(err, ErrorMatches, `invalid alias name: ".*"`)
 	}
 }
@@ -218,8 +218,8 @@ func (s *ValidateSuite) TestValidateSocketName(c *C) {
 		"01game", "1-or-2",
 	}
 	for _, name := range validNames {
-		err := naming.ValidateSocket(name)
-		c.Assert(err, IsNil)
+		mylog.Check(naming.ValidateSocket(name))
+
 	}
 	invalidNames := []string{
 		// name cannot be empty
@@ -240,7 +240,7 @@ func (s *ValidateSuite) TestValidateSocketName(c *C) {
 		"aa-a\000-b",
 	}
 	for _, name := range invalidNames {
-		err := naming.ValidateSocket(name)
+		mylog.Check(naming.ValidateSocket(name))
 		c.Assert(err, ErrorMatches, `invalid socket name: ".*"`)
 	}
 }
@@ -257,12 +257,12 @@ func (s *ValidateSuite) TestValidateSlotPlugInterfaceName(c *C) {
 		"valid-123",
 	}
 	for _, name := range valid {
-		err := naming.ValidateSlot(name)
-		c.Assert(err, IsNil)
-		err = naming.ValidatePlug(name)
-		c.Assert(err, IsNil)
-		err = naming.ValidateInterface(name)
-		c.Assert(err, IsNil)
+		mylog.Check(naming.ValidateSlot(name))
+
+		mylog.Check(naming.ValidatePlug(name))
+
+		mylog.Check(naming.ValidateInterface(name))
+
 	}
 	invalid := []string{
 		"",
@@ -276,11 +276,11 @@ func (s *ValidateSuite) TestValidateSlotPlugInterfaceName(c *C) {
 		"日本語",
 	}
 	for _, name := range invalid {
-		err := naming.ValidateSlot(name)
+		mylog.Check(naming.ValidateSlot(name))
 		c.Assert(err, ErrorMatches, `invalid slot name: ".*"`)
-		err = naming.ValidatePlug(name)
+		mylog.Check(naming.ValidatePlug(name))
 		c.Assert(err, ErrorMatches, `invalid plug name: ".*"`)
-		err = naming.ValidateInterface(name)
+		mylog.Check(naming.ValidateInterface(name))
 		c.Assert(err, ErrorMatches, `invalid interface name: ".*"`)
 	}
 }
@@ -295,7 +295,7 @@ func (s *ValidateSuite) TestValidateSnapID(c *C) {
 		"buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQxxx",
 	}
 	for _, id := range invalid {
-		err := naming.ValidateSnapID(id)
+		mylog.Check(naming.ValidateSnapID(id))
 		c.Check(err, ErrorMatches, fmt.Sprintf("invalid snap-id: %q", id))
 	}
 }
@@ -336,8 +336,8 @@ func (s *ValidateSuite) TestValidQuotaGroup(c *C) {
 		"u-94903713687486543234157734673284536758",
 	}
 	for _, name := range validNames {
-		err := naming.ValidateQuotaGroup(name)
-		c.Assert(err, IsNil)
+		mylog.Check(naming.ValidateQuotaGroup(name))
+
 	}
 	invalidNames := []string{
 		// name cannot be empty
@@ -366,7 +366,7 @@ func (s *ValidateSuite) TestValidQuotaGroup(c *C) {
 		"日本語", "한글", "ру́сский язы́к",
 	}
 	for _, name := range invalidNames {
-		err := naming.ValidateQuotaGroup(name)
+		mylog.Check(naming.ValidateQuotaGroup(name))
 		c.Assert(err, ErrorMatches, `invalid quota group name:.*`)
 	}
 }
@@ -384,7 +384,7 @@ func (s *ValidateSuite) TestValidateProvenance(c *C) {
 		"a--z",
 	}
 	for _, prov := range invalid {
-		err := naming.ValidateProvenance(prov)
+		mylog.Check(naming.ValidateProvenance(prov))
 		c.Check(err, ErrorMatches, regexp.QuoteMeta(fmt.Sprintf("invalid provenance: %q", prov)))
 	}
 }

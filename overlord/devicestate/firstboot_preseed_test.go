@@ -28,6 +28,7 @@ import (
 	. "gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/devicestate"
@@ -170,8 +171,8 @@ func checkPreseedOrder(c *C, tsAll []*state.TaskSet, snaps ...string) {
 
 		// make sure that install-hooks wait for the previous snap, and for
 		// mark-preseeded.
-		hookEdgeTask, err := ts.Edge(snapstate.HooksEdge)
-		c.Assert(err, IsNil)
+		hookEdgeTask := mylog.Check2(ts.Edge(snapstate.HooksEdge))
+
 		c.Assert(hookEdgeTask.Kind(), Equals, "run-hook")
 		var hsup hookstate.HookSetup
 		c.Assert(hookEdgeTask.Get("hook-setup", &hsup), IsNil)
@@ -195,7 +196,7 @@ func checkPreseedOrder(c *C, tsAll []*state.TaskSet, snaps ...string) {
 					waitsForMarkPreseeded = true
 				case "prerequisites":
 				default:
-					snapsup, err := snapstate.TaskSnapSetup(wt)
+					snapsup := mylog.Check2(snapstate.TaskSnapSetup(wt))
 					c.Assert(err, IsNil, Commentf("%#v", wt))
 					c.Check(snapsup.SnapName(), Equals, snaps[matched-1], Commentf("%s: %#v", hsup.Snap, wt))
 					waitsForPreviousSnap = true
@@ -208,7 +209,7 @@ func checkPreseedOrder(c *C, tsAll []*state.TaskSet, snaps ...string) {
 			}
 		}
 
-		snapsup, err := snapstate.TaskSnapSetup(task0)
+		snapsup := mylog.Check2(snapstate.TaskSnapSetup(task0))
 		c.Assert(err, IsNil, Commentf("%#v", task0))
 		c.Check(snapsup.InstanceName(), Equals, snaps[matched])
 		matched++
@@ -234,9 +235,8 @@ func (s *firstbootPreseedingClassic16Suite) SetUpTest(c *C) {
 	s.setup16BaseTest(c, &s.firstBootBaseTest)
 
 	s.SeedDir = dirs.SnapSeedDir
+	mylog.Check(os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "assertions"), 0755))
 
-	err := os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "assertions"), 0755)
-	c.Assert(err, IsNil)
 
 	s.AddCleanup(interfaces.MockSystemKey(`{"core": "123"}`))
 	c.Assert(interfaces.WriteSystemKey(), IsNil)
@@ -288,8 +288,8 @@ snaps:
  - name: core
    file: %s
 `, fooFname, barFname, coreFname))
-	err := os.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644))
+
 
 	// run the firstboot stuff
 	s.startOverlord(c)
@@ -297,8 +297,8 @@ snaps:
 	st.Lock()
 	defer st.Unlock()
 
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), s.perfTimings)
-	c.Assert(err, IsNil)
+	tsAll := mylog.Check2(devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), s.perfTimings))
+
 
 	chg := st.NewChange("seed", "run the populate from seed changes")
 	for _, ts := range tsAll {
@@ -309,35 +309,35 @@ snaps:
 	checkPreseedOrder(c, tsAll, "core", "foo", "bar")
 
 	st.Unlock()
-	err = s.overlord.Settle(settleTimeout)
+	mylog.Check(s.overlord.Settle(settleTimeout))
 	st.Lock()
 
-	c.Assert(err, IsNil)
+
 	c.Assert(chg.Err(), IsNil)
 
 	checkPreseedTaskStates(c, st)
 	c.Check(chg.Status(), Equals, state.DoingStatus)
 
 	// verify
-	r, err := os.Open(dirs.SnapStateFile)
-	c.Assert(err, IsNil)
-	diskState, err := state.ReadState(nil, r)
-	c.Assert(err, IsNil)
+	r := mylog.Check2(os.Open(dirs.SnapStateFile))
+
+	diskState := mylog.Check2(state.ReadState(nil, r))
+
 
 	diskState.Lock()
 	defer diskState.Unlock()
 
 	// seeded snaps are installed
-	_, err = snapstate.CurrentInfo(diskState, "core")
+	_ = mylog.Check2(snapstate.CurrentInfo(diskState, "core"))
 	c.Check(err, IsNil)
-	_, err = snapstate.CurrentInfo(diskState, "foo")
+	_ = mylog.Check2(snapstate.CurrentInfo(diskState, "foo"))
 	c.Check(err, IsNil)
-	_, err = snapstate.CurrentInfo(diskState, "bar")
+	_ = mylog.Check2(snapstate.CurrentInfo(diskState, "bar"))
 	c.Check(err, IsNil)
 
 	// but we're not considered seeded
 	var seeded bool
-	err = diskState.Get("seeded", &seeded)
+	mylog.Check(diskState.Get("seeded", &seeded))
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 }
 
@@ -374,8 +374,8 @@ snaps:
  - name: core18
    file: %s
 `, snapdFname, fooFname, core18Fname))
-	err := os.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644))
+
 
 	// run the firstboot stuff
 	s.startOverlord(c)
@@ -383,8 +383,8 @@ snaps:
 	st.Lock()
 	defer st.Unlock()
 
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), s.perfTimings)
-	c.Assert(err, IsNil)
+	tsAll := mylog.Check2(devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), s.perfTimings))
+
 
 	// now run the change and check the result
 	chg := st.NewChange("seed", "run the populate from seed changes")
@@ -397,33 +397,33 @@ snaps:
 	checkPreseedOrder(c, tsAll, "snapd", "core18", "foo")
 
 	st.Unlock()
-	err = s.overlord.Settle(settleTimeout)
+	mylog.Check(s.overlord.Settle(settleTimeout))
 	st.Lock()
-	c.Assert(err, IsNil)
+
 
 	checkPreseedTaskStates(c, st)
 	c.Check(chg.Status(), Equals, state.DoingStatus)
 
 	// verify
-	r, err := os.Open(dirs.SnapStateFile)
-	c.Assert(err, IsNil)
-	diskState, err := state.ReadState(nil, r)
-	c.Assert(err, IsNil)
+	r := mylog.Check2(os.Open(dirs.SnapStateFile))
+
+	diskState := mylog.Check2(state.ReadState(nil, r))
+
 
 	diskState.Lock()
 	defer diskState.Unlock()
 
 	// seeded snaps are installed
-	_, err = snapstate.CurrentInfo(diskState, "snapd")
+	_ = mylog.Check2(snapstate.CurrentInfo(diskState, "snapd"))
 	c.Check(err, IsNil)
-	_, err = snapstate.CurrentInfo(diskState, "core18")
+	_ = mylog.Check2(snapstate.CurrentInfo(diskState, "core18"))
 	c.Check(err, IsNil)
-	_, err = snapstate.CurrentInfo(diskState, "foo")
+	_ = mylog.Check2(snapstate.CurrentInfo(diskState, "foo"))
 	c.Check(err, IsNil)
 
 	// but we're not considered seeded
 	var seeded bool
-	err = diskState.Get("seeded", &seeded)
+	mylog.Check(diskState.Get("seeded", &seeded))
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 }
 
@@ -506,8 +506,8 @@ snaps:
  - name: bar
    file: %s
 `, snapdFname, core18Fname, fooFname, barFname))
-	err := os.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644))
+
 
 	// run the firstboot stuff
 	s.startOverlord(c)
@@ -515,8 +515,8 @@ snaps:
 	st.Lock()
 	defer st.Unlock()
 
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), s.perfTimings)
-	c.Assert(err, IsNil)
+	tsAll := mylog.Check2(devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), s.perfTimings))
+
 	// use the expected kind otherwise settle with start another one
 	chg := st.NewChange("seed", "run the populate from seed changes")
 	for _, ts := range tsAll {
@@ -527,9 +527,9 @@ snaps:
 	checkPreseedOrder(c, tsAll, "snapd", "core18", "foo", "bar")
 
 	st.Unlock()
-	err = s.overlord.Settle(settleTimeout)
+	mylog.Check(s.overlord.Settle(settleTimeout))
 	st.Lock()
-	c.Assert(err, IsNil)
+
 	c.Assert(chg.Err(), IsNil)
 	c.Check(chg.Status(), Equals, state.DoingStatus)
 	st.Unlock()
@@ -540,27 +540,27 @@ snaps:
 
 	// Verify state between the two change runs
 	st.Lock()
-	r, err := os.Open(dirs.SnapStateFile)
-	c.Assert(err, IsNil)
-	diskState, err := state.ReadState(nil, r)
-	c.Assert(err, IsNil)
+	r := mylog.Check2(os.Open(dirs.SnapStateFile))
+
+	diskState := mylog.Check2(state.ReadState(nil, r))
+
 
 	diskState.Lock()
 	defer diskState.Unlock()
 
 	// seeded snaps are installed
-	_, err = snapstate.CurrentInfo(diskState, "snapd")
+	_ = mylog.Check2(snapstate.CurrentInfo(diskState, "snapd"))
 	c.Check(err, IsNil)
-	_, err = snapstate.CurrentInfo(diskState, "core18")
+	_ = mylog.Check2(snapstate.CurrentInfo(diskState, "core18"))
 	c.Check(err, IsNil)
-	_, err = snapstate.CurrentInfo(diskState, "foo")
+	_ = mylog.Check2(snapstate.CurrentInfo(diskState, "foo"))
 	c.Check(err, IsNil)
-	_, err = snapstate.CurrentInfo(diskState, "bar")
+	_ = mylog.Check2(snapstate.CurrentInfo(diskState, "bar"))
 	c.Check(err, IsNil)
 
 	// but we're not considered seeded
 	var seeded bool
-	err = diskState.Get("seeded", &seeded)
+	mylog.Check(diskState.Get("seeded", &seeded))
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 
 	// For the next step of the test, we want to turn off pre-seeding so
@@ -582,16 +582,16 @@ snaps:
 	chg1.SetStatus(state.DoingStatus)
 
 	st.Unlock()
-	err = s.overlord.Settle(settleTimeout)
+	mylog.Check(s.overlord.Settle(settleTimeout))
 	st.Lock()
-	c.Assert(err, IsNil)
+
 
 	restart.MockPending(st, restart.RestartUnset)
 	st.Unlock()
-	err = s.overlord.Settle(settleTimeout)
-	c.Assert(err, IsNil)
+	mylog.Check(s.overlord.Settle(settleTimeout))
+
 	c.Assert(s.overlord.Stop(), IsNil)
-	c.Assert(err, IsNil)
+
 	st.Lock()
 
 	// Update the change pointer to the change in the new state
@@ -609,16 +609,17 @@ snaps:
 
 	c.Assert(hooksCalled, HasLen, 1)
 	c.Check(hooksCalled[0].HookName(), Equals, "connect-plug-network")
+	mylog.
 
-	// and ensure state is now considered seeded
-	err = st.Get("seeded", &seeded)
-	c.Assert(err, IsNil)
+		// and ensure state is now considered seeded
+		Check(st.Get("seeded", &seeded))
+
 	c.Check(seeded, Equals, true)
 
 	// check we set seed-time
 	var seedTime time.Time
-	err = st.Get("seed-time", &seedTime)
-	c.Assert(err, IsNil)
+	mylog.Check(st.Get("seed-time", &seedTime))
+
 	c.Check(seedTime.IsZero(), Equals, false)
 
 	// verify that connections was made
@@ -626,7 +627,8 @@ snaps:
 	c.Assert(st.Get("conns", &conns), IsNil)
 	c.Assert(conns, DeepEquals, map[string]interface{}{
 		"foo:network core:network": map[string]interface{}{
-			"auto": true, "interface": "network"},
+			"auto": true, "interface": "network",
+		},
 		"foo:shared-data-plug bar:shared-data-slot": map[string]interface{}{
 			"auto": true, "interface": "content",
 			"plug-static": map[string]interface{}{

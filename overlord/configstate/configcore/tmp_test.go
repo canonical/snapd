@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
@@ -56,13 +57,13 @@ func (s *tmpfsSuite) TestConfigureTmpfsGoodVals(c *C) {
 	defer mountCmd.Restore()
 
 	for _, size := range []string{"104857600", "16M", "7G", "0"} {
-		err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
+		mylog.Check(configcore.FilesystemOnlyRun(coreDev, &mockConf{
 			state: s.state,
 			conf: map[string]interface{}{
 				"tmp.size": size,
 			},
-		})
-		c.Assert(err, IsNil)
+		}))
+
 
 		c.Check(s.servOverridePath, testutil.FileEquals,
 			fmt.Sprintf("[Mount]\nOptions=mode=1777,strictatime,nosuid,nodev,size=%s\n", size))
@@ -76,18 +77,19 @@ func (s *tmpfsSuite) TestConfigureTmpfsGoodVals(c *C) {
 
 // Configure with different invalid values
 func (s *tmpfsSuite) TestConfigureTmpfsBadVals(c *C) {
-	for _, size := range []string{"100p", "0x123", "10485f7600", "20%%",
-		"20%", "100m", "10k", "10K", "10g"} {
-
-		err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
+	for _, size := range []string{
+		"100p", "0x123", "10485f7600", "20%%",
+		"20%", "100m", "10k", "10K", "10g",
+	} {
+		mylog.Check(configcore.FilesystemOnlyRun(coreDev, &mockConf{
 			state: s.state,
 			conf: map[string]interface{}{
 				"tmp.size": size,
 			},
-		})
+		}))
 		c.Assert(err, ErrorMatches, `invalid suffix .*`)
 
-		_, err = os.Stat(s.servOverridePath)
+		_ = mylog.Check2(os.Stat(s.servOverridePath))
 		c.Assert(os.IsNotExist(err), Equals, true)
 	}
 
@@ -96,16 +98,15 @@ func (s *tmpfsSuite) TestConfigureTmpfsBadVals(c *C) {
 
 func (s *tmpfsSuite) TestConfigureTmpfsTooSmall(c *C) {
 	for _, size := range []string{"1", "16777215"} {
-
-		err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
+		mylog.Check(configcore.FilesystemOnlyRun(coreDev, &mockConf{
 			state: s.state,
 			conf: map[string]interface{}{
 				"tmp.size": size,
 			},
-		})
+		}))
 		c.Assert(err, ErrorMatches, `size is less than 16Mb`)
 
-		_, err = os.Stat(s.servOverridePath)
+		_ = mylog.Check2(os.Stat(s.servOverridePath))
 		c.Assert(os.IsNotExist(err), Equals, true)
 	}
 
@@ -116,19 +117,20 @@ func (s *tmpfsSuite) TestConfigureTmpfsTooSmall(c *C) {
 func (s *tmpfsSuite) TestConfigureTmpfsAllConfDirExistsAlready(c *C) {
 	mountCmd := testutil.MockCommand(c, "mount", "")
 	defer mountCmd.Restore()
+	mylog.
 
-	// make tmp.mount.d directory already
-	err := os.MkdirAll(s.servOverrideDir, 0755)
-	c.Assert(err, IsNil)
+		// make tmp.mount.d directory already
+		Check(os.MkdirAll(s.servOverrideDir, 0755))
+
 
 	size := "100M"
-	err = configcore.FilesystemOnlyRun(coreDev, &mockConf{
+	mylog.Check(configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"tmp.size": size,
 		},
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(s.servOverridePath, testutil.FileEquals,
 		fmt.Sprintf("[Mount]\nOptions=mode=1777,strictatime,nosuid,nodev,size=%s\n", size))
 
@@ -139,32 +141,31 @@ func (s *tmpfsSuite) TestConfigureTmpfsAllConfDirExistsAlready(c *C) {
 
 // Test cfg file is not updated if we set the same size that is already set
 func (s *tmpfsSuite) TestConfigureTmpfsNoFileUpdate(c *C) {
-	err := os.MkdirAll(s.servOverrideDir, 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(s.servOverrideDir, 0755))
+
 	size := "100M"
 	content := "[Mount]\nOptions=mode=1777,strictatime,nosuid,nodev,size=" + size + "\n"
-	err = os.WriteFile(s.servOverridePath, []byte(content), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(s.servOverridePath, []byte(content), 0644))
 
-	info, err := os.Stat(s.servOverridePath)
-	c.Assert(err, IsNil)
+
+	info := mylog.Check2(os.Stat(s.servOverridePath))
+
 
 	fileModTime := info.ModTime()
 
 	// To make sure the times will differ if the file is newly written
 	time.Sleep(100 * time.Millisecond)
-
-	err = configcore.FilesystemOnlyRun(coreDev, &mockConf{
+	mylog.Check(configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"tmp.size": size,
 		},
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(s.servOverridePath, testutil.FileEquals, content)
 
-	info, err = os.Stat(s.servOverridePath)
-	c.Assert(err, IsNil)
+	info = mylog.Check2(os.Stat(s.servOverridePath))
+
 	c.Assert(info.ModTime(), Equals, fileModTime)
 
 	c.Check(s.systemctlArgs, HasLen, 0)
@@ -174,26 +175,24 @@ func (s *tmpfsSuite) TestConfigureTmpfsNoFileUpdate(c *C) {
 func (s *tmpfsSuite) TestConfigureTmpfsRemovesIfUnset(c *C) {
 	mountCmd := testutil.MockCommand(c, "mount", "")
 	defer mountCmd.Restore()
+	mylog.Check(os.MkdirAll(s.servOverrideDir, 0755))
 
-	err := os.MkdirAll(s.servOverrideDir, 0755)
-	c.Assert(err, IsNil)
 
 	// add canary to ensure we don't touch other files
 	canary := filepath.Join(s.servOverrideDir, "05-canary.conf")
-	err = os.WriteFile(canary, nil, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(canary, nil, 0644))
+
 
 	content := "[Mount]\nOptions=mode=1777,strictatime,nosuid,nodev,size=1G\n"
-	err = os.WriteFile(s.servOverridePath, []byte(content), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(s.servOverridePath, []byte(content), 0644))
 
-	err = configcore.FilesystemOnlyRun(coreDev, &mockConf{
+	mylog.Check(configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"tmp.size": "",
 		},
-	})
-	c.Assert(err, IsNil)
+	}))
+
 
 	// ensure the file got deleted
 	c.Check(osutil.FileExists(s.servOverridePath), Equals, false)

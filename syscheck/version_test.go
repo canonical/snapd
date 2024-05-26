@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
@@ -43,9 +44,10 @@ func (s *syscheckSuite) TestFreshInstallOfSnapdOnTrusty(c *C) {
 	defer restore()
 	restore = osutil.MockKernelVersion("3.13.0-35-generic")
 	defer restore()
+	mylog.
 
-	// Check for the given advice.
-	err := syscheck.CheckKernelVersion()
+		// Check for the given advice.
+		Check(syscheck.CheckKernelVersion())
 	c.Assert(err, ErrorMatches, "you need to reboot into a 4.4 kernel to start using snapd")
 }
 
@@ -57,10 +59,11 @@ func (s *syscheckSuite) TestRebootedOnTrusty(c *C) {
 	defer restore()
 	restore = osutil.MockKernelVersion("4.4.0-112-generic")
 	defer restore()
+	mylog.
 
-	// Check for the given advice.
-	err := syscheck.CheckKernelVersion()
-	c.Assert(err, IsNil)
+		// Check for the given advice.
+		Check(syscheck.CheckKernelVersion())
+
 }
 
 func (s *syscheckSuite) TestRHEL80OK(c *C) {
@@ -72,10 +75,11 @@ func (s *syscheckSuite) TestRHEL80OK(c *C) {
 	// RHEL 8 beta
 	restore = osutil.MockKernelVersion("4.18.0-32.el8.x86_64")
 	defer restore()
+	mylog.
 
-	// Check for the given advice.
-	err := syscheck.CheckKernelVersion()
-	c.Assert(err, IsNil)
+		// Check for the given advice.
+		Check(syscheck.CheckKernelVersion())
+
 }
 
 func (s *syscheckSuite) TestRHEL7x(c *C) {
@@ -93,40 +97,41 @@ func (s *syscheckSuite) TestRHEL7x(c *C) {
 	defer restore()
 	restore = osutil.MockKernelVersion("3.10.0-957.el7.x86_64")
 	defer restore()
+	mylog.
 
-	// pretend the kernel knob is not there
-	err := syscheck.CheckKernelVersion()
+		// pretend the kernel knob is not there
+		Check(syscheck.CheckKernelVersion())
 	c.Assert(err, ErrorMatches, "cannot read the value of fs.may_detach_mounts kernel parameter: .*")
 
 	p := filepath.Join(dir, "/proc/sys/fs/may_detach_mounts")
-	err = os.MkdirAll(filepath.Dir(p), 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Dir(p), 0755))
 
-	// the knob is there, but disabled
-	err = os.WriteFile(p, []byte("0\n"), 0644)
-	c.Assert(err, IsNil)
+	mylog.
 
-	err = syscheck.CheckKernelVersion()
+		// the knob is there, but disabled
+		Check(os.WriteFile(p, []byte("0\n"), 0644))
+
+	mylog.Check(syscheck.CheckKernelVersion())
 	c.Assert(err, ErrorMatches, "fs.may_detach_mounts kernel parameter is supported but disabled")
+	mylog.
 
-	// actually enabled
-	err = os.WriteFile(p, []byte("1\n"), 0644)
-	c.Assert(err, IsNil)
+		// actually enabled
+		Check(os.WriteFile(p, []byte("1\n"), 0644))
 
-	err = syscheck.CheckKernelVersion()
-	c.Assert(err, IsNil)
+	mylog.Check(syscheck.CheckKernelVersion())
+
 
 	// custom kernel version, which is old and we have no knowledge about
 	restore = osutil.MockKernelVersion("3.10.0-1024.foo.x86_64")
 	defer restore()
-	err = syscheck.CheckKernelVersion()
+	mylog.Check(syscheck.CheckKernelVersion())
 	c.Assert(err, ErrorMatches, `unsupported kernel version "3.10.0-1024.foo.x86_64", you need to switch to the stock kernel`)
 
 	// custom kernel version, but new enough
 	restore = osutil.MockKernelVersion("4.18.0-32.foo.x86_64")
 	defer restore()
-	err = syscheck.CheckKernelVersion()
-	c.Assert(err, IsNil)
+	mylog.Check(syscheck.CheckKernelVersion())
+
 }
 
 func (s *syscheckSuite) TestCentOS7x(c *C) {
@@ -147,20 +152,20 @@ func (s *syscheckSuite) TestCentOS7x(c *C) {
 	defer restore()
 
 	p := filepath.Join(dir, "/proc/sys/fs/may_detach_mounts")
-	err := os.MkdirAll(filepath.Dir(p), 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Dir(p), 0755))
 
-	// the knob there, but disabled
-	err = os.WriteFile(p, []byte("0\n"), 0644)
-	c.Assert(err, IsNil)
+	mylog.
 
-	err = syscheck.CheckKernelVersion()
+		// the knob there, but disabled
+		Check(os.WriteFile(p, []byte("0\n"), 0644))
+
+	mylog.Check(syscheck.CheckKernelVersion())
 	c.Assert(err, ErrorMatches, "fs.may_detach_mounts kernel parameter is supported but disabled")
+	mylog.
 
-	// actually enabled
-	err = os.WriteFile(p, []byte("1\n"), 0644)
-	c.Assert(err, IsNil)
+		// actually enabled
+		Check(os.WriteFile(p, []byte("1\n"), 0644))
 
-	err = syscheck.CheckKernelVersion()
-	c.Assert(err, IsNil)
+	mylog.Check(syscheck.CheckKernelVersion())
+
 }

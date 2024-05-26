@@ -20,11 +20,12 @@
 package osutil
 
 import (
+	"github.com/ddkwork/golibrary/mylog"
 	"golang.org/x/sys/unix"
 )
 
 func uname() (*unix.Utsname, error) {
 	var u unix.Utsname
-	err := unix.Uname(&u)
+	mylog.Check(unix.Uname(&u))
 	return &u, err
 }

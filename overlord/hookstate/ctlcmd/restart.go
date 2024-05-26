@@ -20,6 +20,7 @@
 package ctlcmd
 
 import (
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/i18n"
@@ -47,9 +48,7 @@ type restartCommand struct {
 }
 
 func (c *restartCommand) Execute(args []string) error {
-	if err := c.Validate(); err != nil {
-		return err
-	}
+	mylog.Check(c.Validate())
 
 	inst := servicestate.Instruction{
 		Action: "restart",

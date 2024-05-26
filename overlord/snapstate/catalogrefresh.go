@@ -27,6 +27,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/advisor"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
@@ -59,7 +60,7 @@ func (r *catalogRefresh) Ensure() error {
 	r.state.Lock()
 	defer r.state.Unlock()
 
-	online, err := isStoreOnline(r.state)
+	online := mylog.Check2(isStoreOnline(r.state))
 	if err != nil || !online {
 		return err
 	}
@@ -73,7 +74,7 @@ func (r *catalogRefresh) Ensure() error {
 	// do not bother refreshing catalog, snap list is empty anyway
 	// beside there is high change device has no internet
 	var seeded bool
-	err = r.state.Get("seeded", &seeded)
+	mylog.Check(r.state.Get("seeded", &seeded))
 	if errors.Is(err, state.ErrNoState) || !seeded {
 		logger.Debugf("CatalogRefresh:Ensure: skipping refresh, system is not seeded yet")
 		// not seeded yet
@@ -82,11 +83,9 @@ func (r *catalogRefresh) Ensure() error {
 
 	// similar to the not yet seeded case, on uc20 install mode it doesn't make
 	// sense to refresh the catalog for an ephemeral system
-	deviceCtx, err := DeviceCtx(r.state, nil, nil)
-	if err != nil {
-		// if we are seeded we should have a device context
-		return err
-	}
+	deviceCtx := mylog.Check2(DeviceCtx(r.state, nil, nil))
+
+	// if we are seeded we should have a device context
 
 	if deviceCtx.SystemMode() == "install" {
 		// skip the refresh
@@ -97,7 +96,7 @@ func (r *catalogRefresh) Ensure() error {
 	delay := catalogRefreshDelayBase
 	if r.nextCatalogRefresh.IsZero() {
 		// try to use the timestamp on the sections file
-		if st, err := os.Stat(dirs.SnapNamesFile); err == nil && st.ModTime().Before(now) {
+		if st := mylog.Check2(os.Stat(dirs.SnapNamesFile)); err == nil && st.ModTime().Before(now) {
 			// add the delay with the delta so we spread the load a bit
 			r.nextCatalogRefresh = st.ModTime().Add(catalogRefreshDelayWithDelta)
 		} else {
@@ -118,8 +117,7 @@ func (r *catalogRefresh) Ensure() error {
 	r.nextCatalogRefresh = next
 
 	logger.Debugf("Catalog refresh starting now; next scheduled for %s.", next)
-
-	err = refreshCatalogs(r.state, theStore)
+	mylog.Check(refreshCatalogs(r.state, theStore))
 	switch err {
 	case nil:
 		logger.Debugf("Catalog refresh succeeded.")
@@ -154,44 +152,29 @@ func refreshCatalogs(st *state.State, theStore StoreService) error {
 	defer st.Lock()
 
 	perfTimings := timings.New(map[string]string{"ensure": "refresh-catalogs"})
-
-	if err := os.MkdirAll(dirs.SnapCacheDir, 0755); err != nil {
-		return fmt.Errorf("cannot create directory %q: %v", dirs.SnapCacheDir, err)
-	}
+	mylog.Check(os.MkdirAll(dirs.SnapCacheDir, 0755))
 
 	var sections []string
-	var err error
-	timings.Run(perfTimings, "get-sections", "query store for sections", func(tm timings.Measurer) {
-		sections, err = theStore.Sections(auth.EnsureContextTODO(), nil)
-	})
-	if err != nil {
-		return err
-	}
-	sort.Strings(sections)
-	if err := osutil.AtomicWriteFile(dirs.SnapSectionsFile, []byte(strings.Join(sections, "\n")), 0644, 0); err != nil {
-		return err
-	}
 
-	namesFile, err := osutil.NewAtomicFile(dirs.SnapNamesFile, 0644, 0, osutil.NoChown, osutil.NoChown)
-	if err != nil {
-		return err
-	}
+	timings.Run(perfTimings, "get-sections", "query store for sections", func(tm timings.Measurer) {
+		sections = mylog.Check2(theStore.Sections(auth.EnsureContextTODO(), nil))
+	})
+
+	sort.Strings(sections)
+	mylog.Check(osutil.AtomicWriteFile(dirs.SnapSectionsFile, []byte(strings.Join(sections, "\n")), 0644, 0))
+
+	namesFile := mylog.Check2(osutil.NewAtomicFile(dirs.SnapNamesFile, 0644, 0, osutil.NoChown, osutil.NoChown))
+
 	defer namesFile.Cancel()
 
-	cmdDB, err := newCmdDB()
-	if err != nil {
-		return err
-	}
+	cmdDB := mylog.Check2(newCmdDB())
 
 	// if all goes well we'll Commit() making this a NOP:
 	defer cmdDB.Rollback()
 
 	timings.Run(perfTimings, "write-catalogs", "query store for catalogs", func(tm timings.Measurer) {
-		err = theStore.WriteCatalogs(auth.EnsureContextTODO(), namesFile, cmdDB)
+		mylog.Check(theStore.WriteCatalogs(auth.EnsureContextTODO(), namesFile, cmdDB))
 	})
-	if err != nil {
-		return err
-	}
 
 	err1 := namesFile.Commit()
 	err2 := cmdDB.Commit()

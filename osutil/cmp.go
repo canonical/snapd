@@ -23,32 +23,24 @@ import (
 	"bytes"
 	"io"
 	"os"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 const defaultChunkSize = 16 * 1024
 
 func filesAreEqualChunked(a, b string, chunkSize int) bool {
-	fa, err := os.Open(a)
-	if err != nil {
-		return false
-	}
+	fa := mylog.Check2(os.Open(a))
+
 	defer fa.Close()
 
-	fb, err := os.Open(b)
-	if err != nil {
-		return false
-	}
+	fb := mylog.Check2(os.Open(b))
+
 	defer fb.Close()
 
-	fia, err := fa.Stat()
-	if err != nil {
-		return false
-	}
+	fia := mylog.Check2(fa.Stat())
 
-	fib, err := fb.Stat()
-	if err != nil {
-		return false
-	}
+	fib := mylog.Check2(fb.Stat())
 
 	if fia.Size() != fib.Size() {
 		return false

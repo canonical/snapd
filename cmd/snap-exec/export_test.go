@@ -45,6 +45,7 @@ func MockSyscallExec(f func(argv0 string, argv []string, envv []string) (err err
 func SetOptsCommand(s string) {
 	opts.Command = s
 }
+
 func GetOptsCommand() string {
 	return opts.Command
 }
@@ -52,6 +53,7 @@ func GetOptsCommand() string {
 func SetOptsHook(s string) {
 	opts.Hook = s
 }
+
 func GetOptsHook() string {
 	return opts.Hook
 }

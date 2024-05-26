@@ -26,6 +26,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // validSystemUserUsernames matches the regex we allow by osutil/user.go:IsValidUsername
@@ -183,28 +185,21 @@ func parseShadowLine(line string) (*shadow, error) {
 var isValidSaltAndHash = regexp.MustCompile(`^[a-zA-Z0-9./]+$`).MatchString
 
 func checkHashedPassword(headers map[string]interface{}, name string) (string, error) {
-	pw, err := checkOptionalString(headers, name)
-	if err != nil {
-		return "", err
-	}
+	pw := mylog.Check2(checkOptionalString(headers, name))
+
 	// the pw string is optional, so just return if its empty
 	if pw == "" {
 		return "", nil
 	}
 
 	// parse the shadow line
-	shd, err := parseShadowLine(pw)
-	if err != nil {
-		return "", fmt.Errorf(`%q header invalid: %s`, name, err)
-	}
+	shd := mylog.Check2(parseShadowLine(pw))
 
 	// and verify it
 
 	// see crypt(3), ID 6 means SHA-512 (since glibc 2.7)
-	ID, err := strconv.Atoi(shd.ID)
-	if err != nil {
-		return "", fmt.Errorf(`%q header must start with "$integer-id$", got %q`, name, shd.ID)
-	}
+	ID := mylog.Check2(strconv.Atoi(shd.ID))
+
 	// double check that we only allow modern hashes
 	if ID < 6 {
 		return "", fmt.Errorf("%q header only supports $id$ values of 6 (sha512crypt) or higher", name)
@@ -212,10 +207,8 @@ func checkHashedPassword(headers map[string]interface{}, name string) (string, e
 
 	// the $rounds=N$ part is optional
 	if strings.HasPrefix(shd.Rounds, "rounds=") {
-		rounds, err := strconv.Atoi(strings.SplitN(shd.Rounds, "=", 2)[1])
-		if err != nil {
-			return "", fmt.Errorf("%q header has invalid number of rounds: %s", name, err)
-		}
+		rounds := mylog.Check2(strconv.Atoi(strings.SplitN(shd.Rounds, "=", 2)[1]))
+
 		if rounds < 5000 || rounds > 999999999 {
 			return "", fmt.Errorf("%q header rounds parameter out of bounds: %d", name, rounds)
 		}
@@ -232,7 +225,7 @@ func checkHashedPassword(headers map[string]interface{}, name string) (string, e
 }
 
 func checkSystemUserPresence(assert assertionBase) (string, error) {
-	str, err := checkOptionalString(assert.headers, "user-presence")
+	str := mylog.Check2(checkOptionalString(assert.headers, "user-presence"))
 	if err != nil || str == "" {
 		return "", err
 	}
@@ -250,70 +243,42 @@ func assembleSystemUser(assert assertionBase) (Assertion, error) {
 	// brand-id here can be different from authority-id,
 	// the code using the assertion must use the policy set
 	// by the model assertion system-user-authority header
-	email, err := checkNotEmptyString(assert.headers, "email")
-	if err != nil {
-		return nil, err
-	}
-	if _, err := mail.ParseAddress(email); err != nil {
-		return nil, fmt.Errorf(`"email" header must be a RFC 5322 compliant email address: %s`, err)
-	}
+	email := mylog.Check2(checkNotEmptyString(assert.headers, "email"))
+	mylog.Check2(mail.ParseAddress(email))
 
-	series, err := checkStringList(assert.headers, "series")
-	if err != nil {
-		return nil, err
-	}
-	models, err := checkStringList(assert.headers, "models")
-	if err != nil {
-		return nil, err
-	}
-	serials, err := checkStringList(assert.headers, "serials")
-	if err != nil {
-		return nil, err
-	}
+	series := mylog.Check2(checkStringList(assert.headers, "series"))
+
+	models := mylog.Check2(checkStringList(assert.headers, "models"))
+
+	serials := mylog.Check2(checkStringList(assert.headers, "serials"))
+
 	if len(serials) > 0 && assert.Format() < 1 {
 		return nil, fmt.Errorf(`the "serials" header is only supported for format 1 or greater`)
 	}
 	if len(serials) > 0 && len(models) != 1 {
 		return nil, fmt.Errorf(`in the presence of the "serials" header "models" must specify exactly one model`)
 	}
+	mylog.Check2(checkOptionalString(assert.headers, "name"))
+	mylog.Check2(checkStringMatches(assert.headers, "username", validSystemUserUsernames))
 
-	if _, err := checkOptionalString(assert.headers, "name"); err != nil {
-		return nil, err
-	}
-	if _, err := checkStringMatches(assert.headers, "username", validSystemUserUsernames); err != nil {
-		return nil, err
-	}
-	password, err := checkHashedPassword(assert.headers, "password")
-	if err != nil {
-		return nil, err
-	}
-	forcePasswordChange, err := checkOptionalBool(assert.headers, "force-password-change")
-	if err != nil {
-		return nil, err
-	}
+	password := mylog.Check2(checkHashedPassword(assert.headers, "password"))
+
+	forcePasswordChange := mylog.Check2(checkOptionalBool(assert.headers, "force-password-change"))
+
 	if forcePasswordChange && password == "" {
 		return nil, fmt.Errorf(`cannot use "force-password-change" with an empty "password"`)
 	}
 
-	sshKeys, err := checkStringList(assert.headers, "ssh-keys")
-	if err != nil {
-		return nil, err
-	}
-	since, err := checkRFC3339Date(assert.headers, "since")
-	if err != nil {
-		return nil, err
-	}
-	until, err := checkRFC3339Date(assert.headers, "until")
-	if err != nil {
-		return nil, err
-	}
+	sshKeys := mylog.Check2(checkStringList(assert.headers, "ssh-keys"))
+
+	since := mylog.Check2(checkRFC3339Date(assert.headers, "since"))
+
+	until := mylog.Check2(checkRFC3339Date(assert.headers, "until"))
+
 	if until.Before(since) {
 		return nil, fmt.Errorf("'until' time cannot be before 'since' time")
 	}
-	expiration, err := checkSystemUserPresence(assert)
-	if err != nil {
-		return nil, err
-	}
+	expiration := mylog.Check2(checkSystemUserPresence(assert))
 
 	// "global" system-user assertion can only be valid for 1y
 	if len(models) == 0 && until.After(since.AddDate(1, 0, 0)) {
@@ -336,18 +301,14 @@ func assembleSystemUser(assert assertionBase) (Assertion, error) {
 func systemUserFormatAnalyze(headers map[string]interface{}, body []byte) (formatnum int, err error) {
 	formatnum = 0
 
-	serials, err := checkStringList(headers, "serials")
-	if err != nil {
-		return 0, err
-	}
+	serials := mylog.Check2(checkStringList(headers, "serials"))
+
 	if len(serials) > 0 {
 		formatnum = 1
 	}
 
-	presence, err := checkOptionalString(headers, "user-presence")
-	if err != nil {
-		return 0, err
-	}
+	presence := mylog.Check2(checkOptionalString(headers, "user-presence"))
+
 	if presence != "" {
 		formatnum = 2
 	}

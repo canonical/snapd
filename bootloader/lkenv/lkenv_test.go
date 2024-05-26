@@ -33,6 +33,7 @@ import (
 	"golang.org/x/xerrors"
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader/lkenv"
 	"github.com/snapcore/snapd/logger"
@@ -51,13 +52,11 @@ type lkenvTestSuite struct {
 
 var _ = Suite(&lkenvTestSuite{})
 
-var (
-	lkversions = []lkenv.Version{
-		lkenv.V1,
-		lkenv.V2Run,
-		lkenv.V2Recovery,
-	}
-)
+var lkversions = []lkenv.Version{
+	lkenv.V1,
+	lkenv.V2Run,
+	lkenv.V2Recovery,
+}
 
 func (l *lkenvTestSuite) SetUpTest(c *C) {
 	l.BaseTest.SetUpTest(c)
@@ -68,16 +67,11 @@ func (l *lkenvTestSuite) SetUpTest(c *C) {
 // unpack test data packed with gzip
 func unpackTestData(data []byte) ([]byte, error) {
 	b := bytes.NewBuffer(data)
-	r, err := gzip.NewReader(b)
-	if err != nil {
-		return nil, err
-	}
+	r := mylog.Check2(gzip.NewReader(b))
 
 	var env bytes.Buffer
-	_, err = env.ReadFrom(r)
-	if err != nil {
-		return nil, err
-	}
+	_ = mylog.Check2(env.ReadFrom(r))
+
 	return env.Bytes(), nil
 }
 
@@ -245,12 +239,12 @@ func (l *lkenvTestSuite) TestSave(c *C) {
 			if makeBackup {
 				// create the backup file too
 				buf := make([]byte, 4096)
-				err := os.WriteFile(testFileBackup, buf, 0644)
+				mylog.Check(os.WriteFile(testFileBackup, buf, 0644))
 				c.Assert(err, IsNil, comment)
 			}
 
 			buf := make([]byte, 4096)
-			err := os.WriteFile(testFile, buf, 0644)
+			mylog.Check(os.WriteFile(testFile, buf, 0644))
 			c.Assert(err, IsNil, comment)
 
 			env := lkenv.NewEnv(testFile, "", t.version)
@@ -259,12 +253,11 @@ func (l *lkenvTestSuite) TestSave(c *C) {
 			for k, v := range t.keyValuePairs {
 				env.Set(k, v)
 			}
-
-			err = env.Save()
+			mylog.Check(env.Save())
 			c.Assert(err, IsNil, comment)
 
 			env2 := lkenv.NewEnv(testFile, "", t.version)
-			err = env2.Load()
+			mylog.Check(env2.Load())
 			c.Assert(err, IsNil, comment)
 
 			for k, v := range t.keyValuePairs {
@@ -274,7 +267,7 @@ func (l *lkenvTestSuite) TestSave(c *C) {
 			// check the backup too
 			if makeBackup {
 				env3 := lkenv.NewEnv(testFileBackup, "", t.version)
-				err := env3.Load()
+				mylog.Check(env3.Load())
 				c.Assert(err, IsNil, comment)
 
 				for k, v := range t.keyValuePairs {
@@ -285,13 +278,13 @@ func (l *lkenvTestSuite) TestSave(c *C) {
 				// automatically fallback to the backup file since the backup
 				// file will not be corrupt
 				buf := make([]byte, 4096)
-				f, err := os.OpenFile(testFile, os.O_WRONLY, 0644)
-				c.Assert(err, IsNil)
-				_, err = io.Copy(f, bytes.NewBuffer(buf))
+				f := mylog.Check2(os.OpenFile(testFile, os.O_WRONLY, 0644))
+
+				_ = mylog.Check2(io.Copy(f, bytes.NewBuffer(buf)))
 				c.Assert(err, IsNil, comment)
 
 				env4 := lkenv.NewEnv(testFile, "", t.version)
-				err = env4.Load()
+				mylog.Check(env4.Load())
 				c.Assert(err, IsNil, comment)
 
 				for k, v := range t.keyValuePairs {
@@ -334,24 +327,21 @@ func (l *lkenvTestSuite) TestLoadValidatesCRC32(c *C) {
 		buf := bytes.NewBuffer(nil)
 		ss := binary.Size(rawStruct)
 		buf.Grow(ss)
-		err := binary.Write(buf, binary.LittleEndian, rawStruct)
-		c.Assert(err, IsNil)
+		mylog.Check(binary.Write(buf, binary.LittleEndian, rawStruct))
+
 
 		// calculate the expected checksum but don't put it into the object when
 		// we write it out so that the checksum is invalid
 		expCrc32 := crc32.ChecksumIEEE(buf.Bytes()[:ss-4])
+		mylog.Check(os.WriteFile(testFile, buf.Bytes(), 0644))
 
-		err = os.WriteFile(testFile, buf.Bytes(), 0644)
-		c.Assert(err, IsNil)
 
 		// now try importing the file with LoadEnv()
 		env := lkenv.NewEnv(testFile, "", version)
 		c.Assert(env, NotNil)
-
-		err = env.LoadEnv(testFile)
+		mylog.Check(env.LoadEnv(testFile))
 		c.Assert(err, ErrorMatches, fmt.Sprintf("cannot validate %s: expected checksum 0x%X, got 0x%X", testFile, expCrc32, 0))
 	}
-
 }
 
 func (l *lkenvTestSuite) TestNewBackupFileLocation(c *C) {
@@ -364,25 +354,26 @@ func (l *lkenvTestSuite) TestNewBackupFileLocation(c *C) {
 		testFile := filepath.Join(c.MkDir(), "lk.bin")
 		c.Assert(testFile, testutil.FileAbsent)
 		c.Assert(testFile+"bak", testutil.FileAbsent)
-		// make empty files for Save() to overwrite
-		err := os.WriteFile(testFile, nil, 0644)
-		c.Assert(err, IsNil)
-		err = os.WriteFile(testFile+"bak", nil, 0644)
-		c.Assert(err, IsNil)
+		mylog.
+			// make empty files for Save() to overwrite
+			Check(os.WriteFile(testFile, nil, 0644))
+
+		mylog.Check(os.WriteFile(testFile+"bak", nil, 0644))
+
 		env := lkenv.NewEnv(testFile, "", version)
 		c.Assert(env, NotNil)
-		err = env.Save()
-		c.Assert(err, IsNil)
+		mylog.Check(env.Save())
+
 
 		// make sure both the primary and backup files were written and can be
 		// successfully loaded
 		env2 := lkenv.NewEnv(testFile, "", version)
-		err = env2.Load()
-		c.Assert(err, IsNil)
+		mylog.Check(env2.Load())
+
 
 		env3 := lkenv.NewEnv(testFile+"bak", "", version)
-		err = env3.Load()
-		c.Assert(err, IsNil)
+		mylog.Check(env3.Load())
+
 
 		// no messages logged
 		c.Assert(logbuf.String(), Equals, "")
@@ -394,25 +385,25 @@ func (l *lkenvTestSuite) TestNewBackupFileLocation(c *C) {
 		defer restore()
 		testFile := filepath.Join(c.MkDir(), "lk.bin")
 		testFileBackup := filepath.Join(c.MkDir(), "lkbackup.bin")
-		err := os.WriteFile(testFile, nil, 0644)
-		c.Assert(err, IsNil)
-		err = os.WriteFile(testFileBackup, nil, 0644)
-		c.Assert(err, IsNil)
+		mylog.Check(os.WriteFile(testFile, nil, 0644))
+
+		mylog.Check(os.WriteFile(testFileBackup, nil, 0644))
+
 
 		env := lkenv.NewEnv(testFile, testFileBackup, version)
 		c.Assert(env, NotNil)
-		err = env.Save()
-		c.Assert(err, IsNil)
+		mylog.Check(env.Save())
+
 
 		// make sure both the primary and backup files were written and can be
 		// successfully loaded
 		env2 := lkenv.NewEnv(testFile, "", version)
-		err = env2.Load()
-		c.Assert(err, IsNil)
+		mylog.Check(env2.Load())
+
 
 		env3 := lkenv.NewEnv(testFileBackup, "", version)
-		err = env3.Load()
-		c.Assert(err, IsNil)
+		mylog.Check(env3.Load())
+
 
 		// no "bak" files present
 		c.Assert(testFile+"bak", testutil.FileAbsent)
@@ -424,7 +415,6 @@ func (l *lkenvTestSuite) TestNewBackupFileLocation(c *C) {
 }
 
 func (l *lkenvTestSuite) TestLoadValidatesVersionSignatureConsistency(c *C) {
-
 	tt := []struct {
 		version          lkenv.Version
 		binVersion       uint32
@@ -496,8 +486,8 @@ func (l *lkenvTestSuite) TestLoadValidatesVersionSignatureConsistency(c *C) {
 		buf := bytes.NewBuffer(nil)
 		ss := binary.Size(rawStruct)
 		buf.Grow(ss)
-		err := binary.Write(buf, binary.LittleEndian, rawStruct)
-		c.Assert(err, IsNil)
+		mylog.Check(binary.Write(buf, binary.LittleEndian, rawStruct))
+
 
 		// calculate crc32
 		newCrc32 := crc32.ChecksumIEEE(buf.Bytes()[:ss-4])
@@ -505,9 +495,8 @@ func (l *lkenvTestSuite) TestLoadValidatesVersionSignatureConsistency(c *C) {
 		// we re-write _just_ the crc32 to w as little-endian
 		buf.Truncate(ss - 4)
 		binary.Write(buf, binary.LittleEndian, &newCrc32)
+		mylog.Check(os.WriteFile(testFile, buf.Bytes(), 0644))
 
-		err = os.WriteFile(testFile, buf.Bytes(), 0644)
-		c.Assert(err, IsNil)
 
 		// now try importing the file with LoadEnv()
 		env := lkenv.NewEnv(testFile, "", t.version)
@@ -529,8 +518,7 @@ func (l *lkenvTestSuite) TestLoadValidatesVersionSignatureConsistency(c *C) {
 			expNum,
 			gotNum,
 		)
-
-		err = env.LoadEnv(testFile)
+		mylog.Check(env.LoadEnv(testFile))
 		c.Assert(err, ErrorMatches, expErr)
 	}
 }
@@ -540,8 +528,7 @@ func (l *lkenvTestSuite) TestLoadPropagatesErrNotExist(c *C) {
 	// Load() is os.ErrNotExist, even if it isn't exactly that
 	env := lkenv.NewEnv("some-nonsense-file-this-doesnt-exist", "", lkenv.V1)
 	c.Check(env, NotNil)
-
-	err := env.Load()
+	mylog.Check(env.Load())
 	c.Assert(xerrors.Is(err, os.ErrNotExist), Equals, true, Commentf("err is %+v", err))
 	c.Assert(err, ErrorMatches, "cannot open LK env file: open some-nonsense-file-this-doesnt-existbak: no such file or directory")
 }
@@ -556,19 +543,18 @@ func (l *lkenvTestSuite) TestLoad(c *C) {
 			testFileBackup := testFile + "bak"
 			if makeBackup {
 				buf := make([]byte, 100000)
-				err := os.WriteFile(testFileBackup, buf, 0644)
-				c.Assert(err, IsNil)
+				mylog.Check(os.WriteFile(testFileBackup, buf, 0644))
+
 			}
 
 			buf := make([]byte, 100000)
-			err := os.WriteFile(testFile, buf, 0644)
-			c.Assert(err, IsNil)
+			mylog.Check(os.WriteFile(testFile, buf, 0644))
+
 
 			// create an env for this file and try to load it
 			env := lkenv.NewEnv(testFile, "", version)
 			c.Check(env, NotNil)
-
-			err = env.Load()
+			mylog.Check(env.Load())
 			// possible error messages could be "cannot open LK env file: ..."
 			// or "cannot valid <file>: ..."
 			if makeBackup {
@@ -699,7 +685,7 @@ func (l *lkenvTestSuite) TestGetAndSetAndFindBootPartition(c *C) {
 		c.Assert(t.bootMatrixKeys, HasLen, len(t.bootMatrixValues), comment)
 
 		buf := make([]byte, 4096)
-		err := os.WriteFile(l.envPath, buf, 0644)
+		mylog.Check(os.WriteFile(l.envPath, buf, 0644))
 		c.Assert(err, IsNil, comment)
 
 		env := lkenv.NewEnv(l.envPath, "", t.version)
@@ -718,15 +704,14 @@ func (l *lkenvTestSuite) TestGetAndSetAndFindBootPartition(c *C) {
 		case "kernel":
 			findFunc = func(s string) (string, error) { return env.FindFreeKernelBootPartition(s) }
 			setFunc = func(s1, s2 string) error {
-				// for assigning the kernel, we need to also set the
-				// snap_kernel, since that is used to detect if we should return
-				// an unset variable or not
+				mylog.Check(
+					// for assigning the kernel, we need to also set the
+					// snap_kernel, since that is used to detect if we should return
+					// an unset variable or not
 
-				err := env.SetBootPartitionKernel(s1, s2)
+					env.SetBootPartitionKernel(s1, s2))
 				c.Assert(err, IsNil, comment)
-				if err != nil {
-					return err
-				}
+
 				if env.Get("snap_kernel") == "" {
 					// only set it the first time so that the delete logic test
 					// works and we only set the first kernel to be snap_kernel
@@ -739,8 +724,7 @@ func (l *lkenvTestSuite) TestGetAndSetAndFindBootPartition(c *C) {
 		default:
 			c.Errorf("unexpected matrix type, test setup broken (%s)", comment)
 		}
-
-		err = env.InitializeBootPartitions(t.bootMatrixKeys...)
+		mylog.Check(env.InitializeBootPartitions(t.bootMatrixKeys...))
 		c.Assert(err, IsNil, comment)
 
 		// before assigning any values to the boot matrix, check that all
@@ -748,7 +732,7 @@ func (l *lkenvTestSuite) TestGetAndSetAndFindBootPartition(c *C) {
 		for _, bootPartValue := range t.bootMatrixKeys {
 			// we haven't assigned anything yet, so all values should get mapped
 			// to the first boot image partition
-			bootPartFound, err := findFunc(bootPartValue)
+			bootPartFound := mylog.Check2(findFunc(bootPartValue))
 			c.Assert(err, IsNil, comment)
 			c.Assert(bootPartFound, Equals, t.bootMatrixKeys[0], comment)
 		}
@@ -760,15 +744,14 @@ func (l *lkenvTestSuite) TestGetAndSetAndFindBootPartition(c *C) {
 			bootPartValue := t.bootMatrixValues[i]
 			// now we will be assigning things, so we should check that the
 			// assigned boot image partition matches what we expect
-			bootPartFound, err := findFunc(bootPartValue)
+			bootPartFound := mylog.Check2(findFunc(bootPartValue))
 			c.Assert(err, IsNil, comment)
 			c.Assert(bootPartFound, Equals, bootPart, comment)
-
-			err = setFunc(bootPart, bootPartValue)
+			mylog.Check(setFunc(bootPart, bootPartValue))
 			c.Assert(err, IsNil, comment)
 
 			// now check that it has the right value
-			val, err := getFunc(bootPartValue)
+			val := mylog.Check2(getFunc(bootPartValue))
 			c.Assert(err, IsNil, comment)
 			c.Assert(val, Equals, bootPart, comment)
 
@@ -777,7 +760,7 @@ func (l *lkenvTestSuite) TestGetAndSetAndFindBootPartition(c *C) {
 			// uc18 where during seeding we will end up extracting a kernel to
 			// the already extracted slot (since the kernel will already have
 			// been extracted during image build time)
-			bootPartFound2, err := findFunc(bootPartValue)
+			bootPartFound2 := mylog.Check2(findFunc(bootPartValue))
 			c.Assert(err, IsNil, comment)
 			c.Assert(bootPartFound2, Equals, bootPart, comment)
 		}
@@ -785,7 +768,7 @@ func (l *lkenvTestSuite) TestGetAndSetAndFindBootPartition(c *C) {
 		// now check that trying to find a free slot for a new recovery system
 		// fails because we are full
 		if t.matrixType == "recovery-system" {
-			thing, err := findFunc("some-random-value")
+			thing := mylog.Check2(findFunc("some-random-value"))
 			c.Check(thing, Equals, "")
 			c.Assert(err, ErrorMatches, "cannot find free boot image partition", comment)
 		}
@@ -794,15 +777,16 @@ func (l *lkenvTestSuite) TestGetAndSetAndFindBootPartition(c *C) {
 		lastIndex := len(t.bootMatrixValues) - 1
 		lastValue := t.bootMatrixValues[lastIndex]
 		lastKey := t.bootMatrixKeys[lastIndex]
-		err = deleteFunc(lastValue)
+		mylog.Check(deleteFunc(lastValue))
 		c.Assert(err, IsNil, comment)
+		mylog.Check(
 
-		// trying to delete again will fail since it won't exist
-		err = deleteFunc(lastValue)
+			// trying to delete again will fail since it won't exist
+			deleteFunc(lastValue))
 		c.Assert(err, ErrorMatches, fmt.Sprintf("cannot find %q in boot image partitions", lastValue), comment)
 
 		// trying to find it will return the last slot
-		slot, err := findFunc(lastValue)
+		slot := mylog.Check2(findFunc(lastValue))
 		c.Assert(err, IsNil, comment)
 		c.Assert(slot, Equals, lastKey, comment)
 	}
@@ -812,16 +796,14 @@ func (l *lkenvTestSuite) TestV1NoRecoverySystemSupport(c *C) {
 	env := lkenv.NewEnv(l.envPath, "", lkenv.V1)
 	c.Assert(env, NotNil)
 
-	_, err := env.FindFreeRecoverySystemBootPartition("blah")
+	_ := mylog.Check2(env.FindFreeRecoverySystemBootPartition("blah"))
+	c.Assert(err, ErrorMatches, "internal error: v1 lkenv has no boot image partition recovery system matrix")
+	mylog.Check(env.SetBootPartitionRecoverySystem("blah", "blah"))
 	c.Assert(err, ErrorMatches, "internal error: v1 lkenv has no boot image partition recovery system matrix")
 
-	err = env.SetBootPartitionRecoverySystem("blah", "blah")
+	_ = mylog.Check2(env.GetRecoverySystemBootPartition("blah"))
 	c.Assert(err, ErrorMatches, "internal error: v1 lkenv has no boot image partition recovery system matrix")
-
-	_, err = env.GetRecoverySystemBootPartition("blah")
-	c.Assert(err, ErrorMatches, "internal error: v1 lkenv has no boot image partition recovery system matrix")
-
-	err = env.RemoveRecoverySystemFromBootPartition("blah")
+	mylog.Check(env.RemoveRecoverySystemFromBootPartition("blah"))
 	c.Assert(err, ErrorMatches, "internal error: v1 lkenv has no boot image partition recovery system matrix")
 }
 
@@ -829,16 +811,14 @@ func (l *lkenvTestSuite) TestV2RunNoRecoverySystemSupport(c *C) {
 	env := lkenv.NewEnv(l.envPath, "", lkenv.V2Run)
 	c.Assert(env, NotNil)
 
-	_, err := env.FindFreeRecoverySystemBootPartition("blah")
+	_ := mylog.Check2(env.FindFreeRecoverySystemBootPartition("blah"))
+	c.Assert(err, ErrorMatches, "internal error: v2 run lkenv has no boot image partition recovery system matrix")
+	mylog.Check(env.SetBootPartitionRecoverySystem("blah", "blah"))
 	c.Assert(err, ErrorMatches, "internal error: v2 run lkenv has no boot image partition recovery system matrix")
 
-	err = env.SetBootPartitionRecoverySystem("blah", "blah")
+	_ = mylog.Check2(env.GetRecoverySystemBootPartition("blah"))
 	c.Assert(err, ErrorMatches, "internal error: v2 run lkenv has no boot image partition recovery system matrix")
-
-	_, err = env.GetRecoverySystemBootPartition("blah")
-	c.Assert(err, ErrorMatches, "internal error: v2 run lkenv has no boot image partition recovery system matrix")
-
-	err = env.RemoveRecoverySystemFromBootPartition("blah")
+	mylog.Check(env.RemoveRecoverySystemFromBootPartition("blah"))
 	c.Assert(err, ErrorMatches, "internal error: v2 run lkenv has no boot image partition recovery system matrix")
 }
 
@@ -846,16 +826,14 @@ func (l *lkenvTestSuite) TestV2RecoveryNoKernelSupport(c *C) {
 	env := lkenv.NewEnv(l.envPath, "", lkenv.V2Recovery)
 	c.Assert(env, NotNil)
 
-	_, err := env.FindFreeKernelBootPartition("blah")
+	_ := mylog.Check2(env.FindFreeKernelBootPartition("blah"))
+	c.Assert(err, ErrorMatches, "internal error: v2 recovery lkenv has no boot image partition kernel matrix")
+	mylog.Check(env.SetBootPartitionKernel("blah", "blah"))
 	c.Assert(err, ErrorMatches, "internal error: v2 recovery lkenv has no boot image partition kernel matrix")
 
-	err = env.SetBootPartitionKernel("blah", "blah")
+	_ = mylog.Check2(env.GetKernelBootPartition("blah"))
 	c.Assert(err, ErrorMatches, "internal error: v2 recovery lkenv has no boot image partition kernel matrix")
-
-	_, err = env.GetKernelBootPartition("blah")
-	c.Assert(err, ErrorMatches, "internal error: v2 recovery lkenv has no boot image partition kernel matrix")
-
-	err = env.RemoveKernelFromBootPartition("blah")
+	mylog.Check(env.RemoveKernelFromBootPartition("blah"))
 	c.Assert(err, ErrorMatches, "internal error: v2 recovery lkenv has no boot image partition kernel matrix")
 }
 
@@ -883,20 +861,21 @@ func (l *lkenvTestSuite) TestZippedDataSample(c *C) {
 		0xb5, 0xff, 0x7d, 0x74, 0x8e, 0x28, 0xbf, 0xfe, 0xb7, 0xe3, 0xa3, 0xe2,
 		0x0f, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 		0xf8, 0x17, 0xc7, 0xf7, 0xa7, 0xfb, 0x02, 0x1c, 0xdf, 0x44, 0x21, 0x0c,
-		0x3a, 0x00, 0x00}
+		0x3a, 0x00, 0x00,
+	}
 
 	// uncompress test data to sample env file
-	rawData, err := unpackTestData(gzipedData)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(l.envPath, rawData, 0644)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(l.envPathbak, rawData, 0644)
-	c.Assert(err, IsNil)
+	rawData := mylog.Check2(unpackTestData(gzipedData))
+
+	mylog.Check(os.WriteFile(l.envPath, rawData, 0644))
+
+	mylog.Check(os.WriteFile(l.envPathbak, rawData, 0644))
+
 
 	env := lkenv.NewEnv(l.envPath, "", lkenv.V1)
 	c.Check(env, NotNil)
-	err = env.Load()
-	c.Assert(err, IsNil)
+	mylog.Check(env.Load())
+
 	c.Check(env.Get("snap_mode"), Equals, boot.TryingStatus)
 	c.Check(env.Get("snap_kernel"), Equals, "kernel-1")
 	c.Check(env.Get("snap_try_kernel"), Equals, "kernel-2")
@@ -905,11 +884,11 @@ func (l *lkenvTestSuite) TestZippedDataSample(c *C) {
 	c.Check(env.Get("bootimg_file_name"), Equals, "boot.img")
 	c.Check(env.Get("reboot_reason"), Equals, "")
 	// first partition should be with label 'boot_a' and 'kernel-1' revision
-	p, err := env.GetKernelBootPartition("kernel-1")
+	p := mylog.Check2(env.GetKernelBootPartition("kernel-1"))
 	c.Check(p, Equals, "boot_a")
-	c.Assert(err, IsNil)
+
 	// test second boot partition is free with label "boot_b"
-	p, err = env.FindFreeKernelBootPartition("kernel-2")
+	p = mylog.Check2(env.FindFreeKernelBootPartition("kernel-2"))
 	c.Check(p, Equals, "boot_b")
-	c.Assert(err, IsNil)
+
 }

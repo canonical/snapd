@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -80,10 +81,8 @@ func registerSnippetForEditions(name string, snippets []ForEditions) {
 	if _, ok := registeredEditionSnippets[name]; ok {
 		panic(fmt.Sprintf("edition snippets %q are already registered", name))
 	}
+	mylog.Check(sanitizeSnippets(snippets))
 
-	if err := sanitizeSnippets(snippets); err != nil {
-		panic(fmt.Errorf("cannot validate snippets %q: %v", name, err))
-	}
 	registeredEditionSnippets[name] = snippets
 }
 

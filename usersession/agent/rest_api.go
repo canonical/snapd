@@ -29,6 +29,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/mvo5/goconfigparser"
 
 	"github.com/snapcore/snapd/desktop/notification"
@@ -98,38 +99,29 @@ func serviceStart(inst *client.ServiceInstruction, sysd systemd.Systemd) Respons
 	}
 
 	startErrors := make(map[string]string)
-	var err error
+
 	if inst.Enable {
-		if err = sysd.EnableNoReload(inst.Services); err != nil {
-			return InternalError("cannot enable snap services %q: %v", inst.Services, err)
-		}
+		mylog.Check(sysd.EnableNoReload(inst.Services))
 
 		// Setup undo logic for the enable in case of errors
 		defer func() {
 			if err == nil && len(startErrors) == 0 {
 				return
 			}
+			mylog.Check(
 
-			// Only log errors in this case to avoid overriding the initial error
-			if err := sysd.DisableNoReload(inst.Services); err != nil {
-				logger.Noticef("cannot disable previously enabled services %q: %v", inst.Services, err)
-			}
-			if err := sysd.DaemonReload(); err != nil {
-				logger.Noticef("cannot reload systemd: %v", err)
-			}
+				// Only log errors in this case to avoid overriding the initial error
+				sysd.DisableNoReload(inst.Services))
+			mylog.Check(sysd.DaemonReload())
 		}()
+		mylog.Check(sysd.DaemonReload())
 
-		if err = sysd.DaemonReload(); err != nil {
-			return InternalError("cannot reload systemd: %v", err)
-		}
 	}
 
 	var started []string
 	for _, service := range inst.Services {
-		if err := sysd.Start([]string{service}); err != nil {
-			startErrors[service] = err.Error()
-			break
-		}
+		mylog.Check(sysd.Start([]string{service}))
+
 		started = append(started, service)
 	}
 
@@ -141,9 +133,7 @@ func serviceStart(inst *client.ServiceInstruction, sysd systemd.Systemd) Respons
 	// then re-disable if enable was requested
 	stopErrors := make(map[string]string)
 	for _, service := range started {
-		if err := sysd.Stop([]string{service}); err != nil {
-			stopErrors[service] = err.Error()
-		}
+		mylog.Check(sysd.Stop([]string{service}))
 	}
 
 	return SyncResponse(&resp{
@@ -171,13 +161,9 @@ func serviceRestart(inst *client.ServiceInstruction, sysd systemd.Systemd) Respo
 	restartErrors := make(map[string]string)
 	for _, service := range inst.Services {
 		if inst.Reload {
-			if err := sysd.ReloadOrRestart([]string{service}); err != nil {
-				restartErrors[service] = err.Error()
-			}
+			mylog.Check(sysd.ReloadOrRestart([]string{service}))
 		} else {
-			if err := sysd.Restart([]string{service}); err != nil {
-				restartErrors[service] = err.Error()
-			}
+			mylog.Check(sysd.Restart([]string{service}))
 		}
 	}
 	if len(restartErrors) == 0 {
@@ -206,9 +192,7 @@ func serviceStop(inst *client.ServiceInstruction, sysd systemd.Systemd) Response
 
 	stopErrors := make(map[string]string)
 	for _, service := range inst.Services {
-		if err := sysd.Stop([]string{service}); err != nil {
-			stopErrors[service] = err.Error()
-		}
+		mylog.Check(sysd.Stop([]string{service}))
 	}
 
 	if len(stopErrors) != 0 {
@@ -226,12 +210,9 @@ func serviceStop(inst *client.ServiceInstruction, sysd systemd.Systemd) Response
 	}
 
 	if inst.Disable {
-		if err := sysd.DisableNoReload(inst.Services); err != nil {
-			return InternalError(fmt.Sprintf("cannot disable services %q: %v", inst.Services, err))
-		}
-		if err := sysd.DaemonReload(); err != nil {
-			return InternalError(fmt.Sprintf("cannot reload systemd: %v", err))
-		}
+		mylog.Check(sysd.DisableNoReload(inst.Services))
+		mylog.Check(sysd.DaemonReload())
+
 	}
 	return SyncResponse(nil)
 }
@@ -240,9 +221,8 @@ func serviceDaemonReload(inst *client.ServiceInstruction, sysd systemd.Systemd) 
 	if len(inst.Services) != 0 {
 		return InternalError("daemon-reload should not be called with any services")
 	}
-	if err := sysd.DaemonReload(); err != nil {
-		return InternalError("cannot reload daemon: %v", err)
-	}
+	mylog.Check(sysd.DaemonReload())
+
 	return SyncResponse(nil)
 }
 
@@ -261,10 +241,7 @@ func (noopReporter) Notify(string) {}
 
 func validateJSONRequest(r *http.Request) (valid bool, errResp Response) {
 	contentType := r.Header.Get("Content-Type")
-	mediaType, params, err := mime.ParseMediaType(contentType)
-	if err != nil {
-		return false, BadRequest("cannot parse content type: %v", err)
-	}
+	mediaType, params := mylog.Check3(mime.ParseMediaType(contentType))
 
 	if mediaType != "application/json" {
 		return false, BadRequest("unknown content type: %s", contentType)
@@ -285,9 +262,8 @@ func postServiceControl(c *Command, r *http.Request) Response {
 
 	decoder := json.NewDecoder(r.Body)
 	var inst client.ServiceInstruction
-	if err := decoder.Decode(&inst); err != nil {
-		return BadRequest("cannot decode request body into service instruction: %v", err)
-	}
+	mylog.Check(decoder.Decode(&inst))
+
 	impl := serviceInstructionDispTable[inst.Action]
 	if impl == nil {
 		return BadRequest("unknown action %s", inst.Action)
@@ -335,11 +311,8 @@ func serviceStatus(c *Command, r *http.Request) Response {
 	statusErrors := make(map[string]string)
 	var stss []*systemd.UnitStatus
 	for _, service := range services {
-		sts, err := sysd.Status([]string{service})
-		if err != nil {
-			statusErrors[service] = err.Error()
-			continue
-		}
+		sts := mylog.Check2(sysd.Status([]string{service}))
+
 		stss = append(stss, sts...)
 	}
 	if len(statusErrors) > 0 {
@@ -367,9 +340,7 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 
 	// pendingSnapRefreshInfo holds information about pending snap refresh provided by snapd.
 	var refreshInfo client.PendingSnapRefreshInfo
-	if err := decoder.Decode(&refreshInfo); err != nil {
-		return BadRequest("cannot decode request body into pending snap refresh info: %v", err)
-	}
+	mylog.Check(decoder.Decode(&refreshInfo))
 
 	// Note that since the connection is shared, we are not closing it.
 	if c.s.bus == nil {
@@ -414,7 +385,7 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 	if refreshInfo.BusyAppDesktopEntry != "" {
 		parser := goconfigparser.New()
 		desktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, refreshInfo.BusyAppDesktopEntry+".desktop")
-		if err := parser.ReadFile(desktopFilePath); err == nil {
+		if mylog.Check(parser.ReadFile(desktopFilePath)); err == nil {
 			icon, _ = parser.Get("Desktop Entry", "Icon")
 		}
 	}
@@ -426,18 +397,12 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 		Body:    body,
 		Hints:   hints,
 	}
+	mylog.Check(
 
-	// TODO: silently ignore error returned when the notification server does not exist.
-	// TODO: track returned notification ID and respond to actions, if supported.
-	if err := c.s.notificationMgr.SendNotification(notification.ID(refreshInfo.InstanceName), msg); err != nil {
-		return SyncResponse(&resp{
-			Type:   ResponseTypeError,
-			Status: 500,
-			Result: &errorResult{
-				Message: fmt.Sprintf("cannot send notification message: %v", err),
-			},
-		})
-	}
+		// TODO: silently ignore error returned when the notification server does not exist.
+		// TODO: track returned notification ID and respond to actions, if supported.
+		c.s.notificationMgr.SendNotification(notification.ID(refreshInfo.InstanceName), msg))
+
 	return SyncResponse(nil)
 }
 
@@ -451,7 +416,7 @@ func guessAppIcon(si *snap.Info) string {
 	mainApp, ok := si.Apps[si.SnapName()]
 	if ok && !mainApp.IsService() {
 		// got the main app, grab its desktop file
-		if err := parser.ReadFile(mainApp.DesktopFile()); err == nil {
+		if mylog.Check(parser.ReadFile(mainApp.DesktopFile())); err == nil {
 			icon, _ = parser.Get("Desktop Entry", "Icon")
 		}
 	}
@@ -464,8 +429,8 @@ func guessAppIcon(si *snap.Info) string {
 		if app.IsService() || app.Name == si.SnapName() {
 			continue
 		}
-		if err := parser.ReadFile(app.DesktopFile()); err == nil {
-			if icon, err = parser.Get("Desktop Entry", "Icon"); err == nil && icon != "" {
+		if mylog.Check(parser.ReadFile(app.DesktopFile())); err == nil {
+			if icon = mylog.Check2(parser.Get("Desktop Entry", "Icon")); err == nil && icon != "" {
 				break
 			}
 		}
@@ -481,9 +446,7 @@ func postRefreshFinishedNotification(c *Command, r *http.Request) Response {
 	decoder := json.NewDecoder(r.Body)
 
 	var finishRefresh client.FinishedSnapRefreshInfo
-	if err := decoder.Decode(&finishRefresh); err != nil {
-		return BadRequest("cannot decode request body into finish refresh notification info: %v", err)
-	}
+	mylog.Check(decoder.Decode(&finishRefresh))
 
 	// Note that since the connection is shared, we are not closing it.
 	if c.s.bus == nil {
@@ -504,7 +467,7 @@ func postRefreshFinishedNotification(c *Command, r *http.Request) Response {
 	}
 
 	var icon string
-	if si, err := snap.ReadCurrentInfo(finishRefresh.InstanceName); err == nil {
+	if si := mylog.Check2(snap.ReadCurrentInfo(finishRefresh.InstanceName)); err == nil {
 		icon = guessAppIcon(si)
 	} else {
 		logger.Noticef("cannot load snap-info for %s: %v", finishRefresh.InstanceName, err)
@@ -516,14 +479,7 @@ func postRefreshFinishedNotification(c *Command, r *http.Request) Response {
 		Hints: hints,
 		Icon:  icon,
 	}
-	if err := c.s.notificationMgr.SendNotification(notification.ID(finishRefresh.InstanceName), msg); err != nil {
-		return SyncResponse(&resp{
-			Type:   ResponseTypeError,
-			Status: 500,
-			Result: &errorResult{
-				Message: fmt.Sprintf("cannot send notification message: %v", err),
-			},
-		})
-	}
+	mylog.Check(c.s.notificationMgr.SendNotification(notification.ID(finishRefresh.InstanceName), msg))
+
 	return SyncResponse(nil)
 }

@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
@@ -455,49 +456,49 @@ func (s *SerialPortInterfaceSuite) TestSanitizeBadGadgetSnapSlots(c *C) {
 }
 
 func (s *SerialPortInterfaceSuite) TestPermanentSlotUDevSnippets(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.osSnapInfo, nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.osSnapInfo, nil))
+
 	spec := udev.NewSpecification(appSet)
 	for _, slot := range []*snap.SlotInfo{s.testSlot1Info, s.testSlot2Info, s.testSlot3Info, s.testSlot4Info} {
-		err := spec.AddPermanentSlot(s.iface, slot)
-		c.Assert(err, IsNil)
+		mylog.Check(spec.AddPermanentSlot(s.iface, slot))
+
 		c.Assert(spec.Snippets(), HasLen, 0)
 	}
 
-	appSet, err = interfaces.NewSnapAppSet(s.gadgetSnapInfo, nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.gadgetSnapInfo, nil))
+
 	spec = udev.NewSpecification(appSet)
 	expectedSnippet1 := `# serial-port
 IMPORT{builtin}="usb_id"
 SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="0001", ATTRS{idProduct}=="0001", SYMLINK+="serial-port-zigbee"`
-	err = spec.AddPermanentSlot(s.iface, s.testUDev1Info)
-	c.Assert(err, IsNil)
+	mylog.Check(spec.AddPermanentSlot(s.iface, s.testUDev1Info))
+
 	c.Assert(spec.Snippets(), HasLen, 1)
 	snippet := spec.Snippets()[0]
 	c.Assert(snippet, Equals, expectedSnippet1)
 
-	appSet, err = interfaces.NewSnapAppSet(s.gadgetSnapInfo, nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.gadgetSnapInfo, nil))
+
 	spec = udev.NewSpecification(appSet)
 	expectedSnippet2 := `# serial-port
 IMPORT{builtin}="usb_id"
 SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="ffff", ATTRS{idProduct}=="ffff", SYMLINK+="serial-port-mydevice"`
-	err = spec.AddPermanentSlot(s.iface, s.testUDev2Info)
-	c.Assert(err, IsNil)
+	mylog.Check(spec.AddPermanentSlot(s.iface, s.testUDev2Info))
+
 	c.Assert(spec.Snippets(), HasLen, 1)
 	snippet = spec.Snippets()[0]
 	c.Assert(snippet, Equals, expectedSnippet2)
 
-	appSet, err = interfaces.NewSnapAppSet(s.gadgetSnapInfo, nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.gadgetSnapInfo, nil))
+
 	spec = udev.NewSpecification(appSet)
 	// The ENV{ID_USB_INTERFACE_NUM} is set to two hex digits
 	// For instance, the expectedSnippet3 is set to 00
 	expectedSnippet3 := `# serial-port
 IMPORT{builtin}="usb_id"
 SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="abcd", ATTRS{idProduct}=="1234", ENV{ID_USB_INTERFACE_NUM}=="00", SYMLINK+="serial-port-myserial"`
-	err = spec.AddPermanentSlot(s.iface, s.testUDev3Info)
-	c.Assert(err, IsNil)
+	mylog.Check(spec.AddPermanentSlot(s.iface, s.testUDev3Info))
+
 	c.Assert(spec.Snippets(), HasLen, 1)
 	snippet = spec.Snippets()[0]
 	c.Assert(snippet, Equals, expectedSnippet3)
@@ -505,11 +506,11 @@ SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="abcd", ATTRS{idProduct}==
 
 func (s *SerialPortInterfaceSuite) TestConnectedPlugUDevSnippets(c *C) {
 	// add the plug for the slot with just path
-	appSet, err := interfaces.NewSnapAppSet(s.testPlugPort1.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.testPlugPort1.Snap(), nil))
+
 	spec := udev.NewSpecification(appSet)
-	err = spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testSlot1)
-	c.Assert(err, IsNil)
+	mylog.Check(spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testSlot1))
+
 	c.Assert(spec.Snippets(), HasLen, 2)
 	snippet := spec.Snippets()[0]
 	expectedSnippet1 := `# serial-port
@@ -520,11 +521,11 @@ SUBSYSTEM=="tty", KERNEL=="ttyS0", TAG+="snap_client-snap_app-accessing-2-ports"
 	c.Assert(extraSnippet, Equals, expectedExtraSnippet1)
 
 	// add plug for the first slot with product and vendor ids
-	appSet, err = interfaces.NewSnapAppSet(s.testPlugPort1.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.testPlugPort1.Snap(), nil))
+
 	spec = udev.NewSpecification(appSet)
-	err = spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUDev1)
-	c.Assert(err, IsNil)
+	mylog.Check(spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUDev1))
+
 	c.Assert(spec.Snippets(), HasLen, 2)
 	snippet = spec.Snippets()[0]
 	expectedSnippet2 := `# serial-port
@@ -536,11 +537,11 @@ SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="0001", ATTRS{idProduct}==
 	c.Assert(extraSnippet, Equals, expectedExtraSnippet2)
 
 	// add plug for the first slot with product and vendor ids
-	appSet, err = interfaces.NewSnapAppSet(s.testPlugPort2.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.testPlugPort2.Snap(), nil))
+
 	spec = udev.NewSpecification(appSet)
-	err = spec.AddConnectedPlug(s.iface, s.testPlugPort2, s.testUDev2)
-	c.Assert(err, IsNil)
+	mylog.Check(spec.AddConnectedPlug(s.iface, s.testPlugPort2, s.testUDev2))
+
 	c.Assert(spec.Snippets(), HasLen, 2)
 	snippet = spec.Snippets()[0]
 	expectedSnippet3 := `# serial-port
@@ -552,11 +553,11 @@ SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="ffff", ATTRS{idProduct}==
 	c.Assert(extraSnippet, Equals, expectedExtraSnippet3)
 
 	// add plug for the first slot with product and vendor ids and usb interface number
-	appSet, err = interfaces.NewSnapAppSet(s.testPlugPort2.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.testPlugPort2.Snap(), nil))
+
 	spec = udev.NewSpecification(appSet)
-	err = spec.AddConnectedPlug(s.iface, s.testPlugPort2, s.testUDev3)
-	c.Assert(err, IsNil)
+	mylog.Check(spec.AddConnectedPlug(s.iface, s.testPlugPort2, s.testUDev3))
+
 	c.Assert(spec.Snippets(), HasLen, 2)
 	snippet = spec.Snippets()[0]
 	expectedSnippet4 := `# serial-port
@@ -570,11 +571,11 @@ SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="abcd", ATTRS{idProduct}==
 
 func (s *SerialPortInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
 	checkConnectedPlugSnippet := func(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot, expectedSnippet string) {
-		appSet, err := interfaces.NewSnapAppSet(plug.Snap(), nil)
-		c.Assert(err, IsNil)
+		appSet := mylog.Check2(interfaces.NewSnapAppSet(plug.Snap(), nil))
+
 		apparmorSpec := apparmor.NewSpecification(appSet)
-		err = apparmorSpec.AddConnectedPlug(s.iface, plug, slot)
-		c.Assert(err, IsNil)
+		mylog.Check(apparmorSpec.AddConnectedPlug(s.iface, plug, slot))
+
 
 		c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-2-ports"})
 		snippet := apparmorSpec.SnippetForTag("snap.client-snap.app-accessing-2-ports")
@@ -631,11 +632,11 @@ func (s *SerialPortInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
 
 func (s *SerialPortInterfaceSuite) TestConnectedPlugUDevSnippetsForPath(c *C) {
 	checkConnectedPlugSnippet := func(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot, expectedSnippet string, expectedExtraSnippet string) {
-		appSet, err := interfaces.NewSnapAppSet(plug.Snap(), nil)
-		c.Assert(err, IsNil)
+		appSet := mylog.Check2(interfaces.NewSnapAppSet(plug.Snap(), nil))
+
 		udevSpec := udev.NewSpecification(appSet)
-		err = udevSpec.AddConnectedPlug(s.iface, plug, slot)
-		c.Assert(err, IsNil)
+		mylog.Check(udevSpec.AddConnectedPlug(s.iface, plug, slot))
+
 
 		c.Assert(udevSpec.Snippets(), HasLen, 2)
 		snippet := udevSpec.Snippets()[0]
@@ -726,51 +727,51 @@ SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="ffff", ATTRS{idProduct}==
 
 func (s *SerialPortInterfaceSuite) TestHotplugDeviceDetected(c *C) {
 	hotplugIface := s.iface.(hotplug.Definer)
-	di, err := hotplug.NewHotplugDeviceInfo(map[string]string{"DEVPATH": "/sys/foo/bar", "DEVNAME": "/dev/ttyUSB0", "ID_VENDOR_ID": "1234", "ID_MODEL_ID": "5678", "ACTION": "add", "SUBSYSTEM": "tty", "ID_BUS": "usb"})
-	c.Assert(err, IsNil)
-	proposedSlot, err := hotplugIface.HotplugDeviceDetected(di)
-	c.Assert(err, IsNil)
+	di := mylog.Check2(hotplug.NewHotplugDeviceInfo(map[string]string{"DEVPATH": "/sys/foo/bar", "DEVNAME": "/dev/ttyUSB0", "ID_VENDOR_ID": "1234", "ID_MODEL_ID": "5678", "ACTION": "add", "SUBSYSTEM": "tty", "ID_BUS": "usb"}))
+
+	proposedSlot := mylog.Check2(hotplugIface.HotplugDeviceDetected(di))
+
 	c.Assert(proposedSlot, DeepEquals, &hotplug.ProposedSlot{Attrs: map[string]interface{}{"path": "/dev/ttyUSB0", "usb-vendor": "1234", "usb-product": "5678"}})
 }
 
 func (s *SerialPortInterfaceSuite) TestHotplugDeviceDetectedNotSerialPort(c *C) {
 	hotplugIface := s.iface.(hotplug.Definer)
-	di, err := hotplug.NewHotplugDeviceInfo(map[string]string{"DEVPATH": "/sys/foo/bar", "DEVNAME": "/dev/other", "ID_VENDOR_ID": "1234", "ID_MODEL_ID": "5678", "ACTION": "add", "SUBSYSTEM": "tty", "ID_BUS": "usb"})
-	c.Assert(err, IsNil)
-	proposedSlot, err := hotplugIface.HotplugDeviceDetected(di)
-	c.Assert(err, IsNil)
+	di := mylog.Check2(hotplug.NewHotplugDeviceInfo(map[string]string{"DEVPATH": "/sys/foo/bar", "DEVNAME": "/dev/other", "ID_VENDOR_ID": "1234", "ID_MODEL_ID": "5678", "ACTION": "add", "SUBSYSTEM": "tty", "ID_BUS": "usb"}))
+
+	proposedSlot := mylog.Check2(hotplugIface.HotplugDeviceDetected(di))
+
 	c.Assert(proposedSlot, IsNil)
 }
 
 func (s *SerialPortInterfaceSuite) TestHotplugHandledByGadget(c *C) {
 	byGadgetPred := s.iface.(hotplug.HandledByGadgetPredicate)
-	di, err := hotplug.NewHotplugDeviceInfo(map[string]string{"DEVPATH": "/sys/foo/bar", "DEVNAME": "/dev/ttyXRUSB0", "ACTION": "add", "SUBSYSTEM": "tty", "ID_BUS": "usb"})
-	c.Assert(err, IsNil)
+	di := mylog.Check2(hotplug.NewHotplugDeviceInfo(map[string]string{"DEVPATH": "/sys/foo/bar", "DEVNAME": "/dev/ttyXRUSB0", "ACTION": "add", "SUBSYSTEM": "tty", "ID_BUS": "usb"}))
+
 
 	c.Assert(byGadgetPred.HandledByGadget(di, s.testSlot5Info), Equals, false)
 	// matching path /dev/ttyXRUSB0
 	c.Assert(byGadgetPred.HandledByGadget(di, s.testSlot7Info), Equals, true)
 
 	// matching on vendor, model, usb interface num
-	di, err = hotplug.NewHotplugDeviceInfo(map[string]string{"DEVPATH": "/sys/foo/bar", "DEVNAME": "/dev/path", "ID_VENDOR_ID": "abcd", "ID_MODEL_ID": "1234", "ID_USB_INTERFACE_NUM": "00", "ACTION": "add", "SUBSYSTEM": "tty", "ID_BUS": "usb"})
-	c.Assert(err, IsNil)
+	di = mylog.Check2(hotplug.NewHotplugDeviceInfo(map[string]string{"DEVPATH": "/sys/foo/bar", "DEVNAME": "/dev/path", "ID_VENDOR_ID": "abcd", "ID_MODEL_ID": "1234", "ID_USB_INTERFACE_NUM": "00", "ACTION": "add", "SUBSYSTEM": "tty", "ID_BUS": "usb"}))
+
 	c.Assert(byGadgetPred.HandledByGadget(di, s.testUDev3Info), Equals, true)
 	// model doesn't match, everything else matches
-	di, err = hotplug.NewHotplugDeviceInfo(map[string]string{"DEVPATH": "/sys/foo/bar", "DEVNAME": "/dev/path", "ID_VENDOR_ID": "abcd", "ID_MODEL_ID": "ffff", "ID_USB_INTERFACE_NUM": "00", "ACTION": "add", "SUBSYSTEM": "tty", "ID_BUS": "usb"})
-	c.Assert(err, IsNil)
+	di = mylog.Check2(hotplug.NewHotplugDeviceInfo(map[string]string{"DEVPATH": "/sys/foo/bar", "DEVNAME": "/dev/path", "ID_VENDOR_ID": "abcd", "ID_MODEL_ID": "ffff", "ID_USB_INTERFACE_NUM": "00", "ACTION": "add", "SUBSYSTEM": "tty", "ID_BUS": "usb"}))
+
 	c.Assert(byGadgetPred.HandledByGadget(di, s.testUDev3Info), Equals, false)
 	// vendor doesn't match, everything else matches
-	di, err = hotplug.NewHotplugDeviceInfo(map[string]string{"DEVPATH": "/sys/foo/bar", "DEVNAME": "/dev/path", "ID_VENDOR_ID": "eeee", "ID_MODEL_ID": "1234", "ID_USB_INTERFACE_NUM": "00", "ACTION": "add", "SUBSYSTEM": "tty", "ID_BUS": "usb"})
-	c.Assert(err, IsNil)
+	di = mylog.Check2(hotplug.NewHotplugDeviceInfo(map[string]string{"DEVPATH": "/sys/foo/bar", "DEVNAME": "/dev/path", "ID_VENDOR_ID": "eeee", "ID_MODEL_ID": "1234", "ID_USB_INTERFACE_NUM": "00", "ACTION": "add", "SUBSYSTEM": "tty", "ID_BUS": "usb"}))
+
 	c.Assert(byGadgetPred.HandledByGadget(di, s.testUDev3Info), Equals, false)
 	// usb interface doesn't match, everything else matches
-	di, err = hotplug.NewHotplugDeviceInfo(map[string]string{"DEVPATH": "/sys/foo/bar", "DEVNAME": "/dev/path", "ID_VENDOR_ID": "abcd", "ID_MODEL_ID": "1234", "ID_USB_INTERFACE_NUM": "ff", "ACTION": "add", "SUBSYSTEM": "tty", "ID_BUS": "usb"})
-	c.Assert(err, IsNil)
+	di = mylog.Check2(hotplug.NewHotplugDeviceInfo(map[string]string{"DEVPATH": "/sys/foo/bar", "DEVNAME": "/dev/path", "ID_VENDOR_ID": "abcd", "ID_MODEL_ID": "1234", "ID_USB_INTERFACE_NUM": "ff", "ACTION": "add", "SUBSYSTEM": "tty", "ID_BUS": "usb"}))
+
 	c.Assert(byGadgetPred.HandledByGadget(di, s.testUDev3Info), Equals, false)
 
 	// usb interface num is optional, match on vendor/model
-	di, err = hotplug.NewHotplugDeviceInfo(map[string]string{"DEVPATH": "/sys/foo/bar", "DEVNAME": "/dev/path", "ID_VENDOR_ID": "ffff", "ID_MODEL_ID": "ffff", "ACTION": "add", "SUBSYSTEM": "tty", "ID_BUS": "usb"})
-	c.Assert(err, IsNil)
+	di = mylog.Check2(hotplug.NewHotplugDeviceInfo(map[string]string{"DEVPATH": "/sys/foo/bar", "DEVNAME": "/dev/path", "ID_VENDOR_ID": "ffff", "ID_MODEL_ID": "ffff", "ACTION": "add", "SUBSYSTEM": "tty", "ID_BUS": "usb"}))
+
 	c.Assert(byGadgetPred.HandledByGadget(di, s.testUDev2Info), Equals, true)
 }
 

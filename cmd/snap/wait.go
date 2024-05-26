@@ -26,6 +26,7 @@ import (
 	"os/signal"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/progress"
@@ -67,10 +68,7 @@ func (wmx waitMixin) wait(id string) (*client.Change, error) {
 		if sig == nil || wmx.skipAbort {
 			return
 		}
-		_, err := wmx.client.Abort(id)
-		if err != nil {
-			fmt.Fprintf(Stderr, err.Error()+"\n")
-		}
+		_ := mylog.Check2(wmx.client.Abort(id))
 	}()
 
 	pb := progress.MakeProgressBar(Stdout)
@@ -88,35 +86,19 @@ func (wmx waitMixin) wait(id string) (*client.Change, error) {
 	lastLog := map[string]string{}
 	for {
 		var rebootingErr error
-		chg, err := cli.Change(id)
-		if err != nil {
-			// a client.Error means we were able to communicate with
-			// the server (got an answer)
-			if e, ok := err.(*client.Error); ok {
-				return nil, e
-			}
+		chg := mylog.Check2(cli.Change(id))
 
-			// A non-client error here means the server most likely went away.
-			// First thing we should check is whether this is a part of a system restart,
-			// as in that case we want to to report this to user instead of looping here until
-			// the restart does happen. (Or in the case of spread tests, blocks forever).
-			if e, ok := cli.Maintenance().(*client.Error); ok && e.Kind == client.ErrorKindSystemRestart {
-				return nil, e
-			}
+		// a client.Error means we were able to communicate with
+		// the server (got an answer)
 
-			// Otherwise it's most likely a daemon restart, assume it might come up again.
-			// XXX: it actually can be a bunch of other things; fix client to expose it better
-			now := time.Now()
-			if tMax.IsZero() {
-				tMax = now.Add(maxGoneTime)
-			}
-			if now.After(tMax) {
-				return nil, err
-			}
-			pb.Spin(i18n.G("Waiting for server to restart"))
-			time.Sleep(pollTime)
-			continue
-		}
+		// A non-client error here means the server most likely went away.
+		// First thing we should check is whether this is a part of a system restart,
+		// as in that case we want to to report this to user instead of looping here until
+		// the restart does happen. (Or in the case of spread tests, blocks forever).
+
+		// Otherwise it's most likely a daemon restart, assume it might come up again.
+		// XXX: it actually can be a bunch of other things; fix client to expose it better
+
 		if maintErr, ok := cli.Maintenance().(*client.Error); ok && maintErr.Kind == client.ErrorKindSystemRestart {
 			rebootingErr = maintErr
 		}

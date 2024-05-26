@@ -23,25 +23,26 @@ import (
 	"encoding/json"
 	"io"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 	. "gopkg.in/check.v1"
 )
 
 func (cs *clientSuite) TestNotify(c *C) {
 	cs.rsp = `{"type": "sync", "result": {"id": "7"}}`
-	noticeID, err := cs.cli.Notify(&client.NotifyOptions{
+	noticeID := mylog.Check2(cs.cli.Notify(&client.NotifyOptions{
 		Type: client.SnapRunInhibitNotice,
 		Key:  "snap-name",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(noticeID, Equals, "7")
 	c.Assert(cs.req.URL.Path, Equals, "/v2/notices")
 
-	body, err := io.ReadAll(cs.req.Body)
-	c.Assert(err, IsNil)
+	body := mylog.Check2(io.ReadAll(cs.req.Body))
+
 	var m map[string]any
-	err = json.Unmarshal(body, &m)
-	c.Assert(err, IsNil)
+	mylog.Check(json.Unmarshal(body, &m))
+
 	c.Assert(m, DeepEquals, map[string]any{
 		"action": "add",
 		"type":   "snap-run-inhibit",

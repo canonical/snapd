@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/snap/naming"
@@ -48,10 +49,8 @@ func (s *scanningSuite) SetUpTest(c *C) {
 }
 
 func mustParseTag(tag string) naming.SecurityTag {
-	parsedTag, err := naming.ParseSecurityTag(tag)
-	if err != nil {
-		panic(err)
-	}
+	parsedTag := mylog.Check2(naming.ParseSecurityTag(tag))
+
 	return parsedTag
 }
 
@@ -97,8 +96,8 @@ func (s *scanningSuite) writePids(c *C, dir string, pids []int) string {
 	}
 
 	var path string
-	ver, err := cgroup.Version()
-	c.Assert(err, IsNil)
+	ver := mylog.Check2(cgroup.Version())
+
 	c.Assert(ver == cgroup.V1 || ver == cgroup.V2, Equals, true)
 	switch ver {
 	case cgroup.V1:
@@ -118,8 +117,8 @@ func (s *scanningSuite) TestPidsOfSnapEmpty(c *C) {
 	defer restore()
 
 	// Not having any cgroup directories is not an error.
-	pids, err := cgroup.PidsOfSnap("pkg")
-	c.Assert(err, IsNil)
+	pids := mylog.Check2(cgroup.PidsOfSnap("pkg"))
+
 	c.Check(pids, HasLen, 0)
 }
 
@@ -131,8 +130,8 @@ func (s *scanningSuite) TestPathsOfSnapEmpty(c *C) {
 	options := cgroup.InstancePathsOptions{
 		ReturnCGroupPath: true,
 	}
-	paths, err := cgroup.InstancePathsOfSnap("pkg", options)
-	c.Assert(err, IsNil)
+	paths := mylog.Check2(cgroup.InstancePathsOfSnap("pkg", options))
+
 	c.Check(paths, HasLen, 0)
 }
 
@@ -151,7 +150,7 @@ func (s *scanningSuite) TestPidsOfSnapUnrelatedStuff(c *C) {
 		s.writePids(c, "snapd.service", []int{105})
 		s.writePids(c, "snap-spotify-35.mount", []int{106})
 
-		pids, err := cgroup.PidsOfSnap("pkg")
+		pids := mylog.Check2(cgroup.PidsOfSnap("pkg"))
 		c.Assert(err, IsNil, comment)
 		c.Check(pids, HasLen, 0, comment)
 	}
@@ -175,7 +174,7 @@ func (s *scanningSuite) TestPathsOfSnapUnrelatedStuff(c *C) {
 		s.writePids(c, "snapd.service", []int{105})
 		s.writePids(c, "snap-spotify-35.mount", []int{106})
 
-		paths, err := cgroup.InstancePathsOfSnap("pkg", options)
+		paths := mylog.Check2(cgroup.InstancePathsOfSnap("pkg", options))
 		c.Assert(err, IsNil, comment)
 		c.Check(paths, HasLen, 0, comment)
 	}
@@ -191,7 +190,7 @@ func (s *scanningSuite) TestPidsOfSnapSecurityTags(c *C) {
 		s.writePids(c, "system.slice/snap.pkg.hook.configure-54b38acc-3ba2-4c6d-b284-7ac07e1159e5.scope", []int{1})
 		s.writePids(c, "system.slice/snap.pkg.daemon.service", []int{2})
 
-		pids, err := cgroup.PidsOfSnap("pkg")
+		pids := mylog.Check2(cgroup.PidsOfSnap("pkg"))
 		c.Assert(err, IsNil, comment)
 		c.Check(pids, DeepEquals, map[string][]int{
 			"snap.pkg.hook.configure": {1},
@@ -213,7 +212,7 @@ func (s *scanningSuite) TestPathsOfSnapWithSecurityTags(c *C) {
 		path1 := s.writePids(c, "system.slice/snap.pkg.hook.configure-54b38acc-3ba2-4c6d-b284-7ac07e1159e5.scope", []int{1})
 		path2 := s.writePids(c, "system.slice/snap.pkg.daemon.service", []int{2})
 
-		paths, err := cgroup.InstancePathsOfSnap("pkg", options)
+		paths := mylog.Check2(cgroup.InstancePathsOfSnap("pkg", options))
 		c.Assert(err, IsNil, comment)
 		c.Check(paths, HasLen, 2)
 		c.Check(matchesInArray(paths, filepath.Dir(path1)), Equals, 1)
@@ -233,21 +232,21 @@ func (s *scanningSuite) TestPidsOfInstances(c *C) {
 		s.writePids(c, "system.slice/snap.pkg.daemon.service", []int{3})
 
 		// The main one
-		pids, err := cgroup.PidsOfSnap("pkg")
+		pids := mylog.Check2(cgroup.PidsOfSnap("pkg"))
 		c.Assert(err, IsNil, comment)
 		c.Check(pids, DeepEquals, map[string][]int{
 			"snap.pkg.daemon": {3},
 		}, comment)
 
 		// The development one
-		pids, err = cgroup.PidsOfSnap("pkg_devel")
+		pids = mylog.Check2(cgroup.PidsOfSnap("pkg_devel"))
 		c.Assert(err, IsNil, comment)
 		c.Check(pids, DeepEquals, map[string][]int{
 			"snap.pkg_devel.daemon": {2},
 		}, comment)
 
 		// The production one
-		pids, err = cgroup.PidsOfSnap("pkg_prod")
+		pids = mylog.Check2(cgroup.PidsOfSnap("pkg_prod"))
 		c.Assert(err, IsNil, comment)
 		c.Check(pids, DeepEquals, map[string][]int{
 			"snap.pkg_prod.daemon": {1},
@@ -270,19 +269,19 @@ func (s *scanningSuite) TestPathsOfInstances(c *C) {
 		path3 := s.writePids(c, "system.slice/snap.pkg.daemon.service", []int{3})
 
 		// The main one
-		paths, err := cgroup.InstancePathsOfSnap("pkg", options)
+		paths := mylog.Check2(cgroup.InstancePathsOfSnap("pkg", options))
 		c.Assert(err, IsNil, comment)
 		c.Check(paths, HasLen, 1)
 		c.Check(paths[0], Equals, filepath.Dir(path3))
 
 		// The development one
-		paths, err = cgroup.InstancePathsOfSnap("pkg_devel", options)
+		paths = mylog.Check2(cgroup.InstancePathsOfSnap("pkg_devel", options))
 		c.Assert(err, IsNil, comment)
 		c.Check(paths, HasLen, 1)
 		c.Check(paths[0], Equals, filepath.Dir(path2))
 
 		// The production one
-		paths, err = cgroup.InstancePathsOfSnap("pkg_prod", options)
+		paths = mylog.Check2(cgroup.InstancePathsOfSnap("pkg_prod", options))
 		c.Assert(err, IsNil, comment)
 		c.Check(paths, HasLen, 1)
 		c.Check(paths[0], Equals, filepath.Dir(path1))
@@ -302,7 +301,7 @@ func (s *scanningSuite) TestPidsOfAggregation(c *C) {
 		s.writePids(c, "user.slice/user-1001.slice/user@1001.service/gnome-shell-wayland.service/snap.pkg.app-54b38acc-3ba2-4c6d-b284-7ac07e1159e3.scope", []int{3}) // mock 2nd invocation
 		s.writePids(c, "user.slice/user-1001.slice/user@1001.service/gnome-shell-wayland.service/snap.pkg.app-54b38acc-3ba2-4c6d-b284-7ac07e1159e4.scope", []int{4}) // mock fork() by pid 3
 
-		pids, err := cgroup.PidsOfSnap("pkg")
+		pids := mylog.Check2(cgroup.PidsOfSnap("pkg"))
 		c.Assert(err, IsNil, comment)
 		c.Check(pids, DeepEquals, map[string][]int{
 			"snap.pkg.app": {1, 2, 3, 4},
@@ -326,7 +325,7 @@ func (s *scanningSuite) TestPathsOfAggregation(c *C) {
 		path3 := s.writePids(c, "user.slice/user-1001.slice/user@1001.service/gnome-shell-wayland.service/snap.pkg.app-54b38acc-3ba2-4c6d-b284-7ac07e1159e3.scope", []int{3}) // mock 2nd invocation
 		path4 := s.writePids(c, "user.slice/user-1001.slice/user@1001.service/gnome-shell-wayland.service/snap.pkg.app-54b38acc-3ba2-4c6d-b284-7ac07e1159e4.scope", []int{4}) // mock fork() by pid 3
 
-		paths, err := cgroup.InstancePathsOfSnap("pkg", options)
+		paths := mylog.Check2(cgroup.InstancePathsOfSnap("pkg", options))
 		c.Assert(err, IsNil, comment)
 		c.Check(paths, HasLen, 4)
 		c.Check(matchesInArray(paths, filepath.Dir(path1)), Equals, 1)
@@ -355,7 +354,7 @@ func (s *scanningSuite) TestPidsOfSnapUnrelated(c *C) {
 		c.Assert(os.MkdirAll(filepath.Dir(f), 0755), IsNil)
 		c.Assert(os.WriteFile(f, []byte("666"), 0644), IsNil)
 
-		pids, err := cgroup.PidsOfSnap("pkg")
+		pids := mylog.Check2(cgroup.PidsOfSnap("pkg"))
 		c.Assert(err, IsNil, comment)
 		c.Check(pids, DeepEquals, map[string][]int{
 			"snap.pkg.app": {1},
@@ -385,7 +384,7 @@ func (s *scanningSuite) TestPathsOfSnapUnrelated(c *C) {
 		c.Assert(os.MkdirAll(filepath.Dir(f), 0755), IsNil)
 		c.Assert(os.WriteFile(f, []byte("666"), 0644), IsNil)
 
-		paths, err := cgroup.InstancePathsOfSnap("pkg", options)
+		paths := mylog.Check2(cgroup.InstancePathsOfSnap("pkg", options))
 		c.Assert(err, IsNil, comment)
 		c.Check(paths, HasLen, 1)
 		c.Check(matchesInArray(paths, filepath.Dir(path1)), Equals, 1)
@@ -407,7 +406,7 @@ func (s *scanningSuite) TestContainerPidsAreIgnored(c *C) {
 		s.writePids(c, "machine.slice/snap.foo.bar.service", []int{4})
 		s.writePids(c, "docker/snap.foo.bar.service", []int{5})
 
-		pids, err := cgroup.PidsOfSnap("foo")
+		pids := mylog.Check2(cgroup.PidsOfSnap("foo"))
 		c.Assert(err, IsNil, comment)
 		c.Check(pids, HasLen, 1, comment)
 		c.Check(pids["snap.foo.bar"], testutil.DeepUnsortedMatches, []int{1, 2}, comment)
@@ -429,7 +428,7 @@ func (s *scanningSuite) TestContainerPathsAreIgnored(c *C) {
 		path4 := s.writePids(c, "machine.slice/snap.foo.bar.service", []int{4})
 		path5 := s.writePids(c, "docker/snap.foo.bar.service", []int{5})
 
-		paths, err := cgroup.InstancePathsOfSnap("foo", options)
+		paths := mylog.Check2(cgroup.InstancePathsOfSnap("foo", options))
 		c.Assert(err, IsNil, comment)
 		c.Check(paths, HasLen, 2, comment)
 		c.Check(matchesInArray(paths, filepath.Dir(path1)), Equals, 1)

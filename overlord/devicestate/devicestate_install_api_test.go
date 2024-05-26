@@ -28,6 +28,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
@@ -80,7 +81,7 @@ func (s *deviceMgrInstallAPISuite) SetUpTest(c *C) {
 }
 
 func unpackSnap(snapBlob, targetDir string) error {
-	if out, err := exec.Command("unsquashfs", "-d", targetDir, "-f", snapBlob).CombinedOutput(); err != nil {
+	if out := mylog.Check2(exec.Command("unsquashfs", "-d", targetDir, "-f", snapBlob).CombinedOutput()); err != nil {
 		return fmt.Errorf("cannot unsquashfs: %v", osutil.OutputErr(out, err))
 	}
 	return nil
@@ -114,8 +115,12 @@ func (s *deviceMgrInstallAPISuite) setupSystemSeed(c *C, sysLabel, gadgetYaml st
 	s.MakeAssertedSnap(c, seedtest.SampleSnapYaml["pc=22"],
 		[][]string{
 			{"meta/gadget.yaml", gadgetYaml},
-			{"pc-boot.img", ""}, {"pc-core.img", ""}, {"grubx64.efi", ""},
-			{"shim.efi.signed", ""}, {"grub.conf", ""}},
+			{"pc-boot.img", ""},
+			{"pc-core.img", ""},
+			{"grubx64.efi", ""},
+			{"shim.efi.signed", ""},
+			{"grub.conf", ""},
+		},
 		snap.R(1), "my-brand", s.StoreSigning.Database)
 
 	model := map[string]interface{}{
@@ -177,8 +182,8 @@ func (s *deviceMgrInstallAPISuite) mockSystemSeedWithLabel(c *C, label string, i
 		seedGadget = gadgettest.SingleVolumeClassicWithModesPartialGadgetYaml
 	}
 	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
-	ginfo, _, _, restore, err := gadgettest.MockGadgetPartitionedDisk(gadgetYaml, gadgetRoot)
-	c.Assert(err, IsNil)
+	ginfo, _, _, restore := mylog.Check5(gadgettest.MockGadgetPartitionedDisk(gadgetYaml, gadgetRoot))
+
 	s.AddCleanup(restore)
 
 	// now create a label with snaps/assertions
@@ -236,7 +241,7 @@ func mockDiskVolume(opts finishStepOpts) *gadget.OnDiskVolume {
 		labelPostfix = "-enc"
 		dataPartsFs = "crypto_LUKS"
 	}
-	var diskVolume = gadget.OnDiskVolume{
+	diskVolume := gadget.OnDiskVolume{
 		Structure: []gadget.OnDiskStructure{
 			// Note that mbr is not a partition so it is not returned
 			{
@@ -296,7 +301,7 @@ func mockCoreDiskVolume(opts finishStepOpts) *gadget.OnDiskVolume {
 		labelPostfix = "-enc"
 		dataPartsFs = "crypto_LUKS"
 	}
-	var diskVolume = gadget.OnDiskVolume{
+	diskVolume := gadget.OnDiskVolume{
 		Structure: []gadget.OnDiskStructure{
 			// Note that mbr is not a partition so it is not returned
 			{
@@ -435,10 +440,10 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 
 	// Unpack gadget snap from seed where it would have been mounted
 	gadgetDir := filepath.Join(dirs.SnapRunDir, "snap-content/gadget")
-	err := os.MkdirAll(gadgetDir, 0755)
-	c.Assert(err, IsNil)
-	err = unpackSnap(filepath.Join(s.SeedDir, "snaps/pc_1.snap"), gadgetDir)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(gadgetDir, 0755))
+
+	mylog.Check(unpackSnap(filepath.Join(s.SeedDir, "snaps/pc_1.snap"), gadgetDir))
+
 
 	// Mock writing of contents
 	writeContentCalls := 0
@@ -458,9 +463,9 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 				Before: "",
 			}
 			// We "observe" grub from boot partition
-			action, err := observer.Observe(gadget.ContentWrite, gadget.SystemBoot,
+			action := mylog.Check2(observer.Observe(gadget.ContentWrite, gadget.SystemBoot,
 				filepath.Join(dirs.RunDir, "mnt/ubuntu-boot/"),
-				"EFI/boot/grubx64.efi", writeChange)
+				"EFI/boot/grubx64.efi", writeChange))
 			c.Check(err, IsNil)
 			c.Check(action, Equals, gadget.ChangeApply)
 		} else {
@@ -508,11 +513,9 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 			} else {
 				diskVolume = mockCoreDiskVolume(opts)
 			}
-			gadgetToDiskMap, err := gadget.EnsureVolumeCompatibility(
-				vol, diskVolume, volCompatOpts)
-			if err != nil {
-				return nil, err
-			}
+			gadgetToDiskMap := mylog.Check2(gadget.EnsureVolumeCompatibility(
+				vol, diskVolume, volCompatOpts))
+
 			volToGadgetToDiskStruct[name] = gadgetToDiskMap
 		}
 
@@ -660,8 +663,8 @@ func (s *deviceMgrInstallAPISuite) TestInstallFinishNoLabel(c *C) {
 	// Mock partitioned disk, but there will be no label in the system
 	gadgetYaml := gadgettest.SingleVolumeClassicWithModesGadgetYaml
 	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
-	ginfo, _, _, restore, err := gadgettest.MockGadgetPartitionedDisk(gadgetYaml, gadgetRoot)
-	c.Assert(err, IsNil)
+	ginfo, _, _, restore := mylog.Check5(gadgettest.MockGadgetPartitionedDisk(gadgetYaml, gadgetRoot))
+
 	s.AddCleanup(restore)
 
 	s.state.Lock()
@@ -791,8 +794,8 @@ func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionNoLabel(c *C
 	// Mock partitioned disk, but there will be no label in the system
 	gadgetYaml := gadgettest.SingleVolumeClassicWithModesGadgetYaml
 	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
-	ginfo, _, _, restore, err := gadgettest.MockGadgetPartitionedDisk(gadgetYaml, gadgetRoot)
-	c.Assert(err, IsNil)
+	ginfo, _, _, restore := mylog.Check5(gadgettest.MockGadgetPartitionedDisk(gadgetYaml, gadgetRoot))
+
 	s.AddCleanup(restore)
 
 	s.state.Lock()

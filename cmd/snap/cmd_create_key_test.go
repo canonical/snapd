@@ -22,11 +22,12 @@ package main_test
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	snap "github.com/snapcore/snapd/cmd/snap"
 )
 
 func (s *SnapSuite) TestCreateKeyInvalidCharacters(c *C) {
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"create-key", "a b"})
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"create-key", "a b"}))
 	c.Assert(err, NotNil)
 	c.Check(err.Error(), Equals, "key name \"a b\" is not valid; only ASCII letters, digits, and hyphens are allowed")
 	c.Check(s.Stdout(), Equals, "")

@@ -22,6 +22,8 @@ package asserts
 import (
 	"errors"
 	"fmt"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 type fetchProgress int
@@ -106,16 +108,11 @@ func (f *fetcher) wasFetched(ref *Ref) (bool, error) {
 func (f *fetcher) fetchPrerequisitesAndSave(key string, a Assertion) error {
 	f.fetched[key] = fetchRetrieved
 	for _, preref := range assertionPrereqs(a) {
-		if err := f.Fetch(preref); err != nil {
-			return err
-		}
+		mylog.Check(f.Fetch(preref))
 	}
-	if err := f.fetchAccountKey(a.SignKeyID()); err != nil {
-		return err
-	}
-	if err := f.save(a); err != nil {
-		return err
-	}
+	mylog.Check(f.fetchAccountKey(a.SignKeyID()))
+	mylog.Check(f.save(a))
+
 	f.fetched[key] = fetchSaved
 	return nil
 }
@@ -123,22 +120,20 @@ func (f *fetcher) fetchPrerequisitesAndSave(key string, a Assertion) error {
 func (f *fetcher) chase(ref *Ref, a Assertion) error {
 	// check if ref points to predefined assertion, in which case
 	// there is nothing to do
-	_, err := ref.Resolve(f.db.FindPredefined)
+	_ := mylog.Check2(ref.Resolve(f.db.FindPredefined))
 	if err == nil {
 		return nil
 	}
 	if !errors.Is(err, &NotFoundError{}) {
 		return err
 	}
-	if ok, err := f.wasFetched(ref); err != nil || ok {
+	if ok := mylog.Check2(f.wasFetched(ref)); err != nil || ok {
 		// if ok is true, then the assertion was fetched and err is nil
 		return err
 	}
 	if a == nil {
-		retrieved, err := f.retrieve(ref)
-		if err != nil {
-			return err
-		}
+		retrieved := mylog.Check2(f.retrieve(ref))
+
 		a = retrieved
 	}
 	return f.fetchPrerequisitesAndSave(ref.Unique(), a)
@@ -162,14 +157,12 @@ func (f *fetcher) wasSeqFetched(seq *AtSequence) (bool, error) {
 
 func (f *fetcher) fetchSequence(seq *AtSequence) error {
 	// sequence forming assertions are never predefined, so we don't check for it.
-	if ok, err := f.wasSeqFetched(seq); err != nil || ok {
+	if ok := mylog.Check2(f.wasSeqFetched(seq)); err != nil || ok {
 		// if ok is true, then the assertion was fetched and err is nil
 		return err
 	}
-	a, err := f.retrieveSeq(seq)
-	if err != nil {
-		return err
-	}
+	a := mylog.Check2(f.retrieveSeq(seq))
+
 	return f.fetchPrerequisitesAndSave(seq.Unique(), a)
 }
 

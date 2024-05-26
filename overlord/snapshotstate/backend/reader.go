@@ -32,6 +32,7 @@ import (
 	"sort"
 	"syscall"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/jsonutil"
@@ -65,10 +66,8 @@ type Reader struct {
 // *or* have a non-empty Broken; in the latter case its file will be
 // closed.
 func Open(fn string, setID uint64) (reader *Reader, e error) {
-	f, err := os.Open(fn)
-	if err != nil {
-		return nil, err
-	}
+	f := mylog.Check2(os.Open(fn))
+
 	defer func() {
 		if e != nil && f != nil {
 			f.Close()
@@ -82,15 +81,12 @@ func Open(fn string, setID uint64) (reader *Reader, e error) {
 	// first try to load the metadata itself
 	var sz osutil.Sizer
 	hasher := crypto.SHA3_384.New()
-	metaReader, metaSize, err := zipMember(f, metadataName)
-	if err != nil {
-		// no metadata file -> nothing to do :-(
-		return nil, err
-	}
+	metaReader, metaSize := mylog.Check3(zipMember(f, metadataName))
+	mylog.Check(
 
-	if err := jsonutil.DecodeWithNumber(io.TeeReader(metaReader, io.MultiWriter(hasher, &sz)), &reader.Snapshot); err != nil {
-		return nil, err
-	}
+		// no metadata file -> nothing to do :-(
+
+		jsonutil.DecodeWithNumber(io.TeeReader(metaReader, io.MultiWriter(hasher, &sz)), &reader.Snapshot))
 
 	if setID == ExtractFnameSetID {
 		// set id from the filename has the authority and overrides the one from
@@ -120,16 +116,10 @@ func Open(fn string, setID uint64) (reader *Reader, e error) {
 
 	// grab the metadata hash
 	sz.Reset()
-	metaHashReader, metaHashSize, err := zipMember(f, metaHashName)
-	if err != nil {
-		reader.Broken = err.Error()
-		return reader, err
-	}
-	metaHashBuf, err := io.ReadAll(io.TeeReader(metaHashReader, &sz))
-	if err != nil {
-		reader.Broken = err.Error()
-		return reader, err
-	}
+	metaHashReader, metaHashSize := mylog.Check3(zipMember(f, metaHashName))
+
+	metaHashBuf := mylog.Check2(io.ReadAll(io.TeeReader(metaHashReader, &sz)))
+
 	if sz.Size() != metaHashSize {
 		reader.Broken = fmt.Sprintf("declared hash size (%d) does not match actual (%d)", metaHashSize, sz.Size())
 		return reader, errors.New(reader.Broken)
@@ -143,17 +133,12 @@ func Open(fn string, setID uint64) (reader *Reader, e error) {
 }
 
 func (r *Reader) checkOne(ctx context.Context, entry string, hasher hash.Hash) error {
-	body, reportedSize, err := zipMember(r.File, entry)
-	if err != nil {
-		return err
-	}
+	body, reportedSize := mylog.Check3(zipMember(r.File, entry))
+
 	defer body.Close()
 
 	expectedHash := r.SHA3_384[entry]
-	readSize, err := io.Copy(io.MultiWriter(osutil.ContextWriter(ctx), hasher), body)
-	if err != nil {
-		return err
-	}
+	readSize := mylog.Check2(io.Copy(io.MultiWriter(osutil.ContextWriter(ctx), hasher), body))
 
 	if readSize != reportedSize {
 		return fmt.Errorf("snapshot entry %q size (%d) different from actual (%d)", entry, reportedSize, readSize)
@@ -178,10 +163,8 @@ func (r *Reader) Check(ctx context.Context, usernames []string) error {
 				continue
 			}
 		}
+		mylog.Check(r.checkOne(ctx, entry, hasher))
 
-		if err := r.checkOne(ctx, entry, hasher); err != nil {
-			return err
-		}
 		hasher.Reset()
 	}
 
@@ -218,9 +201,7 @@ func (r *Reader) Restore(ctx context.Context, current snap.Revision, usernames [
 	}
 
 	for entry := range r.SHA3_384 {
-		if err := ctx.Err(); err != nil {
-			return rs, err
-		}
+		mylog.Check(ctx.Err())
 
 		var dest string
 		isUser := isUserArchive(entry)
@@ -241,22 +222,10 @@ func (r *Reader) Restore(ctx context.Context, current snap.Revision, usernames [
 				logger.Debugf("In restoring snapshot %q, skipping entry %q by user request.", r.Name(), username)
 				continue
 			}
-			usr, err := userLookup(username)
-			if err != nil {
-				logf("Skipping restore of user %q: %v.", username, err)
-				continue
-			}
+			usr := mylog.Check2(userLookup(username))
 
 			dest = si.UserDataDir(usr.HomeDir, opts)
-			fi, err := os.Stat(usr.HomeDir)
-			if err != nil {
-				if osutil.IsDirNotExist(err) {
-					logf("Skipping restore of %q as %q doesn't exist.", dest, usr.HomeDir)
-				} else {
-					logf("Skipping restore of %q: %v.", dest, err)
-				}
-				continue
-			}
+			fi := mylog.Check2(os.Stat(usr.HomeDir))
 
 			if !fi.IsDir() {
 				logf("Skipping restore of %q as %q is not a directory.", dest, usr.HomeDir)
@@ -275,45 +244,33 @@ func (r *Reader) Restore(ctx context.Context, current snap.Revision, usernames [
 		}
 		parent, revdir := filepath.Split(dest)
 
-		exists, isDir, err := osutil.DirExists(parent)
-		if err != nil {
-			return rs, err
-		}
+		exists, isDir := mylog.Check3(osutil.DirExists(parent))
+
 		if !exists {
-			// NOTE that the chown won't happen (it'll be NoChown)
-			// for the system path, and we won't be creating the
-			// user's home (as we skip restore in that case).
-			// Also no chown happens for root/root.
-			if err := osutil.MkdirAllChown(parent, 0755, uid, gid); err != nil {
-				return rs, err
-			}
+			mylog.Check(
+				// NOTE that the chown won't happen (it'll be NoChown)
+				// for the system path, and we won't be creating the
+				// user's home (as we skip restore in that case).
+				// Also no chown happens for root/root.
+				osutil.MkdirAllChown(parent, 0755, uid, gid))
+
 			rs.Created = append(rs.Created, parent)
 		} else if !isDir {
 			return rs, fmt.Errorf("Cannot restore snapshot into %q: not a directory.", parent)
 		}
 
 		// TODO: have something more atomic in osutil
-		tempdir, err := os.MkdirTemp(parent, ".snapshot")
-		if err != nil {
-			return rs, err
-		}
-		if err := sys.ChownPath(tempdir, uid, gid); err != nil {
-			return rs, err
-		}
+		tempdir := mylog.Check2(os.MkdirTemp(parent, ".snapshot"))
+		mylog.Check(sys.ChownPath(tempdir, uid, gid))
 
 		// one way or another we want tempdir gone
 		defer func() {
-			if err := os.RemoveAll(tempdir); err != nil {
-				logf("Cannot clean up temporary directory %q: %v.", tempdir, err)
-			}
+			mylog.Check(os.RemoveAll(tempdir))
 		}()
 
 		logger.Debugf("Restoring %q from %q into %q.", entry, r.Name(), tempdir)
 
-		body, expectedSize, err := zipMember(r.File, entry)
-		if err != nil {
-			return rs, err
-		}
+		body, expectedSize := mylog.Check3(zipMember(r.File, entry))
 
 		expectedHash := r.SHA3_384[entry]
 
@@ -335,14 +292,7 @@ func (r *Reader) Restore(ctx context.Context, current snap.Revision, usernames [
 			matchCounter.N = -1
 			cmd.Stderr = io.MultiWriter(os.Stderr, matchCounter)
 		}
-
-		if err = osutil.RunWithContext(ctx, cmd); err != nil {
-			matches, count := matchCounter.Matches()
-			if count > 0 {
-				return rs, fmt.Errorf("cannot unpack archive: %s (and %d more)", matches[0], count-1)
-			}
-			return rs, fmt.Errorf("tar failed: %v", err)
-		}
+		mylog.Check(osutil.RunWithContext(ctx, cmd))
 
 		if sz.Size() != expectedSize {
 			return rs, fmt.Errorf("snapshot %q entry %q expected size (%d) does not match actual (%d)",
@@ -355,18 +305,16 @@ func (r *Reader) Restore(ctx context.Context, current snap.Revision, usernames [
 		}
 
 		if curdir != "" && curdir != revdir {
-			// rename it in tempdir
-			// this is where we assume the current revision can read the snapshot revision's data
-			if err := os.Rename(filepath.Join(tempdir, revdir), filepath.Join(tempdir, curdir)); err != nil {
-				return rs, err
-			}
+			mylog.Check(
+				// rename it in tempdir
+				// this is where we assume the current revision can read the snapshot revision's data
+				os.Rename(filepath.Join(tempdir, revdir), filepath.Join(tempdir, curdir)))
+
 			revdir = curdir
 		}
 
 		for _, dir := range []string{"common", revdir} {
-			if err := moveFile(rs, dir, tempdir, parent); err != nil {
-				return rs, err
-			}
+			mylog.Check(moveFile(rs, dir, tempdir, parent))
 		}
 
 		sz.Reset()
@@ -380,28 +328,19 @@ func (r *Reader) Restore(ctx context.Context, current snap.Revision, usernames [
 // and created are registered in the RestoreState.
 func moveFile(rs *RestoreState, file, sourceDir, targetDir string) error {
 	src := filepath.Join(sourceDir, file)
-	if exists, _, err := osutil.DirExists(src); err != nil {
-		return err
-	} else if !exists {
-		return nil
-	}
+	exists, _ := mylog.Check3(osutil.DirExists(src))
 
 	dst := filepath.Join(targetDir, file)
-	exists, _, err := osutil.DirExists(dst)
-	if err != nil {
-		return err
-	}
+	exists, _ := mylog.Check3(osutil.DirExists(dst))
+
 	if exists {
 		rsfn := restoreStateFilename(dst)
-		if err := os.Rename(dst, rsfn); err != nil {
-			return err
-		}
+		mylog.Check(os.Rename(dst, rsfn))
+
 		rs.Moved = append(rs.Moved, rsfn)
 	}
+	mylog.Check(os.Rename(src, dst))
 
-	if err := os.Rename(src, dst); err != nil {
-		return err
-	}
 	rs.Created = append(rs.Created, dst)
 
 	return nil

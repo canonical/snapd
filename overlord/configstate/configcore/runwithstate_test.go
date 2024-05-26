@@ -21,6 +21,7 @@
 package configcore_test
 
 import (
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	. "gopkg.in/check.v1"
 )
@@ -37,7 +38,6 @@ func (r *configcoreSuite) TestConfigureUnknownOption(c *C) {
 			"unknown.option": "1",
 		},
 	}
-
-	err := configcore.Run(coreDev, conf)
+	mylog.Check(configcore.Run(coreDev, conf))
 	c.Check(err, ErrorMatches, `cannot set "core.unknown.option": unsupported system option`)
 }

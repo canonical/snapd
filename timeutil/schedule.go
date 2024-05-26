@@ -27,6 +27,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/randutil"
 )
 
@@ -85,14 +86,10 @@ func ParseClock(s string) (t Clock, err error) {
 		return t, nil
 	}
 
-	t.Hour, err = strconv.Atoi(m[1])
-	if err != nil {
-		return t, fmt.Errorf("cannot parse %q: %s", m[1], err)
-	}
-	t.Minute, err = strconv.Atoi(m[2])
-	if err != nil {
-		return t, fmt.Errorf("cannot parse %q: %s", m[2], err)
-	}
+	t.Hour = mylog.Check2(strconv.Atoi(m[1]))
+
+	t.Minute = mylog.Check2(strconv.Atoi(m[2]))
+
 	return t, nil
 }
 
@@ -511,7 +508,6 @@ func (sched *Schedule) Next(last time.Time) ScheduleWindow {
 		}
 		return window
 	}
-
 }
 
 func randDur(a, b time.Time) time.Duration {
@@ -529,9 +525,7 @@ func randDur(a, b time.Time) time.Duration {
 	return randutil.RandomDuration(dur)
 }
 
-var (
-	timeNow = time.Now
-)
+var timeNow = time.Now
 
 // Next returns the earliest event after last according to the provided
 // schedule but no later than maxDuration since last.
@@ -559,7 +553,6 @@ func Next(schedule []*Schedule, last time.Time, maxDuration time.Duration) time.
 	}
 
 	return when
-
 }
 
 var weekdayMap = map[string]time.Weekday{
@@ -580,14 +573,9 @@ func parseClockRange(s string) (start, end Clock, err error) {
 		return start, end, fmt.Errorf("cannot parse %q: not a valid interval", s)
 	}
 
-	start, err = ParseClock(l[0])
-	if err != nil {
-		return start, end, fmt.Errorf("cannot parse %q: not a valid time", l[0])
-	}
-	end, err = ParseClock(l[1])
-	if err != nil {
-		return start, end, fmt.Errorf("cannot parse %q: not a valid time", l[1])
-	}
+	start = mylog.Check2(ParseClock(l[0]))
+
+	end = mylog.Check2(ParseClock(l[1]))
 
 	return start, end, nil
 }
@@ -602,10 +590,8 @@ func ParseLegacySchedule(scheduleSpec string) ([]*Schedule, error) {
 	var schedule []*Schedule
 
 	for _, s := range strings.Split(scheduleSpec, "/") {
-		start, end, err := parseClockRange(s)
-		if err != nil {
-			return nil, err
-		}
+		start, end := mylog.Check3(parseClockRange(s))
+
 		schedule = append(schedule, &Schedule{
 			ClockSpans: []ClockSpan{{
 				Start:  start,
@@ -656,10 +642,8 @@ func ParseSchedule(scheduleSpec string) ([]*Schedule, error) {
 	for _, s := range strings.Split(scheduleSpec, ",,") {
 		// cut the schedule in event sets
 		//     eventlist = eventset *( ",," eventset )
-		sched, err := parseEventSet(s)
-		if err != nil {
-			return nil, err
-		}
+		sched := mylog.Check2(parseEventSet(s))
+
 		schedule = append(schedule, sched)
 	}
 	return schedule, nil
@@ -674,16 +658,10 @@ func parseWeekSpan(s string) (span WeekSpan, err error) {
 		return span, fmt.Errorf("cannot parse %q: invalid week span", s)
 	}
 
-	parsed.Start, err = parseWeekday(split[0])
-	if err != nil {
-		return span, fmt.Errorf("cannot parse %q: %q is not a valid weekday", s, split[0])
-	}
+	parsed.Start = mylog.Check2(parseWeekday(split[0]))
 
 	if len(split) == 2 {
-		parsed.End, err = parseWeekday(split[1])
-		if err != nil {
-			return span, fmt.Errorf("cannot parse %q: %q is not a valid weekday", s, split[1])
-		}
+		parsed.End = mylog.Check2(parseWeekday(split[1]))
 	} else {
 		parsed.End = parsed.Start
 	}
@@ -719,10 +697,7 @@ func parseClockSpan(s string) (span ClockSpan, err error) {
 
 	// timespan = time ( "-" / "~" ) time [ "/" ( time / count ) ]
 
-	span.Split, rest, err = parseCount(s)
-	if err != nil {
-		return ClockSpan{}, fmt.Errorf("cannot parse %q: not a valid interval", s)
-	}
+	span.Split, rest = mylog.Check3(parseCount(s))
 
 	if strings.Contains(rest, spreadToken) {
 		// timespan uses "~" to indicate that the actual event
@@ -736,14 +711,10 @@ func parseClockSpan(s string) (span ClockSpan, err error) {
 		span.Start = Clock{0, 0}
 		span.End = Clock{24, 0}
 	} else if strings.Contains(rest, spanToken) {
-		span.Start, span.End, err = parseClockRange(rest)
+		span.Start, span.End = mylog.Check3(parseClockRange(rest))
 	} else {
-		span.Start, err = ParseClock(rest)
+		span.Start = mylog.Check2(ParseClock(rest))
 		span.End = span.Start
-	}
-
-	if err != nil {
-		return ClockSpan{}, fmt.Errorf("cannot parse %q: not a valid time", s)
 	}
 
 	return span, nil
@@ -756,11 +727,11 @@ func parseWeekday(s string) (week Week, err error) {
 		return week, fmt.Errorf("cannot parse %q: invalid format", s)
 	}
 
-	var day = s
+	day := s
 	var pos uint
 	if l == 4 {
 		day = s[0:3]
-		v, err := strconv.ParseUint(s[3:], 10, 32)
+		v := mylog.Check2(strconv.ParseUint(s[3:], 10, 32))
 		if err != nil || v < 1 || v > 5 {
 			return week, fmt.Errorf("cannot parse %q: invalid week number", s)
 		}
@@ -790,7 +761,7 @@ func parseCount(s string) (count uint, rest string, err error) {
 
 	rest = split[0]
 	countStr := split[1]
-	c, err := strconv.ParseUint(countStr, 10, 32)
+	c := mylog.Check2(strconv.ParseUint(countStr, 10, 32))
 	if err != nil || c == 0 {
 		return 0, "", fmt.Errorf("cannot parse %q: invalid event interval", s)
 	}
@@ -834,20 +805,16 @@ func parseEventSet(s string) (*Schedule, error) {
 
 		if strings.Contains(fragment, ":") {
 			// must be a clock span
-			span, err := parseClockSpan(fragment)
-			if err != nil {
-				return nil, err
-			}
+			span := mylog.Check2(parseClockSpan(fragment))
+
 			schedule.ClockSpans = append(schedule.ClockSpans, span)
 
 			expectTime = true
 
 		} else if !expectTime {
 			// we're not expecting timeset , so this must be a wdayset
-			span, err := parseWeekSpan(fragment)
-			if err != nil {
-				return nil, err
-			}
+			span := mylog.Check2(parseWeekSpan(fragment))
+
 			schedule.WeekSpans = append(schedule.WeekSpans, span)
 		} else {
 			// not a timeset

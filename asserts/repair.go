@@ -24,6 +24,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -123,50 +124,29 @@ func (r *Repair) checkConsistency(db RODatabase, acck *AccountKey) error {
 var _ consistencyChecker = (*Repair)(nil)
 
 func assembleRepair(assert assertionBase) (Assertion, error) {
-	err := checkAuthorityMatchesBrand(&assert)
-	if err != nil {
-		return nil, err
-	}
+	mylog.Check(checkAuthorityMatchesBrand(&assert))
 
-	repairID, err := checkSequence(assert.headers, "repair-id")
-	if err != nil {
-		return nil, err
-	}
+	repairID := mylog.Check2(checkSequence(assert.headers, "repair-id"))
 
-	summary, err := checkNotEmptyString(assert.headers, "summary")
-	if err != nil {
-		return nil, err
-	}
+	summary := mylog.Check2(checkNotEmptyString(assert.headers, "summary"))
+
 	if strings.ContainsAny(summary, "\n\r") {
 		return nil, fmt.Errorf(`"summary" header cannot have newlines`)
 	}
 
-	series, err := checkStringList(assert.headers, "series")
-	if err != nil {
-		return nil, err
-	}
-	models, err := checkStringList(assert.headers, "models")
-	if err != nil {
-		return nil, err
-	}
-	architectures, err := checkStringList(assert.headers, "architectures")
-	if err != nil {
-		return nil, err
-	}
-	modes, err := checkStringList(assert.headers, "modes")
-	if err != nil {
-		return nil, err
-	}
-	bases, err := checkStringList(assert.headers, "bases")
-	if err != nil {
-		return nil, err
-	}
+	series := mylog.Check2(checkStringList(assert.headers, "series"))
+
+	models := mylog.Check2(checkStringList(assert.headers, "models"))
+
+	architectures := mylog.Check2(checkStringList(assert.headers, "architectures"))
+
+	modes := mylog.Check2(checkStringList(assert.headers, "modes"))
+
+	bases := mylog.Check2(checkStringList(assert.headers, "bases"))
 
 	// validate that all base snap names are valid snap names
 	for _, b := range bases {
-		if err := naming.ValidateSnap(b); err != nil {
-			return nil, fmt.Errorf("invalid snap name %q in \"bases\"", b)
-		}
+		mylog.Check(naming.ValidateSnap(b))
 	}
 
 	// verify that modes is a list of only "run" and "recover"
@@ -194,15 +174,9 @@ func assembleRepair(assert assertionBase) (Assertion, error) {
 		}
 	}
 
-	disabled, err := checkOptionalBool(assert.headers, "disabled")
-	if err != nil {
-		return nil, err
-	}
+	disabled := mylog.Check2(checkOptionalBool(assert.headers, "disabled"))
 
-	timestamp, err := checkRFC3339Date(assert.headers, "timestamp")
-	if err != nil {
-		return nil, err
-	}
+	timestamp := mylog.Check2(checkRFC3339Date(assert.headers, "timestamp"))
 
 	return &Repair{
 		assertionBase: assert,

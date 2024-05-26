@@ -19,6 +19,4 @@
 
 package daemon
 
-var (
-	TrySnap = trySnap
-)
+var TrySnap = trySnap

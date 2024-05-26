@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/gadget"
@@ -124,7 +125,7 @@ func (s *tasksetsSuite) TestConfigureInstalled(c *C) {
 
 		var hooksup hookstate.HookSetup
 		s.state.Lock()
-		err := task.Get("hook-setup", &hooksup)
+		mylog.Check(task.Get("hook-setup", &hooksup))
 		s.state.Unlock()
 		c.Check(err, IsNil)
 
@@ -134,7 +135,7 @@ func (s *tasksetsSuite) TestConfigureInstalled(c *C) {
 		c.Assert(hooksup.IgnoreError, Equals, test.ignoreError)
 		c.Assert(hooksup.Timeout, Equals, 5*time.Minute)
 
-		context, err := hookstate.NewContext(task, task.State(), &hooksup, nil, "")
+		context := mylog.Check2(hookstate.NewContext(task, task.State(), &hooksup, nil, ""))
 		c.Check(err, IsNil)
 		c.Check(context.InstanceName(), Equals, "test-snap")
 		c.Check(context.SnapRevision(), Equals, snap.Revision{})
@@ -144,7 +145,7 @@ func (s *tasksetsSuite) TestConfigureInstalled(c *C) {
 		var useDefaults bool
 		context.Lock()
 		context.Get("use-defaults", &useDefaults)
-		err = context.Get("patch", &patch)
+		mylog.Check(context.Get("patch", &patch))
 		context.Unlock()
 		if len(test.patch) > 0 {
 			c.Check(err, IsNil)
@@ -169,13 +170,13 @@ func (s *tasksetsSuite) TestConfigureInstalledConflict(c *C) {
 		SnapType: "app",
 	})
 
-	ts, err := snapstate.Disable(s.state, "test-snap")
-	c.Assert(err, IsNil)
+	ts := mylog.Check2(snapstate.Disable(s.state, "test-snap"))
+
 	chg := s.state.NewChange("other-change", "...")
 	chg.AddAll(ts)
 
 	patch := map[string]interface{}{"foo": "bar"}
-	_, err = configstate.ConfigureInstalled(s.state, "test-snap", patch, 0)
+	_ = mylog.Check2(configstate.ConfigureInstalled(s.state, "test-snap", patch, 0))
 	c.Check(err, ErrorMatches, `snap "test-snap" has "other-change" change in progress`)
 }
 
@@ -184,11 +185,11 @@ func (s *tasksetsSuite) TestConfigureNotInstalled(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	_, err := configstate.ConfigureInstalled(s.state, "test-snap", patch, 0)
+	_ := mylog.Check2(configstate.ConfigureInstalled(s.state, "test-snap", patch, 0))
 	c.Check(err, ErrorMatches, `snap "test-snap" is not installed`)
 
 	// core can be configure before being installed
-	_, err = configstate.ConfigureInstalled(s.state, "core", patch, 0)
+	_ = mylog.Check2(configstate.ConfigureInstalled(s.state, "core", patch, 0))
 	c.Check(err, IsNil)
 }
 
@@ -205,7 +206,7 @@ func (s *tasksetsSuite) TestConfigureInstalledDenyBases(c *C) {
 		SnapType: "base",
 	})
 
-	_, err := configstate.ConfigureInstalled(s.state, "test-base", patch, 0)
+	_ := mylog.Check2(configstate.ConfigureInstalled(s.state, "test-base", patch, 0))
 	c.Check(err, ErrorMatches, `cannot configure snap "test-base" because it is of type 'base'`)
 }
 
@@ -222,7 +223,7 @@ func (s *tasksetsSuite) TestConfigureInstalledDenySnapd(c *C) {
 		SnapType: "snapd",
 	})
 
-	_, err := configstate.ConfigureInstalled(s.state, "snapd", patch, 0)
+	_ := mylog.Check2(configstate.ConfigureInstalled(s.state, "snapd", patch, 0))
 	c.Check(err, ErrorMatches, `cannot configure the "snapd" snap, please use "system" instead`)
 }
 
@@ -248,9 +249,9 @@ func (s *tasksetsSuite) TestDefaultConfigure(c *C) {
 
 	var hooksup hookstate.HookSetup
 	s.state.Lock()
-	err := task.Get("hook-setup", &hooksup)
+	mylog.Check(task.Get("hook-setup", &hooksup))
 	s.state.Unlock()
-	c.Assert(err, IsNil)
+
 	expectedHookSetup := hookstate.HookSetup{
 		Snap:        "test-snap",
 		Revision:    snap.Revision{},
@@ -262,7 +263,7 @@ func (s *tasksetsSuite) TestDefaultConfigure(c *C) {
 	}
 	c.Assert(hooksup, DeepEquals, expectedHookSetup)
 
-	context, err := hookstate.NewContext(task, task.State(), &hooksup, nil, "")
+	context := mylog.Check2(hookstate.NewContext(task, task.State(), &hooksup, nil, ""))
 	c.Check(err, IsNil)
 	c.Check(context.InstanceName(), Equals, "test-snap")
 	c.Check(context.SnapRevision(), Equals, snap.Revision{})
@@ -272,7 +273,7 @@ func (s *tasksetsSuite) TestDefaultConfigure(c *C) {
 	var useDefaults bool
 	context.Lock()
 	context.Get("use-defaults", &useDefaults)
-	err = context.Get("patch", &patch)
+	mylog.Check(context.Get("patch", &patch))
 	context.Unlock()
 	// useDefaults is not set because it is implicit to the default-configure hook
 	c.Check(useDefaults, Equals, false)
@@ -291,35 +292,33 @@ func (s *configcoreHijackSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	s.o = overlord.Mock()
 	s.state = s.o.State()
-	hookMgr, err := hookstate.Manager(s.state, s.o.TaskRunner())
-	c.Assert(err, IsNil)
+	hookMgr := mylog.Check2(hookstate.Manager(s.state, s.o.TaskRunner()))
+
 	s.o.AddManager(hookMgr)
 	r := configstate.MockConfigcoreExportExperimentalFlags(func(_ configcore.ConfGetter) error {
 		return nil
 	})
 	s.AddCleanup(r)
+	mylog.Check(configstate.Init(s.state, hookMgr))
 
-	err = configstate.Init(s.state, hookMgr)
-	c.Assert(err, IsNil)
 	s.o.AddManager(s.o.TaskRunner())
 
 	r = snapstatetest.MockDeviceModel(makeModel(nil))
 	s.AddCleanup(r)
-
 }
 
 func (s *configcoreHijackSuite) TestConfigMngrInitHomeDirs(c *C) {
 	s.o = overlord.Mock()
 	s.state = s.o.State()
-	hookMgr, err := hookstate.Manager(s.state, s.o.TaskRunner())
-	c.Assert(err, IsNil)
+	hookMgr := mylog.Check2(hookstate.Manager(s.state, s.o.TaskRunner()))
+
 	s.state.Lock()
 	t := config.NewTransaction(s.state)
 	c.Assert(t.Set("core", "homedirs", "/home,/home/department,/users,/users/seniors"), IsNil)
 	t.Commit()
 	s.state.Unlock()
-	err = configstate.Init(s.state, hookMgr)
-	c.Assert(err, IsNil)
+	mylog.Check(configstate.Init(s.state, hookMgr))
+
 	snapHomeDirs := []string{"/home", "/home/department", "/users", "/users/seniors"}
 	c.Check(dirs.SnapHomeDirs(), DeepEquals, snapHomeDirs)
 }
@@ -357,8 +356,8 @@ func (s *configcoreHijackSuite) TestHijack(c *C) {
 		// called with no state lock!
 		conf.State().Lock()
 		defer conf.State().Unlock()
-		err := conf.Get("core", "witness", &witnessCfg)
-		c.Assert(err, IsNil)
+		mylog.Check(conf.Get("core", "witness", &witnessCfg))
+
 		configcoreRan = true
 		c.Assert(conf.Task().ID(), Equals, taskID)
 		return nil
@@ -384,9 +383,9 @@ func (s *configcoreHijackSuite) TestHijack(c *C) {
 	}
 
 	s.state.Unlock()
-	err := s.o.SettleObserveBeforeCleanups(5*time.Second, observe)
+	mylog.Check(s.o.SettleObserveBeforeCleanups(5*time.Second, observe))
 	s.state.Lock()
-	c.Assert(err, IsNil)
+
 
 	c.Check(chg.Err(), IsNil)
 	c.Check(configcoreRan, Equals, true)
@@ -427,10 +426,10 @@ func (s *earlyConfigSuite) SetUpTest(c *C) {
 
 func (s *earlyConfigSuite) sysConfig(c *C) {
 	t := config.NewTransaction(s.state)
-	err := t.Set("core", "experimental.parallel-instances", true)
-	c.Assert(err, IsNil)
-	err = t.Set("core", "experimental.user-daemons", true)
-	c.Assert(err, IsNil)
+	mylog.Check(t.Set("core", "experimental.parallel-instances", true))
+
+	mylog.Check(t.Set("core", "experimental.user-daemons", true))
+
 	t.Commit()
 }
 
@@ -439,9 +438,8 @@ func (s *earlyConfigSuite) TestEarlyConfigSeeded(c *C) {
 	defer s.state.Unlock()
 	s.sysConfig(c)
 	s.state.Set("seeded", true)
+	mylog.Check(configstate.EarlyConfig(s.state, nil))
 
-	err := configstate.EarlyConfig(s.state, nil)
-	c.Assert(err, IsNil)
 	// parallel-instances was exported
 	c.Check(features.ParallelInstances.IsEnabled(), Equals, true)
 }
@@ -455,8 +453,7 @@ func (s *earlyConfigSuite) TestEarlyConfigSeededErr(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	s.state.Set("seeded", true)
-
-	err := configstate.EarlyConfig(s.state, nil)
+	mylog.Check(configstate.EarlyConfig(s.state, nil))
 	c.Assert(err, ErrorMatches, "cannot export experimental config flags: bad bad")
 }
 
@@ -468,9 +465,8 @@ func (s *earlyConfigSuite) TestEarlyConfigSysConfigured(c *C) {
 	preloadGadget := func() (sysconfig.Device, *gadget.Info, error) {
 		panic("unexpected")
 	}
+	mylog.Check(configstate.EarlyConfig(s.state, preloadGadget))
 
-	err := configstate.EarlyConfig(s.state, preloadGadget)
-	c.Assert(err, IsNil)
 	// parallel-instances was exported
 	c.Check(features.ParallelInstances.IsEnabled(), Equals, true)
 }
@@ -490,28 +486,25 @@ func (s *earlyConfigSuite) TestEarlyConfigFromGadget(c *C) {
 	defer s.state.Unlock()
 
 	preloadGadget := func() (sysconfig.Device, *gadget.Info, error) {
-		gi, err := gadget.InfoFromGadgetYaml([]byte(preloadedGadgetYaml), nil)
-		if err != nil {
-			return nil, nil, err
-		}
+		gi := mylog.Check2(gadget.InfoFromGadgetYaml([]byte(preloadedGadgetYaml), nil))
+
 		dev := &snapstatetest.TrivialDeviceContext{}
 		return dev, gi, nil
 	}
+	mylog.Check(configstate.EarlyConfig(s.state, preloadGadget))
 
-	err := configstate.EarlyConfig(s.state, preloadGadget)
-	c.Assert(err, IsNil)
 
 	// parallel-instances was exported
 	c.Check(features.ParallelInstances.IsEnabled(), Equals, true)
 	tr := config.NewTransaction(s.state)
-	ok, err := features.Flag(tr, features.ParallelInstances)
-	c.Assert(err, IsNil)
+	ok := mylog.Check2(features.Flag(tr, features.ParallelInstances))
+
 	c.Check(ok, Equals, true)
-	ok, err = features.Flag(tr, features.UserDaemons)
-	c.Assert(err, IsNil)
+	ok = mylog.Check2(features.Flag(tr, features.UserDaemons))
+
 	c.Check(ok, Equals, true)
 	var serviceCfg map[string]interface{}
-	err = tr.Get("core", "services", &serviceCfg)
+	mylog.Check(tr.Get("core", "services", &serviceCfg))
 	// nothing of this was set
 	c.Assert(config.IsNoOption(err), Equals, true)
 }
@@ -527,8 +520,7 @@ func (s *earlyConfigSuite) TestEarlyConfigFromGadgetErr(c *C) {
 	preloadGadget := func() (sysconfig.Device, *gadget.Info, error) {
 		return nil, &gadget.Info{}, nil
 	}
-
-	err := configstate.EarlyConfig(s.state, preloadGadget)
+	mylog.Check(configstate.EarlyConfig(s.state, preloadGadget))
 	c.Assert(err, ErrorMatches, "boom")
 }
 
@@ -544,9 +536,8 @@ func (s *earlyConfigSuite) TestEarlyConfigNoHookTask(c *C) {
 	preloadGadget := func() (sysconfig.Device, *gadget.Info, error) {
 		return nil, &gadget.Info{}, nil
 	}
+	mylog.Check(configstate.EarlyConfig(s.state, preloadGadget))
 
-	err := configstate.EarlyConfig(s.state, preloadGadget)
-	c.Assert(err, IsNil)
 }
 
 func (s *earlyConfigSuite) TestEarlyConfigPreloadGadgetErr(c *C) {
@@ -556,8 +547,7 @@ func (s *earlyConfigSuite) TestEarlyConfigPreloadGadgetErr(c *C) {
 	preloadGadget := func() (sysconfig.Device, *gadget.Info, error) {
 		return nil, nil, fmt.Errorf("cannot load gadget")
 	}
-
-	err := configstate.EarlyConfig(s.state, preloadGadget)
+	mylog.Check(configstate.EarlyConfig(s.state, preloadGadget))
 	c.Assert(err, ErrorMatches, "cannot load gadget")
 }
 
@@ -568,11 +558,10 @@ func (s *earlyConfigSuite) TestEarlyConfigNoGadget(c *C) {
 	preloadGadget := func() (sysconfig.Device, *gadget.Info, error) {
 		return nil, nil, state.ErrNoState
 	}
+	mylog.Check(configstate.EarlyConfig(s.state, preloadGadget))
 
-	err := configstate.EarlyConfig(s.state, preloadGadget)
-	c.Assert(err, IsNil)
 
-	sysCfg, err := config.GetSnapConfig(s.state, "core")
-	c.Assert(err, IsNil)
+	sysCfg := mylog.Check2(config.GetSnapConfig(s.state, "core"))
+
 	c.Check(sysCfg, IsNil)
 }

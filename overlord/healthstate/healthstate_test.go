@@ -27,6 +27,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/healthstate"
@@ -61,8 +62,7 @@ func (s *healthSuite) SetUpTest(c *check.C) {
 	s.o = overlord.Mock()
 	s.state = s.o.State()
 
-	var err error
-	s.hookMgr, err = hookstate.Manager(s.state, s.o.TaskRunner())
+	s.hookMgr = mylog.Check2(hookstate.Manager(s.state, s.o.TaskRunner()))
 	c.Assert(err, check.IsNil)
 	s.se = s.o.StateEngine()
 	s.o.AddManager(s.hookMgr)
@@ -138,7 +138,7 @@ func (s *healthSuite) testHealth(c *check.C, cond healthHookTestCondition) {
 	var hooksup hookstate.HookSetup
 
 	s.state.Lock()
-	err := task.Get("hook-setup", &hooksup)
+	mylog.Check(task.Get("hook-setup", &hooksup))
 	s.state.Unlock()
 	c.Check(err, check.IsNil)
 
@@ -160,7 +160,7 @@ func (s *healthSuite) testHealth(c *check.C, cond healthHookTestCondition) {
 	var err2 error
 	s.state.Lock()
 	status := change.Status()
-	err = s.state.Get("health", &healths)
+	mylog.Check(s.state.Get("health", &healths))
 	health, err2 = healthstate.Get(s.state, "test-snap")
 	s.state.Unlock()
 	c.Assert(err2, check.IsNil)
@@ -199,7 +199,7 @@ func (s *healthSuite) testHealth(c *check.C, cond healthHookTestCondition) {
 
 func (*healthSuite) TestStatusHappy(c *check.C) {
 	for i, str := range healthstate.KnownStatuses {
-		status, err := healthstate.StatusLookup(str)
+		status := mylog.Check2(healthstate.StatusLookup(str))
 		c.Check(err, check.IsNil, check.Commentf("%v", str))
 		c.Check(status, check.Equals, healthstate.HealthStatus(i), check.Commentf("%v", str))
 		c.Check(healthstate.HealthStatus(i).String(), check.Equals, str, check.Commentf("%v", str))
@@ -207,14 +207,14 @@ func (*healthSuite) TestStatusHappy(c *check.C) {
 }
 
 func (*healthSuite) TestStatusUnhappy(c *check.C) {
-	status, err := healthstate.StatusLookup("rabbits")
+	status := mylog.Check2(healthstate.StatusLookup("rabbits"))
 	c.Check(status, check.Equals, healthstate.HealthStatus(-1))
 	c.Check(err, check.ErrorMatches, `invalid status "rabbits".*`)
 	c.Check(status.String(), check.Equals, "invalid (-1)")
 }
 
 func (s *healthSuite) TestSetFromHookContext(c *check.C) {
-	ctx, err := hookstate.NewContext(nil, s.state, &hookstate.HookSetup{Snap: "foo"}, nil, "")
+	ctx := mylog.Check2(hookstate.NewContext(nil, s.state, &hookstate.HookSetup{Snap: "foo"}, nil, ""))
 	c.Assert(err, check.IsNil)
 
 	ctx.Lock()
@@ -224,11 +224,10 @@ func (s *healthSuite) TestSetFromHookContext(c *check.C) {
 	c.Check(s.state.Get("health", &hs), testutil.ErrorIs, state.ErrNoState)
 
 	ctx.Set("health", &healthstate.HealthState{Status: 42})
-
-	err = healthstate.SetFromHookContext(ctx)
+	mylog.Check(healthstate.SetFromHookContext(ctx))
 	c.Assert(err, check.IsNil)
 
-	hs, err = healthstate.All(s.state)
+	hs = mylog.Check2(healthstate.All(s.state))
 	c.Check(err, check.IsNil)
 	c.Check(hs, check.DeepEquals, map[string]*healthstate.HealthState{
 		"foo": {Status: 42},
@@ -236,7 +235,7 @@ func (s *healthSuite) TestSetFromHookContext(c *check.C) {
 }
 
 func (s *healthSuite) TestSetFromHookContextEmpty(c *check.C) {
-	ctx, err := hookstate.NewContext(nil, s.state, &hookstate.HookSetup{Snap: "foo"}, nil, "")
+	ctx := mylog.Check2(hookstate.NewContext(nil, s.state, &hookstate.HookSetup{Snap: "foo"}, nil, ""))
 	c.Assert(err, check.IsNil)
 
 	ctx.Lock()
@@ -244,8 +243,7 @@ func (s *healthSuite) TestSetFromHookContextEmpty(c *check.C) {
 
 	var hs map[string]healthstate.HealthState
 	c.Check(s.state.Get("health", &hs), testutil.ErrorIs, state.ErrNoState)
-
-	err = healthstate.SetFromHookContext(ctx)
+	mylog.Check(healthstate.SetFromHookContext(ctx))
 	c.Assert(err, check.IsNil)
 
 	// no health in the context -> no health in state

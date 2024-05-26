@@ -29,6 +29,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot"
@@ -144,10 +145,8 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	m.populateStateFromSeed = m.populateStateFromSeedImpl
 
 	if !m.preseed {
-		modeenv, err := maybeReadModeenv()
-		if err != nil {
-			return nil, err
-		}
+		modeenv := mylog.Check2(maybeReadModeenv())
+
 		if modeenv != nil {
 			logger.Debugf("modeenv for model %q found", modeenv.Model)
 			m.sysMode = modeenv.Mode
@@ -157,11 +156,9 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		// core16/core18 (they are not supported by preseeding) as core20 system
 		// label is expected.
 		if !release.OnClassic {
-			var err error
-			m.preseedSystemLabel, err = systemForPreseeding()
-			if err != nil {
-				return nil, err
-			}
+
+			m.preseedSystemLabel = mylog.Check2(systemForPreseeding())
+
 			m.sysMode = "run"
 		}
 	}
@@ -169,10 +166,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	s.Lock()
 	s.Cache(deviceMgrKey{}, m)
 	s.Unlock()
-
-	if err := m.confirmRegistered(); err != nil {
-		return nil, err
-	}
+	mylog.Check(m.confirmRegistered())
 
 	hookManager.Register(regexp.MustCompile("^prepare-device$"), newBasicHookStateHandler)
 	hookManager.Register(regexp.MustCompile("^install-device$"), newBasicHookStateHandler)
@@ -228,12 +222,11 @@ func ensureFileDirPermissions() error {
 	// Ensure the /var/lib/snapd/void dir has correct permissions, we
 	// do this in the postinst for classic systems already but it's
 	// needed here for Core systems.
-	st, err := os.Stat(dirs.SnapVoidDir)
+	st := mylog.Check2(os.Stat(dirs.SnapVoidDir))
 	if err == nil && st.Mode().Perm() != 0111 {
 		logger.Noticef("fixing permissions of %v to 0111", dirs.SnapVoidDir)
-		if err := os.Chmod(dirs.SnapVoidDir, 0111); err != nil {
-			return err
-		}
+		mylog.Check(os.Chmod(dirs.SnapVoidDir, 0111))
+
 	}
 	return nil
 }
@@ -249,7 +242,7 @@ func newBasicHookStateHandler(context *hookstate.Context) hookstate.Handler {
 }
 
 func maybeReadModeenv() (*boot.Modeenv, error) {
-	modeenv, err := boot.ReadModeenv("")
+	modeenv := mylog.Check2(boot.ReadModeenv(""))
 	if err != nil && !os.IsNotExist(err) {
 		return nil, fmt.Errorf("cannot read modeenv: %v", err)
 	}
@@ -259,10 +252,8 @@ func maybeReadModeenv() (*boot.Modeenv, error) {
 // ReloadModeenv is only useful for integration testing
 func (m *DeviceManager) ReloadModeenv() error {
 	osutil.MustBeTestBinary("ReloadModeenv can only be called from tests")
-	modeenv, err := maybeReadModeenv()
-	if err != nil {
-		return err
-	}
+	modeenv := mylog.Check2(maybeReadModeenv())
+
 	if modeenv != nil {
 		m.sysMode = modeenv.Mode
 	}
@@ -300,7 +291,7 @@ func (m *DeviceManager) StartUp() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	dev, err := m.earlyDeviceContext()
+	dev := mylog.Check2(m.earlyDeviceContext())
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
@@ -308,15 +299,12 @@ func (m *DeviceManager) StartUp() error {
 	// if ErrNoState then dev is nil, we assume a classic system here,
 	// any error will re-surface again in the main first boot code
 	if dev != nil && m.shouldMountUbuntuSave(dev) {
-		if err := m.setupUbuntuSave(dev); err != nil {
-			return fmt.Errorf("cannot set up ubuntu-save: %v", err)
-		}
+		mylog.Check(m.setupUbuntuSave(dev))
 	}
+	mylog.Check(
 
-	// ensure /var/lib/snapd/void permissions are ok
-	if err := ensureFileDirPermissions(); err != nil {
-		logger.Noticef("%v", fmt.Errorf("cannot ensure device file/dir permissions: %v", err))
-	}
+		// ensure /var/lib/snapd/void permissions are ok
+		ensureFileDirPermissions())
 
 	// TODO: setup proper timings measurements for this
 
@@ -332,19 +320,15 @@ func (m *DeviceManager) shouldMountUbuntuSave(dev snap.Device) bool {
 }
 
 func (m *DeviceManager) ensureUbuntuSaveIsMounted() error {
-	saveMounted, err := osutil.IsMounted(dirs.SnapSaveDir)
-	if err != nil {
-		return err
-	}
+	saveMounted := mylog.Check2(osutil.IsMounted(dirs.SnapSaveDir))
+
 	if saveMounted {
 		logger.Noticef("save already mounted under %v", dirs.SnapSaveDir)
 		return nil
 	}
 
-	runMntSaveMounted, err := osutil.IsMounted(boot.InitramfsUbuntuSaveDir)
-	if err != nil {
-		return err
-	}
+	runMntSaveMounted := mylog.Check2(osutil.IsMounted(boot.InitramfsUbuntuSaveDir))
+
 	if !runMntSaveMounted {
 		// we don't have ubuntu-save, save will be used directly
 		logger.Noticef("no ubuntu-save mount")
@@ -352,10 +336,11 @@ func (m *DeviceManager) ensureUbuntuSaveIsMounted() error {
 	}
 
 	sysd := systemd.New(systemd.SystemMode, progress.Null)
+	mylog.
 
-	// In newer core20/core22 we have a mount unit for ubuntu-save, which we
-	// will try to start first. Invoking systemd-mount in this case would fail.
-	err = sysd.Start([]string{"var-lib-snapd-save.mount"})
+		// In newer core20/core22 we have a mount unit for ubuntu-save, which we
+		// will try to start first. Invoking systemd-mount in this case would fail.
+		Check(sysd.Start([]string{"var-lib-snapd-save.mount"}))
 	if err == nil {
 		logger.Noticef("mount unit for ubuntu-save was started")
 		return nil
@@ -371,11 +356,8 @@ func (m *DeviceManager) ensureUbuntuSaveIsMounted() error {
 
 	// Otherwise try to directly mount the partition with systemd-mount.
 	logger.Noticef("bind-mounting ubuntu-save under %v", dirs.SnapSaveDir)
-	err = sysd.Mount(boot.InitramfsUbuntuSaveDir, dirs.SnapSaveDir, "-o", "bind")
-	if err != nil {
-		logger.Noticef("bind-mounting ubuntu-save failed %v", err)
-		return fmt.Errorf("cannot bind mount %v under %v: %v", boot.InitramfsUbuntuSaveDir, dirs.SnapSaveDir, err)
-	}
+	mylog.Check(sysd.Mount(boot.InitramfsUbuntuSaveDir, dirs.SnapSaveDir, "-o", "bind"))
+
 	return nil
 }
 
@@ -389,16 +371,12 @@ func (m *DeviceManager) ensureUbuntuSaveIsMounted() error {
 //  2. During install mode for the gadget/kernel/etc, the folders are not created.
 //     So this function can be invoked as a part of system-setup.
 func (m *DeviceManager) ensureUbuntuSaveSnapFolders() error {
-	snaps, err := snapstate.All(m.state)
-	if err != nil {
-		return err
-	}
+	snaps := mylog.Check2(snapstate.All(m.state))
 
 	for _, s := range snaps {
 		saveDir := snap.CommonDataSaveDir(s.InstanceName())
-		if err := os.MkdirAll(saveDir, 0755); err != nil {
-			return err
-		}
+		mylog.Check(os.MkdirAll(saveDir, 0755))
+
 	}
 	return nil
 }
@@ -407,9 +385,7 @@ func (m *DeviceManager) ensureUbuntuSaveSnapFolders() error {
 // to mount ubuntu-save (if feasible), and ensures the correct snap
 // folders are present according to currently installed snaps.
 func (m *DeviceManager) setupUbuntuSave(dev snap.Device) error {
-	if err := m.ensureUbuntuSaveIsMounted(); err != nil {
-		return err
-	}
+	mylog.Check(m.ensureUbuntuSaveIsMounted())
 
 	// At this point ubuntu-save should be available under the
 	// /var/lib/snapd/save path, so we mark the partition as such.
@@ -436,9 +412,8 @@ func deviceMgr(st *state.State) *DeviceManager {
 
 func (m *DeviceManager) CanStandby() bool {
 	var seeded bool
-	if err := m.state.Get("seeded", &seeded); err != nil {
-		return false
-	}
+	mylog.Check(m.state.Get("seeded", &seeded))
+
 	return seeded
 }
 
@@ -446,10 +421,7 @@ func (m *DeviceManager) confirmRegistered() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	device, err := m.device()
-	if err != nil {
-		return err
-	}
+	device := mylog.Check2(m.device())
 
 	if device.Serial != "" {
 		m.markRegistered()
@@ -527,15 +499,14 @@ func (m *DeviceManager) ensureOperationalShouldBackoff(now time.Time) bool {
 }
 
 func setClassicFallbackModel(st *state.State, device *auth.DeviceState) error {
-	err := assertstate.Add(st, sysdb.GenericClassicModel())
+	mylog.Check(assertstate.Add(st, sysdb.GenericClassicModel()))
 	if err != nil && !asserts.IsUnaccceptedUpdate(err) {
 		return fmt.Errorf(`cannot install "generic-classic" fallback model assertion: %v`, err)
 	}
 	device.Brand = "generic"
 	device.Model = "generic-classic"
-	if err := internal.SetDevice(st, device); err != nil {
-		return err
-	}
+	mylog.Check(internal.SetDevice(st, device))
+
 	return nil
 }
 
@@ -549,10 +520,7 @@ func (m *DeviceManager) ensureOperational() error {
 		return nil
 	}
 
-	device, err := m.device()
-	if err != nil {
-		return err
-	}
+	device := mylog.Check2(m.device())
 
 	if device.Serial != "" {
 		// serial is set, we are all set
@@ -575,7 +543,7 @@ func (m *DeviceManager) ensureOperational() error {
 	//   in the process to install some
 
 	var seeded bool
-	err = m.state.Get("seeded", &seeded)
+	mylog.Check(m.state.Get("seeded", &seeded))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
@@ -584,12 +552,11 @@ func (m *DeviceManager) ensureOperational() error {
 		if !release.OnClassic || !seeded {
 			return nil
 		}
-		// we are on classic and seeded but there is no model:
-		// use a fallback model!
-		err := setClassicFallbackModel(m.state, device)
-		if err != nil {
-			return err
-		}
+		mylog.
+			// we are on classic and seeded but there is no model:
+			// use a fallback model!
+			Check(setClassicFallbackModel(m.state, device))
+
 	}
 
 	if m.noRegister {
@@ -602,7 +569,7 @@ func (m *DeviceManager) ensureOperational() error {
 	}
 
 	var storeID, gadget string
-	model, err := m.Model()
+	model := mylog.Check2(m.Model())
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
@@ -613,10 +580,7 @@ func (m *DeviceManager) ensureOperational() error {
 		return fmt.Errorf("internal error: core device brand and model are set but there is no model assertion")
 	}
 
-	willRequestSerial, err := shouldRequestSerial(m.state, gadget)
-	if err != nil {
-		return err
-	}
+	willRequestSerial := mylog.Check2(shouldRequestSerial(m.state, gadget))
 
 	// if we should not fetch the device serial (either store.access or
 	// device.service.access is set to offline), and we have already generated a
@@ -630,10 +594,8 @@ func (m *DeviceManager) ensureOperational() error {
 		// classic: if we have no gadget and no non-default store
 		// wait to have snaps or snap installation
 
-		n, err := snapstate.NumSnaps(m.state)
-		if err != nil {
-			return err
-		}
+		n := mylog.Check2(snapstate.NumSnaps(m.state))
+
 		if n == 0 && !snapstate.Installing(m.state) {
 			return nil
 		}
@@ -653,28 +615,22 @@ func (m *DeviceManager) ensureOperational() error {
 			// this will be run again, so eventually when the system is
 			// seeded the code below runs
 			return nil
-
 		}
 
-		gadgetInfo, err := snapstate.CurrentInfo(m.state, gadget)
-		if err != nil {
-			return err
-		}
+		gadgetInfo := mylog.Check2(snapstate.CurrentInfo(m.state, gadget))
+
 		hasPrepareDeviceHook = (gadgetInfo.Hooks["prepare-device"] != nil)
 	}
 
 	if device.KeyID == "" && model.Grade() != "" {
 		// UC20+ devices support factory reset
-		serial, err := m.maybeRestoreAfterReset(device)
-		if err != nil {
-			return err
-		}
+		serial := mylog.Check2(m.maybeRestoreAfterReset(device))
+
 		if serial != nil {
 			device.KeyID = serial.DeviceKey().ID()
 			device.Serial = serial.Serial()
-			if err := m.setDevice(device); err != nil {
-				return fmt.Errorf("cannot set device for restored serial and key: %v", err)
-			}
+			mylog.Check(m.setDevice(device))
+
 			logger.Noticef("restored serial %v for %v/%v signed with key %v",
 				device.Serial, device.Brand, device.Model, device.KeyID)
 			return nil
@@ -732,40 +688,33 @@ func (m *DeviceManager) ensureOperational() error {
 // removed.
 func (m *DeviceManager) maybeRestoreAfterReset(device *auth.DeviceState) (*asserts.Serial, error) {
 	// there should be a serial assertion for the current model
-	serials, err := assertstate.DB(m.state).FindMany(asserts.SerialType, map[string]string{
+	serials := mylog.Check2(assertstate.DB(m.state).FindMany(asserts.SerialType, map[string]string{
 		"brand-id": device.Brand,
 		"model":    device.Model,
-	})
-	if err != nil {
-		if errors.Is(err, &asserts.NotFoundError{}) {
-			// no serial assertion
-			return nil, nil
-		}
-		return nil, err
-	}
+	}))
+
+	// no serial assertion
+
 	for _, serial := range serials {
 		serialAs := serial.(*asserts.Serial)
 		deviceKeyID := serialAs.DeviceKey().ID()
 		logger.Debugf("processing candidate serial assertion for %v/%v signed with key %v",
 			device.Brand, device.Model, deviceKeyID)
-		// serial assertion is signed with the device key, its ID is in
-		// the header; factory-reset would have restored the serial
-		// assertion and a matching device key, OTOH when the device is
-		// unregistered we explicitly remove the key, hence should this
-		// code process such serial assertion, there will be no matching
-		// key for it
-		err = m.withKeypairMgr(func(kpmgr asserts.KeypairManager) error {
-			_, err := kpmgr.Get(deviceKeyID)
-			return err
-		})
-		if err != nil {
-			if asserts.IsKeyNotFound(err) {
-				// there is no key matching this serial assertion,
-				// perhaps device was unregistered at some point
-				continue
-			}
-			return nil, err
-		}
+		mylog.
+			// serial assertion is signed with the device key, its ID is in
+			// the header; factory-reset would have restored the serial
+			// assertion and a matching device key, OTOH when the device is
+			// unregistered we explicitly remove the key, hence should this
+			// code process such serial assertion, there will be no matching
+			// key for it
+			Check(m.withKeypairMgr(func(kpmgr asserts.KeypairManager) error {
+				_ := mylog.Check2(kpmgr.Get(deviceKeyID))
+				return err
+			}))
+
+		// there is no key matching this serial assertion,
+		// perhaps device was unregistered at some point
+
 		return serialAs, nil
 	}
 	// none of the assertions has a matching key
@@ -780,7 +729,7 @@ func init() {
 
 func (m *DeviceManager) setTimeOnce(name string, t time.Time) error {
 	var prev time.Time
-	err := m.state.Get(name, &prev)
+	mylog.Check(m.state.Get(name, &prev))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
@@ -808,9 +757,8 @@ func (m *DeviceManager) seedStart() (*timings.Timings, error) {
 		recordedStart = "seed-start-time"
 		start = startTime
 	}
-	if err := m.setTimeOnce(recordedStart, start); err != nil {
-		return nil, err
-	}
+	mylog.Check(m.setTimeOnce(recordedStart, start))
+
 	return perfTimings, nil
 }
 
@@ -822,14 +770,14 @@ func (m *DeviceManager) systemForPreseeding() string {
 }
 
 func (m *DeviceManager) earlyDeviceContext() (snapstate.DeviceContext, error) {
-	mod, err := findModel(m.state)
+	mod := mylog.Check2(findModel(m.state))
 	if err == nil {
 		return newModelDeviceContext(m, mod), nil
 	}
 	if !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
-	dev, _, err := m.earlyLoadDeviceSeed(state.ErrNoState)
+	dev, _ := mylog.Check3(m.earlyLoadDeviceSeed(state.ErrNoState))
 	return dev, err
 }
 
@@ -846,10 +794,8 @@ func (m *DeviceManager) seedLabelAndMode() (seedLabel, seedMode string, err erro
 			seedLabel = m.systemForPreseeding()
 		}
 	} else {
-		modeenv, err := maybeReadModeenv()
-		if err != nil {
-			return "", "", err
-		}
+		modeenv := mylog.Check2(maybeReadModeenv())
+
 		if modeenv != nil {
 			logger.Debugf("modeenv read, mode %q label %q",
 				modeenv.Mode, modeenv.RecoverySystem)
@@ -865,7 +811,7 @@ func (m *DeviceManager) seedLabelAndMode() (seedLabel, seedMode string, err erro
 
 func (m *DeviceManager) earlyLoadDeviceSeed(seedLoadErr error) (snapstate.DeviceContext, seed.Seed, error) {
 	var seeded bool
-	err := m.state.Get("seeded", &seeded)
+	mylog.Check(m.state.Get("seeded", &seeded))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, nil, err
 	}
@@ -878,31 +824,21 @@ func (m *DeviceManager) earlyLoadDeviceSeed(seedLoadErr error) (snapstate.Device
 		return newModelDeviceContext(m, m.earlyDeviceSeed.Model()), m.earlyDeviceSeed, nil
 	}
 
-	sysLabel, _, err := m.seedLabelAndMode()
-	if err != nil {
-		return nil, nil, err
-	}
+	sysLabel, _ := mylog.Check3(m.seedLabelAndMode())
 
 	// we time StartUp/earlyPreloadGadget + first ensureSeeded together
 	// under --ensure=seed
-	tm, err := m.seedStart()
-	if err != nil {
-		return nil, nil, err
-	}
+	tm := mylog.Check2(m.seedStart())
+
 	// cached for first ensureSeeded
 	m.seedTimings = tm
 
 	var deviceSeed seed.Seed
 	timings.Run(tm, "import-assertions[early]", "early import assertions from seed", func(nested timings.Measurer) {
-		deviceSeed, err = loadDeviceSeed(m.state, sysLabel)
+		deviceSeed = mylog.Check2(loadDeviceSeed(m.state, sysLabel))
 	})
-	if err != nil {
-		// use seedLoadErr if specified
-		if seedLoadErr != nil {
-			err = seedLoadErr
-		}
-		return nil, nil, err
-	}
+
+	// use seedLoadErr if specified
 
 	dev := newModelDeviceContext(m, deviceSeed.Model())
 
@@ -924,10 +860,8 @@ func (m *DeviceManager) earlyPreloadGadget() (sysconfig.Device, *gadget.Info, er
 	// just by option flags. For example automatic user creation
 	// also requires the model to be known/set. Otherwise ignoring
 	// errors here would be problematic.
-	dev, deviceSeed, err := m.earlyLoadDeviceSeed(state.ErrNoState)
-	if err != nil {
-		return nil, nil, err
-	}
+	dev, deviceSeed := mylog.Check3(m.earlyLoadDeviceSeed(state.ErrNoState))
+
 	model := dev.Model()
 	if model.Gadget() == "" {
 		// no gadget
@@ -936,25 +870,18 @@ func (m *DeviceManager) earlyPreloadGadget() (sysconfig.Device, *gadget.Info, er
 	var gi *gadget.Info
 
 	timings.Run(m.seedTimings, "preload-verified-gadget-metadata", "preload verified gadget metadata from seed", func(nested timings.Measurer) {
-		gi, err = func() (*gadget.Info, error) {
-			if err := deviceSeed.LoadEssentialMeta([]snap.Type{snap.TypeGadget}, nested); err != nil {
-				return nil, err
-			}
+		gi = mylog.Check2(func() (*gadget.Info, error) {
+			mylog.Check(deviceSeed.LoadEssentialMeta([]snap.Type{snap.TypeGadget}, nested))
+
 			essGadget := deviceSeed.EssentialSnaps()
 			if len(essGadget) != 1 {
 				return nil, fmt.Errorf("multiple gadgets among essential snaps are unexpected")
 			}
-			snapf, err := snapfile.Open(essGadget[0].Path)
-			if err != nil {
-				return nil, err
-			}
+			snapf := mylog.Check2(snapfile.Open(essGadget[0].Path))
+
 			return gadget.ReadInfoFromSnapFile(snapf, model)
-		}()
+		}())
 	})
-	if err != nil {
-		logger.Noticef("preload verified gadget metadata from seed failed: %v", err)
-		return nil, nil, state.ErrNoState
-	}
 
 	return dev, gi, nil
 }
@@ -966,7 +893,7 @@ func (m *DeviceManager) ensureSeeded() error {
 	defer m.state.Unlock()
 
 	var seeded bool
-	err := m.state.Get("seeded", &seeded)
+	mylog.Check(m.state.Get("seeded", &seeded))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
@@ -978,21 +905,17 @@ func (m *DeviceManager) ensureSeeded() error {
 		return nil
 	}
 
-	perfTimings, err := m.seedStart()
-	if err != nil {
-		return err
-	}
+	perfTimings := mylog.Check2(m.seedStart())
+
 	// we time StartUp/earlyPreloadGadget + first ensureSeeded together
 	// succcessive ensureSeeded should be timed separately
 	m.seedTimings = nil
 
 	var tsAll []*state.TaskSet
 	timings.Run(perfTimings, "state-from-seed", "populate state from seed", func(tm timings.Measurer) {
-		tsAll, err = m.populateStateFromSeed(tm)
+		tsAll = mylog.Check2(m.populateStateFromSeed(tm))
 	})
-	if err != nil {
-		return err
-	}
+
 	if len(tsAll) == 0 {
 		return nil
 	}
@@ -1033,7 +956,7 @@ func (m *DeviceManager) ensureAutoImportAssertions() error {
 	}
 
 	var seeded bool
-	if err := m.state.Get("seeded", &seeded); err != nil && !errors.Is(err, state.ErrNoState) {
+	if mylog.Check(m.state.Get("seeded", &seeded)); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	// if system is seeded, stop trying
@@ -1043,7 +966,7 @@ func (m *DeviceManager) ensureAutoImportAssertions() error {
 
 	// check if we have processed auto-import asssertions already
 	var autoImported bool
-	if err := m.state.Get("asserts-early-auto-imported", &autoImported); err != nil && !errors.Is(err, state.ErrNoState) {
+	if mylog.Check(m.state.Get("asserts-early-auto-imported", &autoImported)); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if autoImported {
@@ -1058,11 +981,10 @@ func (m *DeviceManager) ensureAutoImportAssertions() error {
 	// it should not be re-run. State should not be altered once
 	// processAutoImportAssertionsImpl is called.
 	m.state.Set("asserts-early-auto-imported", true)
-	err := processAutoImportAssertionsImpl(m.state, m.earlyDeviceSeed, db, commitTo)
-	if err != nil {
-		// best effort
-		logger.Noticef("cannot process auto import assertion: %v", err)
-	}
+	mylog.Check(processAutoImportAssertionsImpl(m.state, m.earlyDeviceSeed, db, commitTo))
+
+	// best effort
+
 	return nil
 }
 
@@ -1076,26 +998,22 @@ func (m *DeviceManager) ensureBootOk() error {
 	}
 
 	if !m.bootOkRan {
-		deviceCtx, err := DeviceCtx(m.state, nil, nil)
+		deviceCtx := mylog.Check2(DeviceCtx(m.state, nil, nil))
 		if err != nil && !errors.Is(err, state.ErrNoState) {
 			return err
 		}
 		if err == nil && deviceCtx.Model().KernelSnap() != nil {
-			if err := boot.MarkBootSuccessful(deviceCtx); err != nil {
-				return err
-			}
-			if err := secbootMarkSuccessful(); err != nil {
-				return err
-			}
+			mylog.Check(boot.MarkBootSuccessful(deviceCtx))
+			mylog.Check(secbootMarkSuccessful())
+
 		}
 
 		m.bootOkRan = true
 	}
 
 	if !m.bootRevisionsUpdated {
-		if err := snapstate.UpdateBootRevisions(m.state); err != nil {
-			return err
-		}
+		mylog.Check(snapstate.UpdateBootRevisions(m.state))
+
 		m.bootRevisionsUpdated = true
 	}
 
@@ -1111,7 +1029,7 @@ func (m *DeviceManager) ensureCloudInitRestricted() error {
 	}
 
 	var seeded bool
-	err := m.state.Get("seeded", &seeded)
+	mylog.Check(m.state.Get("seeded", &seeded))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
@@ -1141,10 +1059,8 @@ func (m *DeviceManager) ensureCloudInitRestricted() error {
 
 	// check the current state of cloud-init, if it is disabled or already
 	// restricted then we have nothing to do
-	cloudInitStatus, err := cloudInitStatus()
-	if err != nil {
-		return err
-	}
+	cloudInitStatus := mylog.Check2(cloudInitStatus())
+
 	statusMsg := ""
 
 	switch cloudInitStatus {
@@ -1225,10 +1141,7 @@ func (m *DeviceManager) ensureCloudInitRestricted() error {
 	}
 
 	// we should always have a model if we are seeded and are not on classic
-	model, err := m.Model()
-	if err != nil {
-		return err
-	}
+	model := mylog.Check2(m.Model())
 
 	// For UC20, we want to always disable cloud-init after it has run on
 	// first boot unless we are in a "real cloud", i.e. not using NoCloud,
@@ -1243,10 +1156,7 @@ func (m *DeviceManager) ensureCloudInitRestricted() error {
 	}
 
 	// now restrict/disable cloud-init
-	res, err := restrictCloudInit(cloudInitStatus, opts)
-	if err != nil {
-		return err
-	}
+	res := mylog.Check2(restrictCloudInit(cloudInitStatus, opts))
 
 	// log a message about what we did
 	actionMsg := ""
@@ -1274,10 +1184,8 @@ func (m *DeviceManager) ensureCloudInitRestricted() error {
 // hasInstallDeviceHook returns whether the gadget has an install-device hook.
 // It can return an error if the device has no gadget snap
 func (m *DeviceManager) hasInstallDeviceHook(model *asserts.Model) (bool, error) {
-	gadgetInfo, err := snapstate.CurrentInfo(m.state, model.Gadget())
-	if err != nil {
-		return false, fmt.Errorf("device is seeded in install mode but has no gadget snap: %v", err)
-	}
+	gadgetInfo := mylog.Check2(snapstate.CurrentInfo(m.state, model.Gadget()))
+
 	hasInstallDeviceHook := (gadgetInfo.Hooks["install-device"] != nil)
 	return hasInstallDeviceHook, nil
 }
@@ -1309,7 +1217,7 @@ func (m *DeviceManager) ensureInstalled() error {
 	}
 
 	var seeded bool
-	err := m.state.Get("seeded", &seeded)
+	mylog.Check(m.state.Get("seeded", &seeded))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
@@ -1319,21 +1227,12 @@ func (m *DeviceManager) ensureInstalled() error {
 
 	perfTimings := timings.New(map[string]string{"ensure": "install-system"})
 
-	model, err := m.Model()
-	if err != nil {
-		if errors.Is(err, state.ErrNoState) {
-			return fmt.Errorf("internal error: core device brand and model are set but there is no model assertion")
-		}
-		return err
-	}
+	model := mylog.Check2(m.Model())
 
 	// check if the gadget has an install-device hook, do this before
 	// we mark ensureInstalledRan as true, as this can fail if no gadget
 	// snap is present
-	hasInstallDeviceHook, err := m.hasInstallDeviceHook(model)
-	if err != nil {
-		return fmt.Errorf("internal error: %v", err)
-	}
+	hasInstallDeviceHook := mylog.Check2(m.hasInstallDeviceHook(model))
 
 	m.ensureInstalledRan = true
 
@@ -1393,7 +1292,7 @@ func (m *DeviceManager) ensureFactoryReset() error {
 	}
 
 	var seeded bool
-	err := m.state.Get("seeded", &seeded)
+	mylog.Check(m.state.Get("seeded", &seeded))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
@@ -1403,21 +1302,12 @@ func (m *DeviceManager) ensureFactoryReset() error {
 
 	perfTimings := timings.New(map[string]string{"ensure": "factory-reset"})
 
-	model, err := m.Model()
-	if err != nil {
-		if errors.Is(err, state.ErrNoState) {
-			return fmt.Errorf("internal error: core device brand and model are set but there is no model assertion")
-		}
-		return err
-	}
+	model := mylog.Check2(m.Model())
 
 	// We perform this check before setting ensureFactoryResetRan in
 	// case this should fail. This should in theory not be possible as
 	// the same type of check is made during install-mode.
-	hasInstallDeviceHook, err := m.hasInstallDeviceHook(model)
-	if err != nil {
-		return fmt.Errorf("internal error: %v", err)
-	}
+	hasInstallDeviceHook := mylog.Check2(m.hasInstallDeviceHook(model))
 
 	m.ensureFactoryResetRan = true
 
@@ -1465,7 +1355,7 @@ func (m *DeviceManager) StartOfOperationTime() (time.Time, error) {
 	if m.preseed {
 		return opTime, fmt.Errorf("internal error: unexpected call to StartOfOperationTime in preseed mode")
 	}
-	err := m.state.Get("start-of-operation-time", &opTime)
+	mylog.Check(m.state.Get("start-of-operation-time", &opTime))
 	if err == nil {
 		return opTime, nil
 	}
@@ -1475,7 +1365,7 @@ func (m *DeviceManager) StartOfOperationTime() (time.Time, error) {
 
 	// start-of-operation-time not set yet, use seed-time if available
 	var seedTime time.Time
-	err = m.state.Get("seed-time", &seedTime)
+	mylog.Check(m.state.Get("seed-time", &seedTime))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return opTime, err
 	}
@@ -1491,13 +1381,12 @@ func (m *DeviceManager) StartOfOperationTime() (time.Time, error) {
 func markSeededInConfig(st *state.State) error {
 	var seedDone bool
 	tr := config.NewTransaction(st)
-	if err := tr.Get("core", "seed.loaded", &seedDone); err != nil && !config.IsNoOption(err) {
+	if mylog.Check(tr.Get("core", "seed.loaded", &seedDone)); err != nil && !config.IsNoOption(err) {
 		return err
 	}
 	if !seedDone {
-		if err := tr.Set("core", "seed.loaded", true); err != nil {
-			return err
-		}
+		mylog.Check(tr.Set("core", "seed.loaded", true))
+
 		tr.Commit()
 	}
 	return nil
@@ -1510,7 +1399,7 @@ func (m *DeviceManager) ensureSeedInConfig() error {
 	if !m.ensureSeedInConfigRan {
 		// get global seeded option
 		var seeded bool
-		if err := m.state.Get("seeded", &seeded); err != nil && !errors.Is(err, state.ErrNoState) {
+		if mylog.Check(m.state.Get("seeded", &seeded)); err != nil && !errors.Is(err, state.ErrNoState) {
 			return err
 		}
 		if !seeded {
@@ -1518,26 +1407,25 @@ func (m *DeviceManager) ensureSeedInConfig() error {
 			// doMarkSeeded will run "EnsureBefore(0)"
 			return nil
 		}
+		mylog.Check(
 
-		// Sync seeding with the configuration state. We need to
-		// do this here to ensure that old systems which did not
-		// set the configuration on seeding get the configuration
-		// update too.
-		if err := markSeededInConfig(m.state); err != nil {
-			return err
-		}
+			// Sync seeding with the configuration state. We need to
+			// do this here to ensure that old systems which did not
+			// set the configuration on seeding get the configuration
+			// update too.
+			markSeededInConfig(m.state))
+
 		m.ensureSeedInConfigRan = true
 	}
 
 	return nil
-
 }
 
 func (m *DeviceManager) appendTriedRecoverySystem(label string) error {
 	// state is locked by the caller
 
 	var triedSystems []string
-	if err := m.state.Get("tried-systems", &triedSystems); err != nil && !errors.Is(err, state.ErrNoState) {
+	if mylog.Check(m.state.Get("tried-systems", &triedSystems)); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if strutil.ListContains(triedSystems, label) {
@@ -1564,24 +1452,19 @@ func (m *DeviceManager) ensureTriedRecoverySystem() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	deviceCtx, err := DeviceCtx(m.state, nil, nil)
+	deviceCtx := mylog.Check2(DeviceCtx(m.state, nil, nil))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
-	outcome, label, err := boot.InspectTryRecoverySystemOutcome(deviceCtx)
-	if err != nil {
-		if !boot.IsInconsistentRecoverySystemState(err) {
-			return err
-		}
-		// boot variables state was inconsistent
-		logger.Noticef("tried recovery system outcome error: %v", err)
-	}
+	outcome, label := mylog.Check3(boot.InspectTryRecoverySystemOutcome(deviceCtx))
+
+	// boot variables state was inconsistent
+
 	switch outcome {
 	case boot.TryRecoverySystemOutcomeSuccess:
 		logger.Noticef("tried recovery system %q was successful", label)
-		if err := m.appendTriedRecoverySystem(label); err != nil {
-			return err
-		}
+		mylog.Check(m.appendTriedRecoverySystem(label))
+
 	case boot.TryRecoverySystemOutcomeFailure:
 		logger.Noticef("tried recovery system %q failed", label)
 	case boot.TryRecoverySystemOutcomeInconsistent:
@@ -1590,10 +1473,7 @@ func (m *DeviceManager) ensureTriedRecoverySystem() error {
 		// no system was tried
 	}
 	if outcome != boot.TryRecoverySystemOutcomeNoneTried {
-		if err := boot.ClearTryRecoverySystem(deviceCtx, label); err != nil {
-			logger.Noticef("cannot clear tried recovery system status: %v", err)
-			return err
-		}
+		mylog.Check(boot.ClearTryRecoverySystem(deviceCtx, label))
 	}
 
 	m.ensureTriedRecoverySystemRan = true
@@ -1620,7 +1500,7 @@ func (m *DeviceManager) ensurePostFactoryReset() error {
 	}
 
 	var seeded bool
-	err := m.state.Get("seeded", &seeded)
+	mylog.Check(m.state.Get("seeded", &seeded))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
@@ -1641,21 +1521,17 @@ func (m *DeviceManager) ensurePostFactoryReset() error {
 	if !osutil.FileExists(filepath.Join(dirs.SnapFDEDir, "marker")) {
 		encrypted = false
 	}
+	mylog.Check(
 
-	// verify the marker
-	if err := verifyFactoryResetMarkerInRun(factoryResetMarker, encrypted); err != nil {
-		return fmt.Errorf("cannot verify factory reset marker: %v", err)
-	}
+		// verify the marker
+		verifyFactoryResetMarkerInRun(factoryResetMarker, encrypted))
+	mylog.Check(
 
-	// if encrypted, rotates the fallback keys on disk
-	if err := bootMarkFactoryResetComplete(encrypted); err != nil {
-		return fmt.Errorf("cannot complete factory reset: %v", err)
-	}
+		// if encrypted, rotates the fallback keys on disk
+		bootMarkFactoryResetComplete(encrypted))
 
 	if encrypted {
-		if err := rotateEncryptionKeys(); err != nil {
-			return fmt.Errorf("cannot transition encryption keys: %v", err)
-		}
+		mylog.Check(rotateEncryptionKeys())
 	}
 
 	return os.Remove(factoryResetMarker)
@@ -1677,27 +1553,24 @@ func (m *DeviceManager) ensureExpiredUsersRemoved() error {
 
 	// Expect the system to be seeded, otherwise we ignore this.
 	var seeded bool
-	if err := st.Get("seeded", &seeded); err != nil && !errors.Is(err, state.ErrNoState) {
+	if mylog.Check(st.Get("seeded", &seeded)); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if !seeded {
 		return nil
 	}
 
-	users, err := auth.Users(st)
-	if err != nil {
-		return err
-	}
+	users := mylog.Check2(auth.Users(st))
 
 	for _, user := range users {
 		if !user.HasExpired() {
 			continue
 		}
-		// Force the removal of the user as it's possible to block this expiration
-		// otherwise by the user having left a process or service running.
-		if _, err := RemoveUser(st, user.Username, &RemoveUserOptions{Force: true}); err != nil {
-			return err
-		}
+		mylog.Check2(
+			// Force the removal of the user as it's possible to block this expiration
+			// otherwise by the user having left a process or service running.
+			RemoveUser(st, user.Username, &RemoveUserOptions{Force: true}))
+
 	}
 	return nil
 }
@@ -1723,59 +1596,25 @@ var seedFailureFmt = `seeding failed with: %v. This indicates an error in your d
 // Ensure implements StateManager.Ensure.
 func (m *DeviceManager) Ensure() error {
 	var errs []error
-
-	if err := m.ensureSeeded(); err != nil {
-		m.state.Lock()
-		m.state.Warnf(seedFailureFmt, err)
-		m.state.Unlock()
-		errs = append(errs, fmt.Errorf("cannot seed: %v", err))
-	}
+	mylog.Check(m.ensureSeeded())
 
 	if !m.preseed {
-		if err := m.ensureAutoImportAssertions(); err != nil {
-			errs = append(errs, err)
-		}
+		mylog.Check(m.ensureAutoImportAssertions())
 
 		// code below should not need the early loaded device seed
 		// optimistically forget the earlyDeviceSeed here
 		// to free the corresponding memory usage
 		m.earlyDeviceSeed = nil
+		mylog.Check(m.ensureCloudInitRestricted())
+		mylog.Check(m.ensureOperational())
+		mylog.Check(m.ensureBootOk())
+		mylog.Check(m.ensureSeedInConfig())
+		mylog.Check(m.ensureInstalled())
+		mylog.Check(m.ensureTriedRecoverySystem())
+		mylog.Check(m.ensureFactoryReset())
+		mylog.Check(m.ensurePostFactoryReset())
+		mylog.Check(m.ensureExpiredUsersRemoved())
 
-		if err := m.ensureCloudInitRestricted(); err != nil {
-			errs = append(errs, err)
-		}
-
-		if err := m.ensureOperational(); err != nil {
-			errs = append(errs, err)
-		}
-
-		if err := m.ensureBootOk(); err != nil {
-			errs = append(errs, err)
-		}
-
-		if err := m.ensureSeedInConfig(); err != nil {
-			errs = append(errs, err)
-		}
-
-		if err := m.ensureInstalled(); err != nil {
-			errs = append(errs, err)
-		}
-
-		if err := m.ensureTriedRecoverySystem(); err != nil {
-			errs = append(errs, err)
-		}
-
-		if err := m.ensureFactoryReset(); err != nil {
-			errs = append(errs, err)
-		}
-
-		if err := m.ensurePostFactoryReset(); err != nil {
-			errs = append(errs, err)
-		}
-
-		if err := m.ensureExpiredUsersRemoved(); err != nil {
-			errs = append(errs, err)
-		}
 	}
 
 	if len(errs) > 0 {
@@ -1800,13 +1639,11 @@ var errNoSaveSupport = errors.New("no save directory before UC20")
 // For UC20 it also checks that ubuntu-save is available/mounted.
 func (m *DeviceManager) withSaveDir(f func() error) error {
 	// we use the model to check whether this is a UC20 device
-	model, err := m.Model()
+	model := mylog.Check2(m.Model())
 	if errors.Is(err, state.ErrNoState) {
 		return fmt.Errorf("internal error: cannot access save dir before a model is set")
 	}
-	if err != nil {
-		return err
-	}
+
 	if model.Grade() == asserts.ModelGradeUnset {
 		return errNoSaveSupport
 	}
@@ -1825,10 +1662,8 @@ func (m *DeviceManager) withSaveDir(f func() error) error {
 func (m *DeviceManager) withSaveAssertDB(f func(*asserts.Database) error) error {
 	return m.withSaveDir(func() error {
 		// open an ancillary backup assertion database in save/device
-		assertDB, err := sysdb.OpenAt(dirs.SnapDeviceSaveDir)
-		if err != nil {
-			return err
-		}
+		assertDB := mylog.Check2(sysdb.OpenAt(dirs.SnapDeviceSaveDir))
+
 		return f(assertDB)
 	})
 }
@@ -1844,13 +1679,11 @@ func (m *DeviceManager) withKeypairMgr(f func(asserts.KeypairManager) error) err
 	// keypair manager keys would move, we will need dedicated code
 	// to deal with that, this code typically will return the old location
 	// until a restart
-	model, err := m.Model()
+	model := mylog.Check2(m.Model())
 	if errors.Is(err, state.ErrNoState) {
 		return fmt.Errorf("internal error: cannot access device keypair manager before a model is set")
 	}
-	if err != nil {
-		return err
-	}
+
 	underSave := false
 	if model.Grade() != asserts.ModelGradeUnset {
 		// on UC20 the keys are kept under the save dir
@@ -1866,37 +1699,28 @@ func (m *DeviceManager) withKeypairMgr(f func(asserts.KeypairManager) error) err
 	}
 	keypairMgr := m.cachedKeypairMgr
 	if keypairMgr == nil {
-		var err error
-		keypairMgr, err = asserts.OpenFSKeypairManager(where)
-		if err != nil {
-			return err
-		}
+
+		keypairMgr = mylog.Check2(asserts.OpenFSKeypairManager(where))
+
 		m.cachedKeypairMgr = keypairMgr
 	}
 	return f(keypairMgr)
 }
 
 func (m *DeviceManager) keyPair() (asserts.PrivateKey, error) {
-	device, err := m.device()
-	if err != nil {
-		return nil, err
-	}
+	device := mylog.Check2(m.device())
 
 	if device.KeyID == "" {
 		return nil, state.ErrNoState
 	}
 
 	var privKey asserts.PrivateKey
-	err = m.withKeypairMgr(func(keypairMgr asserts.KeypairManager) (err error) {
-		privKey, err = keypairMgr.Get(device.KeyID)
-		if err != nil {
-			return fmt.Errorf("cannot read device key pair: %v", err)
-		}
+	mylog.Check(m.withKeypairMgr(func(keypairMgr asserts.KeypairManager) (err error) {
+		privKey = mylog.Check2(keypairMgr.Get(device.KeyID))
+
 		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
+	}))
+
 	return privKey, nil
 }
 
@@ -1912,10 +1736,8 @@ type UnregisterOptions struct {
 // Unregister unregisters the device forgetting its serial
 // plus the additional behavior described by the UnregisterOptions
 func (m *DeviceManager) Unregister(opts *UnregisterOptions) error {
-	device, err := m.device()
-	if err != nil {
-		return err
-	}
+	device := mylog.Check2(m.device())
+
 	if !release.OnClassic || (device.Brand != "generic" && device.Brand != "canonical") {
 		return fmt.Errorf("cannot currently unregister device if not classic or model brand is not generic or canonical")
 	}
@@ -1924,31 +1746,26 @@ func (m *DeviceManager) Unregister(opts *UnregisterOptions) error {
 		opts = &UnregisterOptions{}
 	}
 	if opts.NoRegistrationUntilReboot {
-		if err := os.MkdirAll(dirs.SnapRunDir, 0755); err != nil {
-			return err
-		}
-		if err := os.WriteFile(filepath.Join(dirs.SnapRunDir, "noregister"), nil, 0644); err != nil {
-			return err
-		}
+		mylog.Check(os.MkdirAll(dirs.SnapRunDir, 0755))
+		mylog.Check(os.WriteFile(filepath.Join(dirs.SnapRunDir, "noregister"), nil, 0644))
+
 	}
 	oldKeyID := device.KeyID
 	device.Serial = ""
 	device.KeyID = ""
 	device.SessionMacaroon = ""
-	if err := m.setDevice(device); err != nil {
-		return err
-	}
+	mylog.Check(m.setDevice(device))
+
 	// commit forgetting serial and key
 	m.state.Unlock()
 	m.state.Lock()
-	// delete the device key
-	err = m.withKeypairMgr(func(keypairMgr asserts.KeypairManager) error {
-		err := keypairMgr.Delete(oldKeyID)
-		if err != nil {
-			return fmt.Errorf("cannot delete device key pair: %v", err)
-		}
-		return nil
-	})
+	mylog.
+		// delete the device key
+		Check(m.withKeypairMgr(func(keypairMgr asserts.KeypairManager) error {
+			mylog.Check(keypairMgr.Delete(oldKeyID))
+
+			return nil
+		}))
 
 	m.lastBecomeOperationalAttempt = time.Time{}
 	m.becomeOperationalBackoff = 0
@@ -1985,16 +1802,13 @@ type SystemModeInfo struct {
 
 // SystemModeInfo returns details about the current system mode the device is in.
 func (m *DeviceManager) SystemModeInfo() (*SystemModeInfo, error) {
-	deviceCtx, err := DeviceCtx(m.state, nil, nil)
+	deviceCtx := mylog.Check2(DeviceCtx(m.state, nil, nil))
 	if errors.Is(err, state.ErrNoState) {
 		return nil, fmt.Errorf("cannot report system mode information before device model is acknowledged")
 	}
-	if err != nil {
-		return nil, err
-	}
 
 	var seeded bool
-	err = m.state.Get("seeded", &seeded)
+	mylog.Check(m.state.Get("seeded", &seeded))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
@@ -2006,16 +1820,12 @@ func (m *DeviceManager) SystemModeInfo() (*SystemModeInfo, error) {
 		Seeded:     seeded,
 	}
 	if smi.HasModeenv {
-		bootFlags, err := boot.BootFlags(deviceCtx)
-		if err != nil {
-			return nil, err
-		}
+		bootFlags := mylog.Check2(boot.BootFlags(deviceCtx))
+
 		smi.BootFlags = bootFlags
 
-		hostDataLocs, err := boot.HostUbuntuDataForMode(mode, deviceCtx.Model())
-		if err != nil {
-			return nil, err
-		}
+		hostDataLocs := mylog.Check2(boot.HostUbuntuDataForMode(mode, deviceCtx.Model()))
+
 		smi.HostDataLocations = hostDataLocs
 	}
 	return &smi, nil
@@ -2048,12 +1858,14 @@ var defaultSystemActions = []SystemAction{
 	{Title: "Recover", Mode: "recover"},
 	{Title: "Factory reset", Mode: "factory-reset"},
 }
+
 var currentSystemActions = []SystemAction{
 	{Title: "Reinstall", Mode: "install"},
 	{Title: "Recover", Mode: "recover"},
 	{Title: "Factory reset", Mode: "factory-reset"},
 	{Title: "Run normally", Mode: "run"},
 }
+
 var recoverSystemActions = []SystemAction{
 	{Title: "Reinstall", Mode: "install"},
 	{Title: "Factory reset", Mode: "factory-reset"},
@@ -2081,7 +1893,7 @@ func (m *DeviceManager) systems() ([]*System, error) {
 	// it's tough luck when we cannot determine the current system seed
 	currentSys, _ := currentSystemForMode(m.state, systemMode)
 
-	systemLabels, err := filepath.Glob(filepath.Join(dirs.SnapSeedDir, "systems", "*"))
+	systemLabels := mylog.Check2(filepath.Glob(filepath.Join(dirs.SnapSeedDir, "systems", "*")))
 	if err != nil && !os.IsNotExist(err) {
 		return nil, fmt.Errorf("cannot list available systems: %v", err)
 	}
@@ -2090,7 +1902,7 @@ func (m *DeviceManager) systems() ([]*System, error) {
 		return nil, ErrNoSystems
 	}
 
-	defaultRecoverySystem, err := m.defaultRecoverySystem()
+	defaultRecoverySystem := mylog.Check2(m.defaultRecoverySystem())
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
@@ -2098,13 +1910,11 @@ func (m *DeviceManager) systems() ([]*System, error) {
 	var systems []*System
 	for _, fpLabel := range systemLabels {
 		label := filepath.Base(fpLabel)
-		system, err := systemFromSeed(label, currentSys, defaultRecoverySystem)
-		if err != nil {
-			// TODO:UC20 add a Broken field to the seed system like we do for
-			// snap.Info
-			logger.Noticef("cannot load system %q seed: %v", label, err)
-			continue
-		}
+		system := mylog.Check2(systemFromSeed(label, currentSys, defaultRecoverySystem))
+
+		// TODO:UC20 add a Broken field to the seed system like we do for
+		// snap.Info
+
 		systems = append(systems, system)
 	}
 	return systems, nil
@@ -2118,34 +1928,21 @@ func (m *DeviceManager) SystemAndGadgetAndEncryptionInfo(wantedSystemLabel strin
 	// installer is not anymore.
 
 	// System information
-	systemAndSnaps, err := m.loadSystemAndEssentialSnaps(wantedSystemLabel, []snap.Type{snap.TypeKernel, snap.TypeGadget})
-	if err != nil {
-		return nil, nil, nil, err
-	}
+	systemAndSnaps := mylog.Check2(m.loadSystemAndEssentialSnaps(wantedSystemLabel, []snap.Type{snap.TypeKernel, snap.TypeGadget}))
 
 	// Gadget information
-	snapf, err := snapfile.Open(systemAndSnaps.SeedSnapsByType[snap.TypeGadget].Path)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("cannot open gadget snap: %v", err)
-	}
-	gadgetInfo, err := gadget.ReadInfoFromSnapFileNoValidate(snapf, systemAndSnaps.Model)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("reading gadget information: %v", err)
-	}
+	snapf := mylog.Check2(snapfile.Open(systemAndSnaps.SeedSnapsByType[snap.TypeGadget].Path))
+
+	gadgetInfo := mylog.Check2(gadget.ReadInfoFromSnapFileNoValidate(snapf, systemAndSnaps.Model))
 
 	// Encryption details
-	encInfo, err := m.encryptionSupportInfo(systemAndSnaps.Model, secboot.TPMProvisionFull, systemAndSnaps.InfosByType[snap.TypeKernel], gadgetInfo)
-	if err != nil {
-		return nil, nil, nil, err
-	}
+	encInfo := mylog.Check2(m.encryptionSupportInfo(systemAndSnaps.Model, secboot.TPMProvisionFull, systemAndSnaps.InfosByType[snap.TypeKernel], gadgetInfo))
 
 	// Make sure gadget is valid for model and available encryption
 	opts := &gadget.ValidationConstraints{
 		EncryptedData: encInfo.StorageSafety == asserts.StorageSafetyEncrypted,
 	}
-	if err := gadget.Validate(gadgetInfo, systemAndSnaps.Model, opts); err != nil {
-		return nil, nil, nil, fmt.Errorf("cannot validate gadget.yaml: %v", err)
-	}
+	mylog.Check(gadget.Validate(gadgetInfo, systemAndSnaps.Model, opts))
 
 	return systemAndSnaps.System, gadgetInfo, &encInfo, err
 }
@@ -2168,9 +1965,8 @@ func (m *DeviceManager) DefaultRecoverySystem() (*DefaultRecoverySystem, error) 
 
 func (m *DeviceManager) defaultRecoverySystem() (*DefaultRecoverySystem, error) {
 	var defaultSystem DefaultRecoverySystem
-	if err := m.state.Get("default-recovery-system", &defaultSystem); err != nil {
-		return nil, err
-	}
+	mylog.Check(m.state.Get("default-recovery-system", &defaultSystem))
+
 	return &defaultSystem, nil
 }
 
@@ -2186,21 +1982,17 @@ func (m *DeviceManager) loadSystemAndEssentialSnaps(wantedSystemLabel string, ty
 	currentSys, _ := currentSystemForMode(m.state, systemMode)
 	m.state.Unlock()
 
-	defaultRecoverySystem, err := m.DefaultRecoverySystem()
+	defaultRecoverySystem := mylog.Check2(m.DefaultRecoverySystem())
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 
-	s, sys, err := loadSeedAndSystem(wantedSystemLabel, currentSys, defaultRecoverySystem)
-	if err != nil {
-		return nil, err
-	}
+	s, sys := mylog.Check3(loadSeedAndSystem(wantedSystemLabel, currentSys, defaultRecoverySystem))
 
 	// 2. get the gadget volumes for the given system-label
 	perf := &timings.Timings{}
-	if err := s.LoadEssentialMeta(types, perf); err != nil {
-		return nil, fmt.Errorf("cannot load essential snaps metadata: %v", err)
-	}
+	mylog.Check(s.LoadEssentialMeta(types, perf))
+
 	// EssentialSnaps is always ordered, see asserts.Model.EssentialSnaps:
 	// "snapd, kernel, boot base, gadget." and snaps not loaded above
 	// like "snapd" will be skipped and not part of the EssentialSnaps list
@@ -2212,14 +2004,10 @@ func (m *DeviceManager) loadSystemAndEssentialSnaps(wantedSystemLabel string, ty
 		if seedSnap.Path == "" {
 			return nil, fmt.Errorf("internal error: cannot get snap path for %s", typ)
 		}
-		snapf, err := snapfile.Open(seedSnap.Path)
-		if err != nil {
-			return nil, fmt.Errorf("cannot open snap from %q: %v", seedSnap.Path, err)
-		}
-		snapInfo, err := snap.ReadInfoFromSnapFile(snapf, seedSnap.SideInfo)
-		if err != nil {
-			return nil, err
-		}
+		snapf := mylog.Check2(snapfile.Open(seedSnap.Path))
+
+		snapInfo := mylog.Check2(snap.ReadInfoFromSnapFile(snapf, seedSnap.SideInfo))
+
 		if snapInfo.SnapType != typ {
 			return nil, fmt.Errorf("cannot use snap info, expected %s but got %s", typ, snapInfo.SnapType)
 		}
@@ -2268,10 +2056,7 @@ func (m *DeviceManager) Reboot(systemLabel, mode string) error {
 	// no systemLabel means we need to fall back to either the default recovery
 	// system, or the current system, depending on the requested mode
 	if systemLabel == "" {
-		defaultLabel, err := defaultSystemLabel(m.state, m, mode)
-		if err != nil {
-			return err
-		}
+		defaultLabel := mylog.Check2(defaultSystemLabel(m.state, m, mode))
 
 		systemLabel = defaultLabel
 	}
@@ -2291,7 +2076,7 @@ func defaultSystemLabel(st *state.State, manager *DeviceManager, mode string) (s
 
 	switch mode {
 	case "recover", "factory-reset", "install":
-		defaultRecoverySystem, err := manager.defaultRecoverySystem()
+		defaultRecoverySystem := mylog.Check2(manager.defaultRecoverySystem())
 		if err != nil && !errors.Is(err, state.ErrNoState) {
 			return "", err
 		}
@@ -2306,10 +2091,7 @@ func defaultSystemLabel(st *state.State, manager *DeviceManager, mode string) (s
 		fallthrough
 	case "run":
 		systemMode := manager.SystemMode(SysAny)
-		currentSys, err := currentSystemForMode(st, systemMode)
-		if err != nil {
-			return "", fmt.Errorf("cannot get current system: %v", err)
-		}
+		currentSys := mylog.Check2(currentSystemForMode(st, systemMode))
 
 		return currentSys.System, nil
 	default:
@@ -2340,9 +2122,7 @@ func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAct
 // sameSystemAndMode. If successful otherwise it calls switched. Both
 // are called with the state lock held.
 func (m *DeviceManager) switchToSystemAndMode(systemLabel, mode string, sameSystemAndMode func(), switched func(systemLabel string, sysAction *SystemAction)) error {
-	if err := checkSystemRequestConflict(m.state, systemLabel); err != nil {
-		return err
-	}
+	mylog.Check(checkSystemRequestConflict(m.state, systemLabel))
 
 	systemMode := m.SystemMode(SysAny)
 	// ignore the error to be robust in scenarios that
@@ -2354,20 +2134,16 @@ func (m *DeviceManager) switchToSystemAndMode(systemLabel, mode string, sameSyst
 	currentSys, _ := currentSystemForMode(m.state, systemMode)
 	m.state.Unlock()
 
-	defaultRecoverySystem, err := m.DefaultRecoverySystem()
+	defaultRecoverySystem := mylog.Check2(m.DefaultRecoverySystem())
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 
 	systemSeedDir := filepath.Join(dirs.SnapSeedDir, "systems", systemLabel)
-	if _, err := os.Stat(systemSeedDir); err != nil {
-		// XXX: should we wrap this instead return a naked stat error?
-		return err
-	}
-	system, err := systemFromSeed(systemLabel, currentSys, defaultRecoverySystem)
-	if err != nil {
-		return fmt.Errorf("cannot load seed system: %v", err)
-	}
+	mylog.Check2(os.Stat(systemSeedDir))
+	// XXX: should we wrap this instead return a naked stat error?
+
+	system := mylog.Check2(systemFromSeed(systemLabel, currentSys, defaultRecoverySystem))
 
 	var sysAction *SystemAction
 	for _, act := range system.Actions {
@@ -2410,13 +2186,8 @@ func (m *DeviceManager) switchToSystemAndMode(systemLabel, mode string, sameSyst
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	deviceCtx, err := DeviceCtx(m.state, nil, nil)
-	if err != nil {
-		return err
-	}
-	if err := boot.SetRecoveryBootSystemAndMode(deviceCtx, systemLabel, mode); err != nil {
-		return fmt.Errorf("cannot set device to boot into system %q in mode %q: %v", systemLabel, mode, err)
-	}
+	deviceCtx := mylog.Check2(DeviceCtx(m.state, nil, nil))
+	mylog.Check(boot.SetRecoveryBootSystemAndMode(deviceCtx, systemLabel, mode))
 
 	switched(systemLabel, sysAction)
 	return nil
@@ -2445,9 +2216,7 @@ func (scb storeContextBackend) StoreOffline() (bool, error) {
 	tr := config.NewTransaction(scb.state)
 
 	var access string
-	if err := tr.GetMaybe("core", "store.access", &access); err != nil {
-		return false, err
-	}
+	mylog.Check(tr.GetMaybe("core", "store.access", &access))
 
 	if access == "" {
 		return false, state.ErrNoState
@@ -2463,24 +2232,18 @@ func (scb storeContextBackend) SignDeviceSessionRequest(serial *asserts.Serial, 
 		return nil, fmt.Errorf("internal error: cannot sign a session request without a serial")
 	}
 
-	privKey, err := scb.DeviceManager.keyPair()
+	privKey := mylog.Check2(scb.DeviceManager.keyPair())
 	if errors.Is(err, state.ErrNoState) {
 		return nil, fmt.Errorf("internal error: inconsistent state with serial but no device key")
 	}
-	if err != nil {
-		return nil, err
-	}
 
-	a, err := asserts.SignWithoutAuthority(asserts.DeviceSessionRequestType, map[string]interface{}{
+	a := mylog.Check2(asserts.SignWithoutAuthority(asserts.DeviceSessionRequestType, map[string]interface{}{
 		"brand-id":  serial.BrandID(),
 		"model":     serial.Model(),
 		"serial":    serial.Serial(),
 		"nonce":     nonce,
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
-	}, nil, privKey)
-	if err != nil {
-		return nil, err
-	}
+	}, nil, privKey))
 
 	return a.(*asserts.DeviceSessionRequest), nil
 }
@@ -2501,15 +2264,11 @@ func (m *DeviceManager) ntpSyncedOrWaitedLongerThan(maxWait time.Duration) bool 
 		return true
 	}
 
-	var err error
-	m.ntpSyncedOrTimedOut, err = timeutilIsNTPSynchronized()
+	m.ntpSyncedOrTimedOut = mylog.Check2(timeutilIsNTPSynchronized())
 	if errors.As(err, &timeutil.NoTimedate1Error{}) {
 		// no timedate1 dbus service, no need to wait for it
 		m.ntpSyncedOrTimedOut = true
 		return true
-	}
-	if err != nil {
-		logger.Debugf("cannot check if ntp is syncronized: %v", err)
 	}
 
 	return m.ntpSyncedOrTimedOut
@@ -2519,17 +2278,10 @@ func (m *DeviceManager) hasFDESetupHook(kernelInfo *snap.Info) (bool, error) {
 	// state must be locked
 	st := m.state
 
-	deviceCtx, err := DeviceCtx(st, nil, nil)
-	if err != nil {
-		return false, fmt.Errorf("cannot get device context: %v", err)
-	}
+	deviceCtx := mylog.Check2(DeviceCtx(st, nil, nil))
 
 	if kernelInfo == nil {
-		var err error
-		kernelInfo, err = snapstate.KernelInfo(st, deviceCtx)
-		if err != nil {
-			return false, fmt.Errorf("cannot get kernel info: %v", err)
-		}
+		kernelInfo = mylog.Check2(snapstate.KernelInfo(st, deviceCtx))
 	}
 	_, ok := kernelInfo.Hooks["fde-setup"]
 	return ok, nil
@@ -2543,14 +2295,10 @@ func (m *DeviceManager) runFDESetupHook(req *fde.SetupRequest) ([]byte, error) {
 	// state must be locked
 	st := m.state
 
-	deviceCtx, err := DeviceCtx(st, nil, nil)
-	if err != nil {
-		return nil, fmt.Errorf("cannot get device context to run fde-setup hook: %v", err)
-	}
-	kernelInfo, err := snapstate.KernelInfo(st, deviceCtx)
-	if err != nil {
-		return nil, fmt.Errorf("cannot get kernel info to run fde-setup hook: %v", err)
-	}
+	deviceCtx := mylog.Check2(DeviceCtx(st, nil, nil))
+
+	kernelInfo := mylog.Check2(snapstate.KernelInfo(st, deviceCtx))
+
 	hooksup := &hookstate.HookSetup{
 		Snap:     kernelInfo.InstanceName(),
 		Revision: kernelInfo.Revision,
@@ -2563,19 +2311,15 @@ func (m *DeviceManager) runFDESetupHook(req *fde.SetupRequest) ([]byte, error) {
 	}
 	st.Unlock()
 	defer st.Lock()
-	context, err := m.hookMgr.EphemeralRunHook(context.Background(), hooksup, contextData)
-	if err != nil {
-		return nil, fmt.Errorf("cannot run hook for %q: %v", req.Op, err)
-	}
+	context := mylog.Check2(m.hookMgr.EphemeralRunHook(context.Background(), hooksup, contextData))
+
 	// the hook is expected to call "snapctl fde-setup-result" which
 	// will set the "fde-setup-result" value on the task
 	var hookOutput []byte
 	context.Lock()
-	err = context.Get("fde-setup-result", &hookOutput)
+	mylog.Check(context.Get("fde-setup-result", &hookOutput))
 	context.Unlock()
-	if err != nil {
-		return nil, fmt.Errorf("cannot get result from fde-setup hook %q: %v", req.Op, err)
-	}
+
 	return hookOutput, nil
 }
 
@@ -2609,10 +2353,8 @@ var (
 // older systems might return both a recovery key for ubuntu-data and a
 // reinstall key for ubuntu-save.
 func (m *DeviceManager) EnsureRecoveryKeys() (*client.SystemRecoveryKeysResponse, error) {
-	deviceCtx, err := DeviceCtx(m.state, nil, nil)
-	if err != nil {
-		return nil, err
-	}
+	deviceCtx := mylog.Check2(DeviceCtx(m.state, nil, nil))
+
 	model := deviceCtx.Model()
 
 	fdeDir := dirs.SnapFDEDir
@@ -2627,26 +2369,20 @@ func (m *DeviceManager) EnsureRecoveryKeys() (*client.SystemRecoveryKeysResponse
 	// backward compatibility
 	reinstallKeyFile := filepath.Join(fdeDir, "reinstall.key")
 	if osutil.FileExists(reinstallKeyFile) {
-		rkey, err := keys.RecoveryKeyFromFile(device.RecoveryKeyUnder(fdeDir))
-		if err != nil {
-			return nil, err
-		}
+		rkey := mylog.Check2(keys.RecoveryKeyFromFile(device.RecoveryKeyUnder(fdeDir)))
+
 		sysKeys.RecoveryKey = rkey.String()
 
-		reinstallKey, err := keys.RecoveryKeyFromFile(reinstallKeyFile)
-		if err != nil {
-			return nil, err
-		}
+		reinstallKey := mylog.Check2(keys.RecoveryKeyFromFile(reinstallKeyFile))
+
 		sysKeys.ReinstallKey = reinstallKey.String()
 		return sysKeys, nil
 	}
 	if !device.HasEncryptedMarkerUnder(fdeDir) {
 		return nil, fmt.Errorf("system does not use disk encryption")
 	}
-	dataMountPoints, err := boot.HostUbuntuDataForMode(m.SystemMode(SysHasModeenv), model)
-	if err != nil {
-		return nil, fmt.Errorf("cannot determine ubuntu-data mount point: %v", err)
-	}
+	dataMountPoints := mylog.Check2(boot.HostUbuntuDataForMode(m.SystemMode(SysHasModeenv), model))
+
 	if len(dataMountPoints) == 0 {
 		// shouldn't happen as the marker file is under ubuntu-data
 		return nil, fmt.Errorf("cannot ensure recovery keys without any ubuntu-data mount points")
@@ -2666,10 +2402,8 @@ func (m *DeviceManager) EnsureRecoveryKeys() (*client.SystemRecoveryKeysResponse
 			AuthorizingKeyFile: device.SaveKeyUnder(dirs.SnapFDEDirUnder(authKeyDir)),
 		},
 	}
-	rkey, err := secbootEnsureRecoveryKey(device.RecoveryKeyUnder(fdeDir), recoveryKeyDevices)
-	if err != nil {
-		return nil, err
-	}
+	rkey := mylog.Check2(secbootEnsureRecoveryKey(device.RecoveryKeyUnder(fdeDir), recoveryKeyDevices))
+
 	sysKeys.RecoveryKey = rkey.String()
 	return sysKeys, nil
 }
@@ -2683,16 +2417,12 @@ func (m *DeviceManager) RemoveRecoveryKeys() error {
 	if !device.HasEncryptedMarkerUnder(dirs.SnapFDEDir) {
 		return fmt.Errorf("system does not use disk encryption")
 	}
-	deviceCtx, err := DeviceCtx(m.state, nil, nil)
-	if err != nil {
-		return err
-	}
+	deviceCtx := mylog.Check2(DeviceCtx(m.state, nil, nil))
+
 	model := deviceCtx.Model()
 
-	dataMountPoints, err := boot.HostUbuntuDataForMode(m.SystemMode(SysHasModeenv), model)
-	if err != nil {
-		return fmt.Errorf("cannot determine ubuntu-data mount point: %v", err)
-	}
+	dataMountPoints := mylog.Check2(boot.HostUbuntuDataForMode(m.SystemMode(SysHasModeenv), model))
+
 	recoveryKeyDevices := make(map[secboot.RecoveryKeyDevice]string, 2)
 	rkey := device.RecoveryKeyUnder(dirs.SnapFDEDir)
 	recoveryKeyDevices[secboot.RecoveryKeyDevice{
@@ -2722,18 +2452,11 @@ func (m *DeviceManager) RemoveRecoveryKeys() error {
 func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.DeviceContext, tpmMode secboot.TPMProvisionMode) (secboot.EncryptionType, error) {
 	model := deviceCtx.Model()
 
-	kernelInfo, err := snapstate.KernelInfo(st, deviceCtx)
-	if err != nil {
-		return "", fmt.Errorf("cannot check encryption support: %v", err)
-	}
-	gadgetSnapInfo, err := snapstate.GadgetInfo(st, deviceCtx)
-	if err != nil {
-		return "", err
-	}
-	gadgetInfo, err := gadget.ReadInfo(gadgetSnapInfo.MountDir(), nil)
-	if err != nil {
-		return "", err
-	}
+	kernelInfo := mylog.Check2(snapstate.KernelInfo(st, deviceCtx))
+
+	gadgetSnapInfo := mylog.Check2(snapstate.GadgetInfo(st, deviceCtx))
+
+	gadgetInfo := mylog.Check2(gadget.ReadInfo(gadgetSnapInfo.MountDir(), nil))
 
 	return install.CheckEncryptionSupport(model, tpmMode, kernelInfo, gadgetInfo, m.runFDESetupHook)
 }

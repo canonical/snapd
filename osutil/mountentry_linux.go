@@ -24,12 +24,14 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // ParseMountEntry parses a fstab-like entry.
 func ParseMountEntry(s string) (MountEntry, error) {
 	var e MountEntry
-	var err error
+
 	var df, cpn int
 	fields := strings.FieldsFunc(s, func(r rune) bool { return r == ' ' || r == '\t' })
 	// Look for any inline comments. The first field that starts with '#' is a comment.
@@ -52,18 +54,12 @@ func ParseMountEntry(s string) (MountEntry, error) {
 	}
 	// Parse DumpFrequency if we have at least 5 fields
 	if len(fields) > 4 {
-		df, err = strconv.Atoi(fields[4])
-		if err != nil {
-			return e, fmt.Errorf("cannot parse dump frequency: %q", fields[4])
-		}
+		df = mylog.Check2(strconv.Atoi(fields[4]))
 	}
 	e.DumpFrequency = df
 	// Parse CheckPassNumber if we have at least 6 fields
 	if len(fields) > 5 {
-		cpn, err = strconv.Atoi(fields[5])
-		if err != nil {
-			return e, fmt.Errorf("cannot parse check pass number: %q", fields[5])
-		}
+		cpn = mylog.Check2(strconv.Atoi(fields[5]))
 	}
 	e.CheckPassNumber = cpn
 	return e, nil

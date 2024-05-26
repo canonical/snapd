@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 )
 
@@ -104,42 +105,42 @@ func (as *assertsSuite) TestMaxSupportedFormats(c *C) {
 }
 
 func (as *assertsSuite) TestSuggestFormat(c *C) {
-	fmtnum, err := asserts.SuggestFormat(asserts.Type("test-only-2"), nil, nil)
-	c.Assert(err, IsNil)
+	fmtnum := mylog.Check2(asserts.SuggestFormat(asserts.Type("test-only-2"), nil, nil))
+
 	c.Check(fmtnum, Equals, 0)
 }
 
 func (as *assertsSuite) TestPrimaryKeyHelpers(c *C) {
-	headers, err := asserts.HeadersFromPrimaryKey(asserts.TestOnlyType, []string{"one"})
-	c.Assert(err, IsNil)
+	headers := mylog.Check2(asserts.HeadersFromPrimaryKey(asserts.TestOnlyType, []string{"one"}))
+
 	c.Check(headers, DeepEquals, map[string]string{
 		"primary-key": "one",
 	})
 
-	headers, err = asserts.HeadersFromPrimaryKey(asserts.TestOnly2Type, []string{"bar", "baz"})
-	c.Assert(err, IsNil)
+	headers = mylog.Check2(asserts.HeadersFromPrimaryKey(asserts.TestOnly2Type, []string{"bar", "baz"}))
+
 	c.Check(headers, DeepEquals, map[string]string{
 		"pk1": "bar",
 		"pk2": "baz",
 	})
 
-	_, err = asserts.HeadersFromPrimaryKey(asserts.TestOnly2Type, []string{"bar"})
+	_ = mylog.Check2(asserts.HeadersFromPrimaryKey(asserts.TestOnly2Type, []string{"bar"}))
 	c.Check(err, ErrorMatches, `primary key has wrong length for "test-only-2" assertion`)
 
-	_, err = asserts.HeadersFromPrimaryKey(asserts.TestOnly2Type, []string{"", "baz"})
+	_ = mylog.Check2(asserts.HeadersFromPrimaryKey(asserts.TestOnly2Type, []string{"", "baz"}))
 	c.Check(err, ErrorMatches, `primary key "pk1" header cannot be empty`)
 
-	pk, err := asserts.PrimaryKeyFromHeaders(asserts.TestOnly2Type, headers)
-	c.Assert(err, IsNil)
+	pk := mylog.Check2(asserts.PrimaryKeyFromHeaders(asserts.TestOnly2Type, headers))
+
 	c.Check(pk, DeepEquals, []string{"bar", "baz"})
 
 	headers["other"] = "foo"
-	pk1, err := asserts.PrimaryKeyFromHeaders(asserts.TestOnly2Type, headers)
-	c.Assert(err, IsNil)
+	pk1 := mylog.Check2(asserts.PrimaryKeyFromHeaders(asserts.TestOnly2Type, headers))
+
 	c.Check(pk1, DeepEquals, pk)
 
 	delete(headers, "pk2")
-	_, err = asserts.PrimaryKeyFromHeaders(asserts.TestOnly2Type, headers)
+	_ = mylog.Check2(asserts.PrimaryKeyFromHeaders(asserts.TestOnly2Type, headers))
 	c.Check(err, ErrorMatches, `must provide primary key: pk2`)
 }
 
@@ -148,32 +149,32 @@ func (as *assertsSuite) TestPrimaryKeyHelpersOptionalPrimaryKeys(c *C) {
 	r := asserts.MockOptionalPrimaryKey(asserts.TestOnlyType, "opt1", "o1-defl")
 	defer r()
 
-	pk, err := asserts.PrimaryKeyFromHeaders(asserts.TestOnlyType, map[string]string{"primary-key": "k1"})
-	c.Assert(err, IsNil)
+	pk := mylog.Check2(asserts.PrimaryKeyFromHeaders(asserts.TestOnlyType, map[string]string{"primary-key": "k1"}))
+
 	c.Check(pk, DeepEquals, []string{"k1", "o1-defl"})
 
-	pk, err = asserts.PrimaryKeyFromHeaders(asserts.TestOnlyType, map[string]string{"primary-key": "k1", "opt1": "B"})
-	c.Assert(err, IsNil)
+	pk = mylog.Check2(asserts.PrimaryKeyFromHeaders(asserts.TestOnlyType, map[string]string{"primary-key": "k1", "opt1": "B"}))
+
 	c.Check(pk, DeepEquals, []string{"k1", "B"})
 
-	hdrs, err := asserts.HeadersFromPrimaryKey(asserts.TestOnlyType, []string{"k1", "B"})
-	c.Assert(err, IsNil)
+	hdrs := mylog.Check2(asserts.HeadersFromPrimaryKey(asserts.TestOnlyType, []string{"k1", "B"}))
+
 	c.Check(hdrs, DeepEquals, map[string]string{
 		"primary-key": "k1",
 		"opt1":        "B",
 	})
 
-	hdrs, err = asserts.HeadersFromPrimaryKey(asserts.TestOnlyType, []string{"k1"})
-	c.Assert(err, IsNil)
+	hdrs = mylog.Check2(asserts.HeadersFromPrimaryKey(asserts.TestOnlyType, []string{"k1"}))
+
 	c.Check(hdrs, DeepEquals, map[string]string{
 		"primary-key": "k1",
 		"opt1":        "o1-defl",
 	})
 
-	_, err = asserts.HeadersFromPrimaryKey(asserts.TestOnlyType, nil)
+	_ = mylog.Check2(asserts.HeadersFromPrimaryKey(asserts.TestOnlyType, nil))
 	c.Check(err, ErrorMatches, `primary key has wrong length for "test-only" assertion`)
 
-	_, err = asserts.HeadersFromPrimaryKey(asserts.TestOnlyType, []string{"pk", "opt1", "what"})
+	_ = mylog.Check2(asserts.HeadersFromPrimaryKey(asserts.TestOnlyType, []string{"pk", "opt1", "what"}))
 	c.Check(err, ErrorMatches, `primary key has wrong length for "test-only" assertion`)
 }
 
@@ -225,7 +226,7 @@ func (as *assertsSuite) TestRefResolveError(c *C) {
 		Type:       asserts.TestOnly2Type,
 		PrimaryKey: []string{"abc"},
 	}
-	_, err := ref.Resolve(nil)
+	_ := mylog.Check2(ref.Resolve(nil))
 	c.Check(err, ErrorMatches, `"test-only-2" assertion reference primary key has the wrong length \(expected \[pk1 pk2\]\): \[abc\]`)
 }
 
@@ -361,8 +362,8 @@ const exampleEmptyBodyAllDefaults = "type: test-only\n" +
 	"AXNpZw=="
 
 func (as *assertsSuite) TestDecodeEmptyBodyAllDefaults(c *C) {
-	a, err := asserts.Decode([]byte(exampleEmptyBodyAllDefaults))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(exampleEmptyBodyAllDefaults)))
+
 	c.Check(a.Type(), Equals, asserts.TestOnlyType)
 	_, ok := a.(*asserts.TestOnly)
 	c.Check(ok, Equals, true)
@@ -387,8 +388,8 @@ func (as *assertsSuite) TestDecodeOptionalPrimaryKeys(c *C) {
 	r := asserts.MockOptionalPrimaryKey(asserts.TestOnlyType, "opt1", "o1-defl")
 	defer r()
 
-	a, err := asserts.Decode([]byte(exampleEmptyBodyAllDefaults))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(exampleEmptyBodyAllDefaults)))
+
 	c.Check(a.Type(), Equals, asserts.TestOnlyType)
 	_, ok := a.(*asserts.TestOnly)
 	c.Check(ok, Equals, true)
@@ -401,8 +402,8 @@ func (as *assertsSuite) TestDecodeOptionalPrimaryKeys(c *C) {
 	c.Check(a.AuthorityID(), Equals, "auth-id1")
 	c.Check(a.SignKeyID(), Equals, exKeyID)
 
-	a, err = asserts.Decode([]byte(exampleEmptyBodyOptionalPrimaryKeySet))
-	c.Assert(err, IsNil)
+	a = mylog.Check2(asserts.Decode([]byte(exampleEmptyBodyOptionalPrimaryKeySet)))
+
 	c.Check(a.Type(), Equals, asserts.TestOnlyType)
 	_, ok = a.(*asserts.TestOnly)
 	c.Check(ok, Equals, true)
@@ -427,8 +428,8 @@ const exampleEmptyBody2NlNl = "type: test-only\n" +
 	"AXNpZw==\n"
 
 func (as *assertsSuite) TestDecodeEmptyBodyNormalize2NlNl(c *C) {
-	a, err := asserts.Decode([]byte(exampleEmptyBody2NlNl))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(exampleEmptyBody2NlNl)))
+
 	c.Check(a.Type(), Equals, asserts.TestOnlyType)
 	c.Check(a.Revision(), Equals, 0)
 	c.Check(a.Format(), Equals, 0)
@@ -449,8 +450,8 @@ const exampleBodyAndExtraHeaders = "type: test-only\n" +
 	"AXNpZw==\n"
 
 func (as *assertsSuite) TestDecodeWithABodyAndExtraHeaders(c *C) {
-	a, err := asserts.Decode([]byte(exampleBodyAndExtraHeaders))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(exampleBodyAndExtraHeaders)))
+
 	c.Check(a.Type(), Equals, asserts.TestOnlyType)
 	c.Check(a.AuthorityID(), Equals, "auth-id2")
 	c.Check(a.SignKeyID(), Equals, exKeyID)
@@ -461,7 +462,6 @@ func (as *assertsSuite) TestDecodeWithABodyAndExtraHeaders(c *C) {
 	c.Check(a.Header("header1"), Equals, "value1")
 	c.Check(a.Header("header2"), Equals, "value2")
 	c.Check(a.Body(), DeepEquals, []byte("THE-BODY"))
-
 }
 
 const exampleUnsupportedFormat = "type: test-only\n" +
@@ -475,8 +475,8 @@ const exampleUnsupportedFormat = "type: test-only\n" +
 	"AXNpZw==\n"
 
 func (as *assertsSuite) TestDecodeUnsupportedFormat(c *C) {
-	a, err := asserts.Decode([]byte(exampleUnsupportedFormat))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(exampleUnsupportedFormat)))
+
 	c.Check(a.Type(), Equals, asserts.TestOnlyType)
 	c.Check(a.AuthorityID(), Equals, "auth-id2")
 	c.Check(a.SignKeyID(), Equals, exKeyID)
@@ -498,8 +498,8 @@ func (as *assertsSuite) TestDecodeGetSignatureBits(c *C) {
 	encoded := content +
 		"\n\n" +
 		"AXNpZw=="
-	a, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	c.Check(a.Type(), Equals, asserts.TestOnlyType)
 	c.Check(a.AuthorityID(), Equals, "auth-id1")
 	c.Check(a.SignKeyID(), Equals, exKeyID)
@@ -510,7 +510,7 @@ func (as *assertsSuite) TestDecodeGetSignatureBits(c *C) {
 
 func (as *assertsSuite) TestDecodeNoSignatureSplit(c *C) {
 	for _, encoded := range []string{"", "foo"} {
-		_, err := asserts.Decode([]byte(encoded))
+		_ := mylog.Check2(asserts.Decode([]byte(encoded)))
 		c.Check(err, ErrorMatches, "assertion content/signature separator not found")
 	}
 }
@@ -527,7 +527,7 @@ func (as *assertsSuite) TestDecodeHeaderParsingErrors(c *C) {
 	}
 
 	for _, test := range headerParsingErrorsTests {
-		_, err := asserts.Decode([]byte(test.encoded))
+		_ := mylog.Check2(asserts.Decode([]byte(test.encoded)))
 		c.Check(err, ErrorMatches, "parsing assertion headers: "+test.expectedErr)
 	}
 }
@@ -573,7 +573,7 @@ func (as *assertsSuite) TestDecodeInvalid(c *C) {
 
 	for _, test := range invalidAssertTests {
 		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
-		_, err := asserts.Decode([]byte(invalid))
+		_ := mylog.Check2(asserts.Decode([]byte(invalid)))
 		c.Check(err, ErrorMatches, test.expectedErr)
 	}
 }
@@ -586,13 +586,13 @@ func (as *assertsSuite) TestDecodeNoAuthorityInvalid(c *C) {
 		"\n\n" +
 		"openpgp c2ln"
 
-	_, err := asserts.Decode([]byte(invalid))
+	_ := mylog.Check2(asserts.Decode([]byte(invalid)))
 	c.Check(err, ErrorMatches, `"test-only-no-authority" assertion cannot have authority-id set`)
 }
 
 func checkContent(c *C, a asserts.Assertion, encoded string) {
-	expected, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	expected := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	expectedCont, _ := expected.Signature()
 
 	cont, _ := a.Signature()
@@ -608,18 +608,18 @@ func (as *assertsSuite) TestEncoderDecoderHappy(c *C) {
 
 	decoder := asserts.NewDecoder(stream)
 	a, err := decoder.Decode()
-	c.Assert(err, IsNil)
+
 	c.Check(a.Type(), Equals, asserts.TestOnlyType)
 	_, ok := a.(*asserts.TestOnly)
 	c.Check(ok, Equals, true)
 	checkContent(c, a, exampleEmptyBody2NlNl)
 
 	a, err = decoder.Decode()
-	c.Assert(err, IsNil)
+
 	checkContent(c, a, exampleBodyAndExtraHeaders)
 
 	a, err = decoder.Decode()
-	c.Assert(err, IsNil)
+
 	checkContent(c, a, exampleEmptyBodyAllDefaults)
 
 	a, err = decoder.Decode()
@@ -690,17 +690,17 @@ func (as *assertsSuite) TestDecoderUnexpectedEOF(c *C) {
 	for _, brk := range []int{1, fstHeadEnd / 2, fstHeadEnd, fstHeadEnd + 1, fstHeadEnd + 2, fstHeadEnd + 6} {
 		stream := bytes.NewBufferString(streamData[:brk])
 		decoder := asserts.NewDecoderStressed(stream, 16, 1024, 1024, 1024)
-		_, err := decoder.Decode()
+		_ := mylog.Check2(decoder.Decode())
 		c.Check(err, Equals, io.ErrUnexpectedEOF, Commentf("brk: %d", brk))
 	}
 
 	for _, brk := range []int{sndHeadEnd, sndHeadEnd + 1} {
 		stream := bytes.NewBufferString(streamData[:brk])
 		decoder := asserts.NewDecoder(stream)
-		_, err := decoder.Decode()
-		c.Assert(err, IsNil)
+		_ := mylog.Check2(decoder.Decode())
 
-		_, err = decoder.Decode()
+
+		_ = mylog.Check2(decoder.Decode())
 		c.Check(err, Equals, io.ErrUnexpectedEOF, Commentf("brk: %d", brk))
 	}
 }
@@ -708,37 +708,37 @@ func (as *assertsSuite) TestDecoderUnexpectedEOF(c *C) {
 func (as *assertsSuite) TestDecoderBrokenBodySeparation(c *C) {
 	streamData := strings.Replace(exampleBodyAndExtraHeaders, "THE-BODY\n\n", "THE-BODY", 1)
 	decoder := asserts.NewDecoder(bytes.NewBufferString(streamData))
-	_, err := decoder.Decode()
+	_ := mylog.Check2(decoder.Decode())
 	c.Assert(err, ErrorMatches, "missing content/signature separator")
 
 	streamData = strings.Replace(exampleBodyAndExtraHeaders, "THE-BODY\n\n", "THE-BODY\n", 1)
 	decoder = asserts.NewDecoder(bytes.NewBufferString(streamData))
-	_, err = decoder.Decode()
+	_ = mylog.Check2(decoder.Decode())
 	c.Assert(err, ErrorMatches, "missing content/signature separator")
 }
 
 func (as *assertsSuite) TestDecoderHeadTooBig(c *C) {
 	decoder := asserts.NewDecoderStressed(bytes.NewBufferString(exampleBodyAndExtraHeaders), 4, 4, 1024, 1024)
-	_, err := decoder.Decode()
+	_ := mylog.Check2(decoder.Decode())
 	c.Assert(err, ErrorMatches, `error reading assertion headers: maximum size exceeded while looking for delimiter "\\n\\n"`)
 }
 
 func (as *assertsSuite) TestDecoderBodyTooBig(c *C) {
 	decoder := asserts.NewDecoderStressed(bytes.NewBufferString(exampleBodyAndExtraHeaders), 1024, 1024, 5, 1024)
-	_, err := decoder.Decode()
+	_ := mylog.Check2(decoder.Decode())
 	c.Assert(err, ErrorMatches, "assertion body length 8 exceeds maximum body size")
 }
 
 func (as *assertsSuite) TestDecoderSignatureTooBig(c *C) {
 	decoder := asserts.NewDecoderStressed(bytes.NewBufferString(exampleBodyAndExtraHeaders), 4, 1024, 1024, 7)
-	_, err := decoder.Decode()
+	_ := mylog.Check2(decoder.Decode())
 	c.Assert(err, ErrorMatches, `error reading assertion signature: maximum size exceeded while looking for delimiter "\\n\\n"`)
 }
 
 func (as *assertsSuite) TestDecoderDefaultMaxBodySize(c *C) {
 	enc := strings.Replace(exampleBodyAndExtraHeaders, "body-length: 8", "body-length: 2097153", 1)
 	decoder := asserts.NewDecoder(bytes.NewBufferString(enc))
-	_, err := decoder.Decode()
+	_ := mylog.Check2(decoder.Decode())
 	c.Assert(err, ErrorMatches, "assertion body length 2097153 exceeds maximum body size")
 }
 
@@ -761,29 +761,29 @@ AXNpZw==`
 	decoder := asserts.NewDecoderWithTypeMaxBodySize(bytes.NewBufferString(ex1+"\n"+ex2), map[*asserts.AssertionType]int{
 		asserts.TestOnly2Type: 3,
 	})
-	a1, err := decoder.Decode()
-	c.Assert(err, IsNil)
+	a1 := mylog.Check2(decoder.Decode())
+
 	c.Check(a1.Body(), HasLen, 2*1024*1024)
-	a2, err := decoder.Decode()
-	c.Assert(err, IsNil)
+	a2 := mylog.Check2(decoder.Decode())
+
 	c.Check(a2.Body(), DeepEquals, []byte("XYZ"))
 
 	decoder = asserts.NewDecoderWithTypeMaxBodySize(bytes.NewBufferString(ex1+"\n"+ex2), map[*asserts.AssertionType]int{
 		asserts.TestOnly2Type: 2,
 	})
-	a1, err = decoder.Decode()
-	c.Assert(err, IsNil)
+	a1 = mylog.Check2(decoder.Decode())
+
 	c.Check(a1.Body(), HasLen, 2*1024*1024)
-	_, err = decoder.Decode()
+	_ = mylog.Check2(decoder.Decode())
 	c.Assert(err, ErrorMatches, `assertion body length 3 exceeds maximum body size 2 for "test-only-2" assertions`)
 
 	decoder = asserts.NewDecoderWithTypeMaxBodySize(bytes.NewBufferString(ex2+"\n\n"+ex1toobig), map[*asserts.AssertionType]int{
 		asserts.TestOnly2Type: 3,
 	})
-	a2, err = decoder.Decode()
-	c.Assert(err, IsNil)
+	a2 = mylog.Check2(decoder.Decode())
+
 	c.Check(a2.Body(), DeepEquals, []byte("XYZ"))
-	_, err = decoder.Decode()
+	_ = mylog.Check2(decoder.Decode())
 	c.Assert(err, ErrorMatches, "assertion body length 2097153 exceeds maximum body size")
 }
 
@@ -799,8 +799,8 @@ func (as *assertsSuite) TestEncode(c *C) {
 		"THE-BODY" +
 		"\n\n" +
 		"AXNpZw==")
-	a, err := asserts.Decode(encoded)
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode(encoded))
+
 	encodeRes := asserts.Encode(a)
 	c.Check(encodeRes, DeepEquals, encoded)
 }
@@ -817,8 +817,8 @@ func (as *assertsSuite) TestEncoderOK(c *C) {
 		"THE-BODY" +
 		"\n\n" +
 		"AXNpZw==")
-	a0, err := asserts.Decode(encoded)
-	c.Assert(err, IsNil)
+	a0 := mylog.Check2(asserts.Decode(encoded))
+
 	cont0, _ := a0.Signature()
 
 	stream := new(bytes.Buffer)
@@ -828,8 +828,8 @@ func (as *assertsSuite) TestEncoderOK(c *C) {
 	c.Check(bytes.HasSuffix(stream.Bytes(), []byte{'\n'}), Equals, true)
 
 	dec := asserts.NewDecoder(stream)
-	a1, err := dec.Decode()
-	c.Assert(err, IsNil)
+	a1 := mylog.Check2(dec.Decode())
+
 
 	cont1, _ := a1.Signature()
 	c.Check(cont1, DeepEquals, cont0)
@@ -847,16 +847,16 @@ func (as *assertsSuite) TestEncoderSingleDecodeOK(c *C) {
 		"THE-BODY" +
 		"\n\n" +
 		"AXNpZw==")
-	a0, err := asserts.Decode(encoded)
-	c.Assert(err, IsNil)
+	a0 := mylog.Check2(asserts.Decode(encoded))
+
 	cont0, _ := a0.Signature()
 
 	stream := new(bytes.Buffer)
 	enc := asserts.NewEncoder(stream)
 	enc.Encode(a0)
 
-	a1, err := asserts.Decode(stream.Bytes())
-	c.Assert(err, IsNil)
+	a1 := mylog.Check2(asserts.Decode(stream.Bytes()))
+
 
 	cont1, _ := a1.Signature()
 	c.Check(cont1, DeepEquals, cont0)
@@ -867,10 +867,10 @@ func (as *assertsSuite) TestSignFormatValidityEmptyBody(c *C) {
 		"authority-id": "auth-id1",
 		"primary-key":  "0",
 	}
-	a, err := asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, testPrivKey1)
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, testPrivKey1))
 
-	_, err = asserts.Decode(asserts.Encode(a))
+
+	_ = mylog.Check2(asserts.Decode(asserts.Encode(a)))
 	c.Check(err, IsNil)
 }
 
@@ -880,12 +880,12 @@ func (as *assertsSuite) TestSignFormatValidityNonEmptyBody(c *C) {
 		"primary-key":  "0",
 	}
 	body := []byte("THE-BODY")
-	a, err := asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, body, testPrivKey1)
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, body, testPrivKey1))
+
 	c.Check(a.Body(), DeepEquals, body)
 
-	decoded, err := asserts.Decode(asserts.Encode(a))
-	c.Assert(err, IsNil)
+	decoded := mylog.Check2(asserts.Decode(asserts.Encode(a)))
+
 	c.Check(decoded.Body(), DeepEquals, body)
 }
 
@@ -910,11 +910,11 @@ func (as *assertsSuite) TestSignFormatValiditySupportMultilineHeaderValues(c *C)
 			headers["odd"] = "true"
 		}
 
-		a, err := asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, testPrivKey1)
-		c.Assert(err, IsNil)
+		a := mylog.Check2(asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, testPrivKey1))
 
-		decoded, err := asserts.Decode(asserts.Encode(a))
-		c.Assert(err, IsNil)
+
+		decoded := mylog.Check2(asserts.Decode(asserts.Encode(a)))
+
 
 		c.Check(decoded.Header("multiline"), Equals, multilineVal)
 	}
@@ -928,15 +928,15 @@ func (as *assertsSuite) TestSignFormatAndRevision(c *C) {
 		"revision":     "11",
 	}
 
-	a, err := asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, testPrivKey1)
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, testPrivKey1))
+
 
 	c.Check(a.Revision(), Equals, 11)
 	c.Check(a.Format(), Equals, 1)
 	c.Check(a.SupportedFormat(), Equals, true)
 
-	a1, err := asserts.Decode(asserts.Encode(a))
-	c.Assert(err, IsNil)
+	a1 := mylog.Check2(asserts.Decode(asserts.Encode(a)))
+
 
 	c.Check(a1.Revision(), Equals, 11)
 	c.Check(a1.Format(), Equals, 1)
@@ -952,8 +952,8 @@ func (as *assertsSuite) TestSignFormatOptionalPrimaryKeys(c *C) {
 		"primary-key":  "k1",
 		"header1":      "a",
 	}
-	a, err := asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, testPrivKey1)
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, testPrivKey1))
+
 
 	b := asserts.Encode(a)
 	c.Check(bytes.HasPrefix(b, []byte(`type: test-only
@@ -962,7 +962,7 @@ primary-key: k1
 header1:`)), Equals, true)
 	c.Check(a.HeaderString("opt1"), Equals, "o1-defl")
 
-	_, err = asserts.Decode(b)
+	_ = mylog.Check2(asserts.Decode(b))
 	c.Check(err, IsNil)
 
 	// defaults are always normalized away
@@ -972,8 +972,8 @@ header1:`)), Equals, true)
 		"opt1":         "o1-defl",
 		"header1":      "a",
 	}
-	a, err = asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, testPrivKey1)
-	c.Assert(err, IsNil)
+	a = mylog.Check2(asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, testPrivKey1))
+
 
 	b = asserts.Encode(a)
 	c.Check(bytes.HasPrefix(b, []byte(`type: test-only
@@ -982,7 +982,7 @@ primary-key: k1
 header1:`)), Equals, true)
 	c.Check(a.HeaderString("opt1"), Equals, "o1-defl")
 
-	_, err = asserts.Decode(b)
+	_ = mylog.Check2(asserts.Decode(b))
 	c.Check(err, IsNil)
 
 	headers = map[string]interface{}{
@@ -991,8 +991,8 @@ header1:`)), Equals, true)
 		"opt1":         "A",
 		"header1":      "a",
 	}
-	a, err = asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, testPrivKey1)
-	c.Assert(err, IsNil)
+	a = mylog.Check2(asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, testPrivKey1))
+
 
 	b = asserts.Encode(a)
 	c.Check(bytes.HasPrefix(b, []byte(`type: test-only
@@ -1002,7 +1002,7 @@ opt1: A
 header1:`)), Equals, true)
 	c.Check(a.HeaderString("opt1"), Equals, "A")
 
-	_, err = asserts.Decode(b)
+	_ = mylog.Check2(asserts.Decode(b))
 	c.Check(err, IsNil)
 }
 
@@ -1011,7 +1011,7 @@ func (as *assertsSuite) TestSignBodyIsUTF8Text(c *C) {
 		"authority-id": "auth-id1",
 		"primary-key":  "0",
 	}
-	_, err := asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, []byte{'\xff'}, testPrivKey1)
+	_ := mylog.Check2(asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, []byte{'\xff'}, testPrivKey1))
 	c.Assert(err, ErrorMatches, "assertion body is not utf8")
 }
 
@@ -1027,8 +1027,8 @@ func (as *assertsSuite) TestHeaders(c *C) {
 		"THE-BODY" +
 		"\n\n" +
 		"AXNpZw==")
-	a, err := asserts.Decode(encoded)
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode(encoded))
+
 
 	hs := a.Headers()
 	c.Check(hs, DeepEquals, map[string]interface{}{
@@ -1055,8 +1055,8 @@ func (as *assertsSuite) TestHeadersReturnsCopy(c *C) {
 		"THE-BODY" +
 		"\n\n" +
 		"AXNpZw==")
-	a, err := asserts.Decode(encoded)
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode(encoded))
+
 
 	hs := a.Headers()
 	// casual later result mutation doesn't trip us
@@ -1077,12 +1077,12 @@ func (as *assertsSuite) TestAssembleRoundtrip(c *C) {
 		"THE-BODY" +
 		"\n\n" +
 		"AXNpZw==")
-	a, err := asserts.Decode(encoded)
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode(encoded))
+
 
 	cont, sig := a.Signature()
-	reassembled, err := asserts.Assemble(a.Headers(), a.Body(), cont, sig)
-	c.Assert(err, IsNil)
+	reassembled := mylog.Check2(asserts.Assemble(a.Headers(), a.Body(), cont, sig))
+
 
 	c.Check(reassembled.Headers(), DeepEquals, a.Headers())
 	c.Check(reassembled.Body(), DeepEquals, a.Body())
@@ -1096,8 +1096,8 @@ func (as *assertsSuite) TestSignKeyID(c *C) {
 		"authority-id": "auth-id1",
 		"primary-key":  "0",
 	}
-	a, err := asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, testPrivKey1)
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, testPrivKey1))
+
 
 	keyID := a.SignKeyID()
 	c.Check(keyID, Equals, testPrivKey1.PublicKey().ID())
@@ -1108,8 +1108,8 @@ func (as *assertsSuite) TestSelfRef(c *C) {
 		"authority-id": "auth-id1",
 		"primary-key":  "0",
 	}
-	a1, err := asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, testPrivKey1)
-	c.Assert(err, IsNil)
+	a1 := mylog.Check2(asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, testPrivKey1))
+
 
 	c.Check(a1.Ref(), DeepEquals, &asserts.Ref{
 		Type:       asserts.TestOnlyType,
@@ -1130,8 +1130,8 @@ func (as *assertsSuite) TestSelfRef(c *C) {
 		"pk2":          "b",
 		"revision":     "1",
 	}
-	a2, err := asserts.AssembleAndSignInTest(asserts.TestOnly2Type, headers, nil, testPrivKey1)
-	c.Assert(err, IsNil)
+	a2 := mylog.Check2(asserts.AssembleAndSignInTest(asserts.TestOnly2Type, headers, nil, testPrivKey1))
+
 
 	c.Check(a2.Ref(), DeepEquals, &asserts.Ref{
 		Type:       asserts.TestOnly2Type,
@@ -1159,30 +1159,29 @@ func (as *assertsSuite) TestAssembleHeadersCheck(c *C) {
 		"revision":     5, // must be a string actually!
 	}
 
-	_, err := asserts.Assemble(headers, nil, cont, nil)
+	_ := mylog.Check2(asserts.Assemble(headers, nil, cont, nil))
 	c.Check(err, ErrorMatches, `header "revision": header values must be strings or nested lists or maps with strings as the only scalars: 5`)
 }
 
 func (as *assertsSuite) TestSignWithoutAuthorityMisuse(c *C) {
-	_, err := asserts.SignWithoutAuthority(asserts.TestOnlyType, nil, nil, testPrivKey1)
+	_ := mylog.Check2(asserts.SignWithoutAuthority(asserts.TestOnlyType, nil, nil, testPrivKey1))
 	c.Check(err, ErrorMatches, `cannot sign assertions needing a definite authority with SignWithoutAuthority`)
 
-	_, err = asserts.SignWithoutAuthority(asserts.TestOnlyNoAuthorityType,
+	_ = mylog.Check2(asserts.SignWithoutAuthority(asserts.TestOnlyNoAuthorityType,
 		map[string]interface{}{
 			"authority-id": "auth-id1",
 			"hdr":          "FOO",
-		}, nil, testPrivKey1)
+		}, nil, testPrivKey1))
 	c.Check(err, ErrorMatches, `"test-only-no-authority" assertion cannot have authority-id set`)
 }
 
 func (ss *serialSuite) TestSignatureCheckError(c *C) {
-	sreq, err := asserts.SignWithoutAuthority(asserts.TestOnlyNoAuthorityType,
+	sreq := mylog.Check2(asserts.SignWithoutAuthority(asserts.TestOnlyNoAuthorityType,
 		map[string]interface{}{
 			"hdr": "FOO",
-		}, nil, testPrivKey1)
-	c.Assert(err, IsNil)
+		}, nil, testPrivKey1))
 
-	err = asserts.SignatureCheck(sreq, testPrivKey2.PublicKey())
+	mylog.Check(asserts.SignatureCheck(sreq, testPrivKey2.PublicKey()))
 	c.Check(err, ErrorMatches, `failed signature verification:.*`)
 }
 
@@ -1210,7 +1209,7 @@ func (as *assertsSuite) TestWithAuthority(c *C) {
 	c.Check(withAuthority, HasLen, asserts.NumAssertionType-3) // excluding device-session-request, serial-request, account-key-request
 	for _, name := range withAuthority {
 		typ := asserts.Type(name)
-		_, err := asserts.AssembleAndSignInTest(typ, nil, []byte("{}"), testPrivKey1)
+		_ := mylog.Check2(asserts.AssembleAndSignInTest(typ, nil, []byte("{}"), testPrivKey1))
 		c.Check(err, ErrorMatches, `"authority-id" header is mandatory`)
 	}
 }
@@ -1229,17 +1228,17 @@ func (as *assertsSuite) TestSequenceForming(c *C) {
 }
 
 func (as *assertsSuite) TestHeadersFromSequenceKey(c *C) {
-	headers, err := asserts.HeadersFromSequenceKey(asserts.TestOnlySeqType, []string{"one"})
-	c.Assert(err, IsNil)
+	headers := mylog.Check2(asserts.HeadersFromSequenceKey(asserts.TestOnlySeqType, []string{"one"}))
+
 	c.Check(headers, DeepEquals, map[string]string{"n": "one"})
 
-	_, err = asserts.HeadersFromSequenceKey(asserts.TestOnlySeqType, []string{"one", "two"})
+	_ = mylog.Check2(asserts.HeadersFromSequenceKey(asserts.TestOnlySeqType, []string{"one", "two"}))
 	c.Check(err, ErrorMatches, `sequence key has wrong length for "test-only-seq" assertion`)
 
-	_, err = asserts.HeadersFromSequenceKey(asserts.TestOnlySeqType, []string{})
+	_ = mylog.Check2(asserts.HeadersFromSequenceKey(asserts.TestOnlySeqType, []string{}))
 	c.Check(err, ErrorMatches, `sequence key has wrong length for "test-only-seq" assertion`)
 
-	_, err = asserts.HeadersFromSequenceKey(asserts.TestOnlySeqType, []string{""})
+	_ = mylog.Check2(asserts.HeadersFromSequenceKey(asserts.TestOnlySeqType, []string{""}))
 	c.Check(err, ErrorMatches, `sequence key "n" header cannot be empty`)
 }
 
@@ -1300,14 +1299,14 @@ func (as *assertsSuite) TestAtSequenceResolveError(c *C) {
 		SequenceKey: []string{"abc"},
 		Sequence:    1,
 	}
-	_, err := atSeq.Resolve(nil)
+	_ := mylog.Check2(atSeq.Resolve(nil))
 	c.Check(err, ErrorMatches, `"validation-set" assertion reference primary key has the wrong length \(expected \[series account-id name sequence\]\): \[abc 1\]`)
 
 	atSeq = asserts.AtSequence{
 		Type:        asserts.ValidationSetType,
 		SequenceKey: []string{"16", "canonical", "foo"},
 	}
-	_, err = atSeq.Resolve(nil)
+	_ = mylog.Check2(atSeq.Resolve(nil))
 	c.Assert(err, DeepEquals, &asserts.NotFoundError{
 		Type: asserts.ValidationSetType,
 		Headers: map[string]string{
@@ -1324,7 +1323,7 @@ func (as *assertsSuite) TestAtSequenceResolve(c *C) {
 		SequenceKey: []string{"foo"},
 		Sequence:    3,
 	}
-	a, err := atSeq.Resolve(func(atype *asserts.AssertionType, hdrs map[string]string) (asserts.Assertion, error) {
+	a := mylog.Check2(atSeq.Resolve(func(atype *asserts.AssertionType, hdrs map[string]string) (asserts.Assertion, error) {
 		c.Assert(atype, Equals, asserts.TestOnlySeqType)
 		c.Assert(hdrs, DeepEquals, map[string]string{
 			"n":        "foo",
@@ -1339,10 +1338,10 @@ func (as *assertsSuite) TestAtSequenceResolve(c *C) {
 			"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij\n\n" +
 			"\n\n" +
 			"AXNpZw==")
-		a, err := asserts.Decode(encoded)
+		a := mylog.Check2(asserts.Decode(encoded))
 		return a, err
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Assert(a, NotNil)
 	c.Check(a.Type().Name, Equals, "test-only-seq")
 }

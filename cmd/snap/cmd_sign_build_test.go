@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	snap "github.com/snapcore/snapd/cmd/snap"
 )
@@ -37,7 +38,7 @@ type SnapSignBuildSuite struct {
 var _ = Suite(&SnapSignBuildSuite{})
 
 func (s *SnapSignBuildSuite) TestSignBuildMandatoryFlags(c *C) {
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"sign-build", "foo_1_amd64.snap"})
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"sign-build", "foo_1_amd64.snap"}))
 	c.Assert(err, NotNil)
 	c.Check(err.Error(), Equals, "the required flags `--developer-id' and `--snap-id' were not specified")
 	c.Check(s.Stdout(), Equals, "")
@@ -45,7 +46,7 @@ func (s *SnapSignBuildSuite) TestSignBuildMandatoryFlags(c *C) {
 }
 
 func (s *SnapSignBuildSuite) TestSignBuildMissingSnap(c *C) {
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"sign-build", "foo_1_amd64.snap", "--developer-id", "dev-id1", "--snap-id", "snap-id-1"})
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"sign-build", "foo_1_amd64.snap", "--developer-id", "dev-id1", "--snap-id", "snap-id-1"}))
 	c.Assert(err, NotNil)
 	c.Check(err.Error(), Equals, "cannot compute snap \"foo_1_amd64.snap\" digest: open foo_1_amd64.snap: no such file or directory")
 	c.Check(s.Stdout(), Equals, "")
@@ -62,7 +63,7 @@ func (s *SnapSignBuildSuite) TestSignBuildMissingKey(c *C) {
 	os.Setenv("SNAP_GNUPG_HOME", tempdir)
 	defer os.Unsetenv("SNAP_GNUPG_HOME")
 
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"sign-build", snapFilename, "--developer-id", "dev-id1", "--snap-id", "snap-id-1"})
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"sign-build", snapFilename, "--developer-id", "dev-id1", "--snap-id", "snap-id-1"}))
 	c.Assert(err, NotNil)
 	c.Check(err.Error(), Equals, "cannot use \"default\" key: cannot find key pair in GPG keyring")
 	c.Check(s.Stdout(), Equals, "")
@@ -78,19 +79,19 @@ func (s *SnapSignBuildSuite) TestSignBuildWorks(c *C) {
 
 	tempdir := c.MkDir()
 	for _, fileName := range []string{"pubring.gpg", "secring.gpg", "trustdb.gpg"} {
-		data, err := os.ReadFile(filepath.Join("test-data", fileName))
-		c.Assert(err, IsNil)
-		err = os.WriteFile(filepath.Join(tempdir, fileName), data, 0644)
-		c.Assert(err, IsNil)
+		data := mylog.Check2(os.ReadFile(filepath.Join("test-data", fileName)))
+
+		mylog.Check(os.WriteFile(filepath.Join(tempdir, fileName), data, 0644))
+
 	}
 	os.Setenv("SNAP_GNUPG_HOME", tempdir)
 	defer os.Unsetenv("SNAP_GNUPG_HOME")
 
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"sign-build", snapFilename, "--developer-id", "dev-id1", "--snap-id", "snap-id-1"})
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"sign-build", snapFilename, "--developer-id", "dev-id1", "--snap-id", "snap-id-1"}))
 
-	assertion, err := asserts.Decode([]byte(s.Stdout()))
-	c.Assert(err, IsNil)
+
+	assertion := mylog.Check2(asserts.Decode([]byte(s.Stdout())))
+
 	c.Check(assertion.Type(), Equals, asserts.SnapBuildType)
 	c.Check(assertion.Revision(), Equals, 0)
 	c.Check(assertion.HeaderString("authority-id"), Equals, "dev-id1")
@@ -113,18 +114,18 @@ func (s *SnapSignBuildSuite) TestSignBuildWorksDevelGrade(c *C) {
 
 	tempdir := c.MkDir()
 	for _, fileName := range []string{"pubring.gpg", "secring.gpg", "trustdb.gpg"} {
-		data, err := os.ReadFile(filepath.Join("test-data", fileName))
-		c.Assert(err, IsNil)
-		err = os.WriteFile(filepath.Join(tempdir, fileName), data, 0644)
-		c.Assert(err, IsNil)
+		data := mylog.Check2(os.ReadFile(filepath.Join("test-data", fileName)))
+
+		mylog.Check(os.WriteFile(filepath.Join(tempdir, fileName), data, 0644))
+
 	}
 	os.Setenv("SNAP_GNUPG_HOME", tempdir)
 	defer os.Unsetenv("SNAP_GNUPG_HOME")
 
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"sign-build", snapFilename, "--developer-id", "dev-id1", "--snap-id", "snap-id-1", "--grade", "devel"})
-	c.Assert(err, IsNil)
-	assertion, err := asserts.Decode([]byte(s.Stdout()))
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"sign-build", snapFilename, "--developer-id", "dev-id1", "--snap-id", "snap-id-1", "--grade", "devel"}))
+
+	assertion := mylog.Check2(asserts.Decode([]byte(s.Stdout())))
+
 	c.Check(assertion.Type(), Equals, asserts.SnapBuildType)
 	c.Check(assertion.HeaderString("grade"), Equals, "devel")
 

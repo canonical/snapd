@@ -22,6 +22,7 @@ package builtin_test
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -43,7 +44,7 @@ var _ = Suite(&TimezoneControlInterfaceSuite{
 })
 
 func (s *TimezoneControlInterfaceSuite) SetUpTest(c *C) {
-	var mockPlugSnapInfoYaml = `name: other
+	mockPlugSnapInfoYaml := `name: other
 version: 1.0
 apps:
  app:
@@ -75,11 +76,11 @@ func (s *TimezoneControlInterfaceSuite) TestSanitizePlug(c *C) {
 
 func (s *TimezoneControlInterfaceSuite) TestConnectedPlug(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	apparmorSpec := apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
-	c.Assert(err, IsNil)
+	mylog.Check(apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot))
+
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `timedate1`)
 }

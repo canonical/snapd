@@ -22,6 +22,7 @@ package asserts_test
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 )
 
@@ -38,21 +39,20 @@ func (mkms *memKeypairMgtSuite) SetUpTest(c *C) {
 func (mkms *memKeypairMgtSuite) TestPutAndGet(c *C) {
 	pk1 := testPrivKey1
 	keyID := pk1.PublicKey().ID()
-	err := mkms.keypairMgr.Put(pk1)
-	c.Assert(err, IsNil)
+	mylog.Check(mkms.keypairMgr.Put(pk1))
 
-	got, err := mkms.keypairMgr.Get(keyID)
-	c.Assert(err, IsNil)
+
+	got := mylog.Check2(mkms.keypairMgr.Get(keyID))
+
 	c.Assert(got, NotNil)
 	c.Check(got.PublicKey().ID(), Equals, pk1.PublicKey().ID())
 }
 
 func (mkms *memKeypairMgtSuite) TestPutAlreadyExists(c *C) {
 	pk1 := testPrivKey1
-	err := mkms.keypairMgr.Put(pk1)
-	c.Assert(err, IsNil)
+	mylog.Check(mkms.keypairMgr.Put(pk1))
 
-	err = mkms.keypairMgr.Put(pk1)
+	mylog.Check(mkms.keypairMgr.Put(pk1))
 	c.Check(err, ErrorMatches, "key pair with given key id already exists")
 }
 
@@ -60,15 +60,14 @@ func (mkms *memKeypairMgtSuite) TestGetNotFound(c *C) {
 	pk1 := testPrivKey1
 	keyID := pk1.PublicKey().ID()
 
-	got, err := mkms.keypairMgr.Get(keyID)
+	got := mylog.Check2(mkms.keypairMgr.Get(keyID))
 	c.Check(got, IsNil)
 	c.Check(err, ErrorMatches, "cannot find key pair")
 	c.Check(asserts.IsKeyNotFound(err), Equals, true)
+	mylog.Check(mkms.keypairMgr.Put(pk1))
 
-	err = mkms.keypairMgr.Put(pk1)
-	c.Assert(err, IsNil)
 
-	got, err = mkms.keypairMgr.Get(keyID + "x")
+	got = mylog.Check2(mkms.keypairMgr.Get(keyID + "x"))
 	c.Check(got, IsNil)
 	c.Check(err, ErrorMatches, "cannot find key pair")
 	c.Check(asserts.IsKeyNotFound(err), Equals, true)
@@ -77,18 +76,16 @@ func (mkms *memKeypairMgtSuite) TestGetNotFound(c *C) {
 func (mkms *memKeypairMgtSuite) TestDelete(c *C) {
 	pk1 := testPrivKey1
 	keyID := pk1.PublicKey().ID()
-	err := mkms.keypairMgr.Put(pk1)
-	c.Assert(err, IsNil)
+	mylog.Check(mkms.keypairMgr.Put(pk1))
 
-	_, err = mkms.keypairMgr.Get(keyID)
-	c.Assert(err, IsNil)
 
-	err = mkms.keypairMgr.Delete(keyID)
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(mkms.keypairMgr.Get(keyID))
 
-	err = mkms.keypairMgr.Delete(keyID)
+	mylog.Check(mkms.keypairMgr.Delete(keyID))
+
+	mylog.Check(mkms.keypairMgr.Delete(keyID))
 	c.Check(err, ErrorMatches, "cannot find key pair")
 
-	_, err = mkms.keypairMgr.Get(keyID)
+	_ = mylog.Check2(mkms.keypairMgr.Get(keyID))
 	c.Check(err, ErrorMatches, "cannot find key pair")
 }

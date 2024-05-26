@@ -29,6 +29,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/daemon"
 )
 
@@ -85,12 +86,12 @@ func (s *responseSuite) TestFileResponseSetsContentDisposition(c *check.C) {
 	const filename = "icon.png"
 
 	path := filepath.Join(c.MkDir(), filename)
-	err := os.WriteFile(path, nil, os.ModePerm)
+	mylog.Check(os.WriteFile(path, nil, os.ModePerm))
 	c.Check(err, check.IsNil)
 
 	rec := httptest.NewRecorder()
 	rsp := daemon.FileResponse(path)
-	req, err := http.NewRequest("GET", "", nil)
+	req := mylog.Check2(http.NewRequest("GET", "", nil))
 	c.Check(err, check.IsNil)
 
 	rsp.ServeHTTP(rec, req)
@@ -104,7 +105,7 @@ func (s *responseSuite) TestFileResponseSetsContentDisposition(c *check.C) {
 // null. Older clients rely on this.
 func (s *responseSuite) TestRespJSONWithNullResult(c *check.C) {
 	rj := &daemon.RespJSON{Result: nil}
-	data, err := json.Marshal(rj)
+	data := mylog.Check2(json.Marshal(rj))
 	c.Assert(err, check.IsNil)
 	c.Check(string(data), check.Equals, `{"type":"","status-code":0,"status":"","result":null}`)
 }

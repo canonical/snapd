@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 )
 
@@ -39,15 +40,15 @@ func (fsbss *fsKeypairMgrSuite) TestOpenOK(c *C) {
 	defer syscall.Umask(oldUmask)
 
 	topDir := filepath.Join(c.MkDir(), "asserts-db")
-	err := os.MkdirAll(topDir, 0775)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(topDir, 0775))
 
-	bs, err := asserts.OpenFSKeypairManager(topDir)
+
+	bs := mylog.Check2(asserts.OpenFSKeypairManager(topDir))
 	c.Check(err, IsNil)
 	c.Check(bs, NotNil)
 
-	info, err := os.Stat(filepath.Join(topDir, "private-keys-v1"))
-	c.Assert(err, IsNil)
+	info := mylog.Check2(os.Stat(filepath.Join(topDir, "private-keys-v1")))
+
 	c.Assert(info.IsDir(), Equals, true)
 	c.Check(info.Mode().Perm(), Equals, os.FileMode(0775))
 }
@@ -59,7 +60,7 @@ func (fsbss *fsKeypairMgrSuite) TestOpenWorldWritableFail(c *C) {
 	os.MkdirAll(filepath.Join(topDir, "private-keys-v1"), 0777)
 	syscall.Umask(oldUmask)
 
-	bs, err := asserts.OpenFSKeypairManager(topDir)
+	bs := mylog.Check2(asserts.OpenFSKeypairManager(topDir))
 	c.Assert(err, ErrorMatches, "assert storage root unexpectedly world-writable: .*")
 	c.Check(bs, IsNil)
 }
@@ -70,28 +71,26 @@ func (fsbss *fsKeypairMgrSuite) TestDelete(c *C) {
 	defer syscall.Umask(oldUmask)
 
 	topDir := filepath.Join(c.MkDir(), "asserts-db")
-	err := os.MkdirAll(topDir, 0775)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(topDir, 0775))
 
-	keypairMgr, err := asserts.OpenFSKeypairManager(topDir)
+
+	keypairMgr := mylog.Check2(asserts.OpenFSKeypairManager(topDir))
 	c.Check(err, IsNil)
 
 	pk1 := testPrivKey1
 	keyID := pk1.PublicKey().ID()
-	err = keypairMgr.Put(pk1)
-	c.Assert(err, IsNil)
+	mylog.Check(keypairMgr.Put(pk1))
 
-	_, err = keypairMgr.Get(keyID)
-	c.Assert(err, IsNil)
 
-	err = keypairMgr.Delete(keyID)
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(keypairMgr.Get(keyID))
 
-	err = keypairMgr.Delete(keyID)
+	mylog.Check(keypairMgr.Delete(keyID))
+
+	mylog.Check(keypairMgr.Delete(keyID))
 	c.Check(err, ErrorMatches, "cannot find key pair")
 	c.Check(asserts.IsKeyNotFound(err), Equals, true)
 
-	_, err = keypairMgr.Get(keyID)
+	_ = mylog.Check2(keypairMgr.Get(keyID))
 	c.Check(err, ErrorMatches, "cannot find key pair")
 	c.Check(asserts.IsKeyNotFound(err), Equals, true)
 }

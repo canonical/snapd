@@ -25,6 +25,8 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 func (c *Client) AspectGet(aspectID string, requests []string) (result map[string]interface{}, err error) {
@@ -32,19 +34,13 @@ func (c *Client) AspectGet(aspectID string, requests []string) (result map[strin
 	query.Add("fields", strings.Join(requests, ","))
 
 	endpoint := fmt.Sprintf("/v2/aspects/%s", aspectID)
-	_, err = c.doSync("GET", endpoint, query, nil, nil, &result)
-	if err != nil {
-		return nil, err
-	}
+	_ = mylog.Check2(c.doSync("GET", endpoint, query, nil, nil, &result))
 
 	return result, nil
 }
 
 func (c *Client) AspectSet(aspectID string, requestValues map[string]interface{}) (changeID string, err error) {
-	body, err := json.Marshal(requestValues)
-	if err != nil {
-		return "", err
-	}
+	body := mylog.Check2(json.Marshal(requestValues))
 
 	headers := make(map[string]string)
 	headers["Content-Type"] = "application/json"

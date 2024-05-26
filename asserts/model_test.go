@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap/naming"
@@ -37,9 +38,7 @@ type modelSuite struct {
 	tsLine string
 }
 
-var (
-	_ = Suite(&modelSuite{})
-)
+var _ = Suite(&modelSuite{})
 
 func (mods *modelSuite) SetUpSuite(c *C) {
 	mods.ts = time.Now().Truncate(time.Second).UTC()
@@ -273,8 +272,8 @@ storage-safety: encrypted
 
 func (mods *modelSuite) TestDecodeOK(c *C) {
 	encoded := strings.Replace(modelExample, "TSLINE", mods.tsLine, 1)
-	a, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	c.Check(a.Type(), Equals, asserts.ModelType)
 	model := a.(*asserts.Model)
 	c.Check(model.AuthorityID(), Equals, "brand-id1")
@@ -356,14 +355,14 @@ func (mods *modelSuite) TestDecodeOK(c *C) {
 func (mods *modelSuite) TestDecodeStoreIsOptional(c *C) {
 	withTimestamp := strings.Replace(modelExample, "TSLINE", mods.tsLine, 1)
 	encoded := strings.Replace(withTimestamp, "store: brand-store\n", "store: \n", 1)
-	a, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	model := a.(*asserts.Model)
 	c.Check(model.Store(), Equals, "")
 
 	encoded = strings.Replace(withTimestamp, "store: brand-store\n", "", 1)
-	a, err = asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a = mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	model = a.(*asserts.Model)
 	c.Check(model.Store(), Equals, "")
 }
@@ -371,14 +370,14 @@ func (mods *modelSuite) TestDecodeStoreIsOptional(c *C) {
 func (mods *modelSuite) TestDecodeBaseIsOptional(c *C) {
 	withTimestamp := strings.Replace(modelExample, "TSLINE", mods.tsLine, 1)
 	encoded := strings.Replace(withTimestamp, "base: core18\n", "base: \n", 1)
-	a, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	model := a.(*asserts.Model)
 	c.Check(model.Base(), Equals, "")
 
 	encoded = strings.Replace(withTimestamp, "base: core18\n", "", 1)
-	a, err = asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a = mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	model = a.(*asserts.Model)
 	c.Check(model.Base(), Equals, "")
 	c.Check(model.BaseSnap(), IsNil)
@@ -387,15 +386,15 @@ func (mods *modelSuite) TestDecodeBaseIsOptional(c *C) {
 func (mods *modelSuite) TestDecodeDisplayNameIsOptional(c *C) {
 	withTimestamp := strings.Replace(modelExample, "TSLINE", mods.tsLine, 1)
 	encoded := strings.Replace(withTimestamp, "display-name: Baz 3000\n", "display-name: \n", 1)
-	a, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	model := a.(*asserts.Model)
 	// optional but we fallback to Model
 	c.Check(model.DisplayName(), Equals, "baz-3000")
 
 	encoded = strings.Replace(withTimestamp, "display-name: Baz 3000\n", "", 1)
-	a, err = asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a = mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	model = a.(*asserts.Model)
 	// optional but we fallback to Model
 	c.Check(model.DisplayName(), Equals, "baz-3000")
@@ -404,8 +403,8 @@ func (mods *modelSuite) TestDecodeDisplayNameIsOptional(c *C) {
 func (mods *modelSuite) TestDecodeRequiredSnapsAreOptional(c *C) {
 	withTimestamp := strings.Replace(modelExample, "TSLINE", mods.tsLine, 1)
 	encoded := strings.Replace(withTimestamp, reqSnaps, "", 1)
-	a, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	model := a.(*asserts.Model)
 	c.Check(model.RequiredNoEssentialSnaps(), HasLen, 0)
 }
@@ -413,27 +412,27 @@ func (mods *modelSuite) TestDecodeRequiredSnapsAreOptional(c *C) {
 func (mods *modelSuite) TestDecodeValidatesSnapNames(c *C) {
 	withTimestamp := strings.Replace(modelExample, "TSLINE", mods.tsLine, 1)
 	encoded := strings.Replace(withTimestamp, reqSnaps, "required-snaps:\n  - foo_bar\n  - bar\n", 1)
-	a, err := asserts.Decode([]byte(encoded))
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
 	c.Assert(a, IsNil)
 	c.Assert(err, ErrorMatches, `assertion model: invalid snap name in "required-snaps" header: foo_bar`)
 
 	encoded = strings.Replace(withTimestamp, reqSnaps, "required-snaps:\n  - foo\n  - bar-;;''\n", 1)
-	a, err = asserts.Decode([]byte(encoded))
+	a = mylog.Check2(asserts.Decode([]byte(encoded)))
 	c.Assert(a, IsNil)
 	c.Assert(err, ErrorMatches, `assertion model: invalid snap name in "required-snaps" header: bar-;;''`)
 
 	encoded = strings.Replace(withTimestamp, "kernel: baz-linux\n", "kernel: baz-linux_instance\n", 1)
-	a, err = asserts.Decode([]byte(encoded))
+	a = mylog.Check2(asserts.Decode([]byte(encoded)))
 	c.Assert(a, IsNil)
 	c.Assert(err, ErrorMatches, `assertion model: invalid snap name in "kernel" header: baz-linux_instance`)
 
 	encoded = strings.Replace(withTimestamp, "gadget: brand-gadget\n", "gadget: brand-gadget_instance\n", 1)
-	a, err = asserts.Decode([]byte(encoded))
+	a = mylog.Check2(asserts.Decode([]byte(encoded)))
 	c.Assert(a, IsNil)
 	c.Assert(err, ErrorMatches, `assertion model: invalid snap name in "gadget" header: brand-gadget_instance`)
 
 	encoded = strings.Replace(withTimestamp, "base: core18\n", "base: core18_instance\n", 1)
-	a, err = asserts.Decode([]byte(encoded))
+	a = mylog.Check2(asserts.Decode([]byte(encoded)))
 	c.Assert(a, IsNil)
 	c.Assert(err, ErrorMatches, `assertion model: invalid snap name in "base" header: core18_instance`)
 }
@@ -453,8 +452,8 @@ func (mods modelSuite) TestDecodeValidSnapNames(c *C) {
 	}
 	for _, name := range validNames {
 		encoded := strings.Replace(withTimestamp, "kernel: baz-linux\n", fmt.Sprintf("kernel: %s\n", name), 1)
-		a, err := asserts.Decode([]byte(encoded))
-		c.Assert(err, IsNil)
+		a := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 		model := a.(*asserts.Model)
 		c.Check(model.Kernel(), Equals, name)
 	}
@@ -488,7 +487,7 @@ func (mods modelSuite) TestDecodeValidSnapNames(c *C) {
 	}
 	for _, name := range invalidNames {
 		encoded := strings.Replace(withTimestamp, "kernel: baz-linux\n", fmt.Sprintf("kernel: %s\n", name), 1)
-		a, err := asserts.Decode([]byte(encoded))
+		a := mylog.Check2(asserts.Decode([]byte(encoded)))
 		c.Assert(a, IsNil)
 		if name != "" {
 			c.Assert(err, ErrorMatches, `assertion model: invalid snap name in "kernel" header: .*`)
@@ -501,15 +500,15 @@ func (mods modelSuite) TestDecodeValidSnapNames(c *C) {
 func (mods *modelSuite) TestDecodeSerialAuthorityIsOptional(c *C) {
 	withTimestamp := strings.Replace(modelExample, "TSLINE", mods.tsLine, 1)
 	encoded := strings.Replace(withTimestamp, serialAuths, "", 1)
-	a, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	model := a.(*asserts.Model)
 	// the default is just to accept the brand itself
 	c.Check(model.SerialAuthority(), DeepEquals, []string{"brand-id1"})
 
 	encoded = strings.Replace(withTimestamp, serialAuths, "serial-authority:\n  - foo\n  - bar\n", 1)
-	a, err = asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a = mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	model = a.(*asserts.Model)
 	// the brand is always added implicitly
 	c.Check(model.SerialAuthority(), DeepEquals, []string{"brand-id1", "foo", "bar"})
@@ -518,15 +517,15 @@ func (mods *modelSuite) TestDecodeSerialAuthorityIsOptional(c *C) {
 func (mods *modelSuite) TestDecodeSystemUserAuthorityIsOptional(c *C) {
 	withTimestamp := strings.Replace(modelExample, "TSLINE", mods.tsLine, 1)
 	encoded := strings.Replace(withTimestamp, sysUserAuths, "", 1)
-	a, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	model := a.(*asserts.Model)
 	// the default is just to accept the brand itself
 	c.Check(model.SystemUserAuthority(), DeepEquals, []string{"brand-id1"})
 
 	encoded = strings.Replace(withTimestamp, sysUserAuths, "system-user-authority:\n  - foo\n  - bar\n", 1)
-	a, err = asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a = mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	model = a.(*asserts.Model)
 	// the brand is always added implicitly, it can always sign
 	// a new revision of the model anyway
@@ -536,15 +535,15 @@ func (mods *modelSuite) TestDecodeSystemUserAuthorityIsOptional(c *C) {
 func (mods *modelSuite) TestDecodePreseedAuthorityIsOptional(c *C) {
 	withTimestamp := strings.Replace(modelExample, "TSLINE", mods.tsLine, 1)
 	encoded := strings.Replace(withTimestamp, preseedAuths, "", 1)
-	a, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	model := a.(*asserts.Model)
 	// the default is just to accept the brand itself
 	c.Check(model.PreseedAuthority(), DeepEquals, []string{"brand-id1"})
 
 	encoded = strings.Replace(withTimestamp, preseedAuths, "preseed-authority:\n  - foo\n  - bar\n", 1)
-	a, err = asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a = mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	model = a.(*asserts.Model)
 	// the brand is always added implicitly
 	c.Check(model.PreseedAuthority(), DeepEquals, []string{"brand-id1", "foo", "bar"})
@@ -553,8 +552,8 @@ func (mods *modelSuite) TestDecodePreseedAuthorityIsOptional(c *C) {
 func (mods *modelSuite) TestDecodeKernelTrack(c *C) {
 	withTimestamp := strings.Replace(modelExample, "TSLINE", mods.tsLine, 1)
 	encoded := strings.Replace(withTimestamp, "kernel: baz-linux\n", "kernel: baz-linux=18\n", 1)
-	a, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	model := a.(*asserts.Model)
 	c.Check(model.KernelSnap(), DeepEquals, &asserts.ModelSnap{
 		Name:        "baz-linux",
@@ -570,8 +569,8 @@ func (mods *modelSuite) TestDecodeKernelTrack(c *C) {
 func (mods *modelSuite) TestDecodeGadgetTrack(c *C) {
 	withTimestamp := strings.Replace(modelExample, "TSLINE", mods.tsLine, 1)
 	encoded := strings.Replace(withTimestamp, "gadget: brand-gadget\n", "gadget: brand-gadget=18\n", 1)
-	a, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	model := a.(*asserts.Model)
 	c.Check(model.GadgetSnap(), DeepEquals, &asserts.ModelSnap{
 		Name:        "brand-gadget",
@@ -637,14 +636,14 @@ func (mods *modelSuite) TestDecodeInvalid(c *C) {
 
 	for _, test := range invalidTests {
 		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
-		_, err := asserts.Decode([]byte(invalid))
+		_ := mylog.Check2(asserts.Decode([]byte(invalid)))
 		c.Check(err, ErrorMatches, modelErrPrefix+test.expectedErr)
 	}
 }
 
 func (mods *modelSuite) TestModelCheck(c *C) {
-	ex, err := asserts.Decode([]byte(strings.Replace(modelExample, "TSLINE", mods.tsLine, 1)))
-	c.Assert(err, IsNil)
+	ex := mylog.Check2(asserts.Decode([]byte(strings.Replace(modelExample, "TSLINE", mods.tsLine, 1))))
+
 
 	storeDB, db := makeStoreAndCheckDB(c)
 	brandDB := setup3rdPartySigning(c, "brand-id1", storeDB, db)
@@ -652,16 +651,15 @@ func (mods *modelSuite) TestModelCheck(c *C) {
 	headers := ex.Headers()
 	headers["brand-id"] = brandDB.AuthorityID
 	headers["timestamp"] = time.Now().Format(time.RFC3339)
-	model, err := brandDB.Sign(asserts.ModelType, headers, nil, "")
-	c.Assert(err, IsNil)
+	model := mylog.Check2(brandDB.Sign(asserts.ModelType, headers, nil, ""))
 
-	err = db.Check(model)
-	c.Assert(err, IsNil)
+	mylog.Check(db.Check(model))
+
 }
 
 func (mods *modelSuite) TestModelCheckInconsistentTimestamp(c *C) {
-	ex, err := asserts.Decode([]byte(strings.Replace(modelExample, "TSLINE", mods.tsLine, 1)))
-	c.Assert(err, IsNil)
+	ex := mylog.Check2(asserts.Decode([]byte(strings.Replace(modelExample, "TSLINE", mods.tsLine, 1))))
+
 
 	storeDB, db := makeStoreAndCheckDB(c)
 	brandDB := setup3rdPartySigning(c, "brand-id1", storeDB, db)
@@ -669,17 +667,16 @@ func (mods *modelSuite) TestModelCheckInconsistentTimestamp(c *C) {
 	headers := ex.Headers()
 	headers["brand-id"] = brandDB.AuthorityID
 	headers["timestamp"] = "2011-01-01T14:00:00Z"
-	model, err := brandDB.Sign(asserts.ModelType, headers, nil, "")
-	c.Assert(err, IsNil)
+	model := mylog.Check2(brandDB.Sign(asserts.ModelType, headers, nil, ""))
 
-	err = db.Check(model)
+	mylog.Check(db.Check(model))
 	c.Assert(err, ErrorMatches, `model assertion timestamp "2011-01-01 14:00:00 \+0000 UTC" outside of signing key validity \(key valid since.*\)`)
 }
 
 func (mods *modelSuite) TestClassicDecodeOK(c *C) {
 	encoded := strings.Replace(classicModelExample, "TSLINE", mods.tsLine, 1)
-	a, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	c.Check(a.Type(), Equals, asserts.ModelType)
 	model := a.(*asserts.Model)
 	c.Check(model.AuthorityID(), Equals, "brand-id1")
@@ -755,7 +752,7 @@ func (mods *modelSuite) TestClassicDecodeInvalid(c *C) {
 
 	for _, test := range invalidTests {
 		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
-		_, err := asserts.Decode([]byte(invalid))
+		_ := mylog.Check2(asserts.Decode([]byte(invalid)))
 		c.Check(err, ErrorMatches, modelErrPrefix+test.expectedErr)
 	}
 }
@@ -764,8 +761,8 @@ func (mods *modelSuite) TestClassicDecodeGadgetAndArchOptional(c *C) {
 	encoded := strings.Replace(classicModelExample, "TSLINE", mods.tsLine, 1)
 	encoded = strings.Replace(encoded, "gadget: brand-gadget\n", "", 1)
 	encoded = strings.Replace(encoded, "architecture: amd64\n", "", 1)
-	a, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	c.Check(a.Type(), Equals, asserts.ModelType)
 	model := a.(*asserts.Model)
 	c.Check(model.Classic(), Equals, true)
@@ -793,8 +790,8 @@ func (mods *modelSuite) TestWithSnapsDecodeOK(c *C) {
 func (mods *modelSuite) testWithSnapsDecodeOK(c *C, modelRaw string, isClassic bool) {
 	encoded := strings.Replace(modelRaw, "TSLINE", mods.tsLine, 1)
 	encoded = strings.Replace(encoded, "OTHER", "", 1)
-	a, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	c.Check(a.Type(), Equals, asserts.ModelType)
 	model := a.(*asserts.Model)
 	c.Check(model.AuthorityID(), Equals, "brand-id1")
@@ -916,8 +913,8 @@ func (mods *modelSuite) TestCore20ExplictBootBase(c *C) {
     type: base
     default-channel: latest/candidate
 `, 1)
-	a, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	c.Check(a.Type(), Equals, asserts.ModelType)
 	model := a.(*asserts.Model)
 	c.Check(model.BaseSnap(), DeepEquals, &asserts.ModelSnap{
@@ -938,8 +935,8 @@ func (mods *modelSuite) TestCore20ExplictSnapd(c *C) {
     type: snapd
     default-channel: latest/edge
 `, 1)
-	a, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	c.Check(a.Type(), Equals, asserts.ModelType)
 	model := a.(*asserts.Model)
 	snapdSnap := model.EssentialSnaps()[0]
@@ -958,8 +955,8 @@ func (mods *modelSuite) TestCore20GradeOptionalDefaultSigned(c *C) {
 	encoded = strings.Replace(encoded, "OTHER", "", 1)
 	encoded = strings.Replace(encoded, "grade: secured\n", "", 1)
 
-	a, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	c.Check(a.Type(), Equals, asserts.ModelType)
 	model := a.(*asserts.Model)
 	c.Check(model.Grade(), Equals, asserts.ModelSigned)
@@ -971,8 +968,8 @@ func (mods *modelSuite) TestCore20ValidGrades(c *C) {
 
 	for _, grade := range []string{"signed", "secured", "dangerous"} {
 		ex := strings.Replace(encoded, "grade: secured\n", fmt.Sprintf("grade: %s\n", grade), 1)
-		a, err := asserts.Decode([]byte(ex))
-		c.Assert(err, IsNil)
+		a := mylog.Check2(asserts.Decode([]byte(ex)))
+
 		c.Check(a.Type(), Equals, asserts.ModelType)
 		model := a.(*asserts.Model)
 		c.Check(string(model.Grade()), Equals, grade)
@@ -1004,8 +1001,8 @@ func (mods *modelSuite) TestCore20GradeDangerous(c *C) {
 	// with local/not pushed yet to the store snaps
 	encoded = strings.Replace(encoded, "    id: myappdididididididididididididid\n", "", 1)
 	encoded = strings.Replace(encoded, "    id: brandgadgetdidididididididididid\n", "", 1)
-	a, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	c.Check(a.Type(), Equals, asserts.ModelType)
 	model := a.(*asserts.Model)
 	c.Check(model.Grade(), Equals, asserts.ModelDangerous)
@@ -1033,8 +1030,8 @@ func (mods *modelSuite) TestCore20ValidStorageSafety(c *C) {
 		{asserts.StorageSafetyEncrypted, "encrypted"},
 	} {
 		ex := strings.Replace(encoded, "storage-safety: encrypted\n", fmt.Sprintf("storage-safety: %s\n", tc.sss), 1)
-		a, err := asserts.Decode([]byte(ex))
-		c.Assert(err, IsNil)
+		a := mylog.Check2(asserts.Decode([]byte(ex)))
+
 		c.Check(a.Type(), Equals, asserts.ModelType)
 		model := a.(*asserts.Model)
 		c.Check(model.StorageSafety(), Equals, tc.ss)
@@ -1046,8 +1043,8 @@ func (mods *modelSuite) TestCore20DefaultStorageSafetySecured(c *C) {
 	encoded = strings.Replace(encoded, "OTHER", "", 1)
 	ex := strings.Replace(encoded, "storage-safety: encrypted\n", "", 1)
 
-	a, err := asserts.Decode([]byte(ex))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(ex)))
+
 	c.Check(a.Type(), Equals, asserts.ModelType)
 	model := a.(*asserts.Model)
 	c.Check(model.StorageSafety(), Equals, asserts.StorageSafetyEncrypted)
@@ -1060,8 +1057,8 @@ func (mods *modelSuite) TestCore20DefaultStorageSafetySignedDangerous(c *C) {
 
 	for _, grade := range []string{"dangerous", "signed"} {
 		ex := strings.Replace(encoded, "grade: secured\n", fmt.Sprintf("grade: %s\n", grade), 1)
-		a, err := asserts.Decode([]byte(ex))
-		c.Assert(err, IsNil)
+		a := mylog.Check2(asserts.Decode([]byte(ex)))
+
 		c.Check(a.Type(), Equals, asserts.ModelType)
 		model := a.(*asserts.Model)
 		c.Check(model.StorageSafety(), Equals, asserts.StorageSafetyPreferEncrypted)
@@ -1153,7 +1150,7 @@ func (mods *modelSuite) testWithSnapsDecodeInvalid(c *C, modelRaw string, isClas
 	for _, test := range invalidTests {
 		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
 		invalid = strings.Replace(invalid, "OTHER", "", 1)
-		_, err := asserts.Decode([]byte(invalid))
+		_ := mylog.Check2(asserts.Decode([]byte(invalid)))
 		c.Check(err, ErrorMatches, modelErrPrefix+test.expectedErr)
 	}
 }
@@ -1189,8 +1186,8 @@ func (mods *modelSuite) TestClassicWithSnapsMinimalDecodeOK(c *C) {
 
 	for _, t := range tests {
 		minimal := strings.Replace(encoded, t.originalFrag, t.changedFrag, 1)
-		a, err := asserts.Decode([]byte(minimal))
-		c.Assert(err, IsNil)
+		a := mylog.Check2(asserts.Decode([]byte(minimal)))
+
 		c.Check(a.Type(), Equals, asserts.ModelType)
 		model := a.(*asserts.Model)
 		c.Check(model.Architecture(), Equals, "amd64")
@@ -1399,7 +1396,7 @@ func (mods *modelSuite) TestValidationSetsDecodeInvalid(c *C) {
 
 	for _, t := range tests {
 		data := strings.Replace(encoded, "OTHER", t.frag, 1)
-		_, err := asserts.Decode([]byte(data))
+		_ := mylog.Check2(asserts.Decode([]byte(data)))
 		c.Check(err, ErrorMatches, t.expectedErr)
 	}
 }
@@ -1412,7 +1409,8 @@ func (mods *modelSuite) TestValidationSetsDecodeOK(c *C) {
 	}{
 		// brand validation-set, this should instead use the brand specified
 		// by the core20ModelExample, as account-id is not set
-		{`validation-sets:
+		{
+			`validation-sets:
   -
     name: my-set
     mode: prefer-enforce
@@ -1423,9 +1421,11 @@ func (mods *modelSuite) TestValidationSetsDecodeOK(c *C) {
 					Name:      "my-set",
 					Mode:      asserts.ModelValidationSetModePreferEnforced,
 				},
-			}},
+			},
+		},
 		// pinned set
-		{`validation-sets:
+		{
+			`validation-sets:
   -
     account-id: developer1
     name: my-set
@@ -1439,9 +1439,11 @@ func (mods *modelSuite) TestValidationSetsDecodeOK(c *C) {
 					Sequence:  10,
 					Mode:      asserts.ModelValidationSetModeEnforced,
 				},
-			}},
+			},
+		},
 		// unpinned set
-		{`validation-sets:
+		{
+			`validation-sets:
   -
     account-id: developer1
     name: my-set
@@ -1453,13 +1455,14 @@ func (mods *modelSuite) TestValidationSetsDecodeOK(c *C) {
 					Name:      "my-set",
 					Mode:      asserts.ModelValidationSetModePreferEnforced,
 				},
-			}},
+			},
+		},
 	}
 
 	for _, t := range tests {
 		data := strings.Replace(encoded, "OTHER", t.frag, 1)
-		a, err := asserts.Decode([]byte(data))
-		c.Assert(err, IsNil)
+		a := mylog.Check2(asserts.Decode([]byte(data)))
+
 		c.Check(a.Type(), Equals, asserts.ModelType)
 		model := a.(*asserts.Model)
 		c.Check(model.Architecture(), Equals, "amd64")
@@ -1484,8 +1487,8 @@ func (mods *modelSuite) TestAllSnaps(c *C) {
 	encoded := strings.Replace(core20ModelExample, "TSLINE", mods.tsLine, 1)
 	encoded = strings.Replace(encoded, "OTHER", "", 1)
 
-	a, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	c.Check(a.Type(), Equals, asserts.ModelType)
 
 	model := a.(*asserts.Model)
@@ -1508,8 +1511,8 @@ func (mods *modelSuite) TestAllSnaps(c *C) {
 func (mods *modelSuite) TestDecodeWithComponentsOK(c *C) {
 	encoded := strings.Replace(coreModelWithComponentsExample, "TSLINE", mods.tsLine, 1)
 	encoded = strings.Replace(encoded, "OTHER", "", 1)
-	a, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 
 	c.Check(a.Type(), Equals, asserts.ModelType)
 	model := a.(*asserts.Model)
@@ -1639,7 +1642,7 @@ func (mods *modelSuite) TestDecodeWithComponentsBadPresence1(c *C) {
     components:
       comp1: badpresenceval
 `, 1)
-	a, err := asserts.Decode([]byte(encoded))
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
 	c.Assert(err.Error(), Equals, `assertion model: presence of component "comp1" of snap "somesnap" must be one of required|optional`)
 	c.Assert(a, IsNil)
 }
@@ -1655,7 +1658,7 @@ func (mods *modelSuite) TestDecodeWithComponentsBadPresence2(c *C) {
       comp1:
         presence: badpresenceval
 `, 1)
-	a, err := asserts.Decode([]byte(encoded))
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
 	c.Assert(err.Error(), Equals, `assertion model: presence of component "comp1" of snap "somesnap" must be one of required|optional`)
 	c.Assert(a, IsNil)
 }
@@ -1675,7 +1678,7 @@ func (mods *modelSuite) TestDecodeWithComponentsBadMode(c *C) {
         modes:
           - ephemeral
 `, 1)
-	a, err := asserts.Decode([]byte(encoded))
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
 	c.Assert(err.Error(), Equals, `assertion model: mode "ephemeral" of component "comp1" of snap "somesnap" is incompatible with the snap modes`)
 	c.Assert(a, IsNil)
 }
@@ -1685,29 +1688,37 @@ func (mods *modelSuite) TestDecodeWithComponentsBadContent(c *C) {
 		compsEntry string
 		errMsg     string
 	}{
-		{`    components:
+		{
+			`    components:
       - comp1
       - comp2
 `,
-			`assertion model: "components" of snap "somesnap" must be a map from strings to components`},
-		{`    components:
+			`assertion model: "components" of snap "somesnap" must be a map from strings to components`,
+		},
+		{
+			`    components:
       comp_1: required
 `,
-			`parsing assertion headers: invalid map entry key: "comp_1"`},
-		{`    components:
+			`parsing assertion headers: invalid map entry key: "comp_1"`,
+		},
+		{
+			`    components:
       comp1:
         presence: required
         other: something
 `,
-			`assertion model: entry "other" of component "comp1" of snap "somesnap" is unknown`},
-		{`    components:
+			`assertion model: entry "other" of component "comp1" of snap "somesnap" is unknown`,
+		},
+		{
+			`    components:
       comp1:
         modes:
           - run
 `,
 			`assertion model: "presence" of component "comp1" of snap "somesnap" is mandatory`,
 		},
-		{`    components:
+		{
+			`    components:
       comp1:
         presence: required
         modes:
@@ -1726,7 +1737,7 @@ func (mods *modelSuite) TestDecodeWithComponentsBadContent(c *C) {
     modes:
       - run
 `+tc.compsEntry, 1)
-		a, err := asserts.Decode([]byte(encoded))
+		a := mylog.Check2(asserts.Decode([]byte(encoded)))
 		c.Assert(err.Error(), Equals, tc.errMsg)
 		c.Assert(a, IsNil)
 	}

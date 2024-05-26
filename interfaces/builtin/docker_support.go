@@ -22,6 +22,7 @@ package builtin
 import (
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/kmod"
@@ -1000,10 +1001,10 @@ type dockerSupportInterface struct {
 }
 
 func (iface *dockerSupportInterface) KModConnectedPlug(spec *kmod.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	// https://kubernetes.io/docs/setup/production-environment/container-runtimes/
-	if err := spec.AddModule("overlay"); err != nil {
-		return err
-	}
+	mylog.Check(
+		// https://kubernetes.io/docs/setup/production-environment/container-runtimes/
+		spec.AddModule("overlay"))
+
 	return nil
 }
 
@@ -1030,10 +1031,8 @@ func (iface *dockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 	}
 	// if apparmor supports userns mediation then add this too
 	if apparmor_sandbox.ProbedLevel() != apparmor_sandbox.Unsupported {
-		features, err := apparmor_sandbox.ParserFeatures()
-		if err != nil {
-			return err
-		}
+		features := mylog.Check2(apparmor_sandbox.ParserFeatures())
+
 		if strutil.ListContains(features, "userns") {
 			spec.AddSnippet(dockerSupportConnectedPlugAppArmorUserNS)
 		}

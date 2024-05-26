@@ -12,27 +12,21 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil/inotify"
 )
 
 func TestInotifyEvents(t *testing.T) {
 	// Create an inotify watcher instance and initialize it
-	watcher, err := inotify.NewWatcher()
-	if err != nil {
-		t.Fatalf("NewWatcher failed: %s", err)
-	}
+	watcher := mylog.Check2(inotify.NewWatcher())
 
-	dir, err := os.MkdirTemp("", "inotify")
-	if err != nil {
-		t.Fatalf("TempDir failed: %s", err)
-	}
+	dir := mylog.Check2(os.MkdirTemp("", "inotify"))
+
 	defer os.RemoveAll(dir)
+	mylog.
 
-	// Add a watch for "_test"
-	err = watcher.Watch(dir)
-	if err != nil {
-		t.Fatalf("Watch failed: %s", err)
-	}
+		// Add a watch for "_test"
+		Check(watcher.Watch(dir))
 
 	// Receive errors on the error channel on a separate goroutine
 	go func() {
@@ -62,10 +56,7 @@ func TestInotifyEvents(t *testing.T) {
 
 	// Create a file
 	// This should add at least one event to the inotify event queue
-	_, err = os.OpenFile(testFile, os.O_WRONLY|os.O_CREATE, 0666)
-	if err != nil {
-		t.Fatalf("creating test file: %s", err)
-	}
+	_ = mylog.Check2(os.OpenFile(testFile, os.O_WRONLY|os.O_CREATE, 0666))
 
 	// We expect this event to be received almost immediately, but let's wait 1 s to be sure
 	time.Sleep(1 * time.Second)
@@ -100,31 +91,23 @@ func TestInotifyClose(t *testing.T) {
 	case <-time.After(50 * time.Millisecond):
 		t.Fatal("double Close() test failed: second Close() call didn't return")
 	}
-
-	err := watcher.Watch(os.TempDir())
+	mylog.Check(watcher.Watch(os.TempDir()))
 	if err == nil {
 		t.Fatal("expected error on Watch() after Close(), got nil")
 	}
 }
 
 func TestLockOnEvent(t *testing.T) {
-	watcher, err := inotify.NewWatcher()
+	watcher := mylog.Check2(inotify.NewWatcher())
 
-	if err != nil {
-		t.Fatalf("NewWatcher failed: %s", err)
-	}
+	dir := mylog.Check2(os.MkdirTemp("", "inotify"))
 
-	dir, err := os.MkdirTemp("", "inotify")
-	if err != nil {
-		t.Fatalf("TempDir failed: %s", err)
-	}
 	defer os.RemoveAll(dir)
+	mylog.
 
-	// Add a watch for "_test"
-	err = watcher.Watch(dir)
-	if err != nil {
-		t.Fatalf("Watch failed: %s", err)
-	}
+		// Add a watch for "_test"
+		Check(watcher.Watch(dir))
+
 	os.Mkdir(dir+"/TestInotifyEvents.testfile", 0)
 	// wait one second to ensure that the event is created
 	time.Sleep(1 * time.Second)

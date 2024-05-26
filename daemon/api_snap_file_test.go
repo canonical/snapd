@@ -25,6 +25,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -47,7 +48,7 @@ func (s *snapFileSuite) TestGetFile(c *check.C) {
 		err                      string
 	}
 
-	req, err := http.NewRequest("GET", "/v2/snaps/foo/file", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/snaps/foo/file", nil))
 	c.Assert(err, check.IsNil)
 
 	for i, scen := range []scenario{

@@ -23,6 +23,8 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // Number can hold (and unmarshal) an edition number, used in
@@ -32,14 +34,10 @@ type Number uint32
 
 func (e *Number) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var es string
-	if err := unmarshal(&es); err != nil {
-		return errors.New(`cannot unmarshal "edition"`)
-	}
+	mylog.Check(unmarshal(&es))
 
-	u, err := strconv.ParseUint(es, 10, 32)
-	if err != nil {
-		return fmt.Errorf(`"edition" must be a positive number, not %q`, es)
-	}
+	u := mylog.Check2(strconv.ParseUint(es, 10, 32))
+
 	*e = Number(u)
 	return nil
 }

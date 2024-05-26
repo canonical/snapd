@@ -20,6 +20,7 @@
 package builtin
 
 import (
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/osutil"
@@ -38,18 +39,14 @@ const networkControlBaseDeclarationSlots = `
 `
 
 func (iface *networkControlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	if err := iface.commonInterface.AppArmorConnectedPlug(spec, plug, slot); err != nil {
-		return err
-	}
+	mylog.Check(iface.commonInterface.AppArmorConnectedPlug(spec, plug, slot))
 
 	if apparmor_sandbox.ProbedLevel() == apparmor_sandbox.Unsupported {
 		// no apparmor means we don't have to deal with parser features
 		return nil
 	}
-	features, err := apparmor_sandbox.ParserFeatures()
-	if err != nil {
-		return err
-	}
+	features := mylog.Check2(apparmor_sandbox.ParserFeatures())
+
 	if strutil.ListContains(features, "xdp") {
 		spec.AddSnippet("network xdp,\n")
 	}

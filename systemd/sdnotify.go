@@ -24,6 +24,8 @@ import (
 	"net"
 	"os"
 	"strings"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 var osGetenv = os.Getenv
@@ -48,12 +50,10 @@ func SdNotify(notifyState string) error {
 		Name: notifySocket,
 		Net:  "unixgram",
 	}
-	conn, err := net.DialUnix("unixgram", nil, raddr)
-	if err != nil {
-		return err
-	}
+	conn := mylog.Check2(net.DialUnix("unixgram", nil, raddr))
+
 	defer conn.Close()
 
-	_, err = conn.Write([]byte(notifyState))
+	_ = mylog.Check2(conn.Write([]byte(notifyState)))
 	return err
 }

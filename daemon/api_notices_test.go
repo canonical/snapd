@@ -28,6 +28,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -96,15 +97,15 @@ func (s *noticesSuite) testNoticesFilter(c *C, makeQuery func(after time.Time) u
 	addNotice(c, st, &uid, state.WarningNotice, "warning", nil)
 	after := time.Now()
 	time.Sleep(time.Microsecond)
-	noticeID, err := st.AddNotice(nil, state.ChangeUpdateNotice, "123", &state.AddNoticeOptions{
+	noticeID := mylog.Check2(st.AddNotice(nil, state.ChangeUpdateNotice, "123", &state.AddNoticeOptions{
 		Data: map[string]string{"k": "v"},
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	st.Unlock()
 
 	query := makeQuery(after)
-	req, err := http.NewRequest("GET", "/v2/notices?"+query.Encode(), nil)
-	c.Assert(err, IsNil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/notices?"+query.Encode(), nil))
+
 	req.RemoteAddr = fmt.Sprintf("pid=100;uid=0;socket=%s;", dirs.SnapdSocket)
 	rsp := s.syncReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 200)
@@ -114,14 +115,14 @@ func (s *noticesSuite) testNoticesFilter(c *C, makeQuery func(after time.Time) u
 	c.Assert(notices, HasLen, 1)
 	n := noticeToMap(c, notices[0])
 
-	firstOccurred, err := time.Parse(time.RFC3339, n["first-occurred"].(string))
-	c.Assert(err, IsNil)
+	firstOccurred := mylog.Check2(time.Parse(time.RFC3339, n["first-occurred"].(string)))
+
 	c.Assert(firstOccurred.After(after), Equals, true)
-	lastOccurred, err := time.Parse(time.RFC3339, n["last-occurred"].(string))
-	c.Assert(err, IsNil)
+	lastOccurred := mylog.Check2(time.Parse(time.RFC3339, n["last-occurred"].(string)))
+
 	c.Assert(lastOccurred.Equal(firstOccurred), Equals, true)
-	lastRepeated, err := time.Parse(time.RFC3339, n["last-repeated"].(string))
-	c.Assert(err, IsNil)
+	lastRepeated := mylog.Check2(time.Parse(time.RFC3339, n["last-repeated"].(string)))
+
 	c.Assert(lastRepeated.Equal(firstOccurred), Equals, true)
 
 	delete(n, "first-occurred")
@@ -150,8 +151,8 @@ func (s *noticesSuite) TestNoticesFilterMultipleTypes(c *C) {
 	addNotice(c, st, nil, state.RefreshInhibitNotice, "-", nil)
 	st.Unlock()
 
-	req, err := http.NewRequest("GET", "/v2/notices?types=change-update&types=warning,warning&types=refresh-inhibit", nil)
-	c.Assert(err, IsNil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/notices?types=change-update&types=warning,warning&types=refresh-inhibit", nil))
+
 	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;", dirs.SnapdSocket)
 	rsp := s.syncReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 200)
@@ -179,8 +180,8 @@ func (s *noticesSuite) TestNoticesFilterMultipleKeys(c *C) {
 	addNotice(c, st, nil, state.WarningNotice, "danger", nil)
 	st.Unlock()
 
-	req, err := http.NewRequest("GET", "/v2/notices?keys=456&keys=danger", nil)
-	c.Assert(err, IsNil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/notices?keys=456&keys=danger", nil))
+
 	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;", dirs.SnapdSocket)
 	rsp := s.syncReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 200)
@@ -206,8 +207,8 @@ func (s *noticesSuite) TestNoticesFilterInvalidTypes(c *C) {
 
 	// Check that invalid types are discarded, and notices with remaining
 	// types are requested as expected, without error.
-	req, err := http.NewRequest("GET", "/v2/notices?types=foo&types=warning&types=bar,baz", nil)
-	c.Assert(err, IsNil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/notices?types=foo&types=warning&types=bar,baz", nil))
+
 	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;", dirs.SnapdSocket)
 	rsp := s.syncReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 200)
@@ -220,8 +221,8 @@ func (s *noticesSuite) TestNoticesFilterInvalidTypes(c *C) {
 
 	// Check that if all types are invalid, no notices are returned, and there
 	// is no error.
-	req, err = http.NewRequest("GET", "/v2/notices?types=foo&types=bar,baz", nil)
-	c.Assert(err, IsNil)
+	req = mylog.Check2(http.NewRequest("GET", "/v2/notices?types=foo&types=bar,baz", nil))
+
 	req.RemoteAddr = "pid=100;uid=1000;socket=;"
 	rsp = s.syncReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 200)
@@ -246,8 +247,8 @@ func (s *noticesSuite) TestNoticesShowsTypesAllowedForSnap(c *C) {
 	// allowed notice types based on connected snap interfaces.
 
 	// No connected interface, no notices
-	req, err := http.NewRequest("GET", "/v2/notices", nil)
-	c.Assert(err, IsNil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/notices", nil))
+
 	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;iface=;", dirs.SnapSocket)
 	rsp := s.syncReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 200)
@@ -256,8 +257,8 @@ func (s *noticesSuite) TestNoticesShowsTypesAllowedForSnap(c *C) {
 	c.Assert(notices, HasLen, 0)
 
 	// snap-refresh-observe interface allows accessing change-update and refresh-inhibit notices
-	req, err = http.NewRequest("GET", "/v2/notices", nil)
-	c.Assert(err, IsNil)
+	req = mylog.Check2(http.NewRequest("GET", "/v2/notices", nil))
+
 	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;iface=snap-refresh-observe;", dirs.SnapSocket)
 	rsp = s.syncReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 200)
@@ -291,8 +292,8 @@ func (s *noticesSuite) TestNoticesFilterTypesForSnap(c *C) {
 	// snaps with required interfaces only.
 
 	// snap-refresh-observe interface allows accessing change-update, refresh-inhibit and snap-run-inhibit notices
-	req, err := http.NewRequest("GET", "/v2/notices?types=change-update,refresh-inhibit,snap-run-inhibit", nil)
-	c.Assert(err, IsNil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/notices?types=change-update,refresh-inhibit,snap-run-inhibit", nil))
+
 	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;iface=snap-refresh-observe;", dirs.SnapSocket)
 	rsp := s.syncReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 200)
@@ -326,43 +327,43 @@ func (s *noticesSuite) TestNoticesFilterTypesForSnapForbidden(c *C) {
 	// snaps without required interfaces.
 
 	// snap-refresh-observe doesn't give access to warning notices.
-	req, err := http.NewRequest("GET", "/v2/notices?types=change-update,warning", nil)
-	c.Assert(err, IsNil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/notices?types=change-update,warning", nil))
+
 	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;iface=snap-refresh-observe;", dirs.SnapSocket)
 	rsp := s.errorReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 403)
 
 	// snap-refresh-observe doesn't give access to warning notices.
-	req, err = http.NewRequest("GET", "/v2/notices?types=warning", nil)
-	c.Assert(err, IsNil)
+	req = mylog.Check2(http.NewRequest("GET", "/v2/notices?types=warning", nil))
+
 	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;iface=snap-refresh-observe;", dirs.SnapSocket)
 	rsp = s.errorReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 403)
 
 	// snap-themes-control doesn't give access to change-update notices.
-	req, err = http.NewRequest("GET", "/v2/notices?types=change-update", nil)
-	c.Assert(err, IsNil)
+	req = mylog.Check2(http.NewRequest("GET", "/v2/notices?types=change-update", nil))
+
 	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;iface=snap-themes-control;", dirs.SnapSocket)
 	rsp = s.errorReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 403)
 
 	// snap-themes-control doesn't give access to refresh-inhibit notices.
-	req, err = http.NewRequest("GET", "/v2/notices?types=refresh-inhibit", nil)
-	c.Assert(err, IsNil)
+	req = mylog.Check2(http.NewRequest("GET", "/v2/notices?types=refresh-inhibit", nil))
+
 	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;iface=snap-themes-control;", dirs.SnapSocket)
 	rsp = s.errorReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 403)
 
 	// snap-themes-control doesn't give access to snap-run-inhibit notices.
-	req, err = http.NewRequest("GET", "/v2/notices?types=snap-run-inhibit", nil)
-	c.Assert(err, IsNil)
+	req = mylog.Check2(http.NewRequest("GET", "/v2/notices?types=snap-run-inhibit", nil))
+
 	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;iface=snap-themes-control;", dirs.SnapSocket)
 	rsp = s.errorReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 403)
 
 	// No interfaces connected.
-	req, err = http.NewRequest("GET", "/v2/notices?types=change-update,refresh-inhibit,snap-run-inhibit", nil)
-	c.Assert(err, IsNil)
+	req = mylog.Check2(http.NewRequest("GET", "/v2/notices?types=change-update,refresh-inhibit,snap-run-inhibit", nil))
+
 	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;iface=;", dirs.SnapSocket)
 	rsp = s.errorReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 403)
@@ -386,8 +387,8 @@ func (s *noticesSuite) TestNoticesUserIDAdminDefault(c *C) {
 	st.Unlock()
 
 	// Test that admin user sees their own and all public notices if no filter is specified
-	req, err := http.NewRequest("GET", "/v2/notices", nil)
-	c.Assert(err, IsNil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/notices", nil))
+
 	req.RemoteAddr = fmt.Sprintf("pid=100;uid=0;socket=%s;", dirs.SnapdSocket)
 	rsp := s.syncReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 200)
@@ -425,8 +426,8 @@ func (s *noticesSuite) TestNoticesUserIDAdminFilter(c *C) {
 		userIDValues := url.Values{}
 		userIDValues.Add("user-id", strconv.FormatUint(uint64(uid), 10))
 		reqUrl := fmt.Sprintf("/v2/notices?%s", userIDValues.Encode())
-		req, err := http.NewRequest("GET", reqUrl, nil)
-		c.Assert(err, IsNil)
+		req := mylog.Check2(http.NewRequest("GET", reqUrl, nil))
+
 		req.RemoteAddr = fmt.Sprintf("pid=100;uid=0;socket=%s;", dirs.SnapdSocket)
 		rsp := s.syncReq(c, req, nil)
 		c.Check(rsp.Status, Equals, 200)
@@ -459,8 +460,8 @@ func (s *noticesSuite) TestNoticesUserIDNonAdminDefault(c *C) {
 	st.Unlock()
 
 	// Test that non-admin user by default only sees their notices and public notices.
-	req, err := http.NewRequest("GET", "/v2/notices", nil)
-	c.Assert(err, IsNil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/notices", nil))
+
 	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;", dirs.SnapdSocket)
 	rsp := s.syncReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 200)
@@ -487,8 +488,8 @@ func (s *noticesSuite) TestNoticesUserIDNonAdminFilter(c *C) {
 
 	// Test that non-admin user may not use --user-id filter
 	reqUrl := "/v2/notices?user-id=1000"
-	req, err := http.NewRequest("GET", reqUrl, nil)
-	c.Assert(err, IsNil)
+	req := mylog.Check2(http.NewRequest("GET", reqUrl, nil))
+
 	req.RemoteAddr = "pid=100;uid=1000;socket=;"
 	rsp := s.errorReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 403)
@@ -513,7 +514,7 @@ func (s *noticesSuite) TestNoticesUsersAdminFilter(c *C) {
 
 	// Test that admin user may get all notices with --users=all filter
 	reqUrl := "/v2/notices?users=all"
-	req, err := http.NewRequest("GET", reqUrl, nil)
+	req := mylog.Check2(http.NewRequest("GET", reqUrl, nil))
 	c.Check(err, IsNil)
 	req.RemoteAddr = fmt.Sprintf("pid=100;uid=0;socket=%s;", dirs.SnapdSocket)
 	rsp := s.syncReq(c, req, nil)
@@ -547,7 +548,7 @@ func (s *noticesSuite) TestNoticesUsersNonAdminFilter(c *C) {
 
 	// Test that non-admin user may not use --users filter
 	reqUrl := "/v2/notices?users=all"
-	req, err := http.NewRequest("GET", reqUrl, nil)
+	req := mylog.Check2(http.NewRequest("GET", reqUrl, nil))
 	c.Check(err, IsNil)
 	req.RemoteAddr = "pid=100;uid=1000;socket=;"
 	rsp := s.errorReq(c, req, nil)
@@ -563,8 +564,8 @@ func (s *noticesSuite) TestNoticesUnknownRequestUID(c *C) {
 	st.Unlock()
 
 	// Test that a connection with unknown UID is forbidden from receiving notices
-	req, err := http.NewRequest("GET", "/v2/notices", nil)
-	c.Assert(err, IsNil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/notices", nil))
+
 	req.RemoteAddr = "pid=100;uid=;socket=;"
 	rsp := s.errorReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 403)
@@ -582,8 +583,8 @@ func (s *noticesSuite) TestNoticesWait(c *C) {
 	}()
 
 	timeout := testutil.HostScaledTimeout(5 * time.Second).String()
-	req, err := http.NewRequest("GET", "/v2/notices?timeout="+timeout, nil)
-	c.Assert(err, IsNil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/notices?timeout="+timeout, nil))
+
 	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;", dirs.SnapdSocket)
 	rsp := s.syncReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 200)
@@ -600,8 +601,8 @@ func (s *noticesSuite) TestNoticesWait(c *C) {
 func (s *noticesSuite) TestNoticesTimeout(c *C) {
 	s.daemon(c)
 
-	req, err := http.NewRequest("GET", "/v2/notices?timeout=1ms", nil)
-	c.Assert(err, IsNil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/notices?timeout=1ms", nil))
+
 	req.RemoteAddr = "pid=100;uid=1000;socket=;"
 	rsp := s.syncReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 200)
@@ -627,8 +628,8 @@ func (s *noticesSuite) TestNoticesRequestCancelled(c *C) {
 		cancel()
 	}()
 
-	req, err := http.NewRequestWithContext(ctx, "GET", "/v2/notices?timeout="+reqTimeout.String(), nil)
-	c.Assert(err, IsNil)
+	req := mylog.Check2(http.NewRequestWithContext(ctx, "GET", "/v2/notices?timeout="+reqTimeout.String(), nil))
+
 	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;", dirs.SnapdSocket)
 	rsp := s.errorReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 400)
@@ -674,8 +675,8 @@ func (s *noticesSuite) TestNoticesInvalidTimeout(c *C) {
 func (s *noticesSuite) testNoticesBadRequest(c *C, query, errorMatch string) {
 	s.daemon(c)
 
-	req, err := http.NewRequest("GET", "/v2/notices?"+query, nil)
-	c.Assert(err, IsNil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/notices?"+query, nil))
+
 	req.RemoteAddr = fmt.Sprintf("pid=100;uid=0;socket=%s;", dirs.SnapdSocket)
 	rsp := s.errorReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 400)
@@ -703,8 +704,8 @@ func (s *noticesSuite) TestSanitizeNoticeTypesFilterDuplicateGivenTypes(c *C) {
 		state.RefreshInhibitNotice,
 	}
 	// Request unnecessary since explicitly-specified types are validated later.
-	result, err := daemon.SanitizeNoticeTypesFilter(typeStrs, nil)
-	c.Assert(err, IsNil)
+	result := mylog.Check2(daemon.SanitizeNoticeTypesFilter(typeStrs, nil))
+
 	c.Check(result, DeepEquals, types)
 }
 
@@ -731,11 +732,11 @@ func (s *noticesSuite) TestSanitizeNoticeTypesFilterDuplicateDefaultTypes(c *C) 
 
 	// Check that multiple interfaces which grant the same notice type do not
 	// result in duplicates of that type
-	req, err := http.NewRequest("GET", "/v2/notices", nil)
-	c.Assert(err, IsNil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/notices", nil))
+
 	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;iface=%s&%s;", dirs.SnapSocket, ifaces[0], ifaces[1])
-	result, err := daemon.SanitizeNoticeTypesFilter(nil, req)
-	c.Assert(err, IsNil)
+	result := mylog.Check2(daemon.SanitizeNoticeTypesFilter(nil, req))
+
 	c.Check(result, DeepEquals, types[:2])
 }
 
@@ -761,16 +762,16 @@ func (s *noticesSuite) TestNoticeTypesViewableBySnap(c *C) {
 	defer restore()
 
 	// Check notice types granted by different connected interfaces.
-	req, err := http.NewRequest("GET", "/v2/notices", nil)
-	c.Assert(err, IsNil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/notices", nil))
+
 	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;iface=%s&%s;", dirs.SnapSocket, ifaces[0], ifaces[2])
 	requestedTypes := []state.NoticeType{types[0], types[1], types[2]}
 	viewable := daemon.NoticeTypesViewableBySnap(requestedTypes, req)
 	c.Check(viewable, Equals, true)
 
 	// Check notice types granted by the same connected interface.
-	req, err = http.NewRequest("GET", "/v2/notices", nil)
-	c.Assert(err, IsNil)
+	req = mylog.Check2(http.NewRequest("GET", "/v2/notices", nil))
+
 	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;iface=%s&%s;", dirs.SnapSocket, ifaces[0], ifaces[1])
 	// Types viewable by both interfaces
 	requestedTypes = []state.NoticeType{types[0]}
@@ -791,8 +792,8 @@ func (s *noticesSuite) TestNoticeTypesViewableBySnap(c *C) {
 
 	// Check no types results in not viewable, no matter what
 	requestedTypes = make([]state.NoticeType, 0)
-	req, err = http.NewRequest("GET", "/v2/notices", nil)
-	c.Assert(err, IsNil)
+	req = mylog.Check2(http.NewRequest("GET", "/v2/notices", nil))
+
 	// No "iface=" field given
 	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;", dirs.SnapSocket)
 	viewable = daemon.NoticeTypesViewableBySnap(requestedTypes, req)
@@ -832,14 +833,14 @@ func (s *noticesSuite) TestAddNotice(c *C) {
 		"type": "snap-run-inhibit",
 		"key": "snap-name"
 	}`)
-	req, err := http.NewRequest("POST", "/v2/notices", bytes.NewReader(body))
-	c.Assert(err, IsNil)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/notices", bytes.NewReader(body)))
+
 	req.RemoteAddr = "pid=100;uid=1000;socket=;"
 	rsp := s.syncReq(c, req, nil)
 	c.Assert(rsp.Status, Equals, 200)
 
-	resultBytes, err := json.Marshal(rsp.Result)
-	c.Assert(err, IsNil)
+	resultBytes := mylog.Check2(json.Marshal(rsp.Result))
+
 
 	st.Lock()
 	notices := st.Notices(nil)
@@ -850,14 +851,14 @@ func (s *noticesSuite) TestAddNotice(c *C) {
 	c.Assert(ok, Equals, true)
 	c.Assert(string(resultBytes), Equals, `{"id":"`+noticeID+`"}`)
 
-	firstOccurred, err := time.Parse(time.RFC3339, n["first-occurred"].(string))
-	c.Assert(err, IsNil)
+	firstOccurred := mylog.Check2(time.Parse(time.RFC3339, n["first-occurred"].(string)))
+
 	c.Assert(firstOccurred.After(start), Equals, true)
-	lastOccurred, err := time.Parse(time.RFC3339, n["last-occurred"].(string))
-	c.Assert(err, IsNil)
+	lastOccurred := mylog.Check2(time.Parse(time.RFC3339, n["last-occurred"].(string)))
+
 	c.Assert(lastOccurred.Equal(firstOccurred), Equals, true)
-	lastRepeated, err := time.Parse(time.RFC3339, n["last-repeated"].(string))
-	c.Assert(err, IsNil)
+	lastRepeated := mylog.Check2(time.Parse(time.RFC3339, n["last-repeated"].(string)))
+
 	c.Assert(lastRepeated.Equal(firstOccurred), Equals, true)
 
 	delete(n, "first-occurred")
@@ -881,8 +882,8 @@ func (s *noticesSuite) TestAddNoticeInvalidRequestUid(c *C) {
 		"type": "snap-run-inhibit",
 		"key": "snap-name"
 	}`)
-	req, err := http.NewRequest("POST", "/v2/notices", bytes.NewReader(body))
-	c.Assert(err, IsNil)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/notices", bytes.NewReader(body)))
+
 	req.RemoteAddr = "pid=100;uid=;socket=;"
 	rsp := s.errorReq(c, req, nil)
 	c.Assert(rsp.Status, Equals, 403)
@@ -905,12 +906,12 @@ func (s *noticesSuite) TestAddNoticeEmptyKey(c *C) {
 }
 
 func (s *noticesSuite) TestAddNoticeKeyTooLong(c *C) {
-	request, err := json.Marshal(map[string]any{
+	request := mylog.Check2(json.Marshal(map[string]any{
 		"action": "add",
 		"type":   "snap-run-inhibit",
 		"key":    strings.Repeat("x", 257),
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	s.testAddNoticeBadRequest(c, string(request), "cannot add snap-run-inhibit notice with invalid key: key must be 256 bytes or less")
 }
 
@@ -928,8 +929,8 @@ func (s *noticesSuite) testAddNoticeBadRequest(c *C, body, errorMatch string) {
 	})
 	defer restore()
 
-	req, err := http.NewRequest("POST", "/v2/notices", strings.NewReader(body))
-	c.Assert(err, IsNil)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/notices", strings.NewReader(body)))
+
 	req.RemoteAddr = "pid=100;uid=1000;socket=;"
 	rsp := s.errorReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 400)
@@ -976,8 +977,8 @@ func (s *noticesSuite) testAddNoticesSnapCmd(c *C, exePath string, shouldFail bo
 		"type": "snap-run-inhibit",
 		"key": "snap-name"
 	}`)
-	req, err := http.NewRequest("POST", "/v2/notices", bytes.NewReader(body))
-	c.Assert(err, IsNil)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/notices", bytes.NewReader(body)))
+
 	req.RemoteAddr = "pid=100;uid=1000;socket=;"
 
 	if shouldFail {
@@ -996,16 +997,16 @@ func (s *noticesSuite) TestNotice(c *C) {
 	st := s.d.Overlord().State()
 	st.Lock()
 	addNotice(c, st, nil, state.WarningNotice, "foo", nil)
-	noticeIDPublic, err := st.AddNotice(nil, state.WarningNotice, "bar", nil)
-	c.Assert(err, IsNil)
+	noticeIDPublic := mylog.Check2(st.AddNotice(nil, state.WarningNotice, "bar", nil))
+
 	uid := uint32(1000)
-	noticeIDPrivate, err := st.AddNotice(&uid, state.WarningNotice, "fizz", nil)
-	c.Assert(err, IsNil)
+	noticeIDPrivate := mylog.Check2(st.AddNotice(&uid, state.WarningNotice, "fizz", nil))
+
 	addNotice(c, st, &uid, state.WarningNotice, "baz", nil)
 	st.Unlock()
 
-	req, err := http.NewRequest("GET", "/v2/notices/"+noticeIDPublic, nil)
-	c.Assert(err, IsNil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/notices/"+noticeIDPublic, nil))
+
 	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;", dirs.SnapdSocket)
 	rsp := s.syncReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 200)
@@ -1017,8 +1018,8 @@ func (s *noticesSuite) TestNotice(c *C) {
 	c.Check(n["type"], Equals, "warning")
 	c.Check(n["key"], Equals, "bar")
 
-	req, err = http.NewRequest("GET", "/v2/notices/"+noticeIDPrivate, nil)
-	c.Assert(err, IsNil)
+	req = mylog.Check2(http.NewRequest("GET", "/v2/notices/"+noticeIDPrivate, nil))
+
 	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;", dirs.SnapdSocket)
 	rsp = s.syncReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 200)
@@ -1034,8 +1035,8 @@ func (s *noticesSuite) TestNotice(c *C) {
 func (s *noticesSuite) TestNoticeNotFound(c *C) {
 	s.daemon(c)
 
-	req, err := http.NewRequest("GET", "/v2/notices/1234", nil)
-	c.Assert(err, IsNil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/notices/1234", nil))
+
 	req.RemoteAddr = "pid=100;uid=1000;socket=;"
 	rsp := s.errorReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 404)
@@ -1044,8 +1045,8 @@ func (s *noticesSuite) TestNoticeNotFound(c *C) {
 func (s *noticesSuite) TestNoticeUnknownRequestUID(c *C) {
 	s.daemon(c)
 
-	req, err := http.NewRequest("GET", "/v2/notices/1234", nil)
-	c.Assert(err, IsNil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/notices/1234", nil))
+
 	req.RemoteAddr = "pid=100;uid=;socket=;"
 	rsp := s.errorReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 403)
@@ -1057,12 +1058,12 @@ func (s *noticesSuite) TestNoticeAdminAllowed(c *C) {
 	st := s.d.Overlord().State()
 	st.Lock()
 	uid := uint32(1000)
-	noticeID, err := st.AddNotice(&uid, state.WarningNotice, "danger", nil)
-	c.Assert(err, IsNil)
+	noticeID := mylog.Check2(st.AddNotice(&uid, state.WarningNotice, "danger", nil))
+
 	st.Unlock()
 
-	req, err := http.NewRequest("GET", "/v2/notices/"+noticeID, nil)
-	c.Assert(err, IsNil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/notices/"+noticeID, nil))
+
 	req.RemoteAddr = fmt.Sprintf("pid=100;uid=0;socket=%s;", dirs.SnapdSocket)
 	rsp := s.syncReq(c, req, nil)
 	c.Assert(rsp.Status, Equals, 200)
@@ -1081,12 +1082,12 @@ func (s *noticesSuite) TestNoticeNonAdminNotAllowed(c *C) {
 	st := s.d.Overlord().State()
 	st.Lock()
 	uid := uint32(1000)
-	noticeID, err := st.AddNotice(&uid, state.WarningNotice, "danger", nil)
-	c.Assert(err, IsNil)
+	noticeID := mylog.Check2(st.AddNotice(&uid, state.WarningNotice, "danger", nil))
+
 	st.Unlock()
 
-	req, err := http.NewRequest("GET", "/v2/notices/"+noticeID, nil)
-	c.Assert(err, IsNil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/notices/"+noticeID, nil))
+
 	req.RemoteAddr = "pid=100;uid=1001;socket=;"
 	rsp := s.errorReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 403)
@@ -1097,15 +1098,15 @@ func (s *noticesSuite) TestNoticeSnapAllowed(c *C) {
 
 	st := s.d.Overlord().State()
 	st.Lock()
-	changeUpdateNoticeID, err := st.AddNotice(nil, state.ChangeUpdateNotice, "123", nil)
-	c.Assert(err, IsNil)
-	refreshInhibitNoticeID, err := st.AddNotice(nil, state.RefreshInhibitNotice, "-", nil)
-	c.Assert(err, IsNil)
+	changeUpdateNoticeID := mylog.Check2(st.AddNotice(nil, state.ChangeUpdateNotice, "123", nil))
+
+	refreshInhibitNoticeID := mylog.Check2(st.AddNotice(nil, state.RefreshInhibitNotice, "-", nil))
+
 	st.Unlock()
 
 	// snap-refresh-observe interface allows accessing change-update notices
-	req, err := http.NewRequest("GET", "/v2/notices/"+changeUpdateNoticeID, nil)
-	c.Assert(err, IsNil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/notices/"+changeUpdateNoticeID, nil))
+
 	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1001;socket=%s;iface=snap-refresh-observe;", dirs.SnapSocket)
 	rsp := s.syncReq(c, req, nil)
 	c.Assert(rsp.Status, Equals, 200)
@@ -1117,8 +1118,8 @@ func (s *noticesSuite) TestNoticeSnapAllowed(c *C) {
 	c.Check(n["key"], Equals, "123")
 
 	// snap-refresh-observe interface allows accessing refresh-inhibit notices
-	req, err = http.NewRequest("GET", "/v2/notices/"+refreshInhibitNoticeID, nil)
-	c.Assert(err, IsNil)
+	req = mylog.Check2(http.NewRequest("GET", "/v2/notices/"+refreshInhibitNoticeID, nil))
+
 	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1001;socket=%s;iface=snap-refresh-observe;", dirs.SnapSocket)
 	rsp = s.syncReq(c, req, nil)
 	c.Assert(rsp.Status, Equals, 200)
@@ -1135,58 +1136,58 @@ func (s *noticesSuite) TestNoticeSnapNotAllowed(c *C) {
 
 	st := s.d.Overlord().State()
 	st.Lock()
-	changeUpdateNoticeID, err := st.AddNotice(nil, state.ChangeUpdateNotice, "123", nil)
-	c.Assert(err, IsNil)
-	refreshInhibitNoticeID, err := st.AddNotice(nil, state.RefreshInhibitNotice, "-", nil)
-	c.Assert(err, IsNil)
-	warningNoticeID, err := st.AddNotice(nil, state.WarningNotice, "danger", nil)
-	c.Assert(err, IsNil)
+	changeUpdateNoticeID := mylog.Check2(st.AddNotice(nil, state.ChangeUpdateNotice, "123", nil))
+
+	refreshInhibitNoticeID := mylog.Check2(st.AddNotice(nil, state.RefreshInhibitNotice, "-", nil))
+
+	warningNoticeID := mylog.Check2(st.AddNotice(nil, state.WarningNotice, "danger", nil))
+
 	st.Unlock()
 
 	// snap-refresh-observe doesn't give access to warning notices.
-	req, err := http.NewRequest("GET", "/v2/notices/"+warningNoticeID, nil)
-	c.Assert(err, IsNil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/notices/"+warningNoticeID, nil))
+
 	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;iface=snap-refresh-observe;", dirs.SnapSocket)
 	rsp := s.errorReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 403)
 
 	// snap-themes-control doesn't give access to change-update notices.
-	req, err = http.NewRequest("GET", "/v2/notices/"+changeUpdateNoticeID, nil)
-	c.Assert(err, IsNil)
+	req = mylog.Check2(http.NewRequest("GET", "/v2/notices/"+changeUpdateNoticeID, nil))
+
 	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;iface=snap-themes-control;", dirs.SnapSocket)
 	rsp = s.errorReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 403)
 
 	// snap-themes-control doesn't give access to refresh-inhibit notices.
-	req, err = http.NewRequest("GET", "/v2/notices/"+refreshInhibitNoticeID, nil)
-	c.Assert(err, IsNil)
+	req = mylog.Check2(http.NewRequest("GET", "/v2/notices/"+refreshInhibitNoticeID, nil))
+
 	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;iface=snap-themes-control;", dirs.SnapSocket)
 	rsp = s.errorReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 403)
 
 	// No interface connected.
-	req, err = http.NewRequest("GET", "/v2/notices/"+changeUpdateNoticeID, nil)
-	c.Assert(err, IsNil)
+	req = mylog.Check2(http.NewRequest("GET", "/v2/notices/"+changeUpdateNoticeID, nil))
+
 	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;iface=;", dirs.SnapSocket)
 	rsp = s.errorReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 403)
-	req, err = http.NewRequest("GET", "/v2/notices/"+refreshInhibitNoticeID, nil)
-	c.Assert(err, IsNil)
+	req = mylog.Check2(http.NewRequest("GET", "/v2/notices/"+refreshInhibitNoticeID, nil))
+
 	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;iface=;", dirs.SnapSocket)
 	rsp = s.errorReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 403)
 }
 
 func noticeToMap(c *C, notice *state.Notice) map[string]any {
-	buf, err := json.Marshal(notice)
-	c.Assert(err, IsNil)
+	buf := mylog.Check2(json.Marshal(notice))
+
 	var n map[string]any
-	err = json.Unmarshal(buf, &n)
-	c.Assert(err, IsNil)
+	mylog.Check(json.Unmarshal(buf, &n))
+
 	return n
 }
 
 func addNotice(c *C, st *state.State, userID *uint32, noticeType state.NoticeType, key string, options *state.AddNoticeOptions) {
-	_, err := st.AddNotice(userID, noticeType, key, options)
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(st.AddNotice(userID, noticeType, key, options))
+
 }

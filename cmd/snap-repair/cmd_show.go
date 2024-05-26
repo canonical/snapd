@@ -23,6 +23,8 @@ import (
 	"fmt"
 	"io"
 	"strings"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 func init() {
@@ -30,11 +32,7 @@ func init() {
 		short = "Shows specific repairs run on this device"
 		long  = ""
 	)
-
-	if _, err := parser.AddCommand("show", short, long, &cmdShow{}); err != nil {
-		panic(err)
-	}
-
+	mylog.Check2(parser.AddCommand("show", short, long, &cmdShow{}))
 }
 
 type cmdShow struct {
@@ -51,10 +49,8 @@ func showRepairDetails(w io.Writer, repair string) error {
 	brand := repair[:i]
 	seq := repair[i+1:]
 
-	repairTraces, err := newRepairTraces(brand, seq)
-	if err != nil {
-		return err
-	}
+	repairTraces := mylog.Check2(newRepairTraces(brand, seq))
+
 	if len(repairTraces) == 0 {
 		return fmt.Errorf("cannot find repair \"%s-%s\"", brand, seq)
 	}
@@ -66,14 +62,11 @@ func showRepairDetails(w io.Writer, repair string) error {
 		fmt.Fprintf(w, "summary: %s\n", trace.Summary())
 
 		fmt.Fprintf(w, "script:\n")
-		if err := trace.WriteScriptIndented(w, 2); err != nil {
-			fmt.Fprintf(w, "%serror: %s\n", indentPrefix(2), err)
-		}
+		mylog.Check(trace.WriteScriptIndented(w, 2))
 
 		fmt.Fprintf(w, "output:\n")
-		if err := trace.WriteOutputIndented(w, 2); err != nil {
-			fmt.Fprintf(w, "%serror: %s\n", indentPrefix(2), err)
-		}
+		mylog.Check(trace.WriteOutputIndented(w, 2))
+
 	}
 
 	return nil
@@ -81,9 +74,8 @@ func showRepairDetails(w io.Writer, repair string) error {
 
 func (c *cmdShow) Execute([]string) error {
 	for _, repair := range c.Positional.Repair {
-		if err := showRepairDetails(Stdout, repair); err != nil {
-			return err
-		}
+		mylog.Check(showRepairDetails(Stdout, repair))
+
 		fmt.Fprintf(Stdout, "\n")
 	}
 

@@ -10,6 +10,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 const (
@@ -26,10 +28,7 @@ func fail(err error) {
 
 func main() {
 	fset := token.NewFileSet()
-	pkgs, err := parser.ParseDir(fset, "../client", nil, parser.ParseComments)
-	if err != nil {
-		fail(err)
-	}
+	pkgs := mylog.Check2(parser.ParseDir(fset, "../client", nil, parser.ParseComments))
 
 	p := doc.New(pkgs["client"], "github.com/snapcore/snapd/client", 0)
 	var errorKindT *doc.Type
@@ -62,11 +61,10 @@ func main() {
 				fmt.Printf("%#v\n", spec)
 				continue
 			}
-			kind, err := strconv.Unquote(vs.Values[0].(*ast.BasicLit).Value)
-			if err != nil {
-				// unexpected
-				fail(err)
-			}
+			kind := mylog.Check2(strconv.Unquote(vs.Values[0].(*ast.BasicLit).Value))
+
+			// unexpected
+
 			doc := vs.Doc.Text()
 			name := vs.Names[0]
 			pfx := name.String() + ":"

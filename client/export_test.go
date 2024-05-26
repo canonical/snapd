@@ -23,6 +23,8 @@ import (
 	"encoding/json"
 	"io"
 	"net/url"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // SetDoer sets the client's doer to the given one
@@ -41,14 +43,16 @@ func (client *Client) Do(method, path string, query url.Values, body io.Reader, 
 var ParseErrorInTest = parseError
 
 // expose read and write auth helpers for testing
-var TestWriteAuth = writeAuthData
-var TestReadAuth = readAuthData
-var TestStoreAuthFilename = storeAuthDataFilename
+var (
+	TestWriteAuth         = writeAuthData
+	TestReadAuth          = readAuthData
+	TestStoreAuthFilename = storeAuthDataFilename
+)
 
 var TestAuthFileEnvKey = authFileEnvKey
 
 func UnmarshalSnapshotAction(body io.Reader) (act snapshotAction, err error) {
-	err = json.NewDecoder(body).Decode(&act)
+	mylog.Check(json.NewDecoder(body).Decode(&act))
 	return
 }
 

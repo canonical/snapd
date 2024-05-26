@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/httputil"
@@ -70,17 +71,10 @@ func RefreshSnapDeclarations(s *state.State, userID int, opts *RefreshAssertions
 		opts = &RefreshAssertionsOptions{}
 	}
 
-	deviceCtx, err := snapstate.DevicePastSeeding(s, nil)
-	if err != nil {
-		return err
-	}
+	deviceCtx := mylog.Check2(snapstate.DevicePastSeeding(s, nil))
 
-	snapStates, err := snapstate.All(s)
-	if err != nil {
-		return nil
-	}
-
-	err = bulkRefreshSnapDeclarations(s, snapStates, userID, deviceCtx, opts)
+	snapStates := mylog.Check2(snapstate.All(s))
+	mylog.Check(bulkRefreshSnapDeclarations(s, snapStates, userID, deviceCtx, opts))
 	if err == nil {
 		// done
 		return nil
@@ -100,17 +94,13 @@ func RefreshSnapDeclarations(s *state.State, userID int, opts *RefreshAssertions
 			if sideInfo.SnapID == "" {
 				continue
 			}
-			if err := snapasserts.FetchSnapDeclaration(f, sideInfo.SnapID); err != nil {
-				if notRetried, ok := err.(*httputil.PersistentNetworkError); ok {
-					return notRetried
-				}
-				return fmt.Errorf("cannot refresh snap-declaration for %q: %v", instanceName, err)
-			}
+			mylog.Check(snapasserts.FetchSnapDeclaration(f, sideInfo.SnapID))
+
 		}
 
 		// fetch store assertion if available
 		if modelAs.Store() != "" {
-			err := snapasserts.FetchStore(f, modelAs.Store())
+			mylog.Check(snapasserts.FetchStore(f, modelAs.Store()))
 			if err != nil && !errors.Is(err, &asserts.NotFoundError{}) {
 				return err
 			}
@@ -148,15 +138,11 @@ func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, ignoreValidation 
 	gatingNames := make(map[string]string)
 
 	db := DB(s)
-	snapStates, err := snapstate.All(s)
-	if err != nil {
-		return nil, err
-	}
+	snapStates := mylog.Check2(snapstate.All(s))
+
 	for instanceName, snapst := range snapStates {
-		info, err := snapst.CurrentInfo()
-		if err != nil {
-			return nil, err
-		}
+		info := mylog.Check2(snapst.CurrentInfo())
+
 		if info.SnapID == "" {
 			continue
 		}
@@ -164,13 +150,11 @@ func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, ignoreValidation 
 		if gatingNames[gatingID] != "" {
 			continue
 		}
-		a, err := db.Find(asserts.SnapDeclarationType, map[string]string{
+		a := mylog.Check2(db.Find(asserts.SnapDeclarationType, map[string]string{
 			"series":  release.Series,
 			"snap-id": gatingID,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("internal error: cannot find snap declaration for installed snap %q: %v", instanceName, err)
-		}
+		}))
+
 		decl := a.(*asserts.SnapDeclaration)
 		control := decl.RefreshControl()
 		if len(control) == 0 {
@@ -203,29 +187,21 @@ func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, ignoreValidation 
 					Type:       asserts.ValidationType,
 					PrimaryKey: []string{release.Series, gatingID, gatedID, candInfo.Revision.String()},
 				}
-				err := f.Fetch(valref)
+				mylog.Check(f.Fetch(valref))
 				if notFound, ok := err.(*asserts.NotFoundError); ok && notFound.Type == asserts.ValidationType {
 					return fmt.Errorf("no validation by %q", gatingNames[gatingID])
 				}
-				if err != nil {
-					return fmt.Errorf("cannot find validation by %q: %v", gatingNames[gatingID], err)
-				}
+
 				validationRefs = append(validationRefs, valref)
 			}
 			return nil
 		}
-		err := doFetch(s, userID, deviceCtx, nil, fetching)
-		if err != nil {
-			errs = append(errs, fmt.Errorf("cannot refresh %q to revision %s: %v", candInfo.InstanceName(), candInfo.Revision, err))
-			continue
-		}
+		mylog.Check(doFetch(s, userID, deviceCtx, nil, fetching))
 
 		var revoked *asserts.Validation
 		for _, valref := range validationRefs {
-			a, err := valref.Resolve(db.Find)
-			if err != nil {
-				return nil, findError("internal error: cannot find just fetched %v", valref, err)
-			}
+			a := mylog.Check2(valref.Resolve(db.Find))
+
 			if val := a.(*asserts.Validation); val.Revoked() {
 				revoked = val
 				break
@@ -260,33 +236,27 @@ func BaseDeclaration(s *state.State) (*asserts.BaseDeclaration, error) {
 // SnapDeclaration returns the snap-declaration for the given snap-id if it is present in the system assertion database.
 func SnapDeclaration(s *state.State, snapID string) (*asserts.SnapDeclaration, error) {
 	db := DB(s)
-	a, err := db.Find(asserts.SnapDeclarationType, map[string]string{
+	a := mylog.Check2(db.Find(asserts.SnapDeclarationType, map[string]string{
 		"series":  release.Series,
 		"snap-id": snapID,
-	})
-	if err != nil {
-		return nil, err
-	}
+	}))
+
 	return a.(*asserts.SnapDeclaration), nil
 }
 
 // Publisher returns the account assertion for publisher of the given snap-id if it is present in the system assertion database.
 func Publisher(s *state.State, snapID string) (*asserts.Account, error) {
 	db := DB(s)
-	a, err := db.Find(asserts.SnapDeclarationType, map[string]string{
+	a := mylog.Check2(db.Find(asserts.SnapDeclarationType, map[string]string{
 		"series":  release.Series,
 		"snap-id": snapID,
-	})
-	if err != nil {
-		return nil, err
-	}
+	}))
+
 	snapDecl := a.(*asserts.SnapDeclaration)
-	a, err = db.Find(asserts.AccountType, map[string]string{
+	a = mylog.Check2(db.Find(asserts.AccountType, map[string]string{
 		"account-id": snapDecl.PublisherID(),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("internal error: cannot find account assertion for the publisher of snap %q: %v", snapDecl.SnapName(), err)
-	}
+	}))
+
 	return a.(*asserts.Account), nil
 }
 
@@ -296,10 +266,8 @@ func PublisherStoreAccount(st *state.State, snapID string) (snap.StoreAccount, e
 		return snap.StoreAccount{}, nil
 	}
 
-	pubAcct, err := Publisher(st, snapID)
-	if err != nil {
-		return snap.StoreAccount{}, fmt.Errorf("cannot find publisher details: %v", err)
-	}
+	pubAcct := mylog.Check2(Publisher(st, snapID))
+
 	return snap.StoreAccount{
 		ID:          pubAcct.AccountID(),
 		Username:    pubAcct.Username(),
@@ -312,12 +280,10 @@ func PublisherStoreAccount(st *state.State, snapID string) (snap.StoreAccount, e
 // present in the system assertion database.
 func Store(s *state.State, store string) (*asserts.Store, error) {
 	db := DB(s)
-	a, err := db.Find(asserts.StoreType, map[string]string{
+	a := mylog.Check2(db.Find(asserts.StoreType, map[string]string{
 		"store": store,
-	})
-	if err != nil {
-		return nil, err
-	}
+	}))
+
 	return a.(*asserts.Store), nil
 }
 
@@ -327,10 +293,8 @@ func AutoAliases(s *state.State, info *snap.Info) (map[string]string, error) {
 		// without declaration
 		return nil, nil
 	}
-	decl, err := SnapDeclaration(s, info.SnapID)
-	if err != nil {
-		return nil, fmt.Errorf("internal error: cannot find snap-declaration for installed snap %q: %v", info.InstanceName(), err)
-	}
+	decl := mylog.Check2(SnapDeclaration(s, info.SnapID))
+
 	explicitAliases := decl.Aliases()
 	if len(explicitAliases) != 0 {
 		aliasesForApps := make(map[string]string, len(explicitAliases))
@@ -353,7 +317,6 @@ func AutoAliases(s *state.State, info *snap.Info) (map[string]string, error) {
 		if app == nil {
 			// not a known alias anymore or yet, skip
 			continue
-
 		}
 		res[alias] = app.Name
 	}
@@ -382,9 +345,8 @@ func delayedCrossMgrInit() {
 // AutoRefreshAssertions tries to refresh all assertions
 func AutoRefreshAssertions(s *state.State, userID int) error {
 	opts := &RefreshAssertionsOptions{IsAutoRefresh: true}
-	if err := RefreshSnapDeclarations(s, userID, opts); err != nil {
-		return err
-	}
+	mylog.Check(RefreshSnapDeclarations(s, userID, opts))
+
 	return RefreshValidationSetAssertions(s, userID, opts)
 }
 
@@ -394,9 +356,8 @@ func RefreshSnapAssertions(s *state.State, userID int, opts *RefreshAssertionsOp
 		opts = &RefreshAssertionsOptions{}
 	}
 	opts.IsAutoRefresh = false
-	if err := RefreshSnapDeclarations(s, userID, opts); err != nil {
-		return err
-	}
+	mylog.Check(RefreshSnapDeclarations(s, userID, opts))
+
 	if !opts.IsRefreshOfAllSnaps {
 		return nil
 	}
@@ -410,15 +371,10 @@ func RefreshValidationSetAssertions(s *state.State, userID int, opts *RefreshAss
 		opts = &RefreshAssertionsOptions{}
 	}
 
-	deviceCtx, err := snapstate.DevicePastSeeding(s, nil)
-	if err != nil {
-		return err
-	}
+	deviceCtx := mylog.Check2(snapstate.DevicePastSeeding(s, nil))
 
-	vsets, err := ValidationSets(s)
-	if err != nil {
-		return err
-	}
+	vsets := mylog.Check2(ValidationSets(s))
+
 	if len(vsets) == 0 {
 		return nil
 	}
@@ -443,10 +399,8 @@ func RefreshValidationSetAssertions(s *state.State, userID int, opts *RefreshAss
 					"name":       vs.Name,
 				}
 				db := DB(s)
-				as, err := db.FindSequence(asserts.ValidationSetType, headers, -1, asserts.ValidationSetType.MaxSupportedFormat())
-				if err != nil {
-					return fmt.Errorf("internal error: cannot find assertion %v when refreshing validation-set assertions", headers)
-				}
+				as := mylog.Check2(db.FindSequence(asserts.ValidationSetType, headers, -1, asserts.ValidationSetType.MaxSupportedFormat()))
+
 				if vs.Current != as.Sequence() {
 					vs.Current = as.Sequence()
 					UpdateValidationSet(s, vs)
@@ -455,13 +409,8 @@ func RefreshValidationSetAssertions(s *state.State, userID int, opts *RefreshAss
 		}
 		return nil
 	}
-
-	if err := bulkRefreshValidationSetAsserts(s, monitorModeSets, nil, userID, deviceCtx, opts); err != nil {
-		return err
-	}
-	if err := updateTracking(monitorModeSets); err != nil {
-		return err
-	}
+	mylog.Check(bulkRefreshValidationSetAsserts(s, monitorModeSets, nil, userID, deviceCtx, opts))
+	mylog.Check(updateTracking(monitorModeSets))
 
 	checkConflictsAndPresence := func(db *asserts.Database, bs asserts.Backstore) error {
 		vsets := snapasserts.NewValidationSets()
@@ -472,35 +421,26 @@ func RefreshValidationSetAssertions(s *state.State, userID int, opts *RefreshAss
 				"account-id": vs.AccountID,
 				"name":       vs.Name,
 			}
-			var err error
+
 			var as asserts.Assertion
 			if vs.PinnedAt > 0 {
 				headers["sequence"] = fmt.Sprintf("%d", vs.PinnedAt)
-				as, err = tmpDb.Find(asserts.ValidationSetType, headers)
+				as = mylog.Check2(tmpDb.Find(asserts.ValidationSetType, headers))
 			} else {
-				as, err = tmpDb.FindSequence(asserts.ValidationSetType, headers, -1, asserts.ValidationSetType.MaxSupportedFormat())
-			}
-			if err != nil {
-				return fmt.Errorf("internal error: cannot find validation set assertion: %v", err)
+				as = mylog.Check2(tmpDb.FindSequence(asserts.ValidationSetType, headers, -1, asserts.ValidationSetType.MaxSupportedFormat()))
 			}
 
 			vsass, ok := as.(*asserts.ValidationSet)
 			if !ok {
 				return fmt.Errorf("internal error: unexpected assertion type %s for %s", as.Type().Name, ValidationSetKey(vs.AccountID, vs.Name))
 			}
-			if err := vsets.Add(vsass); err != nil {
-				return fmt.Errorf("internal error: cannot check validation sets conflicts: %v", err)
-			}
-		}
-		if err := vsets.Conflict(); err != nil {
-			return err
-		}
+			mylog.Check(vsets.Add(vsass))
 
-		snaps, ignoreValidation, err := snapstate.InstalledSnaps(s)
-		if err != nil {
-			return err
 		}
-		err = vsets.CheckInstalledSnaps(snaps, ignoreValidation)
+		mylog.Check(vsets.Conflict())
+
+		snaps, ignoreValidation := mylog.Check3(snapstate.InstalledSnaps(s))
+		mylog.Check(vsets.CheckInstalledSnaps(snaps, ignoreValidation))
 		if verr, ok := err.(*snapasserts.ValidationSetsValidationError); ok {
 			if len(verr.InvalidSnaps) > 0 || len(verr.MissingSnaps) > 0 {
 				return verr
@@ -510,21 +450,8 @@ func RefreshValidationSetAssertions(s *state.State, userID int, opts *RefreshAss
 		}
 		return err
 	}
-
-	if err := bulkRefreshValidationSetAsserts(s, enforceModeSets, checkConflictsAndPresence, userID, deviceCtx, opts); err != nil {
-		if _, ok := err.(*snapasserts.ValidationSetsConflictError); ok {
-			logger.Noticef("cannot refresh to conflicting validation set assertions: %v", err)
-			return nil
-		}
-		if _, ok := err.(*snapasserts.ValidationSetsValidationError); ok {
-			logger.Noticef("cannot refresh to validation set assertions that do not satisfy installed snaps: %v", err)
-			return nil
-		}
-		return err
-	}
-	if err := updateTracking(enforceModeSets); err != nil {
-		return err
-	}
+	mylog.Check(bulkRefreshValidationSetAsserts(s, enforceModeSets, checkConflictsAndPresence, userID, deviceCtx, opts))
+	mylog.Check(updateTracking(enforceModeSets))
 
 	return nil
 }
@@ -542,10 +469,7 @@ func validationSetAssertionForMonitor(st *state.State, accountID, name string, s
 	if opts == nil {
 		opts = &ResolveOptions{}
 	}
-	deviceCtx, err := snapstate.DevicePastSeeding(st, nil)
-	if err != nil {
-		return nil, false, err
-	}
+	deviceCtx := mylog.Check2(snapstate.DevicePastSeeding(st, nil))
 
 	var vs asserts.Assertion
 	headers := map[string]string{
@@ -559,10 +483,10 @@ func validationSetAssertionForMonitor(st *state.State, accountID, name string, s
 	// try to get existing one from db
 	if sequence > 0 {
 		headers["sequence"] = fmt.Sprintf("%d", sequence)
-		vs, err = db.Find(asserts.ValidationSetType, headers)
+		vs = mylog.Check2(db.Find(asserts.ValidationSetType, headers))
 	} else {
 		// find latest
-		vs, err = db.FindSequence(asserts.ValidationSetType, headers, -1, -1)
+		vs = mylog.Check2(db.FindSequence(asserts.ValidationSetType, headers, -1, -1))
 	}
 	if err != nil && !errors.Is(err, &asserts.NotFoundError{}) {
 		return nil, false, err
@@ -587,36 +511,26 @@ func validationSetAssertionForMonitor(st *state.State, accountID, name string, s
 
 	// resolve if not found locally, otherwise add for update
 	if as == nil {
-		if err := pool.AddUnresolvedSequence(atSeq, atSeq.Unique()); err != nil {
-			return nil, false, err
-		}
+		mylog.Check(pool.AddUnresolvedSequence(atSeq, atSeq.Unique()))
 	} else {
 		atSeq.Sequence = as.Sequence()
 		// found locally, try to update
 		atSeq.Revision = as.Revision()
-		if err := pool.AddSequenceToUpdate(atSeq, atSeq.Unique()); err != nil {
-			return nil, false, err
-		}
+		mylog.Check(pool.AddSequenceToUpdate(atSeq, atSeq.Unique()))
+
 	}
 
 	refreshOpts := &RefreshAssertionsOptions{IsAutoRefresh: false}
-	if err := resolvePoolNoFallback(st, pool, nil, userID, deviceCtx, refreshOpts); err != nil {
-		rerr, ok := err.(*resolvePoolError)
-		if ok && as != nil && opts.AllowLocalFallback {
-			if e := rerr.errors[atSeq.Unique()]; errors.Is(e, &asserts.NotFoundError{}) {
-				// fallback: support the scenario of local assertion (snap ack)
-				// not available in the store.
-				return as, true, nil
-			}
-		}
-		return nil, false, err
-	}
+	mylog.Check(resolvePoolNoFallback(st, pool, nil, userID, deviceCtx, refreshOpts))
+
+	// fallback: support the scenario of local assertion (snap ack)
+	// not available in the store.
 
 	// fetch the requested assertion again
 	if pinned {
-		vs, err = db.Find(asserts.ValidationSetType, headers)
+		vs = mylog.Check2(db.Find(asserts.ValidationSetType, headers))
 	} else {
-		vs, err = db.FindSequence(asserts.ValidationSetType, headers, -1, asserts.ValidationSetType.MaxSupportedFormat())
+		vs = mylog.Check2(db.FindSequence(asserts.ValidationSetType, headers, -1, asserts.ValidationSetType.MaxSupportedFormat()))
 	}
 	if err == nil {
 		as = vs.(*asserts.ValidationSet)
@@ -627,13 +541,11 @@ func validationSetAssertionForMonitor(st *state.State, accountID, name string, s
 func getSpecificSequenceOrLatest(db *asserts.Database, headers map[string]string) (vs *asserts.ValidationSet, err error) {
 	var a asserts.Assertion
 	if _, ok := headers["sequence"]; ok {
-		a, err = db.Find(asserts.ValidationSetType, headers)
+		a = mylog.Check2(db.Find(asserts.ValidationSetType, headers))
 	} else {
-		a, err = db.FindSequence(asserts.ValidationSetType, headers, -1, -1)
+		a = mylog.Check2(db.FindSequence(asserts.ValidationSetType, headers, -1, -1))
 	}
-	if err != nil {
-		return nil, err
-	}
+
 	vs = a.(*asserts.ValidationSet)
 	return vs, nil
 }
@@ -642,10 +554,7 @@ func getSpecificSequenceOrLatest(db *asserts.Database, headers map[string]string
 // with the given accountID/name/sequence (sequence is optional) using pool and
 // checks if it's not in conflict with existing validation sets in enforcing mode.
 func validationSetAssertionForEnforce(st *state.State, accountID, name string, sequence int, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) (vs *asserts.ValidationSet, err error) {
-	deviceCtx, err := snapstate.DevicePastSeeding(st, nil)
-	if err != nil {
-		return nil, err
-	}
+	deviceCtx := mylog.Check2(snapstate.DevicePastSeeding(st, nil))
 
 	// try to get existing from the db. It will be the latest one if it was
 	// tracked already and thus refreshed via RefreshValidationSetAssertions.
@@ -670,19 +579,13 @@ func validationSetAssertionForEnforce(st *state.State, accountID, name string, s
 		Pinned:      sequence > 0,
 	}
 
-	vs, err = getSpecificSequenceOrLatest(db, headers)
+	vs = mylog.Check2(getSpecificSequenceOrLatest(db, headers))
 
 	checkForConflicts := func() error {
-		valsets, err := TrackedEnforcedValidationSets(st, vs)
-		if err != nil {
-			return err
-		}
-		if err := valsets.Conflict(); err != nil {
-			return err
-		}
-		if err := valsets.CheckInstalledSnaps(snaps, ignoreValidation); err != nil {
-			return err
-		}
+		valsets := mylog.Check2(TrackedEnforcedValidationSets(st, vs))
+		mylog.Check(valsets.Conflict())
+		mylog.Check(valsets.CheckInstalledSnaps(snaps, ignoreValidation))
+
 		return nil
 	}
 
@@ -702,14 +605,12 @@ func validationSetAssertionForEnforce(st *state.State, accountID, name string, s
 			// update with pool
 			atSeq.Sequence = vs.Sequence()
 			atSeq.Revision = vs.Revision()
-			if err := pool.AddSequenceToUpdate(atSeq, atSeq.Unique()); err != nil {
-				return nil, err
-			}
+			mylog.Check(pool.AddSequenceToUpdate(atSeq, atSeq.Unique()))
+
 		} else {
-			// was already tracked, add to validation sets and check
-			if err := checkForConflicts(); err != nil {
-				return nil, err
-			}
+			mylog.Check(
+				// was already tracked, add to validation sets and check
+				checkForConflicts())
 
 			return vs, nil
 		}
@@ -717,32 +618,26 @@ func validationSetAssertionForEnforce(st *state.State, accountID, name string, s
 		if !errors.Is(err, &asserts.NotFoundError{}) {
 			return nil, err
 		}
+		mylog.Check(
 
-		// try to resolve with pool
-		if err := pool.AddUnresolvedSequence(atSeq, atSeq.Unique()); err != nil {
-			return nil, err
-		}
+			// try to resolve with pool
+			pool.AddUnresolvedSequence(atSeq, atSeq.Unique()))
+
 	}
 
 	checkBeforeCommit := func(db *asserts.Database, bs asserts.Backstore) error {
 		tmpDb := db.WithStackedBackstore(bs)
 		// get the resolved validation set assert, add to validation sets and check
-		vs, err = getSpecificSequenceOrLatest(tmpDb, headers)
-		if err != nil {
-			return fmt.Errorf("internal error: cannot find validation set assertion: %v", err)
-		}
-		if err := checkForConflicts(); err != nil {
-			return err
-		}
+		vs = mylog.Check2(getSpecificSequenceOrLatest(tmpDb, headers))
+		mylog.Check(checkForConflicts())
+
 		// all fine, will be committed (along with its prerequisites if any) on
 		// return by resolvePoolNoFallback
 		return nil
 	}
 
 	opts := &RefreshAssertionsOptions{IsAutoRefresh: false}
-	if err := resolvePoolNoFallback(st, pool, checkBeforeCommit, userID, deviceCtx, opts); err != nil {
-		return nil, err
-	}
+	mylog.Check(resolvePoolNoFallback(st, pool, checkBeforeCommit, userID, deviceCtx, opts))
 
 	return vs, err
 }
@@ -753,10 +648,7 @@ func validationSetAssertionForEnforce(st *state.State, accountID, name string, s
 // It may return snapasserts.ValidationSetsValidationError which can be used to
 // install/remove snaps as required to satisfy validation sets constraints.
 func TryEnforcedValidationSets(st *state.State, validationSets []string, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) error {
-	deviceCtx, err := snapstate.DevicePastSeeding(st, nil)
-	if err != nil {
-		return err
-	}
+	deviceCtx := mylog.Check2(snapstate.DevicePastSeeding(st, nil))
 
 	db := cachedDB(st)
 	pool := asserts.NewPool(db, maxGroups)
@@ -765,10 +657,7 @@ func TryEnforcedValidationSets(st *state.State, validationSets []string, userID 
 	newTracking := make([]*ValidationSetTracking, 0, len(validationSets))
 
 	for _, vsstr := range validationSets {
-		accountID, name, sequence, err := snapasserts.ParseValidationSet(vsstr)
-		if err != nil {
-			return err
-		}
+		accountID, name, sequence := mylog.Check4(snapasserts.ParseValidationSet(vsstr))
 
 		// try to get existing from the db
 		headers := map[string]string{
@@ -799,23 +688,22 @@ func TryEnforcedValidationSets(st *state.State, validationSets []string, userID 
 		extraVsHeaders = append(extraVsHeaders, headers)
 		newTracking = append(newTracking, tr)
 
-		vs, err := getSpecificSequenceOrLatest(db, headers)
+		vs := mylog.Check2(getSpecificSequenceOrLatest(db, headers))
 		// found locally
 		if err == nil {
 			// update with pool
 			atSeq.Sequence = vs.Sequence()
 			atSeq.Revision = vs.Revision()
-			if err := pool.AddSequenceToUpdate(atSeq, atSeq.Unique()); err != nil {
-				return err
-			}
+			mylog.Check(pool.AddSequenceToUpdate(atSeq, atSeq.Unique()))
+
 		} else {
 			if !errors.Is(err, &asserts.NotFoundError{}) {
 				return err
 			}
-			// try to resolve with pool
-			if err := pool.AddUnresolvedSequence(atSeq, atSeq.Unique()); err != nil {
-				return err
-			}
+			mylog.Check(
+				// try to resolve with pool
+				pool.AddUnresolvedSequence(atSeq, atSeq.Unique()))
+
 		}
 	}
 
@@ -824,25 +712,16 @@ func TryEnforcedValidationSets(st *state.State, validationSets []string, userID 
 		// get the resolved validation set asserts, add to validation sets and check
 		var extraVs []*asserts.ValidationSet
 		for _, headers := range extraVsHeaders {
-			vs, err := getSpecificSequenceOrLatest(tmpDb, headers)
-			if err != nil {
-				return fmt.Errorf("internal error: cannot find validation set assertion: %v", err)
-			}
+			vs := mylog.Check2(getSpecificSequenceOrLatest(tmpDb, headers))
+
 			extraVs = append(extraVs, vs)
 		}
 
-		valsets, err := TrackedEnforcedValidationSets(st, extraVs...)
-		if err != nil {
-			return err
-		}
-		if err := valsets.Conflict(); err != nil {
-			return err
-		}
-		if err := valsets.CheckInstalledSnaps(snaps, ignoreValidation); err != nil {
-			// the returned error may be ValidationSetsValidationError which is normal and means we cannot enforce
-			// the new validation sets - the caller should resolve the error and retry.
-			return err
-		}
+		valsets := mylog.Check2(TrackedEnforcedValidationSets(st, extraVs...))
+		mylog.Check(valsets.Conflict())
+		mylog.Check(valsets.CheckInstalledSnaps(snaps, ignoreValidation))
+		// the returned error may be ValidationSetsValidationError which is normal and means we cannot enforce
+		// the new validation sets - the caller should resolve the error and retry.
 
 		// all fine, will be committed (along with its prerequisites if any) on
 		// return by resolvePoolNoFallback
@@ -850,9 +729,7 @@ func TryEnforcedValidationSets(st *state.State, validationSets []string, userID 
 	}
 
 	opts := &RefreshAssertionsOptions{}
-	if err := resolvePoolNoFallback(st, pool, checkBeforeCommit, userID, deviceCtx, opts); err != nil {
-		return err
-	}
+	mylog.Check(resolvePoolNoFallback(st, pool, checkBeforeCommit, userID, deviceCtx, opts))
 
 	// no error, all validation-sets can be enforced, update tracking for all vsets
 	for i, headers := range extraVsHeaders {
@@ -860,11 +737,10 @@ func TryEnforcedValidationSets(st *state.State, validationSets []string, userID 
 
 		if tr.PinnedAt == 0 {
 			// if unpinned, get latest assertion from the db to determine current
-			a, err := db.FindSequence(asserts.ValidationSetType, headers, -1, -1)
-			if err != nil {
-				// this is unexpected since all asserts should be resolved and committed at this point
-				return fmt.Errorf("internal error: cannot find validation set assertion: %v", err)
-			}
+			a := mylog.Check2(db.FindSequence(asserts.ValidationSetType, headers, -1, -1))
+
+			// this is unexpected since all asserts should be resolved and committed at this point
+
 			tr.Current = a.Sequence()
 		} else {
 			// no need to get latest since Current must be the same as pinned
@@ -882,14 +758,10 @@ func resolveValidationSetPrimaryKeys(st *state.State, vsKeys map[string][]string
 	db := cachedDB(st)
 	valsets := make(map[string]*asserts.ValidationSet, len(vsKeys))
 	for key, pk := range vsKeys {
-		hdrs, err := asserts.HeadersFromPrimaryKey(asserts.ValidationSetType, pk)
-		if err != nil {
-			return nil, err
-		}
-		a, err := db.Find(asserts.ValidationSetType, hdrs)
-		if err != nil {
-			return nil, err
-		}
+		hdrs := mylog.Check2(asserts.HeadersFromPrimaryKey(asserts.ValidationSetType, pk))
+
+		a := mylog.Check2(db.Find(asserts.ValidationSetType, hdrs))
+
 		valsets[key] = a.(*asserts.ValidationSet)
 	}
 	return valsets, nil
@@ -929,28 +801,13 @@ func validationSetTrackings(valsets map[string]*asserts.ValidationSet, pinnedSeq
 // validation-set primary keys to lookup assertions in the current database. No fetching is
 // done contrary to the non-local version.
 func ApplyLocalEnforcedValidationSets(st *state.State, vsKeys map[string][]string, pinnedSeqs map[string]int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) error {
-	valsets, err := resolveValidationSetPrimaryKeys(st, vsKeys)
-	if err != nil {
-		return err
-	}
+	valsets := mylog.Check2(resolveValidationSetPrimaryKeys(st, vsKeys))
 
-	valsetsSlice, valsetsTracking, err := validationSetTrackings(valsets, pinnedSeqs)
-	if err != nil {
-		return err
-	}
+	valsetsSlice, valsetsTracking := mylog.Check3(validationSetTrackings(valsets, pinnedSeqs))
 
-	valsetGroup, err := TrackedEnforcedValidationSets(st, valsetsSlice...)
-	if err != nil {
-		return err
-	}
-
-	if err := valsetGroup.Conflict(); err != nil {
-		return err
-	}
-
-	if err := valsetGroup.CheckInstalledSnaps(snaps, ignoreValidation); err != nil {
-		return err
-	}
+	valsetGroup := mylog.Check2(TrackedEnforcedValidationSets(st, valsetsSlice...))
+	mylog.Check(valsetGroup.Conflict())
+	mylog.Check(valsetGroup.CheckInstalledSnaps(snaps, ignoreValidation))
 
 	for _, tr := range valsetsTracking {
 		UpdateValidationSet(st, tr)
@@ -963,47 +820,23 @@ func ApplyLocalEnforcedValidationSets(st *state.State, vsKeys map[string][]strin
 // of validation set keys to validation sets, pinned sequence numbers (if any),
 // installed snaps and ignored snaps. It fetches any pre-requisites necessary.
 func ApplyEnforcedValidationSets(st *state.State, valsets map[string]*asserts.ValidationSet, pinnedSeqs map[string]int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool, userID int) error {
-	deviceCtx, err := snapstate.DevicePastSeeding(st, nil)
-	if err != nil {
-		return err
-	}
+	deviceCtx := mylog.Check2(snapstate.DevicePastSeeding(st, nil))
 
 	db := cachedDB(st)
 	batch := asserts.NewBatch(handleUnsupported(db))
 
-	valsetsSlice, valsetsTracking, err := validationSetTrackings(valsets, pinnedSeqs)
-	if err != nil {
-		return err
-	}
-
-	err = doFetch(st, userID, deviceCtx, batch, func(f asserts.Fetcher) error {
+	valsetsSlice, valsetsTracking := mylog.Check3(validationSetTrackings(valsets, pinnedSeqs))
+	mylog.Check(doFetch(st, userID, deviceCtx, batch, func(f asserts.Fetcher) error {
 		for vsKey, vs := range valsets {
-			if err := f.Save(vs); err != nil {
-				return fmt.Errorf("cannot save assertion %q to batch: %v", vsKey, err)
-			}
+			mylog.Check(f.Save(vs))
 		}
 		return nil
-	})
-	if err != nil {
-		return err
-	}
+	}))
 
-	valsetGroup, err := TrackedEnforcedValidationSets(st, valsetsSlice...)
-	if err != nil {
-		return err
-	}
-
-	if err := valsetGroup.Conflict(); err != nil {
-		return err
-	}
-
-	if err := valsetGroup.CheckInstalledSnaps(snaps, ignoreValidation); err != nil {
-		return err
-	}
-
-	if err := batch.CommitTo(db, nil); err != nil {
-		return err
-	}
+	valsetGroup := mylog.Check2(TrackedEnforcedValidationSets(st, valsetsSlice...))
+	mylog.Check(valsetGroup.Conflict())
+	mylog.Check(valsetGroup.CheckInstalledSnaps(snaps, ignoreValidation))
+	mylog.Check(batch.CommitTo(db, nil))
 
 	for _, tr := range valsetsTracking {
 		UpdateValidationSet(st, tr)
@@ -1013,10 +846,7 @@ func ApplyEnforcedValidationSets(st *state.State, valsets map[string]*asserts.Va
 }
 
 func validationSetFromModel(st *state.State, accountID, name string) (*asserts.ModelValidationSet, error) {
-	deviceCtx, err := snapstate.DevicePastSeeding(st, nil)
-	if err != nil {
-		return nil, err
-	}
+	deviceCtx := mylog.Check2(snapstate.DevicePastSeeding(st, nil))
 
 	model := deviceCtx.Model()
 	for _, vs := range model.ValidationSets() {
@@ -1028,10 +858,8 @@ func validationSetFromModel(st *state.State, accountID, name string) (*asserts.M
 }
 
 func sequenceSetByModelAssertion(st *state.State, accountID, name string) (int, error) {
-	vs, err := validationSetFromModel(st, accountID, name)
-	if err != nil {
-		return 0, err
-	}
+	vs := mylog.Check2(validationSetFromModel(st, accountID, name))
+
 	if vs == nil {
 		return 0, nil
 	}
@@ -1039,10 +867,7 @@ func sequenceSetByModelAssertion(st *state.State, accountID, name string) (int, 
 }
 
 func validateSequenceAgainstModel(st *state.State, accountID, name string, sequence int) (int, error) {
-	modelSeq, err := sequenceSetByModelAssertion(st, accountID, name)
-	if err != nil {
-		return 0, err
-	}
+	modelSeq := mylog.Check2(sequenceSetByModelAssertion(st, accountID, name))
 
 	// Verify the sequence requested does not differ from the one specified by the model
 	// in case one is set.
@@ -1066,15 +891,9 @@ func FetchAndApplyEnforcedValidationSet(st *state.State, accountID, name string,
 	// need to use the correct sequence (if no specific is requested)
 	// or we may need to throw a validation error if the user is requesting a
 	// different sequence than is allowed by the model.
-	modelSeq, err := validateSequenceAgainstModel(st, accountID, name, sequence)
-	if err != nil {
-		return nil, fmt.Errorf("cannot enforce sequence %d of validation set %v: %v", sequence, ValidationSetKey(accountID, name), err)
-	}
+	modelSeq := mylog.Check2(validateSequenceAgainstModel(st, accountID, name, sequence))
 
-	vs, err := validationSetAssertionForEnforce(st, accountID, name, modelSeq, userID, snaps, ignoreValidation)
-	if err != nil {
-		return nil, err
-	}
+	vs := mylog.Check2(validationSetAssertionForEnforce(st, accountID, name, modelSeq, userID, snaps, ignoreValidation))
 
 	tr := ValidationSetTracking{
 		AccountID: accountID,
@@ -1086,7 +905,7 @@ func FetchAndApplyEnforcedValidationSet(st *state.State, accountID, name string,
 	}
 
 	UpdateValidationSet(st, &tr)
-	err = addCurrentTrackingToValidationSetsHistory(st)
+	mylog.Check(addCurrentTrackingToValidationSetsHistory(st))
 	return &tr, err
 }
 
@@ -1097,17 +916,11 @@ func MonitorValidationSet(st *state.State, accountID, name string, sequence int,
 	// need to use the correct sequence (if no specific is requested)
 	// or we may need to throw a validation error if the user is requesting a
 	// different sequence than is allowed by the model.
-	modelSeq, err := validateSequenceAgainstModel(st, accountID, name, sequence)
-	if err != nil {
-		return nil, fmt.Errorf("cannot monitor sequence %d of validation set %v: %v", sequence, ValidationSetKey(accountID, name), err)
-	}
+	modelSeq := mylog.Check2(validateSequenceAgainstModel(st, accountID, name, sequence))
 
 	pinned := modelSeq > 0
 	opts := ResolveOptions{AllowLocalFallback: true}
-	as, local, err := validationSetAssertionForMonitor(st, accountID, name, modelSeq, pinned, userID, &opts)
-	if err != nil {
-		return nil, fmt.Errorf("cannot get validation set assertion for %v: %v", ValidationSetKey(accountID, name), err)
-	}
+	as, local := mylog.Check3(validationSetAssertionForMonitor(st, accountID, name, modelSeq, pinned, userID, &opts))
 
 	tr := &ValidationSetTracking{
 		AccountID: accountID,
@@ -1148,14 +961,7 @@ func FetchValidationSets(st *state.State, toFetch []*asserts.AtSequence, opts Fe
 		if vs, ok := a.(*asserts.ValidationSet); ok {
 			sets = append(sets, vs)
 		}
-
-		if err := Add(st, a); err != nil {
-			if err, ok := err.(*asserts.RevisionError); ok {
-				logger.Noticef("assertion not added due to same or newer revision already present: %d", err.Current)
-				return nil
-			}
-			return err
-		}
+		mylog.Check(Add(st, a))
 
 		return nil
 	}
@@ -1189,19 +995,14 @@ func FetchValidationSets(st *state.State, toFetch []*asserts.AtSequence, opts Fe
 	fetcher := asserts.NewSequenceFormingFetcher(db, retrieve, retrieveSeq, save)
 
 	for _, vs := range toFetch {
-		if err := fetcher.FetchSequence(vs); err != nil {
-			return nil, err
-		}
+		mylog.Check(fetcher.FetchSequence(vs))
 	}
 
 	vSets := snapasserts.NewValidationSets()
 	for _, vs := range sets {
 		vSets.Add(vs)
 	}
-
-	if err := vSets.Conflict(); err != nil {
-		return nil, err
-	}
+	mylog.Check(vSets.Conflict())
 
 	return vSets, nil
 }
@@ -1219,10 +1020,8 @@ func ValidationSetsFromModel(st *state.State, model *asserts.Model, opts FetchVa
 
 func resolveValidationSetAssertion(seq *asserts.AtSequence, db asserts.RODatabase) (asserts.Assertion, error) {
 	if seq.Sequence <= 0 {
-		hdrs, err := asserts.HeadersFromSequenceKey(seq.Type, seq.SequenceKey)
-		if err != nil {
-			return nil, err
-		}
+		hdrs := mylog.Check2(asserts.HeadersFromSequenceKey(seq.Type, seq.SequenceKey))
+
 		return db.FindSequence(seq.Type, hdrs, -1, seq.Type.MaxSupportedFormat())
 	}
 	return seq.Resolve(db.Find)
@@ -1232,13 +1031,10 @@ func resolveValidationSetAssertion(seq *asserts.AtSequence, db asserts.RODatabas
 // if it's present in the system assertion database.
 func AspectBundle(s *state.State, account, bundleName string) (*asserts.AspectBundle, error) {
 	db := DB(s)
-	as, err := db.Find(asserts.AspectBundleType, map[string]string{
+	as := mylog.Check2(db.Find(asserts.AspectBundleType, map[string]string{
 		"account-id": account,
 		"name":       bundleName,
-	})
-	if err != nil {
-		return nil, err
-	}
+	}))
 
 	return as.(*asserts.AspectBundle), nil
 }

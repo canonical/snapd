@@ -28,6 +28,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
@@ -67,14 +68,10 @@ func (m *InterfaceManager) selectInterfaceMapper(snaps []*snap.Info) {
 
 func (m *InterfaceManager) addInterfaces(extra []interfaces.Interface) error {
 	for _, iface := range builtin.Interfaces() {
-		if err := m.repo.AddInterface(iface); err != nil {
-			return err
-		}
+		mylog.Check(m.repo.AddInterface(iface))
 	}
 	for _, iface := range extra {
-		if err := m.repo.AddInterface(iface); err != nil {
-			return err
-		}
+		mylog.Check(m.repo.AddInterface(iface))
 	}
 	return nil
 }
@@ -83,12 +80,12 @@ func (m *InterfaceManager) addBackends(extra []interfaces.SecurityBackend) error
 	// get the snapd snap info if it is installed
 	var snapdSnap snapstate.SnapState
 	var snapdSnapInfo *snap.Info
-	err := snapstate.Get(m.state, "snapd", &snapdSnap)
+	mylog.Check(snapstate.Get(m.state, "snapd", &snapdSnap))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return fmt.Errorf("cannot access snapd snap state: %v", err)
 	}
 	if err == nil {
-		snapdSnapInfo, err = snapdSnap.CurrentInfo()
+		snapdSnapInfo = mylog.Check2(snapdSnap.CurrentInfo())
 		if err != nil && err != snapstate.ErrNoCurrent {
 			return fmt.Errorf("cannot access snapd snap info: %v", err)
 		}
@@ -97,12 +94,12 @@ func (m *InterfaceManager) addBackends(extra []interfaces.SecurityBackend) error
 	// get the core snap info if it is installed
 	var coreSnap snapstate.SnapState
 	var coreSnapInfo *snap.Info
-	err = snapstate.Get(m.state, "core", &coreSnap)
+	mylog.Check(snapstate.Get(m.state, "core", &coreSnap))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return fmt.Errorf("cannot access core snap state: %v", err)
 	}
 	if err == nil {
-		coreSnapInfo, err = coreSnap.CurrentInfo()
+		coreSnapInfo = mylog.Check2(coreSnap.CurrentInfo())
 		if err != nil && err != snapstate.ErrNoCurrent {
 			return fmt.Errorf("cannot access core snap info: %v", err)
 		}
@@ -114,42 +111,30 @@ func (m *InterfaceManager) addBackends(extra []interfaces.SecurityBackend) error
 		SnapdSnapInfo: snapdSnapInfo,
 	}
 	for _, backend := range allSecurityBackends() {
-		if err := backend.Initialize(&opts); err != nil {
-			return err
-		}
-		if err := m.repo.AddBackend(backend); err != nil {
-			return err
-		}
+		mylog.Check(backend.Initialize(&opts))
+		mylog.Check(m.repo.AddBackend(backend))
+
 	}
 	for _, backend := range extra {
-		if err := backend.Initialize(&opts); err != nil {
-			return err
-		}
-		if err := m.repo.AddBackend(backend); err != nil {
-			return err
-		}
+		mylog.Check(backend.Initialize(&opts))
+		mylog.Check(m.repo.AddBackend(backend))
+
 	}
 	return nil
 }
 
 func (m *InterfaceManager) addSnaps(snaps []*snap.Info) error {
 	for _, snapInfo := range snaps {
-		if err := addImplicitSlots(m.state, snapInfo); err != nil {
-			return err
-		}
-		if err := m.repo.AddSnap(snapInfo); err != nil {
-			logger.Noticef("cannot add snap %q to interface repository: %s", snapInfo.InstanceName(), err)
-		}
+		mylog.Check(addImplicitSlots(m.state, snapInfo))
+		mylog.Check(m.repo.AddSnap(snapInfo))
+
 	}
 	return nil
 }
 
 func profilesNeedRegenerationImpl() bool {
-	mismatch, err := interfaces.SystemKeyMismatch()
-	if err != nil {
-		logger.Noticef("error trying to compare the snap system key: %v", err)
-		return true
-	}
+	mismatch := mylog.Check2(interfaces.SystemKeyMismatch())
+
 	return mismatch
 }
 
@@ -157,7 +142,7 @@ func profilesNeedRegenerationImpl() bool {
 // service unit exists but is disabled
 func snapdAppArmorServiceIsDisabledImpl() bool {
 	sysd := systemd.New(systemd.SystemMode, nil)
-	isEnabled, err := sysd.IsEnabled("snapd.apparmor")
+	isEnabled := mylog.Check2(sysd.IsEnabled("snapd.apparmor"))
 	return err == nil && !isEnabled
 }
 
@@ -167,26 +152,19 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer) er
 	securityBackends := m.repo.Backends()
 
 	// Get all the snap infos
-	snaps, err := snapsWithSecurityProfiles(m.state)
-	if err != nil {
-		return err
-	}
+	snaps := mylog.Check2(snapsWithSecurityProfiles(m.state))
 
 	// TODO: should snapsWithSecurityProfiles return app sets instead of snap infos?
 	appSets := make([]*interfaces.SnapAppSet, 0, len(snaps))
 	for _, sn := range snaps {
-		set, err := appSetForSnapRevision(m.state, sn)
-		if err != nil {
-			return fmt.Errorf("cannot build app set for snap %q: %v", sn.InstanceName(), err)
-		}
+		set := mylog.Check2(appSetForSnapRevision(m.state, sn))
+
 		appSets = append(appSets, set)
 	}
 
 	// Add implicit slots to all snaps
 	for _, snapInfo := range snaps {
-		if err := addImplicitSlots(m.state, snapInfo); err != nil {
-			return err
-		}
+		mylog.Check(addImplicitSlots(m.state, snapInfo))
 	}
 
 	// The reason the system key is unlinked is to prevent snapd from believing
@@ -201,19 +179,12 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer) er
 
 	confinementOpts := func(snapName string) interfaces.ConfinementOptions {
 		var snapst snapstate.SnapState
-		if err := snapstate.Get(m.state, snapName, &snapst); err != nil {
-			logger.Noticef("cannot get state of snap %q: %s", snapName, err)
-			return interfaces.ConfinementOptions{}
-		}
-		snapInfo, err := snapst.CurrentInfo()
-		if err != nil {
-			logger.Noticef("cannot get current info for snap %q: %s", snapName, err)
-			return interfaces.ConfinementOptions{}
-		}
-		opts, err := buildConfinementOptions(m.state, snapInfo, snapst.Flags)
-		if err != nil {
-			logger.Noticef("cannot get confinement options for snap %q: %s", snapName, err)
-		}
+		mylog.Check(snapstate.Get(m.state, snapName, &snapst))
+
+		snapInfo := mylog.Check2(snapst.CurrentInfo())
+
+		opts := mylog.Check2(buildConfinementOptions(m.state, snapInfo, snapst.Flags))
+
 		return opts
 	}
 
@@ -232,9 +203,7 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer) er
 	}
 
 	if shouldWriteSystemKey {
-		if err := writeSystemKey(); err != nil {
-			logger.Noticef("cannot write system key: %v", err)
-		}
+		mylog.Check(writeSystemKey())
 	}
 	return nil
 }
@@ -245,10 +214,8 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer) er
 // longer has the "core-support" plug as that was clashing with the slot with
 // the same name.
 func (m *InterfaceManager) renameCorePlugConnection() error {
-	conns, err := getConns(m.state)
-	if err != nil {
-		return err
-	}
+	conns := mylog.Check2(getConns(m.state))
+
 	const oldPlugName = "core-support"
 	const newPlugName = "core-support-plug"
 	// old connection, note that slotRef is the same in both
@@ -272,31 +239,16 @@ func (m *InterfaceManager) renameCorePlugConnection() error {
 // Connection is considered stale if the snap on either end of the connection doesn't exist anymore.
 // XXX: this code should eventually go away.
 var removeStaleConnections = func(st *state.State) error {
-	conns, err := getConns(st)
-	if err != nil {
-		return err
-	}
+	conns := mylog.Check2(getConns(st))
+
 	var staleConns []string
 	for id := range conns {
-		connRef, err := interfaces.ParseConnRef(id)
-		if err != nil {
-			return err
-		}
+		connRef := mylog.Check2(interfaces.ParseConnRef(id))
+
 		var snapst snapstate.SnapState
-		if err := snapstate.Get(st, connRef.PlugRef.Snap, &snapst); err != nil {
-			if !errors.Is(err, state.ErrNoState) {
-				return err
-			}
-			staleConns = append(staleConns, id)
-			continue
-		}
-		if err := snapstate.Get(st, connRef.SlotRef.Snap, &snapst); err != nil {
-			if !errors.Is(err, state.ErrNoState) {
-				return err
-			}
-			staleConns = append(staleConns, id)
-			continue
-		}
+		mylog.Check(snapstate.Get(st, connRef.PlugRef.Snap, &snapst))
+		mylog.Check(snapstate.Get(st, connRef.SlotRef.Snap, &snapst))
+
 	}
 	if len(staleConns) > 0 {
 		for _, id := range staleConns {
@@ -310,13 +262,11 @@ var removeStaleConnections = func(st *state.State) error {
 
 func isBroken(st *state.State, snapName string) (bool, error) {
 	var snapst snapstate.SnapState
-	err := snapstate.Get(st, snapName, &snapst)
+	mylog.Check(snapstate.Get(st, snapName, &snapst))
 	if errors.Is(err, state.ErrNoState) {
 		return false, nil
 	}
-	if err != nil {
-		return false, err
-	}
+
 	snapInfo, _ := snapst.CurrentInfo()
 	if snapInfo != nil && snapInfo.Broken != "" {
 		return true, nil
@@ -330,10 +280,7 @@ func isBroken(st *state.State, snapName string) (bool, error) {
 //
 // The return value is the list of affected snap names.
 func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) {
-	conns, err := getConns(m.state)
-	if err != nil {
-		return nil, err
-	}
+	conns := mylog.Check2(getConns(m.state))
 
 	connStateChanged := false
 	affected := make(map[string]bool)
@@ -346,10 +293,8 @@ ConnsLoop:
 		if connState.Undesired || connState.HotplugGone {
 			continue
 		}
-		connRef, err := interfaces.ParseConnRef(connId)
-		if err != nil {
-			return nil, err
-		}
+		connRef := mylog.Check2(interfaces.ParseConnRef(connId))
+
 		// Apply filtering, this allows us to reload only a subset of
 		// connections (and similarly, refresh the static attributes of only a
 		// subset of connections).
@@ -370,10 +315,8 @@ ConnsLoop:
 				// only do anything about this connection if snap isn't in a broken state, otherwise
 				// leave the connection untouched.
 				for _, snapName := range []string{connRef.PlugRef.Snap, connRef.SlotRef.Snap} {
-					broken, err := isBroken(m.state, snapName)
-					if err != nil {
-						return nil, err
-					}
+					broken := mylog.Check2(isBroken(m.state, snapName))
+
 					if broken {
 						logger.Noticef("Snap %q is broken, ignored by reloadConnections", snapName)
 						continue ConnsLoop
@@ -412,22 +355,14 @@ ConnsLoop:
 			staticSlotAttrs = utils.NormalizeInterfaceAttributes(slotInfo.Attrs).(map[string]interface{})
 			updateStaticAttrs = true
 		}
+		mylog.Check2(
 
-		// Note: reloaded connections are not checked against policy again, and also we don't call BeforeConnect* methods on them.
-		if _, err := m.repo.Connect(connRef, staticPlugAttrs, connState.DynamicPlugAttrs, staticSlotAttrs, connState.DynamicSlotAttrs, nil); err != nil {
-			logger.Noticef("%s", err)
-		} else {
-			// If the connection succeeded update the connection state and keep
-			// track of the snaps that were affected.
-			affected[connRef.PlugRef.Snap] = true
-			affected[connRef.SlotRef.Snap] = true
+			// Note: reloaded connections are not checked against policy again, and also we don't call BeforeConnect* methods on them.
+			m.repo.Connect(connRef, staticPlugAttrs, connState.DynamicPlugAttrs, staticSlotAttrs, connState.DynamicSlotAttrs, nil))
 
-			if updateStaticAttrs {
-				connState.StaticPlugAttrs = staticPlugAttrs
-				connState.StaticSlotAttrs = staticSlotAttrs
-				connStateChanged = true
-			}
-		}
+		// If the connection succeeded update the connection state and keep
+		// track of the snaps that were affected.
+
 	}
 	if connStateChanged {
 		setConns(m.state, conns)
@@ -443,28 +378,20 @@ ConnsLoop:
 // removeConnections disconnects all connections of the snap in the repo. It should only be used if the snap
 // has no connections in the state. State must be locked by the caller.
 func (m *InterfaceManager) removeConnections(snapName string) error {
-	conns, err := getConns(m.state)
-	if err != nil {
-		return err
-	}
+	conns := mylog.Check2(getConns(m.state))
+
 	for id := range conns {
-		connRef, err := interfaces.ParseConnRef(id)
-		if err != nil {
-			return err
-		}
+		connRef := mylog.Check2(interfaces.ParseConnRef(id))
+
 		if connRef.PlugRef.Snap == snapName || connRef.SlotRef.Snap == snapName {
 			return fmt.Errorf("internal error: cannot remove connections of snap %s from the repository while its connections are present in the state", snapName)
 		}
 	}
 
-	repoConns, err := m.repo.Connections(snapName)
-	if err != nil {
-		return fmt.Errorf("internal error: %v", err)
-	}
+	repoConns := mylog.Check2(m.repo.Connections(snapName))
+
 	for _, conn := range repoConns {
-		if err := m.repo.Disconnect(conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name); err != nil {
-			return fmt.Errorf("internal error: %v", err)
-		}
+		mylog.Check(m.repo.Disconnect(conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name))
 	}
 	return nil
 }
@@ -505,12 +432,9 @@ func (m *InterfaceManager) removeSnapSecurity(task *state.Task, instanceName str
 	st := task.State()
 	for _, backend := range m.repo.Backends() {
 		st.Unlock()
-		err := backend.Remove(instanceName)
+		mylog.Check(backend.Remove(instanceName))
 		st.Lock()
-		if err != nil {
-			task.Errorf("cannot setup %s for snap %q: %s", backend.Name(), instanceName, err)
-			return err
-		}
+
 	}
 	return nil
 }
@@ -520,14 +444,9 @@ func addHotplugSlot(st *state.State, repo *interfaces.Repository, stateSlots map
 		return fmt.Errorf("internal error: cannot store slot %q, not a hotplug slot", slot.Name)
 	}
 	if iface, ok := iface.(interfaces.SlotSanitizer); ok {
-		if err := iface.BeforePrepareSlot(slot); err != nil {
-			return fmt.Errorf("cannot sanitize hotplug slot %q for interface %s: %s", slot.Name, slot.Interface, err)
-		}
+		mylog.Check(iface.BeforePrepareSlot(slot))
 	}
-
-	if err := repo.AddSlot(slot); err != nil {
-		return fmt.Errorf("cannot add hotplug slot %q for interface %s: %s", slot.Name, slot.Interface, err)
-	}
+	mylog.Check(repo.AddSlot(slot))
 
 	stateSlots[slot.Name] = &HotplugSlotInfo{
 		Name:        slot.Name,
@@ -566,7 +485,7 @@ func newGadgetConnect(s *state.State, task *state.Task, repo *interfaces.Reposit
 // conflictError is called to handle checkAutoconnectConflicts errors.
 func (gc *gadgetConnect) addGadgetConnections(newconns map[string]*interfaces.ConnRef, conns map[string]*schema.ConnState, conflictError func(*state.Retry, error) error) error {
 	var seeded bool
-	err := gc.st.Get("seeded", &seeded)
+	mylog.Check(gc.st.Get("seeded", &seeded))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
@@ -579,28 +498,19 @@ func (gc *gadgetConnect) addGadgetConnections(newconns map[string]*interfaces.Co
 	snapName := gc.instanceName
 
 	var snapst snapstate.SnapState
-	if err := snapstate.Get(gc.st, snapName, &snapst); err != nil {
-		return err
-	}
+	mylog.Check(snapstate.Get(gc.st, snapName, &snapst))
 
-	snapInfo, err := snapst.CurrentInfo()
-	if err != nil {
-		return err
-	}
+	snapInfo := mylog.Check2(snapst.CurrentInfo())
+
 	snapID := snapInfo.SnapID
 	if snapID == "" {
 		// not a snap-id identifiable snap, skip
 		return nil
 	}
 
-	gconns, err := snapstate.GadgetConnections(gc.st, gc.deviceCtx)
-	if err != nil {
-		if errors.Is(err, state.ErrNoState) {
-			// no gadget yet, nothing to do
-			return nil
-		}
-		return err
-	}
+	gconns := mylog.Check2(snapstate.GadgetConnections(gc.st, gc.deviceCtx))
+
+	// no gadget yet, nothing to do
 
 	// consider the gadget connect instructions
 	for _, gconn := range gconns {
@@ -618,11 +528,7 @@ func (gc *gadgetConnect) addGadgetConnections(newconns map[string]*interfaces.Co
 		}
 
 		if plugSnapName == "" {
-			var err error
-			plugSnapName, err = resolveSnapIDToName(gc.st, gconn.Plug.SnapID)
-			if err != nil {
-				return err
-			}
+			plugSnapName = mylog.Check2(resolveSnapIDToName(gc.st, gconn.Plug.SnapID))
 		}
 		plug := gc.repo.Plug(plugSnapName, gconn.Plug.Plug)
 		if plug == nil {
@@ -631,21 +537,15 @@ func (gc *gadgetConnect) addGadgetConnections(newconns map[string]*interfaces.Co
 		}
 
 		if slotSnapName == "" {
-			var err error
-			slotSnapName, err = resolveSnapIDToName(gc.st, gconn.Slot.SnapID)
-			if err != nil {
-				return err
-			}
+			slotSnapName = mylog.Check2(resolveSnapIDToName(gc.st, gconn.Slot.SnapID))
 		}
 		slot := gc.repo.Slot(slotSnapName, gconn.Slot.Slot)
 		if slot == nil {
 			task.Logf("gadget connections: ignoring missing slot %s:%s", gconn.Slot.SnapID, gconn.Slot.Slot)
 			continue
 		}
+		mylog.Check(addNewConnection(gc.st, task, newconns, conns, plug, slot, conflictError))
 
-		if err := addNewConnection(gc.st, task, newconns, conns, plug, slot, conflictError); err != nil {
-			return err
-		}
 	}
 
 	return nil
@@ -666,20 +566,13 @@ func addNewConnection(st *state.State, task *state.Task, newconns map[string]*in
 	}
 
 	if task.Kind() == "auto-connect" {
-		ignore, err := findSymmetricAutoconnectTask(st, plug.Snap.InstanceName(), slot.Snap.InstanceName(), task)
-		if err != nil {
-			return err
-		}
+		ignore := mylog.Check2(findSymmetricAutoconnectTask(st, plug.Snap.InstanceName(), slot.Snap.InstanceName(), task))
 
 		if ignore {
 			return nil
 		}
 	}
-
-	if err := checkAutoconnectConflicts(st, task, plug.Snap.InstanceName(), slot.Snap.InstanceName()); err != nil {
-		retry, _ := err.(*state.Retry)
-		return conflictError(retry, err)
-	}
+	mylog.Check(checkAutoconnectConflicts(st, task, plug.Snap.InstanceName(), slot.Snap.InstanceName()))
 
 	newconns[key] = connRef
 	return nil
@@ -700,10 +593,8 @@ type autoConnectChecker struct {
 }
 
 func newAutoConnectChecker(s *state.State, task *state.Task, repo *interfaces.Repository, deviceCtx snapstate.DeviceContext) (*autoConnectChecker, error) {
-	baseDecl, err := assertstate.BaseDeclaration(s)
-	if err != nil {
-		return nil, fmt.Errorf("internal error: cannot find base declaration: %v", err)
-	}
+	baseDecl := mylog.Check2(assertstate.BaseDeclaration(s))
+
 	return &autoConnectChecker{
 		st:        s,
 		task:      task,
@@ -719,10 +610,8 @@ func (c *autoConnectChecker) snapDeclaration(snapID string) (*asserts.SnapDeclar
 	if snapDecl != nil {
 		return snapDecl, nil
 	}
-	snapDecl, err := assertstate.SnapDeclaration(c.st, snapID)
-	if err != nil {
-		return nil, err
-	}
+	snapDecl := mylog.Check2(assertstate.SnapDeclaration(c.st, snapID))
+
 	c.cache[snapID] = snapDecl
 	return snapDecl, nil
 }
@@ -732,8 +621,8 @@ func (c *autoConnectChecker) check(plug *interfaces.ConnectedPlug, slot *interfa
 
 	var storeAs *asserts.Store
 	if modelAs.Store() != "" {
-		var err error
-		storeAs, err = assertstate.Store(c.st, modelAs.Store())
+
+		storeAs = mylog.Check2(assertstate.Store(c.st, modelAs.Store()))
 		if err != nil && !errors.Is(err, &asserts.NotFoundError{}) {
 			return false, nil, err
 		}
@@ -741,22 +630,12 @@ func (c *autoConnectChecker) check(plug *interfaces.ConnectedPlug, slot *interfa
 
 	var plugDecl *asserts.SnapDeclaration
 	if plug.Snap().SnapID != "" {
-		var err error
-		plugDecl, err = c.snapDeclaration(plug.Snap().SnapID)
-		if err != nil {
-			logger.Noticef("error: cannot find snap declaration for %q: %v", plug.Snap().InstanceName(), err)
-			return false, nil, nil
-		}
+		plugDecl = mylog.Check2(c.snapDeclaration(plug.Snap().SnapID))
 	}
 
 	var slotDecl *asserts.SnapDeclaration
 	if slot.Snap().SnapID != "" {
-		var err error
-		slotDecl, err = c.snapDeclaration(slot.Snap().SnapID)
-		if err != nil {
-			logger.Noticef("error: cannot find snap declaration for %q: %v", slot.Snap().InstanceName(), err)
-			return false, nil, nil
-		}
+		slotDecl = mylog.Check2(c.snapDeclaration(slot.Snap().SnapID))
 	}
 
 	// check the connection against the declarations' rules
@@ -770,7 +649,7 @@ func (c *autoConnectChecker) check(plug *interfaces.ConnectedPlug, slot *interfa
 		Store:               storeAs,
 	}
 
-	arity, err := ic.CheckAutoConnect()
+	arity := mylog.Check2(ic.CheckAutoConnect())
 	if DebugAutoConnectCheck != nil {
 		DebugAutoConnectCheck(&ic, arity, err)
 	}
@@ -861,9 +740,7 @@ func (c *autoConnectChecker) addAutoConnections(newconns map[string]*interfaces.
 		}
 
 		for _, slot := range applicable {
-			if err := addNewConnection(c.st, c.task, newconns, conns, plug, slot, conflictError); err != nil {
-				return err
-			}
+			mylog.Check(addNewConnection(c.st, c.task, newconns, conns, plug, slot, conflictError))
 		}
 	}
 
@@ -877,10 +754,8 @@ type connectChecker struct {
 }
 
 func newConnectChecker(s *state.State, deviceCtx snapstate.DeviceContext) (*connectChecker, error) {
-	baseDecl, err := assertstate.BaseDeclaration(s)
-	if err != nil {
-		return nil, fmt.Errorf("internal error: cannot find base declaration: %v", err)
-	}
+	baseDecl := mylog.Check2(assertstate.BaseDeclaration(s))
+
 	return &connectChecker{
 		st:        s,
 		deviceCtx: deviceCtx,
@@ -893,8 +768,8 @@ func (c *connectChecker) check(plug *interfaces.ConnectedPlug, slot *interfaces.
 
 	var storeAs *asserts.Store
 	if modelAs.Store() != "" {
-		var err error
-		storeAs, err = assertstate.Store(c.st, modelAs.Store())
+
+		storeAs = mylog.Check2(assertstate.Store(c.st, modelAs.Store()))
 		if err != nil && !errors.Is(err, &asserts.NotFoundError{}) {
 			return false, err
 		}
@@ -902,20 +777,12 @@ func (c *connectChecker) check(plug *interfaces.ConnectedPlug, slot *interfaces.
 
 	var plugDecl *asserts.SnapDeclaration
 	if plug.Snap().SnapID != "" {
-		var err error
-		plugDecl, err = assertstate.SnapDeclaration(c.st, plug.Snap().SnapID)
-		if err != nil {
-			return false, fmt.Errorf("cannot find snap declaration for %q: %v", plug.Snap().InstanceName(), err)
-		}
+		plugDecl = mylog.Check2(assertstate.SnapDeclaration(c.st, plug.Snap().SnapID))
 	}
 
 	var slotDecl *asserts.SnapDeclaration
 	if slot.Snap().SnapID != "" {
-		var err error
-		slotDecl, err = assertstate.SnapDeclaration(c.st, slot.Snap().SnapID)
-		if err != nil {
-			return false, fmt.Errorf("cannot find snap declaration for %q: %v", slot.Snap().InstanceName(), err)
-		}
+		slotDecl = mylog.Check2(assertstate.SnapDeclaration(c.st, slot.Snap().SnapID))
 	}
 
 	// check the connection against the declarations' rules
@@ -933,9 +800,7 @@ func (c *connectChecker) check(plug *interfaces.ConnectedPlug, slot *interfaces.
 	// means they were installed with "dangerous", so the security
 	// check should be skipped at this point.
 	if plugDecl != nil && slotDecl != nil {
-		if err := ic.Check(); err != nil {
-			return false, err
-		}
+		mylog.Check(ic.Check())
 	}
 	return true, nil
 }
@@ -943,12 +808,9 @@ func (c *connectChecker) check(plug *interfaces.ConnectedPlug, slot *interfaces.
 func getPlugAndSlotRefs(task *state.Task) (interfaces.PlugRef, interfaces.SlotRef, error) {
 	var plugRef interfaces.PlugRef
 	var slotRef interfaces.SlotRef
-	if err := task.Get("plug", &plugRef); err != nil {
-		return plugRef, slotRef, err
-	}
-	if err := task.Get("slot", &slotRef); err != nil {
-		return plugRef, slotRef, err
-	}
+	mylog.Check(task.Get("plug", &plugRef))
+	mylog.Check(task.Get("slot", &slotRef))
+
 	return plugRef, slotRef, nil
 }
 
@@ -957,25 +819,20 @@ func getPlugAndSlotRefs(task *state.Task) (interfaces.PlugRef, interfaces.SlotRe
 // Connections are transparently re-mapped according to remapIncomingConnRef
 func getConns(st *state.State) (conns map[string]*schema.ConnState, err error) {
 	var raw *json.RawMessage
-	err = st.Get("conns", &raw)
+	mylog.Check(st.Get("conns", &raw))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, fmt.Errorf("cannot obtain raw data about existing connections: %s", err)
 	}
 	if raw != nil {
-		err = jsonutil.DecodeWithNumber(bytes.NewReader(*raw), &conns)
-		if err != nil {
-			return nil, fmt.Errorf("cannot decode data about existing connections: %s", err)
-		}
+		mylog.Check(jsonutil.DecodeWithNumber(bytes.NewReader(*raw), &conns))
 	}
 	if conns == nil {
 		conns = make(map[string]*schema.ConnState)
 	}
 	remapped := make(map[string]*schema.ConnState, len(conns))
 	for id, cstate := range conns {
-		cref, err := interfaces.ParseConnRef(id)
-		if err != nil {
-			return nil, err
-		}
+		cref := mylog.Check2(interfaces.ParseConnRef(id))
+
 		cref.PlugRef.Snap = RemapSnapFromState(cref.PlugRef.Snap)
 		cref.SlotRef.Snap = RemapSnapFromState(cref.SlotRef.Snap)
 		cstate.StaticSlotAttrs = utils.NormalizeInterfaceAttributes(cstate.StaticSlotAttrs).(map[string]interface{})
@@ -993,11 +850,10 @@ func getConns(st *state.State) (conns map[string]*schema.ConnState, err error) {
 func setConns(st *state.State, conns map[string]*schema.ConnState) {
 	remapped := make(map[string]*schema.ConnState, len(conns))
 	for id, cstate := range conns {
-		cref, err := interfaces.ParseConnRef(id)
-		if err != nil {
-			// We cannot fail here
-			panic(err)
-		}
+		cref := mylog.Check2(interfaces.ParseConnRef(id))
+
+		// We cannot fail here
+
 		cref.PlugRef.Snap = RemapSnapToState(cref.PlugRef.Snap)
 		cref.SlotRef.Snap = RemapSnapToState(cref.SlotRef.Snap)
 		remapped[cref.ID()] = cstate
@@ -1012,19 +868,14 @@ func setConns(st *state.State, conns map[string]*schema.ConnState) {
 // or snap about to be active (pending link-snap) with a done
 // setup-profiles
 func snapsWithSecurityProfiles(st *state.State) ([]*snap.Info, error) {
-	all, err := snapstate.All(st)
-	if err != nil {
-		return nil, err
-	}
+	all := mylog.Check2(snapstate.All(st))
+
 	infos := make([]*snap.Info, 0, len(all))
 	seen := make(map[string]bool, len(all))
 	for instanceName, snapst := range all {
 		if snapst.Active {
-			snapInfo, err := snapst.CurrentInfo()
-			if err != nil {
-				logger.Noticef("cannot retrieve info for snap %q: %s", instanceName, err)
-				continue
-			}
+			snapInfo := mylog.Check2(snapst.CurrentInfo())
+
 			infos = append(infos, snapInfo)
 			seen[instanceName] = true
 		} else if snapst.PendingSecurity != nil {
@@ -1035,11 +886,8 @@ func snapsWithSecurityProfiles(st *state.State) ([]*snap.Info, error) {
 				// profiles removed (already)
 				continue
 			}
-			snapInfo, err := snap.ReadInfo(instanceName, si)
-			if err != nil {
-				logger.Noticef("cannot retrieve info for snap %q: %s", instanceName, err)
-				continue
-			}
+			snapInfo := mylog.Check2(snap.ReadInfo(instanceName, si))
+
 			infos = append(infos, snapInfo)
 		}
 	}
@@ -1050,10 +898,8 @@ func snapsWithSecurityProfiles(st *state.State) ([]*snap.Info, error) {
 		if t.Kind() != "link-snap" || t.Status().Ready() {
 			continue
 		}
-		snapsup, err := snapstate.TaskSnapSetup(t)
-		if err != nil {
-			return nil, err
-		}
+		snapsup := mylog.Check2(snapstate.TaskSnapSetup(t))
+
 		instanceName := snapsup.InstanceName()
 		if seen[instanceName] {
 			continue
@@ -1062,10 +908,8 @@ func snapsWithSecurityProfiles(st *state.State) ([]*snap.Info, error) {
 		doneProfiles := false
 		for _, t1 := range t.WaitTasks() {
 			if t1.Kind() == "setup-profiles" && t1.Status() == state.DoneStatus {
-				snapsup1, err := snapstate.TaskSnapSetup(t1)
-				if err != nil {
-					return nil, err
-				}
+				snapsup1 := mylog.Check2(snapstate.TaskSnapSetup(t1))
+
 				if snapsup1.InstanceName() == instanceName {
 					doneProfiles = true
 					break
@@ -1077,11 +921,8 @@ func snapsWithSecurityProfiles(st *state.State) ([]*snap.Info, error) {
 		}
 
 		seen[instanceName] = true
-		snapInfo, err := snap.ReadInfo(instanceName, snapsup.SideInfo)
-		if err != nil {
-			logger.Noticef("cannot retrieve info for snap %q: %s", instanceName, err)
-			continue
-		}
+		snapInfo := mylog.Check2(snap.ReadInfo(instanceName, snapsup.SideInfo))
+
 		infos = append(infos, snapInfo)
 	}
 
@@ -1093,13 +934,11 @@ func resolveSnapIDToName(st *state.State, snapID string) (name string, err error
 		// Resolve the system nickname to a concrete snap.
 		return mapper.RemapSnapFromRequest(snapID), nil
 	}
-	decl, err := assertstate.SnapDeclaration(st, snapID)
+	decl := mylog.Check2(assertstate.SnapDeclaration(st, snapID))
 	if errors.Is(err, &asserts.NotFoundError{}) {
 		return "", nil
 	}
-	if err != nil {
-		return "", err
-	}
+
 	return decl.SnapName(), nil
 }
 
@@ -1250,17 +1089,15 @@ func systemSnapInfo(st *state.State) (*snap.Info, error) {
 }
 
 func connectDisconnectAffectedSnaps(t *state.Task) ([]string, error) {
-	plugRef, slotRef, err := getPlugAndSlotRefs(t)
-	if err != nil {
-		return nil, fmt.Errorf("internal error: cannot obtain plug/slot data from task: %s", t.Summary())
-	}
+	plugRef, slotRef := mylog.Check3(getPlugAndSlotRefs(t))
+
 	return []string{plugRef.Snap, slotRef.Snap}, nil
 }
 
 func checkSystemSnapIsPresent(st *state.State) bool {
 	st.Lock()
 	defer st.Unlock()
-	_, err := systemSnapInfo(st)
+	_ := mylog.Check2(systemSnapInfo(st))
 	return err == nil
 }
 
@@ -1270,18 +1107,15 @@ func setHotplugAttrs(task *state.Task, ifaceName string, hotplugKey snap.Hotplug
 }
 
 func getHotplugAttrs(task *state.Task) (ifaceName string, hotplugKey snap.HotplugKey, err error) {
-	if err = task.Get("interface", &ifaceName); err != nil {
-		return "", "", fmt.Errorf("internal error: cannot get interface name from hotplug task: %s", err)
-	}
-	if err = task.Get("hotplug-key", &hotplugKey); err != nil {
-		return "", "", fmt.Errorf("internal error: cannot get hotplug key from hotplug task: %s", err)
-	}
+	mylog.Check(task.Get("interface", &ifaceName))
+	mylog.Check(task.Get("hotplug-key", &hotplugKey))
+
 	return ifaceName, hotplugKey, err
 }
 
 func allocHotplugSeq(st *state.State) (int, error) {
 	var seq int
-	if err := st.Get("hotplug-seq", &seq); err != nil && !errors.Is(err, state.ErrNoState) {
+	if mylog.Check(st.Get("hotplug-seq", &seq)); err != nil && !errors.Is(err, state.ErrNoState) {
 		return 0, fmt.Errorf("internal error: cannot allocate hotplug sequence number: %s", err)
 	}
 	seq++
@@ -1294,12 +1128,9 @@ func isHotplugChange(chg *state.Change) bool {
 }
 
 func getHotplugChangeAttrs(chg *state.Change) (seq int, hotplugKey snap.HotplugKey, err error) {
-	if err = chg.Get("hotplug-key", &hotplugKey); err != nil {
-		return 0, "", fmt.Errorf("internal error: hotplug-key not set on change %q", chg.Kind())
-	}
-	if err = chg.Get("hotplug-seq", &seq); err != nil {
-		return 0, "", fmt.Errorf("internal error: hotplug-seq not set on change %q", chg.Kind())
-	}
+	mylog.Check(chg.Get("hotplug-key", &hotplugKey))
+	mylog.Check(chg.Get("hotplug-seq", &seq))
+
 	return seq, hotplugKey, nil
 }
 
@@ -1331,13 +1162,8 @@ type HotplugSlotInfo struct {
 
 func getHotplugSlots(st *state.State) (map[string]*HotplugSlotInfo, error) {
 	var slots map[string]*HotplugSlotInfo
-	err := st.Get("hotplug-slots", &slots)
-	if err != nil {
-		if !errors.Is(err, state.ErrNoState) {
-			return nil, err
-		}
-		slots = make(map[string]*HotplugSlotInfo)
-	}
+	mylog.Check(st.Get("hotplug-slots", &slots))
+
 	return slots, nil
 }
 
@@ -1372,18 +1198,15 @@ func (m *InterfaceManager) discardSecurityProfilesLate(name string, rev snap.Rev
 		if !ok {
 			continue
 		}
-		if err := lateDiscardBackend.RemoveLate(name, rev, typ); err != nil {
-			return err
-		}
+		mylog.Check(lateDiscardBackend.RemoveLate(name, rev, typ))
+
 	}
 	return nil
 }
 
 func hasActiveConnection(st *state.State, iface string) (bool, error) {
-	conns, err := getConns(st)
-	if err != nil {
-		return false, err
-	}
+	conns := mylog.Check2(getConns(st))
+
 	for _, cstate := range conns {
 		// look for connected interface
 		if !cstate.Undesired && !cstate.HotplugGone && cstate.Interface == iface {
@@ -1394,39 +1217,27 @@ func hasActiveConnection(st *state.State, iface string) (bool, error) {
 }
 
 func appSetForTask(t *state.Task, info *snap.Info) (*interfaces.SnapAppSet, error) {
-	compsups, err := snapstate.ComponentSetupsForTask(t)
-	if err != nil {
-		return nil, err
-	}
+	compsups := mylog.Check2(snapstate.ComponentSetupsForTask(t))
 
 	compInfos := make([]*snap.ComponentInfo, 0, len(compsups))
 	for _, compsup := range compsups {
-		compInfo, err := snapstate.ComponentInfoFromComponentSetup(compsup, info)
-		if err != nil {
-			return nil, err
-		}
+		compInfo := mylog.Check2(snapstate.ComponentInfoFromComponentSetup(compsup, info))
+
 		compInfos = append(compInfos, compInfo)
 	}
 
 	st := t.State()
 
 	var snapst snapstate.SnapState
-	if err := snapstate.Get(st, info.InstanceName(), &snapst); err != nil {
-		// if the snap isn't in the state, then we know that there aren't any
-		// pre-existing components to consider
-		if errors.Is(err, state.ErrNoState) {
-			return interfaces.NewSnapAppSet(info, compInfos)
-		}
-		return nil, err
-	}
+	mylog.Check(snapstate.Get(st, info.InstanceName(), &snapst))
+	// if the snap isn't in the state, then we know that there aren't any
+	// pre-existing components to consider
 
 	// if we're installing/refreshing a component then we need to consider the
 	// components that are already installed
 	if snapst.LastIndex(info.Revision) != -1 {
-		compsForRevision, err := snapst.ComponentInfosForRevision(info.Revision)
-		if err != nil {
-			return nil, err
-		}
+		compsForRevision := mylog.Check2(snapst.ComponentInfosForRevision(info.Revision))
+
 		compInfos = append(compInfos, compsForRevision...)
 	}
 
@@ -1435,14 +1246,9 @@ func appSetForTask(t *state.Task, info *snap.Info) (*interfaces.SnapAppSet, erro
 
 func appSetForSnapRevision(st *state.State, info *snap.Info) (*interfaces.SnapAppSet, error) {
 	var snapst snapstate.SnapState
-	if err := snapstate.Get(st, info.InstanceName(), &snapst); err != nil {
-		return nil, err
-	}
+	mylog.Check(snapstate.Get(st, info.InstanceName(), &snapst))
 
-	compInfos, err := snapst.ComponentInfosForRevision(info.Revision)
-	if err != nil {
-		return nil, err
-	}
+	compInfos := mylog.Check2(snapst.ComponentInfosForRevision(info.Revision))
 
 	return interfaces.NewSnapAppSet(info, compInfos)
 }

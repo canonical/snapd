@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/bootloader/androidbootenv"
 )
 
@@ -53,15 +54,13 @@ func (a *androidbootenvTestSuite) TestSaveAndLoad(c *C) {
 	a.env.Set("key1", "value1")
 	a.env.Set("key2", "")
 	a.env.Set("key3", "value3")
+	mylog.Check(a.env.Save())
 
-	err := a.env.Save()
-	c.Assert(err, IsNil)
 
 	env2 := androidbootenv.NewEnv(a.envPath)
 	c.Check(env2, NotNil)
+	mylog.Check(env2.Load())
 
-	err = env2.Load()
-	c.Assert(err, IsNil)
 
 	c.Assert(env2.Get("key1"), Equals, "value1")
 	c.Assert(env2.Get("key2"), Equals, "")

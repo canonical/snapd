@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	repair "github.com/snapcore/snapd/cmd/snap-repair"
@@ -43,7 +44,7 @@ func (r *repairSuite) TestNonRoot(c *C) {
 	origArgs := os.Args
 	defer func() { os.Args = origArgs }()
 	os.Args = []string{"snap-repair", "run"}
-	err := repair.Run()
+	mylog.Check(repair.Run())
 	c.Assert(err, ErrorMatches, "must be run as root")
 }
 
@@ -55,22 +56,20 @@ func (r *repairSuite) TestOffline(c *C) {
 
 	r.freshState(c)
 
-	data, err := json.Marshal(repair.RepairConfig{
+	data := mylog.Check2(json.Marshal(repair.RepairConfig{
 		StoreOffline: true,
-	})
-	c.Assert(err, IsNil)
+	}))
 
-	err = os.MkdirAll(filepath.Dir(dirs.SnapRepairConfigFile), 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Dir(dirs.SnapRepairConfigFile), 0755))
 
-	err = osutil.AtomicWriteFile(dirs.SnapRepairConfigFile, data, 0644, 0)
-	c.Assert(err, IsNil)
+	mylog.Check(osutil.AtomicWriteFile(dirs.SnapRepairConfigFile, data, 0644, 0))
+
 
 	origArgs := os.Args
 	defer func() { os.Args = origArgs }()
 	os.Args = []string{"snap-repair", "run"}
-	err = repair.Run()
-	c.Assert(err, IsNil)
+	mylog.Check(repair.Run())
+
 }
 
 func (r *repairSuite) TestRun(c *C) {
@@ -100,7 +99,7 @@ exit 0
 	origArgs := os.Args
 	defer func() { os.Args = origArgs }()
 	os.Args = []string{"snap-repair", "run"}
-	err := repair.Run()
+	mylog.Check(repair.Run())
 	c.Check(err, IsNil)
 	c.Check(r.Stdout(), HasLen, 0)
 
@@ -108,14 +107,14 @@ exit 0
 }
 
 func (r *repairSuite) TestRunAlreadyLocked(c *C) {
-	err := os.MkdirAll(dirs.SnapRunRepairDir, 0700)
-	c.Assert(err, IsNil)
-	flock, err := osutil.NewFileLock(filepath.Join(dirs.SnapRunRepairDir, "lock"))
-	c.Assert(err, IsNil)
-	err = flock.Lock()
-	c.Assert(err, IsNil)
-	defer flock.Close() // Close unlocks too
+	mylog.Check(os.MkdirAll(dirs.SnapRunRepairDir, 0700))
 
-	err = repair.ParseArgs([]string{"run"})
+	flock := mylog.Check2(osutil.NewFileLock(filepath.Join(dirs.SnapRunRepairDir, "lock")))
+
+	mylog.Check(flock.Lock())
+
+	defer flock.Close()
+	mylog. // Close unlocks too
+		Check(repair.ParseArgs([]string{"run"}))
 	c.Check(err, ErrorMatches, `cannot run, another snap-repair run already executing`)
 }

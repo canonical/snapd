@@ -24,6 +24,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
@@ -37,14 +38,16 @@ type cmdAliases struct {
 	} `positional-args:"true"`
 }
 
-var shortAliasesHelp = i18n.G("List aliases in the system")
-var longAliasesHelp = i18n.G(`
+var (
+	shortAliasesHelp = i18n.G("List aliases in the system")
+	longAliasesHelp  = i18n.G(`
 The aliases command lists all aliases available in the system and their status.
 
 $ snap aliases <snap>
 
 Lists only the aliases defined by the specified snap.
 `)
+)
 
 func init() {
 	addCommand("aliases", shortAliasesHelp, longAliasesHelp, func() flags.Commander {
@@ -86,10 +89,7 @@ func (x *cmdAliases) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	allStatuses, err := x.client.Aliases()
-	if err != nil {
-		return err
-	}
+	allStatuses := mylog.Check2(x.client.Aliases())
 
 	var infos aliasInfos
 	filterSnap := string(x.Positionals.Snap)

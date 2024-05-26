@@ -30,6 +30,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil/sys"
 )
 
@@ -139,7 +140,7 @@ func EnsureSnapUserGroup(name string, id uint32, extraUsers bool) error {
 	groupCmdStr = append(groupCmdStr, name)
 
 	cmd := exec.Command(groupCmdStr[0], groupCmdStr[1:]...)
-	if output, err := cmd.CombinedOutput(); err != nil {
+	if output := mylog.Check2(cmd.CombinedOutput()); err != nil {
 		return fmt.Errorf("groupadd failed with: %s", OutputErr(output, err))
 	}
 
@@ -165,7 +166,7 @@ func EnsureSnapUserGroup(name string, id uint32, extraUsers bool) error {
 	userCmdStr = append(userCmdStr, name)
 
 	cmd = exec.Command(userCmdStr[0], userCmdStr[1:]...)
-	if output, err := cmd.CombinedOutput(); err != nil {
+	if output := mylog.Check2(cmd.CombinedOutput()); err != nil {
 		useraddErrStr := fmt.Sprintf("useradd failed with: %s", OutputErr(output, err))
 
 		delCmdStr := []string{"groupdel"}
@@ -237,14 +238,12 @@ func AddUser(name string, opts *AddUserOptions) error {
 	cmdStr = append(cmdStr, name)
 
 	cmd := exec.Command(cmdStr[0], cmdStr[1:]...)
-	if output, err := cmd.CombinedOutput(); err != nil {
+	if output := mylog.Check2(cmd.CombinedOutput()); err != nil {
 		return fmt.Errorf("%s failed with: %s", cmdStr[0], OutputErr(output, err))
 	}
 
 	if opts.Sudoer {
-		if err := AtomicWriteFile(sudoersFile(name), []byte(fmt.Sprintf(sudoersTemplate, name)), 0400, 0); err != nil {
-			return fmt.Errorf("cannot create file under sudoers.d: %s", err)
-		}
+		mylog.Check(AtomicWriteFile(sudoersFile(name), []byte(fmt.Sprintf(sudoersTemplate, name)), 0400, 0))
 	}
 
 	if opts.Password != "" {
@@ -254,7 +253,7 @@ func AddUser(name string, opts *AddUserOptions) error {
 			// no --extrauser required, see LP: #1562872
 			name,
 		}
-		if output, err := exec.Command(cmdStr[0], cmdStr[1:]...).CombinedOutput(); err != nil {
+		if output := mylog.Check2(exec.Command(cmdStr[0], cmdStr[1:]...).CombinedOutput()); err != nil {
 			return fmt.Errorf("setting password failed: %s", OutputErr(output, err))
 		}
 	}
@@ -268,30 +267,21 @@ func AddUser(name string, opts *AddUserOptions) error {
 			// no --extrauser required, see LP: #1562872
 			name,
 		}
-		if output, err := exec.Command(cmdStr[0], cmdStr[1:]...).CombinedOutput(); err != nil {
+		if output := mylog.Check2(exec.Command(cmdStr[0], cmdStr[1:]...).CombinedOutput()); err != nil {
 			return fmt.Errorf("cannot force password change: %s", OutputErr(output, err))
 		}
 	}
 
-	u, err := userLookup(name)
-	if err != nil {
-		return fmt.Errorf("cannot find user %q: %s", name, err)
-	}
+	u := mylog.Check2(userLookup(name))
 
-	uid, gid, err := UidGid(u)
-	if err != nil {
-		return err
-	}
+	uid, gid := mylog.Check3(UidGid(u))
 
 	sshDir := filepath.Join(u.HomeDir, ".ssh")
-	if err := MkdirAllChown(sshDir, 0700, uid, gid); err != nil {
-		return fmt.Errorf("cannot create %s: %s", sshDir, err)
-	}
+	mylog.Check(MkdirAllChown(sshDir, 0700, uid, gid))
+
 	authKeys := filepath.Join(sshDir, "authorized_keys")
 	authKeysContent := strings.Join(opts.SSHKeys, "\n")
-	if err := AtomicWriteFileChown(authKeys, []byte(authKeysContent), 0600, 0, uid, gid); err != nil {
-		return fmt.Errorf("cannot write %s: %s", authKeys, err)
-	}
+	mylog.Check(AtomicWriteFileChown(authKeys, []byte(authKeysContent), 0600, 0, uid, gid))
 
 	return nil
 }
@@ -318,11 +308,11 @@ func DelUser(name string, opts *DelUserOptions) error {
 	}
 	cmdStr = append(cmdStr, name)
 
-	if output, err := exec.Command("userdel", cmdStr...).CombinedOutput(); err != nil {
+	if output := mylog.Check2(exec.Command("userdel", cmdStr...).CombinedOutput()); err != nil {
 		return fmt.Errorf("cannot delete user %q: %v", name, OutputErr(output, err))
 	}
 
-	if err := os.Remove(sudoersFile(name)); err != nil && !os.IsNotExist(err) {
+	if mylog.Check(os.Remove(sudoersFile(name))); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("cannot remove sudoers file for user %q: %v", name, err)
 	}
 
@@ -353,10 +343,7 @@ func isUnknownUserOrEnoent(err error) bool {
 // Don't check SUDO_USER when not root and simply return the current uid
 // to properly support sudo'ing from root to a non-root user
 func UserMaybeSudoUser() (*user.User, error) {
-	cur, err := userCurrent()
-	if err != nil {
-		return nil, err
-	}
+	cur := mylog.Check2(userCurrent())
 
 	// not root, so no sudo invocation we care about
 	if cur.Uid != "0" {
@@ -369,7 +356,7 @@ func UserMaybeSudoUser() (*user.User, error) {
 		return cur, nil
 	}
 
-	real, err := user.Lookup(realName)
+	real := mylog.Check2(user.Lookup(realName))
 	// This is a best effort, see the comment in findGidNoGetentFallback in
 	// group.go.
 	//
@@ -380,9 +367,6 @@ func UserMaybeSudoUser() (*user.User, error) {
 	if isUnknownUserOrEnoent(err) {
 		return cur, nil
 	}
-	if err != nil {
-		return nil, err
-	}
 
 	return real, nil
 }
@@ -392,14 +376,9 @@ func UserMaybeSudoUser() (*user.User, error) {
 // XXX this should go away soon
 func UidGid(u *user.User) (sys.UserID, sys.GroupID, error) {
 	// XXX this will be wrong for high uids on 32-bit arches (for now)
-	uid, err := strconv.Atoi(u.Uid)
-	if err != nil {
-		return sys.FlagID, sys.FlagID, fmt.Errorf("cannot parse user id %s: %s", u.Uid, err)
-	}
-	gid, err := strconv.Atoi(u.Gid)
-	if err != nil {
-		return sys.FlagID, sys.FlagID, fmt.Errorf("cannot parse group id %s: %s", u.Gid, err)
-	}
+	uid := mylog.Check2(strconv.Atoi(u.Uid))
+
+	gid := mylog.Check2(strconv.Atoi(u.Gid))
 
 	return sys.UserID(uid), sys.GroupID(gid), nil
 }

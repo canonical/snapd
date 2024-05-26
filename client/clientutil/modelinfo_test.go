@@ -28,6 +28,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/client/clientutil"
@@ -128,8 +129,7 @@ snaps:
 		"AXNpZw=="
 )
 
-type testFormatter struct {
-}
+type testFormatter struct{}
 
 func (tf testFormatter) GetEscapedDash() string {
 	return "--"
@@ -158,15 +158,15 @@ func (s *modelInfoSuite) SetUpTest(c *C) {
 	s.tsLine = "timestamp: " + s.ts.Format(time.RFC3339) + "\n"
 
 	s.deviceKey = testPrivKey2
-	encodedPubKey, err := asserts.EncodePublicKey(s.deviceKey.PublicKey())
-	c.Assert(err, IsNil)
+	encodedPubKey := mylog.Check2(asserts.EncodePublicKey(s.deviceKey.PublicKey()))
+
 	s.encodedDevKey = string(encodedPubKey)
 }
 
 func (s *modelInfoSuite) getModel(c *C, modelText string) asserts.Model {
 	encoded := strings.Replace(modelText, "TSLINE", s.tsLine, 1)
-	a, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	c.Check(a.Type(), Equals, asserts.ModelType)
 	model := a.(*asserts.Model)
 	return *model
@@ -184,8 +184,8 @@ func (s *modelInfoSuite) getSerial(c *C, serialText string) asserts.Serial {
 	encoded := strings.Replace(serialText, "TSLINE", s.tsLine, 1)
 	encoded = strings.Replace(encoded, "DEVICEKEY", strings.Replace(s.encodedDevKey, "\n", "\n    ", -1), 1)
 	encoded = strings.Replace(encoded, "KEYID", s.deviceKey.PublicKey().ID(), 1)
-	a, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	c.Check(a.Type(), Equals, asserts.SerialType)
 	serial := a.(*asserts.Serial)
 	return *serial
@@ -202,8 +202,8 @@ func (s *modelInfoSuite) TestPrintModelYAML(c *C) {
 		AbsTime:   false,
 		Assertion: false,
 	}
-	err := clientutil.PrintModelAssertion(w, model, nil, s.formatter, options)
-	c.Assert(err, IsNil)
+	mylog.Check(clientutil.PrintModelAssertion(w, model, nil, s.formatter, options))
+
 	c.Check(buffer.String(), Equals, `brand     brand-id1
 model     Baz 3000 (baz-3000)
 serial    - (device not registered yet)
@@ -222,8 +222,8 @@ func (s *modelInfoSuite) TestPrintModelWithSerialYAML(c *C) {
 		AbsTime:   false,
 		Assertion: false,
 	}
-	err := clientutil.PrintModelAssertion(w, model, &serial, s.formatter, options)
-	c.Assert(err, IsNil)
+	mylog.Check(clientutil.PrintModelAssertion(w, model, &serial, s.formatter, options))
+
 	c.Check(buffer.String(), Equals, `brand     brand-id1
 model     Baz 3000 (baz-3000)
 serial    2700
@@ -241,8 +241,8 @@ func (s *modelInfoSuite) TestPrintModelYAMLVerbose(c *C) {
 		AbsTime:   false,
 		Assertion: false,
 	}
-	err := clientutil.PrintModelAssertion(w, model, nil, s.formatter, options)
-	c.Assert(err, IsNil)
+	mylog.Check(clientutil.PrintModelAssertion(w, model, nil, s.formatter, options))
+
 	c.Check(buffer.String(), Equals, fmt.Sprintf(`brand-id:                 brand-id1
 model:                    baz-3000
 grade:                    dangerous
@@ -295,8 +295,8 @@ func (s *modelInfoSuite) TestPrintModelAssertion(c *C) {
 		AbsTime:   false,
 		Assertion: true,
 	}
-	err := clientutil.PrintModelAssertion(w, model, nil, s.formatter, options)
-	c.Assert(err, IsNil)
+	mylog.Check(clientutil.PrintModelAssertion(w, model, nil, s.formatter, options))
+
 	c.Check(buffer.String(), Equals, fmt.Sprintf(`type: model
 authority-id: brand-id1
 series: 16
@@ -332,8 +332,8 @@ func (s *modelInfoSuite) TestPrintSerialYAML(c *C) {
 		AbsTime:   false,
 		Assertion: false,
 	}
-	err := clientutil.PrintSerialAssertionYAML(w, serial, s.formatter, options)
-	c.Assert(err, IsNil)
+	mylog.Check(clientutil.PrintSerialAssertionYAML(w, serial, s.formatter, options))
+
 	c.Check(buffer.String(), Equals, `brand-id:    brand-id1
 model:       baz-3000
 serial:      2700
@@ -351,8 +351,8 @@ func (s *modelInfoSuite) TestPrintSerialAssertion(c *C) {
 		AbsTime:   false,
 		Assertion: true,
 	}
-	err := clientutil.PrintSerialAssertionYAML(w, serial, s.formatter, options)
-	c.Assert(err, IsNil)
+	mylog.Check(clientutil.PrintSerialAssertionYAML(w, serial, s.formatter, options))
+
 	c.Check(buffer.String(), Equals, fmt.Sprintf(`type: serial
 authority-id: brand-id1
 brand-id: brand-id1
@@ -380,8 +380,8 @@ func (s *modelInfoSuite) TestPrintSerialVerboseYAML(c *C) {
 		AbsTime:   false,
 		Assertion: false,
 	}
-	err := clientutil.PrintSerialAssertionYAML(w, serial, s.formatter, options)
-	c.Assert(err, IsNil)
+	mylog.Check(clientutil.PrintSerialAssertionYAML(w, serial, s.formatter, options))
+
 	c.Check(buffer.String(), Equals, fmt.Sprintf(`brand-id:     brand-id1
 model:        baz-3000
 serial:       2700
@@ -404,8 +404,8 @@ func (s *modelInfoSuite) TestPrintModelJSON(c *C) {
 		AbsTime:   false,
 		Assertion: false,
 	}
-	err := clientutil.PrintModelAssertionJSON(w, model, nil, options)
-	c.Assert(err, IsNil)
+	mylog.Check(clientutil.PrintModelAssertionJSON(w, model, nil, options))
+
 	c.Check(buffer.String(), Equals, fmt.Sprintf(`{
   "architecture": "amd64",
   "base": "core18",
@@ -438,8 +438,8 @@ func (s *modelInfoSuite) TestPrintModelWithSerialJSON(c *C) {
 		AbsTime:   false,
 		Assertion: false,
 	}
-	err := clientutil.PrintModelAssertionJSON(w, model, &serial, options)
-	c.Assert(err, IsNil)
+	mylog.Check(clientutil.PrintModelAssertionJSON(w, model, &serial, options))
+
 	c.Check(buffer.String(), Equals, fmt.Sprintf(`{
   "architecture": "amd64",
   "base": "core18",
@@ -471,8 +471,8 @@ func (s *modelInfoSuite) TestPrintModelJSONAssertion(c *C) {
 		AbsTime:   false,
 		Assertion: true,
 	}
-	err := clientutil.PrintModelAssertionJSON(w, model, nil, options)
-	c.Assert(err, IsNil)
+	mylog.Check(clientutil.PrintModelAssertionJSON(w, model, nil, options))
+
 	c.Check(buffer.String(), Equals, fmt.Sprintf(`{
   "headers": {
     "architecture": "amd64",

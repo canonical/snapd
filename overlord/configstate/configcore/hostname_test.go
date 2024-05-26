@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/release"
@@ -42,9 +43,8 @@ var _ = Suite(&hostnameSuite{})
 
 func (s *hostnameSuite) SetUpTest(c *C) {
 	s.configcoreSuite.SetUpTest(c)
+	mylog.Check(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/"), 0755))
 
-	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/"), 0755)
-	c.Assert(err, IsNil)
 
 	script := `if [ "$1" = "status" ]; then echo bar; fi`
 	s.mockedHostnamectl = testutil.MockCommand(c, "hostnamectl", script)
@@ -73,7 +73,7 @@ func (s *hostnameSuite) TestConfigureHostnameFsOnlyInvalid(c *C) {
 		conf := configcore.PlainCoreConfig(map[string]interface{}{
 			"system.hostname": name,
 		})
-		err := configcore.FilesystemOnlyApply(coreDev, tmpdir, conf)
+		mylog.Check(configcore.FilesystemOnlyApply(coreDev, tmpdir, conf))
 		c.Assert(err, ErrorMatches, `cannot set hostname.*`, Commentf("%v", name))
 	}
 
@@ -110,8 +110,8 @@ func (s *hostnameSuite) TestConfigureHostnameFsOnlyHappy(c *C) {
 		conf := configcore.PlainCoreConfig(map[string]interface{}{
 			"system.hostname": name,
 		})
-		err := configcore.FilesystemOnlyApply(coreDev, tmpdir, conf)
-		c.Assert(err, IsNil)
+		mylog.Check(configcore.FilesystemOnlyApply(coreDev, tmpdir, conf))
+
 	}
 
 	c.Check(s.mockedHostnamectl.Calls(), HasLen, 0)
@@ -124,13 +124,13 @@ func (s *hostnameSuite) TestConfigureHostnameWithStateOnlyHostnamectlValidates(c
 	}
 
 	for _, hostname := range hostnames {
-		err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
+		mylog.Check(configcore.FilesystemOnlyRun(coreDev, &mockConf{
 			state: s.state,
 			conf: map[string]interface{}{
 				"system.hostname": hostname,
 			},
-		})
-		c.Assert(err, IsNil)
+		}))
+
 		c.Check(s.mockedHostnamectl.Calls(), DeepEquals, [][]string{
 			{"hostnamectl", "status", "--pretty"},
 			{"hostnamectl", "set-hostname", hostname},
@@ -151,12 +151,12 @@ fi`
 	defer mockedHostnamectl.Restore()
 
 	hostname := "simulated-invalid-hostname"
-	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
+	mylog.Check(configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"system.hostname": hostname,
 		},
-	})
+	}))
 	c.Assert(err, ErrorMatches, "cannot set hostname: some error")
 	c.Check(mockedHostnamectl.Calls(), DeepEquals, [][]string{
 		{"hostnamectl", "status", "--pretty"},
@@ -165,16 +165,17 @@ fi`
 }
 
 func (s *hostnameSuite) TestConfigureHostnameIntegrationSameHostname(c *C) {
-	// and set new hostname to "bar" but the "s.mockedHostnamectl" is
-	// already returning "bar"
-	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
-		state: s.state,
-		conf: map[string]interface{}{
-			// hostname is already "bar"
-			"system.hostname": "bar",
-		},
-	})
-	c.Assert(err, IsNil)
+	mylog.
+		// and set new hostname to "bar" but the "s.mockedHostnamectl" is
+		// already returning "bar"
+		Check(configcore.FilesystemOnlyRun(coreDev, &mockConf{
+			state: s.state,
+			conf: map[string]interface{}{
+				// hostname is already "bar"
+				"system.hostname": "bar",
+			},
+		}))
+
 	c.Check(s.mockedHostnamectl.Calls(), DeepEquals, [][]string{
 		{"hostnamectl", "status", "--pretty"},
 	})
@@ -190,16 +191,17 @@ elif [ "$1" = "status" ] && [ "$2" = "--static" ]; then
 fi`
 	mockedHostnamectl := testutil.MockCommand(c, "hostnamectl", script)
 	defer mockedHostnamectl.Restore()
+	mylog.
 
-	// and set new hostname to "bar"
-	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
-		state: s.state,
-		conf: map[string]interface{}{
-			// hostname is already "bar"
-			"system.hostname": "bar",
-		},
-	})
-	c.Assert(err, IsNil)
+		// and set new hostname to "bar"
+		Check(configcore.FilesystemOnlyRun(coreDev, &mockConf{
+			state: s.state,
+			conf: map[string]interface{}{
+				// hostname is already "bar"
+				"system.hostname": "bar",
+			},
+		}))
+
 	c.Check(mockedHostnamectl.Calls(), DeepEquals, [][]string{
 		{"hostnamectl", "status", "--pretty"},
 		{"hostnamectl", "status", "--static"},

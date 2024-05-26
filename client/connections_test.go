@@ -24,6 +24,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 )
 
@@ -69,7 +70,7 @@ func (cs *clientSuite) TestClientConnectionsDefault(c *check.C) {
 			]
 		}
 	}`
-	conns, err := cs.cli.Connections(nil)
+	conns := mylog.Check2(cs.cli.Connections(nil))
 	c.Assert(err, check.IsNil)
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/connections")
 	c.Check(conns, check.DeepEquals, client.Connections{
@@ -169,7 +170,7 @@ func (cs *clientSuite) TestClientConnectionsAll(c *check.C) {
 			]
 		}
 	}`
-	conns, err := cs.cli.Connections(&client.ConnectionOptions{All: true})
+	conns := mylog.Check2(cs.cli.Connections(&client.ConnectionOptions{All: true}))
 	c.Assert(err, check.IsNil)
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/connections")
 	c.Check(cs.req.URL.RawQuery, check.Equals, "select=all")
@@ -244,22 +245,22 @@ func (cs *clientSuite) TestClientConnectionsFilter(c *check.C) {
 		}
 	}`
 
-	_, err := cs.cli.Connections(&client.ConnectionOptions{All: true})
+	_ := mylog.Check2(cs.cli.Connections(&client.ConnectionOptions{All: true}))
 	c.Assert(err, check.IsNil)
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/connections")
 	c.Check(cs.req.URL.RawQuery, check.Equals, "select=all")
 
-	_, err = cs.cli.Connections(&client.ConnectionOptions{Snap: "foo"})
+	_ = mylog.Check2(cs.cli.Connections(&client.ConnectionOptions{Snap: "foo"}))
 	c.Assert(err, check.IsNil)
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/connections")
 	c.Check(cs.req.URL.RawQuery, check.Equals, "snap=foo")
 
-	_, err = cs.cli.Connections(&client.ConnectionOptions{Interface: "test"})
+	_ = mylog.Check2(cs.cli.Connections(&client.ConnectionOptions{Interface: "test"}))
 	c.Assert(err, check.IsNil)
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/connections")
 	c.Check(cs.req.URL.RawQuery, check.Equals, "interface=test")
 
-	_, err = cs.cli.Connections(&client.ConnectionOptions{All: true, Snap: "foo", Interface: "test"})
+	_ = mylog.Check2(cs.cli.Connections(&client.ConnectionOptions{All: true, Snap: "foo", Interface: "test"}))
 	c.Assert(err, check.IsNil)
 	query := cs.req.URL.Query()
 	c.Check(query, check.DeepEquals, url.Values{

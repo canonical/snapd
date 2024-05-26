@@ -25,10 +25,14 @@ import (
 	"fmt"
 	"hash/crc32"
 	"os"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
-type GPTLBA uint64
-type GPTGUID [16]byte
+type (
+	GPTLBA  uint64
+	GPTGUID [16]byte
+)
 
 // https://en.wikipedia.org/wiki/GUID_Partition_Table#Partition_table_header_(LBA_1)
 type GPTHeader struct {
@@ -81,10 +85,7 @@ func verifyHeader(rawHeader []byte, header GPTHeader) error {
 func LoadGPTHeader(devfd *os.File, sectorSize uint64) (GPTHeader, error) {
 	var header GPTHeader
 	rawHeader := make([]byte, sectorSize)
-	read, err := devfd.Read(rawHeader)
-	if err != nil {
-		return GPTHeader{}, err
-	}
+	read := mylog.Check2(devfd.Read(rawHeader))
 
 	if read < binary.Size(header) {
 		return GPTHeader{}, fmt.Errorf("Not enough data was read")
@@ -92,47 +93,32 @@ func LoadGPTHeader(devfd *os.File, sectorSize uint64) (GPTHeader, error) {
 
 	buf := bytes.NewReader(rawHeader[:read])
 	binary.Read(buf, binary.LittleEndian, &header)
-
-	if err := verifyHeader(rawHeader[:read], header); err != nil {
-		return GPTHeader{}, err
-	}
+	mylog.Check(verifyHeader(rawHeader[:read], header))
 
 	return header, nil
 }
 
 func ReadGPTHeader(device string, sectorSize uint64) (GPTHeader, error) {
-	devfd, err := os.Open(device)
-	if err != nil {
-		return GPTHeader{}, err
-	}
-	defer devfd.Close()
+	devfd := mylog.Check2(os.Open(device))
 
-	if _, err := devfd.Seek(int64(sectorSize), os.SEEK_SET); err != nil {
-		return GPTHeader{}, err
-	}
+	defer devfd.Close()
+	mylog.Check2(devfd.Seek(int64(sectorSize), os.SEEK_SET))
 
 	header, main_err := LoadGPTHeader(devfd, sectorSize)
 	if main_err != nil {
 		// Read the backup header
-		_, err := devfd.Seek(-int64(sectorSize), os.SEEK_END)
-		if err != nil {
-			return GPTHeader{}, main_err
-		}
+		_ := mylog.Check2(devfd.Seek(-int64(sectorSize), os.SEEK_END))
 
-		header, err = LoadGPTHeader(devfd, sectorSize)
-		if err != nil {
-			return GPTHeader{}, main_err
-		}
+		header = mylog.Check2(LoadGPTHeader(devfd, sectorSize))
+
 	}
 
 	return header, nil
 }
 
 func CalculateLastUsableLBA(device string, diskSize uint64, sectorSize uint64) (uint64, error) {
-	header, err := ReadGPTHeader(device, sectorSize)
-	if err != nil {
-		return 0, err
-	}
+	header := mylog.Check2(ReadGPTHeader(device, sectorSize))
+
 	sectors := diskSize / sectorSize
 
 	tableSize := uint64(header.NEntries) * uint64(header.EntrySize)

@@ -22,6 +22,7 @@ package builtin_test
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -52,7 +53,7 @@ slots:
 `
 	s.slot, s.slotInfo = MockConnectedSlot(c, coreYaml, nil, "calendar-service")
 
-	var consumerYaml = `name: consumer
+	consumerYaml := `name: consumer
 version: 0
 apps:
  app:
@@ -71,8 +72,8 @@ func (s *CalendarServiceInterfaceSuite) TestSanitize(c *C) {
 }
 
 func (s *CalendarServiceInterfaceSuite) TestAppArmorConnectedPlug(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 1)

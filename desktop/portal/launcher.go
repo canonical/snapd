@@ -24,6 +24,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/godbus/dbus"
 
 	"github.com/snapcore/snapd/osutil"
@@ -58,7 +59,7 @@ func desktopPortal(bus *dbus.Conn) (dbus.BusObject, error) {
 	// xdg-desktop-portal do not include the AssumedAppArmorLabel
 	// key in their service activation file.
 	var startResult uint32
-	err := bus.BusObject().Call("org.freedesktop.DBus.StartServiceByName", 0, desktopPortalBusName, uint32(0)).Store(&startResult)
+	mylog.Check(bus.BusObject().Call("org.freedesktop.DBus.StartServiceByName", 0, desktopPortalBusName, uint32(0)).Store(&startResult))
 	if dbusErr, ok := err.(dbus.Error); ok {
 		// If it is not possible to activate the service
 		// (i.e. there is no .service file or the systemd unit
@@ -70,9 +71,7 @@ func desktopPortal(bus *dbus.Conn) (dbus.BusObject, error) {
 			startResult = 2 // DBUS_START_REPLY_ALREADY_RUNNING
 		}
 	}
-	if err != nil {
-		return nil, err
-	}
+
 	switch startResult {
 	case 1: // DBUS_START_REPLY_SUCCESS
 	case 2: // DBUS_START_REPLY_ALREADY_RUNNING
@@ -111,15 +110,12 @@ func portalCall(bus *dbus.Conn, call func() (dbus.ObjectPath, error)) error {
 	// does not exist in the external copies of godbus on some
 	// supported platforms.
 	const matchRule = "type='signal',sender='" + desktopPortalBusName + "',interface='" + desktopPortalRequestIface + "',member='Response'"
-	if err := bus.BusObject().Call("org.freedesktop.DBus.AddMatch", 0, matchRule).Store(); err != nil {
-		return err
-	}
+	mylog.Check(bus.BusObject().Call("org.freedesktop.DBus.AddMatch", 0, matchRule).Store())
+
 	defer bus.BusObject().Call("org.freedesktop.DBus.RemoveMatch", 0, matchRule)
 
-	requestPath, err := call()
-	if err != nil {
-		return err
-	}
+	requestPath := mylog.Check2(call())
+
 	request := bus.Object(desktopPortalBusName, requestPath)
 
 	timeout := time.NewTimer(defaultPortalRequestTimeout)
@@ -136,10 +132,10 @@ func portalCall(bus *dbus.Conn, call func() (dbus.ObjectPath, error)) error {
 			}
 
 			var response uint32
-			var results map[string]interface{} // don't care
-			if err := dbus.Store(signal.Body, &response, &results); err != nil {
-				return &ResponseError{msg: fmt.Sprintf("cannot unpack response: %v", err)}
-			}
+			var results map[string]interface{}
+			mylog.Check( // don't care
+				dbus.Store(signal.Body, &response, &results))
+
 			if response == portalResponseSuccess {
 				return nil
 			}
@@ -149,15 +145,10 @@ func portalCall(bus *dbus.Conn, call func() (dbus.ObjectPath, error)) error {
 }
 
 func OpenFile(bus *dbus.Conn, filename string) error {
-	portal, err := desktopPortal(bus)
-	if err != nil {
-		return err
-	}
+	portal := mylog.Check2(desktopPortal(bus))
 
-	fd, err := syscall.Open(filename, syscall.O_RDONLY, 0)
-	if err != nil {
-		return &ResponseError{msg: err.Error()}
-	}
+	fd := mylog.Check2(syscall.Open(filename, syscall.O_RDONLY, 0))
+
 	defer syscall.Close(fd)
 
 	return portalCall(bus, func() (dbus.ObjectPath, error) {
@@ -166,16 +157,13 @@ func OpenFile(bus *dbus.Conn, filename string) error {
 			options map[string]dbus.Variant
 			request dbus.ObjectPath
 		)
-		err := portal.Call(desktopPortalOpenURIIface+".OpenFile", 0, parent, dbus.UnixFD(fd), options).Store(&request)
+		mylog.Check(portal.Call(desktopPortalOpenURIIface+".OpenFile", 0, parent, dbus.UnixFD(fd), options).Store(&request))
 		return request, err
 	})
 }
 
 func OpenURI(bus *dbus.Conn, uri string) error {
-	portal, err := desktopPortal(bus)
-	if err != nil {
-		return err
-	}
+	portal := mylog.Check2(desktopPortal(bus))
 
 	return portalCall(bus, func() (dbus.ObjectPath, error) {
 		var (
@@ -183,7 +171,7 @@ func OpenURI(bus *dbus.Conn, uri string) error {
 			options map[string]dbus.Variant
 			request dbus.ObjectPath
 		)
-		err := portal.Call(desktopPortalOpenURIIface+".OpenURI", 0, parent, uri, options).Store(&request)
+		mylog.Check(portal.Call(desktopPortalOpenURIIface+".OpenURI", 0, parent, uri, options).Store(&request))
 		return request, err
 	})
 }

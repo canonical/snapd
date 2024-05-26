@@ -26,6 +26,8 @@ import (
 	"strconv"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // BlkIDEncodeLabel encodes a name for use as a partition or filesystem
@@ -65,11 +67,10 @@ func BlkIDDecodeLabel(in string) (string, error) {
 		}
 		out.WriteString(beforeMatch)
 		hex := in[start+2 : start+4]
-		n, err := strconv.ParseUint(hex, 16, 8)
-		if err != nil {
-			// This cannot really happen, since the regexp wouldn't match otherwise
-			return "", fmt.Errorf("internal error: cannot parse hex %q despite matching regexp", hex)
-		}
+		n := mylog.Check2(strconv.ParseUint(hex, 16, 8))
+
+		// This cannot really happen, since the regexp wouldn't match otherwise
+
 		out.WriteRune(rune(n))
 		pos = m[1]
 	}

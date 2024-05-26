@@ -23,11 +23,11 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
-var (
-	coreNameFormat = regexp.MustCompile("^core(?P<version>[0-9]*)(?:-.*)?$")
-)
+var coreNameFormat = regexp.MustCompile("^core(?P<version>[0-9]*)(?:-.*)?$")
 
 // CoreVersion extract the version component of the core snap name
 // Most core snap names are of the form coreXX where XX is a number.
@@ -46,11 +46,9 @@ func CoreVersion(base string) (int, error) {
 		return 16, nil
 	}
 
-	v, err := strconv.Atoi(coreVersionStr)
-	if err != nil {
-		// Unreachable
-		return 0, fmt.Errorf("Unexpected error converting %s to version: %v", base, err)
-	}
+	v := mylog.Check2(strconv.Atoi(coreVersionStr))
+
+	// Unreachable
 
 	return v, nil
 }

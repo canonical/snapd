@@ -23,6 +23,7 @@ import (
 	. "gopkg.in/check.v1"
 	"gopkg.in/yaml.v2"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -68,8 +69,8 @@ k2: v2
 k0: v0
 `)
 	var om strutil.OrderedMap
-	err := yaml.Unmarshal(yamlStr, &om)
-	c.Assert(err, IsNil)
+	mylog.Check(yaml.Unmarshal(yamlStr, &om))
+	
 	c.Check(om.Keys(), DeepEquals, []string{"k", "k2", "k0"})
 }
 
@@ -80,7 +81,7 @@ k0: v0
 k: v
 `)
 	var om strutil.OrderedMap
-	err := yaml.Unmarshal(yamlStr, &om)
+	mylog.Check(yaml.Unmarshal(yamlStr, &om))
 	c.Assert(err, ErrorMatches, `found duplicate key "k"`)
 }
 
@@ -90,6 +91,6 @@ k:
  nested: var
 `)
 	var om strutil.OrderedMap
-	err := yaml.Unmarshal(yamlStr, &om)
+	mylog.Check(yaml.Unmarshal(yamlStr, &om))
 	c.Assert(err, ErrorMatches, "(?m)yaml: unmarshal error.*")
 }

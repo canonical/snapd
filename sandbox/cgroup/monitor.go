@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/inotify"
@@ -89,9 +90,7 @@ func (gtw *groupToWatch) sendClosedNotification() {
 	// Use a goroutine to avoid getting blocked on the channel
 	go func() {
 		defer func() {
-			if err := recover(); err != nil {
-				logger.Noticef("cannot send closed notification for %s", gtw.name)
-			}
+			mylog.Check(recover())
 		}()
 		gtw.channel <- gtw.name
 	}()
@@ -114,12 +113,9 @@ func (iw *inotifyWatcher) addWatch(newWatch *groupToWatch) {
 		basePath := filepath.Dir(fullPath)
 		if _, exists := iw.pathList[basePath]; !exists {
 			iw.pathList[basePath] = 0
-			if err := iw.wd.AddWatch(basePath, inotify.InDelete); err != nil {
-				// TODO propagate the error back to the caller
-				logger.Noticef("cannot add watch %v", err)
-				delete(iw.pathList, basePath)
-				continue
-			}
+			mylog.Check(iw.wd.AddWatch(basePath, inotify.InDelete))
+			// TODO propagate the error back to the caller
+
 		}
 
 		// bump for the base path, since we're relying on a watch being added there
@@ -172,9 +168,7 @@ func (iw *inotifyWatcher) removePath(fullPath string) {
 
 	// deal with parent now
 	if iw.pathList[parent] == 0 {
-		if err := iw.wd.RemoveWatch(parent); err != nil {
-			logger.Noticef("cannot remove watch: %v", err)
-		}
+		mylog.Check(iw.wd.RemoveWatch(parent))
 
 		delete(iw.pathList, parent)
 	}
@@ -241,11 +235,8 @@ func (iw *inotifyWatcher) watcherMainLoop() {
 // Once all of them have been deleted, it pushes the specified name through the channel.
 func (iw *inotifyWatcher) monitorDelete(folders []string, name string, channel chan<- string) (err error) {
 	iw.doOnce.Do(func() {
-		iw.wd, err = inotify.NewWatcher()
-		if err != nil {
-			iw.wdErr = err
-			return
-		}
+		iw.wd = mylog.Check2(inotify.NewWatcher())
+
 		go iw.watcherMainLoop()
 	})
 	if iw.wdErr != nil {
@@ -272,10 +263,7 @@ func MonitorSnapEnded(snapName string, channel chan<- string) error {
 	options := InstancePathsOptions{
 		ReturnCGroupPath: true,
 	}
-	paths, err := InstancePathsOfSnap(snapName, options)
-	if err != nil {
-		return err
-	}
+	paths := mylog.Check2(InstancePathsOfSnap(snapName, options))
 
 	logger.Debugf("snap %s has %d processes: %v", snapName, len(paths), paths)
 	return currentWatcher.monitorDelete(paths, snapName, channel)

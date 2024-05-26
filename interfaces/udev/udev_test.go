@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/testutil"
@@ -49,8 +50,8 @@ func (s *uDevSuite) SetUpTest(c *C) {
 func (s *uDevSuite) TestReloadUDevRulesRunsUDevAdm(c *C) {
 	cmd := testutil.MockCommand(c, "udevadm", "")
 	defer cmd.Restore()
-	err := s.backend.ReloadRules(nil)
-	c.Assert(err, IsNil)
+	mylog.Check(s.backend.ReloadRules(nil))
+
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
 		{"udevadm", "control", "--reload-rules"},
 		{"udevadm", "trigger", "--subsystem-nomatch=input"},
@@ -69,7 +70,7 @@ if [ "$1" = "control" ]; then
 fi
 	`)
 	defer cmd.Restore()
-	err := s.backend.ReloadRules(nil)
+	mylog.Check(s.backend.ReloadRules(nil))
 	c.Assert(err.Error(), Equals, ""+
 		"cannot reload udev rules: exit status 1\n"+
 		"udev output:\n"+
@@ -87,8 +88,8 @@ if [ "$1" = "trigger" ]; then
 fi
 	`)
 	defer cmd.Restore()
-	err := s.backend.ReloadRules(nil)
-	c.Assert(err, IsNil)
+	mylog.Check(s.backend.ReloadRules(nil))
+
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
 		{"udevadm", "control", "--reload-rules"},
 		{"udevadm", "trigger", "--subsystem-nomatch=input"},
@@ -107,7 +108,7 @@ if [ "$1" = "trigger" ]; then
 fi
 	`)
 	defer cmd.Restore()
-	err := s.backend.ReloadRules(nil)
+	mylog.Check(s.backend.ReloadRules(nil))
 	c.Assert(err, ErrorMatches, `cannot run udev triggers: signal: killed
 udev output:
 failure 2
@@ -121,8 +122,8 @@ failure 2
 func (s *uDevSuite) TestReloadUDevRulesRunsUDevAdmWithSubsystem(c *C) {
 	cmd := testutil.MockCommand(c, "udevadm", "")
 	defer cmd.Restore()
-	err := s.backend.ReloadRules([]string{"input"})
-	c.Assert(err, IsNil)
+	mylog.Check(s.backend.ReloadRules([]string{"input"}))
+
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
 		{"udevadm", "control", "--reload-rules"},
 		{"udevadm", "trigger", "--subsystem-nomatch=input"},
@@ -139,8 +140,8 @@ if [ "$2" = "--subsystem-match=input" ]; then
 fi
 	`)
 	defer cmd.Restore()
-	err := s.backend.ReloadRules([]string{"input"})
-	c.Assert(err, IsNil)
+	mylog.Check(s.backend.ReloadRules([]string{"input"}))
+
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
 		{"udevadm", "control", "--reload-rules"},
 		{"udevadm", "trigger", "--subsystem-nomatch=input"},
@@ -152,8 +153,8 @@ fi
 func (s *uDevSuite) TestReloadUDevRulesRunsUDevAdmWithJoystick(c *C) {
 	cmd := testutil.MockCommand(c, "udevadm", "")
 	defer cmd.Restore()
-	err := s.backend.ReloadRules([]string{"input/joystick"})
-	c.Assert(err, IsNil)
+	mylog.Check(s.backend.ReloadRules([]string{"input/joystick"}))
+
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
 		{"udevadm", "control", "--reload-rules"},
 		{"udevadm", "trigger", "--subsystem-nomatch=input"},
@@ -170,8 +171,8 @@ if [ "$2" = "--property-match=ID_INPUT_JOYSTICK=1" ]; then
 fi
 	`)
 	defer cmd.Restore()
-	err := s.backend.ReloadRules([]string{"input/joystick"})
-	c.Assert(err, IsNil)
+	mylog.Check(s.backend.ReloadRules([]string{"input/joystick"}))
+
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
 		{"udevadm", "control", "--reload-rules"},
 		{"udevadm", "trigger", "--subsystem-nomatch=input"},
@@ -183,8 +184,8 @@ fi
 func (s *uDevSuite) TestReloadUDevRulesRunsUDevAdmWithTwoSubsystems(c *C) {
 	cmd := testutil.MockCommand(c, "udevadm", "")
 	defer cmd.Restore()
-	err := s.backend.ReloadRules([]string{"input", "tty"})
-	c.Assert(err, IsNil)
+	mylog.Check(s.backend.ReloadRules([]string{"input", "tty"}))
+
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
 		{"udevadm", "control", "--reload-rules"},
 		{"udevadm", "trigger", "--subsystem-nomatch=input"},

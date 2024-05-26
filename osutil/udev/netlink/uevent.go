@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 	"unsafe"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // See: http://elixir.free-electrons.com/linux/v3.12/source/lib/kobject_uevent.c#L45
@@ -35,7 +37,7 @@ func ParseKObjAction(raw string) (a KObjAction, err error) {
 	switch a {
 	case ADD, REMOVE, CHANGE, MOVE, ONLINE, OFFLINE, BIND, UNBIND:
 	default:
-		err = fmt.Errorf("unknow kobject action (got: %s)", raw)
+		mylog.Check(fmt.Errorf("unknow kobject action (got: %s)", raw))
 	}
 	return
 }
@@ -106,7 +108,7 @@ func parseUdevEvent(raw []byte) (e *UEvent, err error) {
 
 	fields := bytes.Split(raw[payloadoff:], []byte{0x00}) // 0x00 = end of string
 	if len(fields) == 0 {
-		err = fmt.Errorf("cannot parse libudev event: data missing")
+		mylog.Check(fmt.Errorf("cannot parse libudev event: data missing"))
 		return
 	}
 
@@ -114,17 +116,14 @@ func parseUdevEvent(raw []byte) (e *UEvent, err error) {
 	for _, envs := range fields[0 : len(fields)-1] {
 		env := bytes.Split(envs, []byte("="))
 		if len(env) != 2 {
-			err = fmt.Errorf("cannot parse libudev event: invalid env data")
+			mylog.Check(fmt.Errorf("cannot parse libudev event: invalid env data"))
 			return
 		}
 		envdata[string(env[0])] = string(env[1])
 	}
 
 	var action KObjAction
-	action, err = ParseKObjAction(strings.ToLower(envdata["ACTION"]))
-	if err != nil {
-		return
-	}
+	action = mylog.Check2(ParseKObjAction(strings.ToLower(envdata["ACTION"])))
 
 	// XXX: do we need kobj?
 	kobj := envdata["DEVPATH"]
@@ -145,20 +144,17 @@ func ParseUEvent(raw []byte) (e *UEvent, err error) {
 	fields := bytes.Split(raw, []byte{0x00}) // 0x00 = end of string
 
 	if len(fields) == 0 {
-		err = fmt.Errorf("Wrong uevent format")
+		mylog.Check(fmt.Errorf("Wrong uevent format"))
 		return
 	}
 
 	headers := bytes.Split(fields[0], []byte("@")) // 0x40 = @
 	if len(headers) != 2 {
-		err = fmt.Errorf("Wrong uevent header")
+		mylog.Check(fmt.Errorf("Wrong uevent header"))
 		return
 	}
 
-	action, err := ParseKObjAction(string(headers[0]))
-	if err != nil {
-		return
-	}
+	action := mylog.Check2(ParseKObjAction(string(headers[0])))
 
 	e = &UEvent{
 		Action: action,
@@ -169,7 +165,7 @@ func ParseUEvent(raw []byte) (e *UEvent, err error) {
 	for _, envs := range fields[1 : len(fields)-1] {
 		env := bytes.Split(envs, []byte("="))
 		if len(env) != 2 {
-			err = fmt.Errorf("Wrong uevent env")
+			mylog.Check(fmt.Errorf("Wrong uevent env"))
 			return
 		}
 		e.Env[string(env[0])] = string(env[1])

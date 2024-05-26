@@ -25,6 +25,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/device"
@@ -35,9 +36,7 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
-var (
-	ErrNoUpdate = errors.New("nothing to update")
-)
+var ErrNoUpdate = errors.New("nothing to update")
 
 // GadgetData holds references to a gadget revision metadata and its data directory.
 type GadgetData struct {
@@ -75,8 +74,10 @@ type ContentChange struct {
 	After string
 }
 
-type ContentOperation int
-type ContentChangeAction int
+type (
+	ContentOperation    int
+	ContentChangeAction int
+)
 
 const (
 	ContentWrite ContentOperation = iota
@@ -170,7 +171,7 @@ func searchVolumeWithTraitsAndMatchParts(vol *Volume, traits DiskVolumeDeviceTra
 
 	// first try the kernel device path if it is set
 	if traits.OriginalDevicePath != "" {
-		disk, err := disks.DiskFromDevicePath(traits.OriginalDevicePath)
+		disk := mylog.Check2(disks.DiskFromDevicePath(traits.OriginalDevicePath))
 		gadgetStructToDiskStruct := compatibleCandidate(disk, "device path", err)
 		if gadgetStructToDiskStruct != nil {
 			return disk, gadgetStructToDiskStruct, nil
@@ -179,7 +180,7 @@ func searchVolumeWithTraitsAndMatchParts(vol *Volume, traits DiskVolumeDeviceTra
 
 	// next try the kernel device node name
 	if traits.OriginalKernelPath != "" {
-		disk, err := disks.DiskFromDeviceName(traits.OriginalKernelPath)
+		disk := mylog.Check2(disks.DiskFromDeviceName(traits.OriginalKernelPath))
 		gadgetStructToDiskStruct := compatibleCandidate(disk, "device name", err)
 		if gadgetStructToDiskStruct != nil {
 			return disk, gadgetStructToDiskStruct, nil
@@ -191,7 +192,7 @@ func searchVolumeWithTraitsAndMatchParts(vol *Volume, traits DiskVolumeDeviceTra
 		// there isn't a way to find a disk using the disk ID directly, so we
 		// instead have to get all the disks and then check them all to see if
 		// the disk ID's match
-		blockdevDisks, err := disks.AllPhysicalDisks()
+		blockdevDisks := mylog.Check2(disks.AllPhysicalDisks())
 		if err == nil {
 			for _, blockDevDisk := range blockdevDisks {
 				if blockDevDisk.DiskID() == traits.DiskID {
@@ -342,11 +343,10 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 				return false, ""
 			}
 		}
+		mylog.Check(
 
-		// start offset mismatch
-		if err := CheckValidStartOffset(ds.StartOffset, vss, vssIdx); err != nil {
-			return false, fmt.Sprintf("disk partition %q %v", ds.Name, err)
-		}
+			// start offset mismatch
+			CheckValidStartOffset(ds.StartOffset, vss, vssIdx))
 
 		maxSz := effectivePartSize(gs)
 		switch {
@@ -657,10 +657,7 @@ func DiskTraitsFromDeviceAndValidate(vol *Volume, dev string, opts *DiskVolumeVa
 	}
 
 	// get the disk layout for this device
-	diskLayout, err := OnDiskVolumeFromDevice(dev)
-	if err != nil {
-		return res, fmt.Errorf("cannot read %v partitions for candidate volume %s: %v", dev, vol.Name, err)
-	}
+	diskLayout := mylog.Check2(OnDiskVolumeFromDevice(dev))
 
 	// ensure that the on disk volume and the gadget volume are actually
 	// compatible
@@ -672,21 +669,12 @@ func DiskTraitsFromDeviceAndValidate(vol *Volume, dev string, opts *DiskVolumeVa
 		AllowImplicitSystemData:     opts.AllowImplicitSystemData,
 		ExpectedStructureEncryption: opts.ExpectedStructureEncryption,
 	}
-	gadgetToDiskStruct, err := EnsureVolumeCompatibility(vol, diskLayout, volCompatOpts)
-	if err != nil {
-		return res, fmt.Errorf("volume %s is not compatible with disk %s: %v", vol.Name, dev, err)
-	}
+	gadgetToDiskStruct := mylog.Check2(EnsureVolumeCompatibility(vol, diskLayout, volCompatOpts))
 
 	// also get a Disk{} interface for this device
-	disk, err := disks.DiskFromDeviceName(dev)
-	if err != nil {
-		return res, fmt.Errorf("cannot get disk for device %s: %v", dev, err)
-	}
+	disk := mylog.Check2(disks.DiskFromDeviceName(dev))
 
-	diskPartitions, err := disk.Partitions()
-	if err != nil {
-		return res, fmt.Errorf("cannot get partitions for disk device %s: %v", dev, err)
-	}
+	diskPartitions := mylog.Check2(disk.Partitions())
 
 	// make a map of start offsets to partitions for lookup
 	diskPartitionsByOffset := make(map[uint64]disks.Partition, len(diskPartitions))
@@ -765,10 +753,7 @@ func DiskTraitsFromDeviceAndValidate(vol *Volume, dev string, opts *DiskVolumeVa
 				break
 			}
 
-			s, err := OnDiskStructureFromPartition(part)
-			if err != nil {
-				return res, err
-			}
+			s := mylog.Check2(OnDiskStructureFromPartition(part))
 
 			if onDiskStructureIsLikelyImplicitSystemDataRole(vol, diskLayout, s) {
 				// it is likely the implicit system-data
@@ -873,27 +858,23 @@ func buildNewVolumeToDeviceMapping(mod Model, old GadgetData, vols map[string]*V
 		// here it is okay that we require there to be either a partition label
 		// or a filesystem label since we require there to be a system-boot role
 		// on this volume which by definition must have a filesystem
-		structureDevice, err := FindDeviceForStructure(&vol.Structure[i])
+		structureDevice := mylog.Check2(FindDeviceForStructure(&vol.Structure[i]))
 		if err == ErrDeviceNotFound {
 			continue
 		}
-		if err != nil {
-			// TODO: should this be a fatal error?
-			return nil, err
-		}
+
+		// TODO: should this be a fatal error?
 
 		// we found a device for this structure, get the parent disk
 		// and save that as the device for this volume
-		disk, err := disks.DiskFromPartitionDeviceNode(structureDevice)
-		if err != nil {
-			// TODO: should we keep looping instead and try again with
-			// another structure? it probably wouldn't work because we found
-			// something on disk with the same name as something from the
-			// gadget.yaml, but then we failed to make a disk from that
-			// partition which suggests something is inconsistent with the
-			// state of the disk/udev database
-			return nil, err
-		}
+		disk := mylog.Check2(disks.DiskFromPartitionDeviceNode(structureDevice))
+
+		// TODO: should we keep looping instead and try again with
+		// another structure? it probably wouldn't work because we found
+		// something on disk with the same name as something from the
+		// gadget.yaml, but then we failed to make a disk from that
+		// partition which suggests something is inconsistent with the
+		// state of the disk/udev database
 
 		dev = disk.KernelDeviceNode()
 		break
@@ -936,14 +917,7 @@ func buildNewVolumeToDeviceMapping(mod Model, old GadgetData, vols map[string]*V
 		}
 	}
 
-	traits, err := DiskTraitsFromDeviceAndValidate(vol, dev, validateOpts)
-	if err != nil {
-		if isPreUC20 {
-			logger.Noticef("WARNING: not applying gadget asset updates on main system-boot volume due to error while finding disk traits: %v", err)
-			return nil, errSkipUpdateProceedRefresh
-		}
-		return nil, err
-	}
+	traits := mylog.Check2(DiskTraitsFromDeviceAndValidate(vol, dev, validateOpts))
 
 	// TODO: should we save the traits here so they can be re-used in another
 	// future update routine?
@@ -980,7 +954,6 @@ func buildVolumeStructureToLocation(mod Model,
 	volToDeviceMapping map[string]DiskVolumeDeviceTraits,
 	missingInitialMapping bool,
 ) (map[string]map[int]StructureLocation, map[string]map[int]*OnDiskStructure, error) {
-
 	isPreUC20 := (mod.Grade() == asserts.ModelGradeUnset)
 
 	// helper function for handling non-fatal errors on pre-UC20
@@ -1024,11 +997,8 @@ func buildVolumeStructureToLocation(mod Model,
 			ExpectedStructureEncryption: diskDeviceTraits.StructureEncryption,
 		}
 
-		disk, gadgetToDiskStruct, err := searchVolumeWithTraitsAndMatchParts(newVol, diskDeviceTraits, validateOpts)
-		if err != nil {
-			dieErr := fmt.Errorf("could not map volume %s from gadget.yaml to any physical disk: %v", volName, err)
-			return nil, nil, maybeFatalError(dieErr)
-		}
+		disk, gadgetToDiskStruct := mylog.Check3(searchVolumeWithTraitsAndMatchParts(newVol, diskDeviceTraits, validateOpts))
+
 		gadgetVolToPartMap[volName] = gadgetToDiskStruct
 
 		// the index here is 0-based and is equal to VolumeStructure.YamlIndex
@@ -1047,10 +1017,7 @@ func buildVolumeStructureToLocation(mod Model,
 				// use the start offset to locate which disk partition this
 				// structure is equal to.
 
-				partitions, err := disk.Partitions()
-				if err != nil {
-					return nil, nil, err
-				}
+				partitions := mylog.Check2(disk.Partitions())
 
 				var foundP disks.Partition
 				found := false
@@ -1084,11 +1051,8 @@ func buildVolumeStructureToLocation(mod Model,
 
 				// otherwise normal unencrypted filesystem, find the rw mount
 				// points
-				mountpts, err := disks.MountPointsForPartitionRoot(foundP, map[string]string{"rw": ""})
-				if err != nil {
-					dieErr := fmt.Errorf("cannot locate structure %d on volume %s: error searching for root mount points: %v", volYamlIndex, volName, err)
-					return nil, nil, maybeFatalError(dieErr)
-				}
+				mountpts := mylog.Check2(disks.MountPointsForPartitionRoot(foundP, map[string]string{"rw": ""}))
+
 				var mountpt string
 				if len(mountpts) == 0 {
 					// this filesystem is not already mounted, we probably
@@ -1117,7 +1081,8 @@ func buildVolumeStructureToLocation(mod Model,
 }
 
 func MockVolumeStructureToLocationMap(f func(_ GadgetData, _ Model, _ map[string]*Volume) (
-	map[string]map[int]StructureLocation, map[string]map[int]*OnDiskStructure, error)) (restore func()) {
+	map[string]map[int]StructureLocation, map[string]map[int]*OnDiskStructure, error),
+) (restore func()) {
 	old := volumeStructureToLocationMap
 	volumeStructureToLocationMap = f
 	return func() {
@@ -1138,13 +1103,10 @@ var volumeStructureToLocationMap = volumeStructureToLocationMapImpl
 // structure in the gadget definition. The value is the disk structure
 // that matches the gadget description.
 func volumeStructureToLocationMapImpl(old GadgetData, mod Model, vols map[string]*Volume) (
-	map[string]map[int]StructureLocation, map[string]map[int]*OnDiskStructure, error) {
-
+	map[string]map[int]StructureLocation, map[string]map[int]*OnDiskStructure, error,
+) {
 	// first try to load the disk-mapping.json volume trait info
-	volToDeviceMapping, err := LoadDiskVolumesDeviceTraits(dirs.SnapDeviceDir)
-	if err != nil {
-		return nil, nil, err
-	}
+	volToDeviceMapping := mylog.Check2(LoadDiskVolumesDeviceTraits(dirs.SnapDeviceDir))
 
 	missingInitialMapping := false
 
@@ -1171,11 +1133,8 @@ func volumeStructureToLocationMapImpl(old GadgetData, mod Model, vols map[string
 		// code below, but in the interest of sharing the same codepath for all
 		// cases below, we treat this heuristic mapping data the same
 		missingInitialMapping = true
-		var err error
-		volToDeviceMapping, err = buildNewVolumeToDeviceMapping(mod, old, vols)
-		if err != nil {
-			return nil, nil, err
-		}
+
+		volToDeviceMapping = mylog.Check2(buildNewVolumeToDeviceMapping(mod, old, vols))
 
 		// volToDeviceMapping should always be of length one
 		var volName string
@@ -1283,10 +1242,7 @@ func Update(model Model, old, new GadgetData, rollbackDirPath string, updatePoli
 	// perform all updates at the end together in one call
 
 	// ensure all required kernel assets are found in the gadget
-	kernelInfo, err := kernel.ReadInfo(new.KernelRootDir)
-	if err != nil {
-		return err
-	}
+	kernelInfo := mylog.Check2(kernel.ReadInfo(new.KernelRootDir))
 
 	allKernelAssets := []string{}
 	for assetName, asset := range kernelInfo.Assets {
@@ -1299,17 +1255,12 @@ func Update(model Model, old, new GadgetData, rollbackDirPath string, updatePoli
 	atLeastOneKernelAssetConsumed := false
 
 	// build the map of volume structures to locations and of disk strucutures
-	structureLocations, volToPartsMap, err := volumeStructureToLocationMap(old, model, new.Info.Volumes)
-	if err != nil {
-		if err == errSkipUpdateProceedRefresh {
-			// we couldn't successfully build a map for the structure locations,
-			// but for various reasons this isn't considered a fatal error for
-			// the gadget refresh, so just return nil instead, a message should
-			// already have been logged
-			return nil
-		}
-		return err
-	}
+	structureLocations, volToPartsMap := mylog.Check3(volumeStructureToLocationMap(old, model, new.Info.Volumes))
+
+	// we couldn't successfully build a map for the structure locations,
+	// but for various reasons this isn't considered a fatal error for
+	// the gadget refresh, so just return nil instead, a message should
+	// already have been logged
 
 	// Layout new volume, delay resolving of filesystem content
 	opts := &LayoutOptions{
@@ -1325,52 +1276,32 @@ func Update(model Model, old, new GadgetData, rollbackDirPath string, updatePoli
 
 		// layout old partially, without going deep into the layout of structure
 		// content
-		pOld, err := layoutVolumePartially(oldVol, volToPartsMap[volName])
-		if err != nil {
-			return fmt.Errorf("cannot lay out the old volume %s: %v", volName, err)
-		}
+		pOld := mylog.Check2(layoutVolumePartially(oldVol, volToPartsMap[volName]))
 
-		pNew, err := LayoutVolume(newVol, volToPartsMap[volName], opts)
-		if err != nil {
-			return fmt.Errorf("cannot lay out the new volume %s: %v", volName, err)
-		}
+		pNew := mylog.Check2(LayoutVolume(newVol, volToPartsMap[volName], opts))
 
 		laidOutVols[volName] = pNew
-
-		if err := canUpdateVolume(pOld, pNew); err != nil {
-			return fmt.Errorf("cannot apply update to volume %s: %v", volName, err)
-		}
+		mylog.Check(canUpdateVolume(pOld, pNew))
 
 		// if we haven't consumed any kernel assets yet check if this volume
 		// consumes at least one - we require at least one asset to be consumed
 		// by some volume in the gadget
 		if !atLeastOneKernelAssetConsumed {
-			consumed, err := gadgetVolumeKernelUpdateAssetsConsumed(pNew.Volume, kernelInfo)
-			if err != nil {
-				return err
-			}
+			consumed := mylog.Check2(gadgetVolumeKernelUpdateAssetsConsumed(pNew.Volume, kernelInfo))
+
 			atLeastOneKernelAssetConsumed = consumed
 		}
 
 		// now we know which structure is which, find which ones need an update
-		updates, err := resolveUpdate(pOld, pNew, updatePolicy, new.RootDir, new.KernelRootDir, kernelInfo)
-		if err != nil {
-			return err
-		}
+		updates := mylog.Check2(resolveUpdate(pOld, pNew, updatePolicy, new.RootDir, new.KernelRootDir, kernelInfo))
 
 		// can update old layout to new layout
 		for _, update := range updates {
-			fromIdx, err := oldVol.yamlIdxToStructureIdx(update.from.VolumeStructure.YamlIndex)
-			if err != nil {
-				return err
-			}
-			toIdx, err := oldVol.yamlIdxToStructureIdx(update.from.VolumeStructure.YamlIndex)
-			if err != nil {
-				return err
-			}
-			if err := canUpdateStructure(oldVol, fromIdx, newVol, toIdx); err != nil {
-				return fmt.Errorf("cannot update volume structure %v for volume %s: %v", update.to, volName, err)
-			}
+			fromIdx := mylog.Check2(oldVol.yamlIdxToStructureIdx(update.from.VolumeStructure.YamlIndex))
+
+			toIdx := mylog.Check2(oldVol.yamlIdxToStructureIdx(update.from.VolumeStructure.YamlIndex))
+			mylog.Check(canUpdateStructure(oldVol, fromIdx, newVol, toIdx))
+
 		}
 
 		// collect updates per volume into a single set of updates to perform
@@ -1415,11 +1346,10 @@ func Update(model Model, old, new GadgetData, rollbackDirPath string, updatePoli
 			allUpdates = keepUpdates
 		}
 	}
+	mylog.Check(
 
-	// apply all updates at once
-	if err := applyUpdates(structureLocations, new, allUpdates, rollbackDirPath, observer); err != nil {
-		return err
-	}
+		// apply all updates at once
+		applyUpdates(structureLocations, new, allUpdates, rollbackDirPath, observer))
 
 	return nil
 }
@@ -1556,9 +1486,8 @@ func canUpdateVolume(from *PartiallyLaidOutVolume, to *LaidOutVolume) error {
 	if from.ID != to.ID {
 		return fmt.Errorf("cannot change volume ID from %q to %q", from.ID, to.ID)
 	}
-	if err := checkCompatibleSchema(from.Volume, to.Volume); err != nil {
-		return err
-	}
+	mylog.Check(checkCompatibleSchema(from.Volume, to.Volume))
+
 	if len(from.LaidOutStructure) != len(to.LaidOutStructure) {
 		return fmt.Errorf("cannot change the number of structures within volume from %v to %v", len(from.LaidOutStructure), len(to.LaidOutStructure))
 	}
@@ -1631,10 +1560,8 @@ func resolveUpdate(oldVol *PartiallyLaidOutVolume, newVol *LaidOutVolume, policy
 		if update, filter := policy(&oldStruct, &newStruct); update {
 			// Ensure content is resolved and filtered. Filtering
 			// is required for e.g. KernelUpdatePolicy, see above.
-			resolvedContent, err := resolveVolumeContent(newGadgetRootDir, newKernelRootDir, kernelInfo, newStruct.VolumeStructure, filter)
-			if err != nil {
-				return nil, err
-			}
+			resolvedContent := mylog.Check2(resolveVolumeContent(newGadgetRootDir, newKernelRootDir, kernelInfo, newStruct.VolumeStructure, filter))
+
 			// No resolved or raw content that would need updating
 			if len(resolvedContent) == 0 && len(newStruct.LaidOutContent) == 0 {
 				continue
@@ -1695,36 +1622,25 @@ func applyUpdates(structureLocations map[string]map[int]StructureLocation, new G
 	updaters := make([]Updater, len(updates))
 
 	for i, one := range updates {
-		loc, err := updateLocationForStructure(structureLocations, one.to)
-		if err != nil {
-			return fmt.Errorf("cannot prepare update for volume structure %v on volume %s: %v", one.to, one.volume.Name, err)
-		}
-		up, err := updaterForStructure(loc, one.from, one.to, new.RootDir, rollbackDir, observer)
-		if err != nil {
-			return fmt.Errorf("cannot prepare update for volume structure %v on volume %s: %v", one.to, one.volume.Name, err)
-		}
+		loc := mylog.Check2(updateLocationForStructure(structureLocations, one.to))
+
+		up := mylog.Check2(updaterForStructure(loc, one.from, one.to, new.RootDir, rollbackDir, observer))
+
 		updaters[i] = up
 	}
 
 	var backupErr error
 	for i, one := range updaters {
-		if err := one.Backup(); err != nil {
-			backupErr = fmt.Errorf("cannot backup volume structure %v on volume %s: %v", updates[i].to, updates[i].volume.Name, err)
-			break
-		}
+		mylog.Check(one.Backup())
 	}
 	if backupErr != nil {
 		if observer != nil {
-			if err := observer.Canceled(); err != nil {
-				logger.Noticef("cannot observe canceled prepare update: %v", err)
-			}
+			mylog.Check(observer.Canceled())
 		}
 		return backupErr
 	}
 	if observer != nil {
-		if err := observer.BeforeWrite(); err != nil {
-			return fmt.Errorf("cannot observe prepared update: %v", err)
-		}
+		mylog.Check(observer.BeforeWrite())
 	}
 
 	var updateErr error
@@ -1732,14 +1648,8 @@ func applyUpdates(structureLocations map[string]map[int]StructureLocation, new G
 	var skipped int
 	for i, one := range updaters {
 		updateLastAttempted = i
-		if err := one.Update(); err != nil {
-			if err == ErrNoUpdate {
-				skipped++
-				continue
-			}
-			updateErr = fmt.Errorf("cannot update volume structure %v on volume %s: %v", updates[i].to, updates[i].volume.Name, err)
-			break
-		}
+		mylog.Check(one.Update())
+
 	}
 	if skipped == len(updaters) {
 		// all updates were a noop
@@ -1755,16 +1665,13 @@ func applyUpdates(structureLocations map[string]map[int]StructureLocation, new G
 	// not so good, rollback ones that got applied
 	for i := 0; i <= updateLastAttempted; i++ {
 		one := updaters[i]
-		if err := one.Rollback(); err != nil {
-			// TODO: log errors to oplog
-			logger.Noticef("cannot rollback volume structure %v update on volume %s: %v", updates[i].to, updates[i].volume.Name, err)
-		}
+		mylog.Check(one.Rollback())
+		// TODO: log errors to oplog
+
 	}
 
 	if observer != nil {
-		if err := observer.Canceled(); err != nil {
-			logger.Noticef("cannot observe canceled update: %v", err)
-		}
+		mylog.Check(observer.Canceled())
 	}
 
 	return updateErr

@@ -29,6 +29,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/randutil"
@@ -43,14 +44,14 @@ func (ts *AtomicWriteTestSuite) TestAtomicWriteFile(c *C) {
 	tmpdir := c.MkDir()
 
 	p := filepath.Join(tmpdir, "foo")
-	err := osutil.AtomicWriteFile(p, []byte("canary"), 0644, 0)
-	c.Assert(err, IsNil)
+	mylog.Check(osutil.AtomicWriteFile(p, []byte("canary"), 0644, 0))
+
 
 	c.Check(p, testutil.FileEquals, "canary")
 
 	// no files left behind!
-	d, err := os.ReadDir(tmpdir)
-	c.Assert(err, IsNil)
+	d := mylog.Check2(os.ReadDir(tmpdir))
+
 	c.Assert(len(d), Equals, 1)
 }
 
@@ -58,11 +59,11 @@ func (ts *AtomicWriteTestSuite) TestAtomicWriteFilePermissions(c *C) {
 	tmpdir := c.MkDir()
 
 	p := filepath.Join(tmpdir, "foo")
-	err := osutil.AtomicWriteFile(p, []byte(""), 0600, 0)
-	c.Assert(err, IsNil)
+	mylog.Check(osutil.AtomicWriteFile(p, []byte(""), 0600, 0))
 
-	st, err := os.Stat(p)
-	c.Assert(err, IsNil)
+
+	st := mylog.Check2(os.Stat(p))
+
 	c.Assert(st.Mode()&os.ModePerm, Equals, os.FileMode(0600))
 }
 
@@ -84,8 +85,7 @@ func (ts *AtomicWriteTestSuite) TestAtomicWriteFileSymlinkNoFollow(c *C) {
 	c.Assert(os.Symlink(s, p), IsNil)
 	c.Assert(os.Chmod(rodir, 0500), IsNil)
 	defer os.Chmod(rodir, 0700)
-
-	err := osutil.AtomicWriteFile(p, []byte("hi"), 0600, 0)
+	mylog.Check(osutil.AtomicWriteFile(p, []byte("hi"), 0600, 0))
 	c.Assert(err, NotNil)
 }
 
@@ -98,9 +98,8 @@ func (ts *AtomicWriteTestSuite) TestAtomicWriteFileAbsoluteSymlinks(c *C) {
 	c.Assert(os.Symlink(s, p), IsNil)
 	c.Assert(os.Chmod(rodir, 0500), IsNil)
 	defer os.Chmod(rodir, 0700)
+	mylog.Check(osutil.AtomicWriteFile(p, []byte("hi"), 0600, osutil.AtomicWriteFollow))
 
-	err := osutil.AtomicWriteFile(p, []byte("hi"), 0600, osutil.AtomicWriteFollow)
-	c.Assert(err, IsNil)
 
 	c.Assert(p, testutil.FileEquals, "hi")
 }
@@ -129,9 +128,8 @@ func (ts *AtomicWriteTestSuite) TestAtomicWriteFileRelativeSymlinks(c *C) {
 	c.Assert(os.Symlink("../foo", p), IsNil)
 	c.Assert(os.Chmod(rodir, 0500), IsNil)
 	defer os.Chmod(rodir, 0700)
+	mylog.Check(osutil.AtomicWriteFile(p, []byte("hi"), 0600, osutil.AtomicWriteFollow))
 
-	err := osutil.AtomicWriteFile(p, []byte("hi"), 0600, osutil.AtomicWriteFollow)
-	c.Assert(err, IsNil)
 
 	c.Assert(p, testutil.FileEquals, "hi")
 }
@@ -161,10 +159,9 @@ func (ts *AtomicWriteTestSuite) TestAtomicWriteFileNoOverwriteTmpExisting(c *C) 
 	rand.Seed(1)
 
 	p := filepath.Join(tmpdir, "foo")
-	err := os.WriteFile(p+"."+expectedRandomness, []byte(""), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(p+"."+expectedRandomness, []byte(""), 0644))
 
-	err = osutil.AtomicWriteFile(p, []byte(""), 0600, 0)
+	mylog.Check(osutil.AtomicWriteFile(p, []byte(""), 0600, 0))
 	c.Assert(err, ErrorMatches, "open .*: file exists")
 }
 
@@ -181,12 +178,12 @@ func (ts *AtomicWriteTestSuite) TestAtomicFileChownError(c *C) {
 	d := c.MkDir()
 	p := filepath.Join(d, "foo")
 
-	aw, err := osutil.NewAtomicFile(p, 0644, 0, eUid, eGid)
-	c.Assert(err, IsNil)
+	aw := mylog.Check2(osutil.NewAtomicFile(p, 0644, 0, eUid, eGid))
+
 	defer aw.Cancel()
 
-	_, err = aw.Write([]byte("hello"))
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(aw.Write([]byte("hello")))
+
 
 	c.Check(aw.Commit(), Equals, eErr)
 }
@@ -194,8 +191,8 @@ func (ts *AtomicWriteTestSuite) TestAtomicFileChownError(c *C) {
 func (ts *AtomicWriteTestSuite) TestAtomicFileCancelError(c *C) {
 	d := c.MkDir()
 	p := filepath.Join(d, "foo")
-	aw, err := osutil.NewAtomicFile(p, 0644, 0, osutil.NoChown, osutil.NoChown)
-	c.Assert(err, IsNil)
+	aw := mylog.Check2(osutil.NewAtomicFile(p, 0644, 0, osutil.NoChown, osutil.NoChown))
+
 
 	c.Assert(aw.File.Close(), IsNil)
 	// Depending on golang version the error is one of the two.
@@ -205,8 +202,8 @@ func (ts *AtomicWriteTestSuite) TestAtomicFileCancelError(c *C) {
 func (ts *AtomicWriteTestSuite) TestAtomicFileCancelBadError(c *C) {
 	d := c.MkDir()
 	p := filepath.Join(d, "foo")
-	aw, err := osutil.NewAtomicFile(p, 0644, 0, osutil.NoChown, osutil.NoChown)
-	c.Assert(err, IsNil)
+	aw := mylog.Check2(osutil.NewAtomicFile(p, 0644, 0, osutil.NoChown, osutil.NoChown))
+
 	defer aw.Close()
 
 	osutil.SetAtomicFileRenamed(aw, true)
@@ -217,8 +214,8 @@ func (ts *AtomicWriteTestSuite) TestAtomicFileCancelBadError(c *C) {
 func (ts *AtomicWriteTestSuite) TestAtomicFileCancelNoClose(c *C) {
 	d := c.MkDir()
 	p := filepath.Join(d, "foo")
-	aw, err := osutil.NewAtomicFile(p, 0644, 0, osutil.NoChown, osutil.NoChown)
-	c.Assert(err, IsNil)
+	aw := mylog.Check2(osutil.NewAtomicFile(p, 0644, 0, osutil.NoChown, osutil.NoChown))
+
 	c.Assert(aw.Close(), IsNil)
 
 	c.Check(aw.Cancel(), IsNil)
@@ -228,8 +225,8 @@ func (ts *AtomicWriteTestSuite) TestAtomicFileCancel(c *C) {
 	d := c.MkDir()
 	p := filepath.Join(d, "foo")
 
-	aw, err := osutil.NewAtomicFile(p, 0644, 0, osutil.NoChown, osutil.NoChown)
-	c.Assert(err, IsNil)
+	aw := mylog.Check2(osutil.NewAtomicFile(p, 0644, 0, osutil.NoChown, osutil.NoChown))
+
 	fn := aw.File.Name()
 	c.Check(osutil.FileExists(fn), Equals, true)
 	c.Check(aw.Cancel(), IsNil)
@@ -240,14 +237,14 @@ func (ts *AtomicWriteTestSuite) TestAtomicFileModTime(c *C) {
 	d := c.MkDir()
 	p := filepath.Join(d, "foo")
 
-	aw, err := osutil.NewAtomicFile(p, 0644, 0, osutil.NoChown, osutil.NoChown)
-	c.Assert(err, IsNil)
+	aw := mylog.Check2(osutil.NewAtomicFile(p, 0644, 0, osutil.NoChown, osutil.NoChown))
+
 	t := time.Date(2010, time.January, 1, 13, 0, 0, 0, time.UTC)
 	aw.SetModTime(t)
 	c.Assert(aw.Commit(), IsNil)
 
-	finfo, err := os.Stat(p)
-	c.Assert(err, IsNil)
+	finfo := mylog.Check2(os.Stat(p))
+
 	c.Assert(finfo.ModTime().Equal(t), Equals, true)
 }
 
@@ -256,43 +253,42 @@ func (ts *AtomicWriteTestSuite) TestAtomicFileCommitAs(c *C) {
 	initialTarget := filepath.Join(d, "foo")
 	actualTarget := filepath.Join(d, "bar")
 
-	aw, err := osutil.NewAtomicFile(initialTarget, 0644, 0, osutil.NoChown, osutil.NoChown)
-	c.Assert(err, IsNil)
+	aw := mylog.Check2(osutil.NewAtomicFile(initialTarget, 0644, 0, osutil.NoChown, osutil.NoChown))
+
 	defer aw.Cancel()
 	fn := aw.File.Name()
 	c.Check(osutil.FileExists(fn), Equals, true)
 	c.Check(strings.HasPrefix(fn, initialTarget), Equals, true, Commentf("unexpected temporary file name prefix: %q", fn))
-	_, err = aw.WriteString("this is test data")
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(aw.WriteString("this is test data"))
 
-	err = aw.CommitAs(actualTarget)
-	c.Assert(err, IsNil)
+	mylog.Check(aw.CommitAs(actualTarget))
+
 	c.Check(fn, testutil.FileAbsent)
 	c.Check(actualTarget, testutil.FileEquals, "this is test data")
 	c.Check(initialTarget, testutil.FileAbsent)
 
 	// not confused when CommitAs uses the same name as initially
 	sameNameTarget := filepath.Join(d, "baz")
-	aw, err = osutil.NewAtomicFile(sameNameTarget, 0644, 0, osutil.NoChown, osutil.NoChown)
-	c.Assert(err, IsNil)
+	aw = mylog.Check2(osutil.NewAtomicFile(sameNameTarget, 0644, 0, osutil.NoChown, osutil.NoChown))
+
 	defer aw.Cancel()
-	_, err = aw.WriteString("this is baz")
-	c.Assert(err, IsNil)
-	err = aw.CommitAs(sameNameTarget)
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(aw.WriteString("this is baz"))
+
+	mylog.Check(aw.CommitAs(sameNameTarget))
+
 	c.Check(sameNameTarget, testutil.FileEquals, "this is baz")
 
 	// overwrites any existing file on CommitAs (same as Commit)
 	overwrittenTarget := filepath.Join(d, "will-overwrite")
-	err = os.WriteFile(overwrittenTarget, []byte("overwritten"), 0644)
-	c.Assert(err, IsNil)
-	aw, err = osutil.NewAtomicFile(filepath.Join(d, "temp-name"), 0644, 0, osutil.NoChown, osutil.NoChown)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(overwrittenTarget, []byte("overwritten"), 0644))
+
+	aw = mylog.Check2(osutil.NewAtomicFile(filepath.Join(d, "temp-name"), 0644, 0, osutil.NoChown, osutil.NoChown))
+
 	defer aw.Cancel()
-	_, err = aw.WriteString("this will overwrite existing file")
-	c.Assert(err, IsNil)
-	err = aw.CommitAs(overwrittenTarget)
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(aw.WriteString("this will overwrite existing file"))
+
+	mylog.Check(aw.CommitAs(overwrittenTarget))
+
 	c.Check(overwrittenTarget, testutil.FileEquals, "this will overwrite existing file")
 }
 
@@ -301,12 +297,11 @@ func (ts *AtomicWriteTestSuite) TestAtomicFileCommitAsDifferentDirErr(c *C) {
 	initialTarget := filepath.Join(d, "foo")
 	differentDirTarget := filepath.Join(c.MkDir(), "bar")
 
-	aw, err := osutil.NewAtomicFile(initialTarget, 0644, 0, osutil.NoChown, osutil.NoChown)
-	c.Assert(err, IsNil)
-	_, err = aw.WriteString("this is test data")
-	c.Assert(err, IsNil)
+	aw := mylog.Check2(osutil.NewAtomicFile(initialTarget, 0644, 0, osutil.NoChown, osutil.NoChown))
 
-	err = aw.CommitAs(differentDirTarget)
+	_ = mylog.Check2(aw.WriteString("this is test data"))
+
+	mylog.Check(aw.CommitAs(differentDirTarget))
 	c.Assert(err, ErrorMatches, `cannot commit as "bar" to a different directory .*`)
 }
 
@@ -316,14 +311,14 @@ var _ = Suite(&AtomicSymlinkTestSuite{})
 
 func (ts *AtomicSymlinkTestSuite) TestAtomicSymlink(c *C) {
 	mustReadSymlink := func(p, exp string) {
-		target, err := os.Readlink(p)
-		c.Assert(err, IsNil)
+		target := mylog.Check2(os.Readlink(p))
+
 		c.Check(exp, Equals, target)
 	}
 
 	checkLeftoverFiles := func(sym string, exp []string) {
-		res, err := filepath.Glob(sym + "*")
-		c.Assert(err, IsNil)
+		res := mylog.Check2(filepath.Glob(sym + "*"))
+
 		if len(exp) != 0 {
 			c.Assert(res, DeepEquals, exp)
 		} else {
@@ -333,46 +328,48 @@ func (ts *AtomicSymlinkTestSuite) TestAtomicSymlink(c *C) {
 
 	d := c.MkDir()
 	barSymlink := filepath.Join(d, "bar")
-	err := osutil.AtomicSymlink("target", barSymlink)
-	c.Assert(err, IsNil)
+	mylog.Check(osutil.AtomicSymlink("target", barSymlink))
+
 	mustReadSymlink(barSymlink, "target")
 	checkLeftoverFiles(barSymlink, []string{barSymlink})
 
 	// no nested directory
 	nested := filepath.Join(d, "nested")
 	nestedBarSymlink := filepath.Join(nested, "bar")
-	err = osutil.AtomicSymlink("target", nestedBarSymlink)
+	mylog.Check(osutil.AtomicSymlink("target", nestedBarSymlink))
 	c.Assert(err, ErrorMatches, `symlink target /.*/nested/bar\..*~: no such file or directory`)
 	checkLeftoverFiles(nestedBarSymlink, nil)
 
 	if os.Geteuid() != 0 {
-		// create a dir without write permission
-		err = os.MkdirAll(nested, 0644)
-		c.Assert(err, IsNil)
+		mylog.
+			// create a dir without write permission
+			Check(os.MkdirAll(nested, 0644))
 
-		// no permission to write in dir
-		err = osutil.AtomicSymlink("target", nestedBarSymlink)
+		mylog.Check(
+
+			// no permission to write in dir
+			osutil.AtomicSymlink("target", nestedBarSymlink))
 		c.Assert(err, ErrorMatches, `symlink target /.*/nested/bar\..*~: permission denied`)
 		checkLeftoverFiles(nestedBarSymlink, nil)
+		mylog.Check(os.Chmod(nested, 0755))
 
-		err = os.Chmod(nested, 0755)
-		c.Assert(err, IsNil)
 	}
+	mylog.Check(osutil.AtomicSymlink("target", nestedBarSymlink))
 
-	err = osutil.AtomicSymlink("target", nestedBarSymlink)
-	c.Assert(err, IsNil)
 	mustReadSymlink(nestedBarSymlink, "target")
 	checkLeftoverFiles(nestedBarSymlink, []string{nestedBarSymlink})
+	mylog.
 
-	// symlink gets replaced
-	err = osutil.AtomicSymlink("new-target", nestedBarSymlink)
-	c.Assert(err, IsNil)
+		// symlink gets replaced
+		Check(osutil.AtomicSymlink("new-target", nestedBarSymlink))
+
 	mustReadSymlink(nestedBarSymlink, "new-target")
 	checkLeftoverFiles(nestedBarSymlink, []string{nestedBarSymlink})
+	mylog.
 
-	// don't care about symlink target
-	err = osutil.AtomicSymlink("/this/is/some/funny/path", nestedBarSymlink)
-	c.Assert(err, IsNil)
+		// don't care about symlink target
+		Check(osutil.AtomicSymlink("/this/is/some/funny/path", nestedBarSymlink))
+
 	mustReadSymlink(nestedBarSymlink, "/this/is/some/funny/path")
 	checkLeftoverFiles(nestedBarSymlink, []string{nestedBarSymlink})
 }
@@ -380,9 +377,10 @@ func (ts *AtomicSymlinkTestSuite) TestAtomicSymlink(c *C) {
 func (ts *AtomicSymlinkTestSuite) createCollisionSequence(c *C, baseName string, many int) {
 	for i := 0; i < many; i++ {
 		expectedRandomness := randutil.RandomString(12) + "~"
-		// ensure we always get the same result
-		err := os.WriteFile(baseName+"."+expectedRandomness, []byte(""), 0644)
-		c.Assert(err, IsNil)
+		mylog.
+			// ensure we always get the same result
+			Check(os.WriteFile(baseName+"."+expectedRandomness, []byte(""), 0644))
+
 	}
 }
 
@@ -394,8 +392,7 @@ func (ts *AtomicSymlinkTestSuite) TestAtomicSymlinkCollisionError(c *C) {
 	ts.createCollisionSequence(c, p, osutil.MaxSymlinkTries)
 	// restart random number sequence
 	rand.Seed(1)
-
-	err := osutil.AtomicSymlink("target", p)
+	mylog.Check(osutil.AtomicSymlink("target", p))
 	c.Assert(err, ErrorMatches, "cannot create a temporary symlink")
 }
 
@@ -407,9 +404,8 @@ func (ts *AtomicSymlinkTestSuite) TestAtomicSymlinkCollisionHappy(c *C) {
 	ts.createCollisionSequence(c, p, osutil.MaxSymlinkTries/2)
 	// restart random number sequence
 	rand.Seed(1)
+	mylog.Check(osutil.AtomicSymlink("target", p))
 
-	err := osutil.AtomicSymlink("target", p)
-	c.Assert(err, IsNil)
 }
 
 type AtomicRenameTestSuite struct{}
@@ -418,17 +414,15 @@ var _ = Suite(&AtomicRenameTestSuite{})
 
 func (ts *AtomicRenameTestSuite) TestAtomicRenameFile(c *C) {
 	d := c.MkDir()
+	mylog.Check(os.WriteFile(filepath.Join(d, "foo"), []byte("foobar"), 0644))
 
-	err := os.WriteFile(filepath.Join(d, "foo"), []byte("foobar"), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(osutil.AtomicRename(filepath.Join(d, "foo"), filepath.Join(d, "bar")))
 
-	err = osutil.AtomicRename(filepath.Join(d, "foo"), filepath.Join(d, "bar"))
-	c.Assert(err, IsNil)
 	c.Check(filepath.Join(d, "bar"), testutil.FileEquals, "foobar")
 
 	// no nested directory
 	nested := filepath.Join(d, "nested")
-	err = osutil.AtomicRename(filepath.Join(d, "bar"), filepath.Join(nested, "bar"))
+	mylog.Check(osutil.AtomicRename(filepath.Join(d, "bar"), filepath.Join(nested, "bar")))
 	if !osutil.GetUnsafeIO() {
 		// with safe IO first op is to open the source and target directories
 		c.Assert(err, ErrorMatches, "open /.*/nested: no such file or directory")
@@ -437,32 +431,35 @@ func (ts *AtomicRenameTestSuite) TestAtomicRenameFile(c *C) {
 	}
 
 	if os.Geteuid() != 0 {
-		// create a dir without write permission
-		err = os.MkdirAll(nested, 0644)
-		c.Assert(err, IsNil)
+		mylog.
+			// create a dir without write permission
+			Check(os.MkdirAll(nested, 0644))
 
-		// no permission to write in dir
-		err = osutil.AtomicRename(filepath.Join(d, "bar"), filepath.Join(nested, "bar"))
+		mylog.Check(
+
+			// no permission to write in dir
+			osutil.AtomicRename(filepath.Join(d, "bar"), filepath.Join(nested, "bar")))
 		c.Assert(err, ErrorMatches, "rename /.*/bar /.*/nested/bar: permission denied")
+		mylog.Check(os.Chmod(nested, 0755))
 
-		err = os.Chmod(nested, 0755)
-		c.Assert(err, IsNil)
 	}
+	mylog.
 
-	// all good now
-	err = osutil.AtomicRename(filepath.Join(d, "bar"), filepath.Join(nested, "bar"))
-	c.Assert(err, IsNil)
+		// all good now
+		Check(osutil.AtomicRename(filepath.Join(d, "bar"), filepath.Join(nested, "bar")))
 
-	err = os.WriteFile(filepath.Join(nested, "new-bar"), []byte("barbar"), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(nested, "new-bar"), []byte("barbar"), 0644))
 
-	// target is overwritten
-	err = osutil.AtomicRename(filepath.Join(nested, "new-bar"), filepath.Join(nested, "bar"))
-	c.Assert(err, IsNil)
+	mylog.
+
+		// target is overwritten
+		Check(osutil.AtomicRename(filepath.Join(nested, "new-bar"), filepath.Join(nested, "bar")))
+
 	c.Check(filepath.Join(nested, "bar"), testutil.FileEquals, "barbar")
+	mylog.
 
-	// no source
-	err = osutil.AtomicRename(filepath.Join(d, "does-not-exist"), filepath.Join(nested, "bar"))
+		// no source
+		Check(osutil.AtomicRename(filepath.Join(d, "does-not-exist"), filepath.Join(nested, "bar")))
 	c.Assert(err, ErrorMatches, "rename /.*/does-not-exist /.*/nested/bar: no such file or directory")
 }
 
@@ -490,34 +487,34 @@ func (ts *AtomicWriteTestSuite) TestAtomicRenameDir(c *C) {
 	// create a source directory
 	srcParentDir := c.MkDir()
 	src := filepath.Join(srcParentDir, "foo")
+	mylog.Check(os.MkdirAll(src, 0755))
 
-	err := os.MkdirAll(src, 0755)
-	c.Assert(err, IsNil)
 
 	// put a file in the source directory
 	srcFile := filepath.Join(src, "file")
 	contents := []byte("contents")
-	err = osutil.AtomicWriteFile(srcFile, contents, 0644, 0)
-	c.Assert(err, IsNil)
+	mylog.Check(osutil.AtomicWriteFile(srcFile, contents, 0644, 0))
+
 
 	// the parent dir of the destination
 	dstParentDir := c.MkDir()
 	dst := filepath.Join(dstParentDir, "bar")
+	mylog.
 
-	// ensure it works even with trailing '/'
-	err = osutil.AtomicRename(src+"/", dst+"/")
-	c.Assert(err, IsNil)
+		// ensure it works even with trailing '/'
+		Check(osutil.AtomicRename(src+"/", dst+"/"))
 
-	d, err := os.ReadDir(dst)
-	c.Assert(err, IsNil)
+
+	d := mylog.Check2(os.ReadDir(dst))
+
 	c.Assert(len(d), Equals, 1)
 	c.Assert(d[0].Name(), Equals, "file")
 
-	data, err := os.ReadFile(filepath.Join(dst, "file"))
-	c.Assert(err, IsNil)
+	data := mylog.Check2(os.ReadFile(filepath.Join(dst, "file")))
+
 	c.Assert(data, DeepEquals, contents)
 
-	exists, _, err := osutil.DirExists(src)
-	c.Assert(err, IsNil)
+	exists, _ := mylog.Check3(osutil.DirExists(src))
+
 	c.Assert(exists, Equals, false)
 }

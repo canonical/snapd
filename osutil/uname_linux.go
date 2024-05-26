@@ -21,12 +21,14 @@ package osutil
 
 import (
 	"syscall"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 var syscallUname = syscall.Uname
 
 func uname() (*syscall.Utsname, error) {
 	var u syscall.Utsname
-	err := syscallUname(&u)
+	mylog.Check(syscallUname(&u))
 	return &u, err
 }

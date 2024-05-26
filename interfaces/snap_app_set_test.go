@@ -1,6 +1,7 @@
 package interfaces_test
 
 import (
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/snap"
@@ -45,22 +46,22 @@ hooks:
 
 func (s *snapAppSetSuite) TestPlugLabelExpr(c *C) {
 	info, connectedPlug := mockInfoAndConnectedPlug(c, yaml, nil, "network")
-	set, err := interfaces.NewSnapAppSet(info, nil)
-	c.Assert(err, IsNil)
+	set := mylog.Check2(interfaces.NewSnapAppSet(info, nil))
+
 
 	label := set.PlugLabelExpression(connectedPlug)
 	c.Check(label, Equals, `"snap.test-snap.{hook.install,hook.post-refresh}"`)
 
 	info, connectedPlug = mockInfoAndConnectedPlug(c, yaml, nil, "home")
-	set, err = interfaces.NewSnapAppSet(info, nil)
-	c.Assert(err, IsNil)
+	set = mylog.Check2(interfaces.NewSnapAppSet(info, nil))
+
 
 	label = set.PlugLabelExpression(connectedPlug)
 	c.Check(label, Equals, `"snap.test-snap.{app1,app2}"`)
 
 	info, connectedPlug = mockInfoAndConnectedPlug(c, yaml, nil, "x11")
-	set, err = interfaces.NewSnapAppSet(info, nil)
-	c.Assert(err, IsNil)
+	set = mylog.Check2(interfaces.NewSnapAppSet(info, nil))
+
 
 	label = set.PlugLabelExpression(connectedPlug)
 	c.Check(label, Equals, `"snap.test-snap.*"`)
@@ -68,8 +69,8 @@ func (s *snapAppSetSuite) TestPlugLabelExpr(c *C) {
 
 func (s *snapAppSetSuite) TestPlugLabelExprInfoFallback(c *C) {
 	info := snaptest.MockInfo(c, yaml, nil)
-	set, err := interfaces.NewSnapAppSet(info, nil)
-	c.Assert(err, IsNil)
+	set := mylog.Check2(interfaces.NewSnapAppSet(info, nil))
+
 
 	const otherInfo = `name: other-name
 version: 1
@@ -91,15 +92,15 @@ slots:
 
 func (s *snapAppSetSuite) TestSlotLabelExpr(c *C) {
 	info, connectedSlot := mockInfoAndConnectedSlot(c, yaml, nil, "unity8")
-	set, err := interfaces.NewSnapAppSet(info, nil)
-	c.Assert(err, IsNil)
+	set := mylog.Check2(interfaces.NewSnapAppSet(info, nil))
+
 
 	label := set.SlotLabelExpression(connectedSlot)
 	c.Check(label, Equals, `"snap.test-snap.app1"`)
 
 	info, connectedSlot = mockInfoAndConnectedSlot(c, yaml, nil, "opengl")
-	set, err = interfaces.NewSnapAppSet(info, nil)
-	c.Assert(err, IsNil)
+	set = mylog.Check2(interfaces.NewSnapAppSet(info, nil))
+
 
 	label = set.SlotLabelExpression(connectedSlot)
 	c.Check(label, Equals, `"snap.test-snap.*"`)
@@ -107,8 +108,8 @@ func (s *snapAppSetSuite) TestSlotLabelExpr(c *C) {
 
 func (s *snapAppSetSuite) TestSlotLabelExprInfoFallback(c *C) {
 	info := snaptest.MockInfo(c, yaml, nil)
-	set, err := interfaces.NewSnapAppSet(info, nil)
-	c.Assert(err, IsNil)
+	set := mylog.Check2(interfaces.NewSnapAppSet(info, nil))
+
 
 	const otherInfo = `name: other-name
 version: 1
@@ -185,11 +186,11 @@ slots:
 		Revision: snap.R(1),
 	})
 
-	set, err := interfaces.NewSnapAppSet(info, []*snap.ComponentInfo{compInfo})
-	c.Assert(err, IsNil)
+	set := mylog.Check2(interfaces.NewSnapAppSet(info, []*snap.ComponentInfo{compInfo}))
 
-	tags, err := set.SecurityTagsForConnectedPlug(connectedPlug)
-	c.Assert(err, IsNil)
+
+	tags := mylog.Check2(set.SecurityTagsForConnectedPlug(connectedPlug))
+
 	c.Assert(tags, DeepEquals, []string{
 		"snap.name+comp.hook.install",
 		"snap.name.app1",
@@ -202,8 +203,8 @@ func (s *snapAppSetSuite) TestPlugSecurityTagsWrongSnap(c *C) {
 	const yaml = `name: name
 version: 1`
 	info := snaptest.MockInfo(c, yaml, nil)
-	set, err := interfaces.NewSnapAppSet(info, nil)
-	c.Assert(err, IsNil)
+	set := mylog.Check2(interfaces.NewSnapAppSet(info, nil))
+
 
 	const otherYaml = `name: other-name
 version: 1
@@ -211,7 +212,7 @@ plugs:
   plug:`
 	_, connectedPlug := mockInfoAndConnectedPlug(c, otherYaml, nil, "plug")
 
-	_, err = set.SecurityTagsForConnectedPlug(connectedPlug)
+	_ = mylog.Check2(set.SecurityTagsForConnectedPlug(connectedPlug))
 	c.Assert(err, ErrorMatches, `internal error: plug "plug" is from snap "other-name", security tags can only be computed for processed target snap: "name"`)
 }
 
@@ -228,11 +229,11 @@ plugs:
 slots:
   slot:`
 	info, connectedSlot := mockInfoAndConnectedSlot(c, yaml, nil, "slot")
-	set, err := interfaces.NewSnapAppSet(info, nil)
-	c.Assert(err, IsNil)
+	set := mylog.Check2(interfaces.NewSnapAppSet(info, nil))
 
-	tags, err := set.SecurityTagsForConnectedSlot(connectedSlot)
-	c.Assert(err, IsNil)
+
+	tags := mylog.Check2(set.SecurityTagsForConnectedSlot(connectedSlot))
+
 	c.Assert(tags, DeepEquals, []string{"snap.name.app1", "snap.name.app2", "snap.name.hook.install"})
 }
 
@@ -240,8 +241,8 @@ func (s *snapAppSetSuite) TestSlotSecurityTagsWrongSnap(c *C) {
 	const yaml = `name: name
 version: 1`
 	info := snaptest.MockInfo(c, yaml, nil)
-	set, err := interfaces.NewSnapAppSet(info, nil)
-	c.Assert(err, IsNil)
+	set := mylog.Check2(interfaces.NewSnapAppSet(info, nil))
+
 
 	const otherYaml = `name: other-name
 version: 1
@@ -249,7 +250,7 @@ slots:
   slot:`
 	_, connectedSlot := mockInfoAndConnectedSlot(c, otherYaml, nil, "slot")
 
-	_, err = set.SecurityTagsForConnectedSlot(connectedSlot)
+	_ = mylog.Check2(set.SecurityTagsForConnectedSlot(connectedSlot))
 	c.Assert(err, ErrorMatches, `internal error: slot "slot" is from snap "other-name", security tags can only be computed for processed target snap: "name"`)
 }
 
@@ -273,8 +274,8 @@ components:
 		Revision: snap.R(1),
 	})
 
-	set, err := interfaces.NewSnapAppSet(info, []*snap.ComponentInfo{compInfo})
-	c.Assert(err, IsNil)
+	set := mylog.Check2(interfaces.NewSnapAppSet(info, []*snap.ComponentInfo{compInfo}))
+
 
 	c.Check(set.Runnables(), testutil.DeepUnsortedMatches, []interfaces.Runnable{
 		{
@@ -298,25 +299,25 @@ components:
 
 func (s *snapAppSetSuite) TestInfo(c *C) {
 	info := snaptest.MockInfo(c, yaml, nil)
-	set, err := interfaces.NewSnapAppSet(info, nil)
-	c.Assert(err, IsNil)
+	set := mylog.Check2(interfaces.NewSnapAppSet(info, nil))
+
 
 	c.Check(set.Info(), DeepEquals, info)
 }
 
 func (s *snapAppSetSuite) TestInstanceName(c *C) {
 	info := snaptest.MockInfo(c, yaml, nil)
-	set, err := interfaces.NewSnapAppSet(info, nil)
-	c.Assert(err, IsNil)
+	set := mylog.Check2(interfaces.NewSnapAppSet(info, nil))
+
 
 	c.Check(set.InstanceName(), Equals, "test-snap")
 }
 
 func (s *snapAppSetSuite) TestNewAppSetWithWrongComponent(c *C) {
 	info := snaptest.MockInfo(c, yaml, nil)
-	_, err := interfaces.NewSnapAppSet(info, []*snap.ComponentInfo{{
+	_ := mylog.Check2(interfaces.NewSnapAppSet(info, []*snap.ComponentInfo{{
 		Component: naming.NewComponentRef("other-name", "comp"),
-	}})
+	}}))
 	c.Assert(err, ErrorMatches, `internal error: snap "test-snap" does not own component "other-name\+comp"`)
 }
 

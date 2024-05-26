@@ -26,6 +26,7 @@ import (
 	"net/url"
 	"strconv"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -96,39 +97,27 @@ func getAssertTypeNames(c *Command, r *http.Request, user *auth.UserState) Respo
 	return SyncResponse(map[string][]string{
 		"types": asserts.TypeNames(),
 	})
-
 }
 
 func doAssert(c *Command, r *http.Request, user *auth.UserState) Response {
 	batch := asserts.NewBatch(nil)
-	_, err := batch.AddStream(r.Body)
-	if err != nil {
-		return BadRequest("cannot decode request body into assertions: %v", err)
-	}
+	_ := mylog.Check2(batch.AddStream(r.Body))
 
 	state := c.d.overlord.State()
 	state.Lock()
 	defer state.Unlock()
-
-	if err := assertstate.AddBatch(state, batch, &asserts.CommitOptions{
+	mylog.Check(assertstate.AddBatch(state, batch, &asserts.CommitOptions{
 		Precheck: true,
-	}); err != nil {
-		return BadRequest("assert failed: %v", err)
-	}
+	}))
 
 	return SyncResponse(nil)
 }
 
 func assertsFindOneRemote(c *Command, at *asserts.AssertionType, headers map[string]string, user *auth.UserState) ([]asserts.Assertion, error) {
-	primaryKeys, err := asserts.PrimaryKeyFromHeaders(at, headers)
-	if err != nil {
-		return nil, fmt.Errorf("cannot query remote assertion: %v", err)
-	}
+	primaryKeys := mylog.Check2(asserts.PrimaryKeyFromHeaders(at, headers))
+
 	sto := storeFrom(c.d)
-	as, err := sto.Assertion(at, primaryKeys, user)
-	if err != nil {
-		return nil, err
-	}
+	as := mylog.Check2(sto.Assertion(at, primaryKeys, user))
 
 	return []asserts.Assertion{as}, nil
 }
@@ -148,16 +137,13 @@ func assertsFindMany(c *Command, r *http.Request, user *auth.UserState) Response
 	if assertType == nil {
 		return BadRequest("invalid assert type: %q", assertTypeName)
 	}
-	opts, err := parseHeadersFormatOptionsFromURL(r.URL.Query())
-	if err != nil {
-		return BadRequest(err.Error())
-	}
+	opts := mylog.Check2(parseHeadersFormatOptionsFromURL(r.URL.Query()))
 
 	var assertions []asserts.Assertion
 	if opts.remote {
-		assertions, err = assertsFindOneRemote(c, assertType, opts.headers, user)
+		assertions = mylog.Check2(assertsFindOneRemote(c, assertType, opts.headers, user))
 	} else {
-		assertions, err = assertsFindManyInState(c, assertType, opts.headers, opts)
+		assertions = mylog.Check2(assertsFindManyInState(c, assertType, opts.headers, opts))
 	}
 	if err != nil && !errors.Is(err, &asserts.NotFoundError{}) {
 		return InternalError("searching assertions failed: %v", err)

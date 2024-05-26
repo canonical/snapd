@@ -26,6 +26,8 @@ import (
 	"io"
 	"os"
 	"strings"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // MountProfile represents an array of mount entries.
@@ -37,13 +39,11 @@ type MountProfile struct {
 //
 // The file may be absent, in such case an empty profile is returned without errors.
 func LoadMountProfile(fname string) (*MountProfile, error) {
-	f, err := os.Open(fname)
+	f := mylog.Check2(os.Open(fname))
 	if err != nil && os.IsNotExist(err) {
 		return &MountProfile{}, nil
 	}
-	if err != nil {
-		return nil, err
-	}
+
 	defer f.Close()
 	return ReadMountProfile(f)
 }
@@ -55,10 +55,8 @@ func LoadMountProfileText(fstab string) (*MountProfile, error) {
 
 func SaveMountProfileText(p *MountProfile) (string, error) {
 	var buf bytes.Buffer
-	_, err := p.WriteTo(&buf)
-	if err != nil {
-		return "", err
-	}
+	_ := mylog.Check2(p.WriteTo(&buf))
+
 	return buf.String(), nil
 }
 
@@ -66,9 +64,8 @@ func SaveMountProfileText(p *MountProfile) (string, error) {
 // The profile is saved with an atomic write+rename+sync operation.
 func (p *MountProfile) Save(fname string) error {
 	var buf bytes.Buffer
-	if _, err := p.WriteTo(&buf); err != nil {
-		return err
-	}
+	mylog.Check2(p.WriteTo(&buf))
+
 	return AtomicWriteFile(fname, buf.Bytes(), 0644, AtomicWriteFlags(0))
 }
 
@@ -92,15 +89,12 @@ func ReadMountProfile(reader io.Reader) (*MountProfile, error) {
 		if s == "" {
 			continue
 		}
-		entry, err := ParseMountEntry(s)
-		if err != nil {
-			return nil, err
-		}
+		entry := mylog.Check2(ParseMountEntry(s))
+
 		p.Entries = append(p.Entries, entry)
 	}
-	if err := scanner.Err(); err != nil {
-		return nil, err
-	}
+	mylog.Check(scanner.Err())
+
 	return &p, nil
 }
 
@@ -112,8 +106,8 @@ func (p *MountProfile) WriteTo(writer io.Writer) (int64, error) {
 	var written int64
 	for i := range p.Entries {
 		var n int
-		var err error
-		if n, err = fmt.Fprintf(writer, "%s\n", p.Entries[i]); err != nil {
+
+		if n = mylog.Check2(fmt.Fprintf(writer, "%s\n", p.Entries[i])); err != nil {
 			return written, err
 		}
 		written += int64(n)

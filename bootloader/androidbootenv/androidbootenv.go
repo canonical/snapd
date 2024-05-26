@@ -26,6 +26,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 )
@@ -53,10 +54,8 @@ func (a *Env) Set(key, value string) {
 }
 
 func (a *Env) Load() error {
-	file, err := os.Open(a.path)
-	if err != nil {
-		return err
-	}
+	file := mylog.Check2(os.Open(a.path))
+
 	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
@@ -70,9 +69,7 @@ func (a *Env) Load() error {
 		}
 		a.env[l[0]] = l[1]
 	}
-	if err := scanner.Err(); err != nil {
-		return err
-	}
+	mylog.Check(scanner.Err())
 
 	return nil
 }
@@ -81,9 +78,7 @@ func (a *Env) Save() error {
 	var w bytes.Buffer
 
 	for k, v := range a.env {
-		if _, err := fmt.Fprintf(&w, "%s=%s\n", k, v); err != nil {
-			return err
-		}
+		mylog.Check2(fmt.Fprintf(&w, "%s=%s\n", k, v))
 	}
 
 	return osutil.AtomicWriteFile(a.path, w.Bytes(), 0644, 0)

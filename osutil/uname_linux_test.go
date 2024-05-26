@@ -27,6 +27,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -35,7 +36,7 @@ type unameSuite struct{}
 var _ = check.Suite(unameSuite{})
 
 func ucmd1(c *check.C, arg string) string {
-	out, err := exec.Command("uname", arg).CombinedOutput()
+	out := mylog.Check2(exec.Command("uname", arg).CombinedOutput())
 	c.Assert(err, check.IsNil)
 	return string(bytes.TrimSpace(out))
 }

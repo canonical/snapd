@@ -24,6 +24,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
@@ -65,9 +66,7 @@ func (iface *daemoNotifyInterface) AppArmorConnectedPlug(spec *apparmor.Specific
 		// must be an absolute path or an abstract socket path
 		return fmt.Errorf("cannot use %q as notify socket path: not absolute", notifySocket)
 	}
-	if err := apparmor_sandbox.ValidateNoAppArmorRegexp(notifySocket); err != nil {
-		return fmt.Errorf("cannot use %q as notify socket path: %s", notifySocket, err)
-	}
+	mylog.Check(apparmor_sandbox.ValidateNoAppArmorRegexp(notifySocket))
 
 	var rule string
 

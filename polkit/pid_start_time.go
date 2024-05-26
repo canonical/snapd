@@ -25,6 +25,8 @@ import (
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // getStartTimeForPid determines the start time for a given process ID
@@ -39,10 +41,8 @@ func getStartTimeForPid(pid int32) (uint64, error) {
 //
 //	https://cgit.freedesktop.org/polkit/tree/src/polkit/polkitunixprocess.c
 func getStartTimeForProcStatFile(filename string) (uint64, error) {
-	data, err := os.ReadFile(filename)
-	if err != nil {
-		return 0, err
-	}
+	data := mylog.Check2(os.ReadFile(filename))
+
 	contents := string(data)
 
 	// start time is the token at index 19 after the '(process

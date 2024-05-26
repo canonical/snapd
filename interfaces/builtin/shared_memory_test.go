@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
@@ -134,7 +135,7 @@ func (s *SharedMemoryInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *SharedMemoryInterfaceSuite) TestSanitizePlugUnhappy(c *C) {
-	var sharedMemoryYaml = `name: consumer
+	sharedMemoryYaml := `name: consumer
 version: 0
 plugs:
  shmem:
@@ -165,7 +166,7 @@ apps:
 	for _, testData := range data {
 		snapYaml := fmt.Sprintf(sharedMemoryYaml, testData.plugYaml)
 		_, plug := MockConnectedPlug(c, snapYaml, nil, "shmem")
-		err := interfaces.BeforePreparePlug(s.iface, plug)
+		mylog.Check(interfaces.BeforePreparePlug(s.iface, plug))
 		c.Check(err, ErrorMatches, testData.expectedError, Commentf("yaml: %s", testData.plugYaml))
 	}
 }
@@ -182,8 +183,8 @@ apps:
   plugs: [shmem]
 `
 	_, plug := MockConnectedPlug(c, snapYaml, nil, "shmem")
-	err := interfaces.BeforePreparePlug(s.iface, plug)
-	c.Assert(err, IsNil)
+	mylog.Check(interfaces.BeforePreparePlug(s.iface, plug))
+
 	c.Check(plug.Attrs["private"], Equals, true)
 	c.Check(plug.Attrs["shared-memory"], Equals, nil)
 }
@@ -199,7 +200,7 @@ plugs:
     private: true
 `
 	_, plug := MockConnectedPlug(c, snapYaml1, nil, "shmem-private")
-	err := interfaces.BeforePreparePlug(s.iface, plug)
+	mylog.Check(interfaces.BeforePreparePlug(s.iface, plug))
 	c.Check(err, ErrorMatches, `shared-memory plug with "private: true" set cannot be used with other shared-memory plugs`)
 
 	const snapYaml2 = `name: consumer
@@ -213,12 +214,12 @@ slots:
     interface: shared-memory
 `
 	_, plug = MockConnectedPlug(c, snapYaml2, nil, "shmem-private")
-	err = interfaces.BeforePreparePlug(s.iface, plug)
+	mylog.Check(interfaces.BeforePreparePlug(s.iface, plug))
 	c.Check(err, ErrorMatches, `shared-memory plug with \"private: true\" set cannot be used with shared-memory slots`)
 }
 
 func (s *SharedMemoryInterfaceSuite) TestPlugShmAttribute(c *C) {
-	var plugYamlTemplate = `name: consumer
+	plugYamlTemplate := `name: consumer
 version: 0
 plugs:
  shmem:
@@ -246,8 +247,8 @@ apps:
 	for _, testData := range data {
 		snapYaml := fmt.Sprintf(plugYamlTemplate, testData.plugYaml)
 		_, plug := MockConnectedPlug(c, snapYaml, nil, "shmem")
-		err := interfaces.BeforePreparePlug(s.iface, plug)
-		c.Assert(err, IsNil)
+		mylog.Check(interfaces.BeforePreparePlug(s.iface, plug))
+
 		c.Check(plug.Attrs["private"], Equals, false,
 			Commentf(`yaml: %q`, testData.plugYaml))
 		c.Check(plug.Attrs["shared-memory"], Equals, testData.expectedName,
@@ -261,7 +262,7 @@ func (s *SharedMemoryInterfaceSuite) TestSanitizeSlot(c *C) {
 }
 
 func (s *SharedMemoryInterfaceSuite) TestSanitizeSlotUnhappy(c *C) {
-	var sharedMemoryYaml = `name: provider
+	sharedMemoryYaml := `name: provider
 version: 0
 slots:
  shmem:
@@ -332,13 +333,13 @@ apps:
 	for _, testData := range data {
 		snapYaml := fmt.Sprintf(sharedMemoryYaml, testData.slotYaml)
 		_, slot := MockConnectedSlot(c, snapYaml, nil, "shmem")
-		err := interfaces.BeforePrepareSlot(s.iface, slot)
+		mylog.Check(interfaces.BeforePrepareSlot(s.iface, slot))
 		c.Check(err, ErrorMatches, testData.expectedError, Commentf("yaml: %s", testData.slotYaml))
 	}
 }
 
 func (s *SharedMemoryInterfaceSuite) TestSlotShmAttribute(c *C) {
-	var slotYamlTemplate = `name: consumer
+	slotYamlTemplate := `name: consumer
 version: 0
 slots:
  shmem:
@@ -367,8 +368,8 @@ apps:
 	for _, testData := range data {
 		snapYaml := fmt.Sprintf(slotYamlTemplate, testData.slotYaml)
 		_, slot := MockConnectedSlot(c, snapYaml, nil, "shmem")
-		err := interfaces.BeforePrepareSlot(s.iface, slot)
-		c.Assert(err, IsNil)
+		mylog.Check(interfaces.BeforePrepareSlot(s.iface, slot))
+
 		c.Check(slot.Attrs["shared-memory"], Equals, testData.expectedName,
 			Commentf(`yaml: %q`, testData.slotYaml))
 	}
@@ -383,8 +384,8 @@ func (s *SharedMemoryInterfaceSuite) TestStaticInfo(c *C) {
 }
 
 func (s *SharedMemoryInterfaceSuite) TestAppArmorSpec(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	plugSnippet := spec.SnippetForTag("snap.consumer.app")
@@ -394,8 +395,8 @@ func (s *SharedMemoryInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Check(plugSnippet, testutil.Contains, `"/{dev,run}/shm/bar" mrwlk,`)
 	c.Check(plugSnippet, testutil.Contains, `"/{dev,run}/shm/bar-ro" r,`)
 
-	appSet, err = interfaces.NewSnapAppSet(s.slot.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.slot.Snap(), nil))
+
 	spec = apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.provider.app"})
@@ -406,8 +407,8 @@ func (s *SharedMemoryInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Check(slotSnippet, testutil.Contains, `"/{dev,run}/shm/bar" mrwlk,`)
 	c.Check(slotSnippet, testutil.Contains, `"/{dev,run}/shm/bar-ro" mrwlk,`)
 
-	appSet, err = interfaces.NewSnapAppSet(s.wildcardPlug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.wildcardPlug.Snap(), nil))
+
 	wildcardSpec := apparmor.NewSpecification(appSet)
 	c.Assert(wildcardSpec.AddConnectedPlug(s.iface, s.wildcardPlug, s.wildcardSlot), IsNil)
 	wildcardPlugSnippet := wildcardSpec.SnippetForTag("snap.consumer.app")
@@ -417,8 +418,8 @@ func (s *SharedMemoryInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Check(wildcardPlugSnippet, testutil.Contains, `"/{dev,run}/shm/bar*" mrwlk,`)
 	c.Check(wildcardPlugSnippet, testutil.Contains, `"/{dev,run}/shm/bar-ro*" r,`)
 
-	appSet, err = interfaces.NewSnapAppSet(s.wildcardSlot.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.wildcardSlot.Snap(), nil))
+
 	wildcardSpec = apparmor.NewSpecification(appSet)
 	c.Assert(wildcardSpec.AddConnectedSlot(s.iface, s.wildcardPlug, s.wildcardSlot), IsNil)
 
@@ -430,8 +431,8 @@ func (s *SharedMemoryInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Check(wildcardSlotSnippet, testutil.Contains, `"/{dev,run}/shm/bar*" mrwlk,`)
 	c.Check(wildcardSlotSnippet, testutil.Contains, `"/{dev,run}/shm/bar-ro*" mrwlk,`)
 
-	appSet, err = interfaces.NewSnapAppSet(s.privatePlug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.privatePlug.Snap(), nil))
+
 	spec = apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.privatePlug, s.privateSlot), IsNil)
 	privatePlugSnippet := spec.SnippetForTag("snap.consumer.app")
@@ -444,8 +445,8 @@ func (s *SharedMemoryInterfaceSuite) TestAppArmorSpec(c *C) {
   mount options=(bind, rw) /dev/shm/snap.consumer/ -> /dev/shm/,
   umount /dev/shm/,`)
 
-	appSet, err = interfaces.NewSnapAppSet(s.privateSlot.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.privateSlot.Snap(), nil))
+
 	spec = apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedSlot(s.iface, s.privatePlug, s.privateSlot), IsNil)
 	privateSlotSnippet := spec.SnippetForTag("snap.core.app")
@@ -479,7 +480,7 @@ func (s *SharedMemoryInterfaceSuite) TestMountSpec(c *C) {
 	c.Assert(os.Remove(filepath.Join(tmpdir, "/dev/shm")), IsNil)
 	c.Assert(os.Symlink("/run/shm", filepath.Join(tmpdir, "/dev/shm")), IsNil)
 	spec = &mount.Specification{}
-	err := spec.AddConnectedPlug(s.iface, s.privatePlug, s.privateSlot)
+	mylog.Check(spec.AddConnectedPlug(s.iface, s.privatePlug, s.privateSlot))
 	c.Check(err, ErrorMatches, `shared-memory plug with "private: true" cannot be connected if ".*/dev/shm" is a symlink`)
 }
 
@@ -502,8 +503,8 @@ plugs:
 	plug, _ := MockConnectedPlug(c, consumerYaml, nil, "shmem-missing")
 
 	spec := &mount.Specification{}
-	err := spec.AddConnectedPlug(s.iface, plug, nil)
-	c.Assert(err, IsNil)
+	mylog.Check(spec.AddConnectedPlug(s.iface, plug, nil))
+
 }
 
 func (s *SharedMemoryInterfaceSuite) TestErrorOnBadPlug(c *C) {
@@ -518,6 +519,6 @@ plugs:
 	plug, _ := MockConnectedPlug(c, consumerYaml, nil, "shmem-missing")
 
 	spec := &mount.Specification{}
-	err := spec.AddConnectedPlug(s.iface, plug, nil)
+	mylog.Check(spec.AddConnectedPlug(s.iface, plug, nil))
 	c.Assert(err, ErrorMatches, `snap "consumer" has interface "shared-memory" with invalid value type string for "private" attribute: \*bool`)
 }

@@ -22,6 +22,7 @@ package patch
 import (
 	"errors"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
@@ -71,13 +72,11 @@ func patch6FlagsFromPatch4(old patch4Flags) patch6Flags {
 //   - move from a flags-are-ints world to a flags-are-struct-of-bools world
 func patch6(st *state.State) error {
 	var oldStateMap map[string]*patch4SnapState
-	err := st.Get("snaps", &oldStateMap)
+	mylog.Check(st.Get("snaps", &oldStateMap))
 	if errors.Is(err, state.ErrNoState) {
 		return nil
 	}
-	if err != nil {
-		return err
-	}
+
 	newStateMap := make(map[string]*patch6SnapState, len(oldStateMap))
 
 	for key, old := range oldStateMap {
@@ -93,7 +92,7 @@ func patch6(st *state.State) error {
 
 	for _, task := range st.Tasks() {
 		var old patch4SnapSetup
-		err := task.Get("snap-setup", &old)
+		mylog.Check(task.Get("snap-setup", &old))
 		if errors.Is(err, state.ErrNoState) {
 			continue
 		}

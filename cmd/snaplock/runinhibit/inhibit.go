@@ -30,6 +30,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
@@ -105,19 +106,16 @@ func (info InhibitInfo) validate() error {
 func removeInhibitInfoFiles(snapName string) error {
 	infoGlob := filepath.Join(InhibitDir, snapName+".*")
 	// There should be one file only, but just in case
-	files, err := filepath.Glob(infoGlob)
-	if err != nil {
-		return err
-	}
+	files := mylog.Check2(filepath.Glob(infoGlob))
+
 	hintFile := filepath.Base(HintFile(snapName))
 	for _, f := range files {
 		// Don't remove hint
 		if filepath.Base(f) == hintFile {
 			continue
 		}
-		if err := os.Remove(f); err != nil {
-			return err
-		}
+		mylog.Check(os.Remove(f))
+
 	}
 	return nil
 }
@@ -131,45 +129,28 @@ func removeInhibitInfoFiles(snapName string) error {
 // info.Previous corresponding to the snap revision that was installed must be
 // provided and cannot be unset.
 func LockWithHint(snapName string, hint Hint, info InhibitInfo) error {
-	if err := hint.validate(); err != nil {
-		return err
-	}
-	if err := info.validate(); err != nil {
-		return err
-	}
-	if err := os.MkdirAll(InhibitDir, 0755); err != nil {
-		return err
-	}
-	flock, err := openHintFileLock(snapName)
-	if err != nil {
-		return err
-	}
-	defer flock.Close()
+	mylog.Check(hint.validate())
+	mylog.Check(info.validate())
+	mylog.Check(os.MkdirAll(InhibitDir, 0755))
 
-	// The following order of execution is important to avoid race conditions.
-	// Take the lock
-	if err := flock.Lock(); err != nil {
-		return err
-	}
+	flock := mylog.Check2(openHintFileLock(snapName))
+
+	defer flock.Close()
+	mylog.Check(
+
+		// The following order of execution is important to avoid race conditions.
+		// Take the lock
+		flock.Lock())
+
 	// Write inhibit info
-	buf, err := json.Marshal(info)
-	if err != nil {
-		return err
-	}
-	if err := os.WriteFile(InhibitInfoFile(snapName, hint), buf, 0644); err != nil {
-		return err
-	}
+	buf := mylog.Check2(json.Marshal(info))
+	mylog.Check(os.WriteFile(InhibitInfoFile(snapName, hint), buf, 0644))
+
 	// Write hint
 	f := flock.File()
-	if err := f.Truncate(0); err != nil {
-		return err
-	}
-	if _, err = f.WriteString(string(hint)); err != nil {
-		return err
-	}
-	if err := f.Sync(); err != nil {
-		return err
-	}
+	mylog.Check(f.Truncate(0))
+	mylog.Check2(f.WriteString(string(hint)))
+	mylog.Check(f.Sync())
 
 	return nil
 }
@@ -178,32 +159,26 @@ func LockWithHint(snapName string, hint Hint, info InhibitInfo) error {
 //
 // An empty inhibition lock means uninhibited "snap run".
 func Unlock(snapName string) error {
-	flock, err := openHintFileLock(snapName)
+	flock := mylog.Check2(openHintFileLock(snapName))
 	if os.IsNotExist(err) {
 		return nil
 	}
-	if err != nil {
-		return err
-	}
-	defer flock.Close()
 
-	// The following order of execution is important to avoid race conditions.
-	// Take the lock
-	if err := flock.Lock(); err != nil {
-		return err
-	}
+	defer flock.Close()
+	mylog.Check(
+
+		// The following order of execution is important to avoid race conditions.
+		// Take the lock
+		flock.Lock())
+
 	// Write HintNotInhibited
 	f := flock.File()
-	if err := f.Truncate(0); err != nil {
-		return err
-	}
-	if err := f.Sync(); err != nil {
-		return err
-	}
-	// Remove inhibit info file
-	if err := removeInhibitInfoFiles(snapName); err != nil {
-		return err
-	}
+	mylog.Check(f.Truncate(0))
+	mylog.Check(f.Sync())
+	mylog.Check(
+
+		// Remove inhibit info file
+		removeInhibitInfoFiles(snapName))
 
 	return nil
 }
@@ -213,33 +188,26 @@ func Unlock(snapName string) error {
 // It returns the current, non-empty hint if inhibition is in place. Otherwise
 // it returns an empty hint.
 func IsLocked(snapName string) (Hint, InhibitInfo, error) {
-	hintFlock, err := osutil.OpenExistingLockForReading(HintFile(snapName))
+	hintFlock := mylog.Check2(osutil.OpenExistingLockForReading(HintFile(snapName)))
 	if os.IsNotExist(err) {
 		return "", InhibitInfo{}, nil
 	}
-	if err != nil {
-		return "", InhibitInfo{}, err
-	}
-	defer hintFlock.Close()
 
-	// The following order of execution is important to avoid race conditions.
-	// Take the lock
-	if err := hintFlock.ReadLock(); err != nil {
-		return "", InhibitInfo{}, err
-	}
+	defer hintFlock.Close()
+	mylog.Check(
+
+		// The following order of execution is important to avoid race conditions.
+		// Take the lock
+		hintFlock.ReadLock())
+
 	// Read hint
-	hint, err := hintFromFile(hintFlock.File())
-	if err != nil {
-		return "", InhibitInfo{}, err
-	}
+	hint := mylog.Check2(hintFromFile(hintFlock.File()))
+
 	if hint == HintNotInhibited {
 		return hint, InhibitInfo{}, nil
 	}
 	// Read inhibit info
-	info, err := readInhibitInfo(snapName, hint)
-	if err != nil {
-		return "", InhibitInfo{}, err
-	}
+	info := mylog.Check2(readInhibitInfo(snapName, hint))
 
 	return hint, info, nil
 }
@@ -253,26 +221,25 @@ func IsLocked(snapName string) (Hint, InhibitInfo, error) {
 //
 // The function does not fail if the inhibition lock does not exist.
 func RemoveLockFile(snapName string) error {
-	hintFlock, err := osutil.OpenExistingLockForReading(HintFile(snapName))
+	hintFlock := mylog.Check2(osutil.OpenExistingLockForReading(HintFile(snapName)))
 	if os.IsNotExist(err) {
 		return nil
 	}
-	if err != nil {
-		return err
-	}
-	defer hintFlock.Close()
 
-	// The following order of execution is important to avoid race conditions.
-	// Take the lock
-	if err := hintFlock.Lock(); err != nil {
-		return err
-	}
-	// Remove inhibit info files
-	if err := removeInhibitInfoFiles(snapName); err != nil {
-		return err
-	}
-	// Remove hint file
-	err = os.Remove(HintFile(snapName))
+	defer hintFlock.Close()
+	mylog.Check(
+
+		// The following order of execution is important to avoid race conditions.
+		// Take the lock
+		hintFlock.Lock())
+	mylog.Check(
+
+		// Remove inhibit info files
+		removeInhibitInfoFiles(snapName))
+	mylog.Check(
+
+		// Remove hint file
+		os.Remove(HintFile(snapName)))
 	if err != nil && !os.IsNotExist(err) {
 		return err
 	}
@@ -322,50 +289,36 @@ var WaitWhileInhibited = func(ctx context.Context, snapName string, notInhibited
 	}()
 
 	for {
-		flock, err = osutil.OpenExistingLockForReading(HintFile(snapName))
+		flock = mylog.Check2(osutil.OpenExistingLockForReading(HintFile(snapName)))
 		// We must return flock alongside errors so that cleanup defer can close it.
 		if os.IsNotExist(err) {
 			if notInhibited != nil {
-				if err := notInhibited(ctx); err != nil {
-					// No flock opened, it is okay to return nil here
-					return nil, err
-				}
+				mylog.Check(notInhibited(ctx))
+				// No flock opened, it is okay to return nil here
 			}
 			return nil, nil
 		}
-		if err != nil {
-			// No flock opened, it is okay to return nil here
-			return nil, err
-		}
+		mylog.Check(
 
-		// Hold read lock
-		if err := flock.ReadLock(); err != nil {
-			return flock, err
-		}
+			// No flock opened, it is okay to return nil here
+
+			// Hold read lock
+			flock.ReadLock())
 
 		// Read inhibition hint
-		hint, err := hintFromFile(flock.File())
-		if err != nil {
-			return flock, err
-		}
+		hint := mylog.Check2(hintFromFile(flock.File()))
 
 		if hint == HintNotInhibited {
 			if notInhibited != nil {
-				if err := notInhibited(ctx); err != nil {
-					return flock, err
-				}
+				mylog.Check(notInhibited(ctx))
 			}
 			return flock, nil
 		} else {
 			if inhibited != nil {
-				inhibitInfo, err := readInhibitInfo(snapName, hint)
-				if err != nil {
-					return flock, err
-				}
-				cont, err := inhibited(ctx, hint, &inhibitInfo)
-				if err != nil {
-					return flock, err
-				}
+				inhibitInfo := mylog.Check2(readInhibitInfo(snapName, hint))
+
+				cont := mylog.Check2(inhibited(ctx, hint, &inhibitInfo))
+
 				if cont {
 					return flock, nil
 				}
@@ -383,22 +336,16 @@ var WaitWhileInhibited = func(ctx context.Context, snapName string, notInhibited
 }
 
 func hintFromFile(hintFile *os.File) (Hint, error) {
-	buf, err := io.ReadAll(hintFile)
-	if err != nil {
-		return "", err
-	}
+	buf := mylog.Check2(io.ReadAll(hintFile))
+
 	return Hint(string(buf)), nil
 }
 
 func readInhibitInfo(snapName string, hint Hint) (InhibitInfo, error) {
-	buf, err := os.ReadFile(InhibitInfoFile(snapName, hint))
-	if err != nil {
-		return InhibitInfo{}, err
-	}
+	buf := mylog.Check2(os.ReadFile(InhibitInfoFile(snapName, hint)))
+
 	var info InhibitInfo
-	err = json.Unmarshal(buf, &info)
-	if err != nil {
-		return InhibitInfo{}, err
-	}
+	mylog.Check(json.Unmarshal(buf, &info))
+
 	return info, nil
 }

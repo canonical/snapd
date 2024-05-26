@@ -23,6 +23,7 @@ import (
 	"os/exec"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -38,7 +39,7 @@ func InitramfsRunModeSelectSnapsToMount(
 	rootfsDir string,
 ) (map[snap.Type]snap.PlaceInfo, error) {
 	var sn snap.PlaceInfo
-	var err error
+
 	m := make(map[snap.Type]snap.PlaceInfo)
 	for _, typ := range typs {
 		// TODO: consider passing a bootStateUpdate20 instead?
@@ -65,10 +66,7 @@ func InitramfsRunModeSelectSnapsToMount(
 			}
 			selectSnapFn = bs.selectAndCommitSnapInitramfsMount
 		}
-		sn, err = selectSnapFn(modeenv, rootfsDir)
-		if err != nil {
-			return nil, err
-		}
+		sn = mylog.Check2(selectSnapFn(modeenv, rootfsDir))
 
 		m[typ] = sn
 	}
@@ -88,10 +86,7 @@ func EnsureNextBootToRunMode(systemLabel string) error {
 		Role: bootloader.RoleRecovery,
 	}
 
-	bl, err := bootloader.Find(InitramfsUbuntuSeedDir, opts)
-	if err != nil {
-		return err
-	}
+	bl := mylog.Check2(bootloader.Find(InitramfsUbuntuSeedDir, opts))
 
 	m := map[string]string{
 		"snapd_recovery_system": systemLabel,
@@ -106,10 +101,7 @@ var initramfsReboot = func() error {
 		panic("initramfsReboot must be mocked in tests")
 	}
 
-	out, err := exec.Command("/sbin/reboot").CombinedOutput()
-	if err != nil {
-		return osutil.OutputErr(out, err)
-	}
+	out := mylog.Check2(exec.Command("/sbin/reboot").CombinedOutput())
 
 	// reboot command in practice seems to not return, but apparently it is
 	// theoretically possible it could return, so to account for this we will
@@ -140,19 +132,15 @@ func InitramfsReboot() error {
 // instance, piboot. See handling of kernel_status in
 // bootloader/assets/data/grub.cfg.
 func updateNotScriptableBootloaderStatus(bl bootloader.NotScriptableBootloader) error {
-	blVars, err := bl.GetBootVars("kernel_status")
-	if err != nil {
-		return err
-	}
+	blVars := mylog.Check2(bl.GetBootVars("kernel_status"))
+
 	curKernStatus := blVars["kernel_status"]
 	if curKernStatus == "" {
 		return nil
 	}
 
-	kVals, err := kcmdline.KeyValues("kernel_status")
-	if err != nil {
-		return err
-	}
+	kVals := mylog.Check2(kcmdline.KeyValues("kernel_status"))
+
 	// "" would be the value for the error case, which at this point is any
 	// case different to kernel_status=trying in kernel command line and
 	// kernel_status=try in configuration file. Note that kernel_status in
@@ -180,13 +168,10 @@ func InitramfsRunModeUpdateBootloaderVars() error {
 		NoSlashBoot: true,
 	}
 
-	bl, err := bootloader.Find(InitramfsUbuntuBootDir, blOpts)
+	bl := mylog.Check2(bootloader.Find(InitramfsUbuntuBootDir, blOpts))
 	if err == nil {
 		if nsb, ok := bl.(bootloader.NotScriptableBootloader); ok {
-			if err := updateNotScriptableBootloaderStatus(nsb); err != nil {
-				logger.Noticef("cannot update %s kernel status: %v", bl.Name(), err)
-				return err
-			}
+			mylog.Check(updateNotScriptableBootloaderStatus(nsb))
 		}
 	}
 

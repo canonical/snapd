@@ -27,6 +27,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/polkit"
 	"github.com/snapcore/snapd/osutil"
@@ -86,26 +87,17 @@ type polkitInterface struct {
 
 func (iface *polkitInterface) getActionPrefix(attribs interfaces.Attrer) (string, error) {
 	var prefix string
-	if err := attribs.Attr("action-prefix", &prefix); err != nil {
-		return "", err
-	}
-	if err := interfaces.ValidateDBusBusName(prefix); err != nil {
-		return "", fmt.Errorf("plug has invalid action-prefix: %q", prefix)
-	}
+	mylog.Check(attribs.Attr("action-prefix", &prefix))
+	mylog.Check(interfaces.ValidateDBusBusName(prefix))
+
 	return prefix, nil
 }
 
 func loadPolkitPolicy(filename, actionPrefix string) (polkit.Policy, error) {
-	content, err := os.ReadFile(filename)
-	if err != nil {
-		return nil, fmt.Errorf(`cannot read file %q: %v`, filename, err)
-	}
+	content := mylog.Check2(os.ReadFile(filename))
 
 	// Check that the file content is a valid polkit policy file
-	actionIDs, err := validate.ValidatePolicy(bytes.NewReader(content))
-	if err != nil {
-		return nil, fmt.Errorf(`cannot validate policy file %q: %v`, filename, err)
-	}
+	actionIDs := mylog.Check2(validate.ValidatePolicy(bytes.NewReader(content)))
 
 	// Check that the action IDs in the policy file match the action prefix
 	for _, id := range actionIDs {
@@ -118,34 +110,25 @@ func loadPolkitPolicy(filename, actionPrefix string) (polkit.Policy, error) {
 }
 
 func (iface *polkitInterface) PolkitConnectedPlug(spec *polkit.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	actionPrefix, err := iface.getActionPrefix(plug)
-	if err != nil {
-		return err
-	}
+	actionPrefix := mylog.Check2(iface.getActionPrefix(plug))
 
 	mountDir := plug.Snap().MountDir()
-	policyFiles, err := filepath.Glob(filepath.Join(mountDir, "meta", "polkit", plug.Name()+".*.policy"))
-	if err != nil {
-		return err
-	}
+	policyFiles := mylog.Check2(filepath.Glob(filepath.Join(mountDir, "meta", "polkit", plug.Name()+".*.policy")))
+
 	if len(policyFiles) == 0 {
 		return fmt.Errorf("cannot find any policy files for plug %q", plug.Name())
 	}
 	for _, filename := range policyFiles {
 		suffix := strings.TrimSuffix(filepath.Base(filename), ".policy")
-		policy, err := loadPolkitPolicy(filename, actionPrefix)
-		if err != nil {
-			return err
-		}
-		if err := spec.AddPolicy(suffix, policy); err != nil {
-			return err
-		}
+		policy := mylog.Check2(loadPolkitPolicy(filename, actionPrefix))
+		mylog.Check(spec.AddPolicy(suffix, policy))
+
 	}
 	return nil
 }
 
 func (iface *polkitInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
-	_, err := iface.getActionPrefix(plug)
+	_ := mylog.Check2(iface.getActionPrefix(plug))
 	return err
 }
 
@@ -190,11 +173,9 @@ func polkitPoliciesSupported() bool {
 		return false
 	}
 
-	mntProfile, err := osutil.LoadMountProfile("/proc/self/mounts")
-	if err != nil {
-		// XXX: we are called from init() what can we do here?
-		return false
-	}
+	mntProfile := mylog.Check2(osutil.LoadMountProfile("/proc/self/mounts"))
+
+	// XXX: we are called from init() what can we do here?
 
 	// For core22+ polkitd is present, but it's not possible to install
 	// any policy files, as polkit only checks /usr/share/polkit-1/actions,

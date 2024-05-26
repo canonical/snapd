@@ -24,6 +24,8 @@ import (
 	"encoding/json"
 	"net/url"
 	"time"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // A Warning is a short messages that's meant to alert about system events.
@@ -59,7 +61,7 @@ func (client *Client) Warnings(opts WarningsOptions) ([]*Warning, error) {
 	if opts.All {
 		q.Add("select", "all")
 	}
-	_, err := client.doSync("GET", "/v2/warnings", q, nil, nil, &jws)
+	_ := mylog.Check2(client.doSync("GET", "/v2/warnings", q, nil, nil, &jws))
 
 	ws := make([]*Warning, len(jws))
 	for i, jw := range jws {
@@ -80,10 +82,9 @@ type warningsAction struct {
 // Warnings at the given time.
 func (client *Client) Okay(t time.Time) error {
 	var body bytes.Buffer
-	var op = warningsAction{Action: "okay", Timestamp: t}
-	if err := json.NewEncoder(&body).Encode(op); err != nil {
-		return err
-	}
-	_, err := client.doSync("POST", "/v2/warnings", nil, nil, &body, nil)
+	op := warningsAction{Action: "okay", Timestamp: t}
+	mylog.Check(json.NewEncoder(&body).Encode(op))
+
+	_ := mylog.Check2(client.doSync("POST", "/v2/warnings", nil, nil, &body, nil))
 	return err
 }

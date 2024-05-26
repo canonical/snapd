@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/sysdb"
@@ -90,11 +91,10 @@ func (s *modelSuite) SetUpTest(c *C) {
 
 	dirs.SetRootDir(c.MkDir())
 	s.AddCleanup(func() { dirs.SetRootDir("") })
+	mylog.Check(os.MkdirAll(dirs.SnapRunDir, 0755))
 
-	err := os.MkdirAll(dirs.SnapRunDir, 0755)
-	c.Assert(err, IsNil)
-	err = os.MkdirAll(dirs.SnapdStateDir(dirs.GlobalRootDir), 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(dirs.SnapdStateDir(dirs.GlobalRootDir), 0755))
+
 
 	s.AddCleanup(osutil.MockMountInfo(``))
 
@@ -111,12 +111,12 @@ func (s *modelSuite) SetUpTest(c *C) {
 		"validation":   "certified",
 	})
 
-	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+	db := mylog.Check2(asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore:       asserts.NewMemoryBackstore(),
 		Trusted:         s.storeSigning.Trusted,
 		OtherPredefined: s.storeSigning.Generic,
-	})
-	c.Assert(err, IsNil)
+	}))
+
 
 	s.state.Lock()
 	assertstate.ReplaceDB(s.state, db)
@@ -126,20 +126,19 @@ func (s *modelSuite) SetUpTest(c *C) {
 		assertstate.ReplaceDB(s.state, nil)
 		s.state.Unlock()
 	})
+	mylog.Check(db.Add(s.storeSigning.StoreAccountKey("")))
 
-	err = db.Add(s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
 
-	hookMgr, err := hookstate.Manager(s.state, s.o.TaskRunner())
-	c.Assert(err, IsNil)
+	hookMgr := mylog.Check2(hookstate.Manager(s.state, s.o.TaskRunner()))
+
 
 	devicestate.EarlyConfig = func(*state.State, func() (sysconfig.Device, *gadget.Info, error)) error {
 		return nil
 	}
 	s.AddCleanup(func() { devicestate.EarlyConfig = nil })
 
-	mgr, err := devicestate.Manager(s.state, hookMgr, s.o.TaskRunner(), s.newStore)
-	c.Assert(err, IsNil)
+	mgr := mylog.Check2(devicestate.Manager(s.state, hookMgr, s.o.TaskRunner(), s.newStore))
+
 
 	s.db = db
 	s.hookMgr = hookMgr
@@ -170,16 +169,16 @@ func (s *modelSuite) setupBrands() {
 }
 
 func (s *modelSuite) addSnapDeclaration(c *C, snapID, developerID, snapName string) {
-	declA, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	declA := mylog.Check2(s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 		"series":       "16",
 		"snap-id":      snapID,
 		"publisher-id": developerID,
 		"snap-name":    snapName,
 		"timestamp":    time.Now().UTC().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	err = s.db.Add(declA)
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
+	mylog.Check(s.db.Add(declA))
+
 }
 
 const snapGadgetYaml = `name: gadget1
@@ -220,23 +219,23 @@ func (s *modelSuite) TestUnhappyModelCommandInsufficientPermissions(c *C) {
 		"gadget":       "pc",
 		"base":         "core18",
 	})
-	err := assertstate.Add(s.state, current)
-	c.Assert(err, IsNil)
+	mylog.Check(assertstate.Add(s.state, current))
+
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
 		Model: "pc-model",
 	})
 
-	c.Assert(err, IsNil)
+
 	task := s.state.NewTask("test-task", "my test task")
 	setup := &hookstate.HookSetup{Snap: "snap1", Revision: snap.R(1), Hook: "test-hook"}
-	mockContext, err := hookstate.NewContext(task, s.state, setup, s.mockHandler, "")
-	c.Assert(err, IsNil)
+	mockContext := mylog.Check2(hookstate.NewContext(task, s.state, setup, s.mockHandler, ""))
+
 	mockInstalledSnap(c, s.state, snapBaseYaml, "")
 	mockInstalledSnap(c, s.state, snapYaml, "")
 	s.state.Unlock()
 
-	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"model"}, 0)
+	stdout, stderr := mylog.Check3(ctlcmd.Run(mockContext, []string{"model"}, 0))
 	c.Check(err, ErrorMatches, "insufficient permissions to get model assertion for snap \"snap1\"")
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "cannot get model assertion for snap \"snap1\": must be either a gadget snap, from the same publisher as the model or have the snapd-control interface\n")
@@ -256,23 +255,23 @@ func (s *modelSuite) TestHappyModelCommandIdenticalPublisher(c *C) {
 		"gadget":       "pc",
 		"base":         "core18",
 	})
-	err := assertstate.Add(s.state, current)
-	c.Assert(err, IsNil)
+	mylog.Check(assertstate.Add(s.state, current))
+
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
 		Model: "pc-model",
 	})
 
-	c.Assert(err, IsNil)
+
 	task := s.state.NewTask("test-task", "my test task")
 	setup := &hookstate.HookSetup{Snap: "snap1", Revision: snap.R(1), Hook: "test-hook"}
-	mockContext, err := hookstate.NewContext(task, s.state, setup, s.mockHandler, "")
-	c.Assert(err, IsNil)
+	mockContext := mylog.Check2(hookstate.NewContext(task, s.state, setup, s.mockHandler, ""))
+
 	mockInstalledSnap(c, s.state, snapBaseYaml, "")
 	mockInstalledSnap(c, s.state, snapYaml, "")
 	s.state.Unlock()
 
-	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"model"}, 0)
+	stdout, stderr := mylog.Check3(ctlcmd.Run(mockContext, []string{"model"}, 0))
 
 	// For this test we just check that no error is returned, we have other testsw
 	// that verifies formats for each case. So make sure that stderr is empty and that
@@ -297,18 +296,18 @@ func (s *modelSuite) TestHappyModelCommandSnapdControlPlug(c *C) {
 		"gadget":       "pc",
 		"base":         "core18",
 	})
-	err := assertstate.Add(s.state, current)
-	c.Assert(err, IsNil)
+	mylog.Check(assertstate.Add(s.state, current))
+
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
 		Model: "pc-model",
 	})
 
-	c.Assert(err, IsNil)
+
 	task := s.state.NewTask("test-task", "my test task")
 	setup := &hookstate.HookSetup{Snap: "snap1-control", Revision: snap.R(1), Hook: "test-hook"}
-	mockContext, err := hookstate.NewContext(task, s.state, setup, s.mockHandler, "")
-	c.Assert(err, IsNil)
+	mockContext := mylog.Check2(hookstate.NewContext(task, s.state, setup, s.mockHandler, ""))
+
 	mockInstalledSnap(c, s.state, snapWithSnapdControlOnlyYaml, "")
 
 	s.state.Set("conns", map[string]interface{}{
@@ -316,7 +315,7 @@ func (s *modelSuite) TestHappyModelCommandSnapdControlPlug(c *C) {
 	})
 	s.state.Unlock()
 
-	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"model"}, 0)
+	stdout, stderr := mylog.Check3(ctlcmd.Run(mockContext, []string{"model"}, 0))
 	c.Check(err, IsNil)
 	c.Check(len(string(stdout)) > 0, Equals, true)
 	c.Check(string(stderr), Equals, "")
@@ -336,22 +335,22 @@ func (s *modelSuite) TestHappyModelCommandPublisherYaml(c *C) {
 		"gadget":       "pc",
 		"base":         "core18",
 	})
-	err := assertstate.Add(s.state, current)
-	c.Assert(err, IsNil)
+	mylog.Check(assertstate.Add(s.state, current))
+
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
 		Model: "pc-model",
 	})
 
-	c.Assert(err, IsNil)
+
 	task := s.state.NewTask("test-task", "my test task")
 	setup := &hookstate.HookSetup{Snap: "snap1", Revision: snap.R(1), Hook: "test-hook"}
-	mockContext, err := hookstate.NewContext(task, s.state, setup, s.mockHandler, "")
-	c.Assert(err, IsNil)
+	mockContext := mylog.Check2(hookstate.NewContext(task, s.state, setup, s.mockHandler, ""))
+
 	mockInstalledSnap(c, s.state, snapYaml, "")
 	s.state.Unlock()
 
-	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"model"}, 0)
+	stdout, stderr := mylog.Check3(ctlcmd.Run(mockContext, []string{"model"}, 0))
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, fmt.Sprintf(`brand-id:      canonical
 model:         pc-model
@@ -379,22 +378,22 @@ func (s *modelSuite) TestHappyModelCommandGadgetYaml(c *C) {
 		"gadget":       "pc",
 		"base":         "core18",
 	})
-	err := assertstate.Add(s.state, current)
-	c.Assert(err, IsNil)
+	mylog.Check(assertstate.Add(s.state, current))
+
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
 		Model: "pc-model",
 	})
 
-	c.Assert(err, IsNil)
+
 	task := s.state.NewTask("test-task", "my test task")
 	setup := &hookstate.HookSetup{Snap: "gadget1", Revision: snap.R(1), Hook: "test-hook"}
-	mockContext, err := hookstate.NewContext(task, s.state, setup, s.mockHandler, "")
-	c.Assert(err, IsNil)
+	mockContext := mylog.Check2(hookstate.NewContext(task, s.state, setup, s.mockHandler, ""))
+
 	mockInstalledSnap(c, s.state, snapGadgetYaml, "")
 	s.state.Unlock()
 
-	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"model"}, 0)
+	stdout, stderr := mylog.Check3(ctlcmd.Run(mockContext, []string{"model"}, 0))
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, fmt.Sprintf(`brand-id:      canonical
 model:         pc-model
@@ -420,22 +419,22 @@ func (s *modelSuite) TestHappyModelCommandGadgetJson(c *C) {
 		"gadget":       "pc",
 		"base":         "core18",
 	})
-	err := assertstate.Add(s.state, current)
-	c.Assert(err, IsNil)
+	mylog.Check(assertstate.Add(s.state, current))
+
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
 		Model: "pc-model",
 	})
 
-	c.Assert(err, IsNil)
+
 	task := s.state.NewTask("test-task", "my test task")
 	setup := &hookstate.HookSetup{Snap: "gadget1", Revision: snap.R(1), Hook: "test-hook"}
-	mockContext, err := hookstate.NewContext(task, s.state, setup, s.mockHandler, "")
-	c.Assert(err, IsNil)
+	mockContext := mylog.Check2(hookstate.NewContext(task, s.state, setup, s.mockHandler, ""))
+
 	mockInstalledSnap(c, s.state, snapGadgetYaml, "")
 	s.state.Unlock()
 
-	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"model", "--json"}, 0)
+	stdout, stderr := mylog.Check3(ctlcmd.Run(mockContext, []string{"model", "--json"}, 0))
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, fmt.Sprintf(`{
   "architecture": "amd64",
@@ -462,22 +461,22 @@ func (s *modelSuite) TestHappyModelCommandAssertionGadgetYaml(c *C) {
 		"gadget":       "pc",
 		"base":         "core18",
 	})
-	err := assertstate.Add(s.state, current)
-	c.Assert(err, IsNil)
+	mylog.Check(assertstate.Add(s.state, current))
+
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
 		Model: "pc-model",
 	})
 
-	c.Assert(err, IsNil)
+
 	task := s.state.NewTask("test-task", "my test task")
 	setup := &hookstate.HookSetup{Snap: "gadget1", Revision: snap.R(1), Hook: "test-hook"}
-	mockContext, err := hookstate.NewContext(task, s.state, setup, s.mockHandler, "")
-	c.Assert(err, IsNil)
+	mockContext := mylog.Check2(hookstate.NewContext(task, s.state, setup, s.mockHandler, ""))
+
 	mockInstalledSnap(c, s.state, snapGadgetYaml, "")
 	s.state.Unlock()
 
-	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"model", "--assertion"}, 0)
+	stdout, stderr := mylog.Check3(ctlcmd.Run(mockContext, []string{"model", "--assertion"}, 0))
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, string(asserts.Encode(current)))
 	c.Check(string(stderr), Equals, "")
@@ -495,22 +494,22 @@ func (s *modelSuite) TestHappyModelCommandAssertionGadgetJson(c *C) {
 		"gadget":       "pc",
 		"base":         "core18",
 	})
-	err := assertstate.Add(s.state, current)
-	c.Assert(err, IsNil)
+	mylog.Check(assertstate.Add(s.state, current))
+
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
 		Model: "pc-model",
 	})
 
-	c.Assert(err, IsNil)
+
 	task := s.state.NewTask("test-task", "my test task")
 	setup := &hookstate.HookSetup{Snap: "gadget1", Revision: snap.R(1), Hook: "test-hook"}
-	mockContext, err := hookstate.NewContext(task, s.state, setup, s.mockHandler, "")
-	c.Assert(err, IsNil)
+	mockContext := mylog.Check2(hookstate.NewContext(task, s.state, setup, s.mockHandler, ""))
+
 	mockInstalledSnap(c, s.state, snapGadgetYaml, "")
 	s.state.Unlock()
 
-	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"model", "--assertion", "--json"}, 0)
+	stdout, stderr := mylog.Check3(ctlcmd.Run(mockContext, []string{"model", "--assertion", "--json"}, 0))
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, fmt.Sprintf(`{
   "headers": {
@@ -542,21 +541,21 @@ func (s *modelSuite) TestRunWithoutHook(c *C) {
 		"gadget":       "pc",
 		"base":         "core18",
 	})
-	err := assertstate.Add(s.state, current)
-	c.Assert(err, IsNil)
+	mylog.Check(assertstate.Add(s.state, current))
+
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
 		Model: "pc-model",
 	})
 
-	c.Assert(err, IsNil)
+
 	setup := &hookstate.HookSetup{Snap: "gadget1", Revision: snap.R(1)}
-	mockContext, err := hookstate.NewContext(nil, s.state, setup, nil, "")
-	c.Assert(err, IsNil)
+	mockContext := mylog.Check2(hookstate.NewContext(nil, s.state, setup, nil, ""))
+
 	mockInstalledSnap(c, s.state, snapGadgetYaml, "")
 	s.state.Unlock()
 
-	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"model", "--json"}, 0)
+	stdout, stderr := mylog.Check3(ctlcmd.Run(mockContext, []string{"model", "--json"}, 0))
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, fmt.Sprintf(`{
   "architecture": "amd64",
@@ -626,10 +625,8 @@ func (s *modelSuite) signSerial(accountID, model, serial string, timestamp time.
 
 	signer := s.brands.Signing(accountID)
 
-	serialAs, err := signer.Sign(asserts.SerialType, headers, nil, "")
-	if err != nil {
-		panic(err)
-	}
+	serialAs := mylog.Check2(signer.Sign(asserts.SerialType, headers, nil, ""))
+
 	return serialAs.(*asserts.Serial)
 }
 
@@ -646,7 +643,7 @@ func (s *modelSuite) TestFindSerialAssertionNone(c *C) {
 	defer s.state.Unlock()
 	assertstatetest.AddMany(s.state, model)
 
-	result, err := ctlcmd.FindSerialAssertion(s.state, model)
+	result := mylog.Check2(ctlcmd.FindSerialAssertion(s.state, model))
 	c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 	c.Assert(result, IsNil)
 }
@@ -670,8 +667,8 @@ func (s *modelSuite) TestFindSerialAssertionMatch(c *C) {
 	defer s.state.Unlock()
 	assertstatetest.AddMany(s.state, model, serial)
 
-	result, err := ctlcmd.FindSerialAssertion(s.state, model)
-	c.Assert(err, IsNil)
+	result := mylog.Check2(ctlcmd.FindSerialAssertion(s.state, model))
+
 	c.Check(result.Serial(), Equals, "1")
 }
 
@@ -706,7 +703,7 @@ func (s *modelSuite) TestFindSerialAssertionMultiple(c *C) {
 	defer s.state.Unlock()
 	assertstatetest.AddMany(s.state, model, serial, serialnext)
 
-	result, err := ctlcmd.FindSerialAssertion(s.state, model)
-	c.Assert(err, IsNil)
+	result := mylog.Check2(ctlcmd.FindSerialAssertion(s.state, model))
+
 	c.Check(result.Timestamp(), Equals, serialnext.Timestamp())
 }

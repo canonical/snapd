@@ -25,6 +25,7 @@ import (
 	"os/user"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/gorilla/mux"
 
 	"github.com/snapcore/snapd/asserts/snapasserts"
@@ -49,10 +50,8 @@ func APICommands() []*Command {
 }
 
 func NewAndAddRoutes() (*Daemon, error) {
-	d, err := New()
-	if err != nil {
-		return nil, err
-	}
+	d := mylog.Check2(New())
+
 	d.addRoutes()
 	return d, nil
 }
@@ -299,8 +298,8 @@ func MockReboot(f func(boot.RebootAction, time.Duration, *boot.RebootInfo) error
 func MockSideloadSnapsInfo(sis []*snap.SideInfo) (restore func()) {
 	r := testutil.Backup(&sideloadSnapsInfo)
 	sideloadSnapsInfo = func(st *state.State, snapFiles []*uploadedSnap,
-		flags sideloadFlags) (*sideloadedInfo, *apiError) {
-
+		flags sideloadFlags,
+	) (*sideloadedInfo, *apiError) {
 		names := make([]string, len(snapFiles))
 		sideInfos := make([]*snap.SideInfo, len(snapFiles))
 		origPaths := make([]string, len(snapFiles))
@@ -311,8 +310,10 @@ func MockSideloadSnapsInfo(sis []*snap.SideInfo) (restore func()) {
 			origPaths[i] = snapFile.filename
 			tmpPaths[i] = snapFile.tmpPath
 		}
-		return &sideloadedInfo{sideInfos: sideInfos, names: names,
-			origPaths: origPaths, tmpPaths: tmpPaths}, nil
+		return &sideloadedInfo{
+			sideInfos: sideInfos, names: names,
+			origPaths: origPaths, tmpPaths: tmpPaths,
+		}, nil
 	}
 	return r
 }

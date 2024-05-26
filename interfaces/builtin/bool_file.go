@@ -24,6 +24,7 @@ import (
 	"path/filepath"
 	"regexp"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/snap"
@@ -62,8 +63,10 @@ func (iface *boolFileInterface) StaticInfo() interfaces.StaticInfo {
 
 var boolFileGPIOValuePattern = regexp.MustCompile(
 	"^/sys/class/gpio/gpio[0-9]+/value$")
+
 var boolFileLedPattern = regexp.MustCompile(
 	"^/sys/devices/platform/leds/[^/]+/[^/]+/brightness$")
+
 var boolFileAllowedPathPatterns = []*regexp.Regexp{
 	// The brightness of standard LED class device
 	regexp.MustCompile("^/sys/class/leds/[^/]+/brightness$"),
@@ -108,10 +111,8 @@ func (iface *boolFileInterface) AppArmorConnectedPlug(spec *apparmor.Specificati
 	// Dereference symbolic links to file path handed out to apparmor since
 	// sysfs is full of symlinks and apparmor requires uses real path for
 	// filtering.
-	path, err := iface.dereferencedPath(slot)
-	if err != nil {
-		return fmt.Errorf("cannot compute plug security snippet: %v", err)
-	}
+	path := mylog.Check2(iface.dereferencedPath(slot))
+
 	spec.AddSnippet(fmt.Sprintf("%s rwk,", path))
 	// Provide read/write access to trigger, delay_on and delay_off kernel files
 	if boolFileLedPattern.MatchString(path) {
@@ -126,11 +127,9 @@ func (iface *boolFileInterface) AppArmorConnectedPlug(spec *apparmor.Specificati
 
 func (iface *boolFileInterface) dereferencedPath(slot *interfaces.ConnectedSlot) (string, error) {
 	var path string
-	if err := slot.Attr("path", &path); err == nil {
-		path, err = evalSymlinks(path)
-		if err != nil {
-			return "", err
-		}
+	if mylog.Check(slot.Attr("path", &path)); err == nil {
+		path = mylog.Check2(evalSymlinks(path))
+
 		return filepath.Clean(path), nil
 	}
 	panic("slot is not sanitized")
@@ -139,7 +138,7 @@ func (iface *boolFileInterface) dereferencedPath(slot *interfaces.ConnectedSlot)
 // isGPIO checks if a given bool-file slot refers to a GPIO pin.
 func (iface *boolFileInterface) isGPIO(slot *snap.SlotInfo) bool {
 	var path string
-	if err := slot.Attr("path", &path); err == nil {
+	if mylog.Check(slot.Attr("path", &path)); err == nil {
 		path = filepath.Clean(path)
 		return boolFileGPIOValuePattern.MatchString(path)
 	}

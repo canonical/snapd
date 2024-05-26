@@ -30,6 +30,7 @@ import (
 
 	"gopkg.in/yaml.v2"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/i18n"
@@ -62,8 +63,10 @@ type cmdDebugState struct {
 	} `positional-args:"yes"`
 }
 
-var cmdDebugStateShortHelp = i18n.G("Inspect a snapd state file.")
-var cmdDebugStateLongHelp = i18n.G("Inspect a snapd state file, bypassing snapd API.")
+var (
+	cmdDebugStateShortHelp = i18n.G("Inspect a snapd state file.")
+	cmdDebugStateLongHelp  = i18n.G("Inspect a snapd state file, bypassing snapd API.")
+)
 
 type byChangeSpawnTime []*state.Change
 
@@ -75,10 +78,8 @@ func loadState(path string) (*state.State, error) {
 	if path == "" {
 		path = "state.json"
 	}
-	r, err := os.Open(path)
-	if err != nil {
-		return nil, fmt.Errorf("cannot read the state file: %s", err)
-	}
+	r := mylog.Check2(os.Open(path))
+
 	defer r.Close()
 
 	return state.ReadState(nil, r)
@@ -237,31 +238,8 @@ func (c *cmdDebugState) checkTasks(st *state.State, changeID string) error {
 	if chg == nil {
 		return fmt.Errorf("no such change: %s", changeID)
 	}
-	err := chg.CheckTaskDependencies()
-	if err != nil {
-		if tdcErr, ok := err.(*state.TaskDependencyCycleError); ok {
-			fmt.Fprintf(Stdout, "Detected task dependency cycle involving tasks:\n")
-			w := tabwriter.NewWriter(Stdout, 5, 3, 2, ' ', 0)
-			fmt.Fprintf(w, "Lanes\tID\tStatus\tSpawn\tReady\tKind\tSummary\tAfter\tBefore\n")
-			for _, tid := range tdcErr.IDs {
-				t := st.Task(tid)
-				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%v\t%v\n",
-					strutil.IntsToCommaSeparated(t.Lanes()),
-					t.ID(),
-					t.Status().String(),
-					c.fmtTime(t.SpawnTime()),
-					c.fmtTime(t.ReadyTime()),
-					t.Kind(),
-					t.Summary(),
-					formatAtMostTaskIDs(t.WaitTasks()),
-					formatAtMostTaskIDs(t.HaltTasks()),
-				)
-			}
-			w.Flush()
-		} else {
-			return err
-		}
-	}
+	mylog.Check(chg.CheckTaskDependencies())
+
 	return nil
 }
 
@@ -293,7 +271,7 @@ func (c *cmdDebugState) showIsSeeded(st *state.State) error {
 	defer st.Unlock()
 
 	var isSeeded bool
-	err := st.Get("seeded", &isSeeded)
+	mylog.Check(st.Get("seeded", &isSeeded))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
@@ -329,18 +307,14 @@ func (c *cmdDebugState) showConnectionDetails(st *state.State, connArg string) e
 	})
 
 	var plugMatch, slotMatch SnapAndName
-	if err := plugMatch.UnmarshalFlag(p[0]); err != nil {
-		return err
-	}
+	mylog.Check(plugMatch.UnmarshalFlag(p[0]))
 
 	if len(p) > 1 {
-		if err := slotMatch.UnmarshalFlag(p[1]); err != nil {
-			return err
-		}
+		mylog.Check(slotMatch.UnmarshalFlag(p[1]))
 	}
 
 	var conns map[string]*schema.ConnState
-	if err := st.Get("conns", &conns); err != nil && !errors.Is(err, state.ErrNoState) {
+	if mylog.Check(st.Get("conns", &conns)); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 
@@ -352,10 +326,7 @@ func (c *cmdDebugState) showConnectionDetails(st *state.State, connArg string) e
 	sort.Strings(connIDs)
 
 	for _, connID := range connIDs {
-		connRef, err := interfaces.ParseConnRef(connID)
-		if err != nil {
-			return err
-		}
+		connRef := mylog.Check2(interfaces.ParseConnRef(connID))
 
 		refMatch := func(x SnapAndName, y interface{ String() string }) bool {
 			parts := strings.Split(y.String(), ":")
@@ -393,10 +364,8 @@ func (c *cmdDebugState) showConnectionDetails(st *state.State, connArg string) e
 
 		// the output of 'debug connection' is yaml
 		fmt.Fprintf(Stdout, "id: %s\n", connID)
-		out, err := yaml.Marshal(conn)
-		if err != nil {
-			return err
-		}
+		out := mylog.Check2(yaml.Marshal(conn))
+
 		fmt.Fprintf(Stdout, "%s\n", out)
 	}
 	return nil
@@ -407,7 +376,7 @@ func (c *cmdDebugState) showConnections(st *state.State) error {
 	defer st.Unlock()
 
 	var conns map[string]*schema.ConnState
-	if err := st.Get("conns", &conns); err != nil && !errors.Is(err, state.ErrNoState) {
+	if mylog.Check(st.Get("conns", &conns)); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 
@@ -477,9 +446,7 @@ func (c *cmdDebugState) showTask(st *state.State, taskID string) error {
 	if len(log) > 0 {
 		fmt.Fprintf(Stdout, "log: |\n")
 		for _, msg := range log {
-			if err := strutil.WordWrapPadded(Stdout, []rune(msg), "  ", termWidth); err != nil {
-				break
-			}
+			mylog.Check(strutil.WordWrapPadded(Stdout, []rune(msg), "  ", termWidth))
 		}
 		fmt.Fprintln(Stdout)
 	}
@@ -498,10 +465,7 @@ func (c *cmdDebugState) showTask(st *state.State, taskID string) error {
 }
 
 func (c *cmdDebugState) Execute(args []string) error {
-	st, err := loadState(c.Positional.StateFilePath)
-	if err != nil {
-		return err
-	}
+	st := mylog.Check2(loadState(c.Positional.StateFilePath))
 
 	// check valid combinations of args
 	var cmds []string
@@ -543,10 +507,8 @@ func (c *cmdDebugState) Execute(args []string) error {
 	}
 
 	if c.ChangeID != "" {
-		_, err := strconv.ParseInt(c.ChangeID, 0, 64)
-		if err != nil {
-			return fmt.Errorf("invalid change: %s", c.ChangeID)
-		}
+		_ := mylog.Check2(strconv.ParseInt(c.ChangeID, 0, 64))
+
 		if c.DotOutput {
 			return c.writeDotOutput(st, c.ChangeID)
 		}
@@ -557,10 +519,8 @@ func (c *cmdDebugState) Execute(args []string) error {
 	}
 
 	if c.TaskID != "" {
-		_, err := strconv.ParseInt(c.TaskID, 0, 64)
-		if err != nil {
-			return fmt.Errorf("invalid task: %s", c.TaskID)
-		}
+		_ := mylog.Check2(strconv.ParseInt(c.TaskID, 0, 64))
+
 		return c.showTask(st, c.TaskID)
 	}
 

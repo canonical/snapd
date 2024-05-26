@@ -41,6 +41,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
@@ -128,23 +129,14 @@ func (b *Backend) Initialize(*interfaces.SecurityBackendOptions) error {
 	content := map[string]osutil.FileState{
 		fname: &osutil.MemoryFileState{Content: globalProfile, Mode: 0644},
 	}
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return fmt.Errorf("cannot create directory for seccomp profiles %q: %s", dir, err)
-	}
-	_, _, err := osutil.EnsureDirState(dir, fname, content)
-	if err != nil {
-		return fmt.Errorf("cannot synchronize global seccomp profile: %s", err)
-	}
+	mylog.Check(os.MkdirAll(dir, 0755))
 
-	b.snapSeccomp, err = seccomp.NewCompiler(seccompCompilerLookup)
-	if err != nil {
-		return fmt.Errorf("cannot initialize seccomp profile compiler: %v", err)
-	}
+	_, _ := mylog.Check3(osutil.EnsureDirState(dir, fname, content))
 
-	versionInfo, err := snapSeccompVersionInfo(b.snapSeccomp)
-	if err != nil {
-		return fmt.Errorf("cannot obtain snap-seccomp version information: %v", err)
-	}
+	b.snapSeccomp = mylog.Check2(seccomp.NewCompiler(seccompCompilerLookup))
+
+	versionInfo := mylog.Check2(snapSeccompVersionInfo(b.snapSeccomp))
+
 	b.versionInfo = versionInfo
 	return nil
 }
@@ -195,18 +187,16 @@ func parallelCompile(compiler Compiler, profiles []string) error {
 				// remove the old profile first so that we are
 				// not loading it accidentally should the
 				// compilation fail
-				if err := os.Remove(out); err != nil && !os.IsNotExist(err) {
+				if mylog.Check(os.Remove(out)); err != nil && !os.IsNotExist(err) {
 					res <- err
 					continue
 				}
+				mylog.Check(
 
-				// snap-seccomp uses AtomicWriteFile internally, on failure the
-				// output file is unlinked
-				if err := compiler.Compile(in, out); err != nil {
-					res <- fmt.Errorf("cannot compile %s: %v", in, err)
-				} else {
-					res <- nil
-				}
+					// snap-seccomp uses AtomicWriteFile internally, on failure the
+					// output file is unlinked
+					compiler.Compile(in, out))
+
 			}
 		}()
 	}
@@ -236,7 +226,6 @@ func parallelCompile(compiler Compiler, profiles []string) error {
 			// compiled
 			os.Remove(out)
 		}
-
 	}
 	return firstErr
 }
@@ -250,21 +239,13 @@ func parallelCompile(compiler Compiler, profiles []string) error {
 func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
 	snapName := appSet.InstanceName()
 	// Get the snippets that apply to this snap
-	spec, err := repo.SnapSpecification(b.Name(), appSet)
-	if err != nil {
-		return fmt.Errorf("cannot obtain seccomp specification for snap %q: %s", snapName, err)
-	}
+	spec := mylog.Check2(repo.SnapSpecification(b.Name(), appSet))
 
 	// Get the snippets that apply to this snap
-	content, err := b.deriveContent(spec.(*Specification), opts, appSet)
-	if err != nil {
-		return fmt.Errorf("cannot obtain expected security files for snap %q: %s", snapName, err)
-	}
+	content := mylog.Check2(b.deriveContent(spec.(*Specification), opts, appSet))
 
 	dir := dirs.SnapSeccompDir
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return fmt.Errorf("cannot create directory for seccomp profiles %q: %s", dir, err)
-	}
+	mylog.Check(os.MkdirAll(dir, 0755))
 
 	var globs []string
 	for _, g := range interfaces.SecurityTagGlobs(snapName) {
@@ -280,12 +261,10 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 	// - whenever the binary file does not exist, `snap-confine` will poll
 	//   and wait for SNAP_CONFINE_MAX_PROFILE_WAIT, if the profile does not
 	//   appear in that time, `snap-confine` will fail and die
-	changed, removed, err := osutil.EnsureDirStateGlobs(dir, globs, content)
-	if err != nil {
-		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, err)
-	}
+	changed, removed := mylog.Check3(osutil.EnsureDirStateGlobs(dir, globs, content))
+
 	for _, c := range removed {
-		err := os.Remove(bpfBinPath(c))
+		mylog.Check(os.Remove(bpfBinPath(c)))
 		if err != nil && !os.IsNotExist(err) {
 			return err
 		}
@@ -297,10 +276,8 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 // Remove removes seccomp profiles of a given snap.
 func (b *Backend) Remove(snapName string) error {
 	globs := interfaces.SecurityTagGlobs(snapName)
-	_, _, err := osutil.EnsureDirStateGlobs(dirs.SnapSeccompDir, globs, nil)
-	if err != nil {
-		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, err)
-	}
+	_, _ := mylog.Check3(osutil.EnsureDirStateGlobs(dirs.SnapSeccompDir, globs, nil))
+
 	return nil
 }
 
@@ -323,10 +300,8 @@ func (b *Backend) deriveContent(spec *Specification, opts interfaces.Confinement
 		uidGidChownSyscalls.WriteString(barePrivDropSyscalls)
 	} else {
 		for _, id := range snapInfo.SystemUsernames {
-			syscalls, err := uidGidChownSnippet(id.Name)
-			if err != nil {
-				return nil, fmt.Errorf(`cannot calculate syscalls for "%s": %s`, id, err)
-			}
+			syscalls := mylog.Check2(uidGidChownSnippet(id.Name))
+
 			uidGidChownSyscalls.WriteString(syscalls)
 		}
 		uidGidChownSyscalls.WriteString(rootSetUidGidSyscalls)
@@ -402,7 +377,7 @@ func (b *Backend) SandboxFeatures() []string {
 	}
 	tags = append(tags, "bpf-argument-filtering")
 
-	if res, err := b.versionInfo.HasFeature("bpf-actlog"); err == nil && res {
+	if res := mylog.Check2(b.versionInfo.HasFeature("bpf-actlog")); err == nil && res {
 		tags = append(tags, "bpf-actlog")
 	}
 

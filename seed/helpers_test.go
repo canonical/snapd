@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/seed"
@@ -55,13 +56,12 @@ func (s *helpersSuite) SetUpTest(c *C) {
 
 	dir := c.MkDir()
 	s.assertsDir = filepath.Join(dir, "assertions")
-	err := os.MkdirAll(s.assertsDir, 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(s.assertsDir, 0755))
+
 
 	s.devAcct = assertstest.NewAccount(s.StoreSigning, "developer", map[string]interface{}{
 		"account-id": "developerid",
 	}, "")
-
 }
 
 func (s *helpersSuite) writeAssertions(fn string, assertions ...asserts.Assertion) {
@@ -82,7 +82,7 @@ version: 2.0
 func (s *helpersSuite) TestLoadAssertionsNoAssertions(c *C) {
 	os.Remove(s.assertsDir)
 
-	b, err := seed.LoadAssertions(s.assertsDir, nil)
+	b := mylog.Check2(seed.LoadAssertions(s.assertsDir, nil))
 	c.Check(err, Equals, seed.ErrNoAssertions)
 	c.Check(b, IsNil)
 }
@@ -95,26 +95,25 @@ func (s *helpersSuite) TestLoadAssertions(c *C) {
 	s.writeAssertions("foo.asserts", s.devAcct, fooDecl, fooRev)
 	s.writeAssertions("bar.asserts", barDecl, barRev)
 
-	b, err := seed.LoadAssertions(s.assertsDir, nil)
-	c.Assert(err, IsNil)
+	b := mylog.Check2(seed.LoadAssertions(s.assertsDir, nil))
 
-	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+
+	db := mylog.Check2(asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
 		Trusted:   s.StoreSigning.Trusted,
-	})
-	c.Assert(err, IsNil)
+	}))
 
-	err = b.CommitTo(db, nil)
-	c.Assert(err, IsNil)
+	mylog.Check(b.CommitTo(db, nil))
 
-	_, err = db.Find(asserts.SnapRevisionType, map[string]string{
+
+	_ = mylog.Check2(db.Find(asserts.SnapRevisionType, map[string]string{
 		"snap-sha3-384": fooRev.SnapSHA3_384(),
-	})
+	}))
 	c.Check(err, IsNil)
 
-	_, err = db.Find(asserts.SnapRevisionType, map[string]string{
+	_ = mylog.Check2(db.Find(asserts.SnapRevisionType, map[string]string{
 		"snap-sha3-384": barRev.SnapSHA3_384(),
-	})
+	}))
 	c.Check(err, IsNil)
 }
 
@@ -137,8 +136,8 @@ func (s *helpersSuite) TestLoadAssertionsLoadedCallback(c *C) {
 		return nil
 	}
 
-	_, err := seed.LoadAssertions(s.assertsDir, loaded)
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(seed.LoadAssertions(s.assertsDir, loaded))
+
 
 	c.Check(seen, DeepEquals, map[string]bool{
 		"bardidididididididididididididid": true,
@@ -159,9 +158,8 @@ func (s *helpersSuite) TestLoadAssertionsLoadedCallbackError(c *C) {
 
 	loaded := func(ref *asserts.Ref) error {
 		return fmt.Errorf("boom")
-
 	}
 
-	_, err := seed.LoadAssertions(s.assertsDir, loaded)
+	_ := mylog.Check2(seed.LoadAssertions(s.assertsDir, loaded))
 	c.Assert(err, ErrorMatches, "boom")
 }

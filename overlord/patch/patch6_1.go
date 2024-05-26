@@ -22,6 +22,7 @@ package patch
 import (
 	"errors"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -54,23 +55,20 @@ func processConns(conns map[string]connStatePatch6_1, infos map[string]*snap.Inf
 			continue
 		}
 
-		connRef, err := interfaces.ParseConnRef(id)
-		if err != nil {
-			return false, err
-		}
+		connRef := mylog.Check2(interfaces.ParseConnRef(id))
 
 		var ok bool
 		var plugSnapInfo, slotSnapInfo *snap.Info
 
 		// read current snap info from disk and keep it around in infos map
 		if plugSnapInfo, ok = infos[connRef.PlugRef.Snap]; !ok {
-			plugSnapInfo, err = snap.ReadCurrentInfo(connRef.PlugRef.Snap)
+			plugSnapInfo = mylog.Check2(snap.ReadCurrentInfo(connRef.PlugRef.Snap))
 			if err == nil {
 				infos[connRef.PlugRef.Snap] = plugSnapInfo
 			}
 		}
 		if slotSnapInfo, ok = infos[connRef.SlotRef.Snap]; !ok {
-			slotSnapInfo, err = snap.ReadCurrentInfo(connRef.SlotRef.Snap)
+			slotSnapInfo = mylog.Check2(snap.ReadCurrentInfo(connRef.SlotRef.Snap))
 			if err == nil {
 				infos[connRef.SlotRef.Snap] = slotSnapInfo
 			}
@@ -109,19 +107,14 @@ func patch6_1(st *state.State) error {
 
 		var removed map[string]connStatePatch6_1
 		if task.Kind() == "discard-conns" {
-			err := task.Get("removed", &removed)
+			mylog.Check(task.Get("removed", &removed))
 			if errors.Is(err, state.ErrNoState) {
 				continue
 			}
-			if err != nil {
-				return err
-			}
+
 		}
 
-		updated, err := processConns(removed, infos)
-		if err != nil {
-			return err
-		}
+		updated := mylog.Check2(processConns(removed, infos))
 
 		if updated {
 			task.Set("removed", removed)
@@ -130,19 +123,14 @@ func patch6_1(st *state.State) error {
 
 	// update conns
 	var conns map[string]connStatePatch6_1
-	err := st.Get("conns", &conns)
+	mylog.Check(st.Get("conns", &conns))
 	if errors.Is(err, state.ErrNoState) {
 		// no connections to process
 		return nil
 	}
-	if err != nil {
-		return err
-	}
 
-	updated, err := processConns(conns, infos)
-	if err != nil {
-		return err
-	}
+	updated := mylog.Check2(processConns(conns, infos))
+
 	if updated {
 		st.Set("conns", conns)
 	}

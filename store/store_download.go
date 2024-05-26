@@ -35,6 +35,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/juju/ratelimit"
 	"gopkg.in/retry.v1"
 
@@ -65,14 +66,14 @@ var downloadSpeedMin = float64(4096)
 
 func init() {
 	if v := os.Getenv("SNAPD_MIN_DOWNLOAD_SPEED"); v != "" {
-		if speed, err := strconv.Atoi(v); err == nil {
+		if speed := mylog.Check2(strconv.Atoi(v)); err == nil {
 			downloadSpeedMin = float64(speed)
 		} else {
 			logger.Noticef("Cannot parse SNAPD_MIN_DOWNLOAD_SPEED as number")
 		}
 	}
 	if v := os.Getenv("SNAPD_DOWNLOAD_MEAS_WINDOW"); v != "" {
-		if win, err := time.ParseDuration(v); err == nil {
+		if win := mylog.Check2(time.ParseDuration(v)); err == nil {
 			downloadSpeedMeasureWindow = win
 		} else {
 			logger.Noticef("Cannot parse SNAPD_DOWNLOAD_MEAS_WINDOW as time.Duration")
@@ -106,7 +107,7 @@ func (s *Store) useDeltas() (use bool) {
 	// xdelta3 as a format for deltas
 
 	// check if the xdelta3 config command works from the system snap
-	cmd, err := commandFromSystemSnap("/usr/bin/xdelta3", "config")
+	cmd := mylog.Check2(commandFromSystemSnap("/usr/bin/xdelta3", "config"))
 	if err == nil {
 		// we have a xdelta3 from the system snap, make sure it works
 		if runErr := cmd.Run(); runErr == nil {
@@ -136,18 +137,13 @@ func (s *Store) useDeltas() (use bool) {
 
 	// we didn't have one from a system snap or it didn't work, fallback to
 	// trying xdelta3 from the system
-	loc, err := exec.LookPath("xdelta3")
-	if err != nil {
-		// no xdelta3 in the env, so no deltas
-		logger.Noticef("no host system xdelta3 available to use deltas")
-		return false
-	}
+	loc := mylog.Check2(exec.LookPath("xdelta3"))
+	mylog.Check(
 
-	if err := exec.Command(loc, "config").Run(); err != nil {
-		// xdelta3 in the env failed to run, so no deltas
-		logger.Noticef("unable to use host system xdelta3, running config command failed: %v", err)
-		return false
-	}
+		// no xdelta3 in the env, so no deltas
+
+		exec.Command(loc, "config").Run())
+	// xdelta3 in the env failed to run, so no deltas
 
 	// the xdelta3 in the env worked, so use that one
 	s.xdelta3CmdFunc = func(args ...string) *exec.Cmd {
@@ -192,16 +188,12 @@ type DownloadOptions struct {
 // The file is saved in temporary storage, and should be removed
 // after use to prevent the disk from running out of space.
 func (s *Store) Download(ctx context.Context, name string, targetPath string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState, dlOpts *DownloadOptions) error {
-	// most other store network operations use s.endpointURL, which returns an
-	// error if the store is offline. this doesn't, so we need to explicitly
-	// check.
-	if err := s.checkStoreOnline(); err != nil {
-		return err
-	}
-
-	if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
-		return err
-	}
+	mylog.Check(
+		// most other store network operations use s.endpointURL, which returns an
+		// error if the store is offline. this doesn't, so we need to explicitly
+		// check.
+		s.checkStoreOnline())
+	mylog.Check(os.MkdirAll(filepath.Dir(targetPath), 0755))
 
 	if s.cacher.Get(downloadInfo.Sha3_384, targetPath) {
 		logger.Debugf("Cache hit for SHA3_384 …%.5s.", downloadInfo.Sha3_384)
@@ -212,7 +204,7 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 		logger.Debugf("Available deltas returned by store: %v", downloadInfo.Deltas)
 
 		if len(downloadInfo.Deltas) == 1 {
-			err := s.downloadAndApplyDelta(name, targetPath, downloadInfo, pbar, user, dlOpts)
+			mylog.Check(s.downloadAndApplyDelta(name, targetPath, downloadInfo, pbar, user, dlOpts))
 			if err == nil {
 				return nil
 			}
@@ -222,14 +214,10 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 	}
 
 	partialPath := targetPath + ".partial"
-	w, err := os.OpenFile(partialPath, os.O_RDWR|os.O_CREATE, 0600)
-	if err != nil {
-		return err
-	}
-	resume, err := w.Seek(0, io.SeekEnd)
-	if err != nil {
-		return err
-	}
+	w := mylog.Check2(os.OpenFile(partialPath, os.O_RDWR|os.O_CREATE, 0600))
+
+	resume := mylog.Check2(w.Seek(0, io.SeekEnd))
+
 	defer func() {
 		fi, _ := w.Stat()
 		if cerr := w.Close(); cerr != nil && err == nil {
@@ -250,19 +238,13 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 
 	url := downloadInfo.DownloadURL
 	if downloadInfo.Size == 0 || resume < downloadInfo.Size {
-		err = download(ctx, name, downloadInfo.Sha3_384, url, user, s, w, resume, pbar, dlOpts)
-		if err != nil {
-			logger.Debugf("download of %q failed: %#v", url, err)
-		}
+		mylog.Check(download(ctx, name, downloadInfo.Sha3_384, url, user, s, w, resume, pbar, dlOpts))
 	} else {
 		// we're done! check the hash though
 		h := crypto.SHA3_384.New()
-		if _, err := w.Seek(0, os.SEEK_SET); err != nil {
-			return err
-		}
-		if _, err := io.Copy(h, w); err != nil {
-			return err
-		}
+		mylog.Check2(w.Seek(0, os.SEEK_SET))
+		mylog.Check2(io.Copy(h, w))
+
 		actualSha3 := fmt.Sprintf("%x", h.Sum(nil))
 		if downloadInfo.Sha3_384 != actualSha3 {
 			err = HashError{name, actualSha3, downloadInfo.Sha3_384}
@@ -272,31 +254,14 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 	if _, ok := err.(HashError); ok {
 		logger.Debugf("Hashsum error on download: %v", err.Error())
 		logger.Debugf("Truncating and trying again from scratch.")
-		err = w.Truncate(0)
-		if err != nil {
-			return err
-		}
-		_, err = w.Seek(0, io.SeekStart)
-		if err != nil {
-			return err
-		}
-		err = download(ctx, name, downloadInfo.Sha3_384, url, user, s, w, 0, pbar, nil)
-		if err != nil {
-			logger.Debugf("download of %q failed: %#v", url, err)
-		}
-	}
+		mylog.Check(w.Truncate(0))
 
-	if err != nil {
-		return err
-	}
+		_ = mylog.Check2(w.Seek(0, io.SeekStart))
+		mylog.Check(download(ctx, name, downloadInfo.Sha3_384, url, user, s, w, 0, pbar, nil))
 
-	if err := os.Rename(w.Name(), targetPath); err != nil {
-		return err
 	}
-
-	if err := w.Sync(); err != nil {
-		return err
-	}
+	mylog.Check(os.Rename(w.Name(), targetPath))
+	mylog.Check(w.Sync())
 
 	return s.cacher.Put(downloadInfo.Sha3_384, targetPath)
 }
@@ -437,15 +402,9 @@ func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user 
 		dlOpts = &DownloadOptions{}
 	}
 
-	storeURL, err := url.Parse(downloadURL)
-	if err != nil {
-		return err
-	}
+	storeURL := mylog.Check2(url.Parse(downloadURL))
 
-	cdnHeader, err := s.cdnHeader()
-	if err != nil {
-		return err
-	}
+	cdnHeader := mylog.Check2(s.cdnHeader())
 
 	tc, downloadCtx := NewTransferSpeedMonitoringWriterAndContext(ctx, downloadSpeedMeasureWindow, downloadSpeedMin)
 
@@ -461,14 +420,12 @@ func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user 
 
 		if resume > 0 {
 			reqOptions.ExtraHeaders["Range"] = fmt.Sprintf("bytes=%d-", resume)
-			// seed the sha3 with the already local file
-			if _, err := w.Seek(0, io.SeekStart); err != nil {
-				return err
-			}
-			n, err := io.Copy(h, w)
-			if err != nil {
-				return err
-			}
+			mylog.Check2(
+				// seed the sha3 with the already local file
+				w.Seek(0, io.SeekStart))
+
+			n := mylog.Check2(io.Copy(h, w))
+
 			if n != resume {
 				return fmt.Errorf("resume offset wrong: %d != %d", resume, n)
 			}
@@ -502,9 +459,8 @@ func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user 
 		}
 		if resume > 0 && resp.StatusCode != 206 {
 			logger.Debugf("server does not support resume")
-			if _, err := w.Seek(0, io.SeekStart); err != nil {
-				return err
-			}
+			mylog.Check2(w.Seek(0, io.SeekStart))
+
 			h = crypto.SHA3_384.New()
 			resume = 0
 		}
@@ -547,10 +503,8 @@ func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user 
 		_, finalErr = io.Copy(mw, limiter)
 		close(stopMonitorCh)
 		pbar.Finished()
+		mylog.Check(tc.Err())
 
-		if err := tc.Err(); err != nil {
-			return err
-		}
 		if cancelled(downloadCtx) {
 			// cancelled for other reason that download timeout (which would
 			// be caught by tc.Err() above).
@@ -595,44 +549,31 @@ func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user 
 
 // DownloadStream will copy the snap from the request to the io.Reader
 func (s *Store) DownloadStream(ctx context.Context, name string, downloadInfo *snap.DownloadInfo, resume int64, user *auth.UserState) (io.ReadCloser, int, error) {
-	// most other store network operations use s.endpointURL, which returns an
-	// error if the store is offline. this doesn't, so we need to explicitly
-	// check.
-	if err := s.checkStoreOnline(); err != nil {
-		return nil, 0, err
-	}
+	mylog.Check(
+		// most other store network operations use s.endpointURL, which returns an
+		// error if the store is offline. this doesn't, so we need to explicitly
+		// check.
+		s.checkStoreOnline())
 
 	// XXX: coverage of this is rather poor
 	if path := s.cacher.GetPath(downloadInfo.Sha3_384); path != "" {
 		logger.Debugf("Cache hit for SHA3_384 …%.5s.", downloadInfo.Sha3_384)
-		file, err := os.OpenFile(path, os.O_RDONLY, 0600)
-		if err != nil {
-			return nil, 0, err
-		}
+		file := mylog.Check2(os.OpenFile(path, os.O_RDONLY, 0600))
+
 		if resume == 0 {
 			return file, 200, nil
 		}
-		_, err = file.Seek(resume, io.SeekStart)
-		if err != nil {
-			return nil, 0, err
-		}
+		_ = mylog.Check2(file.Seek(resume, io.SeekStart))
+
 		return file, 206, nil
 	}
 
-	storeURL, err := url.Parse(downloadInfo.DownloadURL)
-	if err != nil {
-		return nil, 0, err
-	}
+	storeURL := mylog.Check2(url.Parse(downloadInfo.DownloadURL))
 
-	cdnHeader, err := s.cdnHeader()
-	if err != nil {
-		return nil, 0, err
-	}
+	cdnHeader := mylog.Check2(s.cdnHeader())
 
-	resp, err := doDownloadReq(ctx, storeURL, cdnHeader, resume, s, user)
-	if err != nil {
-		return nil, 0, err
-	}
+	resp := mylog.Check2(doDownloadReq(ctx, storeURL, cdnHeader, resume, s, user))
+
 	return resp.Body, resp.StatusCode, nil
 }
 
@@ -649,7 +590,6 @@ func doDownloadReqImpl(ctx context.Context, storeURL *url.URL, cdnHeader string,
 
 // downloadDelta downloads the delta for the preferred format, returning the path.
 func (s *Store) downloadDelta(deltaName string, downloadInfo *snap.DownloadInfo, w io.ReadWriteSeeker, pbar progress.Meter, user *auth.UserState, dlOpts *DownloadOptions) error {
-
 	if len(downloadInfo.Deltas) != 1 {
 		return errors.New("store returned more than one download delta")
 	}
@@ -695,31 +635,21 @@ func (s *Store) applyDeltaImpl(name string, deltaPath string, deltaInfo *snap.De
 	// run the xdelta3 command, cleaning up if we fail and logging about it
 	if runErr := s.xdelta3CmdFunc(xdelta3Args...).Run(); runErr != nil {
 		logger.Noticef("encountered error applying delta: %v", runErr)
-		if err := os.Remove(partialTargetPath); err != nil {
-			logger.Noticef("error cleaning up partial delta target %q: %s", partialTargetPath, err)
-		}
+		mylog.Check(os.Remove(partialTargetPath))
+
 		return runErr
 	}
+	mylog.Check(os.Chmod(partialTargetPath, 0600))
 
-	if err := os.Chmod(partialTargetPath, 0600); err != nil {
-		return err
-	}
+	bsha3_384, _ := mylog.Check3(osutil.FileDigest(partialTargetPath, crypto.SHA3_384))
 
-	bsha3_384, _, err := osutil.FileDigest(partialTargetPath, crypto.SHA3_384)
-	if err != nil {
-		return err
-	}
 	sha3_384 := fmt.Sprintf("%x", bsha3_384)
 	if targetSha3_384 != "" && sha3_384 != targetSha3_384 {
-		if err := os.Remove(partialTargetPath); err != nil {
-			logger.Noticef("failed to remove partial delta target %q: %s", partialTargetPath, err)
-		}
+		mylog.Check(os.Remove(partialTargetPath))
+
 		return HashError{name, sha3_384, targetSha3_384}
 	}
-
-	if err := os.Rename(partialTargetPath, targetPath); err != nil {
-		return osutil.CopyFile(partialTargetPath, targetPath, 0)
-	}
+	mylog.Check(os.Rename(partialTargetPath, targetPath))
 
 	return nil
 }
@@ -731,26 +661,18 @@ func (s *Store) downloadAndApplyDelta(name, targetPath string, downloadInfo *sna
 	deltaPath := fmt.Sprintf("%s.%s-%d-to-%d.partial", targetPath, deltaInfo.Format, deltaInfo.FromRevision, deltaInfo.ToRevision)
 	deltaName := fmt.Sprintf(i18n.G("%s (delta)"), name)
 
-	w, err := os.OpenFile(deltaPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
-	if err != nil {
-		return err
-	}
+	w := mylog.Check2(os.OpenFile(deltaPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600))
+
 	defer func() {
 		if cerr := w.Close(); cerr != nil && err == nil {
 			err = cerr
 		}
 		os.Remove(deltaPath)
 	}()
-
-	err = s.downloadDelta(deltaName, downloadInfo, w, pbar, user, dlOpts)
-	if err != nil {
-		return err
-	}
+	mylog.Check(s.downloadDelta(deltaName, downloadInfo, w, pbar, user, dlOpts))
 
 	logger.Debugf("Successfully downloaded delta for %q at %s", name, deltaPath)
-	if err := applyDelta(s, name, deltaPath, deltaInfo, targetPath, downloadInfo.Sha3_384); err != nil {
-		return err
-	}
+	mylog.Check(applyDelta(s, name, deltaPath, deltaInfo, targetPath, downloadInfo.Sha3_384))
 
 	logger.Debugf("Successfully applied delta for %q at %s, saving %d bytes.", name, deltaPath, downloadInfo.Size-deltaInfo.Size)
 	return nil

@@ -27,6 +27,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/godbus/dbus"
 
 	"github.com/snapcore/snapd/desktop/desktopentry"
@@ -74,27 +75,13 @@ func (s *PrivilegedDesktopLauncher) IntrospectionData() string {
 // DBus interface. The desktopFileID is described here:
 // https://standards.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html#desktop-file-id
 func (s *PrivilegedDesktopLauncher) OpenDesktopEntry(desktopFileID string, sender dbus.Sender) *dbus.Error {
-	desktopFile, err := desktopFileIDToFilename(desktopFileID)
-	if err != nil {
-		return dbus.MakeFailedError(err)
-	}
+	desktopFile := mylog.Check2(desktopFileIDToFilename(desktopFileID))
+	mylog.Check(verifyDesktopFileLocation(desktopFile))
 
-	err = verifyDesktopFileLocation(desktopFile)
-	if err != nil {
-		return dbus.MakeFailedError(err)
-	}
+	de := mylog.Check2(desktopentry.Read(desktopFile))
 
-	de, err := desktopentry.Read(desktopFile)
-	if err != nil {
-		return dbus.MakeFailedError(err)
-	}
-
-	args, err := de.ExpandExec(nil)
-	if err != nil {
-		return dbus.MakeFailedError(err)
-	}
-
-	err = systemd.EnsureAtLeast(236)
+	args := mylog.Check2(de.ExpandExec(nil))
+	mylog.Check(systemd.EnsureAtLeast(236))
 	if err == nil {
 		// systemd 236 introduced the --collect option to systemd-run,
 		// which specifies that the unit should be garbage collected
@@ -109,10 +96,7 @@ func (s *PrivilegedDesktopLauncher) OpenDesktopEntry(desktopFileID string, sende
 	}
 
 	cmd := exec.Command(args[0], args[1:]...)
-
-	if err := cmd.Run(); err != nil {
-		return dbus.MakeFailedError(fmt.Errorf("cannot run %q: %v", args, err))
-	}
+	mylog.Check(cmd.Run())
 
 	return nil
 }
@@ -180,7 +164,7 @@ func findDesktopFile(baseDir string, splitFileId []string) (string, error) {
 		if prefix == "" || prefix == "." {
 			continue
 		}
-		desktopFile, err := findDesktopFile(filepath.Join(baseDir, prefix), splitFileId[i:])
+		desktopFile := mylog.Check2(findDesktopFile(filepath.Join(baseDir, prefix), splitFileId[i:]))
 		if err == nil {
 			return desktopFile, nil
 		}
@@ -203,7 +187,7 @@ func desktopFileIDToFilename(desktopFileID string) (string, error) {
 
 	splitDesktopID := strings.Split(desktopFileID, "-")
 	for _, baseDir := range desktopFileSearchPath() {
-		if desktopFile, err := findDesktopFile(baseDir, splitDesktopID); err == nil {
+		if desktopFile := mylog.Check2(findDesktopFile(baseDir, splitDesktopID)); err == nil {
 			return desktopFile, nil
 		}
 	}

@@ -30,6 +30,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -50,14 +51,14 @@ func (s *snapConfSuite) SetUpTest(c *check.C) {
 }
 
 func (s *snapConfSuite) runGetConf(c *check.C, snapName string, keys []string, statusCode int) map[string]interface{} {
-	req, err := http.NewRequest("GET", "/v2/snaps/"+snapName+"/conf?keys="+strings.Join(keys, ","), nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/snaps/"+snapName+"/conf?keys="+strings.Join(keys, ","), nil))
 	c.Check(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, statusCode)
 
 	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	mylog.Check(json.Unmarshal(rec.Body.Bytes(), &body))
 	c.Check(err, check.IsNil)
 	return body["result"].(map[string]interface{})
 }
@@ -148,11 +149,11 @@ func (s *snapConfSuite) TestSetConf(c *check.C) {
 	d.Overlord().Loop()
 	defer d.Overlord().Stop()
 
-	text, err := json.Marshal(map[string]interface{}{"key": "value"})
+	text := mylog.Check2(json.Marshal(map[string]interface{}{"key": "value"}))
 	c.Assert(err, check.IsNil)
 
 	buffer := bytes.NewBuffer(text)
-	req, err := http.NewRequest("PUT", "/v2/snaps/config-snap/conf", buffer)
+	req := mylog.Check2(http.NewRequest("PUT", "/v2/snaps/config-snap/conf", buffer))
 	c.Assert(err, check.IsNil)
 
 	rec := httptest.NewRecorder()
@@ -160,7 +161,7 @@ func (s *snapConfSuite) TestSetConf(c *check.C) {
 	c.Check(rec.Code, check.Equals, 202)
 
 	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	mylog.Check(json.Unmarshal(rec.Body.Bytes(), &body))
 	c.Assert(err, check.IsNil)
 	id := body["change"].(string)
 
@@ -173,7 +174,7 @@ func (s *snapConfSuite) TestSetConf(c *check.C) {
 	<-chg.Ready()
 
 	st.Lock()
-	err = chg.Err()
+	mylog.Check(chg.Err())
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 
@@ -189,20 +190,19 @@ func (s *snapConfSuite) TestSetConfCoreSystemAlias(c *check.C) {
 name: core
 version: 1
 `)
-
-	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/"), 0755)
+	mylog.Check(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/"), 0755))
 	c.Assert(err, check.IsNil)
-	err = os.WriteFile(filepath.Join(dirs.GlobalRootDir, "/etc/environment"), nil, 0644)
+	mylog.Check(os.WriteFile(filepath.Join(dirs.GlobalRootDir, "/etc/environment"), nil, 0644))
 	c.Assert(err, check.IsNil)
 
 	d.Overlord().Loop()
 	defer d.Overlord().Stop()
 
-	text, err := json.Marshal(map[string]interface{}{"proxy.ftp": "value"})
+	text := mylog.Check2(json.Marshal(map[string]interface{}{"proxy.ftp": "value"}))
 	c.Assert(err, check.IsNil)
 
 	buffer := bytes.NewBuffer(text)
-	req, err := http.NewRequest("PUT", "/v2/snaps/system/conf", buffer)
+	req := mylog.Check2(http.NewRequest("PUT", "/v2/snaps/system/conf", buffer))
 	c.Assert(err, check.IsNil)
 
 	rec := httptest.NewRecorder()
@@ -210,7 +210,7 @@ version: 1
 	c.Check(rec.Code, check.Equals, 202)
 
 	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	mylog.Check(json.Unmarshal(rec.Body.Bytes(), &body))
 	c.Assert(err, check.IsNil)
 	id := body["change"].(string)
 
@@ -223,7 +223,7 @@ version: 1
 	<-chg.Ready()
 
 	st.Lock()
-	err = chg.Err()
+	mylog.Check(chg.Err())
 	tr := config.NewTransaction(st)
 	st.Unlock()
 	c.Assert(err, check.IsNil)
@@ -244,11 +244,11 @@ func (s *snapConfSuite) TestSetConfNumber(c *check.C) {
 	d.Overlord().Loop()
 	defer d.Overlord().Stop()
 
-	text, err := json.Marshal(map[string]interface{}{"key": 1234567890})
+	text := mylog.Check2(json.Marshal(map[string]interface{}{"key": 1234567890}))
 	c.Assert(err, check.IsNil)
 
 	buffer := bytes.NewBuffer(text)
-	req, err := http.NewRequest("PUT", "/v2/snaps/config-snap/conf", buffer)
+	req := mylog.Check2(http.NewRequest("PUT", "/v2/snaps/config-snap/conf", buffer))
 	c.Assert(err, check.IsNil)
 
 	rec := httptest.NewRecorder()
@@ -256,7 +256,7 @@ func (s *snapConfSuite) TestSetConfNumber(c *check.C) {
 	c.Check(rec.Code, check.Equals, 202)
 
 	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	mylog.Check(json.Unmarshal(rec.Body.Bytes(), &body))
 	c.Assert(err, check.IsNil)
 	id := body["change"].(string)
 
@@ -279,11 +279,11 @@ func (s *snapConfSuite) TestSetConfNumber(c *check.C) {
 func (s *snapConfSuite) TestSetConfBadSnap(c *check.C) {
 	s.daemonWithOverlordMockAndStore()
 
-	text, err := json.Marshal(map[string]interface{}{"key": "value"})
+	text := mylog.Check2(json.Marshal(map[string]interface{}{"key": "value"}))
 	c.Assert(err, check.IsNil)
 
 	buffer := bytes.NewBuffer(text)
-	req, err := http.NewRequest("PUT", "/v2/snaps/config-snap/conf", buffer)
+	req := mylog.Check2(http.NewRequest("PUT", "/v2/snaps/config-snap/conf", buffer))
 	c.Assert(err, check.IsNil)
 
 	rec := httptest.NewRecorder()
@@ -291,7 +291,7 @@ func (s *snapConfSuite) TestSetConfBadSnap(c *check.C) {
 	c.Check(rec.Code, check.Equals, 404)
 
 	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	mylog.Check(json.Unmarshal(rec.Body.Bytes(), &body))
 	c.Assert(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"status-code": 404.,
@@ -301,7 +301,8 @@ func (s *snapConfSuite) TestSetConfBadSnap(c *check.C) {
 			"kind":    "snap-not-found",
 			"value":   "config-snap",
 		},
-		"type": "error"})
+		"type": "error",
+	})
 }
 
 func (s *snapConfSuite) TestSetConfChangeConflict(c *check.C) {
@@ -310,11 +311,11 @@ func (s *snapConfSuite) TestSetConfChangeConflict(c *check.C) {
 
 	s.simulateConflict("config-snap")
 
-	text, err := json.Marshal(map[string]interface{}{"key": "value"})
+	text := mylog.Check2(json.Marshal(map[string]interface{}{"key": "value"}))
 	c.Assert(err, check.IsNil)
 
 	buffer := bytes.NewBuffer(text)
-	req, err := http.NewRequest("PUT", "/v2/snaps/config-snap/conf", buffer)
+	req := mylog.Check2(http.NewRequest("PUT", "/v2/snaps/config-snap/conf", buffer))
 	c.Assert(err, check.IsNil)
 
 	rec := httptest.NewRecorder()
@@ -322,7 +323,7 @@ func (s *snapConfSuite) TestSetConfChangeConflict(c *check.C) {
 	c.Check(rec.Code, check.Equals, 409)
 
 	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	mylog.Check(json.Unmarshal(rec.Body.Bytes(), &body))
 	c.Assert(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"status-code": 409.,
@@ -335,5 +336,6 @@ func (s *snapConfSuite) TestSetConfChangeConflict(c *check.C) {
 				"snap-name":   "config-snap",
 			},
 		},
-		"type": "error"})
+		"type": "error",
+	})
 }

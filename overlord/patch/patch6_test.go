@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/state"
@@ -129,29 +130,28 @@ var statePatch5JSON = []byte(`
 
 func (s *patch6Suite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
+	mylog.Check(os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755))
 
-	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(dirs.SnapStateFile, statePatch5JSON, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(dirs.SnapStateFile, statePatch5JSON, 0644))
+
 }
 
 func (s *patch6Suite) TestPatch6(c *C) {
 	restorer := patch.MockLevel(6, 1)
 	defer restorer()
 
-	r, err := os.Open(dirs.SnapStateFile)
-	c.Assert(err, IsNil)
+	r := mylog.Check2(os.Open(dirs.SnapStateFile))
+
 	defer r.Close()
-	st, err := state.ReadState(nil, r)
-	c.Assert(err, IsNil)
+	st := mylog.Check2(state.ReadState(nil, r))
+
 
 	func() {
 		st.Lock()
 		defer st.Unlock()
 
-		stateMap, err := patch.Patch4StateMap(st)
-		c.Assert(err, IsNil)
+		stateMap := mylog.Check2(patch.Patch4StateMap(st))
+
 		c.Check(int(stateMap["a"].Flags), Equals, 1)
 		c.Check(int(stateMap["b"].Flags), Equals, 2)
 		c.Check(int(stateMap["c"].Flags), Equals, 4)
@@ -162,8 +162,8 @@ func (s *patch6Suite) TestPatch6(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	stateMap, err := patch.Patch6StateMap(st)
-	c.Assert(err, IsNil)
+	stateMap := mylog.Check2(patch.Patch6StateMap(st))
+
 
 	c.Check(stateMap["a"].DevMode, Equals, true)
 	c.Check(stateMap["a"].TryMode, Equals, false)
@@ -178,11 +178,11 @@ func (s *patch6Suite) TestPatch6(c *C) {
 	c.Check(stateMap["c"].JailMode, Equals, true)
 
 	for _, task := range st.Tasks() {
-		snapsup, err := patch.Patch6SnapSetup(task)
+		snapsup := mylog.Check2(patch.Patch6SnapSetup(task))
 		if errors.Is(err, state.ErrNoState) {
 			continue
 		}
-		c.Assert(err, IsNil)
+
 
 		var snaps []string
 		c.Assert(task.Change().Get("snap-names", &snaps), IsNil)

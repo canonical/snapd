@@ -30,6 +30,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapdir"
@@ -38,17 +39,16 @@ import (
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
-type SnapdirTestSuite struct {
-}
+type SnapdirTestSuite struct{}
 
 var _ = Suite(&SnapdirTestSuite{})
 
 func (s *SnapdirTestSuite) TestIsSnapDir(c *C) {
 	d := c.MkDir()
-	err := os.MkdirAll(filepath.Join(d, "meta"), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(d, "meta/snap.yaml"), nil, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Join(d, "meta"), 0755))
+
+	mylog.Check(os.WriteFile(filepath.Join(d, "meta/snap.yaml"), nil, 0644))
+
 
 	c.Check(snapdir.IsSnapDir(d), Equals, true)
 }
@@ -62,12 +62,12 @@ func (s *SnapdirTestSuite) TestNotIsSnapDir(c *C) {
 func (s *SnapdirTestSuite) TestReadFile(c *C) {
 	d := c.MkDir()
 	needle := []byte(`stuff`)
-	err := os.WriteFile(filepath.Join(d, "foo"), needle, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(d, "foo"), needle, 0644))
+
 
 	sn := snapdir.New(d)
-	content, err := sn.ReadFile("foo")
-	c.Assert(err, IsNil)
+	content := mylog.Check2(sn.ReadFile("foo"))
+
 	c.Assert(content, DeepEquals, needle)
 }
 
@@ -76,8 +76,8 @@ func (s *SnapdirTestSuite) TestReadlink(c *C) {
 	c.Assert(os.Symlink("target", filepath.Join(d, "foo")), IsNil)
 
 	sn := snapdir.New(d)
-	target, err := sn.ReadLink("foo")
-	c.Assert(err, IsNil)
+	target := mylog.Check2(sn.ReadLink("foo"))
+
 	c.Assert(target, DeepEquals, "target")
 }
 
@@ -93,10 +93,10 @@ func (s *SnapdirTestSuite) TestLstat(c *C) {
 		"meta",
 		"meta/snap.yaml",
 	} {
-		expectedInfo, err := os.Lstat(filepath.Join(d, file))
-		c.Assert(err, IsNil)
-		info, err := sn.Lstat(file)
-		c.Assert(err, IsNil)
+		expectedInfo := mylog.Check2(os.Lstat(filepath.Join(d, file)))
+
+		info := mylog.Check2(sn.Lstat(file))
+
 
 		c.Check(info.Name(), Equals, expectedInfo.Name())
 		c.Check(info.Mode(), Equals, expectedInfo.Mode())
@@ -106,43 +106,42 @@ func (s *SnapdirTestSuite) TestLstat(c *C) {
 
 func (s *SnapdirTestSuite) TestLstatErrNotExist(c *C) {
 	sn := snapdir.New(c.MkDir())
-	_, err := sn.Lstat("meta/non-existent")
+	_ := mylog.Check2(sn.Lstat("meta/non-existent"))
 	c.Check(errors.Is(err, os.ErrNotExist), Equals, true)
 }
 
 func (s *SnapdirTestSuite) TestRandomAccessFile(c *C) {
 	d := c.MkDir()
 	needle := []byte(`stuff`)
-	err := os.WriteFile(filepath.Join(d, "foo"), needle, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(d, "foo"), needle, 0644))
+
 
 	sn := snapdir.New(d)
-	r, err := sn.RandomAccessFile("foo")
-	c.Assert(err, IsNil)
+	r := mylog.Check2(sn.RandomAccessFile("foo"))
+
 	defer r.Close()
 
 	c.Assert(r.Size(), Equals, int64(5))
 
 	b := make([]byte, 2)
-	n, err := r.ReadAt(b, 2)
-	c.Assert(err, IsNil)
+	n := mylog.Check2(r.ReadAt(b, 2))
+
 	c.Assert(n, Equals, 2)
 	c.Check(string(b), Equals, "uf")
 }
 
 func (s *SnapdirTestSuite) TestListDir(c *C) {
 	d := c.MkDir()
+	mylog.Check(os.MkdirAll(filepath.Join(d, "test"), 0755))
 
-	err := os.MkdirAll(filepath.Join(d, "test"), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(d, "test", "test1"), nil, 0644)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(d, "test", "test2"), nil, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(d, "test", "test1"), nil, 0644))
+
+	mylog.Check(os.WriteFile(filepath.Join(d, "test", "test2"), nil, 0644))
+
 
 	sn := snapdir.New(d)
-	fileNames, err := sn.ListDir("test")
-	c.Assert(err, IsNil)
+	fileNames := mylog.Check2(sn.ListDir("test"))
+
 	c.Assert(fileNames, HasLen, 2)
 	c.Check(fileNames[0], Equals, "test1")
 	c.Check(fileNames[1], Equals, "test2")
@@ -154,11 +153,11 @@ func (s *SnapdirTestSuite) TestInstall(c *C) {
 
 	varLibSnapd := c.MkDir()
 	targetPath := filepath.Join(varLibSnapd, "foo_1.0.snap")
-	didNothing, err := sn.Install(targetPath, "unused-mount-dir", nil)
-	c.Assert(err, IsNil)
+	didNothing := mylog.Check2(sn.Install(targetPath, "unused-mount-dir", nil))
+
 	c.Check(didNothing, Equals, false)
-	symlinkTarget, err := filepath.EvalSymlinks(targetPath)
-	c.Assert(err, IsNil)
+	symlinkTarget := mylog.Check2(filepath.EvalSymlinks(targetPath))
+
 	c.Assert(symlinkTarget, Equals, tryBaseDir)
 }
 
@@ -168,8 +167,8 @@ func (s *SnapdirTestSuite) TestInstallMustNotCrossDevices(c *C) {
 
 	varLibSnapd := c.MkDir()
 	targetPath := filepath.Join(varLibSnapd, "foo_1.0.snap")
-	didNothing, err := sn.Install(targetPath, "unused-mount-dir", &snap.InstallOptions{MustNotCrossDevices: true})
-	c.Assert(err, IsNil)
+	didNothing := mylog.Check2(sn.Install(targetPath, "unused-mount-dir", &snap.InstallOptions{MustNotCrossDevices: true}))
+
 	c.Check(didNothing, Equals, false)
 	// TODO:UC20: fix this test when snapdir Install() understands/does
 	//            something with opts.MustNotCrossDevices
@@ -179,13 +178,8 @@ func (s *SnapdirTestSuite) TestInstallMustNotCrossDevices(c *C) {
 func walkEqual(tryBaseDir, sub string, c *C) {
 	fpw := map[string]os.FileInfo{}
 	filepath.Walk(filepath.Join(tryBaseDir, sub), func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		path, err = filepath.Rel(tryBaseDir, path)
-		if err != nil {
-			return err
-		}
+		path = mylog.Check2(filepath.Rel(tryBaseDir, path))
+
 		fpw[path] = info
 		return nil
 	})
@@ -193,9 +187,6 @@ func walkEqual(tryBaseDir, sub string, c *C) {
 	sdw := map[string]os.FileInfo{}
 	sn := snapdir.New(tryBaseDir)
 	sn.Walk(sub, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
 		sdw[path] = info
 		return nil
 	})

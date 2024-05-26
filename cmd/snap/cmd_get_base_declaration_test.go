@@ -26,6 +26,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	snap "github.com/snapcore/snapd/cmd/snap"
 )
 
@@ -37,7 +38,7 @@ func (s *SnapSuite) TestGetBaseDeclaration(c *check.C) {
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/debug")
 			c.Check(r.URL.RawQuery, check.Equals, "aspect=base-declaration")
-			data, err := io.ReadAll(r.Body)
+			data := mylog.Check2(io.ReadAll(r.Body))
 			c.Check(err, check.IsNil)
 			c.Check(data, check.HasLen, 0)
 			fmt.Fprintln(w, `{"type": "sync", "result": {"base-declaration": "hello"}}`)
@@ -47,7 +48,7 @@ func (s *SnapSuite) TestGetBaseDeclaration(c *check.C) {
 
 		n++
 	})
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "get-base-declaration"})
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"debug", "get-base-declaration"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, "hello\n")
@@ -62,7 +63,7 @@ func (s *SnapSuite) TestBaseDeclaration(c *check.C) {
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/debug")
 			c.Check(r.URL.RawQuery, check.Equals, "aspect=base-declaration")
-			data, err := io.ReadAll(r.Body)
+			data := mylog.Check2(io.ReadAll(r.Body))
 			c.Check(err, check.IsNil)
 			c.Check(data, check.HasLen, 0)
 			fmt.Fprintln(w, `{"type": "sync", "result": {"base-declaration": "hello"}}`)
@@ -72,7 +73,7 @@ func (s *SnapSuite) TestBaseDeclaration(c *check.C) {
 
 		n++
 	})
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "base-declaration"})
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"debug", "base-declaration"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, "hello\n")

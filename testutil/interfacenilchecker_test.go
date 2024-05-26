@@ -43,7 +43,6 @@ func (*interfaceNilCheckerSuite) TestIsInterfaceNilMatchesIntendedNilComparison(
 	c.Assert(err1, IsInterfaceNil)
 
 	err2 := func() error {
-		var err error
 		return err
 	}()
 	c.Assert(err2 == nil, Equals, true)

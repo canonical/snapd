@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/ubootenv"
@@ -49,34 +50,36 @@ func (s *pibootTestSuite) TestNewPiboot(c *C) {
 	c.Assert(p, NotNil)
 	c.Assert(p.Name(), Equals, "piboot")
 
-	present, err := p.Present()
-	c.Assert(err, IsNil)
+	present := mylog.Check2(p.Present())
+
 	c.Assert(present, Equals, false)
 
 	// now with files present, the bl is present
 	r := bootloader.MockPibootFiles(c, s.rootdir, nil)
 	defer r()
-	present, err = p.Present()
-	c.Assert(err, IsNil)
+	present = mylog.Check2(p.Present())
+
 	c.Assert(present, Equals, true)
 }
 
 func (s *pibootTestSuite) TestPibootGetEnvVar(c *C) {
 	// We need PrepareImageTime due to fixed reference to /run/mnt otherwise
-	opts := bootloader.Options{PrepareImageTime: true,
-		Role: bootloader.RoleRunMode, NoSlashBoot: true}
+	opts := bootloader.Options{
+		PrepareImageTime: true,
+		Role:             bootloader.RoleRunMode, NoSlashBoot: true,
+	}
 	r := bootloader.MockPibootFiles(c, s.rootdir, &opts)
 	defer r()
 	p := bootloader.NewPiboot(s.rootdir, &opts)
 	c.Assert(p, NotNil)
-	err := p.SetBootVars(map[string]string{
+	mylog.Check(p.SetBootVars(map[string]string{
 		"snap_mode": "",
 		"snap_core": "4",
-	})
-	c.Assert(err, IsNil)
+	}))
 
-	m, err := p.GetBootVars("snap_mode", "snap_core")
-	c.Assert(err, IsNil)
+
+	m := mylog.Check2(p.GetBootVars("snap_mode", "snap_core"))
+
 	c.Assert(m, DeepEquals, map[string]string{
 		"snap_mode": "",
 		"snap_core": "4",
@@ -87,43 +90,45 @@ func (s *pibootTestSuite) TestGetBootloaderWithPiboot(c *C) {
 	r := bootloader.MockPibootFiles(c, s.rootdir, nil)
 	defer r()
 
-	bootloader, err := bootloader.Find(s.rootdir, nil)
-	c.Assert(err, IsNil)
+	bootloader := mylog.Check2(bootloader.Find(s.rootdir, nil))
+
 	c.Assert(bootloader.Name(), Equals, "piboot")
 }
 
 func (s *pibootTestSuite) testPibootSetEnvWriteOnlyIfChanged(c *C, fromInitramfs bool) {
-	opts := bootloader.Options{PrepareImageTime: true,
-		Role: bootloader.RoleRunMode, NoSlashBoot: true}
+	opts := bootloader.Options{
+		PrepareImageTime: true,
+		Role:             bootloader.RoleRunMode, NoSlashBoot: true,
+	}
 	r := bootloader.MockPibootFiles(c, s.rootdir, &opts)
 	defer r()
 	p := bootloader.NewPiboot(s.rootdir, &opts)
 	c.Assert(p, NotNil)
 
 	envFile := bootloader.PibootConfigFile(p)
-	env, err := ubootenv.OpenWithFlags(envFile, ubootenv.OpenBestEffort)
-	c.Assert(err, IsNil)
+	env := mylog.Check2(ubootenv.OpenWithFlags(envFile, ubootenv.OpenBestEffort))
+
 	env.Set("snap_ab", "b")
 	env.Set("snap_mode", "")
-	err = env.Save()
-	c.Assert(err, IsNil)
+	mylog.Check(env.Save())
 
-	st, err := os.Stat(envFile)
-	c.Assert(err, IsNil)
+
+	st := mylog.Check2(os.Stat(envFile))
+
 	time.Sleep(100 * time.Millisecond)
 
 	// note that we set to the same var to the same value as above
 	if fromInitramfs {
 		nsbl, ok := p.(bootloader.NotScriptableBootloader)
 		c.Assert(ok, Equals, true)
-		err = nsbl.SetBootVarsFromInitramfs(map[string]string{"snap_ab": "b"})
+		mylog.Check(nsbl.SetBootVarsFromInitramfs(map[string]string{"snap_ab": "b"}))
 	} else {
-		err = p.SetBootVars(map[string]string{"snap_ab": "b"})
+		mylog.Check(p.SetBootVars(map[string]string{"snap_ab": "b"}))
 	}
-	c.Assert(err, IsNil)
 
-	st2, err := os.Stat(envFile)
-	c.Assert(err, IsNil)
+
+	st2 := mylog.Check2(os.Stat(envFile))
+
 	c.Assert(st.ModTime(), Equals, st2.ModTime())
 }
 
@@ -136,8 +141,10 @@ func (s *pibootTestSuite) TestPibootSetEnvWriteOnlyIfChanged(c *C) {
 }
 
 func (s *pibootTestSuite) testExtractKernelAssets(c *C, dtbDir string) {
-	opts := bootloader.Options{PrepareImageTime: true,
-		Role: bootloader.RoleRunMode, NoSlashBoot: true}
+	opts := bootloader.Options{
+		PrepareImageTime: true,
+		Role:             bootloader.RoleRunMode, NoSlashBoot: true,
+	}
 	r := bootloader.MockPibootFiles(c, s.rootdir, &opts)
 	defer r()
 	p := bootloader.NewPiboot(s.rootdir, &opts)
@@ -151,19 +158,19 @@ func (s *pibootTestSuite) testExtractKernelAssets(c *C, dtbDir string) {
 		{"meta/kernel.yaml", "version: 4.2"},
 	}
 	fn := snaptest.MakeTestSnapWithFiles(c, packageKernel, files)
-	snapf, err := snapfile.Open(fn)
-	c.Assert(err, IsNil)
+	snapf := mylog.Check2(snapfile.Open(fn))
 
-	assetsDir, err := os.MkdirTemp("", "kernel-assets")
-	c.Assert(err, IsNil)
+
+	assetsDir := mylog.Check2(os.MkdirTemp("", "kernel-assets"))
+
 	defer os.RemoveAll(assetsDir)
+	mylog.Check(bootloader.LayoutKernelAssetsToDir(p, snapf, assetsDir))
 
-	err = bootloader.LayoutKernelAssetsToDir(p, snapf, assetsDir)
-	c.Assert(err, IsNil)
-	// Do again, as extracting might be called again for an
-	// already extracted kernel.
-	err = bootloader.LayoutKernelAssetsToDir(p, snapf, assetsDir)
-	c.Assert(err, IsNil)
+	mylog.
+		// Do again, as extracting might be called again for an
+		// already extracted kernel.
+		Check(bootloader.LayoutKernelAssetsToDir(p, snapf, assetsDir))
+
 
 	// Extraction folders for files slice
 	destDirs := []string{
@@ -186,8 +193,10 @@ func (s *pibootTestSuite) TestExtractKernelAssets(c *C) {
 }
 
 func (s *pibootTestSuite) testExtractRecoveryKernelAssets(c *C, dtbDir string) {
-	opts := bootloader.Options{PrepareImageTime: true,
-		Role: bootloader.RoleRunMode, NoSlashBoot: true}
+	opts := bootloader.Options{
+		PrepareImageTime: true,
+		Role:             bootloader.RoleRunMode, NoSlashBoot: true,
+	}
 	r := bootloader.MockPibootFiles(c, s.rootdir, &opts)
 	defer r()
 	p := bootloader.NewPiboot(s.rootdir, &opts)
@@ -205,19 +214,21 @@ func (s *pibootTestSuite) testExtractRecoveryKernelAssets(c *C, dtbDir string) {
 		Revision: snap.R(42),
 	}
 	fn := snaptest.MakeTestSnapWithFiles(c, packageKernel, files)
-	snapf, err := snapfile.Open(fn)
-	c.Assert(err, IsNil)
+	snapf := mylog.Check2(snapfile.Open(fn))
 
-	info, err := snap.ReadInfoFromSnapFile(snapf, si)
-	c.Assert(err, IsNil)
 
-	// try with empty recovery dir first to check the errors
-	err = p.ExtractRecoveryKernelAssets("", info, snapf)
+	info := mylog.Check2(snap.ReadInfoFromSnapFile(snapf, si))
+
+	mylog.
+
+		// try with empty recovery dir first to check the errors
+		Check(p.ExtractRecoveryKernelAssets("", info, snapf))
 	c.Assert(err, ErrorMatches, "internal error: recoverySystemDir unset")
+	mylog.
 
-	// now the expected behavior
-	err = p.ExtractRecoveryKernelAssets("recovery-dir", info, snapf)
-	c.Assert(err, IsNil)
+		// now the expected behavior
+		Check(p.ExtractRecoveryKernelAssets("recovery-dir", info, snapf))
+
 
 	// Extraction folders for files slice
 	assetsDir := filepath.Join(s.rootdir, "recovery-dir", "kernel")
@@ -247,20 +258,26 @@ func (s *pibootTestSuite) TestPibootUC20OptsPlacement(c *C) {
 		comment string
 	}{
 		{
-			&bootloader.Options{PrepareImageTime: true,
-				Role: bootloader.RoleRunMode, NoSlashBoot: true},
+			&bootloader.Options{
+				PrepareImageTime: true,
+				Role:             bootloader.RoleRunMode, NoSlashBoot: true,
+			},
 			"/piboot/ubuntu/piboot.conf",
 			"uc20 install mode piboot.conf",
 		},
 		{
-			&bootloader.Options{PrepareImageTime: true,
-				Role: bootloader.RoleRunMode},
+			&bootloader.Options{
+				PrepareImageTime: true,
+				Role:             bootloader.RoleRunMode,
+			},
 			"/boot/piboot/piboot.conf",
 			"uc20 run mode piboot.conf",
 		},
 		{
-			&bootloader.Options{PrepareImageTime: true,
-				Role: bootloader.RoleRecovery},
+			&bootloader.Options{
+				PrepareImageTime: true,
+				Role:             bootloader.RoleRecovery,
+			},
 			"/piboot/ubuntu/piboot.conf",
 			"uc20 recovery piboot.conf",
 		},
@@ -277,26 +294,28 @@ func (s *pibootTestSuite) TestPibootUC20OptsPlacement(c *C) {
 		// if we set boot vars on the piboot, we can open the config file and
 		// get the same variables
 		c.Assert(p.SetBootVars(map[string]string{"hello": "there"}), IsNil)
-		env, err := ubootenv.OpenWithFlags(filepath.Join(dir, t.expEnv),
-			ubootenv.OpenBestEffort)
-		c.Assert(err, IsNil)
+		env := mylog.Check2(ubootenv.OpenWithFlags(filepath.Join(dir, t.expEnv),
+			ubootenv.OpenBestEffort))
+
 		c.Assert(env.Get("hello"), Equals, "there")
 		restore()
 	}
 }
 
 func (s *pibootTestSuite) TestCreateConfig(c *C) {
-	opts := bootloader.Options{PrepareImageTime: false,
-		Role: bootloader.RoleRunMode, NoSlashBoot: true}
+	opts := bootloader.Options{
+		PrepareImageTime: false,
+		Role:             bootloader.RoleRunMode, NoSlashBoot: true,
+	}
 	r := bootloader.MockPibootFiles(c, s.rootdir, &opts)
 	defer r()
 	p := bootloader.NewPiboot(s.rootdir, &opts)
-
-	err := p.SetBootVars(map[string]string{
+	mylog.Check(p.SetBootVars(map[string]string{
 		"snap_kernel":         "pi-kernel_1",
 		"snapd_recovery_mode": "run",
-		"kernel_status":       boot.DefaultStatus})
-	c.Assert(err, IsNil)
+		"kernel_status":       boot.DefaultStatus,
+	}))
+
 
 	files := []struct {
 		path string
@@ -312,25 +331,27 @@ func (s *pibootTestSuite) TestCreateConfig(c *C) {
 		},
 	}
 	for _, fInfo := range files {
-		readData, err := os.ReadFile(fInfo.path)
-		c.Assert(err, IsNil)
+		readData := mylog.Check2(os.ReadFile(fInfo.path))
+
 		c.Assert(string(readData), Equals, fInfo.data)
 	}
 }
 
 func (s *pibootTestSuite) TestCreateTrybootCfg(c *C) {
-	opts := bootloader.Options{PrepareImageTime: false,
-		Role: bootloader.RoleRunMode, NoSlashBoot: true}
+	opts := bootloader.Options{
+		PrepareImageTime: false,
+		Role:             bootloader.RoleRunMode, NoSlashBoot: true,
+	}
 	r := bootloader.MockPibootFiles(c, s.rootdir, &opts)
 	defer r()
 	p := bootloader.NewPiboot(s.rootdir, &opts)
-
-	err := p.SetBootVars(map[string]string{
+	mylog.Check(p.SetBootVars(map[string]string{
 		"snap_kernel":         "pi-kernel_1",
 		"snap_try_kernel":     "pi-kernel_2",
 		"snapd_recovery_mode": "run",
-		"kernel_status":       boot.TryStatus})
-	c.Assert(err, IsNil)
+		"kernel_status":       boot.TryStatus,
+	}))
+
 
 	files := []struct {
 		path string
@@ -346,18 +367,20 @@ func (s *pibootTestSuite) TestCreateTrybootCfg(c *C) {
 		},
 	}
 	for _, fInfo := range files {
-		readData, err := os.ReadFile(fInfo.path)
-		c.Assert(err, IsNil)
+		readData := mylog.Check2(os.ReadFile(fInfo.path))
+
 		c.Assert(string(readData), Equals, fInfo.data)
 	}
+	mylog.
 
-	// Now set variables like in an after update reboot
-	err = p.SetBootVars(map[string]string{
-		"snap_kernel":         "pi-kernel_2",
-		"snap_try_kernel":     "",
-		"snapd_recovery_mode": "run",
-		"kernel_status":       boot.DefaultStatus})
-	c.Assert(err, IsNil)
+		// Now set variables like in an after update reboot
+		Check(p.SetBootVars(map[string]string{
+			"snap_kernel":         "pi-kernel_2",
+			"snap_try_kernel":     "",
+			"snapd_recovery_mode": "run",
+			"kernel_status":       boot.DefaultStatus,
+		}))
+
 
 	c.Assert(osutil.FileExists(filepath.Join(s.rootdir, "tryboot.txt")), Equals, false)
 
@@ -375,33 +398,37 @@ func (s *pibootTestSuite) TestCreateTrybootCfg(c *C) {
 		},
 	}
 	for _, fInfo := range files {
-		readData, err := os.ReadFile(fInfo.path)
-		c.Assert(err, IsNil)
+		readData := mylog.Check2(os.ReadFile(fInfo.path))
+
 		c.Assert(string(readData), Equals, fInfo.data)
 	}
 }
 
 func (s *pibootTestSuite) TestCreateConfigCurrentNotEmpty(c *C) {
-	opts := bootloader.Options{PrepareImageTime: false,
-		Role: bootloader.RoleRunMode, NoSlashBoot: true}
+	opts := bootloader.Options{
+		PrepareImageTime: false,
+		Role:             bootloader.RoleRunMode, NoSlashBoot: true,
+	}
 	r := bootloader.MockPibootFiles(c, s.rootdir, &opts)
 	defer r()
+	mylog.
 
-	// Get some extra kernel command line parameters
-	err := os.WriteFile(filepath.Join(s.rootdir, "cmdline.txt"),
-		[]byte("opt1=foo bar\n"), 0644)
-	c.Assert(err, IsNil)
-	// Add some options to already existing config.txt
-	err = os.WriteFile(filepath.Join(s.rootdir, "config.txt"),
-		[]byte("rpi.option1=val\nos_prefix=1\nrpi.option2=val\n"), 0644)
-	c.Assert(err, IsNil)
+		// Get some extra kernel command line parameters
+		Check(os.WriteFile(filepath.Join(s.rootdir, "cmdline.txt"),
+			[]byte("opt1=foo bar\n"), 0644))
+
+	mylog.
+		// Add some options to already existing config.txt
+		Check(os.WriteFile(filepath.Join(s.rootdir, "config.txt"),
+			[]byte("rpi.option1=val\nos_prefix=1\nrpi.option2=val\n"), 0644))
+
 	p := bootloader.NewPiboot(s.rootdir, &opts)
-
-	err = p.SetBootVars(map[string]string{
+	mylog.Check(p.SetBootVars(map[string]string{
 		"snap_kernel":         "pi-kernel_1",
 		"snapd_recovery_mode": "run",
-		"kernel_status":       boot.DefaultStatus})
-	c.Assert(err, IsNil)
+		"kernel_status":       boot.DefaultStatus,
+	}))
+
 
 	files := []struct {
 		path string
@@ -417,18 +444,20 @@ func (s *pibootTestSuite) TestCreateConfigCurrentNotEmpty(c *C) {
 		},
 	}
 	for _, fInfo := range files {
-		readData, err := os.ReadFile(fInfo.path)
-		c.Assert(err, IsNil)
+		readData := mylog.Check2(os.ReadFile(fInfo.path))
+
 		c.Assert(string(readData), Equals, fInfo.data)
 	}
+	mylog.
 
-	// Now set variables like in an update
-	err = p.SetBootVars(map[string]string{
-		"snap_kernel":         "pi-kernel_1",
-		"snap_try_kernel":     "pi-kernel_2",
-		"snapd_recovery_mode": "run",
-		"kernel_status":       boot.TryStatus})
-	c.Assert(err, IsNil)
+		// Now set variables like in an update
+		Check(p.SetBootVars(map[string]string{
+			"snap_kernel":         "pi-kernel_1",
+			"snap_try_kernel":     "pi-kernel_2",
+			"snapd_recovery_mode": "run",
+			"kernel_status":       boot.TryStatus,
+		}))
+
 
 	files = []struct {
 		path string
@@ -448,29 +477,32 @@ func (s *pibootTestSuite) TestCreateConfigCurrentNotEmpty(c *C) {
 		},
 	}
 	for _, fInfo := range files {
-		readData, err := os.ReadFile(fInfo.path)
-		c.Assert(err, IsNil)
+		readData := mylog.Check2(os.ReadFile(fInfo.path))
+
 		c.Assert(string(readData), Equals, fInfo.data)
 	}
 }
 
 func (s *pibootTestSuite) TestOnlyOneOsPrefix(c *C) {
-	opts := bootloader.Options{PrepareImageTime: false,
-		Role: bootloader.RoleRunMode, NoSlashBoot: true}
+	opts := bootloader.Options{
+		PrepareImageTime: false,
+		Role:             bootloader.RoleRunMode, NoSlashBoot: true,
+	}
 	r := bootloader.MockPibootFiles(c, s.rootdir, &opts)
 	defer r()
+	mylog.
 
-	// Introuce two os_prefix lines
-	err := os.WriteFile(filepath.Join(s.rootdir, "config.txt"),
-		[]byte("os_prefix=1\nos_prefix=2\n"), 0644)
-	c.Assert(err, IsNil)
+		// Introuce two os_prefix lines
+		Check(os.WriteFile(filepath.Join(s.rootdir, "config.txt"),
+			[]byte("os_prefix=1\nos_prefix=2\n"), 0644))
+
 	p := bootloader.NewPiboot(s.rootdir, &opts)
-
-	err = p.SetBootVars(map[string]string{
+	mylog.Check(p.SetBootVars(map[string]string{
 		"snap_kernel":         "pi-kernel_1",
 		"snapd_recovery_mode": "run",
-		"kernel_status":       boot.DefaultStatus})
-	c.Assert(err, IsNil)
+		"kernel_status":       boot.DefaultStatus,
+	}))
+
 
 	files := []struct {
 		path string
@@ -486,15 +518,17 @@ func (s *pibootTestSuite) TestOnlyOneOsPrefix(c *C) {
 		},
 	}
 	for _, fInfo := range files {
-		readData, err := os.ReadFile(fInfo.path)
-		c.Assert(err, IsNil)
+		readData := mylog.Check2(os.ReadFile(fInfo.path))
+
 		c.Assert(string(readData), Equals, fInfo.data)
 	}
 }
 
 func (s *pibootTestSuite) TestGetRebootArguments(c *C) {
-	opts := bootloader.Options{PrepareImageTime: false,
-		Role: bootloader.RoleRunMode, NoSlashBoot: true}
+	opts := bootloader.Options{
+		PrepareImageTime: false,
+		Role:             bootloader.RoleRunMode, NoSlashBoot: true,
+	}
 	r := bootloader.MockPibootFiles(c, s.rootdir, &opts)
 	defer r()
 	p := bootloader.NewPiboot(s.rootdir, &opts)
@@ -502,56 +536,60 @@ func (s *pibootTestSuite) TestGetRebootArguments(c *C) {
 	rbl, ok := p.(bootloader.RebootBootloader)
 	c.Assert(ok, Equals, true)
 
-	args, err := rbl.GetRebootArguments()
-	c.Assert(err, IsNil)
+	args := mylog.Check2(rbl.GetRebootArguments())
+
 	c.Assert(args, Equals, "")
+	mylog.Check(p.SetBootVars(map[string]string{"kernel_status": "try"}))
 
-	err = p.SetBootVars(map[string]string{"kernel_status": "try"})
-	c.Assert(err, IsNil)
 
-	args, err = rbl.GetRebootArguments()
-	c.Assert(err, IsNil)
+	args = mylog.Check2(rbl.GetRebootArguments())
+
 	c.Assert(args, Equals, "0 tryboot")
-	err = p.SetBootVars(map[string]string{"kernel_status": ""})
-	c.Assert(err, IsNil)
+	mylog.Check(p.SetBootVars(map[string]string{"kernel_status": ""}))
+
 }
 
 func (s *pibootTestSuite) TestGetRebootArgumentsNoEnv(c *C) {
-	opts := bootloader.Options{PrepareImageTime: false,
-		Role: bootloader.RoleRunMode, NoSlashBoot: true}
+	opts := bootloader.Options{
+		PrepareImageTime: false,
+		Role:             bootloader.RoleRunMode, NoSlashBoot: true,
+	}
 	p := bootloader.NewPiboot(s.rootdir, &opts)
 	c.Assert(p, NotNil)
 	rbl, ok := p.(bootloader.RebootBootloader)
 	c.Assert(ok, Equals, true)
 
-	args, err := rbl.GetRebootArguments()
+	args := mylog.Check2(rbl.GetRebootArguments())
 	c.Assert(err, ErrorMatches, "open .*/piboot.conf: no such file or directory")
 	c.Assert(args, Equals, "")
 }
 
 func (s *pibootTestSuite) TestSetBootVarsFromInitramfs(c *C) {
-	opts := bootloader.Options{PrepareImageTime: false,
-		Role: bootloader.RoleRunMode, NoSlashBoot: true}
+	opts := bootloader.Options{
+		PrepareImageTime: false,
+		Role:             bootloader.RoleRunMode, NoSlashBoot: true,
+	}
 	r := bootloader.MockPibootFiles(c, s.rootdir, &opts)
 	defer r()
 	p := bootloader.NewPiboot(s.rootdir, &opts)
 	c.Assert(p, NotNil)
 	nsbl, ok := p.(bootloader.NotScriptableBootloader)
 	c.Assert(ok, Equals, true)
+	mylog.Check(nsbl.SetBootVarsFromInitramfs(map[string]string{"kernel_status": "trying"}))
 
-	err := nsbl.SetBootVarsFromInitramfs(map[string]string{"kernel_status": "trying"})
-	c.Assert(err, IsNil)
 
-	m, err := p.GetBootVars("kernel_status")
-	c.Assert(err, IsNil)
+	m := mylog.Check2(p.GetBootVars("kernel_status"))
+
 	c.Assert(m, DeepEquals, map[string]string{
 		"kernel_status": "trying",
 	})
 }
 
 func (s *pibootTestSuite) testExtractKernelAssetsAndRemove(c *C, dtbDir string) {
-	opts := bootloader.Options{PrepareImageTime: false,
-		Role: bootloader.RoleRunMode, NoSlashBoot: true}
+	opts := bootloader.Options{
+		PrepareImageTime: false,
+		Role:             bootloader.RoleRunMode, NoSlashBoot: true,
+	}
 	r := bootloader.MockPibootFiles(c, s.rootdir, &opts)
 	defer r()
 	p := bootloader.NewPiboot(s.rootdir, &opts)
@@ -570,14 +608,13 @@ func (s *pibootTestSuite) testExtractKernelAssetsAndRemove(c *C, dtbDir string) 
 		Revision: snap.R(42),
 	}
 	fn := snaptest.MakeTestSnapWithFiles(c, packageKernel, files)
-	snapf, err := snapfile.Open(fn)
-	c.Assert(err, IsNil)
+	snapf := mylog.Check2(snapfile.Open(fn))
 
-	info, err := snap.ReadInfoFromSnapFile(snapf, si)
-	c.Assert(err, IsNil)
 
-	err = p.ExtractKernelAssets(info, snapf)
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.ReadInfoFromSnapFile(snapf, si))
+
+	mylog.Check(p.ExtractKernelAssets(info, snapf))
+
 
 	// this is where the kernel/initrd is unpacked
 	kernelAssetsDir := filepath.Join(s.rootdir, "piboot", "ubuntu", "ubuntu-kernel_42.snap")
@@ -596,10 +633,11 @@ func (s *pibootTestSuite) testExtractKernelAssetsAndRemove(c *C, dtbDir string) 
 		fullFn := filepath.Join(kernelAssetsDir, destPath)
 		c.Check(fullFn, testutil.FileEquals, def[1])
 	}
+	mylog.
 
-	// remove
-	err = p.RemoveKernelAssets(info)
-	c.Assert(err, IsNil)
+		// remove
+		Check(p.RemoveKernelAssets(info))
+
 
 	c.Check(osutil.FileExists(kernelAssetsDir), Equals, false)
 }
@@ -611,8 +649,10 @@ func (s *pibootTestSuite) TestExtractKernelAssetsAndRemove(c *C) {
 }
 
 func (s *pibootTestSuite) testExtractKernelAssetsOnRPi4CheckEeprom(c *C, rpiRevisionCode, eepromTimeStamp []byte, errExpected bool) {
-	opts := bootloader.Options{PrepareImageTime: false,
-		Role: bootloader.RoleRunMode, NoSlashBoot: true}
+	opts := bootloader.Options{
+		PrepareImageTime: false,
+		Role:             bootloader.RoleRunMode, NoSlashBoot: true,
+	}
 	r := bootloader.MockPibootFiles(c, s.rootdir, &opts)
 	defer r()
 	r = bootloader.MockRPi4Files(c, s.rootdir, rpiRevisionCode, eepromTimeStamp)
@@ -633,20 +673,19 @@ func (s *pibootTestSuite) testExtractKernelAssetsOnRPi4CheckEeprom(c *C, rpiRevi
 		Revision: snap.R(42),
 	}
 	fn := snaptest.MakeTestSnapWithFiles(c, packageKernel, files)
-	snapf, err := snapfile.Open(fn)
-	c.Assert(err, IsNil)
+	snapf := mylog.Check2(snapfile.Open(fn))
 
-	info, err := snap.ReadInfoFromSnapFile(snapf, si)
-	c.Assert(err, IsNil)
 
-	err = p.ExtractKernelAssets(info, snapf)
+	info := mylog.Check2(snap.ReadInfoFromSnapFile(snapf, si))
+
+	mylog.Check(p.ExtractKernelAssets(info, snapf))
 	if errExpected {
 		c.Check(err.Error(), Equals,
 			"your EEPROM does not support tryboot, please upgrade to a newer one before installing Ubuntu Core - see http://forum.snapcraft.io/t/29455 for more details")
 		return
 	}
 
-	c.Assert(err, IsNil)
+
 
 	// this is where the kernel/initrd is unpacked
 	kernelAssetsDir := filepath.Join(s.rootdir, "piboot", "ubuntu", "ubuntu-kernel_42.snap")
@@ -665,10 +704,11 @@ func (s *pibootTestSuite) testExtractKernelAssetsOnRPi4CheckEeprom(c *C, rpiRevi
 		fullFn := filepath.Join(kernelAssetsDir, destPath)
 		c.Check(fullFn, testutil.FileEquals, def[1])
 	}
+	mylog.
 
-	// remove
-	err = p.RemoveKernelAssets(info)
-	c.Assert(err, IsNil)
+		// remove
+		Check(p.RemoveKernelAssets(info))
+
 
 	c.Check(osutil.FileExists(kernelAssetsDir), Equals, false)
 }

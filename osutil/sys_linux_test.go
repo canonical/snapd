@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -36,37 +37,38 @@ var _ = Suite(&sysSuite{})
 func (s *sysSuite) TestSymlinkatAndReadlinkat(c *C) {
 	// Create and open a temporary directory.
 	d := c.MkDir()
-	fd, err := syscall.Open(d, syscall.O_DIRECTORY, 0)
-	c.Assert(err, IsNil)
-	defer syscall.Close(fd)
+	fd := mylog.Check2(syscall.Open(d, syscall.O_DIRECTORY, 0))
 
-	// Create a symlink relative to the directory file descriptor.
-	err = osutil.Symlinkat("target", fd, "linkpath")
-	c.Assert(err, IsNil)
+	defer syscall.Close(fd)
+	mylog.
+
+		// Create a symlink relative to the directory file descriptor.
+		Check(osutil.Symlinkat("target", fd, "linkpath"))
+
 
 	// Ensure that the created file is a symlink.
 	fname := filepath.Join(d, "linkpath")
-	fi, err := os.Lstat(fname)
-	c.Assert(err, IsNil)
+	fi := mylog.Check2(os.Lstat(fname))
+
 	c.Assert(fi.Name(), Equals, "linkpath")
 	c.Assert(fi.Mode()&os.ModeSymlink, Equals, os.ModeSymlink)
 
 	// Ensure that the symlink target is correct.
-	target, err := os.Readlink(fname)
-	c.Assert(err, IsNil)
+	target := mylog.Check2(os.Readlink(fname))
+
 	c.Assert(target, Equals, "target")
 
 	// Use readlinkat with a buffer that fits only part of the target path.
 	buf := make([]byte, 2)
-	n, err := osutil.Readlinkat(fd, "linkpath", buf)
-	c.Assert(err, IsNil)
+	n := mylog.Check2(osutil.Readlinkat(fd, "linkpath", buf))
+
 	c.Assert(n, Equals, 2)
 	c.Assert(buf, DeepEquals, []byte{'t', 'a'})
 
 	// Use a buffer that fits all of the target path.
 	buf = make([]byte, 100)
-	n, err = osutil.Readlinkat(fd, "linkpath", buf)
-	c.Assert(err, IsNil)
+	n = mylog.Check2(osutil.Readlinkat(fd, "linkpath", buf))
+
 	c.Assert(n, Equals, len("target"))
 	c.Assert(buf[:n], DeepEquals, []byte{'t', 'a', 'r', 'g', 'e', 't'})
 }

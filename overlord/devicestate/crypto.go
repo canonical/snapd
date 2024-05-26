@@ -28,6 +28,7 @@ import (
 	"path/filepath"
 	"strconv"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -35,45 +36,25 @@ func generateRSAKey(keyLength int) (*rsa.PrivateKey, error) {
 	// The temporary directory is created with mode
 	// 0700 by os.MkdirTemp, see:
 	//   https://github.com/golang/go/blob/3b29222ffdcaea70842ed167632468f54a1783ae/src/os/tempfile.go#L98
-	tempDir, err := os.MkdirTemp(os.TempDir(), "snapd")
-	if err != nil {
-		return nil, err
-	}
+	tempDir := mylog.Check2(os.MkdirTemp(os.TempDir(), "snapd"))
 
 	defer os.RemoveAll(tempDir)
 
 	rsaKeyFile := filepath.Join(tempDir, "rsa.key")
 
 	cmd := exec.Command("ssh-keygen", "-t", "rsa", "-b", strconv.Itoa(keyLength), "-N", "", "-f", rsaKeyFile, "-m", "PEM")
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return nil, osutil.OutputErr(out, err)
-	}
+	out := mylog.Check2(cmd.CombinedOutput())
 
-	d, err := os.ReadFile(rsaKeyFile)
-	if err != nil {
-		return nil, err
-	}
+	d := mylog.Check2(os.ReadFile(rsaKeyFile))
 
 	blk, _ := pem.Decode(d)
 	if blk == nil {
 		return nil, errors.New("cannot decode PEM block")
 	}
 
-	key, err := x509.ParsePKCS1PrivateKey(blk.Bytes)
-	if err != nil {
-		return nil, err
-	}
-
-	err = key.Validate()
-	if err != nil {
-		return nil, err
-	}
-
-	err = os.RemoveAll(tempDir)
-	if err != nil {
-		return nil, err
-	}
+	key := mylog.Check2(x509.ParsePKCS1PrivateKey(blk.Bytes))
+	mylog.Check(key.Validate())
+	mylog.Check(os.RemoveAll(tempDir))
 
 	return key, err
 }

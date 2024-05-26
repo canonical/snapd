@@ -27,6 +27,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/ifacestate"
@@ -34,15 +35,13 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 )
 
-var (
-	interfacesCmd = &Command{
-		Path:        "/v2/interfaces",
-		GET:         interfacesConnectionsMultiplexer,
-		POST:        changeInterfaces,
-		ReadAccess:  openAccess{},
-		WriteAccess: authenticatedAccess{Polkit: polkitActionManageInterfaces},
-	}
-)
+var interfacesCmd = &Command{
+	Path:        "/v2/interfaces",
+	GET:         interfacesConnectionsMultiplexer,
+	POST:        changeInterfaces,
+	ReadAccess:  openAccess{},
+	WriteAccess: authenticatedAccess{Polkit: polkitActionManageInterfaces},
+}
 
 // interfacesConnectionsMultiplexer multiplexes to either legacy (connection) or modern behavior (interfaces).
 func interfacesConnectionsMultiplexer(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -110,10 +109,8 @@ func getInterfaces(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 func getLegacyConnections(c *Command, r *http.Request, user *auth.UserState) Response {
-	connsjson, err := collectConnections(c.d.overlord.InterfaceManager(), collectFilter{})
-	if err != nil {
-		return InternalError("collecting connection information failed: %v", err)
-	}
+	connsjson := mylog.Check2(collectConnections(c.d.overlord.InterfaceManager(), collectFilter{}))
+
 	legacyconnsjson := legacyConnectionsJSON{
 		Plugs: connsjson.Plugs,
 		Slots: connsjson.Slots,
@@ -126,9 +123,8 @@ func getLegacyConnections(c *Command, r *http.Request, user *auth.UserState) Res
 func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Response {
 	var a interfaceAction
 	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&a); err != nil {
-		return BadRequest("cannot decode request body into an interface action: %v", err)
-	}
+	mylog.Check(decoder.Decode(&a))
+
 	if a.Action == "" {
 		return BadRequest("interface action not specified")
 	}
@@ -143,7 +139,6 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 	}
 
 	var summary string
-	var err error
 
 	var tasksets []*state.TaskSet
 	var affected []string
@@ -158,7 +153,7 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 			return nil
 		}
 		var snapst snapstate.SnapState
-		err := snapstate.Get(st, snapName, &snapst)
+		mylog.Check(snapstate.Get(st, snapName, &snapst))
 		if (err == nil && !snapst.IsInstalled()) || errors.Is(err, state.ErrNoState) {
 			return fmt.Errorf("snap %q is not installed", snapName)
 		}
@@ -170,27 +165,25 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 
 	for i := range a.Plugs {
 		a.Plugs[i].Snap = ifacestate.RemapSnapFromRequest(a.Plugs[i].Snap)
-		if err := checkInstalled(a.Plugs[i].Snap); err != nil {
-			return errToResponse(err, nil, BadRequest, "%v")
-		}
+		mylog.Check(checkInstalled(a.Plugs[i].Snap))
+
 	}
 	for i := range a.Slots {
 		a.Slots[i].Snap = ifacestate.RemapSnapFromRequest(a.Slots[i].Snap)
-		if err := checkInstalled(a.Slots[i].Snap); err != nil {
-			return errToResponse(err, nil, BadRequest, "%v")
-		}
+		mylog.Check(checkInstalled(a.Slots[i].Snap))
+
 	}
 
 	switch a.Action {
 	case "connect":
 		var connRef *interfaces.ConnRef
 		repo := c.d.overlord.InterfaceManager().Repository()
-		connRef, err = repo.ResolveConnect(a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
+		connRef = mylog.Check2(repo.ResolveConnect(a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name))
 		if err == nil {
 			var ts *state.TaskSet
 			affected = snapNamesFromConns([]*interfaces.ConnRef{connRef})
 			summary = fmt.Sprintf("Connect %s:%s to %s:%s", connRef.PlugRef.Snap, connRef.PlugRef.Name, connRef.SlotRef.Snap, connRef.SlotRef.Name)
-			ts, err = ifacestate.Connect(st, connRef.PlugRef.Snap, connRef.PlugRef.Name, connRef.SlotRef.Snap, connRef.SlotRef.Name)
+			ts = mylog.Check2(ifacestate.Connect(st, connRef.PlugRef.Snap, connRef.PlugRef.Name, connRef.SlotRef.Snap, connRef.SlotRef.Name))
 			if _, ok := err.(*ifacestate.ErrAlreadyConnected); ok {
 				change := newChange(st, a.Action+"-snap", summary, nil, affected)
 				change.SetStatus(state.DoneStatus)
@@ -201,7 +194,7 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 	case "disconnect":
 		var conns []*interfaces.ConnRef
 		summary = fmt.Sprintf("Disconnect %s:%s from %s:%s", a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
-		conns, err = c.d.overlord.InterfaceManager().ResolveDisconnect(a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name, a.Forget)
+		conns = mylog.Check2(c.d.overlord.InterfaceManager().ResolveDisconnect(a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name, a.Forget))
 		if err == nil {
 			if len(conns) == 0 {
 				return InterfacesUnchanged("nothing to do")
@@ -211,28 +204,19 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 				var ts *state.TaskSet
 				var conn *interfaces.Connection
 				if a.Forget {
-					ts, err = ifacestate.Forget(st, repo, connRef)
+					ts = mylog.Check2(ifacestate.Forget(st, repo, connRef))
 				} else {
-					conn, err = repo.Connection(connRef)
-					if err != nil {
-						break
-					}
-					ts, err = ifacestate.Disconnect(st, conn)
-					if err != nil {
-						break
-					}
+					conn = mylog.Check2(repo.Connection(connRef))
+
+					ts = mylog.Check2(ifacestate.Disconnect(st, conn))
+
 				}
-				if err != nil {
-					break
-				}
+
 				ts.JoinLane(st.NewLane())
 				tasksets = append(tasksets, ts)
 			}
 			affected = snapNamesFromConns(conns)
 		}
-	}
-	if err != nil {
-		return errToResponse(err, nil, BadRequest, "%v")
 	}
 
 	change := newChange(st, a.Action+"-snap", summary, tasksets, affected)

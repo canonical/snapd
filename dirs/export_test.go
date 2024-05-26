@@ -19,9 +19,7 @@
 
 package dirs
 
-var (
-	IsInsideBaseSnap = isInsideBaseSnap
-)
+var IsInsideBaseSnap = isInsideBaseSnap
 
 func MockMetaSnapPath(path string) (restore func()) {
 	old := metaSnapPath

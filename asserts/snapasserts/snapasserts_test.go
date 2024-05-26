@@ -31,6 +31,7 @@ import (
 	"golang.org/x/crypto/sha3"
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/snapasserts"
@@ -58,24 +59,25 @@ func (s *snapassertsSuite) SetUpTest(c *C) {
 
 	s.dev1Acct = assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
 
-	localDB, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+	localDB := mylog.Check2(asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
 		Trusted:   s.storeSigning.Trusted,
-	})
-	c.Assert(err, IsNil)
+	}))
+
 
 	s.localDB = localDB
+	mylog.
 
-	// add in prereqs assertions
-	err = s.localDB.Add(s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
-	err = s.localDB.Add(s.dev1Acct)
-	c.Assert(err, IsNil)
+		// add in prereqs assertions
+		Check(s.localDB.Add(s.storeSigning.StoreAccountKey("")))
+
+	mylog.Check(s.localDB.Add(s.dev1Acct))
+
 
 	privKey, _ := assertstest.GenerateKey(752)
 	accKey := assertstest.NewAccountKey(s.storeSigning, s.dev1Acct, nil, privKey.PublicKey(), "")
-	err = s.localDB.Add(accKey)
-	c.Assert(err, IsNil)
+	mylog.Check(s.localDB.Add(accKey))
+
 
 	s.dev1Signing = assertstest.NewSigningDB(s.dev1Acct.AccountID(), privKey)
 
@@ -86,10 +88,10 @@ func (s *snapassertsSuite) SetUpTest(c *C) {
 		"publisher-id": s.dev1Acct.AccountID(),
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}
-	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
-	c.Assert(err, IsNil)
-	err = s.localDB.Add(snapDecl)
-	c.Assert(err, IsNil)
+	snapDecl := mylog.Check2(s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, ""))
+
+	mylog.Check(s.localDB.Add(snapDecl))
+
 
 	s.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 }
@@ -105,10 +107,8 @@ func fakeHash(rev int) []byte {
 }
 
 func makeDigest(rev int) string {
-	d, err := asserts.EncodeDigest(crypto.SHA3_384, fakeHash(rev))
-	if err != nil {
-		panic(err)
-	}
+	d := mylog.Check2(asserts.EncodeDigest(crypto.SHA3_384, fakeHash(rev)))
+
 	return string(d)
 }
 
@@ -123,10 +123,10 @@ func (s *snapassertsSuite) TestCrossCheckHappy(c *C) {
 		"developer-id":  s.dev1Acct.AccountID(),
 		"timestamp":     time.Now().Format(time.RFC3339),
 	}
-	snapRev, err := s.storeSigning.Sign(asserts.SnapRevisionType, headers, nil, "")
-	c.Assert(err, IsNil)
-	err = s.localDB.Add(snapRev)
-	c.Assert(err, IsNil)
+	snapRev := mylog.Check2(s.storeSigning.Sign(asserts.SnapRevisionType, headers, nil, ""))
+
+	mylog.Check(s.localDB.Add(snapRev))
+
 
 	si := &snap.SideInfo{
 		SnapID:   "snap-id-1",
@@ -134,12 +134,12 @@ func (s *snapassertsSuite) TestCrossCheckHappy(c *C) {
 	}
 
 	// everything cross checks, with the regular snap name
-	checkedRev, err := snapasserts.CrossCheck("foo", digest, "", size, si, nil, s.localDB)
-	c.Assert(err, IsNil)
+	checkedRev := mylog.Check2(snapasserts.CrossCheck("foo", digest, "", size, si, nil, s.localDB))
+
 	c.Check(checkedRev, DeepEquals, snapRev)
 
 	// and a snap instance name
-	_, err = snapasserts.CrossCheck("foo_instance", digest, "", size, si, nil, s.localDB)
+	_ = mylog.Check2(snapasserts.CrossCheck("foo_instance", digest, "", size, si, nil, s.localDB))
 	c.Check(err, IsNil)
 }
 
@@ -154,10 +154,10 @@ func (s *snapassertsSuite) TestCrossCheckErrors(c *C) {
 		"developer-id":  s.dev1Acct.AccountID(),
 		"timestamp":     time.Now().Format(time.RFC3339),
 	}
-	snapRev, err := s.storeSigning.Sign(asserts.SnapRevisionType, headers, nil, "")
-	c.Assert(err, IsNil)
-	err = s.localDB.Add(snapRev)
-	c.Assert(err, IsNil)
+	snapRev := mylog.Check2(s.storeSigning.Sign(asserts.SnapRevisionType, headers, nil, ""))
+
+	mylog.Check(s.localDB.Add(snapRev))
+
 
 	si := &snap.SideInfo{
 		SnapID:   "snap-id-1",
@@ -165,41 +165,40 @@ func (s *snapassertsSuite) TestCrossCheckErrors(c *C) {
 	}
 
 	// different size
-	_, err = snapasserts.CrossCheck("foo", digest, "", size+1, si, nil, s.localDB)
+	_ = mylog.Check2(snapasserts.CrossCheck("foo", digest, "", size+1, si, nil, s.localDB))
 	c.Check(err, ErrorMatches, fmt.Sprintf(`snap "foo" file does not have expected size according to signatures \(download is broken or tampered\): %d != %d`, size+1, size))
-	_, err = snapasserts.CrossCheck("foo_instance", digest, "", size+1, si, nil, s.localDB)
+	_ = mylog.Check2(snapasserts.CrossCheck("foo_instance", digest, "", size+1, si, nil, s.localDB))
 	c.Check(err, ErrorMatches, fmt.Sprintf(`snap "foo_instance" file does not have expected size according to signatures \(download is broken or tampered\): %d != %d`, size+1, size))
 
 	// mismatched revision vs what we got from store original info
-	_, err = snapasserts.CrossCheck("foo", digest, "", size, &snap.SideInfo{
+	_ = mylog.Check2(snapasserts.CrossCheck("foo", digest, "", size, &snap.SideInfo{
 		SnapID:   "snap-id-1",
 		Revision: snap.R(21),
-	}, nil, s.localDB)
+	}, nil, s.localDB))
 	c.Check(err, ErrorMatches, `snap "foo" does not have expected ID or revision according to assertions \(metadata is broken or tampered\): 21 / snap-id-1 != 12 / snap-id-1`)
-	_, err = snapasserts.CrossCheck("foo_instance", digest, "", size, &snap.SideInfo{
+	_ = mylog.Check2(snapasserts.CrossCheck("foo_instance", digest, "", size, &snap.SideInfo{
 		SnapID:   "snap-id-1",
 		Revision: snap.R(21),
-	}, nil, s.localDB)
+	}, nil, s.localDB))
 	c.Check(err, ErrorMatches, `snap "foo_instance" does not have expected ID or revision according to assertions \(metadata is broken or tampered\): 21 / snap-id-1 != 12 / snap-id-1`)
 
 	// mismatched snap id vs what we got from store original info
-	_, err = snapasserts.CrossCheck("foo", digest, "", size, &snap.SideInfo{
+	_ = mylog.Check2(snapasserts.CrossCheck("foo", digest, "", size, &snap.SideInfo{
 		SnapID:   "snap-id-other",
 		Revision: snap.R(12),
-	}, nil, s.localDB)
+	}, nil, s.localDB))
 	c.Check(err, ErrorMatches, `snap "foo" does not have expected ID or revision according to assertions \(metadata is broken or tampered\): 12 / snap-id-other != 12 / snap-id-1`)
-	_, err = snapasserts.CrossCheck("foo_instance", digest, "", size, &snap.SideInfo{
+	_ = mylog.Check2(snapasserts.CrossCheck("foo_instance", digest, "", size, &snap.SideInfo{
 		SnapID:   "snap-id-other",
 		Revision: snap.R(12),
-	}, nil, s.localDB)
+	}, nil, s.localDB))
 	c.Check(err, ErrorMatches, `snap "foo_instance" does not have expected ID or revision according to assertions \(metadata is broken or tampered\): 12 / snap-id-other != 12 / snap-id-1`)
 
 	// changed name
-	_, err = snapasserts.CrossCheck("baz", digest, "", size, si, nil, s.localDB)
+	_ = mylog.Check2(snapasserts.CrossCheck("baz", digest, "", size, si, nil, s.localDB))
 	c.Check(err, ErrorMatches, `cannot install "baz", snap "baz" is undergoing a rename to "foo"`)
-	_, err = snapasserts.CrossCheck("baz_instance", digest, "", size, si, nil, s.localDB)
+	_ = mylog.Check2(snapasserts.CrossCheck("baz_instance", digest, "", size, si, nil, s.localDB))
 	c.Check(err, ErrorMatches, `cannot install "baz_instance", snap "baz" is undergoing a rename to "foo"`)
-
 }
 
 func (s *snapassertsSuite) TestCrossCheckRevokedSnapDecl(c *C) {
@@ -212,10 +211,10 @@ func (s *snapassertsSuite) TestCrossCheckRevokedSnapDecl(c *C) {
 		"revision":     "1",
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}
-	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
-	c.Assert(err, IsNil)
-	err = s.localDB.Add(snapDecl)
-	c.Assert(err, IsNil)
+	snapDecl := mylog.Check2(s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, ""))
+
+	mylog.Check(s.localDB.Add(snapDecl))
+
 
 	digest := makeDigest(12)
 	size := uint64(len(fakeSnap(12)))
@@ -227,27 +226,27 @@ func (s *snapassertsSuite) TestCrossCheckRevokedSnapDecl(c *C) {
 		"developer-id":  s.dev1Acct.AccountID(),
 		"timestamp":     time.Now().Format(time.RFC3339),
 	}
-	snapRev, err := s.storeSigning.Sign(asserts.SnapRevisionType, headers, nil, "")
-	c.Assert(err, IsNil)
-	err = s.localDB.Add(snapRev)
-	c.Assert(err, IsNil)
+	snapRev := mylog.Check2(s.storeSigning.Sign(asserts.SnapRevisionType, headers, nil, ""))
+
+	mylog.Check(s.localDB.Add(snapRev))
+
 
 	si := &snap.SideInfo{
 		SnapID:   "snap-id-1",
 		Revision: snap.R(12),
 	}
 
-	_, err = snapasserts.CrossCheck("foo", digest, "", size, si, nil, s.localDB)
+	_ = mylog.Check2(snapasserts.CrossCheck("foo", digest, "", size, si, nil, s.localDB))
 	c.Check(err, ErrorMatches, `cannot install snap "foo" with a revoked snap declaration`)
-	_, err = snapasserts.CrossCheck("foo_instance", digest, "", size, si, nil, s.localDB)
+	_ = mylog.Check2(snapasserts.CrossCheck("foo_instance", digest, "", size, si, nil, s.localDB))
 	c.Check(err, ErrorMatches, `cannot install snap "foo_instance" with a revoked snap declaration`)
 }
 
 func (s *snapassertsSuite) TestDeriveSideInfoHappy(c *C) {
 	fooSnap := snaptest.MakeTestSnapWithFiles(c, `name: foo
 version: 1`, nil)
-	digest, size, err := asserts.SnapFileSHA3_384(fooSnap)
-	c.Assert(err, IsNil)
+	digest, size := mylog.Check3(asserts.SnapFileSHA3_384(fooSnap))
+
 
 	headers := map[string]interface{}{
 		"snap-id":       "snap-id-1",
@@ -257,13 +256,13 @@ version: 1`, nil)
 		"developer-id":  s.dev1Acct.AccountID(),
 		"timestamp":     time.Now().Format(time.RFC3339),
 	}
-	snapRev, err := s.storeSigning.Sign(asserts.SnapRevisionType, headers, nil, "")
-	c.Assert(err, IsNil)
-	err = s.localDB.Add(snapRev)
-	c.Assert(err, IsNil)
+	snapRev := mylog.Check2(s.storeSigning.Sign(asserts.SnapRevisionType, headers, nil, ""))
 
-	si, err := snapasserts.DeriveSideInfo(fooSnap, nil, s.localDB)
-	c.Assert(err, IsNil)
+	mylog.Check(s.localDB.Add(snapRev))
+
+
+	si := mylog.Check2(snapasserts.DeriveSideInfo(fooSnap, nil, s.localDB))
+
 	c.Check(si, DeepEquals, &snap.SideInfo{
 		RealName: "foo",
 		SnapID:   "snap-id-1",
@@ -275,10 +274,10 @@ version: 1`, nil)
 func (s *snapassertsSuite) TestDeriveSideInfoNoSignatures(c *C) {
 	tempdir := c.MkDir()
 	snapPath := filepath.Join(tempdir, "anon.snap")
-	err := os.WriteFile(snapPath, fakeSnap(42), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(snapPath, fakeSnap(42), 0644))
 
-	_, err = snapasserts.DeriveSideInfo(snapPath, nil, s.localDB)
+
+	_ = mylog.Check2(snapasserts.DeriveSideInfo(snapPath, nil, s.localDB))
 	// cannot find signatures with metadata for snap
 	c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 }
@@ -294,17 +293,17 @@ func (s *snapassertsSuite) TestDeriveSideInfoSizeMismatch(c *C) {
 		"developer-id":  s.dev1Acct.AccountID(),
 		"timestamp":     time.Now().Format(time.RFC3339),
 	}
-	snapRev, err := s.storeSigning.Sign(asserts.SnapRevisionType, headers, nil, "")
-	c.Assert(err, IsNil)
-	err = s.localDB.Add(snapRev)
-	c.Assert(err, IsNil)
+	snapRev := mylog.Check2(s.storeSigning.Sign(asserts.SnapRevisionType, headers, nil, ""))
+
+	mylog.Check(s.localDB.Add(snapRev))
+
 
 	tempdir := c.MkDir()
 	snapPath := filepath.Join(tempdir, "anon.snap")
-	err = os.WriteFile(snapPath, fakeSnap(42), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(snapPath, fakeSnap(42), 0644))
 
-	_, err = snapasserts.DeriveSideInfo(snapPath, nil, s.localDB)
+
+	_ = mylog.Check2(snapasserts.DeriveSideInfo(snapPath, nil, s.localDB))
 	c.Check(err, ErrorMatches, fmt.Sprintf(`snap %q does not have expected size according to signatures \(broken or tampered\): %d != %d`, snapPath, size, size+5))
 }
 
@@ -318,10 +317,10 @@ func (s *snapassertsSuite) TestDeriveSideInfoRevokedSnapDecl(c *C) {
 		"revision":     "1",
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}
-	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
-	c.Assert(err, IsNil)
-	err = s.localDB.Add(snapDecl)
-	c.Assert(err, IsNil)
+	snapDecl := mylog.Check2(s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, ""))
+
+	mylog.Check(s.localDB.Add(snapDecl))
+
 
 	digest := makeDigest(42)
 	size := uint64(len(fakeSnap(42)))
@@ -333,22 +332,22 @@ func (s *snapassertsSuite) TestDeriveSideInfoRevokedSnapDecl(c *C) {
 		"developer-id":  s.dev1Acct.AccountID(),
 		"timestamp":     time.Now().Format(time.RFC3339),
 	}
-	snapRev, err := s.storeSigning.Sign(asserts.SnapRevisionType, headers, nil, "")
-	c.Assert(err, IsNil)
-	err = s.localDB.Add(snapRev)
-	c.Assert(err, IsNil)
+	snapRev := mylog.Check2(s.storeSigning.Sign(asserts.SnapRevisionType, headers, nil, ""))
+
+	mylog.Check(s.localDB.Add(snapRev))
+
 
 	tempdir := c.MkDir()
 	snapPath := filepath.Join(tempdir, "anon.snap")
-	err = os.WriteFile(snapPath, fakeSnap(42), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(snapPath, fakeSnap(42), 0644))
 
-	_, err = snapasserts.DeriveSideInfo(snapPath, nil, s.localDB)
+
+	_ = mylog.Check2(snapasserts.DeriveSideInfo(snapPath, nil, s.localDB))
 	c.Check(err, ErrorMatches, fmt.Sprintf(`cannot install snap %q with a revoked snap declaration`, snapPath))
 }
 
 func (s *snapassertsSuite) TestCrossCheckDelegatedSnapHappy(c *C) {
-	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	snapDecl := mylog.Check2(s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-name":    "foo",
@@ -363,10 +362,10 @@ func (s *snapassertsSuite) TestCrossCheckDelegatedSnapHappy(c *C) {
 			},
 		},
 		"timestamp": time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	err = s.localDB.Add(snapDecl)
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
+	mylog.Check(s.localDB.Add(snapDecl))
+
 
 	digest := makeDigest(42)
 	size := uint64(len(fakeSnap(42)))
@@ -380,10 +379,9 @@ func (s *snapassertsSuite) TestCrossCheckDelegatedSnapHappy(c *C) {
 		"developer-id":  s.dev1Acct.AccountID(),
 		"timestamp":     time.Now().Format(time.RFC3339),
 	}
-	snapRev, err := s.dev1Signing.Sign(asserts.SnapRevisionType, headers, nil, "")
-	c.Assert(err, IsNil)
+	snapRev := mylog.Check2(s.dev1Signing.Sign(asserts.SnapRevisionType, headers, nil, ""))
 
-	err = s.localDB.Add(snapRev)
+	mylog.Check(s.localDB.Add(snapRev))
 	c.Check(err, IsNil)
 
 	si := &snap.SideInfo{
@@ -392,16 +390,16 @@ func (s *snapassertsSuite) TestCrossCheckDelegatedSnapHappy(c *C) {
 	}
 
 	// everything cross checks, with the regular snap name
-	checkedRev, err := snapasserts.CrossCheck("foo", digest, "prov1", size, si, nil, s.localDB)
-	c.Assert(err, IsNil)
+	checkedRev := mylog.Check2(snapasserts.CrossCheck("foo", digest, "prov1", size, si, nil, s.localDB))
+
 	c.Check(checkedRev, DeepEquals, snapRev)
 	// and a snap instance name
-	_, err = snapasserts.CrossCheck("foo_instance", digest, "prov1", size, si, nil, s.localDB)
+	_ = mylog.Check2(snapasserts.CrossCheck("foo_instance", digest, "prov1", size, si, nil, s.localDB))
 	c.Check(err, IsNil)
 }
 
 func (s *snapassertsSuite) TestCrossCheckWithDeviceDelegatedSnapHappy(c *C) {
-	a, err := s.dev1Signing.Sign(asserts.ModelType, map[string]interface{}{
+	a := mylog.Check2(s.dev1Signing.Sign(asserts.ModelType, map[string]interface{}{
 		"brand-id":     s.dev1Acct.AccountID(),
 		"series":       "16",
 		"model":        "dev-model",
@@ -411,21 +409,21 @@ func (s *snapassertsSuite) TestCrossCheckWithDeviceDelegatedSnapHappy(c *C) {
 		"kernel":       "krnl",
 		"gadget":       "gadget",
 		"timestamp":    time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
 	model := a.(*asserts.Model)
 
-	substore, err := s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
+	substore := mylog.Check2(s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
 		"store":           "substore",
 		"operator-id":     "can0nical",
 		"friendly-stores": []interface{}{"store1"},
 		"timestamp":       time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	err = s.localDB.Add(substore)
-	c.Assert(err, IsNil)
+	}, nil, ""))
 
-	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	mylog.Check(s.localDB.Add(substore))
+
+
+	snapDecl := mylog.Check2(s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-name":    "foo",
@@ -443,10 +441,10 @@ func (s *snapassertsSuite) TestCrossCheckWithDeviceDelegatedSnapHappy(c *C) {
 			},
 		},
 		"timestamp": time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	err = s.localDB.Add(snapDecl)
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
+	mylog.Check(s.localDB.Add(snapDecl))
+
 
 	digest := makeDigest(42)
 	size := uint64(len(fakeSnap(42)))
@@ -460,10 +458,9 @@ func (s *snapassertsSuite) TestCrossCheckWithDeviceDelegatedSnapHappy(c *C) {
 		"developer-id":  s.dev1Acct.AccountID(),
 		"timestamp":     time.Now().Format(time.RFC3339),
 	}
-	snapRev, err := s.dev1Signing.Sign(asserts.SnapRevisionType, headers, nil, "")
-	c.Assert(err, IsNil)
+	snapRev := mylog.Check2(s.dev1Signing.Sign(asserts.SnapRevisionType, headers, nil, ""))
 
-	err = s.localDB.Add(snapRev)
+	mylog.Check(s.localDB.Add(snapRev))
 	c.Check(err, IsNil)
 
 	si := &snap.SideInfo{
@@ -472,16 +469,16 @@ func (s *snapassertsSuite) TestCrossCheckWithDeviceDelegatedSnapHappy(c *C) {
 	}
 
 	// everything cross checks, with the regular snap name
-	checkedRev, err := snapasserts.CrossCheck("foo", digest, "prov1", size, si, model, s.localDB)
-	c.Assert(err, IsNil)
+	checkedRev := mylog.Check2(snapasserts.CrossCheck("foo", digest, "prov1", size, si, model, s.localDB))
+
 	c.Check(checkedRev, Equals, snapRev)
 	// and a snap instance name
-	_, err = snapasserts.CrossCheck("foo_instance", digest, "prov1", size, si, model, s.localDB)
+	_ = mylog.Check2(snapasserts.CrossCheck("foo_instance", digest, "prov1", size, si, model, s.localDB))
 	c.Check(err, IsNil)
 }
 
 func (s *snapassertsSuite) TestCrossCheckWithDeviceDelegatedSnapUnhappy(c *C) {
-	a, err := s.dev1Signing.Sign(asserts.ModelType, map[string]interface{}{
+	a := mylog.Check2(s.dev1Signing.Sign(asserts.ModelType, map[string]interface{}{
 		"brand-id":     s.dev1Acct.AccountID(),
 		"series":       "16",
 		"model":        "dev-model",
@@ -491,21 +488,21 @@ func (s *snapassertsSuite) TestCrossCheckWithDeviceDelegatedSnapUnhappy(c *C) {
 		"kernel":       "krnl",
 		"gadget":       "gadget",
 		"timestamp":    time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
 	model := a.(*asserts.Model)
 
-	substore, err := s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
+	substore := mylog.Check2(s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
 		"store":           "substore",
 		"operator-id":     "can0nical",
 		"friendly-stores": []interface{}{"store1"},
 		"timestamp":       time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	err = s.localDB.Add(substore)
-	c.Assert(err, IsNil)
+	}, nil, ""))
 
-	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	mylog.Check(s.localDB.Add(substore))
+
+
+	snapDecl := mylog.Check2(s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-name":    "foo",
@@ -523,10 +520,10 @@ func (s *snapassertsSuite) TestCrossCheckWithDeviceDelegatedSnapUnhappy(c *C) {
 			},
 		},
 		"timestamp": time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	err = s.localDB.Add(snapDecl)
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
+	mylog.Check(s.localDB.Add(snapDecl))
+
 
 	digest := makeDigest(42)
 	size := uint64(len(fakeSnap(42)))
@@ -540,10 +537,9 @@ func (s *snapassertsSuite) TestCrossCheckWithDeviceDelegatedSnapUnhappy(c *C) {
 		"developer-id":  s.dev1Acct.AccountID(),
 		"timestamp":     time.Now().Format(time.RFC3339),
 	}
-	snapRev, err := s.dev1Signing.Sign(asserts.SnapRevisionType, headers, nil, "")
-	c.Assert(err, IsNil)
+	snapRev := mylog.Check2(s.dev1Signing.Sign(asserts.SnapRevisionType, headers, nil, ""))
 
-	err = s.localDB.Add(snapRev)
+	mylog.Check(s.localDB.Add(snapRev))
 	c.Check(err, IsNil)
 
 	si := &snap.SideInfo{
@@ -551,7 +547,7 @@ func (s *snapassertsSuite) TestCrossCheckWithDeviceDelegatedSnapUnhappy(c *C) {
 		Revision: snap.R(42),
 	}
 
-	_, err = snapasserts.CrossCheck("foo", digest, "prov1", size, si, model, s.localDB)
+	_ = mylog.Check2(snapasserts.CrossCheck("foo", digest, "prov1", size, si, model, s.localDB))
 	c.Check(err, ErrorMatches, `snap "foo" revision assertion with provenance "prov1" is not signed by an authority authorized on this device: .*`)
 }
 
@@ -566,17 +562,17 @@ func (s *snapassertsSuite) TestCrossCheckSpuriousProvenanceUnhappy(c *C) {
 		"developer-id":  s.dev1Acct.AccountID(),
 		"timestamp":     time.Now().Format(time.RFC3339),
 	}
-	snapRev, err := s.storeSigning.Sign(asserts.SnapRevisionType, headers, nil, "")
-	c.Assert(err, IsNil)
-	err = s.localDB.Add(snapRev)
-	c.Assert(err, IsNil)
+	snapRev := mylog.Check2(s.storeSigning.Sign(asserts.SnapRevisionType, headers, nil, ""))
+
+	mylog.Check(s.localDB.Add(snapRev))
+
 
 	si := &snap.SideInfo{
 		SnapID:   "snap-id-1",
 		Revision: snap.R(12),
 	}
 
-	_, err = snapasserts.CrossCheck("foo", digest, "prov", size, si, nil, s.localDB)
+	_ = mylog.Check2(snapasserts.CrossCheck("foo", digest, "prov", size, si, nil, s.localDB))
 	c.Check(err, ErrorMatches, `.*cannot find pre-populated snap-revision assertion for "foo": .*provenance: prov`)
 }
 
@@ -639,17 +635,16 @@ version: 1
 	for _, mism := range mismatches {
 		c.Check(snapasserts.CheckProvenanceWithVerifiedRevision(mism.path, mism.snapRev), ErrorMatches, fmt.Sprintf("snap %q has been signed under provenance %q different from the metadata one: %q", mism.path, mism.snapRev.Provenance(), mism.metadataProv))
 	}
-
 }
 
 func (s *snapassertsSuite) TestDeriveSideInfoFromDigestAndSizeDelegatedSnap(c *C) {
 	withProv := snaptest.MakeTestSnapWithFiles(c, `name: with-prov
 version: 1
 provenance: prov`, nil)
-	digest, size, err := asserts.SnapFileSHA3_384(withProv)
-	c.Assert(err, IsNil)
+	digest, size := mylog.Check3(asserts.SnapFileSHA3_384(withProv))
 
-	a, err := s.dev1Signing.Sign(asserts.ModelType, map[string]interface{}{
+
+	a := mylog.Check2(s.dev1Signing.Sign(asserts.ModelType, map[string]interface{}{
 		"brand-id":     s.dev1Acct.AccountID(),
 		"series":       "16",
 		"model":        "dev-model",
@@ -659,21 +654,21 @@ provenance: prov`, nil)
 		"kernel":       "krnl",
 		"gadget":       "gadget",
 		"timestamp":    time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
 	model := a.(*asserts.Model)
 
-	substore, err := s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
+	substore := mylog.Check2(s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
 		"store":           "substore",
 		"operator-id":     "can0nical",
 		"friendly-stores": []interface{}{"store1"},
 		"timestamp":       time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	err = s.localDB.Add(substore)
-	c.Assert(err, IsNil)
+	}, nil, ""))
 
-	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	mylog.Check(s.localDB.Add(substore))
+
+
+	snapDecl := mylog.Check2(s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-name":    "foo",
@@ -691,10 +686,10 @@ provenance: prov`, nil)
 			},
 		},
 		"timestamp": time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	err = s.localDB.Add(snapDecl)
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
+	mylog.Check(s.localDB.Add(snapDecl))
+
 
 	headers := map[string]interface{}{
 		"authority-id":  s.dev1Acct.AccountID(),
@@ -706,13 +701,12 @@ provenance: prov`, nil)
 		"developer-id":  s.dev1Acct.AccountID(),
 		"timestamp":     time.Now().Format(time.RFC3339),
 	}
-	snapRev, err := s.dev1Signing.Sign(asserts.SnapRevisionType, headers, nil, "")
-	c.Assert(err, IsNil)
+	snapRev := mylog.Check2(s.dev1Signing.Sign(asserts.SnapRevisionType, headers, nil, ""))
 
-	err = s.localDB.Add(snapRev)
+	mylog.Check(s.localDB.Add(snapRev))
 	c.Check(err, IsNil)
 
-	si, err := snapasserts.DeriveSideInfoFromDigestAndSize(withProv, digest, size, model, s.localDB)
+	si := mylog.Check2(snapasserts.DeriveSideInfoFromDigestAndSize(withProv, digest, size, model, s.localDB))
 	c.Check(err, IsNil)
 	c.Check(si, DeepEquals, &snap.SideInfo{
 		RealName: "foo",
@@ -730,10 +724,10 @@ func (s *snapassertsSuite) TestDeriveSideInfoFromDigestAndSizeDelegatedSnapAmbig
 	withProv := snaptest.MakeTestSnapWithFiles(c, `name: with-prov
 version: 1
 provenance: prov`, nil)
-	digest, size, err := asserts.SnapFileSHA3_384(withProv)
-	c.Assert(err, IsNil)
+	digest, size := mylog.Check3(asserts.SnapFileSHA3_384(withProv))
 
-	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+
+	snapDecl := mylog.Check2(s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-name":    "foo",
@@ -749,10 +743,10 @@ provenance: prov`, nil)
 			},
 		},
 		"timestamp": time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	err = s.localDB.Add(snapDecl)
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
+	mylog.Check(s.localDB.Add(snapDecl))
+
 
 	headers := map[string]interface{}{
 		"authority-id":  s.dev1Acct.AccountID(),
@@ -764,10 +758,9 @@ provenance: prov`, nil)
 		"developer-id":  s.dev1Acct.AccountID(),
 		"timestamp":     time.Now().Format(time.RFC3339),
 	}
-	snapRev, err := s.dev1Signing.Sign(asserts.SnapRevisionType, headers, nil, "")
-	c.Assert(err, IsNil)
+	snapRev := mylog.Check2(s.dev1Signing.Sign(asserts.SnapRevisionType, headers, nil, ""))
 
-	err = s.localDB.Add(snapRev)
+	mylog.Check(s.localDB.Add(snapRev))
 	c.Check(err, IsNil)
 
 	headers = map[string]interface{}{
@@ -780,12 +773,11 @@ provenance: prov`, nil)
 		"developer-id":  s.dev1Acct.AccountID(),
 		"timestamp":     time.Now().Format(time.RFC3339),
 	}
-	snapRev2, err := s.dev1Signing.Sign(asserts.SnapRevisionType, headers, nil, "")
-	c.Assert(err, IsNil)
+	snapRev2 := mylog.Check2(s.dev1Signing.Sign(asserts.SnapRevisionType, headers, nil, ""))
 
-	err = s.localDB.Add(snapRev2)
+	mylog.Check(s.localDB.Add(snapRev2))
 	c.Check(err, IsNil)
 
-	_, err = snapasserts.DeriveSideInfoFromDigestAndSize(withProv, digest, size, nil, s.localDB)
+	_ = mylog.Check2(snapasserts.DeriveSideInfoFromDigestAndSize(withProv, digest, size, nil, s.localDB))
 	c.Check(err, ErrorMatches, `safely handling snaps with different provenance but same hash not yet supported`)
 }

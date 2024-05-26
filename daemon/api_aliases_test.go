@@ -30,6 +30,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
@@ -54,7 +55,7 @@ apps:
 `
 
 func (s *aliasesSuite) TestAliasSuccess(c *check.C) {
-	err := os.MkdirAll(dirs.SnapBinariesDir, 0755)
+	mylog.Check(os.MkdirAll(dirs.SnapBinariesDir, 0755))
 	c.Assert(err, check.IsNil)
 	d := s.daemon(c)
 
@@ -75,16 +76,16 @@ func (s *aliasesSuite) TestAliasSuccess(c *check.C) {
 		App:    "app",
 		Alias:  "alias1",
 	}
-	text, err := json.Marshal(action)
+	text := mylog.Check2(json.Marshal(action))
 	c.Assert(err, check.IsNil)
 	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/v2/aliases", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/aliases", buf))
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Assert(rec.Code, check.Equals, 202)
 	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	mylog.Check(json.Unmarshal(rec.Body.Bytes(), &body))
 	c.Check(err, check.IsNil)
 	id := body["change"].(string)
 
@@ -97,7 +98,7 @@ func (s *aliasesSuite) TestAliasSuccess(c *check.C) {
 	<-chg.Ready()
 
 	st.Lock()
-	err = chg.Err()
+	mylog.Check(chg.Err())
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 
@@ -106,7 +107,7 @@ func (s *aliasesSuite) TestAliasSuccess(c *check.C) {
 }
 
 func (s *aliasesSuite) TestAliasChangeConflict(c *check.C) {
-	err := os.MkdirAll(dirs.SnapBinariesDir, 0755)
+	mylog.Check(os.MkdirAll(dirs.SnapBinariesDir, 0755))
 	c.Assert(err, check.IsNil)
 	s.daemon(c)
 
@@ -126,17 +127,17 @@ func (s *aliasesSuite) TestAliasChangeConflict(c *check.C) {
 		App:    "app",
 		Alias:  "alias1",
 	}
-	text, err := json.Marshal(action)
+	text := mylog.Check2(json.Marshal(action))
 	c.Assert(err, check.IsNil)
 	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/v2/aliases", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/aliases", buf))
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 409)
 
 	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	mylog.Check(json.Unmarshal(rec.Body.Bytes(), &body))
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"status-code": 409.,
@@ -149,7 +150,8 @@ func (s *aliasesSuite) TestAliasChangeConflict(c *check.C) {
 				"snap-name":   "alias-snap",
 			},
 		},
-		"type": "error"})
+		"type": "error",
+	})
 }
 
 func (s *aliasesSuite) TestAliasErrors(c *check.C) {
@@ -175,10 +177,10 @@ func (s *aliasesSuite) TestAliasErrors(c *check.C) {
 		}
 		scen.mangle(action)
 
-		text, err := json.Marshal(action)
+		text := mylog.Check2(json.Marshal(action))
 		c.Assert(err, check.IsNil)
 		buf := bytes.NewBuffer(text)
-		req, err := http.NewRequest("POST", "/v2/aliases", buf)
+		req := mylog.Check2(http.NewRequest("POST", "/v2/aliases", buf))
 		c.Assert(err, check.IsNil)
 
 		rspe := s.errorReq(c, req, nil)
@@ -188,7 +190,7 @@ func (s *aliasesSuite) TestAliasErrors(c *check.C) {
 }
 
 func (s *aliasesSuite) TestUnaliasSnapSuccess(c *check.C) {
-	err := os.MkdirAll(dirs.SnapBinariesDir, 0755)
+	mylog.Check(os.MkdirAll(dirs.SnapBinariesDir, 0755))
 	c.Assert(err, check.IsNil)
 	d := s.daemon(c)
 
@@ -207,16 +209,16 @@ func (s *aliasesSuite) TestUnaliasSnapSuccess(c *check.C) {
 		Action: "unalias",
 		Snap:   "alias-snap",
 	}
-	text, err := json.Marshal(action)
+	text := mylog.Check2(json.Marshal(action))
 	c.Assert(err, check.IsNil)
 	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/v2/aliases", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/aliases", buf))
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Assert(rec.Code, check.Equals, 202)
 	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	mylog.Check(json.Unmarshal(rec.Body.Bytes(), &body))
 	c.Check(err, check.IsNil)
 	id := body["change"].(string)
 
@@ -231,18 +233,18 @@ func (s *aliasesSuite) TestUnaliasSnapSuccess(c *check.C) {
 
 	st.Lock()
 	defer st.Unlock()
-	err = chg.Err()
+	mylog.Check(chg.Err())
 	c.Assert(err, check.IsNil)
 
 	// validity check
 	var snapst snapstate.SnapState
-	err = snapstate.Get(st, "alias-snap", &snapst)
+	mylog.Check(snapstate.Get(st, "alias-snap", &snapst))
 	c.Assert(err, check.IsNil)
 	c.Check(snapst.AutoAliasesDisabled, check.Equals, true)
 }
 
 func (s *aliasesSuite) TestUnaliasDWIMSnapSuccess(c *check.C) {
-	err := os.MkdirAll(dirs.SnapBinariesDir, 0755)
+	mylog.Check(os.MkdirAll(dirs.SnapBinariesDir, 0755))
 	c.Assert(err, check.IsNil)
 	d := s.daemon(c)
 
@@ -262,16 +264,16 @@ func (s *aliasesSuite) TestUnaliasDWIMSnapSuccess(c *check.C) {
 		Snap:   "alias-snap",
 		Alias:  "alias-snap",
 	}
-	text, err := json.Marshal(action)
+	text := mylog.Check2(json.Marshal(action))
 	c.Assert(err, check.IsNil)
 	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/v2/aliases", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/aliases", buf))
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Assert(rec.Code, check.Equals, 202)
 	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	mylog.Check(json.Unmarshal(rec.Body.Bytes(), &body))
 	c.Check(err, check.IsNil)
 	id := body["change"].(string)
 
@@ -286,18 +288,18 @@ func (s *aliasesSuite) TestUnaliasDWIMSnapSuccess(c *check.C) {
 
 	st.Lock()
 	defer st.Unlock()
-	err = chg.Err()
+	mylog.Check(chg.Err())
 	c.Assert(err, check.IsNil)
 
 	// validity check
 	var snapst snapstate.SnapState
-	err = snapstate.Get(st, "alias-snap", &snapst)
+	mylog.Check(snapstate.Get(st, "alias-snap", &snapst))
 	c.Assert(err, check.IsNil)
 	c.Check(snapst.AutoAliasesDisabled, check.Equals, true)
 }
 
 func (s *aliasesSuite) TestUnaliasAliasSuccess(c *check.C) {
-	err := os.MkdirAll(dirs.SnapBinariesDir, 0755)
+	mylog.Check(os.MkdirAll(dirs.SnapBinariesDir, 0755))
 	c.Assert(err, check.IsNil)
 	d := s.daemon(c)
 
@@ -318,16 +320,16 @@ func (s *aliasesSuite) TestUnaliasAliasSuccess(c *check.C) {
 		App:    "app",
 		Alias:  "alias1",
 	}
-	text, err := json.Marshal(action)
+	text := mylog.Check2(json.Marshal(action))
 	c.Assert(err, check.IsNil)
 	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/v2/aliases", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/aliases", buf))
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Assert(rec.Code, check.Equals, 202)
 	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	mylog.Check(json.Unmarshal(rec.Body.Bytes(), &body))
 	c.Check(err, check.IsNil)
 	id := body["change"].(string)
 
@@ -340,7 +342,7 @@ func (s *aliasesSuite) TestUnaliasAliasSuccess(c *check.C) {
 	<-chg.Ready()
 
 	st.Lock()
-	err = chg.Err()
+	mylog.Check(chg.Err())
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 
@@ -349,15 +351,15 @@ func (s *aliasesSuite) TestUnaliasAliasSuccess(c *check.C) {
 		Action: "unalias",
 		Alias:  "alias1",
 	}
-	text, err = json.Marshal(action)
+	text = mylog.Check2(json.Marshal(action))
 	c.Assert(err, check.IsNil)
 	buf = bytes.NewBuffer(text)
-	req, err = http.NewRequest("POST", "/v2/aliases", buf)
+	req = mylog.Check2(http.NewRequest("POST", "/v2/aliases", buf))
 	c.Assert(err, check.IsNil)
 	rec = httptest.NewRecorder()
 	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Assert(rec.Code, check.Equals, 202)
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	mylog.Check(json.Unmarshal(rec.Body.Bytes(), &body))
 	c.Check(err, check.IsNil)
 	id = body["change"].(string)
 
@@ -371,7 +373,7 @@ func (s *aliasesSuite) TestUnaliasAliasSuccess(c *check.C) {
 
 	st.Lock()
 	defer st.Unlock()
-	err = chg.Err()
+	mylog.Check(chg.Err())
 	c.Assert(err, check.IsNil)
 
 	// validity check
@@ -379,7 +381,7 @@ func (s *aliasesSuite) TestUnaliasAliasSuccess(c *check.C) {
 }
 
 func (s *aliasesSuite) TestUnaliasDWIMAliasSuccess(c *check.C) {
-	err := os.MkdirAll(dirs.SnapBinariesDir, 0755)
+	mylog.Check(os.MkdirAll(dirs.SnapBinariesDir, 0755))
 	c.Assert(err, check.IsNil)
 	d := s.daemon(c)
 
@@ -400,16 +402,16 @@ func (s *aliasesSuite) TestUnaliasDWIMAliasSuccess(c *check.C) {
 		App:    "app",
 		Alias:  "alias1",
 	}
-	text, err := json.Marshal(action)
+	text := mylog.Check2(json.Marshal(action))
 	c.Assert(err, check.IsNil)
 	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/v2/aliases", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/aliases", buf))
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Assert(rec.Code, check.Equals, 202)
 	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	mylog.Check(json.Unmarshal(rec.Body.Bytes(), &body))
 	c.Check(err, check.IsNil)
 	id := body["change"].(string)
 
@@ -422,7 +424,7 @@ func (s *aliasesSuite) TestUnaliasDWIMAliasSuccess(c *check.C) {
 	<-chg.Ready()
 
 	st.Lock()
-	err = chg.Err()
+	mylog.Check(chg.Err())
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 
@@ -432,15 +434,15 @@ func (s *aliasesSuite) TestUnaliasDWIMAliasSuccess(c *check.C) {
 		Snap:   "alias1",
 		Alias:  "alias1",
 	}
-	text, err = json.Marshal(action)
+	text = mylog.Check2(json.Marshal(action))
 	c.Assert(err, check.IsNil)
 	buf = bytes.NewBuffer(text)
-	req, err = http.NewRequest("POST", "/v2/aliases", buf)
+	req = mylog.Check2(http.NewRequest("POST", "/v2/aliases", buf))
 	c.Assert(err, check.IsNil)
 	rec = httptest.NewRecorder()
 	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Assert(rec.Code, check.Equals, 202)
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	mylog.Check(json.Unmarshal(rec.Body.Bytes(), &body))
 	c.Check(err, check.IsNil)
 	id = body["change"].(string)
 
@@ -454,7 +456,7 @@ func (s *aliasesSuite) TestUnaliasDWIMAliasSuccess(c *check.C) {
 
 	st.Lock()
 	defer st.Unlock()
-	err = chg.Err()
+	mylog.Check(chg.Err())
 	c.Assert(err, check.IsNil)
 
 	// validity check
@@ -462,7 +464,7 @@ func (s *aliasesSuite) TestUnaliasDWIMAliasSuccess(c *check.C) {
 }
 
 func (s *aliasesSuite) TestPreferSuccess(c *check.C) {
-	err := os.MkdirAll(dirs.SnapBinariesDir, 0755)
+	mylog.Check(os.MkdirAll(dirs.SnapBinariesDir, 0755))
 	c.Assert(err, check.IsNil)
 	d := s.daemon(c)
 
@@ -481,16 +483,16 @@ func (s *aliasesSuite) TestPreferSuccess(c *check.C) {
 		Action: "prefer",
 		Snap:   "alias-snap",
 	}
-	text, err := json.Marshal(action)
+	text := mylog.Check2(json.Marshal(action))
 	c.Assert(err, check.IsNil)
 	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/v2/aliases", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/aliases", buf))
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Assert(rec.Code, check.Equals, 202)
 	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	mylog.Check(json.Unmarshal(rec.Body.Bytes(), &body))
 	c.Check(err, check.IsNil)
 	id := body["change"].(string)
 
@@ -505,12 +507,12 @@ func (s *aliasesSuite) TestPreferSuccess(c *check.C) {
 
 	st.Lock()
 	defer st.Unlock()
-	err = chg.Err()
+	mylog.Check(chg.Err())
 	c.Assert(err, check.IsNil)
 
 	// validity check
 	var snapst snapstate.SnapState
-	err = snapstate.Get(st, "alias-snap", &snapst)
+	mylog.Check(snapstate.Get(st, "alias-snap", &snapst))
 	c.Assert(err, check.IsNil)
 	c.Check(snapst.AutoAliasesDisabled, check.Equals, false)
 }
@@ -546,7 +548,7 @@ func (s *aliasesSuite) TestAliases(c *check.C) {
 	})
 	st.Unlock()
 
-	req, err := http.NewRequest("GET", "/v2/aliases", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/aliases", nil))
 	c.Assert(err, check.IsNil)
 
 	rsp := s.syncReq(c, req, nil)
@@ -584,7 +586,6 @@ func (s *aliasesSuite) TestAliases(c *check.C) {
 			},
 		},
 	})
-
 }
 
 func (s *aliasesSuite) TestInstallUnaliased(c *check.C) {
@@ -608,7 +609,7 @@ func (s *aliasesSuite) TestInstallUnaliased(c *check.C) {
 	st := d.Overlord().State()
 	st.Lock()
 	defer st.Unlock()
-	_, _, err := inst.Dispatch()(inst, st)
+	_, _ := mylog.Check3(inst.Dispatch()(inst, st))
 	c.Check(err, check.IsNil)
 
 	c.Check(calledFlags.Unaliased, check.Equals, true)
@@ -635,7 +636,7 @@ func (s *aliasesSuite) TestInstallIgnoreRunning(c *check.C) {
 	st := d.Overlord().State()
 	st.Lock()
 	defer st.Unlock()
-	_, _, err := inst.Dispatch()(inst, st)
+	_, _ := mylog.Check3(inst.Dispatch()(inst, st))
 	c.Check(err, check.IsNil)
 
 	c.Check(calledFlags.IgnoreRunning, check.Equals, true)
@@ -661,7 +662,7 @@ func (s *aliasesSuite) TestInstallPrefer(c *check.C) {
 	st := d.Overlord().State()
 	st.Lock()
 	defer st.Unlock()
-	_, _, err := inst.Dispatch()(inst, st)
+	_, _ := mylog.Check3(inst.Dispatch()(inst, st))
 	c.Check(err, check.IsNil)
 
 	c.Check(calledFlags.Prefer, check.Equals, true)

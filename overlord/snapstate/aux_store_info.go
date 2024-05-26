@@ -25,6 +25,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
@@ -50,20 +51,14 @@ func retrieveAuxStoreInfo(info *snap.Info) error {
 	if info.SnapID == "" {
 		return nil
 	}
-	f, err := os.Open(auxStoreInfoFilename(info.SnapID))
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil
-		}
-		return err
-	}
+	f := mylog.Check2(os.Open(auxStoreInfoFilename(info.SnapID)))
+
 	defer f.Close()
 
 	var aux auxStoreInfo
 	dec := json.NewDecoder(f)
-	if err := dec.Decode(&aux); err != nil {
-		return fmt.Errorf("cannot decode auxiliary store info for snap %q: %v", info.InstanceName(), err)
-	}
+	mylog.Check(dec.Decode(&aux))
+
 	if dec.More() {
 		return fmt.Errorf("cannot decode auxiliary store info for snap %q: spurious content after document body", info.InstanceName())
 	}
@@ -83,24 +78,15 @@ func keepAuxStoreInfo(snapID string, aux *auxStoreInfo) error {
 	if snapID == "" {
 		return nil
 	}
-	if err := os.MkdirAll(dirs.SnapAuxStoreInfoDir, 0755); err != nil {
-		return fmt.Errorf("cannot create directory for auxiliary store info: %v", err)
-	}
+	mylog.Check(os.MkdirAll(dirs.SnapAuxStoreInfoDir, 0755))
 
-	af, err := osutil.NewAtomicFile(auxStoreInfoFilename(snapID), 0644, 0, osutil.NoChown, osutil.NoChown)
-	if err != nil {
-		return fmt.Errorf("cannot create file for auxiliary store info for snap %s: %v", snapID, err)
-	}
+	af := mylog.Check2(osutil.NewAtomicFile(auxStoreInfoFilename(snapID), 0644, 0, osutil.NoChown, osutil.NoChown))
+
 	// on success, Cancel becomes a nop
 	defer af.Cancel()
+	mylog.Check(json.NewEncoder(af).Encode(aux))
+	mylog.Check(af.Commit())
 
-	if err := json.NewEncoder(af).Encode(aux); err != nil {
-		return fmt.Errorf("cannot encode auxiliary store info for snap %s: %v", snapID, err)
-	}
-
-	if err := af.Commit(); err != nil {
-		return fmt.Errorf("cannot commit auxiliary store info file for snap %s: %v", snapID, err)
-	}
 	return nil
 }
 
@@ -109,7 +95,7 @@ func discardAuxStoreInfo(snapID string) error {
 	if snapID == "" {
 		return nil
 	}
-	if err := os.Remove(auxStoreInfoFilename(snapID)); err != nil && !os.IsNotExist(err) {
+	if mylog.Check(os.Remove(auxStoreInfoFilename(snapID))); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("cannot remove auxiliary store info file for snap %s: %v", snapID, err)
 	}
 	return nil

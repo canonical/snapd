@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/sysconfig"
@@ -61,8 +62,8 @@ func (s *sysconfigSuite) makeCloudCfgSrcDirFiles(c *C, cfgs ...string) (string, 
 	names := make([]string, 0, len(cfgs))
 	for i, mockCfg := range cfgs {
 		configFileName := fmt.Sprintf("seed-config-%d.cfg", i)
-		err := os.WriteFile(filepath.Join(cloudCfgSrcDir, configFileName), []byte(mockCfg), 0644)
-		c.Assert(err, IsNil)
+		mylog.Check(os.WriteFile(filepath.Join(cloudCfgSrcDir, configFileName), []byte(mockCfg), 0644))
+
 		names = append(names, configFileName)
 	}
 	return cloudCfgSrcDir, names
@@ -74,8 +75,8 @@ func (s *sysconfigSuite) makeGadgetCloudConfFile(c *C, content string) string {
 	if content == "" {
 		content = "#cloud-config some gadget cloud config"
 	}
-	err := os.WriteFile(gadgetCloudConf, []byte(content), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(gadgetCloudConf, []byte(content), 0644))
+
 
 	return gadgetDir
 }
@@ -90,8 +91,8 @@ func (s *sysconfigSuite) TestHasGadgetCloudConf(c *C) {
 
 	// creating one now is true
 	gadgetCloudConf := filepath.Join(gadgetDir, "cloud.conf")
-	err := os.WriteFile(gadgetCloudConf, []byte("gadget cloud config"), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(gadgetCloudConf, []byte("gadget cloud config"), 0644))
+
 
 	c.Assert(sysconfig.HasGadgetCloudConf(gadgetDir), Equals, true)
 }
@@ -100,18 +101,18 @@ func (s *sysconfigSuite) TestHasGadgetCloudConf(c *C) {
 // writable partition that is used while running during install or recover mode
 func (s *sysconfigSuite) TestEphemeralModeInitramfsCloudInitDisables(c *C) {
 	writableDefaultsDir := sysconfig.WritableDefaultsDir(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
-	err := sysconfig.DisableCloudInit(writableDefaultsDir)
-	c.Assert(err, IsNil)
+	mylog.Check(sysconfig.DisableCloudInit(writableDefaultsDir))
+
 
 	ubuntuDataCloudDisabled := filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"), "_writable_defaults/etc/cloud/cloud-init.disabled")
 	c.Check(ubuntuDataCloudDisabled, testutil.FilePresent)
 }
 
 func (s *sysconfigSuite) TestInstallModeCloudInitDisablesByDefaultRunMode(c *C) {
-	err := sysconfig.ConfigureTargetSystem(fake20Model("signed"), &sysconfig.Options{
+	mylog.Check(sysconfig.ConfigureTargetSystem(fake20Model("signed"), &sysconfig.Options{
 		TargetRootDir: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"),
-	})
-	c.Assert(err, IsNil)
+	}))
+
 
 	ubuntuDataCloudDisabled := filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"), "_writable_defaults/etc/cloud/cloud-init.disabled")
 	c.Check(ubuntuDataCloudDisabled, testutil.FilePresent)
@@ -120,14 +121,13 @@ func (s *sysconfigSuite) TestInstallModeCloudInitDisablesByDefaultRunMode(c *C) 
 func (s *sysconfigSuite) TestInstallModeCloudInitDisallowedIgnoresOtherOptions(c *C) {
 	cloudCfgSrcDir, _ := s.makeCloudCfgSrcDirFiles(c)
 	gadgetDir := s.makeGadgetCloudConfFile(c, "")
-
-	err := sysconfig.ConfigureTargetSystem(fake20Model("signed"), &sysconfig.Options{
+	mylog.Check(sysconfig.ConfigureTargetSystem(fake20Model("signed"), &sysconfig.Options{
 		AllowCloudInit:  false,
 		CloudInitSrcDir: cloudCfgSrcDir,
 		GadgetDir:       gadgetDir,
 		TargetRootDir:   filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"),
-	})
-	c.Assert(err, IsNil)
+	}))
+
 
 	ubuntuDataCloudDisabled := filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"), "_writable_defaults/etc/cloud/cloud-init.disabled")
 	c.Check(ubuntuDataCloudDisabled, testutil.FilePresent)
@@ -142,7 +142,6 @@ func (s *sysconfigSuite) TestInstallModeCloudInitDisallowedIgnoresOtherOptions(c
 }
 
 func (s *sysconfigSuite) TestInstallModeCloudInitAllowedPermutations(c *C) {
-
 	// common inputs in the test cases below
 	defaultMAASCfgs := []string{
 		maasCfg1, // MAAS specific config
@@ -464,12 +463,12 @@ datasource:
 		if t.grade == "" {
 			t.grade = "signed"
 		}
-		err := sysconfig.ConfigureTargetSystem(fake20Model(t.grade), &sysconfig.Options{
+		mylog.Check(sysconfig.ConfigureTargetSystem(fake20Model(t.grade), &sysconfig.Options{
 			AllowCloudInit:  true,
 			TargetRootDir:   filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"),
 			CloudInitSrcDir: cloudCfgSrcDir,
 			GadgetDir:       gadgetDir,
-		})
+		}))
 		c.Assert(err, IsNil, comment)
 
 		ubuntuDataCloudCfg := filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"), "_writable_defaults/etc/cloud/cloud.cfg.d/")
@@ -506,11 +505,11 @@ datasource:
 }
 
 func (s *sysconfigSuite) TestInstallModeCloudInitDisallowedGradeSecuredDoesDisable(c *C) {
-	err := sysconfig.ConfigureTargetSystem(fake20Model("secured"), &sysconfig.Options{
+	mylog.Check(sysconfig.ConfigureTargetSystem(fake20Model("secured"), &sysconfig.Options{
 		AllowCloudInit: false,
 		TargetRootDir:  filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"),
-	})
-	c.Assert(err, IsNil)
+	}))
+
 
 	ubuntuDataCloudDisabled := filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"), "_writable_defaults/etc/cloud/cloud-init.disabled")
 	c.Check(ubuntuDataCloudDisabled, testutil.FilePresent)
@@ -518,13 +517,12 @@ func (s *sysconfigSuite) TestInstallModeCloudInitDisallowedGradeSecuredDoesDisab
 
 func (s *sysconfigSuite) TestInstallModeCloudInitAllowedGradeSecuredIgnoresSrcButDoesNotDisable(c *C) {
 	cloudCfgSrcDir, _ := s.makeCloudCfgSrcDirFiles(c)
-
-	err := sysconfig.ConfigureTargetSystem(fake20Model("secured"), &sysconfig.Options{
+	mylog.Check(sysconfig.ConfigureTargetSystem(fake20Model("secured"), &sysconfig.Options{
 		AllowCloudInit:  true,
 		CloudInitSrcDir: cloudCfgSrcDir,
 		TargetRootDir:   filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"),
-	})
-	c.Assert(err, IsNil)
+	}))
+
 
 	// the disable file is not present
 	ubuntuDataCloudDisabled := filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"), "_writable_defaults/etc/cloud/cloud-init.disabled")
@@ -543,13 +541,12 @@ func (s *sysconfigSuite) TestInstallModeCloudInitAllowedGradeSecuredIgnoresSrcBu
 // reboot into run mode
 func (s *sysconfigSuite) TestInstallModeCloudInitInstallsOntoHostRunMode(c *C) {
 	cloudCfgSrcDir, cfgFileNames := s.makeCloudCfgSrcDirFiles(c, "#cloud-config foo", "#cloud-config bar")
-
-	err := sysconfig.ConfigureTargetSystem(fake20Model("dangerous"), &sysconfig.Options{
+	mylog.Check(sysconfig.ConfigureTargetSystem(fake20Model("dangerous"), &sysconfig.Options{
 		AllowCloudInit:  true,
 		CloudInitSrcDir: cloudCfgSrcDir,
 		TargetRootDir:   filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"),
-	})
-	c.Assert(err, IsNil)
+	}))
+
 
 	// and did copy the cloud-init files
 	ubuntuDataCloudCfg := filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"), "_writable_defaults/etc/cloud/cloud.cfg.d/")
@@ -563,7 +560,7 @@ echo cloud-init borken
 exit 1
 `)
 
-	status, err := sysconfig.CloudInitStatus()
+	status := mylog.Check2(sysconfig.CloudInitStatus())
 	c.Assert(err, ErrorMatches, "cloud-init borken")
 	c.Assert(status, Equals, sysconfig.CloudInitErrored)
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
@@ -671,28 +668,28 @@ fi
 
 		if t.disabledFile {
 			cloudDir := filepath.Join(dirs.GlobalRootDir, "etc/cloud")
-			err := os.MkdirAll(cloudDir, 0755)
-			c.Assert(err, IsNil)
-			err = os.WriteFile(filepath.Join(cloudDir, "cloud-init.disabled"), nil, 0644)
-			c.Assert(err, IsNil)
+			mylog.Check(os.MkdirAll(cloudDir, 0755))
+
+			mylog.Check(os.WriteFile(filepath.Join(cloudDir, "cloud-init.disabled"), nil, 0644))
+
 		}
 
 		if t.restrictedFile {
 			cloudDir := filepath.Join(dirs.GlobalRootDir, "etc/cloud/cloud.cfg.d")
-			err := os.MkdirAll(cloudDir, 0755)
-			c.Assert(err, IsNil)
-			err = os.WriteFile(filepath.Join(cloudDir, "zzzz_snapd.cfg"), nil, 0644)
-			c.Assert(err, IsNil)
+			mylog.Check(os.MkdirAll(cloudDir, 0755))
+
+			mylog.Check(os.WriteFile(filepath.Join(cloudDir, "zzzz_snapd.cfg"), nil, 0644))
+
 		}
 
 		logBuf, restore := logger.MockLogger()
 		defer restore()
 
-		status, err := sysconfig.CloudInitStatus()
+		status := mylog.Check2(sysconfig.CloudInitStatus())
 		if t.expError != "" {
 			c.Assert(err, ErrorMatches, t.expError, Commentf(t.comment))
 		} else {
-			c.Assert(err, IsNil)
+
 			c.Assert(status, Equals, t.exp, Commentf(t.comment))
 		}
 
@@ -721,8 +718,8 @@ func (s *sysconfigSuite) TestCloudInitNotFoundStatus(c *C) {
 	}()
 	os.Setenv("PATH", emptyDir)
 
-	status, err := sysconfig.CloudInitStatus()
-	c.Assert(err, IsNil)
+	status := mylog.Check2(sysconfig.CloudInitStatus())
+
 	c.Check(status, Equals, sysconfig.CloudInitNotFound)
 }
 
@@ -942,20 +939,20 @@ func (s *sysconfigSuite) TestRestrictCloudInit(c *C) {
 		defer func() { dirs.SetRootDir(old) }()
 		statusJSONFile := filepath.Join(dirs.GlobalRootDir, "/run/cloud-init/status.json")
 		if t.cloudInitStatusJSON != "" {
-			err := os.MkdirAll(filepath.Dir(statusJSONFile), 0755)
+			mylog.Check(os.MkdirAll(filepath.Dir(statusJSONFile), 0755))
 			c.Assert(err, IsNil, comment)
-			err = os.WriteFile(statusJSONFile, []byte(t.cloudInitStatusJSON), 0644)
+			mylog.Check(os.WriteFile(statusJSONFile, []byte(t.cloudInitStatusJSON), 0644))
 			c.Assert(err, IsNil, comment)
 		}
 
 		// if we expect snapd to write a yaml config file for cloud-init, ensure
 		// the dir exists before hand
 		if t.expRestrictYamlWritten != "" {
-			err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/cloud/cloud.cfg.d"), 0755)
+			mylog.Check(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/cloud/cloud.cfg.d"), 0755))
 			c.Assert(err, IsNil, comment)
 		}
 
-		res, err := sysconfig.RestrictCloudInit(t.state, t.sysconfOpts)
+		res := mylog.Check2(sysconfig.RestrictCloudInit(t.state, t.sysconfOpts))
 		if t.expError == "" {
 			c.Assert(err, IsNil, comment)
 			c.Assert(res.DataSource, Equals, t.expDatasource, comment)
@@ -1132,9 +1129,9 @@ func (s *sysconfigSuite) TestCloudDatasourcesInUse(c *C) {
 	for _, t := range tt {
 		comment := Commentf(t.comment)
 		configFile := filepath.Join(c.MkDir(), "cloud.conf")
-		err := os.WriteFile(configFile, []byte(t.configFileContent), 0644)
+		mylog.Check(os.WriteFile(configFile, []byte(t.configFileContent), 0644))
 		c.Assert(err, IsNil, comment)
-		res, err := sysconfig.CloudDatasourcesInUse(configFile)
+		res := mylog.Check2(sysconfig.CloudDatasourcesInUse(configFile))
 		if t.expError != "" {
 			c.Assert(err, ErrorMatches, t.expError, comment)
 			continue
@@ -1258,11 +1255,11 @@ func (s *sysconfigSuite) TestCloudDatasourcesInUseForDirInUse(c *C) {
 		dir := c.MkDir()
 		for basename, content := range t.configFilesContents {
 			configFile := filepath.Join(dir, basename)
-			err := os.WriteFile(configFile, []byte(content), 0644)
+			mylog.Check(os.WriteFile(configFile, []byte(content), 0644))
 			c.Assert(err, IsNil, comment)
 		}
 
-		res, err := sysconfig.CloudDatasourcesInUseForDir(dir)
+		res := mylog.Check2(sysconfig.CloudDatasourcesInUseForDir(dir))
 		if t.expError != "" {
 			c.Assert(err, ErrorMatches, t.expError, comment)
 			continue
@@ -1443,10 +1440,10 @@ reporting:
 	for i, t := range tt {
 		comment := Commentf(t.comment)
 		inFile := filepath.Join(dir, fmt.Sprintf("%d.cfg", i))
-		err := os.WriteFile(inFile, []byte(t.inStr), 0755)
+		mylog.Check(os.WriteFile(inFile, []byte(t.inStr), 0755))
 		c.Assert(err, IsNil, comment)
 
-		out, err := sysconfig.FilterCloudCfgFile(inFile, []string{"MAAS"})
+		out := mylog.Check2(sysconfig.FilterCloudCfgFile(inFile, []string{"MAAS"}))
 		if t.err != "" {
 			c.Assert(err, ErrorMatches, t.err, comment)
 			continue
@@ -1460,7 +1457,7 @@ reporting:
 		}
 
 		// otherwise we have expected output in the file
-		b, err := os.ReadFile(out)
+		b := mylog.Check2(os.ReadFile(out))
 		c.Assert(err, IsNil, comment)
 		c.Assert(string(b), Equals, t.outStr, comment)
 	}

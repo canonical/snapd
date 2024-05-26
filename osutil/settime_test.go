@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -33,8 +34,8 @@ type settimeTestSuite struct{}
 var _ = Suite(&settimeTestSuite{})
 
 func (s *settimeTestSuite) TestSetTime(c *C) {
-	timeIn, err := time.Parse("Mon Jan 2 15:04:05 -0700 MST 2006", "Mon Jan 2 15:04:05 -0700 MST 2006")
-	c.Assert(err, IsNil)
+	timeIn := mylog.Check2(time.Parse("Mon Jan 2 15:04:05 -0700 MST 2006", "Mon Jan 2 15:04:05 -0700 MST 2006"))
+
 
 	r := osutil.MockSyscallSettimeofday(func(t *syscall.Timeval) error {
 		c.Assert(int64(t.Sec), Equals, timeIn.Unix())
@@ -42,7 +43,6 @@ func (s *settimeTestSuite) TestSetTime(c *C) {
 		return nil
 	})
 	defer r()
+	mylog.Check(osutil.SetTime(timeIn))
 
-	err = osutil.SetTime(timeIn)
-	c.Assert(err, IsNil)
 }

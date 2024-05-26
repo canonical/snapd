@@ -22,6 +22,7 @@ package snapstate_test
 import (
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/sequence"
@@ -107,8 +108,8 @@ func verifyComponentInstallTasks(c *C, opts int, ts *state.TaskSet) {
 			c.Assert(storedTaskID, Equals, firstTaskID)
 		}
 		// ComponentSetup/SnapSetup found must match the ones from the first task
-		csup, ssup, err := snapstate.TaskComponentSetup(t)
-		c.Assert(err, IsNil)
+		csup, ssup := mylog.Check3(snapstate.TaskComponentSetup(t))
+
 		c.Assert(csup, DeepEquals, &compSetup)
 		c.Assert(ssup, DeepEquals, &snapsup)
 	}
@@ -124,11 +125,11 @@ type: %s
 version: 1.0
 `, snapName, compName, typ)
 	compPath := snaptest.MakeTestComponent(c, componentYaml)
-	compf, err := snapfile.Open(compPath)
-	c.Assert(err, IsNil)
+	compf := mylog.Check2(snapfile.Open(compPath))
 
-	ci, err := snap.ReadComponentInfoFromContainer(compf, snapInfo)
-	c.Assert(err, IsNil)
+
+	ci := mylog.Check2(snap.ReadComponentInfoFromContainer(compf, snapInfo))
+
 
 	return ci, compPath
 }
@@ -145,8 +146,8 @@ components:
   %s:
     type: %s
 `, snapName, compName, typ)
-	info, err := snap.InfoFromSnapYaml([]byte(snapYaml))
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(snapYaml)))
+
 	info.SideInfo = snap.SideInfo{RealName: snapName, Revision: snapRev}
 
 	return info
@@ -166,33 +167,41 @@ func createTestSnapSetup(info *snap.Info, flags snapstate.Flags) *snapstate.Snap
 }
 
 func setStateWithOneSnap(st *state.State, snapName string, snapRev snap.Revision) {
-	ssi := &snap.SideInfo{RealName: snapName, Revision: snapRev,
-		SnapID: "some-snap-id"}
+	ssi := &snap.SideInfo{
+		RealName: snapName, Revision: snapRev,
+		SnapID: "some-snap-id",
+	}
 	snapstate.Set(st, snapName, &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
 			[]*sequence.RevisionSideState{
-				sequence.NewRevisionSideState(ssi, nil)}),
+				sequence.NewRevisionSideState(ssi, nil),
+			}),
 		Current: snapRev,
 	})
 }
 
 func setStateWithOneComponent(st *state.State, snapName string,
-	snapRev snap.Revision, compName string, compRev snap.Revision) {
+	snapRev snap.Revision, compName string, compRev snap.Revision,
+) {
 	csi := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, compName), compRev)
 	setStateWithComponents(st, snapName, snapRev,
 		[]*sequence.ComponentState{sequence.NewComponentState(csi, snap.TestComponent)})
 }
 
 func setStateWithComponents(st *state.State, snapName string,
-	snapRev snap.Revision, comps []*sequence.ComponentState) {
-	ssi := &snap.SideInfo{RealName: snapName, Revision: snapRev,
-		SnapID: "some-snap-id"}
+	snapRev snap.Revision, comps []*sequence.ComponentState,
+) {
+	ssi := &snap.SideInfo{
+		RealName: snapName, Revision: snapRev,
+		SnapID: "some-snap-id",
+	}
 	snapstate.Set(st, snapName, &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
 			[]*sequence.RevisionSideState{
-				sequence.NewRevisionSideState(ssi, comps)}),
+				sequence.NewRevisionSideState(ssi, comps),
+			}),
 		Current: snapRev,
 	})
 }
@@ -210,10 +219,11 @@ func (s *snapmgrTestSuite) TestInstallComponentPath(c *C) {
 	setStateWithOneSnap(s.state, snapName, snapRev)
 
 	csi := snap.NewComponentSideInfo(naming.ComponentRef{
-		SnapName: snapName, ComponentName: compName}, snap.R(33))
-	ts, err := snapstate.InstallComponentPath(s.state, csi, info, compPath,
-		snapstate.Flags{})
-	c.Assert(err, IsNil)
+		SnapName: snapName, ComponentName: compName,
+	}, snap.R(33))
+	ts := mylog.Check2(snapstate.InstallComponentPath(s.state, csi, info, compPath,
+		snapstate.Flags{}))
+
 
 	verifyComponentInstallTasks(c, compOptIsLocal, ts)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
@@ -235,9 +245,10 @@ func (s *snapmgrTestSuite) TestInstallComponentPathWrongComponent(c *C) {
 	setStateWithOneSnap(s.state, snapName, snapRev)
 
 	csi := snap.NewComponentSideInfo(naming.ComponentRef{
-		SnapName: snapName, ComponentName: compName}, snap.R(33))
-	ts, err := snapstate.InstallComponentPath(s.state, csi, info, compPath,
-		snapstate.Flags{})
+		SnapName: snapName, ComponentName: compName,
+	}, snap.R(33))
+	ts := mylog.Check2(snapstate.InstallComponentPath(s.state, csi, info, compPath,
+		snapstate.Flags{}))
 	c.Assert(ts, IsNil)
 	c.Assert(err, ErrorMatches, `.*"mycomp" is not a component for snap "mysnap"`)
 }
@@ -261,9 +272,10 @@ func (s *snapmgrTestSuite) TestInstallComponentPathWrongType(c *C) {
 	setStateWithOneSnap(s.state, snapName, snapRev)
 
 	csi := snap.NewComponentSideInfo(naming.ComponentRef{
-		SnapName: snapName, ComponentName: compName}, snap.R(33))
-	ts, err := snapstate.InstallComponentPath(s.state, csi, info, compPath,
-		snapstate.Flags{})
+		SnapName: snapName, ComponentName: compName,
+	}, snap.R(33))
+	ts := mylog.Check2(snapstate.InstallComponentPath(s.state, csi, info, compPath,
+		snapstate.Flags{}))
 	c.Assert(ts, IsNil)
 	c.Assert(err.Error(), Equals,
 		`inconsistent component type ("random-comp-type" in snap, "test" in component)`)
@@ -288,16 +300,18 @@ func (s *snapmgrTestSuite) TestInstallComponentPathForParallelInstall(c *C) {
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
 			[]*sequence.RevisionSideState{
-				sequence.NewRevisionSideState(ssi, nil)}),
+				sequence.NewRevisionSideState(ssi, nil),
+			}),
 		Current:     snapRev,
 		InstanceKey: snapKey,
 	})
 
 	csi := snap.NewComponentSideInfo(naming.ComponentRef{
-		SnapName: snapName, ComponentName: compName}, snap.R(33))
-	ts, err := snapstate.InstallComponentPath(s.state, csi, info, compPath,
-		snapstate.Flags{})
-	c.Assert(err, IsNil)
+		SnapName: snapName, ComponentName: compName,
+	}, snap.R(33))
+	ts := mylog.Check2(snapstate.InstallComponentPath(s.state, csi, info, compPath,
+		snapstate.Flags{}))
+
 
 	verifyComponentInstallTasks(c, compOptIsLocal, ts)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
@@ -325,9 +339,10 @@ func (s *snapmgrTestSuite) TestInstallComponentPathWrongSnap(c *C) {
 	setStateWithOneSnap(s.state, "other-snap", snapRev)
 
 	csi := snap.NewComponentSideInfo(naming.ComponentRef{
-		SnapName: snapName, ComponentName: compName}, snap.R(33))
-	ts, err := snapstate.InstallComponentPath(s.state, csi, otherInfo, compPath,
-		snapstate.Flags{})
+		SnapName: snapName, ComponentName: compName,
+	}, snap.R(33))
+	ts := mylog.Check2(snapstate.InstallComponentPath(s.state, csi, otherInfo, compPath,
+		snapstate.Flags{}))
 	c.Assert(ts, IsNil)
 	c.Assert(err, ErrorMatches,
 		`component "mysnap\+mycomp" is not a component for snap "other-snap"`)
@@ -348,10 +363,11 @@ func (s *snapmgrTestSuite) TestInstallComponentPathCompRevisionPresent(c *C) {
 	setStateWithOneComponent(s.state, snapName, snapRev, compName, compRev)
 
 	csi := snap.NewComponentSideInfo(naming.ComponentRef{
-		SnapName: snapName, ComponentName: compName}, compRev)
-	ts, err := snapstate.InstallComponentPath(s.state, csi, info, compPath,
-		snapstate.Flags{})
-	c.Assert(err, IsNil)
+		SnapName: snapName, ComponentName: compName,
+	}, compRev)
+	ts := mylog.Check2(snapstate.InstallComponentPath(s.state, csi, info, compPath,
+		snapstate.Flags{}))
+
 
 	verifyComponentInstallTasks(c, compOptIsLocal|compOptRevisionPresent|compOptIsActive, ts)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
@@ -373,10 +389,14 @@ func (s *snapmgrTestSuite) TestInstallComponentPathCompRevisionPresentDiffSnapRe
 
 	// There is a component with the same revision to the one we install
 	// (but it is not for the currently active snap revision).
-	ssi1 := &snap.SideInfo{RealName: snapName, Revision: snapRev1,
-		SnapID: "some-snap-id"}
-	ssi2 := &snap.SideInfo{RealName: snapName, Revision: snapRev2,
-		SnapID: "some-snap-id"}
+	ssi1 := &snap.SideInfo{
+		RealName: snapName, Revision: snapRev1,
+		SnapID: "some-snap-id",
+	}
+	ssi2 := &snap.SideInfo{
+		RealName: snapName, Revision: snapRev2,
+		SnapID: "some-snap-id",
+	}
 	csi := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, compName), compRev)
 	snapstate.Set(s.state, snapName, &snapstate.SnapState{
 		Active: true,
@@ -389,9 +409,9 @@ func (s *snapmgrTestSuite) TestInstallComponentPathCompRevisionPresentDiffSnapRe
 		Current: snapRev1,
 	})
 
-	ts, err := snapstate.InstallComponentPath(s.state, csi, info, compPath,
-		snapstate.Flags{})
-	c.Assert(err, IsNil)
+	ts := mylog.Check2(snapstate.InstallComponentPath(s.state, csi, info, compPath,
+		snapstate.Flags{}))
+
 
 	// In this case there is no unlink-current-component, as the component
 	// is not installed for the active snap revision.
@@ -416,10 +436,11 @@ func (s *snapmgrTestSuite) TestInstallComponentPathCompAlreadyInstalled(c *C) {
 	setStateWithOneComponent(s.state, snapName, snapRev, compName, snap.R(7))
 
 	csi := snap.NewComponentSideInfo(naming.ComponentRef{
-		SnapName: snapName, ComponentName: compName}, compRev)
-	ts, err := snapstate.InstallComponentPath(s.state, csi, info, compPath,
-		snapstate.Flags{})
-	c.Assert(err, IsNil)
+		SnapName: snapName, ComponentName: compName,
+	}, compRev)
+	ts := mylog.Check2(snapstate.InstallComponentPath(s.state, csi, info, compPath,
+		snapstate.Flags{}))
+
 
 	verifyComponentInstallTasks(c, compOptIsLocal|compOptIsActive, ts)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
@@ -444,12 +465,13 @@ func (s *snapmgrTestSuite) TestInstallComponentPathSnapNotActive(c *C) {
 		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
 			[]*sequence.RevisionSideState{
 				sequence.NewRevisionSideState(ssi,
-					[]*sequence.ComponentState{sequence.NewComponentState(csi, snap.TestComponent)})}),
+					[]*sequence.ComponentState{sequence.NewComponentState(csi, snap.TestComponent)}),
+			}),
 		Current: snapRev,
 	})
 
-	ts, err := snapstate.InstallComponentPath(s.state, csi, info, compPath,
-		snapstate.Flags{})
+	ts := mylog.Check2(snapstate.InstallComponentPath(s.state, csi, info, compPath,
+		snapstate.Flags{}))
 	c.Assert(err.Error(), Equals, `cannot install component "mysnap+mycomp" for disabled snap "mysnap"`)
 	c.Assert(ts, IsNil)
 	c.Assert(osutil.FileExists(compPath), Equals, true)
@@ -472,9 +494,10 @@ func (s *snapmgrTestSuite) TestInstallComponentRemodelConflict(c *C) {
 	chg.AddTask(tugc)
 
 	csi := snap.NewComponentSideInfo(naming.ComponentRef{
-		SnapName: snapName, ComponentName: compName}, snap.R(33))
-	ts, err := snapstate.InstallComponentPath(s.state, csi, info, compPath,
-		snapstate.Flags{})
+		SnapName: snapName, ComponentName: compName,
+	}, snap.R(33))
+	ts := mylog.Check2(snapstate.InstallComponentPath(s.state, csi, info, compPath,
+		snapstate.Flags{}))
 	c.Assert(ts, IsNil)
 	c.Assert(err.Error(), Equals,
 		`remodeling in progress, no other changes allowed until this is done`)
@@ -492,17 +515,18 @@ func (s *snapmgrTestSuite) TestInstallComponentUpdateConflict(c *C) {
 
 	setStateWithOneSnap(s.state, snapName, snapRev)
 
-	tupd, err := snapstate.Update(s.state, snapName,
+	tupd := mylog.Check2(snapstate.Update(s.state, snapName,
 		&snapstate.RevisionOptions{Channel: ""}, s.user.ID,
-		snapstate.Flags{})
-	c.Assert(err, IsNil)
+		snapstate.Flags{}))
+
 	chg := s.state.NewChange("update", "update a snap")
 	chg.AddAll(tupd)
 
 	csi := snap.NewComponentSideInfo(naming.ComponentRef{
-		SnapName: snapName, ComponentName: compName}, snap.R(33))
-	ts, err := snapstate.InstallComponentPath(s.state, csi, info, compPath,
-		snapstate.Flags{})
+		SnapName: snapName, ComponentName: compName,
+	}, snap.R(33))
+	ts := mylog.Check2(snapstate.InstallComponentPath(s.state, csi, info, compPath,
+		snapstate.Flags{}))
 	c.Assert(ts, IsNil)
 	c.Assert(err.Error(), Equals,
 		`snap "some-snap" has "update" change in progress`)
@@ -521,10 +545,11 @@ func (s *snapmgrTestSuite) TestInstallKernelModulesComponentPath(c *C) {
 	setStateWithOneSnap(s.state, snapName, snapRev)
 
 	csi := snap.NewComponentSideInfo(naming.ComponentRef{
-		SnapName: snapName, ComponentName: compName}, snap.R(33))
-	ts, err := snapstate.InstallComponentPath(s.state, csi, info, compPath,
-		snapstate.Flags{})
-	c.Assert(err, IsNil)
+		SnapName: snapName, ComponentName: compName,
+	}, snap.R(33))
+	ts := mylog.Check2(snapstate.InstallComponentPath(s.state, csi, info, compPath,
+		snapstate.Flags{}))
+
 
 	verifyComponentInstallTasks(c, compOptIsLocal|compTypeIsKernMods, ts)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))

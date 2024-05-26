@@ -23,6 +23,8 @@ import (
 	"os"
 	"syscall"
 	"unsafe"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // FlagID can be passed to chown-ish functions to mean "no change",
@@ -85,10 +87,8 @@ func ChownPath(path string, uid UserID, gid GroupID) error {
 }
 
 func FchownAt(dirfd uintptr, path string, uid UserID, gid GroupID, flags int) error {
-	p0, err := syscall.BytePtrFromString(path)
-	if err != nil {
-		return err
-	}
+	p0 := mylog.Check2(syscall.BytePtrFromString(path))
+
 	_, _, errno := syscall.Syscall6(_SYS_FCHOWNAT, dirfd, uintptr(unsafe.Pointer(p0)), uintptr(uid), uintptr(gid), uintptr(flags), 0)
 	if errno == 0 {
 		return nil

@@ -28,6 +28,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -72,9 +73,8 @@ func purgeNulls(config interface{}) interface{} {
 			return nil
 		}
 		var configm interface{}
-		if err := jsonutil.DecodeWithNumber(bytes.NewReader(*config), &configm); err != nil {
-			panic(fmt.Errorf("internal error: cannot unmarshal configuration: %v", err))
-		}
+		mylog.Check(jsonutil.DecodeWithNumber(bytes.NewReader(*config), &configm))
+
 		if cfg := purgeNulls(configm); cfg != nil {
 			return jsonRaw(cfg)
 		}
@@ -88,19 +88,15 @@ func PatchConfig(snapName string, subkeys []string, pos int, config interface{},
 	case nil:
 		// Missing update map. Create and nest final value under it.
 		configm := make(map[string]interface{})
-		_, err := PatchConfig(snapName, subkeys, pos, configm, value)
-		if err != nil {
-			return nil, err
-		}
+		_ := mylog.Check2(PatchConfig(snapName, subkeys, pos, configm, value))
+
 		return configm, nil
 
 	case *json.RawMessage:
 		// Raw replaces pristine on commit. Unpack, update, and repack.
 		var configm map[string]interface{}
+		mylog.Check(jsonutil.DecodeWithNumber(bytes.NewReader(*config), &configm))
 
-		if err := jsonutil.DecodeWithNumber(bytes.NewReader(*config), &configm); err != nil {
-			return nil, fmt.Errorf("snap %q option %q is not a map", snapName, strings.Join(subkeys[:pos], "."))
-		}
 		// preserve the invariant that if PatchConfig is
 		// passed a map[string]interface{} it is not nil.
 		// If the value was set to null in the same
@@ -111,10 +107,7 @@ func PatchConfig(snapName string, subkeys []string, pos int, config interface{},
 		if configm != nil {
 			cfg = configm
 		}
-		result, err := PatchConfig(snapName, subkeys, pos, cfg, value)
-		if err != nil {
-			return nil, err
-		}
+		result := mylog.Check2(PatchConfig(snapName, subkeys, pos, cfg, value))
 
 		// PatchConfig may have recreated higher level element that was previously set to null in same
 		// transaction; returning the result for PatchConfig rather than just configm ensures we do
@@ -127,10 +120,8 @@ func PatchConfig(snapName string, subkeys []string, pos int, config interface{},
 			config[subkeys[pos]] = value
 			return config, nil
 		} else {
-			result, err := PatchConfig(snapName, subkeys, pos+1, config[subkeys[pos]], value)
-			if err != nil {
-				return nil, err
-			}
+			result := mylog.Check2(PatchConfig(snapName, subkeys, pos+1, config[subkeys[pos]], value))
+
 			config[subkeys[pos]] = result
 			return config, nil
 		}
@@ -141,13 +132,11 @@ func PatchConfig(snapName string, subkeys []string, pos int, config interface{},
 // GetSnapConfig retrieves the raw configuration of a given snap.
 func GetSnapConfig(st *state.State, snapName string) (*json.RawMessage, error) {
 	var config map[string]*json.RawMessage
-	err := st.Get("config", &config)
+	mylog.Check(st.Get("config", &config))
 	if errors.Is(err, state.ErrNoState) {
 		return nil, nil
 	}
-	if err != nil {
-		return nil, err
-	}
+
 	snapcfg, ok := config[snapName]
 	if !ok {
 		return nil, nil
@@ -158,7 +147,7 @@ func GetSnapConfig(st *state.State, snapName string) (*json.RawMessage, error) {
 // SetSnapConfig replaces the configuration of a given snap.
 func SetSnapConfig(st *state.State, snapName string, snapcfg *json.RawMessage) error {
 	var config map[string]*json.RawMessage
-	err := st.Get("config", &config)
+	mylog.Check(st.Get("config", &config))
 	// empty nil snapcfg should be an empty message, but deal with "null" as well.
 	isNil := snapcfg == nil || len(*snapcfg) == 0 || bytes.Compare(*snapcfg, []byte("null")) == 0
 	if errors.Is(err, state.ErrNoState) {
@@ -167,9 +156,8 @@ func SetSnapConfig(st *state.State, snapName string, snapcfg *json.RawMessage) e
 			return nil
 		}
 		config = make(map[string]*json.RawMessage, 1)
-	} else if err != nil {
-		return err
 	}
+
 	if isNil {
 		delete(config, snapName)
 	} else {
@@ -183,27 +171,26 @@ func SetSnapConfig(st *state.State, snapName string, snapcfg *json.RawMessage) e
 // It doesn't do anything if there is no configuration for given snap in the state.
 // The caller is responsible for locking the state.
 func SaveRevisionConfig(st *state.State, snapName string, rev snap.Revision) error {
-	var config map[string]*json.RawMessage                    // snap => configuration
-	var revisionConfig map[string]map[string]*json.RawMessage // snap => revision => configuration
+	var config map[string]*json.RawMessage // snap => configuration
+	var revisionConfig map[string]map[string]*json.RawMessage
+	mylog. // snap => revision => configuration
+		Check(
 
-	// Get current configuration of the snap from state
-	err := st.Get("config", &config)
+			// Get current configuration of the snap from state
+			st.Get("config", &config))
 	if errors.Is(err, state.ErrNoState) {
 		return nil
-	} else if err != nil {
-		return fmt.Errorf("internal error: cannot unmarshal configuration: %v", err)
 	}
+
 	snapcfg, ok := config[snapName]
 	if !ok {
 		return nil
 	}
-
-	err = st.Get("revision-config", &revisionConfig)
+	mylog.Check(st.Get("revision-config", &revisionConfig))
 	if errors.Is(err, state.ErrNoState) {
 		revisionConfig = make(map[string]map[string]*json.RawMessage)
-	} else if err != nil {
-		return err
 	}
+
 	cfgs := revisionConfig[snapName]
 	if cfgs == nil {
 		cfgs = make(map[string]*json.RawMessage)
@@ -218,21 +205,16 @@ func SaveRevisionConfig(st *state.State, snapName string, rev snap.Revision) err
 // If no configuration exists for given revision it does nothing (no error).
 // The caller is responsible for locking the state.
 func RestoreRevisionConfig(st *state.State, snapName string, rev snap.Revision) error {
-	var config map[string]*json.RawMessage                    // snap => configuration
-	var revisionConfig map[string]map[string]*json.RawMessage // snap => revision => configuration
-
-	err := st.Get("revision-config", &revisionConfig)
+	var config map[string]*json.RawMessage // snap => configuration
+	var revisionConfig map[string]map[string]*json.RawMessage
+	mylog. // snap => revision => configuration
+		Check(st.Get("revision-config", &revisionConfig))
 	if errors.Is(err, state.ErrNoState) {
 		return nil
-	} else if err != nil {
-		return fmt.Errorf("internal error: cannot unmarshal revision-config: %v", err)
 	}
-
-	err = st.Get("config", &config)
+	mylog.Check(st.Get("config", &config))
 	if errors.Is(err, state.ErrNoState) {
 		config = make(map[string]*json.RawMessage)
-	} else if err != nil {
-		return fmt.Errorf("internal error: cannot unmarshal configuration: %v", err)
 	}
 
 	if cfg, ok := revisionConfig[snapName]; ok {
@@ -249,12 +231,11 @@ func RestoreRevisionConfig(st *state.State, snapName string, rev snap.Revision) 
 // If no configuration exists for given revision it does nothing (no error).
 // The caller is responsible for locking the state.
 func DiscardRevisionConfig(st *state.State, snapName string, rev snap.Revision) error {
-	var revisionConfig map[string]map[string]*json.RawMessage // snap => revision => configuration
-	err := st.Get("revision-config", &revisionConfig)
+	var revisionConfig map[string]map[string]*json.RawMessage
+	mylog. // snap => revision => configuration
+		Check(st.Get("revision-config", &revisionConfig))
 	if errors.Is(err, state.ErrNoState) {
 		return nil
-	} else if err != nil {
-		return fmt.Errorf("internal error: cannot unmarshal revision-config: %v", err)
 	}
 
 	if revCfgs, ok := revisionConfig[snapName]; ok {
@@ -271,14 +252,13 @@ func DiscardRevisionConfig(st *state.State, snapName string, rev snap.Revision) 
 
 // DeleteSnapConfig removed configuration of given snap from the state.
 func DeleteSnapConfig(st *state.State, snapName string) error {
-	var config map[string]map[string]*json.RawMessage // snap => key => value
-
-	err := st.Get("config", &config)
+	var config map[string]map[string]*json.RawMessage
+	mylog. // snap => key => value
+		Check(st.Get("config", &config))
 	if errors.Is(err, state.ErrNoState) {
 		return nil
-	} else if err != nil {
-		return fmt.Errorf("internal error: cannot unmarshal configuration: %v", err)
 	}
+
 	if _, ok := config[snapName]; ok {
 		delete(config, snapName)
 		st.Set("config", config)
@@ -299,9 +279,7 @@ type ConfSetter interface {
 func Patch(cfg ConfSetter, snapName string, patch map[string]interface{}) error {
 	patchKeys := sortPatchKeysByDepth(patch)
 	for _, key := range patchKeys {
-		if err := cfg.Set(snapName, key, patch[key]); err != nil {
-			return err
-		}
+		mylog.Check(cfg.Set(snapName, key, patch[key]))
 	}
 	return nil
 }

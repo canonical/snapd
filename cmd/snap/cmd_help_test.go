@@ -27,6 +27,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 	"gopkg.in/check.v1"
 
@@ -48,8 +49,7 @@ func (s *SnapSuite) TestHelpPrintsHelp(c *check.C) {
 
 		os.Args = cmdLine
 		comment := check.Commentf("%q", cmdLine)
-
-		err := snap.RunMain()
+		mylog.Check(snap.RunMain())
 		c.Assert(err, check.IsNil, comment)
 		c.Check(s.Stdout(), check.Matches, "(?s)"+strings.Join([]string{
 			snap.LongSnapDescription,
@@ -70,8 +70,7 @@ func (s *SnapSuite) TestHelpAllPrintsLongHelp(c *check.C) {
 	defer func() { os.Args = origArgs }()
 
 	os.Args = []string{"snap", "help", "--all"}
-
-	err := snap.RunMain()
+	mylog.Check(snap.RunMain())
 	c.Assert(err, check.IsNil)
 	c.Check(s.Stdout(), check.Matches, "(?sm)"+strings.Join([]string{
 		snap.LongSnapDescription,
@@ -119,7 +118,7 @@ func (s *SnapSuite) testSubCommandHelp(c *check.C, sub, expected string) {
 	}
 
 	parser := snap.Parser(snap.Client())
-	rest, err := parser.ParseArgs([]string{sub, "--help"})
+	rest := mylog.Check2(parser.ParseArgs([]string{sub, "--help"}))
 	c.Assert(err, check.DeepEquals, &flags.Error{Type: flags.ErrHelp})
 	c.Assert(rest, check.HasLen, 0)
 	var buf bytes.Buffer
@@ -134,8 +133,7 @@ func (s *SnapSuite) TestSubCommandHelpPrintsHelp(c *check.C) {
 	for cmd := range nonHiddenCommands() {
 		s.ResetStdStreams()
 		os.Args = []string{"snap", cmd, "--help"}
-
-		err := snap.RunMain()
+		mylog.Check(snap.RunMain())
 		comment := check.Commentf("%q", cmd)
 		c.Assert(err, check.IsNil, comment)
 		// regexp matches "Usage: snap <the command>" plus an arbitrary
@@ -186,8 +184,7 @@ func (s *SnapSuite) TestHelpCommandAllFails(c *check.C) {
 	origArgs := os.Args
 	defer func() { os.Args = origArgs }()
 	os.Args = []string{"snap", "help", "interfaces", "--all"}
-
-	err := snap.RunMain()
+	mylog.Check(snap.RunMain())
 	c.Assert(err, check.ErrorMatches, "help accepts a command, or '--all', but not both.")
 }
 
@@ -195,8 +192,7 @@ func (s *SnapSuite) TestManpageInSection8(c *check.C) {
 	origArgs := os.Args
 	defer func() { os.Args = origArgs }()
 	os.Args = []string{"snap", "help", "--man"}
-
-	err := snap.RunMain()
+	mylog.Check(snap.RunMain())
 	c.Assert(err, check.IsNil)
 
 	c.Check(s.Stdout(), check.Matches, `\.TH snap 8 (?s).*`)
@@ -206,19 +202,16 @@ func (s *SnapSuite) TestManpageNoDoubleTP(c *check.C) {
 	origArgs := os.Args
 	defer func() { os.Args = origArgs }()
 	os.Args = []string{"snap", "help", "--man"}
-
-	err := snap.RunMain()
+	mylog.Check(snap.RunMain())
 	c.Assert(err, check.IsNil)
 
 	c.Check(s.Stdout(), check.Not(check.Matches), `(?s).*(?m-s)^\.TP\n\.TP$(?s-m).*`)
-
 }
 
 func (s *SnapSuite) TestBadSub(c *check.C) {
 	origArgs := os.Args
 	defer func() { os.Args = origArgs }()
 	os.Args = []string{"snap", "debug", "brotato"}
-
-	err := snap.RunMain()
+	mylog.Check(snap.RunMain())
 	c.Assert(err, check.ErrorMatches, `unknown command "brotato", see 'snap help debug'.`)
 }

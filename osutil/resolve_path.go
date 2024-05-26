@@ -24,6 +24,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 func dumbJoin(a, b string) string {
@@ -45,10 +47,8 @@ func resolvePathInSysrootRec(sysroot, path string, errorOnEscape bool, symlinkRe
 	}
 
 	dir, file := filepath.Split(path)
-	resolvedDir, err := resolvePathInSysrootRec(sysroot, dir, errorOnEscape, symlinkRecursion)
-	if err != nil {
-		return "", err
-	}
+	resolvedDir := mylog.Check2(resolvePathInSysrootRec(sysroot, dir, errorOnEscape, symlinkRecursion))
+
 	if file == "" {
 		return resolvedDir, nil
 	}
@@ -66,19 +66,14 @@ func resolvePathInSysrootRec(sysroot, path string, errorOnEscape bool, symlinkRe
 	fileInResolvedDir := dumbJoin(resolvedDir, file)
 
 	realPath := dumbJoin(sysroot, fileInResolvedDir)
-	st, err := os.Lstat(realPath)
-	if err != nil {
-		return "", err
-	}
+	st := mylog.Check2(os.Lstat(realPath))
 
 	if st.Mode()&os.ModeSymlink != 0 {
 		if symlinkRecursion < 0 {
 			return "", fmt.Errorf("maximum recursion reached when reading symlinks")
 		}
-		target, err := os.Readlink(realPath)
-		if err != nil {
-			return "", err
-		}
+		target := mylog.Check2(os.Readlink(realPath))
+
 		if filepath.IsAbs(target) {
 			if errorOnEscape {
 				return "", fmt.Errorf("invalid absolute symlink")

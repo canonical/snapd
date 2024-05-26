@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap/quota"
 )
@@ -32,19 +33,14 @@ import (
 // validated for consistency using ResolveCrossReferences before being returned.
 func AllQuotas(st *state.State) (map[string]*quota.Group, error) {
 	var quotas map[string]*quota.Group
-	if err := st.Get("quotas", &quotas); err != nil {
-		if !errors.Is(err, state.ErrNoState) {
-			return nil, err
-		}
-		// otherwise there are no quotas so just return nil
-		return nil, nil
-	}
+	mylog.Check(st.Get("quotas", &quotas))
+	mylog.Check(
 
-	// quota groups are not serialized with all the necessary tracking
-	// information in the objects, so we need to thread some things around
-	if err := quota.ResolveCrossReferences(quotas); err != nil {
-		return nil, err
-	}
+		// otherwise there are no quotas so just return nil
+
+		// quota groups are not serialized with all the necessary tracking
+		// information in the objects, so we need to thread some things around
+		quota.ResolveCrossReferences(quotas))
 
 	// quotas has now been properly initialized with unexported cross-references
 	return quotas, nil
@@ -60,12 +56,11 @@ func AllQuotas(st *state.State) (map[string]*quota.Group, error) {
 // consistent.
 func PatchQuotas(st *state.State, grps ...*quota.Group) (map[string]*quota.Group, error) {
 	// get the current set of quotas
-	allGrps, err := AllQuotas(st)
-	if err != nil {
-		// AllQuotas() can't return ErrNoState, in that case it just returns a
-		// nil map, which we handle below
-		return nil, err
-	}
+	allGrps := mylog.Check2(AllQuotas(st))
+
+	// AllQuotas() can't return ErrNoState, in that case it just returns a
+	// nil map, which we handle below
+
 	if allGrps == nil {
 		allGrps = make(map[string]*quota.Group)
 	}
@@ -83,33 +78,21 @@ func PatchQuotas(st *state.State, grps ...*quota.Group) (map[string]*quota.Group
 	for _, grp := range grps {
 		allGrps[grp.Name] = grp
 	}
+	mylog.Check(
 
-	// make sure the full set is still resolved before saving it - this prevents
-	// easy errors like trying to add a sub-group quota without updating the
-	// parent with references to the sub-group, for cases like those, all
-	// related groups must be updated at the same time in one operation to
-	// prevent having inconsistent quota groups in state.json
-	if err := quota.ResolveCrossReferences(allGrps); err != nil {
-		// make a nice error message for this case
-		updated := ""
-		for _, grp := range grps[:len(grps)-1] {
-			updated += fmt.Sprintf("%q, ", grp.Name)
-		}
-		updated += fmt.Sprintf("%q", grps[len(grps)-1].Name)
-		plural := ""
-		if len(grps) > 1 {
-			plural = "s"
-		}
-		return nil, fmt.Errorf("cannot update quota%s %s: %v", plural, updated, err)
-	}
+		// make sure the full set is still resolved before saving it - this prevents
+		// easy errors like trying to add a sub-group quota without updating the
+		// parent with references to the sub-group, for cases like those, all
+		// related groups must be updated at the same time in one operation to
+		// prevent having inconsistent quota groups in state.json
+		quota.ResolveCrossReferences(allGrps))
+	// make a nice error message for this case
 
 	// Verify that the update of the new quota groups will result in
 	// correct nesting of groups. Execute this verification after updating
 	// group pointers in ResolveCrossReferences.
 	for _, grp := range grps {
-		if err := grp.ValidateNestingAndSnaps(); err != nil {
-			return nil, fmt.Errorf("cannot update quota %q: %v", grp.Name, err)
-		}
+		mylog.Check(grp.ValidateNestingAndSnaps())
 	}
 
 	st.Set("quotas", allGrps)
@@ -121,21 +104,15 @@ func PatchQuotas(st *state.State, grps ...*quota.Group) (map[string]*quota.Group
 func CreateQuotaInState(st *state.State, quotaName string, parentGrp *quota.Group, snaps, services []string, resourceLimits quota.Resources, allGrps map[string]*quota.Group) (*quota.Group, map[string]*quota.Group, error) {
 	// make sure that the parent group exists if we are creating a sub-group
 	var grp *quota.Group
-	var err error
+
 	updatedGrps := []*quota.Group{}
 	if parentGrp != nil {
-		grp, err = parentGrp.NewSubGroup(quotaName, resourceLimits)
-		if err != nil {
-			return nil, nil, err
-		}
+		grp = mylog.Check2(parentGrp.NewSubGroup(quotaName, resourceLimits))
 
 		updatedGrps = append(updatedGrps, parentGrp)
 	} else {
 		// make a new group
-		grp, err = quota.NewGroup(quotaName, resourceLimits)
-		if err != nil {
-			return nil, nil, err
-		}
+		grp = mylog.Check2(quota.NewGroup(quotaName, resourceLimits))
 	}
 	updatedGrps = append(updatedGrps, grp)
 
@@ -143,10 +120,7 @@ func CreateQuotaInState(st *state.State, quotaName string, parentGrp *quota.Grou
 	grp.Snaps = snaps
 	grp.Services = services
 	// update the modified groups in state
-	newAllGrps, err := PatchQuotas(st, updatedGrps...)
-	if err != nil {
-		return nil, nil, err
-	}
+	newAllGrps := mylog.Check2(PatchQuotas(st, updatedGrps...))
 
 	return grp, newAllGrps, nil
 }

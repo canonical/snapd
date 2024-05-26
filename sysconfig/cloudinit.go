@@ -31,6 +31,7 @@ import (
 
 	yaml "gopkg.in/yaml.v2"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
@@ -56,12 +57,8 @@ func ubuntuDataCloudDir(rootdir string) string {
 // snap.
 func DisableCloudInit(rootDir string) error {
 	ubuntuDataCloud := ubuntuDataCloudDir(rootDir)
-	if err := os.MkdirAll(ubuntuDataCloud, 0755); err != nil {
-		return fmt.Errorf("cannot make cloud config dir: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(ubuntuDataCloud, "cloud-init.disabled"), nil, 0644); err != nil {
-		return fmt.Errorf("cannot disable cloud-init: %v", err)
-	}
+	mylog.Check(os.MkdirAll(ubuntuDataCloud, 0755))
+	mylog.Check(os.WriteFile(filepath.Join(ubuntuDataCloud, "cloud-init.disabled"), nil, 0644))
 
 	return nil
 }
@@ -168,47 +165,30 @@ func filterCloudCfgFile(in string, allowedDatasources []string) (string, error) 
 	//   intersect with what we support
 
 	dstFileName := filepath.Base(in)
-	filteredFile, err := os.CreateTemp("", dstFileName)
-	if err != nil {
-		return "", err
-	}
+	filteredFile := mylog.Check2(os.CreateTemp("", dstFileName))
+
 	defer filteredFile.Close()
 
 	// open the source and unmarshal it as yaml
-	unfilteredFileBytes, err := os.ReadFile(in)
-	if err != nil {
-		return "", err
-	}
+	unfilteredFileBytes := mylog.Check2(os.ReadFile(in))
 
 	var cfg supportedFilteredCloudConfig
-	if err := yaml.Unmarshal(unfilteredFileBytes, &cfg); err != nil {
-		return "", err
-	}
-
-	if err := filterCloudCfg(&cfg, allowedDatasources); err != nil {
-		return "", err
-	}
+	mylog.Check(yaml.Unmarshal(unfilteredFileBytes, &cfg))
+	mylog.Check(filterCloudCfg(&cfg, allowedDatasources))
 
 	// write out cfg to the filtered file now
-	b, err := yaml.Marshal(cfg)
-	if err != nil {
-		return "", err
-	}
+	b := mylog.Check2(yaml.Marshal(cfg))
 
 	// check if we need to write a file at all, if the yaml serialization was
 	// entirely filtered out, then we don't need to write anything
 	if strings.TrimSpace(string(b)) == "{}" {
 		return "", nil
 	}
+	mylog.Check2(
 
-	// add the #cloud-config prefix to all files we write
-	if _, err := filteredFile.Write([]byte("#cloud-config\n")); err != nil {
-		return "", err
-	}
-
-	if _, err := filteredFile.Write(b); err != nil {
-		return "", err
-	}
+		// add the #cloud-config prefix to all files we write
+		filteredFile.Write([]byte("#cloud-config\n")))
+	mylog.Check2(filteredFile.Write(b))
 
 	// use the newly filtered temp file as the source to copy
 	return filteredFile.Name(), nil
@@ -237,15 +217,10 @@ func cloudDatasourcesInUse(configFile string) (*cloudDatasourcesInUseResult, err
 	// TODO: are there other keys in addition to those that we support in
 	// filtering that might mention datasources ?
 
-	b, err := os.ReadFile(configFile)
-	if err != nil {
-		return nil, err
-	}
+	b := mylog.Check2(os.ReadFile(configFile))
 
 	var cfg supportedFilteredCloudConfig
-	if err := yaml.Unmarshal(b, &cfg); err != nil {
-		return nil, err
-	}
+	mylog.Check(yaml.Unmarshal(b, &cfg))
 
 	res := &cloudDatasourcesInUseResult{}
 
@@ -300,10 +275,7 @@ func cloudDatasourcesInUse(configFile string) (*cloudDatasourcesInUseResult, err
 // used instead and the explicit disallowing is ignored/overwritten.
 func cloudDatasourcesInUseForDir(dir string) (*cloudDatasourcesInUseResult, error) {
 	// cloud-init only considers files with file extension .cfg so we do too.
-	files, err := filepath.Glob(filepath.Join(dir, "*.cfg"))
-	if err != nil {
-		return nil, err
-	}
+	files := mylog.Check2(filepath.Glob(filepath.Join(dir, "*.cfg")))
 
 	// sort the filenames so they are in lexographical order - this is the same
 	// order that cloud-init processes them
@@ -314,12 +286,8 @@ func cloudDatasourcesInUseForDir(dir string) (*cloudDatasourcesInUseResult, erro
 	resMentionedMap := map[string]bool{}
 
 	for _, f := range files {
-		fRes, err := cloudDatasourcesInUse(f)
+		fRes := mylog.Check2(cloudDatasourcesInUse(f))
 		// TODO: or should we fail on broken individual files? probably?
-		if err != nil {
-			logger.Noticef("error analyzing cloud-init datasources in use for file %s: %v", f, err)
-			continue
-		}
 
 		// if we have an explicit setting for what is allowed, then that always
 		// overwrites previous settings of ExplicitlyAllowed
@@ -375,18 +343,14 @@ func installCloudInitCfgDir(src, targetdir string, opts *cloudInitConfigInstallO
 	}
 
 	// TODO:UC20: enforce patterns on the glob files and their suffix ranges
-	ccl, err := filepath.Glob(filepath.Join(src, "*.cfg"))
-	if err != nil {
-		return nil, err
-	}
+	ccl := mylog.Check2(filepath.Glob(filepath.Join(src, "*.cfg")))
+
 	if len(ccl) == 0 {
 		return nil, nil
 	}
 
 	ubuntuDataCloudCfgDir := filepath.Join(ubuntuDataCloudDir(targetdir), "cloud.cfg.d/")
-	if err := os.MkdirAll(ubuntuDataCloudCfgDir, 0755); err != nil {
-		return nil, fmt.Errorf("cannot make cloud config dir: %v", err)
-	}
+	mylog.Check(os.MkdirAll(ubuntuDataCloudCfgDir, 0755))
 
 	for _, cc := range ccl {
 		src := cc
@@ -394,10 +358,8 @@ func installCloudInitCfgDir(src, targetdir string, opts *cloudInitConfigInstallO
 		dst := filepath.Join(ubuntuDataCloudCfgDir, opts.Prefix+baseName)
 
 		if opts.Filter {
-			filteredFile, err := filterCloudCfgFile(cc, opts.AllowedDatasources)
-			if err != nil {
-				return nil, fmt.Errorf("error while filtering cloud-config file %s: %v", baseName, err)
-			}
+			filteredFile := mylog.Check2(filterCloudCfgFile(cc, opts.AllowedDatasources))
+
 			src = filteredFile
 		}
 
@@ -408,16 +370,12 @@ func installCloudInitCfgDir(src, targetdir string, opts *cloudInitConfigInstallO
 			logger.Noticef("cloud-init config file %s was filtered out", baseName)
 			continue
 		}
+		mylog.Check(osutil.CopyFile(src, dst, 0))
+		mylog.Check(
 
-		if err := osutil.CopyFile(src, dst, 0); err != nil {
-			return nil, err
-		}
-
-		// make sure that the new file is world readable, since cloud-init does
-		// not run as root (somehow?)
-		if err := os.Chmod(dst, 0644); err != nil {
-			return nil, err
-		}
+			// make sure that the new file is world readable, since cloud-init does
+			// not run as root (somehow?)
+			os.Chmod(dst, 0644))
 
 		installedFiles = append(installedFiles, dst)
 	}
@@ -431,19 +389,13 @@ func installCloudInitCfgDir(src, targetdir string, opts *cloudInitConfigInstallO
 // cloud-config.
 func installGadgetCloudInitCfg(src, targetdir string) (*cloudDatasourcesInUseResult, error) {
 	ubuntuDataCloudCfgDir := filepath.Join(ubuntuDataCloudDir(targetdir), "cloud.cfg.d/")
-	if err := os.MkdirAll(ubuntuDataCloudCfgDir, 0755); err != nil {
-		return nil, fmt.Errorf("cannot make cloud config dir: %v", err)
-	}
+	mylog.Check(os.MkdirAll(ubuntuDataCloudCfgDir, 0755))
 
-	datasourcesRes, err := cloudDatasourcesInUse(src)
-	if err != nil {
-		return nil, err
-	}
+	datasourcesRes := mylog.Check2(cloudDatasourcesInUse(src))
 
 	configFile := filepath.Join(ubuntuDataCloudCfgDir, "80_device_gadget.cfg")
-	if err := osutil.CopyFile(src, configFile, 0); err != nil {
-		return nil, err
-	}
+	mylog.Check(osutil.CopyFile(src, configFile, 0))
+
 	return datasourcesRes, nil
 }
 
@@ -475,10 +427,7 @@ func configureCloudInit(model *asserts.Model, opts *Options) (err error) {
 		// then copy / install the gadget config first
 		gadgetCloudConf := filepath.Join(opts.GadgetDir, "cloud.conf")
 
-		datasourcesRes, err := installGadgetCloudInitCfg(gadgetCloudConf, WritableDefaultsDir(opts.TargetRootDir))
-		if err != nil {
-			return err
-		}
+		datasourcesRes := mylog.Check2(installGadgetCloudInitCfg(gadgetCloudConf, WritableDefaultsDir(opts.TargetRootDir)))
 
 		gadgetDatasourcesRes = datasourcesRes
 
@@ -521,10 +470,7 @@ func configureCloudInit(model *asserts.Model, opts *Options) (err error) {
 		// compare this with the datasource(s) we support through the gadget and
 		// in supportedFilteredDatasources
 
-		ubuntuSeedDatasourceRes, err := cloudDatasourcesInUseForDir(opts.CloudInitSrcDir)
-		if err != nil {
-			return err
-		}
+		ubuntuSeedDatasourceRes := mylog.Check2(cloudDatasourcesInUseForDir(opts.CloudInitSrcDir))
 
 		// handle the various permutations for the datasources mentioned in the
 		// gadget
@@ -638,10 +584,7 @@ func configureCloudInit(model *asserts.Model, opts *Options) (err error) {
 	// and there are some files that will be filtered, or where we are not
 	// filtering and thus don't know anything about what files we might install,
 	// but we will install them all because we are in grade dangerous
-	installedFiles, err := installCloudInitCfgDir(opts.CloudInitSrcDir, WritableDefaultsDir(opts.TargetRootDir), installOpts)
-	if err != nil {
-		return err
-	}
+	installedFiles := mylog.Check2(installCloudInitCfgDir(opts.CloudInitSrcDir, WritableDefaultsDir(opts.TargetRootDir), installOpts))
 
 	if installOpts.Filter && len(installedFiles) != 0 {
 		// we are filtering files and we installed some, so we also need to
@@ -742,13 +685,9 @@ func CloudInitStatus() (CloudInitState, error) {
 		return CloudInitDisabledPermanently, nil
 	}
 
-	ciBinary, err := exec.LookPath("cloud-init")
-	if err != nil {
-		logger.Noticef("cannot locate cloud-init executable: %v", err)
-		return CloudInitNotFound, nil
-	}
+	ciBinary := mylog.Check2(exec.LookPath("cloud-init"))
 
-	out, stderr, err := osutil.RunSplitOutput(ciBinary, "status")
+	out, stderr := mylog.Check3(osutil.RunSplitOutput(ciBinary, "status"))
 
 	// in the case where cloud-init is actually in an error condition, like
 	// where MAAS is the datasource but there is no MAAS server for example,
@@ -760,22 +699,12 @@ func CloudInitStatus() (CloudInitState, error) {
 	match := cloudInitStatusRe.FindSubmatch(out)
 	if len(match) != 2 {
 		// check if running the command had an error, if it did then return that
-		if err != nil {
-			return CloudInitErrored, osutil.OutputErrCombine(out, stderr, err)
-		}
+
 		// otherwise we had some sort of malformed output
 		return CloudInitErrored, fmt.Errorf("invalid cloud-init output: %v", osutil.OutputErrCombine(out, stderr, err))
 	}
 
 	hasError := false
-	if err != nil {
-		exitError, isExitError := err.(*exec.ExitError)
-		if isExitError && exitError.ExitCode() == 2 {
-			logger.Noticef("cloud-init status returned 'recoverable error' status: cloud-init completed but experienced errors")
-		} else {
-			hasError = true
-		}
-	}
 
 	// otherwise we had a successful match, but we need to check if the status
 	// command errored itself
@@ -893,17 +822,12 @@ func RestrictCloudInit(state CloudInitState, opts *CloudInitRestrictOptions) (Cl
 	// first get the cloud-init data-source that was used from /
 	resultsFile := filepath.Join(dirs.GlobalRootDir, "/run/cloud-init/status.json")
 
-	f, err := os.Open(resultsFile)
-	if err != nil {
-		return res, err
-	}
+	f := mylog.Check2(os.Open(resultsFile))
+
 	defer f.Close()
 
 	var stat cloudInitStatus
-	err = json.NewDecoder(f).Decode(&stat)
-	if err != nil {
-		return res, err
-	}
+	mylog.Check(json.NewDecoder(f).Decode(&stat))
 
 	// if the datasource was empty then cloud-init did something wrong or
 	// perhaps it incorrectly reported that it ran but something else deleted
@@ -933,20 +857,21 @@ func RestrictCloudInit(state CloudInitState, opts *CloudInitRestrictOptions) (Cl
 
 		// as such, change the action taken to disable and disable cloud-init
 		res.Action = "disable"
-		err = DisableCloudInit(dirs.GlobalRootDir)
+		mylog.Check(DisableCloudInit(dirs.GlobalRootDir))
 	case res.DataSource == "NoCloud":
-		// With the NoCloud datasource (which is one of the local datasources),
-		// we also need to restrict/disable the import of arbitrary filesystem
-		// labels to use as datasources, i.e. a USB drive inserted by an
-		// attacker with label CIDATA will defeat security measures on Ubuntu
-		// Core, so with the additional fs_label spec, we disable that import.
-		err = os.WriteFile(cloudInitRestrictFile, nocloudRestrictYaml, 0644)
+		mylog.
+			// With the NoCloud datasource (which is one of the local datasources),
+			// we also need to restrict/disable the import of arbitrary filesystem
+			// labels to use as datasources, i.e. a USB drive inserted by an
+			// attacker with label CIDATA will defeat security measures on Ubuntu
+			// Core, so with the additional fs_label spec, we disable that import.
+			Check(os.WriteFile(cloudInitRestrictFile, nocloudRestrictYaml, 0644))
 	default:
 		// all other cases are either not local on UC20, or not NoCloud and as
 		// such we simply restrict cloud-init to the specific datasource used so
 		// that an attack via NoCloud is protected against
 		yaml := []byte(fmt.Sprintf(genericCloudRestrictYamlPattern, res.DataSource))
-		err = os.WriteFile(cloudInitRestrictFile, yaml, 0644)
+		mylog.Check(os.WriteFile(cloudInitRestrictFile, yaml, 0644))
 	}
 
 	return res, err

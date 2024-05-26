@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/configstate"
@@ -48,8 +49,9 @@ type getCommand struct {
 	Typed    bool `short:"t" description:"strict typing with nulls and quoted strings"`
 }
 
-var shortGetHelp = i18n.G("Print either configuration options or interface connection settings")
-var longGetHelp = i18n.G(`
+var (
+	shortGetHelp = i18n.G("Print either configuration options or interface connection settings")
+	longGetHelp  = i18n.G(`
 The get command prints configuration options for the current snap.
 
     $ snapctl get username
@@ -83,6 +85,7 @@ with optional --plug and --slot command options:
 This requests the "usb-vendor" setting from the slot that is connected to
 "myplug".
 `)
+)
 
 func init() {
 	addCommand("get", shortGetHelp, longGetHelp, func() command {
@@ -93,7 +96,7 @@ func init() {
 func (c *getCommand) printValues(getByKey func(string) (interface{}, bool, error)) error {
 	patch := make(map[string]interface{})
 	for _, key := range c.Positional.Keys {
-		value, output, err := getByKey(key)
+		value, output := mylog.Check3(getByKey(key))
 		if err == nil {
 			if output {
 				patch[key] = value
@@ -120,11 +123,7 @@ func (c *getCommand) printValues(getByKey func(string) (interface{}, bool, error
 
 	var bytes []byte
 	if confToPrint != nil {
-		var err error
-		bytes, err = json.MarshalIndent(confToPrint, "", "\t")
-		if err != nil {
-			return err
-		}
+		bytes = mylog.Check2(json.MarshalIndent(confToPrint, "", "\t"))
 	}
 
 	c.printf("%s\n", string(bytes))
@@ -137,10 +136,7 @@ func (c *getCommand) Execute(args []string) error {
 		return fmt.Errorf(i18n.G("get which option?"))
 	}
 
-	context, err := c.ensureContext()
-	if err != nil {
-		return err
-	}
+	context := mylog.Check2(c.ensureContext())
 
 	if c.Typed && c.Document {
 		return fmt.Errorf("cannot use -d and -t together")
@@ -180,7 +176,7 @@ func (c *getCommand) getConfigSetting(context *hookstate.Context) error {
 
 	return c.printValues(func(key string) (interface{}, bool, error) {
 		var value interface{}
-		err := transaction.Get(c.context().InstanceName(), key, &value)
+		mylog.Check(transaction.Get(c.context().InstanceName(), key, &value))
 		if err == nil {
 			return value, true, nil
 		}
@@ -237,21 +233,19 @@ func validatePlugOrSlot(attrsTask *state.Task, plugSide bool, plugOrSlot string)
 	defer attrsTask.State().Unlock()
 
 	var name string
-	var err error
+
 	if plugSide {
 		var plugRef interfaces.PlugRef
-		if err = attrsTask.Get("plug", &plugRef); err == nil {
+		if mylog.Check(attrsTask.Get("plug", &plugRef)); err == nil {
 			name = plugRef.Name
 		}
 	} else {
 		var slotRef interfaces.SlotRef
-		if err = attrsTask.Get("slot", &slotRef); err == nil {
+		if mylog.Check(attrsTask.Get("slot", &slotRef)); err == nil {
 			name = slotRef.Name
 		}
 	}
-	if err != nil {
-		return fmt.Errorf(i18n.G("internal error: cannot find plug or slot data in the appropriate task"))
-	}
+
 	if name != plugOrSlot {
 		return fmt.Errorf(i18n.G("unknown plug or slot %q"), plugOrSlot)
 	}
@@ -262,10 +256,7 @@ func attributesTask(context *hookstate.Context) (*state.Task, error) {
 	var attrsTaskID string
 	context.Lock()
 	defer context.Unlock()
-
-	if err := context.Get("attrs-task", &attrsTaskID); err != nil {
-		return nil, err
-	}
+	mylog.Check(context.Get("attrs-task", &attrsTaskID))
 
 	st := context.State()
 
@@ -279,25 +270,17 @@ func attributesTask(context *hookstate.Context) (*state.Task, error) {
 
 func (c *getCommand) getInterfaceSetting(context *hookstate.Context, plugOrSlot string) error {
 	// Make sure get :<plug|slot> is only supported during the execution of interface hooks
-	hookType, err := interfaceHookType(context.HookName())
-	if err != nil {
-		return fmt.Errorf(i18n.G("interface attributes can only be read during the execution of interface hooks"))
-	}
+	hookType := mylog.Check2(interfaceHookType(context.HookName()))
 
 	var attrsTask *state.Task
-	attrsTask, err = attributesTask(context)
-	if err != nil {
-		return err
-	}
+	attrsTask = mylog.Check2(attributesTask(context))
 
 	if c.ForcePlugSide && c.ForceSlotSide {
 		return fmt.Errorf("cannot use --plug and --slot together")
 	}
 
 	isPlugSide := (hookType == preparePlugHook || hookType == unpreparePlugHook || hookType == connectPlugHook || hookType == disconnectPlugHook)
-	if err = validatePlugOrSlot(attrsTask, isPlugSide, plugOrSlot); err != nil {
-		return err
-	}
+	mylog.Check(validatePlugOrSlot(attrsTask, isPlugSide, plugOrSlot))
 
 	var which string
 	if c.ForcePlugSide || (isPlugSide && !c.ForceSlotSide) {
@@ -311,26 +294,19 @@ func (c *getCommand) getInterfaceSetting(context *hookstate.Context, plugOrSlot 
 	defer st.Unlock()
 
 	var staticAttrs, dynamicAttrs map[string]interface{}
-	if err = attrsTask.Get(which+"-static", &staticAttrs); err != nil {
-		return fmt.Errorf(i18n.G("internal error: cannot get %s from appropriate task"), which)
-	}
-	if err = attrsTask.Get(which+"-dynamic", &dynamicAttrs); err != nil {
-		return fmt.Errorf(i18n.G("internal error: cannot get %s from appropriate task"), which)
-	}
+	mylog.Check(attrsTask.Get(which+"-static", &staticAttrs))
+	mylog.Check(attrsTask.Get(which+"-dynamic", &dynamicAttrs))
 
 	return c.printValues(func(key string) (interface{}, bool, error) {
-		subkeys, err := config.ParseKey(key)
-		if err != nil {
-			return nil, false, err
-		}
+		subkeys := mylog.Check2(config.ParseKey(key))
 
 		var value interface{}
-		err = getAttribute(context.InstanceName(), subkeys, 0, staticAttrs, &value)
+		mylog.Check(getAttribute(context.InstanceName(), subkeys, 0, staticAttrs, &value))
 		if err == nil {
 			return value, true, nil
 		}
 		if isNoAttribute(err) {
-			err = getAttribute(context.InstanceName(), subkeys, 0, dynamicAttrs, &value)
+			mylog.Check(getAttribute(context.InstanceName(), subkeys, 0, dynamicAttrs, &value))
 			if err == nil {
 				return value, true, nil
 			}

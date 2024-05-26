@@ -26,6 +26,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/godbus/dbus"
 
 	"github.com/snapcore/snapd/dirs"
@@ -145,21 +146,14 @@ func (s *Settings) IntrospectionData() string {
 
 func safeSnapFromSender(s *Settings, sender dbus.Sender) (string, *dbus.Error) {
 	// avoid information leak: see https://github.com/snapcore/snapd/pull/4073#discussion_r146682758
-	snap, err := snapFromSender(s.conn, sender)
-	if err != nil {
-		return "", dbus.MakeFailedError(err)
-	}
+	snap := mylog.Check2(snapFromSender(s.conn, sender))
+
 	return snap, nil
 }
 
 func desktopFileFromValueForSetting(s *Settings, command string, setspec *settingSpec, dotDesktopValue string, sender dbus.Sender) (string, *dbus.Error) {
-	snap, err := safeSnapFromSender(s, sender)
-	if err != nil {
-		return "", err
-	}
-	if err := setspec.validate(); err != nil {
-		return "", err
-	}
+	snap := mylog.Check2(safeSnapFromSender(s, sender))
+	mylog.Check(setspec.validate())
 
 	if !allowedSetting(dotDesktopValue) {
 		return "", dbus.MakeFailedError(fmt.Errorf("cannot %s %s setting to invalid value %q", command, setspec, dotDesktopValue))
@@ -171,10 +165,8 @@ func desktopFileFromValueForSetting(s *Settings, command string, setspec *settin
 }
 
 func desktopFileFromOutput(s *Settings, output string, sender dbus.Sender) (string, *dbus.Error) {
-	snap, err := safeSnapFromSender(s, sender)
-	if err != nil {
-		return "", err
-	}
+	snap := mylog.Check2(safeSnapFromSender(s, sender))
+
 	if !strings.HasPrefix(output, snap+"_") {
 		return "NOT-THIS-SNAP.desktop", nil
 	}
@@ -202,10 +194,7 @@ func setDialog(s *Settings, setspec *settingSpec, desktopFile string, sender dbu
 		return dbus.MakeFailedError(fmt.Errorf("cannot ask for settings change: %v", uiErr))
 	}
 
-	snap, err := safeSnapFromSender(s, sender)
-	if err != nil {
-		return err
-	}
+	snap := mylog.Check2(safeSnapFromSender(s, sender))
 
 	answeredYes := dialog.YesNo(
 		i18n.G("Allow settings change?"),
@@ -222,10 +211,8 @@ func setDialog(s *Settings, setspec *settingSpec, desktopFile string, sender dbu
 }
 
 func checkOutput(cmd *exec.Cmd, command string, setspec *settingSpec) (string, *dbus.Error) {
-	output, stderr, err := osutil.RunCmd(cmd)
-	if err != nil {
-		return "", dbus.MakeFailedError(fmt.Errorf("cannot %s %s setting: %s", command, setspec, osutil.OutputErrCombine(output, stderr, err)))
-	}
+	output, stderr := mylog.Check3(osutil.RunCmd(cmd))
+
 	return string(output), nil
 }
 
@@ -234,21 +221,13 @@ func checkOutput(cmd *exec.Cmd, command string, setspec *settingSpec) (string, *
 //
 // Example usage: dbus-send --session --dest=io.snapcraft.Settings --type=method_call --print-reply /io/snapcraft/Settings io.snapcraft.Settings.Check string:'default-web-browser' string:'firefox.desktop'
 func (s *Settings) Check(setting string, check string, sender dbus.Sender) (string, *dbus.Error) {
-	if err := checkOnClassic(); err != nil {
-		return "", err
-	}
+	mylog.Check(checkOnClassic())
 
 	settingMain := &settingSpec{setting: setting}
-	desktopFile, err := desktopFileFromValueForSetting(s, "check", settingMain, check, sender)
-	if err != nil {
-		return "", err
-	}
+	desktopFile := mylog.Check2(desktopFileFromValueForSetting(s, "check", settingMain, check, sender))
 
 	cmd := exec.Command("xdg-settings", "check", setting, desktopFile)
-	output, err := checkOutput(cmd, "check", settingMain)
-	if err != nil {
-		return "", err
-	}
+	output := mylog.Check2(checkOutput(cmd, "check", settingMain))
 
 	return strings.TrimSpace(output), nil
 }
@@ -258,21 +237,13 @@ func (s *Settings) Check(setting string, check string, sender dbus.Sender) (stri
 //
 // Example usage: dbus-send --session --dest=io.snapcraft.Settings --type=method_call --print-reply /io/snapcraft/Settings io.snapcraft.Settings.CheckSub string:'default-url-scheme-handler' string:'irc' string:'ircclient.desktop'
 func (s *Settings) CheckSub(setting string, subproperty string, check string, sender dbus.Sender) (string, *dbus.Error) {
-	if err := checkOnClassic(); err != nil {
-		return "", err
-	}
+	mylog.Check(checkOnClassic())
 
 	settingSub := &settingSpec{setting: setting, subproperty: subproperty}
-	desktopFile, err := desktopFileFromValueForSetting(s, "check", settingSub, check, sender)
-	if err != nil {
-		return "", err
-	}
+	desktopFile := mylog.Check2(desktopFileFromValueForSetting(s, "check", settingSub, check, sender))
 
 	cmd := exec.Command("xdg-settings", "check", setting, subproperty, desktopFile)
-	output, err := checkOutput(cmd, "check", settingSub)
-	if err != nil {
-		return "", err
-	}
+	output := mylog.Check2(checkOutput(cmd, "check", settingSub))
 
 	return strings.TrimSpace(output), nil
 }
@@ -282,20 +253,13 @@ func (s *Settings) CheckSub(setting string, subproperty string, check string, se
 //
 // Example usage: dbus-send --session --dest=io.snapcraft.Settings --type=method_call --print-reply /io/snapcraft/Settings io.snapcraft.Settings.Get string:'default-web-browser'
 func (s *Settings) Get(setting string, sender dbus.Sender) (string, *dbus.Error) {
-	if err := checkOnClassic(); err != nil {
-		return "", err
-	}
+	mylog.Check(checkOnClassic())
 
 	settingMain := &settingSpec{setting: setting}
-	if err := settingMain.validate(); err != nil {
-		return "", err
-	}
+	mylog.Check(settingMain.validate())
 
 	cmd := exec.Command("xdg-settings", "get", setting)
-	output, err := checkOutput(cmd, "get", settingMain)
-	if err != nil {
-		return "", err
-	}
+	output := mylog.Check2(checkOutput(cmd, "get", settingMain))
 
 	return desktopFileFromOutput(s, output, sender)
 }
@@ -305,20 +269,13 @@ func (s *Settings) Get(setting string, sender dbus.Sender) (string, *dbus.Error)
 //
 // Example usage: dbus-send --session --dest=io.snapcraft.Settings --type=method_call --print-reply /io/snapcraft/Settings io.snapcraft.Settings.GetSub string:'default-url-scheme-handler' string:'irc'
 func (s *Settings) GetSub(setting string, subproperty string, sender dbus.Sender) (string, *dbus.Error) {
-	if err := checkOnClassic(); err != nil {
-		return "", err
-	}
+	mylog.Check(checkOnClassic())
 
 	settingSub := &settingSpec{setting: setting, subproperty: subproperty}
-	if err := settingSub.validate(); err != nil {
-		return "", err
-	}
+	mylog.Check(settingSub.validate())
 
 	cmd := exec.Command("xdg-settings", "get", setting, subproperty)
-	output, err := checkOutput(cmd, "get", settingSub)
-	if err != nil {
-		return "", err
-	}
+	output := mylog.Check2(checkOutput(cmd, "get", settingSub))
 
 	return desktopFileFromOutput(s, output, sender)
 }
@@ -328,24 +285,14 @@ func (s *Settings) GetSub(setting string, subproperty string, sender dbus.Sender
 //
 // Example usage: dbus-send --session --dest=io.snapcraft.Settings --type=method_call --print-reply /io/snapcraft/Settings io.snapcraft.Settings.Set string:'default-web-browser' string:'chromium-browser.desktop'
 func (s *Settings) Set(setting string, new string, sender dbus.Sender) *dbus.Error {
-	if err := checkOnClassic(); err != nil {
-		return err
-	}
+	mylog.Check(checkOnClassic())
 
 	settingMain := &settingSpec{setting: setting}
-	desktopFile, err := desktopFileFromValueForSetting(s, "set", settingMain, new, sender)
-	if err != nil {
-		return err
-	}
-
-	if err := setDialog(s, settingMain, desktopFile, sender); err != nil {
-		return err
-	}
+	desktopFile := mylog.Check2(desktopFileFromValueForSetting(s, "set", settingMain, new, sender))
+	mylog.Check(setDialog(s, settingMain, desktopFile, sender))
 
 	cmd := exec.Command("xdg-settings", "set", setting, desktopFile)
-	if _, err := checkOutput(cmd, "set", settingMain); err != nil {
-		return err
-	}
+	mylog.Check2(checkOutput(cmd, "set", settingMain))
 
 	return nil
 }
@@ -355,24 +302,14 @@ func (s *Settings) Set(setting string, new string, sender dbus.Sender) *dbus.Err
 //
 // Example usage: dbus-send --session --dest=io.snapcraft.Settings --type=method_call --print-reply /io/snapcraft/Settings io.snapcraft.Settings.SetSub string:'default-url-scheme-handler' string:'irc' string:'ircclient.desktop'
 func (s *Settings) SetSub(setting string, subproperty string, new string, sender dbus.Sender) *dbus.Error {
-	if err := checkOnClassic(); err != nil {
-		return err
-	}
+	mylog.Check(checkOnClassic())
 
 	settingSub := &settingSpec{setting: setting, subproperty: subproperty}
-	desktopFile, err := desktopFileFromValueForSetting(s, "set", settingSub, new, sender)
-	if err != nil {
-		return err
-	}
-
-	if err := setDialog(s, settingSub, desktopFile, sender); err != nil {
-		return err
-	}
+	desktopFile := mylog.Check2(desktopFileFromValueForSetting(s, "set", settingSub, new, sender))
+	mylog.Check(setDialog(s, settingSub, desktopFile, sender))
 
 	cmd := exec.Command("xdg-settings", "set", setting, subproperty, desktopFile)
-	if _, err := checkOutput(cmd, "set", settingSub); err != nil {
-		return err
-	}
+	mylog.Check2(checkOutput(cmd, "set", settingSub))
 
 	return nil
 }

@@ -25,6 +25,7 @@ import (
 	. "gopkg.in/check.v1"
 	"gopkg.in/yaml.v2"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/gadget/edition"
 )
 
@@ -53,7 +54,7 @@ func (s *editionSuite) TestUnmarshalIntegration(c *C) {
 		{"edition: 3.14", edition.Number(0), `"edition" must be a positive number, not "3.14"`},
 	} {
 		var en editionStruct
-		err := yaml.Unmarshal([]byte(tc.input), &en)
+		mylog.Check(yaml.Unmarshal([]byte(tc.input), &en))
 		if tc.expectedErr != "" {
 			c.Assert(err, ErrorMatches, tc.expectedErr, Commentf(tc.input))
 		} else {

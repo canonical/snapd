@@ -22,6 +22,7 @@ package client_test
 import (
 	"encoding/json"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"gopkg.in/check.v1"
 )
 
@@ -53,12 +54,12 @@ func (cs *clientSuite) TestClientSetConf(c *check.C) {
 		"result": { },
 		"change": "foo"
 	}`
-	id, err := cs.cli.SetConf("snap-name", map[string]interface{}{"key": "value"})
+	id := mylog.Check2(cs.cli.SetConf("snap-name", map[string]interface{}{"key": "value"}))
 	c.Assert(err, check.IsNil)
 	c.Check(id, check.Equals, "foo")
 	var body map[string]interface{}
 	decoder := json.NewDecoder(cs.req.Body)
-	err = decoder.Decode(&body)
+	mylog.Check(decoder.Decode(&body))
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"key": "value",
@@ -71,7 +72,7 @@ func (cs *clientSuite) TestClientGetConf(c *check.C) {
 		"status-code": 200,
 		"result": {"test-key": "test-value"}
 	}`
-	value, err := cs.cli.Conf("snap-name", []string{"test-key"})
+	value := mylog.Check2(cs.cli.Conf("snap-name", []string{"test-key"}))
 	c.Assert(err, check.IsNil)
 	c.Check(value, check.DeepEquals, map[string]interface{}{"test-key": "test-value"})
 }
@@ -82,7 +83,7 @@ func (cs *clientSuite) TestClientGetConfBigInt(c *check.C) {
 		"status-code": 200,
 		"result": {"test-key": 1234567890}
 	}`
-	value, err := cs.cli.Conf("snap-name", []string{"test-key"})
+	value := mylog.Check2(cs.cli.Conf("snap-name", []string{"test-key"}))
 	c.Assert(err, check.IsNil)
 	c.Check(value, check.DeepEquals, map[string]interface{}{"test-key": json.Number("1234567890")})
 }
@@ -96,7 +97,7 @@ func (cs *clientSuite) TestClientGetConfMultipleKeys(c *check.C) {
 			"test-key2": "test-value2"
 		}
 	}`
-	value, err := cs.cli.Conf("snap-name", []string{"test-key1", "test-key2"})
+	value := mylog.Check2(cs.cli.Conf("snap-name", []string{"test-key1", "test-key2"}))
 	c.Assert(err, check.IsNil)
 	c.Check(value, check.DeepEquals, map[string]interface{}{
 		"test-key1": "test-value1",

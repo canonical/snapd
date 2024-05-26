@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
@@ -67,9 +68,8 @@ func init() {
 
 func requestLoginWith2faRetry(cli *client.Client, email, password string) error {
 	var otp []byte
-	var err error
 
-	var msgs = [3]string{
+	msgs := [3]string{
 		i18n.G("Two-factor code: "),
 		i18n.G("Bad code. Try again: "),
 		i18n.G("Wrong again. Once more: "),
@@ -79,7 +79,7 @@ func requestLoginWith2faRetry(cli *client.Client, email, password string) error 
 
 	for i := 0; ; i++ {
 		// first try is without otp
-		_, err = cli.Login(email, password, string(otp))
+		_ = mylog.Check2(cli.Login(email, password, string(otp)))
 		if i >= len(msgs) || !client.IsTwoFactorError(err) {
 			return err
 		}
@@ -87,20 +87,15 @@ func requestLoginWith2faRetry(cli *client.Client, email, password string) error 
 		reader.Reset(Stdin)
 		fmt.Fprint(Stdout, msgs[i])
 		// the browser shows it as well (and Sergio wants to see it ;)
-		otp, _, err = reader.ReadLine()
-		if err != nil {
-			return err
-		}
+		otp, _ = mylog.Check3(reader.ReadLine())
+
 	}
 }
 
 func requestLogin(cli *client.Client, email string) error {
 	fmt.Fprintf(Stdout, i18n.G("Password of %q: "), email)
-	password, err := ReadPassword(0)
+	password := mylog.Check2(ReadPassword(0))
 	fmt.Fprint(Stdout, "\n")
-	if err != nil {
-		return err
-	}
 
 	// strings.TrimSpace needed because we get \r from the pty in the tests
 	return requestLoginWith2faRetry(cli, email, strings.TrimSpace(string(password)))
@@ -111,24 +106,19 @@ func (x *cmdLogin) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	//TRANSLATORS: after the "... at" follows a URL in the next line
+	// TRANSLATORS: after the "... at" follows a URL in the next line
 	fmt.Fprint(Stdout, i18n.G("Personal information is handled as per our privacy notice at\n"))
 	fmt.Fprint(Stdout, "https://www.ubuntu.com/legal/dataprivacy/snap-store\n\n")
 
 	email := x.Positional.Email
 	if email == "" {
 		fmt.Fprint(Stdout, i18n.G("Email address: "))
-		in, _, err := bufio.NewReader(Stdin).ReadLine()
-		if err != nil {
-			return err
-		}
+		in, _ := mylog.Check3(bufio.NewReader(Stdin).ReadLine())
+
 		email = string(in)
 	}
+	mylog.Check(requestLogin(x.client, email))
 
-	err := requestLogin(x.client, email)
-	if err != nil {
-		return err
-	}
 	fmt.Fprintln(Stdout, i18n.G("Login successful"))
 
 	return nil

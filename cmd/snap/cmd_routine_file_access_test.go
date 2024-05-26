@@ -29,6 +29,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 	snap "github.com/snapcore/snapd/cmd/snap"
 )
@@ -45,8 +46,8 @@ func (s *SnapRoutineFileAccessSuite) SetUpTest(c *C) {
 	s.BaseSnapSuite.SetUpTest(c)
 
 	s.fakeHome = c.MkDir()
-	u, err := user.Current()
-	c.Assert(err, IsNil)
+	u := mylog.Check2(user.Current())
+
 	s.AddCleanup(snap.MockUserCurrent(func() (*user.User, error) {
 		return &user.User{Uid: u.Uid, HomeDir: s.fakeHome}, nil
 	}))
@@ -108,8 +109,8 @@ func (s *SnapRoutineFileAccessSuite) setUpClient(c *C, isClassic, hasHome, hasRe
 }
 
 func (s *SnapRoutineFileAccessSuite) checkAccess(c *C, path, access string) {
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"routine", "file-access", "hello", path})
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"routine", "file-access", "hello", path}))
+
 	c.Check(s.Stdout(), Equals, access)
 	c.Check(s.Stderr(), Equals, "")
 	s.ResetStdStreams()

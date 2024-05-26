@@ -28,6 +28,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	snap "github.com/snapcore/snapd/cmd/snap"
 	"github.com/snapcore/snapd/dirs"
 )
@@ -57,8 +58,8 @@ func (s *SnapSuite) TestRemodelOffline(c *C) {
 		w.WriteHeader(202)
 
 		var req map[string]interface{}
-		err := json.NewDecoder(r.Body).Decode(&req)
-		c.Assert(err, IsNil)
+		mylog.Check(json.NewDecoder(r.Body).Decode(&req))
+
 
 		c.Check(req["offline"], Equals, true)
 
@@ -67,12 +68,12 @@ func (s *SnapSuite) TestRemodelOffline(c *C) {
 	})
 
 	modelPath := filepath.Join(dirs.GlobalRootDir, "new-model")
-	err := os.WriteFile(modelPath, []byte("snap1"), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(modelPath, []byte("snap1"), 0644))
 
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"remodel", "--no-wait", "--offline", modelPath})
 
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"remodel", "--no-wait", "--offline", modelPath}))
+
+
 	c.Assert(rest, DeepEquals, []string{})
 	c.Assert(n, Equals, 1)
 
@@ -93,17 +94,16 @@ func (s *SnapSuite) TestRemodelLocalSnapsOk(c *C) {
 		n++
 	})
 
-	var err error
 	modelPath := filepath.Join(dirs.GlobalRootDir, "new-model")
-	err = os.WriteFile(modelPath, []byte("snap1"), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(modelPath, []byte("snap1"), 0644))
+
 	snapPath := filepath.Join(dirs.GlobalRootDir, "snap1.snap")
-	err = os.WriteFile(snapPath, []byte("snap1"), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(snapPath, []byte("snap1"), 0644))
 
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"remodel", "--no-wait", "--snap", snapPath, modelPath})
 
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"remodel", "--no-wait", "--snap", snapPath, modelPath}))
+
+
 	c.Assert(rest, DeepEquals, []string{})
 	c.Assert(n, Equals, 1)
 
@@ -124,15 +124,14 @@ func (s *SnapSuite) TestRemodelLocalSnapsError(c *C) {
 		n++
 	})
 
-	var err error
 	modelPath := filepath.Join(dirs.GlobalRootDir, "new-model")
-	err = os.WriteFile(modelPath, []byte("snap1"), 0644)
-	c.Assert(err, IsNil)
-	snapPath := filepath.Join(dirs.GlobalRootDir, "snap1.snap")
-	err = os.WriteFile(snapPath, []byte("snap1"), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(modelPath, []byte("snap1"), 0644))
 
-	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"remodel", "--no-wait", "--snap", snapPath, modelPath})
+	snapPath := filepath.Join(dirs.GlobalRootDir, "snap1.snap")
+	mylog.Check(os.WriteFile(snapPath, []byte("snap1"), 0644))
+
+
+	_ = mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"remodel", "--no-wait", "--snap", snapPath, modelPath}))
 
 	c.Assert(err.Error(), Equals, "cannot do offline remodel: bad snap")
 	c.Check(n, Equals, 1)

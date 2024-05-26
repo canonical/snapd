@@ -25,6 +25,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sysconfig"
@@ -48,10 +49,7 @@ func handleNetworkConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyC
 	name := "10-snapd-network.conf"
 	content := bytes.NewBuffer(nil)
 
-	output, err := coreCfg(tr, "network.disable-ipv6")
-	if err != nil {
-		return err
-	}
+	output := mylog.Check2(coreCfg(tr, "network.disable-ipv6"))
 
 	var sysctl string
 	switch output {
@@ -75,18 +73,12 @@ func handleNetworkConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyC
 
 	// write the new config
 	glob := name
-	changed, removed, err := osutil.EnsureDirState(dir, glob, dirContent)
-	if err != nil {
-		return err
-	}
+	changed, removed := mylog.Check3(osutil.EnsureDirState(dir, glob, dirContent))
 
 	if opts == nil {
 		// load the new config into the kernel
 		if len(changed) > 0 || len(removed) > 0 {
-			output, err := exec.Command("sysctl", "-w", sysctl).CombinedOutput()
-			if err != nil {
-				return osutil.OutputErr(output, err)
-			}
+			output := mylog.Check2(exec.Command("sysctl", "-w", sysctl).CombinedOutput())
 		}
 	}
 

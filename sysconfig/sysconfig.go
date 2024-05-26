@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/snap"
@@ -62,11 +63,11 @@ type Device interface {
 	Classic() bool
 
 	Kernel() string
-	//Base() string
+	// Base() string
 
 	HasModeenv() bool
 
-	//Model() *asserts.Model
+	// Model() *asserts.Model
 }
 
 type configedDevice struct {
@@ -117,35 +118,27 @@ func ConfigureTargetSystem(model *asserts.Model, opts *Options) error {
 	if model.Grade() == asserts.ModelGradeUnset {
 		return fmt.Errorf("internal error: ConfigureTargetSystem can only be used with a model with a grade")
 	}
-
-	if err := configureCloudInit(model, opts); err != nil {
-		return err
-	}
+	mylog.Check(configureCloudInit(model, opts))
 
 	var gadgetInfo *gadget.Info
-	var err error
+
 	switch {
 	case opts.GadgetSnap != nil:
 		// we do not perform consistency validation here because
 		// such unlikely problems are better surfaced in different
 		// and less surprising contexts like the seeding itself
-		gadgetInfo, err = gadget.ReadInfoFromSnapFileNoValidate(opts.GadgetSnap, nil)
+		gadgetInfo = mylog.Check2(gadget.ReadInfoFromSnapFileNoValidate(opts.GadgetSnap, nil))
 	case opts.GadgetDir != "":
-		gadgetInfo, err = gadget.ReadInfo(opts.GadgetDir, nil)
-	}
-
-	if err != nil {
-		return err
+		gadgetInfo = mylog.Check2(gadget.ReadInfo(opts.GadgetDir, nil))
 	}
 
 	if gadgetInfo != nil {
 		defaults := gadget.SystemDefaults(gadgetInfo.Defaults)
 		if len(defaults) > 0 {
-			// TODO for classic with modes we do not want it under
-			// _writable_defaults folder.
-			if err := ApplyFilesystemOnlyDefaults(model, WritableDefaultsDir(opts.TargetRootDir), defaults); err != nil {
-				return err
-			}
+			mylog.Check(
+				// TODO for classic with modes we do not want it under
+				// _writable_defaults folder.
+				ApplyFilesystemOnlyDefaults(model, WritableDefaultsDir(opts.TargetRootDir), defaults))
 		}
 	}
 

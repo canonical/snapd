@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/tests/lib/fakestore/refresh"
 )
 
@@ -39,23 +40,17 @@ type cmdNewRepair struct {
 func (x *cmdNewRepair) Execute(args []string) error {
 	headers := map[string]interface{}{}
 	if x.RepairJSON != "" {
-		content, err := os.ReadFile(x.RepairJSON)
-		if err != nil {
-			return err
-		}
-		if err := json.Unmarshal(content, &headers); err != nil {
-			return err
-		}
+		content := mylog.Check2(os.ReadFile(x.RepairJSON))
+		mylog.Check(json.Unmarshal(content, &headers))
+
 	}
 
 	if x.Positional.Script == "" {
 		return fmt.Errorf("script argument must be specified")
 	}
 
-	p, err := refresh.NewRepair(x.TopDir, x.Positional.Script, headers)
-	if err != nil {
-		return err
-	}
+	p := mylog.Check2(refresh.NewRepair(x.TopDir, x.Positional.Script, headers))
+
 	fmt.Println(p)
 	return nil
 }

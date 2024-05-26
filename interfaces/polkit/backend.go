@@ -31,6 +31,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/osutil"
@@ -61,10 +62,7 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
 	snapName := appSet.InstanceName()
 	// Get the policies that apply to this snap
-	spec, err := repo.SnapSpecification(b.Name(), appSet)
-	if err != nil {
-		return fmt.Errorf("cannot obtain polkit specification for snap %q: %s", snapName, err)
-	}
+	spec := mylog.Check2(repo.SnapSpecification(b.Name(), appSet))
 
 	// Get the files that this snap should have
 	glob := polkitPolicyName(snapName, "*")
@@ -74,14 +72,10 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 	// If we do not have any content to write, there is no point
 	// ensuring the directory exists.
 	if content != nil {
-		if err := os.MkdirAll(dir, 0755); err != nil {
-			return fmt.Errorf("cannot create directory for polkit policy files %q: %s", dir, err)
-		}
+		mylog.Check(os.MkdirAll(dir, 0755))
 	}
-	_, _, err = osutil.EnsureDirState(dir, glob, content)
-	if err != nil {
-		return fmt.Errorf("cannot synchronize polkit policy files for snap %q: %s", snapName, err)
-	}
+	_, _ = mylog.Check3(osutil.EnsureDirState(dir, glob, content))
+
 	return nil
 }
 
@@ -90,10 +84,8 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 // This method should be called after removing a snap.
 func (b *Backend) Remove(snapName string) error {
 	glob := polkitPolicyName(snapName, "*")
-	_, _, err := osutil.EnsureDirState(dirs.SnapPolkitPolicyDir, glob, nil)
-	if err != nil {
-		return fmt.Errorf("cannot synchronize polkit files for snap %q: %s", snapName, err)
-	}
+	_, _ := mylog.Check3(osutil.EnsureDirState(dirs.SnapPolkitPolicyDir, glob, nil))
+
 	return nil
 }
 

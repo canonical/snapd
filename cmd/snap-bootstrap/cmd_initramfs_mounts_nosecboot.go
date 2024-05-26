@@ -28,9 +28,7 @@ import (
 	"github.com/snapcore/snapd/secboot"
 )
 
-var (
-	errNotImplemented = errors.New("not implemented")
-)
+var errNotImplemented = errors.New("not implemented")
 
 func init() {
 	secbootProvisionForCVM = func(_ string) error {

@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/kmod"
@@ -99,7 +100,7 @@ func (s *KernelModuleLoadInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *KernelModuleLoadInterfaceSuite) TestSanitizePlugUnhappy(c *C) {
-	var kernelModuleLoadYaml = `name: consumer
+	kernelModuleLoadYaml := `name: consumer
 version: 0
 plugs:
  kmod:
@@ -175,7 +176,7 @@ apps:
 	for _, testData := range data {
 		snapYaml := fmt.Sprintf(kernelModuleLoadYaml, testData.plugYaml)
 		plug, _ := MockConnectedPlug(c, snapYaml, nil, "kmod")
-		err := interfaces.BeforeConnectPlug(s.iface, plug)
+		mylog.Check(interfaces.BeforeConnectPlug(s.iface, plug))
 		c.Check(err, ErrorMatches, testData.expectedError, Commentf("yaml: %s", testData.plugYaml))
 	}
 }

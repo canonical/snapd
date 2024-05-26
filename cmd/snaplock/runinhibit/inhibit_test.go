@@ -31,6 +31,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
@@ -58,25 +59,23 @@ func (s *runInhibitSuite) TearDownTest(c *C) {
 
 // Locking cannot be done with an empty hint as that is equivalent to unlocking.
 func (s *runInhibitSuite) TestLockWithEmptyHint(c *C) {
-	_, err := os.Stat(runinhibit.InhibitDir)
+	_ := mylog.Check2(os.Stat(runinhibit.InhibitDir))
 	c.Assert(os.IsNotExist(err), Equals, true)
-
-	err = runinhibit.LockWithHint("pkg", runinhibit.HintNotInhibited, s.inhibitInfo)
+	mylog.Check(runinhibit.LockWithHint("pkg", runinhibit.HintNotInhibited, s.inhibitInfo))
 	c.Assert(err, ErrorMatches, "lock hint cannot be empty")
 
-	_, err = os.Stat(runinhibit.InhibitDir)
+	_ = mylog.Check2(os.Stat(runinhibit.InhibitDir))
 	c.Assert(os.IsNotExist(err), Equals, true)
 }
 
 // Locking cannot be done with an unset revision.
 func (s *runInhibitSuite) TestLockWithUnsetRevision(c *C) {
-	_, err := os.Stat(runinhibit.InhibitDir)
+	_ := mylog.Check2(os.Stat(runinhibit.InhibitDir))
 	c.Assert(os.IsNotExist(err), Equals, true)
-
-	err = runinhibit.LockWithHint("pkg", runinhibit.HintInhibitedForRefresh, runinhibit.InhibitInfo{Previous: snap.R(0)})
+	mylog.Check(runinhibit.LockWithHint("pkg", runinhibit.HintInhibitedForRefresh, runinhibit.InhibitInfo{Previous: snap.R(0)}))
 	c.Assert(err, ErrorMatches, "snap revision cannot be unset")
 
-	_, err = os.Stat(runinhibit.InhibitDir)
+	_ = mylog.Check2(os.Stat(runinhibit.InhibitDir))
 	c.Assert(os.IsNotExist(err), Equals, true)
 }
 
@@ -84,23 +83,22 @@ func (s *runInhibitSuite) TestLockWithUnsetRevision(c *C) {
 func testInhibitInfo(c *C, snapName, hint string, expectedInfo runinhibit.InhibitInfo) {
 	infoPath := filepath.Join(runinhibit.InhibitDir, fmt.Sprintf("%s.%s", snapName, hint))
 	var info runinhibit.InhibitInfo
-	buf, err := os.ReadFile(infoPath)
-	c.Assert(err, IsNil)
+	buf := mylog.Check2(os.ReadFile(infoPath))
+
 	c.Assert(json.Unmarshal(buf, &info), IsNil)
 	c.Check(info, Equals, expectedInfo)
 }
 
 // Locking a file creates required directories and writes the hint and inhibit info files.
 func (s *runInhibitSuite) TestLockWithHint(c *C) {
-	_, err := os.Stat(runinhibit.InhibitDir)
+	_ := mylog.Check2(os.Stat(runinhibit.InhibitDir))
 	c.Assert(os.IsNotExist(err), Equals, true)
 
 	expectedInfo := runinhibit.InhibitInfo{Previous: snap.R(42)}
-	err = runinhibit.LockWithHint("pkg", runinhibit.HintInhibitedForRefresh, expectedInfo)
-	c.Assert(err, IsNil)
+	mylog.Check(runinhibit.LockWithHint("pkg", runinhibit.HintInhibitedForRefresh, expectedInfo))
 
-	fi, err := os.Stat(runinhibit.InhibitDir)
-	c.Assert(err, IsNil)
+	fi := mylog.Check2(os.Stat(runinhibit.InhibitDir))
+
 	c.Check(fi.IsDir(), Equals, true)
 
 	// Check hint file <snap>.lock
@@ -112,38 +110,36 @@ func (s *runInhibitSuite) TestLockWithHint(c *C) {
 // The lock can be re-acquired to present a different hint.
 func (s *runInhibitSuite) TestLockLocked(c *C) {
 	expectedInfo := runinhibit.InhibitInfo{Previous: snap.R(42)}
-	err := runinhibit.LockWithHint("pkg", runinhibit.HintInhibitedForRefresh, expectedInfo)
-	c.Assert(err, IsNil)
+	mylog.Check(runinhibit.LockWithHint("pkg", runinhibit.HintInhibitedForRefresh, expectedInfo))
+
 	c.Check(filepath.Join(runinhibit.InhibitDir, "pkg.lock"), testutil.FileEquals, "refresh")
 	testInhibitInfo(c, "pkg", "refresh", expectedInfo)
 
 	expectedInfo = runinhibit.InhibitInfo{Previous: snap.R(43)}
-	err = runinhibit.LockWithHint("pkg", runinhibit.Hint("just-testing"), expectedInfo)
-	c.Assert(err, IsNil)
+	mylog.Check(runinhibit.LockWithHint("pkg", runinhibit.Hint("just-testing"), expectedInfo))
+
 	c.Check(filepath.Join(runinhibit.InhibitDir, "pkg.lock"), testutil.FileEquals, "just-testing")
 	testInhibitInfo(c, "pkg", "just-testing", expectedInfo)
 
 	expectedInfo = runinhibit.InhibitInfo{Previous: snap.R(44)}
-	err = runinhibit.LockWithHint("pkg", runinhibit.Hint("short"), expectedInfo)
-	c.Assert(err, IsNil)
+	mylog.Check(runinhibit.LockWithHint("pkg", runinhibit.Hint("short"), expectedInfo))
+
 	c.Check(filepath.Join(runinhibit.InhibitDir, "pkg.lock"), testutil.FileEquals, "short")
 	testInhibitInfo(c, "pkg", "short", expectedInfo)
 }
 
 // Unlocking an unlocked lock doesn't break anything.
 func (s *runInhibitSuite) TestUnlockUnlocked(c *C) {
-	err := runinhibit.Unlock("pkg")
-	c.Assert(err, IsNil)
+	mylog.Check(runinhibit.Unlock("pkg"))
+
 	c.Check(filepath.Join(runinhibit.InhibitDir, "pkg.lock"), testutil.FileAbsent)
 }
 
 // Unlocking an locked lock truncates the hint and removes inhibit info file.
 func (s *runInhibitSuite) TestUnlockLocked(c *C) {
-	err := runinhibit.LockWithHint("pkg", runinhibit.HintInhibitedForRefresh, s.inhibitInfo)
-	c.Assert(err, IsNil)
+	mylog.Check(runinhibit.LockWithHint("pkg", runinhibit.HintInhibitedForRefresh, s.inhibitInfo))
 
-	err = runinhibit.Unlock("pkg")
-	c.Assert(err, IsNil)
+	mylog.Check(runinhibit.Unlock("pkg"))
 
 	c.Check(filepath.Join(runinhibit.InhibitDir, "pkg.lock"), testutil.FileEquals, "")
 	c.Check(filepath.Join(runinhibit.InhibitDir, "pkg.refresh"), testutil.FileAbsent)
@@ -151,43 +147,39 @@ func (s *runInhibitSuite) TestUnlockLocked(c *C) {
 
 // IsLocked doesn't fail when the lock directory or lock file is missing.
 func (s *runInhibitSuite) TestIsLockedMissing(c *C) {
-	_, err := os.Stat(runinhibit.InhibitDir)
+	_ := mylog.Check2(os.Stat(runinhibit.InhibitDir))
 	c.Assert(os.IsNotExist(err), Equals, true)
 
-	hint, info, err := runinhibit.IsLocked("pkg")
-	c.Assert(err, IsNil)
+	hint, info := mylog.Check3(runinhibit.IsLocked("pkg"))
+
 	c.Check(hint, Equals, runinhibit.HintNotInhibited)
 	c.Check(info, Equals, runinhibit.InhibitInfo{})
+	mylog.Check(os.MkdirAll(runinhibit.InhibitDir, 0755))
 
-	err = os.MkdirAll(runinhibit.InhibitDir, 0755)
-	c.Assert(err, IsNil)
+	hint, info = mylog.Check3(runinhibit.IsLocked("pkg"))
 
-	hint, info, err = runinhibit.IsLocked("pkg")
-	c.Assert(err, IsNil)
 	c.Check(hint, Equals, runinhibit.HintNotInhibited)
 	c.Check(info, Equals, runinhibit.InhibitInfo{})
 }
 
 // IsLocked returns the previously set hint/info.
 func (s *runInhibitSuite) TestIsLockedLocked(c *C) {
-	err := runinhibit.LockWithHint("pkg", runinhibit.HintInhibitedForRefresh, s.inhibitInfo)
-	c.Assert(err, IsNil)
+	mylog.Check(runinhibit.LockWithHint("pkg", runinhibit.HintInhibitedForRefresh, s.inhibitInfo))
 
-	hint, info, err := runinhibit.IsLocked("pkg")
-	c.Assert(err, IsNil)
+	hint, info := mylog.Check3(runinhibit.IsLocked("pkg"))
+
 	c.Check(hint, Equals, runinhibit.HintInhibitedForRefresh)
 	c.Check(info, Equals, s.inhibitInfo)
 }
 
 // IsLocked returns not-inhibited after unlocking.
 func (s *runInhibitSuite) TestIsLockedUnlocked(c *C) {
-	err := runinhibit.LockWithHint("pkg", runinhibit.HintInhibitedForRefresh, s.inhibitInfo)
-	c.Assert(err, IsNil)
-	err = runinhibit.Unlock("pkg")
-	c.Assert(err, IsNil)
+	mylog.Check(runinhibit.LockWithHint("pkg", runinhibit.HintInhibitedForRefresh, s.inhibitInfo))
 
-	hint, info, err := runinhibit.IsLocked("pkg")
-	c.Assert(err, IsNil)
+	mylog.Check(runinhibit.Unlock("pkg"))
+
+	hint, info := mylog.Check3(runinhibit.IsLocked("pkg"))
+
 	c.Check(hint, Equals, runinhibit.HintNotInhibited)
 	c.Check(info, Equals, runinhibit.InhibitInfo{})
 }
@@ -205,15 +197,15 @@ func (s *runInhibitSuite) TestRemoveLockFile(c *C) {
 }
 
 func checkFileLocked(c *C, path string) {
-	flock, err := osutil.NewFileLock(path)
-	c.Assert(err, IsNil)
+	flock := mylog.Check2(osutil.NewFileLock(path))
+
 	c.Check(flock.TryLock(), Equals, osutil.ErrAlreadyLocked)
 	flock.Close()
 }
 
 func checkFileNotLocked(c *C, path string) {
-	flock, err := osutil.NewFileLock(path)
-	c.Assert(err, IsNil)
+	flock := mylog.Check2(osutil.NewFileLock(path))
+
 	c.Check(flock.TryLock(), IsNil)
 	flock.Close()
 }
@@ -242,8 +234,8 @@ func (s *runInhibitSuite) TestWaitWhileInhibitedWalkthrough(c *C) {
 	notInhibited := func(ctx context.Context) error {
 		notInhibitedCalled++
 
-		hint, _, err := runinhibit.IsLocked("pkg")
-		c.Assert(err, IsNil)
+		hint, _ := mylog.Check3(runinhibit.IsLocked("pkg"))
+
 		c.Check(hint, Equals, runinhibit.HintNotInhibited)
 
 		// lock should be held
@@ -266,8 +258,7 @@ func (s *runInhibitSuite) TestWaitWhileInhibitedWalkthrough(c *C) {
 		return false, nil
 	}
 
-	flock, err := runinhibit.WaitWhileInhibited(context.TODO(), "pkg", notInhibited, inhibited, 1*time.Millisecond)
-	c.Assert(err, IsNil)
+	flock := mylog.Check2(runinhibit.WaitWhileInhibited(context.TODO(), "pkg", notInhibited, inhibited, 1*time.Millisecond))
 
 	// we are still holding the lock
 	checkFileLocked(c, runinhibit.HintFile("pkg"))
@@ -313,7 +304,7 @@ func (s *runInhibitSuite) TestWaitWhileInhibitedContextCancellation(c *C) {
 		return false, nil
 	}
 
-	flock, err := runinhibit.WaitWhileInhibited(ctx, "pkg", notInhibited, inhibited, 1*time.Millisecond)
+	flock := mylog.Check2(runinhibit.WaitWhileInhibited(ctx, "pkg", notInhibited, inhibited, 1*time.Millisecond))
 	c.Check(errors.Is(err, context.Canceled), Equals, true)
 	c.Check(flock, IsNil)
 
@@ -341,9 +332,8 @@ func (s *runInhibitSuite) TestWaitWhileInhibitedNilCallbacks(c *C) {
 	}
 	defer runinhibit.MockNewTicker(tickerWait)()
 
-	flock, err := runinhibit.WaitWhileInhibited(context.TODO(), "pkg", nil, nil, 1*time.Millisecond)
+	flock := mylog.Check2(runinhibit.WaitWhileInhibited(context.TODO(), "pkg", nil, nil, 1*time.Millisecond))
 	// nil callbacks are skipped and must not panic
-	c.Assert(err, IsNil)
 
 	// we are still holding the lock
 	checkFileLocked(c, runinhibit.HintFile("pkg"))
@@ -360,7 +350,7 @@ func (s *runInhibitSuite) TestWaitWhileInhibitedCallbackError(c *C) {
 	notInhibited := func(ctx context.Context) error {
 		return fmt.Errorf("notInhibited error")
 	}
-	flock, err := runinhibit.WaitWhileInhibited(context.TODO(), "pkg", notInhibited, nil, 1*time.Millisecond)
+	flock := mylog.Check2(runinhibit.WaitWhileInhibited(context.TODO(), "pkg", notInhibited, nil, 1*time.Millisecond))
 	c.Assert(err, ErrorMatches, "notInhibited error")
 	c.Check(flock, IsNil)
 	// lock must be released on error
@@ -370,7 +360,7 @@ func (s *runInhibitSuite) TestWaitWhileInhibitedCallbackError(c *C) {
 	inhibited := func(ctx context.Context, hint runinhibit.Hint, inhibitInfo *runinhibit.InhibitInfo) (cont bool, err error) {
 		return false, fmt.Errorf("inhibited error")
 	}
-	flock, err = runinhibit.WaitWhileInhibited(context.TODO(), "pkg", nil, inhibited, 1*time.Millisecond)
+	flock = mylog.Check2(runinhibit.WaitWhileInhibited(context.TODO(), "pkg", nil, inhibited, 1*time.Millisecond))
 	c.Assert(err, ErrorMatches, "inhibited error")
 	c.Check(flock, IsNil)
 	// lock must be released on error
@@ -397,8 +387,7 @@ func (s *runInhibitSuite) TestWaitWhileInhibitedCont(c *C) {
 		return true, nil
 	}
 
-	flock, err := runinhibit.WaitWhileInhibited(context.TODO(), "pkg", notInhibited, inhibited, 1*time.Millisecond)
-	c.Assert(err, IsNil)
+	flock := mylog.Check2(runinhibit.WaitWhileInhibited(context.TODO(), "pkg", notInhibited, inhibited, 1*time.Millisecond))
 
 	// we are still holding the lock
 	checkFileLocked(c, runinhibit.HintFile("pkg"))
@@ -406,8 +395,8 @@ func (s *runInhibitSuite) TestWaitWhileInhibitedCont(c *C) {
 	c.Check(notInhibitedCalled, Equals, 0)
 	c.Check(inhibitedCalled, Equals, 1)
 
-	hint, inhibitInfo, err := runinhibit.IsLocked("pkg")
-	c.Assert(err, IsNil)
+	hint, inhibitInfo := mylog.Check3(runinhibit.IsLocked("pkg"))
+
 	c.Check(hint, Equals, runinhibit.HintInhibitedForRefresh)
 	c.Check(inhibitInfo, Equals, s.inhibitInfo)
 
@@ -431,8 +420,8 @@ func (s *runInhibitSuite) TestWaitWhileInhibitedHintFileNotExist(c *C) {
 		return false, nil
 	}
 
-	flock, err := runinhibit.WaitWhileInhibited(context.TODO(), "pkg", notInhibited, inhibited, 1*time.Millisecond)
-	c.Assert(err, IsNil)
+	flock := mylog.Check2(runinhibit.WaitWhileInhibited(context.TODO(), "pkg", notInhibited, inhibited, 1*time.Millisecond))
+
 	// hint file still does not exist
 	c.Check(runinhibit.HintFile("pkg"), testutil.FileAbsent)
 	// flock is nil because lock file does not exist
@@ -451,8 +440,8 @@ func (s *runInhibitSuite) TestWaitWhileInhibitedHintFileNotExistNilCallback(c *C
 	}
 
 	// check that we don't panic when notInhibited is nil
-	flock, err := runinhibit.WaitWhileInhibited(context.TODO(), "pkg", nil, inhibited, 1*time.Millisecond)
-	c.Assert(err, IsNil)
+	flock := mylog.Check2(runinhibit.WaitWhileInhibited(context.TODO(), "pkg", nil, inhibited, 1*time.Millisecond))
+
 	// hint file still does not exist
 	c.Check(runinhibit.HintFile("pkg"), testutil.FileAbsent)
 	// flock is nil because lock file does not exist

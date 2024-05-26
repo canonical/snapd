@@ -31,6 +31,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/logger"
 )
 
@@ -48,10 +49,8 @@ func (data customData) get(key string, value interface{}) error {
 	if entryJSON == nil {
 		return &NoStateError{Key: key}
 	}
-	err := json.Unmarshal(*entryJSON, value)
-	if err != nil {
-		return fmt.Errorf("internal error: could not unmarshal state entry %q: %v", key, err)
-	}
+	mylog.Check(json.Unmarshal(*entryJSON, value))
+
 	return nil
 }
 
@@ -64,10 +63,8 @@ func (data customData) set(key string, value interface{}) {
 		delete(data, key)
 		return
 	}
-	serialized, err := json.Marshal(value)
-	if err != nil {
-		logger.Panicf("internal error: could not marshal value for state entry %q: %v", key, err)
-	}
+	serialized := mylog.Check2(json.Marshal(value))
+
 	entryJSON := json.RawMessage(serialized)
 	data[key] = &entryJSON
 }
@@ -194,10 +191,8 @@ func (s *State) MarshalJSON() ([]byte, error) {
 func (s *State) UnmarshalJSON(data []byte) error {
 	s.writing()
 	var unmarshalled marshalledState
-	err := json.Unmarshal(data, &unmarshalled)
-	if err != nil {
-		return err
-	}
+	mylog.Check(json.Unmarshal(data, &unmarshalled))
+
 	s.data = unmarshalled.Data
 	s.changes = unmarshalled.Changes
 	s.tasks = unmarshalled.Tasks
@@ -219,11 +214,10 @@ func (s *State) UnmarshalJSON(data []byte) error {
 }
 
 func (s *State) checkpointData() []byte {
-	data, err := json.Marshal(s)
-	if err != nil {
-		// this shouldn't happen, because the actual delicate serializing happens at various Set()s
-		logger.Panicf("internal error: could not marshal state for checkpointing: %v", err)
-	}
+	data := mylog.Check2(json.Marshal(s))
+
+	// this shouldn't happen, because the actual delicate serializing happens at various Set()s
+
 	return data
 }
 
@@ -253,10 +247,10 @@ func (s *State) Unlock() {
 	}
 
 	data := s.checkpointData()
-	var err error
+
 	start := time.Now()
 	for time.Since(start) <= unlockCheckpointRetryMaxTime {
-		if err = s.backend.Checkpoint(data); err == nil {
+		if mylog.Check(s.backend.Checkpoint(data)); err == nil {
 			s.modified = false
 			return
 		}
@@ -343,11 +337,11 @@ func (s *State) NewChange(kind, summary string) *Change {
 	id := strconv.Itoa(s.lastChangeId)
 	chg := newChange(s, id, kind, summary)
 	s.changes[id] = chg
-	// Add change-update notice for newly spawned change
-	// NOTE: Implies State.writing()
-	if err := chg.addNotice(); err != nil {
-		logger.Panicf(`internal error: failed to add "change-update" notice for new change: %v`, err)
-	}
+	mylog.Check(
+		// Add change-update notice for newly spawned change
+		// NOTE: Implies State.writing()
+		chg.addNotice())
+
 	return chg
 }
 
@@ -518,7 +512,7 @@ NextChange:
 
 // GetMaybeTimings implements timings.GetSaver
 func (s *State) GetMaybeTimings(timings interface{}) error {
-	if err := s.Get("timings", timings); err != nil && !errors.Is(err, ErrNoState) {
+	if mylog.Check(s.Get("timings", timings)); err != nil && !errors.Is(err, ErrNoState) {
 		return err
 	}
 	return nil
@@ -591,10 +585,8 @@ func ReadState(backend Backend, r io.Reader) (*State, error) {
 	s.Lock()
 	defer s.unlock()
 	d := json.NewDecoder(r)
-	err := d.Decode(&s)
-	if err != nil {
-		return nil, fmt.Errorf("cannot read state: %s", err)
-	}
+	mylog.Check(d.Decode(&s))
+
 	s.backend = backend
 	s.noticeCond = sync.NewCond(s)
 	s.modified = false

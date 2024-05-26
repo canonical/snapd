@@ -19,12 +19,12 @@
 
 package osutil
 
+import "github.com/ddkwork/golibrary/mylog"
+
 // IsMounted checks if a given directory is a mount point.
 func IsMounted(baseDir string) (bool, error) {
-	entries, err := LoadMountInfo()
-	if err != nil {
-		return false, err
-	}
+	entries := mylog.Check2(LoadMountInfo())
+
 	for _, entry := range entries {
 		if baseDir == entry.MountDir {
 			return true, nil

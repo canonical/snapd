@@ -28,6 +28,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/hookstate"
@@ -58,10 +59,8 @@ func (s *themesSuite) SetUpTest(c *C) {
 func (s *themesSuite) SnapExists(ctx context.Context, spec store.SnapSpec, user *auth.UserState) (naming.SnapRef, *channel.Channel, error) {
 	s.pokeStateLock()
 	if info := s.available[spec.Name]; info != nil {
-		ch, err := channel.Parse(info.Channel, "")
-		if err != nil {
-			panic(fmt.Sprintf("bad Info Channel: %v", err))
-		}
+		ch := mylog.Check2(channel.Parse(info.Channel, ""))
+
 		return info, &ch, nil
 	}
 	return nil, nil, s.err
@@ -129,7 +128,7 @@ slots:
     content: foo
     read: $SNAP/foo`)
 
-	gtkThemes, iconThemes, soundThemes, err := daemon.InstalledThemes(d.Overlord())
+	gtkThemes, iconThemes, soundThemes := mylog.Check4(daemon.InstalledThemes(d.Overlord()))
 	c.Check(err, IsNil)
 	c.Check(gtkThemes, DeepEquals, []string{"Bar-gtk", "Foo-gtk", "Foo-gtk-dark"})
 	c.Check(iconThemes, DeepEquals, []string{"Bar-icons", "Foo-icons"})
@@ -181,8 +180,7 @@ func (s *themesSuite) TestThemeStatusForPrefix(c *C) {
 	ctx := context.Background()
 	status := make(map[string]daemon.ThemeStatus)
 	toInstall := make(map[string]bool)
-
-	err := daemon.CollectThemeStatusForPrefix(ctx, s, nil, "gtk-theme-", []string{"Installed", "Installed", "Available", "Unavailable"}, []string{"Installed"}, status, toInstall)
+	mylog.Check(daemon.CollectThemeStatusForPrefix(ctx, s, nil, "gtk-theme-", []string{"Installed", "Installed", "Available", "Unavailable"}, []string{"Installed"}, status, toInstall))
 	c.Check(err, IsNil)
 	c.Check(status, DeepEquals, map[string]daemon.ThemeStatus{
 		"Installed":   daemon.ThemeInstalled,
@@ -208,8 +206,7 @@ func (s *themesSuite) TestThemeStatusForPrefixStripsSuffixes(c *C) {
 	ctx := context.Background()
 	status := make(map[string]daemon.ThemeStatus)
 	toInstall := make(map[string]bool)
-
-	err := daemon.CollectThemeStatusForPrefix(ctx, s, nil, "gtk-theme-", []string{"Yaru-dark"}, nil, status, toInstall)
+	mylog.Check(daemon.CollectThemeStatusForPrefix(ctx, s, nil, "gtk-theme-", []string{"Yaru-dark"}, nil, status, toInstall))
 	c.Check(err, IsNil)
 	c.Check(status, DeepEquals, map[string]daemon.ThemeStatus{
 		"Yaru-dark": daemon.ThemeAvailable,
@@ -233,8 +230,7 @@ func (s *themesSuite) TestThemeStatusForPrefixIgnoresUnstable(c *C) {
 	ctx := context.Background()
 	status := make(map[string]daemon.ThemeStatus)
 	toInstall := make(map[string]bool)
-
-	err := daemon.CollectThemeStatusForPrefix(ctx, s, nil, "gtk-theme-", []string{"Yaru"}, nil, status, toInstall)
+	mylog.Check(daemon.CollectThemeStatusForPrefix(ctx, s, nil, "gtk-theme-", []string{"Yaru"}, nil, status, toInstall))
 	c.Check(err, IsNil)
 	c.Check(status, DeepEquals, map[string]daemon.ThemeStatus{
 		"Yaru": daemon.ThemeUnavailable,
@@ -250,8 +246,7 @@ func (s *themesSuite) TestThemeStatusForPrefixReturnsErrors(c *C) {
 	ctx := context.Background()
 	status := make(map[string]daemon.ThemeStatus)
 	toInstall := make(map[string]bool)
-
-	err := daemon.CollectThemeStatusForPrefix(ctx, s, nil, "gtk-theme-", []string{"Theme"}, nil, status, toInstall)
+	mylog.Check(daemon.CollectThemeStatusForPrefix(ctx, s, nil, "gtk-theme-", []string{"Theme"}, nil, status, toInstall))
 	c.Check(err, Equals, s.err)
 	c.Check(status, DeepEquals, map[string]daemon.ThemeStatus{
 		"Theme": daemon.ThemeUnavailable,
@@ -304,7 +299,7 @@ slots:
 	}
 
 	ctx := context.Background()
-	status, candidateSnaps, err := daemon.ThemeStatusAndCandidateSnaps(ctx, s.d, nil, []string{"Foo-gtk", "Bar-gtk", "Baz-gtk"}, []string{"Foo-icons", "Bar-icons", "Baz-icons"}, []string{"Foo-sounds", "Bar-sounds", "Baz-sounds"})
+	status, candidateSnaps := mylog.Check3(daemon.ThemeStatusAndCandidateSnaps(ctx, s.d, nil, []string{"Foo-gtk", "Bar-gtk", "Baz-gtk"}, []string{"Foo-icons", "Bar-icons", "Baz-icons"}, []string{"Foo-sounds", "Bar-sounds", "Baz-sounds"}))
 	c.Check(err, IsNil)
 	c.Check(status.GtkThemes, DeepEquals, map[string]daemon.ThemeStatus{
 		"Foo-gtk": daemon.ThemeInstalled,
@@ -377,11 +372,11 @@ func (s *themesSuite) daemonWithIfaceMgr(c *C) *daemon.Daemon {
 	overlord := d.Overlord()
 	st := overlord.State()
 	runner := overlord.TaskRunner()
-	hookMgr, err := hookstate.Manager(st, runner)
-	c.Assert(err, IsNil)
+	hookMgr := mylog.Check2(hookstate.Manager(st, runner))
+
 	overlord.AddManager(hookMgr)
-	ifaceMgr, err := ifacestate.Manager(st, hookMgr, runner, nil, nil)
-	c.Assert(err, IsNil)
+	ifaceMgr := mylog.Check2(ifacestate.Manager(st, hookMgr, runner, nil, nil))
+
 	overlord.AddManager(ifaceMgr)
 	overlord.AddManager(runner)
 	c.Assert(overlord.StartUp(), IsNil)
@@ -434,7 +429,7 @@ func (s *themesSuite) TestThemesCmdPost(c *C) {
 	c.Check(chg.Kind(), Equals, "install-themes")
 	c.Check(chg.Summary(), Equals, `Install snaps "gtk-theme-foo", "icon-theme-foo", "sound-theme-foo"`)
 	var names []string
-	err := chg.Get("snap-names", &names)
-	c.Assert(err, IsNil)
+	mylog.Check(chg.Get("snap-names", &names))
+
 	c.Check(names, DeepEquals, []string{"gtk-theme-foo", "icon-theme-foo", "sound-theme-foo"})
 }

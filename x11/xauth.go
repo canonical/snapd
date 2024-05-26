@@ -24,6 +24,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // See https://cgit.freedesktop.org/xorg/lib/libXau/tree/AuRead.c and
@@ -43,44 +45,25 @@ func readChunk(r io.Reader) ([]byte, error) {
 	// reading here from the file.
 
 	b := [2]byte{}
-	if _, err := io.ReadFull(r, b[:]); err != nil {
-		return nil, err
-	}
+	mylog.Check2(io.ReadFull(r, b[:]))
 
 	size := int(binary.BigEndian.Uint16(b[:]))
 	chunk := make([]byte, size)
-	if _, err := io.ReadFull(r, chunk); err != nil {
-		return nil, err
-	}
+	mylog.Check2(io.ReadFull(r, chunk))
 
 	return chunk, nil
 }
 
 func (xa *xauth) readFromFile(r io.Reader) error {
 	b := [2]byte{}
-	if _, err := io.ReadFull(r, b[:]); err != nil {
-		return err
-	}
+	mylog.Check2(io.ReadFull(r, b[:]))
+
 	// The family field consists of two bytes
 	xa.Family = binary.BigEndian.Uint16(b[:])
-
-	var err error
-
-	if xa.Address, err = readChunk(r); err != nil {
-		return err
-	}
-
-	if xa.Number, err = readChunk(r); err != nil {
-		return err
-	}
-
-	if xa.Name, err = readChunk(r); err != nil {
-		return err
-	}
-
-	if xa.Data, err = readChunk(r); err != nil {
-		return err
-	}
+	xa.Address = mylog.Check2(readChunk(r))
+	xa.Number = mylog.Check2(readChunk(r))
+	xa.Name = mylog.Check2(readChunk(r))
+	xa.Data = mylog.Check2(readChunk(r))
 
 	return nil
 }
@@ -88,10 +71,8 @@ func (xa *xauth) readFromFile(r io.Reader) error {
 // ValidateXauthority validates a given Xauthority file. The file is valid
 // if it can be parsed and contains at least one cookie.
 func ValidateXauthorityFile(path string) error {
-	f, err := os.Open(path)
-	if err != nil {
-		return err
-	}
+	f := mylog.Check2(os.Open(path))
+
 	defer f.Close()
 	return ValidateXauthority(f)
 }
@@ -105,9 +86,8 @@ func ValidateXauthority(r io.Reader) error {
 		err := xa.readFromFile(r)
 		if err == io.EOF {
 			break
-		} else if err != nil {
-			return err
 		}
+
 		cookies++
 	}
 
@@ -121,10 +101,8 @@ func ValidateXauthority(r io.Reader) error {
 // MockXauthority will create a fake xauthority file and place it
 // on a temporary path which is returned as result.
 func MockXauthority(cookies int) (string, error) {
-	f, err := os.CreateTemp("", "xauth")
-	if err != nil {
-		return "", err
-	}
+	f := mylog.Check2(os.CreateTemp("", "xauth"))
+
 	defer f.Close()
 	for n := 0; n < cookies; n++ {
 		data := []byte{
@@ -139,12 +117,8 @@ func MockXauthority(cookies int) (string, error) {
 			// Data
 			0x00, 0x01, 0xff,
 		}
-		m, err := f.Write(data)
-		if err != nil {
-			return "", err
-		} else if m != len(data) {
-			return "", fmt.Errorf("Could write cookie")
-		}
+		mylog.Check2(f.Write(data))
+
 	}
 	return f.Name(), nil
 }

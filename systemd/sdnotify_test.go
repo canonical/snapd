@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/systemd"
 )
 
@@ -65,23 +66,22 @@ func (sd *sdNotifyTestSuite) TestSdNotifyIntegration(c *C) {
 	} {
 		fakeEnv["NOTIFY_SOCKET"] = sockPath
 
-		conn, err := net.ListenUnixgram("unixgram", &net.UnixAddr{
+		conn := mylog.Check2(net.ListenUnixgram("unixgram", &net.UnixAddr{
 			Name: sockPath,
 			Net:  "unixgram",
-		})
-		c.Assert(err, IsNil)
+		}))
+
 		defer conn.Close()
 
 		ch := make(chan string)
 		go func() {
 			var buf [128]byte
-			n, err := conn.Read(buf[:])
-			c.Assert(err, IsNil)
+			n := mylog.Check2(conn.Read(buf[:]))
+
 			ch <- string(buf[:n])
 		}()
+		mylog.Check(systemd.SdNotify("something"))
 
-		err = systemd.SdNotify("something")
-		c.Assert(err, IsNil)
 		c.Check(<-ch, Equals, "something")
 	}
 }

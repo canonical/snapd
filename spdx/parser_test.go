@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/spdx"
 )
 
@@ -45,7 +46,7 @@ func (s *spdxSuite) TestParseHappy(c *C) {
 		"(BSD-2-Clause OR 0BSD) AND GPL-2.0 WITH GCC-exception-3.1",
 		"((GPL-2.0 AND (BSD-2-Clause OR 0BSD)) OR GPL-3.0) ",
 	} {
-		err := spdx.ValidateLicense(t)
+		mylog.Check(spdx.ValidateLicense(t))
 		c.Check(err, IsNil, Commentf("input: %q", t))
 	}
 }
@@ -72,7 +73,7 @@ func (s *spdxSuite) TestParseError(c *C) {
 		{"GPL-2.0 WITH (foo)", `"\(" not allowed after WITH`},
 		{"(BSD-2-Clause OR 0BSD) WITH GCC-exception-3.1", `expected license name before WITH`},
 	} {
-		err := spdx.ValidateLicense(t.inp)
+		mylog.Check(spdx.ValidateLicense(t.inp))
 		c.Check(err, ErrorMatches, t.errStr, Commentf("input: %q", t.inp))
 	}
 }

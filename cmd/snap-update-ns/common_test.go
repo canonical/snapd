@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	update "github.com/snapcore/snapd/cmd/snap-update-ns"
 	"github.com/snapcore/snapd/cmd/snaplock"
 	"github.com/snapcore/snapd/dirs"
@@ -62,15 +63,15 @@ func (s *commonSuite) TestLock(c *C) {
 	defer dirs.SetRootDir("")
 
 	// We will use 2nd lock for our testing.
-	testLock, err := snaplock.OpenLock(s.upCtx.InstanceName())
-	c.Assert(err, IsNil)
+	testLock := mylog.Check2(snaplock.OpenLock(s.upCtx.InstanceName()))
+
 	defer testLock.Close()
 
 	// When fromSnapConfine is false we acquire our own lock.
 	s.upCtx.SetFromSnapConfine(false)
 	c.Check(s.upCtx.FromSnapConfine(), Equals, false)
-	unlock, err := s.upCtx.Lock()
-	c.Assert(err, IsNil)
+	unlock := mylog.Check2(s.upCtx.Lock())
+
 	// The lock is acquired now. We should not be able to get another lock.
 	c.Check(testLock.TryLock(), Equals, osutil.ErrAlreadyLocked)
 	// We can release the original lock now and see our test lock working.
@@ -80,16 +81,16 @@ func (s *commonSuite) TestLock(c *C) {
 	// When fromSnapConfine is true we test existing lock but don't grab one.
 	s.upCtx.SetFromSnapConfine(true)
 	c.Check(s.upCtx.FromSnapConfine(), Equals, true)
-	err = testLock.Lock()
-	c.Assert(err, IsNil)
-	unlock, err = s.upCtx.Lock()
-	c.Assert(err, IsNil)
+	mylog.Check(testLock.Lock())
+
+	unlock = mylog.Check2(s.upCtx.Lock())
+
 	unlock()
 
 	// When the test lock is unlocked the common update helper reports an error
 	// since it was expecting the lock to be held. Oh, and the lock is not leaked.
 	testLock.Unlock()
-	unlock, err = s.upCtx.Lock()
+	unlock = mylog.Check2(s.upCtx.Lock())
 	c.Check(err, ErrorMatches, `mount namespace of snap "foo" is not locked but --from-snap-confine was used`)
 	c.Check(unlock, IsNil)
 	c.Assert(testLock.TryLock(), IsNil)
@@ -99,7 +100,7 @@ func (s *commonSuite) TestLock(c *C) {
 	s.upCtx.SetFromSnapConfine(false)
 	c.Check(s.upCtx.FromSnapConfine(), Equals, false)
 	testLock.Unlock()
-	unlock, err = s.upCtx.Lock()
+	unlock = mylog.Check2(s.upCtx.Lock())
 	c.Check(err, Equals, errTesting)
 	c.Check(unlock, IsNil)
 	c.Check(testLock.TryLock(), IsNil)
@@ -110,8 +111,7 @@ func (s *commonSuite) TestLoadDesiredProfile(c *C) {
 	text := "tmpfs /tmp tmpfs defaults 0 0\n"
 
 	// Ask the common profile update helper to read the desired profile.
-	profile, err := upCtx.LoadCurrentProfile()
-	c.Assert(err, IsNil)
+	profile := mylog.Check2(upCtx.LoadCurrentProfile())
 
 	// A profile that is not present on disk just reads as a valid empty profile.
 	c.Check(profile.Entries, HasLen, 0)
@@ -122,8 +122,8 @@ func (s *commonSuite) TestLoadDesiredProfile(c *C) {
 	c.Assert(os.WriteFile(path, []byte(text), 0644), IsNil)
 
 	// Ask the common profile update helper to read the desired profile.
-	profile, err = upCtx.LoadDesiredProfile()
-	c.Assert(err, IsNil)
+	profile = mylog.Check2(upCtx.LoadDesiredProfile())
+
 	builder := &bytes.Buffer{}
 	profile.WriteTo(builder)
 
@@ -136,8 +136,7 @@ func (s *commonSuite) TestLoadCurrentProfile(c *C) {
 	text := "tmpfs /tmp tmpfs defaults 0 0\n"
 
 	// Ask the common profile update helper to read the current profile.
-	profile, err := upCtx.LoadCurrentProfile()
-	c.Assert(err, IsNil)
+	profile := mylog.Check2(upCtx.LoadCurrentProfile())
 
 	// A profile that is not present on disk just reads as a valid empty profile.
 	c.Check(profile.Entries, HasLen, 0)
@@ -148,8 +147,8 @@ func (s *commonSuite) TestLoadCurrentProfile(c *C) {
 	c.Assert(os.WriteFile(path, []byte(text), 0644), IsNil)
 
 	// Ask the common profile update helper to read the current profile.
-	profile, err = upCtx.LoadCurrentProfile()
-	c.Assert(err, IsNil)
+	profile = mylog.Check2(upCtx.LoadCurrentProfile())
+
 	builder := &bytes.Buffer{}
 	profile.WriteTo(builder)
 
@@ -162,8 +161,7 @@ func (s *commonSuite) TestSaveCurrentProfile(c *C) {
 	text := "tmpfs /tmp tmpfs defaults 0 0\n"
 
 	// Prepare a mount profile to be saved.
-	profile, err := osutil.LoadMountProfileText(text)
-	c.Assert(err, IsNil)
+	profile := mylog.Check2(osutil.LoadMountProfileText(text))
 
 	// Prepare the directory for saving the profile.
 	path := upCtx.CurrentProfilePath()

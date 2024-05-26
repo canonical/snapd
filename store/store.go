@@ -39,6 +39,7 @@ import (
 
 	"gopkg.in/retry.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
@@ -123,15 +124,9 @@ type Config struct {
 // setBaseURL updates the store API's base URL in the Config. Must not be used
 // to change active config.
 func (cfg *Config) setBaseURL(u *url.URL) error {
-	storeBaseURI, err := storeURL(u)
-	if err != nil {
-		return err
-	}
+	storeBaseURI := mylog.Check2(storeURL(u))
 
-	assertsBaseURI, err := assertsURL()
-	if err != nil {
-		return err
-	}
+	assertsBaseURI := mylog.Check2(assertsURL())
 
 	cfg.StoreBaseURL = storeBaseURI
 	cfg.AssertionsBaseURL = assertsBaseURI
@@ -255,10 +250,8 @@ func storeURL(api *url.URL) (*url.URL, error) {
 		override = s
 	}
 	if override != "" {
-		u, err := url.Parse(override)
-		if err != nil {
-			return nil, fmt.Errorf("invalid %s: %s", overrideName, err)
-		}
+		u := mylog.Check2(url.Parse(override))
+
 		return u, nil
 	}
 	return api, nil
@@ -266,10 +259,8 @@ func storeURL(api *url.URL) (*url.URL, error) {
 
 func assertsURL() (*url.URL, error) {
 	if s := os.Getenv("SNAPPY_FORCE_SAS_URL"); s != "" {
-		u, err := url.Parse(s)
-		if err != nil {
-			return nil, fmt.Errorf("invalid SNAPPY_FORCE_SAS_URL: %s", err)
-		}
+		u := mylog.Check2(url.Parse(s))
+
 		return u, nil
 	}
 
@@ -309,17 +300,13 @@ func DefaultConfig() *Config {
 }
 
 func init() {
-	storeBaseURI, err := storeURL(apiURL())
-	if err != nil {
-		panic(err)
-	}
+	storeBaseURI := mylog.Check2(storeURL(apiURL()))
+
 	if storeBaseURI.RawQuery != "" {
 		panic("store API URL may not contain query string")
 	}
-	err = defaultConfig.setBaseURL(storeBaseURI)
-	if err != nil {
-		panic(err)
-	}
+	mylog.Check(defaultConfig.setBaseURL(storeBaseURI))
+
 	defaultConfig.DetailFields = jsonutil.StructFields((*snapDetails)(nil), "snap_yaml_raw")
 	defaultConfig.InfoFields = jsonutil.StructFields((*storeSnap)(nil), "snap-yaml")
 	defaultConfig.FindFields = append(jsonutil.StructFields((*storeSnap)(nil),
@@ -489,11 +476,7 @@ func (s *Store) defaultSnapQuery() url.Values {
 func (s *Store) baseURL(defaultURL *url.URL) *url.URL {
 	u := defaultURL
 	if s.dauthCtx != nil {
-		var err error
-		_, u, err = s.dauthCtx.ProxyStoreParams(defaultURL)
-		if err != nil {
-			logger.Debugf("cannot get proxy store parameters from state: %v", err)
-		}
+		_, u = mylog.Check3(s.dauthCtx.ProxyStoreParams(defaultURL))
 	}
 	if u != nil {
 		return u
@@ -502,41 +485,27 @@ func (s *Store) baseURL(defaultURL *url.URL) *url.URL {
 }
 
 func (s *Store) endpointURL(p string, query url.Values) (*url.URL, error) {
-	if err := s.checkStoreOnline(); err != nil {
-		return nil, err
-	}
+	mylog.Check(s.checkStoreOnline())
 
 	return endpointURL(s.baseURL(s.cfg.StoreBaseURL), p, query), nil
 }
 
 // LoginUser logs user in the store and returns the authentication macaroons.
 func (s *Store) LoginUser(username, password, otp string) (string, string, error) {
-	// most other store network operations use s.endpointURL, which returns an
-	// error if the store is offline. this doesn't, so we need to explicitly
-	// check.
-	if err := s.checkStoreOnline(); err != nil {
-		return "", "", err
-	}
+	mylog.Check(
+		// most other store network operations use s.endpointURL, which returns an
+		// error if the store is offline. this doesn't, so we need to explicitly
+		// check.
+		s.checkStoreOnline())
 
-	macaroon, err := requestStoreMacaroon(s.client)
-	if err != nil {
-		return "", "", err
-	}
-	deserializedMacaroon, err := auth.MacaroonDeserialize(macaroon)
-	if err != nil {
-		return "", "", err
-	}
+	macaroon := mylog.Check2(requestStoreMacaroon(s.client))
+
+	deserializedMacaroon := mylog.Check2(auth.MacaroonDeserialize(macaroon))
 
 	// get SSO 3rd party caveat, and request discharge
-	loginCaveat, err := loginCaveatID(deserializedMacaroon)
-	if err != nil {
-		return "", "", err
-	}
+	loginCaveat := mylog.Check2(loginCaveatID(deserializedMacaroon))
 
-	discharge, err := dischargeAuthCaveat(s.client, loginCaveat, username, password, otp)
-	if err != nil {
-		return "", "", err
-	}
+	discharge := mylog.Check2(dischargeAuthCaveat(s.client, loginCaveat, username, password, otp))
 
 	return macaroon, discharge, nil
 }
@@ -553,12 +522,7 @@ func (s *Store) EnsureDeviceSession() error {
 func (s *Store) setStoreID(r *http.Request, apiLevel apiLevel) (customStore bool) {
 	storeID := s.fallbackStoreID
 	if s.dauthCtx != nil {
-		cand, err := s.dauthCtx.StoreID(storeID)
-		if err != nil {
-			logger.Debugf("cannot get store ID from state: %v", err)
-		} else {
-			storeID = cand
-		}
+		cand := mylog.Check2(s.dauthCtx.StoreID(storeID))
 	}
 	if storeID != "" {
 		r.Header.Set(hdrSnapDeviceStore[apiLevel], storeID)
@@ -654,10 +618,8 @@ func decodeCatalog(resp *http.Response, names io.Writer, db SnapAdder) error {
 	}
 	dec := json.NewDecoder(resp.Body)
 	for _, expectedToken := range expectedCatalogPreamble {
-		token, err := dec.Token()
-		if err != nil {
-			return err
-		}
+		token := mylog.Check2(dec.Token())
+
 		if token != expectedToken {
 			return fmt.Errorf(what+": bad catalog preamble: expected %#v, got %#v", expectedToken, token)
 		}
@@ -665,9 +627,8 @@ func decodeCatalog(resp *http.Response, names io.Writer, db SnapAdder) error {
 
 	for dec.More() {
 		var v catalogItem
-		if err := dec.Decode(&v); err != nil {
-			return fmt.Errorf(what+": %v", err)
-		}
+		mylog.Check(dec.Decode(&v))
+
 		if v.Name == "" {
 			continue
 		}
@@ -684,10 +645,8 @@ func decodeCatalog(resp *http.Response, names io.Writer, db SnapAdder) error {
 		for _, app := range v.Apps {
 			commands = append(commands, snap.JoinSnapApp(v.Name, app))
 		}
+		mylog.Check(db.AddSnap(v.Name, v.Version, v.Summary, commands))
 
-		if err := db.AddSnap(v.Name, v.Version, v.Summary, commands); err != nil {
-			return err
-		}
 	}
 
 	return nil
@@ -722,18 +681,13 @@ func (s *Store) retryRequestDecodeJSON(ctx context.Context, reqOptions *requestO
 func (s *Store) doRequest(ctx context.Context, client *http.Client, reqOptions *requestOptions, user *auth.UserState) (*http.Response, error) {
 	authRefreshes := 0
 	for {
-		req, err := s.newRequest(ctx, reqOptions, user)
-		if err != nil {
-			return nil, err
-		}
+		req := mylog.Check2(s.newRequest(ctx, reqOptions, user))
+
 		if ctx != nil {
 			req = req.WithContext(ctx)
 		}
 
-		resp, err := client.Do(req)
-		if err != nil {
-			return nil, err
-		}
+		resp := mylog.Check2(client.Do(req))
 
 		if resp.StatusCode == 401 && authRefreshes < 4 {
 			// 4 tries: 2 tries for each in case both user
@@ -750,10 +704,8 @@ func (s *Store) doRequest(ctx context.Context, client *http.Client, reqOptions *
 			}
 			if refreshNeed.needed() {
 				if a, ok := s.auth.(RefreshingAuthorizer); ok {
-					err := a.RefreshAuth(refreshNeed, s.dauthCtx, user, s.client)
-					if err != nil {
-						return nil, err
-					}
+					mylog.Check(a.RefreshAuth(refreshNeed, s.dauthCtx, user, s.client))
+
 					// close previous response and retry
 					resp.Body.Close()
 					authRefreshes++
@@ -771,10 +723,7 @@ func (s *Store) buildLocationString() (string, error) {
 		return "", nil
 	}
 
-	cloudInfo, err := s.dauthCtx.CloudInfo()
-	if err != nil {
-		return "", err
-	}
+	cloudInfo := mylog.Check2(s.dauthCtx.CloudInfo())
 
 	if cloudInfo == nil {
 		return "", nil
@@ -798,16 +747,13 @@ func (s *Store) newRequest(ctx context.Context, reqOptions *requestOptions, user
 		body = bytes.NewBuffer(reqOptions.Data)
 	}
 
-	req, err := http.NewRequest(reqOptions.Method, reqOptions.URL.String(), body)
-	if err != nil {
-		return nil, err
-	}
+	req := mylog.Check2(http.NewRequest(reqOptions.Method, reqOptions.URL.String(), body))
 
 	customStore := s.setStoreID(req, reqOptions.APILevel)
 	authOpts := AuthorizeOptions{apiLevel: reqOptions.APILevel}
 	authOpts.deviceAuth = customStore || reqOptions.DeviceAuthNeed != deviceAuthCustomStoreOnly
 	if authOpts.deviceAuth {
-		err := s.EnsureDeviceSession()
+		mylog.Check(s.EnsureDeviceSession())
 		if err != nil && err != ErrNoSerial {
 			return nil, err
 		}
@@ -816,9 +762,7 @@ func (s *Store) newRequest(ctx context.Context, reqOptions *requestOptions, user
 			logger.Debugf("cannot set device session: %v", err)
 		}
 	}
-	if err := s.auth.Authorize(req, s.dauthCtx, user, &authOpts); err != nil {
-		logger.Debugf("cannot authorize store request: %v", err)
-	}
+	mylog.Check(s.auth.Authorize(req, s.dauthCtx, user, &authOpts))
 
 	req.Header.Set("User-Agent", s.userAgent)
 	req.Header.Set("Accept", reqOptions.Accept)
@@ -826,10 +770,8 @@ func (s *Store) newRequest(ctx context.Context, reqOptions *requestOptions, user
 	req.Header.Set(hdrSnapDeviceSeries[reqOptions.APILevel], s.series)
 	req.Header.Set(hdrSnapClassic[reqOptions.APILevel], strconv.FormatBool(release.OnClassic))
 	req.Header.Set("Snap-Device-Capabilities", "default-tracks")
-	locationHeader, err := s.buildLocationString()
-	if err != nil {
-		return nil, err
-	}
+	locationHeader := mylog.Check2(s.buildLocationString())
+
 	if locationHeader != "" {
 		req.Header.Set("Snap-Device-Location", locationHeader)
 	}
@@ -915,10 +857,7 @@ func (s *Store) decorateOrders(snaps []*snap.Info, user *auth.UserState) error {
 		return nil
 	}
 
-	storeEndpoint, err := s.endpointURL(ordersEndpPath, nil)
-	if err != nil {
-		return err
-	}
+	storeEndpoint := mylog.Check2(s.endpointURL(ordersEndpPath, nil))
 
 	reqOptions := &requestOptions{
 		Method: "GET",
@@ -926,10 +865,7 @@ func (s *Store) decorateOrders(snaps []*snap.Info, user *auth.UserState) error {
 		Accept: jsonContentType,
 	}
 	var result ordersResult
-	resp, err := s.retryRequestDecodeJSON(context.TODO(), reqOptions, user, &result, nil)
-	if err != nil {
-		return err
-	}
+	resp := mylog.Check2(s.retryRequestDecodeJSON(context.TODO(), reqOptions, user, &result, nil))
 
 	if resp.StatusCode == 401 {
 		// TODO handle token expiry and refresh
@@ -971,20 +907,10 @@ type SnapSpec struct {
 func (s *Store) SnapInfo(ctx context.Context, snapSpec SnapSpec, user *auth.UserState) (*snap.Info, error) {
 	fields := strings.Join(s.infoFields, ",")
 
-	si, resp, err := s.snapInfo(ctx, snapSpec.Name, fields, user)
-	if err != nil {
-		return nil, err
-	}
+	si, resp := mylog.Check3(s.snapInfo(ctx, snapSpec.Name, fields, user))
 
-	info, err := infoFromStoreInfo(si)
-	if err != nil {
-		return nil, err
-	}
-
-	err = s.decorateOrders([]*snap.Info{info}, user)
-	if err != nil {
-		logger.Noticef("cannot get user orders: %v", err)
-	}
+	info := mylog.Check2(infoFromStoreInfo(si))
+	mylog.Check(s.decorateOrders([]*snap.Info{info}, user))
 
 	s.extractSuggestedCurrency(resp)
 
@@ -996,10 +922,7 @@ func (s *Store) snapInfo(ctx context.Context, snapName string, fields string, us
 	query.Set("fields", fields)
 	query.Set("architecture", s.architecture)
 
-	u, err := s.endpointURL(path.Join(snapInfoEndpPath, snapName), query)
-	if err != nil {
-		return nil, nil, err
-	}
+	u := mylog.Check2(s.endpointURL(path.Join(snapInfoEndpPath, snapName), query))
 
 	reqOptions := &requestOptions{
 		Method:   "GET",
@@ -1008,10 +931,7 @@ func (s *Store) snapInfo(ctx context.Context, snapName string, fields string, us
 	}
 
 	var remote storeInfo
-	resp, err := s.retryRequestDecodeJSON(ctx, reqOptions, user, &remote, nil)
-	if err != nil {
-		return nil, nil, err
-	}
+	resp := mylog.Check2(s.retryRequestDecodeJSON(ctx, reqOptions, user, &remote, nil))
 
 	// check statusCode
 	switch resp.StatusCode {
@@ -1032,10 +952,7 @@ func (s *Store) SnapExists(ctx context.Context, snapSpec SnapSpec, user *auth.Us
 	// request the minimal amount information
 	fields := "channel-map"
 
-	si, _, err := s.snapInfo(ctx, snapSpec.Name, fields, user)
-	if err != nil {
-		return nil, nil, err
-	}
+	si, _ := mylog.Check3(s.snapInfo(ctx, snapSpec.Name, fields, user))
 
 	return minimalFromStoreInfo(si)
 }
@@ -1110,10 +1027,7 @@ func (s *Store) Find(ctx context.Context, search *Search, user *auth.UserState) 
 		q.Set("confinement", "strict")
 	}
 
-	u, err := s.endpointURL(findEndpPath, q)
-	if err != nil {
-		return nil, err
-	}
+	u := mylog.Check2(s.endpointURL(findEndpPath, q))
 
 	reqOptions := &requestOptions{
 		Method:   "GET",
@@ -1138,21 +1052,14 @@ func (s *Store) Find(ctx context.Context, search *Search, user *auth.UserState) 
 		}
 		return json.NewDecoder(resp.Body).Decode(&searchData)
 	}
-	resp, err := httputil.RetryRequest(u.String(), doRequest, readResponse, defaultRetryStrategy)
-	if err != nil {
-		return nil, err
-	}
+	resp := mylog.Check2(httputil.RetryRequest(u.String(), doRequest, readResponse, defaultRetryStrategy))
 
 	if resp.StatusCode != 200 {
 		// fallback to search v1; v2 may not be available on some proxies
 		if resp.StatusCode == 404 {
 			verstr := resp.Header.Get("Snap-Store-Version")
-			ver, err := strconv.Atoi(verstr)
-			if err != nil {
-				logger.Debugf("Bogus Snap-Store-Version header %q.", verstr)
-			} else if ver < 20 {
-				return s.findV1(ctx, search, user)
-			}
+			ver := mylog.Check2(strconv.Atoi(verstr))
+
 		}
 		if len(searchData.ErrorList) > 0 {
 			if len(searchData.ErrorList) > 1 {
@@ -1169,17 +1076,11 @@ func (s *Store) Find(ctx context.Context, search *Search, user *auth.UserState) 
 
 	snaps := make([]*snap.Info, len(searchData.Results))
 	for i, res := range searchData.Results {
-		info, err := infoFromStoreSearchResult(res)
-		if err != nil {
-			return nil, err
-		}
+		info := mylog.Check2(infoFromStoreSearchResult(res))
+
 		snaps[i] = info
 	}
-
-	err = s.decorateOrders(snaps, user)
-	if err != nil {
-		logger.Noticef("cannot get user orders: %v", err)
-	}
+	mylog.Check(s.decorateOrders(snaps, user))
 
 	s.extractSuggestedCurrency(resp)
 
@@ -1220,10 +1121,7 @@ func (s *Store) findV1(ctx context.Context, search *Search, user *auth.UserState
 		q.Set("confinement", "strict")
 	}
 
-	u, err := s.endpointURL(searchEndpPath, q)
-	if err != nil {
-		return nil, err
-	}
+	u := mylog.Check2(s.endpointURL(searchEndpPath, q))
 
 	reqOptions := &requestOptions{
 		Method: "GET",
@@ -1232,10 +1130,7 @@ func (s *Store) findV1(ctx context.Context, search *Search, user *auth.UserState
 	}
 
 	var searchData searchResults
-	resp, err := s.retryRequestDecodeJSON(ctx, reqOptions, user, &searchData, nil)
-	if err != nil {
-		return nil, err
-	}
+	resp := mylog.Check2(s.retryRequestDecodeJSON(ctx, reqOptions, user, &searchData, nil))
 
 	if resp.StatusCode != 200 {
 		return nil, respToError(resp, "search")
@@ -1249,11 +1144,7 @@ func (s *Store) findV1(ctx context.Context, search *Search, user *auth.UserState
 	for i, pkg := range searchData.Payload.Packages {
 		snaps[i] = infoFromRemote(pkg)
 	}
-
-	err = s.decorateOrders(snaps, user)
-	if err != nil {
-		logger.Noticef("cannot get user orders: %v", err)
-	}
+	mylog.Check(s.decorateOrders(snaps, user))
 
 	s.extractSuggestedCurrency(resp)
 
@@ -1262,10 +1153,7 @@ func (s *Store) findV1(ctx context.Context, search *Search, user *auth.UserState
 
 // Sections retrieves the list of available store sections.
 func (s *Store) Sections(ctx context.Context, user *auth.UserState) ([]string, error) {
-	u, err := s.endpointURL(sectionsEndpPath, nil)
-	if err != nil {
-		return nil, err
-	}
+	u := mylog.Check2(s.endpointURL(sectionsEndpPath, nil))
 
 	reqOptions := &requestOptions{
 		Method:         "GET",
@@ -1275,10 +1163,7 @@ func (s *Store) Sections(ctx context.Context, user *auth.UserState) ([]string, e
 	}
 
 	var sectionData sectionResults
-	resp, err := s.retryRequestDecodeJSON(context.TODO(), reqOptions, user, &sectionData, nil)
-	if err != nil {
-		return nil, err
-	}
+	resp := mylog.Check2(s.retryRequestDecodeJSON(context.TODO(), reqOptions, user, &sectionData, nil))
 
 	if resp.StatusCode != 200 {
 		return nil, respToError(resp, "retrieve sections")
@@ -1298,10 +1183,7 @@ func (s *Store) Sections(ctx context.Context, user *auth.UserState) ([]string, e
 
 // Categories retrieves the list of available store categories.
 func (s *Store) Categories(ctx context.Context, user *auth.UserState) ([]CategoryDetails, error) {
-	u, err := s.endpointURL(categoriesEndpPath, nil)
-	if err != nil {
-		return nil, err
-	}
+	u := mylog.Check2(s.endpointURL(categoriesEndpPath, nil))
 
 	reqOptions := &requestOptions{
 		Method:   "GET",
@@ -1311,10 +1193,7 @@ func (s *Store) Categories(ctx context.Context, user *auth.UserState) ([]Categor
 	}
 
 	var categoryData categoryResults
-	resp, err := s.retryRequestDecodeJSON(context.TODO(), reqOptions, user, &categoryData, nil)
-	if err != nil {
-		return nil, err
-	}
+	resp := mylog.Check2(s.retryRequestDecodeJSON(context.TODO(), reqOptions, user, &categoryData, nil))
 
 	if resp.StatusCode != 200 {
 		return nil, respToError(resp, "retrieve categories")
@@ -1330,10 +1209,7 @@ func (s *Store) Categories(ctx context.Context, user *auth.UserState) ([]Categor
 // WriteCatalogs queries the "commands" endpoint and writes the
 // command names into the given io.Writer.
 func (s *Store) WriteCatalogs(ctx context.Context, names io.Writer, adder SnapAdder) error {
-	u, err := s.endpointURL(commandsEndpPath, nil)
-	if err != nil {
-		return err
-	}
+	u := mylog.Check2(s.endpointURL(commandsEndpPath, nil))
 
 	q := u.Query()
 	if release.OnClassic {
@@ -1362,10 +1238,8 @@ func (s *Store) WriteCatalogs(ctx context.Context, names io.Writer, adder SnapAd
 		return decodeCatalog(resp, names, adder)
 	}
 
-	resp, err := httputil.RetryRequest(u.String(), doRequest, readResponse, defaultRetryStrategy)
-	if err != nil {
-		return err
-	}
+	resp := mylog.Check2(httputil.RetryRequest(u.String(), doRequest, readResponse, defaultRetryStrategy))
+
 	if resp.StatusCode != 200 {
 		return respToError(resp, "refresh commands catalog")
 	}
@@ -1444,15 +1318,9 @@ func (s *Store) Buy(options *client.BuyOptions, user *auth.UserState) (*client.B
 		Currency: options.Currency,
 	}
 
-	jsonData, err := json.Marshal(instruction)
-	if err != nil {
-		return nil, err
-	}
+	jsonData := mylog.Check2(json.Marshal(instruction))
 
-	u, err := s.endpointURL(buyEndpPath, nil)
-	if err != nil {
-		return nil, err
-	}
+	u := mylog.Check2(s.endpointURL(buyEndpPath, nil))
 
 	reqOptions := &requestOptions{
 		Method:      "POST",
@@ -1464,10 +1332,7 @@ func (s *Store) Buy(options *client.BuyOptions, user *auth.UserState) (*client.B
 
 	var orderDetails order
 	var errorInfo storeErrors
-	resp, err := s.retryRequestDecodeJSON(context.TODO(), reqOptions, user, &orderDetails, &errorInfo)
-	if err != nil {
-		return nil, err
-	}
+	resp := mylog.Check2(s.retryRequestDecodeJSON(context.TODO(), reqOptions, user, &orderDetails, &errorInfo))
 
 	switch resp.StatusCode {
 	case 200, 201:
@@ -1518,10 +1383,7 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 		return ErrUnauthenticated
 	}
 
-	u, err := s.endpointURL(customersMeEndpPath, nil)
-	if err != nil {
-		return err
-	}
+	u := mylog.Check2(s.endpointURL(customersMeEndpPath, nil))
 
 	reqOptions := &requestOptions{
 		Method: "GET",
@@ -1531,10 +1393,7 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 
 	var customer storeCustomer
 	var errors storeErrors
-	resp, err := s.retryRequestDecodeJSON(context.TODO(), reqOptions, user, &customer, &errors)
-	if err != nil {
-		return err
-	}
+	resp := mylog.Check2(s.retryRequestDecodeJSON(context.TODO(), reqOptions, user, &customer, &errors))
 
 	switch resp.StatusCode {
 	case 200:
@@ -1574,20 +1433,17 @@ func (s *Store) snapConnCheck() ([]string, error) {
 	var hosts []string
 	// NOTE: "core" is possibly the only snap that's sure to be in all stores
 	//       when we drop "core" in the move to snapd/core18/etc, change this
-	infoURL, err := s.endpointURL(path.Join(snapInfoEndpPath, "core"), url.Values{
+	infoURL := mylog.Check2(s.endpointURL(path.Join(snapInfoEndpPath, "core"), url.Values{
 		// we only want the download URL
 		"fields": {"download"},
 		// we only need *one* (but can't filter by channel ... yet)
 		"architecture": {s.architecture},
-	})
-	if err != nil {
-		return nil, err
-	}
+	}))
 
 	hosts = append(hosts, infoURL.Host)
 
 	var result storeInfoAbbrev
-	resp, err := httputil.RetryRequest(infoURL.String(), func() (*http.Response, error) {
+	resp := mylog.Check2(httputil.RetryRequest(infoURL.String(), func() (*http.Response, error) {
 		return s.doRequest(context.TODO(), s.client, &requestOptions{
 			Method:   "GET",
 			URL:      infoURL,
@@ -1595,24 +1451,16 @@ func (s *Store) snapConnCheck() ([]string, error) {
 		}, nil)
 	}, func(resp *http.Response) error {
 		return decodeJSONBody(resp, &result, nil)
-	}, connCheckStrategy)
+	}, connCheckStrategy))
 
-	if err != nil {
-		return hosts, err
-	}
 	resp.Body.Close()
 
 	dlURLraw := result.ChannelMap[0].Download.URL
-	dlURL, err := url.ParseRequestURI(dlURLraw)
-	if err != nil {
-		return hosts, err
-	}
+	dlURL := mylog.Check2(url.ParseRequestURI(dlURLraw))
+
 	hosts = append(hosts, dlURL.Host)
 
-	cdnHeader, err := s.cdnHeader()
-	if err != nil {
-		return hosts, err
-	}
+	cdnHeader := mylog.Check2(s.cdnHeader())
 
 	reqOptions := downloadReqOpts(dlURL, cdnHeader, nil)
 	reqOptions.Method = "HEAD" // not actually a download
@@ -1621,16 +1469,14 @@ func (s *Store) snapConnCheck() ([]string, error) {
 	//       right CDN machine. Consider just doing a "net.Dial"
 	//       after the redirect here. Suggested in
 	// https://github.com/snapcore/snapd/pull/5176#discussion_r193437230
-	resp, err = httputil.RetryRequest(dlURLraw, func() (*http.Response, error) {
+	resp = mylog.Check2(httputil.RetryRequest(dlURLraw, func() (*http.Response, error) {
 		return s.doRequest(context.TODO(), s.client, reqOptions, nil)
 	}, func(resp *http.Response) error {
 		// account for redirect
 		hosts[len(hosts)-1] = resp.Request.URL.Host
 		return nil
-	}, connCheckStrategy)
-	if err != nil {
-		return hosts, err
-	}
+	}, connCheckStrategy))
+
 	resp.Body.Close()
 
 	if resp.StatusCode != 200 {
@@ -1647,10 +1493,7 @@ func (s *Store) checkStoreOnline() error {
 		return nil
 	}
 
-	offline, err := s.dauthCtx.StoreOffline()
-	if err != nil {
-		return fmt.Errorf("cannot get store access from state: %w", err)
-	}
+	offline := mylog.Check2(s.dauthCtx.StoreOffline())
 
 	if offline {
 		return ErrStoreOffline
@@ -1667,7 +1510,7 @@ func (s *Store) ConnectivityCheck() (status map[string]bool, err error) {
 	}
 
 	for _, checker := range checkers {
-		hosts, err := checker()
+		hosts := mylog.Check2(checker())
 
 		// do not swallow errors if the hosts list is empty
 		if len(hosts) == 0 && err != nil {
@@ -1683,15 +1526,9 @@ func (s *Store) ConnectivityCheck() (status map[string]bool, err error) {
 }
 
 func (s *Store) CreateCohorts(ctx context.Context, snaps []string) (map[string]string, error) {
-	jsonData, err := json.Marshal(map[string][]string{"snaps": snaps})
-	if err != nil {
-		return nil, err
-	}
+	jsonData := mylog.Check2(json.Marshal(map[string][]string{"snaps": snaps}))
 
-	u, err := s.endpointURL(cohortsEndpPath, nil)
-	if err != nil {
-		return nil, err
-	}
+	u := mylog.Check2(s.endpointURL(cohortsEndpPath, nil))
 
 	reqOptions := &requestOptions{
 		Method:   "POST",
@@ -1703,10 +1540,8 @@ func (s *Store) CreateCohorts(ctx context.Context, snaps []string) (map[string]s
 	var remote struct {
 		CohortKeys map[string]string `json:"cohort-keys"`
 	}
-	resp, err := s.retryRequestDecodeJSON(ctx, reqOptions, nil, &remote, nil)
-	if err != nil {
-		return nil, err
-	}
+	resp := mylog.Check2(s.retryRequestDecodeJSON(ctx, reqOptions, nil, &remote, nil))
+
 	switch resp.StatusCode {
 	case 200:
 		// OK

@@ -22,6 +22,7 @@ package ifacestate
 import (
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/overlord/state"
@@ -54,10 +55,7 @@ func addImplicitSlots(st *state.State, snapInfo *snap.Info) error {
 		return nil
 	}
 
-	hotplugSlots, err := getHotplugSlots(st)
-	if err != nil {
-		return err
-	}
+	hotplugSlots := mylog.Check2(getHotplugSlots(st))
 
 	// Ask each interface if it wants to be implicitly added.
 	for _, iface := range builtin.Interfaces() {

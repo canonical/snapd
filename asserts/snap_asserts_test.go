@@ -30,6 +30,7 @@ import (
 	"golang.org/x/crypto/sha3"
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 )
@@ -88,8 +89,8 @@ func (sds *snapDeclSuite) TestDecodeOK(c *C) {
 		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
 		"\n\n" +
 		"AXNpZw=="
-	a, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	c.Check(a.Type(), Equals, asserts.SnapDeclarationType)
 	snapDecl := a.(*asserts.SnapDeclaration)
 	c.Check(snapDecl.AuthorityID(), Equals, "canonical")
@@ -133,8 +134,8 @@ func (sds *snapDeclSuite) TestDecodeOKWithRevisionAuthority(c *C) {
 		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
 		"\n\n" +
 		"AXNpZw=="
-	a, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	c.Check(a.Type(), Equals, asserts.SnapDeclarationType)
 	snapDecl := a.(*asserts.SnapDeclaration)
 	c.Check(snapDecl.AuthorityID(), Equals, "canonical")
@@ -203,8 +204,8 @@ func (sds *snapDeclSuite) TestDecodeOKWithRevisionAuthorityDefaults(c *C) {
 
 	for _, t := range tests {
 		encoded := strings.Replace(initial, t.original, t.replaced, 1)
-		a, err := asserts.Decode([]byte(encoded))
-		c.Assert(err, IsNil)
+		a := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 		snapDecl := a.(*asserts.SnapDeclaration)
 		ras := snapDecl.RevisionAuthority("prov2")
 		c.Check(ras, HasLen, 1)
@@ -224,8 +225,8 @@ func (sds *snapDeclSuite) TestEmptySnapName(c *C) {
 		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
 		"\n\n" +
 		"AXNpZw=="
-	a, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	snapDecl := a.(*asserts.SnapDeclaration)
 	c.Check(snapDecl.SnapName(), Equals, "")
 }
@@ -242,8 +243,8 @@ func (sds *snapDeclSuite) TestMissingRefreshControlAutoAliases(c *C) {
 		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
 		"\n\n" +
 		"AXNpZw=="
-	a, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	snapDecl := a.(*asserts.SnapDeclaration)
 	c.Check(snapDecl.RefreshControl(), HasLen, 0)
 	c.Check(snapDecl.AutoAliases(), HasLen, 0)
@@ -305,10 +306,9 @@ func (sds *snapDeclSuite) TestDecodeInvalid(c *C) {
 
 	for _, test := range invalidTests {
 		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
-		_, err := asserts.Decode([]byte(invalid))
+		_ := mylog.Check2(asserts.Decode([]byte(invalid)))
 		c.Check(err, ErrorMatches, snapDeclErrPrefix+test.expectedErr)
 	}
-
 }
 
 func (sds *snapDeclSuite) TestDecodeInvalidWithRevisionAuthority(c *C) {
@@ -352,7 +352,7 @@ func (sds *snapDeclSuite) TestDecodeInvalidWithRevisionAuthority(c *C) {
 
 	for _, test := range invalidTests {
 		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
-		_, err := asserts.Decode([]byte(invalid))
+		_ := mylog.Check2(asserts.Decode([]byte(invalid)))
 		c.Check(err, ErrorMatches, snapDeclErrPrefix+test.expectedErr)
 	}
 }
@@ -439,8 +439,8 @@ sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQ
 
 AXNpZw==`
 	encoded = strings.Replace(encoded, "TSLINE\n", sds.tsLine, 1)
-	a, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	c.Check(a.SupportedFormat(), Equals, true)
 	snapDecl := a.(*asserts.SnapDeclaration)
 	c.Check(snapDecl.Series(), Equals, "16")
@@ -504,8 +504,8 @@ AXNpZw==`
 }
 
 func (sds *snapDeclSuite) TestSuggestedFormat(c *C) {
-	fmtnum, err := asserts.SuggestFormat(asserts.SnapDeclarationType, nil, nil)
-	c.Assert(err, IsNil)
+	fmtnum := mylog.Check2(asserts.SuggestFormat(asserts.SnapDeclarationType, nil, nil))
+
 	c.Check(fmtnum, Equals, 0)
 
 	headers := map[string]interface{}{
@@ -513,8 +513,8 @@ func (sds *snapDeclSuite) TestSuggestedFormat(c *C) {
 			"interface1": "true",
 		},
 	}
-	fmtnum, err = asserts.SuggestFormat(asserts.SnapDeclarationType, headers, nil)
-	c.Assert(err, IsNil)
+	fmtnum = mylog.Check2(asserts.SuggestFormat(asserts.SnapDeclarationType, headers, nil))
+
 	c.Check(fmtnum, Equals, 1)
 
 	headers = map[string]interface{}{
@@ -522,8 +522,8 @@ func (sds *snapDeclSuite) TestSuggestedFormat(c *C) {
 			"interface2": "true",
 		},
 	}
-	fmtnum, err = asserts.SuggestFormat(asserts.SnapDeclarationType, headers, nil)
-	c.Assert(err, IsNil)
+	fmtnum = mylog.Check2(asserts.SuggestFormat(asserts.SnapDeclarationType, headers, nil))
+
 	c.Check(fmtnum, Equals, 1)
 
 	headers = map[string]interface{}{
@@ -537,8 +537,8 @@ func (sds *snapDeclSuite) TestSuggestedFormat(c *C) {
 			},
 		},
 	}
-	fmtnum, err = asserts.SuggestFormat(asserts.SnapDeclarationType, headers, nil)
-	c.Assert(err, IsNil)
+	fmtnum = mylog.Check2(asserts.SuggestFormat(asserts.SnapDeclarationType, headers, nil))
+
 	c.Check(fmtnum, Equals, 2)
 
 	headers = map[string]interface{}{
@@ -552,8 +552,8 @@ func (sds *snapDeclSuite) TestSuggestedFormat(c *C) {
 			},
 		},
 	}
-	fmtnum, err = asserts.SuggestFormat(asserts.SnapDeclarationType, headers, nil)
-	c.Assert(err, IsNil)
+	fmtnum = mylog.Check2(asserts.SuggestFormat(asserts.SnapDeclarationType, headers, nil))
+
 	c.Check(fmtnum, Equals, 2)
 
 	// combinations with on-store/on-brand/on-model => format 3
@@ -569,8 +569,8 @@ func (sds *snapDeclSuite) TestSuggestedFormat(c *C) {
 					},
 				},
 			}
-			fmtnum, err = asserts.SuggestFormat(asserts.SnapDeclarationType, headers, nil)
-			c.Assert(err, IsNil)
+			fmtnum = mylog.Check2(asserts.SuggestFormat(asserts.SnapDeclarationType, headers, nil))
+
 			c.Check(fmtnum, Equals, 3)
 
 			for _, conn := range []string{"connection", "auto-connection"} {
@@ -584,8 +584,8 @@ func (sds *snapDeclSuite) TestSuggestedFormat(c *C) {
 						},
 					},
 				}
-				fmtnum, err = asserts.SuggestFormat(asserts.SnapDeclarationType, headers, nil)
-				c.Assert(err, IsNil)
+				fmtnum = mylog.Check2(asserts.SuggestFormat(asserts.SnapDeclarationType, headers, nil))
+
 				c.Check(fmtnum, Equals, 3)
 			}
 		}
@@ -611,8 +611,8 @@ func (sds *snapDeclSuite) TestSuggestedFormat(c *C) {
 			},
 		},
 	}
-	fmtnum, err = asserts.SuggestFormat(asserts.SnapDeclarationType, headers, nil)
-	c.Assert(err, IsNil)
+	fmtnum = mylog.Check2(asserts.SuggestFormat(asserts.SnapDeclarationType, headers, nil))
+
 	c.Check(fmtnum, Equals, 3)
 
 	headers = map[string]interface{}{
@@ -633,21 +633,21 @@ func (sds *snapDeclSuite) TestSuggestedFormat(c *C) {
 			},
 		},
 	}
-	fmtnum, err = asserts.SuggestFormat(asserts.SnapDeclarationType, headers, nil)
-	c.Assert(err, IsNil)
+	fmtnum = mylog.Check2(asserts.SuggestFormat(asserts.SnapDeclarationType, headers, nil))
+
 	c.Check(fmtnum, Equals, 3)
 
 	// errors
 	headers = map[string]interface{}{
 		"plugs": "what",
 	}
-	_, err = asserts.SuggestFormat(asserts.SnapDeclarationType, headers, nil)
+	_ = mylog.Check2(asserts.SuggestFormat(asserts.SnapDeclarationType, headers, nil))
 	c.Assert(err, ErrorMatches, `assertion snap-declaration: "plugs" header must be a map`)
 
 	headers = map[string]interface{}{
 		"slots": "what",
 	}
-	_, err = asserts.SuggestFormat(asserts.SnapDeclarationType, headers, nil)
+	_ = mylog.Check2(asserts.SuggestFormat(asserts.SnapDeclarationType, headers, nil))
 	c.Assert(err, ErrorMatches, `assertion snap-declaration: "slots" header must be a map`)
 
 	// plug-names/slot-names => format 4
@@ -662,8 +662,8 @@ func (sds *snapDeclSuite) TestSuggestedFormat(c *C) {
 				},
 			},
 		}
-		fmtnum, err = asserts.SuggestFormat(asserts.SnapDeclarationType, headers, nil)
-		c.Assert(err, IsNil)
+		fmtnum = mylog.Check2(asserts.SuggestFormat(asserts.SnapDeclarationType, headers, nil))
+
 		c.Check(fmtnum, Equals, 4)
 
 		for _, conn := range []string{"connection", "auto-connection"} {
@@ -677,8 +677,8 @@ func (sds *snapDeclSuite) TestSuggestedFormat(c *C) {
 					},
 				},
 			}
-			fmtnum, err = asserts.SuggestFormat(asserts.SnapDeclarationType, headers, nil)
-			c.Assert(err, IsNil)
+			fmtnum = mylog.Check2(asserts.SuggestFormat(asserts.SnapDeclarationType, headers, nil))
+
 			c.Check(fmtnum, Equals, 4)
 
 			headers = map[string]interface{}{
@@ -691,8 +691,8 @@ func (sds *snapDeclSuite) TestSuggestedFormat(c *C) {
 					},
 				},
 			}
-			fmtnum, err = asserts.SuggestFormat(asserts.SnapDeclarationType, headers, nil)
-			c.Assert(err, IsNil)
+			fmtnum = mylog.Check2(asserts.SuggestFormat(asserts.SnapDeclarationType, headers, nil))
+
 			c.Check(fmtnum, Equals, 4)
 		}
 	}
@@ -710,8 +710,8 @@ func (sds *snapDeclSuite) TestSuggestedFormat(c *C) {
 				},
 			},
 		}
-		fmtnum, err = asserts.SuggestFormat(asserts.SnapDeclarationType, headers, nil)
-		c.Assert(err, IsNil)
+		fmtnum = mylog.Check2(asserts.SuggestFormat(asserts.SnapDeclarationType, headers, nil))
+
 		c.Check(fmtnum, Equals, 5)
 	}
 }
@@ -720,8 +720,8 @@ func prereqDevAccount(c *C, storeDB assertstest.SignerDB, db *asserts.Database) 
 	dev1Acct := assertstest.NewAccount(storeDB, "developer1", map[string]interface{}{
 		"account-id": "dev-id1",
 	}, "")
-	err := db.Add(dev1Acct)
-	c.Assert(err, IsNil)
+	mylog.Check(db.Add(dev1Acct))
+
 }
 
 func (sds *snapDeclSuite) TestSnapDeclarationCheck(c *C) {
@@ -736,11 +736,10 @@ func (sds *snapDeclSuite) TestSnapDeclarationCheck(c *C) {
 		"publisher-id": "dev-id1",
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}
-	snapDecl, err := storeDB.Sign(asserts.SnapDeclarationType, headers, nil, "")
-	c.Assert(err, IsNil)
+	snapDecl := mylog.Check2(storeDB.Sign(asserts.SnapDeclarationType, headers, nil, ""))
 
-	err = db.Check(snapDecl)
-	c.Assert(err, IsNil)
+	mylog.Check(db.Check(snapDecl))
+
 }
 
 func (sds *snapDeclSuite) TestSnapDeclarationCheckUntrustedAuthority(c *C) {
@@ -755,10 +754,9 @@ func (sds *snapDeclSuite) TestSnapDeclarationCheckUntrustedAuthority(c *C) {
 		"publisher-id": "dev-id1",
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}
-	snapDecl, err := otherDB.Sign(asserts.SnapDeclarationType, headers, nil, "")
-	c.Assert(err, IsNil)
+	snapDecl := mylog.Check2(otherDB.Sign(asserts.SnapDeclarationType, headers, nil, ""))
 
-	err = db.Check(snapDecl)
+	mylog.Check(db.Check(snapDecl))
 	c.Assert(err, ErrorMatches, `snap-declaration assertion for "foo" \(id "snap-id-1"\) is not signed by a directly trusted authority:.*`)
 }
 
@@ -772,10 +770,9 @@ func (sds *snapDeclSuite) TestSnapDeclarationCheckMissingPublisherAccount(c *C) 
 		"publisher-id": "dev-id1",
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}
-	snapDecl, err := storeDB.Sign(asserts.SnapDeclarationType, headers, nil, "")
-	c.Assert(err, IsNil)
+	snapDecl := mylog.Check2(storeDB.Sign(asserts.SnapDeclarationType, headers, nil, ""))
 
-	err = db.Check(snapDecl)
+	mylog.Check(db.Check(snapDecl))
 	c.Assert(err, ErrorMatches, `snap-declaration assertion for "foo" \(id "snap-id-1"\) does not have a matching account assertion for the publisher "dev-id1"`)
 }
 
@@ -786,11 +783,11 @@ func (s *snapFileDigestSuite) TestSnapFileSHA3_384(c *C) {
 
 	tempdir := c.MkDir()
 	snapFn := filepath.Join(tempdir, "ex.snap")
-	err := os.WriteFile(snapFn, exData, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(snapFn, exData, 0644))
 
-	encDgst, size, err := asserts.SnapFileSHA3_384(snapFn)
-	c.Assert(err, IsNil)
+
+	encDgst, size := mylog.Check3(asserts.SnapFileSHA3_384(snapFn))
+
 	c.Check(size, Equals, uint64(len(exData)))
 
 	h3_384 := sha3.Sum384(exData)
@@ -815,8 +812,8 @@ func (sds *snapDeclSuite) TestPrerequisites(c *C) {
 		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
 		"\n\n" +
 		"AXNpZw=="
-	a, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 
 	prereqs := a.Prerequisites()
 	c.Assert(prereqs, HasLen, 1)
@@ -847,8 +844,8 @@ func (sbs *snapBuildSuite) TestDecodeOK(c *C) {
 		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
 		"\n\n" +
 		"AXNpZw=="
-	a, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	c.Check(a.Type(), Equals, asserts.SnapBuildType)
 	snapBuild := a.(*asserts.SnapBuild)
 	c.Check(snapBuild.AuthorityID(), Equals, "dev-id1")
@@ -898,7 +895,7 @@ func (sbs *snapBuildSuite) TestDecodeInvalid(c *C) {
 
 	for _, test := range invalidTests {
 		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
-		_, err := asserts.Decode([]byte(invalid))
+		_ := mylog.Check2(asserts.Decode([]byte(invalid)))
 		c.Check(err, ErrorMatches, snapBuildErrPrefix+test.expectedErr)
 	}
 }
@@ -910,15 +907,17 @@ func makeStoreAndCheckDB(c *C) (store *assertstest.StoreStack, checkDB *asserts.
 		Trusted:         store.Trusted,
 		OtherPredefined: store.Generic,
 	}
-	checkDB, err := asserts.OpenDatabase(cfg)
-	c.Assert(err, IsNil)
+	checkDB := mylog.Check2(asserts.OpenDatabase(cfg))
 
-	// add store key
-	err = checkDB.Add(store.StoreAccountKey(""))
-	c.Assert(err, IsNil)
-	// add generic key
-	err = checkDB.Add(store.GenericKey)
-	c.Assert(err, IsNil)
+	mylog.
+
+		// add store key
+		Check(checkDB.Add(store.StoreAccountKey("")))
+
+	mylog.
+		// add generic key
+		Check(checkDB.Add(store.GenericKey))
+
 
 	return store, checkDB
 }
@@ -930,11 +929,10 @@ func setup3rdPartySigning(c *C, username string, storeDB assertstest.SignerDB, c
 		"account-id": username,
 	}, "")
 	accKey := assertstest.NewAccountKey(storeDB, acct, nil, privKey.PublicKey(), "")
+	mylog.Check(checkDB.Add(acct))
 
-	err := checkDB.Add(acct)
-	c.Assert(err, IsNil)
-	err = checkDB.Add(accKey)
-	c.Assert(err, IsNil)
+	mylog.Check(checkDB.Add(accKey))
+
 
 	return assertstest.NewSigningDB(acct.AccountID(), privKey)
 }
@@ -951,11 +949,10 @@ func (sbs *snapBuildSuite) TestSnapBuildCheck(c *C) {
 		"snap-size":     "1025",
 		"timestamp":     time.Now().Format(time.RFC3339),
 	}
-	snapBuild, err := devDB.Sign(asserts.SnapBuildType, headers, nil, "")
-	c.Assert(err, IsNil)
+	snapBuild := mylog.Check2(devDB.Sign(asserts.SnapBuildType, headers, nil, ""))
 
-	err = db.Check(snapBuild)
-	c.Assert(err, IsNil)
+	mylog.Check(db.Check(snapBuild))
+
 }
 
 func (sbs *snapBuildSuite) TestSnapBuildCheckInconsistentTimestamp(c *C) {
@@ -969,10 +966,9 @@ func (sbs *snapBuildSuite) TestSnapBuildCheckInconsistentTimestamp(c *C) {
 		"snap-size":     "1025",
 		"timestamp":     "2013-01-01T14:00:00Z",
 	}
-	snapBuild, err := devDB.Sign(asserts.SnapBuildType, headers, nil, "")
-	c.Assert(err, IsNil)
+	snapBuild := mylog.Check2(devDB.Sign(asserts.SnapBuildType, headers, nil, ""))
 
-	err = db.Check(snapBuild)
+	mylog.Check(db.Check(snapBuild))
 	c.Assert(err, ErrorMatches, `snap-build assertion timestamp "2013-01-01 14:00:00 \+0000 UTC" outside of signing key validity \(key valid since.*\)`)
 }
 
@@ -1044,8 +1040,8 @@ func (srs *snapRevSuite) makeHeaders(overrides map[string]interface{}) map[strin
 
 func (srs *snapRevSuite) TestDecodeOK(c *C) {
 	encoded := srs.makeValidEncoded()
-	a, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	c.Check(a.Type(), Equals, asserts.SnapRevisionType)
 	snapRev := a.(*asserts.SnapRevision)
 	c.Check(snapRev.AuthorityID(), Equals, "store-id1")
@@ -1062,8 +1058,8 @@ func (srs *snapRevSuite) TestDecodeOK(c *C) {
 func (srs *snapRevSuite) TestDecodeOKWithProvenance(c *C) {
 	encoded := srs.makeValidEncoded()
 	encoded = strings.Replace(encoded, "snap-id: snap-id-1", "provenance: foo\nsnap-id: snap-id-1", 1)
-	a, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	c.Check(a.Type(), Equals, asserts.SnapRevisionType)
 	snapRev := a.(*asserts.SnapRevision)
 	c.Check(snapRev.AuthorityID(), Equals, "store-id1")
@@ -1079,8 +1075,8 @@ func (srs *snapRevSuite) TestDecodeOKWithProvenance(c *C) {
 
 func (srs *snapRevSuite) TestDecodeOKWithIntegrity(c *C) {
 	encoded := srs.makeValidEncodedWithIntegrity()
-	a, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	c.Check(a.Type(), Equals, asserts.SnapRevisionType)
 	snapRev := a.(*asserts.SnapRevision)
 	c.Check(snapRev.AuthorityID(), Equals, "store-id1")
@@ -1131,7 +1127,7 @@ func (srs *snapRevSuite) TestDecodeInvalid(c *C) {
 
 	for _, test := range invalidTests {
 		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
-		_, err := asserts.Decode([]byte(invalid))
+		_ := mylog.Check2(asserts.Decode([]byte(invalid)))
 		c.Check(err, ErrorMatches, snapRevErrPrefix+test.expectedErr)
 	}
 }
@@ -1160,22 +1156,22 @@ func (srs *snapRevSuite) TestDecodeInvalidWithIntegrity(c *C) {
 
 	for _, test := range invalidTests {
 		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
-		_, err := asserts.Decode([]byte(invalid))
+		_ := mylog.Check2(asserts.Decode([]byte(invalid)))
 		c.Check(err, ErrorMatches, snapRevErrPrefix+test.expectedErr)
 	}
 }
 
 func prereqSnapDecl(c *C, storeDB assertstest.SignerDB, db *asserts.Database) {
-	snapDecl, err := storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	snapDecl := mylog.Check2(storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-name":    "foo",
 		"publisher-id": "dev-id1",
 		"timestamp":    time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	err = db.Add(snapDecl)
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
+	mylog.Check(db.Add(snapDecl))
+
 }
 
 func (srs *snapRevSuite) TestSnapRevisionCheck(c *C) {
@@ -1185,11 +1181,10 @@ func (srs *snapRevSuite) TestSnapRevisionCheck(c *C) {
 	prereqSnapDecl(c, storeDB, db)
 
 	headers := srs.makeHeaders(nil)
-	snapRev, err := storeDB.Sign(asserts.SnapRevisionType, headers, nil, "")
-	c.Assert(err, IsNil)
+	snapRev := mylog.Check2(storeDB.Sign(asserts.SnapRevisionType, headers, nil, ""))
 
-	err = db.Check(snapRev)
-	c.Assert(err, IsNil)
+	mylog.Check(db.Check(snapRev))
+
 }
 
 func (srs *snapRevSuite) TestSnapRevisionCheckInconsistentTimestamp(c *C) {
@@ -1198,10 +1193,9 @@ func (srs *snapRevSuite) TestSnapRevisionCheckInconsistentTimestamp(c *C) {
 	headers := srs.makeHeaders(map[string]interface{}{
 		"timestamp": "2013-01-01T14:00:00Z",
 	})
-	snapRev, err := storeDB.Sign(asserts.SnapRevisionType, headers, nil, "")
-	c.Assert(err, IsNil)
+	snapRev := mylog.Check2(storeDB.Sign(asserts.SnapRevisionType, headers, nil, ""))
 
-	err = db.Check(snapRev)
+	mylog.Check(db.Check(snapRev))
 	c.Assert(err, ErrorMatches, `snap-revision assertion timestamp "2013-01-01 14:00:00 \+0000 UTC" outside of signing key validity \(key valid since.*\)`)
 }
 
@@ -1213,10 +1207,9 @@ func (srs *snapRevSuite) TestSnapRevisionCheckUntrustedAuthority(c *C) {
 	headers := srs.makeHeaders(map[string]interface{}{
 		"authority-id": "other",
 	})
-	snapRev, err := otherDB.Sign(asserts.SnapRevisionType, headers, nil, "")
-	c.Assert(err, IsNil)
+	snapRev := mylog.Check2(otherDB.Sign(asserts.SnapRevisionType, headers, nil, ""))
 
-	err = db.Check(snapRev)
+	mylog.Check(db.Check(snapRev))
 	c.Assert(err, ErrorMatches, `snap-revision assertion for snap id "snap-id-1" is not signed by a store:.*`)
 }
 
@@ -1224,10 +1217,9 @@ func (srs *snapRevSuite) TestSnapRevisionCheckMissingDeveloperAccount(c *C) {
 	storeDB, db := makeStoreAndCheckDB(c)
 
 	headers := srs.makeHeaders(nil)
-	snapRev, err := storeDB.Sign(asserts.SnapRevisionType, headers, nil, "")
-	c.Assert(err, IsNil)
+	snapRev := mylog.Check2(storeDB.Sign(asserts.SnapRevisionType, headers, nil, ""))
 
-	err = db.Check(snapRev)
+	mylog.Check(db.Check(snapRev))
 	c.Assert(err, ErrorMatches, `snap-revision assertion for snap id "snap-id-1" does not have a matching account assertion for the developer "dev-id1"`)
 }
 
@@ -1237,10 +1229,9 @@ func (srs *snapRevSuite) TestSnapRevisionCheckMissingDeclaration(c *C) {
 	prereqDevAccount(c, storeDB, db)
 
 	headers := srs.makeHeaders(nil)
-	snapRev, err := storeDB.Sign(asserts.SnapRevisionType, headers, nil, "")
-	c.Assert(err, IsNil)
+	snapRev := mylog.Check2(storeDB.Sign(asserts.SnapRevisionType, headers, nil, ""))
 
-	err = db.Check(snapRev)
+	mylog.Check(db.Check(snapRev))
 	c.Assert(err, ErrorMatches, `snap-revision assertion for snap id "snap-id-1" does not have a matching snap-declaration assertion`)
 }
 
@@ -1254,8 +1245,8 @@ func (srs *snapRevSuite) TestRevisionAuthorityCheck(c *C) {
 		"snap-revision": "200",
 		"provenance":    "prov1",
 	})
-	a, err := delegatedDB.Sign(asserts.SnapRevisionType, headers, nil, "")
-	c.Assert(err, IsNil)
+	a := mylog.Check2(delegatedDB.Sign(asserts.SnapRevisionType, headers, nil, ""))
+
 	snapRev := a.(*asserts.SnapRevision)
 
 	tests := []struct {
@@ -1299,7 +1290,7 @@ func (srs *snapRevSuite) TestRevisionAuthorityCheck(c *C) {
 	}
 
 	for _, t := range tests {
-		err := t.revAuth.Check(snapRev, nil, nil)
+		mylog.Check(t.revAuth.Check(snapRev, nil, nil))
 		if t.err == "" {
 			c.Check(err, IsNil)
 		} else {
@@ -1309,7 +1300,7 @@ func (srs *snapRevSuite) TestRevisionAuthorityCheck(c *C) {
 }
 
 func (srs *snapRevSuite) TestRevisionAuthorityCheckDeviceScope(c *C) {
-	a, err := asserts.Decode([]byte(`type: model
+	a := mylog.Check2(asserts.Decode([]byte(`type: model
 authority-id: my-brand
 series: 16
 brand-id: my-brand
@@ -1321,11 +1312,11 @@ gadget: gadget
 timestamp: 2018-09-12T12:00:00Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
-AXNpZw==`))
-	c.Assert(err, IsNil)
+AXNpZw==`)))
+
 	myModel := a.(*asserts.Model)
 
-	a, err = asserts.Decode([]byte(`type: store
+	a = mylog.Check2(asserts.Decode([]byte(`type: store
 store: substore
 authority-id: canonical
 operator-id: canonical
@@ -1336,8 +1327,8 @@ friendly-stores:
 timestamp: 2018-09-12T12:00:00Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
-AXNpZw==`))
-	c.Assert(err, IsNil)
+AXNpZw==`)))
+
 	substore := a.(*asserts.Store)
 
 	storeDB, db := makeStoreAndCheckDB(c)
@@ -1349,8 +1340,8 @@ AXNpZw==`))
 		"snap-revision": "200",
 		"provenance":    "prov1",
 	})
-	a, err = delegatedDB.Sign(asserts.SnapRevisionType, headers, nil, "")
-	c.Assert(err, IsNil)
+	a = mylog.Check2(delegatedDB.Sign(asserts.SnapRevisionType, headers, nil, ""))
+
 	snapRev := a.(*asserts.SnapRevision)
 
 	tests := []struct {
@@ -1414,7 +1405,7 @@ AXNpZw==`))
 	}
 
 	for _, t := range tests {
-		err := t.revAuth.Check(snapRev, myModel, t.substore)
+		mylog.Check(t.revAuth.Check(snapRev, myModel, t.substore))
 		if t.err == "" {
 			c.Check(err, IsNil)
 		} else {
@@ -1428,30 +1419,29 @@ func (srs *snapRevSuite) TestSnapRevisionDelegation(c *C) {
 
 	delegatedDB := setup3rdPartySigning(c, "delegated-id", storeDB, db)
 
-	snapDecl, err := storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	snapDecl := mylog.Check2(storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-name":    "foo",
 		"publisher-id": "delegated-id",
 		"timestamp":    time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	err = db.Add(snapDecl)
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
+	mylog.Check(db.Add(snapDecl))
+
 
 	headers := srs.makeHeaders(map[string]interface{}{
 		"authority-id": "delegated-id",
 		"developer-id": "delegated-id",
 		"provenance":   "prov1",
 	})
-	snapRev, err := delegatedDB.Sign(asserts.SnapRevisionType, headers, nil, "")
-	c.Assert(err, IsNil)
+	snapRev := mylog.Check2(delegatedDB.Sign(asserts.SnapRevisionType, headers, nil, ""))
 
-	err = db.Check(snapRev)
+	mylog.Check(db.Check(snapRev))
 	c.Check(err, ErrorMatches, `snap-revision assertion with provenance "prov1" for snap id "snap-id-1" is not signed by an authorized authority: delegated-id`)
 
 	// establish delegation
-	snapDecl, err = storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	snapDecl = mylog.Check2(storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-name":    "foo",
@@ -1470,13 +1460,14 @@ func (srs *snapRevSuite) TestSnapRevisionDelegation(c *C) {
 			},
 		},
 		"timestamp": time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	err = db.Add(snapDecl)
-	c.Assert(err, IsNil)
+	}, nil, ""))
 
-	// now revision should be accepted
-	err = db.Check(snapRev)
+	mylog.Check(db.Add(snapDecl))
+
+	mylog.
+
+		// now revision should be accepted
+		Check(db.Check(snapRev))
 	c.Check(err, IsNil)
 }
 
@@ -1486,7 +1477,7 @@ func (srs *snapRevSuite) TestSnapRevisionDelegationRevisionOutOfRange(c *C) {
 	delegatedDB := setup3rdPartySigning(c, "delegated-id", storeDB, db)
 
 	// establish delegation
-	snapDecl, err := storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	snapDecl := mylog.Check2(storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-name":    "foo",
@@ -1505,10 +1496,10 @@ func (srs *snapRevSuite) TestSnapRevisionDelegationRevisionOutOfRange(c *C) {
 			},
 		},
 		"timestamp": time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	err = db.Add(snapDecl)
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
+	mylog.Check(db.Add(snapDecl))
+
 
 	headers := srs.makeHeaders(map[string]interface{}{
 		"authority-id":  "delegated-id",
@@ -1516,10 +1507,9 @@ func (srs *snapRevSuite) TestSnapRevisionDelegationRevisionOutOfRange(c *C) {
 		"provenance":    "prov1",
 		"snap-revision": "1000",
 	})
-	snapRev, err := delegatedDB.Sign(asserts.SnapRevisionType, headers, nil, "")
-	c.Assert(err, IsNil)
+	snapRev := mylog.Check2(delegatedDB.Sign(asserts.SnapRevisionType, headers, nil, ""))
 
-	err = db.Check(snapRev)
+	mylog.Check(db.Check(snapRev))
 	c.Check(err, ErrorMatches, `snap-revision assertion with provenance "prov1" for snap id "snap-id-1" is not signed by an authorized authority: delegated-id`)
 }
 
@@ -1530,21 +1520,21 @@ func (srs *snapRevSuite) TestPrimaryKey(c *C) {
 	prereqSnapDecl(c, storeDB, db)
 
 	headers := srs.makeHeaders(nil)
-	snapRev, err := storeDB.Sign(asserts.SnapRevisionType, headers, nil, "")
-	c.Assert(err, IsNil)
-	err = db.Add(snapRev)
-	c.Assert(err, IsNil)
+	snapRev := mylog.Check2(storeDB.Sign(asserts.SnapRevisionType, headers, nil, ""))
 
-	_, err = db.Find(asserts.SnapRevisionType, map[string]string{
+	mylog.Check(db.Add(snapRev))
+
+
+	_ = mylog.Check2(db.Find(asserts.SnapRevisionType, map[string]string{
 		"snap-sha3-384": headers["snap-sha3-384"].(string),
-	})
-	c.Assert(err, IsNil)
+	}))
+
 }
 
 func (srs *snapRevSuite) TestPrerequisites(c *C) {
 	encoded := srs.makeValidEncoded()
-	a, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 
 	prereqs := a.Prerequisites()
 	c.Assert(prereqs, HasLen, 2)
@@ -1600,8 +1590,8 @@ func (vs *validationSuite) makeHeaders(overrides map[string]interface{}) map[str
 
 func (vs *validationSuite) TestDecodeOK(c *C) {
 	encoded := vs.makeValidEncoded()
-	a, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	c.Check(a.Type(), Equals, asserts.ValidationType)
 	validation := a.(*asserts.Validation)
 	c.Check(validation.AuthorityID(), Equals, "dev-id1")
@@ -1639,22 +1629,22 @@ func (vs *validationSuite) TestDecodeInvalid(c *C) {
 
 	for _, test := range invalidTests {
 		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
-		_, err := asserts.Decode([]byte(invalid))
+		_ := mylog.Check2(asserts.Decode([]byte(invalid)))
 		c.Check(err, ErrorMatches, validationErrPrefix+test.expectedErr)
 	}
 }
 
 func prereqSnapDecl2(c *C, storeDB assertstest.SignerDB, db *asserts.Database) {
-	snapDecl, err := storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	snapDecl := mylog.Check2(storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 		"series":       "16",
 		"snap-id":      "snap-id-2",
 		"snap-name":    "bar",
 		"publisher-id": "dev-id1",
 		"timestamp":    time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	err = db.Add(snapDecl)
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
+	mylog.Check(db.Add(snapDecl))
+
 }
 
 func (vs *validationSuite) TestValidationCheck(c *C) {
@@ -1665,11 +1655,10 @@ func (vs *validationSuite) TestValidationCheck(c *C) {
 	prereqSnapDecl2(c, storeDB, db)
 
 	headers := vs.makeHeaders(nil)
-	validation, err := devDB.Sign(asserts.ValidationType, headers, nil, "")
-	c.Assert(err, IsNil)
+	validation := mylog.Check2(devDB.Sign(asserts.ValidationType, headers, nil, ""))
 
-	err = db.Check(validation)
-	c.Assert(err, IsNil)
+	mylog.Check(db.Check(validation))
+
 }
 
 func (vs *validationSuite) TestValidationCheckWrongAuthority(c *C) {
@@ -1682,10 +1671,9 @@ func (vs *validationSuite) TestValidationCheckWrongAuthority(c *C) {
 	headers := vs.makeHeaders(map[string]interface{}{
 		"authority-id": "canonical", // not the publisher
 	})
-	validation, err := storeDB.Sign(asserts.ValidationType, headers, nil, "")
-	c.Assert(err, IsNil)
+	validation := mylog.Check2(storeDB.Sign(asserts.ValidationType, headers, nil, ""))
 
-	err = db.Check(validation)
+	mylog.Check(db.Check(validation))
 	c.Assert(err, ErrorMatches, `validation assertion by snap "foo" \(id "snap-id-1"\) not signed by its publisher`)
 }
 
@@ -1702,8 +1690,8 @@ func (vs *validationSuite) TestRevocation(c *C) {
 		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
 		"\n\n" +
 		"AXNpZw=="
-	a, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	validation := a.(*asserts.Validation)
 	c.Check(validation.Revoked(), Equals, true)
 }
@@ -1721,8 +1709,8 @@ func (vs *validationSuite) TestRevokedFalse(c *C) {
 		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
 		"\n\n" +
 		"AXNpZw=="
-	a, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	validation := a.(*asserts.Validation)
 	c.Check(validation.Revoked(), Equals, false)
 }
@@ -1740,7 +1728,7 @@ func (vs *validationSuite) TestRevokedInvalid(c *C) {
 		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
 		"\n\n" +
 		"AXNpZw=="
-	_, err := asserts.Decode([]byte(encoded))
+	_ := mylog.Check2(asserts.Decode([]byte(encoded)))
 	c.Check(err, ErrorMatches, `.*: "revoked" header must be 'true' or 'false'`)
 }
 
@@ -1749,10 +1737,9 @@ func (vs *validationSuite) TestMissingGatedSnapDeclaration(c *C) {
 	devDB := setup3rdPartySigning(c, "dev-id1", storeDB, db)
 
 	headers := vs.makeHeaders(nil)
-	a, err := devDB.Sign(asserts.ValidationType, headers, nil, "")
-	c.Assert(err, IsNil)
+	a := mylog.Check2(devDB.Sign(asserts.ValidationType, headers, nil, ""))
 
-	err = db.Check(a)
+	mylog.Check(db.Check(a))
 	c.Assert(err, ErrorMatches, `validation assertion by snap-id "snap-id-1" does not have a matching snap-declaration assertion for approved-snap-id "snap-id-2"`)
 }
 
@@ -1763,17 +1750,16 @@ func (vs *validationSuite) TestMissingGatingSnapDeclaration(c *C) {
 	prereqSnapDecl2(c, storeDB, db)
 
 	headers := vs.makeHeaders(nil)
-	a, err := devDB.Sign(asserts.ValidationType, headers, nil, "")
-	c.Assert(err, IsNil)
+	a := mylog.Check2(devDB.Sign(asserts.ValidationType, headers, nil, ""))
 
-	err = db.Check(a)
+	mylog.Check(db.Check(a))
 	c.Assert(err, ErrorMatches, `validation assertion by snap-id "snap-id-1" does not have a matching snap-declaration assertion`)
 }
 
 func (vs *validationSuite) TestPrerequisites(c *C) {
 	encoded := vs.makeValidEncoded()
-	a, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 
 	prereqs := a.Prerequisites()
 	c.Assert(prereqs, HasLen, 2)
@@ -1865,12 +1851,12 @@ timestamp: 2016-09-29T19:50:49Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
 AXNpZw==`
-	a, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	baseDecl := a.(*asserts.BaseDeclaration)
 	c.Check(baseDecl.Series(), Equals, "16")
-	ts, err := time.Parse(time.RFC3339, "2016-09-29T19:50:49Z")
-	c.Assert(err, IsNil)
+	ts := mylog.Check2(time.Parse(time.RFC3339, "2016-09-29T19:50:49Z"))
+
 	c.Check(baseDecl.Timestamp().Equal(ts), Equals, true)
 
 	c.Check(baseDecl.PlugRule("interfaceX"), IsNil)
@@ -1927,7 +1913,6 @@ AXNpZw==`
 	c.Assert(slotRule4.AllowInstallation, HasLen, 1)
 	c.Check(slotRule4.AllowInstallation[0].SlotAttributes.Check(slot, nil), ErrorMatches, `attribute "e1".*`)
 	c.Check(slotRule4.AllowInstallation[0].SlotSnapTypes, DeepEquals, []string{"app"})
-
 }
 
 func (s *baseDeclSuite) TestBaseDeclarationCheckUntrustedAuthority(c *C) {
@@ -1939,10 +1924,9 @@ func (s *baseDeclSuite) TestBaseDeclarationCheckUntrustedAuthority(c *C) {
 		"series":    "16",
 		"timestamp": time.Now().Format(time.RFC3339),
 	}
-	baseDecl, err := otherDB.Sign(asserts.BaseDeclarationType, headers, nil, "")
-	c.Assert(err, IsNil)
+	baseDecl := mylog.Check2(otherDB.Sign(asserts.BaseDeclarationType, headers, nil, ""))
 
-	err = db.Check(baseDecl)
+	mylog.Check(db.Check(baseDecl))
 	c.Assert(err, ErrorMatches, `base-declaration assertion for series 16 is not signed by a directly trusted authority: other`)
 }
 
@@ -1976,10 +1960,9 @@ func (s *baseDeclSuite) TestDecodeInvalid(c *C) {
 
 	for _, test := range invalidTests {
 		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
-		_, err := asserts.Decode([]byte(invalid))
+		_ := mylog.Check2(asserts.Decode([]byte(invalid)))
 		c.Check(err, ErrorMatches, baseDeclErrPrefix+test.expectedErr)
 	}
-
 }
 
 func (s *baseDeclSuite) TestBuiltin(c *C) {
@@ -2001,9 +1984,8 @@ slots:
       slot-snap-type:
         - core
 `
+	mylog.Check(asserts.InitBuiltinBaseDeclaration([]byte(headers)))
 
-	err := asserts.InitBuiltinBaseDeclaration([]byte(headers))
-	c.Assert(err, IsNil)
 
 	baseDecl = asserts.BuiltinBaseDeclaration()
 	c.Assert(baseDecl, NotNil)
@@ -2018,7 +2000,7 @@ slots:
 
 	enc := asserts.Encode(baseDecl)
 	// it's expected that it cannot be decoded
-	_, err = asserts.Decode(enc)
+	_ = mylog.Check2(asserts.Decode(enc))
 	c.Check(err, NotNil)
 }
 
@@ -2038,7 +2020,7 @@ func (s *baseDeclSuite) TestBuiltinInitErrors(c *C) {
 	}
 
 	for _, t := range tests {
-		err := asserts.InitBuiltinBaseDeclaration([]byte(t.headers))
+		mylog.Check(asserts.InitBuiltinBaseDeclaration([]byte(t.headers)))
 		c.Check(err, ErrorMatches, t.err, Commentf(t.headers))
 	}
 }
@@ -2062,8 +2044,8 @@ func (sds *snapDevSuite) SetUpSuite(c *C) {
 
 func (sds *snapDevSuite) TestDecodeOK(c *C) {
 	encoded := sds.validEncoded
-	a, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	c.Check(a.Type(), Equals, asserts.SnapDeveloperType)
 	snapDev := a.(*asserts.SnapDeveloper)
 	c.Check(snapDev.AuthorityID(), Equals, "dev-id1")
@@ -2073,7 +2055,7 @@ func (sds *snapDevSuite) TestDecodeOK(c *C) {
 
 func (sds *snapDevSuite) TestDevelopersOptional(c *C) {
 	encoded := strings.Replace(sds.validEncoded, sds.developersLines, "", 1)
-	_, err := asserts.Decode([]byte(encoded))
+	_ := mylog.Check2(asserts.Decode([]byte(encoded)))
 	c.Check(err, IsNil)
 }
 
@@ -2081,7 +2063,7 @@ func (sds *snapDevSuite) TestDevelopersUntilOptional(c *C) {
 	encoded := strings.Replace(
 		sds.validEncoded, sds.developersLines,
 		"developers:\n  -\n    developer-id: dev-id2\n    since: 2017-01-01T00:00:00.0Z\n", 1)
-	_, err := asserts.Decode([]byte(encoded))
+	_ := mylog.Check2(asserts.Decode([]byte(encoded)))
 	c.Check(err, IsNil)
 }
 
@@ -2090,7 +2072,7 @@ func (sds *snapDevSuite) TestDevelopersRevoked(c *C) {
 	encoded = strings.Replace(
 		encoded, sds.developersLines,
 		"developers:\n  -\n    developer-id: dev-id2\n    since: 2017-01-01T00:00:00.0Z\n    until: 2017-01-01T00:00:00.0Z\n", 1)
-	_, err := asserts.Decode([]byte(encoded))
+	_ := mylog.Check2(asserts.Decode([]byte(encoded)))
 	c.Check(err, IsNil)
 	// TODO(matt): check actually revoked rather than just parsed
 }
@@ -2112,27 +2094,43 @@ func (sds *snapDevSuite) TestDecodeInvalid(c *C) {
 		{sds.developersLines, "developers:\n  foo: bar\n", `"developers" must be a list of developer maps`},
 		{sds.developersLines, "developers:\n  - foo\n", `"developers" must be a list of developer maps`},
 		{sds.developersLines, "developers:\n  -\n    foo: bar\n", `"developer-id" in "developers" item 1 is mandatory`},
-		{sds.developersLines, "developers:\n  -\n    developer-id: a\n",
-			`"developer-id" in "developers" item 1 contains invalid characters: "a"`},
-		{sds.developersLines, "developers:\n  -\n    developer-id: dev-id2\n",
-			`"since" in "developers" item 1 for developer "dev-id2" is mandatory`},
-		{sds.developersLines, "developers:\n  -\n    developer-id: dev-id2\n    since: \n",
-			`"since" in "developers" item 1 for developer "dev-id2" should not be empty`},
-		{sds.developersLines, "developers:\n  -\n    developer-id: dev-id2\n    since: foo\n",
-			`"since" in "developers" item 1 for developer "dev-id2" is not a RFC3339 date.*`},
-		{sds.developersLines, "developers:\n  -\n    developer-id: dev-id2\n    since: 2017-01-01T00:00:00.0Z\n    until: \n",
-			`"until" in "developers" item 1 for developer "dev-id2" is not a RFC3339 date.*`},
-		{sds.developersLines, "developers:\n  -\n    developer-id: dev-id2\n    since: 2017-01-01T00:00:00.0Z\n    until: foo\n",
-			`"until" in "developers" item 1 for developer "dev-id2" is not a RFC3339 date.*`},
-		{sds.developersLines, "developers:\n  -\n    developer-id: dev-id2\n    since: 2017-01-01T00:00:00.0Z\n  -\n    foo: bar\n",
-			`"developer-id" in "developers" item 2 is mandatory`},
-		{sds.developersLines, "developers:\n  -\n    developer-id: dev-id2\n    since: 2017-01-02T00:00:00.0Z\n    until: 2017-01-01T00:00:00.0Z\n",
-			`"since" in "developers" item 1 for developer "dev-id2" must be less than or equal to "until"`},
+		{
+			sds.developersLines, "developers:\n  -\n    developer-id: a\n",
+			`"developer-id" in "developers" item 1 contains invalid characters: "a"`,
+		},
+		{
+			sds.developersLines, "developers:\n  -\n    developer-id: dev-id2\n",
+			`"since" in "developers" item 1 for developer "dev-id2" is mandatory`,
+		},
+		{
+			sds.developersLines, "developers:\n  -\n    developer-id: dev-id2\n    since: \n",
+			`"since" in "developers" item 1 for developer "dev-id2" should not be empty`,
+		},
+		{
+			sds.developersLines, "developers:\n  -\n    developer-id: dev-id2\n    since: foo\n",
+			`"since" in "developers" item 1 for developer "dev-id2" is not a RFC3339 date.*`,
+		},
+		{
+			sds.developersLines, "developers:\n  -\n    developer-id: dev-id2\n    since: 2017-01-01T00:00:00.0Z\n    until: \n",
+			`"until" in "developers" item 1 for developer "dev-id2" is not a RFC3339 date.*`,
+		},
+		{
+			sds.developersLines, "developers:\n  -\n    developer-id: dev-id2\n    since: 2017-01-01T00:00:00.0Z\n    until: foo\n",
+			`"until" in "developers" item 1 for developer "dev-id2" is not a RFC3339 date.*`,
+		},
+		{
+			sds.developersLines, "developers:\n  -\n    developer-id: dev-id2\n    since: 2017-01-01T00:00:00.0Z\n  -\n    foo: bar\n",
+			`"developer-id" in "developers" item 2 is mandatory`,
+		},
+		{
+			sds.developersLines, "developers:\n  -\n    developer-id: dev-id2\n    since: 2017-01-02T00:00:00.0Z\n    until: 2017-01-01T00:00:00.0Z\n",
+			`"since" in "developers" item 1 for developer "dev-id2" must be less than or equal to "until"`,
+		},
 	}
 
 	for _, test := range invalidTests {
 		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
-		_, err := asserts.Decode([]byte(invalid))
+		_ := mylog.Check2(asserts.Decode([]byte(invalid)))
 		c.Check(err, ErrorMatches, snapDevErrPrefix+test.expectedErr)
 	}
 }
@@ -2144,7 +2142,7 @@ func (sds *snapDevSuite) TestRevokedValidation(c *C) {
 			"  -\n    developer-id: dev-id2\n    since: 2017-01-01T00:00:00.0Z\n    until: 2017-02-01T00:00:00.0Z\n"+
 			"  -\n    developer-id: dev-id2\n    since: 2017-03-01T00:00:00.0Z\n",
 		1)
-	_, err := asserts.Decode([]byte(encoded))
+	_ := mylog.Check2(asserts.Decode([]byte(encoded)))
 	c.Check(err, IsNil)
 
 	// Multiple revocations for different developers are fine.
@@ -2153,7 +2151,7 @@ func (sds *snapDevSuite) TestRevokedValidation(c *C) {
 			"  -\n    developer-id: dev-id2\n    since: 2017-01-01T00:00:00.0Z\n    until: 2017-01-01T00:00:00.0Z\n"+
 			"  -\n    developer-id: dev-id3\n    since: 2017-02-01T00:00:00.0Z\n    until: 2017-02-01T00:00:00.0Z\n",
 		1)
-	_, err = asserts.Decode([]byte(encoded))
+	_ = mylog.Check2(asserts.Decode([]byte(encoded)))
 	c.Check(err, IsNil)
 
 	invalidTests := []string{
@@ -2172,7 +2170,7 @@ func (sds *snapDevSuite) TestRevokedValidation(c *C) {
 	}
 	for _, test := range invalidTests {
 		encoded := strings.Replace(sds.validEncoded, sds.developersLines, test, 1)
-		_, err := asserts.Decode([]byte(encoded))
+		_ := mylog.Check2(asserts.Decode([]byte(encoded)))
 		c.Check(err, ErrorMatches, snapDevErrPrefix+`revocation for developer "dev-id2" must be standalone but found other "developers" items`)
 	}
 }
@@ -2181,164 +2179,161 @@ func (sds *snapDevSuite) TestAuthorityIsPublisher(c *C) {
 	storeDB, db := makeStoreAndCheckDB(c)
 	devDB := setup3rdPartySigning(c, "dev-id1", storeDB, db)
 
-	snapDecl, err := storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	snapDecl := mylog.Check2(storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-name":    "snap-name-1",
 		"publisher-id": "dev-id1",
 		"timestamp":    time.Now().UTC().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	err = db.Add(snapDecl)
-	c.Assert(err, IsNil)
+	}, nil, ""))
 
-	snapDev, err := devDB.Sign(asserts.SnapDeveloperType, map[string]interface{}{
+	mylog.Check(db.Add(snapDecl))
+
+
+	snapDev := mylog.Check2(devDB.Sign(asserts.SnapDeveloperType, map[string]interface{}{
 		"snap-id":      "snap-id-1",
 		"publisher-id": "dev-id1",
-	}, nil, "")
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
 	// Just to be super sure ...
 	c.Assert(snapDev.HeaderString("authority-id"), Equals, "dev-id1")
 	c.Assert(snapDev.HeaderString("publisher-id"), Equals, "dev-id1")
+	mylog.Check(db.Check(snapDev))
 
-	err = db.Check(snapDev)
-	c.Assert(err, IsNil)
 }
 
 func (sds *snapDevSuite) TestAuthorityIsNotPublisher(c *C) {
 	storeDB, db := makeStoreAndCheckDB(c)
 	devDB := setup3rdPartySigning(c, "dev-id1", storeDB, db)
 
-	snapDecl, err := storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	snapDecl := mylog.Check2(storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-name":    "snap-name-1",
 		"publisher-id": "dev-id1",
 		"timestamp":    time.Now().UTC().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	err = db.Add(snapDecl)
-	c.Assert(err, IsNil)
+	}, nil, ""))
 
-	snapDev, err := devDB.Sign(asserts.SnapDeveloperType, map[string]interface{}{
+	mylog.Check(db.Add(snapDecl))
+
+
+	snapDev := mylog.Check2(devDB.Sign(asserts.SnapDeveloperType, map[string]interface{}{
 		"authority-id": "dev-id1",
 		"snap-id":      "snap-id-1",
 		"publisher-id": "dev-id2",
-	}, nil, "")
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
 	// Just to be super sure ...
 	c.Assert(snapDev.HeaderString("authority-id"), Equals, "dev-id1")
 	c.Assert(snapDev.HeaderString("publisher-id"), Equals, "dev-id2")
-
-	err = db.Check(snapDev)
+	mylog.Check(db.Check(snapDev))
 	c.Assert(err, ErrorMatches, `snap-developer must be signed by the publisher or a trusted authority but got authority "dev-id1" and publisher "dev-id2"`)
 }
 
 func (sds *snapDevSuite) TestAuthorityIsNotPublisherButIsTrusted(c *C) {
 	storeDB, db := makeStoreAndCheckDB(c)
 
-	account, err := storeDB.Sign(asserts.AccountType, map[string]interface{}{
+	account := mylog.Check2(storeDB.Sign(asserts.AccountType, map[string]interface{}{
 		"account-id":   "dev-id1",
 		"display-name": "dev-id1",
 		"validation":   "unknown",
 		"timestamp":    time.Now().UTC().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	err = db.Add(account)
-	c.Assert(err, IsNil)
+	}, nil, ""))
 
-	snapDecl, err := storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	mylog.Check(db.Add(account))
+
+
+	snapDecl := mylog.Check2(storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-name":    "snap-name-1",
 		"publisher-id": "dev-id1",
 		"timestamp":    time.Now().UTC().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	err = db.Add(snapDecl)
-	c.Assert(err, IsNil)
+	}, nil, ""))
 
-	snapDev, err := storeDB.Sign(asserts.SnapDeveloperType, map[string]interface{}{
+	mylog.Check(db.Add(snapDecl))
+
+
+	snapDev := mylog.Check2(storeDB.Sign(asserts.SnapDeveloperType, map[string]interface{}{
 		"snap-id":      "snap-id-1",
 		"publisher-id": "dev-id1",
-	}, nil, "")
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
 	// Just to be super sure ...
 	c.Assert(snapDev.HeaderString("authority-id"), Equals, "canonical")
 	c.Assert(snapDev.HeaderString("publisher-id"), Equals, "dev-id1")
+	mylog.Check(db.Check(snapDev))
 
-	err = db.Check(snapDev)
-	c.Assert(err, IsNil)
 }
 
 func (sds *snapDevSuite) TestCheckNewPublisherAccountExists(c *C) {
 	storeDB, db := makeStoreAndCheckDB(c)
 
-	account, err := storeDB.Sign(asserts.AccountType, map[string]interface{}{
+	account := mylog.Check2(storeDB.Sign(asserts.AccountType, map[string]interface{}{
 		"account-id":   "dev-id1",
 		"display-name": "dev-id1",
 		"validation":   "unknown",
 		"timestamp":    time.Now().UTC().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	err = db.Add(account)
-	c.Assert(err, IsNil)
+	}, nil, ""))
 
-	snapDecl, err := storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	mylog.Check(db.Add(account))
+
+
+	snapDecl := mylog.Check2(storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-name":    "snap-name-1",
 		"publisher-id": "dev-id1",
 		"timestamp":    time.Now().UTC().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	err = db.Add(snapDecl)
-	c.Assert(err, IsNil)
+	}, nil, ""))
 
-	snapDev, err := storeDB.Sign(asserts.SnapDeveloperType, map[string]interface{}{
+	mylog.Check(db.Add(snapDecl))
+
+
+	snapDev := mylog.Check2(storeDB.Sign(asserts.SnapDeveloperType, map[string]interface{}{
 		"snap-id":      "snap-id-1",
 		"publisher-id": "dev-id2",
-	}, nil, "")
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
 	// Just to be super sure ...
 	c.Assert(snapDev.HeaderString("authority-id"), Equals, "canonical")
 	c.Assert(snapDev.HeaderString("publisher-id"), Equals, "dev-id2")
+	mylog.
 
-	// There's no account for dev-id2 yet so it should fail.
-	err = db.Check(snapDev)
+		// There's no account for dev-id2 yet so it should fail.
+		Check(db.Check(snapDev))
 	c.Assert(err, ErrorMatches, `snap-developer assertion for snap-id "snap-id-1" does not have a matching account assertion for the publisher "dev-id2"`)
 
 	// But once the dev-id2 account is added the snap-developer is ok.
-	account, err = storeDB.Sign(asserts.AccountType, map[string]interface{}{
+	account = mylog.Check2(storeDB.Sign(asserts.AccountType, map[string]interface{}{
 		"account-id":   "dev-id2",
 		"display-name": "dev-id2",
 		"validation":   "unknown",
 		"timestamp":    time.Now().UTC().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	err = db.Add(account)
-	c.Assert(err, IsNil)
+	}, nil, ""))
 
-	err = db.Check(snapDev)
-	c.Assert(err, IsNil)
+	mylog.Check(db.Add(account))
+
+	mylog.Check(db.Check(snapDev))
+
 }
 
 func (sds *snapDevSuite) TestCheckDeveloperAccountExists(c *C) {
 	storeDB, db := makeStoreAndCheckDB(c)
 	devDB := setup3rdPartySigning(c, "dev-id1", storeDB, db)
 
-	snapDecl, err := storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	snapDecl := mylog.Check2(storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-name":    "snap-name-1",
 		"publisher-id": "dev-id1",
 		"timestamp":    time.Now().UTC().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	err = db.Add(snapDecl)
-	c.Assert(err, IsNil)
+	}, nil, ""))
 
-	snapDev, err := devDB.Sign(asserts.SnapDeveloperType, map[string]interface{}{
+	mylog.Check(db.Add(snapDecl))
+
+
+	snapDev := mylog.Check2(devDB.Sign(asserts.SnapDeveloperType, map[string]interface{}{
 		"snap-id":      "snap-id-1",
 		"publisher-id": "dev-id1",
 		"developers": []interface{}{
@@ -2347,9 +2342,9 @@ func (sds *snapDevSuite) TestCheckDeveloperAccountExists(c *C) {
 				"since":        "2017-01-01T00:00:00.0Z",
 			},
 		},
-	}, nil, "")
-	c.Assert(err, IsNil)
-	err = db.Check(snapDev)
+	}, nil, ""))
+
+	mylog.Check(db.Check(snapDev))
 	c.Assert(err, ErrorMatches, `snap-developer assertion for snap-id "snap-id-1" does not have a matching account assertion for the developer "dev-id2"`)
 }
 
@@ -2362,17 +2357,16 @@ func (sds *snapDevSuite) TestCheckMissingDeclaration(c *C) {
 		"snap-id":      "snap-id-1",
 		"publisher-id": "dev-id1",
 	}
-	snapDev, err := devDB.Sign(asserts.SnapDeveloperType, headers, nil, "")
-	c.Assert(err, IsNil)
+	snapDev := mylog.Check2(devDB.Sign(asserts.SnapDeveloperType, headers, nil, ""))
 
-	err = db.Check(snapDev)
+	mylog.Check(db.Check(snapDev))
 	c.Assert(err, ErrorMatches, `snap-developer assertion for snap id "snap-id-1" does not have a matching snap-declaration assertion`)
 }
 
 func (sds *snapDevSuite) TestPrerequisitesNoDevelopers(c *C) {
 	encoded := strings.Replace(sds.validEncoded, sds.developersLines, "", 1)
-	assert, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	assert := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	prereqs := assert.Prerequisites()
 	sort.Sort(RefSlice(prereqs))
 	c.Assert(prereqs, DeepEquals, []*asserts.Ref{
@@ -2388,8 +2382,8 @@ func (sds *snapDevSuite) TestPrerequisitesWithDevelopers(c *C) {
 			"  -\n    developer-id: dev-id2\n    since: 2017-01-01T00:00:00.0Z\n"+
 			"  -\n    developer-id: dev-id3\n    since: 2017-01-01T00:00:00.0Z\n",
 		1)
-	assert, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	assert := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	prereqs := assert.Prerequisites()
 	sort.Sort(RefSlice(prereqs))
 	c.Assert(prereqs, DeepEquals, []*asserts.Ref{
@@ -2407,8 +2401,8 @@ func (sds *snapDevSuite) TestPrerequisitesWithDeveloperRepeated(c *C) {
 			"  -\n    developer-id: dev-id2\n    since: 2015-01-01T00:00:00.0Z\n    until: 2016-01-01T00:00:00.0Z\n"+
 			"  -\n    developer-id: dev-id2\n    since: 2017-01-01T00:00:00.0Z\n",
 		1)
-	assert, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	assert := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	prereqs := assert.Prerequisites()
 	sort.Sort(RefSlice(prereqs))
 	c.Assert(prereqs, DeepEquals, []*asserts.Ref{
@@ -2423,8 +2417,8 @@ func (sds *snapDevSuite) TestPrerequisitesWithPublisherAsDeveloper(c *C) {
 		sds.validEncoded, sds.developersLines,
 		"developers:\n  -\n    developer-id: dev-id1\n    since: 2017-01-01T00:00:00.0Z\n",
 		1)
-	assert, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	assert := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	prereqs := assert.Prerequisites()
 	sort.Sort(RefSlice(prereqs))
 	c.Assert(prereqs, DeepEquals, []*asserts.Ref{

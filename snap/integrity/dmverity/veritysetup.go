@@ -28,6 +28,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 )
@@ -56,25 +57,17 @@ func getRootHashFromOutput(output []byte) (rootHash string, err error) {
 	for scanner.Scan() {
 		line := scanner.Text()
 		if strings.HasPrefix(line, "Root hash") {
-			rootHash, err = getVal(line)
-			if err != nil {
-				return "", err
-			}
+			rootHash = mylog.Check2(getVal(line))
 		}
 		if strings.HasPrefix(line, "Hash algorithm") {
-			hashAlgo, err := getVal(line)
-			if err != nil {
-				return "", err
-			}
+			hashAlgo := mylog.Check2(getVal(line))
+
 			if hashAlgo != "sha256" {
 				return "", fmt.Errorf("internal error: unexpected hash algorithm")
 			}
 		}
 	}
-
-	if err = scanner.Err(); err != nil {
-		return "", err
-	}
+	mylog.Check(scanner.Err())
 
 	if len(rootHash) != 64 {
 		return "", fmt.Errorf("internal error: unexpected root hash length")
@@ -84,36 +77,24 @@ func getRootHashFromOutput(output []byte) (rootHash string, err error) {
 }
 
 func verityVersion() (major, minor, patch int, err error) {
-	output, stderr, err := osutil.RunSplitOutput("veritysetup", "--version")
-	if err != nil {
-		return -1, -1, -1, osutil.OutputErrCombine(output, stderr, err)
-	}
+	output, stderr := mylog.Check3(osutil.RunSplitOutput("veritysetup", "--version"))
 
 	exp := regexp.MustCompile(`(\d+)\.(\d+)\.(\d+)`)
 	match := exp.FindStringSubmatch(string(output))
 	if len(match) != 4 {
 		return -1, -1, -1, fmt.Errorf("cannot detect veritysetup version from: %s", string(output))
 	}
-	major, err = strconv.Atoi(match[1])
-	if err != nil {
-		return -1, -1, -1, fmt.Errorf("cannot detect veritysetup version from: %s", string(output))
-	}
-	minor, err = strconv.Atoi(match[2])
-	if err != nil {
-		return -1, -1, -1, fmt.Errorf("cannot detect veritysetup version from: %s", string(output))
-	}
-	patch, err = strconv.Atoi(match[3])
-	if err != nil {
-		return -1, -1, -1, fmt.Errorf("cannot detect veritysetup version from: %s", string(output))
-	}
+	major = mylog.Check2(strconv.Atoi(match[1]))
+
+	minor = mylog.Check2(strconv.Atoi(match[2]))
+
+	patch = mylog.Check2(strconv.Atoi(match[3]))
+
 	return major, minor, patch, nil
 }
 
 func shouldApplyNewFileWorkaroundForOlderThan204() (bool, error) {
-	major, minor, patch, err := verityVersion()
-	if err != nil {
-		return false, err
-	}
+	major, minor, patch := mylog.Check4(verityVersion())
 
 	// From version 2.0.4 we don't need this anymore
 	if major > 2 || (major == 2 && (minor > 0 || patch >= 4)) {
@@ -130,25 +111,13 @@ func Format(dataDevice string, hashDevice string) (*Info, error) {
 	// In older versions of cryptsetup there is a bug when cryptsetup writes
 	// its superblock header, and there isn't already preallocated space.
 	// Fixed in commit dc852a100f8e640dfdf4f6aeb86e129100653673 which is version 2.0.4
-	deploy, err := shouldApplyNewFileWorkaroundForOlderThan204()
-	if err != nil {
-		return nil, err
-	} else if deploy {
-		space := make([]byte, 4096)
-		os.WriteFile(hashDevice, space, 0644)
-	}
+	deploy := mylog.Check2(shouldApplyNewFileWorkaroundForOlderThan204())
 
-	output, stderr, err := osutil.RunSplitOutput("veritysetup", "format", dataDevice, hashDevice)
-	if err != nil {
-		return nil, osutil.OutputErrCombine(output, stderr, err)
-	}
+	output, stderr := mylog.Check3(osutil.RunSplitOutput("veritysetup", "format", dataDevice, hashDevice))
 
 	logger.Debugf("cmd: 'veritysetup format %s %s':\n%s", dataDevice, hashDevice, string(output))
 
-	rootHash, err := getRootHashFromOutput(output)
-	if err != nil {
-		return nil, err
-	}
+	rootHash := mylog.Check2(getRootHashFromOutput(output))
 
 	return &Info{RootHash: rootHash}, nil
 }

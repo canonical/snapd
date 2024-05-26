@@ -29,6 +29,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/kernel"
@@ -52,8 +53,8 @@ func (p *layoutTestSuite) TestVolumeSize(c *C) {
 		},
 	}
 	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir}
-	v, err := gadget.LayoutVolume(&vol, gadget.OnDiskStructsFromGadget(&vol), opts)
-	c.Assert(err, IsNil)
+	v := mylog.Check2(gadget.LayoutVolume(&vol, gadget.OnDiskStructsFromGadget(&vol), opts))
+
 
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume: &gadget.Volume{
@@ -76,8 +77,8 @@ func (p *layoutTestSuite) TestVolumeSize(c *C) {
 }
 
 func mustParseVolume(c *C, gadgetYaml, volume string) *gadget.Volume {
-	gi, err := gadget.InfoFromGadgetYaml([]byte(gadgetYaml), nil)
-	c.Assert(err, IsNil)
+	gi := mylog.Check2(gadget.InfoFromGadgetYaml([]byte(gadgetYaml), nil))
+
 	v, ok := gi.Volumes[volume]
 	c.Assert(ok, Equals, true, Commentf("volume %q not found in gadget", volume))
 	return v
@@ -99,8 +100,8 @@ volumes:
 	c.Assert(vol.Structure, HasLen, 2)
 
 	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir}
-	v, err := gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts)
-	c.Assert(err, IsNil)
+	v := mylog.Check2(gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts))
+
 
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume: vol,
@@ -148,9 +149,10 @@ volumes:
 
 	opts := &gadget.LayoutOptions{
 		GadgetRootDir: p.dir,
-		EncType:       encType}
-	v, err := gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts)
-	c.Assert(err, IsNil)
+		EncType:       encType,
+	}
+	v := mylog.Check2(gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts))
+
 
 	saveFsLabel := "ubuntu-save"
 	saveFsType := "ext4"
@@ -218,8 +220,8 @@ volumes:
 	c.Assert(vol.Structure, HasLen, 4)
 
 	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir}
-	v, err := gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts)
-	c.Assert(err, IsNil)
+	v := mylog.Check2(gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts))
+
 
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume: vol,
@@ -285,8 +287,8 @@ volumes:
 	c.Assert(vol.Structure, HasLen, 4)
 
 	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir}
-	v, err := gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts)
-	c.Assert(err, IsNil)
+	v := mylog.Check2(gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts))
+
 
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume: vol,
@@ -351,8 +353,8 @@ volumes:
 	c.Assert(vol.Structure, HasLen, 4)
 
 	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir}
-	v, err := gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts)
-	c.Assert(err, IsNil)
+	v := mylog.Check2(gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts))
+
 
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume: vol,
@@ -408,7 +410,7 @@ volumes:
 `
 	vol := mustParseVolume(c, gadgetYaml, "first")
 	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir}
-	v, err := gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts)
+	v := mylog.Check2(gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts))
 	c.Assert(v, IsNil)
 	c.Assert(err, ErrorMatches, `cannot lay out structure #0: content "foo.img":.*no such file or directory`)
 }
@@ -432,13 +434,13 @@ volumes:
 	}
 	// LayoutVolume fails with default options because the foo.img
 	// file is missing
-	_, err := gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts)
+	_ := mylog.Check2(gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts))
 	c.Assert(err, ErrorMatches, `cannot lay out structure #0: content "foo.img":.*no such file or directory`)
 
 	// But LayoutVolume works with the IgnoreContent works
 	opts.IgnoreContent = true
-	v, err := gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts)
-	c.Assert(err, IsNil)
+	v := mylog.Check2(gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts))
+
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume: vol,
 		LaidOutStructure: []gadget.LaidOutStructure{
@@ -455,19 +457,19 @@ volumes:
 }
 
 func makeSizedFile(c *C, path string, size quantity.Size, content []byte) {
-	err := os.MkdirAll(filepath.Dir(path), 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Dir(path), 0755))
 
-	f, err := os.Create(path)
-	c.Assert(err, IsNil)
+
+	f := mylog.Check2(os.Create(path))
+
 	defer f.Close()
 	if size != 0 {
-		err = f.Truncate(int64(size))
-		c.Assert(err, IsNil)
+		mylog.Check(f.Truncate(int64(size)))
+
 	}
 	if content != nil {
-		_, err := io.Copy(f, bytes.NewReader(content))
-		c.Assert(err, IsNil)
+		_ := mylog.Check2(io.Copy(f, bytes.NewReader(content)))
+
 	}
 }
 
@@ -488,7 +490,7 @@ volumes:
 	vol := mustParseVolume(c, gadgetYaml, "first")
 
 	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir}
-	v, err := gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts)
+	v := mylog.Check2(gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts))
 	c.Assert(v, IsNil)
 	c.Assert(err, ErrorMatches, `cannot lay out structure #0: content "foo.img" does not fit in the structure`)
 }
@@ -512,7 +514,7 @@ volumes:
 	vol := mustParseVolume(c, gadgetYaml, "first")
 
 	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir}
-	v, err := gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts)
+	v := mylog.Check2(gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts))
 	c.Assert(v, IsNil)
 	c.Assert(err, ErrorMatches, `cannot lay out structure #0: content "bar.img" does not fit in the structure`)
 }
@@ -536,7 +538,7 @@ volumes:
 	vol := mustParseVolume(c, gadgetYaml, "first")
 
 	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir}
-	v, err := gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts)
+	v := mylog.Check2(gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts))
 	c.Assert(v, IsNil)
 	c.Assert(err, ErrorMatches, `cannot lay out structure #0: content "foo.img" does not fit in the structure`)
 }
@@ -559,7 +561,7 @@ volumes:
 	vol := mustParseVolume(c, gadgetYaml, "first")
 
 	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir}
-	v, err := gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts)
+	v := mylog.Check2(gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts))
 	c.Assert(v, IsNil)
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot lay out structure #0: content "foo.img" size %v is larger than declared %v`, quantity.SizeMiB+1, quantity.SizeMiB))
 }
@@ -588,7 +590,7 @@ volumes:
 	vol := mustParseVolume(c, gadgetYaml, "first")
 
 	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir}
-	v, err := gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts)
+	v := mylog.Check2(gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts))
 	c.Assert(v, IsNil)
 	c.Assert(err, ErrorMatches, `cannot lay out structure #0: content "foo.img" overlaps with preceding image "bar.img"`)
 }
@@ -618,8 +620,8 @@ volumes:
 	c.Assert(vol.Structure[0].Content, HasLen, 2)
 
 	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir}
-	v, err := gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts)
-	c.Assert(err, IsNil)
+	v := mylog.Check2(gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts))
+
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume: vol,
 		LaidOutStructure: []gadget.LaidOutStructure{
@@ -672,8 +674,8 @@ volumes:
 	c.Assert(vol.Structure[0].Content, HasLen, 2)
 
 	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir}
-	v, err := gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts)
-	c.Assert(err, IsNil)
+	v := mylog.Check2(gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts))
+
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume: vol,
 		LaidOutStructure: []gadget.LaidOutStructure{
@@ -723,8 +725,8 @@ volumes:
 	c.Assert(vol.Structure[0].Content, HasLen, 1)
 
 	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir}
-	v, err := gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts)
-	c.Assert(err, IsNil)
+	v := mylog.Check2(gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts))
+
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume: vol,
 		LaidOutStructure: []gadget.LaidOutStructure{
@@ -768,8 +770,8 @@ volumes:
 	c.Assert(vol.Structure[0].Content, HasLen, 1)
 
 	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir}
-	v, err := gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts)
-	c.Assert(err, IsNil)
+	v := mylog.Check2(gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts))
+
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume: vol,
 		LaidOutStructure: []gadget.LaidOutStructure{
@@ -814,8 +816,8 @@ volumes:
 	c.Assert(vol.Structure, HasLen, 2)
 
 	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir}
-	v, err := gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts)
-	c.Assert(err, IsNil)
+	v := mylog.Check2(gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts))
+
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume: vol,
 		LaidOutStructure: []gadget.LaidOutStructure{
@@ -842,7 +844,7 @@ volumes:
 }
 
 func (p *layoutTestSuite) TestLayoutVolumeOffsetWriteAll(c *C) {
-	var gadgetYaml = `
+	gadgetYaml := `
 volumes:
   pc:
     bootloader: grub
@@ -873,8 +875,8 @@ volumes:
 	c.Assert(vol.Structure, HasLen, 3)
 
 	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir}
-	v, err := gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts)
-	c.Assert(err, IsNil)
+	v := mylog.Check2(gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts))
+
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume: vol,
 		LaidOutStructure: []gadget.LaidOutStructure{
@@ -940,7 +942,7 @@ volumes:
 	vol := mustParseVolume(c, gadgetYaml, "first")
 	c.Assert(vol.Structure, HasLen, 1)
 
-	v, err := gadget.LayoutVolumePartially(vol, gadget.OnDiskStructsFromGadget(vol))
+	v := mylog.Check2(gadget.LayoutVolumePartially(vol, gadget.OnDiskStructsFromGadget(vol)))
 	c.Assert(v, DeepEquals, &gadget.PartiallyLaidOutVolume{
 		Volume: vol,
 		LaidOutStructure: []gadget.LaidOutStructure{
@@ -954,11 +956,11 @@ volumes:
 			},
 		},
 	})
-	c.Assert(err, IsNil)
+
 }
 
 func (p *layoutTestSuite) TestLaidOutStructureShift(c *C) {
-	var gadgetYamlContent = `
+	gadgetYamlContent := `
 volumes:
   pc:
     bootloader: grub
@@ -980,8 +982,8 @@ volumes:
 	vol := mustParseVolume(c, gadgetYamlContent, "pc")
 
 	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir}
-	v, err := gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts)
-	c.Assert(err, IsNil)
+	v := mylog.Check2(gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts))
+
 	c.Assert(v.LaidOutStructure, HasLen, 1)
 	c.Assert(v.LaidOutStructure[0].LaidOutContent, HasLen, 2)
 
@@ -1064,26 +1066,27 @@ volumes:
 
 func mockKernel(c *C, kernelYaml string, filesWithContent map[string]string) string {
 	// precondition
-	_, err := kernel.InfoFromKernelYaml([]byte(kernelYaml))
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(kernel.InfoFromKernelYaml([]byte(kernelYaml)))
+
 
 	kernelRootDir := c.MkDir()
-	err = os.MkdirAll(filepath.Join(kernelRootDir, "meta"), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(kernelRootDir, "meta/kernel.yaml"), []byte(kernelYaml), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Join(kernelRootDir, "meta"), 0755))
+
+	mylog.Check(os.WriteFile(filepath.Join(kernelRootDir, "meta/kernel.yaml"), []byte(kernelYaml), 0644))
+
 
 	for fname, content := range filesWithContent {
 		p := filepath.Join(kernelRootDir, fname)
-		err = os.MkdirAll(filepath.Dir(p), 0755)
-		c.Assert(err, IsNil)
-		err = os.WriteFile(p, []byte(content), 0644)
-		c.Assert(err, IsNil)
-	}
+		mylog.Check(os.MkdirAll(filepath.Dir(p), 0755))
 
-	// ensure we have valid kernel.yaml in our tests
-	err = kernel.Validate(kernelRootDir)
-	c.Assert(err, IsNil)
+		mylog.Check(os.WriteFile(p, []byte(content), 0644))
+
+	}
+	mylog.
+
+		// ensure we have valid kernel.yaml in our tests
+		Check(kernel.Validate(kernelRootDir))
+
 
 	return kernelRootDir
 }
@@ -1114,7 +1117,7 @@ func (p *layoutTestSuite) TestResolveContentPathsNotInWantedAssets(c *C) {
 
 	kernelSnapDir := c.MkDir()
 	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir, KernelRootDir: kernelSnapDir}
-	_, err := gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts)
+	_ := mylog.Check2(gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts))
 	c.Assert(err, ErrorMatches, `cannot resolve content for structure #0 \(""\) at index 0: cannot find "dtbs" in kernel info from "/.*"`)
 }
 
@@ -1126,23 +1129,23 @@ func (p *layoutTestSuite) TestResolveContentPathsSkipResolveContent(c *C) {
 	defaultOpts := &gadget.LayoutOptions{GadgetRootDir: p.dir, KernelRootDir: kernelSnapDir}
 
 	opts := defaultOpts
-	_, err := gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts)
+	_ := mylog.Check2(gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts))
 	c.Assert(err, ErrorMatches, `cannot resolve content for structure #0 \(""\) at index 0: cannot find "dtbs" in kernel info from "/.*"`)
 
 	// SkipResolveContent will allow to layout the volume even if
 	// files are missing
 	opts = defaultOpts
 	opts.SkipResolveContent = true
-	v, err := gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts)
-	c.Assert(err, IsNil)
+	v := mylog.Check2(gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts))
+
 	c.Assert(v.Structure, HasLen, 1)
 
 	// As does IgnoreContent will allow to layout the volume even if
 	// files are missing
 	opts = defaultOpts
 	opts.IgnoreContent = true
-	v, err = gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts)
-	c.Assert(err, IsNil)
+	v = mylog.Check2(gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts))
+
 	c.Assert(v.Structure, HasLen, 1)
 }
 
@@ -1156,7 +1159,7 @@ func (p *layoutTestSuite) TestResolveContentPathsErrorInKernelRef(c *C) {
 
 	kernelSnapDir := c.MkDir()
 	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir, KernelRootDir: kernelSnapDir}
-	_, err := gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts)
+	_ := mylog.Check2(gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts))
 	c.Assert(err, ErrorMatches, `cannot resolve content for structure #0 \(""\) at index 0: cannot parse kernel ref: invalid asset name in kernel ref "\$kernel:-invalid-kernel-ref/boot-assets/"`)
 }
 
@@ -1176,7 +1179,7 @@ assets:
 		"dtbs/foo.dtb": "foo.dtb content",
 	})
 	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir, KernelRootDir: kernelSnapDir}
-	_, err := gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts)
+	_ := mylog.Check2(gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts))
 	c.Assert(err, ErrorMatches, `cannot resolve content for structure #0 \(""\) at index 0: cannot find wanted kernel content "boot-assets/" in "/.*"`)
 }
 
@@ -1198,8 +1201,8 @@ assets:
 	}
 	kernelSnapDir := mockKernel(c, kernelYaml, kernelSnapFiles)
 	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir, KernelRootDir: kernelSnapDir}
-	lv, err := gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts)
-	c.Assert(err, IsNil)
+	lv := mylog.Check2(gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts))
+
 	// Volume.Content is unchanged
 	c.Assert(lv.Structure, HasLen, 1)
 	c.Check(lv.Structure[0].Content, DeepEquals, []gadget.VolumeContent{
@@ -1245,7 +1248,7 @@ assets:
 }
 
 func (p *layoutTestSuite) TestResolveContentPathsLp1907056(c *C) {
-	var gadgetYamlWithKernelRef = `
+	gadgetYamlWithKernelRef := `
  volumes:
   pi:
     schema: mbr
@@ -1279,8 +1282,8 @@ assets:
 		"dtbs/foo.dtb": "foo.dtb content",
 	})
 	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir, KernelRootDir: kernelSnapDir}
-	lv, err := gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts)
-	c.Assert(err, IsNil)
+	lv := mylog.Check2(gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts))
+
 	// Volume.Content is unchanged
 	c.Assert(lv.Structure, HasLen, 1)
 	c.Check(lv.Structure[0].Content, DeepEquals, []gadget.VolumeContent{
@@ -1318,7 +1321,7 @@ assets:
 }
 
 func (p *layoutTestSuite) TestResolveContentSamePrefixErrors(c *C) {
-	var gadgetYamlWithKernelRef = `
+	gadgetYamlWithKernelRef := `
  volumes:
   pi:
     schema: mbr
@@ -1349,7 +1352,7 @@ assets:
 		"a/foo.dtb": "foo.dtb content",
 	})
 	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir, KernelRootDir: kernelSnapDir}
-	_, err := gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts)
+	_ := mylog.Check2(gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts))
 	c.Assert(err, ErrorMatches, `.*: cannot find wanted kernel content "ab" in.*`)
 }
 
@@ -1372,8 +1375,8 @@ func (p *layoutTestSuite) TestLayoutWithMinSize(c *C) {
 			},
 		},
 	}
-	v, err := gadget.LayoutVolume(&vol, gadget.OnDiskStructsFromGadget(&vol), nil)
-	c.Assert(err, IsNil)
+	v := mylog.Check2(gadget.LayoutVolume(&vol, gadget.OnDiskStructsFromGadget(&vol), nil))
+
 
 	// Check StartOffset and Size is well defined even if using min-size
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
@@ -1406,10 +1409,11 @@ func (p *layoutTestSuite) TestLayoutWithDiskData(c *C) {
 	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir}
 
 	gadgetToDiskStruct := map[int]*gadget.OnDiskStructure{
-		0: {StartOffset: quantity.OffsetMiB, Size: 2 * quantity.SizeMiB}}
+		0: {StartOffset: quantity.OffsetMiB, Size: 2 * quantity.SizeMiB},
+	}
 
-	v, err := gadget.LayoutVolume(&vol, gadgetToDiskStruct, opts)
-	c.Assert(err, IsNil)
+	v := mylog.Check2(gadget.LayoutVolume(&vol, gadgetToDiskStruct, opts))
+
 
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume: &gadget.Volume{
@@ -1434,22 +1438,27 @@ func (p *layoutTestSuite) TestLayoutWithDiskData(c *C) {
 func (p *layoutTestSuite) TestLayoutWithDiskDataFails(c *C) {
 	vol := gadget.Volume{
 		Structure: []gadget.VolumeStructure{
-			{Name: "first", YamlIndex: 0,
+			{
+				Name: "first", YamlIndex: 0,
 				Offset:          asOffsetPtr(quantity.OffsetMiB),
 				Size:            2 * quantity.SizeMiB,
-				EnclosingVolume: &gadget.Volume{}},
-			{Name: "second", YamlIndex: 1,
+				EnclosingVolume: &gadget.Volume{},
+			},
+			{
+				Name: "second", YamlIndex: 1,
 				Offset:          asOffsetPtr(3 * quantity.OffsetMiB),
 				Size:            2 * quantity.SizeMiB,
-				EnclosingVolume: &gadget.Volume{}},
+				EnclosingVolume: &gadget.Volume{},
+			},
 		},
 	}
 	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir}
 
 	gadgetToDiskStruct := map[int]*gadget.OnDiskStructure{
-		0: {Name: "first", StartOffset: quantity.OffsetMiB, Size: 2 * quantity.SizeMiB}}
+		0: {Name: "first", StartOffset: quantity.OffsetMiB, Size: 2 * quantity.SizeMiB},
+	}
 
-	v, err := gadget.LayoutVolume(&vol, gadgetToDiskStruct, opts)
+	v := mylog.Check2(gadget.LayoutVolume(&vol, gadgetToDiskStruct, opts))
 	c.Assert(v, IsNil)
 	c.Assert(err.Error(), Equals, `internal error: partition "second" not in disk map`)
 }
@@ -1465,7 +1474,8 @@ func (p *layoutTestSuite) TestLayoutVolumeStructure(c *C) {
 				DiskStructure: &gadget.OnDiskStructure{Name: "part1"},
 				GadgetStructure: &gadget.VolumeStructure{
 					Name:            "part1",
-					EnclosingVolume: &gadget.Volume{}},
+					EnclosingVolume: &gadget.Volume{},
+				},
 			},
 		},
 		{
@@ -1480,12 +1490,13 @@ func (p *layoutTestSuite) TestLayoutVolumeStructure(c *C) {
 							Target:           "/foo-dir/",
 						},
 					},
-					EnclosingVolume: &gadget.Volume{}},
+					EnclosingVolume: &gadget.Volume{},
+				},
 			},
 			err: `cannot lay out structure #0 ("part1"): content "": stat : no such file or directory`,
 		},
 	} {
-		los, err := gadget.LayoutVolumeStructure(&tc.dgpair, nil, &gadget.LayoutOptions{})
+		los := mylog.Check2(gadget.LayoutVolumeStructure(&tc.dgpair, nil, &gadget.LayoutOptions{}))
 		if tc.err == "" {
 			c.Check(err, IsNil)
 			c.Check(los, DeepEquals, &gadget.LaidOutStructure{

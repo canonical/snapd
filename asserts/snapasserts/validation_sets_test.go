@@ -28,6 +28,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/snapasserts"
@@ -77,9 +78,9 @@ func (s *validationSetsSuite) TestAddFromSameSequence(c *C) {
 	}).(*asserts.ValidationSet)
 
 	valsets := snapasserts.NewValidationSets()
-	err := valsets.Add(mySnapAt7Valset)
-	c.Assert(err, IsNil)
-	err = valsets.Add(mySnapAt8Valset)
+	mylog.Check(valsets.Add(mySnapAt7Valset))
+
+	mylog.Check(valsets.Add(mySnapAt8Valset))
 	c.Check(err, ErrorMatches, `cannot add a second validation-set under "account-id/my-snap-ctl"`)
 }
 
@@ -254,14 +255,14 @@ func (s *validationSetsSuite) TestIntersections(c *C) {
 		valsets := snapasserts.NewValidationSets()
 		cSets := make(map[string]*asserts.ValidationSet)
 		for _, valset := range t.sets {
-			err := valsets.Add(valset)
-			c.Assert(err, IsNil)
+			mylog.Check(valsets.Add(valset))
+
 			// mySnapOptValset never influcens an outcome
 			if valset != mySnapOptValset {
 				cSets[fmt.Sprintf("%s/%s", valset.AccountID(), valset.Name())] = valset
 			}
 		}
-		err := valsets.Conflict()
+		mylog.Check(valsets.Conflict())
 		if t.conflictErr == "" {
 			c.Check(err, IsNil)
 		} else {
@@ -277,8 +278,8 @@ func (s *validationSetsSuite) TestCheckInstalledSnapsNoValidationSets(c *C) {
 	snaps := []*snapasserts.InstalledSnap{
 		snapasserts.NewInstalledSnap("snap-a", "mysnapaaaaaaaaaaaaaaaaaaaaaaaaaa", snap.R(1)),
 	}
-	err := valsets.CheckInstalledSnaps(snaps, nil)
-	c.Assert(err, IsNil)
+	mylog.Check(valsets.CheckInstalledSnaps(snaps, nil))
+
 }
 
 func (s *validationSetsSuite) TestCheckInstalledSnaps(c *C) {
@@ -676,7 +677,7 @@ func (s *validationSetsSuite) TestCheckInstalledSnaps(c *C) {
 	}
 
 	for i, tc := range tests {
-		err := valsets.CheckInstalledSnaps(tc.snaps, nil)
+		mylog.Check(valsets.CheckInstalledSnaps(tc.snaps, nil))
 		if err == nil {
 			c.Assert(tc.expectedInvalid, IsNil)
 			c.Assert(tc.expectedMissing, IsNil)
@@ -821,7 +822,7 @@ func (s *validationSetsSuite) TestCheckInstalledSnapsErrorFormat(c *C) {
 	}
 
 	for i, tc := range tests {
-		err := valsets.CheckInstalledSnaps(tc.snaps, nil)
+		mylog.Check(valsets.CheckInstalledSnaps(tc.snaps, nil))
 		c.Assert(err, NotNil, Commentf("#%d", i))
 		c.Assert(err, ErrorMatches, tc.errorMsg, Commentf("#%d: ", i))
 	}
@@ -899,8 +900,8 @@ func (s *validationSetsSuite) TestCheckPresenceRequired(c *C) {
 	valsets := snapasserts.NewValidationSets()
 
 	// no validation sets
-	vsKeys, _, err := valsets.CheckPresenceRequired(naming.Snap("my-snap"))
-	c.Assert(err, IsNil)
+	vsKeys, _ := mylog.Check3(valsets.CheckPresenceRequired(naming.Snap("my-snap")))
+
 	c.Check(vsKeys, HasLen, 0)
 
 	c.Assert(valsets.Add(valset1), IsNil)
@@ -910,18 +911,18 @@ func (s *validationSetsSuite) TestCheckPresenceRequired(c *C) {
 	// validity
 	c.Assert(valsets.Conflict(), IsNil)
 
-	vsKeys, rev, err := valsets.CheckPresenceRequired(naming.Snap("my-snap"))
-	c.Assert(err, IsNil)
+	vsKeys, rev := mylog.Check3(valsets.CheckPresenceRequired(naming.Snap("my-snap")))
+
 	c.Check(rev, DeepEquals, snap.Revision{N: 7})
 	c.Check(vsKeys, DeepEquals, []snapasserts.ValidationSetKey{"16/account-id/my-snap-ctl/1", "16/account-id/my-snap-ctl2/2", "16/account-id/my-snap-ctl3/1"})
 
-	vsKeys, rev, err = valsets.CheckPresenceRequired(naming.NewSnapRef("my-snap", "mysnapididididididididididididid"))
-	c.Assert(err, IsNil)
+	vsKeys, rev = mylog.Check3(valsets.CheckPresenceRequired(naming.NewSnapRef("my-snap", "mysnapididididididididididididid")))
+
 	c.Check(rev, DeepEquals, snap.Revision{N: 7})
 	c.Check(vsKeys, DeepEquals, []snapasserts.ValidationSetKey{"16/account-id/my-snap-ctl/1", "16/account-id/my-snap-ctl2/2", "16/account-id/my-snap-ctl3/1"})
 
 	// other-snap is not required
-	vsKeys, rev, err = valsets.CheckPresenceRequired(naming.Snap("other-snap"))
+	vsKeys, rev = mylog.Check3(valsets.CheckPresenceRequired(naming.Snap("other-snap")))
 	c.Assert(err, ErrorMatches, `unexpected presence "invalid" for snap "other-snap"`)
 	pr, ok := err.(*snapasserts.PresenceConstraintError)
 	c.Assert(ok, Equals, true)
@@ -931,16 +932,16 @@ func (s *validationSetsSuite) TestCheckPresenceRequired(c *C) {
 	c.Check(vsKeys, HasLen, 0)
 
 	// unknown snap is not required
-	vsKeys, rev, err = valsets.CheckPresenceRequired(naming.NewSnapRef("unknown-snap", "00000000idididididididididididid"))
-	c.Assert(err, IsNil)
+	vsKeys, rev = mylog.Check3(valsets.CheckPresenceRequired(naming.NewSnapRef("unknown-snap", "00000000idididididididididididid")))
+
 	c.Check(rev, DeepEquals, snap.Revision{N: 0})
 	c.Check(vsKeys, HasLen, 0)
 
 	// just one set, required but no revision specified
 	valsets = snapasserts.NewValidationSets()
 	c.Assert(valsets.Add(valset3), IsNil)
-	vsKeys, rev, err = valsets.CheckPresenceRequired(naming.Snap("my-snap"))
-	c.Assert(err, IsNil)
+	vsKeys, rev = mylog.Check3(valsets.CheckPresenceRequired(naming.Snap("my-snap")))
+
 	c.Check(rev, DeepEquals, snap.Revision{N: 0})
 	c.Check(vsKeys, DeepEquals, []snapasserts.ValidationSetKey{"16/account-id/my-snap-ctl3/1"})
 }
@@ -986,8 +987,8 @@ func (s *validationSetsSuite) TestIsPresenceInvalid(c *C) {
 	valsets := snapasserts.NewValidationSets()
 
 	// no validation sets
-	vsKeys, err := valsets.CheckPresenceInvalid(naming.Snap("my-snap"))
-	c.Assert(err, IsNil)
+	vsKeys := mylog.Check2(valsets.CheckPresenceInvalid(naming.Snap("my-snap")))
+
 	c.Check(vsKeys, HasLen, 0)
 
 	c.Assert(valsets.Add(valset1), IsNil)
@@ -997,16 +998,16 @@ func (s *validationSetsSuite) TestIsPresenceInvalid(c *C) {
 	c.Assert(valsets.Conflict(), IsNil)
 
 	// invalid in two sets
-	vsKeys, err = valsets.CheckPresenceInvalid(naming.Snap("my-snap"))
-	c.Assert(err, IsNil)
+	vsKeys = mylog.Check2(valsets.CheckPresenceInvalid(naming.Snap("my-snap")))
+
 	c.Check(vsKeys, DeepEquals, []snapasserts.ValidationSetKey{"16/account-id/my-snap-ctl/1", "16/account-id/my-snap-ctl2/2"})
 
-	vsKeys, err = valsets.CheckPresenceInvalid(naming.NewSnapRef("my-snap", "mysnapididididididididididididid"))
-	c.Assert(err, IsNil)
+	vsKeys = mylog.Check2(valsets.CheckPresenceInvalid(naming.NewSnapRef("my-snap", "mysnapididididididididididididid")))
+
 	c.Check(vsKeys, DeepEquals, []snapasserts.ValidationSetKey{"16/account-id/my-snap-ctl/1", "16/account-id/my-snap-ctl2/2"})
 
 	// other-snap isn't invalid
-	vsKeys, err = valsets.CheckPresenceInvalid(naming.Snap("other-snap"))
+	vsKeys = mylog.Check2(valsets.CheckPresenceInvalid(naming.Snap("other-snap")))
 	c.Assert(err, ErrorMatches, `unexpected presence "optional" for snap "other-snap"`)
 	pr, ok := err.(*snapasserts.PresenceConstraintError)
 	c.Assert(ok, Equals, true)
@@ -1014,13 +1015,13 @@ func (s *validationSetsSuite) TestIsPresenceInvalid(c *C) {
 	c.Check(pr.Presence, Equals, asserts.PresenceOptional)
 	c.Check(vsKeys, HasLen, 0)
 
-	vsKeys, err = valsets.CheckPresenceInvalid(naming.NewSnapRef("other-snap", "123456ididididididididididididid"))
+	vsKeys = mylog.Check2(valsets.CheckPresenceInvalid(naming.NewSnapRef("other-snap", "123456ididididididididididididid")))
 	c.Assert(err, ErrorMatches, `unexpected presence "optional" for snap "other-snap"`)
 	c.Check(vsKeys, HasLen, 0)
 
 	// unknown snap isn't invalid
-	vsKeys, err = valsets.CheckPresenceInvalid(naming.NewSnapRef("unknown-snap", "00000000idididididididididididid"))
-	c.Assert(err, IsNil)
+	vsKeys = mylog.Check2(valsets.CheckPresenceInvalid(naming.NewSnapRef("unknown-snap", "00000000idididididididididididid")))
+
 	c.Check(vsKeys, HasLen, 0)
 }
 
@@ -1076,11 +1077,11 @@ func (s *validationSetsSuite) TestParseValidationSet(c *C) {
 			errMsg: `cannot parse validation set "foo/\$bar": invalid validation set name "\$bar"`,
 		},
 	} {
-		account, name, seq, err := snapasserts.ParseValidationSet(tc.input)
+		account, name, seq := mylog.Check4(snapasserts.ParseValidationSet(tc.input))
 		if tc.errMsg != "" {
 			c.Assert(err, ErrorMatches, tc.errMsg)
 		} else {
-			c.Assert(err, IsNil)
+
 		}
 		c.Check(account, Equals, tc.account)
 		c.Check(name, Equals, tc.name)
@@ -1201,8 +1202,8 @@ func (s *validationSetsSuite) TestRevisions(c *C) {
 	valsets := snapasserts.NewValidationSets()
 
 	// no validation sets
-	revisions, err := valsets.Revisions()
-	c.Assert(err, IsNil)
+	revisions := mylog.Check2(valsets.Revisions())
+
 	c.Check(revisions, HasLen, 0)
 
 	c.Assert(valsets.Add(valset1), IsNil)
@@ -1211,8 +1212,8 @@ func (s *validationSetsSuite) TestRevisions(c *C) {
 	// validity
 	c.Assert(valsets.Conflict(), IsNil)
 
-	revisions, err = valsets.Revisions()
-	c.Assert(err, IsNil)
+	revisions = mylog.Check2(valsets.Revisions())
+
 	c.Check(revisions, HasLen, 3)
 
 	c.Check(revisions, DeepEquals, map[string]snap.Revision{
@@ -1408,7 +1409,7 @@ func (s *validationSetsSuite) TestRevisionsConflict(c *C) {
 	c.Assert(valsets.Add(valset1), IsNil)
 	c.Assert(valsets.Add(valset2), IsNil)
 
-	_, err := valsets.Revisions()
+	_ := mylog.Check2(valsets.Revisions())
 	c.Assert(err, testutil.ErrorIs, &snapasserts.ValidationSetsConflictError{})
 }
 

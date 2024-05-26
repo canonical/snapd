@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/asserts"
@@ -47,11 +48,13 @@ type cmdDownload struct {
 	} `positional-args:"true" required:"true"`
 }
 
-var shortDownloadHelp = i18n.G("Download the given snap")
-var longDownloadHelp = i18n.G(`
+var (
+	shortDownloadHelp = i18n.G("Download the given snap")
+	longDownloadHelp  = i18n.G(`
 The download command downloads the given snap and its supporting assertions
 to the current directory with .snap and .assert file extensions, respectively.
 `)
+)
 
 func init() {
 	addCommand("download", shortDownloadHelp, longDownloadHelp, func() flags.Commander {
@@ -73,19 +76,14 @@ func init() {
 }
 
 func fetchSnapAssertionsDirect(tsto *tooling.ToolingStore, snapPath string, snapInfo *snap.Info) (string, error) {
-	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+	db := mylog.Check2(asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
 		Trusted:   sysdb.Trusted(),
-	})
-	if err != nil {
-		return "", err
-	}
+	}))
 
 	assertPath := strings.TrimSuffix(snapPath, filepath.Ext(snapPath)) + ".assert"
-	w, err := os.Create(assertPath)
-	if err != nil {
-		return "", fmt.Errorf(i18n.G("cannot create assertions file: %v"), err)
-	}
+	w := mylog.Check2(os.Create(assertPath))
+
 	defer w.Close()
 
 	encoder := asserts.NewEncoder(w)
@@ -94,17 +92,17 @@ func fetchSnapAssertionsDirect(tsto *tooling.ToolingStore, snapPath string, snap
 	}
 	f := tsto.AssertionFetcher(db, save)
 
-	_, err = image.FetchAndCheckSnapAssertions(snapPath, snapInfo, nil, f, db)
+	_ = mylog.Check2(image.FetchAndCheckSnapAssertions(snapPath, snapInfo, nil, f, db))
 	return assertPath, err
 }
 
 func printInstallHint(assertPath, snapPath string) {
 	// simplify paths
 	wd, _ := os.Getwd()
-	if p, err := filepath.Rel(wd, assertPath); err == nil {
+	if p := mylog.Check2(filepath.Rel(wd, assertPath)); err == nil {
 		assertPath = p
 	}
-	if p, err := filepath.Rel(wd, snapPath); err == nil {
+	if p := mylog.Check2(filepath.Rel(wd, snapPath)); err == nil {
 		snapPath = p
 	}
 	// add a hint what to do with the downloaded snap (LP:1676707)
@@ -118,23 +116,16 @@ func printInstallHint(assertPath, snapPath string) {
 var downloadDirect = downloadDirectImpl
 
 func downloadDirectImpl(snapName string, revision snap.Revision, dlOpts tooling.DownloadSnapOptions) error {
-	tsto, err := tooling.NewToolingStore()
-	if err != nil {
-		return err
-	}
+	tsto := mylog.Check2(tooling.NewToolingStore())
+
 	tsto.Stdout = Stdout
 
 	fmt.Fprintf(Stdout, i18n.G("Fetching snap %q\n"), snapName)
-	dlSnap, err := tsto.DownloadSnap(snapName, dlOpts)
-	if err != nil {
-		return err
-	}
+	dlSnap := mylog.Check2(tsto.DownloadSnap(snapName, dlOpts))
 
 	fmt.Fprintf(Stdout, i18n.G("Fetching assertions for %q\n"), snapName)
-	assertPath, err := fetchSnapAssertionsDirect(tsto, dlSnap.Path, dlSnap.Info)
-	if err != nil {
-		return err
-	}
+	assertPath := mylog.Check2(fetchSnapAssertionsDirect(tsto, dlSnap.Path, dlSnap.Info))
+
 	printInstallHint(assertPath, dlSnap.Path)
 	return nil
 }
@@ -156,9 +147,7 @@ func (x *cmdDownload) Execute(args []string) error {
 	if strings.ContainsRune(x.Basename, filepath.Separator) {
 		return fmt.Errorf(i18n.G("cannot specify a path in basename (use --target-dir for that)"))
 	}
-	if err := x.setChannelFromCommandline(); err != nil {
-		return err
-	}
+	mylog.Check(x.setChannelFromCommandline())
 
 	if len(args) > 0 {
 		return ErrExtraArgs
@@ -174,11 +163,9 @@ func (x *cmdDownload) Execute(args []string) error {
 		if x.CohortKey != "" {
 			return fmt.Errorf(i18n.G("cannot specify both cohort and revision"))
 		}
-		var err error
-		revision, err = snap.ParseRevision(x.Revision)
-		if err != nil {
-			return err
-		}
+
+		revision = mylog.Check2(snap.ParseRevision(x.Revision))
+
 	}
 
 	snapName := string(x.Positional.Snap)

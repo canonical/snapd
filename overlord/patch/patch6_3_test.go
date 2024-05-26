@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -274,15 +275,15 @@ func (s *patch63Suite) TestPatch63(c *C) {
 	defer restore1()
 
 	r := bytes.NewReader(statePatch6_3JSON)
-	st, err := state.ReadState(nil, r)
-	c.Assert(err, IsNil)
+	st := mylog.Check2(state.ReadState(nil, r))
+
 
 	c.Assert(patch.Apply(st), IsNil)
 	st.Lock()
 	defer st.Unlock()
 
-	all, err := snapstate.All(st)
-	c.Assert(err, IsNil)
+	all := mylog.Check2(snapstate.All(st))
+
 	// our mocks are ok
 	c.Check(all, HasLen, 5)
 	c.Check(all["prefix-postfix-slashes"], NotNil)
@@ -325,8 +326,8 @@ func (s *patch63Suite) TestPatch63(c *C) {
 	c.Assert(task, NotNil)
 	// this was converted
 	var snapsup snapstate.SnapSetup
-	err = task.Get("snap-setup", &snapsup)
-	c.Assert(err, IsNil)
+	mylog.Check(task.Get("snap-setup", &snapsup))
+
 	c.Check(snapsup.Channel, Equals, "latest/stable")
 
 	// validity check that old stuff is untouched
@@ -349,7 +350,7 @@ func (s *patch63Suite) TestPatch63(c *C) {
 	c.Assert(task, NotNil)
 	c.Assert(task.Get("snap-setup", &snapsup), IsNil)
 	c.Check(snapsup.Channel, Equals, "/stable")
-	err = task.Get("old-channel", &oldCh)
-	c.Assert(err, IsNil)
+	mylog.Check(task.Get("old-channel", &oldCh))
+
 	c.Check(oldCh, Equals, "/edge")
 }

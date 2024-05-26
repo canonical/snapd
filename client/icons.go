@@ -25,6 +25,7 @@ import (
 	"io"
 	"regexp"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"golang.org/x/xerrors"
 )
 
@@ -40,11 +41,8 @@ var contentDispositionMatcher = regexp.MustCompile(`attachment; filename=(.+)`).
 func (c *Client) Icon(pkgID string) (*Icon, error) {
 	const errPrefix = "cannot retrieve icon"
 
-	response, cancel, err := c.rawWithTimeout(context.Background(), "GET", fmt.Sprintf("/v2/icons/%s/icon", pkgID), nil, nil, nil, nil)
-	if err != nil {
-		fmt := "%s: failed to communicate with server: %w"
-		return nil, xerrors.Errorf(fmt, errPrefix, err)
-	}
+	response, cancel := mylog.Check3(c.rawWithTimeout(context.Background(), "GET", fmt.Sprintf("/v2/icons/%s/icon", pkgID), nil, nil, nil, nil))
+
 	defer cancel()
 	defer response.Body.Close()
 
@@ -58,10 +56,7 @@ func (c *Client) Icon(pkgID string) (*Icon, error) {
 		return nil, fmt.Errorf("%s: cannot determine filename", errPrefix)
 	}
 
-	content, err := io.ReadAll(response.Body)
-	if err != nil {
-		return nil, fmt.Errorf("%s: %s", errPrefix, err)
-	}
+	content := mylog.Check2(io.ReadAll(response.Body))
 
 	icon := &Icon{
 		Filename: matches[1],

@@ -26,6 +26,7 @@ import (
 	"unicode/utf16"
 	"unicode/utf8"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -38,7 +39,7 @@ type String struct {
 }
 
 func (str *String) UnmarshalJSON(in []byte) (err error) {
-	str.s, err = unmarshal(in, uOpt{})
+	str.s = mylog.Check2(unmarshal(in, uOpt{}))
 	return
 }
 
@@ -57,7 +58,7 @@ type Paragraph struct {
 }
 
 func (par *Paragraph) UnmarshalJSON(in []byte) (err error) {
-	par.s, err = unmarshal(in, uOpt{nlOK: true})
+	par.s = mylog.Check2(unmarshal(in, uOpt{nlOK: true}))
 	return
 }
 
@@ -71,10 +72,8 @@ func unescapeUCS2(in []byte) (rune, bool) {
 	if len(in) < 6 || in[0] != '\\' || in[1] != 'u' {
 		return -1, false
 	}
-	u, err := strconv.ParseUint(string(in[2:6]), 16, 32)
-	if err != nil {
-		return -1, false
-	}
+	u := mylog.Check2(strconv.ParseUint(string(in[2:6]), 16, 32))
+
 	return rune(u), true
 }
 

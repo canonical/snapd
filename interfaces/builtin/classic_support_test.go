@@ -22,6 +22,7 @@ package builtin_test
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -77,22 +78,22 @@ func (s *ClassicSupportInterfaceSuite) TestSanitizePlug(c *C) {
 
 func (s *ClassicSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	apparmorSpec := apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
-	c.Assert(err, IsNil)
+	mylog.Check(apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot))
+
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	snippet := apparmorSpec.SnippetForTag("snap.other.app")
 	c.Check(string(snippet), testutil.Contains, "/usr/bin/systemd-run Uxr,\n")
 	c.Check(string(snippet), testutil.Contains, "/bin/systemctl Uxr,\n")
 
 	// connected plugs have a non-nil security snippet for seccomp
-	appSet, err = interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	seccompSpec := seccomp.NewSpecification(appSet)
-	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
-	c.Assert(err, IsNil)
+	mylog.Check(seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot))
+
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Check(seccompSpec.SnippetForTag("snap.other.app"), testutil.Contains, "mount\n")
 }

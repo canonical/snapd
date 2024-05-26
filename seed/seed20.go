@@ -39,6 +39,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/osutil"
@@ -86,21 +87,15 @@ type seed20 struct {
 
 // Copy implement Copier interface.
 func (s *seed20) Copy(seedDir string, label string, tm timings.Measurer) (err error) {
-	srcSystemDir, err := filepath.Abs(s.systemDir)
-	if err != nil {
-		return err
-	}
+	srcSystemDir := mylog.Check2(filepath.Abs(s.systemDir))
 
 	if label == "" {
 		label = filepath.Base(srcSystemDir)
 	}
 
-	destSeedDir, err := filepath.Abs(seedDir)
-	if err != nil {
-		return err
-	}
+	destSeedDir := mylog.Check2(filepath.Abs(seedDir))
 
-	if err := os.Mkdir(filepath.Join(destSeedDir, "systems"), 0755); err != nil && !errors.Is(err, fs.ErrExist) {
+	if mylog.Check(os.Mkdir(filepath.Join(destSeedDir, "systems"), 0755)); err != nil && !errors.Is(err, fs.ErrExist) {
 		return err
 	}
 
@@ -111,41 +106,26 @@ func (s *seed20) Copy(seedDir string, label string, tm timings.Measurer) (err er
 
 	// note: we don't clean up asserted snaps that were copied over
 	defer func() {
-		if err != nil {
-			os.RemoveAll(destSystemDir)
-		}
 	}()
-
-	if err := s.LoadMeta(AllModes, nil, tm); err != nil {
-		return err
-	}
+	mylog.Check(s.LoadMeta(AllModes, nil, tm))
 
 	span := tm.StartSpan("copy-recovery-system", fmt.Sprintf("copy recovery system from %s to %s", srcSystemDir, destSystemDir))
 	defer span.Stop()
+	mylog.
 
-	// copy all files (including unasserted snaps) from the seed to the
-	// destination
-	err = filepath.Walk(srcSystemDir, func(path string, info fs.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
+		// copy all files (including unasserted snaps) from the seed to the
+		// destination
+		Check(filepath.Walk(srcSystemDir, func(path string, info fs.FileInfo, err error) error {
+			destPath := filepath.Join(destSeedDir, "systems", label, strings.TrimPrefix(path, srcSystemDir))
+			if info.IsDir() {
+				return os.Mkdir(destPath, info.Mode())
+			}
 
-		destPath := filepath.Join(destSeedDir, "systems", label, strings.TrimPrefix(path, srcSystemDir))
-		if info.IsDir() {
-			return os.Mkdir(destPath, info.Mode())
-		}
-
-		return osutil.CopyFile(path, destPath, osutil.CopyFlagDefault)
-	})
-	if err != nil {
-		return err
-	}
+			return osutil.CopyFile(path, destPath, osutil.CopyFlagDefault)
+		}))
 
 	destAssertedSnapDir := filepath.Join(destSeedDir, "snaps")
-
-	if err := os.MkdirAll(destAssertedSnapDir, 0755); err != nil {
-		return err
-	}
+	mylog.Check(os.MkdirAll(destAssertedSnapDir, 0755))
 
 	// copy the asserted snaps that the seed needs
 	for _, sn := range s.snaps {
@@ -155,10 +135,8 @@ func (s *seed20) Copy(seedDir string, label string, tm timings.Measurer) (err er
 		}
 
 		destSnapPath := filepath.Join(destAssertedSnapDir, filepath.Base(sn.Path))
+		mylog.Check(osutil.CopyFile(sn.Path, destSnapPath, osutil.CopyFlagOverwrite))
 
-		if err := osutil.CopyFile(sn.Path, destSnapPath, osutil.CopyFlagOverwrite); err != nil {
-			return fmt.Errorf("cannot copy asserted snap: %w", err)
-		}
 	}
 
 	return nil
@@ -167,11 +145,8 @@ func (s *seed20) Copy(seedDir string, label string, tm timings.Measurer) (err er
 func (s *seed20) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Batch) error) error {
 	if db == nil {
 		// a db was not provided, create an internal temporary one
-		var err error
-		db, commitTo, err = newMemAssertionsDB(nil)
-		if err != nil {
-			return err
-		}
+
+		db, commitTo = mylog.Check3(newMemAssertionsDB(nil))
 	}
 
 	assertsDir := filepath.Join(s.systemDir, "assertions")
@@ -190,15 +165,10 @@ func (s *seed20) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Ba
 		return nil
 	}
 
-	batch, err := loadAssertions(assertsDir, checkAssertion)
-	if err != nil {
-		return err
-	}
+	batch := mylog.Check2(loadAssertions(assertsDir, checkAssertion))
 
-	refs, err := readAsserts(batch, filepath.Join(s.systemDir, "model"))
-	if err != nil {
-		return fmt.Errorf("cannot read model assertion: %v", err)
-	}
+	refs := mylog.Check2(readAsserts(batch, filepath.Join(s.systemDir, "model")))
+
 	if len(refs) != 1 || refs[0].Type != asserts.ModelType {
 		return fmt.Errorf("system model assertion file must contain exactly the model assertion")
 	}
@@ -207,34 +177,27 @@ func (s *seed20) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Ba
 	if len(declRefs) != len(revRefs) {
 		return fmt.Errorf("system unexpectedly holds a different number of snap-declaration than snap-revision assertions")
 	}
+	mylog.Check(
 
-	// this also verifies the consistency of all of them
-	if err := commitTo(batch); err != nil {
-		return err
-	}
+		// this also verifies the consistency of all of them
+		commitTo(batch))
 
 	find := func(ref *asserts.Ref) (asserts.Assertion, error) {
-		a, err := ref.Resolve(db.Find)
-		if err != nil {
-			return nil, fmt.Errorf("internal error: cannot find just accepted assertion %v: %v", ref, err)
-		}
+		a := mylog.Check2(ref.Resolve(db.Find))
+
 		return a, nil
 	}
 
-	a, err := find(modelRef)
-	if err != nil {
-		return err
-	}
+	a := mylog.Check2(find(modelRef))
+
 	modelAssertion := a.(*asserts.Model)
 
 	snapDeclsByName := make(map[string]*asserts.SnapDeclaration, len(declRefs))
 	snapDeclsByID := make(map[string]*asserts.SnapDeclaration, len(declRefs))
 
 	for _, declRef := range declRefs {
-		a, err := find(declRef)
-		if err != nil {
-			return err
-		}
+		a := mylog.Check2(find(declRef))
+
 		snapDecl := a.(*asserts.SnapDeclaration)
 		snapDeclsByID[snapDecl.SnapID()] = snapDecl
 		if snapDecl1 := snapDeclsByName[snapDecl.SnapName()]; snapDecl1 != nil {
@@ -246,10 +209,8 @@ func (s *seed20) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Ba
 	snapRevsByID := make(map[string]*asserts.SnapRevision, len(revRefs))
 
 	for _, revRef := range revRefs {
-		a, err := find(revRef)
-		if err != nil {
-			return err
-		}
+		a := mylog.Check2(find(revRef))
+
 		snapRevision := a.(*asserts.SnapRevision)
 		snapRevision1 := snapRevsByID[snapRevision.SnapID()]
 		if snapRevision1 != nil {
@@ -299,10 +260,8 @@ func (s *seed20) loadOptions() error {
 		// missing
 		return nil
 	}
-	options20, err := internal.ReadOptions20(optionsFn)
-	if err != nil {
-		return err
-	}
+	options20 := mylog.Check2(internal.ReadOptions20(optionsFn))
+
 	s.optSnaps = options20.Snaps
 	return nil
 }
@@ -329,15 +288,12 @@ func (s *seed20) loadAuxInfos() error {
 		return nil
 	}
 
-	f, err := os.Open(auxInfoFn)
-	if err != nil {
-		return err
-	}
+	f := mylog.Check2(os.Open(auxInfoFn))
+
 	defer f.Close()
 	dec := json.NewDecoder(f)
-	if err := dec.Decode(&s.auxInfos); err != nil {
-		return fmt.Errorf("cannot decode aux-info.json: %v", err)
-	}
+	mylog.Check(dec.Decode(&s.auxInfos))
+
 	return nil
 }
 
@@ -380,39 +336,28 @@ func (s *seed20) lookupVerifiedRevision(snapRef naming.SnapRef, essType snap.Typ
 	snapName := snapDecl.SnapName()
 	snapPath = filepath.Join(s.systemDir, snapsDir, fmt.Sprintf("%s_%d.snap", snapName, snapRev.SnapRevision()))
 
-	fi, err := os.Stat(snapPath)
-	if err != nil {
-		return "", nil, nil, fmt.Errorf("cannot stat snap: %v", err)
-	}
+	fi := mylog.Check2(os.Stat(snapPath))
 
 	if fi.Size() != int64(snapRev.SnapSize()) {
 		return "", nil, nil, fmt.Errorf("cannot validate %q for snap %q (snap-id %q), wrong size", snapPath, snapName, snapID)
 	}
 
-	newPath, snapSHA3_384, _, err := handler.HandleAndDigestAssertedSnap(snapName, snapPath, essType, snapRev, nil, tm)
-	if err != nil {
-		return "", nil, nil, err
-	}
+	newPath, snapSHA3_384, _ := mylog.Check4(handler.HandleAndDigestAssertedSnap(snapName, snapPath, essType, snapRev, nil, tm))
 
 	if snapSHA3_384 != snapRev.SnapSHA3_384() {
 		return "", nil, nil, fmt.Errorf("cannot validate %q for snap %q (snap-id %q), hash mismatch with snap-revision", snapPath, snapName, snapID)
-
 	}
 
 	if newPath != "" {
 		snapPath = newPath
 	}
+	mylog.Check2(snapasserts.CrossCheckProvenance(snapName, snapRev, snapDecl, s.model, s.db))
+	mylog.Check(
 
-	if _, err := snapasserts.CrossCheckProvenance(snapName, snapRev, snapDecl, s.model, s.db); err != nil {
-		return "", nil, nil, err
-	}
-
-	// we have an authorized snap-revision with matching hash for
-	// the blob, double check that the snap metadata provenance is
-	// as expected
-	if err := snapasserts.CheckProvenanceWithVerifiedRevision(snapPath, snapRev); err != nil {
-		return "", nil, nil, err
-	}
+		// we have an authorized snap-revision with matching hash for
+		// the blob, double check that the snap metadata provenance is
+		// as expected
+		snapasserts.CheckProvenanceWithVerifiedRevision(snapPath, snapRev))
 
 	return snapPath, snapRev, snapDecl, nil
 }
@@ -426,14 +371,10 @@ func (s *seed20) lookupSnap(snapRef naming.SnapRef, essType snap.Type, optSnap *
 	var sideInfo *snap.SideInfo
 	if optSnap != nil && optSnap.Unasserted != "" {
 		path = filepath.Join(s.systemDir, "snaps", optSnap.Unasserted)
-		info, err := readInfo(path, nil)
-		if err != nil {
-			return nil, fmt.Errorf("cannot read unasserted snap: %v", err)
-		}
-		newPath, err := handler.HandleUnassertedSnap(info.SnapName(), path, tm)
-		if err != nil {
-			return nil, err
-		}
+		info := mylog.Check2(readInfo(path, nil))
+
+		newPath := mylog.Check2(handler.HandleUnassertedSnap(info.SnapName(), path, tm))
+
 		if newPath != "" {
 			path = newPath
 		}
@@ -441,18 +382,14 @@ func (s *seed20) lookupSnap(snapRef naming.SnapRef, essType snap.Type, optSnap *
 		// suppress channel
 		channel = ""
 	} else {
-		var err error
 		timings.Run(tm, "derive-side-info", fmt.Sprintf("hash and derive side info for snap %q", snapRef.SnapName()), func(nested timings.Measurer) {
 			var snapRev *asserts.SnapRevision
 			var snapDecl *asserts.SnapDeclaration
-			path, snapRev, snapDecl, err = s.lookupVerifiedRevision(snapRef, essType, handler, snapsDir, tm)
+			path, snapRev, snapDecl = mylog.Check4(s.lookupVerifiedRevision(snapRef, essType, handler, snapsDir, tm))
 			if err == nil {
 				sideInfo = snapasserts.SideInfoFromSnapAssertions(snapDecl, snapRev)
 			}
 		})
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	// complement with aux-info.json information
@@ -507,24 +444,18 @@ func (s *seed20) doLoadMetaOne(sntoc *snapToConsider, handler SnapHandler, tm ti
 		channel = "latest/stable"
 		snapsDir = "snaps"
 	}
-	seedSnap, err := s.lookupSnap(snapRef, essType, sntoc.optSnap, channel, handler, snapsDir, tm)
-	if err != nil {
-		if _, ok := err.(*noSnapDeclarationError); ok && !required {
-			// skipped optional snap is ok
-			return nil, errSkipped
-		}
-		return nil, err
-	}
+	seedSnap := mylog.Check2(s.lookupSnap(snapRef, essType, sntoc.optSnap, channel, handler, snapsDir, tm))
+
+	// skipped optional snap is ok
+
 	seedSnap.Essential = essential
 	seedSnap.Required = required
 	seedSnap.Classic = classic
 	if essential {
 		if sntoc.modelSnap.SnapType == "gadget" {
 			// validity
-			info, err := readInfo(seedSnap.Path, seedSnap.SideInfo)
-			if err != nil {
-				return nil, err
-			}
+			info := mylog.Check2(readInfo(seedSnap.Path, seedSnap.SideInfo))
+
 			if info.Base != s.model.Base() {
 				return nil, fmt.Errorf("cannot use gadget snap because its base %q is different from model base %q", info.Base, s.model.Base())
 			}
@@ -607,15 +538,9 @@ func (s *seed20) doLoadMeta(handler SnapHandler, tm timings.Measurer) error {
 					seedSnap = cachedEssential(sntoc.modelSnap.SnapType)
 				}
 				if seedSnap == nil {
-					var err error
-					seedSnap, err = s.doLoadMetaOne(&sntoc, handler, jtm)
-					if err != nil {
-						if err == errSkipped {
-							continue
-						}
-						jobErr = err
-						return
-					}
+
+					seedSnap = mylog.Check2(s.doLoadMetaOne(&sntoc, handler, jtm))
+
 					if essential {
 						cacheEssential(sntoc.modelSnap.SnapType, seedSnap)
 					}
@@ -680,13 +605,10 @@ func (s *seed20) considerModelSnap(modelSnap *asserts.ModelSnap, essential bool,
 
 func (s *seed20) LoadMeta(mode string, handler SnapHandler, tm timings.Measurer) error {
 	const otherSnapsFollow = true
-	if err := s.queueEssentialMeta(nil, otherSnapsFollow, tm); err != nil {
-		return err
-	}
+	mylog.Check(s.queueEssentialMeta(nil, otherSnapsFollow, tm))
+
 	s.mode = mode
-	if err := s.queueModelRestMeta(tm); err != nil {
-		return err
-	}
+	mylog.Check(s.queueModelRestMeta(tm))
 
 	if s.mode == AllModes || s.mode == "run" {
 		// extra snaps are only for run mode
@@ -718,14 +640,8 @@ func (s *seed20) LoadEssentialMetaWithSnapHandler(essentialTypes []snap.Type, ha
 
 	// only essential snaps
 	const otherSnapsFollow = false
-	if err := s.queueEssentialMeta(filterEssential, otherSnapsFollow, tm); err != nil {
-		return err
-	}
-
-	err := s.doLoadMeta(handler, tm)
-	if err != nil {
-		return err
-	}
+	mylog.Check(s.queueEssentialMeta(filterEssential, otherSnapsFollow, tm))
+	mylog.Check(s.doLoadMeta(handler, tm))
 
 	if len(essentialTypes) != 0 && s.essentialSnapsNum != len(essentialTypes) {
 		// did not find all the explicitly asked essential types
@@ -739,14 +655,8 @@ func (s *seed20) loadMetaFiles() error {
 	if s.metaFilesLoaded {
 		return nil
 	}
-
-	if err := s.loadOptions(); err != nil {
-		return err
-	}
-
-	if err := s.loadAuxInfos(); err != nil {
-		return err
-	}
+	mylog.Check(s.loadOptions())
+	mylog.Check(s.loadAuxInfos())
 
 	s.metaFilesLoaded = true
 	return nil
@@ -762,10 +672,7 @@ func (s *seed20) resetSnaps() {
 
 func (s *seed20) queueEssentialMeta(filterEssential func(*asserts.ModelSnap) bool, otherSnapsFollow bool, tm timings.Measurer) error {
 	model := s.Model()
-
-	if err := s.loadMetaFiles(); err != nil {
-		return err
-	}
+	mylog.Check(s.loadMetaFiles())
 
 	s.resetSnaps()
 
@@ -859,9 +766,7 @@ func (s *seed20) NumSnaps() int {
 
 func (s *seed20) Iter(f func(sn *Snap) error) error {
 	for _, sn := range s.snaps {
-		if err := f(sn); err != nil {
-			return err
-		}
+		mylog.Check(f(sn))
 	}
 	return nil
 }
@@ -872,15 +777,12 @@ func (s *seed20) LoadAutoImportAssertions(commitTo func(*asserts.Batch) error) e
 	}
 
 	autoImportAssert := filepath.Join(s.systemDir, "auto-import.assert")
-	af, err := os.Open(autoImportAssert)
-	if err != nil {
-		return err
-	}
+	af := mylog.Check2(os.Open(autoImportAssert))
+
 	defer af.Close()
 	batch := asserts.NewBatch(nil)
-	if _, err := batch.AddStream(af); err != nil {
-		return err
-	}
+	mylog.Check2(batch.AddStream(af))
+
 	return commitTo(batch)
 }
 
@@ -897,12 +799,8 @@ func (s *seed20) LoadPreseedAssertion() (*asserts.Preseed, error) {
 	sysLabel := filepath.Base(s.systemDir)
 
 	batch := asserts.NewBatch(nil)
-	refs, err := readAsserts(batch, filepath.Join(s.systemDir, "preseed"))
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, ErrNoPreseedAssertion
-		}
-	}
+	refs := mylog.Check2(readAsserts(batch, filepath.Join(s.systemDir, "preseed")))
+
 	var preseedRef *asserts.Ref
 	for _, ref := range refs {
 		if ref.Type == asserts.PreseedType {
@@ -915,13 +813,10 @@ func (s *seed20) LoadPreseedAssertion() (*asserts.Preseed, error) {
 	if preseedRef == nil {
 		return nil, fmt.Errorf("system preseed assertion file must contain a preseed assertion")
 	}
-	if err := s.commitTo(batch); err != nil {
-		return nil, err
-	}
-	a, err := preseedRef.Resolve(s.db.Find)
-	if err != nil {
-		return nil, err
-	}
+	mylog.Check(s.commitTo(batch))
+
+	a := mylog.Check2(preseedRef.Resolve(s.db.Find))
+
 	preseedAs := a.(*asserts.Preseed)
 
 	if !strutil.ListContains(model.PreseedAuthority(), preseedAs.AuthorityID()) {

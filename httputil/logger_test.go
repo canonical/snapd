@@ -31,6 +31,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/testutil"
@@ -81,7 +82,7 @@ func (t *fakeTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 func (s loggerSuite) TestLogging(c *check.C) {
-	req, err := http.NewRequest("WAT", "http://example.com/", nil)
+	req := mylog.Check2(http.NewRequest("WAT", "http://example.com/", nil))
 	c.Assert(err, check.IsNil)
 	rsp := &http.Response{
 		Status:     "999 WAT",
@@ -96,7 +97,7 @@ func (s loggerSuite) TestLogging(c *check.C) {
 
 	os.Setenv("TEST_FOO", "7")
 
-	aRsp, err := tr.RoundTrip(req)
+	aRsp := mylog.Check2(tr.RoundTrip(req))
 	c.Assert(err, check.IsNil)
 	c.Check(aRsp, check.Equals, rsp)
 	c.Check(s.logbuf.String(), check.Matches, `(?ms).*> "WAT / HTTP/\S+.*`)
@@ -104,7 +105,7 @@ func (s loggerSuite) TestLogging(c *check.C) {
 }
 
 func (s loggerSuite) TestNotLoggingOctetStream(c *check.C) {
-	req, err := http.NewRequest("GET", "http://example.com/data", nil)
+	req := mylog.Check2(http.NewRequest("GET", "http://example.com/data", nil))
 	c.Assert(err, check.IsNil)
 	needle := "lots of binary data"
 	rsp := &http.Response{
@@ -124,7 +125,7 @@ func (s loggerSuite) TestNotLoggingOctetStream(c *check.C) {
 
 	os.Setenv("TEST_FOO", "7")
 
-	aRsp, err := tr.RoundTrip(req)
+	aRsp := mylog.Check2(tr.RoundTrip(req))
 	c.Assert(err, check.IsNil)
 	c.Check(aRsp, check.Equals, rsp)
 	c.Check(s.logbuf.String(), check.Matches, `(?ms).*> "GET /data HTTP/\S+.*`)
@@ -164,7 +165,7 @@ func (s loggerSuite) TestRedir(c *check.C) {
 	defer server.Close()
 
 	client := httputil.NewHTTPClient(nil)
-	req, err := http.NewRequest("GET", server.URL, nil)
+	req := mylog.Check2(http.NewRequest("GET", server.URL, nil))
 	c.Assert(err, check.IsNil)
 	// some headers that should be copied
 	req.Header.Set("User-Agent", "fancy-agent")
@@ -174,7 +175,7 @@ func (s loggerSuite) TestRedir(c *check.C) {
 	req.Header.Set("Authorization", "please")
 	req.Header.Set("Cookie", "chocolate chip")
 
-	_, err = client.Do(req)
+	_ = mylog.Check2(client.Do(req))
 	c.Assert(err, check.IsNil)
 	c.Check(n, check.Equals, 2)
 }

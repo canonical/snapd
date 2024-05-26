@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
@@ -86,12 +87,11 @@ func (s *desktopSuite) TestEnsurePackageDesktopFiles(c *C) {
 	baseDir := info.MountDir()
 	c.Assert(os.MkdirAll(filepath.Join(baseDir, "meta", "gui"), 0755), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(baseDir, "meta", "gui", "foobar.desktop"), mockDesktopFile, 0644), IsNil)
+	mylog.Check(wrappers.EnsureSnapDesktopFiles([]*snap.Info{info}))
 
-	err := wrappers.EnsureSnapDesktopFiles([]*snap.Info{info})
-	c.Assert(err, IsNil)
 	c.Assert(osutil.FileExists(expectedDesktopFilePath), Equals, true)
-	stat, err := os.Stat(expectedDesktopFilePath)
-	c.Assert(err, IsNil)
+	stat := mylog.Check2(os.Stat(expectedDesktopFilePath))
+
 	c.Assert(stat.Mode().Perm(), Equals, os.FileMode(0644))
 	c.Assert(s.mockUpdateDesktopDatabase.Calls(), DeepEquals, [][]string{
 		{"update-desktop-database", dirs.SnapDesktopFilesDir},
@@ -113,9 +113,8 @@ func (s *desktopSuite) TestEnsurePackageDesktopFilesMultiple(c *C) {
 	baseDir = info2.MountDir()
 	c.Assert(os.MkdirAll(filepath.Join(baseDir, "meta", "gui"), 0755), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(baseDir, "meta", "gui", "foobar.desktop"), mockDesktopFile, 0644), IsNil)
+	mylog.Check(wrappers.EnsureSnapDesktopFiles([]*snap.Info{info1, info2}))
 
-	err := wrappers.EnsureSnapDesktopFiles([]*snap.Info{info1, info2})
-	c.Assert(err, IsNil)
 
 	// Desktop files for both snaps were installed
 	desktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo_foobar.desktop")
@@ -130,16 +129,14 @@ func (s *iconsTestSuite) TestEnsurePackageDesktopFilesNilSnapInfo(c *C) {
 
 func (s *desktopSuite) TestRemovePackageDesktopFiles(c *C) {
 	mockDesktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo_foobar.desktop")
+	mylog.Check(os.MkdirAll(dirs.SnapDesktopFilesDir, 0755))
 
-	err := os.MkdirAll(dirs.SnapDesktopFilesDir, 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(mockDesktopFilePath, mockDesktopFile, 0644)
-	c.Assert(err, IsNil)
-	info, err := snap.InfoFromSnapYaml([]byte(desktopAppYaml))
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(mockDesktopFilePath, mockDesktopFile, 0644))
 
-	err = wrappers.RemoveSnapDesktopFiles(info)
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(desktopAppYaml)))
+
+	mylog.Check(wrappers.RemoveSnapDesktopFiles(info))
+
 	c.Assert(osutil.FileExists(mockDesktopFilePath), Equals, false)
 	c.Assert(s.mockUpdateDesktopDatabase.Calls(), DeepEquals, [][]string{
 		{"update-desktop-database", dirs.SnapDesktopFilesDir},
@@ -149,34 +146,33 @@ func (s *desktopSuite) TestRemovePackageDesktopFiles(c *C) {
 func (s *desktopSuite) TestParallelInstancesRemovePackageDesktopFiles(c *C) {
 	mockDesktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo_foobar.desktop")
 	mockDesktopInstanceFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo+instance_foobar.desktop")
+	mylog.Check(os.MkdirAll(dirs.SnapDesktopFilesDir, 0755))
 
-	err := os.MkdirAll(dirs.SnapDesktopFilesDir, 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(mockDesktopFilePath, mockDesktopFile, 0644)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(mockDesktopInstanceFilePath, mockDesktopFile, 0644)
-	c.Assert(err, IsNil)
-	info, err := snap.InfoFromSnapYaml([]byte(desktopAppYaml))
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(mockDesktopFilePath, mockDesktopFile, 0644))
 
-	err = wrappers.RemoveSnapDesktopFiles(info)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(mockDesktopInstanceFilePath, mockDesktopFile, 0644))
+
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(desktopAppYaml)))
+
+	mylog.Check(wrappers.RemoveSnapDesktopFiles(info))
+
 	c.Assert(osutil.FileExists(mockDesktopFilePath), Equals, false)
 	c.Assert(s.mockUpdateDesktopDatabase.Calls(), DeepEquals, [][]string{
 		{"update-desktop-database", dirs.SnapDesktopFilesDir},
 	})
 	// foo+instance file is still there
 	c.Assert(osutil.FileExists(mockDesktopInstanceFilePath), Equals, true)
+	mylog.
 
-	// restore the non-instance file
-	err = os.WriteFile(mockDesktopFilePath, mockDesktopFile, 0644)
-	c.Assert(err, IsNil)
+		// restore the non-instance file
+		Check(os.WriteFile(mockDesktopFilePath, mockDesktopFile, 0644))
+
 
 	s.mockUpdateDesktopDatabase.ForgetCalls()
 
 	info.InstanceKey = "instance"
-	err = wrappers.RemoveSnapDesktopFiles(info)
-	c.Assert(err, IsNil)
+	mylog.Check(wrappers.RemoveSnapDesktopFiles(info))
+
 	c.Assert(osutil.FileExists(mockDesktopInstanceFilePath), Equals, false)
 	c.Assert(s.mockUpdateDesktopDatabase.Calls(), DeepEquals, [][]string{
 		{"update-desktop-database", dirs.SnapDesktopFilesDir},
@@ -188,30 +184,26 @@ func (s *desktopSuite) TestParallelInstancesRemovePackageDesktopFiles(c *C) {
 func (s *desktopSuite) TestEnsurePackageDesktopFilesCleanup(c *C) {
 	mockDesktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo_foobar1.desktop")
 	c.Assert(osutil.FileExists(mockDesktopFilePath), Equals, false)
+	mylog.Check(os.MkdirAll(dirs.SnapDesktopFilesDir, 0755))
 
-	err := os.MkdirAll(dirs.SnapDesktopFilesDir, 0755)
-	c.Assert(err, IsNil)
 
 	mockDesktopInstanceFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo+instance_foobar.desktop")
-	err = os.WriteFile(mockDesktopInstanceFilePath, mockDesktopFile, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(mockDesktopInstanceFilePath, mockDesktopFile, 0644))
 
-	err = os.MkdirAll(filepath.Join(dirs.SnapDesktopFilesDir, "foo_foobar2.desktop", "potato"), 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Join(dirs.SnapDesktopFilesDir, "foo_foobar2.desktop", "potato"), 0755))
+
 
 	info := snaptest.MockSnap(c, desktopAppYaml, &snap.SideInfo{Revision: snap.R(11)})
 
 	// generate .desktop file in the package baseDir
 	baseDir := info.MountDir()
-	err = os.MkdirAll(filepath.Join(baseDir, "meta", "gui"), 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Join(baseDir, "meta", "gui"), 0755))
 
-	err = os.WriteFile(filepath.Join(baseDir, "meta", "gui", "foobar1.desktop"), mockDesktopFile, 0644)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(baseDir, "meta", "gui", "foobar2.desktop"), mockDesktopFile, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(baseDir, "meta", "gui", "foobar1.desktop"), mockDesktopFile, 0644))
 
-	err = wrappers.EnsureSnapDesktopFiles([]*snap.Info{info})
+	mylog.Check(os.WriteFile(filepath.Join(baseDir, "meta", "gui", "foobar2.desktop"), mockDesktopFile, 0644))
+
+	mylog.Check(wrappers.EnsureSnapDesktopFiles([]*snap.Info{info}))
 	c.Check(err, NotNil)
 	c.Check(osutil.FileExists(mockDesktopFilePath), Equals, false)
 	c.Check(s.mockUpdateDesktopDatabase.Calls(), HasLen, 0)
@@ -257,14 +249,14 @@ Icon=%s/foo/12/meep
 }
 
 func (s *sanitizeDesktopFileSuite) TestSanitizeFiltersExec(c *C) {
-	snap, err := snap.InfoFromSnapYaml([]byte(`
+	snap := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 version: 1.0
 apps:
  app:
   command: cmd
-`))
-	c.Assert(err, IsNil)
+`)))
+
 	desktopContent := []byte(`[Desktop Entry]
 Name=foo
 Exec=baz
@@ -278,14 +270,14 @@ Name=foo
 }
 
 func (s *sanitizeDesktopFileSuite) TestSanitizeFiltersExecPrefix(c *C) {
-	snap, err := snap.InfoFromSnapYaml([]byte(`
+	snap := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 version: 1.0
 apps:
  app:
   command: cmd
-`))
-	c.Assert(err, IsNil)
+`)))
+
 	desktopContent := []byte(`[Desktop Entry]
 X-SnapInstanceName=snap
 Name=foo
@@ -300,14 +292,14 @@ Name=foo
 }
 
 func (s *sanitizeDesktopFileSuite) TestSanitizeFiltersExecRewriteFromDesktop(c *C) {
-	snap, err := snap.InfoFromSnapYaml([]byte(`
+	snap := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 version: 1.0
 apps:
  app:
   command: cmd
-`))
-	c.Assert(err, IsNil)
+`)))
+
 	desktopContent := []byte(`[Desktop Entry]
 X-SnapInstanceName=snap
 Name=foo
@@ -323,14 +315,14 @@ Exec=env BAMF_DESKTOP_FILE_HINT=app.desktop %s/bin/snap.app
 }
 
 func (s *sanitizeDesktopFileSuite) TestSanitizeFiltersExecOk(c *C) {
-	snap, err := snap.InfoFromSnapYaml([]byte(`
+	snap := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 version: 1.0
 apps:
  app:
   command: cmd
-`))
-	c.Assert(err, IsNil)
+`)))
+
 	desktopContent := []byte(`[Desktop Entry]
 Name=foo
 Exec=snap.app %U
@@ -347,14 +339,14 @@ Exec=env BAMF_DESKTOP_FILE_HINT=foo.desktop %s/bin/snap.app %%U
 // we do not support TryExec (even if its a valid line), this test ensures
 // we do not accidentally enable it
 func (s *sanitizeDesktopFileSuite) TestSanitizeFiltersTryExecIgnored(c *C) {
-	snap, err := snap.InfoFromSnapYaml([]byte(`
+	snap := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 version: 1.0
 apps:
  app:
   command: cmd
-`))
-	c.Assert(err, IsNil)
+`)))
+
 	desktopContent := []byte(`[Desktop Entry]
 Name=foo
 TryExec=snap.app %U
@@ -421,15 +413,15 @@ TargetEnvironment=Unity
 }
 
 func (s *sanitizeDesktopFileSuite) TestSanitizeParallelInstancesPlain(c *C) {
-	snap, err := snap.InfoFromSnapYaml([]byte(`
+	snap := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 version: 1.0
 apps:
  app:
   command: cmd
-`))
+`)))
 	snap.InstanceKey = "bar"
-	c.Assert(err, IsNil)
+
 	desktopContent := []byte(`[Desktop Entry]
 Name=foo
 Exec=snap.app
@@ -444,15 +436,15 @@ Exec=env BAMF_DESKTOP_FILE_HINT=snap+bar_app.desktop %s/bin/snap_bar.app
 }
 
 func (s *sanitizeDesktopFileSuite) TestSanitizeParallelInstancesWithArgs(c *C) {
-	snap, err := snap.InfoFromSnapYaml([]byte(`
+	snap := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 version: 1.0
 apps:
  app:
   command: cmd
-`))
+`)))
 	snap.InstanceKey = "bar"
-	c.Assert(err, IsNil)
+
 	desktopContent := []byte(`[Desktop Entry]
 Name=foo
 Exec=snap.app %U
@@ -469,22 +461,22 @@ Exec=env BAMF_DESKTOP_FILE_HINT=snap+bar_app.desktop %s/bin/snap_bar.app %%U
 
 func (s *sanitizeDesktopFileSuite) TestRewriteExecLineInvalid(c *C) {
 	snap := &snap.Info{}
-	_, err := wrappers.RewriteExecLine(snap, "foo.desktop", "Exec=invalid")
+	_ := mylog.Check2(wrappers.RewriteExecLine(snap, "foo.desktop", "Exec=invalid"))
 	c.Assert(err, ErrorMatches, `invalid exec command: "invalid"`)
 }
 
 func (s *sanitizeDesktopFileSuite) TestRewriteExecLineOk(c *C) {
-	snap, err := snap.InfoFromSnapYaml([]byte(`
+	snap := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 version: 1.0
 apps:
  app:
   command: cmd
-`))
-	c.Assert(err, IsNil)
+`)))
 
-	newl, err := wrappers.RewriteExecLine(snap, "foo.desktop", "Exec=snap.app")
-	c.Assert(err, IsNil)
+
+	newl := mylog.Check2(wrappers.RewriteExecLine(snap, "foo.desktop", "Exec=snap.app"))
+
 	c.Assert(newl, Equals, fmt.Sprintf("Exec=env BAMF_DESKTOP_FILE_HINT=foo.desktop %s/bin/snap.app", dirs.SnapMountDir))
 }
 
@@ -517,52 +509,52 @@ func (s *sanitizeDesktopFileSuite) TestLangLang(c *C) {
 }
 
 func (s *sanitizeDesktopFileSuite) TestRewriteIconLine(c *C) {
-	snap, err := snap.InfoFromSnapYaml([]byte(`
+	snap := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 version: 1.0
-`))
-	c.Assert(err, IsNil)
+`)))
 
-	newl, err := wrappers.RewriteIconLine(snap, "Icon=${SNAP}/icon.png")
+
+	newl := mylog.Check2(wrappers.RewriteIconLine(snap, "Icon=${SNAP}/icon.png"))
 	c.Check(err, IsNil)
 	c.Check(newl, Equals, "Icon=${SNAP}/icon.png")
 
-	newl, err = wrappers.RewriteIconLine(snap, "Icon=snap.snap.icon")
+	newl = mylog.Check2(wrappers.RewriteIconLine(snap, "Icon=snap.snap.icon"))
 	c.Check(err, IsNil)
 	c.Check(newl, Equals, "Icon=snap.snap.icon")
 
-	newl, err = wrappers.RewriteIconLine(snap, "Icon=other-icon")
+	newl = mylog.Check2(wrappers.RewriteIconLine(snap, "Icon=other-icon"))
 	c.Check(err, IsNil)
 	c.Check(newl, Equals, "Icon=other-icon")
 
 	snap.InstanceKey = "bar"
-	newl, err = wrappers.RewriteIconLine(snap, "Icon=snap.snap.icon")
+	newl = mylog.Check2(wrappers.RewriteIconLine(snap, "Icon=snap.snap.icon"))
 	c.Check(err, IsNil)
 	c.Check(newl, Equals, "Icon=snap.snap_bar.icon")
 
-	_, err = wrappers.RewriteIconLine(snap, "Icon=snap.othersnap.icon")
+	_ = mylog.Check2(wrappers.RewriteIconLine(snap, "Icon=snap.othersnap.icon"))
 	c.Check(err, ErrorMatches, `invalid icon name: "snap.othersnap.icon", must start with "snap.snap."`)
 
-	_, err = wrappers.RewriteIconLine(snap, "Icon=/etc/passwd")
+	_ = mylog.Check2(wrappers.RewriteIconLine(snap, "Icon=/etc/passwd"))
 	c.Check(err, ErrorMatches, `icon path "/etc/passwd" is not part of the snap`)
 
-	_, err = wrappers.RewriteIconLine(snap, "Icon=${SNAP}/./icon.png")
+	_ = mylog.Check2(wrappers.RewriteIconLine(snap, "Icon=${SNAP}/./icon.png"))
 	c.Check(err, ErrorMatches, `icon path "\${SNAP}/./icon.png" is not canonicalized, did you mean "\${SNAP}/icon.png"\?`)
 
-	_, err = wrappers.RewriteIconLine(snap, "Icon=${SNAP}/../outside/icon.png")
+	_ = mylog.Check2(wrappers.RewriteIconLine(snap, "Icon=${SNAP}/../outside/icon.png"))
 	c.Check(err, ErrorMatches, `icon path "\${SNAP}/../outside/icon.png" is not canonicalized, did you mean "outside/icon.png"\?`)
 }
 
 func (s *sanitizeDesktopFileSuite) TestSanitizeParallelInstancesIconName(c *C) {
-	snap, err := snap.InfoFromSnapYaml([]byte(`
+	snap := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 version: 1.0
 apps:
  app:
   command: cmd
-`))
+`)))
 	snap.InstanceKey = "bar"
-	c.Assert(err, IsNil)
+
 	desktopContent := []byte(`[Desktop Entry]
 Name=foo
 Icon=snap.snap.icon
@@ -579,7 +571,7 @@ Exec=env BAMF_DESKTOP_FILE_HINT=snap+bar_app.desktop %s/bin/snap_bar.app
 }
 
 func (s *desktopSuite) TestAddRemoveDesktopFiles(c *C) {
-	var tests = []struct {
+	tests := []struct {
 		instance                string
 		upstreamDesktopFileName string
 
@@ -602,14 +594,12 @@ func (s *desktopSuite) TestAddRemoveDesktopFiles(c *C) {
 
 		// generate .desktop file in the package baseDir
 		baseDir := info.MountDir()
-		err := os.MkdirAll(filepath.Join(baseDir, "meta", "gui"), 0755)
-		c.Assert(err, IsNil)
+		mylog.Check(os.MkdirAll(filepath.Join(baseDir, "meta", "gui"), 0755))
 
-		err = os.WriteFile(filepath.Join(baseDir, "meta", "gui", t.upstreamDesktopFileName), mockDesktopFile, 0644)
-		c.Assert(err, IsNil)
+		mylog.Check(os.WriteFile(filepath.Join(baseDir, "meta", "gui", t.upstreamDesktopFileName), mockDesktopFile, 0644))
 
-		err = wrappers.EnsureSnapDesktopFiles([]*snap.Info{info})
-		c.Assert(err, IsNil)
+		mylog.Check(wrappers.EnsureSnapDesktopFiles([]*snap.Info{info}))
+
 		c.Assert(osutil.FileExists(expectedDesktopFilePath), Equals, true)
 
 		// Ensure that the old-style parallel install desktop file was
@@ -618,10 +608,11 @@ func (s *desktopSuite) TestAddRemoveDesktopFiles(c *C) {
 			unexpectedOldStyleDesktopFilePath := strings.Replace(expectedDesktopFilePath, "+", "_", 1)
 			c.Assert(osutil.FileExists(unexpectedOldStyleDesktopFilePath), Equals, false)
 		}
+		mylog.Check(
 
-		// remove it again
-		err = wrappers.RemoveSnapDesktopFiles(info)
-		c.Assert(err, IsNil)
+			// remove it again
+			wrappers.RemoveSnapDesktopFiles(info))
+
 		c.Assert(osutil.FileExists(expectedDesktopFilePath), Equals, false)
 	}
 }

@@ -33,6 +33,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -107,9 +108,8 @@ func (sh *Snapshot) ContentHash() ([]byte, error) {
 	sh2.Options = nil
 	h := sha256.New()
 	enc := json.NewEncoder(h)
-	if err := enc.Encode(&sh2); err != nil {
-		return nil, err
-	}
+	mylog.Check(enc.Encode(&sh2))
+
 	return h.Sum(nil), nil
 }
 
@@ -157,10 +157,8 @@ func (ss SnapshotSet) ContentHash() ([]byte, error) {
 
 	h := sha256.New()
 	for _, sh := range sortedSnapshots {
-		ch, err := sh.ContentHash()
-		if err != nil {
-			return nil, err
-		}
+		ch := mylog.Check2(sh.ContentHash())
+
 		h.Write(ch)
 	}
 	return h.Sum(nil), nil
@@ -178,7 +176,7 @@ func (client *Client) SnapshotSets(setID uint64, snapNames []string) ([]Snapshot
 	}
 
 	var snapshotSets []SnapshotSet
-	_, err := client.doSync("GET", "/v2/snapshots", q, nil, nil, &snapshotSets)
+	_ := mylog.Check2(client.doSync("GET", "/v2/snapshots", q, nil, nil, &snapshotSets))
 	return snapshotSets, err
 }
 
@@ -219,10 +217,7 @@ func (client *Client) RestoreSnapshots(setID uint64, snaps []string, users []str
 }
 
 func (client *Client) snapshotAction(action *snapshotAction) (changeID string, err error) {
-	data, err := json.Marshal(action)
-	if err != nil {
-		return "", fmt.Errorf("cannot marshal snapshot action: %v", err)
-	}
+	data := mylog.Check2(json.Marshal(action))
 
 	headers := map[string]string{
 		"Content-Type": "application/json",
@@ -235,16 +230,14 @@ func (client *Client) snapshotAction(action *snapshotAction) (changeID string, e
 //
 // The return value includes the length of the returned stream.
 func (client *Client) SnapshotExport(setID uint64) (stream io.ReadCloser, contentLength int64, err error) {
-	rsp, err := client.raw(context.Background(), "GET", fmt.Sprintf("/v2/snapshots/%v/export", setID), nil, nil, nil)
-	if err != nil {
-		return nil, 0, err
-	}
+	rsp := mylog.Check2(client.raw(context.Background(), "GET", fmt.Sprintf("/v2/snapshots/%v/export", setID), nil, nil, nil))
+
 	if rsp.StatusCode != 200 {
 		defer rsp.Body.Close()
 
 		var r response
 		dec := json.NewDecoder(rsp.Body)
-		if err := dec.Decode(&r); err == nil {
+		if mylog.Check(dec.Decode(&r)); err == nil {
 			specificErr := r.err(client, rsp.StatusCode)
 			if specificErr != nil {
 				return nil, 0, specificErr
@@ -274,9 +267,7 @@ func (client *Client) SnapshotImport(exportStream io.Reader, size int64) (Snapsh
 	}
 
 	var importSet SnapshotImportSet
-	if _, err := client.doSync("POST", "/v2/snapshots", nil, headers, exportStream, &importSet); err != nil {
-		return importSet, err
-	}
+	mylog.Check2(client.doSync("POST", "/v2/snapshots", nil, headers, exportStream, &importSet))
 
 	return importSet, nil
 }

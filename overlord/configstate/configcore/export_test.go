@@ -37,8 +37,10 @@ var (
 	UpdateHomedirsConfig = updateHomedirsConfig
 )
 
-type PlainCoreConfig = plainCoreConfig
-type RepairConfig = repairConfig
+type (
+	PlainCoreConfig = plainCoreConfig
+	RepairConfig    = repairConfig
+)
 
 // FilesystemOnlyRun is used for tests that run also when nomanagers flag is
 // set, that is, for config groups that do not need access to the

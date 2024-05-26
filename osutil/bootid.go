@@ -23,18 +23,16 @@ import (
 	"io"
 	"os"
 	"strings"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // BootID returns the unique system-generated boot identifier.
 func BootID() (string, error) {
-	file, err := os.Open("/proc/sys/kernel/random/boot_id")
-	if err != nil {
-		return "", err
-	}
+	file := mylog.Check2(os.Open("/proc/sys/kernel/random/boot_id"))
+
 	defer file.Close()
-	bytes, err := io.ReadAll(file)
-	if err != nil {
-		return "", err
-	}
+	bytes := mylog.Check2(io.ReadAll(file))
+
 	return strings.TrimSpace(string(bytes)), nil
 }

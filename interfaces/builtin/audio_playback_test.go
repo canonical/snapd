@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
@@ -109,23 +110,23 @@ func (s *AudioPlaybackInterfaceSuite) TestSecComp(c *C) {
 	defer restore()
 
 	// connected plug to core slot
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	spec := seccomp.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "shmctl\n")
 
 	// connected core slot to plug
-	appSet, err = interfaces.NewSnapAppSet(s.coreSlot.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.coreSlot.Snap(), nil))
+
 	spec = seccomp.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 
 	// permanent core slot
-	appSet, err = interfaces.NewSnapAppSet(s.coreSlotInfo.Snap, nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.coreSlotInfo.Snap, nil))
+
 	spec = seccomp.NewSpecification(appSet)
 	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.audio-playback.app1"})
@@ -137,8 +138,8 @@ func (s *AudioPlaybackInterfaceSuite) TestSecCompOnClassic(c *C) {
 	defer restore()
 
 	// connected plug to classic slot
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	spec := seccomp.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.classicSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
@@ -149,15 +150,15 @@ func (s *AudioPlaybackInterfaceSuite) TestSecCompOnClassic(c *C) {
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), Not(testutil.Contains), "owner /run/user/[0-9]*/snap.audio-playback/pulse/pid r,\n")
 
 	// connected classic slot to plug
-	appSet, err = interfaces.NewSnapAppSet(s.classicSlot.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.classicSlot.Snap(), nil))
+
 	spec = seccomp.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.classicSlot), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 
 	// permanent classic slot
-	appSet, err = interfaces.NewSnapAppSet(s.classicSlotInfo.Snap, nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.classicSlotInfo.Snap, nil))
+
 	spec = seccomp.NewSpecification(appSet)
 	c.Assert(spec.AddPermanentSlot(s.iface, s.classicSlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
@@ -172,8 +173,8 @@ func (s *AudioPlaybackInterfaceSuite) TestAppArmor(c *C) {
 	defer restore()
 
 	// connected plug to core slot
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
@@ -183,15 +184,15 @@ func (s *AudioPlaybackInterfaceSuite) TestAppArmor(c *C) {
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "owner /run/user/[0-9]*/snap.audio-playback/pulse/pid r,\n")
 
 	// connected core slot to plug
-	appSet, err = interfaces.NewSnapAppSet(s.coreSlot.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.coreSlot.Snap(), nil))
+
 	spec = apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 
 	// permanent core slot
-	appSet, err = interfaces.NewSnapAppSet(s.coreSlotInfo.Snap, nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.coreSlotInfo.Snap, nil))
+
 	spec = apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.audio-playback.app1"})
@@ -206,8 +207,8 @@ func (s *AudioPlaybackInterfaceSuite) TestAppArmorOnClassic(c *C) {
 	defer restore()
 
 	// connected plug to classic slot
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.classicSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
@@ -215,23 +216,23 @@ func (s *AudioPlaybackInterfaceSuite) TestAppArmorOnClassic(c *C) {
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/etc/pulse/ r,\n")
 
 	// connected classic slot to plug
-	appSet, err = interfaces.NewSnapAppSet(s.classicSlot.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.classicSlot.Snap(), nil))
+
 	spec = apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.classicSlot), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 
 	// permanent classic slot
-	appSet, err = interfaces.NewSnapAppSet(s.classicSlotInfo.Snap, nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.classicSlotInfo.Snap, nil))
+
 	spec = apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddPermanentSlot(s.iface, s.classicSlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 }
 
 func (s *AudioPlaybackInterfaceSuite) TestUDev(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.coreSlotInfo.Snap, nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.coreSlotInfo.Snap, nil))
+
 	spec := udev.NewSpecification(appSet)
 	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 4)

@@ -33,6 +33,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/gorilla/mux"
 	"gopkg.in/check.v1"
 
@@ -75,8 +76,7 @@ func (s *daemonSuite) SetUpTest(c *check.C) {
 
 	dirs.SetRootDir(c.MkDir())
 	s.AddCleanup(osutil.MockMountInfo(""))
-
-	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
+	mylog.Check(os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755))
 	c.Assert(err, check.IsNil)
 	systemdSdNotify = func(notif string) error {
 		s.notified = append(s.notified, notif)
@@ -98,7 +98,7 @@ func (s *daemonSuite) TearDownTest(c *check.C) {
 
 // build a new daemon, with only a little of Init(), suitable for the tests
 func (s *daemonSuite) newTestDaemon(c *check.C) *Daemon {
-	d, err := New()
+	d := mylog.Check2(New())
 	c.Assert(err, check.IsNil)
 	d.addRoutes()
 
@@ -128,12 +128,12 @@ func (s *daemonSuite) TestCommandMethodDispatch(c *check.C) {
 	d := s.newTestDaemon(c)
 	st := d.Overlord().State()
 	st.Lock()
-	authUser, err := auth.NewUser(st, auth.NewUserParams{
+	authUser := mylog.Check2(auth.NewUser(st, auth.NewUserParams{
 		Username:   "username",
 		Email:      "email@test.com",
 		Macaroon:   "macaroon",
 		Discharges: []string{"discharge"},
-	})
+	}))
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 
@@ -154,7 +154,7 @@ func (s *daemonSuite) TestCommandMethodDispatch(c *check.C) {
 	cmd.WriteAccess = authenticatedAccess{}
 
 	for _, method := range []string{"GET", "POST", "PUT"} {
-		req, err := http.NewRequest(method, "", nil)
+		req := mylog.Check2(http.NewRequest(method, "", nil))
 		req.Header.Add("User-Agent", fakeUserAgent)
 		c.Assert(err, check.IsNil)
 
@@ -171,7 +171,7 @@ func (s *daemonSuite) TestCommandMethodDispatch(c *check.C) {
 		c.Check(rec.Code, check.Equals, 200)
 	}
 
-	req, err := http.NewRequest("POTATO", "", nil)
+	req := mylog.Check2(http.NewRequest("POTATO", "", nil))
 	c.Assert(err, check.IsNil)
 	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1001;socket=%s;", dirs.SnapdSocket)
 	req.Header.Set("Authorization", fmt.Sprintf(`Macaroon root="%s"`, authUser.Macaroon))
@@ -197,7 +197,7 @@ func (s *daemonSuite) TestCommandMethodDispatchRoot(c *check.C) {
 	cmd.WriteAccess = authenticatedAccess{}
 
 	for _, method := range []string{"GET", "POST", "PUT"} {
-		req, err := http.NewRequest(method, "", nil)
+		req := mylog.Check2(http.NewRequest(method, "", nil))
 		req.Header.Add("User-Agent", fakeUserAgent)
 		c.Assert(err, check.IsNil)
 
@@ -214,7 +214,7 @@ func (s *daemonSuite) TestCommandMethodDispatchRoot(c *check.C) {
 		c.Check(rec.Code, check.Equals, 200)
 	}
 
-	req, err := http.NewRequest("POTATO", "", nil)
+	req := mylog.Check2(http.NewRequest("POTATO", "", nil))
 	c.Assert(err, check.IsNil)
 	req.RemoteAddr = fmt.Sprintf("pid=100;uid=0;socket=%s;", dirs.SnapdSocket)
 
@@ -231,7 +231,7 @@ func (s *daemonSuite) TestCommandRestartingState(c *check.C) {
 		return SyncResponse(nil)
 	}
 	cmd.ReadAccess = openAccess{}
-	req, err := http.NewRequest("GET", "", nil)
+	req := mylog.Check2(http.NewRequest("GET", "", nil))
 	c.Assert(err, check.IsNil)
 	req.RemoteAddr = fmt.Sprintf("pid=100;uid=42;socket=%s;", dirs.SnapdSocket)
 
@@ -241,7 +241,7 @@ func (s *daemonSuite) TestCommandRestartingState(c *check.C) {
 	var rst struct {
 		Maintenance *errorResult `json:"maintenance"`
 	}
-	err = json.Unmarshal(rec.Body.Bytes(), &rst)
+	mylog.Check(json.Unmarshal(rec.Body.Bytes(), &rst))
 	c.Assert(err, check.IsNil)
 	c.Check(rst.Maintenance, check.IsNil)
 
@@ -293,7 +293,7 @@ func (s *daemonSuite) TestCommandRestartingState(c *check.C) {
 		var rst struct {
 			Maintenance *errorResult `json:"maintenance"`
 		}
-		err = json.Unmarshal(rec.Body.Bytes(), &rst)
+		mylog.Check(json.Unmarshal(rec.Body.Bytes(), &rst))
 		c.Assert(err, check.IsNil)
 		var val errorValue
 		if t.op != "" {
@@ -316,7 +316,7 @@ func (s *daemonSuite) TestMaintenanceJsonDeletedOnStart(c *check.C) {
 		Message: systemRestartMsg,
 	}
 
-	b, err := json.Marshal(maintErr)
+	b := mylog.Check2(json.Marshal(maintErr))
 	c.Assert(err, check.IsNil)
 	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapdMaintenanceFile), 0755), check.IsNil)
 	c.Assert(os.WriteFile(dirs.SnapdMaintenanceFile, b, 0644), check.IsNil)
@@ -340,7 +340,7 @@ func (s *daemonSuite) TestFillsWarnings(c *check.C) {
 		return SyncResponse(nil)
 	}
 	cmd.ReadAccess = openAccess{}
-	req, err := http.NewRequest("GET", "", nil)
+	req := mylog.Check2(http.NewRequest("GET", "", nil))
 	c.Assert(err, check.IsNil)
 	req.RemoteAddr = fmt.Sprintf("pid=100;uid=42;socket=%s;", dirs.SnapdSocket)
 
@@ -351,7 +351,7 @@ func (s *daemonSuite) TestFillsWarnings(c *check.C) {
 		WarningTimestamp *time.Time `json:"warning-timestamp,omitempty"`
 		WarningCount     int        `json:"warning-count,omitempty"`
 	}
-	err = json.Unmarshal(rec.Body.Bytes(), &rst)
+	mylog.Check(json.Unmarshal(rec.Body.Bytes(), &rst))
 	c.Assert(err, check.IsNil)
 	c.Check(rst.WarningCount, check.Equals, 0)
 	c.Check(rst.WarningTimestamp, check.IsNil)
@@ -364,7 +364,7 @@ func (s *daemonSuite) TestFillsWarnings(c *check.C) {
 	rec = httptest.NewRecorder()
 	cmd.ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 200)
-	err = json.Unmarshal(rec.Body.Bytes(), &rst)
+	mylog.Check(json.Unmarshal(rec.Body.Bytes(), &rst))
 	c.Assert(err, check.IsNil)
 	c.Check(rst.WarningCount, check.Equals, 1)
 	c.Check(rst.WarningTimestamp, check.NotNil)
@@ -451,12 +451,12 @@ func (s *daemonSuite) TestWriteAccessWithUser(c *check.C) {
 	d := s.newTestDaemon(c)
 	st := d.Overlord().State()
 	st.Lock()
-	authUser, err := auth.NewUser(st, auth.NewUserParams{
+	authUser := mylog.Check2(auth.NewUser(st, auth.NewUserParams{
 		Username:   "username",
 		Email:      "email@test.com",
 		Macaroon:   "macaroon",
 		Discharges: []string{"discharge"},
-	})
+	}))
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 
@@ -620,9 +620,9 @@ version: 1`, si)
 	// 1 snap => extended timeout 30s + 5s
 	const extendedTimeoutUSec = "EXTEND_TIMEOUT_USEC=35000000"
 
-	l1, err := net.Listen("tcp", "127.0.0.1:0")
+	l1 := mylog.Check2(net.Listen("tcp", "127.0.0.1:0"))
 	c.Assert(err, check.IsNil)
-	l2, err := net.Listen("tcp", "127.0.0.1:0")
+	l2 := mylog.Check2(net.Listen("tcp", "127.0.0.1:0"))
 	c.Assert(err, check.IsNil)
 
 	snapdAccept := make(chan struct{})
@@ -657,8 +657,7 @@ version: 1`, si)
 
 	<-snapdDone
 	<-snapDone
-
-	err = d.Stop(nil)
+	mylog.Check(d.Stop(nil))
 	c.Check(err, check.IsNil)
 
 	c.Check(s.notified, check.DeepEquals, []string{extendedTimeoutUSec, "READY=1", "STOPPING=1"})
@@ -670,7 +669,7 @@ func (s *daemonSuite) TestRestartWiring(c *check.C) {
 	// mark as already seeded
 	s.markSeeded(d)
 
-	l, err := net.Listen("tcp", "127.0.0.1:0")
+	l := mylog.Check2(net.Listen("tcp", "127.0.0.1:0"))
 	c.Assert(err, check.IsNil)
 
 	snapdAccept := make(chan struct{})
@@ -757,10 +756,10 @@ func (s *daemonSuite) TestGracefulStop(c *check.C) {
 	snaptest.MockSnap(c, `name: core
 version: 1`, si)
 
-	snapdL, err := net.Listen("tcp", "127.0.0.1:0")
+	snapdL := mylog.Check2(net.Listen("tcp", "127.0.0.1:0"))
 	c.Assert(err, check.IsNil)
 
-	snapL, err := net.Listen("tcp", "127.0.0.1:0")
+	snapL := mylog.Check2(net.Listen("tcp", "127.0.0.1:0"))
 	c.Assert(err, check.IsNil)
 
 	snapdAccept := make(chan struct{})
@@ -798,10 +797,10 @@ version: 1`, si)
 	alright := make(chan struct{})
 
 	go func() {
-		res, err := http.Get(fmt.Sprintf("http://%s/endp", snapdL.Addr()))
+		res := mylog.Check2(http.Get(fmt.Sprintf("http://%s/endp", snapdL.Addr())))
 		c.Assert(err, check.IsNil)
 		c.Check(res.StatusCode, check.Equals, 200)
-		body, err := io.ReadAll(res.Body)
+		body := mylog.Check2(io.ReadAll(res.Body))
 		res.Body.Close()
 		c.Assert(err, check.IsNil)
 		c.Check(string(body), check.Equals, "OKOK")
@@ -814,7 +813,7 @@ version: 1`, si)
 	}()
 
 	<-responding
-	err = d.Stop(nil)
+	mylog.Check(d.Stop(nil))
 	doRespond <- false
 	c.Check(err, check.IsNil)
 
@@ -841,10 +840,10 @@ func (s *daemonSuite) TestGracefulStopHasLimits(c *check.C) {
 		close(responding)
 		if <-doRespond {
 			for {
-				// write in a loop to keep the handler running
-				if _, err := w.Write([]byte("OKOK")); err != nil {
-					break
-				}
+				mylog.Check2(
+					// write in a loop to keep the handler running
+					w.Write([]byte("OKOK")))
+
 				time.Sleep(50 * time.Millisecond)
 			}
 		} else {
@@ -852,10 +851,10 @@ func (s *daemonSuite) TestGracefulStopHasLimits(c *check.C) {
 		}
 	})
 
-	snapdL, err := net.Listen("tcp", "127.0.0.1:0")
+	snapdL := mylog.Check2(net.Listen("tcp", "127.0.0.1:0"))
 	c.Assert(err, check.IsNil)
 
-	snapL, err := net.Listen("tcp", "127.0.0.1:0")
+	snapL := mylog.Check2(net.Listen("tcp", "127.0.0.1:0"))
 	c.Assert(err, check.IsNil)
 
 	snapdAccept := make(chan struct{})
@@ -893,7 +892,7 @@ func (s *daemonSuite) TestGracefulStopHasLimits(c *check.C) {
 	clientErr := make(chan error)
 
 	go func() {
-		_, err := http.Get(fmt.Sprintf("http://%s/endp", snapdL.Addr()))
+		_ := mylog.Check2(http.Get(fmt.Sprintf("http://%s/endp", snapdL.Addr())))
 		c.Assert(err, check.NotNil)
 		clientErr <- err
 		close(clientErr)
@@ -905,7 +904,7 @@ func (s *daemonSuite) TestGracefulStopHasLimits(c *check.C) {
 	}()
 
 	<-responding
-	err = d.Stop(nil)
+	mylog.Check(d.Stop(nil))
 	doRespond <- false
 	c.Check(err, check.IsNil)
 
@@ -926,7 +925,7 @@ func (s *daemonSuite) testRestartSystemWiring(c *check.C, prep func(d *Daemon), 
 		prep(d)
 	}
 
-	l, err := net.Listen("tcp", "127.0.0.1:0")
+	l := mylog.Check2(net.Listen("tcp", "127.0.0.1:0"))
 	c.Assert(err, check.IsNil)
 
 	snapdAccept := make(chan struct{})
@@ -1015,8 +1014,7 @@ func (s *daemonSuite) testRestartSystemWiring(c *check.C, prep func(d *Daemon), 
 	c.Check(delays[0], check.DeepEquals, rebootWaitTimeout)
 
 	now := time.Now()
-
-	err = d.Stop(nil)
+	mylog.Check(d.Stop(nil))
 
 	// ensure Stop waited for at least rebootWaitTimeout
 	timeToStop := time.Since(now)
@@ -1032,7 +1030,7 @@ func (s *daemonSuite) testRestartSystemWiring(c *check.C, prep func(d *Daemon), 
 	st.Lock()
 	defer st.Unlock()
 	var rebootAt time.Time
-	err = st.Get("daemon-system-restart-at", &rebootAt)
+	mylog.Check(st.Get("daemon-system-restart-at", &rebootAt))
 	c.Assert(err, check.IsNil)
 	if wait > 0 {
 		approxAt := now.Add(wait)
@@ -1044,7 +1042,7 @@ func (s *daemonSuite) testRestartSystemWiring(c *check.C, prep func(d *Daemon), 
 
 	// finally check that maintenance.json was written appropriate for this
 	// restart reason
-	b, err := os.ReadFile(dirs.SnapdMaintenanceFile)
+	b := mylog.Check2(os.ReadFile(dirs.SnapdMaintenanceFile))
 	c.Assert(err, check.IsNil)
 
 	maintErr := &errorResult{}
@@ -1118,10 +1116,10 @@ func (s *daemonSuite) TestRestartSystemFromEnsure(c *check.C) {
 }
 
 func makeDaemonListeners(c *check.C, d *Daemon) {
-	snapdL, err := net.Listen("tcp", "127.0.0.1:0")
+	snapdL := mylog.Check2(net.Listen("tcp", "127.0.0.1:0"))
 	c.Assert(err, check.IsNil)
 
-	snapL, err := net.Listen("tcp", "127.0.0.1:0")
+	snapL := mylog.Check2(net.Listen("tcp", "127.0.0.1:0"))
 	c.Assert(err, check.IsNil)
 
 	snapdAccept := make(chan struct{})
@@ -1175,8 +1173,9 @@ func (s *daemonSuite) TestRestartShutdownWithSigtermInBetween(c *check.C) {
 
 	ch := make(chan os.Signal, 2)
 	ch <- syscall.SIGTERM
-	// stop will check if we got a sigterm in between (which we did)
-	err := d.Stop(ch)
+	mylog.
+		// stop will check if we got a sigterm in between (which we did)
+		Check(d.Stop(ch))
 	c.Assert(err, check.IsNil)
 
 	// we must have called reboot twice
@@ -1239,11 +1238,11 @@ func (s *daemonSuite) TestRestartShutdown(c *check.C) {
 }
 
 func (s *daemonSuite) TestRestartExpectedRebootDidNotHappen(c *check.C) {
-	curBootID, err := osutil.BootID()
+	curBootID := mylog.Check2(osutil.BootID())
 	c.Assert(err, check.IsNil)
 
 	fakeState := []byte(fmt.Sprintf(`{"data":{"patch-level":%d,"patch-sublevel":%d,"some":"data","refresh-privacy-key":"0123456789ABCDEF","system-restart-from-boot-id":%q,"daemon-system-restart-at":"%s"},"changes":null,"tasks":null,"last-change-id":0,"last-task-id":0,"last-lane-id":0}`, patch.Level, patch.Sublevel, curBootID, time.Now().UTC().Format(time.RFC3339)))
-	err = os.WriteFile(dirs.SnapStateFile, fakeState, 0600)
+	mylog.Check(os.WriteFile(dirs.SnapStateFile, fakeState, 0600))
 	c.Assert(err, check.IsNil)
 
 	oldRebootNoticeWait := rebootNoticeWait
@@ -1273,7 +1272,7 @@ func (s *daemonSuite) TestRestartExpectedRebootDidNotHappen(c *check.C) {
 
 	var n int
 	d.state.Lock()
-	err = d.state.Get("daemon-system-restart-tentative", &n)
+	mylog.Check(d.state.Get("daemon-system-restart-tentative", &n))
 	d.state.Unlock()
 	c.Check(err, check.IsNil)
 	c.Check(n, check.Equals, 1)
@@ -1298,7 +1297,7 @@ func (s *daemonSuite) TestRestartExpectedRebootDidNotHappen(c *check.C) {
 
 func (s *daemonSuite) TestRestartExpectedRebootOK(c *check.C) {
 	fakeState := []byte(fmt.Sprintf(`{"data":{"patch-level":%d,"patch-sublevel":%d,"some":"data","refresh-privacy-key":"0123456789ABCDEF","system-restart-from-boot-id":%q,"daemon-system-restart-at":"%s"},"changes":null,"tasks":null,"last-change-id":0,"last-task-id":0,"last-lane-id":0}`, patch.Level, patch.Sublevel, "boot-id-0", time.Now().UTC().Format(time.RFC3339)))
-	err := os.WriteFile(dirs.SnapStateFile, fakeState, 0600)
+	mylog.Check(os.WriteFile(dirs.SnapStateFile, fakeState, 0600))
 	c.Assert(err, check.IsNil)
 
 	cmd := testutil.MockCommand(c, "shutdown", "")
@@ -1318,11 +1317,11 @@ func (s *daemonSuite) TestRestartExpectedRebootOK(c *check.C) {
 
 func (s *daemonSuite) TestRestartExpectedRebootGiveUp(c *check.C) {
 	// we give up trying to restart the system after 3 retry tentatives
-	curBootID, err := osutil.BootID()
+	curBootID := mylog.Check2(osutil.BootID())
 	c.Assert(err, check.IsNil)
 
 	fakeState := []byte(fmt.Sprintf(`{"data":{"patch-level":%d,"patch-sublevel":%d,"some":"data","refresh-privacy-key":"0123456789ABCDEF","system-restart-from-boot-id":%q,"daemon-system-restart-at":"%s","daemon-system-restart-tentative":3},"changes":null,"tasks":null,"last-change-id":0,"last-task-id":0,"last-lane-id":0}`, patch.Level, patch.Sublevel, curBootID, time.Now().UTC().Format(time.RFC3339)))
-	err = os.WriteFile(dirs.SnapStateFile, fakeState, 0600)
+	mylog.Check(os.WriteFile(dirs.SnapStateFile, fakeState, 0600))
 	c.Assert(err, check.IsNil)
 
 	cmd := testutil.MockCommand(c, "shutdown", "")
@@ -1365,7 +1364,7 @@ func (s *daemonSuite) TestRestartIntoSocketModeNoNewChanges(c *check.C) {
 	case <-time.After(15 * time.Second):
 		c.Errorf("daemon did not stop after 15s")
 	}
-	err := d.Stop(nil)
+	mylog.Check(d.Stop(nil))
 	c.Check(err, check.Equals, ErrRestartSocket)
 	c.Check(d.restartSocket, check.Equals, true)
 }
@@ -1407,8 +1406,9 @@ func (s *daemonSuite) TestRestartIntoSocketModePendingChanges(c *check.C) {
 	case <-time.After(5 * time.Second):
 		c.Errorf("daemon did not stop after 5s")
 	}
-	// when the daemon got a pending change it just restarts
-	err := d.Stop(nil)
+	mylog.
+		// when the daemon got a pending change it just restarts
+		Check(d.Stop(nil))
 	c.Check(err, check.IsNil)
 	c.Check(d.restartSocket, check.Equals, false)
 }
@@ -1426,7 +1426,7 @@ func (s *daemonSuite) TestConnTrackerCanShutdown(c *check.C) {
 }
 
 func doTestReq(c *check.C, cmd *Command, mth string) *httptest.ResponseRecorder {
-	req, err := http.NewRequest(mth, "", nil)
+	req := mylog.Check2(http.NewRequest(mth, "", nil))
 	c.Assert(err, check.IsNil)
 	req.RemoteAddr = fmt.Sprintf("pid=100;uid=0;socket=%s;", dirs.SnapdSocket)
 	rec := httptest.NewRecorder()

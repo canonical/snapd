@@ -25,6 +25,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/i18n"
@@ -60,10 +61,8 @@ func changedKernelConfigs(c RunTransaction) []string {
 }
 
 func validateCmdlineParamsAreAllowed(st *state.State, devCtx snapstate.DeviceContext, cmdline string) error {
-	gd, err := devicestate.CurrentGadgetData(st, devCtx)
-	if err != nil {
-		return err
-	}
+	gd := mylog.Check2(devicestate.CurrentGadgetData(st, devCtx))
+
 	logger.Debugf("gadget data read from %s", gd.RootDir)
 
 	if _, forbidden := gadget.FilterKernelCmdline(cmdline, gd.Info.KernelCmdline.Allow); forbidden != "" {
@@ -82,23 +81,16 @@ func validateCmdlineAppend(c RunTransaction) error {
 	st := c.State()
 	st.Lock()
 	defer st.Unlock()
-	devCtx, err := devicestate.DeviceCtx(st, nil, nil)
-	if err != nil {
-		return err
-	}
+	devCtx := mylog.Check2(devicestate.DeviceCtx(st, nil, nil))
 
 	for _, opt := range changed {
-		cmdAppend, err := coreCfg(c, opt)
-		if err != nil {
-			return err
-		}
+		cmdAppend := mylog.Check2(coreCfg(c, opt))
 
 		logger.Debugf("kernel option: validating %s=%q", opt, cmdAppend)
 		if opt == optionKernelCmdlineAppend {
-			// check against allowed values from gadget
-			if err := validateCmdlineParamsAreAllowed(c.State(), devCtx, cmdAppend); err != nil {
-				return err
-			}
+			mylog.Check(
+				// check against allowed values from gadget
+				validateCmdlineParamsAreAllowed(c.State(), devCtx, cmdAppend))
 		} else { // OptionKernelDangerousCmdlineAppend
 			if devCtx.Model().Grade() != asserts.ModelDangerous {
 				// TODO we should return an error if this is an API call
@@ -116,11 +108,10 @@ func createApplyCmdlineChange(c RunTransaction, kernelOpts []string) (*state.Cha
 	st := c.State()
 	st.Lock()
 	defer st.Unlock()
+	mylog.Check(
 
-	// error out if some other change is touching the kernel command line
-	if err := snapstate.CheckUpdateKernelCommandLineConflict(st, ""); err != nil {
-		return nil, err
-	}
+		// error out if some other change is touching the kernel command line
+		snapstate.CheckUpdateKernelCommandLineConflict(st, ""))
 
 	// precalculate task arguments, so we do not need to destroy change/task
 	// if there is an error
@@ -129,10 +120,8 @@ func createApplyCmdlineChange(c RunTransaction, kernelOpts []string) (*state.Cha
 		cmdline string
 	}{}
 	for _, opt := range kernelOpts {
-		cmdline, err := coreCfg(c, opt)
-		if err != nil {
-			return nil, err
-		}
+		cmdline := mylog.Check2(coreCfg(c, opt))
+
 		// opt must match system.kernel.{dangerous-,}cmdline-append (so the
 		// slice must have size 3 and next expression should not fail).
 		name := strings.Split(opt, ".")[2]
@@ -169,10 +158,7 @@ func createApplyCmdlineChange(c RunTransaction, kernelOpts []string) (*state.Cha
 func isDangerousModel(st *state.State) (bool, error) {
 	st.Lock()
 	defer st.Unlock()
-	devCtx, err := devicestate.DeviceCtx(st, nil, nil)
-	if err != nil {
-		return false, err
-	}
+	devCtx := mylog.Check2(devicestate.DeviceCtx(st, nil, nil))
 
 	return devCtx.Model().Grade() == asserts.ModelDangerous, nil
 }
@@ -185,20 +171,15 @@ func handleCmdlineAppend(c RunTransaction, opts *fsOnlyContext) error {
 	logger.Debugf("handling %v", kernelOpts)
 
 	st := c.State()
-	isDangModel, err := isDangerousModel(st)
-	if err != nil {
-		return err
-	}
+	isDangModel := mylog.Check2(isDangerousModel(st))
+
 	// nothing to do if non-dangerous model and the only option set is
 	// the dangerous one, we simply return with success
 	if !isDangModel && len(kernelOpts) == 1 && kernelOpts[0] == optionKernelDangerousCmdlineAppend {
 		return nil
 	}
 
-	cmdlineChg, err := createApplyCmdlineChange(c, kernelOpts)
-	if err != nil {
-		return err
-	}
+	cmdlineChg := mylog.Check2(createApplyCmdlineChange(c, kernelOpts))
 
 	select {
 	case <-cmdlineChg.Ready():

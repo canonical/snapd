@@ -33,6 +33,7 @@ import (
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -42,8 +43,10 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-type hijackFunc func(ctx *Context) error
-type hijackKey struct{ hook, snap string }
+type (
+	hijackFunc func(ctx *Context) error
+	hijackKey  struct{ hook, snap string }
+)
 
 // HookManager is responsible for the maintenance of hooks in the system state.
 // It runs hooks when they're requested, assuming they're present in the given
@@ -168,10 +171,7 @@ func (m *HookManager) RegisterHijack(hookName, instanceName string, f hijackFunc
 
 func (m *HookManager) hookAffectedSnaps(t *state.Task) ([]string, error) {
 	var hooksup HookSetup
-	if err := t.Get("hook-setup", &hooksup); err != nil {
-		return nil, fmt.Errorf("internal error: cannot obtain hook data from task: %s", t.Summary())
-
-	}
+	mylog.Check(t.Get("hook-setup", &hooksup))
 
 	if m.hijacked(hooksup.Hook, hooksup.Snap) != nil {
 		// assume being these internal they should not
@@ -186,13 +186,11 @@ func (m *HookManager) ephemeralContext(cookieID string) (context *Context, err e
 	var contexts map[string]string
 	m.state.Lock()
 	defer m.state.Unlock()
-	err = m.state.Get("snap-cookies", &contexts)
-	if err != nil {
-		return nil, fmt.Errorf("cannot get snap cookies: %v", err)
-	}
+	mylog.Check(m.state.Get("snap-cookies", &contexts))
+
 	if instanceName, ok := contexts[cookieID]; ok {
 		// create new ephemeral cookie
-		context, err = NewContext(nil, m.state, &HookSetup{Snap: instanceName}, nil, cookieID)
+		context = mylog.Check2(NewContext(nil, m.state, &HookSetup{Snap: instanceName}, nil, cookieID))
 		return context, err
 	}
 	return nil, fmt.Errorf("invalid snap cookie requested")
@@ -203,13 +201,9 @@ func (m *HookManager) Context(cookieID string) (*Context, error) {
 	m.contextsMutex.RLock()
 	defer m.contextsMutex.RUnlock()
 
-	var err error
 	context, ok := m.contexts[cookieID]
 	if !ok {
-		context, err = m.ephemeralContext(cookieID)
-		if err != nil {
-			return nil, err
-		}
+		context = mylog.Check2(m.ephemeralContext(cookieID))
 	}
 
 	return context, nil
@@ -217,13 +211,10 @@ func (m *HookManager) Context(cookieID string) (*Context, error) {
 
 func hookSetup(task *state.Task, key string) (*HookSetup, *snapstate.SnapState, error) {
 	var hooksup HookSetup
-	err := task.Get(key, &hooksup)
-	if err != nil {
-		return nil, nil, err
-	}
+	mylog.Check(task.Get(key, &hooksup))
 
 	var snapst snapstate.SnapState
-	err = snapstate.Get(task.State(), hooksup.Snap, &snapst)
+	mylog.Check(snapstate.Get(task.State(), hooksup.Snap, &snapst))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, nil, fmt.Errorf("cannot handle %q snap: %v", hooksup.Snap, err)
 	}
@@ -256,11 +247,8 @@ func (m *HookManager) GracefullyWaitRunningHooks() bool {
 // goroutine.
 func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 	task.State().Lock()
-	hooksup, snapst, err := hookSetup(task, "hook-setup")
+	hooksup, snapst := mylog.Check3(hookSetup(task, "hook-setup"))
 	task.State().Unlock()
-	if err != nil {
-		return fmt.Errorf("cannot extract hook setup from task: %s", err)
-	}
 
 	return m.runHookForTask(task, tomb, snapst, hooksup)
 }
@@ -271,15 +259,10 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 // goroutine.
 func (m *HookManager) undoRunHook(task *state.Task, tomb *tomb.Tomb) error {
 	task.State().Lock()
-	hooksup, snapst, err := hookSetup(task, "undo-hook-setup")
+	hooksup, snapst := mylog.Check3(hookSetup(task, "undo-hook-setup"))
 	task.State().Unlock()
-	if err != nil {
-		if errors.Is(err, state.ErrNoState) {
-			// no undo hook setup
-			return nil
-		}
-		return fmt.Errorf("cannot extract undo hook setup from task: %s", err)
-	}
+
+	// no undo hook setup
 
 	return m.runHookForTask(task, tomb, snapst, hooksup)
 }
@@ -287,29 +270,20 @@ func (m *HookManager) undoRunHook(task *state.Task, tomb *tomb.Tomb) error {
 func (m *HookManager) EphemeralRunHook(ctx context.Context, hooksup *HookSetup, contextData map[string]interface{}) (*Context, error) {
 	var snapst snapstate.SnapState
 	m.state.Lock()
-	err := snapstate.Get(m.state, hooksup.Snap, &snapst)
+	mylog.Check(snapstate.Get(m.state, hooksup.Snap, &snapst))
 	m.state.Unlock()
-	if err != nil {
-		return nil, fmt.Errorf("cannot run ephemeral hook %q for snap %q: %v", hooksup.Hook, hooksup.Snap, err)
-	}
 
-	context, err := newEphemeralHookContextWithData(m.state, hooksup, contextData)
-	if err != nil {
-		return nil, err
-	}
+	context := mylog.Check2(newEphemeralHookContextWithData(m.state, hooksup, contextData))
 
 	tomb, _ := tomb.WithContext(ctx)
-	if err := m.runHook(context, &snapst, hooksup, tomb); err != nil {
-		return nil, err
-	}
+	mylog.Check(m.runHook(context, &snapst, hooksup, tomb))
+
 	return context, nil
 }
 
 func (m *HookManager) runHookForTask(task *state.Task, tomb *tomb.Tomb, snapst *snapstate.SnapState, hooksup *HookSetup) error {
-	context, err := NewContext(task, m.state, hooksup, nil, "")
-	if err != nil {
-		return err
-	}
+	context := mylog.Check2(NewContext(task, m.state, hooksup, nil, ""))
+
 	return m.runHook(context, snapst, hooksup, tomb)
 }
 
@@ -336,10 +310,7 @@ func (m *HookManager) runHook(context *Context, snapst *snapstate.SnapState, hoo
 			return fmt.Errorf("cannot find %q snap", hooksup.Snap)
 		}
 
-		info, err := snapst.CurrentInfo()
-		if err != nil {
-			return fmt.Errorf("cannot read %q snap details: %v", hooksup.Snap, err)
-		}
+		info := mylog.Check2(snapst.CurrentInfo())
 
 		hookExists = info.Hooks[hooksup.Hook] != nil
 		if !hookExists && !hooksup.Optional {
@@ -348,10 +319,10 @@ func (m *HookManager) runHook(context *Context, snapst *snapstate.SnapState, hoo
 	}
 
 	if hookExists || mustHijack {
-		// we will run something, not a noop
-		if err := m.runHookGuardForRestarting(context); err != nil {
-			return err
-		}
+		mylog.Check(
+			// we will run something, not a noop
+			m.runHookGuardForRestarting(context))
+
 		defer atomic.AddInt32(&m.runningHooks, -1)
 	} else if !hooksup.Always {
 		// a noop with no 'always' flag: bail
@@ -387,48 +358,25 @@ func (m *HookManager) runHook(context *Context, snapst *snapstate.SnapState, hoo
 		delete(m.contexts, contextID)
 		m.contextsMutex.Unlock()
 	}()
-
-	if err := context.Handler().Before(); err != nil {
-		return err
-	}
+	mylog.Check(context.Handler().Before())
 
 	// some hooks get hijacked, e.g. the core configuration
-	var err error
+
 	var output []byte
 	if f := m.hijacked(hooksup.Hook, hooksup.Snap); f != nil {
-		err = f(context)
+		mylog.Check(f(context))
 	} else if hookExists {
-		output, err = runHook(context, tomb)
+		output = mylog.Check2(runHook(context, tomb))
 	}
-	if err != nil {
+	mylog.Check(
+
 		// TODO: telemetry about errors here
-		err = osutil.OutputErr(output, err)
-		if hooksup.IgnoreError {
-			context.Lock()
-			context.Errorf("ignoring failure in hook %q: %v", hooksup.Hook, err)
-			context.Unlock()
-		} else {
-			ignoreOriginalErr, handlerErr := context.Handler().Error(err)
-			if handlerErr != nil {
-				return handlerErr
-			}
-			if ignoreOriginalErr {
-				return nil
-			}
 
-			return fmt.Errorf("run hook %q: %v", hooksup.Hook, err)
-		}
-	}
-
-	if err = context.Handler().Done(); err != nil {
-		return err
-	}
+		context.Handler().Done())
 
 	context.Lock()
 	defer context.Unlock()
-	if err = context.Done(); err != nil {
-		return err
-	}
+	mylog.Check(context.Done())
 
 	return nil
 }
@@ -457,11 +405,8 @@ func snapCmd() string {
 	// sensible default, assume PATH is correct
 	snapCmd := "snap"
 
-	exe, err := osReadlink("/proc/self/exe")
-	if err != nil {
-		logger.Noticef("cannot read /proc/self/exe: %v, using default snap command", err)
-		return snapCmd
-	}
+	exe := mylog.Check2(osReadlink("/proc/self/exe"))
+
 	if !strings.HasPrefix(exe, dirs.SnapMountDir) {
 		return snapCmd
 	}

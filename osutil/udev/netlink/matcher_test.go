@@ -1,6 +1,10 @@
 package netlink
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/ddkwork/golibrary/mylog"
+)
 
 type Testcases []Testcase
 
@@ -108,8 +112,7 @@ func TestRules(testing *testing.T) {
 
 	for k, tcase := range testcases {
 		matcher := tcase.Object.(Matcher)
-
-		err := matcher.Compile()
+		mylog.Check(matcher.Compile())
 		t.FatalfIf(err != nil, "Testcase n°%d should compile without error, err: %v", k+1, err)
 
 		ok := matcher.Evaluate(uevent)

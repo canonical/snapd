@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -189,8 +190,8 @@ func (*featureSuite) TestAppArmorPromptingSupportedCallback(c *C) {
 	kernelFeatures = &[]string{"foo", "bar", "policy:permstable32:prompt"}
 	parserFeatures = &[]string{"baz", "qux", "prompt"}
 	supported, reason = callback()
-	//c.Check(supported, Equals, true)
-	//c.Check(reason, Equals, "")
+	// c.Check(supported, Equals, true)
+	// c.Check(reason, Equals, "")
 	// TODO: change once prompting is fully supported
 	c.Check(supported, Equals, false)
 	c.Check(reason, Equals, "requires newer version of snapd")
@@ -215,12 +216,13 @@ func (*featureSuite) TestIsEnabled(c *C) {
 	// If the feature file is absent then the feature is disabled.
 	f := features.PerUserMountNamespace
 	c.Check(f.IsEnabled(), Equals, false)
+	mylog.
 
-	// If the feature file is a regular file then the feature is enabled.
-	err := os.MkdirAll(dirs.FeaturesDir, 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(dirs.FeaturesDir, f.String()), nil, 0644)
-	c.Assert(err, IsNil)
+		// If the feature file is a regular file then the feature is enabled.
+		Check(os.MkdirAll(dirs.FeaturesDir, 0755))
+
+	mylog.Check(os.WriteFile(filepath.Join(dirs.FeaturesDir, f.String()), nil, 0644))
+
 	c.Check(f.IsEnabled(), Equals, true)
 
 	// Features that are not exported cannot be queried.
@@ -296,25 +298,25 @@ func (s *featureSuite) TestFlag(c *C) {
 	tr := config.NewTransaction(st)
 
 	// Feature flags have a value even if unset.
-	flag, err := features.Flag(tr, features.Layouts)
-	c.Assert(err, IsNil)
+	flag := mylog.Check2(features.Flag(tr, features.Layouts))
+
 	c.Check(flag, Equals, true)
 
 	// Feature flags can be disabled.
 	c.Assert(tr.Set("core", "experimental.layouts", "false"), IsNil)
-	flag, err = features.Flag(tr, features.Layouts)
-	c.Assert(err, IsNil)
+	flag = mylog.Check2(features.Flag(tr, features.Layouts))
+
 	c.Check(flag, Equals, false)
 
 	// Feature flags can be enabled.
 	c.Assert(tr.Set("core", "experimental.layouts", "true"), IsNil)
-	flag, err = features.Flag(tr, features.Layouts)
-	c.Assert(err, IsNil)
+	flag = mylog.Check2(features.Flag(tr, features.Layouts))
+
 	c.Check(flag, Equals, true)
 
 	// Feature flags must have a well-known value.
 	c.Assert(tr.Set("core", "experimental.layouts", "banana"), IsNil)
-	_, err = features.Flag(tr, features.Layouts)
+	_ = mylog.Check2(features.Flag(tr, features.Layouts))
 	c.Assert(err, ErrorMatches, `layouts can only be set to 'true' or 'false', got "banana"`)
 }
 

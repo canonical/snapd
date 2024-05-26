@@ -22,6 +22,7 @@ package osutil_test
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -96,11 +97,11 @@ func (s *overlaySuite) TestIsRootWritableOverlay(c *C) {
 		restore := osutil.MockMountInfo(tc.mountinfo)
 		defer restore()
 
-		overlay, err := osutil.IsRootWritableOverlay()
+		overlay := mylog.Check2(osutil.IsRootWritableOverlay())
 		if tc.errorPattern != "" {
 			c.Assert(err, ErrorMatches, tc.errorPattern, Commentf("test case %#v", tc))
 		} else {
-			c.Assert(err, IsNil)
+
 		}
 		c.Assert(overlay, Equals, tc.overlay)
 	}

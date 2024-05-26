@@ -26,6 +26,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/kernel"
 	"github.com/snapcore/snapd/secboot"
@@ -198,7 +199,8 @@ func layoutVSFromDiskData(volume *Volume, gadgetToDiskStruct map[int]*OnDiskStru
 }
 
 func layoutVolumeStructures(volume *Volume, gadgetToDiskStruct map[int]*OnDiskStructure) (
-	structures []LaidOutStructure, err error) {
+	structures []LaidOutStructure, err error,
+) {
 	if len(gadgetToDiskStruct) == 0 {
 		return nil, fmt.Errorf("cannot lay out: internal error: no disk structures provided")
 	}
@@ -207,10 +209,7 @@ func layoutVolumeStructures(volume *Volume, gadgetToDiskStruct map[int]*OnDiskSt
 
 // layoutVolumePartially attempts to lay out only the structures in the volume.
 func layoutVolumePartially(volume *Volume, gadgetToDiskStruct map[int]*OnDiskStructure) (*PartiallyLaidOutVolume, error) {
-	structures, err := layoutVolumeStructures(volume, gadgetToDiskStruct)
-	if err != nil {
-		return nil, err
-	}
+	structures := mylog.Check2(layoutVolumeStructures(volume, gadgetToDiskStruct))
 
 	vol := &PartiallyLaidOutVolume{
 		Volume:           volume,
@@ -235,7 +234,6 @@ func setOnDiskLabelAndTypeInLaidOut(los *LaidOutStructure, encType secboot.Encry
 // structures and their content, using provided map of gadget
 // structures to disk structures and options.
 func LayoutVolume(volume *Volume, gadgetToDiskStruct map[int]*OnDiskStructure, opts *LayoutOptions) (*LaidOutVolume, error) {
-	var err error
 	if opts == nil {
 		opts = &LayoutOptions{}
 	}
@@ -250,21 +248,13 @@ func LayoutVolume(volume *Volume, gadgetToDiskStruct map[int]*OnDiskStructure, o
 		// Note that the kernelRootDir may reference the running
 		// kernel if there is a gadget update or the new kernel if
 		// there is a kernel update.
-		kernelInfo, err = kernel.ReadInfo(opts.KernelRootDir)
-		if err != nil {
-			return nil, err
-		}
+		kernelInfo = mylog.Check2(kernel.ReadInfo(opts.KernelRootDir))
 	}
 
-	structures, err := layoutVolumeStructures(volume, gadgetToDiskStruct)
-	if err != nil {
-		return nil, err
-	}
+	structures := mylog.Check2(layoutVolumeStructures(volume, gadgetToDiskStruct))
 
 	for idx := range structures {
-		if err := fillLaidoutStructure(&structures[idx], kernelInfo, opts); err != nil {
-			return nil, err
-		}
+		mylog.Check(fillLaidoutStructure(&structures[idx], kernelInfo, opts))
 	}
 
 	vol := &LaidOutVolume{
@@ -282,20 +272,14 @@ func fillLaidoutStructure(los *LaidOutStructure, kernelInfo *kernel.Info, opts *
 	// can be calculated.
 	var content []LaidOutContent
 	if !opts.IgnoreContent && !los.HasFilesystem() {
-		content, err = layOutStructureContent(opts.GadgetRootDir, los)
-		if err != nil {
-			return err
-		}
+		content = mylog.Check2(layOutStructureContent(opts.GadgetRootDir, los))
 	}
 
 	// resolve filesystem content
 	var resolvedContent []ResolvedContent
 	doResolveContent := !(opts.IgnoreContent || opts.SkipResolveContent)
 	if doResolveContent {
-		resolvedContent, err = resolveVolumeContent(opts.GadgetRootDir, opts.KernelRootDir, kernelInfo, los.VolumeStructure, nil)
-		if err != nil {
-			return err
-		}
+		resolvedContent = mylog.Check2(resolveVolumeContent(opts.GadgetRootDir, opts.KernelRootDir, kernelInfo, los.VolumeStructure, nil))
 	}
 
 	los.LaidOutContent = content
@@ -310,10 +294,7 @@ func LayoutVolumeStructure(dgpair *OnDiskAndGadgetStructurePair, kernelInfo *ker
 		OnDiskStructure: *dgpair.DiskStructure,
 		VolumeStructure: dgpair.GadgetStructure,
 	}
-
-	if err := fillLaidoutStructure(los, kernelInfo, opts); err != nil {
-		return nil, err
-	}
+	mylog.Check(fillLaidoutStructure(los, kernelInfo, opts))
 
 	return los, nil
 }
@@ -329,10 +310,8 @@ func resolveVolumeContent(gadgetRootDir, kernelRootDir string, kernelInfo *kerne
 
 	content := make([]ResolvedContent, 0, len(vs.Content))
 	for idx := range vs.Content {
-		resolvedSource, kupdate, err := resolveContentPathOrRef(gadgetRootDir, kernelRootDir, kernelInfo, vs.Content[idx].UnresolvedSource)
-		if err != nil {
-			return nil, fmt.Errorf("cannot resolve content for structure #%d (%q) at index %v: %v", vs.YamlIndex, vs.Name, idx, err)
-		}
+		resolvedSource, kupdate := mylog.Check3(resolveContentPathOrRef(gadgetRootDir, kernelRootDir, kernelInfo, vs.Content[idx].UnresolvedSource))
+
 		rc := ResolvedContent{
 			VolumeContent:  &vs.Content[idx],
 			ResolvedSource: resolvedSource,
@@ -366,10 +345,8 @@ func resolveContentPathOrRef(gadgetRootDir, kernelRootDir string, kernelInfo *ke
 	// content may refer to "$kernel:<name>/<content>"
 	var resolvedSource string
 	if strings.HasPrefix(pathOrRef, "$kernel:") {
-		wantedAsset, wantedContent, err := splitKernelRef(pathOrRef)
-		if err != nil {
-			return "", false, fmt.Errorf("cannot parse kernel ref: %v", err)
-		}
+		wantedAsset, wantedContent := mylog.Check3(splitKernelRef(pathOrRef))
+
 		kernelAsset, ok := kernelInfo.Assets[wantedAsset]
 		if !ok {
 			return "", false, fmt.Errorf("cannot find %q in kernel info from %q", wantedAsset, kernelRootDir)
@@ -415,10 +392,8 @@ func (b byContentStartOffset) Swap(i, j int)      { b[i], b[j] = b[j], b[i] }
 func (b byContentStartOffset) Less(i, j int) bool { return b[i].StartOffset < b[j].StartOffset }
 
 func getImageSize(path string) (quantity.Size, error) {
-	stat, err := os.Stat(path)
-	if err != nil {
-		return 0, err
-	}
+	stat := mylog.Check2(os.Stat(path))
+
 	return quantity.Size(stat.Size()), nil
 }
 
@@ -435,10 +410,7 @@ func layOutStructureContent(gadgetRootDir string, ps *LaidOutStructure) ([]LaidO
 	previousEnd := quantity.Offset(0)
 
 	for idx, c := range ps.VolumeStructure.Content {
-		imageSize, err := getImageSize(filepath.Join(gadgetRootDir, c.Image))
-		if err != nil {
-			return nil, fmt.Errorf("cannot lay out structure %v: content %q: %v", ps, c.Image, err)
-		}
+		imageSize := mylog.Check2(getImageSize(filepath.Join(gadgetRootDir, c.Image)))
 
 		var start quantity.Offset
 		if c.Offset != nil {
@@ -492,10 +464,7 @@ func checkGadgetContentImages(gadgetRootDir string, vs *VolumeStructure) error {
 	}
 
 	for _, c := range vs.Content {
-		fileSize, err := getImageSize(filepath.Join(gadgetRootDir, c.Image))
-		if err != nil {
-			return fmt.Errorf("structure #%d (%q): content %q: %v", vs.YamlIndex, vs.Name, c.Image, err)
-		}
+		fileSize := mylog.Check2(getImageSize(filepath.Join(gadgetRootDir, c.Image)))
 
 		if c.Size != 0 && c.Size < fileSize {
 			return fmt.Errorf("structure #%d (%q): content %q size %v is larger than declared %v", vs.YamlIndex, vs.Name, c.Image, fileSize, c.Size)
@@ -526,9 +495,8 @@ func isLayoutCompatible(current, new *Volume) error {
 	if current.ID != new.ID {
 		return fmt.Errorf("incompatible ID change from %v to %v", current.ID, new.ID)
 	}
-	if err := checkCompatibleSchema(current, new); err != nil {
-		return err
-	}
+	mylog.Check(checkCompatibleSchema(current, new))
+
 	if current.Bootloader != new.Bootloader {
 		return fmt.Errorf("incompatible bootloader change from %v to %v",
 			current.Bootloader, new.Bootloader)
@@ -543,9 +511,7 @@ func isLayoutCompatible(current, new *Volume) error {
 
 	// at the structure level we expect the volume to be identical
 	for i := range current.Structure {
-		if err := canUpdateStructure(current, i, new, i); err != nil {
-			return fmt.Errorf("incompatible structure #%d (%q) change: %v", new.Structure[i].YamlIndex, new.Structure[i].Name, err)
-		}
+		mylog.Check(canUpdateStructure(current, i, new, i))
 	}
 	return nil
 }

@@ -22,6 +22,7 @@ package polkit
 import (
 	"errors"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/godbus/dbus"
 )
 
@@ -38,20 +39,16 @@ var (
 )
 
 func checkAuthorization(subject authSubject, actionId string, details map[string]string, flags CheckFlags) (bool, error) {
-	bus, err := dbus.SystemBus()
-	if err != nil {
-		return false, err
-	}
+	bus := mylog.Check2(dbus.SystemBus())
+
 	authority := bus.Object("org.freedesktop.PolicyKit1",
 		"/org/freedesktop/PolicyKit1/Authority")
 
 	var result authResult
-	err = authority.Call(
+	mylog.Check(authority.Call(
 		"org.freedesktop.PolicyKit1.Authority.CheckAuthorization", 0,
-		subject, actionId, details, flags, "").Store(&result)
-	if err != nil {
-		return false, err
-	}
+		subject, actionId, details, flags, "").Store(&result))
+
 	if !result.IsAuthorized {
 		if result.IsChallenge {
 			err = ErrInteraction
@@ -70,10 +67,8 @@ func CheckAuthorization(pid int32, uid uint32, actionId string, details map[stri
 		Details: make(map[string]dbus.Variant),
 	}
 	subject.Details["pid"] = dbus.MakeVariant(uint32(pid)) // polkit is *wrong*!
-	startTime, err := getStartTimeForPid(pid)
-	if err != nil {
-		return false, err
-	}
+	startTime := mylog.Check2(getStartTimeForPid(pid))
+
 	// While discovering the pid's start time is racy, it isn't security
 	// relevant since it only impacts expiring the permission after
 	// process exit.

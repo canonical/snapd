@@ -23,17 +23,16 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/store"
 )
 
-var (
-	sectionsCmd = &Command{
-		Path:       "/v2/sections",
-		GET:        getSections,
-		ReadAccess: openAccess{},
-	}
-)
+var sectionsCmd = &Command{
+	Path:       "/v2/sections",
+	GET:        getSections,
+	ReadAccess: openAccess{},
+}
 
 func getSections(c *Command, r *http.Request, user *auth.UserState) Response {
 	// TODO: test this
@@ -45,7 +44,7 @@ func getSections(c *Command, r *http.Request, user *auth.UserState) Response {
 	theStore := storeFrom(c.d)
 
 	// TODO: use a per-request context
-	sections, err := theStore.Sections(context.TODO(), user)
+	sections := mylog.Check2(theStore.Sections(context.TODO(), user))
 	switch err {
 	case nil:
 		// pass

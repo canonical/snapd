@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap/sysparams"
@@ -52,21 +53,22 @@ func (s *sysParamsTestSuite) TestOpenNewEmpty(c *C) {
 	sspPath := dirs.SnapSystemParamsUnder(dirs.GlobalRootDir)
 	c.Assert(os.MkdirAll(path.Dir(sspPath), 0755), IsNil)
 
-	ssp, err := sysparams.Open("")
+	ssp := mylog.Check2(sysparams.Open(""))
 	c.Check(err, IsNil)
 	c.Assert(ssp, NotNil)
 	c.Check(sspPath, testutil.FileAbsent)
+	mylog.
 
-	// Save the file
-	err = ssp.Write()
+		// Save the file
+		Check(ssp.Write())
 	c.Check(err, IsNil)
 
 	// Verify the contents of the file, and that the file
 	// has the correct permissions
 	c.Assert(sspPath, testutil.FileEquals, "homedirs=\n")
 
-	stat, err := os.Stat(sspPath)
-	c.Assert(err, IsNil)
+	stat := mylog.Check2(os.Stat(sspPath))
+
 	c.Check(stat.Mode(), Equals, os.FileMode(0644))
 }
 
@@ -74,7 +76,7 @@ func (s *sysParamsTestSuite) TestWriteFailure(c *C) {
 	// Opening the file when it doesn't exist, should not create
 	// the file unless Write is called. And that an empty write
 	// provides empty members
-	ssp, err := sysparams.Open("")
+	ssp := mylog.Check2(sysparams.Open(""))
 	c.Check(err, IsNil)
 	c.Assert(ssp, NotNil)
 	c.Check(dirs.SnapSystemParamsUnder(dirs.GlobalRootDir), testutil.FileAbsent)
@@ -83,8 +85,7 @@ func (s *sysParamsTestSuite) TestWriteFailure(c *C) {
 		return errors.New("some write error")
 	})
 	defer r()
-
-	err = ssp.Write()
+	mylog.Check(ssp.Write())
 	c.Assert(err, ErrorMatches, "cannot write system-params: some write error")
 }
 
@@ -93,7 +94,7 @@ func (s *sysParamsTestSuite) TestOpenExisting(c *C) {
 	c.Assert(os.MkdirAll(path.Dir(sspPath), 0755), IsNil)
 	c.Assert(os.WriteFile(sspPath, []byte("homedirs=my-path/foo/bar,foo\n"), 0644), IsNil)
 
-	ssp, err := sysparams.Open("")
+	ssp := mylog.Check2(sysparams.Open(""))
 	c.Check(err, IsNil)
 	c.Assert(ssp, NotNil)
 	c.Assert(ssp.Homedirs, Equals, "my-path/foo/bar,foo")
@@ -104,7 +105,7 @@ func (s *sysParamsTestSuite) TestOpenExistingEmpty(c *C) {
 	c.Assert(os.MkdirAll(path.Dir(sspPath), 0755), IsNil)
 	c.Assert(os.WriteFile(sspPath, []byte("\n"), 0644), IsNil)
 
-	ssp, err := sysparams.Open("")
+	ssp := mylog.Check2(sysparams.Open(""))
 	c.Check(err, IsNil)
 	c.Check(ssp.Homedirs, Equals, "")
 }
@@ -114,7 +115,7 @@ func (s *sysParamsTestSuite) TestOpenExistingWithInvalidContent(c *C) {
 	c.Assert(os.MkdirAll(path.Dir(sspPath), 0755), IsNil)
 	c.Assert(os.WriteFile(sspPath, []byte("xuifu93\n"), 0644), IsNil)
 
-	ssp, err := sysparams.Open("")
+	ssp := mylog.Check2(sysparams.Open(""))
 	c.Check(err, ErrorMatches, `cannot parse system-params: invalid line: "xuifu93"`)
 	c.Check(ssp, IsNil)
 }
@@ -124,7 +125,7 @@ func (s *sysParamsTestSuite) TestOpenExistingWithComments(c *C) {
 	c.Assert(os.MkdirAll(path.Dir(sspPath), 0755), IsNil)
 	c.Assert(os.WriteFile(sspPath, []byte("# this is a comment line\n"), 0644), IsNil)
 
-	ssp, err := sysparams.Open("")
+	ssp := mylog.Check2(sysparams.Open(""))
 	c.Check(err, IsNil)
 	c.Check(ssp.Homedirs, Equals, "")
 }
@@ -134,7 +135,7 @@ func (s *sysParamsTestSuite) TestOpenExistingWithDoubleEqual(c *C) {
 	c.Assert(os.MkdirAll(path.Dir(sspPath), 0755), IsNil)
 	c.Assert(os.WriteFile(sspPath, []byte("homedirs=my-path/foo/bar,foo=bar\n"), 0644), IsNil)
 
-	ssp, err := sysparams.Open("")
+	ssp := mylog.Check2(sysparams.Open(""))
 	c.Check(err, IsNil)
 	c.Check(ssp.Homedirs, Equals, "my-path/foo/bar,foo=bar")
 }
@@ -148,7 +149,7 @@ homedirs=foo/baz
 	c.Assert(os.MkdirAll(path.Dir(sspPath), 0755), IsNil)
 	c.Assert(os.WriteFile(sspPath, []byte(contents), 0644), IsNil)
 
-	ssp, err := sysparams.Open("")
+	ssp := mylog.Check2(sysparams.Open(""))
 	c.Check(err, ErrorMatches, `cannot parse system-params: duplicate entry found: "homedirs"`)
 	c.Check(ssp, IsNil)
 }

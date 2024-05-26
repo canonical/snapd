@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/overlord/state"
 )
@@ -41,8 +42,8 @@ func (s *seedingDebugSuite) SetUpTest(c *C) {
 }
 
 func (s *seedingDebugSuite) getSeedingDebug(c *C) interface{} {
-	req, err := http.NewRequest("GET", "/v2/debug?aspect=seeding", nil)
-	c.Assert(err, IsNil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/debug?aspect=seeding", nil))
+
 
 	rsp := s.syncReq(c, req, nil)
 	c.Assert(rsp.Type, Equals, daemon.ResponseTypeSync)
@@ -61,14 +62,14 @@ func (s *seedingDebugSuite) TestSeedingDebug(c *C) {
 	key1 := "foo"
 	key2 := "bar"
 
-	preseedStartTime, err := time.Parse(time.RFC3339, "2020-01-01T10:00:00Z")
-	c.Assert(err, IsNil)
-	preseedTime, err := time.Parse(time.RFC3339, "2020-01-01T10:00:01Z")
-	c.Assert(err, IsNil)
-	seedRestartTime, err := time.Parse(time.RFC3339, "2020-01-01T10:00:03Z")
-	c.Assert(err, IsNil)
-	seedTime, err := time.Parse(time.RFC3339, "2020-01-01T10:00:07Z")
-	c.Assert(err, IsNil)
+	preseedStartTime := mylog.Check2(time.Parse(time.RFC3339, "2020-01-01T10:00:00Z"))
+
+	preseedTime := mylog.Check2(time.Parse(time.RFC3339, "2020-01-01T10:00:01Z"))
+
+	seedRestartTime := mylog.Check2(time.Parse(time.RFC3339, "2020-01-01T10:00:03Z"))
+
+	seedTime := mylog.Check2(time.Parse(time.RFC3339, "2020-01-01T10:00:07Z"))
+
 
 	st := s.d.Overlord().State()
 	st.Lock()
@@ -101,8 +102,8 @@ func (s *seedingDebugSuite) TestSeedingDebug(c *C) {
 }
 
 func (s *seedingDebugSuite) TestSeedingDebugSeededNoTimes(c *C) {
-	seedTime, err := time.Parse(time.RFC3339, "2020-01-01T10:00:07Z")
-	c.Assert(err, IsNil)
+	seedTime := mylog.Check2(time.Parse(time.RFC3339, "2020-01-01T10:00:07Z"))
+
 
 	st := s.d.Overlord().State()
 	st.Lock()
@@ -121,12 +122,12 @@ func (s *seedingDebugSuite) TestSeedingDebugSeededNoTimes(c *C) {
 }
 
 func (s *seedingDebugSuite) TestSeedingDebugPreseededStillSeeding(c *C) {
-	preseedStartTime, err := time.Parse(time.RFC3339, "2020-01-01T10:00:00Z")
-	c.Assert(err, IsNil)
-	preseedTime, err := time.Parse(time.RFC3339, "2020-01-01T10:00:01Z")
-	c.Assert(err, IsNil)
-	seedRestartTime, err := time.Parse(time.RFC3339, "2020-01-01T10:00:03Z")
-	c.Assert(err, IsNil)
+	preseedStartTime := mylog.Check2(time.Parse(time.RFC3339, "2020-01-01T10:00:00Z"))
+
+	preseedTime := mylog.Check2(time.Parse(time.RFC3339, "2020-01-01T10:00:01Z"))
+
+	seedRestartTime := mylog.Check2(time.Parse(time.RFC3339, "2020-01-01T10:00:03Z"))
+
 
 	st := s.d.Overlord().State()
 	st.Lock()
@@ -157,12 +158,12 @@ func (s *seedingDebugSuite) TestSeedingDebugPreseededStillSeeding(c *C) {
 }
 
 func (s *seedingDebugSuite) TestSeedingDebugPreseededSeedError(c *C) {
-	preseedStartTime, err := time.Parse(time.RFC3339, "2020-01-01T10:00:00Z")
-	c.Assert(err, IsNil)
-	preseedTime, err := time.Parse(time.RFC3339, "2020-01-01T10:00:01Z")
-	c.Assert(err, IsNil)
-	seedRestartTime, err := time.Parse(time.RFC3339, "2020-01-01T10:00:03Z")
-	c.Assert(err, IsNil)
+	preseedStartTime := mylog.Check2(time.Parse(time.RFC3339, "2020-01-01T10:00:00Z"))
+
+	preseedTime := mylog.Check2(time.Parse(time.RFC3339, "2020-01-01T10:00:01Z"))
+
+	seedRestartTime := mylog.Check2(time.Parse(time.RFC3339, "2020-01-01T10:00:03Z"))
+
 
 	st := s.d.Overlord().State()
 	st.Lock()

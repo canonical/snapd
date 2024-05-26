@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/strutil"
@@ -86,10 +87,8 @@ func (l *changeIDMixin) GetChangeID() (string, error) {
 	if strutil.ListContains(shortForms, kind) {
 		kind += "-snap"
 	}
-	changes, err := queryChanges(cli, &client.ChangesOptions{Selector: client.ChangesAll})
-	if err != nil {
-		return "", err
-	}
+	changes := mylog.Check2(queryChanges(cli, &client.ChangesOptions{Selector: client.ChangesAll}))
+
 	if len(changes) == 0 {
 		if optional {
 			return "", noChangeFoundOK

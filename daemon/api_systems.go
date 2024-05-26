@@ -29,6 +29,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
@@ -70,15 +71,9 @@ type systemsResponse struct {
 func getAllSystems(c *Command, r *http.Request, user *auth.UserState) Response {
 	var rsp systemsResponse
 
-	seedSystems, err := c.d.overlord.DeviceManager().Systems()
-	if err != nil {
-		if err == devicestate.ErrNoSystems {
-			// no systems available
-			return SyncResponse(&rsp)
-		}
+	seedSystems := mylog.Check2(c.d.overlord.DeviceManager().Systems())
 
-		return InternalError(err.Error())
-	}
+	// no systems available
 
 	rsp.Systems = make([]client.System, 0, len(seedSystems))
 
@@ -156,10 +151,7 @@ func getSystemDetails(c *Command, r *http.Request, user *auth.UserState) Respons
 
 	deviceMgr := c.d.overlord.DeviceManager()
 
-	sys, gadgetInfo, encryptionInfo, err := deviceManagerSystemAndGadgetAndEncryptionInfo(deviceMgr, wantedSystemLabel)
-	if err != nil {
-		return InternalError(err.Error())
-	}
+	sys, gadgetInfo, encryptionInfo := mylog.Check4(deviceManagerSystemAndGadgetAndEncryptionInfo(deviceMgr, wantedSystemLabel))
 
 	rsp := client.SystemDetails{
 		Current: sys.Current,
@@ -195,10 +187,7 @@ type systemActionRequest struct {
 
 func postSystemsAction(c *Command, r *http.Request, user *auth.UserState) Response {
 	contentType := r.Header.Get("Content-Type")
-	mediaType, params, err := mime.ParseMediaType(contentType)
-	if err != nil {
-		mediaType = "application/json"
-	}
+	mediaType, params := mylog.Check3(mime.ParseMediaType(contentType))
 
 	switch mediaType {
 	case "application/json":
@@ -243,9 +232,8 @@ func postSystemsActionJSON(c *Command, r *http.Request) Response {
 	systemLabel := muxVars(r)["label"]
 
 	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&req); err != nil {
-		return BadRequest("cannot decode request body into system action: %v", err)
-	}
+	mylog.Check(decoder.Decode(&req))
+
 	if decoder.More() {
 		return BadRequest("extra content found in request body")
 	}
@@ -287,9 +275,8 @@ var deviceManagerReboot = func(dm *devicestate.DeviceManager, systemLabel, mode 
 
 func postSystemActionReboot(c *Command, systemLabel string, req *systemActionRequest) Response {
 	dm := c.d.overlord.DeviceManager()
-	if err := deviceManagerReboot(dm, systemLabel, req.Mode); err != nil {
-		return handleSystemActionErr(err, systemLabel)
-	}
+	mylog.Check(deviceManagerReboot(dm, systemLabel, req.Mode))
+
 	return SyncResponse(nil)
 }
 
@@ -305,9 +292,8 @@ func postSystemActionDo(c *Command, systemLabel string, req *systemActionRequest
 		Title: req.Title,
 		Mode:  req.Mode,
 	}
-	if err := c.d.overlord.DeviceManager().RequestSystemAction(systemLabel, sa); err != nil {
-		return handleSystemActionErr(err, systemLabel)
-	}
+	mylog.Check(c.d.overlord.DeviceManager().RequestSystemAction(systemLabel, sa))
+
 	return SyncResponse(nil)
 }
 
@@ -318,17 +304,13 @@ func postSystemActionInstall(c *Command, systemLabel string, req *systemActionRe
 
 	switch req.Step {
 	case client.InstallStepSetupStorageEncryption:
-		chg, err := devicestateInstallSetupStorageEncryption(st, systemLabel, req.OnVolumes)
-		if err != nil {
-			return BadRequest("cannot setup storage encryption for install from %q: %v", systemLabel, err)
-		}
+		chg := mylog.Check2(devicestateInstallSetupStorageEncryption(st, systemLabel, req.OnVolumes))
+
 		ensureStateSoon(st)
 		return AsyncResponse(nil, chg.ID())
 	case client.InstallStepFinish:
-		chg, err := devicestateInstallFinish(st, systemLabel, req.OnVolumes)
-		if err != nil {
-			return BadRequest("cannot finish install for %q: %v", systemLabel, err)
-		}
+		chg := mylog.Check2(devicestateInstallFinish(st, systemLabel, req.OnVolumes))
+
 		ensureStateSoon(st)
 		return AsyncResponse(nil, chg.ID())
 	default:
@@ -339,10 +321,7 @@ func postSystemActionInstall(c *Command, systemLabel string, req *systemActionRe
 func assertionsFromValidationSetStrings(validationSets []string) ([]*asserts.AtSequence, error) {
 	sets := make([]*asserts.AtSequence, 0, len(validationSets))
 	for _, vs := range validationSets {
-		account, name, seq, err := snapasserts.ParseValidationSet(vs)
-		if err != nil {
-			return nil, err
-		}
+		account, name, seq := mylog.Check4(snapasserts.ParseValidationSet(vs))
 
 		assertion := asserts.AtSequence{
 			Type:        asserts.ValidationSetType,
@@ -384,10 +363,8 @@ func readOptionalFormBoolean(form *Form, key string, defaultValue bool) (bool, *
 	case 0:
 		return defaultValue, nil
 	case 1:
-		b, err := strconv.ParseBool(values[0])
-		if err != nil {
-			return false, BadRequest("cannot parse %q value as boolean: %s", key, values[0])
-		}
+		b := mylog.Check2(strconv.ParseBool(values[0]))
+
 		return b, nil
 	default:
 		return false, BadRequest("expected at most one %q value in form", key)
@@ -424,10 +401,7 @@ func postSystemActionCreateOffline(c *Command, form *Form) Response {
 	// that the field names in the form and JSON APIs are different, since the
 	// JSON API uses "validation-sets" (plural). to keep the APIs consistent, we
 	// use a comma-delimeted list of validation sets strings.
-	sequences, err := assertionsFromValidationSetStrings(splitVSets)
-	if err != nil {
-		return BadRequest("cannot parse validation sets: %v", err)
-	}
+	sequences := mylog.Check2(assertionsFromValidationSetStrings(splitVSets))
 
 	var snapFiles []*uploadedSnap
 	if len(form.FileRefs["snap"]) > 0 {
@@ -441,25 +415,17 @@ func postSystemActionCreateOffline(c *Command, form *Form) Response {
 
 	batch := asserts.NewBatch(nil)
 	for _, a := range form.Values["assertion"] {
-		if _, err := batch.AddStream(strings.NewReader(a)); err != nil {
-			return BadRequest("cannot decode assertion: %v", err)
-		}
+		mylog.Check2(batch.AddStream(strings.NewReader(a)))
 	}
 
 	st := c.d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
+	mylog.Check(assertstate.AddBatch(st, batch, &asserts.CommitOptions{Precheck: true}))
 
-	if err := assertstate.AddBatch(st, batch, &asserts.CommitOptions{Precheck: true}); err != nil {
-		return BadRequest("error committing assertions: %v", err)
-	}
-
-	validationSets, err := assertstate.FetchValidationSets(st, sequences, assertstate.FetchValidationSetsOptions{
+	validationSets := mylog.Check2(assertstate.FetchValidationSets(st, sequences, assertstate.FetchValidationSetsOptions{
 		Offline: true,
-	}, nil)
-	if err != nil {
-		return BadRequest("cannot find validation sets in db: %v", err)
-	}
+	}, nil))
 
 	slInfo, apiErr := sideloadSnapsInfo(st, snapFiles, sideloadFlags{})
 	if apiErr != nil {
@@ -478,17 +444,14 @@ func postSystemActionCreateOffline(c *Command, form *Form) Response {
 		})
 	}
 
-	chg, err := devicestateCreateRecoverySystem(st, label, devicestate.CreateRecoverySystemOptions{
+	chg := mylog.Check2(devicestateCreateRecoverySystem(st, label, devicestate.CreateRecoverySystemOptions{
 		ValidationSets: validationSets.Sets(),
 		LocalSnaps:     localSnaps,
 		TestSystem:     testSystem,
 		MarkDefault:    markDefault,
 		// using the form-based API implies that this should be an offline operation
 		Offline: true,
-	})
-	if err != nil {
-		return InternalError("cannot create recovery system %q: %v", label[0], err)
-	}
+	}))
 
 	ensureStateSoon(st)
 
@@ -504,30 +467,18 @@ func postSystemActionCreate(c *Command, req *systemActionRequest) Response {
 		return BadRequest("label must be provided in request body for action %q", req.Action)
 	}
 
-	sequences, err := assertionsFromValidationSetStrings(req.ValidationSets)
-	if err != nil {
-		return BadRequest("cannot parse validation sets: %v", err)
-	}
+	sequences := mylog.Check2(assertionsFromValidationSetStrings(req.ValidationSets))
 
-	validationSets, err := assertstate.FetchValidationSets(c.d.state, sequences, assertstate.FetchValidationSetsOptions{
+	validationSets := mylog.Check2(assertstate.FetchValidationSets(c.d.state, sequences, assertstate.FetchValidationSetsOptions{
 		Offline: req.Offline,
-	}, nil)
-	if err != nil {
-		if errors.Is(err, &asserts.NotFoundError{}) {
-			return BadRequest("cannot fetch validation sets: %v", err)
-		}
-		return InternalError("cannot fetch validation sets: %v", err)
-	}
+	}, nil))
 
-	chg, err := devicestateCreateRecoverySystem(st, req.Label, devicestate.CreateRecoverySystemOptions{
+	chg := mylog.Check2(devicestateCreateRecoverySystem(st, req.Label, devicestate.CreateRecoverySystemOptions{
 		ValidationSets: validationSets.Sets(),
 		TestSystem:     req.TestSystem,
 		MarkDefault:    req.MarkDefault,
 		Offline:        req.Offline,
-	})
-	if err != nil {
-		return InternalError("cannot create recovery system %q: %v", req.Label, err)
-	}
+	}))
 
 	ensureStateSoon(st)
 
@@ -543,14 +494,7 @@ func postSystemActionRemove(c *Command, systemLabel string) Response {
 	st.Lock()
 	defer st.Unlock()
 
-	chg, err := devicestateRemoveRecoverySystem(st, systemLabel)
-	if err != nil {
-		if errors.Is(err, devicestate.ErrNoRecoverySystem) {
-			return NotFound(err.Error())
-		}
-
-		return InternalError("cannot remove recovery system %q: %v", systemLabel, err)
-	}
+	chg := mylog.Check2(devicestateRemoveRecoverySystem(st, systemLabel))
 
 	ensureStateSoon(st)
 

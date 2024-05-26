@@ -22,6 +22,7 @@ package policy_test
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/policy"
 	"github.com/snapcore/snapd/snap"
@@ -61,13 +62,13 @@ slots:
 		"a": "123",
 	})
 
-	_, err := policy.NestedGet("slot", slot, "b")
+	_ := mylog.Check2(policy.NestedGet("slot", slot, "b"))
 	c.Check(err, ErrorMatches, `slot attribute "b" not found`)
 
-	_, err = policy.NestedGet("plug", plug, "a.b")
+	_ = mylog.Check2(policy.NestedGet("plug", plug, "a.b"))
 	c.Check(err, ErrorMatches, `plug attribute "a\.b" not found`)
 
-	v, err := policy.NestedGet("slot", slot, "a")
+	v := mylog.Check2(policy.NestedGet("slot", slot, "a"))
 	c.Check(err, IsNil)
 	c.Check(v, Equals, "123")
 
@@ -77,7 +78,7 @@ slots:
 		},
 	})
 
-	v, err = policy.NestedGet("slot", slot, "a.b")
+	v = mylog.Check2(policy.NestedGet("slot", slot, "a.b"))
 	c.Check(err, IsNil)
 	c.Check(v, DeepEquals, []interface{}{"1", "2", "3"})
 }
@@ -95,6 +96,6 @@ type: app
 slots:
     network:
 `, sideInfo)
-	err := policy.CheckSnapType(snapInfo, []string{"core"})
-	c.Assert(err, IsNil)
+	mylog.Check(policy.CheckSnapType(snapInfo, []string{"core"}))
+
 }

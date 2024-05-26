@@ -22,6 +22,7 @@ package netutil
 import (
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/godbus/dbus"
 
 	"github.com/snapcore/snapd/logger"
@@ -40,10 +41,7 @@ const (
 // is metered. If the state can not be determined, returns false and an error.
 func IsOnMeteredConnection() (bool, error) {
 	// obtain a shared connection to system bus, no need to close it
-	conn, err := dbus.SystemBus()
-	if err != nil {
-		return false, fmt.Errorf("cannot connect to system bus: %v", err)
-	}
+	conn := mylog.Check2(dbus.SystemBus())
 
 	return isNMOnMetered(conn)
 }
@@ -51,10 +49,8 @@ func IsOnMeteredConnection() (bool, error) {
 func isNMOnMetered(conn *dbus.Conn) (bool, error) {
 	nmObj := conn.Object("org.freedesktop.NetworkManager", "/org/freedesktop/NetworkManager")
 	// https://developer.gnome.org/NetworkManager/stable/gdbus-org.freedesktop.NetworkManager.html
-	dbusV, err := nmObj.GetProperty("org.freedesktop.NetworkManager.Metered")
-	if err != nil {
-		return false, err
-	}
+	dbusV := mylog.Check2(nmObj.GetProperty("org.freedesktop.NetworkManager.Metered"))
+
 	v, ok := dbusV.Value().(uint32)
 	if !ok {
 		return false, fmt.Errorf("network manager returned invalid value for metering verification: %s", dbusV)

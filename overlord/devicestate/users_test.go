@@ -28,6 +28,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/dirs"
@@ -109,7 +110,7 @@ func (s *usersSuite) SetUpTest(c *check.C) {
 
 func mkUserLookup(userHomeDir string) func(string) (*user.User, error) {
 	return func(username string) (*user.User, error) {
-		cur, err := user.Current()
+		cur := mylog.Check2(user.Current())
 		cur.Username = username
 		cur.HomeDir = userHomeDir
 		return cur, err
@@ -125,7 +126,7 @@ func (s *usersSuite) TestCreateUserNoSSHKeys(c *check.C) {
 
 	// create user
 	s.state.Lock()
-	createdUser, err := devicestate.CreateUser(s.state, true, "popper@lse.ac.uk", time.Time{})
+	createdUser := mylog.Check2(devicestate.CreateUser(s.state, true, "popper@lse.ac.uk", time.Time{}))
 	s.state.Unlock()
 
 	c.Assert(err, check.NotNil)
@@ -172,7 +173,7 @@ func (s *usersSuite) TestCreateUser(c *check.C) {
 	c.Check(createdUser, check.DeepEquals, expected)
 
 	s.state.Lock()
-	user, err := auth.User(s.state, 1)
+	user := mylog.Check2(auth.User(s.state, 1))
 	s.state.Unlock()
 	c.Check(err, check.IsNil)
 	c.Check(user.Username, check.Equals, expectedUsername)
@@ -190,12 +191,12 @@ func (s *usersSuite) TestCreateUser(c *check.C) {
 
 func (s *usersSuite) TestUserActionRemoveDelUserErr(c *check.C) {
 	s.state.Lock()
-	_, err := auth.NewUser(s.state, auth.NewUserParams{
+	_ := mylog.Check2(auth.NewUser(s.state, auth.NewUserParams{
 		Username:   "some-user",
 		Email:      "email@test.com",
 		Macaroon:   "macaroon",
 		Discharges: []string{"discharge"},
-	})
+	}))
 	s.state.Unlock()
 	c.Check(err, check.IsNil)
 
@@ -218,12 +219,12 @@ func (s *usersSuite) TestUserActionRemoveDelUserErr(c *check.C) {
 
 func (s *usersSuite) TestUserActionRemoveDelUserForce(c *check.C) {
 	s.state.Lock()
-	_, err := auth.NewUser(s.state, auth.NewUserParams{
+	_ := mylog.Check2(auth.NewUser(s.state, auth.NewUserParams{
 		Username:   "some-user",
 		Email:      "email@test.com",
 		Macaroon:   "macaroon",
 		Discharges: []string{"discharge"},
-	})
+	}))
 	s.state.Unlock()
 	c.Check(err, check.IsNil)
 
@@ -236,7 +237,7 @@ func (s *usersSuite) TestUserActionRemoveDelUserForce(c *check.C) {
 	})()
 
 	s.state.Lock()
-	_, err = devicestate.RemoveUser(s.state, "some-user", &devicestate.RemoveUserOptions{Force: true})
+	_ = mylog.Check2(devicestate.RemoveUser(s.state, "some-user", &devicestate.RemoveUserOptions{Force: true}))
 	s.state.Unlock()
 	c.Check(err, check.IsNil)
 	c.Check(calls, check.Equals, 1)
@@ -254,7 +255,7 @@ func (s *usersSuite) TestUserActionRemoveStateErr(c *check.C) {
 	})()
 
 	s.state.Lock()
-	userState, err := devicestate.RemoveUser(s.state, "some-user", &devicestate.RemoveUserOptions{})
+	userState := mylog.Check2(devicestate.RemoveUser(s.state, "some-user", &devicestate.RemoveUserOptions{}))
 	s.state.Unlock()
 
 	c.Check(err, check.NotNil)
@@ -273,7 +274,7 @@ func (s *usersSuite) TestUserActionRemoveNoUserInState(c *check.C) {
 	})
 
 	s.state.Lock()
-	userState, err := devicestate.RemoveUser(s.state, "some-user", &devicestate.RemoveUserOptions{})
+	userState := mylog.Check2(devicestate.RemoveUser(s.state, "some-user", &devicestate.RemoveUserOptions{}))
 	s.state.Unlock()
 
 	c.Check(err, check.NotNil)
@@ -285,12 +286,12 @@ func (s *usersSuite) TestUserActionRemoveNoUserInState(c *check.C) {
 
 func (s *usersSuite) TestUserActionRemove(c *check.C) {
 	s.state.Lock()
-	user, err := auth.NewUser(s.state, auth.NewUserParams{
+	user := mylog.Check2(auth.NewUser(s.state, auth.NewUserParams{
 		Username:   "some-user",
 		Email:      "email@test.com",
 		Macaroon:   "macaroon",
 		Discharges: []string{"discharge"},
-	})
+	}))
 	s.state.Unlock()
 	c.Check(err, check.IsNil)
 
@@ -302,7 +303,7 @@ func (s *usersSuite) TestUserActionRemove(c *check.C) {
 	})()
 
 	s.state.Lock()
-	userState, err := devicestate.RemoveUser(s.state, "some-user", &devicestate.RemoveUserOptions{})
+	userState := mylog.Check2(devicestate.RemoveUser(s.state, "some-user", &devicestate.RemoveUserOptions{}))
 	s.state.Unlock()
 
 	c.Check(err, check.IsNil)
@@ -313,14 +314,13 @@ func (s *usersSuite) TestUserActionRemove(c *check.C) {
 
 	// and the user is removed from state
 	s.state.Lock()
-	_, err = auth.User(s.state, user.ID)
+	_ = mylog.Check2(auth.User(s.state, user.ID))
 	s.state.Unlock()
 	c.Check(err, check.Equals, auth.ErrInvalidUser)
 }
 
 func (s *usersSuite) TestUserActionRemoveNoUsername(c *check.C) {
-
-	userState, err := devicestate.RemoveUser(s.state, "", &devicestate.RemoveUserOptions{})
+	userState := mylog.Check2(devicestate.RemoveUser(s.state, "", &devicestate.RemoveUserOptions{}))
 	c.Check(err, check.NotNil)
 	c.Check(err.Error(), check.Matches, "need a username to remove")
 	c.Check(s.errorIsInternal(err), check.Equals, false)
@@ -328,7 +328,6 @@ func (s *usersSuite) TestUserActionRemoveNoUsername(c *check.C) {
 }
 
 func (s *usersSuite) setupSigner(accountID string, signerPrivKey asserts.PrivateKey) *assertstest.SigningDB {
-
 	signerSigning := s.brands.Register(accountID, signerPrivKey, map[string]interface{}{
 		"account-id":   accountID,
 		"verification": "verified",
@@ -367,9 +366,9 @@ func (s *usersSuite) makeSystemUsers(c *check.C, systemUsers []map[string]interf
 	assertstatetest.AddMany(s.state, model)
 	// and a serial
 	deviceKey, _ := assertstest.GenerateKey(752)
-	encDevKey, err := asserts.EncodePublicKey(deviceKey.PublicKey())
+	encDevKey := mylog.Check2(asserts.EncodePublicKey(deviceKey.PublicKey()))
 	c.Assert(err, check.IsNil)
-	serial, err := s.brands.Signing("my-brand").Sign(asserts.SerialType, map[string]interface{}{
+	serial := mylog.Check2(s.brands.Signing("my-brand").Sign(asserts.SerialType, map[string]interface{}{
 		"authority-id":        "my-brand",
 		"brand-id":            "my-brand",
 		"model":               "my-model",
@@ -377,23 +376,24 @@ func (s *usersSuite) makeSystemUsers(c *check.C, systemUsers []map[string]interf
 		"device-key":          string(encDevKey),
 		"device-key-sha3-384": deviceKey.PublicKey().ID(),
 		"timestamp":           time.Now().Format(time.RFC3339),
-	}, nil, "")
+	}, nil, ""))
 	c.Assert(err, check.IsNil)
 	assertstatetest.AddMany(s.state, serial)
 
 	for _, suMap := range systemUsers {
-		su, err := s.brands.Signing(suMap["authority-id"].(string)).Sign(asserts.SystemUserType, suMap, nil, "")
+		su := mylog.Check2(s.brands.Signing(suMap["authority-id"].(string)).Sign(asserts.SystemUserType, suMap, nil, ""))
 		c.Assert(err, check.IsNil)
 		su = su.(*asserts.SystemUser)
 		// now add system-user assertion to the system
 		assertstatetest.AddMany(s.state, su)
 	}
-	// create fake device
-	err = devicestatetest.SetDevice(s.state, &auth.DeviceState{
-		Brand:  "my-brand",
-		Model:  "my-model",
-		Serial: "serialserial",
-	})
+	mylog.
+		// create fake device
+		Check(devicestatetest.SetDevice(s.state, &auth.DeviceState{
+			Brand:  "my-brand",
+			Model:  "my-model",
+			Serial: "serialserial",
+		}))
 	c.Assert(err, check.IsNil)
 }
 
@@ -499,14 +499,14 @@ func (s *usersSuite) TestGetUserDetailsFromAssertionHappy(c *check.C) {
 	s.makeSystemUsers(c, []map[string]interface{}{goodUser})
 
 	s.state.Lock()
-	model, err := s.mgr.Model()
+	model := mylog.Check2(s.mgr.Model())
 	db := assertstate.DB(s.state)
 	s.state.Unlock()
 	c.Assert(err, check.IsNil)
 
 	// ensure that if we query the details from the assert DB we get
 	// the expected user
-	username, expiration, opts, err := devicestate.GetUserDetailsFromAssertion(db, model, nil, "foo@bar.com")
+	username, expiration, opts := mylog.Check4(devicestate.GetUserDetailsFromAssertion(db, model, nil, "foo@bar.com"))
 	c.Assert(err, check.IsNil)
 	c.Check(username, check.Equals, "guy")
 	c.Check(opts, check.DeepEquals, &osutil.AddUserOptions{
@@ -525,7 +525,7 @@ func (s *usersSuite) TestCreateUserExpireFromAssertion(c *check.C) {
 	s.makeSystemUsers(c, []map[string]interface{}{expireUser})
 	users := s.createUserFromAssertion(c, false)
 	c.Assert(len(users), check.Equals, 1)
-	until, err := time.Parse(time.RFC3339, expireUser["until"].(string))
+	until := mylog.Check2(time.Parse(time.RFC3339, expireUser["until"].(string)))
 	c.Assert(err, check.IsNil)
 	c.Check(users[0].Expiration.Equal(until), check.Equals, true)
 }
@@ -542,7 +542,6 @@ func (s *usersSuite) TestCreateUserFromAssertionWithForcePasswordChange(c *check
 }
 
 func (s *usersSuite) createUserFromAssertion(c *check.C, forcePasswordChange bool) []*auth.UserState {
-
 	// mock the calls that create the user
 	var addUserCalled bool
 	defer devicestate.MockOsutilAddUser(func(username string, opts *osutil.AddUserOptions) error {
@@ -557,7 +556,7 @@ func (s *usersSuite) createUserFromAssertion(c *check.C, forcePasswordChange boo
 
 	// create user
 	s.state.Lock()
-	createdUsers, err := devicestate.CreateKnownUsers(s.state, false, "foo@bar.com")
+	createdUsers := mylog.Check2(devicestate.CreateKnownUsers(s.state, false, "foo@bar.com"))
 	s.state.Unlock()
 
 	expected := []*devicestate.CreatedUser{
@@ -573,7 +572,7 @@ func (s *usersSuite) createUserFromAssertion(c *check.C, forcePasswordChange boo
 
 	// ensure the user was added to the state
 	s.state.Lock()
-	users, err := auth.Users(s.state)
+	users := mylog.Check2(auth.Users(s.state))
 	s.state.Unlock()
 	c.Assert(err, check.IsNil)
 	c.Check(users, check.HasLen, 1)
@@ -626,13 +625,13 @@ func (s *usersSuite) testCreateUserFromAssertion(c *check.C, createKnown bool, e
 
 	// create user
 	var createdUsers []*devicestate.CreatedUser
-	var err error
+
 	s.state.Lock()
 	if createKnown {
-		createdUsers, err = devicestate.CreateKnownUsers(s.state, expectSudoer, "")
+		createdUsers = mylog.Check2(devicestate.CreateKnownUsers(s.state, expectSudoer, ""))
 	} else {
 		var createdUser *devicestate.CreatedUser
-		createdUser, err = devicestate.CreateUser(s.state, expectSudoer, "", time.Time{})
+		createdUser = mylog.Check2(devicestate.CreateUser(s.state, expectSudoer, "", time.Time{}))
 		createdUsers = append(createdUsers, createdUser)
 	}
 	s.state.Unlock()
@@ -699,9 +698,9 @@ func (s *usersSuite) TestCreateAllKnownUsersWithExpiration(c *check.C) {
 
 	// create user
 	var createdUsers []*devicestate.CreatedUser
-	var err error
+
 	s.state.Lock()
-	createdUsers, err = devicestate.CreateKnownUsers(s.state, false, "")
+	createdUsers = mylog.Check2(devicestate.CreateKnownUsers(s.state, false, ""))
 	s.state.Unlock()
 
 	c.Check(created, check.DeepEquals, map[string]bool{"guy": true})
@@ -719,7 +718,7 @@ func (s *usersSuite) TestCreateAllKnownUsersWithExpiration(c *check.C) {
 	c.Check(users, check.HasLen, 1)
 
 	// Verify expiration
-	until, err := time.Parse(time.RFC3339, expireUser["until"].(string))
+	until := mylog.Check2(time.Parse(time.RFC3339, expireUser["until"].(string)))
 	c.Assert(err, check.IsNil)
 	c.Check(users[0].Expiration.Equal(until), check.Equals, true)
 }
@@ -730,7 +729,7 @@ func (s *usersSuite) TestCreateUserFromAssertionAllKnownNoModelError(c *check.C)
 
 	// have not model yet
 	s.state.Lock()
-	err := devicestatetest.SetDevice(s.state, &auth.DeviceState{})
+	mylog.Check(devicestatetest.SetDevice(s.state, &auth.DeviceState{}))
 	s.state.Unlock()
 	c.Assert(err, check.IsNil)
 
@@ -752,10 +751,10 @@ func (s *usersSuite) TestCreateUserFromAssertionNoSerial(c *check.C) {
 	s.makeSystemUsers(c, []map[string]interface{}{serialUser})
 
 	s.state.Lock()
-	err := devicestatetest.SetDevice(s.state, &auth.DeviceState{
+	mylog.Check(devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "my-brand",
 		Model: "my-model",
-	})
+	}))
 	s.state.Unlock()
 	c.Assert(err, check.IsNil)
 
@@ -780,10 +779,10 @@ func (s *usersSuite) TestCreateAllKnownUsersFromAssertionNoSerial(c *check.C) {
 	s.makeSystemUsers(c, []map[string]interface{}{serialUser})
 
 	s.state.Lock()
-	err := devicestatetest.SetDevice(s.state, &auth.DeviceState{
+	mylog.Check(devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "my-brand",
 		Model: "my-model",
-	})
+	}))
 	s.state.Unlock()
 	c.Assert(err, check.IsNil)
 
@@ -802,12 +801,12 @@ func (s *usersSuite) TestCreateUserFromAssertionAllKnownButOwned(c *check.C) {
 	s.makeSystemUsers(c, []map[string]interface{}{goodUser})
 
 	s.state.Lock()
-	_, err := auth.NewUser(s.state, auth.NewUserParams{
+	_ := mylog.Check2(auth.NewUser(s.state, auth.NewUserParams{
 		Username:   "username",
 		Email:      "email@test.com",
 		Macaroon:   "macaroon",
 		Discharges: []string{"discharge"},
-	})
+	}))
 	s.state.Unlock()
 	c.Check(err, check.IsNil)
 
@@ -831,7 +830,7 @@ func (s *usersSuite) TestCreateUserFromAssertionAllKnownButOwned(c *check.C) {
 
 	// create user
 	s.state.Lock()
-	createdUsers, err := devicestate.CreateKnownUsers(s.state, false, "")
+	createdUsers := mylog.Check2(devicestate.CreateKnownUsers(s.state, false, ""))
 	s.state.Unlock()
 	c.Assert(err, check.IsNil)
 	c.Check(created, check.DeepEquals, map[string]bool{
@@ -851,12 +850,12 @@ func (s *usersSuite) TestCreateUserFromAssertionAllKnownButSkipExists(c *check.C
 	s.makeSystemUsers(c, []map[string]interface{}{goodUser})
 
 	s.state.Lock()
-	_, err := auth.NewUser(s.state, auth.NewUserParams{
+	_ := mylog.Check2(auth.NewUser(s.state, auth.NewUserParams{
 		Username:   "username",
 		Email:      "email@test.com",
 		Macaroon:   "macaroon",
 		Discharges: []string{"discharge"},
-	})
+	}))
 	s.state.Unlock()
 	c.Check(err, check.IsNil)
 
@@ -877,7 +876,7 @@ func (s *usersSuite) TestCreateUserFromAssertionAllKnownButSkipExists(c *check.C
 
 	// create user
 	s.state.Lock()
-	createdUsers, err := devicestate.CreateKnownUsers(s.state, false, "")
+	createdUsers := mylog.Check2(devicestate.CreateKnownUsers(s.state, false, ""))
 	s.state.Unlock()
 	c.Assert(err, check.IsNil)
 	c.Check(len(createdUsers), check.Equals, 0)
@@ -891,7 +890,7 @@ func (s *usersSuite) TestCreateUserMissingEmail(c *check.C) {
 
 	// create user
 	s.state.Lock()
-	createdUser, err := devicestate.CreateUser(s.state, true, "", time.Time{})
+	createdUser := mylog.Check2(devicestate.CreateUser(s.state, true, "", time.Time{}))
 	s.state.Unlock()
 
 	c.Assert(err, check.NotNil)

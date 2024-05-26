@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
@@ -88,7 +89,7 @@ func (s *backendSuite) TestInstallingSnapWritesStartsServices(c *C) {
 	s.InstallSnap(c, interfaces.ConfinementOptions{}, "", ifacetest.SambaYamlV1, 1)
 	service := filepath.Join(dirs.SnapServicesDir, "snap.samba.interface.foo.service")
 	// the service file was created
-	_, err := os.Stat(service)
+	_ := mylog.Check2(os.Stat(service))
 	c.Check(err, IsNil)
 	// the service was also started (whee)
 	c.Check(sysdLog, DeepEquals, [][]string{
@@ -113,7 +114,7 @@ func (s *backendSuite) TestRemovingSnapRemovesAndStopsServices(c *C) {
 		s.RemoveSnap(c, snapInfo)
 		service := filepath.Join(dirs.SnapServicesDir, "snap.samba.interface.foo.service")
 		// the service file was removed
-		_, err := os.Stat(service)
+		_ := mylog.Check2(os.Stat(service))
 		c.Check(os.IsNotExist(err), Equals, true)
 		// the service was stopped
 		c.Check(s.systemctlArgs, DeepEquals, [][]string{
@@ -127,10 +128,8 @@ func (s *backendSuite) TestRemovingSnapRemovesAndStopsServices(c *C) {
 
 func (s *backendSuite) TestSettingInstallManyUpdateSecurityWithFewerServices(c *C) {
 	s.Iface.SystemdPermanentSlotCallback = func(spec *systemd.Specification, slot *snap.SlotInfo) error {
-		err := spec.AddService("foo", &systemd.Service{ExecStart: "/bin/true"})
-		if err != nil {
-			return err
-		}
+		mylog.Check(spec.AddService("foo", &systemd.Service{ExecStart: "/bin/true"}))
+
 		return spec.AddService("bar", &systemd.Service{ExecStart: "/bin/false"})
 	}
 	serviceFoo := filepath.Join(dirs.SnapServicesDir, "snap.samba.interface.foo.service")
@@ -192,7 +191,7 @@ func (s *backendSuite) TestInstallingSnapWhenPreseeding(c *C) {
 	s.InstallSnap(c, interfaces.ConfinementOptions{}, "", ifacetest.SambaYamlV1, 1)
 	service := filepath.Join(dirs.SnapServicesDir, "snap.samba.interface.foo.service")
 	// the service file was created
-	_, err := os.Stat(service)
+	_ := mylog.Check2(os.Stat(service))
 	c.Check(err, IsNil)
 	// the service was enabled but not started
 	c.Check(sysdLog, DeepEquals, [][]string{
@@ -215,7 +214,7 @@ func (s *backendSuite) TestRemovingSnapWhenPreseeding(c *C) {
 		s.RemoveSnap(c, snapInfo)
 		service := filepath.Join(dirs.SnapServicesDir, "snap.samba.interface.foo.service")
 		// the service file was removed
-		_, err := os.Stat(service)
+		_ := mylog.Check2(os.Stat(service))
 		c.Check(os.IsNotExist(err), Equals, true)
 		// the service was disabled (but no other systemctl calls)
 		c.Check(s.systemctlArgs, DeepEquals, [][]string{

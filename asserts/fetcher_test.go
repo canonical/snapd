@@ -27,6 +27,7 @@ import (
 	"golang.org/x/crypto/sha3"
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/release"
@@ -53,17 +54,15 @@ func fakeHash(rev int) []byte {
 }
 
 func makeDigest(rev int) string {
-	d, err := asserts.EncodeDigest(crypto.SHA3_384, fakeHash(rev))
-	if err != nil {
-		panic(err)
-	}
+	d := mylog.Check2(asserts.EncodeDigest(crypto.SHA3_384, fakeHash(rev)))
+
 	return string(d)
 }
 
 func (s *fetcherSuite) prereqSnapAssertions(c *C, revisions ...int) {
 	dev1Acct := assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
-	err := s.storeSigning.Add(dev1Acct)
-	c.Assert(err, IsNil)
+	mylog.Check(s.storeSigning.Add(dev1Acct))
+
 
 	headers := map[string]interface{}{
 		"series":       "16",
@@ -72,10 +71,10 @@ func (s *fetcherSuite) prereqSnapAssertions(c *C, revisions ...int) {
 		"publisher-id": dev1Acct.AccountID(),
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}
-	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
-	c.Assert(err, IsNil)
-	err = s.storeSigning.Add(snapDecl)
-	c.Assert(err, IsNil)
+	snapDecl := mylog.Check2(s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, ""))
+
+	mylog.Check(s.storeSigning.Add(snapDecl))
+
 
 	for _, rev := range revisions {
 		headers = map[string]interface{}{
@@ -87,21 +86,21 @@ func (s *fetcherSuite) prereqSnapAssertions(c *C, revisions ...int) {
 			"developer-id":  dev1Acct.AccountID(),
 			"timestamp":     time.Now().Format(time.RFC3339),
 		}
-		snapRev, err := s.storeSigning.Sign(asserts.SnapRevisionType, headers, nil, "")
-		c.Assert(err, IsNil)
-		err = s.storeSigning.Add(snapRev)
-		c.Assert(err, IsNil)
+		snapRev := mylog.Check2(s.storeSigning.Sign(asserts.SnapRevisionType, headers, nil, ""))
+
+		mylog.Check(s.storeSigning.Add(snapRev))
+
 	}
 }
 
 func (s *fetcherSuite) TestFetch(c *C) {
 	s.prereqSnapAssertions(c, 10)
 
-	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+	db := mylog.Check2(asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
 		Trusted:   s.storeSigning.Trusted,
-	})
-	c.Assert(err, IsNil)
+	}))
+
 
 	ref := &asserts.Ref{
 		Type:       asserts.SnapRevisionType,
@@ -113,30 +112,29 @@ func (s *fetcherSuite) TestFetch(c *C) {
 	}
 
 	f := asserts.NewFetcher(db, retrieve, db.Add)
+	mylog.Check(f.Fetch(ref))
 
-	err = f.Fetch(ref)
-	c.Assert(err, IsNil)
 
-	snapRev, err := ref.Resolve(db.Find)
-	c.Assert(err, IsNil)
+	snapRev := mylog.Check2(ref.Resolve(db.Find))
+
 	c.Check(snapRev.(*asserts.SnapRevision).SnapRevision(), Equals, 10)
 
-	snapDecl, err := db.Find(asserts.SnapDeclarationType, map[string]string{
+	snapDecl := mylog.Check2(db.Find(asserts.SnapDeclarationType, map[string]string{
 		"series":  "16",
 		"snap-id": "snap-id-1",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(snapDecl.(*asserts.SnapDeclaration).SnapName(), Equals, "foo")
 }
 
 func (s *fetcherSuite) TestFetchCircularReference(c *C) {
 	s.prereqSnapAssertions(c, 10)
 
-	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+	db := mylog.Check2(asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
 		Trusted:   s.storeSigning.Trusted,
-	})
-	c.Assert(err, IsNil)
+	}))
+
 
 	ref := &asserts.Ref{
 		Type:       asserts.SnapRevisionType,
@@ -154,19 +152,18 @@ func (s *fetcherSuite) TestFetchCircularReference(c *C) {
 		return []*asserts.Ref{ref}
 	})
 	defer r()
-
-	err = f.Fetch(ref)
+	mylog.Check(f.Fetch(ref))
 	c.Assert(err, ErrorMatches, `circular assertions are not expected: snap-revision \(tzGsQxT_xJGzbnJ_-25Bbj_8lBHY39c5uUuQWgDTGxAEd0NALdxVaSAD59Pou_Ko;\)`)
 }
 
 func (s *fetcherSuite) TestSave(c *C) {
 	s.prereqSnapAssertions(c, 10)
 
-	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+	db := mylog.Check2(asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
 		Trusted:   s.storeSigning.Trusted,
-	})
-	c.Assert(err, IsNil)
+	}))
+
 
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
 		return ref.Resolve(s.storeSigning.Find)
@@ -178,26 +175,25 @@ func (s *fetcherSuite) TestSave(c *C) {
 		Type:       asserts.SnapRevisionType,
 		PrimaryKey: []string{makeDigest(10)},
 	}
-	rev, err := ref.Resolve(s.storeSigning.Find)
-	c.Assert(err, IsNil)
+	rev := mylog.Check2(ref.Resolve(s.storeSigning.Find))
 
-	err = f.Save(rev)
-	c.Assert(err, IsNil)
+	mylog.Check(f.Save(rev))
 
-	snapRev, err := ref.Resolve(db.Find)
-	c.Assert(err, IsNil)
+
+	snapRev := mylog.Check2(ref.Resolve(db.Find))
+
 	c.Check(snapRev.(*asserts.SnapRevision).SnapRevision(), Equals, 10)
 
-	snapDecl, err := db.Find(asserts.SnapDeclarationType, map[string]string{
+	snapDecl := mylog.Check2(db.Find(asserts.SnapDeclarationType, map[string]string{
 		"series":  "16",
 		"snap-id": "snap-id-1",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(snapDecl.(*asserts.SnapDeclaration).SnapName(), Equals, "foo")
 }
 
 func (s *fetcherSuite) prereqValidationSetAssertion(c *C) {
-	vs, err := s.storeSigning.Sign(asserts.ValidationSetType, map[string]interface{}{
+	vs := mylog.Check2(s.storeSigning.Sign(asserts.ValidationSetType, map[string]interface{}{
 		"type":         "validation-set",
 		"authority-id": "can0nical",
 		"series":       "16",
@@ -213,20 +209,20 @@ func (s *fetcherSuite) prereqValidationSetAssertion(c *C) {
 			},
 		},
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	err = s.storeSigning.Add(vs)
+	}, nil, ""))
+
+	mylog.Check(s.storeSigning.Add(vs))
 	c.Check(err, IsNil)
 }
 
 func (s *fetcherSuite) TestFetchSequence(c *C) {
 	s.prereqValidationSetAssertion(c)
 
-	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+	db := mylog.Check2(asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
 		Trusted:   s.storeSigning.Trusted,
-	})
-	c.Assert(err, IsNil)
+	}))
+
 
 	seq := &asserts.AtSequence{
 		Type:        asserts.ValidationSetType,
@@ -242,35 +238,36 @@ func (s *fetcherSuite) TestFetchSequence(c *C) {
 	}
 
 	f := asserts.NewSequenceFormingFetcher(db, retrieve, retrieveSeq, db.Add)
+	mylog.
 
-	// Fetch the sequence, this will fetch the validation-set with sequence
-	// 2. After that we should be able to find the validation-set (sequence 2)
-	// in the DB.
-	err = f.FetchSequence(seq)
-	c.Assert(err, IsNil)
+		// Fetch the sequence, this will fetch the validation-set with sequence
+		// 2. After that we should be able to find the validation-set (sequence 2)
+		// in the DB.
+		Check(f.FetchSequence(seq))
+
 
 	// Calling resolve works when we provide the correct sequence number. This
 	// will then find the assertion we just fetched
-	vsa, err := seq.Resolve(db.Find)
-	c.Assert(err, IsNil)
+	vsa := mylog.Check2(seq.Resolve(db.Find))
+
 	c.Check(vsa.(*asserts.ValidationSet).Name(), Equals, "base-set")
 	c.Check(vsa.(*asserts.ValidationSet).Sequence(), Equals, 2)
 
 	// Calling resolve doesn't find the assertion when another sequence number
 	// is provided.
 	seq.Sequence = 4
-	_, err = seq.Resolve(db.Find)
+	_ = mylog.Check2(seq.Resolve(db.Find))
 	c.Assert(err, ErrorMatches, `validation-set \(4; series:16 account-id:can0nical name:base-set\) not found`)
 }
 
 func (s *fetcherSuite) TestFetchSequenceCircularReference(c *C) {
 	s.prereqValidationSetAssertion(c)
 
-	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+	db := mylog.Check2(asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
 		Trusted:   s.storeSigning.Trusted,
-	})
-	c.Assert(err, IsNil)
+	}))
+
 
 	seq := &asserts.AtSequence{
 		Type:        asserts.ValidationSetType,
@@ -297,19 +294,18 @@ func (s *fetcherSuite) TestFetchSequenceCircularReference(c *C) {
 		}
 	})
 	defer r()
-
-	err = f.FetchSequence(seq)
+	mylog.Check(f.FetchSequence(seq))
 	c.Assert(err, ErrorMatches, `circular assertions are not expected: validation-set \(2; series:16 account-id:can0nical name:base-set\)`)
 }
 
 func (s *fetcherSuite) TestFetchSequenceMultipleSequencesNotSupported(c *C) {
 	s.prereqValidationSetAssertion(c)
 
-	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+	db := mylog.Check2(asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
 		Trusted:   s.storeSigning.Trusted,
-	})
-	c.Assert(err, IsNil)
+	}))
+
 
 	seq := &asserts.AtSequence{
 		Type:        asserts.ValidationSetType,
@@ -325,8 +321,8 @@ func (s *fetcherSuite) TestFetchSequenceMultipleSequencesNotSupported(c *C) {
 	}
 
 	f := asserts.NewSequenceFormingFetcher(db, retrieve, retrieveSeq, db.Add)
-	err = f.FetchSequence(seq)
-	c.Assert(err, IsNil)
+	mylog.Check(f.FetchSequence(seq))
+
 
 	// Fetch same validation-set, but with a different sequence. Currently the
 	// AtSequence.Unique() does not include the sequence number or revision, meaning
@@ -334,28 +330,28 @@ func (s *fetcherSuite) TestFetchSequenceMultipleSequencesNotSupported(c *C) {
 	// XXX: This test is here to document the behavior. If we want it to spit an error
 	//      or support multiple sequences of an assertion, then changes are required.
 	seq.Sequence = 4
-	err = f.FetchSequence(seq)
-	c.Assert(err, IsNil)
+	mylog.Check(f.FetchSequence(seq))
+
 
 	// We fetch 2 first, it should exist.
 	seq.Sequence = 2
-	vsa, err := seq.Resolve(db.Find)
-	c.Assert(err, IsNil)
+	vsa := mylog.Check2(seq.Resolve(db.Find))
+
 	c.Check(vsa.(*asserts.ValidationSet).Name(), Equals, "base-set")
 	c.Check(vsa.(*asserts.ValidationSet).Sequence(), Equals, 2)
 
 	// 4 will not exist, as 2 already was present.
 	seq.Sequence = 4
-	_, err = seq.Resolve(db.Find)
+	_ = mylog.Check2(seq.Resolve(db.Find))
 	c.Assert(err, ErrorMatches, `validation-set \(4; series:16 account-id:can0nical name:base-set\) not found`)
 }
 
 func (s *fetcherSuite) TestFetcherNotCreatedUsingNewSequenceFormingFetcher(c *C) {
-	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+	db := mylog.Check2(asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
 		Trusted:   s.storeSigning.Trusted,
-	})
-	c.Assert(err, IsNil)
+	}))
+
 
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
 		return ref.Resolve(s.storeSigning.Find)
@@ -368,8 +364,9 @@ func (s *fetcherSuite) TestFetcherNotCreatedUsingNewSequenceFormingFetcher(c *C)
 	// since the fetcher actually implements FetchSequence.
 	ff := f.(asserts.SequenceFormingFetcher)
 	c.Assert(ff, NotNil)
+	mylog.
 
-	// Make sure this produces an error and not a crash
-	err = f.(asserts.SequenceFormingFetcher).FetchSequence(nil)
+		// Make sure this produces an error and not a crash
+		Check(f.(asserts.SequenceFormingFetcher).FetchSequence(nil))
 	c.Check(err, ErrorMatches, `cannot fetch assertion sequence point, fetcher must be created using NewSequenceFormingFetcher`)
 }

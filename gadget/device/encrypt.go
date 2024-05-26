@@ -25,6 +25,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 )
@@ -44,24 +45,18 @@ func HasEncryptedMarkerUnder(deviceFDEDir string) bool {
 // ReadEncryptionMarkers reads the encryption marker files at the appropriate
 // locations.
 func ReadEncryptionMarkers(dataFDEDir, saveFDEDir string) ([]byte, []byte, error) {
-	marker1, err := os.ReadFile(encryptionMarkerUnder(dataFDEDir))
-	if err != nil {
-		return nil, nil, err
-	}
-	marker2, err := os.ReadFile(encryptionMarkerUnder(saveFDEDir))
-	if err != nil {
-		return nil, nil, err
-	}
+	marker1 := mylog.Check2(os.ReadFile(encryptionMarkerUnder(dataFDEDir)))
+
+	marker2 := mylog.Check2(os.ReadFile(encryptionMarkerUnder(saveFDEDir)))
+
 	return marker1, marker2, nil
 }
 
 // WriteEncryptionMarkers writes the encryption marker files at the appropriate
 // locations.
 func WriteEncryptionMarkers(dataFDEDir, saveFDEDir string, markerSecret []byte) error {
-	err := osutil.AtomicWriteFile(encryptionMarkerUnder(dataFDEDir), markerSecret, 0600, 0)
-	if err != nil {
-		return err
-	}
+	mylog.Check(osutil.AtomicWriteFile(encryptionMarkerUnder(dataFDEDir), markerSecret, 0600, 0))
+
 	return osutil.AtomicWriteFile(encryptionMarkerUnder(saveFDEDir), markerSecret, 0600, 0)
 }
 
@@ -116,13 +111,9 @@ const (
 // StampSealedKeys writes what sealing method was used for key sealing
 func StampSealedKeys(rootdir string, content SealingMethod) error {
 	stamp := filepath.Join(dirs.SnapFDEDirUnder(rootdir), "sealed-keys")
-	if err := os.MkdirAll(filepath.Dir(stamp), 0755); err != nil {
-		return fmt.Errorf("cannot create device fde state directory: %v", err)
-	}
+	mylog.Check(os.MkdirAll(filepath.Dir(stamp), 0755))
+	mylog.Check(osutil.AtomicWriteFile(stamp, []byte(content), 0644, 0))
 
-	if err := osutil.AtomicWriteFile(stamp, []byte(content), 0644, 0); err != nil {
-		return fmt.Errorf("cannot create fde sealed keys stamp file: %v", err)
-	}
 	return nil
 }
 
@@ -131,7 +122,7 @@ func SealedKeysMethod(rootdir string) (sm SealingMethod, err error) {
 	// TODO:UC20: consider more than the marker for cases where we reseal
 	// outside of run mode
 	stamp := filepath.Join(dirs.SnapFDEDirUnder(rootdir), "sealed-keys")
-	content, err := os.ReadFile(stamp)
+	content := mylog.Check2(os.ReadFile(stamp))
 	if os.IsNotExist(err) {
 		return sm, ErrNoSealedKeys
 	}

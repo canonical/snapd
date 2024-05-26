@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/state"
@@ -65,7 +66,7 @@ var essentialSnapsRestartOrder = []snap.Type{
 
 func maybeTaskSetSnapSetup(ts *state.TaskSet) *SnapSetup {
 	for _, t := range ts.Tasks() {
-		snapsup, err := TaskSnapSetup(t)
+		snapsup := mylog.Check2(TaskSnapSetup(t))
 		if err == nil {
 			return snapsup
 		}
@@ -144,13 +145,8 @@ func setDefaultRestartBoundaries(ts *state.TaskSet) {
 // deviceModelBootBase returns the base-snap name of the current model. For UC16
 // this will return "core".
 func deviceModelBootBase(st *state.State, providedDeviceCtx DeviceContext) (string, error) {
-	deviceCtx, err := DeviceCtx(st, nil, providedDeviceCtx)
-	if err != nil {
-		if !errors.Is(err, state.ErrNoState) {
-			return "", err
-		}
-		return "", nil
-	}
+	deviceCtx := mylog.Check2(DeviceCtx(st, nil, providedDeviceCtx))
+
 	bootBase := deviceCtx.Model().Base()
 	if bootBase == "" {
 		return "core", nil
@@ -264,14 +260,10 @@ func arrangeSingleRebootForSplitTaskSets(beforeTss map[snap.Type]*state.TaskSet)
 
 // waitForLastTask makes the first task of 'ts' wait for the last task of the 'dep' task-set.
 func waitForLastTask(ts, dep *state.TaskSet) error {
-	last, err := dep.Edge(EndEdge)
-	if err != nil {
-		return err
-	}
-	first, err := ts.Edge(BeginEdge)
-	if err != nil {
-		return err
-	}
+	last := mylog.Check2(dep.Edge(EndEdge))
+
+	first := mylog.Check2(ts.Edge(BeginEdge))
+
 	first.WaitFor(last)
 	return nil
 }
@@ -331,15 +323,9 @@ func listContains(items []int, item int) bool {
 // snapd => boot-base (up to auto-connect) => gadget(up to auto-connect) =>
 // -  kernel (up to auto-connect, then reboot) => boot-base => gadget => kernel => bases => apps.
 func arrangeSnapTaskSetsLinkageAndRestart(st *state.State, providedDeviceCtx DeviceContext, tss []*state.TaskSet) error {
-	bootBase, err := deviceModelBootBase(st, providedDeviceCtx)
-	if err != nil {
-		return err
-	}
+	bootBase := mylog.Check2(deviceModelBootBase(st, providedDeviceCtx))
 
-	byTypeTss, err := taskSetsByTypeForEssentialSnaps(tss, bootBase)
-	if err != nil {
-		return err
-	}
+	byTypeTss := mylog.Check2(taskSetsByTypeForEssentialSnaps(tss, bootBase))
 
 	// If the boot-base is 'core', then we don't allow splitting the task-sets to set up
 	// for single-reboot, as we don't support this behavior on UC16.
@@ -358,27 +344,21 @@ func arrangeSnapTaskSetsLinkageAndRestart(st *state.State, providedDeviceCtx Dev
 	// ts1-pre-reboot => ts2-pre-reboot => [reboot] => ts1-post-reboot => ts2-post-reboot
 	chainEssentialTs := func(ts *state.TaskSet, snapType snap.Type, transactional, split bool) error {
 		if transactional && !isUC16 {
-			lanes, err := taskSetLanesByRebootEdge(ts)
-			if err != nil {
-				return err
-			}
+			lanes := mylog.Check2(taskSetLanesByRebootEdge(ts))
+
 			lanesByTsToMerge[ts] = lanes
 		}
 
 		nextTs := ts
 		if split && !isUC16 {
-			before, after, err := splitTaskSetByRebootEdges(ts)
-			if err != nil {
-				return err
-			}
+			before, after := mylog.Check3(splitTaskSetByRebootEdges(ts))
+
 			beforeTss[snapType] = before
 			afterTss[snapType] = after
 			nextTs = before
 		}
 		if lastEssentialTs != nil {
-			if err := waitForLastTask(nextTs, lastEssentialTs); err != nil {
-				return err
-			}
+			mylog.Check(waitForLastTask(nextTs, lastEssentialTs))
 		}
 		lastEssentialTs = nextTs
 		return nil
@@ -391,9 +371,8 @@ func arrangeSnapTaskSetsLinkageAndRestart(st *state.State, providedDeviceCtx Dev
 		// fail.
 		const transactional = false
 		const split = false
-		if err := chainEssentialTs(ts, snap.TypeSnapd, transactional, split); err != nil {
-			return err
-		}
+		mylog.Check(chainEssentialTs(ts, snap.TypeSnapd, transactional, split))
+
 	}
 
 	bootSnapType := bootBaseSnapType(byTypeTss)
@@ -404,28 +383,26 @@ func arrangeSnapTaskSetsLinkageAndRestart(st *state.State, providedDeviceCtx Dev
 	if ts := byTypeTss[bootSnapType]; ts != nil {
 		const transactional = true
 		const split = true
-		if err := chainEssentialTs(ts, bootSnapType, transactional, split); err != nil {
-			return err
-		}
+		mylog.Check(chainEssentialTs(ts, bootSnapType, transactional, split))
+
 	}
 
 	// Next we link in the gadget, and it needs to be part of the transaction
 	// so it will be undone in the event of failures.
 	if ts := byTypeTss[snap.TypeGadget]; ts != nil {
 		const transactional = true
-		split := !enforcedSingleRebootForGadgetKernelBase // keep this to be able to induce a buggy change
-		if err := chainEssentialTs(ts, snap.TypeGadget, transactional, split); err != nil {
-			return err
-		}
+		split := !enforcedSingleRebootForGadgetKernelBase
+		mylog.Check( // keep this to be able to induce a buggy change
+			chainEssentialTs(ts, snap.TypeGadget, transactional, split))
+
 	}
 
 	// Then we link in the kernel, it needs to run latest, but before other bases and apps.
 	if ts := byTypeTss[snap.TypeKernel]; ts != nil {
 		const transactional = true
 		const split = true
-		if err := chainEssentialTs(ts, snap.TypeKernel, transactional, split); err != nil {
-			return err
-		}
+		mylog.Check(chainEssentialTs(ts, snap.TypeKernel, transactional, split))
+
 	}
 
 	// Now link in all the after task-sets that have been split, which should run
@@ -436,18 +413,15 @@ func arrangeSnapTaskSetsLinkageAndRestart(st *state.State, providedDeviceCtx Dev
 		}
 		const transactional = false
 		const split = false
-		if err := chainEssentialTs(afterTss[o], o, transactional, split); err != nil {
-			return err
-		}
+		mylog.Check(chainEssentialTs(afterTss[o], o, transactional, split))
+
 	}
 
 	// Ensure restart boundaries are set, for the task-sets that have been
 	// split, we ensure that boundaries are set *only* for the last of those, to allow
 	// them all to run before the reboot.
 	if len(beforeTss) > 0 {
-		if err := arrangeSingleRebootForSplitTaskSets(beforeTss); err != nil {
-			return err
-		}
+		mylog.Check(arrangeSingleRebootForSplitTaskSets(beforeTss))
 	}
 
 	// Ensure essential snaps that are transactional have their lanes merged. This will effectively
@@ -476,9 +450,7 @@ func arrangeSnapTaskSetsLinkageAndRestart(st *state.State, providedDeviceCtx Dev
 	bases, apps := nonEssentialSnapTaskSets(tss, bootBase)
 	if lastEssentialTs != nil {
 		for _, ts := range bases {
-			if err := waitForLastTask(ts, lastEssentialTs); err != nil {
-				return err
-			}
+			mylog.Check(waitForLastTask(ts, lastEssentialTs))
 		}
 	}
 
@@ -486,13 +458,10 @@ func arrangeSnapTaskSetsLinkageAndRestart(st *state.State, providedDeviceCtx Dev
 	// of any essential-snap that is also being updated.
 	for _, appTs := range apps {
 		if lastEssentialTs != nil {
-			if err := waitForLastTask(appTs, lastEssentialTs); err != nil {
-				return err
-			}
+			mylog.Check(waitForLastTask(appTs, lastEssentialTs))
 		}
-		if err := arrangeSnapToWaitForBaseIfPresent(appTs, bases); err != nil {
-			return err
-		}
+		mylog.Check(arrangeSnapToWaitForBaseIfPresent(appTs, bases))
+
 	}
 	return nil
 }
@@ -501,15 +470,9 @@ func arrangeSnapTaskSetsLinkageAndRestart(st *state.State, providedDeviceCtx Dev
 // list of task-sets contain any updates/installs of essential snaps (base,gadget,kernel), then proper
 // restart boundaries will be set up for them.
 func SetEssentialSnapsRestartBoundaries(st *state.State, providedDeviceCtx DeviceContext, tss []*state.TaskSet) error {
-	bootBase, err := deviceModelBootBase(st, providedDeviceCtx)
-	if err != nil {
-		return err
-	}
+	bootBase := mylog.Check2(deviceModelBootBase(st, providedDeviceCtx))
 
-	byTypeTss, err := taskSetsByTypeForEssentialSnaps(tss, bootBase)
-	if err != nil {
-		return err
-	}
+	byTypeTss := mylog.Check2(taskSetsByTypeForEssentialSnaps(tss, bootBase))
 
 	// We don't actually need to go through the exact order, but
 	// we need to go through this exact list of snap types.

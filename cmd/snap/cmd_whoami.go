@@ -22,15 +22,18 @@ package main
 import (
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/i18n"
 )
 
-var shortWhoAmIHelp = i18n.G("Show the email the user is logged in with")
-var longWhoAmIHelp = i18n.G(`
+var (
+	shortWhoAmIHelp = i18n.G("Show the email the user is logged in with")
+	longWhoAmIHelp  = i18n.G(`
 The whoami command shows the email the user is logged in with.
 `)
+)
 
 type cmdWhoAmI struct {
 	clientMixin
@@ -45,10 +48,8 @@ func (cmd cmdWhoAmI) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	email, err := cmd.client.WhoAmI()
-	if err != nil {
-		return err
-	}
+	email := mylog.Check2(cmd.client.WhoAmI())
+
 	if email == "" {
 		// just printing nothing looks weird (as if something had gone wrong)
 		email = "-"

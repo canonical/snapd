@@ -26,6 +26,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/i18n"
@@ -51,6 +52,7 @@ var longSavedHelp = i18n.G(`
 The saved command displays a list of snapshots that have been created
 previously with the 'save' command.
 `)
+
 var longSaveHelp = i18n.G(`
 The save command creates a snapshot of the current user, system and
 configuration data for the given snaps.
@@ -63,6 +65,7 @@ If a snap is included in a save operation, excluding its system and
 configuration data from the snapshot is not currently possible. This
 restriction may be lifted in the future.
 `)
+
 var longForgetHelp = i18n.G(`
 The forget command deletes a snapshot. This operation can not be
 undone.
@@ -73,6 +76,7 @@ data of each snap included in the snapshot.
 By default, this command forgets all the data in a snapshot.
 Alternatively, you can specify the data of which snaps to forget.
 `)
+
 var longCheckHelp = i18n.G(`
 The check-snapshot command verifies the user, system and configuration
 data of the snaps included in the specified snapshot.
@@ -88,6 +92,7 @@ If a snap is included in a check-snapshot operation, excluding its
 system and configuration data from the check is not currently
 possible. This restriction may be lifted in the future.
 `)
+
 var longRestoreHelp = i18n.G(`
 The restore command replaces the current user, system and
 configuration data of included snaps, with the corresponding data from
@@ -122,18 +127,13 @@ type savedCmd struct {
 
 func (x *savedCmd) Execute([]string) error {
 	var setID uint64
-	var err error
+
 	if x.ID != "" {
-		setID, err = x.ID.ToUint()
-		if err != nil {
-			return err
-		}
+		setID = mylog.Check2(x.ID.ToUint())
 	}
 	snaps := installedSnapNames(x.Positional.Snaps)
-	list, err := x.client.SnapshotSets(setID, snaps)
-	if err != nil {
-		return err
-	}
+	list := mylog.Check2(x.client.SnapshotSets(setID, snaps))
+
 	if len(list) == 0 {
 		fmt.Fprintln(Stdout, i18n.G("No snapshots found."))
 		return nil
@@ -187,16 +187,8 @@ type saveCmd struct {
 func (x *saveCmd) Execute([]string) error {
 	snaps := installedSnapNames(x.Positional.Snaps)
 	users := strutil.CommaSeparatedList(x.Users)
-	setID, changeID, err := x.client.SnapshotMany(snaps, users)
-	if err != nil {
-		return err
-	}
-	if _, err := x.wait(changeID); err != nil {
-		if err == noWait {
-			return nil
-		}
-		return err
-	}
+	setID, changeID := mylog.Check3(x.client.SnapshotMany(snaps, users))
+	mylog.Check2(x.wait(changeID))
 
 	y := &savedCmd{
 		clientMixin:   x.clientMixin,
@@ -215,21 +207,14 @@ type forgetCmd struct {
 }
 
 func (x *forgetCmd) Execute([]string) error {
-	setID, err := x.Positional.ID.ToUint()
-	if err != nil {
-		return err
-	}
+	setID := mylog.Check2(x.Positional.ID.ToUint())
+
 	snaps := installedSnapNames(x.Positional.Snaps)
-	changeID, err := x.client.ForgetSnapshots(setID, snaps)
-	if err != nil {
-		return err
-	}
-	_, err = x.wait(changeID)
+	changeID := mylog.Check2(x.client.ForgetSnapshots(setID, snaps))
+
+	_ = mylog.Check2(x.wait(changeID))
 	if err == noWait {
 		return nil
-	}
-	if err != nil {
-		return err
 	}
 
 	if len(snaps) > 0 {
@@ -251,22 +236,15 @@ type checkSnapshotCmd struct {
 }
 
 func (x *checkSnapshotCmd) Execute([]string) error {
-	setID, err := x.Positional.ID.ToUint()
-	if err != nil {
-		return err
-	}
+	setID := mylog.Check2(x.Positional.ID.ToUint())
+
 	snaps := installedSnapNames(x.Positional.Snaps)
 	users := strutil.CommaSeparatedList(x.Users)
-	changeID, err := x.client.CheckSnapshots(setID, snaps, users)
-	if err != nil {
-		return err
-	}
-	_, err = x.wait(changeID)
+	changeID := mylog.Check2(x.client.CheckSnapshots(setID, snaps, users))
+
+	_ = mylog.Check2(x.wait(changeID))
 	if err == noWait {
 		return nil
-	}
-	if err != nil {
-		return err
 	}
 
 	// TODO: also mention the home archives that were actually checked
@@ -290,22 +268,15 @@ type restoreCmd struct {
 }
 
 func (x *restoreCmd) Execute([]string) error {
-	setID, err := x.Positional.ID.ToUint()
-	if err != nil {
-		return err
-	}
+	setID := mylog.Check2(x.Positional.ID.ToUint())
+
 	snaps := installedSnapNames(x.Positional.Snaps)
 	users := strutil.CommaSeparatedList(x.Users)
-	changeID, err := x.client.RestoreSnapshots(setID, snaps, users)
-	if err != nil {
-		return err
-	}
-	_, err = x.wait(changeID)
+	changeID := mylog.Check2(x.client.RestoreSnapshots(setID, snaps, users))
+
+	_ = mylog.Check2(x.wait(changeID))
 	if err == noWait {
 		return nil
-	}
-	if err != nil {
-		return err
 	}
 
 	// TODO: also mention the home archives that were actually restored
@@ -441,44 +412,27 @@ type exportSnapshotCmd struct {
 }
 
 func (x *exportSnapshotCmd) Execute([]string) (err error) {
-	setID, err := x.Positional.ID.ToUint()
-	if err != nil {
-		return err
-	}
+	setID := mylog.Check2(x.Positional.ID.ToUint())
 
-	r, expectedSize, err := x.client.SnapshotExport(setID)
-	if err != nil {
-		return err
-	}
+	r, expectedSize := mylog.Check3(x.client.SnapshotExport(setID))
 
 	filename := x.Positional.Filename
-	f, err := os.Create(filename + ".part")
-	if err != nil {
-		return err
-	}
+	f := mylog.Check2(os.Create(filename + ".part"))
+
 	defer f.Close()
 	defer func() {
-		if err != nil {
-			os.Remove(filename + ".part")
-		}
 	}()
+	mylog.Check(
 
-	// Pre-allocate the disk space for the snapshot, if the file system supports this.
-	if err := maybeReserveDiskSpace(f, expectedSize); err != nil {
-		return fmt.Errorf(i18n.G("cannot reserve disk space for snapshot: %v"), err)
-	}
+		// Pre-allocate the disk space for the snapshot, if the file system supports this.
+		maybeReserveDiskSpace(f, expectedSize))
 
-	n, err := io.Copy(f, r)
-	if err != nil {
-		return err
-	}
+	n := mylog.Check2(io.Copy(f, r))
+
 	if n != expectedSize {
 		return fmt.Errorf(i18n.G("unexpected size, got: %v but wanted %v"), n, expectedSize)
 	}
-
-	if err := os.Rename(filename+".part", filename); err != nil {
-		return err
-	}
+	mylog.Check(os.Rename(filename+".part", filename))
 
 	// TRANSLATORS: the first argument is the identifier of the snapshot, the second one is the file name.
 	fmt.Fprintf(Stdout, i18n.G("Exported snapshot #%s into %q\n"), x.Positional.ID, x.Positional.Filename)
@@ -495,20 +449,12 @@ type importSnapshotCmd struct {
 
 func (x *importSnapshotCmd) Execute([]string) error {
 	filename := x.Positional.Filename
-	f, err := os.Open(filename)
-	if err != nil {
-		return fmt.Errorf("error accessing file: %v", err)
-	}
-	defer f.Close()
-	st, err := f.Stat()
-	if err != nil {
-		return fmt.Errorf("cannot stat file: %v", err)
-	}
+	f := mylog.Check2(os.Open(filename))
 
-	importSet, err := x.client.SnapshotImport(f, st.Size())
-	if err != nil {
-		return err
-	}
+	defer f.Close()
+	st := mylog.Check2(f.Stat())
+
+	importSet := mylog.Check2(x.client.SnapshotImport(f, st.Size()))
 
 	fmt.Fprintf(Stdout, i18n.G("Imported snapshot as #%d\n"), importSet.ID)
 	// Now display the details about this snapshot, re-use the

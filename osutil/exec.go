@@ -31,6 +31,7 @@ import (
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -46,10 +47,8 @@ var cmdWaitTimeout = 5 * time.Second
 // If the command hasn't had Setpgid set in its SysProcAttr, you'll probably end
 // up killing yourself.
 func KillProcessGroup(cmd *exec.Cmd) error {
-	pgid, err := syscallGetpgid(cmd.Process.Pid)
-	if err != nil {
-		return err
-	}
+	pgid := mylog.Check2(syscallGetpgid(cmd.Process.Pid))
+
 	if pgid == 1 {
 		return fmt.Errorf("cannot kill pgid 1")
 	}
@@ -81,11 +80,10 @@ func RunAndWait(argv []string, env []string, timeout time.Duration, tomb *tomb.T
 	buffer := strutil.NewLimitedBuffer(100, 10*1024)
 	command.Stdout = buffer
 	command.Stderr = buffer
+	mylog.Check(
 
-	// Actually run the command.
-	if err := command.Start(); err != nil {
-		return nil, err
-	}
+		// Actually run the command.
+		command.Start())
 
 	// add timeout handling
 	killTimerCh := time.After(timeout)
@@ -110,13 +108,13 @@ func RunAndWait(argv []string, env []string, timeout time.Duration, tomb *tomb.T
 		// Max timeout reached, process will get killed below
 		abortOrTimeoutError = fmt.Errorf("exceeded maximum runtime of %s", timeout)
 	}
+	mylog.Check(
 
-	// select above exited which means that aborted or killTimeout
-	// was reached. Kill the command and wait for command.Wait()
-	// to clean it up (but limit the wait with the cmdWaitTimer)
-	if err := KillProcessGroup(command); err != nil {
-		return nil, fmt.Errorf("cannot abort: %s", err)
-	}
+		// select above exited which means that aborted or killTimeout
+		// was reached. Kill the command and wait for command.Wait()
+		// to clean it up (but limit the wait with the cmdWaitTimer)
+		KillProcessGroup(command))
+
 	select {
 	case <-time.After(cmdWaitTimeout):
 		// cmdWaitTimeout was reached, i.e. command.Wait() did not
@@ -163,15 +161,10 @@ func (r *waitingReader) Read(b []byte) (int, error) {
 // ReadCloser is closed), or until the ReadCloser is explicitly closed.
 func StreamCommand(name string, args ...string) (io.ReadCloser, error) {
 	cmd := exec.Command(name, args...)
-	pipe, err := cmd.StdoutPipe()
-	if err != nil {
-		return nil, err
-	}
-	cmd.Stderr = os.Stderr
+	pipe := mylog.Check2(cmd.StdoutPipe())
 
-	if err := cmd.Start(); err != nil {
-		return nil, err
-	}
+	cmd.Stderr = os.Stderr
+	mylog.Check(cmd.Start())
 
 	return &waitingReader{reader: pipe, cmd: cmd}, nil
 }
@@ -188,7 +181,7 @@ func RunCmd(c *exec.Cmd) ([]byte, []byte, error) {
 	var stdout, stderr bytes.Buffer
 	c.Stdout = &stdout
 	c.Stderr = &stderr
-	err := c.Run()
+	mylog.Check(c.Run())
 	return stdout.Bytes(), stderr.Bytes(), err
 }
 

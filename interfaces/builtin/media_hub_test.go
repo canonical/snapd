@@ -22,6 +22,7 @@ package builtin_test
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -45,7 +46,7 @@ var _ = Suite(&MediaHubInterfaceSuite{
 })
 
 func (s *MediaHubInterfaceSuite) SetUpTest(c *C) {
-	var mockPlugSnapInfoYaml = `name: other
+	mockPlugSnapInfoYaml := `name: other
 version: 1.0
 apps:
  app:
@@ -81,8 +82,10 @@ func (s *MediaHubInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(c *C) 
 	slot := interfaces.NewConnectedSlot(&snap.SlotInfo{
 		Snap: &snap.Info{
 			SuggestedName: "media-hub",
-			Apps: map[string]*snap.AppInfo{"app1": app1,
-				"app2": app2},
+			Apps: map[string]*snap.AppInfo{
+				"app1": app1,
+				"app2": app2,
+			},
 		},
 		Name:      "media-hub",
 		Interface: "media-hub",
@@ -91,11 +94,11 @@ func (s *MediaHubInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(c *C) 
 
 	release.OnClassic = false
 
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	apparmorSpec := apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
-	c.Assert(err, IsNil)
+	mylog.Check(apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot))
+
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains,
 		`peer=(label="snap.media-hub.*"),`)
@@ -109,9 +112,11 @@ func (s *MediaHubInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome(c *C)
 	slot := interfaces.NewConnectedSlot(&snap.SlotInfo{
 		Snap: &snap.Info{
 			SuggestedName: "media-hub",
-			Apps: map[string]*snap.AppInfo{"app1": app1,
+			Apps: map[string]*snap.AppInfo{
+				"app1": app1,
 				"app2": app2,
-				"app3": app3},
+				"app3": app3,
+			},
 		},
 		Name:      "media-hub",
 		Interface: "media-hub",
@@ -120,11 +125,11 @@ func (s *MediaHubInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome(c *C)
 
 	release.OnClassic = false
 
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	apparmorSpec := apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
-	c.Assert(err, IsNil)
+	mylog.Check(apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot))
+
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains,
 		`peer=(label="snap.media-hub.{app1,app2}"),`)
@@ -145,22 +150,22 @@ func (s *MediaHubInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c *C) 
 
 	release.OnClassic = false
 
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	apparmorSpec := apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
-	c.Assert(err, IsNil)
+	mylog.Check(apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot))
+
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains,
 		`peer=(label="snap.media-hub.app"),`)
 }
 
 func (s *MediaHubInterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	apparmorSpec := apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
-	c.Assert(err, IsNil)
+	mylog.Check(apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot))
+
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), Not(IsNil))
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains,
@@ -170,11 +175,11 @@ func (s *MediaHubInterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
 }
 
 func (s *MediaHubInterfaceSuite) TestPermanentSlotSnippetAppArmor(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.slotInfo.Snap, nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.slotInfo.Snap, nil))
+
 	apparmorSpec := apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddPermanentSlot(s.iface, s.slotInfo)
-	c.Assert(err, IsNil)
+	mylog.Check(apparmorSpec.AddPermanentSlot(s.iface, s.slotInfo))
+
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.media-hub.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.media-hub.app"), Not(IsNil))
 	c.Assert(apparmorSpec.SnippetForTag("snap.media-hub.app"), testutil.Contains,
@@ -184,11 +189,11 @@ func (s *MediaHubInterfaceSuite) TestPermanentSlotSnippetAppArmor(c *C) {
 }
 
 func (s *MediaHubInterfaceSuite) TestConnectedSlotSnippetAppArmor(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.slot.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.slot.Snap(), nil))
+
 	apparmorSpec := apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddConnectedSlot(s.iface, s.plug, s.slot)
-	c.Assert(err, IsNil)
+	mylog.Check(apparmorSpec.AddConnectedSlot(s.iface, s.plug, s.slot))
+
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.media-hub.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.media-hub.app"), Not(IsNil))
 	c.Assert(apparmorSpec.SnippetForTag("snap.media-hub.app"), Not(testutil.Contains),
@@ -196,8 +201,8 @@ func (s *MediaHubInterfaceSuite) TestConnectedSlotSnippetAppArmor(c *C) {
 }
 
 func (s *MediaHubInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.slotInfo.Snap, nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.slotInfo.Snap, nil))
+
 	spec := seccomp.NewSpecification(appSet)
 	c.Assert(spec.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
 	c.Assert(spec.SnippetForTag("snap.media-hub.app"), testutil.Contains, "bind\n")

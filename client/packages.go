@@ -28,6 +28,7 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -178,10 +179,7 @@ func (client *Client) List(names []string, opts *ListOptions) ([]*Snap, error) {
 		q.Add("snaps", strings.Join(names, ","))
 	}
 
-	snaps, _, err := client.snapsFromPath("/v2/snaps", q)
-	if err != nil {
-		return nil, err
-	}
+	snaps, _ := mylog.Check3(client.snapsFromPath("/v2/snaps", q))
 
 	if len(snaps) == 0 {
 		return nil, ErrNoSnapsInstalled
@@ -194,21 +192,16 @@ func (client *Client) List(names []string, opts *ListOptions) ([]*Snap, error) {
 // This is deprecated, use Categories() instead.
 func (client *Client) Sections() ([]string, error) {
 	var sections []string
-	_, err := client.doSync("GET", "/v2/sections", nil, nil, nil, &sections)
-	if err != nil {
-		fmt := "cannot get snap sections: %w"
-		return nil, xerrors.Errorf(fmt, err)
-	}
+	_ := mylog.Check2(client.doSync("GET", "/v2/sections", nil, nil, nil, &sections))
+
 	return sections, nil
 }
 
 // Categories returns the list of existing snap categories in the store
 func (client *Client) Categories() ([]*Category, error) {
 	var categories []*Category
-	_, err := client.doSync("GET", "/v2/categories", nil, nil, nil, &categories)
-	if err != nil {
-		return nil, fmt.Errorf("cannot get snap categories: %w", err)
-	}
+	_ := mylog.Check2(client.doSync("GET", "/v2/categories", nil, nil, nil, &categories))
+
 	return categories, nil
 }
 
@@ -256,11 +249,7 @@ func (client *Client) FindOne(name string) (*Snap, *ResultInfo, error) {
 	q := url.Values{}
 	q.Set("name", name)
 
-	snaps, ri, err := client.snapsFromPath("/v2/find", q)
-	if err != nil {
-		fmt := "cannot find snap %q: %w"
-		return nil, nil, xerrors.Errorf(fmt, name, err)
-	}
+	snaps, ri := mylog.Check3(client.snapsFromPath("/v2/find", q))
 
 	if len(snaps) == 0 {
 		return nil, nil, fmt.Errorf("cannot find snap %q", name)
@@ -271,14 +260,11 @@ func (client *Client) FindOne(name string) (*Snap, *ResultInfo, error) {
 
 func (client *Client) snapsFromPath(path string, query url.Values) ([]*Snap, *ResultInfo, error) {
 	var snaps []*Snap
-	ri, err := client.doSync("GET", path, query, nil, nil, &snaps)
+	ri := mylog.Check2(client.doSync("GET", path, query, nil, nil, &snaps))
 	if e, ok := err.(*Error); ok {
 		return nil, nil, e
 	}
-	if err != nil {
-		fmt := "cannot list snaps: %w"
-		return nil, nil, xerrors.Errorf(fmt, err)
-	}
+
 	return snaps, ri, nil
 }
 
@@ -287,10 +273,7 @@ func (client *Client) snapsFromPath(path string, query url.Values) ([]*Snap, *Re
 func (client *Client) Snap(name string) (*Snap, *ResultInfo, error) {
 	var snap *Snap
 	path := fmt.Sprintf("/v2/snaps/%s", name)
-	ri, err := client.doSync("GET", path, nil, nil, nil, &snap)
-	if err != nil {
-		fmt := "cannot retrieve snap %q: %w"
-		return nil, nil, xerrors.Errorf(fmt, name, err)
-	}
+	ri := mylog.Check2(client.doSync("GET", path, nil, nil, nil, &snap))
+
 	return snap, ri, nil
 }

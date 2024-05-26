@@ -20,6 +20,7 @@
 package assertstate
 
 import (
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -39,10 +40,9 @@ func userFromUserID(st *state.State, userID int) (*auth.UserState, error) {
 // the store to filter unsupported formats!
 func handleUnsupported(db asserts.RODatabase) func(ref *asserts.Ref, unsupportedErr error) error {
 	return func(ref *asserts.Ref, unsupportedErr error) error {
-		if _, err := ref.Resolve(db.Find); err != nil {
-			// nothing there yet or any other error
-			return unsupportedErr
-		}
+		mylog.Check2(ref.Resolve(db.Find))
+		// nothing there yet or any other error
+
 		// we keep the old one, but log the issue
 		logger.Noticef("Cannot update assertion %v: %v", ref, unsupportedErr)
 		return nil
@@ -62,10 +62,7 @@ func doFetch(s *state.State, userID int, deviceCtx snapstate.DeviceContext, batc
 		commitBatch = true
 	}
 
-	user, err := userFromUserID(s, userID)
-	if err != nil {
-		return err
-	}
+	user := mylog.Check2(userFromUserID(s, userID))
 
 	sto := snapstate.Store(s, deviceCtx)
 
@@ -75,11 +72,8 @@ func doFetch(s *state.State, userID int, deviceCtx snapstate.DeviceContext, batc
 	}
 
 	s.Unlock()
-	err = batch.Fetch(db, retrieve, fetching)
+	mylog.Check(batch.Fetch(db, retrieve, fetching))
 	s.Lock()
-	if err != nil {
-		return err
-	}
 
 	// TODO: trigger w. caller a global validity check if a is revoked
 	// (but try to save as much possible still), or err is a check error

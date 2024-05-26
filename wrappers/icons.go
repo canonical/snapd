@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
@@ -36,22 +37,17 @@ func findIconFiles(snapName string, rootDir string) (icons []string, err error) 
 	}
 	iconGlob := fmt.Sprintf("snap.%s.*", snapName)
 	forbiddenDirGlob := "snap.*"
-	err = filepath.Walk(rootDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		rel, err := filepath.Rel(rootDir, path)
-		if err != nil {
-			return err
-		}
+	mylog.Check(filepath.Walk(rootDir, func(path string, info os.FileInfo, err error) error {
+		rel := mylog.Check2(filepath.Rel(rootDir, path))
+
 		base := filepath.Base(path)
 		if info.IsDir() {
 			// Ignore directories that could match an icon glob
-			if ok, err := filepath.Match(forbiddenDirGlob, base); ok || err != nil {
+			if ok := mylog.Check2(filepath.Match(forbiddenDirGlob, base)); ok || err != nil {
 				return filepath.SkipDir
 			}
 		} else {
-			if ok, err := filepath.Match(iconGlob, base); err != nil {
+			if ok := mylog.Check2(filepath.Match(iconGlob, base)); err != nil {
 				return err
 			} else if ok {
 				ext := filepath.Ext(base)
@@ -61,7 +57,7 @@ func findIconFiles(snapName string, rootDir string) (icons []string, err error) 
 			}
 		}
 		return nil
-	})
+	}))
 	return icons, err
 }
 
@@ -99,22 +95,15 @@ func EnsureSnapIcons(s *snap.Info) error {
 	if s == nil {
 		return fmt.Errorf("internal error: snap info cannot be nil")
 	}
-	if err := os.MkdirAll(dirs.SnapDesktopIconsDir, 0755); err != nil {
-		return err
-	}
+	mylog.Check(os.MkdirAll(dirs.SnapDesktopIconsDir, 0755))
 
 	rootDir := filepath.Join(s.MountDir(), "meta", "gui", "icons")
-	icons, err := findIconFiles(s.SnapName(), rootDir)
-	if err != nil {
-		return err
-	}
+	icons := mylog.Check2(findIconFiles(s.SnapName(), rootDir))
 
-	content, err := deriveIconContent(s.InstanceName(), rootDir, icons)
-	if err != nil {
-		return err
-	}
+	content := mylog.Check2(deriveIconContent(s.InstanceName(), rootDir, icons))
+
 	iconGlob := fmt.Sprintf("snap.%s.*", s.InstanceName())
-	_, _, err = osutil.EnsureTreeState(dirs.SnapDesktopIconsDir, []string{iconGlob}, content)
+	_, _ = mylog.Check3(osutil.EnsureTreeState(dirs.SnapDesktopIconsDir, []string{iconGlob}, content))
 	return err
 }
 
@@ -124,6 +113,6 @@ func RemoveSnapIcons(s *snap.Info) error {
 		return nil
 	}
 	iconGlob := fmt.Sprintf("snap.%s.*", s.InstanceName())
-	_, _, err := osutil.EnsureTreeState(dirs.SnapDesktopIconsDir, []string{iconGlob}, nil)
+	_, _ := mylog.Check3(osutil.EnsureTreeState(dirs.SnapDesktopIconsDir, []string{iconGlob}, nil))
 	return err
 }

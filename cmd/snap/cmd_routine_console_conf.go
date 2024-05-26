@@ -26,6 +26,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
@@ -36,8 +37,9 @@ type cmdRoutineConsoleConfStart struct {
 	clientMixin
 }
 
-var shortRoutineConsoleConfStartHelp = i18n.G("Start console-conf snapd routine")
-var longRoutineConsoleConfStartHelp = i18n.G(`
+var (
+	shortRoutineConsoleConfStartHelp = i18n.G("Start console-conf snapd routine")
+	longRoutineConsoleConfStartHelp  = i18n.G(`
 The console-conf-start command starts synchronization with console-conf
 
 This command is used by console-conf when it starts up. It delays refreshes if
@@ -45,11 +47,14 @@ there are none currently ongoing, and exits with a specific error code if there
 are ongoing refreshes which console-conf should wait for before prompting the 
 user to begin configuring the device.
 `)
+)
 
 // TODO: move these to their own package for unified time constants for how
 // often or long we do things like waiting for a reboot, etc. ?
-var snapdAPIInterval = 2 * time.Second
-var snapdWaitForFullSystemReboot = 10 * time.Minute
+var (
+	snapdAPIInterval             = 2 * time.Second
+	snapdWaitForFullSystemReboot = 10 * time.Minute
+)
 
 func init() {
 	c := addRoutineCommand("console-conf-start", shortRoutineConsoleConfStartHelp, longRoutineConsoleConfStartHelp, func() flags.Commander {
@@ -68,45 +73,30 @@ func (x *cmdRoutineConsoleConfStart) Execute(args []string) error {
 	var snapdReloadMsgOnce, systemReloadMsgOnce, snapRefreshMsgOnce sync.Once
 
 	for {
-		chgs, snaps, err := x.client.InternalConsoleConfStart()
-		if err != nil {
-			// snapd may be under maintenance right now, either for base/kernel
-			// snap refreshes which result in a reboot, or for snapd itself
-			// which just results in a restart of the daemon
-			maybeMaintErr := x.client.Maintenance()
-			if maybeMaintErr == nil {
-				// not a maintenance error, give up
-				return err
-			}
+		chgs, snaps := mylog.Check3(x.client.InternalConsoleConfStart())
 
-			maintErr, ok := maybeMaintErr.(*client.Error)
-			if !ok {
-				// if cli.Maintenance() didn't return a client.Error we have very weird
-				// problems
-				return fmt.Errorf("internal error: client.Maintenance() didn't return a client.Error")
-			}
+		// snapd may be under maintenance right now, either for base/kernel
+		// snap refreshes which result in a reboot, or for snapd itself
+		// which just results in a restart of the daemon
 
-			if maintErr.Kind == client.ErrorKindDaemonRestart {
-				// then we need to wait for snapd to restart, so keep trying
-				// the console-conf-start endpoint until it works
-				snapdReloadMsgOnce.Do(printfFunc("Snapd is reloading, please wait...\n"))
+		// not a maintenance error, give up
 
-				// we know that snapd isn't available because it is in
-				// maintenance so we don't gain anything by hitting it
-				// more frequently except for perhaps a quicker latency
-				// for the user when it comes back, but it will be busy
-				// doing things when it starts up anyways so it won't be
-				// able to respond immediately
-				time.Sleep(snapdAPIInterval)
-				continue
-			} else if maintErr.Kind == client.ErrorKindSystemRestart {
-				// system is rebooting, just wait for the reboot
-				systemReloadMsgOnce.Do(printfFunc("System is rebooting, please wait for reboot...\n"))
-				time.Sleep(snapdWaitForFullSystemReboot)
-				// if we didn't reboot after 10 minutes something's probably broken
-				return fmt.Errorf("system didn't reboot after 10 minutes even though snapd daemon is in maintenance")
-			}
-		}
+		// if cli.Maintenance() didn't return a client.Error we have very weird
+		// problems
+
+		// then we need to wait for snapd to restart, so keep trying
+		// the console-conf-start endpoint until it works
+
+		// we know that snapd isn't available because it is in
+		// maintenance so we don't gain anything by hitting it
+		// more frequently except for perhaps a quicker latency
+		// for the user when it comes back, but it will be busy
+		// doing things when it starts up anyways so it won't be
+		// able to respond immediately
+
+		// system is rebooting, just wait for the reboot
+
+		// if we didn't reboot after 10 minutes something's probably broken
 
 		if len(chgs) == 0 {
 			return nil

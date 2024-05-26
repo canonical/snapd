@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -67,8 +68,8 @@ apps:
 `
 
 	snapPath := makeTestSnap(c, yaml)
-	info, snapf, err := backend.OpenSnapFile(snapPath, nil)
-	c.Assert(err, IsNil)
+	info, snapf := mylog.Check3(backend.OpenSnapFile(snapPath, nil))
+
 
 	c.Assert(snapf, FitsTypeOf, &squashfs.Snap{})
 	c.Check(info.InstanceName(), Equals, "hello")
@@ -88,8 +89,8 @@ slots:
 
 	snapPath := makeTestSnap(c, yaml)
 	si := snap.SideInfo{RealName: "blessed", Revision: snap.R(42)}
-	info, _, err := backend.OpenSnapFile(snapPath, &si)
-	c.Assert(err, IsNil)
+	info, _ := mylog.Check3(backend.OpenSnapFile(snapPath, &si))
+
 
 	// check side info
 	c.Check(info.InstanceName(), Equals, "blessed")
@@ -103,7 +104,6 @@ slots:
 	c.Check(info.Apps["bar"].Snap, Equals, info)
 	c.Check(info.Plugs["plug"].Snap, Equals, info)
 	c.Check(info.Slots["slot"].Snap, Equals, info)
-
 }
 
 func (s *backendSuite) TestOpenComponentFile(c *C) {
@@ -113,8 +113,8 @@ version: 33
 `
 
 	compPath := snaptest.MakeTestComponent(c, componentYaml)
-	compInfo, cont, err := backend.OpenComponentFile(compPath, nil)
-	c.Assert(err, IsNil)
+	compInfo, cont := mylog.Check3(backend.OpenComponentFile(compPath, nil))
+
 
 	c.Assert(cont, FitsTypeOf, &squashfs.Snap{})
 	c.Check(compInfo.FullName(), Equals, "snap+comp")

@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -38,8 +39,8 @@ func (ts *CmpTestSuite) TestCmp(c *C) {
 	tmpdir := c.MkDir()
 
 	foo := filepath.Join(tmpdir, "foo")
-	f, err := os.Create(foo)
-	c.Assert(err, IsNil)
+	f := mylog.Check2(os.Create(foo))
+
 	defer f.Close()
 
 	// test FilesAreEqual for various sizes:
@@ -51,8 +52,8 @@ func (ts *CmpTestSuite) TestCmp(c *C) {
 		for i := 0; i < n; i++ {
 			// Pick a smaller buffer size so that the test can complete quicker
 			c.Assert(osutil.FilesAreEqualChunked(foo, foo, 128), Equals, true)
-			_, err := f.WriteString(canary)
-			c.Assert(err, IsNil)
+			_ := mylog.Check2(f.WriteString(canary))
+
 			f.Sync()
 		}
 	}
@@ -63,8 +64,8 @@ func (ts *CmpTestSuite) TestCmpEmptyNeqMissing(c *C) {
 
 	foo := filepath.Join(tmpdir, "foo")
 	bar := filepath.Join(tmpdir, "bar")
-	f, err := os.Create(foo)
-	c.Assert(err, IsNil)
+	f := mylog.Check2(os.Create(foo))
+
 	defer f.Close()
 	c.Assert(osutil.FilesAreEqual(foo, bar), Equals, false)
 	c.Assert(osutil.FilesAreEqual(bar, foo), Equals, false)
@@ -75,8 +76,8 @@ func (ts *CmpTestSuite) TestCmpEmptyNeqNonEmpty(c *C) {
 
 	foo := filepath.Join(tmpdir, "foo")
 	bar := filepath.Join(tmpdir, "bar")
-	f, err := os.Create(foo)
-	c.Assert(err, IsNil)
+	f := mylog.Check2(os.Create(foo))
+
 	defer f.Close()
 	c.Assert(os.WriteFile(bar, []byte("x"), 0644), IsNil)
 	c.Assert(osutil.FilesAreEqual(foo, bar), Equals, false)

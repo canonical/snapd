@@ -28,6 +28,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"gopkg.in/check.v1"
 )
 
@@ -60,7 +61,7 @@ func countCommandDeclsIn(c *check.C, filename string, comment check.CommentInter
 	// function or secondary slice or ... but as it stands I can't
 	// think of a way for it to give false negatives.
 	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, filename, nil, 0)
+	f := mylog.Check2(parser.ParseFile(fset, filename, nil, 0))
 	c.Assert(err, check.IsNil, comment)
 
 	found := 0

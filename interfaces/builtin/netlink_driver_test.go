@@ -22,6 +22,7 @@ package builtin_test
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -251,8 +252,8 @@ func (s *NetlinkDriverInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *NetlinkDriverInterfaceSuite) TestApparmorConnectedPlug(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.appToCorePlugDriver.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.appToCorePlugDriver.Snap(), nil))
+
 	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.appToCorePlugDriver, s.gadgetNetlinkSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.client-snap.netlink-test"})
@@ -260,15 +261,15 @@ func (s *NetlinkDriverInterfaceSuite) TestApparmorConnectedPlug(c *C) {
 }
 
 func (s *NetlinkDriverInterfaceSuite) TestSecCompConnectedPlug(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.appToCorePlugDriver.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.appToCorePlugDriver.Snap(), nil))
+
 	spec := seccomp.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.appToCorePlugDriver, s.osNetlinkSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.client-snap.netlink-test"})
 	c.Assert(spec.SnippetForTag("snap.client-snap.netlink-test"), testutil.Contains, `socket AF_NETLINK - 777`)
 
-	appSet, err = interfaces.NewSnapAppSet(s.appToGadgetPlugDriver.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.appToGadgetPlugDriver.Snap(), nil))
+
 	spec2 := seccomp.NewSpecification(appSet)
 	c.Assert(spec2.AddConnectedPlug(s.iface, s.appToGadgetPlugDriver, s.gadgetNetlinkSlot), IsNil)
 	c.Assert(spec2.SecurityTags(), DeepEquals, []string{"snap.client-snap.netlink-test"})

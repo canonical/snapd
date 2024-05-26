@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/utils"
@@ -68,7 +69,7 @@ func matchMountPathAttribute(path string, attribute interface{}, snapInfo *snap.
 	expandedPattern := snapInfo.ExpandSnapVariables(pattern)
 
 	const allowCommas = true
-	pp, err := utils.NewPathPattern(expandedPattern, allowCommas)
+	pp := mylog.Check2(utils.NewPathPattern(expandedPattern, allowCommas))
 	return err == nil && pp.Matches(path)
 }
 
@@ -138,15 +139,9 @@ func (m *mountCommand) checkConnections(context *hookstate.Context) error {
 	st.Lock()
 	defer st.Unlock()
 
-	conns, err := ifacestate.ConnectionStates(st)
-	if err != nil {
-		return fmt.Errorf("internal error: cannot get connections: %s", err)
-	}
+	conns := mylog.Check2(ifacestate.ConnectionStates(st))
 
-	m.snapInfo, err = snapstate.CurrentInfo(st, snapName)
-	if err != nil {
-		return fmt.Errorf("internal error: cannot get snap info: %s", err)
-	}
+	m.snapInfo = mylog.Check2(snapstate.CurrentInfo(st, snapName))
 
 	for connId, connState := range conns {
 		if connState.Interface != "mount-control" {
@@ -157,10 +152,7 @@ func (m *mountCommand) checkConnections(context *hookstate.Context) error {
 			continue
 		}
 
-		connRef, err := interfaces.ParseConnRef(connId)
-		if err != nil {
-			return err
-		}
+		connRef := mylog.Check2(interfaces.ParseConnRef(connId))
 
 		if connRef.PlugRef.Snap != snapName {
 			continue
@@ -187,7 +179,7 @@ func (m *mountCommand) ensureMount(sysd systemd.Systemd) (string, error) {
 	if m.Persistent {
 		lifetime = systemd.Persistent
 	}
-	unitName, err := sysd.EnsureMountUnitFileWithOptions(&systemd.MountUnitOptions{
+	unitName := mylog.Check2(sysd.EnsureMountUnitFileWithOptions(&systemd.MountUnitOptions{
 		Lifetime:    lifetime,
 		Description: fmt.Sprintf("Mount unit for %s, revision %s via mount-control", snapName, revision),
 		What:        m.Positional.What,
@@ -195,18 +187,13 @@ func (m *mountCommand) ensureMount(sysd systemd.Systemd) (string, error) {
 		Fstype:      m.Type,
 		Options:     m.optionsList,
 		Origin:      "mount-control",
-	})
-	if err != nil {
-		_ = sysd.RemoveMountUnitFile(m.Positional.Where)
-	}
+	}))
+
 	return unitName, err
 }
 
 func (m *mountCommand) Execute([]string) error {
-	context, err := m.ensureContext()
-	if err != nil {
-		return err
-	}
+	context := mylog.Check2(m.ensureContext())
 
 	// Parse the mount options into an array
 	for _, option := range strings.Split(m.Options, ",") {
@@ -214,17 +201,10 @@ func (m *mountCommand) Execute([]string) error {
 			m.optionsList = append(m.optionsList, option)
 		}
 	}
-
-	if err := m.checkConnections(context); err != nil {
-		snapName := context.InstanceName()
-		return fmt.Errorf("snap %q lacks permissions to create the requested mount: %v", snapName, err)
-	}
+	mylog.Check(m.checkConnections(context))
 
 	sysd := systemd.New(systemd.SystemMode, nil)
-	_, err = m.ensureMount(sysd)
-	if err != nil {
-		return fmt.Errorf("cannot ensure mount unit: %v", err)
-	}
+	_ = mylog.Check2(m.ensureMount(sysd))
 
 	return nil
 }

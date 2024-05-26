@@ -22,6 +22,7 @@ package builtin_test
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -76,9 +77,8 @@ func (s *SteamSupportInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *SteamSupportInterfaceSuite) TestAppArmorSpec(c *C) {
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
 
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
 	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
@@ -86,8 +86,8 @@ func (s *SteamSupportInterfaceSuite) TestAppArmorSpec(c *C) {
 }
 
 func (s *SteamSupportInterfaceSuite) TestSecCompSpec(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	spec := seccomp.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "# Allow Steam to set up \"pressure-vessel\" containers to run games in.\nmount\numount2\npivot_root\n")
@@ -98,8 +98,8 @@ func (s *SteamSupportInterfaceSuite) TestInterfaces(c *C) {
 }
 
 func (s *SteamSupportInterfaceSuite) TestUDevSpec(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	spec := udev.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 2)

@@ -33,6 +33,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -56,17 +57,13 @@ var (
 )
 
 func FileHasSquashfsHeader(path string) bool {
-	f, err := os.Open(path)
-	if err != nil {
-		return false
-	}
+	f := mylog.Check2(os.Open(path))
+
 	defer f.Close()
 
 	// a squashfs file would contain at least the superblock + some data
 	header := make([]byte, superblockSize+1)
-	if _, err := f.ReadAt(header, 0); err != nil {
-		return false
-	}
+	mylog.Check2(f.ReadAt(header, 0))
 
 	return bytes.HasPrefix(header, magic)
 }
@@ -86,17 +83,16 @@ func New(snapPath string) *Snap {
 	return &Snap{path: snapPath}
 }
 
-var osLink = os.Link
-var snapdtoolCommandFromSystemSnap = snapdtool.CommandFromSystemSnap
+var (
+	osLink                         = os.Link
+	snapdtoolCommandFromSystemSnap = snapdtool.CommandFromSystemSnap
+)
 
 // Install installs a squashfs snap file through an appropriate method.
 func (s *Snap) Install(targetPath, mountDir string, opts *snap.InstallOptions) (bool, error) {
-
 	// ensure mount-point and blob target dir.
 	for _, dir := range []string{mountDir, filepath.Dir(targetPath)} {
-		if err := os.MkdirAll(dir, 0755); err != nil {
-			return false, err
-		}
+		mylog.Check(os.MkdirAll(dir, 0755))
 	}
 
 	// This is required so that the tests can simulate a mounted
@@ -104,9 +100,7 @@ func (s *Snap) Install(targetPath, mountDir string, opts *snap.InstallOptions) (
 	// We can not mount it for real in the tests, so we just unpack
 	// it to the location which is good enough for the tests.
 	if osutil.GetenvBool("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS") {
-		if err := s.Unpack("*", mountDir); err != nil {
-			return false, err
-		}
+		mylog.Check(s.Unpack("*", mountDir))
 	}
 
 	// nothing to do, happens on e.g. first-boot when we already
@@ -116,10 +110,8 @@ func (s *Snap) Install(targetPath, mountDir string, opts *snap.InstallOptions) (
 		return didNothing, nil
 	}
 
-	overlayRoot, err := isRootWritableOverlay()
-	if err != nil {
-		logger.Noticef("cannot detect root filesystem on overlay: %v", err)
-	}
+	overlayRoot := mylog.Check2(isRootWritableOverlay())
+
 	// Hard-linking on overlayfs is identical to a full blown
 	// copy.  When we are operating on a overlayfs based system (e.g. live
 	// installer) use symbolic links.
@@ -131,7 +123,7 @@ func (s *Snap) Install(targetPath, mountDir string, opts *snap.InstallOptions) (
 		// link(2) returns EPERM on filesystems that don't support
 		// hard links (like vfat), so checking the error here doesn't
 		// make sense vs just trying to copy it.
-		if err := osLink(s.path, targetPath); err == nil {
+		if mylog.Check(osLink(s.path, targetPath)); err == nil {
 			return false, nil
 		}
 	}
@@ -204,9 +196,8 @@ func (s *Snap) Unpack(src, dstDir string) error {
 	var output bytes.Buffer
 	cmd := exec.Command("unsquashfs", "-n", "-f", "-d", dstDir, s.path, src)
 	cmd.Stderr = io.MultiWriter(&output, usw)
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("cannot extract %q to %q: %v", src, dstDir, osutil.OutputErr(output.Bytes(), err))
-	}
+	mylog.Check(cmd.Run())
+
 	// older versions of unsquashfs do not report errors via exit code,
 	// so we need this extra check.
 	if usw.Err() != nil {
@@ -218,23 +209,18 @@ func (s *Snap) Unpack(src, dstDir string) error {
 
 // Size returns the size of a squashfs snap.
 func (s *Snap) Size() (size int64, err error) {
-	st, err := os.Stat(s.path)
-	if err != nil {
-		return 0, err
-	}
+	st := mylog.Check2(os.Stat(s.path))
 
 	return st.Size(), nil
 }
 
 func (s *Snap) withUnpackedFile(filePath string, f func(p string) error) error {
-	tmpdir, err := os.MkdirTemp("", "read-file")
-	if err != nil {
-		return err
-	}
+	tmpdir := mylog.Check2(os.MkdirTemp("", "read-file"))
+
 	defer os.RemoveAll(tmpdir)
 
 	unpackDir := filepath.Join(tmpdir, "unpack")
-	if output, err := exec.Command("unsquashfs", "-n", "-i", "-d", unpackDir, s.path, filePath).CombinedOutput(); err != nil {
+	if output := mylog.Check2(exec.Command("unsquashfs", "-n", "-i", "-d", unpackDir, s.path, filePath).CombinedOutput()); err != nil {
 		return fmt.Errorf("cannot run unsquashfs: %v", osutil.OutputErr(output, err))
 	}
 
@@ -248,27 +234,24 @@ func (s *Snap) RandomAccessFile(filePath string) (interface {
 	io.ReaderAt
 	io.Closer
 	Size() int64
-}, error) {
+}, error,
+) {
 	var f *os.File
-	err := s.withUnpackedFile(filePath, func(p string) (err error) {
-		f, err = os.Open(p)
+	mylog.Check(s.withUnpackedFile(filePath, func(p string) (err error) {
+		f = mylog.Check2(os.Open(p))
 		return
-	})
-	if err != nil {
-		return nil, err
-	}
+	}))
+
 	return internal.NewSizedFile(f)
 }
 
 // ReadFile returns the content of a single file inside a squashfs snap.
 func (s *Snap) ReadFile(filePath string) (content []byte, err error) {
-	err = s.withUnpackedFile(filePath, func(p string) (err error) {
-		content, err = os.ReadFile(p)
+	mylog.Check(s.withUnpackedFile(filePath, func(p string) (err error) {
+		content = mylog.Check2(os.ReadFile(p))
 		return
-	})
-	if err != nil {
-		return nil, err
-	}
+	}))
+
 	return content, nil
 }
 
@@ -277,28 +260,22 @@ func (s *Snap) ReadLink(filePath string) (string, error) {
 	// unsquashfs raw output where the symlink's target is available.
 	// Check -> func fromRaw(raw []byte) (*stat, error)
 	var target string
-	err := s.withUnpackedFile(filePath, func(p string) (err error) {
-		target, err = os.Readlink(p)
+	mylog.Check(s.withUnpackedFile(filePath, func(p string) (err error) {
+		target = mylog.Check2(os.Readlink(p))
 		return err
-	})
-	if err != nil {
-		return "", err
-	}
+	}))
+
 	return target, nil
 }
 
 func (s *Snap) Lstat(filePath string) (os.FileInfo, error) {
 	var fileInfo os.FileInfo
-
-	err := s.Walk(filePath, func(path string, info os.FileInfo, err error) error {
+	mylog.Check(s.Walk(filePath, func(path string, info os.FileInfo, err error) error {
 		if filePath == path {
 			fileInfo = info
 		}
 		return err
-	})
-	if err != nil {
-		return nil, err
-	}
+	}))
 
 	if fileInfo == nil {
 		return nil, os.ErrNotExist
@@ -356,13 +333,9 @@ func (s *Snap) Walk(relative string, walkFn filepath.WalkFunc) error {
 		cmd = exec.Command("unsquashfs", "-no-progress", "-dest", ".", "-ll", s.path, relative)
 	}
 	cmd.Env = []string{"TZ=UTC"}
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return walkFn(relative, nil, err)
-	}
-	if err := cmd.Start(); err != nil {
-		return walkFn(relative, nil, err)
-	}
+	stdout := mylog.Check2(cmd.StdoutPipe())
+	mylog.Check(cmd.Start())
+
 	defer cmd.Process.Kill()
 
 	scanner := bufio.NewScanner(stdout)
@@ -380,55 +353,24 @@ func (s *Snap) Walk(relative string, walkFn filepath.WalkFunc) error {
 				seenHeader = true
 			}
 		}
-		st, err := fromRaw(raw)
-		if err != nil {
-			err = walkFn(relative, nil, err)
-			if err != nil {
-				return err
-			}
-		} else {
-			path := filepath.Join(".", st.Path())
-			if skipper.Has(path) {
-				continue
-			}
-			// skip if path is not under given relative path
-			if relative != "." && !strings.HasPrefix(path, relative) {
-				continue
-			}
-			err = walkFn(path, st, nil)
-			if err != nil {
-				if err == filepath.SkipDir && st.IsDir() {
-					skipper.Add(path)
-				} else {
-					return err
-				}
-			}
-		}
-	}
+		st := mylog.Check2(fromRaw(raw))
 
-	if err := scanner.Err(); err != nil {
-		return walkFn(relative, nil, err)
-	}
+		// skip if path is not under given relative path
 
-	if err := cmd.Wait(); err != nil {
-		return walkFn(relative, nil, err)
 	}
+	mylog.Check(scanner.Err())
+	mylog.Check(cmd.Wait())
+
 	return nil
 }
 
 // ListDir returns the content of a single directory inside a squashfs snap.
 func (s *Snap) ListDir(dirPath string) ([]string, error) {
-	output, stderr, err := osutil.RunSplitOutput(
-		"unsquashfs", "-no-progress", "-dest", "_", "-l", s.path, dirPath)
-	if err != nil {
-		return nil, osutil.OutputErrCombine(output, stderr, err)
-	}
+	output, stderr := mylog.Check3(osutil.RunSplitOutput(
+		"unsquashfs", "-no-progress", "-dest", "_", "-l", s.path, dirPath))
 
 	prefixPath := path.Join("_", dirPath)
-	pattern, err := regexp.Compile("(?m)^" + regexp.QuoteMeta(prefixPath) + "/([^/\r\n]+)$")
-	if err != nil {
-		return nil, fmt.Errorf("internal error: cannot compile squashfs list dir regexp for %q: %s", dirPath, err)
-	}
+	pattern := mylog.Check2(regexp.Compile("(?m)^" + regexp.QuoteMeta(prefixPath) + "/([^/\r\n]+)$"))
 
 	var directoryContents []string
 	for _, groups := range pattern.FindAllSubmatch(output, -1) {
@@ -486,14 +428,9 @@ func verifyContentAccessibleForBuild(sourceDir string) error {
 	var errPaths errPathsNotReadable
 
 	withSlash := filepath.Clean(sourceDir) + "/"
-	err := filepath.Walk(withSlash, func(path string, st os.FileInfo, err error) error {
-		if err != nil {
-			if !os.IsPermission(err) {
-				return err
-			}
-			// accumulate permission errors
-			return errPaths.accumulate(strings.TrimPrefix(path, withSlash), st)
-		}
+	mylog.Check(filepath.Walk(withSlash, func(path string, st os.FileInfo, err error) error {
+		// accumulate permission errors
+
 		mode := st.Mode()
 		if !mode.IsRegular() && !mode.IsDir() {
 			// device nodes are just recreated by mksquashfs
@@ -504,28 +441,17 @@ func verifyContentAccessibleForBuild(sourceDir string) error {
 			return nil
 		}
 
-		f, err := os.Open(path)
-		if err != nil {
-			if !os.IsPermission(err) {
-				return err
-			}
-			// accumulate permission errors
-			if err = errPaths.accumulate(strings.TrimPrefix(path, withSlash), st); err != nil {
-				return err
-			}
-			// workaround for https://github.com/golang/go/issues/21758
-			// with pre 1.10 go, explicitly skip directory
-			if mode.IsDir() {
-				return filepath.SkipDir
-			}
-			return nil
-		}
+		f := mylog.Check2(os.Open(path))
+
+		// accumulate permission errors
+
+		// workaround for https://github.com/golang/go/issues/21758
+		// with pre 1.10 go, explicitly skip directory
+
 		f.Close()
 		return nil
-	})
-	if err != nil {
-		return err
-	}
+	}))
+
 	return errPaths.asErr()
 }
 
@@ -556,14 +482,10 @@ func (s *Snap) Build(sourceDir string, opts *BuildOpts) error {
 	if opts == nil {
 		opts = &BuildOpts{}
 	}
-	if err := verifyContentAccessibleForBuild(sourceDir); err != nil {
-		return err
-	}
+	mylog.Check(verifyContentAccessibleForBuild(sourceDir))
 
-	fullSnapPath, err := filepath.Abs(s.path)
-	if err != nil {
-		return err
-	}
+	fullSnapPath := mylog.Check2(filepath.Abs(s.path))
+
 	// default to xz
 	compression := opts.Compression
 	if compression == "" {
@@ -572,10 +494,8 @@ func (s *Snap) Build(sourceDir string, opts *BuildOpts) error {
 		// https://forum.snapcraft.io/t/squashfs-performance-effect-on-snap-startup-time/13920
 		compression = "xz"
 	}
-	cmd, err := snapdtoolCommandFromSystemSnap("/usr/bin/mksquashfs")
-	if err != nil {
-		cmd = exec.Command("mksquashfs")
-	}
+	cmd := mylog.Check2(snapdtoolCommandFromSystemSnap("/usr/bin/mksquashfs"))
+
 	cmd.Args = append(cmd.Args,
 		".", fullSnapPath,
 		"-noappend",
@@ -594,18 +514,11 @@ func (s *Snap) Build(sourceDir string, opts *BuildOpts) error {
 	if snapType != "os" && snapType != "core" && snapType != "base" {
 		cmd.Args = append(cmd.Args, "-all-root", "-no-xattrs")
 	}
-
-	err = osutil.ChDir(sourceDir, func() error {
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			return MksquashfsError{fmt.Sprintf("mksquashfs call failed: %s", osutil.OutputErr(output, err))}
-		}
+	mylog.Check(osutil.ChDir(sourceDir, func() error {
+		output := mylog.Check2(cmd.CombinedOutput())
 
 		return nil
-	})
-	if err != nil {
-		return err
-	}
+	}))
 
 	// Grow the snap if it is smaller than the minimum snap size. See
 	// MinimumSnapSize for more details.
@@ -618,16 +531,12 @@ func (s *Snap) BuildDate() time.Time {
 }
 
 func (s *Snap) growSnapToMinSize(minSize int64) error {
-	size, err := s.Size()
-	if err != nil {
-		return fmt.Errorf("cannot get size of snap: %w", err)
-	}
+	size := mylog.Check2(s.Size())
+
 	if size >= minSize {
 		return nil
 	}
-	if err := os.Truncate(s.path, minSize); err != nil {
-		return fmt.Errorf("cannot grow snap to minimum size: %w", err)
-	}
+	mylog.Check(os.Truncate(s.path, minSize))
 
 	return nil
 }
@@ -646,9 +555,8 @@ func BuildDate(path string) time.Time {
 	cmd.Env = []string{"TZ=UTC"}
 	cmd.Stdout = m
 	cmd.Stderr = m
-	if err := cmd.Run(); err != nil {
-		return t0
-	}
+	mylog.Check(cmd.Run())
+
 	matches, count := m.Matches()
 	if count != 1 {
 		return t0

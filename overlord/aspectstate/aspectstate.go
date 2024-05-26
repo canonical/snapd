@@ -21,6 +21,7 @@ package aspectstate
 import (
 	"errors"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/aspects"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -29,10 +30,8 @@ import (
 // SetAspect finds the aspect identified by the account, bundleName and aspect
 // and sets the request fields to their respective values.
 func SetAspect(st *state.State, account, bundleName, aspect string, requests map[string]interface{}) error {
-	bundleAssert, err := assertstate.AspectBundle(st, account, bundleName)
-	if err != nil {
-		return err
-	}
+	bundleAssert := mylog.Check2(assertstate.AspectBundle(st, account, bundleName))
+
 	bundle := bundleAssert.Bundle()
 
 	asp := bundle.Aspect(aspect)
@@ -52,21 +51,13 @@ func SetAspect(st *state.State, account, bundleName, aspect string, requests map
 		}
 	}
 
-	tx, err := newTransaction(st, bundle)
-	if err != nil {
-		return err
-	}
+	tx := mylog.Check2(newTransaction(st, bundle))
 
 	for field, value := range requests {
-		var err error
 		if value == nil {
-			err = asp.Unset(tx, field)
+			mylog.Check(asp.Unset(tx, field))
 		} else {
-			err = asp.Set(tx, field, value)
-		}
-
-		if err != nil {
-			return err
+			mylog.Check(asp.Set(tx, field, value))
 		}
 	}
 
@@ -78,10 +69,8 @@ func SetAspect(st *state.State, account, bundleName, aspect string, requests map
 // returned in a map of fields to their values, unless there are no fields in
 // which case the entire aspect is just returned as-is.
 func GetAspect(st *state.State, account, bundleName, aspect string, fields []string) (interface{}, error) {
-	bundleAssert, err := assertstate.AspectBundle(st, account, bundleName)
-	if err != nil {
-		return nil, err
-	}
+	bundleAssert := mylog.Check2(assertstate.AspectBundle(st, account, bundleName))
+
 	bundle := bundleAssert.Bundle()
 
 	asp := bundle.Aspect(aspect)
@@ -96,31 +85,19 @@ func GetAspect(st *state.State, account, bundleName, aspect string, fields []str
 		}
 	}
 
-	tx, err := newTransaction(st, bundle)
-	if err != nil {
-		return nil, err
-	}
+	tx := mylog.Check2(newTransaction(st, bundle))
 
 	if len(fields) == 0 {
-		val, err := asp.Get(tx, "")
-		if err != nil {
-			return nil, err
-		}
+		val := mylog.Check2(asp.Get(tx, ""))
 
 		return val, nil
 	}
 
 	results := make(map[string]interface{}, len(fields))
 	for _, field := range fields {
-		value, err := asp.Get(tx, field)
-		if err != nil {
-			if errors.Is(err, &aspects.NotFoundError{}) && len(fields) > 1 {
-				// keep looking; return partial result if only some fields are found
-				continue
-			}
+		value := mylog.Check2(asp.Get(tx, field))
 
-			return nil, err
-		}
+		// keep looking; return partial result if only some fields are found
 
 		results[field] = value
 	}
@@ -147,33 +124,22 @@ func newTransaction(st *state.State, bundle *aspects.Bundle) (*aspects.Transacti
 		return updateDatabags(st, bag, bundle)
 	}
 
-	tx, err := aspects.NewTransaction(getter, setter, bundle.Schema)
-	if err != nil {
-		return nil, err
-	}
+	tx := mylog.Check2(aspects.NewTransaction(getter, setter, bundle.Schema))
 
 	return tx, nil
 }
 
 func bagGetter(st *state.State, bundle *aspects.Bundle) aspects.DatabagRead {
 	return func() (aspects.JSONDataBag, error) {
-		databag, err := getDatabag(st, bundle.Account, bundle.Name)
-		if err != nil {
-			if !errors.Is(err, state.ErrNoState) {
-				return nil, err
-			}
+		databag := mylog.Check2(getDatabag(st, bundle.Account, bundle.Name))
 
-			databag = aspects.NewJSONDataBag()
-		}
 		return databag, nil
 	}
 }
 
 func getDatabag(st *state.State, account, bundleName string) (aspects.JSONDataBag, error) {
 	var databags map[string]map[string]aspects.JSONDataBag
-	if err := st.Get("aspect-databags", &databags); err != nil {
-		return nil, err
-	}
+	mylog.Check(st.Get("aspect-databags", &databags))
 
 	if databags[account] == nil || databags[account][bundleName] == nil {
 		return nil, state.ErrNoState
@@ -186,7 +152,7 @@ func updateDatabags(st *state.State, databag aspects.JSONDataBag, bundle *aspect
 	bundleName := bundle.Name
 
 	var databags map[string]map[string]aspects.JSONDataBag
-	err := st.Get("aspect-databags", &databags)
+	mylog.Check(st.Get("aspect-databags", &databags))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	} else if errors.Is(err, &state.NoStateError{}) || databags[account] == nil || databags[account][bundleName] == nil {

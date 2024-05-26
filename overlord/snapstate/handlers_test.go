@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/dirs"
@@ -72,16 +73,16 @@ func (s *handlersSuite) TestSetTaskSnapSetupFirstTask(c *C) {
 
 	// mutate it and rewrite it with the helper
 	snapsup.Channel = "edge"
-	err := snapstate.SetTaskSnapSetup(t, snapsup)
-	c.Assert(err, IsNil)
+	mylog.Check(snapstate.SetTaskSnapSetup(t, snapsup))
+
 
 	// get a fresh version of this task from state to check that the task's
 	/// snap-setup has the changes in it now
 	newT := s.state.Task(t.ID())
 	c.Assert(newT, Not(IsNil))
 	var newsnapsup snapstate.SnapSetup
-	err = newT.Get("snap-setup", &newsnapsup)
-	c.Assert(err, IsNil)
+	mylog.Check(newT.Get("snap-setup", &newsnapsup))
+
 	c.Assert(newsnapsup.Channel, Equals, snapsup.Channel)
 }
 
@@ -112,15 +113,15 @@ func (s *handlersSuite) TestSetTaskSnapSetupLaterTask(c *C) {
 
 	// mutate it and rewrite it with the helper
 	snapsup.Channel = "edge"
-	err := snapstate.SetTaskSnapSetup(t2, snapsup)
-	c.Assert(err, IsNil)
+	mylog.Check(snapstate.SetTaskSnapSetup(t2, snapsup))
+
 
 	// check that the original task's snap-setup is different now
 	newT := s.state.Task(t.ID())
 	c.Assert(newT, Not(IsNil))
 	var newsnapsup snapstate.SnapSetup
-	err = newT.Get("snap-setup", &newsnapsup)
-	c.Assert(err, IsNil)
+	mylog.Check(newT.Get("snap-setup", &newsnapsup))
+
 	c.Assert(newsnapsup.Channel, Equals, snapsup.Channel)
 }
 
@@ -221,7 +222,7 @@ func (s *handlersSuite) TestComputeMissingDisabledServices(c *C) {
 	} {
 		info := &snap.Info{Apps: tt.apps}
 
-		found, missing, err := snapstate.MissingDisabledServices(tt.stDisabledSvcsList, info)
+		found, missing := mylog.Check3(snapstate.MissingDisabledServices(tt.stDisabledSvcsList, info))
 		c.Assert(missing, DeepEquals, tt.missing, Commentf(tt.comment))
 		c.Assert(found, DeepEquals, tt.found, Commentf(tt.comment))
 		c.Assert(err, Equals, tt.err, Commentf(tt.comment))
@@ -297,15 +298,15 @@ func (s *handlersSuite) TestGetHiddenDirOptionsFromSnapState(c *C) {
 	tr := config.NewTransaction(s.state)
 
 	confKey := fmt.Sprintf("experimental.%s", features.HiddenSnapDataHomeDir)
-	err := tr.Set("core", confKey, "true")
-	c.Assert(err, IsNil)
+	mylog.Check(tr.Set("core", confKey, "true"))
+
 	tr.Commit()
 
 	// check options reflect flag and SnapState
 	snapst := &snapstate.SnapState{MigratedHidden: true}
-	opts, err := snapstate.GetDirMigrationOpts(s.state, snapst, nil)
+	opts := mylog.Check2(snapstate.GetDirMigrationOpts(s.state, snapst, nil))
 
-	c.Assert(err, IsNil)
+
 	c.Check(opts, DeepEquals, &snapstate.DirMigrationOptions{UseHidden: true, MigratedToHidden: true})
 }
 
@@ -332,7 +333,7 @@ func (s *handlersSuite) TestGetHiddenDirOptionsFromSnapSetup(c *C) {
 		{snapstate.SnapSetup{MigratedHidden: true, UndidHiddenMigration: true}, nil, true},
 	} {
 
-		opts, err := snapstate.GetDirMigrationOpts(s.state, nil, &t.snapsup)
+		opts := mylog.Check2(snapstate.GetDirMigrationOpts(s.state, nil, &t.snapsup))
 		if t.expectErr {
 			c.Check(err, Not(IsNil))
 		} else {
@@ -349,15 +350,15 @@ func (s *handlersSuite) TestGetHiddenDirOptionsSnapSetupOverrideSnapState(c *C) 
 	tr := config.NewTransaction(s.state)
 
 	confKey := fmt.Sprintf("experimental.%s", features.HiddenSnapDataHomeDir)
-	err := tr.Set("core", confKey, "true")
-	c.Assert(err, IsNil)
+	mylog.Check(tr.Set("core", confKey, "true"))
+
 	tr.Commit()
 
 	snapst := &snapstate.SnapState{MigratedHidden: true, MigratedToExposedHome: false}
 	snapsup := &snapstate.SnapSetup{UndidHiddenMigration: true, MigratedToExposedHome: true}
-	opts, err := snapstate.GetDirMigrationOpts(s.state, snapst, snapsup)
+	opts := mylog.Check2(snapstate.GetDirMigrationOpts(s.state, snapst, snapsup))
 
-	c.Assert(err, IsNil)
+
 	c.Check(opts, DeepEquals, &snapstate.DirMigrationOptions{UseHidden: true, MigratedToHidden: false, MigratedToExposedHome: true})
 }
 
@@ -370,8 +371,8 @@ func (s *handlersSuite) TestGetSnapDirOptsFromState(c *C) {
 	})
 	defer restore()
 
-	opts, err := snapstate.GetSnapDirOpts(s.state, "")
-	c.Assert(err, IsNil)
+	opts := mylog.Check2(snapstate.GetSnapDirOpts(s.state, ""))
+
 	c.Check(opts, DeepEquals, &dirs.SnapDirOptions{HiddenSnapDataDir: true, MigratedToExposedHome: true})
 }
 
@@ -383,14 +384,14 @@ func (s *handlersSuite) TestGetHiddenDirOptionsNoState(c *C) {
 
 	// set feature flag
 	confKey := fmt.Sprintf("experimental.%s", features.HiddenSnapDataHomeDir)
-	err := tr.Set("core", confKey, "true")
-	c.Assert(err, IsNil)
+	mylog.Check(tr.Set("core", confKey, "true"))
+
 	tr.Commit()
 
 	// check options reflect flag and no SnapState
-	opts, err := snapstate.GetDirMigrationOpts(s.state, nil, nil)
+	opts := mylog.Check2(snapstate.GetDirMigrationOpts(s.state, nil, nil))
 
-	c.Assert(err, IsNil)
+
 	c.Check(opts, DeepEquals, &snapstate.DirMigrationOptions{UseHidden: true})
 }
 

@@ -24,6 +24,7 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	sb "github.com/snapcore/secboot"
 
 	"github.com/snapcore/snapd/osutil"
@@ -40,9 +41,7 @@ const (
 	tempKeySlot = recoveryKeySlot + 1
 )
 
-var (
-	sbGetDiskUnlockKeyFromKernel = sb.GetDiskUnlockKeyFromKernel
-)
+var sbGetDiskUnlockKeyFromKernel = sb.GetDiskUnlockKeyFromKernel
 
 func getEncryptionKeyFromUserKeyring(dev string) ([]byte, error) {
 	const remove = false
@@ -50,10 +49,8 @@ func getEncryptionKeyFromUserKeyring(dev string) ([]byte, error) {
 	// note this is the unlock key, which can be either the main key which
 	// was unsealed, or the recovery key, in which case some operations may
 	// not make sense
-	currKey, err := sbGetDiskUnlockKeyFromKernel(defaultPrefix, dev, remove)
-	if err != nil {
-		return nil, fmt.Errorf("cannot obtain current unlock key for %v: %v", dev, err)
-	}
+	currKey := mylog.Check2(sbGetDiskUnlockKeyFromKernel(defaultPrefix, dev, remove))
+
 	return currKey, err
 }
 
@@ -76,10 +73,8 @@ func isKeyslotNotActive(err error) bool {
 }
 
 func recoveryKDF() (*luks2.KDFOptions, error) {
-	usableMem, err := osutil.TotalUsableMemory()
-	if err != nil {
-		return nil, fmt.Errorf("cannot get usable memory for KDF parameters when adding the recovery key: %v", err)
-	}
+	usableMem := mylog.Check2(osutil.TotalUsableMemory())
+
 	// The KDF memory is heuristically calculated by taking the
 	// usable memory and subtracting hardcoded 384MB that is
 	// needed to keep the system working. Half of that is the mem
@@ -103,10 +98,7 @@ func recoveryKDF() (*luks2.KDFOptions, error) {
 // devuce unlock key from the user keyring to authorize the change. The
 // recoveyry key is added to keyslot 1.
 func AddRecoveryKeyToLUKSDevice(recoveryKey keys.RecoveryKey, dev string) error {
-	currKey, err := getEncryptionKeyFromUserKeyring(dev)
-	if err != nil {
-		return err
-	}
+	currKey := mylog.Check2(getEncryptionKeyFromUserKeyring(dev))
 
 	return AddRecoveryKeyToLUKSDeviceUsingKey(recoveryKey, currKey, dev)
 }
@@ -118,22 +110,14 @@ func AddRecoveryKeyToLUKSDevice(recoveryKey keys.RecoveryKey, dev string) error 
 //
 // A heuristic memory cost is used.
 func AddRecoveryKeyToLUKSDeviceUsingKey(recoveryKey keys.RecoveryKey, currKey keys.EncryptionKey, dev string) error {
-	opts, err := recoveryKDF()
-	if err != nil {
-		return err
-	}
+	opts := mylog.Check2(recoveryKDF())
 
 	options := luks2.AddKeyOptions{
 		KDFOptions: *opts,
 		Slot:       recoveryKeySlot,
 	}
-	if err := luks2.AddKey(dev, currKey, recoveryKey[:], &options); err != nil {
-		return fmt.Errorf("cannot add key: %v", err)
-	}
-
-	if err := luks2.SetSlotPriority(dev, encryptionKeySlot, luks2.SlotPriorityHigh); err != nil {
-		return fmt.Errorf("cannot change keyslot priority: %v", err)
-	}
+	mylog.Check(luks2.AddKey(dev, currKey, recoveryKey[:], &options))
+	mylog.Check(luks2.SetSlotPriority(dev, encryptionKeySlot, luks2.SlotPriorityHigh))
 
 	return nil
 }
@@ -141,22 +125,18 @@ func AddRecoveryKeyToLUKSDeviceUsingKey(recoveryKey keys.RecoveryKey, currKey ke
 // RemoveRecoveryKeyFromLUKSDevice removes an existing recovery key a LUKS2
 // device.
 func RemoveRecoveryKeyFromLUKSDevice(dev string) error {
-	currKey, err := getEncryptionKeyFromUserKeyring(dev)
-	if err != nil {
-		return err
-	}
+	currKey := mylog.Check2(getEncryptionKeyFromUserKeyring(dev))
+
 	return RemoveRecoveryKeyFromLUKSDeviceUsingKey(currKey, dev)
 }
 
 // RemoveRecoveryKeyFromLUKSDeviceUsingKey removes an existing recovery key a
 // LUKS2 using the provided key to authorize the operation.
 func RemoveRecoveryKeyFromLUKSDeviceUsingKey(currKey keys.EncryptionKey, dev string) error {
-	// just remove the key we think is a recovery key (luks keyslot 1)
-	if err := luks2.KillSlot(dev, recoveryKeySlot, currKey); err != nil {
-		if !isKeyslotNotActive(err) {
-			return fmt.Errorf("cannot kill recovery key slot: %v", err)
-		}
-	}
+	mylog.Check(
+		// just remove the key we think is a recovery key (luks keyslot 1)
+		luks2.KillSlot(dev, recoveryKeySlot, currKey))
+
 	return nil
 }
 
@@ -170,27 +150,20 @@ func StageLUKSDeviceEncryptionKeyChange(newKey keys.EncryptionKey, dev string) e
 	}
 
 	// the key to authorize the device is in the keyring
-	currKey, err := getEncryptionKeyFromUserKeyring(dev)
-	if err != nil {
-		return err
-	}
+	currKey := mylog.Check2(getEncryptionKeyFromUserKeyring(dev))
+	mylog.Check(
 
-	// TODO rather than inspecting the errors, parse the LUKS2 headers
+		// TODO rather than inspecting the errors, parse the LUKS2 headers
 
-	// free up the temp slot
-	if err := luks2.KillSlot(dev, tempKeySlot, currKey); err != nil {
-		if !isKeyslotNotActive(err) {
-			return fmt.Errorf("cannot kill the temporary keyslot: %v", err)
-		}
-	}
+		// free up the temp slot
+		luks2.KillSlot(dev, tempKeySlot, currKey))
 
 	options := luks2.AddKeyOptions{
 		KDFOptions: luks2.KDFOptions{TargetDuration: 100 * time.Millisecond},
 		Slot:       tempKeySlot,
 	}
-	if err := luks2.AddKey(dev, currKey[:], newKey, &options); err != nil {
-		return fmt.Errorf("cannot add temporary key: %v", err)
-	}
+	mylog.Check(luks2.AddKey(dev, currKey[:], newKey, &options))
+
 	return nil
 }
 
@@ -226,7 +199,7 @@ func TransitionLUKSDeviceEncryptionKeyChange(newKey keys.EncryptionKey, dev stri
 		KDFOptions: luks2.KDFOptions{TargetDuration: 100 * time.Millisecond},
 		Slot:       tempKeySlot,
 	}
-	err := luks2.AddKey(dev, newKey, newKey, &options)
+	mylog.Check(luks2.AddKey(dev, newKey, newKey, &options))
 	if err == nil {
 		// key slot is not in use, so we are dealing with unexpected reboot scenario
 		tempKeyslotAlreadyUsed = false
@@ -235,43 +208,35 @@ func TransitionLUKSDeviceEncryptionKeyChange(newKey keys.EncryptionKey, dev stri
 	}
 
 	if !tempKeyslotAlreadyUsed {
-		// since the key slot was not used, it means that the transition
-		// was already carried out (since it got authorized by the new
-		// key), so now all is needed is to remove the added key
-		if err := luks2.KillSlot(dev, tempKeySlot, newKey); err != nil {
-			return fmt.Errorf("cannot kill temporary key slot: %v", err)
-		}
+		mylog.Check(
+			// since the key slot was not used, it means that the transition
+			// was already carried out (since it got authorized by the new
+			// key), so now all is needed is to remove the added key
+			luks2.KillSlot(dev, tempKeySlot, newKey))
 
 		return nil
 	}
+	mylog.Check(
 
-	// first kill the main encryption key slot, authorize the operation
-	// using the new key which must have been added to the temp keyslot in
-	// the stage operation
-	if err := luks2.KillSlot(dev, encryptionKeySlot, newKey); err != nil {
-		if !isKeyslotNotActive(err) {
-			return fmt.Errorf("cannot kill the encryption key slot: %v", err)
-		}
-	}
+		// first kill the main encryption key slot, authorize the operation
+		// using the new key which must have been added to the temp keyslot in
+		// the stage operation
+		luks2.KillSlot(dev, encryptionKeySlot, newKey))
 
 	options = luks2.AddKeyOptions{
 		KDFOptions: luks2.KDFOptions{TargetDuration: 100 * time.Millisecond},
 		Slot:       encryptionKeySlot,
 	}
-	if err := luks2.AddKey(dev, newKey, newKey, &options); err != nil {
-		return fmt.Errorf("cannot add new encryption key: %v", err)
-	}
+	mylog.Check(luks2.AddKey(dev, newKey, newKey, &options))
+	mylog.Check(
 
-	// now it should be possible to kill the temporary keyslot by using the
-	// new key for authorization
-	if err := luks2.KillSlot(dev, tempKeySlot, newKey); err != nil {
-		if !isKeyslotNotActive(err) {
-			return fmt.Errorf("cannot kill temporary key slot: %v", err)
-		}
-	}
-	// TODO needed?
-	if err := luks2.SetSlotPriority(dev, encryptionKeySlot, luks2.SlotPriorityHigh); err != nil {
-		return fmt.Errorf("cannot change key slot priority: %v", err)
-	}
+		// now it should be possible to kill the temporary keyslot by using the
+		// new key for authorization
+		luks2.KillSlot(dev, tempKeySlot, newKey))
+	mylog.Check(
+
+		// TODO needed?
+		luks2.SetSlotPriority(dev, encryptionKeySlot, luks2.SlotPriorityHigh))
+
 	return nil
 }

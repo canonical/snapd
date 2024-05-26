@@ -29,6 +29,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 	snapd "github.com/snapcore/snapd/cmd/snapd"
 	"github.com/snapcore/snapd/dirs"
@@ -51,8 +52,8 @@ var _ = Suite(&snapdSuite{})
 func (s *snapdSuite) SetUpTest(c *C) {
 	s.tmpdir = c.MkDir()
 	for _, d := range []string{"/var/lib/snapd", "/run"} {
-		err := os.MkdirAll(filepath.Join(s.tmpdir, d), 0755)
-		c.Assert(err, IsNil)
+		mylog.Check(os.MkdirAll(filepath.Join(s.tmpdir, d), 0755))
+
 	}
 	dirs.SetRootDir(s.tmpdir)
 
@@ -95,7 +96,7 @@ func (s *snapdSuite) TestSyscheckFailGoesIntoDegradedMode(c *C) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		err := snapd.Run(ch)
+		mylog.Check(snapd.Run(ch))
 		c.Check(err, IsNil)
 	}()
 
@@ -114,11 +115,11 @@ func (s *snapdSuite) TestSyscheckFailGoesIntoDegradedMode(c *C) {
 	// disable keepliave as it would sometimes cause the daemon to be
 	// blocked when closing connections during graceful shutdown
 	cli := client.New(&client.Config{DisableKeepAlive: true})
-	_, err := cli.Abort("123")
+	_ := mylog.Check2(cli.Abort("123"))
 	c.Check(err, ErrorMatches, "system does not fully support snapd: foo failed")
 
 	// verify that the sysinfo command is still available
-	_, err = cli.SysInfo()
+	_ = mylog.Check2(cli.SysInfo())
 	c.Check(err, IsNil)
 
 	// stop the daemon

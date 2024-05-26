@@ -4,15 +4,15 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 func main() {
 	http.HandleFunc("/", handleMainPage)
 
 	log.Println("Starting webserver on :8081")
-	if err := http.ListenAndServe(":8081", nil); err != nil {
-		log.Fatalf("http.ListendAndServer() failed with %s\n", err)
-	}
+	mylog.Check(http.ListenAndServe(":8081", nil))
 }
 
 func handleMainPage(w http.ResponseWriter, r *http.Request) {

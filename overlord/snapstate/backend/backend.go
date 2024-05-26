@@ -21,6 +21,7 @@
 package backend
 
 import (
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
 )
@@ -40,15 +41,9 @@ func (b Backend) CurrentInfo(*snap.Info) {}
 // with sideInfo (if not nil) and a corresponding snap.Container.
 // Assumes the file was verified beforehand or the user asked for --dangerous.
 func OpenSnapFile(snapPath string, sideInfo *snap.SideInfo) (*snap.Info, snap.Container, error) {
-	snapf, err := snapfile.Open(snapPath)
-	if err != nil {
-		return nil, nil, err
-	}
+	snapf := mylog.Check2(snapfile.Open(snapPath))
 
-	info, err := snap.ReadInfoFromSnapFile(snapf, sideInfo)
-	if err != nil {
-		return nil, nil, err
-	}
+	info := mylog.Check2(snap.ReadInfoFromSnapFile(snapf, sideInfo))
 
 	return info, snapf, nil
 }
@@ -58,15 +53,9 @@ func OpenSnapFile(snapPath string, sideInfo *snap.SideInfo) (*snap.Info, snap.Co
 // user asked for --dangerous. The returned snap.ComponentInfo is completed by
 // the provided snap.Info, if it is not nil.
 func OpenComponentFile(compPath string, snapInfo *snap.Info) (*snap.ComponentInfo, snap.Container, error) {
-	snapf, err := snapfile.Open(compPath)
-	if err != nil {
-		return nil, nil, err
-	}
+	snapf := mylog.Check2(snapfile.Open(compPath))
 
-	info, err := snap.ReadComponentInfoFromContainer(snapf, snapInfo)
-	if err != nil {
-		return nil, nil, err
-	}
+	info := mylog.Check2(snap.ReadComponentInfoFromContainer(snapf, snapInfo))
 
 	return info, snapf, nil
 }

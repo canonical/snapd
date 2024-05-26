@@ -32,6 +32,7 @@ import (
 	. "gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/snapasserts"
@@ -82,8 +83,10 @@ type deviceMgrSystemsSuite struct {
 	deviceMgrSystemsBaseSuite
 }
 
-var _ = Suite(&deviceMgrSystemsSuite{})
-var _ = Suite(&deviceMgrSystemsCreateSuite{})
+var (
+	_ = Suite(&deviceMgrSystemsSuite{})
+	_ = Suite(&deviceMgrSystemsCreateSuite{})
+)
 
 func (s *deviceMgrSystemsBaseSuite) SetUpTest(c *C) {
 	classic := false
@@ -151,8 +154,8 @@ func (s *deviceMgrSystemsBaseSuite) SetUpTest(c *C) {
 		Grade:          string(s.model.Grade()),
 		ModelSignKeyID: s.model.SignKeyID(),
 	}
-	err := modeenv.WriteTo("")
-	c.Assert(err, IsNil)
+	mylog.Check(modeenv.WriteTo(""))
+
 
 	s.state.Set("seeded", true)
 
@@ -202,7 +205,8 @@ func (s *deviceMgrSystemsSuite) SetUpTest(c *C) {
 				"id":              seed20.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
-			}},
+			},
+		},
 	}, nil)
 	model2 := seed20.MakeSeed(c, "20200318", "my-brand", "my-model-2", map[string]interface{}{
 		"display-name": "same brand different model",
@@ -220,7 +224,8 @@ func (s *deviceMgrSystemsSuite) SetUpTest(c *C) {
 				"id":              seed20.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
-			}},
+			},
+		},
 	}, nil)
 	model3 := seed20.MakeSeed(c, "other-20200318", "other-brand", "other-model", map[string]interface{}{
 		"display-name": "different brand different model",
@@ -238,7 +243,8 @@ func (s *deviceMgrSystemsSuite) SetUpTest(c *C) {
 				"id":              seed20.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
-			}},
+			},
+		},
 	}, nil)
 
 	s.mockedSystemSeeds = []mockedSystemSeed{{
@@ -259,14 +265,13 @@ func (s *deviceMgrSystemsSuite) SetUpTest(c *C) {
 func (s *deviceMgrSystemsSuite) TestListNoSystems(c *C) {
 	dirs.SetRootDir(c.MkDir())
 
-	systems, err := s.mgr.Systems()
+	systems := mylog.Check2(s.mgr.Systems())
 	c.Assert(err, Equals, devicestate.ErrNoSystems)
 	c.Assert(systems, HasLen, 0)
+	mylog.Check(os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "systems"), 0755))
 
-	err = os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "systems"), 0755)
-	c.Assert(err, IsNil)
 
-	systems, err = s.mgr.Systems()
+	systems = mylog.Check2(s.mgr.Systems())
 	c.Assert(err, Equals, devicestate.ErrNoSystems)
 	c.Assert(systems, HasLen, 0)
 }
@@ -275,12 +280,12 @@ func (s *deviceMgrSystemsSuite) TestListSystemsNotPossible(c *C) {
 	if os.Geteuid() == 0 {
 		c.Skip("this test cannot run as root")
 	}
-	err := os.Chmod(filepath.Join(dirs.SnapSeedDir, "systems"), 0000)
-	c.Assert(err, IsNil)
+	mylog.Check(os.Chmod(filepath.Join(dirs.SnapSeedDir, "systems"), 0000))
+
 	defer os.Chmod(filepath.Join(dirs.SnapSeedDir, "systems"), 0755)
 
 	// stdlib swallows up the errors when opening the target directory
-	systems, err := s.mgr.Systems()
+	systems := mylog.Check2(s.mgr.Systems())
 	c.Assert(err, Equals, devicestate.ErrNoSystems)
 	c.Assert(systems, HasLen, 0)
 }
@@ -306,8 +311,8 @@ var recoverySystemActions []devicestate.SystemAction = []devicestate.SystemActio
 }
 
 func (s *deviceMgrSystemsSuite) TestListSeedSystemsNoCurrent(c *C) {
-	systems, err := s.mgr.Systems()
-	c.Assert(err, IsNil)
+	systems := mylog.Check2(s.mgr.Systems())
+
 	c.Assert(systems, HasLen, 3)
 	c.Check(systems, DeepEquals, []*devicestate.System{{
 		Current: false,
@@ -340,8 +345,8 @@ func (s *deviceMgrSystemsSuite) TestListSeedSystemsDefaultRecoverySystem(c *C) {
 	})
 	s.state.Unlock()
 
-	systems, err := s.mgr.Systems()
-	c.Assert(err, IsNil)
+	systems := mylog.Check2(s.mgr.Systems())
+
 	c.Assert(systems, HasLen, 3)
 	c.Check(systems, DeepEquals, []*devicestate.System{{
 		Current:               false,
@@ -376,8 +381,8 @@ func (s *deviceMgrSystemsSuite) TestListSeedSystemsCurrentSingleSeeded(c *C) {
 	})
 	s.state.Unlock()
 
-	systems, err := s.mgr.Systems()
-	c.Assert(err, IsNil)
+	systems := mylog.Check2(s.mgr.Systems())
+
 	c.Assert(systems, HasLen, 3)
 	c.Check(systems, DeepEquals, []*devicestate.System{{
 		Current: false,
@@ -418,8 +423,8 @@ func (s *deviceMgrSystemsSuite) TestListSeedSystemsCurrentManySeeded(c *C) {
 	})
 	s.state.Unlock()
 
-	systems, err := s.mgr.Systems()
-	c.Assert(err, IsNil)
+	systems := mylog.Check2(s.mgr.Systems())
+
 	c.Assert(systems, HasLen, 3)
 	c.Check(systems, DeepEquals, []*devicestate.System{{
 		Current: false,
@@ -455,8 +460,8 @@ func (s *deviceMgrSystemsSuite) TestListSeedSystemsCurrentInRecoveryMode(c *C) {
 		Grade:          string(s.mockedSystemSeeds[1].model.Grade()),
 		ModelSignKeyID: s.mockedSystemSeeds[1].model.SignKeyID(),
 	}
-	err := modeenv.WriteTo("")
-	c.Assert(err, IsNil)
+	mylog.Check(modeenv.WriteTo(""))
+
 	// update the internal mode
 	devicestate.SetSystemMode(s.mgr, "recover")
 
@@ -470,8 +475,8 @@ func (s *deviceMgrSystemsSuite) TestListSeedSystemsCurrentInRecoveryMode(c *C) {
 	})
 	s.state.Unlock()
 
-	systems, err := s.mgr.Systems()
-	c.Assert(err, IsNil)
+	systems := mylog.Check2(s.mgr.Systems())
+
 	c.Assert(systems, HasLen, 3)
 	c.Check(systems, DeepEquals, []*devicestate.System{{
 		Current: false,
@@ -498,12 +503,13 @@ func (s *deviceMgrSystemsSuite) TestListSeedSystemsCurrentInRecoveryMode(c *C) {
 }
 
 func (s *deviceMgrSystemsSuite) TestBrokenSeedSystems(c *C) {
-	// break the first seed
-	err := os.Remove(filepath.Join(dirs.SnapSeedDir, "systems", s.mockedSystemSeeds[0].label, "model"))
-	c.Assert(err, IsNil)
+	mylog.
+		// break the first seed
+		Check(os.Remove(filepath.Join(dirs.SnapSeedDir, "systems", s.mockedSystemSeeds[0].label, "model")))
 
-	systems, err := s.mgr.Systems()
-	c.Assert(err, IsNil)
+
+	systems := mylog.Check2(s.mgr.Systems())
+
 	c.Assert(systems, HasLen, 2)
 	c.Check(systems, DeepEquals, []*devicestate.System{{
 		Current: false,
@@ -521,12 +527,13 @@ func (s *deviceMgrSystemsSuite) TestBrokenSeedSystems(c *C) {
 }
 
 func (s *deviceMgrSystemsSuite) TestRequestModeInstallHappyForAny(c *C) {
-	// no current system
-	err := s.mgr.RequestSystemAction("20191119", devicestate.SystemAction{Mode: "install", Title: "Install"})
-	c.Assert(err, IsNil)
+	mylog.
+		// no current system
+		Check(s.mgr.RequestSystemAction("20191119", devicestate.SystemAction{Mode: "install", Title: "Install"}))
 
-	m, err := s.bootloader.GetBootVars("snapd_recovery_mode", "snapd_recovery_system")
-	c.Assert(err, IsNil)
+
+	m := mylog.Check2(s.bootloader.GetBootVars("snapd_recovery_mode", "snapd_recovery_system"))
+
 	c.Check(m, DeepEquals, map[string]string{
 		"snapd_recovery_system": "20191119",
 		"snapd_recovery_mode":   "install",
@@ -562,24 +569,24 @@ func (s *deviceMgrSystemsSuite) TestRequestSameModeSameSystem(c *C) {
 		if mode != "run" {
 			modeenv.RecoverySystem = s.mockedSystemSeeds[0].label
 		}
-		err := modeenv.WriteTo("")
-		c.Assert(err, IsNil)
+		mylog.Check(modeenv.WriteTo(""))
+
 
 		devicestate.SetSystemMode(s.mgr, mode)
-		err = s.bootloader.SetBootVars(map[string]string{
+		mylog.Check(s.bootloader.SetBootVars(map[string]string{
 			"snapd_recovery_mode":   mode,
 			"snapd_recovery_system": label,
-		})
-		c.Assert(err, IsNil)
-		err = s.mgr.RequestSystemAction(label, devicestate.SystemAction{Mode: mode})
+		}))
+
+		mylog.Check(s.mgr.RequestSystemAction(label, devicestate.SystemAction{Mode: mode}))
 		if strutil.ListContains(sadModes, mode) {
 			c.Assert(err, Equals, devicestate.ErrUnsupportedAction)
 		} else {
-			c.Assert(err, IsNil)
+
 		}
 		// bootloader vars shouldn't change
-		m, err := s.bootloader.GetBootVars("snapd_recovery_mode", "snapd_recovery_system")
-		c.Assert(err, IsNil)
+		m := mylog.Check2(s.bootloader.GetBootVars("snapd_recovery_mode", "snapd_recovery_system"))
+
 		c.Check(m, DeepEquals, map[string]string{
 			"snapd_recovery_mode":   mode,
 			"snapd_recovery_system": label,
@@ -608,15 +615,14 @@ func (s *deviceMgrSystemsSuite) TestRequestSeedingSameConflict(c *C) {
 			Mode:           mode,
 			RecoverySystem: s.mockedSystemSeeds[0].label,
 		}
-		err := modeenv.WriteTo("")
-		c.Assert(err, IsNil)
+		mylog.Check(modeenv.WriteTo(""))
 
-		err = s.bootloader.SetBootVars(map[string]string{
+		mylog.Check(s.bootloader.SetBootVars(map[string]string{
 			"snapd_recovery_mode":   "",
 			"snapd_recovery_system": label,
-		})
-		c.Assert(err, IsNil)
-		err = s.mgr.RequestSystemAction(label, devicestate.SystemAction{Mode: mode})
+		}))
+
+		mylog.Check(s.mgr.RequestSystemAction(label, devicestate.SystemAction{Mode: mode}))
 		c.Assert(err, ErrorMatches, "cannot request system action, system is seeding")
 		// no log output
 		c.Check(s.logbuf.String(), Equals, "")
@@ -633,24 +639,25 @@ func (s *deviceMgrSystemsSuite) TestRequestSeedingDifferentNoConflict(c *C) {
 		Mode:           "run",
 		RecoverySystem: label,
 	}
-	err := modeenv.WriteTo("")
-	c.Assert(err, IsNil)
+	mylog.Check(modeenv.WriteTo(""))
+
 
 	s.state.Lock()
 	s.state.Set("seeded", nil)
 	s.state.Unlock()
+	mylog.
 
-	// we can only go to install mode of other system when one is currently
-	// being seeded
-	err = s.bootloader.SetBootVars(map[string]string{
-		"snapd_recovery_mode":   "",
-		"snapd_recovery_system": label,
-	})
-	c.Assert(err, IsNil)
-	err = s.mgr.RequestSystemAction(otherLabel, devicestate.SystemAction{Mode: "install"})
-	c.Assert(err, IsNil)
-	m, err := s.bootloader.GetBootVars("snapd_recovery_mode", "snapd_recovery_system")
-	c.Assert(err, IsNil)
+		// we can only go to install mode of other system when one is currently
+		// being seeded
+		Check(s.bootloader.SetBootVars(map[string]string{
+			"snapd_recovery_mode":   "",
+			"snapd_recovery_system": label,
+		}))
+
+	mylog.Check(s.mgr.RequestSystemAction(otherLabel, devicestate.SystemAction{Mode: "install"}))
+
+	m := mylog.Check2(s.bootloader.GetBootVars("snapd_recovery_mode", "snapd_recovery_system"))
+
 	c.Check(m, DeepEquals, map[string]string{
 		"snapd_recovery_system": otherLabel,
 		"snapd_recovery_mode":   "install",
@@ -661,10 +668,10 @@ func (s *deviceMgrSystemsSuite) TestRequestSeedingDifferentNoConflict(c *C) {
 func (s *deviceMgrSystemsSuite) testRequestModeWithRestart(c *C, toModes []string, label string) {
 	for _, mode := range toModes {
 		c.Logf("checking mode: %q", mode)
-		err := s.mgr.RequestSystemAction(label, devicestate.SystemAction{Mode: mode})
-		c.Assert(err, IsNil)
-		m, err := s.bootloader.GetBootVars("snapd_recovery_mode", "snapd_recovery_system")
-		c.Assert(err, IsNil)
+		mylog.Check(s.mgr.RequestSystemAction(label, devicestate.SystemAction{Mode: mode}))
+
+		m := mylog.Check2(s.bootloader.GetBootVars("snapd_recovery_mode", "snapd_recovery_system"))
+
 		c.Check(m, DeepEquals, map[string]string{
 			"snapd_recovery_system": label,
 			"snapd_recovery_mode":   mode,
@@ -687,8 +694,8 @@ func (s *deviceMgrSystemsSuite) TestRequestModeRunInstallResetForRecover(c *C) {
 		Mode:           "recover",
 		RecoverySystem: s.mockedSystemSeeds[0].label,
 	}
-	err := modeenv.WriteTo("")
-	c.Assert(err, IsNil)
+	mylog.Check(modeenv.WriteTo(""))
+
 
 	s.state.Lock()
 	s.state.Set("seeded-systems", []devicestate.SeededSystem{
@@ -709,8 +716,8 @@ func (s *deviceMgrSystemsSuite) TestRequestModeInstallRecoverForCurrent(c *C) {
 	modeenv := boot.Modeenv{
 		Mode: "run",
 	}
-	err := modeenv.WriteTo("")
-	c.Assert(err, IsNil)
+	mylog.Check(modeenv.WriteTo(""))
+
 
 	s.state.Lock()
 	s.state.Set("seeded-systems", []devicestate.SeededSystem{
@@ -727,14 +734,14 @@ func (s *deviceMgrSystemsSuite) TestRequestModeInstallRecoverForCurrent(c *C) {
 
 func (s *deviceMgrSystemsSuite) TestRequestModeErrInBoot(c *C) {
 	s.bootloader.SetErr = errors.New("no can do")
-	err := s.mgr.RequestSystemAction("20191119", devicestate.SystemAction{Mode: "install"})
+	mylog.Check(s.mgr.RequestSystemAction("20191119", devicestate.SystemAction{Mode: "install"}))
 	c.Assert(err, ErrorMatches, `cannot set device to boot into system "20191119" in mode "install": no can do`)
 	c.Check(s.restartRequests, HasLen, 0)
 	c.Check(s.logbuf.String(), Equals, "")
 }
 
 func (s *deviceMgrSystemsSuite) TestRequestModeNotFound(c *C) {
-	err := s.mgr.RequestSystemAction("not-found", devicestate.SystemAction{Mode: "install"})
+	mylog.Check(s.mgr.RequestSystemAction("not-found", devicestate.SystemAction{Mode: "install"}))
 	c.Assert(err, NotNil)
 	c.Assert(os.IsNotExist(err), Equals, true)
 	c.Check(s.restartRequests, HasLen, 0)
@@ -742,18 +749,18 @@ func (s *deviceMgrSystemsSuite) TestRequestModeNotFound(c *C) {
 }
 
 func (s *deviceMgrSystemsSuite) TestRequestModeBadMode(c *C) {
-	err := s.mgr.RequestSystemAction("20191119", devicestate.SystemAction{Mode: "unknown-mode"})
+	mylog.Check(s.mgr.RequestSystemAction("20191119", devicestate.SystemAction{Mode: "unknown-mode"}))
 	c.Assert(err, Equals, devicestate.ErrUnsupportedAction)
 	c.Check(s.restartRequests, HasLen, 0)
 	c.Check(s.logbuf.String(), Equals, "")
 }
 
 func (s *deviceMgrSystemsSuite) TestRequestModeBroken(c *C) {
-	// break the first seed
-	err := os.Remove(filepath.Join(dirs.SnapSeedDir, "systems", s.mockedSystemSeeds[0].label, "model"))
-	c.Assert(err, IsNil)
+	mylog.
+		// break the first seed
+		Check(os.Remove(filepath.Join(dirs.SnapSeedDir, "systems", s.mockedSystemSeeds[0].label, "model")))
 
-	err = s.mgr.RequestSystemAction("20191119", devicestate.SystemAction{Mode: "install"})
+	mylog.Check(s.mgr.RequestSystemAction("20191119", devicestate.SystemAction{Mode: "install"}))
 	c.Assert(err, ErrorMatches, `cannot load seed system: cannot load assertions for label "20191119": .*`)
 	c.Check(s.restartRequests, HasLen, 0)
 	c.Check(s.logbuf.String(), Equals, "")
@@ -761,14 +768,14 @@ func (s *deviceMgrSystemsSuite) TestRequestModeBroken(c *C) {
 
 func (s *deviceMgrSystemsSuite) TestRequestModeNonUC20(c *C) {
 	s.setPCModelInState(c)
-	err := s.mgr.RequestSystemAction("20191119", devicestate.SystemAction{Mode: "install"})
+	mylog.Check(s.mgr.RequestSystemAction("20191119", devicestate.SystemAction{Mode: "install"}))
 	c.Assert(err, ErrorMatches, `cannot set device to boot into system "20191119" in mode "install": system mode is unsupported`)
 	c.Check(s.restartRequests, HasLen, 0)
 	c.Check(s.logbuf.String(), Equals, "")
 }
 
 func (s *deviceMgrSystemsSuite) TestRequestActionNoLabel(c *C) {
-	err := s.mgr.RequestSystemAction("", devicestate.SystemAction{Mode: "install"})
+	mylog.Check(s.mgr.RequestSystemAction("", devicestate.SystemAction{Mode: "install"}))
 	c.Assert(err, ErrorMatches, "internal error: system label is unset")
 	c.Check(s.logbuf.String(), Equals, "")
 }
@@ -785,8 +792,9 @@ func (s *deviceMgrSystemsSuite) TestRequestModeForNonCurrent(c *C) {
 
 	s.state.Unlock()
 	s.setPCModelInState(c)
-	// request mode reserved for current system
-	err := s.mgr.RequestSystemAction(s.mockedSystemSeeds[1].label, devicestate.SystemAction{Mode: "run"})
+	mylog.
+		// request mode reserved for current system
+		Check(s.mgr.RequestSystemAction(s.mockedSystemSeeds[1].label, devicestate.SystemAction{Mode: "run"}))
 	c.Assert(err, Equals, devicestate.ErrUnsupportedAction)
 	c.Check(s.restartRequests, HasLen, 0)
 	c.Check(s.logbuf.String(), Equals, "")
@@ -798,8 +806,8 @@ func (s *deviceMgrSystemsSuite) TestRequestInstallForOther(c *C) {
 	modeenv := boot.Modeenv{
 		Mode: "run",
 	}
-	err := modeenv.WriteTo("")
-	c.Assert(err, IsNil)
+	mylog.Check(modeenv.WriteTo(""))
+
 
 	s.state.Lock()
 	s.state.Set("seeded-systems", []devicestate.SeededSystem{
@@ -818,16 +826,18 @@ func (s *deviceMgrSystemsSuite) TestRequestAction1618(c *C) {
 	s.setPCModelInState(c)
 	// system mode is unset in 16/18
 	devicestate.SetSystemMode(s.mgr, "")
-	// no modeenv either
-	err := os.Remove(dirs.SnapModeenvFileUnder(dirs.GlobalRootDir))
-	c.Assert(err, IsNil)
+	mylog.
+		// no modeenv either
+		Check(os.Remove(dirs.SnapModeenvFileUnder(dirs.GlobalRootDir)))
+
 
 	s.state.Lock()
 	s.state.Set("seeded-systems", nil)
 	s.state.Set("seeded", nil)
 	s.state.Unlock()
-	// a label exists
-	err = s.mgr.RequestSystemAction(s.mockedSystemSeeds[0].label, devicestate.SystemAction{Mode: "install"})
+	mylog.
+		// a label exists
+		Check(s.mgr.RequestSystemAction(s.mockedSystemSeeds[0].label, devicestate.SystemAction{Mode: "install"}))
 	c.Assert(err, ErrorMatches, "cannot set device to boot .*: system mode is unsupported")
 
 	s.state.Lock()
@@ -836,8 +846,7 @@ func (s *deviceMgrSystemsSuite) TestRequestAction1618(c *C) {
 
 	// even with system mode explicitly set, the action is not executed
 	devicestate.SetSystemMode(s.mgr, "run")
-
-	err = s.mgr.RequestSystemAction(s.mockedSystemSeeds[0].label, devicestate.SystemAction{Mode: "install"})
+	mylog.Check(s.mgr.RequestSystemAction(s.mockedSystemSeeds[0].label, devicestate.SystemAction{Mode: "install"}))
 	c.Assert(err, ErrorMatches, "cannot set device to boot .*: system mode is unsupported")
 
 	devicestate.SetSystemMode(s.mgr, "")
@@ -845,18 +854,17 @@ func (s *deviceMgrSystemsSuite) TestRequestAction1618(c *C) {
 	for _, m := range s.mockedSystemSeeds {
 		os.RemoveAll(filepath.Join(dirs.SnapSeedDir, "systems", m.label))
 	}
-
-	err = s.mgr.RequestSystemAction(s.mockedSystemSeeds[0].label, devicestate.SystemAction{Mode: "install"})
+	mylog.Check(s.mgr.RequestSystemAction(s.mockedSystemSeeds[0].label, devicestate.SystemAction{Mode: "install"}))
 	c.Assert(err, ErrorMatches, ".*/seed/systems/20191119: no such file or directory")
 	c.Check(s.logbuf.String(), Equals, "")
 }
 
 func (s *deviceMgrSystemsSuite) TestRebootNoLabelNoModeHappy(c *C) {
-	err := s.mgr.Reboot("", "")
-	c.Assert(err, IsNil)
+	mylog.Check(s.mgr.Reboot("", ""))
 
-	m, err := s.bootloader.GetBootVars("snapd_recovery_mode", "snapd_recovery_system")
-	c.Assert(err, IsNil)
+
+	m := mylog.Check2(s.bootloader.GetBootVars("snapd_recovery_mode", "snapd_recovery_system"))
+
 	// requested restart
 	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 	// but no bootloader changes
@@ -877,12 +885,11 @@ func (s *deviceMgrSystemsSuite) TestRebootLabelAndModeHappy(c *C) {
 		},
 	})
 	s.state.Unlock()
+	mylog.Check(s.mgr.Reboot("20191119", "install"))
 
-	err := s.mgr.Reboot("20191119", "install")
-	c.Assert(err, IsNil)
 
-	m, err := s.bootloader.GetBootVars("snapd_recovery_mode", "snapd_recovery_system")
-	c.Assert(err, IsNil)
+	m := mylog.Check2(s.bootloader.GetBootVars("snapd_recovery_mode", "snapd_recovery_system"))
+
 	c.Check(m, DeepEquals, map[string]string{
 		"snapd_recovery_system": "20191119",
 		"snapd_recovery_mode":   "install",
@@ -930,12 +937,11 @@ func (s *deviceMgrSystemsSuite) testRebootFromRunOnly(c *C, setDefault bool) {
 		s.restartRequests = nil
 		s.bootloader.BootVars = make(map[string]string)
 		s.logbuf.Reset()
+		mylog.Check(s.mgr.Reboot("", mode))
 
-		err := s.mgr.Reboot("", mode)
-		c.Assert(err, IsNil)
 
-		m, err := s.bootloader.GetBootVars("snapd_recovery_mode", "snapd_recovery_system")
-		c.Assert(err, IsNil)
+		m := mylog.Check2(s.bootloader.GetBootVars("snapd_recovery_mode", "snapd_recovery_system"))
+
 		c.Check(m, DeepEquals, map[string]string{
 			"snapd_recovery_system": expectedLabel,
 			"snapd_recovery_mode":   mode,
@@ -950,15 +956,15 @@ func (s *deviceMgrSystemsSuite) TestRebootFromRecoverToOther(c *C) {
 		Mode:           "recover",
 		RecoverySystem: s.mockedSystemSeeds[0].label,
 	}
-	err := modeenv.WriteTo("")
-	c.Assert(err, IsNil)
+	mylog.Check(modeenv.WriteTo(""))
+
 
 	devicestate.SetSystemMode(s.mgr, "recover")
-	err = s.bootloader.SetBootVars(map[string]string{
+	mylog.Check(s.bootloader.SetBootVars(map[string]string{
 		"snapd_recovery_mode":   "recover",
 		"snapd_recovery_system": s.mockedSystemSeeds[0].label,
-	})
-	c.Assert(err, IsNil)
+	}))
+
 
 	s.state.Lock()
 	s.state.Set("seeded-systems", []devicestate.SeededSystem{
@@ -974,12 +980,11 @@ func (s *deviceMgrSystemsSuite) TestRebootFromRecoverToOther(c *C) {
 		s.restartRequests = nil
 		s.bootloader.BootVars = make(map[string]string)
 		s.logbuf.Reset()
+		mylog.Check(s.mgr.Reboot("", mode))
 
-		err = s.mgr.Reboot("", mode)
-		c.Assert(err, IsNil)
 
-		m, err := s.bootloader.GetBootVars("snapd_recovery_mode", "snapd_recovery_system")
-		c.Assert(err, IsNil)
+		m := mylog.Check2(s.bootloader.GetBootVars("snapd_recovery_mode", "snapd_recovery_system"))
+
 		c.Check(m, DeepEquals, map[string]string{
 			"snapd_recovery_mode":   mode,
 			"snapd_recovery_system": s.mockedSystemSeeds[0].label,
@@ -1001,13 +1006,14 @@ func (s *deviceMgrSystemsSuite) TestRebootAlreadyInRunMode(c *C) {
 		},
 	})
 	s.state.Unlock()
+	mylog.
 
-	// we are already in "run" mode so this should just reboot
-	err := s.mgr.Reboot("", "run")
-	c.Assert(err, IsNil)
+		// we are already in "run" mode so this should just reboot
+		Check(s.mgr.Reboot("", "run"))
 
-	m, err := s.bootloader.GetBootVars("snapd_recovery_mode", "snapd_recovery_system")
-	c.Assert(err, IsNil)
+
+	m := mylog.Check2(s.bootloader.GetBootVars("snapd_recovery_mode", "snapd_recovery_system"))
+
 	c.Check(m, DeepEquals, map[string]string{
 		"snapd_recovery_mode":   "",
 		"snapd_recovery_system": "",
@@ -1038,8 +1044,7 @@ func (s *deviceMgrSystemsSuite) TestRebootUnhappy(c *C) {
 	} {
 		s.restartRequests = nil
 		s.bootloader.BootVars = make(map[string]string)
-
-		err := s.mgr.Reboot(tc.systemLabel, tc.mode)
+		mylog.Check(s.mgr.Reboot(tc.systemLabel, tc.mode))
 		c.Assert(err, ErrorMatches, tc.expectedErr)
 
 		c.Check(s.restartRequests, HasLen, 0)
@@ -1049,11 +1054,11 @@ func (s *deviceMgrSystemsSuite) TestRebootUnhappy(c *C) {
 }
 
 func (s *deviceMgrSystemsSuite) TestDeviceManagerEnsureTriedSystemSuccessfuly(c *C) {
-	err := s.bootloader.SetBootVars(map[string]string{
+	mylog.Check(s.bootloader.SetBootVars(map[string]string{
 		"try_recovery_system":    "1234",
 		"recovery_system_status": "tried",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	devicestate.SetBootOkRan(s.mgr, true)
 
 	modeenv := boot.Modeenv{
@@ -1061,16 +1066,17 @@ func (s *deviceMgrSystemsSuite) TestDeviceManagerEnsureTriedSystemSuccessfuly(c 
 		// the system is in CurrentRecoverySystems
 		CurrentRecoverySystems: []string{"29112019", "1234"},
 	}
-	err = modeenv.WriteTo("")
-	c.Assert(err, IsNil)
+	mylog.Check(modeenv.WriteTo(""))
 
-	// system is considered successful, bootenv is cleared, the label is
-	// recorded in tried-systems
-	err = s.mgr.Ensure()
-	c.Assert(err, IsNil)
+	mylog.
 
-	m, err := s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status")
-	c.Assert(err, IsNil)
+		// system is considered successful, bootenv is cleared, the label is
+		// recorded in tried-systems
+		Check(s.mgr.Ensure())
+
+
+	m := mylog.Check2(s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status"))
+
 	c.Check(m, DeepEquals, map[string]string{
 		"try_recovery_system":    "",
 		"recovery_system_status": "",
@@ -1078,37 +1084,37 @@ func (s *deviceMgrSystemsSuite) TestDeviceManagerEnsureTriedSystemSuccessfuly(c 
 
 	var triedSystems []string
 	s.state.Lock()
-	err = s.state.Get("tried-systems", &triedSystems)
-	c.Assert(err, IsNil)
+	mylog.Check(s.state.Get("tried-systems", &triedSystems))
+
 	c.Check(triedSystems, DeepEquals, []string{"1234"})
 	// also logged
 	c.Check(s.logbuf.String(), testutil.Contains, `tried recovery system "1234" was successful`)
 	s.state.Unlock()
+	mylog.
 
-	// reset and run again, we need to populate boot variables again
-	err = s.bootloader.SetBootVars(map[string]string{
-		"try_recovery_system":    "1234",
-		"recovery_system_status": "tried",
-	})
-	c.Assert(err, IsNil)
+		// reset and run again, we need to populate boot variables again
+		Check(s.bootloader.SetBootVars(map[string]string{
+			"try_recovery_system":    "1234",
+			"recovery_system_status": "tried",
+		}))
+
 	devicestate.SetTriedSystemsRan(s.mgr, false)
+	mylog.Check(s.mgr.Ensure())
 
-	err = s.mgr.Ensure()
-	c.Assert(err, IsNil)
 	s.state.Lock()
 	defer s.state.Unlock()
-	err = s.state.Get("tried-systems", &triedSystems)
-	c.Assert(err, IsNil)
+	mylog.Check(s.state.Get("tried-systems", &triedSystems))
+
 	// the system was already there, no duplicate got appended
 	c.Assert(triedSystems, DeepEquals, []string{"1234"})
 }
 
 func (s *deviceMgrSystemsSuite) TestDeviceManagerEnsureTriedSystemMissingInModeenvUnhappy(c *C) {
-	err := s.bootloader.SetBootVars(map[string]string{
+	mylog.Check(s.bootloader.SetBootVars(map[string]string{
 		"try_recovery_system":    "1234",
 		"recovery_system_status": "tried",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	devicestate.SetBootOkRan(s.mgr, true)
 
 	modeenv := boot.Modeenv{
@@ -1116,16 +1122,17 @@ func (s *deviceMgrSystemsSuite) TestDeviceManagerEnsureTriedSystemMissingInModee
 		// the system is not in CurrentRecoverySystems
 		CurrentRecoverySystems: []string{"29112019"},
 	}
-	err = modeenv.WriteTo("")
-	c.Assert(err, IsNil)
+	mylog.Check(modeenv.WriteTo(""))
 
-	// system is considered successful, bootenv is cleared, the label is
-	// recorded in tried-systems
-	err = s.mgr.Ensure()
-	c.Assert(err, IsNil)
+	mylog.
 
-	m, err := s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status")
-	c.Assert(err, IsNil)
+		// system is considered successful, bootenv is cleared, the label is
+		// recorded in tried-systems
+		Check(s.mgr.Ensure())
+
+
+	m := mylog.Check2(s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status"))
+
 	c.Check(m, DeepEquals, map[string]string{
 		"try_recovery_system":    "",
 		"recovery_system_status": "",
@@ -1133,7 +1140,7 @@ func (s *deviceMgrSystemsSuite) TestDeviceManagerEnsureTriedSystemMissingInModee
 
 	var triedSystems []string
 	s.state.Lock()
-	err = s.state.Get("tried-systems", &triedSystems)
+	mylog.Check(s.state.Get("tried-systems", &triedSystems))
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 	// also logged
 	c.Check(s.logbuf.String(), testutil.Contains, `tried recovery system outcome error: recovery system "1234" was tried, but is not present in the modeenv CurrentRecoverySystems`)
@@ -1141,21 +1148,23 @@ func (s *deviceMgrSystemsSuite) TestDeviceManagerEnsureTriedSystemMissingInModee
 }
 
 func (s *deviceMgrSystemsSuite) TestDeviceManagerEnsureTriedSystemBad(c *C) {
-	// after reboot, the recovery system status is still try
-	err := s.bootloader.SetBootVars(map[string]string{
-		"try_recovery_system":    "1234",
-		"recovery_system_status": "try",
-	})
-	c.Assert(err, IsNil)
+	mylog.
+		// after reboot, the recovery system status is still try
+		Check(s.bootloader.SetBootVars(map[string]string{
+			"try_recovery_system":    "1234",
+			"recovery_system_status": "try",
+		}))
+
 	devicestate.SetBootOkRan(s.mgr, true)
+	mylog.
 
-	// thus the system is considered bad, bootenv is cleared, and system is
-	// not recorded as successful
-	err = s.mgr.Ensure()
-	c.Assert(err, IsNil)
+		// thus the system is considered bad, bootenv is cleared, and system is
+		// not recorded as successful
+		Check(s.mgr.Ensure())
 
-	m, err := s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status")
-	c.Assert(err, IsNil)
+
+	m := mylog.Check2(s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status"))
+
 	c.Check(m, DeepEquals, map[string]string{
 		"try_recovery_system":    "",
 		"recovery_system_status": "",
@@ -1163,31 +1172,31 @@ func (s *deviceMgrSystemsSuite) TestDeviceManagerEnsureTriedSystemBad(c *C) {
 
 	var triedSystems []string
 	s.state.Lock()
-	err = s.state.Get("tried-systems", &triedSystems)
+	mylog.Check(s.state.Get("tried-systems", &triedSystems))
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 	c.Check(s.logbuf.String(), testutil.Contains, `tried recovery system "1234" failed`)
 	s.state.Unlock()
+	mylog.
 
-	// procure an inconsistent state, reset and run again
-	err = s.bootloader.SetBootVars(map[string]string{
-		"try_recovery_system":    "",
-		"recovery_system_status": "try",
-	})
-	c.Assert(err, IsNil)
+		// procure an inconsistent state, reset and run again
+		Check(s.bootloader.SetBootVars(map[string]string{
+			"try_recovery_system":    "",
+			"recovery_system_status": "try",
+		}))
+
 	devicestate.SetTriedSystemsRan(s.mgr, false)
 
 	// clear the log buffer
 	s.logbuf.Reset()
+	mylog.Check(s.mgr.Ensure())
 
-	err = s.mgr.Ensure()
-	c.Assert(err, IsNil)
 	s.state.Lock()
 	defer s.state.Unlock()
-	err = s.state.Get("tried-systems", &triedSystems)
+	mylog.Check(s.state.Get("tried-systems", &triedSystems))
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 	// bootenv got cleared
-	m, err = s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status")
-	c.Assert(err, IsNil)
+	m = mylog.Check2(s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status"))
+
 	c.Check(m, DeepEquals, map[string]string{
 		"try_recovery_system":    "",
 		"recovery_system_status": "",
@@ -1197,11 +1206,11 @@ func (s *deviceMgrSystemsSuite) TestDeviceManagerEnsureTriedSystemBad(c *C) {
 }
 
 func (s *deviceMgrSystemsSuite) TestDeviceManagerEnsureTriedSystemManyLabels(c *C) {
-	err := s.bootloader.SetBootVars(map[string]string{
+	mylog.Check(s.bootloader.SetBootVars(map[string]string{
 		"try_recovery_system":    "1234",
 		"recovery_system_status": "tried",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	devicestate.SetBootOkRan(s.mgr, true)
 
 	s.state.Lock()
@@ -1213,15 +1222,16 @@ func (s *deviceMgrSystemsSuite) TestDeviceManagerEnsureTriedSystemManyLabels(c *
 		// the system is in CurrentRecoverySystems
 		CurrentRecoverySystems: []string{"29112019", "1234"},
 	}
-	err = modeenv.WriteTo("")
-	c.Assert(err, IsNil)
+	mylog.Check(modeenv.WriteTo(""))
 
-	// successful system label is appended
-	err = s.mgr.Ensure()
-	c.Assert(err, IsNil)
+	mylog.
 
-	m, err := s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status")
-	c.Assert(err, IsNil)
+		// successful system label is appended
+		Check(s.mgr.Ensure())
+
+
+	m := mylog.Check2(s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status"))
+
 	c.Check(m, DeepEquals, map[string]string{
 		"try_recovery_system":    "",
 		"recovery_system_status": "",
@@ -1231,8 +1241,8 @@ func (s *deviceMgrSystemsSuite) TestDeviceManagerEnsureTriedSystemManyLabels(c *
 	defer s.state.Unlock()
 
 	var triedSystems []string
-	err = s.state.Get("tried-systems", &triedSystems)
-	c.Assert(err, IsNil)
+	mylog.Check(s.state.Get("tried-systems", &triedSystems))
+
 	c.Assert(triedSystems, DeepEquals, []string{"0000", "1111", "1234"})
 
 	c.Check(s.logbuf.String(), testutil.Contains, `tried recovery system "1234" was successful`)
@@ -1255,8 +1265,8 @@ func (s *deviceMgrSystemsSuite) TestRecordSeededSystem(c *C) {
 
 		SeedTime: now,
 	}
-	err := devicestate.RecordSeededSystem(s.mgr, s.state, &sys)
-	c.Assert(err, IsNil)
+	mylog.Check(devicestate.RecordSeededSystem(s.mgr, s.state, &sys))
+
 
 	expectedSeededOneSys := []map[string]interface{}{
 		{
@@ -1269,22 +1279,23 @@ func (s *deviceMgrSystemsSuite) TestRecordSeededSystem(c *C) {
 		},
 	}
 	var seededSystemsFromState []map[string]interface{}
-	err = s.state.Get("seeded-systems", &seededSystemsFromState)
-	c.Assert(err, IsNil)
+	mylog.Check(s.state.Get("seeded-systems", &seededSystemsFromState))
+
 	c.Assert(seededSystemsFromState, DeepEquals, expectedSeededOneSys)
-	// adding the system again does nothing
-	err = devicestate.RecordSeededSystem(s.mgr, s.state, &sys)
-	c.Assert(err, IsNil)
-	err = s.state.Get("seeded-systems", &seededSystemsFromState)
-	c.Assert(err, IsNil)
+	mylog.
+		// adding the system again does nothing
+		Check(devicestate.RecordSeededSystem(s.mgr, s.state, &sys))
+
+	mylog.Check(s.state.Get("seeded-systems", &seededSystemsFromState))
+
 	c.Assert(seededSystemsFromState, DeepEquals, expectedSeededOneSys)
 	// adding the system again, even with changed seed time, still does nothing
 	sysWithNewSeedTime := sys
 	sysWithNewSeedTime.SeedTime = now.Add(time.Hour)
-	err = devicestate.RecordSeededSystem(s.mgr, s.state, &sysWithNewSeedTime)
-	c.Assert(err, IsNil)
-	err = s.state.Get("seeded-systems", &seededSystemsFromState)
-	c.Assert(err, IsNil)
+	mylog.Check(devicestate.RecordSeededSystem(s.mgr, s.state, &sysWithNewSeedTime))
+
+	mylog.Check(s.state.Get("seeded-systems", &seededSystemsFromState))
+
 	c.Assert(seededSystemsFromState, DeepEquals, expectedSeededOneSys)
 
 	rev3Ts := modelTs.AddDate(0, 1, 0)
@@ -1292,11 +1303,10 @@ func (s *deviceMgrSystemsSuite) TestRecordSeededSystem(c *C) {
 	sysRev3 := sys
 	sysRev3.Revision = 3
 	sysRev3.Timestamp = rev3Ts
+	mylog.Check(devicestate.RecordSeededSystem(s.mgr, s.state, &sysRev3))
 
-	err = devicestate.RecordSeededSystem(s.mgr, s.state, &sysRev3)
-	c.Assert(err, IsNil)
-	err = s.state.Get("seeded-systems", &seededSystemsFromState)
-	c.Assert(err, IsNil)
+	mylog.Check(s.state.Get("seeded-systems", &seededSystemsFromState))
+
 	expectedWithNewRev := []map[string]interface{}{
 		{
 			// new entry is added at the beginning
@@ -1316,11 +1326,12 @@ func (s *deviceMgrSystemsSuite) TestRecordSeededSystem(c *C) {
 		},
 	}
 	c.Assert(seededSystemsFromState, DeepEquals, expectedWithNewRev)
-	// trying to add again does nothing
-	err = devicestate.RecordSeededSystem(s.mgr, s.state, &sysRev3)
-	c.Assert(err, IsNil)
-	err = s.state.Get("seeded-systems", &seededSystemsFromState)
-	c.Assert(err, IsNil)
+	mylog.
+		// trying to add again does nothing
+		Check(devicestate.RecordSeededSystem(s.mgr, s.state, &sysRev3))
+
+	mylog.Check(s.state.Get("seeded-systems", &seededSystemsFromState))
+
 	c.Assert(seededSystemsFromState, DeepEquals, expectedWithNewRev)
 
 	modelNewTs := modelTs
@@ -1335,10 +1346,10 @@ func (s *deviceMgrSystemsSuite) TestRecordSeededSystem(c *C) {
 
 		SeedTime: now,
 	}
-	err = devicestate.RecordSeededSystem(s.mgr, s.state, &sysNew)
-	c.Assert(err, IsNil)
-	err = s.state.Get("seeded-systems", &seededSystemsFromState)
-	c.Assert(err, IsNil)
+	mylog.Check(devicestate.RecordSeededSystem(s.mgr, s.state, &sysNew))
+
+	mylog.Check(s.state.Get("seeded-systems", &seededSystemsFromState))
+
 	expectedWithNewModel := []map[string]interface{}{
 		{
 			// and another one got added at the beginning
@@ -1398,7 +1409,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemConfl
 		conflict := s.state.NewChange(chgType, "...")
 		conflict.AddTask(s.state.NewTask(chgType, "..."))
 
-		_, err := devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{})
+		_ := mylog.Check2(devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{}))
 		conflictErr, ok := err.(*snapstate.ChangeConflictError)
 		c.Assert(ok, Equals, true, Commentf("expected a snapstate.ChangeConflictError, got %T", err))
 
@@ -1418,10 +1429,10 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemTasks
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	chg, err := devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
+	chg := mylog.Check2(devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
 		TestSystem: true,
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Assert(chg, NotNil)
 	tsks := chg.Tasks()
 	c.Check(tsks, HasLen, 2)
@@ -1430,8 +1441,8 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemTasks
 	c.Check(tskCreate.Summary(), Matches, `Create recovery system with label "1234"`)
 	c.Check(tskFinalize.Summary(), Matches, `Finalize recovery system with label "1234"`)
 	var systemSetupData map[string]interface{}
-	err = tskCreate.Get("recovery-system-setup", &systemSetupData)
-	c.Assert(err, IsNil)
+	mylog.Check(tskCreate.Get("recovery-system-setup", &systemSetupData))
+
 	c.Assert(systemSetupData, DeepEquals, map[string]interface{}{
 		"label":            "1234",
 		"directory":        filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234"),
@@ -1440,8 +1451,8 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemTasks
 	})
 
 	var otherTaskID string
-	err = tskFinalize.Get("recovery-system-setup-task", &otherTaskID)
-	c.Assert(err, IsNil)
+	mylog.Check(tskFinalize.Get("recovery-system-setup-task", &otherTaskID))
+
 	c.Assert(otherTaskID, Equals, tskCreate.ID())
 }
 
@@ -1452,7 +1463,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemTasks
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	chg, err := devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{})
+	chg := mylog.Check2(devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{}))
 	c.Assert(err, ErrorMatches, `recovery system "1234" already exists`)
 	c.Check(chg, IsNil)
 }
@@ -1464,7 +1475,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemNotSe
 	defer s.state.Unlock()
 	s.state.Set("seeded", nil)
 
-	chg, err := devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{})
+	chg := mylog.Check2(devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{}))
 	c.Assert(err, ErrorMatches, `cannot create new recovery systems until fully seeded`)
 	c.Check(chg, IsNil)
 }
@@ -1503,12 +1514,11 @@ func (s *deviceMgrSystemsCreateSuite) mockStandardSnapsModeenvAndBootloaderState
 	s.makeSnapInState(c, "pc-kernel", snap.R(2), nil)
 	s.makeSnapInState(c, "core20", snap.R(3), nil)
 	s.makeSnapInState(c, "snapd", snap.R(4), nil)
-
-	err := s.bootloader.SetBootVars(map[string]string{
+	mylog.Check(s.bootloader.SetBootVars(map[string]string{
 		"snap_kernel": "pc-kernel_2.snap",
 		"snap_core":   "core20_3.snap",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	modeenv := boot.Modeenv{
 		Mode:                   "run",
 		Base:                   "core20_3.snap",
@@ -1521,8 +1531,8 @@ func (s *deviceMgrSystemsCreateSuite) mockStandardSnapsModeenvAndBootloaderState
 		Grade:          string(s.model.Grade()),
 		ModelSignKeyID: s.model.SignKeyID(),
 	}
-	err = modeenv.WriteTo("")
-	c.Assert(err, IsNil)
+	mylog.Check(modeenv.WriteTo(""))
+
 }
 
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemHappy(c *C) {
@@ -1531,10 +1541,10 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemHappy
 	s.state.Lock()
 	s.mockStandardSnapsModeenvAndBootloaderState(c)
 
-	chg, err := devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
+	chg := mylog.Check2(devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
 		TestSystem: true,
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Assert(chg, NotNil)
 	tsks := chg.Tasks()
 	c.Check(tsks, HasLen, 2)
@@ -1554,14 +1564,14 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemHappy
 	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 
 	validateCore20Seed(c, "1234", s.model, s.storeSigning.Trusted)
-	m, err := s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status")
-	c.Assert(err, IsNil)
+	m := mylog.Check2(s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status"))
+
 	c.Check(m, DeepEquals, map[string]string{
 		"try_recovery_system":    "1234",
 		"recovery_system_status": "try",
 	})
-	modeenvAfterCreate, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	modeenvAfterCreate := mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check(modeenvAfterCreate, testutil.JsonEquals, boot.Modeenv{
 		Mode:                   "run",
 		Base:                   "core20_3.snap",
@@ -1608,11 +1618,11 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemHappy
 	c.Assert(tskFinalize.Status(), Equals, state.DoneStatus)
 
 	var triedSystemsAfterFinalize []string
-	err = s.state.Get("tried-systems", &triedSystemsAfterFinalize)
+	mylog.Check(s.state.Get("tried-systems", &triedSystemsAfterFinalize))
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 
-	modeenvAfterFinalize, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	modeenvAfterFinalize := mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check(modeenvAfterFinalize, testutil.JsonEquals, boot.Modeenv{
 		Mode:                   "run",
 		Base:                   "core20_3.snap",
@@ -1661,10 +1671,10 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 	tSnapsup1.Set("snap-setup", snapsupFoo)
 	tSnapsup2.Set("snap-setup", snapsupBar)
 
-	tss, err := devicestate.CreateRecoverySystemTasks(s.state, "1234", []string{tSnapsup1.ID(), tSnapsup2.ID()}, devicestate.CreateRecoverySystemOptions{
+	tss := mylog.Check2(devicestate.CreateRecoverySystemTasks(s.state, "1234", []string{tSnapsup1.ID(), tSnapsup2.ID()}, devicestate.CreateRecoverySystemOptions{
 		TestSystem: true,
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	tsks := tss.Tasks()
 	c.Check(tsks, HasLen, 2)
 	tskCreate := tsks[0]
@@ -1672,8 +1682,8 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 	c.Assert(tskCreate.Summary(), Matches, `Create recovery system with label "1234"`)
 	c.Check(tskFinalize.Summary(), Matches, `Finalize recovery system with label "1234"`)
 	var systemSetupData map[string]interface{}
-	err = tskCreate.Get("recovery-system-setup", &systemSetupData)
-	c.Assert(err, IsNil)
+	mylog.Check(tskCreate.Get("recovery-system-setup", &systemSetupData))
+
 	c.Assert(systemSetupData, DeepEquals, map[string]interface{}{
 		"label":            "1234",
 		"directory":        filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234"),
@@ -1736,14 +1746,14 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 
 	validateCore20Seed(c, "1234", newModel, s.storeSigning.Trusted, "foo", "bar")
-	m, err := s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status")
-	c.Assert(err, IsNil)
+	m := mylog.Check2(s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status"))
+
 	c.Check(m, DeepEquals, map[string]string{
 		"try_recovery_system":    "1234",
 		"recovery_system_status": "try",
 	})
-	modeenvAfterCreate, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	modeenvAfterCreate := mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check(modeenvAfterCreate, testutil.JsonEquals, boot.Modeenv{
 		Mode:                   "run",
 		Base:                   "core20_3.snap",
@@ -1792,12 +1802,12 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 
 	// this would be part of a remodel so some state is cleaned up only at the end of remodel change
 	var triedSystemsAfterFinalize []string
-	err = s.state.Get("tried-systems", &triedSystemsAfterFinalize)
-	c.Assert(err, IsNil)
+	mylog.Check(s.state.Get("tried-systems", &triedSystemsAfterFinalize))
+
 	c.Check(triedSystemsAfterFinalize, DeepEquals, []string{"1234"})
 
-	modeenvAfterFinalize, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	modeenvAfterFinalize := mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check(modeenvAfterFinalize, testutil.JsonEquals, boot.Modeenv{
 		Mode:           "run",
 		Base:           "core20_3.snap",
@@ -1826,10 +1836,10 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 
 	s.state.Lock()
 
-	tss, err := devicestate.CreateRecoverySystemTasks(s.state, "1234", nil, devicestate.CreateRecoverySystemOptions{
+	tss := mylog.Check2(devicestate.CreateRecoverySystemTasks(s.state, "1234", nil, devicestate.CreateRecoverySystemOptions{
 		TestSystem: true,
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	tsks := tss.Tasks()
 	c.Check(tsks, HasLen, 2)
 	tskCreate := tsks[0]
@@ -1838,8 +1848,8 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 	c.Check(tskFinalize.Summary(), Matches, `Finalize recovery system with label "1234"`)
 
 	var systemSetupData map[string]interface{}
-	err = tskCreate.Get("recovery-system-setup", &systemSetupData)
-	c.Assert(err, IsNil)
+	mylog.Check(tskCreate.Get("recovery-system-setup", &systemSetupData))
+
 	c.Assert(systemSetupData, DeepEquals, map[string]interface{}{
 		"label":            "1234",
 		"directory":        filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234"),
@@ -1923,11 +1933,11 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 
 	signer := s.brands.Signing("canonical")
 
-	vsetOne, err := signer.Sign(asserts.ValidationSetType, setOne, nil, "")
+	vsetOne := mylog.Check2(signer.Sign(asserts.ValidationSetType, setOne, nil, ""))
 	c.Check(err, IsNil)
 	c.Check(assertstate.Add(s.state, vsetOne), IsNil)
 
-	vsetTwo, err := signer.Sign(asserts.ValidationSetType, setTwo, nil, "")
+	vsetTwo := mylog.Check2(signer.Sign(asserts.ValidationSetType, setTwo, nil, ""))
 	c.Check(err, IsNil)
 	c.Check(assertstate.Add(s.state, vsetTwo), IsNil)
 
@@ -1945,14 +1955,14 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 
 	validateCore20Seed(c, "1234", newModel, s.storeSigning.Trusted)
-	m, err := s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status")
-	c.Assert(err, IsNil)
+	m := mylog.Check2(s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status"))
+
 	c.Check(m, DeepEquals, map[string]string{
 		"try_recovery_system":    "1234",
 		"recovery_system_status": "try",
 	})
-	modeenvAfterCreate, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	modeenvAfterCreate := mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check(modeenvAfterCreate, testutil.JsonEquals, boot.Modeenv{
 		Mode:                   "run",
 		Base:                   "core20_3.snap",
@@ -2000,12 +2010,12 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 
 	// this would be part of a remodel so some state is cleaned up only at the end of remodel change
 	var triedSystemsAfterFinalize []string
-	err = s.state.Get("tried-systems", &triedSystemsAfterFinalize)
-	c.Assert(err, IsNil)
+	mylog.Check(s.state.Get("tried-systems", &triedSystemsAfterFinalize))
+
 	c.Check(triedSystemsAfterFinalize, DeepEquals, []string{"1234"})
 
-	modeenvAfterFinalize, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	modeenvAfterFinalize := mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check(modeenvAfterFinalize, testutil.JsonEquals, boot.Modeenv{
 		Mode:           "run",
 		Base:           "core20_3.snap",
@@ -2041,10 +2051,10 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 	}
 	tSnapsup1.Set("snap-setup", snapsupFoo)
 
-	tss, err := devicestate.CreateRecoverySystemTasks(s.state, "1234missingdownload", []string{tSnapsup1.ID()}, devicestate.CreateRecoverySystemOptions{
+	tss := mylog.Check2(devicestate.CreateRecoverySystemTasks(s.state, "1234missingdownload", []string{tSnapsup1.ID()}, devicestate.CreateRecoverySystemOptions{
 		TestSystem: true,
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	tsks := tss.Tasks()
 	c.Check(tsks, HasLen, 2)
 	tskCreate := tsks[0]
@@ -2052,8 +2062,8 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 	c.Assert(tskCreate.Summary(), Matches, `Create recovery system with label "1234missingdownload"`)
 	c.Check(tskFinalize.Summary(), Matches, `Finalize recovery system with label "1234missingdownload"`)
 	var systemSetupData map[string]interface{}
-	err = tskCreate.Get("recovery-system-setup", &systemSetupData)
-	c.Assert(err, IsNil)
+	mylog.Check(tskCreate.Get("recovery-system-setup", &systemSetupData))
+
 	c.Assert(systemSetupData, DeepEquals, map[string]interface{}{
 		"label":            "1234missingdownload",
 		"directory":        filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234missingdownload"),
@@ -2109,8 +2119,8 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 	c.Check(s.restartRequests, HasLen, 0)
 	// single bootloader call to clear any recovery system variables
 	c.Check(s.bootloader.SetBootVarsCalls, Equals, 1)
-	m, err := s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status")
-	c.Assert(err, IsNil)
+	m := mylog.Check2(s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status"))
+
 	c.Check(m, DeepEquals, map[string]string{
 		"try_recovery_system":    "",
 		"recovery_system_status": "",
@@ -2133,10 +2143,10 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndoN
 	}
 	s.state.Set("default-recovery-system", previousDefault)
 
-	chg, err := devicestate.CreateRecoverySystem(s.state, "1234undo", devicestate.CreateRecoverySystemOptions{
+	chg := mylog.Check2(devicestate.CreateRecoverySystem(s.state, "1234undo", devicestate.CreateRecoverySystemOptions{
 		MarkDefault: true,
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Assert(chg, NotNil)
 	tsks := chg.Tasks()
 	c.Check(tsks, HasLen, 1)
@@ -2162,15 +2172,15 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndoN
 	// a reboot is not expected
 	c.Check(s.restartRequests, HasLen, 0)
 
-	m, err := s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status")
-	c.Assert(err, IsNil)
+	m := mylog.Check2(s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status"))
+
 	c.Check(m, DeepEquals, map[string]string{
 		"try_recovery_system":    "",
 		"recovery_system_status": "",
 	})
 
-	modeenvAfterCreate, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	modeenvAfterCreate := mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check(modeenvAfterCreate, testutil.JsonEquals, boot.Modeenv{
 		Mode:                   "run",
 		Base:                   "core20_3.snap",
@@ -2185,7 +2195,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndoN
 	})
 
 	var triedSystemsAfter []string
-	err = s.state.Get("tried-systems", &triedSystemsAfter)
+	mylog.Check(s.state.Get("tried-systems", &triedSystemsAfter))
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 
 	// expect 2 calls to bootloader.SetBootVars: one for do, one for undo
@@ -2194,16 +2204,16 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndoN
 	// system directory was removed
 	c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234undo"), testutil.FileAbsent)
 	// only the canary files are left now
-	p, err := filepath.Glob(filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/*"))
-	c.Assert(err, IsNil)
+	p := mylog.Check2(filepath.Glob(filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/*")))
+
 	c.Check(p, DeepEquals, []string{
 		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/core20_10.snap"),
 		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/some-snap_1.snap"),
 	})
 
 	var defaultSystem devicestate.DefaultRecoverySystem
-	err = s.state.Get("default-recovery-system", &defaultSystem)
-	c.Assert(err, IsNil)
+	mylog.Check(s.state.Get("default-recovery-system", &defaultSystem))
+
 	c.Check(defaultSystem, DeepEquals, previousDefault)
 }
 
@@ -2221,11 +2231,11 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndoT
 	}
 	s.state.Set("default-recovery-system", previousDefault)
 
-	chg, err := devicestate.CreateRecoverySystem(s.state, "1234undo", devicestate.CreateRecoverySystemOptions{
+	chg := mylog.Check2(devicestate.CreateRecoverySystem(s.state, "1234undo", devicestate.CreateRecoverySystemOptions{
 		TestSystem:  true,
 		MarkDefault: true,
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Assert(chg, NotNil)
 	tsks := chg.Tasks()
 	c.Check(tsks, HasLen, 2)
@@ -2253,8 +2263,8 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndoT
 	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 	// validity check asserted snaps location
 	c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234undo"), testutil.FilePresent)
-	p, err := filepath.Glob(filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/*"))
-	c.Assert(err, IsNil)
+	p := mylog.Check2(filepath.Glob(filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/*")))
+
 	c.Check(p, DeepEquals, []string{
 		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/core20_10.snap"),
 		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/core20_3.snap"),
@@ -2265,14 +2275,14 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndoT
 	})
 	// do more extensive validation
 	validateCore20Seed(c, "1234undo", s.model, s.storeSigning.Trusted)
-	m, err := s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status")
-	c.Assert(err, IsNil)
+	m := mylog.Check2(s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status"))
+
 	c.Check(m, DeepEquals, map[string]string{
 		"try_recovery_system":    "1234undo",
 		"recovery_system_status": "try",
 	})
-	modeenvAfterCreate, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	modeenvAfterCreate := mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check(modeenvAfterCreate, testutil.JsonEquals, boot.Modeenv{
 		Mode:                   "run",
 		Base:                   "core20_3.snap",
@@ -2308,11 +2318,11 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndoT
 	c.Assert(tskFinalize.Status(), Equals, state.UndoneStatus)
 
 	var triedSystemsAfter []string
-	err = s.state.Get("tried-systems", &triedSystemsAfter)
+	mylog.Check(s.state.Get("tried-systems", &triedSystemsAfter))
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 
-	modeenvAfterFinalize, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	modeenvAfterFinalize := mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check(modeenvAfterFinalize, testutil.JsonEquals, boot.Modeenv{
 		Mode:                   "run",
 		Base:                   "core20_3.snap",
@@ -2330,16 +2340,16 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndoT
 	// system directory was removed
 	c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234undo"), testutil.FileAbsent)
 	// only the canary files are left now
-	p, err = filepath.Glob(filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/*"))
-	c.Assert(err, IsNil)
+	p = mylog.Check2(filepath.Glob(filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/*")))
+
 	c.Check(p, DeepEquals, []string{
 		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/core20_10.snap"),
 		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/some-snap_1.snap"),
 	})
 
 	var defaultSystem devicestate.DefaultRecoverySystem
-	err = s.state.Get("default-recovery-system", &defaultSystem)
-	c.Assert(err, IsNil)
+	mylog.Check(s.state.Get("default-recovery-system", &defaultSystem))
+
 	c.Check(defaultSystem, Equals, previousDefault)
 }
 
@@ -2348,10 +2358,10 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemFinal
 
 	s.state.Lock()
 
-	chg, err := devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
+	chg := mylog.Check2(devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
 		TestSystem: true,
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Assert(chg, NotNil)
 	tsks := chg.Tasks()
 	c.Check(tsks, HasLen, 2)
@@ -2374,14 +2384,14 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemFinal
 	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 
 	validateCore20Seed(c, "1234", s.model, s.storeSigning.Trusted)
-	m, err := s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status")
-	c.Assert(err, IsNil)
+	m := mylog.Check2(s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status"))
+
 	c.Check(m, DeepEquals, map[string]string{
 		"try_recovery_system":    "1234",
 		"recovery_system_status": "try",
 	})
-	modeenvAfterCreate, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	modeenvAfterCreate := mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check(modeenvAfterCreate, testutil.JsonEquals, boot.Modeenv{
 		Mode:                   "run",
 		Base:                   "core20_3.snap",
@@ -2420,12 +2430,12 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemFinal
 	c.Assert(tskFinalize.Status(), Equals, state.ErrorStatus)
 
 	var triedSystemsAfter []string
-	err = s.state.Get("tried-systems", &triedSystemsAfter)
-	c.Assert(err, IsNil)
+	mylog.Check(s.state.Get("tried-systems", &triedSystemsAfter))
+
 	c.Assert(triedSystemsAfter, HasLen, 0)
 
-	modeenvAfterFinalize, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	modeenvAfterFinalize := mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check(modeenvAfterFinalize, testutil.JsonEquals, boot.Modeenv{
 		Mode:                   "run",
 		Base:                   "core20_3.snap",
@@ -2443,8 +2453,8 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemFinal
 	// seed directory was removed
 	c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234"), testutil.FileAbsent)
 	// all common snaps were cleaned up
-	p, err := filepath.Glob(filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/*"))
-	c.Assert(err, IsNil)
+	p := mylog.Check2(filepath.Glob(filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/*")))
+
 	c.Check(p, HasLen, 0)
 }
 
@@ -2453,10 +2463,10 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemErrCl
 
 	s.state.Lock()
 
-	chg, err := devicestate.CreateRecoverySystem(s.state, "1234error", devicestate.CreateRecoverySystemOptions{
+	chg := mylog.Check2(devicestate.CreateRecoverySystem(s.state, "1234error", devicestate.CreateRecoverySystemOptions{
 		TestSystem: true,
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Assert(chg, NotNil)
 	tsks := chg.Tasks()
 	c.Check(tsks, HasLen, 2)
@@ -2494,20 +2504,20 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemErrCl
 	c.Check(s.restartRequests, HasLen, 0)
 	// validity check asserted snaps location
 	c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234error"), testutil.FileAbsent)
-	p, err := filepath.Glob(filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/*"))
-	c.Assert(err, IsNil)
+	p := mylog.Check2(filepath.Glob(filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/*")))
+
 	c.Check(p, DeepEquals, []string{
 		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/core20_10.snap"),
 		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/some-snap_1.snap"),
 	})
-	m, err := s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status")
-	c.Assert(err, IsNil)
+	m := mylog.Check2(s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status"))
+
 	c.Check(m, DeepEquals, map[string]string{
 		"try_recovery_system":    "",
 		"recovery_system_status": "",
 	})
-	modeenvAfterCreate, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	modeenvAfterCreate := mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check(modeenvAfterCreate, testutil.JsonEquals, boot.Modeenv{
 		Mode:                   "run",
 		Base:                   "core20_3.snap",
@@ -2526,10 +2536,10 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemReboo
 	devicestate.SetBootOkRan(s.mgr, true)
 
 	s.state.Lock()
-	chg, err := devicestate.CreateRecoverySystem(s.state, "1234reboot", devicestate.CreateRecoverySystemOptions{
+	chg := mylog.Check2(devicestate.CreateRecoverySystem(s.state, "1234reboot", devicestate.CreateRecoverySystemOptions{
 		TestSystem: true,
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Assert(chg, NotNil)
 	tsks := chg.Tasks()
 	c.Check(tsks, HasLen, 2)
@@ -2595,20 +2605,20 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemReboo
 	// recovery system was removed
 	c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234reboot"), testutil.FileAbsent)
 	// and so were the new snaps
-	p, err := filepath.Glob(filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/*"))
-	c.Assert(err, IsNil)
+	p := mylog.Check2(filepath.Glob(filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/*")))
+
 	c.Check(p, DeepEquals, []string{
 		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/core20_10.snap"),
 		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/some-snap_1.snap"),
 	})
-	m, err := s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status")
-	c.Assert(err, IsNil)
+	m := mylog.Check2(s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status"))
+
 	c.Check(m, DeepEquals, map[string]string{
 		"try_recovery_system":    "",
 		"recovery_system_status": "",
 	})
-	modeenvAfterCreate, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	modeenvAfterCreate := mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check(modeenvAfterCreate, testutil.JsonEquals, boot.Modeenv{
 		Mode:                   "run",
 		Base:                   "core20_3.snap",
@@ -2644,9 +2654,10 @@ func (s *systemSnapTrackingSuite) TestSnapFileTracking(c *C) {
 		{"snaps/to-be-removed", "canary"},
 		{"snaps/this-one-stays", "canary"},
 	})
+	mylog.
 
-	// complain loudly if the file is under unexpected location
-	err := devicestate.LogNewSystemSnapFile(flog, filepath.Join(otherDir, "some-file"))
+		// complain loudly if the file is under unexpected location
+		Check(devicestate.LogNewSystemSnapFile(flog, filepath.Join(otherDir, "some-file")))
 	c.Assert(err, ErrorMatches, `internal error: unexpected recovery system snap location ".*/some-file"`)
 	c.Check(flog, testutil.FileAbsent)
 
@@ -2658,7 +2669,7 @@ func (s *systemSnapTrackingSuite) TestSnapFileTracking(c *C) {
 		filepath.Join(systemDir, "does-not-exist"),
 		filepath.Join(systemDir, "snaps/to-be-removed"),
 	} {
-		err = devicestate.LogNewSystemSnapFile(flog, p)
+		mylog.Check(devicestate.LogNewSystemSnapFile(flog, p))
 		c.Check(err, IsNil)
 		fmt.Fprintln(expectedContent, p)
 		// logged content is accumulated
@@ -2666,16 +2677,15 @@ func (s *systemSnapTrackingSuite) TestSnapFileTracking(c *C) {
 	}
 
 	// add some empty spaces to log file, which should get ignored when purging
-	f, err := os.OpenFile(flog, os.O_APPEND, 0644)
-	c.Assert(err, IsNil)
+	f := mylog.Check2(os.OpenFile(flog, os.O_APPEND, 0644))
+
 	defer f.Close()
 	fmt.Fprintln(f, "    ")
 	fmt.Fprintln(f, "")
 	// and double some entries
 	fmt.Fprintln(f, filepath.Join(systemDir, "this-will-be-removed"))
+	mylog.Check(devicestate.PurgeNewSystemSnapFiles(flog))
 
-	err = devicestate.PurgeNewSystemSnapFiles(flog)
-	c.Assert(err, IsNil)
 
 	// those are removed
 	for _, p := range []string{
@@ -2692,9 +2702,10 @@ func (s *systemSnapTrackingSuite) TestSnapFileTracking(c *C) {
 func (s *systemSnapTrackingSuite) TestSnapFilePurgeWhenNoLog(c *C) {
 	otherDir := c.MkDir()
 	flog := filepath.Join(otherDir, "files-log")
-	// purge is still happy even if log file does not exist
-	err := devicestate.PurgeNewSystemSnapFiles(flog)
-	c.Assert(err, IsNil)
+	mylog.
+		// purge is still happy even if log file does not exist
+		Check(devicestate.PurgeNewSystemSnapFiles(flog))
+
 }
 
 type modelAndGadgetInfoSuite struct {
@@ -2800,7 +2811,8 @@ func (s *modelAndGadgetInfoSuite) makeMockUC20SeedWithGadgetYaml(c *C, label, ga
 				"id":              seed20.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
-			}},
+			},
+		},
 	}
 	if isClassic {
 		headers["classic"] = "true"
@@ -2812,14 +2824,14 @@ func (s *modelAndGadgetInfoSuite) makeMockUC20SeedWithGadgetYaml(c *C, label, ga
 func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncyptionInfoHappy(c *C) {
 	isClassic := false
 	fakeModel := s.makeMockUC20SeedWithGadgetYaml(c, "some-label", mockGadgetUCYaml, isClassic)
-	expectedGadgetInfo, err := gadget.InfoFromGadgetYaml([]byte(mockGadgetUCYaml), fakeModel)
-	c.Assert(err, IsNil)
+	expectedGadgetInfo := mylog.Check2(gadget.InfoFromGadgetYaml([]byte(mockGadgetUCYaml), fakeModel))
+
 
 	restore := install.MockSecbootCheckTPMKeySealingSupported(func(secboot.TPMProvisionMode) error { return fmt.Errorf("really no tpm") })
 	defer restore()
 
-	system, gadgetInfo, encInfo, err := s.mgr.SystemAndGadgetAndEncryptionInfo("some-label")
-	c.Assert(err, IsNil)
+	system, gadgetInfo, encInfo := mylog.Check4(s.mgr.SystemAndGadgetAndEncryptionInfo("some-label"))
+
 	c.Check(system, DeepEquals, &devicestate.System{
 		Label:   "some-label",
 		Model:   fakeModel,
@@ -2835,34 +2847,36 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncyptionInfoHappy(c *C)
 }
 
 func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoErrorInvalidLabel(c *C) {
-	_, _, _, err := s.mgr.SystemAndGadgetAndEncryptionInfo("invalid/label")
+	_, _, _ := mylog.Check4(s.mgr.SystemAndGadgetAndEncryptionInfo("invalid/label"))
 	c.Assert(err, ErrorMatches, `cannot open: invalid seed system label: "invalid/label"`)
 }
 
 func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoErrorNoSeedDir(c *C) {
-	_, _, _, err := s.mgr.SystemAndGadgetAndEncryptionInfo("no-such-seed")
+	_, _, _ := mylog.Check4(s.mgr.SystemAndGadgetAndEncryptionInfo("no-such-seed"))
 	c.Assert(err, ErrorMatches, `cannot load assertions for label "no-such-seed": no seed assertions`)
 }
 
 func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoErrorNoGadget(c *C) {
 	isClassic := false
 	s.makeMockUC20SeedWithGadgetYaml(c, "some-label", mockGadgetUCYaml, isClassic)
-	// break the seed by removing the gadget
-	err := os.Remove(filepath.Join(dirs.SnapSeedDir, "snaps", "pc_1.snap"))
-	c.Assert(err, IsNil)
+	mylog.
+		// break the seed by removing the gadget
+		Check(os.Remove(filepath.Join(dirs.SnapSeedDir, "snaps", "pc_1.snap")))
 
-	_, _, _, err = s.mgr.SystemAndGadgetAndEncryptionInfo("some-label")
+
+	_, _, _ = mylog.Check4(s.mgr.SystemAndGadgetAndEncryptionInfo("some-label"))
 	c.Assert(err, ErrorMatches, "cannot load essential snaps metadata: cannot stat snap:.*: no such file or directory")
 }
 
 func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoErrorWrongGadget(c *C) {
 	isClassic := false
 	s.makeMockUC20SeedWithGadgetYaml(c, "some-label", mockGadgetUCYaml, isClassic)
-	// break the seed by changing things
-	err := os.WriteFile(filepath.Join(dirs.SnapSeedDir, "snaps", "pc_1.snap"), []byte(`content-changed`), 0644)
-	c.Assert(err, IsNil)
+	mylog.
+		// break the seed by changing things
+		Check(os.WriteFile(filepath.Join(dirs.SnapSeedDir, "snaps", "pc_1.snap"), []byte(`content-changed`), 0644))
 
-	_, _, _, err = s.mgr.SystemAndGadgetAndEncryptionInfo("some-label")
+
+	_, _, _ = mylog.Check4(s.mgr.SystemAndGadgetAndEncryptionInfo("some-label"))
 	c.Assert(err, ErrorMatches, `cannot load essential snaps metadata: cannot validate "/.*/pc_1.snap".* wrong size`)
 }
 
@@ -2870,7 +2884,7 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoErrorInvalidGadgetYaml(
 	isClassic := false
 	s.makeMockUC20SeedWithGadgetYaml(c, "some-label", "", isClassic)
 
-	_, _, _, err := s.mgr.SystemAndGadgetAndEncryptionInfo("some-label")
+	_, _, _ := mylog.Check4(s.mgr.SystemAndGadgetAndEncryptionInfo("some-label"))
 	c.Assert(err, ErrorMatches, "reading gadget information: bootloader not declared in any volume")
 }
 
@@ -2879,10 +2893,10 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoErrorNoSeed(c *C) {
 	defer restore()
 
 	// create a new manager as the "isClassicBoot" information is cached
-	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), nil)
-	c.Assert(err, IsNil)
+	mgr := mylog.Check2(devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), nil))
 
-	_, _, _, err = mgr.SystemAndGadgetAndEncryptionInfo("some-label")
+
+	_, _, _ = mylog.Check4(mgr.SystemAndGadgetAndEncryptionInfo("some-label"))
 	c.Assert(err, ErrorMatches, `cannot load assertions for label "some-label": no seed assertions`)
 }
 
@@ -2892,7 +2906,7 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoBadClassicGadget(c *C) 
 	isClassic := true
 	s.makeMockUC20SeedWithGadgetYaml(c, "some-label", mockGadgetUCYamlNoBootRole, isClassic)
 
-	_, _, _, err := s.mgr.SystemAndGadgetAndEncryptionInfo("some-label")
+	_, _, _ := mylog.Check4(s.mgr.SystemAndGadgetAndEncryptionInfo("some-label"))
 	c.Assert(err, ErrorMatches, `cannot validate gadget.yaml: system-boot and system-data roles are needed on classic`)
 }
 
@@ -2906,7 +2920,7 @@ func fakeSnapID(name string) string {
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValidationSetsSnapInvalid(c *C) {
 	devicestate.SetBootOkRan(s.mgr, true)
 
-	vset1, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+	vset1 := mylog.Check2(s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
@@ -2939,22 +2953,22 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 			},
 		},
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
 
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	_, err = devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
+	_ = mylog.Check2(devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
 		ValidationSets: []*asserts.ValidationSet{vset1.(*asserts.ValidationSet)},
-	})
+	}))
 	c.Assert(err, ErrorMatches, "snap presence is marked invalid by validation set: pc-kernel")
 }
 
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValidationSetsConflict(c *C) {
 	devicestate.SetBootOkRan(s.mgr, true)
 
-	vset1, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+	vset1 := mylog.Check2(s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
@@ -2970,10 +2984,10 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 			},
 		},
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
+	}, nil, ""))
 
-	vset2, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+
+	vset2 := mylog.Check2(s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
@@ -2989,15 +3003,15 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 			},
 		},
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
 
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	_, err = devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
+	_ = mylog.Check2(devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
 		ValidationSets: []*asserts.ValidationSet{vset1.(*asserts.ValidationSet), vset2.(*asserts.ValidationSet)},
-	})
+	}))
 	c.Assert(err, testutil.ErrorIs, &snapasserts.ValidationSetsConflictError{})
 
 	vSetErr := &snapasserts.ValidationSetsConflictError{}
@@ -3049,7 +3063,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 		},
 	})
 
-	vsetModel, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+	vsetModel := mylog.Check2(s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
@@ -3065,8 +3079,8 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 			},
 		},
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
 
 	assertstatetest.AddMany(s.state, vsetModel)
 	assertstate.UpdateValidationSet(s.state, &assertstate.ValidationSetTracking{
@@ -3076,7 +3090,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 		Current:   1,
 	})
 
-	vset1, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+	vset1 := mylog.Check2(s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
@@ -3092,12 +3106,12 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 			},
 		},
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
+	}, nil, ""))
 
-	_, err = devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
+
+	_ = mylog.Check2(devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
 		ValidationSets: []*asserts.ValidationSet{vset1.(*asserts.ValidationSet)},
-	})
+	}))
 	c.Assert(err, testutil.ErrorIs, &snapasserts.ValidationSetsConflictError{})
 
 	vSetErr := &snapasserts.ValidationSetsConflictError{}
@@ -3124,11 +3138,11 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemNoTes
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 	s.mockStandardSnapsModeenvAndBootloaderState(c)
 
-	chg, err := devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
+	chg := mylog.Check2(devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
 		TestSystem:  false,
 		MarkDefault: markDefault,
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Assert(chg, NotNil)
 
 	tsks := chg.Tasks()
@@ -3148,8 +3162,8 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemNoTes
 	c.Check(s.restartRequests, HasLen, 0)
 
 	validateCore20Seed(c, "1234", s.model, s.storeSigning.Trusted)
-	m, err := s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status")
-	c.Assert(err, IsNil)
+	m := mylog.Check2(s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status"))
+
 
 	// these values should not be set, since we're not actually going to try
 	// anything
@@ -3158,8 +3172,8 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemNoTes
 		"recovery_system_status": "",
 	})
 
-	modeenvAfterFinalize, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	modeenvAfterFinalize := mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check(modeenvAfterFinalize, testutil.JsonEquals, boot.Modeenv{
 		Mode:                   "run",
 		Base:                   "core20_3.snap",
@@ -3184,15 +3198,15 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemNoTes
 
 	if markDefault {
 		var defaultSystem devicestate.DefaultRecoverySystem
-		err := s.state.Get("default-recovery-system", &defaultSystem)
-		c.Assert(err, IsNil)
+		mylog.Check(s.state.Get("default-recovery-system", &defaultSystem))
+
 
 		c.Assert(defaultSystem.System, Equals, "1234")
 		c.Assert(defaultSystem.Model, Equals, s.model.Model())
 		c.Assert(defaultSystem.BrandID, Equals, s.model.BrandID())
 	} else {
 		var defaultSystem devicestate.DefaultRecoverySystem
-		err := s.state.Get("default-recovery-system", &defaultSystem)
+		mylog.Check(s.state.Get("default-recovery-system", &defaultSystem))
 		c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 	}
 }
@@ -3282,7 +3296,7 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 		},
 	})
 
-	vsetModel, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+	vsetModel := mylog.Check2(s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
@@ -3297,8 +3311,8 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 			},
 		},
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
 
 	assertstatetest.AddMany(s.state, vsetModel)
 	assertstate.UpdateValidationSet(s.state, &assertstate.ValidationSetTracking{
@@ -3326,7 +3340,7 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 
 	var validationSets []*asserts.ValidationSet
 
-	vsetAssert, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+	vsetAssert := mylog.Check2(s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
@@ -3360,8 +3374,8 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 			},
 		},
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
 
 	validationSets = append(validationSets, vsetAssert.(*asserts.ValidationSet))
 
@@ -3370,7 +3384,7 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 	}
 
 	if opts.RequireOptionalSnapInValidationSet {
-		vsetAssert, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+		vsetAssert := mylog.Check2(s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
 			"type":         "validation-set",
 			"authority-id": "canonical",
 			"series":       "16",
@@ -3386,8 +3400,8 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 				},
 			},
 			"timestamp": time.Now().UTC().Format(time.RFC3339),
-		}, nil, "")
-		c.Assert(err, IsNil)
+		}, nil, ""))
+
 
 		validationSets = append(validationSets, vsetAssert.(*asserts.ValidationSet))
 	}
@@ -3397,8 +3411,8 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 		st.Lock()
 		defer st.Unlock()
 
-		snapsup, err := snapstate.TaskSnapSetup(task)
-		c.Assert(err, IsNil)
+		snapsup := mylog.Check2(snapstate.TaskSnapSetup(task))
+
 
 		s.setupSnapDeclForNameAndID(c, snapsup.SideInfo.RealName, snapsup.SideInfo.SnapID, "canonical")
 		s.setupSnapRevisionForFileAndID(
@@ -3413,8 +3427,8 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 		st.Lock()
 		defer st.Unlock()
 
-		snapsup, err := snapstate.TaskSnapSetup(task)
-		c.Assert(err, IsNil)
+		snapsup := mylog.Check2(snapstate.TaskSnapSetup(task))
+
 		var path string
 		var files [][]string
 		switch snapsup.Type {
@@ -3443,9 +3457,8 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 				files,
 			)
 		}
+		mylog.Check(os.Rename(path, filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%s.snap", snapsup.SideInfo.RealName, snapsup.Revision().String()))))
 
-		err = os.Rename(path, filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%s.snap", snapsup.SideInfo.RealName, snapsup.Revision().String())))
-		c.Assert(err, IsNil)
 		return nil
 	}, nil)
 
@@ -3486,12 +3499,12 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 	s.mockStandardSnapsModeenvAndBootloaderState(c)
 
-	chg, err := devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
+	chg := mylog.Check2(devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
 		ValidationSets: validationSets,
 		TestSystem:     true,
 		MarkDefault:    opts.MarkDefault,
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Assert(chg, NotNil)
 	tsks := chg.Tasks()
 
@@ -3524,14 +3537,14 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 	}
 	validateCore20Seed(c, "1234", s.model, s.storeSigning.Trusted, runModeSnaps...)
 
-	m, err := s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status")
-	c.Assert(err, IsNil)
+	m := mylog.Check2(s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status"))
+
 	c.Check(m, DeepEquals, map[string]string{
 		"try_recovery_system":    "1234",
 		"recovery_system_status": "try",
 	})
-	modeenvAfterCreate, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	modeenvAfterCreate := mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check(modeenvAfterCreate, testutil.JsonEquals, boot.Modeenv{
 		Mode:                   "run",
 		Base:                   "core20_3.snap",
@@ -3581,11 +3594,11 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 	c.Assert(tskFinalize.Status(), Equals, state.DoneStatus)
 
 	var triedSystemsAfterFinalize []string
-	err = s.state.Get("tried-systems", &triedSystemsAfterFinalize)
+	mylog.Check(s.state.Get("tried-systems", &triedSystemsAfterFinalize))
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 
-	modeenvAfterFinalize, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	modeenvAfterFinalize := mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check(modeenvAfterFinalize, testutil.JsonEquals, boot.Modeenv{
 		Mode:                   "run",
 		Base:                   "core20_3.snap",
@@ -3606,15 +3619,15 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 
 	if opts.MarkDefault {
 		var defaultSystem devicestate.DefaultRecoverySystem
-		err := s.state.Get("default-recovery-system", &defaultSystem)
-		c.Assert(err, IsNil)
+		mylog.Check(s.state.Get("default-recovery-system", &defaultSystem))
+
 
 		c.Assert(defaultSystem.System, Equals, "1234")
 		c.Assert(defaultSystem.Model, Equals, s.model.Model())
 		c.Assert(defaultSystem.BrandID, Equals, s.model.BrandID())
 	} else {
 		var defaultSystem devicestate.DefaultRecoverySystem
-		err := s.state.Get("default-recovery-system", &defaultSystem)
+		mylog.Check(s.state.Get("default-recovery-system", &defaultSystem))
 		c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 	}
 }
@@ -3625,10 +3638,10 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemOnlin
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	_, err := devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
+	_ := mylog.Check2(devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
 		TestSystem: true,
 		LocalSnaps: []devicestate.LocalSnap{{SideInfo: &snap.SideInfo{}, Path: "/some/path"}},
-	})
+	}))
 	c.Assert(err, ErrorMatches, "locally provided snaps cannot be provided when creating a recovery system online")
 }
 
@@ -3648,11 +3661,11 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemOffli
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 	s.mockStandardSnapsModeenvAndBootloaderState(c)
 
-	chg, err := devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
+	chg := mylog.Check2(devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
 		TestSystem: true,
 		Offline:    true,
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Assert(chg, NotNil)
 	tsks := chg.Tasks()
 	// create system + finalize system
@@ -3674,14 +3687,14 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemOffli
 	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 
 	validateCore20Seed(c, "1234", s.model, s.storeSigning.Trusted)
-	m, err := s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status")
-	c.Assert(err, IsNil)
+	m := mylog.Check2(s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status"))
+
 	c.Check(m, DeepEquals, map[string]string{
 		"try_recovery_system":    "1234",
 		"recovery_system_status": "try",
 	})
-	modeenvAfterCreate, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	modeenvAfterCreate := mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check(modeenvAfterCreate, testutil.JsonEquals, boot.Modeenv{
 		Mode:                   "run",
 		Base:                   "core20_3.snap",
@@ -3726,11 +3739,11 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemOffli
 	c.Assert(tskFinalize.Status(), Equals, state.DoneStatus)
 
 	var triedSystemsAfterFinalize []string
-	err = s.state.Get("tried-systems", &triedSystemsAfterFinalize)
+	mylog.Check(s.state.Get("tried-systems", &triedSystemsAfterFinalize))
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 
-	modeenvAfterFinalize, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	modeenvAfterFinalize := mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check(modeenvAfterFinalize, testutil.JsonEquals, boot.Modeenv{
 		Mode:                   "run",
 		Base:                   "core20_3.snap",
@@ -3767,7 +3780,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 		"snapd":     snap.TypeSnapd,
 	}
 
-	vsetAssert, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+	vsetAssert := mylog.Check2(s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
@@ -3801,8 +3814,8 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 			},
 		},
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -3842,13 +3855,13 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 	s.mockStandardSnapsModeenvAndBootloaderState(c)
 
-	chg, err := devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
+	chg := mylog.Check2(devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
 		ValidationSets: []*asserts.ValidationSet{vsetAssert.(*asserts.ValidationSet)},
 		LocalSnaps:     localSnaps,
 		Offline:        true,
 		TestSystem:     true,
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Assert(chg, NotNil)
 	tsks := chg.Tasks()
 	// create system + finalize system
@@ -3870,14 +3883,14 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 
 	validateCore20Seed(c, "1234", s.model, s.storeSigning.Trusted)
-	m, err := s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status")
-	c.Assert(err, IsNil)
+	m := mylog.Check2(s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status"))
+
 	c.Check(m, DeepEquals, map[string]string{
 		"try_recovery_system":    "1234",
 		"recovery_system_status": "try",
 	})
-	modeenvAfterCreate, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	modeenvAfterCreate := mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check(modeenvAfterCreate, testutil.JsonEquals, boot.Modeenv{
 		Mode:                   "run",
 		Base:                   "core20_3.snap",
@@ -3922,11 +3935,11 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 	c.Assert(tskFinalize.Status(), Equals, state.DoneStatus)
 
 	var triedSystemsAfterFinalize []string
-	err = s.state.Get("tried-systems", &triedSystemsAfterFinalize)
+	mylog.Check(s.state.Get("tried-systems", &triedSystemsAfterFinalize))
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 
-	modeenvAfterFinalize, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	modeenvAfterFinalize := mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check(modeenvAfterFinalize, testutil.JsonEquals, boot.Modeenv{
 		Mode:                   "run",
 		Base:                   "core20_3.snap",
@@ -3974,7 +3987,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 		"snapd":     snap.TypeSnapd,
 	}
 
-	vsetAssert, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+	vsetAssert := mylog.Check2(s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
@@ -4008,8 +4021,8 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 			},
 		},
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
 
 	assertstatetest.AddMany(s.state, vsetAssert)
 
@@ -4028,11 +4041,11 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 
 	s.mockStandardSnapsModeenvAndBootloaderState(c)
 
-	_, err = devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
+	_ = mylog.Check2(devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
 		ValidationSets: []*asserts.ValidationSet{vsetAssert.(*asserts.ValidationSet)},
 		LocalSnaps:     localSnaps,
 		Offline:        true,
-	})
+	}))
 	c.Assert(err, ErrorMatches, `snap "pc" does not match revision required by validation sets: 100 != 10`)
 }
 
@@ -4098,10 +4111,10 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemMissi
 
 	s.mockStandardSnapsModeenvAndBootloaderState(c)
 
-	_, err := devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
+	_ := mylog.Check2(devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
 		LocalSnaps: localSnaps,
 		Offline:    true,
-	})
+	}))
 	c.Assert(err, ErrorMatches, `cannot create recovery system from model with snap that has no snap id: "pc"`)
 }
 
@@ -4141,10 +4154,10 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemMissi
 
 	s.mockStandardSnapsModeenvAndBootloaderState(c)
 
-	_, err := devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
+	_ := mylog.Check2(devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
 		LocalSnaps: localSnaps,
 		Offline:    true,
-	})
+	}))
 	c.Assert(err, ErrorMatches, `cannot create recovery system from provided snap that has no snap id: "pc"`)
 }
 
@@ -4176,7 +4189,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 		"snapd":     snap.TypeSnapd,
 	}
 
-	vsetAssert, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+	vsetAssert := mylog.Check2(s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
@@ -4210,8 +4223,8 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 			},
 		},
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
 
 	assertstatetest.AddMany(s.state, vsetAssert)
 
@@ -4230,11 +4243,11 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 
 	s.mockStandardSnapsModeenvAndBootloaderState(c)
 
-	_, err = devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
+	_ = mylog.Check2(devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
 		ValidationSets: []*asserts.ValidationSet{vsetAssert.(*asserts.ValidationSet)},
 		LocalSnaps:     localSnaps,
 		Offline:        true,
-	})
+	}))
 	c.Assert(err, ErrorMatches, `missing snap from local snaps provided for offline creation of recovery system: "pc", rev 10`)
 }
 
@@ -4255,7 +4268,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 		"snapd":     snap.TypeSnapd,
 	}
 
-	vsetAssert, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+	vsetAssert := mylog.Check2(s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
@@ -4289,8 +4302,8 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 			},
 		},
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
 
 	vset := vsetAssert.(*asserts.ValidationSet)
 
@@ -4357,9 +4370,9 @@ plugs:
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 	s.mockStandardSnapsModeenvAndBootloaderState(c)
 
-	_, err = devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
+	_ = mylog.Check2(devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
 		ValidationSets: []*asserts.ValidationSet{vset},
-	})
+	}))
 
 	msg := `cannot create recovery system from model that is not self-contained:
   - cannot use snap "pc": base "core22" is missing
@@ -4381,7 +4394,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 		"snapd":     snap.R(13),
 	}
 
-	vsetAssert, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+	vsetAssert := mylog.Check2(s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
@@ -4415,8 +4428,8 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 			},
 		},
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
 
 	vset := vsetAssert.(*asserts.ValidationSet)
 
@@ -4458,11 +4471,11 @@ plugs:
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 	s.mockStandardSnapsModeenvAndBootloaderState(c)
 
-	_, err = devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
+	_ = mylog.Check2(devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
 		ValidationSets: []*asserts.ValidationSet{vset},
 		LocalSnaps:     localSnaps,
 		Offline:        true,
-	})
+	}))
 
 	msg := `cannot create recovery system from model that is not self-contained:
   - cannot use snap "pc": base "core22" is missing
@@ -4474,12 +4487,12 @@ plugs:
 func (s *deviceMgrSystemsCreateSuite) createSystemForRemoval(c *C, label string, expectedDownloads int, vSets []*asserts.ValidationSet, markDefault bool) {
 	s.restartRequests = nil
 
-	chg, err := devicestate.CreateRecoverySystem(s.state, label, devicestate.CreateRecoverySystemOptions{
+	chg := mylog.Check2(devicestate.CreateRecoverySystem(s.state, label, devicestate.CreateRecoverySystemOptions{
 		ValidationSets: vSets,
 		TestSystem:     true,
 		MarkDefault:    markDefault,
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Assert(chg, NotNil)
 	tsks := chg.Tasks()
 
@@ -4502,14 +4515,14 @@ func (s *deviceMgrSystemsCreateSuite) createSystemForRemoval(c *C, label string,
 	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 
 	validateCore20Seed(c, label, s.model, s.storeSigning.Trusted)
-	m, err := s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status")
-	c.Assert(err, IsNil)
+	m := mylog.Check2(s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status"))
+
 	c.Check(m, DeepEquals, map[string]string{
 		"try_recovery_system":    label,
 		"recovery_system_status": "try",
 	})
-	modeenvAfterCreate, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	modeenvAfterCreate := mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check(modeenvAfterCreate.CurrentRecoverySystems, testutil.Contains, label)
 	c.Check(modeenvAfterCreate.GoodRecoverySystems, Not(testutil.Contains), label)
 
@@ -4534,11 +4547,11 @@ func (s *deviceMgrSystemsCreateSuite) createSystemForRemoval(c *C, label string,
 	c.Assert(tskFinalize.Status(), Equals, state.DoneStatus)
 
 	var triedSystemsAfterFinalize []string
-	err = s.state.Get("tried-systems", &triedSystemsAfterFinalize)
+	mylog.Check(s.state.Get("tried-systems", &triedSystemsAfterFinalize))
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 
-	modeenvAfterFinalize, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	modeenvAfterFinalize := mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check(modeenvAfterFinalize.CurrentRecoverySystems, testutil.Contains, label)
 	c.Check(modeenvAfterFinalize.GoodRecoverySystems, testutil.Contains, label)
 
@@ -4547,8 +4560,8 @@ func (s *deviceMgrSystemsCreateSuite) createSystemForRemoval(c *C, label string,
 
 	if markDefault {
 		var defaultSystem devicestate.DefaultRecoverySystem
-		err := s.state.Get("default-recovery-system", &defaultSystem)
-		c.Assert(err, IsNil)
+		mylog.Check(s.state.Get("default-recovery-system", &defaultSystem))
+
 
 		c.Assert(defaultSystem.System, Equals, label)
 		c.Assert(defaultSystem.Model, Equals, s.model.Model())
@@ -4564,59 +4577,53 @@ func (s *deviceMgrSystemsCreateSuite) createSystemForRemoval(c *C, label string,
 
 func makeDirIdentical(c *C, src, dest string) {
 	srcCommonPaths := make(map[string]bool)
-	// copy all files and make all dirs from src in dest
-	err := filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
+	mylog.
+		// copy all files and make all dirs from src in dest
+		Check(filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+			commonPath := strings.TrimPrefix(path, src)
 
-		commonPath := strings.TrimPrefix(path, src)
+			srcCommonPaths[commonPath] = true
 
-		srcCommonPaths[commonPath] = true
+			destName := filepath.Join(dest, commonPath)
 
-		destName := filepath.Join(dest, commonPath)
+			if destName == dest {
+				return nil
+			}
 
-		if destName == dest {
+			if info.IsDir() {
+				return os.MkdirAll(destName, info.Mode().Perm())
+			}
+
+			return osutil.CopyFile(path, destName, osutil.CopyFlagOverwrite)
+		}))
+
+	mylog.
+
+		// remove all files and dirs from dest that are not in src
+		Check(filepath.WalkDir(dest, func(path string, _ os.DirEntry, err error) error {
+			commonPath := strings.TrimPrefix(path, dest)
+
+			if !srcCommonPaths[commonPath] {
+				return os.RemoveAll(path)
+			}
+
 			return nil
-		}
+		}))
 
-		if info.IsDir() {
-			return os.MkdirAll(destName, info.Mode().Perm())
-		}
-
-		return osutil.CopyFile(path, destName, osutil.CopyFlagOverwrite)
-	})
-	c.Assert(err, IsNil)
-
-	// remove all files and dirs from dest that are not in src
-	err = filepath.WalkDir(dest, func(path string, _ os.DirEntry, err error) error {
-		if err != nil {
-			return nil
-		}
-
-		commonPath := strings.TrimPrefix(path, dest)
-
-		if !srcCommonPaths[commonPath] {
-			return os.RemoveAll(path)
-		}
-
-		return nil
-	})
-	c.Assert(err, IsNil)
 }
 
 func verifySystemRemoved(c *C, label string, expectedSnaps ...string) {
 	systemDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", label)
-	exists, _, err := osutil.DirExists(systemDir)
-	c.Assert(err, IsNil)
+	exists, _ := mylog.Check3(osutil.DirExists(systemDir))
+
 	if exists {
 		c.Errorf("system %q still exists", label)
 		return
 	}
 
 	snapsDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps")
-	entries, err := os.ReadDir(snapsDir)
-	c.Assert(err, IsNil)
+	entries := mylog.Check2(os.ReadDir(snapsDir))
+
 
 	foundSnaps := make([]string, 0, len(entries))
 	for _, entry := range entries {
@@ -4671,7 +4678,7 @@ func (s *deviceMgrSystemsCreateSuite) testRemoveRecoverySystem(c *C, mockRetry b
 		s.makeSnapInState(c, name, rev, [][]string{{"random-file", "random-content"}})
 	}
 
-	vsetAssert, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+	vsetAssert := mylog.Check2(s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
@@ -4705,26 +4712,27 @@ func (s *deviceMgrSystemsCreateSuite) testRemoveRecoverySystem(c *C, mockRetry b
 			},
 		},
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
 
 	const removeLabel = "remove"
 	s.createSystemForRemoval(c, removeLabel, 0, []*asserts.ValidationSet{vsetAssert.(*asserts.ValidationSet)}, markDefault)
 
-	chg, err := devicestate.RemoveRecoverySystem(s.state, removeLabel)
-	c.Assert(err, IsNil)
+	chg := mylog.Check2(devicestate.RemoveRecoverySystem(s.state, removeLabel))
+
 
 	if mockRetry {
 		tasks := chg.Tasks()
 		if len(tasks) != 1 {
 			c.Fatalf("expected 1 task, got %d", len(tasks))
 		}
+		mylog.Check(
 
-		// remove the recovery system to make sure we're testing the case where
-		// we inspect the task for a list of snaps to remove, since inspecting
-		// the seed would be impossible
-		err := os.RemoveAll(filepath.Join(dirs.SnapSeedDir, "systems", removeLabel))
-		c.Assert(err, IsNil)
+			// remove the recovery system to make sure we're testing the case where
+			// we inspect the task for a list of snaps to remove, since inspecting
+			// the seed would be impossible
+			os.RemoveAll(filepath.Join(dirs.SnapSeedDir, "systems", removeLabel)))
+
 
 		tasks[0].Set("snaps-to-remove", devicestate.UniqueSnapsInRecoverySystem{
 			SnapPaths: []string{
@@ -4774,7 +4782,7 @@ func (s *deviceMgrSystemsCreateSuite) TestRemoveRecoverySystemCurrentFailure(c *
 		},
 	})
 
-	chg, err := devicestate.RemoveRecoverySystem(s.state, label)
+	chg := mylog.Check2(devicestate.RemoveRecoverySystem(s.state, label))
 	c.Check(err, IsNil)
 
 	s.state.Unlock()
@@ -4802,7 +4810,7 @@ func (s *deviceMgrSystemsCreateSuite) TestRemoveRecoverySystemDefaultFailure(c *
 	const label = "default"
 	s.createSystemForRemoval(c, label, 0, nil, markDefault)
 
-	chg, err := devicestate.RemoveRecoverySystem(s.state, label)
+	chg := mylog.Check2(devicestate.RemoveRecoverySystem(s.state, label))
 	c.Check(err, IsNil)
 
 	s.state.Unlock()
@@ -4827,7 +4835,7 @@ func (s *deviceMgrSystemsCreateSuite) TestRemoveRecoverySystemLastSystemFailure(
 	const markDefault = false
 	s.createSystemForRemoval(c, label, 0, nil, markDefault)
 
-	chg, err := devicestate.RemoveRecoverySystem(s.state, label)
+	chg := mylog.Check2(devicestate.RemoveRecoverySystem(s.state, label))
 	c.Check(err, IsNil)
 
 	s.state.Unlock()
@@ -4853,7 +4861,7 @@ func (s *deviceMgrSystemsCreateSuite) TestRemoveRecoverySystemNoSystemWithName(c
 	s.createSystemForRemoval(c, label, 0, nil, markDefault)
 
 	const missing = "missing"
-	_, err := devicestate.RemoveRecoverySystem(s.state, missing)
+	_ := mylog.Check2(devicestate.RemoveRecoverySystem(s.state, missing))
 	c.Check(err, NotNil)
 	c.Check(err, testutil.ErrorIs, devicestate.ErrNoRecoverySystem)
 }
@@ -4883,7 +4891,7 @@ func (s *deviceMgrSystemsCreateSuite) TestRemoveRecoverySystemConflict(c *C) {
 		conflict := s.state.NewChange(chgType, "...")
 		conflict.AddTask(s.state.NewTask(chgType, "..."))
 
-		_, err := devicestate.RemoveRecoverySystem(s.state, "label")
+		_ := mylog.Check2(devicestate.RemoveRecoverySystem(s.state, "label"))
 		conflictErr, ok := err.(*snapstate.ChangeConflictError)
 		c.Assert(ok, Equals, true, Commentf("expected a snapstate.ChangeConflictError, got %T", err))
 

@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/testutil"
@@ -66,99 +67,99 @@ func (s *poolSuite) SetUpTest(c *C) {
 		"account-id": "developer2",
 	}, "")
 
-	a, err := s.hub.Sign(asserts.TestOnlyDeclType, map[string]interface{}{
+	a := mylog.Check2(s.hub.Sign(asserts.TestOnlyDeclType, map[string]interface{}{
 		"id":     "one",
 		"dev-id": "developer1",
-	}, nil, "")
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
 	s.decl1 = a.(*asserts.TestOnlyDecl)
 
-	a, err = s.hub.Sign(asserts.TestOnlyDeclType, map[string]interface{}{
+	a = mylog.Check2(s.hub.Sign(asserts.TestOnlyDeclType, map[string]interface{}{
 		"id":       "one",
 		"dev-id":   "developer1",
 		"revision": "1",
-	}, nil, "")
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
 	s.decl1_1 = a.(*asserts.TestOnlyDecl)
 
-	a, err = s.hub.Sign(asserts.TestOnlyDeclType, map[string]interface{}{
+	a = mylog.Check2(s.hub.Sign(asserts.TestOnlyDeclType, map[string]interface{}{
 		"id":     "two",
 		"dev-id": "developer2",
-	}, nil, "")
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
 	s.decl2 = a.(*asserts.TestOnlyDecl)
 
-	a, err = s.hub.Sign(asserts.TestOnlyRevType, map[string]interface{}{
+	a = mylog.Check2(s.hub.Sign(asserts.TestOnlyRevType, map[string]interface{}{
 		"h":      "1111",
 		"id":     "one",
 		"dev-id": "developer1",
-	}, nil, "")
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
 	s.rev1_1111 = a.(*asserts.TestOnlyRev)
 
-	a, err = s.hub.Sign(asserts.TestOnlyRevType, map[string]interface{}{
+	a = mylog.Check2(s.hub.Sign(asserts.TestOnlyRevType, map[string]interface{}{
 		"h":      "3333",
 		"id":     "one",
 		"dev-id": "developer1",
-	}, nil, "")
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
 	s.rev1_3333 = a.(*asserts.TestOnlyRev)
 
-	a, err = s.hub.Sign(asserts.TestOnlyRevType, map[string]interface{}{
+	a = mylog.Check2(s.hub.Sign(asserts.TestOnlyRevType, map[string]interface{}{
 		"h":      "2222",
 		"id":     "two",
 		"dev-id": "developer2",
-	}, nil, "")
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
 	s.rev2_2222 = a.(*asserts.TestOnlyRev)
 
 	// sequence-forming
 
-	a, err = s.hub.Sign(asserts.TestOnlySeqType, map[string]interface{}{
+	a = mylog.Check2(s.hub.Sign(asserts.TestOnlySeqType, map[string]interface{}{
 		"n":        "1111",
 		"sequence": "1",
 		"id":       "one",
 		"dev-id":   "developer1",
 		"revision": "5",
-	}, nil, "")
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
 	s.seq1_1111r5 = a.(*asserts.TestOnlySeq)
 
-	a, err = s.hub.Sign(asserts.TestOnlySeqType, map[string]interface{}{
+	a = mylog.Check2(s.hub.Sign(asserts.TestOnlySeqType, map[string]interface{}{
 		"n":        "1111",
 		"sequence": "1",
 		"id":       "one",
 		"dev-id":   "developer1",
 		"revision": "6",
-	}, nil, "")
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
 	s.seq1_1111r6 = a.(*asserts.TestOnlySeq)
 
-	a, err = s.hub.Sign(asserts.TestOnlySeqType, map[string]interface{}{
+	a = mylog.Check2(s.hub.Sign(asserts.TestOnlySeqType, map[string]interface{}{
 		"n":        "1111",
 		"sequence": "2",
 		"id":       "one",
 		"dev-id":   "developer1",
 		"revision": "7",
-	}, nil, "")
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
 	s.seq2_1111r7 = a.(*asserts.TestOnlySeq)
 
-	a, err = s.hub.Sign(asserts.TestOnlySeqType, map[string]interface{}{
+	a = mylog.Check2(s.hub.Sign(asserts.TestOnlySeqType, map[string]interface{}{
 		"n":        "1111",
 		"sequence": "3",
 		"id":       "one",
 		"dev-id":   "developer1",
 		"revision": "4",
-	}, nil, "")
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
 	s.seq3_1111r5 = a.(*asserts.TestOnlySeq)
 
-	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+	db := mylog.Check2(asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
 		Trusted:   s.hub.Trusted,
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	s.db = db
 }
 
@@ -169,11 +170,11 @@ func (s *poolSuite) TestAddUnresolved(c *C) {
 		Ref:      asserts.Ref{Type: asserts.TestOnlyRevType, PrimaryKey: []string{"1111"}},
 		Revision: asserts.RevisionNotKnown,
 	}
-	err := pool.AddUnresolved(at1, "for_one") // group num: 0
-	c.Assert(err, IsNil)
+	mylog.Check(pool.AddUnresolved(at1, "for_one")) // group num: 0
 
-	toResolve, toResolveSeq, err := pool.ToResolve()
-	c.Assert(err, IsNil)
+
+	toResolve, toResolveSeq := mylog.Check3(pool.ToResolve())
+
 	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
 		asserts.MakePoolGrouping(0): {at1},
 	})
@@ -185,12 +186,12 @@ func (s *poolSuite) TestAddUnresolvedPredefined(c *C) {
 
 	at := s.hub.TrustedAccount.At()
 	at.Revision = asserts.RevisionNotKnown
-	err := pool.AddUnresolved(at, "for_one")
-	c.Assert(err, IsNil)
+	mylog.Check(pool.AddUnresolved(at, "for_one"))
+
 
 	// nothing to resolve
-	toResolve, toResolveSeq, err := pool.ToResolve()
-	c.Assert(err, IsNil)
+	toResolve, toResolveSeq := mylog.Check3(pool.ToResolve())
+
 	c.Check(toResolve, HasLen, 0)
 	c.Check(toResolveSeq, HasLen, 0)
 }
@@ -203,8 +204,8 @@ func (s *poolSuite) TestAddUnresolvedGrouping(c *C) {
 	pool.AddUnresolved(storeKeyAt, "for_two") // group num: 0
 	pool.AddUnresolved(storeKeyAt, "for_one") // group num: 1
 
-	toResolve, toResolveSeq, err := pool.ToResolve()
-	c.Assert(err, IsNil)
+	toResolve, toResolveSeq := mylog.Check3(pool.ToResolve())
+
 	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
 		asserts.MakePoolGrouping(0, 1): {storeKeyAt},
 	})
@@ -219,8 +220,8 @@ func (s *poolSuite) TestAddUnresolvedDup(c *C) {
 	pool.AddUnresolved(storeKeyAt, "for_one") // group num: 0
 	pool.AddUnresolved(storeKeyAt, "for_one") // group num: 0
 
-	toResolve, toResolveSeq, err := pool.ToResolve()
-	c.Assert(err, IsNil)
+	toResolve, toResolveSeq := mylog.Check3(pool.ToResolve())
+
 	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
 		asserts.MakePoolGrouping(0): {storeKeyAt},
 	})
@@ -254,22 +255,22 @@ func (s *poolSuite) TestFetch(c *C) {
 		Ref:      asserts.Ref{Type: asserts.TestOnlyRevType, PrimaryKey: []string{"1111"}},
 		Revision: asserts.RevisionNotKnown,
 	}
-	err := pool.AddUnresolved(at1111, "for_one")
-	c.Assert(err, IsNil)
+	mylog.Check(pool.AddUnresolved(at1111, "for_one"))
 
-	toResolve, toResolveSeq, err := pool.ToResolve()
-	c.Assert(err, IsNil)
+
+	toResolve, toResolveSeq := mylog.Check3(pool.ToResolve())
+
 	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
 		asserts.MakePoolGrouping(0): {at1111},
 	})
 	c.Check(toResolveSeq, HasLen, 0)
 
-	ok, err := pool.Add(s.rev1_1111, asserts.MakePoolGrouping(0))
-	c.Assert(err, IsNil)
+	ok := mylog.Check2(pool.Add(s.rev1_1111, asserts.MakePoolGrouping(0)))
+
 	c.Assert(ok, Equals, true)
 
-	toResolve, toResolveSeq, err = pool.ToResolve()
-	c.Assert(err, IsNil)
+	toResolve, toResolveSeq = mylog.Check3(pool.ToResolve())
+
 	sortToResolve(toResolve)
 	dev1AcctAt := s.dev1Acct.At()
 	dev1AcctAt.Revision = asserts.RevisionNotKnown
@@ -294,23 +295,23 @@ func (s *poolSuite) TestFetchSequenceForming(c *C) {
 		SequenceKey: []string{"1111"},
 		Revision:    asserts.RevisionNotKnown,
 	}
-	err := pool.AddUnresolvedSequence(atseq, "for_one")
-	c.Assert(err, IsNil)
+	mylog.Check(pool.AddUnresolvedSequence(atseq, "for_one"))
 
-	toResolve, toResolveSeq, err := pool.ToResolve()
-	c.Assert(err, IsNil)
+
+	toResolve, toResolveSeq := mylog.Check3(pool.ToResolve())
+
 	c.Check(toResolve, HasLen, 0)
 	c.Check(toResolveSeq, DeepEquals, map[asserts.Grouping][]*asserts.AtSequence{
 		asserts.MakePoolGrouping(0): {atseq},
 	})
 
 	// resolve
-	ok, err := pool.Add(s.seq1_1111r5, asserts.MakePoolGrouping(0))
-	c.Assert(err, IsNil)
+	ok := mylog.Check2(pool.Add(s.seq1_1111r5, asserts.MakePoolGrouping(0)))
+
 	c.Assert(ok, Equals, true)
 
-	toResolve, toResolveSeq, err = pool.ToResolve()
-	c.Assert(err, IsNil)
+	toResolve, toResolveSeq = mylog.Check3(pool.ToResolve())
+
 
 	storeKeyAt := s.hub.StoreAccountKey("").At()
 	storeKeyAt.Revision = asserts.RevisionNotKnown
@@ -319,13 +320,12 @@ func (s *poolSuite) TestFetchSequenceForming(c *C) {
 		asserts.MakePoolGrouping(0): {storeKeyAt},
 	})
 
-	ok, err = pool.Add(s.hub.StoreAccountKey(""), asserts.MakePoolGrouping(0))
-	c.Assert(err, IsNil)
+	ok = mylog.Check2(pool.Add(s.hub.StoreAccountKey(""), asserts.MakePoolGrouping(0)))
+
 	c.Assert(ok, Equals, true)
 
 	c.Check(pool.Err("for_one"), IsNil)
-
-	err = pool.CommitTo(s.db)
+	mylog.Check(pool.CommitTo(s.db))
 	c.Check(err, IsNil)
 	c.Assert(pool.Err("for_one"), IsNil)
 }
@@ -337,22 +337,22 @@ func (s *poolSuite) TestCompleteFetch(c *C) {
 		Ref:      asserts.Ref{Type: asserts.TestOnlyRevType, PrimaryKey: []string{"1111"}},
 		Revision: asserts.RevisionNotKnown,
 	}
-	err := pool.AddUnresolved(at1111, "for_one")
-	c.Assert(err, IsNil)
+	mylog.Check(pool.AddUnresolved(at1111, "for_one"))
 
-	toResolve, toResolveSeq, err := pool.ToResolve()
-	c.Assert(err, IsNil)
+
+	toResolve, toResolveSeq := mylog.Check3(pool.ToResolve())
+
 	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
 		asserts.MakePoolGrouping(0): {at1111},
 	})
 	c.Check(toResolveSeq, HasLen, 0)
 
-	ok, err := pool.Add(s.rev1_1111, asserts.MakePoolGrouping(0))
-	c.Assert(err, IsNil)
+	ok := mylog.Check2(pool.Add(s.rev1_1111, asserts.MakePoolGrouping(0)))
+
 	c.Assert(ok, Equals, true)
 
-	toResolve, toResolveSeq, err = pool.ToResolve()
-	c.Assert(err, IsNil)
+	toResolve, toResolveSeq = mylog.Check3(pool.ToResolve())
+
 	sortToResolve(toResolve)
 	dev1AcctAt := s.dev1Acct.At()
 	dev1AcctAt.Revision = asserts.RevisionNotKnown
@@ -367,30 +367,29 @@ func (s *poolSuite) TestCompleteFetch(c *C) {
 	c.Check(toResolveSeq, HasLen, 0)
 
 	b := asserts.NewBatch(nil)
-	err = b.Add(s.decl1)
-	c.Assert(err, IsNil)
-	err = b.Add(storeKey)
-	c.Assert(err, IsNil)
-	err = b.Add(s.dev1Acct)
-	c.Assert(err, IsNil)
+	mylog.Check(b.Add(s.decl1))
 
-	ok, err = pool.AddBatch(b, asserts.MakePoolGrouping(0))
-	c.Assert(err, IsNil)
+	mylog.Check(b.Add(storeKey))
+
+	mylog.Check(b.Add(s.dev1Acct))
+
+
+	ok = mylog.Check2(pool.AddBatch(b, asserts.MakePoolGrouping(0)))
+
 	c.Assert(ok, Equals, true)
 
-	toResolve, toResolveSeq, err = pool.ToResolve()
-	c.Assert(err, IsNil)
+	toResolve, toResolveSeq = mylog.Check3(pool.ToResolve())
+
 	c.Check(toResolve, HasLen, 0)
 	c.Check(toResolveSeq, HasLen, 0)
 
 	c.Check(pool.Err("for_one"), IsNil)
-
-	err = pool.CommitTo(s.db)
+	mylog.Check(pool.CommitTo(s.db))
 	c.Check(err, IsNil)
 	c.Assert(pool.Err("for_one"), IsNil)
 
-	a, err := at1111.Ref.Resolve(s.db.Find)
-	c.Assert(err, IsNil)
+	a := mylog.Check2(at1111.Ref.Resolve(s.db.Find))
+
 	c.Check(a.(*asserts.TestOnlyRev).H(), Equals, "1111")
 }
 
@@ -403,27 +402,27 @@ func (s *poolSuite) TestPushSuggestionForPrerequisite(c *C) {
 		Ref:      asserts.Ref{Type: asserts.TestOnlyRevType, PrimaryKey: []string{"1111"}},
 		Revision: asserts.RevisionNotKnown,
 	}
-	err := pool.AddUnresolved(at1111, "for_one")
-	c.Assert(err, IsNil)
+	mylog.Check(pool.AddUnresolved(at1111, "for_one"))
 
-	toResolve, toResolveSeq, err := pool.ToResolve()
-	c.Assert(err, IsNil)
+
+	toResolve, toResolveSeq := mylog.Check3(pool.ToResolve())
+
 	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
 		asserts.MakePoolGrouping(0): {at1111},
 	})
 	c.Check(toResolveSeq, HasLen, 0)
 
-	ok, err := pool.Add(s.rev1_1111, asserts.MakePoolGrouping(0))
-	c.Assert(err, IsNil)
+	ok := mylog.Check2(pool.Add(s.rev1_1111, asserts.MakePoolGrouping(0)))
+
 	c.Assert(ok, Equals, true)
 
 	// push prerequisite suggestion
-	ok, err = pool.Add(s.decl1, asserts.MakePoolGrouping(0))
-	c.Assert(err, IsNil)
+	ok = mylog.Check2(pool.Add(s.decl1, asserts.MakePoolGrouping(0)))
+
 	c.Assert(ok, Equals, true)
 
-	toResolve, toResolveSeq, err = pool.ToResolve()
-	c.Assert(err, IsNil)
+	toResolve, toResolveSeq = mylog.Check3(pool.ToResolve())
+
 	sortToResolve(toResolve)
 	dev1AcctAt := s.dev1Acct.At()
 	dev1AcctAt.Revision = asserts.RevisionNotKnown
@@ -435,23 +434,22 @@ func (s *poolSuite) TestPushSuggestionForPrerequisite(c *C) {
 
 	c.Check(pool.Err("for_one"), IsNil)
 
-	ok, err = pool.Add(s.dev1Acct, asserts.MakePoolGrouping(0))
-	c.Assert(err, IsNil)
+	ok = mylog.Check2(pool.Add(s.dev1Acct, asserts.MakePoolGrouping(0)))
+
 	c.Assert(ok, Equals, true)
 
-	toResolve, toResolveSeq, err = pool.ToResolve()
-	c.Assert(err, IsNil)
+	toResolve, toResolveSeq = mylog.Check3(pool.ToResolve())
+
 	c.Check(toResolve, HasLen, 0)
 	c.Check(toResolveSeq, HasLen, 0)
 
 	c.Check(pool.Err("for_one"), IsNil)
-
-	err = pool.CommitTo(s.db)
+	mylog.Check(pool.CommitTo(s.db))
 	c.Check(err, IsNil)
 	c.Assert(pool.Err("for_one"), IsNil)
 
-	a, err := at1111.Ref.Resolve(s.db.Find)
-	c.Assert(err, IsNil)
+	a := mylog.Check2(at1111.Ref.Resolve(s.db.Find))
+
 	c.Check(a.(*asserts.TestOnlyRev).H(), Equals, "1111")
 }
 
@@ -464,27 +462,27 @@ func (s *poolSuite) TestPushSuggestionForNew(c *C) {
 		Ref:      asserts.Ref{Type: asserts.TestOnlyDeclType, PrimaryKey: []string{"one"}},
 		Revision: asserts.RevisionNotKnown,
 	}
-	err := pool.AddUnresolved(atOne, "for_one")
-	c.Assert(err, IsNil)
+	mylog.Check(pool.AddUnresolved(atOne, "for_one"))
 
-	toResolve, toResolveSeq, err := pool.ToResolve()
-	c.Assert(err, IsNil)
+
+	toResolve, toResolveSeq := mylog.Check3(pool.ToResolve())
+
 	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
 		asserts.MakePoolGrouping(0): {atOne},
 	})
 	c.Check(toResolveSeq, HasLen, 0)
 
-	ok, err := pool.Add(s.decl1, asserts.MakePoolGrouping(0))
-	c.Assert(err, IsNil)
+	ok := mylog.Check2(pool.Add(s.decl1, asserts.MakePoolGrouping(0)))
+
 	c.Assert(ok, Equals, true)
 
 	// new push suggestion
-	ok, err = pool.Add(s.rev1_1111, asserts.MakePoolGrouping(0))
-	c.Assert(err, IsNil)
+	ok = mylog.Check2(pool.Add(s.rev1_1111, asserts.MakePoolGrouping(0)))
+
 	c.Assert(ok, Equals, true)
 
-	toResolve, toResolveSeq, err = pool.ToResolve()
-	c.Assert(err, IsNil)
+	toResolve, toResolveSeq = mylog.Check3(pool.ToResolve())
+
 	sortToResolve(toResolve)
 	dev1AcctAt := s.dev1Acct.At()
 	dev1AcctAt.Revision = asserts.RevisionNotKnown
@@ -496,23 +494,22 @@ func (s *poolSuite) TestPushSuggestionForNew(c *C) {
 
 	c.Check(pool.Err("for_one"), IsNil)
 
-	ok, err = pool.Add(s.dev1Acct, asserts.MakePoolGrouping(0))
-	c.Assert(err, IsNil)
+	ok = mylog.Check2(pool.Add(s.dev1Acct, asserts.MakePoolGrouping(0)))
+
 	c.Assert(ok, Equals, true)
 
-	toResolve, toResolveSeq, err = pool.ToResolve()
-	c.Assert(err, IsNil)
+	toResolve, toResolveSeq = mylog.Check3(pool.ToResolve())
+
 	c.Check(toResolve, HasLen, 0)
 	c.Check(toResolveSeq, HasLen, 0)
 
 	c.Check(pool.Err("for_one"), IsNil)
-
-	err = pool.CommitTo(s.db)
+	mylog.Check(pool.CommitTo(s.db))
 	c.Check(err, IsNil)
 	c.Assert(pool.Err("for_one"), IsNil)
 
-	a, err := s.rev1_1111.Ref().Resolve(s.db.Find)
-	c.Assert(err, IsNil)
+	a := mylog.Check2(s.rev1_1111.Ref().Resolve(s.db.Find))
+
 	c.Check(a.(*asserts.TestOnlyRev).H(), Equals, "1111")
 }
 
@@ -526,27 +523,27 @@ func (s *poolSuite) TestPushSuggestionForNewSeqForming(c *C) {
 		SequenceKey: []string{"1111"},
 		Revision:    asserts.RevisionNotKnown,
 	}
-	err := pool.AddUnresolvedSequence(atOne, "for_one")
-	c.Assert(err, IsNil)
+	mylog.Check(pool.AddUnresolvedSequence(atOne, "for_one"))
 
-	toResolve, toResolveSeq, err := pool.ToResolve()
-	c.Assert(err, IsNil)
+
+	toResolve, toResolveSeq := mylog.Check3(pool.ToResolve())
+
 	c.Check(toResolve, HasLen, 0)
 	c.Check(toResolveSeq, DeepEquals, map[asserts.Grouping][]*asserts.AtSequence{
 		asserts.MakePoolGrouping(0): {atOne},
 	})
 
-	ok, err := pool.Add(s.seq1_1111r5, asserts.MakePoolGrouping(0))
-	c.Assert(err, IsNil)
+	ok := mylog.Check2(pool.Add(s.seq1_1111r5, asserts.MakePoolGrouping(0)))
+
 	c.Assert(ok, Equals, true)
 
 	// new push suggestion
-	ok, err = pool.Add(s.seq2_1111r7, asserts.MakePoolGrouping(0))
-	c.Assert(err, IsNil)
+	ok = mylog.Check2(pool.Add(s.seq2_1111r7, asserts.MakePoolGrouping(0)))
+
 	c.Assert(ok, Equals, true)
 
-	toResolve, toResolveSeq, err = pool.ToResolve()
-	c.Assert(err, IsNil)
+	toResolve, toResolveSeq = mylog.Check3(pool.ToResolve())
+
 	sortToResolve(toResolve)
 	dev1AcctAt := s.dev1Acct.At()
 	dev1AcctAt.Revision = asserts.RevisionNotKnown
@@ -555,13 +552,12 @@ func (s *poolSuite) TestPushSuggestionForNewSeqForming(c *C) {
 	c.Check(toResolveSeq, HasLen, 0)
 
 	c.Check(pool.Err("for_one"), IsNil)
-
-	err = pool.CommitTo(s.db)
+	mylog.Check(pool.CommitTo(s.db))
 	c.Check(err, IsNil)
 	c.Assert(pool.Err("for_one"), IsNil)
 
-	a, err := s.seq2_1111r7.Ref().Resolve(s.db.Find)
-	c.Assert(err, IsNil)
+	a := mylog.Check2(s.seq2_1111r7.Ref().Resolve(s.db.Find))
+
 	c.Check(a.(*asserts.TestOnlySeq).N(), Equals, "1111")
 	c.Check(a.Revision(), Equals, 7)
 }
@@ -575,32 +571,33 @@ func (s *poolSuite) TestPushSuggestionForNewViaBatch(c *C) {
 		Ref:      asserts.Ref{Type: asserts.TestOnlyDeclType, PrimaryKey: []string{"one"}},
 		Revision: asserts.RevisionNotKnown,
 	}
-	err := pool.AddUnresolved(atOne, "for_one")
-	c.Assert(err, IsNil)
+	mylog.Check(pool.AddUnresolved(atOne, "for_one"))
 
-	toResolve, toResolveSeq, err := pool.ToResolve()
-	c.Assert(err, IsNil)
+
+	toResolve, toResolveSeq := mylog.Check3(pool.ToResolve())
+
 	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
 		asserts.MakePoolGrouping(0): {atOne},
 	})
 	c.Check(toResolveSeq, HasLen, 0)
 
 	b := asserts.NewBatch(nil)
-	err = b.Add(s.decl1)
-	c.Assert(err, IsNil)
+	mylog.Check(b.Add(s.decl1))
 
-	// new push suggestions
-	err = b.Add(s.rev1_1111)
-	c.Assert(err, IsNil)
-	err = b.Add(s.rev1_3333)
-	c.Assert(err, IsNil)
+	mylog.
 
-	ok, err := pool.AddBatch(b, asserts.MakePoolGrouping(0))
-	c.Assert(err, IsNil)
+		// new push suggestions
+		Check(b.Add(s.rev1_1111))
+
+	mylog.Check(b.Add(s.rev1_3333))
+
+
+	ok := mylog.Check2(pool.AddBatch(b, asserts.MakePoolGrouping(0)))
+
 	c.Assert(ok, Equals, true)
 
-	toResolve, toResolveSeq, err = pool.ToResolve()
-	c.Assert(err, IsNil)
+	toResolve, toResolveSeq = mylog.Check3(pool.ToResolve())
+
 	sortToResolve(toResolve)
 	dev1AcctAt := s.dev1Acct.At()
 	dev1AcctAt.Revision = asserts.RevisionNotKnown
@@ -612,27 +609,26 @@ func (s *poolSuite) TestPushSuggestionForNewViaBatch(c *C) {
 
 	c.Check(pool.Err("for_one"), IsNil)
 
-	ok, err = pool.Add(s.dev1Acct, asserts.MakePoolGrouping(0))
-	c.Assert(err, IsNil)
+	ok = mylog.Check2(pool.Add(s.dev1Acct, asserts.MakePoolGrouping(0)))
+
 	c.Assert(ok, Equals, true)
 
-	toResolve, toResolveSeq, err = pool.ToResolve()
-	c.Assert(err, IsNil)
+	toResolve, toResolveSeq = mylog.Check3(pool.ToResolve())
+
 	c.Check(toResolve, HasLen, 0)
 	c.Check(toResolveSeq, HasLen, 0)
 
 	c.Check(pool.Err("for_one"), IsNil)
-
-	err = pool.CommitTo(s.db)
+	mylog.Check(pool.CommitTo(s.db))
 	c.Check(err, IsNil)
 	c.Assert(pool.Err("for_one"), IsNil)
 
-	a, err := s.rev1_1111.Ref().Resolve(s.db.Find)
-	c.Assert(err, IsNil)
+	a := mylog.Check2(s.rev1_1111.Ref().Resolve(s.db.Find))
+
 	c.Check(a.(*asserts.TestOnlyRev).H(), Equals, "1111")
 
-	a, err = s.rev1_3333.Ref().Resolve(s.db.Find)
-	c.Assert(err, IsNil)
+	a = mylog.Check2(s.rev1_3333.Ref().Resolve(s.db.Find))
+
 	c.Check(a.(*asserts.TestOnlyRev).H(), Equals, "3333")
 }
 
@@ -643,18 +639,18 @@ func (s *poolSuite) TestAddUnresolvedUnresolved(c *C) {
 		Ref:      asserts.Ref{Type: asserts.TestOnlyRevType, PrimaryKey: []string{"1111"}},
 		Revision: asserts.RevisionNotKnown,
 	}
-	err := pool.AddUnresolved(at1, "for_one")
-	c.Assert(err, IsNil)
+	mylog.Check(pool.AddUnresolved(at1, "for_one"))
 
-	toResolve, toResolveSeq, err := pool.ToResolve()
-	c.Assert(err, IsNil)
+
+	toResolve, toResolveSeq := mylog.Check3(pool.ToResolve())
+
 	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
 		asserts.MakePoolGrouping(0): {at1},
 	})
 	c.Check(toResolveSeq, HasLen, 0)
 
-	toResolve, toResolveSeq, err = pool.ToResolve()
-	c.Assert(err, IsNil)
+	toResolve, toResolveSeq = mylog.Check3(pool.ToResolve())
+
 	c.Check(toResolve, HasLen, 0)
 	c.Check(toResolveSeq, HasLen, 0)
 
@@ -664,26 +660,26 @@ func (s *poolSuite) TestAddUnresolvedUnresolved(c *C) {
 func (s *poolSuite) TestAddFormatTooNew(c *C) {
 	pool := asserts.NewPool(s.db, 64)
 
-	_, _, err := pool.ToResolve()
-	c.Assert(err, IsNil)
+	_, _ := mylog.Check3(pool.ToResolve())
+
 
 	var a asserts.Assertion
 	(func() {
 		restore := asserts.MockMaxSupportedFormat(asserts.TestOnlyDeclType, 2)
 		defer restore()
 
-		a, err = s.hub.Sign(asserts.TestOnlyDeclType, map[string]interface{}{
+		a = mylog.Check2(s.hub.Sign(asserts.TestOnlyDeclType, map[string]interface{}{
 			"id":     "three",
 			"dev-id": "developer1",
 			"format": "2",
-		}, nil, "")
-		c.Assert(err, IsNil)
+		}, nil, ""))
+
 	})()
 
-	gSuggestion, err := pool.Singleton("suggestion")
-	c.Assert(err, IsNil)
+	gSuggestion := mylog.Check2(pool.Singleton("suggestion"))
 
-	ok, err := pool.Add(a, gSuggestion)
+
+	ok := mylog.Check2(pool.Add(a, gSuggestion))
 	c.Check(err, IsNil)
 	c.Check(ok, Equals, false)
 	c.Assert(pool.Err("suggestion"), ErrorMatches, `proposed "test-only-decl" assertion has format 2 but 0 is latest supported`)
@@ -692,22 +688,22 @@ func (s *poolSuite) TestAddFormatTooNew(c *C) {
 func (s *poolSuite) TestAddOlderIgnored(c *C) {
 	pool := asserts.NewPool(s.db, 64)
 
-	_, _, err := pool.ToResolve()
-	c.Assert(err, IsNil)
+	_, _ := mylog.Check3(pool.ToResolve())
 
-	gSuggestion, err := pool.Singleton("suggestion")
-	c.Assert(err, IsNil)
 
-	ok, err := pool.Add(s.decl1_1, gSuggestion)
-	c.Assert(err, IsNil)
+	gSuggestion := mylog.Check2(pool.Singleton("suggestion"))
+
+
+	ok := mylog.Check2(pool.Add(s.decl1_1, gSuggestion))
+
 	c.Assert(ok, Equals, true)
 
-	ok, err = pool.Add(s.decl1, gSuggestion)
-	c.Assert(err, IsNil)
+	ok = mylog.Check2(pool.Add(s.decl1, gSuggestion))
+
 	c.Assert(ok, Equals, true)
 
-	toResolve, toResolveSeq, err := pool.ToResolve()
-	c.Assert(err, IsNil)
+	toResolve, toResolveSeq := mylog.Check3(pool.ToResolve())
+
 	sortToResolve(toResolve)
 	dev1AcctAt := s.dev1Acct.At()
 	dev1AcctAt.Revision = asserts.RevisionNotKnown
@@ -723,8 +719,8 @@ func (s *poolSuite) TestAddOlderIgnored(c *C) {
 func (s *poolSuite) TestUnknownGroup(c *C) {
 	pool := asserts.NewPool(s.db, 64)
 
-	_, err := pool.Singleton("suggestion")
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(pool.Singleton("suggestion"))
+
 	// validity
 	c.Check(pool.Err("suggestion"), IsNil)
 
@@ -738,16 +734,16 @@ func (s *poolSuite) TestAddCurrentRevision(c *C) {
 
 	atDev1Acct := s.dev1Acct.At()
 	atDev1Acct.Revision = asserts.RevisionNotKnown
-	err := pool.AddUnresolved(atDev1Acct, "one")
-	c.Assert(err, IsNil)
+	mylog.Check(pool.AddUnresolved(atDev1Acct, "one"))
+
 
 	atDecl1 := s.decl1.At()
 	atDecl1.Revision = asserts.RevisionNotKnown
-	err = pool.AddUnresolved(atDecl1, "one")
-	c.Assert(err, IsNil)
+	mylog.Check(pool.AddUnresolved(atDecl1, "one"))
 
-	toResolve, toResolveSeq, err := pool.ToResolve()
-	c.Assert(err, IsNil)
+
+	toResolve, toResolveSeq := mylog.Check3(pool.ToResolve())
+
 	sortToResolve(toResolve)
 
 	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
@@ -758,21 +754,21 @@ func (s *poolSuite) TestAddCurrentRevision(c *C) {
 	// re-adding of current revisions, is not what we expect
 	// but needs to not produce unnecessary roundtrips
 
-	ok, err := pool.Add(s.hub.StoreAccountKey(""), asserts.MakePoolGrouping(0))
-	c.Assert(err, IsNil)
+	ok := mylog.Check2(pool.Add(s.hub.StoreAccountKey(""), asserts.MakePoolGrouping(0)))
+
 	c.Assert(ok, Equals, true)
 
 	// this will be kept marked as unresolved until the ToResolve
-	ok, err = pool.Add(s.dev1Acct, asserts.MakePoolGrouping(0))
-	c.Assert(err, IsNil)
+	ok = mylog.Check2(pool.Add(s.dev1Acct, asserts.MakePoolGrouping(0)))
+
 	c.Assert(ok, Equals, true)
 
-	ok, err = pool.Add(s.decl1_1, asserts.MakePoolGrouping(0))
-	c.Assert(err, IsNil)
+	ok = mylog.Check2(pool.Add(s.decl1_1, asserts.MakePoolGrouping(0)))
+
 	c.Assert(ok, Equals, true)
 
-	toResolve, toResolveSeq, err = pool.ToResolve()
-	c.Assert(err, IsNil)
+	toResolve, toResolveSeq = mylog.Check3(pool.ToResolve())
+
 	c.Assert(toResolve, HasLen, 0)
 	c.Assert(toResolveSeq, HasLen, 0)
 
@@ -789,11 +785,11 @@ func (s *poolSuite) TestAddCurrentRevisionSeqForming(c *C) {
 		SequenceKey: []string{"1111"},
 		Revision:    asserts.RevisionNotKnown,
 	}
-	err := pool.AddUnresolvedSequence(atSeq, "one")
-	c.Assert(err, IsNil)
+	mylog.Check(pool.AddUnresolvedSequence(atSeq, "one"))
 
-	toResolve, toResolveSeq, err := pool.ToResolve()
-	c.Assert(err, IsNil)
+
+	toResolve, toResolveSeq := mylog.Check3(pool.ToResolve())
+
 
 	c.Check(toResolve, HasLen, 0)
 	c.Check(toResolveSeq, DeepEquals, map[asserts.Grouping][]*asserts.AtSequence{
@@ -802,23 +798,24 @@ func (s *poolSuite) TestAddCurrentRevisionSeqForming(c *C) {
 				Type:        s.seq1_1111r5.Type(),
 				SequenceKey: []string{"1111"},
 				Revision:    asserts.RevisionNotKnown,
-			}},
+			},
+		},
 	})
 
 	// re-adding of current revisions, is not what we expect
 	// but needs to not produce unnecessary roundtrips
 
-	ok, err := pool.Add(s.hub.StoreAccountKey(""), asserts.MakePoolGrouping(0))
-	c.Assert(err, IsNil)
+	ok := mylog.Check2(pool.Add(s.hub.StoreAccountKey(""), asserts.MakePoolGrouping(0)))
+
 	c.Assert(ok, Equals, true)
 
 	// this will be kept marked as unresolved until the ToResolve
-	ok, err = pool.Add(s.seq1_1111r5, asserts.MakePoolGrouping(0))
-	c.Assert(err, IsNil)
+	ok = mylog.Check2(pool.Add(s.seq1_1111r5, asserts.MakePoolGrouping(0)))
+
 	c.Assert(ok, Equals, true)
 
-	toResolve, toResolveSeq, err = pool.ToResolve()
-	c.Assert(err, IsNil)
+	toResolve, toResolveSeq = mylog.Check3(pool.ToResolve())
+
 	c.Assert(toResolve, HasLen, 0)
 	c.Assert(toResolveSeq, HasLen, 0)
 
@@ -831,16 +828,15 @@ func (s *poolSuite) TestUpdate(c *C) {
 	assertstest.AddMany(s.db, s.dev2Acct, s.decl2, s.rev2_2222)
 
 	pool := asserts.NewPool(s.db, 64)
+	mylog.Check(pool.AddToUpdate(s.decl1.Ref(), "for_one")) // group num: 0
 
-	err := pool.AddToUpdate(s.decl1.Ref(), "for_one") // group num: 0
-	c.Assert(err, IsNil)
-	err = pool.AddToUpdate(s.decl2.Ref(), "for_two") // group num: 1
-	c.Assert(err, IsNil)
+	mylog.Check(pool.AddToUpdate(s.decl2.Ref(), "for_two")) // group num: 1
+
 
 	storeKeyAt := s.hub.StoreAccountKey("").At()
 
-	toResolve, toResolveSeq, err := pool.ToResolve()
-	c.Assert(err, IsNil)
+	toResolve, toResolveSeq := mylog.Check3(pool.ToResolve())
+
 	sortToResolve(toResolve)
 	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
 		asserts.MakePoolGrouping(0, 1): {storeKeyAt},
@@ -849,12 +845,12 @@ func (s *poolSuite) TestUpdate(c *C) {
 	})
 	c.Check(toResolveSeq, HasLen, 0)
 
-	ok, err := pool.Add(s.decl1_1, asserts.MakePoolGrouping(0))
-	c.Assert(err, IsNil)
+	ok := mylog.Check2(pool.Add(s.decl1_1, asserts.MakePoolGrouping(0)))
+
 	c.Assert(ok, Equals, true)
 
-	toResolve, toResolveSeq, err = pool.ToResolve()
-	c.Assert(err, IsNil)
+	toResolve, toResolveSeq = mylog.Check3(pool.ToResolve())
+
 	c.Check(toResolve, HasLen, 0)
 	c.Check(toResolveSeq, HasLen, 0)
 
@@ -862,11 +858,11 @@ func (s *poolSuite) TestUpdate(c *C) {
 		Ref:      asserts.Ref{Type: asserts.TestOnlyRevType, PrimaryKey: []string{"2222"}},
 		Revision: asserts.RevisionNotKnown,
 	}
-	err = pool.AddUnresolved(at2222, "for_two")
-	c.Assert(err, IsNil)
+	mylog.Check(pool.AddUnresolved(at2222, "for_two"))
 
-	toResolve, toResolveSeq, err = pool.ToResolve()
-	c.Assert(err, IsNil)
+
+	toResolve, toResolveSeq = mylog.Check3(pool.ToResolve())
+
 	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
 		asserts.MakePoolGrouping(1): {&asserts.AtRevision{
 			Ref:      asserts.Ref{Type: asserts.TestOnlyRevType, PrimaryKey: []string{"2222"}},
@@ -890,11 +886,11 @@ func (s *poolSuite) TestUpdateSeqFormingUnpinnedNewerSequence(c *C) {
 		Sequence:    1,
 		Revision:    5,
 	}
-	err := pool.AddSequenceToUpdate(atseq, "for_one") // group num: 0
-	c.Assert(err, IsNil)
+	mylog.Check(pool.AddSequenceToUpdate(atseq, "for_one")) // group num: 0
 
-	toResolve, toResolveSeq, err := pool.ToResolve()
-	c.Assert(err, IsNil)
+
+	toResolve, toResolveSeq := mylog.Check3(pool.ToResolve())
+
 	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
 		asserts.MakePoolGrouping(0): {s.hub.StoreAccountKey(s.dev1Acct.SignKeyID()).At()},
 	})
@@ -905,34 +901,34 @@ func (s *poolSuite) TestUpdateSeqFormingUnpinnedNewerSequence(c *C) {
 				SequenceKey: []string{"1111"},
 				Sequence:    1,
 				Revision:    5,
-			}},
+			},
+		},
 	})
 
 	c.Check(pool.Err("for_one"), IsNil)
 
 	// resolve with sequence 3
-	ok, err := pool.Add(s.seq3_1111r5, asserts.MakePoolGrouping(0))
-	c.Assert(err, IsNil)
+	ok := mylog.Check2(pool.Add(s.seq3_1111r5, asserts.MakePoolGrouping(0)))
+
 	c.Assert(ok, Equals, true)
 
-	toResolve, toResolveSeq, err = pool.ToResolve()
-	c.Assert(err, IsNil)
+	toResolve, toResolveSeq = mylog.Check3(pool.ToResolve())
+
 
 	c.Check(toResolve, HasLen, 0)
 	c.Check(toResolveSeq, HasLen, 0)
 	c.Check(pool.Err("for_one"), IsNil)
-
-	err = pool.CommitTo(s.db)
+	mylog.Check(pool.CommitTo(s.db))
 	c.Check(err, IsNil)
 	c.Assert(pool.Err("for_one"), IsNil)
 
 	// sequence point 1, revision 5 is still in the db.
-	_, err = s.seq1_1111r5.Ref().Resolve(s.db.Find)
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(s.seq1_1111r5.Ref().Resolve(s.db.Find))
+
 
 	// and sequence point 3 revision 5 is in the database.
-	_, err = s.seq3_1111r5.Ref().Resolve(s.db.Find)
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(s.seq3_1111r5.Ref().Resolve(s.db.Find))
+
 }
 
 func (s *poolSuite) TestUpdateSeqFormingUnpinnedSameSequenceNewerRev(c *C) {
@@ -946,11 +942,11 @@ func (s *poolSuite) TestUpdateSeqFormingUnpinnedSameSequenceNewerRev(c *C) {
 		Sequence:    1,
 		Revision:    5,
 	}
-	err := pool.AddSequenceToUpdate(atseq, "for_one") // group num: 0
-	c.Assert(err, IsNil)
+	mylog.Check(pool.AddSequenceToUpdate(atseq, "for_one")) // group num: 0
 
-	toResolve, toResolveSeq, err := pool.ToResolve()
-	c.Assert(err, IsNil)
+
+	toResolve, toResolveSeq := mylog.Check3(pool.ToResolve())
+
 	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
 		asserts.MakePoolGrouping(0): {s.hub.StoreAccountKey(s.dev1Acct.SignKeyID()).At()},
 	})
@@ -961,34 +957,34 @@ func (s *poolSuite) TestUpdateSeqFormingUnpinnedSameSequenceNewerRev(c *C) {
 				SequenceKey: []string{"1111"},
 				Sequence:    1,
 				Revision:    5,
-			}},
+			},
+		},
 	})
 
 	c.Check(pool.Err("for_one"), IsNil)
 
 	// resolve
-	ok, err := pool.Add(s.seq1_1111r6, asserts.MakePoolGrouping(0))
-	c.Assert(err, IsNil)
+	ok := mylog.Check2(pool.Add(s.seq1_1111r6, asserts.MakePoolGrouping(0)))
+
 	c.Assert(ok, Equals, true)
 
-	toResolve, toResolveSeq, err = pool.ToResolve()
-	c.Assert(err, IsNil)
+	toResolve, toResolveSeq = mylog.Check3(pool.ToResolve())
+
 
 	c.Check(toResolve, HasLen, 0)
 	c.Check(toResolveSeq, HasLen, 0)
 	c.Check(pool.Err("for_one"), IsNil)
-
-	err = pool.CommitTo(s.db)
+	mylog.Check(pool.CommitTo(s.db))
 	c.Check(err, IsNil)
 	c.Assert(pool.Err("for_one"), IsNil)
 
 	// sequence point 1, revision 5 is still in the database.
-	_, err = s.seq1_1111r5.Ref().Resolve(s.db.Find)
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(s.seq1_1111r5.Ref().Resolve(s.db.Find))
+
 
 	// and sequence point 1 revision 6 is in the database.
-	_, err = s.seq1_1111r6.Ref().Resolve(s.db.Find)
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(s.seq1_1111r6.Ref().Resolve(s.db.Find))
+
 }
 
 func (s *poolSuite) TestUpdateSeqFormingUnpinnedSameSequenceSameRevNoop(c *C) {
@@ -1002,11 +998,11 @@ func (s *poolSuite) TestUpdateSeqFormingUnpinnedSameSequenceSameRevNoop(c *C) {
 		Sequence:    1,
 		Revision:    5,
 	}
-	err := pool.AddSequenceToUpdate(atseq, "for_one") // group num: 0
-	c.Assert(err, IsNil)
+	mylog.Check(pool.AddSequenceToUpdate(atseq, "for_one")) // group num: 0
 
-	toResolve, toResolveSeq, err := pool.ToResolve()
-	c.Assert(err, IsNil)
+
+	toResolve, toResolveSeq := mylog.Check3(pool.ToResolve())
+
 	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
 		asserts.MakePoolGrouping(0): {s.hub.StoreAccountKey(s.dev1Acct.SignKeyID()).At()},
 	})
@@ -1017,29 +1013,29 @@ func (s *poolSuite) TestUpdateSeqFormingUnpinnedSameSequenceSameRevNoop(c *C) {
 				SequenceKey: []string{"1111"},
 				Sequence:    1,
 				Revision:    5,
-			}},
+			},
+		},
 	})
 
 	c.Check(pool.Err("for_one"), IsNil)
 
 	// update with same assertion
-	ok, err := pool.Add(s.seq1_1111r5, asserts.MakePoolGrouping(0))
-	c.Assert(err, IsNil)
+	ok := mylog.Check2(pool.Add(s.seq1_1111r5, asserts.MakePoolGrouping(0)))
+
 	c.Assert(ok, Equals, true)
 
-	toResolve, toResolveSeq, err = pool.ToResolve()
-	c.Assert(err, IsNil)
+	toResolve, toResolveSeq = mylog.Check3(pool.ToResolve())
+
 	c.Check(toResolve, HasLen, 0)
 	c.Check(toResolveSeq, HasLen, 0)
 	c.Check(pool.Err("for_one"), IsNil)
-
-	err = pool.CommitTo(s.db)
+	mylog.Check(pool.CommitTo(s.db))
 	c.Check(err, IsNil)
 	c.Assert(pool.Err("for_one"), IsNil)
 
 	// sequence point 1, revision 5 is still in the database.
-	_, err = s.seq1_1111r5.Ref().Resolve(s.db.Find)
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(s.seq1_1111r5.Ref().Resolve(s.db.Find))
+
 }
 
 func (s *poolSuite) TestUpdateSeqFormingPinnedNewerSequenceSameRevisionNoop(c *C) {
@@ -1054,11 +1050,11 @@ func (s *poolSuite) TestUpdateSeqFormingPinnedNewerSequenceSameRevisionNoop(c *C
 		Revision:    5,
 		Pinned:      true,
 	}
-	err := pool.AddSequenceToUpdate(atseq, "for_one") // group num: 0
-	c.Assert(err, IsNil)
+	mylog.Check(pool.AddSequenceToUpdate(atseq, "for_one")) // group num: 0
 
-	toResolve, toResolveSeq, err := pool.ToResolve()
-	c.Assert(err, IsNil)
+
+	toResolve, toResolveSeq := mylog.Check3(pool.ToResolve())
+
 	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
 		asserts.MakePoolGrouping(0): {s.hub.StoreAccountKey(s.dev1Acct.SignKeyID()).At()},
 	})
@@ -1070,32 +1066,32 @@ func (s *poolSuite) TestUpdateSeqFormingPinnedNewerSequenceSameRevisionNoop(c *C
 				Sequence:    1,
 				Revision:    5,
 				Pinned:      true,
-			}},
+			},
+		},
 	})
 
 	c.Check(pool.Err("for_one"), IsNil)
 
 	// resolve
-	ok, err := pool.Add(s.seq3_1111r5, asserts.MakePoolGrouping(0))
-	c.Assert(err, IsNil)
+	ok := mylog.Check2(pool.Add(s.seq3_1111r5, asserts.MakePoolGrouping(0)))
+
 	c.Assert(ok, Equals, true)
 
-	toResolve, toResolveSeq, err = pool.ToResolve()
-	c.Assert(err, IsNil)
+	toResolve, toResolveSeq = mylog.Check3(pool.ToResolve())
+
 	c.Check(toResolve, HasLen, 0)
 	c.Check(toResolveSeq, HasLen, 0)
 	c.Check(pool.Err("for_one"), IsNil)
-
-	err = pool.CommitTo(s.db)
+	mylog.Check(pool.CommitTo(s.db))
 	c.Check(err, IsNil)
 	c.Assert(pool.Err("for_one"), IsNil)
 
 	// sequence point 1, revision 5 is still the latest.
-	_, err = s.seq1_1111r5.Ref().Resolve(s.db.Find)
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(s.seq1_1111r5.Ref().Resolve(s.db.Find))
+
 
 	// and sequence point 3 revision 5 wasn't added to asserts database.
-	_, err = s.seq3_1111r5.Ref().Resolve(s.db.Find)
+	_ = mylog.Check2(s.seq3_1111r5.Ref().Resolve(s.db.Find))
 	c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 }
 
@@ -1111,11 +1107,11 @@ func (s *poolSuite) TestUpdateSeqFormingPinnedNewerSequenceNewerRevisionNoop(c *
 		Revision:    5,
 		Pinned:      true,
 	}
-	err := pool.AddSequenceToUpdate(atseq, "for_one") // group num: 0
-	c.Assert(err, IsNil)
+	mylog.Check(pool.AddSequenceToUpdate(atseq, "for_one")) // group num: 0
 
-	toResolve, toResolveSeq, err := pool.ToResolve()
-	c.Assert(err, IsNil)
+
+	toResolve, toResolveSeq := mylog.Check3(pool.ToResolve())
+
 	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
 		asserts.MakePoolGrouping(0): {s.hub.StoreAccountKey(s.dev1Acct.SignKeyID()).At()},
 	})
@@ -1127,26 +1123,26 @@ func (s *poolSuite) TestUpdateSeqFormingPinnedNewerSequenceNewerRevisionNoop(c *
 				Sequence:    1,
 				Revision:    5,
 				Pinned:      true,
-			}},
+			},
+		},
 	})
 
 	c.Check(pool.Err("for_one"), IsNil)
 
 	// resolve
-	ok, err := pool.Add(s.seq2_1111r7, asserts.MakePoolGrouping(0))
-	c.Assert(err, IsNil)
-	c.Assert(ok, Equals, true)
+	ok := mylog.Check2(pool.Add(s.seq2_1111r7, asserts.MakePoolGrouping(0)))
 
-	err = pool.CommitTo(s.db)
+	c.Assert(ok, Equals, true)
+	mylog.Check(pool.CommitTo(s.db))
 	c.Check(err, IsNil)
 	c.Assert(pool.Err("for_one"), IsNil)
 
 	// sequence point 1, revision 5 is still the latest.
-	_, err = s.seq1_1111r5.Ref().Resolve(s.db.Find)
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(s.seq1_1111r5.Ref().Resolve(s.db.Find))
+
 
 	// and sequence point 2 revision 7 wasn't added to asserts database.
-	_, err = s.seq2_1111r7.Ref().Resolve(s.db.Find)
+	_ = mylog.Check2(s.seq2_1111r7.Ref().Resolve(s.db.Find))
 	c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 }
 
@@ -1161,11 +1157,11 @@ func (s *poolSuite) TestUpdateSeqFormingPinnedSameSequenceNewerRevision(c *C) {
 		Revision:    5,
 		Pinned:      true,
 	}
-	err := pool.AddSequenceToUpdate(atseq, "for_one") // group num: 0
-	c.Assert(err, IsNil)
+	mylog.Check(pool.AddSequenceToUpdate(atseq, "for_one")) // group num: 0
 
-	toResolve, toResolveSeq, err := pool.ToResolve()
-	c.Assert(err, IsNil)
+
+	toResolve, toResolveSeq := mylog.Check3(pool.ToResolve())
+
 	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
 		asserts.MakePoolGrouping(0): {s.hub.StoreAccountKey(s.dev1Acct.SignKeyID()).At()},
 	})
@@ -1177,23 +1173,23 @@ func (s *poolSuite) TestUpdateSeqFormingPinnedSameSequenceNewerRevision(c *C) {
 				Sequence:    1,
 				Revision:    5,
 				Pinned:      true,
-			}},
+			},
+		},
 	})
 
 	c.Check(pool.Err("for_one"), IsNil)
 
 	// resolve
-	ok, err := pool.Add(s.seq1_1111r6, asserts.MakePoolGrouping(0))
-	c.Assert(err, IsNil)
-	c.Assert(ok, Equals, true)
+	ok := mylog.Check2(pool.Add(s.seq1_1111r6, asserts.MakePoolGrouping(0)))
 
-	err = pool.CommitTo(s.db)
+	c.Assert(ok, Equals, true)
+	mylog.Check(pool.CommitTo(s.db))
 	c.Check(err, IsNil)
 	c.Assert(pool.Err("for_one"), IsNil)
 
 	// sequence point 1, revision 6 is in db.
-	_, err = s.seq1_1111r6.Ref().Resolve(s.db.Find)
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(s.seq1_1111r6.Ref().Resolve(s.db.Find))
+
 }
 
 func (s *poolSuite) TestUpdateSeqFormingUseAssertRevision(c *C) {
@@ -1207,11 +1203,11 @@ func (s *poolSuite) TestUpdateSeqFormingUseAssertRevision(c *C) {
 		Sequence:    1,
 		Revision:    0, // intentionaly unset
 	}
-	err := pool.AddSequenceToUpdate(atseq, "for_one") // group num: 0
-	c.Assert(err, IsNil)
+	mylog.Check(pool.AddSequenceToUpdate(atseq, "for_one")) // group num: 0
 
-	toResolve, toResolveSeq, err := pool.ToResolve()
-	c.Assert(err, IsNil)
+
+	toResolve, toResolveSeq := mylog.Check3(pool.ToResolve())
+
 	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
 		asserts.MakePoolGrouping(0): {s.hub.StoreAccountKey(s.dev1Acct.SignKeyID()).At()},
 	})
@@ -1224,7 +1220,8 @@ func (s *poolSuite) TestUpdateSeqFormingUseAssertRevision(c *C) {
 				SequenceKey: []string{"1111"},
 				Sequence:    1,
 				Revision:    5,
-			}},
+			},
+		},
 	})
 }
 
@@ -1235,7 +1232,7 @@ func (s *poolSuite) TestAddSequenceToUpdateMissingSequenceError(c *C) {
 		SequenceKey: []string{"1111"},
 		Revision:    asserts.RevisionNotKnown,
 	}
-	err := pool.AddSequenceToUpdate(atseq, "for_one")
+	mylog.Check(pool.AddSequenceToUpdate(atseq, "for_one"))
 	c.Assert(err, ErrorMatches, `internal error: sequence to update must have a sequence number set`)
 }
 
@@ -1248,11 +1245,11 @@ func (s *poolSuite) TestAddUnresolvedSeqUnresolved(c *C) {
 		Revision:    asserts.RevisionNotKnown,
 		Sequence:    1,
 	}
-	err := pool.AddUnresolvedSequence(atseq, "for_one")
-	c.Assert(err, IsNil)
+	mylog.Check(pool.AddUnresolvedSequence(atseq, "for_one"))
 
-	toResolve, toResolveSeq, err := pool.ToResolve()
-	c.Assert(err, IsNil)
+
+	toResolve, toResolveSeq := mylog.Check3(pool.ToResolve())
+
 	c.Check(toResolve, HasLen, 0)
 	c.Check(toResolveSeq, DeepEquals, map[asserts.Grouping][]*asserts.AtSequence{
 		asserts.MakePoolGrouping(0): {
@@ -1261,11 +1258,12 @@ func (s *poolSuite) TestAddUnresolvedSeqUnresolved(c *C) {
 				SequenceKey: []string{"1111"},
 				Revision:    asserts.RevisionNotKnown,
 				Sequence:    1,
-			}},
+			},
+		},
 	})
 
-	toResolve, toResolveSeq, err = pool.ToResolve()
-	c.Assert(err, IsNil)
+	toResolve, toResolveSeq = mylog.Check3(pool.ToResolve())
+
 	c.Check(toResolve, HasLen, 0)
 	c.Check(toResolveSeq, HasLen, 0)
 
@@ -1281,12 +1279,12 @@ func (s *poolSuite) TestAddUnresolvedSeqOnce(c *C) {
 		Revision:    asserts.RevisionNotKnown,
 		Sequence:    1,
 	}
-	err := pool.AddUnresolvedSequence(atseq, "for_one")
-	c.Assert(err, IsNil)
+	mylog.Check(pool.AddUnresolvedSequence(atseq, "for_one"))
+
 
 	atseq.Sequence = 2
 	atseq.Revision = 3
-	err = pool.AddUnresolvedSequence(atseq, "for_one")
+	mylog.Check(pool.AddUnresolvedSequence(atseq, "for_one"))
 	c.Assert(err, ErrorMatches, `internal error: sequence \[1111\] is already being resolved`)
 }
 
@@ -1300,12 +1298,12 @@ func (s *poolSuite) TestAddSeqToUpdateOnce(c *C) {
 		Revision:    2,
 		Sequence:    1,
 	}
-	err := pool.AddSequenceToUpdate(atseq, "for_one")
-	c.Assert(err, IsNil)
+	mylog.Check(pool.AddSequenceToUpdate(atseq, "for_one"))
+
 
 	atseq.Sequence = 3
 	atseq.Revision = 3
-	err = pool.AddSequenceToUpdate(atseq, "for_one")
+	mylog.Check(pool.AddSequenceToUpdate(atseq, "for_one"))
 	c.Assert(err, ErrorMatches, `internal error: sequence \[1111\] is already being resolved`)
 }
 
@@ -1318,7 +1316,7 @@ func (s *poolSuite) TestAddSeqToUpdateNotFound(c *C) {
 		Revision:    2,
 		Sequence:    1,
 	}
-	err := pool.AddSequenceToUpdate(atseq, "for_one")
+	mylog.Check(pool.AddSequenceToUpdate(atseq, "for_one"))
 	c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 }
 
@@ -1330,26 +1328,26 @@ func (s *poolSuite) TestAddErrorEarly(c *C) {
 	pool := asserts.NewPool(s.db, 64)
 
 	storeKey := s.hub.StoreAccountKey("")
-	err := pool.AddToUpdate(storeKey.Ref(), "store_key")
-	c.Assert(err, IsNil)
+	mylog.Check(pool.AddToUpdate(storeKey.Ref(), "store_key"))
+
 
 	at1111 := &asserts.AtRevision{
 		Ref:      asserts.Ref{Type: asserts.TestOnlyRevType, PrimaryKey: []string{"1111"}},
 		Revision: asserts.RevisionNotKnown,
 	}
-	err = pool.AddUnresolved(at1111, "for_one")
-	c.Assert(err, IsNil)
+	mylog.Check(pool.AddUnresolved(at1111, "for_one"))
+
 
 	seq1111 := &asserts.AtSequence{
 		Type:        asserts.TestOnlySeqType,
 		SequenceKey: []string{"1111"},
 		Revision:    asserts.RevisionNotKnown,
 	}
-	err = pool.AddUnresolvedSequence(seq1111, "for_two")
-	c.Assert(err, IsNil)
+	mylog.Check(pool.AddUnresolvedSequence(seq1111, "for_two"))
 
-	toResolve, toResolveSeq, err := pool.ToResolve()
-	c.Assert(err, IsNil)
+
+	toResolve, toResolveSeq := mylog.Check3(pool.ToResolve())
+
 	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
 		asserts.MakePoolGrouping(0): {storeKey.At()},
 		asserts.MakePoolGrouping(1): {at1111},
@@ -1357,19 +1355,17 @@ func (s *poolSuite) TestAddErrorEarly(c *C) {
 	c.Check(toResolveSeq, DeepEquals, map[asserts.Grouping][]*asserts.AtSequence{
 		asserts.MakePoolGrouping(2): {seq1111},
 	})
+	mylog.Check(pool.AddError(errBoom, storeKey.Ref()))
 
-	err = pool.AddError(errBoom, storeKey.Ref())
-	c.Assert(err, IsNil)
+	mylog.Check(pool.AddSequenceError(errBoom, seq1111))
 
-	err = pool.AddSequenceError(errBoom, seq1111)
-	c.Assert(err, IsNil)
 
-	ok, err := pool.Add(s.rev1_1111, asserts.MakePoolGrouping(1))
-	c.Assert(err, IsNil)
+	ok := mylog.Check2(pool.Add(s.rev1_1111, asserts.MakePoolGrouping(1)))
+
 	c.Assert(ok, Equals, true)
 
-	toResolve, toResolveSeq, err = pool.ToResolve()
-	c.Assert(err, IsNil)
+	toResolve, toResolveSeq = mylog.Check3(pool.ToResolve())
+
 	c.Check(toResolve, HasLen, 0)
 	c.Check(toResolveSeq, HasLen, 0)
 
@@ -1384,33 +1380,32 @@ func (s *poolSuite) TestAddErrorLater(c *C) {
 	pool := asserts.NewPool(s.db, 64)
 
 	storeKey := s.hub.StoreAccountKey("")
-	err := pool.AddToUpdate(storeKey.Ref(), "store_key")
-	c.Assert(err, IsNil)
+	mylog.Check(pool.AddToUpdate(storeKey.Ref(), "store_key"))
+
 
 	at1111 := &asserts.AtRevision{
 		Ref:      asserts.Ref{Type: asserts.TestOnlyRevType, PrimaryKey: []string{"1111"}},
 		Revision: asserts.RevisionNotKnown,
 	}
-	err = pool.AddUnresolved(at1111, "for_one")
-	c.Assert(err, IsNil)
+	mylog.Check(pool.AddUnresolved(at1111, "for_one"))
 
-	toResolve, toResolveSeq, err := pool.ToResolve()
-	c.Assert(err, IsNil)
+
+	toResolve, toResolveSeq := mylog.Check3(pool.ToResolve())
+
 	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
 		asserts.MakePoolGrouping(0): {storeKey.At()},
 		asserts.MakePoolGrouping(1): {at1111},
 	})
 	c.Check(toResolveSeq, HasLen, 0)
 
-	ok, err := pool.Add(s.rev1_1111, asserts.MakePoolGrouping(1))
-	c.Assert(err, IsNil)
+	ok := mylog.Check2(pool.Add(s.rev1_1111, asserts.MakePoolGrouping(1)))
+
 	c.Assert(ok, Equals, true)
+	mylog.Check(pool.AddError(errBoom, storeKey.Ref()))
 
-	err = pool.AddError(errBoom, storeKey.Ref())
-	c.Assert(err, IsNil)
 
-	toResolve, toResolveSeq, err = pool.ToResolve()
-	c.Assert(err, IsNil)
+	toResolve, toResolveSeq = mylog.Check3(pool.ToResolve())
+
 	c.Check(toResolve, HasLen, 0)
 	c.Check(toResolveSeq, HasLen, 0)
 
@@ -1428,11 +1423,11 @@ func (s *poolSuite) TestNopUpdatePlusFetchOfPushed(c *C) {
 	pool := asserts.NewPool(s.db, 64)
 
 	atOne := s.decl1.At()
-	err := pool.AddToUpdate(&atOne.Ref, "for_one")
-	c.Assert(err, IsNil)
+	mylog.Check(pool.AddToUpdate(&atOne.Ref, "for_one"))
 
-	toResolve, toResolveSeq, err := pool.ToResolve()
-	c.Assert(err, IsNil)
+
+	toResolve, toResolveSeq := mylog.Check3(pool.ToResolve())
+
 	sortToResolve(toResolve)
 	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
 		asserts.MakePoolGrouping(0): {storeKey.At(), s.dev1Acct.At(), atOne},
@@ -1442,15 +1437,15 @@ func (s *poolSuite) TestNopUpdatePlusFetchOfPushed(c *C) {
 	// no updates but
 	// new push suggestion
 
-	gSuggestion, err := pool.Singleton("suggestion")
-	c.Assert(err, IsNil)
+	gSuggestion := mylog.Check2(pool.Singleton("suggestion"))
 
-	ok, err := pool.Add(s.rev1_3333, gSuggestion)
-	c.Assert(err, IsNil)
+
+	ok := mylog.Check2(pool.Add(s.rev1_3333, gSuggestion))
+
 	c.Assert(ok, Equals, true)
 
-	toResolve, toResolveSeq, err = pool.ToResolve()
-	c.Assert(err, IsNil)
+	toResolve, toResolveSeq = mylog.Check3(pool.ToResolve())
+
 	c.Assert(toResolve, HasLen, 0)
 	c.Check(toResolveSeq, HasLen, 0)
 
@@ -1463,21 +1458,20 @@ func (s *poolSuite) TestNopUpdatePlusFetchOfPushed(c *C) {
 
 	at3333 := s.rev1_3333.At()
 	at3333.Revision = asserts.RevisionNotKnown
-	err = pool.AddUnresolved(at3333, at3333.Unique())
-	c.Assert(err, IsNil)
+	mylog.Check(pool.AddUnresolved(at3333, at3333.Unique()))
 
-	toResolve, toResolveSeq, err = pool.ToResolve()
-	c.Assert(err, IsNil)
+
+	toResolve, toResolveSeq = mylog.Check3(pool.ToResolve())
+
 	c.Assert(toResolve, HasLen, 0)
 	c.Check(toResolveSeq, HasLen, 0)
-
-	err = pool.CommitTo(s.db)
+	mylog.Check(pool.CommitTo(s.db))
 	c.Check(err, IsNil)
 
 	c.Assert(pool.Err(at3333.Unique()), IsNil)
 
-	a, err := s.rev1_3333.Ref().Resolve(s.db.Find)
-	c.Assert(err, IsNil)
+	a := mylog.Check2(s.rev1_3333.Ref().Resolve(s.db.Find))
+
 	c.Check(a.(*asserts.TestOnlyRev).H(), Equals, "3333")
 }
 
@@ -1489,14 +1483,13 @@ func (s *poolSuite) TestAddToUpdateThenUnresolved(c *C) {
 	storeKey := s.hub.StoreAccountKey("")
 	storeKeyAt := storeKey.At()
 	storeKeyAt.Revision = asserts.RevisionNotKnown
+	mylog.Check(pool.AddToUpdate(storeKey.Ref(), "for_one"))
 
-	err := pool.AddToUpdate(storeKey.Ref(), "for_one")
-	c.Assert(err, IsNil)
-	err = pool.AddUnresolved(storeKeyAt, "for_one")
-	c.Assert(err, IsNil)
+	mylog.Check(pool.AddUnresolved(storeKeyAt, "for_one"))
 
-	toResolve, toResolveSeq, err := pool.ToResolve()
-	c.Assert(err, IsNil)
+
+	toResolve, toResolveSeq := mylog.Check3(pool.ToResolve())
+
 	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
 		asserts.MakePoolGrouping(0): {storeKey.At()},
 	})
@@ -1511,14 +1504,13 @@ func (s *poolSuite) TestAddUnresolvedThenToUpdate(c *C) {
 	storeKey := s.hub.StoreAccountKey("")
 	storeKeyAt := storeKey.At()
 	storeKeyAt.Revision = asserts.RevisionNotKnown
+	mylog.Check(pool.AddUnresolved(storeKeyAt, "for_one"))
 
-	err := pool.AddUnresolved(storeKeyAt, "for_one")
-	c.Assert(err, IsNil)
-	err = pool.AddToUpdate(storeKey.Ref(), "for_one")
-	c.Assert(err, IsNil)
+	mylog.Check(pool.AddToUpdate(storeKey.Ref(), "for_one"))
 
-	toResolve, toResolveSeq, err := pool.ToResolve()
-	c.Assert(err, IsNil)
+
+	toResolve, toResolveSeq := mylog.Check3(pool.ToResolve())
+
 	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
 		asserts.MakePoolGrouping(0): {storeKey.At()},
 	})
@@ -1531,30 +1523,30 @@ func (s *poolSuite) TestNopUpdatePlusFetch(c *C) {
 	pool := asserts.NewPool(s.db, 64)
 
 	storeKey := s.hub.StoreAccountKey("")
-	err := pool.AddToUpdate(storeKey.Ref(), "store_key")
-	c.Assert(err, IsNil)
+	mylog.Check(pool.AddToUpdate(storeKey.Ref(), "store_key"))
+
 
 	at1111 := &asserts.AtRevision{
 		Ref:      asserts.Ref{Type: asserts.TestOnlyRevType, PrimaryKey: []string{"1111"}},
 		Revision: asserts.RevisionNotKnown,
 	}
-	err = pool.AddUnresolved(at1111, "for_one")
-	c.Assert(err, IsNil)
+	mylog.Check(pool.AddUnresolved(at1111, "for_one"))
 
-	toResolve, toResolveSeq, err := pool.ToResolve()
-	c.Assert(err, IsNil)
+
+	toResolve, toResolveSeq := mylog.Check3(pool.ToResolve())
+
 	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
 		asserts.MakePoolGrouping(0): {storeKey.At()},
 		asserts.MakePoolGrouping(1): {at1111},
 	})
 	c.Check(toResolveSeq, HasLen, 0)
 
-	ok, err := pool.Add(s.rev1_1111, asserts.MakePoolGrouping(1))
-	c.Assert(err, IsNil)
+	ok := mylog.Check2(pool.Add(s.rev1_1111, asserts.MakePoolGrouping(1)))
+
 	c.Assert(ok, Equals, true)
 
-	toResolve, toResolveSeq, err = pool.ToResolve()
-	c.Assert(err, IsNil)
+	toResolve, toResolveSeq = mylog.Check3(pool.ToResolve())
+
 	sortToResolve(toResolve)
 	dev1AcctAt := s.dev1Acct.At()
 	dev1AcctAt.Revision = asserts.RevisionNotKnown
@@ -1576,22 +1568,22 @@ func (s *poolSuite) TestParallelPartialResolutionFailure(c *C) {
 		Ref:      asserts.Ref{Type: asserts.TestOnlyDeclType, PrimaryKey: []string{"one"}},
 		Revision: asserts.RevisionNotKnown,
 	}
-	err := pool.AddUnresolved(atOne, "one")
-	c.Assert(err, IsNil)
+	mylog.Check(pool.AddUnresolved(atOne, "one"))
 
-	toResolve, toResolveSeq, err := pool.ToResolve()
-	c.Assert(err, IsNil)
+
+	toResolve, toResolveSeq := mylog.Check3(pool.ToResolve())
+
 	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
 		asserts.MakePoolGrouping(0): {atOne},
 	})
 	c.Check(toResolveSeq, HasLen, 0)
 
-	ok, err := pool.Add(s.decl1, asserts.MakePoolGrouping(0))
-	c.Assert(err, IsNil)
+	ok := mylog.Check2(pool.Add(s.decl1, asserts.MakePoolGrouping(0)))
+
 	c.Assert(ok, Equals, true)
 
-	toResolve, toResolveSeq, err = pool.ToResolve()
-	c.Assert(err, IsNil)
+	toResolve, toResolveSeq = mylog.Check3(pool.ToResolve())
+
 	sortToResolve(toResolve)
 	dev1AcctAt := s.dev1Acct.At()
 	dev1AcctAt.Revision = asserts.RevisionNotKnown
@@ -1606,20 +1598,20 @@ func (s *poolSuite) TestParallelPartialResolutionFailure(c *C) {
 
 	// failed to get prereqs
 	c.Check(pool.AddGroupingError(errBoom, asserts.MakePoolGrouping(0)), IsNil)
+	mylog.Check(pool.AddUnresolved(atOne, "other"))
 
-	err = pool.AddUnresolved(atOne, "other")
-	c.Assert(err, IsNil)
 
-	toResolve, toResolveSeq, err = pool.ToResolve()
-	c.Assert(err, IsNil)
+	toResolve, toResolveSeq = mylog.Check3(pool.ToResolve())
+
 	c.Check(toResolve, HasLen, 0)
 	c.Check(toResolveSeq, HasLen, 0)
 
 	c.Check(pool.Err("one"), Equals, errBoom)
 	c.Check(pool.Err("other"), IsNil)
+	mylog.
 
-	// we fail at commit though
-	err = pool.CommitTo(s.db)
+		// we fail at commit though
+		Check(pool.CommitTo(s.db))
 	c.Check(err, IsNil)
 	c.Check(pool.Err("one"), Equals, errBoom)
 	c.Check(pool.Err("other"), ErrorMatches, "cannot resolve prerequisite assertion.*")
@@ -1631,34 +1623,33 @@ func (s *poolSuite) TestAddErrors(c *C) {
 	pool := asserts.NewPool(s.db, 64)
 
 	storeKey := s.hub.StoreAccountKey("")
-	err := pool.AddToUpdate(storeKey.Ref(), "store_key")
-	c.Assert(err, IsNil)
+	mylog.Check(pool.AddToUpdate(storeKey.Ref(), "store_key"))
+
 
 	at1111 := &asserts.AtRevision{
 		Ref:      asserts.Ref{Type: asserts.TestOnlyRevType, PrimaryKey: []string{"1111"}},
 		Revision: asserts.RevisionNotKnown,
 	}
-	err = pool.AddUnresolved(at1111, "for_one")
-	c.Assert(err, IsNil)
+	mylog.Check(pool.AddUnresolved(at1111, "for_one"))
+
 
 	seq1111 := &asserts.AtSequence{
 		Type:        asserts.TestOnlySeqType,
 		SequenceKey: []string{"1111"},
 		Revision:    asserts.RevisionNotKnown,
 	}
-	err = pool.AddUnresolvedSequence(seq1111, "for_two")
-	c.Assert(err, IsNil)
+	mylog.Check(pool.AddUnresolvedSequence(seq1111, "for_two"))
 
-	toResolve, toResolveSeq, err := pool.ToResolve()
-	c.Assert(err, IsNil)
+
+	toResolve, toResolveSeq := mylog.Check3(pool.ToResolve())
+
 	c.Check(toResolve, HasLen, 2)
 	c.Check(toResolveSeq, HasLen, 1)
+	mylog.Check(pool.AddError(errBoom, storeKey.Ref()))
 
-	err = pool.AddError(errBoom, storeKey.Ref())
-	c.Assert(err, IsNil)
 
-	toResolve, toResolveSeq, err = pool.ToResolve()
-	c.Assert(err, IsNil)
+	toResolve, toResolveSeq = mylog.Check3(pool.ToResolve())
+
 	c.Check(toResolve, HasLen, 0)
 	c.Check(toResolveSeq, HasLen, 0)
 
@@ -1675,41 +1666,40 @@ func (s *poolSuite) TestPoolReuseWithClearGroupsAndUnchanged(c *C) {
 	assertstest.AddMany(s.db, s.dev2Acct, s.decl2)
 
 	pool := asserts.NewPool(s.db, 64)
+	mylog.Check(pool.AddToUpdate(s.decl1.Ref(), "for_one")) // group num: 0
 
-	err := pool.AddToUpdate(s.decl1.Ref(), "for_one") // group num: 0
-	c.Assert(err, IsNil)
 
 	storeKeyAt := s.hub.StoreAccountKey("").At()
 
-	toResolve, toResolveSeq, err := pool.ToResolve()
-	c.Assert(err, IsNil)
+	toResolve, toResolveSeq := mylog.Check3(pool.ToResolve())
+
 	sortToResolve(toResolve)
 	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
 		asserts.MakePoolGrouping(0): {storeKeyAt, s.dev1Acct.At(), s.decl1.At()},
 	})
 	c.Check(toResolveSeq, HasLen, 0)
 
-	ok, err := pool.Add(s.decl1_1, asserts.MakePoolGrouping(0))
-	c.Assert(err, IsNil)
+	ok := mylog.Check2(pool.Add(s.decl1_1, asserts.MakePoolGrouping(0)))
+
 	c.Assert(ok, Equals, true)
 
-	toResolve, toResolveSeq, err = pool.ToResolve()
-	c.Assert(err, IsNil)
+	toResolve, toResolveSeq = mylog.Check3(pool.ToResolve())
+
 	c.Check(toResolve, HasLen, 0)
 	c.Check(toResolveSeq, HasLen, 0)
+	mylog.
 
-	// clear the groups as we would do for real reuse when we have
-	// exhausted allowed groups
-	err = pool.ClearGroups()
-	c.Assert(err, IsNil)
+		// clear the groups as we would do for real reuse when we have
+		// exhausted allowed groups
+		Check(pool.ClearGroups())
 
-	err = pool.AddToUpdate(s.decl2.Ref(), "for_two") // group num: 0 again
-	c.Assert(err, IsNil)
+	mylog.Check(pool.AddToUpdate(s.decl2.Ref(), "for_two")) // group num: 0 again
+
 
 	// no reference to store key because it is remebered as unchanged
 	// across the clearing
-	toResolve, toResolveSeq, err = pool.ToResolve()
-	c.Assert(err, IsNil)
+	toResolve, toResolveSeq = mylog.Check3(pool.ToResolve())
+
 	sortToResolve(toResolve)
 	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
 		asserts.MakePoolGrouping(0): {s.dev2Acct.At(), s.decl2.At()},
@@ -1726,19 +1716,19 @@ func (s *poolSuite) TestBackstore(c *C) {
 		Revision: asserts.RevisionNotKnown,
 	}
 	c.Assert(pool.AddUnresolved(at1111, "for_one"), IsNil)
-	res, _, err := pool.ToResolve()
-	c.Assert(err, IsNil)
+	res, _ := mylog.Check3(pool.ToResolve())
+
 	c.Assert(res, HasLen, 1)
 
 	// resolve (but do not commit)
-	ok, err := pool.Add(s.rev1_1111, asserts.MakePoolGrouping(0))
-	c.Assert(err, IsNil)
+	ok := mylog.Check2(pool.Add(s.rev1_1111, asserts.MakePoolGrouping(0)))
+
 	c.Assert(ok, Equals, true)
 
 	// the assertion should be available via pool's backstore
 	bs := pool.Backstore()
 	c.Assert(bs, NotNil)
-	a, err := bs.Get(s.rev1_1111.Type(), s.rev1_1111.At().PrimaryKey, s.rev1_1111.Type().MaxSupportedFormat())
-	c.Assert(err, IsNil)
+	a := mylog.Check2(bs.Get(s.rev1_1111.Type(), s.rev1_1111.At().PrimaryKey, s.rev1_1111.Type().MaxSupportedFormat()))
+
 	c.Assert(a, NotNil)
 }

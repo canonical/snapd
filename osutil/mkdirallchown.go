@@ -25,6 +25,7 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil/sys"
 )
 
@@ -44,7 +45,7 @@ func MkdirAllChown(path string, perm os.FileMode, uid sys.UserID, gid sys.GroupI
 
 func mkdirAllChown(path string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) error {
 	// split out so filepath.Clean isn't called twice for each inner path
-	if s, err := os.Stat(path); err == nil {
+	if s := mylog.Check2(os.Stat(path)); err == nil {
 		if s.IsDir() {
 			return nil
 		}
@@ -59,29 +60,19 @@ func mkdirAllChown(path string, perm os.FileMode, uid sys.UserID, gid sys.GroupI
 
 	dir := filepath.Dir(path)
 	if dir != "/" {
-		if err := mkdirAllChown(dir, perm, uid, gid); err != nil {
-			return err
-		}
+		mylog.Check(mkdirAllChown(dir, perm, uid, gid))
 	}
 
 	cand := path + ".mkdir-new"
 
-	if err := os.Mkdir(cand, perm); err != nil && !os.IsExist(err) {
+	if mylog.Check(os.Mkdir(cand, perm)); err != nil && !os.IsExist(err) {
 		return err
 	}
+	mylog.Check(sys.ChownPath(cand, uid, gid))
+	mylog.Check(os.Rename(cand, path))
 
-	if err := sys.ChownPath(cand, uid, gid); err != nil {
-		return err
-	}
+	fd := mylog.Check2(os.Open(dir))
 
-	if err := os.Rename(cand, path); err != nil {
-		return err
-	}
-
-	fd, err := os.Open(dir)
-	if err != nil {
-		return err
-	}
 	defer fd.Close()
 
 	return fd.Sync()

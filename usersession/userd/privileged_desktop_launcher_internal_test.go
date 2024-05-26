@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/usersession/userd"
@@ -105,7 +106,7 @@ func (s *privilegedDesktopLauncherInternalSuite) TestDesktopFileIDToFilenameSucc
 	defer restore()
 	s.mockEnv("XDG_DATA_DIRS", "/usr/local/share:/usr/share:/var/lib/snapd/desktop")
 
-	var desktopIdTests = []struct {
+	desktopIdTests := []struct {
 		id     string
 		expect string
 	}{
@@ -116,8 +117,8 @@ func (s *privilegedDesktopLauncherInternalSuite) TestDesktopFileIDToFilenameSucc
 	}
 
 	for _, test := range desktopIdTests {
-		actual, err := userd.DesktopFileIDToFilename(test.id)
-		c.Assert(err, IsNil)
+		actual := mylog.Check2(userd.DesktopFileIDToFilename(test.id))
+
 		c.Assert(actual, Equals, test.expect)
 	}
 }
@@ -127,7 +128,7 @@ func (s *privilegedDesktopLauncherInternalSuite) TestDesktopFileIDToFilenameFail
 	defer restore()
 	s.mockEnv("XDG_DATA_DIRS", "/usr/local/share:/usr/share:/var/lib/snapd/desktop")
 
-	var desktopIdTests = []string{
+	desktopIdTests := []string{
 		"mir-kiosk-scummvm-mir-kiosk-scummvm.desktop",
 		"bar-foo-baz.desktop",
 		"bar-baz-foo.desktop",
@@ -145,7 +146,7 @@ func (s *privilegedDesktopLauncherInternalSuite) TestDesktopFileIDToFilenameFail
 	}
 
 	for _, id := range desktopIdTests {
-		_, err := userd.DesktopFileIDToFilename(id)
+		_ := mylog.Check2(userd.DesktopFileIDToFilename(id))
 		c.Check(err, ErrorMatches, `cannot find desktop file for ".*"`, Commentf(id))
 	}
 }
@@ -156,14 +157,14 @@ func (s *privilegedDesktopLauncherInternalSuite) TestVerifyDesktopFileLocation(c
 	s.mockEnv("XDG_DATA_DIRS", "/usr/local/share:/usr/share:/var/lib/snapd/desktop")
 
 	// Resolved desktop files belonging to snaps will pass verification:
-	filename, err := userd.DesktopFileIDToFilename("mir-kiosk-scummvm_mir-kiosk-scummvm.desktop")
-	c.Assert(err, IsNil)
-	err = userd.VerifyDesktopFileLocation(filename)
+	filename := mylog.Check2(userd.DesktopFileIDToFilename("mir-kiosk-scummvm_mir-kiosk-scummvm.desktop"))
+
+	mylog.Check(userd.VerifyDesktopFileLocation(filename))
 	c.Check(err, IsNil)
 
 	// Desktop IDs belonging to host system apps fail:
-	filename, err = userd.DesktopFileIDToFilename("shadow-test.desktop")
-	c.Assert(err, IsNil)
-	err = userd.VerifyDesktopFileLocation(filename)
+	filename = mylog.Check2(userd.DesktopFileIDToFilename("shadow-test.desktop"))
+
+	mylog.Check(userd.VerifyDesktopFileLocation(filename))
 	c.Check(err, ErrorMatches, "only launching snap applications from /var/lib/snapd/desktop/applications is supported")
 }

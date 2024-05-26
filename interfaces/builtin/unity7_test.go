@@ -22,6 +22,7 @@ package builtin_test
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -84,11 +85,11 @@ func (s *Unity7InterfaceSuite) TestSanitizePlug(c *C) {
 
 func (s *Unity7InterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	apparmorSpec := apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
-	c.Assert(err, IsNil)
+	mylog.Check(apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot))
+
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other-snap.app2"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other-snap.app2"), testutil.Contains, `/usr/share/pixmaps`)
 	c.Assert(apparmorSpec.SnippetForTag("snap.other-snap.app2"), testutil.Contains, `path=/com/canonical/indicator/messages/other_snap_*_desktop`)
@@ -103,31 +104,31 @@ func (s *Unity7InterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(apparmorSpec.SnippetForTag("snap.other-snap.app2"), testutil.Contains, `deny /var/lib/snapd/desktop/applications/other-sna[^p]* r,`)
 
 	// connected plugs for instance name have a non-nil security snippet for apparmor
-	appSet, err = interfaces.NewSnapAppSet(s.plugInst.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.plugInst.Snap(), nil))
+
 	apparmorSpec = apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddConnectedPlug(s.iface, s.plugInst, s.slot)
-	c.Assert(err, IsNil)
+	mylog.Check(apparmorSpec.AddConnectedPlug(s.iface, s.plugInst, s.slot))
+
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other-snap_instance.app2"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other-snap_instance.app2"), testutil.Contains, `/usr/share/pixmaps`)
 	c.Assert(apparmorSpec.SnippetForTag("snap.other-snap_instance.app2"), testutil.Contains, `path=/com/canonical/indicator/messages/other_snap_instance_*_desktop`)
 
 	// connected plugs for instance name have a non-nil security snippet for apparmor
-	appSet, err = interfaces.NewSnapAppSet(s.plugInst.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.plugInst.Snap(), nil))
+
 	apparmorSpec = apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddConnectedPlug(s.iface, s.plugInst, s.slot)
-	c.Assert(err, IsNil)
+	mylog.Check(apparmorSpec.AddConnectedPlug(s.iface, s.plugInst, s.slot))
+
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other-snap_instance.app2"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other-snap_instance.app2"), testutil.Contains, `/usr/share/pixmaps`)
 	c.Assert(apparmorSpec.SnippetForTag("snap.other-snap_instance.app2"), testutil.Contains, `path=/com/canonical/indicator/messages/other_snap_instance_*_desktop`)
 
 	// connected plugs have a non-nil security snippet for seccomp
-	appSet, err = interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	seccompSpec := seccomp.NewSpecification(appSet)
-	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
-	c.Assert(err, IsNil)
+	mylog.Check(seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot))
+
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other-snap.app2"})
 	c.Check(seccompSpec.SnippetForTag("snap.other-snap.app2"), testutil.Contains, "bind\n")
 }

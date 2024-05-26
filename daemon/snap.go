@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/logger"
@@ -55,33 +56,21 @@ func localSnapInfo(st *state.State, name string) (aboutSnap, error) {
 	defer st.Unlock()
 
 	var snapst snapstate.SnapState
-	err := snapstate.Get(st, name, &snapst)
+	mylog.Check(snapstate.Get(st, name, &snapst))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return aboutSnap{}, fmt.Errorf("cannot consult state: %v", err)
 	}
 
-	info, err := snapst.CurrentInfo()
+	info := mylog.Check2(snapst.CurrentInfo())
 	if err == snapstate.ErrNoCurrent {
 		return aboutSnap{}, errNoSnap
 	}
-	if err != nil {
-		return aboutSnap{}, fmt.Errorf("cannot read snap details: %v", err)
-	}
 
-	info.Publisher, err = assertstate.PublisherStoreAccount(st, info.SnapID)
-	if err != nil {
-		return aboutSnap{}, err
-	}
+	info.Publisher = mylog.Check2(assertstate.PublisherStoreAccount(st, info.SnapID))
 
-	health, err := healthstate.Get(st, name)
-	if err != nil {
-		return aboutSnap{}, err
-	}
+	health := mylog.Check2(healthstate.Get(st, name))
 
-	userHold, gatingHold, err := getUserAndGatingHolds(st, name)
-	if err != nil {
-		return aboutSnap{}, InternalError("%v", err)
-	}
+	userHold, gatingHold := mylog.Check3(getUserAndGatingHolds(st, name))
 
 	refreshInhibit := clientSnapRefreshInhibit(st, &snapst, name)
 
@@ -96,15 +85,9 @@ func localSnapInfo(st *state.State, name string) (aboutSnap, error) {
 }
 
 func getUserAndGatingHolds(st *state.State, name string) (userHold, gatingHold time.Time, err error) {
-	userHold, err = snapstateSystemHold(st, name)
-	if err != nil {
-		return time.Time{}, time.Time{}, err
-	}
+	userHold = mylog.Check2(snapstateSystemHold(st, name))
 
-	gatingHold, err = snapstateLongestGatingHold(st, name)
-	if err != nil {
-		return time.Time{}, time.Time{}, err
-	}
+	gatingHold = mylog.Check2(snapstateLongestGatingHold(st, name))
 
 	return userHold, gatingHold, err
 }
@@ -123,16 +106,11 @@ func allLocalSnapInfos(st *state.State, sel snapSelect, wanted map[string]bool) 
 	st.Lock()
 	defer st.Unlock()
 
-	snapStates, err := snapstate.All(st)
-	if err != nil {
-		return nil, err
-	}
+	snapStates := mylog.Check2(snapstate.All(st))
+
 	about := make([]aboutSnap, 0, len(snapStates))
 
-	healths, err := healthstate.All(st)
-	if err != nil {
-		return nil, err
-	}
+	healths := mylog.Check2(healthstate.All(st))
 
 	for name, snapst := range snapStates {
 		if len(wanted) > 0 && !wanted[name] {
@@ -140,10 +118,7 @@ func allLocalSnapInfos(st *state.State, sel snapSelect, wanted map[string]bool) 
 		}
 		health := clientHealthFromHealthstate(healths[name])
 
-		userHold, gatingHold, err := getUserAndGatingHolds(st, name)
-		if err != nil {
-			return nil, err
-		}
+		userHold, gatingHold := mylog.Check3(getUserAndGatingHolds(st, name))
 
 		refreshInhibit := clientSnapRefreshInhibit(st, snapst, name)
 		if sel == snapSelectRefreshInhibited && refreshInhibit == nil {
@@ -155,22 +130,14 @@ func allLocalSnapInfos(st *state.State, sel snapSelect, wanted map[string]bool) 
 		var info *snap.Info
 		if sel == snapSelectAll {
 			for _, si := range snapst.Sequence.SideInfos() {
-				info, err = snap.ReadInfo(name, si)
-				if err != nil {
-					// single revision may be broken
-					_, instanceKey := snap.SplitInstanceName(name)
-					info = &snap.Info{
-						SideInfo:    *si,
-						InstanceKey: instanceKey,
-						Broken:      err.Error(),
-					}
-					// clear the error
-					err = nil
-				}
-				info.Publisher, err = assertstate.PublisherStoreAccount(st, si.SnapID)
-				if err != nil {
-					return nil, err
-				}
+				info = mylog.Check2(snap.ReadInfo(name, si))
+
+				// single revision may be broken
+
+				// clear the error
+
+				info.Publisher = mylog.Check2(assertstate.PublisherStoreAccount(st, si.SnapID))
+
 				abSnap := aboutSnap{
 					info:           info,
 					snapst:         snapst,
@@ -182,15 +149,9 @@ func allLocalSnapInfos(st *state.State, sel snapSelect, wanted map[string]bool) 
 				aboutThis = append(aboutThis, abSnap)
 			}
 		} else {
-			info, err = snapst.CurrentInfo()
-			if err != nil {
-				return nil, err
-			}
+			info = mylog.Check2(snapst.CurrentInfo())
 
-			info.Publisher, err = assertstate.PublisherStoreAccount(st, info.SnapID)
-			if err != nil {
-				return nil, err
-			}
+			info.Publisher = mylog.Check2(assertstate.PublisherStoreAccount(st, info.SnapID))
 
 			abSnap := aboutSnap{
 				info:           info,
@@ -234,10 +195,8 @@ func clientSnapRefreshInhibit(st *state.State, snapst *snapstate.SnapState, inst
 
 func mapLocal(about aboutSnap, sd clientutil.StatusDecorator) *client.Snap {
 	localSnap, snapst := about.info, about.snapst
-	result, err := clientutil.ClientSnapFromSnapInfo(localSnap, sd)
-	if err != nil {
-		logger.Noticef("cannot get full app info for snap %q: %v", localSnap.InstanceName(), err)
-	}
+	result := mylog.Check2(clientutil.ClientSnapFromSnapInfo(localSnap, sd))
+
 	result.InstalledSize = localSnap.Size
 
 	if icon := snapIcon(localSnap); icon != "" {

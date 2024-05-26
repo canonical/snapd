@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
 )
@@ -105,10 +106,7 @@ func (se *StateEngine) StartUp() error {
 	var errs []error
 	for _, m := range se.managers {
 		if starterUp, ok := m.(StateStarterUp); ok {
-			err := starterUp.StartUp()
-			if err != nil {
-				errs = append(errs, err)
-			}
+			mylog.Check(starterUp.StartUp())
 		}
 	}
 	if len(errs) != 0 {
@@ -144,11 +142,7 @@ func (se *StateEngine) Ensure() error {
 	}
 	var errs []error
 	for _, m := range se.managers {
-		err := m.Ensure()
-		if err != nil {
-			logger.Noticef("state ensure error: %v", err)
-			errs = append(errs, err)
-		}
+		mylog.Check(m.Ensure())
 	}
 	if len(errs) != 0 {
 		return &ensureError{errs}

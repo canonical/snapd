@@ -24,6 +24,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
@@ -36,7 +37,7 @@ import (
 // lxd.lxc -> /snap/core/current/usr/lib/snapd/complete.sh
 // lxc -> lxd.lxc
 func resetCompletionSymlinks(completersPath string) error {
-	files, err := os.ReadDir(completersPath)
+	files := mylog.Check2(os.ReadDir(completersPath))
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("error reading %s: %v", completersPath, err)
 	}
@@ -50,9 +51,8 @@ func resetCompletionSymlinks(completersPath string) error {
 		}
 		fullPath := filepath.Join(completersPath, fileInfo.Name())
 		if dirs.IsCompleteShSymlink(fullPath) {
-			if err := os.Remove(fullPath); err != nil {
-				return fmt.Errorf("error removing symlink %s: %v", fullPath, err)
-			}
+			mylog.Check(os.Remove(fullPath))
+
 			completeShSymlinks[fileInfo.Name()] = fullPath
 		} else {
 			otherSymlinks = append(otherSymlinks, fullPath)
@@ -60,14 +60,10 @@ func resetCompletionSymlinks(completersPath string) error {
 	}
 	// pass 2: find all symlinks that point at the symlinks found in pass 1.
 	for _, other := range otherSymlinks {
-		target, err := os.Readlink(other)
-		if err != nil {
-			return fmt.Errorf("error reading symlink target of %s: %v", other, err)
-		}
+		target := mylog.Check2(os.Readlink(other))
+
 		if _, ok := completeShSymlinks[target]; ok {
-			if err := os.Remove(other); err != nil {
-				return fmt.Errorf("error removing symlink %s: %v", other, err)
-			}
+			mylog.Check(os.Remove(other))
 		}
 	}
 
@@ -77,16 +73,10 @@ func resetCompletionSymlinks(completersPath string) error {
 // ResetPreseededChroot removes all preseeding artifacts from preseedChroot
 // (classic Ubuntu only).
 var ResetPreseededChroot = func(preseedChroot string) error {
-	var err error
-	preseedChroot, err = filepath.Abs(preseedChroot)
-	if err != nil {
-		return err
-	}
+	preseedChroot = mylog.Check2(filepath.Abs(preseedChroot))
 
-	exists, isDir, err := osutil.DirExists(preseedChroot)
-	if err != nil {
-		return fmt.Errorf("cannot reset %q: %v", preseedChroot, err)
-	}
+	exists, isDir := mylog.Check3(osutil.DirExists(preseedChroot))
+
 	if !exists {
 		return fmt.Errorf("cannot reset non-existing directory %q", preseedChroot)
 	}
@@ -118,15 +108,12 @@ var ResetPreseededChroot = func(preseedChroot string) error {
 	}
 
 	for _, gl := range globs {
-		matches, err := filepath.Glob(filepath.Join(preseedChroot, gl))
-		if err != nil {
-			// the only possible error from Glob() is ErrBadPattern
-			return err
-		}
+		matches := mylog.Check2(filepath.Glob(filepath.Join(preseedChroot, gl)))
+
+		// the only possible error from Glob() is ErrBadPattern
+
 		for _, path := range matches {
-			if err := os.Remove(path); err != nil {
-				return fmt.Errorf("error removing %s: %v", path, err)
-			}
+			mylog.Check(os.Remove(path))
 		}
 	}
 
@@ -142,15 +129,12 @@ var ResetPreseededChroot = func(preseedChroot string) error {
 	}
 
 	for _, gl := range globs {
-		matches, err := filepath.Glob(filepath.Join(preseedChroot, gl))
-		if err != nil {
-			// the only possible error from Glob() is ErrBadPattern
-			return err
-		}
+		matches := mylog.Check2(filepath.Glob(filepath.Join(preseedChroot, gl)))
+
+		// the only possible error from Glob() is ErrBadPattern
+
 		for _, path := range matches {
-			if err := os.RemoveAll(path); err != nil {
-				return fmt.Errorf("error removing %s: %v", path, err)
-			}
+			mylog.Check(os.RemoveAll(path))
 		}
 	}
 
@@ -169,16 +153,12 @@ var ResetPreseededChroot = func(preseedChroot string) error {
 	}
 
 	for _, path := range paths {
-		if err := os.RemoveAll(filepath.Join(preseedChroot, path)); err != nil {
-			// report the error and carry on
-			return fmt.Errorf("error removing %s: %v", path, err)
-		}
+		mylog.Check(os.RemoveAll(filepath.Join(preseedChroot, path)))
+		// report the error and carry on
 	}
 
 	for _, completersPath := range []string{dirs.CompletersDir, dirs.LegacyCompletersDir} {
-		if err := resetCompletionSymlinks(filepath.Join(preseedChroot, completersPath)); err != nil {
-			return err
-		}
+		mylog.Check(resetCompletionSymlinks(filepath.Join(preseedChroot, completersPath)))
 	}
 
 	return nil

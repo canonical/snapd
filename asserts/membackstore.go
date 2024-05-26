@@ -25,6 +25,8 @@ import (
 	"sort"
 	"strconv"
 	"sync"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 type memoryBackstore struct {
@@ -96,9 +98,8 @@ func (leaf memBSLeaf) put(assertType *AssertionType, key []string, assert Assert
 }
 
 func (leaf *memBSSeqLeaf) put(assertType *AssertionType, key []string, assert Assertion) error {
-	if err := leaf.memBSLeaf.put(assertType, key, assert); err != nil {
-		return err
-	}
+	mylog.Check(leaf.memBSLeaf.put(assertType, key, assert))
+
 	if len(leaf.memBSLeaf) != len(leaf.sequence) {
 		seqnum := assert.(SequenceMember).Sequence()
 		inspos := sort.SearchInts(leaf.sequence, seqnum)
@@ -226,8 +227,7 @@ func (mbs *memoryBackstore) Put(assertType *AssertionType, assert Assertion) err
 	internalKey := make([]string, 1, 1+len(assertType.PrimaryKey))
 	internalKey[0] = assertType.Name
 	internalKey = append(internalKey, assert.Ref().PrimaryKey...)
-
-	err := mbs.top.put(assertType, internalKey, assert)
+	mylog.Check(mbs.top.put(assertType, internalKey, assert))
 	return err
 }
 
@@ -253,7 +253,7 @@ func (mbs *memoryBackstore) Get(assertType *AssertionType, key []string, maxForm
 		}
 	}
 
-	a, err := mbs.top.get(internalKey, maxFormat)
+	a := mylog.Check2(mbs.top.get(internalKey, maxFormat))
 	if err == errNotFound {
 		return nil, &NotFoundError{Type: assertType}
 	}
@@ -295,7 +295,7 @@ func (mbs *memoryBackstore) SequenceMemberAfter(assertType *AssertionType, seque
 	internalPrefix[0] = assertType.Name
 	copy(internalPrefix[1:], sequenceKey)
 
-	a, err := mbs.top.sequenceMemberAfter(internalPrefix, after, maxFormat)
+	a := mylog.Check2(mbs.top.sequenceMemberAfter(internalPrefix, after, maxFormat))
 	if err == errNotFound {
 		return nil, &NotFoundError{Type: assertType}
 	}

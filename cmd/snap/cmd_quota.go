@@ -27,6 +27,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
@@ -35,29 +36,36 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
-var shortQuotaHelp = i18n.G("Show quota group for a set of snaps")
-var longQuotaHelp = i18n.G(`
+var (
+	shortQuotaHelp = i18n.G("Show quota group for a set of snaps")
+	longQuotaHelp  = i18n.G(`
 The quota command shows information about a quota group, including the set of 
 snaps and any sub-groups it contains, as well as its resource constraints and 
 the current usage of those constrained resources.
 `)
+)
 
-var shortQuotasHelp = i18n.G("Show quota groups")
-var longQuotasHelp = i18n.G(`
+var (
+	shortQuotasHelp = i18n.G("Show quota groups")
+	longQuotasHelp  = i18n.G(`
 The quotas command shows all quota groups.
 `)
+)
 
-var shortRemoveQuotaHelp = i18n.G("Remove quota group")
-var longRemoveQuotaHelp = i18n.G(`
+var (
+	shortRemoveQuotaHelp = i18n.G("Remove quota group")
+	longRemoveQuotaHelp  = i18n.G(`
 The remove-quota command removes the given quota group. 
 
 Currently, only quota groups with no sub-groups can be removed. In order to 
 remove a quota group with sub-groups, the sub-groups must first be removed until
 there are no sub-groups for the group, then the group itself can be removed.
 `)
+)
 
-var shortSetQuotaHelp = i18n.G(`Create or update a quota group.`)
-var longSetQuotaHelp = i18n.G(`
+var (
+	shortSetQuotaHelp = i18n.G(`Create or update a quota group.`)
+	longSetQuotaHelp  = i18n.G(`
 The set-quota command updates or creates a quota group with the specified set of
 snaps.
 
@@ -111,6 +119,7 @@ that snap being restarted.
 
 An existing sub group cannot be moved from one parent to another.
 `)
+)
 
 func init() {
 	addCommand("set-quota", shortSetQuotaHelp, longSetQuotaHelp,
@@ -161,13 +170,13 @@ func parseCpuQuota(cpuMax string) (count int, percentage int, err error) {
 	// Detect whether format was NxM% or M%
 	if len(match[1]) > 0 {
 		// Assume format was NxM%
-		count, err = strconv.Atoi(match[1][:len(match[1])-1])
+		count = mylog.Check2(strconv.Atoi(match[1][:len(match[1])-1]))
 		if err != nil || count == 0 {
 			return 0, 0, parseError(cpuMax)
 		}
 	}
 
-	percentage, err = strconv.Atoi(match[2])
+	percentage = mylog.Check2(strconv.Atoi(match[2]))
 	if err != nil || percentage == 0 {
 		return 0, 0, parseError(cpuMax)
 	}
@@ -182,15 +191,10 @@ func parseJournalRateQuota(journalRateLimit string) (count int, period time.Dura
 		return 0, 0, fmt.Errorf("rate limit must be of the form <number of messages>/<period duration>")
 	}
 
-	count, err = strconv.Atoi(parts[0])
-	if err != nil {
-		return 0, 0, fmt.Errorf("cannot parse message count: %v", err)
-	}
+	count = mylog.Check2(strconv.Atoi(parts[0]))
 
-	period, err = time.ParseDuration(parts[1])
-	if err != nil {
-		return 0, 0, fmt.Errorf("cannot parse period: %v", err)
-	}
+	period = mylog.Check2(time.ParseDuration(parts[1]))
+
 	return count, period, nil
 }
 
@@ -198,18 +202,14 @@ func (x *cmdSetQuota) parseQuotas() (*client.QuotaValues, error) {
 	var quotaValues client.QuotaValues
 
 	if x.MemoryMax != "" {
-		value, err := strutil.ParseByteSize(x.MemoryMax)
-		if err != nil {
-			return nil, err
-		}
+		value := mylog.Check2(strutil.ParseByteSize(x.MemoryMax))
+
 		quotaValues.Memory = quantity.Size(value)
 	}
 
 	if x.CPUMax != "" {
-		countValue, percentageValue, err := parseCpuQuota(x.CPUMax)
-		if err != nil {
-			return nil, err
-		}
+		countValue, percentageValue := mylog.Check3(parseCpuQuota(x.CPUMax))
+
 		if percentageValue > 100 || percentageValue <= 0 {
 			return nil, fmt.Errorf("cannot use value %v: cpu quota percentage must be between 1 and 100", percentageValue)
 		}
@@ -224,10 +224,8 @@ func (x *cmdSetQuota) parseQuotas() (*client.QuotaValues, error) {
 		var cpus []int
 		cpuTokens := strutil.CommaSeparatedList(x.CPUSet)
 		for _, cpuToken := range cpuTokens {
-			cpu, err := strconv.ParseUint(cpuToken, 10, 32)
-			if err != nil {
-				return nil, fmt.Errorf("cannot parse CPU set value %q", cpuToken)
-			}
+			cpu := mylog.Check2(strconv.ParseUint(cpuToken, 10, 32))
+
 			cpus = append(cpus, int(cpu))
 		}
 
@@ -237,28 +235,22 @@ func (x *cmdSetQuota) parseQuotas() (*client.QuotaValues, error) {
 	}
 
 	if x.ThreadsMax != "" {
-		value, err := strconv.ParseUint(x.ThreadsMax, 10, 32)
-		if err != nil {
-			return nil, fmt.Errorf("cannot use threads value %q", x.ThreadsMax)
-		}
+		value := mylog.Check2(strconv.ParseUint(x.ThreadsMax, 10, 32))
+
 		quotaValues.Threads = int(value)
 	}
 
 	if x.JournalSizeMax != "" || x.JournalRateLimit != "" {
 		quotaValues.Journal = &client.QuotaJournalValues{}
 		if x.JournalSizeMax != "" {
-			value, err := strutil.ParseByteSize(x.JournalSizeMax)
-			if err != nil {
-				return nil, fmt.Errorf("cannot parse journal size %q: %v", x.JournalSizeMax, err)
-			}
+			value := mylog.Check2(strutil.ParseByteSize(x.JournalSizeMax))
+
 			quotaValues.Journal.Size = quantity.Size(value)
 		}
 
 		if x.JournalRateLimit != "" {
-			count, period, err := parseJournalRateQuota(x.JournalRateLimit)
-			if err != nil {
-				return nil, fmt.Errorf("cannot parse journal rate limit %q: %v", x.JournalRateLimit, err)
-			}
+			count, period := mylog.Check3(parseJournalRateQuota(x.JournalRateLimit))
+
 			quotaValues.Journal.QuotaJournalRate = &client.QuotaJournalRate{
 				RateCount:  count,
 				RatePeriod: period,
@@ -292,7 +284,7 @@ func (x *cmdSetQuota) Execute(args []string) (err error) {
 
 	// figure out if the group exists or not to make error messages more useful
 	groupExists := false
-	if _, err = x.client.GetQuotaGroup(x.Positional.GroupName); err == nil {
+	if _ = mylog.Check2(x.client.GetQuotaGroup(x.Positional.GroupName)); err == nil {
 		groupExists = true
 	}
 
@@ -327,25 +319,20 @@ func (x *cmdSetQuota) Execute(args []string) (err error) {
 		// we have a limits to set for this group, so specify that along
 		// with whatever snaps may have been provided and whatever parent may
 		// have been specified
-		quotaValues, err := x.parseQuotas()
-		if err != nil {
-			return err
-		}
+		quotaValues := mylog.Check2(x.parseQuotas())
 
 		// note that the group could currently exist with a parent, and we could
 		// be specifying x.Parent as "" here - in the future that may mean to
 		// orphan a sub-group to no longer have a parent, but currently it just
 		// means leave the group with whatever parent it has, or if it doesn't
 		// currently exist, create the group without a parent group
-		chgID, err = x.client.EnsureQuota(x.Positional.GroupName, &client.EnsureQuotaOptions{
+		chgID = mylog.Check2(x.client.EnsureQuota(x.Positional.GroupName, &client.EnsureQuotaOptions{
 			Parent:      x.Parent,
 			Snaps:       snaps,
 			Services:    services,
 			Constraints: quotaValues,
-		})
-		if err != nil {
-			return err
-		}
+		}))
+
 	case len(x.Positional.Snaps) != 0:
 		// there are snaps or services specified for this group but no limits, so the
 		// group must already exist and we must be adding the specified snaps or services to
@@ -355,25 +342,17 @@ func (x *cmdSetQuota) Execute(args []string) (err error) {
 		// snaps or services with whatever was specified with some option, but we don't
 		// currently support that, so currently all snaps or services specified here are
 		// just added to the group
-		chgID, err = x.client.EnsureQuota(x.Positional.GroupName, &client.EnsureQuotaOptions{
+		chgID = mylog.Check2(x.client.EnsureQuota(x.Positional.GroupName, &client.EnsureQuotaOptions{
 			Parent:   x.Parent,
 			Snaps:    snaps,
 			Services: services,
-		})
-		if err != nil {
-			return err
-		}
+		}))
+
 	default:
 		// should be logically impossible to reach here
 		panic("impossible set of options")
 	}
-
-	if _, err := x.wait(chgID); err != nil {
-		if err == noWait {
-			return nil
-		}
-		return err
-	}
+	mylog.Check2(x.wait(chgID))
 
 	return nil
 }
@@ -391,10 +370,7 @@ func (x *cmdQuota) Execute(args []string) (err error) {
 		return fmt.Errorf("too many arguments provided")
 	}
 
-	group, err := x.client.GetQuotaGroup(x.Positional.GroupName)
-	if err != nil {
-		return err
-	}
+	group := mylog.Check2(x.client.GetQuotaGroup(x.Positional.GroupName))
 
 	w := tabWriter()
 	defer w.Flush()
@@ -485,17 +461,8 @@ type cmdRemoveQuota struct {
 }
 
 func (x *cmdRemoveQuota) Execute(args []string) (err error) {
-	chgID, err := x.client.RemoveQuotaGroup(x.Positional.GroupName)
-	if err != nil {
-		return err
-	}
-
-	if _, err := x.wait(chgID); err != nil {
-		if err == noWait {
-			return nil
-		}
-		return err
-	}
+	chgID := mylog.Check2(x.client.RemoveQuotaGroup(x.Positional.GroupName))
+	mylog.Check2(x.wait(chgID))
 
 	return nil
 }
@@ -505,10 +472,8 @@ type cmdQuotas struct {
 }
 
 func (x *cmdQuotas) Execute(args []string) (err error) {
-	res, err := x.client.Quotas()
-	if err != nil {
-		return err
-	}
+	res := mylog.Check2(x.client.Quotas())
+
 	if len(res) == 0 {
 		fmt.Fprintln(Stdout, i18n.G("No quota groups defined."))
 		return nil
@@ -516,7 +481,7 @@ func (x *cmdQuotas) Execute(args []string) (err error) {
 
 	w := tabWriter()
 	fmt.Fprintf(w, "Quota\tParent\tConstraints\tCurrent\n")
-	err = processQuotaGroupsTree(res, func(q *client.QuotaGroupResult) error {
+	mylog.Check(processQuotaGroupsTree(res, func(q *client.QuotaGroupResult) error {
 		if q.Constraints == nil {
 			return fmt.Errorf("internal error: constraints is missing from daemon response")
 		}
@@ -574,10 +539,8 @@ func (x *cmdQuotas) Execute(args []string) (err error) {
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", q.GroupName, q.Parent, strings.Join(grpConstraints, ","), strings.Join(grpCurrent, ","))
 
 		return nil
-	})
-	if err != nil {
-		return err
-	}
+	}))
+
 	w.Flush()
 	return nil
 }
@@ -625,13 +588,10 @@ func processQuotaGroupsTree(quotas []*client.QuotaGroupResult, handleGroup func(
 	var processGroups func(groups []*quotaGroup) error
 	processGroups = func(groups []*quotaGroup) error {
 		for _, g := range groups {
-			if err := handleGroup(g.res); err != nil {
-				return err
-			}
+			mylog.Check(handleGroup(g.res))
+
 			if len(g.subGroups) > 0 {
-				if err := processGroups(g.subGroups); err != nil {
-					return err
-				}
+				mylog.Check(processGroups(g.subGroups))
 			}
 		}
 		return nil

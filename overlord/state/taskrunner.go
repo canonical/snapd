@@ -25,6 +25,7 @@ import (
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/logger"
 )
 
@@ -234,8 +235,7 @@ func (r *TaskRunner) run(t *Task) {
 		if r.someBlocked {
 			r.state.EnsureBefore(0)
 		}
-
-		err := tomb.Err()
+		mylog.Check(tomb.Err())
 		switch err.(type) {
 		case nil:
 			// we are ok

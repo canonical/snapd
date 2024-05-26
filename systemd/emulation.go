@@ -28,6 +28,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil"
@@ -59,12 +60,12 @@ func (s *emulation) DaemonReexec() error {
 }
 
 func (s *emulation) EnableNoReload(services []string) error {
-	_, err := systemctlCmd(append([]string{"--root", s.rootDir, "enable"}, services...)...)
+	_ := mylog.Check2(systemctlCmd(append([]string{"--root", s.rootDir, "enable"}, services...)...))
 	return err
 }
 
 func (s *emulation) DisableNoReload(services []string) error {
-	_, err := systemctlCmd(append([]string{"--root", s.rootDir, "disable"}, services...)...)
+	_ := mylog.Check2(systemctlCmd(append([]string{"--root", s.rootDir, "disable"}, services...)...))
 	return err
 }
 
@@ -150,19 +151,15 @@ func (s *emulation) EnsureMountUnitFileWithOptions(unitOptions *MountUnitOptions
 	// Pass directly options, note that passed options need to be correct
 	// for the final target that will use the preseeding tarball. See also
 	// comment in EnsureMountUnitFile.
-	mountUnitName, modified, err := ensureMountUnitFile(unitOptions)
-	if err != nil {
-		return "", err
-	}
+	mountUnitName, modified := mylog.Check3(ensureMountUnitFile(unitOptions))
 
 	if modified == mountUnchanged {
 		return mountUnitName, nil
 	}
+	mylog.Check(
 
-	// Create directory as systemd would do when starting the unit
-	if err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, unitOptions.Where), 0755); err != nil {
-		return "", err
-	}
+		// Create directory as systemd would do when starting the unit
+		os.MkdirAll(filepath.Join(dirs.GlobalRootDir, unitOptions.Where), 0755))
 
 	// Here we need options that work for the system where we create the
 	// tarball, so things are similar to what is done for
@@ -174,13 +171,10 @@ func (s *emulation) EnsureMountUnitFileWithOptions(unitOptions *MountUnitOptions
 		actualOptions = append(actualOptions, "remount")
 	}
 	cmd := exec.Command("mount", "-t", hostFsType, unitOptions.What, unitOptions.Where, "-o", strings.Join(actualOptions, ","))
-	if out, err := cmd.CombinedOutput(); err != nil {
+	if out := mylog.Check2(cmd.CombinedOutput()); err != nil {
 		return "", fmt.Errorf("cannot mount %s (%s) at %s in preseed mode: %s; %s", unitOptions.What, hostFsType, unitOptions.Where, err, string(out))
 	}
-
-	if err := s.EnableNoReload([]string{mountUnitName}); err != nil {
-		return "", err
-	}
+	mylog.Check(s.EnableNoReload([]string{mountUnitName}))
 
 	return mountUnitName, nil
 }
@@ -191,24 +185,16 @@ func (s *emulation) RemoveMountUnitFile(mountedDir string) error {
 		return nil
 	}
 
-	isMounted, err := osutilIsMounted(mountedDir)
-	if err != nil {
-		return err
-	}
+	isMounted := mylog.Check2(osutilIsMounted(mountedDir))
+
 	if isMounted {
 		// use detach-loop and lazy unmount
-		if output, err := exec.Command("umount", "-d", "-l", mountedDir).CombinedOutput(); err != nil {
+		if output := mylog.Check2(exec.Command("umount", "-d", "-l", mountedDir).CombinedOutput()); err != nil {
 			return osutil.OutputErr(output, err)
 		}
 	}
-
-	if err := s.DisableNoReload([]string{filepath.Base(unit)}); err != nil {
-		return err
-	}
-
-	if err := os.Remove(unit); err != nil {
-		return err
-	}
+	mylog.Check(s.DisableNoReload([]string{filepath.Base(unit)}))
+	mylog.Check(os.Remove(unit))
 
 	return nil
 }
@@ -218,12 +204,12 @@ func (s *emulation) ListMountUnits(snapName, origin string) ([]string, error) {
 }
 
 func (s *emulation) Mask(service string) error {
-	_, err := systemctlCmd("--root", s.rootDir, "mask", service)
+	_ := mylog.Check2(systemctlCmd("--root", s.rootDir, "mask", service))
 	return err
 }
 
 func (s *emulation) Unmask(service string) error {
-	_, err := systemctlCmd("--root", s.rootDir, "unmask", service)
+	_ := mylog.Check2(systemctlCmd("--root", s.rootDir, "unmask", service))
 	return err
 }
 

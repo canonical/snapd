@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
@@ -43,7 +44,7 @@ func checkSystemRequestConflict(st *state.State, systemLabel string) error {
 	defer st.Unlock()
 
 	var seeded bool
-	if err := st.Get("seeded", &seeded); err != nil && !errors.Is(err, state.ErrNoState) {
+	if mylog.Check(st.Get("seeded", &seeded)); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if seeded {
@@ -55,10 +56,8 @@ func checkSystemRequestConflict(st *state.State, systemLabel string) error {
 	// holding the state lock so there is no race against mark-seeded
 	// clearing recovery system; recovery system is not cleared when seeding
 	// fails
-	modeEnv, err := maybeReadModeenv()
-	if err != nil {
-		return err
-	}
+	modeEnv := mylog.Check2(maybeReadModeenv())
+
 	if modeEnv == nil {
 		// non UC20 systems do not support actions, no conflict can
 		// happen
@@ -77,24 +76,17 @@ func checkSystemRequestConflict(st *state.State, systemLabel string) error {
 }
 
 func systemFromSeed(label string, current *currentSystem, defaultRecoverySystem *DefaultRecoverySystem) (*System, error) {
-	_, sys, err := loadSeedAndSystem(label, current, defaultRecoverySystem)
+	_, sys := mylog.Check3(loadSeedAndSystem(label, current, defaultRecoverySystem))
 	return sys, err
 }
 
 func loadSeedAndSystem(label string, current *currentSystem, defaultRecoverySystem *DefaultRecoverySystem) (seed.Seed, *System, error) {
-	s, err := seedOpen(dirs.SnapSeedDir, label)
-	if err != nil {
-		return nil, nil, fmt.Errorf("cannot open: %v", err)
-	}
-	if err := s.LoadAssertions(nil, nil); err != nil {
-		return nil, nil, fmt.Errorf("cannot load assertions for label %q: %v", label, err)
-	}
+	s := mylog.Check2(seedOpen(dirs.SnapSeedDir, label))
+	mylog.Check(s.LoadAssertions(nil, nil))
+
 	// get the model
 	model := s.Model()
-	brand, err := s.Brand()
-	if err != nil {
-		return nil, nil, fmt.Errorf("cannot obtain brand: %v", err)
-	}
+	brand := mylog.Check2(s.Brand())
 
 	system := &System{
 		Current: false,
@@ -126,25 +118,22 @@ func (c *currentSystem) sameAs(other *System) bool {
 func currentSystemForMode(st *state.State, mode string) (*currentSystem, error) {
 	var system *seededSystem
 	var actions []SystemAction
-	var err error
 
 	switch mode {
 	case "run":
 		actions = currentSystemActions
-		system, err = currentSeededSystem(st)
+		system = mylog.Check2(currentSeededSystem(st))
 	case "install":
 		// there is no current system for install mode
 		return nil, nil
 	case "recover":
 		actions = recoverSystemActions
 		// recover mode uses modeenv for reference
-		system, err = seededSystemFromModeenv()
+		system = mylog.Check2(seededSystemFromModeenv())
 	default:
 		return nil, fmt.Errorf("internal error: cannot identify current system for unsupported mode %q", mode)
 	}
-	if err != nil {
-		return nil, err
-	}
+
 	currentSys := &currentSystem{
 		seededSystem: system,
 		actions:      actions,
@@ -154,9 +143,8 @@ func currentSystemForMode(st *state.State, mode string) (*currentSystem, error) 
 
 func currentSeededSystem(st *state.State) (*seededSystem, error) {
 	var whatseeded []seededSystem
-	if err := st.Get("seeded-systems", &whatseeded); err != nil {
-		return nil, err
-	}
+	mylog.Check(st.Get("seeded-systems", &whatseeded))
+
 	if len(whatseeded) == 0 {
 		// unexpected
 		return nil, state.ErrNoState
@@ -167,10 +155,8 @@ func currentSeededSystem(st *state.State) (*seededSystem, error) {
 }
 
 func seededSystemFromModeenv() (*seededSystem, error) {
-	modeEnv, err := maybeReadModeenv()
-	if err != nil {
-		return nil, err
-	}
+	modeEnv := mylog.Check2(maybeReadModeenv())
+
 	if modeEnv == nil {
 		return nil, fmt.Errorf("internal error: modeenv does not exist")
 	}
@@ -178,10 +164,8 @@ func seededSystemFromModeenv() (*seededSystem, error) {
 		return nil, fmt.Errorf("internal error: recovery system is unset")
 	}
 
-	system, err := systemFromSeed(modeEnv.RecoverySystem, nil, nil)
-	if err != nil {
-		return nil, err
-	}
+	system := mylog.Check2(systemFromSeed(modeEnv.RecoverySystem, nil, nil))
+
 	seededSys := &seededSystem{
 		System:    modeEnv.RecoverySystem,
 		Model:     system.Model.Model(),
@@ -231,10 +215,7 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 		SeedDir: boot.InitramfsUbuntuSeedDir,
 		Label:   label,
 	}
-	w, err := seedwriter.New(model, wOpts)
-	if err != nil {
-		return "", err
-	}
+	w := mylog.Check2(seedwriter.New(model, wOpts))
 
 	optsSnaps := make([]*seedwriter.OptionsSnap, 0, len(model.RequiredWithEssentialSnaps()))
 	// collect all snaps that are present
@@ -248,10 +229,8 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 				kind = fmt.Sprintf("non-essential but %v", nonEssentialPresence)
 			}
 		}
-		info, snapPath, present, err := getInfo(name)
-		if err != nil {
-			return fmt.Errorf("cannot obtain %v snap information: %v", kind, err)
-		}
+		info, snapPath, present := mylog.Check4(getInfo(name))
+
 		if !essential && !present && nonEssentialPresence == "optional" {
 			// non-essential snap which is declared as optionally
 			// present in the model
@@ -278,24 +257,19 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 
 	for _, sn := range model.EssentialSnaps() {
 		const essential = true
-		if err := getModelSnap(sn.SnapName(), essential, ""); err != nil {
-			return "", err
-		}
+		mylog.Check(getModelSnap(sn.SnapName(), essential, ""))
+
 	}
 	// snapd is implicitly needed
 	const snapdIsEssential = true
-	if err := getModelSnap("snapd", snapdIsEssential, ""); err != nil {
-		return "", err
-	}
+	mylog.Check(getModelSnap("snapd", snapdIsEssential, ""))
+
 	for _, sn := range model.SnapsWithoutEssential() {
 		const essential = false
-		if err := getModelSnap(sn.SnapName(), essential, sn.Presence); err != nil {
-			return "", err
-		}
+		mylog.Check(getModelSnap(sn.SnapName(), essential, sn.Presence))
+
 	}
-	if err := w.SetOptionsSnaps(optsSnaps); err != nil {
-		return "", err
-	}
+	mylog.Check(w.SetOptionsSnaps(optsSnaps))
 
 	newFetcher := func(save func(asserts.Assertion) error) asserts.Fetcher {
 		fromDB := func(ref *asserts.Ref) (asserts.Assertion, error) {
@@ -304,10 +278,8 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 
 		seqFromDB := func(ref *asserts.AtSequence) (asserts.Assertion, error) {
 			if ref.Sequence <= 0 {
-				hdrs, err := asserts.HeadersFromSequenceKey(ref.Type, ref.SequenceKey)
-				if err != nil {
-					return nil, err
-				}
+				hdrs := mylog.Check2(asserts.HeadersFromSequenceKey(ref.Type, ref.SequenceKey))
+
 				return db.FindSequence(ref.Type, hdrs, -1, -1)
 			}
 			return ref.Resolve(db.Find)
@@ -317,15 +289,11 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 	}
 
 	sf := seedwriter.MakeSeedAssertionFetcher(newFetcher)
-	if err := w.Start(db, sf); err != nil {
-		return "", err
-	}
+	mylog.Check(w.Start(db, sf))
+
 	// past this point the system directory is present
 
-	localSnaps, err := w.LocalSnaps()
-	if err != nil {
-		return recoverySystemDir, err
-	}
+	localSnaps := mylog.Check2(w.LocalSnaps())
 
 	localARefs := make(map[*seedwriter.SeedSnap][]*asserts.Ref)
 	for _, sn := range localSnaps {
@@ -337,26 +305,18 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 		// we have in snap.Info, but getting it this way can be
 		// expensive as we need to compute the hash, try to find a
 		// better way
-		_, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, model, sf, db)
-		if err != nil {
-			if !errors.Is(err, &asserts.NotFoundError{}) {
-				return recoverySystemDir, err
-			} else if info.SnapID != "" {
-				// snap info from state must have come
-				// from the store, so it is unexpected
-				// if no assertions for it were found
-				return recoverySystemDir, fmt.Errorf("internal error: no assertions for asserted snap with ID: %v", info.SnapID)
-			}
-		}
-		if err := w.SetInfo(sn, info); err != nil {
-			return recoverySystemDir, err
-		}
+		_, aRefs := mylog.Check3(seedwriter.DeriveSideInfo(sn.Path, model, sf, db))
+		mylog.Check(
+
+			// snap info from state must have come
+			// from the store, so it is unexpected
+			// if no assertions for it were found
+
+			w.SetInfo(sn, info))
+
 		localARefs[sn] = aRefs
 	}
-
-	if err := w.InfoDerived(); err != nil {
-		return recoverySystemDir, err
-	}
+	mylog.Check(w.InfoDerived())
 
 	retrieveAsserts := func(sn, _, _ *seedwriter.SeedSnap) ([]*asserts.Ref, error) {
 		return localARefs[sn], nil
@@ -364,10 +324,8 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 
 	for {
 		// get the list of snaps we need in this iteration
-		toDownload, err := w.SnapsToDownload()
-		if err != nil {
-			return recoverySystemDir, err
-		}
+		toDownload := mylog.Check2(w.SnapsToDownload())
+
 		// which should be empty as all snaps should be accounted for
 		// already
 		if len(toDownload) > 0 {
@@ -378,10 +336,8 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 			return recoverySystemDir, fmt.Errorf("internal error: need to download snaps: %v", strings.Join(which, ", "))
 		}
 
-		complete, err := w.Downloaded(retrieveAsserts)
-		if err != nil {
-			return recoverySystemDir, err
-		}
+		complete := mylog.Check2(w.Downloaded(retrieveAsserts))
+
 		if complete {
 			logger.Debugf("snap processing for creating %q complete", label)
 			break
@@ -392,10 +348,8 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 		logger.Noticef("WARNING creating system %q: %s", label, warn)
 	}
 
-	unassertedSnaps, err := w.UnassertedSnaps()
-	if err != nil {
-		return recoverySystemDir, err
-	}
+	unassertedSnaps := mylog.Check2(w.UnassertedSnaps())
+
 	if len(unassertedSnaps) > 0 {
 		locals := make([]string, len(unassertedSnaps))
 		for i, sn := range unassertedSnaps {
@@ -415,23 +369,15 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 		// should copy it
 		logger.Noticef("copying new seed snap %q from %v to %v", name, src, dst)
 		if observeWrite != nil {
-			if err := observeWrite(recoverySystemDir, dst); err != nil {
-				return err
-			}
+			mylog.Check(observeWrite(recoverySystemDir, dst))
 		}
 		return osutil.CopyFile(src, dst, 0)
 	}
-	if err := w.SeedSnaps(copySnap); err != nil {
-		return recoverySystemDir, err
-	}
-	if err := w.WriteMeta(); err != nil {
-		return recoverySystemDir, err
-	}
+	mylog.Check(w.SeedSnaps(copySnap))
+	mylog.Check(w.WriteMeta())
 
-	bootSnaps, err := w.BootSnaps()
-	if err != nil {
-		return recoverySystemDir, err
-	}
+	bootSnaps := mylog.Check2(w.BootSnaps())
+
 	bootWith := &boot.RecoverySystemBootableSet{}
 	for _, sn := range bootSnaps {
 		switch sn.Info.Type() {
@@ -442,9 +388,8 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 			bootWith.GadgetSnapOrDir = sn.Path
 		}
 	}
-	if err := boot.MakeRecoverySystemBootable(model, boot.InitramfsUbuntuSeedDir, recoverySystemDirInRootDir, bootWith); err != nil {
-		return recoverySystemDir, fmt.Errorf("cannot make candidate recovery system %q bootable: %v", label, err)
-	}
+	mylog.Check(boot.MakeRecoverySystemBootable(model, boot.InitramfsUbuntuSeedDir, recoverySystemDirInRootDir, bootWith))
+
 	logger.Noticef("created recovery system %q", label)
 
 	return recoverySystemDir, nil

@@ -22,6 +22,7 @@ package builtin_test
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -81,33 +82,33 @@ func (s *NetlinkAuditInterfaceSuite) TestSanitizePlugConnectionMissingAppArmorSa
 	defer r()
 	r = apparmor_sandbox.MockFeatures(nil, nil, nil, nil)
 	defer r()
-	err := interfaces.BeforeConnectPlug(s.iface, s.plug)
+	mylog.Check(interfaces.BeforeConnectPlug(s.iface, s.plug))
 	c.Assert(err, ErrorMatches, "cannot connect plug on system without audit_read support")
 }
 
 func (s *NetlinkAuditInterfaceSuite) TestSanitizePlugConnectionMissingNoAppArmor(c *C) {
 	r := apparmor_sandbox.MockLevel(apparmor_sandbox.Unsupported)
 	defer r()
-	err := interfaces.BeforeConnectPlug(s.iface, s.plug)
-	c.Assert(err, IsNil)
+	mylog.Check(interfaces.BeforeConnectPlug(s.iface, s.plug))
+
 }
 
 func (s *NetlinkAuditInterfaceSuite) TestAppArmorSpec(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	spec := apparmor.NewSpecification(appSet)
-	err = spec.AddConnectedPlug(s.iface, s.plug, s.slot)
-	c.Assert(err, IsNil)
+	mylog.Check(spec.AddConnectedPlug(s.iface, s.plug, s.slot))
+
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "capability audit_write,\n")
 }
 
 func (s *NetlinkAuditInterfaceSuite) TestSecCompSpec(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	spec := seccomp.NewSpecification(appSet)
-	err = spec.AddConnectedPlug(s.iface, s.plug, s.slot)
-	c.Assert(err, IsNil)
+	mylog.Check(spec.AddConnectedPlug(s.iface, s.plug, s.slot))
+
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "socket AF_NETLINK - NETLINK_AUDIT\n")
 }

@@ -30,6 +30,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 	"gopkg.in/yaml.v2"
 
@@ -55,8 +56,9 @@ type infoCmd struct {
 	} `positional-args:"yes" required:"yes"`
 }
 
-var shortInfoHelp = i18n.G("Show detailed information about snaps")
-var longInfoHelp = i18n.G(`
+var (
+	shortInfoHelp = i18n.G("Show detailed information about snaps")
+	longInfoHelp  = i18n.G(`
 The info command shows detailed information about snaps.
 
 The snaps can be specified by name or by path; names are looked for both in the
@@ -64,6 +66,7 @@ store and in the installed snaps; paths can refer to a .snap file, or to a
 directory that contains an unpacked snap suitable for 'snap try' (an example
 of this would be the 'prime' directory snapcraft produces).
 `)
+)
 
 func init() {
 	addCommand("info",
@@ -78,19 +81,11 @@ func init() {
 }
 
 func clientSnapFromPath(path string) (*client.Snap, error) {
-	snapf, err := snapfile.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	info, err := snap.ReadInfoFromSnapFile(snapf, nil)
-	if err != nil {
-		return nil, err
-	}
+	snapf := mylog.Check2(snapfile.Open(path))
 
-	direct, err := clientutil.ClientSnapFromSnapInfo(info, nil)
-	if err != nil {
-		return nil, err
-	}
+	info := mylog.Check2(snap.ReadInfoFromSnapFile(snapf, nil))
+
+	direct := mylog.Check2(clientutil.ClientSnapFromSnapInfo(info, nil))
 
 	return direct, nil
 }
@@ -118,9 +113,8 @@ func quotedIfNeeded(raw string) []rune {
 	}
 	if len(raw) == 0 {
 		raw = `""`
-	} else if err := yaml.UnmarshalStrict([]byte("s: "+raw), &T{}); err != nil {
-		raw = strconv.Quote(raw)
 	}
+
 	return []rune(raw)
 }
 
@@ -132,13 +126,9 @@ func quotedIfNeeded(raw string) []rune {
 // - word wrap at "max" chars preserving line indent
 // - keep \n intact and break there
 func printDescr(w io.Writer, descr string, termWidth int) error {
-	var err error
 	descr = strings.TrimRightFunc(descr, unicode.IsSpace)
 	for _, line := range strings.Split(descr, "\n") {
-		err = strutil.WordWrapPadded(w, []rune(line), "  ", termWidth)
-		if err != nil {
-			break
-		}
+		mylog.Check(strutil.WordWrapPadded(w, []rune(line), "  ", termWidth))
 	}
 	return err
 }
@@ -188,10 +178,8 @@ func (iw *infoWriter) maybePrintPrice() {
 	if iw.resInfo == nil {
 		return
 	}
-	price, currency, err := getPrice(iw.remoteSnap.Prices, iw.resInfo.SuggestedCurrency)
-	if err != nil {
-		return
-	}
+	price, currency := mylog.Check3(getPrice(iw.remoteSnap.Prices, iw.resInfo.SuggestedCurrency))
+
 	fmt.Fprintf(iw, "price:\t%s\n", formatPrice(price, currency))
 }
 
@@ -647,7 +635,7 @@ func (x *infoCmd) Execute([]string) error {
 			continue
 		}
 
-		if diskSnap, err := clientSnapFromPath(snapName); err == nil {
+		if diskSnap := mylog.Check2(clientSnapFromPath(snapName)); err == nil {
 			iw.setupDiskSnap(norm(snapName), diskSnap)
 		} else {
 			remoteSnap, resInfo, _ := x.client.FindOne(snap.InstanceSnap(snapName))

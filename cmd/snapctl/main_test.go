@@ -31,6 +31,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 )
 
@@ -80,8 +81,8 @@ func (s *snapctlSuite) SetUpTest(c *C) {
 
 	fakeAuthPath := filepath.Join(c.MkDir(), "auth.json")
 	os.Setenv("SNAPD_AUTH_DATA_FILENAME", fakeAuthPath)
-	err := os.WriteFile(fakeAuthPath, []byte(`{"macaroon":"user-macaroon"}`), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(fakeAuthPath, []byte(`{"macaroon":"user-macaroon"}`), 0644))
+
 }
 
 func (s *snapctlSuite) TearDownTest(c *C) {
@@ -93,7 +94,7 @@ func (s *snapctlSuite) TearDownTest(c *C) {
 }
 
 func (s *snapctlSuite) TestSnapctl(c *C) {
-	stdout, stderr, err := run(nil)
+	stdout, stderr := mylog.Check3(run(nil))
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "test stdout")
 	c.Check(string(stderr), Equals, "test stderr")
@@ -103,7 +104,7 @@ func (s *snapctlSuite) TestSnapctlWithArgs(c *C) {
 	os.Args = []string{"snapctl", "foo", "--bar"}
 
 	s.expectedArgs = []string{"foo", "--bar"}
-	stdout, stderr, err := run(nil)
+	stdout, stderr := mylog.Check3(run(nil))
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "test stdout")
 	c.Check(string(stderr), Equals, "test stderr")
@@ -116,7 +117,7 @@ func (s *snapctlSuite) TestSnapctlHelp(c *C) {
 	os.Args = []string{"snapctl", "-h"}
 	s.expectedArgs = []string{"-h"}
 
-	_, _, err := run(nil)
+	_, _ := mylog.Check3(run(nil))
 	c.Check(err, IsNil)
 }
 
@@ -124,6 +125,6 @@ func (s *snapctlSuite) TestSnapctlWithStdin(c *C) {
 	s.expectedStdin = []byte("hello")
 	mockStdin := bytes.NewBuffer(s.expectedStdin)
 
-	_, _, err := run(mockStdin)
+	_, _ := mylog.Check3(run(mockStdin))
 	c.Check(err, IsNil)
 }

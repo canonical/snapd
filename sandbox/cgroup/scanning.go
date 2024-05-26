@@ -25,6 +25,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/systemd"
 )
@@ -78,7 +79,7 @@ func securityTagFromCgroupPath(path string) naming.SecurityTag {
 		// the UUID submatch in the third position.
 		if matches := re.FindStringSubmatch(leaf); len(matches) == 3 {
 			tag := systemd.UnitNameToSecurityTag(matches[1])
-			if parsed, err := naming.ParseSecurityTag(tag); err == nil {
+			if parsed := mylog.Check2(naming.ParseSecurityTag(tag)); err == nil {
 				return parsed
 			}
 		}
@@ -87,7 +88,7 @@ func securityTagFromCgroupPath(path string) naming.SecurityTag {
 	for _, re := range []*regexp.Regexp{roughHookTagPattern, roughAppTagPattern} {
 		if maybeTag := re.FindString(leaf); maybeTag != "" {
 			tag := systemd.UnitNameToSecurityTag(maybeTag)
-			if parsed, err := naming.ParseSecurityTag(tag); err == nil {
+			if parsed := mylog.Check2(naming.ParseSecurityTag(tag)); err == nil {
 				return parsed
 			}
 		}
@@ -110,10 +111,7 @@ func InstancePathsOfSnap(snapInstanceName string, options InstancePathsOptions) 
 	var cgroupPathToScan string
 	var pathList []string
 
-	ver, err := Version()
-	if err != nil {
-		return nil, err
-	}
+	ver := mylog.Check2(Version())
 
 	if ver == V2 {
 		// In v2 mode scan all of /sys/fs/cgroup as there is no specialization
@@ -133,12 +131,9 @@ func InstancePathsOfSnap(snapInstanceName string, options InstancePathsOptions) 
 	// PIDs that belong to the cgroup and put them into a bucket associated
 	// with the security tag.
 	walkFunc := func(path string, fileInfo os.FileInfo, err error) error {
-		if err != nil {
-			// See the documentation of path/filepath.Walk. The error we get is
-			// the error that was encountered while walking. We just surface
-			// that error quickly.
-			return err
-		}
+		// See the documentation of path/filepath.Walk. The error we get is
+		// the error that was encountered while walking. We just surface
+		// that error quickly.
 
 		// ignore snaps inside containers
 		for _, slice := range []string{"lxc.payload", "machine.slice", "docker"} {
@@ -178,15 +173,12 @@ func InstancePathsOfSnap(snapInstanceName string, options InstancePathsOptions) 
 		// longer need to scan the remaining files of this directory.
 		return filepath.SkipDir
 	}
+	mylog.Check(
 
-	// NOTE: Walk is internally performed in lexical order so the output is
-	// deterministic and we don't need to sort the returned aggregated PIDs.
-	if err := filepath.Walk(cgroupPathToScan, walkFunc); err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil
-		}
-		return nil, err
-	}
+		// NOTE: Walk is internally performed in lexical order so the output is
+		// deterministic and we don't need to sort the returned aggregated PIDs.
+		filepath.Walk(cgroupPathToScan, walkFunc))
+
 	return pathList, nil
 }
 
@@ -211,22 +203,14 @@ func PidsOfSnap(snapInstanceName string) (map[string][]int, error) {
 	options := InstancePathsOptions{
 		ReturnCGroupPath: false,
 	}
-	paths, err := InstancePathsOfSnap(snapInstanceName, options)
-	if err != nil {
-		return nil, err
-	}
+	paths := mylog.Check2(InstancePathsOfSnap(snapInstanceName, options))
 
 	// pidsByTag maps security tag to a list of pids.
 	pidsByTag := make(map[string][]int)
 
 	for _, path := range paths {
-		pids, err := pidsInFile(path)
-		if err != nil {
-			if os.IsNotExist(err) {
-				return nil, nil
-			}
-			return nil, err
-		}
+		pids := mylog.Check2(pidsInFile(path))
+
 		cgroupPath := filepath.Dir(path)
 		parsedTag := securityTagFromCgroupPath(cgroupPath)
 		tag := parsedTag.String()

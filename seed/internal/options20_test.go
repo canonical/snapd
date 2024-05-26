@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/seed/internal"
 )
 
@@ -43,11 +44,11 @@ snaps:
 
 func (s *options20Suite) TestSimple(c *C) {
 	fn := filepath.Join(c.MkDir(), "options.yaml")
-	err := os.WriteFile(fn, mockOptions20, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(fn, mockOptions20, 0644))
 
-	options20, err := internal.ReadOptions20(fn)
-	c.Assert(err, IsNil)
+
+	options20 := mylog.Check2(internal.ReadOptions20(fn))
+
 	c.Assert(options20.Snaps, HasLen, 2)
 	c.Assert(options20.Snaps[0], DeepEquals, &internal.Snap20{
 		Name:    "foo",
@@ -62,116 +63,116 @@ func (s *options20Suite) TestSimple(c *C) {
 
 func (s *options20Suite) TestEmpty(c *C) {
 	fn := filepath.Join(c.MkDir(), "options.yaml")
-	err := os.WriteFile(fn, []byte(`
+	mylog.Check(os.WriteFile(fn, []byte(`
 snaps:
  -
-`), 0644)
-	c.Assert(err, IsNil)
+`), 0644))
 
-	_, err = internal.ReadOptions20(fn)
+
+	_ = mylog.Check2(internal.ReadOptions20(fn))
 	c.Assert(err, ErrorMatches, `cannot read grade dangerous options yaml: empty snaps element`)
 }
 
 func (s *options20Suite) TestNoPathAllowed(c *C) {
 	fn := filepath.Join(c.MkDir(), "options.yaml")
-	err := os.WriteFile(fn, []byte(`
+	mylog.Check(os.WriteFile(fn, []byte(`
 snaps:
  - name: foo
    unasserted: foo/bar.snap
-`), 0644)
-	c.Assert(err, IsNil)
+`), 0644))
 
-	_, err = internal.ReadOptions20(fn)
+
+	_ = mylog.Check2(internal.ReadOptions20(fn))
 	c.Assert(err, ErrorMatches, `cannot read grade dangerous options yaml: "foo/bar.snap" must be a filename, not a path`)
 }
 
 func (s *options20Suite) TestDuplicatedSnapName(c *C) {
 	fn := filepath.Join(c.MkDir(), "options.yaml")
-	err := os.WriteFile(fn, []byte(`
+	mylog.Check(os.WriteFile(fn, []byte(`
 snaps:
  - name: foo
    channel: stable
  - name: foo
    channel: edge
-`), 0644)
-	c.Assert(err, IsNil)
+`), 0644))
 
-	_, err = internal.ReadOptions20(fn)
+
+	_ = mylog.Check2(internal.ReadOptions20(fn))
 	c.Assert(err, ErrorMatches, `cannot read grade dangerous options yaml: snap name "foo" must be unique`)
 }
 
 func (s *options20Suite) TestValidateChannelUnhappy(c *C) {
 	fn := filepath.Join(c.MkDir(), "options.yaml")
-	err := os.WriteFile(fn, []byte(`
+	mylog.Check(os.WriteFile(fn, []byte(`
 snaps:
  - name: foo
    channel: invalid/channel/
-`), 0644)
-	c.Assert(err, IsNil)
+`), 0644))
 
-	_, err = internal.ReadOptions20(fn)
+
+	_ = mylog.Check2(internal.ReadOptions20(fn))
 	c.Assert(err, ErrorMatches, `cannot read grade dangerous options yaml: invalid risk in channel name: invalid/channel/`)
 }
 
 func (s *options20Suite) TestValidateSnapIDUnhappy(c *C) {
 	fn := filepath.Join(c.MkDir(), "options.yaml")
-	err := os.WriteFile(fn, []byte(`
+	mylog.Check(os.WriteFile(fn, []byte(`
 snaps:
  - name: foo
    id: foo
-`), 0644)
-	c.Assert(err, IsNil)
+`), 0644))
 
-	_, err = internal.ReadOptions20(fn)
+
+	_ = mylog.Check2(internal.ReadOptions20(fn))
 	c.Assert(err, ErrorMatches, `cannot read grade dangerous options yaml: invalid snap-id: "foo"`)
 }
 
 func (s *options20Suite) TestValidateNameUnhappy(c *C) {
 	fn := filepath.Join(c.MkDir(), "options.yaml")
-	err := os.WriteFile(fn, []byte(`
+	mylog.Check(os.WriteFile(fn, []byte(`
 snaps:
  - name: invalid--name
    unasserted: ./foo.snap
-`), 0644)
-	c.Assert(err, IsNil)
+`), 0644))
 
-	_, err = internal.ReadOptions20(fn)
+
+	_ = mylog.Check2(internal.ReadOptions20(fn))
 	c.Assert(err, ErrorMatches, `cannot read grade dangerous options yaml: invalid snap name: "invalid--name"`)
 }
 
 func (s *options20Suite) TestValidateNameInstanceUnsupported(c *C) {
 	fn := filepath.Join(c.MkDir(), "options.yaml")
-	err := os.WriteFile(fn, []byte(`
+	mylog.Check(os.WriteFile(fn, []byte(`
 snaps:
  - name: foo_1
    unasserted: ./foo.snap
-`), 0644)
-	c.Assert(err, IsNil)
+`), 0644))
 
-	_, err = internal.ReadOptions20(fn)
+
+	_ = mylog.Check2(internal.ReadOptions20(fn))
 	c.Assert(err, ErrorMatches, `cannot read grade dangerous options yaml: invalid snap name: "foo_1"`)
 }
 
 func (s *options20Suite) TestValidateNameMissing(c *C) {
 	fn := filepath.Join(c.MkDir(), "options.yaml")
-	err := os.WriteFile(fn, []byte(`
+	mylog.Check(os.WriteFile(fn, []byte(`
 snaps:
  - unasserted: ./foo.snap
-`), 0644)
-	c.Assert(err, IsNil)
+`), 0644))
 
-	_, err = internal.ReadOptions20(fn)
+
+	_ = mylog.Check2(internal.ReadOptions20(fn))
 	c.Assert(err, ErrorMatches, `cannot read grade dangerous options yaml: invalid snap name: ""`)
 }
 
 func (s *options20Suite) TestValidateOptionMissing(c *C) {
 	fn := filepath.Join(c.MkDir(), "options.yaml")
-	err := os.WriteFile(fn, []byte(`
+	mylog.Check(os.WriteFile(fn, []byte(`
 snaps:
  - name: foo
-`), 0644)
-	c.Assert(err, IsNil)
+`), 0644))
 
-	_, err = internal.ReadOptions20(fn)
+
+	_ = mylog.Check2(internal.ReadOptions20(fn))
 	c.Assert(err, ErrorMatches, `cannot read grade dangerous options yaml: at least one of id, channel or unasserted must be set for snap "foo"`)
 }

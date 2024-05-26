@@ -26,6 +26,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 )
 
@@ -41,7 +42,7 @@ func (cs *clientSuite) TestListValidationsSetsNone(c *check.C) {
 		"result": []
 	}`
 
-	vsets, err := cs.cli.ListValidationsSets()
+	vsets := mylog.Check2(cs.cli.ListValidationsSets())
 	c.Assert(err, check.IsNil)
 	c.Check(cs.req.Method, check.Equals, "GET")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/validation-sets")
@@ -52,7 +53,7 @@ func (cs *clientSuite) TestListValidationsSetsError(c *check.C) {
 	cs.status = 500
 	cs.rsp = errorResponseJSON
 
-	_, err := cs.cli.ListValidationsSets()
+	_ := mylog.Check2(cs.cli.ListValidationsSets())
 	c.Assert(err, check.ErrorMatches, "cannot list validation sets: failed")
 	c.Check(cs.req.Method, check.Equals, "GET")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/validation-sets")
@@ -68,7 +69,7 @@ func (cs *clientSuite) TestListValidationsSets(c *check.C) {
 		]
 	}`
 
-	vsets, err := cs.cli.ListValidationsSets()
+	vsets := mylog.Check2(cs.cli.ListValidationsSets())
 	c.Assert(err, check.IsNil)
 	c.Check(cs.req.Method, check.Equals, "GET")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/validation-sets")
@@ -85,7 +86,7 @@ func (cs *clientSuite) TestApplyValidationSetMonitor(c *check.C) {
 		"result": {"account-id": "foo", "name": "bar", "mode": "monitor", "sequence": 3, "valid": true}
 	}`
 	opts := &client.ValidateApplyOptions{Mode: "monitor", Sequence: 3}
-	vs, err := cs.cli.ApplyValidationSet("foo", "bar", opts)
+	vs := mylog.Check2(cs.cli.ApplyValidationSet("foo", "bar", opts))
 	c.Assert(err, check.IsNil)
 	c.Check(vs, check.DeepEquals, &client.ValidationSetResult{
 		AccountID: "foo",
@@ -96,10 +97,10 @@ func (cs *clientSuite) TestApplyValidationSetMonitor(c *check.C) {
 	})
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/validation-sets/foo/bar")
-	body, err := io.ReadAll(cs.req.Body)
+	body := mylog.Check2(io.ReadAll(cs.req.Body))
 	c.Assert(err, check.IsNil)
 	var req map[string]interface{}
-	err = json.Unmarshal(body, &req)
+	mylog.Check(json.Unmarshal(body, &req))
 	c.Assert(err, check.IsNil)
 	c.Assert(req, check.DeepEquals, map[string]interface{}{
 		"action":   "apply",
@@ -115,7 +116,7 @@ func (cs *clientSuite) TestApplyValidationSetEnforce(c *check.C) {
         "result": {"account-id": "foo", "name": "bar", "mode": "enforce", "sequence": 3, "valid": true}
 	}`
 	opts := &client.ValidateApplyOptions{Mode: "enforce", Sequence: 3}
-	vs, err := cs.cli.ApplyValidationSet("foo", "bar", opts)
+	vs := mylog.Check2(cs.cli.ApplyValidationSet("foo", "bar", opts))
 	c.Assert(err, check.IsNil)
 	c.Check(vs, check.DeepEquals, &client.ValidationSetResult{
 		AccountID: "foo",
@@ -126,10 +127,10 @@ func (cs *clientSuite) TestApplyValidationSetEnforce(c *check.C) {
 	})
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/validation-sets/foo/bar")
-	body, err := io.ReadAll(cs.req.Body)
+	body := mylog.Check2(io.ReadAll(cs.req.Body))
 	c.Assert(err, check.IsNil)
 	var req map[string]interface{}
-	err = json.Unmarshal(body, &req)
+	mylog.Check(json.Unmarshal(body, &req))
 	c.Assert(err, check.IsNil)
 	c.Assert(req, check.DeepEquals, map[string]interface{}{
 		"action":   "apply",
@@ -142,7 +143,7 @@ func (cs *clientSuite) TestApplyValidationSetError(c *check.C) {
 	cs.status = 500
 	cs.rsp = errorResponseJSON
 	opts := &client.ValidateApplyOptions{Mode: "monitor"}
-	_, err := cs.cli.ApplyValidationSet("foo", "bar", opts)
+	_ := mylog.Check2(cs.cli.ApplyValidationSet("foo", "bar", opts))
 	c.Assert(err, check.ErrorMatches, "cannot apply validation set: failed")
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/validation-sets/foo/bar")
@@ -150,9 +151,9 @@ func (cs *clientSuite) TestApplyValidationSetError(c *check.C) {
 
 func (cs *clientSuite) TestApplyValidationSetInvalidArgs(c *check.C) {
 	opts := &client.ValidateApplyOptions{}
-	_, err := cs.cli.ApplyValidationSet("", "bar", opts)
+	_ := mylog.Check2(cs.cli.ApplyValidationSet("", "bar", opts))
 	c.Assert(err, check.ErrorMatches, `cannot apply validation set without account ID and name`)
-	_, err = cs.cli.ApplyValidationSet("", "bar", opts)
+	_ = mylog.Check2(cs.cli.ApplyValidationSet("", "bar", opts))
 	c.Assert(err, check.ErrorMatches, `cannot apply validation set without account ID and name`)
 }
 
@@ -164,10 +165,10 @@ func (cs *clientSuite) TestForgetValidationSet(c *check.C) {
 	c.Assert(cs.cli.ForgetValidationSet("foo", "bar", 3), check.IsNil)
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/validation-sets/foo/bar")
-	body, err := io.ReadAll(cs.req.Body)
+	body := mylog.Check2(io.ReadAll(cs.req.Body))
 	c.Assert(err, check.IsNil)
 	var req map[string]interface{}
-	err = json.Unmarshal(body, &req)
+	mylog.Check(json.Unmarshal(body, &req))
 	c.Assert(err, check.IsNil)
 	c.Assert(req, check.DeepEquals, map[string]interface{}{
 		"action":   "forget",
@@ -178,16 +179,16 @@ func (cs *clientSuite) TestForgetValidationSet(c *check.C) {
 func (cs *clientSuite) TestForgetValidationSetError(c *check.C) {
 	cs.status = 500
 	cs.rsp = errorResponseJSON
-	err := cs.cli.ForgetValidationSet("foo", "bar", 0)
+	mylog.Check(cs.cli.ForgetValidationSet("foo", "bar", 0))
 	c.Assert(err, check.ErrorMatches, "cannot forget validation set: failed")
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/validation-sets/foo/bar")
 }
 
 func (cs *clientSuite) TestForgetValidationSetInvalidArgs(c *check.C) {
-	err := cs.cli.ForgetValidationSet("", "bar", 0)
+	mylog.Check(cs.cli.ForgetValidationSet("", "bar", 0))
 	c.Assert(err, check.ErrorMatches, `cannot forget validation set without account ID and name`)
-	err = cs.cli.ForgetValidationSet("", "bar", 0)
+	mylog.Check(cs.cli.ForgetValidationSet("", "bar", 0))
 	c.Assert(err, check.ErrorMatches, `cannot forget validation set without account ID and name`)
 }
 
@@ -198,7 +199,7 @@ func (cs *clientSuite) TestValidationSet(c *check.C) {
 		"result": {"account-id": "abc", "name": "def", "mode": "monitor", "sequence": 0}
 	}`
 
-	vsets, err := cs.cli.ValidationSet("foo", "bar", 0)
+	vsets := mylog.Check2(cs.cli.ValidationSet("foo", "bar", 0))
 	c.Assert(err, check.IsNil)
 	c.Check(cs.req.Method, check.Equals, "GET")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/validation-sets/foo/bar")
@@ -211,14 +212,14 @@ func (cs *clientSuite) TestValidationSetError(c *check.C) {
 	cs.status = 500
 	cs.rsp = errorResponseJSON
 
-	_, err := cs.cli.ValidationSet("foo", "bar", 0)
+	_ := mylog.Check2(cs.cli.ValidationSet("foo", "bar", 0))
 	c.Assert(err, check.ErrorMatches, "cannot query validation set: failed")
 }
 
 func (cs *clientSuite) TestValidationSetInvalidArgs(c *check.C) {
-	_, err := cs.cli.ValidationSet("foo", "", 0)
+	_ := mylog.Check2(cs.cli.ValidationSet("foo", "", 0))
 	c.Assert(err, check.ErrorMatches, `cannot query validation set without account ID and name`)
-	_, err = cs.cli.ValidationSet("", "bar", 0)
+	_ = mylog.Check2(cs.cli.ValidationSet("", "bar", 0))
 	c.Assert(err, check.ErrorMatches, `cannot query validation set without account ID and name`)
 }
 
@@ -229,7 +230,7 @@ func (cs *clientSuite) TestValidationSetWithSequence(c *check.C) {
 		"result": {"account-id": "abc", "name": "def", "mode": "monitor", "sequence": 9}
 	}`
 
-	vsets, err := cs.cli.ValidationSet("foo", "bar", 9)
+	vsets := mylog.Check2(cs.cli.ValidationSet("foo", "bar", 9))
 	c.Assert(err, check.IsNil)
 	c.Check(cs.req.Method, check.Equals, "GET")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/validation-sets/foo/bar")

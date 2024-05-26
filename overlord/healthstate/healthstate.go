@@ -27,6 +27,7 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -39,7 +40,7 @@ var checkTimeout = 30 * time.Second
 
 func init() {
 	if s, ok := os.LookupEnv("SNAPD_CHECK_HEALTH_HOOK_TIMEOUT"); ok {
-		if to, err := time.ParseDuration(s); err == nil {
+		if to := mylog.Check2(time.ParseDuration(s)); err == nil {
 			checkTimeout = to
 		} else {
 			logger.Debugf("cannot override check-health timeout: %v", err)
@@ -124,7 +125,7 @@ func (h *healthHandler) Done() error {
 	var health HealthState
 
 	h.context.Lock()
-	err := h.context.Get("health", &health)
+	mylog.Check(h.context.Get("health", &health))
 	h.context.Unlock()
 
 	if err != nil && !errors.Is(err, state.ErrNoState) {
@@ -168,12 +169,8 @@ func appendHealth(ctx *hookstate.Context, health *HealthState) error {
 	st := ctx.State()
 
 	var hs map[string]*HealthState
-	if err := st.Get("health", &hs); err != nil {
-		if !errors.Is(err, state.ErrNoState) {
-			return err
-		}
-		hs = map[string]*HealthState{}
-	}
+	mylog.Check(st.Get("health", &hs))
+
 	hs[ctx.InstanceName()] = health
 	st.Set("health", hs)
 
@@ -185,20 +182,14 @@ func appendHealth(ctx *hookstate.Context, health *HealthState) error {
 // Must be called with the context lock held.
 func SetFromHookContext(ctx *hookstate.Context) error {
 	var health HealthState
-	err := ctx.Get("health", &health)
+	mylog.Check(ctx.Get("health", &health))
 
-	if err != nil {
-		if errors.Is(err, state.ErrNoState) {
-			return nil
-		}
-		return err
-	}
 	return appendHealth(ctx, &health)
 }
 
 func All(st *state.State) (map[string]*HealthState, error) {
 	var hs map[string]*HealthState
-	if err := st.Get("health", &hs); err != nil && !errors.Is(err, state.ErrNoState) {
+	if mylog.Check(st.Get("health", &hs)); err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 	return hs, nil
@@ -206,12 +197,7 @@ func All(st *state.State) (map[string]*HealthState, error) {
 
 func Get(st *state.State, snap string) (*HealthState, error) {
 	var hs map[string]json.RawMessage
-	if err := st.Get("health", &hs); err != nil {
-		if !errors.Is(err, state.ErrNoState) {
-			return nil, err
-		}
-		return nil, nil
-	}
+	mylog.Check(st.Get("health", &hs))
 
 	buf := hs[snap]
 	if len(buf) == 0 {
@@ -219,9 +205,7 @@ func Get(st *state.State, snap string) (*HealthState, error) {
 	}
 
 	var health HealthState
-	if err := json.Unmarshal(buf, &health); err != nil {
-		return nil, err
-	}
+	mylog.Check(json.Unmarshal(buf, &health))
 
 	return &health, nil
 }

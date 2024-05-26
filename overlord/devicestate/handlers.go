@@ -26,6 +26,7 @@ import (
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/restart"
@@ -38,15 +39,9 @@ func (m *DeviceManager) doMarkPreseeded(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	snaps, err := snapstate.All(st)
-	if err != nil {
-		return err
-	}
+	snaps := mylog.Check2(snapstate.All(st))
 
-	systemKey, err := interfaces.RecordedSystemKey()
-	if err != nil {
-		return fmt.Errorf("cannot get recorded system key: %v", err)
-	}
+	systemKey := mylog.Check2(interfaces.RecordedSystemKey())
 
 	if m.preseed {
 		var preseeded bool
@@ -55,7 +50,7 @@ func (m *DeviceManager) doMarkPreseeded(t *state.Task, _ *tomb.Tomb) error {
 		// EnsureBefore(0) done somewhere else.
 		// XXX: we should probably drop the flag from the task now that we have
 		// one on the state.
-		if err := t.Get("preseeded", &preseeded); err != nil && !errors.Is(err, state.ErrNoState) {
+		if mylog.Check(t.Get("preseeded", &preseeded)); err != nil && !errors.Is(err, state.ErrNoState) {
 			return err
 		}
 		if !preseeded {
@@ -64,14 +59,11 @@ func (m *DeviceManager) doMarkPreseeded(t *state.Task, _ *tomb.Tomb) error {
 			// unmount all snaps
 			// TODO: move to snapstate.UnmountAllSnaps.
 			for _, snapSt := range snaps {
-				info, err := snapSt.CurrentInfo()
-				if err != nil {
-					return err
-				}
+				info := mylog.Check2(snapSt.CurrentInfo())
+
 				logger.Debugf("unmounting snap %s at %s", info.InstanceName(), info.MountDir())
-				if _, err := exec.Command("umount", "-d", "-l", info.MountDir()).CombinedOutput(); err != nil {
-					return err
-				}
+				mylog.Check2(exec.Command("umount", "-d", "-l", info.MountDir()).CombinedOutput())
+
 			}
 
 			st.Set("preseeded", preseeded)
@@ -89,9 +81,7 @@ func (m *DeviceManager) doMarkPreseeded(t *state.Task, _ *tomb.Tomb) error {
 	// normal snapd run after snapd restart (not in preseed mode anymore)
 
 	st.Set("seed-restart-system-key", systemKey)
-	if err := m.setTimeOnce("seed-restart-time", startTime); err != nil {
-		return err
-	}
+	mylog.Check(m.setTimeOnce("seed-restart-time", startTime))
 
 	return nil
 }
@@ -122,7 +112,7 @@ func (s *seededSystem) sameAs(other *seededSystem) bool {
 
 func (m *DeviceManager) recordSeededSystem(st *state.State, whatSeeded *seededSystem) error {
 	var seeded []seededSystem
-	if err := st.Get("seeded-systems", &seeded); err != nil && !errors.Is(err, state.ErrNoState) {
+	if mylog.Check(st.Get("seeded-systems", &seeded)); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	for _, sys := range seeded {
@@ -148,39 +138,30 @@ func (m *DeviceManager) doMarkSeeded(t *state.Task, _ *tomb.Tomb) error {
 		return fmt.Errorf("internal error: mark-seeded task not expected in pre-seeding mode")
 	}
 
-	deviceCtx, err := DeviceCtx(st, t, nil)
-	if err != nil {
-		return fmt.Errorf("cannot get device context: %v", err)
-	}
+	deviceCtx := mylog.Check2(DeviceCtx(st, t, nil))
 
 	if deviceCtx.HasModeenv() && deviceCtx.RunMode() {
 		// XXX make this a boot method
-		modeEnv, err := maybeReadModeenv()
-		if err != nil {
-			return err
-		}
+		modeEnv := mylog.Check2(maybeReadModeenv())
+
 		if modeEnv == nil {
 			return fmt.Errorf("missing modeenv, cannot proceed")
 		}
 		// unset recovery_system because that is only needed during install mode
 		modeEnv.RecoverySystem = ""
-		err = modeEnv.Write()
-		if err != nil {
-			return err
-		}
+		mylog.Check(modeEnv.Write())
+
 	}
 
 	now := time.Now()
 	var whatSeeded *seededSystem
-	if err := t.Get("seed-system", &whatSeeded); err != nil && !errors.Is(err, state.ErrNoState) {
+	if mylog.Check(t.Get("seed-system", &whatSeeded)); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if whatSeeded != nil && deviceCtx.RunMode() {
 		// record what seeded in the state only when in run mode
 		whatSeeded.SeedTime = now
-		if err := m.recordSeededSystem(st, whatSeeded); err != nil {
-			return fmt.Errorf("cannot record the seeded system: %v", err)
-		}
+		mylog.Check(m.recordSeededSystem(st, whatSeeded))
 
 		// since this is the most recently seeded system, it should also be the
 		// default recovery system. this is important when coming back from a

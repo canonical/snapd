@@ -29,6 +29,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -43,11 +44,9 @@ const (
 	cgroupMountPoint = "/sys/fs/cgroup"
 )
 
-var (
-	// Filesystem root defined locally to avoid dependency on the 'dirs'
-	// package
-	rootPath = "/"
-)
+// Filesystem root defined locally to avoid dependency on the 'dirs'
+// package
+var rootPath = "/"
 
 const (
 	// Separate block, because iota is fun
@@ -83,9 +82,8 @@ var fsTypeForPath = fsTypeForPathImpl
 
 func fsTypeForPathImpl(path string) (int64, error) {
 	var statfs syscall.Statfs_t
-	if err := syscall.Statfs(path, &statfs); err != nil {
-		return 0, fmt.Errorf("cannot statfs path: %v", err)
-	}
+	mylog.Check(syscall.Statfs(path, &statfs))
+
 	// Typs is int32 on 386, use explicit conversion to keep the code
 	// working for both
 	return int64(statfs.Type), nil
@@ -99,10 +97,8 @@ func ProcPidPath(pid int) string {
 
 func probeCgroupVersion() (version int, err error) {
 	cgroupMount := filepath.Join(rootPath, cgroupMountPoint)
-	typ, err := fsTypeForPath(cgroupMount)
-	if err != nil {
-		return Unknown, fmt.Errorf("cannot determine cgroup version: %v", err)
-	}
+	typ := mylog.Check2(fsTypeForPath(cgroupMount))
+
 	if typ == cgroup2SuperMagic {
 		return V2, nil
 	}
@@ -111,7 +107,7 @@ func probeCgroupVersion() (version int, err error) {
 
 // IsUnified returns true when a unified cgroup hierarchy is in use
 func IsUnified() bool {
-	version, _ := Version()
+	version := mylog.Check2(Version())
 	return version == V2
 }
 
@@ -181,10 +177,8 @@ func ProcGroup(pid int, matcher GroupMatcher) (string, error) {
 		return "", fmt.Errorf("internal error: cgroup matcher is nil")
 	}
 
-	f, err := os.Open(ProcPidPath(pid))
-	if err != nil {
-		return "", err
-	}
+	f := mylog.Check2(os.Open(ProcPidPath(pid)))
+
 	defer f.Close()
 
 	scanner := bufio.NewScanner(f)
@@ -266,12 +260,12 @@ func ProcessPathInTrackingCgroup(pid int) (string, error) {
 	// it, but it will not be present in the file-system. As such, use v2
 	// if it is really mounted on the filesystem, otherwise try v1.
 	var useV2 bool
-	if ver, err := Version(); err != nil {
+	if ver := mylog.Check2(Version()); err != nil {
 		return "", err
 	} else if ver == V2 {
 		useV2 = true
 	}
-	entry, err := scanProcCgroupFile(fname, func(e *procInfoEntry) bool {
+	entry := mylog.Check2(scanProcCgroupFile(fname, func(e *procInfoEntry) bool {
 		if useV2 {
 			if e.CgroupID == 0 {
 				return true
@@ -282,10 +276,8 @@ func ProcessPathInTrackingCgroup(pid int) (string, error) {
 			}
 		}
 		return false
-	})
-	if err != nil {
-		return "", err
-	}
+	}))
+
 	if entry == nil {
 		return "", fmt.Errorf("cannot find tracking cgroup")
 	}
@@ -297,10 +289,8 @@ func ProcessPathInTrackingCgroup(pid int) (string, error) {
 //
 // If no entry matches the predicate nil is returned without errors.
 func scanProcCgroupFile(fname string, pred func(entry *procInfoEntry) bool) (*procInfoEntry, error) {
-	f, err := os.Open(fname)
-	if err != nil {
-		return nil, err
-	}
+	f := mylog.Check2(os.Open(fname))
+
 	defer f.Close()
 	return scanProcCgroup(f, pred)
 }
@@ -313,17 +303,14 @@ func scanProcCgroup(reader io.Reader, pred func(entry *procInfoEntry) bool) (*pr
 	scanner := bufio.NewScanner(reader)
 	for scanner.Scan() {
 		line := scanner.Text()
-		entry, err := parseProcCgroupEntry(line)
-		if err != nil {
-			return nil, fmt.Errorf("cannot parse proc cgroup entry %q: %s", line, err)
-		}
+		entry := mylog.Check2(parseProcCgroupEntry(line))
+
 		if pred(entry) {
 			return entry, nil
 		}
 	}
-	if err := scanner.Err(); err != nil {
-		return nil, err
-	}
+	mylog.Check(scanner.Err())
+
 	return nil, nil
 }
 
@@ -331,7 +318,7 @@ func scanProcCgroup(reader io.Reader, pred func(entry *procInfoEntry) bool) (*pr
 // Such files represent cgroup membership of a particular process.
 func parseProcCgroupEntry(line string) (*procInfoEntry, error) {
 	var e procInfoEntry
-	var err error
+
 	fields := strings.SplitN(line, ":", 3)
 	// The format is described in cgroups(7). Field delimiter is ":" but
 	// there is no escaping. The First two fields cannot have colons, including
@@ -341,10 +328,8 @@ func parseProcCgroupEntry(line string) (*procInfoEntry, error) {
 		return nil, fmt.Errorf("expected three fields")
 	}
 	// Parse cgroup ID (decimal number).
-	e.CgroupID, err = strconv.Atoi(fields[0])
-	if err != nil {
-		return nil, fmt.Errorf("cannot parse cgroup id %q", fields[0])
-	}
+	e.CgroupID = mylog.Check2(strconv.Atoi(fields[0]))
+
 	// Parse the comma-separated list of controllers.
 	if fields[1] != "" {
 		e.Controllers = strings.Split(fields[1], ",")

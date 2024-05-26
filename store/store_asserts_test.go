@@ -30,6 +30,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/store"
@@ -55,21 +56,21 @@ func (s *storeAssertsSuite) SetUpTest(c *C) {
 		"account-id": "developer1",
 	}, "")
 
-	a, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	a := mylog.Check2(s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 		"series":       "16",
 		"snap-id":      "asnapid",
 		"snap-name":    "asnap",
 		"publisher-id": "developer1",
 		"timestamp":    time.Now().UTC().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
 	s.decl1 = a.(*asserts.SnapDeclaration)
 
-	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+	db := mylog.Check2(asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
 		Trusted:   s.storeSigning.Trusted,
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	s.db = db
 }
 
@@ -115,8 +116,8 @@ func (s *storeAssertsSuite) testAssertion(c *C, assertionMaxFormats map[string]i
 		sto.SetAssertionMaxFormats(assertionMaxFormats)
 	}
 
-	a, err := sto.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, nil)
-	c.Assert(err, IsNil)
+	a := mylog.Check2(sto.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, nil))
+
 	c.Check(a, NotNil)
 	c.Check(a.Type(), Equals, asserts.SnapDeclarationType)
 }
@@ -170,8 +171,8 @@ func (s *storeAssertsSuite) TestAssertionReducedPrimaryKey(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	a, err := sto.Assertion(asserts.SnapRevisionType, []string{"QlqR0uAWEAWF5Nwnzj5kqmmwFslYPu1IL16MKtLKhwhv0kpBv5wKZ_axf_nf_2cL", "global-upload"}, nil)
-	c.Assert(err, IsNil)
+	a := mylog.Check2(sto.Assertion(asserts.SnapRevisionType, []string{"QlqR0uAWEAWF5Nwnzj5kqmmwFslYPu1IL16MKtLKhwhv0kpBv5wKZ_axf_nf_2cL", "global-upload"}, nil))
+
 	c.Check(a, NotNil)
 	c.Check(a.Type(), Equals, asserts.SnapRevisionType)
 	c.Check(a.HeaderString("provenance"), Equals, "global-upload")
@@ -195,8 +196,8 @@ func (s *storeAssertsSuite) TestAssertionProxyStoreFromAuthContext(c *C) {
 	defer mockServer.Close()
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
-	nowhereURL, err := url.Parse("http://nowhere.invalid")
-	c.Assert(err, IsNil)
+	nowhereURL := mylog.Check2(url.Parse("http://nowhere.invalid"))
+
 	cfg := store.Config{
 		AssertionsBaseURL: nowhereURL,
 	}
@@ -208,8 +209,8 @@ func (s *storeAssertsSuite) TestAssertionProxyStoreFromAuthContext(c *C) {
 	}
 	sto := store.New(&cfg, dauthCtx)
 
-	a, err := sto.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, nil)
-	c.Assert(err, IsNil)
+	a := mylog.Check2(sto.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, nil))
+
 	c.Check(a, NotNil)
 	c.Check(a.Type(), Equals, asserts.SnapDeclarationType)
 }
@@ -232,7 +233,7 @@ func (s *storeAssertsSuite) TestAssertionNotFoundV1(c *C) {
 	}
 	sto := store.New(&cfg, nil)
 
-	_, err := sto.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, nil)
+	_ := mylog.Check2(sto.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, nil))
 	c.Check(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 	c.Check(err, DeepEquals, &asserts.NotFoundError{
 		Type: asserts.SnapDeclarationType,
@@ -262,7 +263,7 @@ func (s *storeAssertsSuite) TestAssertionNotFoundV2(c *C) {
 	}
 	sto := store.New(&cfg, nil)
 
-	_, err := sto.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, nil)
+	_ := mylog.Check2(sto.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, nil))
 	c.Check(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 	c.Check(err, DeepEquals, &asserts.NotFoundError{
 		Type: asserts.SnapDeclarationType,
@@ -274,7 +275,7 @@ func (s *storeAssertsSuite) TestAssertionNotFoundV2(c *C) {
 }
 
 func (s *storeAssertsSuite) TestAssertion500(c *C) {
-	var n = 0
+	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", "/v2/assertions/.*")
 		n++
@@ -290,7 +291,7 @@ func (s *storeAssertsSuite) TestAssertion500(c *C) {
 	}
 	sto := store.New(&cfg, nil)
 
-	_, err := sto.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, nil)
+	_ := mylog.Check2(sto.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, nil))
 	c.Assert(err, ErrorMatches, `cannot fetch assertion: got unexpected HTTP status code 500 via .+`)
 	c.Assert(n, Equals, 5)
 }
@@ -320,18 +321,18 @@ func (s *storeAssertsSuite) TestDownloadAssertionsSimple(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	streamURL, err := mockServerURL.Parse("/assertions/snap-declaration/16/asnapid")
-	c.Assert(err, IsNil)
+	streamURL := mylog.Check2(mockServerURL.Parse("/assertions/snap-declaration/16/asnapid"))
+
 	urls := []string{streamURL.String() + "?max-format=88"}
 
 	b := asserts.NewBatch(nil)
-	err = sto.DownloadAssertions(urls, b, nil)
-	c.Assert(err, IsNil)
+	mylog.Check(sto.DownloadAssertions(urls, b, nil))
+
 
 	c.Assert(b.CommitTo(s.db, nil), IsNil)
 
 	// added
-	_, err = s.decl1.Ref().Resolve(s.db.Find)
+	_ = mylog.Check2(s.decl1.Ref().Resolve(s.db.Find))
 	c.Check(err, IsNil)
 }
 
@@ -368,21 +369,21 @@ func (s *storeAssertsSuite) TestDownloadAssertionsWithStreams(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	stream1URL, err := mockServerURL.Parse("/assertions/stream1")
-	c.Assert(err, IsNil)
-	stream2URL, err := mockServerURL.Parse("/assertions/stream2")
-	c.Assert(err, IsNil)
+	stream1URL := mylog.Check2(mockServerURL.Parse("/assertions/stream1"))
+
+	stream2URL := mylog.Check2(mockServerURL.Parse("/assertions/stream2"))
+
 
 	urls := []string{stream1URL.String(), stream2URL.String()}
 
 	b := asserts.NewBatch(nil)
-	err = sto.DownloadAssertions(urls, b, nil)
-	c.Assert(err, IsNil)
+	mylog.Check(sto.DownloadAssertions(urls, b, nil))
+
 
 	c.Assert(b.CommitTo(s.db, nil), IsNil)
 
 	// added
-	_, err = s.decl1.Ref().Resolve(s.db.Find)
+	_ = mylog.Check2(s.decl1.Ref().Resolve(s.db.Find))
 	c.Check(err, IsNil)
 }
 
@@ -410,13 +411,13 @@ func (s *storeAssertsSuite) TestDownloadAssertionsBrokenStream(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	stream1URL, err := mockServerURL.Parse("/assertions/stream1")
-	c.Assert(err, IsNil)
+	stream1URL := mylog.Check2(mockServerURL.Parse("/assertions/stream1"))
+
 
 	urls := []string{stream1URL.String()}
 
 	b := asserts.NewBatch(nil)
-	err = sto.DownloadAssertions(urls, b, nil)
+	mylog.Check(sto.DownloadAssertions(urls, b, nil))
 	c.Assert(err, Equals, io.ErrUnexpectedEOF)
 }
 
@@ -442,13 +443,13 @@ func (s *storeAssertsSuite) TestDownloadAssertions500(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	stream1URL, err := mockServerURL.Parse("/assertions/stream1")
-	c.Assert(err, IsNil)
+	stream1URL := mylog.Check2(mockServerURL.Parse("/assertions/stream1"))
+
 
 	urls := []string{stream1URL.String()}
 
 	b := asserts.NewBatch(nil)
-	err = sto.DownloadAssertions(urls, b, nil)
+	mylog.Check(sto.DownloadAssertions(urls, b, nil))
 	c.Assert(err, ErrorMatches, `cannot download assertion stream: got unexpected HTTP status code 500 via .+`)
 	c.Check(n, Equals, 5)
 }
@@ -474,13 +475,13 @@ func (s *storeAssertsSuite) TestDownloadAssertionsStreamNotFound(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	stream1URL, err := mockServerURL.Parse("/assertions/stream1")
-	c.Assert(err, IsNil)
+	stream1URL := mylog.Check2(mockServerURL.Parse("/assertions/stream1"))
+
 
 	urls := []string{stream1URL.String()}
 
 	b := asserts.NewBatch(nil)
-	err = sto.DownloadAssertions(urls, b, nil)
+	mylog.Check(sto.DownloadAssertions(urls, b, nil))
 	c.Assert(err, ErrorMatches, `assertion service error: \"not found.*`)
 }
 
@@ -560,8 +561,8 @@ func (s *storeAssertsSuite) testSeqFormingAssertion(c *C, assertionMaxFormats ma
 			sto.SetAssertionMaxFormats(assertionMaxFormats)
 		}
 
-		a, err := sto.SeqFormingAssertion(asserts.ValidationSetType, tc.sequenceKey, tc.sequence, nil)
-		c.Assert(err, IsNil)
+		a := mylog.Check2(sto.SeqFormingAssertion(asserts.ValidationSetType, tc.sequenceKey, tc.sequence, nil))
+
 		c.Check(a, NotNil)
 		c.Check(a.Type(), Equals, asserts.ValidationSetType)
 	}
@@ -599,7 +600,7 @@ func (s *storeAssertsSuite) TestSeqFormingAssertionNotFound(c *C) {
 	}
 	sto := store.New(&cfg, nil)
 
-	_, err := sto.SeqFormingAssertion(asserts.ValidationSetType, []string{"16", "account-foo", "set-bar"}, 1, nil)
+	_ := mylog.Check2(sto.SeqFormingAssertion(asserts.ValidationSetType, []string{"16", "account-foo", "set-bar"}, 1, nil))
 	c.Check(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 	c.Check(err, DeepEquals, &asserts.NotFoundError{
 		Type: asserts.ValidationSetType,
@@ -612,7 +613,7 @@ func (s *storeAssertsSuite) TestSeqFormingAssertionNotFound(c *C) {
 	})
 
 	// latest requested
-	_, err = sto.SeqFormingAssertion(asserts.ValidationSetType, []string{"16", "account-foo", "set-bar"}, 0, nil)
+	_ = mylog.Check2(sto.SeqFormingAssertion(asserts.ValidationSetType, []string{"16", "account-foo", "set-bar"}, 0, nil))
 	c.Check(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 	c.Check(err, DeepEquals, &asserts.NotFoundError{
 		Type: asserts.ValidationSetType,

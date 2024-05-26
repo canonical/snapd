@@ -32,6 +32,7 @@ const dmCryptBaseDeclarationSlots = `
         - core
     deny-auto-connection: true
 `
+
 const dmCryptBaseDeclarationPlugs = `
   dm-crypt:
     allow-installation: false

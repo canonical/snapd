@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/snap"
 )
@@ -40,9 +41,7 @@ func init() {
 	}
 }
 
-var (
-	allInterfaces map[string]interfaces.Interface
-)
+var allInterfaces map[string]interfaces.Interface
 
 // Interfaces returns all of the built-in interfaces.
 func Interfaces() []interfaces.Interface {
@@ -76,17 +75,11 @@ func SanitizePlugsSlots(snapInfo *snap.Info) {
 			badPlugs = append(badPlugs, plugName)
 			continue
 		}
-		// Reject plug with invalid name
-		if err := snap.ValidatePlugName(plugName); err != nil {
-			snapInfo.BadInterfaces[plugName] = err.Error()
-			badPlugs = append(badPlugs, plugName)
-			continue
-		}
-		if err := interfaces.BeforePreparePlug(iface, plugInfo); err != nil {
-			snapInfo.BadInterfaces[plugName] = err.Error()
-			badPlugs = append(badPlugs, plugName)
-			continue
-		}
+		mylog.Check(
+			// Reject plug with invalid name
+			snap.ValidatePlugName(plugName))
+		mylog.Check(interfaces.BeforePreparePlug(iface, plugInfo))
+
 	}
 
 	for slotName, slotInfo := range snapInfo.Slots {
@@ -96,17 +89,11 @@ func SanitizePlugsSlots(snapInfo *snap.Info) {
 			badSlots = append(badSlots, slotName)
 			continue
 		}
-		// Reject slot with invalid name
-		if err := snap.ValidateSlotName(slotName); err != nil {
-			snapInfo.BadInterfaces[slotName] = err.Error()
-			badSlots = append(badSlots, slotName)
-			continue
-		}
-		if err := interfaces.BeforePrepareSlot(iface, slotInfo); err != nil {
-			snapInfo.BadInterfaces[slotName] = err.Error()
-			badSlots = append(badSlots, slotName)
-			continue
-		}
+		mylog.Check(
+			// Reject slot with invalid name
+			snap.ValidateSlotName(slotName))
+		mylog.Check(interfaces.BeforePrepareSlot(iface, slotInfo))
+
 	}
 
 	// remove any bad plugs and slots

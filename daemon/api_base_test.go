@@ -29,6 +29,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/gorilla/mux"
 	"golang.org/x/crypto/sha3"
 	"gopkg.in/check.v1"
@@ -130,10 +131,8 @@ func (s *apiBaseSuite) Find(ctx context.Context, search *store.Search, user *aut
 func (s *apiBaseSuite) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, assertQuery store.AssertionQuery, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {
 	s.pokeStateLock()
 	if assertQuery != nil {
-		toResolve, toResolveSeq, err := assertQuery.ToResolve()
-		if err != nil {
-			return nil, nil, err
-		}
+		toResolve, toResolveSeq := mylog.Check3(assertQuery.ToResolve())
+
 		if len(toResolve) != 0 || len(toResolveSeq) != 0 {
 			panic("no assertion query support")
 		}
@@ -190,9 +189,7 @@ func (s *apiBaseSuite) systemctl(args ...string) (buf []byte, err error) {
 	return buf, err
 }
 
-var (
-	brandPrivKey, _ = assertstest.GenerateKey(752)
-)
+var brandPrivKey, _ = assertstest.GenerateKey(752)
 
 func (s *apiBaseSuite) SetUpTest(c *check.C) {
 	s.BaseTest.SetUpTest(c)
@@ -204,7 +201,7 @@ func (s *apiBaseSuite) SetUpTest(c *check.C) {
 
 	dirs.SetRootDir(c.MkDir())
 	s.AddCleanup(func() { dirs.SetRootDir("") })
-	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
+	mylog.Check(os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755))
 	restore := osutil.MockMountInfo("")
 	s.AddCleanup(restore)
 
@@ -283,7 +280,7 @@ func (s *apiBaseSuite) daemonWithStore(c *check.C, sto snapstate.StoreService) *
 	if s.d != nil {
 		panic("called daemon*() twice")
 	}
-	d, err := daemon.NewAndAddRoutes()
+	d := mylog.Check2(daemon.NewAndAddRoutes())
 	c.Assert(err, check.IsNil)
 
 	st := d.Overlord().State()
@@ -361,12 +358,12 @@ func (s *apiBaseSuite) asUserAuth(c *check.C, req *http.Request) {
 	if s.authUser == nil {
 		st := s.d.Overlord().State()
 		st.Lock()
-		u, err := auth.NewUser(st, auth.NewUserParams{
+		u := mylog.Check2(auth.NewUser(st, auth.NewUserParams{
 			Username:   "username",
 			Email:      "email@test.com",
 			Macaroon:   "macaroon",
 			Discharges: []string{"discharge"},
-		})
+		}))
 		st.Unlock()
 		c.Assert(err, check.IsNil)
 		s.authUser = u
@@ -409,16 +406,16 @@ func (s *apiBaseSuite) daemonWithFakeSnapManager(c *check.C) *daemon.Daemon {
 }
 
 func (s *apiBaseSuite) waitTrivialChange(c *check.C, chg *state.Change) {
-	err := s.d.Overlord().Settle(5 * time.Second)
+	mylog.Check(s.d.Overlord().Settle(5 * time.Second))
 	c.Assert(err, check.IsNil)
 	c.Assert(chg.IsReady(), check.Equals, true)
 }
 
 func (s *apiBaseSuite) mkInstalledDesktopFile(c *check.C, name, content string) string {
 	df := filepath.Join(dirs.SnapDesktopFilesDir, name)
-	err := os.MkdirAll(filepath.Dir(df), 0755)
+	mylog.Check(os.MkdirAll(filepath.Dir(df), 0755))
 	c.Assert(err, check.IsNil)
-	err = os.WriteFile(df, []byte(content), 0644)
+	mylog.Check(os.WriteFile(df, []byte(content), 0644))
 	c.Assert(err, check.IsNil)
 	return df
 }
@@ -451,7 +448,7 @@ func (s *apiBaseSuite) mockSnap(c *check.C, yamlText string) *snap.Info {
 
 	// Put the snap into the interface repository
 	repo := s.d.Overlord().InterfaceManager().Repository()
-	err := repo.AddSnap(snapInfo)
+	mylog.Check(repo.AddSnap(snapInfo))
 	c.Assert(err, check.IsNil)
 	return snapInfo
 }
@@ -527,28 +524,28 @@ version: %s
 		Validation:  devAcct.Validation(),
 	}
 
-	snapDecl, err := s.StoreSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	snapDecl := mylog.Check2(s.StoreSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 		"series":       "16",
 		"snap-id":      snapID,
 		"snap-name":    snapName,
 		"publisher-id": devAcct.AccountID(),
 		"timestamp":    time.Now().Format(time.RFC3339),
-	}, nil, "")
+	}, nil, ""))
 	c.Assert(err, check.IsNil)
 
-	content, err := os.ReadFile(snapInfo.MountFile())
+	content := mylog.Check2(os.ReadFile(snapInfo.MountFile()))
 	c.Assert(err, check.IsNil)
 	h := sha3.Sum384(content)
-	dgst, err := asserts.EncodeDigest(crypto.SHA3_384, h[:])
+	dgst := mylog.Check2(asserts.EncodeDigest(crypto.SHA3_384, h[:]))
 	c.Assert(err, check.IsNil)
-	snapRev, err := s.StoreSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
+	snapRev := mylog.Check2(s.StoreSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
 		"snap-sha3-384": string(dgst),
 		"snap-size":     "999",
 		"snap-id":       snapID,
 		"snap-revision": revision.String(), // this must be a string
 		"developer-id":  devAcct.AccountID(),
 		"timestamp":     time.Now().Format(time.RFC3339),
-	}, nil, "")
+	}, nil, ""))
 	c.Assert(err, check.IsNil)
 
 	assertstatetest.AddMany(st, s.StoreSigning.StoreAccountKey(""), devAcct, snapDecl, snapRev)

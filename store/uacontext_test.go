@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/store"
 )
 
@@ -38,8 +39,8 @@ func (s *clientUserAgentSuite) TestEmptyContext(c *C) {
 }
 
 func (s *clientUserAgentSuite) TestWithClientUserContext(c *C) {
-	req, err := http.NewRequest("GET", "/", nil)
-	c.Assert(err, IsNil)
+	req := mylog.Check2(http.NewRequest("GET", "/", nil))
+
 	req.Header.Add("User-Agent", "some-agent")
 
 	cua := store.WithClientUserAgent(req.Context(), req)

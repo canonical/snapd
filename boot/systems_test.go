@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/boot/boottest"
@@ -178,12 +179,11 @@ func (s *systemsSuite) TestSetTryRecoverySystemEncrypted(c *C) {
 		}
 	})
 	defer restore()
+	mylog.Check(boot.SetTryRecoverySystem(s.uc20dev, "1234"))
 
-	err := boot.SetTryRecoverySystem(s.uc20dev, "1234")
-	c.Assert(err, IsNil)
 
-	vars, err := mtbl.GetBootVars("try_recovery_system", "recovery_system_status")
-	c.Assert(err, IsNil)
+	vars := mylog.Check2(mtbl.GetBootVars("try_recovery_system", "recovery_system_status"))
+
 	c.Check(vars, DeepEquals, map[string]string{
 		"try_recovery_system":    "1234",
 		"recovery_system_status": "try",
@@ -195,8 +195,8 @@ func (s *systemsSuite) TestSetTryRecoverySystemEncrypted(c *C) {
 		"20200825", // good recovery systems for recovery keys
 	})
 
-	modeenvRead, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	modeenvRead := mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check(modeenvRead.DeepEqual(&boot.Modeenv{
 		Mode: "run",
 		// keep this comment to make old gofmt happy
@@ -309,11 +309,11 @@ func (s *systemsSuite) TestSetTryRecoverySystemRemodelEncrypted(c *C) {
 
 	// a remodel will pass the new device
 	newUC20Device := boottest.MockUC20Device("run", newModel)
-	err := boot.SetTryRecoverySystem(newUC20Device, "1234")
-	c.Assert(err, IsNil)
+	mylog.Check(boot.SetTryRecoverySystem(newUC20Device, "1234"))
 
-	vars, err := mtbl.GetBootVars("try_recovery_system", "recovery_system_status")
-	c.Assert(err, IsNil)
+
+	vars := mylog.Check2(mtbl.GetBootVars("try_recovery_system", "recovery_system_status"))
+
 	c.Check(vars, DeepEquals, map[string]string{
 		"try_recovery_system":    "1234",
 		"recovery_system_status": "try",
@@ -326,8 +326,8 @@ func (s *systemsSuite) TestSetTryRecoverySystemRemodelEncrypted(c *C) {
 		"20200825", // good recovery systems for recovery keys
 	})
 
-	modeenvRead, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	modeenvRead := mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check(modeenvRead, testutil.JsonEquals, boot.Modeenv{
 		Mode: "run",
 		// keep this comment to make old gofmt happy
@@ -375,19 +375,18 @@ func (s *systemsSuite) TestSetTryRecoverySystemSimple(c *C) {
 		return fmt.Errorf("unexpected call")
 	})
 	s.AddCleanup(restore)
+	mylog.Check(boot.SetTryRecoverySystem(s.uc20dev, "1234"))
 
-	err := boot.SetTryRecoverySystem(s.uc20dev, "1234")
-	c.Assert(err, IsNil)
 
-	vars, err := mtbl.GetBootVars("try_recovery_system", "recovery_system_status")
-	c.Assert(err, IsNil)
+	vars := mylog.Check2(mtbl.GetBootVars("try_recovery_system", "recovery_system_status"))
+
 	c.Check(vars, DeepEquals, map[string]string{
 		"try_recovery_system":    "1234",
 		"recovery_system_status": "try",
 	})
 
-	modeenvRead, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	modeenvRead := mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check(modeenvRead, testutil.JsonEquals, boot.Modeenv{
 		Mode: "run",
 		// keep this comment to make old gofmt happy
@@ -432,20 +431,19 @@ func (s *systemsSuite) TestSetTryRecoverySystemSetBootVarsErr(c *C) {
 			return fmt.Errorf("unexpected call")
 		}
 	}
-
-	err := boot.SetTryRecoverySystem(s.uc20dev, "1234")
+	mylog.Check(boot.SetTryRecoverySystem(s.uc20dev, "1234"))
 	c.Assert(err, ErrorMatches, "set boot vars fails")
 
 	// cleared
-	vars, err := mtbl.GetBootVars("try_recovery_system", "recovery_system_status")
-	c.Assert(err, IsNil)
+	vars := mylog.Check2(mtbl.GetBootVars("try_recovery_system", "recovery_system_status"))
+
 	c.Check(vars, DeepEquals, map[string]string{
 		"try_recovery_system":    "",
 		"recovery_system_status": "",
 	})
 
-	modeenvRead, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	modeenvRead := mylog.Check2(boot.ReadModeenv(""))
+
 	// modeenv is unchanged
 	c.Check(modeenvRead.DeepEqual(modeenv), Equals, true)
 }
@@ -497,8 +495,8 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorBeforeReseal(c *C) 
 			// called for the 'try' system
 			c.Assert(label, Equals, "1234")
 			// modeenv is updated first
-			modeenvRead, err := boot.ReadModeenv("")
-			c.Assert(err, IsNil)
+			modeenvRead := mylog.Check2(boot.ReadModeenv(""))
+
 			c.Check(modeenvRead.CurrentRecoverySystems, DeepEquals, []string{
 				"20200825", "1234",
 			})
@@ -531,8 +529,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorBeforeReseal(c *C) 
 		return fmt.Errorf("unexpected call")
 	})
 	defer restore()
-
-	err := boot.SetTryRecoverySystem(s.uc20dev, "1234")
+	mylog.Check(boot.SetTryRecoverySystem(s.uc20dev, "1234"))
 	c.Assert(err, ErrorMatches, ".*: seed read essential fails")
 
 	// failed after the call to read the 'try' system seed
@@ -540,13 +537,13 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorBeforeReseal(c *C) 
 	// called twice during cleanup for run and recovery keys
 	c.Check(resealCalls, Equals, 2)
 
-	modeenvRead, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	modeenvRead := mylog.Check2(boot.ReadModeenv(""))
+
 	// modeenv is unchanged
 	c.Check(modeenvRead.DeepEqual(modeenv), Equals, true)
 	// bootloader variables have been cleared
-	vars, err := mtbl.GetBootVars("try_recovery_system", "recovery_system_status")
-	c.Assert(err, IsNil)
+	vars := mylog.Check2(mtbl.GetBootVars("try_recovery_system", "recovery_system_status"))
+
 	c.Check(vars, DeepEquals, map[string]string{
 		"try_recovery_system":    "",
 		"recovery_system_status": "",
@@ -601,8 +598,8 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorAfterReseal(c *C) {
 			// called for the 'try' system
 			c.Assert(label, Equals, "1234")
 			// modeenv is updated first
-			modeenvRead, err := boot.ReadModeenv("")
-			c.Assert(err, IsNil)
+			modeenvRead := mylog.Check2(boot.ReadModeenv(""))
+
 			c.Check(modeenvRead.CurrentRecoverySystems, DeepEquals, []string{
 				"20200825", "1234",
 			})
@@ -647,8 +644,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorAfterReseal(c *C) {
 		}
 	})
 	defer restore()
-
-	err := boot.SetTryRecoverySystem(s.uc20dev, "1234")
+	mylog.Check(boot.SetTryRecoverySystem(s.uc20dev, "1234"))
 	c.Assert(err, ErrorMatches, "cannot reseal the encryption key: reseal fails")
 
 	// failed after the call to read the 'try' system seed
@@ -657,13 +653,13 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorAfterReseal(c *C) {
 	// for run and recovery keys
 	c.Check(resealCalls, Equals, 3)
 
-	modeenvRead, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	modeenvRead := mylog.Check2(boot.ReadModeenv(""))
+
 	// modeenv is unchanged
 	c.Check(modeenvRead.DeepEqual(modeenv), Equals, true)
 	// bootloader variables have been cleared
-	vars, err := mtbl.GetBootVars("try_recovery_system", "recovery_system_status")
-	c.Assert(err, IsNil)
+	vars := mylog.Check2(mtbl.GetBootVars("try_recovery_system", "recovery_system_status"))
+
 	c.Check(vars, DeepEquals, map[string]string{
 		"try_recovery_system":    "",
 		"recovery_system_status": "",
@@ -749,8 +745,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupError(c *C) {
 		}
 	})
 	defer restore()
-
-	err := boot.SetTryRecoverySystem(s.uc20dev, "1234")
+	mylog.Check(boot.SetTryRecoverySystem(s.uc20dev, "1234"))
 	c.Assert(err, ErrorMatches, `cannot reseal the encryption key: reseal fails \(cleanup failed: cannot reseal the encryption key: reseal in cleanup fails too\)`)
 
 	// failed after the call to read the 'try' system seed
@@ -758,13 +753,13 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupError(c *C) {
 	// called twice, once when enabling the try system, once on cleanup
 	c.Check(resealCalls, Equals, 2)
 
-	modeenvRead, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	modeenvRead := mylog.Check2(boot.ReadModeenv(""))
+
 	// modeenv is unchanged
 	c.Check(modeenvRead.DeepEqual(modeenv), Equals, true)
 	// bootloader variables have been cleared regardless of reseal failing
-	vars, err := mtbl.GetBootVars("try_recovery_system", "recovery_system_status")
-	c.Assert(err, IsNil)
+	vars := mylog.Check2(mtbl.GetBootVars("try_recovery_system", "recovery_system_status"))
+
 	c.Check(vars, DeepEquals, map[string]string{
 		"try_recovery_system":    "",
 		"recovery_system_status": "",
@@ -788,9 +783,9 @@ func (s *systemsSuite) testInspectRecoverySystemOutcomeHappy(c *C, mtbl *bootloa
 	})
 	defer restore()
 
-	outcome, label, err := boot.InspectTryRecoverySystemOutcome(s.uc20dev)
+	outcome, label := mylog.Check3(boot.InspectTryRecoverySystemOutcome(s.uc20dev))
 	if expectedErr == "" {
-		c.Assert(err, IsNil)
+
 	} else {
 		c.Assert(err, ErrorMatches, expectedErr)
 	}
@@ -809,21 +804,21 @@ func (s *systemsSuite) TestInspectRecoverySystemOutcomeHappySuccess(c *C) {
 		"try_recovery_system":    "1234",
 	}
 	mtbl := s.mockTrustedBootloaderWithAssetAndChains(c, s.runKernelBf, s.recoveryKernelBf)
-	err := mtbl.SetBootVars(triedVars)
-	c.Assert(err, IsNil)
+	mylog.Check(mtbl.SetBootVars(triedVars))
+
 
 	m := boot.Modeenv{
 		Mode: boot.ModeRun,
 		// keep this comment to make old gofmt happy
 		CurrentRecoverySystems: []string{"29112019", "1234"},
 	}
-	err = m.WriteTo("")
-	c.Assert(err, IsNil)
+	mylog.Check(m.WriteTo(""))
+
 
 	s.testInspectRecoverySystemOutcomeHappy(c, mtbl, boot.TryRecoverySystemOutcomeSuccess, "")
 
-	vars, err := mtbl.GetBootVars("try_recovery_system", "recovery_system_status")
-	c.Assert(err, IsNil)
+	vars := mylog.Check2(mtbl.GetBootVars("try_recovery_system", "recovery_system_status"))
+
 	c.Check(vars, DeepEquals, triedVars)
 }
 
@@ -833,21 +828,21 @@ func (s *systemsSuite) TestInspectRecoverySystemOutcomeFailureMissingSystemInMod
 		"try_recovery_system":    "1234",
 	}
 	mtbl := s.mockTrustedBootloaderWithAssetAndChains(c, s.runKernelBf, s.recoveryKernelBf)
-	err := mtbl.SetBootVars(triedVars)
-	c.Assert(err, IsNil)
+	mylog.Check(mtbl.SetBootVars(triedVars))
+
 
 	m := boot.Modeenv{
 		Mode: boot.ModeRun,
 		// we don't have the tried recovery system in the modeenv
 		CurrentRecoverySystems: []string{"29112019"},
 	}
-	err = m.WriteTo("")
-	c.Assert(err, IsNil)
+	mylog.Check(m.WriteTo(""))
+
 
 	s.testInspectRecoverySystemOutcomeHappy(c, mtbl, boot.TryRecoverySystemOutcomeFailure, `recovery system "1234" was tried, but is not present in the modeenv CurrentRecoverySystems`)
 
-	vars, err := mtbl.GetBootVars("try_recovery_system", "recovery_system_status")
-	c.Assert(err, IsNil)
+	vars := mylog.Check2(mtbl.GetBootVars("try_recovery_system", "recovery_system_status"))
+
 	c.Check(vars, DeepEquals, triedVars)
 }
 
@@ -857,12 +852,12 @@ func (s *systemsSuite) TestInspectRecoverySystemOutcomeHappyFailure(c *C) {
 		"try_recovery_system":    "1234",
 	}
 	mtbl := s.mockTrustedBootloaderWithAssetAndChains(c, s.runKernelBf, s.recoveryKernelBf)
-	err := mtbl.SetBootVars(tryVars)
-	c.Assert(err, IsNil)
+	mylog.Check(mtbl.SetBootVars(tryVars))
+
 	s.testInspectRecoverySystemOutcomeHappy(c, mtbl, boot.TryRecoverySystemOutcomeFailure, "")
 
-	vars, err := mtbl.GetBootVars("try_recovery_system", "recovery_system_status")
-	c.Assert(err, IsNil)
+	vars := mylog.Check2(mtbl.GetBootVars("try_recovery_system", "recovery_system_status"))
+
 	c.Check(vars, DeepEquals, tryVars)
 }
 
@@ -872,8 +867,8 @@ func (s *systemsSuite) TestInspectRecoverySystemOutcomeNotTried(c *C) {
 		"try_recovery_system":    "",
 	}
 	mtbl := s.mockTrustedBootloaderWithAssetAndChains(c, s.runKernelBf, s.recoveryKernelBf)
-	err := mtbl.SetBootVars(notTriedVars)
-	c.Assert(err, IsNil)
+	mylog.Check(mtbl.SetBootVars(notTriedVars))
+
 	s.testInspectRecoverySystemOutcomeHappy(c, mtbl, boot.TryRecoverySystemOutcomeNoneTried, "")
 }
 
@@ -883,11 +878,11 @@ func (s *systemsSuite) TestInspectRecoverySystemOutcomeInconsistentBogusStatus(c
 		"try_recovery_system":    "1234",
 	}
 	mtbl := s.mockTrustedBootloaderWithAssetAndChains(c, s.runKernelBf, s.recoveryKernelBf)
-	err := mtbl.SetBootVars(badVars)
-	c.Assert(err, IsNil)
+	mylog.Check(mtbl.SetBootVars(badVars))
+
 	s.testInspectRecoverySystemOutcomeHappy(c, mtbl, boot.TryRecoverySystemOutcomeInconsistent, `unexpected recovery system status "foo"`)
-	vars, err := mtbl.GetBootVars("try_recovery_system", "recovery_system_status")
-	c.Assert(err, IsNil)
+	vars := mylog.Check2(mtbl.GetBootVars("try_recovery_system", "recovery_system_status"))
+
 	c.Check(vars, DeepEquals, badVars)
 }
 
@@ -897,11 +892,11 @@ func (s *systemsSuite) TestInspectRecoverySystemOutcomeInconsistentBadLabel(c *C
 		"try_recovery_system":    "",
 	}
 	mtbl := s.mockTrustedBootloaderWithAssetAndChains(c, s.runKernelBf, s.recoveryKernelBf)
-	err := mtbl.SetBootVars(badVars)
-	c.Assert(err, IsNil)
+	mylog.Check(mtbl.SetBootVars(badVars))
+
 	s.testInspectRecoverySystemOutcomeHappy(c, mtbl, boot.TryRecoverySystemOutcomeInconsistent, `try recovery system is unset but status is "tried"`)
-	vars, err := mtbl.GetBootVars("try_recovery_system", "recovery_system_status")
-	c.Assert(err, IsNil)
+	vars := mylog.Check2(mtbl.GetBootVars("try_recovery_system", "recovery_system_status"))
+
 	c.Check(vars, DeepEquals, badVars)
 }
 
@@ -911,11 +906,11 @@ func (s *systemsSuite) TestInspectRecoverySystemOutcomeInconsistentUnexpectedLab
 		"try_recovery_system":    "1234",
 	}
 	mtbl := s.mockTrustedBootloaderWithAssetAndChains(c, s.runKernelBf, s.recoveryKernelBf)
-	err := mtbl.SetBootVars(badVars)
-	c.Assert(err, IsNil)
+	mylog.Check(mtbl.SetBootVars(badVars))
+
 	s.testInspectRecoverySystemOutcomeHappy(c, mtbl, boot.TryRecoverySystemOutcomeInconsistent, `unexpected recovery system status ""`)
-	vars, err := mtbl.GetBootVars("try_recovery_system", "recovery_system_status")
-	c.Assert(err, IsNil)
+	vars := mylog.Check2(mtbl.GetBootVars("try_recovery_system", "recovery_system_status"))
+
 	c.Check(vars, DeepEquals, badVars)
 }
 
@@ -1005,10 +1000,9 @@ func (s *systemsSuite) testClearRecoverySystem(c *C, mtbl *bootloadertest.MockTr
 		}
 	})
 	defer restore()
-
-	err := boot.ClearTryRecoverySystem(s.uc20dev, tc.systemLabel)
+	mylog.Check(boot.ClearTryRecoverySystem(s.uc20dev, tc.systemLabel))
 	if tc.expectedErr == "" {
-		c.Assert(err, IsNil)
+
 	} else {
 		c.Assert(err, ErrorMatches, tc.expectedErr)
 	}
@@ -1023,8 +1017,8 @@ func (s *systemsSuite) testClearRecoverySystem(c *C, mtbl *bootloadertest.MockTr
 		c.Check(resealCalls, Equals, 1)
 	}
 
-	modeenvRead, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	modeenvRead := mylog.Check2(boot.ReadModeenv(""))
+
 	// modeenv systems list has one entry only
 	c.Check(modeenvRead, testutil.JsonEquals, boot.Modeenv{
 		Mode: "run",
@@ -1054,13 +1048,13 @@ func (s *systemsSuite) TestClearRecoverySystemHappy(c *C) {
 		"try_recovery_system":    "1234",
 	}
 	mtbl := s.mockTrustedBootloaderWithAssetAndChains(c, s.runKernelBf, s.recoveryKernelBf)
-	err := mtbl.SetBootVars(setVars)
-	c.Assert(err, IsNil)
+	mylog.Check(mtbl.SetBootVars(setVars))
+
 
 	s.testClearRecoverySystem(c, mtbl, clearRecoverySystemTestCase{systemLabel: "1234"})
 	// bootloader variables have been cleared
-	vars, err := mtbl.GetBootVars("try_recovery_system", "recovery_system_status")
-	c.Assert(err, IsNil)
+	vars := mylog.Check2(mtbl.GetBootVars("try_recovery_system", "recovery_system_status"))
+
 	c.Check(vars, DeepEquals, map[string]string{
 		"try_recovery_system":    "",
 		"recovery_system_status": "",
@@ -1073,13 +1067,13 @@ func (s *systemsSuite) TestClearRecoverySystemTriedHappy(c *C) {
 		"try_recovery_system":    "1234",
 	}
 	mtbl := s.mockTrustedBootloaderWithAssetAndChains(c, s.runKernelBf, s.recoveryKernelBf)
-	err := mtbl.SetBootVars(setVars)
-	c.Assert(err, IsNil)
+	mylog.Check(mtbl.SetBootVars(setVars))
+
 
 	s.testClearRecoverySystem(c, mtbl, clearRecoverySystemTestCase{systemLabel: "1234"})
 	// bootloader variables have been cleared
-	vars, err := mtbl.GetBootVars("try_recovery_system", "recovery_system_status")
-	c.Assert(err, IsNil)
+	vars := mylog.Check2(mtbl.GetBootVars("try_recovery_system", "recovery_system_status"))
+
 	c.Check(vars, DeepEquals, map[string]string{
 		"try_recovery_system":    "",
 		"recovery_system_status": "",
@@ -1092,13 +1086,13 @@ func (s *systemsSuite) TestClearRecoverySystemInconsistentStateHappy(c *C) {
 		"try_recovery_system":    "",
 	}
 	mtbl := s.mockTrustedBootloaderWithAssetAndChains(c, s.runKernelBf, s.recoveryKernelBf)
-	err := mtbl.SetBootVars(setVars)
-	c.Assert(err, IsNil)
+	mylog.Check(mtbl.SetBootVars(setVars))
+
 
 	s.testClearRecoverySystem(c, mtbl, clearRecoverySystemTestCase{systemLabel: "1234"})
 	// bootloader variables have been cleared
-	vars, err := mtbl.GetBootVars("try_recovery_system", "recovery_system_status")
-	c.Assert(err, IsNil)
+	vars := mylog.Check2(mtbl.GetBootVars("try_recovery_system", "recovery_system_status"))
+
 	c.Check(vars, DeepEquals, map[string]string{
 		"try_recovery_system":    "",
 		"recovery_system_status": "",
@@ -1111,16 +1105,16 @@ func (s *systemsSuite) TestClearRecoverySystemInconsistentNoLabelHappy(c *C) {
 		"try_recovery_system":    "this-too",
 	}
 	mtbl := s.mockTrustedBootloaderWithAssetAndChains(c, s.runKernelBf, s.recoveryKernelBf)
-	err := mtbl.SetBootVars(setVars)
-	c.Assert(err, IsNil)
+	mylog.Check(mtbl.SetBootVars(setVars))
+
 
 	// clear without passing the system label, just clears the relevant boot
 	// variables
 	const noLabel = ""
 	s.testClearRecoverySystem(c, mtbl, clearRecoverySystemTestCase{systemLabel: noLabel})
 	// bootloader variables have been cleared
-	vars, err := mtbl.GetBootVars("try_recovery_system", "recovery_system_status")
-	c.Assert(err, IsNil)
+	vars := mylog.Check2(mtbl.GetBootVars("try_recovery_system", "recovery_system_status"))
+
 	c.Check(vars, DeepEquals, map[string]string{
 		"try_recovery_system":    "",
 		"recovery_system_status": "",
@@ -1133,8 +1127,8 @@ func (s *systemsSuite) TestClearRecoverySystemRemodelHappy(c *C) {
 		"try_recovery_system":    "1234",
 	}
 	mtbl := s.mockTrustedBootloaderWithAssetAndChains(c, s.runKernelBf, s.recoveryKernelBf)
-	err := mtbl.SetBootVars(setVars)
-	c.Assert(err, IsNil)
+	mylog.Check(mtbl.SetBootVars(setVars))
+
 
 	s.testClearRecoverySystem(c, mtbl, clearRecoverySystemTestCase{
 		systemLabel: "1234",
@@ -1143,8 +1137,8 @@ func (s *systemsSuite) TestClearRecoverySystemRemodelHappy(c *C) {
 		}),
 	})
 	// bootloader variables have been cleared
-	vars, err := mtbl.GetBootVars("try_recovery_system", "recovery_system_status")
-	c.Assert(err, IsNil)
+	vars := mylog.Check2(mtbl.GetBootVars("try_recovery_system", "recovery_system_status"))
+
 	c.Check(vars, DeepEquals, map[string]string{
 		"try_recovery_system":    "",
 		"recovery_system_status": "",
@@ -1157,8 +1151,8 @@ func (s *systemsSuite) TestClearRecoverySystemResealFails(c *C) {
 		"try_recovery_system":    "1234",
 	}
 	mtbl := s.mockTrustedBootloaderWithAssetAndChains(c, s.runKernelBf, s.recoveryKernelBf)
-	err := mtbl.SetBootVars(setVars)
-	c.Assert(err, IsNil)
+	mylog.Check(mtbl.SetBootVars(setVars))
+
 
 	s.testClearRecoverySystem(c, mtbl, clearRecoverySystemTestCase{
 		systemLabel: "1234",
@@ -1166,8 +1160,8 @@ func (s *systemsSuite) TestClearRecoverySystemResealFails(c *C) {
 		expectedErr: "cannot reseal the encryption key: reseal fails",
 	})
 	// bootloader variables have been cleared
-	vars, err := mtbl.GetBootVars("try_recovery_system", "recovery_system_status")
-	c.Assert(err, IsNil)
+	vars := mylog.Check2(mtbl.GetBootVars("try_recovery_system", "recovery_system_status"))
+
 	// variables were cleared
 	c.Check(vars, DeepEquals, map[string]string{
 		"try_recovery_system":    "",
@@ -1181,8 +1175,8 @@ func (s *systemsSuite) TestClearRecoverySystemSetBootVarsFails(c *C) {
 		"try_recovery_system":    "1234",
 	}
 	mtbl := s.mockTrustedBootloaderWithAssetAndChains(c, s.runKernelBf, s.recoveryKernelBf)
-	err := mtbl.SetBootVars(setVars)
-	c.Assert(err, IsNil)
+	mylog.Check(mtbl.SetBootVars(setVars))
+
 	mtbl.SetErr = fmt.Errorf("set boot vars fails")
 
 	s.testClearRecoverySystem(c, mtbl, clearRecoverySystemTestCase{
@@ -1197,8 +1191,8 @@ func (s *systemsSuite) TestClearRecoverySystemReboot(c *C) {
 		"try_recovery_system":    "1234",
 	}
 	mtbl := s.mockTrustedBootloaderWithAssetAndChains(c, s.runKernelBf, s.recoveryKernelBf)
-	err := mtbl.SetBootVars(setVars)
-	c.Assert(err, IsNil)
+	mylog.Check(mtbl.SetBootVars(setVars))
+
 
 	mockAssetsCache(c, s.rootdir, "trusted", []string{
 		"asset-asset-hash-1",
@@ -1276,15 +1270,15 @@ func (s *systemsSuite) TestClearRecoverySystemReboot(c *C) {
 
 	checkGoodState := func() {
 		// modeenv was already written
-		modeenvRead, err := boot.ReadModeenv("")
-		c.Assert(err, IsNil)
+		modeenvRead := mylog.Check2(boot.ReadModeenv(""))
+
 		// modeenv systems list has one entry only
 		c.Check(modeenvRead.CurrentRecoverySystems, DeepEquals, []string{
 			"20200825",
 		})
 		// bootloader variables have been cleared already
-		vars, err := mtbl.GetBootVars("try_recovery_system", "recovery_system_status")
-		c.Assert(err, IsNil)
+		vars := mylog.Check2(mtbl.GetBootVars("try_recovery_system", "recovery_system_status"))
+
 		// variables were cleared
 		c.Check(vars, DeepEquals, map[string]string{
 			"try_recovery_system":    "",
@@ -1312,8 +1306,8 @@ func (s *systemsSuite) TestClearRecoverySystemReboot(c *C) {
 	checkGoodState()
 
 	mtbl.SetErrFunc = nil
-	err = boot.ClearTryRecoverySystem(s.uc20dev, "1234")
-	c.Assert(err, IsNil)
+	mylog.Check(boot.ClearTryRecoverySystem(s.uc20dev, "1234"))
+
 	checkGoodState()
 }
 
@@ -1446,18 +1440,17 @@ func (s *systemsSuite) testPromoteTriedRecoverySystem(c *C, systemLabel string, 
 		}
 	})
 	defer restore()
-
-	err := boot.PromoteTriedRecoverySystem(s.uc20dev, systemLabel, tc.triedSystems)
+	mylog.Check(boot.PromoteTriedRecoverySystem(s.uc20dev, systemLabel, tc.triedSystems))
 	if tc.expectedErr == "" {
-		c.Assert(err, IsNil)
+
 	} else {
 		c.Assert(err, ErrorMatches, tc.expectedErr)
 	}
 	c.Check(readSeedSeenLabels, DeepEquals, tc.readSeedSystems)
 	c.Check(resealCalls, Equals, tc.resealCalls)
 
-	modeenvRead, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	modeenvRead := mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check(modeenvRead.GoodRecoverySystems, DeepEquals, tc.expectedGoodSystemsList)
 	c.Check(modeenvRead.CurrentRecoverySystems, DeepEquals, tc.expectedCurrentSystemsList)
 }
@@ -1685,18 +1678,17 @@ func (s *systemsSuite) testDropRecoverySystem(c *C, systemLabel string, tc recov
 		}
 	})
 	defer restore()
-
-	err := boot.DropRecoverySystem(s.uc20dev, systemLabel)
+	mylog.Check(boot.DropRecoverySystem(s.uc20dev, systemLabel))
 	if tc.expectedErr == "" {
-		c.Assert(err, IsNil)
+
 	} else {
 		c.Assert(err, ErrorMatches, tc.expectedErr)
 	}
 	c.Check(readSeedSeenLabels, DeepEquals, []string{"20200825", "20200825"})
 	c.Check(resealCalls, Equals, tc.resealCalls)
 
-	modeenvRead, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	modeenvRead := mylog.Check2(boot.ReadModeenv(""))
+
 	// current is unchanged
 	c.Check(modeenvRead.GoodRecoverySystems, DeepEquals, tc.expectedCurrentSystemsList)
 	c.Check(modeenvRead.CurrentRecoverySystems, DeepEquals, tc.expectedGoodSystemsList)
@@ -1751,49 +1743,52 @@ func (s *systemsSuite) TestDropRecoverySystemResealErr(c *C) {
 func (s *systemsSuite) TestMarkRecoveryCapableSystemHappy(c *C) {
 	rbl := bootloadertest.Mock("recovery", c.MkDir()).RecoveryAware()
 	bootloader.Force(rbl)
+	mylog.Check(boot.MarkRecoveryCapableSystem("1234"))
 
-	err := boot.MarkRecoveryCapableSystem("1234")
-	c.Assert(err, IsNil)
-	vars, err := rbl.GetBootVars("snapd_good_recovery_systems")
-	c.Assert(err, IsNil)
+	vars := mylog.Check2(rbl.GetBootVars("snapd_good_recovery_systems"))
+
 	c.Check(vars, DeepEquals, map[string]string{
 		"snapd_good_recovery_systems": "1234",
 	})
-	// try the same system again
-	err = boot.MarkRecoveryCapableSystem("1234")
-	c.Assert(err, IsNil)
-	vars, err = rbl.GetBootVars("snapd_good_recovery_systems")
-	c.Assert(err, IsNil)
+	mylog.
+		// try the same system again
+		Check(boot.MarkRecoveryCapableSystem("1234"))
+
+	vars = mylog.Check2(rbl.GetBootVars("snapd_good_recovery_systems"))
+
 	c.Check(vars, DeepEquals, map[string]string{
 		// still a single entry
 		"snapd_good_recovery_systems": "1234",
 	})
+	mylog.
 
-	// try something new
-	err = boot.MarkRecoveryCapableSystem("4567")
-	c.Assert(err, IsNil)
-	vars, err = rbl.GetBootVars("snapd_good_recovery_systems")
-	c.Assert(err, IsNil)
+		// try something new
+		Check(boot.MarkRecoveryCapableSystem("4567"))
+
+	vars = mylog.Check2(rbl.GetBootVars("snapd_good_recovery_systems"))
+
 	c.Check(vars, DeepEquals, map[string]string{
 		// entry added
 		"snapd_good_recovery_systems": "1234,4567",
 	})
+	mylog.
 
-	// try adding the old one again
-	err = boot.MarkRecoveryCapableSystem("1234")
-	c.Assert(err, IsNil)
-	vars, err = rbl.GetBootVars("snapd_good_recovery_systems")
-	c.Assert(err, IsNil)
+		// try adding the old one again
+		Check(boot.MarkRecoveryCapableSystem("1234"))
+
+	vars = mylog.Check2(rbl.GetBootVars("snapd_good_recovery_systems"))
+
 	c.Check(vars, DeepEquals, map[string]string{
 		// system got moved to the end of the list
 		"snapd_good_recovery_systems": "4567,1234",
 	})
+	mylog.
 
-	// and the new one again
-	err = boot.MarkRecoveryCapableSystem("4567")
-	c.Assert(err, IsNil)
-	vars, err = rbl.GetBootVars("snapd_good_recovery_systems")
-	c.Assert(err, IsNil)
+		// and the new one again
+		Check(boot.MarkRecoveryCapableSystem("4567"))
+
+	vars = mylog.Check2(rbl.GetBootVars("snapd_good_recovery_systems"))
+
 	c.Check(vars, DeepEquals, map[string]string{
 		// and it became the last entry
 		"snapd_good_recovery_systems": "1234,4567",
@@ -1803,40 +1798,36 @@ func (s *systemsSuite) TestMarkRecoveryCapableSystemHappy(c *C) {
 func (s *systemsSuite) TestMarkRecoveryCapableSystemAlwaysLast(c *C) {
 	rbl := bootloadertest.Mock("recovery", c.MkDir()).RecoveryAware()
 	bootloader.Force(rbl)
-
-	err := rbl.SetBootVars(map[string]string{
+	mylog.Check(rbl.SetBootVars(map[string]string{
 		"snapd_good_recovery_systems": "1234,2222",
-	})
-	c.Assert(err, IsNil)
+	}))
 
-	err = boot.MarkRecoveryCapableSystem("1234")
-	c.Assert(err, IsNil)
-	vars, err := rbl.GetBootVars("snapd_good_recovery_systems")
-	c.Assert(err, IsNil)
+	mylog.Check(boot.MarkRecoveryCapableSystem("1234"))
+
+	vars := mylog.Check2(rbl.GetBootVars("snapd_good_recovery_systems"))
+
 	c.Check(vars, DeepEquals, map[string]string{
 		"snapd_good_recovery_systems": "2222,1234",
 	})
-
-	err = rbl.SetBootVars(map[string]string{
+	mylog.Check(rbl.SetBootVars(map[string]string{
 		"snapd_good_recovery_systems": "1111,1234,2222",
-	})
-	c.Assert(err, IsNil)
-	err = boot.MarkRecoveryCapableSystem("1234")
-	c.Assert(err, IsNil)
-	vars, err = rbl.GetBootVars("snapd_good_recovery_systems")
-	c.Assert(err, IsNil)
+	}))
+
+	mylog.Check(boot.MarkRecoveryCapableSystem("1234"))
+
+	vars = mylog.Check2(rbl.GetBootVars("snapd_good_recovery_systems"))
+
 	c.Check(vars, DeepEquals, map[string]string{
 		"snapd_good_recovery_systems": "1111,2222,1234",
 	})
-
-	err = rbl.SetBootVars(map[string]string{
+	mylog.Check(rbl.SetBootVars(map[string]string{
 		"snapd_good_recovery_systems": "1111,2222",
-	})
-	c.Assert(err, IsNil)
-	err = boot.MarkRecoveryCapableSystem("1234")
-	c.Assert(err, IsNil)
-	vars, err = rbl.GetBootVars("snapd_good_recovery_systems")
-	c.Assert(err, IsNil)
+	}))
+
+	mylog.Check(boot.MarkRecoveryCapableSystem("1234"))
+
+	vars = mylog.Check2(rbl.GetBootVars("snapd_good_recovery_systems"))
+
 	c.Check(vars, DeepEquals, map[string]string{
 		"snapd_good_recovery_systems": "1111,2222,1234",
 	})
@@ -1845,20 +1836,19 @@ func (s *systemsSuite) TestMarkRecoveryCapableSystemAlwaysLast(c *C) {
 func (s *systemsSuite) TestMarkRecoveryCapableSystemErr(c *C) {
 	rbl := bootloadertest.Mock("recovery", c.MkDir()).RecoveryAware()
 	bootloader.Force(rbl)
+	mylog.Check(boot.MarkRecoveryCapableSystem("1234"))
 
-	err := boot.MarkRecoveryCapableSystem("1234")
-	c.Assert(err, IsNil)
-	vars, err := rbl.GetBootVars("snapd_good_recovery_systems")
-	c.Assert(err, IsNil)
+	vars := mylog.Check2(rbl.GetBootVars("snapd_good_recovery_systems"))
+
 	c.Check(vars, DeepEquals, map[string]string{
 		"snapd_good_recovery_systems": "1234",
 	})
 
 	rbl.SetErr = fmt.Errorf("mocked error")
-	err = boot.MarkRecoveryCapableSystem("4567")
+	mylog.Check(boot.MarkRecoveryCapableSystem("4567"))
 	c.Assert(err, ErrorMatches, "mocked error")
-	vars, err = rbl.GetBootVars("snapd_good_recovery_systems")
-	c.Assert(err, IsNil)
+	vars = mylog.Check2(rbl.GetBootVars("snapd_good_recovery_systems"))
+
 	c.Check(vars, DeepEquals, map[string]string{
 		// mocked error is returned after variable is set
 		"snapd_good_recovery_systems": "1234,4567",
@@ -1868,20 +1858,18 @@ func (s *systemsSuite) TestMarkRecoveryCapableSystemErr(c *C) {
 	rbl.SetMockToPanic("SetBootVars")
 	c.Assert(func() { boot.MarkRecoveryCapableSystem("9999") },
 		PanicMatches, "mocked reboot panic in SetBootVars")
-	vars, err = rbl.GetBootVars("snapd_good_recovery_systems")
-	c.Assert(err, IsNil)
+	vars = mylog.Check2(rbl.GetBootVars("snapd_good_recovery_systems"))
+
 	c.Check(vars, DeepEquals, map[string]string{
 		"snapd_good_recovery_systems": "1234,4567",
 	})
-
 }
 
 func (s *systemsSuite) TestMarkRecoveryCapableSystemNonRecoveryAware(c *C) {
 	bl := bootloadertest.Mock("recovery", c.MkDir())
 	bootloader.Force(bl)
+	mylog.Check(boot.MarkRecoveryCapableSystem("1234"))
 
-	err := boot.MarkRecoveryCapableSystem("1234")
-	c.Assert(err, IsNil)
 	c.Check(bl.SetBootVarsCalls, Equals, 0)
 }
 
@@ -1902,13 +1890,13 @@ func (s *initramfsMarkTryRecoverySystemSuite) SetUpTest(c *C) {
 }
 
 func (s *initramfsMarkTryRecoverySystemSuite) testMarkRecoverySystemForRun(c *C, outcome boot.TryRecoverySystemOutcome, expectingStatus string) {
-	err := s.bl.SetBootVars(map[string]string{
+	mylog.Check(s.bl.SetBootVars(map[string]string{
 		"recovery_system_status": "try",
 		"try_recovery_system":    "1234",
-	})
-	c.Assert(err, IsNil)
-	err = boot.EnsureNextBootToRunModeWithTryRecoverySystemOutcome(outcome)
-	c.Assert(err, IsNil)
+	}))
+
+	mylog.Check(boot.EnsureNextBootToRunModeWithTryRecoverySystemOutcome(outcome))
+
 
 	expectedVars := map[string]string{
 		"snapd_recovery_mode":   "run",
@@ -1918,24 +1906,22 @@ func (s *initramfsMarkTryRecoverySystemSuite) testMarkRecoverySystemForRun(c *C,
 		"try_recovery_system":    "1234",
 	}
 
-	vars, err := s.bl.GetBootVars("snapd_recovery_mode", "snapd_recovery_system",
-		"recovery_system_status", "try_recovery_system")
-	c.Assert(err, IsNil)
-	c.Check(vars, DeepEquals, expectedVars)
+	vars := mylog.Check2(s.bl.GetBootVars("snapd_recovery_mode", "snapd_recovery_system",
+		"recovery_system_status", "try_recovery_system"))
 
-	err = s.bl.SetBootVars(map[string]string{
+	c.Check(vars, DeepEquals, expectedVars)
+	mylog.Check(s.bl.SetBootVars(map[string]string{
 		// the status is overwritten, even if it's completely bogus
 		"recovery_system_status": "foobar",
 		"try_recovery_system":    "1234",
-	})
-	c.Assert(err, IsNil)
+	}))
 
-	err = boot.EnsureNextBootToRunModeWithTryRecoverySystemOutcome(outcome)
-	c.Assert(err, IsNil)
+	mylog.Check(boot.EnsureNextBootToRunModeWithTryRecoverySystemOutcome(outcome))
 
-	vars, err = s.bl.GetBootVars("snapd_recovery_mode", "snapd_recovery_system",
-		"recovery_system_status", "try_recovery_system")
-	c.Assert(err, IsNil)
+
+	vars = mylog.Check2(s.bl.GetBootVars("snapd_recovery_mode", "snapd_recovery_system",
+		"recovery_system_status", "try_recovery_system"))
+
 	c.Check(vars, DeepEquals, expectedVars)
 }
 
@@ -1953,160 +1939,169 @@ func (s *initramfsMarkTryRecoverySystemSuite) TestMarkRecoverySystemBogus(c *C) 
 
 func (s *initramfsMarkTryRecoverySystemSuite) TestMarkRecoverySystemErr(c *C) {
 	s.bl.SetErr = fmt.Errorf("set fails")
-	err := boot.EnsureNextBootToRunModeWithTryRecoverySystemOutcome(boot.TryRecoverySystemOutcomeSuccess)
+	mylog.Check(boot.EnsureNextBootToRunModeWithTryRecoverySystemOutcome(boot.TryRecoverySystemOutcomeSuccess))
 	c.Assert(err, ErrorMatches, "set fails")
-	err = boot.EnsureNextBootToRunModeWithTryRecoverySystemOutcome(boot.TryRecoverySystemOutcomeFailure)
+	mylog.Check(boot.EnsureNextBootToRunModeWithTryRecoverySystemOutcome(boot.TryRecoverySystemOutcomeFailure))
 	c.Assert(err, ErrorMatches, "set fails")
-	err = boot.EnsureNextBootToRunModeWithTryRecoverySystemOutcome(boot.TryRecoverySystemOutcomeInconsistent)
+	mylog.Check(boot.EnsureNextBootToRunModeWithTryRecoverySystemOutcome(boot.TryRecoverySystemOutcomeInconsistent))
 	c.Assert(err, ErrorMatches, "set fails")
 }
 
 func (s *initramfsMarkTryRecoverySystemSuite) TestTryingRecoverySystemUnset(c *C) {
-	err := s.bl.SetBootVars(map[string]string{
+	mylog.Check(s.bl.SetBootVars(map[string]string{
 		"recovery_system_status": "try",
 		// system is unset
 		"try_recovery_system": "",
-	})
-	c.Assert(err, IsNil)
-	isTry, err := boot.InitramfsIsTryingRecoverySystem("1234")
+	}))
+
+	isTry := mylog.Check2(boot.InitramfsIsTryingRecoverySystem("1234"))
 	c.Assert(err, ErrorMatches, `try recovery system is unset but status is "try"`)
 	c.Check(boot.IsInconsistentRecoverySystemState(err), Equals, true)
 	c.Check(isTry, Equals, false)
 }
 
 func (s *initramfsMarkTryRecoverySystemSuite) TestTryingRecoverySystemBogus(c *C) {
-	err := s.bl.SetBootVars(map[string]string{
+	mylog.Check(s.bl.SetBootVars(map[string]string{
 		"recovery_system_status": "foobar",
 		"try_recovery_system":    "1234",
-	})
-	c.Assert(err, IsNil)
-	isTry, err := boot.InitramfsIsTryingRecoverySystem("1234")
+	}))
+
+	isTry := mylog.Check2(boot.InitramfsIsTryingRecoverySystem("1234"))
 	c.Assert(err, ErrorMatches, `unexpected recovery system status "foobar"`)
 	c.Check(boot.IsInconsistentRecoverySystemState(err), Equals, true)
 	c.Check(isTry, Equals, false)
+	mylog.
 
-	// errors out even if try recovery system label is unset
-	err = s.bl.SetBootVars(map[string]string{
-		"recovery_system_status": "no-label",
-		"try_recovery_system":    "",
-	})
-	c.Assert(err, IsNil)
-	isTry, err = boot.InitramfsIsTryingRecoverySystem("1234")
+		// errors out even if try recovery system label is unset
+		Check(s.bl.SetBootVars(map[string]string{
+			"recovery_system_status": "no-label",
+			"try_recovery_system":    "",
+		}))
+
+	isTry = mylog.Check2(boot.InitramfsIsTryingRecoverySystem("1234"))
 	c.Assert(err, ErrorMatches, `unexpected recovery system status "no-label"`)
 	c.Check(boot.IsInconsistentRecoverySystemState(err), Equals, true)
 	c.Check(isTry, Equals, false)
 }
 
 func (s *initramfsMarkTryRecoverySystemSuite) TestTryingRecoverySystemNoTryingStatus(c *C) {
-	err := s.bl.SetBootVars(map[string]string{
+	mylog.Check(s.bl.SetBootVars(map[string]string{
 		"recovery_system_status": "",
 		"try_recovery_system":    "",
-	})
-	c.Assert(err, IsNil)
-	isTry, err := boot.InitramfsIsTryingRecoverySystem("1234")
-	c.Assert(err, IsNil)
-	c.Check(isTry, Equals, false)
+	}))
 
-	err = s.bl.SetBootVars(map[string]string{
+	isTry := mylog.Check2(boot.InitramfsIsTryingRecoverySystem("1234"))
+
+	c.Check(isTry, Equals, false)
+	mylog.Check(s.bl.SetBootVars(map[string]string{
 		// status is checked first
 		"recovery_system_status": "",
 		"try_recovery_system":    "1234",
-	})
-	c.Assert(err, IsNil)
-	isTry, err = boot.InitramfsIsTryingRecoverySystem("1234")
-	c.Assert(err, IsNil)
+	}))
+
+	isTry = mylog.Check2(boot.InitramfsIsTryingRecoverySystem("1234"))
+
 	c.Check(isTry, Equals, false)
 }
 
 func (s *initramfsMarkTryRecoverySystemSuite) TestTryingRecoverySystemSameSystem(c *C) {
-	// the usual scenario
-	err := s.bl.SetBootVars(map[string]string{
-		"recovery_system_status": "try",
-		"try_recovery_system":    "1234",
-	})
-	c.Assert(err, IsNil)
-	isTry, err := boot.InitramfsIsTryingRecoverySystem("1234")
-	c.Assert(err, IsNil)
-	c.Check(isTry, Equals, true)
+	mylog.
+		// the usual scenario
+		Check(s.bl.SetBootVars(map[string]string{
+			"recovery_system_status": "try",
+			"try_recovery_system":    "1234",
+		}))
 
-	// pretend the system has already been tried
-	err = s.bl.SetBootVars(map[string]string{
-		"recovery_system_status": "tried",
-		"try_recovery_system":    "1234",
-	})
-	c.Assert(err, IsNil)
-	isTry, err = boot.InitramfsIsTryingRecoverySystem("1234")
-	c.Assert(err, IsNil)
+	isTry := mylog.Check2(boot.InitramfsIsTryingRecoverySystem("1234"))
+
+	c.Check(isTry, Equals, true)
+	mylog.
+
+		// pretend the system has already been tried
+		Check(s.bl.SetBootVars(map[string]string{
+			"recovery_system_status": "tried",
+			"try_recovery_system":    "1234",
+		}))
+
+	isTry = mylog.Check2(boot.InitramfsIsTryingRecoverySystem("1234"))
+
 	c.Check(isTry, Equals, true)
 }
 
 func (s *initramfsMarkTryRecoverySystemSuite) TestRecoverySystemSuccessDifferent(c *C) {
-	// other system
-	err := s.bl.SetBootVars(map[string]string{
-		"recovery_system_status": "try",
-		"try_recovery_system":    "9999",
-	})
-	c.Assert(err, IsNil)
-	isTry, err := boot.InitramfsIsTryingRecoverySystem("1234")
-	c.Assert(err, IsNil)
-	c.Check(isTry, Equals, false)
+	mylog.
+		// other system
+		Check(s.bl.SetBootVars(map[string]string{
+			"recovery_system_status": "try",
+			"try_recovery_system":    "9999",
+		}))
 
-	// same when the other system has already been tried
-	err = s.bl.SetBootVars(map[string]string{
-		"recovery_system_status": "tried",
-		"try_recovery_system":    "9999",
-	})
-	c.Assert(err, IsNil)
-	isTry, err = boot.InitramfsIsTryingRecoverySystem("1234")
-	c.Assert(err, IsNil)
+	isTry := mylog.Check2(boot.InitramfsIsTryingRecoverySystem("1234"))
+
+	c.Check(isTry, Equals, false)
+	mylog.
+
+		// same when the other system has already been tried
+		Check(s.bl.SetBootVars(map[string]string{
+			"recovery_system_status": "tried",
+			"try_recovery_system":    "9999",
+		}))
+
+	isTry = mylog.Check2(boot.InitramfsIsTryingRecoverySystem("1234"))
+
 	c.Check(isTry, Equals, false)
 }
 
 func (s *systemsSuite) TestUnmarkRecoveryCapableSystemHappy(c *C) {
 	rbl := bootloadertest.Mock("recovery", c.MkDir()).RecoveryAware()
 	bootloader.Force(rbl)
+	mylog.
 
-	// mark system
-	err := boot.MarkRecoveryCapableSystem("1234")
-	c.Assert(err, IsNil)
-	vars, err := rbl.GetBootVars("snapd_good_recovery_systems")
-	c.Assert(err, IsNil)
+		// mark system
+		Check(boot.MarkRecoveryCapableSystem("1234"))
+
+	vars := mylog.Check2(rbl.GetBootVars("snapd_good_recovery_systems"))
+
 	c.Check(vars, DeepEquals, map[string]string{
 		"snapd_good_recovery_systems": "1234",
 	})
+	mylog.
 
-	// mark system
-	err = boot.MarkRecoveryCapableSystem("4567")
-	c.Assert(err, IsNil)
-	vars, err = rbl.GetBootVars("snapd_good_recovery_systems")
-	c.Assert(err, IsNil)
+		// mark system
+		Check(boot.MarkRecoveryCapableSystem("4567"))
+
+	vars = mylog.Check2(rbl.GetBootVars("snapd_good_recovery_systems"))
+
 	c.Check(vars, DeepEquals, map[string]string{
 		"snapd_good_recovery_systems": "1234,4567",
 	})
+	mylog.
 
-	// unmark system that is not present, function is idempotent
-	err = boot.UnmarkRecoveryCapableSystem("not-here")
-	c.Assert(err, IsNil)
-	vars, err = rbl.GetBootVars("snapd_good_recovery_systems")
-	c.Assert(err, IsNil)
+		// unmark system that is not present, function is idempotent
+		Check(boot.UnmarkRecoveryCapableSystem("not-here"))
+
+	vars = mylog.Check2(rbl.GetBootVars("snapd_good_recovery_systems"))
+
 	c.Check(vars, DeepEquals, map[string]string{
 		"snapd_good_recovery_systems": "1234,4567",
 	})
+	mylog.
 
-	// unmark system
-	err = boot.UnmarkRecoveryCapableSystem("1234")
-	c.Assert(err, IsNil)
-	vars, err = rbl.GetBootVars("snapd_good_recovery_systems")
-	c.Assert(err, IsNil)
+		// unmark system
+		Check(boot.UnmarkRecoveryCapableSystem("1234"))
+
+	vars = mylog.Check2(rbl.GetBootVars("snapd_good_recovery_systems"))
+
 	c.Check(vars, DeepEquals, map[string]string{
 		"snapd_good_recovery_systems": "4567",
 	})
+	mylog.
 
-	// unmark system
-	err = boot.UnmarkRecoveryCapableSystem("4567")
-	c.Assert(err, IsNil)
-	vars, err = rbl.GetBootVars("snapd_good_recovery_systems")
-	c.Assert(err, IsNil)
+		// unmark system
+		Check(boot.UnmarkRecoveryCapableSystem("4567"))
+
+	vars = mylog.Check2(rbl.GetBootVars("snapd_good_recovery_systems"))
+
 	c.Check(vars, DeepEquals, map[string]string{
 		"snapd_good_recovery_systems": "",
 	})

@@ -22,6 +22,7 @@ package userd
 import (
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/godbus/dbus"
 	"github.com/godbus/dbus/introspect"
 	"gopkg.in/tomb.v2"
@@ -51,12 +52,7 @@ var userdBusNames = []string{
 }
 
 func (ud *Userd) Init() error {
-	var err error
-
-	ud.conn, err = dbusutil.SessionBusPrivate()
-	if err != nil {
-		return err
-	}
+	ud.conn = mylog.Check2(dbusutil.SessionBusPrivate())
 
 	ud.dbusIfaces = []dbusInterface{
 		&Launcher{ud.conn},
@@ -77,10 +73,7 @@ func (ud *Userd) Init() error {
 	for _, name := range userdBusNames {
 		// beyond this point the name is available and all handlers must
 		// have been set up
-		reply, err := ud.conn.RequestName(name, dbus.NameFlagDoNotQueue)
-		if err != nil {
-			return err
-		}
+		reply := mylog.Check2(ud.conn.RequestName(name, dbus.NameFlagDoNotQueue))
 
 		if reply != dbus.RequestNameReplyPrimaryOwner {
 			return fmt.Errorf("cannot obtain bus name '%s'", name)
@@ -97,8 +90,7 @@ func (ud *Userd) Start() {
 		// are running in the background
 		<-ud.tomb.Dying()
 		ud.conn.Close()
-
-		err := ud.tomb.Err()
+		mylog.Check(ud.tomb.Err())
 		if err != nil && err != tomb.ErrStillAlive {
 			return err
 		}

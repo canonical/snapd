@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	. "gopkg.in/check.v1"
 	"gopkg.in/yaml.v2"
 )
@@ -33,65 +34,58 @@ var _ = Suite(&typeSuite{})
 
 func (s *typeSuite) TestJSONerr(c *C) {
 	var t Type
-	err := json.Unmarshal([]byte("false"), &t)
+	mylog.Check(json.Unmarshal([]byte("false"), &t))
 	c.Assert(err, NotNil)
 }
 
 func (s *typeSuite) TestJsonMarshalTypes(c *C) {
-	out, err := json.Marshal(TypeApp)
-	c.Assert(err, IsNil)
+	out := mylog.Check2(json.Marshal(TypeApp))
+
 	c.Check(string(out), Equals, "\"app\"")
 
-	out, err = json.Marshal(TypeGadget)
-	c.Assert(err, IsNil)
+	out = mylog.Check2(json.Marshal(TypeGadget))
+
 	c.Check(string(out), Equals, "\"gadget\"")
 
-	out, err = json.Marshal(TypeOS)
-	c.Assert(err, IsNil)
+	out = mylog.Check2(json.Marshal(TypeOS))
+
 	c.Check(string(out), Equals, "\"os\"")
 
-	out, err = json.Marshal(TypeKernel)
-	c.Assert(err, IsNil)
+	out = mylog.Check2(json.Marshal(TypeKernel))
+
 	c.Check(string(out), Equals, "\"kernel\"")
 
-	out, err = json.Marshal(TypeBase)
-	c.Assert(err, IsNil)
+	out = mylog.Check2(json.Marshal(TypeBase))
+
 	c.Check(string(out), Equals, "\"base\"")
 
-	out, err = json.Marshal(TypeSnapd)
-	c.Assert(err, IsNil)
+	out = mylog.Check2(json.Marshal(TypeSnapd))
+
 	c.Check(string(out), Equals, "\"snapd\"")
 }
 
 func (s *typeSuite) TestJsonUnmarshalTypes(c *C) {
 	var st Type
+	mylog.Check(json.Unmarshal([]byte("\"application\""), &st))
 
-	err := json.Unmarshal([]byte("\"application\""), &st)
-	c.Assert(err, IsNil)
 	c.Check(st, Equals, TypeApp)
+	mylog.Check(json.Unmarshal([]byte("\"app\""), &st))
 
-	err = json.Unmarshal([]byte("\"app\""), &st)
-	c.Assert(err, IsNil)
 	c.Check(st, Equals, TypeApp)
+	mylog.Check(json.Unmarshal([]byte("\"gadget\""), &st))
 
-	err = json.Unmarshal([]byte("\"gadget\""), &st)
-	c.Assert(err, IsNil)
 	c.Check(st, Equals, TypeGadget)
+	mylog.Check(json.Unmarshal([]byte("\"os\""), &st))
 
-	err = json.Unmarshal([]byte("\"os\""), &st)
-	c.Assert(err, IsNil)
 	c.Check(st, Equals, TypeOS)
+	mylog.Check(json.Unmarshal([]byte("\"kernel\""), &st))
 
-	err = json.Unmarshal([]byte("\"kernel\""), &st)
-	c.Assert(err, IsNil)
 	c.Check(st, Equals, TypeKernel)
+	mylog.Check(json.Unmarshal([]byte("\"base\""), &st))
 
-	err = json.Unmarshal([]byte("\"base\""), &st)
-	c.Assert(err, IsNil)
 	c.Check(st, Equals, TypeBase)
+	mylog.Check(json.Unmarshal([]byte("\"snapd\""), &st))
 
-	err = json.Unmarshal([]byte("\"snapd\""), &st)
-	c.Assert(err, IsNil)
 	c.Check(st, Equals, TypeSnapd)
 }
 
@@ -99,58 +93,52 @@ func (s *typeSuite) TestJsonUnmarshalInvalidTypes(c *C) {
 	invalidTypes := []string{"foo", "-app", "gadget_"}
 	var st Type
 	for _, invalidType := range invalidTypes {
-		err := json.Unmarshal([]byte(fmt.Sprintf("%q", invalidType)), &st)
+		mylog.Check(json.Unmarshal([]byte(fmt.Sprintf("%q", invalidType)), &st))
 		c.Assert(err, NotNil, Commentf("Expected '%s' to be an invalid type", invalidType))
 	}
 }
 
 func (s *typeSuite) TestYamlMarshalTypes(c *C) {
-	out, err := yaml.Marshal(TypeApp)
-	c.Assert(err, IsNil)
+	out := mylog.Check2(yaml.Marshal(TypeApp))
+
 	c.Check(string(out), Equals, "app\n")
 
-	out, err = yaml.Marshal(TypeGadget)
-	c.Assert(err, IsNil)
+	out = mylog.Check2(yaml.Marshal(TypeGadget))
+
 	c.Check(string(out), Equals, "gadget\n")
 
-	out, err = yaml.Marshal(TypeOS)
-	c.Assert(err, IsNil)
+	out = mylog.Check2(yaml.Marshal(TypeOS))
+
 	c.Check(string(out), Equals, "os\n")
 
-	out, err = yaml.Marshal(TypeKernel)
-	c.Assert(err, IsNil)
+	out = mylog.Check2(yaml.Marshal(TypeKernel))
+
 	c.Check(string(out), Equals, "kernel\n")
 
-	out, err = yaml.Marshal(TypeBase)
-	c.Assert(err, IsNil)
+	out = mylog.Check2(yaml.Marshal(TypeBase))
+
 	c.Check(string(out), Equals, "base\n")
 }
 
 func (s *typeSuite) TestYamlUnmarshalTypes(c *C) {
 	var st Type
+	mylog.Check(yaml.Unmarshal([]byte("application"), &st))
 
-	err := yaml.Unmarshal([]byte("application"), &st)
-	c.Assert(err, IsNil)
 	c.Check(st, Equals, TypeApp)
+	mylog.Check(yaml.Unmarshal([]byte("app"), &st))
 
-	err = yaml.Unmarshal([]byte("app"), &st)
-	c.Assert(err, IsNil)
 	c.Check(st, Equals, TypeApp)
+	mylog.Check(yaml.Unmarshal([]byte("gadget"), &st))
 
-	err = yaml.Unmarshal([]byte("gadget"), &st)
-	c.Assert(err, IsNil)
 	c.Check(st, Equals, TypeGadget)
+	mylog.Check(yaml.Unmarshal([]byte("os"), &st))
 
-	err = yaml.Unmarshal([]byte("os"), &st)
-	c.Assert(err, IsNil)
 	c.Check(st, Equals, TypeOS)
+	mylog.Check(yaml.Unmarshal([]byte("kernel"), &st))
 
-	err = yaml.Unmarshal([]byte("kernel"), &st)
-	c.Assert(err, IsNil)
 	c.Check(st, Equals, TypeKernel)
+	mylog.Check(yaml.Unmarshal([]byte("base"), &st))
 
-	err = yaml.Unmarshal([]byte("base"), &st)
-	c.Assert(err, IsNil)
 	c.Check(st, Equals, TypeBase)
 }
 
@@ -158,135 +146,131 @@ func (s *typeSuite) TestYamlUnmarshalInvalidTypes(c *C) {
 	invalidTypes := []string{"foo", "-app", "gadget_"}
 	var st Type
 	for _, invalidType := range invalidTypes {
-		err := yaml.Unmarshal([]byte(invalidType), &st)
+		mylog.Check(yaml.Unmarshal([]byte(invalidType), &st))
 		c.Assert(err, NotNil, Commentf("Expected '%s' to be an invalid type", invalidType))
 	}
 }
 
 func (s *typeSuite) TestYamlMarshalConfinementTypes(c *C) {
-	out, err := yaml.Marshal(DevModeConfinement)
-	c.Assert(err, IsNil)
+	out := mylog.Check2(yaml.Marshal(DevModeConfinement))
+
 	c.Check(string(out), Equals, "devmode\n")
 
-	out, err = yaml.Marshal(StrictConfinement)
-	c.Assert(err, IsNil)
+	out = mylog.Check2(yaml.Marshal(StrictConfinement))
+
 	c.Check(string(out), Equals, "strict\n")
 }
 
 func (s *typeSuite) TestYamlUnmarshalConfinementTypes(c *C) {
 	var confinementType ConfinementType
-	err := yaml.Unmarshal([]byte("devmode"), &confinementType)
-	c.Assert(err, IsNil)
-	c.Check(confinementType, Equals, DevModeConfinement)
+	mylog.Check(yaml.Unmarshal([]byte("devmode"), &confinementType))
 
-	err = yaml.Unmarshal([]byte("strict"), &confinementType)
-	c.Assert(err, IsNil)
+	c.Check(confinementType, Equals, DevModeConfinement)
+	mylog.Check(yaml.Unmarshal([]byte("strict"), &confinementType))
+
 	c.Check(confinementType, Equals, StrictConfinement)
 }
 
 func (s *typeSuite) TestYamlUnmarshalInvalidConfinementTypes(c *C) {
-	var invalidConfinementTypes = []string{
+	invalidConfinementTypes := []string{
 		"foo", "strict-", "_devmode",
 	}
 	var confinementType ConfinementType
 	for _, thisConfinementType := range invalidConfinementTypes {
-		err := yaml.Unmarshal([]byte(thisConfinementType), &confinementType)
+		mylog.Check(yaml.Unmarshal([]byte(thisConfinementType), &confinementType))
 		c.Assert(err, NotNil, Commentf("Expected '%s' to be an invalid confinement type", thisConfinementType))
 	}
 }
 
 func (s *typeSuite) TestJsonMarshalConfinementTypes(c *C) {
-	out, err := json.Marshal(DevModeConfinement)
-	c.Assert(err, IsNil)
+	out := mylog.Check2(json.Marshal(DevModeConfinement))
+
 	c.Check(string(out), Equals, "\"devmode\"")
 
-	out, err = json.Marshal(StrictConfinement)
-	c.Assert(err, IsNil)
+	out = mylog.Check2(json.Marshal(StrictConfinement))
+
 	c.Check(string(out), Equals, "\"strict\"")
 }
 
 func (s *typeSuite) TestJsonUnmarshalConfinementTypes(c *C) {
 	var confinementType ConfinementType
-	err := json.Unmarshal([]byte("\"devmode\""), &confinementType)
-	c.Assert(err, IsNil)
-	c.Check(confinementType, Equals, DevModeConfinement)
+	mylog.Check(json.Unmarshal([]byte("\"devmode\""), &confinementType))
 
-	err = json.Unmarshal([]byte("\"strict\""), &confinementType)
-	c.Assert(err, IsNil)
+	c.Check(confinementType, Equals, DevModeConfinement)
+	mylog.Check(json.Unmarshal([]byte("\"strict\""), &confinementType))
+
 	c.Check(confinementType, Equals, StrictConfinement)
 }
 
 func (s *typeSuite) TestJsonUnmarshalInvalidConfinementTypes(c *C) {
-	var invalidConfinementTypes = []string{
+	invalidConfinementTypes := []string{
 		"foo", "strict-", "_devmode",
 	}
 	var confinementType ConfinementType
 	for _, thisConfinementType := range invalidConfinementTypes {
-		err := json.Unmarshal([]byte(fmt.Sprintf("%q", thisConfinementType)), &confinementType)
+		mylog.Check(json.Unmarshal([]byte(fmt.Sprintf("%q", thisConfinementType)), &confinementType))
 		c.Assert(err, NotNil, Commentf("Expected '%s' to be an invalid confinement type", thisConfinementType))
 	}
 }
 
 func (s *typeSuite) TestYamlMarshalDaemonScopes(c *C) {
-	out, err := yaml.Marshal(SystemDaemon)
-	c.Assert(err, IsNil)
+	out := mylog.Check2(yaml.Marshal(SystemDaemon))
+
 	c.Check(string(out), Equals, "system\n")
 
-	out, err = yaml.Marshal(UserDaemon)
-	c.Assert(err, IsNil)
+	out = mylog.Check2(yaml.Marshal(UserDaemon))
+
 	c.Check(string(out), Equals, "user\n")
 }
 
 func (s *typeSuite) TestYamlUnmarshalDaemonScopes(c *C) {
 	var daemonScope DaemonScope
-	err := yaml.Unmarshal([]byte("system"), &daemonScope)
-	c.Assert(err, IsNil)
-	c.Check(daemonScope, Equals, SystemDaemon)
+	mylog.Check(yaml.Unmarshal([]byte("system"), &daemonScope))
 
-	err = yaml.Unmarshal([]byte("user"), &daemonScope)
-	c.Assert(err, IsNil)
+	c.Check(daemonScope, Equals, SystemDaemon)
+	mylog.Check(yaml.Unmarshal([]byte("user"), &daemonScope))
+
 	c.Check(daemonScope, Equals, UserDaemon)
 }
 
 func (s *typeSuite) TestYamlUnmarshalInvalidDaemonScopes(c *C) {
-	var invalidDaemonScopes = []string{
+	invalidDaemonScopes := []string{
 		"foo", "system-", "_user",
 	}
 	var daemonScope DaemonScope
 	for _, thisDaemonScope := range invalidDaemonScopes {
-		err := yaml.Unmarshal([]byte(thisDaemonScope), &daemonScope)
+		mylog.Check(yaml.Unmarshal([]byte(thisDaemonScope), &daemonScope))
 		c.Assert(err, NotNil, Commentf("Expected '%s' to be an invalid daemon scope", thisDaemonScope))
 	}
 }
 
 func (s *typeSuite) TestJsonMarshalDaemonScopes(c *C) {
-	out, err := json.Marshal(SystemDaemon)
-	c.Assert(err, IsNil)
+	out := mylog.Check2(json.Marshal(SystemDaemon))
+
 	c.Check(string(out), Equals, "\"system\"")
 
-	out, err = json.Marshal(UserDaemon)
-	c.Assert(err, IsNil)
+	out = mylog.Check2(json.Marshal(UserDaemon))
+
 	c.Check(string(out), Equals, "\"user\"")
 }
 
 func (s *typeSuite) TestJsonUnmarshalDaemonScopes(c *C) {
 	var daemonScope DaemonScope
-	err := json.Unmarshal([]byte("\"system\""), &daemonScope)
-	c.Assert(err, IsNil)
-	c.Check(daemonScope, Equals, SystemDaemon)
+	mylog.Check(json.Unmarshal([]byte("\"system\""), &daemonScope))
 
-	err = json.Unmarshal([]byte("\"user\""), &daemonScope)
-	c.Assert(err, IsNil)
+	c.Check(daemonScope, Equals, SystemDaemon)
+	mylog.Check(json.Unmarshal([]byte("\"user\""), &daemonScope))
+
 	c.Check(daemonScope, Equals, UserDaemon)
 }
 
 func (s *typeSuite) TestJsonUnmarshalInvalidDaemonScopes(c *C) {
-	var invalidDaemonScopes = []string{
+	invalidDaemonScopes := []string{
 		"foo", "system-", "_user",
 	}
 	var daemonScope DaemonScope
 	for _, thisDaemonScope := range invalidDaemonScopes {
-		err := json.Unmarshal([]byte(fmt.Sprintf("%q", thisDaemonScope)), &daemonScope)
+		mylog.Check(json.Unmarshal([]byte(fmt.Sprintf("%q", thisDaemonScope)), &daemonScope))
 		c.Assert(err, NotNil, Commentf("Expected '%s' to be an invalid daemon scope", thisDaemonScope))
 	}
 }

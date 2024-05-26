@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/strutil"
@@ -46,25 +47,12 @@ func init() {
 }
 
 func (x *cmdMigrateHome) Execute(args []string) error {
-	chgID, err := x.client.MigrateSnapHome(x.Positional.Snaps)
-	if err != nil {
-		msg, err := errorToCmdMessage("", "migrate-home", err, nil)
-		if err != nil {
-			return err
-		}
-		fmt.Fprintln(Stderr, msg)
-		return nil
-	}
+	chgID := mylog.Check2(x.client.MigrateSnapHome(x.Positional.Snaps))
 
-	chg, err := x.wait(chgID)
-	if err != nil {
-		return err
-	}
+	chg := mylog.Check2(x.wait(chgID))
 
 	var snaps []string
-	if err := chg.Get("snap-names", &snaps); err != nil {
-		return errors.New(`cannot get "snap-names" from change`)
-	}
+	mylog.Check(chg.Get("snap-names", &snaps))
 
 	if len(snaps) == 0 {
 		return errors.New(`expected "migrate-home" change to have non-empty "snap-names"`)

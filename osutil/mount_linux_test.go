@@ -22,6 +22,7 @@ package osutil_test
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -38,19 +39,19 @@ func (s *mountSuite) TestIsMountedHappyish(c *C) {
 	restore := osutil.MockMountInfo(content)
 	defer restore()
 
-	mounted, err := osutil.IsMounted("/snap/ubuntu-core/855")
+	mounted := mylog.Check2(osutil.IsMounted("/snap/ubuntu-core/855"))
 	c.Check(err, IsNil)
 	c.Check(mounted, Equals, true)
 
-	mounted, err = osutil.IsMounted("/snap/something/123")
+	mounted = mylog.Check2(osutil.IsMounted("/snap/something/123"))
 	c.Check(err, IsNil)
 	c.Check(mounted, Equals, true)
 
-	mounted, err = osutil.IsMounted("/snap/random/456")
+	mounted = mylog.Check2(osutil.IsMounted("/snap/random/456"))
 	c.Check(err, IsNil)
 	c.Check(mounted, Equals, true)
 
-	mounted, err = osutil.IsMounted("/random/made/up/name")
+	mounted = mylog.Check2(osutil.IsMounted("/random/made/up/name"))
 	c.Check(err, IsNil)
 	c.Check(mounted, Equals, false)
 }
@@ -59,7 +60,7 @@ func (s *mountSuite) TestIsMountedBroken(c *C) {
 	restore := osutil.MockMountInfo("44 24 7:1 ...truncated-stuff")
 	defer restore()
 
-	mounted, err := osutil.IsMounted("/snap/ubuntu-core/855")
+	mounted := mylog.Check2(osutil.IsMounted("/snap/ubuntu-core/855"))
 	c.Check(err, ErrorMatches, "incorrect number of fields, .*")
 	c.Check(mounted, Equals, false)
 }

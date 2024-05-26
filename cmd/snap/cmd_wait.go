@@ -25,6 +25,7 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
@@ -85,10 +86,10 @@ func trueishJSON(vi interface{}) (bool, error) {
 	case bool:
 		return v, nil
 	case json.Number:
-		if i, err := v.Int64(); err == nil {
+		if i := mylog.Check2(v.Int64()); err == nil {
 			return i != 0, nil
 		}
-		if f, err := v.Float64(); err == nil {
+		if f := mylog.Check2(v.Float64()); err == nil {
 			return f != 0.0, nil
 		}
 	case string:
@@ -121,14 +122,12 @@ func (x *cmdWait) Execute(args []string) error {
 	}
 
 	for {
-		conf, err := x.client.Conf(snapName, []string{confKey})
+		conf := mylog.Check2(x.client.Conf(snapName, []string{confKey}))
 		if err != nil && !isNoOption(err) {
 			return err
 		}
-		res, err := trueishJSON(conf[confKey])
-		if err != nil {
-			return err
-		}
+		res := mylog.Check2(trueishJSON(conf[confKey]))
+
 		if res {
 			break
 		}

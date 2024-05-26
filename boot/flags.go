@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
@@ -110,10 +111,9 @@ func serializeBootFlags(flags []string) string {
 // setImageBootFlags sets the provided flags in the provided
 // bootenv-representing map. It first checks them.
 func setImageBootFlags(flags []string, blVars map[string]string) error {
-	// check that the flagList is supported
-	if _, err := checkBootFlagList(flags, understoodBootFlags); err != nil {
-		return err
-	}
+	mylog.Check2(
+		// check that the flagList is supported
+		checkBootFlagList(flags, understoodBootFlags))
 
 	// also ensure that the serialized value of the boot flags fits inside the
 	// bootenv value, on lk systems the max size of a bootenv value is 255 chars
@@ -149,10 +149,7 @@ func InitramfsActiveBootFlags(mode string, rootfsDir string) ([]string, error) {
 
 	case ModeRun:
 		// boot flags come from the modeenv
-		modeenv, err := ReadModeenv(rootfsDir)
-		if err != nil {
-			return nil, err
-		}
+		modeenv := mylog.Check2(ReadModeenv(rootfsDir))
 
 		// TODO: consider passing in the modeenv or returning the modeenv here
 		// to reduce the number of times we read the modeenv ?
@@ -176,15 +173,9 @@ func readBootFlagsFromRecoveryBootloader() ([]string, error) {
 	opts := &bootloader.Options{
 		Role: bootloader.RoleRecovery,
 	}
-	bl, err := bootloader.Find(InitramfsUbuntuSeedDir, opts)
-	if err != nil {
-		return nil, err
-	}
+	bl := mylog.Check2(bootloader.Find(InitramfsUbuntuSeedDir, opts))
 
-	m, err := bl.GetBootVars("snapd_boot_flags")
-	if err != nil {
-		return nil, err
-	}
+	m := mylog.Check2(bl.GetBootVars("snapd_boot_flags"))
 
 	return splitBootFlagString(m["snapd_boot_flags"]), nil
 }
@@ -198,10 +189,7 @@ func readBootFlagsFromRecoveryBootloader() ([]string, error) {
 // Only to be used on UC20+ systems with recovery systems.
 func InitramfsExposeBootFlagsForSystem(flags []string) error {
 	s := serializeBootFlags(flags)
-
-	if err := os.MkdirAll(filepath.Dir(snapBootFlagsFile), 0755); err != nil {
-		return err
-	}
+	mylog.Check(os.MkdirAll(filepath.Dir(snapBootFlagsFile), 0755))
 
 	return os.WriteFile(snapBootFlagsFile, []byte(s), 0644)
 }
@@ -223,13 +211,10 @@ func BootFlags(dev snap.Device) ([]string, error) {
 	// bootenv are for this boot or the next one, but the initramfs will always
 	// copy the flags that were set into /run, so we always know the current
 	// boot's flags are written in /run
-	b, err := os.ReadFile(snapBootFlagsFile)
-	if err != nil {
-		return nil, err
-	}
+	b := mylog.Check2(os.ReadFile(snapBootFlagsFile))
 
 	flags := splitBootFlagString(string(b))
-	if allowFlags, err := checkBootFlagList(flags, understoodBootFlags); err != nil {
+	if allowFlags := mylog.Check2(checkBootFlagList(flags, understoodBootFlags)); err != nil {
 		if e, ok := err.(unknownFlagError); ok {
 			return allowFlags, e
 		}
@@ -252,10 +237,7 @@ func nextBootFlags(dev snap.Device) ([]string, error) {
 		return nil, errNotUC20
 	}
 
-	m, err := ReadModeenv("")
-	if err != nil {
-		return nil, err
-	}
+	m := mylog.Check2(ReadModeenv(""))
 
 	return m.BootFlags, nil
 }
@@ -270,16 +252,12 @@ func setNextBootFlags(dev snap.Device, rootDir string, flags []string) error {
 
 	// XXX take the modeenv lock?
 
-	m, err := ReadModeenv(rootDir)
-	if err != nil {
-		return err
-	}
+	m := mylog.Check2(ReadModeenv(rootDir))
+	mylog.Check2(
 
-	// for run time, enforce the allow list so we don't write unsupported boot
-	// flags
-	if _, err := checkBootFlagList(flags, understoodBootFlags); err != nil {
-		return err
-	}
+		// for run time, enforce the allow list so we don't write unsupported boot
+		// flags
+		checkBootFlagList(flags, understoodBootFlags))
 
 	m.BootFlags = flags
 
@@ -313,10 +291,7 @@ func HostUbuntuDataForMode(mode string, mod gadget.Model) ([]string, error) {
 		// host mount is snap-bootstrap's /run/snapd/snap-bootstrap/degraded.json, so
 		// we have to go parse that
 		degradedJSONFile := filepath.Join(dirs.SnapBootstrapRunDir, "degraded.json")
-		b, err := os.ReadFile(degradedJSONFile)
-		if err != nil {
-			return nil, err
-		}
+		b := mylog.Check2(os.ReadFile(degradedJSONFile))
 
 		degradedJSON := struct {
 			UbuntuData struct {
@@ -324,11 +299,7 @@ func HostUbuntuDataForMode(mode string, mod gadget.Model) ([]string, error) {
 				MountLocation string `json:"mount-location"`
 			} `json:"ubuntu-data"`
 		}{}
-
-		err = json.Unmarshal(b, &degradedJSON)
-		if err != nil {
-			return nil, err
-		}
+		mylog.Check(json.Unmarshal(b, &degradedJSON))
 
 		// don't permit mounted-untrusted state, only mounted state is allowed
 		if degradedJSON.UbuntuData.MountState == "mounted" {

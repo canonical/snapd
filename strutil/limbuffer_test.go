@@ -22,6 +22,7 @@ package strutil_test
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -33,35 +34,35 @@ func (s *limitedBufferSuite) TestLimitedBuffer(c *C) {
 	w := strutil.NewLimitedBuffer(100, 6)
 
 	data := []byte{'a'}
-	n, err := w.Write(data)
-	c.Assert(err, IsNil)
+	n := mylog.Check2(w.Write(data))
+	
 	c.Assert(n, Equals, 1)
 	c.Assert(w.Bytes(), DeepEquals, []byte{'a'})
 
 	data = []byte("bcde")
-	n, err = w.Write(data)
-	c.Assert(err, IsNil)
+	n = mylog.Check2(w.Write(data))
+	
 	c.Assert(n, Equals, 4)
 
-	n, err = w.Write([]byte("xyz"))
-	c.Assert(err, IsNil)
+	n = mylog.Check2(w.Write([]byte("xyz")))
+	
 	c.Assert(w.Bytes(), DeepEquals, []byte("cdexyz"))
 	c.Assert(n, Equals, 3)
 
-	n, err = w.Write([]byte("12"))
-	c.Assert(err, IsNil)
+	n = mylog.Check2(w.Write([]byte("12")))
+	
 	c.Assert(w.Bytes(), DeepEquals, []byte("exyz12"))
 	c.Assert(n, Equals, 2)
 
 	// eventually 2 times the size and this triggers the truncate in Write
-	n, err = w.Write([]byte("abcd"))
-	c.Assert(err, IsNil)
+	n = mylog.Check2(w.Write([]byte("abcd")))
+	
 	c.Assert(w.Bytes(), DeepEquals, []byte("12abcd"))
 	c.Assert(n, Equals, 4)
 
 	// more than maxBytes in a single write
-	n, err = w.Write([]byte("abcdefghijklmnopqrstuvwxyz"))
-	c.Assert(err, IsNil)
+	n = mylog.Check2(w.Write([]byte("abcdefghijklmnopqrstuvwxyz")))
+	
 	c.Assert(w.Bytes(), DeepEquals, []byte("uvwxyz"))
 	c.Assert(n, Equals, 26)
 }

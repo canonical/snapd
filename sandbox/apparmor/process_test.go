@@ -25,34 +25,35 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
 )
 
 func (s *apparmorSuite) TestDecodeLabel(c *C) {
 	label := snap.AppSecurityTag("snap_name", "my-app")
-	snapName, appName, hookName, err := apparmor.DecodeLabel(label)
-	c.Assert(err, IsNil)
+	snapName, appName, hookName := mylog.Check4(apparmor.DecodeLabel(label))
+
 	c.Check(snapName, Equals, "snap_name")
 	c.Check(appName, Equals, "my-app")
 	c.Check(hookName, Equals, "")
 
 	label = snap.HookSecurityTag("snap_name", "my-hook")
-	snapName, appName, hookName, err = apparmor.DecodeLabel(label)
-	c.Assert(err, IsNil)
+	snapName, appName, hookName = mylog.Check4(apparmor.DecodeLabel(label))
+
 	c.Check(snapName, Equals, "snap_name")
 	c.Check(appName, Equals, "")
 	c.Check(hookName, Equals, "my-hook")
 
-	_, _, _, err = apparmor.DecodeLabel("unconfined")
+	_, _, _ = mylog.Check4(apparmor.DecodeLabel("unconfined"))
 	c.Assert(err, ErrorMatches, `security label "unconfined" does not belong to a snap`)
 
-	_, _, _, err = apparmor.DecodeLabel("/usr/bin/ntpd")
+	_, _, _ = mylog.Check4(apparmor.DecodeLabel("/usr/bin/ntpd"))
 	c.Assert(err, ErrorMatches, `security label "/usr/bin/ntpd" does not belong to a snap`)
 }
 
 func (s *apparmorSuite) TestDecodeLabelUnrecognisedSnapLabel(c *C) {
-	_, _, _, err := apparmor.DecodeLabel("snap.weird")
+	_, _, _ := mylog.Check4(apparmor.DecodeLabel("snap.weird"))
 	c.Assert(err, ErrorMatches, `unknown snap related security label "snap.weird"`)
 }
 
@@ -70,8 +71,8 @@ func (s *apparmorSuite) TestSnapAppFromPidNewKernelPath(c *C) {
 	c.Assert(os.MkdirAll(filepath.Dir(oldProcFile), 0755), IsNil)
 	c.Assert(os.WriteFile(oldProcFile, []byte("random-other-unread-data"), 0644), IsNil)
 
-	name, app, hook, err := apparmor.SnapAppFromPid(42)
-	c.Assert(err, IsNil)
+	name, app, hook := mylog.Check4(apparmor.SnapAppFromPid(42))
+
 	c.Assert(name, Equals, "foo")
 	c.Assert(app, Equals, "app")
 	c.Assert(hook, Equals, "")
@@ -83,14 +84,14 @@ func (s *apparmorSuite) TestSnapAppFromPid(c *C) {
 	defer restore()
 
 	// When no /proc/$pid/attr/current exists, assume unconfined
-	_, _, _, err := apparmor.SnapAppFromPid(42)
+	_, _, _ := mylog.Check4(apparmor.SnapAppFromPid(42))
 	c.Check(err, ErrorMatches, `security label "unconfined" does not belong to a snap`)
 
 	procFile := filepath.Join(d, "proc/42/attr/current")
 	c.Assert(os.MkdirAll(filepath.Dir(procFile), 0755), IsNil)
 
 	c.Assert(os.WriteFile(procFile, []byte("not-read"), 0000), IsNil)
-	_, _, _, err = apparmor.SnapAppFromPid(42)
+	_, _, _ = mylog.Check4(apparmor.SnapAppFromPid(42))
 	c.Check(err, ErrorMatches, `open .*/proc/42/attr/current: permission denied`)
 	c.Assert(os.Remove(procFile), IsNil)
 
@@ -120,7 +121,7 @@ func (s *apparmorSuite) TestSnapAppFromPid(c *C) {
 		err:      `unknown snap related security label "snap.foo.hook.app.garbage"`,
 	}} {
 		c.Assert(os.WriteFile(procFile, []byte(t.contents), 0644), IsNil)
-		name, app, hook, err := apparmor.SnapAppFromPid(42)
+		name, app, hook := mylog.Check4(apparmor.SnapAppFromPid(42))
 		if t.err != "" {
 			c.Check(err, ErrorMatches, t.err)
 		} else {

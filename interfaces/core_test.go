@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
@@ -60,8 +61,8 @@ func (s *CoreSuite) TestValidateDBusBusName(c *C) {
 		"a-a.b", "a-a.b-b.c-c", "a-a.b-b1", "a-a.b-b1.c-c2d-d",
 	}
 	for _, name := range validNames {
-		err := interfaces.ValidateDBusBusName(name)
-		c.Assert(err, IsNil)
+		mylog.Check(interfaces.ValidateDBusBusName(name))
+
 	}
 
 	invalidNames := []string{
@@ -85,12 +86,13 @@ func (s *CoreSuite) TestValidateDBusBusName(c *C) {
 		"a.b.",
 	}
 	for _, name := range invalidNames {
-		err := interfaces.ValidateDBusBusName(name)
+		mylog.Check(interfaces.ValidateDBusBusName(name))
 		c.Assert(err, ErrorMatches, `invalid DBus bus name: ".*"`)
 	}
+	mylog.
 
-	// must not be empty
-	err := interfaces.ValidateDBusBusName("")
+		// must not be empty
+		Check(interfaces.ValidateDBusBusName(""))
 	c.Assert(err, ErrorMatches, `DBus bus name must be set`)
 
 	// must not exceed maximum length
@@ -101,7 +103,7 @@ func (s *CoreSuite) TestValidateDBusBusName(c *C) {
 	// make it look otherwise valid (a.bbbb...)
 	longName[0] = 'a'
 	longName[1] = '.'
-	err = interfaces.ValidateDBusBusName(string(longName))
+	mylog.Check(interfaces.ValidateDBusBusName(string(longName)))
 	c.Assert(err, ErrorMatches, `DBus bus name is too long \(must be <= 255\)`)
 }
 
@@ -132,17 +134,17 @@ func (s *CoreSuite) TestConnRefID(c *C) {
 
 // ParseConnRef works as expected
 func (s *CoreSuite) TestParseConnRef(c *C) {
-	ref, err := interfaces.ParseConnRef("consumer:plug producer:slot")
-	c.Assert(err, IsNil)
+	ref := mylog.Check2(interfaces.ParseConnRef("consumer:plug producer:slot"))
+
 	c.Check(ref, DeepEquals, &interfaces.ConnRef{
 		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
 		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
 	})
-	_, err = interfaces.ParseConnRef("garbage")
+	_ = mylog.Check2(interfaces.ParseConnRef("garbage"))
 	c.Assert(err, ErrorMatches, `malformed connection identifier: "garbage"`)
-	_, err = interfaces.ParseConnRef("snap:plug:garbage snap:slot")
+	_ = mylog.Check2(interfaces.ParseConnRef("snap:plug:garbage snap:slot"))
 	c.Assert(err, ErrorMatches, `malformed connection identifier: ".*"`)
-	_, err = interfaces.ParseConnRef("snap:plug snap:slot:garbage")
+	_ = mylog.Check2(interfaces.ParseConnRef("snap:plug snap:slot:garbage"))
 	c.Assert(err, ErrorMatches, `malformed connection identifier: ".*"`)
 }
 
@@ -159,11 +161,11 @@ func (s *CoreSuite) TestByName(c *C) {
 	r := builtin.MockInterface(simpleIface{name: "mock-network"})
 	defer r()
 
-	_, err := interfaces.ByName("no-such-interface")
+	_ := mylog.Check2(interfaces.ByName("no-such-interface"))
 	c.Assert(err, ErrorMatches, "interface \"no-such-interface\" not found")
 
-	iface, err := interfaces.ByName("mock-network")
-	c.Assert(err, IsNil)
+	iface := mylog.Check2(interfaces.ByName("mock-network"))
+
 	c.Assert(iface.Name(), Equals, "mock-network")
 }
 
@@ -193,8 +195,8 @@ func (s *CoreSuite) TestPermanentPlugServiceSnippets(c *C) {
 	r := builtin.MockInterface(ssi)
 	defer r()
 
-	iface, err := interfaces.ByName("mock-service-snippets")
-	c.Assert(err, IsNil)
+	iface := mylog.Check2(interfaces.ByName("mock-service-snippets"))
+
 	c.Assert(iface.Name(), Equals, "mock-service-snippets")
 
 	info := snaptest.MockInfo(c, `
@@ -206,8 +208,8 @@ plugs:
 `, nil)
 	plug := info.Plugs["plug"]
 
-	snips, err := interfaces.PermanentPlugServiceSnippets(iface, plug)
-	c.Assert(err, IsNil)
+	snips := mylog.Check2(interfaces.PermanentPlugServiceSnippets(iface, plug))
+
 	c.Assert(snips, DeepEquals, []string{"foo1", "foo2"})
 }
 
@@ -230,11 +232,11 @@ plugs:
 `, nil)
 	plug := info.Plugs["plug"]
 
-	iface, err := interfaces.ByName("unclean-service-snippets")
-	c.Assert(err, IsNil)
+	iface := mylog.Check2(interfaces.ByName("unclean-service-snippets"))
+
 	c.Assert(iface.Name(), Equals, "unclean-service-snippets")
 
-	_, err = interfaces.PermanentPlugServiceSnippets(iface, plug)
+	_ = mylog.Check2(interfaces.PermanentPlugServiceSnippets(iface, plug))
 	c.Assert(err, ErrorMatches, "cannot sanitize: foo")
 }
 

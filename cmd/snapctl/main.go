@@ -24,6 +24,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/usersession/xdgopenproxy"
@@ -49,10 +50,8 @@ func main() {
 		}
 	}
 	if len(os.Args) == 3 && os.Args[1] == "user-open" {
-		if err := xdgopenproxy.Run(os.Args[2]); err != nil {
-			fmt.Fprintf(os.Stderr, "user-open error: %v\n", err)
-			os.Exit(1)
-		}
+		mylog.Check(xdgopenproxy.Run(os.Args[2]))
+
 		os.Exit(0)
 	}
 
@@ -62,27 +61,7 @@ func main() {
 	}
 
 	// no internal command, route via snapd
-	stdout, stderr, err := run(stdin)
-	if err != nil {
-		if e, ok := err.(*client.Error); ok {
-			switch e.Kind {
-			case client.ErrorKindUnsuccessful:
-				if errRes, ok := e.Value.(map[string]interface{}); ok {
-					if stdout, ok := errRes["stdout"].(string); ok {
-						os.Stdout.Write([]byte(stdout))
-					}
-					if stderr, ok := errRes["stderr"].(string); ok {
-						os.Stderr.Write([]byte(stderr))
-					}
-					if errCode, ok := errRes["exit-code"].(float64); ok {
-						os.Exit(int(errCode))
-					}
-				}
-			}
-		}
-		fmt.Fprintf(os.Stderr, "error: %s\n", err)
-		os.Exit(1)
-	}
+	stdout, stderr := mylog.Check3(run(stdin))
 
 	if stdout != nil {
 		os.Stdout.Write(stdout)

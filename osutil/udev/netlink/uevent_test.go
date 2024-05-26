@@ -3,6 +3,8 @@ package netlink
 import (
 	"runtime"
 	"testing"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 type testingWrapper struct {
@@ -48,20 +50,19 @@ func TestParseUEvent(testing *testing.T) {
 	}
 	for _, s := range samples {
 		raw := s.Bytes()
-		uevent, err := ParseUEvent(raw)
+		uevent := mylog.Check2(ParseUEvent(raw))
 		t.FatalfIf(err != nil, "Unable to parse uevent (got: %s)", s.String())
 		t.FatalfIf(uevent == nil, "Uevent can't be nil (with: %s)", s.String())
 
-		ok, err := uevent.Equal(s)
+		ok := mylog.Check2(uevent.Equal(s))
 		t.FatalfIf(!ok || err != nil, "Uevent should be equal: bijectivity fail")
 	}
 
 	raw := samples[0].Bytes()
 	raw[3] = 0x00 // remove @ to fake rawdata
 
-	uevent, err := ParseUEvent(raw)
+	uevent := mylog.Check2(ParseUEvent(raw))
 	t.FatalfIf(err == nil && uevent != nil, "Event parsed successfully but it should be invalid, err: %s", err.Error())
-
 }
 
 func TestParseUdevEvent(testing *testing.T) {
@@ -124,7 +125,9 @@ func TestParseUdevEvent(testing *testing.T) {
 				"USEC_INITIALIZED":               "75223543693",
 				"ID_PCI_INTERFACE_FROM_DATABASE": "XHCI",
 				"ID_SERIAL_SHORT":                "AH06W0EQ",
-			}}}, {
+			},
+		},
+	}, {
 		Input: []byte("libudev\x00\xfe\xed\xca\xfe(\x00\x00\x00(\x00\x00\x00\xf2\x02\x00\x00\x05w\xc5\xe5'\xf8\xf5\f\x00\x00\x00\x00\x00\x00\x00\x00" +
 			"ACTION=add\x00DEVPATH=/devices/pci0000:00/0000:00:14.0/usb1/1-2\x00SUBSYSTEM=usb\x00DEVNAME=/dev/bus/usb/001/033\x00DEVTYPE=usb_device\x00" +
 			"PRODUCT=10c4/ea60/100\x00TYPE=0/0/0\x00BUSNUM=001\x00DEVNUM=033\x00SEQNUM=4410\x00MAJOR=189\x00MINOR=32\x00USEC_INITIALIZED=77155422759\x00" +
@@ -170,19 +173,19 @@ func TestParseUdevEvent(testing *testing.T) {
 	}}
 
 	for _, s := range samples {
-		uevent, err := ParseUEvent(s.Input)
+		uevent := mylog.Check2(ParseUEvent(s.Input))
 		t.FatalfIf(err != nil, "Unable to parse uevent: %s", err)
-		ok, err := uevent.Equal(s.Expected)
+		ok := mylog.Check2(uevent.Equal(s.Expected))
 		t.FatalfIf(!ok || err != nil, "Uevent should be equal: bijectivity fail,\n%s", err)
 	}
 
 	invalidMagic := []byte("libudev\x00\xfe\xed\xca\xff(\x00\x00\x00(\x00\x00\x00\xd5\x03\x00\x00\x8a\xfa\x90\xc8\x00\x00\x00\x00\x02\x00\x04\x00\x10\x80\x00\x00ACTION=remove\x00DEVPATH=foo\x00")
-	uevent, err := ParseUEvent(invalidMagic)
+	uevent := mylog.Check2(ParseUEvent(invalidMagic))
 	t.FatalfIf(err == nil && uevent != nil, "Event parsed successfully but it should be invalid, err: %s", err)
 	t.FatalfIf(err.Error() != "cannot parse libudev event: magic number mismatch", "Expecting magic number error, got %s", err)
 
 	invalidOffset := []byte("libudev\x00\xfe\xed\xca\xfe(\xff\xff\xff(\xff\xff\xff\xd5\xf3\xff\xff\x8a\xfa\x90\xc8\x00\x00\x00\x00\x02\x00\x04\x00\x10\x80\x00\x00ACTION=remove\x00DEVPATH=foo\x00")
-	uevent, err = ParseUEvent(invalidOffset)
+	uevent = mylog.Check2(ParseUEvent(invalidOffset))
 	t.FatalfIf(err == nil && uevent != nil, "Event parsed successfully but it should be invalid, err: %s", err)
 	t.FatalfIf(err.Error() != "cannot parse libudev event: invalid data offset", "Expecting invalud offset error, got %s", err)
 }

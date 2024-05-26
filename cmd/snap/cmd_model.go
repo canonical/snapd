@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
@@ -64,10 +65,8 @@ func (mf cmdModelFormatter) GetEscapedDash() string {
 }
 
 func (mf cmdModelFormatter) LongPublisher(storeAccountID string) string {
-	storeAccount, err := mf.client.StoreAccount(storeAccountID)
-	if err != nil {
-		return ""
-	}
+	storeAccount := mylog.Check2(mf.client.StoreAccount(storeAccountID))
+
 	// use the longPublisher helper to format the brand store account
 	// like we do in `snap info`
 	return longPublisher(mf.esc, storeAccount)
@@ -163,13 +162,9 @@ func (x *cmdModel) Execute(args []string) error {
 		Assertion: x.Assertion,
 	}
 	if x.Serial {
-		if err := clientutil.PrintSerialAssertionYAML(w, *serialAssertion, modelFormatter, opts); err != nil {
-			return err
-		}
+		mylog.Check(clientutil.PrintSerialAssertionYAML(w, *serialAssertion, modelFormatter, opts))
 	} else {
-		if err := clientutil.PrintModelAssertion(w, *modelAssertion, serialAssertion, modelFormatter, opts); err != nil {
-			return err
-		}
+		mylog.Check(clientutil.PrintModelAssertion(w, *modelAssertion, serialAssertion, modelFormatter, opts))
 	}
 	return w.Flush()
 }

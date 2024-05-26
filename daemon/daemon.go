@@ -33,6 +33,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/gorilla/mux"
 	"gopkg.in/tomb.v2"
 
@@ -123,7 +124,7 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ucred, err := ucrednetGet(r.RemoteAddr)
+	ucred := mylog.Check2(ucrednetGet(r.RemoteAddr))
 	if err != nil && err != errNoID {
 		logger.Noticef("unexpected error when attempting to get UID: %s", err)
 		InternalError(err.Error()).ServeHTTP(w, r)
@@ -222,19 +223,16 @@ func logit(handler http.Handler) http.Handler {
 // Init sets up the Daemon's internal workings.
 // Don't call more than once.
 func (d *Daemon) Init() error {
-	listenerMap, err := netutil.ActivationListeners()
-	if err != nil {
-		return err
-	}
+	listenerMap := mylog.Check2(netutil.ActivationListeners())
 
 	// The SnapdSocket is required -- without it, die.
-	if listener, err := netutil.GetListener(dirs.SnapdSocket, listenerMap); err == nil {
+	if listener := mylog.Check2(netutil.GetListener(dirs.SnapdSocket, listenerMap)); err == nil {
 		d.snapdListener = &ucrednetListener{Listener: listener}
 	} else {
 		return fmt.Errorf("when trying to listen on %s: %v", dirs.SnapdSocket, err)
 	}
 
-	if listener, err := netutil.GetListener(dirs.SnapSocket, listenerMap); err == nil {
+	if listener := mylog.Check2(netutil.GetListener(dirs.SnapSocket, listenerMap)); err == nil {
 		// This listener may also be nil if that socket wasn't among
 		// the listeners, so check it before using it.
 		d.snapListener = &ucrednetListener{Listener: listener}
@@ -280,9 +278,7 @@ func (d *Daemon) addRoutes() {
 	d.router.NotFoundHandler = NotFound("not found")
 }
 
-var (
-	shutdownTimeout = 25 * time.Second
-)
+var shutdownTimeout = 25 * time.Second
 
 type connTracker struct {
 	mu    sync.Mutex
@@ -330,20 +326,17 @@ func (d *Daemon) Start() error {
 		panic("internal error: no Overlord")
 	}
 
-	to, reasoning, err := d.overlord.StartupTimeout()
-	if err != nil {
-		return err
-	}
+	to, reasoning := mylog.Check3(d.overlord.StartupTimeout())
+
 	if to > 0 {
 		to = to.Round(time.Microsecond)
 		us := to.Nanoseconds() / 1000
 		logger.Noticef("adjusting startup timeout by %v (%s)", to, reasoning)
 		systemdSdNotify(fmt.Sprintf("EXTEND_TIMEOUT_USEC=%d", us))
 	}
-	// now perform expensive overlord/manages initialization
-	if err := d.overlord.StartUp(); err != nil {
-		return err
-	}
+	mylog.Check(
+		// now perform expensive overlord/manages initialization
+		d.overlord.StartUp())
 
 	d.connTracker = &connTracker{conns: make(map[net.Conn]struct{})}
 	d.serve = &http.Server{
@@ -353,13 +346,12 @@ func (d *Daemon) Start() error {
 
 	// enable standby handling
 	d.initStandbyHandling()
+	mylog.Check(
 
-	// before serving actual connections remove the maintenance.json file as we
-	// are no longer down for maintenance, this state most closely corresponds
-	// to restart.RestartUnset
-	if err := d.updateMaintenanceFile(restart.RestartUnset); err != nil {
-		return err
-	}
+		// before serving actual connections remove the maintenance.json file as we
+		// are no longer down for maintenance, this state most closely corresponds
+		// to restart.RestartUnset
+		d.updateMaintenanceFile(restart.RestartUnset))
 
 	// the loop runs in its own goroutine
 	d.overlord.Loop()
@@ -367,7 +359,7 @@ func (d *Daemon) Start() error {
 	d.tomb.Go(func() error {
 		if d.snapListener != nil {
 			d.tomb.Go(func() error {
-				if err := d.serve.Serve(d.snapListener); err != http.ErrServerClosed && d.tomb.Err() == tomb.ErrStillAlive {
+				if mylog.Check(d.serve.Serve(d.snapListener)); err != http.ErrServerClosed && d.tomb.Err() == tomb.ErrStillAlive {
 					return err
 				}
 
@@ -375,7 +367,7 @@ func (d *Daemon) Start() error {
 			})
 		}
 
-		if err := d.serve.Serve(d.snapdListener); err != http.ErrServerClosed && d.tomb.Err() == tomb.ErrStillAlive {
+		if mylog.Check(d.serve.Serve(d.snapdListener)); err != http.ErrServerClosed && d.tomb.Err() == tomb.ErrStillAlive {
 			return err
 		}
 
@@ -393,9 +385,7 @@ func (d *Daemon) HandleRestart(t restart.RestartType, rebootInfo *boot.RebootInf
 	defer d.mu.Unlock()
 
 	scheduleFallback := func(a boot.RebootAction) {
-		if err := reboot(a, rebootWaitTimeout, rebootInfo); err != nil {
-			logger.Noticef("%s", err)
-		}
+		mylog.Check(reboot(a, rebootWaitTimeout, rebootInfo))
 	}
 	d.rebootInfo = rebootInfo
 
@@ -440,7 +430,7 @@ var (
 func (d *Daemon) updateMaintenanceFile(rst restart.RestartType) error {
 	// for unset restart, just remove the maintenance.json file
 	if rst == restart.RestartUnset {
-		err := os.Remove(dirs.SnapdMaintenanceFile)
+		mylog.Check(os.Remove(dirs.SnapdMaintenanceFile))
 		// only return err if the error was something other than the file not
 		// existing
 		if err != nil && !os.IsNotExist(err) {
@@ -450,10 +440,7 @@ func (d *Daemon) updateMaintenanceFile(rst restart.RestartType) error {
 	}
 
 	// otherwise marshal and write it out appropriately
-	b, err := json.Marshal(maintenanceForRestartType(rst))
-	if err != nil {
-		return err
-	}
+	b := mylog.Check2(json.Marshal(maintenanceForRestartType(rst)))
 
 	return osutil.AtomicWrite(dirs.SnapdMaintenanceFile, bytes.NewBuffer(b), 0644, 0)
 }
@@ -496,13 +483,12 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	restartSocket := d.restartSocket
 	rebootInfo := d.rebootInfo
 	d.mu.Unlock()
+	mylog.Check(
 
-	// before not accepting any new client connections we need to write the
-	// maintenance.json file for potential clients to see after the daemon stops
-	// responding so they can read it correctly and handle the maintenance
-	if err := d.updateMaintenanceFile(d.requestedRestart); err != nil {
-		logger.Noticef("error writing maintenance file: %v", err)
-	}
+		// before not accepting any new client connections we need to write the
+		// maintenance.json file for potential clients to see after the daemon stops
+		// responding so they can read it correctly and handle the maintenance
+		d.updateMaintenanceFile(d.requestedRestart))
 
 	// take a timestamp before shutting down the snap listener, and
 	// use the time we may spend on waiting for hooks against the shutdown
@@ -562,25 +548,15 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 		}
 	}
 	d.overlord.Stop()
+	mylog.Check(d.tomb.Wait())
 
-	if err := d.tomb.Wait(); err != nil {
-		if err == context.DeadlineExceeded {
-			logger.Noticef("WARNING: cannot gracefully shut down in-flight snapd API activity within: %v", shutdownTimeout)
-			// the process is shutting down anyway, so we may just
-			// as well close the active connections right now
-			d.serve.Close()
-		} else {
-			// do not stop the shutdown even if the tomb errors
-			// because we already scheduled a slow shutdown and
-			// exiting here will just restart snapd (via systemd)
-			// which will lead to confusing results.
-			if needsFullShutdown {
-				logger.Noticef("WARNING: cannot stop daemon: %v", err)
-			} else {
-				return err
-			}
-		}
-	}
+	// the process is shutting down anyway, so we may just
+	// as well close the active connections right now
+
+	// do not stop the shutdown even if the tomb errors
+	// because we already scheduled a slow shutdown and
+	// exiting here will just restart snapd (via systemd)
+	// which will lead to confusing results.
 
 	if needsFullShutdown {
 		return d.doReboot(sigCh, d.requestedRestart, rebootInfo, immediateShutdown, rebootWaitTimeout)
@@ -599,7 +575,7 @@ func (d *Daemon) rebootDelay(immediate bool) (time.Duration, error) {
 	now := time.Now()
 	// see whether a reboot had already been scheduled
 	var rebootAt time.Time
-	err := d.state.Get("daemon-system-restart-at", &rebootAt)
+	mylog.Check(d.state.Get("daemon-system-restart-at", &rebootAt))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return 0, err
 	}
@@ -612,7 +588,7 @@ func (d *Daemon) rebootDelay(immediate bool) (time.Duration, error) {
 	} else {
 		ovr := os.Getenv("SNAPD_REBOOT_DELAY") // for tests
 		if ovr != "" && !immediate {
-			d, err := time.ParseDuration(ovr)
+			d := mylog.Check2(time.ParseDuration(ovr))
 			if err == nil {
 				rebootDelay = d
 			}
@@ -624,10 +600,8 @@ func (d *Daemon) rebootDelay(immediate bool) (time.Duration, error) {
 }
 
 func (d *Daemon) doReboot(sigCh chan<- os.Signal, rst restart.RestartType, rbi *boot.RebootInfo, immediate bool, waitTimeout time.Duration) error {
-	rebootDelay, err := d.rebootDelay(immediate)
-	if err != nil {
-		return err
-	}
+	rebootDelay := mylog.Check2(d.rebootDelay(immediate))
+
 	action := boot.RebootReboot
 	switch rst {
 	case restart.RestartSystemHaltNow:
@@ -635,11 +609,11 @@ func (d *Daemon) doReboot(sigCh chan<- os.Signal, rst restart.RestartType, rbi *
 	case restart.RestartSystemPoweroffNow:
 		action = boot.RebootPoweroff
 	}
-	// ask for shutdown and wait for it to happen.
-	// if we exit snapd will be restarted by systemd
-	if err := reboot(action, rebootDelay, rbi); err != nil {
-		return err
-	}
+	mylog.Check(
+		// ask for shutdown and wait for it to happen.
+		// if we exit snapd will be restarted by systemd
+		reboot(action, rebootDelay, rbi))
+
 	// wait for reboot to happen
 	logger.Noticef("Waiting for %s", action)
 	if sigCh != nil {
@@ -677,7 +651,7 @@ var errExpectedReboot = errors.New("expected reboot did not happen")
 // RebootDidNotHappen implements part of overlord.RestartBehavior.
 func (d *Daemon) RebootDidNotHappen(st *state.State) error {
 	var attempt int
-	err := st.Get("daemon-system-restart-tentative", &attempt)
+	mylog.Check(st.Get("daemon-system-restart-tentative", &attempt))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
@@ -699,7 +673,7 @@ func (d *Daemon) RebootDidNotHappen(st *state.State) error {
 // New Daemon
 func New() (*Daemon, error) {
 	d := &Daemon{}
-	ovld, err := overlord.New(d)
+	ovld := mylog.Check2(overlord.New(d))
 	if err == errExpectedReboot {
 		// we proceed without overlord until we reach Stop
 		// where we will schedule and wait again for a system restart.
@@ -708,9 +682,7 @@ func New() (*Daemon, error) {
 		d.expectedRebootDidNotHappen = true
 		return d, nil
 	}
-	if err != nil {
-		return nil, err
-	}
+
 	d.overlord = ovld
 	d.state = ovld.State()
 	return d, nil

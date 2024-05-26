@@ -25,6 +25,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/bootloader/assets"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
@@ -260,9 +261,8 @@ type RebootBootloader interface {
 }
 
 func genericInstallBootConfig(gadgetFile, systemFile string) error {
-	if err := os.MkdirAll(filepath.Dir(systemFile), 0755); err != nil {
-		return err
-	}
+	mylog.Check(os.MkdirAll(filepath.Dir(systemFile), 0755))
+
 	return osutil.CopyFile(gadgetFile, systemFile, osutil.CopyFlagOverwrite)
 }
 
@@ -271,14 +271,13 @@ func genericSetBootConfigFromAsset(systemFile, assetName string) error {
 	if bootConfig == nil {
 		return fmt.Errorf("internal error: no boot asset for %q", assetName)
 	}
-	if err := os.MkdirAll(filepath.Dir(systemFile), 0755); err != nil {
-		return err
-	}
+	mylog.Check(os.MkdirAll(filepath.Dir(systemFile), 0755))
+
 	return osutil.AtomicWriteFile(systemFile, bootConfig, 0644, 0)
 }
 
 func genericUpdateBootConfigFromAssets(systemFile string, assetName string) (updated bool, err error) {
-	currentBootConfigEdition, err := editionFromDiskConfigAsset(systemFile)
+	currentBootConfigEdition := mylog.Check2(editionFromDiskConfigAsset(systemFile))
 	if err != nil && err != errNoEdition {
 		return false, err
 	}
@@ -289,47 +288,39 @@ func genericUpdateBootConfigFromAssets(systemFile string, assetName string) (upd
 	if len(newBootConfig) == 0 {
 		return false, fmt.Errorf("no boot config asset with name %q", assetName)
 	}
-	bc, err := configAssetFrom(newBootConfig)
-	if err != nil {
-		return false, err
-	}
+	bc := mylog.Check2(configAssetFrom(newBootConfig))
+
 	if bc.Edition() <= currentBootConfigEdition {
 		// edition of the candidate boot config is lower than or equal
 		// to one currently installed
 		return false, nil
 	}
-	if err := osutil.AtomicWriteFile(systemFile, bc.Raw(), 0644, 0); err != nil {
-		return false, err
-	}
+	mylog.Check(osutil.AtomicWriteFile(systemFile, bc.Raw(), 0644, 0))
+
 	return true, nil
 }
 
 // InstallBootConfig installs the bootloader config from the gadget
 // snap dir into the right place.
 func InstallBootConfig(gadgetDir, rootDir string, opts *Options) error {
-	if err := opts.validate(); err != nil {
-		return err
-	}
-	bl, err := ForGadget(gadgetDir, rootDir, opts)
-	if err != nil {
-		return fmt.Errorf("cannot find boot config in %q", gadgetDir)
-	}
+	mylog.Check(opts.validate())
+
+	bl := mylog.Check2(ForGadget(gadgetDir, rootDir, opts))
+
 	return bl.InstallBootConfig(gadgetDir, opts)
 }
 
 type bootloaderNewFunc func(rootdir string, opts *Options) Bootloader
 
-var (
-	//  bootloaders list all possible bootloaders by their constructor
-	//  function.
-	bootloaders = []bootloaderNewFunc{
-		newUboot,
-		newGrub,
-		newAndroidBoot,
-		newLk,
-		newPiboot,
-	}
-)
+// bootloaders list all possible bootloaders by their constructor
+// function.
+var bootloaders = []bootloaderNewFunc{
+	newUboot,
+	newGrub,
+	newAndroidBoot,
+	newLk,
+	newPiboot,
+}
 
 var (
 	forcedBootloader Bootloader
@@ -344,9 +335,8 @@ var (
 //
 //	bootloader.Find("/run/mnt/ubuntu-seed")
 func Find(rootdir string, opts *Options) (Bootloader, error) {
-	if err := opts.validate(); err != nil {
-		return nil, err
-	}
+	mylog.Check(opts.validate())
+
 	if forcedBootloader != nil || forcedError != nil {
 		return forcedBootloader, forcedError
 	}
@@ -361,10 +351,8 @@ func Find(rootdir string, opts *Options) (Bootloader, error) {
 	// note that the order of this is not deterministic
 	for _, blNew := range bootloaders {
 		bl := blNew(rootdir, opts)
-		present, err := bl.Present()
-		if err != nil {
-			return nil, fmt.Errorf("bootloader %q found but not usable: %v", bl.Name(), err)
-		}
+		present := mylog.Check2(bl.Present())
+
 		if present {
 			return bl, nil
 		}
@@ -388,23 +376,18 @@ func ForceError(err error) {
 }
 
 func extractKernelAssetsToBootDir(dstDir string, snapf snap.Container, assets []string) error {
-	// now do the kernel specific bits
-	if err := os.MkdirAll(dstDir, 0755); err != nil {
-		return err
-	}
-	dir, err := os.Open(dstDir)
-	if err != nil {
-		return err
-	}
+	mylog.Check(
+		// now do the kernel specific bits
+		os.MkdirAll(dstDir, 0755))
+
+	dir := mylog.Check2(os.Open(dstDir))
+
 	defer dir.Close()
 
 	for _, src := range assets {
-		if err := snapf.Unpack(src, dstDir); err != nil {
-			return err
-		}
-		if err := dir.Sync(); err != nil {
-			return err
-		}
+		mylog.Check(snapf.Unpack(src, dstDir))
+		mylog.Check(dir.Sync())
+
 	}
 	return nil
 }
@@ -413,9 +396,7 @@ func removeKernelAssetsFromBootDir(bootDir string, s snap.PlaceInfo) error {
 	// remove the kernel blob
 	blobName := s.Filename()
 	dstDir := filepath.Join(bootDir, blobName)
-	if err := os.RemoveAll(dstDir); err != nil {
-		return err
-	}
+	mylog.Check(os.RemoveAll(dstDir))
 
 	return nil
 }
@@ -423,9 +404,8 @@ func removeKernelAssetsFromBootDir(bootDir string, s snap.PlaceInfo) error {
 // ForGadget returns a bootloader matching a given gadget by inspecting the
 // contents of gadget directory or an error if no matching bootloader is found.
 func ForGadget(gadgetDir, rootDir string, opts *Options) (Bootloader, error) {
-	if err := opts.validate(); err != nil {
-		return nil, err
-	}
+	mylog.Check(opts.validate())
+
 	if forcedBootloader != nil || forcedError != nil {
 		return forcedBootloader, forcedError
 	}

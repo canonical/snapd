@@ -22,6 +22,7 @@ package builtin_test
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -85,11 +86,11 @@ func (s *MaliitInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(c *C) {
 		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 	}, nil, nil)
 
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	apparmorSpec := apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
-	c.Assert(err, IsNil)
+	mylog.Check(apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot))
+
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `peer=(label="snap.maliit.*"),`)
 }
@@ -109,21 +110,21 @@ func (s *MaliitInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome(c *C) {
 		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 	}, nil, nil)
 
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	apparmorSpec := apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
-	c.Assert(err, IsNil)
+	mylog.Check(apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot))
+
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `peer=(label="snap.maliit.{app1,app2}"),`)
 }
 
 func (s *MaliitInterfaceSuite) TestConnectedPlugSecComp(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	seccompSpec := seccomp.NewSpecification(appSet)
-	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
-	c.Assert(err, IsNil)
+	mylog.Check(seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot))
+
 	c.Assert(seccompSpec.SecurityTags(), HasLen, 0)
 }
 
@@ -140,11 +141,11 @@ func (s *MaliitInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c *C) {
 		Apps:      map[string]*snap.AppInfo{"app": app},
 	}, nil, nil)
 
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	apparmorSpec := apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
-	c.Assert(err, IsNil)
+	mylog.Check(apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot))
+
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `peer=(label="snap.maliit.app"),`)
 }
@@ -173,11 +174,11 @@ func (s *MaliitInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelAll(c *C) {
 		Apps:      map[string]*snap.AppInfo{"app1": snapInfo.Apps["app1"], "app2": snapInfo.Apps["app2"]},
 	}, nil, nil)
 
-	appSet, err := interfaces.NewSnapAppSet(slot.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(slot.Snap(), nil))
+
 	apparmorSpec := apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddConnectedSlot(s.iface, plug, slot)
-	c.Assert(err, IsNil)
+	mylog.Check(apparmorSpec.AddConnectedSlot(s.iface, plug, slot))
+
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.maliit.app1", "snap.maliit.app2"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.maliit.app1"), testutil.Contains, `peer=(label="snap.maliit.*"),`)
 	c.Assert(apparmorSpec.SnippetForTag("snap.maliit.app2"), testutil.Contains, `peer=(label="snap.maliit.*"),`)
@@ -198,12 +199,12 @@ func (s *MaliitInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelSome(c *C) {
 		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 	}, nil, nil)
 
-	appSet, err := interfaces.NewSnapAppSet(s.slot.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.slot.Snap(), nil))
+
 	apparmorSpec := apparmor.NewSpecification(appSet)
 	c.Assert(s.slot, NotNil)
-	err = apparmorSpec.AddConnectedSlot(s.iface, plug, s.slot)
-	c.Assert(err, IsNil)
+	mylog.Check(apparmorSpec.AddConnectedSlot(s.iface, plug, s.slot))
+
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.maliit.maliit"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.maliit.maliit"), testutil.Contains, `peer=(label="snap.maliit.{app1,app2}"),`)
 }
@@ -221,21 +222,21 @@ func (s *MaliitInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelOne(c *C) {
 		Apps:      map[string]*snap.AppInfo{"app": app},
 	}, nil, nil)
 
-	appSet, err := interfaces.NewSnapAppSet(s.slot.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.slot.Snap(), nil))
+
 	apparmorSpec := apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddConnectedSlot(s.iface, plug, s.slot)
-	c.Assert(err, IsNil)
+	mylog.Check(apparmorSpec.AddConnectedSlot(s.iface, plug, s.slot))
+
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.maliit.maliit"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.maliit.maliit"), testutil.Contains, `peer=(label="snap.maliit.app"),`)
 }
 
 func (s *MaliitInterfaceSuite) TestPermanentSlotSecComp(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.slotInfo.Snap, nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.slotInfo.Snap, nil))
+
 	seccompSpec := seccomp.NewSpecification(appSet)
-	err = seccompSpec.AddPermanentSlot(s.iface, s.slotInfo)
-	c.Assert(err, IsNil)
+	mylog.Check(seccompSpec.AddPermanentSlot(s.iface, s.slotInfo))
+
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.maliit.maliit"})
 	c.Assert(seccompSpec.SnippetForTag("snap.maliit.maliit"), testutil.Contains, "listen\n")
 }
@@ -243,11 +244,11 @@ func (s *MaliitInterfaceSuite) TestPermanentSlotSecComp(c *C) {
 func (s *MaliitInterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
 	release.OnClassic = false
 
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	apparmorSpec := apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
-	c.Assert(err, IsNil)
+	mylog.Check(apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot))
+
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	snippet := apparmorSpec.SnippetForTag("snap.other.app")
 	// verify apparmor connected
@@ -257,31 +258,31 @@ func (s *MaliitInterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
 }
 
 func (s *MaliitInterfaceSuite) TestPermanentSlotSnippetAppArmor(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.slotInfo.Snap, nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.slotInfo.Snap, nil))
+
 	apparmorSpec := apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddPermanentSlot(s.iface, s.slotInfo)
-	c.Assert(err, IsNil)
+	mylog.Check(apparmorSpec.AddPermanentSlot(s.iface, s.slotInfo))
+
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.maliit.maliit"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.maliit.maliit"), testutil.Contains, "org.maliit.Server.Address")
 }
 
 func (s *MaliitInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.slotInfo.Snap, nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.slotInfo.Snap, nil))
+
 	seccompSpec := seccomp.NewSpecification(appSet)
-	err = seccompSpec.AddPermanentSlot(s.iface, s.slotInfo)
-	c.Assert(err, IsNil)
+	mylog.Check(seccompSpec.AddPermanentSlot(s.iface, s.slotInfo))
+
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.maliit.maliit"})
 	c.Check(seccompSpec.SnippetForTag("snap.maliit.maliit"), testutil.Contains, "listen\n")
 }
 
 func (s *MaliitInterfaceSuite) TestConnectedSlotSnippetAppArmor(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.slot.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.slot.Snap(), nil))
+
 	apparmorSpec := apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddConnectedSlot(s.iface, s.plug, s.slot)
-	c.Assert(err, IsNil)
+	mylog.Check(apparmorSpec.AddConnectedSlot(s.iface, s.plug, s.slot))
+
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.maliit.maliit"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.maliit.maliit"), testutil.Contains, "peer=(label=\"snap.other.app\"")
 }

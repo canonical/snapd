@@ -25,6 +25,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	snap "github.com/snapcore/snapd/cmd/snap"
 )
 
@@ -318,7 +319,7 @@ func (s *SnapSuite) TestNoModelYet(c *check.C) {
 			simpleUnhappyResponder(noSerialAssertionYetResponse),
 			simpleAssertionAccountResponder(happyAccountAssertionResponse),
 		))
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"model"})
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"model"}))
 	c.Assert(err, check.ErrorMatches, `device not ready yet \(no assertions found\)`)
 }
 
@@ -330,7 +331,7 @@ func (s *SnapSuite) TestNoSerialYet(c *check.C) {
 			simpleUnhappyResponder(noSerialAssertionYetResponse),
 			simpleAssertionAccountResponder(happyAccountAssertionResponse),
 		))
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"model", "--serial"})
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"model", "--serial"}))
 	c.Assert(err, check.ErrorMatches, `device not registered yet \(no serial assertion found\)`)
 	c.Check(s.Stderr(), check.Equals, "")
 	c.Check(s.Stdout(), check.Equals, `
@@ -340,7 +341,6 @@ model:     test-model
 }
 
 func (s *SnapSuite) TestModel(c *check.C) {
-
 	for _, tt := range []struct {
 		comment string
 		modelF  checkResponder
@@ -397,7 +397,7 @@ serial  - (device not registered yet)
 				tt.serialF,
 				simpleAssertionAccountResponder(happyAccountAssertionResponse),
 			))
-		rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"model"})
+		rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"model"}))
 		c.Assert(err, check.IsNil)
 		c.Assert(rest, check.DeepEquals, []string{})
 		c.Check(s.Stdout(), check.Equals, tt.outText, check.Commentf("\n%s\n", tt.outText))
@@ -414,7 +414,7 @@ func (s *SnapSuite) TestModelVerbose(c *check.C) {
 			simpleHappyResponder(happySerialAssertionResponse),
 			simpleAssertionAccountResponder(happyAccountAssertionResponse),
 		))
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"model", "--verbose", "--abs-time"})
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"model", "--verbose", "--abs-time"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `
@@ -445,7 +445,7 @@ func (s *SnapSuite) TestModelVerboseUC20(c *check.C) {
 			simpleHappyResponder(happySerialAssertionResponse),
 			simpleAssertionAccountResponder(happyAccountAssertionResponse),
 		))
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"model", "--verbose", "--abs-time"})
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"model", "--verbose", "--abs-time"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `
@@ -490,7 +490,7 @@ func (s *SnapSuite) TestModelVerboseDisplayName(c *check.C) {
 			simpleHappyResponder(happySerialAssertionResponse),
 			simpleAssertionAccountResponder(happyAccountAssertionResponse),
 		))
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"model", "--verbose", "--abs-time"})
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"model", "--verbose", "--abs-time"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `
@@ -522,7 +522,7 @@ func (s *SnapSuite) TestModelVerboseNoSerialYet(c *check.C) {
 			simpleUnhappyResponder(noSerialAssertionYetResponse),
 			simpleAssertionAccountResponder(happyAccountAssertionResponse),
 		))
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"model", "--verbose", "--abs-time"})
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"model", "--verbose", "--abs-time"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `
@@ -553,7 +553,7 @@ func (s *SnapSuite) TestModelAssertion(c *check.C) {
 			simpleHappyResponder(happySerialAssertionResponse),
 			simpleAssertionAccountResponder(happyAccountAssertionResponse),
 		))
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"model", "--assertion"})
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"model", "--assertion"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, happyModelAssertionResponse)
@@ -567,7 +567,7 @@ func (s *SnapSuite) TestModelAssertionVerbose(c *check.C) {
 			c.Fatalf("unexpected request to %s", r.URL.Path)
 		},
 	)
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"model", "--assertion", "--verbose"})
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"model", "--assertion", "--verbose"}))
 	c.Assert(err, check.ErrorMatches, "cannot use --verbose with --assertion")
 	c.Check(s.Stdout(), check.Equals, "")
 	c.Check(s.Stderr(), check.Equals, "")
@@ -581,7 +581,7 @@ func (s *SnapSuite) TestSerial(c *check.C) {
 			simpleHappyResponder(happySerialAssertionResponse),
 			simpleAssertionAccountResponder(happyAccountAssertionResponse),
 		))
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"model", "--serial"})
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"model", "--serial"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `
@@ -600,7 +600,7 @@ func (s *SnapSuite) TestSerialVerbose(c *check.C) {
 			simpleHappyResponder(happySerialAssertionResponse),
 			simpleAssertionAccountResponder(happyAccountAssertionResponse),
 		))
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"model", "--serial", "--verbose", "--abs-time"})
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"model", "--serial", "--verbose", "--abs-time"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `
@@ -625,7 +625,7 @@ func (s *SnapSuite) TestSerialAssertion(c *check.C) {
 			simpleHappyResponder(happySerialAssertionResponse),
 			simpleAssertionAccountResponder(happyAccountAssertionResponse),
 		))
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"model", "--serial", "--assertion"})
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"model", "--serial", "--assertion"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, happySerialAssertionResponse)
@@ -640,7 +640,7 @@ func (s *SnapSuite) TestSerialAssertionSerialAssertionMissing(c *check.C) {
 			simpleUnhappyResponder(noSerialAssertionYetResponse),
 			simpleAssertionAccountResponder(happyAccountAssertionResponse),
 		))
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"model", "--serial", "--assertion"})
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"model", "--serial", "--assertion"}))
 	c.Assert(err, check.ErrorMatches, `device not ready yet \(no assertions found\)`)
 	c.Assert(s.Stdout(), check.Equals, "")
 	c.Assert(s.Stderr(), check.Equals, "")

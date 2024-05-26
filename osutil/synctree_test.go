@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -44,34 +45,34 @@ func (s *EnsureTreeStateSuite) TestVerifiesExpectedFiles(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(s.dir, "foo", "bar"), 0755), IsNil)
 	name := filepath.Join(s.dir, "foo", "bar", "expected.snap")
 	c.Assert(os.WriteFile(name, []byte("expected"), 0600), IsNil)
-	changed, removed, err := osutil.EnsureTreeState(s.dir, s.globs, map[string]map[string]osutil.FileState{
+	changed, removed := mylog.Check3(osutil.EnsureTreeState(s.dir, s.globs, map[string]map[string]osutil.FileState{
 		"foo/bar": {
 			"expected.snap": &osutil.MemoryFileState{Content: []byte("expected"), Mode: 0600},
 		},
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(changed, HasLen, 0)
 	c.Check(removed, HasLen, 0)
 
 	// The content and permissions are correct
 	c.Check(name, testutil.FileEquals, "expected")
-	stat, err := os.Stat(name)
-	c.Assert(err, IsNil)
+	stat := mylog.Check2(os.Stat(name))
+
 	c.Check(stat.Mode().Perm(), Equals, os.FileMode(0600))
 }
 
 func (s *EnsureTreeStateSuite) TestCreatesMissingFiles(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(s.dir, "foo"), 0755), IsNil)
 
-	changed, removed, err := osutil.EnsureTreeState(s.dir, s.globs, map[string]map[string]osutil.FileState{
+	changed, removed := mylog.Check3(osutil.EnsureTreeState(s.dir, s.globs, map[string]map[string]osutil.FileState{
 		"foo": {
 			"missing1.snap": &osutil.MemoryFileState{Content: []byte(`content-1`), Mode: 0600},
 		},
 		"bar": {
 			"missing2.snap": &osutil.MemoryFileState{Content: []byte(`content-2`), Mode: 0600},
 		},
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(changed, DeepEquals, []string{"bar/missing2.snap", "foo/missing1.snap"})
 	c.Check(removed, HasLen, 0)
 }
@@ -84,10 +85,10 @@ func (s *EnsureTreeStateSuite) TestRemovesUnexpectedFiles(c *C) {
 	c.Assert(os.WriteFile(name1, []byte(`evil-1`), 0600), IsNil)
 	c.Assert(os.WriteFile(name2, []byte(`evil-2`), 0600), IsNil)
 
-	changed, removed, err := osutil.EnsureTreeState(s.dir, s.globs, map[string]map[string]osutil.FileState{
+	changed, removed := mylog.Check3(osutil.EnsureTreeState(s.dir, s.globs, map[string]map[string]osutil.FileState{
 		"foo": {},
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(changed, HasLen, 0)
 	c.Check(removed, DeepEquals, []string{"bar/evil2.snap", "foo/evil1.snap"})
 	c.Check(name1, testutil.FileAbsent)
@@ -104,8 +105,8 @@ func (s *EnsureTreeStateSuite) TestRemovesEmptyDirectories(c *C) {
 	c.Assert(os.WriteFile(name2, []byte(`text`), 0600), IsNil)
 	c.Assert(os.WriteFile(name3, []byte(`text`), 0600), IsNil)
 
-	_, _, err := osutil.EnsureTreeState(s.dir, s.globs, nil)
-	c.Assert(err, IsNil)
+	_, _ := mylog.Check3(osutil.EnsureTreeState(s.dir, s.globs, nil))
+
 
 	// The "foo" directory is still present, while the "bar" tree
 	// has been removed.
@@ -116,10 +117,10 @@ func (s *EnsureTreeStateSuite) TestRemovesEmptyDirectories(c *C) {
 func (s *EnsureTreeStateSuite) TestIgnoresUnrelatedFiles(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(s.dir, "foo"), 0755), IsNil)
 	name := filepath.Join(s.dir, "foo", "unrelated")
-	err := os.WriteFile(name, []byte(`text`), 0600)
-	c.Assert(err, IsNil)
-	changed, removed, err := osutil.EnsureTreeState(s.dir, s.globs, map[string]map[string]osutil.FileState{})
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(name, []byte(`text`), 0600))
+
+	changed, removed := mylog.Check3(osutil.EnsureTreeState(s.dir, s.globs, map[string]map[string]osutil.FileState{}))
+
 	// Report says that nothing has changed
 	c.Check(changed, HasLen, 0)
 	c.Check(removed, HasLen, 0)
@@ -128,32 +129,32 @@ func (s *EnsureTreeStateSuite) TestIgnoresUnrelatedFiles(c *C) {
 }
 
 func (s *EnsureTreeStateSuite) TestErrorsOnBadGlob(c *C) {
-	_, _, err := osutil.EnsureTreeState(s.dir, []string{"["}, nil)
+	_, _ := mylog.Check3(osutil.EnsureTreeState(s.dir, []string{"["}, nil))
 	c.Check(err, ErrorMatches, `internal error: EnsureTreeState got invalid pattern "\[": syntax error in pattern`)
 }
 
 func (s *EnsureTreeStateSuite) TestErrorsOnDirectoryPathsMatchingGlobs(c *C) {
-	_, _, err := osutil.EnsureTreeState(s.dir, s.globs, map[string]map[string]osutil.FileState{
+	_, _ := mylog.Check3(osutil.EnsureTreeState(s.dir, s.globs, map[string]map[string]osutil.FileState{
 		"foo/bar.snap/baz": nil,
-	})
+	}))
 	c.Check(err, ErrorMatches, `internal error: EnsureTreeState got path "foo/bar.snap/baz" that matches glob pattern "\*.snap"`)
 }
 
 func (s *EnsureTreeStateSuite) TestErrorsOnFilenamesWithSlashes(c *C) {
-	_, _, err := osutil.EnsureTreeState(s.dir, s.globs, map[string]map[string]osutil.FileState{
+	_, _ := mylog.Check3(osutil.EnsureTreeState(s.dir, s.globs, map[string]map[string]osutil.FileState{
 		"foo": {
 			"dir/file1.snap": &osutil.MemoryFileState{Content: []byte(`content-1`), Mode: 0600},
 		},
-	})
+	}))
 	c.Check(err, ErrorMatches, `internal error: EnsureTreeState got filename "dir/file1.snap" in "foo", which has a path component`)
 }
 
 func (s *EnsureTreeStateSuite) TestErrorsOnFilenamesNotMatchingGlobs(c *C) {
-	_, _, err := osutil.EnsureTreeState(s.dir, s.globs, map[string]map[string]osutil.FileState{
+	_, _ := mylog.Check3(osutil.EnsureTreeState(s.dir, s.globs, map[string]map[string]osutil.FileState{
 		"foo": {
 			"file1.not-snap": &osutil.MemoryFileState{Content: []byte(`content-1`), Mode: 0600},
 		},
-	})
+	}))
 	c.Check(err, ErrorMatches, `internal error: EnsureTreeState got filename "file1.not-snap" in "foo", which doesn't match any glob patterns \["\*.snap"\]`)
 }
 
@@ -167,11 +168,11 @@ func (s *EnsureTreeStateSuite) TestRemovesFilesOnError(c *C) {
 	c.Assert(os.WriteFile(name2, []byte(`text`), 0600), IsNil)
 	c.Assert(os.WriteFile(name3, []byte(`text`), 0600), IsNil)
 
-	changed, removed, err := osutil.EnsureTreeState(s.dir, s.globs, map[string]map[string]osutil.FileState{
+	changed, removed := mylog.Check3(osutil.EnsureTreeState(s.dir, s.globs, map[string]map[string]osutil.FileState{
 		"foo": {
 			"file1.snap": &osutil.MemoryFileState{Content: []byte(`content-1`), Mode: 0600},
 		},
-	})
+	}))
 	c.Check(err, ErrorMatches, `remove .*/bar/dir.snap: directory not empty`)
 	c.Check(changed, HasLen, 0)
 	c.Check(removed, DeepEquals, []string{"bar/file2.snap", "foo/file1.snap"})

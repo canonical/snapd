@@ -22,15 +22,14 @@ package servicestate
 import (
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
 // An AffectedQuotasFunc returns a list of affected quota group names for the given supported task.
 type AffectedQuotasFunc func(*state.Task) ([]string, error)
 
-var (
-	affectedQuotasByKind = make(map[string]AffectedQuotasFunc)
-)
+var affectedQuotasByKind = make(map[string]AffectedQuotasFunc)
 
 // RegisterAffectedQuotasByKind registers an AffectedQuotasFunc for returning the affected quotas
 // for tasks of the given kind, to use in conflicts detection.
@@ -71,10 +70,7 @@ func CheckQuotaChangeConflictMany(st *state.State, quotaNames []string) error {
 			continue
 		}
 
-		quotas, err := affectedQuotas(task)
-		if err != nil {
-			return err
-		}
+		quotas := mylog.Check2(affectedQuotas(task))
 
 		for _, quota := range quotas {
 			if quotaMap[quota] {

@@ -29,6 +29,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 	main "github.com/snapcore/snapd/cmd/snap"
 	"github.com/snapcore/snapd/strutil/quantity"
@@ -88,7 +89,7 @@ func (s *SnapSuite) TestSnapSnaphotsTest(c *C) {
 
 		c.Logf("Test: %s", test.args)
 
-		_, err := main.Parser(main.Client()).ParseArgs(strings.Fields(test.args))
+		_ := mylog.Check2(main.Parser(main.Client()).ParseArgs(strings.Fields(test.args)))
 		if test.error != "" {
 			c.Check(err, ErrorMatches, test.error)
 		} else {
@@ -105,7 +106,7 @@ func (s *SnapSuite) TestSnapshotExportHappy(c *C) {
 	s.mockSnapshotsServer(c)
 
 	exportedSnapshotPath := filepath.Join(c.MkDir(), "export-snapshot.snapshot")
-	_, err := main.Parser(main.Client()).ParseArgs([]string{"export-snapshot", "1", exportedSnapshotPath})
+	_ := mylog.Check2(main.Parser(main.Client()).ParseArgs([]string{"export-snapshot", "1", exportedSnapshotPath}))
 	c.Check(err, IsNil)
 	c.Check(s.Stderr(), testutil.EqualsWrapped, "")
 	c.Check(s.Stdout(), testutil.MatchesWrapped, `Exported snapshot #1 into ".*/export-snapshot.snapshot"`)
@@ -159,7 +160,7 @@ func (s *SnapSuite) TestSnapshotImportHappy(c *C) {
 	exportedSnapshotPath := filepath.Join(c.MkDir(), "mocked-snapshot.snapshot")
 	os.WriteFile(exportedSnapshotPath, []byte("this is really snapshot zip file data"), 0644)
 
-	_, err := main.Parser(main.Client()).ParseArgs([]string{"import-snapshot", exportedSnapshotPath})
+	_ := mylog.Check2(main.Parser(main.Client()).ParseArgs([]string{"import-snapshot", exportedSnapshotPath}))
 	c.Check(err, IsNil)
 	c.Check(s.Stderr(), testutil.EqualsWrapped, "")
 	c.Check(s.Stdout(), testutil.MatchesWrapped, fmt.Sprintf(`Imported snapshot as #42

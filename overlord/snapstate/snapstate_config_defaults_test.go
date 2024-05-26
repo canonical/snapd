@@ -22,6 +22,7 @@ package snapstate_test
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
@@ -55,8 +56,8 @@ func (s *snapmgrTestSuite) TestConfigDefaults(c *C) {
 	})
 	makeInstalledMockCoreSnap(c)
 
-	defls, err := snapstate.ConfigDefaults(s.state, deviceCtx, "some-snap")
-	c.Assert(err, IsNil)
+	defls := mylog.Check2(snapstate.ConfigDefaults(s.state, deviceCtx, "some-snap"))
+
 	c.Assert(defls, DeepEquals, map[string]interface{}{"key": "value"})
 
 	snapstate.Set(s.state, "local-snap", &snapstate.SnapState{
@@ -67,7 +68,7 @@ func (s *snapmgrTestSuite) TestConfigDefaults(c *C) {
 		Current:  snap.R(5),
 		SnapType: "app",
 	})
-	_, err = snapstate.ConfigDefaults(s.state, deviceCtx, "local-snap")
+	_ = mylog.Check2(snapstate.ConfigDefaults(s.state, deviceCtx, "local-snap"))
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 }
 
@@ -115,8 +116,8 @@ func (s *snapmgrTestSuite) TestConfigDefaultsSmokeUC20(c *C) {
 	})
 	makeInstalledMockCoreSnap(c)
 
-	defls, err := snapstate.ConfigDefaults(s.state, deviceCtx, "some-snap")
-	c.Assert(err, IsNil)
+	defls := mylog.Check2(snapstate.ConfigDefaults(s.state, deviceCtx, "some-snap"))
+
 	c.Assert(defls, DeepEquals, map[string]interface{}{"key": "value"})
 }
 
@@ -142,7 +143,7 @@ func (s *snapmgrTestSuite) TestConfigDefaultsNoGadget(c *C) {
 	})
 	makeInstalledMockCoreSnap(c)
 
-	_, err := snapstate.ConfigDefaults(s.state, deviceCtxNoGadget, "some-snap")
+	_ := mylog.Check2(snapstate.ConfigDefaults(s.state, deviceCtxNoGadget, "some-snap"))
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 }
 
@@ -175,8 +176,8 @@ defaults:
 
 	makeInstalledMockCoreSnap(c)
 
-	defls, err := snapstate.ConfigDefaults(s.state, deviceCtx, "core")
-	c.Assert(err, IsNil)
+	defls := mylog.Check2(snapstate.ConfigDefaults(s.state, deviceCtx, "core"))
+
 	c.Assert(defls, DeepEquals, map[string]interface{}{"foo": "bar"})
 }
 
@@ -223,8 +224,8 @@ defaults:
 		Revision: snap.R(1),
 	})
 
-	defls, err := snapstate.ConfigDefaults(s.state, deviceCtx, "core")
-	c.Assert(err, IsNil)
+	defls := mylog.Check2(snapstate.ConfigDefaults(s.state, deviceCtx, "core"))
+
 	c.Assert(defls, DeepEquals, map[string]interface{}{"foo": "bar"})
 }
 
@@ -261,8 +262,8 @@ defaults:
 	makeInstalledMockCoreSnap(c)
 
 	// 'system' key defaults take precedence over snap-id ones
-	defls, err := snapstate.ConfigDefaults(s.state, deviceCtx, "core")
-	c.Assert(err, IsNil)
+	defls := mylog.Check2(snapstate.ConfigDefaults(s.state, deviceCtx, "core"))
+
 	c.Assert(defls, DeepEquals, map[string]interface{}{"foo": "bar"})
 }
 
@@ -277,6 +278,6 @@ func (s *snapmgrTestSuite) TestTransitionCoreTasksNoUbuntuCore(c *C) {
 		SnapType: "os",
 	})
 
-	_, err := snapstate.TransitionCore(s.state, "ubuntu-core", "core")
+	_ := mylog.Check2(snapstate.TransitionCore(s.state, "ubuntu-core", "core"))
 	c.Assert(err, ErrorMatches, `cannot transition snap "ubuntu-core": not installed`)
 }

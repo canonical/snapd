@@ -24,16 +24,19 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/i18n"
 )
 
-var shortSandboxFeaturesHelp = i18n.G("Print sandbox features available on the system")
-var longSandboxFeaturesHelp = i18n.G(`
+var (
+	shortSandboxFeaturesHelp = i18n.G("Print sandbox features available on the system")
+	longSandboxFeaturesHelp  = i18n.G(`
 The sandbox command prints tags describing features of individual sandbox
 components used by snapd on a given system.
 `)
+)
 
 type cmdSandboxFeatures struct {
 	clientMixin
@@ -53,10 +56,7 @@ func (cmd cmdSandboxFeatures) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	sysInfo, err := cmd.client.SysInfo()
-	if err != nil {
-		return err
-	}
+	sysInfo := mylog.Check2(cmd.client.SysInfo())
 
 	sandboxFeatures := sysInfo.SandboxFeatures
 

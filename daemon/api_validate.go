@@ -27,6 +27,7 @@ import (
 	"sort"
 	"strconv"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
@@ -94,10 +95,7 @@ func listValidationSets(c *Command, r *http.Request, _ *auth.UserState) Response
 	st.Lock()
 	defer st.Unlock()
 
-	validationSets, err := assertstate.ValidationSets(st)
-	if err != nil {
-		return InternalError("accessing validation sets failed: %v", err)
-	}
+	validationSets := mylog.Check2(assertstate.ValidationSets(st))
 
 	names := make([]string, 0, len(validationSets))
 	for k := range validationSets {
@@ -105,24 +103,17 @@ func listValidationSets(c *Command, r *http.Request, _ *auth.UserState) Response
 	}
 	sort.Strings(names)
 
-	snaps, _, err := snapstate.InstalledSnaps(st)
-	if err != nil {
-		return InternalError(err.Error())
-	}
+	snaps, _ := mylog.Check3(snapstate.InstalledSnaps(st))
 
 	results := make([]validationSetResult, len(names))
 	for i, vs := range names {
 		tr := validationSets[vs]
-		sets, err := validationSetsForTracking(st, tr)
-		if err != nil {
-			return InternalError("cannot get assertion for validation set tracking %s/%s/%d: %v", tr.AccountID, tr.Name, tr.Sequence(), err)
-		}
+		sets := mylog.Check2(validationSetsForTracking(st, tr))
+
 		// do not pass ignore validation map, we don't want to ignore validation and show invalid ones.
 		validErr := checkInstalledSnaps(sets, snaps, nil)
-		modeStr, err := modeString(tr.Mode)
-		if err != nil {
-			return InternalError(err.Error())
-		}
+		modeStr := mylog.Check2(modeString(tr.Mode))
+
 		results[i] = validationSetResult{
 			AccountID: tr.AccountID,
 			Name:      tr.Name,
@@ -141,19 +132,11 @@ var checkInstalledSnaps = func(vsets *snapasserts.ValidationSets, snaps []*snapa
 }
 
 func validationSetResultFromTracking(st *state.State, tr *assertstate.ValidationSetTracking) (*validationSetResult, error) {
-	modeStr, err := modeString(tr.Mode)
-	if err != nil {
-		return nil, err
-	}
+	modeStr := mylog.Check2(modeString(tr.Mode))
 
-	sets, err := validationSetsForTracking(st, tr)
-	if err != nil {
-		return nil, err
-	}
-	snaps, _, err := snapstate.InstalledSnaps(st)
-	if err != nil {
-		return nil, err
-	}
+	sets := mylog.Check2(validationSetsForTracking(st, tr))
+
+	snaps, _ := mylog.Check3(snapstate.InstalledSnaps(st))
 
 	validErr := checkInstalledSnaps(sets, snaps, nil)
 	return &validationSetResult{
@@ -184,11 +167,9 @@ func getValidationSet(c *Command, r *http.Request, user *auth.UserState) Respons
 	sequenceStr := query.Get("sequence")
 	var sequence int
 	if sequenceStr != "" {
-		var err error
-		sequence, err = strconv.Atoi(sequenceStr)
-		if err != nil {
-			return BadRequest("invalid sequence argument")
-		}
+
+		sequence = mylog.Check2(strconv.Atoi(sequenceStr))
+
 		if sequence < 0 {
 			return BadRequest("invalid sequence argument: %d", sequence)
 		}
@@ -199,20 +180,15 @@ func getValidationSet(c *Command, r *http.Request, user *auth.UserState) Respons
 	defer st.Unlock()
 
 	var tr assertstate.ValidationSetTracking
-	err := assertstate.GetValidationSet(st, accountID, name, &tr)
+	mylog.Check(assertstate.GetValidationSet(st, accountID, name, &tr))
 	if errors.Is(err, state.ErrNoState) || (err == nil && sequence != 0 && sequence != tr.PinnedAt) {
 		// not available locally, try to find in the store.
 		return validateAgainstStore(st, accountID, name, sequence, user)
 	}
-	if err != nil {
-		return InternalError("accessing validation sets failed: %v", err)
-	}
 
 	// evaluate against installed snaps
-	res, err := validationSetResultFromTracking(st, &tr)
-	if err != nil {
-		return InternalError(err.Error())
-	}
+	res := mylog.Check2(validationSetResultFromTracking(st, &tr))
+
 	return SyncResponse(*res)
 }
 
@@ -236,9 +212,8 @@ func applyValidationSet(c *Command, r *http.Request, user *auth.UserState) Respo
 
 	var req validationSetApplyRequest
 	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&req); err != nil {
-		return BadRequest("cannot decode request body into validation set action: %v", err)
-	}
+	mylog.Check(decoder.Decode(&req))
+
 	if decoder.More() {
 		return BadRequest("extra content found in request body")
 	}
@@ -260,9 +235,11 @@ func applyValidationSet(c *Command, r *http.Request, user *auth.UserState) Respo
 	}
 }
 
-var assertstateMonitorValidationSet = assertstate.MonitorValidationSet
-var assertstateFetchAndApplyEnforcedValidationSet = assertstate.FetchAndApplyEnforcedValidationSet
-var assertstateTryEnforcedValidationSets = assertstate.TryEnforcedValidationSets
+var (
+	assertstateMonitorValidationSet               = assertstate.MonitorValidationSet
+	assertstateFetchAndApplyEnforcedValidationSet = assertstate.FetchAndApplyEnforcedValidationSet
+	assertstateTryEnforcedValidationSets          = assertstate.TryEnforcedValidationSets
+)
 
 // updateValidationSet handles snap validate --monitor and --enforce accountId/name[=sequence].
 func updateValidationSet(st *state.State, accountID, name string, reqMode string, sequence int, user *auth.UserState) Response {
@@ -285,15 +262,10 @@ func updateValidationSet(st *state.State, accountID, name string, reqMode string
 		return enforceValidationSet(st, accountID, name, sequence, userID)
 	}
 
-	tr, err := assertstateMonitorValidationSet(st, accountID, name, sequence, userID)
-	if err != nil {
-		return BadRequest("cannot monitor validation set %v: %v", assertstate.ValidationSetKey(accountID, name), err)
-	}
+	tr := mylog.Check2(assertstateMonitorValidationSet(st, accountID, name, sequence, userID))
 
-	res, err := validationSetResultFromTracking(st, tr)
-	if err != nil {
-		return InternalError(err.Error())
-	}
+	res := mylog.Check2(validationSetResultFromTracking(st, tr))
+
 	return SyncResponse(*res)
 }
 
@@ -302,28 +274,21 @@ func updateValidationSet(st *state.State, accountID, name string, reqMode string
 func forgetValidationSet(st *state.State, accountID, name string, sequence int) Response {
 	// check if it exists first
 	var tr assertstate.ValidationSetTracking
-	err := assertstate.GetValidationSet(st, accountID, name, &tr)
+	mylog.Check(assertstate.GetValidationSet(st, accountID, name, &tr))
 	if errors.Is(err, state.ErrNoState) || (err == nil && sequence != 0 && sequence != tr.PinnedAt) {
 		return validationSetNotFound(accountID, name, sequence)
 	}
-	if err != nil {
-		return InternalError("accessing validation sets failed: %v", err)
-	}
-	if err := assertstate.ForgetValidationSet(st, accountID, name, assertstate.ForgetValidationSetOpts{}); err != nil {
-		return BadRequest("cannot forget validation set %v: %v", assertstate.ValidationSetKey(accountID, name), err)
-	}
+	mylog.Check(assertstate.ForgetValidationSet(st, accountID, name, assertstate.ForgetValidationSetOpts{}))
+
 	return SyncResponse(nil)
 }
 
 func validationSetsForTracking(st *state.State, tr *assertstate.ValidationSetTracking) (*snapasserts.ValidationSets, error) {
-	as, err := validationSetAssertFromDb(st, tr.AccountID, tr.Name, tr.Sequence())
-	if err != nil {
-		return nil, err
-	}
+	as := mylog.Check2(validationSetAssertFromDb(st, tr.AccountID, tr.Name, tr.Sequence()))
+
 	sets := snapasserts.NewValidationSets()
-	if err := sets.Add(as); err != nil {
-		return nil, err
-	}
+	mylog.Check(sets.Add(as))
+
 	return sets, nil
 }
 
@@ -335,10 +300,7 @@ func validationSetAssertFromDb(st *state.State, accountID, name string, sequence
 		"sequence":   fmt.Sprintf("%d", sequence),
 	}
 	db := assertstate.DB(st)
-	as, err := db.Find(asserts.ValidationSetType, headers)
-	if err != nil {
-		return nil, err
-	}
+	as := mylog.Check2(db.Find(asserts.ValidationSetType, headers))
 
 	vset := as.(*asserts.ValidationSet)
 	return vset, nil
@@ -346,26 +308,20 @@ func validationSetAssertFromDb(st *state.State, accountID, name string, sequence
 
 func validateAgainstStore(st *state.State, accountID, name string, sequence int, user *auth.UserState) Response {
 	// get from the store
-	as, err := getSingleSeqFormingAssertion(st, accountID, name, sequence, user)
+	as := mylog.Check2(getSingleSeqFormingAssertion(st, accountID, name, sequence, user))
 	if _, ok := err.(*asserts.NotFoundError); ok {
 		// not in the store - try to find in the database
-		as, err = validationSetAssertFromDb(st, accountID, name, sequence)
+		as = mylog.Check2(validationSetAssertFromDb(st, accountID, name, sequence))
 		if _, ok := err.(*asserts.NotFoundError); ok {
 			return validationSetNotFound(accountID, name, sequence)
 		}
 	}
-	if err != nil {
-		return InternalError(err.Error())
-	}
+
 	sets := snapasserts.NewValidationSets()
 	vset := as.(*asserts.ValidationSet)
-	if err := sets.Add(vset); err != nil {
-		return InternalError(err.Error())
-	}
-	snaps, _, err := snapstate.InstalledSnaps(st)
-	if err != nil {
-		return InternalError(err.Error())
-	}
+	mylog.Check(sets.Add(vset))
+
+	snaps, _ := mylog.Check3(snapstate.InstalledSnaps(st))
 
 	validErr := checkInstalledSnaps(sets, snaps, nil)
 	res := validationSetResult{
@@ -388,30 +344,21 @@ func getSingleSeqFormingAssertion(st *state.State, accountID, name string, seque
 
 	sequenceKey := []string{release.Series, accountID, name}
 	st.Unlock()
-	as, err := sto.SeqFormingAssertion(at, sequenceKey, sequence, user)
+	as := mylog.Check2(sto.SeqFormingAssertion(at, sequenceKey, sequence, user))
 	st.Lock()
-	if err != nil {
-		return nil, err
-	}
 
 	return as, nil
 }
 
 func enforceValidationSet(st *state.State, accountID, name string, sequence, userID int) Response {
-	snaps, ignoreValidation, err := snapstate.InstalledSnaps(st)
-	if err != nil {
-		return InternalError(err.Error())
-	}
-	tr, err := assertstateFetchAndApplyEnforcedValidationSet(st, accountID, name, sequence, userID, snaps, ignoreValidation)
-	if err != nil {
-		// XXX: provide more specific error kinds? This would probably require
-		// assertstate.ValidationSetAssertionForEnforce tuning too.
-		return BadRequest("cannot enforce validation set: %v", err)
-	}
+	snaps, ignoreValidation := mylog.Check3(snapstate.InstalledSnaps(st))
 
-	res, err := validationSetResultFromTracking(st, tr)
-	if err != nil {
-		return InternalError(err.Error())
-	}
+	tr := mylog.Check2(assertstateFetchAndApplyEnforcedValidationSet(st, accountID, name, sequence, userID, snaps, ignoreValidation))
+
+	// XXX: provide more specific error kinds? This would probably require
+	// assertstate.ValidationSetAssertionForEnforce tuning too.
+
+	res := mylog.Check2(validationSetResultFromTracking(st, tr))
+
 	return SyncResponse(*res)
 }

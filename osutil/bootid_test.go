@@ -22,6 +22,7 @@ package osutil_test
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -30,7 +31,7 @@ type bootIdSuite struct{}
 var _ = Suite(&bootIdSuite{})
 
 func (s *bootIdSuite) TestSmoke(c *C) {
-	id, err := osutil.BootID()
-	c.Assert(err, IsNil)
+	id := mylog.Check2(osutil.BootID())
+
 	c.Assert(id, HasLen, 36)
 }

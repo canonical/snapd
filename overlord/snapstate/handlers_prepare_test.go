@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -53,9 +54,8 @@ func (s *baseHandlerSuite) SetUpTest(c *C) {
 	s.state = state.New(nil)
 	s.runner = state.NewTaskRunner(s.state)
 
-	var err error
-	s.snapmgr, err = snapstate.Manager(s.state, s.runner)
-	c.Assert(err, IsNil)
+	s.snapmgr = mylog.Check2(snapstate.Manager(s.state, s.runner))
+
 
 	s.se = overlord.NewStateEngine(s.state)
 	s.se.AddManager(s.snapmgr)

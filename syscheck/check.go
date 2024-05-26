@@ -19,6 +19,8 @@
 
 package syscheck
 
+import "github.com/ddkwork/golibrary/mylog"
+
 var checks []func() error
 
 // CheckSystem ensures that the system is capable of running snapd and
@@ -28,9 +30,7 @@ var checks []func() error
 // An error with details is returned if some check fails.
 func CheckSystem() error {
 	for _, f := range checks {
-		if err := f(); err != nil {
-			return err
-		}
+		mylog.Check(f())
 	}
 
 	return nil

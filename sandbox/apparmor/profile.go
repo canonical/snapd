@@ -28,6 +28,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -134,18 +135,16 @@ var LoadProfiles = func(fnames []string, cacheDir string, flags AaParserFlags) e
 		args = append(args, "--quiet")
 	}
 
-	cmd, _, err := AppArmorParser()
-	if err != nil {
-		return err
-	}
+	cmd, _ := mylog.Check3(AppArmorParser())
 
 	cmd.Args = append(cmd.Args, args...)
 	cmd.Args = append(cmd.Args, fnames...)
-	output, err := cmd.CombinedOutput()
+	output := mylog.Check2(cmd.CombinedOutput())
 	if err != nil || strings.Contains(string(output), "parser error") {
 		if err == nil {
-			// ensure we have an error to report
-			err = fmt.Errorf("exit status 0 with parser error")
+			mylog.
+				// ensure we have an error to report
+				Check(fmt.Errorf("exit status 0 with parser error"))
 		}
 		return fmt.Errorf("cannot load apparmor profiles: %s\napparmor_parser output:\n%s", err, string(output))
 	}
@@ -165,14 +164,14 @@ func RemoveCachedProfiles(names []string, cacheDir string) error {
 	// With 2.13+, snap profiles are not expected to be in every
 	// subdirectory, so don't error on ENOENT but otherwise if we get an
 	// error, something weird happened so stop processing.
-	if li, err := filepath.Glob(filepath.Join(cacheDir, "*/.features")); err == nil && len(li) > 0 { // 2.13+
+	if li := mylog.Check2(filepath.Glob(filepath.Join(cacheDir, "*/.features"))); err == nil && len(li) > 0 { // 2.13+
 		for _, p := range li {
 			dir := path.Dir(p)
-			if err := osutil.UnlinkMany(dir, names); err != nil && !os.IsNotExist(err) {
+			if mylog.Check(osutil.UnlinkMany(dir, names)); err != nil && !os.IsNotExist(err) {
 				return fmt.Errorf("cannot remove apparmor profile cache in %s: %s", dir, err)
 			}
 		}
-	} else if err := osutil.UnlinkMany(cacheDir, names); err != nil && !os.IsNotExist(err) { // 2.12-
+	} else if mylog.Check(osutil.UnlinkMany(cacheDir, names)); err != nil && !os.IsNotExist(err) { // 2.12-
 		return fmt.Errorf("cannot remove apparmor profile cache: %s", err)
 	}
 	return nil
@@ -184,11 +183,9 @@ func RemoveCachedProfiles(names []string, cacheDir string) error {
 // AppArmor include files (like in the tunable files for HOMEDIRS or other
 // variables) which are bound to affect most snaps.
 func ReloadAllSnapProfiles() error {
-	profiles, err := filepath.Glob(filepath.Join(dirs.SnapAppArmorDir, "*"))
-	if err != nil {
-		// This only happens if the pattern is malformed
-		return err
-	}
+	profiles := mylog.Check2(filepath.Glob(filepath.Join(dirs.SnapAppArmorDir, "*")))
+
+	// This only happens if the pattern is malformed
 
 	// We also need to reload the profile of snap-confine; it could come from
 	// the core snap, in which case the glob above will already include it, or
@@ -201,9 +198,7 @@ func ReloadAllSnapProfiles() error {
 	// We want to reload the profiles no matter what, so don't even bother
 	// checking if the cached profile is newer
 	aaFlags := SkipReadCache
-	if err := LoadProfiles(profiles, SystemCacheDir, aaFlags); err != nil {
-		return err
-	}
+	mylog.Check(LoadProfiles(profiles, SystemCacheDir, aaFlags))
 
 	return nil
 }
@@ -218,24 +213,20 @@ var profilesPath = realProfilesPath
 // Snappy manages apparmor profiles named "snap.*". Other profiles might exist on
 // the system (via snappy dimension) and those are filtered-out.
 func LoadedProfiles() ([]string, error) {
-	file, err := os.Open(profilesPath)
-	if err != nil {
-		return nil, err
-	}
+	file := mylog.Check2(os.Open(profilesPath))
+
 	defer file.Close()
 	var profiles []string
 	for {
 		var name, mode string
-		n, err := fmt.Fscanf(file, "%s %s\n", &name, &mode)
+		n := mylog.Check2(fmt.Fscanf(file, "%s %s\n", &name, &mode))
 		if n > 0 && n != 2 {
 			return nil, fmt.Errorf("syntax error, expected: name (mode)")
 		}
 		if err == io.EOF {
 			break
 		}
-		if err != nil {
-			return nil, err
-		}
+
 		if strings.HasPrefix(name, "snap.") {
 			profiles = append(profiles, name)
 		}
@@ -282,10 +273,8 @@ var SnapConfineDistroProfilePath = func() string {
 }
 
 var loadHomedirs = func() ([]string, error) {
-	ssp, err := sysparams.Open("")
-	if err != nil {
-		return nil, err
-	}
+	ssp := mylog.Check2(sysparams.Open(""))
+
 	return strutil.CommaSeparatedList(ssp.Homedirs), nil
 }
 
@@ -293,10 +282,9 @@ var loadHomedirs = func() ([]string, error) {
 // policy for snap-confine. Local policy is included by the system-wide policy.
 // Returns whether any modifications was made to the snap-confine snippets.
 func SetupSnapConfineSnippets() (wasChanged bool, err error) {
-	// Create the local policy directory if it is not there.
-	if err := os.MkdirAll(SnapConfineAppArmorDir, 0755); err != nil {
-		return false, fmt.Errorf("cannot create snap-confine policy directory: %s", err)
-	}
+	mylog.Check(
+		// Create the local policy directory if it is not there.
+		os.MkdirAll(SnapConfineAppArmorDir, 0755))
 
 	policy := make(map[string]osutil.FileState)
 
@@ -304,7 +292,7 @@ func SetupSnapConfineSnippets() (wasChanged bool, err error) {
 	// Because some remote file systems, like NFS, are not transparent
 	// to apparmor we must alter our profile to counter that and allow
 	// snap-confine to work.
-	if nfs, err := osutilIsHomeUsingRemoteFS(); err != nil {
+	if nfs := mylog.Check2(osutilIsHomeUsingRemoteFS()); err != nil {
 		logger.Noticef("cannot determine if remote file system is in use: %v", err)
 	} else if nfs {
 		// TODO: rename this to remote-fs-support.
@@ -317,7 +305,7 @@ func SetupSnapConfineSnippets() (wasChanged bool, err error) {
 
 	// Check if '/' is on overlayfs. If so, add the necessary rules for
 	// upperdir and allow snap-confine to work.
-	if overlayRoot, err := osutilIsRootWritableOverlay(); err != nil {
+	if overlayRoot := mylog.Check2(osutilIsRootWritableOverlay()); err != nil {
 		logger.Noticef("cannot determine if root filesystem on overlay: %v", err)
 	} else if overlayRoot != "" {
 		snippet := strings.Replace(OverlayRootSnippet, "###UPPERDIR###", overlayRoot, -1)
@@ -331,7 +319,7 @@ func SetupSnapConfineSnippets() (wasChanged bool, err error) {
 	// Check whether apparmor_parser supports bpf capability. Some older
 	// versions do not, hence the capability cannot be part of the default
 	// profile of snap-confine as loading it would fail.
-	if features, err := ParserFeatures(); err != nil {
+	if features := mylog.Check2(ParserFeatures()); err != nil {
 		logger.Noticef("cannot determine apparmor_parser features: %v", err)
 	} else if strutil.ListContains(features, "cap-bpf") {
 		policy["cap-bpf"] = &osutil.MemoryFileState{
@@ -340,7 +328,7 @@ func SetupSnapConfineSnippets() (wasChanged bool, err error) {
 		}
 	}
 
-	if homedirs, err := loadHomedirs(); err != nil {
+	if homedirs := mylog.Check2(loadHomedirs()); err != nil {
 		logger.Noticef("cannot determine if any homedirs are set: %v", err)
 	} else if len(homedirs) > 0 {
 		policy["homedirs"] = &osutil.MemoryFileState{
@@ -350,16 +338,14 @@ func SetupSnapConfineSnippets() (wasChanged bool, err error) {
 	}
 
 	// Ensure that generated policy is what we computed above.
-	created, removed, err := osutil.EnsureDirState(SnapConfineAppArmorDir, "*", policy)
-	if err != nil {
-		return false, fmt.Errorf("cannot synchronize snap-confine policy: %s", err)
-	}
+	created, removed := mylog.Check3(osutil.EnsureDirState(SnapConfineAppArmorDir, "*", policy))
+
 	return len(created) > 0 || len(removed) > 0, nil
 }
 
 // RemoveSnapConfineSnippets clears out any previously written apparmor snippets
 // for snap-confine.
 func RemoveSnapConfineSnippets() error {
-	_, _, err := osutil.EnsureDirState(SnapConfineAppArmorDir, "*", nil)
+	_, _ := mylog.Check3(osutil.EnsureDirState(SnapConfineAppArmorDir, "*", nil))
 	return err
 }

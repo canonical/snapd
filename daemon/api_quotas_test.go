@@ -29,6 +29,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/gadget/quantity"
@@ -70,18 +71,18 @@ func (s *apiQuotaSuite) SetUpTest(c *check.C) {
 }
 
 func mockQuotas(st *state.State, c *check.C) {
-	err := servicestatetest.MockQuotaInState(st, "foo", "", []string{"test-snap"}, nil, quota.NewResourcesBuilder().WithMemoryLimit(16*quantity.SizeMiB).Build())
+	mylog.Check(servicestatetest.MockQuotaInState(st, "foo", "", []string{"test-snap"}, nil, quota.NewResourcesBuilder().WithMemoryLimit(16*quantity.SizeMiB).Build()))
 	c.Assert(err, check.IsNil)
-	err = servicestatetest.MockQuotaInState(st, "bar", "foo", nil, []string{"test-snap.svc1"}, quota.NewResourcesBuilder().WithMemoryLimit(4*quantity.SizeMiB).Build())
+	mylog.Check(servicestatetest.MockQuotaInState(st, "bar", "foo", nil, []string{"test-snap.svc1"}, quota.NewResourcesBuilder().WithMemoryLimit(4*quantity.SizeMiB).Build()))
 	c.Assert(err, check.IsNil)
-	err = servicestatetest.MockQuotaInState(st, "baz", "foo", nil, nil, quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
+	mylog.Check(servicestatetest.MockQuotaInState(st, "baz", "foo", nil, nil, quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build()))
 	c.Assert(err, check.IsNil)
 }
 
 func (s *apiQuotaSuite) TestCreateQuotaValues(c *check.C) {
 	st := s.d.Overlord().State()
 	st.Lock()
-	err := servicestatetest.MockQuotaInState(st, "ginger-ale", "", nil, nil,
+	mylog.Check(servicestatetest.MockQuotaInState(st, "ginger-ale", "", nil, nil,
 		quota.NewResourcesBuilder().
 			WithMemoryLimit(quantity.SizeMiB).
 			WithCPUCount(1).
@@ -90,7 +91,7 @@ func (s *apiQuotaSuite) TestCreateQuotaValues(c *check.C) {
 			WithCPUSet([]int{0, 1}).
 			WithJournalRate(150, time.Second).
 			WithJournalSize(quantity.SizeMiB).
-			Build())
+			Build()))
 	allGroups, err2 := servicestate.AllQuotas(st)
 	st.Unlock()
 	c.Assert(err, check.IsNil)
@@ -121,10 +122,10 @@ func (s *apiQuotaSuite) TestCreateQuotaValues(c *check.C) {
 }
 
 func (s *apiQuotaSuite) TestPostQuotaUnknownAction(c *check.C) {
-	data, err := json.Marshal(daemon.PostQuotaGroupData{Action: "foo", GroupName: "bar"})
+	data := mylog.Check2(json.Marshal(daemon.PostQuotaGroupData{Action: "foo", GroupName: "bar"}))
 	c.Assert(err, check.IsNil)
 
-	req, err := http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
+	req := mylog.Check2(http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data)))
 	c.Assert(err, check.IsNil)
 	rspe := s.errorReq(c, req, nil)
 	c.Assert(rspe.Status, check.Equals, 400)
@@ -132,10 +133,10 @@ func (s *apiQuotaSuite) TestPostQuotaUnknownAction(c *check.C) {
 }
 
 func (s *apiQuotaSuite) TestPostQuotaInvalidGroupName(c *check.C) {
-	data, err := json.Marshal(daemon.PostQuotaGroupData{Action: "ensure", GroupName: "$$$"})
+	data := mylog.Check2(json.Marshal(daemon.PostQuotaGroupData{Action: "ensure", GroupName: "$$$"}))
 	c.Assert(err, check.IsNil)
 
-	req, err := http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
+	req := mylog.Check2(http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data)))
 	c.Assert(err, check.IsNil)
 	rspe := s.errorReq(c, req, nil)
 	c.Assert(rspe.Status, check.Equals, 400)
@@ -152,16 +153,16 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaUnhappy(c *check.C) {
 	})
 	defer r()
 
-	data, err := json.Marshal(daemon.PostQuotaGroupData{
+	data := mylog.Check2(json.Marshal(daemon.PostQuotaGroupData{
 		Action:      "ensure",
 		GroupName:   "booze",
 		Parent:      "foo",
 		Snaps:       []string{"bar"},
 		Constraints: client.QuotaValues{Memory: quantity.Size(1000)},
-	})
+	}))
 	c.Assert(err, check.IsNil)
 
-	req, err := http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
+	req := mylog.Check2(http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data)))
 	c.Assert(err, check.IsNil)
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe.Status, check.Equals, 400)
@@ -182,16 +183,16 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaCreateHappy(c *check.C) {
 	})
 	defer r()
 
-	data, err := json.Marshal(daemon.PostQuotaGroupData{
+	data := mylog.Check2(json.Marshal(daemon.PostQuotaGroupData{
 		Action:      "ensure",
 		GroupName:   "booze",
 		Parent:      "foo",
 		Snaps:       []string{"some-snap"},
 		Constraints: client.QuotaValues{Memory: quantity.Size(1000)},
-	})
+	}))
 	c.Assert(err, check.IsNil)
 
-	req, err := http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
+	req := mylog.Check2(http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data)))
 	c.Assert(err, check.IsNil)
 	rsp := s.asyncReq(c, req, nil)
 	c.Assert(rsp.Status, check.Equals, 202)
@@ -224,16 +225,16 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaCreateQuotaConflicts(c *check.C) {
 	})
 	defer r()
 
-	data, err := json.Marshal(daemon.PostQuotaGroupData{
+	data := mylog.Check2(json.Marshal(daemon.PostQuotaGroupData{
 		Action:      "ensure",
 		GroupName:   "booze",
 		Parent:      "foo",
 		Snaps:       []string{"some-snap"},
 		Constraints: client.QuotaValues{Memory: 1000},
-	})
+	}))
 	c.Assert(err, check.IsNil)
 
-	req, err := http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
+	req := mylog.Check2(http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data)))
 	c.Assert(err, check.IsNil)
 	rspe := s.errorReq(c, req, nil)
 	c.Assert(rspe.Status, check.Equals, 409)
@@ -243,7 +244,7 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaCreateQuotaConflicts(c *check.C) {
 		"quota-name":  "booze",
 	})
 
-	req, err = http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
+	req = mylog.Check2(http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data)))
 	c.Assert(err, check.IsNil)
 
 	rspe = s.errorReq(c, req, nil)
@@ -271,7 +272,7 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaCreateServicesHappy(c *check.C) {
 	})
 	defer r()
 
-	data, err := json.Marshal(daemon.PostQuotaGroupData{
+	data := mylog.Check2(json.Marshal(daemon.PostQuotaGroupData{
 		Action:    "ensure",
 		GroupName: "booze",
 		Parent:    "foo",
@@ -280,10 +281,10 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaCreateServicesHappy(c *check.C) {
 		Constraints: client.QuotaValues{
 			Memory: quantity.SizeGiB,
 		},
-	})
+	}))
 	c.Assert(err, check.IsNil)
 
-	req, err := http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
+	req := mylog.Check2(http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data)))
 	c.Assert(err, check.IsNil)
 	rsp := s.asyncReq(c, req, nil)
 	c.Assert(rsp.Status, check.Equals, 202)
@@ -304,7 +305,7 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaCreateJournalRateZeroHappy(c *check.C
 	})
 	defer r()
 
-	data, err := json.Marshal(daemon.PostQuotaGroupData{
+	data := mylog.Check2(json.Marshal(daemon.PostQuotaGroupData{
 		Action:    "ensure",
 		GroupName: "booze",
 		Parent:    "foo",
@@ -317,10 +318,10 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaCreateJournalRateZeroHappy(c *check.C
 				},
 			},
 		},
-	})
+	}))
 	c.Assert(err, check.IsNil)
 
-	req, err := http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
+	req := mylog.Check2(http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data)))
 	c.Assert(err, check.IsNil)
 	rsp := s.asyncReq(c, req, nil)
 	c.Assert(rsp.Status, check.Equals, 202)
@@ -331,13 +332,13 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaCreateJournalRateZeroHappy(c *check.C
 func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateCpuHappy(c *check.C) {
 	st := s.d.Overlord().State()
 	st.Lock()
-	err := servicestatetest.MockQuotaInState(st, "ginger-ale", "", nil, nil,
+	mylog.Check(servicestatetest.MockQuotaInState(st, "ginger-ale", "", nil, nil,
 		quota.NewResourcesBuilder().
 			WithMemoryLimit(quantity.SizeMiB).
 			WithCPUCount(1).
 			WithCPUPercentage(100).
 			WithThreadLimit(256).
-			Build())
+			Build()))
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 
@@ -360,7 +361,7 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateCpuHappy(c *check.C) {
 	})
 	defer r()
 
-	data, err := json.Marshal(daemon.PostQuotaGroupData{
+	data := mylog.Check2(json.Marshal(daemon.PostQuotaGroupData{
 		Action:    "ensure",
 		GroupName: "ginger-ale",
 		Snaps:     []string{"some-snap"},
@@ -371,10 +372,10 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateCpuHappy(c *check.C) {
 			},
 			Threads: 512,
 		},
-	})
+	}))
 	c.Assert(err, check.IsNil)
 
-	req, err := http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
+	req := mylog.Check2(http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data)))
 	c.Assert(err, check.IsNil)
 	rsp := s.asyncReq(c, req, nil)
 	c.Assert(rsp.Status, check.Equals, 202)
@@ -385,13 +386,13 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateCpuHappy(c *check.C) {
 func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateCpu2Happy(c *check.C) {
 	st := s.d.Overlord().State()
 	st.Lock()
-	err := servicestatetest.MockQuotaInState(st, "ginger-ale", "", nil, nil,
+	mylog.Check(servicestatetest.MockQuotaInState(st, "ginger-ale", "", nil, nil,
 		quota.NewResourcesBuilder().
 			WithMemoryLimit(quantity.SizeMiB).
 			WithCPUCount(1).
 			WithCPUPercentage(100).
 			WithThreadLimit(256).
-			Build())
+			Build()))
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 
@@ -414,7 +415,7 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateCpu2Happy(c *check.C) {
 	})
 	defer r()
 
-	data, err := json.Marshal(daemon.PostQuotaGroupData{
+	data := mylog.Check2(json.Marshal(daemon.PostQuotaGroupData{
 		Action:    "ensure",
 		GroupName: "ginger-ale",
 		Snaps:     []string{"some-snap"},
@@ -427,10 +428,10 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateCpu2Happy(c *check.C) {
 				CPUs: []int{0, 1},
 			},
 		},
-	})
+	}))
 	c.Assert(err, check.IsNil)
 
-	req, err := http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
+	req := mylog.Check2(http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data)))
 	c.Assert(err, check.IsNil)
 	rsp := s.asyncReq(c, req, nil)
 	c.Assert(rsp.Status, check.Equals, 202)
@@ -441,13 +442,13 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateCpu2Happy(c *check.C) {
 func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateMemoryHappy(c *check.C) {
 	st := s.d.Overlord().State()
 	st.Lock()
-	err := servicestatetest.MockQuotaInState(st, "ginger-ale", "", nil, nil,
+	mylog.Check(servicestatetest.MockQuotaInState(st, "ginger-ale", "", nil, nil,
 		quota.NewResourcesBuilder().
 			WithMemoryLimit(quantity.SizeMiB).
 			WithCPUCount(1).
 			WithCPUPercentage(100).
 			WithThreadLimit(256).
-			Build())
+			Build()))
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 
@@ -470,17 +471,17 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateMemoryHappy(c *check.C) {
 	})
 	defer r()
 
-	data, err := json.Marshal(daemon.PostQuotaGroupData{
+	data := mylog.Check2(json.Marshal(daemon.PostQuotaGroupData{
 		Action:    "ensure",
 		GroupName: "ginger-ale",
 		Snaps:     []string{"some-snap"},
 		Constraints: client.QuotaValues{
 			Memory: quantity.Size(9000),
 		},
-	})
+	}))
 	c.Assert(err, check.IsNil)
 
-	req, err := http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
+	req := mylog.Check2(http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data)))
 	c.Assert(err, check.IsNil)
 	rsp := s.asyncReq(c, req, nil)
 	c.Assert(rsp.Status, check.Equals, 202)
@@ -491,7 +492,7 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateMemoryHappy(c *check.C) {
 func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateConflicts(c *check.C) {
 	st := s.d.Overlord().State()
 	st.Lock()
-	err := servicestatetest.MockQuotaInState(st, "ginger-ale", "", nil, nil, quota.NewResourcesBuilder().WithMemoryLimit(650*quantity.SizeKiB).Build())
+	mylog.Check(servicestatetest.MockQuotaInState(st, "ginger-ale", "", nil, nil, quota.NewResourcesBuilder().WithMemoryLimit(650*quantity.SizeKiB).Build()))
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 
@@ -525,15 +526,15 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateConflicts(c *check.C) {
 	})
 	defer r()
 
-	data, err := json.Marshal(daemon.PostQuotaGroupData{
+	data := mylog.Check2(json.Marshal(daemon.PostQuotaGroupData{
 		Action:      "ensure",
 		GroupName:   "ginger-ale",
 		Snaps:       []string{"some-snap"},
 		Constraints: client.QuotaValues{Memory: 800 * quantity.SizeKiB},
-	})
+	}))
 	c.Assert(err, check.IsNil)
 
-	req, err := http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
+	req := mylog.Check2(http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data)))
 	c.Assert(err, check.IsNil)
 	rspe := s.errorReq(c, req, nil)
 	c.Assert(rspe.Status, check.Equals, 409)
@@ -543,7 +544,7 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateConflicts(c *check.C) {
 		"quota-name":  "ginger-ale",
 	})
 
-	req, err = http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
+	req = mylog.Check2(http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data)))
 	c.Assert(err, check.IsNil)
 
 	rspe = s.errorReq(c, req, nil)
@@ -567,13 +568,13 @@ func (s *apiQuotaSuite) TestPostRemoveQuotaHappy(c *check.C) {
 	})
 	defer r()
 
-	data, err := json.Marshal(daemon.PostQuotaGroupData{
+	data := mylog.Check2(json.Marshal(daemon.PostQuotaGroupData{
 		Action:    "remove",
 		GroupName: "booze",
-	})
+	}))
 	c.Assert(err, check.IsNil)
 
-	req, err := http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
+	req := mylog.Check2(http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data)))
 	c.Assert(err, check.IsNil)
 	s.asRootAuth(req)
 
@@ -587,7 +588,7 @@ func (s *apiQuotaSuite) TestPostRemoveQuotaHappy(c *check.C) {
 func (s *apiQuotaSuite) TestPostRemoveQuotaConflict(c *check.C) {
 	st := s.d.Overlord().State()
 	st.Lock()
-	err := servicestatetest.MockQuotaInState(st, "ginger-ale", "", []string{"some-snap"}, nil, quota.NewResourcesBuilder().WithMemoryLimit(650*quantity.SizeKiB).Build())
+	mylog.Check(servicestatetest.MockQuotaInState(st, "ginger-ale", "", []string{"some-snap"}, nil, quota.NewResourcesBuilder().WithMemoryLimit(650*quantity.SizeKiB).Build()))
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 
@@ -611,13 +612,13 @@ func (s *apiQuotaSuite) TestPostRemoveQuotaConflict(c *check.C) {
 	})
 	defer r()
 
-	data, err := json.Marshal(daemon.PostQuotaGroupData{
+	data := mylog.Check2(json.Marshal(daemon.PostQuotaGroupData{
 		Action:    "remove",
 		GroupName: "booze",
-	})
+	}))
 	c.Assert(err, check.IsNil)
 
-	req, err := http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
+	req := mylog.Check2(http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data)))
 	c.Assert(err, check.IsNil)
 	rspe := s.errorReq(c, req, nil)
 	c.Assert(rspe.Status, check.Equals, 409)
@@ -627,7 +628,7 @@ func (s *apiQuotaSuite) TestPostRemoveQuotaConflict(c *check.C) {
 		"quota-name":  "booze",
 	})
 
-	req, err = http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
+	req = mylog.Check2(http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data)))
 	c.Assert(err, check.IsNil)
 
 	rspe = s.errorReq(c, req, nil)
@@ -648,13 +649,13 @@ func (s *apiQuotaSuite) TestPostRemoveQuotaUnhappy(c *check.C) {
 	})
 	defer r()
 
-	data, err := json.Marshal(daemon.PostQuotaGroupData{
+	data := mylog.Check2(json.Marshal(daemon.PostQuotaGroupData{
 		Action:    "remove",
 		GroupName: "booze",
-	})
+	}))
 	c.Assert(err, check.IsNil)
 
-	req, err := http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
+	req := mylog.Check2(http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data)))
 	c.Assert(err, check.IsNil)
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe.Status, check.Equals, 400)
@@ -669,13 +670,13 @@ func (s *apiQuotaSuite) TestPostQuotaRequiresRoot(c *check.C) {
 	})
 	defer r()
 
-	data, err := json.Marshal(daemon.PostQuotaGroupData{
+	data := mylog.Check2(json.Marshal(daemon.PostQuotaGroupData{
 		Action:    "remove",
 		GroupName: "booze",
-	})
+	}))
 	c.Assert(err, check.IsNil)
 
-	req, err := http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
+	req := mylog.Check2(http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data)))
 	c.Assert(err, check.IsNil)
 	s.asUserAuth(c, req)
 
@@ -717,7 +718,7 @@ func (s *apiQuotaSuite) TestListQuotas(c *check.C) {
 		c.Assert(calls, check.Equals, 3)
 	}()
 
-	req, err := http.NewRequest("GET", "/v2/quotas", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/quotas", nil))
 	c.Assert(err, check.IsNil)
 	rsp := s.syncReq(c, req, nil)
 	c.Assert(rsp.Status, check.Equals, 200)
@@ -751,11 +752,11 @@ func (s *apiQuotaSuite) TestListQuotas(c *check.C) {
 func (s *apiQuotaSuite) TestListJournalQuotas(c *check.C) {
 	st := s.d.Overlord().State()
 	st.Lock()
-	err := servicestatetest.MockQuotaInState(st, "foo", "", nil, nil, quota.NewResourcesBuilder().WithJournalSize(64*quantity.SizeMiB).Build())
+	mylog.Check(servicestatetest.MockQuotaInState(st, "foo", "", nil, nil, quota.NewResourcesBuilder().WithJournalSize(64*quantity.SizeMiB).Build()))
 	c.Assert(err, check.IsNil)
-	err = servicestatetest.MockQuotaInState(st, "bar", "foo", nil, nil, quota.NewResourcesBuilder().WithJournalRate(100, time.Hour).Build())
+	mylog.Check(servicestatetest.MockQuotaInState(st, "bar", "foo", nil, nil, quota.NewResourcesBuilder().WithJournalRate(100, time.Hour).Build()))
 	c.Assert(err, check.IsNil)
-	err = servicestatetest.MockQuotaInState(st, "baz", "foo", nil, nil, quota.NewResourcesBuilder().WithJournalRate(0, 0).Build())
+	mylog.Check(servicestatetest.MockQuotaInState(st, "baz", "foo", nil, nil, quota.NewResourcesBuilder().WithJournalRate(0, 0).Build()))
 	c.Assert(err, check.IsNil)
 	st.Unlock()
 
@@ -769,7 +770,7 @@ func (s *apiQuotaSuite) TestListJournalQuotas(c *check.C) {
 		c.Assert(calls, check.Equals, 3)
 	}()
 
-	req, err := http.NewRequest("GET", "/v2/quotas", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/quotas", nil))
 	c.Assert(err, check.IsNil)
 	rsp := s.syncReq(c, req, nil)
 	c.Assert(rsp.Status, check.Equals, 200)
@@ -829,7 +830,7 @@ func (s *apiQuotaSuite) TestGetQuota(c *check.C) {
 		c.Assert(calls, check.Equals, 1)
 	}()
 
-	req, err := http.NewRequest("GET", "/v2/quotas/bar", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/quotas/bar", nil))
 	c.Assert(err, check.IsNil)
 	rsp := s.syncReq(c, req, nil)
 	c.Assert(rsp.Status, check.Equals, 200)
@@ -852,7 +853,7 @@ func (s *apiQuotaSuite) TestGetQuotaInvalidName(c *check.C) {
 	mockQuotas(st, c)
 	st.Unlock()
 
-	req, err := http.NewRequest("GET", "/v2/quotas/000", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/quotas/000", nil))
 	c.Assert(err, check.IsNil)
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe.Status, check.Equals, 400)
@@ -861,7 +862,7 @@ func (s *apiQuotaSuite) TestGetQuotaInvalidName(c *check.C) {
 }
 
 func (s *apiQuotaSuite) TestGetQuotaNotFound(c *check.C) {
-	req, err := http.NewRequest("GET", "/v2/quotas/unknown", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/quotas/unknown", nil))
 	c.Assert(err, check.IsNil)
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe.Status, check.Equals, 404)

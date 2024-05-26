@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
@@ -47,17 +48,16 @@ type kernelCommandLineSuite struct {
 func (s *kernelCommandLineSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	s.rootDir = c.MkDir()
+	mylog.Check(os.MkdirAll(filepath.Join(s.rootDir, "proc"), 0755))
 
-	err := os.MkdirAll(filepath.Join(s.rootDir, "proc"), 0755)
-	c.Assert(err, IsNil)
 	restore := kcmdline.MockProcCmdline(filepath.Join(s.rootDir, "proc/cmdline"))
 	s.AddCleanup(restore)
 }
 
 func (s *kernelCommandLineSuite) mockProcCmdlineContent(c *C, newContent string) {
 	mockProcCmdline := filepath.Join(s.rootDir, "proc/cmdline")
-	err := os.WriteFile(mockProcCmdline, []byte(newContent), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(mockProcCmdline, []byte(newContent), 0644))
+
 }
 
 func (s *kernelCommandLineSuite) TestModeAndLabel(c *C) {
@@ -116,9 +116,9 @@ func (s *kernelCommandLineSuite) TestModeAndLabel(c *C) {
 		c.Logf("tc: %q", tc)
 		s.mockProcCmdlineContent(c, tc.cmd)
 
-		mode, label, err := boot.ModeAndRecoverySystemFromKernelCommandLine()
+		mode, label := mylog.Check3(boot.ModeAndRecoverySystemFromKernelCommandLine())
 		if tc.err == "" {
-			c.Assert(err, IsNil)
+
 			c.Check(mode, Equals, tc.mode)
 			c.Check(label, Equals, tc.label)
 		} else {
@@ -134,23 +134,23 @@ func (s *kernelCommandLineSuite) TestComposeCommandLineNotManagedHappy(c *C) {
 	bootloader.Force(bl)
 	defer bootloader.Force(nil)
 
-	cmdline, err := boot.ComposeRecoveryCommandLine(model, "20200314", "")
-	c.Assert(err, IsNil)
+	cmdline := mylog.Check2(boot.ComposeRecoveryCommandLine(model, "20200314", ""))
+
 	c.Assert(cmdline, Equals, "")
 
-	cmdline, err = boot.ComposeCommandLine(model, "")
-	c.Assert(err, IsNil)
+	cmdline = mylog.Check2(boot.ComposeCommandLine(model, ""))
+
 	c.Assert(cmdline, Equals, "")
 
 	tbl := bl.WithTrustedAssets()
 	bootloader.Force(tbl)
 
-	cmdline, err = boot.ComposeRecoveryCommandLine(model, "20200314", "")
-	c.Assert(err, IsNil)
+	cmdline = mylog.Check2(boot.ComposeRecoveryCommandLine(model, "20200314", ""))
+
 	c.Assert(cmdline, Equals, "snapd_recovery_mode=recover snapd_recovery_system=20200314")
 
-	cmdline, err = boot.ComposeCommandLine(model, "")
-	c.Assert(err, IsNil)
+	cmdline = mylog.Check2(boot.ComposeCommandLine(model, ""))
+
 	c.Assert(cmdline, Equals, "snapd_recovery_mode=run")
 }
 
@@ -160,12 +160,12 @@ func (s *kernelCommandLineSuite) TestComposeCommandLineNotUC20(c *C) {
 	bl := bootloadertest.Mock("btloader", c.MkDir())
 	bootloader.Force(bl)
 	defer bootloader.Force(nil)
-	cmdline, err := boot.ComposeRecoveryCommandLine(model, "20200314", "")
-	c.Assert(err, IsNil)
+	cmdline := mylog.Check2(boot.ComposeRecoveryCommandLine(model, "20200314", ""))
+
 	c.Check(cmdline, Equals, "")
 
-	cmdline, err = boot.ComposeCommandLine(model, "")
-	c.Assert(err, IsNil)
+	cmdline = mylog.Check2(boot.ComposeCommandLine(model, ""))
+
 	c.Check(cmdline, Equals, "")
 }
 
@@ -178,18 +178,18 @@ func (s *kernelCommandLineSuite) TestComposeCommandLineManagedHappy(c *C) {
 
 	tbl.StaticCommandLine = "panic=-1"
 
-	cmdline, err := boot.ComposeRecoveryCommandLine(model, "20200314", "")
-	c.Assert(err, IsNil)
+	cmdline := mylog.Check2(boot.ComposeRecoveryCommandLine(model, "20200314", ""))
+
 	c.Assert(cmdline, Equals, "snapd_recovery_mode=recover snapd_recovery_system=20200314 panic=-1")
-	cmdline, err = boot.ComposeCommandLine(model, "")
-	c.Assert(err, IsNil)
+	cmdline = mylog.Check2(boot.ComposeCommandLine(model, ""))
+
 	c.Assert(cmdline, Equals, "snapd_recovery_mode=run panic=-1")
 
-	cmdline, err = boot.ComposeRecoveryCommandLine(model, "20200314", "")
-	c.Assert(err, IsNil)
+	cmdline = mylog.Check2(boot.ComposeRecoveryCommandLine(model, "20200314", ""))
+
 	c.Assert(cmdline, Equals, "snapd_recovery_mode=recover snapd_recovery_system=20200314 panic=-1")
-	cmdline, err = boot.ComposeCommandLine(model, "")
-	c.Assert(err, IsNil)
+	cmdline = mylog.Check2(boot.ComposeCommandLine(model, ""))
+
 	c.Assert(cmdline, Equals, "snapd_recovery_mode=run panic=-1")
 }
 
@@ -203,8 +203,8 @@ func (s *kernelCommandLineSuite) TestComposeCandidateCommandLineManagedHappy(c *
 	tbl.StaticCommandLine = "panic=-1"
 	tbl.CandidateStaticCommandLine = "candidate panic=0"
 
-	cmdline, err := boot.ComposeCandidateCommandLine(model, "")
-	c.Assert(err, IsNil)
+	cmdline := mylog.Check2(boot.ComposeCandidateCommandLine(model, ""))
+
 	c.Assert(cmdline, Equals, "snapd_recovery_mode=run candidate panic=0")
 }
 
@@ -218,11 +218,11 @@ func (s *kernelCommandLineSuite) TestComposeCandidateRecoveryCommandLineManagedH
 	tbl.StaticCommandLine = "panic=-1"
 	tbl.CandidateStaticCommandLine = "candidate panic=0"
 
-	cmdline, err := boot.ComposeCandidateRecoveryCommandLine(model, "1234", "")
-	c.Assert(err, IsNil)
+	cmdline := mylog.Check2(boot.ComposeCandidateRecoveryCommandLine(model, "1234", ""))
+
 	c.Check(cmdline, Equals, "snapd_recovery_mode=recover snapd_recovery_system=1234 candidate panic=0")
 
-	cmdline, err = boot.ComposeCandidateRecoveryCommandLine(model, "", "")
+	cmdline = mylog.Check2(boot.ComposeCandidateRecoveryCommandLine(model, "", ""))
 	c.Assert(err, ErrorMatches, "internal error: system is unset")
 	c.Check(cmdline, Equals, "")
 }
@@ -289,17 +289,17 @@ volumes:
 			{"meta/gadget.yaml", mockGadgetYaml},
 		}, tc.files...))
 		var cmdline string
-		var err error
+
 		switch tc.which {
 		case "current":
-			cmdline, err = boot.ComposeCommandLine(model, sf)
+			cmdline = mylog.Check2(boot.ComposeCommandLine(model, sf))
 		case "candidate":
-			cmdline, err = boot.ComposeCandidateCommandLine(model, sf)
+			cmdline = mylog.Check2(boot.ComposeCandidateCommandLine(model, sf))
 		default:
 			c.Fatalf("unexpected command line type")
 		}
 		if tc.errMsg == "" {
-			c.Assert(err, IsNil)
+
 			c.Assert(cmdline, Equals, tc.expCommandLine)
 		} else {
 			c.Assert(err, ErrorMatches, tc.errMsg)
@@ -365,17 +365,17 @@ volumes:
 			{"meta/gadget.yaml", mockGadgetYaml},
 		}, tc.files...))
 		var cmdline string
-		var err error
+
 		switch tc.which {
 		case "current":
-			cmdline, err = boot.ComposeRecoveryCommandLine(model, system, sf)
+			cmdline = mylog.Check2(boot.ComposeRecoveryCommandLine(model, system, sf))
 		case "candidate":
-			cmdline, err = boot.ComposeCandidateRecoveryCommandLine(model, system, sf)
+			cmdline = mylog.Check2(boot.ComposeCandidateRecoveryCommandLine(model, system, sf))
 		default:
 			c.Fatalf("unexpected command line type")
 		}
 		if tc.errMsg == "" {
-			c.Assert(err, IsNil)
+
 			c.Assert(cmdline, Equals, tc.expCommandLine)
 		} else {
 			c.Assert(err, ErrorMatches, tc.errMsg)
@@ -499,9 +499,9 @@ volumes:
 			{"meta/snap.yaml", gadgetSnapYaml},
 			{"meta/gadget.yaml", gadgetYaml},
 		}, tc.files...))
-		vars, err := boot.BootVarsForTrustedCommandLineFromGadget(sf, tc.cmdlineAppend, "default", model)
+		vars := mylog.Check2(boot.BootVarsForTrustedCommandLineFromGadget(sf, tc.cmdlineAppend, "default", model))
 		if tc.errMsg == "" {
-			c.Assert(err, IsNil)
+
 			c.Assert(vars, DeepEquals, tc.expectedVars)
 		} else {
 			c.Assert(err, ErrorMatches, tc.errMsg)

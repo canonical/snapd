@@ -28,6 +28,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -40,11 +41,7 @@ func init() {
 		short = "Run snapd failure handling"
 		long  = ""
 	)
-
-	if _, err := parser.AddCommand("snapd", short, long, &cmdSnapd{}); err != nil {
-		panic(err)
-	}
-
+	mylog.Check2(parser.AddCommand("snapd", short, long, &cmdSnapd{}))
 }
 
 // We do not import anything from snapd here for safety reasons so make a
@@ -60,23 +57,20 @@ type snapSeq struct {
 
 type cmdSnapd struct{}
 
-var errNoSnapd = errors.New("no snapd sequence file found")
-var errNoPrevious = errors.New("no revision to go back to")
+var (
+	errNoSnapd    = errors.New("no snapd sequence file found")
+	errNoPrevious = errors.New("no revision to go back to")
+)
 
 func prevRevision(snapName string) (string, error) {
 	seqFile := filepath.Join(dirs.SnapSeqDir, snapName+".json")
-	content, err := os.ReadFile(seqFile)
+	content := mylog.Check2(os.ReadFile(seqFile))
 	if os.IsNotExist(err) {
 		return "", errNoSnapd
 	}
-	if err != nil {
-		return "", err
-	}
 
 	var seq snapSeq
-	if err := json.Unmarshal(content, &seq); err != nil {
-		return "", fmt.Errorf("cannot parse %q sequence file: %v", filepath.Base(seqFile), err)
-	}
+	mylog.Check(json.Unmarshal(content, &seq))
 
 	var prev string
 	for i, si := range seq.Sequence {
@@ -126,7 +120,7 @@ func (c *cmdSnapd) Execute(args []string) error {
 
 	var snapdPath string
 	// find previous the snapd snap
-	prevRev, err := prevRevision("snapd")
+	prevRev := mylog.Check2(prevRevision("snapd"))
 	switch err {
 	case errNoSnapd:
 		// the snapd snap is not installed
@@ -150,10 +144,7 @@ func (c *cmdSnapd) Execute(args []string) error {
 	}
 	logger.Noticef("stopping snapd socket")
 	// stop the socket unit so that we can start snapd on its own
-	stdout, stderr, err := osutil.RunSplitOutput("systemctl", "stop", "snapd.socket")
-	if err != nil {
-		return osutil.OutputErrCombine(stdout, stderr, err)
-	}
+	stdout, stderr := mylog.Check3(osutil.RunSplitOutput("systemctl", "stop", "snapd.socket"))
 
 	logger.Noticef("restoring invoking snapd from: %v", snapdPath)
 	if prevRev != "0" {
@@ -162,42 +153,26 @@ func (c *cmdSnapd) Execute(args []string) error {
 		// symlink. So we overwrite the symlink only if
 		// prevRev != "0".
 		currentSymlink := filepath.Join(dirs.SnapMountDir, "snapd", "current")
-		if err := osutil.AtomicSymlink(prevRev, currentSymlink); err != nil {
-			return fmt.Errorf("cannot create symlink %s: %v", currentSymlink, err)
-		}
+		mylog.Check(osutil.AtomicSymlink(prevRev, currentSymlink))
+
 	}
 	// start previous snapd
 	cmd := runCmd(snapdPath, nil, []string{"SNAPD_REVERT_TO_REV=" + prevRev, "SNAPD_DEBUG=1"})
-	if err = cmd.Run(); err != nil {
-		return fmt.Errorf("snapd failed: %v", err)
-	}
+	mylog.Check(cmd.Run())
 
 	isFailedCmd := runCmd("systemctl", []string{"is-failed", "snapd.socket", "snapd.service"}, nil)
-	if err := isFailedCmd.Run(); err != nil {
-		// the ephemeral snapd we invoked seems to have fixed
-		// snapd.service and snapd.socket, check whether they get
-		// reported as active for 5 * 5s
-		for i := 0; i < 5; i++ {
-			if i != 0 {
-				time.Sleep(sampleForActiveInterval)
-			}
-			isActiveCmd := runCmd("systemctl", []string{"is-active", "snapd.socket", "snapd.service"}, nil)
-			err := isActiveCmd.Run()
-			if err == nil && osutil.FileExists(dirs.SnapdSocket) && osutil.FileExists(dirs.SnapSocket) {
-				logger.Noticef("snapd is active again, sockets are available, nothing more to do")
-				return nil
-			}
-		}
-	}
+	mylog.Check(isFailedCmd.Run())
+	// the ephemeral snapd we invoked seems to have fixed
+	// snapd.service and snapd.socket, check whether they get
+	// reported as active for 5 * 5s
 
 	logger.Noticef("restarting snapd socket")
 	// we need to reset the failure state to be able to restart again
 	resetCmd := runCmd("systemctl", []string{"reset-failed", "snapd.socket", "snapd.service"}, nil)
-	if err = resetCmd.Run(); err != nil {
-		// don't die if we fail to reset the failed state of snapd.socket, as
-		// the restart itself could still work
-		logger.Noticef("failed to reset-failed snapd.socket: %v", err)
-	}
+	mylog.Check(resetCmd.Run())
+	// don't die if we fail to reset the failed state of snapd.socket, as
+	// the restart itself could still work
+
 	// at this point our manually started snapd stopped and
 	// should have removed the /run/snap* sockets (this is a feature of
 	// golang) - we need to restart snapd.socket to make them
@@ -208,29 +183,22 @@ func (c *cmdSnapd) Execute(args []string) error {
 	// systemd can't create the file
 	// always remove to avoid TOCTOU issues but don't complain about ENOENT
 	for _, fn := range []string{dirs.SnapdSocket, dirs.SnapSocket} {
-		err = os.Remove(fn)
+		mylog.Check(os.Remove(fn))
 		if err != nil && !os.IsNotExist(err) {
 			logger.Noticef("snapd socket %s still exists before restarting socket service, but unable to remove: %v", fn, err)
 		}
 	}
 
 	restartCmd := runCmd("systemctl", []string{"restart", "snapd.socket"}, nil)
-	if err := restartCmd.Run(); err != nil {
-		logger.Noticef("failed to restart snapd.socket: %v", err)
-		// fallback to try snapd itself
-		// wait more than DefaultStartLimitIntervalSec
-		//
-		// TODO: consider parsing
-		// systemctl show snapd -p StartLimitIntervalUSec
-		// might need system-analyze timespan which is relatively new
-		// for the general case
-		time.Sleep(restartSnapdCoolOffWait)
-		logger.Noticef("fallback, restarting snapd itself")
-		restartCmd := runCmd("systemctl", []string{"restart", "snapd.service"}, nil)
-		if err := restartCmd.Run(); err != nil {
-			logger.Noticef("failed to restart snapd: %v", err)
-		}
-	}
+	mylog.Check(restartCmd.Run())
+
+	// fallback to try snapd itself
+	// wait more than DefaultStartLimitIntervalSec
+	//
+	// TODO: consider parsing
+	// systemctl show snapd -p StartLimitIntervalUSec
+	// might need system-analyze timespan which is relatively new
+	// for the general case
 
 	return nil
 }

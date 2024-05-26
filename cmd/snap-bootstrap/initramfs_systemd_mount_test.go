@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	main "github.com/snapcore/snapd/cmd/snap-bootstrap"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/systemd"
@@ -50,13 +51,11 @@ echo "mocked error"
 exit 1
 `)
 	defer cmd.Restore()
-
-	err := main.DoSystemdMount("something", "somewhere only we know", nil)
+	mylog.Check(main.DoSystemdMount("something", "somewhere only we know", nil))
 	c.Assert(err, ErrorMatches, "mocked error")
 }
 
 func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
-
 	testStart := time.Now()
 
 	tt := []struct {
@@ -235,12 +234,10 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 		cleanups = append(cleanups, func() {
 			c.Assert(isMountedCalls, Equals, len(t.isMountedReturns), comment)
 		})
-
-		err := main.DoSystemdMount(t.what, t.where, t.opts)
+		mylog.Check(main.DoSystemdMount(t.what, t.where, t.opts))
 		if t.expErr != "" {
 			c.Assert(err, ErrorMatches, t.expErr)
 		} else {
-			c.Assert(err, IsNil)
 
 			c.Assert(len(cmd.Calls()), Equals, 1)
 			call := cmd.Calls()[0]

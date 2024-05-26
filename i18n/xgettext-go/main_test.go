@@ -28,22 +28,22 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/testutil"
 )
 
 // Hook up check.v1 into the "go test" runner
 func TestT(t *testing.T) { TestingT(t) }
 
-type xgettextTestSuite struct {
-}
+type xgettextTestSuite struct{}
 
 var _ = Suite(&xgettextTestSuite{})
 
 // test helper
 func makeGoSourceFile(c *C, content []byte) string {
 	fname := filepath.Join(c.MkDir(), "foo.go")
-	err := os.WriteFile(fname, []byte(content), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(fname, []byte(content), 0644))
+
 
 	return fname
 }
@@ -65,7 +65,7 @@ func (s *xgettextTestSuite) SetUpTest(c *C) {
 }
 
 func (s *xgettextTestSuite) TestFormatComment(c *C) {
-	var tests = []struct {
+	tests := []struct {
 		in  string
 		out string
 	}{
@@ -88,8 +88,8 @@ func main() {
     i18n.G("foo")
 }
 `))
-	err := processFiles([]string{fname})
-	c.Assert(err, IsNil)
+	mylog.Check(processFiles([]string{fname}))
+
 
 	c.Assert(msgIDs, DeepEquals, map[string][]msgID{
 		"foo": {
@@ -113,8 +113,8 @@ func main() {
     i18n.G("foo")
 }
 `))
-	err := processFiles([]string{fname})
-	c.Assert(err, IsNil)
+	mylog.Check(processFiles([]string{fname}))
+
 
 	c.Assert(msgIDs, DeepEquals, map[string][]msgID{
 		"foo": {
@@ -352,7 +352,8 @@ func main() {
 
 	// a real integration test :)
 	outName := filepath.Join(c.MkDir(), "snappy.pot")
-	os.Args = []string{"test-binary",
+	os.Args = []string{
+		"test-binary",
 		"--output", outName,
 		"--keyword", "i18n.G",
 		"--keyword-plural", "i18n.NG",
@@ -397,8 +398,8 @@ func main() {
     i18n.G("foo\n" + "bar\n" + "baz")
 }
 `))
-	err := processFiles([]string{fname})
-	c.Assert(err, IsNil)
+	mylog.Check(processFiles([]string{fname}))
+
 
 	c.Assert(msgIDs, DeepEquals, map[string][]msgID{
 		"foo\\nbar\\nbaz": {
@@ -418,8 +419,8 @@ func main() {
     i18n.G(%[1]s foo "bar"%[1]s)
 }
 `, "`")))
-	err := processFiles([]string{fname})
-	c.Assert(err, IsNil)
+	mylog.Check(processFiles([]string{fname}))
+
 
 	out := bytes.NewBuffer([]byte(""))
 	writePotFile(out)
@@ -431,7 +432,6 @@ msgstr  ""
 
 `, header, fname)
 	c.Check(out.String(), Equals, expected)
-
 }
 
 func (s *xgettextTestSuite) TestWriteOutputMultilines(c *C) {
@@ -497,8 +497,8 @@ func main() {
     i18n.G("foo \"bar\"")
 }
 `))
-	err := processFiles([]string{fname})
-	c.Assert(err, IsNil)
+	mylog.Check(processFiles([]string{fname}))
+
 
 	out := bytes.NewBuffer([]byte(""))
 	writePotFile(out)
@@ -510,7 +510,6 @@ msgstr  ""
 
 `, header, fname)
 	c.Check(out.String(), Equals, expected)
-
 }
 
 func (s *xgettextTestSuite) TestDontEscapeAlreadyEscapedQuoteInBacktick(c *C) {
@@ -520,9 +519,8 @@ func main() {
     i18n.G(`+"`"+`Some text: "{\"key\":\"value\"}"`+"`"+`)
 }
 `))
+	mylog.Check(processFiles([]string{fname}))
 
-	err := processFiles([]string{fname})
-	c.Assert(err, IsNil)
 
 	out := bytes.NewBuffer([]byte(""))
 	writePotFile(out)

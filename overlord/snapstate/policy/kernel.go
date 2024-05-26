@@ -20,6 +20,7 @@
 package policy
 
 import (
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -42,11 +43,11 @@ func (p *kernelPolicy) CanRemove(_ *state.State, snapst *snapstate.SnapState, re
 
 	if p.modelKernel == name {
 		if !rev.Unset() {
-			// TODO: tweak boot.InUse so that it DTRT when rev.Unset, call
-			// it unconditionally as an extra precaution
-			if err := inUse(name, rev, snap.TypeKernel, dev); err != nil {
-				return err
-			}
+			mylog.Check(
+				// TODO: tweak boot.InUse so that it DTRT when rev.Unset, call
+				// it unconditionally as an extra precaution
+				inUse(name, rev, snap.TypeKernel, dev))
+
 			return nil
 		}
 

@@ -32,6 +32,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
@@ -68,11 +69,11 @@ func (s *installSuite) SetUpTest(c *C) {
 }
 
 func (s *installSuite) TestInstallRunError(c *C) {
-	sys, err := install.Run(nil, "", "", "", install.Options{}, nil, timings.New(nil))
+	sys := mylog.Check2(install.Run(nil, "", "", "", install.Options{}, nil, timings.New(nil)))
 	c.Assert(err, ErrorMatches, "cannot use empty gadget root directory")
 	c.Check(sys, IsNil)
 
-	sys, err = install.Run(&gadgettest.ModelCharacteristics{}, c.MkDir(), "", "", install.Options{}, nil, timings.New(nil))
+	sys = mylog.Check2(install.Run(&gadgettest.ModelCharacteristics{}, c.MkDir(), "", "", install.Options{}, nil, timings.New(nil)))
 	c.Assert(err, ErrorMatches, `cannot run install mode on pre-UC20 system`)
 	c.Check(sys, IsNil)
 }
@@ -331,8 +332,8 @@ fi
 	})
 	defer restore()
 
-	gadgetRoot, err := gadgettest.WriteGadgetYaml(c.MkDir(), gadgettest.RaspiSimplifiedYaml)
-	c.Assert(err, IsNil)
+	gadgetRoot := mylog.Check2(gadgettest.WriteGadgetYaml(c.MkDir(), gadgettest.RaspiSimplifiedYaml))
+
 
 	var saveEncryptionKey, dataEncryptionKey keys.EncryptionKey
 
@@ -370,8 +371,8 @@ fi
 	if opts.encryption {
 		runOpts.EncryptionType = secboot.EncryptionTypeLUKS
 	}
-	sys, err := install.Run(uc20Mod, gadgetRoot, "", "", runOpts, nil, timings.New(nil))
-	c.Assert(err, IsNil)
+	sys := mylog.Check2(install.Run(uc20Mod, gadgetRoot, "", "", runOpts, nil, timings.New(nil)))
+
 	if opts.encryption {
 		c.Check(sys, Not(IsNil))
 		c.Assert(sys, DeepEquals, &install.InstalledSystemSideData{
@@ -449,8 +450,8 @@ fi
 	}
 
 	// check the disk-mapping.json that was written as well
-	mappingOnData, err := gadget.LoadDiskVolumesDeviceTraits(dirs.SnapDeviceDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")))
-	c.Assert(err, IsNil)
+	mappingOnData := mylog.Check2(gadget.LoadDiskVolumesDeviceTraits(dirs.SnapDeviceDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"))))
+
 	expMapping := gadgettest.ExpectedRaspiDiskVolumeDeviceTraits
 	if opts.encryption {
 		expMapping = gadgettest.ExpectedLUKSEncryptedRaspiDiskVolumeDeviceTraits
@@ -471,12 +472,11 @@ fi
 	if opts.encryption {
 		jsonBytes = []byte(gadgettest.ExpectedLUKSEncryptedRaspiDiskVolumeDeviceTraitsJSON)
 	}
+	mylog.Check(os.WriteFile(dataFile, jsonBytes, 0644))
 
-	err = os.WriteFile(dataFile, jsonBytes, 0644)
-	c.Assert(err, IsNil)
 
-	mapping2, err := gadget.LoadDiskVolumesDeviceTraits(dirs.SnapDeviceDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")))
-	c.Assert(err, IsNil)
+	mapping2 := mylog.Check2(gadget.LoadDiskVolumesDeviceTraits(dirs.SnapDeviceDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"))))
+
 
 	c.Assert(mapping2, DeepEquals, mappingOnData)
 }
@@ -526,17 +526,15 @@ const mockUC20GadgetYaml = `volumes:
 `
 
 func (s *installSuite) setupMockUdevSymlinks(c *C, devName string) {
-	err := os.MkdirAll(filepath.Join(s.dir, "/dev/disk/by-partlabel"), 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Join(s.dir, "/dev/disk/by-partlabel"), 0755))
 
-	err = os.WriteFile(filepath.Join(s.dir, "/dev/"+devName), nil, 0644)
-	c.Assert(err, IsNil)
-	err = os.Symlink("../../"+devName, filepath.Join(s.dir, "/dev/disk/by-partlabel/ubuntu-seed"))
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(s.dir, "/dev/"+devName), nil, 0644))
+
+	mylog.Check(os.Symlink("../../"+devName, filepath.Join(s.dir, "/dev/disk/by-partlabel/ubuntu-seed")))
+
 }
 
 func (s *installSuite) TestDeviceFromRoleHappy(c *C) {
-
 	s.setupMockUdevSymlinks(c, "fakedevice0p1")
 
 	m := map[string]*disks.MockDiskMapping{
@@ -550,29 +548,29 @@ func (s *installSuite) TestDeviceFromRoleHappy(c *C) {
 	restore := disks.MockPartitionDeviceNodeToDiskMapping(m)
 	defer restore()
 
-	lv, err := gadgettest.LayoutFromYaml(c.MkDir(), mockUC20GadgetYaml, uc20Mod)
-	c.Assert(err, IsNil)
+	lv := mylog.Check2(gadgettest.LayoutFromYaml(c.MkDir(), mockUC20GadgetYaml, uc20Mod))
 
-	device, err := install.DiskWithSystemSeed(lv.Volume)
-	c.Assert(err, IsNil)
+
+	device := mylog.Check2(install.DiskWithSystemSeed(lv.Volume))
+
 	c.Check(device, Equals, "/dev/fakedevice0")
 }
 
 func (s *installSuite) TestDeviceFromRoleErrorNoMatchingSysfs(c *C) {
 	// note no sysfs mocking
-	lv, err := gadgettest.LayoutFromYaml(c.MkDir(), mockUC20GadgetYaml, uc20Mod)
-	c.Assert(err, IsNil)
+	lv := mylog.Check2(gadgettest.LayoutFromYaml(c.MkDir(), mockUC20GadgetYaml, uc20Mod))
 
-	_, err = install.DiskWithSystemSeed(lv.Volume)
+
+	_ = mylog.Check2(install.DiskWithSystemSeed(lv.Volume))
 	c.Assert(err, ErrorMatches, `cannot find device for role system-seed: device not found`)
 }
 
 func (s *installSuite) TestDeviceFromRoleErrorNoRole(c *C) {
 	s.setupMockUdevSymlinks(c, "fakedevice0p1")
-	lv, err := gadgettest.LayoutFromYaml(c.MkDir(), mockGadgetYaml, nil)
-	c.Assert(err, IsNil)
+	lv := mylog.Check2(gadgettest.LayoutFromYaml(c.MkDir(), mockGadgetYaml, nil))
 
-	_, err = install.DiskWithSystemSeed(lv.Volume)
+
+	_ = mylog.Check2(install.DiskWithSystemSeed(lv.Volume))
 	c.Assert(err, ErrorMatches, "cannot find role system-seed in gadget")
 }
 
@@ -744,8 +742,8 @@ fi
 	})
 	defer restore()
 
-	gadgetRoot, err := gadgettest.WriteGadgetYaml(c.MkDir(), opts.gadgetYaml)
-	c.Assert(err, IsNil)
+	gadgetRoot := mylog.Check2(gadgettest.WriteGadgetYaml(c.MkDir(), opts.gadgetYaml))
+
 
 	var dataPrimaryKey keys.EncryptionKey
 	secbootFormatEncryptedDeviceCall := 0
@@ -776,13 +774,13 @@ fi
 	if opts.encryption {
 		runOpts.EncryptionType = secboot.EncryptionTypeLUKS
 	}
-	sys, err := install.FactoryReset(uc20Mod, gadgetRoot, "", "", runOpts, nil, timings.New(nil))
+	sys := mylog.Check2(install.FactoryReset(uc20Mod, gadgetRoot, "", "", runOpts, nil, timings.New(nil)))
 	if opts.err != "" {
 		c.Check(sys, IsNil)
 		c.Check(err, ErrorMatches, opts.err)
 		return
 	}
-	c.Assert(err, IsNil)
+
 	devsForRoles := map[string]string{
 		"system-boot": "/dev/mmcblk0p2",
 		"system-save": "/dev/mmcblk0p3",
@@ -826,8 +824,8 @@ fi
 	c.Assert(umountCall, Equals, 2)
 
 	// check the disk-mapping.json that was written as well
-	mappingOnData, err := gadget.LoadDiskVolumesDeviceTraits(dirs.SnapDeviceDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")))
-	c.Assert(err, IsNil)
+	mappingOnData := mylog.Check2(gadget.LoadDiskVolumesDeviceTraits(dirs.SnapDeviceDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"))))
+
 	c.Assert(mappingOnData, DeepEquals, map[string]gadget.DiskVolumeDeviceTraits{
 		"pi": opts.traits,
 	})
@@ -843,11 +841,11 @@ fi
 	// the static JSON to make sure they compare the same, this ensures that
 	// the JSON that is written always stays compatible
 	jsonBytes := []byte(opts.traitsJSON)
-	err = os.WriteFile(dataFile, jsonBytes, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(dataFile, jsonBytes, 0644))
 
-	mapping2, err := gadget.LoadDiskVolumesDeviceTraits(dirs.SnapDeviceDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")))
-	c.Assert(err, IsNil)
+
+	mapping2 := mylog.Check2(gadget.LoadDiskVolumesDeviceTraits(dirs.SnapDeviceDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"))))
+
 
 	c.Assert(mapping2, DeepEquals, mappingOnData)
 }
@@ -997,8 +995,8 @@ func (s *installSuite) testWriteContent(c *C, opts writeContentOpts) {
 	defer restore()
 
 	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
-	ginfo, allLaidOutVols, _, restore, err := gadgettest.MockGadgetPartitionedDisk(gadgettest.SingleVolumeClassicWithModesGadgetYaml, gadgetRoot)
-	c.Assert(err, IsNil)
+	ginfo, allLaidOutVols, _, restore := mylog.Check5(gadgettest.MockGadgetPartitionedDisk(gadgettest.SingleVolumeClassicWithModesGadgetYaml, gadgetRoot))
+
 	defer restore()
 
 	// 10 million mocks later ...
@@ -1028,8 +1026,8 @@ func (s *installSuite) testWriteContent(c *C, opts writeContentOpts) {
 		}
 		esd = install.MockEncryptionSetupData(labelToEncData)
 	}
-	onDiskVols, err := install.WriteContent(ginfo.Volumes, allLaidOutVols, esd, nil, timings.New(nil))
-	c.Assert(err, IsNil)
+	onDiskVols := mylog.Check2(install.WriteContent(ginfo.Volumes, allLaidOutVols, esd, nil, timings.New(nil)))
+
 	c.Assert(len(onDiskVols), Equals, 1)
 
 	c.Assert(mountCall, Equals, 4)
@@ -1037,10 +1035,10 @@ func (s *installSuite) testWriteContent(c *C, opts writeContentOpts) {
 
 	var data []byte
 	for _, mntPt := range []string{espMntPt, bootMntPt} {
-		data, err = os.ReadFile(filepath.Join(mntPt, "EFI/boot/bootx64.efi"))
+		data = mylog.Check2(os.ReadFile(filepath.Join(mntPt, "EFI/boot/bootx64.efi")))
 		c.Check(err, IsNil)
 		c.Check(string(data), Equals, "shim.efi.signed content")
-		data, err = os.ReadFile(filepath.Join(mntPt, "EFI/boot/grubx64.efi"))
+		data = mylog.Check2(os.ReadFile(filepath.Join(mntPt, "EFI/boot/grubx64.efi")))
 		c.Check(err, IsNil)
 		c.Check(string(data), Equals, "grubx64.efi content")
 	}
@@ -1061,13 +1059,15 @@ func (s *installSuite) TestInstallWriteContentEncryptedHappy(c *C) {
 func (s *installSuite) TestInstallWriteContentDeviceNotFound(c *C) {
 	vols := map[string]*gadget.Volume{
 		"pc": {
-			Structure: []gadget.VolumeStructure{{
-				Filesystem: "ext4",
-				Device:     "/dev/randomdev"},
+			Structure: []gadget.VolumeStructure{
+				{
+					Filesystem: "ext4",
+					Device:     "/dev/randomdev",
+				},
 			},
 		},
 	}
-	onDiskVols, err := install.WriteContent(vols, nil, nil, nil, timings.New(nil))
+	onDiskVols := mylog.Check2(install.WriteContent(vols, nil, nil, nil, timings.New(nil)))
 	c.Check(err.Error(), testutil.Contains, "readlink /sys/class/block/randomdev: no such file or directory")
 	c.Check(onDiskVols, IsNil)
 }
@@ -1103,8 +1103,8 @@ func (s *installSuite) testEncryptPartitions(c *C, opts encryptPartitionsOpts) {
 	defer restore()
 
 	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
-	ginfo, _, model, restore, err := gadgettest.MockGadgetPartitionedDisk(gadgettest.SingleVolumeClassicWithModesGadgetYaml, gadgetRoot)
-	c.Assert(err, IsNil)
+	ginfo, _, model, restore := mylog.Check5(gadgettest.MockGadgetPartitionedDisk(gadgettest.SingleVolumeClassicWithModesGadgetYaml, gadgetRoot))
+
 	defer restore()
 
 	mockCryptsetup := testutil.MockCommand(c, "cryptsetup", "")
@@ -1122,14 +1122,14 @@ func (s *installSuite) testEncryptPartitions(c *C, opts encryptPartitionsOpts) {
 		ginfo.Volumes["pc"].Structure[i].Device = "/dev/vda" + strconv.Itoa(partIdx)
 		partIdx++
 	}
-	encryptSetup, err := install.EncryptPartitions(ginfo.Volumes, opts.encryptType, model, gadgetRoot, "", timings.New(nil))
-	c.Assert(err, IsNil)
+	encryptSetup := mylog.Check2(install.EncryptPartitions(ginfo.Volumes, opts.encryptType, model, gadgetRoot, "", timings.New(nil)))
+
 	c.Assert(encryptSetup, NotNil)
-	err = install.CheckEncryptionSetupData(encryptSetup, map[string]string{
+	mylog.Check(install.CheckEncryptionSetupData(encryptSetup, map[string]string{
 		"ubuntu-save": "/dev/mapper/ubuntu-save",
 		"ubuntu-data": "/dev/mapper/ubuntu-data",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 
 	c.Assert(mockCryptsetup.Calls(), DeepEquals, [][]string{
 		{"cryptsetup", "-q", "luksFormat", "--type", "luks2", "--key-file", "-", "--cipher", expectedCipher(), "--key-size", expectedKeysize(), "--label", "ubuntu-save-enc", "--pbkdf", "argon2i", "--pbkdf-force-iterations", "4", "--pbkdf-memory", "32", "--luks2-metadata-size", "2048k", "--luks2-keyslots-size", "2560k", "/dev/vda4"},
@@ -1156,11 +1156,11 @@ func (s *installSuite) TestInstallEncryptPartitionsNoDeviceSet(c *C) {
 	defer restore()
 
 	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
-	ginfo, _, model, restore, err := gadgettest.MockGadgetPartitionedDisk(gadgettest.SingleVolumeClassicWithModesGadgetYaml, gadgetRoot)
-	c.Assert(err, IsNil)
+	ginfo, _, model, restore := mylog.Check5(gadgettest.MockGadgetPartitionedDisk(gadgettest.SingleVolumeClassicWithModesGadgetYaml, gadgetRoot))
+
 	defer restore()
 
-	encryptSetup, err := install.EncryptPartitions(ginfo.Volumes, secboot.EncryptionTypeLUKS, model, gadgetRoot, "", timings.New(nil))
+	encryptSetup := mylog.Check2(install.EncryptPartitions(ginfo.Volumes, secboot.EncryptionTypeLUKS, model, gadgetRoot, "", timings.New(nil)))
 
 	c.Check(err.Error(), Equals, `volume "pc" has no device assigned`)
 	c.Check(encryptSetup, IsNil)
@@ -1241,8 +1241,8 @@ func (s *installSuite) testMountVolumes(c *C, opts mountVolumesOpts) {
 	defer restore()
 
 	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
-	ginfo, _, _, restore, err := gadgettest.MockGadgetPartitionedDisk(gadgettest.SingleVolumeUC20GadgetYaml, gadgetRoot)
-	c.Assert(err, IsNil)
+	ginfo, _, _, restore := mylog.Check5(gadgettest.MockGadgetPartitionedDisk(gadgettest.SingleVolumeUC20GadgetYaml, gadgetRoot))
+
 	defer restore()
 
 	// Fill in additional information about the target device as the installer does
@@ -1272,12 +1272,11 @@ func (s *installSuite) testMountVolumes(c *C, opts mountVolumesOpts) {
 
 	// 10 million mocks later ...
 	// finally actually run MountVolumes
-	seedMntDir, unmount, err := install.MountVolumes(ginfo.Volumes, esd)
-	c.Assert(err, IsNil)
-	c.Assert(seedMntDir, Equals, seedMntPt)
+	seedMntDir, unmount := mylog.Check3(install.MountVolumes(ginfo.Volumes, esd))
 
-	err = unmount()
-	c.Assert(err, IsNil)
+	c.Assert(seedMntDir, Equals, seedMntPt)
+	mylog.Check(unmount())
+
 
 	c.Assert(mountCall, Equals, 4)
 	c.Assert(umountCall, Equals, 4)
@@ -1297,7 +1296,7 @@ func (s *installSuite) TestMountVolumesSimpleHappyEncrypted(c *C) {
 
 func (s *installSuite) TestMountVolumesZeroSeeds(c *C) {
 	onVolumes := map[string]*gadget.Volume{}
-	_, _, err := install.MountVolumes(onVolumes, nil)
+	_, _ := mylog.Check3(install.MountVolumes(onVolumes, nil))
 	c.Assert(err, ErrorMatches, "there are 0 system-seed{,-null} partitions, expected one")
 }
 
@@ -1327,7 +1326,7 @@ func (s *installSuite) TestMountVolumesManySeeds(c *C) {
 	})
 	defer restore()
 
-	_, _, err := install.MountVolumes(onVolumes, nil)
+	_, _ := mylog.Check3(install.MountVolumes(onVolumes, nil))
 	c.Assert(err, ErrorMatches, "there are 2 system-seed{,-null} partitions, expected one")
 
 	c.Assert(mountCall, Equals, 2)
@@ -1370,12 +1369,11 @@ func (s *installSuite) TestMountVolumesLazyUnmount(c *C) {
 	log, restore := logger.MockLogger()
 	defer restore()
 
-	seedMntDir, unmount, err := install.MountVolumes(onVolumes, nil)
-	c.Assert(err, IsNil)
-	c.Assert(seedMntDir, Equals, seedMntPt)
+	seedMntDir, unmount := mylog.Check3(install.MountVolumes(onVolumes, nil))
 
-	err = unmount()
-	c.Assert(err, IsNil)
+	c.Assert(seedMntDir, Equals, seedMntPt)
+	mylog.Check(unmount())
+
 
 	c.Assert(mountCall, Equals, 1)
 	c.Assert(umountCall, Equals, 2)
@@ -1418,11 +1416,10 @@ func (s *installSuite) TestMountVolumesLazyUnmountError(c *C) {
 	log, restore := logger.MockLogger()
 	defer restore()
 
-	seedMntDir, unmount, err := install.MountVolumes(onVolumes, nil)
-	c.Assert(err, IsNil)
-	c.Assert(seedMntDir, Equals, seedMntPt)
+	seedMntDir, unmount := mylog.Check3(install.MountVolumes(onVolumes, nil))
 
-	err = unmount()
+	c.Assert(seedMntDir, Equals, seedMntPt)
+	mylog.Check(unmount())
 	c.Assert(err, ErrorMatches, "lazy unmount failed")
 
 	c.Assert(mountCall, Equals, 1)
@@ -1434,8 +1431,8 @@ func (s *installSuite) TestMountVolumesLazyUnmountError(c *C) {
 
 func (s *installSuite) makeMockGadgetPartitionDiskAsInstallerSetsThem(c *C, deviceFmt string) *gadget.Info {
 	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
-	ginfo, _, _, restore, err := gadgettest.MockGadgetPartitionedDisk(gadgettest.SingleVolumeClassicWithModesGadgetYaml, gadgetRoot)
-	c.Assert(err, IsNil)
+	ginfo, _, _, restore := mylog.Check5(gadgettest.MockGadgetPartitionedDisk(gadgettest.SingleVolumeClassicWithModesGadgetYaml, gadgetRoot))
+
 	s.AddCleanup(restore)
 
 	// Set devices as an installer would
@@ -1462,10 +1459,9 @@ func (s *installSuite) TestMatchDisksToGadgetVolumesNotFound(c *C) {
 	}
 
 	// No disk found
-	mapStructToDisk, err := install.MatchDisksToGadgetVolumes(ginfo.Volumes, volCompatOpts)
+	mapStructToDisk := mylog.Check2(install.MatchDisksToGadgetVolumes(ginfo.Volumes, volCompatOpts))
 	c.Assert(mapStructToDisk, IsNil)
 	c.Assert(err.Error(), Equals, `cannot read link "/sys/class/block/xda2": readlink /sys/class/block/xda2: no such file or directory`)
-
 }
 
 func (s *installSuite) TestMatchDisksToGadgetVolumesHappy(c *C) {
@@ -1486,8 +1482,8 @@ func (s *installSuite) TestMatchDisksToGadgetVolumesHappy(c *C) {
 	defer restore()
 
 	// Happy case
-	mapStructToDisk, err := install.MatchDisksToGadgetVolumes(ginfo.Volumes, volCompatOpts)
-	c.Assert(err, IsNil)
+	mapStructToDisk := mylog.Check2(install.MatchDisksToGadgetVolumes(ginfo.Volumes, volCompatOpts))
+
 	expectedMap := map[string]map[int]*gadget.OnDiskStructure{
 		"pc": {
 			0: {
@@ -1529,7 +1525,7 @@ func (s *installSuite) TestMatchDisksToGadgetVolumesIncompatibleGadget(c *C) {
 
 	// Use an incompatible gadget
 	ginfo.Volumes["pc"].Structure[1].Size = quantity.SizeKiB
-	mapStructToDisk, err := install.MatchDisksToGadgetVolumes(ginfo.Volumes, volCompatOpts)
+	mapStructToDisk := mylog.Check2(install.MatchDisksToGadgetVolumes(ginfo.Volumes, volCompatOpts))
 	c.Assert(mapStructToDisk, IsNil)
 	c.Assert(err.Error(), Equals, `cannot find disk partition /dev/vda1 (starting at 1048576) in gadget: on disk size 1048576 (1 MiB) is larger than gadget size 1024 (1 KiB) (and the role should not be expanded)`)
 }

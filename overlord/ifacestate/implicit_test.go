@@ -44,7 +44,8 @@ func (implicitSuite) TestAddImplicitSlotsOnCore(c *C) {
 			Interface:   "empty",
 			StaticAttrs: map[string]interface{}{"attr": "value"},
 			HotplugKey:  "1234",
-		}}
+		},
+	}
 	st.Lock()
 	defer st.Unlock()
 	st.Set("hotplug-slots", hotplugSlots)
@@ -108,7 +109,8 @@ func (implicitSuite) TestAddImplicitSlotsErrorSlotExists(c *C) {
 			Name:       "unity7",
 			Interface:  "unity7",
 			HotplugKey: "1234",
-		}}
+		},
+	}
 	st.Lock()
 	defer st.Unlock()
 	st.Set("hotplug-slots", hotplugSlots)

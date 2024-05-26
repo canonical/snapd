@@ -25,6 +25,7 @@ import (
 	"os/user"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
@@ -59,7 +60,7 @@ func ExtendEnvForRun(env osutil.Environment, info *snap.Info, opts *dirs.SnapDir
 func snapEnv(info *snap.Info, opts *dirs.SnapDirOptions) osutil.Environment {
 	// Environment variables with basic properties of a snap.
 	env := basicEnv(info)
-	if usr, err := userCurrent(); err == nil && usr.HomeDir != "" {
+	if usr := mylog.Check2(userCurrent()); err == nil && usr.HomeDir != "" {
 		// Environment variables with values specific to the calling user.
 		for k, v := range userEnv(info, usr.HomeDir, opts) {
 			env[k] = v
@@ -103,12 +104,10 @@ func basicEnv(info *snap.Info) osutil.Environment {
 
 	// Add the ubuntu-save specific environment variable if
 	// the snap folder exists in the save directory.
-	if exists, isDir, err := osutil.DirExists(snap.CommonDataSaveDir(info.InstanceName())); err == nil && exists && isDir {
+	if exists, isDir := mylog.Check3(osutil.DirExists(snap.CommonDataSaveDir(info.InstanceName()))); err == nil && exists && isDir {
 		env["SNAP_SAVE_DATA"] = snap.CommonDataSaveDir(info.InstanceName())
-	} else if err != nil {
-		logger.Noticef("cannot determine existence of save data directory for snap %q: %v",
-			info.InstanceName(), err)
 	}
+
 	return env
 }
 

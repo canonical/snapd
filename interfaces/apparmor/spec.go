@@ -26,6 +26,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
@@ -412,10 +413,7 @@ func isProbablyPresent(path string) bool {
 func GenWritableMimicProfile(emit func(f string, args ...interface{}), path string, assumedPrefixDepth int) {
 	emit("  # Writable mimic %s\n", path)
 
-	iter, err := strutil.NewPathIterator(path)
-	if err != nil {
-		panic(err)
-	}
+	iter := mylog.Check2(strutil.NewPathIterator(path))
 
 	// Handle the prefix that is assumed to exist first.
 	emit("  # .. permissions for traversing the prefix that is assumed to exist\n")
@@ -622,10 +620,8 @@ func emitEnsureDir(spec *Specification, ifaceName string, ensureDirSpec *interfa
 	emit := spec.AddUpdateNSf
 
 	// Create entry for MustExistDir
-	iter, err := strutil.NewPathIterator(ensureDir)
-	if err != nil {
-		return
-	}
+	iter := mylog.Check2(strutil.NewPathIterator(ensureDir))
+
 	for iter.Next() {
 		if iter.CurrentPathNoSlash() == mustExistDir {
 			emit("  # Allow the %s interface to create potentially missing directories", ifaceName)
@@ -661,10 +657,7 @@ func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *in
 		AppArmorConnectedPlug(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 	}
 	if iface, ok := iface.(definer); ok {
-		tags, err := spec.appSet.SecurityTagsForConnectedPlug(plug)
-		if err != nil {
-			return err
-		}
+		tags := mylog.Check2(spec.appSet.SecurityTagsForConnectedPlug(plug))
 
 		restore := spec.setScope(tags)
 		defer restore()
@@ -679,10 +672,7 @@ func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *in
 		AppArmorConnectedSlot(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 	}
 	if iface, ok := iface.(definer); ok {
-		tags, err := spec.appSet.SecurityTagsForConnectedSlot(slot)
-		if err != nil {
-			return err
-		}
+		tags := mylog.Check2(spec.appSet.SecurityTagsForConnectedSlot(slot))
 
 		restore := spec.setScope(tags)
 		defer restore()
@@ -701,10 +691,7 @@ func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *sn
 		AppArmorPermanentPlug(spec *Specification, plug *snap.PlugInfo) error
 	}
 	if iface, ok := iface.(definer); ok {
-		tags, err := spec.appSet.SecurityTagsForPlug(plug)
-		if err != nil {
-			return err
-		}
+		tags := mylog.Check2(spec.appSet.SecurityTagsForPlug(plug))
 
 		restore := spec.setScope(tags)
 		defer restore()
@@ -723,10 +710,7 @@ func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *sn
 		AppArmorPermanentSlot(spec *Specification, slot *snap.SlotInfo) error
 	}
 	if iface, ok := iface.(definer); ok {
-		tags, err := spec.appSet.SecurityTagsForSlot(slot)
-		if err != nil {
-			return err
-		}
+		tags := mylog.Check2(spec.appSet.SecurityTagsForSlot(slot))
 
 		restore := spec.setScope(tags)
 		defer restore()

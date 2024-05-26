@@ -21,16 +21,15 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ddkwork/golibrary/mylog"
 	. "gopkg.in/check.v1"
 )
 
 func Test(t *testing.T) { TestingT(t) }
 
-var (
-	// one two "three four" "five \"six\"" seven#eight # nine # ten
-	// eleven 'twelve\'
-	testString = "\\one two \"three four\" \"five \\\"six\\\"\" seven#eight # nine # ten\n eleven 'twelve\\' thirteen=13 fourteen/14"
-)
+// one two "three four" "five \"six\"" seven#eight # nine # ten
+// eleven 'twelve\'
+var testString = "\\one two \"three four\" \"five \\\"six\\\"\" seven#eight # nine # ten\n eleven 'twelve\\' thirteen=13 fourteen/14"
 
 func TestClassifier(t *testing.T) {
 	classifier := newDefaultClassifier()
@@ -38,7 +37,8 @@ func TestClassifier(t *testing.T) {
 		' ':  spaceRuneClass,
 		'"':  escapingQuoteRuneClass,
 		'\'': nonEscapingQuoteRuneClass,
-		'#':  commentRuneClass}
+		'#':  commentRuneClass,
+	}
 	for runeChar, want := range tests {
 		got := classifier.ClassifyRune(runeChar)
 		if got != want {
@@ -59,14 +59,13 @@ func TestTokenizer(t *testing.T) {
 		{WordToken, "eleven"},
 		{WordToken, "twelve\\"},
 		{WordToken, "thirteen=13"},
-		{WordToken, "fourteen/14"}}
+		{WordToken, "fourteen/14"},
+	}
 
 	tokenizer := NewTokenizer(testInput)
 	for i, want := range expectedTokens {
-		got, err := tokenizer.Next()
-		if err != nil {
-			t.Error(err)
-		}
+		got := mylog.Check2(tokenizer.Next())
+
 		if !got.Equal(want) {
 			t.Errorf("Tokenizer.Next()[%v] of %q -> %v. Want: %v", i, testString, got, want)
 		}
@@ -79,10 +78,8 @@ func TestLexer(t *testing.T) {
 
 	lexer := NewLexer(testInput)
 	for i, want := range expectedStrings {
-		got, err := lexer.Next()
-		if err != nil {
-			t.Error(err)
-		}
+		got := mylog.Check2(lexer.Next())
+
 		if got != want {
 			t.Errorf("Lexer.Next()[%v] of %q -> %v. Want: %v", i, testString, got, want)
 		}
@@ -91,10 +88,8 @@ func TestLexer(t *testing.T) {
 
 func TestSplit(t *testing.T) {
 	want := []string{"one", "two", "three four", "five \"six\"", "seven#eight", "eleven", "twelve\\", "thirteen=13", "fourteen/14"}
-	got, err := Split(testString)
-	if err != nil {
-		t.Error(err)
-	}
+	got := mylog.Check2(Split(testString))
+
 	if len(want) != len(got) {
 		t.Errorf("Split(%q) -> %v. Want: %v", testString, got, want)
 	}
@@ -106,34 +101,32 @@ func TestSplit(t *testing.T) {
 }
 
 func TestEOFAfterEscape(t *testing.T) {
-	_, err := Split(testString + "\\")
+	_ := mylog.Check2(Split(testString + "\\"))
 	if err == nil {
 		t.Error(err)
 	}
 }
 
 func TestEOFInQuotingEscape(t *testing.T) {
-	_, err := Split(`foo"`)
+	_ := mylog.Check2(Split(`foo"`))
 	if err == nil {
 		t.Error(err)
 	}
 
-	_, err = Split(`foo'`)
+	_ = mylog.Check2(Split(`foo'`))
 	if err == nil {
 		t.Error(err)
 	}
 
-	_, err = Split(`"foo\`)
+	_ = mylog.Check2(Split(`"foo\`))
 	if err == nil {
 		t.Error(err)
 	}
 }
 
 func TestEOFInComment(t *testing.T) {
-	got, err := Split("#")
-	if err != nil {
-		t.Error(err)
-	}
+	got := mylog.Check2(Split("#"))
+
 	if len(got) > 1 {
 		t.Errorf("Split(%q) -> %v", testString, got)
 	}
@@ -149,7 +142,7 @@ func (*nastyReader) Read(_ []byte) (int, error) {
 
 func TestNastyReader(t *testing.T) {
 	l := NewLexer(&nastyReader{})
-	_, err := l.Next()
+	_ := mylog.Check2(l.Next())
 	if err == nil {
 		t.Errorf("expected an error, got nil instead")
 	}

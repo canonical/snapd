@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	_ "github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
@@ -100,13 +101,13 @@ WantedBy=sockets.target
 	sock1Expected := fmt.Sprintf(sock1ExpectedFmt, mountUnitPrefix, mountUnitPrefix, si.DataDir())
 	sock2Expected := fmt.Sprintf(sock2ExpectedFmt, mountUnitPrefix, mountUnitPrefix, si.DataDir())
 
-	generatedWrapper, err := internal.GenerateSnapServiceUnitFile(service, nil)
-	c.Assert(err, IsNil)
+	generatedWrapper := mylog.Check2(internal.GenerateSnapServiceUnitFile(service, nil))
+
 	c.Assert(strings.Contains(string(generatedWrapper), "[Install]"), Equals, false)
 	c.Assert(strings.Contains(string(generatedWrapper), "WantedBy=multi-user.target"), Equals, false)
 
-	generatedSockets, err := internal.GenerateSnapSocketUnitFiles(service)
-	c.Assert(err, IsNil)
+	generatedSockets := mylog.Check2(internal.GenerateSnapSocketUnitFiles(service))
+
 	c.Assert(generatedSockets, HasLen, 2)
 	c.Assert(generatedSockets, DeepEquals, map[string][]byte{
 		"sock1": []byte(sock1Expected),

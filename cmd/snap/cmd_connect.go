@@ -20,6 +20,7 @@
 package main
 
 import (
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/i18n"
@@ -33,8 +34,9 @@ type cmdConnect struct {
 	} `positional-args:"true"`
 }
 
-var shortConnectHelp = i18n.G("Connect a plug to a slot")
-var longConnectHelp = i18n.G(`
+var (
+	shortConnectHelp = i18n.G("Connect a plug to a slot")
+	longConnectHelp  = i18n.G(`
 The connect command connects a plug to a slot.
 It may be called in the following ways:
 
@@ -53,6 +55,7 @@ $ snap connect <snap>:<plug>
 Connects the provided plug to the slot in the core snap with a name matching
 the plug name.
 `)
+)
 
 func init() {
 	addCommand("connect", shortConnectHelp, longConnectHelp, func() flags.Commander {
@@ -77,17 +80,8 @@ func (x *cmdConnect) Execute(args []string) error {
 		x.Positionals.PlugSpec.Snap = ""
 	}
 
-	id, err := x.client.Connect(x.Positionals.PlugSpec.Snap, x.Positionals.PlugSpec.Name, x.Positionals.SlotSpec.Snap, x.Positionals.SlotSpec.Name)
-	if err != nil {
-		return err
-	}
-
-	if _, err := x.wait(id); err != nil {
-		if err == noWait {
-			return nil
-		}
-		return err
-	}
+	id := mylog.Check2(x.client.Connect(x.Positionals.PlugSpec.Snap, x.Positionals.PlugSpec.Name, x.Positionals.SlotSpec.Snap, x.Positionals.SlotSpec.Name))
+	mylog.Check2(x.wait(id))
 
 	return nil
 }

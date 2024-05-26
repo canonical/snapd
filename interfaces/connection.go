@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces/utils"
 	"github.com/snapcore/snapd/metautil"
 	"github.com/snapcore/snapd/snap"
@@ -86,7 +87,7 @@ func lookupAttr(staticAttrs map[string]interface{}, dynamicAttrs map[string]inte
 func getAttribute(snapName string, ifaceName string, staticAttrs map[string]interface{}, dynamicAttrs map[string]interface{}, path string, val interface{}) error {
 	v, ok := lookupAttr(staticAttrs, dynamicAttrs, path)
 	if !ok {
-		err := fmt.Errorf("snap %q does not have attribute %q for interface %q", snapName, path, ifaceName)
+		mylog.Check(fmt.Errorf("snap %q does not have attribute %q for interface %q", snapName, path, ifaceName))
 		return snap.AttributeNotFoundError{Err: err}
 	}
 

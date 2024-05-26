@@ -26,6 +26,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // SnapdVersionFromInfoFile returns the snapd version read from the info file in
@@ -33,10 +35,8 @@ import (
 // See ParseInfoFile for more format details.
 func SnapdVersionFromInfoFile(dir string) (version string, flags map[string]string, err error) {
 	infoPath := filepath.Join(dir, "info")
-	f, err := os.Open(infoPath)
-	if err != nil {
-		return "", nil, fmt.Errorf("cannot open snapd info file %q: %s", infoPath, err)
-	}
+	f := mylog.Check2(os.Open(infoPath))
+
 	defer f.Close()
 
 	return ParseInfoFile(f, fmt.Sprintf("%q", infoPath))
@@ -71,10 +71,7 @@ func ParseInfoFile(f io.Reader, whence string) (version string, flags map[string
 			flags[keyVal[0]] = keyVal[1]
 		}
 	}
-
-	if err := scanner.Err(); err != nil {
-		return "", nil, fmt.Errorf("error reading snapd info file %s: %v", whence, err)
-	}
+	mylog.Check(scanner.Err())
 
 	if version == "" {
 		return "", nil, fmt.Errorf("cannot find version in snapd info file %s", whence)

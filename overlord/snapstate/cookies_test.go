@@ -28,6 +28,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/state"
@@ -69,8 +70,8 @@ func checkCookie(c *C, st *state.State, snapName string) {
 	c.Assert(found, Equals, 1)
 
 	c.Assert(fmt.Sprintf("%s/snap.%s", dirs.SnapCookieDir, snapName), testutil.FileEquals, cookieID)
-	cookieBytes, err := base64.RawURLEncoding.DecodeString(cookieID)
-	c.Assert(err, IsNil)
+	cookieBytes := mylog.Check2(base64.RawURLEncoding.DecodeString(cookieID))
+
 	c.Assert(cookieBytes, HasLen, 39)
 }
 
@@ -81,7 +82,8 @@ func (s *cookiesSuite) TestSyncCookies(c *C) {
 	// verify that SyncCookies creates a cookie for a snap that's missing it and removes stale/invalid cookies
 	s.st.Set("snaps", map[string]*json.RawMessage{
 		"some-snap":  nil,
-		"other-snap": nil})
+		"other-snap": nil,
+	})
 	staleCookieFile := filepath.Join(dirs.SnapCookieDir, "snap.stale-cookie-snap")
 	c.Assert(os.WriteFile(staleCookieFile, nil, 0644), IsNil)
 	c.Assert(osutil.FileExists(staleCookieFile), Equals, true)
@@ -101,21 +103,21 @@ func (s *cookiesSuite) TestSyncCookies(c *C) {
 		c.Assert(osutil.FileExists(staleCookieFile), Equals, false)
 
 		var newCookies map[string]string
-		err := s.st.Get("snap-cookies", &newCookies)
-		c.Assert(err, IsNil)
+		mylog.Check(s.st.Get("snap-cookies", &newCookies))
+
 		c.Assert(newCookies, HasLen, 2)
 
 		cookieFile := filepath.Join(dirs.SnapCookieDir, "snap.some-snap")
 		c.Assert(osutil.FileExists(cookieFile), Equals, true)
-		data, err := os.ReadFile(cookieFile)
-		c.Assert(err, IsNil)
+		data := mylog.Check2(os.ReadFile(cookieFile))
+
 		c.Assert(newCookies[string(data)], NotNil)
 		c.Assert(newCookies[string(data)], Equals, "some-snap")
 
 		cookieFile = filepath.Join(dirs.SnapCookieDir, "snap.other-snap")
 		c.Assert(osutil.FileExists(cookieFile), Equals, true)
-		data, err = os.ReadFile(cookieFile)
-		c.Assert(err, IsNil)
+		data = mylog.Check2(os.ReadFile(cookieFile))
+
 		c.Assert(newCookies[string(data)], NotNil)
 		c.Assert(newCookies[string(data)], Equals, "other-snap")
 	}

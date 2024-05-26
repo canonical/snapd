@@ -26,19 +26,22 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 )
 
-var shortListHelp = i18n.G("List installed snaps")
-var longListHelp = i18n.G(`
+var (
+	shortListHelp = i18n.G("List installed snaps")
+	longListHelp  = i18n.G(`
 The list command displays a summary of snaps installed in the current system.
 
 A green check mark (given color and unicode support) after a publisher name
 indicates that the publisher has been verified.
 `)
+)
 
 type cmdList struct {
 	clientMixin
@@ -98,20 +101,8 @@ func (x *cmdList) Execute(args []string) error {
 	}
 
 	names := installedSnapNames(x.Positional.Snaps)
-	snaps, err := x.client.List(names, &client.ListOptions{All: x.All})
-	if err != nil {
-		if err == client.ErrNoSnapsInstalled {
-			if len(names) == 0 {
-				fmt.Fprintln(Stderr, i18n.G("No snaps are installed yet. Try 'snap install hello-world'."))
-				return nil
-			} else {
-				return ErrNoMatchingSnaps
-			}
-		}
-		return err
-	} else if len(snaps) == 0 {
-		return ErrNoMatchingSnaps
-	}
+	snaps := mylog.Check2(x.client.List(names, &client.ListOptions{All: x.All}))
+
 	sort.Sort(snapsByName(snaps))
 
 	esc := x.getEscapes()

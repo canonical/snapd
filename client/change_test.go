@@ -25,6 +25,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 )
 
@@ -40,7 +41,7 @@ func (cs *clientSuite) TestClientChange(c *check.C) {
   "tasks": [{"kind": "bar", "summary": "...", "status": "Do", "progress": {"done": 0, "total": 1}, "spawn-time": "2016-04-21T01:02:03Z", "ready-time": "2016-04-21T01:02:04Z"}]
 }}`
 
-	chg, err := cs.cli.Change("uno")
+	chg := mylog.Check2(cs.cli.Change("uno"))
 	c.Assert(err, check.IsNil)
 	c.Check(chg, check.DeepEquals, &client.Change{
 		ID:      "uno",
@@ -71,14 +72,13 @@ func (cs *clientSuite) TestClientChangeData(c *check.C) {
   "data": {"n": 42}
 }}`
 
-	chg, err := cs.cli.Change("uno")
+	chg := mylog.Check2(cs.cli.Change("uno"))
 	c.Assert(err, check.IsNil)
 	var n int
-	err = chg.Get("n", &n)
+	mylog.Check(chg.Get("n", &n))
 	c.Assert(err, check.IsNil)
 	c.Assert(n, check.Equals, 42)
-
-	err = chg.Get("missing", &n)
+	mylog.Check(chg.Get("missing", &n))
 	c.Assert(err, check.Equals, client.ErrNoData)
 }
 
@@ -93,7 +93,7 @@ func (cs *clientSuite) TestClientChangeRestartingState(c *check.C) {
  "maintenance": {"kind": "system-restart", "message": "system is restarting"}
 }`
 
-	chg, err := cs.cli.Change("uno")
+	chg := mylog.Check2(cs.cli.Change("uno"))
 	c.Check(chg, check.NotNil)
 	c.Check(chg.ID, check.Equals, "uno")
 	c.Check(err, check.IsNil)
@@ -111,7 +111,7 @@ func (cs *clientSuite) TestClientChangeError(c *check.C) {
   "err": "error message"
 }}`
 
-	chg, err := cs.cli.Change("uno")
+	chg := mylog.Check2(cs.cli.Change("uno"))
 	c.Assert(err, check.IsNil)
 	c.Check(chg, check.DeepEquals, &client.Change{
 		ID:      "uno",
@@ -157,7 +157,7 @@ func (cs *clientSuite) TestClientChanges(c *check.C) {
 		{SnapName: "foo"},
 		nil,
 	} {
-		chg, err := cs.cli.Changes(i)
+		chg := mylog.Check2(cs.cli.Changes(i))
 		c.Assert(err, check.IsNil)
 		c.Check(chg, check.DeepEquals, []*client.Change{{
 			ID:      "uno",
@@ -176,7 +176,6 @@ func (cs *clientSuite) TestClientChanges(c *check.C) {
 			}
 		}
 	}
-
 }
 
 func (cs *clientSuite) TestClientChangesData(c *check.C) {
@@ -189,16 +188,15 @@ func (cs *clientSuite) TestClientChangesData(c *check.C) {
   "data": {"n": 42}
 }]}`
 
-	chgs, err := cs.cli.Changes(&client.ChangesOptions{Selector: client.ChangesAll})
+	chgs := mylog.Check2(cs.cli.Changes(&client.ChangesOptions{Selector: client.ChangesAll}))
 	c.Assert(err, check.IsNil)
 
 	chg := chgs[0]
 	var n int
-	err = chg.Get("n", &n)
+	mylog.Check(chg.Get("n", &n))
 	c.Assert(err, check.IsNil)
 	c.Assert(n, check.Equals, 42)
-
-	err = chg.Get("missing", &n)
+	mylog.Check(chg.Get("missing", &n))
 	c.Assert(err, check.Equals, client.ErrNoData)
 }
 
@@ -213,7 +211,7 @@ func (cs *clientSuite) TestClientAbort(c *check.C) {
   "ready-time": "2016-04-21T01:02:04Z"
 }}`
 
-	chg, err := cs.cli.Abort("uno")
+	chg := mylog.Check2(cs.cli.Abort("uno"))
 	c.Assert(err, check.IsNil)
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(chg, check.DeepEquals, &client.Change{
@@ -227,7 +225,7 @@ func (cs *clientSuite) TestClientAbort(c *check.C) {
 		ReadyTime: time.Date(2016, 04, 21, 1, 2, 4, 0, time.UTC),
 	})
 
-	body, err := io.ReadAll(cs.req.Body)
+	body := mylog.Check2(io.ReadAll(cs.req.Body))
 	c.Assert(err, check.IsNil)
 
 	c.Assert(string(body), check.Equals, "{\"action\":\"abort\"}\n")

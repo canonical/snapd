@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/systemd"
@@ -82,15 +83,14 @@ func (iface *gpioInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 
 func (iface *gpioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	var number int64
-	if err := slot.Attr("number", &number); err != nil {
-		return err
-	}
+	mylog.Check(slot.Attr("number", &number))
+
 	path := fmt.Sprint(gpioSysfsGpioBase, number)
 	// Entries in /sys/class/gpio for single GPIO's are just symlinks
 	// to their correct device part in the sysfs tree. Given AppArmor
 	// requires symlinks to be dereferenced, evaluate the GPIO
 	// path and add the correct absolute path to the AppArmor snippet.
-	dereferencedPath, err := evalSymlinks(path)
+	dereferencedPath := mylog.Check2(evalSymlinks(path))
 	if err != nil && os.IsNotExist(err) {
 		// If the specific gpio is not available there is no point
 		// exporting it, we should also not fail because this
@@ -98,18 +98,14 @@ func (iface *gpioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, 
 		logger.Noticef("cannot export not existing gpio %s", path)
 		return nil
 	}
-	if err != nil {
-		return err
-	}
+
 	spec.AddSnippet(fmt.Sprintf("%s/* rwk,", dereferencedPath))
 	return nil
 }
 
 func (iface *gpioInterface) SystemdConnectedSlot(spec *systemd.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	var gpioNum int64
-	if err := slot.Attr("number", &gpioNum); err != nil {
-		return err
-	}
+	mylog.Check(slot.Attr("number", &gpioNum))
 
 	serviceSuffix := fmt.Sprintf("gpio-%d", gpioNum)
 	service := &systemd.Service{

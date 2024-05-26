@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"gopkg.in/check.v1"
 )
 
@@ -48,7 +49,7 @@ func (c *filePresenceChecker) Check(params []interface{}, names []string) (resul
 	if !ok {
 		return false, "filename must be a string"
 	}
-	_, err := os.Stat(filename)
+	_ := mylog.Check2(os.Stat(filename))
 	if os.IsNotExist(err) && c.present {
 		return false, fmt.Sprintf("file %q is absent but should exist", filename)
 	}

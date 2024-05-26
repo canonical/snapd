@@ -24,6 +24,7 @@ import (
 	"os"
 	"syscall"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/logger"
@@ -44,16 +45,14 @@ var opts struct {
 
 func main() {
 	logger.SimpleSetup(nil)
-	if err := run(); err != nil {
-		fmt.Printf("cannot update snap namespace: %s\n", err)
-		os.Exit(1)
-	}
+	mylog.Check(run())
+
 	// END IMPORTANT
 }
 
 func parseArgs(args []string) error {
 	parser := flags.NewParser(&opts, flags.HelpFlag|flags.PassDoubleDash|flags.PassAfterNonOption)
-	_, err := parser.ParseArgs(args)
+	_ := mylog.Check2(parser.ParseArgs(args))
 	return err
 }
 
@@ -62,23 +61,18 @@ func parseArgs(args []string) error {
 // the setuid snap-confine.
 
 func run() error {
-	// There is some C code that runs before main() is started.
-	// That code always runs and sets an error condition if it fails.
-	// Here we just check for the error.
-	if err := BootstrapError(); err != nil {
+	mylog.Check(
+		// There is some C code that runs before main() is started.
+		// That code always runs and sets an error condition if it fails.
+		// Here we just check for the error.
+		BootstrapError())
+	mylog.Check(
 		// If there is no mount namespace to transition to let's just quit
 		// instantly without any errors as there is nothing to do anymore.
-		if err == ErrNoNamespace {
-			logger.Debugf("no preserved mount namespace, nothing to update")
-			return nil
-		}
-		return err
-	}
-	// END IMPORTANT
 
-	if err := parseArgs(os.Args[1:]); err != nil {
-		return err
-	}
+		// END IMPORTANT
+
+		parseArgs(os.Args[1:]))
 
 	// Explicitly set the umask to 0 to prevent permission bits
 	// being masked out when creating files and directories.
@@ -89,10 +83,8 @@ func run() error {
 
 	var upCtx MountProfileUpdateContext
 	if opts.UserMounts {
-		userUpCtx, err := NewUserProfileUpdateContext(opts.Positionals.SnapName, opts.FromSnapConfine, os.Getuid())
-		if err != nil {
-			return fmt.Errorf("cannot create user profile update context: %v", err)
-		}
+		userUpCtx := mylog.Check2(NewUserProfileUpdateContext(opts.Positionals.SnapName, opts.FromSnapConfine, os.Getuid()))
+
 		upCtx = userUpCtx
 	} else {
 		upCtx = NewSystemProfileUpdateContext(opts.Positionals.SnapName, opts.FromSnapConfine)

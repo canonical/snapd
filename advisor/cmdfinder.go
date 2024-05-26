@@ -21,6 +21,8 @@ package advisor
 
 import (
 	"os"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 type Command struct {
@@ -30,13 +32,11 @@ type Command struct {
 }
 
 func FindCommand(command string) ([]Command, error) {
-	finder, err := newFinder()
+	finder := mylog.Check2(newFinder())
 	if err != nil && os.IsNotExist(err) {
 		return nil, nil
 	}
-	if err != nil {
-		return nil, err
-	}
+
 	defer finder.Close()
 
 	return finder.FindCommand(command)
@@ -86,21 +86,17 @@ func FindMisspelledCommand(command string) ([]Command, error) {
 	if len(command) < minLen || len(command) > maxLen {
 		return nil, nil
 	}
-	finder, err := newFinder()
+	finder := mylog.Check2(newFinder())
 	if err != nil && os.IsNotExist(err) {
 		return nil, nil
 	}
-	if err != nil {
-		return nil, err
-	}
+
 	defer finder.Close()
 
 	alternatives := make([]Command, 0, 32)
 	for _, w := range similarWords(command) {
-		res, err := finder.FindCommand(w)
-		if err != nil {
-			return nil, err
-		}
+		res := mylog.Check2(finder.FindCommand(w))
+
 		if len(res) > 0 {
 			alternatives = append(alternatives, res...)
 		}

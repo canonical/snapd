@@ -30,6 +30,7 @@ import (
 	"time"
 
 	// TODO: move this to snap/quantity? or similar
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/progress"
@@ -148,14 +149,8 @@ func NewGroup(name string, resourceLimits Resources) (*Group, error) {
 	grp := &Group{
 		Name: name,
 	}
-
-	if err := grp.UpdateQuotaLimits(resourceLimits); err != nil {
-		return nil, err
-	}
-
-	if err := grp.validate(); err != nil {
-		return nil, err
-	}
+	mylog.Check(grp.UpdateQuotaLimits(resourceLimits))
+	mylog.Check(grp.validate())
 
 	return grp, nil
 }
@@ -204,18 +199,13 @@ func (grp *Group) CurrentMemoryUsage() (quantity.Size, error) {
 
 	// check if this group is actually active, it could not physically exist yet
 	// since it has no snaps in it
-	isActive, err := sysd.IsActive(grp.SliceFileName())
-	if err != nil {
-		return 0, err
-	}
+	isActive := mylog.Check2(sysd.IsActive(grp.SliceFileName()))
+
 	if !isActive {
 		return 0, nil
 	}
 
-	mem, err := sysd.CurrentMemoryUsage(grp.SliceFileName())
-	if err != nil {
-		return 0, err
-	}
+	mem := mylog.Check2(sysd.CurrentMemoryUsage(grp.SliceFileName()))
 
 	return mem, nil
 }
@@ -229,18 +219,14 @@ func (grp *Group) CurrentTaskUsage() (int, error) {
 
 	// check if this group is actually active, it could not physically exist yet
 	// since it has no snaps in it
-	isActive, err := sysd.IsActive(grp.SliceFileName())
-	if err != nil {
-		return 0, err
-	}
+	isActive := mylog.Check2(sysd.IsActive(grp.SliceFileName()))
+
 	if !isActive {
 		return 0, nil
 	}
 
-	count, err := sysd.CurrentTasksCount(grp.SliceFileName())
-	if err != nil {
-		return 0, err
-	}
+	count := mylog.Check2(sysd.CurrentTasksCount(grp.SliceFileName()))
+
 	return int(count), nil
 }
 
@@ -502,7 +488,6 @@ func (grp *Group) getQuotaAllocations(allQuotas map[string]*groupQuotaAllocation
 // if that group has any space available by checking its 'memoryReserved'. The 'memoryReserved' tells us how much
 // of the group quotas limit has been used already by its subgroups (excluding the one querying).
 func (grp *Group) validateMemoryResourceFit(allQuotas map[string]*groupQuotaAllocations, memoryLimit quantity.Size) error {
-
 	// make sure current usage does not exceed the new limit, we can avoid any
 	// recursive descent as we already have counted up the usage of our children.
 	currentLimits := allQuotas[grp.Name]
@@ -547,7 +532,6 @@ func (grp *Group) validateMemoryResourceFit(allQuotas map[string]*groupQuotaAllo
 // if that group has any space available by checking its 'cpuReserved'. The 'cpuReserved' tells us how much
 // of the group quotas limit has been used already by its subgroups (excluding the one querying).
 func (grp *Group) validateCPUResourceFit(allQuotas map[string]*groupQuotaAllocations, resourceLimits Resources) error {
-
 	// handle the zero-count case where we instead need to use the number
 	// of cpu cores available to use, which is either the number of cores
 	// on the system, or in the provided CPU set, or in a CPU set inheritted.
@@ -625,7 +609,6 @@ func contains(s []int, e int) bool {
 // of the group, and if not locates the nearest parent group that has a cpu-set quota, and then verifies
 // that the requested cpu cores match a subset of the previously set allowance.
 func (grp *Group) validateCPUsAllowedResourceFit(allQuotas map[string]*groupQuotaAllocations, cpusAllowed []int) error {
-
 	// isSuperset returns true if a is a superset of b.
 	isSuperset := func(a, b []int) bool {
 		for _, b1 := range b {
@@ -675,7 +658,6 @@ func (grp *Group) validateCPUsAllowedResourceFit(allQuotas map[string]*groupQuot
 // if that group has any space available by checking its 'threadsReserved'. The 'threadsReserved' tells us how much
 // of the group quotas limit has been used already by its subgroups (excluding the one querying).
 func (grp *Group) validateThreadResourceFit(allQuotas map[string]*groupQuotaAllocations, threadLimit int) error {
-
 	// make sure current usage does not exceed the new limit, we can avoid any
 	// recursive descent as we already have counted up the usage of our children.
 	currentLimits := allQuotas[grp.Name]
@@ -732,24 +714,16 @@ func (grp *Group) validateQuotasFit(resourceLimits Resources) error {
 	// for each limit we want to set, we need to find the closes parent
 	// limit that matches it, and then verify against it's usage if we have room
 	if resourceLimits.Memory != nil {
-		if err := grp.validateMemoryResourceFit(allQuotas, resourceLimits.Memory.Limit); err != nil {
-			return err
-		}
+		mylog.Check(grp.validateMemoryResourceFit(allQuotas, resourceLimits.Memory.Limit))
 	}
 	if resourceLimits.CPU != nil && resourceLimits.CPU.Percentage != 0 {
-		if err := grp.validateCPUResourceFit(allQuotas, resourceLimits); err != nil {
-			return err
-		}
+		mylog.Check(grp.validateCPUResourceFit(allQuotas, resourceLimits))
 	}
 	if resourceLimits.CPUSet != nil && len(resourceLimits.CPUSet.CPUs) != 0 {
-		if err := grp.validateCPUsAllowedResourceFit(allQuotas, resourceLimits.CPUSet.CPUs); err != nil {
-			return err
-		}
+		mylog.Check(grp.validateCPUsAllowedResourceFit(allQuotas, resourceLimits.CPUSet.CPUs))
 	}
 	if resourceLimits.Threads != nil {
-		if err := grp.validateThreadResourceFit(allQuotas, resourceLimits.Threads.Limit); err != nil {
-			return err
-		}
+		mylog.Check(grp.validateThreadResourceFit(allQuotas, resourceLimits.Threads.Limit))
 	}
 	return nil
 }
@@ -760,13 +734,8 @@ func (grp *Group) validateQuotasFit(resourceLimits Resources) error {
 // given here is 2GB, then the new limit will be rejected.
 func (grp *Group) UpdateQuotaLimits(resourceLimits Resources) error {
 	currentLimits := grp.GetQuotaResources()
-	if err := currentLimits.ValidateChange(resourceLimits); err != nil {
-		return err
-	}
-
-	if err := grp.validateQuotasFit(resourceLimits); err != nil {
-		return err
-	}
+	mylog.Check(currentLimits.ValidateChange(resourceLimits))
+	mylog.Check(grp.validateQuotasFit(resourceLimits))
 
 	if resourceLimits.Memory != nil {
 		grp.MemoryLimit = resourceLimits.Memory.Limit
@@ -803,9 +772,7 @@ func (grp *Group) UpdateQuotaLimits(resourceLimits Resources) error {
 }
 
 func (grp *Group) validate() error {
-	if err := naming.ValidateQuotaGroup(grp.Name); err != nil {
-		return err
-	}
+	mylog.Check(naming.ValidateQuotaGroup(grp.Name))
 
 	// check if the name is reserved for future usage
 	switch grp.Name {
@@ -815,9 +782,7 @@ func (grp *Group) validate() error {
 
 	// validate the resource limits for the group
 	limits := grp.GetQuotaResources()
-	if err := limits.Validate(); err != nil {
-		return err
-	}
+	mylog.Check(limits.Validate())
 
 	if grp.ParentGroup != "" && grp.Name == grp.ParentGroup {
 		return fmt.Errorf("group has circular parent reference to itself")
@@ -848,10 +813,7 @@ func (grp *Group) NewSubGroup(name string, resourceLimits Resources) (*Group, er
 		ParentGroup: grp.Name,
 		parentGroup: grp,
 	}
-
-	if err := subGrp.UpdateQuotaLimits(resourceLimits); err != nil {
-		return nil, err
-	}
+	mylog.Check(subGrp.UpdateQuotaLimits(resourceLimits))
 
 	// check early that the sub group name is not the same as that of the
 	// parent, this is fine in systemd world, but in snapd we want unique quota
@@ -865,13 +827,12 @@ func (grp *Group) NewSubGroup(name string, resourceLimits Resources) (*Group, er
 	if len(grp.Services) != 0 {
 		return nil, fmt.Errorf("cannot mix sub groups with services in the same group")
 	}
+	mylog.Check(
 
-	// With the new quotas we don't support nesting of snaps and sub-groups. However as we
-	// now allow sub-groups to be mixed with snaps, the sub-groups mixed this way
-	// can only contain services.
-	if err := subGrp.validate(); err != nil {
-		return nil, err
-	}
+		// With the new quotas we don't support nesting of snaps and sub-groups. However as we
+		// now allow sub-groups to be mixed with snaps, the sub-groups mixed this way
+		// can only contain services.
+		subGrp.validate())
 
 	// save the details of this new sub-group in the parent group
 	grp.subGroups = append(grp.subGroups, subGrp)
@@ -937,11 +898,10 @@ func ResolveCrossReferences(grps map[string]*Group) error {
 		if name != grp.Name {
 			return fmt.Errorf("group has name %q, but is referenced as %q", grp.Name, name)
 		}
+		mylog.Check(
 
-		// validate the group, assuming it is unresolved
-		if err := grp.validate(); err != nil {
-			return fmt.Errorf("group %q is invalid: %v", name, err)
-		}
+			// validate the group, assuming it is unresolved
+			grp.validate())
 
 		// first thread the parent link
 		if grp.ParentGroup != "" {
@@ -1011,9 +971,7 @@ func (grp *Group) visitTree(visited map[*Group]bool) error {
 	}
 
 	for _, sub := range grp.subGroups {
-		if err := sub.visitTree(visited); err != nil {
-			return err
-		}
+		mylog.Check(sub.visitTree(visited))
 	}
 
 	// add this group too to get the full tree flattened
@@ -1061,9 +1019,7 @@ func (s *QuotaGroupSet) AddAllNecessaryGroups(grp *Group) error {
 	// use a different map to prevent any accumulations to the quota group set
 	// that happen before a cycle is detected, we only want to add the groups
 	treeGroupMap := make(map[*Group]bool)
-	if err := prevParentGrp.visitTree(treeGroupMap); err != nil {
-		return err
-	}
+	mylog.Check(prevParentGrp.visitTree(treeGroupMap))
 
 	// add all the groups in the tree to the quota group set
 	for g := range treeGroupMap {

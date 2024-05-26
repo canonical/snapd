@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
@@ -49,13 +50,12 @@ func (s *unsetSuite) SetUpTest(c *C) {
 	task := state.NewTask("test-task", "my test task")
 	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "hook"}
 
-	var err error
-	s.mockContext, err = hookstate.NewContext(task, task.State(), setup, s.mockHandler, "")
-	c.Assert(err, IsNil)
+	s.mockContext = mylog.Check2(hookstate.NewContext(task, task.State(), setup, s.mockHandler, ""))
+
 }
 
 func (s *unsetSuite) TestInvalidArguments(c *C) {
-	_, _, err := ctlcmd.Run(s.mockContext, []string{"unset"}, 0)
+	_, _ := mylog.Check3(ctlcmd.Run(s.mockContext, []string{"unset"}, 0))
 	c.Check(err, ErrorMatches, "unset which option.*")
 }
 
@@ -75,7 +75,7 @@ func (s *unsetSuite) TestUnsetOne(c *C) {
 	s.mockContext.State().Unlock()
 	c.Check(value, Equals, "a")
 
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"unset", "foo"}, 0)
+	stdout, stderr := mylog.Check3(ctlcmd.Run(s.mockContext, []string{"unset", "foo"}, 0))
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
@@ -100,7 +100,7 @@ func (s *unsetSuite) TestUnsetMany(c *C) {
 	tr.Commit()
 	s.mockContext.State().Unlock()
 
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"unset", "foo", "bar"}, 0)
+	stdout, stderr := mylog.Check3(ctlcmd.Run(s.mockContext, []string{"unset", "foo", "bar"}, 0))
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
@@ -128,7 +128,7 @@ func (s *unsetSuite) TestSetThenUnset(c *C) {
 	tr.Commit()
 	s.mockContext.State().Unlock()
 
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"set", "agent.x!", "agent.x.a!", "agent.x.b!"}, 0)
+	stdout, stderr := mylog.Check3(ctlcmd.Run(s.mockContext, []string{"set", "agent.x!", "agent.x.a!", "agent.x.b!"}, 0))
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
@@ -145,18 +145,18 @@ func (s *unsetSuite) TestSetThenUnset(c *C) {
 }
 
 func (s *unsetSuite) TestUnsetRegularUserForbidden(c *C) {
-	_, _, err := ctlcmd.Run(s.mockContext, []string{"unset", "key"}, 1000)
+	_, _ := mylog.Check3(ctlcmd.Run(s.mockContext, []string{"unset", "key"}, 1000))
 	c.Assert(err, ErrorMatches, `cannot use "unset" with uid 1000, try with sudo`)
 	forbidden, _ := err.(*ctlcmd.ForbiddenCommandError)
 	c.Assert(forbidden, NotNil)
 }
 
 func (s *unsetSuite) TestUnsetHelpRegularUserAllowed(c *C) {
-	_, _, err := ctlcmd.Run(s.mockContext, []string{"unset", "-h"}, 1000)
+	_, _ := mylog.Check3(ctlcmd.Run(s.mockContext, []string{"unset", "-h"}, 1000))
 	c.Assert(strings.HasPrefix(err.Error(), "Usage:"), Equals, true)
 }
 
 func (s *unsetSuite) TestCommandWithoutContext(c *C) {
-	_, _, err := ctlcmd.Run(nil, []string{"unset", "foo"}, 0)
+	_, _ := mylog.Check3(ctlcmd.Run(nil, []string{"unset", "foo"}, 0))
 	c.Check(err, ErrorMatches, `cannot invoke snapctl operation commands \(here "unset"\) from outside of a snap`)
 }

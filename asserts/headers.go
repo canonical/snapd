@@ -26,6 +26,8 @@ import (
 	"sort"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 var (
@@ -55,11 +57,8 @@ func parseHeaders(head []byte) (map[string]interface{}, error) {
 
 		consumed := nameValueSplit + 1
 		var value interface{}
-		var err error
-		value, i, err = parseEntry(consumed, i, lines, 0)
-		if err != nil {
-			return nil, err
-		}
+
+		value, i = mylog.Check3(parseEntry(consumed, i, lines, 0))
 
 		if _, ok := headers[name]; ok {
 			return nil, fmt.Errorf("repeated header: %q", name)
@@ -154,11 +153,9 @@ func parseList(first int, lines []string, baseIndent int) (value interface{}, fi
 			return lst, j, nil
 		}
 		var v interface{}
-		var err error
-		v, j, err = parseEntry(len(prefix), j, lines, baseIndent+len(listPrefix)-1)
-		if err != nil {
-			return nil, -1, err
-		}
+
+		v, j = mylog.Check3(parseEntry(len(prefix), j, lines, baseIndent+len(listPrefix)-1))
+
 		lst = append(lst, v)
 	}
 	return lst, j, nil
@@ -185,11 +182,8 @@ func parseMap(first int, lines []string, baseIndent int) (value interface{}, fir
 
 		consumed := keyValueSplit + 1
 		var value interface{}
-		var err error
-		value, j, err = parseEntry(len(prefix)+consumed, j, lines, len(prefix))
-		if err != nil {
-			return nil, -1, err
-		}
+
+		value, j = mylog.Check3(parseEntry(len(prefix)+consumed, j, lines, len(prefix)))
 
 		if _, ok := m[key]; ok {
 			return nil, -1, fmt.Errorf("repeated map entry: %q", key)
@@ -207,18 +201,12 @@ func checkHeader(v interface{}) error {
 		return nil
 	case []interface{}:
 		for _, elem := range x {
-			err := checkHeader(elem)
-			if err != nil {
-				return err
-			}
+			mylog.Check(checkHeader(elem))
 		}
 		return nil
 	case map[string]interface{}:
 		for _, elem := range x {
-			err := checkHeader(elem)
-			if err != nil {
-				return err
-			}
+			mylog.Check(checkHeader(elem))
 		}
 		return nil
 	default:
@@ -229,10 +217,7 @@ func checkHeader(v interface{}) error {
 // checkHeaders checks that headers are of expected types
 func checkHeaders(headers map[string]interface{}) error {
 	for name, value := range headers {
-		err := checkHeader(value)
-		if err != nil {
-			return fmt.Errorf("header %q: %v", name, err)
-		}
+		mylog.Check(checkHeader(value))
 	}
 	return nil
 }

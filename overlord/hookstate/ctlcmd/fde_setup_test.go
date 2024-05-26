@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/overlord/hookstate"
@@ -71,8 +72,8 @@ func (s *fdeSetupSuite) SetUpTest(c *C) {
 		Revision: snap.R(1),
 		Hook:     "fde-setup",
 	}
-	context, err := hookstate.NewContext(s.mockTask, s.st, hooksup, s.mockHandler, "")
-	c.Assert(err, IsNil)
+	context := mylog.Check2(hookstate.NewContext(s.mockTask, s.st, hooksup, s.mockHandler, ""))
+
 	s.mockContext = context
 }
 
@@ -84,7 +85,7 @@ func (s *fdeSetupSuite) TestFdeSetupRequestOpInvalid(c *C) {
 	s.mockContext.Set("fde-setup-request", fdeSetup)
 	s.mockContext.Unlock()
 
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"fde-setup-request"}, 0)
+	stdout, stderr := mylog.Check3(ctlcmd.Run(s.mockContext, []string{"fde-setup-request"}, 0))
 	c.Check(err, ErrorMatches, `unknown fde-setup-request op "invalid-and-unknown"`)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
@@ -96,17 +97,17 @@ func (s *fdeSetupSuite) TestFdeSetupRequestNoFdeSetupOpData(c *C) {
 		Revision: snap.R(1),
 		Hook:     "other-hook",
 	}
-	context, err := hookstate.NewContext(nil, s.st, hooksup, s.mockHandler, "")
-	c.Assert(err, IsNil)
+	context := mylog.Check2(hookstate.NewContext(nil, s.st, hooksup, s.mockHandler, ""))
+
 
 	// check "fde-setup-request" error
-	stdout, stderr, err := ctlcmd.Run(context, []string{"fde-setup-request"}, 0)
+	stdout, stderr := mylog.Check3(ctlcmd.Run(context, []string{"fde-setup-request"}, 0))
 	c.Check(err, ErrorMatches, `cannot use fde-setup-request outside of the fde-setup hook`)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
 
 	// check "fde-setup-result" error
-	stdout, stderr, err = ctlcmd.Run(context, []string{"fde-setup-result"}, 0)
+	stdout, stderr = mylog.Check3(ctlcmd.Run(context, []string{"fde-setup-result"}, 0))
 	c.Check(err, ErrorMatches, `cannot use fde-setup-result outside of the fde-setup hook`)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
@@ -120,8 +121,8 @@ func (s *fdeSetupSuite) TestFdeSetupRequestOpFeatures(c *C) {
 	s.mockContext.Set("fde-setup-request", fdeSetup)
 	s.mockContext.Unlock()
 
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"fde-setup-request"}, 0)
-	c.Assert(err, IsNil)
+	stdout, stderr := mylog.Check3(ctlcmd.Run(s.mockContext, []string{"fde-setup-request"}, 0))
+
 	c.Check(string(stdout), Equals, `{"op":"features"}`+"\n")
 	c.Check(string(stderr), Equals, "")
 }
@@ -137,8 +138,8 @@ func (s *fdeSetupSuite) TestFdeSetupRequestOpInitialSetup(c *C) {
 	s.mockContext.Set("fde-setup-request", fdeSetup)
 	s.mockContext.Unlock()
 
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"fde-setup-request"}, 0)
-	c.Assert(err, IsNil)
+	stdout, stderr := mylog.Check3(ctlcmd.Run(s.mockContext, []string{"fde-setup-request"}, 0))
+
 
 	// the encryption key should be base64 encoded
 	encodedBase64Key := base64.StdEncoding.EncodeToString(mockKey[:])
@@ -154,8 +155,8 @@ func (s *fdeSetupSuite) TestFdeSetupResult(c *C) {
 	s.mockContext.Set("stdin", mockStdin)
 	s.mockContext.Unlock()
 
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"fde-setup-result"}, 0)
-	c.Assert(err, IsNil)
+	stdout, stderr := mylog.Check3(ctlcmd.Run(s.mockContext, []string{"fde-setup-result"}, 0))
+
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
 

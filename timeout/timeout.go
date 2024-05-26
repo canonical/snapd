@@ -22,6 +22,8 @@ package timeout
 import (
 	"encoding/json"
 	"time"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // Timeout is a time.Duration that knows how to roundtrip to json and yaml
@@ -38,14 +40,9 @@ func (t Timeout) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON is from the json.Unmarshaler interface
 func (t *Timeout) UnmarshalJSON(buf []byte) error {
 	var str string
-	if err := json.Unmarshal(buf, &str); err != nil {
-		return err
-	}
+	mylog.Check(json.Unmarshal(buf, &str))
 
-	dur, err := time.ParseDuration(str)
-	if err != nil {
-		return err
-	}
+	dur := mylog.Check2(time.ParseDuration(str))
 
 	*t = Timeout(dur)
 
@@ -54,13 +51,10 @@ func (t *Timeout) UnmarshalJSON(buf []byte) error {
 
 func (t *Timeout) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var str string
-	if err := unmarshal(&str); err != nil {
-		return err
-	}
-	dur, err := time.ParseDuration(str)
-	if err != nil {
-		return err
-	}
+	mylog.Check(unmarshal(&str))
+
+	dur := mylog.Check2(time.ParseDuration(str))
+
 	*t = Timeout(dur)
 	return nil
 }

@@ -20,6 +20,7 @@
 package notification_test
 
 import (
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/godbus/dbus"
 	. "gopkg.in/check.v1"
 
@@ -41,8 +42,8 @@ func (s *gtkSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	s.DBusTest.SetUpTest(c)
 
-	backend, err := notificationtest.NewGtkServer()
-	c.Assert(err, IsNil)
+	backend := mylog.Check2(notificationtest.NewGtkServer())
+
 	s.AddCleanup(func() { c.Check(backend.Stop(), IsNil) })
 	s.backend = backend
 }
@@ -54,20 +55,20 @@ func (s *gtkSuite) TearDownTest(c *C) {
 
 func (s *gtkSuite) TestGtkNotAvailabe(c *C) {
 	s.backend.ReleaseName()
-	_, err := notification.NewGtkBackend(s.SessionBus, "desktop-id")
+	_ := mylog.Check2(notification.NewGtkBackend(s.SessionBus, "desktop-id"))
 	c.Assert(err, ErrorMatches, `Could not get owner of name 'org.gtk.Notifications': no such name`)
 }
 
 func (s *gtkSuite) TestSendNotificationSuccess(c *C) {
-	srv, err := notification.NewGtkBackend(s.SessionBus, "desktop-id")
-	c.Assert(err, IsNil)
-	err = srv.SendNotification("some-id", &notification.Message{
+	srv := mylog.Check2(notification.NewGtkBackend(s.SessionBus, "desktop-id"))
+
+	mylog.Check(srv.SendNotification("some-id", &notification.Message{
 		Title:    "some title",
 		Body:     "a body",
 		Icon:     "an icon",
 		Priority: notification.PriorityUrgent,
-	})
-	c.Assert(err, IsNil)
+	}))
+
 
 	c.Check(s.backend.Get("some-id"), DeepEquals, &notificationtest.GtkNotification{
 		DesktopID: "desktop-id",
@@ -83,29 +84,28 @@ func (s *gtkSuite) TestSendNotificationSuccess(c *C) {
 
 func (s *gtkSuite) TestSendNotificationError(c *C) {
 	s.backend.SetError(&dbus.Error{Name: "org.gtk.Notifications.Error.Failed"})
-	srv, err := notification.NewGtkBackend(s.SessionBus, "desktop-id")
-	c.Assert(err, IsNil)
-	err = srv.SendNotification("some-id", &notification.Message{})
+	srv := mylog.Check2(notification.NewGtkBackend(s.SessionBus, "desktop-id"))
+
+	mylog.Check(srv.SendNotification("some-id", &notification.Message{}))
 	c.Assert(err, ErrorMatches, "org.gtk.Notifications.Error.Failed")
 }
 
 func (s *gtkSuite) TestCloseNotificationSuccess(c *C) {
-	srv, err := notification.NewGtkBackend(s.SessionBus, "desktop-id")
-	c.Assert(err, IsNil)
-	err = srv.SendNotification("some-id", &notification.Message{})
-	c.Assert(err, IsNil)
+	srv := mylog.Check2(notification.NewGtkBackend(s.SessionBus, "desktop-id"))
 
-	err = srv.CloseNotification("some-id")
-	c.Assert(err, IsNil)
+	mylog.Check(srv.SendNotification("some-id", &notification.Message{}))
+
+	mylog.Check(srv.CloseNotification("some-id"))
+
 	c.Check(s.backend.GetAll(), HasLen, 0)
 }
 
 func (s *gtkSuite) TestCloseNotificationError(c *C) {
-	srv, err := notification.NewGtkBackend(s.SessionBus, "desktop-id")
-	c.Assert(err, IsNil)
-	err = srv.SendNotification("some-id", &notification.Message{})
-	c.Assert(err, IsNil)
+	srv := mylog.Check2(notification.NewGtkBackend(s.SessionBus, "desktop-id"))
+
+	mylog.Check(srv.SendNotification("some-id", &notification.Message{}))
+
 	s.backend.SetError(&dbus.Error{Name: "org.gtk.Notifications.Error.Failed"})
-	err = srv.CloseNotification("some-id")
+	mylog.Check(srv.CloseNotification("some-id"))
 	c.Assert(err, ErrorMatches, "org.gtk.Notifications.Error.Failed")
 }

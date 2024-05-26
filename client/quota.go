@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/gadget/quantity"
 )
 
@@ -108,14 +109,10 @@ func (client *Client) EnsureQuota(groupName string, opts *EnsureQuotaOptions) (c
 	}
 
 	var body bytes.Buffer
-	if err := json.NewEncoder(&body).Encode(data); err != nil {
-		return "", err
-	}
-	chgID, err := client.doAsync("POST", "/v2/quotas", nil, nil, &body)
+	mylog.Check(json.NewEncoder(&body).Encode(data))
 
-	if err != nil {
-		return "", err
-	}
+	chgID := mylog.Check2(client.doAsync("POST", "/v2/quotas", nil, nil, &body))
+
 	return chgID, nil
 }
 
@@ -126,9 +123,7 @@ func (client *Client) GetQuotaGroup(groupName string) (*QuotaGroupResult, error)
 
 	var res *QuotaGroupResult
 	path := fmt.Sprintf("/v2/quotas/%s", groupName)
-	if _, err := client.doSync("GET", path, nil, nil, nil, &res); err != nil {
-		return nil, err
-	}
+	mylog.Check2(client.doSync("GET", path, nil, nil, nil, &res))
 
 	return res, nil
 }
@@ -143,22 +138,16 @@ func (client *Client) RemoveQuotaGroup(groupName string) (changeID string, err e
 	}
 
 	var body bytes.Buffer
-	if err := json.NewEncoder(&body).Encode(data); err != nil {
-		return "", err
-	}
-	chgID, err := client.doAsync("POST", "/v2/quotas", nil, nil, &body)
-	if err != nil {
-		return "", fmt.Errorf("cannot remove quota group: %w", err)
-	}
+	mylog.Check(json.NewEncoder(&body).Encode(data))
+
+	chgID := mylog.Check2(client.doAsync("POST", "/v2/quotas", nil, nil, &body))
 
 	return chgID, nil
 }
 
 func (client *Client) Quotas() ([]*QuotaGroupResult, error) {
 	var res []*QuotaGroupResult
-	if _, err := client.doSync("GET", "/v2/quotas", nil, nil, nil, &res); err != nil {
-		return nil, err
-	}
+	mylog.Check2(client.doSync("GET", "/v2/quotas", nil, nil, nil, &res))
 
 	return res, nil
 }

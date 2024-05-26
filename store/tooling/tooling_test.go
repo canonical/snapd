@@ -34,6 +34,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/logger"
@@ -68,9 +69,7 @@ type toolingSuite struct {
 
 var _ = Suite(&toolingSuite{})
 
-var (
-	brandPrivKey, _ = assertstest.GenerateKey(752)
-)
+var brandPrivKey, _ = assertstest.GenerateKey(752)
 
 const packageCore = `
 name: core
@@ -115,24 +114,24 @@ func (s *toolingSuite) setupSnaps(c *C, publishers map[string]string, defaultsYa
 
 func (s *toolingSuite) TestNewToolingStore(c *C) {
 	// default
-	u, err := url.Parse("https://api.snapcraft.io/")
-	c.Assert(err, IsNil)
+	u := mylog.Check2(url.Parse("https://api.snapcraft.io/"))
 
-	tsto, err := tooling.NewToolingStore()
-	c.Assert(err, IsNil)
+
+	tsto := mylog.Check2(tooling.NewToolingStore())
+
 
 	c.Check(tsto.StoreURL(), DeepEquals, u)
 }
 
 func (s *toolingSuite) TestNewToolingStoreUbuntuStoreURL(c *C) {
-	u, err := url.Parse("https://api.other")
-	c.Assert(err, IsNil)
+	u := mylog.Check2(url.Parse("https://api.other"))
+
 
 	os.Setenv("UBUNTU_STORE_URL", "https://api.other")
 	defer os.Unsetenv("UBUNTU_STORE_URL")
 
-	tsto, err := tooling.NewToolingStore()
-	c.Assert(err, IsNil)
+	tsto := mylog.Check2(tooling.NewToolingStore())
+
 
 	c.Check(tsto.StoreURL(), DeepEquals, u)
 }
@@ -141,24 +140,24 @@ func (s *toolingSuite) TestNewToolingStoreInvalidUbuntuStoreURL(c *C) {
 	os.Setenv("UBUNTU_STORE_URL", ":/what")
 	defer os.Unsetenv("UBUNTU_STORE_URL")
 
-	_, err := tooling.NewToolingStore()
+	_ := mylog.Check2(tooling.NewToolingStore())
 	c.Assert(err, ErrorMatches, `invalid UBUNTU_STORE_URL: .*`)
 }
 
 func (s *toolingSuite) TestNewToolingStoreWithAuthFile(c *C) {
 	tmpdir := c.MkDir()
 	authFn := filepath.Join(tmpdir, "auth.json")
-	err := os.WriteFile(authFn, []byte(`{
+	mylog.Check(os.WriteFile(authFn, []byte(`{
 "macaroon": "MACAROON",
 "discharges": ["DISCHARGE"]
-}`), 0600)
-	c.Assert(err, IsNil)
+}`), 0600))
+
 
 	os.Setenv("UBUNTU_STORE_AUTH_DATA_FILENAME", authFn)
 	defer os.Unsetenv("UBUNTU_STORE_AUTH_DATA_FILENAME")
 
-	tsto, err := tooling.NewToolingStore()
-	c.Assert(err, IsNil)
+	tsto := mylog.Check2(tooling.NewToolingStore())
+
 	creds := tsto.Creds()
 	u1creds, ok := creds.(*tooling.UbuntuOneCreds)
 	c.Assert(ok, Equals, true)
@@ -174,14 +173,14 @@ func (s *toolingSuite) TestNewToolingStoreWithBase64AuthFile(c *C) {
 "d": "DISCHARGE"
 }`)
 	enc := []byte(base64.StdEncoding.EncodeToString(authObj))
-	err := os.WriteFile(authFn, enc, 0600)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(authFn, enc, 0600))
+
 
 	os.Setenv("UBUNTU_STORE_AUTH_DATA_FILENAME", authFn)
 	defer os.Unsetenv("UBUNTU_STORE_AUTH_DATA_FILENAME")
 
-	tsto, err := tooling.NewToolingStore()
-	c.Assert(err, IsNil)
+	tsto := mylog.Check2(tooling.NewToolingStore())
+
 	creds := tsto.Creds()
 	u1creds, ok := creds.(*tooling.UbuntuOneCreds)
 	c.Assert(ok, Equals, true)
@@ -211,10 +210,10 @@ unbound_discharge =
 	}
 
 	for _, t := range tests {
-		err := os.WriteFile(authFn, []byte(t.data), 0600)
-		c.Assert(err, IsNil)
+		mylog.Check(os.WriteFile(authFn, []byte(t.data), 0600))
 
-		_, err = tooling.NewToolingStore()
+
+		_ = mylog.Check2(tooling.NewToolingStore())
 		c.Check(err, ErrorMatches, t.err)
 	}
 }
@@ -222,24 +221,25 @@ unbound_discharge =
 func (s *toolingSuite) TestNewToolingStoreWithAuthFromSnapcraftLoginFile(c *C) {
 	tmpdir := c.MkDir()
 	authFn := filepath.Join(tmpdir, "auth.json")
-	err := os.WriteFile(authFn, []byte(`[login.ubuntu.com]
+	mylog.Check(os.WriteFile(authFn, []byte(`[login.ubuntu.com]
 macaroon = MACAROON
 unbound_discharge = DISCHARGE
 
-`), 0600)
-	c.Assert(err, IsNil)
+`), 0600))
+
 
 	os.Setenv("UBUNTU_STORE_AUTH_DATA_FILENAME", authFn)
 	defer os.Unsetenv("UBUNTU_STORE_AUTH_DATA_FILENAME")
 
-	tsto, err := tooling.NewToolingStore()
-	c.Assert(err, IsNil)
+	tsto := mylog.Check2(tooling.NewToolingStore())
+
 	creds := tsto.Creds()
 	u1creds, ok := creds.(*tooling.UbuntuOneCreds)
 	c.Assert(ok, Equals, true)
 	c.Check(u1creds.User.StoreMacaroon, Equals, "MACAROON")
 	c.Check(u1creds.User.StoreDischarges, DeepEquals, []string{"DISCHARGE"})
 }
+
 func (s *toolingSuite) TestNewToolingStoreWithAuthFromEnv(c *C) {
 	tests := []struct {
 		dat string
@@ -269,22 +269,27 @@ func (s *toolingSuite) TestNewToolingStoreWithAuthFromEnv(c *C) {
 }`, a: &tooling.SimpleCreds{
 			Scheme: "Bearer",
 			Value:  "tok",
-		}}, {dat: `{"t": "u1-macaroon"}`,
+		}}, {
+			dat: `{"t": "u1-macaroon"}`,
 			err: `cannot recognize unmarshalled base64-decoded auth credentials from UBUNTU_STORE_AUTH: no known field combination set`,
-		}, {dat: `{"t": "macaroon"}`,
+		}, {
+			dat: `{"t": "macaroon"}`,
 			err: `cannot recognize unmarshalled base64-decoded auth credentials from UBUNTU_STORE_AUTH: no known field combination set`,
-		}, {dat: `{"t": 1}`,
+		}, {
+			dat: `{"t": 1}`,
 			err: `cannot recognize unmarshalled base64-decoded auth credentials from UBUNTU_STORE_AUTH: no known field combination set`,
-		}, {dat: `{"t": "macaroon", "v": []}`,
+		}, {
+			dat: `{"t": "macaroon", "v": []}`,
 			err: `cannot recognize unmarshalled base64-decoded auth credentials from UBUNTU_STORE_AUTH: no known field combination set`,
-		}}
+		},
+	}
 	defer os.Unsetenv("UBUNTU_STORE_AUTH")
 
 	for _, t := range tests {
 		os.Setenv("UBUNTU_STORE_AUTH", base64.StdEncoding.EncodeToString([]byte(t.dat)))
-		tsto, err := tooling.NewToolingStore()
+		tsto := mylog.Check2(tooling.NewToolingStore())
 		if t.err == "" {
-			c.Assert(err, IsNil)
+
 			creds := tsto.Creds()
 			c.Check(creds, DeepEquals, t.a)
 		} else {
@@ -384,8 +389,8 @@ func (s *toolingSuite) TestDownloadSnap(c *C) {
 	opts := tooling.DownloadSnapOptions{
 		TargetDir: dlDir,
 	}
-	dlSnap, err := s.tsto.DownloadSnap("core", opts)
-	c.Assert(err, IsNil)
+	dlSnap := mylog.Check2(s.tsto.DownloadSnap("core", opts))
+
 	c.Check(dlSnap.Path, Matches, filepath.Join(dlDir, `core_\d+.snap`))
 	c.Check(dlSnap.Info.SnapName(), Equals, "core")
 	c.Check(dlSnap.RedirectChannel, Equals, "")
@@ -485,8 +490,8 @@ func (s *toolingSuite) TestUpdateUserAuth(c *C) {
 		User: u,
 	}
 
-	u1, err := creds.UpdateUserAuth(&u, []string{"discharge2"})
-	c.Assert(err, IsNil)
+	u1 := mylog.Check2(creds.UpdateUserAuth(&u, []string{"discharge2"}))
+
 	c.Check(u1, Equals, &u)
 	c.Check(u1.StoreDischarges, DeepEquals, []string{"discharge2"})
 }
@@ -497,15 +502,15 @@ func (s *toolingSuite) TestSimpleCreds(c *C) {
 		Value:  "auth-value",
 	}
 	c.Check(creds.CanAuthorizeForUser(nil), Equals, true)
-	r, err := http.NewRequest("POST", "http://svc", nil)
-	c.Assert(err, IsNil)
+	r := mylog.Check2(http.NewRequest("POST", "http://svc", nil))
+
 	c.Assert(creds.Authorize(r, nil, nil, nil), IsNil)
 	auth := r.Header.Get("Authorization")
 	c.Check(auth, Equals, `Auth-Scheme auth-value`)
 }
 
 func (s *toolingSuite) setupSequenceFormingAssertion(c *C) {
-	vs, err := s.StoreSigning.Sign(asserts.ValidationSetType, map[string]interface{}{
+	vs := mylog.Check2(s.StoreSigning.Sign(asserts.ValidationSetType, map[string]interface{}{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
@@ -521,24 +526,25 @@ func (s *toolingSuite) setupSequenceFormingAssertion(c *C) {
 			},
 		},
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	err = s.StoreSigning.Add(vs)
+	}, nil, ""))
+
+	mylog.Check(s.StoreSigning.Add(vs))
 	c.Check(err, IsNil)
 }
 
 func (s *toolingSuite) TestAssertionSequenceFormingFetcherSimple(c *C) {
 	s.setupSequenceFormingAssertion(c)
 
-	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+	db := mylog.Check2(asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
 		Trusted:   s.StoreSigning.Trusted,
-	})
-	c.Assert(err, IsNil)
+	}))
 
-	// Add in prereqs
-	err = db.Add(s.StoreSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
+	mylog.
+
+		// Add in prereqs
+		Check(db.Add(s.StoreSigning.StoreAccountKey("")))
+
 
 	var saveCalled int
 	sf := s.tsto.AssertionSequenceFormingFetcher(db, func(a asserts.Assertion) error {
@@ -552,14 +558,13 @@ func (s *toolingSuite) TestAssertionSequenceFormingFetcherSimple(c *C) {
 		SequenceKey: []string{"16", "canonical", "base-set"},
 		Sequence:    1,
 	}
-
-	err = sf.FetchSequence(seq)
+	mylog.Check(sf.FetchSequence(seq))
 	c.Check(err, IsNil)
 	c.Check(saveCalled, Equals, 1)
 
 	// Verify it was put into the database
-	vsa, err := seq.Resolve(db.Find)
-	c.Assert(err, IsNil)
+	vsa := mylog.Check2(seq.Resolve(db.Find))
+
 	c.Check(vsa.(*asserts.ValidationSet).Name(), Equals, "base-set")
 	c.Check(vsa.(*asserts.ValidationSet).Sequence(), Equals, 1)
 }

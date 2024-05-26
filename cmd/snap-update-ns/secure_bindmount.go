@@ -22,6 +22,8 @@ package main
 import (
 	"fmt"
 	"syscall"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // BindMount performs a bind mount between two absolute paths containing no
@@ -43,15 +45,11 @@ func BindMount(sourceDir, targetDir string, flags uint) error {
 
 	// Step 1: acquire file descriptors representing the source and destination
 	// directories, ensuring no symlinks are followed.
-	sourceFd, err := OpenPath(sourceDir)
-	if err != nil {
-		return err
-	}
+	sourceFd := mylog.Check2(OpenPath(sourceDir))
+
 	defer sysClose(sourceFd)
-	targetFd, err := OpenPath(targetDir)
-	if err != nil {
-		return err
-	}
+	targetFd := mylog.Check2(OpenPath(targetDir))
+
 	defer sysClose(targetFd)
 
 	// Step 2: perform a bind mount between the paths identified by the two
@@ -71,27 +69,22 @@ func BindMount(sourceDir, targetDir string, flags uint) error {
 	sourceFdPath := fmt.Sprintf("/proc/self/fd/%d", sourceFd)
 	targetFdPath := fmt.Sprintf("/proc/self/fd/%d", targetFd)
 	bindFlags := syscall.MS_BIND | (flags & syscall.MS_REC)
-	if err := sysMount(sourceFdPath, targetFdPath, "", uintptr(bindFlags), ""); err != nil {
-		return err
-	}
+	mylog.Check(sysMount(sourceFdPath, targetFdPath, "", uintptr(bindFlags), ""))
 
 	// Step 3: optionally change to readonly
 	if flags&syscall.MS_RDONLY != 0 {
 		// We need to look up the target directory a second time, because
 		// targetFd refers to the path shadowed by the mount point.
-		mountFd, err := OpenPath(targetDir)
-		if err != nil {
-			// FIXME: the mount occurred, but the user moved the target
-			// somewhere
-			return err
-		}
+		mountFd := mylog.Check2(OpenPath(targetDir))
+
+		// FIXME: the mount occurred, but the user moved the target
+		// somewhere
+
 		defer sysClose(mountFd)
 		mountFdPath := fmt.Sprintf("/proc/self/fd/%d", mountFd)
 		remountFlags := syscall.MS_REMOUNT | syscall.MS_BIND | syscall.MS_RDONLY
-		if err := sysMount("none", mountFdPath, "", uintptr(remountFlags), ""); err != nil {
-			sysUnmount(mountFdPath, syscall.MNT_DETACH|umountNoFollow)
-			return err
-		}
+		mylog.Check(sysMount("none", mountFdPath, "", uintptr(remountFlags), ""))
+
 	}
 	return nil
 }

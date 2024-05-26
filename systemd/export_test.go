@@ -23,9 +23,7 @@ import (
 	"io"
 )
 
-var (
-	Jctl = jctl
-)
+var Jctl = jctl
 
 func MockOsGetenv(f func(string) string) func() {
 	oldOsGetenv := osGetenv

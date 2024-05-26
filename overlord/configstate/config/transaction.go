@@ -29,6 +29,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/overlord/state"
 )
@@ -52,15 +53,15 @@ type Transaction struct {
 func NewTransaction(st *state.State) *Transaction {
 	transaction := &Transaction{state: st}
 	transaction.changes = make(map[string]map[string]interface{})
+	mylog.
 
-	// Record the current state of the map containing the config of every snap
-	// in the system. We'll use it for this transaction.
-	err := st.Get("config", &transaction.pristine)
+		// Record the current state of the map containing the config of every snap
+		// in the system. We'll use it for this transaction.
+		Check(st.Get("config", &transaction.pristine))
 	if errors.Is(err, state.ErrNoState) {
 		transaction.pristine = make(map[string]map[string]*json.RawMessage)
-	} else if err != nil {
-		panic(fmt.Errorf("internal error: cannot unmarshal configuration: %v", err))
 	}
+
 	return transaction
 }
 
@@ -78,7 +79,7 @@ func changes(cfgStr string, cfg map[string]interface{}) []string {
 		case *json.RawMessage:
 			// check if we need to dive into a sub-config
 			var configm map[string]interface{}
-			if err := jsonutil.DecodeWithNumber(bytes.NewReader(*subCfg), &configm); err == nil {
+			if mylog.Check(jsonutil.DecodeWithNumber(bytes.NewReader(*subCfg), &configm)); err == nil {
 				// curiously, json decoder decodes json.RawMessage("null") into a nil map, so no change is
 				// reported when we recurse into it. This happens when unsetting a key and the underlying
 				// config path doesn't exist.
@@ -150,38 +151,29 @@ func (t *Transaction) Set(instanceName, key string, value interface{}) error {
 		config = make(map[string]interface{})
 	}
 
-	data, err := json.Marshal(value)
-	if err != nil {
-		return fmt.Errorf("cannot marshal snap %q option %q: %s", instanceName, key, err)
-	}
+	data := mylog.Check2(json.Marshal(value))
+
 	raw := json.RawMessage(data)
 
-	subkeys, err := ParseKey(key)
-	if err != nil {
-		return err
-	}
+	subkeys := mylog.Check2(ParseKey(key))
 
 	// Check whether it's trying to traverse a non-map from pristine. This
 	// would go unperceived by the configuration patching below.
 	if len(subkeys) > 1 {
 		var result interface{}
-		err = getFromConfig(instanceName, subkeys, 0, t.pristine[instanceName], &result)
+		mylog.Check(getFromConfig(instanceName, subkeys, 0, t.pristine[instanceName], &result))
 		if err != nil && !IsNoOption(err) {
 			return err
 		}
 	}
-	// check that we do not "block" a path to external config with non-maps
-	if err := shadowsExternalConfig(instanceName, key, value); err != nil {
-		return err
-	}
+	mylog.Check(
+		// check that we do not "block" a path to external config with non-maps
+		shadowsExternalConfig(instanceName, key, value))
 
 	// config here is never nil and PatchConfig always operates
 	// directly on and returns config if it's a
 	// map[string]interface{}
-	_, err = PatchConfig(instanceName, subkeys, 0, config, &raw)
-	if err != nil {
-		return err
-	}
+	_ = mylog.Check2(PatchConfig(instanceName, subkeys, 0, config, &raw))
 
 	t.changes[instanceName] = config
 	return nil
@@ -207,16 +199,12 @@ func (t *Transaction) Get(snapName, key string, result interface{}) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	subkeys, err := ParseKey(key)
-	if err != nil {
-		return err
-	}
+	subkeys := mylog.Check2(ParseKey(key))
 
 	// merge external config and then commit changes onto a copy of pristine configuration, so that get has a complete view of the config.
 	config := t.copyPristine(snapName)
-	if err := mergeConfigWithExternal(snapName, key, &config); err != nil {
-		return err
-	}
+	mylog.Check(mergeConfigWithExternal(snapName, key, &config))
+
 	applyChanges(config, t.changes[snapName])
 
 	purgeNulls(config)
@@ -228,7 +216,7 @@ func (t *Transaction) Get(snapName, key string, result interface{}) error {
 //
 // Transactions do not see updates from the current state or from other transactions.
 func (t *Transaction) GetMaybe(instanceName, key string, result interface{}) error {
-	err := t.Get(instanceName, key, result)
+	mylog.Check(t.Get(instanceName, key, result))
 	if err != nil && !IsNoOption(err) {
 		return err
 	}
@@ -244,10 +232,7 @@ func (t *Transaction) GetPristine(snapName, key string, result interface{}) erro
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	subkeys, err := ParseKey(key)
-	if err != nil {
-		return err
-	}
+	subkeys := mylog.Check2(ParseKey(key))
 
 	return getFromConfig(snapName, subkeys, 0, t.pristine[snapName], result)
 }
@@ -258,7 +243,7 @@ func (t *Transaction) GetPristine(snapName, key string, result interface{}) erro
 //
 // If the key does not exist, no error is returned.
 func (t *Transaction) GetPristineMaybe(instanceName, key string, result interface{}) error {
-	err := t.GetPristine(instanceName, key, result)
+	mylog.Check(t.GetPristine(instanceName, key, result))
 	if err != nil && !IsNoOption(err) {
 		return err
 	}
@@ -272,9 +257,8 @@ func getFromConfig(instanceName string, subkeys []string, pos int, config map[st
 			return &NoOptionError{SnapName: instanceName}
 		}
 		raw := jsonRaw(config)
-		if err := jsonutil.DecodeWithNumber(bytes.NewReader(*raw), &result); err != nil {
-			return fmt.Errorf("internal error: cannot unmarshal snap %q root document: %s", instanceName, err)
-		}
+		mylog.Check(jsonutil.DecodeWithNumber(bytes.NewReader(*raw), &result))
+
 		return nil
 	}
 
@@ -291,17 +275,14 @@ func getFromConfig(instanceName string, subkeys []string, pos int, config map[st
 	}
 
 	if pos+1 == len(subkeys) {
-		if err := jsonutil.DecodeWithNumber(bytes.NewReader(*raw), &result); err != nil {
-			key := strings.Join(subkeys, ".")
-			return fmt.Errorf("internal error: cannot unmarshal snap %q option %q into %T: %s, json: %s", instanceName, key, result, err, *raw)
-		}
+		mylog.Check(jsonutil.DecodeWithNumber(bytes.NewReader(*raw), &result))
+
 		return nil
 	}
 
 	var configm map[string]*json.RawMessage
-	if err := jsonutil.DecodeWithNumber(bytes.NewReader(*raw), &configm); err != nil {
-		return fmt.Errorf("snap %q option %q is not a map", instanceName, strings.Join(subkeys[:pos+1], "."))
-	}
+	mylog.Check(jsonutil.DecodeWithNumber(bytes.NewReader(*raw), &configm))
+
 	return getFromConfig(instanceName, subkeys, pos+1, configm, result)
 }
 
@@ -316,13 +297,12 @@ func (t *Transaction) Commit() {
 	if len(t.changes) == 0 {
 		return
 	}
+	mylog.
 
-	// Update our copy of the config with the most recent one from the state.
-	err := t.state.Get("config", &t.pristine)
+		// Update our copy of the config with the most recent one from the state.
+		Check(t.state.Get("config", &t.pristine))
 	if errors.Is(err, state.ErrNoState) {
 		t.pristine = make(map[string]map[string]*json.RawMessage)
-	} else if err != nil {
-		panic(fmt.Errorf("internal error: cannot unmarshal configuration: %v", err))
 	}
 
 	// Iterate through the write cache and save each item but exclude external configuration
@@ -353,10 +333,8 @@ func applyChanges(config map[string]*json.RawMessage, changes map[string]interfa
 }
 
 func jsonRaw(v interface{}) *json.RawMessage {
-	data, err := json.Marshal(v)
-	if err != nil {
-		panic(fmt.Errorf("internal error: cannot marshal configuration: %v", err))
-	}
+	data := mylog.Check2(json.Marshal(v))
+
 	raw := json.RawMessage(data)
 	return &raw
 }
@@ -370,10 +348,9 @@ func commitChange(pristine *json.RawMessage, change interface{}) *json.RawMessag
 			return jsonRaw(change)
 		}
 		var pristinem map[string]*json.RawMessage
-		if err := jsonutil.DecodeWithNumber(bytes.NewReader(*pristine), &pristinem); err != nil {
-			// Not a map. Overwrite with the change.
-			return jsonRaw(change)
-		}
+		mylog.Check(jsonutil.DecodeWithNumber(bytes.NewReader(*pristine), &pristinem))
+		// Not a map. Overwrite with the change.
+
 		for k, v := range change {
 			pristinem[k] = commitChange(pristinem[k], v)
 		}
@@ -387,14 +364,10 @@ func commitChange(pristine *json.RawMessage, change interface{}) *json.RawMessag
 // true: for requested key "a" and external key "a.external"
 // false for requested key "z" and external key "a.external"
 func overlapsWithExternalConfig(requestedKey, externalKey string) (bool, error) {
-	requestedSubkeys, err := ParseKey(requestedKey)
-	if err != nil {
-		return false, fmt.Errorf("cannot check overlap for requested key: %v", err)
-	}
-	externalSubkeys, err := ParseKey(externalKey)
-	if err != nil {
-		return false, fmt.Errorf("cannot check overlap for external key: %v", err)
-	}
+	requestedSubkeys := mylog.Check2(ParseKey(requestedKey))
+
+	externalSubkeys := mylog.Check2(ParseKey(externalKey))
+
 	for i := range requestedSubkeys {
 		if i >= len(externalSubkeys) {
 			return true, nil
@@ -426,10 +399,8 @@ func mergeConfigWithExternal(instanceName, requestedKey string, origConfig *map[
 		}
 		// check if the requested key is part of the external
 		// configuration
-		partOf, err := overlapsWithExternalConfig(requestedKey, externalKey)
-		if err != nil {
-			return err
-		}
+		partOf := mylog.Check2(overlapsWithExternalConfig(requestedKey, externalKey))
+
 		if !partOf {
 			continue
 		}
@@ -441,10 +412,8 @@ func mergeConfigWithExternal(instanceName, requestedKey string, origConfig *map[
 		if len(requestedKey) < len(externalKey) {
 			k = externalKey
 		}
-		res, err := externalFn(k)
-		if err != nil {
-			return err
-		}
+		res := mylog.Check2(externalFn(k))
+
 		patch[externalKey] = jsonRaw(res)
 	}
 	if len(patch) == 0 {
@@ -457,10 +426,8 @@ func mergeConfigWithExternal(instanceName, requestedKey string, origConfig *map[
 	for _, subkeys := range patchKeys {
 		// patch[key] above got assigned jsonRaw() so this cast is ok
 		raw := patch[subkeys].(*json.RawMessage)
-		mergedConfig, err := PatchConfig(instanceName, strings.Split(subkeys, "."), 0, config, raw)
-		if err != nil {
-			return err
-		}
+		mergedConfig := mylog.Check2(PatchConfig(instanceName, strings.Split(subkeys, "."), 0, config, raw))
+
 		// PatchConfig got *json.RawMessage as input and
 		// returns the same type so this cast is ok (but be defensive)
 		config, ok = mergedConfig.(*json.RawMessage)
@@ -468,13 +435,12 @@ func mergeConfigWithExternal(instanceName, requestedKey string, origConfig *map[
 			return fmt.Errorf("internal error: PatchConfig in mergeConfigWithExternal did not return a *json.RawMessage please report this as a bug")
 		}
 	}
+	mylog.Check(
 
-	// XXX: unmarshaling on top of something leaves values in place
-	// (no problem here because we only add external things)
-	// convert back to the original config
-	if err := jsonutil.DecodeWithNumber(bytes.NewReader(*config), origConfig); err != nil {
-		return err
-	}
+		// XXX: unmarshaling on top of something leaves values in place
+		// (no problem here because we only add external things)
+		// convert back to the original config
+		jsonutil.DecodeWithNumber(bytes.NewReader(*config), origConfig))
 
 	return nil
 }
@@ -552,10 +518,7 @@ var (
 func RegisterExternalConfig(snapName, key string, vf ExternalCfgFunc) error {
 	externalConfigMu.Lock()
 	defer externalConfigMu.Unlock()
-
-	if _, err := ParseKey(key); err != nil {
-		return fmt.Errorf("cannot register external config: %v", err)
-	}
+	mylog.Check2(ParseKey(key))
 
 	if externalConfigMap == nil {
 		externalConfigMap = make(map[string]map[string]ExternalCfgFunc)

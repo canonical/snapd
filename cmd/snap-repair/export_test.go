@@ -25,6 +25,7 @@ import (
 
 	"gopkg.in/retry.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/httputil"
 )
@@ -39,10 +40,8 @@ type RepairConfig = repairConfig
 
 func MockBaseURL(baseurl string) (restore func()) {
 	orig := baseURL
-	u, err := url.Parse(baseurl)
-	if err != nil {
-		panic(err)
-	}
+	u := mylog.Check2(url.Parse(baseurl))
+
 	baseURL = u
 	return func() {
 		baseURL = orig

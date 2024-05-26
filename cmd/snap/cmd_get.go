@@ -25,14 +25,16 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
 )
 
-var shortGetHelp = i18n.G("Print configuration options")
-var longGetHelp = i18n.G(`
+var (
+	shortGetHelp = i18n.G("Print configuration options")
+	longGetHelp  = i18n.G(`
 The get command prints configuration options for the provided snap.
 
     $ snap get snap-name username
@@ -50,6 +52,7 @@ Nested values may be retrieved via a dotted path:
     $ snap get snap-name author.name
     frank
 `)
+)
 
 var longAspectGetHelp = i18n.G(`
 If the first argument passed into get is an aspect identifier matching the
@@ -71,7 +74,7 @@ type cmdGet struct {
 }
 
 func init() {
-	if err := validateAspectFeatureFlag(); err == nil {
+	if mylog.Check(validateAspectFeatureFlag()); err == nil {
 		longGetHelp += longAspectGetHelp
 	}
 
@@ -162,10 +165,7 @@ func rootRequested(confKeys []string) bool {
 // outputJson will be used when the user requested "document" output via
 // the "-d" commandline switch.
 func (c *cmdGet) outputJson(conf interface{}) error {
-	bytes, err := json.MarshalIndent(conf, "", "\t")
-	if err != nil {
-		return err
-	}
+	bytes := mylog.Check2(json.MarshalIndent(conf, "", "\t"))
 
 	fmt.Fprintln(Stdout, string(bytes))
 	return nil
@@ -234,7 +234,6 @@ func (x *cmdGet) outputDefault(conf map[string]interface{}, snapName string, con
 
 	fmt.Fprintln(Stdout, "")
 	return nil
-
 }
 
 func (x *cmdGet) Execute(args []string) error {
@@ -255,25 +254,17 @@ func (x *cmdGet) Execute(args []string) error {
 	confKeys := x.Positional.Keys
 
 	var conf map[string]interface{}
-	var err error
+
 	if isAspectID(snapName) {
-		if err := validateAspectFeatureFlag(); err != nil {
-			return err
-		}
+		mylog.Check(validateAspectFeatureFlag())
 
 		// first argument is an aspectID, use the aspects API
 		aspectID := snapName
-		if err := validateAspectID(aspectID); err != nil {
-			return err
-		}
+		mylog.Check(validateAspectID(aspectID))
 
-		conf, err = x.client.AspectGet(aspectID, confKeys)
+		conf = mylog.Check2(x.client.AspectGet(aspectID, confKeys))
 	} else {
-		conf, err = x.client.Conf(snapName, confKeys)
-	}
-
-	if err != nil {
-		return err
+		conf = mylog.Check2(x.client.Conf(snapName, confKeys))
 	}
 
 	switch {

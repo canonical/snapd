@@ -26,6 +26,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 var (
@@ -50,16 +52,11 @@ func injectFault(tagKind string) (injected bool) {
 		// already injected once
 		return false
 	}
+	mylog.Check(os.MkdirAll(filepath.Join(injectSysroot, "/var/lib/snapd/faults"), 0755))
 
-	if err := os.MkdirAll(filepath.Join(injectSysroot, "/var/lib/snapd/faults"), 0755); err != nil {
-		fmt.Fprintf(stderr, "cannot create fault stamps directory: %v\n", err)
-		return false
-	}
 	makeStamp := func() bool {
-		if err := AtomicWriteFile(stampFile, nil, 0644, 0); err != nil {
-			fmt.Fprintf(stderr, "cannot create stamp file for tag %q\n", tagKind)
-			return false
-		}
+		mylog.Check(AtomicWriteFile(stampFile, nil, 0644, 0))
+
 		return true
 	}
 	fmt.Fprintf(stderr, "injecting %q fault for tag %q\n", kind, tag)
@@ -71,19 +68,14 @@ func injectFault(tagKind string) (injected bool) {
 		}
 		panic(fmt.Sprintf("fault %q", tagKind))
 	case "reboot":
-		f, err := os.OpenFile(filepath.Join(injectSysroot, "/proc/sysrq-trigger"), os.O_WRONLY, 0)
-		if err != nil {
-			fmt.Fprintf(stderr, "cannot open: %v\n", err)
-			return false
-		}
+		f := mylog.Check2(os.OpenFile(filepath.Join(injectSysroot, "/proc/sysrq-trigger"), os.O_WRONLY, 0))
+
 		defer f.Close()
 		if !makeStamp() {
 			return false
 		}
-		if _, err := f.WriteString("b\n"); err != nil {
-			fmt.Fprintf(stderr, "cannot request reboot: %v\n", err)
-			return false
-		}
+		mylog.Check2(f.WriteString("b\n"))
+
 		// we should be rebooting now
 		foreverLoop()
 	}

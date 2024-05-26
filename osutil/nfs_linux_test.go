@@ -22,6 +22,7 @@ package osutil_test
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -97,11 +98,11 @@ func (s *nfsSuite) TestIsHomeUsingRemoteFS(c *C) {
 		restore = osutil.MockEtcFstab(tc.fstab)
 		defer restore()
 
-		isRemoteFS, err := osutil.IsHomeUsingRemoteFS()
+		isRemoteFS := mylog.Check2(osutil.IsHomeUsingRemoteFS())
 		if tc.errorPattern != "" {
 			c.Assert(err, ErrorMatches, tc.errorPattern, Commentf("test case %#v", tc))
 		} else {
-			c.Assert(err, IsNil)
+
 		}
 		c.Assert(isRemoteFS, Equals, tc.isRemoteFS)
 	}

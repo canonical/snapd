@@ -22,6 +22,7 @@ package configcore
 import (
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/sysconfig"
 )
 
@@ -180,9 +181,8 @@ func filesystemOnlyRun(dev sysconfig.Device, cfg ConfGetter, ctx *fsOnlyContext)
 		if h.needsState() {
 			continue
 		}
-		if err := h.validate(cfg); err != nil {
-			return err
-		}
+		mylog.Check(h.validate(cfg))
+
 	}
 
 	for _, h := range handlers {
@@ -195,9 +195,8 @@ func filesystemOnlyRun(dev sysconfig.Device, cfg ConfGetter, ctx *fsOnlyContext)
 		if h.flags().modeenvOnlyConfig && !dev.HasModeenv() {
 			continue
 		}
-		if err := h.handle(dev, cfg, ctx); err != nil {
-			return err
-		}
+		mylog.Check(h.handle(dev, cfg, ctx))
+
 	}
 	return nil
 }

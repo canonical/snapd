@@ -27,18 +27,19 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/jsonutil"
 )
 
 func (cs *clientSuite) TestCreateQuotaGroupInvalidName(c *check.C) {
-	_, err := cs.cli.EnsureQuota("", nil)
+	_ := mylog.Check2(cs.cli.EnsureQuota("", nil))
 	c.Check(err, check.ErrorMatches, `cannot create or update quota group without a name`)
 }
 
 func (cs *clientSuite) TestCreateQuotaGroupInvalidOptions(c *check.C) {
-	_, err := cs.cli.EnsureQuota("foo", nil)
+	_ := mylog.Check2(cs.cli.EnsureQuota("foo", nil))
 	c.Check(err, check.ErrorMatches, `cannot create or update quota group without any options`)
 }
 
@@ -69,20 +70,20 @@ func (cs *clientSuite) TestEnsureQuotaGroup(c *check.C) {
 		},
 	}
 
-	chgID, err := cs.cli.EnsureQuota("foo", &client.EnsureQuotaOptions{
+	chgID := mylog.Check2(cs.cli.EnsureQuota("foo", &client.EnsureQuotaOptions{
 		Parent:      "bar",
 		Snaps:       []string{"snap-a", "snap-b"},
 		Services:    []string{"snap-a.svc1", "snap-b.svc1"},
 		Constraints: quotaValues,
-	})
+	}))
 	c.Assert(err, check.IsNil)
 	c.Assert(chgID, check.Equals, "42")
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/quotas")
-	body, err := io.ReadAll(cs.req.Body)
+	body := mylog.Check2(io.ReadAll(cs.req.Body))
 	c.Assert(err, check.IsNil)
 	var req map[string]interface{}
-	err = jsonutil.DecodeWithNumber(bytes.NewReader(body), &req)
+	mylog.Check(jsonutil.DecodeWithNumber(bytes.NewReader(body), &req))
 	c.Assert(err, check.IsNil)
 	c.Assert(req, check.DeepEquals, map[string]interface{}{
 		"action":     "ensure",
@@ -112,16 +113,16 @@ func (cs *clientSuite) TestEnsureQuotaGroup(c *check.C) {
 func (cs *clientSuite) TestEnsureQuotaGroupError(c *check.C) {
 	cs.status = 500
 	cs.rsp = `{"type": "error"}`
-	_, err := cs.cli.EnsureQuota("foo", &client.EnsureQuotaOptions{
+	_ := mylog.Check2(cs.cli.EnsureQuota("foo", &client.EnsureQuotaOptions{
 		Parent:      "bar",
 		Snaps:       []string{"snap-a"},
 		Constraints: &client.QuotaValues{Memory: quantity.Size(1)},
-	})
+	}))
 	c.Check(err, check.ErrorMatches, `server error: "Internal Server Error"`)
 }
 
 func (cs *clientSuite) TestGetQuotaGroupInvalidName(c *check.C) {
-	_, err := cs.cli.GetQuotaGroup("")
+	_ := mylog.Check2(cs.cli.GetQuotaGroup(""))
 	c.Assert(err, check.ErrorMatches, `cannot get quota group without a name`)
 }
 
@@ -140,7 +141,7 @@ func (cs *clientSuite) TestGetQuotaGroup(c *check.C) {
 		}
 	}`
 
-	grp, err := cs.cli.GetQuotaGroup("foo")
+	grp := mylog.Check2(cs.cli.GetQuotaGroup("foo"))
 	c.Assert(err, check.IsNil)
 	c.Check(cs.req.Method, check.Equals, "GET")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/quotas/foo")
@@ -158,7 +159,7 @@ func (cs *clientSuite) TestGetQuotaGroup(c *check.C) {
 func (cs *clientSuite) TestGetQuotaGroupError(c *check.C) {
 	cs.status = 500
 	cs.rsp = `{"type": "error"}`
-	_, err := cs.cli.GetQuotaGroup("foo")
+	_ := mylog.Check2(cs.cli.GetQuotaGroup("foo"))
 	c.Check(err, check.ErrorMatches, `server error: "Internal Server Error"`)
 }
 
@@ -170,15 +171,15 @@ func (cs *clientSuite) TestRemoveQuotaGroup(c *check.C) {
 		"change": "42"
 	}`
 
-	chgID, err := cs.cli.RemoveQuotaGroup("foo")
+	chgID := mylog.Check2(cs.cli.RemoveQuotaGroup("foo"))
 	c.Assert(err, check.IsNil)
 	c.Assert(chgID, check.Equals, "42")
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/quotas")
-	body, err := io.ReadAll(cs.req.Body)
+	body := mylog.Check2(io.ReadAll(cs.req.Body))
 	c.Assert(err, check.IsNil)
 	var req map[string]interface{}
-	err = json.Unmarshal(body, &req)
+	mylog.Check(json.Unmarshal(body, &req))
 	c.Assert(err, check.IsNil)
 	c.Assert(req, check.DeepEquals, map[string]interface{}{
 		"action":     "remove",
@@ -189,6 +190,6 @@ func (cs *clientSuite) TestRemoveQuotaGroup(c *check.C) {
 func (cs *clientSuite) TestRemoveQuotaGroupError(c *check.C) {
 	cs.status = 500
 	cs.rsp = `{"type": "error"}`
-	_, err := cs.cli.RemoveQuotaGroup("foo")
+	_ := mylog.Check2(cs.cli.RemoveQuotaGroup("foo"))
 	c.Check(err, check.ErrorMatches, `cannot remove quota group: server error: "Internal Server Error"`)
 }

@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
@@ -75,8 +76,8 @@ func (s *timingsSuite) mockDurationThreshold(threshold time.Duration) {
 }
 
 func (s *timingsSuite) mockTimeNow(c *C) {
-	t, err := time.Parse(time.RFC3339, "2019-03-11T09:01:00.0Z")
-	c.Assert(err, IsNil)
+	t := mylog.Check2(time.Parse(time.RFC3339, "2019-03-11T09:01:00.0Z"))
+
 	s.fakeTime = t
 	// Increase fakeTime by 1 millisecond on each call, and report it as current time
 	s.BaseTest.AddCleanup(timings.MockTimeNow(func() time.Time {
@@ -125,13 +126,16 @@ func (s *timingsSuite) TestSave(c *C) {
 					"level":    float64(1),
 					"label":    "nested measurement",
 					"summary":  "...",
-					"duration": float64(2000000)},
+					"duration": float64(2000000),
+				},
 				map[string]interface{}{
 					"level":    float64(2),
 					"label":    "nested more",
 					"summary":  "...",
-					"duration": float64(3000000)},
-			}},
+					"duration": float64(3000000),
+				},
+			},
+		},
 		map[string]interface{}{
 			"tags":       map[string]interface{}{"change": "12", "task": "3"},
 			"start-time": "2019-03-11T09:01:00.007Z",
@@ -146,13 +150,17 @@ func (s *timingsSuite) TestSave(c *C) {
 					"level":    float64(1),
 					"label":    "nested measurement",
 					"summary":  "...",
-					"duration": float64(5000000)},
+					"duration": float64(5000000),
+				},
 				map[string]interface{}{
 					"level":    float64(2),
 					"label":    "nested more",
 					"summary":  "...",
-					"duration": float64(6000000)},
-			}}})
+					"duration": float64(6000000),
+				},
+			},
+		},
+	})
 }
 
 func (s *timingsSuite) TestSaveNoTimings(c *C) {
@@ -206,7 +214,9 @@ func (s *timingsSuite) TestDuration(c *C) {
 					"summary":  "...",
 					"duration": float64(1000000),
 				},
-			}}})
+			},
+		},
+	})
 }
 
 func (s *timingsSuite) testDurationThreshold(c *C, threshold time.Duration, expected interface{}) {
@@ -258,7 +268,9 @@ func (s *timingsSuite) TestDurationThresholdAll(c *C) {
 					"summary":  "...",
 					"duration": float64(1000000),
 				},
-			}}})
+			},
+		},
+	})
 }
 
 func (s *timingsSuite) TestDurationThreshold(c *C) {
@@ -278,7 +290,9 @@ func (s *timingsSuite) TestDurationThreshold(c *C) {
 					"summary":  "...",
 					"duration": float64(3000000),
 				},
-			}}})
+			},
+		},
+	})
 }
 
 func (s *timingsSuite) TestDurationThresholdRootOnly(c *C) {
@@ -292,7 +306,9 @@ func (s *timingsSuite) TestDurationThresholdRootOnly(c *C) {
 					"summary":  "...",
 					"duration": float64(5000000),
 				},
-			}}})
+			},
+		},
+	})
 }
 
 func (s *timingsSuite) TestDurationThresholdNone(c *C) {
@@ -341,14 +357,14 @@ func (s *timingsSuite) TestGet(c *C) {
 		timing.Save(s.st)
 	}
 
-	none, err := timings.Get(s.st, 999, func(tags map[string]string) bool { return false })
-	c.Assert(err, IsNil)
+	none := mylog.Check2(timings.Get(s.st, 999, func(tags map[string]string) bool { return false }))
+
 	c.Check(none, HasLen, 0)
 
-	tm, err := timings.Get(s.st, -1, func(tags map[string]string) bool {
+	tm := mylog.Check2(timings.Get(s.st, -1, func(tags map[string]string) bool {
 		return tags["foo"] == "1"
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(tm, DeepEquals, []*timings.TimingsInfo{
 		{
 			Tags:     map[string]string{"foo": "1"},
@@ -360,8 +376,8 @@ func (s *timingsSuite) TestGet(c *C) {
 		},
 	})
 
-	tmOnlyLevel0, err := timings.Get(s.st, 0, func(tags map[string]string) bool { return true })
-	c.Assert(err, IsNil)
+	tmOnlyLevel0 := mylog.Check2(timings.Get(s.st, 0, func(tags map[string]string) bool { return true }))
+
 	c.Check(tmOnlyLevel0, DeepEquals, []*timings.TimingsInfo{
 		{
 			Tags:     map[string]string{"foo": "0"},

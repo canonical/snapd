@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/cmd/snap"
 )
 
@@ -34,109 +35,110 @@ type timingsCmdArgs struct {
 	args, stdout, stderr, error string
 }
 
-var timingsTests = []timingsCmdArgs{{
-	args:  "debug timings",
-	error: "please provide change ID or type with --last=<type>, or query for --ensure=<name> or --startup=<name>",
-}, {
-	args:  "debug timings --ensure=seed 9",
-	error: "cannot use change id, 'startup' or 'ensure' together",
-}, {
-	args:  "debug timings --ensure=seed --startup=ifacemgr",
-	error: "cannot use change id, 'startup' or 'ensure' together",
-}, {
-	args:  "debug timings --last=install --all",
-	error: "cannot use 'all' with change id or 'last'",
-}, {
-	args:  "debug timings --last=remove",
-	error: `no changes of type "remove" found`,
-}, {
-	args:  "debug timings --startup=load-state 9",
-	error: "cannot use change id, 'startup' or 'ensure' together",
-}, {
-	args:  "debug timings --all 9",
-	error: "cannot use 'all' with change id or 'last'",
-}, {
-	args: "debug timings --last=install",
-	stdout: "ID   Status        Doing      Undoing  Summary\n" +
-		"40   Doing         910ms            -  lane 0 task bar summary\n" +
-		" ^                   1ms            -    foo summary\n" +
-		"  ^                  1ms            -      bar summary\n" +
-		"41   Done          210ms            -  lane 1 task baz summary\n" +
-		"42   Done          310ms            -  lane 1 task boo summary\n" +
-		"43   Done          310ms            -  lane 0 task doh summary\n\n",
-}, {
-	args: "debug timings 1",
-	stdout: "ID   Status        Doing      Undoing  Summary\n" +
-		"40   Doing         910ms            -  lane 0 task bar summary\n" +
-		" ^                   1ms            -    foo summary\n" +
-		"  ^                  1ms            -      bar summary\n" +
-		"41   Done          210ms            -  lane 1 task baz summary\n" +
-		"42   Done          310ms            -  lane 1 task boo summary\n" +
-		"43   Done          310ms            -  lane 0 task doh summary\n\n",
-}, {
-	args: "debug timings 1 --verbose",
-	stdout: "ID   Status        Doing      Undoing  Label  Summary\n" +
-		"40   Doing         910ms            -  bar    lane 0 task bar summary\n" +
-		" ^                   1ms            -  foo      foo summary\n" +
-		"  ^                  1ms            -  bar        bar summary\n" +
-		"41   Done          210ms            -  baz    lane 1 task baz summary\n" +
-		"42   Done          310ms            -  boo    lane 1 task boo summary\n" +
-		"43   Done          310ms            -  doh    lane 0 task doh summary\n\n",
-}, {
-	args: "debug timings --ensure=seed",
-	stdout: "ID    Status        Doing      Undoing  Summary\n" +
-		"seed                  8ms            -  \n" +
-		" ^                    8ms            -    baz summary\n" +
-		"  ^                   8ms            -      booze summary\n" +
-		"40    Doing         910ms            -  task bar summary\n" +
-		" ^                    1ms            -    foo summary\n" +
-		"  ^                   1ms            -      bar summary\n\n",
-}, {
-	args: "debug timings --ensure=seed --all",
-	stdout: "ID    Status        Doing      Undoing  Summary\n" +
-		"seed                  8ms            -  \n" +
-		" ^                    8ms            -    bar summary 1\n" +
-		" ^                    8ms            -    bar summary 2\n" +
-		"40    Doing         910ms            -  task bar summary\n" +
-		" ^                    1ms            -    foo summary\n" +
-		"  ^                   1ms            -      bar summary\n" +
-		"seed                  7ms            -  \n" +
-		" ^                    7ms            -    baz summary 2\n" +
-		"60    Doing         910ms            -  task bar summary\n" +
-		" ^                    1ms            -    foo summary\n" +
-		"  ^                   1ms            -      bar summary\n\n",
-}, {
-	args: "debug timings --ensure=seed --all --verbose",
-	stdout: "ID    Status        Doing      Undoing  Label  Summary\n" +
-		"seed                  8ms            -         \n" +
-		" ^                    8ms            -  abc      bar summary 1\n" +
-		" ^                    8ms            -  abc      bar summary 2\n" +
-		"40    Doing         910ms            -  bar    task bar summary\n" +
-		" ^                    1ms            -  foo      foo summary\n" +
-		"  ^                   1ms            -  bar        bar summary\n" +
-		"seed                  7ms            -         \n" +
-		" ^                    7ms            -  ghi      baz summary 2\n" +
-		"60    Doing         910ms            -  bar    task bar summary\n" +
-		" ^                    1ms            -  foo      foo summary\n" +
-		"  ^                   1ms            -  bar        bar summary\n\n",
-}, {
-	args: "debug timings --startup=ifacemgr",
-	stdout: "ID        Status        Doing      Undoing  Summary\n" +
-		"ifacemgr                  8ms            -  \n" +
-		" ^                        8ms            -    baz summary\n" +
-		"  ^                       8ms            -      booze summary\n\n",
-}, {
-	args: "debug timings --startup=ifacemgr --all",
-	stdout: "ID        Status        Doing      Undoing  Summary\n" +
-		"ifacemgr                  8ms            -  \n" +
-		" ^                        8ms            -    baz summary\n" +
-		"ifacemgr                  9ms            -  \n" +
-		" ^                        9ms            -    baz summary\n\n",
-}, {
-	args: "debug timings 2",
-	stdout: "ID   Status        Doing      Undoing  Summary\n" +
-		"41   Undone            -        210ms  lane 0 task bar summary\n\n",
-},
+var timingsTests = []timingsCmdArgs{
+	{
+		args:  "debug timings",
+		error: "please provide change ID or type with --last=<type>, or query for --ensure=<name> or --startup=<name>",
+	}, {
+		args:  "debug timings --ensure=seed 9",
+		error: "cannot use change id, 'startup' or 'ensure' together",
+	}, {
+		args:  "debug timings --ensure=seed --startup=ifacemgr",
+		error: "cannot use change id, 'startup' or 'ensure' together",
+	}, {
+		args:  "debug timings --last=install --all",
+		error: "cannot use 'all' with change id or 'last'",
+	}, {
+		args:  "debug timings --last=remove",
+		error: `no changes of type "remove" found`,
+	}, {
+		args:  "debug timings --startup=load-state 9",
+		error: "cannot use change id, 'startup' or 'ensure' together",
+	}, {
+		args:  "debug timings --all 9",
+		error: "cannot use 'all' with change id or 'last'",
+	}, {
+		args: "debug timings --last=install",
+		stdout: "ID   Status        Doing      Undoing  Summary\n" +
+			"40   Doing         910ms            -  lane 0 task bar summary\n" +
+			" ^                   1ms            -    foo summary\n" +
+			"  ^                  1ms            -      bar summary\n" +
+			"41   Done          210ms            -  lane 1 task baz summary\n" +
+			"42   Done          310ms            -  lane 1 task boo summary\n" +
+			"43   Done          310ms            -  lane 0 task doh summary\n\n",
+	}, {
+		args: "debug timings 1",
+		stdout: "ID   Status        Doing      Undoing  Summary\n" +
+			"40   Doing         910ms            -  lane 0 task bar summary\n" +
+			" ^                   1ms            -    foo summary\n" +
+			"  ^                  1ms            -      bar summary\n" +
+			"41   Done          210ms            -  lane 1 task baz summary\n" +
+			"42   Done          310ms            -  lane 1 task boo summary\n" +
+			"43   Done          310ms            -  lane 0 task doh summary\n\n",
+	}, {
+		args: "debug timings 1 --verbose",
+		stdout: "ID   Status        Doing      Undoing  Label  Summary\n" +
+			"40   Doing         910ms            -  bar    lane 0 task bar summary\n" +
+			" ^                   1ms            -  foo      foo summary\n" +
+			"  ^                  1ms            -  bar        bar summary\n" +
+			"41   Done          210ms            -  baz    lane 1 task baz summary\n" +
+			"42   Done          310ms            -  boo    lane 1 task boo summary\n" +
+			"43   Done          310ms            -  doh    lane 0 task doh summary\n\n",
+	}, {
+		args: "debug timings --ensure=seed",
+		stdout: "ID    Status        Doing      Undoing  Summary\n" +
+			"seed                  8ms            -  \n" +
+			" ^                    8ms            -    baz summary\n" +
+			"  ^                   8ms            -      booze summary\n" +
+			"40    Doing         910ms            -  task bar summary\n" +
+			" ^                    1ms            -    foo summary\n" +
+			"  ^                   1ms            -      bar summary\n\n",
+	}, {
+		args: "debug timings --ensure=seed --all",
+		stdout: "ID    Status        Doing      Undoing  Summary\n" +
+			"seed                  8ms            -  \n" +
+			" ^                    8ms            -    bar summary 1\n" +
+			" ^                    8ms            -    bar summary 2\n" +
+			"40    Doing         910ms            -  task bar summary\n" +
+			" ^                    1ms            -    foo summary\n" +
+			"  ^                   1ms            -      bar summary\n" +
+			"seed                  7ms            -  \n" +
+			" ^                    7ms            -    baz summary 2\n" +
+			"60    Doing         910ms            -  task bar summary\n" +
+			" ^                    1ms            -    foo summary\n" +
+			"  ^                   1ms            -      bar summary\n\n",
+	}, {
+		args: "debug timings --ensure=seed --all --verbose",
+		stdout: "ID    Status        Doing      Undoing  Label  Summary\n" +
+			"seed                  8ms            -         \n" +
+			" ^                    8ms            -  abc      bar summary 1\n" +
+			" ^                    8ms            -  abc      bar summary 2\n" +
+			"40    Doing         910ms            -  bar    task bar summary\n" +
+			" ^                    1ms            -  foo      foo summary\n" +
+			"  ^                   1ms            -  bar        bar summary\n" +
+			"seed                  7ms            -         \n" +
+			" ^                    7ms            -  ghi      baz summary 2\n" +
+			"60    Doing         910ms            -  bar    task bar summary\n" +
+			" ^                    1ms            -  foo      foo summary\n" +
+			"  ^                   1ms            -  bar        bar summary\n\n",
+	}, {
+		args: "debug timings --startup=ifacemgr",
+		stdout: "ID        Status        Doing      Undoing  Summary\n" +
+			"ifacemgr                  8ms            -  \n" +
+			" ^                        8ms            -    baz summary\n" +
+			"  ^                       8ms            -      booze summary\n\n",
+	}, {
+		args: "debug timings --startup=ifacemgr --all",
+		stdout: "ID        Status        Doing      Undoing  Summary\n" +
+			"ifacemgr                  8ms            -  \n" +
+			" ^                        8ms            -    baz summary\n" +
+			"ifacemgr                  9ms            -  \n" +
+			" ^                        9ms            -    baz summary\n\n",
+	}, {
+		args: "debug timings 2",
+		stdout: "ID   Status        Doing      Undoing  Summary\n" +
+			"41   Undone            -        210ms  lane 0 task bar summary\n\n",
+	},
 }
 
 func (s *SnapSuite) TestGetDebugTimings(c *C) {
@@ -151,7 +153,7 @@ func (s *SnapSuite) TestGetDebugTimings(c *C) {
 
 		c.Logf("Test: %s", test.args)
 
-		_, err := main.Parser(main.Client()).ParseArgs(strings.Fields(test.args))
+		_ := mylog.Check2(main.Parser(main.Client()).ParseArgs(strings.Fields(test.args)))
 		if test.error != "" {
 			c.Check(err, ErrorMatches, test.error)
 		} else {
@@ -279,8 +281,8 @@ type TaskDef struct {
 
 func (s *SnapSuite) TestSortTimingsTasks(c *C) {
 	mkTime := func(timeStr string) time.Time {
-		t, err := time.Parse(time.RFC3339, timeStr)
-		c.Assert(err, IsNil)
+		t := mylog.Check2(time.Parse(time.RFC3339, timeStr))
+
 		return t
 	}
 

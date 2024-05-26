@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/godbus/dbus"
 
 	"github.com/snapcore/snapd/dbusutil"
@@ -70,21 +71,14 @@ type NetplanServer struct {
 
 func NewNetplanServer(mockNetplanConfigYaml string) (*NetplanServer, error) {
 	// we use a private bus for testing
-	conn, err := dbusutil.SessionBusPrivate()
-	if err != nil {
-		return nil, err
-	}
+	conn := mylog.Check2(dbusutil.SessionBusPrivate())
 
 	server := &NetplanServer{
 		conn:                  conn,
 		MockNetplanConfigYaml: mockNetplanConfigYaml,
 	}
 
-	reply, err := conn.RequestName(netplanBusName, dbus.NameFlagDoNotQueue)
-	if err != nil {
-		conn.Close()
-		return nil, err
-	}
+	reply := mylog.Check2(conn.RequestName(netplanBusName, dbus.NameFlagDoNotQueue))
 
 	if reply != dbus.RequestNameReplyPrimaryOwner {
 		conn.Close()
@@ -106,9 +100,8 @@ func (server *NetplanServer) ExportApiV2() {
 }
 
 func (server *NetplanServer) Stop() error {
-	if _, err := server.conn.ReleaseName(netplanBusName); err != nil {
-		return err
-	}
+	mylog.Check2(server.conn.ReleaseName(netplanBusName))
+
 	return server.conn.Close()
 }
 

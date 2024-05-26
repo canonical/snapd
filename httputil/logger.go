@@ -26,6 +26,7 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/logger"
 )
 
@@ -67,7 +68,7 @@ func (tr *LoggedTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 		logger.NoGuardDebugf("> %q", buf)
 	}
 
-	rsp, err := tr.Transport.RoundTrip(req)
+	rsp := mylog.Check2(tr.Transport.RoundTrip(req))
 
 	if err == nil && flags.debugResponse() {
 		buf, _ := httputil.DumpResponse(rsp, tr.MayLogBody && flags.debugBody())
@@ -78,10 +79,7 @@ func (tr *LoggedTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 }
 
 func (tr *LoggedTransport) getFlags() debugflag {
-	flags, err := strconv.Atoi(os.Getenv(tr.Key))
-	if err != nil {
-		flags = 0
-	}
+	flags := mylog.Check2(strconv.Atoi(os.Getenv(tr.Key)))
 
 	return debugflag(flags)
 }

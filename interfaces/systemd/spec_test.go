@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/interfaces/systemd"
@@ -39,11 +40,11 @@ func (s *specSuite) TestAddService(c *C) {
 	spec := systemd.Specification{}
 	c.Assert(spec.Services(), IsNil)
 	svc1 := &systemd.Service{ExecStart: "one"}
-	err := spec.AddService("svc1", svc1)
-	c.Assert(err, IsNil)
+	mylog.Check(spec.AddService("svc1", svc1))
+
 	svc2 := &systemd.Service{ExecStart: "two"}
-	err = spec.AddService("svc2", svc2)
-	c.Assert(err, IsNil)
+	mylog.Check(spec.AddService("svc2", svc2))
+
 	c.Assert(spec.Services(), DeepEquals, map[string]*systemd.Service{
 		"svc1": svc1,
 		"svc2": svc2,
@@ -65,14 +66,13 @@ plugs:
 	svc2 := &systemd.Service{ExecStart: "two"}
 
 	iface.SystemdPermanentPlugCallback = func(spec *systemd.Specification, plug *snap.PlugInfo) error {
-		if err := spec.AddService("foo", svc1); err != nil {
-			return err
-		}
+		mylog.Check(spec.AddService("foo", svc1))
+
 		return spec.AddService("foo", svc2)
 	}
 
 	spec := systemd.Specification{}
-	err := spec.AddPermanentPlug(iface, info1.Plugs["plug1"])
+	mylog.Check(spec.AddPermanentPlug(iface, info1.Plugs["plug1"]))
 	c.Assert(err, ErrorMatches, `internal error: interface "test" has inconsistent system needs: service for "foo" used to be defined as .*, now re-defined as .*`)
 }
 
@@ -104,9 +104,9 @@ plugs:
 	}
 
 	spec := systemd.Specification{}
-	err := spec.AddPermanentPlug(iface1, info1.Plugs["plug1"])
-	c.Assert(err, IsNil)
-	err = spec.AddPermanentPlug(iface2, info1.Plugs["plug2"])
+	mylog.Check(spec.AddPermanentPlug(iface1, info1.Plugs["plug1"]))
+
+	mylog.Check(spec.AddPermanentPlug(iface2, info1.Plugs["plug2"]))
 	c.Assert(err, ErrorMatches, `internal error: interface "test2" and "test1" have conflicting system needs: service for "foo" used to be defined as .* by "test1", now re-defined as .*`)
 }
 
@@ -114,10 +114,10 @@ func (s *specSuite) TestDifferentObjectsNotClashing(c *C) {
 	svc1 := &systemd.Service{ExecStart: "one and the same"}
 	svc2 := &systemd.Service{ExecStart: "one and the same"}
 	spec := systemd.Specification{}
-	err := spec.AddService("foo", svc1)
-	c.Assert(err, IsNil)
-	err = spec.AddService("foo", svc2)
-	c.Assert(err, IsNil)
+	mylog.Check(spec.AddService("foo", svc1))
+
+	mylog.Check(spec.AddService("foo", svc2))
+
 }
 
 func (s *specSuite) TestAddMethods(c *C) {
@@ -159,18 +159,14 @@ slots:
 			return nil
 		},
 	}
+	mylog.Check(spec.AddPermanentSlot(iface, slotInfo))
 
-	err := spec.AddPermanentSlot(iface, slotInfo)
-	c.Assert(err, IsNil)
+	mylog.Check(spec.AddPermanentPlug(iface, plugInfo))
 
-	err = spec.AddPermanentPlug(iface, plugInfo)
-	c.Assert(err, IsNil)
+	mylog.Check(spec.AddConnectedSlot(iface, plug, slot))
 
-	err = spec.AddConnectedSlot(iface, plug, slot)
-	c.Assert(err, IsNil)
+	mylog.Check(spec.AddConnectedPlug(iface, plug, slot))
 
-	err = spec.AddConnectedPlug(iface, plug, slot)
-	c.Assert(err, IsNil)
 
 	c.Check(spec.Services(), DeepEquals, map[string]*systemd.Service{
 		"plug1-slot2": {ExecStart: "connected-plug"},

@@ -20,10 +20,14 @@ package aspects
 
 import (
 	"sync"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
-type DatabagRead func() (JSONDataBag, error)
-type DatabagWrite func(JSONDataBag) error
+type (
+	DatabagRead  func() (JSONDataBag, error)
+	DatabagWrite func(JSONDataBag) error
+)
 
 // Transaction performs read and writes to a databag in an atomic way.
 type Transaction struct {
@@ -41,10 +45,7 @@ type Transaction struct {
 
 // NewTransaction takes a getter and setter to read and write the databag.
 func NewTransaction(readDatabag DatabagRead, writeDatabag DatabagWrite, schema Schema) (*Transaction, error) {
-	databag, err := readDatabag()
-	if err != nil {
-		return nil, err
-	}
+	databag := mylog.Check2(readDatabag())
 
 	return &Transaction{
 		pristine:     databag.Copy(),
@@ -87,13 +88,11 @@ func (t *Transaction) Get(path string) (interface{}, error) {
 		t.modified = t.pristine.Copy()
 		t.appliedDeltas = 0
 	}
+	mylog.Check(
 
-	// apply new changes since the last get
-	if err := applyDeltas(t.modified, t.deltas[t.appliedDeltas:]); err != nil {
-		t.modified = nil
-		t.appliedDeltas = 0
-		return nil, err
-	}
+		// apply new changes since the last get
+		applyDeltas(t.modified, t.deltas[t.appliedDeltas:]))
+
 	t.appliedDeltas = len(t.deltas)
 
 	return t.modified.Get(path)
@@ -105,33 +104,20 @@ func (t *Transaction) Commit() error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	pristine, err := t.readDatabag()
-	if err != nil {
-		return err
-	}
+	pristine := mylog.Check2(t.readDatabag())
 
 	// ensure we're using a different databag, so outside changes can't affect
 	// the transaction
 	pristine = pristine.Copy()
+	mylog.Check(applyDeltas(pristine, t.deltas))
 
-	if err := applyDeltas(pristine, t.deltas); err != nil {
-		return err
-	}
+	data := mylog.Check2(pristine.Data())
+	mylog.Check(t.schema.Validate(data))
+	mylog.Check(
 
-	data, err := pristine.Data()
-	if err != nil {
-		return err
-	}
-
-	if err := t.schema.Validate(data); err != nil {
-		return err
-	}
-
-	// copy the databag before writing to make sure the writer can't modify into
-	// and introduce changes in the transaction
-	if err := t.writeDatabag(pristine.Copy()); err != nil {
-		return err
-	}
+		// copy the databag before writing to make sure the writer can't modify into
+		// and introduce changes in the transaction
+		t.writeDatabag(pristine.Copy()))
 
 	t.pristine = pristine
 	t.modified = nil
@@ -144,15 +130,10 @@ func applyDeltas(bag JSONDataBag, deltas []map[string]interface{}) error {
 	// changes must be applied in the order they were written
 	for _, delta := range deltas {
 		for k, v := range delta {
-			var err error
 			if v == nil {
-				err = bag.Unset(k)
+				mylog.Check(bag.Unset(k))
 			} else {
-				err = bag.Set(k, v)
-			}
-
-			if err != nil {
-				return err
+				mylog.Check(bag.Set(k, v))
 			}
 		}
 	}

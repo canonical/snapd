@@ -24,6 +24,7 @@ import (
 	"errors"
 	"io"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"golang.org/x/xerrors"
 	"gopkg.in/check.v1"
 )
@@ -33,10 +34,10 @@ func (cs *clientSuite) TestClientCreateCohortsEndpoint(c *check.C) {
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/cohorts")
 
-	body, err := io.ReadAll(cs.req.Body)
+	body := mylog.Check2(io.ReadAll(cs.req.Body))
 	c.Assert(err, check.IsNil)
 	var jsonBody map[string]interface{}
-	err = json.Unmarshal(body, &jsonBody)
+	mylog.Check(json.Unmarshal(body, &jsonBody))
 	c.Assert(err, check.IsNil)
 	c.Check(jsonBody, check.DeepEquals, map[string]interface{}{
 		"action": "create",
@@ -50,17 +51,17 @@ func (cs *clientSuite) TestClientCreateCohorts(c *check.C) {
 		"status-code": 200,
                 "result": {"foo": "xyzzy", "bar": "what-what"}
 	}`
-	cohorts, err := cs.cli.CreateCohorts([]string{"foo", "bar"})
+	cohorts := mylog.Check2(cs.cli.CreateCohorts([]string{"foo", "bar"}))
 	c.Assert(err, check.IsNil)
 	c.Check(cohorts, check.DeepEquals, map[string]string{
 		"foo": "xyzzy",
 		"bar": "what-what",
 	})
 
-	body, err := io.ReadAll(cs.req.Body)
+	body := mylog.Check2(io.ReadAll(cs.req.Body))
 	c.Assert(err, check.IsNil)
 	var jsonBody map[string]interface{}
-	err = json.Unmarshal(body, &jsonBody)
+	mylog.Check(json.Unmarshal(body, &jsonBody))
 	c.Assert(err, check.IsNil)
 	c.Check(jsonBody, check.DeepEquals, map[string]interface{}{
 		"action": "create",
@@ -70,7 +71,7 @@ func (cs *clientSuite) TestClientCreateCohorts(c *check.C) {
 
 func (cs *clientSuite) TestClientCreateCohortsErrIsWrapped(c *check.C) {
 	cs.err = errors.New("boom")
-	_, err := cs.cli.CreateCohorts([]string{"foo", "bar"})
+	_ := mylog.Check2(cs.cli.CreateCohorts([]string{"foo", "bar"}))
 	var e xerrors.Wrapper
 	c.Assert(err, check.Implements, &e)
 }

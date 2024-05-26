@@ -26,6 +26,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/overlord/configstate"
@@ -50,14 +51,10 @@ func getServiceInfos(st *state.State, snapName string, serviceNames []string) ([
 	defer st.Unlock()
 
 	var snapst snapstate.SnapState
-	if err := snapstate.Get(st, snapName, &snapst); err != nil {
-		return nil, err
-	}
+	mylog.Check(snapstate.Get(st, snapName, &snapst))
 
-	info, err := snapst.CurrentInfo()
-	if err != nil {
-		return nil, err
-	}
+	info := mylog.Check2(snapst.CurrentInfo())
+
 	if len(serviceNames) == 0 {
 		// all services
 		return info.Services(), nil
@@ -135,19 +132,13 @@ func runServiceCommand(context *hookstate.Context, inst *servicestate.Instructio
 	}
 
 	st := context.State()
-	appInfos, err := getServiceInfos(st, context.InstanceName(), inst.Names)
-	if err != nil {
-		return err
-	}
+	appInfos := mylog.Check2(getServiceInfos(st, context.InstanceName(), inst.Names))
 
 	flags := &servicestate.Flags{CreateExecCommandTasks: true}
 	// passing context so we can ignore self-conflicts with the current change
 	st.Lock()
-	tts, err := servicestateControl(st, appInfos, inst, nil, flags, context)
+	tts := mylog.Check2(servicestateControl(st, appInfos, inst, nil, flags, context))
 	st.Unlock()
-	if err != nil {
-		return err
-	}
 
 	if !context.IsEphemeral() && context.HookName() == "configure" {
 		return queueCommand(context, tts)
@@ -187,10 +178,8 @@ func isNoAttribute(err error) bool {
 }
 
 func jsonRaw(v interface{}) *json.RawMessage {
-	data, err := json.Marshal(v)
-	if err != nil {
-		panic(fmt.Errorf("internal error: cannot marshal attributes: %v", err))
-	}
+	data := mylog.Check2(json.Marshal(v))
+
 	raw := json.RawMessage(data)
 	return &raw
 }
@@ -213,10 +202,8 @@ func getAttribute(snapName string, subkeys []string, pos int, attrs map[string]i
 		if !ok {
 			raw = jsonRaw(value)
 		}
-		if err := jsonutil.DecodeWithNumber(bytes.NewReader(*raw), &result); err != nil {
-			key := strings.Join(subkeys, ".")
-			return fmt.Errorf("internal error: cannot unmarshal snap %s attribute %q into %T: %s, json: %s", snapName, key, result, err, *raw)
-		}
+		mylog.Check(jsonutil.DecodeWithNumber(bytes.NewReader(*raw), &result))
+
 		return nil
 	}
 
@@ -226,9 +213,8 @@ func getAttribute(snapName string, subkeys []string, pos int, attrs map[string]i
 		if !ok {
 			raw = jsonRaw(value)
 		}
-		if err := jsonutil.DecodeWithNumber(bytes.NewReader(*raw), &attrsm); err != nil {
-			return fmt.Errorf("snap %q attribute %q is not a map", snapName, strings.Join(subkeys[:pos+1], "."))
-		}
+		mylog.Check(jsonutil.DecodeWithNumber(bytes.NewReader(*raw), &attrsm))
+
 	}
 	return getAttribute(snapName, subkeys, pos+1, attrsm, result)
 }

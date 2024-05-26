@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	snap "github.com/snapcore/snapd/cmd/snap"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/progress/progresstest"
@@ -68,8 +69,8 @@ func (s *SnapSuite) TestCmdWatch(c *C) {
 		}
 	})
 
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"watch", "two"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"watch", "two"}))
+
 	c.Assert(rest, HasLen, 0)
 	c.Check(n, Equals, 3)
 	c.Check(meter.Values, DeepEquals, []float64{51200})
@@ -107,8 +108,8 @@ func (s *SnapSuite) TestWatchLast(c *C) {
 			c.Errorf("expected 4 queries, currently on %d", n)
 		}
 	})
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"watch", "--last=install"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"watch", "--last=install"}))
+
 	c.Assert(rest, HasLen, 0)
 	c.Check(n, Equals, 4)
 	c.Check(meter.Values, DeepEquals, []float64{51200})
@@ -137,13 +138,13 @@ func (s *SnapSuite) TestWatchLastQuestionmark(c *C) {
 		}
 	})
 	for i := 0; i < 2; i++ {
-		rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"watch", "--last=foobar?"})
-		c.Assert(err, IsNil)
+		rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"watch", "--last=foobar?"}))
+
 		c.Assert(rest, DeepEquals, []string{})
 		c.Check(s.Stdout(), Matches, "")
 		c.Check(s.Stderr(), Equals, "")
 
-		_, err = snap.Parser(snap.Client()).ParseArgs([]string{"watch", "--last=foobar"})
+		_ = mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"watch", "--last=foobar"}))
 		if i == 0 {
 			c.Assert(err, ErrorMatches, `no changes found`)
 		} else {
@@ -183,8 +184,8 @@ func (s *SnapOpSuite) TestWatchWaitsForWaitTasks(c *C) {
 	})
 
 	// snap watch will watch tasks in "Wait" state until they are done
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"watch", "x"})
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"watch", "x"}))
+
 	c.Check(meter.Notices, testutil.Contains, "INFO: Task set to wait until a manual system restart allows to continue")
 	c.Check(n, Equals, 2)
 }

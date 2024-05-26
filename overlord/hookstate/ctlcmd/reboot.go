@@ -22,6 +22,7 @@ package ctlcmd
 import (
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/devicestate"
 )
@@ -47,10 +48,8 @@ type rebootCommand struct {
 }
 
 func (c *rebootCommand) Execute([]string) error {
-	ctx, err := c.ensureContext()
-	if err != nil {
-		return err
-	}
+	ctx := mylog.Check2(c.ensureContext())
+
 	if ctx.HookName() != "install-device" {
 		return fmt.Errorf("cannot use reboot command outside of gadget install-device hook")
 	}
@@ -70,10 +69,8 @@ func (c *rebootCommand) Execute([]string) error {
 	st := ctx.State()
 
 	var restartTaskID string
-	err = task.Get("restart-task", &restartTaskID)
-	if err != nil {
-		return fmt.Errorf("internal error: cannot get restart-task following install-device hook: %v", err)
-	}
+	mylog.Check(task.Get("restart-task", &restartTaskID))
+
 	restartTask := st.Task(restartTaskID)
 	if restartTask == nil {
 		// same error as TaskSnapSetup

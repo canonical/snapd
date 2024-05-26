@@ -24,6 +24,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
@@ -103,40 +104,30 @@ func makeBootable16(model *asserts.Model, rootdir string, bootWith *BootableSet)
 	opts := &bootloader.Options{
 		PrepareImageTime: true,
 	}
+	mylog.Check(
 
-	// install the bootloader configuration from the gadget
-	if err := bootloader.InstallBootConfig(bootWith.UnpackedGadgetDir, rootdir, opts); err != nil {
-		return err
-	}
+		// install the bootloader configuration from the gadget
+		bootloader.InstallBootConfig(bootWith.UnpackedGadgetDir, rootdir, opts))
 
 	// setup symlinks for kernel and boot base from the blob directory
 	// to the seed snaps
 
 	snapBlobDir := dirs.SnapBlobDirUnder(rootdir)
-	if err := os.MkdirAll(snapBlobDir, 0755); err != nil {
-		return err
-	}
+	mylog.Check(os.MkdirAll(snapBlobDir, 0755))
 
 	for _, fn := range []string{bootWith.BasePath, bootWith.KernelPath} {
 		dst := filepath.Join(snapBlobDir, filepath.Base(fn))
 		// construct a relative symlink from the blob dir
 		// to the seed snap file
-		relSymlink, err := filepath.Rel(snapBlobDir, fn)
-		if err != nil {
-			return fmt.Errorf("cannot build symlink for boot snap: %v", err)
-		}
-		if err := os.Symlink(relSymlink, dst); err != nil {
-			return err
-		}
+		relSymlink := mylog.Check2(filepath.Rel(snapBlobDir, fn))
+		mylog.Check(os.Symlink(relSymlink, dst))
+
 	}
 
 	// Set bootvars for kernel/core snaps so the system boots and
 	// does the first-time initialization. There is also no
 	// mounted kernel/core/base snap, but just the blobs.
-	bl, err := bootloader.Find(rootdir, opts)
-	if err != nil {
-		return fmt.Errorf("cannot set kernel/core boot variables: %s", err)
-	}
+	bl := mylog.Check2(bootloader.Find(rootdir, opts))
 
 	m := map[string]string{
 		"snap_mode":       "",
@@ -154,18 +145,11 @@ func makeBootable16(model *asserts.Model, rootdir string, bootWith *BootableSet)
 	setBoot("snap_core", bootWith.BasePath)
 
 	// kernel
-	kernelf, err := snapfile.Open(bootWith.KernelPath)
-	if err != nil {
-		return err
-	}
-	if err := bl.ExtractKernelAssets(bootWith.Kernel, kernelf); err != nil {
-		return err
-	}
-	setBoot("snap_kernel", bootWith.KernelPath)
+	kernelf := mylog.Check2(snapfile.Open(bootWith.KernelPath))
+	mylog.Check(bl.ExtractKernelAssets(bootWith.Kernel, kernelf))
 
-	if err := bl.SetBootVars(m); err != nil {
-		return err
-	}
+	setBoot("snap_kernel", bootWith.KernelPath)
+	mylog.Check(bl.SetBootVars(m))
 
 	return nil
 }
@@ -173,21 +157,15 @@ func makeBootable16(model *asserts.Model, rootdir string, bootWith *BootableSet)
 func configureBootloader(rootdir string, opts *bootloader.Options, bootWith *BootableSet, bootMode string, bootFlags []string) error {
 	blVars := make(map[string]string, 3)
 	if len(bootFlags) != 0 {
-		if err := setImageBootFlags(bootFlags, blVars); err != nil {
-			return err
-		}
+		mylog.Check(setImageBootFlags(bootFlags, blVars))
 	}
+	mylog.Check(
 
-	// install the bootloader configuration from the gadget
-	if err := bootloader.InstallBootConfig(bootWith.UnpackedGadgetDir, rootdir, opts); err != nil {
-		return err
-	}
+		// install the bootloader configuration from the gadget
+		bootloader.InstallBootConfig(bootWith.UnpackedGadgetDir, rootdir, opts))
 
 	// now install the recovery system specific boot config
-	bl, err := bootloader.Find(rootdir, opts)
-	if err != nil {
-		return fmt.Errorf("internal error: cannot find bootloader: %v", err)
-	}
+	bl := mylog.Check2(bootloader.Find(rootdir, opts))
 
 	blVars["snapd_recovery_mode"] = bootMode
 	if bootWith.RecoverySystemLabel != "" {
@@ -199,20 +177,15 @@ func configureBootloader(rootdir string, opts *bootloader.Options, bootWith *Boo
 		// ubuntu-seed
 		blVars["snapd_recovery_system"] = bootWith.RecoverySystemLabel
 	}
-
-	if err := bl.SetBootVars(blVars); err != nil {
-		return fmt.Errorf("cannot set recovery environment: %v", err)
-	}
+	mylog.Check(bl.SetBootVars(blVars))
 
 	return nil
 }
 
 func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet, bootFlags []string) error {
 	// we can only make a single recovery system bootable right now
-	recoverySystems, err := filepath.Glob(filepath.Join(rootdir, "systems/*"))
-	if err != nil {
-		return fmt.Errorf("cannot validate recovery systems: %v", err)
-	}
+	recoverySystems := mylog.Check2(filepath.Glob(filepath.Join(rootdir, "systems/*")))
+
 	if len(recoverySystems) > 1 {
 		return fmt.Errorf("cannot make multiple recovery systems bootable yet")
 	}
@@ -226,9 +199,7 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet,
 		// setup the recovery bootloader
 		Role: bootloader.RoleRecovery,
 	}
-	if err := configureBootloader(rootdir, opts, bootWith, ModeInstall, bootFlags); err != nil {
-		return fmt.Errorf("cannot install bootloader: %v", err)
-	}
+	mylog.Check(configureBootloader(rootdir, opts, bootWith, ModeInstall, bootFlags))
 
 	return MakeRecoverySystemBootable(model, rootdir, bootWith.RecoverySystemDir, &RecoverySystemBootableSet{
 		Kernel:           bootWith.Kernel,
@@ -262,29 +233,19 @@ func MakeRecoverySystemBootable(model *asserts.Model, rootdir string, relativeRe
 		Role: bootloader.RoleRecovery,
 	}
 
-	bl, err := bootloader.Find(rootdir, opts)
-	if err != nil {
-		return fmt.Errorf("internal error: cannot find bootloader: %v", err)
-	}
+	bl := mylog.Check2(bootloader.Find(rootdir, opts))
 
 	// on e.g. ARM we need to extract the kernel assets on the recovery
 	// system as well, but the bootloader does not load any environment from
 	// the recovery system
 	erkbl, ok := bl.(bootloader.ExtractedRecoveryKernelImageBootloader)
 	if ok {
-		kernelf, err := snapfile.Open(bootWith.KernelPath)
-		if err != nil {
-			return err
-		}
-
-		err = erkbl.ExtractRecoveryKernelAssets(
+		kernelf := mylog.Check2(snapfile.Open(bootWith.KernelPath))
+		mylog.Check(erkbl.ExtractRecoveryKernelAssets(
 			relativeRecoverySystemDir,
 			bootWith.Kernel,
 			kernelf,
-		)
-		if err != nil {
-			return fmt.Errorf("cannot extract recovery system kernel assets: %v", err)
-		}
+		))
 
 		return nil
 	}
@@ -293,37 +254,27 @@ func MakeRecoverySystemBootable(model *asserts.Model, rootdir string, relativeRe
 	if !ok {
 		return fmt.Errorf("cannot use %s bootloader: does not support recovery systems", bl.Name())
 	}
-	kernelPath, err := filepath.Rel(rootdir, bootWith.KernelPath)
-	if err != nil {
-		return fmt.Errorf("cannot construct kernel boot path: %v", err)
-	}
+	kernelPath := mylog.Check2(filepath.Rel(rootdir, bootWith.KernelPath))
+
 	recoveryBlVars := map[string]string{
 		"snapd_recovery_kernel": filepath.Join("/", kernelPath),
 	}
 	if tbl, ok := bl.(bootloader.TrustedAssetsBootloader); ok {
 		// Look at gadget default values for system.kernel.*cmdline-append options
-		cmdlineAppend, err := buildOptionalKernelCommandLine(model, bootWith.GadgetSnapOrDir)
-		if err != nil {
-			return fmt.Errorf("while retrieving system.kernel.*cmdline-append defaults: %v", err)
-		}
+		cmdlineAppend := mylog.Check2(buildOptionalKernelCommandLine(model, bootWith.GadgetSnapOrDir))
+
 		candidate := false
-		defaultCmdLine, err := tbl.DefaultCommandLine(candidate)
-		if err != nil {
-			return err
-		}
+		defaultCmdLine := mylog.Check2(tbl.DefaultCommandLine(candidate))
+
 		// to set cmdlineAppend.
-		recoveryCmdlineArgs, err := bootVarsForTrustedCommandLineFromGadget(bootWith.GadgetSnapOrDir, cmdlineAppend, defaultCmdLine, model)
-		if err != nil {
-			return fmt.Errorf("cannot obtain recovery system command line: %v", err)
-		}
+		recoveryCmdlineArgs := mylog.Check2(bootVarsForTrustedCommandLineFromGadget(bootWith.GadgetSnapOrDir, cmdlineAppend, defaultCmdLine, model))
+
 		for k, v := range recoveryCmdlineArgs {
 			recoveryBlVars[k] = v
 		}
 	}
+	mylog.Check(rbl.SetRecoverySystemEnv(relativeRecoverySystemDir, recoveryBlVars))
 
-	if err := rbl.SetRecoverySystemEnv(relativeRecoverySystemDir, recoveryBlVars); err != nil {
-		return fmt.Errorf("cannot set recovery system environment: %v", err)
-	}
 	return nil
 }
 
@@ -341,19 +292,16 @@ func copyBootSnap(orig string, dstInfo *snap.Info, dstSnapBlobDir string) error 
 	// design as the initramfs should only be using trusted things from
 	// ubuntu-data to boot in run mode
 	if osutil.IsSymlink(orig) {
-		link, err := os.Readlink(orig)
-		if err != nil {
-			return err
-		}
+		link := mylog.Check2(os.Readlink(orig))
+
 		orig = link
 	}
 	// note that we need to use the "Filename()" here because unasserted
 	// snaps will have names like pc-kernel_5.19.4.snap but snapd expects
 	// "pc-kernel_x1.snap"
 	dst := filepath.Join(dstSnapBlobDir, dstInfo.Filename())
-	if err := osutil.CopyFile(orig, dst, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync); err != nil {
-		return err
-	}
+	mylog.Check(osutil.CopyFile(orig, dst, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync))
+
 	return nil
 }
 
@@ -374,25 +322,22 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 
 	// copy kernel/base/gadget into the ubuntu-data partition
 	snapBlobDir := dirs.SnapBlobDirUnder(InstallHostWritableDir(model))
-	if err := os.MkdirAll(snapBlobDir, 0755); err != nil {
-		return err
-	}
+	mylog.Check(os.MkdirAll(snapBlobDir, 0755))
+
 	for _, origDest := range []struct {
 		orig     string
 		destInfo *snap.Info
 	}{
 		{orig: bootWith.BasePath, destInfo: bootWith.Base},
 		{orig: bootWith.KernelPath, destInfo: bootWith.Kernel},
-		{orig: bootWith.GadgetPath, destInfo: bootWith.Gadget}} {
-		if err := copyBootSnap(origDest.orig, origDest.destInfo, snapBlobDir); err != nil {
-			return err
-		}
+		{orig: bootWith.GadgetPath, destInfo: bootWith.Gadget},
+	} {
+		mylog.Check(copyBootSnap(origDest.orig, origDest.destInfo, snapBlobDir))
 	}
+	mylog.Check(
 
-	// replicate the boot assets cache in host's writable
-	if err := CopyBootAssetsCacheToRoot(InstallHostWritableDir(model)); err != nil {
-		return fmt.Errorf("cannot replicate boot assets cache: %v", err)
-	}
+		// replicate the boot assets cache in host's writable
+		CopyBootAssetsCacheToRoot(InstallHostWritableDir(model)))
 
 	var currentTrustedBootAssets bootAssetsMap
 	var currentTrustedRecoveryBootAssets bootAssetsMap
@@ -442,21 +387,11 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 	// partition was created, but for a trusted assets the bootloader config
 	// will be installed further down; for now identify the run mode
 	// bootloader by looking at the gadget
-	bl, err := bootloader.ForGadget(bootWith.UnpackedGadgetDir, InitramfsUbuntuBootDir, opts)
-	if err != nil {
-		return fmt.Errorf("internal error: cannot identify run system bootloader: %v", err)
-	}
+	bl := mylog.Check2(bootloader.ForGadget(bootWith.UnpackedGadgetDir, InitramfsUbuntuBootDir, opts))
 
 	// extract the kernel first and mark kernel_status ready
-	kernelf, err := snapfile.Open(bootWith.KernelPath)
-	if err != nil {
-		return err
-	}
-
-	err = bl.ExtractKernelAssets(bootWith.Kernel, kernelf)
-	if err != nil {
-		return err
-	}
+	kernelf := mylog.Check2(snapfile.Open(bootWith.KernelPath))
+	mylog.Check(bl.ExtractKernelAssets(bootWith.Kernel, kernelf))
 
 	blVars := map[string]string{
 		"kernel_status": "",
@@ -464,79 +399,61 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 
 	ebl, ok := bl.(bootloader.ExtractedRunKernelImageBootloader)
 	if ok {
-		// the bootloader supports additional extracted kernel handling
+		mylog.Check(
+			// the bootloader supports additional extracted kernel handling
 
-		// enable the kernel on the bootloader and finally transition to
-		// run-mode last in case we get rebooted in between anywhere here
+			// enable the kernel on the bootloader and finally transition to
+			// run-mode last in case we get rebooted in between anywhere here
 
-		// it's okay to enable the kernel before writing the boot vars, because
-		// we haven't written snapd_recovery_mode=run, which is the critical
-		// thing that will inform the bootloader to try booting from ubuntu-boot
-		if err := ebl.EnableKernel(bootWith.Kernel); err != nil {
-			return err
-		}
+			// it's okay to enable the kernel before writing the boot vars, because
+			// we haven't written snapd_recovery_mode=run, which is the critical
+			// thing that will inform the bootloader to try booting from ubuntu-boot
+			ebl.EnableKernel(bootWith.Kernel))
 	} else {
 		// the bootloader does not support additional handling of
 		// extracted kernel images, we must name the kernel to be used
 		// explicitly in bootloader variables
 		blVars["snap_kernel"] = bootWith.Kernel.Filename()
 	}
+	mylog.Check(
 
-	// set the ubuntu-boot bootloader variables before triggering transition to
-	// try and boot from ubuntu-boot (that transition happens when we write
-	// snapd_recovery_mode below)
-	if err := bl.SetBootVars(blVars); err != nil {
-		return fmt.Errorf("cannot set run system environment: %v", err)
-	}
+		// set the ubuntu-boot bootloader variables before triggering transition to
+		// try and boot from ubuntu-boot (that transition happens when we write
+		// snapd_recovery_mode below)
+		bl.SetBootVars(blVars))
 
 	tbl, ok := bl.(bootloader.TrustedAssetsBootloader)
 	if ok {
-		// the bootloader can manage its boot config
+		mylog.Check(
+			// the bootloader can manage its boot config
 
-		// installing boot config must be performed after the boot
-		// partition has been populated with gadget data
-		if err := bl.InstallBootConfig(bootWith.UnpackedGadgetDir, opts); err != nil {
-			return fmt.Errorf("cannot install managed bootloader assets: %v", err)
-		}
+			// installing boot config must be performed after the boot
+			// partition has been populated with gadget data
+			bl.InstallBootConfig(bootWith.UnpackedGadgetDir, opts))
+
 		// determine the expected command line
-		cmdline, err := ComposeCandidateCommandLine(model, bootWith.UnpackedGadgetDir)
-		if err != nil {
-			return fmt.Errorf("cannot compose the candidate command line: %v", err)
-		}
+		cmdline := mylog.Check2(ComposeCandidateCommandLine(model, bootWith.UnpackedGadgetDir))
+
 		modeenv.CurrentKernelCommandLines = bootCommandLines{cmdline}
 
 		// Look at gadget default values for system.kernel.*cmdline-append options
-		cmdlineAppend, err := buildOptionalKernelCommandLine(model, bootWith.UnpackedGadgetDir)
-		if err != nil {
-			return fmt.Errorf("while retrieving system.kernel.*cmdline-append defaults: %v", err)
-		}
+		cmdlineAppend := mylog.Check2(buildOptionalKernelCommandLine(model, bootWith.UnpackedGadgetDir))
 
 		candidate := false
-		defaultCmdLine, err := tbl.DefaultCommandLine(candidate)
-		if err != nil {
-			return err
-		}
+		defaultCmdLine := mylog.Check2(tbl.DefaultCommandLine(candidate))
 
-		cmdlineVars, err := bootVarsForTrustedCommandLineFromGadget(bootWith.UnpackedGadgetDir, cmdlineAppend, defaultCmdLine, model)
-		if err != nil {
-			return fmt.Errorf("cannot prepare bootloader variables for kernel command line: %v", err)
-		}
-		if err := bl.SetBootVars(cmdlineVars); err != nil {
-			return fmt.Errorf("cannot set run system kernel command line arguments: %v", err)
-		}
-	}
+		cmdlineVars := mylog.Check2(bootVarsForTrustedCommandLineFromGadget(bootWith.UnpackedGadgetDir, cmdlineAppend, defaultCmdLine, model))
+		mylog.Check(bl.SetBootVars(cmdlineVars))
 
-	// all fields that needed to be set in the modeenv must have been set by
-	// now, write modeenv to disk
-	if err := modeenv.WriteTo(InstallHostWritableDir(model)); err != nil {
-		return fmt.Errorf("cannot write modeenv: %v", err)
 	}
+	mylog.Check(
+
+		// all fields that needed to be set in the modeenv must have been set by
+		// now, write modeenv to disk
+		modeenv.WriteTo(InstallHostWritableDir(model)))
 
 	if sealer != nil {
-		hasHook, err := HasFDESetupHook(bootWith.Kernel)
-		if err != nil {
-			return fmt.Errorf("cannot check for fde-setup hook: %v", err)
-		}
+		hasHook := mylog.Check2(HasFDESetupHook(bootWith.Kernel))
 
 		flags := sealKeyToModeenvFlags{
 			HasFDESetupHook: hasHook,
@@ -547,29 +464,24 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 		if makeOpts.Standalone {
 			flags.SnapsDir = snapBlobDir
 		}
-		// seal the encryption key to the parameters specified in modeenv
-		if err := sealKeyToModeenv(sealer.dataEncryptionKey, sealer.saveEncryptionKey, model, modeenv, flags); err != nil {
-			return err
-		}
-	}
+		mylog.Check(
+			// seal the encryption key to the parameters specified in modeenv
+			sealKeyToModeenv(sealer.dataEncryptionKey, sealer.saveEncryptionKey, model, modeenv, flags))
 
-	// so far so good, we managed to install the system, so it can be used
-	// for recovery as well
-	if err := MarkRecoveryCapableSystem(recoverySystemLabel); err != nil {
-		return fmt.Errorf("cannot record %q as a recovery capable system: %v", recoverySystemLabel, err)
 	}
+	mylog.Check(
+
+		// so far so good, we managed to install the system, so it can be used
+		// for recovery as well
+		MarkRecoveryCapableSystem(recoverySystemLabel))
+
 	return nil
 }
 
 func buildOptionalKernelCommandLine(model *asserts.Model, gadgetSnapOrDir string) (string, error) {
-	sf, err := snapfile.Open(gadgetSnapOrDir)
-	if err != nil {
-		return "", fmt.Errorf("cannot open gadget snap: %v", err)
-	}
-	gadgetInfo, err := gadget.ReadInfoFromSnapFile(sf, nil)
-	if err != nil {
-		return "", fmt.Errorf("cannot read gadget data: %v", err)
-	}
+	sf := mylog.Check2(snapfile.Open(gadgetSnapOrDir))
+
+	gadgetInfo := mylog.Check2(gadget.ReadInfoFromSnapFile(sf, nil))
 
 	defaults := gadget.SystemDefaults(gadgetInfo.Defaults)
 

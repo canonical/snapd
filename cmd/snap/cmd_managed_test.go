@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	snap "github.com/snapcore/snapd/cmd/snap"
 )
 
@@ -39,8 +40,8 @@ func (s *SnapSuite) TestManaged(c *C) {
 			fmt.Fprintf(w, `{"type":"sync", "status-code": 200, "result": {"managed":%v}}`, managed)
 		})
 
-		_, err := snap.Parser(snap.Client()).ParseArgs([]string{"managed"})
-		c.Assert(err, IsNil)
+		_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"managed"}))
+
 		c.Check(s.Stdout(), Equals, fmt.Sprintf("%v\n", managed))
 	}
 }

@@ -22,6 +22,7 @@ package snapstatetest
 import (
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -56,7 +57,7 @@ func InstallSnap(c *check.C, st *state.State, yaml string, files [][]string, si 
 	var seq sequence.SnapSequence
 	if opts.PreserveSequence {
 		var ss snapstate.SnapState
-		err := snapstate.Get(st, info.InstanceName(), &ss)
+		mylog.Check(snapstate.Get(st, info.InstanceName(), &ss))
 		c.Assert(err, check.IsNil)
 		seq.Revisions = append(seq.Revisions, ss.Sequence.Revisions...)
 	}
@@ -94,11 +95,11 @@ func InstallEssentialSnaps(c *check.C, st *state.State, base string, gadgetFiles
 	}, InstallSnapOptions{Required: true})
 
 	if bloader != nil {
-		err := bloader.SetBootVars(map[string]string{
+		mylog.Check(bloader.SetBootVars(map[string]string{
 			"snap_mode":   boot.DefaultStatus,
 			"snap_core":   fmt.Sprintf("%s_1.snap", base),
 			"snap_kernel": "pc-kernel_1.snap",
-		})
+		}))
 		c.Assert(err, check.IsNil)
 	}
 }

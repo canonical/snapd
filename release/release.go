@@ -26,6 +26,7 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -63,14 +64,9 @@ func readOSRelease() OS {
 		ID: "linux",
 	}
 
-	f, err := os.Open(osReleasePath)
-	if err != nil {
-		// this fallback is as per os-release(5)
-		f, err = os.Open(fallbackOsReleasePath)
-		if err != nil {
-			return osRelease
-		}
-	}
+	f := mylog.Check2(os.Open(osReleasePath))
+
+	// this fallback is as per os-release(5)
 
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
@@ -109,7 +105,7 @@ func readOSRelease() OS {
 
 // Note that osutil.FileExists cannot be used here as an osutil import will create a cyclic import
 var fileExists = func(path string) bool {
-	_, err := os.Stat(path)
+	_ := mylog.Check2(os.Stat(path))
 	return err == nil
 }
 
@@ -126,10 +122,8 @@ func filesystemRootType() (string, error) {
 	// We search for mount point = "/", and return the fstype.
 	//
 	// This should be done by osutil.LoadMountInfo but that would cause a dependency cycle
-	file, err := os.Open(procMountsPath)
-	if err != nil {
-		return "", fmt.Errorf("cannot find root filesystem type: %v", err)
-	}
+	file := mylog.Check2(os.Open(procMountsPath))
+
 	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
@@ -140,10 +134,7 @@ func filesystemRootType() (string, error) {
 		}
 		return data[2], nil
 	}
-
-	if err = scanner.Err(); err != nil {
-		return "", fmt.Errorf("cannot find root filesystem type: %v", err)
-	}
+	mylog.Check(scanner.Err())
 
 	return "", fmt.Errorf("cannot find root filesystem type: not in list")
 }
@@ -159,11 +150,9 @@ func getWSLVersion() int {
 	if !fileExists("/proc/sys/fs/binfmt_misc/WSLInterop") && !fileExists("/run/WSL") {
 		return 0
 	}
-	fstype, err := filesystemRootType()
-	if err != nil {
-		// TODO log error here once logger can be imported without circular imports
-		return 2
-	}
+	fstype := mylog.Check2(filesystemRootType())
+
+	// TODO log error here once logger can be imported without circular imports
 
 	if fstype == "wslfs" || fstype == "lxfs" {
 		return 1

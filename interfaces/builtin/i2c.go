@@ -25,6 +25,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/udev"
@@ -113,19 +114,16 @@ func (iface *i2cInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 }
 
 func (iface *i2cInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-
 	// check if sysfsName is set and if so stop after that
 	var sysfsName string
-	if err := slot.Attr("sysfs-name", &sysfsName); err == nil {
+	if mylog.Check(slot.Attr("sysfs-name", &sysfsName)); err == nil {
 		spec.AddSnippet(fmt.Sprintf(i2cConnectedPlugAppArmorSysfsName, sysfsName))
 		return nil
 	}
 
 	// do path if sysfsName is not set (they can't be set both)
 	var path string
-	if err := slot.Attr("path", &path); err != nil {
-		return nil
-	}
+	mylog.Check(slot.Attr("path", &path))
 
 	cleanedPath := filepath.Clean(path)
 	spec.AddSnippet(fmt.Sprintf(i2cConnectedPlugAppArmorPath, cleanedPath))
@@ -138,9 +136,8 @@ func (iface *i2cInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 
 func (iface *i2cInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	var path string
-	if err := slot.Attr("path", &path); err != nil {
-		return nil
-	}
+	mylog.Check(slot.Attr("path", &path))
+
 	spec.TagDevice(fmt.Sprintf(`KERNEL=="%s"`, strings.TrimPrefix(path, "/dev/")))
 	return nil
 }

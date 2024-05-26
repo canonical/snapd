@@ -34,9 +34,7 @@ var (
 	InstallCloudConfig   = installCloudConfig
 )
 
-var (
-	WriteResolvedContent = writeResolvedContent
-)
+var WriteResolvedContent = writeResolvedContent
 
 func MockWriteResolvedContent(f func(prepareImageDir string, info *gadget.Info, gadgetRoot, kernelRoot string) error) (restore func()) {
 	oldWriteResolvedContent := writeResolvedContent

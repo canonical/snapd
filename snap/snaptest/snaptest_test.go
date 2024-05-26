@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
@@ -101,7 +102,7 @@ func (s *snapTestSuite) TestMockSnapCurrent(c *C) {
 	// The YAML is placed on disk
 	c.Check(filepath.Join(dirs.SnapMountDir, "sample", "42", "meta", "snap.yaml"),
 		testutil.FileEquals, sampleYaml)
-	link, err := os.Readlink(filepath.Join(dirs.SnapMountDir, "sample", "current"))
+	link := mylog.Check2(os.Readlink(filepath.Join(dirs.SnapMountDir, "sample", "current")))
 	c.Check(err, IsNil)
 	c.Check(link, Equals, "42")
 }
@@ -117,7 +118,7 @@ func (s *snapTestSuite) TestMockSnapInstanceCurrent(c *C) {
 	// The YAML is placed on disk
 	c.Check(filepath.Join(dirs.SnapMountDir, "sample_instance", "42", "meta", "snap.yaml"),
 		testutil.FileEquals, sampleYaml)
-	link, err := os.Readlink(filepath.Join(dirs.SnapMountDir, "sample_instance", "current"))
+	link := mylog.Check2(os.Readlink(filepath.Join(dirs.SnapMountDir, "sample_instance", "current")))
 	c.Check(err, IsNil)
 	c.Check(link, Equals, filepath.Join(dirs.SnapMountDir, "sample_instance", "42"))
 }
@@ -129,7 +130,7 @@ func (s *snapTestSuite) TestMockInfo(c *C) {
 	// Data from SideInfo is used
 	c.Check(snapInfo.Revision, Equals, snap.R(42))
 	// The YAML is *not* placed on disk
-	_, err := os.Stat(filepath.Join(dirs.SnapMountDir, "sample", "42", "meta", "snap.yaml"))
+	_ := mylog.Check2(os.Stat(filepath.Join(dirs.SnapMountDir, "sample", "42", "meta", "snap.yaml")))
 	c.Assert(os.IsNotExist(err), Equals, true)
 	// More
 	c.Check(snapInfo.Apps["app"].Command, Equals, "foo")
@@ -143,7 +144,7 @@ func (s *snapTestSuite) TestMockInvalidInfo(c *C) {
 	// Data from SideInfo is used
 	c.Check(snapInfo.Revision, Equals, snap.R(42))
 	// The YAML is *not* placed on disk
-	_, err := os.Stat(filepath.Join(dirs.SnapMountDir, "sample", "42", "meta", "snap.yaml"))
+	_ := mylog.Check2(os.Stat(filepath.Join(dirs.SnapMountDir, "sample", "42", "meta", "snap.yaml")))
 	c.Assert(os.IsNotExist(err), Equals, true)
 	// More
 	c.Check(snapInfo.Apps["app"].Command, Equals, "foo")
@@ -170,22 +171,26 @@ apps:
 hooks:
   configure:
 `, nil)
+	mylog.
 
-	// Rename "old" to "plug"
-	err := snaptest.RenameSlot(snapInfo, "old", "plug")
+		// Rename "old" to "plug"
+		Check(snaptest.RenameSlot(snapInfo, "old", "plug"))
 	c.Assert(err, ErrorMatches, `cannot rename slot "old" to "plug": existing plug with that name`)
+	mylog.
 
-	// Rename "old" to "slot"
-	err = snaptest.RenameSlot(snapInfo, "old", "slot")
+		// Rename "old" to "slot"
+		Check(snaptest.RenameSlot(snapInfo, "old", "slot"))
 	c.Assert(err, ErrorMatches, `cannot rename slot "old" to "slot": existing slot with that name`)
+	mylog.
 
-	// Rename "old" to "bad name"
-	err = snaptest.RenameSlot(snapInfo, "old", "bad name")
+		// Rename "old" to "bad name"
+		Check(snaptest.RenameSlot(snapInfo, "old", "bad name"))
 	c.Assert(err, ErrorMatches, `cannot rename slot "old" to "bad name": invalid slot name: "bad name"`)
+	mylog.
 
-	// Rename "old" to "new"
-	err = snaptest.RenameSlot(snapInfo, "old", "new")
-	c.Assert(err, IsNil)
+		// Rename "old" to "new"
+		Check(snaptest.RenameSlot(snapInfo, "old", "new"))
+
 
 	// Check that there's no trace of the old slot name.
 	c.Assert(snapInfo.Slots["old"], IsNil)
@@ -195,11 +200,11 @@ hooks:
 	c.Assert(snapInfo.Apps["app"].Slots["new"], DeepEquals, snapInfo.Slots["new"])
 	c.Assert(snapInfo.Hooks["configure"].Slots["old"], IsNil)
 	c.Assert(snapInfo.Hooks["configure"].Slots["new"], DeepEquals, snapInfo.Slots["new"])
+	mylog.
 
-	// Rename "old" to "new" (again)
-	err = snaptest.RenameSlot(snapInfo, "old", "new")
+		// Rename "old" to "new" (again)
+		Check(snaptest.RenameSlot(snapInfo, "old", "new"))
 	c.Assert(err, ErrorMatches, `cannot rename slot "old" to "new": no such slot`)
-
 }
 
 func (s *snapTestSuite) TestMockSnapWithFiles(c *C) {
@@ -219,7 +224,7 @@ func (s *snapTestSuite) TestMockSnapWithFiles(c *C) {
 
 func (s *snapTestSuite) TestMockContainerMinimal(c *C) {
 	cont := snaptest.MockContainer(c, nil)
-	err := snap.ValidateSnapContainer(cont, &snap.Info{}, nil)
+	mylog.Check(snap.ValidateSnapContainer(cont, &snap.Info{}, nil))
 	c.Check(err, IsNil)
 }
 
@@ -236,13 +241,13 @@ version: 1.0`
 		{"meta/gadget.yaml", gadgetYaml},
 	})
 
-	info, err := snap.ReadInfoFromSnapFile(cont, nil)
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.ReadInfoFromSnapFile(cont, nil))
+
 	c.Check(info.SnapName(), Equals, "gadget")
-	err = snap.ValidateSnapContainer(cont, info, nil)
-	c.Assert(err, IsNil)
-	readGadgetYaml, err := cont.ReadFile("meta/gadget.yaml")
-	c.Assert(err, IsNil)
+	mylog.Check(snap.ValidateSnapContainer(cont, info, nil))
+
+	readGadgetYaml := mylog.Check2(cont.ReadFile("meta/gadget.yaml"))
+
 	c.Check(readGadgetYaml, DeepEquals, []byte(gadgetYaml))
 }
 
@@ -257,9 +262,9 @@ func (s *snapTestSuite) TestMakeSnapFileAndDir(c *C) {
 	c.Check(filepath.Join(info.MountDir(), "canary"), testutil.FileEquals, "canary")
 	c.Assert(info.MountFile(), testutil.FilePresent)
 	c.Check(squashfs.FileHasSquashfsHeader(info.MountFile()), Equals, true)
-	f, err := snapfile.Open(info.MountFile())
-	c.Assert(err, IsNil)
-	can, err := f.ReadFile("canary")
-	c.Assert(err, IsNil)
+	f := mylog.Check2(snapfile.Open(info.MountFile()))
+
+	can := mylog.Check2(f.ReadFile("canary"))
+
 	c.Check(can, DeepEquals, []byte("canary"))
 }

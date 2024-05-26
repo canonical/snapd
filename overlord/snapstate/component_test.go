@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
@@ -40,8 +41,8 @@ func (s *snapmgrTestSuite) mockComponentInfos(c *C, snapName string, compNames [
 type: test
 version: 1.0
 `, snapName, comp)
-		ci, err := snap.InfoFromComponentYaml([]byte(componentYaml))
-		c.Assert(err, IsNil)
+		ci := mylog.Check2(snap.InfoFromComponentYaml([]byte(componentYaml)))
+
 		cis[i] = ci
 	}
 
@@ -79,10 +80,14 @@ components:
     type: test
 `
 
-	ssi := &snap.SideInfo{RealName: snapName, Revision: snapRev,
-		SnapID: "some-snap-id"}
-	ssi2 := &snap.SideInfo{RealName: snapName, Revision: snapRev2,
-		SnapID: "some-snap-id"}
+	ssi := &snap.SideInfo{
+		RealName: snapName, Revision: snapRev,
+		SnapID: "some-snap-id",
+	}
+	ssi2 := &snap.SideInfo{
+		RealName: snapName, Revision: snapRev2,
+		SnapID: "some-snap-id",
+	}
 	cref := naming.NewComponentRef(snapName, compName)
 	csi := snap.NewComponentSideInfo(cref, compRev)
 	cref2 := naming.NewComponentRef(snapName, compName2)
@@ -95,7 +100,8 @@ components:
 		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
 			[]*sequence.RevisionSideState{
 				sequence.NewRevisionSideState(ssi,
-					[]*sequence.ComponentState{sequence.NewComponentState(csi2, snap.TestComponent), sequence.NewComponentState(csi, snap.TestComponent)})}),
+					[]*sequence.ComponentState{sequence.NewComponentState(csi2, snap.TestComponent), sequence.NewComponentState(csi, snap.TestComponent)}),
+			}),
 		Current: snapRev,
 	}
 	snaptest.MockSnap(c, snapYaml, ssi)
@@ -108,15 +114,15 @@ components:
 	c.Check(foundCsi, DeepEquals, csi)
 	foundCsi2 := snapSt.CurrentComponentSideInfo(cref2)
 	c.Check(foundCsi2, DeepEquals, csi2)
-	foundCi, err := snapSt.CurrentComponentInfo(cref)
+	foundCi := mylog.Check2(snapSt.CurrentComponentInfo(cref))
 	c.Check(err, IsNil)
 	c.Check(foundCi, NotNil)
-	foundCi2, err := snapSt.CurrentComponentInfo(cref2)
+	foundCi2 := mylog.Check2(snapSt.CurrentComponentInfo(cref2))
 	c.Check(err, IsNil)
 	c.Check(foundCi2, NotNil)
 
-	comps, err := snapSt.CurrentComponentInfos()
-	c.Assert(err, IsNil)
+	comps := mylog.Check2(snapSt.CurrentComponentInfos())
+
 	c.Check(comps, testutil.DeepUnsortedMatches, []*snap.ComponentInfo{foundCi, foundCi2})
 
 	snapSt = &snapstate.SnapState{
@@ -134,16 +140,16 @@ components:
 	c.Check(snapSt.IsComponentRevPresent(csi), Equals, true)
 	c.Check(snapSt.CurrentComponentSideInfo(cref), IsNil)
 	c.Check(snapSt.CurrentComponentSideInfo(cref2), IsNil)
-	foundCi, err = snapSt.CurrentComponentInfo(cref)
+	foundCi = mylog.Check2(snapSt.CurrentComponentInfo(cref))
 	c.Check(err, ErrorMatches, "snap has no current revision")
 	c.Check(foundCi, IsNil)
 
-	comps, err = snapSt.CurrentComponentInfos()
-	c.Assert(err, IsNil)
+	comps = mylog.Check2(snapSt.CurrentComponentInfos())
+
 	c.Check(comps, HasLen, 0)
 
-	comps, err = snapSt.ComponentInfosForRevision(ssi2.Revision)
-	c.Assert(err, IsNil)
+	comps = mylog.Check2(snapSt.ComponentInfosForRevision(ssi2.Revision))
+
 	c.Check(comps, HasLen, 0)
 
 	snapSt = &snapstate.SnapState{
@@ -162,8 +168,8 @@ components:
 	c.Check(snapSt.CurrentComponentSideInfo(cref), IsNil)
 	c.Check(snapSt.CurrentComponentSideInfo(cref2), IsNil)
 
-	comps, err = snapSt.CurrentComponentInfos()
-	c.Assert(err, IsNil)
+	comps = mylog.Check2(snapSt.CurrentComponentInfos())
+
 	c.Check(comps, HasLen, 0)
 
 	snapSt = &snapstate.SnapState{
@@ -177,25 +183,25 @@ components:
 	}
 	snapstate.Set(s.state, snapName, snapSt)
 
-	foundCi, err = snapSt.CurrentComponentInfo(cref)
+	foundCi = mylog.Check2(snapSt.CurrentComponentInfo(cref))
 	c.Check(err, IsNil)
 
 	snapSt.Current = snapRev2
-	foundCi2, err = snapSt.CurrentComponentInfo(cref2)
+	foundCi2 = mylog.Check2(snapSt.CurrentComponentInfo(cref2))
 	c.Check(err, IsNil)
 
 	snapSt.Current = snapRev
 
-	comps, err = snapSt.CurrentComponentInfos()
-	c.Assert(err, IsNil)
+	comps = mylog.Check2(snapSt.CurrentComponentInfos())
+
 	c.Check(comps, testutil.DeepUnsortedMatches, []*snap.ComponentInfo{foundCi})
 
-	comps, err = snapSt.ComponentInfosForRevision(snapRev2)
-	c.Assert(err, IsNil)
+	comps = mylog.Check2(snapSt.ComponentInfosForRevision(snapRev2))
+
 	c.Check(comps, testutil.DeepUnsortedMatches, []*snap.ComponentInfo{foundCi2})
 
 	snapSt = &snapstate.SnapState{}
 
-	_, err = snapSt.CurrentComponentInfos()
+	_ = mylog.Check2(snapSt.CurrentComponentInfos())
 	c.Assert(err, testutil.ErrorIs, snapstate.ErrNoCurrent)
 }

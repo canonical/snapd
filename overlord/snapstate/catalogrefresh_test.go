@@ -29,6 +29,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/advisor"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
@@ -113,8 +114,7 @@ func (s *catalogRefreshTestSuite) TestCatalogRefresh(c *C) {
 	// next is initially zero
 	c.Check(snapstate.NextCatalogRefresh(cr7).IsZero(), Equals, true)
 	t0 := time.Now()
-
-	err := cr7.Ensure()
+	mylog.Check(cr7.Ensure())
 	c.Check(err, IsNil)
 
 	// next now has a delta (next refresh is not before t0 + delta)
@@ -129,11 +129,11 @@ func (s *catalogRefreshTestSuite) TestCatalogRefresh(c *C) {
 	c.Check(dirs.SnapNamesFile, testutil.FileEquals, "pkg1\npkg2")
 
 	c.Check(osutil.FileExists(dirs.SnapCommandsDB), Equals, true)
-	dump, err := advisor.DumpCommands()
+	dump := mylog.Check2(advisor.DumpCommands())
 	if errors.Is(err, advisor.ErrNotSupported) {
 		c.Skip("bolt is not supported")
 	}
-	c.Assert(err, IsNil)
+
 	c.Check(dump, DeepEquals, map[string]string{
 		"foo": `[{"snap":"foo","version":"1.0"}]`,
 		"bar": `[{"snap":"bar","version":"2.0"}]`,
@@ -148,8 +148,7 @@ func (s *catalogRefreshTestSuite) TestCatalogRefreshTooMany(c *C) {
 	// next is initially zero
 	c.Check(snapstate.NextCatalogRefresh(cr7).IsZero(), Equals, true)
 	t0 := time.Now()
-
-	err := cr7.Ensure()
+	mylog.Check(cr7.Ensure())
 	if errors.Is(err, advisor.ErrNotSupported) {
 		c.Skip("bolt is not supported")
 	}
@@ -170,7 +169,7 @@ func (s *catalogRefreshTestSuite) TestCatalogRefreshTooMany(c *C) {
 func (s *catalogRefreshTestSuite) TestCatalogRefreshNotNeeded(c *C) {
 	cr7 := snapstate.NewCatalogRefresh(s.state)
 	snapstate.MockCatalogRefreshNextRefresh(cr7, time.Now().Add(1*time.Hour))
-	err := cr7.Ensure()
+	mylog.Check(cr7.Ensure())
 	c.Check(err, IsNil)
 	c.Check(s.store.ops, HasLen, 0)
 	c.Check(osutil.FileExists(dirs.SnapSectionsFile), Equals, false)
@@ -188,8 +187,8 @@ func (s *catalogRefreshTestSuite) TestCatalogRefreshNewEnough(c *C) {
 	cr7 := snapstate.NewCatalogRefresh(s.state)
 	// next is initially zero
 	c.Check(snapstate.NextCatalogRefresh(cr7).IsZero(), Equals, true)
-	err := cr7.Ensure()
-	c.Assert(err, IsNil)
+	mylog.Check(cr7.Ensure())
+
 	c.Check(s.store.ops, HasLen, 0)
 	next := snapstate.NextCatalogRefresh(cr7)
 	// next is no longer zero,
@@ -207,7 +206,7 @@ func (s *catalogRefreshTestSuite) TestCatalogRefreshTooNew(c *C) {
 	c.Assert(os.Chtimes(dirs.SnapNamesFile, t, t), IsNil)
 
 	cr7 := snapstate.NewCatalogRefresh(s.state)
-	err := cr7.Ensure()
+	mylog.Check(cr7.Ensure())
 	if errors.Is(err, advisor.ErrNotSupported) {
 		c.Skip("bolt is not supported")
 	}
@@ -224,9 +223,8 @@ func (s *catalogRefreshTestSuite) TestCatalogRefreshUnSeeded(c *C) {
 	cr7 := snapstate.NewCatalogRefresh(s.state)
 	// next is initially zero
 	c.Check(snapstate.NextCatalogRefresh(cr7).IsZero(), Equals, true)
+	mylog.Check(cr7.Ensure())
 
-	err := cr7.Ensure()
-	c.Assert(err, IsNil)
 
 	// next should be still zero as we skipped refresh on unseeded system
 	c.Check(snapstate.NextCatalogRefresh(cr7).IsZero(), Equals, true)
@@ -249,9 +247,8 @@ func (s *catalogRefreshTestSuite) TestCatalogRefreshUC20InstallMode(c *C) {
 	cr7 := snapstate.NewCatalogRefresh(s.state)
 	// next is initially zero
 	c.Check(snapstate.NextCatalogRefresh(cr7).IsZero(), Equals, true)
+	mylog.Check(cr7.Ensure())
 
-	err := cr7.Ensure()
-	c.Assert(err, IsNil)
 
 	// next should be still zero as we skipped refresh on unseeded system
 	c.Check(snapstate.NextCatalogRefresh(cr7).IsZero(), Equals, true)
@@ -276,8 +273,7 @@ func (s *catalogRefreshTestSuite) TestCatalogRefreshSkipWhenTesting(c *C) {
 	cr7 := snapstate.NewCatalogRefresh(s.state)
 	// next is initially zero
 	c.Check(snapstate.NextCatalogRefresh(cr7).IsZero(), Equals, true)
-
-	err := cr7.Ensure()
+	mylog.Check(cr7.Ensure())
 	c.Check(err, IsNil)
 
 	c.Check(s.store.ops, HasLen, 0)
@@ -293,8 +289,7 @@ func (s *catalogRefreshTestSuite) TestCatalogRefreshSkipWhenTesting(c *C) {
 	snapstate.MockCatalogRefreshNextRefresh(cr7, time.Time{})
 	// validity
 	c.Check(snapstate.NextCatalogRefresh(cr7).IsZero(), Equals, true)
-
-	err = cr7.Ensure()
+	mylog.Check(cr7.Ensure())
 	if errors.Is(err, advisor.ErrNotSupported) {
 		c.Skip("bolt is not supported")
 	}
@@ -312,14 +307,13 @@ func (s *catalogRefreshTestSuite) TestSnapStoreOffline(c *C) {
 	setStoreAccess(s.state, "offline")
 
 	af := snapstate.NewCatalogRefresh(s.state)
-	err := af.Ensure()
+	mylog.Check(af.Ensure())
 	c.Check(err, IsNil)
 
 	c.Check(s.store.ops, HasLen, 0)
 
 	setStoreAccess(s.state, nil)
-
-	err = af.Ensure()
+	mylog.Check(af.Ensure())
 	if errors.Is(err, advisor.ErrNotSupported) {
 		c.Skip("bolt is not supported")
 	}

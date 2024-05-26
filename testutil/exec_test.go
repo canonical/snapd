@@ -25,6 +25,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"gopkg.in/check.v1"
 )
 
@@ -39,9 +40,9 @@ const (
 func (s *mockCommandSuite) TestMockCommand(c *check.C) {
 	mock := MockCommand(c, "cmd", "true")
 	defer mock.Restore()
-	err := exec.Command("cmd", "first-run", "--arg1", "arg2", "a space").Run()
+	mylog.Check(exec.Command("cmd", "first-run", "--arg1", "arg2", "a space").Run())
 	c.Assert(err, check.IsNil)
-	err = exec.Command("cmd", "second-run", "--arg1", "arg2", "a %s").Run()
+	mylog.Check(exec.Command("cmd", "second-run", "--arg1", "arg2", "a %s").Run())
 	c.Assert(err, check.IsNil)
 	c.Assert(mock.Calls(), check.DeepEquals, [][]string{
 		{"cmd", "first-run", "--arg1", "arg2", "a space"},
@@ -89,11 +90,11 @@ func (s *mockCommandSuite) TestMockShellchecksWhenAvailable(c *check.C) {
 		{"shellcheck", "-s", "bash", "-"},
 	})
 
-	scriptData, err := os.ReadFile(mock.Exe())
+	scriptData := mylog.Check2(os.ReadFile(mock.Exe()))
 	c.Assert(err, check.IsNil)
 	c.Assert(string(scriptData), Contains, "\necho some-command\n")
 
-	data, err := os.ReadFile(filepath.Join(tmpDir, "input"))
+	data := mylog.Check2(os.ReadFile(filepath.Join(tmpDir, "input")))
 	c.Assert(err, check.IsNil)
 	c.Assert(data, check.DeepEquals, scriptData)
 }
@@ -130,7 +131,7 @@ func (s *mockCommandSuite) TestMockCreateAbsPathDir(c *check.C) {
 	})
 
 	binDirRo := filepath.Join(dir, "ro")
-	err := os.MkdirAll(binDirRo, 0000)
+	mylog.Check(os.MkdirAll(binDirRo, 0000))
 	c.Assert(err, check.IsNil)
 	absPathBad := filepath.Join(binDirRo, "this/fails/command")
 	exp := fmt.Sprintf(`cannot create the directory for mocked command "%[1]s/ro/this/fails/command": mkdir %[1]s/ro/this: permission denied`, dir)

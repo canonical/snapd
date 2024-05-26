@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/logger"
 )
 
@@ -67,12 +68,7 @@ func (r *resp) MarshalJSON() ([]byte, error) {
 
 func (r *resp) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	status := r.Status
-	bs, err := r.MarshalJSON()
-	if err != nil {
-		logger.Noticef("cannot marshal %#v to JSON: %v", *r, err)
-		bs = nil
-		status = 500
-	}
+	bs := mylog.Check2(r.MarshalJSON())
 
 	hdr := w.Header()
 	if r.Status == 202 || r.Status == 201 {

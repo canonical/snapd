@@ -24,6 +24,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -59,14 +60,8 @@ func validateAssetsContent(kernelRoot string, info *Info) error {
 // Validate checks whether the given directory contains valid kernel snap
 // metadata and a matching content.
 func Validate(kernelRoot string) error {
-	info, err := ReadInfo(kernelRoot)
-	if err != nil {
-		return fmt.Errorf("invalid kernel metadata: %v", err)
-	}
-
-	if err := validateAssetsContent(kernelRoot, info); err != nil {
-		return err
-	}
+	info := mylog.Check2(ReadInfo(kernelRoot))
+	mylog.Check(validateAssetsContent(kernelRoot, info))
 
 	return nil
 }

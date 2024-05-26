@@ -23,6 +23,7 @@ import (
 	"os"
 	"syscall"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil/sys"
 )
 
@@ -38,23 +39,16 @@ import (
 //
 // Errors are *os.PathError, for convenience
 func UnlinkMany(dirname string, filenames []string) error {
-	dirfd, err := syscall.Open(dirname, syscall.O_RDONLY|syscall.O_CLOEXEC|syscall.O_DIRECTORY|sys.O_PATH, 0)
-	if err != nil {
-		return &os.PathError{
-			Op:   "open",
-			Path: dirname,
-			Err:  err,
-		}
-	}
+	dirfd := mylog.Check2(syscall.Open(dirname, syscall.O_RDONLY|syscall.O_CLOEXEC|syscall.O_DIRECTORY|sys.O_PATH, 0))
+
 	defer syscall.Close(dirfd)
 
 	return unlinkMany(dirfd, filenames)
 }
 
 func unlinkMany(dirfd int, filenames []string) error {
-	var err error
 	for _, filename := range filenames {
-		if err = sysUnlinkat(dirfd, filename); err != nil && err != syscall.ENOENT {
+		if mylog.Check(sysUnlinkat(dirfd, filename)); err != nil && err != syscall.ENOENT {
 			return &os.PathError{
 				Op:   "remove",
 				Path: filename,

@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snapdtool"
 )
@@ -88,18 +89,12 @@ VERSION=42
 `
 
 func benchmarkCSRE(b *testing.B, data string) {
-	tempdir, err := os.MkdirTemp("", "")
-	if err != nil {
-		b.Fatalf("tempdir: %v", err)
-	}
-	defer os.RemoveAll(tempdir)
-	if err = os.MkdirAll(filepath.Join(tempdir, dirs.CoreLibExecDir), 0755); err != nil {
-		b.Fatalf("mkdirall: %v", err)
-	}
+	tempdir := mylog.Check2(os.MkdirTemp("", ""))
 
-	if err = os.WriteFile(filepath.Join(tempdir, dirs.CoreLibExecDir, "info"), []byte(data), 0600); err != nil {
-		b.Fatalf("%v", err)
-	}
+	defer os.RemoveAll(tempdir)
+	mylog.Check(os.MkdirAll(filepath.Join(tempdir, dirs.CoreLibExecDir), 0755))
+	mylog.Check(os.WriteFile(filepath.Join(tempdir, dirs.CoreLibExecDir, "info"), []byte(data), 0600))
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		snapdtool.SystemSnapSupportsReExec(tempdir)

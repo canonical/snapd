@@ -29,6 +29,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/store"
@@ -81,17 +82,16 @@ func (s *storeActionFetchAssertionsSuite) testFetch(c *C, assertionMaxFormats ma
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
-		jsonReq, err := io.ReadAll(r.Body)
-		c.Assert(err, IsNil)
+		jsonReq := mylog.Check2(io.ReadAll(r.Body))
+
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
 			Actions []map[string]interface{} `json:"actions"`
 
 			AssertionMaxFormats map[string]int `json:"assertion-max-formats"`
 		}
+		mylog.Check(json.Unmarshal(jsonReq, &req))
 
-		err = json.Unmarshal(jsonReq, &req)
-		c.Assert(err, IsNil)
 
 		c.Assert(req.Context, HasLen, 0)
 		c.Assert(req.Actions, HasLen, 1)
@@ -157,9 +157,9 @@ func (s *storeActionFetchAssertionsSuite) testFetch(c *C, assertionMaxFormats ma
 		},
 	}
 
-	results, aresults, err := sto.SnapAction(s.ctx, nil,
-		nil, assertq, nil, nil)
-	c.Assert(err, IsNil)
+	results, aresults := mylog.Check3(sto.SnapAction(s.ctx, nil,
+		nil, assertq, nil, nil))
+
 	c.Check(results, HasLen, 0)
 	c.Check(aresults, HasLen, 1)
 	c.Check(aresults[0].Grouping, Equals, asserts.Grouping("g1"))
@@ -187,17 +187,16 @@ func (s *storeActionFetchAssertionsSuite) TestUpdateIfNewerThan(c *C) {
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
-		jsonReq, err := io.ReadAll(r.Body)
-		c.Assert(err, IsNil)
+		jsonReq := mylog.Check2(io.ReadAll(r.Body))
+
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
 			Actions []map[string]interface{} `json:"actions"`
 
 			AssertionMaxFormats map[string]int `json:"assertion-max-formats"`
 		}
+		mylog.Check(json.Unmarshal(jsonReq, &req))
 
-		err = json.Unmarshal(jsonReq, &req)
-		c.Assert(err, IsNil)
 
 		c.Assert(req.Context, HasLen, 0)
 		c.Assert(req.Actions, HasLen, 2)
@@ -288,9 +287,9 @@ func (s *storeActionFetchAssertionsSuite) TestUpdateIfNewerThan(c *C) {
 		},
 	}
 
-	results, aresults, err := sto.SnapAction(s.ctx, nil,
-		nil, assertq, nil, nil)
-	c.Assert(err, IsNil)
+	results, aresults := mylog.Check3(sto.SnapAction(s.ctx, nil,
+		nil, assertq, nil, nil))
+
 	c.Check(results, HasLen, 0)
 	c.Check(aresults, HasLen, 2)
 	seen := 0
@@ -318,15 +317,14 @@ func (s *storeActionFetchAssertionsSuite) TestFetchNotFound(c *C) {
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
-		jsonReq, err := io.ReadAll(r.Body)
-		c.Assert(err, IsNil)
+		jsonReq := mylog.Check2(io.ReadAll(r.Body))
+
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
 			Actions []map[string]interface{} `json:"actions"`
 		}
+		mylog.Check(json.Unmarshal(jsonReq, &req))
 
-		err = json.Unmarshal(jsonReq, &req)
-		c.Assert(err, IsNil)
 
 		c.Assert(req.Context, HasLen, 0)
 		c.Assert(req.Actions, HasLen, 1)
@@ -391,16 +389,17 @@ func (s *storeActionFetchAssertionsSuite) TestFetchNotFound(c *C) {
 		},
 	}
 
-	results, aresults, err := sto.SnapAction(s.ctx, nil,
-		nil, assertq, nil, nil)
-	c.Assert(err, IsNil)
+	results, aresults := mylog.Check3(sto.SnapAction(s.ctx, nil,
+		nil, assertq, nil, nil))
+
 	c.Check(results, HasLen, 0)
 	c.Check(aresults, HasLen, 0)
 
 	c.Check(assertq.errors, DeepEquals, map[string]error{
 		"snap-declaration/16/xEr2EpvaIaqrXxoM2JyHOmuXQYvSzUt5": &asserts.NotFoundError{
 			Type:    asserts.SnapDeclarationType,
-			Headers: map[string]string{"series": "16", "snap-id": "xEr2EpvaIaqrXxoM2JyHOmuXQYvSzUt5"}},
+			Headers: map[string]string{"series": "16", "snap-id": "xEr2EpvaIaqrXxoM2JyHOmuXQYvSzUt5"},
+		},
 	})
 }
 
@@ -413,15 +412,14 @@ func (s *storeActionFetchAssertionsSuite) TestFetchValidationSetNotFound(c *C) {
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
-		jsonReq, err := io.ReadAll(r.Body)
-		c.Assert(err, IsNil)
+		jsonReq := mylog.Check2(io.ReadAll(r.Body))
+
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
 			Actions []map[string]interface{} `json:"actions"`
 		}
+		mylog.Check(json.Unmarshal(jsonReq, &req))
 
-		err = json.Unmarshal(jsonReq, &req)
-		c.Assert(err, IsNil)
 
 		c.Assert(req.Context, HasLen, 0)
 		c.Assert(req.Actions, HasLen, 1)
@@ -489,16 +487,17 @@ func (s *storeActionFetchAssertionsSuite) TestFetchValidationSetNotFound(c *C) {
 		},
 	}
 
-	results, aresults, err := sto.SnapAction(s.ctx, nil,
-		nil, assertq, nil, nil)
-	c.Assert(err, IsNil)
+	results, aresults := mylog.Check3(sto.SnapAction(s.ctx, nil,
+		nil, assertq, nil, nil))
+
 	c.Check(results, HasLen, 0)
 	c.Check(aresults, HasLen, 0)
 
 	c.Check(assertq.errors, DeepEquals, map[string]error{
 		"validation-set/16/foo/bar": &asserts.NotFoundError{
 			Type:    asserts.ValidationSetType,
-			Headers: map[string]string{"series": "16", "account-id": "foo", "name": "bar"}},
+			Headers: map[string]string{"series": "16", "account-id": "foo", "name": "bar"},
+		},
 	})
 }
 
@@ -563,9 +562,8 @@ func (s *storeActionFetchAssertionsSuite) TestReportFetchAssertionsError(c *C) {
 			Key:       "g1",
 			ErrorList: t.errorList,
 		}
+		mylog.Check(store.ReportFetchAssertionsError(res, assertq))
 
-		err := store.ReportFetchAssertionsError(res, assertq)
-		c.Assert(err, IsNil)
 
 		c.Check(assertq.errors, HasLen, 1)
 		for k, e := range assertq.errors {
@@ -584,17 +582,16 @@ func (s *storeActionFetchAssertionsSuite) TestUpdateSequenceForming(c *C) {
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
-		jsonReq, err := io.ReadAll(r.Body)
-		c.Assert(err, IsNil)
+		jsonReq := mylog.Check2(io.ReadAll(r.Body))
+
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
 			Actions []map[string]interface{} `json:"actions"`
 
 			AssertionMaxFormats map[string]int `json:"assertion-max-formats"`
 		}
+		mylog.Check(json.Unmarshal(jsonReq, &req))
 
-		err = json.Unmarshal(jsonReq, &req)
-		c.Assert(err, IsNil)
 
 		c.Assert(req.Context, HasLen, 0)
 		c.Assert(req.Actions, HasLen, 2)
@@ -704,9 +701,9 @@ func (s *storeActionFetchAssertionsSuite) TestUpdateSequenceForming(c *C) {
 		},
 	}
 
-	results, aresults, err := sto.SnapAction(s.ctx, nil,
-		nil, assertq, nil, nil)
-	c.Assert(err, IsNil)
+	results, aresults := mylog.Check3(sto.SnapAction(s.ctx, nil,
+		nil, assertq, nil, nil))
+
 	c.Check(results, HasLen, 0)
 	c.Check(aresults, HasLen, 2)
 	seen := 0
@@ -734,17 +731,16 @@ func (s *storeActionFetchAssertionsSuite) TestUpdateSequenceFormingCommonGroupin
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
-		jsonReq, err := io.ReadAll(r.Body)
-		c.Assert(err, IsNil)
+		jsonReq := mylog.Check2(io.ReadAll(r.Body))
+
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
 			Actions []map[string]interface{} `json:"actions"`
 
 			AssertionMaxFormats map[string]int `json:"assertion-max-formats"`
 		}
+		mylog.Check(json.Unmarshal(jsonReq, &req))
 
-		err = json.Unmarshal(jsonReq, &req)
-		c.Assert(err, IsNil)
 
 		c.Assert(req.Context, HasLen, 0)
 		c.Assert(req.Actions, HasLen, 2)
@@ -886,8 +882,8 @@ func (s *storeActionFetchAssertionsSuite) TestUpdateSequenceFormingCommonGroupin
 		},
 	}
 
-	_, _, err := sto.SnapAction(s.ctx, nil, nil, assertq, nil, nil)
-	c.Assert(err, IsNil)
+	_, _ := mylog.Check3(sto.SnapAction(s.ctx, nil, nil, assertq, nil, nil))
+
 }
 
 func (s *storeActionFetchAssertionsSuite) TestFetchOptionalPrimaryKeys(c *C) {
@@ -899,17 +895,16 @@ func (s *storeActionFetchAssertionsSuite) TestFetchOptionalPrimaryKeys(c *C) {
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
-		jsonReq, err := io.ReadAll(r.Body)
-		c.Assert(err, IsNil)
+		jsonReq := mylog.Check2(io.ReadAll(r.Body))
+
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
 			Actions []map[string]interface{} `json:"actions"`
 
 			AssertionMaxFormats map[string]int `json:"assertion-max-formats"`
 		}
+		mylog.Check(json.Unmarshal(jsonReq, &req))
 
-		err = json.Unmarshal(jsonReq, &req)
-		c.Assert(err, IsNil)
 
 		c.Assert(req.Context, HasLen, 0)
 		c.Assert(req.Actions, HasLen, 1)
@@ -966,9 +961,9 @@ func (s *storeActionFetchAssertionsSuite) TestFetchOptionalPrimaryKeys(c *C) {
 		},
 	}
 
-	results, aresults, err := sto.SnapAction(s.ctx, nil,
-		nil, assertq, nil, nil)
-	c.Assert(err, IsNil)
+	results, aresults := mylog.Check3(sto.SnapAction(s.ctx, nil,
+		nil, assertq, nil, nil))
+
 	c.Check(results, HasLen, 0)
 	c.Check(aresults, HasLen, 1)
 	c.Check(aresults[0].Grouping, Equals, asserts.Grouping("g1"))

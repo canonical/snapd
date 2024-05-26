@@ -22,6 +22,7 @@ package builtin_test
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -88,38 +89,38 @@ func (s *ThumbnailerServiceInterfaceSuite) TestName(c *C) {
 
 func (s *ThumbnailerServiceInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected slots have a non-nil security snippet for apparmor
-	appSet, err := interfaces.NewSnapAppSet(s.coreSlot.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.coreSlot.Snap(), nil))
+
 	apparmorSpec := apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddConnectedSlot(s.iface, s.plug, s.coreSlot)
-	c.Assert(err, IsNil)
+	mylog.Check(apparmorSpec.AddConnectedSlot(s.iface, s.plug, s.coreSlot))
+
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.thumbnailer-service.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.thumbnailer-service.app"), testutil.Contains, `interface=com.canonical.Thumbnailer`)
 
 	// slots have no permanent snippet on classic
-	appSet, err = interfaces.NewSnapAppSet(s.classicSlot.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.classicSlot.Snap(), nil))
+
 	apparmorSpec = apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddConnectedSlot(s.iface, s.plug, s.classicSlot)
-	c.Assert(err, IsNil)
+	mylog.Check(apparmorSpec.AddConnectedSlot(s.iface, s.plug, s.classicSlot))
+
 	c.Assert(apparmorSpec.SecurityTags(), HasLen, 0)
 
 	// slots have a permanent non-nil security snippet for apparmor
-	appSet, err = interfaces.NewSnapAppSet(s.coreSlotInfo.Snap, nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.coreSlotInfo.Snap, nil))
+
 	apparmorSpec = apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddPermanentSlot(s.iface, s.coreSlotInfo)
-	c.Assert(err, IsNil)
+	mylog.Check(apparmorSpec.AddPermanentSlot(s.iface, s.coreSlotInfo))
+
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.thumbnailer-service.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.thumbnailer-service.app"), testutil.Contains, `member={RequestName,ReleaseName,GetConnectionCredentials}`)
 }
 
 func (s *ThumbnailerServiceInterfaceSuite) TestSlotGrantedAccessToPlugFiles(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.coreSlot.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.coreSlot.Snap(), nil))
+
 	apparmorSpec := apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddConnectedSlot(s.iface, s.plug, s.coreSlot)
-	c.Assert(err, IsNil)
+	mylog.Check(apparmorSpec.AddConnectedSlot(s.iface, s.plug, s.coreSlot))
+
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.thumbnailer-service.app"})
 	snippet := apparmorSpec.SnippetForTag("snap.thumbnailer-service.app")
 	c.Check(snippet, testutil.Contains, `@{INSTALL_DIR}/client/**`)

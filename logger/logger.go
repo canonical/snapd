@@ -28,6 +28,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/kcmdline"
 )
@@ -108,10 +109,8 @@ func NoGuardDebugf(format string, v ...interface{}) {
 func MockLogger() (buf *bytes.Buffer, restore func()) {
 	buf = &bytes.Buffer{}
 	oldLogger := logger
-	l, err := New(buf, DefaultFlags, &LoggerOptions{})
-	if err != nil {
-		panic(err)
-	}
+	l := mylog.Check2(New(buf, DefaultFlags, &LoggerOptions{}))
+
 	SetLogger(l)
 	return buf, func() {
 		SetLogger(oldLogger)
@@ -197,7 +196,7 @@ func buildFlags() int {
 // SimpleSetup creates the default (console) logger
 func SimpleSetup(opts *LoggerOptions) error {
 	flags := buildFlags()
-	l, err := New(os.Stderr, flags, opts)
+	l := mylog.Check2(New(os.Stderr, flags, opts))
 	if err == nil {
 		SetLogger(l)
 	}

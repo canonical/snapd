@@ -25,6 +25,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timeutil"
@@ -53,30 +54,22 @@ func reportOrIgnoreInvalidManageRefreshes(tr RunTransaction, optName string) err
 }
 
 func validateRefreshSchedule(tr RunTransaction) error {
-	refreshRetainStr, err := coreCfg(tr, "refresh.retain")
-	if err != nil {
-		return err
-	}
+	refreshRetainStr := mylog.Check2(coreCfg(tr, "refresh.retain"))
+
 	if refreshRetainStr != "" {
-		if n, err := strconv.ParseUint(refreshRetainStr, 10, 8); err != nil || (n < 2 || n > 20) {
+		if n := mylog.Check2(strconv.ParseUint(refreshRetainStr, 10, 8)); err != nil || (n < 2 || n > 20) {
 			return fmt.Errorf("retain must be a number between 2 and 20, not %q", refreshRetainStr)
 		}
 	}
 
-	refreshHoldStr, err := coreCfg(tr, "refresh.hold")
-	if err != nil {
-		return err
-	}
+	refreshHoldStr := mylog.Check2(coreCfg(tr, "refresh.hold"))
+
 	if refreshHoldStr != "" && refreshHoldStr != "forever" {
-		if _, err := time.Parse(time.RFC3339, refreshHoldStr); err != nil {
-			return fmt.Errorf("refresh.hold cannot be parsed: %v", err)
-		}
+		mylog.Check2(time.Parse(time.RFC3339, refreshHoldStr))
 	}
 
-	refreshOnMeteredStr, err := coreCfg(tr, "refresh.metered")
-	if err != nil {
-		return err
-	}
+	refreshOnMeteredStr := mylog.Check2(coreCfg(tr, "refresh.metered"))
+
 	switch refreshOnMeteredStr {
 	case "", "hold":
 		// noop
@@ -85,10 +78,8 @@ func validateRefreshSchedule(tr RunTransaction) error {
 	}
 
 	// check (new) refresh.timer
-	refreshTimerStr, err := coreCfg(tr, "refresh.timer")
-	if err != nil {
-		return err
-	}
+	refreshTimerStr := mylog.Check2(coreCfg(tr, "refresh.timer"))
+
 	if refreshTimerStr == "managed" {
 		st := tr.State()
 		st.Lock()
@@ -100,18 +91,15 @@ func validateRefreshSchedule(tr RunTransaction) error {
 		return nil
 	}
 	if refreshTimerStr != "" {
-		// try legacy refresh.schedule setting if new-style
-		// refresh.timer is not set
-		if _, err = timeutil.ParseSchedule(refreshTimerStr); err != nil {
-			return err
-		}
+		mylog.Check2(
+			// try legacy refresh.schedule setting if new-style
+			// refresh.timer is not set
+			timeutil.ParseSchedule(refreshTimerStr))
 	}
 
 	// check (legacy) refresh.schedule
-	refreshScheduleStr, err := coreCfg(tr, "refresh.schedule")
-	if err != nil {
-		return err
-	}
+	refreshScheduleStr := mylog.Check2(coreCfg(tr, "refresh.schedule"))
+
 	if refreshScheduleStr == "" {
 		return nil
 	}
@@ -127,21 +115,18 @@ func validateRefreshSchedule(tr RunTransaction) error {
 		return nil
 	}
 
-	_, err = timeutil.ParseLegacySchedule(refreshScheduleStr)
+	_ = mylog.Check2(timeutil.ParseLegacySchedule(refreshScheduleStr))
 	return err
 }
 
 func validateRefreshRateLimit(tr RunTransaction) error {
-	refreshRateLimit, err := coreCfg(tr, "refresh.rate-limit")
-	if err != nil {
-		return err
-	}
+	refreshRateLimit := mylog.Check2(coreCfg(tr, "refresh.rate-limit"))
+
 	// reset is fine
 	if len(refreshRateLimit) == 0 {
 		return nil
 	}
-	if _, err := strutil.ParseByteSize(refreshRateLimit); err != nil {
-		return err
-	}
+	mylog.Check2(strutil.ParseByteSize(refreshRateLimit))
+
 	return nil
 }

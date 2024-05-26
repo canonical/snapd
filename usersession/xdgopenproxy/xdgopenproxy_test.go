@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/godbus/dbus"
 	. "gopkg.in/check.v1"
 
@@ -64,8 +65,7 @@ func (s *xdgOpenSuite) TestStopOnFirstSuccess(c *C) {
 	l2 := &fakeLauncher{err: nil}
 	l3 := &fakeLauncher{err: nil}
 	launchers := []xdgopenproxy.DesktopLauncher{l1, l2, l3}
-
-	err := xdgopenproxy.Launch(nil, launchers, "http://example.org")
+	mylog.Check(xdgopenproxy.Launch(nil, launchers, "http://example.org"))
 	c.Check(err, IsNil)
 	c.Check(l1.calls, DeepEquals, []string{
 		"OpenURI http://example.org",
@@ -81,8 +81,7 @@ func (s *xdgOpenSuite) TestStopOnResponseError(c *C) {
 	l2 := &fakeLauncher{err: xdgopenproxy.MakeResponseError("hello")}
 	l3 := &fakeLauncher{err: nil}
 	launchers := []xdgopenproxy.DesktopLauncher{l1, l2, l3}
-
-	err := xdgopenproxy.Launch(nil, launchers, "http://example.org")
+	mylog.Check(xdgopenproxy.Launch(nil, launchers, "http://example.org"))
 	c.Check(err, Equals, l2.err)
 	c.Check(l3.calls, HasLen, 0)
 }

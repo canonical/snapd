@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/state"
@@ -184,11 +185,10 @@ apps:
 
 func (s *patch61Suite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
+	mylog.Check(os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755))
 
-	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(dirs.SnapStateFile, statePatch6_1JSON, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(dirs.SnapStateFile, statePatch6_1JSON, 0644))
+
 
 	snap.MockSanitizePlugsSlots(func(*snap.Info) {})
 
@@ -202,11 +202,11 @@ func (s *patch61Suite) TestPatch61(c *C) {
 	restore := patch.MockLevel(6, 1)
 	defer restore()
 
-	r, err := os.Open(dirs.SnapStateFile)
-	c.Assert(err, IsNil)
+	r := mylog.Check2(os.Open(dirs.SnapStateFile))
+
 	defer r.Close()
-	st, err := state.ReadState(nil, r)
-	c.Assert(err, IsNil)
+	st := mylog.Check2(state.ReadState(nil, r))
+
 
 	// repeat the patch a few times to ensure it's idempotent
 	for i := 0; i < 3; i++ {

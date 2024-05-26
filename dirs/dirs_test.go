@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/release"
 )
@@ -48,10 +49,14 @@ func (s *DirsTestSuite) TestSnapHomeDirs(c *C) {
 	// Expected output should remove all trailing '/' and add /home if it is not present.
 	getSnapHomeFromSet := dirs.SetSnapHomeDirs("/home/homeDir1,/home/homeDirs/homeDir1///,/home/homeDir2/,/home/homeTest/users/")
 	snapHomeDirs := []string{"/home/homeDir1", "/home/homeDirs/homeDir1", "/home/homeDir2", "/home/homeTest/users", "/home"}
-	dataGlob := []string{"/home/homeDir1/*/snap", "/home/homeDirs/homeDir1/*/snap", "/home/homeDir2/*/snap", "/home/homeTest/users/*/snap",
-		"/home/*/snap"}
-	hiddenDataGlob := []string{"/home/homeDir1/*/.snap/data", "/home/homeDirs/homeDir1/*/.snap/data", "/home/homeDir2/*/.snap/data",
-		"/home/homeTest/users/*/.snap/data", "/home/*/.snap/data"}
+	dataGlob := []string{
+		"/home/homeDir1/*/snap", "/home/homeDirs/homeDir1/*/snap", "/home/homeDir2/*/snap", "/home/homeTest/users/*/snap",
+		"/home/*/snap",
+	}
+	hiddenDataGlob := []string{
+		"/home/homeDir1/*/.snap/data", "/home/homeDirs/homeDir1/*/.snap/data", "/home/homeDir2/*/.snap/data",
+		"/home/homeTest/users/*/.snap/data", "/home/*/.snap/data",
+	}
 	getSnapHomeDirs := dirs.SnapHomeDirs()
 	c.Check(getSnapHomeDirs, DeepEquals, snapHomeDirs)
 	c.Check(dirs.DataHomeGlobs(nil), DeepEquals, dataGlob)
@@ -62,10 +67,14 @@ func (s *DirsTestSuite) TestSnapHomeDirs(c *C) {
 	// Expected output, should remove all trailing '/' and not add /home since it is already present.
 	getSnapHomeFromSet = dirs.SetSnapHomeDirs("/home/homeDir1,/home/homeDirs/homeDir1///,/home/,/home/homeDir2/,/home/homeTest/users/")
 	snapHomeDirs = []string{"/home/homeDir1", "/home/homeDirs/homeDir1", "/home", "/home/homeDir2", "/home/homeTest/users"}
-	dataGlob = []string{"/home/homeDir1/*/snap", "/home/homeDirs/homeDir1/*/snap", "/home/*/snap", "/home/homeDir2/*/snap",
-		"/home/homeTest/users/*/snap"}
-	hiddenDataGlob = []string{"/home/homeDir1/*/.snap/data", "/home/homeDirs/homeDir1/*/.snap/data", "/home/*/.snap/data",
-		"/home/homeDir2/*/.snap/data", "/home/homeTest/users/*/.snap/data"}
+	dataGlob = []string{
+		"/home/homeDir1/*/snap", "/home/homeDirs/homeDir1/*/snap", "/home/*/snap", "/home/homeDir2/*/snap",
+		"/home/homeTest/users/*/snap",
+	}
+	hiddenDataGlob = []string{
+		"/home/homeDir1/*/.snap/data", "/home/homeDirs/homeDir1/*/.snap/data", "/home/*/.snap/data",
+		"/home/homeDir2/*/.snap/data", "/home/homeTest/users/*/.snap/data",
+	}
 	getSnapHomeDirs = dirs.SnapHomeDirs()
 	c.Check(getSnapHomeDirs, DeepEquals, snapHomeDirs)
 	c.Check(getSnapHomeFromSet, DeepEquals, snapHomeDirs)
@@ -87,10 +96,14 @@ func (s *DirsTestSuite) TestSnapHomeDirs(c *C) {
 	// Expected output should append /ROOTDIR to each entry except if already present
 	getSnapHomeFromSet = dirs.SetSnapHomeDirs("/home/homeDir1,/new/root/home/homeDirs/homeDir1///,/home/homeDir2/,/new/root/home/homeTest/users/")
 	snapHomeDirs = []string{"/new/root/home/homeDir1", "/new/root/home/homeDirs/homeDir1", "/new/root/home/homeDir2", "/new/root/home/homeTest/users", "/new/root/home"}
-	dataGlob = []string{"/new/root/home/homeDir1/*/snap", "/new/root/home/homeDirs/homeDir1/*/snap", "/new/root/home/homeDir2/*/snap",
-		"/new/root/home/homeTest/users/*/snap", "/new/root/home/*/snap"}
-	hiddenDataGlob = []string{"/new/root/home/homeDir1/*/.snap/data", "/new/root/home/homeDirs/homeDir1/*/.snap/data", "/new/root/home/homeDir2/*/.snap/data",
-		"/new/root/home/homeTest/users/*/.snap/data", "/new/root/home/*/.snap/data"}
+	dataGlob = []string{
+		"/new/root/home/homeDir1/*/snap", "/new/root/home/homeDirs/homeDir1/*/snap", "/new/root/home/homeDir2/*/snap",
+		"/new/root/home/homeTest/users/*/snap", "/new/root/home/*/snap",
+	}
+	hiddenDataGlob = []string{
+		"/new/root/home/homeDir1/*/.snap/data", "/new/root/home/homeDirs/homeDir1/*/.snap/data", "/new/root/home/homeDir2/*/.snap/data",
+		"/new/root/home/homeTest/users/*/.snap/data", "/new/root/home/*/.snap/data",
+	}
 	getSnapHomeDirs = dirs.SnapHomeDirs()
 	c.Check(getSnapHomeDirs, DeepEquals, snapHomeDirs)
 	c.Check(getSnapHomeFromSet, DeepEquals, snapHomeDirs)
@@ -106,7 +119,6 @@ func (s *DirsTestSuite) TestSnapHomeDirs(c *C) {
 	c.Check(dirs.SnapHomeDirs(), DeepEquals, []string{"/home"})
 	c.Check(dirs.DataHomeGlobs(nil), DeepEquals, []string{"/home/*/snap"})
 	c.Check(dirs.DataHomeGlobs(&hidden), DeepEquals, []string{"/home/*/.snap/data"})
-
 }
 
 func (s *DirsTestSuite) TestStripRootDir(c *C) {
@@ -187,15 +199,14 @@ func (s *DirsTestSuite) TestInsideBaseSnap(c *C) {
 	restore := dirs.MockMetaSnapPath(snapYaml)
 	defer restore()
 
-	inside, err := dirs.IsInsideBaseSnap()
-	c.Assert(err, IsNil)
+	inside := mylog.Check2(dirs.IsInsideBaseSnap())
+
 	c.Assert(inside, Equals, false)
+	mylog.Check(os.WriteFile(snapYaml, []byte{}, 0755))
 
-	err = os.WriteFile(snapYaml, []byte{}, 0755)
-	c.Assert(err, IsNil)
 
-	inside, err = dirs.IsInsideBaseSnap()
-	c.Assert(err, IsNil)
+	inside = mylog.Check2(dirs.IsInsideBaseSnap())
+
 	c.Assert(inside, Equals, true)
 }
 

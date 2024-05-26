@@ -22,6 +22,8 @@ package client
 import (
 	"bytes"
 	"encoding/json"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // BuyOptions specifies parameters to buy from the store.
@@ -42,22 +44,16 @@ func (client *Client) Buy(opts *BuyOptions) (*BuyResult, error) {
 	}
 
 	var body bytes.Buffer
-	if err := json.NewEncoder(&body).Encode(opts); err != nil {
-		return nil, err
-	}
+	mylog.Check(json.NewEncoder(&body).Encode(opts))
 
 	var result BuyResult
-	_, err := client.doSync("POST", "/v2/buy", nil, nil, &body, &result)
-
-	if err != nil {
-		return nil, err
-	}
+	_ := mylog.Check2(client.doSync("POST", "/v2/buy", nil, nil, &body, &result))
 
 	return &result, nil
 }
 
 func (client *Client) ReadyToBuy() error {
 	var result bool
-	_, err := client.doSync("GET", "/v2/buy/ready", nil, nil, nil, &result)
+	_ := mylog.Check2(client.doSync("GET", "/v2/buy/ready", nil, nil, nil, &result))
 	return err
 }

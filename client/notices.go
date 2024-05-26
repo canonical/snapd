@@ -17,6 +17,8 @@ package client
 import (
 	"bytes"
 	"encoding/json"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 type NotifyOptions struct {
@@ -32,7 +34,7 @@ type NotifyOptions struct {
 // Notify records an occurrence of a notice with the specified options,
 // returning the notice ID.
 func (client *Client) Notify(opts *NotifyOptions) (string, error) {
-	var payload = struct {
+	payload := struct {
 		Action string `json:"action"`
 		Type   string `json:"type"`
 		Key    string `json:"key"`
@@ -42,17 +44,13 @@ func (client *Client) Notify(opts *NotifyOptions) (string, error) {
 		Key:    opts.Key,
 	}
 	var body bytes.Buffer
-	if err := json.NewEncoder(&body).Encode(&payload); err != nil {
-		return "", err
-	}
+	mylog.Check(json.NewEncoder(&body).Encode(&payload))
 
 	result := struct {
 		ID string `json:"id"`
 	}{}
-	_, err := client.doSync("POST", "/v2/notices", nil, nil, &body, &result)
-	if err != nil {
-		return "", err
-	}
+	_ := mylog.Check2(client.doSync("POST", "/v2/notices", nil, nil, &body, &result))
+
 	return result.ID, err
 }
 

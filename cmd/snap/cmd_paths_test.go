@@ -22,6 +22,7 @@ package main_test
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	snap "github.com/snapcore/snapd/cmd/snap"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/release"
@@ -33,8 +34,8 @@ func (s *SnapSuite) TestPathsUbuntu(c *C) {
 	defer dirs.SetRootDir("/")
 
 	dirs.SetRootDir("/")
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "paths"})
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"debug", "paths"}))
+
 	c.Assert(s.Stdout(), Equals, ""+
 		"SNAPD_MOUNT=/snap\n"+
 		"SNAPD_BIN=/snap/bin\n"+
@@ -48,8 +49,8 @@ func (s *SnapSuite) TestPathsFedora(c *C) {
 	defer dirs.SetRootDir("/")
 
 	dirs.SetRootDir("/")
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "paths"})
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"debug", "paths"}))
+
 	c.Assert(s.Stdout(), Equals, ""+
 		"SNAPD_MOUNT=/var/lib/snapd/snap\n"+
 		"SNAPD_BIN=/var/lib/snapd/snap/bin\n"+
@@ -65,8 +66,8 @@ func (s *SnapSuite) TestPathsArch(c *C) {
 	defer restore()
 
 	dirs.SetRootDir("/")
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "paths"})
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"debug", "paths"}))
+
 	c.Assert(s.Stdout(), Equals, ""+
 		"SNAPD_MOUNT=/var/lib/snapd/snap\n"+
 		"SNAPD_BIN=/var/lib/snapd/snap/bin\n"+
@@ -80,8 +81,8 @@ func (s *SnapSuite) TestPathsArch(c *C) {
 	defer restore()
 
 	dirs.SetRootDir("/")
-	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"debug", "paths"})
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"debug", "paths"}))
+
 	c.Assert(s.Stdout(), Equals, ""+
 		"SNAPD_MOUNT=/var/lib/snapd/snap\n"+
 		"SNAPD_BIN=/var/lib/snapd/snap/bin\n"+

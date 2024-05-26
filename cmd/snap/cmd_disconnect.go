@@ -22,6 +22,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
@@ -37,8 +38,9 @@ type cmdDisconnect struct {
 	} `positional-args:"true"`
 }
 
-var shortDisconnectHelp = i18n.G("Disconnect a plug from a slot")
-var longDisconnectHelp = i18n.G(`
+var (
+	shortDisconnectHelp = i18n.G("Disconnect a plug from a slot")
+	longDisconnectHelp  = i18n.G(`
 The disconnect command disconnects a plug from a slot.
 It may be called in the following ways:
 
@@ -56,6 +58,7 @@ is retained after a snap refresh. The --forget flag can be added to the
 disconnect command to reset this behaviour, and consequently re-enable
 an automatic reconnection after a snap refresh.
 `)
+)
 
 func init() {
 	addCommand("disconnect", shortDisconnectHelp, longDisconnectHelp, func() flags.Commander {
@@ -84,22 +87,8 @@ func (x *cmdDisconnect) Execute(args []string) error {
 	}
 
 	opts := &client.DisconnectOptions{Forget: x.Forget}
-	id, err := x.client.Disconnect(offer.Snap, offer.Name, use.Snap, use.Name, opts)
-	if err != nil {
-		if client.IsInterfacesUnchangedError(err) {
-			fmt.Fprintf(Stdout, i18n.G("No connections to disconnect"))
-			fmt.Fprintf(Stdout, "\n")
-			return nil
-		}
-		return err
-	}
-
-	if _, err := x.wait(id); err != nil {
-		if err == noWait {
-			return nil
-		}
-		return err
-	}
+	id := mylog.Check2(x.client.Disconnect(offer.Snap, offer.Name, use.Snap, use.Name, opts))
+	mylog.Check2(x.wait(id))
 
 	return nil
 }

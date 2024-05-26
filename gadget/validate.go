@@ -25,6 +25,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/kernel"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/strutil"
@@ -43,9 +44,8 @@ type ValidationConstraints struct {
 // consistency rules for role usage, labels etc as implied by the
 // model and extra constraints that might be known only at runtime.
 func Validate(info *Info, model Model, extra *ValidationConstraints) error {
-	if err := ruleValidateVolumes(info.Volumes, model, extra); err != nil {
-		return err
-	}
+	mylog.Check(ruleValidateVolumes(info.Volumes, model, extra))
+
 	return nil
 }
 
@@ -109,20 +109,15 @@ func ruleValidateVolumes(vols map[string]*Volume, model Model, extra *Validation
 	}
 
 	for name, v := range vols {
-		if err := ruleValidateVolume(v, hasModes); err != nil {
-			return fmt.Errorf("invalid volume %q: %v", name, err)
-		}
+		mylog.Check(ruleValidateVolume(v, hasModes))
 	}
 
 	if isClassicWithModes {
-		if err := ensureRolesConsistencyClassicWithModes(roles); err != nil {
-			return err
-		}
+		mylog.Check(ensureRolesConsistencyClassicWithModes(roles))
 	} else {
-		// The seed is expected on UC with modes
-		if err := ensureRolesConsistency(roles, hasModes); err != nil {
-			return err
-		}
+		mylog.Check(
+			// The seed is expected on UC with modes
+			ensureRolesConsistency(roles, hasModes))
 	}
 
 	if extra != nil {
@@ -142,9 +137,7 @@ func ruleValidateVolumes(vols map[string]*Volume, model Model, extra *Validation
 
 func ruleValidateVolume(vol *Volume, hasModes bool) error {
 	for idx, s := range vol.Structure {
-		if err := ruleValidateVolumeStructure(&s, hasModes); err != nil {
-			return fmt.Errorf("invalid structure %v: %v", fmtIndexAndName(idx, s.Name), err)
-		}
+		mylog.Check(ruleValidateVolumeStructure(&s, hasModes))
 	}
 
 	return nil
@@ -157,9 +150,8 @@ func ruleValidateVolumeStructure(vs *VolumeStructure, hasModes bool) error {
 	} else {
 		reservedLabels = reservedLabelsWithoutModes
 	}
-	if err := validateReservedLabels(vs, reservedLabels); err != nil {
-		return err
-	}
+	mylog.Check(validateReservedLabels(vs, reservedLabels))
+
 	return nil
 }
 
@@ -214,27 +206,25 @@ func ensureRolesConsistency(roles map[string]*roleInstance, seedExpected bool) e
 		if seedExpected {
 			return fmt.Errorf("model requires system-seed structure, but none was found")
 		}
-		// without SystemSeed, system-data label must be implicit or writable
-		if err := checkImplicitLabels(roles,
-			roleLabel{role: SystemData, label: implicitSystemDataLabel}); err != nil {
-			return err
-		}
+		mylog.Check(
+			// without SystemSeed, system-data label must be implicit or writable
+			checkImplicitLabels(roles,
+				roleLabel{role: SystemData, label: implicitSystemDataLabel}))
+
 	case roles[SystemSeed] != nil && roles[SystemData] != nil:
 		// error if we don't have the SystemSeed constraint but we have a system-seed structure
 		if !seedExpected {
 			return fmt.Errorf("model does not support the system-seed role")
 		}
-		if err := checkImplicitLabels(roles, roleLabelData, roleLabelSeed); err != nil {
-			return err
-		}
+		mylog.Check(checkImplicitLabels(roles, roleLabelData, roleLabelSeed))
+
 	}
 	if roles[SystemSave] != nil {
 		if !seedExpected {
 			return fmt.Errorf("model does not support the system-save role")
 		}
-		if err := ensureSystemSaveRuleConsistency(roles); err != nil {
-			return err
-		}
+		mylog.Check(ensureSystemSaveRuleConsistency(roles))
+
 	}
 
 	if seedExpected {
@@ -268,9 +258,7 @@ func ensureRolesConsistencyClassicWithModes(roles map[string]*roleInstance) erro
 			roleLabelToCheck = append(roleLabelToCheck, rlLb)
 		}
 	}
-	if err := checkImplicitLabels(roles, roleLabelToCheck...); err != nil {
-		return err
-	}
+	mylog.Check(checkImplicitLabels(roles, roleLabelToCheck...))
 
 	// Check that boot/seed/seed-null/save are in the same volume
 	bootVolName := roles[SystemBoot].volName
@@ -287,9 +275,8 @@ func ensureSystemSaveRuleConsistency(roles map[string]*roleInstance) error {
 		// previous checks should stop reaching here
 		return fmt.Errorf("internal error: system-save requires system-seed and system-data structures")
 	}
-	if err := checkImplicitLabels(roles, roleLabelSave); err != nil {
-		return err
-	}
+	mylog.Check(checkImplicitLabels(roles, roleLabelSave))
+
 	return nil
 }
 
@@ -367,9 +354,8 @@ func validateVolumeContentsPresence(gadgetSnapRootDir string, vol *Volume) error
 			if strings.HasPrefix(c.UnresolvedSource, "$kernel:") {
 				// This only validates that the ref is valid.
 				// Resolving happens with ResolveContentPaths()
-				if _, _, err := splitKernelRef(c.UnresolvedSource); err != nil {
-					return fmt.Errorf("cannot use kernel reference %q: %v", c.UnresolvedSource, err)
-				}
+				_, _ := mylog.Check3(splitKernelRef(c.UnresolvedSource))
+
 				continue
 			}
 			realSource := filepath.Join(gadgetSnapRootDir, c.UnresolvedSource)
@@ -377,10 +363,9 @@ func validateVolumeContentsPresence(gadgetSnapRootDir string, vol *Volume) error
 				return fmt.Errorf("structure #%d (%q), content %v: source path does not exist", s.YamlIndex, s.Name, c)
 			}
 			if strings.HasSuffix(c.UnresolvedSource, "/") {
-				// expecting a directory
-				if err := checkSourceIsDir(realSource + "/"); err != nil {
-					return fmt.Errorf("structure #%d (%q), content %v: %v", s.YamlIndex, s.Name, c, err)
-				}
+				mylog.Check(
+					// expecting a directory
+					checkSourceIsDir(realSource + "/"))
 			}
 		}
 	}
@@ -396,30 +381,21 @@ func ValidateContent(info *Info, gadgetSnapRootDir, kernelSnapRootDir string) er
 	// such bootloader
 	var kernelInfo *kernel.Info
 	if kernelSnapRootDir != "" {
-		var err error
-		kernelInfo, err = kernel.ReadInfo(kernelSnapRootDir)
-		if err != nil {
-			return err
-		}
+		kernelInfo = mylog.Check2(kernel.ReadInfo(kernelSnapRootDir))
 	}
 	for name, vol := range info.Volumes {
 		// Check that files shipped in the gadget have the expected sizes
 		for idx := range vol.Structure {
-			if err := checkGadgetContentImages(gadgetSnapRootDir, &vol.Structure[idx]); err != nil {
-				return err
-			}
+			mylog.Check(checkGadgetContentImages(gadgetSnapRootDir, &vol.Structure[idx]))
 		}
 		// Make sure that content can be resolved if the kernel snap is known.
 		if kernelInfo != nil {
 			for idx := range vol.Structure {
-				if _, err := resolveVolumeContent(gadgetSnapRootDir, kernelSnapRootDir, kernelInfo, &vol.Structure[idx], nil); err != nil {
-					return err
-				}
+				mylog.Check2(resolveVolumeContent(gadgetSnapRootDir, kernelSnapRootDir, kernelInfo, &vol.Structure[idx], nil))
 			}
 		}
-		if err := validateVolumeContentsPresence(gadgetSnapRootDir, vol); err != nil {
-			return fmt.Errorf("invalid volume %q: %v", name, err)
-		}
+		mylog.Check(validateVolumeContentsPresence(gadgetSnapRootDir, vol))
+
 	}
 
 	// Ensure that at least one kernel.yaml reference can be resolved
@@ -427,7 +403,7 @@ func ValidateContent(info *Info, gadgetSnapRootDir, kernelSnapRootDir string) er
 	if kernelInfo != nil {
 		resolvedOnce := false
 		for _, vol := range info.Volumes {
-			err := gadgetVolumeConsumesOneKernelUpdateAsset(vol, kernelInfo)
+			mylog.Check(gadgetVolumeConsumesOneKernelUpdateAsset(vol, kernelInfo))
 			if err == nil {
 				resolvedOnce = true
 			}
@@ -444,10 +420,8 @@ func ValidateContent(info *Info, gadgetSnapRootDir, kernelSnapRootDir string) er
 // assets from the kernel.yaml has a reference in the given
 // LaidOutVolume.
 func gadgetVolumeConsumesOneKernelUpdateAsset(pNew *Volume, kernelInfo *kernel.Info) error {
-	notFoundAssets, _, err := searchConsumedAssets(pNew, kernelInfo.Assets)
-	if err != nil {
-		return err
-	}
+	notFoundAssets, _ := mylog.Check3(searchConsumedAssets(pNew, kernelInfo.Assets))
+
 	if len(notFoundAssets) > 0 {
 		sort.Strings(notFoundAssets)
 		return fmt.Errorf("gadget does not consume any of the kernel assets needing synced update %s", strutil.Quoted(notFoundAssets))
@@ -468,10 +442,8 @@ func searchConsumedAssets(pNew *Volume, assets map[string]*kernel.Asset) (missin
 					// regular asset from the gadget snap
 					continue
 				}
-				wantedAsset, _, err := splitKernelRef(pathOrRef)
-				if err != nil {
-					return nil, false, err
-				}
+				wantedAsset, _ := mylog.Check3(splitKernelRef(pathOrRef))
+
 				if assetName == wantedAsset {
 					// found a valid kernel asset,
 					// that is enough
@@ -489,9 +461,7 @@ func searchConsumedAssets(pNew *Volume, assets map[string]*kernel.Asset) (missin
 // assets from the kernel.yaml has a reference in the given
 // LaidOutVolume.
 func gadgetVolumeKernelUpdateAssetsConsumed(pNew *Volume, kernelInfo *kernel.Info) (bool, error) {
-	_, consumedAny, err := searchConsumedAssets(pNew, kernelInfo.Assets)
-	if err != nil {
-		return false, err
-	}
+	_, consumedAny := mylog.Check3(searchConsumedAssets(pNew, kernelInfo.Assets))
+
 	return consumedAny, nil
 }

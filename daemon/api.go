@@ -25,6 +25,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/gorilla/mux"
 
 	"github.com/snapcore/snapd/overlord/aspectstate"
@@ -123,7 +124,7 @@ func userFromRequest(st *state.State, req *http.Request) (*auth.UserState, error
 		return nil, fmt.Errorf("invalid authorization header")
 	}
 
-	user, err := auth.CheckMacaroon(st, macaroon, discharges)
+	user := mylog.Check2(auth.CheckMacaroon(st, macaroon, discharges))
 	return user, err
 }
 
@@ -188,10 +189,7 @@ func isTrue(form *Form, key string) bool {
 	if len(values) == 0 {
 		return false
 	}
-	b, err := strconv.ParseBool(values[0])
-	if err != nil {
-		return false
-	}
+	b := mylog.Check2(strconv.ParseBool(values[0]))
 
 	return b
 }

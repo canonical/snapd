@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/seccomp/libseccomp-golang"
 	. "gopkg.in/check.v1"
 
@@ -35,15 +36,15 @@ type versionInfoSuite struct{}
 var _ = Suite(&versionInfoSuite{})
 
 func (s *versionInfoSuite) TestVersionInfo(c *C) {
-	buildID, err := osutil.MyBuildID()
-	c.Assert(err, IsNil)
+	buildID := mylog.Check2(osutil.MyBuildID())
+
 
 	m, i, p := seccomp.GetLibraryVersion()
 	prefix := fmt.Sprintf("%s %d.%d.%d ", buildID, m, i, p)
 	suffix := fmt.Sprintf(" %s", main.GoSeccompFeatures())
 
-	defaultVi, err := main.VersionInfo()
-	c.Assert(err, IsNil)
+	defaultVi := mylog.Check2(main.VersionInfo())
+
 
 	// $ echo -n 'read\nwrite\n' | sha256sum
 	// 88b06efcea4b5946cebd4b0674b93744de328339de5d61b75db858119054ff93  -
@@ -59,8 +60,8 @@ func (s *versionInfoSuite) TestVersionInfo(c *C) {
 	restore := main.MockSeccompSyscalls([]string{"read", "write"})
 	defer restore()
 
-	vi, err := main.VersionInfo()
-	c.Assert(err, IsNil)
+	vi := mylog.Check2(main.VersionInfo())
+
 	c.Check(vi, Equals, prefix+readWriteHash+suffix)
 
 	// pretend it's only 'read' now
@@ -68,7 +69,7 @@ func (s *versionInfoSuite) TestVersionInfo(c *C) {
 	restore = main.MockSeccompSyscalls([]string{"read"})
 	defer restore()
 
-	vi, err = main.VersionInfo()
-	c.Assert(err, IsNil)
+	vi = mylog.Check2(main.VersionInfo())
+
 	c.Check(vi, Equals, prefix+readHash+suffix)
 }

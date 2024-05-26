@@ -30,6 +30,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/client/clientutil"
@@ -69,11 +70,9 @@ type postModelData struct {
 
 func postModel(c *Command, r *http.Request, _ *auth.UserState) Response {
 	contentType := r.Header.Get("Content-Type")
-	mediaType, params, err := mime.ParseMediaType(contentType)
-	if err != nil {
-		// assume json body, as type was not enforced in the past
-		mediaType = "application/json"
-	}
+	mediaType, params := mylog.Check3(mime.ParseMediaType(contentType))
+
+	// assume json body, as type was not enforced in the past
 
 	switch mediaType {
 	case "application/json":
@@ -90,10 +89,8 @@ func postModel(c *Command, r *http.Request, _ *auth.UserState) Response {
 }
 
 func modelFromData(data []byte) (*asserts.Model, error) {
-	rawNewModel, err := asserts.Decode(data)
-	if err != nil {
-		return nil, fmt.Errorf("cannot decode new model assertion: %v", err)
-	}
+	rawNewModel := mylog.Check2(asserts.Decode(data))
+
 	newModel, ok := rawNewModel.(*asserts.Model)
 	if !ok {
 		return nil, fmt.Errorf("new model is not a model assertion: %v", rawNewModel.Type())
@@ -105,24 +102,18 @@ func modelFromData(data []byte) (*asserts.Model, error) {
 func remodelJSON(c *Command, r *http.Request) Response {
 	var data postModelData
 	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&data); err != nil {
-		return BadRequest("cannot decode request body into remodel operation: %v", err)
-	}
-	newModel, err := modelFromData([]byte(data.NewModel))
-	if err != nil {
-		return BadRequest(err.Error())
-	}
+	mylog.Check(decoder.Decode(&data))
+
+	newModel := mylog.Check2(modelFromData([]byte(data.NewModel)))
 
 	st := c.d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
 
-	chg, err := devicestateRemodel(st, newModel, nil, nil, devicestate.RemodelOptions{
+	chg := mylog.Check2(devicestateRemodel(st, newModel, nil, nil, devicestate.RemodelOptions{
 		Offline: data.Offline,
-	})
-	if err != nil {
-		return BadRequest("cannot remodel device: %v", err)
-	}
+	}))
+
 	ensureStateSoon(st)
 
 	return AsyncResponse(nil, chg.ID())
@@ -135,10 +126,7 @@ func readOfflineRemodelForm(form *Form) (*asserts.Model, []*uploadedSnap, *asser
 		return nil, nil, nil,
 			BadRequest("one model assertion is expected (%d found)", len(model))
 	}
-	newModel, err := modelFromData([]byte(model[0]))
-	if err != nil {
-		return nil, nil, nil, BadRequest(err.Error())
-	}
+	newModel := mylog.Check2(modelFromData([]byte(model[0])))
 
 	// Snap files
 	var snapFiles []*uploadedSnap
@@ -154,10 +142,7 @@ func readOfflineRemodelForm(form *Form) (*asserts.Model, []*uploadedSnap, *asser
 	formAsserts := form.Values["assertion"]
 	batch := asserts.NewBatch(nil)
 	for _, a := range formAsserts {
-		_, err := batch.AddStream(strings.NewReader(a))
-		if err != nil {
-			return nil, nil, nil, BadRequest("cannot decode assertion: %v", err)
-		}
+		_ := mylog.Check2(batch.AddStream(strings.NewReader(a)))
 	}
 
 	return newModel, snapFiles, batch, nil
@@ -165,17 +150,16 @@ func readOfflineRemodelForm(form *Form) (*asserts.Model, []*uploadedSnap, *asser
 
 func startOfflineRemodelChange(st *state.State, newModel *asserts.Model,
 	snapFiles []*uploadedSnap, batch *asserts.Batch, pathsToNotRemove *[]string) (
-	*state.Change, *apiError) {
-
+	*state.Change, *apiError,
+) {
 	st.Lock()
 	defer st.Unlock()
+	mylog.Check(
 
-	// Include assertions in the DB, we need them as soon as
-	// we create the snap.SideInfo struct in sideloadSnapsInfo.
-	if err := assertstate.AddBatch(st, batch,
-		&asserts.CommitOptions{Precheck: true}); err != nil {
-		return nil, BadRequest("error committing assertions: %v", err)
-	}
+		// Include assertions in the DB, we need them as soon as
+		// we create the snap.SideInfo struct in sideloadSnapsInfo.
+		assertstate.AddBatch(st, batch,
+			&asserts.CommitOptions{Precheck: true}))
 
 	// Build snaps information. Note that here we do not set flags as we
 	// expect all snaps to have assertions (although maybe we will need to
@@ -197,14 +181,12 @@ func startOfflineRemodelChange(st *state.State, newModel *asserts.Model,
 	}
 
 	// Now create and start the remodel change
-	chg, err := devicestateRemodel(st, newModel, slInfo.sideInfos, slInfo.tmpPaths, devicestate.RemodelOptions{
+	chg := mylog.Check2(devicestateRemodel(st, newModel, slInfo.sideInfos, slInfo.tmpPaths, devicestate.RemodelOptions{
 		// since this is the codepath that parses the form, offline is implcit
 		// because local snaps are being provided.
 		Offline: true,
-	})
-	if err != nil {
-		return nil, BadRequest("cannot remodel device: %v", err)
-	}
+	}))
+
 	ensureStateSoon(st)
 
 	return chg, nil
@@ -245,10 +227,7 @@ func remodelForm(c *Command, r *http.Request, contentTypeParams map[string]strin
 
 // getModel gets the current model assertion using the DeviceManager
 func getModel(c *Command, r *http.Request, _ *auth.UserState) Response {
-	opts, err := parseHeadersFormatOptionsFromURL(r.URL.Query())
-	if err != nil {
-		return BadRequest(err.Error())
-	}
+	opts := mylog.Check2(parseHeadersFormatOptionsFromURL(r.URL.Query()))
 
 	st := c.d.overlord.State()
 	st.Lock()
@@ -256,7 +235,7 @@ func getModel(c *Command, r *http.Request, _ *auth.UserState) Response {
 
 	devmgr := c.d.overlord.DeviceManager()
 
-	model, err := devmgr.Model()
+	model := mylog.Check2(devmgr.Model())
 	if errors.Is(err, state.ErrNoState) {
 		return &apiError{
 			Status:  404,
@@ -264,9 +243,6 @@ func getModel(c *Command, r *http.Request, _ *auth.UserState) Response {
 			Kind:    client.ErrorKindAssertionNotFound,
 			Value:   "model",
 		}
-	}
-	if err != nil {
-		return InternalError("accessing model failed: %v", err)
 	}
 
 	if opts.jsonResult {
@@ -285,10 +261,7 @@ func getModel(c *Command, r *http.Request, _ *auth.UserState) Response {
 
 // getSerial gets the current serial assertion using the DeviceManager
 func getSerial(c *Command, r *http.Request, _ *auth.UserState) Response {
-	opts, err := parseHeadersFormatOptionsFromURL(r.URL.Query())
-	if err != nil {
-		return BadRequest(err.Error())
-	}
+	opts := mylog.Check2(parseHeadersFormatOptionsFromURL(r.URL.Query()))
 
 	st := c.d.overlord.State()
 	st.Lock()
@@ -296,7 +269,7 @@ func getSerial(c *Command, r *http.Request, _ *auth.UserState) Response {
 
 	devmgr := c.d.overlord.DeviceManager()
 
-	serial, err := devmgr.Serial()
+	serial := mylog.Check2(devmgr.Serial())
 	if errors.Is(err, state.ErrNoState) {
 		return &apiError{
 			Status:  404,
@@ -304,9 +277,6 @@ func getSerial(c *Command, r *http.Request, _ *auth.UserState) Response {
 			Kind:    client.ErrorKindAssertionNotFound,
 			Value:   "serial",
 		}
-	}
-	if err != nil {
-		return InternalError("accessing serial failed: %v", err)
 	}
 
 	if opts.jsonResult {
@@ -334,9 +304,8 @@ func postSerial(c *Command, r *http.Request, _ *auth.UserState) Response {
 	var postData postSerialData
 
 	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&postData); err != nil {
-		return BadRequest("cannot decode serial action data from request body: %v", err)
-	}
+	mylog.Check(decoder.Decode(&postData))
+
 	if decoder.More() {
 		return BadRequest("spurious content after serial action")
 	}
@@ -357,10 +326,7 @@ func postSerial(c *Command, r *http.Request, _ *auth.UserState) Response {
 	unregOpts := &devicestate.UnregisterOptions{
 		NoRegistrationUntilReboot: postData.NoRegistrationUntilReboot,
 	}
-	err := devicestateDeviceManagerUnregister(devmgr, unregOpts)
-	if err != nil {
-		return InternalError("forgetting serial failed: %v", err)
-	}
+	mylog.Check(devicestateDeviceManagerUnregister(devmgr, unregOpts))
 
 	return SyncResponse(nil)
 }

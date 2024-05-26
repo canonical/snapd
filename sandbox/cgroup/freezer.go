@@ -27,6 +27,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -84,19 +85,16 @@ var ThawSnapProcesses = thawSnapProcessesImplV1
 // originate from.
 func freezeSnapProcessesImplV1(snapName string) error {
 	fname := filepath.Join(freezerCgroupV1Dir, fmt.Sprintf("snap.%s", snapName), "freezer.state")
-	if err := os.WriteFile(fname, []byte("FROZEN"), 0644); err != nil && os.IsNotExist(err) {
+	if mylog.Check(os.WriteFile(fname, []byte("FROZEN"), 0644)); err != nil && os.IsNotExist(err) {
 		// When there's no freezer cgroup we don't have to freeze anything.
 		// This can happen when no process belonging to a given snap has been
 		// started yet.
 		return nil
-	} else if err != nil {
-		return fmt.Errorf("cannot freeze processes of snap %q, %v", snapName, err)
 	}
+
 	for i := 0; i < 30; i++ {
-		data, err := os.ReadFile(fname)
-		if err != nil {
-			return fmt.Errorf("cannot determine the freeze state of processes of snap %q, %v", snapName, err)
-		}
+		data := mylog.Check2(os.ReadFile(fname))
+
 		// If the cgroup is still freezing then wait a moment and try again.
 		if bytes.Equal(data, []byte("FREEZING")) {
 			time.Sleep(100 * time.Millisecond)
@@ -111,14 +109,13 @@ func freezeSnapProcessesImplV1(snapName string) error {
 
 func thawSnapProcessesImplV1(snapName string) error {
 	fname := filepath.Join(freezerCgroupV1Dir, fmt.Sprintf("snap.%s", snapName), "freezer.state")
-	if err := os.WriteFile(fname, []byte("THAWED"), 0644); err != nil && os.IsNotExist(err) {
+	if mylog.Check(os.WriteFile(fname, []byte("THAWED"), 0644)); err != nil && os.IsNotExist(err) {
 		// When there's no freezer cgroup we don't have to thaw anything.
 		// This can happen when no process belonging to a given snap has been
 		// started yet.
 		return nil
-	} else if err != nil {
-		return fmt.Errorf("cannot thaw processes of snap %q", snapName)
 	}
+
 	return nil
 }
 
@@ -135,14 +132,9 @@ func applyToSnap(snapName string, action func(groupName string) error, skipError
 		return nil
 	}
 	return filepath.Walk(filepath.Join(rootPath, cgroupMountPoint), func(name string, info os.FileInfo, err error) error {
-		if err != nil {
-			if skipError(err) {
-				// we don't know whether it's a file or
-				// directory, so just return nil instead
-				return nil
-			}
-			return err
-		}
+		// we don't know whether it's a file or
+		// directory, so just return nil instead
+
 		if !info.IsDir() {
 			return nil
 		}
@@ -155,7 +147,7 @@ func applyToSnap(snapName string, action func(groupName string) error, skipError
 			return nil
 		}
 		// found a group
-		if err := action(name); err != nil && !skipError(err) {
+		if mylog.Check(action(name)); err != nil && !skipError(err) {
 			return err
 		}
 		return filepath.SkipDir
@@ -165,10 +157,8 @@ func applyToSnap(snapName string, action func(groupName string) error, skipError
 // writeExistingFile can be used as a drop-in replacement for os.WriteFile,
 // but does not create a file when it does not exist
 func writeExistingFile(where string, data []byte, mode os.FileMode) error {
-	f, err := os.OpenFile(where, os.O_WRONLY|os.O_TRUNC, mode)
-	if err != nil {
-		return err
-	}
+	f := mylog.Check2(os.OpenFile(where, os.O_WRONLY|os.O_TRUNC, mode))
+
 	_, errW := f.Write(data)
 	errC := f.Close()
 	// pick the right error
@@ -185,10 +175,8 @@ func freezeSnapProcessesImplV2(snapName string) error {
 	// in case of v2, the process calling this code, (eg. snap-update-ns)
 	// may already be part of the trackign cgroup for particular snap, care
 	// must be taken to not freeze ourselves
-	ownGroup, err := cgroupProcessPathInTrackingCgroup(os.Getpid())
-	if err != nil {
-		return err
-	}
+	ownGroup := mylog.Check2(cgroupProcessPathInTrackingCgroup(os.Getpid()))
+
 	ownGroupDir := filepath.Join(rootPath, cgroupMountPoint, ownGroup)
 	freezeOne := func(dir string) error {
 		if dir == ownGroupDir {
@@ -197,22 +185,15 @@ func freezeSnapProcessesImplV2(snapName string) error {
 			return nil
 		}
 		fname := filepath.Join(dir, "cgroup.freeze")
-		if err := writeExistingFile(fname, []byte("1"), 0644); err != nil {
-			if os.IsNotExist(err) {
-				//  the group may be gone already
-				return nil
-			}
-			return fmt.Errorf("cannot freeze processes of snap %q, %v", snapName, err)
-		}
+		mylog.Check(writeExistingFile(fname, []byte("1"), 0644))
+
+		//  the group may be gone already
+
 		for i := 0; i < 30; i++ {
-			data, err := os.ReadFile(fname)
-			if err != nil {
-				if os.IsNotExist(err) {
-					// group may be gone
-					return nil
-				}
-				return fmt.Errorf("cannot determine the freeze state of processes of snap %q, %v", snapName, err)
-			}
+			data := mylog.Check2(os.ReadFile(fname))
+
+			// group may be gone
+
 			// If the cgroup is still freezing then wait a moment and try again.
 			if bytes.Equal(bytes.TrimSpace(data), []byte("1")) {
 				// we're done
@@ -223,8 +204,9 @@ func freezeSnapProcessesImplV2(snapName string) error {
 		}
 		return fmt.Errorf("cannot freeze processes of snap %q in group %v", snapName, filepath.Base(dir))
 	}
-	// freeze, skipping ENOENT errors
-	err = applyToSnap(snapName, freezeOne, os.IsNotExist)
+	mylog.
+		// freeze, skipping ENOENT errors
+		Check(applyToSnap(snapName, freezeOne, os.IsNotExist))
 	if err == nil {
 		return nil
 	}
@@ -243,7 +225,7 @@ func thawSnapProcessesV2(snapName string, skipError func(error) bool) error {
 	}
 	thawOne := func(dir string) error {
 		fname := filepath.Join(dir, "cgroup.freeze")
-		if err := writeExistingFile(fname, []byte("0"), 0644); err != nil && os.IsNotExist(err) {
+		if mylog.Check(writeExistingFile(fname, []byte("0"), 0644)); err != nil && os.IsNotExist(err) {
 			//  the group may be gone already
 			return nil
 		} else if err != nil && !skipError(err) {

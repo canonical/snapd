@@ -27,6 +27,8 @@ import (
 	"strings"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // SizeToStr converts the given size in bytes to a readable string
@@ -172,10 +174,7 @@ func SplitUnit(inp string) (number int64, unit string, err error) {
 		unit = inp[nonDigit:]
 		prefix = inp[:nonDigit]
 	}
-	number, err = strconv.ParseInt(prefix, 10, 64)
-	if err != nil {
-		return 0, "", fmt.Errorf("%q is not a number", prefix)
-	}
+	number = mylog.Check2(strconv.ParseInt(prefix, 10, 64))
 
 	return number, unit, nil
 }
@@ -196,10 +195,8 @@ func ParseByteSize(inp string) (int64, error) {
 
 	errPrefix := fmt.Sprintf("cannot parse %q: ", inp)
 
-	val, unit, err := SplitUnit(inp)
-	if err != nil {
-		return 0, fmt.Errorf("%s%s", errPrefix, err)
-	}
+	val, unit := mylog.Check3(SplitUnit(inp))
+
 	if unit == "" {
 		return 0, fmt.Errorf("%sneed a number with a unit as input", errPrefix)
 	}
@@ -318,7 +315,7 @@ func WordWrap(out io.Writer, text []rune, indent, indent2 string, termWidth int)
 	}
 
 	// establish the indent of the whole block
-	var err error
+
 	for len(text) > width && err == nil {
 		// find a good place to chop the text
 		idx := runesLastIndexSpace(text[:width+1])
@@ -326,7 +323,7 @@ func WordWrap(out io.Writer, text []rune, indent, indent2 string, termWidth int)
 			// there's no whitespace; just chop at line width
 			idx = width
 		}
-		_, err = fmt.Fprint(out, indent, string(text[:idx]), "\n")
+		_ = mylog.Check2(fmt.Fprint(out, indent, string(text[:idx]), "\n"))
 		// prune any remaining whitespace before the start of the next line
 		for idx < len(text) && unicode.IsSpace(text[idx]) {
 			idx++
@@ -336,10 +333,8 @@ func WordWrap(out io.Writer, text []rune, indent, indent2 string, termWidth int)
 		indent = indent2
 		delta = 0
 	}
-	if err != nil {
-		return err
-	}
-	_, err = fmt.Fprint(out, indent, string(text), "\n")
+
+	_ = mylog.Check2(fmt.Fprint(out, indent, string(text), "\n"))
 	return err
 }
 

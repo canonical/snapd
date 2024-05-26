@@ -28,6 +28,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/gadgettest"
@@ -78,7 +79,7 @@ func (u *updateTestSuite) TestResolveVolumeDifferentName(c *C) {
 			"not-old": {},
 		},
 	}
-	oldVol, newVol, err := gadget.ResolveVolume(oldInfo, noMatchInfo)
+	oldVol, newVol := mylog.Check3(gadget.ResolveVolume(oldInfo, noMatchInfo))
 	c.Assert(err, ErrorMatches, `cannot find entry for volume "old" in updated gadget info`)
 	c.Assert(oldVol, IsNil)
 	c.Assert(newVol, IsNil)
@@ -96,7 +97,7 @@ func (u *updateTestSuite) TestResolveVolumeTooMany(c *C) {
 			"old": {},
 		},
 	}
-	oldVol, newVol, err := gadget.ResolveVolume(oldInfo, noMatchInfo)
+	oldVol, newVol := mylog.Check3(gadget.ResolveVolume(oldInfo, noMatchInfo))
 	c.Assert(err, ErrorMatches, `cannot update with more than one volume`)
 	c.Assert(oldVol, IsNil)
 	c.Assert(newVol, IsNil)
@@ -113,8 +114,8 @@ func (u *updateTestSuite) TestResolveVolumeSimple(c *C) {
 			"old": {Bootloader: "grub"},
 		},
 	}
-	oldVol, newVol, err := gadget.ResolveVolume(oldInfo, noMatchInfo)
-	c.Assert(err, IsNil)
+	oldVol, newVol := mylog.Check3(gadget.ResolveVolume(oldInfo, noMatchInfo))
+
 	c.Assert(oldVol, DeepEquals, &gadget.Volume{Bootloader: "u-boot"})
 	c.Assert(newVol, DeepEquals, &gadget.Volume{Bootloader: "grub"})
 }
@@ -133,11 +134,15 @@ func (u *updateTestSuite) testCanUpdate(c *C, testCases []canUpdateTestCase) {
 		if schema == "" {
 			schema = "gpt"
 		}
-		fromVss := &gadget.Volume{Schema: schema,
-			Structure: []gadget.VolumeStructure{tc.from}}
-		toVss := &gadget.Volume{Schema: schema,
-			Structure: []gadget.VolumeStructure{tc.to}}
-		err := gadget.CanUpdateStructure(fromVss, 0, toVss, 0)
+		fromVss := &gadget.Volume{
+			Schema:    schema,
+			Structure: []gadget.VolumeStructure{tc.from},
+		}
+		toVss := &gadget.Volume{
+			Schema:    schema,
+			Structure: []gadget.VolumeStructure{tc.to},
+		}
+		mylog.Check(gadget.CanUpdateStructure(fromVss, 0, toVss, 0))
 		if tc.err == "" {
 			c.Check(err, IsNil)
 		} else {
@@ -221,9 +226,11 @@ func (u *updateTestSuite) TestCanUpdateOffsetWrite(c *C) {
 		{
 			// offset-write change
 			from: gadget.VolumeStructure{
-				OffsetWrite: &gadget.RelativeOffset{Offset: 1024}, EnclosingVolume: mokVol},
+				OffsetWrite: &gadget.RelativeOffset{Offset: 1024}, EnclosingVolume: mokVol,
+			},
 			to: gadget.VolumeStructure{
-				OffsetWrite: &gadget.RelativeOffset{Offset: 2048}, EnclosingVolume: mokVol},
+				OffsetWrite: &gadget.RelativeOffset{Offset: 2048}, EnclosingVolume: mokVol,
+			},
 		}, {
 			// both nils
 			from: gadget.VolumeStructure{
@@ -279,7 +286,6 @@ func (u *updateTestSuite) TestCanUpdateOffset(c *C) {
 }
 
 func (u *updateTestSuite) TestCanUpdateRole(c *C) {
-
 	cases := []canUpdateTestCase{
 		{
 			// new role
@@ -312,7 +318,6 @@ func (u *updateTestSuite) TestCanUpdateRole(c *C) {
 }
 
 func (u *updateTestSuite) TestCanUpdateType(c *C) {
-
 	cases := []canUpdateTestCase{
 		{
 			// from hybrid type to GUID -> fine, we keep one of the types
@@ -368,7 +373,6 @@ func (u *updateTestSuite) TestCanUpdateType(c *C) {
 }
 
 func (u *updateTestSuite) TestCanUpdateID(c *C) {
-
 	cases := []canUpdateTestCase{
 		{
 			from: gadget.VolumeStructure{ID: "00000000-0000-0000-0000-dd00deadbeef", Offset: asOffsetPtr(0), EnclosingVolume: &gadget.Volume{}},
@@ -423,7 +427,6 @@ func (u *updateTestSuite) TestCanUpdateBareOrFilesystem(c *C) {
 }
 
 func (u *updateTestSuite) TestCanUpdateName(c *C) {
-
 	cases := []canUpdateTestCase{
 		{
 			from:   gadget.VolumeStructure{Name: "foo", Type: "0C", EnclosingVolume: &gadget.Volume{}},
@@ -454,8 +457,7 @@ func (u *updateTestSuite) TestCanUpdateOffsetRange(c *C) {
 			{MinSize: 10, Size: 10, EnclosingVolume: &gadget.Volume{}},
 		},
 	}
-
-	err := gadget.CanUpdateStructure(fromV, 1, toV, 1)
+	mylog.Check(gadget.CanUpdateStructure(fromV, 1, toV, 1))
 	c.Check(err, IsNil)
 
 	toV = &gadget.Volume{
@@ -464,8 +466,7 @@ func (u *updateTestSuite) TestCanUpdateOffsetRange(c *C) {
 			{MinSize: 10, Size: 10, EnclosingVolume: &gadget.Volume{}},
 		},
 	}
-
-	err = gadget.CanUpdateStructure(fromV, 1, toV, 1)
+	mylog.Check(gadget.CanUpdateStructure(fromV, 1, toV, 1))
 	c.Check(err, IsNil)
 
 	toV = &gadget.Volume{
@@ -474,8 +475,7 @@ func (u *updateTestSuite) TestCanUpdateOffsetRange(c *C) {
 			{MinSize: 10, Size: 10, EnclosingVolume: &gadget.Volume{}},
 		},
 	}
-
-	err = gadget.CanUpdateStructure(fromV, 1, toV, 1)
+	mylog.Check(gadget.CanUpdateStructure(fromV, 1, toV, 1))
 	c.Check(err.Error(), Equals,
 		`new valid structure offset range [21, 30] is not compatible with current ([10, 20])`)
 }
@@ -483,7 +483,8 @@ func (u *updateTestSuite) TestCanUpdateOffsetRange(c *C) {
 func (u *updateTestSuite) TestCanUpdateVolume(c *C) {
 	mbrVol := &gadget.Volume{Schema: "mbr"}
 	mbrLaidOut := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{EnclosingVolume: mbrVol}}
+		VolumeStructure: &gadget.VolumeStructure{EnclosingVolume: mbrVol},
+	}
 
 	for idx, tc := range []struct {
 		from gadget.PartiallyLaidOutVolume
@@ -538,7 +539,7 @@ func (u *updateTestSuite) TestCanUpdateVolume(c *C) {
 		},
 	} {
 		c.Logf("tc: %v", idx)
-		err := gadget.CanUpdateVolume(&tc.from, &tc.to)
+		mylog.Check(gadget.CanUpdateVolume(&tc.from, &tc.to))
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err)
 		} else {
@@ -773,10 +774,11 @@ func (u *updateTestSuite) TestUpdateApplyHappy(c *C) {
 		return mu, nil
 	})
 	defer restore()
+	mylog.
 
-	// go go go
-	err := gadget.Update(uc16Model, oldData, newData, rollbackDir, nil, muo)
-	c.Assert(err, IsNil)
+		// go go go
+		Check(gadget.Update(uc16Model, oldData, newData, rollbackDir, nil, muo))
+
 	c.Assert(backupCalls, DeepEquals, map[string]bool{
 		"first":  true,
 		"second": true,
@@ -808,8 +810,8 @@ func (u *updateTestSuite) TestUpdateApplyUC16FullLogic(c *C) {
 
 	rollbackDir := c.MkDir()
 
-	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.UC16YAMLImplicitSystemData, uc16Model)
-	c.Assert(err, IsNil)
+	allLaidOutVolumes := mylog.Check2(gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.UC16YAMLImplicitSystemData, uc16Model))
+
 
 	// put the same volumes into both the old and the new data so they are
 	// identical to start
@@ -835,15 +837,16 @@ func (u *updateTestSuite) TestUpdateApplyUC16FullLogic(c *C) {
 		}
 		copy(oldData.Info.Volumes[volName].Structure, laidOutVol.Volume.Structure)
 	}
+	mylog.
 
-	// setup symlink for the system-boot partition
-	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755)
-	c.Assert(err, IsNil)
+		// setup symlink for the system-boot partition
+		Check(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755))
+
 	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/sda1")
-	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("EFI System")))
-	c.Assert(err, IsNil)
-	err = os.WriteFile(fakedevicepart, nil, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("EFI System"))))
+
+	mylog.Check(os.WriteFile(fakedevicepart, nil, 0644))
+
 
 	// mock the partition device node to mock disk
 	restore := disks.MockPartitionDeviceNodeToDiskMapping(map[string]*disks.MockDiskMapping{
@@ -868,15 +871,15 @@ func (u *updateTestSuite) TestUpdateApplyUC16FullLogic(c *C) {
 	// mbr and bios images
 	for i, imgName := range []string{"mbr.img", "bios.img"} {
 		imgPath := filepath.Join(newData.RootDir, imgName)
-		err = os.WriteFile(imgPath, nil, 0644)
-		c.Assert(err, IsNil)
+		mylog.Check(os.WriteFile(imgPath, nil, 0644))
+
 		newData.Info.Volumes["pc"].Structure[i].Content = []gadget.VolumeContent{{Image: imgName}}
 		newData.Info.Volumes["pc"].Structure[i].Update.Edition = 1
 	}
 	// system-boot - partition w/ filesystem struct
 	grubImg := filepath.Join(newData.RootDir, "grub.efi")
-	err = os.WriteFile(grubImg, nil, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(grubImg, nil, 0644))
+
 	newData.Info.Volumes["pc"].Structure[2].Update.Edition = 1
 	newData.Info.Volumes["pc"].Structure[2].Content = []gadget.VolumeContent{{UnresolvedSource: "grub.efi"}}
 
@@ -951,10 +954,11 @@ func (u *updateTestSuite) TestUpdateApplyUC16FullLogic(c *C) {
 		return mu, nil
 	})
 	defer restore()
+	mylog.
 
-	// go go go
-	err = gadget.Update(uc16Model, oldData, newData, rollbackDir, nil, muo)
-	c.Assert(err, IsNil)
+		// go go go
+		Check(gadget.Update(uc16Model, oldData, newData, rollbackDir, nil, muo))
+
 	c.Assert(updaterForStructureCalls, Equals, 3)
 	c.Assert(backupCalls, DeepEquals, map[string]bool{
 		"mbr":        true,
@@ -989,8 +993,8 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 
 	rollbackDir := c.MkDir()
 
-	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.MultiVolumeUC20GadgetYaml, uc20Model)
-	c.Assert(err, IsNil)
+	allLaidOutVolumes := mylog.Check2(gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.MultiVolumeUC20GadgetYaml, uc20Model))
+
 
 	// put the same volumes into both the old and the new data so they are
 	// identical to start
@@ -1016,18 +1020,20 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 		}
 		copy(oldData.Info.Volumes[volName].Structure, laidOutVol.Volume.Structure)
 	}
+	mylog.
 
-	// note don't need to mock anything for the second volume on disk, we don't
-	// consider it at all
+		// note don't need to mock anything for the second volume on disk, we don't
+		// consider it at all
+		Check(
 
-	// setup symlink for the BIOS Boot partition
-	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755)
-	c.Assert(err, IsNil)
+			// setup symlink for the BIOS Boot partition
+			os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755))
+
 	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/vda1")
-	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("BIOS Boot")))
-	c.Assert(err, IsNil)
-	err = os.WriteFile(fakedevicepart, nil, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("BIOS Boot"))))
+
+	mylog.Check(os.WriteFile(fakedevicepart, nil, 0644))
+
 
 	// mock the partition device node to mock disk
 	restore := disks.MockPartitionDeviceNodeToDiskMapping(map[string]*disks.MockDiskMapping{
@@ -1064,16 +1070,16 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 	// mbr - bare structure, and bios - partition w/o filesystem
 	for i, imgName := range []string{"mbr.img", "bios.img"} {
 		imgPath := filepath.Join(newData.RootDir, imgName)
-		err = os.WriteFile(imgPath, nil, 0644)
-		c.Assert(err, IsNil)
+		mylog.Check(os.WriteFile(imgPath, nil, 0644))
+
 		newData.Info.Volumes["pc"].Structure[i].Content = []gadget.VolumeContent{{Image: imgName}}
 		newData.Info.Volumes["pc"].Structure[i].Update.Edition = 1
 	}
 	// ubuntu-{seed,boot,save,data}
 	for i, fName := range []string{"seed", "boot", "save", "data"} {
 		fPath := filepath.Join(newData.RootDir, fName)
-		err = os.WriteFile(fPath, nil, 0644)
-		c.Assert(err, IsNil)
+		mylog.Check(os.WriteFile(fPath, nil, 0644))
+
 		newData.Info.Volumes["pc"].Structure[i+2].Content = []gadget.VolumeContent{{UnresolvedSource: fName}}
 		newData.Info.Volumes["pc"].Structure[i+2].Update.Edition = 1
 	}
@@ -1227,10 +1233,11 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 		return mu, nil
 	})
 	defer restore()
+	mylog.
 
-	// go go go
-	err = gadget.Update(uc20Model, oldData, newData, rollbackDir, nil, muo)
-	c.Assert(err, IsNil)
+		// go go go
+		Check(gadget.Update(uc20Model, oldData, newData, rollbackDir, nil, muo))
+
 	c.Assert(updaterForStructureCalls, Equals, 6)
 	c.Assert(backupCalls, DeepEquals, map[string]bool{
 		"mbr":         true,
@@ -1271,8 +1278,8 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 
 	rollbackDir := c.MkDir()
 
-	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.MultiVolumeUC20GadgetYamlNoBIOS, uc20Model)
-	c.Assert(err, IsNil)
+	allLaidOutVolumes := mylog.Check2(gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.MultiVolumeUC20GadgetYamlNoBIOS, uc20Model))
+
 
 	// put the same volumes into both the old and the new data so they are
 	// identical to start
@@ -1298,18 +1305,20 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 		}
 		copy(oldData.Info.Volumes[volName].Structure, laidOutVol.Volume.Structure)
 	}
+	mylog.
 
-	// note don't need to mock anything for the second volume on disk, we don't
-	// consider it at all
+		// note don't need to mock anything for the second volume on disk, we don't
+		// consider it at all
+		Check(
 
-	// setup symlink for the ubuntu-seed partition, in capitals
-	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label"), 0755)
-	c.Assert(err, IsNil)
+			// setup symlink for the ubuntu-seed partition, in capitals
+			os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label"), 0755))
+
 	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/vda1")
-	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label", disks.BlkIDEncodeLabel("UBUNTU-SEED")))
-	c.Assert(err, IsNil)
-	err = os.WriteFile(fakedevicepart, nil, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label", disks.BlkIDEncodeLabel("UBUNTU-SEED"))))
+
+	mylog.Check(os.WriteFile(fakedevicepart, nil, 0644))
+
 
 	// mock the partition device node to mock disk
 	restore := disks.MockPartitionDeviceNodeToDiskMapping(map[string]*disks.MockDiskMapping{
@@ -1346,15 +1355,15 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 	// mbr - bare structure
 	imgName := "mbr.img"
 	imgPath := filepath.Join(newData.RootDir, imgName)
-	err = os.WriteFile(imgPath, nil, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(imgPath, nil, 0644))
+
 	newData.Info.Volumes["pc"].Structure[0].Content = []gadget.VolumeContent{{Image: imgName}}
 	newData.Info.Volumes["pc"].Structure[0].Update.Edition = 1
 	// ubuntu-{seed,boot,save} - we do not put content in ubuntu-data
 	for i, fName := range []string{"seed", "boot", "save"} {
 		fPath := filepath.Join(newData.RootDir, fName)
-		err = os.WriteFile(fPath, nil, 0644)
-		c.Assert(err, IsNil)
+		mylog.Check(os.WriteFile(fPath, nil, 0644))
+
 		newData.Info.Volumes["pc"].Structure[i+1].Content = []gadget.VolumeContent{{UnresolvedSource: fName}}
 		newData.Info.Volumes["pc"].Structure[i+1].Update.Edition = 1
 	}
@@ -1491,10 +1500,11 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 		}
 	})
 	defer restore()
+	mylog.
 
-	// go go go
-	err = gadget.Update(uc20Model, oldData, newData, rollbackDir, nil, muo)
-	c.Assert(err, IsNil)
+		// go go go
+		Check(gadget.Update(uc20Model, oldData, newData, rollbackDir, nil, muo))
+
 	c.Assert(updaterForStructureCalls, Equals, 4)
 	c.Assert(backupCalls, DeepEquals, map[string]bool{
 		"mbr":         true,
@@ -1534,8 +1544,8 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 
 	rollbackDir := c.MkDir()
 
-	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.MultiVolumeUC20GadgetYaml, uc20Model)
-	c.Assert(err, IsNil)
+	allLaidOutVolumes := mylog.Check2(gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.MultiVolumeUC20GadgetYaml, uc20Model))
+
 
 	// put the same volumes into both the old and the new data so they are
 	// identical to start
@@ -1561,15 +1571,16 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 		}
 		copy(oldData.Info.Volumes[volName].Structure, laidOutVol.Volume.Structure)
 	}
+	mylog.
 
-	// setup symlink for the system-boot partition
-	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755)
-	c.Assert(err, IsNil)
+		// setup symlink for the system-boot partition
+		Check(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755))
+
 	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/vda1")
-	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("BIOS Boot")))
-	c.Assert(err, IsNil)
-	err = os.WriteFile(fakedevicepart, nil, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("BIOS Boot"))))
+
+	mylog.Check(os.WriteFile(fakedevicepart, nil, 0644))
+
 
 	// mock the partition device node to mock disk
 	restore = disks.MockPartitionDeviceNodeToDiskMapping(map[string]*disks.MockDiskMapping{
@@ -1605,31 +1616,31 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 	// mbr - bare structure, and bios - partition w/o filesystem
 	for i, imgName := range []string{"mbr.img", "bios.img"} {
 		imgPath := filepath.Join(newData.RootDir, imgName)
-		err = os.WriteFile(imgPath, nil, 0644)
-		c.Assert(err, IsNil)
+		mylog.Check(os.WriteFile(imgPath, nil, 0644))
+
 		newData.Info.Volumes["pc"].Structure[i].Content = []gadget.VolumeContent{{Image: imgName}}
 		newData.Info.Volumes["pc"].Structure[i].Update.Edition = 1
 	}
 	// ubuntu-{seed,boot,save,data}
 	for i, fName := range []string{"seed", "boot", "save", "data"} {
 		fPath := filepath.Join(newData.RootDir, fName)
-		err = os.WriteFile(fPath, nil, 0644)
-		c.Assert(err, IsNil)
+		mylog.Check(os.WriteFile(fPath, nil, 0644))
+
 		newData.Info.Volumes["pc"].Structure[i+2].Content = []gadget.VolumeContent{{UnresolvedSource: fName}}
 		newData.Info.Volumes["pc"].Structure[i+2].Update.Edition = 1
 	}
 
 	for i, imgName := range []string{"bare", "part"} {
 		imgPath := filepath.Join(newData.RootDir, imgName)
-		err = os.WriteFile(imgPath, nil, 0644)
-		c.Assert(err, IsNil)
+		mylog.Check(os.WriteFile(imgPath, nil, 0644))
+
 		newData.Info.Volumes["foo"].Structure[i].Content = []gadget.VolumeContent{{Image: imgName}}
 		newData.Info.Volumes["foo"].Structure[i].Update.Edition = 1
 	}
 	fName := "some-file"
 	fPath := filepath.Join(newData.RootDir, fName)
-	err = os.WriteFile(fPath, nil, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(fPath, nil, 0644))
+
 	newData.Info.Volumes["foo"].Structure[2].Content = []gadget.VolumeContent{{UnresolvedSource: fName}}
 	newData.Info.Volumes["foo"].Structure[2].Update.Edition = 1
 
@@ -1778,10 +1789,11 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 		return mu, nil
 	})
 	defer restore()
+	mylog.
 
-	// go go go
-	err = gadget.Update(uc20Model, oldData, newData, rollbackDir, nil, muo)
-	c.Assert(err, IsNil)
+		// go go go
+		Check(gadget.Update(uc20Model, oldData, newData, rollbackDir, nil, muo))
+
 	c.Assert(updaterForStructureCalls, Equals, 6)
 	c.Assert(backupCalls, DeepEquals, map[string]bool{
 		"mbr":         true,
@@ -1827,19 +1839,19 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFull
 
 	rollbackDir := c.MkDir()
 
-	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.MultiVolumeUC20GadgetYaml, uc20Model)
-	c.Assert(err, IsNil)
+	allLaidOutVolumes := mylog.Check2(gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.MultiVolumeUC20GadgetYaml, uc20Model))
 
-	err = os.MkdirAll(dirs.SnapDeviceDir, 0755)
-	c.Assert(err, IsNil)
-	// write out the provided traits JSON so we can at least load the traits for
-	// mocking via setupForVolumeStructureToLocation
-	err = os.WriteFile(
-		filepath.Join(dirs.SnapDeviceDir, "disk-mapping.json"),
-		[]byte(gadgettest.VMMultiVolumeUC20DiskTraitsJSON),
-		0644,
-	)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(dirs.SnapDeviceDir, 0755))
+
+	mylog.
+		// write out the provided traits JSON so we can at least load the traits for
+		// mocking via setupForVolumeStructureToLocation
+		Check(os.WriteFile(
+			filepath.Join(dirs.SnapDeviceDir, "disk-mapping.json"),
+			[]byte(gadgettest.VMMultiVolumeUC20DiskTraitsJSON),
+			0644,
+		))
+
 
 	// put the same volumes into both the old and the new data so they are
 	// identical to start
@@ -1865,15 +1877,16 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFull
 		}
 		copy(oldData.Info.Volumes[volName].Structure, laidOutVol.Volume.Structure)
 	}
+	mylog.
 
-	// setup symlink for the system-boot partition
-	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755)
-	c.Assert(err, IsNil)
+		// setup symlink for the system-boot partition
+		Check(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755))
+
 	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/vda1")
-	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("BIOS Boot")))
-	c.Assert(err, IsNil)
-	err = os.WriteFile(fakedevicepart, nil, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("BIOS Boot"))))
+
+	mylog.Check(os.WriteFile(fakedevicepart, nil, 0644))
+
 
 	// mock the partition device node to mock disk
 	restore := disks.MockPartitionDeviceNodeToDiskMapping(map[string]*disks.MockDiskMapping{
@@ -1911,31 +1924,31 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFull
 	// mbr - bare structure, and bios - partition w/o filesystem
 	for i, imgName := range []string{"mbr.img", "bios.img"} {
 		imgPath := filepath.Join(newData.RootDir, imgName)
-		err = os.WriteFile(imgPath, nil, 0644)
-		c.Assert(err, IsNil)
+		mylog.Check(os.WriteFile(imgPath, nil, 0644))
+
 		newData.Info.Volumes["pc"].Structure[i].Content = []gadget.VolumeContent{{Image: imgName}}
 		newData.Info.Volumes["pc"].Structure[i].Update.Edition = 1
 	}
 	// ubuntu-{seed,boot,save,data}
 	for i, fName := range []string{"seed", "boot", "save", "data"} {
 		fPath := filepath.Join(newData.RootDir, fName)
-		err = os.WriteFile(fPath, nil, 0644)
-		c.Assert(err, IsNil)
+		mylog.Check(os.WriteFile(fPath, nil, 0644))
+
 		newData.Info.Volumes["pc"].Structure[i+2].Content = []gadget.VolumeContent{{UnresolvedSource: fName}}
 		newData.Info.Volumes["pc"].Structure[i+2].Update.Edition = 1
 	}
 	// foo
 	for i, imgName := range []string{"bare", "part"} {
 		imgPath := filepath.Join(newData.RootDir, imgName)
-		err = os.WriteFile(imgPath, nil, 0644)
-		c.Assert(err, IsNil)
+		mylog.Check(os.WriteFile(imgPath, nil, 0644))
+
 		newData.Info.Volumes["foo"].Structure[i].Content = []gadget.VolumeContent{{Image: imgName}}
 		newData.Info.Volumes["foo"].Structure[i].Update.Edition = 1
 	}
 	fName := "some-file"
 	fPath := filepath.Join(newData.RootDir, fName)
-	err = os.WriteFile(fPath, nil, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(fPath, nil, 0644))
+
 	newData.Info.Volumes["foo"].Structure[2].Content = []gadget.VolumeContent{{UnresolvedSource: fName}}
 	newData.Info.Volumes["foo"].Structure[2].Update.Edition = 1
 
@@ -2117,10 +2130,11 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFull
 		return mu, nil
 	})
 	defer restore()
+	mylog.
 
-	// go go go
-	err = gadget.Update(uc20Model, oldData, newData, rollbackDir, nil, muo)
-	c.Assert(err, IsNil)
+		// go go go
+		Check(gadget.Update(uc20Model, oldData, newData, rollbackDir, nil, muo))
+
 	c.Assert(pcUpdaterForStructureCalls, Equals, 6)
 	c.Assert(fooUpdaterForStructureCalls, Equals, 3)
 	c.Assert(pcBackupCalls, DeepEquals, map[string]bool{
@@ -2174,19 +2188,19 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapIncompatibleStructure
 
 	rollbackDir := c.MkDir()
 
-	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.MultiVolumeUC20GadgetYaml, uc20Model)
-	c.Assert(err, IsNil)
+	allLaidOutVolumes := mylog.Check2(gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.MultiVolumeUC20GadgetYaml, uc20Model))
 
-	err = os.MkdirAll(dirs.SnapDeviceDir, 0755)
-	c.Assert(err, IsNil)
-	// write out the provided traits JSON so we can at least load the traits for
-	// mocking via setupForVolumeStructureToLocation
-	err = os.WriteFile(
-		filepath.Join(dirs.SnapDeviceDir, "disk-mapping.json"),
-		[]byte(gadgettest.VMMultiVolumeUC20DiskTraitsJSON),
-		0644,
-	)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(dirs.SnapDeviceDir, 0755))
+
+	mylog.
+		// write out the provided traits JSON so we can at least load the traits for
+		// mocking via setupForVolumeStructureToLocation
+		Check(os.WriteFile(
+			filepath.Join(dirs.SnapDeviceDir, "disk-mapping.json"),
+			[]byte(gadgettest.VMMultiVolumeUC20DiskTraitsJSON),
+			0644,
+		))
+
 
 	// put the same volumes into both the old and the new data so they are
 	// identical to start
@@ -2261,8 +2275,8 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapIncompatibleStructure
 	newData.Info.Volumes["foo"].Structure[1].Size = quantity.SizeKiB
 	imgName := "img"
 	imgPath := filepath.Join(newData.RootDir, imgName)
-	err = os.WriteFile(imgPath, nil, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(imgPath, nil, 0644))
+
 	newData.Info.Volumes["foo"].Structure[1].Content = []gadget.VolumeContent{{Image: imgName}}
 
 	muo := &mockUpdateProcessObserver{}
@@ -2271,9 +2285,10 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapIncompatibleStructure
 		return nil, errors.New("not called")
 	})
 	defer restore()
+	mylog.
 
-	// go go go
-	err = gadget.Update(uc20Model, oldData, newData, rollbackDir, nil, muo)
+		// go go go
+		Check(gadget.Update(uc20Model, oldData, newData, rollbackDir, nil, muo))
 	c.Assert(err, ErrorMatches, `cannot update volume structure #1 \("nofspart"\) for volume foo: new valid structure size range \[1024, 1024\] is not compatible with current \(\[4096, 4096\]\)`)
 }
 
@@ -2372,19 +2387,19 @@ volumes:
             target: /
 `
 
-	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), oldKernelDir, multiVolWithKernel, uc20Model)
-	c.Assert(err, IsNil)
+	allLaidOutVolumes := mylog.Check2(gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), oldKernelDir, multiVolWithKernel, uc20Model))
 
-	err = os.MkdirAll(dirs.SnapDeviceDir, 0755)
-	c.Assert(err, IsNil)
-	// write out the provided traits JSON so we can at least load the traits for
-	// mocking via setupForVolumeStructureToLocation
-	err = os.WriteFile(
-		filepath.Join(dirs.SnapDeviceDir, "disk-mapping.json"),
-		[]byte(gadgettest.VMMultiVolumeUC20DiskTraitsJSON),
-		0644,
-	)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(dirs.SnapDeviceDir, 0755))
+
+	mylog.
+		// write out the provided traits JSON so we can at least load the traits for
+		// mocking via setupForVolumeStructureToLocation
+		Check(os.WriteFile(
+			filepath.Join(dirs.SnapDeviceDir, "disk-mapping.json"),
+			[]byte(gadgettest.VMMultiVolumeUC20DiskTraitsJSON),
+			0644,
+		))
+
 
 	// put the same volumes into both the old and the new data so they are
 	// identical to start
@@ -2410,15 +2425,16 @@ volumes:
 		}
 		copy(oldData.Info.Volumes[volName].Structure, laidOutVol.Volume.Structure)
 	}
+	mylog.
 
-	// setup symlink for the system-boot partition
-	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755)
-	c.Assert(err, IsNil)
+		// setup symlink for the system-boot partition
+		Check(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755))
+
 	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/vda1")
-	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("BIOS Boot")))
-	c.Assert(err, IsNil)
-	err = os.WriteFile(fakedevicepart, nil, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("BIOS Boot"))))
+
+	mylog.Check(os.WriteFile(fakedevicepart, nil, 0644))
+
 
 	// mock the partition device node to mock disk
 	restore := disks.MockPartitionDeviceNodeToDiskMapping(map[string]*disks.MockDiskMapping{
@@ -2599,10 +2615,11 @@ volumes:
 		return mu, nil
 	})
 	defer restore()
+	mylog.
 
-	// go go go
-	err = gadget.Update(uc20Model, oldData, newData, rollbackDir, nil, muo)
-	c.Assert(err, IsNil)
+		// go go go
+		Check(gadget.Update(uc20Model, oldData, newData, rollbackDir, nil, muo))
+
 	c.Assert(pcUpdaterForStructureCalls, Equals, 1)
 	c.Assert(fooUpdaterForStructureCalls, Equals, 1)
 	c.Assert(pcBackupCalls, DeepEquals, map[string]bool{
@@ -2718,19 +2735,19 @@ volumes:
             target: /
 `
 
-	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), oldKernelDir, multiVolWithKernel, uc20Model)
-	c.Assert(err, IsNil)
+	allLaidOutVolumes := mylog.Check2(gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), oldKernelDir, multiVolWithKernel, uc20Model))
 
-	err = os.MkdirAll(dirs.SnapDeviceDir, 0755)
-	c.Assert(err, IsNil)
-	// write out the provided traits JSON so we can at least load the traits for
-	// mocking via setupForVolumeStructureToLocation
-	err = os.WriteFile(
-		filepath.Join(dirs.SnapDeviceDir, "disk-mapping.json"),
-		[]byte(gadgettest.VMMultiVolumeUC20DiskTraitsJSON),
-		0644,
-	)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(dirs.SnapDeviceDir, 0755))
+
+	mylog.
+		// write out the provided traits JSON so we can at least load the traits for
+		// mocking via setupForVolumeStructureToLocation
+		Check(os.WriteFile(
+			filepath.Join(dirs.SnapDeviceDir, "disk-mapping.json"),
+			[]byte(gadgettest.VMMultiVolumeUC20DiskTraitsJSON),
+			0644,
+		))
+
 
 	// put the same volumes into both the old and the new data so they are
 	// identical to start
@@ -2756,15 +2773,16 @@ volumes:
 		}
 		copy(oldData.Info.Volumes[volName].Structure, laidOutVol.Volume.Structure)
 	}
+	mylog.
 
-	// setup symlink for the system-boot partition
-	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755)
-	c.Assert(err, IsNil)
+		// setup symlink for the system-boot partition
+		Check(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755))
+
 	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/vda1")
-	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("BIOS Boot")))
-	c.Assert(err, IsNil)
-	err = os.WriteFile(fakedevicepart, nil, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("BIOS Boot"))))
+
+	mylog.Check(os.WriteFile(fakedevicepart, nil, 0644))
+
 
 	// mock the partition device node to mock disk
 	restore := disks.MockPartitionDeviceNodeToDiskMapping(map[string]*disks.MockDiskMapping{
@@ -2805,8 +2823,8 @@ volumes:
 
 	// some filesystem
 	someFile := filepath.Join(newData.RootDir, "some-file")
-	err = os.WriteFile(someFile, nil, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(someFile, nil, 0644))
+
 	newData.Info.Volumes["foo"].Structure[2].Content = []gadget.VolumeContent{{UnresolvedSource: "some-file"}}
 	newData.Info.Volumes["foo"].Structure[2].Update.Edition = 1
 
@@ -2901,10 +2919,11 @@ volumes:
 		return mu, nil
 	})
 	defer restore()
+	mylog.
 
-	// go go go
-	err = gadget.Update(uc20Model, oldData, newData, rollbackDir, nil, muo)
-	c.Assert(err, IsNil)
+		// go go go
+		Check(gadget.Update(uc20Model, oldData, newData, rollbackDir, nil, muo))
+
 	c.Assert(pcUpdaterForStructureCalls, Equals, 1)
 	c.Assert(fooUpdaterForStructureCalls, Equals, 1)
 	c.Assert(pcBackupCalls, DeepEquals, map[string]bool{
@@ -2981,10 +3000,11 @@ func (u *updateTestSuite) TestUpdateApplyOnlyWhenNeeded(c *C) {
 		return mu, nil
 	})
 	defer restore()
+	mylog.
 
-	// go go go
-	err := gadget.Update(uc16Model, oldData, newData, rollbackDir, nil, muo)
-	c.Assert(err, IsNil)
+		// go go go
+		Check(gadget.Update(uc16Model, oldData, newData, rollbackDir, nil, muo))
+
 
 	c.Assert(muo.beforeWriteCalled, Equals, 1)
 	c.Assert(muo.canceledCalled, Equals, 0)
@@ -3037,17 +3057,20 @@ func (u *updateTestSuite) TestUpdateApplyErrorLayout(c *C) {
 	gadget.SetEnclosingVolumeInStructs(oldData.Info.Volumes)
 
 	rollbackDir := c.MkDir()
+	mylog.
 
-	// both old and new bare struct data is missing
+		// both old and new bare struct data is missing
+		Check(
 
-	// cannot lay out the new volume when bare struct data is missing
-	err := gadget.Update(uc16Model, oldData, newData, rollbackDir, nil, nil)
+			// cannot lay out the new volume when bare struct data is missing
+			gadget.Update(uc16Model, oldData, newData, rollbackDir, nil, nil))
 	c.Assert(err, ErrorMatches, `cannot lay out the new volume foo: cannot lay out structure #0 \("foo"\): content "first.img": .* no such file or directory`)
 
 	makeSizedFile(c, filepath.Join(newRootDir, "first.img"), quantity.SizeMiB, nil)
+	mylog.
 
-	// Update does not error out when when the bare struct data of the old volume is missing
-	err = gadget.Update(uc16Model, oldData, newData, rollbackDir, nil, nil)
+		// Update does not error out when when the bare struct data of the old volume is missing
+		Check(gadget.Update(uc16Model, oldData, newData, rollbackDir, nil, nil))
 	c.Assert(err, Equals, gadget.ErrNoUpdate)
 }
 
@@ -3108,8 +3131,7 @@ func (u *updateTestSuite) TestUpdateApplyErrorIllegalVolumeUpdate(c *C) {
 
 	makeSizedFile(c, filepath.Join(oldRootDir, "first.img"), quantity.SizeMiB, nil)
 	makeSizedFile(c, filepath.Join(newRootDir, "first.img"), 900*quantity.SizeKiB, nil)
-
-	err := gadget.Update(uc16Model, oldData, newData, rollbackDir, nil, nil)
+	mylog.Check(gadget.Update(uc16Model, oldData, newData, rollbackDir, nil, nil))
 	c.Assert(err, ErrorMatches, `cannot apply update to volume foo: cannot change the number of structures within volume from 1 to 2`)
 }
 
@@ -3171,8 +3193,7 @@ func (u *updateTestSuite) TestUpdateApplyErrorIllegalStructureUpdate(c *C) {
 	rollbackDir := c.MkDir()
 
 	makeSizedFile(c, filepath.Join(oldRootDir, "first.img"), quantity.SizeMiB, nil)
-
-	err := gadget.Update(uc16Model, oldData, newData, rollbackDir, nil, nil)
+	mylog.Check(gadget.Update(uc16Model, oldData, newData, rollbackDir, nil, nil))
 	c.Assert(err, ErrorMatches, `cannot update volume structure #0 \("foo"\) for volume foo: cannot change a bare structure to filesystem one`)
 }
 
@@ -3211,8 +3232,7 @@ func (u *updateTestSuite) TestUpdateApplyErrorRenamedVolume(c *C) {
 		return &mockUpdater{}, nil
 	})
 	defer restore()
-
-	err := gadget.Update(uc16Model, oldData, newData, rollbackDir, nil, nil)
+	mylog.Check(gadget.Update(uc16Model, oldData, newData, rollbackDir, nil, nil))
 	c.Assert(err, ErrorMatches, `cannot update gadget assets: volumes were both added and removed`)
 }
 
@@ -3270,8 +3290,7 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesAreOptInWithDefaultPolicy(c *C) 
 			}, nil
 	})
 	defer r()
-
-	err := gadget.Update(uc16Model, oldData, newData, rollbackDir, nil, muo)
+	mylog.Check(gadget.Update(uc16Model, oldData, newData, rollbackDir, nil, muo))
 	c.Assert(err, Equals, gadget.ErrNoUpdate)
 
 	// nothing was updated
@@ -3401,10 +3420,10 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesArePolicyControlled(c *C) {
 	defer restore()
 
 	policySeen := map[string]int{}
-	err := gadget.Update(uc16Model, oldData, newData, rollbackDir, func(_, to *gadget.LaidOutStructure) (bool, gadget.ResolvedContentFilterFunc) {
+	mylog.Check(gadget.Update(uc16Model, oldData, newData, rollbackDir, func(_, to *gadget.LaidOutStructure) (bool, gadget.ResolvedContentFilterFunc) {
 		policySeen[to.Name()]++
 		return false, nil
-	}, nil)
+	}, nil))
 	c.Assert(err, Equals, gadget.ErrNoUpdate)
 	c.Assert(policySeen, DeepEquals, map[string]int{
 		"first":        1,
@@ -3417,11 +3436,11 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesArePolicyControlled(c *C) {
 
 	// try with different policy
 	policySeen = map[string]int{}
-	err = gadget.Update(uc16Model, oldData, newData, rollbackDir, func(_, to *gadget.LaidOutStructure) (bool, gadget.ResolvedContentFilterFunc) {
+	mylog.Check(gadget.Update(uc16Model, oldData, newData, rollbackDir, func(_, to *gadget.LaidOutStructure) (bool, gadget.ResolvedContentFilterFunc) {
 		policySeen[to.Name()]++
 		return to.Name() == "second", nil
-	}, nil)
-	c.Assert(err, IsNil)
+	}, nil))
+
 	c.Assert(policySeen, DeepEquals, map[string]int{
 		"first":        1,
 		"second":       1,
@@ -3485,9 +3504,8 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesDefaultPolicy(c *C) {
 		return &mockUpdater{}, nil
 	})
 	defer restore()
+	mylog.Check(gadget.Update(uc16Model, oldData, newData, rollbackDir, nil, nil))
 
-	err := gadget.Update(uc16Model, oldData, newData, rollbackDir, nil, nil)
-	c.Assert(err, IsNil)
 	c.Assert(toUpdate, DeepEquals, map[string]int{
 		// the structure was picked for update
 		"first": 1,
@@ -3543,9 +3561,8 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesRemodelPolicy(c *C) {
 		return &mockUpdater{}, nil
 	})
 	defer restore()
+	mylog.Check(gadget.Update(uc16Model, oldData, newData, rollbackDir, gadget.RemodelUpdatePolicy, nil))
 
-	err := gadget.Update(uc16Model, oldData, newData, rollbackDir, gadget.RemodelUpdatePolicy, nil)
-	c.Assert(err, IsNil)
 	c.Assert(toUpdate, DeepEquals, map[string]int{
 		"first":        1,
 		"second":       1,
@@ -3610,9 +3627,10 @@ func (u *updateTestSuite) TestUpdateApplyBackupFails(c *C) {
 		return updater, nil
 	})
 	defer restore()
+	mylog.
 
-	// go go go
-	err := gadget.Update(uc16Model, oldData, newData, rollbackDir, nil, muo)
+		// go go go
+		Check(gadget.Update(uc16Model, oldData, newData, rollbackDir, nil, muo))
 	c.Assert(err, ErrorMatches, `cannot backup volume structure #1 \("second"\) on volume foo: failed`)
 
 	// update was canceled before backup pass completed
@@ -3684,9 +3702,10 @@ func (u *updateTestSuite) TestUpdateApplyUpdateFailsThenRollback(c *C) {
 		return updater, nil
 	})
 	defer restore()
+	mylog.
 
-	// go go go
-	err := gadget.Update(uc16Model, oldData, newData, rollbackDir, nil, muo)
+		// go go go
+		Check(gadget.Update(uc16Model, oldData, newData, rollbackDir, nil, muo))
 	c.Assert(err, ErrorMatches, `cannot update volume structure #1 \("second"\) on volume foo: failed`)
 	c.Assert(backupCalls, DeepEquals, map[string]bool{
 		// all were backed up
@@ -3780,9 +3799,10 @@ func (u *updateTestSuite) TestUpdateApplyUpdateErrorRollbackFail(c *C) {
 		return updater, nil
 	})
 	defer restore()
+	mylog.
 
-	// go go go
-	err := gadget.Update(uc16Model, oldData, newData, rollbackDir, nil, nil)
+		// go go go
+		Check(gadget.Update(uc16Model, oldData, newData, rollbackDir, nil, nil))
 	// preserves update error
 	c.Assert(err, ErrorMatches, `cannot update volume structure #2 \("third"\) on volume foo: update error`)
 	c.Assert(backupCalls, DeepEquals, map[string]bool{
@@ -3842,9 +3862,10 @@ func (u *updateTestSuite) TestUpdateApplyBadUpdater(c *C) {
 		return nil, errors.New("bad updater for structure")
 	})
 	defer r()
+	mylog.
 
-	// go go go
-	err := gadget.Update(uc16Model, oldData, newData, rollbackDir, nil, nil)
+		// go go go
+		Check(gadget.Update(uc16Model, oldData, newData, rollbackDir, nil, nil))
 	c.Assert(err, ErrorMatches, `cannot prepare update for volume structure #0 \("first"\) on volume foo: bad updater for structure`)
 }
 
@@ -3855,17 +3876,18 @@ func (u *updateTestSuite) TestUpdaterForStructure(c *C) {
 
 	dirs.SetRootDir(rootDir)
 	defer dirs.SetRootDir("/")
+	mylog.
 
-	// prepare some state for mocked mount point lookup
-	err := os.MkdirAll(filepath.Join(rootDir, "/dev"), 0755)
-	c.Assert(err, IsNil)
-	err = os.MkdirAll(filepath.Join(rootDir, "/dev/disk/by-label"), 0755)
-	c.Assert(err, IsNil)
+		// prepare some state for mocked mount point lookup
+		Check(os.MkdirAll(filepath.Join(rootDir, "/dev"), 0755))
+
+	mylog.Check(os.MkdirAll(filepath.Join(rootDir, "/dev/disk/by-label"), 0755))
+
 	fakedevice := filepath.Join(rootDir, "/dev/sdxxx2")
-	err = os.WriteFile(fakedevice, []byte(""), 0644)
-	c.Assert(err, IsNil)
-	err = os.Symlink(fakedevice, filepath.Join(rootDir, "/dev/disk/by-label/writable"))
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(fakedevice, []byte(""), 0644))
+
+	mylog.Check(os.Symlink(fakedevice, filepath.Join(rootDir, "/dev/disk/by-label/writable")))
+
 	mountInfo := `170 27 8:2 / /some/mount/point rw,relatime shared:58 - ext4 %s/dev/sdxxx2 rw
 `
 	restore := osutil.MockMountInfo(fmt.Sprintf(mountInfo, rootDir))
@@ -3879,8 +3901,8 @@ func (u *updateTestSuite) TestUpdaterForStructure(c *C) {
 			EnclosingVolume: &gadget.Volume{},
 		},
 	}
-	updater, err := gadget.UpdaterForStructure(gadget.StructureLocation{}, psBare, psBare, gadgetRootDir, rollbackDir, nil)
-	c.Assert(err, IsNil)
+	updater := mylog.Check2(gadget.UpdaterForStructure(gadget.StructureLocation{}, psBare, psBare, gadgetRootDir, rollbackDir, nil))
+
 	c.Assert(updater, FitsTypeOf, &gadget.RawStructureUpdater{})
 
 	psFs := &gadget.LaidOutStructure{
@@ -3892,12 +3914,12 @@ func (u *updateTestSuite) TestUpdaterForStructure(c *C) {
 			EnclosingVolume: &gadget.Volume{},
 		},
 	}
-	updater, err = gadget.UpdaterForStructure(gadget.StructureLocation{RootMountPoint: "/"}, psFs, psFs, gadgetRootDir, rollbackDir, nil)
-	c.Assert(err, IsNil)
+	updater = mylog.Check2(gadget.UpdaterForStructure(gadget.StructureLocation{RootMountPoint: "/"}, psFs, psFs, gadgetRootDir, rollbackDir, nil))
+
 	c.Assert(updater, FitsTypeOf, &gadget.MountedFilesystemUpdater{})
 
 	// trigger errors
-	updater, err = gadget.UpdaterForStructure(gadget.StructureLocation{Device: "/dev/vda"}, psBare, psBare, gadgetRootDir, "", nil)
+	updater = mylog.Check2(gadget.UpdaterForStructure(gadget.StructureLocation{Device: "/dev/vda"}, psBare, psBare, gadgetRootDir, "", nil))
 	c.Assert(err, ErrorMatches, "internal error: backup directory cannot be unset")
 	c.Assert(updater, IsNil)
 }
@@ -3918,14 +3940,16 @@ func (u *updateTestSuite) TestUpdaterMultiVolumesAddedRemovedErrors(c *C) {
 			},
 		},
 	}
+	mylog.
 
-	// an update to a gadget with multiple volumes when we had just a single one
-	// before fails
-	err := gadget.Update(uc16Model, singleVolume, multiVolume, "some-rollback-dir", nil, nil)
+		// an update to a gadget with multiple volumes when we had just a single one
+		// before fails
+		Check(gadget.Update(uc16Model, singleVolume, multiVolume, "some-rollback-dir", nil, nil))
 	c.Assert(err, ErrorMatches, "cannot update gadget assets: volumes were removed")
+	mylog.
 
-	// same for an update removing volumes
-	err = gadget.Update(uc16Model, multiVolume, singleVolume, "some-rollback-dir", nil, nil)
+		// same for an update removing volumes
+		Check(gadget.Update(uc16Model, multiVolume, singleVolume, "some-rollback-dir", nil, nil))
 	c.Assert(err, ErrorMatches, "cannot update gadget assets: volumes were added")
 }
 
@@ -3977,9 +4001,10 @@ func (u *updateTestSuite) TestUpdateApplyNoChangedContentInAll(c *C) {
 		return mu, nil
 	})
 	defer restore()
+	mylog.
 
-	// go go go
-	err := gadget.Update(uc16Model, oldData, newData, rollbackDir, nil, muo)
+		// go go go
+		Check(gadget.Update(uc16Model, oldData, newData, rollbackDir, nil, muo))
 	c.Assert(err, Equals, gadget.ErrNoUpdate)
 	// update called for 2 structures
 	c.Assert(updateCalls, Equals, 2)
@@ -4039,10 +4064,11 @@ func (u *updateTestSuite) TestUpdateApplyNoChangedContentInSome(c *C) {
 		return mu, nil
 	})
 	defer restore()
+	mylog.
 
-	// go go go
-	err := gadget.Update(uc16Model, oldData, newData, rollbackDir, nil, muo)
-	c.Assert(err, IsNil)
+		// go go go
+		Check(gadget.Update(uc16Model, oldData, newData, rollbackDir, nil, muo))
+
 	// update called for 2 structures
 	c.Assert(updateCalls, Equals, 2)
 	// at least one structure had an update
@@ -4090,7 +4116,7 @@ func (u *updateTestSuite) TestUpdateApplyObserverBeforeWriteErrs(c *C) {
 	muo := &mockUpdateProcessObserver{
 		beforeWriteErr: errors.New("before write fail"),
 	}
-	err := gadget.Update(uc16Model, oldData, newData, rollbackDir, nil, muo)
+	mylog.Check(gadget.Update(uc16Model, oldData, newData, rollbackDir, nil, muo))
 	c.Assert(err, ErrorMatches, `cannot observe prepared update: before write fail`)
 	// update was canceled before backup pass completed
 	c.Check(muo.canceledCalled, Equals, 0)
@@ -4140,7 +4166,7 @@ func (u *updateTestSuite) TestUpdateApplyObserverCanceledErrs(c *C) {
 	muo := &mockUpdateProcessObserver{
 		canceledErr: errors.New("canceled fail"),
 	}
-	err := gadget.Update(uc16Model, oldData, newData, rollbackDir, nil, muo)
+	mylog.Check(gadget.Update(uc16Model, oldData, newData, rollbackDir, nil, muo))
 	c.Assert(err, ErrorMatches, `cannot backup volume structure #0 .*: backup fails`)
 	// canceled called after backup pass
 	c.Check(muo.canceledCalled, Equals, 1)
@@ -4150,7 +4176,7 @@ func (u *updateTestSuite) TestUpdateApplyObserverCanceledErrs(c *C) {
 
 	// backup works, update fails, triggers another canceled call
 	backupErr = nil
-	err = gadget.Update(uc16Model, oldData, newData, rollbackDir, nil, muo)
+	mylog.Check(gadget.Update(uc16Model, oldData, newData, rollbackDir, nil, muo))
 	c.Assert(err, ErrorMatches, `cannot update volume structure #0 .*: update fails`)
 	// canceled called after backup pass
 	c.Check(muo.canceledCalled, Equals, 2)
@@ -4348,10 +4374,11 @@ assets:
 		return &mockUpdater{}, nil
 	})
 	defer restore()
+	mylog.
 
-	// exercise KernelUpdatePolicy here
-	err := gadget.Update(uc16Model, oldData, newData, rollbackDir, gadget.KernelUpdatePolicy, muo)
-	c.Assert(err, IsNil)
+		// exercise KernelUpdatePolicy here
+		Check(gadget.Update(uc16Model, oldData, newData, rollbackDir, gadget.KernelUpdatePolicy, muo))
+
 
 	// ensure update for kernel content happened
 	c.Assert(mockUpdaterCalls, Equals, 1)
@@ -4418,9 +4445,10 @@ assets:
 			nil
 	})
 	defer r()
+	mylog.
 
-	// exercise KernelUpdatePolicy here
-	err := gadget.Update(uc16Model, oldData, newData, rollbackDir, gadget.KernelUpdatePolicy, muo)
+		// exercise KernelUpdatePolicy here
+		Check(gadget.Update(uc16Model, oldData, newData, rollbackDir, gadget.KernelUpdatePolicy, muo))
 	c.Assert(err, ErrorMatches, `gadget does not consume any of the kernel assets needing synced update "ref"`)
 
 	// ensure update for kernel content didn't happen
@@ -4433,11 +4461,11 @@ func (u *updateTestSuite) TestDiskTraitsFromDeviceAndValidateWithBareStructure(c
 	})
 	defer restore()
 
-	lvol, err := gadgettest.LayoutFromYaml(c.MkDir(), gadgettest.MockExtraVolumeYAML, nil)
-	c.Assert(err, IsNil)
+	lvol := mylog.Check2(gadgettest.LayoutFromYaml(c.MkDir(), gadgettest.MockExtraVolumeYAML, nil))
 
-	traits, err := gadget.DiskTraitsFromDeviceAndValidate(lvol.Volume, "/dev/foo", nil)
-	c.Assert(err, IsNil)
+
+	traits := mylog.Check2(gadget.DiskTraitsFromDeviceAndValidate(lvol.Volume, "/dev/foo", nil))
+
 
 	c.Assert(traits, DeepEquals, gadgettest.MockExtraVolumeDeviceTraits)
 }
@@ -4500,11 +4528,11 @@ volumes:
         type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
         size: 1G
 `
-	lvol, err := gadgettest.LayoutFromYaml(c.MkDir(), yaml, nil)
-	c.Assert(err, IsNil)
+	lvol := mylog.Check2(gadgettest.LayoutFromYaml(c.MkDir(), yaml, nil))
 
-	traits, err := gadget.DiskTraitsFromDeviceAndValidate(lvol.Volume, "/dev/foo", nil)
-	c.Assert(err, IsNil)
+
+	traits := mylog.Check2(gadget.DiskTraitsFromDeviceAndValidate(lvol.Volume, "/dev/foo", nil))
+
 	c.Assert(traits, DeepEquals, gadget.DiskVolumeDeviceTraits{
 		OriginalDevicePath: "/sys/block/foo",
 		OriginalKernelPath: "/dev/foo",
@@ -4595,11 +4623,11 @@ volumes:
         type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
         size: 1G
 `
-	lvol, err := gadgettest.LayoutFromYaml(c.MkDir(), yaml, nil)
-	c.Assert(err, IsNil)
+	lvol := mylog.Check2(gadgettest.LayoutFromYaml(c.MkDir(), yaml, nil))
 
-	traits, err := gadget.DiskTraitsFromDeviceAndValidate(lvol.Volume, "/dev/foo", nil)
-	c.Assert(err, IsNil)
+
+	traits := mylog.Check2(gadget.DiskTraitsFromDeviceAndValidate(lvol.Volume, "/dev/foo", nil))
+
 	c.Assert(traits, DeepEquals, gadget.DiskVolumeDeviceTraits{
 		OriginalDevicePath: "/sys/block/foo",
 		OriginalKernelPath: "/dev/foo",
@@ -4638,20 +4666,20 @@ func (u *updateTestSuite) TestDiskTraitsFromDeviceAndValidateGPTMultiVolume(c *C
 	})
 	defer restore()
 
-	vols, err := gadgettest.LayoutMultiVolumeFromYaml(
+	vols := mylog.Check2(gadgettest.LayoutMultiVolumeFromYaml(
 		c.MkDir(),
 		"",
 		gadgettest.MultiVolumeUC20GadgetYaml,
 		uc20Model,
-	)
-	c.Assert(err, IsNil)
+	))
 
-	traits, err := gadget.DiskTraitsFromDeviceAndValidate(vols["pc"].Volume, "/dev/vda", nil)
-	c.Assert(err, IsNil)
+
+	traits := mylog.Check2(gadget.DiskTraitsFromDeviceAndValidate(vols["pc"].Volume, "/dev/vda", nil))
+
 	c.Assert(traits, DeepEquals, gadgettest.VMSystemVolumeDeviceTraits)
 
-	traitsExtra, err := gadget.DiskTraitsFromDeviceAndValidate(vols["foo"].Volume, "/dev/vdb", nil)
-	c.Assert(err, IsNil)
+	traitsExtra := mylog.Check2(gadget.DiskTraitsFromDeviceAndValidate(vols["foo"].Volume, "/dev/vdb", nil))
+
 	c.Assert(traitsExtra, DeepEquals, gadgettest.VMExtraVolumeDeviceTraits)
 }
 
@@ -4675,15 +4703,14 @@ volumes:
         type: EBBEADAF-22C9-E33B-8F5D-0E81686A68CB
         size: 4096
 `
-	lvol, err := gadgettest.LayoutFromYaml(c.MkDir(), yaml, nil)
-	c.Assert(err, IsNil)
+	lvol := mylog.Check2(gadgettest.LayoutFromYaml(c.MkDir(), yaml, nil))
 
-	_, err = gadget.DiskTraitsFromDeviceAndValidate(lvol.Volume, "/dev/foo", nil)
+
+	_ = mylog.Check2(gadget.DiskTraitsFromDeviceAndValidate(lvol.Volume, "/dev/foo", nil))
 	c.Assert(err, ErrorMatches, `volume foo is not compatible with disk /dev/foo: cannot find disk partition /dev/foo2 \(starting at 1053696\) in gadget`)
 }
 
 func (u *updateTestSuite) TestDiskTraitsFromDeviceAndValidateGPTExtraLaidOutStructure(c *C) {
-
 	mockDisk := &disks.MockDiskMapping{
 		DevNode: "/dev/foo",
 		DevPath: "/sys/block/foo",
@@ -4731,15 +4758,15 @@ volumes:
         size: 1500M
         type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
 `
-	lvol, err := gadgettest.LayoutFromYaml(c.MkDir(), yaml, nil)
-	c.Assert(err, IsNil)
+	lvol := mylog.Check2(gadgettest.LayoutFromYaml(c.MkDir(), yaml, nil))
+
 
 	// we can't build the device traits because the two are not compatible, even
 	// though the last structure is system-data which may not exist before
 	// install mode and thus be "compatible" in some contexts, but
 	// DiskTraitsFromDeviceAndValidate is more strict and requires all
 	// structures to exist and to match
-	_, err = gadget.DiskTraitsFromDeviceAndValidate(lvol.Volume, "/dev/foo", nil)
+	_ = mylog.Check2(gadget.DiskTraitsFromDeviceAndValidate(lvol.Volume, "/dev/foo", nil))
 	c.Assert(err, ErrorMatches, `volume foo is not compatible with disk /dev/foo: cannot find gadget structure "ubuntu-data" on disk`)
 
 	// if we add a structure to the mock disk which is smaller than the ondisk
@@ -4763,7 +4790,7 @@ volumes:
 	})
 	defer restore()
 
-	_, err = gadget.DiskTraitsFromDeviceAndValidate(lvol.Volume, "/dev/foo", nil)
+	_ = mylog.Check2(gadget.DiskTraitsFromDeviceAndValidate(lvol.Volume, "/dev/foo", nil))
 	c.Assert(err, ErrorMatches, `volume foo is not compatible with disk /dev/foo: cannot find disk partition /dev/foo2 \(starting at 1052672\) in gadget: on disk size 4096 \(4 KiB\) is smaller than gadget min size 1572864000 \(1.46 GiB\)`)
 
 	// same size is okay though
@@ -4773,8 +4800,8 @@ volumes:
 	})
 	defer restore()
 
-	traits, err := gadget.DiskTraitsFromDeviceAndValidate(lvol.Volume, "/dev/foo", nil)
-	c.Assert(err, IsNil)
+	traits := mylog.Check2(gadget.DiskTraitsFromDeviceAndValidate(lvol.Volume, "/dev/foo", nil))
+
 
 	// it has the right size
 	c.Assert(traits.Structure[1].Size, Equals, 1500*quantity.SizeMiB)
@@ -4786,8 +4813,8 @@ volumes:
 	})
 	defer restore()
 
-	traits, err = gadget.DiskTraitsFromDeviceAndValidate(lvol.Volume, "/dev/foo", nil)
-	c.Assert(err, IsNil)
+	traits = mylog.Check2(gadget.DiskTraitsFromDeviceAndValidate(lvol.Volume, "/dev/foo", nil))
+
 
 	// and it has the on disk size
 	c.Assert(traits.Structure[1].Size, Equals, 3200*quantity.SizeMiB)
@@ -4799,16 +4826,16 @@ func (u *updateTestSuite) TestDiskTraitsFromDeviceAndValidateDOSSingleVolume(c *
 	})
 	defer restore()
 
-	lvol, err := gadgettest.LayoutFromYaml(c.MkDir(), gadgettest.RaspiSimplifiedYaml, nil)
-	c.Assert(err, IsNil)
+	lvol := mylog.Check2(gadgettest.LayoutFromYaml(c.MkDir(), gadgettest.RaspiSimplifiedYaml, nil))
+
 
 	opts := &gadget.DiskVolumeValidationOptions{
 		// make this non-nil so that it matches the non-nil (but empty) map in
 		// gadgettest/examples.go
 		ExpectedStructureEncryption: map[string]gadget.StructureEncryptionParameters{},
 	}
-	traits, err := gadget.DiskTraitsFromDeviceAndValidate(lvol.Volume, "/dev/mmcblk0", opts)
-	c.Assert(err, IsNil)
+	traits := mylog.Check2(gadget.DiskTraitsFromDeviceAndValidate(lvol.Volume, "/dev/mmcblk0", opts))
+
 	c.Assert(traits, DeepEquals, gadgettest.ExpectedRaspiDiskVolumeDeviceTraits)
 }
 
@@ -4819,11 +4846,11 @@ func (s *updateTestSuite) TestDiskTraitsFromDeviceAndValidateImplicitSystemDataH
 	})
 	defer restore()
 
-	lvol, err := gadgettest.LayoutFromYaml(c.MkDir(), gadgettest.UC16YAMLImplicitSystemData, nil)
-	c.Assert(err, IsNil)
+	lvol := mylog.Check2(gadgettest.LayoutFromYaml(c.MkDir(), gadgettest.UC16YAMLImplicitSystemData, nil))
+
 
 	// the volume cannot be found with no opts set
-	_, err = gadget.DiskTraitsFromDeviceAndValidate(lvol.Volume, "/dev/sda", nil)
+	_ = mylog.Check2(gadget.DiskTraitsFromDeviceAndValidate(lvol.Volume, "/dev/sda", nil))
 	c.Assert(err, ErrorMatches, `volume pc is not compatible with disk /dev/sda: cannot find disk partition /dev/sda3 \(starting at 54525952\) in gadget`)
 
 	// with opts for pc then it can be found
@@ -4831,8 +4858,8 @@ func (s *updateTestSuite) TestDiskTraitsFromDeviceAndValidateImplicitSystemDataH
 		AllowImplicitSystemData: true,
 	}
 
-	traits, err := gadget.DiskTraitsFromDeviceAndValidate(lvol.Volume, "/dev/sda", opts)
-	c.Assert(err, IsNil)
+	traits := mylog.Check2(gadget.DiskTraitsFromDeviceAndValidate(lvol.Volume, "/dev/sda", opts))
+
 
 	c.Assert(traits, DeepEquals, gadgettest.UC16ImplicitSystemDataDeviceTraits)
 }
@@ -4844,11 +4871,11 @@ func (s *updateTestSuite) TestDiskTraitsFromDeviceAndValidateImplicitSystemDataR
 	})
 	defer restore()
 
-	lvol, err := gadgettest.LayoutFromYaml(c.MkDir(), gadgettest.RaspiUC18SimplifiedYaml, nil)
-	c.Assert(err, IsNil)
+	lvol := mylog.Check2(gadgettest.LayoutFromYaml(c.MkDir(), gadgettest.RaspiUC18SimplifiedYaml, nil))
+
 
 	// the volume cannot be found with no opts set
-	_, err = gadget.DiskTraitsFromDeviceAndValidate(lvol.Volume, "/dev/mmcblk0", nil)
+	_ = mylog.Check2(gadget.DiskTraitsFromDeviceAndValidate(lvol.Volume, "/dev/mmcblk0", nil))
 	c.Assert(err.Error(), Equals, `volume pi is not compatible with disk /dev/mmcblk0: cannot find disk partition /dev/mmcblk0p2 (starting at 269484032) in gadget: disk partition "" offset 269484032 (257 MiB) is not in the valid gadget interval (min: 1048576 (1 MiB): max: 1048576 (1 MiB))`)
 
 	// with opts for pc then it can be found
@@ -4856,8 +4883,8 @@ func (s *updateTestSuite) TestDiskTraitsFromDeviceAndValidateImplicitSystemDataR
 		AllowImplicitSystemData: true,
 	}
 
-	traits, err := gadget.DiskTraitsFromDeviceAndValidate(lvol.Volume, "/dev/mmcblk0", opts)
-	c.Assert(err, IsNil)
+	traits := mylog.Check2(gadget.DiskTraitsFromDeviceAndValidate(lvol.Volume, "/dev/mmcblk0", opts))
+
 
 	c.Assert(traits, DeepEquals, gadgettest.ExpectedRaspiUC18DiskVolumeDeviceTraits)
 }
@@ -4890,8 +4917,8 @@ func (s *updateTestSuite) TestSearchForVolumeWithTraitsFails(c *C) {
 	})
 	defer r()
 
-	allVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.UC16YAMLImplicitSystemData, uc16Model)
-	c.Assert(err, IsNil)
+	allVolumes := mylog.Check2(gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.UC16YAMLImplicitSystemData, uc16Model))
+
 
 	laidOutVol := allVolumes["pc"]
 
@@ -4905,7 +4932,7 @@ func (s *updateTestSuite) TestSearchForVolumeWithTraitsFails(c *C) {
 		AllowImplicitSystemData: true,
 	}
 
-	_, _, err = gadget.SearchVolumeWithTraitsAndMatchParts(laidOutVol.Volume, gadgettest.UC16ImplicitSystemDataDeviceTraits, allowImplicitDataOpts)
+	_, _ = mylog.Check3(gadget.SearchVolumeWithTraitsAndMatchParts(laidOutVol.Volume, gadgettest.UC16ImplicitSystemDataDeviceTraits, allowImplicitDataOpts))
 	c.Assert(err, ErrorMatches, "cannot find physical disk laid out to map with volume pc")
 }
 
@@ -4960,8 +4987,8 @@ func testSearchForVolumeWithTraits(c *C,
 	})
 	defer r()
 
-	allVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgetYaml, model)
-	c.Assert(err, IsNil)
+	allVolumes := mylog.Check2(gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgetYaml, model))
+
 
 	laidOutVol := allVolumes[volName]
 
@@ -4971,8 +4998,8 @@ func testSearchForVolumeWithTraits(c *C,
 	})
 	defer r()
 
-	d, _, err := gadget.SearchVolumeWithTraitsAndMatchParts(laidOutVol.Volume, traits, validateOpts)
-	c.Assert(err, IsNil)
+	d, _ := mylog.Check3(gadget.SearchVolumeWithTraitsAndMatchParts(laidOutVol.Volume, traits, validateOpts))
+
 	c.Assert(d.Dev(), Equals, realMapping.DevNum)
 
 	// now make the device path change to something else
@@ -4984,8 +5011,8 @@ func testSearchForVolumeWithTraits(c *C,
 
 	// we still find it because we fall back on the device name from the traits
 	// (/dev/sda)
-	d2, _, err := gadget.SearchVolumeWithTraitsAndMatchParts(laidOutVol.Volume, traits, validateOpts)
-	c.Assert(err, IsNil)
+	d2, _ := mylog.Check3(gadget.SearchVolumeWithTraitsAndMatchParts(laidOutVol.Volume, traits, validateOpts))
+
 	c.Assert(d2.Dev(), Equals, realMapping.DevNum)
 
 	// now try the last fallback which is the disk ID
@@ -5002,12 +5029,12 @@ func testSearchForVolumeWithTraits(c *C,
 
 	// mock two disks in /sys/block
 	blockDir := filepath.Join(dirs.SysfsDir, "block")
-	err = os.MkdirAll(blockDir, 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(blockDir, 0755))
+
 	for _, f := range []string{"real", "other"} {
 		blockDevSym := filepath.Join(blockDir, f)
-		err := os.Symlink("something", blockDevSym)
-		c.Assert(err, IsNil)
+		mylog.Check(os.Symlink("something", blockDevSym))
+
 
 		switch f {
 		case "real":
@@ -5020,8 +5047,8 @@ func testSearchForVolumeWithTraits(c *C,
 	r = disks.MockDevicePathToDiskMapping(devicePathMapping)
 	defer r()
 
-	d3, _, err := gadget.SearchVolumeWithTraitsAndMatchParts(laidOutVol.Volume, traits, validateOpts)
-	c.Assert(err, IsNil)
+	d3, _ := mylog.Check3(gadget.SearchVolumeWithTraitsAndMatchParts(laidOutVol.Volume, traits, validateOpts))
+
 	c.Assert(d3.Dev(), Equals, realMapping.DevNum)
 }
 
@@ -5042,8 +5069,8 @@ volumes:
               - source: boot-assets/
                 target: /`, structureName)
 
-	lvol, err := gadgettest.LayoutFromYaml(c.MkDir(), gadgetYaml, nil)
-	c.Assert(err, IsNil)
+	lvol := mylog.Check2(gadgettest.LayoutFromYaml(c.MkDir(), gadgetYaml, nil))
+
 
 	old := gadget.GadgetData{
 		Info: &gadget.Info{
@@ -5063,13 +5090,13 @@ volumes:
 	for name, lov := range allLaidOutVolumes {
 		vols[name] = lov.Volume
 	}
-	_, err = gadget.BuildNewVolumeToDeviceMapping(uc16Model, old, vols)
+	_ = mylog.Check2(gadget.BuildNewVolumeToDeviceMapping(uc16Model, old, vols))
 	c.Assert(err, Equals, gadget.ErrSkipUpdateProceedRefresh)
 }
 
 func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingImplicitSystemDataUC16(c *C) {
-	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.UC16YAMLImplicitSystemData, uc16Model)
-	c.Assert(err, IsNil)
+	allLaidOutVolumes := mylog.Check2(gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.UC16YAMLImplicitSystemData, uc16Model))
+
 
 	old := gadget.GadgetData{
 		Info: &gadget.Info{
@@ -5080,15 +5107,16 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingImplicitSystemDataUC1
 	for volName, laidOutVol := range allLaidOutVolumes {
 		old.Info.Volumes[volName] = laidOutVol.Volume
 	}
+	mylog.
 
-	// setup symlink for the system-boot partition
-	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755)
-	c.Assert(err, IsNil)
+		// setup symlink for the system-boot partition
+		Check(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755))
+
 	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/sda1")
-	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("EFI System")))
-	c.Assert(err, IsNil)
-	err = os.WriteFile(fakedevicepart, nil, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("EFI System"))))
+
+	mylog.Check(os.WriteFile(fakedevicepart, nil, 0644))
+
 
 	// mock the partition device node to mock disk
 	restore := disks.MockPartitionDeviceNodeToDiskMapping(map[string]*disks.MockDiskMapping{
@@ -5106,8 +5134,8 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingImplicitSystemDataUC1
 	for name, lov := range allLaidOutVolumes {
 		vols[name] = lov.Volume
 	}
-	m, err := gadget.BuildNewVolumeToDeviceMapping(uc16Model, old, vols)
-	c.Assert(err, IsNil)
+	m := mylog.Check2(gadget.BuildNewVolumeToDeviceMapping(uc16Model, old, vols))
+
 
 	c.Assert(m, DeepEquals, map[string]gadget.DiskVolumeDeviceTraits{
 		"pc": gadgettest.UC16ImplicitSystemDataDeviceTraits,
@@ -5137,8 +5165,8 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingImplicitSystemBootSin
         size: 50M
 `
 
-	laidOutVolume, err := gadgettest.LayoutFromYaml(c.MkDir(), implicitSystemBootVolumeYAML, uc16Model)
-	c.Assert(err, IsNil)
+	laidOutVolume := mylog.Check2(gadgettest.LayoutFromYaml(c.MkDir(), implicitSystemBootVolumeYAML, uc16Model))
+
 
 	old := gadget.GadgetData{
 		Info: &gadget.Info{
@@ -5147,15 +5175,16 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingImplicitSystemBootSin
 			},
 		},
 	}
+	mylog.
 
-	// setup symlink for the system-boot partition
-	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755)
-	c.Assert(err, IsNil)
+		// setup symlink for the system-boot partition
+		Check(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755))
+
 	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/sda1")
-	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("EFI System")))
-	c.Assert(err, IsNil)
-	err = os.WriteFile(fakedevicepart, nil, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("EFI System"))))
+
+	mylog.Check(os.WriteFile(fakedevicepart, nil, 0644))
+
 
 	// mock the partition device node to mock disk
 	restore := disks.MockPartitionDeviceNodeToDiskMapping(map[string]*disks.MockDiskMapping{
@@ -5177,8 +5206,8 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingImplicitSystemBootSin
 	for name, lov := range allLaidOutVolumes {
 		vols[name] = lov.Volume
 	}
-	m, err := gadget.BuildNewVolumeToDeviceMapping(uc16Model, old, vols)
-	c.Assert(err, IsNil)
+	m := mylog.Check2(gadget.BuildNewVolumeToDeviceMapping(uc16Model, old, vols))
+
 
 	c.Assert(m, DeepEquals, map[string]gadget.DiskVolumeDeviceTraits{
 		"pc": gadgettest.UC16ImplicitSystemDataDeviceTraits,
@@ -5217,18 +5246,18 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingImplicitSystemBootMul
 
 	// need to manually lay out this YAML, the helpers don't work for
 	// multi-volume non-UC20 setups like this
-	gadgetRoot, err := gadgettest.WriteGadgetYaml(c.MkDir(), implicitSystemBootVolumeYAML)
-	c.Assert(err, IsNil)
+	gadgetRoot := mylog.Check2(gadgettest.WriteGadgetYaml(c.MkDir(), implicitSystemBootVolumeYAML))
 
-	info, err := gadget.ReadInfo(gadgetRoot, uc16Model)
-	c.Assert(err, IsNil)
+
+	info := mylog.Check2(gadget.ReadInfo(gadgetRoot, uc16Model))
+
 
 	allLaidOutVolumes := map[string]*gadget.LaidOutVolume{}
 
 	opts := &gadget.LayoutOptions{GadgetRootDir: gadgetRoot}
 	for volName, vol := range info.Volumes {
-		lvol, err := gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts)
-		c.Assert(err, IsNil)
+		lvol := mylog.Check2(gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts))
+
 		allLaidOutVolumes[volName] = lvol
 	}
 
@@ -5242,13 +5271,13 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingImplicitSystemBootMul
 	for name, lov := range allLaidOutVolumes {
 		vols[name] = lov.Volume
 	}
-	_, err = gadget.BuildNewVolumeToDeviceMapping(uc16Model, old, vols)
+	_ = mylog.Check2(gadget.BuildNewVolumeToDeviceMapping(uc16Model, old, vols))
 	c.Assert(err, Equals, gadget.ErrSkipUpdateProceedRefresh)
 }
 
 func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingPreUC20NonFatalError(c *C) {
-	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.UC16YAMLImplicitSystemData, uc16Model)
-	c.Assert(err, IsNil)
+	allLaidOutVolumes := mylog.Check2(gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.UC16YAMLImplicitSystemData, uc16Model))
+
 
 	old := gadget.GadgetData{
 		Info: &gadget.Info{
@@ -5267,11 +5296,11 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingPreUC20NonFatalError(
 	for name, lov := range allLaidOutVolumes {
 		vols[name] = lov.Volume
 	}
-	_, err = gadget.BuildNewVolumeToDeviceMapping(uc16Model, old, vols)
+	_ = mylog.Check2(gadget.BuildNewVolumeToDeviceMapping(uc16Model, old, vols))
 	c.Assert(err, Equals, gadget.ErrSkipUpdateProceedRefresh)
 
 	// it's a fatal error on UC20 though
-	_, err = gadget.BuildNewVolumeToDeviceMapping(uc20Model, old, vols)
+	_ = mylog.Check2(gadget.BuildNewVolumeToDeviceMapping(uc20Model, old, vols))
 	c.Assert(err, Not(Equals), gadget.ErrSkipUpdateProceedRefresh)
 }
 
@@ -5279,8 +5308,8 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingPreUC20CannotMap(c *C
 	mockLogBuf, restore := logger.MockLogger()
 	defer restore()
 
-	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.UC16YAMLImplicitSystemData, uc16Model)
-	c.Assert(err, IsNil)
+	allLaidOutVolumes := mylog.Check2(gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.UC16YAMLImplicitSystemData, uc16Model))
+
 
 	old := gadget.GadgetData{
 		Info: &gadget.Info{
@@ -5291,15 +5320,16 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingPreUC20CannotMap(c *C
 	for volName, laidOutVol := range allLaidOutVolumes {
 		old.Info.Volumes[volName] = laidOutVol.Volume
 	}
+	mylog.
 
-	// setup symlink for the system-boot partition
-	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755)
-	c.Assert(err, IsNil)
+		// setup symlink for the system-boot partition
+		Check(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755))
+
 	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/vda1")
-	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("EFI System")))
-	c.Assert(err, IsNil)
-	err = os.WriteFile(fakedevicepart, nil, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("EFI System"))))
+
+	mylog.Check(os.WriteFile(fakedevicepart, nil, 0644))
+
 
 	// mock the partition device node to mock disk
 	restore = disks.MockPartitionDeviceNodeToDiskMapping(map[string]*disks.MockDiskMapping{
@@ -5320,18 +5350,18 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingPreUC20CannotMap(c *C
 
 	// The call will fail as it won't find a match between /dev/vda2 and
 	// any partition defined in the gadget. But it is ok for UC16/18.
-	_, err = gadget.BuildNewVolumeToDeviceMapping(uc16Model, old, vols)
+	_ = mylog.Check2(gadget.BuildNewVolumeToDeviceMapping(uc16Model, old, vols))
 	c.Assert(err, Equals, gadget.ErrSkipUpdateProceedRefresh)
 	c.Assert(mockLogBuf.String(), testutil.Contains, "WARNING: not applying gadget asset updates on main system-boot volume due to error while finding disk traits")
 
 	// it's a fatal error on UC20 though
-	_, err = gadget.BuildNewVolumeToDeviceMapping(uc20Model, old, vols)
+	_ = mylog.Check2(gadget.BuildNewVolumeToDeviceMapping(uc20Model, old, vols))
 	c.Assert(err, Not(Equals), gadget.ErrSkipUpdateProceedRefresh)
 }
 
 func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingUC20MultiVolume(c *C) {
-	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.MultiVolumeUC20GadgetYaml, uc20Model)
-	c.Assert(err, IsNil)
+	allLaidOutVolumes := mylog.Check2(gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.MultiVolumeUC20GadgetYaml, uc20Model))
+
 
 	old := gadget.GadgetData{
 		Info: &gadget.Info{
@@ -5342,15 +5372,16 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingUC20MultiVolume(c *C)
 	for volName, laidOutVol := range allLaidOutVolumes {
 		old.Info.Volumes[volName] = laidOutVol.Volume
 	}
+	mylog.
 
-	// setup symlink for the ubuntu-seed partition
-	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755)
-	c.Assert(err, IsNil)
+		// setup symlink for the ubuntu-seed partition
+		Check(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755))
+
 	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/vda1")
-	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("ubuntu-seed")))
-	c.Assert(err, IsNil)
-	err = os.WriteFile(fakedevicepart, nil, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("ubuntu-seed"))))
+
+	mylog.Check(os.WriteFile(fakedevicepart, nil, 0644))
+
 
 	// mock the partition device node to mock disk
 	restore := disks.MockPartitionDeviceNodeToDiskMapping(map[string]*disks.MockDiskMapping{
@@ -5368,8 +5399,8 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingUC20MultiVolume(c *C)
 	for name, lov := range allLaidOutVolumes {
 		vols[name] = lov.Volume
 	}
-	m, err := gadget.BuildNewVolumeToDeviceMapping(uc20Model, old, vols)
-	c.Assert(err, IsNil)
+	m := mylog.Check2(gadget.BuildNewVolumeToDeviceMapping(uc20Model, old, vols))
+
 
 	c.Assert(m, DeepEquals, map[string]gadget.DiskVolumeDeviceTraits{
 		"pc": gadgettest.VMSystemVolumeDeviceTraits,
@@ -5377,8 +5408,8 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingUC20MultiVolume(c *C)
 }
 
 func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingUC20Encryption(c *C) {
-	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.RaspiSimplifiedYaml, uc20Model)
-	c.Assert(err, IsNil)
+	allLaidOutVolumes := mylog.Check2(gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.RaspiSimplifiedYaml, uc20Model))
+
 
 	old := gadget.GadgetData{
 		Info: &gadget.Info{
@@ -5389,15 +5420,16 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingUC20Encryption(c *C) 
 	for volName, laidOutVol := range allLaidOutVolumes {
 		old.Info.Volumes[volName] = laidOutVol.Volume
 	}
+	mylog.
 
-	// setup symlink for the ubuntu-seed partition
-	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755)
-	c.Assert(err, IsNil)
+		// setup symlink for the ubuntu-seed partition
+		Check(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755))
+
 	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/mmcblk0p1")
-	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("ubuntu-seed")))
-	c.Assert(err, IsNil)
-	err = os.WriteFile(fakedevicepart, nil, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("ubuntu-seed"))))
+
+	mylog.Check(os.WriteFile(fakedevicepart, nil, 0644))
+
 
 	// mock the partition device node to mock disk
 	restore := disks.MockPartitionDeviceNodeToDiskMapping(map[string]*disks.MockDiskMapping{
@@ -5413,18 +5445,17 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingUC20Encryption(c *C) 
 
 	// write an encryption marker
 	markerFile := filepath.Join(dirs.SnapFDEDir, "marker")
-	err = os.MkdirAll(filepath.Dir(markerFile), 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Dir(markerFile), 0755))
 
-	err = os.WriteFile(markerFile, nil, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(markerFile, nil, 0644))
+
 
 	vols := map[string]*gadget.Volume{}
 	for name, lov := range allLaidOutVolumes {
 		vols[name] = lov.Volume
 	}
-	m, err := gadget.BuildNewVolumeToDeviceMapping(uc20Model, old, vols)
-	c.Assert(err, IsNil)
+	m := mylog.Check2(gadget.BuildNewVolumeToDeviceMapping(uc20Model, old, vols))
+
 
 	c.Assert(m, DeepEquals, map[string]gadget.DiskVolumeDeviceTraits{
 		"pi": gadgettest.ExpectedLUKSEncryptedRaspiDiskVolumeDeviceTraits,
@@ -5722,8 +5753,8 @@ func (s *updateTestSuite) testBuildVolumeStructureToLocation(c *C,
 	for name, lov := range allLaidOutVolumes {
 		vols[name] = lov.Volume
 	}
-	structureMap, _, err := gadget.BuildVolumeStructureToLocation(model, old, vols, traits, missingInitialMappingNo)
-	c.Assert(err, IsNil)
+	structureMap, _ := mylog.Check3(gadget.BuildVolumeStructureToLocation(model, old, vols, traits, missingInitialMappingNo))
+
 	c.Assert(structureMap, DeepEquals, expMapping)
 }
 
@@ -5734,8 +5765,8 @@ func (s *updateTestSuite) setupForVolumeStructureToLocation(c *C,
 	volMappings map[string]*disks.MockDiskMapping,
 	expMapping map[string]map[int]gadget.StructureLocation,
 ) (gadget.GadgetData, map[string]*gadget.LaidOutVolume) {
-	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", yaml, model)
-	c.Assert(err, IsNil)
+	allLaidOutVolumes := mylog.Check2(gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", yaml, model))
+
 
 	old := gadget.GadgetData{
 		Info: &gadget.Info{
@@ -5751,24 +5782,25 @@ func (s *updateTestSuite) setupForVolumeStructureToLocation(c *C,
 
 	// mock two disks in /sys/block
 	blockDir := filepath.Join(dirs.SysfsDir, "block")
-	err = os.MkdirAll(blockDir, 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(blockDir, 0755))
+
 	for volName := range allLaidOutVolumes {
 		blockDevSym := filepath.Join(blockDir, volName)
-		err := os.Symlink("something", blockDevSym)
-		c.Assert(err, IsNil)
+		mylog.Check(os.Symlink("something", blockDevSym))
+
 
 		devicePathMapping[blockDevSym] = volMappings[volName]
 	}
 
 	restore := disks.MockDevicePathToDiskMapping(devicePathMapping)
 	s.AddCleanup(restore)
+	mylog.
 
-	// setup symlinks in /dev
-	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755)
-	c.Assert(err, IsNil)
-	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label"), 0755)
-	c.Assert(err, IsNil)
+		// setup symlinks in /dev
+		Check(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755))
+
+	mylog.Check(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label"), 0755))
+
 
 	partDeviceNodeMappings := map[string]*disks.MockDiskMapping{}
 	diskDeviceNodeMappings := map[string]*disks.MockDiskMapping{}
@@ -5789,16 +5821,16 @@ func (s *updateTestSuite) setupForVolumeStructureToLocation(c *C,
 		switch traits[volName].Schema {
 		case "gpt":
 			fakedevicepart := filepath.Join(dirs.GlobalRootDir, firstPartDev)
-			err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", partlabel))
-			c.Assert(err, IsNil)
-			err = os.WriteFile(fakedevicepart, nil, 0644)
-			c.Assert(err, IsNil)
+			mylog.Check(os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", partlabel)))
+
+			mylog.Check(os.WriteFile(fakedevicepart, nil, 0644))
+
 		case "dos":
 			fakedevicepart := filepath.Join(dirs.GlobalRootDir, firstPartDev)
-			err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label", fslabel))
-			c.Assert(err, IsNil)
-			err = os.WriteFile(fakedevicepart, nil, 0644)
-			c.Assert(err, IsNil)
+			mylog.Check(os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label", fslabel)))
+
+			mylog.Check(os.WriteFile(fakedevicepart, nil, 0644))
+
 		default:
 			panic(fmt.Sprintf("unexpected schema %s", traits[volName].Schema))
 		}
@@ -5827,25 +5859,26 @@ func (s *updateTestSuite) testVolumeStructureToLocationMap(c *C,
 	volMappings map[string]*disks.MockDiskMapping,
 	expMapping map[string]map[int]gadget.StructureLocation,
 ) {
-	err := os.MkdirAll(dirs.SnapDeviceDir, 0755)
-	c.Assert(err, IsNil)
-	// write out the provided traits JSON so we can at least load the traits for
-	// mocking via setupForVolumeStructureToLocation
-	err = os.WriteFile(
-		filepath.Join(dirs.SnapDeviceDir, "disk-mapping.json"),
-		[]byte(traitsJSON),
-		0644,
-	)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(dirs.SnapDeviceDir, 0755))
 
-	traits, err := gadget.LoadDiskVolumesDeviceTraits(dirs.SnapDeviceDir)
-	c.Assert(err, IsNil)
+	mylog.
+		// write out the provided traits JSON so we can at least load the traits for
+		// mocking via setupForVolumeStructureToLocation
+		Check(os.WriteFile(
+			filepath.Join(dirs.SnapDeviceDir, "disk-mapping.json"),
+			[]byte(traitsJSON),
+			0644,
+		))
+
+
+	traits := mylog.Check2(gadget.LoadDiskVolumesDeviceTraits(dirs.SnapDeviceDir))
+
 
 	// if we aren't meant to have the traits written to disk for the test delete
 	// it
 	if !withTraits {
-		err := os.Remove(filepath.Join(dirs.SnapDeviceDir, "disk-mapping.json"))
-		c.Assert(err, IsNil)
+		mylog.Check(os.Remove(filepath.Join(dirs.SnapDeviceDir, "disk-mapping.json")))
+
 	}
 
 	old, allLaidOutVolumes := s.setupForVolumeStructureToLocation(c, model,
@@ -5859,8 +5892,8 @@ func (s *updateTestSuite) testVolumeStructureToLocationMap(c *C,
 	for name, lov := range allLaidOutVolumes {
 		vols[name] = lov.Volume
 	}
-	structureMap, _, err := gadget.VolumeStructureToLocationMap(old, model, vols)
-	c.Assert(err, IsNil)
+	structureMap, _ := mylog.Check3(gadget.VolumeStructureToLocationMap(old, model, vols))
+
 	c.Assert(structureMap, DeepEquals, expMapping)
 }
 

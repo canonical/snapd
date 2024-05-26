@@ -31,6 +31,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/boot"
@@ -152,7 +153,7 @@ var uc20gadgetYamlWithSave = uc20gadgetYaml + `
 `
 
 func unpackSnap(snapBlob, targetDir string) error {
-	if out, err := exec.Command("unsquashfs", "-d", targetDir, "-f", snapBlob).CombinedOutput(); err != nil {
+	if out := mylog.Check2(exec.Command("unsquashfs", "-d", targetDir, "-f", snapBlob).CombinedOutput()); err != nil {
 		return fmt.Errorf("cannot unsquashfs: %v", osutil.OutputErr(out, err))
 	}
 	return nil
@@ -170,11 +171,11 @@ func (s *installSuite) mountedGadget(c *C) (gadgetInfo *gadget.Info, gadgetDir s
 	s.MakeAssertedSnap(c, "name: pc\nversion: 1.0\ntype: gadget\nbase: core20", files, snap.R(1), "canonical", s.StoreSigning.Database)
 
 	gadgetDir = c.MkDir()
-	err := unpackSnap(s.AssertedSnap("pc"), gadgetDir)
-	c.Assert(err, IsNil)
+	mylog.Check(unpackSnap(s.AssertedSnap("pc"), gadgetDir))
 
-	gadgetInfo, err = gadget.ReadInfo(gadgetDir, nil)
-	c.Assert(err, IsNil)
+
+	gadgetInfo = mylog.Check2(gadget.ReadInfo(gadgetDir, nil))
+
 	return gadgetInfo, gadgetDir
 }
 
@@ -196,7 +197,9 @@ func (s *installSuite) mockModel(override map[string]interface{}) *asserts.Model
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
-			}}}
+			},
+		},
+	}
 	for n, v := range override {
 		m[n] = v
 	}
@@ -208,7 +211,7 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 
 	gadgetInfo, _ := s.mountedGadget(c)
 
-	var testCases = []struct {
+	testCases := []struct {
 		grade, storageSafety string
 		tpmErr               error
 
@@ -221,7 +224,8 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 				StorageSafety: asserts.StorageSafetyPreferEncrypted,
 				Type:          secboot.EncryptionTypeLUKS,
 			},
-		}, {
+		},
+		{
 			"dangerous", "", fmt.Errorf("no tpm"),
 			install.EncryptionSupportInfo{
 				Available: false, Disabled: false,
@@ -229,14 +233,16 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 				Type:               secboot.EncryptionTypeNone,
 				UnavailableWarning: "not encrypting device storage as checking TPM gave: no tpm",
 			},
-		}, {
+		},
+		{
 			"dangerous", "encrypted", nil,
 			install.EncryptionSupportInfo{
 				Available: true, Disabled: false,
 				StorageSafety: asserts.StorageSafetyEncrypted,
 				Type:          secboot.EncryptionTypeLUKS,
 			},
-		}, {
+		},
+		{
 			"dangerous", "encrypted", fmt.Errorf("no tpm"),
 			install.EncryptionSupportInfo{
 				Available: false, Disabled: false,
@@ -261,7 +267,8 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 				StorageSafety: asserts.StorageSafetyPreferEncrypted,
 				Type:          secboot.EncryptionTypeLUKS,
 			},
-		}, {
+		},
+		{
 			"signed", "", fmt.Errorf("no tpm"),
 			install.EncryptionSupportInfo{
 				Available: false, Disabled: false,
@@ -269,14 +276,16 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 				Type:               secboot.EncryptionTypeNone,
 				UnavailableWarning: "not encrypting device storage as checking TPM gave: no tpm",
 			},
-		}, {
+		},
+		{
 			"signed", "encrypted", nil,
 			install.EncryptionSupportInfo{
 				Available: true, Disabled: false,
 				StorageSafety: asserts.StorageSafetyEncrypted,
 				Type:          secboot.EncryptionTypeLUKS,
 			},
-		}, {
+		},
+		{
 			"signed", "prefer-unencrypted", nil,
 			install.EncryptionSupportInfo{
 				Available: true, Disabled: false,
@@ -284,7 +293,8 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 				// Note that encryption type is set to what is available
 				Type: secboot.EncryptionTypeLUKS,
 			},
-		}, {
+		},
+		{
 			"signed", "encrypted", fmt.Errorf("no tpm"),
 			install.EncryptionSupportInfo{
 				Available: false, Disabled: false,
@@ -292,14 +302,16 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 				Type:           secboot.EncryptionTypeNone,
 				UnavailableErr: fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: no tpm"),
 			},
-		}, {
+		},
+		{
 			"secured", "encrypted", nil,
 			install.EncryptionSupportInfo{
 				Available: true, Disabled: false,
 				StorageSafety: asserts.StorageSafetyEncrypted,
 				Type:          secboot.EncryptionTypeLUKS,
 			},
-		}, {
+		},
+		{
 			"secured", "encrypted", fmt.Errorf("no tpm"),
 			install.EncryptionSupportInfo{
 				Available: false, Disabled: false,
@@ -307,14 +319,16 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 				Type:           secboot.EncryptionTypeNone,
 				UnavailableErr: fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: no tpm"),
 			},
-		}, {
+		},
+		{
 			"secured", "", nil,
 			install.EncryptionSupportInfo{
 				Available: true, Disabled: false,
 				StorageSafety: asserts.StorageSafetyEncrypted,
 				Type:          secboot.EncryptionTypeLUKS,
 			},
-		}, {
+		},
+		{
 			"secured", "", fmt.Errorf("no tpm"),
 			install.EncryptionSupportInfo{
 				Available: false, Disabled: false,
@@ -333,8 +347,8 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 			"storage-safety": tc.storageSafety,
 		})
 
-		res, err := install.GetEncryptionSupportInfo(mockModel, secboot.TPMProvisionFull, kernelInfo, gadgetInfo, nil)
-		c.Assert(err, IsNil)
+		res := mylog.Check2(install.GetEncryptionSupportInfo(mockModel, secboot.TPMProvisionFull, kernelInfo, gadgetInfo, nil))
+
 		c.Check(res, DeepEquals, tc.expected, Commentf("%v", tc))
 	}
 }
@@ -344,7 +358,7 @@ func (s *installSuite) TestEncryptionSupportInfoForceUnencrypted(c *C) {
 
 	gadgetInfo, _ := s.mountedGadget(c)
 
-	var testCases = []struct {
+	testCases := []struct {
 		grade, storageSafety, forceUnencrypted string
 		tpmErr                                 error
 
@@ -445,14 +459,14 @@ func (s *installSuite) TestEncryptionSupportInfoForceUnencrypted(c *C) {
 		if tc.forceUnencrypted == "" {
 			os.Remove(forceUnencryptedPath)
 		} else {
-			err := os.MkdirAll(filepath.Dir(forceUnencryptedPath), 0755)
-			c.Assert(err, IsNil)
-			err = os.WriteFile(forceUnencryptedPath, nil, 0644)
-			c.Assert(err, IsNil)
+			mylog.Check(os.MkdirAll(filepath.Dir(forceUnencryptedPath), 0755))
+
+			mylog.Check(os.WriteFile(forceUnencryptedPath, nil, 0644))
+
 		}
 
-		res, err := install.GetEncryptionSupportInfo(mockModel, secboot.TPMProvisionFull, kernelInfo, gadgetInfo, nil)
-		c.Assert(err, IsNil)
+		res := mylog.Check2(install.GetEncryptionSupportInfo(mockModel, secboot.TPMProvisionFull, kernelInfo, gadgetInfo, nil))
+
 		c.Check(res, DeepEquals, tc.expected, Commentf("%v", tc))
 	}
 }
@@ -492,7 +506,7 @@ func (s *installSuite) TestEncryptionSupportInfoGadgetIncompatibleWithEncryption
 
 	kernelInfo := s.kernelSnap(c, "pc-kernel=20")
 
-	var testCases = []struct {
+	testCases := []struct {
 		grade, storageSafety string
 		gadgetInfo           *gadget.Info
 
@@ -567,8 +581,8 @@ func (s *installSuite) TestEncryptionSupportInfoGadgetIncompatibleWithEncryption
 			"storage-safety": tc.storageSafety,
 		})
 
-		res, err := install.GetEncryptionSupportInfo(mockModel, secboot.TPMProvisionFull, kernelInfo, tc.gadgetInfo, nil)
-		c.Assert(err, IsNil)
+		res := mylog.Check2(install.GetEncryptionSupportInfo(mockModel, secboot.TPMProvisionFull, kernelInfo, tc.gadgetInfo, nil))
+
 		c.Check(res, DeepEquals, tc.expected, Commentf("%v", tc))
 	}
 }
@@ -602,7 +616,7 @@ func (s *installSuite) TestInstallCheckEncryptedFDEHook(c *C) {
 			return []byte(tc.hookOutput), nil
 		}
 
-		et, err := install.CheckFDEFeatures(runFDESetup)
+		et := mylog.Check2(install.CheckFDEFeatures(runFDESetup))
 		if tc.expectedErr != "" {
 			c.Check(err, ErrorMatches, tc.expectedErr, Commentf("%v", tc))
 		} else {
@@ -639,8 +653,8 @@ func (s *installSuite) TestInstallCheckEncryptionSupportTPM(c *C) {
 		})
 		defer restore()
 
-		encryptionType, err := install.CheckEncryptionSupport(mockModel, secboot.TPMProvisionFull, kernelInfo, gadgetInfo, nil)
-		c.Assert(err, IsNil)
+		encryptionType := mylog.Check2(install.CheckEncryptionSupport(mockModel, secboot.TPMProvisionFull, kernelInfo, gadgetInfo, nil))
+
 		c.Check(encryptionType, Equals, tc.encryptionType, Commentf("%v", tc))
 		if !tc.hasTPM {
 			c.Check(logbuf.String(), Matches, ".*: not encrypting device storage as checking TPM gave: tpm says no\n")
@@ -680,8 +694,8 @@ func (s *installSuite) TestInstallCheckEncryptionSupportHook(c *C) {
 		})
 		defer restore()
 
-		encryptionType, err := install.CheckEncryptionSupport(mockModel, secboot.TPMProvisionFull, kernelInfo, gadgetInfo, runFDESetup)
-		c.Assert(err, IsNil)
+		encryptionType := mylog.Check2(install.CheckEncryptionSupport(mockModel, secboot.TPMProvisionFull, kernelInfo, gadgetInfo, runFDESetup))
+
 		c.Check(encryptionType, Equals, tc.encryptionType, Commentf("%v", tc))
 		if !tc.hasTPM {
 			c.Check(logbuf.String(), Equals, "")
@@ -698,7 +712,7 @@ func (s *installSuite) TestInstallCheckEncryptionSupportStorageSafety(c *C) {
 	restore := install.MockSecbootCheckTPMKeySealingSupported(func(secboot.TPMProvisionMode) error { return nil })
 	defer restore()
 
-	var testCases = []struct {
+	testCases := []struct {
 		grade, storageSafety string
 
 		expectedEncryption bool
@@ -721,8 +735,8 @@ func (s *installSuite) TestInstallCheckEncryptionSupportStorageSafety(c *C) {
 			"storage-safety": tc.storageSafety,
 		})
 
-		encryptionType, err := install.CheckEncryptionSupport(mockModel, secboot.TPMProvisionFull, kernelInfo, gadgetInfo, nil)
-		c.Assert(err, IsNil)
+		encryptionType := mylog.Check2(install.CheckEncryptionSupport(mockModel, secboot.TPMProvisionFull, kernelInfo, gadgetInfo, nil))
+
 		encrypt := (encryptionType != secboot.EncryptionTypeNone)
 		c.Check(encrypt, Equals, tc.expectedEncryption, Commentf("%v", tc))
 	}
@@ -736,7 +750,7 @@ func (s *installSuite) TestInstallCheckEncryptionSupportErrors(c *C) {
 	restore := install.MockSecbootCheckTPMKeySealingSupported(func(secboot.TPMProvisionMode) error { return fmt.Errorf("tpm says no") })
 	defer restore()
 
-	var testCases = []struct {
+	testCases := []struct {
 		grade, storageSafety string
 
 		expectedErr string
@@ -763,7 +777,7 @@ func (s *installSuite) TestInstallCheckEncryptionSupportErrors(c *C) {
 			"storage-safety": tc.storageSafety,
 		})
 
-		_, err := install.CheckEncryptionSupport(mockModel, secboot.TPMProvisionFull, kernelInfo, gadgetInfo, nil)
+		_ := mylog.Check2(install.CheckEncryptionSupport(mockModel, secboot.TPMProvisionFull, kernelInfo, gadgetInfo, nil))
 		c.Check(err, ErrorMatches, tc.expectedErr, Commentf("%s %s", tc.grade, tc.storageSafety))
 	}
 }
@@ -783,7 +797,7 @@ func (s *installSuite) TestInstallCheckEncryptionSupportErrorsLogsTPM(c *C) {
 
 	mockModel := s.mockModel(nil)
 
-	_, err := install.CheckEncryptionSupport(mockModel, secboot.TPMProvisionFull, kernelInfo, gadgetInfo, nil)
+	_ := mylog.Check2(install.CheckEncryptionSupport(mockModel, secboot.TPMProvisionFull, kernelInfo, gadgetInfo, nil))
 	c.Check(err, IsNil)
 	c.Check(logbuf.String(), Matches, "(?s).*: not encrypting device storage as checking TPM gave: tpm says no\n")
 }
@@ -802,7 +816,7 @@ func (s *installSuite) TestInstallCheckEncryptionSupportErrorsLogsHook(c *C) {
 
 	mockModel := s.mockModel(nil)
 
-	_, err := install.CheckEncryptionSupport(mockModel, secboot.TPMProvisionFull, kernelInfo, gadgetInfo, runFDESetup)
+	_ := mylog.Check2(install.CheckEncryptionSupport(mockModel, secboot.TPMProvisionFull, kernelInfo, gadgetInfo, runFDESetup))
 	c.Check(err, IsNil)
 	c.Check(logbuf.String(), Matches, "(?s).*: not encrypting device storage as querying kernel fde-setup hook did not succeed:.*\n")
 }
@@ -820,11 +834,10 @@ func (s *installSuite) mockBootloader(c *C, trustedAssets bool, managedAssets bo
 		}
 		bootloader.Force(tab)
 		s.AddCleanup(func() { bootloader.Force(nil) })
+		mylog.Check(os.MkdirAll(boot.InitramfsUbuntuSeedDir, 0755))
 
-		err := os.MkdirAll(boot.InitramfsUbuntuSeedDir, 0755)
-		c.Assert(err, IsNil)
-		err = os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "trusted-asset"), nil, 0644)
-		c.Assert(err, IsNil)
+		mylog.Check(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "trusted-asset"), nil, 0644))
+
 	} else {
 		bl := bootloadertest.Mock("mock", bootloaderRootdir)
 		bootloader.Force(bl)
@@ -854,8 +867,8 @@ func (s *installSuite) TestBuildInstallObserver(c *C) {
 	for _, tc := range cases {
 		s.mockBootloader(c, tc.trustedAssets, tc.managedAssets)
 
-		co, to, err := install.BuildInstallObserver(mockModel, gadgetDir, tc.useEncryption)
-		c.Assert(err, IsNil)
+		co, to := mylog.Check3(install.BuildInstallObserver(mockModel, gadgetDir, tc.useEncryption))
+
 		tcComm := Commentf("%#v", tc)
 		if tc.observer {
 			c.Check(co, NotNil, tcComm)
@@ -885,39 +898,38 @@ func (s *installSuite) TestPrepareEncryptedSystemData(c *C) {
 	s.mockBootloader(c, trustedAssets, false)
 
 	useEncryption := true
-	_, to, err := install.BuildInstallObserver(mockModel, gadgetDir, useEncryption)
-	c.Assert(err, IsNil)
+	_, to := mylog.Check3(install.BuildInstallObserver(mockModel, gadgetDir, useEncryption))
+
 	c.Assert(to, NotNil)
 
 	keyForRole := map[string]keys.EncryptionKey{
 		gadget.SystemData: dataEncryptionKey,
 		gadget.SystemSave: saveKey,
 	}
-	err = install.PrepareEncryptedSystemData(mockModel, keyForRole, to)
-	c.Assert(err, IsNil)
+	mylog.Check(install.PrepareEncryptedSystemData(mockModel, keyForRole, to))
+
 
 	c.Check(filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "ubuntu-save.key"), testutil.FileEquals, []byte(saveKey))
-	marker, err := os.ReadFile(filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "marker"))
-	c.Assert(err, IsNil)
+	marker := mylog.Check2(os.ReadFile(filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "marker")))
+
 	c.Check(marker, HasLen, 32)
 	c.Check(filepath.Join(boot.InstallHostFDESaveDir, "marker"), testutil.FileEquals, marker)
 
 	// the assets cache was written to
-	l, err := os.ReadDir(filepath.Join(dirs.SnapBootAssetsDir, "trusted"))
-	c.Assert(err, IsNil)
+	l := mylog.Check2(os.ReadDir(filepath.Join(dirs.SnapBootAssetsDir, "trusted")))
+
 	c.Assert(l, HasLen, 1)
 }
 
 func (s *installSuite) TestPrepareRunSystemDataWritesModel(c *C) {
 	_, gadgetDir := s.mountedGadget(c)
 	mockModel := s.mockModel(nil)
+	mylog.Check(install.PrepareRunSystemData(mockModel, gadgetDir, s.perfTimings))
 
-	err := install.PrepareRunSystemData(mockModel, gadgetDir, s.perfTimings)
-	c.Assert(err, IsNil)
 
 	var buf bytes.Buffer
-	err = asserts.NewEncoder(&buf).Encode(mockModel)
-	c.Assert(err, IsNil)
+	mylog.Check(asserts.NewEncoder(&buf).Encode(mockModel))
+
 
 	c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"), testutil.FileEquals, buf.String())
 }
@@ -925,9 +937,8 @@ func (s *installSuite) TestPrepareRunSystemDataWritesModel(c *C) {
 func (s *installSuite) TestPrepareRunSystemDataRunsSysconfig(c *C) {
 	_, gadgetDir := s.mountedGadget(c)
 	mockModel := s.mockModel(nil)
+	mylog.Check(install.PrepareRunSystemData(mockModel, gadgetDir, s.perfTimings))
 
-	err := install.PrepareRunSystemData(mockModel, gadgetDir, s.perfTimings)
-	c.Assert(err, IsNil)
 
 	// and sysconfig.ConfigureTargetSystem was run exactly once
 	c.Assert(s.configureTargetSystemOptsPassed, DeepEquals, []*sysconfig.Options{
@@ -950,8 +961,7 @@ func (s *installSuite) TestPrepareRunSystemDataRunSysconfigErr(c *C) {
 	mockModel := s.mockModel(nil)
 
 	s.configureTargetSystemErr = fmt.Errorf("error from sysconfig.ConfigureTargetSystem")
-
-	err := install.PrepareRunSystemData(mockModel, gadgetDir, s.perfTimings)
+	mylog.Check(install.PrepareRunSystemData(mockModel, gadgetDir, s.perfTimings))
 	c.Check(err, ErrorMatches, `error from sysconfig.ConfigureTargetSystem`)
 	// and sysconfig.ConfigureTargetSystem was run exactly once
 	c.Assert(s.configureTargetSystemOptsPassed, DeepEquals, []*sysconfig.Options{
@@ -966,18 +976,17 @@ func (s *installSuite) TestPrepareRunSystemDataRunSysconfigErr(c *C) {
 func (s *installSuite) TestPrepareRunSystemDataSupportsCloudInitInDangerous(c *C) {
 	// pretend we have a cloud-init config on the seed partition
 	cloudCfg := filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d")
-	err := os.MkdirAll(cloudCfg, 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(cloudCfg, 0755))
+
 	for _, mockCfg := range []string{"foo.cfg", "bar.cfg"} {
-		err = os.WriteFile(filepath.Join(cloudCfg, mockCfg), []byte(fmt.Sprintf("%s config", mockCfg)), 0644)
-		c.Assert(err, IsNil)
+		mylog.Check(os.WriteFile(filepath.Join(cloudCfg, mockCfg), []byte(fmt.Sprintf("%s config", mockCfg)), 0644))
+
 	}
 
 	_, gadgetDir := s.mountedGadget(c)
 	mockModel := s.mockModel(nil)
+	mylog.Check(install.PrepareRunSystemData(mockModel, gadgetDir, s.perfTimings))
 
-	err = install.PrepareRunSystemData(mockModel, gadgetDir, s.perfTimings)
-	c.Assert(err, IsNil)
 
 	// and did tell sysconfig about the cloud-init files
 	c.Assert(s.configureTargetSystemOptsPassed, DeepEquals, []*sysconfig.Options{
@@ -993,24 +1002,24 @@ func (s *installSuite) TestPrepareRunSystemDataSupportsCloudInitInDangerous(c *C
 func (s *installSuite) TestPrepareRunSystemDataSupportsCloudInitGadgetAndSeedConfigSigned(c *C) {
 	// pretend we have a cloud-init config on the seed partition
 	cloudCfg := filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d")
-	err := os.MkdirAll(cloudCfg, 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(cloudCfg, 0755))
+
 	for _, mockCfg := range []string{"foo.cfg", "bar.cfg"} {
-		err = os.WriteFile(filepath.Join(cloudCfg, mockCfg), []byte(fmt.Sprintf("%s config", mockCfg)), 0644)
-		c.Assert(err, IsNil)
+		mylog.Check(os.WriteFile(filepath.Join(cloudCfg, mockCfg), []byte(fmt.Sprintf("%s config", mockCfg)), 0644))
+
 	}
 
 	_, gadgetDir := s.mountedGadget(c)
 	mockModel := s.mockModel(map[string]interface{}{
 		"grade": "signed",
 	})
+	mylog.
 
-	// we also have gadget cloud init too
-	err = os.WriteFile(filepath.Join(gadgetDir, "cloud.conf"), nil, 0644)
-	c.Assert(err, IsNil)
+		// we also have gadget cloud init too
+		Check(os.WriteFile(filepath.Join(gadgetDir, "cloud.conf"), nil, 0644))
 
-	err = install.PrepareRunSystemData(mockModel, gadgetDir, s.perfTimings)
-	c.Assert(err, IsNil)
+	mylog.Check(install.PrepareRunSystemData(mockModel, gadgetDir, s.perfTimings))
+
 
 	// sysconfig is told about both configs
 	c.Assert(s.configureTargetSystemOptsPassed, DeepEquals, []*sysconfig.Options{
@@ -1026,22 +1035,22 @@ func (s *installSuite) TestPrepareRunSystemDataSupportsCloudInitGadgetAndSeedCon
 func (s *installSuite) TestPrepareRunSystemDataSupportsCloudInitBothGadgetAndUbuntuSeedDangerous(c *C) {
 	// pretend we have a cloud-init config on the seed partition
 	cloudCfg := filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d")
-	err := os.MkdirAll(cloudCfg, 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(cloudCfg, 0755))
+
 	for _, mockCfg := range []string{"foo.cfg", "bar.cfg"} {
-		err = os.WriteFile(filepath.Join(cloudCfg, mockCfg), []byte(fmt.Sprintf("%s config", mockCfg)), 0644)
-		c.Assert(err, IsNil)
+		mylog.Check(os.WriteFile(filepath.Join(cloudCfg, mockCfg), []byte(fmt.Sprintf("%s config", mockCfg)), 0644))
+
 	}
 
 	_, gadgetDir := s.mountedGadget(c)
 	mockModel := s.mockModel(nil)
+	mylog.
 
-	// we also have gadget cloud init too
-	err = os.WriteFile(filepath.Join(gadgetDir, "cloud.conf"), nil, 0644)
-	c.Assert(err, IsNil)
+		// we also have gadget cloud init too
+		Check(os.WriteFile(filepath.Join(gadgetDir, "cloud.conf"), nil, 0644))
 
-	err = install.PrepareRunSystemData(mockModel, gadgetDir, s.perfTimings)
-	c.Assert(err, IsNil)
+	mylog.Check(install.PrepareRunSystemData(mockModel, gadgetDir, s.perfTimings))
+
 
 	// and did tell sysconfig about the cloud-init files
 	c.Assert(s.configureTargetSystemOptsPassed, DeepEquals, []*sysconfig.Options{
@@ -1060,9 +1069,8 @@ func (s *installSuite) TestPrepareRunSystemDataSignedNoUbuntuSeedCloudInit(c *C)
 	mockModel := s.mockModel(map[string]interface{}{
 		"grade": "signed",
 	})
+	mylog.Check(install.PrepareRunSystemData(mockModel, gadgetDir, s.perfTimings))
 
-	err := install.PrepareRunSystemData(mockModel, gadgetDir, s.perfTimings)
-	c.Assert(err, IsNil)
 
 	// we didn't pass any cloud-init src dir but still left cloud-init enabled
 	// if for example a CI-DATA USB drive was provided at runtime
@@ -1080,13 +1088,13 @@ func (s *installSuite) TestPrepareRunSystemDataSecuredGadgetCloudConfCloudInit(c
 	mockModel := s.mockModel(map[string]interface{}{
 		"grade": "secured",
 	})
+	mylog.
 
-	// pretend we have a cloud.conf from the gadget
-	err := os.WriteFile(filepath.Join(gadgetDir, "cloud.conf"), nil, 0644)
-	c.Assert(err, IsNil)
+		// pretend we have a cloud.conf from the gadget
+		Check(os.WriteFile(filepath.Join(gadgetDir, "cloud.conf"), nil, 0644))
 
-	err = install.PrepareRunSystemData(mockModel, gadgetDir, s.perfTimings)
-	c.Assert(err, IsNil)
+	mylog.Check(install.PrepareRunSystemData(mockModel, gadgetDir, s.perfTimings))
+
 
 	c.Assert(s.configureTargetSystemOptsPassed, DeepEquals, []*sysconfig.Options{
 		{
@@ -1100,20 +1108,19 @@ func (s *installSuite) TestPrepareRunSystemDataSecuredGadgetCloudConfCloudInit(c
 func (s *installSuite) TestPrepareRunSystemDataSecuredNoUbuntuSeedCloudInit(c *C) {
 	// pretend we have a cloud-init config on the seed partition with some files
 	cloudCfg := filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d")
-	err := os.MkdirAll(cloudCfg, 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(cloudCfg, 0755))
+
 	for _, mockCfg := range []string{"foo.cfg", "bar.cfg"} {
-		err = os.WriteFile(filepath.Join(cloudCfg, mockCfg), []byte(fmt.Sprintf("%s config", mockCfg)), 0644)
-		c.Assert(err, IsNil)
+		mylog.Check(os.WriteFile(filepath.Join(cloudCfg, mockCfg), []byte(fmt.Sprintf("%s config", mockCfg)), 0644))
+
 	}
 
 	_, gadgetDir := s.mountedGadget(c)
 	mockModel := s.mockModel(map[string]interface{}{
 		"grade": "secured",
 	})
+	mylog.Check(install.PrepareRunSystemData(mockModel, gadgetDir, s.perfTimings))
 
-	err = install.PrepareRunSystemData(mockModel, gadgetDir, s.perfTimings)
-	c.Assert(err, IsNil)
 
 	// we did tell sysconfig about the ubuntu-seed cloud config dir because it
 	// exists, but it is up to sysconfig to use the model to determine to ignore
@@ -1141,13 +1148,12 @@ func (s *installSuite) TestPrepareRunSystemDataWritesTimesyncdClockHappy(c *C) {
 
 	_, gadgetDir := s.mountedGadget(c)
 	mockModel := s.mockModel(nil)
+	mylog.Check(install.PrepareRunSystemData(mockModel, gadgetDir, s.perfTimings))
 
-	err := install.PrepareRunSystemData(mockModel, gadgetDir, s.perfTimings)
-	c.Assert(err, IsNil)
 
 	clockTsInDst := filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"), "/var/lib/systemd/timesync/clock")
-	fi, err := os.Stat(clockTsInDst)
-	c.Assert(err, IsNil)
+	fi := mylog.Check2(os.Stat(clockTsInDst))
+
 	c.Check(fi.ModTime().Round(time.Second), Equals, now.Round(time.Second))
 	c.Check(fi.Size(), Equals, int64(0))
 }
@@ -1172,8 +1178,7 @@ func (s *installSuite) TestPrepareRunSystemDataWritesTimesyncdClockErr(c *C) {
 
 	_, gadgetDir := s.mountedGadget(c)
 	mockModel := s.mockModel(nil)
-
-	err := install.PrepareRunSystemData(mockModel, gadgetDir, s.perfTimings)
+	mylog.Check(install.PrepareRunSystemData(mockModel, gadgetDir, s.perfTimings))
 	c.Check(err, ErrorMatches, `cannot seed timesyncd clock: cannot copy clock:.*Permission denied.*`)
 }
 
@@ -1211,7 +1216,8 @@ func (s *installSuite) setupCore20Seed(c *C) *asserts.Model {
 				"name": "core20",
 				"id":   s.AssertedSnapID("core20"),
 				"type": "base",
-			}},
+			},
+		},
 	}
 
 	return s.MakeSeed(c, "20220401", "my-brand", "my-model", model, []*seedwriter.OptionsSnap{{Path: optSnapPath}})
@@ -1231,14 +1237,11 @@ func (s *installSuite) mockPreseedAssertion(c *C, brandID, modelName, series, pr
 	}
 
 	signer := s.Brands.Signing(brandID)
-	preseedAs, err := signer.Sign(asserts.PreseedType, headers, nil, "")
-	if err != nil {
-		panic(err)
-	}
+	preseedAs := mylog.Check2(signer.Sign(asserts.PreseedType, headers, nil, ""))
 
-	f, err := os.Create(preseedAsPath)
+	f := mylog.Check2(os.Create(preseedAsPath))
 	defer f.Close()
-	c.Assert(err, IsNil)
+
 	enc := asserts.NewEncoder(f)
 	c.Assert(enc.Encode(preseedAs), IsNil)
 }
@@ -1269,31 +1272,31 @@ func (s *installSuite) TestApplyPreseededData(c *C) {
 		map[string]interface{}{"name": "pc", "id": s.AssertedSnapID("pc"), "revision": "1"},
 		map[string]interface{}{"name": "optional20-a"},
 	}
-	sha3_384, _, err := osutil.FileDigest(preseedArtifact, crypto.SHA3_384)
-	c.Assert(err, IsNil)
-	digest, err := asserts.EncodeDigest(crypto.SHA3_384, sha3_384)
-	c.Assert(err, IsNil)
+	sha3_384, _ := mylog.Check3(osutil.FileDigest(preseedArtifact, crypto.SHA3_384))
+
+	digest := mylog.Check2(asserts.EncodeDigest(crypto.SHA3_384, sha3_384))
+
 
 	preseedAsPath := filepath.Join(ubuntuSeedDir, "systems", sysLabel, "preseed")
 	s.mockPreseedAssertion(c, model.BrandID(), model.Model(), "16", preseedAsPath, sysLabel, digest, snaps)
 
 	// set a specific mod time on one of the snaps to verify it's preserved when the blob gets copied.
-	pastTime, err := time.Parse(time.RFC3339, "2020-01-01T10:00:00Z")
-	c.Assert(err, IsNil)
+	pastTime := mylog.Check2(time.Parse(time.RFC3339, "2020-01-01T10:00:00Z"))
+
 	c.Assert(os.Chtimes(filepath.Join(ubuntuSeedDir, "snaps", "snapd_1.snap"), pastTime, pastTime), IsNil)
 
-	sysSeed, err := seed.Open(ubuntuSeedDir, sysLabel)
-	c.Assert(err, IsNil)
-	err = sysSeed.LoadAssertions(nil, nil)
-	c.Assert(err, IsNil)
+	sysSeed := mylog.Check2(seed.Open(ubuntuSeedDir, sysLabel))
+
+	mylog.Check(sysSeed.LoadAssertions(nil, nil))
+
 	preseedSeed := sysSeed.(seed.PreseedCapable)
 	c.Check(preseedSeed.HasArtifact("preseed.tgz"), Equals, true)
 
 	// restore root dir, otherwise paths referencing GlobalRootDir, such as from placeInfo.MountFile() get confused
 	// in the test.
 	dirs.SetRootDir("/")
-	err = install.ApplyPreseededData(preseedSeed, writableDir)
-	c.Assert(err, IsNil)
+	mylog.Check(install.ApplyPreseededData(preseedSeed, writableDir))
+
 
 	c.Check(mockTarCmd.Calls(), DeepEquals, [][]string{
 		{"tar", "--extract", "--preserve-permissions", "--preserve-order", "--gunzip", "--directory", writableDir, "-f", preseedArtifact},
@@ -1314,8 +1317,8 @@ func (s *installSuite) TestApplyPreseededData(c *C) {
 	}
 
 	// verify that modtime of the copied snap blob was preserved
-	finfo, err := os.Stat(filepath.Join(writableDir, dirs.SnapBlobDir, "snapd_1.snap"))
-	c.Assert(err, IsNil)
+	finfo := mylog.Check2(os.Stat(filepath.Join(writableDir, dirs.SnapBlobDir, "snapd_1.snap")))
+
 	c.Check(finfo.ModTime().Equal(pastTime), Equals, true)
 }
 
@@ -1326,8 +1329,8 @@ type dumpDirContents struct {
 
 func (d *dumpDirContents) CheckCommentString() string {
 	cmd := exec.Command("find", d.dir)
-	data, err := cmd.CombinedOutput()
-	d.c.Assert(err, IsNil)
+	data := mylog.Check2(cmd.CombinedOutput())
+	d.
 	return fmt.Sprintf("writable dir contents:\n%s", data)
 }
 
@@ -1350,21 +1353,19 @@ func (s *installSuite) TestApplyPreseededDataAssertionMissing(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "snaps"), 0755), IsNil)
 	c.Assert(os.MkdirAll(dirs.SnapBlobDir, 0755), IsNil)
 
-	sysSeed, err := seed.Open(ubuntuSeedDir, sysLabel)
-	c.Assert(err, IsNil)
-	err = sysSeed.LoadAssertions(nil, nil)
-	c.Assert(err, IsNil)
+	sysSeed := mylog.Check2(seed.Open(ubuntuSeedDir, sysLabel))
+
+	mylog.Check(sysSeed.LoadAssertions(nil, nil))
+
 	preseedSeed := sysSeed.(seed.PreseedCapable)
 	c.Check(preseedSeed.HasArtifact("preseed.tgz"), Equals, true)
-
-	err = install.ApplyPreseededData(preseedSeed, writableDir)
+	mylog.Check(install.ApplyPreseededData(preseedSeed, writableDir))
 	c.Assert(err, ErrorMatches, `no seed preseed assertion`)
 
 	preseedAsPath := filepath.Join(ubuntuSeedDir, "systems", sysLabel, "preseed")
 	// empty "preseed" assertion file
 	c.Assert(os.WriteFile(preseedAsPath, nil, 0644), IsNil)
-
-	err = install.ApplyPreseededData(preseedSeed, writableDir)
+	mylog.Check(install.ApplyPreseededData(preseedSeed, writableDir))
 	c.Assert(err, ErrorMatches, `system preseed assertion file must contain a preseed assertion`)
 }
 
@@ -1394,14 +1395,16 @@ func (s *installSuite) TestApplyPreseededDataSnapMismatch(c *C) {
 		preseedArtifact: true,
 		sysDir:          filepath.Join(ubuntuSeedDir, "systems", sysLabel),
 		essentialSnaps:  []*seed.Snap{{Path: snapPath1, SideInfo: &snap.SideInfo{RealName: "essential-snap", Revision: snap.R(1), SnapID: "id111111111111111111111111111111"}}},
-		modeSnaps: []*seed.Snap{{Path: snapPath2, SideInfo: &snap.SideInfo{RealName: "mode-snap", Revision: snap.R(3), SnapID: "id222222222222222222222222222222"}},
-			{Path: snapPath2, SideInfo: &snap.SideInfo{RealName: "mode-snap2"}}},
+		modeSnaps: []*seed.Snap{
+			{Path: snapPath2, SideInfo: &snap.SideInfo{RealName: "mode-snap", Revision: snap.R(3), SnapID: "id222222222222222222222222222222"}},
+			{Path: snapPath2, SideInfo: &snap.SideInfo{RealName: "mode-snap2"}},
+		},
 	}
 
-	sha3_384, _, err := osutil.FileDigest(preseedArtifact, crypto.SHA3_384)
-	c.Assert(err, IsNil)
-	digest, err := asserts.EncodeDigest(crypto.SHA3_384, sha3_384)
-	c.Assert(err, IsNil)
+	sha3_384, _ := mylog.Check3(osutil.FileDigest(preseedArtifact, crypto.SHA3_384))
+
+	digest := mylog.Check2(asserts.EncodeDigest(crypto.SHA3_384, sha3_384))
+
 
 	preseedAsPath := filepath.Join(ubuntuSeedDir, "systems", sysLabel, "preseed")
 
@@ -1438,7 +1441,7 @@ func (s *installSuite) TestApplyPreseededDataSnapMismatch(c *C) {
 		}
 
 		s.mockPreseedAssertion(c, model.BrandID(), model.Model(), "16", preseedAsPath, sysLabel, digest, preseedAsSnaps)
-		err = install.ApplyPreseededData(sysSeed, writableDir)
+		mylog.Check(install.ApplyPreseededData(sysSeed, writableDir))
 		c.Assert(err, ErrorMatches, tc.err)
 	}
 
@@ -1450,7 +1453,7 @@ func (s *installSuite) TestApplyPreseededDataSnapMismatch(c *C) {
 		map[string]interface{}{"name": "mode-snap2"},
 	}
 	s.mockPreseedAssertion(c, model.BrandID(), model.Model(), "16", preseedAsPath, sysLabel, digest, preseedAsSnaps)
-	err = install.ApplyPreseededData(sysSeed, writableDir)
+	mylog.Check(install.ApplyPreseededData(sysSeed, writableDir))
 	c.Assert(err, ErrorMatches, `snap "mode-snap" not present in the preseed assertion`)
 }
 
@@ -1487,8 +1490,7 @@ func (s *installSuite) TestApplyPreseededDataWrongDigest(c *C) {
 	wrongDigest := "DGOnW4ReT30BEH2FLkwkhcUaUKqqlPxhmV5xu-6YOirDcTgxJkrbR_traaaY1fAE"
 	preseedAsPath := filepath.Join(ubuntuSeedDir, "systems", sysLabel, "preseed")
 	s.mockPreseedAssertion(c, model.BrandID(), model.Model(), "16", preseedAsPath, sysLabel, wrongDigest, snaps)
-
-	err := install.ApplyPreseededData(sysSeed, writableDir)
+	mylog.Check(install.ApplyPreseededData(sysSeed, writableDir))
 	c.Assert(err, ErrorMatches, `invalid preseed artifact digest`)
 }
 
@@ -1513,15 +1515,11 @@ func (*fakeSeed) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Ba
 }
 
 func (fs *fakeSeed) LoadPreseedAssertion() (*asserts.Preseed, error) {
-	f, err := os.Open(filepath.Join(fs.sysDir, "preseed"))
-	if err != nil {
-		return nil, err
-	}
+	f := mylog.Check2(os.Open(filepath.Join(fs.sysDir, "preseed")))
+
 	defer f.Close()
-	a, err := asserts.NewDecoder(f).Decode()
-	if err != nil {
-		return nil, err
-	}
+	a := mylog.Check2(asserts.NewDecoder(f).Decode())
+
 	return a.(*asserts.Preseed), nil
 }
 

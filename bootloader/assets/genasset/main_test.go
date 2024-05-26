@@ -29,6 +29,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	generate "github.com/snapcore/snapd/bootloader/assets/genasset"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -78,13 +79,13 @@ func (s *generateAssetsTestSuite) TestArgs(c *C) {
 
 func (s *generateAssetsTestSuite) TestSimpleAsset(c *C) {
 	d := c.MkDir()
-	err := os.WriteFile(filepath.Join(d, "in"), []byte("this is a\n"+
-		"multiline asset \"'``\nwith chars\n"), 0644)
-	c.Assert(err, IsNil)
-	err = generate.Run("asset-name", filepath.Join(d, "in"), filepath.Join(d, "out"))
-	c.Assert(err, IsNil)
-	data, err := os.ReadFile(filepath.Join(d, "out"))
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(d, "in"), []byte("this is a\n"+
+		"multiline asset \"'``\nwith chars\n"), 0644))
+
+	mylog.Check(generate.Run("asset-name", filepath.Join(d, "in"), filepath.Join(d, "out")))
+
+	data := mylog.Check2(os.ReadFile(filepath.Join(d, "out")))
+
 
 	const exp = `// -*- Mode: Go; indent-tabs-mode: t -*-
 
@@ -121,36 +122,30 @@ func init() {
 }
 
 func (s *generateAssetsTestSuite) TestGoFmtClean(c *C) {
-	_, err := exec.LookPath("gofmt")
-	if err != nil {
-		c.Skip("gofmt is missing")
-	}
+	_ := mylog.Check2(exec.LookPath("gofmt"))
 
 	d := c.MkDir()
-	err = os.WriteFile(filepath.Join(d, "in"), []byte("this is a\n"+
-		"multiline asset \"'``\nuneven chars\n"), 0644)
-	c.Assert(err, IsNil)
-	err = generate.Run("asset-name", filepath.Join(d, "in"), filepath.Join(d, "out"))
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(d, "in"), []byte("this is a\n"+
+		"multiline asset \"'``\nuneven chars\n"), 0644))
+
+	mylog.Check(generate.Run("asset-name", filepath.Join(d, "in"), filepath.Join(d, "out")))
+
 
 	cmd := exec.Command("gofmt", "-l", "-d", filepath.Join(d, "out"))
-	out, err := cmd.CombinedOutput()
-	c.Assert(err, IsNil)
+	out := mylog.Check2(cmd.CombinedOutput())
+
 	c.Assert(out, HasLen, 0, Commentf("output file is not gofmt clean: %s", string(out)))
 }
 
 func (s *generateAssetsTestSuite) TestRunErrors(c *C) {
 	d := c.MkDir()
-	err := generate.Run("asset-name", filepath.Join(d, "missing"), filepath.Join(d, "out"))
+	mylog.Check(generate.Run("asset-name", filepath.Join(d, "missing"), filepath.Join(d, "out")))
 	c.Assert(err, ErrorMatches, "cannot open input file: open .*/missing: no such file or directory")
+	mylog.Check(os.WriteFile(filepath.Join(d, "in"), []byte("this is a\n"+
+		"multiline asset \"'``\nuneven chars\n"), 0644))
 
-	err = os.WriteFile(filepath.Join(d, "in"), []byte("this is a\n"+
-		"multiline asset \"'``\nuneven chars\n"), 0644)
-	c.Assert(err, IsNil)
-
-	err = generate.Run("asset-name", filepath.Join(d, "in"), filepath.Join(d, "does-not-exist", "out"))
+	mylog.Check(generate.Run("asset-name", filepath.Join(d, "in"), filepath.Join(d, "does-not-exist", "out")))
 	c.Assert(err, ErrorMatches, `cannot open output file: open .*/does-not-exist/out\..*: no such file or directory`)
-
 }
 
 func (s *generateAssetsTestSuite) TestFormatLines(c *C) {

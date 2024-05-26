@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts/internal"
 )
 
@@ -53,7 +54,7 @@ func (s *groupingsSuite) TestNewGroupings(c *C) {
 
 	for _, t := range tests {
 		comm := Commentf("%d", t.n)
-		gr, err := internal.NewGroupings(t.n)
+		gr := mylog.Check2(internal.NewGroupings(t.n))
 		if t.err == "" {
 			c.Check(err, IsNil, comm)
 			c.Check(gr, NotNil, comm)
@@ -68,19 +69,18 @@ func (s *groupingsSuite) TestNewGroupings(c *C) {
 func (s *groupingsSuite) TestAddToAndContains(c *C) {
 	var g internal.Grouping
 
-	gr, err := internal.NewGroupings(16)
-	c.Assert(err, IsNil)
+	gr := mylog.Check2(internal.NewGroupings(16))
 
-	err = gr.AddTo(&g, 1)
-	c.Assert(err, IsNil)
-	err = gr.AddTo(&g, 3)
-	c.Assert(err, IsNil)
-	err = gr.AddTo(&g, 0)
-	c.Assert(err, IsNil)
-	err = gr.AddTo(&g, 4)
-	c.Assert(err, IsNil)
-	err = gr.AddTo(&g, 2)
-	c.Assert(err, IsNil)
+	mylog.Check(gr.AddTo(&g, 1))
+
+	mylog.Check(gr.AddTo(&g, 3))
+
+	mylog.Check(gr.AddTo(&g, 0))
+
+	mylog.Check(gr.AddTo(&g, 4))
+
+	mylog.Check(gr.AddTo(&g, 2))
+
 
 	for i := uint16(0); i < 5; i++ {
 		c.Check(gr.Contains(&g, i), Equals, true)
@@ -92,40 +92,38 @@ func (s *groupingsSuite) TestAddToAndContains(c *C) {
 func (s *groupingsSuite) TestOutsideRange(c *C) {
 	var g internal.Grouping
 
-	gr, err := internal.NewGroupings(16)
-	c.Assert(err, IsNil)
+	gr := mylog.Check2(internal.NewGroupings(16))
 
-	// validity
-	err = gr.AddTo(&g, 15)
-	c.Assert(err, IsNil)
+	mylog.
 
-	err = gr.AddTo(&g, 16)
+		// validity
+		Check(gr.AddTo(&g, 15))
+
+	mylog.Check(gr.AddTo(&g, 16))
 	c.Check(err, ErrorMatches, "group exceeds admissible maximum: 16 >= 16")
-
-	err = gr.AddTo(&g, 99)
+	mylog.Check(gr.AddTo(&g, 99))
 	c.Check(err, ErrorMatches, "group exceeds admissible maximum: 99 >= 16")
 }
 
 func (s *groupingsSuite) TestSerializeLabel(c *C) {
 	var g internal.Grouping
 
-	gr, err := internal.NewGroupings(128)
-	c.Assert(err, IsNil)
+	gr := mylog.Check2(internal.NewGroupings(128))
 
-	err = gr.AddTo(&g, 1)
-	c.Assert(err, IsNil)
-	err = gr.AddTo(&g, 3)
-	c.Assert(err, IsNil)
-	err = gr.AddTo(&g, 0)
-	c.Assert(err, IsNil)
-	err = gr.AddTo(&g, 4)
-	c.Assert(err, IsNil)
-	err = gr.AddTo(&g, 2)
-	c.Assert(err, IsNil)
+	mylog.Check(gr.AddTo(&g, 1))
+
+	mylog.Check(gr.AddTo(&g, 3))
+
+	mylog.Check(gr.AddTo(&g, 0))
+
+	mylog.Check(gr.AddTo(&g, 4))
+
+	mylog.Check(gr.AddTo(&g, 2))
+
 
 	l := gr.Serialize(&g)
 
-	g1, err := gr.Deserialize(l)
+	g1 := mylog.Check2(gr.Deserialize(l))
 	c.Check(err, IsNil)
 
 	c.Check(g1, DeepEquals, &g)
@@ -134,19 +132,18 @@ func (s *groupingsSuite) TestSerializeLabel(c *C) {
 func (s *groupingsSuite) TestDeserializeLabelErrors(c *C) {
 	var g internal.Grouping
 
-	gr, err := internal.NewGroupings(64)
-	c.Assert(err, IsNil)
+	gr := mylog.Check2(internal.NewGroupings(64))
 
-	err = gr.AddTo(&g, 0)
-	c.Assert(err, IsNil)
-	err = gr.AddTo(&g, 1)
-	c.Assert(err, IsNil)
-	err = gr.AddTo(&g, 2)
-	c.Assert(err, IsNil)
-	err = gr.AddTo(&g, 3)
-	c.Assert(err, IsNil)
-	err = gr.AddTo(&g, 4)
-	c.Assert(err, IsNil)
+	mylog.Check(gr.AddTo(&g, 0))
+
+	mylog.Check(gr.AddTo(&g, 1))
+
+	mylog.Check(gr.AddTo(&g, 2))
+
+	mylog.Check(gr.AddTo(&g, 3))
+
+	mylog.Check(gr.AddTo(&g, 4))
+
 
 	const errPrefix = "invalid serialized grouping label: "
 
@@ -172,7 +169,7 @@ func (s *groupingsSuite) TestDeserializeLabelErrors(c *C) {
 	}
 
 	for _, il := range invalidLabels {
-		_, err := gr.Deserialize(il.invalid)
+		_ := mylog.Check2(gr.Deserialize(il.invalid))
 		c.Check(err, ErrorMatches, errPrefix+il.errSuffix)
 	}
 }
@@ -180,41 +177,38 @@ func (s *groupingsSuite) TestDeserializeLabelErrors(c *C) {
 func (s *groupingsSuite) TestIter(c *C) {
 	var g internal.Grouping
 
-	gr, err := internal.NewGroupings(128)
-	c.Assert(err, IsNil)
+	gr := mylog.Check2(internal.NewGroupings(128))
 
-	err = gr.AddTo(&g, 1)
-	c.Assert(err, IsNil)
-	err = gr.AddTo(&g, 3)
-	c.Assert(err, IsNil)
-	err = gr.AddTo(&g, 0)
-	c.Assert(err, IsNil)
-	err = gr.AddTo(&g, 4)
-	c.Assert(err, IsNil)
-	err = gr.AddTo(&g, 2)
-	c.Assert(err, IsNil)
+	mylog.Check(gr.AddTo(&g, 1))
+
+	mylog.Check(gr.AddTo(&g, 3))
+
+	mylog.Check(gr.AddTo(&g, 0))
+
+	mylog.Check(gr.AddTo(&g, 4))
+
+	mylog.Check(gr.AddTo(&g, 2))
+
 
 	elems := []uint16{}
 	f := func(group uint16) error {
 		elems = append(elems, group)
 		return nil
 	}
+	mylog.Check(gr.Iter(&g, f))
 
-	err = gr.Iter(&g, f)
-	c.Assert(err, IsNil)
 	c.Check(elems, DeepEquals, []uint16{0, 1, 2, 3, 4})
 }
 
 func (s *groupingsSuite) TestIterError(c *C) {
 	var g internal.Grouping
 
-	gr, err := internal.NewGroupings(32)
-	c.Assert(err, IsNil)
+	gr := mylog.Check2(internal.NewGroupings(32))
 
-	err = gr.AddTo(&g, 1)
-	c.Assert(err, IsNil)
-	err = gr.AddTo(&g, 3)
-	c.Assert(err, IsNil)
+	mylog.Check(gr.AddTo(&g, 1))
+
+	mylog.Check(gr.AddTo(&g, 3))
+
 
 	errBoom := errors.New("boom")
 	n := 0
@@ -222,8 +216,7 @@ func (s *groupingsSuite) TestIterError(c *C) {
 		n++
 		return errBoom
 	}
-
-	err = gr.Iter(&g, f)
+	mylog.Check(gr.Iter(&g, f))
 	c.Check(err, Equals, errBoom)
 	c.Check(n, Equals, 1)
 }
@@ -231,63 +224,59 @@ func (s *groupingsSuite) TestIterError(c *C) {
 func (s *groupingsSuite) TestRepeated(c *C) {
 	var g internal.Grouping
 
-	gr, err := internal.NewGroupings(64)
-	c.Assert(err, IsNil)
+	gr := mylog.Check2(internal.NewGroupings(64))
 
-	err = gr.AddTo(&g, 1)
-	c.Assert(err, IsNil)
-	err = gr.AddTo(&g, 0)
-	c.Assert(err, IsNil)
-	err = gr.AddTo(&g, 2)
-	c.Assert(err, IsNil)
+	mylog.Check(gr.AddTo(&g, 1))
 
-	err = gr.AddTo(&g, 1)
-	c.Assert(err, IsNil)
-	err = gr.AddTo(&g, 0)
-	c.Assert(err, IsNil)
+	mylog.Check(gr.AddTo(&g, 0))
+
+	mylog.Check(gr.AddTo(&g, 2))
+
+	mylog.Check(gr.AddTo(&g, 1))
+
+	mylog.Check(gr.AddTo(&g, 0))
+
 
 	elems := []uint16{}
 	f := func(group uint16) error {
 		elems = append(elems, group)
 		return nil
 	}
+	mylog.Check(gr.Iter(&g, f))
 
-	err = gr.Iter(&g, f)
-	c.Assert(err, IsNil)
 	c.Check(elems, DeepEquals, []uint16{0, 1, 2})
 }
 
 func (s *groupingsSuite) TestCopy(c *C) {
 	var g internal.Grouping
 
-	gr, err := internal.NewGroupings(16)
-	c.Assert(err, IsNil)
+	gr := mylog.Check2(internal.NewGroupings(16))
 
-	err = gr.AddTo(&g, 1)
-	c.Assert(err, IsNil)
-	err = gr.AddTo(&g, 3)
-	c.Assert(err, IsNil)
-	err = gr.AddTo(&g, 0)
-	c.Assert(err, IsNil)
-	err = gr.AddTo(&g, 4)
-	c.Assert(err, IsNil)
-	err = gr.AddTo(&g, 2)
-	c.Assert(err, IsNil)
+	mylog.Check(gr.AddTo(&g, 1))
+
+	mylog.Check(gr.AddTo(&g, 3))
+
+	mylog.Check(gr.AddTo(&g, 0))
+
+	mylog.Check(gr.AddTo(&g, 4))
+
+	mylog.Check(gr.AddTo(&g, 2))
+
 
 	g2 := g.Copy()
 	c.Check(g2, DeepEquals, g)
+	mylog.Check(gr.AddTo(&g2, 7))
 
-	err = gr.AddTo(&g2, 7)
-	c.Assert(err, IsNil)
 
 	c.Check(gr.Contains(&g, 7), Equals, false)
 	c.Check(gr.Contains(&g2, 7), Equals, true)
 
 	c.Check(g2, Not(DeepEquals), g)
 }
+
 func (s *groupingsSuite) TestBitsetSerializeAndIterSimple(c *C) {
-	gr, err := internal.NewGroupings(32)
-	c.Assert(err, IsNil)
+	gr := mylog.Check2(internal.NewGroupings(32))
+
 
 	var elems []uint16
 	f := func(group uint16) error {
@@ -296,36 +285,36 @@ func (s *groupingsSuite) TestBitsetSerializeAndIterSimple(c *C) {
 	}
 
 	var g internal.Grouping
-	err = gr.AddTo(&g, 1)
-	c.Assert(err, IsNil)
-	err = gr.AddTo(&g, 5)
-	c.Assert(err, IsNil)
-	err = gr.AddTo(&g, 17)
-	c.Assert(err, IsNil)
-	err = gr.AddTo(&g, 24)
-	c.Assert(err, IsNil)
+	mylog.Check(gr.AddTo(&g, 1))
+
+	mylog.Check(gr.AddTo(&g, 5))
+
+	mylog.Check(gr.AddTo(&g, 17))
+
+	mylog.Check(gr.AddTo(&g, 24))
+
 
 	l := gr.Serialize(&g)
 	c.Check(l, DeepEquals,
-		internal.Serialize([]uint16{4,
+		internal.Serialize([]uint16{
+			4,
 			uint16(1<<1 | 1<<5),
 			uint16(1<<(17-16) | 1<<(24-16)),
 		}))
+	mylog.Check(gr.Iter(&g, f))
 
-	err = gr.Iter(&g, f)
-	c.Assert(err, IsNil)
 	c.Check(elems, DeepEquals, []uint16{1, 5, 17, 24})
 }
 
 func (s *groupingsSuite) TestBitSet(c *C) {
 	var g internal.Grouping
 
-	gr, err := internal.NewGroupings(64)
-	c.Assert(err, IsNil)
+	gr := mylog.Check2(internal.NewGroupings(64))
+
 
 	for i := uint16(0); i < 64; i++ {
-		err := gr.AddTo(&g, i)
-		c.Assert(err, IsNil)
+		mylog.Check(gr.AddTo(&g, i))
+
 		c.Check(gr.Contains(&g, i), Equals, true)
 
 		l := gr.Serialize(&g)
@@ -341,15 +330,15 @@ func (s *groupingsSuite) TestBitSet(c *C) {
 			c.Check(l, Equals, internal.Serialize([]uint16{64, 0xffff, 0xffff, 0xffff, 0xffff}))
 		}
 
-		g1, err := gr.Deserialize(l)
+		g1 := mylog.Check2(gr.Deserialize(l))
 		c.Check(err, IsNil)
 
 		c.Check(g1, DeepEquals, &g)
 	}
 
 	for i := uint16(63); ; i-- {
-		err := gr.AddTo(&g, i)
-		c.Assert(err, IsNil)
+		mylog.Check(gr.AddTo(&g, i))
+
 		c.Check(gr.Contains(&g, i), Equals, true)
 		if i == 0 {
 			break
@@ -357,7 +346,7 @@ func (s *groupingsSuite) TestBitSet(c *C) {
 
 		l := gr.Serialize(&g)
 
-		g1, err := gr.Deserialize(l)
+		g1 := mylog.Check2(gr.Deserialize(l))
 		c.Check(err, IsNil)
 
 		c.Check(g1, DeepEquals, &g)
@@ -365,8 +354,8 @@ func (s *groupingsSuite) TestBitSet(c *C) {
 }
 
 func (s *groupingsSuite) TestBitsetIter(c *C) {
-	gr, err := internal.NewGroupings(32)
-	c.Assert(err, IsNil)
+	gr := mylog.Check2(internal.NewGroupings(32))
+
 
 	var elems []uint16
 	f := func(group uint16) error {
@@ -376,16 +365,14 @@ func (s *groupingsSuite) TestBitsetIter(c *C) {
 
 	for i := uint16(2); i < 32; i++ {
 		var g internal.Grouping
+		mylog.Check(gr.AddTo(&g, i-2))
 
-		err := gr.AddTo(&g, i-2)
-		c.Assert(err, IsNil)
-		err = gr.AddTo(&g, i-1)
-		c.Assert(err, IsNil)
-		err = gr.AddTo(&g, i)
-		c.Assert(err, IsNil)
+		mylog.Check(gr.AddTo(&g, i-1))
 
-		err = gr.Iter(&g, f)
-		c.Assert(err, IsNil)
+		mylog.Check(gr.AddTo(&g, i))
+
+		mylog.Check(gr.Iter(&g, f))
+
 		c.Check(elems, DeepEquals, []uint16{i - 2, i - 1, i})
 
 		elems = nil
@@ -393,25 +380,23 @@ func (s *groupingsSuite) TestBitsetIter(c *C) {
 
 	var g internal.Grouping
 	for i := uint16(0); i < 32; i++ {
-		err = gr.AddTo(&g, i)
-		c.Assert(err, IsNil)
-	}
+		mylog.Check(gr.AddTo(&g, i))
 
-	err = gr.Iter(&g, f)
-	c.Assert(err, IsNil)
+	}
+	mylog.Check(gr.Iter(&g, f))
+
 	c.Check(elems, HasLen, 32)
 }
 
 func (s *groupingsSuite) TestBitsetIterError(c *C) {
-	gr, err := internal.NewGroupings(16)
-	c.Assert(err, IsNil)
+	gr := mylog.Check2(internal.NewGroupings(16))
+
 
 	var g internal.Grouping
+	mylog.Check(gr.AddTo(&g, 0))
 
-	err = gr.AddTo(&g, 0)
-	c.Assert(err, IsNil)
-	err = gr.AddTo(&g, 1)
-	c.Assert(err, IsNil)
+	mylog.Check(gr.AddTo(&g, 1))
+
 
 	errBoom := errors.New("boom")
 	n := 0
@@ -419,8 +404,7 @@ func (s *groupingsSuite) TestBitsetIterError(c *C) {
 		n++
 		return errBoom
 	}
-
-	err = gr.Iter(&g, f)
+	mylog.Check(gr.Iter(&g, f))
 	c.Check(err, Equals, errBoom)
 	c.Check(n, Equals, 1)
 }
@@ -449,10 +433,7 @@ func BenchmarkIterBaseline(b *testing.B) {
 func BenchmarkIter4Elems(b *testing.B) {
 	b.StopTimer()
 
-	gr, err := internal.NewGroupings(64)
-	if err != nil {
-		b.FailNow()
-	}
+	gr := mylog.Check2(internal.NewGroupings(64))
 
 	n := 0
 	f := func(group uint16) error {
@@ -479,10 +460,7 @@ func BenchmarkIter4Elems(b *testing.B) {
 func BenchmarkIterBitset5Elems(b *testing.B) {
 	b.StopTimer()
 
-	gr, err := internal.NewGroupings(64)
-	if err != nil {
-		b.FailNow()
-	}
+	gr := mylog.Check2(internal.NewGroupings(64))
 
 	n := 0
 	f := func(group uint16) error {
@@ -510,10 +488,7 @@ func BenchmarkIterBitset5Elems(b *testing.B) {
 func BenchmarkIterBitsetEmptyStretches(b *testing.B) {
 	b.StopTimer()
 
-	gr, err := internal.NewGroupings(64)
-	if err != nil {
-		b.FailNow()
-	}
+	gr := mylog.Check2(internal.NewGroupings(64))
 
 	n := 0
 	f := func(group uint16) error {
@@ -541,10 +516,7 @@ func BenchmarkIterBitsetEmptyStretches(b *testing.B) {
 func BenchmarkIterBitsetEven(b *testing.B) {
 	b.StopTimer()
 
-	gr, err := internal.NewGroupings(64)
-	if err != nil {
-		b.FailNow()
-	}
+	gr := mylog.Check2(internal.NewGroupings(64))
 
 	n := 0
 	f := func(group uint16) error {
@@ -570,10 +542,7 @@ func BenchmarkIterBitsetEven(b *testing.B) {
 func BenchmarkIterBitsetOdd(b *testing.B) {
 	b.StopTimer()
 
-	gr, err := internal.NewGroupings(64)
-	if err != nil {
-		b.FailNow()
-	}
+	gr := mylog.Check2(internal.NewGroupings(64))
 
 	n := 0
 	f := func(group uint16) error {
@@ -599,10 +568,7 @@ func BenchmarkIterBitsetOdd(b *testing.B) {
 func BenchmarkIterBitset0Inc3(b *testing.B) {
 	b.StopTimer()
 
-	gr, err := internal.NewGroupings(64)
-	if err != nil {
-		b.FailNow()
-	}
+	gr := mylog.Check2(internal.NewGroupings(64))
 
 	n := 0
 	f := func(group uint16) error {
@@ -628,10 +594,7 @@ func BenchmarkIterBitset0Inc3(b *testing.B) {
 func BenchmarkIterBitset1Inc3(b *testing.B) {
 	b.StopTimer()
 
-	gr, err := internal.NewGroupings(64)
-	if err != nil {
-		b.FailNow()
-	}
+	gr := mylog.Check2(internal.NewGroupings(64))
 
 	n := 0
 	f := func(group uint16) error {
@@ -657,10 +620,7 @@ func BenchmarkIterBitset1Inc3(b *testing.B) {
 func BenchmarkIterBitset0Inc4(b *testing.B) {
 	b.StopTimer()
 
-	gr, err := internal.NewGroupings(64)
-	if err != nil {
-		b.FailNow()
-	}
+	gr := mylog.Check2(internal.NewGroupings(64))
 
 	n := 0
 	f := func(group uint16) error {
@@ -686,10 +646,7 @@ func BenchmarkIterBitset0Inc4(b *testing.B) {
 func BenchmarkIterBitsetComplete(b *testing.B) {
 	b.StopTimer()
 
-	gr, err := internal.NewGroupings(64)
-	if err != nil {
-		b.FailNow()
-	}
+	gr := mylog.Check2(internal.NewGroupings(64))
 
 	n := 0
 	f := func(group uint16) error {

@@ -22,6 +22,7 @@ package daemon
 import (
 	"net/http"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
@@ -31,31 +32,23 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 )
 
-var (
-	snapctlCmd = &Command{
-		Path:        "/v2/snapctl",
-		POST:        runSnapctl,
-		WriteAccess: snapAccess{},
-	}
-)
+var snapctlCmd = &Command{
+	Path:        "/v2/snapctl",
+	POST:        runSnapctl,
+	WriteAccess: snapAccess{},
+}
 
 var ctlcmdRun = ctlcmd.Run
 
 func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 	var snapctlPostData client.SnapCtlPostData
-
-	if err := jsonutil.DecodeWithNumber(r.Body, &snapctlPostData); err != nil {
-		return BadRequest("cannot decode snapctl request: %s", err)
-	}
+	mylog.Check(jsonutil.DecodeWithNumber(r.Body, &snapctlPostData))
 
 	if len(snapctlPostData.Args) == 0 {
 		return BadRequest("snapctl cannot run without args")
 	}
 
-	ucred, err := ucrednetGet(r.RemoteAddr)
-	if err != nil {
-		return Forbidden("cannot get remote user: %s", err)
-	}
+	ucred := mylog.Check2(ucrednetGet(r.RemoteAddr))
 
 	// Ignore missing context error to allow 'snapctl -h' without a context;
 	// Actual context is validated later by get/set.
@@ -69,37 +62,13 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 		context.Unlock()
 	}
 
-	stdout, stderr, err := ctlcmdRun(context, snapctlPostData.Args, ucred.Uid)
-	if err != nil {
-		if e, ok := err.(*ctlcmd.UnsuccessfulError); ok {
-			result := map[string]interface{}{
-				"stdout":    string(stdout),
-				"stderr":    string(stderr),
-				"exit-code": e.ExitCode,
-			}
-			return &apiError{
-				Status:  200,
-				Message: e.Error(),
-				Kind:    client.ErrorKindUnsuccessful,
-				Value:   result,
-			}
-		}
-		if e, ok := err.(*ctlcmd.ForbiddenCommandError); ok {
-			return Forbidden(e.Error())
-		}
-		if e, ok := err.(*flags.Error); ok && e.Type == flags.ErrHelp {
-			stdout = []byte(e.Error())
-		} else {
-			return BadRequest("error running snapctl: %s", err)
-		}
-	}
+	stdout, stderr := mylog.Check3(ctlcmdRun(context, snapctlPostData.Args, ucred.Uid))
 
 	if context != nil && context.IsEphemeral() {
 		context.Lock()
 		defer context.Unlock()
-		if err := context.Done(); err != nil {
-			return BadRequest(i18n.G("set failed: %v"), err)
-		}
+		mylog.Check(context.Done())
+
 	}
 
 	result := map[string]string{

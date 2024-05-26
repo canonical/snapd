@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -172,9 +173,7 @@ func applyHandlers(dev sysconfig.Device, cfg RunTransaction, handlers []configHa
 	}
 
 	for _, h := range handlers {
-		if err := h.validate(cfg); err != nil {
-			return err
-		}
+		mylog.Check(h.validate(cfg))
 	}
 
 	for _, h := range handlers {
@@ -184,9 +183,8 @@ func applyHandlers(dev sysconfig.Device, cfg RunTransaction, handlers []configHa
 		if h.flags().modeenvOnlyConfig && !dev.HasModeenv() {
 			continue
 		}
-		if err := h.handle(dev, cfg, nil); err != nil {
-			return err
-		}
+		mylog.Check(h.handle(dev, cfg, nil))
+
 	}
 	return nil
 }
@@ -195,10 +193,7 @@ func Early(dev sysconfig.Device, cfg RunTransaction, values map[string]interface
 	early, relevant := applyFilters(func(f flags) filterFunc {
 		return f.earlyConfigFilter
 	}, values)
-
-	if err := config.Patch(cfg, "core", early); err != nil {
-		return err
-	}
+	mylog.Check(config.Patch(cfg, "core", early))
 
 	return applyHandlers(dev, cfg, relevant)
 }

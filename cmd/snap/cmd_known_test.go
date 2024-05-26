@@ -25,6 +25,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 	"gopkg.in/check.v1"
 
@@ -71,7 +72,7 @@ func (s *SnapSuite) TestKnownViaSnapd(c *check.C) {
 	})
 
 	// first run "normal"
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"known", "model", "series=16", "brand-id=canonical", "model=pi99"})
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"known", "model", "series=16", "brand-id=canonical", "model=pi99"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, mockModelAssertion)
@@ -82,7 +83,7 @@ func (s *SnapSuite) TestKnownViaSnapd(c *check.C) {
 	n = 0
 	s.stdout.Reset()
 	expectedQuery["remote"] = []string{"true"}
-	rest, err = snap.Parser(snap.Client()).ParseArgs([]string{"known", "--remote", "model", "series=16", "brand-id=canonical", "model=pi99"})
+	rest = mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"known", "--remote", "model", "series=16", "brand-id=canonical", "model=pi99"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, mockModelAssertion)
@@ -110,7 +111,7 @@ func (s *SnapSuite) TestKnownRemoteViaSnapd(c *check.C) {
 		n++
 	})
 
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"known", "--remote", "model", "series=16", "brand-id=canonical", "model=pi99"})
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"known", "--remote", "model", "series=16", "brand-id=canonical", "model=pi99"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, mockModelAssertion)
@@ -147,7 +148,7 @@ func (s *SnapSuite) TestKnownRemoteDirect(c *check.C) {
 	}))
 
 	// first test "--remote --direct"
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"known", "--remote", "--direct", "model", "series=16", "brand-id=canonical", "model=pi99"})
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"known", "--remote", "--direct", "model", "series=16", "brand-id=canonical", "model=pi99"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, mockModelAssertion)
@@ -157,7 +158,7 @@ func (s *SnapSuite) TestKnownRemoteDirect(c *check.C) {
 	// "--direct" behave the same as "--remote --direct"
 	s.stdout.Reset()
 	n = 0
-	rest, err = snap.Parser(snap.Client()).ParseArgs([]string{"known", "--direct", "model", "series=16", "brand-id=canonical", "model=pi99"})
+	rest = mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"known", "--direct", "model", "series=16", "brand-id=canonical", "model=pi99"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, mockModelAssertion)
@@ -197,7 +198,7 @@ func (s *SnapSuite) TestKnownRemoteAutoFallback(c *check.C) {
 		return nil, client.ConnectionError{Err: fmt.Errorf("no snapd")}
 	})
 
-	rest, err := snap.Parser(cli).ParseArgs([]string{"known", "--remote", "model", "series=16", "brand-id=canonical", "model=pi99"})
+	rest := mylog.Check2(snap.Parser(cli).ParseArgs([]string{"known", "--remote", "model", "series=16", "brand-id=canonical", "model=pi99"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, mockModelAssertion)
@@ -205,7 +206,7 @@ func (s *SnapSuite) TestKnownRemoteAutoFallback(c *check.C) {
 }
 
 func (s *SnapSuite) TestKnownRemoteMissingPrimaryKey(c *check.C) {
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"known", "--remote", "--direct", "model", "series=16", "brand-id=canonical"})
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"known", "--remote", "--direct", "model", "series=16", "brand-id=canonical"}))
 	c.Assert(err, check.ErrorMatches, `cannot query remote assertion: must provide primary key: model`)
 }
 

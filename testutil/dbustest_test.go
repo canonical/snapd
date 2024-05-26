@@ -22,6 +22,7 @@ package testutil_test
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -33,8 +34,8 @@ var _ = Suite(&dbusSuite{})
 
 func (s *dbusSuite) TestSessionBus(c *C) {
 	var names []string
-	err := s.SessionBus.BusObject().Call("org.freedesktop.DBus.ListNames", 0).Store(&names)
-	c.Assert(err, IsNil)
+	mylog.Check(s.SessionBus.BusObject().Call("org.freedesktop.DBus.ListNames", 0).Store(&names))
+
 	// Only two connections to the bus: the bus itself, and the test process
 	c.Check(names, HasLen, 2)
 }
@@ -43,8 +44,8 @@ func (s *dbusSuite) TestNoActivatableNames(c *C) {
 	// The private session bus does not expose activatable
 	// services from the system the test suite is running on.
 	var names []string
-	err := s.SessionBus.BusObject().Call("org.freedesktop.DBus.ListActivatableNames", 0).Store(&names)
-	c.Assert(err, IsNil)
+	mylog.Check(s.SessionBus.BusObject().Call("org.freedesktop.DBus.ListActivatableNames", 0).Store(&names))
+
 	c.Check(names, DeepEquals, []string{
 		"org.freedesktop.DBus",
 	})

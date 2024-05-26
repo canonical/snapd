@@ -27,6 +27,7 @@ import (
 	"path/filepath"
 	"sort"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
@@ -123,14 +124,10 @@ func toPredictableBootChain(b *bootChain) *bootChain {
 }
 
 func predictableBootAssetsEqual(b1, b2 []bootAsset) bool {
-	b1JSON, err := json.Marshal(b1)
-	if err != nil {
-		return false
-	}
-	b2JSON, err := json.Marshal(b2)
-	if err != nil {
-		return false
-	}
+	b1JSON := mylog.Check2(json.Marshal(b1))
+
+	b2JSON := mylog.Check2(json.Marshal(b2))
+
 	return bytes.Equal(b1JSON, b2JSON)
 }
 
@@ -222,14 +219,10 @@ const (
 // If it would return bootChainEquivalent but the chains contain
 // unrevisioned kernels it will return bootChainUnrevisioned.
 func predictableBootChainsEqualForReseal(pb1, pb2 predictableBootChains) bootChainEquivalence {
-	pb1JSON, err := json.Marshal(pb1)
-	if err != nil {
-		return bootChainDifferent
-	}
-	pb2JSON, err := json.Marshal(pb2)
-	if err != nil {
-		return bootChainDifferent
-	}
+	pb1JSON := mylog.Check2(json.Marshal(pb1))
+
+	pb2JSON := mylog.Check2(json.Marshal(pb2))
+
 	if bytes.Equal(pb1JSON, pb2JSON) {
 		if pb1.hasUnrevisionedKernels() {
 			return bootChainUnrevisioned
@@ -281,7 +274,6 @@ func bootAssetsToLoadChains(assets []bootAsset, kernelBootFile bootloader.BootFi
 
 		var bf bootloader.BootFile
 		var next []*secboot.LoadChain
-		var err error
 
 		p := filepath.Join(
 			dirs.SnapBootAssetsDir,
@@ -294,10 +286,8 @@ func bootAssetsToLoadChains(assets []bootAsset, kernelBootFile bootloader.BootFi
 			p,
 			thisAsset.Role,
 		)
-		next, err = bootAssetsToLoadChains(assets[1:], kernelBootFile, roleToBlName, expectNew || i == 1)
-		if err != nil {
-			return nil, err
-		}
+		next = mylog.Check2(bootAssetsToLoadChains(assets[1:], kernelBootFile, roleToBlName, expectNew || i == 1))
+
 		chains = append(chains, secboot.NewLoadChain(bf, next...))
 	}
 	return chains, nil
@@ -312,29 +302,20 @@ type predictableBootChainsWrapperForStorage struct {
 }
 
 func readBootChains(path string) (pbc predictableBootChains, resealCount int, err error) {
-	inf, err := os.Open(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, 0, nil
-		}
-		return nil, 0, fmt.Errorf("cannot open existing boot chains data file: %v", err)
-	}
+	inf := mylog.Check2(os.Open(path))
+
 	defer inf.Close()
 	var wrapped predictableBootChainsWrapperForStorage
-	if err := json.NewDecoder(inf).Decode(&wrapped); err != nil {
-		return nil, 0, fmt.Errorf("cannot read boot chains data: %v", err)
-	}
+	mylog.Check(json.NewDecoder(inf).Decode(&wrapped))
+
 	return wrapped.BootChains, wrapped.ResealCount, nil
 }
 
 func writeBootChains(pbc predictableBootChains, path string, resealCount int) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		return fmt.Errorf("cannot create device fde state directory: %v", err)
-	}
-	outf, err := osutil.NewAtomicFile(path, 0600, 0, osutil.NoChown, osutil.NoChown)
-	if err != nil {
-		return fmt.Errorf("cannot create a temporary boot chains file: %v", err)
-	}
+	mylog.Check(os.MkdirAll(filepath.Dir(path), 0755))
+
+	outf := mylog.Check2(osutil.NewAtomicFile(path, 0600, 0, osutil.NoChown, osutil.NoChown))
+
 	// becomes noop when the file is committed
 	defer outf.Cancel()
 
@@ -342,8 +323,7 @@ func writeBootChains(pbc predictableBootChains, path string, resealCount int) er
 		ResealCount: resealCount,
 		BootChains:  pbc,
 	}
-	if err := json.NewEncoder(outf).Encode(wrapped); err != nil {
-		return fmt.Errorf("cannot write boot chains data: %v", err)
-	}
+	mylog.Check(json.NewEncoder(outf).Encode(wrapped))
+
 	return outf.Commit()
 }

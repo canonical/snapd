@@ -22,6 +22,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/asserts"
@@ -67,9 +68,7 @@ func (x *cmdCreateKey) Execute(args []string) error {
 		return fmt.Errorf(i18n.G("key name %q is not valid; only ASCII letters, digits, and hyphens are allowed"), keyName)
 	}
 
-	keypairMgr, err := signtool.GetKeypairManager()
-	if err != nil {
-		return err
-	}
+	keypairMgr := mylog.Check2(signtool.GetKeypairManager())
+
 	return signtool.GenerateKey(keypairMgr, keyName)
 }

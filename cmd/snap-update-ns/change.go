@@ -28,6 +28,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/mount"
@@ -47,17 +48,13 @@ const (
 	// Remount when needed
 )
 
-var (
-	// function calls for mocking
-	osutilIsDirectory = osutil.IsDirectory
-)
+// function calls for mocking
+var osutilIsDirectory = osutil.IsDirectory
 
-var (
-	// ErrIgnoredMissingMount is returned when a mount entry has
-	// been marked with x-snapd.ignore-missing, and the mount
-	// source or target do not exist.
-	ErrIgnoredMissingMount = errors.New("mount source or target are missing")
-)
+// ErrIgnoredMissingMount is returned when a mount entry has
+// been marked with x-snapd.ignore-missing, and the mount
+// source or target do not exist.
+var ErrIgnoredMissingMount = errors.New("mount source or target are missing")
 
 // Change describes a change to the mount table (action and the entry to act on).
 type Change struct {
@@ -95,7 +92,6 @@ func (c *Change) createPath(path string, pokeHoles bool, as *Assumptions) ([]*Ch
 		return nil, ErrIgnoredMissingMount
 	}
 
-	var err error
 	var changes []*Change
 
 	// Root until proven otherwise
@@ -115,11 +111,11 @@ func (c *Change) createPath(path string, pokeHoles bool, as *Assumptions) ([]*Ch
 	rs := as.RestrictionsFor(path)
 	switch kind {
 	case "":
-		err = MkdirAll(path, mode, uid, gid, rs)
+		mylog.Check(MkdirAll(path, mode, uid, gid, rs))
 	case "file":
-		err = MkfileAll(path, mode, uid, gid, rs)
+		mylog.Check(MkfileAll(path, mode, uid, gid, rs))
 	case "symlink":
-		err = MksymlinkAll(path, mode, uid, gid, c.Entry.XSnapdSymlink(), rs)
+		mylog.Check(MksymlinkAll(path, mode, uid, gid, c.Entry.XSnapdSymlink(), rs))
 	case "ensure-dir":
 		uid = sysGetuid()
 		gid = sysGetgid()
@@ -127,20 +123,17 @@ func (c *Change) createPath(path string, pokeHoles bool, as *Assumptions) ([]*Ch
 		// Mode hints cannot be used here because it does not support specifying all
 		// directory paths within a given directory.
 		mode = 0700
-		err = MkdirAllWithin(path, c.Entry.XSnapdMustExistDir(), mode, uid, gid, rs)
+		mylog.Check(MkdirAllWithin(path, c.Entry.XSnapdMustExistDir(), mode, uid, gid, rs))
 	}
 	if needsMimic, mimicPath := mimicRequired(err); needsMimic && pokeHoles {
 		// If the error can be recovered by using a writable mimic
 		// then construct one and try again.
 		logger.Debugf("need to create writable mimic needed to create path %q (mount entry id: %q) (original error: %v)", path, c.Entry.XSnapdEntryID(), err)
-		changes, err = createWritableMimic(mimicPath, c.Entry.XSnapdEntryID(), as)
-		if err != nil {
-			err = fmt.Errorf("cannot create writable mimic over %q: %s", mimicPath, err)
-		} else {
-			// Try once again. Note that we care *just* about the error. We have already
-			// performed the hole poking and thus additional changes must be nil.
-			_, err = c.createPath(path, false, as)
-		}
+		changes = mylog.Check2(createWritableMimic(mimicPath, c.Entry.XSnapdEntryID(), as))
+
+		// Try once again. Note that we care *just* about the error. We have already
+		// performed the hole poking and thus additional changes must be nil.
+
 	}
 	return changes, err
 }
@@ -156,7 +149,7 @@ func (c *Change) ensureTarget(as *Assumptions) ([]*Change, error) {
 	// processes are frozen but if the path is a directory controlled by the
 	// user (typically in /home) then we may still race with user processes
 	// that change it.
-	fi, err := osLstat(path)
+	fi := mylog.Check2(osLstat(path))
 
 	if err == nil {
 		// If the element already exists we just need to ensure it is of
@@ -165,30 +158,31 @@ func (c *Change) ensureTarget(as *Assumptions) ([]*Change, error) {
 		switch kind {
 		case "":
 			if !fi.Mode().IsDir() {
-				err = fmt.Errorf("cannot use %q as mount point: not a directory", path)
+				mylog.Check(fmt.Errorf("cannot use %q as mount point: not a directory", path))
 			}
 		case "file":
 			if !fi.Mode().IsRegular() {
-				err = fmt.Errorf("cannot use %q as mount point: not a regular file", path)
+				mylog.Check(fmt.Errorf("cannot use %q as mount point: not a regular file", path))
 			}
 		case "symlink":
 			if fi.Mode()&os.ModeSymlink == os.ModeSymlink {
 				// Create path verifies the symlink or fails if it is not what we wanted.
-				_, err = c.createPath(path, false, as)
+				_ = mylog.Check2(c.createPath(path, false, as))
 			} else {
-				err = fmt.Errorf("cannot create symlink in %q: existing file in the way", path)
+				mylog.Check(fmt.Errorf("cannot create symlink in %q: existing file in the way", path))
 			}
 		case "ensure-dir":
 			if !fi.Mode().IsDir() {
-				err = fmt.Errorf("cannot create ensure-dir target %q: existing file in the way", path)
+				mylog.Check(fmt.Errorf("cannot create ensure-dir target %q: existing file in the way", path))
 			}
 		}
 	} else if os.IsNotExist(err) {
 		pokeHoles := kind != "ensure-dir"
-		changes, err = c.createPath(path, pokeHoles, as)
+		changes = mylog.Check2(c.createPath(path, pokeHoles, as))
 	} else {
-		// If we cannot inspect the element let's just bail out.
-		err = fmt.Errorf("cannot inspect %q: %v", path, err)
+		mylog.
+			// If we cannot inspect the element let's just bail out.
+			Check(fmt.Errorf("cannot inspect %q: %v", path, err))
 	}
 	return changes, err
 }
@@ -212,7 +206,7 @@ func (c *Change) ensureSource(as *Assumptions) ([]*Change, error) {
 	}
 
 	path := c.Entry.Name
-	fi, err := osLstat(path)
+	fi := mylog.Check2(osLstat(path))
 
 	if err == nil {
 		// If the element already exists we just need to ensure it is of
@@ -221,11 +215,11 @@ func (c *Change) ensureSource(as *Assumptions) ([]*Change, error) {
 		switch kind {
 		case "":
 			if !fi.Mode().IsDir() {
-				err = fmt.Errorf("cannot use %q as bind-mount source: not a directory", path)
+				mylog.Check(fmt.Errorf("cannot use %q as bind-mount source: not a directory", path))
 			}
 		case "file":
 			if !fi.Mode().IsRegular() {
-				err = fmt.Errorf("cannot use %q as bind-mount source: not a regular file", path)
+				mylog.Check(fmt.Errorf("cannot use %q as bind-mount source: not a regular file", path))
 			}
 		}
 	} else if os.IsNotExist(err) {
@@ -241,10 +235,11 @@ func (c *Change) ensureSource(as *Assumptions) ([]*Change, error) {
 		// snap they apply to. As such they are useless for content sharing but
 		// very much useful to layouts.
 		pokeHoles := c.Entry.XSnapdOrigin() == "layout"
-		changes, err = c.createPath(path, pokeHoles, as)
+		changes = mylog.Check2(c.createPath(path, pokeHoles, as))
 	} else {
-		// If we cannot inspect the element let's just bail out.
-		err = fmt.Errorf("cannot inspect %q: %v", path, err)
+		mylog.
+			// If we cannot inspect the element let's just bail out.
+			Check(fmt.Errorf("cannot inspect %q: %v", path, err))
 	}
 
 	return changes, err
@@ -262,13 +257,10 @@ func changePerformImpl(c *Change, as *Assumptions) (changes []*Change, err error
 		// As a result of this ensure call we may need to make the medium writable
 		// and that's why we may return more changes as a result of performing this
 		// one.
-		changesTarget, err = c.ensureTarget(as)
+		changesTarget = mylog.Check2(c.ensureTarget(as))
 		// NOTE: we are collecting changes even if things fail. This is so that
 		// upper layers can perform undo correctly.
 		changes = append(changes, changesTarget...)
-		if err != nil {
-			return changes, err
-		}
 
 		// At this time we can be sure that the target element (for files and
 		// directories) exists and is of the right type or that it (for
@@ -276,17 +268,16 @@ func changePerformImpl(c *Change, as *Assumptions) (changes []*Change, err error
 		// This property holds as long as we don't interact with locations that
 		// are under the control of regular (non-snap) processes that are not
 		// suspended and may be racing with us.
-		changesSource, err = c.ensureSource(as)
+		changesSource = mylog.Check2(c.ensureSource(as))
 		// NOTE: we are collecting changes even if things fail. This is so that
 		// upper layers can perform undo correctly.
 		changes = append(changes, changesSource...)
-		if err != nil {
-			return changes, err
-		}
-	}
 
-	// Perform the underlying mount / unmount / unlink call.
-	err = c.lowLevelPerform(as)
+	}
+	mylog.
+
+		// Perform the underlying mount / unmount / unlink call.
+		Check(c.lowLevelPerform(as))
 	return changes, err
 }
 
@@ -306,8 +297,6 @@ func (c *Change) Perform(as *Assumptions) ([]*Change, error) {
 
 // lowLevelPerform is simple bridge from Change to mount / unmount syscall.
 func (c *Change) lowLevelPerform(as *Assumptions) error {
-	var err error
-
 	kind := c.Entry.XSnapdKind()
 	// ensure-dir mounts attempts to create a potentially missing target directory during the ensureTarget step
 	// and does not require any low-level actions. Directories created with ensure-dir mounts should never be removed.
@@ -334,11 +323,11 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 			if flags&syscall.MS_BIND == syscall.MS_BIND {
 				// bind / rbind mount
 				flagsForMount = uintptr(maskedFlagsNotPropagationNotRecursive | maskedFlagsRecursive)
-				err = BindMount(c.Entry.Name, c.Entry.Dir, uint(flagsForMount))
+				mylog.Check(BindMount(c.Entry.Name, c.Entry.Dir, uint(flagsForMount)))
 			} else {
 				// normal mount, not bind / rbind, not propagation change
 				flagsForMount = uintptr(maskedFlagsNotPropagationNotRecursive)
-				err = sysMount(c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flagsForMount), strings.Join(unparsed, ","))
+				mylog.Check(sysMount(c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flagsForMount), strings.Join(unparsed, ",")))
 			}
 			mountOpts, unknownFlags := mount.MountFlagsToOpts(int(flagsForMount))
 			if unknownFlags != 0 {
@@ -354,7 +343,7 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 				if unknownFlags != 0 {
 					mountOpts = append(mountOpts, fmt.Sprintf("%#x", unknownFlags))
 				}
-				err = sysMount("none", c.Entry.Dir, "", flagsForMount, "")
+				mylog.Check(sysMount("none", c.Entry.Dir, "", flagsForMount, ""))
 				logger.Debugf("mount name:%q dir:%q type:%q opts:%s unparsed:%q (error: %v)",
 					"none", c.Entry.Dir, "", strings.Join(mountOpts, "|"), strings.Join(unparsed, ","), err)
 			}
@@ -367,7 +356,7 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 		kind := c.Entry.XSnapdKind()
 		switch kind {
 		case "symlink":
-			err = osRemove(c.Entry.Dir)
+			mylog.Check(osRemove(c.Entry.Dir))
 			logger.Debugf("remove %q (error: %v)", c.Entry.Dir, err)
 		case "", "file":
 			// Unmount and remount operations can fail with EINVAL if the given
@@ -401,29 +390,28 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 			flags := umountNoFollow
 			if c.Entry.XSnapdDetach() {
 				flags |= syscall.MNT_DETACH
-				// If we are detaching something then before performing the actual detach
-				// switch the entire hierarchy to private event propagation (that is,
-				// none). This works around a bit of peculiar kernel behavior when the
-				// kernel reports EBUSY during a detach operation, because the changes
-				// propagate in a way that conflicts with itself. This is also documented
-				// in umount(2).
-				err = sysMount("none", c.Entry.Dir, "", syscall.MS_REC|syscall.MS_PRIVATE, "")
+				mylog.Check(
+					// If we are detaching something then before performing the actual detach
+					// switch the entire hierarchy to private event propagation (that is,
+					// none). This works around a bit of peculiar kernel behavior when the
+					// kernel reports EBUSY during a detach operation, because the changes
+					// propagate in a way that conflicts with itself. This is also documented
+					// in umount(2).
+					sysMount("none", c.Entry.Dir, "", syscall.MS_REC|syscall.MS_PRIVATE, ""))
 				logger.Debugf("mount --make-rprivate %q (error: %v)", c.Entry.Dir, err)
-				err = clearMissingMountError(err)
+				mylog.Check(clearMissingMountError(err))
 			}
 
 			// Perform the raw unmount operation.
 			if err == nil {
-				err = sysUnmount(c.Entry.Dir, flags)
+				mylog.Check(sysUnmount(c.Entry.Dir, flags))
 				umountOpts, unknownFlags := mount.UnmountFlagsToOpts(flags)
 				if unknownFlags != 0 {
 					umountOpts = append(umountOpts, fmt.Sprintf("%#x", unknownFlags))
 				}
 				logger.Debugf("umount %q %s (error: %v)", c.Entry.Dir, strings.Join(umountOpts, "|"), err)
-				err = clearMissingMountError(err)
-				if err != nil {
-					return err
-				}
+				mylog.Check(clearMissingMountError(err))
+
 			}
 			if err == nil {
 				as.AddChange(c)
@@ -432,23 +420,19 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 			// Open a path of the file we are considering the removal of.
 			path := c.Entry.Dir
 			var fd int
-			fd, err = OpenPath(path)
+			fd = mylog.Check2(OpenPath(path))
 			// If the place does not exist anymore, we are done.
 			if os.IsNotExist(err) {
 				return nil
 			}
-			if err != nil {
-				return err
-			}
+
 			defer sysClose(fd)
 
 			// Don't attempt to remove anything from squashfs.
 			// Note that this is not a perfect check and we also handle EROFS below.
 			var statfsBuf syscall.Statfs_t
-			err = sysFstatfs(fd, &statfsBuf)
-			if err != nil {
-				return err
-			}
+			mylog.Check(sysFstatfs(fd, &statfsBuf))
+
 			if statfsBuf.Type == SquashfsMagic {
 				return nil
 			}
@@ -457,19 +441,18 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 				// Don't attempt to remove non-empty files since they cannot be
 				// the placeholders we created.
 				var statBuf syscall.Stat_t
-				err = sysFstat(fd, &statBuf)
-				if err != nil {
-					return err
-				}
+				mylog.Check(sysFstat(fd, &statBuf))
+
 				if statBuf.Size != 0 {
 					return nil
 				}
 			}
+			mylog.Check(
 
-			// Remove the file or directory while using the full path. There's
-			// no way to avoid a race here since there's no way to unlink a
-			// file solely by file descriptor.
-			err = osRemove(path)
+				// Remove the file or directory while using the full path. There's
+				// no way to avoid a race here since there's no way to unlink a
+				// file solely by file descriptor.
+				osRemove(path))
 			logger.Debugf("remove %q (error: %v)", path, err)
 			// Unpack the low-level error that osRemove wraps into PathError.
 			if packed, ok := err.(*os.PathError); ok {
@@ -496,12 +479,11 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 				// It's still unclear how this can happen. For the time being
 				// let the operation succeed and log the event.
 				logger.Noticef("cannot remove mount point, got EBUSY: %q", path)
-				if isMount, err := osutil.IsMounted(path); isMount {
+				if isMount := mylog.Check2(osutil.IsMounted(path)); isMount {
 					mounts, _ := osutil.LoadMountInfo()
 					logger.Noticef("%q is still a mount point:\n%s", path, mounts)
-				} else if err != nil {
-					logger.Noticef("cannot read mountinfo: %v", err)
 				}
+
 				return nil
 			}
 			// If we were removing a directory but it was not empty then just

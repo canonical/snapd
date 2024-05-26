@@ -22,6 +22,7 @@ package assertstatetest
 import (
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -32,11 +33,8 @@ import (
 // It is idempotent but otherwise panics on error.
 func AddMany(st *state.State, assertions ...asserts.Assertion) {
 	for _, a := range assertions {
-		err := assertstate.Add(st, a)
+		mylog.Check(assertstate.Add(st, a))
 		if _, ok := err.(*asserts.RevisionError); !ok {
-			if err != nil {
-				panic(fmt.Sprintf("cannot add test assertions: %v", err))
-			}
 		}
 	}
 }

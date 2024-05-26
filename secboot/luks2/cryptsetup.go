@@ -27,6 +27,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -43,7 +44,7 @@ func cryptsetupCmd(stdin io.Reader, args ...string) error {
 	cmd := exec.Command("cryptsetup", args...)
 	cmd.Stdin = stdin
 
-	if output, err := cmd.CombinedOutput(); err != nil {
+	if output := mylog.Check2(cmd.CombinedOutput()); err != nil {
 		return fmt.Errorf("cryptsetup failed with: %v", osutil.OutputErr(output, err))
 	}
 
@@ -134,7 +135,8 @@ func AddKey(devicePath string, existingKey, key []byte, options *AddKeyOptions) 
 		"--key-file", "-",
 		"--keyfile-size", strconv.Itoa(len(existingKey)),
 		// remove warnings and confirmation questions
-		"--batch-mode"}
+		"--batch-mode",
+	}
 
 	// apply KDF options
 	args = options.KDFOptions.appendArguments(args)

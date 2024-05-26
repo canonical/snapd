@@ -20,6 +20,7 @@
 package patch
 
 import (
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -43,10 +44,7 @@ func (log) Notify(status string) {
 func patch5(st *state.State) error {
 	log := log{}
 
-	snapStates, err := snapstate.All(st)
-	if err != nil {
-		return err
-	}
+	snapStates := mylog.Check2(snapstate.All(st))
 
 	// create timings to satisfy StartServices/StopServices API, but don't save them
 	tm := timings.New(nil)
@@ -55,33 +53,18 @@ func patch5(st *state.State) error {
 			continue
 		}
 
-		info, err := snapst.CurrentInfo()
-		if err != nil {
-			return err
-		}
+		info := mylog.Check2(snapst.CurrentInfo())
 
 		svcs := info.Services()
 		if len(svcs) == 0 {
 			logger.Debugf("patch 5: skipping for %q: no services", snapName)
 			continue
 		}
-
-		err = wrappers.StopServices(svcs, nil, snap.StopReasonRefresh, log, tm)
-		if err != nil {
-			return err
-		}
-
-		err = wrappers.EnsureSnapServices(map[*snap.Info]*wrappers.SnapServiceOptions{
+		mylog.Check(wrappers.StopServices(svcs, nil, snap.StopReasonRefresh, log, tm))
+		mylog.Check(wrappers.EnsureSnapServices(map[*snap.Info]*wrappers.SnapServiceOptions{
 			info: nil,
-		}, nil, nil, log)
-		if err != nil {
-			return err
-		}
-
-		err = wrappers.StartServices(svcs, nil, nil, log, tm)
-		if err != nil {
-			return err
-		}
+		}, nil, nil, log))
+		mylog.Check(wrappers.StartServices(svcs, nil, nil, log, tm))
 
 		logger.Noticef("patch 5: %q updated", snapName)
 	}

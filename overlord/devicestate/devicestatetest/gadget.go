@@ -27,6 +27,7 @@ import (
 	"gopkg.in/tomb.v2"
 	"gopkg.in/yaml.v2"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -44,7 +45,6 @@ type PrepareDeviceBehavior struct {
 }
 
 func MockGadget(c *C, st *state.State, name string, revision snap.Revision, pDBhv *PrepareDeviceBehavior) (restore func()) {
-
 	sideInfoGadget := &snap.SideInfo{
 		RealName: name,
 		Revision: revision,
@@ -80,26 +80,26 @@ version: gadget
 		c.Assert(ctx.HookName(), Equals, "prepare-device")
 
 		// snapctl set the registration params
-		_, _, err := ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("device-service.url=%q", pDBhv.DeviceSvcURL)}, 0)
-		c.Assert(err, IsNil)
+		_, _ := mylog.Check3(ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("device-service.url=%q", pDBhv.DeviceSvcURL)}, 0))
+
 
 		if len(pDBhv.Headers) != 0 {
-			h, err := json.Marshal(pDBhv.Headers)
-			c.Assert(err, IsNil)
-			_, _, err = ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("device-service.headers=%s", string(h))}, 0)
-			c.Assert(err, IsNil)
+			h := mylog.Check2(json.Marshal(pDBhv.Headers))
+
+			_, _ = mylog.Check3(ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("device-service.headers=%s", string(h))}, 0))
+
 		}
 
 		if pDBhv.ProposedSerial != "" {
-			_, _, err = ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("registration.proposed-serial=%q", pDBhv.ProposedSerial)}, 0)
-			c.Assert(err, IsNil)
+			_, _ = mylog.Check3(ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("registration.proposed-serial=%q", pDBhv.ProposedSerial)}, 0))
+
 		}
 
 		if len(pDBhv.RegBody) != 0 {
-			d, err := yaml.Marshal(pDBhv.RegBody)
-			c.Assert(err, IsNil)
-			_, _, err = ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("registration.body=%q", d)}, 0)
-			c.Assert(err, IsNil)
+			d := mylog.Check2(yaml.Marshal(pDBhv.RegBody))
+
+			_, _ = mylog.Check3(ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("registration.body=%q", d)}, 0))
+
 		}
 
 		return nil, nil

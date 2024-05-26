@@ -32,6 +32,7 @@ import (
 	. "gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/hookstate"
@@ -61,9 +62,7 @@ type baseHookManagerSuite struct {
 	command     *testutil.MockCmd
 }
 
-var (
-	settleTimeout = testutil.HostScaledTimeout(15 * time.Second)
-)
+var settleTimeout = testutil.HostScaledTimeout(15 * time.Second)
 
 func (s *baseHookManagerSuite) commonSetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
@@ -76,11 +75,11 @@ func (s *baseHookManagerSuite) commonSetUpTest(c *C) {
 	s.o = overlord.Mock()
 	s.state = s.o.State()
 	s.state.Lock()
-	_, err := restart.Manager(s.state, "boot-id-0", nil)
+	_ := mylog.Check2(restart.Manager(s.state, "boot-id-0", nil))
 	s.state.Unlock()
-	c.Assert(err, IsNil)
-	manager, err := hookstate.Manager(s.state, s.o.TaskRunner())
-	c.Assert(err, IsNil)
+
+	manager := mylog.Check2(hookstate.Manager(s.state, s.o.TaskRunner()))
+
 	s.manager = manager
 	s.se = s.o.StateEngine()
 	s.o.AddManager(s.manager)
@@ -180,8 +179,8 @@ func (s *hookManagerSuite) TearDownTest(c *C) {
 }
 
 func (s *hookManagerSuite) settle(c *C) {
-	err := s.o.Settle(settleTimeout)
-	c.Assert(err, IsNil)
+	mylog.Check(s.o.Settle(settleTimeout))
+
 }
 
 func (s *hookManagerSuite) TestSmoke(c *C) {
@@ -191,18 +190,18 @@ func (s *hookManagerSuite) TestSmoke(c *C) {
 
 func (s *hookManagerSuite) TestHookSetupJsonMarshal(c *C) {
 	hookSetup := &hookstate.HookSetup{Snap: "snap-name", Revision: snap.R(1), Hook: "hook-name"}
-	out, err := json.Marshal(hookSetup)
-	c.Assert(err, IsNil)
+	out := mylog.Check2(json.Marshal(hookSetup))
+
 	c.Check(string(out), Equals, "{\"snap\":\"snap-name\",\"revision\":\"1\",\"hook\":\"hook-name\"}")
 }
 
 func (s *hookManagerSuite) TestHookSetupJsonUnmarshal(c *C) {
-	out, err := json.Marshal(hookstate.HookSetup{Snap: "snap-name", Revision: snap.R(1), Hook: "hook-name"})
-	c.Assert(err, IsNil)
+	out := mylog.Check2(json.Marshal(hookstate.HookSetup{Snap: "snap-name", Revision: snap.R(1), Hook: "hook-name"}))
+
 
 	var setup hookstate.HookSetup
-	err = json.Unmarshal(out, &setup)
-	c.Assert(err, IsNil)
+	mylog.Check(json.Unmarshal(out, &setup))
+
 	c.Check(setup.Snap, Equals, "snap-name")
 	c.Check(setup.Revision, Equals, snap.R(1))
 	c.Check(setup.Hook, Equals, "hook-name")
@@ -222,7 +221,7 @@ func (s *hookManagerSuite) TestHookTask(c *C) {
 	c.Check(task.Kind(), Equals, "run-hook")
 
 	var setup hookstate.HookSetup
-	err := task.Get("hook-setup", &setup)
+	mylog.Check(task.Get("hook-setup", &setup))
 	c.Check(err, IsNil)
 	c.Check(setup.Snap, Equals, "test-snap")
 	c.Check(setup.Revision, Equals, snap.R(1))
@@ -920,7 +919,6 @@ func (s *hookManagerSuite) TestHookTaskRunsRightSnapCmd(c *C) {
 	c.Check(cmd.Calls(), DeepEquals, [][]string{{
 		"snap", "run", "--hook", "configure", "-r", "1", "test-snap",
 	}})
-
 }
 
 func (s *hookManagerSuite) TestHookTasksForSameSnapAreSerialized(c *C) {
@@ -1132,7 +1130,7 @@ func (s *hookManagerSuite) TestGracefullyWaitRunningHooksTimeout(c *C) {
 func (s *hookManagerSuite) TestSnapstateOpConflict(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
-	_, err := snapstate.Disable(s.state, "test-snap")
+	_ := mylog.Check2(snapstate.Disable(s.state, "test-snap"))
 	c.Assert(err, ErrorMatches, `snap "test-snap" has "kind" change in progress`)
 }
 
@@ -1145,8 +1143,8 @@ func (s *hookManagerSuite) TestHookHijackingNoConflict(c *C) {
 	})
 
 	// no conflict on hijacked hooks
-	_, err := snapstate.Disable(s.state, "test-snap")
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(snapstate.Disable(s.state, "test-snap"))
+
 }
 
 func (s *hookManagerSuite) TestEphemeralRunHook(c *C) {
@@ -1188,8 +1186,8 @@ func (s *hookManagerSuite) testEphemeralRunHook(c *C, contextData map[string]int
 		Revision: snap.R(1),
 		Hook:     "configure",
 	}
-	context, err := s.manager.EphemeralRunHook(context.Background(), hooksup, contextData)
-	c.Assert(err, IsNil)
+	context := mylog.Check2(s.manager.EphemeralRunHook(context.Background(), hooksup, contextData))
+
 	c.Check(hookInvokeCalled, DeepEquals, []string{"configure"})
 
 	var value string
@@ -1215,7 +1213,7 @@ func (s *hookManagerSuite) TestEphemeralRunHookNoSnap(c *C) {
 	contextData := map[string]interface{}{
 		"key": "value",
 	}
-	_, err := s.manager.EphemeralRunHook(context.Background(), hooksup, contextData)
+	_ := mylog.Check2(s.manager.EphemeralRunHook(context.Background(), hooksup, contextData))
 	c.Assert(err, ErrorMatches, `cannot run ephemeral hook "configure" for snap "not-installed-snap": no state entry for key`)
 }
 
@@ -1248,8 +1246,8 @@ func (s *hookManagerSuite) TestEphemeralRunHookContextCanCancel(c *C) {
 		<-hookRunning
 		cancelFunc()
 	}()
-	_, err := s.manager.EphemeralRunHook(ctx, hooksup, nil)
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(s.manager.EphemeralRunHook(ctx, hooksup, nil))
+
 	c.Check(tombDying, Equals, 1)
 }
 

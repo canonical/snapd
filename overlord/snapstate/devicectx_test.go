@@ -22,6 +22,7 @@ package snapstate_test
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
@@ -51,12 +52,12 @@ func (s *deviceCtxSuite) TestDevicePastSeedingTooEarly(c *C) {
 	}
 
 	// not seeded, no model assertion
-	_, err := snapstate.DevicePastSeeding(s.st, nil)
+	_ := mylog.Check2(snapstate.DevicePastSeeding(s.st, nil))
 	c.Assert(err, DeepEquals, expectedErr)
 
 	// seeded, no model assertion
 	s.st.Set("seeded", true)
-	_, err = snapstate.DevicePastSeeding(s.st, nil)
+	_ = mylog.Check2(snapstate.DevicePastSeeding(s.st, nil))
 	c.Assert(err, DeepEquals, expectedErr)
 }
 
@@ -76,13 +77,13 @@ func (s *deviceCtxSuite) TestDevicePastSeedingProvided(c *C) {
 	deviceCtx1 := &snapstatetest.TrivialDeviceContext{DeviceModel: MakeModel(nil)}
 
 	// not seeded
-	_, err := snapstate.DevicePastSeeding(s.st, deviceCtx1)
+	_ := mylog.Check2(snapstate.DevicePastSeeding(s.st, deviceCtx1))
 	c.Assert(err, DeepEquals, expectedErr)
 
 	// seeded
 	s.st.Set("seeded", true)
-	deviceCtx, err := snapstate.DevicePastSeeding(s.st, deviceCtx1)
-	c.Assert(err, IsNil)
+	deviceCtx := mylog.Check2(snapstate.DevicePastSeeding(s.st, deviceCtx1))
+
 	c.Assert(deviceCtx, Equals, deviceCtx1)
 
 	// remodeling is also ok
@@ -91,8 +92,8 @@ func (s *deviceCtxSuite) TestDevicePastSeedingProvided(c *C) {
 	defer snapstatetest.ReplaceRemodelingHook(func(*state.State) *state.Change {
 		return chg
 	})()
-	deviceCtx, err = snapstate.DevicePastSeeding(s.st, deviceCtx2)
-	c.Assert(err, IsNil)
+	deviceCtx = mylog.Check2(snapstate.DevicePastSeeding(s.st, deviceCtx2))
+
 	c.Assert(deviceCtx, Equals, deviceCtx2)
 
 	expectedErr = &snapstate.ChangeConflictError{
@@ -103,7 +104,7 @@ func (s *deviceCtxSuite) TestDevicePastSeedingProvided(c *C) {
 	}
 
 	// should not happen in practice but correct
-	deviceCtx, err = snapstate.DevicePastSeeding(s.st, deviceCtx1)
+	deviceCtx = mylog.Check2(snapstate.DevicePastSeeding(s.st, deviceCtx1))
 	c.Assert(err, DeepEquals, expectedErr)
 	c.Check(deviceCtx, IsNil)
 }
@@ -118,8 +119,8 @@ func (s *deviceCtxSuite) TestDevicePastSeedingReady(c *C) {
 	r := snapstatetest.MockDeviceModel(DefaultModel())
 	defer r()
 
-	deviceCtx, err := snapstate.DevicePastSeeding(s.st, nil)
-	c.Assert(err, IsNil)
+	deviceCtx := mylog.Check2(snapstate.DevicePastSeeding(s.st, nil))
+
 	c.Check(deviceCtx.Model().Model(), Equals, "baz-3000")
 	c.Check(deviceCtx.SystemMode(), Equals, "run")
 }
@@ -134,8 +135,8 @@ func (s *deviceCtxSuite) TestDevicePastSeedingReadyInstallMode(c *C) {
 	r := snapstatetest.MockDeviceModelAndMode(DefaultModel(), "install")
 	defer r()
 
-	deviceCtx, err := snapstate.DevicePastSeeding(s.st, nil)
-	c.Assert(err, IsNil)
+	deviceCtx := mylog.Check2(snapstate.DevicePastSeeding(s.st, nil))
+
 	c.Check(deviceCtx.Model().Model(), Equals, "baz-3000")
 	c.Check(deviceCtx.SystemMode(), Equals, "install")
 }
@@ -162,7 +163,7 @@ func (s *deviceCtxSuite) TestDevicePastSeedingButRemodeling(c *C) {
 		ChangeID:   chg.ID(),
 	}
 
-	_, err := snapstate.DevicePastSeeding(s.st, nil)
+	_ := mylog.Check2(snapstate.DevicePastSeeding(s.st, nil))
 	c.Assert(err, DeepEquals, expectedErr)
 }
 
@@ -174,8 +175,8 @@ func (s *deviceCtxSuite) TestDeviceCtxFromStateReady(c *C) {
 	r := snapstatetest.MockDeviceModel(DefaultModel())
 	defer r()
 
-	deviceCtx, err := snapstate.DeviceCtxFromState(s.st, nil)
-	c.Assert(err, IsNil)
+	deviceCtx := mylog.Check2(snapstate.DeviceCtxFromState(s.st, nil))
+
 	c.Check(deviceCtx.Model().Model(), Equals, "baz-3000")
 }
 
@@ -189,14 +190,14 @@ func (s *deviceCtxSuite) TestDeviceCtxFromStateProvided(c *C) {
 	deviceCtx1 := &snapstatetest.TrivialDeviceContext{DeviceModel: MakeModel(nil)}
 
 	// not seeded
-	deviceCtx, err := snapstate.DeviceCtxFromState(s.st, deviceCtx1)
-	c.Assert(err, IsNil)
+	deviceCtx := mylog.Check2(snapstate.DeviceCtxFromState(s.st, deviceCtx1))
+
 	c.Assert(deviceCtx, Equals, deviceCtx1)
 
 	// seeded
 	s.st.Set("seeded", true)
-	deviceCtx, err = snapstate.DeviceCtxFromState(s.st, deviceCtx1)
-	c.Assert(err, IsNil)
+	deviceCtx = mylog.Check2(snapstate.DeviceCtxFromState(s.st, deviceCtx1))
+
 	c.Assert(deviceCtx, Equals, deviceCtx1)
 }
 
@@ -214,11 +215,11 @@ func (s *deviceCtxSuite) TestDeviceCtxFromStateTooEarly(c *C) {
 	}
 
 	// not seeded, no model assertion
-	_, err := snapstate.DeviceCtxFromState(s.st, nil)
+	_ := mylog.Check2(snapstate.DeviceCtxFromState(s.st, nil))
 	c.Assert(err, DeepEquals, expectedErr)
 
 	// seeded, no model assertion
 	s.st.Set("seeded", true)
-	_, err = snapstate.DeviceCtxFromState(s.st, nil)
+	_ = mylog.Check2(snapstate.DeviceCtxFromState(s.st, nil))
 	c.Assert(err, DeepEquals, expectedErr)
 }

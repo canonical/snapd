@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -38,8 +39,8 @@ var _ = Suite(&profileSuite{})
 // Test that loading a profile from inexisting file returns an empty profile.
 func (s *profileSuite) TestLoadMountProfile1(c *C) {
 	dir := c.MkDir()
-	p, err := osutil.LoadMountProfile(filepath.Join(dir, "missing"))
-	c.Assert(err, IsNil)
+	p := mylog.Check2(osutil.LoadMountProfile(filepath.Join(dir, "missing")))
+
 	c.Assert(p.Entries, HasLen, 0)
 }
 
@@ -47,10 +48,10 @@ func (s *profileSuite) TestLoadMountProfile1(c *C) {
 func (s *profileSuite) TestLoadMountProfile2(c *C) {
 	dir := c.MkDir()
 	fname := filepath.Join(dir, "existing")
-	err := os.WriteFile(fname, []byte("name-1 dir-1 type-1 options-1 1 1 # 1st entry"), 0644)
-	c.Assert(err, IsNil)
-	p, err := osutil.LoadMountProfile(fname)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(fname, []byte("name-1 dir-1 type-1 options-1 1 1 # 1st entry"), 0644))
+
+	p := mylog.Check2(osutil.LoadMountProfile(fname))
+
 	c.Assert(p.Entries, HasLen, 1)
 	c.Assert(p.Entries, DeepEquals, []osutil.MountEntry{
 		{Name: "name-1", Dir: "dir-1", Type: "type-1", Options: []string{"options-1"}, DumpFrequency: 1, CheckPassNumber: 1},
@@ -61,16 +62,16 @@ func (s *profileSuite) TestLoadMountProfile2(c *C) {
 func (s *profileSuite) TestLoadMountProfile3(c *C) {
 	dir := c.MkDir()
 	fname := filepath.Join(dir, "existing")
-	err := os.WriteFile(fname, []byte(`
+	mylog.Check(os.WriteFile(fname, []byte(`
    # comment with leading spaces
 name#-1 dir#-1 type#-1 options#-1 1 1 # inline comment
 # comment without leading spaces
 
 
-`), 0644)
-	c.Assert(err, IsNil)
-	p, err := osutil.LoadMountProfile(fname)
-	c.Assert(err, IsNil)
+`), 0644))
+
+	p := mylog.Check2(osutil.LoadMountProfile(fname))
+
 	c.Assert(p.Entries, HasLen, 1)
 	c.Assert(p.Entries, DeepEquals, []osutil.MountEntry{
 		{Name: "name#-1", Dir: "dir#-1", Type: "type#-1", Options: []string{"options#-1"}, DumpFrequency: 1, CheckPassNumber: 1},
@@ -78,16 +79,16 @@ name#-1 dir#-1 type#-1 options#-1 1 1 # inline comment
 }
 
 func (s *profileSuite) TestLoadMountProfileText(c *C) {
-	p1, err := osutil.LoadMountProfileText("tmpfs /tmp tmpfs defaults 0 0")
-	c.Assert(err, IsNil)
+	p1 := mylog.Check2(osutil.LoadMountProfileText("tmpfs /tmp tmpfs defaults 0 0"))
+
 	c.Assert(p1.Entries, DeepEquals, []osutil.MountEntry{
 		{Name: "tmpfs", Dir: "/tmp", Type: "tmpfs", Options: []string{"defaults"}},
 	})
 
-	p2, err := osutil.LoadMountProfileText(
+	p2 := mylog.Check2(osutil.LoadMountProfileText(
 		"tmpfs /tmp tmpfs defaults 0 0\n" +
-			"/tmp /var/tmp none bind 0 0\n")
-	c.Assert(err, IsNil)
+			"/tmp /var/tmp none bind 0 0\n"))
+
 	c.Assert(p2.Entries, DeepEquals, []osutil.MountEntry{
 		{Name: "tmpfs", Dir: "/tmp", Type: "tmpfs", Options: []string{"defaults"}},
 		{Name: "/tmp", Dir: "/var/tmp", Type: "none", Options: []string{"bind"}},
@@ -103,11 +104,11 @@ func (s *profileSuite) TestSaveMountProfile1(c *C) {
 			{Name: "name-1", Dir: "dir-1", Type: "type-1", Options: []string{"options-1"}, DumpFrequency: 1, CheckPassNumber: 1},
 		},
 	}
-	err := p.Save(fname)
-	c.Assert(err, IsNil)
+	mylog.Check(p.Save(fname))
 
-	stat, err := os.Stat(fname)
-	c.Assert(err, IsNil)
+
+	stat := mylog.Check2(os.Stat(fname))
+
 	c.Assert(stat.Mode().Perm(), Equals, os.FileMode(0644))
 
 	c.Assert(fname, testutil.FileEquals, "name-1 dir-1 type-1 options-1 1 1\n")
@@ -115,24 +116,24 @@ func (s *profileSuite) TestSaveMountProfile1(c *C) {
 
 // Test that empty fstab is parsed without errors
 func (s *profileSuite) TestReadMountProfile1(c *C) {
-	p, err := osutil.ReadMountProfile(strings.NewReader(""))
-	c.Assert(err, IsNil)
+	p := mylog.Check2(osutil.ReadMountProfile(strings.NewReader("")))
+
 	c.Assert(p.Entries, HasLen, 0)
 }
 
 // Test that '#'-comments are skipped
 func (s *profileSuite) TestReadMountProfile2(c *C) {
-	p, err := osutil.ReadMountProfile(strings.NewReader("# comment"))
-	c.Assert(err, IsNil)
+	p := mylog.Check2(osutil.ReadMountProfile(strings.NewReader("# comment")))
+
 	c.Assert(p.Entries, HasLen, 0)
 }
 
 // Test that simple profile can be loaded correctly.
 func (s *profileSuite) TestReadMountProfile3(c *C) {
-	p, err := osutil.ReadMountProfile(strings.NewReader(`
+	p := mylog.Check2(osutil.ReadMountProfile(strings.NewReader(`
 		name-1 dir-1 type-1 options-1 1 1 # 1st entry
-		name-2 dir-2 type-2 options-2 2 2 # 2nd entry`))
-	c.Assert(err, IsNil)
+		name-2 dir-2 type-2 options-2 2 2 # 2nd entry`)))
+
 	c.Assert(p.Entries, HasLen, 2)
 	c.Assert(p.Entries, DeepEquals, []osutil.MountEntry{
 		{Name: "name-1", Dir: "dir-1", Type: "type-1", Options: []string{"options-1"}, DumpFrequency: 1, CheckPassNumber: 1},
@@ -144,8 +145,8 @@ func (s *profileSuite) TestReadMountProfile3(c *C) {
 func (s *profileSuite) TestWriteTo1(c *C) {
 	p := &osutil.MountProfile{}
 	var buf bytes.Buffer
-	n, err := p.WriteTo(&buf)
-	c.Assert(err, IsNil)
+	n := mylog.Check2(p.WriteTo(&buf))
+
 	c.Assert(n, Equals, int64(0))
 	c.Assert(buf.String(), Equals, "")
 }
@@ -159,8 +160,8 @@ func (s *profileSuite) TestWriteTo2(c *C) {
 		},
 	}
 	var buf bytes.Buffer
-	n, err := p.WriteTo(&buf)
-	c.Assert(err, IsNil)
+	n := mylog.Check2(p.WriteTo(&buf))
+
 	c.Assert(n, Equals, int64(68))
 	c.Assert(buf.String(), Equals, ("" +
 		"name-1 dir-1 type-1 options-1 1 1\n" +

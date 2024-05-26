@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
@@ -84,8 +85,8 @@ func (s *NetworkControlInterfaceSuite) TestAppArmorSpec(c *C) {
 	r := apparmor_sandbox.MockFeatures(nil, nil, nil, nil)
 	defer r()
 
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Check(spec.SuppressSysModuleCapability(), Equals, true)
@@ -112,8 +113,8 @@ func (s *NetworkControlInterfaceSuite) TestAppArmorSpecWithNoAppArmor(c *C) {
 	r := apparmor_sandbox.MockLevel(apparmor_sandbox.Unsupported)
 	defer r()
 
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	// Check a rule that should always be there...
@@ -128,8 +129,8 @@ func (s *NetworkControlInterfaceSuite) TestAppArmorSpecWithXdpFeature(c *C) {
 	r = apparmor_sandbox.MockFeatures(nil, nil, []string{"feat1", "xdp", "feat2"}, nil)
 	defer r()
 
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	// Check a rule that should always be there...
@@ -139,8 +140,8 @@ func (s *NetworkControlInterfaceSuite) TestAppArmorSpecWithXdpFeature(c *C) {
 }
 
 func (s *NetworkControlInterfaceSuite) TestSecCompSpec(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	spec := seccomp.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
@@ -148,8 +149,8 @@ func (s *NetworkControlInterfaceSuite) TestSecCompSpec(c *C) {
 }
 
 func (s *NetworkControlInterfaceSuite) TestUDevSpec(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	spec := udev.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 3)
@@ -181,6 +182,7 @@ func (s *NetworkControlInterfaceSuite) TestStaticInfo(c *C) {
 func (s *NetworkControlInterfaceSuite) TestAutoConnect(c *C) {
 	c.Assert(s.iface.AutoConnect(s.plugInfo, s.slotInfo), Equals, true)
 }
+
 func (s *NetworkControlInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

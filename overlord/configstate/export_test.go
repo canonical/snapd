@@ -25,8 +25,10 @@ import (
 	"github.com/snapcore/snapd/sysconfig"
 )
 
-var NewConfigureHandler = newConfigureHandler
-var NewDefaultConfigureHandler = newDefaultConfigureHandler
+var (
+	NewConfigureHandler        = newConfigureHandler
+	NewDefaultConfigureHandler = newDefaultConfigureHandler
+)
 
 func MockConfigcoreExportExperimentalFlags(mock func(tr configcore.ConfGetter) error) (restore func()) {
 	old := configcoreExportExperimentalFlags

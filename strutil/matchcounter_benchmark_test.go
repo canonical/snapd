@@ -23,6 +23,7 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -33,15 +34,10 @@ func benchmarkMatchCounter(b *testing.B, wrx *regexp.Regexp, wn int) {
 			w := &strutil.MatchCounter{Regexp: wrx, N: wn}
 			var i int
 			for i = 0; i+step < len(buf); i += step {
-				_, err := w.Write(buf[i : i+step])
-				if err != nil {
-					b.Fatalf("step:%d i:%d: %v", step, i, err)
-				}
+				_ := mylog.Check2(w.Write(buf[i : i+step]))
 			}
-			_, err := w.Write(buf[i:])
-			if err != nil {
-				b.Fatalf("step:%d tail: %v", step, err)
-			}
+			_ := mylog.Check2(w.Write(buf[i:]))
+
 		}
 	}
 }

@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
@@ -53,18 +54,13 @@ func ClearTryRecoverySystem(dev snap.Device, systemLabel string) error {
 }
 
 func clearTryRecoverySystem(dev snap.Device, systemLabel string) error {
-	m, err := loadModeenv()
-	if err != nil {
-		return err
-	}
+	m := mylog.Check2(loadModeenv())
+
 	opts := &bootloader.Options{
 		// setup the recovery bootloader
 		Role: bootloader.RoleRecovery,
 	}
-	bl, err := bootloader.Find(InitramfsUbuntuSeedDir, opts)
-	if err != nil {
-		return err
-	}
+	bl := mylog.Check2(bootloader.Find(InitramfsUbuntuSeedDir, opts))
 
 	modified := false
 	// we may be repeating the cleanup, in which case the system was already
@@ -79,9 +75,7 @@ func clearTryRecoverySystem(dev snap.Device, systemLabel string) error {
 		modified = true
 	}
 	if modified {
-		if err := m.Write(); err != nil {
-			return err
-		}
+		mylog.Check(m.Write())
 	}
 
 	// clear both variables, no matter the values they hold
@@ -116,19 +110,14 @@ func SetTryRecoverySystem(dev snap.Device, systemLabel string) (err error) {
 	modeenvLock()
 	defer modeenvUnlock()
 
-	m, err := loadModeenv()
-	if err != nil {
-		return err
-	}
+	m := mylog.Check2(loadModeenv())
+
 	opts := &bootloader.Options{
 		// setup the recovery bootloader
 		Role: bootloader.RoleRecovery,
 	}
 	// TODO:UC20: seed may need to be switched to RW
-	bl, err := bootloader.Find(InitramfsUbuntuSeedDir, opts)
-	if err != nil {
-		return err
-	}
+	bl := mylog.Check2(bootloader.Find(InitramfsUbuntuSeedDir, opts))
 
 	modified := false
 	// we could have rebooted before resealing the keys
@@ -148,9 +137,7 @@ func SetTryRecoverySystem(dev snap.Device, systemLabel string) (err error) {
 		modified = true
 	}
 	if modified {
-		if err := m.Write(); err != nil {
-			return err
-		}
+		mylog.Check(m.Write())
 	}
 
 	defer func() {
@@ -158,7 +145,7 @@ func SetTryRecoverySystem(dev snap.Device, systemLabel string) (err error) {
 			return
 		}
 		if cleanupErr := clearTryRecoverySystem(dev, systemLabel); cleanupErr != nil {
-			err = fmt.Errorf("%v (cleanup failed: %v)", err, cleanupErr)
+			mylog.Check(fmt.Errorf("%v (cleanup failed: %v)", err, cleanupErr))
 		}
 	}()
 
@@ -169,9 +156,7 @@ func SetTryRecoverySystem(dev snap.Device, systemLabel string) (err error) {
 		"try_recovery_system":    systemLabel,
 		"recovery_system_status": "try",
 	}
-	if err := bl.SetBootVars(vars); err != nil {
-		return err
-	}
+	mylog.Check(bl.SetBootVars(vars))
 
 	// until the keys are resealed, even if we unexpectedly boot into the
 	// tried system, data will still be inaccessible and the system will be
@@ -201,15 +186,9 @@ func InitramfsIsTryingRecoverySystem(currentSystemLabel string) (bool, error) {
 		// setup the recovery bootloader
 		Role: bootloader.RoleRecovery,
 	}
-	bl, err := bootloader.Find(InitramfsUbuntuSeedDir, opts)
-	if err != nil {
-		return false, err
-	}
+	bl := mylog.Check2(bootloader.Find(InitramfsUbuntuSeedDir, opts))
 
-	vars, err := bl.GetBootVars("try_recovery_system", "recovery_system_status")
-	if err != nil {
-		return false, err
-	}
+	vars := mylog.Check2(bl.GetBootVars("try_recovery_system", "recovery_system_status"))
 
 	status := vars["recovery_system_status"]
 	switch status {
@@ -275,10 +254,8 @@ func EnsureNextBootToRunModeWithTryRecoverySystemOutcome(outcome TryRecoverySyst
 		Role: bootloader.RoleRecovery,
 	}
 	// TODO:UC20: seed may need to be switched to RW
-	bl, err := bootloader.Find(InitramfsUbuntuSeedDir, opts)
-	if err != nil {
-		return err
-	}
+	bl := mylog.Check2(bootloader.Find(InitramfsUbuntuSeedDir, opts))
+
 	vars := map[string]string{
 		// always going to back to run mode
 		"snapd_recovery_mode":    "run",
@@ -307,10 +284,8 @@ func observeSuccessfulSystems(m *Modeenv) (*Modeenv, error) {
 	// compatibility scenario, no good systems are tracked in modeenv yet,
 	// and there is a single entry in the current systems list
 	if len(m.GoodRecoverySystems) == 0 && len(m.CurrentRecoverySystems) == 1 {
-		newM, err := m.Copy()
-		if err != nil {
-			return nil, err
-		}
+		newM := mylog.Check2(m.Copy())
+
 		newM.GoodRecoverySystems = []string{m.CurrentRecoverySystems[0]}
 		return newM, nil
 	}
@@ -330,15 +305,10 @@ func InspectTryRecoverySystemOutcome(dev snap.Device) (outcome TryRecoverySystem
 		Role: bootloader.RoleRecovery,
 	}
 	// TODO:UC20: seed may need to be switched to RW
-	bl, err := bootloader.Find(InitramfsUbuntuSeedDir, opts)
-	if err != nil {
-		return TryRecoverySystemOutcomeFailure, "", err
-	}
+	bl := mylog.Check2(bootloader.Find(InitramfsUbuntuSeedDir, opts))
 
-	vars, err := bl.GetBootVars("try_recovery_system", "recovery_system_status")
-	if err != nil {
-		return TryRecoverySystemOutcomeFailure, "", err
-	}
+	vars := mylog.Check2(bl.GetBootVars("try_recovery_system", "recovery_system_status"))
+
 	status := vars["recovery_system_status"]
 	trySystem := vars["try_recovery_system"]
 
@@ -360,10 +330,7 @@ func InspectTryRecoverySystemOutcome(dev snap.Device) (outcome TryRecoverySystem
 	case status == "tried":
 		// check that try_recovery_system ended up in the modeenv's
 		// CurrentRecoverySystems
-		m, err := loadModeenv()
-		if err != nil {
-			return TryRecoverySystemOutcomeFailure, trySystem, err
-		}
+		m := mylog.Check2(loadModeenv())
 
 		found := false
 		for _, sys := range m.CurrentRecoverySystems {
@@ -401,10 +368,8 @@ func PromoteTriedRecoverySystem(dev snap.Device, systemLabel string, triedSystem
 		return fmt.Errorf("system has not been successfully tried")
 	}
 
-	m, err := loadModeenv()
-	if err != nil {
-		return err
-	}
+	m := mylog.Check2(loadModeenv())
+
 	rewriteModeenv := false
 	if !strutil.ListContains(m.CurrentRecoverySystems, systemLabel) {
 		m.CurrentRecoverySystems = append(m.CurrentRecoverySystems, systemLabel)
@@ -415,18 +380,12 @@ func PromoteTriedRecoverySystem(dev snap.Device, systemLabel string, triedSystem
 		rewriteModeenv = true
 	}
 	if rewriteModeenv {
-		if err := m.Write(); err != nil {
-			return err
-		}
+		mylog.Check(m.Write())
 	}
 
 	const expectReseal = true
-	if err := resealKeyToModeenv(dirs.GlobalRootDir, m, expectReseal, nil); err != nil {
-		if cleanupErr := dropRecoverySystem(dev, systemLabel); cleanupErr != nil {
-			err = fmt.Errorf("%v (cleanup failed: %v)", err, cleanupErr)
-		}
-		return err
-	}
+	mylog.Check(resealKeyToModeenv(dirs.GlobalRootDir, m, expectReseal, nil))
+
 	return nil
 }
 
@@ -443,10 +402,7 @@ func DropRecoverySystem(dev snap.Device, systemLabel string) error {
 }
 
 func dropRecoverySystem(dev snap.Device, systemLabel string) error {
-	m, err := loadModeenv()
-	if err != nil {
-		return err
-	}
+	m := mylog.Check2(loadModeenv())
 
 	rewriteModeenv := false
 	if updatedGood, found := dropFromRecoverySystemsList(m.GoodRecoverySystems, systemLabel); found {
@@ -458,9 +414,7 @@ func dropRecoverySystem(dev snap.Device, systemLabel string) error {
 		rewriteModeenv = true
 	}
 	if rewriteModeenv {
-		if err := m.Write(); err != nil {
-			return err
-		}
+		mylog.Check(m.Write())
 	}
 
 	const expectReseal = true
@@ -475,18 +429,14 @@ func MarkRecoveryCapableSystem(systemLabel string) error {
 		Role: bootloader.RoleRecovery,
 	}
 	// TODO:UC20: seed may need to be switched to RW
-	bl, err := bootloader.Find(InitramfsUbuntuSeedDir, opts)
-	if err != nil {
-		return err
-	}
+	bl := mylog.Check2(bootloader.Find(InitramfsUbuntuSeedDir, opts))
+
 	rbl, ok := bl.(bootloader.RecoveryAwareBootloader)
 	if !ok {
 		return nil
 	}
-	vars, err := rbl.GetBootVars("snapd_good_recovery_systems")
-	if err != nil {
-		return err
-	}
+	vars := mylog.Check2(rbl.GetBootVars("snapd_good_recovery_systems"))
+
 	var systems []string
 	if vars["snapd_good_recovery_systems"] != "" {
 		systems = strings.Split(vars["snapd_good_recovery_systems"], ",")
@@ -523,18 +473,14 @@ func UnmarkRecoveryCapableSystem(systemLabel string) error {
 		Role: bootloader.RoleRecovery,
 	}
 
-	bl, err := bootloader.Find(InitramfsUbuntuSeedDir, opts)
-	if err != nil {
-		return err
-	}
+	bl := mylog.Check2(bootloader.Find(InitramfsUbuntuSeedDir, opts))
+
 	rbl, ok := bl.(bootloader.RecoveryAwareBootloader)
 	if !ok {
 		return nil
 	}
-	vars, err := rbl.GetBootVars("snapd_good_recovery_systems")
-	if err != nil {
-		return err
-	}
+	vars := mylog.Check2(rbl.GetBootVars("snapd_good_recovery_systems"))
+
 	var systems []string
 	if vars["snapd_good_recovery_systems"] != "" {
 		systems = strings.Split(vars["snapd_good_recovery_systems"], ",")

@@ -26,6 +26,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -191,7 +192,7 @@ func (e SnapActionError) Error() string {
 		}
 	case 1:
 		if nOther == 0 {
-			op, name, err := e.SingleOpError()
+			op, name := mylog.Check3(e.SingleOpError())
 			return fmt.Sprintf("cannot %s snap %q: %v", op, name, err)
 		} else {
 			return fmt.Sprintf("cannot refresh, install, or download: %v", e.Other[0])
@@ -269,12 +270,9 @@ func translateSnapActionError(action, snapChannel, code, message string, release
 		if len(releases) != 0 {
 			parsedReleases := make([]channel.Channel, len(releases))
 			for i := 0; i < len(releases); i++ {
-				var err error
-				parsedReleases[i], err = channel.Parse(releases[i].Channel, releases[i].Architecture)
-				if err != nil {
-					// shouldn't happen, return error without Releases
-					return e
-				}
+				parsedReleases[i] = mylog.Check2(channel.Parse(releases[i].Channel, releases[i].Architecture))
+
+				// shouldn't happen, return error without Releases
 			}
 			e.Releases = parsedReleases
 		}

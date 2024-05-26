@@ -3,6 +3,7 @@ package notify_test
 import (
 	"encoding/binary"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 
@@ -57,7 +58,7 @@ func (*messageSuite) TestMsgLength(c *C) {
 			length: 4,
 		},
 	} {
-		length, err := notify.MsgLength(t.bytes)
+		length := mylog.Check2(notify.MsgLength(t.bytes))
 		c.Check(err, IsNil)
 		c.Check(length, Equals, t.length)
 	}
@@ -90,7 +91,7 @@ func (*messageSuite) TestMsgLengthErrors(c *C) {
 			err: `cannot parse message header: invalid length \(must be >= 4\): 3`,
 		},
 	} {
-		length, err := notify.MsgLength(t.bytes)
+		length := mylog.Check2(notify.MsgLength(t.bytes))
 		c.Check(err, ErrorMatches, t.err, Commentf("bytes: %v", t.bytes))
 		c.Check(length, Equals, -1)
 	}
@@ -105,8 +106,8 @@ func (*messageSuite) TestExtractFirstMsg(c *C) {
 		0x4, 0x0, // Length
 		0x3, 0x0, // Protocol
 	}
-	first, rest, err := notify.ExtractFirstMsg(simple)
-	c.Assert(err, IsNil)
+	first, rest := mylog.Check3(notify.ExtractFirstMsg(simple))
+
 	c.Assert(first, DeepEquals, simple)
 	c.Assert(rest, HasLen, 0)
 
@@ -184,7 +185,7 @@ func (*messageSuite) TestExtractFirstMsg(c *C) {
 			},
 		},
 	} {
-		first, rest, err := notify.ExtractFirstMsg(origBytes)
+		first, rest := mylog.Check3(notify.ExtractFirstMsg(origBytes))
 		c.Check(err, IsNil)
 		c.Check(first, DeepEquals, t.first)
 		c.Check(rest, DeepEquals, t.rest)
@@ -227,7 +228,7 @@ func (*messageSuite) TestExtractFirstMsgErrors(c *C) {
 			err: `cannot extract first message: length in header exceeds data length: 5 > 4`,
 		},
 	} {
-		first, rest, err := notify.ExtractFirstMsg(t.bytes)
+		first, rest := mylog.Check3(notify.ExtractFirstMsg(t.bytes))
 		c.Check(err, ErrorMatches, t.err, Commentf("bytes: %v", t.bytes))
 		c.Check(first, IsNil)
 		c.Check(rest, IsNil)
@@ -279,13 +280,13 @@ func (*messageSuite) TestMsgNotificationFilterMarshalUnmarshal(c *C) {
 			},
 		},
 	} {
-		bytes, err := t.msg.MarshalBinary()
-		c.Assert(err, IsNil)
+		bytes := mylog.Check2(t.msg.MarshalBinary())
+
 		c.Assert(bytes, DeepEquals, t.bytes)
 
 		var msg notify.MsgNotificationFilter
-		err = msg.UnmarshalBinary(t.bytes)
-		c.Assert(err, IsNil)
+		mylog.Check(msg.UnmarshalBinary(t.bytes))
+
 		c.Assert(msg, DeepEquals, t.msg)
 	}
 }
@@ -369,7 +370,7 @@ func (*messageSuite) TestMsgNotificationFilterUnmarshalErrors(c *C) {
 		},
 	} {
 		var msg notify.MsgNotificationFilter
-		err := msg.UnmarshalBinary(t.bytes)
+		mylog.Check(msg.UnmarshalBinary(t.bytes))
 		c.Assert(err, ErrorMatches, t.errMsg, Commentf("%s", t.comment))
 	}
 }
@@ -392,8 +393,8 @@ func (*messageSuite) TestMsgNotificationMarshalBinary(c *C) {
 		ID:               0x1234,
 		Error:            0xFF,
 	}
-	data, err := msg.MarshalBinary()
-	c.Assert(err, IsNil)
+	data := mylog.Check2(msg.MarshalBinary())
+
 	c.Check(data, HasLen, 20)
 	c.Check(data, DeepEquals, []byte{
 		0x14, 0x0, // Length
@@ -434,8 +435,8 @@ func (s *messageSuite) TestMsgNotificationFileMarshalUnmarshalBinary(c *C) {
 	c.Assert(bytes, HasLen, 76)
 
 	var msg notify.MsgNotificationFile
-	err := msg.UnmarshalBinary(bytes)
-	c.Assert(err, IsNil)
+	mylog.Check(msg.UnmarshalBinary(bytes))
+
 	c.Assert(msg, DeepEquals, notify.MsgNotificationFile{
 		MsgNotificationOp: notify.MsgNotificationOp{
 			MsgNotification: notify.MsgNotification{
@@ -456,8 +457,8 @@ func (s *messageSuite) TestMsgNotificationFileMarshalUnmarshalBinary(c *C) {
 		Name: "/root/.ssh/",
 	})
 
-	buf, err := msg.MarshalBinary()
-	c.Assert(err, IsNil)
+	buf := mylog.Check2(msg.MarshalBinary())
+
 	c.Assert(buf, DeepEquals, bytes)
 }
 
@@ -505,8 +506,8 @@ func (s *messageSuite) TestMsgNotificationResponseMarshalBinary(c *C) {
 		Allow: 0x77,
 		Deny:  0x88,
 	}
-	bytes, err := msg.MarshalBinary()
-	c.Assert(err, IsNil)
+	bytes := mylog.Check2(msg.MarshalBinary())
+
 	c.Assert(bytes, DeepEquals, []byte{
 		0x20, 0x0, // Length
 		0x3, 0x0, // Version
@@ -529,8 +530,8 @@ func (*messageSuite) TestDecodeFilePermissions(c *C) {
 			Class: notify.AA_CLASS_FILE,
 		},
 	}
-	allow, deny, err := msg.DecodeFilePermissions()
-	c.Assert(err, IsNil)
+	allow, deny := mylog.Check3(msg.DecodeFilePermissions())
+
 	c.Check(allow, Equals, notify.AA_MAY_EXEC|notify.AA_MAY_READ)
 	c.Check(deny, Equals, notify.AA_MAY_EXEC|notify.AA_MAY_WRITE)
 }
@@ -543,6 +544,6 @@ func (*messageSuite) TestDecodeFilePermissionsWrongClass(c *C) {
 			Class: notify.AA_CLASS_DBUS,
 		},
 	}
-	_, _, err := msg.DecodeFilePermissions()
+	_, _ := mylog.Check3(msg.DecodeFilePermissions())
 	c.Assert(err, ErrorMatches, "mediation class AA_CLASS_DBUS does not describe file permissions")
 }

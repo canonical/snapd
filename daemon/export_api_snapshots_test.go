@@ -26,6 +26,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/overlord/snapshotstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -90,17 +91,15 @@ func MockSnapshotImport(newImport func(context.Context, *state.State, io.Reader)
 
 func MustUnmarshalSnapInstruction(c *check.C, jinst string) *snapInstruction {
 	var inst snapInstruction
-	if err := json.Unmarshal([]byte(jinst), &inst); err != nil {
-		c.Fatalf("cannot unmarshal %q into snapInstruction: %v", jinst, err)
-	}
+	mylog.Check(json.Unmarshal([]byte(jinst), &inst))
+
 	return &inst
 }
 
 func MustUnmarshalSnapshotAction(c *check.C, jact string) *snapshotAction {
 	var act snapshotAction
-	if err := json.Unmarshal([]byte(jact), &act); err != nil {
-		c.Fatalf("cannot unmarshal %q into snapshotAction: %v", jact, err)
-	}
+	mylog.Check(json.Unmarshal([]byte(jact), &act))
+
 	return &act
 }
 

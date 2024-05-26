@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 	. "github.com/snapcore/snapd/cmd/snap"
 )
@@ -46,7 +47,7 @@ func (s *SnapSuite) TestAliases(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/aliases")
-		body, err := io.ReadAll(r.Body)
+		body := mylog.Check2(io.ReadAll(r.Body))
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
@@ -64,8 +65,8 @@ func (s *SnapSuite) TestAliases(c *C) {
 			},
 		})
 	})
-	rest, err := Parser(Client()).ParseArgs([]string{"aliases"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(Parser(Client()).ParseArgs([]string{"aliases"}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
 		"Command           Alias        Notes\n" +
@@ -82,7 +83,7 @@ func (s *SnapSuite) TestAliasesFilterSnap(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/aliases")
-		body, err := io.ReadAll(r.Body)
+		body := mylog.Check2(io.ReadAll(r.Body))
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
@@ -99,8 +100,8 @@ func (s *SnapSuite) TestAliasesFilterSnap(c *C) {
 			},
 		})
 	})
-	rest, err := Parser(Client()).ParseArgs([]string{"aliases", "foo"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(Parser(Client()).ParseArgs([]string{"aliases", "foo"}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
 		"Command    Alias      Notes\n" +
@@ -114,7 +115,7 @@ func (s *SnapSuite) TestAliasesNone(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/aliases")
-		body, err := io.ReadAll(r.Body)
+		body := mylog.Check2(io.ReadAll(r.Body))
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
@@ -122,8 +123,8 @@ func (s *SnapSuite) TestAliasesNone(c *C) {
 			"result": map[string]map[string]client.AliasStatus{},
 		})
 	})
-	_, err := Parser(Client()).ParseArgs([]string{"aliases"})
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(Parser(Client()).ParseArgs([]string{"aliases"}))
+
 	c.Assert(s.Stdout(), Equals, "")
 	c.Assert(s.Stderr(), Equals, "No aliases are currently defined.\n\nUse 'snap help alias' to learn how to create aliases manually.\n")
 }
@@ -132,7 +133,7 @@ func (s *SnapSuite) TestAliasesNoneFilterSnap(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/aliases")
-		body, err := io.ReadAll(r.Body)
+		body := mylog.Check2(io.ReadAll(r.Body))
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
@@ -140,11 +141,12 @@ func (s *SnapSuite) TestAliasesNoneFilterSnap(c *C) {
 			"result": map[string]map[string]client.AliasStatus{
 				"bar": {
 					"bar0": {Command: "foo", Status: "auto", Auto: "foo"},
-				}},
+				},
+			},
 		})
 	})
-	_, err := Parser(Client()).ParseArgs([]string{"aliases", "not-bar"})
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(Parser(Client()).ParseArgs([]string{"aliases", "not-bar"}))
+
 	c.Assert(s.Stdout(), Equals, "")
 	c.Assert(s.Stderr(), Equals, "No aliases are currently defined for snap \"not-bar\".\n\nUse 'snap help alias' to learn how to create aliases manually.\n")
 }
@@ -171,5 +173,4 @@ func (s *SnapSuite) TestAliasesSorting(c *C) {
 		rres := AliasInfoLess(test.snap2, test.alias2, test.cmd2, test.snap1, test.alias1, test.cmd1)
 		c.Check(rres, Equals, false, Commentf("reversed %v", test))
 	}
-
 }

@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/httputil"
 )
 
@@ -41,17 +42,16 @@ type User struct {
 }
 
 func (s *Store) UserInfo(email string) (userinfo *User, err error) {
-	// most other store network operations use s.endpointURL, which returns an
-	// error if the store is offline. this doesn't, so we need to explicitly
-	// check.
-	if err := s.checkStoreOnline(); err != nil {
-		return nil, err
-	}
+	mylog.Check(
+		// most other store network operations use s.endpointURL, which returns an
+		// error if the store is offline. this doesn't, so we need to explicitly
+		// check.
+		s.checkStoreOnline())
 
 	var v keysReply
 	ssourl := fmt.Sprintf("%s/keys/%s", authURL(), url.QueryEscape(email))
 
-	resp, err := httputil.RetryRequest(ssourl, func() (*http.Response, error) {
+	resp := mylog.Check2(httputil.RetryRequest(ssourl, func() (*http.Response, error) {
 		return s.client.Get(ssourl)
 	}, func(resp *http.Response) error {
 		if resp.StatusCode != 200 {
@@ -59,15 +59,10 @@ func (s *Store) UserInfo(email string) (userinfo *User, err error) {
 			return nil
 		}
 		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&v); err != nil {
-			return fmt.Errorf("cannot unmarshal: %v", err)
-		}
-		return nil
-	}, defaultRetryStrategy)
+		mylog.Check(dec.Decode(&v))
 
-	if err != nil {
-		return nil, err
-	}
+		return nil
+	}, defaultRetryStrategy))
 
 	switch resp.StatusCode {
 	case 200: // good

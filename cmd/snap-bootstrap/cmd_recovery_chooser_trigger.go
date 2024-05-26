@@ -24,6 +24,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/triggerwatch"
@@ -37,9 +38,7 @@ func init() {
 	)
 
 	addCommandBuilder(func(parser *flags.Parser) {
-		if _, err := parser.AddCommand("recovery-chooser-trigger", short, long, &cmdRecoveryChooserTrigger{}); err != nil {
-			panic(err)
-		}
+		mylog.Check2(parser.AddCommand("recovery-chooser-trigger", short, long, &cmdRecoveryChooserTrigger{}))
 	})
 }
 
@@ -70,20 +69,10 @@ func (c *cmdRecoveryChooserTrigger) Execute(args []string) error {
 	markerFile := defaultMarkerFile
 
 	if c.WaitTimeout != "" {
-		userTimeout, err := time.ParseDuration(c.WaitTimeout)
-		if err != nil {
-			logger.Noticef("cannot parse duration %q, using default", c.WaitTimeout)
-		} else {
-			timeout = userTimeout
-		}
+		userTimeout := mylog.Check2(time.ParseDuration(c.WaitTimeout))
 	}
 	if c.DeviceTimeout != "" {
-		userTimeout, err := time.ParseDuration(c.DeviceTimeout)
-		if err != nil {
-			logger.Noticef("cannot parse duration %q, using default", c.DeviceTimeout)
-		} else {
-			deviceTimeout = userTimeout
-		}
+		userTimeout := mylog.Check2(time.ParseDuration(c.DeviceTimeout))
 	}
 	if c.MarkerFile != "" {
 		markerFile = c.MarkerFile
@@ -92,31 +81,16 @@ func (c *cmdRecoveryChooserTrigger) Execute(args []string) error {
 	logger.Noticef("device timeout %v", deviceTimeout)
 	logger.Noticef("marker file %v", markerFile)
 
-	_, err := os.Stat(markerFile)
+	_ := mylog.Check2(os.Stat(markerFile))
 	if err == nil {
 		logger.Noticef("marker already present")
 		return nil
 	}
-
-	err = triggerwatchWait(timeout, deviceTimeout)
-	if err != nil {
-		switch err {
-		case triggerwatch.ErrTriggerNotDetected:
-			logger.Noticef("trigger not detected")
-			return nil
-		case triggerwatch.ErrNoMatchingInputDevices:
-			logger.Noticef("no matching input devices")
-			return nil
-		default:
-			return err
-		}
-	}
+	mylog.Check(triggerwatchWait(timeout, deviceTimeout))
 
 	// got the trigger, try to create the marker file
-	m, err := os.Create(markerFile)
-	if err != nil {
-		return fmt.Errorf("cannot create the marker file: %q", err)
-	}
+	m := mylog.Check2(os.Create(markerFile))
+
 	m.Close()
 
 	return nil

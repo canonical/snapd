@@ -29,6 +29,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 	snaprun "github.com/snapcore/snapd/cmd/snap"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
@@ -73,18 +74,18 @@ func (s *RunSuite) TestWaitWhileInhibitedRunThrough(c *C) {
 		c.Check(snapName, Equals, "snapname")
 		c.Check(ctx, NotNil)
 		for i := 0; i < 3; i++ {
-			cont, err := inhibited(ctx, runinhibit.HintInhibitedForRefresh, &inhibitInfo)
-			c.Assert(err, IsNil)
+			cont := mylog.Check2(inhibited(ctx, runinhibit.HintInhibitedForRefresh, &inhibitInfo))
+
 			// non-service apps should keep waiting
 			c.Check(cont, Equals, false)
 		}
-		err := notInhibited(ctx)
-		c.Assert(err, IsNil)
+		mylog.Check(notInhibited(ctx))
 
-		flock, err = openHintFileLock(snapName)
-		c.Assert(err, IsNil)
-		err = flock.ReadLock()
-		c.Assert(err, IsNil)
+
+		flock = mylog.Check2(openHintFileLock(snapName))
+
+		mylog.Check(flock.ReadLock())
+
 		return flock, nil
 	})
 	defer restore()
@@ -103,9 +104,9 @@ func (s *RunSuite) TestWaitWhileInhibitedRunThrough(c *C) {
 	restore = snaprun.MockInhibitionFlow(&inhibitionFlow)
 	defer restore()
 
-	info, app, hintLock, err := snaprun.WaitWhileInhibited(context.TODO(), snaprun.Client(), "snapname", "app")
+	info, app, hintLock := mylog.Check4(snaprun.WaitWhileInhibited(context.TODO(), snaprun.Client(), "snapname", "app"))
 	defer hintLock.Unlock()
-	c.Assert(err, IsNil)
+
 	c.Check(info.InstanceName(), Equals, "snapname")
 	c.Check(app.Name, Equals, "app")
 
@@ -136,7 +137,7 @@ func (s *RunSuite) TestWaitWhileInhibitedErrorOnStartNotification(c *C) {
 	restore := snaprun.MockInhibitionFlow(&inhibitionFlow)
 	defer restore()
 
-	info, app, hintLock, err := snaprun.WaitWhileInhibited(context.TODO(), snaprun.Client(), "snapname", "app")
+	info, app, hintLock := mylog.Check4(snaprun.WaitWhileInhibited(context.TODO(), snaprun.Client(), "snapname", "app"))
 	c.Assert(err, ErrorMatches, "boom")
 	c.Check(info, IsNil)
 	c.Check(app, IsNil)
@@ -162,18 +163,18 @@ func (s *RunSuite) TestWaitWhileInhibitedErrorOnFinishNotification(c *C) {
 		c.Check(snapName, Equals, "snapname")
 		c.Check(ctx, NotNil)
 		for i := 0; i < 3; i++ {
-			cont, err := inhibited(ctx, runinhibit.HintInhibitedForRefresh, &inhibitInfo)
-			c.Assert(err, IsNil)
+			cont := mylog.Check2(inhibited(ctx, runinhibit.HintInhibitedForRefresh, &inhibitInfo))
+
 			// non-service apps should keep waiting
 			c.Check(cont, Equals, false)
 		}
-		err := notInhibited(ctx)
-		c.Assert(err, IsNil)
+		mylog.Check(notInhibited(ctx))
 
-		flock, err = openHintFileLock(snapName)
-		c.Assert(err, IsNil)
-		err = flock.ReadLock()
-		c.Assert(err, IsNil)
+
+		flock = mylog.Check2(openHintFileLock(snapName))
+
+		mylog.Check(flock.ReadLock())
+
 		return flock, nil
 	})
 	defer restore()
@@ -192,7 +193,7 @@ func (s *RunSuite) TestWaitWhileInhibitedErrorOnFinishNotification(c *C) {
 	restore = snaprun.MockInhibitionFlow(&inhibitionFlow)
 	defer restore()
 
-	info, app, hintLock, err := snaprun.WaitWhileInhibited(context.TODO(), snaprun.Client(), "snapname", "app")
+	info, app, hintLock := mylog.Check4(snaprun.WaitWhileInhibited(context.TODO(), snaprun.Client(), "snapname", "app"))
 	c.Assert(err, ErrorMatches, "boom")
 	c.Check(info, IsNil)
 	c.Check(app, IsNil)
@@ -229,7 +230,7 @@ func (s *RunSuite) TestWaitWhileInhibitedContextCancellationOnError(c *C) {
 	restore := snaprun.MockInhibitionFlow(&inhibitionFlow)
 	defer restore()
 
-	_, _, _, err := snaprun.WaitWhileInhibited(originalCtx, snaprun.Client(), "snapname", "app")
+	_, _, _ := mylog.Check4(snaprun.WaitWhileInhibited(originalCtx, snaprun.Client(), "snapname", "app"))
 	c.Assert(err, ErrorMatches, "context canceled")
 	c.Assert(errors.Is(err, context.Canceled), Equals, true)
 	c.Assert(errors.Is(originalCtx.Err(), context.Canceled), Equals, true)
@@ -249,18 +250,18 @@ func (s *RunSuite) TestWaitWhileInhibitedGateRefreshNoNotification(c *C) {
 		c.Check(snapName, Equals, "snapname")
 		c.Check(ctx, NotNil)
 		for i := 0; i < 3; i++ {
-			cont, err := inhibited(ctx, runinhibit.HintInhibitedGateRefresh, &inhibitInfo)
-			c.Assert(err, IsNil)
+			cont := mylog.Check2(inhibited(ctx, runinhibit.HintInhibitedGateRefresh, &inhibitInfo))
+
 			// non-service apps should keep waiting
 			c.Check(cont, Equals, false)
 		}
-		err := notInhibited(ctx)
-		c.Assert(err, IsNil)
+		mylog.Check(notInhibited(ctx))
 
-		flock, err = openHintFileLock(snapName)
-		c.Assert(err, IsNil)
-		err = flock.ReadLock()
-		c.Assert(err, IsNil)
+
+		flock = mylog.Check2(openHintFileLock(snapName))
+
+		mylog.Check(flock.ReadLock())
+
 		return flock, nil
 	})
 	defer restore()
@@ -276,9 +277,9 @@ func (s *RunSuite) TestWaitWhileInhibitedGateRefreshNoNotification(c *C) {
 	restore = snaprun.MockInhibitionFlow(&inhibitionFlow)
 	defer restore()
 
-	info, app, hintLock, err := snaprun.WaitWhileInhibited(context.TODO(), snaprun.Client(), "snapname", "app")
+	info, app, hintLock := mylog.Check4(snaprun.WaitWhileInhibited(context.TODO(), snaprun.Client(), "snapname", "app"))
 	defer hintLock.Unlock()
-	c.Assert(err, IsNil)
+
 	c.Check(info.InstanceName(), Equals, "snapname")
 	c.Check(app.Name, Equals, "app")
 
@@ -301,8 +302,8 @@ func (s *RunSuite) TestWaitWhileInhibitedNotInhibitedNoNotification(c *C) {
 	restore := snaprun.MockInhibitionFlow(&inhibitionFlow)
 	defer restore()
 
-	info, app, hintLock, err := snaprun.WaitWhileInhibited(context.TODO(), snaprun.Client(), "snapname", "app")
-	c.Assert(err, IsNil)
+	info, app, hintLock := mylog.Check4(snaprun.WaitWhileInhibited(context.TODO(), snaprun.Client(), "snapname", "app"))
+
 	c.Assert(hintLock, IsNil)
 	c.Check(info.InstanceName(), Equals, "snapname")
 	c.Check(app.Name, Equals, "app")
@@ -322,7 +323,7 @@ func (s *RunSuite) TestWaitWhileInhibitedNotInhibitHintFileOngoingRefresh(c *C) 
 	restore := snaprun.MockInhibitionFlow(&inhibitionFlow)
 	defer restore()
 
-	_, _, hintLock, err := snaprun.WaitWhileInhibited(context.TODO(), snaprun.Client(), "snapname", "app")
+	_, _, hintLock := mylog.Check4(snaprun.WaitWhileInhibited(context.TODO(), snaprun.Client(), "snapname", "app"))
 	c.Assert(err, testutil.ErrorIs, snaprun.ErrSnapRefreshConflict)
 	c.Assert(hintLock, IsNil)
 }
@@ -337,7 +338,7 @@ func (s *RunSuite) TestInhibitionFlow(c *C) {
 		case "/v2/connections":
 			c.Assert(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Query(), check.DeepEquals, url.Values{"interface": []string{"snap-refresh-observe"}})
-			body, err := io.ReadAll(r.Body)
+			body := mylog.Check2(io.ReadAll(r.Body))
 			c.Assert(err, check.IsNil)
 			c.Check(body, check.DeepEquals, []byte{})
 			EncodeResponseBody(c, w, map[string]any{
@@ -350,7 +351,7 @@ func (s *RunSuite) TestInhibitionFlow(c *C) {
 		case "/v2/notices":
 			noticeCreated++
 			c.Assert(r.Method, check.Equals, "POST")
-			body, err := io.ReadAll(r.Body)
+			body := mylog.Check2(io.ReadAll(r.Body))
 			c.Assert(err, check.IsNil)
 			var noticeRequest map[string]string
 			c.Assert(json.Unmarshal(body, &noticeRequest), check.IsNil)
@@ -391,7 +392,6 @@ func (s *RunSuite) testInhibitionFlowTextFallback(c *C, connectionsAPIErr bool) 
 				EncodeResponseBody(c, w, map[string]any{"type": "error"})
 			} else {
 				EncodeResponseBody(c, w, map[string]any{"type": "sync", "result": nil})
-
 			}
 		case "/v2/notices":
 			EncodeResponseBody(c, w, map[string]any{"type": "sync", "result": map[string]string{"id": "1"}})

@@ -26,6 +26,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/utils"
@@ -292,7 +293,7 @@ func parseStringList(mountEntry map[string]interface{}, fieldName string) ([]str
 
 func enumerateMounts(plug interfaces.Attrer, fn func(mountInfo *MountInfo) error) error {
 	var mounts []map[string]interface{}
-	err := plug.Attr("mount", &mounts)
+	mylog.Check(plug.Attr("mount", &mounts))
 	if err != nil && !errors.Is(err, snap.AttributeNotFoundError{}) {
 		return mountAttrTypeError
 	}
@@ -316,15 +317,9 @@ func enumerateMounts(plug interfaces.Attrer, fn func(mountInfo *MountInfo) error
 			}
 		}
 
-		types, err := parseStringList(mount, "type")
-		if err != nil {
-			return err
-		}
+		types := mylog.Check2(parseStringList(mount, "type"))
 
-		options, err := parseStringList(mount, "options")
-		if err != nil {
-			return err
-		}
+		options := mylog.Check2(parseStringList(mount, "options"))
 
 		mountInfo := &MountInfo{
 			what:       what,
@@ -333,10 +328,8 @@ func enumerateMounts(plug interfaces.Attrer, fn func(mountInfo *MountInfo) error
 			types:      types,
 			options:    options,
 		}
+		mylog.Check(fn(mountInfo))
 
-		if err := fn(mountInfo); err != nil {
-			return err
-		}
 	}
 
 	return nil
@@ -344,9 +337,7 @@ func enumerateMounts(plug interfaces.Attrer, fn func(mountInfo *MountInfo) error
 
 func validateNoAppArmorRegexpWithError(errPrefix string, strList ...string) error {
 	for _, str := range strList {
-		if err := apparmor_sandbox.ValidateNoAppArmorRegexp(str); err != nil {
-			return fmt.Errorf(errPrefix+`: %w`, err)
-		}
+		mylog.Check(apparmor_sandbox.ValidateNoAppArmorRegexp(str))
 	}
 	return nil
 }
@@ -369,9 +360,7 @@ func validateWhatAttr(mountInfo *MountInfo) error {
 	}
 
 	const allowCommas = true
-	if _, err := utils.NewPathPattern(what, allowCommas); err != nil {
-		return fmt.Errorf(`mount-control "what" setting cannot be used: %v`, err)
-	}
+	mylog.Check2(utils.NewPathPattern(what, allowCommas))
 
 	// "what" must be set to "none" iff the type is "tmpfs"
 	isTmpfs := mountInfo.isType("tmpfs")
@@ -396,9 +385,7 @@ func validateWhereAttr(where string) error {
 	}
 
 	const allowCommas = true
-	if _, err := utils.NewPathPattern(where, allowCommas); err != nil {
-		return fmt.Errorf(`mount-control "where" setting cannot be used: %v`, err)
-	}
+	mylog.Check2(utils.NewPathPattern(where, allowCommas))
 
 	return nil
 }
@@ -427,9 +414,8 @@ func validateMountOptions(mountInfo *MountInfo) error {
 	if len(mountInfo.options) == 0 {
 		return errors.New(`mount-control "options" cannot be empty`)
 	}
-	if err := validateNoAppArmorRegexpWithError(`cannot use mount-control "option" attribute`, mountInfo.options...); err != nil {
-		return err
-	}
+	mylog.Check(validateNoAppArmorRegexpWithError(`cannot use mount-control "option" attribute`, mountInfo.options...))
+
 	var types []string
 	if mountInfo.hasType() {
 		if incompatibleOption := optionIncompatibleWithFsType(mountInfo.options); incompatibleOption != "" {
@@ -480,21 +466,10 @@ func isAllowedFilesystemSpecificMountOption(types []string, optionName string) b
 }
 
 func validateMountInfo(mountInfo *MountInfo) error {
-	if err := validateWhatAttr(mountInfo); err != nil {
-		return err
-	}
-
-	if err := validateWhereAttr(mountInfo.where); err != nil {
-		return err
-	}
-
-	if err := validateMountTypes(mountInfo.types); err != nil {
-		return err
-	}
-
-	if err := validateMountOptions(mountInfo); err != nil {
-		return err
-	}
+	mylog.Check(validateWhatAttr(mountInfo))
+	mylog.Check(validateWhereAttr(mountInfo.where))
+	mylog.Check(validateMountTypes(mountInfo.types))
+	mylog.Check(validateMountOptions(mountInfo))
 
 	// Until we have a clear picture of how this should work, disallow creating
 	// persistent mounts into $SNAP_DATA
@@ -518,20 +493,16 @@ func filterAllowedKernelMountOptions(options []string) []string {
 }
 
 func (iface *mountControlInterface) BeforeConnectPlug(plug *interfaces.ConnectedPlug) error {
-	// The systemd.ListMountUnits() method works by issuing the command
-	// "systemctl show *.mount", but globbing was only added in systemd v209.
-	if err := systemd.EnsureAtLeast(209); err != nil {
-		return err
-	}
+	mylog.Check(
+		// The systemd.ListMountUnits() method works by issuing the command
+		// "systemctl show *.mount", but globbing was only added in systemd v209.
+		systemd.EnsureAtLeast(209))
 
 	hasMountEntries := false
-	err := enumerateMounts(plug, func(mountInfo *MountInfo) error {
+	mylog.Check(enumerateMounts(plug, func(mountInfo *MountInfo) error {
 		hasMountEntries = true
 		return validateMountInfo(mountInfo)
-	})
-	if err != nil {
-		return err
-	}
+	}))
 
 	if !hasMountEntries {
 		return mountAttrTypeError
@@ -564,7 +535,6 @@ func (iface *mountControlInterface) AppArmorConnectedPlug(spec *apparmor.Specifi
 	// No validation is occurring here, as it was already performed in
 	// BeforeConnectPlug()
 	enumerateMounts(plug, func(mountInfo *MountInfo) error {
-
 		source := mountInfo.what
 		target := mountInfo.where
 		if target[0] == '$' {

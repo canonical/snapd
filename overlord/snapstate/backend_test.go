@@ -32,6 +32,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/dirs"
@@ -201,7 +202,7 @@ func (f *fakeStore) SnapInfo(ctx context.Context, spec store.SnapSpec, user *aut
 	sspec := snapSpec{
 		Name: spec.Name,
 	}
-	info, err := f.snap(sspec)
+	info := mylog.Check2(f.snap(sspec))
 
 	userID := 0
 	if user != nil {
@@ -628,15 +629,8 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 				Revision: a.Revision,
 				Cohort:   a.CohortKey,
 			}
-			info, err := f.snap(spec)
-			if err != nil {
-				if a.Action == "install" {
-					installErrors[a.InstanceName] = err
-				} else {
-					downloadErrors[a.InstanceName] = err
-				}
-				continue
-			}
+			info := mylog.Check2(f.snap(spec))
+
 			f.fakeBackend.appendOp(&fakeOp{
 				op:     "storesvc-snap-action:action",
 				action: *a,
@@ -678,7 +672,7 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 			block:            cur.Block,
 			ignoreValidation: ignoreValidation,
 		}
-		info, err := f.lookupRefresh(cand)
+		info := mylog.Check2(f.lookupRefresh(cand))
 		var hit snap.Revision
 		if info != nil {
 			if !a.Revision.Unset() {
@@ -697,9 +691,7 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 			refreshErrors[cur.InstanceName] = err
 			continue
 		}
-		if err != nil {
-			return nil, nil, err
-		}
+
 		if !a.Revision.Unset() {
 			info.Channel = ""
 		}
@@ -862,15 +854,10 @@ func (f *fakeSnappyBackend) OpenSnapFile(snapFilePath string, si *snap.SideInfo)
 		}
 	} else {
 		// for snap try only
-		snapf, err := snapfile.Open(snapFilePath)
-		if err != nil {
-			return nil, nil, err
-		}
+		snapf := mylog.Check2(snapfile.Open(snapFilePath))
 
-		info, err = snap.ReadInfoFromSnapFile(snapf, si)
-		if err != nil {
-			return nil, nil, err
-		}
+		info = mylog.Check2(snap.ReadInfoFromSnapFile(snapf, si))
+
 	}
 
 	if info == nil {
@@ -1042,17 +1029,15 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 	case "snapd":
 		info.SnapType = snap.TypeSnapd
 	case "services-snap":
-		var err error
+
 		// fix services after/before so that there is only one solution
 		// to dependency ordering
-		info, err = snap.InfoFromSnapYaml([]byte(servicesSnapYaml))
-		if err != nil {
-			panic(err)
-		}
+		info = mylog.Check2(snap.InfoFromSnapYaml([]byte(servicesSnapYaml)))
+
 		info.SideInfo = *si
 	case "alias-snap":
-		var err error
-		info, err = snap.InfoFromSnapYaml([]byte(`name: alias-snap
+
+		info = mylog.Check2(snap.InfoFromSnapYaml([]byte(`name: alias-snap
 apps:
   cmd1:
   cmd2:
@@ -1061,10 +1046,8 @@ apps:
   cmd5:
   cmddaemon:
     daemon: simple
-`))
-		if err != nil {
-			panic(err)
-		}
+`)))
+
 		info.SideInfo = *si
 	case "snap-core18-to-core22":
 		info.Base = "core18"
@@ -1094,10 +1077,7 @@ apps:
   %s:
 `, name, app)
 
-	info, err := snap.InfoFromSnapYaml([]byte(snapYaml))
-	if err != nil {
-		panic(err)
-	}
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(snapYaml)))
 
 	f.infos[name] = info
 }
@@ -1471,9 +1451,8 @@ func (f *fakeSnappyBackend) RunInhibitSnapForUnlink(info *snap.Info, hint runinh
 		name:        info.InstanceName(),
 		inhibitHint: hint,
 	})
-	if err := decision(); err != nil {
-		return nil, err
-	}
+	mylog.Check(decision())
+
 	if f.lockDir == "" {
 		f.lockDir = os.TempDir()
 	}
@@ -1493,10 +1472,7 @@ func (f *fakeSnappyBackend) UndoHideSnapData(snapName string) error {
 
 func (f *fakeSnappyBackend) InitExposedSnapHome(snapName string, rev snap.Revision, opts *dirs.SnapDirOptions) (*backend.UndoInfo, error) {
 	f.appendOp(&fakeOp{op: "init-exposed-snap-home", name: snapName, revno: rev})
-
-	if err := f.maybeErrForLastOp(); err != nil {
-		return nil, err
-	}
+	mylog.Check(f.maybeErrForLastOp())
 
 	return &backend.UndoInfo{Created: []string{randutil.RandomString(10)}}, nil
 }

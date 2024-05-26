@@ -27,6 +27,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -43,7 +44,7 @@ func (s *lowLevelSuite) SetUpTest(c *check.C) {
 func (s *lowLevelSuite) TestFakeFileInfo(c *check.C) {
 	ffi := testutil.FakeDirEntry("name", 0755)
 	c.Assert(ffi.Name(), check.Equals, "name")
-	fi, err := ffi.Info()
+	fi := mylog.Check2(ffi.Info())
 	c.Assert(err, check.IsNil)
 	c.Assert(fi.Mode().Perm(), check.Equals, os.FileMode(0755))
 
@@ -62,7 +63,7 @@ func (s *lowLevelSuite) TestFakeFileInfo(c *check.C) {
 
 func (s *lowLevelSuite) TestOpenSuccess(c *check.C) {
 	// By default system calls succeed and get recorded for inspection.
-	fd, err := s.sys.Open("/some/path", syscall.O_NOFOLLOW|syscall.O_CLOEXEC|syscall.O_RDWR|syscall.O_CREAT|syscall.O_EXCL, 0)
+	fd := mylog.Check2(s.sys.Open("/some/path", syscall.O_NOFOLLOW|syscall.O_CLOEXEC|syscall.O_RDWR|syscall.O_CREAT|syscall.O_EXCL, 0))
 	c.Assert(err, check.IsNil)
 	c.Assert(fd, check.Equals, 3)
 	c.Assert(s.sys.Calls(), check.DeepEquals, []string{
@@ -76,7 +77,7 @@ func (s *lowLevelSuite) TestOpenSuccess(c *check.C) {
 func (s *lowLevelSuite) TestOpenFailure(c *check.C) {
 	// Any call can be made to fail using InsertFault()
 	s.sys.InsertFault(`open "/some/path" 0 0`, syscall.ENOENT)
-	fd, err := s.sys.Open("/some/path", 0, 0)
+	fd := mylog.Check2(s.sys.Open("/some/path", 0, 0))
 	c.Assert(err, check.ErrorMatches, "no such file or directory")
 	c.Assert(fd, check.Equals, -1)
 	c.Assert(s.sys.Calls(), check.DeepEquals, []string{
@@ -91,15 +92,15 @@ func (s *lowLevelSuite) TestOpenVariableFailure(c *check.C) {
 	// The way a particular call fails may vary over time.
 	// Subsequent errors are returned on subsequent calls.
 	s.sys.InsertFault(`open "/some/path" O_RDWR 0`, syscall.ENOENT, syscall.EPERM)
-	fd, err := s.sys.Open("/some/path", syscall.O_RDWR, 0)
+	fd := mylog.Check2(s.sys.Open("/some/path", syscall.O_RDWR, 0))
 	c.Assert(err, check.ErrorMatches, "no such file or directory")
 	c.Assert(fd, check.Equals, -1)
 	// 2nd attempt
-	fd, err = s.sys.Open("/some/path", syscall.O_RDWR, 0)
+	fd = mylog.Check2(s.sys.Open("/some/path", syscall.O_RDWR, 0))
 	c.Assert(err, check.ErrorMatches, "operation not permitted")
 	c.Assert(fd, check.Equals, -1)
 	// 3rd attempt
-	fd, err = s.sys.Open("/some/path", syscall.O_RDWR, 0)
+	fd = mylog.Check2(s.sys.Open("/some/path", syscall.O_RDWR, 0))
 	c.Assert(err, check.IsNil)
 	c.Assert(fd, check.Equals, 3)
 	c.Assert(s.sys.Calls(), check.DeepEquals, []string{
@@ -119,19 +120,19 @@ func (s *lowLevelSuite) TestOpenCustomFailure(c *check.C) {
 	n := 3
 	s.sys.InsertFaultFunc(`open "/some/path" O_RDWR 0`, func() error {
 		if n > 0 {
-			err := fmt.Errorf("%d more", n)
+			mylog.Check(fmt.Errorf("%d more", n))
 			n--
 			return err
 		}
 		return nil
 	})
-	_, err := s.sys.Open("/some/path", syscall.O_RDWR, 0)
+	_ := mylog.Check2(s.sys.Open("/some/path", syscall.O_RDWR, 0))
 	c.Assert(err, check.ErrorMatches, "3 more")
-	_, err = s.sys.Open("/some/path", syscall.O_RDWR, 0)
+	_ = mylog.Check2(s.sys.Open("/some/path", syscall.O_RDWR, 0))
 	c.Assert(err, check.ErrorMatches, "2 more")
-	_, err = s.sys.Open("/some/path", syscall.O_RDWR, 0)
+	_ = mylog.Check2(s.sys.Open("/some/path", syscall.O_RDWR, 0))
 	c.Assert(err, check.ErrorMatches, "1 more")
-	fd, err := s.sys.Open("/some/path", syscall.O_RDWR, 0)
+	fd := mylog.Check2(s.sys.Open("/some/path", syscall.O_RDWR, 0))
 	c.Assert(err, check.IsNil)
 	c.Assert(fd, check.Equals, 3)
 	c.Assert(s.sys.Calls(), check.DeepEquals, []string{
@@ -151,7 +152,7 @@ func (s *lowLevelSuite) TestOpenCustomFailure(c *check.C) {
 func (s *lowLevelSuite) TestUnclosedFile(c *check.C) {
 	// Open file descriptors can be detected in suite teardown using either
 	// StrayDescriptorError or CheckForStrayDescriptors.
-	fd, err := s.sys.Open("/some/path", syscall.O_RDWR, 0)
+	fd := mylog.Check2(s.sys.Open("/some/path", syscall.O_RDWR, 0))
 	c.Assert(err, check.IsNil)
 	c.Assert(fd, check.Equals, 3)
 	c.Assert(s.sys.Calls(), check.DeepEquals, []string{
@@ -165,8 +166,9 @@ func (s *lowLevelSuite) TestUnclosedFile(c *check.C) {
 }
 
 func (s *lowLevelSuite) TestUnopenedFile(c *check.C) {
-	// Closing unopened file descriptors is an error.
-	err := s.sys.Close(7)
+	mylog.
+		// Closing unopened file descriptors is an error.
+		Check(s.sys.Close(7))
 	c.Assert(err, check.ErrorMatches, "attempting to close a closed file descriptor 7")
 	c.Assert(s.sys.Calls(), check.DeepEquals, []string{`close 7`})
 	c.Assert(s.sys.RCalls(), check.DeepEquals, []testutil.CallResultError{
@@ -176,9 +178,9 @@ func (s *lowLevelSuite) TestUnopenedFile(c *check.C) {
 
 func (s *lowLevelSuite) TestCloseSuccess(c *check.C) {
 	// Closing file descriptors handles the bookkeeping.
-	fd, err := s.sys.Open("/some/path", syscall.O_RDWR, 0)
+	fd := mylog.Check2(s.sys.Open("/some/path", syscall.O_RDWR, 0))
 	c.Assert(err, check.IsNil)
-	err = s.sys.Close(fd)
+	mylog.Check(s.sys.Close(fd))
 	c.Assert(err, check.IsNil)
 	c.Assert(s.sys.Calls(), check.DeepEquals, []string{
 		`open "/some/path" O_RDWR 0`, // -> 3
@@ -194,7 +196,7 @@ func (s *lowLevelSuite) TestCloseSuccess(c *check.C) {
 func (s *lowLevelSuite) TestCloseFailure(c *check.C) {
 	// Close can be made to fail just like any other function.
 	s.sys.InsertFault(`close 3`, syscall.ENOSYS)
-	err := s.sys.Close(3)
+	mylog.Check(s.sys.Close(3))
 	c.Assert(err, check.ErrorMatches, "function not implemented")
 	c.Assert(s.sys.Calls(), check.DeepEquals, []string{
 		`close 3`,
@@ -205,9 +207,9 @@ func (s *lowLevelSuite) TestCloseFailure(c *check.C) {
 }
 
 func (s *lowLevelSuite) TestOpenatSuccess(c *check.C) {
-	dirfd, err := s.sys.Open("/", syscall.O_DIRECTORY, 0)
+	dirfd := mylog.Check2(s.sys.Open("/", syscall.O_DIRECTORY, 0))
 	c.Assert(err, check.IsNil)
-	fd, err := s.sys.Openat(dirfd, "foo", syscall.O_DIRECTORY, 0)
+	fd := mylog.Check2(s.sys.Openat(dirfd, "foo", syscall.O_DIRECTORY, 0))
 	c.Assert(err, check.IsNil)
 	c.Assert(s.sys.Close(fd), check.IsNil)
 	c.Assert(s.sys.Close(dirfd), check.IsNil)
@@ -226,10 +228,10 @@ func (s *lowLevelSuite) TestOpenatSuccess(c *check.C) {
 }
 
 func (s *lowLevelSuite) TestOpenatFailure(c *check.C) {
-	dirfd, err := s.sys.Open("/", syscall.O_DIRECTORY, 0)
+	dirfd := mylog.Check2(s.sys.Open("/", syscall.O_DIRECTORY, 0))
 	c.Assert(err, check.IsNil)
 	s.sys.InsertFault(`openat 3 "foo" O_DIRECTORY 0`, syscall.ENOENT)
-	fd, err := s.sys.Openat(dirfd, "foo", syscall.O_DIRECTORY, 0)
+	fd := mylog.Check2(s.sys.Openat(dirfd, "foo", syscall.O_DIRECTORY, 0))
 	c.Assert(err, check.ErrorMatches, "no such file or directory")
 	c.Assert(fd, check.Equals, -1)
 	c.Assert(s.sys.Close(dirfd), check.IsNil)
@@ -246,7 +248,7 @@ func (s *lowLevelSuite) TestOpenatFailure(c *check.C) {
 }
 
 func (s *lowLevelSuite) TestOpenatBadFd(c *check.C) {
-	fd, err := s.sys.Openat(3, "foo", syscall.O_DIRECTORY, 0)
+	fd := mylog.Check2(s.sys.Openat(3, "foo", syscall.O_DIRECTORY, 0))
 	c.Assert(err, check.ErrorMatches, "attempting to openat with an invalid file descriptor 3")
 	c.Assert(fd, check.Equals, -1)
 	c.Assert(s.sys.Calls(), check.DeepEquals, []string{
@@ -258,9 +260,9 @@ func (s *lowLevelSuite) TestOpenatBadFd(c *check.C) {
 }
 
 func (s *lowLevelSuite) TestFchownSuccess(c *check.C) {
-	fd, err := s.sys.Open("/", syscall.O_DIRECTORY, 0)
+	fd := mylog.Check2(s.sys.Open("/", syscall.O_DIRECTORY, 0))
 	c.Assert(err, check.IsNil)
-	err = s.sys.Fchown(fd, 0, 0)
+	mylog.Check(s.sys.Fchown(fd, 0, 0))
 	c.Assert(err, check.IsNil)
 	c.Assert(s.sys.Close(fd), check.IsNil)
 	c.Assert(s.sys.Calls(), check.DeepEquals, []string{
@@ -276,10 +278,10 @@ func (s *lowLevelSuite) TestFchownSuccess(c *check.C) {
 }
 
 func (s *lowLevelSuite) TestFchownFailure(c *check.C) {
-	fd, err := s.sys.Open("/", syscall.O_DIRECTORY, 0)
+	fd := mylog.Check2(s.sys.Open("/", syscall.O_DIRECTORY, 0))
 	c.Assert(err, check.IsNil)
 	s.sys.InsertFault(`fchown 3 0 0`, syscall.EPERM)
-	err = s.sys.Fchown(fd, 0, 0)
+	mylog.Check(s.sys.Fchown(fd, 0, 0))
 	c.Assert(err, check.ErrorMatches, "operation not permitted")
 	c.Assert(s.sys.Close(fd), check.IsNil)
 	c.Assert(s.sys.Calls(), check.DeepEquals, []string{
@@ -295,7 +297,7 @@ func (s *lowLevelSuite) TestFchownFailure(c *check.C) {
 }
 
 func (s *lowLevelSuite) TestFchownBadFd(c *check.C) {
-	err := s.sys.Fchown(3, 0, 0)
+	mylog.Check(s.sys.Fchown(3, 0, 0))
 	c.Assert(err, check.ErrorMatches, "attempting to fchown an invalid file descriptor 3")
 	c.Assert(s.sys.Calls(), check.DeepEquals, []string{
 		`fchown 3 0 0`,
@@ -306,9 +308,9 @@ func (s *lowLevelSuite) TestFchownBadFd(c *check.C) {
 }
 
 func (s *lowLevelSuite) TestMkdiratSuccess(c *check.C) {
-	fd, err := s.sys.Open("/", syscall.O_DIRECTORY, 0)
+	fd := mylog.Check2(s.sys.Open("/", syscall.O_DIRECTORY, 0))
 	c.Assert(err, check.IsNil)
-	err = s.sys.Mkdirat(fd, "foo", 0755)
+	mylog.Check(s.sys.Mkdirat(fd, "foo", 0755))
 	c.Assert(err, check.IsNil)
 	c.Assert(s.sys.Close(fd), check.IsNil)
 	c.Assert(s.sys.Calls(), check.DeepEquals, []string{
@@ -324,10 +326,10 @@ func (s *lowLevelSuite) TestMkdiratSuccess(c *check.C) {
 }
 
 func (s *lowLevelSuite) TestMkdiratFailure(c *check.C) {
-	fd, err := s.sys.Open("/", syscall.O_DIRECTORY, 0)
+	fd := mylog.Check2(s.sys.Open("/", syscall.O_DIRECTORY, 0))
 	c.Assert(err, check.IsNil)
 	s.sys.InsertFault(`mkdirat 3 "foo" 0755`, syscall.EPERM)
-	err = s.sys.Mkdirat(fd, "foo", 0755)
+	mylog.Check(s.sys.Mkdirat(fd, "foo", 0755))
 	c.Assert(err, check.ErrorMatches, "operation not permitted")
 	c.Assert(s.sys.Close(fd), check.IsNil)
 	c.Assert(s.sys.Calls(), check.DeepEquals, []string{
@@ -343,7 +345,7 @@ func (s *lowLevelSuite) TestMkdiratFailure(c *check.C) {
 }
 
 func (s *lowLevelSuite) TestMkdiratBadFd(c *check.C) {
-	err := s.sys.Mkdirat(3, "foo", 0755)
+	mylog.Check(s.sys.Mkdirat(3, "foo", 0755))
 	c.Assert(err, check.ErrorMatches, "attempting to mkdirat with an invalid file descriptor 3")
 	c.Assert(s.sys.Calls(), check.DeepEquals, []string{
 		`mkdirat 3 "foo" 0755`,
@@ -354,7 +356,7 @@ func (s *lowLevelSuite) TestMkdiratBadFd(c *check.C) {
 }
 
 func (s *lowLevelSuite) TestMountSuccess(c *check.C) {
-	err := s.sys.Mount("source", "target", "fstype", syscall.MS_BIND|syscall.MS_REC|syscall.MS_RDONLY, "")
+	mylog.Check(s.sys.Mount("source", "target", "fstype", syscall.MS_BIND|syscall.MS_REC|syscall.MS_RDONLY, ""))
 	c.Assert(err, check.IsNil)
 	c.Assert(s.sys.Calls(), check.DeepEquals, []string{
 		`mount "source" "target" "fstype" MS_BIND|MS_REC|MS_RDONLY ""`,
@@ -385,7 +387,7 @@ func (s *lowLevelSuite) TestMountPropagation(c *check.C) {
 
 func (s *lowLevelSuite) TestMountFailure(c *check.C) {
 	s.sys.InsertFault(`mount "source" "target" "fstype" 0 ""`, syscall.EPERM)
-	err := s.sys.Mount("source", "target", "fstype", 0, "")
+	mylog.Check(s.sys.Mount("source", "target", "fstype", 0, ""))
 	c.Assert(err, check.ErrorMatches, "operation not permitted")
 	c.Assert(s.sys.Calls(), check.DeepEquals, []string{
 		`mount "source" "target" "fstype" 0 ""`,
@@ -396,7 +398,7 @@ func (s *lowLevelSuite) TestMountFailure(c *check.C) {
 }
 
 func (s *lowLevelSuite) TestUnmountSuccess(c *check.C) {
-	err := s.sys.Unmount("target", testutil.UmountNoFollow|syscall.MNT_DETACH)
+	mylog.Check(s.sys.Unmount("target", testutil.UmountNoFollow|syscall.MNT_DETACH))
 	c.Assert(err, check.IsNil)
 	c.Assert(s.sys.Calls(), check.DeepEquals, []string{`unmount "target" UMOUNT_NOFOLLOW|MNT_DETACH`})
 	c.Assert(s.sys.RCalls(), check.DeepEquals, []testutil.CallResultError{
@@ -406,7 +408,7 @@ func (s *lowLevelSuite) TestUnmountSuccess(c *check.C) {
 
 func (s *lowLevelSuite) TestUnmountFailure(c *check.C) {
 	s.sys.InsertFault(`unmount "target" 0`, syscall.EPERM)
-	err := s.sys.Unmount("target", 0)
+	mylog.Check(s.sys.Unmount("target", 0))
 	c.Assert(err, check.ErrorMatches, "operation not permitted")
 	c.Assert(s.sys.Calls(), check.DeepEquals, []string{`unmount "target" 0`})
 	c.Assert(s.sys.RCalls(), check.DeepEquals, []testutil.CallResultError{
@@ -423,7 +425,7 @@ func (s *lowLevelSuite) TestOsLstat(c *check.C) {
 func (s *lowLevelSuite) TestOsLstatSuccess(c *check.C) {
 	// The fed data is returned in absence of errors.
 	s.sys.InsertOsLstatResult(`lstat "/foo"`, testutil.FileInfoFile)
-	fi, err := s.sys.OsLstat("/foo")
+	fi := mylog.Check2(s.sys.OsLstat("/foo"))
 	c.Assert(err, check.IsNil)
 	c.Assert(fi, check.DeepEquals, testutil.FileInfoFile)
 	c.Assert(s.sys.Calls(), check.DeepEquals, []string{`lstat "/foo"`})
@@ -436,7 +438,7 @@ func (s *lowLevelSuite) TestOsLstatFailure(c *check.C) {
 	// Errors take priority over data.
 	s.sys.InsertOsLstatResult(`lstat "/foo"`, testutil.FileInfoFile)
 	s.sys.InsertFault(`lstat "/foo"`, syscall.ENOENT)
-	fi, err := s.sys.OsLstat("/foo")
+	fi := mylog.Check2(s.sys.OsLstat("/foo"))
 	c.Assert(err, check.ErrorMatches, "no such file or directory")
 	c.Assert(fi, check.IsNil)
 	c.Assert(s.sys.Calls(), check.DeepEquals, []string{`lstat "/foo"`})
@@ -456,7 +458,7 @@ func (s *lowLevelSuite) TestSysLstatSuccess(c *check.C) {
 	// The fed data is returned in absence of errors.
 	var buf syscall.Stat_t
 	s.sys.InsertSysLstatResult(`lstat "/foo" <ptr>`, syscall.Stat_t{Uid: 123})
-	err := s.sys.SysLstat("/foo", &buf)
+	mylog.Check(s.sys.SysLstat("/foo", &buf))
 	c.Assert(err, check.IsNil)
 	c.Assert(buf, check.DeepEquals, syscall.Stat_t{Uid: 123})
 	c.Assert(s.sys.Calls(), check.DeepEquals, []string{
@@ -472,7 +474,7 @@ func (s *lowLevelSuite) TestSysLstatFailure(c *check.C) {
 	var buf syscall.Stat_t
 	s.sys.InsertSysLstatResult(`lstat "/foo" <ptr>`, syscall.Stat_t{Uid: 123})
 	s.sys.InsertFault(`lstat "/foo" <ptr>`, syscall.ENOENT)
-	err := s.sys.SysLstat("/foo", &buf)
+	mylog.Check(s.sys.SysLstat("/foo", &buf))
 	c.Assert(err, check.ErrorMatches, "no such file or directory")
 	c.Assert(buf, check.DeepEquals, syscall.Stat_t{})
 	c.Assert(s.sys.Calls(), check.DeepEquals, []string{
@@ -484,7 +486,7 @@ func (s *lowLevelSuite) TestSysLstatFailure(c *check.C) {
 }
 
 func (s *lowLevelSuite) TestFstat(c *check.C) {
-	fd, err := s.sys.Open("/foo", syscall.O_RDONLY, 0)
+	fd := mylog.Check2(s.sys.Open("/foo", syscall.O_RDONLY, 0))
 	c.Assert(err, check.IsNil)
 	var buf syscall.Stat_t
 	c.Assert(func() { s.sys.Fstat(fd, &buf) }, check.PanicMatches,
@@ -493,7 +495,7 @@ func (s *lowLevelSuite) TestFstat(c *check.C) {
 
 func (s *lowLevelSuite) TestFstatBadFd(c *check.C) {
 	var buf syscall.Stat_t
-	err := s.sys.Fstat(3, &buf)
+	mylog.Check(s.sys.Fstat(3, &buf))
 	c.Assert(err, check.ErrorMatches, "attempting to fstat with an invalid file descriptor 3")
 	c.Assert(s.sys.Calls(), check.DeepEquals, []string{
 		`fstat 3 <ptr>`,
@@ -505,10 +507,10 @@ func (s *lowLevelSuite) TestFstatBadFd(c *check.C) {
 
 func (s *lowLevelSuite) TestFstatSuccess(c *check.C) {
 	s.sys.InsertFstatResult(`fstat 3 <ptr>`, syscall.Stat_t{Dev: 0xC0FE})
-	fd, err := s.sys.Open("/foo", syscall.O_RDONLY, 0)
+	fd := mylog.Check2(s.sys.Open("/foo", syscall.O_RDONLY, 0))
 	c.Assert(err, check.IsNil)
 	var buf syscall.Stat_t
-	err = s.sys.Fstat(fd, &buf)
+	mylog.Check(s.sys.Fstat(fd, &buf))
 	c.Assert(err, check.IsNil)
 	c.Assert(buf, check.Equals, syscall.Stat_t{Dev: 0xC0FE})
 	c.Assert(s.sys.Calls(), check.DeepEquals, []string{
@@ -523,10 +525,10 @@ func (s *lowLevelSuite) TestFstatSuccess(c *check.C) {
 
 func (s *lowLevelSuite) TestFstatFailure(c *check.C) {
 	s.sys.InsertFault(`fstat 3 <ptr>`, syscall.EPERM)
-	fd, err := s.sys.Open("/foo", syscall.O_RDONLY, 0)
+	fd := mylog.Check2(s.sys.Open("/foo", syscall.O_RDONLY, 0))
 	c.Assert(err, check.IsNil)
 	var buf syscall.Stat_t
-	err = s.sys.Fstat(fd, &buf)
+	mylog.Check(s.sys.Fstat(fd, &buf))
 	c.Assert(err, check.ErrorMatches, "operation not permitted")
 	c.Assert(buf, check.Equals, syscall.Stat_t{})
 	c.Assert(s.sys.Calls(), check.DeepEquals, []string{
@@ -540,7 +542,7 @@ func (s *lowLevelSuite) TestFstatFailure(c *check.C) {
 }
 
 func (s *lowLevelSuite) TestFstatfs(c *check.C) {
-	fd, err := s.sys.Open("/foo", syscall.O_RDONLY, 0)
+	fd := mylog.Check2(s.sys.Open("/foo", syscall.O_RDONLY, 0))
 	c.Assert(err, check.IsNil)
 	var buf syscall.Statfs_t
 	c.Assert(func() { s.sys.Fstatfs(fd, &buf) }, check.PanicMatches,
@@ -549,7 +551,7 @@ func (s *lowLevelSuite) TestFstatfs(c *check.C) {
 
 func (s *lowLevelSuite) TestFstatfsBadFd(c *check.C) {
 	var buf syscall.Statfs_t
-	err := s.sys.Fstatfs(3, &buf)
+	mylog.Check(s.sys.Fstatfs(3, &buf))
 	c.Assert(err, check.ErrorMatches, "attempting to fstatfs with an invalid file descriptor 3")
 	c.Assert(s.sys.Calls(), check.DeepEquals, []string{`fstatfs 3 <ptr>`})
 	c.Assert(s.sys.RCalls(), check.DeepEquals, []testutil.CallResultError{
@@ -559,10 +561,10 @@ func (s *lowLevelSuite) TestFstatfsBadFd(c *check.C) {
 
 func (s *lowLevelSuite) TestFstatfsSuccess(c *check.C) {
 	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: 0x123})
-	fd, err := s.sys.Open("/foo", syscall.O_RDONLY, 0)
+	fd := mylog.Check2(s.sys.Open("/foo", syscall.O_RDONLY, 0))
 	c.Assert(err, check.IsNil)
 	var buf syscall.Statfs_t
-	err = s.sys.Fstatfs(fd, &buf)
+	mylog.Check(s.sys.Fstatfs(fd, &buf))
 	c.Assert(err, check.IsNil)
 	c.Assert(buf, check.Equals, syscall.Statfs_t{Type: 0x123})
 	c.Assert(s.sys.Calls(), check.DeepEquals, []string{
@@ -578,16 +580,16 @@ func (s *lowLevelSuite) TestFstatfsSuccess(c *check.C) {
 func (s *lowLevelSuite) TestFstatfsChain(c *check.C) {
 	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`,
 		syscall.Statfs_t{Type: 0x123}, syscall.Statfs_t{Type: 0x456})
-	fd, err := s.sys.Open("/foo", syscall.O_RDONLY, 0)
+	fd := mylog.Check2(s.sys.Open("/foo", syscall.O_RDONLY, 0))
 	c.Assert(err, check.IsNil)
 	var buf syscall.Statfs_t
-	err = s.sys.Fstatfs(fd, &buf)
+	mylog.Check(s.sys.Fstatfs(fd, &buf))
 	c.Assert(err, check.IsNil)
 	c.Assert(buf, check.Equals, syscall.Statfs_t{Type: 0x123})
-	err = s.sys.Fstatfs(fd, &buf)
+	mylog.Check(s.sys.Fstatfs(fd, &buf))
 	c.Assert(err, check.IsNil)
 	c.Assert(buf, check.Equals, syscall.Statfs_t{Type: 0x456})
-	err = s.sys.Fstatfs(fd, &buf)
+	mylog.Check(s.sys.Fstatfs(fd, &buf))
 	c.Assert(err, check.IsNil)
 	c.Assert(buf, check.Equals, syscall.Statfs_t{Type: 0x456})
 	c.Assert(s.sys.Calls(), check.DeepEquals, []string{
@@ -606,10 +608,10 @@ func (s *lowLevelSuite) TestFstatfsChain(c *check.C) {
 
 func (s *lowLevelSuite) TestFstatfsFailure(c *check.C) {
 	s.sys.InsertFault(`fstatfs 3 <ptr>`, syscall.EPERM)
-	fd, err := s.sys.Open("/foo", syscall.O_RDONLY, 0)
+	fd := mylog.Check2(s.sys.Open("/foo", syscall.O_RDONLY, 0))
 	c.Assert(err, check.IsNil)
 	var buf syscall.Statfs_t
-	err = s.sys.Fstatfs(fd, &buf)
+	mylog.Check(s.sys.Fstatfs(fd, &buf))
 	c.Assert(err, check.ErrorMatches, "operation not permitted")
 	c.Assert(buf, check.Equals, syscall.Statfs_t{})
 	c.Assert(s.sys.Calls(), check.DeepEquals, []string{
@@ -633,7 +635,7 @@ func (s *lowLevelSuite) TestReadDirSuccess(c *check.C) {
 		testutil.FakeDirEntry("dir", 0755|os.ModeDir),
 	}
 	s.sys.InsertReadDirResult(`readdir "/foo"`, files)
-	files, err := s.sys.ReadDir("/foo")
+	files := mylog.Check2(s.sys.ReadDir("/foo"))
 	c.Assert(err, check.IsNil)
 	c.Assert(files, check.HasLen, 2)
 	c.Assert(s.sys.Calls(), check.DeepEquals, []string{
@@ -646,7 +648,7 @@ func (s *lowLevelSuite) TestReadDirSuccess(c *check.C) {
 
 func (s *lowLevelSuite) TestReadDirFailure(c *check.C) {
 	s.sys.InsertFault(`readdir "/foo"`, syscall.ENOENT)
-	files, err := s.sys.ReadDir("/foo")
+	files := mylog.Check2(s.sys.ReadDir("/foo"))
 	c.Assert(err, check.ErrorMatches, "no such file or directory")
 	c.Assert(files, check.IsNil)
 	c.Assert(s.sys.Calls(), check.DeepEquals, []string{
@@ -658,7 +660,7 @@ func (s *lowLevelSuite) TestReadDirFailure(c *check.C) {
 }
 
 func (s *lowLevelSuite) TestSymlinkSuccess(c *check.C) {
-	err := s.sys.Symlink("oldname", "newname")
+	mylog.Check(s.sys.Symlink("oldname", "newname"))
 	c.Assert(err, check.IsNil)
 	c.Assert(s.sys.Calls(), check.DeepEquals, []string{
 		`symlink "newname" -> "oldname"`,
@@ -670,7 +672,7 @@ func (s *lowLevelSuite) TestSymlinkSuccess(c *check.C) {
 
 func (s *lowLevelSuite) TestSymlinkFailure(c *check.C) {
 	s.sys.InsertFault(`symlink "newname" -> "oldname"`, syscall.EPERM)
-	err := s.sys.Symlink("oldname", "newname")
+	mylog.Check(s.sys.Symlink("oldname", "newname"))
 	c.Assert(err, check.ErrorMatches, "operation not permitted")
 	c.Assert(s.sys.Calls(), check.DeepEquals, []string{
 		`symlink "newname" -> "oldname"`, // -> EPERM
@@ -681,7 +683,7 @@ func (s *lowLevelSuite) TestSymlinkFailure(c *check.C) {
 }
 
 func (s *lowLevelSuite) TestRemoveSuccess(c *check.C) {
-	err := s.sys.Remove("file")
+	mylog.Check(s.sys.Remove("file"))
 	c.Assert(err, check.IsNil)
 	c.Assert(s.sys.Calls(), check.DeepEquals, []string{
 		`remove "file"`,
@@ -693,7 +695,7 @@ func (s *lowLevelSuite) TestRemoveSuccess(c *check.C) {
 
 func (s *lowLevelSuite) TestRemoveFailure(c *check.C) {
 	s.sys.InsertFault(`remove "file"`, syscall.EPERM)
-	err := s.sys.Remove("file")
+	mylog.Check(s.sys.Remove("file"))
 	c.Assert(err, check.ErrorMatches, "operation not permitted")
 	c.Assert(s.sys.Calls(), check.DeepEquals, []string{`remove "file"`})
 	c.Assert(s.sys.Calls(), check.DeepEquals, []string{
@@ -705,7 +707,7 @@ func (s *lowLevelSuite) TestRemoveFailure(c *check.C) {
 }
 
 func (s *lowLevelSuite) TestSymlinkatBadFd(c *check.C) {
-	err := s.sys.Symlinkat("/old", 3, "new")
+	mylog.Check(s.sys.Symlinkat("/old", 3, "new"))
 	c.Assert(err, check.ErrorMatches, "attempting to symlinkat with an invalid file descriptor 3")
 	c.Assert(s.sys.Calls(), check.DeepEquals, []string{
 		`symlinkat "/old" 3 "new"`,
@@ -716,9 +718,9 @@ func (s *lowLevelSuite) TestSymlinkatBadFd(c *check.C) {
 }
 
 func (s *lowLevelSuite) TestSymlinkatSuccess(c *check.C) {
-	fd, err := s.sys.Open("/foo", syscall.O_RDONLY, 0)
+	fd := mylog.Check2(s.sys.Open("/foo", syscall.O_RDONLY, 0))
 	c.Assert(err, check.IsNil)
-	err = s.sys.Symlinkat("/old", fd, "new")
+	mylog.Check(s.sys.Symlinkat("/old", fd, "new"))
 	c.Assert(err, check.IsNil)
 	c.Assert(s.sys.Calls(), check.DeepEquals, []string{
 		`open "/foo" 0 0`,
@@ -732,9 +734,9 @@ func (s *lowLevelSuite) TestSymlinkatSuccess(c *check.C) {
 
 func (s *lowLevelSuite) TestSymlinkatFailure(c *check.C) {
 	s.sys.InsertFault(`symlinkat "/old" 3 "new"`, syscall.EPERM)
-	fd, err := s.sys.Open("/foo", syscall.O_RDONLY, 0)
+	fd := mylog.Check2(s.sys.Open("/foo", syscall.O_RDONLY, 0))
 	c.Assert(err, check.IsNil)
-	err = s.sys.Symlinkat("/old", fd, "new")
+	mylog.Check(s.sys.Symlinkat("/old", fd, "new"))
 	c.Assert(err, check.ErrorMatches, "operation not permitted")
 	c.Assert(s.sys.Calls(), check.DeepEquals, []string{
 		`open "/foo" 0 0`, // -> 3
@@ -747,7 +749,7 @@ func (s *lowLevelSuite) TestSymlinkatFailure(c *check.C) {
 }
 
 func (s *lowLevelSuite) TestReadlinkat(c *check.C) {
-	fd, err := s.sys.Open("/foo", syscall.O_RDONLY, 0)
+	fd := mylog.Check2(s.sys.Open("/foo", syscall.O_RDONLY, 0))
 	c.Assert(err, check.IsNil)
 	buf := make([]byte, 10)
 	c.Assert(func() { s.sys.Readlinkat(fd, "new", buf) }, check.PanicMatches,
@@ -756,7 +758,7 @@ func (s *lowLevelSuite) TestReadlinkat(c *check.C) {
 
 func (s *lowLevelSuite) TestReadlinkatBadFd(c *check.C) {
 	buf := make([]byte, 10)
-	n, err := s.sys.Readlinkat(3, "new", buf)
+	n := mylog.Check2(s.sys.Readlinkat(3, "new", buf))
 	c.Assert(err, check.ErrorMatches, "attempting to readlinkat with an invalid file descriptor 3")
 	c.Assert(n, check.Equals, 0)
 	c.Assert(s.sys.Calls(), check.DeepEquals, []string{
@@ -769,19 +771,19 @@ func (s *lowLevelSuite) TestReadlinkatBadFd(c *check.C) {
 
 func (s *lowLevelSuite) TestReadlinkatSuccess(c *check.C) {
 	s.sys.InsertReadlinkatResult(`readlinkat 3 "new" <ptr>`, "/old")
-	fd, err := s.sys.Open("/foo", syscall.O_RDONLY, 0)
+	fd := mylog.Check2(s.sys.Open("/foo", syscall.O_RDONLY, 0))
 	c.Assert(err, check.IsNil)
 
 	// Buffer has enough room
 	buf := make([]byte, 10)
-	n, err := s.sys.Readlinkat(fd, "new", buf)
+	n := mylog.Check2(s.sys.Readlinkat(fd, "new", buf))
 	c.Assert(err, check.IsNil)
 	c.Assert(n, check.Equals, 4)
 	c.Assert(buf, check.DeepEquals, []byte{'/', 'o', 'l', 'd', 0, 0, 0, 0, 0, 0})
 
 	// Buffer is too short
 	buf = make([]byte, 2)
-	n, err = s.sys.Readlinkat(fd, "new", buf)
+	n = mylog.Check2(s.sys.Readlinkat(fd, "new", buf))
 	c.Assert(err, check.IsNil)
 	c.Assert(n, check.Equals, 2)
 	c.Assert(buf, check.DeepEquals, []byte{'/', 'o'})
@@ -789,11 +791,11 @@ func (s *lowLevelSuite) TestReadlinkatSuccess(c *check.C) {
 
 func (s *lowLevelSuite) TestReadlinkatFailure(c *check.C) {
 	s.sys.InsertFault(`readlinkat 3 "new" <ptr>`, syscall.EPERM)
-	fd, err := s.sys.Open("/foo", syscall.O_RDONLY, 0)
+	fd := mylog.Check2(s.sys.Open("/foo", syscall.O_RDONLY, 0))
 	c.Assert(err, check.IsNil)
 
 	buf := make([]byte, 10)
-	n, err := s.sys.Readlinkat(fd, "new", buf)
+	n := mylog.Check2(s.sys.Readlinkat(fd, "new", buf))
 	c.Assert(err, check.ErrorMatches, "operation not permitted")
 	c.Assert(n, check.Equals, 0)
 	c.Assert(buf, check.DeepEquals, []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0})

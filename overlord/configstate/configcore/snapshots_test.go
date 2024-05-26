@@ -23,6 +23,7 @@ package configcore_test
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 )
 
@@ -33,41 +34,41 @@ type snapshotsSuite struct {
 var _ = Suite(&snapshotsSuite{})
 
 func (s *snapshotsSuite) TestConfigureAutomaticSnapshotsExpirationHappy(c *C) {
-	err := configcore.Run(classicDev, &mockConf{
+	mylog.Check(configcore.Run(classicDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"snapshots.automatic.retention": "40h",
 		},
-	})
-	c.Assert(err, IsNil)
+	}))
+
 }
 
 func (s *snapshotsSuite) TestConfigureAutomaticSnapshotsExpirationTooLow(c *C) {
-	err := configcore.Run(classicDev, &mockConf{
+	mylog.Check(configcore.Run(classicDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"snapshots.automatic.retention": "10m",
 		},
-	})
+	}))
 	c.Assert(err, ErrorMatches, `snapshots.automatic.retention must be a value greater than 24 hours, or "no" to disable`)
 }
 
 func (s *snapshotsSuite) TestConfigureAutomaticSnapshotsDisable(c *C) {
-	err := configcore.Run(classicDev, &mockConf{
+	mylog.Check(configcore.Run(classicDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"snapshots.automatic.retention": "no",
 		},
-	})
-	c.Assert(err, IsNil)
+	}))
+
 }
 
 func (s *refreshSuite) TestConfigureAutomaticSnapshotsExpirationInvalid(c *C) {
-	err := configcore.Run(classicDev, &mockConf{
+	mylog.Check(configcore.Run(classicDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"snapshots.automatic.retention": "invalid",
 		},
-	})
+	}))
 	c.Assert(err, ErrorMatches, `snapshots.automatic.retention cannot be parsed:.*`)
 }

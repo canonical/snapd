@@ -22,6 +22,7 @@ package builtin_test
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -60,6 +61,7 @@ slots:
   network-control:
   greengrass-support:
 `
+
 const ggMockPlugSnapInfoYaml = `name: other
 version: 1.0
 plugs:
@@ -97,7 +99,6 @@ func (s *GreengrassSupportInterfaceSuite) SetUpTest(c *C) {
 	s.processModePlug, s.processModePlugInfo = MockConnectedPlug(c, ggProcessModeMockPlugSnapInfoYaml, nil, "greengrass-support-no-container")
 
 	s.containerModePlug, s.containerModePlugInfo = MockConnectedPlug(c, ggMockPlugSnapInfoYaml, nil, "greengrass-support-legacy-container")
-
 }
 
 func (s *GreengrassSupportInterfaceSuite) TestName(c *C) {
@@ -120,8 +121,8 @@ func (s *GreengrassSupportInterfaceSuite) TestAppArmorSpec(c *C) {
 		s.plug,
 		s.containerModePlug,
 	} {
-		appSet, err := interfaces.NewSnapAppSet(plug.Snap(), nil)
-		c.Assert(err, IsNil)
+		appSet := mylog.Check2(interfaces.NewSnapAppSet(plug.Snap(), nil))
+
 		spec := apparmor.NewSpecification(appSet)
 		c.Assert(spec.AddConnectedPlug(s.iface, plug, s.slot), IsNil)
 		c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
@@ -135,8 +136,8 @@ func (s *GreengrassSupportInterfaceSuite) TestProcessModeAppArmorSpec(c *C) {
 	// no features so should not support userns
 	restore := apparmor_sandbox.MockFeatures(nil, nil, nil, nil)
 	defer restore()
-	appSet, err := interfaces.NewSnapAppSet(s.processModePlug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.processModePlug.Snap(), nil))
+
 	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.processModePlug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
@@ -151,8 +152,8 @@ func (s *GreengrassSupportInterfaceSuite) TestSecCompSpec(c *C) {
 		s.plug,
 		s.containerModePlug,
 	} {
-		appSet, err := interfaces.NewSnapAppSet(plug.Snap(), nil)
-		c.Assert(err, IsNil)
+		appSet := mylog.Check2(interfaces.NewSnapAppSet(plug.Snap(), nil))
+
 		spec := seccomp.NewSpecification(appSet)
 		c.Assert(spec.AddConnectedPlug(s.iface, plug, s.slot), IsNil)
 		c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "# for overlayfs and various bind mounts\nmount\numount2\npivot_root\n")
@@ -160,8 +161,8 @@ func (s *GreengrassSupportInterfaceSuite) TestSecCompSpec(c *C) {
 }
 
 func (s *GreengrassSupportInterfaceSuite) TestProcessModeSecCompSpec(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.processModePlug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.processModePlug.Snap(), nil))
+
 	spec := seccomp.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.processModePlug, s.slot), IsNil)
 	c.Check(spec.SnippetForTag("snap.other.app2"), Not(testutil.Contains), "# for overlayfs and various bind mounts\nmount\numount2\npivot_root\n")
@@ -173,8 +174,8 @@ func (s *GreengrassSupportInterfaceSuite) TestUdevTaggingDisablingRemoveLast(c *
 		s.containerModePlug,
 	} {
 		// make a spec with network-control that has udev tagging
-		appSet, err := interfaces.NewSnapAppSet(s.extraPlug.Snap(), nil)
-		c.Assert(err, IsNil)
+		appSet := mylog.Check2(interfaces.NewSnapAppSet(s.extraPlug.Snap(), nil))
+
 		spec := udev.NewSpecification(appSet)
 		c.Assert(spec.AddConnectedPlug(builtin.MustInterface("network-control"), s.extraPlug, s.extraSlot), IsNil)
 		c.Assert(spec.Snippets(), HasLen, 3)
@@ -186,8 +187,8 @@ func (s *GreengrassSupportInterfaceSuite) TestUdevTaggingDisablingRemoveLast(c *
 }
 
 func (s *GreengrassSupportInterfaceSuite) TestProcessModeUdevTaggingWorks(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.processModePlug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.processModePlug.Snap(), nil))
+
 	spec := udev.NewSpecification(appSet)
 	// connect the greengrass-support interface and ensure the spec is nil
 	c.Assert(spec.AddConnectedPlug(s.iface, s.processModePlug, s.slot), IsNil)
@@ -203,8 +204,8 @@ func (s *GreengrassSupportInterfaceSuite) TestUdevTaggingDisablingRemoveFirst(c 
 		s.plug,
 		s.containerModePlug,
 	} {
-		appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-		c.Assert(err, IsNil)
+		appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 		spec := udev.NewSpecification(appSet)
 		// connect the greengrass-support interface and ensure the spec is nil
 		c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
@@ -228,11 +229,11 @@ func (s *GreengrassSupportInterfaceSuite) TestPermanentSlotAppArmorSessionNative
 		s.plug,
 		s.containerModePlug,
 	} {
-		appSet, err := interfaces.NewSnapAppSet(plug.Snap(), nil)
-		c.Assert(err, IsNil)
+		appSet := mylog.Check2(interfaces.NewSnapAppSet(plug.Snap(), nil))
+
 		apparmorSpec := apparmor.NewSpecification(appSet)
-		err = apparmorSpec.AddConnectedPlug(s.iface, plug, s.slot)
-		c.Assert(err, IsNil)
+		mylog.Check(apparmorSpec.AddConnectedPlug(s.iface, plug, s.slot))
+
 		c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 
 		// verify core rule present
@@ -248,11 +249,11 @@ func (s *GreengrassSupportInterfaceSuite) TestPermanentSlotAppArmorSessionClassi
 		s.plug,
 		s.containerModePlug,
 	} {
-		appSet, err := interfaces.NewSnapAppSet(plug.Snap(), nil)
-		c.Assert(err, IsNil)
+		appSet := mylog.Check2(interfaces.NewSnapAppSet(plug.Snap(), nil))
+
 		apparmorSpec := apparmor.NewSpecification(appSet)
-		err = apparmorSpec.AddConnectedPlug(s.iface, plug, s.slot)
-		c.Assert(err, IsNil)
+		mylog.Check(apparmorSpec.AddConnectedPlug(s.iface, plug, s.slot))
+
 		c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 
 		// verify core rule not present
@@ -270,8 +271,8 @@ func (s *GreengrassSupportInterfaceSuite) TestPermanentPlugServiceSnippets(c *C)
 		// the process-mode or no-container plug doesn't get Delegate=true
 		{s.processModePlugInfo, nil},
 	} {
-		snips, err := interfaces.PermanentPlugServiceSnippets(s.iface, t.plug)
-		c.Assert(err, IsNil)
+		snips := mylog.Check2(interfaces.PermanentPlugServiceSnippets(s.iface, t.plug))
+
 		c.Check(snips, DeepEquals, t.exp)
 	}
 }

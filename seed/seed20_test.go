@@ -32,6 +32,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/osutil"
@@ -61,10 +62,8 @@ func newTestSnapHandler(seedDir string) *testSnapHandler {
 }
 
 func (h *testSnapHandler) rel(path string) string {
-	p, err := filepath.Rel(h.seedDir, path)
-	if err != nil {
-		panic(err)
-	}
+	p := mylog.Check2(filepath.Rel(h.seedDir, path))
+
 	return p
 }
 
@@ -76,10 +75,8 @@ func (h *testSnapHandler) HandleUnassertedSnap(name, path string, _ timings.Meas
 }
 
 func (h *testSnapHandler) HandleAndDigestAssertedSnap(name, path string, essType snap.Type, snapRev *asserts.SnapRevision, deriveRev func(string, uint64) (snap.Revision, error), _ timings.Measurer) (string, string, uint64, error) {
-	snapSHA3_384, sz, err := asserts.SnapFileSHA3_384(path)
-	if err != nil {
-		return "", "", 0, err
-	}
+	snapSHA3_384, sz := mylog.Check3(asserts.SnapFileSHA3_384(path))
+
 	func() {
 		h.mu.Lock()
 		defer h.mu.Unlock()
@@ -88,7 +85,7 @@ func (h *testSnapHandler) HandleAndDigestAssertedSnap(name, path string, essType
 			revno = fmt.Sprintf("%d", snapRev.SnapRevision())
 		} else {
 			var rev snap.Revision
-			rev, err = deriveRev(snapSHA3_384, sz)
+			rev = mylog.Check2(deriveRev(snapSHA3_384, sz))
 			revno = rev.String()
 		}
 		h.asserted[name] = fmt.Sprintf("%s:%s:%s", h.rel(path), essType, revno)
@@ -113,9 +110,7 @@ type seed20Suite struct {
 
 var _ = Suite(&seed20Suite{})
 
-var (
-	otherbrandPrivKey, _ = assertstest.GenerateKey(752)
-)
+var otherbrandPrivKey, _ = assertstest.GenerateKey(752)
 
 func (s *seed20Suite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
@@ -136,11 +131,11 @@ func (s *seed20Suite) SetUpTest(c *C) {
 
 	s.SeedDir = c.MkDir()
 
-	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+	db := mylog.Check2(asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
 		Trusted:   s.StoreSigning.Trusted,
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	s.db = db
 
 	s.perfTimings = timings.New(nil)
@@ -184,17 +179,15 @@ func (s *seed20Suite) TestLoadMetaCore20Minimal(c *C) {
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
-			}},
+			},
+		},
 	}, nil)
 
-	seed20, err := seed.Open(s.SeedDir, sysLabel)
-	c.Assert(err, IsNil)
+	seed20 := mylog.Check2(seed.Open(s.SeedDir, sysLabel))
 
-	err = seed20.LoadAssertions(s.db, s.commitTo)
-	c.Assert(err, IsNil)
+	mylog.Check(seed20.LoadAssertions(s.db, s.commitTo))
 
-	err = seed20.LoadMeta(seed.AllModes, nil, s.perfTimings)
-	c.Assert(err, IsNil)
+	mylog.Check(seed20.LoadMeta(seed.AllModes, nil, s.perfTimings))
 
 	c.Check(seed20.UsesSnapdSnap(), Equals, true)
 
@@ -243,8 +236,8 @@ func (s *seed20Suite) TestLoadMetaCore20Minimal(c *C) {
 	pi = essSnaps[3].PlaceInfo()
 	c.Check(pi.Filename(), Equals, "pc_1.snap")
 
-	runSnaps, err := seed20.ModeSnaps("run")
-	c.Assert(err, IsNil)
+	runSnaps := mylog.Check2(seed20.ModeSnaps("run"))
+
 	c.Check(runSnaps, HasLen, 0)
 
 	c.Check(seed20.NumSnaps(), Equals, 4)
@@ -272,7 +265,8 @@ func (s *seed20Suite) makeCore20MinimalSeed(c *C, sysLabel string) string {
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
-			}},
+			},
+		},
 	}, nil)
 
 	return filepath.Join(s.SeedDir, "systems", sysLabel)
@@ -285,18 +279,16 @@ func (s *seed20Suite) TestLoadAssertionsModelTempDBHappy(c *C) {
 	sysLabel := "20191031"
 	s.makeCore20MinimalSeed(c, sysLabel)
 
-	seed20, err := seed.Open(s.SeedDir, sysLabel)
-	c.Assert(err, IsNil)
+	seed20 := mylog.Check2(seed.Open(s.SeedDir, sysLabel))
 
-	err = seed20.LoadAssertions(nil, nil)
-	c.Assert(err, IsNil)
+	mylog.Check(seed20.LoadAssertions(nil, nil))
 
 	model := seed20.Model()
 	c.Check(model.Model(), Equals, "my-model")
 	c.Check(model.Base(), Equals, "core20")
 
-	brand, err := seed20.Brand()
-	c.Assert(err, IsNil)
+	brand := mylog.Check2(seed20.Brand())
+
 	c.Check(brand.AccountID(), Equals, "my-brand")
 	c.Check(brand.DisplayName(), Equals, "My-brand")
 }
@@ -304,14 +296,11 @@ func (s *seed20Suite) TestLoadAssertionsModelTempDBHappy(c *C) {
 func (s *seed20Suite) TestLoadAssertionsMultiModels(c *C) {
 	sysLabel := "20191031"
 	sysDir := s.makeCore20MinimalSeed(c, sysLabel)
+	mylog.Check(osutil.CopyFile(filepath.Join(sysDir, "model"), filepath.Join(sysDir, "assertions", "model2"), 0))
 
-	err := osutil.CopyFile(filepath.Join(sysDir, "model"), filepath.Join(sysDir, "assertions", "model2"), 0)
-	c.Assert(err, IsNil)
+	seed20 := mylog.Check2(seed.Open(s.SeedDir, sysLabel))
 
-	seed20, err := seed.Open(s.SeedDir, sysLabel)
-	c.Assert(err, IsNil)
-
-	err = seed20.LoadAssertions(s.db, s.commitTo)
+	mylog.Check(seed20.LoadAssertions(s.db, s.commitTo))
 	c.Check(err, ErrorMatches, `system cannot have any model assertion but the one in the system model assertion file`)
 }
 
@@ -320,22 +309,22 @@ func (s *seed20Suite) TestLoadAssertionsInvalidModelAssertFile(c *C) {
 	sysDir := s.makeCore20MinimalSeed(c, sysLabel)
 
 	modelAssertFn := filepath.Join(sysDir, "model")
+	mylog.
 
-	// copy over multiple assertions
-	err := osutil.CopyFile(filepath.Join(sysDir, "assertions", "model-etc"), modelAssertFn, osutil.CopyFlagOverwrite)
-	c.Assert(err, IsNil)
+		// copy over multiple assertions
+		Check(osutil.CopyFile(filepath.Join(sysDir, "assertions", "model-etc"), modelAssertFn, osutil.CopyFlagOverwrite))
 
-	seed20, err := seed.Open(s.SeedDir, sysLabel)
-	c.Assert(err, IsNil)
-	err = seed20.LoadAssertions(s.db, s.commitTo)
+	seed20 := mylog.Check2(seed.Open(s.SeedDir, sysLabel))
+
+	mylog.Check(seed20.LoadAssertions(s.db, s.commitTo))
 	c.Check(err, ErrorMatches, `system model assertion file must contain exactly the model assertion`)
 
 	// write whatever single non model assertion
 	seedtest.WriteAssertions(modelAssertFn, s.AssertedSnapRevision("snapd"))
 
-	seed20, err = seed.Open(s.SeedDir, sysLabel)
-	c.Assert(err, IsNil)
-	err = seed20.LoadAssertions(s.db, s.commitTo)
+	seed20 = mylog.Check2(seed.Open(s.SeedDir, sysLabel))
+
+	mylog.Check(seed20.LoadAssertions(s.db, s.commitTo))
 	c.Check(err, ErrorMatches, `system model assertion file must contain exactly the model assertion`)
 }
 
@@ -362,9 +351,9 @@ func (s *seed20Suite) TestLoadAssertionsUnbalancedDeclsAndRevs(c *C) {
 		return a
 	})
 
-	seed20, err := seed.Open(s.SeedDir, sysLabel)
-	c.Assert(err, IsNil)
-	err = seed20.LoadAssertions(s.db, s.commitTo)
+	seed20 := mylog.Check2(seed.Open(s.SeedDir, sysLabel))
+
+	mylog.Check(seed20.LoadAssertions(s.db, s.commitTo))
 	c.Check(err, ErrorMatches, `system unexpectedly holds a different number of snap-declaration than snap-revision assertions`)
 }
 
@@ -372,15 +361,14 @@ func (s *seed20Suite) TestLoadAssertionsMultiSnapRev(c *C) {
 	sysLabel := "20191031"
 	sysDir := s.makeCore20MinimalSeed(c, sysLabel)
 
-	spuriousRev, err := s.StoreSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
+	spuriousRev := mylog.Check2(s.StoreSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
 		"snap-sha3-384": strings.Repeat("B", 64),
 		"snap-size":     "1000",
 		"snap-id":       s.AssertedSnapID("core20"),
 		"developer-id":  "canonical",
 		"snap-revision": "99",
 		"timestamp":     time.Now().UTC().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
+	}, nil, ""))
 
 	s.massageAssertions(c, filepath.Join(sysDir, "assertions", "snaps"), func(a asserts.Assertion) asserts.Assertion {
 		if a.Type() == asserts.SnapRevisionType && a.HeaderString("snap-id") == s.AssertedSnapID("snapd") {
@@ -389,9 +377,9 @@ func (s *seed20Suite) TestLoadAssertionsMultiSnapRev(c *C) {
 		return a
 	})
 
-	seed20, err := seed.Open(s.SeedDir, sysLabel)
-	c.Assert(err, IsNil)
-	err = seed20.LoadAssertions(s.db, s.commitTo)
+	seed20 := mylog.Check2(seed.Open(s.SeedDir, sysLabel))
+
+	mylog.Check(seed20.LoadAssertions(s.db, s.commitTo))
 	c.Check(err, ErrorMatches, fmt.Sprintf(`cannot have multiple snap-revisions for the same snap-id: %s`, s.AssertedSnapID("core20")))
 }
 
@@ -399,24 +387,22 @@ func (s *seed20Suite) TestLoadAssertionsMultiSnapDecl(c *C) {
 	sysLabel := "20191031"
 	sysDir := s.makeCore20MinimalSeed(c, sysLabel)
 
-	spuriousDecl, err := s.StoreSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	spuriousDecl := mylog.Check2(s.StoreSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 		"series":       "16",
 		"snap-id":      "idididididididididididididididid",
 		"publisher-id": "canonical",
 		"snap-name":    "core20",
 		"timestamp":    time.Now().UTC().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
+	}, nil, ""))
 
-	spuriousRev, err := s.StoreSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
+	spuriousRev := mylog.Check2(s.StoreSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
 		"snap-sha3-384": strings.Repeat("B", 64),
 		"snap-size":     "1000",
 		"snap-id":       s.AssertedSnapID("core20"),
 		"developer-id":  "canonical",
 		"snap-revision": "99",
 		"timestamp":     time.Now().UTC().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
+	}, nil, ""))
 
 	s.massageAssertions(c, filepath.Join(sysDir, "assertions", "snaps"), func(a asserts.Assertion) asserts.Assertion {
 		if a.Type() == asserts.SnapDeclarationType && a.HeaderString("snap-name") == "snapd" {
@@ -428,9 +414,9 @@ func (s *seed20Suite) TestLoadAssertionsMultiSnapDecl(c *C) {
 		return a
 	})
 
-	seed20, err := seed.Open(s.SeedDir, sysLabel)
-	c.Assert(err, IsNil)
-	err = seed20.LoadAssertions(s.db, s.commitTo)
+	seed20 := mylog.Check2(seed.Open(s.SeedDir, sysLabel))
+
+	mylog.Check(seed20.LoadAssertions(s.db, s.commitTo))
 	c.Check(err, ErrorMatches, `cannot have multiple snap-declarations for the same snap-name: core20`)
 }
 
@@ -464,29 +450,28 @@ func (s *seed20Suite) TestLoadMetaMissingSnapDeclByName(c *C) {
 				"name": "core20",
 				// no id
 				"type": "base",
-			}},
+			},
+		},
 	}, nil)
 
 	sysDir := filepath.Join(s.SeedDir, "systems", sysLabel)
 
-	wrongDecl, err := s.StoreSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	wrongDecl := mylog.Check2(s.StoreSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 		"series":       "16",
 		"snap-id":      "idididididididididididididididid",
 		"publisher-id": "canonical",
 		"snap-name":    "core20X",
 		"timestamp":    time.Now().UTC().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
+	}, nil, ""))
 
-	wrongRev, err := s.StoreSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
+	wrongRev := mylog.Check2(s.StoreSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
 		"snap-sha3-384": strings.Repeat("B", 64),
 		"snap-size":     "1000",
 		"snap-id":       "idididididididididididididididid",
 		"developer-id":  "canonical",
 		"snap-revision": "99",
 		"timestamp":     time.Now().UTC().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
+	}, nil, ""))
 
 	s.massageAssertions(c, filepath.Join(sysDir, "assertions", "snaps"), func(a asserts.Assertion) asserts.Assertion {
 		if a.Type() == asserts.SnapDeclarationType && a.HeaderString("snap-name") == "core20" {
@@ -498,13 +483,11 @@ func (s *seed20Suite) TestLoadMetaMissingSnapDeclByName(c *C) {
 		return a
 	})
 
-	seed20, err := seed.Open(s.SeedDir, sysLabel)
-	c.Assert(err, IsNil)
+	seed20 := mylog.Check2(seed.Open(s.SeedDir, sysLabel))
 
-	err = seed20.LoadAssertions(s.db, s.commitTo)
-	c.Assert(err, IsNil)
+	mylog.Check(seed20.LoadAssertions(s.db, s.commitTo))
 
-	err = seed20.LoadMeta(seed.AllModes, nil, s.perfTimings)
+	mylog.Check(seed20.LoadMeta(seed.AllModes, nil, s.perfTimings))
 	c.Check(err, ErrorMatches, `cannot find snap-declaration for snap name: core20`)
 }
 
@@ -512,24 +495,22 @@ func (s *seed20Suite) TestLoadMetaMissingSnapDeclByID(c *C) {
 	sysLabel := "20191031"
 	sysDir := s.makeCore20MinimalSeed(c, sysLabel)
 
-	wrongDecl, err := s.StoreSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	wrongDecl := mylog.Check2(s.StoreSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 		"series":       "16",
 		"snap-id":      "idididididididididididididididid",
 		"publisher-id": "canonical",
 		"snap-name":    "pc",
 		"timestamp":    time.Now().UTC().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
+	}, nil, ""))
 
-	wrongRev, err := s.StoreSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
+	wrongRev := mylog.Check2(s.StoreSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
 		"snap-sha3-384": strings.Repeat("B", 64),
 		"snap-size":     "1000",
 		"snap-id":       "idididididididididididididididid",
 		"developer-id":  "canonical",
 		"snap-revision": "99",
 		"timestamp":     time.Now().UTC().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
+	}, nil, ""))
 
 	s.massageAssertions(c, filepath.Join(sysDir, "assertions", "snaps"), func(a asserts.Assertion) asserts.Assertion {
 		if a.Type() == asserts.SnapDeclarationType && a.HeaderString("snap-name") == "pc" {
@@ -541,47 +522,37 @@ func (s *seed20Suite) TestLoadMetaMissingSnapDeclByID(c *C) {
 		return a
 	})
 
-	seed20, err := seed.Open(s.SeedDir, sysLabel)
-	c.Assert(err, IsNil)
+	seed20 := mylog.Check2(seed.Open(s.SeedDir, sysLabel))
 
-	err = seed20.LoadAssertions(s.db, s.commitTo)
-	c.Assert(err, IsNil)
+	mylog.Check(seed20.LoadAssertions(s.db, s.commitTo))
 
-	err = seed20.LoadMeta(seed.AllModes, nil, s.perfTimings)
+	mylog.Check(seed20.LoadMeta(seed.AllModes, nil, s.perfTimings))
 	c.Check(err, ErrorMatches, `cannot find snap-declaration for snap-id: pcididididididididididididididid`)
 }
 
 func (s *seed20Suite) TestLoadMetaMissingSnap(c *C) {
 	sysLabel := "20191031"
 	s.makeCore20MinimalSeed(c, sysLabel)
+	mylog.Check(os.Remove(filepath.Join(s.SeedDir, "snaps", "pc_1.snap")))
 
-	err := os.Remove(filepath.Join(s.SeedDir, "snaps", "pc_1.snap"))
-	c.Assert(err, IsNil)
+	seed20 := mylog.Check2(seed.Open(s.SeedDir, sysLabel))
 
-	seed20, err := seed.Open(s.SeedDir, sysLabel)
-	c.Assert(err, IsNil)
+	mylog.Check(seed20.LoadAssertions(s.db, s.commitTo))
 
-	err = seed20.LoadAssertions(s.db, s.commitTo)
-	c.Assert(err, IsNil)
-
-	err = seed20.LoadMeta(seed.AllModes, nil, s.perfTimings)
+	mylog.Check(seed20.LoadMeta(seed.AllModes, nil, s.perfTimings))
 	c.Check(err, ErrorMatches, `cannot stat snap:.*pc_1\.snap.*`)
 }
 
 func (s *seed20Suite) TestLoadMetaWrongSizeSnap(c *C) {
 	sysLabel := "20191031"
 	s.makeCore20MinimalSeed(c, sysLabel)
+	mylog.Check(os.Truncate(filepath.Join(s.SeedDir, "snaps", "pc_1.snap"), 5))
 
-	err := os.Truncate(filepath.Join(s.SeedDir, "snaps", "pc_1.snap"), 5)
-	c.Assert(err, IsNil)
+	seed20 := mylog.Check2(seed.Open(s.SeedDir, sysLabel))
 
-	seed20, err := seed.Open(s.SeedDir, sysLabel)
-	c.Assert(err, IsNil)
+	mylog.Check(seed20.LoadAssertions(s.db, s.commitTo))
 
-	err = seed20.LoadAssertions(s.db, s.commitTo)
-	c.Assert(err, IsNil)
-
-	err = seed20.LoadMeta(seed.AllModes, nil, s.perfTimings)
+	mylog.Check(seed20.LoadMeta(seed.AllModes, nil, s.perfTimings))
 	c.Check(err, ErrorMatches, `cannot validate ".*pc_1\.snap" for snap "pc" \(snap-id "pc.*"\), wrong size`)
 }
 
@@ -590,15 +561,14 @@ func (s *seed20Suite) TestLoadMetaWrongHashSnap(c *C) {
 	sysDir := s.makeCore20MinimalSeed(c, sysLabel)
 
 	pcRev := s.AssertedSnapRevision("pc")
-	wrongRev, err := s.StoreSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
+	wrongRev := mylog.Check2(s.StoreSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
 		"snap-sha3-384": strings.Repeat("B", 64),
 		"snap-size":     pcRev.HeaderString("snap-size"),
 		"snap-id":       s.AssertedSnapID("pc"),
 		"developer-id":  "canonical",
 		"snap-revision": pcRev.HeaderString("snap-revision"),
 		"timestamp":     time.Now().UTC().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
+	}, nil, ""))
 
 	s.massageAssertions(c, filepath.Join(sysDir, "assertions", "snaps"), func(a asserts.Assertion) asserts.Assertion {
 		if a.Type() == asserts.SnapRevisionType && a.HeaderString("snap-id") == s.AssertedSnapID("pc") {
@@ -607,13 +577,11 @@ func (s *seed20Suite) TestLoadMetaWrongHashSnap(c *C) {
 		return a
 	})
 
-	seed20, err := seed.Open(s.SeedDir, sysLabel)
-	c.Assert(err, IsNil)
+	seed20 := mylog.Check2(seed.Open(s.SeedDir, sysLabel))
 
-	err = seed20.LoadAssertions(s.db, s.commitTo)
-	c.Assert(err, IsNil)
+	mylog.Check(seed20.LoadAssertions(s.db, s.commitTo))
 
-	err = seed20.LoadMeta(seed.AllModes, nil, s.perfTimings)
+	mylog.Check(seed20.LoadMeta(seed.AllModes, nil, s.perfTimings))
 	c.Check(err, ErrorMatches, `cannot validate ".*pc_1\.snap" for snap "pc" \(snap-id "pc.*"\), hash mismatch with snap-revision`)
 }
 
@@ -623,8 +591,8 @@ func (s *seed20Suite) TestLoadMetaWrongGadgetBase(c *C) {
 
 	// pc with base: core18
 	pc18Decl, pc18Rev := s.MakeAssertedSnap(c, snapYaml["pc=18"], nil, snap.R(2), "canonical")
-	err := os.Rename(s.AssertedSnap("pc"), filepath.Join(s.SeedDir, "snaps", "pc_2.snap"))
-	c.Assert(err, IsNil)
+	mylog.Check(os.Rename(s.AssertedSnap("pc"), filepath.Join(s.SeedDir, "snaps", "pc_2.snap")))
+
 	s.massageAssertions(c, filepath.Join(sysDir, "assertions", "snaps"), func(a asserts.Assertion) asserts.Assertion {
 		if a.Type() == asserts.SnapDeclarationType && a.HeaderString("snap-name") == "pc" {
 			return pc18Decl
@@ -635,13 +603,11 @@ func (s *seed20Suite) TestLoadMetaWrongGadgetBase(c *C) {
 		return a
 	})
 
-	seed20, err := seed.Open(s.SeedDir, sysLabel)
-	c.Assert(err, IsNil)
+	seed20 := mylog.Check2(seed.Open(s.SeedDir, sysLabel))
 
-	err = seed20.LoadAssertions(s.db, s.commitTo)
-	c.Assert(err, IsNil)
+	mylog.Check(seed20.LoadAssertions(s.db, s.commitTo))
 
-	err = seed20.LoadMeta(seed.AllModes, nil, s.perfTimings)
+	mylog.Check(seed20.LoadMeta(seed.AllModes, nil, s.perfTimings))
 	c.Check(err, ErrorMatches, `cannot use gadget snap because its base "core18" is different from model base "core20"`)
 }
 
@@ -683,17 +649,15 @@ func (s *seed20Suite) TestLoadMetaCore20(c *C) {
 			map[string]interface{}{
 				"name": "required20",
 				"id":   s.AssertedSnapID("required20"),
-			}},
+			},
+		},
 	}, nil)
 
-	seed20, err := seed.Open(s.SeedDir, sysLabel)
-	c.Assert(err, IsNil)
+	seed20 := mylog.Check2(seed.Open(s.SeedDir, sysLabel))
 
-	err = seed20.LoadAssertions(s.db, s.commitTo)
-	c.Assert(err, IsNil)
+	mylog.Check(seed20.LoadAssertions(s.db, s.commitTo))
 
-	err = seed20.LoadMeta(seed.AllModes, nil, s.perfTimings)
-	c.Assert(err, IsNil)
+	mylog.Check(seed20.LoadMeta(seed.AllModes, nil, s.perfTimings))
 
 	c.Check(seed20.UsesSnapdSnap(), Equals, true)
 
@@ -734,8 +698,8 @@ func (s *seed20Suite) TestLoadMetaCore20(c *C) {
 
 	c.Check(seed20.NumSnaps(), Equals, 5)
 
-	runSnaps, err := seed20.ModeSnaps("run")
-	c.Assert(err, IsNil)
+	runSnaps := mylog.Check2(seed20.ModeSnaps("run"))
+
 	c.Check(runSnaps, HasLen, 1)
 	c.Check(runSnaps, DeepEquals, []*seed.Snap{
 		{
@@ -747,8 +711,8 @@ func (s *seed20Suite) TestLoadMetaCore20(c *C) {
 	})
 
 	// required20 has default modes: ["run"]
-	installSnaps, err := seed20.ModeSnaps("install")
-	c.Assert(err, IsNil)
+	installSnaps := mylog.Check2(seed20.ModeSnaps("install"))
+
 	c.Check(installSnaps, HasLen, 0)
 }
 
@@ -790,17 +754,15 @@ func (s *seed20Suite) TestLoadMetaCore20DelegatedSnap(c *C) {
 			map[string]interface{}{
 				"name": "required20",
 				"id":   s.AssertedSnapID("required20"),
-			}},
+			},
+		},
 	}, nil)
 
-	seed20, err := seed.Open(s.SeedDir, sysLabel)
-	c.Assert(err, IsNil)
+	seed20 := mylog.Check2(seed.Open(s.SeedDir, sysLabel))
 
-	err = seed20.LoadAssertions(s.db, s.commitTo)
-	c.Assert(err, IsNil)
+	mylog.Check(seed20.LoadAssertions(s.db, s.commitTo))
 
-	err = seed20.LoadMeta(seed.AllModes, nil, s.perfTimings)
-	c.Assert(err, IsNil)
+	mylog.Check(seed20.LoadMeta(seed.AllModes, nil, s.perfTimings))
 
 	c.Check(seed20.UsesSnapdSnap(), Equals, true)
 
@@ -839,8 +801,8 @@ func (s *seed20Suite) TestLoadMetaCore20DelegatedSnap(c *C) {
 		},
 	})
 
-	runSnaps, err := seed20.ModeSnaps("run")
-	c.Assert(err, IsNil)
+	runSnaps := mylog.Check2(seed20.ModeSnaps("run"))
+
 	c.Check(runSnaps, HasLen, 1)
 	c.Check(runSnaps, DeepEquals, []*seed.Snap{
 		{
@@ -852,8 +814,8 @@ func (s *seed20Suite) TestLoadMetaCore20DelegatedSnap(c *C) {
 	})
 
 	// required20 has default modes: ["run"]
-	installSnaps, err := seed20.ModeSnaps("install")
-	c.Assert(err, IsNil)
+	installSnaps := mylog.Check2(seed20.ModeSnaps("install"))
+
 	c.Check(installSnaps, HasLen, 0)
 }
 
@@ -893,16 +855,15 @@ func (s *seed20Suite) TestLoadMetaCore20DelegatedSnapProvenanceMismatch(c *C) {
 			map[string]interface{}{
 				"name": "required20",
 				"id":   s.AssertedSnapID("required20"),
-			}},
+			},
+		},
 	}, nil)
 
-	seed20, err := seed.Open(s.SeedDir, sysLabel)
-	c.Assert(err, IsNil)
+	seed20 := mylog.Check2(seed.Open(s.SeedDir, sysLabel))
 
-	err = seed20.LoadAssertions(s.db, s.commitTo)
-	c.Assert(err, IsNil)
+	mylog.Check(seed20.LoadAssertions(s.db, s.commitTo))
 
-	err = seed20.LoadMeta(seed.AllModes, nil, s.perfTimings)
+	mylog.Check(seed20.LoadMeta(seed.AllModes, nil, s.perfTimings))
 	c.Check(err, ErrorMatches, `snap ".*required20_1\.snap" has been signed under provenance "delegated-prov" different from the metadata one: "delegated-prov-other"`)
 }
 
@@ -942,16 +903,15 @@ func (s *seed20Suite) TestLoadMetaCore20DelegatedSnapDeviceMismatch(c *C) {
 			map[string]interface{}{
 				"name": "required20",
 				"id":   s.AssertedSnapID("required20"),
-			}},
+			},
+		},
 	}, nil)
 
-	seed20, err := seed.Open(s.SeedDir, sysLabel)
-	c.Assert(err, IsNil)
+	seed20 := mylog.Check2(seed.Open(s.SeedDir, sysLabel))
 
-	err = seed20.LoadAssertions(s.db, s.commitTo)
-	c.Assert(err, IsNil)
+	mylog.Check(seed20.LoadAssertions(s.db, s.commitTo))
 
-	err = seed20.LoadMeta(seed.AllModes, nil, s.perfTimings)
+	mylog.Check(seed20.LoadMeta(seed.AllModes, nil, s.perfTimings))
 	c.Check(err, ErrorMatches, `snap "required20" revision assertion with provenance "delegated-prov" is not signed by an authority authorized on this device: my-brand`)
 }
 
@@ -966,14 +926,14 @@ Hiding:
 		}
 		origFn := sn.Path
 		hiddenFn := sn.Path + ".hidden"
-		err := os.Rename(origFn, hiddenFn)
-		c.Assert(err, IsNil)
+		mylog.Check(os.Rename(origFn, hiddenFn))
+
 		hidden = append(hidden, []string{origFn, hiddenFn})
 	}
 	return func() {
 		for _, h := range hidden {
-			err := os.Rename(h[1], h[0])
-			c.Assert(err, IsNil)
+			mylog.Check(os.Rename(h[1], h[0]))
+
 		}
 	}
 }
@@ -1015,7 +975,8 @@ func (s *seed20Suite) TestLoadEssentialMetaCore20(c *C) {
 			map[string]interface{}{
 				"name": "required18",
 				"id":   s.AssertedSnapID("required18"),
-			}},
+			},
+		},
 	}, nil)
 
 	snapdSnap := &seed.Snap{
@@ -1034,7 +995,8 @@ func (s *seed20Suite) TestLoadEssentialMetaCore20(c *C) {
 		Required:      true,
 		Channel:       "20",
 	}
-	core20Snap := &seed.Snap{Path: s.expectedPath("core20"),
+	core20Snap := &seed.Snap{
+		Path:          s.expectedPath("core20"),
 		SideInfo:      &s.AssertedSnapInfo("core20").SideInfo,
 		EssentialType: snap.TypeBase,
 		Essential:     true,
@@ -1084,14 +1046,11 @@ func (s *seed20Suite) TestLoadEssentialMetaCore20(c *C) {
 			unhide = hideSnaps(c, all, t.onlyTypes)
 		}
 
-		seed20, err := seed.Open(s.SeedDir, sysLabel)
-		c.Assert(err, IsNil)
+		seed20 := mylog.Check2(seed.Open(s.SeedDir, sysLabel))
 
-		err = seed20.LoadAssertions(nil, nil)
-		c.Assert(err, IsNil)
+		mylog.Check(seed20.LoadAssertions(nil, nil))
 
-		err = seed20.LoadEssentialMeta(t.onlyTypes, s.perfTimings)
-		c.Assert(err, IsNil)
+		mylog.Check(seed20.LoadEssentialMeta(t.onlyTypes, s.perfTimings))
 
 		c.Check(seed20.UsesSnapdSnap(), Equals, true)
 
@@ -1100,8 +1059,8 @@ func (s *seed20Suite) TestLoadEssentialMetaCore20(c *C) {
 
 		c.Check(essSnaps, DeepEquals, t.expected)
 
-		runSnaps, err := seed20.ModeSnaps("run")
-		c.Assert(err, IsNil)
+		runSnaps := mylog.Check2(seed20.ModeSnaps("run"))
+
 		c.Check(runSnaps, HasLen, 0)
 
 		if unhide != nil {
@@ -1109,8 +1068,8 @@ func (s *seed20Suite) TestLoadEssentialMetaCore20(c *C) {
 		}
 
 		// test short-cut helper as well
-		mod, essSnaps, err := seed.ReadSystemEssential(s.SeedDir, sysLabel, t.onlyTypes, s.perfTimings)
-		c.Assert(err, IsNil)
+		mod, essSnaps := mylog.Check3(seed.ReadSystemEssential(s.SeedDir, sysLabel, t.onlyTypes, s.perfTimings))
+
 		c.Check(mod.BrandID(), Equals, "my-brand")
 		c.Check(mod.Model(), Equals, "my-model")
 		c.Check(essSnaps, HasLen, len(t.expected))
@@ -1155,7 +1114,8 @@ func (s *seed20Suite) TestLoadEssentialMetaWithSnapHandlerCore20(c *C) {
 			map[string]interface{}{
 				"name": "required18",
 				"id":   s.AssertedSnapID("required18"),
-			}},
+			},
+		},
 	}, nil)
 
 	snapdSnap := &seed.Snap{
@@ -1174,7 +1134,8 @@ func (s *seed20Suite) TestLoadEssentialMetaWithSnapHandlerCore20(c *C) {
 		Required:      true,
 		Channel:       "20",
 	}
-	core20Snap := &seed.Snap{Path: s.expectedPath("core20"),
+	core20Snap := &seed.Snap{
+		Path:          s.expectedPath("core20"),
 		SideInfo:      &s.AssertedSnapInfo("core20").SideInfo,
 		EssentialType: snap.TypeBase,
 		Essential:     true,
@@ -1192,16 +1153,12 @@ func (s *seed20Suite) TestLoadEssentialMetaWithSnapHandlerCore20(c *C) {
 
 	expected := []*seed.Snap{snapdSnap, pcKernelSnap, core20Snap, pcSnap}
 
-	seed20, err := seed.Open(s.SeedDir, sysLabel)
-	c.Assert(err, IsNil)
+	seed20 := mylog.Check2(seed.Open(s.SeedDir, sysLabel))
 
-	err = seed20.LoadAssertions(nil, nil)
-	c.Assert(err, IsNil)
+	mylog.Check(seed20.LoadAssertions(nil, nil))
 
 	h := newTestSnapHandler(s.SeedDir)
-
-	err = seed20.LoadEssentialMetaWithSnapHandler(nil, h, s.perfTimings)
-	c.Assert(err, IsNil)
+	mylog.Check(seed20.LoadEssentialMetaWithSnapHandler(nil, h, s.perfTimings))
 
 	c.Check(seed20.UsesSnapdSnap(), Equals, true)
 
@@ -1260,12 +1217,13 @@ func (s *seed20Suite) TestReadSystemEssentialAndBetterEarliestTime(c *C) {
 				map[string]interface{}{
 					"name": "required18",
 					"id":   s.AssertedSnapID("required18"),
-				}},
+				},
+			},
 		}, nil)
 
 		// test short-cut helper as well
-		theSeed, betterTime, err := seed.ReadSeedAndBetterEarliestTime(s.SeedDir, sysLabel, earliestTime, 0, s.perfTimings)
-		c.Assert(err, IsNil)
+		theSeed, betterTime := mylog.Check3(seed.ReadSeedAndBetterEarliestTime(s.SeedDir, sysLabel, earliestTime, 0, s.perfTimings))
+
 		c.Check(theSeed.Model().BrandID(), Equals, "my-brand")
 		c.Check(theSeed.Model().Model(), Equals, "my-model")
 		c.Check(theSeed.Model().Timestamp().Equal(modelTime), Equals, true)
@@ -1293,7 +1251,7 @@ func (s *seed20Suite) TestReadSystemEssentialAndBetterEarliestTime(c *C) {
 func (s *seed20Suite) TestReadSystemEssentialAndBetterEarliestTimeParallelism(c *C) {
 	var testSeed *seed.TestSeed20
 	restore := seed.MockOpen(func(seedDir, label string) (seed.Seed, error) {
-		sd, err := seed.Open(seedDir, label)
+		sd := mylog.Check2(seed.Open(seedDir, label))
 		testSeed = seed.NewTestSeed20(sd)
 		return testSeed, err
 	})
@@ -1325,11 +1283,12 @@ func (s *seed20Suite) TestReadSystemEssentialAndBetterEarliestTimeParallelism(c 
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
-			}},
+			},
+		},
 	}, nil)
 
-	_, _, err := seed.ReadSeedAndBetterEarliestTime(s.SeedDir, sysLabel, time.Time{}, 3, s.perfTimings)
-	c.Assert(err, IsNil)
+	_, _ := mylog.Check3(seed.ReadSeedAndBetterEarliestTime(s.SeedDir, sysLabel, time.Time{}, 3, s.perfTimings))
+
 	c.Assert(testSeed, NotNil)
 	c.Check(testSeed.Jobs, Equals, 3)
 }
@@ -1371,7 +1330,8 @@ func (s *seed20Suite) TestLoadEssentialAndMetaCore20(c *C) {
 			map[string]interface{}{
 				"name": "required18",
 				"id":   s.AssertedSnapID("required18"),
-			}},
+			},
+		},
 	}, nil)
 
 	snapdSnap := &seed.Snap{
@@ -1390,7 +1350,8 @@ func (s *seed20Suite) TestLoadEssentialAndMetaCore20(c *C) {
 		Required:      true,
 		Channel:       "20",
 	}
-	core20Snap := &seed.Snap{Path: s.expectedPath("core20"),
+	core20Snap := &seed.Snap{
+		Path:          s.expectedPath("core20"),
 		SideInfo:      &s.AssertedSnapInfo("core20").SideInfo,
 		EssentialType: snap.TypeBase,
 		Essential:     true,
@@ -1406,43 +1367,36 @@ func (s *seed20Suite) TestLoadEssentialAndMetaCore20(c *C) {
 		Channel:       "20",
 	}
 
-	seed20, err := seed.Open(s.SeedDir, sysLabel)
-	c.Assert(err, IsNil)
+	seed20 := mylog.Check2(seed.Open(s.SeedDir, sysLabel))
 
-	err = seed20.LoadAssertions(nil, nil)
-	c.Assert(err, IsNil)
+	mylog.Check(seed20.LoadAssertions(nil, nil))
 
-	err = seed20.LoadEssentialMeta([]snap.Type{snap.TypeGadget}, s.perfTimings)
-	c.Assert(err, IsNil)
+	mylog.Check(seed20.LoadEssentialMeta([]snap.Type{snap.TypeGadget}, s.perfTimings))
 
 	c.Check(seed20.UsesSnapdSnap(), Equals, true)
 
 	essSnaps := seed20.EssentialSnaps()
 	c.Check(essSnaps, DeepEquals, []*seed.Snap{pcSnap})
-
-	err = seed20.LoadEssentialMeta([]snap.Type{snap.TypeSnapd, snap.TypeKernel, snap.TypeBase, snap.TypeGadget}, s.perfTimings)
-	c.Assert(err, IsNil)
+	mylog.Check(seed20.LoadEssentialMeta([]snap.Type{snap.TypeSnapd, snap.TypeKernel, snap.TypeBase, snap.TypeGadget}, s.perfTimings))
 
 	essSnaps = seed20.EssentialSnaps()
 	c.Check(essSnaps, DeepEquals, []*seed.Snap{snapdSnap, pcKernelSnap, core20Snap, pcSnap})
 
-	runSnaps, err := seed20.ModeSnaps("run")
-	c.Assert(err, IsNil)
+	runSnaps := mylog.Check2(seed20.ModeSnaps("run"))
+
 	c.Check(runSnaps, HasLen, 0)
 
 	// caching in place
 	hideSnaps(c, []*seed.Snap{snapdSnap, core20Snap, pcKernelSnap}, nil)
-
-	err = seed20.LoadMeta(seed.AllModes, nil, s.perfTimings)
-	c.Assert(err, IsNil)
+	mylog.Check(seed20.LoadMeta(seed.AllModes, nil, s.perfTimings))
 
 	c.Check(seed20.UsesSnapdSnap(), Equals, true)
 
 	essSnaps = seed20.EssentialSnaps()
 	c.Check(essSnaps, DeepEquals, []*seed.Snap{snapdSnap, pcKernelSnap, core20Snap, pcSnap})
 
-	runSnaps, err = seed20.ModeSnaps("run")
-	c.Assert(err, IsNil)
+	runSnaps = mylog.Check2(seed20.ModeSnaps("run"))
+
 	c.Check(runSnaps, HasLen, 2)
 	c.Check(runSnaps, DeepEquals, []*seed.Snap{
 		{
@@ -1457,7 +1411,6 @@ func (s *seed20Suite) TestLoadEssentialAndMetaCore20(c *C) {
 			Channel:  "latest/stable",
 		},
 	})
-
 }
 
 func (s *seed20Suite) makeLocalSnap(c *C, yamlKey string) (fname string) {
@@ -1493,19 +1446,17 @@ func (s *seed20Suite) TestLoadMetaCore20LocalSnaps(c *C) {
 			map[string]interface{}{
 				"name": "required20",
 				"id":   s.AssertedSnapID("required20"),
-			}},
+			},
+		},
 	}, []*seedwriter.OptionsSnap{
 		{Path: requiredFn},
 	})
 
-	seed20, err := seed.Open(s.SeedDir, sysLabel)
-	c.Assert(err, IsNil)
+	seed20 := mylog.Check2(seed.Open(s.SeedDir, sysLabel))
 
-	err = seed20.LoadAssertions(s.db, s.commitTo)
-	c.Assert(err, IsNil)
+	mylog.Check(seed20.LoadAssertions(s.db, s.commitTo))
 
-	err = seed20.LoadMeta(seed.AllModes, nil, s.perfTimings)
-	c.Assert(err, IsNil)
+	mylog.Check(seed20.LoadMeta(seed.AllModes, nil, s.perfTimings))
 
 	c.Check(seed20.UsesSnapdSnap(), Equals, true)
 
@@ -1544,8 +1495,8 @@ func (s *seed20Suite) TestLoadMetaCore20LocalSnaps(c *C) {
 		},
 	})
 
-	runSnaps, err := seed20.ModeSnaps("run")
-	c.Assert(err, IsNil)
+	runSnaps := mylog.Check2(seed20.ModeSnaps("run"))
+
 	c.Check(runSnaps, HasLen, 1)
 
 	c.Check(runSnaps, DeepEquals, []*seed.Snap{
@@ -1586,21 +1537,18 @@ func (s *seed20Suite) TestLoadMetaCore20SnapHandler(c *C) {
 			map[string]interface{}{
 				"name": "required20",
 				"id":   s.AssertedSnapID("required20"),
-			}},
+			},
+		},
 	}, []*seedwriter.OptionsSnap{
 		{Path: requiredFn},
 	})
 
-	seed20, err := seed.Open(s.SeedDir, sysLabel)
-	c.Assert(err, IsNil)
+	seed20 := mylog.Check2(seed.Open(s.SeedDir, sysLabel))
 
-	err = seed20.LoadAssertions(s.db, s.commitTo)
-	c.Assert(err, IsNil)
+	mylog.Check(seed20.LoadAssertions(s.db, s.commitTo))
 
 	h := newTestSnapHandler(s.SeedDir)
-
-	err = seed20.LoadMeta(seed.AllModes, h, s.perfTimings)
-	c.Assert(err, IsNil)
+	mylog.Check(seed20.LoadMeta(seed.AllModes, h, s.perfTimings))
 
 	c.Check(seed20.UsesSnapdSnap(), Equals, true)
 
@@ -1639,8 +1587,8 @@ func (s *seed20Suite) TestLoadMetaCore20SnapHandler(c *C) {
 		},
 	})
 
-	runSnaps, err := seed20.ModeSnaps("run")
-	c.Assert(err, IsNil)
+	runSnaps := mylog.Check2(seed20.ModeSnaps("run"))
+
 	c.Check(runSnaps, HasLen, 1)
 
 	c.Check(runSnaps, DeepEquals, []*seed.Snap{
@@ -1691,22 +1639,19 @@ func (s *seed20Suite) TestLoadMetaCore20SnapHandlerChangePath(c *C) {
 			map[string]interface{}{
 				"name": "required20",
 				"id":   s.AssertedSnapID("required20"),
-			}},
+			},
+		},
 	}, []*seedwriter.OptionsSnap{
 		{Path: requiredFn},
 	})
 
-	seed20, err := seed.Open(s.SeedDir, sysLabel)
-	c.Assert(err, IsNil)
+	seed20 := mylog.Check2(seed.Open(s.SeedDir, sysLabel))
 
-	err = seed20.LoadAssertions(s.db, s.commitTo)
-	c.Assert(err, IsNil)
+	mylog.Check(seed20.LoadAssertions(s.db, s.commitTo))
 
 	h := newTestSnapHandler(s.SeedDir)
 	h.pathPrefix = "/tmp/.."
-
-	err = seed20.LoadMeta(seed.AllModes, h, s.perfTimings)
-	c.Assert(err, IsNil)
+	mylog.Check(seed20.LoadMeta(seed.AllModes, h, s.perfTimings))
 
 	c.Check(seed20.UsesSnapdSnap(), Equals, true)
 
@@ -1745,8 +1690,8 @@ func (s *seed20Suite) TestLoadMetaCore20SnapHandlerChangePath(c *C) {
 		},
 	})
 
-	runSnaps, err := seed20.ModeSnaps("run")
-	c.Assert(err, IsNil)
+	runSnaps := mylog.Check2(seed20.ModeSnaps("run"))
+
 	c.Check(runSnaps, HasLen, 1)
 
 	c.Check(runSnaps, DeepEquals, []*seed.Snap{
@@ -1799,19 +1744,17 @@ func (s *seed20Suite) TestLoadMetaCore20ChannelOverride(c *C) {
 			map[string]interface{}{
 				"name": "required20",
 				"id":   s.AssertedSnapID("required20"),
-			}},
+			},
+		},
 	}, []*seedwriter.OptionsSnap{
 		{Name: "pc", Channel: "20experimental/edge"},
 	})
 
-	seed20, err := seed.Open(s.SeedDir, sysLabel)
-	c.Assert(err, IsNil)
+	seed20 := mylog.Check2(seed.Open(s.SeedDir, sysLabel))
 
-	err = seed20.LoadAssertions(s.db, s.commitTo)
-	c.Assert(err, IsNil)
+	mylog.Check(seed20.LoadAssertions(s.db, s.commitTo))
 
-	err = seed20.LoadMeta(seed.AllModes, nil, s.perfTimings)
-	c.Assert(err, IsNil)
+	mylog.Check(seed20.LoadMeta(seed.AllModes, nil, s.perfTimings))
 
 	c.Check(seed20.UsesSnapdSnap(), Equals, true)
 
@@ -1850,8 +1793,8 @@ func (s *seed20Suite) TestLoadMetaCore20ChannelOverride(c *C) {
 		},
 	})
 
-	runSnaps, err := seed20.ModeSnaps("run")
-	c.Assert(err, IsNil)
+	runSnaps := mylog.Check2(seed20.ModeSnaps("run"))
+
 	c.Check(runSnaps, HasLen, 1)
 	c.Check(runSnaps, DeepEquals, []*seed.Snap{
 		{
@@ -1894,19 +1837,17 @@ func (s *seed20Suite) TestLoadMetaCore20ChannelOverrideSnapd(c *C) {
 			map[string]interface{}{
 				"name": "required20",
 				"id":   s.AssertedSnapID("required20"),
-			}},
+			},
+		},
 	}, []*seedwriter.OptionsSnap{
 		{Name: "snapd", Channel: "20experimental/edge"},
 	})
 
-	seed20, err := seed.Open(s.SeedDir, sysLabel)
-	c.Assert(err, IsNil)
+	seed20 := mylog.Check2(seed.Open(s.SeedDir, sysLabel))
 
-	err = seed20.LoadAssertions(s.db, s.commitTo)
-	c.Assert(err, IsNil)
+	mylog.Check(seed20.LoadAssertions(s.db, s.commitTo))
 
-	err = seed20.LoadMeta(seed.AllModes, nil, s.perfTimings)
-	c.Assert(err, IsNil)
+	mylog.Check(seed20.LoadMeta(seed.AllModes, nil, s.perfTimings))
 
 	c.Check(seed20.UsesSnapdSnap(), Equals, true)
 
@@ -1945,8 +1886,8 @@ func (s *seed20Suite) TestLoadMetaCore20ChannelOverrideSnapd(c *C) {
 		},
 	})
 
-	runSnaps, err := seed20.ModeSnaps("run")
-	c.Assert(err, IsNil)
+	runSnaps := mylog.Check2(seed20.ModeSnaps("run"))
+
 	c.Check(runSnaps, HasLen, 1)
 	c.Check(runSnaps, DeepEquals, []*seed.Snap{
 		{
@@ -1982,19 +1923,17 @@ func (s *seed20Suite) TestLoadMetaCore20LocalSnapd(c *C) {
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
-			}},
+			},
+		},
 	}, []*seedwriter.OptionsSnap{
 		{Path: snapdFn},
 	})
 
-	seed20, err := seed.Open(s.SeedDir, sysLabel)
-	c.Assert(err, IsNil)
+	seed20 := mylog.Check2(seed.Open(s.SeedDir, sysLabel))
 
-	err = seed20.LoadAssertions(s.db, s.commitTo)
-	c.Assert(err, IsNil)
+	mylog.Check(seed20.LoadAssertions(s.db, s.commitTo))
 
-	err = seed20.LoadMeta(seed.AllModes, nil, s.perfTimings)
-	c.Assert(err, IsNil)
+	mylog.Check(seed20.LoadMeta(seed.AllModes, nil, s.perfTimings))
 
 	c.Check(seed20.UsesSnapdSnap(), Equals, true)
 
@@ -2032,8 +1971,8 @@ func (s *seed20Suite) TestLoadMetaCore20LocalSnapd(c *C) {
 		},
 	})
 
-	runSnaps, err := seed20.ModeSnaps("run")
-	c.Assert(err, IsNil)
+	runSnaps := mylog.Check2(seed20.ModeSnaps("run"))
+
 	c.Check(runSnaps, HasLen, 0)
 }
 
@@ -2066,17 +2005,15 @@ func (s *seed20Suite) TestLoadMetaCore20ModelOverrideSnapd(c *C) {
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
-			}},
+			},
+		},
 	}, nil)
 
-	seed20, err := seed.Open(s.SeedDir, sysLabel)
-	c.Assert(err, IsNil)
+	seed20 := mylog.Check2(seed.Open(s.SeedDir, sysLabel))
 
-	err = seed20.LoadAssertions(s.db, s.commitTo)
-	c.Assert(err, IsNil)
+	mylog.Check(seed20.LoadAssertions(s.db, s.commitTo))
 
-	err = seed20.LoadMeta(seed.AllModes, nil, s.perfTimings)
-	c.Assert(err, IsNil)
+	mylog.Check(seed20.LoadMeta(seed.AllModes, nil, s.perfTimings))
 
 	c.Check(seed20.UsesSnapdSnap(), Equals, true)
 
@@ -2115,8 +2052,8 @@ func (s *seed20Suite) TestLoadMetaCore20ModelOverrideSnapd(c *C) {
 		},
 	})
 
-	runSnaps, err := seed20.ModeSnaps("run")
-	c.Assert(err, IsNil)
+	runSnaps := mylog.Check2(seed20.ModeSnaps("run"))
+
 	c.Check(runSnaps, HasLen, 0)
 }
 
@@ -2156,19 +2093,17 @@ func (s *seed20Suite) TestLoadMetaCore20OptionalSnaps(c *C) {
 				"name":     "optional20-b",
 				"id":       s.AssertedSnapID("optional20-b"),
 				"presence": "optional",
-			}},
+			},
+		},
 	}, []*seedwriter.OptionsSnap{
 		{Name: "optional20-b"},
 	})
 
-	seed20, err := seed.Open(s.SeedDir, sysLabel)
-	c.Assert(err, IsNil)
+	seed20 := mylog.Check2(seed.Open(s.SeedDir, sysLabel))
 
-	err = seed20.LoadAssertions(s.db, s.commitTo)
-	c.Assert(err, IsNil)
+	mylog.Check(seed20.LoadAssertions(s.db, s.commitTo))
 
-	err = seed20.LoadMeta(seed.AllModes, nil, s.perfTimings)
-	c.Assert(err, IsNil)
+	mylog.Check(seed20.LoadMeta(seed.AllModes, nil, s.perfTimings))
 
 	c.Check(seed20.UsesSnapdSnap(), Equals, true)
 
@@ -2207,8 +2142,8 @@ func (s *seed20Suite) TestLoadMetaCore20OptionalSnaps(c *C) {
 		},
 	})
 
-	runSnaps, err := seed20.ModeSnaps("run")
-	c.Assert(err, IsNil)
+	runSnaps := mylog.Check2(seed20.ModeSnaps("run"))
+
 	c.Check(runSnaps, HasLen, 1)
 	c.Check(runSnaps, DeepEquals, []*seed.Snap{
 		{
@@ -2256,19 +2191,17 @@ func (s *seed20Suite) TestLoadMetaCore20OptionalSnapsLocal(c *C) {
 				"name":     "optional20-b",
 				"id":       s.AssertedSnapID("optional20-b"),
 				"presence": "optional",
-			}},
+			},
+		},
 	}, []*seedwriter.OptionsSnap{
 		{Path: optional20bFn},
 	})
 
-	seed20, err := seed.Open(s.SeedDir, sysLabel)
-	c.Assert(err, IsNil)
+	seed20 := mylog.Check2(seed.Open(s.SeedDir, sysLabel))
 
-	err = seed20.LoadAssertions(s.db, s.commitTo)
-	c.Assert(err, IsNil)
+	mylog.Check(seed20.LoadAssertions(s.db, s.commitTo))
 
-	err = seed20.LoadMeta(seed.AllModes, nil, s.perfTimings)
-	c.Assert(err, IsNil)
+	mylog.Check(seed20.LoadMeta(seed.AllModes, nil, s.perfTimings))
 
 	c.Check(seed20.UsesSnapdSnap(), Equals, true)
 
@@ -2307,8 +2240,8 @@ func (s *seed20Suite) TestLoadMetaCore20OptionalSnapsLocal(c *C) {
 		},
 	})
 
-	runSnaps, err := seed20.ModeSnaps("run")
-	c.Assert(err, IsNil)
+	runSnaps := mylog.Check2(seed20.ModeSnaps("run"))
+
 	c.Check(runSnaps, HasLen, 1)
 	c.Check(runSnaps, DeepEquals, []*seed.Snap{
 		{
@@ -2347,21 +2280,19 @@ func (s *seed20Suite) TestLoadMetaCore20ExtraSnaps(c *C) {
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
-			}},
+			},
+		},
 	}, []*seedwriter.OptionsSnap{
 		{Name: "cont-producer", Channel: "edge"},
 		{Name: "core18"},
 		{Path: contConsumerFn},
 	})
 
-	seed20, err := seed.Open(s.SeedDir, sysLabel)
-	c.Assert(err, IsNil)
+	seed20 := mylog.Check2(seed.Open(s.SeedDir, sysLabel))
 
-	err = seed20.LoadAssertions(s.db, s.commitTo)
-	c.Assert(err, IsNil)
+	mylog.Check(seed20.LoadAssertions(s.db, s.commitTo))
 
-	err = seed20.LoadMeta(seed.AllModes, nil, s.perfTimings)
-	c.Assert(err, IsNil)
+	mylog.Check(seed20.LoadMeta(seed.AllModes, nil, s.perfTimings))
 
 	c.Check(seed20.UsesSnapdSnap(), Equals, true)
 
@@ -2402,8 +2333,8 @@ func (s *seed20Suite) TestLoadMetaCore20ExtraSnaps(c *C) {
 
 	sysSnapsDir := filepath.Join(s.SeedDir, "systems", sysLabel, "snaps")
 
-	runSnaps, err := seed20.ModeSnaps("run")
-	c.Assert(err, IsNil)
+	runSnaps := mylog.Check2(seed20.ModeSnaps("run"))
+
 	c.Check(runSnaps, HasLen, 3)
 	c.Check(runSnaps, DeepEquals, []*seed.Snap{
 		{
@@ -2422,8 +2353,8 @@ func (s *seed20Suite) TestLoadMetaCore20ExtraSnaps(c *C) {
 		},
 	})
 
-	recoverSnaps, err := seed20.ModeSnaps("recover")
-	c.Assert(err, IsNil)
+	recoverSnaps := mylog.Check2(seed20.ModeSnaps("recover"))
+
 	c.Check(recoverSnaps, HasLen, 0)
 }
 
@@ -2471,20 +2402,18 @@ func (s *seed20Suite) TestLoadMetaCore20NotRunSnaps(c *C) {
 				"id":       s.AssertedSnapID("optional20-b"),
 				"presence": "optional",
 				"modes":    []interface{}{"install"},
-			}},
+			},
+		},
 	}, []*seedwriter.OptionsSnap{
 		{Name: "optional20-a"},
 		{Name: "optional20-b"},
 	})
 
-	seed20, err := seed.Open(s.SeedDir, sysLabel)
-	c.Assert(err, IsNil)
+	seed20 := mylog.Check2(seed.Open(s.SeedDir, sysLabel))
 
-	err = seed20.LoadAssertions(s.db, s.commitTo)
-	c.Assert(err, IsNil)
+	mylog.Check(seed20.LoadAssertions(s.db, s.commitTo))
 
-	err = seed20.LoadMeta(seed.AllModes, nil, s.perfTimings)
-	c.Assert(err, IsNil)
+	mylog.Check(seed20.LoadMeta(seed.AllModes, nil, s.perfTimings))
 
 	c.Check(seed20.UsesSnapdSnap(), Equals, true)
 
@@ -2525,8 +2454,8 @@ func (s *seed20Suite) TestLoadMetaCore20NotRunSnaps(c *C) {
 
 	c.Check(seed20.NumSnaps(), Equals, 7)
 
-	runSnaps, err := seed20.ModeSnaps("run")
-	c.Assert(err, IsNil)
+	runSnaps := mylog.Check2(seed20.ModeSnaps("run"))
+
 	c.Check(runSnaps, HasLen, 1)
 	c.Check(runSnaps, DeepEquals, []*seed.Snap{
 		{
@@ -2537,8 +2466,8 @@ func (s *seed20Suite) TestLoadMetaCore20NotRunSnaps(c *C) {
 		},
 	})
 
-	installSnaps, err := seed20.ModeSnaps("install")
-	c.Assert(err, IsNil)
+	installSnaps := mylog.Check2(seed20.ModeSnaps("install"))
+
 	c.Check(installSnaps, HasLen, 3)
 	c.Check(installSnaps, DeepEquals, []*seed.Snap{
 		{
@@ -2561,8 +2490,8 @@ func (s *seed20Suite) TestLoadMetaCore20NotRunSnaps(c *C) {
 		},
 	})
 
-	recoverSnaps, err := seed20.ModeSnaps("recover")
-	c.Assert(err, IsNil)
+	recoverSnaps := mylog.Check2(seed20.ModeSnaps("recover"))
+
 	c.Check(recoverSnaps, HasLen, 2)
 	c.Check(recoverSnaps, DeepEquals, []*seed.Snap{
 		{
@@ -2666,22 +2595,19 @@ func (s *seed20Suite) testLoadMetaCore20PreciseNotRunSnapsWithParallelism(c *C, 
 				"id":       s.AssertedSnapID("optional20-b"),
 				"presence": "optional",
 				"modes":    []interface{}{"install"},
-			}},
+			},
+		},
 	}, []*seedwriter.OptionsSnap{
 		{Name: "optional20-a"},
 		{Name: "optional20-b"},
 	})
 
-	seed20, err := seed.Open(s.SeedDir, sysLabel)
-	c.Assert(err, IsNil)
+	seed20 := mylog.Check2(seed.Open(s.SeedDir, sysLabel))
 
-	err = seed20.LoadAssertions(s.db, s.commitTo)
-	c.Assert(err, IsNil)
+	mylog.Check(seed20.LoadAssertions(s.db, s.commitTo))
 
 	seed20.SetParallelism(parallelism)
-
-	err = seed20.LoadMeta("install", handlers["install"], s.perfTimings)
-	c.Assert(err, IsNil)
+	mylog.Check(seed20.LoadMeta("install", handlers["install"], s.perfTimings))
 
 	c.Check(seed20.UsesSnapdSnap(), Equals, true)
 
@@ -2722,8 +2648,8 @@ func (s *seed20Suite) testLoadMetaCore20PreciseNotRunSnapsWithParallelism(c *C, 
 
 	c.Check(seed20.NumSnaps(), Equals, 7)
 
-	installSnaps, err := seed20.ModeSnaps("install")
-	c.Assert(err, IsNil)
+	installSnaps := mylog.Check2(seed20.ModeSnaps("install"))
+
 	c.Check(installSnaps, HasLen, 3)
 	c.Check(installSnaps, DeepEquals, []*seed.Snap{
 		{
@@ -2746,18 +2672,17 @@ func (s *seed20Suite) testLoadMetaCore20PreciseNotRunSnapsWithParallelism(c *C, 
 		},
 	})
 
-	_, err = seed20.ModeSnaps("recover")
+	_ = mylog.Check2(seed20.ModeSnaps("recover"))
 	c.Check(err, ErrorMatches, `metadata was loaded only for snaps for mode install not recover`)
-	_, err = seed20.ModeSnaps("run")
+	_ = mylog.Check2(seed20.ModeSnaps("run"))
 	c.Check(err, ErrorMatches, `metadata was loaded only for snaps for mode install not run`)
+	mylog.Check(seed20.LoadMeta("recover", handlers["recover"], s.perfTimings))
 
-	err = seed20.LoadMeta("recover", handlers["recover"], s.perfTimings)
-	c.Assert(err, IsNil)
 	// only recover mode snaps
 	c.Check(seed20.NumSnaps(), Equals, 6)
 
-	recoverSnaps, err := seed20.ModeSnaps("recover")
-	c.Assert(err, IsNil)
+	recoverSnaps := mylog.Check2(seed20.ModeSnaps("recover"))
+
 	c.Check(recoverSnaps, HasLen, 2)
 	c.Check(recoverSnaps, DeepEquals, []*seed.Snap{
 		{
@@ -2773,14 +2698,13 @@ func (s *seed20Suite) testLoadMetaCore20PreciseNotRunSnapsWithParallelism(c *C, 
 			Channel:  "latest/stable",
 		},
 	})
+	mylog.Check(seed20.LoadMeta("run", handlers["run"], s.perfTimings))
 
-	err = seed20.LoadMeta("run", handlers["run"], s.perfTimings)
-	c.Assert(err, IsNil)
 	// only run mode snaps
 	c.Check(seed20.NumSnaps(), Equals, 5)
 
-	runSnaps, err := seed20.ModeSnaps("run")
-	c.Assert(err, IsNil)
+	runSnaps := mylog.Check2(seed20.ModeSnaps("run"))
+
 	c.Check(runSnaps, HasLen, 1)
 	c.Check(runSnaps, DeepEquals, []*seed.Snap{
 		{
@@ -2858,20 +2782,18 @@ func (s *seed20Suite) TestLoadMetaCore20LocalAssertedSnaps(c *C) {
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
-			}},
+			},
+		},
 	}, []*seedwriter.OptionsSnap{
 		{Path: s.AssertedSnap("pc"), Channel: "edge"},
 		{Path: s.AssertedSnap("required20")},
 	})
 
-	seed20, err := seed.Open(s.SeedDir, sysLabel)
-	c.Assert(err, IsNil)
+	seed20 := mylog.Check2(seed.Open(s.SeedDir, sysLabel))
 
-	err = seed20.LoadAssertions(s.db, s.commitTo)
-	c.Assert(err, IsNil)
+	mylog.Check(seed20.LoadAssertions(s.db, s.commitTo))
 
-	err = seed20.LoadMeta(seed.AllModes, nil, s.perfTimings)
-	c.Assert(err, IsNil)
+	mylog.Check(seed20.LoadMeta(seed.AllModes, nil, s.perfTimings))
 
 	c.Check(seed20.UsesSnapdSnap(), Equals, true)
 
@@ -2912,8 +2834,8 @@ func (s *seed20Suite) TestLoadMetaCore20LocalAssertedSnaps(c *C) {
 
 	sysSnapsDir := filepath.Join(s.SeedDir, "systems", sysLabel, "snaps")
 
-	runSnaps, err := seed20.ModeSnaps("run")
-	c.Assert(err, IsNil)
+	runSnaps := mylog.Check2(seed20.ModeSnaps("run"))
+
 	c.Check(runSnaps, HasLen, 1)
 	c.Check(runSnaps, DeepEquals, []*seed.Snap{
 		{
@@ -2933,7 +2855,7 @@ func (s *seed20Suite) TestOpenInvalidLabel(c *C) {
 		"日本語",
 	}
 	for _, label := range invalid {
-		seed20, err := seed.Open(s.SeedDir, label)
+		seed20 := mylog.Check2(seed.Open(s.SeedDir, label))
 		c.Assert(err, ErrorMatches, fmt.Sprintf("invalid seed system label: %q", label))
 		c.Assert(seed20, IsNil)
 	}
@@ -2972,24 +2894,21 @@ func (s *seed20Suite) TestLoadMetaCore20Iter(c *C) {
 		},
 	}, nil)
 
-	seed20, err := seed.Open(s.SeedDir, sysLabel)
-	c.Assert(err, IsNil)
+	seed20 := mylog.Check2(seed.Open(s.SeedDir, sysLabel))
 
-	err = seed20.LoadAssertions(s.db, s.commitTo)
-	c.Assert(err, IsNil)
+	mylog.Check(seed20.LoadAssertions(s.db, s.commitTo))
 
-	err = seed20.LoadMeta(seed.AllModes, nil, s.perfTimings)
-	c.Assert(err, IsNil)
+	mylog.Check(seed20.LoadMeta(seed.AllModes, nil, s.perfTimings))
 
 	c.Check(seed20.NumSnaps(), Equals, 5)
 
 	// iterates over all snaps
 	seen := map[string]bool{}
-	err = seed20.Iter(func(sn *seed.Snap) error {
+	mylog.Check(seed20.Iter(func(sn *seed.Snap) error {
 		seen[sn.SnapName()] = true
 		return nil
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(seen, DeepEquals, map[string]bool{
 		"snapd":      true,
 		"pc-kernel":  true,
@@ -2997,14 +2916,15 @@ func (s *seed20Suite) TestLoadMetaCore20Iter(c *C) {
 		"pc":         true,
 		"required20": true,
 	})
+	mylog.
 
-	// and bubbles up the errors
-	err = seed20.Iter(func(sn *seed.Snap) error {
-		if sn.SnapName() == "core20" {
-			return fmt.Errorf("mock error for snap %q", sn.SnapName())
-		}
-		return nil
-	})
+		// and bubbles up the errors
+		Check(seed20.Iter(func(sn *seed.Snap) error {
+			if sn.SnapName() == "core20" {
+				return fmt.Errorf("mock error for snap %q", sn.SnapName())
+			}
+			return nil
+		}))
 	c.Assert(err, ErrorMatches, `mock error for snap "core20"`)
 }
 
@@ -3013,15 +2933,14 @@ func (s *seed20Suite) TestLoadMetaWrongHashSnapParallelism2(c *C) {
 	sysDir := s.makeCore20MinimalSeed(c, sysLabel)
 
 	pcKernelRev := s.AssertedSnapRevision("pc-kernel")
-	wrongRev, err := s.StoreSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
+	wrongRev := mylog.Check2(s.StoreSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
 		"snap-sha3-384": strings.Repeat("B", 64),
 		"snap-size":     pcKernelRev.HeaderString("snap-size"),
 		"snap-id":       s.AssertedSnapID("pc-kernel"),
 		"developer-id":  "canonical",
 		"snap-revision": pcKernelRev.HeaderString("snap-revision"),
 		"timestamp":     time.Now().UTC().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
+	}, nil, ""))
 
 	s.massageAssertions(c, filepath.Join(sysDir, "assertions", "snaps"), func(a asserts.Assertion) asserts.Assertion {
 		if a.Type() == asserts.SnapRevisionType && a.HeaderString("snap-id") == s.AssertedSnapID("pc-kernel") {
@@ -3030,15 +2949,12 @@ func (s *seed20Suite) TestLoadMetaWrongHashSnapParallelism2(c *C) {
 		return a
 	})
 
-	seed20, err := seed.Open(s.SeedDir, sysLabel)
-	c.Assert(err, IsNil)
+	seed20 := mylog.Check2(seed.Open(s.SeedDir, sysLabel))
 
-	err = seed20.LoadAssertions(s.db, s.commitTo)
-	c.Assert(err, IsNil)
+	mylog.Check(seed20.LoadAssertions(s.db, s.commitTo))
 
 	seed20.SetParallelism(2)
-
-	err = seed20.LoadMeta(seed.AllModes, nil, s.perfTimings)
+	mylog.Check(seed20.LoadMeta(seed.AllModes, nil, s.perfTimings))
 	c.Check(err, ErrorMatches, `cannot validate ".*pc-kernel_1\.snap" for snap "pc-kernel" \(snap-id "pckernel.*"\), hash mismatch with snap-revision`)
 }
 
@@ -3058,8 +2974,9 @@ func (s *seed20Suite) TestLoadAutoImportAssertionGradeDangerousNoAutoImportAsser
 }
 
 func (s *seed20Suite) TestLoadAutoImportAssertionGradeDangerousAutoImportAssertionErrCommiter(c *C) {
-	// dangerous grade with broken commiter
-	err := fmt.Errorf("nope")
+	mylog.
+		// dangerous grade with broken commiter
+		Check(fmt.Errorf("nope"))
 	s.testLoadAutoImportAssertion(c, asserts.ModelDangerous, valid, 0644, func(b *asserts.Batch) error {
 		return err
 	}, err)
@@ -3100,13 +3017,13 @@ func (s *seed20Suite) testLoadAutoImportAssertion(c *C, grade asserts.ModelGrade
 	// try to load auto import assertions
 	seed20AsLoader, ok := seed20.(seed.AutoImportAssertionsLoaderSeed)
 	c.Assert(ok, Equals, true)
-	err := seed20AsLoader.LoadAutoImportAssertions(commitTo)
+	mylog.Check(seed20AsLoader.LoadAutoImportAssertions(commitTo))
 	if loadError == nil {
-		c.Assert(err, IsNil)
+
 	} else {
 		c.Check(err, ErrorMatches, loadError.Error())
 	}
-	assertions, err := s.findAutoImportAssertion(seed20)
+	assertions := mylog.Check2(s.findAutoImportAssertion(seed20))
 	c.Check(err, ErrorMatches, "system-user assertion not found")
 	c.Assert(assertions, IsNil)
 }
@@ -3122,10 +3039,10 @@ func (s *seed20Suite) TestLoadAutoImportAssertionGradeDangerousAutoImportAsserti
 	// try to load auto import assertions
 	seed20AsLoader, ok := seed20.(seed.AutoImportAssertionsLoaderSeed)
 	c.Assert(ok, Equals, true)
-	err := seed20AsLoader.LoadAutoImportAssertions(s.commitTo)
-	c.Assert(err, IsNil)
-	assertions, err := s.findAutoImportAssertion(seed20)
-	c.Assert(err, IsNil)
+	mylog.Check(seed20AsLoader.LoadAutoImportAssertions(s.commitTo))
+
+	assertions := mylog.Check2(s.findAutoImportAssertion(seed20))
+
 	// validate it's our assertion
 	c.Check(len(assertions), Equals, 1)
 	systemUser := assertions[0].(*asserts.SystemUser)
@@ -3159,30 +3076,30 @@ func (s *seed20Suite) createMinimalSeed(c *C, grade string, sysLabel string) see
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
-			}},
+			},
+		},
 	}, nil)
 
-	seed20, err := seed.Open(s.SeedDir, sysLabel)
-	c.Assert(err, IsNil)
+	seed20 := mylog.Check2(seed.Open(s.SeedDir, sysLabel))
 
-	err = seed20.LoadAssertions(s.db, s.commitTo)
-	c.Assert(err, IsNil)
+	mylog.Check(seed20.LoadAssertions(s.db, s.commitTo))
 
 	return seed20
 }
 
 func (s *seed20Suite) writeInvalidAutoImportAssertion(c *C, sysLabel string, perm os.FileMode) {
 	autoImportAssert := filepath.Join(s.SeedDir, "systems", sysLabel, "auto-import.assert")
-	// write invalid data
-	err := os.WriteFile(autoImportAssert, []byte(strings.Repeat("a", 512)), perm)
-	c.Assert(err, IsNil)
+	mylog.
+		// write invalid data
+		Check(os.WriteFile(autoImportAssert, []byte(strings.Repeat("a", 512)), perm))
+
 }
 
 // findAutoImportAssertion returns found systemUser assertion
 func (s *seed20Suite) findAutoImportAssertion(seed20 seed.Seed) ([]asserts.Assertion, error) {
-	assertions, err := s.db.FindMany(asserts.SystemUserType, map[string]string{
+	assertions := mylog.Check2(s.db.FindMany(asserts.SystemUserType, map[string]string{
 		"brand-id": seed20.Model().BrandID(),
-	})
+	}))
 
 	return assertions, err
 }
@@ -3213,15 +3130,15 @@ func (s *seed20Suite) TestPreseedCapableSeed(c *C) {
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
-			}},
+			},
+		},
 	}, nil)
 
 	preseedArtifact := filepath.Join(s.SeedDir, "systems", sysLabel, "preseed.tgz")
 	c.Assert(os.WriteFile(preseedArtifact, nil, 0644), IsNil)
-	sha3_384, _, err := osutil.FileDigest(preseedArtifact, crypto.SHA3_384)
-	c.Assert(err, IsNil)
-	digest, err := asserts.EncodeDigest(crypto.SHA3_384, sha3_384)
-	c.Assert(err, IsNil)
+	sha3_384, _ := mylog.Check3(osutil.FileDigest(preseedArtifact, crypto.SHA3_384))
+
+	digest := mylog.Check2(asserts.EncodeDigest(crypto.SHA3_384, sha3_384))
 
 	snaps := []interface{}{
 		map[string]interface{}{"name": "snapd", "id": s.AssertedSnapID("snapd"), "revision": "1"},
@@ -3241,26 +3158,22 @@ func (s *seed20Suite) TestPreseedCapableSeed(c *C) {
 	}
 
 	signer := s.Brands.Signing("my-brand")
-	preseedAs, err := signer.Sign(asserts.PreseedType, headers, nil, "")
-	c.Assert(err, IsNil)
+	preseedAs := mylog.Check2(signer.Sign(asserts.PreseedType, headers, nil, ""))
+
 	seedtest.WriteAssertions(filepath.Join(s.SeedDir, "systems", sysLabel, "preseed"), preseedAs)
 
-	seed20, err := seed.Open(s.SeedDir, sysLabel)
-	c.Assert(err, IsNil)
+	seed20 := mylog.Check2(seed.Open(s.SeedDir, sysLabel))
 
 	preseedSeed := seed20.(seed.PreseedCapable)
 
 	c.Check(preseedSeed.HasArtifact("preseed.tgz"), Equals, true)
 	c.Check(preseedSeed.HasArtifact("other.tgz"), Equals, false)
+	mylog.Check(preseedSeed.LoadAssertions(nil, nil))
 
-	err = preseedSeed.LoadAssertions(nil, nil)
-	c.Assert(err, IsNil)
+	mylog.Check(preseedSeed.LoadEssentialMeta(nil, s.perfTimings))
 
-	err = preseedSeed.LoadEssentialMeta(nil, s.perfTimings)
-	c.Assert(err, IsNil)
+	preesedAs2 := mylog.Check2(preseedSeed.LoadPreseedAssertion())
 
-	preesedAs2, err := preseedSeed.LoadPreseedAssertion()
-	c.Assert(err, IsNil)
 	c.Check(preesedAs2, DeepEquals, preseedAs)
 }
 
@@ -3290,15 +3203,15 @@ func (s *seed20Suite) TestPreseedCapableSeedErrors(c *C) {
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
-			}},
+			},
+		},
 	}, nil)
 
 	preseedArtifact := filepath.Join(s.SeedDir, "systems", sysLabel, "preseed.tgz")
 	c.Assert(os.WriteFile(preseedArtifact, nil, 0644), IsNil)
-	sha3_384, _, err := osutil.FileDigest(preseedArtifact, crypto.SHA3_384)
-	c.Assert(err, IsNil)
-	digest, err := asserts.EncodeDigest(crypto.SHA3_384, sha3_384)
-	c.Assert(err, IsNil)
+	sha3_384, _ := mylog.Check3(osutil.FileDigest(preseedArtifact, crypto.SHA3_384))
+
+	digest := mylog.Check2(asserts.EncodeDigest(crypto.SHA3_384, sha3_384))
 
 	snaps := []interface{}{
 		map[string]interface{}{"name": "snapd", "id": s.AssertedSnapID("snapd"), "revision": "1"},
@@ -3344,25 +3257,24 @@ func (s *seed20Suite) TestPreseedCapableSeedErrors(c *C) {
 				headers[h] = v
 			}
 			signer := s.Brands.Signing(headers["authority-id"].(string))
-			preseedAs, err := signer.Sign(asserts.PreseedType, headers, nil, "")
-			c.Assert(err, IsNil)
+			preseedAs := mylog.Check2(signer.Sign(asserts.PreseedType, headers, nil, ""))
+
 			as = append(as, preseedAs)
 		}
 		if tc.dupPreseedAssert {
 			headers["system-label"] = "other-label"
 			signer := s.Brands.Signing(headers["authority-id"].(string))
-			preseedAs, err := signer.Sign(asserts.PreseedType, headers, nil, "")
-			c.Assert(err, IsNil)
+			preseedAs := mylog.Check2(signer.Sign(asserts.PreseedType, headers, nil, ""))
+
 			as = append(as, preseedAs)
 		}
 		seedtest.WriteAssertions(filepath.Join(s.SeedDir, "systems", sysLabel, "preseed"), as...)
-		seed20, err := seed.Open(s.SeedDir, sysLabel)
-		c.Assert(err, IsNil)
-		preseedSeed := seed20.(seed.PreseedCapable)
-		err = preseedSeed.LoadAssertions(nil, nil)
-		c.Assert(err, IsNil)
+		seed20 := mylog.Check2(seed.Open(s.SeedDir, sysLabel))
 
-		_, err = preseedSeed.LoadPreseedAssertion()
+		preseedSeed := seed20.(seed.PreseedCapable)
+		mylog.Check(preseedSeed.LoadAssertions(nil, nil))
+
+		_ = mylog.Check2(preseedSeed.LoadPreseedAssertion())
 		if tc.err == "" {
 			// contrast happy cases
 			c.Check(err, IsNil)
@@ -3398,24 +3310,21 @@ func (s *seed20Suite) TestPreseedCapableSeedNoPreseedAssertion(c *C) {
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
-			}},
+			},
+		},
 	}, nil)
 
-	seed20, err := seed.Open(s.SeedDir, sysLabel)
-	c.Assert(err, IsNil)
+	seed20 := mylog.Check2(seed.Open(s.SeedDir, sysLabel))
 
 	preseedSeed := seed20.(seed.PreseedCapable)
 
 	c.Check(preseedSeed.HasArtifact("preseed.tgz"), Equals, false)
 	c.Check(preseedSeed.HasArtifact("other.tgz"), Equals, false)
+	mylog.Check(preseedSeed.LoadAssertions(nil, nil))
 
-	err = preseedSeed.LoadAssertions(nil, nil)
-	c.Assert(err, IsNil)
+	mylog.Check(preseedSeed.LoadEssentialMeta(nil, s.perfTimings))
 
-	err = preseedSeed.LoadEssentialMeta(nil, s.perfTimings)
-	c.Assert(err, IsNil)
-
-	_, err = preseedSeed.LoadPreseedAssertion()
+	_ = mylog.Check2(preseedSeed.LoadPreseedAssertion())
 	c.Assert(err, Equals, seed.ErrNoPreseedAssertion)
 }
 
@@ -3449,15 +3358,15 @@ func (s *seed20Suite) TestPreseedCapableSeedAlternateAuthority(c *C) {
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
-			}},
+			},
+		},
 	}, nil)
 
 	preseedArtifact := filepath.Join(s.SeedDir, "systems", sysLabel, "preseed.tgz")
 	c.Assert(os.WriteFile(preseedArtifact, nil, 0644), IsNil)
-	sha3_384, _, err := osutil.FileDigest(preseedArtifact, crypto.SHA3_384)
-	c.Assert(err, IsNil)
-	digest, err := asserts.EncodeDigest(crypto.SHA3_384, sha3_384)
-	c.Assert(err, IsNil)
+	sha3_384, _ := mylog.Check3(osutil.FileDigest(preseedArtifact, crypto.SHA3_384))
+
+	digest := mylog.Check2(asserts.EncodeDigest(crypto.SHA3_384, sha3_384))
 
 	snaps := []interface{}{
 		map[string]interface{}{"name": "snapd", "id": s.AssertedSnapID("snapd"), "revision": "1"},
@@ -3481,8 +3390,7 @@ func (s *seed20Suite) TestPreseedCapableSeedAlternateAuthority(c *C) {
 		"snaps":             snaps,
 	}
 	signer := s.Brands.Signing("my-signer")
-	preseedAs, err := signer.Sign(asserts.PreseedType, headers, nil, "")
-	c.Assert(err, IsNil)
+	preseedAs := mylog.Check2(signer.Sign(asserts.PreseedType, headers, nil, ""))
 
 	systemDir := filepath.Join(s.SeedDir, "systems", sysLabel)
 	seedtest.WriteAssertions(
@@ -3491,21 +3399,17 @@ func (s *seed20Suite) TestPreseedCapableSeedAlternateAuthority(c *C) {
 	)
 	seedtest.WriteAssertions(filepath.Join(systemDir, "preseed"), preseedAs)
 
-	seed20, err := seed.Open(s.SeedDir, sysLabel)
-	c.Assert(err, IsNil)
+	seed20 := mylog.Check2(seed.Open(s.SeedDir, sysLabel))
 
 	preseedSeed := seed20.(seed.PreseedCapable)
 
 	c.Check(preseedSeed.HasArtifact("preseed.tgz"), Equals, true)
+	mylog.Check(preseedSeed.LoadAssertions(nil, nil))
 
-	err = preseedSeed.LoadAssertions(nil, nil)
-	c.Assert(err, IsNil)
+	mylog.Check(preseedSeed.LoadEssentialMeta(nil, s.perfTimings))
 
-	err = preseedSeed.LoadEssentialMeta(nil, s.perfTimings)
-	c.Assert(err, IsNil)
+	preseedAs2 := mylog.Check2(preseedSeed.LoadPreseedAssertion())
 
-	preseedAs2, err := preseedSeed.LoadPreseedAssertion()
-	c.Assert(err, IsNil)
 	c.Check(preseedAs2, DeepEquals, preseedAs)
 }
 
@@ -3548,24 +3452,21 @@ func (s *seed20Suite) testCopy(c *C, destLabel string) {
 			map[string]interface{}{
 				"name": "required20",
 				"id":   s.AssertedSnapID("required20"),
-			}},
+			},
+		},
 	}, []*seedwriter.OptionsSnap{
 		{Path: requiredFn},
 	})
 
-	seed20, err := seed.Open(s.SeedDir, srcLabel)
-	c.Assert(err, IsNil)
+	seed20 := mylog.Check2(seed.Open(s.SeedDir, srcLabel))
 
-	err = seed20.LoadAssertions(s.db, s.commitTo)
-	c.Assert(err, IsNil)
+	mylog.Check(seed20.LoadAssertions(s.db, s.commitTo))
 
 	copier, ok := seed20.(seed.Copier)
 	c.Assert(ok, Equals, true)
 
 	destSeedDir := c.MkDir()
-
-	err = copier.Copy(destSeedDir, destLabel, s.perfTimings)
-	c.Assert(err, IsNil)
+	mylog.Check(copier.Copy(destSeedDir, destLabel, s.perfTimings))
 
 	checkDirContents(c, filepath.Join(destSeedDir, "snaps"), []string{
 		"core20_1.snap",
@@ -3599,8 +3500,7 @@ func (s *seed20Suite) testCopy(c *C, destLabel string) {
 
 	compareDirs(c, filepath.Join(s.SeedDir, "snaps"), filepath.Join(destSeedDir, "snaps"))
 	compareDirs(c, filepath.Join(s.SeedDir, "systems", srcLabel), destSystemDir)
-
-	err = copier.Copy(destSeedDir, copiedLabel, s.perfTimings)
+	mylog.Check(copier.Copy(destSeedDir, copiedLabel, s.perfTimings))
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot create system: system %q already exists at %q`, copiedLabel, destSystemDir))
 }
 
@@ -3633,28 +3533,27 @@ func (s *seed20Suite) TestCopyCleanup(c *C) {
 			map[string]interface{}{
 				"name": "required20",
 				"id":   s.AssertedSnapID("required20"),
-			}},
+			},
+		},
 	}, []*seedwriter.OptionsSnap{
 		{Path: requiredFn},
 	})
 
-	seed20, err := seed.Open(s.SeedDir, label)
-	c.Assert(err, IsNil)
+	seed20 := mylog.Check2(seed.Open(s.SeedDir, label))
 
-	err = seed20.LoadAssertions(s.db, s.commitTo)
-	c.Assert(err, IsNil)
+	mylog.Check(seed20.LoadAssertions(s.db, s.commitTo))
 
 	copier, ok := seed20.(seed.Copier)
 	c.Assert(ok, Equals, true)
 
 	removedSnap := filepath.Join(s.SeedDir, "snaps", "snapd_1.snap")
+	mylog.
 
-	// remove a snap from the original seed to make the copy fail
-	err = os.Remove(removedSnap)
-	c.Assert(err, IsNil)
+		// remove a snap from the original seed to make the copy fail
+		Check(os.Remove(removedSnap))
 
 	destSeedDir := c.MkDir()
-	err = copier.Copy(destSeedDir, label, s.perfTimings)
+	mylog.Check(copier.Copy(destSeedDir, label, s.perfTimings))
 	c.Check(err, ErrorMatches, fmt.Sprintf("cannot stat snap: stat %s: no such file or directory", removedSnap))
 
 	// seed destination should have been cleaned up
@@ -3664,8 +3563,7 @@ func (s *seed20Suite) TestCopyCleanup(c *C) {
 func checkDirContents(c *C, dir string, expected []string) {
 	sort.Strings(expected)
 
-	entries, err := os.ReadDir(dir)
-	c.Assert(err, IsNil)
+	entries := mylog.Check2(os.ReadDir(dir))
 
 	found := make([]string, 0, len(entries))
 	for _, e := range entries {
@@ -3676,18 +3574,12 @@ func checkDirContents(c *C, dir string, expected []string) {
 }
 
 func compareDirs(c *C, expected, got string) {
-	expected, err := filepath.Abs(expected)
-	c.Assert(err, IsNil)
+	expected := mylog.Check2(filepath.Abs(expected))
 
-	got, err = filepath.Abs(got)
-	c.Assert(err, IsNil)
+	got = mylog.Check2(filepath.Abs(got))
 
 	expectedCount := 0
-	err = filepath.WalkDir(expected, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-
+	mylog.Check(filepath.WalkDir(expected, func(path string, d fs.DirEntry, err error) error {
 		expectedCount++
 
 		gotPath := filepath.Join(got, strings.TrimPrefix(path, expected))
@@ -3700,18 +3592,13 @@ func compareDirs(c *C, expected, got string) {
 		c.Check(gotPath, testutil.FileEquals, testutil.FileContentRef(path))
 
 		return nil
-	})
-	c.Assert(err, IsNil)
+	}))
 
 	gotCount := 0
-	err = filepath.WalkDir(got, func(_ string, _ fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
+	mylog.Check(filepath.WalkDir(got, func(_ string, _ fs.DirEntry, err error) error {
 		gotCount++
 		return nil
-	})
-	c.Assert(err, IsNil)
+	}))
 
 	c.Check(gotCount, Equals, expectedCount)
 }

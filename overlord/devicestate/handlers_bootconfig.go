@@ -24,6 +24,7 @@ import (
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/overlord/restart"
@@ -36,16 +37,14 @@ func (m *DeviceManager) doUpdateManagedBootConfig(t *state.Task, _ *tomb.Tomb) e
 	st.Lock()
 	defer st.Unlock()
 
-	devCtx, err := DeviceCtx(st, t, nil)
-	if err != nil {
-		return err
-	}
+	devCtx := mylog.Check2(DeviceCtx(st, t, nil))
+
 	if devCtx.IsClassicBoot() {
 		return fmt.Errorf("cannot run update boot config task on a classic system")
 	}
 
 	var seeded bool
-	err = st.Get("seeded", &seeded)
+	mylog.Check(st.Get("seeded", &seeded))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
@@ -64,25 +63,17 @@ func (m *DeviceManager) doUpdateManagedBootConfig(t *state.Task, _ *tomb.Tomb) e
 		return nil
 	}
 
-	currentData, err := CurrentGadgetData(st, devCtx)
-	if err != nil {
-		return fmt.Errorf("cannot obtain current gadget data: %v", err)
-	}
+	currentData := mylog.Check2(CurrentGadgetData(st, devCtx))
+
 	if currentData == nil {
 		// we should be past seeding
 		return fmt.Errorf("internal error: no current gadget")
 	}
 
-	cmdlineAppend, err := buildAppendedKernelCommandLine(t, currentData, devCtx)
-	if err != nil {
-		return fmt.Errorf("cannot build appended kernel command line: %v", err)
-	}
+	cmdlineAppend := mylog.Check2(buildAppendedKernelCommandLine(t, currentData, devCtx))
 
 	// TODO:UC20 update recovery boot config
-	updated, err := boot.UpdateManagedBootConfigs(devCtx, currentData.RootDir, cmdlineAppend)
-	if err != nil {
-		return fmt.Errorf("cannot update boot config assets: %v", err)
-	}
+	updated := mylog.Check2(boot.UpdateManagedBootConfigs(devCtx, currentData.RootDir, cmdlineAppend))
 
 	// set this status already before returning to minimize wasteful redos
 	finalStatus := state.DoneStatus

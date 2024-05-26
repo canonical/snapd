@@ -31,13 +31,11 @@ import (
 
 func Test(t *testing.T) { TestingT(t) }
 
-type forceDevModeSuite struct {
-}
+type forceDevModeSuite struct{}
 
 var _ = Suite(&forceDevModeSuite{})
 
 func (s *forceDevModeSuite) TestForceDevMode(c *C) {
-
 	runTest := func(apparmorLevel apparmor.LevelType, cgroupVersion int, expect bool) {
 		restore := apparmor.MockLevel(apparmorLevel)
 		defer restore()

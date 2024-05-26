@@ -131,64 +131,116 @@ func (s *SnapSuite) TestPublisherEscapes(c *check.C) {
 	}
 	for _, t := range []T{
 		// non-verified equal under fold:
-		{color: false, unicode: false, username: "potato", display: "Potato",
-			short: "potato", long: "Potato", fill: ""},
-		{color: false, unicode: true, username: "potato", display: "Potato",
-			short: "potato", long: "Potato", fill: ""},
-		{color: true, unicode: false, username: "potato", display: "Potato",
-			short: "potato\x1b[32m\x1b[0m", long: "Potato\x1b[32m\x1b[0m", fill: "\x1b[32m\x1b[0m"},
-		{color: true, unicode: true, username: "potato", display: "Potato",
-			short: "potato\x1b[32m\x1b[0m", long: "Potato\x1b[32m\x1b[0m", fill: "\x1b[32m\x1b[0m"},
+		{
+			color: false, unicode: false, username: "potato", display: "Potato",
+			short: "potato", long: "Potato", fill: "",
+		},
+		{
+			color: false, unicode: true, username: "potato", display: "Potato",
+			short: "potato", long: "Potato", fill: "",
+		},
+		{
+			color: true, unicode: false, username: "potato", display: "Potato",
+			short: "potato\x1b[32m\x1b[0m", long: "Potato\x1b[32m\x1b[0m", fill: "\x1b[32m\x1b[0m",
+		},
+		{
+			color: true, unicode: true, username: "potato", display: "Potato",
+			short: "potato\x1b[32m\x1b[0m", long: "Potato\x1b[32m\x1b[0m", fill: "\x1b[32m\x1b[0m",
+		},
 		// verified equal under fold:
-		{color: false, unicode: false, username: "potato", display: "Potato", verified: true,
-			short: "potato**", long: "Potato**", fill: ""},
-		{color: false, unicode: true, username: "potato", display: "Potato", verified: true,
-			short: "potato✓", long: "Potato✓", fill: ""},
-		{color: true, unicode: false, username: "potato", display: "Potato", verified: true,
-			short: "potato\x1b[32m**\x1b[0m", long: "Potato\x1b[32m**\x1b[0m", fill: "\x1b[32m\x1b[0m"},
-		{color: true, unicode: true, username: "potato", display: "Potato", verified: true,
-			short: "potato\x1b[32m✓\x1b[0m", long: "Potato\x1b[32m✓\x1b[0m", fill: "\x1b[32m\x1b[0m"},
+		{
+			color: false, unicode: false, username: "potato", display: "Potato", verified: true,
+			short: "potato**", long: "Potato**", fill: "",
+		},
+		{
+			color: false, unicode: true, username: "potato", display: "Potato", verified: true,
+			short: "potato✓", long: "Potato✓", fill: "",
+		},
+		{
+			color: true, unicode: false, username: "potato", display: "Potato", verified: true,
+			short: "potato\x1b[32m**\x1b[0m", long: "Potato\x1b[32m**\x1b[0m", fill: "\x1b[32m\x1b[0m",
+		},
+		{
+			color: true, unicode: true, username: "potato", display: "Potato", verified: true,
+			short: "potato\x1b[32m✓\x1b[0m", long: "Potato\x1b[32m✓\x1b[0m", fill: "\x1b[32m\x1b[0m",
+		},
 		// starred equal under fold:
-		{color: false, unicode: false, username: "potato", display: "Potato", starred: true,
-			short: "potato*", long: "Potato*", fill: ""},
-		{color: false, unicode: true, username: "potato", display: "Potato", starred: true,
-			short: "potato✪", long: "Potato✪", fill: ""},
-		{color: true, unicode: false, username: "potato", display: "Potato", starred: true,
-			short: "potato\x1b[93m*\x1b[0m", long: "Potato\x1b[93m*\x1b[0m", fill: "\x1b[32m\x1b[0m"},
-		{color: true, unicode: true, username: "potato", display: "Potato", starred: true,
-			short: "potato\x1b[93m✪\x1b[0m", long: "Potato\x1b[93m✪\x1b[0m", fill: "\x1b[32m\x1b[0m"},
+		{
+			color: false, unicode: false, username: "potato", display: "Potato", starred: true,
+			short: "potato*", long: "Potato*", fill: "",
+		},
+		{
+			color: false, unicode: true, username: "potato", display: "Potato", starred: true,
+			short: "potato✪", long: "Potato✪", fill: "",
+		},
+		{
+			color: true, unicode: false, username: "potato", display: "Potato", starred: true,
+			short: "potato\x1b[93m*\x1b[0m", long: "Potato\x1b[93m*\x1b[0m", fill: "\x1b[32m\x1b[0m",
+		},
+		{
+			color: true, unicode: true, username: "potato", display: "Potato", starred: true,
+			short: "potato\x1b[93m✪\x1b[0m", long: "Potato\x1b[93m✪\x1b[0m", fill: "\x1b[32m\x1b[0m",
+		},
 		// non-verified, different
-		{color: false, unicode: false, username: "potato", display: "Carrot",
-			short: "potato", long: "Carrot (potato)", fill: ""},
-		{color: false, unicode: true, username: "potato", display: "Carrot",
-			short: "potato", long: "Carrot (potato)", fill: ""},
-		{color: true, unicode: false, username: "potato", display: "Carrot",
-			short: "potato\x1b[32m\x1b[0m", long: "Carrot (potato\x1b[32m\x1b[0m)", fill: "\x1b[32m\x1b[0m"},
-		{color: true, unicode: true, username: "potato", display: "Carrot",
-			short: "potato\x1b[32m\x1b[0m", long: "Carrot (potato\x1b[32m\x1b[0m)", fill: "\x1b[32m\x1b[0m"},
+		{
+			color: false, unicode: false, username: "potato", display: "Carrot",
+			short: "potato", long: "Carrot (potato)", fill: "",
+		},
+		{
+			color: false, unicode: true, username: "potato", display: "Carrot",
+			short: "potato", long: "Carrot (potato)", fill: "",
+		},
+		{
+			color: true, unicode: false, username: "potato", display: "Carrot",
+			short: "potato\x1b[32m\x1b[0m", long: "Carrot (potato\x1b[32m\x1b[0m)", fill: "\x1b[32m\x1b[0m",
+		},
+		{
+			color: true, unicode: true, username: "potato", display: "Carrot",
+			short: "potato\x1b[32m\x1b[0m", long: "Carrot (potato\x1b[32m\x1b[0m)", fill: "\x1b[32m\x1b[0m",
+		},
 		// verified, different
-		{color: false, unicode: false, username: "potato", display: "Carrot", verified: true,
-			short: "potato**", long: "Carrot (potato**)", fill: ""},
-		{color: false, unicode: true, username: "potato", display: "Carrot", verified: true,
-			short: "potato✓", long: "Carrot (potato✓)", fill: ""},
-		{color: true, unicode: false, username: "potato", display: "Carrot", verified: true,
-			short: "potato\x1b[32m**\x1b[0m", long: "Carrot (potato\x1b[32m**\x1b[0m)", fill: "\x1b[32m\x1b[0m"},
-		{color: true, unicode: true, username: "potato", display: "Carrot", verified: true,
-			short: "potato\x1b[32m✓\x1b[0m", long: "Carrot (potato\x1b[32m✓\x1b[0m)", fill: "\x1b[32m\x1b[0m"},
+		{
+			color: false, unicode: false, username: "potato", display: "Carrot", verified: true,
+			short: "potato**", long: "Carrot (potato**)", fill: "",
+		},
+		{
+			color: false, unicode: true, username: "potato", display: "Carrot", verified: true,
+			short: "potato✓", long: "Carrot (potato✓)", fill: "",
+		},
+		{
+			color: true, unicode: false, username: "potato", display: "Carrot", verified: true,
+			short: "potato\x1b[32m**\x1b[0m", long: "Carrot (potato\x1b[32m**\x1b[0m)", fill: "\x1b[32m\x1b[0m",
+		},
+		{
+			color: true, unicode: true, username: "potato", display: "Carrot", verified: true,
+			short: "potato\x1b[32m✓\x1b[0m", long: "Carrot (potato\x1b[32m✓\x1b[0m)", fill: "\x1b[32m\x1b[0m",
+		},
 		// starred, different
-		{color: false, unicode: false, username: "potato", display: "Carrot", starred: true,
-			short: "potato*", long: "Carrot (potato*)", fill: ""},
-		{color: false, unicode: true, username: "potato", display: "Carrot", starred: true,
-			short: "potato✪", long: "Carrot (potato✪)", fill: ""},
-		{color: true, unicode: false, username: "potato", display: "Carrot", starred: true,
-			short: "potato\x1b[93m*\x1b[0m", long: "Carrot (potato\x1b[93m*\x1b[0m)", fill: "\x1b[32m\x1b[0m"},
-		{color: true, unicode: true, username: "potato", display: "Carrot", starred: true,
-			short: "potato\x1b[93m✪\x1b[0m", long: "Carrot (potato\x1b[93m✪\x1b[0m)", fill: "\x1b[32m\x1b[0m"},
+		{
+			color: false, unicode: false, username: "potato", display: "Carrot", starred: true,
+			short: "potato*", long: "Carrot (potato*)", fill: "",
+		},
+		{
+			color: false, unicode: true, username: "potato", display: "Carrot", starred: true,
+			short: "potato✪", long: "Carrot (potato✪)", fill: "",
+		},
+		{
+			color: true, unicode: false, username: "potato", display: "Carrot", starred: true,
+			short: "potato\x1b[93m*\x1b[0m", long: "Carrot (potato\x1b[93m*\x1b[0m)", fill: "\x1b[32m\x1b[0m",
+		},
+		{
+			color: true, unicode: true, username: "potato", display: "Carrot", starred: true,
+			short: "potato\x1b[93m✪\x1b[0m", long: "Carrot (potato\x1b[93m✪\x1b[0m)", fill: "\x1b[32m\x1b[0m",
+		},
 		// some interesting equal-under-folds:
-		{color: false, unicode: false, username: "potato", display: "PoTaTo",
-			short: "potato", long: "PoTaTo", fill: ""},
-		{color: false, unicode: false, username: "potato-team", display: "Potato Team",
-			short: "potato-team", long: "Potato Team", fill: ""},
+		{
+			color: false, unicode: false, username: "potato", display: "PoTaTo",
+			short: "potato", long: "PoTaTo", fill: "",
+		},
+		{
+			color: false, unicode: false, username: "potato-team", display: "Potato Team",
+			short: "potato-team", long: "Potato Team", fill: "",
+		},
 	} {
 		pub := &snap.StoreAccount{Username: t.username, DisplayName: t.display}
 		switch {

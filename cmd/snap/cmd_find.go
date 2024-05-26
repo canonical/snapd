@@ -27,6 +27,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
@@ -36,8 +37,9 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
-var shortFindHelp = i18n.G("Find packages to install")
-var longFindHelp = i18n.G(`
+var (
+	shortFindHelp = i18n.G("Find packages to install")
+	longFindHelp  = i18n.G(`
 The find command queries the store for available packages.
 
 With the --private flag, which requires the user to be logged-in to the store
@@ -48,6 +50,7 @@ feature.
 A green check mark (given color and unicode support) after a publisher name
 indicates that the publisher has been verified.
 `)
+)
 
 func getPrice(prices map[string]float64, currency string) (float64, string, error) {
 	// If there are no prices, then the snap is free
@@ -82,15 +85,13 @@ func getPrice(prices map[string]float64, currency string) (float64, string, erro
 type SectionName string
 
 func (s SectionName) Complete(match string) []flags.Completion {
-	if ret, err := completeFromSortedFile(dirs.SnapSectionsFile, match); err == nil {
+	if ret := mylog.Check2(completeFromSortedFile(dirs.SnapSectionsFile, match)); err == nil {
 		return ret
 	}
 
 	cli := mkClient()
-	sections, err := cli.Sections()
-	if err != nil {
-		return nil
-	}
+	sections := mylog.Check2(cli.Sections())
+
 	ret := make([]flags.Completion, 0, len(sections))
 	for _, s := range sections {
 		if strings.HasPrefix(s, match) {
@@ -101,13 +102,8 @@ func (s SectionName) Complete(match string) []flags.Completion {
 }
 
 func cachedSections() (sections []string, err error) {
-	cachedSections, err := os.Open(dirs.SnapSectionsFile)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil
-		}
-		return nil, err
-	}
+	cachedSections := mylog.Check2(os.Open(dirs.SnapSectionsFile))
+
 	defer cachedSections.Close()
 
 	r := bufio.NewScanner(cachedSections)
@@ -123,10 +119,8 @@ func cachedSections() (sections []string, err error) {
 
 func getSections(cli *client.Client) (sections []string, err error) {
 	// try loading from cached sections file
-	sections, err = cachedSections()
-	if err != nil {
-		return nil, err
-	}
+	sections = mylog.Check2(cachedSections())
+
 	if sections != nil {
 		return sections, nil
 	}
@@ -135,10 +129,8 @@ func getSections(cli *client.Client) (sections []string, err error) {
 }
 
 func showSections(cli *client.Client) error {
-	sections, err := getSections(cli)
-	if err != nil {
-		return err
-	}
+	sections := mylog.Check2(getSections(cli))
+
 	sort.Strings(sections)
 
 	fmt.Fprintf(Stdout, i18n.G("No section specified. Available sections:\n"))
@@ -174,7 +166,6 @@ func init() {
 		// TRANSLATORS: This needs to begin with < and end with >
 		name: i18n.G("<query>"),
 	}}).alias = "search"
-
 }
 
 func (x *cmdFind) Execute(args []string) error {
@@ -207,16 +198,12 @@ func (x *cmdFind) Execute(args []string) error {
 	}
 
 	if x.Section != "" && x.Section != "featured" {
-		sections, err := cachedSections()
-		if err != nil {
-			return err
-		}
+		sections := mylog.Check2(cachedSections())
+
 		if !strutil.ListContains(sections, string(x.Section)) {
 			// try the store just in case it was added in the last 24 hours
-			sections, err = x.client.Sections()
-			if err != nil {
-				return err
-			}
+			sections = mylog.Check2(x.client.Sections())
+
 			if !strutil.ListContains(sections, string(x.Section)) {
 				// TRANSLATORS: the %q is the (quoted) name of the section the user entered
 				return fmt.Errorf(i18n.G("No matching section %q, use --section to list existing sections"), x.Section)
@@ -234,14 +221,12 @@ func (x *cmdFind) Execute(args []string) error {
 		opts.Scope = "wide"
 	}
 
-	snaps, resInfo, err := x.client.Find(opts)
+	snaps, resInfo := mylog.Check3(x.client.Find(opts))
 	if e, ok := err.(*client.Error); ok && (e.Kind == client.ErrorKindNetworkTimeout || e.Kind == client.ErrorKindDNSFailure) {
 		logger.Debugf("cannot list snaps: %v", e)
 		return fmt.Errorf("unable to contact snap store")
 	}
-	if err != nil {
-		return err
-	}
+
 	if len(snaps) == 0 {
 		if x.Section == "" {
 			// TRANSLATORS: the %q is the (quoted) query the user entered

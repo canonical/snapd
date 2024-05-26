@@ -29,6 +29,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/arch/archtest"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
@@ -178,12 +179,10 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 		if runGrubId == "" {
 			runGrubId = "grubx64.efi"
 		}
+		mylog.Check(createMockGrubCfg(filepath.Join(rootdir, "run/mnt/ubuntu-seed")))
 
-		err := createMockGrubCfg(filepath.Join(rootdir, "run/mnt/ubuntu-seed"))
-		c.Assert(err, IsNil)
+		mylog.Check(createMockGrubCfg(filepath.Join(rootdir, "run/mnt/ubuntu-boot")))
 
-		err = createMockGrubCfg(filepath.Join(rootdir, "run/mnt/ubuntu-boot"))
-		c.Assert(err, IsNil)
 
 		model := boottest.MakeMockUC20Model()
 
@@ -357,25 +356,25 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 		defer restore()
 
 		u := mockUnlocker{}
-		err = boot.SealKeyToModeenv(myKey, myKey2, model, modeenv, boot.MockSealKeyToModeenvFlags{
+		mylog.Check(boot.SealKeyToModeenv(myKey, myKey2, model, modeenv, boot.MockSealKeyToModeenvFlags{
 			FactoryReset:  tc.factoryReset,
 			StateUnlocker: u.unlocker,
-		})
+		}))
 		c.Check(u.unlocked, Equals, 1)
 		c.Check(pcrHandleOfKeyCalls, Equals, tc.expPCRHandleOfKeyCalls)
 		c.Check(provisionCalls, Equals, tc.expProvisionCalls)
 		c.Check(sealKeysCalls, Equals, tc.expSealCalls)
 		c.Check(releasePCRHandleCalls, Equals, tc.expReleasePCRHandleCalls)
 		if tc.expErr == "" {
-			c.Assert(err, IsNil)
+
 		} else {
 			c.Assert(err, ErrorMatches, tc.expErr)
 			continue
 		}
 
 		// verify the boot chains data file
-		pbc, cnt, err := boot.ReadBootChains(filepath.Join(dirs.SnapFDEDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), "boot-chains"))
-		c.Assert(err, IsNil)
+		pbc, cnt := mylog.Check3(boot.ReadBootChains(filepath.Join(dirs.SnapFDEDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), "boot-chains")))
+
 		c.Check(cnt, Equals, 0)
 		c.Check(pbc, DeepEquals, boot.PredictableBootChains{
 			boot.BootChain{
@@ -433,8 +432,8 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 		})
 
 		// verify the recovery boot chains
-		pbc, cnt, err = boot.ReadBootChains(filepath.Join(dirs.SnapFDEDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), "recovery-boot-chains"))
-		c.Assert(err, IsNil)
+		pbc, cnt = mylog.Check3(boot.ReadBootChains(filepath.Join(dirs.SnapFDEDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), "recovery-boot-chains")))
+
 		c.Check(cnt, Equals, 0)
 		c.Check(pbc, DeepEquals, boot.PredictableBootChains{
 			boot.BootChain{
@@ -592,16 +591,14 @@ func (s *sealSuite) TestResealKeyToModeenvWithSystemFallback(c *C) {
 
 		if tc.sealedKeys {
 			c.Assert(os.MkdirAll(dirs.SnapFDEDir, 0755), IsNil)
-			err := os.WriteFile(filepath.Join(dirs.SnapFDEDir, "sealed-keys"), nil, 0644)
-			c.Assert(err, IsNil)
+			mylog.Check(os.WriteFile(filepath.Join(dirs.SnapFDEDir, "sealed-keys"), nil, 0644))
+
 
 		}
+		mylog.Check(createMockGrubCfg(filepath.Join(rootdir, "run/mnt/ubuntu-seed")))
 
-		err := createMockGrubCfg(filepath.Join(rootdir, "run/mnt/ubuntu-seed"))
-		c.Assert(err, IsNil)
+		mylog.Check(createMockGrubCfg(filepath.Join(rootdir, "run/mnt/ubuntu-boot")))
 
-		err = createMockGrubCfg(filepath.Join(rootdir, "run/mnt/ubuntu-boot"))
-		c.Assert(err, IsNil)
 
 		model := boottest.MakeMockUC20Model()
 
@@ -644,12 +641,12 @@ func (s *sealSuite) TestResealKeyToModeenvWithSystemFallback(c *C) {
 		}
 
 		if tc.reuseRunPbc {
-			err := boot.WriteBootChains(prevPbc, filepath.Join(dirs.SnapFDEDir, "boot-chains"), 9)
-			c.Assert(err, IsNil)
+			mylog.Check(boot.WriteBootChains(prevPbc, filepath.Join(dirs.SnapFDEDir, "boot-chains"), 9))
+
 		}
 		if tc.reuseRecoveryPbc {
-			err = boot.WriteBootChains(prevRecoveryPbc, filepath.Join(dirs.SnapFDEDir, "recovery-boot-chains"), 9)
-			c.Assert(err, IsNil)
+			mylog.Check(boot.WriteBootChains(prevRecoveryPbc, filepath.Join(dirs.SnapFDEDir, "recovery-boot-chains"), 9))
+
 		}
 
 		// mock asset cache
@@ -824,16 +821,16 @@ func (s *sealSuite) TestResealKeyToModeenvWithSystemFallback(c *C) {
 		// the behavior with unasserted kernel is tested in
 		// boot_test.go specific tests
 		const expectReseal = false
-		err = boot.ResealKeyToModeenv(rootdir, modeenv, expectReseal, u.unlocker)
+		mylog.Check(boot.ResealKeyToModeenv(rootdir, modeenv, expectReseal, u.unlocker))
 		if !tc.sealedKeys || (tc.reuseRunPbc && tc.reuseRecoveryPbc) {
 			// did nothing
-			c.Assert(err, IsNil)
+
 			c.Assert(resealKeysCalls, Equals, 0)
 			continue
 		}
 		c.Check(u.unlocked, Equals, 1)
 		if tc.err == "" {
-			c.Assert(err, IsNil)
+
 		} else {
 			c.Assert(err, ErrorMatches, tc.err)
 		}
@@ -853,8 +850,8 @@ func (s *sealSuite) TestResealKeyToModeenvWithSystemFallback(c *C) {
 		}
 
 		// verify the boot chains data file
-		pbc, cnt, err := boot.ReadBootChains(filepath.Join(dirs.SnapFDEDir, "boot-chains"))
-		c.Assert(err, IsNil)
+		pbc, cnt := mylog.Check3(boot.ReadBootChains(filepath.Join(dirs.SnapFDEDir, "boot-chains")))
+
 		if tc.reuseRunPbc {
 			c.Assert(cnt, Equals, 9)
 		} else {
@@ -1053,8 +1050,8 @@ func (s *sealSuite) TestResealKeyToModeenvWithSystemFallback(c *C) {
 		}
 		c.Check(pbc, DeepEquals, boot.PredictableBootChains(append(expectedRecoveryBootChains, expectedRunBootChains...)))
 		prevPbc = pbc
-		recoveryPbc, cnt, err := boot.ReadBootChains(filepath.Join(dirs.SnapFDEDir, "recovery-boot-chains"))
-		c.Assert(err, IsNil)
+		recoveryPbc, cnt := mylog.Check3(boot.ReadBootChains(filepath.Join(dirs.SnapFDEDir, "recovery-boot-chains")))
+
 		if tc.reuseRecoveryPbc {
 			c.Check(cnt, Equals, 9)
 		} else {
@@ -1070,14 +1067,12 @@ func (s *sealSuite) TestResealKeyToModeenvRecoveryKeysForGoodSystemsOnly(c *C) {
 	defer dirs.SetRootDir("")
 
 	c.Assert(os.MkdirAll(dirs.SnapFDEDir, 0755), IsNil)
-	err := os.WriteFile(filepath.Join(dirs.SnapFDEDir, "sealed-keys"), nil, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(dirs.SnapFDEDir, "sealed-keys"), nil, 0644))
 
-	err = createMockGrubCfg(filepath.Join(rootdir, "run/mnt/ubuntu-seed"))
-	c.Assert(err, IsNil)
+	mylog.Check(createMockGrubCfg(filepath.Join(rootdir, "run/mnt/ubuntu-seed")))
 
-	err = createMockGrubCfg(filepath.Join(rootdir, "run/mnt/ubuntu-boot"))
-	c.Assert(err, IsNil)
+	mylog.Check(createMockGrubCfg(filepath.Join(rootdir, "run/mnt/ubuntu-boot")))
+
 
 	model := boottest.MakeMockUC20Model()
 
@@ -1214,13 +1209,13 @@ func (s *sealSuite) TestResealKeyToModeenvRecoveryKeysForGoodSystemsOnly(c *C) {
 	// the behavior with unasserted kernel is tested in
 	// boot_test.go specific tests
 	const expectReseal = false
-	err = boot.ResealKeyToModeenv(rootdir, modeenv, expectReseal, nil)
-	c.Assert(err, IsNil)
+	mylog.Check(boot.ResealKeyToModeenv(rootdir, modeenv, expectReseal, nil))
+
 	c.Assert(resealKeysCalls, Equals, 2)
 
 	// verify the boot chains data file for run key
-	runPbc, cnt, err := boot.ReadBootChains(filepath.Join(dirs.SnapFDEDir, "boot-chains"))
-	c.Assert(err, IsNil)
+	runPbc, cnt := mylog.Check3(boot.ReadBootChains(filepath.Join(dirs.SnapFDEDir, "boot-chains")))
+
 	c.Assert(cnt, Equals, 1)
 	c.Check(runPbc, DeepEquals, boot.PredictableBootChains{
 		boot.BootChain{
@@ -1302,8 +1297,8 @@ func (s *sealSuite) TestResealKeyToModeenvRecoveryKeysForGoodSystemsOnly(c *C) {
 		},
 	})
 	// recovery boot chains
-	recoveryPbc, cnt, err := boot.ReadBootChains(filepath.Join(dirs.SnapFDEDir, "recovery-boot-chains"))
-	c.Assert(err, IsNil)
+	recoveryPbc, cnt := mylog.Check3(boot.ReadBootChains(filepath.Join(dirs.SnapFDEDir, "recovery-boot-chains")))
+
 	c.Assert(cnt, Equals, 1)
 	c.Check(recoveryPbc, DeepEquals, boot.PredictableBootChains{
 		// only one entry for a recovery system that is known to be good
@@ -1342,8 +1337,8 @@ func (s *sealSuite) TestResealKeyToModeenvFallbackCmdline(c *C) {
 	model := boottest.MakeMockUC20Model()
 
 	c.Assert(os.MkdirAll(dirs.SnapFDEDir, 0755), IsNil)
-	err := os.WriteFile(filepath.Join(dirs.SnapFDEDir, "sealed-keys"), nil, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(dirs.SnapFDEDir, "sealed-keys"), nil, 0644))
+
 
 	modeenv := &boot.Modeenv{
 		CurrentRecoverySystems: []string{"20200825"},
@@ -1365,9 +1360,8 @@ func (s *sealSuite) TestResealKeyToModeenvFallbackCmdline(c *C) {
 		Grade:          string(model.Grade()),
 		ModelSignKeyID: model.SignKeyID(),
 	}
+	mylog.Check(boot.WriteBootChains(nil, filepath.Join(dirs.SnapFDEDir, "boot-chains"), 9))
 
-	err = boot.WriteBootChains(nil, filepath.Join(dirs.SnapFDEDir, "boot-chains"), 9)
-	c.Assert(err, IsNil)
 	// mock asset cache
 	mockAssetsCache(c, rootdir, "trusted", []string{
 		"asset-asset-hash-1",
@@ -1427,13 +1421,13 @@ func (s *sealSuite) TestResealKeyToModeenvFallbackCmdline(c *C) {
 	defer restore()
 
 	const expectReseal = false
-	err = boot.ResealKeyToModeenv(rootdir, modeenv, expectReseal, nil)
-	c.Assert(err, IsNil)
+	mylog.Check(boot.ResealKeyToModeenv(rootdir, modeenv, expectReseal, nil))
+
 	c.Assert(resealKeysCalls, Equals, 2)
 
 	// verify the boot chains data file
-	pbc, cnt, err := boot.ReadBootChains(filepath.Join(dirs.SnapFDEDir, "boot-chains"))
-	c.Assert(err, IsNil)
+	pbc, cnt := mylog.Check3(boot.ReadBootChains(filepath.Join(dirs.SnapFDEDir, "boot-chains")))
+
 	c.Assert(cnt, Equals, 10)
 	c.Check(pbc, DeepEquals, boot.PredictableBootChains{
 		boot.BootChain{
@@ -1586,27 +1580,27 @@ func (s *sealSuite) TestRunModeBootChains(c *C) {
 		}
 
 		grubDir := filepath.Join(rootdir, "run/mnt/ubuntu-seed")
-		err := createMockGrubCfg(grubDir)
-		c.Assert(err, IsNil)
+		mylog.Check(createMockGrubCfg(grubDir))
+
 
 		runGrubDir := filepath.Join(rootdir, "run/mnt/ubuntu-boot")
-		err = createMockGrubCfg(runGrubDir)
-		c.Assert(err, IsNil)
+		mylog.Check(createMockGrubCfg(runGrubDir))
 
-		rbl, err := bootloader.Find(grubDir, &bootloader.Options{
+
+		rbl := mylog.Check2(bootloader.Find(grubDir, &bootloader.Options{
 			Role:        bootloader.RoleRecovery,
 			NoSlashBoot: true,
-		})
-		c.Assert(err, IsNil)
-		bl, err := bootloader.Find(runGrubDir, &bootloader.Options{
+		}))
+
+		bl := mylog.Check2(bootloader.Find(runGrubDir, &bootloader.Options{
 			Role:        bootloader.RoleRunMode,
 			NoSlashBoot: true,
-		})
-		c.Assert(err, IsNil)
+		}))
 
-		bootChains, err := boot.RunModeBootChains(rbl, bl, modeenv, tc.cmdlines, "/snaps")
+
+		bootChains := mylog.Check2(boot.RunModeBootChains(rbl, bl, modeenv, tc.cmdlines, "/snaps"))
 		if tc.expectedErr == "" {
-			c.Assert(err, IsNil)
+
 
 			foundChains := make(map[int]bool)
 			for i, chain := range bootChains {
@@ -1876,11 +1870,11 @@ func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 		defer restore()
 
 		grubDir := filepath.Join(rootdir, "run/mnt/ubuntu-seed")
-		err := createMockGrubCfg(grubDir)
-		c.Assert(err, IsNil)
+		mylog.Check(createMockGrubCfg(grubDir))
 
-		bl, err := bootloader.Find(grubDir, &bootloader.Options{Role: bootloader.RoleRecovery})
-		c.Assert(err, IsNil)
+
+		bl := mylog.Check2(bootloader.Find(grubDir, &bootloader.Options{Role: bootloader.RoleRecovery}))
+
 		tbl, ok := bl.(bootloader.TrustedAssetsBootloader)
 		c.Assert(ok, Equals, true)
 
@@ -1894,9 +1888,9 @@ func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 		}
 
 		includeTryModel := false
-		bc, err := boot.RecoveryBootChainsForSystems(tc.recoverySystems, tc.modesForSystems, tbl, modeenv, includeTryModel, dirs.SnapSeedDir)
+		bc := mylog.Check2(boot.RecoveryBootChainsForSystems(tc.recoverySystems, tc.modesForSystems, tbl, modeenv, includeTryModel, dirs.SnapSeedDir))
 		if tc.err == "" {
-			c.Assert(err, IsNil)
+
 			if tc.expectedBootChainsCount == 0 {
 				// usually there is a boot chain for each recovery system
 				c.Assert(bc, HasLen, len(tc.recoverySystems))
@@ -1933,14 +1927,12 @@ func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 		}
 
 	}
-
 }
 
 func createMockGrubCfg(baseDir string) error {
 	cfg := filepath.Join(baseDir, "EFI/ubuntu/grub.cfg")
-	if err := os.MkdirAll(filepath.Dir(cfg), 0755); err != nil {
-		return err
-	}
+	mylog.Check(os.MkdirAll(filepath.Dir(cfg), 0755))
+
 	return os.WriteFile(cfg, []byte("# Snapd-Boot-Config-Edition: 1\n"), 0644)
 }
 
@@ -2019,8 +2011,8 @@ func (s *sealSuite) TestSealKeyModelParams(c *C) {
 	loader1 := bootloader.NewBootFile("", filepath.Join(rootdir, "var/lib/snapd/boot-assets/grub/loader-loader-hash1"), bootloader.RoleRecovery)
 	loader2 := bootloader.NewBootFile("", filepath.Join(rootdir, "var/lib/snapd/boot-assets/grub/loader-loader-hash2"), bootloader.RoleRunMode)
 
-	params, err := boot.SealKeyModelParams(pbc, roleToBlName)
-	c.Assert(err, IsNil)
+	params := mylog.Check2(boot.SealKeyModelParams(pbc, roleToBlName))
+
 	c.Check(params, HasLen, 2)
 	c.Check(params[0].Model.Model(), Equals, model.Model())
 	// NB: merging of lists makes panic=1 appear once
@@ -2084,31 +2076,31 @@ func (s *sealSuite) TestIsResealNeeded(c *C) {
 	pbc := boot.ToPredictableBootChains(chains)
 
 	rootdir := c.MkDir()
-	err := boot.WriteBootChains(pbc, filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), 2)
-	c.Assert(err, IsNil)
+	mylog.Check(boot.WriteBootChains(pbc, filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), 2))
 
-	needed, _, err := boot.IsResealNeeded(pbc, filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), false)
-	c.Assert(err, IsNil)
+
+	needed, _ := mylog.Check3(boot.IsResealNeeded(pbc, filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), false))
+
 	c.Check(needed, Equals, false)
 
 	otherchain := []boot.BootChain{pbc[0]}
-	needed, cnt, err := boot.IsResealNeeded(otherchain, filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), false)
-	c.Assert(err, IsNil)
+	needed, cnt := mylog.Check3(boot.IsResealNeeded(otherchain, filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), false))
+
 	// chains are different
 	c.Check(needed, Equals, true)
 	c.Check(cnt, Equals, 3)
 
 	// boot-chains does not exist, we cannot compare so advise to reseal
 	otherRootdir := c.MkDir()
-	needed, cnt, err = boot.IsResealNeeded(otherchain, filepath.Join(dirs.SnapFDEDirUnder(otherRootdir), "boot-chains"), false)
-	c.Assert(err, IsNil)
+	needed, cnt = mylog.Check3(boot.IsResealNeeded(otherchain, filepath.Join(dirs.SnapFDEDirUnder(otherRootdir), "boot-chains"), false))
+
 	c.Check(needed, Equals, true)
 	c.Check(cnt, Equals, 1)
 
 	// exists but cannot be read
 	c.Assert(os.Chmod(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), 0000), IsNil)
 	defer os.Chmod(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), 0755)
-	needed, _, err = boot.IsResealNeeded(otherchain, filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), false)
+	needed, _ = mylog.Check3(boot.IsResealNeeded(otherchain, filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), false))
 	c.Assert(err, ErrorMatches, "cannot open existing boot chains data file: open .*/boot-chains: permission denied")
 	c.Check(needed, Equals, false)
 
@@ -2117,21 +2109,21 @@ func (s *sealSuite) TestIsResealNeeded(c *C) {
 	unrevchain[1].KernelRevision = ""
 	// write on disk
 	bootChainsFile := filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains")
-	err = boot.WriteBootChains(unrevchain, bootChainsFile, 2)
-	c.Assert(err, IsNil)
+	mylog.Check(boot.WriteBootChains(unrevchain, bootChainsFile, 2))
 
-	needed, cnt, err = boot.IsResealNeeded(pbc, bootChainsFile, false)
-	c.Assert(err, IsNil)
+
+	needed, cnt = mylog.Check3(boot.IsResealNeeded(pbc, bootChainsFile, false))
+
 	c.Check(needed, Equals, true)
 	c.Check(cnt, Equals, 3)
 
 	// cases falling back to expectReseal
-	needed, _, err = boot.IsResealNeeded(unrevchain, bootChainsFile, false)
-	c.Assert(err, IsNil)
+	needed, _ = mylog.Check3(boot.IsResealNeeded(unrevchain, bootChainsFile, false))
+
 	c.Check(needed, Equals, false)
 
-	needed, cnt, err = boot.IsResealNeeded(unrevchain, bootChainsFile, true)
-	c.Assert(err, IsNil)
+	needed, cnt = mylog.Check3(boot.IsResealNeeded(unrevchain, bootChainsFile, true))
+
 	c.Check(needed, Equals, true)
 	c.Check(cnt, Equals, 3)
 }
@@ -2157,11 +2149,11 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookHappy(c *C) {
 		c.Check(params.Model.Model(), Equals, model.Model())
 		c.Check(params.AuxKeyFile, Equals, filepath.Join(boot.InstallHostFDESaveDir, "aux-key"))
 		for _, skr := range skrs {
-			out, err := runHook(&fde.SetupRequest{
+			out := mylog.Check2(runHook(&fde.SetupRequest{
 				Key:     skr.Key,
 				KeyName: skr.KeyName,
-			})
-			c.Assert(err, IsNil)
+			}))
+
 			keyToSave[skr.KeyFile] = out
 		}
 		return nil
@@ -2179,9 +2171,8 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookHappy(c *C) {
 	saveKey := keys.EncryptionKey{5, 6, 7, 8}
 
 	defer boot.MockModeenvLocked()()
+	mylog.Check(boot.SealKeyToModeenv(key, saveKey, model, modeenv, boot.MockSealKeyToModeenvFlags{HasFDESetupHook: true}))
 
-	err := boot.SealKeyToModeenv(key, saveKey, model, modeenv, boot.MockSealKeyToModeenvFlags{HasFDESetupHook: true})
-	c.Assert(err, IsNil)
 	// check that runFDESetupHook was called the expected way
 	c.Check(runFDESetupHookReqs, DeepEquals, []*fde.SetupRequest{
 		{Key: key, KeyName: "ubuntu-data"},
@@ -2222,7 +2213,7 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookSad(c *C) {
 	defer boot.MockModeenvLocked()()
 
 	model := boottest.MakeMockUC20Model()
-	err := boot.SealKeyToModeenv(key, saveKey, model, modeenv, boot.MockSealKeyToModeenvFlags{HasFDESetupHook: true})
+	mylog.Check(boot.SealKeyToModeenv(key, saveKey, model, modeenv, boot.MockSealKeyToModeenvFlags{HasFDESetupHook: true}))
 	c.Assert(err, ErrorMatches, "hook failed")
 	marker := filepath.Join(dirs.SnapFDEDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), "sealed-keys")
 	c.Check(marker, testutil.FileAbsent)
@@ -2249,10 +2240,10 @@ func (s *sealSuite) TestResealKeyToModeenvWithFdeHookCalled(c *C) {
 	defer restore()
 
 	marker := filepath.Join(dirs.SnapFDEDirUnder(rootdir), "sealed-keys")
-	err := os.MkdirAll(filepath.Dir(marker), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(marker, []byte("fde-setup-hook"), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Dir(marker), 0755))
+
+	mylog.Check(os.WriteFile(marker, []byte("fde-setup-hook"), 0644))
+
 
 	defer boot.MockModeenvLocked()()
 
@@ -2265,8 +2256,8 @@ func (s *sealSuite) TestResealKeyToModeenvWithFdeHookCalled(c *C) {
 		ModelSignKeyID: model.SignKeyID(),
 	}
 	expectReseal := false
-	err = boot.ResealKeyToModeenv(rootdir, modeenv, expectReseal, nil)
-	c.Assert(err, IsNil)
+	mylog.Check(boot.ResealKeyToModeenv(rootdir, modeenv, expectReseal, nil))
+
 	c.Check(resealKeyToModeenvUsingFDESetupHookCalled, Equals, 1)
 }
 
@@ -2283,10 +2274,10 @@ func (s *sealSuite) TestResealKeyToModeenvWithFdeHookVerySad(c *C) {
 	defer restore()
 
 	marker := filepath.Join(dirs.SnapFDEDirUnder(rootdir), "sealed-keys")
-	err := os.MkdirAll(filepath.Dir(marker), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(marker, []byte("fde-setup-hook"), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Dir(marker), 0755))
+
+	mylog.Check(os.WriteFile(marker, []byte("fde-setup-hook"), 0644))
+
 
 	defer boot.MockModeenvLocked()()
 
@@ -2299,7 +2290,7 @@ func (s *sealSuite) TestResealKeyToModeenvWithFdeHookVerySad(c *C) {
 		ModelSignKeyID: model.SignKeyID(),
 	}
 	expectReseal := false
-	err = boot.ResealKeyToModeenv(rootdir, modeenv, expectReseal, nil)
+	mylog.Check(boot.ResealKeyToModeenv(rootdir, modeenv, expectReseal, nil))
 	c.Assert(err, ErrorMatches, "fde setup hook failed")
 	c.Check(resealKeyToModeenvUsingFDESetupHookCalled, Equals, 1)
 }
@@ -2310,14 +2301,12 @@ func (s *sealSuite) testResealKeyToModeenvWithTryModel(c *C, shimId, grubId stri
 	defer dirs.SetRootDir("")
 
 	c.Assert(os.MkdirAll(dirs.SnapFDEDir, 0755), IsNil)
-	err := os.WriteFile(filepath.Join(dirs.SnapFDEDir, "sealed-keys"), nil, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(dirs.SnapFDEDir, "sealed-keys"), nil, 0644))
 
-	err = createMockGrubCfg(filepath.Join(rootdir, "run/mnt/ubuntu-seed"))
-	c.Assert(err, IsNil)
+	mylog.Check(createMockGrubCfg(filepath.Join(rootdir, "run/mnt/ubuntu-seed")))
 
-	err = createMockGrubCfg(filepath.Join(rootdir, "run/mnt/ubuntu-boot"))
-	c.Assert(err, IsNil)
+	mylog.Check(createMockGrubCfg(filepath.Join(rootdir, "run/mnt/ubuntu-boot")))
+
 
 	model := boottest.MakeMockUC20Model()
 	// a try model which would normally only appear during remodel
@@ -2510,8 +2499,8 @@ func (s *sealSuite) testResealKeyToModeenvWithTryModel(c *C, shimId, grubId stri
 	// the behavior with unasserted kernel is tested in
 	// boot_test.go specific tests
 	const expectReseal = false
-	err = boot.ResealKeyToModeenv(rootdir, modeenv, expectReseal, nil)
-	c.Assert(err, IsNil)
+	mylog.Check(boot.ResealKeyToModeenv(rootdir, modeenv, expectReseal, nil))
+
 	c.Assert(resealKeysCalls, Equals, 2)
 
 	// verify the boot chains data file for run key
@@ -2538,8 +2527,8 @@ func (s *sealSuite) testResealKeyToModeenvWithTryModel(c *C, shimId, grubId stri
 		Name:   "grubx64.efi",
 		Hashes: []string{"run-grub-hash"},
 	}}
-	runPbc, cnt, err := boot.ReadBootChains(filepath.Join(dirs.SnapFDEDir, "boot-chains"))
-	c.Assert(err, IsNil)
+	runPbc, cnt := mylog.Check3(boot.ReadBootChains(filepath.Join(dirs.SnapFDEDir, "boot-chains")))
+
 	c.Assert(cnt, Equals, 1)
 	c.Check(runPbc, DeepEquals, boot.PredictableBootChains{
 		// the current model
@@ -2596,8 +2585,8 @@ func (s *sealSuite) testResealKeyToModeenvWithTryModel(c *C, shimId, grubId stri
 		},
 	})
 	// recovery boot chains
-	recoveryPbc, cnt, err := boot.ReadBootChains(filepath.Join(dirs.SnapFDEDir, "recovery-boot-chains"))
-	c.Assert(err, IsNil)
+	recoveryPbc, cnt := mylog.Check3(boot.ReadBootChains(filepath.Join(dirs.SnapFDEDir, "recovery-boot-chains")))
+
 	c.Assert(cnt, Equals, 1)
 	c.Check(recoveryPbc, DeepEquals, boot.PredictableBootChains{
 		// recovery keys are sealed to current model only
@@ -2626,7 +2615,6 @@ func (s *sealSuite) TestResealKeyToModeenvWithTryModelNewBootChain(c *C) {
 }
 
 func (s *sealSuite) TestMarkFactoryResetComplete(c *C) {
-
 	for i, tc := range []struct {
 		encrypted                 bool
 		factoryKeyAlreadyMigrated bool
@@ -2641,19 +2629,23 @@ func (s *sealSuite) TestMarkFactoryResetComplete(c *C) {
 		{
 			// unencrypted is a nop
 			encrypted: false,
-		}, {
+		},
+		{
 			// the old fallback key uses the main handle
 			encrypted: true, pcrHandleOfKey: secboot.FallbackObjectPCRPolicyCounterHandle,
 			factoryKeyAlreadyMigrated: true, pcrHandleOfKeyCalls: 1, releasePCRHandleCalls: 1,
-		}, {
+		},
+		{
 			// the old fallback key uses the alt handle
 			encrypted: true, pcrHandleOfKey: secboot.AltFallbackObjectPCRPolicyCounterHandle,
 			factoryKeyAlreadyMigrated: true, pcrHandleOfKeyCalls: 1, releasePCRHandleCalls: 1,
-		}, {
+		},
+		{
 			// unexpected reboot, the key file was already moved
 			encrypted: true, pcrHandleOfKey: secboot.AltFallbackObjectPCRPolicyCounterHandle,
 			pcrHandleOfKeyCalls: 1, releasePCRHandleCalls: 1,
-		}, {
+		},
+		{
 			// do nothing if we have the FDE hook
 			encrypted: true, pcrHandleOfKeyErr: errors.New("unexpected call"),
 			hasFDEHook: true,
@@ -2665,7 +2657,8 @@ func (s *sealSuite) TestMarkFactoryResetComplete(c *C) {
 			pcrHandleOfKeyCalls:       1,
 			pcrHandleOfKeyErr:         errors.New("handle error"),
 			err:                       "cannot perform post factory reset boot cleanup: cannot cleanup secboot state: cannot inspect fallback key: handle error",
-		}, {
+		},
+		{
 			encrypted: true, pcrHandleOfKey: secboot.FallbackObjectPCRPolicyCounterHandle,
 			factoryKeyAlreadyMigrated: true,
 			pcrHandleOfKeyCalls:       1, releasePCRHandleCalls: 1,
@@ -2720,12 +2713,11 @@ func (s *sealSuite) TestMarkFactoryResetComplete(c *C) {
 			return tc.releasePCRHandlesErr
 		})
 		defer restore()
-
-		err := boot.MarkFactoryResetComplete(tc.encrypted)
+		mylog.Check(boot.MarkFactoryResetComplete(tc.encrypted))
 		if tc.err != "" {
 			c.Assert(err, ErrorMatches, tc.err)
 		} else {
-			c.Assert(err, IsNil)
+
 		}
 		c.Check(pcrHandleOfKeyCalls, Equals, tc.pcrHandleOfKeyCalls)
 		c.Check(releasePCRHandleCalls, Equals, tc.releasePCRHandleCalls)
@@ -2736,5 +2728,4 @@ func (s *sealSuite) TestMarkFactoryResetComplete(c *C) {
 				testutil.FileAbsent)
 		}
 	}
-
 }

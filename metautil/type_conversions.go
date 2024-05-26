@@ -22,6 +22,8 @@ package metautil
 import (
 	"fmt"
 	"reflect"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 func convertValue(value reflect.Value, outputType reflect.Type) (reflect.Value, error) {
@@ -38,10 +40,8 @@ func convertValue(value reflect.Value, outputType reflect.Type) (reflect.Value, 
 		}
 		outputValue := reflect.MakeSlice(outputType, 0, value.Len())
 		for i := 0; i < value.Len(); i++ {
-			convertedElem, err := convertValue(value.Index(i), outputType.Elem())
-			if err != nil {
-				return nullValue, err
-			}
+			convertedElem := mylog.Check2(convertValue(value.Index(i), outputType.Elem()))
+
 			outputValue = reflect.Append(outputValue, convertedElem)
 		}
 		return outputValue, nil
@@ -54,14 +54,10 @@ func convertValue(value reflect.Value, outputType reflect.Type) (reflect.Value, 
 		outputValue := reflect.MakeMapWithSize(outputType, value.Len())
 		iter := value.MapRange()
 		for iter.Next() {
-			convertedKey, err := convertValue(iter.Key(), outputType.Key())
-			if err != nil {
-				return nullValue, err
-			}
-			convertedValue, err := convertValue(iter.Value(), outputType.Elem())
-			if err != nil {
-				return nullValue, err
-			}
+			convertedKey := mylog.Check2(convertValue(iter.Key(), outputType.Key()))
+
+			convertedValue := mylog.Check2(convertValue(iter.Value(), outputType.Elem()))
+
 			outputValue.SetMapIndex(convertedKey, convertedValue)
 		}
 		return outputValue, nil
@@ -101,16 +97,8 @@ func SetValueFromAttribute(snapName string, ifaceName string, attrName string, a
 		return fmt.Errorf("internal error: cannot get %q attribute of interface %q with non-pointer value", attrName, ifaceName)
 	}
 
-	converted, err := convertValue(reflect.ValueOf(attrVal), rt.Elem())
-	if err != nil {
-		return AttributeNotCompatibleError{
-			SnapName:      snapName,
-			InterfaceName: ifaceName,
-			AttributeName: attrName,
-			AttributeType: reflect.TypeOf(attrVal),
-			ExpectedType:  reflect.TypeOf(val),
-		}
-	}
+	converted := mylog.Check2(convertValue(reflect.ValueOf(attrVal), rt.Elem()))
+
 	rv := reflect.ValueOf(val)
 	rv.Elem().Set(converted)
 	return nil

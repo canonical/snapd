@@ -24,6 +24,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/mvo5/goconfigparser"
 
 	"github.com/snapcore/snapd/dirs"
@@ -39,10 +40,7 @@ func init() {
 }
 
 func validateSystemSwapConfiguration(tr ConfGetter) error {
-	output, err := coreCfg(tr, "swap.size")
-	if err != nil {
-		return err
-	}
+	output := mylog.Check2(coreCfg(tr, "swap.size"))
 
 	if output == "" {
 		return nil
@@ -50,15 +48,12 @@ func validateSystemSwapConfiguration(tr ConfGetter) error {
 
 	// valid option for swap size is any integer multiple of a megabyte that is
 	// larger than or equal to 1 MB, or 0 for no swap enabled.
-	_, err = parseAndValidateSwapSize(output)
+	_ = mylog.Check2(parseAndValidateSwapSize(output))
 	return err
 }
 
 func parseAndValidateSwapSize(szString string) (quantity.Size, error) {
-	sz, err := quantity.ParseSize(szString)
-	if err != nil {
-		return 0, err
-	}
+	sz := mylog.Check2(quantity.ParseSize(szString))
 
 	switch {
 	case sz < 0:
@@ -76,10 +71,10 @@ func parseAndValidateSwapSize(szString string) (quantity.Size, error) {
 
 func handlesystemSwapConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyContext) error {
 	var pristineSwapSize, newSwapSize string
-	if err := tr.GetPristine("core", "swap.size", &pristineSwapSize); err != nil && !config.IsNoOption(err) {
+	if mylog.Check(tr.GetPristine("core", "swap.size", &pristineSwapSize)); err != nil && !config.IsNoOption(err) {
 		return err
 	}
-	if err := tr.Get("core", "swap.size", &newSwapSize); err != nil && !config.IsNoOption(err) {
+	if mylog.Check(tr.Get("core", "swap.size", &newSwapSize)); err != nil && !config.IsNoOption(err) {
 		return err
 	}
 	if pristineSwapSize == newSwapSize {
@@ -92,10 +87,7 @@ func handlesystemSwapConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOn
 		newSwapSize = "0"
 	}
 
-	szBytes, err := parseAndValidateSwapSize(newSwapSize)
-	if err != nil {
-		return err
-	}
+	szBytes := mylog.Check2(parseAndValidateSwapSize(newSwapSize))
 
 	rootDir := dirs.GlobalRootDir
 	if opts != nil {
@@ -114,39 +106,30 @@ func handlesystemSwapConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOn
 		// read the existing file to get the location setting
 		cfg := goconfigparser.New()
 		cfg.AllowNoSectionHeader = true
+		mylog.Check(cfg.ReadFile(swapConfigPath))
 
-		if err := cfg.ReadFile(swapConfigPath); err != nil {
-			return err
-		}
+		location = mylog.Check2(cfg.Get("", "FILE"))
 
-		location, err = cfg.Get("", "FILE")
-		if err != nil {
-			return err
-		}
 	}
+	mylog.Check(
 
-	// ensure the directory exists
-	if err := os.MkdirAll(filepath.Dir(swapConfigPath), 0755); err != nil {
-		return err
-	}
+		// ensure the directory exists
+		os.MkdirAll(filepath.Dir(swapConfigPath), 0755))
 
 	// the size of swap needs to be specified in Megabytes, while quantity.Size
 	// is a uint64 of bytes
 	fileContent := fmt.Sprintf("FILE=%s\nSIZE=%d\n", location, szBytes/quantity.SizeMiB)
+	mylog.Check(
 
-	// write the swap config file
-	if err := os.WriteFile(swapConfigPath, []byte(fileContent), 0644); err != nil {
-		return err
-	}
+		// write the swap config file
+		os.WriteFile(swapConfigPath, []byte(fileContent), 0644))
 
 	if opts == nil {
 		// if we are not doing this filesystem only, then we need to also
 		// restart the swap service
 		sysd := systemd.NewUnderRoot(dirs.GlobalRootDir, systemd.SystemMode, &backlightSysdLogger{})
+		mylog.Check(sysd.Restart([]string{"swapfile.service"}))
 
-		if err := sysd.Restart([]string{"swapfile.service"}); err != nil {
-			return err
-		}
 	}
 
 	return nil

@@ -28,6 +28,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 )
@@ -52,6 +53,7 @@ type nullCache struct{}
 func (cm *nullCache) Get(cacheKey, targetPath string) bool {
 	return false
 }
+
 func (cm *nullCache) GetPath(cacheKey string) string {
 	return ""
 }
@@ -94,7 +96,7 @@ func NewCacheManager(cacheDir string, maxItems int) *CacheManager {
 // GetPath returns the full path of the given content in the cache
 // or empty string
 func (cm *CacheManager) GetPath(cacheKey string) string {
-	if _, err := os.Stat(cm.path(cacheKey)); os.IsNotExist(err) {
+	if _ := mylog.Check2(os.Stat(cm.path(cacheKey))); os.IsNotExist(err) {
 		return ""
 	}
 	return cm.path(cacheKey)
@@ -103,7 +105,7 @@ func (cm *CacheManager) GetPath(cacheKey string) string {
 // Get retrieves the given cacheKey content and puts it into targetPath. Returns
 // true if a cached file was moved to targetPath or if one was already there.
 func (cm *CacheManager) Get(cacheKey, targetPath string) bool {
-	if err := os.Link(cm.path(cacheKey), targetPath); err != nil && !errors.Is(err, os.ErrExist) {
+	if mylog.Check(os.Link(cm.path(cacheKey), targetPath)); err != nil && !errors.Is(err, os.ErrExist) {
 		return false
 	}
 
@@ -124,11 +126,10 @@ func (cm *CacheManager) Put(cacheKey, sourcePath string) error {
 	if !osutil.IsWritable(cm.cacheDir) {
 		return nil
 	}
-
-	err := os.Link(sourcePath, cm.path(cacheKey))
+	mylog.Check(os.Link(sourcePath, cm.path(cacheKey)))
 	if os.IsExist(err) {
 		now := time.Now()
-		err := os.Chtimes(cm.path(cacheKey), now, now)
+		mylog.Check(os.Chtimes(cm.path(cacheKey), now, now))
 		// this can happen if a cleanup happens in parallel, ie.
 		// the file was there but cleanup() removed it between
 		// the os.Link/os.Chtimes - no biggie, just link it again
@@ -137,9 +138,7 @@ func (cm *CacheManager) Put(cacheKey, sourcePath string) error {
 		}
 		return err
 	}
-	if err != nil {
-		return err
-	}
+
 	return cm.cleanup()
 }
 
@@ -147,7 +146,7 @@ func (cm *CacheManager) Put(cacheKey, sourcePath string) error {
 func (cm *CacheManager) count() int {
 	// TODO: Use something more effective than a list of all entries
 	//       here. This will waste a lot of memory on large dirs.
-	if l, err := os.ReadDir(cm.cacheDir); err == nil {
+	if l := mylog.Check2(os.ReadDir(cm.cacheDir)); err == nil {
 		return len(l)
 	}
 	return 0
@@ -160,18 +159,12 @@ func (cm *CacheManager) path(cacheKey string) string {
 
 // cleanup ensures that only maxItems are stored in the cache
 func (cm *CacheManager) cleanup() error {
-	entries, err := os.ReadDir(cm.cacheDir)
-	if err != nil {
-		return err
-	}
+	entries := mylog.Check2(os.ReadDir(cm.cacheDir))
 
 	// we need the modtime so convert to FileInfo
 	fil := make([]os.FileInfo, 0, len(entries))
 	for _, entry := range entries {
-		fi, err := entry.Info()
-		if err != nil {
-			return err
-		}
+		fi := mylog.Check2(entry.Info())
 
 		fil = append(fil, fi)
 	}
@@ -182,10 +175,8 @@ func (cm *CacheManager) cleanup() error {
 
 	numOwned := 0
 	for _, fi := range fil {
-		n, err := hardLinkCount(fi)
-		if err != nil {
-			logger.Noticef("cannot inspect cache: %s", err)
-		}
+		n := mylog.Check2(hardLinkCount(fi))
+
 		// Only count the file if it is not referenced elsewhere in the filesystem
 		if n <= 1 {
 			numOwned++
@@ -201,23 +192,16 @@ func (cm *CacheManager) cleanup() error {
 	deleted := 0
 	for _, fi := range fil {
 		path := cm.path(fi.Name())
-		n, err := hardLinkCount(fi)
-		if err != nil {
-			logger.Noticef("cannot inspect cache: %s", err)
-		}
+		n := mylog.Check2(hardLinkCount(fi))
+
 		// If the file is referenced in the filesystem somewhere
 		// else our copy is "free" so skip it. If there is any
 		// error we cleanup the file (it is just a cache afterall).
 		if n > 1 {
 			continue
 		}
-		if err := osRemove(path); err != nil {
-			if !os.IsNotExist(err) {
-				logger.Noticef("cannot cleanup cache: %s", err)
-				lastErr = err
-			}
-			continue
-		}
+		mylog.Check(osRemove(path))
+
 		deleted++
 		if numOwned-deleted <= cm.maxItems {
 			break

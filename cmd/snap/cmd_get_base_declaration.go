@@ -22,6 +22,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/i18n"
@@ -57,11 +58,9 @@ func (x *cmdGetBaseDeclaration) Execute(args []string) error {
 	var resp struct {
 		BaseDeclaration string `json:"base-declaration"`
 	}
-	var err error
-	err = x.client.DebugGet("base-declaration", &resp, nil)
-	if err != nil {
-		return err
-	}
+
+	mylog.Check(x.client.DebugGet("base-declaration", &resp, nil))
+
 	fmt.Fprintf(Stdout, "%s\n", resp.BaseDeclaration)
 	if x.get {
 		fmt.Fprintf(Stderr, i18n.G("'snap debug get-base-declaration' is deprecated; use 'snap debug base-declaration'."))

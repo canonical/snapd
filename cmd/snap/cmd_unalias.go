@@ -20,6 +20,7 @@
 package main
 
 import (
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/i18n"
@@ -32,12 +33,14 @@ type cmdUnalias struct {
 	} `positional-args:"true"`
 }
 
-var shortUnaliasHelp = i18n.G("Remove a manual alias, or the aliases for an entire snap")
-var longUnaliasHelp = i18n.G(`
+var (
+	shortUnaliasHelp = i18n.G("Remove a manual alias, or the aliases for an entire snap")
+	longUnaliasHelp  = i18n.G(`
 The unalias command removes a single alias if the provided argument is a manual
 alias, or disables all aliases of a snap, including manual ones, if the
 argument is a snap name.
 `)
+)
 
 func init() {
 	addCommand("unalias", shortUnaliasHelp, longUnaliasHelp, func() flags.Commander {
@@ -53,17 +56,9 @@ func (x *cmdUnalias) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	id, err := x.client.Unalias(string(x.Positionals.AliasOrSnap))
-	if err != nil {
-		return err
-	}
-	chg, err := x.wait(id)
-	if err != nil {
-		if err == noWait {
-			return nil
-		}
-		return err
-	}
+	id := mylog.Check2(x.client.Unalias(string(x.Positionals.AliasOrSnap)))
+
+	chg := mylog.Check2(x.wait(id))
 
 	return showAliasChanges(chg)
 }

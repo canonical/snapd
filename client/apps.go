@@ -32,6 +32,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -98,7 +99,7 @@ func (client *Client) Apps(names []string, opts AppOptions) ([]*AppInfo, error) 
 	}
 
 	var appInfos []*AppInfo
-	_, err := client.doSync("GET", "/v2/apps", q, nil, nil, &appInfos)
+	_ := mylog.Check2(client.doSync("GET", "/v2/apps", q, nil, nil, &appInfos))
 
 	return appInfos, err
 }
@@ -146,17 +147,13 @@ func (client *Client) Logs(names []string, opts LogOptions) (<-chan Log, error) 
 		query.Set("follow", strconv.FormatBool(opts.Follow))
 	}
 
-	rsp, err := client.raw(context.Background(), "GET", "/v2/logs", query, nil, nil)
-	if err != nil {
-		return nil, err
-	}
+	rsp := mylog.Check2(client.raw(context.Background(), "GET", "/v2/logs", query, nil, nil))
 
 	if rsp.StatusCode != 200 {
 		var r response
 		defer rsp.Body.Close()
-		if err := decodeInto(rsp.Body, &r); err != nil {
-			return nil, err
-		}
+		mylog.Check(decodeInto(rsp.Body, &r))
+
 		return nil, r.err(client, rsp.StatusCode)
 	}
 
@@ -179,10 +176,9 @@ func (client *Client) Logs(names []string, opts LogOptions) (<-chan Log, error) 
 			}
 			buf = buf[idx+1:] // drop the initial RS
 			var log Log
-			if err := json.Unmarshal(buf, &log); err != nil {
-				// truncated/corrupted/binary record? skip
-				continue
-			}
+			mylog.Check(json.Unmarshal(buf, &log))
+			// truncated/corrupted/binary record? skip
+
 			ch <- log
 		}
 		close(ch)
@@ -250,7 +246,7 @@ func (us UserSelector) MarshalJSON() ([]byte, error) {
 func (us *UserSelector) UnmarshalJSON(b []byte) error {
 	// Try treating it as a list of usernames first
 	var users []string
-	if err := json.Unmarshal(b, &users); err == nil {
+	if mylog.Check(json.Unmarshal(b, &users)); err == nil {
 		us.Names = users
 		us.Selector = UserSelectionList
 		return nil
@@ -258,9 +254,7 @@ func (us *UserSelector) UnmarshalJSON(b []byte) error {
 
 	// Fallback to string, which would indicate a keyword
 	var s string
-	if err := json.Unmarshal(b, &s); err != nil {
-		return fmt.Errorf("cannot unmarshal, expected a string or a list of strings")
-	}
+	mylog.Check(json.Unmarshal(b, &s))
 
 	switch s {
 	case "self":
@@ -277,9 +271,7 @@ type ScopeSelector []string
 
 func (ss *ScopeSelector) UnmarshalJSON(b []byte) error {
 	var scopes []string
-	if err := json.Unmarshal(b, &scopes); err != nil {
-		return fmt.Errorf("cannot unmarshal, expected a list of strings")
-	}
+	mylog.Check(json.Unmarshal(b, &scopes))
 
 	if len(scopes) > 2 {
 		return fmt.Errorf("unexpected number of scopes: %v", scopes)
@@ -327,16 +319,14 @@ func (client *Client) Start(names []string, scope ScopeSelector, users UserSelec
 		return "", ErrNoNames
 	}
 
-	buf, err := json.Marshal(appInstruction{
+	buf := mylog.Check2(json.Marshal(appInstruction{
 		Action:       "start",
 		Names:        names,
 		Scope:        scope,
 		Users:        users,
 		StartOptions: opts,
-	})
-	if err != nil {
-		return "", err
-	}
+	}))
+
 	return client.doAsync("POST", "/v2/apps", nil, nil, bytes.NewReader(buf))
 }
 
@@ -357,16 +347,14 @@ func (client *Client) Stop(names []string, scope ScopeSelector, users UserSelect
 		return "", ErrNoNames
 	}
 
-	buf, err := json.Marshal(appInstruction{
+	buf := mylog.Check2(json.Marshal(appInstruction{
 		Action:      "stop",
 		Names:       names,
 		Scope:       scope,
 		Users:       users,
 		StopOptions: opts,
-	})
-	if err != nil {
-		return "", err
-	}
+	}))
+
 	return client.doAsync("POST", "/v2/apps", nil, nil, bytes.NewReader(buf))
 }
 
@@ -388,15 +376,13 @@ func (client *Client) Restart(names []string, scope ScopeSelector, users UserSel
 		return "", ErrNoNames
 	}
 
-	buf, err := json.Marshal(appInstruction{
+	buf := mylog.Check2(json.Marshal(appInstruction{
 		Action:         "restart",
 		Names:          names,
 		Scope:          scope,
 		Users:          users,
 		RestartOptions: opts,
-	})
-	if err != nil {
-		return "", err
-	}
+	}))
+
 	return client.doAsync("POST", "/v2/apps", nil, nil, bytes.NewReader(buf))
 }

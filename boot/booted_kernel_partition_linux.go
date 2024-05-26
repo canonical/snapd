@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/bootloader/efi"
 )
 
@@ -36,7 +37,7 @@ const (
 // partition that the booted kernel is located on.
 func FindPartitionUUIDForBootedKernelDisk() (string, error) {
 	// try efi variables first
-	partuuid, _, err := efi.ReadVarString(loaderDevicePartUUID)
+	partuuid, _ := mylog.Check3(efi.ReadVarString(loaderDevicePartUUID))
 	if err == nil {
 		// the LoaderDevicePartUUID is in all caps, but lsblk,
 		// etc. use lower case so for consistency just make it

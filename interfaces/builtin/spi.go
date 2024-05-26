@@ -25,6 +25,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/udev"
@@ -59,7 +60,7 @@ var spiDevPattern = regexp.MustCompile(`^/dev/spidev[0-9]+\.[0-9]+$`)
 
 func (iface *spiInterface) path(slotRef *interfaces.SlotRef, attrs interfaces.Attrer) (string, error) {
 	var path string
-	if err := attrs.Attr("path", &path); err != nil || path == "" {
+	if mylog.Check(attrs.Attr("path", &path)); err != nil || path == "" {
 		return "", fmt.Errorf("slot %q must have a path attribute", slotRef)
 	}
 	// XXX: this interface feeds the cleaned path into the regex and is
@@ -74,15 +75,13 @@ func (iface *spiInterface) path(slotRef *interfaces.SlotRef, attrs interfaces.At
 }
 
 func (iface *spiInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
-	_, err := iface.path(&interfaces.SlotRef{Snap: slot.Snap.InstanceName(), Name: slot.Name}, slot)
+	_ := mylog.Check2(iface.path(&interfaces.SlotRef{Snap: slot.Snap.InstanceName(), Name: slot.Name}, slot))
 	return err
 }
 
 func (iface *spiInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	path, err := iface.path(slot.Ref(), slot)
-	if err != nil {
-		return nil
-	}
+	path := mylog.Check2(iface.path(slot.Ref(), slot))
+
 	spec.AddSnippet(fmt.Sprintf("%s rw,", path))
 	// Use parametric snippets to avoid parser slowdown.
 	spec.AddParametricSnippet([]string{
@@ -92,10 +91,8 @@ func (iface *spiInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 }
 
 func (iface *spiInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	path, err := iface.path(slot.Ref(), slot)
-	if err != nil {
-		return nil
-	}
+	path := mylog.Check2(iface.path(slot.Ref(), slot))
+
 	spec.TagDevice(fmt.Sprintf(`KERNEL=="%s"`, strings.TrimPrefix(path, "/dev/")))
 	return nil
 }

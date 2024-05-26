@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/systemd"
@@ -79,20 +80,17 @@ func (iface *pwmInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 
 func (iface *pwmInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	var chipNum int64
-	if err := slot.Attr("chip-number", &chipNum); err != nil {
-		return err
-	}
+	mylog.Check(slot.Attr("chip-number", &chipNum))
 
 	var channel int64
-	if err := slot.Attr("channel", &channel); err != nil {
-		return err
-	}
+	mylog.Check(slot.Attr("channel", &channel))
+
 	path := fmt.Sprintf(pwmSysfsPwmChipBase, chipNum)
 	// Entries in /sys/class/pwm for PWM chips are just symlinks
 	// to their correct device part in the sysfs tree. Given AppArmor
 	// requires symlinks to be dereferenced, evaluate the PWM
 	// path and add the correct absolute path to the AppArmor snippet.
-	dereferencedPath, err := evalSymlinks(path)
+	dereferencedPath := mylog.Check2(evalSymlinks(path))
 	if err != nil && os.IsNotExist(err) {
 		// If the specific pwm is not available there is no point
 		// exporting it, we should also not fail because this
@@ -100,23 +98,17 @@ func (iface *pwmInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 		logger.Noticef("cannot find not existing pwm chipbase %s", path)
 		return nil
 	}
-	if err != nil {
-		return err
-	}
+
 	spec.AddSnippet(fmt.Sprintf("%s/pwm%d/* rwk,", dereferencedPath, channel))
 	return nil
 }
 
 func (iface *pwmInterface) SystemdConnectedSlot(spec *systemd.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	var chipNum int64
-	if err := slot.Attr("chip-number", &chipNum); err != nil {
-		return err
-	}
+	mylog.Check(slot.Attr("chip-number", &chipNum))
 
 	var channel int64
-	if err := slot.Attr("channel", &channel); err != nil {
-		return err
-	}
+	mylog.Check(slot.Attr("channel", &channel))
 
 	serviceSuffix := fmt.Sprintf("pwmchip%d-pwm%d", chipNum, channel)
 	service := &systemd.Service{

@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -302,8 +303,7 @@ func (s *patch62Suite) TestPatch62(c *C) {
 	defer restore1()
 
 	r := bytes.NewReader(statePatch6_2JSON)
-	st, err := state.ReadState(nil, r)
-	c.Assert(err, IsNil)
+	st := mylog.Check2(state.ReadState(nil, r))
 
 	c.Assert(patch.Apply(st), IsNil)
 	st.Lock()
@@ -326,8 +326,8 @@ func (s *patch62Suite) TestPatch62(c *C) {
 	c.Assert(task, NotNil)
 
 	var snapsup snapstate.SnapSetup
-	err = task.Get("snap-setup", &snapsup)
-	c.Assert(err, IsNil)
+	mylog.Check(task.Get("snap-setup", &snapsup))
+
 	c.Check(snapsup.Type, Equals, snap.TypeSnapd)
 
 	// validity check, structures not defined explicitly via patch62* are preserved
@@ -360,8 +360,7 @@ func (s *patch62Suite) TestPatch62StopsAfterFirstSnapd(c *C) {
 		c.Assert(patch.Sublevel, Equals, 2)
 
 		r := bytes.NewReader(sj)
-		st, err := state.ReadState(nil, r)
-		c.Assert(err, IsNil)
+		st := mylog.Check2(state.ReadState(nil, r))
 
 		c.Assert(patch.Apply(st), IsNil)
 		st.Lock()

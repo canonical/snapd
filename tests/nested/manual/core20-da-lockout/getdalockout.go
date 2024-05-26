@@ -8,28 +8,22 @@ import (
 
 	"github.com/canonical/go-tpm2"
 	"github.com/canonical/go-tpm2/linux"
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 func run() error {
-	tcti, err := linux.OpenDevice("/dev/tpm0")
-	if err != nil {
-		return fmt.Errorf("cannot open TPM device: %v", err)
-	}
+	tcti := mylog.Check2(linux.OpenDevice("/dev/tpm0"))
+
 	tpm := tpm2.NewTPMContext(tcti)
 	defer tpm.Close()
 
-	v, err := tpm.GetCapabilityTPMProperty(tpm2.PropertyLockoutCounter)
-	if err != nil {
-		return fmt.Errorf("cannot obtain lockout counter value: %v", err)
-	}
+	v := mylog.Check2(tpm.GetCapabilityTPMProperty(tpm2.PropertyLockoutCounter))
+
 	fmt.Printf("lockout counter value: %v\n", v)
 
 	return nil
 }
 
 func main() {
-	if err := run(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
+	mylog.Check(run())
 }

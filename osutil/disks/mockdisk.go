@@ -22,6 +22,7 @@ package disks
 import (
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -94,18 +95,14 @@ func (d *MockDiskMapping) FindMatchingPartitionWithPartLabel(label string) (Part
 }
 
 func (d *MockDiskMapping) FindMatchingPartitionUUIDWithFsLabel(label string) (string, error) {
-	p, err := d.FindMatchingPartitionWithFsLabel(label)
-	if err != nil {
-		return "", err
-	}
+	p := mylog.Check2(d.FindMatchingPartitionWithFsLabel(label))
+
 	return p.PartitionUUID, nil
 }
 
 func (d *MockDiskMapping) FindMatchingPartitionUUIDWithPartLabel(label string) (string, error) {
-	p, err := d.FindMatchingPartitionWithPartLabel(label)
-	if err != nil {
-		return "", err
-	}
+	p := mylog.Check2(d.FindMatchingPartitionWithPartLabel(label))
+
 	return p.PartitionUUID, nil
 }
 
@@ -126,10 +123,7 @@ func (d *MockDiskMapping) MountPointIsFromDisk(mountpoint string, opts *Options)
 
 	// this is relying on the fact that DiskFromMountPoint should have been
 	// mocked for us to be using this mockDisk method anyways
-	otherDisk, err := DiskFromMountPoint(mountpoint, opts)
-	if err != nil {
-		return false, err
-	}
+	otherDisk := mylog.Check2(DiskFromMountPoint(mountpoint, opts))
 
 	if otherDisk.Dev() == d.Dev() && otherDisk.HasPartitions() == d.HasPartitions() {
 		return true, nil

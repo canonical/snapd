@@ -28,6 +28,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -57,18 +58,16 @@ type snapshotState struct {
 
 func newSnapshotSetID(st *state.State) (uint64, error) {
 	var lastDiskSetID, lastStateSetID uint64
+	mylog.
 
-	// get last set id from state
-	err := st.Get("last-snapshot-set-id", &lastStateSetID)
+		// get last set id from state
+		Check(st.Get("last-snapshot-set-id", &lastStateSetID))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return 0, err
 	}
 
 	// get highest set id from the snapshots/ directory
-	lastDiskSetID, err = backend.LastSnapshotSetID()
-	if err != nil {
-		return 0, fmt.Errorf("cannot determine last snapshot set id: %v", err)
-	}
+	lastDiskSetID = mylog.Check2(backend.LastSnapshotSetID())
 
 	// take the larger of the two numbers and store it back in the state.
 	// the value in state acts as an allocation of IDs for scheduled snapshots,
@@ -85,10 +84,8 @@ func newSnapshotSetID(st *state.State) (uint64, error) {
 }
 
 func allActiveSnapNames(st *state.State) ([]string, error) {
-	all, err := snapstateAll(st)
-	if err != nil {
-		return nil, err
-	}
+	all := mylog.Check2(snapstateAll(st))
+
 	names := make([]string, 0, len(all))
 	for name, snapst := range all {
 		if snapst.Active {
@@ -102,24 +99,14 @@ func allActiveSnapNames(st *state.State) ([]string, error) {
 }
 
 func EstimateSnapshotSize(st *state.State, instanceName string, users []string) (uint64, error) {
-	cur, err := snapstateCurrentInfo(st, instanceName)
-	if err != nil {
-		return 0, err
-	}
-	rawCfg, err := configGetSnapConfig(st, instanceName)
-	if err != nil {
-		return 0, err
-	}
+	cur := mylog.Check2(snapstateCurrentInfo(st, instanceName))
 
-	opts, err := getSnapDirOpts(st, cur.InstanceName())
-	if err != nil {
-		return 0, err
-	}
+	rawCfg := mylog.Check2(configGetSnapConfig(st, instanceName))
 
-	sz, err := backendEstimateSnapshotSize(cur, users, opts)
-	if err != nil {
-		return 0, err
-	}
+	opts := mylog.Check2(getSnapDirOpts(st, cur.InstanceName()))
+
+	sz := mylog.Check2(backendEstimateSnapshotSize(cur, users, opts))
+
 	if rawCfg != nil {
 		sz += uint64(len([]byte(*rawCfg)))
 	}
@@ -129,7 +116,7 @@ func EstimateSnapshotSize(st *state.State, instanceName string, users []string) 
 func AutomaticSnapshotExpiration(st *state.State) (time.Duration, error) {
 	var expirationStr string
 	tr := config.NewTransaction(st)
-	err := tr.Get("core", "snapshots.automatic.retention", &expirationStr)
+	mylog.Check(tr.Get("core", "snapshots.automatic.retention", &expirationStr))
 	if err != nil && !config.IsNoOption(err) {
 		return 0, err
 	}
@@ -137,7 +124,7 @@ func AutomaticSnapshotExpiration(st *state.State) (time.Duration, error) {
 		if expirationStr == "no" {
 			return 0, nil
 		}
-		dur, err := time.ParseDuration(expirationStr)
+		dur := mylog.Check2(time.ParseDuration(expirationStr))
 		if err == nil {
 			return dur, nil
 		}
@@ -155,19 +142,17 @@ func AutomaticSnapshotExpiration(st *state.State) (time.Duration, error) {
 // The state needs to be locked by the caller.
 func saveExpiration(st *state.State, setID uint64, expiryTime time.Time) error {
 	var snapshots map[uint64]*json.RawMessage
-	err := st.Get("snapshots", &snapshots)
+	mylog.Check(st.Get("snapshots", &snapshots))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if snapshots == nil {
 		snapshots = make(map[uint64]*json.RawMessage)
 	}
-	data, err := json.Marshal(&snapshotState{
+	data := mylog.Check2(json.Marshal(&snapshotState{
 		ExpiryTime: expiryTime,
-	})
-	if err != nil {
-		return err
-	}
+	}))
+
 	raw := json.RawMessage(data)
 	snapshots[setID] = &raw
 	st.Set("snapshots", snapshots)
@@ -177,13 +162,7 @@ func saveExpiration(st *state.State, setID uint64, expiryTime time.Time) error {
 // removeSnapshotState removes given set IDs from the state.
 func removeSnapshotState(st *state.State, setIDs ...uint64) error {
 	var snapshots map[uint64]*json.RawMessage
-	err := st.Get("snapshots", &snapshots)
-	if err != nil {
-		if errors.Is(err, state.ErrNoState) {
-			return nil
-		}
-		return err
-	}
+	mylog.Check(st.Get("snapshots", &snapshots))
 
 	for _, setID := range setIDs {
 		delete(snapshots, setID)
@@ -197,13 +176,7 @@ func removeSnapshotState(st *state.State, setIDs ...uint64) error {
 // The state needs to be locked by the caller.
 func expiredSnapshotSets(st *state.State, cutoffTime time.Time) (map[uint64]bool, error) {
 	var snapshots map[uint64]*snapshotState
-	err := st.Get("snapshots", &snapshots)
-	if err != nil {
-		if !errors.Is(err, state.ErrNoState) {
-			return nil, err
-		}
-		return nil, nil
-	}
+	mylog.Check(st.Get("snapshots", &snapshots))
 
 	expired := make(map[uint64]bool)
 	for setID, snapshotSet := range snapshots {
@@ -239,7 +212,7 @@ type snapshotSnapSummary struct {
 func snapSummariesInSnapshotSet(setID uint64, requested []string) (summaries snapshotSnapSummaries, err error) {
 	sort.Strings(requested)
 	found := false
-	err = backendIter(context.TODO(), func(r *backend.Reader) error {
+	mylog.Check(backendIter(context.TODO(), func(r *backend.Reader) error {
 		if r.SetID == setID {
 			found = true
 			if len(requested) == 0 || strutil.SortedListContains(requested, r.Snap) {
@@ -253,10 +226,8 @@ func snapSummariesInSnapshotSet(setID uint64, requested []string) (summaries sna
 		}
 
 		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
+	}))
+
 	if !found {
 		return nil, client.ErrSnapshotSetNotFound
 	}
@@ -295,9 +266,7 @@ func checkSnapshotConflict(st *state.State, setID uint64, conflictingKinds ...st
 		}
 
 		var snapshot snapshotSetup
-		if err := task.Get("snapshot-setup", &snapshot); err != nil {
-			return taskGetErrMsg(task, err, "snapshot")
-		}
+		mylog.Check(task.Get("snapshot-setup", &snapshot))
 
 		if snapshot.SetID == setID {
 			return fmt.Errorf("cannot operate on snapshot set #%d while change %q is in progress", setID, task.Change().ID())
@@ -310,13 +279,10 @@ func checkSnapshotConflict(st *state.State, setID uint64, conflictingKinds ...st
 // List valid snapshots.
 // Note that the state must be locked by the caller.
 func List(ctx context.Context, st *state.State, setID uint64, snapNames []string) ([]client.SnapshotSet, error) {
-	sets, err := backendList(ctx, setID, snapNames)
-	if err != nil {
-		return nil, err
-	}
+	sets := mylog.Check2(backendList(ctx, setID, snapNames))
 
 	var snapshots map[uint64]*snapshotState
-	if err := st.Get("snapshots", &snapshots); err != nil && !errors.Is(err, state.ErrNoState) {
+	if mylog.Check(st.Get("snapshots", &snapshots)); err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 
@@ -338,43 +304,23 @@ func List(ctx context.Context, st *state.State, setID uint64, snapNames []string
 // Import a given snapshot ID from an exported snapshot
 func Import(ctx context.Context, st *state.State, r io.Reader) (setID uint64, snapNames []string, err error) {
 	st.Lock()
-	setID, err = newSnapshotSetID(st)
+	setID = mylog.Check2(newSnapshotSetID(st))
 	// note, this is a new set id which is not exposed yet, no need to mark it
 	// for conflicts via snapshotOp. Also, since we're keeping state lock while
 	// checking conflicts below, there is no need to for setSnapshotOpInProgress.
 	st.Unlock()
-	if err != nil {
-		return 0, nil, err
-	}
 
-	snapNames, err = backendImport(ctx, setID, r, nil)
-	if err != nil {
-		if dupErr, ok := err.(backend.DuplicatedSnapshotImportError); ok {
-			st.Lock()
-			defer st.Unlock()
+	snapNames = mylog.Check2(backendImport(ctx, setID, r, nil))
 
-			if err := checkSnapshotConflict(st, dupErr.SetID, "forget-snapshot"); err != nil {
-				// we found an existing snapshot but it's being forgotten, so
-				// retry the import without checking for existing snapshot.
-				flags := &backend.ImportFlags{NoDuplicatedImportCheck: true}
-				st.Unlock()
-				snapNames, err = backendImport(ctx, setID, r, flags)
-				st.Lock()
-				return setID, snapNames, err
-			}
+	// we found an existing snapshot but it's being forgotten, so
+	// retry the import without checking for existing snapshot.
 
-			// trying to import identical snapshot; instead return set ID of
-			// the existing one and reset its expiry time.
-			// XXX: at the moment expiry-time is the only attribute so we can
-			// just remove the record. If we ever add more attributes this needs
-			// to reset expiry-time only.
-			if err := removeSnapshotState(st, dupErr.SetID); err != nil {
-				return 0, nil, err
-			}
-			return dupErr.SetID, dupErr.SnapNames, nil
-		}
-		return 0, nil, err
-	}
+	// trying to import identical snapshot; instead return set ID of
+	// the existing one and reset its expiry time.
+	// XXX: at the moment expiry-time is the only attribute so we can
+	// just remove the record. If we ever add more attributes this needs
+	// to reset expiry-time only.
+
 	return setID, snapNames, nil
 }
 
@@ -382,15 +328,9 @@ func Import(ctx context.Context, st *state.State, r io.Reader) (setID uint64, sn
 // Note that the state must be locked by the caller.
 func Save(st *state.State, instanceNames []string, users []string, options map[string]*snap.SnapshotOptions) (setID uint64, snapsSaved []string, ts *state.TaskSet, err error) {
 	if len(instanceNames) == 0 {
-		instanceNames, err = allActiveSnapNames(st)
-		if err != nil {
-			return 0, nil, nil, err
-		}
+		instanceNames = mylog.Check2(allActiveSnapNames(st))
 	} else {
-		installedSnaps, err := snapstate.All(st)
-		if err != nil {
-			return 0, nil, nil, err
-		}
+		installedSnaps := mylog.Check2(snapstate.All(st))
 
 		for _, name := range instanceNames {
 			if _, ok := installedSnaps[name]; !ok {
@@ -398,16 +338,12 @@ func Save(st *state.State, instanceNames []string, users []string, options map[s
 			}
 		}
 	}
+	mylog.Check(
 
-	// Make sure we do not snapshot if anything like install/remove/refresh is in progress
-	if err := snapstateCheckChangeConflictMany(st, instanceNames, ""); err != nil {
-		return 0, nil, nil, err
-	}
+		// Make sure we do not snapshot if anything like install/remove/refresh is in progress
+		snapstateCheckChangeConflictMany(st, instanceNames, ""))
 
-	setID, err = newSnapshotSetID(st)
-	if err != nil {
-		return 0, nil, nil, err
-	}
+	setID = mylog.Check2(newSnapshotSetID(st))
 
 	ts = state.NewTaskSet()
 
@@ -441,17 +377,12 @@ func Save(st *state.State, instanceNames []string, users []string, options map[s
 }
 
 func AutomaticSnapshot(st *state.State, snapName string) (ts *state.TaskSet, err error) {
-	expiration, err := AutomaticSnapshotExpiration(st)
-	if err != nil {
-		return nil, err
-	}
+	expiration := mylog.Check2(AutomaticSnapshotExpiration(st))
+
 	if expiration == 0 {
 		return nil, snapstate.ErrNothingToDo
 	}
-	setID, err := newSnapshotSetID(st)
-	if err != nil {
-		return nil, err
-	}
+	setID := mylog.Check2(newSnapshotSetID(st))
 
 	ts = state.NewTaskSet()
 	desc := fmt.Sprintf("Save data of snap %q in automatic snapshot set #%d", snapName, setID)
@@ -470,36 +401,26 @@ func AutomaticSnapshot(st *state.State, snapName string) (ts *state.TaskSet, err
 // Restore creates a taskset for restoring a snapshot's data.
 // Note that the state must be locked by the caller.
 func Restore(st *state.State, setID uint64, snapNames []string, users []string) (snapsFound []string, ts *state.TaskSet, err error) {
-	summaries, err := snapSummariesInSnapshotSet(setID, snapNames)
-	if err != nil {
-		return nil, nil, err
-	}
-	all, err := snapstateAll(st)
-	if err != nil {
-		return nil, nil, err
-	}
+	summaries := mylog.Check2(snapSummariesInSnapshotSet(setID, snapNames))
+
+	all := mylog.Check2(snapstateAll(st))
 
 	snapsFound = summaries.snapNames()
+	mylog.Check(snapstateCheckChangeConflictMany(st, snapsFound, ""))
+	mylog.Check(
 
-	if err := snapstateCheckChangeConflictMany(st, snapsFound, ""); err != nil {
-		return nil, nil, err
-	}
-
-	// restore needs to conflict with forget of itself
-	if err := checkSnapshotConflict(st, setID, "forget-snapshot"); err != nil {
-		return nil, nil, err
-	}
+		// restore needs to conflict with forget of itself
+		checkSnapshotConflict(st, setID, "forget-snapshot"))
 
 	ts = state.NewTaskSet()
 
 	for _, summary := range summaries {
 		var current snap.Revision
 		if snapst, ok := all[summary.snap]; ok {
-			info, err := snapst.CurrentInfo()
-			if err != nil {
-				// how?
-				return nil, nil, fmt.Errorf("unexpected error while reading snap info: %v", err)
-			}
+			info := mylog.Check2(snapst.CurrentInfo())
+
+			// how?
+
 			if !info.Epoch.CanRead(summary.epoch) {
 				const tpl = "cannot restore snapshot for %q: current snap (epoch %s) cannot read snapshot data (epoch %s)"
 				return nil, nil, fmt.Errorf(tpl, summary.snap, &info.Epoch, &summary.epoch)
@@ -541,15 +462,11 @@ func Restore(st *state.State, setID uint64, snapNames []string, users []string) 
 // Check creates a taskset for checking a snapshot's data.
 // Note that the state must be locked by the caller.
 func Check(st *state.State, setID uint64, snapNames []string, users []string) (snapsFound []string, ts *state.TaskSet, err error) {
-	// check needs to conflict with forget of itself
-	if err := checkSnapshotConflict(st, setID, "forget-snapshot"); err != nil {
-		return nil, nil, err
-	}
+	mylog.Check(
+		// check needs to conflict with forget of itself
+		checkSnapshotConflict(st, setID, "forget-snapshot"))
 
-	summaries, err := snapSummariesInSnapshotSet(setID, snapNames)
-	if err != nil {
-		return nil, nil, err
-	}
+	summaries := mylog.Check2(snapSummariesInSnapshotSet(setID, snapNames))
 
 	ts = state.NewTaskSet()
 
@@ -572,16 +489,12 @@ func Check(st *state.State, setID uint64, snapNames []string, users []string) (s
 // Forget creates a taskset for deletinig a snapshot.
 // Note that the state must be locked by the caller.
 func Forget(st *state.State, setID uint64, snapNames []string) (snapsFound []string, ts *state.TaskSet, err error) {
-	// forget needs to conflict with check, restore, import and export.
-	if err := checkSnapshotConflict(st, setID, "export-snapshot",
-		"check-snapshot", "restore-snapshot"); err != nil {
-		return nil, nil, err
-	}
+	mylog.Check(
+		// forget needs to conflict with check, restore, import and export.
+		checkSnapshotConflict(st, setID, "export-snapshot",
+			"check-snapshot", "restore-snapshot"))
 
-	summaries, err := snapSummariesInSnapshotSet(setID, snapNames)
-	if err != nil {
-		return nil, nil, err
-	}
+	summaries := mylog.Check2(snapSummariesInSnapshotSet(setID, snapNames))
 
 	ts = state.NewTaskSet()
 	for _, summary := range summaries {
@@ -631,15 +544,11 @@ func UnsetSnapshotOpInProgress(st *state.State, setID uint64) string {
 // Export exports a given snapshot ID
 // Note that the state must be locked by the caller.
 func Export(ctx context.Context, st *state.State, setID uint64) (se *backend.SnapshotExport, err error) {
-	if err := checkSnapshotConflict(st, setID, "forget-snapshot"); err != nil {
-		return nil, err
-	}
+	mylog.Check(checkSnapshotConflict(st, setID, "forget-snapshot"))
 
 	setSnapshotOpInProgress(st, setID, "export-snapshot")
-	se, err = backendNewSnapshotExport(ctx, setID)
-	if err != nil {
-		UnsetSnapshotOpInProgress(st, setID)
-	}
+	se = mylog.Check2(backendNewSnapshotExport(ctx, setID))
+
 	return se, err
 }
 

@@ -22,6 +22,7 @@ package builtin_test
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -130,15 +131,15 @@ func (s *DockerSupportInterfaceSuite) TestName(c *C) {
 
 func (s *DockerSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	apparmorSpec := apparmor.NewSpecification(appSet)
 	c.Assert(apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), HasLen, 1)
 
 	// connected plugs have a non-nil security snippet for seccomp
-	appSet, err = interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	seccompSpec := seccomp.NewSpecification(appSet)
 	c.Assert(seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(seccompSpec.Snippets(), HasLen, 1)
@@ -153,15 +154,15 @@ func (s *DockerSupportInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *DockerSupportInterfaceSuite) TestSanitizePlugWithPrivilegedTrue(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.privContainersPlug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.privContainersPlug.Snap(), nil))
+
 	apparmorSpec := apparmor.NewSpecification(appSet)
 	c.Assert(apparmorSpec.AddConnectedPlug(s.iface, s.privContainersPlug, s.slot), IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.docker.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.docker.app"), testutil.Contains, `change_profile unsafe /**,`)
 
-	appSet, err = interfaces.NewSnapAppSet(s.privContainersPlug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.privContainersPlug.Snap(), nil))
+
 	seccompSpec := seccomp.NewSpecification(appSet)
 	c.Assert(seccompSpec.AddConnectedPlug(s.iface, s.privContainersPlug, s.slot), IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.docker.app"})
@@ -169,15 +170,15 @@ func (s *DockerSupportInterfaceSuite) TestSanitizePlugWithPrivilegedTrue(c *C) {
 }
 
 func (s *DockerSupportInterfaceSuite) TestSanitizePlugWithPrivilegedFalse(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.noPrivContainersPlug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.noPrivContainersPlug.Snap(), nil))
+
 	apparmorSpec := apparmor.NewSpecification(appSet)
 	c.Assert(apparmorSpec.AddConnectedPlug(s.iface, s.noPrivContainersPlug, s.slot), IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.docker.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.docker.app"), Not(testutil.Contains), `change_profile unsafe /**,`)
 
-	appSet, err = interfaces.NewSnapAppSet(s.noPrivContainersPlug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.noPrivContainersPlug.Snap(), nil))
+
 	seccompSpec := seccomp.NewSpecification(appSet)
 	c.Assert(seccompSpec.AddConnectedPlug(s.iface, s.noPrivContainersPlug, s.slot), IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.docker.app"})
@@ -185,7 +186,7 @@ func (s *DockerSupportInterfaceSuite) TestSanitizePlugWithPrivilegedFalse(c *C) 
 }
 
 func (s *DockerSupportInterfaceSuite) TestSanitizePlugWithPrivilegedBad(c *C) {
-	var mockSnapYaml = `name: docker
+	mockSnapYaml := `name: docker
 version: 1.0
 plugs:
  privileged:
@@ -206,8 +207,8 @@ func (s *DockerSupportInterfaceSuite) TestAppArmorSpec(c *C) {
 	// no features so should not support userns
 	restore := apparmor_sandbox.MockFeatures(nil, nil, nil, nil)
 	defer restore()
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.docker.app"})
@@ -218,20 +219,19 @@ func (s *DockerSupportInterfaceSuite) TestAppArmorSpec(c *C) {
 	// test with apparmor userns support too
 	restore = apparmor_sandbox.MockFeatures(nil, nil, []string{"userns"}, nil)
 	defer restore()
-	appSet, err = interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	spec = apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.docker.app"})
 	c.Check(spec.SnippetForTag("snap.docker.app"), testutil.Contains, "/sys/fs/cgroup/*/docker/   rw,\n")
 	c.Check(spec.UsesPtraceTrace(), Equals, true)
 	c.Check(spec.SnippetForTag("snap.docker.app"), testutil.Contains, "userns,\n")
-
 }
 
 func (s *DockerSupportInterfaceSuite) TestSecCompSpec(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	spec := seccomp.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Check(spec.SnippetForTag("snap.docker.app"), testutil.Contains, "# Calls the Docker daemon itself requires\n")
@@ -249,11 +249,11 @@ func (s *DockerSupportInterfaceSuite) TestPermanentSlotAppArmorSessionNative(c *
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	apparmorSpec := apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
-	c.Assert(err, IsNil)
+	mylog.Check(apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot))
+
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.docker.app"})
 
 	// verify core rule present
@@ -264,11 +264,11 @@ func (s *DockerSupportInterfaceSuite) TestPermanentSlotAppArmorSessionClassic(c 
 	restore := release.MockOnClassic(true)
 	defer restore()
 
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	apparmorSpec := apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
-	c.Assert(err, IsNil)
+	mylog.Check(apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot))
+
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.docker.app"})
 
 	// verify core rule not present
@@ -277,8 +277,8 @@ func (s *DockerSupportInterfaceSuite) TestPermanentSlotAppArmorSessionClassic(c 
 
 func (s *DockerSupportInterfaceSuite) TestUdevTaggingDisablingRemoveLast(c *C) {
 	// make a spec with network-control that has udev tagging
-	appSet, err := interfaces.NewSnapAppSet(s.networkCtrlPlug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.networkCtrlPlug.Snap(), nil))
+
 	spec := udev.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(builtin.MustInterface("network-control"), s.networkCtrlPlug, s.networkCtrlSlot), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 3)
@@ -289,8 +289,8 @@ func (s *DockerSupportInterfaceSuite) TestUdevTaggingDisablingRemoveLast(c *C) {
 }
 
 func (s *DockerSupportInterfaceSuite) TestUdevTaggingDisablingRemoveFirst(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	spec := udev.NewSpecification(appSet)
 	// connect docker-support interface plug which specifies
 	// controls-device-cgroup as true and ensure that the udev spec is now nil
@@ -303,13 +303,13 @@ func (s *DockerSupportInterfaceSuite) TestUdevTaggingDisablingRemoveFirst(c *C) 
 }
 
 func (s *DockerSupportInterfaceSuite) TestServicePermanentPlugSnippets(c *C) {
-	snips, err := interfaces.PermanentPlugServiceSnippets(s.iface, s.plugInfo)
-	c.Assert(err, IsNil)
+	snips := mylog.Check2(interfaces.PermanentPlugServiceSnippets(s.iface, s.plugInfo))
+
 	c.Check(snips, DeepEquals, []string{"Delegate=true"})
 
 	// check that a malformed plug with bad attribute returns non-nil error
 	// from PermanentPlugServiceSnippets, thereby ensuring that function
 	// sanitizes plugs
-	_, err = interfaces.PermanentPlugServiceSnippets(s.iface, s.malformedPlugInfo)
+	_ = mylog.Check2(interfaces.PermanentPlugServiceSnippets(s.iface, s.malformedPlugInfo))
 	c.Assert(err, ErrorMatches, "docker-support plug requires bool with 'privileged-containers'")
 }

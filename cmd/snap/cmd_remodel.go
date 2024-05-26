@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
@@ -80,34 +81,21 @@ func (x *cmdRemodel) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 	newModelFile := x.RemodelOptions.NewModelFile
-	modelData, err := os.ReadFile(string(newModelFile))
-	if err != nil {
-		return err
-	}
+	modelData := mylog.Check2(os.ReadFile(string(newModelFile)))
 
 	var changeID string
 	if len(x.SnapFiles) > 0 || len(x.AssertionFiles) > 0 {
 		// don't log the request's body as it will be large
 		x.client.SetMayLogBody(false)
-		changeID, err = x.client.RemodelWithLocalSnaps(modelData, x.SnapFiles, x.AssertionFiles)
-		if err != nil {
-			return fmt.Errorf("cannot do offline remodel: %v", err)
-		}
-	} else {
-		changeID, err = x.client.Remodel(modelData, client.RemodelOpts{
-			Offline: x.Offline,
-		})
-		if err != nil {
-			return fmt.Errorf("cannot remodel: %v", err)
-		}
-	}
+		changeID = mylog.Check2(x.client.RemodelWithLocalSnaps(modelData, x.SnapFiles, x.AssertionFiles))
 
-	if _, err := x.wait(changeID); err != nil {
-		if err == noWait {
-			return nil
-		}
-		return err
+	} else {
+		changeID = mylog.Check2(x.client.Remodel(modelData, client.RemodelOpts{
+			Offline: x.Offline,
+		}))
 	}
+	mylog.Check2(x.wait(changeID))
+
 	fmt.Fprintf(Stdout, i18n.G("New model %s set\n"), newModelFile)
 	return nil
 }

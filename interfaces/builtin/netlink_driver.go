@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"regexp"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
@@ -98,7 +99,6 @@ func validateFamilyNameAttr(a interfaces.Attrer, side string) error {
 
 	// attribute is good
 	return nil
-
 }
 
 // BeforePreparePlug checks the plug definition is valid
@@ -108,14 +108,10 @@ func (iface *netlinkDriverInterface) BeforePreparePlug(plug *snap.PlugInfo) erro
 
 func (iface *netlinkDriverInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	var familyNum int64
-	if err := slot.Attr("family", &familyNum); err != nil {
-		return err
-	}
+	mylog.Check(slot.Attr("family", &familyNum))
 
 	var familyName string
-	if err := slot.Attr("family-name", &familyName); err != nil {
-		return err
-	}
+	mylog.Check(slot.Attr("family-name", &familyName))
 
 	spec.AddSnippet(fmt.Sprintf(`# Description: Can access the Linux kernel custom netlink protocol
 # for family %s
@@ -129,13 +125,8 @@ func (iface *netlinkDriverInterface) AutoConnect(plug *snap.PlugInfo, slot *snap
 	// on the slot side
 
 	var slotFamily, plugFamily string
-	if err := plug.Attr("family-name", &plugFamily); err != nil {
-		return false
-	}
-
-	if err := slot.Attr("family-name", &slotFamily); err != nil {
-		return false
-	}
+	mylog.Check(plug.Attr("family-name", &plugFamily))
+	mylog.Check(slot.Attr("family-name", &slotFamily))
 
 	return slotFamily == plugFamily
 }

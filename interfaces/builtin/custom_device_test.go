@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
@@ -105,7 +106,7 @@ func (s *CustomDeviceInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *CustomDeviceInterfaceSuite) TestSanitizePlugUnhappy(c *C) {
-	var customDeviceYaml = `name: consumer
+	customDeviceYaml := `name: consumer
 version: 0
 plugs:
  hwdev:
@@ -128,13 +129,13 @@ apps:
 	for _, testData := range data {
 		snapYaml := fmt.Sprintf(customDeviceYaml, testData.plugYaml)
 		_, plug := MockConnectedPlug(c, snapYaml, nil, "hwdev")
-		err := interfaces.BeforePreparePlug(s.iface, plug)
+		mylog.Check(interfaces.BeforePreparePlug(s.iface, plug))
 		c.Check(err, ErrorMatches, testData.expectedError, Commentf("yaml: %s", testData.plugYaml))
 	}
 }
 
 func (s *CustomDeviceInterfaceSuite) TestPlugNameAttribute(c *C) {
-	var plugYamlTemplate = `name: consumer
+	plugYamlTemplate := `name: consumer
 version: 0
 plugs:
  hwdev:
@@ -162,8 +163,8 @@ apps:
 	for _, testData := range data {
 		snapYaml := fmt.Sprintf(plugYamlTemplate, testData.plugYaml)
 		_, plug := MockConnectedPlug(c, snapYaml, nil, "hwdev")
-		err := interfaces.BeforePreparePlug(s.iface, plug)
-		c.Assert(err, IsNil)
+		mylog.Check(interfaces.BeforePreparePlug(s.iface, plug))
+
 		c.Check(plug.Attrs["custom-device"], Equals, testData.expectedName,
 			Commentf(`yaml: %q`, testData.plugYaml))
 	}
@@ -174,7 +175,7 @@ func (s *CustomDeviceInterfaceSuite) TestSanitizeSlot(c *C) {
 }
 
 func (s *CustomDeviceInterfaceSuite) TestSanitizeSlotUnhappy(c *C) {
-	var customDeviceYaml = `name: provider
+	customDeviceYaml := `name: provider
 version: 0
 slots:
  hwdev:
@@ -333,13 +334,13 @@ apps:
 	for _, testData := range data {
 		snapYaml := fmt.Sprintf(customDeviceYaml, testData.slotYaml)
 		_, slot := MockConnectedSlot(c, snapYaml, nil, "hwdev")
-		err := interfaces.BeforePrepareSlot(s.iface, slot)
+		mylog.Check(interfaces.BeforePrepareSlot(s.iface, slot))
 		c.Check(err, ErrorMatches, testData.expectedError, Commentf("yaml: %s", testData.slotYaml))
 	}
 }
 
 func (s *CustomDeviceInterfaceSuite) TestSlotNameAttribute(c *C) {
-	var slotYamlTemplate = `name: provider
+	slotYamlTemplate := `name: provider
 version: 0
 slots:
  hwdev:
@@ -365,8 +366,8 @@ slots:
 	for _, testData := range data {
 		snapYaml := fmt.Sprintf(slotYamlTemplate, testData.slotYaml)
 		_, slot := MockConnectedSlot(c, snapYaml, nil, "hwdev")
-		err := interfaces.BeforePrepareSlot(s.iface, slot)
-		c.Assert(err, IsNil)
+		mylog.Check(interfaces.BeforePrepareSlot(s.iface, slot))
+
 		c.Check(slot.Attrs["custom-device"], Equals, testData.expectedName,
 			Commentf(`yaml: %q`, testData.slotYaml))
 	}
@@ -381,8 +382,8 @@ func (s *CustomDeviceInterfaceSuite) TestStaticInfo(c *C) {
 }
 
 func (s *CustomDeviceInterfaceSuite) TestAppArmorSpec(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	spec := apparmor.NewSpecification(appSet)
 
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
@@ -626,8 +627,8 @@ apps:
 
 	for i, testData := range data {
 		testLabel := Commentf("yaml: %s", testData.slotYaml)
-		appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-		c.Assert(err, IsNil)
+		appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 		spec := udev.NewSpecification(appSet)
 		snapYaml := fmt.Sprintf(slotYamlTemplate, testData.slotYaml)
 		slot, _ := MockConnectedSlot(c, snapYaml, nil, "hwdev")

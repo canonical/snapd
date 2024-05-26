@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/snap/squashfs"
 )
 
@@ -109,7 +110,7 @@ func (s *SquashfsTestSuite) TestStatBadNodes(c *C) {
 	for kind, lines := range badlines {
 		for _, line := range lines {
 			com := Commentf("%q (expected bad %s)", line, kind)
-			st, err := squashfs.FromRaw([]byte(line))
+			st := mylog.Check2(squashfs.FromRaw([]byte(line)))
 			c.Assert(err, NotNil, com)
 			c.Check(st, IsNil, com)
 			c.Check(err, ErrorMatches, fmt.Sprintf("cannot parse %s: .*", kind))
@@ -133,7 +134,7 @@ func (s *SquashfsTestSuite) TestStatUserGroup(c *C) {
 		c.Assert(len(user) <= 32, Equals, true, com)
 		c.Assert(len(group) <= 32, Equals, true, com)
 
-		st, err := squashfs.FromRaw(raw)
+		st := mylog.Check2(squashfs.FromRaw(raw))
 		c.Assert(err, IsNil, com)
 		c.Check(st.Mode(), Equals, os.FileMode(0644), com)
 		c.Check(st.Path(), Equals, "/foo", com)
@@ -155,7 +156,7 @@ func (s *SquashfsTestSuite) TestStatPath(c *C) {
 		raw := []byte(fmt.Sprintf("-rw-r--r-- user/group               20 2017-12-08 11:19 ./%s", path))
 
 		com := Commentf("%q", raw)
-		st, err := squashfs.FromRaw(raw)
+		st := mylog.Check2(squashfs.FromRaw(raw))
 		c.Assert(err, IsNil, com)
 		c.Check(st.Mode(), Equals, os.FileMode(0644), com)
 		c.Check(st.Path(), Equals, fmt.Sprintf("/%s", path), com)
@@ -168,8 +169,8 @@ func (s *SquashfsTestSuite) TestStatPath(c *C) {
 
 func (s *SquashfsTestSuite) TestStatBlock(c *C) {
 	line := "brw-rw---- root/disk             7,  0 2017-12-05 10:29 ./dev/loop0"
-	st, err := squashfs.FromRaw([]byte(line))
-	c.Assert(err, IsNil)
+	st := mylog.Check2(squashfs.FromRaw([]byte(line)))
+
 	c.Check(st.Mode(), Equals, os.FileMode(0660|os.ModeDevice))
 	c.Check(st.Path(), Equals, "/dev/loop0")
 	c.Check(st.User(), Equals, "root")
@@ -181,8 +182,8 @@ func (s *SquashfsTestSuite) TestStatBlock(c *C) {
 
 func (s *SquashfsTestSuite) TestStatCharacter(c *C) {
 	line := "crw-rw---- root/audio           14,  3 2017-12-05 10:29 ./dev/dsp"
-	st, err := squashfs.FromRaw([]byte(line))
-	c.Assert(err, IsNil)
+	st := mylog.Check2(squashfs.FromRaw([]byte(line)))
+
 	c.Check(st.Mode(), Equals, os.FileMode(0660|os.ModeCharDevice))
 	c.Check(st.Path(), Equals, "/dev/dsp")
 	c.Check(st.User(), Equals, "root")
@@ -194,8 +195,8 @@ func (s *SquashfsTestSuite) TestStatCharacter(c *C) {
 
 func (s *SquashfsTestSuite) TestStatSymlink(c *C) {
 	line := "lrwxrwxrwx root/root                 4 2017-12-05 10:29 ./var/run -> /run"
-	st, err := squashfs.FromRaw([]byte(line))
-	c.Assert(err, IsNil)
+	st := mylog.Check2(squashfs.FromRaw([]byte(line)))
+
 	c.Check(st.Mode(), Equals, os.FileMode(0777|os.ModeSymlink))
 	c.Check(st.Path(), Equals, "/var/run")
 	c.Check(st.User(), Equals, "root")
@@ -206,8 +207,8 @@ func (s *SquashfsTestSuite) TestStatSymlink(c *C) {
 
 func (s *SquashfsTestSuite) TestStatNamedPipe(c *C) {
 	line := "prw-rw-r-- john/john                 0 2018-01-09 10:24 ./afifo"
-	st, err := squashfs.FromRaw([]byte(line))
-	c.Assert(err, IsNil)
+	st := mylog.Check2(squashfs.FromRaw([]byte(line)))
+
 	c.Check(st.Mode(), Equals, os.FileMode(0664|os.ModeNamedPipe))
 	c.Check(st.Path(), Equals, "/afifo")
 	c.Check(st.User(), Equals, "john")
@@ -218,8 +219,8 @@ func (s *SquashfsTestSuite) TestStatNamedPipe(c *C) {
 
 func (s *SquashfsTestSuite) TestStatSocket(c *C) {
 	line := "srwxrwxr-x john/john                 0 2018-01-09 10:24 ./asock"
-	st, err := squashfs.FromRaw([]byte(line))
-	c.Assert(err, IsNil)
+	st := mylog.Check2(squashfs.FromRaw([]byte(line)))
+
 	c.Check(st.Mode(), Equals, os.FileMode(0775|os.ModeSocket))
 	c.Check(st.Path(), Equals, "/asock")
 	c.Check(st.User(), Equals, "john")
@@ -239,7 +240,7 @@ func (s *SquashfsTestSuite) TestStatLength(c *C) {
 		raw := []byte(fmt.Sprintf("-rw-r--r-- user/group %16d 2017-12-08 11:19 ./some filename", n))
 
 		com := Commentf("%q", raw)
-		st, err := squashfs.FromRaw(raw)
+		st := mylog.Check2(squashfs.FromRaw(raw))
 		c.Assert(err, IsNil, com)
 		c.Check(st.Mode(), Equals, os.FileMode(0644), com)
 		c.Check(st.Path(), Equals, "/some filename", com)
@@ -255,7 +256,7 @@ func (s *SquashfsTestSuite) TestStatModeBits(c *C) {
 		raw := []byte(fmt.Sprintf("%s user/group            53595 2017-12-08 11:19 ./yadda", i))
 
 		com := Commentf("%q vs %o", raw, i)
-		st, err := squashfs.FromRaw(raw)
+		st := mylog.Check2(squashfs.FromRaw(raw))
 		c.Assert(err, IsNil, com)
 		c.Check(st.Mode(), Equals, i, com)
 		c.Check(st.Path(), Equals, "/yadda", com)
@@ -291,7 +292,7 @@ func (s *SquashfsTestSuite) TestStatModeBits(c *C) {
 				}
 			}
 			com := Commentf("%q vs %o", jRaw, j)
-			st, err := squashfs.FromRaw(jRaw)
+			st := mylog.Check2(squashfs.FromRaw(jRaw))
 			c.Assert(err, IsNil, com)
 			c.Check(st.Mode(), Equals, j, com)
 		}

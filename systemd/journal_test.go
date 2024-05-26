@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	. "github.com/snapcore/snapd/systemd"
 )
 
@@ -37,7 +38,7 @@ func (j *journalTestSuite) TestStreamFileErrorNoPath(c *C) {
 	restore := MockJournalStdoutPath(path.Join(c.MkDir(), "fake-journal"))
 	defer restore()
 
-	jout, err := NewJournalStreamFile("foobar", syslog.LOG_INFO, false)
+	jout := mylog.Check2(NewJournalStreamFile("foobar", syslog.LOG_INFO, false))
 	c.Assert(err, ErrorMatches, ".*no such file or directory")
 	c.Assert(jout, IsNil)
 }
@@ -47,8 +48,8 @@ func (j *journalTestSuite) TestStreamFileHeader(c *C) {
 	restore := MockJournalStdoutPath(fakePath)
 	defer restore()
 
-	listener, err := net.ListenUnix("unix", &net.UnixAddr{Name: fakePath})
-	c.Assert(err, IsNil)
+	listener := mylog.Check2(net.ListenUnix("unix", &net.UnixAddr{Name: fakePath}))
+
 	defer listener.Close()
 
 	doneCh := make(chan struct{}, 1)
@@ -57,32 +58,32 @@ func (j *journalTestSuite) TestStreamFileHeader(c *C) {
 		defer func() { close(doneCh) }()
 
 		// see https://github.com/systemd/systemd/blob/97a33b126c845327a3a19d6e66f05684823868fb/src/journal/journal-send.c#L424
-		conn, err := listener.AcceptUnix()
-		c.Assert(err, IsNil)
+		conn := mylog.Check2(listener.AcceptUnix())
+
 		defer conn.Close()
 
 		expectedHdrLen := len("foobar") + 1 + 1 + 2 + 2 + 2 + 2 + 2
 		hdrBuf := make([]byte, expectedHdrLen)
-		hdrLen, err := conn.Read(hdrBuf)
-		c.Assert(err, IsNil)
+		hdrLen := mylog.Check2(conn.Read(hdrBuf))
+
 		c.Assert(hdrLen, Equals, expectedHdrLen)
 		c.Check(hdrBuf, DeepEquals, []byte("foobar\n\n6\n0\n0\n0\n0\n"))
 
 		data := make([]byte, 4096)
-		sz, err := conn.Read(data)
-		c.Assert(err, IsNil)
+		sz := mylog.Check2(conn.Read(data))
+
 		c.Assert(sz > 0, Equals, true)
 		c.Check(data[0:sz], DeepEquals, []byte("hello from unit tests"))
 
 		doneCh <- struct{}{}
 	}()
 
-	jout, err := NewJournalStreamFile("foobar", syslog.LOG_INFO, false)
-	c.Assert(err, IsNil)
+	jout := mylog.Check2(NewJournalStreamFile("foobar", syslog.LOG_INFO, false))
+
 	c.Assert(jout, NotNil)
 
-	_, err = jout.WriteString("hello from unit tests")
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(jout.WriteString("hello from unit tests"))
+
 	defer jout.Close()
 
 	<-doneCh

@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -65,9 +66,7 @@ func (x *cmdSeeding) Execute(args []string) error {
 
 		SeedError string `json:"seed-error,omitempty"`
 	}
-	if err := x.client.DebugGet("seeding", &resp, nil); err != nil {
-		return err
-	}
+	mylog.Check(x.client.DebugGet("seeding", &resp, nil))
 
 	w := tabWriter()
 
@@ -130,20 +129,12 @@ func (x *cmdSeeding) Execute(args []string) error {
 		// compared with SystemKeysMatch, if we had instead unmarshalled here,
 		// we would have to remarshal the map[string]interface{} we got above
 		// and then pass those bytes back to the interfaces pkg which is awkward
-		seedSk, err := interfaces.UnmarshalJSONSystemKey(bytes.NewReader(*resp.SeedRestartSystemKey))
-		if err != nil {
-			return err
-		}
+		seedSk := mylog.Check2(interfaces.UnmarshalJSONSystemKey(bytes.NewReader(*resp.SeedRestartSystemKey)))
 
-		preseedSk, err := interfaces.UnmarshalJSONSystemKey(bytes.NewReader(*resp.PreseedSystemKey))
-		if err != nil {
-			return err
-		}
+		preseedSk := mylog.Check2(interfaces.UnmarshalJSONSystemKey(bytes.NewReader(*resp.PreseedSystemKey)))
 
-		match, err := interfaces.SystemKeysMatch(preseedSk, seedSk)
-		if err != nil {
-			return err
-		}
+		match := mylog.Check2(interfaces.SystemKeysMatch(preseedSk, seedSk))
+
 		if !match {
 			// mismatch, display the different keys
 			var preseedSkJSON, seedRestartSkJSON bytes.Buffer

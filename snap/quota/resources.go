@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/sandbox/cgroup"
 )
@@ -137,9 +138,7 @@ func (qr *Resources) validateCPUQuota() error {
 	// cant take all circumstances into account, but we can check
 	// against bad input that is obviously not allowed.
 	if qr.CPUSet != nil {
-		if err := cpuFitsIntoCPUSet(qr.CPU.Count, qr.CPU.Percentage, qr.CPUSet.CPUs); err != nil {
-			return err
-		}
+		mylog.Check(cpuFitsIntoCPUSet(qr.CPU.Count, qr.CPU.Percentage, qr.CPUSet.CPUs))
 	}
 	return nil
 }
@@ -223,33 +222,23 @@ func (qr *Resources) Validate() error {
 	}
 
 	if qr.Memory != nil {
-		if err := qr.validateMemoryQuota(); err != nil {
-			return err
-		}
+		mylog.Check(qr.validateMemoryQuota())
 	}
 
 	if qr.CPU != nil {
-		if err := qr.validateCPUQuota(); err != nil {
-			return err
-		}
+		mylog.Check(qr.validateCPUQuota())
 	}
 
 	if qr.CPUSet != nil {
-		if err := qr.validateCPUSetQuota(); err != nil {
-			return err
-		}
+		mylog.Check(qr.validateCPUSetQuota())
 	}
 
 	if qr.Threads != nil {
-		if err := qr.validateThreadQuota(); err != nil {
-			return err
-		}
+		mylog.Check(qr.validateThreadQuota())
 	}
 
 	if qr.Journal != nil {
-		if err := qr.validateJournalQuota(); err != nil {
-			return err
-		}
+		mylog.Check(qr.validateJournalQuota())
 	}
 	return nil
 }
@@ -293,13 +282,9 @@ func (qr *Resources) ValidateChange(newLimits Resources) error {
 		// Check that the CPU percentage still fits into any pre-existing CPU set or
 		// the new one if set.
 		if newLimits.CPUSet != nil {
-			if err := cpuFitsIntoCPUSet(newLimits.CPU.Count, newLimits.CPU.Percentage, newLimits.CPUSet.CPUs); err != nil {
-				return err
-			}
+			mylog.Check(cpuFitsIntoCPUSet(newLimits.CPU.Count, newLimits.CPU.Percentage, newLimits.CPUSet.CPUs))
 		} else if qr.CPUSet != nil {
-			if err := cpuFitsIntoCPUSet(newLimits.CPU.Count, newLimits.CPU.Percentage, qr.CPUSet.CPUs); err != nil {
-				return err
-			}
+			mylog.Check(cpuFitsIntoCPUSet(newLimits.CPU.Count, newLimits.CPU.Percentage, qr.CPUSet.CPUs))
 		}
 	}
 
@@ -313,9 +298,7 @@ func (qr *Resources) ValidateChange(newLimits Resources) error {
 		// if we are applying a new CPU set and not a new CPU quota, we need to make sure
 		// that the existing CPU quota fits with the new set
 		if newLimits.CPU == nil && qr.CPU != nil {
-			if err := cpuFitsIntoCPUSet(qr.CPU.Count, qr.CPU.Percentage, newLimits.CPUSet.CPUs); err != nil {
-				return err
-			}
+			mylog.Check(cpuFitsIntoCPUSet(qr.CPU.Count, qr.CPU.Percentage, newLimits.CPUSet.CPUs))
 		}
 	}
 
@@ -408,19 +391,16 @@ func (qr *Resources) changeInternal(newLimits Resources) {
 // logic exists for this operation compared to when setting initial limits. Some changes
 // of limits are not allowed.
 func (qr *Resources) Change(newLimits Resources) error {
-	if err := qr.ValidateChange(newLimits); err != nil {
-		return err
-	}
+	mylog.Check(qr.ValidateChange(newLimits))
 
 	// perform the changes initially on a dry-run so we can validate
 	// the resulting quotas combined.
 	resultingLimits := qr.clone()
 	resultingLimits.changeInternal(newLimits)
+	mylog.Check(
 
-	// now perform validation on the dry run
-	if err := resultingLimits.Validate(); err != nil {
-		return err
-	}
+		// now perform validation on the dry run
+		resultingLimits.Validate())
 
 	// if we get here, we can perform the actual changes
 	qr.changeInternal(newLimits)

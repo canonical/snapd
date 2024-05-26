@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
@@ -98,8 +99,8 @@ func (s *WaylandInterfaceSuite) TestAppArmorSpec(c *C) {
 	defer restore()
 
 	// connected plug to core slot
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
@@ -107,8 +108,8 @@ func (s *WaylandInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "unix (send, receive) type=stream peer=(label=\"snap.wayland.app1\"),")
 
 	// connected core slot to plug
-	appSet, err = interfaces.NewSnapAppSet(s.coreSlot.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.coreSlot.Snap(), nil))
+
 	spec = apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.wayland.app1"})
@@ -117,8 +118,8 @@ func (s *WaylandInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SnippetForTag("snap.wayland.app1"), testutil.Contains, "unix (send, receive) type=stream peer=(label=\"snap.consumer.app\"),")
 
 	// permanent core slot
-	appSet, err = interfaces.NewSnapAppSet(s.coreSlotInfo.Snap, nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.coreSlotInfo.Snap, nil))
+
 	spec = apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.wayland.app1"})
@@ -131,8 +132,8 @@ func (s *WaylandInterfaceSuite) TestAppArmorSpecOnClassic(c *C) {
 	defer restore()
 
 	// connected plug to classic slot
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.classicSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
@@ -140,15 +141,15 @@ func (s *WaylandInterfaceSuite) TestAppArmorSpecOnClassic(c *C) {
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), Not(testutil.Contains), "unix (send, receive) type=stream")
 
 	// connected classic slot to plug
-	appSet, err = interfaces.NewSnapAppSet(s.classicSlot.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.classicSlot.Snap(), nil))
+
 	spec = apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.classicSlot), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 
 	// permanent classic slot
-	appSet, err = interfaces.NewSnapAppSet(s.classicSlotInfo.Snap, nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.classicSlotInfo.Snap, nil))
+
 	spec = apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddPermanentSlot(s.iface, s.classicSlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
@@ -159,13 +160,13 @@ func (s *WaylandInterfaceSuite) TestSecCompOnClassic(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
 
-	appSet, err := interfaces.NewSnapAppSet(s.classicSlotInfo.Snap, nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.classicSlotInfo.Snap, nil))
+
 	seccompSpec := seccomp.NewSpecification(appSet)
-	err = seccompSpec.AddPermanentSlot(s.iface, s.classicSlotInfo)
-	c.Assert(err, IsNil)
-	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.classicSlot)
-	c.Assert(err, IsNil)
+	mylog.Check(seccompSpec.AddPermanentSlot(s.iface, s.classicSlotInfo))
+
+	mylog.Check(seccompSpec.AddConnectedPlug(s.iface, s.plug, s.classicSlot))
+
 	// No SecComp on Classic
 	c.Assert(seccompSpec.SecurityTags(), IsNil)
 }
@@ -175,20 +176,20 @@ func (s *WaylandInterfaceSuite) TestSecCompOnCore(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	appSet, err := interfaces.NewSnapAppSet(s.coreSlotInfo.Snap, nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.coreSlotInfo.Snap, nil))
+
 	seccompSpec := seccomp.NewSpecification(appSet)
-	err = seccompSpec.AddPermanentSlot(s.iface, s.coreSlotInfo)
-	c.Assert(err, IsNil)
-	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.coreSlot)
-	c.Assert(err, IsNil)
+	mylog.Check(seccompSpec.AddPermanentSlot(s.iface, s.coreSlotInfo))
+
+	mylog.Check(seccompSpec.AddConnectedPlug(s.iface, s.plug, s.coreSlot))
+
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.wayland.app1"})
 	c.Assert(seccompSpec.SnippetForTag("snap.wayland.app1"), testutil.Contains, "listen\n")
 }
 
 func (s *WaylandInterfaceSuite) TestUDev(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.coreSlotInfo.Snap, nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.coreSlotInfo.Snap, nil))
+
 	spec := udev.NewSpecification(appSet)
 	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 6)

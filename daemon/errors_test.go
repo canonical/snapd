@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -198,8 +199,8 @@ func (errorsSuite) TestErrorResponderPrintfsWithArgs(c *C) {
 
 	rec := httptest.NewRecorder()
 	rsp := teapot("system memory below %d%%.", 1)
-	req, err := http.NewRequest("GET", "", nil)
-	c.Assert(err, IsNil)
+	req := mylog.Check2(http.NewRequest("GET", "", nil))
+
 	rsp.ServeHTTP(rec, req)
 
 	var v struct{ Result daemon.ErrorResult }
@@ -213,8 +214,8 @@ func (errorsSuite) TestErrorResponderDoesNotPrintfAlways(c *C) {
 
 	rec := httptest.NewRecorder()
 	rsp := teapot("system memory below 1%.")
-	req, err := http.NewRequest("GET", "", nil)
-	c.Assert(err, IsNil)
+	req := mylog.Check2(http.NewRequest("GET", "", nil))
+
 	rsp.ServeHTTP(rec, req)
 
 	var v struct{ Result daemon.ErrorResult }

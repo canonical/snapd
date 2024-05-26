@@ -22,13 +22,16 @@ import (
 	"os"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
-var standbyWait = 5 * time.Second
-var maxWait = 5 * time.Minute
+var (
+	standbyWait = 5 * time.Second
+	maxWait     = 5 * time.Minute
+)
 
 type Opinionator interface {
 	CanStandby() bool
@@ -77,7 +80,7 @@ func New(st *state.State) *StandbyOpinions {
 	w := standbyWait
 	ovr := os.Getenv("SNAPD_STANDBY_WAIT")
 	if ovr != "" {
-		d, err := time.ParseDuration(ovr)
+		d := mylog.Check2(time.ParseDuration(ovr))
 		if err == nil {
 			w = d
 		}

@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	snap "github.com/snapcore/snapd/cmd/snap"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/release"
@@ -41,8 +42,8 @@ func (s *SnapSuite) TestSnapShowRepair(c *C) {
 	mockSnapRepair := mockSnapRepair(c)
 	defer mockSnapRepair.Restore()
 
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"repair", "canonical-1"})
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"repair", "canonical-1"}))
+
 	c.Check(mockSnapRepair.Calls(), DeepEquals, [][]string{
 		{"snap-repair", "show", "canonical-1"},
 	})
@@ -52,7 +53,7 @@ func (s *SnapSuite) TestSnapShowRepairNoArgs(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"repair"})
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"repair"}))
 	c.Assert(err, ErrorMatches, "no <repair-id> given. Try 'snap repairs' to list all repairs or specify a specific repair id.")
 }
 
@@ -63,8 +64,8 @@ func (s *SnapSuite) TestSnapListRepairs(c *C) {
 	mockSnapRepair := mockSnapRepair(c)
 	defer mockSnapRepair.Restore()
 
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"repairs"})
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"repairs"}))
+
 	c.Check(mockSnapRepair.Calls(), DeepEquals, [][]string{
 		{"snap-repair", "list"},
 	})

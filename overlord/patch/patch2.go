@@ -22,6 +22,7 @@ package patch
 import (
 	"errors"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
@@ -115,15 +116,12 @@ func patch2SnapStateFromPatch1(oldSnapState *patch1SnapState, name string) *patc
 // - migrates SnapSetup.Name to SnapSetup.SideInfo.RealName
 // - backfills SnapState.{Sequence,Candidate}.RealName if its missing
 func patch2(s *state.State) error {
-
 	var oldStateMap map[string]*patch1SnapState
-	err := s.Get("snaps", &oldStateMap)
+	mylog.Check(s.Get("snaps", &oldStateMap))
 	if errors.Is(err, state.ErrNoState) {
 		return nil
 	}
-	if err != nil {
-		return err
-	}
+
 	newStateMap := make(map[string]*patch2SnapState, len(oldStateMap))
 
 	for key, oldSnapState := range oldStateMap {
@@ -136,7 +134,7 @@ func patch2(s *state.State) error {
 	var oldSS patch1SnapSetup
 	for _, t := range s.Tasks() {
 		var newSS patch2SnapSetup
-		err := t.Get("snap-setup", &oldSS)
+		mylog.Check(t.Get("snap-setup", &oldSS))
 		if errors.Is(err, state.ErrNoState) {
 			continue
 		}

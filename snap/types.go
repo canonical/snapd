@@ -22,6 +22,8 @@ package snap
 import (
 	"encoding/json"
 	"fmt"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // Type represents the kind of snap (app, core, gadget, os, kernel, snapd)
@@ -58,9 +60,7 @@ func (m Type) SortsBefore(other Type) bool {
 // UnmarshalJSON sets *m to a copy of data.
 func (m *Type) UnmarshalJSON(data []byte) error {
 	var str string
-	if err := json.Unmarshal(data, &str); err != nil {
-		return err
-	}
+	mylog.Check(json.Unmarshal(data, &str))
 
 	return m.fromString(str)
 }
@@ -68,9 +68,7 @@ func (m *Type) UnmarshalJSON(data []byte) error {
 // UnmarshalYAML so Type implements yaml's Unmarshaler interface
 func (m *Type) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var str string
-	if err := unmarshal(&str); err != nil {
-		return err
-	}
+	mylog.Check(unmarshal(&str))
 
 	return m.fromString(str)
 }
@@ -108,9 +106,7 @@ const (
 // UnmarshalJSON sets *confinementType to a copy of data, assuming validation passes
 func (confinementType *ConfinementType) UnmarshalJSON(data []byte) error {
 	var s string
-	if err := json.Unmarshal(data, &s); err != nil {
-		return err
-	}
+	mylog.Check(json.Unmarshal(data, &s))
 
 	return confinementType.fromString(s)
 }
@@ -118,9 +114,7 @@ func (confinementType *ConfinementType) UnmarshalJSON(data []byte) error {
 // UnmarshalYAML so ConfinementType implements yaml's Unmarshaler interface
 func (confinementType *ConfinementType) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var s string
-	if err := unmarshal(&s); err != nil {
-		return err
-	}
+	mylog.Check(unmarshal(&s))
 
 	return confinementType.fromString(s)
 }
@@ -156,9 +150,7 @@ const (
 // UnmarshalJSON sets *daemonScope to a copy of data, assuming validation passes
 func (daemonScope *DaemonScope) UnmarshalJSON(data []byte) error {
 	var s string
-	if err := json.Unmarshal(data, &s); err != nil {
-		return err
-	}
+	mylog.Check(json.Unmarshal(data, &s))
 
 	return daemonScope.fromString(s)
 }
@@ -166,9 +158,7 @@ func (daemonScope *DaemonScope) UnmarshalJSON(data []byte) error {
 // UnmarshalYAML so DaemonScope implements yaml's Unmarshaler interface
 func (daemonScope *DaemonScope) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var s string
-	if err := unmarshal(&s); err != nil {
-		return err
-	}
+	mylog.Check(unmarshal(&s))
 
 	return daemonScope.fromString(s)
 }
@@ -206,9 +196,7 @@ type Component struct {
 
 func (ct *ComponentType) UnmarshalYAML(unmarshall func(interface{}) error) error {
 	typeStr := ""
-	if err := unmarshall(&typeStr); err != nil {
-		return err
-	}
+	mylog.Check(unmarshall(&typeStr))
 
 	for _, t := range validComponentTypes {
 		if string(t) == typeStr {

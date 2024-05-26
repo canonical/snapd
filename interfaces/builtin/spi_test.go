@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
@@ -196,23 +197,23 @@ func (s *spiInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotGadget1Info), IsNil)
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotGadget2Info), IsNil)
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotGadget3Info), IsNil)
-	err := interfaces.BeforePrepareSlot(s.iface, s.slotGadgetBad1Info)
+	mylog.Check(interfaces.BeforePrepareSlot(s.iface, s.slotGadgetBad1Info))
 	c.Assert(err, ErrorMatches, `"/dev/spev0.0" is not a valid SPI device`)
-	err = interfaces.BeforePrepareSlot(s.iface, s.slotGadgetBad2Info)
+	mylog.Check(interfaces.BeforePrepareSlot(s.iface, s.slotGadgetBad2Info))
 	c.Assert(err, ErrorMatches, `"/dev/sidv0.0" is not a valid SPI device`)
-	err = interfaces.BeforePrepareSlot(s.iface, s.slotGadgetBad3Info)
+	mylog.Check(interfaces.BeforePrepareSlot(s.iface, s.slotGadgetBad3Info))
 	c.Assert(err, ErrorMatches, `"/dev/slpiv0.3" is not a valid SPI device`)
-	err = interfaces.BeforePrepareSlot(s.iface, s.slotGadgetBad4Info)
+	mylog.Check(interfaces.BeforePrepareSlot(s.iface, s.slotGadgetBad4Info))
 	c.Assert(err, ErrorMatches, `"/dev/sdev-00" is not a valid SPI device`)
-	err = interfaces.BeforePrepareSlot(s.iface, s.slotGadgetBad5Info)
+	mylog.Check(interfaces.BeforePrepareSlot(s.iface, s.slotGadgetBad5Info))
 	c.Assert(err, ErrorMatches, `"/dev/spi-foo" is not a valid SPI device`)
-	err = interfaces.BeforePrepareSlot(s.iface, s.slotGadgetBad6Info)
+	mylog.Check(interfaces.BeforePrepareSlot(s.iface, s.slotGadgetBad6Info))
 	c.Assert(err, ErrorMatches, `slot "gadget:bad-spi-6" must have a path attribute`)
 }
 
 func (s *spiInterfaceSuite) TestUDevSpec(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.plug1.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug1.Snap(), nil))
+
 	spec := udev.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug1, s.slotGadget1), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 2)
@@ -222,8 +223,8 @@ KERNEL=="spidev0.0", TAG+="snap_consumer_app"`)
 }
 
 func (s *spiInterfaceSuite) TestAppArmorSpec(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.plug1.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug1.Snap(), nil))
+
 	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug1, s.slotGadget1), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})

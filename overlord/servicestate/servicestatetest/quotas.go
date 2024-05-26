@@ -22,6 +22,7 @@ package servicestatetest
 import (
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord/servicestate/internal"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap/quota"
@@ -34,10 +35,7 @@ func PatchQuotas(st *state.State, grps ...*quota.Group) (map[string]*quota.Group
 }
 
 func MockQuotaInState(st *state.State, quotaName string, parentName string, snaps, services []string, resourceLimits quota.Resources) error {
-	allGrps, err := internal.AllQuotas(st)
-	if err != nil {
-		return nil
-	}
+	allGrps := mylog.Check2(internal.AllQuotas(st))
 
 	var parentGrp *quota.Group
 	if parentName != "" {
@@ -48,6 +46,6 @@ func MockQuotaInState(st *state.State, quotaName string, parentName string, snap
 		}
 	}
 
-	_, _, err = internal.CreateQuotaInState(st, quotaName, parentGrp, snaps, services, resourceLimits, allGrps)
+	_, _ = mylog.Check3(internal.CreateQuotaInState(st, quotaName, parentGrp, snaps, services, resourceLimits, allGrps))
 	return err
 }

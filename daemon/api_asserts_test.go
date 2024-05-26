@@ -30,6 +30,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/daemon"
@@ -56,7 +57,7 @@ func (s *assertsSuite) SetUpTest(c *check.C) {
 }
 
 func (s *assertsSuite) TestGetAsserts(c *check.C) {
-	req, err := http.NewRequest("GET", "/v2/assertions", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/assertions", nil))
 	c.Assert(err, check.IsNil)
 	resp := s.syncReq(c, req, nil)
 	c.Check(resp.Status, check.Equals, 200)
@@ -80,7 +81,7 @@ func (s *assertsSuite) TestAssertOK(c *check.C) {
 	acct := assertstest.NewAccount(s.StoreSigning, "developer1", nil, "")
 	buf := bytes.NewBuffer(asserts.Encode(acct))
 	// Execute
-	req, err := http.NewRequest("POST", "/v2/assertions", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/assertions", buf))
 	c.Assert(err, check.IsNil)
 	rsp := s.syncReq(c, req, nil)
 	// Verify (external)
@@ -88,9 +89,9 @@ func (s *assertsSuite) TestAssertOK(c *check.C) {
 	// Verify (internal)
 	st.Lock()
 	defer st.Unlock()
-	_, err = assertstate.DB(st).Find(asserts.AccountType, map[string]string{
+	_ = mylog.Check2(assertstate.DB(st).Find(asserts.AccountType, map[string]string{
 		"account-id": acct.AccountID(),
-	})
+	}))
 	c.Check(err, check.IsNil)
 }
 
@@ -100,13 +101,13 @@ func (s *assertsSuite) TestAssertStreamOK(c *check.C) {
 	acct := assertstest.NewAccount(s.StoreSigning, "developer1", nil, "")
 	buf := &bytes.Buffer{}
 	enc := asserts.NewEncoder(buf)
-	err := enc.Encode(acct)
+	mylog.Check(enc.Encode(acct))
 	c.Assert(err, check.IsNil)
-	err = enc.Encode(s.StoreSigning.StoreAccountKey(""))
+	mylog.Check(enc.Encode(s.StoreSigning.StoreAccountKey("")))
 	c.Assert(err, check.IsNil)
 
 	// Execute
-	req, err := http.NewRequest("POST", "/v2/assertions", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/assertions", buf))
 	c.Assert(err, check.IsNil)
 	rsp := s.syncReq(c, req, nil)
 	// Verify (external)
@@ -114,16 +115,16 @@ func (s *assertsSuite) TestAssertStreamOK(c *check.C) {
 	// Verify (internal)
 	st.Lock()
 	defer st.Unlock()
-	_, err = assertstate.DB(st).Find(asserts.AccountType, map[string]string{
+	_ = mylog.Check2(assertstate.DB(st).Find(asserts.AccountType, map[string]string{
 		"account-id": acct.AccountID(),
-	})
+	}))
 	c.Check(err, check.IsNil)
 }
 
 func (s *assertsSuite) TestAssertInvalid(c *check.C) {
 	// Setup
 	buf := bytes.NewBufferString("blargh")
-	req, err := http.NewRequest("POST", "/v2/assertions", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/assertions", buf))
 	c.Assert(err, check.IsNil)
 	s.asUserAuth(c, req)
 
@@ -140,7 +141,7 @@ func (s *assertsSuite) TestAssertError(c *check.C) {
 	// Setup
 	acct := assertstest.NewAccount(s.StoreSigning, "developer1", nil, "")
 	buf := bytes.NewBuffer(asserts.Encode(acct))
-	req, err := http.NewRequest("POST", "/v2/assertions", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/assertions", buf))
 	c.Assert(err, check.IsNil)
 	s.asUserAuth(c, req)
 
@@ -236,7 +237,7 @@ func (s *assertsSuite) TestAssertsFindManyNoResults(c *check.C) {
 
 func (s *assertsSuite) TestAssertsInvalidType(c *check.C) {
 	// Execute
-	req, err := http.NewRequest("GET", "/v2/assertions/foo", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/assertions/foo", nil))
 	c.Assert(err, check.IsNil)
 	s.asUserAuth(c, req)
 
@@ -261,7 +262,7 @@ func (s *assertsSuite) testAssertsFindManyJSONFilter(c *check.C, urlPath string)
 	s.addAsserts(acct)
 
 	// Execute
-	req, err := http.NewRequest("GET", urlPath, nil)
+	req := mylog.Check2(http.NewRequest("GET", urlPath, nil))
 	c.Assert(err, check.IsNil)
 	s.asUserAuth(c, req)
 
@@ -272,7 +273,7 @@ func (s *assertsSuite) testAssertsFindManyJSONFilter(c *check.C, urlPath string)
 	c.Check(rec.Header().Get("Content-Type"), check.Equals, "application/json")
 
 	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	mylog.Check(json.Unmarshal(rec.Body.Bytes(), &body))
 	c.Assert(err, check.IsNil)
 	c.Check(body["result"], check.DeepEquals, []interface{}{
 		map[string]interface{}{
@@ -286,7 +287,7 @@ func (s *assertsSuite) TestAssertsFindManyJSONNoResults(c *check.C) {
 	s.addAsserts(acct)
 
 	// Execute
-	req, err := http.NewRequest("GET", "/v2/assertions/account?json=true&username=xyz", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/assertions/account?json=true&username=xyz", nil))
 	c.Assert(err, check.IsNil)
 	s.asUserAuth(c, req)
 
@@ -297,7 +298,7 @@ func (s *assertsSuite) TestAssertsFindManyJSONNoResults(c *check.C) {
 	c.Check(rec.Header().Get("Content-Type"), check.Equals, "application/json")
 
 	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	mylog.Check(json.Unmarshal(rec.Body.Bytes(), &body))
 	c.Assert(err, check.IsNil)
 	c.Check(body["result"], check.DeepEquals, []interface{}{})
 }
@@ -307,7 +308,7 @@ func (s *assertsSuite) TestAssertsFindManyJSONWithBody(c *check.C) {
 	s.addAsserts()
 
 	// Execute
-	req, err := http.NewRequest("GET", "/v2/assertions/account-key?json=true", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/assertions/account-key?json=true", nil))
 	c.Assert(err, check.IsNil)
 	s.asUserAuth(c, req)
 
@@ -319,13 +320,13 @@ func (s *assertsSuite) TestAssertsFindManyJSONWithBody(c *check.C) {
 
 	var got []string
 	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	mylog.Check(json.Unmarshal(rec.Body.Bytes(), &body))
 	c.Assert(err, check.IsNil)
 	for _, a := range body["result"].([]interface{}) {
 		h := a.(map[string]interface{})["headers"].(map[string]interface{})
 		got = append(got, h["account-id"].(string)+"/"+h["name"].(string))
 		// check body
-		l, err := strconv.Atoi(h["body-length"].(string))
+		l := mylog.Check2(strconv.Atoi(h["body-length"].(string)))
 		c.Assert(err, check.IsNil)
 		c.Check(a.(map[string]interface{})["body"], check.HasLen, l)
 	}
@@ -338,7 +339,7 @@ func (s *assertsSuite) TestAssertsFindManyJSONHeadersOnly(c *check.C) {
 	s.addAsserts()
 
 	// Execute
-	req, err := http.NewRequest("GET", "/v2/assertions/account-key?json=headers&account-id=can0nical", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/assertions/account-key?json=headers&account-id=can0nical", nil))
 	c.Assert(err, check.IsNil)
 	s.asUserAuth(c, req)
 
@@ -350,7 +351,7 @@ func (s *assertsSuite) TestAssertsFindManyJSONHeadersOnly(c *check.C) {
 
 	var got []string
 	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	mylog.Check(json.Unmarshal(rec.Body.Bytes(), &body))
 	c.Assert(err, check.IsNil)
 	for _, a := range body["result"].([]interface{}) {
 		h := a.(map[string]interface{})["headers"].(map[string]interface{})
@@ -368,7 +369,7 @@ func (s *assertsSuite) TestAssertsFindManyJSONInvalidParam(c *check.C) {
 	s.addAsserts()
 
 	// Execute
-	req, err := http.NewRequest("GET", "/v2/assertions/account-key?json=header&account-id=can0nical", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/assertions/account-key?json=header&account-id=can0nical", nil))
 	c.Assert(err, check.IsNil)
 	s.asUserAuth(c, req)
 
@@ -413,7 +414,7 @@ func (s *assertsSuite) TestAssertsFindManyJSONNopFilter(c *check.C) {
 
 func (s *assertsSuite) TestAssertsFindManyRemoteInvalidParam(c *check.C) {
 	// Execute
-	req, err := http.NewRequest("GET", "/v2/assertions/account-key?remote=invalid&account-id=can0nical", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/assertions/account-key?remote=invalid&account-id=can0nical", nil))
 	c.Assert(err, check.IsNil)
 	s.asUserAuth(c, req)
 
@@ -448,7 +449,7 @@ func (s *assertsSuite) TestAssertsFindManyRemote(c *check.C) {
 	s.addAsserts(acct)
 
 	// Execute
-	req, err := http.NewRequest("GET", "/v2/assertions/account?remote=true&account-id=can0nical", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/assertions/account?remote=true&account-id=can0nical", nil))
 	c.Assert(err, check.IsNil)
 	s.asUserAuth(c, req)
 
@@ -469,5 +470,4 @@ username: some-developer
 validation: unproven
 .*
 `)
-
 }

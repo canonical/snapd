@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"regexp"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"gopkg.in/yaml.v2"
 )
 
@@ -47,10 +48,7 @@ var ValidAssetName = regexp.MustCompile("^[a-zA-Z0-9][a-zA-Z0-9-]*$")
 // InfoFromKernelYaml reads the provided kernel metadata.
 func InfoFromKernelYaml(kernelYaml []byte) (*Info, error) {
 	var ki Info
-
-	if err := yaml.Unmarshal(kernelYaml, &ki); err != nil {
-		return nil, fmt.Errorf("cannot parse kernel metadata: %v", err)
-	}
+	mylog.Check(yaml.Unmarshal(kernelYaml, &ki))
 
 	for name := range ki.Assets {
 		if !ValidAssetName.MatchString(name) {
@@ -65,14 +63,12 @@ func InfoFromKernelYaml(kernelYaml []byte) (*Info, error) {
 // in the snap root directory if the file exists.
 func ReadInfo(kernelSnapRootDir string) (*Info, error) {
 	p := filepath.Join(kernelSnapRootDir, "meta", "kernel.yaml")
-	content, err := os.ReadFile(p)
+	content := mylog.Check2(os.ReadFile(p))
 	// meta/kernel.yaml is optional so we should not error here if
 	// it is missing
 	if os.IsNotExist(err) {
 		return &Info{}, nil
 	}
-	if err != nil {
-		return nil, fmt.Errorf("cannot read kernel info: %v", err)
-	}
+
 	return InfoFromKernelYaml(content)
 }

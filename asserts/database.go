@@ -26,6 +26,8 @@ import (
 	"fmt"
 	"regexp"
 	"time"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // NotFoundError is returned when an assertion can not be found.
@@ -35,7 +37,7 @@ type NotFoundError struct {
 }
 
 func (e *NotFoundError) Error() string {
-	pk, err := PrimaryKeyFromHeaders(e.Type, e.Headers)
+	pk := mylog.Check2(PrimaryKeyFromHeaders(e.Type, e.Headers))
 	if err != nil || len(e.Headers) != len(pk) {
 		// TODO: worth conveying more information?
 		return fmt.Sprintf("%s assertion not found", e.Type.Name)
@@ -283,17 +285,12 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 		switch accepted := a.(type) {
 		case *AccountKey:
 			accKey := accepted
-			err := trustedBackstore.Put(AccountKeyType, accKey)
-			if err != nil {
-				return nil, fmt.Errorf("cannot predefine trusted account key %q for %q: %v", accKey.PublicKeyID(), accKey.AccountID(), err)
-			}
+			mylog.Check(trustedBackstore.Put(AccountKeyType, accKey))
 
 		case *Account:
 			acct := accepted
-			err := trustedBackstore.Put(AccountType, acct)
-			if err != nil {
-				return nil, fmt.Errorf("cannot predefine trusted account %q: %v", acct.DisplayName(), err)
-			}
+			mylog.Check(trustedBackstore.Put(AccountType, acct))
+
 		default:
 			return nil, fmt.Errorf("cannot predefine trusted assertions that are not account-key or account: %s", a.Type().Name)
 		}
@@ -302,10 +299,7 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 	otherPredefinedBackstore := NewMemoryBackstore()
 
 	for _, a := range cfg.OtherPredefined {
-		err := otherPredefinedBackstore.Put(a.Type(), a)
-		if err != nil {
-			return nil, fmt.Errorf("cannot predefine assertion %v: %v", a.Ref(), err)
-		}
+		mylog.Check(otherPredefinedBackstore.Put(a.Type(), a))
 	}
 
 	checkers := cfg.Checkers
@@ -357,10 +351,8 @@ func (db *Database) ImportKey(privKey PrivateKey) error {
 	return db.keypairMgr.Put(privKey)
 }
 
-var (
-	// for validity checking of base64 hash strings
-	base64HashLike = regexp.MustCompile("^[[:alnum:]_-]*$")
-)
+// for validity checking of base64 hash strings
+var base64HashLike = regexp.MustCompile("^[[:alnum:]_-]*$")
 
 func (db *Database) safeGetPrivateKey(keyID string) (PrivateKey, error) {
 	if keyID == "" {
@@ -374,20 +366,16 @@ func (db *Database) safeGetPrivateKey(keyID string) (PrivateKey, error) {
 
 // PublicKey returns the public key part of the key pair that has the given key id.
 func (db *Database) PublicKey(keyID string) (PublicKey, error) {
-	privKey, err := db.safeGetPrivateKey(keyID)
-	if err != nil {
-		return nil, err
-	}
+	privKey := mylog.Check2(db.safeGetPrivateKey(keyID))
+
 	return privKey.PublicKey(), nil
 }
 
 // Sign assembles an assertion with the provided information and signs it
 // with the private key from `headers["authority-id"]` that has the provided key id.
 func (db *Database) Sign(assertType *AssertionType, headers map[string]interface{}, body []byte, keyID string) (Assertion, error) {
-	privKey, err := db.safeGetPrivateKey(keyID)
-	if err != nil {
-		return nil, err
-	}
+	privKey := mylog.Check2(db.safeGetPrivateKey(keyID))
+
 	return assembleAndSign(assertType, headers, body, privKey)
 }
 
@@ -396,7 +384,7 @@ func (db *Database) findAccountKey(authorityID, keyID string) (*AccountKey, erro
 	key := []string{keyID}
 	// consider trusted account keys then disk stored account keys
 	for _, bs := range db.backstores {
-		a, err := bs.Get(AccountKeyType, key, AccountKeyType.MaxSupportedFormat())
+		a := mylog.Check2(bs.Get(AccountKeyType, key, AccountKeyType.MaxSupportedFormat()))
 		if err == nil {
 			hit := a.(*AccountKey)
 			if hit.AccountID() != authorityID {
@@ -416,7 +404,7 @@ func (db *Database) IsTrustedAccount(accountID string) bool {
 	if accountID == "" {
 		return false
 	}
-	_, err := db.trusted.Get(AccountType, []string{accountID}, AccountType.MaxSupportedFormat())
+	_ := mylog.Check2(db.trusted.Get(AccountType, []string{accountID}, AccountType.MaxSupportedFormat()))
 	return err == nil
 }
 
@@ -446,16 +434,14 @@ func (db *Database) Check(assert Assertion) error {
 	}
 
 	var accKey *AccountKey
-	var err error
+
 	if typ.flags&noAuthority == 0 {
 		// TODO: later may need to consider type of assert to find candidate keys
-		accKey, err = db.findAccountKey(assert.AuthorityID(), assert.SignKeyID())
+		accKey = mylog.Check2(db.findAccountKey(assert.AuthorityID(), assert.SignKeyID()))
 		if errors.Is(err, &NotFoundError{}) {
 			return fmt.Errorf("no matching public key %q for signature by %q", assert.SignKeyID(), assert.AuthorityID())
 		}
-		if err != nil {
-			return fmt.Errorf("error finding matching public key for signature: %v", err)
-		}
+
 	} else {
 		if assert.AuthorityID() != "" {
 			return fmt.Errorf("internal error: %q assertion cannot have authority-id set", typ.Name)
@@ -463,10 +449,7 @@ func (db *Database) Check(assert Assertion) error {
 	}
 
 	for _, checker := range db.checkers {
-		err := checker(assert, accKey, db, earliestTime, latestTime)
-		if err != nil {
-			return err
-		}
+		mylog.Check(checker(assert, accKey, db, earliestTime, latestTime))
 	}
 
 	return nil
@@ -480,18 +463,7 @@ func (db *Database) Add(assert Assertion) error {
 	if len(ref.PrimaryKey) == 0 {
 		return fmt.Errorf("internal error: assertion type %q has no primary key", ref.Type.Name)
 	}
-
-	err := db.Check(assert)
-	if err != nil {
-		if ufe, ok := err.(*UnsupportedFormatError); ok {
-			_, err := ref.Resolve(db.Find)
-			if err != nil && !errors.Is(err, &NotFoundError{}) {
-				return err
-			}
-			return &UnsupportedFormatError{Ref: ufe.Ref, Format: ufe.Format, Update: err == nil}
-		}
-		return err
-	}
+	mylog.Check(db.Check(assert))
 
 	for i, keyVal := range ref.PrimaryKey {
 		if keyVal == "" {
@@ -502,23 +474,21 @@ func (db *Database) Add(assert Assertion) error {
 	// assuming trusted account keys/assertions will be managed
 	// through the os snap this seems the safest policy until we
 	// know more/better
-	_, err = db.trusted.Get(ref.Type, ref.PrimaryKey, ref.Type.MaxSupportedFormat())
+	_ = mylog.Check2(db.trusted.Get(ref.Type, ref.PrimaryKey, ref.Type.MaxSupportedFormat()))
 	if !errors.Is(err, &NotFoundError{}) {
 		return fmt.Errorf("cannot add %q assertion with primary key clashing with a trusted assertion: %v", ref.Type.Name, ref.PrimaryKey)
 	}
 
-	_, err = db.predefined.Get(ref.Type, ref.PrimaryKey, ref.Type.MaxSupportedFormat())
+	_ = mylog.Check2(db.predefined.Get(ref.Type, ref.PrimaryKey, ref.Type.MaxSupportedFormat()))
 	if !errors.Is(err, &NotFoundError{}) {
 		return fmt.Errorf("cannot add %q assertion with primary key clashing with a predefined assertion: %v", ref.Type.Name, ref.PrimaryKey)
 	}
 
 	// this is non empty only in the stacked case
 	if len(db.stackedOn) != 0 {
-		headers, err := HeadersFromPrimaryKey(ref.Type, ref.PrimaryKey)
-		if err != nil {
-			return fmt.Errorf("internal error: HeadersFromPrimaryKey for %q failed on prechecked data: %s", ref.Type.Name, ref.PrimaryKey)
-		}
-		cur, err := find(db.stackedOn, ref.Type, headers, -1)
+		headers := mylog.Check2(HeadersFromPrimaryKey(ref.Type, ref.PrimaryKey))
+
+		cur := mylog.Check2(find(db.stackedOn, ref.Type, headers, -1))
 		if err == nil {
 			curRev := cur.Revision()
 			rev := assert.Revision()
@@ -544,10 +514,8 @@ func searchMatch(assert Assertion, expectedHeaders map[string]string) bool {
 }
 
 func find(backstores []Backstore, assertionType *AssertionType, headers map[string]string, maxFormat int) (Assertion, error) {
-	err := checkAssertType(assertionType)
-	if err != nil {
-		return nil, err
-	}
+	mylog.Check(checkAssertType(assertionType))
+
 	maxSupp := assertionType.MaxSupportedFormat()
 	if maxFormat == -1 {
 		maxFormat = maxSupp
@@ -557,14 +525,11 @@ func find(backstores []Backstore, assertionType *AssertionType, headers map[stri
 		}
 	}
 
-	keyValues, err := PrimaryKeyFromHeaders(assertionType, headers)
-	if err != nil {
-		return nil, err
-	}
+	keyValues := mylog.Check2(PrimaryKeyFromHeaders(assertionType, headers))
 
 	var assert Assertion
 	for _, bs := range backstores {
-		a, err := bs.Get(assertionType, keyValues, maxFormat)
+		a := mylog.Check2(bs.Get(assertionType, keyValues, maxFormat))
 		if err == nil {
 			assert = a
 			break
@@ -617,10 +582,8 @@ func (db *Database) FindTrusted(assertionType *AssertionType, headers map[string
 }
 
 func (db *Database) findMany(backstores []Backstore, assertionType *AssertionType, headers map[string]string) ([]Assertion, error) {
-	err := checkAssertType(assertionType)
-	if err != nil {
-		return nil, err
-	}
+	mylog.Check(checkAssertType(assertionType))
+
 	res := []Assertion{}
 
 	foundCb := func(assert Assertion) {
@@ -630,10 +593,7 @@ func (db *Database) findMany(backstores []Backstore, assertionType *AssertionTyp
 	// TODO: Find variant taking this
 	maxFormat := assertionType.MaxSupportedFormat()
 	for _, bs := range backstores {
-		err = bs.Search(assertionType, headers, foundCb, maxFormat)
-		if err != nil {
-			return nil, err
-		}
+		mylog.Check(bs.Search(assertionType, headers, foundCb, maxFormat))
 	}
 
 	if len(res) == 0 {
@@ -668,10 +628,8 @@ func (db *Database) FindManyPredefined(assertionType *AssertionType, headers map
 // unless maxFormat is -1.
 // It returns a NotFoundError if the assertion cannot be found.
 func (db *Database) FindSequence(assertType *AssertionType, sequenceHeaders map[string]string, after, maxFormat int) (SequenceMember, error) {
-	err := checkAssertType(assertType)
-	if err != nil {
-		return nil, err
-	}
+	mylog.Check(checkAssertType(assertType))
+
 	if !assertType.SequenceForming() {
 		return nil, fmt.Errorf("cannot use FindSequence with non sequence-forming assertion type %q", assertType.Name)
 	}
@@ -686,10 +644,7 @@ func (db *Database) FindSequence(assertType *AssertionType, sequenceHeaders map[
 
 	// form the sequence key using all keys but the last one which
 	// is the sequence number
-	seqKey, err := keysFromHeaders(assertType.PrimaryKey[:len(assertType.PrimaryKey)-1], sequenceHeaders, nil)
-	if err != nil {
-		return nil, err
-	}
+	seqKey := mylog.Check2(keysFromHeaders(assertType.PrimaryKey[:len(assertType.PrimaryKey)-1], sequenceHeaders, nil))
 
 	// find the better result across backstores' results
 	better := func(cur, a SequenceMember) SequenceMember {
@@ -712,7 +667,7 @@ func (db *Database) FindSequence(assertType *AssertionType, sequenceHeaders map[
 
 	var assert SequenceMember
 	for _, bs := range db.backstores {
-		a, err := bs.SequenceMemberAfter(assertType, seqKey, after, maxFormat)
+		a := mylog.Check2(bs.SequenceMemberAfter(assertType, seqKey, after, maxFormat))
 		if err == nil {
 			assert = better(assert, a)
 			continue
@@ -786,14 +741,9 @@ func CheckSignature(assert Assertion, signingKey *AccountKey, roDB RODatabase, c
 		pubKey = custom.signKey()
 	}
 	content, encSig := assert.Signature()
-	signature, err := decodeSignature(encSig)
-	if err != nil {
-		return err
-	}
-	err = pubKey.verify(content, signature)
-	if err != nil {
-		return fmt.Errorf("failed signature verification: %v", err)
-	}
+	signature := mylog.Check2(decodeSignature(encSig))
+	mylog.Check(pubKey.verify(content, signature))
+
 	return nil
 }
 

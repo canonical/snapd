@@ -20,6 +20,7 @@
 package xdgopenproxy
 
 import (
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/godbus/dbus"
 	"golang.org/x/xerrors"
 
@@ -27,8 +28,7 @@ import (
 )
 
 // portalLauncher is a launcher that forwards the requests to xdg-desktop-portal DBus API
-type portalLauncher struct {
-}
+type portalLauncher struct{}
 
 func convertError(err error) error {
 	if err != nil && xerrors.Is(err, &portal.ResponseError{}) {
@@ -38,11 +38,11 @@ func convertError(err error) error {
 }
 
 func (p *portalLauncher) OpenFile(bus *dbus.Conn, filename string) error {
-	err := portal.OpenFile(bus, filename)
+	mylog.Check(portal.OpenFile(bus, filename))
 	return convertError(err)
 }
 
 func (p *portalLauncher) OpenURI(bus *dbus.Conn, uri string) error {
-	err := portal.OpenURI(bus, uri)
+	mylog.Check(portal.OpenURI(bus, uri))
 	return convertError(err)
 }

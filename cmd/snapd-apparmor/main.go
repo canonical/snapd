@@ -41,6 +41,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/release"
@@ -72,11 +73,11 @@ func isContainerWithInternalPolicy() bool {
 		return true
 	}
 
-	var appArmorSecurityFSPath = filepath.Join(dirs.GlobalRootDir, "/sys/kernel/security/apparmor")
-	var nsStackedPath = filepath.Join(appArmorSecurityFSPath, ".ns_stacked")
-	var nsNamePath = filepath.Join(appArmorSecurityFSPath, ".ns_name")
+	appArmorSecurityFSPath := filepath.Join(dirs.GlobalRootDir, "/sys/kernel/security/apparmor")
+	nsStackedPath := filepath.Join(appArmorSecurityFSPath, ".ns_stacked")
+	nsNamePath := filepath.Join(appArmorSecurityFSPath, ".ns_name")
 
-	contents, err := os.ReadFile(nsStackedPath)
+	contents := mylog.Check2(os.ReadFile(nsStackedPath))
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		logger.Noticef("Failed to read %s: %v", nsStackedPath, err)
 		return false
@@ -86,7 +87,7 @@ func isContainerWithInternalPolicy() bool {
 		return false
 	}
 
-	contents, err = os.ReadFile(nsNamePath)
+	contents = mylog.Check2(os.ReadFile(nsNamePath))
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		logger.Noticef("Failed to read %s: %v", nsNamePath, err)
 		return false
@@ -103,10 +104,7 @@ func isContainerWithInternalPolicy() bool {
 }
 
 func loadAppArmorProfiles() error {
-	candidates, err := filepath.Glob(dirs.SnapAppArmorDir + "/*")
-	if err != nil {
-		return fmt.Errorf("Failed to glob profiles from snap apparmor dir %s: %v", dirs.SnapAppArmorDir, err)
-	}
+	candidates := mylog.Check2(filepath.Glob(dirs.SnapAppArmorDir + "/*"))
 
 	profiles := make([]string, 0, len(candidates))
 	for _, profile := range candidates {
@@ -138,24 +136,16 @@ func validateArgs(args []string) error {
 }
 
 func init() {
-	if err := logger.SimpleSetup(nil); err != nil {
-		fmt.Fprintf(os.Stderr, "WARNING: failed to activate logging: %v\n", err)
-	}
+	mylog.Check(logger.SimpleSetup(nil))
 }
 
 func main() {
-	if err := run(); err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(1)
-	}
+	mylog.Check(run())
 }
 
 func run() error {
 	snapdtool.ExecInSnapdOrCoreSnap()
-
-	if err := validateArgs(os.Args[1:]); err != nil {
-		return err
-	}
+	mylog.Check(validateArgs(os.Args[1:]))
 
 	if isContainer() {
 		logger.Debugf("inside container environment")

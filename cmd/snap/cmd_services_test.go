@@ -30,6 +30,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 	snap "github.com/snapcore/snapd/cmd/snap"
 	"github.com/snapcore/snapd/strutil"
@@ -84,7 +85,7 @@ func (s *appOpSuite) args(op string, names, extra []string, noWait bool) []strin
 
 func (s *appOpSuite) testOpNoArgs(c *check.C, op string) {
 	s.RedirectClientToTestServer(nil)
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{op})
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{op}))
 	c.Assert(err, check.ErrorMatches, `.* required argument .* not provided`)
 }
 
@@ -106,7 +107,7 @@ func (s *appOpSuite) testOpErrorResponse(c *check.C, op string, names []string, 
 		n++
 	})
 
-	_, err := snap.Parser(snap.Client()).ParseArgs(s.args(op, names, extra, noWait))
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs(s.args(op, names, extra, noWait)))
 	c.Assert(err, check.ErrorMatches, "error")
 	c.Check(n, check.Equals, 1)
 }
@@ -136,7 +137,7 @@ func (s *appOpSuite) testOp(c *check.C, op, summary string, names, extra []strin
 
 		n++
 	})
-	rest, err := snap.Parser(snap.Client()).ParseArgs(s.args(op, names, extra, noWait))
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs(s.args(op, names, extra, noWait)))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
@@ -202,7 +203,7 @@ func (s *appOpSuite) TestAppOpsScopeSwitches(c *check.C) {
 		body = nil
 		s.stdout.Reset()
 
-		rest, err := snap.Parser(snap.Client()).ParseArgs(s.args(op, names, args, false))
+		rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs(s.args(op, names, args, false)))
 		c.Assert(err, check.IsNil)
 		c.Assert(rest, check.HasLen, 0)
 		c.Check(s.Stderr(), check.Equals, "")
@@ -251,7 +252,7 @@ func (s *appOpSuite) TestAppOpsScopeSwitches(c *check.C) {
 
 func (s *appOpSuite) TestAppOpsScopeInvalid(c *check.C) {
 	checkInvocation := func(op string, names, args []string) error {
-		rest, err := snap.Parser(snap.Client()).ParseArgs(s.args(op, names, args, false))
+		rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs(s.args(op, names, args, false)))
 		c.Assert(rest, check.HasLen, len(names))
 		return err
 	}
@@ -349,7 +350,7 @@ func (s *appOpSuite) TestAppStatus(c *check.C) {
 			}, nil
 		})
 
-		rest, err := snap.Parser(snap.Client()).ParseArgs(t.arguments)
+		rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs(t.arguments))
 		c.Check(err, check.IsNil)
 		c.Check(rest, check.HasLen, 0)
 		c.Check(s.Stderr(), check.Equals, "")
@@ -425,7 +426,7 @@ func (s *appOpSuite) TestAppStatusGlobal(c *check.C) {
 
 		n++
 	})
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"services", "--global"})
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"services", "--global"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
@@ -462,7 +463,7 @@ func (s *appOpSuite) TestServiceCompletion(c *check.C) {
 		n++
 	})
 
-	var comp = func(s string) string {
+	comp := func(s string) string {
 		comps := snap.ServiceName("").Complete(s)
 		as := make([]string, len(comps))
 		for i := range comps {
@@ -489,7 +490,7 @@ func (s *appOpSuite) TestAppStatusUserFailed(c *check.C) {
 		return nil, fmt.Errorf("oh-no")
 	})
 	defer r()
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"services"})
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"services"}))
 	c.Check(err, check.ErrorMatches, `cannot get the current user: oh-no.`)
 }
 
@@ -500,7 +501,7 @@ func (s *appOpSuite) TestAppStatusInvalidUserGlobalSwitches(c *check.C) {
 		}, nil
 	})
 	defer r()
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"services", "--global", "--user"})
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"services", "--global", "--user"}))
 	c.Check(err, check.ErrorMatches, `cannot combine --global and --user switches.`)
 }
 
@@ -526,7 +527,7 @@ func (s *appOpSuite) TestAppStatusNoServices(c *check.C) {
 		}
 		n++
 	})
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"services"})
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"services"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.HasLen, 0)
 	c.Check(s.Stdout(), check.Equals, "")
@@ -548,16 +549,16 @@ func (s *appOpSuite) TestLogsCommand(c *check.C) {
 			c.Check(r.URL.Path, check.Equals, "/v2/logs")
 			c.Check(r.Method, check.Equals, "GET")
 			w.WriteHeader(200)
-			_, err := w.Write([]byte{0x1E})
+			_ := mylog.Check2(w.Write([]byte{0x1E}))
 			c.Assert(err, check.IsNil)
 
 			enc := json.NewEncoder(w)
-			err = enc.Encode(map[string]interface{}{
+			mylog.Check(enc.Encode(map[string]interface{}{
 				"timestamp": timestamp,
 				"message":   message,
 				"sid":       sid,
 				"pid":       pid,
-			})
+			}))
 			c.Assert(err, check.IsNil)
 
 		default:
@@ -566,11 +567,11 @@ func (s *appOpSuite) TestLogsCommand(c *check.C) {
 		n++
 	})
 
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"logs", "snap"})
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"logs", "snap"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.HasLen, 0)
 
-	utcTime, err := time.Parse(time.RFC3339, timestamp)
+	utcTime := mylog.Check2(time.Parse(time.RFC3339, timestamp))
 	c.Assert(err, check.IsNil)
 	localTime := utcTime.In(time.Local).Format(time.RFC3339)
 
@@ -593,16 +594,16 @@ func (s *appOpSuite) TestLogsCommandWithAbsTimeFlag(c *check.C) {
 			c.Check(r.URL.Path, check.Equals, "/v2/logs")
 			c.Check(r.Method, check.Equals, "GET")
 			w.WriteHeader(200)
-			_, err := w.Write([]byte{0x1E})
+			_ := mylog.Check2(w.Write([]byte{0x1E}))
 			c.Assert(err, check.IsNil)
 
 			enc := json.NewEncoder(w)
-			err = enc.Encode(map[string]interface{}{
+			mylog.Check(enc.Encode(map[string]interface{}{
 				"timestamp": timestamp,
 				"message":   message,
 				"sid":       sid,
 				"pid":       pid,
-			})
+			}))
 			c.Assert(err, check.IsNil)
 
 		default:
@@ -611,7 +612,7 @@ func (s *appOpSuite) TestLogsCommandWithAbsTimeFlag(c *check.C) {
 		n++
 	})
 
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"logs", "snap", "--abs-time"})
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"logs", "snap", "--abs-time"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.HasLen, 0)
 

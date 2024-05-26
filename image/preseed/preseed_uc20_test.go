@@ -28,6 +28,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/signtool"
@@ -70,10 +71,8 @@ func (s *toolingStore) Download(ctx context.Context, name, targetFn string, down
 
 func (s *toolingStore) Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error) {
 	ref := &asserts.Ref{Type: assertType, PrimaryKey: primaryKey}
-	as, err := ref.Resolve(s.StoreSigning.Find)
-	if err != nil {
-		return nil, err
-	}
+	as := mylog.Check2(ref.Resolve(s.StoreSigning.Find))
+
 	return as, nil
 }
 
@@ -91,7 +90,6 @@ var sysFsOverlaysGood = []string{"class/backlight", "class/bluetooth", "class/gp
 var sysFsOverlaysBad = []string{"class/backlight-xxx", "class/spi", "devices/pci"}
 
 func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir, sysfsOverlay string) {
-
 	testKey, _ := assertstest.GenerateKey(752)
 
 	ts := &toolingStore{&seedtest.SeedSnaps{}}
@@ -135,19 +133,24 @@ func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir, 
 		return &FakeSeed{
 			AssertsModel: model,
 			UsesSnapd:    true,
-			Essential: []*seed.Snap{{
-				Path: "/some/path/snapd.snap",
-				SideInfo: &snap.SideInfo{
-					RealName: "snapd",
-					SnapID:   "snapdidididididididididididididd",
-					Revision: snap.R("1")}},
+			Essential: []*seed.Snap{
+				{
+					Path: "/some/path/snapd.snap",
+					SideInfo: &snap.SideInfo{
+						RealName: "snapd",
+						SnapID:   "snapdidididididididididididididd",
+						Revision: snap.R("1"),
+					},
+				},
 			},
 			SnapsForMode: map[string][]*seed.Snap{
 				"run": {{
 					Path: "/some/path/foo.snap",
 					SideInfo: &snap.SideInfo{
-						RealName: "foo"},
-				}}},
+						RealName: "foo",
+					},
+				}},
+			},
 			loadAssertions: func(db asserts.RODatabase, commitTo func(*asserts.Batch) error) error {
 				batch := asserts.NewBatch(nil)
 				c.Assert(batch.Add(ts.StoreSigning.StoreAccountKey("")), IsNil)
@@ -309,8 +312,10 @@ func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir, 
 	c.Check(mockMountCmd.Calls(), DeepEquals, expectedMountCalls)
 
 	c.Check(mockTar.Calls(), DeepEquals, [][]string{
-		{"tar", "-czf", filepath.Join(tmpDir, "system-seed/systems/20220203/preseed.tgz"), "-p", "-C",
-			filepath.Join(writableTmpDir, "system-data"), "--exclude", "foo", "etc/bar/a", "etc/bar/b"},
+		{
+			"tar", "-czf", filepath.Join(tmpDir, "system-seed/systems/20220203/preseed.tgz"), "-p", "-C",
+			filepath.Join(writableTmpDir, "system-data"), "--exclude", "foo", "etc/bar/a", "etc/bar/b",
+		},
 	})
 
 	c.Check(mockUmountCmd.Calls(), DeepEquals, expectedUmountCalls)
@@ -320,7 +325,7 @@ func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir, 
 
 	preseedAssertionPath := filepath.Join(tmpDir, "system-seed/systems/20220203/preseed")
 	r, err := os.Open(preseedAssertionPath)
-	c.Assert(err, IsNil)
+
 	defer r.Close()
 
 	// check directory targetSnapdRoot was deleted
@@ -335,7 +340,7 @@ func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir, 
 		if err == io.EOF {
 			break
 		}
-		c.Assert(err, IsNil)
+
 
 		tpe := as.Type().Name
 
@@ -408,13 +413,13 @@ func (s *preseedSuite) TestRunPreseedUC20HappySysfsOverlay(c *C) {
 
 	tmpdir := c.MkDir()
 	for _, dir := range sysFsOverlaysGood {
-		err := os.MkdirAll(filepath.Join(tmpdir, "sys", dir), os.ModePerm)
-		c.Assert(err, IsNil)
+		mylog.Check(os.MkdirAll(filepath.Join(tmpdir, "sys", dir), os.ModePerm))
+
 	}
 
 	for _, dir := range sysFsOverlaysBad {
-		err := os.MkdirAll(filepath.Join(tmpdir, "sys", dir), os.ModePerm)
-		c.Assert(err, IsNil)
+		mylog.Check(os.MkdirAll(filepath.Join(tmpdir, "sys", dir), os.ModePerm))
+
 	}
 
 	s.testRunPreseedUC20Happy(c, "", tmpdir)
@@ -430,7 +435,7 @@ func (s *preseedSuite) TestRunPreseedUC20ExecFormatError(c *C) {
 	// not the image target architecture.
 	mockChrootCmd := testutil.MockCommand(c, "chroot", "")
 	defer mockChrootCmd.Restore()
-	err := os.WriteFile(mockChrootCmd.Exe(), []byte("invalid-exe"), 0755)
+	mylog.Check(os.WriteFile(mockChrootCmd.Exe(), []byte("invalid-exe"), 0755))
 	c.Check(err, IsNil)
 
 	popts := &preseed.PreseedCoreOptions{
@@ -439,7 +444,6 @@ func (s *preseedSuite) TestRunPreseedUC20ExecFormatError(c *C) {
 		},
 		PreseedChrootDir: tmpdir,
 	}
-
-	err = preseed.RunUC20PreseedMode(popts)
+	mylog.Check(preseed.RunUC20PreseedMode(popts))
 	c.Check(err, ErrorMatches, `error running snapd, please try installing the "qemu-user-static" package: fork/exec .* exec format error`)
 }

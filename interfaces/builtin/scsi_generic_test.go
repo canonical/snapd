@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
@@ -47,7 +48,7 @@ var _ = Suite(&ScsiGenericInterfaceSuite{
 })
 
 func (s *ScsiGenericInterfaceSuite) SetUpTest(c *C) {
-	var mockPlugSnapInfoYaml = `name: other
+	mockPlugSnapInfoYaml := `name: other
 version: 1.0
 apps:
  app:
@@ -79,18 +80,18 @@ func (s *ScsiGenericInterfaceSuite) TestSanitizePlug(c *C) {
 
 func (s *ScsiGenericInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	apparmorSpec := apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
-	c.Assert(err, IsNil)
+	mylog.Check(apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot))
+
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "/dev/sg[0-9]* rw")
 }
 
 func (s *ScsiGenericInterfaceSuite) TestUDevSpec(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	udevSpec := udev.NewSpecification(appSet)
 	c.Assert(udevSpec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(udevSpec.Snippets(), HasLen, 2)

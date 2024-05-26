@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"sync/atomic"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/kernel/fde"
@@ -35,10 +36,8 @@ import (
 )
 
 func NewCoreBootParticipant(s snap.PlaceInfo, t snap.Type, dev snap.Device) *coreBootParticipant {
-	bs, err := bootStateFor(t, dev)
-	if err != nil {
-		panic(err)
-	}
+	bs := mylog.Check2(bootStateFor(t, dev))
+
 	return &coreBootParticipant{s: s, bs: bs}
 }
 
@@ -76,9 +75,11 @@ var (
 	WriteModelToUbuntuBoot = writeModelToUbuntuBoot
 )
 
-type BootAssetsMap = bootAssetsMap
-type BootCommandLines = bootCommandLines
-type TrackedAsset = trackedAsset
+type (
+	BootAssetsMap    = bootAssetsMap
+	BootCommandLines = bootCommandLines
+	TrackedAsset     = trackedAsset
+)
 
 func (t *TrackedAsset) Equals(blName, name, hash string) error {
 	equal := t.hash == hash &&
@@ -165,9 +166,11 @@ func (o *TrustedAssetsUpdateObserver) InjectChangedAsset(blName, assetName, hash
 	}
 }
 
-type BootAsset = bootAsset
-type BootChain = bootChain
-type PredictableBootChains = predictableBootChains
+type (
+	BootAsset             = bootAsset
+	BootChain             = bootChain
+	PredictableBootChains = predictableBootChains
+)
 
 const (
 	BootChainEquivalent   = bootChainEquivalent
@@ -194,20 +197,14 @@ var (
 
 func SetBootFlagsInBootloader(flags []string, rootDir string) error {
 	blVars := make(map[string]string, 1)
-
-	if err := setImageBootFlags(flags, blVars); err != nil {
-		return err
-	}
+	mylog.Check(setImageBootFlags(flags, blVars))
 
 	// now find the recovery bootloader in the system dir and set the value on
 	// it
 	opts := &bootloader.Options{
 		Role: bootloader.RoleRecovery,
 	}
-	bl, err := bootloader.Find(rootDir, opts)
-	if err != nil {
-		return err
-	}
+	bl := mylog.Check2(bootloader.Find(rootDir, opts))
 
 	return bl.SetBootVars(blVars)
 }

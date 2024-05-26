@@ -26,6 +26,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -36,7 +37,7 @@ import (
 // treat missing or unparsable values; default is to treat them as false.
 func GetenvBool(key string, dflt ...bool) bool {
 	if val := strings.TrimSpace(os.Getenv(key)); val != "" {
-		if b, err := strconv.ParseBool(val); err == nil {
+		if b := mylog.Check2(strconv.ParseBool(val)); err == nil {
 			return b
 		}
 	}
@@ -56,7 +57,7 @@ func GetenvBool(key string, dflt ...bool) bool {
 // treat missing or unparsable values; default is to treat them as 0.
 func GetenvInt64(key string, dflt ...int64) int64 {
 	if val := strings.TrimSpace(os.Getenv(key)); val != "" {
-		if b, err := strconv.ParseInt(val, 0, 64); err == nil {
+		if b := mylog.Check2(strconv.ParseInt(val, 0, 64)); err == nil {
 			return b
 		}
 	}
@@ -95,10 +96,8 @@ func parseEnvEntry(entry string) (string, string, error) {
 func parseRawEnvironment(raw []string) (Environment, error) {
 	env := make(Environment, len(raw))
 	for _, entry := range raw {
-		key, value, err := parseEnvEntry(entry)
-		if err != nil {
-			return nil, err
-		}
+		key, value := mylog.Check3(parseEnvEntry(entry))
+
 		if _, ok := env[key]; ok {
 			return nil, fmt.Errorf("cannot overwrite earlier value of %q", key)
 		}
@@ -117,10 +116,7 @@ func OSEnvironment() (Environment, error) {
 // Use-case/assumption is that ForExecEscapeUnsafe was used previously
 // along the exec chain.
 func OSEnvironmentUnescapeUnsafe(unsafeEscapePrefix string) (Environment, error) {
-	env, err := parseRawEnvironment(os.Environ())
-	if err != nil {
-		return nil, err
-	}
+	env := mylog.Check2(parseRawEnvironment(os.Environ()))
 
 	for key, value := range env {
 		if newKey := strings.TrimPrefix(key, unsafeEscapePrefix); key != newKey {

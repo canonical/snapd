@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/seed/internal"
 )
 
@@ -49,11 +50,11 @@ snaps:
 
 func (s *seedYamlTestSuite) TestSimple(c *C) {
 	fn := filepath.Join(c.MkDir(), "seed.yaml")
-	err := os.WriteFile(fn, mockSeedYaml, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(fn, mockSeedYaml, 0644))
 
-	seedYaml, err := internal.ReadSeedYaml(fn)
-	c.Assert(err, IsNil)
+
+	seedYaml := mylog.Check2(internal.ReadSeedYaml(fn))
+
 	c.Assert(seedYaml.Snaps, HasLen, 2)
 	c.Assert(seedYaml.Snaps[0], DeepEquals, &internal.Snap16{
 		File:   "foo_1.0_all.snap",
@@ -78,16 +79,16 @@ snaps:
 
 func (s *seedYamlTestSuite) TestNoPathAllowed(c *C) {
 	fn := filepath.Join(c.MkDir(), "seed.yaml")
-	err := os.WriteFile(fn, badMockSeedYaml, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(fn, badMockSeedYaml, 0644))
 
-	_, err = internal.ReadSeedYaml(fn)
+
+	_ = mylog.Check2(internal.ReadSeedYaml(fn))
 	c.Assert(err, ErrorMatches, `cannot read seed yaml: "foo/bar.snap" must be a filename, not a path`)
 }
 
 func (s *seedYamlTestSuite) TestDuplicatedSnapName(c *C) {
 	fn := filepath.Join(c.MkDir(), "seed.yaml")
-	err := os.WriteFile(fn, []byte(`
+	mylog.Check(os.WriteFile(fn, []byte(`
 snaps:
  - name: foo
    channel: stable
@@ -95,72 +96,72 @@ snaps:
  - name: foo
    channel: edge
    file: bar_1.0_all.snap
-`), 0644)
-	c.Assert(err, IsNil)
+`), 0644))
 
-	_, err = internal.ReadSeedYaml(fn)
+
+	_ = mylog.Check2(internal.ReadSeedYaml(fn))
 	c.Assert(err, ErrorMatches, `cannot read seed yaml: snap name "foo" must be unique`)
 }
 
 func (s *seedYamlTestSuite) TestValidateChannelUnhappy(c *C) {
 	fn := filepath.Join(c.MkDir(), "seed.yaml")
-	err := os.WriteFile(fn, []byte(`
+	mylog.Check(os.WriteFile(fn, []byte(`
 snaps:
  - name: foo
    channel: invalid/channel/
-`), 0644)
-	c.Assert(err, IsNil)
+`), 0644))
 
-	_, err = internal.ReadSeedYaml(fn)
+
+	_ = mylog.Check2(internal.ReadSeedYaml(fn))
 	c.Assert(err, ErrorMatches, `cannot read seed yaml: invalid risk in channel name: invalid/channel/`)
 }
 
 func (s *seedYamlTestSuite) TestValidateNameUnhappy(c *C) {
 	fn := filepath.Join(c.MkDir(), "seed.yaml")
-	err := os.WriteFile(fn, []byte(`
+	mylog.Check(os.WriteFile(fn, []byte(`
 snaps:
  - name: invalid--name
    file: ./foo.snap
-`), 0644)
-	c.Assert(err, IsNil)
+`), 0644))
 
-	_, err = internal.ReadSeedYaml(fn)
+
+	_ = mylog.Check2(internal.ReadSeedYaml(fn))
 	c.Assert(err, ErrorMatches, `cannot read seed yaml: invalid snap name: "invalid--name"`)
 }
 
 func (s *seedYamlTestSuite) TestValidateNameInstanceUnsupported(c *C) {
 	fn := filepath.Join(c.MkDir(), "seed.yaml")
-	err := os.WriteFile(fn, []byte(`
+	mylog.Check(os.WriteFile(fn, []byte(`
 snaps:
  - name: foo_1
    file: ./foo.snap
-`), 0644)
-	c.Assert(err, IsNil)
+`), 0644))
 
-	_, err = internal.ReadSeedYaml(fn)
+
+	_ = mylog.Check2(internal.ReadSeedYaml(fn))
 	c.Assert(err, ErrorMatches, `cannot read seed yaml: invalid snap name: "foo_1"`)
 }
 
 func (s *seedYamlTestSuite) TestValidateNameMissing(c *C) {
 	fn := filepath.Join(c.MkDir(), "seed.yaml")
-	err := os.WriteFile(fn, []byte(`
+	mylog.Check(os.WriteFile(fn, []byte(`
 snaps:
  - file: ./foo.snap
-`), 0644)
-	c.Assert(err, IsNil)
+`), 0644))
 
-	_, err = internal.ReadSeedYaml(fn)
+
+	_ = mylog.Check2(internal.ReadSeedYaml(fn))
 	c.Assert(err, ErrorMatches, `cannot read seed yaml: invalid snap name: ""`)
 }
 
 func (s *seedYamlTestSuite) TestValidateFileMissing(c *C) {
 	fn := filepath.Join(c.MkDir(), "seed.yaml")
-	err := os.WriteFile(fn, []byte(`
+	mylog.Check(os.WriteFile(fn, []byte(`
 snaps:
  - name: foo
-`), 0644)
-	c.Assert(err, IsNil)
+`), 0644))
 
-	_, err = internal.ReadSeedYaml(fn)
+
+	_ = mylog.Check2(internal.ReadSeedYaml(fn))
 	c.Assert(err, ErrorMatches, `cannot read seed yaml: "file" attribute for "foo" cannot be empty`)
 }

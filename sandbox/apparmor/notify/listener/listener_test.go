@@ -34,6 +34,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil/epoll"
@@ -70,7 +71,7 @@ func (*listenerSuite) TestBadReply(c *C) {
 	rc := make(chan interface{}, 1)
 	req := listener.FakeRequestWithClassAndReplyChan(notify.AA_CLASS_FILE, rc)
 	reply := 1
-	err := req.Reply(reply)
+	mylog.Check(req.Reply(reply))
 	c.Assert(err, ErrorMatches, "invalid reply: response must be of type bool")
 }
 
@@ -78,13 +79,13 @@ func (*listenerSuite) TestReplyTwice(c *C) {
 	rc := make(chan interface{}, 1)
 	req := listener.FakeRequestWithClassAndReplyChan(notify.AA_CLASS_FILE, rc)
 	reply := false
-	err := req.Reply(reply)
-	c.Assert(err, IsNil)
+	mylog.Check(req.Reply(reply))
+
 	resp := <-rc
 	c.Assert(resp, Equals, reply)
 
 	reply = true
-	err = req.Reply(reply)
+	mylog.Check(req.Reply(reply))
 	c.Assert(err, Equals, listener.ErrAlreadyReplied)
 }
 
@@ -94,8 +95,8 @@ func (*listenerSuite) TestRegisterClose(c *C) {
 
 	restoreIoctl := listener.MockNotifyIoctl(func(fd uintptr, req notify.IoctlRequest, buf notify.IoctlRequestBuffer) ([]byte, error) {
 		expected := notify.MsgNotificationFilter{ModeSet: notify.APPARMOR_MODESET_USER}
-		expectedBytes, err := expected.MarshalBinary()
-		c.Assert(err, IsNil)
+		expectedBytes := mylog.Check2(expected.MarshalBinary())
+
 		expectedBuf := notify.IoctlRequestBuffer(expectedBytes)
 		c.Assert(req, Equals, notify.APPARMOR_NOTIF_SET_FILTER)
 		c.Assert(buf, DeepEquals, expectedBuf)
@@ -103,11 +104,11 @@ func (*listenerSuite) TestRegisterClose(c *C) {
 	})
 	defer restoreIoctl()
 
-	l, err := listener.Register()
-	c.Assert(err, IsNil)
+	l := mylog.Check2(listener.Register())
+
 	defer func() {
-		err = l.Close()
-		c.Assert(err, IsNil)
+		mylog.Check(l.Close())
+
 	}()
 }
 
@@ -115,8 +116,8 @@ func (*listenerSuite) TestRegisterOverridePath(c *C) {
 	var outputOverridePath string
 	restoreOpen := listener.MockOsOpen(func(name string) (*os.File, error) {
 		outputOverridePath = name
-		placeholderSocket, err := unix.Socket(unix.AF_UNIX, unix.SOCK_STREAM, 0)
-		c.Assert(err, IsNil)
+		placeholderSocket := mylog.Check2(unix.Socket(unix.AF_UNIX, unix.SOCK_STREAM, 0))
+
 		placeholderFile := os.NewFile(uintptr(placeholderSocket), name)
 		return placeholderFile, nil
 	})
@@ -128,29 +129,27 @@ func (*listenerSuite) TestRegisterOverridePath(c *C) {
 	})
 	defer restoreIoctl()
 
-	l, err := listener.Register()
-	c.Assert(err, IsNil)
+	l := mylog.Check2(listener.Register())
+
 
 	c.Assert(outputOverridePath, Equals, notify.SysPath)
+	mylog.Check(l.Close())
 
-	err = l.Close()
-	c.Assert(err, IsNil)
 
 	fakePath := "/a/new/path"
-	err = os.Setenv("PROMPT_NOTIFY_PATH", fakePath)
-	c.Assert(err, IsNil)
+	mylog.Check(os.Setenv("PROMPT_NOTIFY_PATH", fakePath))
+
 	defer func() {
-		err := os.Unsetenv("PROMPT_NOTIFY_PATH")
-		c.Assert(err, IsNil)
+		mylog.Check(os.Unsetenv("PROMPT_NOTIFY_PATH"))
+
 	}()
 
-	l, err = listener.Register()
-	c.Assert(err, IsNil)
+	l = mylog.Check2(listener.Register())
+
 
 	c.Assert(outputOverridePath, Equals, fakePath)
+	mylog.Check(l.Close())
 
-	err = l.Close()
-	c.Assert(err, IsNil)
 }
 
 func (*listenerSuite) TestRegisterErrors(c *C) {
@@ -159,7 +158,7 @@ func (*listenerSuite) TestRegisterErrors(c *C) {
 	})
 	defer restoreOpen()
 
-	l, err := listener.Register()
+	l := mylog.Check2(listener.Register())
 	c.Assert(l, IsNil)
 	c.Assert(err, Equals, listener.ErrNotSupported)
 
@@ -170,13 +169,13 @@ func (*listenerSuite) TestRegisterErrors(c *C) {
 	})
 	defer restoreOpen()
 
-	l, err = listener.Register()
+	l = mylog.Check2(listener.Register())
 	c.Assert(l, IsNil)
 	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot open %q: %v", notify.SysPath, customError))
 
 	restoreOpen = listener.MockOsOpen(func(name string) (*os.File, error) {
-		placeholderSocket, err := unix.Socket(unix.AF_UNIX, unix.SOCK_STREAM, 0)
-		c.Assert(err, IsNil)
+		placeholderSocket := mylog.Check2(unix.Socket(unix.AF_UNIX, unix.SOCK_STREAM, 0))
+
 		placeholderFile := os.NewFile(uintptr(placeholderSocket), name)
 		return placeholderFile, nil
 	})
@@ -188,7 +187,7 @@ func (*listenerSuite) TestRegisterErrors(c *C) {
 	})
 	defer restoreIoctl()
 
-	l, err = listener.Register()
+	l = mylog.Check2(listener.Register())
 	c.Assert(l, IsNil)
 	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot notify ioctl to modeset user on %q: %v", notify.SysPath, customError))
 
@@ -205,7 +204,7 @@ func (*listenerSuite) TestRegisterErrors(c *C) {
 	})
 	defer restoreIoctl()
 
-	l, err = listener.Register()
+	l = mylog.Check2(listener.Register())
 	c.Assert(l, IsNil)
 	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot register epoll on %q: bad file descriptor", notify.SysPath))
 }
@@ -250,8 +249,8 @@ func (*listenerSuite) TestRunSimple(c *C) {
 	defer restoreEpollIoctl()
 
 	var t tomb.Tomb
-	l, err := listener.Register()
-	c.Assert(err, IsNil)
+	l := mylog.Check2(listener.Register())
+
 	defer func() {
 		c.Check(l.Close(), IsNil)
 		c.Check(t.Wait(), Equals, listener.ErrClosed)
@@ -269,8 +268,8 @@ func (*listenerSuite) TestRunSimple(c *C) {
 
 	for _, id := range ids {
 		msg := newMsgNotificationFile(id, label, path, aBits, dBits)
-		buf, err := msg.MarshalBinary()
-		c.Assert(err, IsNil)
+		buf := mylog.Check2(msg.MarshalBinary())
+
 		recvChan <- buf
 
 		select {
@@ -292,17 +291,17 @@ func (*listenerSuite) TestRunSimple(c *C) {
 	for i, id := range ids {
 		switch i % 2 {
 		case 0:
-			err = requests[i].Reply(false)
+			mylog.Check(requests[i].Reply(false))
 		case 1:
-			err = requests[i].Reply(true)
+			mylog.Check(requests[i].Reply(true))
 		}
-		c.Assert(err, IsNil)
+
 
 		allow := aBits | (dBits * uint32(i))
 		deny := dBits * uint32(1-i)
 		resp := newMsgNotificationResponse(id, allow, deny)
-		desiredBuf, err := resp.MarshalBinary()
-		c.Assert(err, IsNil)
+		desiredBuf := mylog.Check2(resp.MarshalBinary())
+
 
 		received := <-sendChan
 		c.Assert(received, DeepEquals, desiredBuf)
@@ -319,8 +318,8 @@ func (*listenerSuite) TestRegisterWriteRun(c *C) {
 	defer restoreEpollIoctl()
 
 	var t tomb.Tomb
-	l, err := listener.Register()
-	c.Assert(err, IsNil)
+	l := mylog.Check2(listener.Register())
+
 	defer func() {
 		c.Check(l.Close(), IsNil)
 		c.Check(t.Wait(), Equals, listener.ErrClosed)
@@ -333,8 +332,8 @@ func (*listenerSuite) TestRegisterWriteRun(c *C) {
 	dBits := uint32(0b0101)
 
 	msg := newMsgNotificationFile(id, label, path, aBits, dBits)
-	buf, err := msg.MarshalBinary()
-	c.Assert(err, IsNil)
+	buf := mylog.Check2(msg.MarshalBinary())
+
 
 	go func() {
 		giveUp := time.NewTimer(100 * time.Millisecond)
@@ -379,8 +378,8 @@ func (*listenerSuite) TestRunMultipleRequestsInBuffer(c *C) {
 	defer restoreEpollIoctl()
 
 	var t tomb.Tomb
-	l, err := listener.Register()
-	c.Assert(err, IsNil)
+	l := mylog.Check2(listener.Register())
+
 	defer func() {
 		c.Check(l.Close(), IsNil)
 		c.Check(t.Wait(), Equals, listener.ErrClosed)
@@ -397,8 +396,8 @@ func (*listenerSuite) TestRunMultipleRequestsInBuffer(c *C) {
 	var megaBuf []byte
 	for i, path := range paths {
 		msg := newMsgNotificationFile(uint64(i), label, path, aBits, dBits)
-		buf, err := msg.MarshalBinary()
-		c.Assert(err, IsNil)
+		buf := mylog.Check2(msg.MarshalBinary())
+
 		megaBuf = append(megaBuf, buf...)
 	}
 
@@ -419,8 +418,8 @@ func (*listenerSuite) TestRunMultipleRequestsInBuffer(c *C) {
 
 // Check that the system of epoll event listening works as expected.
 func (*listenerSuite) TestRunEpoll(c *C) {
-	sockets, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_STREAM, 0)
-	c.Assert(err, IsNil)
+	sockets := mylog.Check2(unix.Socketpair(unix.AF_UNIX, unix.SOCK_STREAM, 0))
+
 	notifyFile := os.NewFile(uintptr(sockets[0]), notify.SysPath)
 	kernelSocket := sockets[1]
 
@@ -437,8 +436,8 @@ func (*listenerSuite) TestRunEpoll(c *C) {
 			return make([]byte, 0), nil
 		case notify.APPARMOR_NOTIF_RECV:
 			buf := notify.NewIoctlRequestBuffer()
-			n, err := unix.Read(int(fd), buf)
-			c.Assert(err, IsNil)
+			n := mylog.Check2(unix.Read(int(fd), buf))
+
 			return buf[:n], nil
 		case notify.APPARMOR_NOTIF_SEND:
 			c.Fatalf("listener should not have tried to SEND")
@@ -454,17 +453,17 @@ func (*listenerSuite) TestRunEpoll(c *C) {
 	dBits := uint32(0b0101)
 
 	msg := newMsgNotificationFile(id, label, path, aBits, dBits)
-	recvBuf, err := msg.MarshalBinary()
-	c.Assert(err, IsNil)
+	recvBuf := mylog.Check2(msg.MarshalBinary())
+
 
 	var t tomb.Tomb
-	l, err := listener.Register()
-	c.Assert(err, IsNil)
+	l := mylog.Check2(listener.Register())
+
 
 	t.Go(l.Run)
 
-	_, err = unix.Write(kernelSocket, recvBuf)
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(unix.Write(kernelSocket, recvBuf))
+
 
 	requestTimer := time.NewTimer(time.Second)
 	select {
@@ -508,8 +507,8 @@ func (*listenerSuite) TestRunNoEpoll(c *C) {
 	defer restoreIoctl()
 
 	var t tomb.Tomb
-	l, err := listener.Register()
-	c.Assert(err, IsNil)
+	l := mylog.Check2(listener.Register())
+
 
 	runAboutToStart := make(chan struct{})
 	t.Go(func() error {
@@ -536,8 +535,8 @@ func (*listenerSuite) TestRunNoReceiver(c *C) {
 	defer restoreEpollIoctl()
 
 	var t tomb.Tomb
-	l, err := listener.Register()
-	c.Assert(err, IsNil)
+	l := mylog.Check2(listener.Register())
+
 
 	t.Go(l.Run)
 
@@ -548,8 +547,8 @@ func (*listenerSuite) TestRunNoReceiver(c *C) {
 	dBits := uint32(0b0101)
 
 	msg := newMsgNotificationFile(id, label, path, aBits, dBits)
-	buf, err := msg.MarshalBinary()
-	c.Assert(err, IsNil)
+	buf := mylog.Check2(msg.MarshalBinary())
+
 	recvChan <- buf
 
 	c.Check(l.Close(), IsNil)
@@ -566,8 +565,8 @@ func (*listenerSuite) TestRunNoReply(c *C) {
 	defer restoreEpollIoctl()
 
 	var t tomb.Tomb
-	l, err := listener.Register()
-	c.Assert(err, IsNil)
+	l := mylog.Check2(listener.Register())
+
 
 	t.Go(l.Run)
 
@@ -578,8 +577,8 @@ func (*listenerSuite) TestRunNoReply(c *C) {
 	dBits := uint32(0b0101)
 
 	msg := newMsgNotificationFile(id, label, path, aBits, dBits)
-	buf, err := msg.MarshalBinary()
-	c.Assert(err, IsNil)
+	buf := mylog.Check2(msg.MarshalBinary())
+
 	recvChan <- buf
 
 	req := <-l.Reqs()
@@ -675,8 +674,8 @@ func (*listenerSuite) TestRunErrors(c *C) {
 			`unsupported mediation class: AA_CLASS_DBUS`,
 		},
 	} {
-		l, err := listener.Register()
-		c.Assert(err, IsNil)
+		l := mylog.Check2(listener.Register())
+
 
 		var t tomb.Tomb
 		t.Go(l.Run)
@@ -689,10 +688,9 @@ func (*listenerSuite) TestRunErrors(c *C) {
 			c.Check(r, IsNil, Commentf("should not have received non-nil request; expected error: %v", testCase.err))
 		case <-t.Dying():
 		}
-		err = t.Wait()
+		mylog.Check(t.Wait())
 		c.Check(err, ErrorMatches, testCase.err)
-
-		err = l.Close()
+		mylog.Check(l.Close())
 		c.Check(err, Equals, listener.ErrAlreadyClosed)
 	}
 }
@@ -716,8 +714,8 @@ func (*listenerSuite) TestRunMultipleTimes(c *C) {
 	defer restoreIoctl()
 
 	var t tomb.Tomb
-	l, err := listener.Register()
-	c.Assert(err, IsNil)
+	l := mylog.Check2(listener.Register())
+
 	defer func() {
 		c.Check(l.Close(), IsNil)
 		c.Check(t.Wait(), Equals, listener.ErrClosed)
@@ -732,8 +730,7 @@ func (*listenerSuite) TestRunMultipleTimes(c *C) {
 	// Make sure the spawned goroutine starts Run() first
 	<-runAboutToStart
 	time.Sleep(10 * time.Millisecond)
-
-	err = l.Run()
+	mylog.Check(l.Run())
 	c.Assert(err, Equals, listener.ErrAlreadyRun)
 }
 
@@ -749,16 +746,14 @@ func (*listenerSuite) TestCloseThenRun(c *C) {
 	})
 	defer restoreIoctl()
 
-	l, err := listener.Register()
-	c.Assert(err, IsNil)
+	l := mylog.Check2(listener.Register())
+
 	defer func() {
 		c.Assert(l.Close(), Equals, listener.ErrAlreadyClosed)
 	}()
+	mylog.Check(l.Close())
 
-	err = l.Close()
-	c.Assert(err, IsNil)
-
-	err = l.Run()
+	mylog.Check(l.Run())
 	c.Assert(err, Equals, listener.ErrAlreadyClosed)
 }
 
@@ -774,10 +769,10 @@ func (*listenerSuite) TestRunConcurrency(c *C) {
 		}
 	}()
 
-	l, err := listener.Register()
-	c.Assert(err, IsNil)
+	l := mylog.Check2(listener.Register())
+
 	defer func() {
-		err = l.Close()
+		mylog.Check(l.Close())
 		c.Check(err, Equals, listener.ErrAlreadyClosed)
 	}()
 
@@ -795,8 +790,8 @@ func (*listenerSuite) TestRunConcurrency(c *C) {
 	respDeny := uint32(0b0000)
 	resp := newMsgNotificationResponse(0, respAllow, respDeny)
 
-	templateBuf, err := resp.MarshalBinary()
-	c.Assert(err, IsNil)
+	templateBuf := mylog.Check2(resp.MarshalBinary())
+
 	expectedLen := len(templateBuf)
 
 	doneCreating := make(chan struct{})
@@ -807,8 +802,8 @@ func (*listenerSuite) TestRunConcurrency(c *C) {
 		for {
 			id += 1
 			msg.ID = id
-			buf, err := msg.MarshalBinary()
-			c.Assert(err, IsNil)
+			buf := mylog.Check2(msg.MarshalBinary())
+
 			select {
 			case <-l.Dead():
 			case recvChan <- buf:
@@ -826,7 +821,7 @@ func (*listenerSuite) TestRunConcurrency(c *C) {
 	go func() {
 		// reply to all requests as they are received, until l.Reqs() closes
 		for req := range l.Reqs() {
-			err := req.Reply(true)
+			mylog.Check(req.Reply(true))
 			c.Check(err, IsNil)
 			replyCount += 1
 		}

@@ -35,6 +35,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/asserts/systestkeys"
@@ -51,10 +52,8 @@ func rootEndpoint(w http.ResponseWriter, req *http.Request) {
 }
 
 func hexify(in string) string {
-	bs, err := base64.RawURLEncoding.DecodeString(in)
-	if err != nil {
-		panic(err)
-	}
+	bs := mylog.Check2(base64.RawURLEncoding.DecodeString(in))
+
 	return fmt.Sprintf("%x", bs)
 }
 
@@ -117,10 +116,7 @@ func (s *Store) SnapsDir() string {
 
 // Start listening
 func (s *Store) Start() error {
-	l, err := net.Listen("tcp", s.srv.Addr)
-	if err != nil {
-		return err
-	}
+	l := mylog.Check2(net.Listen("tcp", s.srv.Addr))
 
 	s.url = fmt.Sprintf("http://%s", l.Addr())
 
@@ -133,11 +129,8 @@ func (s *Store) Stop() error {
 	timeoutTime := 2000 * time.Millisecond
 	ctx, cancel := context.WithTimeout(context.Background(), timeoutTime)
 	defer cancel()
-	if err := s.srv.Shutdown(ctx); err != nil {
-		// forceful close
-		s.srv.Close()
-		return fmt.Errorf("store failed to stop after: %s", timeoutTime)
-	}
+	mylog.Check(s.srv.Shutdown(ctx))
+	// forceful close
 
 	return nil
 }
@@ -182,28 +175,16 @@ type essentialInfo struct {
 var errInfo = errors.New("cannot get info")
 
 func snapEssentialInfo(w http.ResponseWriter, fn, snapID string, bs asserts.Backstore) (*essentialInfo, error) {
-	f, err := snapfile.Open(fn)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("cannot read: %v: %v", fn, err), 400)
-		return nil, errInfo
-	}
+	f := mylog.Check2(snapfile.Open(fn))
 
 	restoreSanitize := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
 	defer restoreSanitize()
 
-	info, err := snap.ReadInfoFromSnapFile(f, nil)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("cannot get info for: %v: %v", fn, err), 400)
-		return nil, errInfo
-	}
+	info := mylog.Check2(snap.ReadInfoFromSnapFile(f, nil))
 
-	snapDigest, size, err := asserts.SnapFileSHA3_384(fn)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("cannot get digest for: %v: %v", fn, err), 400)
-		return nil, errInfo
-	}
+	snapDigest, size := mylog.Check3(asserts.SnapFileSHA3_384(fn))
 
-	snapRev, devAcct, err := findSnapRevision(snapDigest, bs)
+	snapRev, devAcct := mylog.Check3(findSnapRevision(snapDigest, bs))
 	if err != nil && !errors.Is(err, &asserts.NotFoundError{}) {
 		http.Error(w, fmt.Sprintf("cannot get info for: %v: %v", fn, err), 400)
 		return nil, errInfo
@@ -266,21 +247,13 @@ func (s *Store) repairsEndpoint(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	bs, err := s.collectAssertions()
-	if err != nil {
-		http.Error(w, fmt.Sprintf("internal error collecting assertions: %v", err), 500)
-		return
-	}
+	bs := mylog.Check2(s.collectAssertions())
 
-	a, err := s.retrieveAssertion(bs, asserts.RepairType, brandAndRepairID)
+	a := mylog.Check2(s.retrieveAssertion(bs, asserts.RepairType, brandAndRepairID))
 	if errors.Is(err, &asserts.NotFoundError{}) {
 		w.Header().Set("Content-Type", "application/problem+json")
 		w.WriteHeader(404)
 		w.Write([]byte(`{"status": 404}`))
-		return
-	}
-	if err != nil {
-		http.Error(w, fmt.Sprintf("cannot retrieve repair assertion %v: %v", brandAndRepairID, err), 400)
 		return
 	}
 
@@ -293,11 +266,7 @@ func (s *Store) repairsEndpoint(w http.ResponseWriter, req *http.Request) {
 			http.Error(w, fmt.Sprintf("malformed If-None-Match header (%q): must be repair revision number in quotes", revNumString), 400)
 			return
 		}
-		revNum, err := strconv.Atoi(match[1])
-		if err != nil {
-			http.Error(w, fmt.Sprintf("malformed If-None-Match header (%q): %v", revNumString, err), 400)
-			return
-		}
+		revNum := mylog.Check2(strconv.Atoi(match[1]))
 
 		if revNum == a.Revision() {
 			// if the If-None-Match header is the assertion revision verbatim
@@ -319,11 +288,8 @@ func (s *Store) repairsEndpoint(w http.ResponseWriter, req *http.Request) {
 		resp := map[string]interface{}{
 			"headers": headers,
 		}
-		b, err := json.Marshal(resp)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("internal error collecting assertion headers as json: %v", err), 500)
-			return
-		}
+		b := mylog.Check2(json.Marshal(resp))
+
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(200)
 		w.Write(b)
@@ -343,16 +309,9 @@ func (s *Store) detailsEndpoint(w http.ResponseWriter, req *http.Request) {
 		panic("how?")
 	}
 
-	bs, err := s.collectAssertions()
-	if err != nil {
-		http.Error(w, fmt.Sprintf("internal error collecting assertions: %v", err), 500)
-		return
-	}
-	snaps, err := s.collectSnaps()
-	if err != nil {
-		http.Error(w, fmt.Sprintf("internal error collecting snaps: %v", err), 500)
-		return
-	}
+	bs := mylog.Check2(s.collectAssertions())
+
+	snaps := mylog.Check2(s.collectSnaps())
 
 	fn, ok := snaps[pkg]
 	if !ok {
@@ -360,7 +319,7 @@ func (s *Store) detailsEndpoint(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	essInfo, err := snapEssentialInfo(w, fn, "", bs)
+	essInfo := mylog.Check2(snapEssentialInfo(w, fn, "", bs))
 	if essInfo == nil {
 		if err != errInfo {
 			panic(err)
@@ -386,19 +345,13 @@ func (s *Store) detailsEndpoint(w http.ResponseWriter, req *http.Request) {
 
 	// use indent because this is a development tool, output
 	// should look nice
-	out, err := json.MarshalIndent(details, "", "    ")
-	if err != nil {
-		http.Error(w, fmt.Sprintf("cannot marshal: %v: %v", details, err), 400)
-		return
-	}
+	out := mylog.Check2(json.MarshalIndent(details, "", "    "))
+
 	w.Write(out)
 }
 
 func (s *Store) collectSnaps() (map[string]string, error) {
-	snapFns, err := filepath.Glob(filepath.Join(s.blobDir, "*.snap"))
-	if err != nil {
-		return nil, err
-	}
+	snapFns := mylog.Check2(filepath.Glob(filepath.Join(s.blobDir, "*.snap")))
 
 	snaps := map[string]string{}
 
@@ -406,14 +359,10 @@ func (s *Store) collectSnaps() (map[string]string, error) {
 	defer restoreSanitize()
 
 	for _, fn := range snapFns {
-		f, err := snapfile.Open(fn)
-		if err != nil {
-			return nil, err
-		}
-		info, err := snap.ReadInfoFromSnapFile(f, nil)
-		if err != nil {
-			return nil, err
-		}
+		f := mylog.Check2(snapfile.Open(fn))
+
+		info := mylog.Check2(snap.ReadInfoFromSnapFile(f, nil))
+
 		snaps[info.SnapName()] = fn
 		logger.Debugf("found snap %q at %v", info.SnapName(), fn)
 	}
@@ -461,16 +410,9 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 	var replyData bulkReplyJSON
 
 	decoder := json.NewDecoder(req.Body)
-	if err := decoder.Decode(&pkgs); err != nil {
-		http.Error(w, fmt.Sprintf("cannot decode request body: %v", err), 400)
-		return
-	}
+	mylog.Check(decoder.Decode(&pkgs))
 
-	bs, err := s.collectAssertions()
-	if err != nil {
-		http.Error(w, fmt.Sprintf("internal error collecting assertions: %v", err), 500)
-		return
-	}
+	bs := mylog.Check2(s.collectAssertions())
 
 	var remoteStore string
 	if snapdenv.UseStagingStore() {
@@ -478,17 +420,9 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 	} else {
 		remoteStore = "production"
 	}
-	snapIDtoName, err := addSnapIDs(bs, someSnapIDtoName[remoteStore])
-	if err != nil {
-		http.Error(w, fmt.Sprintf("internal error collecting snapIDs: %v", err), 500)
-		return
-	}
+	snapIDtoName := mylog.Check2(addSnapIDs(bs, someSnapIDtoName[remoteStore]))
 
-	snaps, err := s.collectSnaps()
-	if err != nil {
-		http.Error(w, fmt.Sprintf("internal error collecting snaps: %v", err), 500)
-		return
-	}
+	snaps := mylog.Check2(s.collectSnaps())
 
 	// check if we have downloadable snap of the given SnapID
 	for _, pkg := range pkgs.CandidateSnaps {
@@ -499,7 +433,7 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 		}
 
 		if fn, ok := snaps[name]; ok {
-			essInfo, err := snapEssentialInfo(w, fn, pkg.SnapID, bs)
+			essInfo := mylog.Check2(snapEssentialInfo(w, fn, pkg.SnapID, bs))
 			if essInfo == nil {
 				if err != errInfo {
 					panic(err)
@@ -527,22 +461,16 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 
 	// use indent because this is a development tool, output
 	// should look nice
-	out, err := json.MarshalIndent(replyData, "", "    ")
-	if err != nil {
-		http.Error(w, fmt.Sprintf("cannot marshal: %v: %v", replyData, err), 400)
-		return
-	}
-	w.Write(out)
+	out := mylog.Check2(json.MarshalIndent(replyData, "", "    "))
 
+	w.Write(out)
 }
 
 func (s *Store) collectAssertions() (asserts.Backstore, error) {
 	bs := asserts.NewMemoryBackstore()
 
 	add := func(a asserts.Assertion) {
-		if err := bs.Put(a.Type(), a); err != nil {
-			logger.Noticef("cannot add assertion %q: %v", a.Headers(), err)
-		}
+		mylog.Check(bs.Put(a.Type(), a))
 	}
 
 	for _, t := range sysdb.Trusted() {
@@ -552,21 +480,12 @@ func (s *Store) collectAssertions() (asserts.Backstore, error) {
 	add(systestkeys.TestRootAccountKey)
 	add(systestkeys.TestStoreAccountKey)
 
-	aFiles, err := filepath.Glob(filepath.Join(s.assertDir, "*"))
-	if err != nil {
-		return nil, err
-	}
+	aFiles := mylog.Check2(filepath.Glob(filepath.Join(s.assertDir, "*")))
 
 	for _, fn := range aFiles {
-		b, err := os.ReadFile(fn)
-		if err != nil {
-			return nil, err
-		}
+		b := mylog.Check2(os.ReadFile(fn))
 
-		a, err := asserts.Decode(b)
-		if err != nil {
-			return nil, err
-		}
+		a := mylog.Check2(asserts.Decode(b))
 
 		add(a)
 	}
@@ -630,16 +549,9 @@ func (s *Store) snapActionEndpoint(w http.ResponseWriter, req *http.Request) {
 	var replyData snapActionResultList
 
 	decoder := json.NewDecoder(req.Body)
-	if err := decoder.Decode(&reqData); err != nil {
-		http.Error(w, fmt.Sprintf("cannot decode request body: %v", err), 400)
-		return
-	}
+	mylog.Check(decoder.Decode(&reqData))
 
-	bs, err := s.collectAssertions()
-	if err != nil {
-		http.Error(w, fmt.Sprintf("internal error collecting assertions: %v", err), 500)
-		return
-	}
+	bs := mylog.Check2(s.collectAssertions())
 
 	var remoteStore string
 	if snapdenv.UseStagingStore() {
@@ -647,17 +559,9 @@ func (s *Store) snapActionEndpoint(w http.ResponseWriter, req *http.Request) {
 	} else {
 		remoteStore = "production"
 	}
-	snapIDtoName, err := addSnapIDs(bs, someSnapIDtoName[remoteStore])
-	if err != nil {
-		http.Error(w, fmt.Sprintf("internal error collecting snapIDs: %v", err), 500)
-		return
-	}
+	snapIDtoName := mylog.Check2(addSnapIDs(bs, someSnapIDtoName[remoteStore]))
 
-	snaps, err := s.collectSnaps()
-	if err != nil {
-		http.Error(w, fmt.Sprintf("internal error collecting snaps: %v", err), 500)
-		return
-	}
+	snaps := mylog.Check2(s.collectSnaps())
 
 	actions := reqData.Actions
 	if len(actions) == 1 && actions[0].Action == "refresh-all" {
@@ -685,7 +589,7 @@ func (s *Store) snapActionEndpoint(w http.ResponseWriter, req *http.Request) {
 		}
 
 		if fn, ok := snaps[name]; ok {
-			essInfo, err := snapEssentialInfo(w, fn, snapID, bs)
+			essInfo := mylog.Check2(snapEssentialInfo(w, fn, snapID, bs))
 			if essInfo == nil {
 				if err != errInfo {
 					panic(err)
@@ -721,16 +625,13 @@ func (s *Store) snapActionEndpoint(w http.ResponseWriter, req *http.Request) {
 
 	// use indent because this is a development tool, output
 	// should look nice
-	out, err := json.MarshalIndent(replyData, "", "    ")
-	if err != nil {
-		http.Error(w, fmt.Sprintf("cannot marshal: %v: %v", replyData, err), 400)
-		return
-	}
+	out := mylog.Check2(json.MarshalIndent(replyData, "", "    "))
+
 	w.Write(out)
 }
 
 func (s *Store) retrieveAssertion(bs asserts.Backstore, assertType *asserts.AssertionType, primaryKey []string) (asserts.Assertion, error) {
-	a, err := bs.Get(assertType, primaryKey, assertType.MaxSupportedFormat())
+	a := mylog.Check2(bs.Get(assertType, primaryKey, assertType.MaxSupportedFormat()))
 	if errors.Is(err, &asserts.NotFoundError{}) && s.assertFallback {
 		return s.fallback.Assertion(assertType, primaryKey, nil)
 	}
@@ -738,7 +639,7 @@ func (s *Store) retrieveAssertion(bs asserts.Backstore, assertType *asserts.Asse
 }
 
 func (s *Store) retrieveLatestSequenceFormingAssertion(bs asserts.Backstore, assertType *asserts.AssertionType, sequenceKey []string) (asserts.Assertion, error) {
-	a, err := bs.SequenceMemberAfter(assertType, sequenceKey, -1, assertType.MaxSupportedFormat())
+	a := mylog.Check2(bs.SequenceMemberAfter(assertType, sequenceKey, -1, assertType.MaxSupportedFormat()))
 	if errors.Is(err, &asserts.NotFoundError{}) && s.assertFallback {
 		return s.fallback.SeqFormingAssertion(assertType, sequenceKey, -1, nil)
 	}
@@ -750,10 +651,7 @@ func (s *Store) sequenceFromQueryValues(values url.Values) (int, error) {
 		// special case value of 'latest', in that case
 		// we return -1 to indicate we want the newest
 		if val[0] != "latest" {
-			seq, err := strconv.Atoi(val[0])
-			if err != nil {
-				return -1, fmt.Errorf("cannot parse sequence %s: %v", val[0], err)
-			}
+			seq := mylog.Check2(strconv.Atoi(val[0]))
 
 			// Only positive integers and 'latest' are valid
 			if seq <= 0 {
@@ -783,10 +681,7 @@ func (s *Store) assertTypeAndKey(urlPath string) (*asserts.AssertionType, []stri
 func (s *Store) retrieveAssertionWrapper(bs asserts.Backstore, assertType *asserts.AssertionType, keyParts []string, values url.Values) (asserts.Assertion, error) {
 	pk := keyParts
 	if assertType.SequenceForming() {
-		seq, err := s.sequenceFromQueryValues(values)
-		if err != nil {
-			return nil, err
-		}
+		seq := mylog.Check2(s.sequenceFromQueryValues(values))
 
 		// If no sequence value was provided, or when requesting the latest sequence
 		// point of an assertion, we use a different method of resolving the assertion.
@@ -806,27 +701,15 @@ func (s *Store) retrieveAssertionWrapper(bs asserts.Backstore, assertType *asser
 }
 
 func (s *Store) assertionsEndpoint(w http.ResponseWriter, req *http.Request) {
-	typ, pk, err := s.assertTypeAndKey(req.URL.Path)
-	if err != nil {
-		http.Error(w, err.Error(), 400)
-		return
-	}
+	typ, pk := mylog.Check3(s.assertTypeAndKey(req.URL.Path))
 
-	bs, err := s.collectAssertions()
-	if err != nil {
-		http.Error(w, fmt.Sprintf("internal error collecting assertions: %v", err), 500)
-		return
-	}
+	bs := mylog.Check2(s.collectAssertions())
 
-	as, err := s.retrieveAssertionWrapper(bs, typ, pk, req.URL.Query())
+	as := mylog.Check2(s.retrieveAssertionWrapper(bs, typ, pk, req.URL.Query()))
 	if errors.Is(err, &asserts.NotFoundError{}) {
 		w.Header().Set("Content-Type", "application/problem+json")
 		w.WriteHeader(404)
 		w.Write([]byte(`{"error-list":[{"code":"not-found","message":"not found"}]}`))
-		return
-	}
-	if err != nil {
-		http.Error(w, fmt.Sprintf("cannot retrieve assertion %v: %v", pk, err), 400)
 		return
 	}
 
@@ -845,26 +728,18 @@ func addSnapIDs(bs asserts.Backstore, initial map[string]string) (map[string]str
 		decl := a.(*asserts.SnapDeclaration)
 		m[decl.SnapID()] = decl.SnapName()
 	}
-
-	err := bs.Search(asserts.SnapDeclarationType, nil, hit, asserts.SnapDeclarationType.MaxSupportedFormat())
-	if err != nil {
-		return nil, err
-	}
+	mylog.Check(bs.Search(asserts.SnapDeclarationType, nil, hit, asserts.SnapDeclarationType.MaxSupportedFormat()))
 
 	return m, nil
 }
 
 func findSnapRevision(snapDigest string, bs asserts.Backstore) (*asserts.SnapRevision, *asserts.Account, error) {
-	a, err := bs.Get(asserts.SnapRevisionType, []string{snapDigest}, asserts.SnapRevisionType.MaxSupportedFormat())
-	if err != nil {
-		return nil, nil, err
-	}
+	a := mylog.Check2(bs.Get(asserts.SnapRevisionType, []string{snapDigest}, asserts.SnapRevisionType.MaxSupportedFormat()))
+
 	snapRev := a.(*asserts.SnapRevision)
 
-	a, err = bs.Get(asserts.AccountType, []string{snapRev.DeveloperID()}, asserts.AccountType.MaxSupportedFormat())
-	if err != nil {
-		return nil, nil, err
-	}
+	a = mylog.Check2(bs.Get(asserts.AccountType, []string{snapRev.DeveloperID()}, asserts.AccountType.MaxSupportedFormat()))
+
 	devAcct := a.(*asserts.Account)
 
 	return snapRev, devAcct, nil

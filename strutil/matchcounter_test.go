@@ -24,6 +24,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -78,14 +79,16 @@ writer: failed to write data block 0
 Failed to write /tmp/1/snap/snapcraft.yaml, skipping
 `
 
-var thisRegexp = regexp.MustCompile("(?m).*[Ff]ailed.*")
-var nilRegexpEquiv = regexp.MustCompile("(?m).+")
+var (
+	thisRegexp     = regexp.MustCompile("(?m).*[Ff]ailed.*")
+	nilRegexpEquiv = regexp.MustCompile("(?m).+")
+)
 
 func (mcSuite) TestMatchCounterFull(c *check.C) {
 	// check a single write
 	expected := thisRegexp.FindAllString(out, 3)
 	w := &strutil.MatchCounter{Regexp: thisRegexp, N: 3}
-	_, err := w.Write([]byte(out))
+	_ := mylog.Check2(w.Write([]byte(out)))
 	c.Assert(err, check.IsNil)
 	matches, count := w.Matches()
 	c.Check(count, check.Equals, 19)
@@ -97,7 +100,7 @@ func (mcSuite) TestMatchCounterFull(c *check.C) {
 		"Failed to write /tmp/1/snap/snapcraft.yaml, skipping",
 	}
 	wLast := &strutil.MatchCounter{Regexp: thisRegexp, N: 3, LastN: true}
-	_, err = wLast.Write([]byte(out))
+	_ = mylog.Check2(wLast.Write([]byte(out)))
 	c.Assert(err, check.IsNil)
 	matches, count = wLast.Matches()
 	c.Check(count, check.Equals, 19)
@@ -123,10 +126,10 @@ func (mcSuite) TestMatchCounterPartials(c *check.C) {
 			w := &strutil.MatchCounter{Regexp: thisRegexp, N: 3, LastN: keepLast}
 			var i int
 			for i = 0; i+step < len(buf); i += step {
-				_, err := w.Write(buf[i : i+step])
+				_ := mylog.Check2(w.Write(buf[i : i+step]))
 				c.Assert(err, check.IsNil, check.Commentf("step:%d i:%d", step, i))
 			}
-			_, err := w.Write(buf[i:])
+			_ := mylog.Check2(w.Write(buf[i:]))
 			c.Assert(err, check.IsNil, check.Commentf("step:%d tail", step))
 			matches, count := w.Matches()
 			c.Check(count, check.Equals, 19, check.Commentf("step:%d", step))
@@ -154,12 +157,12 @@ func (mcSuite) TestMatchCounterPartialsReusingBuffer(c *check.C) {
 		var i int
 		for i = 0; i+step < len(buf); i += step {
 			copy(wbuf, buf[i:])
-			_, err := w.Write(wbuf)
+			_ := mylog.Check2(w.Write(wbuf))
 			c.Assert(err, check.IsNil, check.Commentf("step:%d i:%d", step, i))
 		}
 		wbuf = wbuf[:len(buf[i:])]
 		copy(wbuf, buf[i:])
-		_, err := w.Write(wbuf)
+		_ := mylog.Check2(w.Write(wbuf))
 		c.Assert(err, check.IsNil, check.Commentf("step:%d tail", step))
 		matches, count := w.Matches()
 		c.Assert(count, check.Equals, 19, check.Commentf("step:%d", step))
@@ -169,14 +172,14 @@ func (mcSuite) TestMatchCounterPartialsReusingBuffer(c *check.C) {
 
 func (mcSuite) TestMatchCounterZero(c *check.C) {
 	w := &strutil.MatchCounter{Regexp: thisRegexp, N: 0}
-	_, err := w.Write([]byte(out))
+	_ := mylog.Check2(w.Write([]byte(out)))
 	c.Assert(err, check.IsNil)
 	matches, count := w.Matches()
 	c.Check(count, check.Equals, 19)
 	c.Assert(matches, check.HasLen, 0)
 
 	wLast := &strutil.MatchCounter{Regexp: thisRegexp, N: 0, LastN: true}
-	_, err = wLast.Write([]byte(out))
+	_ = mylog.Check2(wLast.Write([]byte(out)))
 	c.Assert(err, check.IsNil)
 	matches, count = w.Matches()
 	c.Check(count, check.Equals, 19)
@@ -187,7 +190,7 @@ func (mcSuite) TestMatchCounterNegative(c *check.C) {
 	expected := thisRegexp.FindAllString(out, -1)
 
 	w := &strutil.MatchCounter{Regexp: thisRegexp, N: -1}
-	_, err := w.Write([]byte(out))
+	_ := mylog.Check2(w.Write([]byte(out)))
 	c.Assert(err, check.IsNil)
 	matches, count := w.Matches()
 	c.Check(count, check.Equals, 19)
@@ -196,7 +199,7 @@ func (mcSuite) TestMatchCounterNegative(c *check.C) {
 
 	// always keep all lines
 	wLast := &strutil.MatchCounter{Regexp: thisRegexp, N: -1, LastN: true}
-	_, err = wLast.Write([]byte(out))
+	_ = mylog.Check2(wLast.Write([]byte(out)))
 	c.Assert(err, check.IsNil)
 	matches, count = w.Matches()
 	c.Check(count, check.Equals, 19)
@@ -207,7 +210,7 @@ func (mcSuite) TestMatchCounterNegative(c *check.C) {
 func (mcSuite) TestMatchCounterNilRegexpFull(c *check.C) {
 	expected := nilRegexpEquiv.FindAllString(out, -1)
 	w := &strutil.MatchCounter{N: -1}
-	_, err := w.Write([]byte(out))
+	_ := mylog.Check2(w.Write([]byte(out)))
 	c.Assert(err, check.IsNil)
 	matches, count := w.Matches()
 	c.Check(count, check.Equals, len(matches))
@@ -218,7 +221,7 @@ func (mcSuite) TestMatchCounterNilRegexpFull(c *check.C) {
 func (mcSuite) TestMatchCounterNilRegexpLimited(c *check.C) {
 	expected := nilRegexpEquiv.FindAllString(out, 10)
 	w := &strutil.MatchCounter{N: 10}
-	_, err := w.Write([]byte(out))
+	_ := mylog.Check2(w.Write([]byte(out)))
 	c.Assert(err, check.IsNil)
 	matches, count := w.Matches()
 	c.Check(count, check.Equals, 22)
@@ -240,7 +243,7 @@ func (mcSuite) TestMatchCounterNilRegexpLimited(c *check.C) {
 		"Failed to write /tmp/1/snap/snapcraft.yaml, skipping",
 	}
 	wLast := &strutil.MatchCounter{N: 10, LastN: true}
-	_, err = wLast.Write([]byte(out))
+	_ = mylog.Check2(wLast.Write([]byte(out)))
 	c.Assert(err, check.IsNil)
 	matches, count = wLast.Matches()
 	c.Check(count, check.Equals, 22)
@@ -256,10 +259,10 @@ func (mcSuite) TestMatchCounterNilRegexpPartials(c *check.C) {
 		w := &strutil.MatchCounter{N: 3}
 		var i int
 		for i = 0; i+step < len(buf); i += step {
-			_, err := w.Write(buf[i : i+step])
+			_ := mylog.Check2(w.Write(buf[i : i+step]))
 			c.Assert(err, check.IsNil, check.Commentf("step:%d i:%d", step, i))
 		}
-		_, err := w.Write(buf[i:])
+		_ := mylog.Check2(w.Write(buf[i:]))
 		c.Assert(err, check.IsNil, check.Commentf("step:%d tail", step))
 		matches, count := w.Matches()
 		c.Check(count, check.Equals, 22, check.Commentf("step:%d", step))

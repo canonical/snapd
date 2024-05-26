@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -127,8 +128,8 @@ func (s *entrySuite) TestEqual(c *C) {
 
 // Test that typical fstab entry is parsed correctly.
 func (s *entrySuite) TestParseMountEntry1(c *C) {
-	e, err := osutil.ParseMountEntry("UUID=394f32c0-1f94-4005-9717-f9ab4a4b570b /               ext4    errors=remount-ro 0       1")
-	c.Assert(err, IsNil)
+	e := mylog.Check2(osutil.ParseMountEntry("UUID=394f32c0-1f94-4005-9717-f9ab4a4b570b /               ext4    errors=remount-ro 0       1"))
+
 	c.Assert(e.Name, Equals, "UUID=394f32c0-1f94-4005-9717-f9ab4a4b570b")
 	c.Assert(e.Dir, Equals, "/")
 	c.Assert(e.Type, Equals, "ext4")
@@ -136,8 +137,8 @@ func (s *entrySuite) TestParseMountEntry1(c *C) {
 	c.Assert(e.DumpFrequency, Equals, 0)
 	c.Assert(e.CheckPassNumber, Equals, 1)
 
-	e, err = osutil.ParseMountEntry("none /tmp tmpfs")
-	c.Assert(err, IsNil)
+	e = mylog.Check2(osutil.ParseMountEntry("none /tmp tmpfs"))
+
 	c.Assert(e.Name, Equals, "none")
 	c.Assert(e.Dir, Equals, "/tmp")
 	c.Assert(e.Type, Equals, "tmpfs")
@@ -148,8 +149,8 @@ func (s *entrySuite) TestParseMountEntry1(c *C) {
 
 // Test that hash inside a field value is supported.
 func (s *entrySuite) TestHashInFieldValue(c *C) {
-	e, err := osutil.ParseMountEntry("mhddfs#/mnt/dir1,/mnt/dir2 /mnt/dir fuse defaults,allow_other 0 0")
-	c.Assert(err, IsNil)
+	e := mylog.Check2(osutil.ParseMountEntry("mhddfs#/mnt/dir1,/mnt/dir2 /mnt/dir fuse defaults,allow_other 0 0"))
+
 	c.Assert(e.Name, Equals, "mhddfs#/mnt/dir1,/mnt/dir2")
 	c.Assert(e.Dir, Equals, "/mnt/dir")
 	c.Assert(e.Type, Equals, "fuse")
@@ -160,8 +161,8 @@ func (s *entrySuite) TestHashInFieldValue(c *C) {
 
 // Test that options are parsed correctly
 func (s *entrySuite) TestParseMountEntry2(c *C) {
-	e, err := osutil.ParseMountEntry("name dir type options,comma,separated 0 0")
-	c.Assert(err, IsNil)
+	e := mylog.Check2(osutil.ParseMountEntry("name dir type options,comma,separated 0 0"))
+
 	c.Assert(e.Name, Equals, "name")
 	c.Assert(e.Dir, Equals, "dir")
 	c.Assert(e.Type, Equals, "type")
@@ -172,8 +173,8 @@ func (s *entrySuite) TestParseMountEntry2(c *C) {
 
 // Test that whitespace escape codes are honored
 func (s *entrySuite) TestParseMountEntry3(c *C) {
-	e, err := osutil.ParseMountEntry(`na\040me d\011ir ty\012pe optio\134ns 0 0`)
-	c.Assert(err, IsNil)
+	e := mylog.Check2(osutil.ParseMountEntry(`na\040me d\011ir ty\012pe optio\134ns 0 0`))
+
 	c.Assert(e.Name, Equals, "na me")
 	c.Assert(e.Dir, Equals, "d\tir")
 	c.Assert(e.Type, Equals, "ty\npe")
@@ -187,41 +188,41 @@ func (s *entrySuite) TestParseMountEntry4(c *C) {
 	for _, s := range []string{
 		"", "1", "1 2" /* skip 3, 4, 5 and 6 fields (valid case) */, "1 2 3 4 5 6 7",
 	} {
-		_, err := osutil.ParseMountEntry(s)
+		_ := mylog.Check2(osutil.ParseMountEntry(s))
 		c.Assert(err, ErrorMatches, "expected between 3 and 6 fields, found [01237]")
 	}
 }
 
 // Test that integers are parsed and error checked
 func (s *entrySuite) TestParseMountEntry5(c *C) {
-	_, err := osutil.ParseMountEntry("name dir type options foo 0")
+	_ := mylog.Check2(osutil.ParseMountEntry("name dir type options foo 0"))
 	c.Assert(err, ErrorMatches, "cannot parse dump frequency: .*")
-	_, err = osutil.ParseMountEntry("name dir type options 0 foo")
+	_ = mylog.Check2(osutil.ParseMountEntry("name dir type options 0 foo"))
 	c.Assert(err, ErrorMatches, "cannot parse check pass number: .*")
 }
 
 // Test that last two integer fields default to zero if not present.
 func (s *entrySuite) TestParseMountEntry6(c *C) {
-	e, err := osutil.ParseMountEntry("name dir type options")
-	c.Assert(err, IsNil)
+	e := mylog.Check2(osutil.ParseMountEntry("name dir type options"))
+
 	c.Assert(e.DumpFrequency, Equals, 0)
 	c.Assert(e.CheckPassNumber, Equals, 0)
 
-	e, err = osutil.ParseMountEntry("name dir type options 5")
-	c.Assert(err, IsNil)
+	e = mylog.Check2(osutil.ParseMountEntry("name dir type options 5"))
+
 	c.Assert(e.DumpFrequency, Equals, 5)
 	c.Assert(e.CheckPassNumber, Equals, 0)
 
-	e, err = osutil.ParseMountEntry("name dir type options 5 7")
-	c.Assert(err, IsNil)
+	e = mylog.Check2(osutil.ParseMountEntry("name dir type options 5 7"))
+
 	c.Assert(e.DumpFrequency, Equals, 5)
 	c.Assert(e.CheckPassNumber, Equals, 7)
 }
 
 // Test that the typical ensure-dir fstab entry is parsed correctly.
 func (s *entrySuite) TestParseMountEntryEnsureDir(c *C) {
-	e, err := osutil.ParseMountEntry("none $HOME/.local/share none x-snapd.kind=ensure-dir,x-snapd.must-exist-dir=$HOME 0 0")
-	c.Assert(err, IsNil)
+	e := mylog.Check2(osutil.ParseMountEntry("none $HOME/.local/share none x-snapd.kind=ensure-dir,x-snapd.must-exist-dir=$HOME 0 0"))
+
 	c.Assert(e.Name, Equals, "none")
 	c.Assert(e.Dir, Equals, "$HOME/.local/share")
 	c.Assert(e.Type, Equals, "none")
@@ -232,19 +233,19 @@ func (s *entrySuite) TestParseMountEntryEnsureDir(c *C) {
 
 // Test (string) options -> (int) flag conversion code.
 func (s *entrySuite) TestMountOptsToFlags(c *C) {
-	flags, err := osutil.MountOptsToFlags(nil)
-	c.Assert(err, IsNil)
+	flags := mylog.Check2(osutil.MountOptsToFlags(nil))
+
 	c.Assert(flags, Equals, 0)
-	flags, err = osutil.MountOptsToFlags([]string{"ro", "nodev", "nosuid"})
-	c.Assert(err, IsNil)
+	flags = mylog.Check2(osutil.MountOptsToFlags([]string{"ro", "nodev", "nosuid"}))
+
 	c.Assert(flags, Equals, syscall.MS_RDONLY|syscall.MS_NODEV|syscall.MS_NOSUID)
-	_, err = osutil.MountOptsToFlags([]string{"bogus"})
+	_ = mylog.Check2(osutil.MountOptsToFlags([]string{"bogus"}))
 	c.Assert(err, ErrorMatches, `unsupported mount option: "bogus"`)
 	// The x-snapd-prefix is reserved for non-kernel parameters that do not
 	// translate to kernel level mount flags. This is similar to systemd or
 	// udisks that use fstab options to convey additional data.
-	flags, err = osutil.MountOptsToFlags([]string{"x-snapd.foo"})
-	c.Assert(err, IsNil)
+	flags = mylog.Check2(osutil.MountOptsToFlags([]string{"x-snapd.foo"}))
+
 	c.Assert(flags, Equals, 0)
 }
 
@@ -305,29 +306,29 @@ func (s *entrySuite) TestOptionHelpers(c *C) {
 func (s *entrySuite) TestXSnapdMode(c *C) {
 	// Mode has a default value.
 	e := &osutil.MountEntry{}
-	mode, err := e.XSnapdMode()
-	c.Assert(err, IsNil)
+	mode := mylog.Check2(e.XSnapdMode())
+
 	c.Assert(mode, Equals, os.FileMode(0755))
 
 	// Mode is parsed from the x-snapd.mode= option.
 	e = &osutil.MountEntry{Options: []string{"x-snapd.mode=0700"}}
-	mode, err = e.XSnapdMode()
-	c.Assert(err, IsNil)
+	mode = mylog.Check2(e.XSnapdMode())
+
 	c.Assert(mode, Equals, os.FileMode(0700))
 
 	// Empty value is invalid.
 	e = &osutil.MountEntry{Options: []string{"x-snapd.mode="}}
-	_, err = e.XSnapdMode()
+	_ = mylog.Check2(e.XSnapdMode())
 	c.Assert(err, ErrorMatches, `cannot parse octal file mode from ""`)
 
 	// As well as other bogus values.
 	e = &osutil.MountEntry{Options: []string{"x-snapd.mode=pasta"}}
-	_, err = e.XSnapdMode()
+	_ = mylog.Check2(e.XSnapdMode())
 	c.Assert(err, ErrorMatches, `cannot parse octal file mode from "pasta"`)
 
 	// And even valid values with trailing garbage.
 	e = &osutil.MountEntry{Options: []string{"x-snapd.mode=0700pasta"}}
-	mode, err = e.XSnapdMode()
+	mode = mylog.Check2(e.XSnapdMode())
 	c.Assert(err, ErrorMatches, `cannot parse octal file mode from "0700pasta"`)
 	c.Assert(mode, Equals, os.FileMode(0))
 }
@@ -335,25 +336,25 @@ func (s *entrySuite) TestXSnapdMode(c *C) {
 func (s *entrySuite) TestXSnapdUID(c *C) {
 	// User has a default value.
 	e := &osutil.MountEntry{}
-	uid, err := e.XSnapdUID()
-	c.Assert(err, IsNil)
+	uid := mylog.Check2(e.XSnapdUID())
+
 	c.Assert(uid, Equals, uint64(0))
 
 	// User is parsed from the x-snapd.uid= option.
 	e = &osutil.MountEntry{Options: []string{"x-snapd.uid=root"}}
-	uid, err = e.XSnapdUID()
+	uid = mylog.Check2(e.XSnapdUID())
 	c.Assert(err, ErrorMatches, `cannot parse user name "root"`)
 	c.Assert(uid, Equals, uint64(math.MaxUint64))
 
 	// Numeric names are used as-is.
 	e = &osutil.MountEntry{Options: []string{"x-snapd.uid=123"}}
-	uid, err = e.XSnapdUID()
-	c.Assert(err, IsNil)
+	uid = mylog.Check2(e.XSnapdUID())
+
 	c.Assert(uid, Equals, uint64(123))
 
 	// And even valid values with trailing garbage.
 	e = &osutil.MountEntry{Options: []string{"x-snapd.uid=0bogus"}}
-	uid, err = e.XSnapdUID()
+	uid = mylog.Check2(e.XSnapdUID())
 	c.Assert(err, ErrorMatches, `cannot parse user name "0bogus"`)
 	c.Assert(uid, Equals, uint64(math.MaxUint64))
 }
@@ -361,24 +362,24 @@ func (s *entrySuite) TestXSnapdUID(c *C) {
 func (s *entrySuite) TestXSnapdGID(c *C) {
 	// Group has a default value.
 	e := &osutil.MountEntry{}
-	gid, err := e.XSnapdGID()
-	c.Assert(err, IsNil)
+	gid := mylog.Check2(e.XSnapdGID())
+
 	c.Assert(gid, Equals, uint64(0))
 
 	e = &osutil.MountEntry{Options: []string{"x-snapd.gid=root"}}
-	gid, err = e.XSnapdGID()
+	gid = mylog.Check2(e.XSnapdGID())
 	c.Assert(err, ErrorMatches, `cannot parse group name "root"`)
 	c.Assert(gid, Equals, uint64(math.MaxUint64))
 
 	// Numeric names are used as-is.
 	e = &osutil.MountEntry{Options: []string{"x-snapd.gid=456"}}
-	gid, err = e.XSnapdGID()
-	c.Assert(err, IsNil)
+	gid = mylog.Check2(e.XSnapdGID())
+
 	c.Assert(gid, Equals, uint64(456))
 
 	// And even valid values with trailing garbage.
 	e = &osutil.MountEntry{Options: []string{"x-snapd.gid=0bogus"}}
-	gid, err = e.XSnapdGID()
+	gid = mylog.Check2(e.XSnapdGID())
 	c.Assert(err, ErrorMatches, `cannot parse group name "0bogus"`)
 	c.Assert(gid, Equals, uint64(math.MaxUint64))
 }

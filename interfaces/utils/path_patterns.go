@@ -22,6 +22,8 @@ package utils
 import (
 	"fmt"
 	"regexp"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 type PathPattern struct {
@@ -164,10 +166,7 @@ func createRegex(pattern string, glob GlobFlags, allowCommas bool) (string, erro
 }
 
 func NewPathPattern(pattern string, allowCommas bool) (*PathPattern, error) {
-	regexPattern, err := createRegex(pattern, globDefault, allowCommas)
-	if err != nil {
-		return nil, err
-	}
+	regexPattern := mylog.Check2(createRegex(pattern, globDefault, allowCommas))
 
 	regex := regexp.MustCompile(regexPattern)
 

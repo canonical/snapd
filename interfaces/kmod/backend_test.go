@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
@@ -185,11 +186,11 @@ func (s *backendSuite) TestSecurityIsStable(c *C) {
 
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 0)
-		appSet, err := interfaces.NewSnapAppSet(snapInfo, nil)
-		c.Assert(err, IsNil)
+		appSet := mylog.Check2(interfaces.NewSnapAppSet(snapInfo, nil))
+
 		s.modprobeCmd.ForgetCalls()
-		err = s.Backend.Setup(appSet, opts, s.Repo, s.meas)
-		c.Assert(err, IsNil)
+		mylog.Check(s.Backend.Setup(appSet, opts, s.Repo, s.meas))
+
 		// modules conf is not re-loaded when nothing changes
 		c.Check(s.modprobeCmd.Calls(), HasLen, 0)
 		s.RemoveSnap(c, snapInfo)

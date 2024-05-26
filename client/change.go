@@ -25,6 +25,8 @@ import (
 	"fmt"
 	"net/url"
 	"time"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // A Change is a modification to the system state.
@@ -81,10 +83,7 @@ type changeAndData struct {
 // Change fetches information about a Change given its ID.
 func (client *Client) Change(id string) (*Change, error) {
 	var chgd changeAndData
-	_, err := client.doSync("GET", "/v2/changes/"+id, nil, nil, nil, &chgd)
-	if err != nil {
-		return nil, err
-	}
+	_ := mylog.Check2(client.doSync("GET", "/v2/changes/"+id, nil, nil, nil, &chgd))
 
 	chgd.Change.data = chgd.Data
 	return &chgd.Change, nil
@@ -98,14 +97,10 @@ func (client *Client) Abort(id string) (*Change, error) {
 	postData.Action = "abort"
 
 	var body bytes.Buffer
-	if err := json.NewEncoder(&body).Encode(postData); err != nil {
-		return nil, err
-	}
+	mylog.Check(json.NewEncoder(&body).Encode(postData))
 
 	var chg Change
-	if _, err := client.doSync("POST", "/v2/changes/"+id, nil, nil, &body, &chg); err != nil {
-		return nil, err
-	}
+	mylog.Check2(client.doSync("POST", "/v2/changes/"+id, nil, nil, &body, &chg))
 
 	return &chg, nil
 }
@@ -148,10 +143,7 @@ func (client *Client) Changes(opts *ChangesOptions) ([]*Change, error) {
 	}
 
 	var chgds []changeAndData
-	_, err := client.doSync("GET", "/v2/changes", query, nil, nil, &chgds)
-	if err != nil {
-		return nil, err
-	}
+	_ := mylog.Check2(client.doSync("GET", "/v2/changes", query, nil, nil, &chgds))
 
 	var chgs []*Change
 	for i := range chgds {

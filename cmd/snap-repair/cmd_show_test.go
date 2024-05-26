@@ -26,17 +26,19 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	repair "github.com/snapcore/snapd/cmd/snap-repair"
 	"github.com/snapcore/snapd/dirs"
 )
 
 func (r *repairSuite) TestShowRepairSingle(c *C) {
 	makeMockRepairState(c)
+	mylog.
 
-	// repair.ParseArgs() always appends to its internal slice:
-	// cmdShow.Positional.Repair. To workaround this we create a
-	// new cmdShow here
-	err := repair.NewCmdShow("canonical-1").Execute(nil)
+		// repair.ParseArgs() always appends to its internal slice:
+		// cmdShow.Positional.Repair. To workaround this we create a
+		// new cmdShow here
+		Check(repair.NewCmdShow("canonical-1").Execute(nil))
 	c.Check(err, IsNil)
 	c.Check(r.Stdout(), Equals, `repair: canonical-1
 revision: 3
@@ -49,16 +51,16 @@ output:
   retry output
 
 `)
-
 }
 
 func (r *repairSuite) TestShowRepairMultiple(c *C) {
 	makeMockRepairState(c)
+	mylog.
 
-	// repair.ParseArgs() always appends to its internal slice:
-	// cmdShow.Positional.Repair. To workaround this we create a
-	// new cmdShow here
-	err := repair.NewCmdShow("canonical-1", "my-brand-1", "my-brand-2").Execute(nil)
+		// repair.ParseArgs() always appends to its internal slice:
+		// cmdShow.Positional.Repair. To workaround this we create a
+		// new cmdShow here
+		Check(repair.NewCmdShow("canonical-1", "my-brand-1", "my-brand-2").Execute(nil))
 	c.Check(err, IsNil)
 	c.Check(r.Stdout(), Equals, `repair: canonical-1
 revision: 3
@@ -95,18 +97,16 @@ output:
 
 func (r *repairSuite) TestShowRepairErrorNoRepairDir(c *C) {
 	dirs.SetRootDir(c.MkDir())
-
-	err := repair.NewCmdShow("canonical-1").Execute(nil)
+	mylog.Check(repair.NewCmdShow("canonical-1").Execute(nil))
 	c.Check(err, ErrorMatches, `cannot find repair "canonical-1"`)
 }
 
 func (r *repairSuite) TestShowRepairSingleWithoutScript(c *C) {
 	makeMockRepairState(c)
 	scriptPath := filepath.Join(dirs.SnapRepairRunDir, "canonical/1", "r3.script")
-	err := os.Remove(scriptPath)
-	c.Assert(err, IsNil)
+	mylog.Check(os.Remove(scriptPath))
 
-	err = repair.NewCmdShow("canonical-1").Execute(nil)
+	mylog.Check(repair.NewCmdShow("canonical-1").Execute(nil))
 	c.Check(err, IsNil)
 	c.Check(r.Stdout(), Equals, fmt.Sprintf(`repair: canonical-1
 revision: 3
@@ -118,17 +118,15 @@ output:
   retry output
 
 `, scriptPath))
-
 }
 
 func (r *repairSuite) TestShowRepairSingleUnreadableOutput(c *C) {
 	makeMockRepairState(c)
 	scriptPath := filepath.Join(dirs.SnapRepairRunDir, "canonical/1", "r3.retry")
-	err := os.Chmod(scriptPath, 0000)
-	c.Assert(err, IsNil)
-	defer os.Chmod(scriptPath, 0644)
+	mylog.Check(os.Chmod(scriptPath, 0000))
 
-	err = repair.NewCmdShow("canonical-1").Execute(nil)
+	defer os.Chmod(scriptPath, 0644)
+	mylog.Check(repair.NewCmdShow("canonical-1").Execute(nil))
 	c.Check(err, IsNil)
 	c.Check(r.Stdout(), Equals, fmt.Sprintf(`repair: canonical-1
 revision: 3
@@ -141,5 +139,4 @@ output:
   error: open %s: permission denied
 
 `, scriptPath))
-
 }

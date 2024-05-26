@@ -26,6 +26,7 @@ import (
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/state"
 )
@@ -52,7 +53,7 @@ func doExec(t *state.Task, tomb *tomb.Tomb) error {
 	defer st.Unlock()
 
 	var ignore bool
-	if err := t.Get("ignore", &ignore); err != nil && !errors.Is(err, state.ErrNoState) {
+	if mylog.Check(t.Get("ignore", &ignore)); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if ignore {
@@ -62,11 +63,8 @@ func doExec(t *state.Task, tomb *tomb.Tomb) error {
 
 	var argv []string
 	var tout time.Duration
-	if err := t.Get("argv", &argv); err != nil {
-		return err
-	}
-
-	err := t.Get("timeout", &tout)
+	mylog.Check(t.Get("argv", &argv))
+	mylog.Check(t.Get("timeout", &tout))
 	// timeout is optional and might not be set
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
@@ -79,13 +77,8 @@ func doExec(t *state.Task, tomb *tomb.Tomb) error {
 	// we need to restore the lock (for Errorf, and for deferred unlocking
 	// above).
 	st.Unlock()
-	buf, err := osutil.RunAndWait(argv, nil, tout, tomb)
+	buf := mylog.Check2(osutil.RunAndWait(argv, nil, tout, tomb))
 	st.Lock()
-
-	if err != nil {
-		t.Errorf("# %s\n%s", strings.Join(argv, " "), buf)
-		return err
-	}
 
 	return nil
 }

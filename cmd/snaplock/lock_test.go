@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/cmd/snaplock"
 	"github.com/snapcore/snapd/dirs"
 )
@@ -47,12 +48,12 @@ func (s *lockSuite) TearDownTest(c *C) {
 }
 
 func (s *lockSuite) TestOpenLock(c *C) {
-	lock, err := snaplock.OpenLock("name")
-	c.Assert(err, IsNil)
+	lock := mylog.Check2(snaplock.OpenLock("name"))
+
 	defer lock.Close()
 
-	_, err = os.Stat(lock.Path())
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(os.Stat(lock.Path()))
+
 
 	comment := Commentf("wrong prefix for %q, want %q", lock.Path(), dirs.SnapRunLockDir)
 	c.Check(strings.HasPrefix(lock.Path(), dirs.SnapRunLockDir), Equals, true, comment)

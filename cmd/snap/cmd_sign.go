@@ -25,6 +25,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/asserts"
@@ -32,12 +33,14 @@ import (
 	"github.com/snapcore/snapd/i18n"
 )
 
-var shortSignHelp = i18n.G("Sign an assertion")
-var longSignHelp = i18n.G(`
+var (
+	shortSignHelp = i18n.G("Sign an assertion")
+	longSignHelp  = i18n.G(`
 The sign command signs an assertion using the specified key, using the
 input for headers from a JSON mapping provided through stdin. The body
 of the assertion can be specified through a "body" pseudo-header.
 `)
+)
 
 type cmdSign struct {
 	Positional struct {
@@ -78,23 +81,16 @@ func (x *cmdSign) Execute(args []string) error {
 		err       error
 	)
 	if !useStdin {
-		statement, err = os.ReadFile(string(x.Positional.Filename))
+		statement = mylog.Check2(os.ReadFile(string(x.Positional.Filename)))
 	} else {
-		statement, err = io.ReadAll(Stdin)
-	}
-	if err != nil {
-		return fmt.Errorf(i18n.G("cannot read assertion input: %v"), err)
+		statement = mylog.Check2(io.ReadAll(Stdin))
 	}
 
-	keypairMgr, err := signtool.GetKeypairManager()
-	if err != nil {
-		return err
-	}
-	privKey, err := keypairMgr.GetByName(string(x.KeyName))
-	if err != nil {
-		// TRANSLATORS: %q is the key name, %v the error message
-		return fmt.Errorf(i18n.G("cannot use %q key: %v"), x.KeyName, err)
-	}
+	keypairMgr := mylog.Check2(signtool.GetKeypairManager())
+
+	privKey := mylog.Check2(keypairMgr.GetByName(string(x.KeyName)))
+
+	// TRANSLATORS: %q is the key name, %v the error message
 
 	ak, accKeyErr := mustGetOneAssert("account-key", map[string]string{"public-key-sha3-384": privKey.PublicKey().ID()})
 	accountKey, _ := ak.(*asserts.AccountKey)
@@ -105,58 +101,36 @@ func (x *cmdSign) Execute(args []string) error {
 		Statement:  statement,
 	}
 
-	encodedAssert, err := signtool.Sign(&signOpts, keypairMgr)
-	if err != nil {
-		return err
-	}
+	encodedAssert := mylog.Check2(signtool.Sign(&signOpts, keypairMgr))
 
 	outBuf := bytes.NewBuffer(nil)
 	enc := asserts.NewEncoder(outBuf)
-
-	err = enc.WriteEncoded(encodedAssert)
-	if err != nil {
-		return err
-	}
+	mylog.Check(enc.WriteEncoded(encodedAssert))
 
 	if x.Chain {
 		if accKeyErr != nil {
 			return fmt.Errorf(i18n.G("cannot create assertion chain: %w"), accKeyErr)
 		}
+		mylog.Check(enc.Encode(accountKey))
 
-		err = enc.Encode(accountKey)
-		if err != nil {
-			return err
-		}
+		account := mylog.Check2(mustGetOneAssert("account", map[string]string{"account-id": accountKey.AccountID()}))
+		mylog.Check(enc.Encode(account))
 
-		account, err := mustGetOneAssert("account", map[string]string{"account-id": accountKey.AccountID()})
-		if err != nil {
-			return fmt.Errorf(i18n.G("cannot create assertion chain: %w"), err)
-		}
-
-		err = enc.Encode(account)
-		if err != nil {
-			return err
-		}
 	} else {
 		if accountKey == nil {
 			fmt.Fprintf(Stderr, i18n.G("WARNING: could not fetch account-key to cross-check signed assertion with key constraints.\n"))
 		}
 	}
 
-	_, err = Stdout.Write(outBuf.Bytes())
-	if err != nil {
-		return err
-	}
+	_ = mylog.Check2(Stdout.Write(outBuf.Bytes()))
+
 	return nil
 }
 
 // call this function in a way that is guaranteed to specify a unique assertion
 // (i.e. with a header specifying a value for the assertion's primary key)
 func mustGetOneAssert(assertType string, headers map[string]string) (asserts.Assertion, error) {
-	asserts, err := downloadAssertion(assertType, headers)
-	if err != nil {
-		return nil, err
-	}
+	asserts := mylog.Check2(downloadAssertion(assertType, headers))
 
 	if len(asserts) != 1 {
 		return nil, fmt.Errorf(i18n.G("internal error: cannot identify unique %s assertion for specified headers"), assertType)

@@ -24,6 +24,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/gadget"
@@ -35,10 +36,7 @@ import (
 func LaidOutVolumesFromGadget(gadgetRoot, kernelRoot string, model gadget.Model, encType secboot.EncryptionType, volToGadgetToDiskStruct map[string]map[int]*gadget.OnDiskStructure) (all map[string]*gadget.LaidOutVolume, err error) {
 	// rely on the basic validation from ReadInfo to ensure that the system-*
 	// roles are all on the same volume for example
-	info, err := gadget.ReadInfoAndValidate(gadgetRoot, model, nil)
-	if err != nil {
-		return nil, err
-	}
+	info := mylog.Check2(gadget.ReadInfoAndValidate(gadgetRoot, model, nil))
 
 	// If not provided, create an imaginary disk from the gadget specification.
 	if volToGadgetToDiskStruct == nil {
@@ -58,40 +56,25 @@ func LaidOutVolumesFromGadget(gadgetRoot, kernelRoot string, model gadget.Model,
 // gadget.yaml's. An empty directory to use to create a gadget.yaml file should
 // be provided, such as c.MkDir() in tests.
 func LayoutMultiVolumeFromYaml(newDir, kernelDir, gadgetYaml string, model gadget.Model) (map[string]*gadget.LaidOutVolume, error) {
-	gadgetRoot, err := WriteGadgetYaml(newDir, gadgetYaml)
-	if err != nil {
-		return nil, err
-	}
+	gadgetRoot := mylog.Check2(WriteGadgetYaml(newDir, gadgetYaml))
 
-	allVolumes, err := LaidOutVolumesFromGadget(gadgetRoot, kernelDir, model, secboot.EncryptionTypeNone, nil)
-	if err != nil {
-		return nil, fmt.Errorf("cannot layout volumes: %v", err)
-	}
+	allVolumes := mylog.Check2(LaidOutVolumesFromGadget(gadgetRoot, kernelDir, model, secboot.EncryptionTypeNone, nil))
 
 	return allVolumes, nil
 }
 
 func WriteGadgetYamlReadInfo(newDir, gadgetYaml string, model gadget.Model) (*gadget.Info, string, error) {
-	gadgetRoot, err := WriteGadgetYaml(newDir, gadgetYaml)
-	if err != nil {
-		return nil, "", err
-	}
-	info, err := gadget.ReadInfoAndValidate(gadgetRoot, model, nil)
-	if err != nil {
-		return nil, "", err
-	}
+	gadgetRoot := mylog.Check2(WriteGadgetYaml(newDir, gadgetYaml))
+
+	info := mylog.Check2(gadget.ReadInfoAndValidate(gadgetRoot, model, nil))
+
 	return info, gadgetRoot, nil
 }
 
 func WriteGadgetYaml(newDir, gadgetYaml string) (string, error) {
 	gadgetRoot := filepath.Join(newDir, "gadget")
-	if err := os.MkdirAll(filepath.Join(gadgetRoot, "meta"), 0755); err != nil {
-		return "", err
-	}
-
-	if err := os.WriteFile(filepath.Join(gadgetRoot, "meta", "gadget.yaml"), []byte(gadgetYaml), 0644); err != nil {
-		return "", err
-	}
+	mylog.Check(os.MkdirAll(filepath.Join(gadgetRoot, "meta"), 0755))
+	mylog.Check(os.WriteFile(filepath.Join(gadgetRoot, "meta", "gadget.yaml"), []byte(gadgetYaml), 0644))
 
 	return gadgetRoot, nil
 }
@@ -101,24 +84,16 @@ func WriteGadgetYaml(newDir, gadgetYaml string) (string, error) {
 // directory to use to create a gadget.yaml file should be provided, such as
 // c.MkDir() in tests.
 func LayoutFromYaml(newDir, gadgetYaml string, model gadget.Model) (*gadget.LaidOutVolume, error) {
-	gadgetRoot, err := WriteGadgetYaml(newDir, gadgetYaml)
-	if err != nil {
-		return nil, err
-	}
+	gadgetRoot := mylog.Check2(WriteGadgetYaml(newDir, gadgetYaml))
 
 	return MustLayOutSingleVolumeFromGadget(gadgetRoot, "", model)
 }
 
 func VolumeFromYaml(newDir, gadgetYaml string, model gadget.Model) (*gadget.Volume, error) {
-	gadgetRoot, err := WriteGadgetYaml(newDir, gadgetYaml)
-	if err != nil {
-		return nil, err
-	}
+	gadgetRoot := mylog.Check2(WriteGadgetYaml(newDir, gadgetYaml))
 
-	info, err := gadget.ReadInfo(gadgetRoot, model)
-	if err != nil {
-		return nil, err
-	}
+	info := mylog.Check2(gadget.ReadInfo(gadgetRoot, model))
+
 	if len(info.Volumes) != 1 {
 		return nil, fmt.Errorf("only single volumes supported in test helper")
 	}
@@ -134,10 +109,7 @@ func VolumeFromYaml(newDir, gadgetYaml string, model gadget.Model) (*gadget.Volu
 // is meant for test helpers only. For runtime users, with multiple volumes
 // handled by choosing the ubuntu-* role volume, see LaidOutVolumesFromGadget
 func MustLayOutSingleVolumeFromGadget(gadgetRoot, kernelRoot string, model gadget.Model) (*gadget.LaidOutVolume, error) {
-	info, err := gadget.ReadInfo(gadgetRoot, model)
-	if err != nil {
-		return nil, err
-	}
+	info := mylog.Check2(gadget.ReadInfo(gadgetRoot, model))
 
 	if len(info.Volumes) != 1 {
 		return nil, fmt.Errorf("only single volumes supported in test helper")
@@ -174,24 +146,12 @@ func (m *ModelCharacteristics) Grade() asserts.ModelGrade {
 }
 
 func MakeMockGadget(gadgetRoot, gadgetContent string) error {
-	if err := os.MkdirAll(filepath.Join(gadgetRoot, "meta"), 0755); err != nil {
-		return err
-	}
-	if err := os.WriteFile(filepath.Join(gadgetRoot, "meta", "gadget.yaml"), []byte(gadgetContent), 0644); err != nil {
-		return err
-	}
-	if err := os.WriteFile(filepath.Join(gadgetRoot, "pc-boot.img"), []byte("pc-boot.img content"), 0644); err != nil {
-		return err
-	}
-	if err := os.WriteFile(filepath.Join(gadgetRoot, "pc-core.img"), []byte("pc-core.img content"), 0644); err != nil {
-		return err
-	}
-	if err := os.WriteFile(filepath.Join(gadgetRoot, "grubx64.efi"), []byte("grubx64.efi content"), 0644); err != nil {
-		return err
-	}
-	if err := os.WriteFile(filepath.Join(gadgetRoot, "shim.efi.signed"), []byte("shim.efi.signed content"), 0644); err != nil {
-		return err
-	}
+	mylog.Check(os.MkdirAll(filepath.Join(gadgetRoot, "meta"), 0755))
+	mylog.Check(os.WriteFile(filepath.Join(gadgetRoot, "meta", "gadget.yaml"), []byte(gadgetContent), 0644))
+	mylog.Check(os.WriteFile(filepath.Join(gadgetRoot, "pc-boot.img"), []byte("pc-boot.img content"), 0644))
+	mylog.Check(os.WriteFile(filepath.Join(gadgetRoot, "pc-core.img"), []byte("pc-core.img content"), 0644))
+	mylog.Check(os.WriteFile(filepath.Join(gadgetRoot, "grubx64.efi"), []byte("grubx64.efi content"), 0644))
+	mylog.Check(os.WriteFile(filepath.Join(gadgetRoot, "shim.efi.signed"), []byte("shim.efi.signed content"), 0644))
 
 	return nil
 }
@@ -261,21 +221,14 @@ var MockGadgetPartitionedOnDiskVolume = gadget.OnDiskVolume{
 func MockGadgetPartitionedDisk(gadgetYaml, gadgetRoot string) (ginfo *gadget.Info, laidVols map[string]*gadget.LaidOutVolume, model *asserts.Model, restore func(), err error) {
 	// TODO test for UC systems too
 	model = boottest.MakeMockClassicWithModesModel()
+	mylog.
 
-	// Create gadget with all files
-	err = MakeMockGadget(gadgetRoot, gadgetYaml)
-	if err != nil {
-		return nil, nil, nil, nil, err
-	}
-	laidVols, err = LaidOutVolumesFromGadget(gadgetRoot, "", model, secboot.EncryptionTypeNone, nil)
-	if err != nil {
-		return nil, nil, nil, nil, err
-	}
+		// Create gadget with all files
+		Check(MakeMockGadget(gadgetRoot, gadgetYaml))
 
-	ginfo, err = gadget.ReadInfo(gadgetRoot, model)
-	if err != nil {
-		return nil, nil, nil, nil, err
-	}
+	laidVols = mylog.Check2(LaidOutVolumesFromGadget(gadgetRoot, "", model, secboot.EncryptionTypeNone, nil))
+
+	ginfo = mylog.Check2(gadget.ReadInfo(gadgetRoot, model))
 
 	// "Real" disk data that will be read. Filesystem type and label are not
 	// filled as the filesystem is considered not created yet, which is

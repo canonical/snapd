@@ -20,6 +20,7 @@
 package policy
 
 import (
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -50,10 +51,8 @@ func (p *snapdPolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, re
 	}
 
 	// only allow snapd removal if its the last snap on a (classic) system
-	numSnaps, err := snapstate.NumSnaps(st)
-	if err != nil {
-		return err
-	}
+	numSnaps := mylog.Check2(snapstate.NumSnaps(st))
+
 	if numSnaps > 1 {
 		return errSnapdNotYetRemovableOnClassic
 	}

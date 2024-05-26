@@ -26,6 +26,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap/integrity/dmverity"
 )
@@ -38,10 +39,8 @@ const (
 	HeaderSize = 4096
 )
 
-var (
-	// magic is the magic prefix of snap extension blocks.
-	magic = []byte{'s', 'n', 'a', 'p', 'e', 'x', 't'}
-)
+// magic is the magic prefix of snap extension blocks.
+var magic = []byte{'s', 'n', 'a', 'p', 'e', 'x', 't'}
 
 // align aligns input `size` to closest `blockSize` value
 func align(size uint64) uint64 {
@@ -67,10 +66,8 @@ func newIntegrityDataHeader(dmVerityBlock *dmverity.Info, integrityDataSize uint
 
 // Encode serializes an IntegrityDataHeader struct to a null terminated json string.
 func (integrityDataHeader IntegrityDataHeader) Encode() ([]byte, error) {
-	jsonHeader, err := json.Marshal(integrityDataHeader)
-	if err != nil {
-		return nil, err
-	}
+	jsonHeader := mylog.Check2(json.Marshal(integrityDataHeader))
+
 	logger.Debugf("integrity data header:\n%s", string(jsonHeader))
 
 	// \0 terminate
@@ -99,11 +96,7 @@ func (integrityDataHeader *IntegrityDataHeader) Decode(input []byte) error {
 	if firstNull == -1 {
 		return fmt.Errorf("invalid integrity data header: no null byte found at end of input")
 	}
-
-	err := json.Unmarshal(input[len(magic):firstNull], &integrityDataHeader)
-	if err != nil {
-		return err
-	}
+	mylog.Check(json.Unmarshal(input[len(magic):firstNull], &integrityDataHeader))
 
 	return nil
 }
@@ -115,15 +108,10 @@ func (integrityDataHeader *IntegrityDataHeader) Decode(input []byte) error {
 func GenerateAndAppend(snapPath string) (err error) {
 	// Generate verity metadata
 	hashFileName := snapPath + ".verity"
-	dmVerityBlock, err := dmverity.Format(snapPath, hashFileName)
-	if err != nil {
-		return err
-	}
+	dmVerityBlock := mylog.Check2(dmverity.Format(snapPath, hashFileName))
 
-	hashFile, err := os.OpenFile(hashFileName, os.O_RDONLY, 0644)
-	if err != nil {
-		return err
-	}
+	hashFile := mylog.Check2(os.OpenFile(hashFileName, os.O_RDONLY, 0644))
+
 	defer func() {
 		hashFile.Close()
 		if e := os.Remove(hashFileName); e != nil {
@@ -131,33 +119,21 @@ func GenerateAndAppend(snapPath string) (err error) {
 		}
 	}()
 
-	fi, err := hashFile.Stat()
-	if err != nil {
-		return err
-	}
+	fi := mylog.Check2(hashFile.Stat())
 
 	integrityDataHeader := newIntegrityDataHeader(dmVerityBlock, uint64(fi.Size()))
 
 	// Append header to snap
-	header, err := integrityDataHeader.Encode()
-	if err != nil {
-		return err
-	}
+	header := mylog.Check2(integrityDataHeader.Encode())
 
-	snapFile, err := os.OpenFile(snapPath, os.O_APPEND|os.O_WRONLY, 0644)
-	if err != nil {
-		return err
-	}
+	snapFile := mylog.Check2(os.OpenFile(snapPath, os.O_APPEND|os.O_WRONLY, 0644))
+
 	defer snapFile.Close()
+	mylog.Check2(snapFile.Write(header))
+	mylog.Check2(
 
-	if _, err = snapFile.Write(header); err != nil {
-		return err
-	}
-
-	// Append verity metadata to snap
-	if _, err := io.Copy(snapFile, hashFile); err != nil {
-		return err
-	}
+		// Append verity metadata to snap
+		io.Copy(snapFile, hashFile))
 
 	return err
 }

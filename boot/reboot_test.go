@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
@@ -80,8 +81,8 @@ func (s *rebootSuite) TestRebootHelper(c *C) {
 
 	for _, arg := range args {
 		for _, t := range tests {
-			err := boot.Reboot(arg.a, t.delay, nil)
-			c.Assert(err, IsNil)
+			mylog.Check(boot.Reboot(arg.a, t.delay, nil))
+
 			c.Check(cmd.Calls(), DeepEquals, [][]string{
 				{"shutdown", arg.arg, t.delayArg, arg.msg},
 			})
@@ -105,10 +106,9 @@ func (s *rebootSuite) TestRebootWithBootloaderError(c *C) {
 
 	cmd := testutil.MockCommand(c, "shutdown", "")
 	defer cmd.Restore()
-
-	err := boot.Reboot(0, 0, &boot.RebootInfo{
+	mylog.Check(boot.Reboot(0, 0, &boot.RebootInfo{
 		BootloaderOptions: nil,
-	})
+	}))
 	c.Assert(err, ErrorMatches, `cannot resolve bootloader: oh no`)
 	c.Check(cmd.Calls(), HasLen, 0)
 }
@@ -127,13 +127,12 @@ func (s *rebootSuite) TestRebootWithBootloader(c *C) {
 
 	cmd := testutil.MockCommand(c, "shutdown", "")
 	defer cmd.Restore()
-
-	err := boot.Reboot(0, 0, &boot.RebootInfo{
+	mylog.Check(boot.Reboot(0, 0, &boot.RebootInfo{
 		BootloaderOptions: &bootloader.Options{
 			Role: bootloader.RoleRunMode,
 		},
-	})
-	c.Assert(err, IsNil)
+	}))
+
 
 	// ensure the arguments file is absent
 	c.Assert(rebArgsPath, testutil.FileAbsent)
@@ -154,13 +153,12 @@ func (s *rebootSuite) TestRebootWithRebootBootloader(c *C) {
 
 	cmd := testutil.MockCommand(c, "shutdown", "")
 	defer cmd.Restore()
-
-	err := boot.Reboot(0, 0, &boot.RebootInfo{
+	mylog.Check(boot.Reboot(0, 0, &boot.RebootInfo{
 		BootloaderOptions: &bootloader.Options{
 			Role: bootloader.RoleRunMode,
 		},
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Assert(rebArgsPath, testutil.FileEquals, "0 tryboot\n")
 	c.Check(cmd.Calls(), DeepEquals, [][]string{
 		{"shutdown", "-r", "+0", "reboot scheduled to update the system"},
@@ -179,9 +177,8 @@ func (s *rebootSuite) TestRebootWithRebootBootloaderNoArguments(c *C) {
 
 	cmd := testutil.MockCommand(c, "shutdown", "")
 	defer cmd.Restore()
+	mylog.Check(boot.Reboot(0, 0, nil))
 
-	err := boot.Reboot(0, 0, nil)
-	c.Assert(err, IsNil)
 
 	// ensure the arguments file is absent
 	c.Assert(rebArgsPath, testutil.FileAbsent)

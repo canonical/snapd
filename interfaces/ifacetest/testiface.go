@@ -288,7 +288,6 @@ func (t *TestInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot
 func (t *TestInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	if t.AppArmorConnectedSlotCallback != nil {
 		return t.AppArmorConnectedSlotCallback(spec, plug, slot)
-
 	}
 	return nil
 }

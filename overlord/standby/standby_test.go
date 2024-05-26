@@ -23,6 +23,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/standby"
@@ -129,13 +130,13 @@ func (s *standbySuite) TestStartChecks(c *C) {
 
 	defer standby.MockStandbyWait(time.Millisecond)()
 	s.state.Lock()
-	_, err := restart.Manager(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(t restart.RestartType) {
+	_ := mylog.Check2(restart.Manager(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(t restart.RestartType) {
 		c.Check(t, Equals, restart.RestartSocket)
 		n++
 		ch2 <- struct{}{}
-	}))
+	})))
 	s.state.Unlock()
-	c.Assert(err, IsNil)
+
 
 	m := standby.New(s.state)
 	m.AddOpinion(opine(func() bool {
@@ -162,11 +163,11 @@ func (s *standbySuite) TestStartChecks(c *C) {
 func (s *standbySuite) TestStopWaits(c *C) {
 	defer standby.MockStandbyWait(time.Millisecond)()
 	s.state.Lock()
-	_, err := restart.Manager(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(t restart.RestartType) {
+	_ := mylog.Check2(restart.Manager(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(t restart.RestartType) {
 		c.Fatal("request restart should have not been called")
-	}))
+	})))
 	s.state.Unlock()
-	c.Assert(err, IsNil)
+
 
 	ch := make(chan struct{})
 	opineReady := make(chan struct{})

@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/asserts/signtool"
@@ -57,10 +58,8 @@ type Key struct {
 }
 
 func outputJSON(keys []Key) error {
-	obj, err := json.Marshal(keys)
-	if err != nil {
-		return err
-	}
+	obj := mylog.Check2(json.Marshal(keys))
+
 	fmt.Fprintf(Stdout, "%s\n", obj)
 	return nil
 }
@@ -86,15 +85,10 @@ func (x *cmdKeys) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	keypairMgr, err := signtool.GetKeypairManager()
-	if err != nil {
-		return err
-	}
+	keypairMgr := mylog.Check2(signtool.GetKeypairManager())
 
-	kinfos, err := keypairMgr.List()
-	if err != nil {
-		return err
-	}
+	kinfos := mylog.Check2(keypairMgr.List())
+
 	keys := make([]Key, len(kinfos))
 	for i, kinfo := range kinfos {
 		keys[i].Name = kinfo.Name

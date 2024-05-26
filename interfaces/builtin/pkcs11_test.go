@@ -22,6 +22,7 @@ package builtin_test
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -180,21 +181,21 @@ func (s *Pkcs11InterfaceSuite) TestName(c *C) {
 }
 
 func (s *Pkcs11InterfaceSuite) TestSecCompPermanentSlot(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.testSlot0Info.Snap, nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.testSlot0Info.Snap, nil))
+
 	seccompSpec := seccomp.NewSpecification(appSet)
-	err = seccompSpec.AddPermanentSlot(s.iface, s.testSlot0Info)
-	c.Assert(err, IsNil)
+	mylog.Check(seccompSpec.AddPermanentSlot(s.iface, s.testSlot0Info))
+
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.gadget.p11-server"})
 	c.Check(seccompSpec.SnippetForTag("snap.gadget.p11-server"), testutil.Contains, "listen\n")
 }
 
 func (s *Pkcs11InterfaceSuite) TestPermanentSlotSnippetAppArmor(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.testSlot0Info.Snap, nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.testSlot0Info.Snap, nil))
+
 	apparmorSpec := apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddPermanentSlot(s.iface, s.testSlot0Info)
-	c.Assert(err, IsNil)
+	mylog.Check(apparmorSpec.AddPermanentSlot(s.iface, s.testSlot0Info))
+
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.gadget.p11-server"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.gadget.p11-server"), Not(IsNil))
 	c.Assert(apparmorSpec.SnippetForTag("snap.gadget.p11-server"), testutil.Contains,
@@ -215,28 +216,28 @@ func (s *Pkcs11InterfaceSuite) TestPermanentSlotSnippetAppArmor(c *C) {
 		`/usr/bin/pkcs11-tool ixr,`)
 	c.Assert(apparmorSpec.SnippetForTag("snap.gadget.p11-server"), testutil.Contains,
 		`/usr/libexec/p11-kit/p11-kit-server ixr,`)
-	err = apparmorSpec.AddPermanentSlot(s.iface, s.testSlot1Info)
-	c.Assert(err, IsNil)
+	mylog.Check(apparmorSpec.AddPermanentSlot(s.iface, s.testSlot1Info))
+
 	c.Assert(apparmorSpec.SnippetForTag("snap.gadget.p11-server"), testutil.Contains,
 		`"/{,var/}run/p11-kit/pkcs11-optee-slot-1" rwk,`)
 }
 
 func (s *Pkcs11InterfaceSuite) TestPermanentSlotMissingSocketPath(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.testBadSlot4Info.Snap, nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.testBadSlot4Info.Snap, nil))
+
 	apparmorSpec := apparmor.NewSpecification(appSet)
 	c.Assert(apparmorSpec.AddPermanentSlot(s.iface, s.testBadSlot4Info), ErrorMatches, `cannot use pkcs11 slot without "pkcs11-socket" attribute`)
 }
 
 func (s *Pkcs11InterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.testPlug1.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.testPlug1.Snap(), nil))
+
 	apparmorSpec := apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddConnectedPlug(s.iface, s.testPlug1, s.testSlot1)
+	mylog.Check(apparmorSpec.AddConnectedPlug(s.iface, s.testPlug1, s.testSlot1))
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.consumer.app-accessing-2-slots"})
-	c.Assert(err, IsNil)
-	err = apparmorSpec.AddConnectedPlug(s.iface, s.testPlug0, s.testSlot0)
-	c.Assert(err, IsNil)
+
+	mylog.Check(apparmorSpec.AddConnectedPlug(s.iface, s.testPlug0, s.testSlot0))
+
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.consumer.app-accessing-1-slot", "snap.consumer.app-accessing-2-slots"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.consumer.app-accessing-1-slot"), Not(IsNil))
 	c.Assert(apparmorSpec.SnippetForTag("snap.consumer.app-accessing-1-slot"), testutil.Contains,
@@ -260,16 +261,15 @@ func (s *Pkcs11InterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
 	c.Assert(apparmorSpec.SnippetForTag("snap.consumer.app-accessing-1-slot"), Not(testutil.Contains),
 		`"/{,var/}run/p11-kit/pkcs11-optee-slot-2" rw,`)
 
-	c.Assert(err, IsNil)
+
 	c.Assert(apparmorSpec.SnippetForTag("snap.consumer.app-accessing-2-slots"), testutil.Contains,
 		`"/{,var/}run/p11-kit/pkcs11-optee-slot-0" rw,`)
 	c.Assert(apparmorSpec.SnippetForTag("snap.consumer.app-accessing-2-slots"), testutil.Contains,
 		`"/{,var/}run/p11-kit/pkcs11-optee-slot-1" rw,`)
 	c.Assert(apparmorSpec.SnippetForTag("snap.consumer.app-accessing-2-slots"), Not(testutil.Contains),
 		`"/{,var/}run/p11-kit/pkcs11-optee-slot-2" rw,`)
+	mylog.Check(apparmorSpec.AddConnectedPlug(s.iface, s.testPlug2, s.testSlot2))
 
-	err = apparmorSpec.AddConnectedPlug(s.iface, s.testPlug2, s.testSlot2)
-	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.consumer.app-accessing-1-slot", "snap.consumer.app-accessing-2-slots", "snap.consumer.app-accessing-3rd-slot"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.consumer.app-accessing-3rd-slot"), Not(testutil.Contains),
 		`"/{,var/}run/p11-kit/pkcs11-optee-slot-0" rw,`)
@@ -277,8 +277,7 @@ func (s *Pkcs11InterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
 		`"/{,var/}run/p11-kit/pkcs11-optee-slot-1" rw,`)
 	c.Assert(apparmorSpec.SnippetForTag("snap.consumer.app-accessing-3rd-slot"), testutil.Contains,
 		`"/{,var/}run/p11-kit/pkcs11-optee-slot-2" rw,`)
-
-	err = apparmorSpec.AddConnectedPlug(s.iface, s.testPlug2, s.testBadSlot4)
+	mylog.Check(apparmorSpec.AddConnectedPlug(s.iface, s.testPlug2, s.testBadSlot4))
 	c.Assert(err, ErrorMatches, `internal error: pkcs11 slot "gadget:.*" must have a unix socket "pkcs11-socket" attribute`)
 }
 

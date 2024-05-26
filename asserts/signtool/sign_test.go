@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/signtool"
@@ -48,8 +49,8 @@ func (s *signSuite) SetUpSuite(c *C) {
 	s.keypairMgr.Put(testKey)
 	s.testKeyID = testKey.PublicKey().ID()
 
-	encPubKey, err := asserts.EncodePublicKey(testKey.PublicKey())
-	c.Assert(err, IsNil)
+	encPubKey := mylog.Check2(asserts.EncodePublicKey(testKey.PublicKey()))
+
 	s.testAccKey = assertstest.FakeAssertionWithBody(encPubKey,
 		map[string]interface{}{
 			"type":                "account-key",
@@ -99,10 +100,8 @@ func exampleJSON(overrides map[string]interface{}) []byte {
 			m[k] = v
 		}
 	}
-	b, err := json.Marshal(m)
-	if err != nil {
-		panic(err)
-	}
+	b := mylog.Check2(json.Marshal(m))
+
 	return b
 }
 
@@ -113,11 +112,11 @@ func (s *signSuite) TestSignJSON(c *C) {
 		Statement: exampleJSON(nil),
 	}
 
-	assertText, err := signtool.Sign(&opts, s.keypairMgr)
-	c.Assert(err, IsNil)
+	assertText := mylog.Check2(signtool.Sign(&opts, s.keypairMgr))
 
-	a, err := asserts.Decode(assertText)
-	c.Assert(err, IsNil)
+
+	a := mylog.Check2(asserts.Decode(assertText))
+
 
 	c.Check(a.Type(), Equals, asserts.ModelType)
 	c.Check(a.Revision(), Equals, 0)
@@ -139,11 +138,11 @@ func (s *signSuite) TestSignJSONWithAccountKeyCrossCheck(c *C) {
 		Statement: exampleJSON(nil),
 	}
 
-	assertText, err := signtool.Sign(&opts, s.keypairMgr)
-	c.Assert(err, IsNil)
+	assertText := mylog.Check2(signtool.Sign(&opts, s.keypairMgr))
 
-	a, err := asserts.Decode(assertText)
-	c.Assert(err, IsNil)
+
+	a := mylog.Check2(asserts.Decode(assertText))
+
 
 	c.Check(a.Type(), Equals, asserts.ModelType)
 	c.Check(a.Revision(), Equals, 0)
@@ -168,11 +167,11 @@ func (s *signSuite) TestSignJSONWithBodyAndRevision(c *C) {
 		Statement: statement,
 	}
 
-	assertText, err := signtool.Sign(&opts, s.keypairMgr)
-	c.Assert(err, IsNil)
+	assertText := mylog.Check2(signtool.Sign(&opts, s.keypairMgr))
 
-	a, err := asserts.Decode(assertText)
-	c.Assert(err, IsNil)
+
+	a := mylog.Check2(asserts.Decode(assertText))
+
 
 	c.Check(a.Type(), Equals, asserts.ModelType)
 	c.Check(a.Revision(), Equals, 11)
@@ -199,11 +198,11 @@ func (s *signSuite) TestSignJSONWithBodyAndComplementRevision(c *C) {
 		},
 	}
 
-	assertText, err := signtool.Sign(&opts, s.keypairMgr)
-	c.Assert(err, IsNil)
+	assertText := mylog.Check2(signtool.Sign(&opts, s.keypairMgr))
 
-	a, err := asserts.Decode(assertText)
-	c.Assert(err, IsNil)
+
+	a := mylog.Check2(asserts.Decode(assertText))
+
 
 	c.Check(a.Type(), Equals, asserts.ModelType)
 	c.Check(a.Revision(), Equals, 11)
@@ -231,11 +230,11 @@ func (s *signSuite) TestSignJSONWithRevisionAndComplementBodyAndRepeatedType(c *
 		},
 	}
 
-	assertText, err := signtool.Sign(&opts, s.keypairMgr)
-	c.Assert(err, IsNil)
+	assertText := mylog.Check2(signtool.Sign(&opts, s.keypairMgr))
 
-	a, err := asserts.Decode(assertText)
-	c.Assert(err, IsNil)
+
+	a := mylog.Check2(asserts.Decode(assertText))
+
 
 	c.Check(a.Type(), Equals, asserts.ModelType)
 	c.Check(a.Revision(), Equals, 11)
@@ -262,47 +261,60 @@ func (s *signSuite) TestSignErrors(c *C) {
 		complement      map[string]interface{}
 		accKey          *asserts.AccountKey
 	}{
-		{`cannot parse the assertion input as JSON:.*`,
+		{
+			`cannot parse the assertion input as JSON:.*`,
 			[]byte("\x00"),
 			nil, nil,
 		},
-		{`invalid assertion type: what`,
+		{
+			`invalid assertion type: what`,
 			exampleJSON(map[string]interface{}{"type": "what"}),
 			nil, nil,
 		},
-		{`assertion type must be a string, not: \[\]`,
+		{
+			`assertion type must be a string, not: \[\]`,
 			exampleJSON(map[string]interface{}{"type": emptyList}),
 			nil, nil,
 		},
-		{`missing assertion type header`,
+		{
+			`missing assertion type header`,
 			exampleJSON(map[string]interface{}{"type": nil}),
 			nil, nil,
 		},
-		{"revision should be positive: -10",
+		{
+			"revision should be positive: -10",
 			exampleJSON(map[string]interface{}{"revision": "-10"}),
 			nil, nil,
 		},
-		{`"authority-id" header is mandatory`,
+		{
+			`"authority-id" header is mandatory`,
 			exampleJSON(map[string]interface{}{"authority-id": nil}),
 			nil, nil,
 		},
-		{`body if specified must be a string`,
+		{
+			`body if specified must be a string`,
 			exampleJSON(map[string]interface{}{"body": emptyList}),
 			nil, nil,
 		},
-		{`repeated assertion type does not match`,
+		{
+			`repeated assertion type does not match`,
 			exampleJSON(nil),
-			map[string]interface{}{"type": "foo"}, nil,
+			map[string]interface{}{"type": "foo"},
+			nil,
 		},
-		{`complementary header "kernel" clashes with assertion input`,
+		{
+			`complementary header "kernel" clashes with assertion input`,
 			exampleJSON(nil),
-			map[string]interface{}{"kernel": "foo"}, nil,
+			map[string]interface{}{"kernel": "foo"},
+			nil,
 		},
-		{`authority-id does not match the account-id of the signing account-key`,
+		{
+			`authority-id does not match the account-id of the signing account-key`,
 			exampleJSON(map[string]interface{}{"authority-id": "user-id2", "brand-id": "user-id2"}),
 			nil, s.testAccKey,
 		},
-		{`the assertion headers do not match the constraints of the signing account-key`,
+		{
+			`the assertion headers do not match the constraints of the signing account-key`,
 			exampleJSON(map[string]interface{}{"model": "bar"}),
 			nil, s.testAccKey,
 		},
@@ -315,7 +327,7 @@ func (s *signSuite) TestSignErrors(c *C) {
 		fresh.Complement = t.complement
 		fresh.AccountKey = t.accKey
 
-		_, err := signtool.Sign(&fresh, s.keypairMgr)
+		_ := mylog.Check2(signtool.Sign(&fresh, s.keypairMgr))
 		c.Check(err, ErrorMatches, t.expError)
 	}
 }

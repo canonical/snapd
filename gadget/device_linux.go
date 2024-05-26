@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -51,7 +52,7 @@ func FindDeviceForStructure(vs *VolumeStructure) (string, error) {
 			fsLabel = vs.Name
 		}
 		if fsLabel != "" {
-			candLabel, err := disks.CandidateByLabelPath(fsLabel)
+			candLabel := mylog.Check2(disks.CandidateByLabelPath(fsLabel))
 			if err == nil {
 				candidates = append(candidates, candLabel)
 			} else {
@@ -71,10 +72,8 @@ func FindDeviceForStructure(vs *VolumeStructure) (string, error) {
 			// expected to be symlink
 			return "", fmt.Errorf("candidate %v is not a symlink", candidate)
 		}
-		target, err := evalSymlinks(candidate)
-		if err != nil {
-			return "", fmt.Errorf("cannot read device link: %v", err)
-		}
+		target := mylog.Check2(evalSymlinks(candidate))
+
 		if found != "" && target != found {
 			// partition and filesystem label links point to
 			// different devices

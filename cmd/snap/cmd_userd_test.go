@@ -34,6 +34,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	snap "github.com/snapcore/snapd/cmd/snap"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
@@ -69,7 +70,7 @@ func (s *userdSuite) TearDownTest(c *C) {
 }
 
 func (s *userdSuite) TestUserdBadCommandline(c *C) {
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"userd", "extra-arg"})
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"userd", "extra-arg"}))
 	c.Assert(err, ErrorMatches, "too many arguments for command")
 }
 
@@ -109,7 +110,7 @@ func (s *userdSuite) TestUserdDBus(c *C) {
 					seenCount++
 					continue
 				}
-				pid, err := testutil.DBusGetConnectionUnixProcessID(s.SessionBus, name)
+				pid := mylog.Check2(testutil.DBusGetConnectionUnixProcessID(s.SessionBus, name))
 				c.Logf("name: %v pid: %v err: %v", name, pid, err)
 				if pid == myPid {
 					names[name] = true
@@ -124,8 +125,8 @@ func (s *userdSuite) TestUserdDBus(c *C) {
 		c.Fatalf("not all names have appeared on the bus: %v", names)
 	}()
 
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"userd"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"userd"}))
+
 	c.Check(rest, DeepEquals, []string{})
 	c.Check(strings.ToLower(s.Stdout()), Equals, "exiting on <test signal>.\n")
 	c.Check(sigStopCalls, Equals, 1)
@@ -166,14 +167,14 @@ func (s *userdSuite) TestSessionAgentSocket(c *C) {
 
 		// Check that agent functions
 		client := s.makeAgentClient()
-		response, err := client.Get("http://localhost/v1/session-info")
-		c.Assert(err, IsNil)
+		response := mylog.Check2(client.Get("http://localhost/v1/session-info"))
+
 		defer response.Body.Close()
 		c.Check(response.StatusCode, Equals, 200)
 	}()
 
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"userd", "--agent"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"userd", "--agent"}))
+
 	c.Check(rest, DeepEquals, []string{})
 	c.Check(strings.ToLower(s.Stdout()), Equals, "exiting on <test signal>.\n")
 	c.Check(sigStopCalls, Equals, 1)
@@ -184,10 +185,10 @@ func (s *userdSuite) TestSignalNotify(c *C) {
 	defer stop()
 	go func() {
 		myPid := os.Getpid()
-		me, err := os.FindProcess(myPid)
-		c.Assert(err, IsNil)
-		err = me.Signal(syscall.SIGUSR1)
-		c.Assert(err, IsNil)
+		me := mylog.Check2(os.FindProcess(myPid))
+
+		mylog.Check(me.Signal(syscall.SIGUSR1))
+
 	}()
 	select {
 	case sig := <-ch:
@@ -207,25 +208,26 @@ func (s *userdSuite) TestAutostartSessionAppsRestrictsPermissions(c *C) {
 
 	r = autostart.MockUserCurrent(mockUserCurrent)
 	defer r()
+	mylog.
 
-	// first make the "snap" dir permissive with 0755 perms
-	err := os.MkdirAll(filepath.Join(userDir, "snap"), 0755)
-	c.Assert(err, IsNil)
+		// first make the "snap" dir permissive with 0755 perms
+		Check(os.MkdirAll(filepath.Join(userDir, "snap"), 0755))
+
 
 	// make sure the perms are as we expect them if somehow the dir already
 	// existed, MkdirAll wouldn't have changed the perms
-	st, err := os.Stat(filepath.Join(userDir, "snap"))
-	c.Assert(err, IsNil)
+	st := mylog.Check2(os.Stat(filepath.Join(userDir, "snap")))
+
 	c.Assert(st.Mode()&os.ModePerm, Equals, os.FileMode(0755))
 
 	// run autostart
-	args, err := snap.Parser(snap.Client()).ParseArgs([]string{"userd", "--autostart"})
-	c.Assert(err, IsNil)
+	args := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"userd", "--autostart"}))
+
 	c.Assert(args, DeepEquals, []string{})
 
 	// make sure that the directory was restricted
-	st, err = os.Stat(filepath.Join(userDir, "snap"))
-	c.Assert(err, IsNil)
+	st = mylog.Check2(os.Stat(filepath.Join(userDir, "snap")))
+
 	c.Assert(st.Mode()&os.ModePerm, Equals, os.FileMode(0700))
 }
 
@@ -251,8 +253,8 @@ func (s *userdSuite) TestAutostartSessionAppsLogsWhenItCannotRestrictPermissions
 	defer r()
 
 	// run autostart
-	args, err := snap.Parser(snap.Client()).ParseArgs([]string{"userd", "--autostart"})
-	c.Assert(err, IsNil)
+	args := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"userd", "--autostart"}))
+
 	c.Assert(args, DeepEquals, []string{})
 
 	c.Assert(s.stderr.String(), testutil.Contains, "cannot os.Chmod because the test says so")
@@ -273,8 +275,8 @@ func (s *userdSuite) TestAutostartSessionAppsRestrictsPermissionsNoCreateSnapDir
 	c.Assert(filepath.Join(userDir, "snap"), testutil.FileAbsent)
 
 	// run autostart
-	args, err := snap.Parser(snap.Client()).ParseArgs([]string{"userd", "--autostart"})
-	c.Assert(err, IsNil)
+	args := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"userd", "--autostart"}))
+
 	c.Assert(args, DeepEquals, []string{})
 
 	// make sure that the directory was not created
@@ -302,8 +304,8 @@ func (s *userdSuite) TestAutostartWithBothSnapDirs(c *C) {
 	hiddenDir := filepath.Join(userDir, ".snap", "data")
 	c.Assert(os.MkdirAll(hiddenDir, 0770), IsNil)
 
-	args, err := snap.Parser(snap.Client()).ParseArgs([]string{"userd", "--autostart"})
-	c.Assert(err, IsNil)
+	args := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"userd", "--autostart"}))
+
 	c.Assert(args, DeepEquals, []string{})
 
 	c.Assert(autostartArgs, testutil.DeepUnsortedMatches, []string{hiddenDir, exposedDir})
@@ -328,7 +330,7 @@ func (s *userdSuite) TestAutostartErrorsInBoth(c *C) {
 	hiddenDir := filepath.Join(userDir, ".snap", "data")
 	c.Assert(os.MkdirAll(hiddenDir, 0770), IsNil)
 
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"userd", "--autostart"})
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"userd", "--autostart"}))
 	c.Assert(err, ErrorMatches, `autostart failed:
 .*/snap
 .*/\.snap/data

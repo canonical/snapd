@@ -22,16 +22,19 @@ package main
 import (
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 )
 
-var shortRemoveUserHelp = i18n.G("Remove a local system user")
-var longRemoveUserHelp = i18n.G(`
+var (
+	shortRemoveUserHelp = i18n.G("Remove a local system user")
+	longRemoveUserHelp  = i18n.G(`
 The remove-user command removes a local system user.
 `)
+)
 
 type cmdRemoveUser struct {
 	clientMixin
@@ -62,10 +65,8 @@ func (x *cmdRemoveUser) Execute(args []string) error {
 		Username: username,
 	}
 
-	removed, err := x.client.RemoveUser(&options)
-	if err != nil {
-		return err
-	}
+	removed := mylog.Check2(x.client.RemoveUser(&options))
+
 	if len(removed) != 1 {
 		return fmt.Errorf("internal error: RemoveUser returned unexpected number of removed users: %v", len(removed))
 	}

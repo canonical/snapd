@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
@@ -65,7 +66,9 @@ func (s *BluetoothControlInterfaceSuite) SetUpTest(c *C) {
 				Snap: &snap.Info{
 					SuggestedName: "core",
 				},
-				Name: "app1"}},
+				Name: "app1",
+			},
+		},
 	}
 	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 	plugSnap := snaptest.MockInfo(c, btcontrolMockPlugSnapInfoYaml, nil)
@@ -86,8 +89,8 @@ func (s *BluetoothControlInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *BluetoothControlInterfaceSuite) TestAppArmorSpec(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
@@ -95,8 +98,8 @@ func (s *BluetoothControlInterfaceSuite) TestAppArmorSpec(c *C) {
 }
 
 func (s *BluetoothControlInterfaceSuite) TestSecCompSpec(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	spec := seccomp.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
@@ -104,8 +107,8 @@ func (s *BluetoothControlInterfaceSuite) TestSecCompSpec(c *C) {
 }
 
 func (s *BluetoothControlInterfaceSuite) TestUDevSpec(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	spec := udev.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 3)

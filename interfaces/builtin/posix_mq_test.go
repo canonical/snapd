@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -466,11 +467,11 @@ func (s *PosixMQInterfaceSuite) checkSlotSeccompSnippet(c *C, spec *seccomp.Spec
 }
 
 func (s *PosixMQInterfaceSuite) TestReadWriteMQAppArmor(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.testReadWriteSlotInfo.Snap, nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.testReadWriteSlotInfo.Snap, nil))
+
 	spec := apparmor.NewSpecification(appSet)
-	err = spec.AddPermanentSlot(s.iface, s.testReadWriteSlotInfo)
-	c.Assert(err, IsNil)
+	mylog.Check(spec.AddPermanentSlot(s.iface, s.testReadWriteSlotInfo))
+
 
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
 
@@ -478,11 +479,11 @@ func (s *PosixMQInterfaceSuite) TestReadWriteMQAppArmor(c *C) {
 	c.Check(slotSnippet, testutil.Contains, `# POSIX Message Queue slot: test-rw`)
 	c.Check(slotSnippet, testutil.Contains, `mqueue (open read write create delete) "/test-rw",`)
 
-	appSet, err = interfaces.NewSnapAppSet(s.testReadOnlyPlug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.testReadOnlyPlug.Snap(), nil))
+
 	spec = apparmor.NewSpecification(appSet)
-	err = spec.AddConnectedPlug(s.iface, s.testReadWritePlug, s.testReadWriteSlot)
-	c.Assert(err, IsNil)
+	mylog.Check(spec.AddConnectedPlug(s.iface, s.testReadWritePlug, s.testReadWriteSlot))
+
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 
 	plugSnippet := spec.SnippetForTag("snap.consumer.app")
@@ -491,21 +492,21 @@ func (s *PosixMQInterfaceSuite) TestReadWriteMQAppArmor(c *C) {
 }
 
 func (s *PosixMQInterfaceSuite) TestReadWriteMQSeccomp(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.testReadWriteSlotInfo.Snap, nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.testReadWriteSlotInfo.Snap, nil))
+
 	spec := seccomp.NewSpecification(appSet)
-	err = spec.AddPermanentSlot(s.iface, s.testReadWriteSlotInfo)
-	c.Assert(err, IsNil)
+	mylog.Check(spec.AddPermanentSlot(s.iface, s.testReadWriteSlotInfo))
+
 
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
 
 	s.checkSlotSeccompSnippet(c, spec)
 
-	appSet, err = interfaces.NewSnapAppSet(s.testReadWritePlug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.testReadWritePlug.Snap(), nil))
+
 	spec = seccomp.NewSpecification(appSet)
-	err = spec.AddConnectedPlug(s.iface, s.testReadWritePlug, s.testReadWriteSlot)
-	c.Assert(err, IsNil)
+	mylog.Check(spec.AddConnectedPlug(s.iface, s.testReadWritePlug, s.testReadWriteSlot))
+
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 
 	plugSnippet := spec.SnippetForTag("snap.consumer.app")
@@ -521,11 +522,11 @@ func (s *PosixMQInterfaceSuite) TestReadWriteMQSeccomp(c *C) {
 }
 
 func (s *PosixMQInterfaceSuite) TestDefaultReadWriteMQAppArmor(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.testDefaultPermsSlotInfo.Snap, nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.testDefaultPermsSlotInfo.Snap, nil))
+
 	spec := apparmor.NewSpecification(appSet)
-	err = spec.AddPermanentSlot(s.iface, s.testDefaultPermsSlotInfo)
-	c.Assert(err, IsNil)
+	mylog.Check(spec.AddPermanentSlot(s.iface, s.testDefaultPermsSlotInfo))
+
 
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
 
@@ -533,11 +534,11 @@ func (s *PosixMQInterfaceSuite) TestDefaultReadWriteMQAppArmor(c *C) {
 	c.Check(slotSnippet, testutil.Contains, `# POSIX Message Queue slot: test-default`)
 	c.Check(slotSnippet, testutil.Contains, `mqueue (open read write create delete) "/test-default",`)
 
-	appSet, err = interfaces.NewSnapAppSet(s.testDefaultPermsPlugInfo.Snap, nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.testDefaultPermsPlugInfo.Snap, nil))
+
 	spec = apparmor.NewSpecification(appSet)
-	err = spec.AddConnectedPlug(s.iface, s.testDefaultPermsPlug, s.testDefaultPermsSlot)
-	c.Assert(err, IsNil)
+	mylog.Check(spec.AddConnectedPlug(s.iface, s.testDefaultPermsPlug, s.testDefaultPermsSlot))
+
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 
 	plugSnippet := spec.SnippetForTag("snap.consumer.app")
@@ -546,20 +547,20 @@ func (s *PosixMQInterfaceSuite) TestDefaultReadWriteMQAppArmor(c *C) {
 }
 
 func (s *PosixMQInterfaceSuite) TestDefaultReadWriteMQSeccomp(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.testDefaultPermsSlotInfo.Snap, nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.testDefaultPermsSlotInfo.Snap, nil))
+
 	spec := seccomp.NewSpecification(appSet)
-	err = spec.AddPermanentSlot(s.iface, s.testDefaultPermsSlotInfo)
-	c.Assert(err, IsNil)
+	mylog.Check(spec.AddPermanentSlot(s.iface, s.testDefaultPermsSlotInfo))
+
 
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
 	s.checkSlotSeccompSnippet(c, spec)
 
-	appSet, err = interfaces.NewSnapAppSet(s.testDefaultPermsPlugInfo.Snap, nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.testDefaultPermsPlugInfo.Snap, nil))
+
 	spec = seccomp.NewSpecification(appSet)
-	err = spec.AddConnectedPlug(s.iface, s.testDefaultPermsPlug, s.testDefaultPermsSlot)
-	c.Assert(err, IsNil)
+	mylog.Check(spec.AddConnectedPlug(s.iface, s.testDefaultPermsPlug, s.testDefaultPermsSlot))
+
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 
 	plugSnippet := spec.SnippetForTag("snap.consumer.app")
@@ -575,22 +576,22 @@ func (s *PosixMQInterfaceSuite) TestDefaultReadWriteMQSeccomp(c *C) {
 }
 
 func (s *PosixMQInterfaceSuite) TestReadOnlyMQAppArmor(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.testReadOnlySlotInfo.Snap, nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.testReadOnlySlotInfo.Snap, nil))
+
 	spec := apparmor.NewSpecification(appSet)
-	err = spec.AddPermanentSlot(s.iface, s.testReadOnlySlotInfo)
-	c.Assert(err, IsNil)
+	mylog.Check(spec.AddPermanentSlot(s.iface, s.testReadOnlySlotInfo))
+
 
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
 
 	slotSnippet := spec.SnippetForTag("snap.producer.app")
 	c.Check(slotSnippet, testutil.Contains, `mqueue (open read write create delete) "/test-ro",`)
 
-	appSet, err = interfaces.NewSnapAppSet(s.testReadOnlyPlug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.testReadOnlyPlug.Snap(), nil))
+
 	spec = apparmor.NewSpecification(appSet)
-	err = spec.AddConnectedPlug(s.iface, s.testReadOnlyPlug, s.testReadOnlySlot)
-	c.Assert(err, IsNil)
+	mylog.Check(spec.AddConnectedPlug(s.iface, s.testReadOnlyPlug, s.testReadOnlySlot))
+
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 
 	plugSnippet := spec.SnippetForTag("snap.consumer.app")
@@ -598,21 +599,21 @@ func (s *PosixMQInterfaceSuite) TestReadOnlyMQAppArmor(c *C) {
 }
 
 func (s *PosixMQInterfaceSuite) TestReadOnlyMQSeccomp(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.testReadOnlySlotInfo.Snap, nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.testReadOnlySlotInfo.Snap, nil))
+
 	spec := seccomp.NewSpecification(appSet)
-	err = spec.AddPermanentSlot(s.iface, s.testReadOnlySlotInfo)
-	c.Assert(err, IsNil)
+	mylog.Check(spec.AddPermanentSlot(s.iface, s.testReadOnlySlotInfo))
+
 
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
 
 	s.checkSlotSeccompSnippet(c, spec)
 
-	appSet, err = interfaces.NewSnapAppSet(s.testReadOnlyPlug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.testReadOnlyPlug.Snap(), nil))
+
 	spec = seccomp.NewSpecification(appSet)
-	err = spec.AddConnectedPlug(s.iface, s.testReadOnlyPlug, s.testReadOnlySlot)
-	c.Assert(err, IsNil)
+	mylog.Check(spec.AddConnectedPlug(s.iface, s.testReadOnlyPlug, s.testReadOnlySlot))
+
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 
 	plugSnippet := spec.SnippetForTag("snap.consumer.app")
@@ -628,11 +629,11 @@ func (s *PosixMQInterfaceSuite) TestReadOnlyMQSeccomp(c *C) {
 }
 
 func (s *PosixMQInterfaceSuite) TestPathArrayMQAppArmor(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.testPathArraySlotInfo.Snap, nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.testPathArraySlotInfo.Snap, nil))
+
 	spec := apparmor.NewSpecification(appSet)
-	err = spec.AddPermanentSlot(s.iface, s.testPathArraySlotInfo)
-	c.Assert(err, IsNil)
+	mylog.Check(spec.AddPermanentSlot(s.iface, s.testPathArraySlotInfo))
+
 
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
 
@@ -642,11 +643,11 @@ func (s *PosixMQInterfaceSuite) TestPathArrayMQAppArmor(c *C) {
   mqueue (open read write create delete) "/test-array-3",
 `)
 
-	appSet, err = interfaces.NewSnapAppSet(s.testPathArrayPlugInfo.Snap, nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.testPathArrayPlugInfo.Snap, nil))
+
 	spec = apparmor.NewSpecification(appSet)
-	err = spec.AddConnectedPlug(s.iface, s.testPathArrayPlug, s.testPathArraySlot)
-	c.Assert(err, IsNil)
+	mylog.Check(spec.AddConnectedPlug(s.iface, s.testPathArrayPlug, s.testPathArraySlot))
+
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 
 	plugSnippet := spec.SnippetForTag("snap.consumer.app")
@@ -657,21 +658,21 @@ func (s *PosixMQInterfaceSuite) TestPathArrayMQAppArmor(c *C) {
 }
 
 func (s *PosixMQInterfaceSuite) TestPathArrayMQSeccomp(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.testPathArraySlotInfo.Snap, nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.testPathArraySlotInfo.Snap, nil))
+
 	spec := seccomp.NewSpecification(appSet)
-	err = spec.AddPermanentSlot(s.iface, s.testPathArraySlotInfo)
-	c.Assert(err, IsNil)
+	mylog.Check(spec.AddPermanentSlot(s.iface, s.testPathArraySlotInfo))
+
 
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
 
 	s.checkSlotSeccompSnippet(c, spec)
 
-	appSet, err = interfaces.NewSnapAppSet(s.testPathArrayPlug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.testPathArrayPlug.Snap(), nil))
+
 	spec = seccomp.NewSpecification(appSet)
-	err = spec.AddConnectedPlug(s.iface, s.testPathArrayPlug, s.testPathArraySlot)
-	c.Assert(err, IsNil)
+	mylog.Check(spec.AddConnectedPlug(s.iface, s.testPathArrayPlug, s.testPathArraySlot))
+
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 
 	plugSnippet := spec.SnippetForTag("snap.consumer.app")
@@ -687,22 +688,22 @@ func (s *PosixMQInterfaceSuite) TestPathArrayMQSeccomp(c *C) {
 }
 
 func (s *PosixMQInterfaceSuite) TestAllPermsMQAppArmor(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.testAllPermsSlotInfo.Snap, nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.testAllPermsSlotInfo.Snap, nil))
+
 	spec := apparmor.NewSpecification(appSet)
-	err = spec.AddPermanentSlot(s.iface, s.testAllPermsSlotInfo)
-	c.Assert(err, IsNil)
+	mylog.Check(spec.AddPermanentSlot(s.iface, s.testAllPermsSlotInfo))
+
 
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
 
 	slotSnippet := spec.SnippetForTag("snap.producer.app")
 	c.Check(slotSnippet, testutil.Contains, `mqueue (open read write create delete) "/test-all-perms",`)
 
-	appSet, err = interfaces.NewSnapAppSet(s.testAllPermsPlugInfo.Snap, nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.testAllPermsPlugInfo.Snap, nil))
+
 	spec = apparmor.NewSpecification(appSet)
-	err = spec.AddConnectedPlug(s.iface, s.testAllPermsPlug, s.testAllPermsSlot)
-	c.Assert(err, IsNil)
+	mylog.Check(spec.AddConnectedPlug(s.iface, s.testAllPermsPlug, s.testAllPermsSlot))
+
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 
 	plugSnippet := spec.SnippetForTag("snap.consumer.app")
@@ -710,20 +711,20 @@ func (s *PosixMQInterfaceSuite) TestAllPermsMQAppArmor(c *C) {
 }
 
 func (s *PosixMQInterfaceSuite) TestAllPermsMQSeccomp(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.testAllPermsSlotInfo.Snap, nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.testAllPermsSlotInfo.Snap, nil))
+
 	spec := seccomp.NewSpecification(appSet)
-	err = spec.AddPermanentSlot(s.iface, s.testAllPermsSlotInfo)
-	c.Assert(err, IsNil)
+	mylog.Check(spec.AddPermanentSlot(s.iface, s.testAllPermsSlotInfo))
+
 
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
 	s.checkSlotSeccompSnippet(c, spec)
 
-	appSet, err = interfaces.NewSnapAppSet(s.testAllPermsPlugInfo.Snap, nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.testAllPermsPlugInfo.Snap, nil))
+
 	spec = seccomp.NewSpecification(appSet)
-	err = spec.AddConnectedPlug(s.iface, s.testAllPermsPlug, s.testAllPermsSlot)
-	c.Assert(err, IsNil)
+	mylog.Check(spec.AddConnectedPlug(s.iface, s.testAllPermsPlug, s.testAllPermsSlot))
+
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 
 	plugSnippet := spec.SnippetForTag("snap.consumer.app")
@@ -739,54 +740,56 @@ func (s *PosixMQInterfaceSuite) TestAllPermsMQSeccomp(c *C) {
 }
 
 func (s *PosixMQInterfaceSuite) TestPathValidationPosixMQ(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.testInvalidPath1SlotInfo.Snap, nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.testInvalidPath1SlotInfo.Snap, nil))
+
 	spec := apparmor.NewSpecification(appSet)
-	err = spec.AddPermanentSlot(s.iface, s.testInvalidPath1SlotInfo)
+	mylog.Check(spec.AddPermanentSlot(s.iface, s.testInvalidPath1SlotInfo))
 	c.Check(err, ErrorMatches,
 		`posix-mq "path" attribute must conform to the POSIX message queue name specifications \(see "man mq_overview"\): /../../test-invalid`)
 }
 
 func (s *PosixMQInterfaceSuite) TestPathValidationAppArmorRegex(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.testInvalidPath2SlotInfo.Snap, nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.testInvalidPath2SlotInfo.Snap, nil))
+
 	spec := apparmor.NewSpecification(appSet)
-	err = spec.AddPermanentSlot(s.iface, s.testInvalidPath2SlotInfo)
+	mylog.Check(spec.AddPermanentSlot(s.iface, s.testInvalidPath2SlotInfo))
 	c.Check(err, ErrorMatches, `posix-mq "path" attribute is invalid: /test-invalid-2"\["`)
 }
 
 func (s *PosixMQInterfaceSuite) TestPathStringValidation(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.testInvalidPath3SlotInfo.Snap, nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.testInvalidPath3SlotInfo.Snap, nil))
+
 	spec := apparmor.NewSpecification(appSet)
-	err = spec.AddPermanentSlot(s.iface, s.testInvalidPath3SlotInfo)
+	mylog.Check(spec.AddPermanentSlot(s.iface, s.testInvalidPath3SlotInfo))
 	c.Check(err, ErrorMatches, `snap "producer" has interface "posix-mq" with invalid value type map\[string\]interface {} for "path" attribute: \*\[\]string`)
 }
 
 func (s *PosixMQInterfaceSuite) TestInvalidPerms1(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.testInvalidPerms1SlotInfo.Snap, nil)
-	c.Assert(err, IsNil)
-	spec := apparmor.NewSpecification(appSet)
-	// The slot should function correctly here as it receives the full list
-	// of built-in permissions, not what's listed in the configuration
-	err = spec.AddPermanentSlot(s.iface, s.testInvalidPerms1SlotInfo)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.testInvalidPerms1SlotInfo.Snap, nil))
 
-	appSet, err = interfaces.NewSnapAppSet(s.testInvalidPerms1PlugInfo.Snap, nil)
-	c.Assert(err, IsNil)
+	spec := apparmor.NewSpecification(appSet)
+	mylog.
+		// The slot should function correctly here as it receives the full list
+		// of built-in permissions, not what's listed in the configuration
+		Check(spec.AddPermanentSlot(s.iface, s.testInvalidPerms1SlotInfo))
+
+
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.testInvalidPerms1PlugInfo.Snap, nil))
+
 	spec = apparmor.NewSpecification(appSet)
-	// The plug should fail to connect as it receives the given list of
-	// invalid permissions
-	err = spec.AddConnectedPlug(s.iface, s.testInvalidPerms1Plug, s.testInvalidPerms1Slot)
+	mylog.
+		// The plug should fail to connect as it receives the given list of
+		// invalid permissions
+		Check(spec.AddConnectedPlug(s.iface, s.testInvalidPerms1Plug, s.testInvalidPerms1Slot))
 	c.Check(err, ErrorMatches,
 		`posix-mq slot permission "break-everything" not valid, must be one of \[open read write create delete\]`)
 }
 
 func (s *PosixMQInterfaceSuite) TestInvalidPerms3(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.testInvalidPerms3PlugInfo.Snap, nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.testInvalidPerms3PlugInfo.Snap, nil))
+
 	spec := apparmor.NewSpecification(appSet)
-	err = spec.AddConnectedPlug(s.iface, s.testInvalidPerms3Plug, s.testInvalidPerms3Slot)
+	mylog.Check(spec.AddConnectedPlug(s.iface, s.testInvalidPerms3Plug, s.testInvalidPerms3Slot))
 	c.Check(err, ErrorMatches,
 		`snap "producer" has interface "posix-mq" with invalid value type \[\]interface {} for "permissions" attribute: \*\[\]string`)
 }

@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -46,8 +47,8 @@ func (s *contextSuite) SetUpTest(c *C) {
 
 	s.task = s.state.NewTask("test-task", "my test task")
 	s.setup = &HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
-	var err error
-	s.context, err = NewContext(s.task, s.task.State(), s.setup, nil, "")
+
+	s.context = mylog.Check2(NewContext(s.task, s.task.State(), s.setup, nil, ""))
 	c.Check(err, IsNil)
 }
 
@@ -151,8 +152,8 @@ func (s *contextSuite) TestDone(c *C) {
 }
 
 func (s *contextSuite) TestEphemeralContextGetSet(c *C) {
-	context, err := NewContext(nil, s.state, &HookSetup{Snap: "test-snap"}, nil, "")
-	c.Assert(err, IsNil)
+	context := mylog.Check2(NewContext(nil, s.state, &HookSetup{Snap: "test-snap"}, nil, ""))
+
 	context.Lock()
 	defer context.Unlock()
 
@@ -168,22 +169,22 @@ func (s *contextSuite) TestEphemeralContextGetSet(c *C) {
 }
 
 func (s *contextSuite) TestChangeID(c *C) {
-	context, err := NewContext(nil, s.state, &HookSetup{Snap: "test-snap"}, nil, "")
-	c.Assert(err, IsNil)
+	context := mylog.Check2(NewContext(nil, s.state, &HookSetup{Snap: "test-snap"}, nil, ""))
+
 	c.Check(context.ChangeID(), Equals, "")
 
 	s.state.Lock()
 	defer s.state.Unlock()
 
 	task := s.state.NewTask("foo", "")
-	context, err = NewContext(task, s.state, &HookSetup{Snap: "test-snap"}, nil, "")
-	c.Assert(err, IsNil)
+	context = mylog.Check2(NewContext(task, s.state, &HookSetup{Snap: "test-snap"}, nil, ""))
+
 	c.Check(context.ChangeID(), Equals, "")
 
 	chg := s.state.NewChange("bar", "")
 	chg.AddTask(task)
-	context, err = NewContext(task, s.state, &HookSetup{Snap: "test-snap"}, nil, "")
-	c.Assert(err, IsNil)
+	context = mylog.Check2(NewContext(task, s.state, &HookSetup{Snap: "test-snap"}, nil, ""))
+
 	c.Check(context.ChangeID(), Equals, chg.ID())
 }
 
@@ -215,8 +216,8 @@ func (s *contextSuite) TestChangeErrorf(c *C) {
 		{task2, false, ``, `.* ERROR some error`},
 	} {
 		hs := &HookSetup{Snap: "test-snap", IgnoreError: tc.ignoreError}
-		context, err := NewContext(tc.task, s.state, hs, nil, "")
-		c.Assert(err, IsNil)
+		context := mylog.Check2(NewContext(tc.task, s.state, hs, nil, ""))
+
 		context.Lock()
 		context.Errorf("some error")
 		context.Unlock()
@@ -242,8 +243,8 @@ func (s *contextSuite) TestChangeErrorfHookSetupNilPointerDoesNotCausePanic(c *C
 	s.state.Unlock()
 
 	var hookSetup *HookSetup = nil
-	context, err := NewContext(task, s.state, hookSetup, nil, "")
-	c.Assert(err, IsNil)
+	context := mylog.Check2(NewContext(task, s.state, hookSetup, nil, ""))
+
 	// it's enough to check here that there is no panic from "nil" hookSetup
 	context.Lock()
 	context.Errorf("some error")

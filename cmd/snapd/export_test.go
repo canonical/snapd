@@ -23,9 +23,7 @@ import (
 	"time"
 )
 
-var (
-	Run = run
-)
+var Run = run
 
 func MockSyscheckCheckSystem(f func() error) (restore func()) {
 	oldSyscheckCheckSystem := syscheckCheckSystem

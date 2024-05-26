@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -68,9 +69,9 @@ func (s *iconsTestSuite) TestFindIconFiles(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(iconsDir, "snap.whatever"), 0755), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(iconsDir, "snap.whatever", "snap.hello-snap.foo.png"), []byte("bad dir"), 0644), IsNil)
 
-	icons, err := wrappers.FindIconFiles(info.SnapName(), iconsDir)
+	icons := mylog.Check2(wrappers.FindIconFiles(info.SnapName(), iconsDir))
 	sort.Strings(icons)
-	c.Assert(err, IsNil)
+
 	c.Check(icons, DeepEquals, []string{
 		"hicolor/256x256/apps/snap.hello-snap.foo.png",
 		"hicolor/scalable/apps/snap.hello-snap.foo.svg",

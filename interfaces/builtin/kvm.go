@@ -25,6 +25,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/logger"
@@ -63,15 +64,15 @@ type kvmInterface struct {
 	commonInterface
 }
 
-var procCpuinfo = "/proc/cpuinfo"
-var flagsMatcher = regexp.MustCompile(`(?m)^flags\s+:\s+(.*)$`).FindSubmatch
+var (
+	procCpuinfo  = "/proc/cpuinfo"
+	flagsMatcher = regexp.MustCompile(`(?m)^flags\s+:\s+(.*)$`).FindSubmatch
+)
 
 func getCpuFlags() (flags []string, err error) {
-	buf, err := os.ReadFile(procCpuinfo)
-	if err != nil {
-		// if we can't read cpuinfo, we want to know _why_
-		return nil, fmt.Errorf("unable to read %v: %v", procCpuinfo, err)
-	}
+	buf := mylog.Check2(os.ReadFile(procCpuinfo))
+
+	// if we can't read cpuinfo, we want to know _why_
 
 	// want to capture the text after 'flags:' entry
 	match := flagsMatcher(buf)
@@ -88,10 +89,7 @@ func (iface *kvmInterface) KModConnectedPlug(spec *kmod.Specification, plug *int
 	// Check CPU capabilities to load suitable module
 	// NOTE: this only considers i386, x86_64 and amd64 CPUs, but some ARM, PPC and S390 CPUs also support KVM
 	m := "kvm"
-	cpu_flags, err := getCpuFlags()
-	if err != nil {
-		logger.Debugf("kvm: fetching cpu info failed: %v", err)
-	}
+	cpu_flags := mylog.Check2(getCpuFlags())
 
 	if strutil.ListContains(cpu_flags, "vmx") {
 		m = "kvm_intel"
@@ -102,10 +100,8 @@ func (iface *kvmInterface) KModConnectedPlug(spec *kmod.Specification, plug *int
 		// sufficient for some architectures
 		logger.Noticef("kvm: failed to detect CPU specific KVM support, will attempt to modprobe generic KVM support")
 	}
+	mylog.Check(spec.AddModule(m))
 
-	if err := spec.AddModule(m); err != nil {
-		return err
-	}
 	return nil
 }
 

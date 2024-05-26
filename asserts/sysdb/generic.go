@@ -22,6 +22,7 @@ package sysdb
 import (
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/snapdenv"
 )
@@ -131,21 +132,14 @@ var (
 )
 
 func init() {
-	genericAccount, err := asserts.Decode([]byte(encodedGenericAccount))
-	if err != nil {
-		panic(fmt.Sprintf(`cannot decode "generic"'s account: %v`, err))
-	}
-	genericModelsAccountKey, err := asserts.Decode([]byte(encodedGenericModelsAccountKey))
-	if err != nil {
-		panic(fmt.Sprintf(`cannot decode "generic"'s "models" account-key: %v`, err))
-	}
+	genericAccount := mylog.Check2(asserts.Decode([]byte(encodedGenericAccount)))
+
+	genericModelsAccountKey := mylog.Check2(asserts.Decode([]byte(encodedGenericModelsAccountKey)))
 
 	genericAssertions = []asserts.Assertion{genericAccount, genericModelsAccountKey}
 
-	a, err := asserts.Decode([]byte(encodedGenericClassicModel))
-	if err != nil {
-		panic(fmt.Sprintf(`cannot decode "generic"'s "generic-classic" model: %v`, err))
-	}
+	a := mylog.Check2(asserts.Decode([]byte(encodedGenericClassicModel)))
+
 	genericClassicModel = a.(*asserts.Model)
 }
 

@@ -24,6 +24,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/release"
@@ -189,10 +190,7 @@ func (iface *mprisInterface) AppArmorConnectedPlug(spec *apparmor.Specification,
 }
 
 func (iface *mprisInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
-	name, err := iface.getName(slot.Attrs)
-	if err != nil {
-		return err
-	}
+	name := mylog.Check2(iface.getName(slot.Attrs))
 
 	old := "###MPRIS_NAME###"
 	new := name
@@ -242,7 +240,7 @@ func (iface *mprisInterface) getName(attribs map[string]interface{}) (string, er
 }
 
 func (iface *mprisInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
-	_, err := iface.getName(slot.Attrs)
+	_ := mylog.Check2(iface.getName(slot.Attrs))
 	return err
 }
 

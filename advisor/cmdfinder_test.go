@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/advisor"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/testutil"
@@ -42,8 +43,8 @@ func (s *cmdfinderSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	c.Assert(os.MkdirAll(dirs.SnapCacheDir, 0755), IsNil)
 
-	db, err := advisor.Create()
-	c.Assert(err, IsNil)
+	db := mylog.Check2(advisor.Create())
+
 	c.Assert(db.AddSnap("foo", "1.0", "foo summary", []string{"foo", "meh"}), IsNil)
 	c.Assert(db.AddSnap("bar", "2.0", "bar summary", []string{"bar", "meh"}), IsNil)
 	c.Assert(db.Commit(), IsNil)
@@ -96,8 +97,8 @@ func (s *cmdfinderSuite) TestFindSimilarWordsTrivial(c *C) {
 }
 
 func (s *cmdfinderSuite) TestFindCommandHit(c *C) {
-	cmds, err := advisor.FindCommand("meh")
-	c.Assert(err, IsNil)
+	cmds := mylog.Check2(advisor.FindCommand("meh"))
+
 	c.Check(cmds, DeepEquals, []advisor.Command{
 		{Snap: "foo", Version: "1.0", Command: "meh"},
 		{Snap: "bar", Version: "2.0", Command: "meh"},
@@ -105,14 +106,14 @@ func (s *cmdfinderSuite) TestFindCommandHit(c *C) {
 }
 
 func (s *cmdfinderSuite) TestFindCommandMiss(c *C) {
-	cmds, err := advisor.FindCommand("moh")
-	c.Assert(err, IsNil)
+	cmds := mylog.Check2(advisor.FindCommand("moh"))
+
 	c.Check(cmds, HasLen, 0)
 }
 
 func (s *cmdfinderSuite) TestFindMisspelledCommandHit(c *C) {
-	cmds, err := advisor.FindMisspelledCommand("moh")
-	c.Assert(err, IsNil)
+	cmds := mylog.Check2(advisor.FindMisspelledCommand("moh"))
+
 	c.Check(cmds, DeepEquals, []advisor.Command{
 		{Snap: "foo", Version: "1.0", Command: "meh"},
 		{Snap: "bar", Version: "2.0", Command: "meh"},
@@ -120,14 +121,14 @@ func (s *cmdfinderSuite) TestFindMisspelledCommandHit(c *C) {
 }
 
 func (s *cmdfinderSuite) TestFindMisspelledCommandMiss(c *C) {
-	cmds, err := advisor.FindMisspelledCommand("hello")
-	c.Assert(err, IsNil)
+	cmds := mylog.Check2(advisor.FindMisspelledCommand("hello"))
+
 	c.Check(cmds, HasLen, 0)
 }
 
 func (s *cmdfinderSuite) TestDumpCommands(c *C) {
-	cmds, err := advisor.DumpCommands()
-	c.Assert(err, IsNil)
+	cmds := mylog.Check2(advisor.DumpCommands())
+
 	c.Check(cmds, DeepEquals, map[string]string{
 		"foo": `[{"snap":"foo","version":"1.0"}]`,
 		"bar": `[{"snap":"bar","version":"2.0"}]`,
@@ -136,18 +137,18 @@ func (s *cmdfinderSuite) TestDumpCommands(c *C) {
 }
 
 func (s *cmdfinderSuite) TestFindMissingCommandsDB(c *C) {
-	err := os.Remove(dirs.SnapCommandsDB)
-	c.Assert(err, IsNil)
+	mylog.Check(os.Remove(dirs.SnapCommandsDB))
 
-	cmds, err := advisor.FindMisspelledCommand("hello")
-	c.Assert(err, IsNil)
+
+	cmds := mylog.Check2(advisor.FindMisspelledCommand("hello"))
+
 	c.Check(cmds, HasLen, 0)
 
-	cmds, err = advisor.FindCommand("hello")
-	c.Assert(err, IsNil)
+	cmds = mylog.Check2(advisor.FindCommand("hello"))
+
 	c.Check(cmds, HasLen, 0)
 
-	pkg, err := advisor.FindPackage("hello")
-	c.Assert(err, IsNil)
+	pkg := mylog.Check2(advisor.FindPackage("hello"))
+
 	c.Check(pkg, IsNil)
 }

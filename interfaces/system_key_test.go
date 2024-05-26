@@ -30,6 +30,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/osutil"
@@ -55,12 +56,12 @@ func (s *systemKeySuite) SetUpTest(c *C) {
 
 	s.tmp = c.MkDir()
 	dirs.SetRootDir(s.tmp)
-	err := os.MkdirAll(filepath.Dir(dirs.SnapSystemKeyFile), 0755)
-	c.Assert(err, IsNil)
-	err = os.MkdirAll(dirs.DistroLibExecDir, 0755)
-	c.Assert(err, IsNil)
-	err = os.Symlink("/proc/self/exe", filepath.Join(dirs.DistroLibExecDir, "snapd"))
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Dir(dirs.SnapSystemKeyFile), 0755))
+
+	mylog.Check(os.MkdirAll(dirs.DistroLibExecDir, 0755))
+
+	mylog.Check(os.Symlink("/proc/self/exe", filepath.Join(dirs.DistroLibExecDir, "snapd")))
+
 
 	s.apparmorFeatures = filepath.Join(s.tmp, "/sys/kernel/security/apparmor/features")
 	s.buildID = "this-is-my-build-id"
@@ -99,34 +100,33 @@ func (s *systemKeySuite) testInterfaceWriteSystemKey(c *C, remoteFSHome, overlay
 
 	restore = cgroup.MockVersion(1, nil)
 	defer restore()
+	mylog.Check(interfaces.WriteSystemKey())
 
-	err := interfaces.WriteSystemKey()
-	c.Assert(err, IsNil)
 
-	systemKey, err := os.ReadFile(dirs.SnapSystemKeyFile)
-	c.Assert(err, IsNil)
+	systemKey := mylog.Check2(os.ReadFile(dirs.SnapSystemKeyFile))
+
 
 	kernelFeatures, _ := apparmor.KernelFeatures()
 
-	apparmorFeaturesStr, err := json.Marshal(kernelFeatures)
-	c.Assert(err, IsNil)
+	apparmorFeaturesStr := mylog.Check2(json.Marshal(kernelFeatures))
 
-	apparmorParserMtime, err := json.Marshal(apparmor.ParserMtime())
-	c.Assert(err, IsNil)
+
+	apparmorParserMtime := mylog.Check2(json.Marshal(apparmor.ParserMtime()))
+
 
 	parserFeatures, _ := apparmor.ParserFeatures()
-	apparmorParserFeaturesStr, err := json.Marshal(parserFeatures)
-	c.Assert(err, IsNil)
+	apparmorParserFeaturesStr := mylog.Check2(json.Marshal(parserFeatures))
 
-	seccompActionsStr, err := json.Marshal(seccomp.Actions())
-	c.Assert(err, IsNil)
 
-	compiler, err := seccomp.NewCompiler(func(name string) (string, error) {
+	seccompActionsStr := mylog.Check2(json.Marshal(seccomp.Actions()))
+
+
+	compiler := mylog.Check2(seccomp.NewCompiler(func(name string) (string, error) {
 		return filepath.Join(dirs.DistroLibExecDir, "snap-seccomp"), nil
-	})
-	c.Assert(err, IsNil)
-	seccompCompilerVersion, err := compiler.VersionInfo()
-	c.Assert(err, IsNil)
+	}))
+
+	seccompCompilerVersion := mylog.Check2(compiler.VersionInfo())
+
 	c.Assert(seccompCompilerVersion, Equals, s.seccompCompilerVersion)
 
 	c.Check(string(systemKey), testutil.EqualsWrapped, fmt.Sprintf(`{"version":%d,"build-id":"%s","apparmor-features":%s,"apparmor-parser-mtime":%s,"apparmor-parser-features":%s,"nfs-home":%v,"overlay-root":%q,"seccomp-features":%s,"seccomp-compiler-version":"%s","cgroup-version":"1"}`,
@@ -168,8 +168,7 @@ func (s *systemKeySuite) TestInterfaceWriteSystemKeyErrorOnBuildID(c *C) {
 		return "", fmt.Errorf("no build ID for you")
 	})
 	defer restore()
-
-	err := interfaces.WriteSystemKey()
+	mylog.Check(interfaces.WriteSystemKey())
 	c.Assert(err, ErrorMatches, "no build ID for you")
 }
 
@@ -183,14 +182,15 @@ func (s *systemKeySuite) TestInterfaceSystemKeyMismatchHappy(c *C) {
 
 	// no system-key yet -> Error
 	c.Assert(osutil.FileExists(dirs.SnapSystemKeyFile), Equals, false)
-	_, err := interfaces.SystemKeyMismatch()
+	_ := mylog.Check2(interfaces.SystemKeyMismatch())
 	c.Assert(err, Equals, interfaces.ErrSystemKeyMissing)
+	mylog.
 
-	// create a system-key -> no mismatch anymore
-	err = interfaces.WriteSystemKey()
-	c.Assert(err, IsNil)
-	mismatch, err := interfaces.SystemKeyMismatch()
-	c.Assert(err, IsNil)
+		// create a system-key -> no mismatch anymore
+		Check(interfaces.WriteSystemKey())
+
+	mismatch := mylog.Check2(interfaces.SystemKeyMismatch())
+
 	c.Check(mismatch, Equals, false)
 
 	// change our system-key to have more apparmor features
@@ -200,8 +200,8 @@ func (s *systemKeySuite) TestInterfaceSystemKeyMismatchHappy(c *C) {
 "apparmor-features": ["caps", "dbus", "more", "and", "more"]
 }
 `))
-	mismatch, err = interfaces.SystemKeyMismatch()
-	c.Assert(err, IsNil)
+	mismatch = mylog.Check2(interfaces.SystemKeyMismatch())
+
 	c.Check(mismatch, Equals, true)
 }
 
@@ -215,14 +215,15 @@ func (s *systemKeySuite) TestInterfaceSystemKeyMismatchParserMtimeHappy(c *C) {
 
 	// no system-key yet -> Error
 	c.Assert(osutil.FileExists(dirs.SnapSystemKeyFile), Equals, false)
-	_, err := interfaces.SystemKeyMismatch()
+	_ := mylog.Check2(interfaces.SystemKeyMismatch())
 	c.Assert(err, Equals, interfaces.ErrSystemKeyMissing)
+	mylog.
 
-	// create a system-key -> no mismatch anymore
-	err = interfaces.WriteSystemKey()
-	c.Assert(err, IsNil)
-	mismatch, err := interfaces.SystemKeyMismatch()
-	c.Assert(err, IsNil)
+		// create a system-key -> no mismatch anymore
+		Check(interfaces.WriteSystemKey())
+
+	mismatch := mylog.Check2(interfaces.SystemKeyMismatch())
+
 	c.Check(mismatch, Equals, false)
 
 	// change our system-key to have a different parser mtime
@@ -232,8 +233,8 @@ func (s *systemKeySuite) TestInterfaceSystemKeyMismatchParserMtimeHappy(c *C) {
 "apparmor-parser-mtime": 5678
 }
 `))
-	mismatch, err = interfaces.SystemKeyMismatch()
-	c.Assert(err, IsNil)
+	mismatch = mylog.Check2(interfaces.SystemKeyMismatch())
+
 	c.Check(mismatch, Equals, true)
 }
 
@@ -244,16 +245,17 @@ func (s *systemKeySuite) TestInterfaceSystemKeyMismatchVersions(c *C) {
 "version":1,
 "build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0"
 }`))
-	// and the on-disk version is v2
-	err := os.WriteFile(dirs.SnapSystemKeyFile, []byte(`
+	mylog.
+		// and the on-disk version is v2
+		Check(os.WriteFile(dirs.SnapSystemKeyFile, []byte(`
 {
 "version":2,
 "build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0"
-}`), 0644)
-	c.Assert(err, IsNil)
+}`), 0644))
+
 
 	// when we encounter different versions we get the right error
-	_, err = interfaces.SystemKeyMismatch()
+	_ = mylog.Check2(interfaces.SystemKeyMismatch())
 	c.Assert(err, Equals, interfaces.ErrSystemKeyVersion)
 }
 
@@ -284,7 +286,7 @@ func (s *systemKeySuite) TestStaticVersion(c *C) {
 }
 
 func (s *systemKeySuite) TestRecordedSystemKey(c *C) {
-	_, err := interfaces.RecordedSystemKey()
+	_ := mylog.Check2(interfaces.RecordedSystemKey())
 	c.Check(err, Equals, interfaces.ErrSystemKeyMissing)
 
 	restore := interfaces.MockSystemKey(`
@@ -300,8 +302,8 @@ func (s *systemKeySuite) TestRecordedSystemKey(c *C) {
 	// just to ensure we really re-read it from the disk with RecordedSystemKey
 	interfaces.MockSystemKey(`{"build-id":"foo"}`)
 
-	key, err := interfaces.RecordedSystemKey()
-	c.Assert(err, IsNil)
+	key := mylog.Check2(interfaces.RecordedSystemKey())
+
 
 	sysKey, ok := key.(*interfaces.SystemKey)
 	c.Assert(ok, Equals, true)
@@ -312,42 +314,42 @@ func (s *systemKeySuite) TestCurrentSystemKey(c *C) {
 	restore := interfaces.MockSystemKey(`{"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0"}`)
 	defer restore()
 
-	key, err := interfaces.CurrentSystemKey()
-	c.Assert(err, IsNil)
+	key := mylog.Check2(interfaces.CurrentSystemKey())
+
 	sysKey, ok := key.(*interfaces.SystemKey)
 	c.Assert(ok, Equals, true)
 	c.Check(sysKey.BuildID, Equals, "7a94e9736c091b3984bd63f5aebfc883c4d859e0")
 }
 
 func (s *systemKeySuite) TestSystemKeysMatch(c *C) {
-	_, err := interfaces.SystemKeysMatch(nil, nil)
+	_ := mylog.Check2(interfaces.SystemKeysMatch(nil, nil))
 	c.Check(err, ErrorMatches, `SystemKeysMatch: arguments are not system keys`)
 
 	restore := interfaces.MockSystemKey(`{"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0"}`)
 	defer restore()
 
-	key1, err := interfaces.CurrentSystemKey()
-	c.Assert(err, IsNil)
+	key1 := mylog.Check2(interfaces.CurrentSystemKey())
 
-	_, err = interfaces.SystemKeysMatch(key1, nil)
+
+	_ = mylog.Check2(interfaces.SystemKeysMatch(key1, nil))
 	c.Check(err, ErrorMatches, `SystemKeysMatch: arguments are not system keys`)
 
-	_, err = interfaces.SystemKeysMatch(nil, key1)
+	_ = mylog.Check2(interfaces.SystemKeysMatch(nil, key1))
 	c.Check(err, ErrorMatches, `SystemKeysMatch: arguments are not system keys`)
 
 	interfaces.MockSystemKey(`{"build-id": "8888e9736c091b3984bd63f5aebfc883c4d85988"}`)
-	key2, err := interfaces.CurrentSystemKey()
-	c.Assert(err, IsNil)
+	key2 := mylog.Check2(interfaces.CurrentSystemKey())
 
-	ok, err := interfaces.SystemKeysMatch(key1, key2)
-	c.Assert(err, IsNil)
+
+	ok := mylog.Check2(interfaces.SystemKeysMatch(key1, key2))
+
 	c.Check(ok, Equals, false)
 
-	key3, err := interfaces.CurrentSystemKey()
-	c.Assert(err, IsNil)
+	key3 := mylog.Check2(interfaces.CurrentSystemKey())
 
-	ok, err = interfaces.SystemKeysMatch(key2, key3)
-	c.Assert(err, IsNil)
+
+	ok = mylog.Check2(interfaces.SystemKeysMatch(key2, key3))
+
 	c.Check(ok, Equals, true)
 }
 
@@ -395,20 +397,20 @@ func (s *systemKeySuite) TestSystemKeysUnmarshalSame(c *C) {
 	// write the mocked system key to disk
 	restore := interfaces.MockSystemKey(systemKeyJSON)
 	defer restore()
-	err := interfaces.WriteSystemKey()
-	c.Assert(err, IsNil)
+	mylog.Check(interfaces.WriteSystemKey())
+
 
 	// now unmarshal the specific json to a system key object
-	key1, err := interfaces.UnmarshalJSONSystemKey(bytes.NewBuffer([]byte(systemKeyJSON)))
-	c.Assert(err, IsNil)
+	key1 := mylog.Check2(interfaces.UnmarshalJSONSystemKey(bytes.NewBuffer([]byte(systemKeyJSON))))
+
 
 	// now read the system key from disk
-	key2, err := interfaces.RecordedSystemKey()
-	c.Assert(err, IsNil)
+	key2 := mylog.Check2(interfaces.RecordedSystemKey())
+
 
 	// the two system-keys should be the same
-	ok, err := interfaces.SystemKeysMatch(key1, key2)
-	c.Assert(err, IsNil)
+	ok := mylog.Check2(interfaces.SystemKeysMatch(key1, key2))
+
 	c.Check(ok, Equals, true, Commentf("key1:%#v key2:%#v", key1, key2))
 }
 
@@ -418,19 +420,21 @@ func (s *systemKeySuite) TestRemoveSystemKey(c *C) {
 	// write the mocked system key to disk
 	restore := interfaces.MockSystemKey(systemKeyJSON)
 	defer restore()
-	err := interfaces.WriteSystemKey()
-	c.Assert(err, IsNil)
+	mylog.Check(interfaces.WriteSystemKey())
+
 
 	c.Check(dirs.SnapSystemKeyFile, testutil.FilePresent)
+	mylog.
 
-	// remove the system key
-	err = interfaces.RemoveSystemKey()
-	c.Assert(err, IsNil)
+		// remove the system key
+		Check(interfaces.RemoveSystemKey())
+
 
 	c.Check(dirs.SnapSystemKeyFile, testutil.FileAbsent)
+	mylog.
 
-	// also check that no error is returned when trying to remove system key
-	// when it does not exist in the first place
-	err = interfaces.RemoveSystemKey()
-	c.Assert(err, IsNil)
+		// also check that no error is returned when trying to remove system key
+		// when it does not exist in the first place
+		Check(interfaces.RemoveSystemKey())
+
 }

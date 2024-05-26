@@ -28,6 +28,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	failure "github.com/snapcore/snapd/cmd/snap-failure"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
@@ -40,7 +41,7 @@ func (r *failureSuite) TestRun(c *C) {
 	origArgs := os.Args
 	defer func() { os.Args = origArgs }()
 	os.Args = []string{"snap-failure", "snapd"}
-	err := failure.Run()
+	mylog.Check(failure.Run())
 	c.Check(err, IsNil)
 	c.Check(r.Stderr(), HasLen, 0)
 	c.Check(r.systemctlCmd.Calls(), HasLen, 0)
@@ -48,21 +49,19 @@ func (r *failureSuite) TestRun(c *C) {
 
 func writeSeqFile(c *C, name string, current snap.Revision, seq []*snap.SideInfo) {
 	seqPath := filepath.Join(dirs.SnapSeqDir, name+".json")
+	mylog.Check(os.MkdirAll(dirs.SnapSeqDir, 0755))
 
-	err := os.MkdirAll(dirs.SnapSeqDir, 0755)
-	c.Assert(err, IsNil)
 
-	b, err := json.Marshal(&struct {
+	b := mylog.Check2(json.Marshal(&struct {
 		Sequence []*snap.SideInfo `json:"sequence"`
 		Current  string           `json:"current"`
 	}{
 		Sequence: seq,
 		Current:  current.String(),
-	})
-	c.Assert(err, IsNil)
+	}))
 
-	err = os.WriteFile(seqPath, b, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(seqPath, b, 0644))
+
 }
 
 func (r *failureSuite) TestCallPrevSnapdFromSnap(c *C) {
@@ -87,7 +86,7 @@ set -eu
 	defer snapdCmd.Restore()
 
 	os.Args = []string{"snap-failure", "snapd"}
-	err := failure.Run()
+	mylog.Check(failure.Run())
 	c.Check(err, IsNil)
 	c.Check(r.Stderr(), HasLen, 0)
 
@@ -127,7 +126,7 @@ fi
 	defer systemctlCmd.Restore()
 
 	os.Args = []string{"snap-failure", "snapd"}
-	err := failure.Run()
+	mylog.Check(failure.Run())
 	c.Check(err, IsNil)
 	c.Check(r.Stderr(), HasLen, 0)
 
@@ -166,17 +165,18 @@ if [ "$1" = is-failed ] ; then
 fi
 `)
 	defer systemctlCmd.Restore()
+	mylog.
 
-	// mock the sockets re-appearing
-	err := os.MkdirAll(filepath.Dir(dirs.SnapdSocket), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(dirs.SnapdSocket, nil, 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(dirs.SnapSocket, nil, 0755)
-	c.Assert(err, IsNil)
+		// mock the sockets re-appearing
+		Check(os.MkdirAll(filepath.Dir(dirs.SnapdSocket), 0755))
+
+	mylog.Check(os.WriteFile(dirs.SnapdSocket, nil, 0755))
+
+	mylog.Check(os.WriteFile(dirs.SnapSocket, nil, 0755))
+
 
 	os.Args = []string{"snap-failure", "snapd"}
-	err = failure.Run()
+	mylog.Check(failure.Run())
 	c.Check(err, IsNil)
 	c.Check(r.Stderr(), HasLen, 0)
 
@@ -217,7 +217,7 @@ fi
 	// no sockets
 
 	os.Args = []string{"snap-failure", "snapd"}
-	err := failure.Run()
+	mylog.Check(failure.Run())
 	c.Check(err, IsNil)
 	c.Check(r.Stderr(), HasLen, 0)
 
@@ -252,7 +252,7 @@ func (r *failureSuite) TestCallPrevSnapdFromCore(c *C) {
 	defer snapdCmd.Restore()
 
 	os.Args = []string{"snap-failure", "snapd"}
-	err := failure.Run()
+	mylog.Check(failure.Run())
 	c.Check(err, IsNil)
 	c.Check(r.Stderr(), HasLen, 0)
 
@@ -284,7 +284,7 @@ func (r *failureSuite) TestCallPrevSnapdFromSnapdWhenNoCore(c *C) {
 	defer snapdCmd.Restore()
 
 	os.Args = []string{"snap-failure", "snapd"}
-	err := failure.Run()
+	mylog.Check(failure.Run())
 	c.Check(err, IsNil)
 	c.Check(r.Stderr(), HasLen, 0)
 
@@ -314,7 +314,7 @@ func (r *failureSuite) TestCallPrevSnapdFail(c *C) {
 	defer snapdCmd.Restore()
 
 	os.Args = []string{"snap-failure", "snapd"}
-	err := failure.Run()
+	mylog.Check(failure.Run())
 	c.Check(err, ErrorMatches, "snapd failed: exit status 2")
 	c.Check(r.Stderr(), HasLen, 0)
 
@@ -331,11 +331,10 @@ func (r *failureSuite) TestGarbageSeq(c *C) {
 	defer func() { os.Args = origArgs }()
 
 	seqPath := filepath.Join(dirs.SnapSeqDir, "snapd.json")
-	err := os.MkdirAll(dirs.SnapSeqDir, 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(dirs.SnapSeqDir, 0755))
 
-	err = os.WriteFile(seqPath, []byte("this is garbage"), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(seqPath, []byte("this is garbage"), 0644))
+
 
 	snapdCmd := testutil.MockCommand(c, filepath.Join(dirs.SnapMountDir, "snapd", "100", "/usr/lib/snapd/snapd"),
 		`exit 99`)
@@ -345,7 +344,7 @@ func (r *failureSuite) TestGarbageSeq(c *C) {
 	defer systemctlCmd.Restore()
 
 	os.Args = []string{"snap-failure", "snapd"}
-	err = failure.Run()
+	mylog.Check(failure.Run())
 	c.Check(err, ErrorMatches, `cannot parse "snapd.json" sequence file: invalid .*`)
 	c.Check(r.Stderr(), HasLen, 0)
 
@@ -366,7 +365,7 @@ func (r *failureSuite) TestBadSeq(c *C) {
 	defer snapdCmd.Restore()
 
 	os.Args = []string{"snap-failure", "snapd"}
-	err := failure.Run()
+	mylog.Check(failure.Run())
 	c.Check(err, ErrorMatches, "internal error: current 123 not found in sequence: .*Revision:100.*")
 	c.Check(r.Stderr(), HasLen, 0)
 
@@ -391,7 +390,7 @@ exit 123
 	defer snapdCmd.Restore()
 
 	os.Args = []string{"snap-failure", "snapd"}
-	err := failure.Run()
+	mylog.Check(failure.Run())
 	c.Check(err, ErrorMatches, "snapd failed: exit status 123")
 	c.Check(r.Stderr(), Equals, "stderr: hello from snapd\n")
 	c.Check(r.Stdout(), Equals, "stdout: hello from snapd\n")
@@ -410,11 +409,10 @@ func (r *failureSuite) TestStickySnapdSocket(c *C) {
 		{Revision: snap.R(100)},
 		{Revision: snap.R(123)},
 	})
+	mylog.Check(os.MkdirAll(filepath.Dir(dirs.SnapdSocket), 0755))
 
-	err := os.MkdirAll(filepath.Dir(dirs.SnapdSocket), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(dirs.SnapdSocket, []byte{}, 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(dirs.SnapdSocket, []byte{}, 0755))
+
 
 	// mock snapd in the core snap
 	snapdCmd := testutil.MockCommand(c, filepath.Join(dirs.SnapMountDir, "snapd", "100", "/usr/lib/snapd/snapd"),
@@ -422,7 +420,7 @@ func (r *failureSuite) TestStickySnapdSocket(c *C) {
 	defer snapdCmd.Restore()
 
 	os.Args = []string{"snap-failure", "snapd"}
-	err = failure.Run()
+	mylog.Check(failure.Run())
 	c.Check(err, IsNil)
 	c.Check(r.Stderr(), HasLen, 0)
 
@@ -454,7 +452,7 @@ func (r *failureSuite) testNoReexec(c *C) {
 	defer snapdCmd.Restore()
 
 	os.Args = []string{"snap-failure", "snapd"}
-	err := failure.Run()
+	mylog.Check(failure.Run())
 	c.Check(err, IsNil)
 
 	c.Check(snapdCmd.Calls(), HasLen, 0)
@@ -466,7 +464,6 @@ func (r *failureSuite) TestReexecDisabled(c *C) {
 	os.Setenv("SNAP_REEXEC", "0")
 	defer os.Unsetenv("SNAP_REEXEC")
 	r.testNoReexec(c)
-
 }
 
 func (r *failureSuite) TestReexecUnsupported(c *C) {

@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 	. "github.com/snapcore/snapd/cmd/snap"
 )
@@ -38,7 +39,7 @@ func (s *SnapSuite) TestConnectionsNoneConnected(c *C) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/connections")
 		c.Check(r.URL.Query(), DeepEquals, query)
-		body, err := io.ReadAll(r.Body)
+		body := mylog.Check2(io.ReadAll(r.Body))
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
@@ -46,7 +47,7 @@ func (s *SnapSuite) TestConnectionsNoneConnected(c *C) {
 			"result": result,
 		})
 	})
-	_, err := Parser(Client()).ParseArgs([]string{"connections"})
+	_ := mylog.Check2(Parser(Client()).ParseArgs([]string{"connections"}))
 	c.Check(err, IsNil)
 	c.Assert(s.Stdout(), Equals, "")
 	c.Assert(s.Stderr(), Equals, "")
@@ -56,7 +57,7 @@ func (s *SnapSuite) TestConnectionsNoneConnected(c *C) {
 	query = url.Values{
 		"select": []string{"all"},
 	}
-	_, err = Parser(Client()).ParseArgs([]string{"connections", "--all"})
+	_ = mylog.Check2(Parser(Client()).ParseArgs([]string{"connections", "--all"}))
 	c.Check(err, IsNil)
 	c.Assert(s.Stdout(), Equals, "")
 	c.Assert(s.Stderr(), Equals, "")
@@ -71,12 +72,12 @@ func (s *SnapSuite) TestConnectionsNotInstalled(c *C) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/connections")
 		c.Check(r.URL.Query(), DeepEquals, query)
-		body, err := io.ReadAll(r.Body)
+		body := mylog.Check2(io.ReadAll(r.Body))
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
 		fmt.Fprintln(w, `{"type": "error", "result": {"message": "not found", "value": "foo", "kind": "snap-not-found"}, "status-code": 404}`)
 	})
-	_, err := Parser(Client()).ParseArgs([]string{"connections", "foo"})
+	_ := mylog.Check2(Parser(Client()).ParseArgs([]string{"connections", "foo"}))
 	c.Check(err, ErrorMatches, `not found`)
 	c.Assert(s.Stdout(), Equals, "")
 	c.Assert(s.Stderr(), Equals, "")
@@ -99,7 +100,7 @@ func (s *SnapSuite) TestConnectionsNoneConnectedPlugs(c *C) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/connections")
 		c.Check(r.URL.Query(), DeepEquals, query)
-		body, err := io.ReadAll(r.Body)
+		body := mylog.Check2(io.ReadAll(r.Body))
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
@@ -108,8 +109,8 @@ func (s *SnapSuite) TestConnectionsNoneConnectedPlugs(c *C) {
 		})
 	})
 
-	rest, err := Parser(Client()).ParseArgs([]string{"connections", "--all"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(Parser(Client()).ParseArgs([]string{"connections", "--all"}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
 		"Interface  Plug                          Slot  Notes\n" +
@@ -124,8 +125,8 @@ func (s *SnapSuite) TestConnectionsNoneConnectedPlugs(c *C) {
 		"snap":   []string{"keyboard-lights"},
 	}
 
-	rest, err = Parser(Client()).ParseArgs([]string{"connections", "keyboard-lights"})
-	c.Assert(err, IsNil)
+	rest = mylog.Check2(Parser(Client()).ParseArgs([]string{"connections", "keyboard-lights"}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout = "" +
 		"Interface  Plug                          Slot  Notes\n" +
@@ -141,7 +142,7 @@ func (s *SnapSuite) TestConnectionsNoneConnectedSlots(c *C) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/connections")
 		c.Check(r.URL.Query(), DeepEquals, query)
-		body, err := io.ReadAll(r.Body)
+		body := mylog.Check2(io.ReadAll(r.Body))
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
@@ -149,7 +150,7 @@ func (s *SnapSuite) TestConnectionsNoneConnectedSlots(c *C) {
 			"result": result,
 		})
 	})
-	_, err := Parser(Client()).ParseArgs([]string{"connections"})
+	_ := mylog.Check2(Parser(Client()).ParseArgs([]string{"connections"}))
 	c.Check(err, IsNil)
 	c.Assert(s.Stdout(), Equals, "")
 	c.Assert(s.Stderr(), Equals, "")
@@ -168,8 +169,8 @@ func (s *SnapSuite) TestConnectionsNoneConnectedSlots(c *C) {
 			},
 		},
 	}
-	rest, err := Parser(Client()).ParseArgs([]string{"connections", "--all"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(Parser(Client()).ParseArgs([]string{"connections", "--all"}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
 		"Interface  Plug  Slot                        Notes\n" +
@@ -257,7 +258,7 @@ func (s *SnapSuite) TestConnectionsSomeConnected(c *C) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/connections")
 		c.Check(r.URL.Query(), DeepEquals, query)
-		body, err := io.ReadAll(r.Body)
+		body := mylog.Check2(io.ReadAll(r.Body))
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
@@ -265,8 +266,8 @@ func (s *SnapSuite) TestConnectionsSomeConnected(c *C) {
 			"result": result,
 		})
 	})
-	rest, err := Parser(Client()).ParseArgs([]string{"connections"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(Parser(Client()).ParseArgs([]string{"connections"}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
 		"Interface  Plug                       Slot                        Notes\n" +
@@ -360,7 +361,7 @@ func (s *SnapSuite) TestConnectionsSomeDisconnected(c *C) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/connections")
 		c.Check(r.URL.Query(), DeepEquals, query)
-		body, err := io.ReadAll(r.Body)
+		body := mylog.Check2(io.ReadAll(r.Body))
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
@@ -369,8 +370,8 @@ func (s *SnapSuite) TestConnectionsSomeDisconnected(c *C) {
 		})
 	})
 
-	rest, err := Parser(Client()).ParseArgs([]string{"connections", "--all"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(Parser(Client()).ParseArgs([]string{"connections", "--all"}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
 		"Interface  Plug                       Slot                        Notes\n" +
@@ -412,7 +413,7 @@ func (s *SnapSuite) TestConnectionsOnlyDisconnected(c *C) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/connections")
 		c.Check(r.URL.Query(), DeepEquals, query)
-		body, err := io.ReadAll(r.Body)
+		body := mylog.Check2(io.ReadAll(r.Body))
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
@@ -421,8 +422,8 @@ func (s *SnapSuite) TestConnectionsOnlyDisconnected(c *C) {
 		})
 	})
 
-	rest, err := Parser(Client()).ParseArgs([]string{"connections", "leds-provider"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(Parser(Client()).ParseArgs([]string{"connections", "leds-provider"}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
 		"Interface  Plug  Slot                        Notes\n" +
@@ -441,7 +442,7 @@ func (s *SnapSuite) TestConnectionsFiltering(c *C) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/connections")
 		c.Check(r.URL.Query(), DeepEquals, query)
-		body, err := io.ReadAll(r.Body)
+		body := mylog.Check2(io.ReadAll(r.Body))
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
@@ -454,11 +455,11 @@ func (s *SnapSuite) TestConnectionsFiltering(c *C) {
 		"select": []string{"all"},
 		"snap":   []string{"mouse-buttons"},
 	}
-	rest, err := Parser(Client()).ParseArgs([]string{"connections", "mouse-buttons"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(Parser(Client()).ParseArgs([]string{"connections", "mouse-buttons"}))
+
 	c.Assert(rest, DeepEquals, []string{})
 
-	rest, err = Parser(Client()).ParseArgs([]string{"connections", "mouse-buttons", "--all"})
+	rest = mylog.Check2(Parser(Client()).ParseArgs([]string{"connections", "mouse-buttons", "--all"}))
 	c.Assert(err, ErrorMatches, "cannot use --all with snap name")
 	c.Assert(rest, DeepEquals, []string{"--all"})
 }
@@ -615,7 +616,7 @@ func (s *SnapSuite) TestConnectionsSorting(c *C) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/connections")
 		c.Check(r.URL.Query(), DeepEquals, query)
-		body, err := io.ReadAll(r.Body)
+		body := mylog.Check2(io.ReadAll(r.Body))
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
@@ -624,8 +625,8 @@ func (s *SnapSuite) TestConnectionsSorting(c *C) {
 		})
 	})
 
-	rest, err := Parser(Client()).ParseArgs([]string{"connections", "--all"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(Parser(Client()).ParseArgs([]string{"connections", "--all"}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
 		"Interface  Plug                     Slot                       Notes\n" +
@@ -829,7 +830,7 @@ func (s *SnapSuite) TestConnectionsDefiningAttribute(c *C) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/connections")
 		c.Check(r.URL.Query(), DeepEquals, query)
-		body, err := io.ReadAll(r.Body)
+		body := mylog.Check2(io.ReadAll(r.Body))
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
@@ -838,8 +839,8 @@ func (s *SnapSuite) TestConnectionsDefiningAttribute(c *C) {
 		})
 	})
 
-	rest, err := Parser(Client()).ParseArgs([]string{"connections", "--all"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(Parser(Client()).ParseArgs([]string{"connections", "--all"}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
 		"Interface                Plug              Slot                     Notes\n" +

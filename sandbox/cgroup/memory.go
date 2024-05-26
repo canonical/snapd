@@ -24,6 +24,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 var cgroupsFilePath = "/proc/cgroups"
@@ -38,10 +40,8 @@ var cgroupsFilePath = "/proc/cgroups"
 // 0 => false => disabled
 // 1 => true => enabled
 func CheckMemoryCgroup() error {
-	cgroupsFile, err := os.Open(cgroupsFilePath)
-	if err != nil {
-		return fmt.Errorf("cannot open cgroups file: %v", err)
-	}
+	cgroupsFile := mylog.Check2(os.Open(cgroupsFilePath))
+
 	defer cgroupsFile.Close()
 
 	scanner := bufio.NewScanner(cgroupsFile)
@@ -60,10 +60,7 @@ func CheckMemoryCgroup() error {
 			return nil
 		}
 	}
-
-	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("cannot read %s contents: %v", cgroupsFilePath, err)
-	}
+	mylog.Check(scanner.Err())
 
 	// no errors so far but the only path here is the cgroups file without the memory line
 	return fmt.Errorf("cannot find memory cgroup in %s", cgroupsFilePath)

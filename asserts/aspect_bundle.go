@@ -25,6 +25,7 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/aspects"
 )
 
@@ -54,9 +55,7 @@ func (ab *AspectBundle) Bundle() *aspects.Bundle {
 	return ab.bundle
 }
 
-var (
-	validAspectBundleName = regexp.MustCompile("^[a-z0-9](?:-?[a-z0-9])*$")
-)
+var validAspectBundleName = regexp.MustCompile("^[a-z0-9](?:-?[a-z0-9])*$")
 
 func assembleAspectBundle(assert assertionBase) (Assertion, error) {
 	authorityID := assert.AuthorityID()
@@ -65,47 +64,28 @@ func assembleAspectBundle(assert assertionBase) (Assertion, error) {
 		return nil, fmt.Errorf("authority-id and account-id must match, aspect-bundle assertions are expected to be signed by the issuer account: %q != %q", authorityID, accountID)
 	}
 
-	name, err := checkStringMatches(assert.headers, "name", validAspectBundleName)
-	if err != nil {
-		return nil, err
-	}
+	name := mylog.Check2(checkStringMatches(assert.headers, "name", validAspectBundleName))
 
-	aspectsMap, err := checkMap(assert.headers, "aspects")
-	if err != nil {
-		return nil, err
-	}
+	aspectsMap := mylog.Check2(checkMap(assert.headers, "aspects"))
+
 	if aspectsMap == nil {
 		return nil, fmt.Errorf(`"aspects" stanza is mandatory`)
 	}
-
-	if _, err := checkOptionalString(assert.headers, "summary"); err != nil {
-		return nil, err
-	}
+	mylog.Check2(checkOptionalString(assert.headers, "summary"))
 
 	var bodyMap map[string]json.RawMessage
-	if err := json.Unmarshal(assert.body, &bodyMap); err != nil {
-		return nil, err
-	}
+	mylog.Check(json.Unmarshal(assert.body, &bodyMap))
 
 	schemaRaw, ok := bodyMap["storage"]
 	if !ok {
 		return nil, fmt.Errorf(`body must contain a "storage" stanza`)
 	}
 
-	schema, err := aspects.ParseSchema(schemaRaw)
-	if err != nil {
-		return nil, fmt.Errorf(`invalid schema: %w`, err)
-	}
+	schema := mylog.Check2(aspects.ParseSchema(schemaRaw))
 
-	bundle, err := aspects.NewBundle(accountID, name, aspectsMap, schema)
-	if err != nil {
-		return nil, err
-	}
+	bundle := mylog.Check2(aspects.NewBundle(accountID, name, aspectsMap, schema))
 
-	timestamp, err := checkRFC3339Date(assert.headers, "timestamp")
-	if err != nil {
-		return nil, err
-	}
+	timestamp := mylog.Check2(checkRFC3339Date(assert.headers, "timestamp"))
 
 	return &AspectBundle{
 		assertionBase: assert,

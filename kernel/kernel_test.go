@@ -26,22 +26,23 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/kernel"
 )
 
 func makeMockKernel(c *C, kernelYaml string, filesWithContent map[string]string) string {
 	kernelRootDir := c.MkDir()
-	err := os.MkdirAll(filepath.Join(kernelRootDir, "meta"), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(kernelRootDir, "meta/kernel.yaml"), []byte(kernelYaml), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Join(kernelRootDir, "meta"), 0755))
+
+	mylog.Check(os.WriteFile(filepath.Join(kernelRootDir, "meta/kernel.yaml"), []byte(kernelYaml), 0644))
+
 
 	for fname, content := range filesWithContent {
 		p := filepath.Join(kernelRootDir, fname)
-		err = os.MkdirAll(filepath.Dir(p), 0755)
-		c.Assert(err, IsNil)
-		err = os.WriteFile(p, []byte(content), 0644)
-		c.Assert(err, IsNil)
+		mylog.Check(os.MkdirAll(filepath.Dir(p), 0755))
+
+		mylog.Check(os.WriteFile(p, []byte(content), 0644))
+
 	}
 
 	return kernelRootDir
@@ -68,19 +69,19 @@ assets:
 `)
 
 func (s *kernelYamlTestSuite) TestInfoFromKernelYamlSad(c *C) {
-	ki, err := kernel.InfoFromKernelYaml([]byte("foo"))
+	ki := mylog.Check2(kernel.InfoFromKernelYaml([]byte("foo")))
 	c.Check(err, ErrorMatches, "(?m)cannot parse kernel metadata: .*")
 	c.Check(ki, IsNil)
 }
 
 func (s *kernelYamlTestSuite) TestInfoFromKernelYamlBadName(c *C) {
-	ki, err := kernel.InfoFromKernelYaml(mockInvalidKernelYaml)
+	ki := mylog.Check2(kernel.InfoFromKernelYaml(mockInvalidKernelYaml))
 	c.Check(err, ErrorMatches, `invalid asset name "non-#alphanumeric", please use only alphanumeric characters and dashes`)
 	c.Check(ki, IsNil)
 }
 
 func (s *kernelYamlTestSuite) TestInfoFromKernelYamlHappy(c *C) {
-	ki, err := kernel.InfoFromKernelYaml(mockKernelYaml)
+	ki := mylog.Check2(kernel.InfoFromKernelYaml(mockKernelYaml))
 	c.Check(err, IsNil)
 	c.Check(ki, DeepEquals, &kernel.Info{
 		Assets: map[string]*kernel.Asset{
@@ -96,7 +97,7 @@ func (s *kernelYamlTestSuite) TestInfoFromKernelYamlHappy(c *C) {
 }
 
 func (s *kernelYamlTestSuite) TestReadKernelYamlOptional(c *C) {
-	ki, err := kernel.ReadInfo("this-path-does-not-exist")
+	ki := mylog.Check2(kernel.ReadInfo("this-path-does-not-exist"))
 	c.Check(err, IsNil)
 	c.Check(ki, DeepEquals, &kernel.Info{})
 }
@@ -104,12 +105,12 @@ func (s *kernelYamlTestSuite) TestReadKernelYamlOptional(c *C) {
 func (s *kernelYamlTestSuite) TestReadKernelYamlSad(c *C) {
 	mockKernelSnapRoot := c.MkDir()
 	kernelYamlPath := filepath.Join(mockKernelSnapRoot, "meta/kernel.yaml")
-	err := os.MkdirAll(filepath.Dir(kernelYamlPath), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(kernelYamlPath, []byte(`invalid-kernel-yaml`), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Dir(kernelYamlPath), 0755))
 
-	ki, err := kernel.ReadInfo(mockKernelSnapRoot)
+	mylog.Check(os.WriteFile(kernelYamlPath, []byte(`invalid-kernel-yaml`), 0644))
+
+
+	ki := mylog.Check2(kernel.ReadInfo(mockKernelSnapRoot))
 	c.Check(err, ErrorMatches, `(?m)cannot parse kernel metadata: yaml: unmarshal errors:.*`)
 	c.Check(ki, IsNil)
 }
@@ -117,13 +118,13 @@ func (s *kernelYamlTestSuite) TestReadKernelYamlSad(c *C) {
 func (s *kernelYamlTestSuite) TestReadKernelYamlHappy(c *C) {
 	mockKernelSnapRoot := c.MkDir()
 	kernelYamlPath := filepath.Join(mockKernelSnapRoot, "meta/kernel.yaml")
-	err := os.MkdirAll(filepath.Dir(kernelYamlPath), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(kernelYamlPath, mockKernelYaml, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Dir(kernelYamlPath), 0755))
 
-	ki, err := kernel.ReadInfo(mockKernelSnapRoot)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(kernelYamlPath, mockKernelYaml, 0644))
+
+
+	ki := mylog.Check2(kernel.ReadInfo(mockKernelSnapRoot))
+
 	c.Check(ki, DeepEquals, &kernel.Info{
 		Assets: map[string]*kernel.Asset{
 			"dtbs": {

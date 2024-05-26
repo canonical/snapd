@@ -25,6 +25,7 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -55,14 +56,9 @@ func (r *refreshHints) lastRefresh(timestampKey string) (time.Time, error) {
 }
 
 func (r *refreshHints) needsUpdate() (bool, error) {
-	tFull, err := r.lastRefresh("last-refresh")
-	if err != nil {
-		return false, err
-	}
-	tHints, err := r.lastRefresh("last-refresh-hints")
-	if err != nil {
-		return false, err
-	}
+	tFull := mylog.Check2(r.lastRefresh("last-refresh"))
+
+	tHints := mylog.Check2(r.lastRefresh("last-refresh-hints"))
 
 	recentEnough := time.Now().Add(-refreshHintsDelay)
 	if tFull.After(recentEnough) || tFull.Equal(recentEnough) {
@@ -75,31 +71,22 @@ func (r *refreshHints) refresh() error {
 	scheduleConf, _, _ := getRefreshScheduleConf(r.state)
 	refreshManaged := scheduleConf == "managed" && CanManageRefreshes(r.state)
 
-	var err error
 	perfTimings := timings.New(map[string]string{"ensure": "refresh-hints"})
 	defer perfTimings.Save(r.state)
 
 	var updates []*snap.Info
 	var ignoreValidationByInstanceName map[string]bool
 	timings.Run(perfTimings, "refresh-candidates", "query store for refresh candidates", func(tm timings.Measurer) {
-		updates, _, ignoreValidationByInstanceName, err = refreshCandidates(auth.EnsureContextTODO(),
-			r.state, nil, nil, nil, &store.RefreshOptions{RefreshManaged: refreshManaged})
+		updates, _, ignoreValidationByInstanceName = mylog.Check4(refreshCandidates(auth.EnsureContextTODO(),
+			r.state, nil, nil, nil, &store.RefreshOptions{RefreshManaged: refreshManaged}))
 	})
 	// TODO: we currently set last-refresh-hints even when there was an
 	// error. In the future we may retry with a backoff.
 	r.state.Set("last-refresh-hints", time.Now())
 
-	if err != nil {
-		return err
-	}
-	deviceCtx, err := DeviceCtxFromState(r.state, nil)
-	if err != nil {
-		return err
-	}
-	hints, err := refreshHintsFromCandidates(r.state, updates, ignoreValidationByInstanceName, deviceCtx)
-	if err != nil {
-		return fmt.Errorf("internal error: cannot get refresh-candidates: %v", err)
-	}
+	deviceCtx := mylog.Check2(DeviceCtxFromState(r.state, nil))
+
+	hints := mylog.Check2(refreshHintsFromCandidates(r.state, updates, ignoreValidationByInstanceName, deviceCtx))
 
 	// update candidates in state dropping all entries which are not part of
 	// the new hints
@@ -112,7 +99,7 @@ func (r *refreshHints) AtSeed() error {
 	// on classic hold hints refreshes for a full 24h
 	if release.OnClassic {
 		var t1 time.Time
-		err := r.state.Get("last-refresh-hints", &t1)
+		mylog.Check(r.state.Get("last-refresh-hints", &t1))
 		if !errors.Is(err, state.ErrNoState) {
 			// already set or other error
 			return err
@@ -128,7 +115,7 @@ func (r *refreshHints) Ensure() error {
 	r.state.Lock()
 	defer r.state.Unlock()
 
-	online, err := isStoreOnline(r.state)
+	online := mylog.Check2(isStoreOnline(r.state))
 	if err != nil || !online {
 		return err
 	}
@@ -140,14 +127,12 @@ func (r *refreshHints) Ensure() error {
 	if CanAutoRefresh == nil {
 		return nil
 	}
-	if ok, err := CanAutoRefresh(r.state); err != nil || !ok {
+	if ok := mylog.Check2(CanAutoRefresh(r.state)); err != nil || !ok {
 		return err
 	}
 
-	needsUpdate, err := r.needsUpdate()
-	if err != nil {
-		return err
-	}
+	needsUpdate := mylog.Check2(r.needsUpdate())
+
 	if !needsUpdate {
 		return nil
 	}
@@ -157,27 +142,19 @@ func (r *refreshHints) Ensure() error {
 func refreshHintsFromCandidates(st *state.State, updates []*snap.Info, ignoreValidationByInstanceName map[string]bool, deviceCtx DeviceContext) (map[string]*refreshCandidate, error) {
 	if ValidateRefreshes != nil && len(updates) != 0 {
 		userID := 0
-		var err error
-		updates, err = ValidateRefreshes(st, updates, ignoreValidationByInstanceName, userID, deviceCtx)
-		if err != nil {
-			return nil, err
-		}
+
+		updates = mylog.Check2(ValidateRefreshes(st, updates, ignoreValidationByInstanceName, userID, deviceCtx))
+
 	}
 
 	hints := make(map[string]*refreshCandidate, len(updates))
 	for _, update := range updates {
 		var snapst SnapState
-		if err := Get(st, update.InstanceName(), &snapst); err != nil {
-			return nil, err
-		}
+		mylog.Check(Get(st, update.InstanceName(), &snapst))
 
 		flags := snapst.Flags
 		flags.IsAutoRefresh = true
-		flags, err := earlyChecks(st, &snapst, update, flags)
-		if err != nil {
-			logger.Debugf("update hint for %q is not applicable: %v", update.InstanceName(), err)
-			continue
-		}
+		flags := mylog.Check2(earlyChecks(st, &snapst, update, flags))
 
 		monitoring := IsSnapMonitored(st, update.InstanceName())
 		providerContentAttrs := defaultProviderContentAttrs(st, update, nil)
@@ -215,7 +192,7 @@ func refreshHintsFromCandidates(st *state.State, updates []*snap.Info, ignoreVal
 // in the state.
 func pruneRefreshCandidates(st *state.State, snaps ...string) error {
 	tr := config.NewTransaction(st)
-	gateAutoRefreshHook, err := features.Flag(tr, features.GateAutoRefreshHook)
+	gateAutoRefreshHook := mylog.Check2(features.Flag(tr, features.GateAutoRefreshHook))
 	if err != nil && !config.IsNoOption(err) {
 		return err
 	}
@@ -229,13 +206,10 @@ func pruneRefreshCandidates(st *state.State, snaps ...string) error {
 	// See https://forum.snapcraft.io/t/cannot-r-emove-snap-json-cannot-unmarshal-array-into-go-value-of-type-map-string-snapstate-refreshcandidate/27276
 	if !gateAutoRefreshHook {
 		var rc interface{}
-		err = st.Get("refresh-candidates", &rc)
-		if err != nil {
-			if errors.Is(err, state.ErrNoState) {
-				// nothing to do
-				return nil
-			}
-		}
+		mylog.Check(st.Get("refresh-candidates", &rc))
+
+		// nothing to do
+
 		v := reflect.ValueOf(rc)
 		if !v.IsValid() {
 			// nothing to do
@@ -249,14 +223,7 @@ func pruneRefreshCandidates(st *state.State, snaps ...string) error {
 	}
 
 	var candidates map[string]*refreshCandidate
-
-	err = st.Get("refresh-candidates", &candidates)
-	if err != nil {
-		if errors.Is(err, state.ErrNoState) {
-			return nil
-		}
-		return err
-	}
+	mylog.Check(st.Get("refresh-candidates", &candidates))
 
 	for _, snapName := range snaps {
 		delete(candidates, snapName)
@@ -280,11 +247,7 @@ func pruneRefreshCandidates(st *state.State, snaps ...string) error {
 // provided a hint which preserves the hint's state outside of snap-setup.
 func updateRefreshCandidates(st *state.State, hints map[string]*refreshCandidate, canDropOldNames []string) error {
 	var oldHints map[string]*refreshCandidate
-	if err := st.Get("refresh-candidates", &oldHints); err != nil {
-		if !errors.Is(err, &state.NoStateError{}) {
-			return err
-		}
-	}
+	mylog.Check(st.Get("refresh-candidates", &oldHints))
 
 	if len(oldHints) == 0 {
 		st.Set("refresh-candidates", hints)

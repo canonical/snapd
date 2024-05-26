@@ -29,6 +29,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord"
@@ -121,18 +122,20 @@ func (s *serviceControlSuite) mockTestSnap(c *C) *snap.Info {
 		Current:  snap.R(7),
 		SnapType: "app",
 	})
+	mylog.
 
-	// mock systemd service units, this is required when testing "stop"
-	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc/systemd/system/"), 0775)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(dirs.GlobalRootDir, "etc/systemd/system/snap.test-snap.foo.service"), nil, 0644)
-	c.Assert(err, IsNil)
+		// mock systemd service units, this is required when testing "stop"
+		Check(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc/systemd/system/"), 0775))
+
+	mylog.Check(os.WriteFile(filepath.Join(dirs.GlobalRootDir, "etc/systemd/system/snap.test-snap.foo.service"), nil, 0644))
+
 
 	return info
 }
 
 func verifyControlTasks(c *C, tasks []*state.Task, expectedAction, actionModifier string,
-	expectedServices []string, expectedExplicitServices []string) {
+	expectedServices []string, expectedExplicitServices []string,
+) {
 	// precondition, ensures test checks below are hit
 	c.Assert(len(tasks) > 0, Equals, true)
 
@@ -263,8 +266,8 @@ func makeControlChange(c *C, st *state.State, inst *servicestate.Instruction, in
 	}
 
 	flags := &servicestate.Flags{CreateExecCommandTasks: true}
-	tss, err := servicestate.Control(st, apps, inst, nil, flags, nil)
-	c.Assert(err, IsNil)
+	tss := mylog.Check2(servicestate.Control(st, apps, inst, nil, flags, nil))
+
 
 	chg := st.NewChange("service-control", "...")
 	for _, ts := range tss {
@@ -285,8 +288,8 @@ func (s *serviceControlSuite) TestControlDoesntCreateExecCommandTasksIfNoFlags(c
 	}
 
 	flags := &servicestate.Flags{}
-	tss, err := servicestate.Control(st, []*snap.AppInfo{info.Apps["foo"]}, inst, nil, flags, nil)
-	c.Assert(err, IsNil)
+	tss := mylog.Check2(servicestate.Control(st, []*snap.AppInfo{info.Apps["foo"]}, inst, nil, flags, nil))
+
 	// service-control is the only task
 	c.Assert(tss, HasLen, 1)
 	c.Assert(tss[0].Tasks(), HasLen, 1)
@@ -308,7 +311,7 @@ func (s *serviceControlSuite) TestControlConflict(c *C) {
 	chg.AddTask(t)
 
 	inst := &servicestate.Instruction{Action: "start", Names: []string{"foo"}}
-	_, err := servicestate.Control(st, []*snap.AppInfo{inf.Apps["foo"]}, inst, nil, nil, nil)
+	_ := mylog.Check2(servicestate.Control(st, []*snap.AppInfo{inf.Apps["foo"]}, inst, nil, nil, nil))
 	c.Check(err, ErrorMatches, `snap "test-snap" has "manip" change in progress`)
 }
 
@@ -423,7 +426,7 @@ func (s *serviceControlSuite) TestControlUnknownInstruction(c *C) {
 		RestartOptions: client.RestartOptions{Reload: true},
 	}
 
-	_, err := servicestate.Control(st, []*snap.AppInfo{info.Apps["foo"]}, inst, nil, nil, nil)
+	_ := mylog.Check2(servicestate.Control(st, []*snap.AppInfo{info.Apps["foo"]}, inst, nil, nil, nil))
 	c.Assert(err, ErrorMatches, `unknown action "boo"`)
 }
 
@@ -492,9 +495,9 @@ func (s *serviceControlSuite) TestNoServiceCommandError(c *C) {
 
 	st.Unlock()
 	defer s.se.Stop()
-	err := s.o.Settle(5 * time.Second)
+	mylog.Check(s.o.Settle(5 * time.Second))
 	st.Lock()
-	c.Assert(err, IsNil)
+
 
 	c.Assert(t.Status(), Equals, state.ErrorStatus)
 	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*internal error: cannot get service-action: no state entry for key.*`)
@@ -522,9 +525,9 @@ func (s *serviceControlSuite) TestNoopWhenNoServices(c *C) {
 
 	st.Unlock()
 	defer s.se.Stop()
-	err := s.o.Settle(5 * time.Second)
+	mylog.Check(s.o.Settle(5 * time.Second))
 	st.Lock()
-	c.Assert(err, IsNil)
+
 
 	c.Check(t.Status(), Equals, state.DoneStatus)
 }
@@ -544,9 +547,9 @@ func (s *serviceControlSuite) TestUnhandledServiceAction(c *C) {
 
 	st.Unlock()
 	defer s.se.Stop()
-	err := s.o.Settle(5 * time.Second)
+	mylog.Check(s.o.Settle(5 * time.Second))
 	st.Lock()
-	c.Assert(err, IsNil)
+
 
 	c.Assert(t.Status(), Equals, state.ErrorStatus)
 	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*unhandled service action: "foo".*`)
@@ -571,9 +574,9 @@ func (s *serviceControlSuite) TestUnknownService(c *C) {
 
 	st.Unlock()
 	defer s.se.Stop()
-	err := s.o.Settle(5 * time.Second)
+	mylog.Check(s.o.Settle(5 * time.Second))
 	st.Lock()
-	c.Assert(err, IsNil)
+
 
 	c.Assert(t.Status(), Equals, state.ErrorStatus)
 	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*no such service: boo.*`)
@@ -598,9 +601,9 @@ func (s *serviceControlSuite) TestNotAService(c *C) {
 
 	st.Unlock()
 	defer s.se.Stop()
-	err := s.o.Settle(5 * time.Second)
+	mylog.Check(s.o.Settle(5 * time.Second))
 	st.Lock()
-	c.Assert(err, IsNil)
+
 
 	c.Assert(t.Status(), Equals, state.ErrorStatus)
 	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*someapp is not a service.*`)
@@ -624,9 +627,9 @@ func (s *serviceControlSuite) TestStartAllServices(c *C) {
 
 	st.Unlock()
 	defer s.se.Stop()
-	err := s.o.Settle(5 * time.Second)
+	mylog.Check(s.o.Settle(5 * time.Second))
 	st.Lock()
-	c.Assert(err, IsNil)
+
 
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 
@@ -656,9 +659,9 @@ func (s *serviceControlSuite) TestStartListedServices(c *C) {
 
 	st.Unlock()
 	defer s.se.Stop()
-	err := s.o.Settle(5 * time.Second)
+	mylog.Check(s.o.Settle(5 * time.Second))
 	st.Lock()
-	c.Assert(err, IsNil)
+
 
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.sysctlArgs, DeepEquals, [][]string{
@@ -686,9 +689,9 @@ func (s *serviceControlSuite) TestStartEnableServices(c *C) {
 
 	st.Unlock()
 	defer s.se.Stop()
-	err := s.o.Settle(5 * time.Second)
+	mylog.Check(s.o.Settle(5 * time.Second))
 	st.Lock()
-	c.Assert(err, IsNil)
+
 
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.sysctlArgs, DeepEquals, [][]string{
@@ -719,9 +722,9 @@ func (s *serviceControlSuite) TestStartServicesWithScope(c *C) {
 
 	st.Unlock()
 	defer s.se.Stop()
-	err := s.o.Settle(5 * time.Second)
+	mylog.Check(s.o.Settle(5 * time.Second))
 	st.Lock()
-	c.Assert(err, IsNil)
+
 
 	// Baz should not appear in this list as we explicitly requested system services
 	c.Assert(t.Status(), Equals, state.DoneStatus)
@@ -751,9 +754,9 @@ func (s *serviceControlSuite) TestStartEnableMultipleServices(c *C) {
 
 	st.Unlock()
 	defer s.se.Stop()
-	err := s.o.Settle(5 * time.Second)
+	mylog.Check(s.o.Settle(5 * time.Second))
 	st.Lock()
-	c.Assert(err, IsNil)
+
 
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.sysctlArgs, DeepEquals, [][]string{
@@ -785,9 +788,9 @@ func (s *serviceControlSuite) TestStopServices(c *C) {
 
 	st.Unlock()
 	defer s.se.Stop()
-	err := s.o.Settle(5 * time.Second)
+	mylog.Check(s.o.Settle(5 * time.Second))
 	st.Lock()
-	c.Assert(err, IsNil)
+
 
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.sysctlArgs, DeepEquals, [][]string{
@@ -817,9 +820,9 @@ func (s *serviceControlSuite) TestStopServicesWithScope(c *C) {
 
 	st.Unlock()
 	defer s.se.Stop()
-	err := s.o.Settle(5 * time.Second)
+	mylog.Check(s.o.Settle(5 * time.Second))
 	st.Lock()
-	c.Assert(err, IsNil)
+
 
 	// we only mock service unit for foo, expect only foo to appear
 	c.Assert(t.Status(), Equals, state.DoneStatus)
@@ -849,9 +852,9 @@ func (s *serviceControlSuite) TestStopDisableServices(c *C) {
 
 	st.Unlock()
 	defer s.se.Stop()
-	err := s.o.Settle(5 * time.Second)
+	mylog.Check(s.o.Settle(5 * time.Second))
 	st.Lock()
-	c.Assert(err, IsNil)
+
 
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.sysctlArgs, DeepEquals, [][]string{
@@ -881,9 +884,9 @@ func (s *serviceControlSuite) TestRestartServices(c *C) {
 
 	st.Unlock()
 	defer s.se.Stop()
-	err := s.o.Settle(5 * time.Second)
+	mylog.Check(s.o.Settle(5 * time.Second))
 	st.Lock()
-	c.Assert(err, IsNil)
+
 
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.sysctlArgs, DeepEquals, [][]string{
@@ -914,9 +917,9 @@ func (s *serviceControlSuite) TestRestartServicesWithScope(c *C) {
 
 	st.Unlock()
 	defer s.se.Stop()
-	err := s.o.Settle(5 * time.Second)
+	mylog.Check(s.o.Settle(5 * time.Second))
 	st.Lock()
-	c.Assert(err, IsNil)
+
 
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.sysctlArgs, DeepEquals, [][]string{
@@ -972,9 +975,9 @@ func (s *serviceControlSuite) TestRestartOnlyActiveServices(c *C) {
 
 	st.Unlock()
 	defer s.se.Stop()
-	err := s.o.Settle(5 * time.Second)
+	mylog.Check(s.o.Settle(5 * time.Second))
 	st.Lock()
-	c.Assert(err, IsNil)
+
 
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 
@@ -1027,9 +1030,9 @@ func (s *serviceControlSuite) TestRestartAllEnabledServices(c *C) {
 
 	st.Unlock()
 	defer s.se.Stop()
-	err := s.o.Settle(5 * time.Second)
+	mylog.Check(s.o.Settle(5 * time.Second))
 	st.Lock()
-	c.Assert(err, IsNil)
+
 
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 
@@ -1046,7 +1049,8 @@ func (s *serviceControlSuite) TestRestartAllEnabledServices(c *C) {
 }
 
 func (s *serviceControlSuite) testRestartWithExplicitServicesCommon(c *C,
-	explicitServices []string, expectedInvocations [][]string) {
+	explicitServices []string, expectedInvocations [][]string,
+) {
 	st := s.state
 	st.Lock()
 	defer st.Unlock()
@@ -1089,9 +1093,9 @@ func (s *serviceControlSuite) testRestartWithExplicitServicesCommon(c *C,
 
 	st.Unlock()
 	defer s.se.Stop()
-	err := s.o.Settle(5 * time.Second)
+	mylog.Check(s.o.Settle(5 * time.Second))
 	st.Lock()
-	c.Assert(err, IsNil)
+
 
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 	// We expect to get foo and bar restarted: "bar" because it was already
@@ -1154,9 +1158,9 @@ func (s *serviceControlSuite) TestRestartAllServices(c *C) {
 
 	st.Unlock()
 	defer s.se.Stop()
-	err := s.o.Settle(5 * time.Second)
+	mylog.Check(s.o.Settle(5 * time.Second))
 	st.Lock()
-	c.Assert(err, IsNil)
+
 
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.sysctlArgs, DeepEquals, [][]string{
@@ -1191,9 +1195,9 @@ func (s *serviceControlSuite) TestReloadServices(c *C) {
 
 	st.Unlock()
 	defer s.se.Stop()
-	err := s.o.Settle(5 * time.Second)
+	mylog.Check(s.o.Settle(5 * time.Second))
 	st.Lock()
-	c.Assert(err, IsNil)
+
 
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.sysctlArgs, DeepEquals, [][]string{
@@ -1220,9 +1224,9 @@ func (s *serviceControlSuite) TestReloadAllServices(c *C) {
 
 	st.Unlock()
 	defer s.se.Stop()
-	err := s.o.Settle(5 * time.Second)
+	mylog.Check(s.o.Settle(5 * time.Second))
 	st.Lock()
-	c.Assert(err, IsNil)
+
 
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.sysctlArgs, DeepEquals, [][]string{
@@ -1249,12 +1253,12 @@ func (s *serviceControlSuite) TestConflict(c *C) {
 	t.Set("service-action", cmd)
 	chg.AddTask(t)
 
-	_, err := snapstate.Remove(st, "test-snap", snap.Revision{}, nil)
+	_ := mylog.Check2(snapstate.Remove(st, "test-snap", snap.Revision{}, nil))
 	c.Assert(err, ErrorMatches, `snap "test-snap" has "service-control" change in progress`)
 }
 
 func (s *serviceControlSuite) TestUpdateSnapstateServices(c *C) {
-	var tests = []struct {
+	tests := []struct {
 		enable                    []string
 		disable                   []string
 		expectedSnapstateEnabled  []string
@@ -1311,14 +1315,14 @@ func (s *serviceControlSuite) TestUpdateSnapstateServices(c *C) {
 		for _, srv := range tst.disable {
 			disable = append(disable, &snap.AppInfo{Name: srv})
 		}
-		result, err := servicestate.UpdateSnapstateServices(&snapst, enable, disable)
-		c.Assert(err, IsNil)
+		result := mylog.Check2(servicestate.UpdateSnapstateServices(&snapst, enable, disable))
+
 		c.Check(result, Equals, tst.changed)
 		c.Check(snapst.ServicesEnabledByHooks, DeepEquals, tst.expectedSnapstateEnabled)
 		c.Check(snapst.ServicesDisabledByHooks, DeepEquals, tst.expectedSnapstateDisabled)
 	}
 
 	services := []*snap.AppInfo{{Name: "foo"}}
-	_, err := servicestate.UpdateSnapstateServices(nil, services, services)
+	_ := mylog.Check2(servicestate.UpdateSnapstateServices(nil, services, services))
 	c.Assert(err, ErrorMatches, `internal error: cannot handle enabled and disabled services at the same time`)
 }

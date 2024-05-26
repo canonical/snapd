@@ -28,6 +28,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -59,7 +60,7 @@ func (s *findSuite) TestFind(c *check.C) {
 		},
 	}}
 
-	req, err := http.NewRequest("GET", "/v2/find?q=hi", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/find?q=hi", nil))
 	c.Assert(err, check.IsNil)
 
 	rsp := s.syncReq(c, req, nil)
@@ -93,7 +94,7 @@ func (s *findSuite) TestFindRefreshes(c *check.C) {
 	}}
 	s.mockSnap(c, "name: store\nversion: 1.0")
 
-	req, err := http.NewRequest("GET", "/v2/find?select=refresh", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/find?select=refresh", nil))
 	c.Assert(err, check.IsNil)
 
 	rsp := s.syncReq(c, req, nil)
@@ -125,7 +126,7 @@ func (s *findSuite) TestFindRefreshSideloaded(c *check.C) {
 	var snapst snapstate.SnapState
 	st := d.Overlord().State()
 	st.Lock()
-	err := snapstate.Get(st, "store", &snapst)
+	mylog.Check(snapstate.Get(st, "store", &snapst))
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 	c.Assert(snapst.Sequence.Revisions, check.HasLen, 1)
@@ -136,7 +137,7 @@ func (s *findSuite) TestFindRefreshSideloaded(c *check.C) {
 	snapstate.Set(st, "store", &snapst)
 	st.Unlock()
 
-	req, err := http.NewRequest("GET", "/v2/find?select=refresh", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/find?select=refresh", nil))
 	c.Assert(err, check.IsNil)
 
 	rsp := s.syncReq(c, req, nil)
@@ -152,7 +153,7 @@ func (s *findSuite) TestFindPrivate(c *check.C) {
 
 	s.rsnaps = []*snap.Info{}
 
-	req, err := http.NewRequest("GET", "/v2/find?q=foo&select=private", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/find?q=foo&select=private", nil))
 	c.Assert(err, check.IsNil)
 
 	_ = s.syncReq(c, req, nil)
@@ -166,7 +167,7 @@ func (s *findSuite) TestFindPrivate(c *check.C) {
 func (s *findSuite) TestFindUserAgentContextCreated(c *check.C) {
 	s.daemon(c)
 
-	req, err := http.NewRequest("GET", "/v2/find", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/find", nil))
 	c.Assert(err, check.IsNil)
 	req.Header.Add("User-Agent", "some-agent/1.0")
 
@@ -191,7 +192,7 @@ func (s *findSuite) TestFindOneUserAgentContextCreated(c *check.C) {
 			Validation:  "unproven",
 		},
 	}}
-	req, err := http.NewRequest("GET", "/v2/find?name=foo", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/find?name=foo", nil))
 	c.Assert(err, check.IsNil)
 	req.Header.Add("User-Agent", "some-agent/1.0")
 
@@ -205,7 +206,7 @@ func (s *findSuite) TestFindPrefix(c *check.C) {
 
 	s.rsnaps = []*snap.Info{}
 
-	req, err := http.NewRequest("GET", "/v2/find?name=foo*", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/find?name=foo*", nil))
 	c.Assert(err, check.IsNil)
 
 	_ = s.syncReq(c, req, nil)
@@ -218,7 +219,7 @@ func (s *findSuite) TestFindSection(c *check.C) {
 
 	s.rsnaps = []*snap.Info{}
 
-	req, err := http.NewRequest("GET", "/v2/find?q=foo&section=bar", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/find?q=foo&section=bar", nil))
 	c.Assert(err, check.IsNil)
 
 	_ = s.syncReq(c, req, nil)
@@ -234,7 +235,7 @@ func (s *findSuite) TestFindCategory(c *check.C) {
 
 	s.rsnaps = []*snap.Info{}
 
-	req, err := http.NewRequest("GET", "/v2/find?q=foo&category=bar", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/find?q=foo&category=bar", nil))
 	c.Assert(err, check.IsNil)
 
 	_ = s.syncReq(c, req, nil)
@@ -250,7 +251,7 @@ func (s *findSuite) TestFindScope(c *check.C) {
 
 	s.rsnaps = []*snap.Info{}
 
-	req, err := http.NewRequest("GET", "/v2/find?q=foo&scope=creep", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/find?q=foo&scope=creep", nil))
 	c.Assert(err, check.IsNil)
 
 	_ = s.syncReq(c, req, nil)
@@ -278,7 +279,7 @@ func (s *findSuite) TestFindCommonID(c *check.C) {
 	}}
 	s.mockSnap(c, "name: store\nversion: 1.0")
 
-	req, err := http.NewRequest("GET", "/v2/find?name=foo", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/find?name=foo", nil))
 	c.Assert(err, check.IsNil)
 
 	rsp := s.syncReq(c, req, nil)
@@ -305,7 +306,7 @@ func (s *findSuite) TestFindByCommonID(c *check.C) {
 	}}
 	s.mockSnap(c, "name: store\nversion: 1.0")
 
-	req, err := http.NewRequest("GET", "/v2/find?common-id=org.foo", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/find?common-id=org.foo", nil))
 	c.Assert(err, check.IsNil)
 
 	rsp := s.syncReq(c, req, nil)
@@ -337,7 +338,7 @@ func (s *findSuite) TestFindOne(c *check.C) {
 	}}
 	s.mockSnap(c, "name: store\nversion: 1.0")
 
-	req, err := http.NewRequest("GET", "/v2/find?name=foo", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/find?name=foo", nil))
 	c.Assert(err, check.IsNil)
 
 	rsp := s.syncReq(c, req, nil)
@@ -365,7 +366,7 @@ func (s *findSuite) TestFindOneNotFound(c *check.C) {
 	s.err = store.ErrSnapNotFound
 	s.mockSnap(c, "name: store\nversion: 1.0")
 
-	req, err := http.NewRequest("GET", "/v2/find?name=foo", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/find?name=foo", nil))
 	c.Assert(err, check.IsNil)
 
 	rsp := s.errorReq(c, req, nil)
@@ -379,16 +380,16 @@ func (s *findSuite) TestFindOneWithAuth(c *check.C) {
 
 	state := d.Overlord().State()
 	state.Lock()
-	user, err := auth.NewUser(state, auth.NewUserParams{
+	user := mylog.Check2(auth.NewUser(state, auth.NewUserParams{
 		Username:   "username",
 		Email:      "email@test.com",
 		Macaroon:   "macaroon",
 		Discharges: []string{"discharge"},
-	})
+	}))
 	state.Unlock()
 	c.Check(err, check.IsNil)
 
-	req, err := http.NewRequest("GET", "/v2/find?q=name:gfoo", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/find?q=name:gfoo", nil))
 	c.Assert(err, check.IsNil)
 
 	c.Assert(s.user, check.IsNil)
@@ -403,7 +404,7 @@ func (s *findSuite) TestFindRefreshNotOther(c *check.C) {
 	s.daemon(c)
 
 	for _, other := range []string{"name", "q", "common-id"} {
-		req, err := http.NewRequest("GET", "/v2/find?select=refresh&"+other+"=foo*", nil)
+		req := mylog.Check2(http.NewRequest("GET", "/v2/find?select=refresh&"+other+"=foo*", nil))
 		c.Assert(err, check.IsNil)
 
 		rspe := s.errorReq(c, req, nil)
@@ -422,7 +423,7 @@ func (s *findSuite) TestFindNotTogether(c *check.C) {
 				continue
 			}
 
-			req, err := http.NewRequest("GET", fmt.Sprintf("/v2/find?%s=%s&%s=%s", ki, vi, kj, vj), nil)
+			req := mylog.Check2(http.NewRequest("GET", fmt.Sprintf("/v2/find?%s=%s&%s=%s", ki, vi, kj, vj), nil))
 			c.Assert(err, check.IsNil)
 
 			rspe := s.errorReq(c, req, nil)
@@ -438,7 +439,7 @@ func (s *findSuite) TestFindBadQueryReturnsCorrectErrorKind(c *check.C) {
 	s.daemon(c)
 
 	s.err = store.ErrBadQuery
-	req, err := http.NewRequest("GET", "/v2/find?q=return-bad-query-please", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/find?q=return-bad-query-please", nil))
 	c.Assert(err, check.IsNil)
 
 	rspe := s.errorReq(c, req, nil)
@@ -450,7 +451,7 @@ func (s *findSuite) TestFindBadQueryReturnsCorrectErrorKind(c *check.C) {
 func (s *findSuite) TestFindNetworkErrorsReturnCorrectErrorKind(c *check.C) {
 	s.daemon(c)
 
-	req, err := http.NewRequest("GET", "/v2/find?q=query", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/find?q=query", nil))
 	c.Assert(err, check.IsNil)
 
 	pne := &httputil.PersistentNetworkError{Err: errors.New("problem")}
@@ -510,7 +511,7 @@ func (s *findSuite) TestFindPriced(c *check.C) {
 		},
 	}}
 
-	req, err := http.NewRequest("GET", "/v2/find?q=banana&channel=stable", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/find?q=banana&channel=stable", nil))
 	c.Assert(err, check.IsNil)
 	rsp := s.syncReq(c, req, nil)
 
@@ -558,7 +559,7 @@ func (s *findSuite) TestFindScreenshotted(c *check.C) {
 		},
 	}}
 
-	req, err := http.NewRequest("GET", "/v2/find?q=test-screenshot", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/find?q=test-screenshot", nil))
 	c.Assert(err, check.IsNil)
 	rsp := s.syncReq(c, req, nil)
 
@@ -604,7 +605,7 @@ func (s *findSuite) TestSnapsStoreConfinement(c *check.C) {
 		},
 	}
 
-	req, err := http.NewRequest("GET", "/v2/find", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/find", nil))
 	c.Assert(err, check.IsNil)
 
 	rsp := s.syncReq(c, req, nil)

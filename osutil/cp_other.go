@@ -23,9 +23,11 @@ package osutil
 import (
 	"io"
 	"os"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 func doCopyFile(fin, fout fileish, fi os.FileInfo) error {
-	_, err := io.Copy(fout, fin)
+	_ := mylog.Check2(io.Copy(fout, fin))
 	return err
 }

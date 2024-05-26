@@ -25,10 +25,12 @@ import (
 
 type cmdDebug struct{}
 
-var shortDebugHelp = i18n.G("Run debug commands")
-var longDebugHelp = i18n.G(`
+var (
+	shortDebugHelp = i18n.G("Run debug commands")
+	longDebugHelp  = i18n.G(`
 The debug command contains a selection of additional sub-commands.
 
 Debug commands can be removed without notice and may not work on
 non-development systems.
 `)
+)

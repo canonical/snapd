@@ -30,6 +30,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/metautil"
 	"github.com/snapcore/snapd/osutil"
@@ -166,10 +167,8 @@ func ParsePlaceInfoFromSnapFileName(sn string) (PlaceInfo, error) {
 	// ensure that _ is not the last element
 	name := sn[:idx]
 	revnoNSuffix := sn[idx+1:]
-	rev, err := ParseRevision(strings.TrimSuffix(revnoNSuffix, ".snap"))
-	if err != nil {
-		return nil, fmt.Errorf("cannot parse revision in snap file name %q: %v", sn, err)
-	}
+	rev := mylog.Check2(ParseRevision(strings.TrimSuffix(revnoNSuffix, ".snap")))
+
 	return &Info{SideInfo: SideInfo{RealName: name, Revision: rev}}, nil
 }
 
@@ -594,10 +593,8 @@ func addLink(links map[string][]string, key, link string) {
 	if link == "" {
 		return
 	}
-	u, err := url.Parse(link)
-	if err != nil {
-		return
-	}
+	u := mylog.Check2(url.Parse(link))
+
 	if u.Scheme == "" {
 		link = "mailto:" + link
 		u.Scheme = "mailto"
@@ -808,9 +805,9 @@ func (s *Info) ExpandSnapVariables(path string) string {
 func (s *Info) InstallDate() *time.Time {
 	dir, rev := filepath.Split(s.MountDir())
 	cur := filepath.Join(dir, "current")
-	tag, err := os.Readlink(cur)
+	tag := mylog.Check2(os.Readlink(cur))
 	if err == nil && tag == rev {
-		if st, err := os.Lstat(cur); err == nil {
+		if st := mylog.Check2(os.Lstat(cur)); err == nil {
 			modTime := st.ModTime()
 			return &modTime
 		}
@@ -822,7 +819,7 @@ func (s *Info) InstallDate() *time.Time {
 func (s *Info) IsActive() bool {
 	dir, rev := filepath.Split(s.MountDir())
 	cur := filepath.Join(dir, "current")
-	tag, err := os.Readlink(cur)
+	tag := mylog.Check2(os.Readlink(cur))
 	return err == nil && tag == rev
 }
 
@@ -1055,7 +1052,7 @@ func (slot *SlotInfo) String() string {
 func gatherDefaultContentProvider(providerSnapsToContentTag map[string][]string, plug *PlugInfo, filterTags map[string]bool) {
 	if plug.Interface == "content" {
 		var dprovider string
-		if err := plug.Attr("default-provider", &dprovider); err == nil && dprovider != "" {
+		if mylog.Check(plug.Attr("default-provider", &dprovider)); err == nil && dprovider != "" {
 			// usage can be "snap:slot" but slot
 			// is ignored/unused
 			name := strings.Split(dprovider, ":")[0]
@@ -1403,10 +1400,7 @@ func (hook *HookInfo) EnvChain() []osutil.ExpandableEnv {
 }
 
 func infoFromSnapYamlWithSideInfo(meta []byte, si *SideInfo, strk *scopedTracker) (*Info, error) {
-	info, err := infoFromSnapYaml(meta, strk)
-	if err != nil {
-		return nil, err
-	}
+	info := mylog.Check2(infoFromSnapYaml(meta, strk))
 
 	if si != nil {
 		info.SideInfo = *si
@@ -1486,32 +1480,23 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 // snap given the mound point, mount file, and side info.
 func ReadInfoFromMountPoint(name, mountPoint, mountFile string, si *SideInfo) (*Info, error) {
 	snapYamlFn := filepath.Join(mountPoint, "meta", "snap.yaml")
-	meta, err := os.ReadFile(snapYamlFn)
+	meta := mylog.Check2(os.ReadFile(snapYamlFn))
 	if os.IsNotExist(err) {
 		return nil, &NotFoundError{Snap: name, Revision: si.Revision, Path: snapYamlFn}
 	}
-	if err != nil {
-		return nil, err
-	}
 
 	strk := new(scopedTracker)
-	info, err := infoFromSnapYamlWithSideInfo(meta, si, strk)
-	if err != nil {
-		return nil, &invalidMetaError{Snap: name, Revision: si.Revision, Msg: err.Error()}
-	}
+	info := mylog.Check2(infoFromSnapYamlWithSideInfo(meta, si, strk))
 
 	_, instanceKey := SplitInstanceName(name)
 	info.InstanceKey = instanceKey
 
 	hooksDir := filepath.Join(mountPoint, "meta", "hooks")
-	err = addImplicitHooks(info, hooksDir)
-	if err != nil {
-		return nil, &invalidMetaError{Snap: name, Revision: si.Revision, Msg: err.Error()}
-	}
+	mylog.Check(addImplicitHooks(info, hooksDir))
 
 	bindImplicitHooks(info, strk)
 
-	st, err := os.Lstat(mountFile)
+	st := mylog.Check2(os.Lstat(mountFile))
 	if os.IsNotExist(err) {
 		// This can happen when "snap try" mode snap is moved around. The mount
 		// is still in place (it's a bind mount, it doesn't care about the
@@ -1519,9 +1504,7 @@ func ReadInfoFromMountPoint(name, mountPoint, mountFile string, si *SideInfo) (*
 		// dangling.
 		return nil, &NotFoundError{Snap: name, Revision: si.Revision, Path: mountFile}
 	}
-	if err != nil {
-		return nil, err
-	}
+
 	// If the file is a regular file than it must be a squashfs file that is
 	// used as the backing store for the snap. The size of that file is the
 	// size of the snap.
@@ -1536,15 +1519,10 @@ func ReadInfoFromMountPoint(name, mountPoint, mountFile string, si *SideInfo) (*
 // 'current' revision
 func ReadCurrentInfo(snapName string) (*Info, error) {
 	curFn := filepath.Join(dirs.SnapMountDir, snapName, "current")
-	realFn, err := os.Readlink(curFn)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %s", NotFoundError{Snap: snapName, Revision: R(0)}, err)
-	}
+	realFn := mylog.Check2(os.Readlink(curFn))
+
 	rev := filepath.Base(realFn)
-	revision, err := ParseRevision(rev)
-	if err != nil {
-		return nil, fmt.Errorf("cannot read revision %s: %s", rev, err)
-	}
+	revision := mylog.Check2(ParseRevision(rev))
 
 	return ReadInfo(snapName, &SideInfo{Revision: revision})
 }
@@ -1552,37 +1530,21 @@ func ReadCurrentInfo(snapName string) (*Info, error) {
 // ReadInfoFromSnapFile reads the snap information from the given Container and
 // completes it with the given side-info if this is not nil.
 func ReadInfoFromSnapFile(snapf Container, si *SideInfo) (*Info, error) {
-	meta, err := snapf.ReadFile("meta/snap.yaml")
-	if err != nil {
-		return nil, err
-	}
+	meta := mylog.Check2(snapf.ReadFile("meta/snap.yaml"))
 
 	strk := new(scopedTracker)
-	info, err := infoFromSnapYamlWithSideInfo(meta, si, strk)
-	if err != nil {
-		return nil, err
-	}
+	info := mylog.Check2(infoFromSnapYamlWithSideInfo(meta, si, strk))
 
-	info.Size, err = snapf.Size()
-	if err != nil {
-		return nil, err
-	}
+	info.Size = mylog.Check2(snapf.Size())
 
 	AddImplicitHooksFromContainer(info, snapf)
 
 	bindImplicitHooks(info, strk)
-
-	err = Validate(info)
-	if err != nil {
-		return nil, err
-	}
+	mylog.Check(Validate(info))
 
 	// As part of the validation, also read the snapshot manifest file: we
 	// don't care about its contents now, but we need to make sure it's valid.
-	_, err = ReadSnapshotYamlFromSnapFile(snapf)
-	if err != nil {
-		return nil, err
-	}
+	_ = mylog.Check2(ReadSnapshotYamlFromSnapFile(snapf))
 
 	return info, nil
 }
@@ -1593,7 +1555,7 @@ func ReadInfoFromSnapFile(snapf Container, si *SideInfo) (*Info, error) {
 // the modtime of the "current" symlink.
 func InstallDate(name string) time.Time {
 	cur := filepath.Join(dirs.SnapMountDir, name, "current")
-	if st, err := os.Lstat(cur); err == nil {
+	if st := mylog.Check2(os.Lstat(cur)); err == nil {
 		return st.ModTime()
 	}
 	return time.Time{}
@@ -1768,10 +1730,8 @@ func (a AppInfoBySnapApp) Less(i, j int) bool {
 // explicit information yes, this can return nil and "" respectively for
 // maxFormats and snapdVersion.
 func SnapdAssertionMaxFormatsFromSnapFile(snapf Container) (maxFormats map[string]int, snapdVersion string, err error) {
-	info, err := ReadInfoFromSnapFile(snapf, nil)
-	if err != nil {
-		return nil, "", err
-	}
+	info := mylog.Check2(ReadInfoFromSnapFile(snapf, nil))
+
 	var infoFile string
 	missingOK := false
 	typ := info.Type()
@@ -1785,30 +1745,19 @@ func SnapdAssertionMaxFormatsFromSnapFile(snapf Container) (maxFormats map[strin
 	default:
 		return nil, "", fmt.Errorf("cannot extract assertion max formats information, snaps of type %s do not carry snapd", typ)
 	}
-	b, err := snapf.ReadFile(infoFile)
-	if err != nil {
-		if missingOK && os.IsNotExist(err) {
-			return nil, "", nil
-		}
-		return nil, "", err
-	}
-	ver, flags, err := snapdtool.ParseInfoFile(bytes.NewBuffer(b), fmt.Sprintf("from %s snap", typ))
-	if err != nil {
-		return nil, "", err
-	}
+	b := mylog.Check2(snapf.ReadFile(infoFile))
+
+	ver, flags := mylog.Check3(snapdtool.ParseInfoFile(bytes.NewBuffer(b), fmt.Sprintf("from %s snap", typ)))
+
 	if fmts := flags["SNAPD_ASSERTS_FORMATS"]; fmts != "" {
-		err := json.Unmarshal([]byte(strings.Trim(fmts, "'")), &maxFormats)
-		if err != nil {
-			return nil, "", fmt.Errorf("cannot unmarshal SNAPD_ASSERTS_FORMATS from info file from %s snap", typ)
-		}
+		mylog.Check(json.Unmarshal([]byte(strings.Trim(fmts, "'")), &maxFormats))
+
 		return maxFormats, ver, nil
 	}
 	// use version
 	sysUser := 0
-	cmp, err := strutil.VersionCompare(ver, "2.46")
-	if err != nil {
-		return nil, "", fmt.Errorf("invalid snapd version in info file from %s snap: %v", typ, err)
-	}
+	cmp := mylog.Check2(strutil.VersionCompare(ver, "2.46"))
+
 	if cmp >= 0 {
 		sysUser = 1
 	}

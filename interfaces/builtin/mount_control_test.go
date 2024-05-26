@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -126,7 +127,7 @@ func (s *MountControlInterfaceSuite) TestSanitizePlug(c *C) {
 func (s *MountControlInterfaceSuite) TestSanitizePlugOldSystemd(c *C) {
 	restore := systemd.MockSystemdVersion(208, nil)
 	defer restore()
-	err := interfaces.BeforeConnectPlug(s.iface, s.plug)
+	mylog.Check(interfaces.BeforeConnectPlug(s.iface, s.plug))
 	c.Assert(err, ErrorMatches, `systemd version 208 is too old \(expected at least 209\)`)
 }
 
@@ -312,14 +313,14 @@ func (s *MountControlInterfaceSuite) TestSanitizePlugUnhappy(c *C) {
 	for _, testData := range data {
 		snapYaml := fmt.Sprintf(mountControlYaml, testData.plugYaml)
 		plug, _ := MockConnectedPlug(c, snapYaml, nil, "mntctl")
-		err := interfaces.BeforeConnectPlug(s.iface, plug)
+		mylog.Check(interfaces.BeforeConnectPlug(s.iface, plug))
 		c.Check(err, ErrorMatches, testData.expectedError, Commentf("Yaml: %s", testData.plugYaml))
 	}
 }
 
 func (s *MountControlInterfaceSuite) TestSecCompSpec(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	spec := seccomp.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
@@ -329,8 +330,8 @@ func (s *MountControlInterfaceSuite) TestSecCompSpec(c *C) {
 }
 
 func (s *MountControlInterfaceSuite) TestAppArmorSpec(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
@@ -405,7 +406,7 @@ func (s *MountControlInterfaceSuite) TestFunctionfsValidates(c *C) {
 `
 	snapYaml := fmt.Sprintf(mountControlYaml, plugYaml)
 	plug, _ := MockConnectedPlug(c, snapYaml, nil, "mntctl")
-	err := interfaces.BeforeConnectPlug(s.iface, plug)
+	mylog.Check(interfaces.BeforeConnectPlug(s.iface, plug))
 	c.Check(err, IsNil)
 }
 
@@ -419,6 +420,6 @@ func (s *MountControlInterfaceSuite) TestMountDevicePathWithCommas(c *C) {
 `
 	snapYaml := fmt.Sprintf(mountControlYaml, plugYaml)
 	plug, _ := MockConnectedPlug(c, snapYaml, nil, "mntctl")
-	err := interfaces.BeforeConnectPlug(s.iface, plug)
+	mylog.Check(interfaces.BeforeConnectPlug(s.iface, plug))
 	c.Check(err, IsNil)
 }

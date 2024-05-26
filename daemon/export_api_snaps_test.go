@@ -29,9 +29,7 @@ func MakeAboutSnap(info *snap.Info, snapst *snapstate.SnapState) aboutSnap {
 	return aboutSnap{info: info, snapst: snapst}
 }
 
-var (
-	MapLocal = mapLocal
-)
+var MapLocal = mapLocal
 
 func MockAssertstateRestoreValidationSetsTracking(f func(*state.State) error) (restore func()) {
 	old := assertstateRestoreValidationSetsTracking

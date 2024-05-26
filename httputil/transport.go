@@ -24,8 +24,10 @@ import (
 	"time"
 )
 
-var origDefaultTransport *http.Transport = http.DefaultTransport.(*http.Transport)
-var responseHeaderTimeout = 15 * time.Second
+var (
+	origDefaultTransport  *http.Transport = http.DefaultTransport.(*http.Transport)
+	responseHeaderTimeout                 = 15 * time.Second
+)
 
 // newDefaultTransport makes a fresh modifiable instance of Transport
 // with the same parameters as http.DefaultTransport but we also set

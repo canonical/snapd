@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 	. "gopkg.in/check.v1"
 
@@ -55,7 +56,7 @@ func (s *SnapSuite) TestInterfaceListEmpty(c *C) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/interfaces")
 		c.Check(r.URL.RawQuery, Equals, "select=connected")
-		body, err := io.ReadAll(r.Body)
+		body := mylog.Check2(io.ReadAll(r.Body))
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
@@ -63,7 +64,7 @@ func (s *SnapSuite) TestInterfaceListEmpty(c *C) {
 			"result": []*client.Interface{},
 		})
 	})
-	rest, err := Parser(Client()).ParseArgs([]string{"interface"})
+	rest := mylog.Check2(Parser(Client()).ParseArgs([]string{"interface"}))
 	c.Assert(err, ErrorMatches, "no interfaces currently connected")
 	c.Assert(rest, DeepEquals, []string{"interface"})
 	c.Assert(s.Stdout(), Equals, "")
@@ -75,7 +76,7 @@ func (s *SnapSuite) TestInterfaceListAllEmpty(c *C) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/interfaces")
 		c.Check(r.URL.RawQuery, Equals, "select=all")
-		body, err := io.ReadAll(r.Body)
+		body := mylog.Check2(io.ReadAll(r.Body))
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
@@ -83,7 +84,7 @@ func (s *SnapSuite) TestInterfaceListAllEmpty(c *C) {
 			"result": []*client.Interface{},
 		})
 	})
-	rest, err := Parser(Client()).ParseArgs([]string{"interface", "--all"})
+	rest := mylog.Check2(Parser(Client()).ParseArgs([]string{"interface", "--all"}))
 	c.Assert(err, ErrorMatches, "no interfaces found")
 	c.Assert(rest, DeepEquals, []string{"--all"}) // XXX: feels like a bug in go-flags.
 	c.Assert(s.Stdout(), Equals, "")
@@ -95,7 +96,7 @@ func (s *SnapSuite) TestInterfaceList(c *C) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/interfaces")
 		c.Check(r.URL.RawQuery, Equals, "select=connected")
-		body, err := io.ReadAll(r.Body)
+		body := mylog.Check2(io.ReadAll(r.Body))
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
@@ -109,8 +110,8 @@ func (s *SnapSuite) TestInterfaceList(c *C) {
 			}},
 		})
 	})
-	rest, err := Parser(Client()).ParseArgs([]string{"interface"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(Parser(Client()).ParseArgs([]string{"interface"}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
 		"Name          Summary\n" +
@@ -125,7 +126,7 @@ func (s *SnapSuite) TestInterfaceListAll(c *C) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/interfaces")
 		c.Check(r.URL.RawQuery, Equals, "select=all")
-		body, err := io.ReadAll(r.Body)
+		body := mylog.Check2(io.ReadAll(r.Body))
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
@@ -142,8 +143,8 @@ func (s *SnapSuite) TestInterfaceListAll(c *C) {
 			}},
 		})
 	})
-	rest, err := Parser(Client()).ParseArgs([]string{"interface", "--all"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(Parser(Client()).ParseArgs([]string{"interface", "--all"}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
 		"Name          Summary\n" +
@@ -159,7 +160,7 @@ func (s *SnapSuite) TestInterfaceDetails(c *C) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/interfaces")
 		c.Check(r.URL.RawQuery, Equals, "doc=true&names=network&plugs=true&select=all&slots=true")
-		body, err := io.ReadAll(r.Body)
+		body := mylog.Check2(io.ReadAll(r.Body))
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
@@ -176,8 +177,8 @@ func (s *SnapSuite) TestInterfaceDetails(c *C) {
 			}},
 		})
 	})
-	rest, err := Parser(Client()).ParseArgs([]string{"interface", "network"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(Parser(Client()).ParseArgs([]string{"interface", "network"}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
 		"name:          network\n" +
@@ -197,7 +198,7 @@ func (s *SnapSuite) TestInterfaceDetailsAndAttrs(c *C) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/interfaces")
 		c.Check(r.URL.RawQuery, Equals, "doc=true&names=serial-port&plugs=true&select=all&slots=true")
-		body, err := io.ReadAll(r.Body)
+		body := mylog.Check2(io.ReadAll(r.Body))
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
@@ -222,8 +223,8 @@ func (s *SnapSuite) TestInterfaceDetailsAndAttrs(c *C) {
 			}},
 		})
 	})
-	rest, err := Parser(Client()).ParseArgs([]string{"interface", "--attrs", "serial-port"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(Parser(Client()).ParseArgs([]string{"interface", "--attrs", "serial-port"}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
 		"name:    serial-port\n" +
@@ -269,18 +270,18 @@ func (s *SnapSuite) TestInterfaceCompletion(c *C) {
 		{Item: "network", Description: "allows access to the network"},
 		{Item: "network-bind", Description: "allows providing services on the network"},
 	}
-	_, err := parser.ParseArgs([]string{"interface", ""})
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(parser.ParseArgs([]string{"interface", ""}))
+
 
 	expected = []flags.Completion{
 		{Item: "network-bind", Description: "allows providing services on the network"},
 	}
-	_, err = parser.ParseArgs([]string{"interface", "network-"})
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(parser.ParseArgs([]string{"interface", "network-"}))
+
 
 	expected = []flags.Completion{}
-	_, err = parser.ParseArgs([]string{"interface", "bogus"})
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(parser.ParseArgs([]string{"interface", "bogus"}))
+
 
 	c.Assert(s.Stdout(), Equals, "")
 	c.Assert(s.Stderr(), Equals, "")

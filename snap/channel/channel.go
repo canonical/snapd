@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -132,10 +133,8 @@ func ParseVerbatim(s string, architecture string) (Channel, error) {
 // architecture, , if architecture is "" the system architecture is included.
 // The returned channel's track, risk and name are normalized.
 func Parse(s string, architecture string) (Channel, error) {
-	channel, err := ParseVerbatim(s, architecture)
-	if err != nil {
-		return Channel{}, err
-	}
+	channel := mylog.Check2(ParseVerbatim(s, architecture))
+
 	return channel.Clean(), nil
 }
 
@@ -176,11 +175,10 @@ func (c Channel) String() string {
 // Full returns the full name of the channel, inclusive the default track "latest".
 func (c *Channel) Full() string {
 	ch := c.String()
-	full, err := Full(ch)
-	if err != nil {
-		// unpossible
-		panic("channel.String() returned a malformed channel: " + ch)
-	}
+	full := mylog.Check2(Full(ch))
+
+	// unpossible
+
 	return full
 }
 
@@ -232,7 +230,6 @@ func (cm ChannelMatch) String() string {
 		matching = append(matching, "risk")
 	}
 	return strings.Join(matching, ":")
-
 }
 
 // Match returns a ChannelMatch of which fields among architecture,track,risk match between c and c1 store channels, risk is matched taking channel inheritance into account and considering c the requested channel.
@@ -256,10 +253,8 @@ func Resolve(channel, newChannel string) (string, error) {
 	if channel == "" {
 		return newChannel, nil
 	}
-	ch, err := ParseVerbatim(channel, "-")
-	if err != nil {
-		return "", err
-	}
+	ch := mylog.Check2(ParseVerbatim(channel, "-"))
+
 	p := strings.Split(newChannel, "/")
 	if strutil.ListContains(channelRisks, p[0]) && ch.Track != "" {
 		// risk/branch inherits the track if any
@@ -277,7 +272,7 @@ func ResolvePinned(track, newChannel string) (string, error) {
 	if track == "" {
 		return newChannel, nil
 	}
-	ch, err := ParseVerbatim(track, "-")
+	ch := mylog.Check2(ParseVerbatim(track, "-"))
 	if err != nil || !ch.VerbatimTrackOnly() {
 		return "", fmt.Errorf("invalid pinned track: %s", track)
 	}

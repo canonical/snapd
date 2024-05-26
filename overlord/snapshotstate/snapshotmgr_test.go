@@ -31,6 +31,7 @@ import (
 	"gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
@@ -61,7 +62,7 @@ func (snapshotSuite) TestManager(c *check.C) {
 }
 
 func mockFakeSnapshot(c *check.C) (restore func()) {
-	shotfile, err := os.Create(filepath.Join(c.MkDir(), "foo.zip"))
+	shotfile := mylog.Check2(os.Create(filepath.Join(c.MkDir(), "foo.zip")))
 	c.Assert(err, check.IsNil)
 
 	fakeIter := func(_ context.Context, f func(*backend.Reader) error) error {
@@ -112,13 +113,14 @@ func (snapshotSuite) TestEnsureForgetsSnapshots(c *check.C) {
 	var expirations map[uint64]interface{}
 	c.Assert(st.Get("snapshots", &expirations), check.IsNil)
 	c.Check(expirations, check.DeepEquals, map[uint64]interface{}{
-		2: map[string]interface{}{"expiry-time": "2037-02-12T12:50:00Z"}})
+		2: map[string]interface{}{"expiry-time": "2037-02-12T12:50:00Z"},
+	})
 	c.Check(removedSnapshot, check.Matches, ".*/foo.zip")
 }
 
 func (snapshotSuite) TestEnsureForgetsSnapshotsRunsRegularly(c *check.C) {
 	var backendIterCalls int
-	shotfile, err := os.Create(filepath.Join(c.MkDir(), "foo.zip"))
+	shotfile := mylog.Check2(os.Create(filepath.Join(c.MkDir(), "foo.zip")))
 	c.Assert(err, check.IsNil)
 	fakeIter := func(_ context.Context, f func(*backend.Reader) error) error {
 		c.Assert(f(&backend.Reader{
@@ -158,7 +160,7 @@ func (snapshotSuite) TestEnsureForgetsSnapshotsRunsRegularly(c *check.C) {
 	}
 
 	// pretend we haven't run for a while
-	t, err := time.Parse(time.RFC3339, "2002-03-11T11:24:00Z")
+	t := mylog.Check2(time.Parse(time.RFC3339, "2002-03-11T11:24:00Z"))
 	c.Assert(err, check.IsNil)
 	snapshotstate.SetLastForgetExpiredSnapshotTime(mgr, t)
 	c.Assert(mgr.Ensure(), check.IsNil)
@@ -223,7 +225,7 @@ func (snapshotSuite) testEnsureForgetSnapshotsConflict(c *check.C, snapshotOp st
 	}
 
 	// pretend we haven't run for a while
-	t, err := time.Parse(time.RFC3339, "2002-03-11T11:24:00Z")
+	t := mylog.Check2(time.Parse(time.RFC3339, "2002-03-11T11:24:00Z"))
 	c.Assert(err, check.IsNil)
 	snapshotstate.SetLastForgetExpiredSnapshotTime(mgr, t)
 
@@ -282,7 +284,8 @@ func (snapshotSuite) TestDoSave(c *check.C) {
 
 	expectedOptions := &snap.SnapshotOptions{}
 	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string,
-		options *snap.SnapshotOptions, _ *dirs.SnapDirOptions) (*client.Snapshot, error) {
+		options *snap.SnapshotOptions, _ *dirs.SnapDirOptions,
+	) (*client.Snapshot, error) {
 		c.Check(id, check.Equals, uint64(42))
 		c.Check(si, check.DeepEquals, &snapInfo)
 		c.Check(cfg, check.DeepEquals, map[string]interface{}{"hello": "there"})
@@ -314,7 +317,7 @@ func (snapshotSuite) TestDoSave(c *check.C) {
 		})
 		st.Unlock()
 		expectedOptions = test.expectedOptions
-		err := snapshotstate.DoSave(task, &tomb.Tomb{})
+		mylog.Check(snapshotstate.DoSave(task, &tomb.Tomb{}))
 		c.Assert(err, check.IsNil)
 	}
 }
@@ -351,8 +354,7 @@ func (snapshotSuite) TestDoSaveGetsSnapDirOpts(c *check.C) {
 		"snap": "a-snap",
 	})
 	st.Unlock()
-
-	err := snapshotstate.DoSave(task, &tomb.Tomb{})
+	mylog.Check(snapshotstate.DoSave(task, &tomb.Tomb{}))
 	c.Assert(err, check.IsNil)
 	c.Check(checkOpts, check.Equals, true)
 }
@@ -375,7 +377,7 @@ func (snapshotSuite) TestDoSaveFailsWithNoSnap(c *check.C) {
 		"users":  []string{"a-user", "b-user"},
 	})
 	st.Unlock()
-	err := snapshotstate.DoSave(task, &tomb.Tomb{})
+	mylog.Check(snapshotstate.DoSave(task, &tomb.Tomb{}))
 	c.Assert(err, check.ErrorMatches, "bzzt")
 }
 
@@ -398,7 +400,7 @@ func (snapshotSuite) TestDoSaveFailsWithNoSnapshot(c *check.C) {
 	task := st.NewTask("save-snapshot", "...")
 	// NOTE no task.Set("snapshot-setup", ...)
 	st.Unlock()
-	err := snapshotstate.DoSave(task, &tomb.Tomb{})
+	mylog.Check(snapshotstate.DoSave(task, &tomb.Tomb{}))
 	c.Assert(err, check.NotNil)
 	c.Assert(err.Error(), check.Equals, "internal error: task 1 (save-snapshot) is missing snapshot information")
 }
@@ -426,7 +428,7 @@ func (snapshotSuite) TestDoSaveFailsBackendError(c *check.C) {
 		"users":  []string{"a-user", "b-user"},
 	})
 	st.Unlock()
-	err := snapshotstate.DoSave(task, &tomb.Tomb{})
+	mylog.Check(snapshotstate.DoSave(task, &tomb.Tomb{}))
 	c.Assert(err, check.ErrorMatches, "bzzt")
 }
 
@@ -455,7 +457,7 @@ func (snapshotSuite) TestDoSaveFailsConfigError(c *check.C) {
 		"users":  []string{"a-user", "b-user"},
 	})
 	st.Unlock()
-	err := snapshotstate.DoSave(task, &tomb.Tomb{})
+	mylog.Check(snapshotstate.DoSave(task, &tomb.Tomb{}))
 	c.Assert(err, check.ErrorMatches, "internal error: cannot obtain current snap config: bzzt")
 }
 
@@ -486,7 +488,7 @@ func (snapshotSuite) TestDoSaveFailsBadConfig(c *check.C) {
 		"users":  []string{"a-user", "b-user"},
 	})
 	st.Unlock()
-	err := snapshotstate.DoSave(task, &tomb.Tomb{})
+	mylog.Check(snapshotstate.DoSave(task, &tomb.Tomb{}))
 	c.Assert(err, check.ErrorMatches, ".* cannot unmarshal .*")
 }
 
@@ -526,7 +528,7 @@ func (snapshotSuite) TestDoSaveFailureRemovesStateEntry(c *check.C) {
 		"auto":   true,
 	})
 	st.Unlock()
-	err := snapshotstate.DoSave(task, &tomb.Tomb{})
+	mylog.Check(snapshotstate.DoSave(task, &tomb.Tomb{}))
 	c.Assert(err, check.ErrorMatches, "error")
 
 	st.Lock()
@@ -626,8 +628,7 @@ func (rs *readerSuite) TestDoRestore(c *check.C) {
 		c.Check(string(*conf), check.Equals, `{"hello":"there"}`)
 		return nil
 	})()
-
-	err := snapshotstate.DoRestore(rs.task, &tomb.Tomb{})
+	mylog.Check(snapshotstate.DoRestore(rs.task, &tomb.Tomb{}))
 	c.Assert(err, check.IsNil)
 	c.Check(rs.calls, check.DeepEquals, []string{"get config", "open", "restore", "set config"})
 
@@ -670,7 +671,7 @@ func (rs *readerSuite) TestDoRestoreNoConfig(c *check.C) {
 	})()
 
 	st := rs.task.State()
-	err := snapshotstate.DoRestore(rs.task, &tomb.Tomb{})
+	mylog.Check(snapshotstate.DoRestore(rs.task, &tomb.Tomb{}))
 	c.Assert(err, check.IsNil)
 	c.Check(rs.calls, check.DeepEquals, []string{"get config", "open", "restore", "set config"})
 
@@ -685,8 +686,7 @@ func (rs *readerSuite) TestDoRestoreFailsNoTaskSnapshot(c *check.C) {
 	rs.task.State().Lock()
 	rs.task.Clear("snapshot-setup")
 	rs.task.State().Unlock()
-
-	err := snapshotstate.DoRestore(rs.task, &tomb.Tomb{})
+	mylog.Check(snapshotstate.DoRestore(rs.task, &tomb.Tomb{}))
 	c.Assert(err, check.NotNil)
 	c.Assert(err.Error(), check.Equals, "internal error: task 1 (restore-snapshot) is missing snapshot information")
 	c.Check(rs.calls, check.HasLen, 0)
@@ -697,8 +697,7 @@ func (rs *readerSuite) TestDoRestoreFailsOnGetConfigError(c *check.C) {
 		rs.calls = append(rs.calls, "get config")
 		return nil, errors.New("bzzt")
 	})()
-
-	err := snapshotstate.DoRestore(rs.task, &tomb.Tomb{})
+	mylog.Check(snapshotstate.DoRestore(rs.task, &tomb.Tomb{}))
 	c.Assert(err, check.ErrorMatches, "internal error: cannot obtain current snap config: bzzt")
 	c.Check(rs.calls, check.DeepEquals, []string{"get config"})
 }
@@ -709,8 +708,7 @@ func (rs *readerSuite) TestDoRestoreFailsOnBadConfig(c *check.C) {
 		buf := json.RawMessage(`42`)
 		return &buf, nil
 	})()
-
-	err := snapshotstate.DoRestore(rs.task, &tomb.Tomb{})
+	mylog.Check(snapshotstate.DoRestore(rs.task, &tomb.Tomb{}))
 	c.Assert(err, check.ErrorMatches, ".* cannot unmarshal .*")
 	c.Check(rs.calls, check.DeepEquals, []string{"get config"})
 }
@@ -720,8 +718,7 @@ func (rs *readerSuite) TestDoRestoreFailsOpenError(c *check.C) {
 		rs.calls = append(rs.calls, "open")
 		return nil, errors.New("bzzt")
 	})()
-
-	err := snapshotstate.DoRestore(rs.task, &tomb.Tomb{})
+	mylog.Check(snapshotstate.DoRestore(rs.task, &tomb.Tomb{}))
 	c.Assert(err, check.ErrorMatches, "cannot open snapshot: bzzt")
 	c.Check(rs.calls, check.DeepEquals, []string{"get config", "open"})
 }
@@ -733,8 +730,7 @@ func (rs *readerSuite) TestDoRestoreFailsUnserialisableSnapshotConfigError(c *ch
 			Snapshot: client.Snapshot{Conf: map[string]interface{}{"hello": func() {}}},
 		}, nil
 	})()
-
-	err := snapshotstate.DoRestore(rs.task, &tomb.Tomb{})
+	mylog.Check(snapshotstate.DoRestore(rs.task, &tomb.Tomb{}))
 	c.Assert(err, check.ErrorMatches, "cannot marshal saved config: json.*")
 	c.Check(rs.calls, check.DeepEquals, []string{"get config", "open", "restore", "revert"})
 }
@@ -744,8 +740,7 @@ func (rs *readerSuite) TestDoRestoreFailsOnRestoreError(c *check.C) {
 		rs.calls = append(rs.calls, "restore")
 		return nil, errors.New("bzzt")
 	})()
-
-	err := snapshotstate.DoRestore(rs.task, &tomb.Tomb{})
+	mylog.Check(snapshotstate.DoRestore(rs.task, &tomb.Tomb{}))
 	c.Assert(err, check.ErrorMatches, "bzzt")
 	c.Check(rs.calls, check.DeepEquals, []string{"get config", "open", "restore"})
 }
@@ -755,8 +750,7 @@ func (rs *readerSuite) TestDoRestoreFailsAndRevertsOnSetConfigError(c *check.C) 
 		rs.calls = append(rs.calls, "set config")
 		return errors.New("bzzt")
 	})()
-
-	err := snapshotstate.DoRestore(rs.task, &tomb.Tomb{})
+	mylog.Check(snapshotstate.DoRestore(rs.task, &tomb.Tomb{}))
 	c.Assert(err, check.ErrorMatches, "cannot set snap config: bzzt")
 	c.Check(rs.calls, check.DeepEquals, []string{"get config", "open", "restore", "set config", "revert"})
 }
@@ -773,8 +767,7 @@ func (rs *readerSuite) TestUndoRestore(c *check.C) {
 	v := map[string]interface{}{"config": map[string]interface{}{"foo": "bar"}}
 	rs.task.Set("restore-state", &v)
 	st.Unlock()
-
-	err := snapshotstate.UndoRestore(rs.task, &tomb.Tomb{})
+	mylog.Check(snapshotstate.UndoRestore(rs.task, &tomb.Tomb{}))
 	c.Assert(err, check.IsNil)
 	c.Check(rs.calls, check.DeepEquals, []string{"set config", "revert"})
 }
@@ -791,8 +784,7 @@ func (rs *readerSuite) TestUndoRestoreNoConfig(c *check.C) {
 	var v map[string]interface{}
 	rs.task.Set("restore-state", &v)
 	st.Unlock()
-
-	err := snapshotstate.UndoRestore(rs.task, &tomb.Tomb{})
+	mylog.Check(snapshotstate.UndoRestore(rs.task, &tomb.Tomb{}))
 	c.Assert(err, check.IsNil)
 	c.Check(rs.calls, check.DeepEquals, []string{"set config", "revert"})
 }
@@ -803,16 +795,14 @@ func (rs *readerSuite) TestCleanupRestore(c *check.C) {
 	var v map[string]interface{}
 	rs.task.Set("restore-state", &v)
 	st.Unlock()
-
-	err := snapshotstate.CleanupRestore(rs.task, &tomb.Tomb{})
+	mylog.Check(snapshotstate.CleanupRestore(rs.task, &tomb.Tomb{}))
 	c.Assert(err, check.IsNil)
 	c.Check(rs.calls, check.HasLen, 0)
 
 	st.Lock()
 	rs.task.SetStatus(state.DoneStatus)
 	st.Unlock()
-
-	err = snapshotstate.CleanupRestore(rs.task, &tomb.Tomb{})
+	mylog.Check(snapshotstate.CleanupRestore(rs.task, &tomb.Tomb{}))
 	c.Assert(err, check.IsNil)
 	c.Check(rs.calls, check.DeepEquals, []string{"cleanup"})
 }
@@ -832,8 +822,7 @@ func (rs *readerSuite) TestDoCheck(c *check.C) {
 		c.Check(users, check.DeepEquals, []string{"a-user", "b-user"})
 		return nil
 	})()
-
-	err := snapshotstate.DoCheck(rs.task, &tomb.Tomb{})
+	mylog.Check(snapshotstate.DoCheck(rs.task, &tomb.Tomb{}))
 	c.Assert(err, check.IsNil)
 	c.Check(rs.calls, check.DeepEquals, []string{"open", "check"})
 }
@@ -844,7 +833,7 @@ func (rs *readerSuite) TestDoRemove(c *check.C) {
 		rs.calls = append(rs.calls, "remove")
 		return nil
 	})()
-	err := snapshotstate.DoForget(rs.task, &tomb.Tomb{})
+	mylog.Check(snapshotstate.DoForget(rs.task, &tomb.Tomb{}))
 	c.Assert(err, check.IsNil)
 	c.Check(rs.calls, check.DeepEquals, []string{"remove"})
 }
@@ -883,7 +872,8 @@ func (rs *readerSuite) TestDoForgetRemovesAutomaticSnapshotExpiry(c *check.C) {
 	c.Check(expirations, check.DeepEquals, map[uint64]interface{}{
 		2: map[string]interface{}{
 			"expiry-time": "2037-02-12T12:50:00Z",
-		}})
+		},
+	})
 }
 
 func (snapshotSuite) TestManagerRunCleanupAbandonedImportsAtStartup(c *check.C) {
@@ -899,7 +889,7 @@ func (snapshotSuite) TestManagerRunCleanupAbandonedImportsAtStartup(c *check.C) 
 	mgr := snapshotstate.Manager(st, state.NewTaskRunner(st))
 	c.Assert(mgr, check.NotNil)
 	o.AddManager(mgr)
-	err := o.Settle(100 * time.Millisecond)
+	mylog.Check(o.Settle(100 * time.Millisecond))
 	c.Assert(err, check.IsNil)
 
 	c.Check(n, check.Equals, 1)
@@ -921,7 +911,7 @@ func (snapshotSuite) TestManagerRunCleanupAbandonedImportsAtStartupErrorLogged(c
 	mgr := snapshotstate.Manager(st, state.NewTaskRunner(st))
 	c.Assert(mgr, check.NotNil)
 	o.AddManager(mgr)
-	err := o.Settle(100 * time.Millisecond)
+	mylog.Check(o.Settle(100 * time.Millisecond))
 	c.Assert(err, check.IsNil)
 
 	c.Check(n, check.Equals, 1)

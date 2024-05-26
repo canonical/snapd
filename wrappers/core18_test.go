@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -40,14 +41,14 @@ import (
 )
 
 func makeMockSnapdSnap(c *C) *snap.Info {
-	err := os.MkdirAll(dirs.SnapServicesDir, 0755)
-	c.Assert(err, IsNil)
-	err = os.MkdirAll(dirs.SnapUserServicesDir, 0755)
-	c.Assert(err, IsNil)
-	err = os.MkdirAll(dirs.SnapDBusSystemPolicyDir, 0755)
-	c.Assert(err, IsNil)
-	err = os.MkdirAll(dirs.SnapDBusSessionPolicyDir, 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(dirs.SnapServicesDir, 0755))
+
+	mylog.Check(os.MkdirAll(dirs.SnapUserServicesDir, 0755))
+
+	mylog.Check(os.MkdirAll(dirs.SnapDBusSystemPolicyDir, 0755))
+
+	mylog.Check(os.MkdirAll(dirs.SnapDBusSessionPolicyDir, 0755))
+
 
 	info := snaptest.MockSnapWithFiles(c, snapdYaml, &snap.SideInfo{Revision: snap.R(1)}, [][]string{
 		// system services
@@ -122,11 +123,11 @@ func (s *servicesTestSuite) TestAddSnapServicesForSnapdOnCore(c *C) {
 
 	info := makeMockSnapdSnap(c)
 	// add the snapd service
-	restart, err := wrappers.AddSnapdSnapServices(info, nil, progress.Null)
-	c.Assert(err, IsNil)
+	restart := mylog.Check2(wrappers.AddSnapdSnapServices(info, nil, progress.Null))
+
 	if restart != nil {
-		err = restart.Restart()
-		c.Assert(err, IsNil)
+		mylog.Check(restart.Restart())
+
 	}
 
 	mountUnit := fmt.Sprintf(`[Unit]
@@ -243,11 +244,11 @@ func (s *servicesTestSuite) TestAddSnapServicesForSnapdOnCorePreseeding(c *C) {
 
 	info := makeMockSnapdSnap(c)
 	// add the snapd service
-	restart, err := wrappers.AddSnapdSnapServices(info, &wrappers.AddSnapdSnapServicesOptions{Preseeding: true}, progress.Null)
-	c.Assert(err, IsNil)
+	restart := mylog.Check2(wrappers.AddSnapdSnapServices(info, &wrappers.AddSnapdSnapServicesOptions{Preseeding: true}, progress.Null))
+
 	if restart != nil {
-		err = restart.Restart()
-		c.Assert(err, IsNil)
+		mylog.Check(restart.Restart())
+
 	}
 
 	mountUnit := fmt.Sprintf(`[Unit]
@@ -368,17 +369,17 @@ func (s *servicesTestSuite) TestAddSnapServicesForSnapdOnCoreDeletesRemovedServi
 	// Create old service files
 	os.MkdirAll(dirs.SnapDBusSessionServicesDir, 0750)
 	for _, fn := range []string{existingServiceFile, vestigialServiceFile} {
-		f, err := os.Create(fn)
-		c.Assert(err, IsNil)
+		f := mylog.Check2(os.Create(fn))
+
 		f.Close()
 	}
 
 	// add the snapd service
-	restart, err := wrappers.AddSnapdSnapServices(info, nil, progress.Null)
-	c.Assert(err, IsNil)
+	restart := mylog.Check2(wrappers.AddSnapdSnapServices(info, nil, progress.Null))
+
 	if restart != nil {
-		err = restart.Restart()
-		c.Assert(err, IsNil)
+		mylog.Check(restart.Restart())
+
 	}
 
 	// Check that vestigial service was deleted
@@ -394,8 +395,8 @@ func (s *servicesTestSuite) TestAddSnapServicesForSnapdOnClassic(c *C) {
 
 	info := makeMockSnapdSnap(c)
 	// add the snapd service
-	restart, err := wrappers.AddSnapdSnapServices(info, nil, progress.Null)
-	c.Assert(err, IsNil)
+	restart := mylog.Check2(wrappers.AddSnapdSnapServices(info, nil, progress.Null))
+
 
 	// On classic, no restart is expected
 	c.Assert(restart, IsNil)
@@ -432,14 +433,14 @@ func (s *servicesTestSuite) TestAddSessionServicesWithReadOnlyFilesystem(c *C) {
 	defer restore()
 
 	// add the snapd service
-	restart, err := wrappers.AddSnapdSnapServices(info, nil, progress.Null)
+	restart := mylog.Check2(wrappers.AddSnapdSnapServices(info, nil, progress.Null))
 	if restart != nil {
-		err = restart.Restart()
-		c.Assert(err, IsNil)
+		mylog.Check(restart.Restart())
+
 	}
 
 	// didn't fail despite of read-only SnapDBusSessionPolicyDir
-	c.Assert(err, IsNil)
+
 
 	// check that snapd services were *not* created
 	c.Check(osutil.FileExists(filepath.Join(dirs.SnapServicesDir, "snapd.service")), Equals, true)
@@ -462,10 +463,10 @@ func (s *servicesTestSuite) TestAddSnapdServicesWithNonSnapd(c *C) {
 	restore = release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
 	defer restore()
 
-	restart, err := wrappers.AddSnapdSnapServices(info, nil, progress.Null)
+	restart := mylog.Check2(wrappers.AddSnapdSnapServices(info, nil, progress.Null))
 	if restart != nil {
-		err = restart.Restart()
-		c.Assert(err, IsNil)
+		mylog.Check(restart.Restart())
+
 	}
 
 	c.Assert(err, ErrorMatches, `internal error: adding explicit snapd services for snap "foo" type "app" is unexpected`)
@@ -537,10 +538,11 @@ func (s *servicesTestSuite) TestRemoveSnapServicesForFirstInstallSnapdOnCore(c *
 	}
 	// content list uses absolute paths already
 	snaptest.PopulateDir("/", coreUnits)
+	mylog.
 
-	// remove the snapd service
-	err := wrappers.RemoveSnapdSnapServicesOnCore(info, progress.Null)
-	c.Assert(err, IsNil)
+		// remove the snapd service
+		Check(wrappers.RemoveSnapdSnapServicesOnCore(info, progress.Null))
+
 
 	for _, unit := range units {
 		c.Check(unit[0], testutil.FileAbsent)
@@ -584,16 +586,15 @@ func (s *servicesTestSuite) TestRemoveSnapdServicesWithNonSnapd(c *C) {
 	info := snaptest.MockInfo(c, "name: foo\nversion: 1.0", &snap.SideInfo{})
 	restore = release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
 	defer restore()
-
-	err := wrappers.RemoveSnapdSnapServicesOnCore(info, progress.Null)
+	mylog.Check(wrappers.RemoveSnapdSnapServicesOnCore(info, progress.Null))
 	c.Assert(err, ErrorMatches, `internal error: removing explicit snapd services for snap "foo" type "app" is unexpected`)
 }
 
 func (s *servicesTestSuite) TestDeriveSnapdDBusConfig(c *C) {
 	info := makeMockSnapdSnap(c)
 
-	sessionContent, systemContent, err := wrappers.DeriveSnapdDBusConfig(info)
-	c.Assert(err, IsNil)
+	sessionContent, systemContent := mylog.Check3(wrappers.DeriveSnapdDBusConfig(info))
+
 	c.Check(sessionContent, DeepEquals, map[string]osutil.FileState{
 		"snapd.session-services.conf": &osutil.FileReference{
 			Path: filepath.Join(info.MountDir(), "usr/share/dbus-1/session.d/snapd.session-services.conf"),

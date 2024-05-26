@@ -28,6 +28,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/boot"
@@ -123,8 +124,8 @@ func (s *deviceMgrSuite) TestSetModelHandlerNewRevision(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	m, err := s.mgr.Model()
-	c.Assert(err, IsNil)
+	m := mylog.Check2(s.mgr.Model())
+
 	c.Assert(m, DeepEquals, newModel)
 
 	c.Assert(chg.Err(), IsNil)
@@ -132,16 +133,16 @@ func (s *deviceMgrSuite) TestSetModelHandlerNewRevision(c *C) {
 	// check required
 	var fooState snapstate.SnapState
 	var barState snapstate.SnapState
-	err = snapstate.Get(s.state, "foo", &fooState)
-	c.Assert(err, IsNil)
-	err = snapstate.Get(s.state, "bar", &barState)
-	c.Assert(err, IsNil)
+	mylog.Check(snapstate.Get(s.state, "foo", &fooState))
+
+	mylog.Check(snapstate.Get(s.state, "bar", &barState))
+
 	c.Check(fooState.Flags.Required, Equals, true)
 	c.Check(barState.Flags.Required, Equals, false)
 	// the kernel is no longer required
 	var kernelState snapstate.SnapState
-	err = snapstate.Get(s.state, "pc-kernel", &kernelState)
-	c.Assert(err, IsNil)
+	mylog.Check(snapstate.Get(s.state, "pc-kernel", &kernelState))
+
 	c.Check(kernelState.Flags.Required, Equals, false)
 }
 
@@ -187,7 +188,7 @@ func (s *deviceMgrSuite) TestSetModelHandlerValidationSets(c *C) {
 
 	signer := s.brands.Signing(accountID)
 
-	vsetOne, err := signer.Sign(asserts.ValidationSetType, map[string]interface{}{
+	vsetOne := mylog.Check2(signer.Sign(asserts.ValidationSetType, map[string]interface{}{
 		"type":         "validation-set",
 		"authority-id": accountID,
 		"series":       "16",
@@ -202,12 +203,12 @@ func (s *deviceMgrSuite) TestSetModelHandlerValidationSets(c *C) {
 			},
 		},
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
 
 	assertstate.Add(s.state, vsetOne)
 
-	vsetTwo, err := signer.Sign(asserts.ValidationSetType, map[string]interface{}{
+	vsetTwo := mylog.Check2(signer.Sign(asserts.ValidationSetType, map[string]interface{}{
 		"type":         "validation-set",
 		"authority-id": accountID,
 		"series":       "16",
@@ -222,8 +223,8 @@ func (s *deviceMgrSuite) TestSetModelHandlerValidationSets(c *C) {
 			},
 		},
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
 
 	assertstate.Add(s.state, vsetTwo)
 
@@ -298,14 +299,14 @@ func (s *deviceMgrSuite) TestSetModelHandlerValidationSets(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	m, err := s.mgr.Model()
-	c.Assert(err, IsNil)
+	m := mylog.Check2(s.mgr.Model())
+
 	c.Assert(m, DeepEquals, newModel)
 
 	c.Assert(chg.Err(), IsNil)
 
-	vsets, err := assertstate.TrackedEnforcedValidationSets(s.state)
-	c.Assert(err, IsNil)
+	vsets := mylog.Check2(assertstate.TrackedEnforcedValidationSets(s.state))
+
 	c.Check(vsets.Keys(), testutil.DeepUnsortedMatches, []snapasserts.ValidationSetKey{
 		"16/canonical/vset-1/1",
 		"16/canonical/vset-2/2",
@@ -326,8 +327,8 @@ func (s *deviceMgrSuite) TestSetModelHandlerSameRevisionNoError(c *C) {
 		Brand: "canonical",
 		Model: "pc-model",
 	})
-	err := assertstate.Add(s.state, model)
-	c.Assert(err, IsNil)
+	mylog.Check(assertstate.Add(s.state, model))
+
 
 	t := s.state.NewTask("set-model", "set-model test")
 	chg := s.state.NewChange("sample", "...")
@@ -367,7 +368,7 @@ func (s *deviceMgrSuite) TestSetModelHandlerStoreSwitch(c *C) {
 	})
 
 	s.newFakeStore = func(devBE storecontext.DeviceBackend) snapstate.StoreService {
-		mod, err := devBE.Model()
+		mod := mylog.Check2(devBE.Model())
 		c.Check(err, IsNil)
 		if err == nil {
 			c.Check(mod, DeepEquals, newModel)
@@ -395,12 +396,12 @@ func (s *deviceMgrSuite) TestSetModelHandlerStoreSwitch(c *C) {
 	defer s.state.Unlock()
 	c.Assert(chg.Err(), IsNil)
 
-	m, err := s.mgr.Model()
-	c.Assert(err, IsNil)
+	m := mylog.Check2(s.mgr.Model())
+
 	c.Assert(m, DeepEquals, newModel)
 
-	device, err := devicestatetest.Device(s.state)
-	c.Assert(err, IsNil)
+	device := mylog.Check2(devicestatetest.Device(s.state))
+
 	c.Check(device, DeepEquals, &auth.DeviceState{
 		Brand:           "canonical",
 		Model:           "pc-model",
@@ -444,7 +445,7 @@ func (s *deviceMgrSuite) TestSetModelHandlerRereg(c *C) {
 	})
 
 	s.newFakeStore = func(devBE storecontext.DeviceBackend) snapstate.StoreService {
-		mod, err := devBE.Model()
+		mod := mylog.Check2(devBE.Model())
 		c.Check(err, IsNil)
 		if err == nil {
 			c.Check(mod, DeepEquals, newModel)
@@ -473,12 +474,12 @@ func (s *deviceMgrSuite) TestSetModelHandlerRereg(c *C) {
 	defer s.state.Unlock()
 	c.Assert(chg.Err(), IsNil)
 
-	m, err := s.mgr.Model()
-	c.Assert(err, IsNil)
+	m := mylog.Check2(s.mgr.Model())
+
 	c.Assert(m, DeepEquals, newModel)
 
-	device, err := devicestatetest.Device(s.state)
-	c.Assert(err, IsNil)
+	device := mylog.Check2(devicestatetest.Device(s.state))
+
 	c.Check(device, DeepEquals, &auth.DeviceState{
 		Brand:           "canonical",
 		Model:           "rereg-model",
@@ -545,7 +546,7 @@ func (s *deviceMgrSuite) TestDoPrepareRemodeling(c *C) {
 	testStore = freshStore
 
 	s.newFakeStore = func(devBE storecontext.DeviceBackend) snapstate.StoreService {
-		mod, err := devBE.Model()
+		mod := mylog.Check2(devBE.Model())
 		c.Check(err, IsNil)
 		if err == nil {
 			c.Check(mod, DeepEquals, new)
@@ -553,11 +554,11 @@ func (s *deviceMgrSuite) TestDoPrepareRemodeling(c *C) {
 		return testStore
 	}
 
-	cur, err := s.mgr.Model()
-	c.Assert(err, IsNil)
+	cur := mylog.Check2(s.mgr.Model())
 
-	remodCtx, err := devicestate.RemodelCtx(s.state, cur, new)
-	c.Assert(err, IsNil)
+
+	remodCtx := mylog.Check2(devicestate.RemodelCtx(s.state, cur, new))
+
 
 	c.Check(remodCtx.Kind(), Equals, devicestate.ReregRemodel)
 
@@ -743,9 +744,8 @@ func (s *preseedingClassicSuite) TestEnsureSeededPreseedFlag(c *C) {
 		return nil, nil
 	})
 	defer restore()
+	mylog.Check(devicestate.EnsureSeeded(s.mgr))
 
-	err := devicestate.EnsureSeeded(s.mgr)
-	c.Assert(err, IsNil)
 	c.Check(called, Equals, true)
 
 	s.state.Lock()
@@ -898,13 +898,13 @@ func (s *preseedingUC20Suite) TestEarlyPreloadGadgetPicksSystemOnCore20(c *C) {
 	})
 	_ = s.setupCore20Seed(c, "20220108")
 
-	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
-	c.Assert(err, IsNil)
+	mgr := mylog.Check2(devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore))
+
 
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	_, _, err = devicestate.EarlyPreloadGadget(mgr)
+	_, _ = mylog.Check3(devicestate.EarlyPreloadGadget(mgr))
 	// error from mocked loadDeviceSeed results in ErrNoState from preloadGadget
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 	c.Check(readSysLabel, Equals, "20220108")
@@ -919,8 +919,8 @@ func (s *preseedingUC20Suite) TestEnsureSeededPicksSystemOnCore20(c *C) {
 
 	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "systems", "20220105"), 0755), IsNil)
 
-	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
-	c.Assert(err, IsNil)
+	mgr := mylog.Check2(devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore))
+
 	restore := devicestate.MockPopulateStateFromSeed(mgr, func(sLabel, sMode string, tm timings.Measurer) ([]*state.TaskSet, error) {
 		called = true
 		c.Check(sLabel, Equals, "20220105")
@@ -928,9 +928,8 @@ func (s *preseedingUC20Suite) TestEnsureSeededPicksSystemOnCore20(c *C) {
 		return nil, nil
 	})
 	defer restore()
+	mylog.Check(devicestate.EnsureSeeded(mgr))
 
-	err = devicestate.EnsureSeeded(mgr)
-	c.Assert(err, IsNil)
 	c.Check(called, Equals, true)
 }
 
@@ -942,21 +941,21 @@ func (s *preseedingUC20Suite) TestSysModeIsRunWhenPreseeding(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "systems", "20220105"), 0755), IsNil)
 
 	runner := state.NewTaskRunner(s.state)
-	mgr, err := devicestate.Manager(s.state, s.hookMgr, runner, nil)
-	c.Assert(err, IsNil)
+	mgr := mylog.Check2(devicestate.Manager(s.state, s.hookMgr, runner, nil))
+
 	c.Check(devicestate.GetSystemMode(mgr), Equals, "run")
 }
 
 func (s *preseedingUC20Suite) TestSystemForPreseeding(c *C) {
-	_, err := devicestate.SystemForPreseeding()
+	_ := mylog.Check2(devicestate.SystemForPreseeding())
 	c.Assert(err, ErrorMatches, `no system to preseed`)
 
 	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "systems", "20220105"), 0755), IsNil)
-	systemLabel, err := devicestate.SystemForPreseeding()
-	c.Assert(err, IsNil)
+	systemLabel := mylog.Check2(devicestate.SystemForPreseeding())
+
 	c.Check(systemLabel, Equals, "20220105")
 
 	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "systems", "20210201"), 0755), IsNil)
-	_, err = devicestate.SystemForPreseeding()
+	_ = mylog.Check2(devicestate.SystemForPreseeding())
 	c.Assert(err, ErrorMatches, `expected a single system for preseeding, found 2`)
 }

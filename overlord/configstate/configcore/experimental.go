@@ -23,6 +23,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/osutil"
@@ -49,9 +50,8 @@ func validateExperimentalSettings(tr ConfGetter) error {
 		if !strings.HasPrefix(k, "core.experimental.") {
 			continue
 		}
-		if err := validateBoolFlag(tr, strings.TrimPrefix(k, "core.")); err != nil {
-			return err
-		}
+		mylog.Check(validateBoolFlag(tr, strings.TrimPrefix(k, "core.")))
+
 	}
 	return nil
 }
@@ -63,24 +63,21 @@ func doExportExperimentalFlags(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyCo
 	} else {
 		dir = dirs.FeaturesDir
 	}
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return err
-	}
+	mylog.Check(os.MkdirAll(dir, 0755))
+
 	feat := features.KnownFeatures()
 	content := make(map[string]osutil.FileState, len(feat))
 	for _, feature := range feat {
 		if !feature.IsExported() {
 			continue
 		}
-		isEnabled, err := features.Flag(tr, feature)
-		if err != nil {
-			return err
-		}
+		isEnabled := mylog.Check2(features.Flag(tr, feature))
+
 		if isEnabled {
 			content[feature.String()] = &osutil.MemoryFileState{Mode: 0644}
 		}
 	}
-	_, _, err := osutil.EnsureDirState(dir, "*", content)
+	_, _ := mylog.Check3(osutil.EnsureDirState(dir, "*", content))
 	return err
 }
 

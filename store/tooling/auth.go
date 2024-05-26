@@ -27,6 +27,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/mvo5/goconfigparser"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/snapdenv"
@@ -59,11 +60,8 @@ func getAuthorizer() (store.Authorizer, error) {
 			return nil, nil
 		}
 
-		var err error
-		data, err = os.ReadFile(authFn)
-		if err != nil {
-			return nil, fmt.Errorf("cannot read auth file %q: %v", authFn, err)
-		}
+		data = mylog.Check2(os.ReadFile(authFn))
+
 		data = bytes.TrimSpace(data)
 		what = fmt.Sprintf("file %q", authFn)
 	}
@@ -71,10 +69,7 @@ func getAuthorizer() (store.Authorizer, error) {
 		return nil, fmt.Errorf("invalid auth %s: empty", what)
 	}
 
-	creds, err := parseAuthData(data, what, parsers...)
-	if err != nil {
-		return nil, err
-	}
+	creds := mylog.Check2(parseAuthData(data, what, parsers...))
 
 	if creds.Scheme != "" {
 		return &SimpleCreds{
@@ -92,7 +87,7 @@ func getAuthorizer() (store.Authorizer, error) {
 func parseAuthData(data []byte, what string, parsers ...parseAuthFunc) (*authData, error) {
 	var firstErr error
 	for _, p := range parsers {
-		parsed, likely, err := p(data, what)
+		parsed, likely := mylog.Check3(p(data, what))
 		if err == nil {
 			return parsed, nil
 		}
@@ -111,11 +106,8 @@ func parseAuthJSON(data []byte, what string) (*authData, bool, error) {
 		Macaroon   string   `json:"macaroon"`
 		Discharges []string `json:"discharges"`
 	}
-	err := json.Unmarshal(data, &creds)
-	if err != nil {
-		likely := data[0] == '{'
-		return nil, likely, fmt.Errorf("cannot decode auth %s: %v", what, err)
-	}
+	mylog.Check(json.Unmarshal(data, &creds))
+
 	if creds.Macaroon == "" || len(creds.Discharges) == 0 {
 		return nil, true, fmt.Errorf("invalid auth %s: missing fields", what)
 	}
@@ -138,20 +130,15 @@ func parseSnapcraftLoginFile(data []byte, what string) (*authData, bool, error) 
 	errPrefix := fmt.Sprintf("invalid snapcraft login %s", what)
 
 	cfg := goconfigparser.New()
-	// XXX this seems to almost always succeed
-	if err := cfg.ReadString(string(data)); err != nil {
-		likely := data[0] == '['
-		return nil, likely, fmt.Errorf("%s: %v", errPrefix, err)
-	}
+	mylog.Check(
+		// XXX this seems to almost always succeed
+		cfg.ReadString(string(data)))
+
 	sec := snapcraftLoginSection()
-	macaroon, err := cfg.Get(sec, "macaroon")
-	if err != nil {
-		return nil, true, fmt.Errorf("%s: %s", errPrefix, err)
-	}
-	unboundDischarge, err := cfg.Get(sec, "unbound_discharge")
-	if err != nil {
-		return nil, true, fmt.Errorf("%s: %v", errPrefix, err)
-	}
+	macaroon := mylog.Check2(cfg.Get(sec, "macaroon"))
+
+	unboundDischarge := mylog.Check2(cfg.Get(sec, "unbound_discharge"))
+
 	if macaroon == "" || unboundDischarge == "" {
 		return nil, true, fmt.Errorf("%s: empty fields", errPrefix)
 	}
@@ -164,14 +151,11 @@ func parseSnapcraftLoginFile(data []byte, what string) (*authData, bool, error) 
 // parseAuthBase64JSON parses snapcraft v7+ base64-encoded auth credential data.
 func parseAuthBase64JSON(data []byte, what string) (*authData, bool, error) {
 	jsonData := make([]byte, base64.StdEncoding.DecodedLen(len(data)))
-	dataLen, err := base64.StdEncoding.Decode(jsonData, data)
-	if err != nil {
-		return nil, false, fmt.Errorf("cannot decode base64-encoded auth %s: %v", what, err)
-	}
+	dataLen := mylog.Check2(base64.StdEncoding.Decode(jsonData, data))
+
 	var m map[string]interface{}
-	if err := json.Unmarshal(jsonData[:dataLen], &m); err != nil {
-		return nil, true, fmt.Errorf("cannot unmarshal base64-decoded auth %s: %v", what, err)
-	}
+	mylog.Check(json.Unmarshal(jsonData[:dataLen], &m))
+
 	r, _ := m["r"].(string)
 	d, _ := m["d"].(string)
 	t, _ := m["t"].(string)
@@ -216,8 +200,10 @@ type UbuntuOneCreds struct {
 }
 
 // expected interfaces
-var _ store.Authorizer = (*UbuntuOneCreds)(nil)
-var _ store.RefreshingAuthorizer = (*UbuntuOneCreds)(nil)
+var (
+	_ store.Authorizer           = (*UbuntuOneCreds)(nil)
+	_ store.RefreshingAuthorizer = (*UbuntuOneCreds)(nil)
+)
 
 func (c *UbuntuOneCreds) Authorize(r *http.Request, _ store.DeviceAndAuthContext, _ *auth.UserState, _ *store.AuthorizeOptions) error {
 	return store.UserAuthorizer{}.Authorize(r, nil, &c.User, nil)

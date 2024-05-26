@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"syscall"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -40,19 +41,16 @@ func (e *NotEnoughDiskSpaceError) Error() string {
 // diskFree returns free disk space for the given path
 func diskFree(path string) (uint64, error) {
 	var st syscall.Statfs_t
-	if err := syscallStatfs(path, &st); err != nil {
-		return 0, err
-	}
+	mylog.Check(syscallStatfs(path, &st))
+
 	// available blocks * block size
 	return st.Bavail * uint64(st.Bsize), nil
 }
 
 // CheckFreeSpace checks if there is enough disk space for the given path
 func CheckFreeSpace(path string, minSize uint64) error {
-	free, err := diskFree(path)
-	if err != nil {
-		return err
-	}
+	free := mylog.Check2(diskFree(path))
+
 	if free < minSize {
 		delta := int64(minSize - free)
 		return &NotEnoughDiskSpaceError{Path: path, Delta: delta}

@@ -26,6 +26,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -52,7 +53,7 @@ func bulkRefreshSnapDeclarations(s *state.State, snapStates map[string]*snapstat
 
 	var mergedRPErr *resolvePoolError
 	tryResolvePool := func() error {
-		err := resolvePool(s, pool, nil, userID, deviceCtx, opts)
+		mylog.Check(resolvePool(s, pool, nil, userID, deviceCtx, opts))
 		if rpe, ok := err.(*resolvePoolError); ok {
 			if mergedRPErr == nil {
 				mergedRPErr = rpe
@@ -75,25 +76,22 @@ func bulkRefreshSnapDeclarations(s *state.State, snapStates map[string]*snapstat
 			Type:       asserts.SnapDeclarationType,
 			PrimaryKey: []string{release.Series, sideInfo.SnapID},
 		}
-		// update snap-declaration (and prereqs) for the snap,
-		// they were originally added at install time
-		if err := pool.AddToUpdate(declRef, instanceName); err != nil {
-			return fmt.Errorf("cannot prepare snap-declaration refresh for snap %q: %v", instanceName, err)
-		}
+		mylog.Check(
+			// update snap-declaration (and prereqs) for the snap,
+			// they were originally added at install time
+			pool.AddToUpdate(declRef, instanceName))
 
 		c++
 		if c%maxGroups == 0 {
-			// we have exhausted max groups, resolve
-			// what we setup so far and then clear groups
-			// to reuse the pool
-			if err := tryResolvePool(); err != nil {
-				return err
-			}
-			if err := pool.ClearGroups(); err != nil {
-				// this shouldn't happen but if it
-				// does fallback
-				return &bulkAssertionFallbackError{err}
-			}
+			mylog.Check(
+				// we have exhausted max groups, resolve
+				// what we setup so far and then clear groups
+				// to reuse the pool
+				tryResolvePool())
+			mylog.Check(pool.ClearGroups())
+			// this shouldn't happen but if it
+			// does fallback
+
 		}
 	}
 
@@ -105,26 +103,13 @@ func bulkRefreshSnapDeclarations(s *state.State, snapStates map[string]*snapstat
 			Type:       asserts.StoreType,
 			PrimaryKey: []string{modelAs.Store()},
 		}
-		if err := pool.AddToUpdate(&storeRef, storeGroup); err != nil {
-			if !errors.Is(err, &asserts.NotFoundError{}) {
-				return fmt.Errorf("cannot prepare store assertion refresh: %v", err)
-			}
-			// assertion is not present in the db yet,
-			// we'll try to resolve it (fetch it) first
-			storeAt := &asserts.AtRevision{
-				Ref:      storeRef,
-				Revision: asserts.RevisionNotKnown,
-			}
-			err := pool.AddUnresolved(storeAt, storeGroup)
-			if err != nil {
-				return fmt.Errorf("cannot prepare store assertion fetching: %v", err)
-			}
-		}
-	}
+		mylog.Check(pool.AddToUpdate(&storeRef, storeGroup))
 
-	if err := tryResolvePool(); err != nil {
-		return err
+		// assertion is not present in the db yet,
+		// we'll try to resolve it (fetch it) first
+
 	}
+	mylog.Check(tryResolvePool())
 
 	if mergedRPErr != nil {
 		if e := mergedRPErr.errors[storeGroup]; errors.Is(e, &asserts.NotFoundError{}) || e == asserts.ErrUnresolved {
@@ -171,12 +156,10 @@ func bulkRefreshValidationSetAsserts(s *state.State, vsets map[string]*Validatio
 		if vs.LocalOnly {
 			ignoreNotFound[group] = true
 		}
-		if err := pool.AddSequenceToUpdate(atSeq, group); err != nil {
-			return err
-		}
-	}
+		mylog.Check(pool.AddSequenceToUpdate(atSeq, group))
 
-	err := resolvePoolNoFallback(s, pool, beforeCommitChecker, userID, deviceCtx, opts)
+	}
+	mylog.Check(resolvePoolNoFallback(s, pool, beforeCommitChecker, userID, deviceCtx, opts))
 	if err == nil {
 		return nil
 	}
@@ -247,10 +230,8 @@ func (rpe *resolvePoolError) Error() string {
 }
 
 func resolvePool(s *state.State, pool *asserts.Pool, checkBeforeCommit func(*asserts.Database, asserts.Backstore) error, userID int, deviceCtx snapstate.DeviceContext, opts *RefreshAssertionsOptions) error {
-	user, err := userFromUserID(s, userID)
-	if err != nil {
-		return err
-	}
+	user := mylog.Check2(userFromUserID(s, userID))
+
 	sto := snapstate.Store(s, deviceCtx)
 	db := cachedDB(s)
 	unsupported := handleUnsupported(db)
@@ -258,29 +239,15 @@ func resolvePool(s *state.State, pool *asserts.Pool, checkBeforeCommit func(*ass
 	for {
 		storeOpts := &store.RefreshOptions{Scheduled: opts.IsAutoRefresh}
 		s.Unlock()
-		_, aresults, err := sto.SnapAction(context.TODO(), nil, nil, pool, user, storeOpts)
+		_, aresults := mylog.Check3(sto.SnapAction(context.TODO(), nil, nil, pool, user, storeOpts))
 		s.Lock()
-		if err != nil {
-			// request fallback on
-			//  * unexpected SnapActionErrors or
-			//  * unexpected HTTP status of 4xx or 500
-			ignore := false
-			switch stoErr := err.(type) {
-			case *store.SnapActionError:
-				if !stoErr.NoResults || len(stoErr.Other) != 0 {
-					return &bulkAssertionFallbackError{stoErr}
-				}
-				// simply no results error, we are likely done
-				ignore = true
-			case *store.UnexpectedHTTPStatusError:
-				if stoErr.StatusCode >= 400 && stoErr.StatusCode <= 500 {
-					return &bulkAssertionFallbackError{stoErr}
-				}
-			}
-			if !ignore {
-				return err
-			}
-		}
+
+		// request fallback on
+		//  * unexpected SnapActionErrors or
+		//  * unexpected HTTP status of 4xx or 500
+
+		// simply no results error, we are likely done
+
 		if len(aresults) == 0 {
 			// everything resolved if no errors
 			break
@@ -289,23 +256,16 @@ func resolvePool(s *state.State, pool *asserts.Pool, checkBeforeCommit func(*ass
 		for _, ares := range aresults {
 			b := asserts.NewBatch(unsupported)
 			s.Unlock()
-			err := sto.DownloadAssertions(ares.StreamURLs, b, user)
+			mylog.Check(sto.DownloadAssertions(ares.StreamURLs, b, user))
 			s.Lock()
-			if err != nil {
-				pool.AddGroupingError(err, ares.Grouping)
-				continue
-			}
-			_, err = pool.AddBatch(b, ares.Grouping)
-			if err != nil {
-				return err
-			}
+
+			_ = mylog.Check2(pool.AddBatch(b, ares.Grouping))
+
 		}
 	}
 
 	if checkBeforeCommit != nil {
-		if err := checkBeforeCommit(db, pool.Backstore()); err != nil {
-			return err
-		}
+		mylog.Check(checkBeforeCommit(db, pool.Backstore()))
 	}
 	pool.CommitTo(db)
 
@@ -318,12 +278,9 @@ func resolvePool(s *state.State, pool *asserts.Pool, checkBeforeCommit func(*ass
 }
 
 func resolvePoolNoFallback(s *state.State, pool *asserts.Pool, checkBeforeCommit func(*asserts.Database, asserts.Backstore) error, userID int, deviceCtx snapstate.DeviceContext, opts *RefreshAssertionsOptions) error {
-	err := resolvePool(s, pool, checkBeforeCommit, userID, deviceCtx, opts)
-	if err != nil {
-		// no fallback, report inner error.
-		if ferr, ok := err.(*bulkAssertionFallbackError); ok {
-			err = ferr.err
-		}
-	}
+	mylog.Check(resolvePool(s, pool, checkBeforeCommit, userID, deviceCtx, opts))
+
+	// no fallback, report inner error.
+
 	return err
 }

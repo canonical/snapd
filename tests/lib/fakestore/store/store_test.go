@@ -34,6 +34,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/systestkeys"
 	"github.com/snapcore/snapd/osutil"
@@ -51,20 +52,18 @@ type storeTestSuite struct {
 var _ = Suite(&storeTestSuite{})
 
 func getSha(fn string) (string, uint64) {
-	snapDigest, size, err := asserts.SnapFileSHA3_384(fn)
-	if err != nil {
-		panic(err)
-	}
+	snapDigest, size := mylog.Check3(asserts.SnapFileSHA3_384(fn))
+
 	return hexify(snapDigest), size
 }
 
 func (s *storeTestSuite) SetUpTest(c *C) {
 	topdir := c.MkDir()
-	err := os.Mkdir(filepath.Join(topdir, "asserts"), 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.Mkdir(filepath.Join(topdir, "asserts"), 0755))
+
 	s.store = NewStore(topdir, "localhost:0", false)
-	err = s.store.Start()
-	c.Assert(err, IsNil)
+	mylog.Check(s.store.Start())
+
 
 	transport := &http.Transport{}
 	s.client = &http.Client{
@@ -74,8 +73,8 @@ func (s *storeTestSuite) SetUpTest(c *C) {
 
 func (s *storeTestSuite) TearDownTest(c *C) {
 	s.client.Transport.(*http.Transport).CloseIdleConnections()
-	err := s.store.Stop()
-	c.Assert(err, IsNil)
+	mylog.Check(s.store.Stop())
+
 }
 
 // StoreGet gets the given from the store
@@ -89,54 +88,52 @@ func (s *storeTestSuite) StorePostJSON(path string, content []byte) (*http.Respo
 }
 
 func (s *storeTestSuite) TestStoreURL(c *C) {
-	u, err := url.Parse(s.store.URL())
-	c.Assert(err, IsNil)
+	u := mylog.Check2(url.Parse(s.store.URL()))
+
 	c.Check(u.Hostname(), Equals, "127.0.0.1")
 	c.Check(u.Port(), Not(Equals), "")
 }
 
 func (s *storeTestSuite) TestStoreListenAddr(c *C) {
-	u, err := url.Parse(s.store.URL())
-	c.Assert(err, IsNil)
+	u := mylog.Check2(url.Parse(s.store.URL()))
+
 	// use the same address as the fake store started by the tests so that
 	// this will fail with addr-in-use error
 	topdir := c.MkDir()
 	newstore := NewStore(topdir, u.Host, false)
-	err = newstore.Start()
+	mylog.Check(newstore.Start())
 	c.Assert(err, NotNil)
 	c.Check(errors.Is(err, syscall.EADDRINUSE), Equals, true)
 }
 
 func (s *storeTestSuite) TestTrivialGetWorks(c *C) {
-	resp, err := s.StoreGet("/")
-	c.Assert(err, IsNil)
+	resp := mylog.Check2(s.StoreGet("/"))
+
 	defer resp.Body.Close()
 
 	c.Assert(resp.StatusCode, Equals, 418)
-	body, err := io.ReadAll(resp.Body)
-	c.Assert(err, IsNil)
-	c.Assert(string(body), Equals, "I'm a teapot")
+	body := mylog.Check2(io.ReadAll(resp.Body))
 
+	c.Assert(string(body), Equals, "I'm a teapot")
 }
 
 func (s *storeTestSuite) TestSearchEndpoint(c *C) {
-	resp, err := s.StoreGet("/api/v1/snaps/search")
-	c.Assert(err, IsNil)
+	resp := mylog.Check2(s.StoreGet("/api/v1/snaps/search"))
+
 	defer resp.Body.Close()
 
 	c.Assert(resp.StatusCode, Equals, 501)
-	body, err := io.ReadAll(resp.Body)
-	c.Assert(err, IsNil)
-	c.Assert(string(body), Equals, "search not implemented")
+	body := mylog.Check2(io.ReadAll(resp.Body))
 
+	c.Assert(string(body), Equals, "search not implemented")
 }
 
 func (s *storeTestSuite) TestDetailsEndpointWithAssertions(c *C) {
 	snapFn := s.makeTestSnap(c, "name: foo\nversion: 7")
 	s.makeAssertions(c, snapFn, "foo", "xidididididididididididididididid", "foo-devel", "foo-devel-id", 77)
 
-	resp, err := s.StoreGet(`/api/v1/snaps/details/foo`)
-	c.Assert(err, IsNil)
+	resp := mylog.Check2(s.StoreGet(`/api/v1/snaps/details/foo`))
+
 	defer resp.Body.Close()
 
 	c.Assert(resp.StatusCode, Equals, 200)
@@ -162,8 +159,8 @@ func (s *storeTestSuite) TestDetailsEndpointWithAssertions(c *C) {
 
 func (s *storeTestSuite) TestDetailsEndpoint(c *C) {
 	snapFn := s.makeTestSnap(c, "name: foo\nversion: 1")
-	resp, err := s.StoreGet(`/api/v1/snaps/details/foo`)
-	c.Assert(err, IsNil)
+	resp := mylog.Check2(s.StoreGet(`/api/v1/snaps/details/foo`))
+
 	defer resp.Body.Close()
 
 	c.Assert(resp.StatusCode, Equals, 200)
@@ -187,8 +184,8 @@ func (s *storeTestSuite) TestDetailsEndpoint(c *C) {
 	})
 
 	snapFn = s.makeTestSnap(c, "name: foo-classic\nversion: 1\nconfinement: classic")
-	resp, err = s.StoreGet(`/api/v1/snaps/details/foo-classic`)
-	c.Assert(err, IsNil)
+	resp = mylog.Check2(s.StoreGet(`/api/v1/snaps/details/foo-classic`))
+
 	defer resp.Body.Close()
 
 	c.Assert(resp.StatusCode, Equals, 200)
@@ -210,8 +207,8 @@ func (s *storeTestSuite) TestDetailsEndpoint(c *C) {
 	})
 
 	snapFn = s.makeTestSnap(c, "name: foo-base\nversion: 1\ntype: base")
-	resp, err = s.StoreGet(`/api/v1/snaps/details/foo-base`)
-	c.Assert(err, IsNil)
+	resp = mylog.Check2(s.StoreGet(`/api/v1/snaps/details/foo-base`))
+
 	defer resp.Body.Close()
 
 	c.Assert(resp.StatusCode, Equals, 200)
@@ -233,8 +230,8 @@ func (s *storeTestSuite) TestDetailsEndpoint(c *C) {
 	})
 
 	snapFn = s.makeTestSnap(c, "name: foo-core20\nversion: 1\ntype: app\nbase: core20")
-	resp, err = s.StoreGet(`/api/v1/snaps/details/foo-core20`)
-	c.Assert(err, IsNil)
+	resp = mylog.Check2(s.StoreGet(`/api/v1/snaps/details/foo-core20`))
+
 	defer resp.Body.Close()
 
 	c.Assert(resp.StatusCode, Equals, 200)
@@ -261,10 +258,10 @@ func (s *storeTestSuite) TestBulkEndpoint(c *C) {
 	snapFn := s.makeTestSnap(c, "name: test-snapd-tools\nversion: 1")
 
 	// note that we send the test-snapd-tools snapID here
-	resp, err := s.StorePostJSON("/api/v1/snaps/metadata", []byte(`{
+	resp := mylog.Check2(s.StorePostJSON("/api/v1/snaps/metadata", []byte(`{
 "snaps": [{"snap_id":"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw","channel":"stable","revision":1}]
-}`))
-	c.Assert(err, IsNil)
+}`)))
+
 	defer resp.Body.Close()
 
 	c.Assert(resp.StatusCode, Equals, 200)
@@ -298,13 +295,13 @@ func (s *storeTestSuite) TestBulkEndpointWithAssertions(c *C) {
 	snapFn2 := s.makeTestSnap(c, "name: foo-core20\nversion: 10\nbase: core20")
 	s.makeAssertions(c, snapFn2, "foo-core20", "xidididididididididididididcore20", "foo-core20-devel", "foo-core20-devel-id", 98)
 
-	resp, err := s.StorePostJSON("/api/v1/snaps/metadata", []byte(`{
+	resp := mylog.Check2(s.StorePostJSON("/api/v1/snaps/metadata", []byte(`{
 "snaps": [
     {"snap_id":"xidididididididididididididididid","channel":"stable","revision":1},
     {"snap_id":"xidididididididididididididcore20","channel":"stable","revision":1}
 ]
-}`))
-	c.Assert(err, IsNil)
+}`)))
+
 	defer resp.Body.Close()
 
 	c.Assert(resp.StatusCode, Equals, 200)
@@ -349,8 +346,8 @@ func (s *storeTestSuite) TestBulkEndpointWithAssertions(c *C) {
 func (s *storeTestSuite) makeTestSnap(c *C, snapYamlContent string) string {
 	fn := snaptest.MakeTestSnapWithFiles(c, snapYamlContent, nil)
 	dst := filepath.Join(s.store.blobDir, filepath.Base(fn))
-	err := osutil.CopyFile(fn, dst, 0)
-	c.Assert(err, IsNil)
+	mylog.Check(osutil.CopyFile(fn, dst, 0))
+
 	return dst
 }
 
@@ -392,8 +389,8 @@ AXNpZw=
 )
 
 func (s *storeTestSuite) makeAssertions(c *C, snapFn, name, snapID, develName, develID string, revision int) {
-	dgst, size, err := asserts.SnapFileSHA3_384(snapFn)
-	c.Assert(err, IsNil)
+	dgst, size := mylog.Check3(asserts.SnapFileSHA3_384(snapFn))
+
 
 	info := essentialInfo{
 		Name:        name,
@@ -405,20 +402,20 @@ func (s *storeTestSuite) makeAssertions(c *C, snapFn, name, snapID, develName, d
 		Digest:      dgst,
 	}
 
-	f, err := os.OpenFile(filepath.Join(s.store.assertDir, snapID+".fake.snap-declaration"), os.O_CREATE|os.O_WRONLY, 0644)
-	c.Assert(err, IsNil)
-	err = tSnapDecl.Execute(f, info)
-	c.Assert(err, IsNil)
+	f := mylog.Check2(os.OpenFile(filepath.Join(s.store.assertDir, snapID+".fake.snap-declaration"), os.O_CREATE|os.O_WRONLY, 0644))
 
-	f, err = os.OpenFile(filepath.Join(s.store.assertDir, dgst+".fake.snap-revision"), os.O_CREATE|os.O_WRONLY, 0644)
-	c.Assert(err, IsNil)
-	err = tSnapRev.Execute(f, info)
-	c.Assert(err, IsNil)
+	mylog.Check(tSnapDecl.Execute(f, info))
 
-	f, err = os.OpenFile(filepath.Join(s.store.assertDir, develID+".fake.account"), os.O_CREATE|os.O_WRONLY, 0644)
-	c.Assert(err, IsNil)
-	err = tAccount.Execute(f, info)
-	c.Assert(err, IsNil)
+
+	f = mylog.Check2(os.OpenFile(filepath.Join(s.store.assertDir, dgst+".fake.snap-revision"), os.O_CREATE|os.O_WRONLY, 0644))
+
+	mylog.Check(tSnapRev.Execute(f, info))
+
+
+	f = mylog.Check2(os.OpenFile(filepath.Join(s.store.assertDir, develID+".fake.account"), os.O_CREATE|os.O_WRONLY, 0644))
+
+	mylog.Check(tAccount.Execute(f, info))
+
 }
 
 func (s *storeTestSuite) TestMakeTestSnap(c *C) {
@@ -430,8 +427,8 @@ func (s *storeTestSuite) TestMakeTestSnap(c *C) {
 func (s *storeTestSuite) TestCollectSnaps(c *C) {
 	s.makeTestSnap(c, "name: foo\nversion: 1")
 
-	snaps, err := s.store.collectSnaps()
-	c.Assert(err, IsNil)
+	snaps := mylog.Check2(s.store.collectSnaps())
+
 	c.Assert(snaps, DeepEquals, map[string]string{
 		"foo": filepath.Join(s.store.blobDir, "foo_1_all.snap"),
 	})
@@ -440,8 +437,8 @@ func (s *storeTestSuite) TestCollectSnaps(c *C) {
 func (s *storeTestSuite) TestSnapDownloadByFullname(c *C) {
 	s.makeTestSnap(c, "name: foo\nversion: 1")
 
-	resp, err := s.StoreGet("/download/foo_1_all.snap")
-	c.Assert(err, IsNil)
+	resp := mylog.Check2(s.StoreGet("/download/foo_1_all.snap"))
+
 	defer resp.Body.Close()
 
 	c.Assert(resp.StatusCode, Equals, 200)
@@ -480,113 +477,112 @@ AXNpZw==`
 
 func (s *storeTestSuite) TestAssertionsEndpointPreloaded(c *C) {
 	// something preloaded
-	resp, err := s.StoreGet(`/v2/assertions/account/testrootorg`)
-	c.Assert(err, IsNil)
+	resp := mylog.Check2(s.StoreGet(`/v2/assertions/account/testrootorg`))
+
 	defer resp.Body.Close()
 
 	c.Assert(resp.StatusCode, Equals, 200)
 	c.Check(resp.Header.Get("Content-Type"), Equals, "application/x.ubuntu.assertion")
 
-	body, err := io.ReadAll(resp.Body)
-	c.Assert(err, IsNil)
+	body := mylog.Check2(io.ReadAll(resp.Body))
+
 	c.Check(string(body), Equals, string(asserts.Encode(systestkeys.TestRootAccount)))
 }
 
 func (s *storeTestSuite) TestAssertionsEndpointFromAssertsDir(c *C) {
 	// something put in the assertion directory
-	a, err := asserts.Decode([]byte(exampleSnapRev))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(exampleSnapRev)))
+
 	rev := a.(*asserts.SnapRevision)
+	mylog.Check(os.WriteFile(filepath.Join(s.store.assertDir, "foo_36.snap-revision"), []byte(exampleSnapRev), 0655))
 
-	err = os.WriteFile(filepath.Join(s.store.assertDir, "foo_36.snap-revision"), []byte(exampleSnapRev), 0655)
-	c.Assert(err, IsNil)
 
-	resp, err := s.StoreGet(`/v2/assertions/snap-revision/` + rev.SnapSHA3_384())
-	c.Assert(err, IsNil)
+	resp := mylog.Check2(s.StoreGet(`/v2/assertions/snap-revision/` + rev.SnapSHA3_384()))
+
 	defer resp.Body.Close()
 
 	c.Assert(resp.StatusCode, Equals, 200)
-	body, err := io.ReadAll(resp.Body)
-	c.Assert(err, IsNil)
+	body := mylog.Check2(io.ReadAll(resp.Body))
+
 	c.Check(string(body), Equals, exampleSnapRev)
 }
 
 func (s *storeTestSuite) TestAssertionsEndpointSequenceAssertion(c *C) {
-	err := os.WriteFile(filepath.Join(s.store.assertDir, "base-set.validation-set"), []byte(exampleValidationSet), 0655)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(s.store.assertDir, "base-set.validation-set"), []byte(exampleValidationSet), 0655))
 
-	resp, err := s.StoreGet(`/v2/assertions/validation-set/16/canonical/base-set?sequence=2`)
-	c.Assert(err, IsNil)
+
+	resp := mylog.Check2(s.StoreGet(`/v2/assertions/validation-set/16/canonical/base-set?sequence=2`))
+
 	defer resp.Body.Close()
 
 	c.Check(resp.StatusCode, Equals, 200)
-	body, err := io.ReadAll(resp.Body)
-	c.Assert(err, IsNil)
+	body := mylog.Check2(io.ReadAll(resp.Body))
+
 	c.Check(string(body), Equals, exampleValidationSet)
 }
 
 func (s *storeTestSuite) TestAssertionsEndpointSequenceAssertionLatest(c *C) {
-	err := os.WriteFile(filepath.Join(s.store.assertDir, "base-set.validation-set"), []byte(exampleValidationSet), 0655)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(s.store.assertDir, "base-set.validation-set"), []byte(exampleValidationSet), 0655))
 
-	resp, err := s.StoreGet(`/v2/assertions/validation-set/16/canonical/base-set?sequence=latest`)
-	c.Assert(err, IsNil)
+
+	resp := mylog.Check2(s.StoreGet(`/v2/assertions/validation-set/16/canonical/base-set?sequence=latest`))
+
 	defer resp.Body.Close()
 
 	c.Check(resp.StatusCode, Equals, 200)
-	body, err := io.ReadAll(resp.Body)
-	c.Assert(err, IsNil)
+	body := mylog.Check2(io.ReadAll(resp.Body))
+
 	c.Check(string(body), Equals, exampleValidationSet)
 }
 
 func (s *storeTestSuite) TestAssertionsEndpointSequenceAssertionInvalidSequence(c *C) {
-	err := os.WriteFile(filepath.Join(s.store.assertDir, "base-set.validation-set"), []byte(exampleValidationSet), 0655)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(s.store.assertDir, "base-set.validation-set"), []byte(exampleValidationSet), 0655))
 
-	resp, err := s.StoreGet(`/v2/assertions/validation-set/16/canonical/base-set?sequence=0`)
-	c.Assert(err, IsNil)
+
+	resp := mylog.Check2(s.StoreGet(`/v2/assertions/validation-set/16/canonical/base-set?sequence=0`))
+
 	defer resp.Body.Close()
 
 	c.Assert(resp.StatusCode, Equals, 400)
-	body, err := io.ReadAll(resp.Body)
-	c.Assert(err, IsNil)
+	body := mylog.Check2(io.ReadAll(resp.Body))
+
 	c.Check(string(body), Equals, "cannot retrieve assertion [16 canonical base-set]: the requested sequence must be above 0\n")
 }
 
 func (s *storeTestSuite) TestAssertionsEndpointSequenceInvalid(c *C) {
-	resp, err := s.StoreGet(`/v2/assertions/validation-set/16/canonical/base-set?sequence=foo`)
-	c.Assert(err, IsNil)
+	resp := mylog.Check2(s.StoreGet(`/v2/assertions/validation-set/16/canonical/base-set?sequence=foo`))
+
 	defer resp.Body.Close()
 
 	c.Assert(resp.StatusCode, Equals, 400)
-	body, err := io.ReadAll(resp.Body)
-	c.Assert(err, IsNil)
+	body := mylog.Check2(io.ReadAll(resp.Body))
+
 	c.Check(string(body), Equals, "cannot retrieve assertion [16 canonical base-set]: cannot parse sequence foo: strconv.Atoi: parsing \"foo\": invalid syntax\n")
 }
 
 func (s *storeTestSuite) TestAssertionsEndpointNotFound(c *C) {
 	// something not found
-	resp, err := s.StoreGet(`/v2/assertions/account/not-an-account-id`)
-	c.Assert(err, IsNil)
+	resp := mylog.Check2(s.StoreGet(`/v2/assertions/account/not-an-account-id`))
+
 	defer resp.Body.Close()
 
 	c.Assert(resp.StatusCode, Equals, 404)
 
 	dec := json.NewDecoder(resp.Body)
 	var respObj map[string]interface{}
-	err = dec.Decode(&respObj)
-	c.Assert(err, IsNil)
+	mylog.Check(dec.Decode(&respObj))
+
 	c.Check(respObj["error-list"], DeepEquals, []interface{}{map[string]interface{}{"code": "not-found", "message": "not found"}})
 }
 
 func (s *storeTestSuite) TestSnapActionEndpoint(c *C) {
 	snapFn := s.makeTestSnap(c, "name: test-snapd-tools\nversion: 1")
 
-	resp, err := s.StorePostJSON("/v2/snaps/refresh", []byte(`{
+	resp := mylog.Check2(s.StorePostJSON("/v2/snaps/refresh", []byte(`{
 "context": [{"instance-key":"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw","snap-id":"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw","tracking-channel":"stable","revision":1}],
 "actions": [{"action":"refresh","instance-key":"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw","snap-id":"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw"}]
-}`))
-	c.Assert(err, IsNil)
+}`)))
+
 	defer resp.Body.Close()
 
 	c.Assert(resp.StatusCode, Equals, 200)
@@ -626,11 +622,11 @@ func (s *storeTestSuite) TestSnapActionEndpointWithAssertions(c *C) {
 	snapFn := s.makeTestSnap(c, "name: foo\nversion: 10")
 	s.makeAssertions(c, snapFn, "foo", "xidididididididididididididididid", "foo-devel", "foo-devel-id", 99)
 
-	resp, err := s.StorePostJSON("/v2/snaps/refresh", []byte(`{
+	resp := mylog.Check2(s.StorePostJSON("/v2/snaps/refresh", []byte(`{
 "context": [{"instance-key":"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw","snap-id":"xidididididididididididididididid","tracking-channel":"stable","revision":1}],
 "actions": [{"action":"refresh","instance-key":"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw","snap-id":"xidididididididididididididididid"}]
-}`))
-	c.Assert(err, IsNil)
+}`)))
+
 	defer resp.Body.Close()
 
 	c.Assert(resp.StatusCode, Equals, 200)
@@ -669,11 +665,11 @@ func (s *storeTestSuite) TestSnapActionEndpointWithAssertions(c *C) {
 func (s *storeTestSuite) TestSnapActionEndpointRefreshAll(c *C) {
 	snapFn := s.makeTestSnap(c, "name: test-snapd-tools\nversion: 1")
 
-	resp, err := s.StorePostJSON("/v2/snaps/refresh", []byte(`{
+	resp := mylog.Check2(s.StorePostJSON("/v2/snaps/refresh", []byte(`{
 "context": [{"instance-key":"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw","snap-id":"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw","tracking-channel":"stable","revision":1}],
 "actions": [{"action":"refresh-all"}]
-}`))
-	c.Assert(err, IsNil)
+}`)))
+
 	defer resp.Body.Close()
 
 	c.Assert(resp.StatusCode, Equals, 200)
@@ -713,11 +709,11 @@ func (s *storeTestSuite) TestSnapActionEndpointWithAssertionsInstall(c *C) {
 	snapFn := s.makeTestSnap(c, "name: foo\nversion: 10")
 	s.makeAssertions(c, snapFn, "foo", "xidididididididididididididididid", "foo-devel", "foo-devel-id", 99)
 
-	resp, err := s.StorePostJSON("/v2/snaps/refresh", []byte(`{
+	resp := mylog.Check2(s.StorePostJSON("/v2/snaps/refresh", []byte(`{
 "context": [],
 "actions": [{"action":"install","instance-key":"foo","name":"foo"}]
-}`))
-	c.Assert(err, IsNil)
+}`)))
+
 	defer resp.Body.Close()
 
 	c.Assert(resp.StatusCode, Equals, 200)
@@ -756,11 +752,11 @@ func (s *storeTestSuite) TestSnapActionEndpointWithAssertionsInstall(c *C) {
 func (s *storeTestSuite) TestSnapActionEndpointSnapWithBase(c *C) {
 	snapFn := s.makeTestSnap(c, "name: test-snapd-tools\nversion: 1\nbase: core20")
 
-	resp, err := s.StorePostJSON("/v2/snaps/refresh", []byte(`{
+	resp := mylog.Check2(s.StorePostJSON("/v2/snaps/refresh", []byte(`{
 "context": [{"instance-key":"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw","snap-id":"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw","tracking-channel":"stable","revision":1}],
 "actions": [{"action":"refresh","instance-key":"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw","snap-id":"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw"}]
-}`))
-	c.Assert(err, IsNil)
+}`)))
+
 	defer resp.Body.Close()
 
 	c.Assert(resp.StatusCode, Equals, 200)

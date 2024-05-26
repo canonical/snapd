@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/snap"
@@ -100,48 +101,48 @@ func (s *ctrlaltdelSuite) SetUpTest(c *C) {
 
 // Only "none" or "reboot" are valid action states
 func (s *ctrlaltdelSuite) TestCtrlAltDelInvalidAction(c *C) {
-	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
+	mylog.Check(configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		changes: map[string]interface{}{
 			"system.ctrl-alt-del-action": "xxx",
 		},
-	})
+	}))
 	c.Check(err, ErrorMatches, `invalid action "xxx" supplied for system.ctrl-alt-del-action option`)
 }
 
 // Only the status properties of a single matching unit (ctrl-alt-del.target) is expected
 func (s *ctrlaltdelSuite) TestCtrlAltDelInvalidSystemctlReply(c *C) {
 	s.unit = unitStateMulti
-	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
+	mylog.Check(configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		changes: map[string]interface{}{
 			"system.ctrl-alt-del-action": "none",
 		},
-	})
+	}))
 	c.Check(err, ErrorMatches, "cannot get unit status: got more results than expected")
 }
 
 // The ctrl-alt-del.target unit is expected to be installed in the filesystem
 func (s *ctrlaltdelSuite) TestCtrlAltDelInvalidInstalledState(c *C) {
 	s.unit = unitStateUninstalled
-	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
+	mylog.Check(configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		changes: map[string]interface{}{
 			"system.ctrl-alt-del-action": "none",
 		},
-	})
+	}))
 	c.Check(err, ErrorMatches, `internal error: target ctrl-alt-del.target not installed`)
 }
 
 // The ctrl-alt-del.target unit may not be in the enabled state
 func (s *ctrlaltdelSuite) TestCtrlAltDelInvalidEnabledState(c *C) {
 	s.unit = unitStateEnabled
-	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
+	mylog.Check(configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		changes: map[string]interface{}{
 			"system.ctrl-alt-del-action": "none",
 		},
-	})
+	}))
 	c.Check(err, ErrorMatches, `internal error: target ctrl-alt-del.target should not be enabled`)
 }
 
@@ -153,11 +154,11 @@ func (s *ctrlaltdelSuite) TestCtrlAltDelValidDisabledState(c *C) {
 	for _, state := range []unitStates{unitStateDisabled, unitStateMaskedv1, unitStateMaskedv2} {
 		s.unit = state
 		for _, opt := range []string{"reboot", "none"} {
-			err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
+			mylog.Check(configcore.FilesystemOnlyRun(coreDev, &mockConf{
 				state:   s.state,
 				changes: map[string]interface{}{"system.ctrl-alt-del-action": opt},
-			})
-			c.Assert(err, IsNil)
+			}))
+
 			c.Check(s.systemctlArgs, HasLen, 2)
 			c.Check(s.systemctlArgs[0], DeepEquals, []string{"show", "--property=Id,ActiveState,UnitFileState,Names", "ctrl-alt-del.target"})
 			switch opt {

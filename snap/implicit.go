@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -37,10 +38,7 @@ func addImplicitHooks(snapInfo *Info, hooksDir string) error {
 		return nil
 	}
 
-	fileInfos, err := os.ReadDir(hooksDir)
-	if err != nil {
-		return fmt.Errorf("unable to read hooks directory: %s", err)
-	}
+	fileInfos := mylog.Check2(os.ReadDir(hooksDir))
 
 	for _, fileInfo := range fileInfos {
 		addHookIfValid(snapInfo, fileInfo.Name())
@@ -57,10 +55,7 @@ func AddImplicitHooksFromContainer(snapInfo *Info, snapf Container) {
 	// Read the hooks directory. If this fails we assume the hooks directory
 	// doesn't exist, which means there are no implicit hooks to load (not an
 	// error).
-	fileNames, err := snapf.ListDir("meta/hooks")
-	if err != nil {
-		return
-	}
+	fileNames := mylog.Check2(snapf.ListDir("meta/hooks"))
 
 	for _, fileName := range fileNames {
 		addHookIfValid(snapInfo, fileName)

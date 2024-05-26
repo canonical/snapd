@@ -30,6 +30,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -90,7 +91,7 @@ func setupConfCacheDirs(newrootdir string) {
 	}
 
 	snapConfineDir := "snap-confine"
-	if _, internal, err := AppArmorParser(); err == nil {
+	if _, internal := mylog.Check3(AppArmorParser()); err == nil {
 		if internal {
 			snapConfineDir = "snap-confine.internal"
 		}
@@ -162,8 +163,8 @@ func ParserMtime() int64 {
 	var mtime int64
 	mtime = 0
 
-	if cmd, _, err := AppArmorParser(); err == nil {
-		if fi, err := os.Stat(cmd.Path); err == nil {
+	if cmd, _ := mylog.Check3(AppArmorParser()); err == nil {
+		if fi := mylog.Check2(os.Stat(cmd.Path)); err == nil {
 			mtime = fi.ModTime().Unix()
 		}
 	}
@@ -246,13 +247,13 @@ func (aaa *appArmorAssess) assess() {
 
 func (aaa *appArmorAssess) doAssess() (level LevelType, summary string) {
 	// First, quickly check if apparmor is available in the kernel at all.
-	kernelFeatures, err := aaa.KernelFeatures()
+	kernelFeatures := mylog.Check2(aaa.KernelFeatures())
 	if os.IsNotExist(err) {
 		return Unsupported, "apparmor not enabled"
 	}
 	// Then check that the parser supports the required parser features.
 	// If we have any missing required features then apparmor is unusable.
-	parserFeatures, err := aaa.ParserFeatures()
+	parserFeatures := mylog.Check2(aaa.ParserFeatures())
 	if os.IsNotExist(err) {
 		return Unsupported, "apparmor_parser not found"
 	}
@@ -346,19 +347,15 @@ func (aap *appArmorProbe) ParserFeatures() ([]string, error) {
 
 func probeKernelFeatures() ([]string, error) {
 	// note that os.ReadDir() is already sorted
-	dentries, err := os.ReadDir(filepath.Join(rootPath, featuresSysPath))
-	if err != nil {
-		return []string{}, err
-	}
+	dentries := mylog.Check2(os.ReadDir(filepath.Join(rootPath, featuresSysPath)))
+
 	features := make([]string, 0, len(dentries))
 	for _, fi := range dentries {
 		if fi.IsDir() {
 			features = append(features, fi.Name())
 			// also read any sub-features
-			subdenties, err := os.ReadDir(filepath.Join(rootPath, featuresSysPath, fi.Name()))
-			if err != nil {
-				return []string{}, err
-			}
+			subdenties := mylog.Check2(os.ReadDir(filepath.Join(rootPath, featuresSysPath, fi.Name())))
+
 			for _, subfi := range subdenties {
 				if subfi.IsDir() {
 					features = append(features, fi.Name()+":"+subfi.Name())
@@ -366,7 +363,7 @@ func probeKernelFeatures() ([]string, error) {
 			}
 		}
 	}
-	if data, err := os.ReadFile(filepath.Join(rootPath, featuresSysPath, "policy", "permstable32")); err == nil {
+	if data := mylog.Check2(os.ReadFile(filepath.Join(rootPath, featuresSysPath, "policy", "permstable32"))); err == nil {
 		permstableFeatures := strings.Fields(string(data))
 		for _, feat := range permstableFeatures {
 			features = append(features, fmt.Sprintf("policy:permstable32:%s", feat))
@@ -378,7 +375,7 @@ func probeKernelFeatures() ([]string, error) {
 }
 
 func probeParserFeatures() ([]string, error) {
-	var featureProbes = []struct {
+	featureProbes := []struct {
 		feature string
 		flags   []string
 		probe   string
@@ -425,14 +422,12 @@ func probeParserFeatures() ([]string, error) {
 			probe:   "prompt /foo r,",
 		},
 	}
-	_, internal, err := AppArmorParser()
-	if err != nil {
-		return []string{}, err
-	}
+	_, internal := mylog.Check3(AppArmorParser())
+
 	features := make([]string, 0, len(featureProbes)+1)
 	for _, fp := range featureProbes {
 		// recreate the Cmd each time so we can exec it each time
-		cmd, _, _ := AppArmorParser()
+		cmd, _ := mylog.Check3(AppArmorParser())
 		if tryAppArmorParserFeature(cmd, fp.flags, fp.probe) {
 			features = append(features, fp.feature)
 		}
@@ -447,13 +442,8 @@ func probeParserFeatures() ([]string, error) {
 func systemAppArmorLoadsSnapPolicy() bool {
 	// on older Ubuntu systems the system installed apparmor may try and
 	// load snapd generated apparmor policy (LP: #2024637)
-	f, err := os.Open(filepath.Join(dirs.GlobalRootDir, "/lib/apparmor/functions"))
-	if err != nil {
-		if !os.IsNotExist(err) {
-			logger.Debugf("cannot open apparmor functions file: %v", err)
-		}
-		return false
-	}
+	f := mylog.Check2(os.Open(filepath.Join(dirs.GlobalRootDir, "/lib/apparmor/functions")))
+
 	defer f.Close()
 
 	scanner := bufio.NewScanner(f)
@@ -472,7 +462,7 @@ func systemAppArmorLoadsSnapPolicy() bool {
 
 func snapdAppArmorSupportsReexecImpl() bool {
 	hostInfoDir := filepath.Join(dirs.GlobalRootDir, dirs.CoreLibExecDir)
-	_, flags, err := snapdtool.SnapdVersionFromInfoFile(hostInfoDir)
+	_, flags := mylog.Check3(snapdtool.SnapdVersionFromInfoFile(hostInfoDir))
 	return err == nil && flags["SNAPD_APPARMOR_REEXEC"] == "1"
 }
 
@@ -486,7 +476,7 @@ func AppArmorParser() (cmd *exec.Cmd, internal bool, err error) {
 	// snapd snap (likely) or be part of the snapd distro package (unlikely)
 	// - but only use the internal one when we know that the system
 	// installed snapd-apparmor support re-exec
-	if path, err := snapdtool.InternalToolPath("apparmor_parser"); err == nil {
+	if path := mylog.Check2(snapdtool.InternalToolPath("apparmor_parser")); err == nil {
 		if osutil.IsExecutable(path) && snapdAppArmorSupportsReexec() && !systemAppArmorLoadsSnapPolicy() {
 			prefix := strings.TrimSuffix(path, "apparmor_parser")
 			// when using the internal apparmor_parser also use
@@ -506,7 +496,7 @@ func AppArmorParser() (cmd *exec.Cmd, internal bool, err error) {
 	// now search for one in the configured parserSearchPath
 	for _, dir := range filepath.SplitList(parserSearchPath) {
 		path := filepath.Join(dir, "apparmor_parser")
-		if _, err := os.Stat(path); err == nil {
+		if _ := mylog.Check2(os.Stat(path)); err == nil {
 			// Detect but ignore apparmor 4.0 ABI support.
 			//
 			// At present this causes some bugs with mqueue mediation that can
@@ -514,12 +504,12 @@ func AppArmorParser() (cmd *exec.Cmd, internal bool, err error) {
 			// apparmor 4). Once the mqueue issue is analyzed and fixed, this
 			// can be replaced with a --policy-features=hostAbi40File pin like
 			// we do below.
-			if fi, err := os.Lstat(hostAbi40File); err == nil && !fi.IsDir() {
+			if fi := mylog.Check2(os.Lstat(hostAbi40File)); err == nil && !fi.IsDir() {
 				logger.Debugf("apparmor 4.0 ABI detected but ignored")
 			}
 
 			// Perhaps 3.0?
-			if fi, err := os.Lstat(hostAbi30File); err == nil && !fi.IsDir() {
+			if fi := mylog.Check2(os.Lstat(hostAbi30File)); err == nil && !fi.IsDir() {
 				return exec.Command(path, "--policy-features", hostAbi30File), false, nil
 			}
 
@@ -540,7 +530,7 @@ func tryAppArmorParserFeature(cmd *exec.Cmd, flags []string, rule string) bool {
 	}
 	cmd.Stdin = bytes.NewBufferString(fmt.Sprintf("profile snap-test %s{\n %s\n}",
 		flagSnippet, rule))
-	output, err := cmd.CombinedOutput()
+	output := mylog.Check2(cmd.CombinedOutput())
 	// older versions of apparmor_parser can exit with success even
 	// though they fail to parse
 	if err != nil || strings.Contains(string(output), "parser error") {
@@ -564,10 +554,7 @@ func UpdateHomedirsTunable(homedirs []string) error {
 	if len(homedirs) == 0 && !osutil.FileExists(tunableFilePath) {
 		return nil
 	}
-
-	if err := osMkdirAll(homeTunableDir, 0755); err != nil {
-		return fmt.Errorf("cannot create AppArmor tunable directory: %v", err)
-	}
+	mylog.Check(osMkdirAll(homeTunableDir, 0755))
 
 	contents := &bytes.Buffer{}
 	fmt.Fprintln(contents, "# Generated by snapd -- DO NOT EDIT!")
@@ -644,7 +631,6 @@ func MockFeatures(kernelFeatures []string, kernelError error, parserFeatures []s
 	return func() {
 		appArmorAssessment = oldAppArmorAssessment
 	}
-
 }
 
 func MockParserSearchPath(new string) (restore func()) {

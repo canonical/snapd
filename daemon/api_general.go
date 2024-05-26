@@ -27,6 +27,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
@@ -88,11 +89,11 @@ var (
 func init() {
 	// cache the build-id on startup to ensure that changes in
 	// the underlying binary do not affect us
-	if bid, err := osutil.MyBuildID(); err == nil {
+	if bid := mylog.Check2(osutil.MyBuildID()); err == nil {
 		buildID = bid
 	}
 	// cache systemd-detect-virt output as it's unlikely to change :-)
-	if buf, _, err := osutil.RunSplitOutput("systemd-detect-virt"); err == nil {
+	if buf, _ := mylog.Check3(osutil.RunSplitOutput("systemd-detect-virt")); err == nil {
 		systemdVirt = string(bytes.TrimSpace(buf))
 	}
 }
@@ -111,11 +112,9 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	nextRefresh := snapMgr.NextRefresh()
 	lastRefresh, _ := snapMgr.LastRefresh()
 	refreshHold, _ := snapMgr.EffectiveRefreshHold()
-	refreshScheduleStr, legacySchedule, err := snapMgr.RefreshSchedule()
-	if err != nil {
-		return InternalError("cannot get refresh schedule: %s", err)
-	}
-	users, err := auth.Users(st)
+	refreshScheduleStr, legacySchedule := mylog.Check3(snapMgr.RefreshSchedule())
+
+	users := mylog.Check2(auth.Users(st))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return InternalError("cannot get user auth data: %s", err)
 	}
@@ -242,10 +241,7 @@ func getChanges(c *Command, r *http.Request, user *auth.UserState) Response {
 			}
 
 			var snapNames []string
-			if err := chg.Get("snap-names", &snapNames); err != nil {
-				logger.Noticef("Cannot get snap-name for change %v", chg.ID())
-				return false
-			}
+			mylog.Check(chg.Get("snap-names", &snapNames))
 
 			for _, name := range snapNames {
 				// due to
@@ -290,9 +286,7 @@ func abortChange(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&reqData); err != nil {
-		return BadRequest("cannot decode data from request body: %v", err)
-	}
+	mylog.Check(decoder.Decode(&reqData))
 
 	if reqData.Action != "abort" {
 		return BadRequest("change action %q is unsupported", reqData.Action)
@@ -359,9 +353,7 @@ func change2changeInfo(chg *state.Change) *changeInfo {
 	if !readyTime.IsZero() {
 		chgInfo.ReadyTime = &readyTime
 	}
-	if err := chg.Err(); err != nil {
-		chgInfo.Err = err.Error()
-	}
+	mylog.Check(chg.Err())
 
 	tasks := chg.Tasks()
 	taskInfos := make([]*taskInfo, len(tasks))
@@ -441,9 +433,8 @@ func ackWarnings(c *Command, r *http.Request, _ *auth.UserState) Response {
 		Timestamp time.Time `json:"timestamp"`
 	}
 	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&op); err != nil {
-		return BadRequest("cannot decode request body into warnings operation: %v", err)
-	}
+	mylog.Check(decoder.Decode(&op))
+
 	if op.Action != "okay" {
 		return BadRequest("unknown warning action %q", op.Action)
 	}

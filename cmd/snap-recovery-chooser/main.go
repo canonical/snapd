@@ -48,6 +48,7 @@ import (
 	"path/filepath"
 	"syscall"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
@@ -74,15 +75,7 @@ func consoleConfWrapperUITool() (*exec.Cmd, error) {
 	var tool string
 
 	for _, maybeTool := range candidateTools {
-		if _, err := os.Stat(maybeTool); err != nil {
-			if os.IsNotExist(err) {
-				continue
-			}
-			return nil, fmt.Errorf("cannot stat UI tool binary: %v", err)
-		} else {
-			tool = maybeTool
-			break
-		}
+		mylog.Check2(os.Stat(maybeTool))
 	}
 	if tool == "" {
 		return nil, fmt.Errorf("chooser UI tools %q do not exist", candidateTools)
@@ -98,9 +91,8 @@ type ChooserSystems struct {
 
 func outputForUI(out io.Writer, sys *ChooserSystems) error {
 	enc := json.NewEncoder(out)
-	if err := enc.Encode(sys); err != nil {
-		return fmt.Errorf("cannot serialize chooser options: %v", err)
-	}
+	mylog.Check(enc.Encode(sys))
+
 	return nil
 }
 
@@ -112,9 +104,7 @@ type Response struct {
 
 func runUI(cmd *exec.Cmd, sys *ChooserSystems) (rsp *Response, err error) {
 	var asBytes bytes.Buffer
-	if err := outputForUI(&asBytes, sys); err != nil {
-		return nil, err
-	}
+	mylog.Check(outputForUI(&asBytes, sys))
 
 	logger.Noticef("spawning UI")
 	// the UI uses the same tty as current process
@@ -127,63 +117,43 @@ func runUI(cmd *exec.Cmd, sys *ChooserSystems) (rsp *Response, err error) {
 		Pdeathsig: syscall.SIGKILL,
 	}
 
-	out, err := cmd.Output()
-	if err != nil {
-		return nil, fmt.Errorf("cannot collect output of the UI process: %v", err)
-	}
+	out := mylog.Check2(cmd.Output())
 
 	logger.Noticef("UI completed")
 
 	var resp Response
 	dec := json.NewDecoder(bytes.NewBuffer(out))
-	if err := dec.Decode(&resp); err != nil {
-		return nil, fmt.Errorf("cannot decode response: %v", err)
-	}
+	mylog.Check(dec.Decode(&resp))
+
 	return &resp, nil
 }
 
 func cleanupTriggerMarker() error {
-	if err := os.Remove(defaultMarkerFile); err != nil && !os.IsNotExist(err) {
+	if mylog.Check(os.Remove(defaultMarkerFile)); err != nil && !os.IsNotExist(err) {
 		return err
 	}
 	return nil
 }
 
 func chooser(cli *client.Client) (reboot bool, err error) {
-	if _, err := os.Stat(defaultMarkerFile); err != nil {
-		if os.IsNotExist(err) {
-			return false, fmt.Errorf("cannot run chooser without the marker file")
-		} else {
-			return false, fmt.Errorf("cannot check the marker file: %v", err)
-		}
-	}
+	mylog.Check2(os.Stat(defaultMarkerFile))
+
 	// consume the trigger file
 	defer cleanupTriggerMarker()
 
-	systems, err := cli.ListSystems()
-	if err != nil {
-		return false, err
-	}
+	systems := mylog.Check2(cli.ListSystems())
 
 	systemsForUI := &ChooserSystems{
 		Systems: systems,
 	}
 
-	uiTool, err := chooserTool()
-	if err != nil {
-		return false, fmt.Errorf("cannot locate the chooser UI tool: %v", err)
-	}
+	uiTool := mylog.Check2(chooserTool())
 
-	response, err := runUI(uiTool, systemsForUI)
-	if err != nil {
-		return false, fmt.Errorf("UI process failed: %v", err)
-	}
+	response := mylog.Check2(runUI(uiTool, systemsForUI))
 
 	logger.Noticef("got response: %+v", response)
+	mylog.Check(cli.DoSystemAction(response.Label, &response.Action))
 
-	if err := cli.DoSystemAction(response.Label, &response.Action); err != nil {
-		return false, fmt.Errorf("cannot request system action: %v", err)
-	}
 	if maintErr, ok := cli.Maintenance().(*client.Error); ok && maintErr.Kind == client.ErrorKindSystemRestart {
 		reboot = true
 	}
@@ -199,37 +169,24 @@ func loggerWithSyslogMaybe() error {
 			// terminal
 			return fmt.Errorf("not on terminal, syslog not needed")
 		}
-		syslogWriter, err := syslogNew(syslog.LOG_INFO|syslog.LOG_DAEMON, "snap-recovery-chooser")
-		if err != nil {
-			return err
-		}
-		l, err := logger.New(syslogWriter, logger.DefaultFlags, nil)
-		if err != nil {
-			return err
-		}
+		syslogWriter := mylog.Check2(syslogNew(syslog.LOG_INFO|syslog.LOG_DAEMON, "snap-recovery-chooser"))
+
+		l := mylog.Check2(logger.New(syslogWriter, logger.DefaultFlags, nil))
+
 		logger.SetLogger(l)
 		return nil
 	}
+	mylog.Check(maybeSyslog())
+	// try simple setup
 
-	if err := maybeSyslog(); err != nil {
-		// try simple setup
-		return logger.SimpleSetup(nil)
-	}
 	return nil
 }
 
 func main() {
-	if err := loggerWithSyslogMaybe(); err != nil {
-		fmt.Fprintf(Stderr, "cannot initialize logger: %v\n", err)
-		os.Exit(1)
-	}
+	mylog.Check(loggerWithSyslogMaybe())
 
-	reboot, err := chooser(client.New(nil))
-	if err != nil {
-		logger.Noticef("cannot run recovery chooser: %v", err)
-		fmt.Fprintf(Stderr, "%v\n", err)
-		os.Exit(1)
-	}
+	reboot := mylog.Check2(chooser(client.New(nil)))
+
 	if reboot {
 		fmt.Fprintf(Stderr, "The system is rebooting...\n")
 	}

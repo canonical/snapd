@@ -22,6 +22,8 @@ package snap
 import (
 	"fmt"
 	"strconv"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // Keep this in sync between snap and client packages.
@@ -58,9 +60,8 @@ func (r Revision) MarshalJSON() ([]byte, error) {
 
 func (r *Revision) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var s string
-	if err := unmarshal(&s); err != nil {
-		return err
-	}
+	mylog.Check(unmarshal(&s))
+
 	return r.UnmarshalJSON([]byte(`"` + s + `"`))
 }
 
@@ -70,13 +71,13 @@ func (r Revision) MarshalYAML() (interface{}, error) {
 
 func (r *Revision) UnmarshalJSON(data []byte) error {
 	if len(data) > 0 && data[0] == '"' && data[len(data)-1] == '"' {
-		parsed, err := ParseRevision(string(data[1 : len(data)-1]))
+		parsed := mylog.Check2(ParseRevision(string(data[1 : len(data)-1])))
 		if err == nil {
 			*r = parsed
 			return nil
 		}
 	} else {
-		n, err := strconv.ParseInt(string(data), 10, 64)
+		n := mylog.Check2(strconv.ParseInt(string(data), 10, 64))
 		if err == nil {
 			r.N = int(n)
 			return nil
@@ -92,12 +93,12 @@ func ParseRevision(s string) (Revision, error) {
 		return Revision{}, nil
 	}
 	if s != "" && s[0] == 'x' {
-		i, err := strconv.Atoi(s[1:])
+		i := mylog.Check2(strconv.Atoi(s[1:]))
 		if err == nil && i > 0 {
 			return Revision{-i}, nil
 		}
 	}
-	i, err := strconv.Atoi(s)
+	i := mylog.Check2(strconv.Atoi(s))
 	if err == nil && i > 0 {
 		return Revision{i}, nil
 	}
@@ -110,10 +111,8 @@ func ParseRevision(s string) (Revision, error) {
 func R(r interface{}) Revision {
 	switch r := r.(type) {
 	case string:
-		revision, err := ParseRevision(r)
-		if err != nil {
-			panic(err)
-		}
+		revision := mylog.Check2(ParseRevision(r))
+
 		return revision
 	case int:
 		return Revision{r}

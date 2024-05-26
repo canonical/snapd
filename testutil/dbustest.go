@@ -26,6 +26,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/godbus/dbus"
 	. "gopkg.in/check.v1"
 
@@ -63,25 +64,19 @@ const sessionBusConfigTemplate = `<busconfig>
 `
 
 func (s *DBusTest) SetUpSuite(c *C) {
-	if _, err := exec.LookPath("dbus-daemon"); err != nil {
-		c.Skip(fmt.Sprintf("cannot run test without dbus-daemon: %s", err))
-		return
-	}
-	if _, err := exec.LookPath("dbus-launch"); err != nil {
-		c.Skip(fmt.Sprintf("cannot run test without dbus-launch: %s", err))
-		return
-	}
+	mylog.Check2(exec.LookPath("dbus-daemon"))
+	mylog.Check2(exec.LookPath("dbus-launch"))
 
 	s.tmpdir = c.MkDir()
 	configFile := filepath.Join(s.tmpdir, "session.conf")
-	err := os.WriteFile(configFile, []byte(fmt.Sprintf(sessionBusConfigTemplate, s.tmpdir)), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(configFile, []byte(fmt.Sprintf(sessionBusConfigTemplate, s.tmpdir)), 0644))
+
 	s.dbusDaemon = exec.Command("dbus-daemon", "--print-address", fmt.Sprintf("--config-file=%s", configFile))
 	s.dbusDaemon.Stderr = os.Stderr
-	pout, err := s.dbusDaemon.StdoutPipe()
-	c.Assert(err, IsNil)
-	err = s.dbusDaemon.Start()
-	c.Assert(err, IsNil)
+	pout := mylog.Check2(s.dbusDaemon.StdoutPipe())
+
+	mylog.Check(s.dbusDaemon.Start())
+
 
 	scanner := bufio.NewScanner(pout)
 	scanner.Scan()
@@ -89,8 +84,8 @@ func (s *DBusTest) SetUpSuite(c *C) {
 	s.oldSessionBusEnv = os.Getenv("DBUS_SESSION_BUS_ADDRESS")
 	os.Setenv("DBUS_SESSION_BUS_ADDRESS", scanner.Text())
 
-	s.SessionBus, err = dbusutil.SessionBusPrivate()
-	c.Assert(err, IsNil)
+	s.SessionBus = mylog.Check2(dbusutil.SessionBusPrivate())
+
 }
 
 func (s *DBusTest) TearDownSuite(c *C) {
@@ -100,9 +95,9 @@ func (s *DBusTest) TearDownSuite(c *C) {
 
 	os.Setenv("DBUS_SESSION_BUS_ADDRESS", s.oldSessionBusEnv)
 	if s.dbusDaemon != nil && s.dbusDaemon.Process != nil {
-		err := s.dbusDaemon.Process.Kill()
-		c.Assert(err, IsNil)
-		err = s.dbusDaemon.Wait() // do cleanup
+		mylog.Check(s.dbusDaemon.Process.Kill())
+
+		mylog.Check(s.dbusDaemon.Wait()) // do cleanup
 		c.Assert(err, ErrorMatches, `(?i)signal: killed`)
 	}
 }
@@ -112,7 +107,6 @@ func (s *DBusTest) TearDownTest(c *C) {}
 
 func DBusGetConnectionUnixProcessID(conn *dbus.Conn, name string) (pid int, err error) {
 	obj := conn.Object("org.freedesktop.DBus", "/org/freedesktop/DBus")
-
-	err = obj.Call("org.freedesktop.DBus.GetConnectionUnixProcessID", 0, name).Store(&pid)
+	mylog.Check(obj.Call("org.freedesktop.DBus.GetConnectionUnixProcessID", 0, name).Store(&pid))
 	return pid, err
 }

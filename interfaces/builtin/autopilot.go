@@ -54,6 +54,7 @@ dbus (receive)
     member=GetState
     peer=(label=unconfined),
 `
+
 const autopilotIntrospectionPlugSecComp = `
 # Description: Allows an application to be introspected and export its ui
 # status over DBus.

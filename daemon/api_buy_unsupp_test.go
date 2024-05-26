@@ -24,6 +24,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -185,7 +186,7 @@ func (s *buySuite) TestBuySnap(c *check.C) {
 		s.err = test.err
 
 		buf := bytes.NewBufferString(test.input)
-		req, err := http.NewRequest("POST", "/v2/buy", buf)
+		req := mylog.Check2(http.NewRequest("POST", "/v2/buy", buf))
 		c.Assert(err, check.IsNil)
 
 		rsp := s.jsonReq(c, req, user)
@@ -244,7 +245,7 @@ func (s *buySuite) TestReadyToBuy(c *check.C) {
 	for _, test := range readyToBuyTests {
 		s.err = test.input
 
-		req, err := http.NewRequest("GET", "/v2/buy/ready", nil)
+		req := mylog.Check2(http.NewRequest("GET", "/v2/buy/ready", nil))
 		c.Assert(err, check.IsNil)
 
 		rsp := s.jsonReq(c, req, user)

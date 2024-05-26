@@ -24,6 +24,7 @@ import (
 
 	tomb "gopkg.in/tomb.v2"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -71,19 +72,12 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 	defer perfTimings.Save(st)
 
 	var sc ServiceAction
-	err := t.Get("service-action", &sc)
-	if err != nil {
-		return fmt.Errorf("internal error: cannot get service-action: %v", err)
-	}
+	mylog.Check(t.Get("service-action", &sc))
 
 	var snapst snapstate.SnapState
-	if err := snapstate.Get(st, sc.SnapName, &snapst); err != nil {
-		return err
-	}
-	info, err := snapst.CurrentInfo()
-	if err != nil {
-		return err
-	}
+	mylog.Check(snapstate.Get(st, sc.SnapName, &snapst))
+
+	info := mylog.Check2(snapst.CurrentInfo())
 
 	svcs := info.Services()
 	if len(svcs) == 0 {
@@ -111,10 +105,7 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 
 	var startupOrdered []*snap.AppInfo
 	if sc.Action != "stop" {
-		startupOrdered, err = snap.SortServices(services)
-		if err != nil {
-			return err
-		}
+		startupOrdered = mylog.Check2(snap.SortServices(services))
 	}
 
 	// ExplicitServices are snap app names; obtain names of systemd units
@@ -135,20 +126,16 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 			ScopeOptions: sc.ScopeOptions,
 		}
 		st.Unlock()
-		err := wrappers.StopServices(services, flags, snap.StopReasonOther, meter, perfTimings)
+		mylog.Check(wrappers.StopServices(services, flags, snap.StopReasonOther, meter, perfTimings))
 		st.Lock()
-		if err != nil {
-			return err
-		}
+
 		if disable {
-			// re-read snapst after reacquiring the lock as it could have changed.
-			if err := snapstate.Get(st, sc.SnapName, &snapst); err != nil {
-				return err
-			}
-			changed, err := updateSnapstateServices(&snapst, nil, services)
-			if err != nil {
-				return err
-			}
+			mylog.Check(
+				// re-read snapst after reacquiring the lock as it could have changed.
+				snapstate.Get(st, sc.SnapName, &snapst))
+
+			changed := mylog.Check2(updateSnapstateServices(&snapst, nil, services))
+
 			if changed {
 				snapstate.Set(st, sc.SnapName, &snapst)
 			}
@@ -160,39 +147,35 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 			ScopeOptions: sc.ScopeOptions,
 		}
 		st.Unlock()
-		err = wrappers.StartServices(startupOrdered, nil, flags, meter, perfTimings)
+		mylog.Check(wrappers.StartServices(startupOrdered, nil, flags, meter, perfTimings))
 		st.Lock()
-		if err != nil {
-			return err
-		}
+
 		if enable {
-			// re-read snapst after reacquiring the lock as it could have changed.
-			if err := snapstate.Get(st, sc.SnapName, &snapst); err != nil {
-				return err
-			}
-			changed, err := updateSnapstateServices(&snapst, startupOrdered, nil)
-			if err != nil {
-				return err
-			}
+			mylog.Check(
+				// re-read snapst after reacquiring the lock as it could have changed.
+				snapstate.Get(st, sc.SnapName, &snapst))
+
+			changed := mylog.Check2(updateSnapstateServices(&snapst, startupOrdered, nil))
+
 			if changed {
 				snapstate.Set(st, sc.SnapName, &snapst)
 			}
 		}
 	case "restart":
 		st.Unlock()
-		err := wrappers.RestartServices(startupOrdered, explicitServicesSystemdUnits, &wrappers.RestartServicesFlags{
+		mylog.Check(wrappers.RestartServices(startupOrdered, explicitServicesSystemdUnits, &wrappers.RestartServicesFlags{
 			AlsoEnabledNonActive: sc.RestartEnabledNonActive,
 			ScopeOptions:         sc.ScopeOptions,
-		}, meter, perfTimings)
+		}, meter, perfTimings))
 		st.Lock()
 		return err
 	case "reload-or-restart":
 		st.Unlock()
-		err := wrappers.RestartServices(startupOrdered, explicitServicesSystemdUnits, &wrappers.RestartServicesFlags{
+		mylog.Check(wrappers.RestartServices(startupOrdered, explicitServicesSystemdUnits, &wrappers.RestartServicesFlags{
 			Reload:               true,
 			AlsoEnabledNonActive: sc.RestartEnabledNonActive,
 			ScopeOptions:         sc.ScopeOptions,
-		}, meter, perfTimings)
+		}, meter, perfTimings))
 		st.Lock()
 		return err
 	default:

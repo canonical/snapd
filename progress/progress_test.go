@@ -34,8 +34,7 @@ import (
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
-type ProgressTestSuite struct {
-}
+type ProgressTestSuite struct{}
 
 var _ = Suite(&ProgressTestSuite{})
 

@@ -25,17 +25,17 @@ import (
 	"io"
 	"os"
 	"strconv"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // pidsInFile returns the list of process IDs in a given file.
 func pidsInFile(fname string) ([]int, error) {
-	file, err := os.Open(fname)
+	file := mylog.Check2(os.Open(fname))
 	if os.IsNotExist(err) {
 		return nil, nil
 	}
-	if err != nil {
-		return nil, err
-	}
+
 	defer file.Close()
 	return parsePids(bufio.NewReader(file))
 }
@@ -46,21 +46,18 @@ func parsePids(reader io.Reader) ([]int, error) {
 	var pids []int
 	for scanner.Scan() {
 		s := scanner.Text()
-		pid, err := parsePid(s)
-		if err != nil {
-			return nil, err
-		}
+		pid := mylog.Check2(parsePid(s))
+
 		pids = append(pids, pid)
 	}
-	if err := scanner.Err(); err != nil {
-		return nil, err
-	}
+	mylog.Check(scanner.Err())
+
 	return pids, nil
 }
 
 // parsePid parses a string as a process identifier.
 func parsePid(text string) (int, error) {
-	pid, err := strconv.Atoi(text)
+	pid := mylog.Check2(strconv.Atoi(text))
 	if err != nil || (err == nil && pid <= 0) {
 		return 0, fmt.Errorf("cannot parse pid %q", text)
 	}

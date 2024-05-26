@@ -31,6 +31,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/testutil"
@@ -47,24 +48,23 @@ var _ = Suite(&extKeypairMgrSuite{})
 
 func (s *extKeypairMgrSuite) SetUpSuite(c *C) {
 	tmpdir := c.MkDir()
-	k1, err := rsa.GenerateKey(rand.Reader, 4096)
-	c.Assert(err, IsNil)
-	k2, err := rsa.GenerateKey(rand.Reader, 4096)
-	c.Assert(err, IsNil)
+	k1 := mylog.Check2(rsa.GenerateKey(rand.Reader, 4096))
 
-	derPub1, err := x509.MarshalPKIXPublicKey(&k1.PublicKey)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(tmpdir, "default.pub"), derPub1, 0644)
-	c.Assert(err, IsNil)
-	derPub2, err := x509.MarshalPKIXPublicKey(&k2.PublicKey)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(tmpdir, "models.pub"), derPub2, 0644)
-	c.Assert(err, IsNil)
+	k2 := mylog.Check2(rsa.GenerateKey(rand.Reader, 4096))
 
-	err = os.WriteFile(filepath.Join(tmpdir, "default.key"), x509.MarshalPKCS1PrivateKey(k1), 0600)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(tmpdir, "models.key"), x509.MarshalPKCS1PrivateKey(k2), 0600)
-	c.Assert(err, IsNil)
+
+	derPub1 := mylog.Check2(x509.MarshalPKIXPublicKey(&k1.PublicKey))
+
+	mylog.Check(os.WriteFile(filepath.Join(tmpdir, "default.pub"), derPub1, 0644))
+
+	derPub2 := mylog.Check2(x509.MarshalPKIXPublicKey(&k2.PublicKey))
+
+	mylog.Check(os.WriteFile(filepath.Join(tmpdir, "models.pub"), derPub2, 0644))
+
+	mylog.Check(os.WriteFile(filepath.Join(tmpdir, "default.key"), x509.MarshalPKCS1PrivateKey(k1), 0600))
+
+	mylog.Check(os.WriteFile(filepath.Join(tmpdir, "models.key"), x509.MarshalPKCS1PrivateKey(k2), 0600))
+
 
 	s.defaultPub = &k1.PublicKey
 	s.modelsPub = &k2.PublicKey
@@ -127,7 +127,7 @@ echo "${EXT_KEYMGR_FAIL}"
 	for _, t := range tests {
 		os.Setenv("EXT_KEYMGR_FAIL", t.outcome)
 
-		_, err := asserts.NewExternalKeypairManager("keymgr")
+		_ := mylog.Check2(asserts.NewExternalKeypairManager("keymgr"))
 		c.Check(err, ErrorMatches, t.err)
 		c.Check(pgm.Calls(), DeepEquals, [][]string{
 			{"keymgr", "features"},
@@ -137,12 +137,12 @@ echo "${EXT_KEYMGR_FAIL}"
 }
 
 func (s *extKeypairMgrSuite) TestGetByName(c *C) {
-	kmgr, err := asserts.NewExternalKeypairManager("keymgr")
-	c.Assert(err, IsNil)
+	kmgr := mylog.Check2(asserts.NewExternalKeypairManager("keymgr"))
+
 	s.pgm.ForgetCalls()
 
-	pk, err := kmgr.GetByName("default")
-	c.Assert(err, IsNil)
+	pk := mylog.Check2(kmgr.GetByName("default"))
+
 
 	expPK := asserts.RSAPublicKey(s.defaultPub)
 
@@ -154,28 +154,28 @@ func (s *extKeypairMgrSuite) TestGetByName(c *C) {
 }
 
 func (s *extKeypairMgrSuite) TestGetByNameNotFound(c *C) {
-	kmgr, err := asserts.NewExternalKeypairManager("keymgr")
-	c.Assert(err, IsNil)
+	kmgr := mylog.Check2(asserts.NewExternalKeypairManager("keymgr"))
 
-	_, err = kmgr.GetByName("missing")
+
+	_ = mylog.Check2(kmgr.GetByName("missing"))
 	c.Check(err, ErrorMatches, `cannot find external key pair: external keypair manager "keymgr" .* failed: .*`)
 	c.Check(asserts.IsKeyNotFound(err), Equals, true)
 }
 
 func (s *extKeypairMgrSuite) TestGet(c *C) {
-	kmgr, err := asserts.NewExternalKeypairManager("keymgr")
-	c.Assert(err, IsNil)
+	kmgr := mylog.Check2(asserts.NewExternalKeypairManager("keymgr"))
+
 	s.pgm.ForgetCalls()
 
 	defaultID := asserts.RSAPublicKey(s.defaultPub).ID()
 	modelsID := asserts.RSAPublicKey(s.modelsPub).ID()
 
-	pk1, err := kmgr.Get(defaultID)
-	c.Assert(err, IsNil)
+	pk1 := mylog.Check2(kmgr.Get(defaultID))
+
 	c.Check(pk1.PublicKey().ID(), Equals, defaultID)
 
-	pk2, err := kmgr.Get(modelsID)
-	c.Assert(err, IsNil)
+	pk2 := mylog.Check2(kmgr.Get(modelsID))
+
 	c.Check(pk2.PublicKey().ID(), Equals, modelsID)
 
 	c.Check(s.pgm.Calls(), DeepEquals, [][]string{
@@ -184,23 +184,21 @@ func (s *extKeypairMgrSuite) TestGet(c *C) {
 		{"keymgr", "get-public-key", "-f", "DER", "-k", "models"},
 	})
 
-	_, err = kmgr.Get("unknown-id")
+	_ = mylog.Check2(kmgr.Get("unknown-id"))
 	c.Check(err, ErrorMatches, `cannot find external key pair`)
 	c.Check(asserts.IsKeyNotFound(err), Equals, true)
 }
 
 func (s *extKeypairMgrSuite) TestSignFlow(c *C) {
 	// the signing uses openssl
-	_, err := exec.LookPath("openssl")
-	if err != nil {
-		c.Skip("cannot locate openssl on this system to test signing")
-	}
-	kmgr, err := asserts.NewExternalKeypairManager("keymgr")
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(exec.LookPath("openssl"))
+
+	kmgr := mylog.Check2(asserts.NewExternalKeypairManager("keymgr"))
+
 	s.pgm.ForgetCalls()
 
-	pk, err := kmgr.GetByName("default")
-	c.Assert(err, IsNil)
+	pk := mylog.Check2(kmgr.GetByName("default"))
+
 
 	store := assertstest.NewStoreStack("trusted", nil)
 
@@ -209,24 +207,26 @@ func (s *extKeypairMgrSuite) TestSignFlow(c *C) {
 	}, "")
 	brandAccKey := assertstest.NewAccountKey(store, brandAcct, nil, pk.PublicKey(), "")
 
-	signDB, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+	signDB := mylog.Check2(asserts.OpenDatabase(&asserts.DatabaseConfig{
 		KeypairManager: kmgr,
-	})
-	c.Assert(err, IsNil)
+	}))
 
-	checkDB, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+
+	checkDB := mylog.Check2(asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
 		Trusted:   store.Trusted,
-	})
-	c.Assert(err, IsNil)
-	// add store key
-	err = checkDB.Add(store.StoreAccountKey(""))
-	c.Assert(err, IsNil)
-	// enable brand key
-	err = checkDB.Add(brandAcct)
-	c.Assert(err, IsNil)
-	err = checkDB.Add(brandAccKey)
-	c.Assert(err, IsNil)
+	}))
+
+	mylog.
+		// add store key
+		Check(checkDB.Add(store.StoreAccountKey("")))
+
+	mylog.
+		// enable brand key
+		Check(checkDB.Add(brandAcct))
+
+	mylog.Check(checkDB.Add(brandAccKey))
+
 
 	modelHdsrs := map[string]interface{}{
 		"authority-id": "brand-id",
@@ -239,12 +239,13 @@ func (s *extKeypairMgrSuite) TestSignFlow(c *C) {
 		"kernel":       "pc-kernel",
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}
-	a, err := signDB.Sign(asserts.ModelType, modelHdsrs, nil, pk.PublicKey().ID())
-	c.Assert(err, IsNil)
+	a := mylog.Check2(signDB.Sign(asserts.ModelType, modelHdsrs, nil, pk.PublicKey().ID()))
 
-	// valid
-	err = checkDB.Check(a)
-	c.Assert(err, IsNil)
+	mylog.
+
+		// valid
+		Check(checkDB.Check(a))
+
 
 	c.Check(s.pgm.Calls(), DeepEquals, [][]string{
 		{"keymgr", "get-public-key", "-f", "DER", "-k", "default"},
@@ -253,8 +254,8 @@ func (s *extKeypairMgrSuite) TestSignFlow(c *C) {
 }
 
 func (s *extKeypairMgrSuite) TestExport(c *C) {
-	kmgr, err := asserts.NewExternalKeypairManager("keymgr")
-	c.Assert(err, IsNil)
+	kmgr := mylog.Check2(asserts.NewExternalKeypairManager("keymgr"))
+
 
 	keys := []struct {
 		name string
@@ -265,21 +266,21 @@ func (s *extKeypairMgrSuite) TestExport(c *C) {
 	}
 
 	for _, tk := range keys {
-		exported, err := kmgr.Export(tk.name)
-		c.Assert(err, IsNil)
+		exported := mylog.Check2(kmgr.Export(tk.name))
 
-		expected, err := asserts.EncodePublicKey(asserts.RSAPublicKey(tk.pk))
-		c.Assert(err, IsNil)
+
+		expected := mylog.Check2(asserts.EncodePublicKey(asserts.RSAPublicKey(tk.pk)))
+
 		c.Check(exported, DeepEquals, expected)
 	}
 }
 
 func (s *extKeypairMgrSuite) TestList(c *C) {
-	kmgr, err := asserts.NewExternalKeypairManager("keymgr")
-	c.Assert(err, IsNil)
+	kmgr := mylog.Check2(asserts.NewExternalKeypairManager("keymgr"))
 
-	keys, err := kmgr.List()
-	c.Assert(err, IsNil)
+
+	keys := mylog.Check2(kmgr.List())
+
 
 	defaultID := asserts.RSAPublicKey(s.defaultPub).ID()
 	modelsID := asserts.RSAPublicKey(s.modelsPub).ID()
@@ -291,41 +292,36 @@ func (s *extKeypairMgrSuite) TestList(c *C) {
 }
 
 func (s *extKeypairMgrSuite) TestListError(c *C) {
-	kmgr, err := asserts.NewExternalKeypairManager("keymgr")
-	c.Assert(err, IsNil)
+	kmgr := mylog.Check2(asserts.NewExternalKeypairManager("keymgr"))
+
 
 	pgm := testutil.MockCommand(c, "keymgr", `exit 1`)
 	defer pgm.Restore()
 
-	_, err = kmgr.List()
+	_ = mylog.Check2(kmgr.List())
 	c.Check(err, ErrorMatches, `cannot get all external keypair manager key names:.*exit status 1.*`)
 }
 
 func (s *extKeypairMgrSuite) TestDeleteByNameUnsupported(c *C) {
-	kmgr, err := asserts.NewExternalKeypairManager("keymgr")
-	c.Assert(err, IsNil)
+	kmgr := mylog.Check2(asserts.NewExternalKeypairManager("keymgr"))
 
-	err = kmgr.DeleteByName("key")
+	mylog.Check(kmgr.DeleteByName("key"))
 	c.Check(err, ErrorMatches, `no support to delete external keypair manager keys`)
 	c.Check(err, FitsTypeOf, &asserts.ExternalUnsupportedOpError{})
-
 }
 
 func (s *extKeypairMgrSuite) TestDelete(c *C) {
-	kmgr, err := asserts.NewExternalKeypairManager("keymgr")
-	c.Assert(err, IsNil)
+	kmgr := mylog.Check2(asserts.NewExternalKeypairManager("keymgr"))
 
-	err = kmgr.Delete("key-id")
+	mylog.Check(kmgr.Delete("key-id"))
 	c.Check(err, ErrorMatches, `no support to delete external keypair manager keys`)
 	c.Check(err, FitsTypeOf, &asserts.ExternalUnsupportedOpError{})
-
 }
 
 func (s *extKeypairMgrSuite) TestGenerateUnsupported(c *C) {
-	kmgr, err := asserts.NewExternalKeypairManager("keymgr")
-	c.Assert(err, IsNil)
+	kmgr := mylog.Check2(asserts.NewExternalKeypairManager("keymgr"))
 
-	err = kmgr.Generate("key")
+	mylog.Check(kmgr.Generate("key"))
 	c.Check(err, ErrorMatches, `no support to mediate generating an external keypair manager key`)
 	c.Check(err, FitsTypeOf, &asserts.ExternalUnsupportedOpError{})
 }

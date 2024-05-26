@@ -22,6 +22,8 @@ package naming
 import (
 	"fmt"
 	"strings"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // ComponentRef contains the component name and the owner snap name.
@@ -42,19 +44,16 @@ func (cr ComponentRef) String() string {
 // Validate validates the component.
 func (cr ComponentRef) Validate() error {
 	for _, name := range []string{cr.SnapName, cr.ComponentName} {
-		// Same restrictions as snap names
-		if err := ValidateSnap(name); err != nil {
-			return err
-		}
+		mylog.Check(
+			// Same restrictions as snap names
+			ValidateSnap(name))
 	}
 	return nil
 }
 
 func (cid *ComponentRef) UnmarshalYAML(unmarshall func(interface{}) error) error {
 	idStr := ""
-	if err := unmarshall(&idStr); err != nil {
-		return err
-	}
+	mylog.Check(unmarshall(&idStr))
 
 	names := strings.Split(idStr, "+")
 	if len(names) != 2 {

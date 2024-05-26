@@ -24,6 +24,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 )
 
@@ -52,7 +53,7 @@ func (cs *clientSuite) TestClientInterfacesAll(c *check.C) {
 			{"name": "iface-c", "summary": "the C iface"}
 		]
 	}`
-	ifaces, err := cs.cli.Interfaces(nil)
+	ifaces := mylog.Check2(cs.cli.Interfaces(nil))
 	c.Check(cs.req.Method, check.Equals, "GET")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/interfaces")
 	// This uses the select=all query option to indicate that new response
@@ -78,9 +79,9 @@ func (cs *clientSuite) TestClientInterfacesConnected(c *check.C) {
 			{"name": "iface-c", "summary": "the C iface"}
 		]
 	}`
-	ifaces, err := cs.cli.Interfaces(&client.InterfaceOptions{
+	ifaces := mylog.Check2(cs.cli.Interfaces(&client.InterfaceOptions{
 		Connected: true,
-	})
+	}))
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/interfaces")
 	// This uses select=connected to ignore interfaces that just sit on some
 	// snap but are not connected to anything.
@@ -116,7 +117,7 @@ func (cs *clientSuite) TestClientInterfacesSelectedDetails(c *check.C) {
 		]
 	}`
 	opts := &client.InterfaceOptions{Names: []string{"iface-a"}, Doc: true, Plugs: true, Slots: true}
-	ifaces, err := cs.cli.Interfaces(opts)
+	ifaces := mylog.Check2(cs.cli.Interfaces(opts))
 	c.Check(cs.req.Method, check.Equals, "GET")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/interfaces")
 	// This enables documentation, plugs, slots, chooses a specific interface
@@ -144,7 +145,7 @@ func (cs *clientSuite) TestClientInterfacesMultiple(c *check.C) {
 			{"name": "iface-b", "summary": "the B iface"}
 		]
 	}`
-	ifaces, err := cs.cli.Interfaces(&client.InterfaceOptions{Names: []string{"iface-a", "iface-b"}})
+	ifaces := mylog.Check2(cs.cli.Interfaces(&client.InterfaceOptions{Names: []string{"iface-a", "iface-b"}}))
 	c.Check(cs.req.Method, check.Equals, "GET")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/interfaces")
 	// This chooses a specific interfaces (iface-a, iface-b)
@@ -170,12 +171,12 @@ func (cs *clientSuite) TestClientConnect(c *check.C) {
 		"result": { },
                 "change": "foo"
 	}`
-	id, err := cs.cli.Connect("producer", "plug", "consumer", "slot")
+	id := mylog.Check2(cs.cli.Connect("producer", "plug", "consumer", "slot"))
 	c.Assert(err, check.IsNil)
 	c.Check(id, check.Equals, "foo")
 	var body map[string]interface{}
 	decoder := json.NewDecoder(cs.req.Body)
-	err = decoder.Decode(&body)
+	mylog.Check(decoder.Decode(&body))
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"action": "connect",
@@ -209,12 +210,12 @@ func (cs *clientSuite) TestClientDisconnect(c *check.C) {
                 "change": "42"
 	}`
 	opts := &client.DisconnectOptions{Forget: false}
-	id, err := cs.cli.Disconnect("producer", "plug", "consumer", "slot", opts)
+	id := mylog.Check2(cs.cli.Disconnect("producer", "plug", "consumer", "slot", opts))
 	c.Assert(err, check.IsNil)
 	c.Check(id, check.Equals, "42")
 	var body map[string]interface{}
 	decoder := json.NewDecoder(cs.req.Body)
-	err = decoder.Decode(&body)
+	mylog.Check(decoder.Decode(&body))
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"action": "disconnect",
@@ -242,12 +243,12 @@ func (cs *clientSuite) TestClientDisconnectForget(c *check.C) {
                 "change": "42"
 	}`
 	opts := &client.DisconnectOptions{Forget: true}
-	id, err := cs.cli.Disconnect("producer", "plug", "consumer", "slot", opts)
+	id := mylog.Check2(cs.cli.Disconnect("producer", "plug", "consumer", "slot", opts))
 	c.Assert(err, check.IsNil)
 	c.Check(id, check.Equals, "42")
 	var body map[string]interface{}
 	decoder := json.NewDecoder(cs.req.Body)
-	err = decoder.Decode(&body)
+	mylog.Check(decoder.Decode(&body))
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"action": "disconnect",

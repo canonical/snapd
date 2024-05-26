@@ -23,6 +23,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // OutcomeType describes the outcome associated with a reply or rule.
@@ -40,9 +42,8 @@ const (
 
 func (outcome *OutcomeType) UnmarshalJSON(data []byte) error {
 	var s string
-	if err := json.Unmarshal(data, &s); err != nil {
-		return err
-	}
+	mylog.Check(json.Unmarshal(data, &s))
+
 	value := OutcomeType(s)
 	switch value {
 	case OutcomeAllow, OutcomeDeny:
@@ -87,9 +88,8 @@ const (
 
 func (lifespan *LifespanType) UnmarshalJSON(data []byte) error {
 	var lifespanStr string
-	if err := json.Unmarshal(data, &lifespanStr); err != nil {
-		return err
-	}
+	mylog.Check(json.Unmarshal(data, &lifespanStr))
+
 	value := LifespanType(lifespanStr)
 	switch value {
 	case LifespanForever, LifespanSingle, LifespanTimespan:
@@ -145,10 +145,8 @@ func (lifespan LifespanType) ParseDuration(duration string, currTime time.Time) 
 		if duration == "" {
 			return expiration, fmt.Errorf(`cannot have unspecified duration when lifespan is %q`, lifespan)
 		}
-		parsedDuration, err := time.ParseDuration(duration)
-		if err != nil {
-			return expiration, fmt.Errorf(`cannot parse duration: %w`, err)
-		}
+		parsedDuration := mylog.Check2(time.ParseDuration(duration))
+
 		if parsedDuration <= 0 {
 			return expiration, fmt.Errorf(`cannot have zero or negative duration: %q`, duration)
 		}

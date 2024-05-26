@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	snap "github.com/snapcore/snapd/cmd/snap"
 )
 
@@ -59,7 +60,6 @@ Note that the "run" mode is only available for the current system.
 }
 
 func (s *SnapSuite) TestRebootHappy(c *C) {
-
 	for _, tc := range []struct {
 		cmdline          []string
 		expectedEndpoint string
@@ -107,7 +107,7 @@ func (s *SnapSuite) TestRebootHappy(c *C) {
 				c.Check(r.Method, Equals, "POST")
 				c.Check(r.URL.Path, Equals, tc.expectedEndpoint, Commentf("%v", tc.cmdline))
 				c.Check(r.URL.RawQuery, Equals, "")
-				body, err := io.ReadAll(r.Body)
+				body := mylog.Check2(io.ReadAll(r.Body))
 				c.Check(err, IsNil)
 				c.Check(string(body), Equals, tc.expectedJSON+"\n")
 				fmt.Fprintln(w, `{"type": "sync", "result": {}}`)
@@ -119,8 +119,8 @@ func (s *SnapSuite) TestRebootHappy(c *C) {
 		})
 
 		// The server side will work out if the request is valid
-		rest, err := snap.Parser(snap.Client()).ParseArgs(tc.cmdline)
-		c.Assert(err, IsNil)
+		rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs(tc.cmdline))
+
 		c.Assert(rest, DeepEquals, []string{})
 		c.Check(s.Stdout(), Equals, tc.expectedMsg+"\n", Commentf("%v", tc.cmdline))
 		c.Check(s.Stderr(), Equals, "")
@@ -132,7 +132,7 @@ func (s *SnapSuite) TestRebootUnhappy(c *C) {
 		c.Fatalf("server should not be hit in this test")
 	})
 
-	var tc = []struct {
+	tc := []struct {
 		args   []string
 		errStr string
 	}{
@@ -147,7 +147,7 @@ func (s *SnapSuite) TestRebootUnhappy(c *C) {
 	}
 
 	for _, t := range tc {
-		_, err := snap.Parser(snap.Client()).ParseArgs(t.args)
+		_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs(t.args))
 		c.Check(err, ErrorMatches, t.errStr, Commentf(strings.Join(t.args, " ")))
 	}
 }
@@ -168,7 +168,7 @@ func (s *SnapSuite) TestRebootAPIFail(c *C) {
 
 		n++
 	})
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"reboot", "--recover", "20200101"})
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"reboot", "--recover", "20200101"}))
 	c.Assert(err, ErrorMatches, `cannot request system reboot into "20200101": requested system does not exist`)
 	c.Check(s.Stdout(), Equals, "")
 	c.Check(s.Stderr(), Equals, "")

@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/ubootenv"
 	"github.com/snapcore/snapd/osutil"
@@ -47,14 +48,14 @@ func (s *ubootTestSuite) TestNewUboot(c *C) {
 	c.Assert(u, NotNil)
 	c.Assert(u.Name(), Equals, "uboot")
 
-	present, err := u.Present()
-	c.Assert(err, IsNil)
+	present := mylog.Check2(u.Present())
+
 	c.Assert(present, Equals, false)
 
 	// now with files present, the bl is present
 	bootloader.MockUbootFiles(c, s.rootdir, nil)
-	present, err = u.Present()
-	c.Assert(err, IsNil)
+	present = mylog.Check2(u.Present())
+
 	c.Assert(present, Equals, true)
 }
 
@@ -62,14 +63,14 @@ func (s *ubootTestSuite) TestUbootGetEnvVar(c *C) {
 	bootloader.MockUbootFiles(c, s.rootdir, nil)
 	u := bootloader.NewUboot(s.rootdir, nil)
 	c.Assert(u, NotNil)
-	err := u.SetBootVars(map[string]string{
+	mylog.Check(u.SetBootVars(map[string]string{
 		"snap_mode": "",
 		"snap_core": "4",
-	})
-	c.Assert(err, IsNil)
+	}))
 
-	m, err := u.GetBootVars("snap_mode", "snap_core")
-	c.Assert(err, IsNil)
+
+	m := mylog.Check2(u.GetBootVars("snap_mode", "snap_core"))
+
 	c.Assert(m, DeepEquals, map[string]string{
 		"snap_mode": "",
 		"snap_core": "4",
@@ -79,8 +80,8 @@ func (s *ubootTestSuite) TestUbootGetEnvVar(c *C) {
 func (s *ubootTestSuite) TestGetBootloaderWithUboot(c *C) {
 	bootloader.MockUbootFiles(c, s.rootdir, nil)
 
-	bootloader, err := bootloader.Find(s.rootdir, nil)
-	c.Assert(err, IsNil)
+	bootloader := mylog.Check2(bootloader.Find(s.rootdir, nil))
+
 	c.Assert(bootloader.Name(), Equals, "uboot")
 }
 
@@ -90,51 +91,50 @@ func (s *ubootTestSuite) TestUbootSetEnvNoUselessWrites(c *C) {
 	c.Assert(u, NotNil)
 
 	envFile := bootloader.UbootConfigFile(u)
-	env, err := ubootenv.Create(envFile, 4096, ubootenv.CreateOptions{HeaderFlagByte: true})
-	c.Assert(err, IsNil)
+	env := mylog.Check2(ubootenv.Create(envFile, 4096, ubootenv.CreateOptions{HeaderFlagByte: true}))
+
 	env.Set("snap_ab", "b")
 	env.Set("snap_mode", "")
-	err = env.Save()
-	c.Assert(err, IsNil)
+	mylog.Check(env.Save())
 
-	st, err := os.Stat(envFile)
-	c.Assert(err, IsNil)
+
+	st := mylog.Check2(os.Stat(envFile))
+
 	time.Sleep(100 * time.Millisecond)
+	mylog.
 
-	// note that we set to the same var as above
-	err = u.SetBootVars(map[string]string{"snap_ab": "b"})
-	c.Assert(err, IsNil)
+		// note that we set to the same var as above
+		Check(u.SetBootVars(map[string]string{"snap_ab": "b"}))
 
-	env, err = ubootenv.Open(envFile)
-	c.Assert(err, IsNil)
+
+	env = mylog.Check2(ubootenv.Open(envFile))
+
 	c.Assert(env.String(), Equals, "snap_ab=b\n")
 
-	st2, err := os.Stat(envFile)
-	c.Assert(err, IsNil)
+	st2 := mylog.Check2(os.Stat(envFile))
+
 	c.Assert(st.ModTime(), Equals, st2.ModTime())
 }
 
 func (s *ubootTestSuite) TestUbootSetBootVarFwEnv(c *C) {
 	bootloader.MockUbootFiles(c, s.rootdir, nil)
 	u := bootloader.NewUboot(s.rootdir, nil)
+	mylog.Check(u.SetBootVars(map[string]string{"key": "value"}))
 
-	err := u.SetBootVars(map[string]string{"key": "value"})
-	c.Assert(err, IsNil)
 
-	content, err := u.GetBootVars("key")
-	c.Assert(err, IsNil)
+	content := mylog.Check2(u.GetBootVars("key"))
+
 	c.Assert(content, DeepEquals, map[string]string{"key": "value"})
 }
 
 func (s *ubootTestSuite) TestUbootGetBootVarFwEnv(c *C) {
 	bootloader.MockUbootFiles(c, s.rootdir, nil)
 	u := bootloader.NewUboot(s.rootdir, nil)
+	mylog.Check(u.SetBootVars(map[string]string{"key2": "value2"}))
 
-	err := u.SetBootVars(map[string]string{"key2": "value2"})
-	c.Assert(err, IsNil)
 
-	content, err := u.GetBootVars("key2")
-	c.Assert(err, IsNil)
+	content := mylog.Check2(u.GetBootVars("key2"))
+
 	c.Assert(content, DeepEquals, map[string]string{"key2": "value2"})
 }
 
@@ -155,14 +155,13 @@ func (s *ubootTestSuite) TestExtractKernelAssetsAndRemove(c *C) {
 		Revision: snap.R(42),
 	}
 	fn := snaptest.MakeTestSnapWithFiles(c, packageKernel, files)
-	snapf, err := snapfile.Open(fn)
-	c.Assert(err, IsNil)
+	snapf := mylog.Check2(snapfile.Open(fn))
 
-	info, err := snap.ReadInfoFromSnapFile(snapf, si)
-	c.Assert(err, IsNil)
 
-	err = u.ExtractKernelAssets(info, snapf)
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.ReadInfoFromSnapFile(snapf, si))
+
+	mylog.Check(u.ExtractKernelAssets(info, snapf))
+
 
 	// this is where the kernel/initrd is unpacked
 	kernelAssetsDir := filepath.Join(s.rootdir, "boot", "uboot", "ubuntu-kernel_42.snap")
@@ -175,10 +174,11 @@ func (s *ubootTestSuite) TestExtractKernelAssetsAndRemove(c *C) {
 		fullFn := filepath.Join(kernelAssetsDir, def[0])
 		c.Check(fullFn, testutil.FileEquals, def[1])
 	}
+	mylog.
 
-	// remove
-	err = u.RemoveKernelAssets(info)
-	c.Assert(err, IsNil)
+		// remove
+		Check(u.RemoveKernelAssets(info))
+
 
 	c.Check(osutil.FileExists(kernelAssetsDir), Equals, false)
 }
@@ -200,19 +200,21 @@ func (s *ubootTestSuite) TestExtractRecoveryKernelAssets(c *C) {
 		Revision: snap.R(42),
 	}
 	fn := snaptest.MakeTestSnapWithFiles(c, packageKernel, files)
-	snapf, err := snapfile.Open(fn)
-	c.Assert(err, IsNil)
+	snapf := mylog.Check2(snapfile.Open(fn))
 
-	info, err := snap.ReadInfoFromSnapFile(snapf, si)
-	c.Assert(err, IsNil)
 
-	// try with empty recovery dir first to check the errors
-	err = u.ExtractRecoveryKernelAssets("", info, snapf)
+	info := mylog.Check2(snap.ReadInfoFromSnapFile(snapf, si))
+
+	mylog.
+
+		// try with empty recovery dir first to check the errors
+		Check(u.ExtractRecoveryKernelAssets("", info, snapf))
 	c.Assert(err, ErrorMatches, "internal error: recoverySystemDir unset")
+	mylog.
 
-	// now the expected behavior
-	err = u.ExtractRecoveryKernelAssets("recovery-dir", info, snapf)
-	c.Assert(err, IsNil)
+		// now the expected behavior
+		Check(u.ExtractRecoveryKernelAssets("recovery-dir", info, snapf))
+
 
 	// this is where the kernel/initrd is unpacked
 	kernelAssetsDir := filepath.Join(s.rootdir, "recovery-dir", "kernel")
@@ -265,53 +267,49 @@ func (s *ubootTestSuite) TestUbootUC20OptsPlacement(c *C) {
 		// if we set boot vars on the uboot, we can open the config file and
 		// get the same variables
 		c.Assert(u.SetBootVars(map[string]string{"hello": "there"}), IsNil)
-		env, err := ubootenv.Open(filepath.Join(dir, t.expEnv))
-		c.Assert(err, IsNil)
+		env := mylog.Check2(ubootenv.Open(filepath.Join(dir, t.expEnv)))
+
 		c.Assert(env.Get("hello"), Equals, "there")
 	}
 }
 
 func (s *ubootTestSuite) TestUbootInstallBootConfigHeaderSizeFromGadget(c *C) {
-
 	opts := &bootloader.Options{Role: bootloader.RoleRecovery}
 	u := bootloader.NewUboot(s.rootdir, opts)
 
 	gadgetDir := c.MkDir()
-	confFile, err := os.Create(filepath.Join(gadgetDir, "uboot.conf"))
-	c.Assert(err, IsNil)
-	err = confFile.Close()
-	c.Assert(err, IsNil)
+	confFile := mylog.Check2(os.Create(filepath.Join(gadgetDir, "uboot.conf")))
+
+	mylog.Check(confFile.Close())
+
 
 	for _, variant := range []bool{true, false} {
-		env, err := ubootenv.Create(filepath.Join(gadgetDir, "boot.sel"), 4096, ubootenv.CreateOptions{HeaderFlagByte: variant})
-		c.Assert(err, IsNil)
-		err = env.Save()
-		c.Assert(err, IsNil)
+		env := mylog.Check2(ubootenv.Create(filepath.Join(gadgetDir, "boot.sel"), 4096, ubootenv.CreateOptions{HeaderFlagByte: variant}))
 
-		err = u.InstallBootConfig(gadgetDir, opts)
-		c.Assert(err, IsNil)
+		mylog.Check(env.Save())
 
-		env, err = ubootenv.Open(filepath.Join(s.rootdir, "/uboot/ubuntu/boot.sel"))
-		c.Assert(err, IsNil)
+		mylog.Check(u.InstallBootConfig(gadgetDir, opts))
+
+
+		env = mylog.Check2(ubootenv.Open(filepath.Join(s.rootdir, "/uboot/ubuntu/boot.sel")))
+
 		c.Assert(env.HeaderFlagByte(), Equals, variant)
 	}
 }
 
 func (s *ubootTestSuite) TestUbootInstallBootConfigHeaderSizeDefault(c *C) {
-
 	opts := &bootloader.Options{Role: bootloader.RoleRecovery}
 	u := bootloader.NewUboot(s.rootdir, opts)
 
 	gadgetDir := c.MkDir()
-	confFile, err := os.Create(filepath.Join(gadgetDir, "uboot.conf"))
-	c.Assert(err, IsNil)
-	err = confFile.Close()
-	c.Assert(err, IsNil)
+	confFile := mylog.Check2(os.Create(filepath.Join(gadgetDir, "uboot.conf")))
 
-	err = u.InstallBootConfig(gadgetDir, opts)
-	c.Assert(err, IsNil)
+	mylog.Check(confFile.Close())
 
-	env, err := ubootenv.Open(filepath.Join(s.rootdir, "/uboot/ubuntu/boot.sel"))
-	c.Assert(err, IsNil)
+	mylog.Check(u.InstallBootConfig(gadgetDir, opts))
+
+
+	env := mylog.Check2(ubootenv.Open(filepath.Join(s.rootdir, "/uboot/ubuntu/boot.sel")))
+
 	c.Assert(env.HeaderFlagByte(), Equals, true)
 }

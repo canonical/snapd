@@ -25,6 +25,7 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -91,9 +92,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&loginData); err != nil {
-		return BadRequest("cannot decode login data from request body: %v", err)
-	}
+	mylog.Check(decoder.Decode(&loginData))
 
 	if loginData.Email == "" && isEmailish(loginData.Username) {
 		// for backwards compatibility, if no email is provided assume username is the email
@@ -118,7 +117,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 	overlord := c.d.overlord
 	st := overlord.State()
 	theStore := storeFrom(c.d)
-	macaroon, discharge, err := theStore.LoginUser(loginData.Email, loginData.Password, loginData.Otp)
+	macaroon, discharge := mylog.Check3(theStore.LoginUser(loginData.Email, loginData.Password, loginData.Otp))
 	switch err {
 	case store.ErrAuthenticationNeeds2fa:
 		return &apiError{
@@ -160,19 +159,16 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 		user.StoreDischarges = []string{discharge}
 		// user's email address authenticated by the store
 		user.Email = loginData.Email
-		err = auth.UpdateUser(st, user)
+		mylog.Check(auth.UpdateUser(st, user))
 	} else {
-		user, err = auth.NewUser(st, auth.NewUserParams{
+		user = mylog.Check2(auth.NewUser(st, auth.NewUserParams{
 			Username:   loginData.Username,
 			Email:      loginData.Email,
 			Macaroon:   macaroon,
 			Discharges: []string{discharge},
-		})
+		}))
 	}
 	st.Unlock()
-	if err != nil {
-		return InternalError("cannot persist authentication details: %v", err)
-	}
 
 	result := userResponseData{
 		ID:         user.ID,
@@ -192,10 +188,7 @@ func logoutUser(c *Command, r *http.Request, user *auth.UserState) Response {
 	if user == nil {
 		return BadRequest("not logged in")
 	}
-	_, err := auth.RemoveUser(state, user.ID)
-	if err != nil {
-		return InternalError(err.Error())
-	}
+	_ := mylog.Check2(auth.RemoveUser(state, user.ID))
 
 	return SyncResponse(nil)
 }
@@ -213,9 +206,8 @@ func postUsers(c *Command, r *http.Request, user *auth.UserState) Response {
 	var postData postUserData
 
 	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&postData); err != nil {
-		return BadRequest("cannot decode user action data from request body: %v", err)
-	}
+	mylog.Check(decoder.Decode(&postData))
+
 	if decoder.More() {
 		return BadRequest("spurious content after user action")
 	}
@@ -235,13 +227,7 @@ func removeUser(c *Command, username string, opts postUserDeleteData) Response {
 	st.Lock()
 	defer st.Unlock()
 
-	u, err := deviceStateRemoveUser(st, username, &devicestate.RemoveUserOptions{})
-	if err != nil {
-		if _, ok := err.(*devicestate.UserError); ok {
-			return BadRequest(err.Error())
-		}
-		return InternalError(err.Error())
-	}
+	u := mylog.Check2(deviceStateRemoveUser(st, username, &devicestate.RemoveUserOptions{}))
 
 	result := map[string]interface{}{
 		"removed": []userResponseData{
@@ -258,9 +244,7 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 	var createData postUserCreateData
 
 	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&createData); err != nil {
-		return BadRequest("cannot decode create-user data from request body: %v", err)
-	}
+	mylog.Check(decoder.Decode(&createData))
 
 	// this is /v2/create-user, meaning we want the
 	// backwards-compatible wackiness
@@ -281,11 +265,8 @@ func createUser(c *Command, createData postUserCreateData) Response {
 	// verify request
 	st := c.d.overlord.State()
 	st.Lock()
-	users, err := auth.Users(st)
+	users := mylog.Check2(auth.Users(st))
 	st.Unlock()
-	if err != nil {
-		return InternalError("cannot get user count: %s", err)
-	}
 
 	if !createData.Expiration.IsZero() {
 		// Automatic implies known
@@ -315,15 +296,11 @@ func createUser(c *Command, createData postUserCreateData) Response {
 		var enabled bool
 		st.Lock()
 		tr := config.NewTransaction(st)
-		err := tr.Get("core", "users.create.automatic", &enabled)
+		mylog.Check(tr.Get("core", "users.create.automatic", &enabled))
 		st.Unlock()
-		if err != nil {
-			if !config.IsNoOption(err) {
-				return InternalError("%v", err)
-			}
-			// defaults to enabled
-			enabled = true
-		}
+
+		// defaults to enabled
+
 		if !enabled {
 			// disabled, do nothing
 			return SyncResponse([]userResponseData{})
@@ -333,13 +310,7 @@ func createUser(c *Command, createData postUserCreateData) Response {
 		createData.Sudoer = true
 	}
 
-	createdUsers, err := doCreateUser(st, createData)
-	if err != nil {
-		if _, ok := err.(*devicestate.UserError); ok {
-			return BadRequest(err.Error())
-		}
-		return InternalError(err.Error())
-	}
+	createdUsers := mylog.Check2(doCreateUser(st, createData))
 
 	if createData.singleUserResultCompat {
 		return SyncResponse(&userResponseData{
@@ -365,7 +336,7 @@ func doCreateUser(st *state.State, createData postUserCreateData) ([]*devicestat
 		return deviceStateCreateKnownUsers(st, createData.Sudoer, createData.Email)
 	}
 
-	user, err := deviceStateCreateUser(st, createData.Sudoer, createData.Email, createData.Expiration)
+	user := mylog.Check2(deviceStateCreateUser(st, createData.Sudoer, createData.Email, createData.Expiration))
 	return []*devicestate.CreatedUser{user}, err
 }
 
@@ -396,11 +367,8 @@ type postUserDeleteData struct{}
 func getUsers(c *Command, r *http.Request, user *auth.UserState) Response {
 	st := c.d.overlord.State()
 	st.Lock()
-	users, err := auth.Users(st)
+	users := mylog.Check2(auth.Users(st))
 	st.Unlock()
-	if err != nil {
-		return InternalError("cannot get users: %s", err)
-	}
 
 	resp := make([]userResponseData, len(users))
 	for i, u := range users {

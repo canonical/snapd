@@ -27,6 +27,7 @@ import (
 
 	"gopkg.in/macaroon.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/snapdenv"
 )
@@ -58,23 +59,16 @@ func (a UserAuthorizer) Authorize(r *http.Request, _ DeviceAndAuthContext, user 
 	fmt.Fprintf(&buf, `Macaroon root="%s"`, user.StoreMacaroon)
 
 	// deserialize root macaroon (we need its signature to do the discharge binding)
-	root, err := auth.MacaroonDeserialize(user.StoreMacaroon)
-	if err != nil {
-		return fmt.Errorf("cannot deserialize root macaroon: %v", err)
-	}
+	root := mylog.Check2(auth.MacaroonDeserialize(user.StoreMacaroon))
 
 	for _, d := range user.StoreDischarges {
 		// prepare discharge for request
-		discharge, err := auth.MacaroonDeserialize(d)
-		if err != nil {
-			return fmt.Errorf("cannot deserialize discharge macaroon: %v", err)
-		}
+		discharge := mylog.Check2(auth.MacaroonDeserialize(d))
+
 		discharge.Bind(root.Signature())
 
-		serializedDischarge, err := auth.MacaroonSerialize(discharge)
-		if err != nil {
-			return fmt.Errorf("cannot re-serialize discharge macaroon: %v", err)
-		}
+		serializedDischarge := mylog.Check2(auth.MacaroonSerialize(discharge))
+
 		fmt.Fprintf(&buf, `, discharge="%s"`, serializedDischarge)
 	}
 	r.Header.Set("Authorization", buf.String())
@@ -102,15 +96,10 @@ func (a UserAuthorizer) RefreshUser(user *auth.UserState, upd UserAuthUpdater, c
 	if upd == nil {
 		return fmt.Errorf("user credentials need to be refreshed but update in place only supported in snapd")
 	}
-	newDischarges, err := refreshDischarges(client, user)
-	if err != nil {
-		return err
-	}
+	newDischarges := mylog.Check2(refreshDischarges(client, user))
 
-	curUser, err := upd.UpdateUserAuth(user, newDischarges)
-	if err != nil {
-		return err
-	}
+	curUser := mylog.Check2(upd.UpdateUserAuth(user, newDischarges))
+
 	// update in place
 	*user = *curUser
 
@@ -121,19 +110,15 @@ func (a UserAuthorizer) RefreshUser(user *auth.UserState, upd UserAuthUpdater, c
 func refreshDischarges(httpClient *http.Client, user *auth.UserState) ([]string, error) {
 	newDischarges := make([]string, len(user.StoreDischarges))
 	for i, d := range user.StoreDischarges {
-		discharge, err := auth.MacaroonDeserialize(d)
-		if err != nil {
-			return nil, err
-		}
+		discharge := mylog.Check2(auth.MacaroonDeserialize(d))
+
 		if discharge.Location() != UbuntuoneLocation {
 			newDischarges[i] = d
 			continue
 		}
 
-		refreshedDischarge, err := refreshDischargeMacaroon(httpClient, d)
-		if err != nil {
-			return nil, err
-		}
+		refreshedDischarge := mylog.Check2(refreshDischargeMacaroon(httpClient, d))
+
 		newDischarges[i] = refreshedDischarge
 	}
 	return newDischarges, nil
@@ -180,11 +165,7 @@ func requestStoreMacaroon(httpClient *http.Client) (string, error) {
 		"permissions": []string{"package_access", "package_purchase"},
 	}
 
-	var err error
-	macaroonJSONData, err := json.Marshal(data)
-	if err != nil {
-		return "", fmt.Errorf(errorPrefix+"%v", err)
-	}
+	macaroonJSONData := mylog.Check2(json.Marshal(data))
 
 	var responseData struct {
 		Macaroon string `json:"macaroon"`
@@ -195,10 +176,7 @@ func requestStoreMacaroon(httpClient *http.Client) (string, error) {
 		"Accept":       "application/json",
 		"Content-Type": "application/json",
 	}
-	resp, err := retryPostRequestDecodeJSON(httpClient, MacaroonACLAPI, headers, macaroonJSONData, &responseData, nil)
-	if err != nil {
-		return "", fmt.Errorf(errorPrefix+"%v", err)
-	}
+	resp := mylog.Check2(retryPostRequestDecodeJSON(httpClient, MacaroonACLAPI, headers, macaroonJSONData, &responseData, nil))
 
 	// check return code, error on anything !200
 	if resp.StatusCode != 200 {
@@ -214,11 +192,7 @@ func requestStoreMacaroon(httpClient *http.Client) (string, error) {
 func requestDischargeMacaroon(httpClient *http.Client, endpoint string, data map[string]string) (string, error) {
 	const errorPrefix = "cannot authenticate to snap store: "
 
-	var err error
-	dischargeJSONData, err := json.Marshal(data)
-	if err != nil {
-		return "", fmt.Errorf(errorPrefix+"%v", err)
-	}
+	dischargeJSONData := mylog.Check2(json.Marshal(data))
 
 	var responseData struct {
 		Macaroon string `json:"discharge_macaroon"`
@@ -230,10 +204,7 @@ func requestDischargeMacaroon(httpClient *http.Client, endpoint string, data map
 		"Accept":       "application/json",
 		"Content-Type": "application/json",
 	}
-	resp, err := retryPostRequestDecodeJSON(httpClient, endpoint, headers, dischargeJSONData, &responseData, &msg)
-	if err != nil {
-		return "", fmt.Errorf(errorPrefix+"%v", err)
-	}
+	resp := mylog.Check2(retryPostRequestDecodeJSON(httpClient, endpoint, headers, dischargeJSONData, &responseData, &msg))
 
 	// check return code, error on 4xx and anything !200
 	switch {

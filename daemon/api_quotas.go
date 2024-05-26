@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"sort"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -67,18 +68,14 @@ var getQuotaUsage = func(grp *quota.Group) (*client.QuotaValues, error) {
 	var currentUsage client.QuotaValues
 
 	if grp.MemoryLimit != 0 {
-		mem, err := grp.CurrentMemoryUsage()
-		if err != nil {
-			return nil, err
-		}
+		mem := mylog.Check2(grp.CurrentMemoryUsage())
+
 		currentUsage.Memory = mem
 	}
 
 	if grp.ThreadLimit != 0 {
-		threads, err := grp.CurrentTaskUsage()
-		if err != nil {
-			return nil, err
-		}
+		threads := mylog.Check2(grp.CurrentTaskUsage())
+
 		currentUsage.Threads = threads
 	}
 
@@ -119,10 +116,7 @@ func getQuotaGroups(c *Command, r *http.Request, _ *auth.UserState) Response {
 	st.Lock()
 	defer st.Unlock()
 
-	quotas, err := servicestate.AllQuotas(st)
-	if err != nil {
-		return InternalError(err.Error())
-	}
+	quotas := mylog.Check2(servicestate.AllQuotas(st))
 
 	i := 0
 	names := make([]string, len(quotas))
@@ -136,10 +130,7 @@ func getQuotaGroups(c *Command, r *http.Request, _ *auth.UserState) Response {
 	for i, name := range names {
 		group := quotas[name]
 
-		currentUsage, err := getQuotaUsage(group)
-		if err != nil {
-			return InternalError(err.Error())
-		}
+		currentUsage := mylog.Check2(getQuotaUsage(group))
 
 		results[i] = client.QuotaGroupResult{
 			GroupName:   group.Name,
@@ -158,26 +149,18 @@ func getQuotaGroups(c *Command, r *http.Request, _ *auth.UserState) Response {
 func getQuotaGroupInfo(c *Command, r *http.Request, _ *auth.UserState) Response {
 	vars := muxVars(r)
 	groupName := vars["group"]
-	if err := naming.ValidateQuotaGroup(groupName); err != nil {
-		return BadRequest(err.Error())
-	}
+	mylog.Check(naming.ValidateQuotaGroup(groupName))
 
 	st := c.d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
 
-	group, err := servicestate.GetQuota(st, groupName)
+	group := mylog.Check2(servicestate.GetQuota(st, groupName))
 	if err == servicestate.ErrQuotaNotFound {
 		return NotFound("cannot find quota group %q", groupName)
 	}
-	if err != nil {
-		return InternalError(err.Error())
-	}
 
-	currentUsage, err := getQuotaUsage(group)
-	if err != nil {
-		return InternalError(err.Error())
-	}
+	currentUsage := mylog.Check2(getQuotaUsage(group))
 
 	res := client.QuotaGroupResult{
 		GroupName:   group.Name,
@@ -225,14 +208,8 @@ func quotaValuesToResources(values client.QuotaValues) quota.Resources {
 // postQuotaGroup creates quota resource group or updates an existing group.
 func postQuotaGroup(c *Command, r *http.Request, _ *auth.UserState) Response {
 	var data postQuotaGroupData
-
-	if err := jsonutil.DecodeWithNumber(r.Body, &data); err != nil {
-		return BadRequest("cannot decode quota action from request body: %v", err)
-	}
-
-	if err := naming.ValidateQuotaGroup(data.GroupName); err != nil {
-		return BadRequest(err.Error())
-	}
+	mylog.Check(jsonutil.DecodeWithNumber(r.Body, &data))
+	mylog.Check(naming.ValidateQuotaGroup(data.GroupName))
 
 	st := c.d.overlord.State()
 	st.Lock()
@@ -249,21 +226,19 @@ func postQuotaGroup(c *Command, r *http.Request, _ *auth.UserState) Response {
 
 		// check if the quota group exists first, if it does then we need to
 		// update it instead of create it
-		_, err := servicestate.GetQuota(st, data.GroupName)
+		_ := mylog.Check2(servicestate.GetQuota(st, data.GroupName))
 		if err != nil && err != servicestate.ErrQuotaNotFound {
 			return InternalError(err.Error())
 		}
 		if err == servicestate.ErrQuotaNotFound {
 			// then we need to create the quota
-			ts, err = servicestateCreateQuota(st, data.GroupName, servicestate.CreateQuotaOptions{
+			ts = mylog.Check2(servicestateCreateQuota(st, data.GroupName, servicestate.CreateQuotaOptions{
 				ParentName:     data.Parent,
 				Snaps:          data.Snaps,
 				Services:       data.Services,
 				ResourceLimits: resourceLimits,
-			})
-			if err != nil {
-				return errToResponse(err, nil, BadRequest, "cannot create quota group: %v")
-			}
+			}))
+
 			chgSummary = "Create quota group"
 		} else if err == nil {
 			// the quota group already exists, update it
@@ -272,19 +247,15 @@ func postQuotaGroup(c *Command, r *http.Request, _ *auth.UserState) Response {
 				AddServices:       data.Services,
 				NewResourceLimits: resourceLimits,
 			}
-			ts, err = servicestateUpdateQuota(st, data.GroupName, updateOpts)
-			if err != nil {
-				return errToResponse(err, nil, BadRequest, "cannot update quota group: %v")
-			}
+			ts = mylog.Check2(servicestateUpdateQuota(st, data.GroupName, updateOpts))
+
 			chgSummary = "Update quota group"
 		}
 
 	case "remove":
-		var err error
-		ts, err = servicestateRemoveQuota(st, data.GroupName)
-		if err != nil {
-			return errToResponse(err, nil, BadRequest, "cannot remove quota group: %v")
-		}
+
+		ts = mylog.Check2(servicestateRemoveQuota(st, data.GroupName))
+
 		chgSummary = "Remove quota group"
 	default:
 		return BadRequest("unknown quota action %q", data.Action)

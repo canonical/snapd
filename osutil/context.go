@@ -26,6 +26,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"syscall"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // ContextWriter returns a discarding io.Writer which Write method
@@ -50,13 +52,8 @@ func (w ctxWriter) Write(p []byte) (n int, err error) {
 // RunWithContext runs the given command, but kills it if the context
 // becomes done before the command finishes.
 func RunWithContext(ctx context.Context, cmd *exec.Cmd) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-
-	if err := cmd.Start(); err != nil {
-		return err
-	}
+	mylog.Check(ctx.Err())
+	mylog.Check(cmd.Start())
 
 	var ctxDone uint32
 	var wg sync.WaitGroup
@@ -72,8 +69,7 @@ func RunWithContext(ctx context.Context, cmd *exec.Cmd) error {
 		}
 		wg.Done()
 	}()
-
-	err := cmd.Wait()
+	mylog.Check(cmd.Wait())
 	close(waitDone)
 	wg.Wait()
 

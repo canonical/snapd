@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/state"
@@ -225,22 +226,21 @@ var statePatch4JSON = []byte(`
 
 func (s *patch4Suite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
+	mylog.Check(os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755))
 
-	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(dirs.SnapStateFile, statePatch4JSON, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(dirs.SnapStateFile, statePatch4JSON, 0644))
+
 }
 
 func (s *patch4Suite) TestPatch4OnReverts(c *C) {
 	restorer := patch.MockLevel(4, 1)
 	defer restorer()
 
-	r, err := os.Open(dirs.SnapStateFile)
-	c.Assert(err, IsNil)
+	r := mylog.Check2(os.Open(dirs.SnapStateFile))
+
 	defer r.Close()
-	st, err := state.ReadState(nil, r)
-	c.Assert(err, IsNil)
+	st := mylog.Check2(state.ReadState(nil, r))
+
 
 	func() {
 		st.Lock()
@@ -252,8 +252,8 @@ func (s *patch4Suite) TestPatch4OnReverts(c *C) {
 		c.Assert(task, NotNil)
 		task.SetStatus(state.DoneStatus)
 
-		snapsup, err := patch.Patch4TaskSnapSetup(task)
-		c.Assert(err, IsNil)
+		snapsup := mylog.Check2(patch.Patch4TaskSnapSetup(task))
+
 		c.Check(snapsup.Flags.Revert(), Equals, false)
 
 		var had bool
@@ -263,10 +263,11 @@ func (s *patch4Suite) TestPatch4OnReverts(c *C) {
 		c.Check(task.Get("old-candidate-index", &idx), testutil.ErrorIs, state.ErrNoState)
 		c.Check(len(task.Change().Tasks()), Equals, 4)
 	}()
+	mylog.
 
-	// go from patch level 3 -> 4
-	err = patch.Apply(st)
-	c.Assert(err, IsNil)
+		// go from patch level 3 -> 4
+		Check(patch.Apply(st))
+
 
 	st.Lock()
 	defer st.Unlock()
@@ -274,8 +275,8 @@ func (s *patch4Suite) TestPatch4OnReverts(c *C) {
 	task := st.Task("4")
 	c.Assert(task, NotNil)
 
-	snapsup, err := patch.Patch4TaskSnapSetup(task)
-	c.Assert(err, IsNil)
+	snapsup := mylog.Check2(patch.Patch4TaskSnapSetup(task))
+
 	c.Check(snapsup.Flags.Revert(), Equals, true)
 
 	var had bool
@@ -290,11 +291,11 @@ func (s *patch4Suite) TestPatch4OnRevertsNoCandidateYet(c *C) {
 	restorer := patch.MockLevel(4, 1)
 	defer restorer()
 
-	r, err := os.Open(dirs.SnapStateFile)
-	c.Assert(err, IsNil)
+	r := mylog.Check2(os.Open(dirs.SnapStateFile))
+
 	defer r.Close()
-	st, err := state.ReadState(nil, r)
-	c.Assert(err, IsNil)
+	st := mylog.Check2(state.ReadState(nil, r))
+
 
 	func() {
 		st.Lock()
@@ -306,8 +307,8 @@ func (s *patch4Suite) TestPatch4OnRevertsNoCandidateYet(c *C) {
 		task.Clear("had-candidate")
 		task.SetStatus(state.DoStatus)
 
-		snapsup, err := patch.Patch4TaskSnapSetup(task)
-		c.Assert(err, IsNil)
+		snapsup := mylog.Check2(patch.Patch4TaskSnapSetup(task))
+
 		c.Check(snapsup.Flags.Revert(), Equals, false)
 
 		var had bool
@@ -316,10 +317,11 @@ func (s *patch4Suite) TestPatch4OnRevertsNoCandidateYet(c *C) {
 		c.Check(task.Get("old-candidate-index", &idx), testutil.ErrorIs, state.ErrNoState)
 		c.Check(len(task.Change().Tasks()), Equals, 4)
 	}()
+	mylog.
 
-	// go from patch level 3 -> 4
-	err = patch.Apply(st)
-	c.Assert(err, IsNil)
+		// go from patch level 3 -> 4
+		Check(patch.Apply(st))
+
 
 	st.Lock()
 	defer st.Unlock()
@@ -327,8 +329,8 @@ func (s *patch4Suite) TestPatch4OnRevertsNoCandidateYet(c *C) {
 	task := st.Task("4")
 	c.Assert(task, NotNil)
 
-	snapsup, err := patch.Patch4TaskSnapSetup(task)
-	c.Assert(err, IsNil)
+	snapsup := mylog.Check2(patch.Patch4TaskSnapSetup(task))
+
 	c.Check(snapsup.Flags.Revert(), Equals, true)
 
 	var had bool
@@ -343,11 +345,11 @@ func (s *patch4Suite) TestPatch4OnRefreshes(c *C) {
 	restorer := patch.MockLevel(4, 1)
 	defer restorer()
 
-	r, err := os.Open(dirs.SnapStateFile)
-	c.Assert(err, IsNil)
+	r := mylog.Check2(os.Open(dirs.SnapStateFile))
+
 	defer r.Close()
-	st, err := state.ReadState(nil, r)
-	c.Assert(err, IsNil)
+	st := mylog.Check2(state.ReadState(nil, r))
+
 
 	func() {
 		st.Lock()
@@ -359,8 +361,8 @@ func (s *patch4Suite) TestPatch4OnRefreshes(c *C) {
 		// is not fully done yet)
 		task.SetStatus(state.DoneStatus)
 
-		snapsup, err := patch.Patch4TaskSnapSetup(task)
-		c.Assert(err, IsNil)
+		snapsup := mylog.Check2(patch.Patch4TaskSnapSetup(task))
+
 		c.Check(snapsup.Flags.Revert(), Equals, false)
 
 		var had bool
@@ -370,10 +372,11 @@ func (s *patch4Suite) TestPatch4OnRefreshes(c *C) {
 		c.Check(task.Get("old-candidate-index", &idx), testutil.ErrorIs, state.ErrNoState)
 		c.Check(len(task.Change().Tasks()), Equals, 7)
 	}()
+	mylog.
 
-	// go from patch level 3 -> 4
-	err = patch.Apply(st)
-	c.Assert(err, IsNil)
+		// go from patch level 3 -> 4
+		Check(patch.Apply(st))
+
 
 	st.Lock()
 	defer st.Unlock()
@@ -381,8 +384,8 @@ func (s *patch4Suite) TestPatch4OnRefreshes(c *C) {
 	task := st.Task("16")
 	c.Assert(task, NotNil)
 
-	snapsup, err := patch.Patch4TaskSnapSetup(task)
-	c.Assert(err, IsNil)
+	snapsup := mylog.Check2(patch.Patch4TaskSnapSetup(task))
+
 	c.Check(snapsup.Flags.Revert(), Equals, false)
 
 	var had bool
@@ -400,11 +403,11 @@ func (s *patch4Suite) TestPatch4OnRefreshesNoHadCandidateYet(c *C) {
 	restorer := patch.MockLevel(4, 1)
 	defer restorer()
 
-	r, err := os.Open(dirs.SnapStateFile)
-	c.Assert(err, IsNil)
+	r := mylog.Check2(os.Open(dirs.SnapStateFile))
+
 	defer r.Close()
-	st, err := state.ReadState(nil, r)
-	c.Assert(err, IsNil)
+	st := mylog.Check2(state.ReadState(nil, r))
+
 
 	func() {
 		st.Lock()
@@ -416,8 +419,8 @@ func (s *patch4Suite) TestPatch4OnRefreshesNoHadCandidateYet(c *C) {
 		task.Clear("had-candidate")
 		task.SetStatus(state.DoStatus)
 
-		snapsup, err := patch.Patch4TaskSnapSetup(task)
-		c.Assert(err, IsNil)
+		snapsup := mylog.Check2(patch.Patch4TaskSnapSetup(task))
+
 		c.Check(snapsup.Flags.Revert(), Equals, false)
 
 		var had bool
@@ -426,10 +429,11 @@ func (s *patch4Suite) TestPatch4OnRefreshesNoHadCandidateYet(c *C) {
 		c.Check(task.Get("old-candidate-index", &idx), testutil.ErrorIs, state.ErrNoState)
 		c.Check(len(task.Change().Tasks()), Equals, 7)
 	}()
+	mylog.
 
-	// go from patch level 3 -> 4
-	err = patch.Apply(st)
-	c.Assert(err, IsNil)
+		// go from patch level 3 -> 4
+		Check(patch.Apply(st))
+
 
 	st.Lock()
 	defer st.Unlock()
@@ -437,8 +441,8 @@ func (s *patch4Suite) TestPatch4OnRefreshesNoHadCandidateYet(c *C) {
 	task := st.Task("16")
 	c.Assert(task, NotNil)
 
-	snapsup, err := patch.Patch4TaskSnapSetup(task)
-	c.Assert(err, IsNil)
+	snapsup := mylog.Check2(patch.Patch4TaskSnapSetup(task))
+
 	c.Check(snapsup.Flags.Revert(), Equals, false)
 
 	var had bool

@@ -25,21 +25,22 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	snap "github.com/snapcore/snapd/cmd/snap"
 )
 
 func (s *SnapSuite) TestDebugValidateCannotValidate(c *C) {
 	tmpf := filepath.Join(c.MkDir(), "seed.yaml")
-	err := os.WriteFile(tmpf, []byte(`
+	mylog.Check(os.WriteFile(tmpf, []byte(`
 snaps:
  -
    name: core
    channel: stable
    file: core_6673.snap
-`), 0644)
-	c.Assert(err, IsNil)
+`), 0644))
 
-	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"debug", "validate-seed", tmpf})
+
+	_ = mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"debug", "validate-seed", tmpf}))
 	c.Assert(err, ErrorMatches, `cannot validate seed:
  - no seed assertions`)
 }

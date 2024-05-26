@@ -27,6 +27,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	snap "github.com/snapcore/snapd/cmd/snap"
 )
 
@@ -68,7 +69,7 @@ func mkWarningsFakeHandler(c *check.C, body string) func(w http.ResponseWriter, 
 		c.Check(r.URL.Path, check.Equals, "/v2/warnings")
 		c.Check(r.URL.Query(), check.HasLen, 0)
 
-		buf, err := io.ReadAll(r.Body)
+		buf := mylog.Check2(io.ReadAll(r.Body))
 		c.Assert(err, check.IsNil)
 		c.Check(string(buf), check.Equals, "")
 		c.Check(r.Method, check.Equals, "GET")
@@ -80,7 +81,7 @@ func mkWarningsFakeHandler(c *check.C, body string) func(w http.ResponseWriter, 
 func (s *warningSuite) TestNoWarningsEver(c *check.C) {
 	s.RedirectClientToTestServer(mkWarningsFakeHandler(c, `{"type": "sync", "status-code": 200, "result": []}`))
 
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"warnings", "--abs-time"})
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"warnings", "--abs-time"}))
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
@@ -92,7 +93,7 @@ func (s *warningSuite) TestNoFurtherWarnings(c *check.C) {
 
 	s.RedirectClientToTestServer(mkWarningsFakeHandler(c, `{"type": "sync", "status-code": 200, "result": []}`))
 
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"warnings", "--abs-time"})
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"warnings", "--abs-time"}))
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
@@ -102,7 +103,7 @@ func (s *warningSuite) TestNoFurtherWarnings(c *check.C) {
 func (s *warningSuite) TestWarnings(c *check.C) {
 	s.RedirectClientToTestServer(mkWarningsFakeHandler(c, twoWarnings))
 
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"warnings", "--abs-time", "--unicode=never"})
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"warnings", "--abs-time", "--unicode=never"}))
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
@@ -120,7 +121,7 @@ warning: |
 func (s *warningSuite) TestVerboseWarnings(c *check.C) {
 	s.RedirectClientToTestServer(mkWarningsFakeHandler(c, twoWarnings))
 
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"warnings", "--abs-time", "--verbose", "--unicode=never"})
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"warnings", "--abs-time", "--verbose", "--unicode=never"}))
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
@@ -165,7 +166,7 @@ func (s *warningSuite) TestOkay(c *check.C) {
 		}`)
 	})
 
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"okay"})
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"okay"}))
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
@@ -173,7 +174,7 @@ func (s *warningSuite) TestOkay(c *check.C) {
 }
 
 func (s *warningSuite) TestOkayBeforeWarnings(c *check.C) {
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"okay"})
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"okay"}))
 	c.Assert(err, check.ErrorMatches, "you must have looked at the warnings before acknowledging them. Try 'snap warnings'.")
 	c.Check(s.Stderr(), check.Equals, "")
 	c.Check(s.Stdout(), check.Equals, "")
@@ -189,7 +190,7 @@ func (s *warningSuite) TestListWithWarnings(c *check.C) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps")
 		c.Check(r.URL.Query(), check.HasLen, 0)
 
-		buf, err := io.ReadAll(r.Body)
+		buf := mylog.Check2(io.ReadAll(r.Body))
 		c.Assert(err, check.IsNil)
 		c.Check(string(buf), check.Equals, "")
 		c.Check(r.Method, check.Equals, "GET")
@@ -204,7 +205,7 @@ func (s *warningSuite) TestListWithWarnings(c *check.C) {
 			}`)
 	})
 	cli := snap.Client()
-	rest, err := snap.Parser(cli).ParseArgs([]string{"list"})
+	rest := mylog.Check2(snap.Parser(cli).ParseArgs([]string{"list"}))
 	c.Assert(err, check.IsNil)
 
 	{
@@ -225,5 +226,4 @@ Name  Version  Rev    Tracking  Publisher  Notes
       -        unset  -         -          disabled
 `[1:])
 	c.Check(s.Stderr(), check.Equals, "WARNING: There are 2 new warnings. See 'snap warnings'.\n")
-
 }

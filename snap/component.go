@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap/naming"
@@ -140,15 +141,9 @@ func (c *componentPlaceInfo) MountDescription() string {
 // associated plugs. If snapInfo is not nil, consistency checks are performed
 // to ensure that the component is a component of the provided snap.
 func ReadComponentInfoFromContainer(compf Container, snapInfo *Info) (*ComponentInfo, error) {
-	yamlData, err := compf.ReadFile("meta/component.yaml")
-	if err != nil {
-		return nil, err
-	}
+	yamlData := mylog.Check2(compf.ReadFile("meta/component.yaml"))
 
-	componentInfo, err := InfoFromComponentYaml(yamlData)
-	if err != nil {
-		return nil, err
-	}
+	componentInfo := mylog.Check2(InfoFromComponentYaml(yamlData))
 
 	// if snapInfo is nil, then we can't complete the component info with
 	// implicit and explicit hooks, so we return the component info as is.
@@ -187,10 +182,7 @@ func ReadComponentInfoFromContainer(compf Container, snapInfo *Info) (*Component
 }
 
 func addAndBindImplicitComponentHooksFromContainer(compf Container, componentInfo *ComponentInfo, component *Component, info *Info) {
-	hooks, err := compf.ListDir("meta/hooks")
-	if err != nil {
-		return
-	}
+	hooks := mylog.Check2(compf.ListDir("meta/hooks"))
 
 	for _, hook := range hooks {
 		addAndBindImplicitComponentHook(componentInfo, info, component, hook)
@@ -232,14 +224,8 @@ func addAndBindImplicitComponentHook(componentInfo *ComponentInfo, snapInfo *Inf
 // InfoFromComponentYaml parses a ComponentInfo from the raw yaml data.
 func InfoFromComponentYaml(compYaml []byte) (*ComponentInfo, error) {
 	var ci ComponentInfo
-
-	if err := yaml.UnmarshalStrict(compYaml, &ci); err != nil {
-		return nil, fmt.Errorf("cannot parse component.yaml: %s", err)
-	}
-
-	if err := ci.validate(); err != nil {
-		return nil, err
-	}
+	mylog.Check(yaml.UnmarshalStrict(compYaml, &ci))
+	mylog.Check(ci.validate())
 
 	return &ci, nil
 }
@@ -264,23 +250,17 @@ func (ci *ComponentInfo) validate() error {
 	if ci.Component.ComponentName == "" {
 		return fmt.Errorf("component name cannot be empty")
 	}
-	if err := ci.Component.Validate(); err != nil {
-		return err
-	}
+	mylog.Check(ci.Component.Validate())
+
 	if ci.Type == "" {
 		return fmt.Errorf("component type cannot be empty")
 	}
 	// version is optional
 	if ci.Version != "" {
-		if err := ValidateVersion(ci.Version); err != nil {
-			return err
-		}
+		mylog.Check(ValidateVersion(ci.Version))
 	}
-	if err := ValidateSummary(ci.Summary); err != nil {
-		return err
-	}
-	if err := ValidateDescription(ci.Description); err != nil {
-		return err
-	}
+	mylog.Check(ValidateSummary(ci.Summary))
+	mylog.Check(ValidateDescription(ci.Description))
+
 	return nil
 }

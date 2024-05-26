@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -36,12 +37,11 @@ func labelFromPid(pid int) (string, error) {
 		// fallback
 		procFile = filepath.Join(rootPath, fmt.Sprintf("proc/%v/attr/current", pid))
 	}
-	contents, err := os.ReadFile(procFile)
+	contents := mylog.Check2(os.ReadFile(procFile))
 	if os.IsNotExist(err) {
 		return "unconfined", nil
-	} else if err != nil {
-		return "", err
 	}
+
 	label := strings.TrimRight(string(contents), "\n")
 	// Trim off the mode
 	if strings.HasSuffix(label, ")") {
@@ -67,9 +67,7 @@ func DecodeLabel(label string) (snap, app, hook string, err error) {
 }
 
 func SnapAppFromPid(pid int) (snap, app, hook string, err error) {
-	label, err := labelFromPid(pid)
-	if err != nil {
-		return "", "", "", err
-	}
+	label := mylog.Check2(labelFromPid(pid))
+
 	return DecodeLabel(label)
 }

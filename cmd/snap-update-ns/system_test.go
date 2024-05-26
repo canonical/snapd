@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	update "github.com/snapcore/snapd/cmd/snap-update-ns"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
@@ -57,8 +58,8 @@ func (s *systemSuite) TestLockCgroup(c *C) {
 	cgroup.MockFreezing(happyFreeze, happyThaw)
 
 	upCtx := update.NewSystemProfileUpdateContext("foo", false)
-	unlock, err := upCtx.Lock()
-	c.Assert(err, IsNil)
+	unlock := mylog.Check2(upCtx.Lock())
+
 	c.Check(unlock, NotNil)
 
 	c.Check(frozen, DeepEquals, []string{"foo"})
@@ -103,8 +104,8 @@ func (s *systemSuite) TestLoadDesiredProfile(c *C) {
 	c.Assert(os.WriteFile(path, []byte(text), 0644), IsNil)
 
 	// Ask the system profile update helper to read the desired profile.
-	profile, err := upCtx.LoadDesiredProfile()
-	c.Assert(err, IsNil)
+	profile := mylog.Check2(upCtx.LoadDesiredProfile())
+
 	builder := &bytes.Buffer{}
 	profile.WriteTo(builder)
 
@@ -125,8 +126,8 @@ func (s *systemSuite) TestLoadCurrentProfile(c *C) {
 	c.Assert(os.WriteFile(path, []byte(text), 0644), IsNil)
 
 	// Ask the system profile update helper to read the current profile.
-	profile, err := upCtx.LoadCurrentProfile()
-	c.Assert(err, IsNil)
+	profile := mylog.Check2(upCtx.LoadCurrentProfile())
+
 	builder := &bytes.Buffer{}
 	profile.WriteTo(builder)
 
@@ -144,8 +145,8 @@ func (s *systemSuite) TestSaveCurrentProfile(c *C) {
 	text := "/snap/foo/42/dir /snap/bar/13/dir none bind,rw 0 0\n"
 
 	// Prepare a mount profile to be saved.
-	profile, err := osutil.LoadMountProfileText(text)
-	c.Assert(err, IsNil)
+	profile := mylog.Check2(osutil.LoadMountProfileText(text))
+
 
 	// Ask the system profile update to write the current profile.
 	c.Assert(upCtx.SaveCurrentProfile(profile), IsNil)

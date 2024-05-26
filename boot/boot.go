@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/snap"
 )
@@ -116,11 +117,10 @@ var _ BootKernel = trivial{}
 // always be NOP).
 func Participant(s snap.PlaceInfo, t snap.Type, dev snap.Device) BootParticipant {
 	if applicable(s, t, dev) {
-		bs, err := bootStateFor(t, dev)
-		if err != nil {
-			// all internal errors at this point
-			panic(err)
-		}
+		bs := mylog.Check2(bootStateFor(t, dev))
+
+		// all internal errors at this point
+
 		return &coreBootParticipant{s: s, bs: bs}
 	}
 	return trivial{}
@@ -286,14 +286,10 @@ func InUse(typ snap.Type, dev snap.Device) (InUseFunc, error) {
 		return fixedInUse(false), nil
 	}
 	cands := make([]snap.PlaceInfo, 0, 2)
-	s, err := bootStateFor(typ, dev)
-	if err != nil {
-		return nil, err
-	}
-	cand, tryCand, _, err := s.revisions()
-	if err != nil {
-		return nil, err
-	}
+	s := mylog.Check2(bootStateFor(typ, dev))
+
+	cand, tryCand, _ := mylog.Check4(s.revisions())
+
 	cands = append(cands, cand)
 	if tryCand != nil {
 		cands = append(cands, tryCand)
@@ -309,11 +305,9 @@ func InUse(typ snap.Type, dev snap.Device) (InUseFunc, error) {
 	}, nil
 }
 
-var (
-	// ErrBootNameAndRevisionNotReady is returned when the boot revision is not
-	// established yet.
-	ErrBootNameAndRevisionNotReady = errors.New("boot revision not yet established")
-)
+// ErrBootNameAndRevisionNotReady is returned when the boot revision is not
+// established yet.
+var ErrBootNameAndRevisionNotReady = errors.New("boot revision not yet established")
 
 // GetCurrentBoot returns the currently set name and revision for boot for the given
 // type of snap, which can be snap.TypeBase (or snap.TypeOS), or snap.TypeKernel.
@@ -322,15 +316,9 @@ func GetCurrentBoot(t snap.Type, dev snap.Device) (snap.PlaceInfo, error) {
 	modeenvLock()
 	defer modeenvUnlock()
 
-	s, err := bootStateFor(t, dev)
-	if err != nil {
-		return nil, err
-	}
+	s := mylog.Check2(bootStateFor(t, dev))
 
-	snap, _, status, err := s.revisions()
-	if err != nil {
-		return nil, err
-	}
+	snap, _, status := mylog.Check4(s.revisions())
 
 	if status == TryingStatus {
 		return nil, ErrBootNameAndRevisionNotReady
@@ -376,14 +364,10 @@ func MarkBootSuccessful(dev snap.Device) error {
 		if !SnapTypeParticipatesInBoot(t, dev) {
 			continue
 		}
-		s, err := bootStateFor(t, dev)
-		if err != nil {
-			return err
-		}
-		u, err = s.markSuccessful(u)
-		if err != nil {
-			return fmt.Errorf(errPrefix, err)
-		}
+		s := mylog.Check2(bootStateFor(t, dev))
+
+		u = mylog.Check2(s.markSuccessful(u))
+
 	}
 
 	if dev.HasModeenv() {
@@ -393,18 +377,12 @@ func MarkBootSuccessful(dev snap.Device) error {
 			recoverySystemsBootState(dev),
 			modelBootState(dev),
 		} {
-			var err error
-			u, err = bs.markSuccessful(u)
-			if err != nil {
-				return fmt.Errorf(errPrefix, err)
-			}
+			u = mylog.Check2(bs.markSuccessful(u))
 		}
 	}
 
 	if u != nil {
-		if err := u.commit(); err != nil {
-			return fmt.Errorf(errPrefix, err)
-		}
+		mylog.Check(u.commit())
 	}
 	return nil
 }
@@ -433,10 +411,7 @@ func SetRecoveryBootSystemAndMode(dev snap.Device, systemLabel, mode string) err
 	}
 	// TODO:UC20: should the recovery partition stay around as RW during run
 	// mode all the time?
-	bl, err := bootloader.Find(InitramfsUbuntuSeedDir, opts)
-	if err != nil {
-		return err
-	}
+	bl := mylog.Check2(bootloader.Find(InitramfsUbuntuSeedDir, opts))
 
 	m := map[string]string{
 		"snapd_recovery_system": systemLabel,
@@ -465,19 +440,10 @@ func UpdateManagedBootConfigs(dev snap.Device, gadgetSnapOrDir, cmdlineAppend st
 }
 
 func updateCmdlineVars(tbl bootloader.TrustedAssetsBootloader, gadgetSnapOrDir, cmdlineAppend string, candidate bool, dev snap.Device) error {
-	defaultCmdLine, err := tbl.DefaultCommandLine(candidate)
-	if err != nil {
-		return err
-	}
+	defaultCmdLine := mylog.Check2(tbl.DefaultCommandLine(candidate))
 
-	cmdlineVars, err := bootVarsForTrustedCommandLineFromGadget(gadgetSnapOrDir, cmdlineAppend, defaultCmdLine, dev.Model())
-	if err != nil {
-		return fmt.Errorf("cannot prepare bootloader variables for kernel command line: %v", err)
-	}
-
-	if err := tbl.SetBootVars(cmdlineVars); err != nil {
-		return fmt.Errorf("cannot set run system kernel command line arguments: %v", err)
-	}
+	cmdlineVars := mylog.Check2(bootVarsForTrustedCommandLineFromGadget(gadgetSnapOrDir, cmdlineAppend, defaultCmdLine, dev.Model()))
+	mylog.Check(tbl.SetBootVars(cmdlineVars))
 
 	return nil
 }
@@ -491,32 +457,20 @@ func updateManagedBootConfigForBootloader(dev snap.Device, mode, gadgetSnapOrDir
 		Role:        bootloader.RoleRunMode,
 		NoSlashBoot: true,
 	}
-	tbl, err := getBootloaderManagingItsAssets(InitramfsUbuntuBootDir, opts)
-	if err != nil {
-		if err == errBootConfigNotManaged {
-			// we're not managing this bootloader's boot config
-			return false, nil
-		}
-		return false, err
-	}
+	tbl := mylog.Check2(getBootloaderManagingItsAssets(InitramfsUbuntuBootDir, opts))
+
+	// we're not managing this bootloader's boot config
 
 	// boot config update can lead to a change of kernel command line
-	cmdlineChange, err := observeCommandLineUpdate(dev.Model(), commandLineUpdateReasonSnapd, gadgetSnapOrDir, cmdlineAppend)
-	if err != nil {
-		return false, err
-	}
+	cmdlineChange := mylog.Check2(observeCommandLineUpdate(dev.Model(), commandLineUpdateReasonSnapd, gadgetSnapOrDir, cmdlineAppend))
 
 	if cmdlineChange {
 		candidate := true
-		if err := updateCmdlineVars(tbl, gadgetSnapOrDir, cmdlineAppend, candidate, dev); err != nil {
-			return false, err
-		}
+		mylog.Check(updateCmdlineVars(tbl, gadgetSnapOrDir, cmdlineAppend, candidate, dev))
+
 	}
 
-	assetChange, err := tbl.UpdateBootConfig()
-	if err != nil {
-		return false, err
-	}
+	assetChange := mylog.Check2(tbl.UpdateBootConfig())
 
 	return assetChange || cmdlineChange, nil
 }
@@ -540,29 +494,20 @@ func UpdateCommandLineForGadgetComponent(dev snap.Device, gadgetSnapOrDir, cmdli
 	}
 	// TODO: add support for bootloaders that that do not have any managed
 	// assets
-	tbl, err := getBootloaderManagingItsAssets("", opts)
-	if err != nil {
-		if err == errBootConfigNotManaged {
-			// we're not managing this bootloader's boot config
-			return false, nil
-		}
-		return false, err
-	}
+	tbl := mylog.Check2(getBootloaderManagingItsAssets("", opts))
+
+	// we're not managing this bootloader's boot config
 
 	// gadget update can lead to a change of kernel command line
-	cmdlineChange, err := observeCommandLineUpdate(dev.Model(), commandLineUpdateReasonGadget, gadgetSnapOrDir, cmdlineAppend)
-	if err != nil {
-		return false, err
-	}
+	cmdlineChange := mylog.Check2(observeCommandLineUpdate(dev.Model(), commandLineUpdateReasonGadget, gadgetSnapOrDir, cmdlineAppend))
 
 	if !cmdlineChange {
 		return false, nil
 	}
 
 	candidate := false
-	if err := updateCmdlineVars(tbl, gadgetSnapOrDir, cmdlineAppend, candidate, dev); err != nil {
-		return false, err
-	}
+	mylog.Check(updateCmdlineVars(tbl, gadgetSnapOrDir, cmdlineAppend, candidate, dev))
+
 	return cmdlineChange, nil
 }
 
@@ -573,8 +518,7 @@ func MarkFactoryResetComplete(encrypted bool) error {
 		// there is nothing to do on an unencrypted system
 		return nil
 	}
-	if err := postFactoryResetCleanup(); err != nil {
-		return fmt.Errorf("cannot perform post factory reset boot cleanup: %v", err)
-	}
+	mylog.Check(postFactoryResetCleanup())
+
 	return nil
 }

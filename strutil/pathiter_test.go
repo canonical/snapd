@@ -22,6 +22,7 @@ package strutil_test
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -30,14 +31,14 @@ type pathIterSuite struct{}
 var _ = Suite(&pathIterSuite{})
 
 func (s *pathIterSuite) TestPathIteratorEmpty(c *C) {
-	iter, err := strutil.NewPathIterator("")
+	iter := mylog.Check2(strutil.NewPathIterator(""))
 	c.Assert(err, ErrorMatches, `cannot iterate over unclean path ""`)
 	c.Assert(iter, IsNil)
 }
 
 func (s *pathIterSuite) TestPathIteratorFilename(c *C) {
-	iter, err := strutil.NewPathIterator("foo")
-	c.Assert(err, IsNil)
+	iter := mylog.Check2(strutil.NewPathIterator("foo"))
+	
 	c.Assert(iter.Path(), Equals, "foo")
 	c.Assert(iter.Depth(), Equals, 0)
 
@@ -54,8 +55,8 @@ func (s *pathIterSuite) TestPathIteratorFilename(c *C) {
 }
 
 func (s *pathIterSuite) TestPathIteratorRelative(c *C) {
-	iter, err := strutil.NewPathIterator("foo/bar")
-	c.Assert(err, IsNil)
+	iter := mylog.Check2(strutil.NewPathIterator("foo/bar"))
+	
 	c.Assert(iter.Path(), Equals, "foo/bar")
 	c.Assert(iter.Depth(), Equals, 0)
 
@@ -80,8 +81,8 @@ func (s *pathIterSuite) TestPathIteratorRelative(c *C) {
 }
 
 func (s *pathIterSuite) TestPathIteratorAbsoluteAlmostClean(c *C) {
-	iter, err := strutil.NewPathIterator("/foo/bar/")
-	c.Assert(err, IsNil)
+	iter := mylog.Check2(strutil.NewPathIterator("/foo/bar/"))
+	
 	c.Assert(iter.Path(), Equals, "/foo/bar/")
 	c.Assert(iter.Depth(), Equals, 0)
 
@@ -114,8 +115,8 @@ func (s *pathIterSuite) TestPathIteratorAbsoluteAlmostClean(c *C) {
 }
 
 func (s *pathIterSuite) TestPathIteratorAbsoluteClean(c *C) {
-	iter, err := strutil.NewPathIterator("/foo/bar")
-	c.Assert(err, IsNil)
+	iter := mylog.Check2(strutil.NewPathIterator("/foo/bar"))
+	
 	c.Assert(iter.Path(), Equals, "/foo/bar")
 	c.Assert(iter.Depth(), Equals, 0)
 
@@ -148,8 +149,8 @@ func (s *pathIterSuite) TestPathIteratorAbsoluteClean(c *C) {
 }
 
 func (s *pathIterSuite) TestPathIteratorAbsoluteCleanDepth4(c *C) {
-	iter, err := strutil.NewPathIterator("/foo/bar/baz")
-	c.Assert(err, IsNil)
+	iter := mylog.Check2(strutil.NewPathIterator("/foo/bar/baz"))
+	
 	c.Assert(iter.Path(), Equals, "/foo/bar/baz")
 	c.Assert(iter.Depth(), Equals, 0)
 
@@ -190,8 +191,8 @@ func (s *pathIterSuite) TestPathIteratorAbsoluteCleanDepth4(c *C) {
 }
 
 func (s *pathIterSuite) TestPathIteratorRootDir(c *C) {
-	iter, err := strutil.NewPathIterator("/")
-	c.Assert(err, IsNil)
+	iter := mylog.Check2(strutil.NewPathIterator("/"))
+	
 	c.Assert(iter.Path(), Equals, "/")
 	c.Assert(iter.Depth(), Equals, 0)
 
@@ -208,14 +209,14 @@ func (s *pathIterSuite) TestPathIteratorRootDir(c *C) {
 }
 
 func (s *pathIterSuite) TestPathIteratorUncleanPath(c *C) {
-	iter, err := strutil.NewPathIterator("///some/../junk")
+	iter := mylog.Check2(strutil.NewPathIterator("///some/../junk"))
 	c.Assert(err, ErrorMatches, `cannot iterate over unclean path ".*"`)
 	c.Assert(iter, IsNil)
 }
 
 func (s *pathIterSuite) TestPathIteratorUnicode(c *C) {
-	iter, err := strutil.NewPathIterator("/zażółć/gęślą/jaźń")
-	c.Assert(err, IsNil)
+	iter := mylog.Check2(strutil.NewPathIterator("/zażółć/gęślą/jaźń"))
+	
 	c.Assert(iter.Path(), Equals, "/zażółć/gęślą/jaźń")
 	c.Assert(iter.Depth(), Equals, 0)
 
@@ -256,8 +257,8 @@ func (s *pathIterSuite) TestPathIteratorUnicode(c *C) {
 }
 
 func (s *pathIterSuite) TestPathIteratorRewind(c *C) {
-	iter, err := strutil.NewPathIterator("/foo/bar")
-	c.Assert(err, IsNil)
+	iter := mylog.Check2(strutil.NewPathIterator("/foo/bar"))
+	
 	for i := 0; i < 2; i++ {
 		c.Assert(iter.Next(), Equals, true)
 		c.Assert(iter.Depth(), Equals, 1)
@@ -272,8 +273,8 @@ func (s *pathIterSuite) TestPathIteratorRewind(c *C) {
 }
 
 func (s *pathIterSuite) TestPathIteratorExample(c *C) {
-	iter, err := strutil.NewPathIterator("/some/path/there")
-	c.Assert(err, IsNil)
+	iter := mylog.Check2(strutil.NewPathIterator("/some/path/there"))
+	
 	for iter.Next() {
 		_ = iter.CurrentBaseNoSlash()
 		_ = iter.CurrentPath()

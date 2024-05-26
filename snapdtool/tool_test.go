@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/release"
@@ -83,10 +84,10 @@ func (s *toolSuite) fakeCoreVersion(c *C, coreDir, version string) {
 }
 
 func makeFakeExe(c *C, path string) {
-	err := os.MkdirAll(filepath.Dir(path), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(path, nil, 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Dir(path), 0755))
+
+	mylog.Check(os.WriteFile(path, nil, 0755))
+
 }
 
 func (s *toolSuite) fakeInternalTool(c *C, coreDir, toolName string) string {
@@ -212,7 +213,7 @@ func (s *toolSuite) TestInternalToolPathNoReexec(c *C) {
 	})
 	defer restore()
 
-	path, err := snapdtool.InternalToolPath("potato")
+	path := mylog.Check2(snapdtool.InternalToolPath("potato"))
 	c.Check(err, IsNil)
 	c.Check(path, Equals, filepath.Join(dirs.DistroLibExecDir, "potato"))
 }
@@ -224,7 +225,7 @@ func (s *toolSuite) TestInternalToolPathWithReexec(c *C) {
 	})
 	defer restore()
 
-	path, err := snapdtool.InternalToolPath("potato")
+	path := mylog.Check2(snapdtool.InternalToolPath("potato"))
 	c.Check(err, IsNil)
 	c.Check(path, Equals, filepath.Join(dirs.SnapMountDir, "snapd/42/usr/lib/snapd/potato"))
 }
@@ -239,7 +240,7 @@ func (s *toolSuite) TestInternalToolPathWithOtherLocation(c *C) {
 	devTool := filepath.Join(tmpdir, "/tmp/tmp.foo_1234/usr/lib/snapd/potato")
 	makeFakeExe(c, devTool)
 
-	path, err := snapdtool.InternalToolPath("potato")
+	path := mylog.Check2(snapdtool.InternalToolPath("potato"))
 	c.Check(err, IsNil)
 	c.Check(path, Equals, tmpdir+"/tmp/tmp.foo_1234/usr/lib/snapd/potato")
 }
@@ -254,7 +255,7 @@ func (s *toolSuite) TestInternalToolSnapPathWithOtherLocation(c *C) {
 	devTool := filepath.Join(tmpdir, "/tmp/tmp.foo_1234/usr/lib/snapd/potato")
 	makeFakeExe(c, devTool)
 
-	path, err := snapdtool.InternalToolPath("potato")
+	path := mylog.Check2(snapdtool.InternalToolPath("potato"))
 	c.Check(err, IsNil)
 	c.Check(path, Equals, tmpdir+"/tmp/tmp.foo_1234/usr/lib/snapd/potato")
 }
@@ -267,7 +268,7 @@ func (s *toolSuite) TestInternalToolPathWithOtherCrazyLocation(c *C) {
 	})
 	defer restore()
 
-	path, err := snapdtool.InternalToolPath("potato")
+	path := mylog.Check2(snapdtool.InternalToolPath("potato"))
 	c.Check(err, IsNil)
 	c.Check(path, Equals, tmpdir+"/usr/foo/usr/tmp/tmp.foo_1234/usr/lib/snapd/potato")
 }
@@ -278,7 +279,7 @@ func (s *toolSuite) TestInternalToolPathWithDevLocationFallback(c *C) {
 	})
 	defer restore()
 
-	path, err := snapdtool.InternalToolPath("potato")
+	path := mylog.Check2(snapdtool.InternalToolPath("potato"))
 	c.Check(err, IsNil)
 	c.Check(path, Equals, filepath.Join(dirs.DistroLibExecDir, "potato"))
 }
@@ -290,12 +291,12 @@ func (s *toolSuite) TestInternalToolPathWithOtherDevLocationWhenExecutable(c *C)
 	defer restore()
 
 	devTool := filepath.Join(dirs.GlobalRootDir, "/tmp/potato")
-	err := os.MkdirAll(filepath.Dir(devTool), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(devTool, []byte(""), 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Dir(devTool), 0755))
 
-	path, err := snapdtool.InternalToolPath("potato")
+	mylog.Check(os.WriteFile(devTool, []byte(""), 0755))
+
+
+	path := mylog.Check2(snapdtool.InternalToolPath("potato"))
 	c.Check(err, IsNil)
 	c.Check(path, Equals, filepath.Join(dirs.GlobalRootDir, "/tmp/potato"))
 }
@@ -309,7 +310,7 @@ func (s *toolSuite) TestInternalToolPathWithOtherDevLocationNonExecutable(c *C) 
 	devTool := filepath.Join(dirs.GlobalRootDir, "/tmp/potato")
 	makeFakeExe(c, devTool)
 
-	path, err := snapdtool.InternalToolPath("non-executable-potato")
+	path := mylog.Check2(snapdtool.InternalToolPath("non-executable-potato"))
 	c.Check(err, IsNil)
 	c.Check(path, Equals, filepath.Join(dirs.DistroLibExecDir, "non-executable-potato"))
 }
@@ -321,8 +322,8 @@ func (s *toolSuite) TestInternalToolPathSnapdPathReexec(c *C) {
 	})
 	defer restore()
 
-	p, err := snapdtool.InternalToolPath("snapd")
-	c.Assert(err, IsNil)
+	p := mylog.Check2(snapdtool.InternalToolPath("snapd"))
+
 	c.Check(p, Equals, filepath.Join(dirs.SnapMountDir, "/core/111/usr/lib/snapd/snapd"))
 }
 
@@ -333,8 +334,8 @@ func (s *toolSuite) TestInternalToolPathSnapdSnap(c *C) {
 	})
 	defer restore()
 
-	p, err := snapdtool.InternalToolPath("snapd")
-	c.Assert(err, IsNil)
+	p := mylog.Check2(snapdtool.InternalToolPath("snapd"))
+
 	c.Check(p, Equals, filepath.Join(dirs.SnapMountDir, "/snapd/22/usr/lib/snapd/snapd"))
 }
 
@@ -352,8 +353,8 @@ func (s *toolSuite) TestInternalToolPathSnapdSnapNotExecutable(c *C) {
 
 	// Now the internal tool path falls back to the global snapd because
 	// the internal one is not executable
-	p, err := snapdtool.InternalToolPath("snapd")
-	c.Assert(err, IsNil)
+	p := mylog.Check2(snapdtool.InternalToolPath("snapd"))
+
 	c.Check(p, Equals, filepath.Join(dirs.DistroLibExecDir, "snapd"))
 }
 
@@ -369,7 +370,7 @@ func (s *toolSuite) TestInternalToolPathWithLibexecdirLocation(c *C) {
 	})
 	defer restore()
 
-	path, err := snapdtool.InternalToolPath("potato")
+	path := mylog.Check2(snapdtool.InternalToolPath("potato"))
 	c.Check(err, IsNil)
 	c.Check(path, Equals, filepath.Join("/usr/libexec/snapd/potato"))
 }
@@ -434,8 +435,8 @@ func (s *toolSuite) TestExecInSnapdOrCoreSnapBailsNoDistroSupport(c *C) {
 
 func (s *toolSuite) TestExecInSnapdOrCoreSnapNoDouble(c *C) {
 	selfExe := filepath.Join(s.fakeroot, "proc/self/exe")
-	err := os.Symlink(filepath.Join(s.fakeroot, "/snap/core/42/usr/lib/snapd"), selfExe)
-	c.Assert(err, IsNil)
+	mylog.Check(os.Symlink(filepath.Join(s.fakeroot, "/snap/core/42/usr/lib/snapd"), selfExe))
+
 	snapdtool.MockSelfExe(selfExe)
 
 	snapdtool.ExecInSnapdOrCoreSnap()
@@ -456,30 +457,32 @@ func (s *toolSuite) TestIsReexecd(c *C) {
 	mockedSelfExe := filepath.Join(s.fakeroot, "proc/self/exe")
 	restore := snapdtool.MockSelfExe(mockedSelfExe)
 	defer restore()
+	mylog.
 
-	// pretend the binary reexecd from snap mount location
-	err := os.Symlink(filepath.Join(s.snapdPath, "usr/lib/snapd/snapd"), mockedSelfExe)
-	c.Assert(err, IsNil)
+		// pretend the binary reexecd from snap mount location
+		Check(os.Symlink(filepath.Join(s.snapdPath, "usr/lib/snapd/snapd"), mockedSelfExe))
 
-	is, err := snapdtool.IsReexecd()
-	c.Assert(err, IsNil)
+
+	is := mylog.Check2(snapdtool.IsReexecd())
+
 	c.Assert(is, Equals, true)
+	mylog.Check(os.Remove(mockedSelfExe))
 
-	err = os.Remove(mockedSelfExe)
-	c.Assert(err, IsNil)
-	// now it's not
-	err = os.Symlink(filepath.Join(dirs.DistroLibExecDir, "snapd"), mockedSelfExe)
-	c.Assert(err, IsNil)
+	mylog.
+		// now it's not
+		Check(os.Symlink(filepath.Join(dirs.DistroLibExecDir, "snapd"), mockedSelfExe))
 
-	is, err = snapdtool.IsReexecd()
-	c.Assert(err, IsNil)
+
+	is = mylog.Check2(snapdtool.IsReexecd())
+
 	c.Assert(is, Equals, false)
+	mylog.
 
-	// trouble reading the symlink
-	err = os.Remove(mockedSelfExe)
-	c.Assert(err, IsNil)
+		// trouble reading the symlink
+		Check(os.Remove(mockedSelfExe))
 
-	is, err = snapdtool.IsReexecd()
+
+	is = mylog.Check2(snapdtool.IsReexecd())
 	c.Assert(err, ErrorMatches, ".*/proc/self/exe: no such file or directory")
 	c.Assert(is, Equals, false)
 }

@@ -29,6 +29,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/godbus/dbus"
 
 	"github.com/snapcore/snapd/i18n"
@@ -161,10 +162,8 @@ func checkOnClassic() *dbus.Error {
 var validDesktopFileName = regexp.MustCompile(`^[A-Za-z-_][A-Za-z0-9-_]*(\.[A-Za-z-_][A-Za-z0-9-_]*)*\.desktop$`)
 
 func schemeHasHandler(scheme string) (bool, error) {
-	out, stderr, err := osutil.RunSplitOutput("xdg-mime", "query", "default", "x-scheme-handler/"+scheme)
-	if err != nil {
-		return false, osutil.OutputErrCombine(out, stderr, err)
-	}
+	out, stderr := mylog.Check3(osutil.RunSplitOutput("xdg-mime", "query", "default", "x-scheme-handler/"+scheme))
+
 	out = bytes.TrimSpace(out)
 	// if the output is a valid desktop file we have a handler for the given
 	// scheme
@@ -176,14 +175,10 @@ func schemeHasHandler(scheme string) (bool, error) {
 // validated against a list of allowed schemes. All other schemes are denied.
 func (s *Launcher) OpenURL(addr string, sender dbus.Sender) *dbus.Error {
 	logger.Debugf("open url: %q", addr)
-	if err := checkOnClassic(); err != nil {
-		return err
-	}
+	mylog.Check(checkOnClassic())
 
-	u, err := url.Parse(addr)
-	if err != nil {
-		return &dbus.ErrMsgInvalidArg
-	}
+	u := mylog.Check2(url.Parse(addr))
+
 	if u.Scheme == "" {
 		return makeAccessDeniedError(fmt.Errorf("cannot open URL without a scheme"))
 	}
@@ -193,22 +188,18 @@ func (s *Launcher) OpenURL(addr string, sender dbus.Sender) *dbus.Error {
 		// scheme is not listed in our allowed schemes list, perform
 		// fallback and check whether the local system has a handler for
 		// it
-		isAllowed, err = schemeHasHandler(u.Scheme)
-		if err != nil {
-			logger.Noticef("cannot obtain scheme handler for %q: %v", u.Scheme, err)
-		}
+		isAllowed = mylog.Check2(schemeHasHandler(u.Scheme))
 	}
 	if !isAllowed {
 		return makeAccessDeniedError(fmt.Errorf("Supplied URL scheme %q is not allowed", u.Scheme))
 	}
+	mylog.Check(
 
-	// ATTENTION!
-	// this code must not add directories from the snap
-	// to XDG_DATA_DIRS and similar, see
-	// https://ubuntu.com/security/CVE-2020-11934
-	if err := exec.Command("xdg-open", addr).Run(); err != nil {
-		return dbus.MakeFailedError(fmt.Errorf("cannot open supplied URL"))
-	}
+		// ATTENTION!
+		// this code must not add directories from the snap
+		// to XDG_DATA_DIRS and similar, see
+		// https://ubuntu.com/security/CVE-2020-11934
+		exec.Command("xdg-open", addr).Run())
 
 	return nil
 }
@@ -221,10 +212,8 @@ func (s *Launcher) OpenURL(addr string, sender dbus.Sender) *dbus.Error {
 // and the resulting device number and inode number are compared to
 // stat on the path determined earlier. The numbers must match.
 func fdToFilename(fd int) (string, error) {
-	flags, err := sys.FcntlGetFl(fd)
-	if err != nil {
-		return "", err
-	}
+	flags := mylog.Check2(sys.FcntlGetFl(fd))
+
 	// File descriptors opened with O_PATH do not imply access to
 	// the file in question.
 	if flags&sys.O_PATH != 0 {
@@ -232,18 +221,11 @@ func fdToFilename(fd int) (string, error) {
 	}
 
 	// Determine the file name associated with the passed file descriptor.
-	filename, err := os.Readlink(fmt.Sprintf("/proc/self/fd/%d", fd))
-	if err != nil {
-		return "", err
-	}
+	filename := mylog.Check2(os.Readlink(fmt.Sprintf("/proc/self/fd/%d", fd)))
 
 	var fileStat, fdStat syscall.Stat_t
-	if err := syscall.Stat(filename, &fileStat); err != nil {
-		return "", err
-	}
-	if err := syscall.Fstat(fd, &fdStat); err != nil {
-		return "", err
-	}
+	mylog.Check(syscall.Stat(filename, &fileStat))
+	mylog.Check(syscall.Fstat(fd, &fdStat))
 
 	// check to ensure we've got the right file
 	if fdStat.Dev != fileStat.Dev || fdStat.Ino != fileStat.Ino {
@@ -262,24 +244,14 @@ func (s *Launcher) OpenFile(parentWindow string, clientFd dbus.UnixFD, sender db
 	// godbus transfers ownership of this file descriptor to us
 	fd := int(clientFd)
 	defer syscall.Close(fd)
+	mylog.Check(checkOnClassic())
 
-	if err := checkOnClassic(); err != nil {
-		return err
-	}
+	filename := mylog.Check2(fdToFilename(fd))
 
-	filename, err := fdToFilename(fd)
-	if err != nil {
-		return dbus.MakeFailedError(err)
-	}
+	snap := mylog.Check2(snapFromSender(s.conn, sender))
 
-	snap, err := snapFromSender(s.conn, sender)
-	if err != nil {
-		return dbus.MakeFailedError(err)
-	}
-	dialog, err := ui.New()
-	if err != nil {
-		return dbus.MakeFailedError(err)
-	}
+	dialog := mylog.Check2(ui.New())
+
 	answeredYes := dialog.YesNo(
 		i18n.G("Allow opening file?"),
 		fmt.Sprintf(i18n.G("Allow snap %q to open file %q?"), snap, filename),
@@ -291,10 +263,7 @@ func (s *Launcher) OpenFile(parentWindow string, clientFd dbus.UnixFD, sender db
 	if !answeredYes {
 		return dbus.MakeFailedError(fmt.Errorf("permission denied"))
 	}
-
-	if err = exec.Command("xdg-open", filename).Run(); err != nil {
-		return dbus.MakeFailedError(fmt.Errorf("cannot open supplied URL"))
-	}
+	mylog.Check(exec.Command("xdg-open", filename).Run())
 
 	return nil
 }

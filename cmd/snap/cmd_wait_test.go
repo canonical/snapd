@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	snap "github.com/snapcore/snapd/cmd/snap"
 )
 
@@ -43,8 +44,8 @@ func (s *SnapSuite) TestCmdWaitHappy(c *C) {
 		n++
 	})
 
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"wait", "system", "seed.loaded"})
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"wait", "system", "seed.loaded"}))
+
 
 	// ensure we retried a bit but make the check not overly precise
 	// because this will run in super busy build hosts that where a
@@ -59,7 +60,7 @@ func (s *SnapSuite) TestCmdWaitMissingConfKey(c *C) {
 		n++
 	})
 
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"wait", "snapName"})
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"wait", "snapName"}))
 	c.Assert(err, ErrorMatches, "the required argument `<key>` was not provided")
 
 	c.Check(n, Equals, 0)
@@ -105,7 +106,7 @@ func (s *SnapSuite) TestTrueishJSON(c *C) {
 		{int(1), false, "cannot test type int for truth"},
 	}
 	for _, t := range tests {
-		res, err := snap.TrueishJSON(t.v)
+		res := mylog.Check2(snap.TrueishJSON(t.v))
 		if t.errStr == "" {
 			c.Check(err, IsNil)
 		} else {
@@ -119,7 +120,7 @@ func (s *SnapSuite) TestCmdWaitIntegration(c *C) {
 	restore := snap.MockWaitConfTimeout(2 * time.Millisecond)
 	defer restore()
 
-	var tests = []struct {
+	tests := []struct {
 		v        string
 		willWait bool
 	}{
@@ -161,8 +162,8 @@ func (s *SnapSuite) TestCmdWaitIntegration(c *C) {
 			testValueCh <- "42"
 		}
 
-		_, err := snap.Parser(snap.Client()).ParseArgs([]string{"wait", "system", "test.value"})
-		c.Assert(err, IsNil)
+		_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"wait", "system", "test.value"}))
+
 		if t.willWait {
 			// we waited once, then got a non-wait value
 			c.Check(n, Equals, 2)

@@ -29,6 +29,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
@@ -108,43 +109,44 @@ apps:
 `
 	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
-	_, err := s.be.LinkSnap(info, mockDev, backend.LinkContext{}, s.perfTimings)
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(s.be.LinkSnap(info, mockDev, backend.LinkContext{}, s.perfTimings))
 
-	l, err := filepath.Glob(filepath.Join(dirs.SnapBinariesDir, "*"))
-	c.Assert(err, IsNil)
+
+	l := mylog.Check2(filepath.Glob(filepath.Join(dirs.SnapBinariesDir, "*")))
+
 	c.Assert(l, HasLen, 1)
-	l, err = filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.service"))
-	c.Assert(err, IsNil)
+	l = mylog.Check2(filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.service")))
+
 	c.Assert(l, HasLen, 2)
-	l, err = filepath.Glob(filepath.Join(dirs.SnapUserServicesDir, "*.service"))
-	c.Assert(err, IsNil)
-	c.Assert(l, HasLen, 1)
-	l, err = filepath.Glob(filepath.Join(dirs.SnapDBusSystemServicesDir, "*.service"))
-	c.Assert(err, IsNil)
-	c.Assert(l, HasLen, 1)
-	l, err = filepath.Glob(filepath.Join(dirs.SnapDBusSessionServicesDir, "*.service"))
-	c.Assert(err, IsNil)
-	c.Assert(l, HasLen, 1)
+	l = mylog.Check2(filepath.Glob(filepath.Join(dirs.SnapUserServicesDir, "*.service")))
 
-	// undo will remove
-	err = s.be.UnlinkSnap(info, backend.LinkContext{}, progress.Null)
-	c.Assert(err, IsNil)
+	c.Assert(l, HasLen, 1)
+	l = mylog.Check2(filepath.Glob(filepath.Join(dirs.SnapDBusSystemServicesDir, "*.service")))
 
-	l, err = filepath.Glob(filepath.Join(dirs.SnapBinariesDir, "*"))
-	c.Assert(err, IsNil)
+	c.Assert(l, HasLen, 1)
+	l = mylog.Check2(filepath.Glob(filepath.Join(dirs.SnapDBusSessionServicesDir, "*.service")))
+
+	c.Assert(l, HasLen, 1)
+	mylog.
+
+		// undo will remove
+		Check(s.be.UnlinkSnap(info, backend.LinkContext{}, progress.Null))
+
+
+	l = mylog.Check2(filepath.Glob(filepath.Join(dirs.SnapBinariesDir, "*")))
+
 	c.Assert(l, HasLen, 0)
-	l, err = filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.service"))
-	c.Assert(err, IsNil)
+	l = mylog.Check2(filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.service")))
+
 	c.Assert(l, HasLen, 0)
-	l, err = filepath.Glob(filepath.Join(dirs.SnapUserServicesDir, "*.service"))
-	c.Assert(err, IsNil)
+	l = mylog.Check2(filepath.Glob(filepath.Join(dirs.SnapUserServicesDir, "*.service")))
+
 	c.Assert(l, HasLen, 0)
-	l, err = filepath.Glob(filepath.Join(dirs.SnapDBusSystemServicesDir, "*.service"))
-	c.Assert(err, IsNil)
+	l = mylog.Check2(filepath.Glob(filepath.Join(dirs.SnapDBusSystemServicesDir, "*.service")))
+
 	c.Assert(l, HasLen, 0)
-	l, err = filepath.Glob(filepath.Join(dirs.SnapDBusSessionServicesDir, "*.service"))
-	c.Assert(err, IsNil)
+	l = mylog.Check2(filepath.Glob(filepath.Join(dirs.SnapDBusSessionServicesDir, "*.service")))
+
 	c.Assert(l, HasLen, 0)
 }
 
@@ -175,31 +177,32 @@ Exec=foo
 	c.Assert(os.WriteFile(filepath.Join(iconsDir, "snap.hello.png"), []byte(""), 0644), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(iconsDir, "snap.hello.svg"), []byte(""), 0644), IsNil)
 
-	_, err := s.be.LinkSnap(info, mockDev, backend.LinkContext{}, s.perfTimings)
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(s.be.LinkSnap(info, mockDev, backend.LinkContext{}, s.perfTimings))
 
-	l, err := filepath.Glob(filepath.Join(dirs.SnapBinariesDir, "*"))
-	c.Assert(err, IsNil)
+
+	l := mylog.Check2(filepath.Glob(filepath.Join(dirs.SnapBinariesDir, "*")))
+
 	c.Check(l, HasLen, 2)
-	l, err = filepath.Glob(filepath.Join(dirs.SnapDesktopFilesDir, "*.desktop"))
-	c.Assert(err, IsNil)
+	l = mylog.Check2(filepath.Glob(filepath.Join(dirs.SnapDesktopFilesDir, "*.desktop")))
+
 	c.Check(l, HasLen, 1)
-	l, err = filepath.Glob(filepath.Join(dirs.SnapDesktopIconsDir, "snap.hello.*"))
-	c.Assert(err, IsNil)
+	l = mylog.Check2(filepath.Glob(filepath.Join(dirs.SnapDesktopIconsDir, "snap.hello.*")))
+
 	c.Check(l, HasLen, 2)
+	mylog.
 
-	// undo will remove
-	err = s.be.UnlinkSnap(info, backend.LinkContext{}, progress.Null)
-	c.Assert(err, IsNil)
+		// undo will remove
+		Check(s.be.UnlinkSnap(info, backend.LinkContext{}, progress.Null))
 
-	l, err = filepath.Glob(filepath.Join(dirs.SnapBinariesDir, "*"))
-	c.Assert(err, IsNil)
+
+	l = mylog.Check2(filepath.Glob(filepath.Join(dirs.SnapBinariesDir, "*")))
+
 	c.Check(l, HasLen, 0)
-	l, err = filepath.Glob(filepath.Join(dirs.SnapDesktopFilesDir, "*.desktop"))
-	c.Assert(err, IsNil)
+	l = mylog.Check2(filepath.Glob(filepath.Join(dirs.SnapDesktopFilesDir, "*.desktop")))
+
 	c.Check(l, HasLen, 0)
-	l, err = filepath.Glob(filepath.Join(dirs.SnapDesktopIconsDir, "snap.hello.*"))
-	c.Assert(err, IsNil)
+	l = mylog.Check2(filepath.Glob(filepath.Join(dirs.SnapDesktopIconsDir, "snap.hello.*")))
+
 	c.Check(l, HasLen, 0)
 }
 
@@ -230,34 +233,34 @@ Exec=foo
 	c.Assert(os.WriteFile(filepath.Join(iconsDir, "snap.hello.png"), []byte(""), 0644), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(iconsDir, "snap.hello.svg"), []byte(""), 0644), IsNil)
 
-	_, err := s.be.LinkSnap(info, mockDev, backend.LinkContext{}, s.perfTimings)
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(s.be.LinkSnap(info, mockDev, backend.LinkContext{}, s.perfTimings))
 
-	l, err := filepath.Glob(filepath.Join(dirs.SnapBinariesDir, "*"))
-	c.Assert(err, IsNil)
+
+	l := mylog.Check2(filepath.Glob(filepath.Join(dirs.SnapBinariesDir, "*")))
+
 	c.Check(l, HasLen, 2)
-	l, err = filepath.Glob(filepath.Join(dirs.SnapDesktopFilesDir, "*.desktop"))
-	c.Assert(err, IsNil)
+	l = mylog.Check2(filepath.Glob(filepath.Join(dirs.SnapDesktopFilesDir, "*.desktop")))
+
 	c.Check(l, HasLen, 1)
-	l, err = filepath.Glob(filepath.Join(dirs.SnapDesktopIconsDir, "snap.hello.*"))
-	c.Assert(err, IsNil)
+	l = mylog.Check2(filepath.Glob(filepath.Join(dirs.SnapDesktopIconsDir, "snap.hello.*")))
+
 	c.Check(l, HasLen, 2)
 
 	// unlink should skip binaries, icons and desktop files
 	linkCtx := backend.LinkContext{
 		SkipBinaries: true,
 	}
-	err = s.be.UnlinkSnap(info, linkCtx, progress.Null)
-	c.Assert(err, IsNil)
+	mylog.Check(s.be.UnlinkSnap(info, linkCtx, progress.Null))
 
-	l, err = filepath.Glob(filepath.Join(dirs.SnapBinariesDir, "*"))
-	c.Assert(err, IsNil)
+
+	l = mylog.Check2(filepath.Glob(filepath.Join(dirs.SnapBinariesDir, "*")))
+
 	c.Check(l, HasLen, 2)
-	l, err = filepath.Glob(filepath.Join(dirs.SnapDesktopFilesDir, "*.desktop"))
-	c.Assert(err, IsNil)
+	l = mylog.Check2(filepath.Glob(filepath.Join(dirs.SnapDesktopFilesDir, "*.desktop")))
+
 	c.Check(l, HasLen, 1)
-	l, err = filepath.Glob(filepath.Join(dirs.SnapDesktopIconsDir, "snap.hello.*"))
-	c.Assert(err, IsNil)
+	l = mylog.Check2(filepath.Glob(filepath.Join(dirs.SnapDesktopIconsDir, "snap.hello.*")))
+
 	c.Check(l, HasLen, 2)
 }
 
@@ -267,30 +270,30 @@ version: 1.0
 `
 	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
-	reboot, err := s.be.LinkSnap(info, mockDev, backend.LinkContext{}, s.perfTimings)
-	c.Assert(err, IsNil)
+	reboot := mylog.Check2(s.be.LinkSnap(info, mockDev, backend.LinkContext{}, s.perfTimings))
+
 
 	c.Check(reboot, Equals, boot.RebootInfo{RebootRequired: false})
 
 	mountDir := info.MountDir()
 	dataDir := info.DataDir()
 	currentActiveSymlink := filepath.Join(mountDir, "..", "current")
-	currentActiveDir, err := filepath.EvalSymlinks(currentActiveSymlink)
-	c.Assert(err, IsNil)
+	currentActiveDir := mylog.Check2(filepath.EvalSymlinks(currentActiveSymlink))
+
 	c.Assert(currentActiveDir, Equals, mountDir)
 
 	currentDataSymlink := filepath.Join(dataDir, "..", "current")
-	currentDataDir, err := filepath.EvalSymlinks(currentDataSymlink)
-	c.Assert(err, IsNil)
-	c.Assert(currentDataDir, Equals, dataDir)
+	currentDataDir := mylog.Check2(filepath.EvalSymlinks(currentDataSymlink))
 
-	// undo will remove the symlinks
-	err = s.be.UnlinkSnap(info, backend.LinkContext{}, progress.Null)
-	c.Assert(err, IsNil)
+	c.Assert(currentDataDir, Equals, dataDir)
+	mylog.
+
+		// undo will remove the symlinks
+		Check(s.be.UnlinkSnap(info, backend.LinkContext{}, progress.Null))
+
 
 	c.Check(osutil.FileExists(currentActiveSymlink), Equals, false)
 	c.Check(osutil.FileExists(currentDataSymlink), Equals, false)
-
 }
 
 func (s *linkSuite) TestLinkSetNextBoot(c *C) {
@@ -307,8 +310,8 @@ type: base
 `
 	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
-	reboot, err := s.be.LinkSnap(info, coreDev, backend.LinkContext{}, s.perfTimings)
-	c.Assert(err, IsNil)
+	reboot := mylog.Check2(s.be.LinkSnap(info, coreDev, backend.LinkContext{}, s.perfTimings))
+
 	c.Check(reboot, Equals, boot.RebootInfo{RebootRequired: true})
 }
 
@@ -329,8 +332,8 @@ type: kernel
 `
 	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
-	reboot, err := be.LinkSnap(info, coreDev, backend.LinkContext{}, s.perfTimings)
-	c.Assert(err, IsNil)
+	reboot := mylog.Check2(be.LinkSnap(info, coreDev, backend.LinkContext{}, s.perfTimings))
+
 	c.Check(reboot, DeepEquals, boot.RebootInfo{})
 }
 
@@ -359,8 +362,8 @@ type: snapd
 `
 	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
-	_, err := be.LinkSnap(info, coreDev, backend.LinkContext{}, s.perfTimings)
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(be.LinkSnap(info, coreDev, backend.LinkContext{}, s.perfTimings))
+
 	c.Assert(called, Equals, true)
 }
 
@@ -380,29 +383,29 @@ apps:
 `
 	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
-	_, err := s.be.LinkSnap(info, mockDev, backend.LinkContext{}, s.perfTimings)
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(s.be.LinkSnap(info, mockDev, backend.LinkContext{}, s.perfTimings))
 
-	_, err = s.be.LinkSnap(info, mockDev, backend.LinkContext{}, s.perfTimings)
-	c.Assert(err, IsNil)
 
-	l, err := filepath.Glob(filepath.Join(dirs.SnapBinariesDir, "*"))
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(s.be.LinkSnap(info, mockDev, backend.LinkContext{}, s.perfTimings))
+
+
+	l := mylog.Check2(filepath.Glob(filepath.Join(dirs.SnapBinariesDir, "*")))
+
 	c.Assert(l, HasLen, 1)
-	l, err = filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.service"))
-	c.Assert(err, IsNil)
+	l = mylog.Check2(filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.service")))
+
 	c.Assert(l, HasLen, 1)
 
 	mountDir := info.MountDir()
 	dataDir := info.DataDir()
 	currentActiveSymlink := filepath.Join(mountDir, "..", "current")
-	currentActiveDir, err := filepath.EvalSymlinks(currentActiveSymlink)
-	c.Assert(err, IsNil)
+	currentActiveDir := mylog.Check2(filepath.EvalSymlinks(currentActiveSymlink))
+
 	c.Assert(currentActiveDir, Equals, mountDir)
 
 	currentDataSymlink := filepath.Join(dataDir, "..", "current")
-	currentDataDir, err := filepath.EvalSymlinks(currentDataSymlink)
-	c.Assert(err, IsNil)
+	currentDataDir := mylog.Check2(filepath.EvalSymlinks(currentDataSymlink))
+
 	c.Assert(currentDataDir, Equals, dataDir)
 
 	c.Check(filepath.Join(runinhibit.InhibitDir, "hello.lock"), testutil.FileAbsent)
@@ -422,21 +425,19 @@ apps:
 `
 	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
-	_, err := s.be.LinkSnap(info, mockDev, backend.LinkContext{}, s.perfTimings)
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(s.be.LinkSnap(info, mockDev, backend.LinkContext{}, s.perfTimings))
 
-	err = s.be.UnlinkSnap(info, backend.LinkContext{}, progress.Null)
-	c.Assert(err, IsNil)
+	mylog.Check(s.be.UnlinkSnap(info, backend.LinkContext{}, progress.Null))
 
-	err = s.be.UnlinkSnap(info, backend.LinkContext{}, progress.Null)
-	c.Assert(err, IsNil)
+	mylog.Check(s.be.UnlinkSnap(info, backend.LinkContext{}, progress.Null))
+
 
 	// no wrappers
-	l, err := filepath.Glob(filepath.Join(dirs.SnapBinariesDir, "*"))
-	c.Assert(err, IsNil)
+	l := mylog.Check2(filepath.Glob(filepath.Join(dirs.SnapBinariesDir, "*")))
+
 	c.Assert(l, HasLen, 0)
-	l, err = filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.service"))
-	c.Assert(err, IsNil)
+	l = mylog.Check2(filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.service")))
+
 	c.Assert(l, HasLen, 0)
 
 	// no symlinks
@@ -453,7 +454,7 @@ func (s *linkSuite) TestLinkFailsForUnsetRevision(c *C) {
 	info := &snap.Info{
 		SuggestedName: "foo",
 	}
-	_, err := s.be.LinkSnap(info, mockDev, backend.LinkContext{}, s.perfTimings)
+	_ := mylog.Check2(s.be.LinkSnap(info, mockDev, backend.LinkContext{}, s.perfTimings))
 	c.Assert(err, ErrorMatches, `cannot link snap "foo" with unset revision`)
 }
 
@@ -484,16 +485,15 @@ type: snapd
 func (s *linkSuite) TestLinkSnapdSnapOnCore(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
+	mylog.Check(os.MkdirAll(dirs.SnapServicesDir, 0755))
 
-	err := os.MkdirAll(dirs.SnapServicesDir, 0755)
-	c.Assert(err, IsNil)
-	err = os.MkdirAll(dirs.SnapUserServicesDir, 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(dirs.SnapUserServicesDir, 0755))
+
 
 	info, _ := mockSnapdSnapForLink(c)
 
-	reboot, err := s.be.LinkSnap(info, mockDev, backend.LinkContext{}, s.perfTimings)
-	c.Assert(err, IsNil)
+	reboot := mylog.Check2(s.be.LinkSnap(info, mockDev, backend.LinkContext{}, s.perfTimings))
+
 	c.Assert(reboot, Equals, boot.RebootInfo{RebootRequired: false})
 
 	// system services
@@ -591,7 +591,7 @@ Exec=bin
 	// validity checks
 	for _, d := range []string{dirs.SnapBinariesDir, dirs.SnapDesktopFilesDir, dirs.SnapServicesDir, dirs.SnapDBusSystemServicesDir, dirs.SnapDBusSessionServicesDir} {
 		os.MkdirAll(d, 0755)
-		l, err := filepath.Glob(filepath.Join(d, "*"))
+		l := mylog.Check2(filepath.Glob(filepath.Join(d, "*")))
 		c.Assert(err, IsNil, Commentf(d))
 		c.Assert(l, HasLen, 0, Commentf(d))
 	}
@@ -601,14 +601,14 @@ func (s *linkCleanupSuite) testLinkCleanupDirOnFail(c *C, dir string) {
 	c.Assert(os.Chmod(dir, 0555), IsNil)
 	defer os.Chmod(dir, 0755)
 
-	_, err := s.be.LinkSnap(s.info, mockDev, backend.LinkContext{}, s.perfTimings)
+	_ := mylog.Check2(s.be.LinkSnap(s.info, mockDev, backend.LinkContext{}, s.perfTimings))
 	c.Assert(err, NotNil)
 	_, isPathError := err.(*os.PathError)
 	_, isLinkError := err.(*os.LinkError)
 	c.Assert(isPathError || isLinkError, Equals, true, Commentf("%#v", err))
 
 	for _, d := range []string{dirs.SnapBinariesDir, dirs.SnapDesktopFilesDir, dirs.SnapServicesDir, dirs.SnapDBusSystemServicesDir, dirs.SnapDBusSessionServicesDir} {
-		l, err := filepath.Glob(filepath.Join(d, "*"))
+		l := mylog.Check2(filepath.Glob(filepath.Join(d, "*")))
 		c.Check(err, IsNil, Commentf(d))
 		c.Check(l, HasLen, 0, Commentf(d))
 	}
@@ -646,11 +646,11 @@ func (s *linkCleanupSuite) TestLinkCleanupOnSystemctlFail(c *C) {
 	})
 	defer r()
 
-	_, err := s.be.LinkSnap(s.info, mockDev, backend.LinkContext{}, s.perfTimings)
+	_ := mylog.Check2(s.be.LinkSnap(s.info, mockDev, backend.LinkContext{}, s.perfTimings))
 	c.Assert(err, ErrorMatches, "ouchie")
 
 	for _, d := range []string{dirs.SnapBinariesDir, dirs.SnapDesktopFilesDir, dirs.SnapServicesDir} {
-		l, err := filepath.Glob(filepath.Join(d, "*"))
+		l := mylog.Check2(filepath.Glob(filepath.Join(d, "*")))
 		c.Check(err, IsNil, Commentf(d))
 		c.Check(l, HasLen, 0, Commentf(d))
 	}
@@ -666,7 +666,7 @@ func (s *linkCleanupSuite) TestLinkCleansUpDataDirAndSymlinksOnSymlinkFail(c *C)
 	c.Assert(os.Chmod(d, 0555), IsNil)
 	defer os.Chmod(d, 0755)
 
-	_, err := s.be.LinkSnap(s.info, mockDev, backend.LinkContext{}, s.perfTimings)
+	_ := mylog.Check2(s.be.LinkSnap(s.info, mockDev, backend.LinkContext{}, s.perfTimings))
 	c.Assert(err, ErrorMatches, `(?i).*symlink.*permission denied.*`)
 
 	c.Check(s.info.DataDir(), testutil.FileAbsent)
@@ -679,32 +679,32 @@ func (s *linkCleanupSuite) testLinkCleanupFailedSnapdSnapOnCorePastWrappers(c *C
 	defer dirs.SetRootDir("")
 
 	info, _ := mockSnapdSnapForLink(c)
+	mylog.Check(os.MkdirAll(dirs.SnapServicesDir, 0755))
 
-	err := os.MkdirAll(dirs.SnapServicesDir, 0755)
-	c.Assert(err, IsNil)
-	err = os.MkdirAll(dirs.SnapUserServicesDir, 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(dirs.SnapUserServicesDir, 0755))
+
 
 	// make snap mount dir non-writable, triggers error updating the current symlink
 	snapdSnapDir := filepath.Dir(info.MountDir())
 
 	if firstInstall {
-		err := os.Remove(filepath.Join(snapdSnapDir, "1234"))
+		mylog.Check(os.Remove(filepath.Join(snapdSnapDir, "1234")))
 		c.Assert(err == nil || os.IsNotExist(err), Equals, true, Commentf("err: %v, err"))
 	} else {
-		err := os.Mkdir(filepath.Join(snapdSnapDir, "1234"), 0755)
-		c.Assert(err, IsNil)
-	}
+		mylog.Check(os.Mkdir(filepath.Join(snapdSnapDir, "1234"), 0755))
 
-	// triggers permission denied error when symlink is manipulated
-	err = os.Chmod(snapdSnapDir, 0555)
-	c.Assert(err, IsNil)
+	}
+	mylog.
+
+		// triggers permission denied error when symlink is manipulated
+		Check(os.Chmod(snapdSnapDir, 0555))
+
 	defer os.Chmod(snapdSnapDir, 0755)
 
 	linkCtx := backend.LinkContext{
 		FirstInstall: firstInstall,
 	}
-	reboot, err := s.be.LinkSnap(info, mockDev, linkCtx, s.perfTimings)
+	reboot := mylog.Check2(s.be.LinkSnap(info, mockDev, linkCtx, s.perfTimings))
 	c.Assert(err, ErrorMatches, fmt.Sprintf("symlink %s /.*/snapd/current.*: permission denied", info.Revision))
 	c.Assert(reboot, Equals, boot.RebootInfo{RebootRequired: false})
 
@@ -758,11 +758,10 @@ func (s *snapdOnCoreUnlinkSuite) TestUndoGeneratedWrappers(c *C) {
 	defer restore()
 	restore = release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
 	defer restore()
+	mylog.Check(os.MkdirAll(dirs.SnapServicesDir, 0755))
 
-	err := os.MkdirAll(dirs.SnapServicesDir, 0755)
-	c.Assert(err, IsNil)
-	err = os.MkdirAll(dirs.SnapUserServicesDir, 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(dirs.SnapUserServicesDir, 0755))
+
 
 	info, snapdUnits := mockSnapdSnapForLink(c)
 	// all generated units
@@ -776,8 +775,8 @@ func (s *snapdOnCoreUnlinkSuite) TestUndoGeneratedWrappers(c *C) {
 		return filepath.Join(dirs.SnapServicesDir, filepath.Base(p))
 	}
 
-	reboot, err := s.be.LinkSnap(info, mockDev, backend.LinkContext{}, s.perfTimings)
-	c.Assert(err, IsNil)
+	reboot := mylog.Check2(s.be.LinkSnap(info, mockDev, backend.LinkContext{}, s.perfTimings))
+
 	c.Assert(reboot, Equals, boot.RebootInfo{RebootRequired: false})
 
 	// validity checks
@@ -794,8 +793,8 @@ func (s *snapdOnCoreUnlinkSuite) TestUndoGeneratedWrappers(c *C) {
 		FirstInstall:   true,
 		RunInhibitHint: runinhibit.HintInhibitedForRefresh,
 	}
-	err = s.be.UnlinkSnap(info, linkCtx, nil)
-	c.Assert(err, IsNil)
+	mylog.Check(s.be.UnlinkSnap(info, linkCtx, nil))
+
 
 	// generated wrappers should be gone now
 	for _, entry := range generatedSnapdUnits {
@@ -804,10 +803,11 @@ func (s *snapdOnCoreUnlinkSuite) TestUndoGeneratedWrappers(c *C) {
 	// unlinked snaps have a run inhibition lock
 	c.Check(filepath.Join(runinhibit.InhibitDir, "snapd.lock"), testutil.FilePresent)
 	c.Check(filepath.Join(runinhibit.InhibitDir, "snapd.refresh"), testutil.FilePresent)
+	mylog.
 
-	// unlink is idempotent
-	err = s.be.UnlinkSnap(info, linkCtx, nil)
-	c.Assert(err, IsNil)
+		// unlink is idempotent
+		Check(s.be.UnlinkSnap(info, linkCtx, nil))
+
 	c.Check(filepath.Join(runinhibit.InhibitDir, "snapd.lock"), testutil.FilePresent)
 	c.Check(filepath.Join(runinhibit.InhibitDir, "snapd.refresh"), testutil.FilePresent)
 }
@@ -815,11 +815,10 @@ func (s *snapdOnCoreUnlinkSuite) TestUndoGeneratedWrappers(c *C) {
 func (s *snapdOnCoreUnlinkSuite) TestUnlinkNonFirstSnapdOnCoreDoesNothing(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
+	mylog.Check(os.MkdirAll(dirs.SnapServicesDir, 0755))
 
-	err := os.MkdirAll(dirs.SnapServicesDir, 0755)
-	c.Assert(err, IsNil)
-	err = os.MkdirAll(dirs.SnapUserServicesDir, 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(dirs.SnapUserServicesDir, 0755))
+
 
 	info, _ := mockSnapdSnapForLink(c)
 
@@ -837,8 +836,8 @@ func (s *snapdOnCoreUnlinkSuite) TestUnlinkNonFirstSnapdOnCoreDoesNothing(c *C) 
 		FirstInstall:   false,
 		RunInhibitHint: runinhibit.HintInhibitedForRefresh,
 	}
-	err = s.be.UnlinkSnap(info, linkCtx, nil)
-	c.Assert(err, IsNil)
+	mylog.Check(s.be.UnlinkSnap(info, linkCtx, nil))
+
 	for _, unit := range units {
 		c.Check(unit[0], testutil.FileEquals, "precious")
 	}
@@ -849,8 +848,8 @@ func (s *snapdOnCoreUnlinkSuite) TestUnlinkNonFirstSnapdOnCoreDoesNothing(c *C) 
 	// check inhibit info file content
 	inhibitInfoPath := filepath.Join(runinhibit.InhibitDir, "snapd.refresh")
 	var inhibitInfo runinhibit.InhibitInfo
-	buf, err := os.ReadFile(inhibitInfoPath)
-	c.Assert(err, IsNil)
+	buf := mylog.Check2(os.ReadFile(inhibitInfoPath))
+
 	c.Assert(json.Unmarshal(buf, &inhibitInfo), IsNil)
 	c.Check(inhibitInfo, Equals, runinhibit.InhibitInfo{Previous: snap.R(11)})
 }
@@ -869,22 +868,23 @@ apps:
 	linkCtxWithTooling := backend.LinkContext{
 		RequireMountedSnapdSnap: true,
 	}
-	_, err := s.be.LinkSnap(info, mockDev, linkCtxWithTooling, s.perfTimings)
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(s.be.LinkSnap(info, mockDev, linkCtxWithTooling, s.perfTimings))
+
 	c.Assert(filepath.Join(dirs.SnapServicesDir, "snap.hello.svc.service"), testutil.FileContains,
 		`Wants=usr-lib-snapd.mount
 After=usr-lib-snapd.mount`)
+	mylog.
 
-	// remove it now
-	err = s.be.UnlinkSnap(info, linkCtxWithTooling, nil)
-	c.Assert(err, IsNil)
+		// remove it now
+		Check(s.be.UnlinkSnap(info, linkCtxWithTooling, nil))
+
 	c.Assert(filepath.Join(dirs.SnapServicesDir, "snap.hello.svc.service"), testutil.FileAbsent)
 
 	linkCtxNoTooling := backend.LinkContext{
 		RequireMountedSnapdSnap: false,
 	}
-	_, err = s.be.LinkSnap(info, mockDev, linkCtxNoTooling, s.perfTimings)
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(s.be.LinkSnap(info, mockDev, linkCtxNoTooling, s.perfTimings))
+
 	c.Assert(filepath.Join(dirs.SnapServicesDir, "snap.hello.svc.service"), Not(testutil.FileContains), `usr-lib-snapd.mount`)
 }
 
@@ -899,16 +899,16 @@ apps:
 `
 	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
-	grp, err := quota.NewGroup("foogroup", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
-	c.Assert(err, IsNil)
+	grp := mylog.Check2(quota.NewGroup("foogroup", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build()))
+
 
 	linkCtxWithGroup := backend.LinkContext{
 		ServiceOptions: &wrappers.SnapServiceOptions{
 			QuotaGroup: grp,
 		},
 	}
-	_, err = s.be.LinkSnap(info, mockDev, linkCtxWithGroup, s.perfTimings)
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(s.be.LinkSnap(info, mockDev, linkCtxWithGroup, s.perfTimings))
+
 	c.Assert(filepath.Join(dirs.SnapServicesDir, "snap.hello.svc.service"), testutil.FileContains,
 		"\nSlice=snap.foogroup.slice\n")
 }
@@ -934,20 +934,20 @@ type: snapd
 	dataDir := info.DataDir()
 	currentActiveSymlink := filepath.Join(filepath.Dir(mountDir), "current")
 	currentDataSymlink := filepath.Join(filepath.Dir(dataDir), "current")
-	err := os.Symlink("oldactivevalue", currentActiveSymlink)
-	c.Assert(err, IsNil)
-	err = os.MkdirAll(filepath.Dir(dataDir), os.ModePerm)
-	c.Assert(err, IsNil)
-	err = os.Symlink("olddatavalue", currentDataSymlink)
-	c.Assert(err, IsNil)
+	mylog.Check(os.Symlink("oldactivevalue", currentActiveSymlink))
+
+	mylog.Check(os.MkdirAll(filepath.Dir(dataDir), os.ModePerm))
+
+	mylog.Check(os.Symlink("olddatavalue", currentDataSymlink))
+
 
 	var restartDone bool
 	restartFunc := func() error {
 		restartDone = true
-		mountTarget, err := os.Readlink(currentDataSymlink)
-		c.Assert(err, IsNil)
-		dataTarget, err := os.Readlink(currentDataSymlink)
-		c.Assert(err, IsNil)
+		mountTarget := mylog.Check2(os.Readlink(currentDataSymlink))
+
+		dataTarget := mylog.Check2(os.Readlink(currentDataSymlink))
+
 		c.Check(mountTarget, Equals, filepath.Base(mountDir))
 		c.Check(dataTarget, Equals, filepath.Base(dataDir))
 		return fmt.Errorf("BROKEN")
@@ -960,14 +960,14 @@ type: snapd
 	be := backend.NewForPreseedMode()
 	coreDev := boottest.MockUC20Device("run", nil)
 
-	_, err = be.LinkSnap(info, coreDev, backend.LinkContext{}, s.perfTimings)
+	_ = mylog.Check2(be.LinkSnap(info, coreDev, backend.LinkContext{}, s.perfTimings))
 	c.Assert(err, ErrorMatches, `BROKEN`)
 	c.Assert(restartDone, Equals, true)
 
-	readMountTarget, err := os.Readlink(currentActiveSymlink)
-	c.Assert(err, IsNil)
-	readDataTarget, err := os.Readlink(currentDataSymlink)
-	c.Assert(err, IsNil)
+	readMountTarget := mylog.Check2(os.Readlink(currentActiveSymlink))
+
+	readDataTarget := mylog.Check2(os.Readlink(currentDataSymlink))
+
 
 	c.Check(readMountTarget, Equals, "oldactivevalue")
 	c.Check(readDataTarget, Equals, "olddatavalue")
@@ -980,19 +980,18 @@ func (s *linkSuite) TestLinkComponentIdempotent(c *C) {
 	snapRev := snap.R(2)
 	cpi := snap.MinimalComponentContainerPlaceInfo(compName, compRev, snapName)
 	c.Assert(os.MkdirAll(cpi.MountDir(), 0755), IsNil)
+	mylog.Check(s.be.LinkComponent(cpi, snapRev))
 
-	err := s.be.LinkComponent(cpi, snapRev)
-	c.Assert(err, IsNil)
-	err = s.be.LinkComponent(cpi, snapRev)
-	c.Assert(err, IsNil)
+	mylog.Check(s.be.LinkComponent(cpi, snapRev))
+
 
 	linkPath := filepath.Join(dirs.SnapMountDir, snapName,
 		"components", snapRev.String(), compName)
-	relTarget, err := os.Readlink(linkPath)
+	relTarget := mylog.Check2(os.Readlink(linkPath))
 	c.Assert(relTarget, Equals, filepath.Join("../mnt", compName, compRev.String()))
-	c.Assert(err, IsNil)
-	linkTarget, err := filepath.EvalSymlinks(linkPath)
-	c.Assert(err, IsNil)
+
+	linkTarget := mylog.Check2(filepath.EvalSymlinks(linkPath))
+
 	c.Assert(linkTarget, Equals,
 		filepath.Join(snap.ComponentsBaseDir(snapName), "mnt", compName, compRev.String()))
 }
@@ -1008,8 +1007,7 @@ func (s *linkSuite) TestLinkComponentError(c *C) {
 	linkPath := filepath.Join(dirs.SnapMountDir, snapName,
 		"components", snapRev.String(), compName)
 	c.Assert(os.MkdirAll(linkPath, 0755), IsNil)
-
-	err := s.be.LinkComponent(cpi, snapRev)
+	mylog.Check(s.be.LinkComponent(cpi, snapRev))
 	c.Assert(err, ErrorMatches, `rename .*: file exists`)
 }
 
@@ -1026,16 +1024,14 @@ func (s *linkSuite) TestUnlinkComponentIdempotent(c *C) {
 	c.Assert(os.MkdirAll(cpi.MountDir(), 0755), IsNil)
 	c.Assert(os.MkdirAll(filepath.Dir(linkPath), 0755), IsNil)
 	c.Assert(osutil.AtomicSymlink(target, linkPath), IsNil)
+	mylog.Check(s.be.UnlinkComponent(cpi, snapRev))
 
-	err := s.be.UnlinkComponent(cpi, snapRev)
-	c.Assert(err, IsNil)
 	c.Assert(cpi.MountDir(), testutil.FilePresent)
 	// <snap_rev>/<comp_name>/ should be gone
 	c.Assert(linkPath, testutil.FileAbsent)
 	c.Assert(filepath.Dir(linkPath), testutil.FileAbsent)
+	mylog.Check(s.be.UnlinkComponent(cpi, snapRev))
 
-	err = s.be.UnlinkComponent(cpi, snapRev)
-	c.Assert(err, IsNil)
 }
 
 func (s *linkSuite) TestUnlinkTwoComponents(c *C) {
@@ -1058,16 +1054,14 @@ func (s *linkSuite) TestUnlinkTwoComponents(c *C) {
 	target2 := filepath.Join("../mnt", "other-comp", "1")
 	c.Assert(osutil.AtomicSymlink(target2,
 		filepath.Join(compRevPath, "other-comp")), IsNil)
+	mylog.Check(s.be.UnlinkComponent(cpi, snapRev))
 
-	err := s.be.UnlinkComponent(cpi, snapRev)
-	c.Assert(err, IsNil)
 	c.Assert(cpi.MountDir(), testutil.FilePresent)
 	// Only last subdir of <snap_rev>/<comp_name>/ should be gone
 	c.Assert(linkPath, testutil.FileAbsent)
 	c.Assert(filepath.Dir(linkPath), testutil.FilePresent)
+	mylog.Check(s.be.UnlinkComponent(cpi, snapRev))
 
-	err = s.be.UnlinkComponent(cpi, snapRev)
-	c.Assert(err, IsNil)
 }
 
 func (s *linkSuite) TestUnlinkComponentError(c *C) {
@@ -1081,7 +1075,6 @@ func (s *linkSuite) TestUnlinkComponentError(c *C) {
 	insideLinkPath := filepath.Join(dirs.SnapMountDir, snapName,
 		"components", snapRev.String(), compName, "xx")
 	c.Assert(os.MkdirAll(insideLinkPath, 0755), IsNil)
-
-	err := s.be.UnlinkComponent(cpi, snapRev)
+	mylog.Check(s.be.UnlinkComponent(cpi, snapRev))
 	c.Assert(err, ErrorMatches, `remove .*: directory not empty`)
 }

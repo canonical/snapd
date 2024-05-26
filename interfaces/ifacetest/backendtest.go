@@ -22,6 +22,7 @@ package ifacetest
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/osutil"
@@ -66,8 +67,8 @@ func (s *BackendSuite) SetUpTest(c *C) {
 	// Create a fresh repository for each test
 	s.Repo = interfaces.NewRepository()
 	s.Iface = &TestInterface{InterfaceName: "iface"}
-	err := s.Repo.AddInterface(s.Iface)
-	c.Assert(err, IsNil)
+	mylog.Check(s.Repo.AddInterface(s.Iface))
+
 
 	perf := timings.New(nil)
 	s.meas = perf.StartSpan("", "")
@@ -91,6 +92,7 @@ slots:
     slot:
         interface: iface
 `
+
 const SambaYamlV1Core20Base = `
 name: samba
 base: core20
@@ -102,6 +104,7 @@ slots:
     slot:
         interface: iface
 `
+
 const SambaYamlV1WithNmbd = `
 name: samba
 version: 1
@@ -113,6 +116,7 @@ slots:
     slot:
         interface: iface
 `
+
 const SambaYamlV1NoSlot = `
 name: samba
 version: 1
@@ -120,6 +124,7 @@ developer: acme
 apps:
     smbd:
 `
+
 const SambaYamlV1WithNmbdNoSlot = `
 name: samba
 version: 1
@@ -128,6 +133,7 @@ apps:
     smbd:
     nmbd:
 `
+
 const SambaYamlV2 = `
 name: samba
 version: 2
@@ -138,6 +144,7 @@ slots:
     slot:
         interface: iface
 `
+
 const SambaYamlWithHook = `
 name: samba
 version: 0
@@ -154,6 +161,7 @@ plugs:
     plug:
         interface: iface
 `
+
 const HookYaml = `
 name: foo
 version: 1
@@ -164,6 +172,7 @@ plugs:
     plug:
         interface: iface
 `
+
 const PlugNoAppsYaml = `
 name: foo
 version: 1
@@ -172,6 +181,7 @@ plugs:
     plug:
         interface: iface
 `
+
 const SlotNoAppsYaml = `
 name: foo
 version: 1
@@ -217,8 +227,8 @@ func (s *BackendSuite) InstallSnap(c *C, opts interfaces.ConfinementOptions, ins
 		Revision: snap.R(revision),
 	})
 
-	appSet, err := interfaces.NewSnapAppSet(snapInfo, nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(snapInfo, nil))
+
 
 	if instanceName != "" {
 		_, instanceKey := snap.SplitInstanceName(instanceName)
@@ -227,8 +237,8 @@ func (s *BackendSuite) InstallSnap(c *C, opts interfaces.ConfinementOptions, ins
 	}
 
 	s.addPlugsSlots(c, snapInfo)
-	err = s.Backend.Setup(appSet, opts, s.Repo, s.meas)
-	c.Assert(err, IsNil)
+	mylog.Check(s.Backend.Setup(appSet, opts, s.Repo, s.meas))
+
 	return snapInfo
 }
 
@@ -250,12 +260,12 @@ func (s *BackendSuite) InstallSnapWithComponents(c *C, opts interfaces.Confineme
 		}))
 	}
 
-	appSet, err := interfaces.NewSnapAppSet(snapInfo, componentInfos)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(snapInfo, componentInfos))
+
 
 	s.addPlugsSlots(c, snapInfo)
-	err = s.Backend.Setup(appSet, opts, s.Repo, s.meas)
-	c.Assert(err, IsNil)
+	mylog.Check(s.Backend.Setup(appSet, opts, s.Repo, s.meas))
+
 	return snapInfo
 }
 
@@ -273,20 +283,20 @@ func (s *BackendSuite) UpdateSnapWithComponents(c *C, oldSnapInfo *snap.Info, op
 		}))
 	}
 
-	appSet, err := interfaces.NewSnapAppSet(snapInfo, componentInfos)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(snapInfo, componentInfos))
+
 
 	s.removePlugsSlots(c, oldSnapInfo)
 	s.addPlugsSlots(c, snapInfo)
-	err = s.Backend.Setup(appSet, opts, s.Repo, s.meas)
-	c.Assert(err, IsNil)
+	mylog.Check(s.Backend.Setup(appSet, opts, s.Repo, s.meas))
+
 	return snapInfo
 }
 
 // UpdateSnap "updates" an existing snap from YAML.
 func (s *BackendSuite) UpdateSnap(c *C, oldSnapInfo *snap.Info, opts interfaces.ConfinementOptions, snapYaml string, revision int) *snap.Info {
-	newSnapInfo, err := s.UpdateSnapMaybeErr(c, oldSnapInfo, opts, snapYaml, revision)
-	c.Assert(err, IsNil)
+	newSnapInfo := mylog.Check2(s.UpdateSnapMaybeErr(c, oldSnapInfo, opts, snapYaml, revision))
+
 	return newSnapInfo
 }
 
@@ -298,41 +308,41 @@ func (s *BackendSuite) UpdateSnapMaybeErr(c *C, oldSnapInfo *snap.Info, opts int
 
 	newSnapInfo.InstanceKey = oldSnapInfo.InstanceKey
 
-	appSet, err := interfaces.NewSnapAppSet(newSnapInfo, nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(newSnapInfo, nil))
+
 
 	c.Assert(newSnapInfo.InstanceName(), Equals, oldSnapInfo.InstanceName())
 	s.removePlugsSlots(c, oldSnapInfo)
 	s.addPlugsSlots(c, newSnapInfo)
-	err = s.Backend.Setup(appSet, opts, s.Repo, s.meas)
+	mylog.Check(s.Backend.Setup(appSet, opts, s.Repo, s.meas))
 	return newSnapInfo, err
 }
 
 // RemoveSnap "removes" an "installed" snap.
 func (s *BackendSuite) RemoveSnap(c *C, snapInfo *snap.Info) {
-	err := s.Backend.Remove(snapInfo.InstanceName())
-	c.Assert(err, IsNil)
+	mylog.Check(s.Backend.Remove(snapInfo.InstanceName()))
+
 	s.removePlugsSlots(c, snapInfo)
 }
 
 func (s *BackendSuite) addPlugsSlots(c *C, snapInfo *snap.Info) {
 	for _, plugInfo := range snapInfo.Plugs {
-		err := s.Repo.AddPlug(plugInfo)
-		c.Assert(err, IsNil)
+		mylog.Check(s.Repo.AddPlug(plugInfo))
+
 	}
 	for _, slotInfo := range snapInfo.Slots {
-		err := s.Repo.AddSlot(slotInfo)
-		c.Assert(err, IsNil)
+		mylog.Check(s.Repo.AddSlot(slotInfo))
+
 	}
 }
 
 func (s *BackendSuite) removePlugsSlots(c *C, snapInfo *snap.Info) {
 	for _, plug := range s.Repo.Plugs(snapInfo.InstanceName()) {
-		err := s.Repo.RemovePlug(plug.Snap.InstanceName(), plug.Name)
-		c.Assert(err, IsNil)
+		mylog.Check(s.Repo.RemovePlug(plug.Snap.InstanceName(), plug.Name))
+
 	}
 	for _, slot := range s.Repo.Slots(snapInfo.InstanceName()) {
-		err := s.Repo.RemoveSlot(slot.Snap.InstanceName(), slot.Name)
-		c.Assert(err, IsNil)
+		mylog.Check(s.Repo.RemoveSlot(slot.Snap.InstanceName(), slot.Name))
+
 	}
 }

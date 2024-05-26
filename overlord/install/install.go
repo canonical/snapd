@@ -33,6 +33,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
@@ -157,15 +158,8 @@ func GetEncryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvision
 		opts := &gadget.ValidationConstraints{
 			EncryptedData: true,
 		}
-		if err := gadget.Validate(gadgetInfo, model, opts); err != nil {
-			if secured || encrypted {
-				res.UnavailableErr = fmt.Errorf("cannot use encryption with the gadget: %v", err)
-			} else {
-				res.UnavailableWarning = fmt.Sprintf("cannot use encryption with the gadget, disabling encryption: %v", err)
-			}
-			res.Available = false
-			res.Type = secboot.EncryptionTypeNone
-		}
+		mylog.Check(gadget.Validate(gadgetInfo, model, opts))
+
 	}
 
 	return res, nil
@@ -181,10 +175,8 @@ func checkFDEFeatures(runSetupHook fde.RunSetupHookFunc) (et secboot.EncryptionT
 	// returns any {"features":[...]} reply we consider the
 	// hardware supported. If the hook errors or if it returns
 	// {"error":"hardware-unsupported"} we don't.
-	features, err := fde.CheckFeatures(runSetupHook)
-	if err != nil {
-		return et, err
-	}
+	features := mylog.Check2(fde.CheckFeatures(runSetupHook))
+
 	switch {
 	case strutil.ListContains(features, "inline-crypto-engine"):
 		et = secboot.EncryptionTypeLUKSWithICE
@@ -199,10 +191,8 @@ func checkFDEFeatures(runSetupHook fde.RunSetupHookFunc) (et secboot.EncryptionT
 // available if any and returns the corresponding secboot.EncryptionType,
 // internally it uses GetEncryptionSupportInfo with the provided parameters.
 func CheckEncryptionSupport(model *asserts.Model, tpmMode secboot.TPMProvisionMode, kernelInfo *snap.Info, gadgetInfo *gadget.Info, runSetupHook fde.RunSetupHookFunc) (secboot.EncryptionType, error) {
-	res, err := GetEncryptionSupportInfo(model, tpmMode, kernelInfo, gadgetInfo, runSetupHook)
-	if err != nil {
-		return "", err
-	}
+	res := mylog.Check2(GetEncryptionSupportInfo(model, tpmMode, kernelInfo, gadgetInfo, runSetupHook))
+
 	if res.UnavailableWarning != "" {
 		logger.Noticef("%s", res.UnavailableWarning)
 	}
@@ -219,10 +209,10 @@ func CheckEncryptionSupport(model *asserts.Model, tpmMode secboot.TPMProvisionMo
 // The observer if any is also returned as non-nil trustedObserver if
 // encryption is in use.
 func BuildInstallObserver(model *asserts.Model, gadgetDir string, useEncryption bool) (
-	observer gadget.ContentObserver, trustedObserver *boot.TrustedAssetsInstallObserver, err error) {
-
+	observer gadget.ContentObserver, trustedObserver *boot.TrustedAssetsInstallObserver, err error,
+) {
 	// observer will be a nil interface by default
-	trustedObserver, err = boot.TrustedAssetsInstallObserverForModel(model, gadgetDir, useEncryption)
+	trustedObserver = mylog.Check2(boot.TrustedAssetsInstallObserverForModel(model, gadgetDir, useEncryption))
 	if err != nil && err != boot.ErrObserverNotApplicable {
 		return nil, nil, fmt.Errorf("cannot setup asset install observer: %v", err)
 	}
@@ -252,37 +242,29 @@ func PrepareEncryptedSystemData(model *asserts.Model, keyForRole map[string]keys
 
 	// make note of the encryption keys
 	trustedInstallObserver.ChosenEncryptionKeys(dataEncryptionKey, saveEncryptionKey)
+	mylog.Check(
 
-	// XXX is the asset cache problematic from initramfs?
-	// keep track of recovery assets
-	if err := trustedInstallObserver.ObserveExistingTrustedRecoveryAssets(boot.InitramfsUbuntuSeedDir); err != nil {
-		return fmt.Errorf("cannot observe existing trusted recovery assets: %v", err)
-	}
-	if err := saveKeys(model, keyForRole); err != nil {
-		return err
-	}
-	// write markers containing a secret to pair data and save
-	if err := writeMarkers(model); err != nil {
-		return err
-	}
+		// XXX is the asset cache problematic from initramfs?
+		// keep track of recovery assets
+		trustedInstallObserver.ObserveExistingTrustedRecoveryAssets(boot.InitramfsUbuntuSeedDir))
+	mylog.Check(saveKeys(model, keyForRole))
+	mylog.Check(
+
+		// write markers containing a secret to pair data and save
+		writeMarkers(model))
+
 	return nil
 }
 
 // writeMarkers writes markers containing the same secret to pair data and save.
 func writeMarkers(model *asserts.Model) error {
-	// ensure directory for markers exists
-	if err := os.MkdirAll(boot.InstallHostFDEDataDir(model), 0755); err != nil {
-		return err
-	}
-	if err := os.MkdirAll(boot.InstallHostFDESaveDir, 0755); err != nil {
-		return err
-	}
+	mylog.Check(
+		// ensure directory for markers exists
+		os.MkdirAll(boot.InstallHostFDEDataDir(model), 0755))
+	mylog.Check(os.MkdirAll(boot.InstallHostFDESaveDir, 0755))
 
 	// generate a secret random marker
-	markerSecret, err := randutil.CryptoTokenBytes(32)
-	if err != nil {
-		return fmt.Errorf("cannot create ubuntu-data/save marker secret: %v", err)
-	}
+	markerSecret := mylog.Check2(randutil.CryptoTokenBytes(32))
 
 	return device.WriteEncryptionMarkers(boot.InstallHostFDEDataDir(model), boot.InstallHostFDESaveDir, markerSecret)
 }
@@ -293,13 +275,11 @@ func saveKeys(model *asserts.Model, keyForRole map[string]keys.EncryptionKey) er
 		// no system-save support
 		return nil
 	}
-	// ensure directory for keys exists
-	if err := os.MkdirAll(boot.InstallHostFDEDataDir(model), 0755); err != nil {
-		return err
-	}
-	if err := saveEncryptionKey.Save(device.SaveKeyUnder(boot.InstallHostFDEDataDir(model))); err != nil {
-		return fmt.Errorf("cannot store system save key: %v", err)
-	}
+	mylog.Check(
+		// ensure directory for keys exists
+		os.MkdirAll(boot.InstallHostFDEDataDir(model), 0755))
+	mylog.Check(saveEncryptionKey.Save(device.SaveKeyUnder(boot.InstallHostFDEDataDir(model))))
+
 	return nil
 }
 
@@ -308,56 +288,44 @@ func saveKeys(model *asserts.Model, keyForRole map[string]keys.EncryptionKey) er
 // * sets up/copies any allowed and relevant cloud init configuration
 // * plus other details
 func PrepareRunSystemData(model *asserts.Model, gadgetDir string, perfTimings timings.Measurer) error {
-	// keep track of the model we installed
-	err := os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "device"), 0755)
-	if err != nil {
-		return fmt.Errorf("cannot store the model: %v", err)
-	}
-	err = writeModel(model, filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"))
-	if err != nil {
-		return fmt.Errorf("cannot store the model: %v", err)
-	}
+	mylog.
+		// keep track of the model we installed
+		Check(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "device"), 0755))
+	mylog.Check(writeModel(model, filepath.Join(boot.InitramfsUbuntuBootDir, "device/model")))
+	mylog.Check(
 
-	// XXX does this make sense from initramfs?
-	// preserve systemd-timesyncd clock timestamp, so that RTC-less devices
-	// can start with a more recent time on the next boot
-	if err := writeTimesyncdClock(dirs.GlobalRootDir, boot.InstallHostWritableDir(model)); err != nil {
-		return fmt.Errorf("cannot seed timesyncd clock: %v", err)
-	}
+		// XXX does this make sense from initramfs?
+		// preserve systemd-timesyncd clock timestamp, so that RTC-less devices
+		// can start with a more recent time on the next boot
+		writeTimesyncdClock(dirs.GlobalRootDir, boot.InstallHostWritableDir(model)))
 
 	// configure the run system
 	opts := &sysconfig.Options{TargetRootDir: boot.InstallHostWritableDir(model), GadgetDir: gadgetDir}
 	// configure cloud init
 	setSysconfigCloudOptions(opts, gadgetDir, model)
 	timings.Run(perfTimings, "sysconfig-configure-target-system", "Configure target system", func(timings.Measurer) {
-		err = sysconfigConfigureTargetSystem(model, opts)
+		mylog.Check(sysconfigConfigureTargetSystem(model, opts))
 	})
-	if err != nil {
-		return err
-	}
 
 	// TODO: FIXME: this should go away after we have time to design a proper
 	//              solution
 
 	if !model.Classic() {
-		// on some specific devices, we need to create these directories in
-		// _writable_defaults in order to allow the install-device hook to install
-		// some files there, this eventually will go away when we introduce a proper
-		// mechanism not using system-files to install files onto the root
-		// filesystem from the install-device hook
-		if err := fixupWritableDefaultDirs(boot.InstallHostWritableDir(model)); err != nil {
-			return err
-		}
+		mylog.Check(
+			// on some specific devices, we need to create these directories in
+			// _writable_defaults in order to allow the install-device hook to install
+			// some files there, this eventually will go away when we introduce a proper
+			// mechanism not using system-files to install files onto the root
+			// filesystem from the install-device hook
+			fixupWritableDefaultDirs(boot.InstallHostWritableDir(model)))
 	}
 
 	return nil
 }
 
 func writeModel(model *asserts.Model, where string) error {
-	f, err := os.OpenFile(where, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
-	if err != nil {
-		return err
-	}
+	f := mylog.Check2(os.OpenFile(where, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644))
+
 	defer f.Close()
 	return asserts.NewEncoder(f).Encode(model)
 }
@@ -409,10 +377,8 @@ func fixupWritableDefaultDirs(systemDataDir string) error {
 
 	for _, subDirToCreate := range []string{"/etc/udev/rules.d", "/etc/modprobe.d", "/etc/modules-load.d/", "/etc/systemd/network"} {
 		dirToCreate := sysconfig.WritableDefaultsDir(systemDataDir, subDirToCreate)
+		mylog.Check(os.MkdirAll(dirToCreate, 0755))
 
-		if err := os.MkdirAll(dirToCreate, 0755); err != nil {
-			return err
-		}
 	}
 
 	return nil
@@ -423,67 +389,51 @@ func writeTimesyncdClock(srcRootDir, dstRootDir string) error {
 	const timesyncClockInRoot = "/var/lib/systemd/timesync/clock"
 	clockSrc := filepath.Join(srcRootDir, timesyncClockInRoot)
 	clockDst := filepath.Join(dstRootDir, timesyncClockInRoot)
-	if err := os.MkdirAll(filepath.Dir(clockDst), 0755); err != nil {
-		return fmt.Errorf("cannot store the clock: %v", err)
-	}
+	mylog.Check(os.MkdirAll(filepath.Dir(clockDst), 0755))
+
 	if !osutil.FileExists(clockSrc) {
 		logger.Noticef("timesyncd clock timestamp %v does not exist", clockSrc)
 		return nil
 	}
-	// clock file is owned by a specific user/group, thus preserve
-	// attributes of the source
-	if err := osutil.CopyFile(clockSrc, clockDst, osutil.CopyFlagPreserveAll); err != nil {
-		return fmt.Errorf("cannot copy clock: %v", err)
-	}
-	// the file is empty however, its modification timestamp is used to set
-	// up the current time
-	if err := os.Chtimes(clockDst, timeNow(), timeNow()); err != nil {
-		return fmt.Errorf("cannot update clock timestamp: %v", err)
-	}
+	mylog.Check(
+		// clock file is owned by a specific user/group, thus preserve
+		// attributes of the source
+		osutil.CopyFile(clockSrc, clockDst, osutil.CopyFlagPreserveAll))
+	mylog.Check(
+
+		// the file is empty however, its modification timestamp is used to set
+		// up the current time
+		os.Chtimes(clockDst, timeNow(), timeNow()))
+
 	return nil
 }
 
 // ApplyPreseededData applies the preseed payload from the given seed, including
 // installing snaps, to the given target system filesystem.
 func ApplyPreseededData(preseedSeed seed.PreseedCapable, writableDir string) error {
-	preseedAs, err := preseedSeed.LoadPreseedAssertion()
-	if err != nil {
-		return err
-	}
+	preseedAs := mylog.Check2(preseedSeed.LoadPreseedAssertion())
 
 	preseedArtifact := preseedSeed.ArtifactPath("preseed.tgz")
 
 	// TODO: consider a writer that feeds the file to stdin of tar and calculates the digest at the same time.
-	sha3_384, _, err := osutil.FileDigest(preseedArtifact, crypto.SHA3_384)
-	if err != nil {
-		return fmt.Errorf("cannot calculate preseed artifact digest: %v", err)
-	}
+	sha3_384, _ := mylog.Check3(osutil.FileDigest(preseedArtifact, crypto.SHA3_384))
 
-	digest, err := base64.RawURLEncoding.DecodeString(preseedAs.ArtifactSHA3_384())
-	if err != nil {
-		return fmt.Errorf("cannot decode preseed artifact digest")
-	}
+	digest := mylog.Check2(base64.RawURLEncoding.DecodeString(preseedAs.ArtifactSHA3_384()))
+
 	if !bytes.Equal(sha3_384, digest) {
 		return fmt.Errorf("invalid preseed artifact digest")
 	}
 
 	logger.Noticef("apply preseed data: %q, %q", writableDir, preseedArtifact)
 	cmd := exec.Command("tar", "--extract", "--preserve-permissions", "--preserve-order", "--gunzip", "--directory", writableDir, "-f", preseedArtifact)
-	if err := cmd.Run(); err != nil {
-		return err
-	}
+	mylog.Check(cmd.Run())
 
 	logger.Noticef("copying snaps")
-
-	if err := os.MkdirAll(filepath.Join(writableDir, "var/lib/snapd/snaps"), 0755); err != nil {
-		return err
-	}
+	mylog.Check(os.MkdirAll(filepath.Join(writableDir, "var/lib/snapd/snaps"), 0755))
 
 	tm := timings.New(nil)
 	snapHandler := &preseedSnapHandler{writableDir: writableDir}
-	if err := preseedSeed.LoadMeta("run", snapHandler, tm); err != nil {
-		return err
-	}
+	mylog.Check(preseedSeed.LoadMeta("run", snapHandler, tm))
 
 	preseedSnaps := make(map[string]*asserts.PreseedSnap)
 	for _, ps := range preseedAs.Snaps() {
@@ -506,24 +456,18 @@ func ApplyPreseededData(preseedSeed seed.PreseedCapable, writableDir string) err
 	}
 
 	esnaps := preseedSeed.EssentialSnaps()
-	msnaps, err := preseedSeed.ModeSnaps("run")
-	if err != nil {
-		return err
-	}
+	msnaps := mylog.Check2(preseedSeed.ModeSnaps("run"))
+
 	if len(msnaps)+len(esnaps) != len(preseedSnaps) {
 		return fmt.Errorf("seed has %d snaps but %d snaps are required by preseed assertion", len(msnaps)+len(esnaps), len(preseedSnaps))
 	}
 
 	for _, esnap := range esnaps {
-		if err := checkSnap(esnap); err != nil {
-			return err
-		}
+		mylog.Check(checkSnap(esnap))
 	}
 
 	for _, ssnap := range msnaps {
-		if err := checkSnap(ssnap); err != nil {
-			return err
-		}
+		mylog.Check(checkSnap(ssnap))
 	}
 
 	return nil
@@ -541,9 +485,7 @@ func (p *preseedSnapHandler) HandleUnassertedSnap(name, path string, _ timings.M
 
 	sq := squashfs.New(path)
 	opts := &snap.InstallOptions{MustNotCrossDevices: true}
-	if _, err := sq.Install(targetPath, mountDir, opts); err != nil {
-		return "", fmt.Errorf("cannot install snap %q: %v", name, err)
-	}
+	mylog.Check2(sq.Install(targetPath, mountDir, opts))
 
 	return targetPath, nil
 }
@@ -555,47 +497,32 @@ func (p *preseedSnapHandler) HandleAndDigestAssertedSnap(name, path string, essT
 
 	logger.Debugf("copying: %q to %q; mount dir=%q", path, targetPath, mountDir)
 
-	srcFile, err := os.Open(path)
-	if err != nil {
-		return "", "", 0, err
-	}
+	srcFile := mylog.Check2(os.Open(path))
+
 	defer srcFile.Close()
 
-	destFile, err := osutil.NewAtomicFile(targetPath, 0644, 0, osutil.NoChown, osutil.NoChown)
-	if err != nil {
-		return "", "", 0, fmt.Errorf("cannot create atomic file: %v", err)
-	}
+	destFile := mylog.Check2(osutil.NewAtomicFile(targetPath, 0644, 0, osutil.NoChown, osutil.NoChown))
+
 	defer destFile.Cancel()
 
-	finfo, err := srcFile.Stat()
-	if err != nil {
-		return "", "", 0, err
-	}
+	finfo := mylog.Check2(srcFile.Stat())
 
 	destFile.SetModTime(finfo.ModTime())
 
 	h := crypto.SHA3_384.New()
 	w := io.MultiWriter(h, destFile)
 
-	size, err := io.CopyBuffer(w, srcFile, make([]byte, 2*1024*1024))
-	if err != nil {
-		return "", "", 0, err
-	}
-	if err := destFile.Commit(); err != nil {
-		return "", "", 0, fmt.Errorf("cannot copy snap %q: %v", name, err)
-	}
+	size := mylog.Check2(io.CopyBuffer(w, srcFile, make([]byte, 2*1024*1024)))
+	mylog.Check(destFile.Commit())
 
 	sq := squashfs.New(targetPath)
 	opts := &snap.InstallOptions{MustNotCrossDevices: true}
-	// since Install target path is the same as source path passed to squashfs.New,
-	// Install isn't going to copy the blob, but we call it to set up mount directory etc.
-	if _, err := sq.Install(targetPath, mountDir, opts); err != nil {
-		return "", "", 0, fmt.Errorf("cannot install snap %q: %v", name, err)
-	}
+	mylog.Check2(
+		// since Install target path is the same as source path passed to squashfs.New,
+		// Install isn't going to copy the blob, but we call it to set up mount directory etc.
+		sq.Install(targetPath, mountDir, opts))
 
-	sha3_384, err := asserts.EncodeDigest(crypto.SHA3_384, h.Sum(nil))
-	if err != nil {
-		return "", "", 0, fmt.Errorf("cannot encode snap %q digest: %v", path, err)
-	}
+	sha3_384 := mylog.Check2(asserts.EncodeDigest(crypto.SHA3_384, h.Sum(nil)))
+
 	return targetPath, sha3_384, uint64(size), nil
 }

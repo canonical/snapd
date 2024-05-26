@@ -30,24 +30,20 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 )
 
 func elfInterp(cmd string) (string, error) {
-	el, err := elf.Open(cmd)
-	if err != nil {
-		return "", err
-	}
+	el := mylog.Check2(elf.Open(cmd))
+
 	defer el.Close()
 
 	for _, prog := range el.Progs {
 		if prog.Type == elf.PT_INTERP {
 			r := prog.Open()
-			interp, err := io.ReadAll(r)
-			if err != nil {
-				return "", nil
-			}
+			interp := mylog.Check2(io.ReadAll(r))
 
 			return string(bytes.Trim(interp, "\x00")), nil
 		}
@@ -57,10 +53,8 @@ func elfInterp(cmd string) (string, error) {
 }
 
 func parseLdSoConf(root string, confPath string) []string {
-	f, err := os.Open(filepath.Join(root, confPath))
-	if err != nil {
-		return nil
-	}
+	f := mylog.Check2(os.Open(filepath.Join(root, confPath)))
+
 	defer f.Close()
 
 	var out []string
@@ -74,10 +68,8 @@ func parseLdSoConf(root string, confPath string) []string {
 			// nothing
 		case strings.HasPrefix(line, "include "):
 			l := strings.SplitN(line, "include ", 2)
-			files, err := filepath.Glob(filepath.Join(root, l[1]))
-			if err != nil {
-				return nil
-			}
+			files := mylog.Check2(filepath.Glob(filepath.Join(root, l[1])))
+
 			for _, f := range files {
 				out = append(out, parseLdSoConf(root, f[len(root):])...)
 			}
@@ -86,9 +78,7 @@ func parseLdSoConf(root string, confPath string) []string {
 		}
 
 	}
-	if err := scanner.Err(); err != nil {
-		return nil
-	}
+	mylog.Check(scanner.Err())
 
 	return out
 }
@@ -107,20 +97,16 @@ func CommandFromSystemSnap(name string, cmdArgs ...string) (*exec.Cmd, error) {
 	}
 
 	cmdPath := filepath.Join(root, name)
-	interp, err := elfInterp(cmdPath)
-	if err != nil {
-		return nil, err
-	}
+	interp := mylog.Check2(elfInterp(cmdPath))
+
 	coreLdSo := filepath.Join(root, interp)
 	// we cannot use EvalSymlink here because we need to resolve
 	// relative and an absolute symlinks differently. A absolute
 	// symlink is relative to root of the snapd/core snap.
 	seen := map[string]bool{}
 	for osutil.IsSymlink(coreLdSo) {
-		link, err := os.Readlink(coreLdSo)
-		if err != nil {
-			return nil, err
-		}
+		link := mylog.Check2(os.Readlink(coreLdSo))
+
 		if filepath.IsAbs(link) {
 			coreLdSo = filepath.Join(root, link)
 		} else {

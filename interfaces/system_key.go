@@ -30,6 +30,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -106,11 +107,9 @@ func generateSystemKey() (*systemKey, error) {
 	sk := &systemKey{
 		Version: systemKeyVersion,
 	}
-	snapdPath, err := snapdtool.InternalToolPath("snapd")
-	if err != nil {
-		return nil, err
-	}
-	buildID, err := readBuildID(snapdPath)
+	snapdPath := mylog.Check2(snapdtool.InternalToolPath("snapd"))
+
+	buildID := mylog.Check2(readBuildID(snapdPath))
 	if err != nil && !os.IsNotExist(err) {
 		return nil, err
 	}
@@ -125,37 +124,25 @@ func generateSystemKey() (*systemKey, error) {
 	// Add if home is using a remote file system, if so we need to have a
 	// different security profile and if this changes we need to change our
 	// profile.
-	sk.NFSHome, err = isHomeUsingRemoteFS()
-	if err != nil {
-		// just log the error here
-		logger.Noticef("cannot determine nfs usage in generateSystemKey: %v", err)
-		return nil, err
-	}
+	sk.NFSHome = mylog.Check2(isHomeUsingRemoteFS())
+
+	// just log the error here
 
 	// Add if '/' is on overlayfs so we can add AppArmor rules for
 	// upperdir such that if this changes, we change our profile.
-	sk.OverlayRoot, err = isRootWritableOverlay()
-	if err != nil {
-		// just log the error here
-		logger.Noticef("cannot determine root filesystem on overlay in generateSystemKey: %v", err)
-		return nil, err
-	}
+	sk.OverlayRoot = mylog.Check2(isRootWritableOverlay())
+
+	// just log the error here
 
 	// Add seccomp-features
 	sk.SecCompActions = seccomp.Actions()
 
-	versionInfo, err := seccompCompilerVersionInfo(filepath.Dir(snapdPath))
-	if err != nil {
-		logger.Noticef("cannot determine seccomp compiler version in generateSystemKey: %v", err)
-		return nil, err
-	}
+	versionInfo := mylog.Check2(seccompCompilerVersionInfo(filepath.Dir(snapdPath)))
+
 	sk.SeccompCompilerVersion = string(versionInfo)
 
-	cgv, err := cgroup.Version()
-	if err != nil {
-		logger.Noticef("cannot determine cgroup version: %v", err)
-		return nil, err
-	}
+	cgv := mylog.Check2(cgroup.Version())
+
 	sk.CgroupVersion = strconv.FormatInt(int64(cgv), 10)
 
 	return sk, nil
@@ -165,19 +152,14 @@ func generateSystemKey() (*systemKey, error) {
 // system key usable with SystemKeysMatch.
 func UnmarshalJSONSystemKey(r io.Reader) (interface{}, error) {
 	sk := &systemKey{}
-	err := json.NewDecoder(r).Decode(sk)
-	if err != nil {
-		return nil, err
-	}
+	mylog.Check(json.NewDecoder(r).Decode(sk))
+
 	return sk, nil
 }
 
 // WriteSystemKey will write the current system-key to disk
 func WriteSystemKey() error {
-	sk, err := generateSystemKey()
-	if err != nil {
-		return err
-	}
+	sk := mylog.Check2(generateSystemKey())
 
 	// only fix AppArmorParserFeatures if we didn't already mock a system-key
 	// if we mocked a system-key we are running a test and don't want to use
@@ -189,10 +171,8 @@ func WriteSystemKey() error {
 		sk.AppArmorParserFeatures, _ = apparmor.ParserFeatures()
 	}
 
-	sks, err := json.Marshal(sk)
-	if err != nil {
-		return err
-	}
+	sks := mylog.Check2(json.Marshal(sk))
+
 	return osutil.AtomicWriteFile(dirs.SnapSystemKeyFile, sks, 0644, 0)
 }
 
@@ -229,15 +209,9 @@ func WriteSystemKey() error {
 // snap run only has to obtain the mtime of apparmor_parser and
 // doesn't have to invoke it)
 func SystemKeyMismatch() (bool, error) {
-	mySystemKey, err := generateSystemKey()
-	if err != nil {
-		return false, err
-	}
+	mySystemKey := mylog.Check2(generateSystemKey())
 
-	diskSystemKey, err := readSystemKey()
-	if err != nil {
-		return false, err
-	}
+	diskSystemKey := mylog.Check2(readSystemKey())
 
 	// deal with the race that "snap run" may start, then snapd
 	// is upgraded and generates a new system-key with different
@@ -250,7 +224,7 @@ func SystemKeyMismatch() (bool, error) {
 
 	// special case to detect local runs
 	if mockedSystemKey == nil {
-		if exe, err := os.Readlink("/proc/self/exe"); err == nil {
+		if exe := mylog.Check2(os.Readlink("/proc/self/exe")); err == nil {
 			// detect running local local builds
 			if !strings.HasPrefix(exe, "/usr") && !strings.HasPrefix(exe, "/snap") {
 				logger.Noticef("running from non-installed location %s: ignoring system-key", exe)
@@ -266,37 +240,32 @@ func SystemKeyMismatch() (bool, error) {
 	diskSystemKey.AppArmorParserFeatures = nil
 	mySystemKey.AppArmorParserFeatures = nil
 
-	ok, err := SystemKeysMatch(mySystemKey, diskSystemKey)
+	ok := mylog.Check2(SystemKeysMatch(mySystemKey, diskSystemKey))
 	return !ok, err
 }
 
 func readSystemKey() (*systemKey, error) {
-	raw, err := os.ReadFile(dirs.SnapSystemKeyFile)
+	raw := mylog.Check2(os.ReadFile(dirs.SnapSystemKeyFile))
 	if err != nil && os.IsNotExist(err) {
 		return nil, ErrSystemKeyMissing
 	}
-	if err != nil {
-		return nil, err
-	}
+
 	var diskSystemKey systemKey
-	if err := json.Unmarshal(raw, &diskSystemKey); err != nil {
-		return nil, err
-	}
+	mylog.Check(json.Unmarshal(raw, &diskSystemKey))
+
 	return &diskSystemKey, nil
 }
 
 // RecordedSystemKey returns the system key read from the disk as opaque interface{}.
 func RecordedSystemKey() (interface{}, error) {
-	diskSystemKey, err := readSystemKey()
-	if err != nil {
-		return nil, err
-	}
+	diskSystemKey := mylog.Check2(readSystemKey())
+
 	return diskSystemKey, nil
 }
 
 // CurrentSystemKey calculates and returns the current system key as opaque interface{}.
 func CurrentSystemKey() (interface{}, error) {
-	currentSystemKey, err := generateSystemKey()
+	currentSystemKey := mylog.Check2(generateSystemKey())
 	return currentSystemKey, err
 }
 
@@ -315,7 +284,7 @@ func SystemKeysMatch(systemKey1, systemKey2 interface{}) (bool, error) {
 
 // RemoveSystemKey removes the system key from the disk.
 func RemoveSystemKey() error {
-	err := os.Remove(dirs.SnapSystemKeyFile)
+	mylog.Check(os.Remove(dirs.SnapSystemKeyFile))
 	if err != nil && !os.IsNotExist(err) {
 		return err
 	}
@@ -324,10 +293,8 @@ func RemoveSystemKey() error {
 
 func MockSystemKey(s string) func() {
 	var sk systemKey
-	err := json.Unmarshal([]byte(s), &sk)
-	if err != nil {
-		panic(err)
-	}
+	mylog.Check(json.Unmarshal([]byte(s), &sk))
+
 	mockedSystemKey = &sk
 	return func() { mockedSystemKey = nil }
 }

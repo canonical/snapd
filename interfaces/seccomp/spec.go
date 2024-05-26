@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"sort"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/snap"
 )
@@ -99,10 +100,7 @@ func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *in
 		SecCompConnectedPlug(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 	}
 	if iface, ok := iface.(definer); ok {
-		tags, err := spec.appSet.SecurityTagsForConnectedPlug(plug)
-		if err != nil {
-			return err
-		}
+		tags := mylog.Check2(spec.appSet.SecurityTagsForConnectedPlug(plug))
 
 		spec.securityTags = tags
 		defer func() { spec.securityTags = nil }()
@@ -117,10 +115,7 @@ func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *in
 		SecCompConnectedSlot(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 	}
 	if iface, ok := iface.(definer); ok {
-		tags, err := spec.appSet.SecurityTagsForConnectedSlot(slot)
-		if err != nil {
-			return err
-		}
+		tags := mylog.Check2(spec.appSet.SecurityTagsForConnectedSlot(slot))
 
 		spec.securityTags = tags
 		defer func() { spec.securityTags = nil }()
@@ -135,10 +130,7 @@ func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *sn
 		SecCompPermanentPlug(spec *Specification, plug *snap.PlugInfo) error
 	}
 	if iface, ok := iface.(definer); ok {
-		tags, err := spec.appSet.SecurityTagsForPlug(plug)
-		if err != nil {
-			return err
-		}
+		tags := mylog.Check2(spec.appSet.SecurityTagsForPlug(plug))
 
 		spec.securityTags = tags
 		defer func() { spec.securityTags = nil }()
@@ -153,10 +145,7 @@ func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *sn
 		SecCompPermanentSlot(spec *Specification, slot *snap.SlotInfo) error
 	}
 	if iface, ok := iface.(definer); ok {
-		tags, err := spec.appSet.SecurityTagsForSlot(slot)
-		if err != nil {
-			return err
-		}
+		tags := mylog.Check2(spec.appSet.SecurityTagsForSlot(slot))
 
 		spec.securityTags = tags
 		defer func() { spec.securityTags = nil }()

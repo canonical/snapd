@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap/channel"
@@ -32,11 +33,8 @@ import (
 // normChan will take a potentially unclean channel from the state
 // (with leading or trailing extra "/") and return a cleaned version.
 func normChan(in string) string {
-	out, err := channel.Full(in)
-	if err != nil {
-		logger.Noticef("cannot parse channel string %q: %v", in, err)
-		return in
-	}
+	out := mylog.Check2(channel.Full(in))
+
 	return out
 }
 
@@ -44,7 +42,7 @@ func normChan(in string) string {
 //   - ensure channel spec is valid
 func patch6_3(st *state.State) error {
 	var snaps map[string]*json.RawMessage
-	if err := st.Get("snaps", &snaps); err != nil && !errors.Is(err, state.ErrNoState) {
+	if mylog.Check(st.Get("snaps", &snaps)); err != nil && !errors.Is(err, state.ErrNoState) {
 		return fmt.Errorf("internal error: cannot get snaps: %s", err)
 	}
 
@@ -52,18 +50,15 @@ func patch6_3(st *state.State) error {
 	dirty := false
 	for name, raw := range snaps {
 		var snapst map[string]interface{}
-		if err := json.Unmarshal([]byte(*raw), &snapst); err != nil {
-			return err
-		}
+		mylog.Check(json.Unmarshal([]byte(*raw), &snapst))
+
 		ch, _ := snapst["channel"].(string)
 		if ch != "" {
 			normed := normChan(ch)
 			if normed != ch {
 				snapst["channel"] = normed
-				data, err := json.Marshal(snapst)
-				if err != nil {
-					return err
-				}
+				data := mylog.Check2(json.Marshal(snapst))
+
 				newRaw := json.RawMessage(data)
 				snaps[name] = &newRaw
 				dirty = true
@@ -83,7 +78,7 @@ func patch6_3(st *state.State) error {
 
 		// check task snap-setup
 		var snapsup map[string]interface{}
-		err := task.Get("snap-setup", &snapsup)
+		mylog.Check(task.Get("snap-setup", &snapsup))
 		if err != nil && !errors.Is(err, state.ErrNoState) {
 			return fmt.Errorf("internal error: cannot get snap-setup of task %s: %s", task.ID(), err)
 		}

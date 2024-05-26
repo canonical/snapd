@@ -23,6 +23,7 @@ package configstate
 import (
 	"regexp"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
@@ -50,9 +51,8 @@ func Init(st *state.State, hookManager *hookstate.HookManager) error {
 	defer st.Unlock()
 	tr := config.NewTransaction(st)
 	var homedirs string
-	if err := tr.GetMaybe("core", "homedirs", &homedirs); err != nil {
-		return err
-	}
+	mylog.Check(tr.GetMaybe("core", "homedirs", &homedirs))
+
 	dirs.SetSnapHomeDirs(homedirs)
 
 	// Default configuration is handled via the "default-configure" hook
@@ -65,20 +65,16 @@ func Init(st *state.State, hookManager *hookstate.HookManager) error {
 	// Note that we use the func() indirection so that mocking configcoreRun
 	// in tests works correctly.
 	hookManager.RegisterHijack("configure", "core", func(ctx *hookstate.Context) error {
-		dev, tr, err := func() (sysconfig.Device, configcore.RunTransaction, error) {
+		dev, tr := mylog.Check3(func() (sysconfig.Device, configcore.RunTransaction, error) {
 			ctx.Lock()
 			defer ctx.Unlock()
 			task, _ := ctx.Task()
-			dev, err := snapstate.DeviceCtx(ctx.State(), task, nil)
-			if err != nil {
-				return nil, nil, err
-			}
+			dev := mylog.Check2(snapstate.DeviceCtx(ctx.State(), task, nil))
+
 			rt := configcore.NewRunTransaction(ContextTransaction(ctx), task)
 			return dev, rt, nil
-		}()
-		if err != nil {
-			return err
-		}
+		}())
+
 		return configcoreRun(dev, tr)
 	})
 

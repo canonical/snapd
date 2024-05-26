@@ -26,6 +26,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/i18n"
@@ -231,13 +232,9 @@ func (x *cmdChangeTimings) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
-
-	if err := x.checkConflictingFlags(); err != nil {
-		return err
-	}
+	mylog.Check(x.checkConflictingFlags())
 
 	var chgid string
-	var err error
 
 	if x.EnsureTag == "" && x.StartupTag == "" {
 		if x.Positional.ID == "" && x.LastChangeType == "" {
@@ -246,10 +243,8 @@ func (x *cmdChangeTimings) Execute(args []string) error {
 		}
 
 		// GetChangeID takes care of --last=... if change ID was not specified by the user
-		chgid, err = x.GetChangeID()
-		if err != nil {
-			return err
-		}
+		chgid = mylog.Check2(x.GetChangeID())
+
 	}
 
 	// gather debug timings first
@@ -260,9 +255,7 @@ func (x *cmdChangeTimings) Execute(args []string) error {
 	} else {
 		allEnsures = "false"
 	}
-	if err := x.client.DebugGet("change-timings", &timings, map[string]string{"change-id": chgid, "ensure": x.EnsureTag, "all": allEnsures, "startup": x.StartupTag}); err != nil {
-		return err
-	}
+	mylog.Check(x.client.DebugGet("change-timings", &timings, map[string]string{"change-id": chgid, "ensure": x.EnsureTag, "all": allEnsures, "startup": x.StartupTag}))
 
 	w := tabWriter()
 	if x.Verbose {

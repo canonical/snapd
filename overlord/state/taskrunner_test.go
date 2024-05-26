@@ -31,6 +31,7 @@ import (
 	. "gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/testutil"
@@ -244,8 +245,8 @@ func (ts *taskRunnerSuite) TestSequenceTests(c *C) {
 			if len(parts) > 2 {
 				lanes := strings.Split(parts[2], ",")
 				for _, lane := range lanes {
-					n, err := strconv.Atoi(lane)
-					c.Assert(err, IsNil)
+					n := mylog.Check2(strconv.Atoi(lane))
+
 					tasks[parts[0]].JoinLane(n)
 				}
 			}
@@ -349,7 +350,6 @@ func (ts *taskRunnerSuite) TestSequenceTests(c *C) {
 }
 
 func (ts *taskRunnerSuite) TestAbortAcrossLanesDescendantTask(c *C) {
-
 	// <task>(<lane>)
 	//  t11(1) -> t12(1)                                                  => t15(1)
 	//                   \                                               /
@@ -454,7 +454,6 @@ func (ts *taskRunnerSuite) TestAbortAcrossLanesDescendantTask(c *C) {
 }
 
 func (ts *taskRunnerSuite) TestAbortAcrossLanesStriclyOrderedTasks(c *C) {
-
 	// <task>(<lane>)
 	//  t11(1) -> t12(1)
 	//                   \
@@ -1195,7 +1194,8 @@ func (ts *taskRunnerSuite) TestUndoSequence(c *C) {
 		"undo:5",
 		"undo:3",
 		"undo:2",
-		"undo:1"})
+		"undo:1",
+	})
 }
 
 func (ts *taskRunnerSuite) TestKnownTaskKinds(c *C) {

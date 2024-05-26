@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
@@ -146,36 +147,36 @@ func (s *configHelpersSuite) TestSnapConfig(c *C) {
 	defer s.state.Unlock()
 
 	empty1 := json.RawMessage(nil)
-	buf, err := json.Marshal(nil)
-	c.Assert(err, IsNil)
+	buf := mylog.Check2(json.Marshal(nil))
+
 	empty2 := (*json.RawMessage)(&buf)
 	// validity check
 	c.Check(bytes.Compare(*empty2, []byte(`null`)), Equals, 0)
 
 	for _, emptyCfg := range []*json.RawMessage{nil, &empty1, empty2, {}} {
-		rawCfg, err := config.GetSnapConfig(s.state, "snap1")
-		c.Assert(err, IsNil)
+		rawCfg := mylog.Check2(config.GetSnapConfig(s.state, "snap1"))
+
 		c.Check(rawCfg, IsNil)
 
 		// can set to empty when empty and it's fine
 		c.Assert(config.SetSnapConfig(s.state, "snap1", emptyCfg), IsNil)
-		rawCfg, err = config.GetSnapConfig(s.state, "snap1")
-		c.Assert(err, IsNil)
+		rawCfg = mylog.Check2(config.GetSnapConfig(s.state, "snap1"))
+
 		c.Check(rawCfg, IsNil)
 
 		cfg := json.RawMessage(`{"foo":"bar"}`)
 		c.Assert(config.SetSnapConfig(s.state, "snap1", &cfg), IsNil)
 
 		// the set sets it
-		rawCfg, err = config.GetSnapConfig(s.state, "snap1")
-		c.Assert(err, IsNil)
+		rawCfg = mylog.Check2(config.GetSnapConfig(s.state, "snap1"))
+
 		c.Assert(rawCfg, NotNil)
 		c.Check(*rawCfg, DeepEquals, json.RawMessage(`{"foo":"bar"}`))
 
 		// empty or nil clears it
 		c.Assert(config.SetSnapConfig(s.state, "snap1", emptyCfg), IsNil)
-		rawCfg, err = config.GetSnapConfig(s.state, "snap1")
-		c.Assert(err, IsNil)
+		rawCfg = mylog.Check2(config.GetSnapConfig(s.state, "snap1"))
+
 		c.Check(rawCfg, IsNil)
 
 		// and there is no entry for the snap in state
@@ -192,7 +193,7 @@ func (s *configHelpersSuite) TestPatchInvalidConfig(c *C) {
 
 	invalid := []string{}
 	value := json.RawMessage([]byte("[]"))
-	_, err := config.PatchConfig("snap1", []string{"foo"}, 0, invalid, &value)
+	_ := mylog.Check2(config.PatchConfig("snap1", []string{"foo"}, 0, invalid, &value))
 	c.Assert(err, ErrorMatches, `internal error: unexpected configuration type \[\]string`)
 }
 
@@ -219,7 +220,7 @@ func (s *configHelpersSuite) TestPurgeNulls(c *C) {
 	c.Check(config.PurgeNulls(cfg2), DeepEquals, map[string]interface{}{})
 	c.Check(cfg2, DeepEquals, map[string]interface{}{})
 
-	jsonData, err := json.Marshal(map[string]interface{}{
+	jsonData := mylog.Check2(json.Marshal(map[string]interface{}{
 		"foo": nil,
 		"bar": map[string]interface{}{
 			"one": 2,
@@ -228,8 +229,8 @@ func (s *configHelpersSuite) TestPurgeNulls(c *C) {
 		"baz": map[string]interface{}{
 			"three": nil,
 		},
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	raw := json.RawMessage(jsonData)
 	cfg4 := map[string]*json.RawMessage{
 		"root": &raw,
@@ -275,13 +276,13 @@ func (s *configHelpersSuite) TestPurgeNullsTopLevelNull(c *C) {
   }
 }`
 	var cfg map[string]*json.RawMessage
-	err := jsonutil.DecodeWithNumber(bytes.NewReader([]byte(cfgJSON)), &cfg)
-	c.Assert(err, IsNil)
+	mylog.Check(jsonutil.DecodeWithNumber(bytes.NewReader([]byte(cfgJSON)), &cfg))
+
 
 	config.PurgeNulls(cfg)
 
-	cfgJSON2, err := json.Marshal(cfg)
-	c.Assert(err, IsNil)
+	cfgJSON2 := mylog.Check2(json.Marshal(cfg))
+
 
 	var out interface{}
 	jsonutil.DecodeWithNumber(bytes.NewReader(cfgJSON2), &out)
@@ -328,11 +329,11 @@ func (s *configHelpersSuite) TestPatch(c *C) {
 	}
 
 	tr := config.NewTransaction(s.state)
-	err := config.Patch(tr, "some-snap", patch)
-	c.Assert(err, IsNil)
+	mylog.Check(config.Patch(tr, "some-snap", patch))
+
 
 	var a map[string]interface{}
-	err = tr.Get("some-snap", "a", &a)
+	mylog.Check(tr.Get("some-snap", "a", &a))
 	c.Check(err, IsNil)
 
 	c.Check(a, DeepEquals, map[string]interface{}{

@@ -25,14 +25,13 @@ import (
 	"fmt"
 	"os/exec"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
 )
 
-var (
-	secbootFormatEncryptedDevice = secboot.FormatEncryptedDevice
-)
+var secbootFormatEncryptedDevice = secboot.FormatEncryptedDevice
 
 // encryptedDeviceCryptsetup represents a encrypted block device.
 type encryptedDevice interface {
@@ -54,13 +53,8 @@ var _ = encryptedDevice(&encryptedDeviceLUKS{})
 // partition using the specified key with the LUKS backend.
 func newEncryptedDeviceLUKS(devNode string, encType secboot.EncryptionType, key keys.EncryptionKey, label, name string) (encryptedDevice, error) {
 	encLabel := label + "-enc"
-	if err := secbootFormatEncryptedDevice(key, encType, encLabel, devNode); err != nil {
-		return nil, fmt.Errorf("cannot format encrypted device: %v", err)
-	}
-
-	if err := cryptsetupOpen(key, devNode, name); err != nil {
-		return nil, fmt.Errorf("cannot open encrypted device on %s: %s", devNode, err)
-	}
+	mylog.Check(secbootFormatEncryptedDevice(key, encType, encLabel, devNode))
+	mylog.Check(cryptsetupOpen(key, devNode, name))
 
 	dev := &encryptedDeviceLUKS{
 		parent: devNode,
@@ -84,14 +78,14 @@ func (dev *encryptedDeviceLUKS) Close() error {
 func cryptsetupOpen(key keys.EncryptionKey, node, name string) error {
 	cmd := exec.Command("cryptsetup", "open", "--key-file", "-", node, name)
 	cmd.Stdin = bytes.NewReader(key[:])
-	if output, err := cmd.CombinedOutput(); err != nil {
+	if output := mylog.Check2(cmd.CombinedOutput()); err != nil {
 		return osutil.OutputErr(output, err)
 	}
 	return nil
 }
 
 func cryptsetupClose(name string) error {
-	if output, err := exec.Command("cryptsetup", "close", name).CombinedOutput(); err != nil {
+	if output := mylog.Check2(exec.Command("cryptsetup", "close", name).CombinedOutput()); err != nil {
 		return osutil.OutputErr(output, err)
 	}
 	return nil

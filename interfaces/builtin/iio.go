@@ -25,6 +25,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/udev"
@@ -97,9 +98,7 @@ func (iface *iioInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 
 func (iface *iioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	var path string
-	if err := slot.Attr("path", &path); err != nil {
-		return nil
-	}
+	mylog.Check(slot.Attr("path", &path))
 
 	cleanedPath := filepath.Clean(path)
 	snippet := strings.Replace(iioConnectedPlugAppArmor, "###IIO_DEVICE_PATH###", cleanedPath, -1)
@@ -134,9 +133,8 @@ func (iface *iioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 
 func (iface *iioInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	var path string
-	if err := slot.Attr("path", &path); err != nil {
-		return nil
-	}
+	mylog.Check(slot.Attr("path", &path))
+
 	spec.TagDevice(fmt.Sprintf(`KERNEL=="%s"`, strings.TrimPrefix(path, "/dev/")))
 	return nil
 }

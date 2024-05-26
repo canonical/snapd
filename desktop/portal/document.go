@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dbusutil"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
@@ -51,35 +52,25 @@ type Document struct {
 // caching, so it needs more thoughts).
 func (p *Document) GetUserXdgRuntimeDir() (string, error) {
 	if p.xdgRuntimeDir == "" {
-		u, err := userCurrent()
-		if err != nil {
-			return "", fmt.Errorf(i18n.G("cannot get the current user: %s"), err)
-		}
+		u := mylog.Check2(userCurrent())
+
 		p.xdgRuntimeDir = filepath.Join(dirs.XdgRuntimeDirBase, u.Uid)
 	}
 	return p.xdgRuntimeDir, nil
 }
 
 func (p *Document) GetDefaultMountPoint() (string, error) {
-	xdgRuntimeDir, err := p.GetUserXdgRuntimeDir()
-	if err != nil {
-		return "", err
-	}
+	xdgRuntimeDir := mylog.Check2(p.GetUserXdgRuntimeDir())
 
 	return filepath.Join(xdgRuntimeDir, "doc"), nil
 }
 
 func (p *Document) GetMountPoint() (string, error) {
-	conn, err := dbusutilSessionBus()
-	if err != nil {
-		return "", err
-	}
+	conn := mylog.Check2(dbusutilSessionBus())
 
 	portal := conn.Object(documentPortalBusName, documentPortalObjectPath)
 	var mountPoint []byte
-	if err := portal.Call(documentPortalIface+".GetMountPoint", 0).Store(&mountPoint); err != nil {
-		return "", err
-	}
+	mylog.Check(portal.Call(documentPortalIface+".GetMountPoint", 0).Store(&mountPoint))
 
 	return strings.TrimRight(string(mountPoint), "\x00"), nil
 }

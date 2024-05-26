@@ -25,6 +25,7 @@ import (
 	"sort"
 	"text/tabwriter"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/servicestate"
@@ -88,25 +89,17 @@ func (c *servicesCommand) validateArguments() error {
 // The 'snapctl services' command is one of the few commands that can run as
 // non-root through snapctl.
 func (c *servicesCommand) Execute([]string) error {
-	ctx, err := c.ensureContext()
-	if err != nil {
-		return err
-	}
-
-	if err := c.validateArguments(); err != nil {
-		return err
-	}
+	ctx := mylog.Check2(c.ensureContext())
+	mylog.Check(c.validateArguments())
 
 	st := ctx.State()
-	svcInfos, err := getServiceInfos(st, ctx.InstanceName(), c.Positional.ServiceNames)
-	if err != nil {
-		return err
-	}
+	svcInfos := mylog.Check2(getServiceInfos(st, ctx.InstanceName(), c.Positional.ServiceNames))
+
 	sort.Sort(byApp(svcInfos))
 
 	isGlobal := c.showGlobalEnablement()
 	sd := newStatusDecorator(context.TODO(), isGlobal, c.uid)
-	services, err := clientutil.ClientAppInfosFromSnapAppInfos(svcInfos, sd)
+	services := mylog.Check2(clientutil.ClientAppInfosFromSnapAppInfos(svcInfos, sd))
 	if err != nil || len(services) == 0 {
 		return err
 	}

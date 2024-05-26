@@ -30,6 +30,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 	"golang.org/x/crypto/ssh/terminal"
 	. "gopkg.in/check.v1"
@@ -89,10 +90,10 @@ func (s *BaseSnapSuite) SetUpTest(c *C) {
 "build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
 "apparmor-features": ["caps", "dbus"]
 }`))
-	err := os.MkdirAll(filepath.Dir(dirs.SnapSystemKeyFile), 0755)
-	c.Assert(err, IsNil)
-	err = interfaces.WriteSystemKey()
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Dir(dirs.SnapSystemKeyFile), 0755))
+
+	mylog.Check(interfaces.WriteSystemKey())
+
 
 	s.AddCleanup(snap.MockIsStdoutTTY(false))
 	s.AddCleanup(snap.MockIsStdinTTY(false))
@@ -111,8 +112,8 @@ func (s *BaseSnapSuite) TearDownTest(c *C) {
 	snap.ReadPassword = terminal.ReadPassword
 
 	c.Assert(s.AuthFile == "", Equals, false)
-	err := os.Unsetenv(TestAuthFileEnvKey)
-	c.Assert(err, IsNil)
+	mylog.Check(os.Unsetenv(TestAuthFileEnvKey))
+
 	dirs.SetRootDir("/")
 	s.BaseTest.TearDownTest(c)
 }
@@ -139,8 +140,8 @@ func (s *BaseSnapSuite) RedirectClientToTestServer(handler func(http.ResponseWri
 }
 
 func (s *BaseSnapSuite) Login(c *C) {
-	err := osutil.AtomicWriteFile(s.AuthFile, []byte(TestAuthFileContents), 0600, 0)
-	c.Assert(err, IsNil)
+	mylog.Check(osutil.AtomicWriteFile(s.AuthFile, []byte(TestAuthFileContents), 0600, 0))
+
 }
 
 func (s *BaseSnapSuite) Logout(c *C) {
@@ -160,16 +161,16 @@ func DecodedRequestBody(c *C, r *http.Request) map[string]interface{} {
 	var body map[string]interface{}
 	decoder := json.NewDecoder(r.Body)
 	decoder.UseNumber()
-	err := decoder.Decode(&body)
-	c.Assert(err, IsNil)
+	mylog.Check(decoder.Decode(&body))
+
 	return body
 }
 
 // EncodeResponseBody writes JSON-serialized body to the response writer.
 func EncodeResponseBody(c *C, w http.ResponseWriter, body interface{}) {
 	encoder := json.NewEncoder(w)
-	err := encoder.Encode(body)
-	c.Assert(err, IsNil)
+	mylog.Check(encoder.Encode(body))
+
 }
 
 func mockArgs(args ...string) (restore func()) {
@@ -180,21 +181,18 @@ func mockArgs(args ...string) (restore func()) {
 
 func mockSnapConfine(libExecDir string) func() {
 	snapConfine := filepath.Join(libExecDir, "snap-confine")
-	if err := os.MkdirAll(libExecDir, 0755); err != nil {
-		panic(err)
-	}
-	if err := os.WriteFile(snapConfine, nil, 0644); err != nil {
-		panic(err)
-	}
+	mylog.Check(os.MkdirAll(libExecDir, 0755))
+	mylog.Check(os.WriteFile(snapConfine, nil, 0644))
+
 	return func() {
-		if err := os.Remove(snapConfine); err != nil {
-			panic(err)
-		}
+		mylog.Check(os.Remove(snapConfine))
 	}
 }
 
-const TestAuthFileEnvKey = "SNAPD_AUTH_DATA_FILENAME"
-const TestAuthFileContents = `{"id":123,"email":"hello@mail.com","macaroon":"MDAxM2xvY2F0aW9uIHNuYXBkCjAwMTJpZGVudGlmaWVyIDQzCjAwMmZzaWduYXR1cmUg5RfMua72uYop4t3cPOBmGUuaoRmoDH1HV62nMJq7eqAK"}`
+const (
+	TestAuthFileEnvKey   = "SNAPD_AUTH_DATA_FILENAME"
+	TestAuthFileContents = `{"id":123,"email":"hello@mail.com","macaroon":"MDAxM2xvY2F0aW9uIHNuYXBkCjAwMTJpZGVudGlmaWVyIDQzCjAwMmZzaWduYXR1cmUg5RfMua72uYop4t3cPOBmGUuaoRmoDH1HV62nMJq7eqAK"}`
+)
 
 func (s *SnapSuite) TestErrorResult(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
@@ -203,8 +201,7 @@ func (s *SnapSuite) TestErrorResult(c *C) {
 
 	restore := mockArgs("snap", "install", "foo")
 	defer restore()
-
-	err := snap.RunMain()
+	mylog.Check(snap.RunMain())
 	c.Assert(err, ErrorMatches, `cannot do something`)
 }
 
@@ -215,8 +212,7 @@ func (s *SnapSuite) TestAccessDeniedHint(c *C) {
 
 	restore := mockArgs("snap", "install", "foo")
 	defer restore()
-
-	err := snap.RunMain()
+	mylog.Check(snap.RunMain())
 	c.Assert(err, NotNil)
 	c.Check(err.Error(), Equals, `access denied (try with sudo)`)
 }
@@ -224,8 +220,7 @@ func (s *SnapSuite) TestAccessDeniedHint(c *C) {
 func (s *SnapSuite) TestExtraArgs(c *C) {
 	restore := mockArgs("snap", "abort", "1", "xxx", "zzz")
 	defer restore()
-
-	err := snap.RunMain()
+	mylog.Check(snap.RunMain())
 	c.Assert(err, ErrorMatches, `too many arguments for command`)
 }
 
@@ -260,8 +255,7 @@ func (s *SnapSuite) TestVersionOnAllSnap(c *C) {
 func (s *SnapSuite) TestUnknownCommand(c *C) {
 	restore := mockArgs("snap", "unknowncmd")
 	defer restore()
-
-	err := snap.RunMain()
+	mylog.Check(snap.RunMain())
 	c.Assert(err, ErrorMatches, `unknown command "unknowncmd", see 'snap help'.`)
 }
 
@@ -273,7 +267,7 @@ func (s *SnapSuite) TestNoCommandWithArgs(c *C) {
 		{"snap", "-b", "refresh"},
 	} {
 		restore := mockArgs(args...)
-		err := snap.RunMain()
+		mylog.Check(snap.RunMain())
 
 		flag := strings.TrimLeft(args[1], "-")
 		c.Assert(err, ErrorMatches, fmt.Sprintf("unknown flag `%s'", flag))
@@ -282,38 +276,40 @@ func (s *SnapSuite) TestNoCommandWithArgs(c *C) {
 }
 
 func (s *SnapSuite) TestResolveApp(c *C) {
-	err := os.MkdirAll(dirs.SnapBinariesDir, 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(dirs.SnapBinariesDir, 0755))
 
-	// "wrapper" symlinks
-	err = os.Symlink("/usr/bin/snap", filepath.Join(dirs.SnapBinariesDir, "foo"))
-	c.Assert(err, IsNil)
-	err = os.Symlink("/usr/bin/snap", filepath.Join(dirs.SnapBinariesDir, "foo.bar"))
-	c.Assert(err, IsNil)
+	mylog.
 
-	// alias symlinks
-	err = os.Symlink("foo", filepath.Join(dirs.SnapBinariesDir, "foo_"))
-	c.Assert(err, IsNil)
-	err = os.Symlink("foo.bar", filepath.Join(dirs.SnapBinariesDir, "foo_bar-1"))
-	c.Assert(err, IsNil)
+		// "wrapper" symlinks
+		Check(os.Symlink("/usr/bin/snap", filepath.Join(dirs.SnapBinariesDir, "foo")))
 
-	snapApp, err := snap.ResolveApp("foo")
-	c.Assert(err, IsNil)
+	mylog.Check(os.Symlink("/usr/bin/snap", filepath.Join(dirs.SnapBinariesDir, "foo.bar")))
+
+	mylog.
+
+		// alias symlinks
+		Check(os.Symlink("foo", filepath.Join(dirs.SnapBinariesDir, "foo_")))
+
+	mylog.Check(os.Symlink("foo.bar", filepath.Join(dirs.SnapBinariesDir, "foo_bar-1")))
+
+
+	snapApp := mylog.Check2(snap.ResolveApp("foo"))
+
 	c.Check(snapApp, Equals, "foo")
 
-	snapApp, err = snap.ResolveApp("foo.bar")
-	c.Assert(err, IsNil)
+	snapApp = mylog.Check2(snap.ResolveApp("foo.bar"))
+
 	c.Check(snapApp, Equals, "foo.bar")
 
-	snapApp, err = snap.ResolveApp("foo_")
-	c.Assert(err, IsNil)
+	snapApp = mylog.Check2(snap.ResolveApp("foo_"))
+
 	c.Check(snapApp, Equals, "foo")
 
-	snapApp, err = snap.ResolveApp("foo_bar-1")
-	c.Assert(err, IsNil)
+	snapApp = mylog.Check2(snap.ResolveApp("foo_bar-1"))
+
 	c.Check(snapApp, Equals, "foo.bar")
 
-	_, err = snap.ResolveApp("baz")
+	_ = mylog.Check2(snap.ResolveApp("baz"))
 	c.Check(err, NotNil)
 }
 

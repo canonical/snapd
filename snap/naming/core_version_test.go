@@ -22,6 +22,7 @@ package naming_test
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/snap/naming"
 )
 
@@ -41,7 +42,7 @@ func (s *CoreVersionTestSuite) TestCoreVersion(c *C) {
 		{"core24-desktop", 24},
 		{"core24-server", 24},
 	} {
-		v, err := naming.CoreVersion(tst.name)
+		v := mylog.Check2(naming.CoreVersion(tst.name))
 		c.Check(err, IsNil)
 		c.Check(v, Equals, tst.version)
 	}
@@ -49,7 +50,7 @@ func (s *CoreVersionTestSuite) TestCoreVersion(c *C) {
 
 func (s *CoreVersionTestSuite) TestCoreOther(c *C) {
 	for _, tst := range []string{"bare", "coreXX", "coreXX-desktop", "core24_desktop"} {
-		_, err := naming.CoreVersion(tst)
+		_ := mylog.Check2(naming.CoreVersion(tst))
 		c.Check(err, ErrorMatches, "not a core base")
 	}
 }

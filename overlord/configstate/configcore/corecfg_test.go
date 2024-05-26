@@ -28,6 +28,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/kcmdline"
@@ -68,7 +69,7 @@ func (cfg *mockConf) Get(snapName, key string, result interface{}) error {
 }
 
 func (cfg *mockConf) GetMaybe(snapName, key string, result interface{}) error {
-	err := cfg.Get(snapName, key, result)
+	mylog.Check(cfg.Get(snapName, key, result))
 	if err != nil && !config.IsNoOption(err) {
 		return err
 	}
@@ -91,7 +92,7 @@ func (cfg *mockConf) GetPristine(snapName, key string, result interface{}) error
 }
 
 func (cfg *mockConf) GetPristineMaybe(snapName, key string, result interface{}) error {
-	err := cfg.GetPristine(snapName, key, result)
+	mylog.Check(cfg.GetPristine(snapName, key, result))
 	if err != nil && !config.IsNoOption(err) {
 		return err
 	}
@@ -181,8 +182,8 @@ NeedDaemonReload=no
 	// in install mode or uc20 run mode, etc. and we don't want to use the
 	// host's proc/cmdline
 	mockCmdline := filepath.Join(dirs.GlobalRootDir, "cmdline")
-	err := os.WriteFile(mockCmdline, nil, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(mockCmdline, nil, 0644))
+
 	restore = kcmdline.MockProcCmdline(mockCmdline)
 	s.AddCleanup(restore)
 }
@@ -241,7 +242,7 @@ func (s *applyCfgSuite) SetUpTest(c *C) {
 }
 
 func (s *applyCfgSuite) TestEmptyRootDir(c *C) {
-	err := configcore.FilesystemOnlyApply(coreDev, "", nil)
+	mylog.Check(configcore.FilesystemOnlyApply(coreDev, "", nil))
 	c.Check(err, ErrorMatches, `internal error: root directory for configcore.FilesystemOnlyApply\(\) not set`)
 }
 

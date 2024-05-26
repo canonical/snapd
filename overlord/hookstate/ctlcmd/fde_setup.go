@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/kernel/fde"
 )
@@ -60,10 +61,8 @@ func init() {
 }
 
 func (c *fdeSetupRequestCommand) Execute(args []string) error {
-	context, err := c.ensureContext()
-	if err != nil {
-		return err
-	}
+	context := mylog.Check2(c.ensureContext())
+
 	context.Lock()
 	defer context.Unlock()
 
@@ -72,9 +71,8 @@ func (c *fdeSetupRequestCommand) Execute(args []string) error {
 	}
 
 	var fdeSetup fde.SetupRequest
-	if err := context.Get("fde-setup-request", &fdeSetup); err != nil {
-		return fmt.Errorf("cannot get fde-setup-op from context: %v", err)
-	}
+	mylog.Check(context.Get("fde-setup-request", &fdeSetup))
+
 	// Op is either "initial-setup" or "features"
 	switch fdeSetup.Op {
 	case "features", "initial-setup":
@@ -84,10 +82,8 @@ func (c *fdeSetupRequestCommand) Execute(args []string) error {
 
 	}
 
-	bytes, err := json.Marshal(fdeSetup)
-	if err != nil {
-		return fmt.Errorf("cannot json print fde key: %v", err)
-	}
+	bytes := mylog.Check2(json.Marshal(fdeSetup))
+
 	c.printf("%s\n", string(bytes))
 
 	return nil
@@ -97,8 +93,9 @@ type fdeSetupResultCommand struct {
 	baseCommand
 }
 
-var shortFdeSetupResultHelp = i18n.G("Set result for full disk encryption")
-var longFdeSetupResultHelp = i18n.G(`
+var (
+	shortFdeSetupResultHelp = i18n.G("Set result for full disk encryption")
+	longFdeSetupResultHelp  = i18n.G(`
 The fde-setup-result command sets the result data for a fde-setup hook
 reading it from stdin.
 
@@ -109,16 +106,15 @@ $ echo '{"features": []}' | snapctl fde-setup-result
 When the fde-setup hook is called with "op":"initial-setup":
 $ echo "{\"sealed-key\":\"$base64_encoded_sealed_key\"}" | snapctl fde-setup-result
 `)
+)
 
 func init() {
 	addCommand("fde-setup-result", shortFdeSetupResultHelp, longFdeSetupResultHelp, func() command { return &fdeSetupResultCommand{} })
 }
 
 func (c *fdeSetupResultCommand) Execute(args []string) error {
-	context, err := c.ensureContext()
-	if err != nil {
-		return err
-	}
+	context := mylog.Check2(c.ensureContext())
+
 	context.Lock()
 	defer context.Unlock()
 
@@ -127,9 +123,8 @@ func (c *fdeSetupResultCommand) Execute(args []string) error {
 	}
 
 	var fdeSetupResult []byte
-	if err := context.Get("stdin", &fdeSetupResult); err != nil {
-		return fmt.Errorf("internal error: cannot get result from stdin: %v", err)
-	}
+	mylog.Check(context.Get("stdin", &fdeSetupResult))
+
 	if fdeSetupResult == nil {
 		return fmt.Errorf("no result data found from stdin")
 	}

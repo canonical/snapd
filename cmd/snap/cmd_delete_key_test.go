@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	snap "github.com/snapcore/snapd/cmd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -48,7 +49,7 @@ exit 1
 }
 
 func (s *SnapKeysSuite) TestDeleteKeyRequiresName(c *C) {
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"delete-key"})
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"delete-key"}))
 	c.Assert(err, NotNil)
 	c.Check(err.Error(), Equals, "the required argument `<key-name>` was not provided")
 	c.Check(s.Stdout(), Equals, "")
@@ -56,7 +57,7 @@ func (s *SnapKeysSuite) TestDeleteKeyRequiresName(c *C) {
 }
 
 func (s *SnapKeysSuite) TestDeleteKeyNonexistent(c *C) {
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"delete-key", "nonexistent"})
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"delete-key", "nonexistent"}))
 	c.Assert(err, NotNil)
 	c.Check(err.Error(), Equals, `cannot delete key named "nonexistent": cannot find key pair in GPG keyring`)
 	c.Check(s.Stdout(), Equals, "")
@@ -64,13 +65,13 @@ func (s *SnapKeysSuite) TestDeleteKeyNonexistent(c *C) {
 }
 
 func (s *SnapKeysSuite) TestDeleteKey(c *C) {
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"delete-key", "another"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"delete-key", "another"}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	c.Check(s.Stdout(), Equals, "")
 	c.Check(s.Stderr(), Equals, "")
-	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"keys", "--json"})
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"keys", "--json"}))
+
 	expectedResponse := []snap.Key{
 		{
 			Name:     "default",
@@ -87,7 +88,7 @@ func (s *SnapKeysSuite) TestDeleteKeyExternalUnsupported(c *C) {
 	_, restore := mockNopExtKeyMgr(c)
 	defer restore()
 
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"delete-key", "key"})
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"delete-key", "key"}))
 	c.Assert(err, NotNil)
 	c.Check(err.Error(), Equals, "cannot delete external keypair manager key via snap command, use the appropriate external procedure")
 	c.Check(s.Stdout(), Equals, "")

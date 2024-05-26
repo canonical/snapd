@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 )
 
@@ -84,8 +85,8 @@ func (s *snapResourceRevSuite) makeHeaders(overrides map[string]interface{}) map
 
 func (s *snapResourceRevSuite) TestDecodeOK(c *C) {
 	encoded := s.makeValidEncoded()
-	a, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	c.Check(a.Type(), Equals, asserts.SnapResourceRevisionType)
 	snapResourceRev := a.(*asserts.SnapResourceRevision)
 	c.Check(snapResourceRev.AuthorityID(), Equals, "store-id1")
@@ -103,8 +104,8 @@ func (s *snapResourceRevSuite) TestDecodeOK(c *C) {
 func (s *snapResourceRevSuite) TestDecodeOKWithProvenance(c *C) {
 	encoded := s.makeValidEncoded()
 	encoded = strings.Replace(encoded, "snap-id: snap-id-1", "provenance: foo\nsnap-id: snap-id-1", 1)
-	a, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	c.Check(a.Type(), Equals, asserts.SnapResourceRevisionType)
 	snapResourceRev := a.(*asserts.SnapResourceRevision)
 	c.Check(snapResourceRev.AuthorityID(), Equals, "store-id1")
@@ -157,15 +158,15 @@ func (s *snapResourceRevSuite) TestDecodeInvalid(c *C) {
 
 	for _, test := range invalidTests {
 		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
-		_, err := asserts.Decode([]byte(invalid))
+		_ := mylog.Check2(asserts.Decode([]byte(invalid)))
 		c.Check(err, ErrorMatches, snapResourceRevErrPrefix+test.expectedErr)
 	}
 }
 
 func (s *snapResourceRevSuite) TestPrerequisites(c *C) {
 	encoded := s.makeValidEncoded()
-	a, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 
 	prereqs := a.Prerequisites()
 	c.Assert(prereqs, HasLen, 2)
@@ -186,27 +187,26 @@ func (s *snapResourceRevSuite) TestPrimaryKey(c *C) {
 	prereqSnapDecl(c, storeDB, db)
 
 	headers := s.makeHeaders(nil)
-	snapResRev, err := storeDB.Sign(asserts.SnapResourceRevisionType, headers, nil, "")
-	c.Assert(err, IsNil)
-	err = db.Add(snapResRev)
-	c.Assert(err, IsNil)
+	snapResRev := mylog.Check2(storeDB.Sign(asserts.SnapResourceRevisionType, headers, nil, ""))
 
-	_, err = db.Find(asserts.SnapResourceRevisionType, map[string]string{
+	mylog.Check(db.Add(snapResRev))
+
+
+	_ = mylog.Check2(db.Find(asserts.SnapResourceRevisionType, map[string]string{
 		"snap-id":           "snap-id-1",
 		"resource-name":     "comp-name",
 		"resource-sha3-384": blobSHA3_384,
-	})
-	c.Assert(err, IsNil)
+	}))
+
 }
 
 func (s *snapResourceRevSuite) TestCheckMissingDeveloperAccount(c *C) {
 	storeDB, db := makeStoreAndCheckDB(c)
 
 	headers := s.makeHeaders(nil)
-	snapResRev, err := storeDB.Sign(asserts.SnapResourceRevisionType, headers, nil, "")
-	c.Assert(err, IsNil)
+	snapResRev := mylog.Check2(storeDB.Sign(asserts.SnapResourceRevisionType, headers, nil, ""))
 
-	err = db.Check(snapResRev)
+	mylog.Check(db.Check(snapResRev))
 	c.Assert(err, ErrorMatches, `snap-resource-revision assertion for snap id "snap-id-1" does not have a matching account assertion for the developer "dev-id1"`)
 }
 
@@ -216,10 +216,9 @@ func (s *snapResourceRevSuite) TestCheckMissingDeclaration(c *C) {
 	prereqDevAccount(c, storeDB, db)
 
 	headers := s.makeHeaders(nil)
-	snapResRev, err := storeDB.Sign(asserts.SnapResourceRevisionType, headers, nil, "")
-	c.Assert(err, IsNil)
+	snapResRev := mylog.Check2(storeDB.Sign(asserts.SnapResourceRevisionType, headers, nil, ""))
 
-	err = db.Check(snapResRev)
+	mylog.Check(db.Check(snapResRev))
 	c.Assert(err, ErrorMatches, `snap-resource-revision assertion for snap id "snap-id-1" does not have a matching snap-declaration assertion`)
 }
 
@@ -231,10 +230,9 @@ func (s *snapResourceRevSuite) TestCheckUntrustedAuthority(c *C) {
 	headers := s.makeHeaders(map[string]interface{}{
 		"authority-id": "other",
 	})
-	snapResRev, err := otherDB.Sign(asserts.SnapResourceRevisionType, headers, nil, "")
-	c.Assert(err, IsNil)
+	snapResRev := mylog.Check2(otherDB.Sign(asserts.SnapResourceRevisionType, headers, nil, ""))
 
-	err = db.Check(snapResRev)
+	mylog.Check(db.Check(snapResRev))
 	c.Assert(err, ErrorMatches, `snap-resource-revision assertion for snap id "snap-id-1" is not signed by a store:.*`)
 }
 
@@ -248,8 +246,8 @@ func (s *snapResourceRevSuite) TestRevisionAuthorityCheck(c *C) {
 		"resource-revision": "200",
 		"provenance":        "prov1",
 	})
-	a, err := delegatedDB.Sign(asserts.SnapResourceRevisionType, headers, nil, "")
-	c.Assert(err, IsNil)
+	a := mylog.Check2(delegatedDB.Sign(asserts.SnapResourceRevisionType, headers, nil, ""))
+
 	snapResRev := a.(*asserts.SnapResourceRevision)
 
 	tests := []struct {
@@ -293,7 +291,7 @@ func (s *snapResourceRevSuite) TestRevisionAuthorityCheck(c *C) {
 	}
 
 	for _, t := range tests {
-		err := t.revAuth.CheckResourceRevision(snapResRev, nil, nil)
+		mylog.Check(t.revAuth.CheckResourceRevision(snapResRev, nil, nil))
 		if t.err == "" {
 			c.Check(err, IsNil)
 		} else {
@@ -307,30 +305,29 @@ func (s *snapResourceRevSuite) TestSnapResourceRevisionDelegation(c *C) {
 
 	delegatedDB := setup3rdPartySigning(c, "delegated-id", storeDB, db)
 
-	snapDecl, err := storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	snapDecl := mylog.Check2(storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-name":    "foo",
 		"publisher-id": "delegated-id",
 		"timestamp":    time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	err = db.Add(snapDecl)
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
+	mylog.Check(db.Add(snapDecl))
+
 
 	headers := s.makeHeaders(map[string]interface{}{
 		"authority-id": "delegated-id",
 		"developer-id": "delegated-id",
 		"provenance":   "prov1",
 	})
-	snapResRev, err := delegatedDB.Sign(asserts.SnapResourceRevisionType, headers, nil, "")
-	c.Assert(err, IsNil)
+	snapResRev := mylog.Check2(delegatedDB.Sign(asserts.SnapResourceRevisionType, headers, nil, ""))
 
-	err = db.Check(snapResRev)
+	mylog.Check(db.Check(snapResRev))
 	c.Check(err, ErrorMatches, `snap-resource-revision assertion with provenance "prov1" for snap id "snap-id-1" is not signed by an authorized authority: delegated-id`)
 
 	// establish delegation
-	snapDecl, err = storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	snapDecl = mylog.Check2(storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-name":    "foo",
@@ -349,13 +346,14 @@ func (s *snapResourceRevSuite) TestSnapResourceRevisionDelegation(c *C) {
 			},
 		},
 		"timestamp": time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	err = db.Add(snapDecl)
-	c.Assert(err, IsNil)
+	}, nil, ""))
 
-	// now revision should be accepted
-	err = db.Check(snapResRev)
+	mylog.Check(db.Add(snapDecl))
+
+	mylog.
+
+		// now revision should be accepted
+		Check(db.Check(snapResRev))
 	c.Check(err, IsNil)
 }
 
@@ -365,7 +363,7 @@ func (s *snapResourceRevSuite) TestSnapResourceRevisionDelegationRevisionOutOfRa
 	delegatedDB := setup3rdPartySigning(c, "delegated-id", storeDB, db)
 
 	// establish delegation
-	snapDecl, err := storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	snapDecl := mylog.Check2(storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-name":    "foo",
@@ -384,10 +382,10 @@ func (s *snapResourceRevSuite) TestSnapResourceRevisionDelegationRevisionOutOfRa
 			},
 		},
 		"timestamp": time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	err = db.Add(snapDecl)
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
+	mylog.Check(db.Add(snapDecl))
+
 
 	headers := s.makeHeaders(map[string]interface{}{
 		"authority-id":      "delegated-id",
@@ -395,10 +393,9 @@ func (s *snapResourceRevSuite) TestSnapResourceRevisionDelegationRevisionOutOfRa
 		"provenance":        "prov1",
 		"resource-revision": "1000",
 	})
-	snapResRev, err := delegatedDB.Sign(asserts.SnapResourceRevisionType, headers, nil, "")
-	c.Assert(err, IsNil)
+	snapResRev := mylog.Check2(delegatedDB.Sign(asserts.SnapResourceRevisionType, headers, nil, ""))
 
-	err = db.Check(snapResRev)
+	mylog.Check(db.Check(snapResRev))
 	c.Check(err, ErrorMatches, `snap-resource-revision assertion with provenance "prov1" for snap id "snap-id-1" is not signed by an authorized authority: delegated-id`)
 }
 
@@ -447,8 +444,8 @@ func (s *snapResourcePairSuite) makeHeaders(overrides map[string]interface{}) ma
 
 func (s *snapResourcePairSuite) TestDecodeOK(c *C) {
 	encoded := s.makeValidEncoded()
-	a, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	c.Check(a.Type(), Equals, asserts.SnapResourcePairType)
 	snapResourcePair := a.(*asserts.SnapResourcePair)
 	c.Check(snapResourcePair.AuthorityID(), Equals, "store-id1")
@@ -465,8 +462,8 @@ func (s *snapResourcePairSuite) TestDecodeOK(c *C) {
 func (s *snapResourcePairSuite) TestDecodeOKWithProvenance(c *C) {
 	encoded := s.makeValidEncoded()
 	encoded = strings.Replace(encoded, "snap-id: snap-id-1", "provenance: foo\nsnap-id: snap-id-1", 1)
-	a, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	c.Check(a.Type(), Equals, asserts.SnapResourcePairType)
 	snapResourcePair := a.(*asserts.SnapResourcePair)
 	c.Check(snapResourcePair.AuthorityID(), Equals, "store-id1")
@@ -514,15 +511,15 @@ func (s *snapResourcePairSuite) TestDecodeInvalid(c *C) {
 
 	for _, test := range invalidTests {
 		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
-		_, err := asserts.Decode([]byte(invalid))
+		_ := mylog.Check2(asserts.Decode([]byte(invalid)))
 		c.Check(err, ErrorMatches, snapResourcePairErrPrefix+test.expectedErr)
 	}
 }
 
 func (s *snapResourcePairSuite) TestPrerequisites(c *C) {
 	encoded := s.makeValidEncoded()
-	a, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 
 	prereqs := a.Prerequisites()
 	c.Assert(prereqs, HasLen, 1)
@@ -539,28 +536,27 @@ func (s *snapResourcePairSuite) TestPrimaryKey(c *C) {
 	prereqSnapDecl(c, storeDB, db)
 
 	headers := s.makeHeaders(nil)
-	snapResPair, err := storeDB.Sign(asserts.SnapResourcePairType, headers, nil, "")
-	c.Assert(err, IsNil)
-	err = db.Add(snapResPair)
-	c.Assert(err, IsNil)
+	snapResPair := mylog.Check2(storeDB.Sign(asserts.SnapResourcePairType, headers, nil, ""))
 
-	_, err = db.Find(asserts.SnapResourcePairType, map[string]string{
+	mylog.Check(db.Add(snapResPair))
+
+
+	_ = mylog.Check2(db.Find(asserts.SnapResourcePairType, map[string]string{
 		"snap-id":           "snap-id-1",
 		"resource-name":     "comp-name",
 		"resource-revision": "4",
 		"snap-revision":     "20",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 }
 
 func (s *snapResourcePairSuite) TestCheckMissingDeveloperAccount(c *C) {
 	storeDB, db := makeStoreAndCheckDB(c)
 
 	headers := s.makeHeaders(nil)
-	snapResPair, err := storeDB.Sign(asserts.SnapResourcePairType, headers, nil, "")
-	c.Assert(err, IsNil)
+	snapResPair := mylog.Check2(storeDB.Sign(asserts.SnapResourcePairType, headers, nil, ""))
 
-	err = db.Check(snapResPair)
+	mylog.Check(db.Check(snapResPair))
 	c.Assert(err, ErrorMatches, `snap-resource-pair assertion for snap id "snap-id-1" does not have a matching account assertion for the developer "dev-id1"`)
 }
 
@@ -570,10 +566,9 @@ func (s *snapResourcePairSuite) TestCheckMissingDeclaration(c *C) {
 	prereqDevAccount(c, storeDB, db)
 
 	headers := s.makeHeaders(nil)
-	snapResPair, err := storeDB.Sign(asserts.SnapResourcePairType, headers, nil, "")
-	c.Assert(err, IsNil)
+	snapResPair := mylog.Check2(storeDB.Sign(asserts.SnapResourcePairType, headers, nil, ""))
 
-	err = db.Check(snapResPair)
+	mylog.Check(db.Check(snapResPair))
 	c.Assert(err, ErrorMatches, `snap-resource-pair assertion for snap id "snap-id-1" does not have a matching snap-declaration assertion`)
 }
 
@@ -585,10 +580,9 @@ func (s *snapResourcePairSuite) TestCheckUntrustedAuthority(c *C) {
 	headers := s.makeHeaders(map[string]interface{}{
 		"authority-id": "other",
 	})
-	snapResPair, err := otherDB.Sign(asserts.SnapResourcePairType, headers, nil, "")
-	c.Assert(err, IsNil)
+	snapResPair := mylog.Check2(otherDB.Sign(asserts.SnapResourcePairType, headers, nil, ""))
 
-	err = db.Check(snapResPair)
+	mylog.Check(db.Check(snapResPair))
 	c.Assert(err, ErrorMatches, `snap-resource-pair assertion for snap id "snap-id-1" is not signed by a store:.*`)
 }
 
@@ -597,30 +591,29 @@ func (s *snapResourcePairSuite) TestDelegation(c *C) {
 
 	delegatedDB := setup3rdPartySigning(c, "delegated-id", storeDB, db)
 
-	snapDecl, err := storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	snapDecl := mylog.Check2(storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-name":    "foo",
 		"publisher-id": "delegated-id",
 		"timestamp":    time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	err = db.Add(snapDecl)
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
+	mylog.Check(db.Add(snapDecl))
+
 
 	headers := s.makeHeaders(map[string]interface{}{
 		"authority-id": "delegated-id",
 		"developer-id": "delegated-id",
 		"provenance":   "prov1",
 	})
-	snapResPair, err := delegatedDB.Sign(asserts.SnapResourcePairType, headers, nil, "")
-	c.Assert(err, IsNil)
+	snapResPair := mylog.Check2(delegatedDB.Sign(asserts.SnapResourcePairType, headers, nil, ""))
 
-	err = db.Check(snapResPair)
+	mylog.Check(db.Check(snapResPair))
 	c.Check(err, ErrorMatches, `snap-resource-pair assertion with provenance "prov1" for snap id "snap-id-1" is not signed by an authorized authority: delegated-id`)
 
 	// establish delegation
-	snapDecl, err = storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	snapDecl = mylog.Check2(storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-name":    "foo",
@@ -639,13 +632,14 @@ func (s *snapResourcePairSuite) TestDelegation(c *C) {
 			},
 		},
 		"timestamp": time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	err = db.Add(snapDecl)
-	c.Assert(err, IsNil)
+	}, nil, ""))
 
-	// now revision should be accepted
-	err = db.Check(snapResPair)
+	mylog.Check(db.Add(snapDecl))
+
+	mylog.
+
+		// now revision should be accepted
+		Check(db.Check(snapResPair))
 	c.Check(err, IsNil)
 }
 
@@ -655,7 +649,7 @@ func (s *snapResourcePairSuite) TestDelegationRevisionOutOfRange(c *C) {
 	delegatedDB := setup3rdPartySigning(c, "delegated-id", storeDB, db)
 
 	// establish delegation
-	snapDecl, err := storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	snapDecl := mylog.Check2(storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-name":    "foo",
@@ -674,10 +668,10 @@ func (s *snapResourcePairSuite) TestDelegationRevisionOutOfRange(c *C) {
 			},
 		},
 		"timestamp": time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	err = db.Add(snapDecl)
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
+	mylog.Check(db.Add(snapDecl))
+
 
 	headers := s.makeHeaders(map[string]interface{}{
 		"authority-id":  "delegated-id",
@@ -685,9 +679,8 @@ func (s *snapResourcePairSuite) TestDelegationRevisionOutOfRange(c *C) {
 		"provenance":    "prov1",
 		"snap-revision": "1000",
 	})
-	snapResPair, err := delegatedDB.Sign(asserts.SnapResourcePairType, headers, nil, "")
-	c.Assert(err, IsNil)
+	snapResPair := mylog.Check2(delegatedDB.Sign(asserts.SnapResourcePairType, headers, nil, ""))
 
-	err = db.Check(snapResPair)
+	mylog.Check(db.Check(snapResPair))
 	c.Check(err, ErrorMatches, `snap-resource-pair assertion with provenance "prov1" for snap id "snap-id-1" is not signed by an authorized authority: delegated-id`)
 }

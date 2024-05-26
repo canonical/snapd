@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	failure "github.com/snapcore/snapd/cmd/snap-failure"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
@@ -85,6 +86,6 @@ func (r *failureSuite) Stdout() string {
 var _ = Suite(&failureSuite{})
 
 func (r *failureSuite) TestUnknownArg(c *C) {
-	err := failure.ParseArgs([]string{})
+	mylog.Check(failure.ParseArgs([]string{}))
 	c.Check(err, ErrorMatches, "Please specify the snapd command")
 }

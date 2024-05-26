@@ -24,6 +24,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
@@ -76,15 +77,10 @@ func DebugDumpBootVars(w io.Writer, dir string, uc20 bool) error {
 			"snapd_full_cmdline_args",
 		}
 	}
-	bloader, err := bootloader.Find(dir, opts)
-	if err != nil {
-		return err
-	}
+	bloader := mylog.Check2(bootloader.Find(dir, opts))
 
-	bootVars, err := bloader.GetBootVars(allKeys...)
-	if err != nil {
-		return err
-	}
+	bootVars := mylog.Check2(bloader.GetBootVars(allKeys...))
+
 	for _, k := range allKeys {
 		fmt.Fprintf(w, "%s=%s\n", k, bootVars[k])
 	}
@@ -120,10 +116,7 @@ func DebugSetBootVars(dir string, recoveryBootloader bool, varEqVal []string) er
 			dir = InitramfsUbuntuSeedDir
 		}
 	}
-	bloader, err := bootloader.Find(dir, opts)
-	if err != nil {
-		return err
-	}
+	bloader := mylog.Check2(bootloader.Find(dir, opts))
 
 	toSet := map[string]string{}
 

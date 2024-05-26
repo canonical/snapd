@@ -27,6 +27,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/udev/netlink"
 )
@@ -69,9 +70,8 @@ func Wait(timeout time.Duration, deviceTimeout time.Duration) error {
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGUSR1)
 	conn := getUEventConn()
-	if err := conn.Connect(netlink.UdevEvent); err != nil {
-		logger.Panicf("Unable to connect to Netlink Kobject UEvent socket")
-	}
+	mylog.Check(conn.Connect(netlink.UdevEvent))
+
 	defer conn.Close()
 
 	add := "add"
@@ -96,10 +96,7 @@ func Wait(timeout time.Duration, deviceTimeout time.Duration) error {
 		logger.Panicf("trigger is unset")
 	}
 
-	devices, err := trigger.FindMatchingDevices(triggerFilter)
-	if err != nil {
-		return fmt.Errorf("cannot list trigger devices: %v", err)
-	}
+	devices := mylog.Check2(trigger.FindMatchingDevices(triggerFilter))
 
 	if devices == nil {
 		devices = make([]triggerDevice, 0)
@@ -134,25 +131,14 @@ func Wait(timeout time.Duration, deviceTimeout time.Duration) error {
 				return ErrNoMatchingInputDevices
 			}
 		case uevent := <-ueventQueue:
-			dev, err := trigger.Open(triggerFilter, uevent.Env["DEVNAME"])
-			if err != nil {
-				logger.Noticef("ignoring device %s that cannot be opened: %v", uevent.Env["DEVNAME"], err)
-			} else if dev != nil {
-				foundDevice = true
-				defer dev.Close()
-				go dev.WaitForTrigger(detectKeyCh)
-			}
+			dev := mylog.Check2(trigger.Open(triggerFilter, uevent.Env["DEVNAME"]))
+
 		case <-sigs:
 			logger.Noticef("Switching root")
-			if err := syscall.Chdir("/sysroot"); err != nil {
-				return fmt.Errorf("Cannot change directory: %w", err)
-			}
-			if err := syscall.Chroot("/sysroot"); err != nil {
-				return fmt.Errorf("Cannot change root: %w", err)
-			}
-			if err := syscall.Chdir("/"); err != nil {
-				return fmt.Errorf("Cannot change directory: %w", err)
-			}
+			mylog.Check(syscall.Chdir("/sysroot"))
+			mylog.Check(syscall.Chroot("/sysroot"))
+			mylog.Check(syscall.Chdir("/"))
+
 		}
 	}
 }

@@ -20,6 +20,7 @@
 package builtin
 
 import (
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
@@ -432,10 +433,8 @@ func (iface *greengrassSupportInterface) AppArmorConnectedPlug(spec *apparmor.Sp
 		// if apparmor supports userns mediation then add this too as we
 		// allow unshare in the seccomp profile in this flavor
 		if apparmor_sandbox.ProbedLevel() != apparmor_sandbox.Unsupported {
-			features, err := apparmor_sandbox.ParserFeatures()
-			if err != nil {
-				return err
-			}
+			features := mylog.Check2(apparmor_sandbox.ParserFeatures())
+
 			if strutil.ListContains(features, "userns") {
 				spec.AddSnippet(greengrassSupportConnectedPlugAppArmorUserNS)
 			}

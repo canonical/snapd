@@ -28,6 +28,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/sandbox/cgroup"
@@ -60,8 +61,8 @@ func (s *monitorSuite) SetUpTest(c *C) {
 
 func makeTestFolder(c *C, root string, name string) (fullPath string) {
 	fullPath = path.Join(root, name)
-	err := os.Mkdir(fullPath, 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.Mkdir(fullPath, 0755))
+
 	return fullPath
 }
 
@@ -78,7 +79,6 @@ func (s *monitorSuite) TestMonitorSnapBasicWork(c *C) {
 		default:
 			c.Fatalf("unexpected callback: %v %q", cb, name)
 		}
-
 	}))
 	defer cgroup.MockInitWatcherClose()
 
@@ -87,17 +87,17 @@ func (s *monitorSuite) TestMonitorSnapBasicWork(c *C) {
 	folder2 := makeTestFolder(c, s.tempDir, "folder2")
 
 	filelist := []string{folder1}
-	err := cgroup.MonitorDelete(filelist, "test1", s.eventsCh)
-	c.Assert(err, IsNil)
+	mylog.Check(cgroup.MonitorDelete(filelist, "test1", s.eventsCh))
+
 
 	<-monitorAdded
+	mylog.
 
-	// removing an unwatched directory does not trigger an event
-	err = os.Remove(folder2)
-	c.Assert(err, IsNil)
+		// removing an unwatched directory does not trigger an event
+		Check(os.Remove(folder2))
 
-	err = os.Remove(folder1)
-	c.Assert(err, IsNil)
+	mylog.Check(os.Remove(folder1))
+
 	event := <-s.eventsCh
 	c.Assert(event, Equals, "test1")
 }
@@ -132,11 +132,9 @@ func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
 		default:
 			c.Fatalf("unexpected callback: %v %q", cb, name)
 		}
-
 	}))
 	defer cgroup.MockInitWatcherClose()
-
-	err := cgroup.MonitorDelete(filelist, "test2", s.eventsCh)
+	mylog.Check(cgroup.MonitorDelete(filelist, "test2", s.eventsCh))
 	c.Assert(err, Equals, nil)
 
 	<-monitorAdded
@@ -144,15 +142,12 @@ func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
 	folder3 := makeTestFolder(c, s.tempDir, "folder3")
 
 	time.Sleep(s.inotifyWait)
+	mylog.Check(os.Remove(folder3))
 
-	err = os.Remove(folder3)
-	c.Assert(err, IsNil)
+	mylog.Check(os.Remove(folder1))
 
-	err = os.Remove(folder1)
-	c.Assert(err, IsNil)
+	mylog.Check(os.Remove(folder2))
 
-	err = os.Remove(folder2)
-	c.Assert(err, IsNil)
 
 	// All files have been deleted, so NOW we must receive
 	// something from the channel
@@ -204,26 +199,22 @@ func (s *monitorSuite) TestMonitorOverlap(c *C) {
 		default:
 			c.Fatalf("unexpected callback: %v %q", cb, name)
 		}
-
 	}))
 	defer cgroup.MockInitWatcherClose()
 
 	set1Ch := make(chan string, 1)
 	set2Ch := make(chan string, 1)
-	err := cgroup.MonitorDelete(filelist, "set1", set1Ch)
+	mylog.Check(cgroup.MonitorDelete(filelist, "set1", set1Ch))
 	c.Assert(err, Equals, nil)
-
-	err = cgroup.MonitorDelete(filelist, "set2", set2Ch)
+	mylog.Check(cgroup.MonitorDelete(filelist, "set2", set2Ch))
 	c.Assert(err, Equals, nil)
 
 	<-monitorAdded
 	<-monitorAdded
+	mylog.Check(os.Remove(folder1))
 
-	err = os.Remove(folder1)
-	c.Assert(err, IsNil)
+	mylog.Check(os.Remove(folder2))
 
-	err = os.Remove(folder2)
-	c.Assert(err, IsNil)
 
 	// both sets are notified
 	event := <-set1Ch
@@ -247,7 +238,7 @@ func (s *monitorSuite) TestMonitorSnapSnapAlreadyStopped(c *C) {
 	nonExistingFolder := path.Join(c.MkDir(), "non-exiting-dir")
 
 	filelist := []string{nonExistingFolder}
-	err := cgroup.MonitorDelete(filelist, "test3", s.eventsCh)
+	mylog.Check(cgroup.MonitorDelete(filelist, "test3", s.eventsCh))
 	c.Assert(err, Equals, nil)
 
 	event := <-s.eventsCh
@@ -290,24 +281,20 @@ func (s *monitorSuite) TestMonitorSnapTwoProcessesAtTheSameTime(c *C) {
 
 	channel2 := make(chan string)
 	defer close(channel2)
-
-	err := cgroup.MonitorDelete(filelist1, "test4a", channel1)
+	mylog.Check(cgroup.MonitorDelete(filelist1, "test4a", channel1))
 	c.Assert(err, Equals, nil)
 
 	c.Assert(<-monitorAdded, Equals, "test4a")
-
-	err = cgroup.MonitorDelete(filelist2, "test4b", channel2)
+	mylog.Check(cgroup.MonitorDelete(filelist2, "test4b", channel2))
 	c.Assert(err, Equals, nil)
 
 	c.Assert(<-monitorAdded, Equals, "test4b")
 
 	time.Sleep(s.inotifyWait)
+	mylog.Check(os.Remove(folder3))
 
-	err = os.Remove(folder3)
-	c.Assert(err, IsNil)
+	mylog.Check(os.Remove(folder1))
 
-	err = os.Remove(folder1)
-	c.Assert(err, IsNil)
 	// Expect to receive an event about the first snap
 	var receivedEvent string
 	select {
@@ -316,8 +303,8 @@ func (s *monitorSuite) TestMonitorSnapTwoProcessesAtTheSameTime(c *C) {
 	}
 
 	c.Assert(receivedEvent, Equals, "test4a")
-	err = os.Remove(folder2)
-	c.Assert(err, IsNil)
+	mylog.Check(os.Remove(folder2))
+
 
 	// Expect to receive an event about the second snap
 	receivedEvent = ""
@@ -332,9 +319,8 @@ func (s *monitorSuite) TestMonitorSnapEndedNonExisting(c *C) {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.AddCleanup(cgroup.MockInotifyWatcher(ctx, nil))
 	defer cancel()
+	mylog.Check(cgroup.MonitorSnapEnded("non-existing-snap", s.eventsCh))
 
-	err := cgroup.MonitorSnapEnded("non-existing-snap", s.eventsCh)
-	c.Assert(err, IsNil)
 
 	event := <-s.eventsCh
 	c.Check(event, Equals, "non-existing-snap")
@@ -350,20 +336,23 @@ func (s *monitorSuite) TestMonitorSnapEndedIntegration(c *C) {
 
 	// make mock cgroups.procs file
 	mockProcsFile := filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/snap.firefox.firefox-fa61f25b-92e1-4316-8acb-2b95af841855.scope/cgroup.procs")
-	err := os.MkdirAll(filepath.Dir(mockProcsFile), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(mockProcsFile, []byte("57003\n57004"), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Dir(mockProcsFile), 0755))
 
-	// wait for firefox to end
-	err = cgroup.MonitorSnapEnded("firefox", s.eventsCh)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(mockProcsFile, []byte("57003\n57004"), 0644))
 
-	// TODO observe
+	mylog.
 
-	// simulate cgroup getting removed because firefox stopped
-	err = os.RemoveAll(filepath.Dir(mockProcsFile))
-	c.Assert(err, IsNil)
+		// wait for firefox to end
+		Check(cgroup.MonitorSnapEnded("firefox", s.eventsCh))
+
+	mylog.
+
+		// TODO observe
+		Check(
+
+			// simulate cgroup getting removed because firefox stopped
+			os.RemoveAll(filepath.Dir(mockProcsFile)))
+
 
 	// validate the stoppedSnap got delivered
 	snapName := <-s.eventsCh
@@ -374,9 +363,8 @@ func (s *monitorSuite) TestMonitorClose(c *C) {
 	w := cgroup.NewInotifyWatcher(context.Background())
 	f := makeTestFolder(c, s.tempDir, "foo")
 	ch := make(chan string)
+	mylog.Check(w.MonitorDelete([]string{f}, "test", ch))
 
-	err := w.MonitorDelete([]string{f}, "test", ch)
-	c.Assert(err, IsNil)
 
 	w.Close()
 
@@ -390,10 +378,11 @@ func (s *monitorSuite) TestMonitorClose(c *C) {
 func (s *monitorSuite) TestMonitorError(c *C) {
 	w := cgroup.NewInotifyWatcher(context.Background())
 	ch := make(chan string)
+	mylog.
 
-	// XXX note the error isn't propagated back to the caller
-	err := w.MonitorDelete([]string{filepath.Join(s.tempDir, "foo/bar/baz")}, "test", ch)
-	c.Assert(err, IsNil)
+		// XXX note the error isn't propagated back to the caller
+		Check(w.MonitorDelete([]string{filepath.Join(s.tempDir, "foo/bar/baz")}, "test", ch))
+
 
 	w.Close()
 }

@@ -28,6 +28,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/ddkwork/golibrary/mylog"
 	sb "github.com/snapcore/secboot"
 	"golang.org/x/xerrors"
 
@@ -56,18 +57,12 @@ func SealKeysWithFDESetupHook(runHook fde.RunSetupHookFunc, keys []SealKeyReques
 			Key:     payload,
 			KeyName: skr.KeyName,
 		}
-		res, err := fde.InitialSetup(runHook, keyParams)
-		if err != nil {
-			return err
-		}
-		if err := writeKeyData(skr.KeyFile, res, auxKey, params.Model); err != nil {
-			return fmt.Errorf("cannot store key: %v", err)
-		}
+		res := mylog.Check2(fde.InitialSetup(runHook, keyParams))
+		mylog.Check(writeKeyData(skr.KeyFile, res, auxKey, params.Model))
+
 	}
 	if params.AuxKeyFile != "" {
-		if err := osutil.AtomicWriteFile(params.AuxKeyFile, auxKey, 0600, 0); err != nil {
-			return fmt.Errorf("cannot write the aux key file: %v", err)
-		}
+		mylog.Check(osutil.AtomicWriteFile(params.AuxKeyFile, auxKey, 0600, 0))
 	}
 
 	return nil
@@ -81,7 +76,7 @@ func writeKeyData(path string, keySetup *fde.InitialSetupResult, auxKey []byte, 
 	} else {
 		handle = *keySetup.Handle
 	}
-	kd, err := sb.NewKeyData(&sb.KeyCreationData{
+	kd := mylog.Check2(sb.NewKeyData(&sb.KeyCreationData{
 		PlatformKeyData: sb.PlatformKeyData{
 			EncryptedPayload: keySetup.EncryptedKey,
 			Handle:           handle,
@@ -89,34 +84,26 @@ func writeKeyData(path string, keySetup *fde.InitialSetupResult, auxKey []byte, 
 		PlatformName:      fdeHooksPlatformName,
 		AuxiliaryKey:      auxKey,
 		SnapModelAuthHash: crypto.SHA256,
-	})
-	if err != nil {
-		return fmt.Errorf("cannot create key data: %v", err)
-	}
-	if err := kd.SetAuthorizedSnapModels(auxKey, model); err != nil {
-		return fmt.Errorf("cannot set model %s/%s as authorized: %v", model.BrandID(), model.Model(), err)
-	}
+	}))
+	mylog.Check(kd.SetAuthorizedSnapModels(auxKey, model))
+
 	f := sb.NewFileKeyDataWriter(path)
-	if err := kd.WriteAtomic(f); err != nil {
-		return fmt.Errorf("cannot write key data: %v", err)
-	}
+	mylog.Check(kd.WriteAtomic(f))
+
 	return nil
 }
 
 func isV1EncryptedKeyFile(p string) bool {
 	// XXX move some of this to kernel/fde
-	var v1KeyPrefix = []byte("USK$")
+	v1KeyPrefix := []byte("USK$")
 
-	f, err := os.Open(p)
-	if err != nil {
-		return false
-	}
+	f := mylog.Check2(os.Open(p))
+
 	defer f.Close()
 
 	buf := make([]byte, len(v1KeyPrefix))
-	if _, err := io.ReadFull(f, buf); err != nil {
-		return false
-	}
+	mylog.Check2(io.ReadFull(f, buf))
+
 	return bytes.HasPrefix(buf, v1KeyPrefix)
 }
 
@@ -136,24 +123,17 @@ func unlockVolumeUsingSealedKeyFDERevealKey(sealedEncryptionKeyFile, sourceDevic
 func unlockVolumeUsingSealedKeyFDERevealKeyV1(sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName string) (UnlockResult, error) {
 	res := UnlockResult{IsEncrypted: true, PartDevice: sourceDevice}
 
-	sealedKey, err := os.ReadFile(sealedEncryptionKeyFile)
-	if err != nil {
-		return res, fmt.Errorf("cannot read sealed key file: %v", err)
-	}
+	sealedKey := mylog.Check2(os.ReadFile(sealedEncryptionKeyFile))
 
 	p := fde.RevealParams{
 		SealedKey: sealedKey,
 	}
-	output, err := fde.Reveal(&p)
-	if err != nil {
-		return res, err
-	}
+	output := mylog.Check2(fde.Reveal(&p))
 
 	// the output of fde-reveal-key is the unsealed key
 	unsealedKey := output
-	if err := unlockEncryptedPartitionWithKey(mapperName, sourceDevice, unsealedKey); err != nil {
-		return res, fmt.Errorf("cannot unlock encrypted partition: %v", err)
-	}
+	mylog.Check(unlockEncryptedPartitionWithKey(mapperName, sourceDevice, unsealedKey))
+
 	res.FsDevice = targetDevice
 	res.UnlockMethod = UnlockedWithSealedKey
 	return res, nil
@@ -162,45 +142,28 @@ func unlockVolumeUsingSealedKeyFDERevealKeyV1(sealedEncryptionKeyFile, sourceDev
 func unlockVolumeUsingSealedKeyFDERevealKeyV2(sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName string, opts *UnlockVolumeUsingSealedKeyOptions) (res UnlockResult, err error) {
 	res = UnlockResult{IsEncrypted: true, PartDevice: sourceDevice}
 
-	f, err := sb.NewFileKeyDataReader(sealedEncryptionKeyFile)
-	if err != nil {
-		return res, err
-	}
-	keyData, err := sb.ReadKeyData(f)
-	if err != nil {
-		fmt := "cannot read key data: %w"
-		return res, xerrors.Errorf(fmt, err)
-	}
+	f := mylog.Check2(sb.NewFileKeyDataReader(sealedEncryptionKeyFile))
+
+	keyData := mylog.Check2(sb.ReadKeyData(f))
 
 	// the output of fde-reveal-key is the unsealed key
 	options := activateVolOpts(opts.AllowRecoveryKey)
-	modChecker, err := sbActivateVolumeWithKeyData(mapperName, sourceDevice, keyData, options)
+	modChecker := mylog.Check2(sbActivateVolumeWithKeyData(mapperName, sourceDevice, keyData, options))
 	if err == sb.ErrRecoveryKeyUsed {
 		logger.Noticef("successfully activated encrypted device %q using a fallback activation method", sourceDevice)
 		res.FsDevice = targetDevice
 		res.UnlockMethod = UnlockedWithRecoveryKey
 		return res, nil
 	}
-	if err != nil {
-		return res, fmt.Errorf("cannot unlock encrypted partition: %v", err)
-	}
+
 	// ensure we close the open volume under any error condition
 	defer func() {
-		if err != nil {
-			if err := sbDeactivateVolume(mapperName); err != nil {
-				logger.Noticef("cannot deactivate volume %q: %v", mapperName, err)
-			}
-		}
 	}()
 	// ensure that the model is authorized to open the volume
-	model, err := opts.WhichModel()
-	if err != nil {
-		return res, fmt.Errorf("cannot retrieve which model to unlock for: %v", err)
-	}
-	ok, err := modChecker.IsModelAuthorized(model)
-	if err != nil {
-		return res, fmt.Errorf("cannot check if model is authorized to unlock disk: %v", err)
-	}
+	model := mylog.Check2(opts.WhichModel())
+
+	ok := mylog.Check2(modChecker.IsModelAuthorized(model))
+
 	if !ok {
 		return res, fmt.Errorf("cannot unlock volume: model %s/%s not authorized", model.BrandID(), model.Model())
 	}

@@ -28,6 +28,7 @@ import (
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
@@ -94,9 +95,8 @@ func (mgr *SnapshotManager) Ensure() error {
 }
 
 func (mgr *SnapshotManager) StartUp() error {
-	if _, err := backendCleanupAbandonedImports(); err != nil {
-		logger.Noticef("cannot cleanup incomplete imports: %v", err)
-	}
+	mylog.Check2(backendCleanupAbandonedImports())
+
 	return nil
 }
 
@@ -104,41 +104,31 @@ func (mgr *SnapshotManager) forgetExpiredSnapshots() error {
 	mgr.state.Lock()
 	defer mgr.state.Unlock()
 
-	sets, err := expiredSnapshotSets(mgr.state, time.Now())
-	if err != nil {
-		return fmt.Errorf("internal error: cannot determine expired snapshots: %v", err)
-	}
+	sets := mylog.Check2(expiredSnapshotSets(mgr.state, time.Now()))
 
 	if len(sets) == 0 {
 		return nil
 	}
+	mylog.Check(backendIter(context.TODO(), func(r *backend.Reader) error {
+		mylog.Check(
+			// forget needs to conflict with check and restore
+			checkSnapshotConflict(mgr.state, r.SetID, "export-snapshot",
+				"check-snapshot", "restore-snapshot"))
+		// there is a conflict, do nothing and we will retry this set on next Ensure().
 
-	err = backendIter(context.TODO(), func(r *backend.Reader) error {
-		// forget needs to conflict with check and restore
-		if err := checkSnapshotConflict(mgr.state, r.SetID, "export-snapshot",
-			"check-snapshot", "restore-snapshot"); err != nil {
-			// there is a conflict, do nothing and we will retry this set on next Ensure().
-			return nil
-		}
 		if sets[r.SetID] {
 			delete(sets, r.SetID)
-			// remove from state first: in case removeSnapshotState succeeds but osRemove fails we will never attempt
-			// to automatically remove this snapshot again and will leave it on the disk (so the user can still try to remove it manually);
-			// this is better than the other way around where a failing osRemove would be retried forever because snapshot would never
-			// leave the state.
-			if err := removeSnapshotState(mgr.state, r.SetID); err != nil {
-				return fmt.Errorf("internal error: cannot remove state of snapshot set %d: %v", r.SetID, err)
-			}
-			if err := osRemove(r.Name()); err != nil {
-				return fmt.Errorf("cannot remove snapshot file %q: %v", r.Name(), err)
-			}
+			mylog.Check(
+				// remove from state first: in case removeSnapshotState succeeds but osRemove fails we will never attempt
+				// to automatically remove this snapshot again and will leave it on the disk (so the user can still try to remove it manually);
+				// this is better than the other way around where a failing osRemove would be retried forever because snapshot would never
+				// leave the state.
+				removeSnapshotState(mgr.state, r.SetID))
+			mylog.Check(osRemove(r.Name()))
+
 		}
 		return nil
-	})
-
-	if err != nil {
-		return fmt.Errorf("cannot process expired snapshots: %v", err)
-	}
+	}))
 
 	// only reset time if there are no sets left because of conflicts
 	if len(sets) == 0 {
@@ -155,9 +145,7 @@ func (SnapshotManager) affectedSnaps(t *state.Task) ([]string, error) {
 		return nil, nil
 	}
 	var snapshot snapshotSetup
-	if err := t.Get("snapshot-setup", &snapshot); err != nil {
-		return nil, taskGetErrMsg(t, err, "snapshot")
-	}
+	mylog.Check(t.Get("snapshot-setup", &snapshot))
 
 	return []string{snapshot.Snap}, nil
 }
@@ -188,57 +176,37 @@ func prepareSave(task *state.Task) (snapshot *snapshotSetup, cur *snap.Info, cfg
 	st := task.State()
 	st.Lock()
 	defer st.Unlock()
+	mylog.Check(task.Get("snapshot-setup", &snapshot))
 
-	if err := task.Get("snapshot-setup", &snapshot); err != nil {
-		return nil, nil, nil, taskGetErrMsg(task, err, "snapshot")
-	}
-	cur, err = snapstateCurrentInfo(st, snapshot.Snap)
-	if err != nil {
-		return nil, nil, nil, err
-	}
+	cur = mylog.Check2(snapstateCurrentInfo(st, snapshot.Snap))
+
 	// updating snapshot-setup with the filename, for use in undo
 	snapshot.Filename = filename(snapshot.SetID, cur)
 	task.Set("snapshot-setup", &snapshot)
 
-	cfg, err = unmarshalSnapConfig(st, snapshot.Snap)
-	if err != nil {
-		return nil, nil, nil, err
-	}
+	cfg = mylog.Check2(unmarshalSnapConfig(st, snapshot.Snap))
 
 	// this should be done last because of it modifies the state and the caller needs to undo this if other operation fails.
 	if snapshot.Auto {
-		expiration, err := AutomaticSnapshotExpiration(st)
-		if err != nil {
-			return nil, nil, nil, err
-		}
-		if err := saveExpiration(st, snapshot.SetID, time.Now().Add(expiration)); err != nil {
-			return nil, nil, nil, err
-		}
+		expiration := mylog.Check2(AutomaticSnapshotExpiration(st))
+		mylog.Check(saveExpiration(st, snapshot.SetID, time.Now().Add(expiration)))
+
 	}
 
 	return snapshot, cur, cfg, nil
 }
 
 func doSave(task *state.Task, tomb *tomb.Tomb) error {
-	snapshot, cur, cfg, err := prepareSave(task)
-	if err != nil {
-		return err
-	}
+	snapshot, cur, cfg := mylog.Check4(prepareSave(task))
+
 	st := task.State()
 
 	st.Lock()
-	opts, err := getSnapDirOpts(st, snapshot.Snap)
+	opts := mylog.Check2(getSnapDirOpts(st, snapshot.Snap))
 	st.Unlock()
-	if err != nil {
-		return err
-	}
 
-	_, err = backendSave(tomb.Context(nil), snapshot.SetID, cur, cfg, snapshot.Users, snapshot.Options, opts)
-	if err != nil {
-		st.Lock()
-		defer st.Unlock()
-		removeSnapshotState(st, snapshot.SetID)
-	}
+	_ = mylog.Check2(backendSave(tomb.Context(nil), snapshot.SetID, cur, cfg, snapshot.Users, snapshot.Options, opts))
+
 	return err
 }
 
@@ -249,19 +217,12 @@ func prepareRestore(task *state.Task) (snapshot *snapshotSetup, oldCfg map[strin
 
 	st.Lock()
 	defer st.Unlock()
+	mylog.Check(task.Get("snapshot-setup", &snapshot))
 
-	if err := task.Get("snapshot-setup", &snapshot); err != nil {
-		return nil, nil, nil, taskGetErrMsg(task, err, "snapshot")
-	}
+	oldCfg = mylog.Check2(unmarshalSnapConfig(st, snapshot.Snap))
 
-	oldCfg, err = unmarshalSnapConfig(st, snapshot.Snap)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	reader, err = backendOpen(snapshot.Filename, backend.ExtractFnameSetID)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("cannot open snapshot: %v", err)
-	}
+	reader = mylog.Check2(backendOpen(snapshot.Filename, backend.ExtractFnameSetID))
+
 	// note given the Open succeeded, caller needs to close it when done
 
 	return snapshot, oldCfg, reader, nil
@@ -275,33 +236,25 @@ func marshalSnapConfig(cfg map[string]interface{}) (*json.RawMessage, error) {
 		// we want to avoid.
 		return nil, nil
 	}
-	buf, err := json.Marshal(cfg)
-	if err != nil {
-		return nil, err
-	}
+	buf := mylog.Check2(json.Marshal(cfg))
+
 	raw := (*json.RawMessage)(&buf)
 	return raw, err
 }
 
 func unmarshalSnapConfig(st *state.State, snapName string) (map[string]interface{}, error) {
-	rawCfg, err := configGetSnapConfig(st, snapName)
-	if err != nil {
-		return nil, fmt.Errorf("internal error: cannot obtain current snap config: %v", err)
-	}
+	rawCfg := mylog.Check2(configGetSnapConfig(st, snapName))
+
 	var cfg map[string]interface{}
 	if rawCfg != nil {
-		if err := json.Unmarshal(*rawCfg, &cfg); err != nil {
-			return nil, fmt.Errorf("internal error: cannot decode current snap config: %v", err)
-		}
+		mylog.Check(json.Unmarshal(*rawCfg, &cfg))
 	}
 	return cfg, nil
 }
 
 func doRestore(task *state.Task, tomb *tomb.Tomb) error {
-	snapshot, oldCfg, reader, err := prepareRestore(task)
-	if err != nil {
-		return err
-	}
+	snapshot, oldCfg, reader := mylog.Check4(prepareRestore(task))
+
 	defer reader.Close()
 
 	st := task.State()
@@ -312,30 +265,16 @@ func doRestore(task *state.Task, tomb *tomb.Tomb) error {
 	}
 
 	st.Lock()
-	opts, err := getSnapDirOpts(st, snapshot.Snap)
+	opts := mylog.Check2(getSnapDirOpts(st, snapshot.Snap))
 	st.Unlock()
-	if err != nil {
-		return err
-	}
 
-	restoreState, err := backendRestore(reader, tomb.Context(nil), snapshot.Current, snapshot.Users, logf, opts)
-	if err != nil {
-		return err
-	}
+	restoreState := mylog.Check2(backendRestore(reader, tomb.Context(nil), snapshot.Current, snapshot.Users, logf, opts))
 
-	raw, err := marshalSnapConfig(reader.Conf)
-	if err != nil {
-		backendRevert(restoreState)
-		return fmt.Errorf("cannot marshal saved config: %v", err)
-	}
+	raw := mylog.Check2(marshalSnapConfig(reader.Conf))
 
 	st.Lock()
 	defer st.Unlock()
-
-	if err := configSetSnapConfig(st, snapshot.Snap, raw); err != nil {
-		backendRevert(restoreState)
-		return fmt.Errorf("cannot set snap config: %v", err)
-	}
+	mylog.Check(configSetSnapConfig(st, snapshot.Snap, raw))
 
 	restoreState.Config = oldCfg
 	task.Set("restore-state", restoreState)
@@ -350,22 +289,11 @@ func undoRestore(task *state.Task, _ *tomb.Tomb) error {
 	st := task.State()
 	st.Lock()
 	defer st.Unlock()
+	mylog.Check(task.Get("restore-state", &restoreState))
+	mylog.Check(task.Get("snapshot-setup", &snapshot))
 
-	if err := task.Get("restore-state", &restoreState); err != nil {
-		return taskGetErrMsg(task, err, "snapshot restore")
-	}
-	if err := task.Get("snapshot-setup", &snapshot); err != nil {
-		return taskGetErrMsg(task, err, "snapshot")
-	}
-
-	raw, err := marshalSnapConfig(restoreState.Config)
-	if err != nil {
-		return fmt.Errorf("cannot marshal saved config: %v", err)
-	}
-
-	if err := configSetSnapConfig(st, snapshot.Snap, raw); err != nil {
-		return fmt.Errorf("cannot restore saved config: %v", err)
-	}
+	raw := mylog.Check2(marshalSnapConfig(restoreState.Config))
+	mylog.Check(configSetSnapConfig(st, snapshot.Snap, raw))
 
 	backendRevert(&restoreState)
 
@@ -378,10 +306,9 @@ func doCleanupAfterRestore(task *state.Task, tomb *tomb.Tomb) error {
 	restoreTasks := task.WaitTasks()
 	st.Unlock()
 	for _, t := range restoreTasks {
-		if err := cleanupRestore(t, tomb); err != nil {
-			logger.Noticef("Cleanup of restore task %s failed: %v", task.ID(), err)
-			// do not quit the loop: we must perform all cleanups anyway
-		}
+		mylog.Check(cleanupRestore(t, tomb))
+
+		// do not quit the loop: we must perform all cleanups anyway
 	}
 
 	// Also, do not return an error here: we don't want a failed cleanup to
@@ -395,7 +322,7 @@ func cleanupRestore(task *state.Task, _ *tomb.Tomb) error {
 	st := task.State()
 	st.Lock()
 	status := task.Status()
-	err := task.Get("restore-state", &restoreState)
+	mylog.Check(task.Get("restore-state", &restoreState))
 	st.Unlock()
 
 	if status != state.DoneStatus {
@@ -403,13 +330,9 @@ func cleanupRestore(task *state.Task, _ *tomb.Tomb) error {
 		return nil
 	}
 
-	if err != nil {
-		// this is bad: we somehow lost the information to restore things
-		// but if we return the error we'll just get called again :-(
-		// TODO: use warnings :-)
-		logger.Noticef("%v", taskGetErrMsg(task, err, "snapshot restore"))
-		return nil
-	}
+	// this is bad: we somehow lost the information to restore things
+	// but if we return the error we'll just get called again :-(
+	// TODO: use warnings :-)
 
 	backendCleanup(&restoreState)
 
@@ -421,16 +344,11 @@ func doCheck(task *state.Task, tomb *tomb.Tomb) error {
 
 	st := task.State()
 	st.Lock()
-	err := task.Get("snapshot-setup", &snapshot)
+	mylog.Check(task.Get("snapshot-setup", &snapshot))
 	st.Unlock()
-	if err != nil {
-		return taskGetErrMsg(task, err, "snapshot")
-	}
 
-	reader, err := backendOpen(snapshot.Filename, backend.ExtractFnameSetID)
-	if err != nil {
-		return fmt.Errorf("cannot open snapshot: %v", err)
-	}
+	reader := mylog.Check2(backendOpen(snapshot.Filename, backend.ExtractFnameSetID))
+
 	defer reader.Close()
 
 	return backendCheck(reader, tomb.Context(nil), snapshot.Users)
@@ -443,20 +361,15 @@ func doForget(task *state.Task, _ *tomb.Tomb) error {
 	defer st.Unlock()
 
 	var snapshot snapshotSetup
-	err := task.Get("snapshot-setup", &snapshot)
-
-	if err != nil {
-		return taskGetErrMsg(task, err, "snapshot")
-	}
+	mylog.Check(task.Get("snapshot-setup", &snapshot))
 
 	if snapshot.Filename == "" {
 		return fmt.Errorf("internal error: task %s (%s) snapshot info is missing the filename", task.ID(), task.Kind())
 	}
+	mylog.Check(
 
-	// in case it's an automatic snapshot, remove the set also from the state (automatic snapshots have just one snap per set).
-	if err := removeSnapshotState(st, snapshot.SetID); err != nil {
-		return fmt.Errorf("internal error: cannot remove state of snapshot set %d: %v", snapshot.SetID, err)
-	}
+		// in case it's an automatic snapshot, remove the set also from the state (automatic snapshots have just one snap per set).
+		removeSnapshotState(st, snapshot.SetID))
 
 	return osRemove(snapshot.Filename)
 }

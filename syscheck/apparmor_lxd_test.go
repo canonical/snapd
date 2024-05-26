@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/syscheck"
 )
 
@@ -32,9 +33,8 @@ func (s *syscheckSuite) TestCheckApparmorUsable(c *C) {
 	epermProfilePath := filepath.Join(c.MkDir(), "profiles")
 	restore := syscheck.MockAppArmorProfilesPath(epermProfilePath)
 	defer restore()
-	err := os.Chmod(filepath.Dir(epermProfilePath), 0444)
-	c.Assert(err, IsNil)
+	mylog.Check(os.Chmod(filepath.Dir(epermProfilePath), 0444))
 
-	err = syscheck.CheckApparmorUsable()
+	mylog.Check(syscheck.CheckApparmorUsable())
 	c.Check(err, ErrorMatches, "apparmor detected but insufficient permissions to use it")
 }

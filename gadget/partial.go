@@ -19,7 +19,11 @@
 
 package gadget
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/ddkwork/golibrary/mylog"
+)
 
 // ApplyInstallerVolumesToGadget takes the volume information returned
 // by the installer and applies it to the gadget volumes for the
@@ -39,10 +43,8 @@ func ApplyInstallerVolumesToGadget(installerVols map[string]*Volume, gadgetVols 
 
 		// First, retrieve device specified by installer
 		for i := range newV.Structure {
-			insStr, err := structureByName(insVol.Structure, newV.Structure[i].Name)
-			if err != nil {
-				return nil, err
-			}
+			insStr := mylog.Check2(structureByName(insVol.Structure, newV.Structure[i].Name))
+
 			newV.Structure[i].Device = insStr.Device
 		}
 
@@ -61,15 +63,11 @@ func ApplyInstallerVolumesToGadget(installerVols map[string]*Volume, gadgetVols 
 		}
 
 		if newV.HasPartial(PartialFilesystem) {
-			if err := applyPartialFilesystem(insVol, newV, volName); err != nil {
-				return nil, err
-			}
+			mylog.Check(applyPartialFilesystem(insVol, newV, volName))
 		}
 
 		if newV.HasPartial(PartialSize) {
-			if err := applyPartialSize(insVol, newV, volName); err != nil {
-				return nil, err
-			}
+			mylog.Check(applyPartialSize(insVol, newV, volName))
 		}
 
 		// The only thing that can still be partial is the structure
@@ -78,11 +76,11 @@ func ApplyInstallerVolumesToGadget(installerVols map[string]*Volume, gadgetVols 
 		} else {
 			newV.Partial = []PartialProperty{}
 		}
+		mylog.Check(
 
-		// Now validate finalized volume
-		if err := validateVolume(newV); err != nil {
-			return nil, fmt.Errorf("finalized volume %q is wrong: %v", newV.Name, err)
-		}
+			// Now validate finalized volume
+			validateVolume(newV))
+
 	}
 
 	return newVols, nil
@@ -95,10 +93,8 @@ func applyPartialFilesystem(insVol *Volume, gadgetVol *Volume, volName string) e
 			continue
 		}
 
-		insStr, err := structureByName(insVol.Structure, vs.Name)
-		if err != nil {
-			return err
-		}
+		insStr := mylog.Check2(structureByName(insVol.Structure, vs.Name))
+
 		if insStr.Filesystem == "" {
 			return fmt.Errorf("installer did not provide filesystem for structure %q in volume %q", vs.Name, volName)
 		}
@@ -115,10 +111,8 @@ func applyPartialSize(insVol *Volume, gadgetVol *Volume, volName string) error {
 			continue
 		}
 
-		insStr, err := structureByName(insVol.Structure, vs.Name)
-		if err != nil {
-			return err
-		}
+		insStr := mylog.Check2(structureByName(insVol.Structure, vs.Name))
+
 		if insStr.Size == 0 {
 			return fmt.Errorf("installer did not provide size for structure %q in volume %q", vs.Name, volName)
 		}

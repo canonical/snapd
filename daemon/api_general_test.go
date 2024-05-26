@@ -31,6 +31,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/daemon"
@@ -58,7 +59,7 @@ func (s *generalSuite) expectChangesReadAccess() {
 func (s *generalSuite) TestRoot(c *check.C) {
 	s.daemon(c)
 
-	req, err := http.NewRequest("GET", "/", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/", nil))
 	c.Assert(err, check.IsNil)
 
 	// check it only does GET
@@ -77,7 +78,7 @@ func (s *generalSuite) TestRoot(c *check.C) {
 }
 
 func (s *generalSuite) TestSysInfo(c *check.C) {
-	req, err := http.NewRequest("GET", "/v2/system-info", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/system-info", nil))
 	c.Assert(err, check.IsNil)
 
 	d := s.daemon(c)
@@ -197,7 +198,7 @@ func (s *generalSuite) TestSysInfo(c *check.C) {
 }
 
 func (s *generalSuite) TestSysInfoLegacyRefresh(c *check.C) {
-	req, err := http.NewRequest("GET", "/v2/system-info", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/system-info", nil))
 	c.Assert(err, check.IsNil)
 
 	d := s.daemon(c)
@@ -222,12 +223,13 @@ func (s *generalSuite) TestSysInfoLegacyRefresh(c *check.C) {
 	tr.Set("core", "refresh.timer", "")
 	tr.Commit()
 	st.Unlock()
+	mylog.
 
-	// add a test security backend
-	err = d.Overlord().InterfaceManager().Repository().AddBackend(&ifacetest.TestSecurityBackend{
-		BackendName:             "apparmor",
-		SandboxFeaturesCallback: func() []string { return []string{"feature-1", "feature-2"} },
-	})
+		// add a test security backend
+		Check(d.Overlord().InterfaceManager().Repository().AddBackend(&ifacetest.TestSecurityBackend{
+			BackendName:             "apparmor",
+			SandboxFeaturesCallback: func() []string { return []string{"feature-1", "feature-2"} },
+		}))
 	c.Assert(err, check.IsNil)
 
 	buildID := "this-is-my-build-id"
@@ -278,7 +280,7 @@ func (s *generalSuite) TestSysInfoLegacyRefresh(c *check.C) {
 }
 
 func (s *generalSuite) testSysInfoSystemMode(c *check.C, mode string) {
-	req, err := http.NewRequest("GET", "/v2/system-info", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/system-info", nil))
 	c.Assert(err, check.IsNil)
 
 	c.Assert(mode != "", check.Equals, true, check.Commentf("mode is unset for the test"))
@@ -304,12 +306,13 @@ func (s *generalSuite) testSysInfoSystemMode(c *check.C, mode string) {
 
 	d := s.daemon(c)
 	d.Version = "42b1"
+	mylog.
 
-	// add a test security backend
-	err = d.Overlord().InterfaceManager().Repository().AddBackend(&ifacetest.TestSecurityBackend{
-		BackendName:             "apparmor",
-		SandboxFeaturesCallback: func() []string { return []string{"feature-1", "feature-2"} },
-	})
+		// add a test security backend
+		Check(d.Overlord().InterfaceManager().Repository().AddBackend(&ifacetest.TestSecurityBackend{
+			BackendName:             "apparmor",
+			SandboxFeaturesCallback: func() []string { return []string{"feature-1", "feature-2"} },
+		}))
 	c.Assert(err, check.IsNil)
 
 	buildID := "this-is-my-build-id"
@@ -368,21 +371,22 @@ func (s *generalSuite) TestSysInfoSystemModeRecover(c *check.C) {
 func (s *generalSuite) TestSysInfoSystemModeInstall(c *check.C) {
 	s.testSysInfoSystemMode(c, "install")
 }
+
 func (s *generalSuite) TestSysInfoIsManaged(c *check.C) {
 	d := s.daemon(c)
 
 	st := d.Overlord().State()
 	st.Lock()
-	_, err := auth.NewUser(st, auth.NewUserParams{
+	_ := mylog.Check2(auth.NewUser(st, auth.NewUserParams{
 		Username:   "someuser",
 		Email:      "mymail@test.com",
 		Macaroon:   "macaroon",
 		Discharges: []string{"discharge"},
-	})
+	}))
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 
-	req, err := http.NewRequest("GET", "/v2/system-info", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/system-info", nil))
 	c.Assert(err, check.IsNil)
 
 	rsp := s.syncReq(c, req, nil)
@@ -394,7 +398,7 @@ func (s *generalSuite) TestSysInfoWorksDegraded(c *check.C) {
 
 	d.SetDegradedMode(fmt.Errorf("some error"))
 
-	req, err := http.NewRequest("GET", "/v2/system-info", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/system-info", nil))
 	c.Assert(err, check.IsNil)
 
 	rsp := s.syncReq(c, req, nil)
@@ -431,7 +435,7 @@ func (s *generalSuite) TestStateChangesDefaultToInProgress(c *check.C) {
 	st.Unlock()
 
 	// Execute
-	req, err := http.NewRequest("GET", "/v2/changes", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/changes", nil))
 	c.Assert(err, check.IsNil)
 	rsp := s.syncReq(c, req, nil)
 
@@ -460,7 +464,7 @@ func (s *generalSuite) TestStateChangesInProgress(c *check.C) {
 	st.Unlock()
 
 	// Execute
-	req, err := http.NewRequest("GET", "/v2/changes?select=in-progress", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/changes?select=in-progress", nil))
 	c.Assert(err, check.IsNil)
 	rsp := s.syncReq(c, req, nil)
 
@@ -489,7 +493,7 @@ func (s *generalSuite) TestStateChangesAll(c *check.C) {
 	st.Unlock()
 
 	// Execute
-	req, err := http.NewRequest("GET", "/v2/changes?select=all", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/changes?select=all", nil))
 	c.Assert(err, check.IsNil)
 	rsp := s.syncReq(c, req, nil)
 
@@ -519,7 +523,7 @@ func (s *generalSuite) TestStateChangesReady(c *check.C) {
 	st.Unlock()
 
 	// Execute
-	req, err := http.NewRequest("GET", "/v2/changes?select=ready", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/changes?select=ready", nil))
 	c.Assert(err, check.IsNil)
 	rsp := s.syncReq(c, req, nil)
 
@@ -548,7 +552,7 @@ func (s *generalSuite) TestStateChangesForSnapName(c *check.C) {
 	st.Unlock()
 
 	// Execute
-	req, err := http.NewRequest("GET", "/v2/changes?for=funky-snap-name&select=all", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/changes?for=funky-snap-name&select=all", nil))
 	c.Assert(err, check.IsNil)
 	rsp := s.syncReq(c, req, nil)
 
@@ -584,7 +588,7 @@ func (s *generalSuite) TestStateChangesForSnapNameWithApp(c *check.C) {
 	st.Unlock()
 
 	// Execute
-	req, err := http.NewRequest("GET", "/v2/changes?for=lxd&select=all", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/changes?for=lxd&select=all", nil))
 	c.Assert(err, check.IsNil)
 	rsp := s.syncReq(c, req, nil)
 
@@ -616,7 +620,7 @@ func (s *generalSuite) TestStateChange(c *check.C) {
 	st.Unlock()
 
 	// Execute
-	req, err := http.NewRequest("GET", "/v2/changes/"+ids[0], nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/changes/"+ids[0], nil))
 	c.Assert(err, check.IsNil)
 	rsp := s.syncReq(c, req, nil)
 	rec := httptest.NewRecorder()
@@ -628,7 +632,7 @@ func (s *generalSuite) TestStateChange(c *check.C) {
 	c.Check(rsp.Result, check.NotNil)
 
 	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	mylog.Check(json.Unmarshal(rec.Body.Bytes(), &body))
 	c.Check(err, check.IsNil)
 	c.Check(body["result"], check.DeepEquals, map[string]interface{}{
 		"id":         ids[0],
@@ -689,7 +693,7 @@ func (s *generalSuite) TestStateChangeAbort(c *check.C) {
 	buf := bytes.NewBufferString(`{"action": "abort"}`)
 
 	// Execute
-	req, err := http.NewRequest("POST", "/v2/changes/"+ids[0], buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/changes/"+ids[0], buf))
 	c.Assert(err, check.IsNil)
 	rsp := s.syncReq(c, req, nil)
 	rec := httptest.NewRecorder()
@@ -704,7 +708,7 @@ func (s *generalSuite) TestStateChangeAbort(c *check.C) {
 	c.Check(rsp.Result, check.NotNil)
 
 	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	mylog.Check(json.Unmarshal(rec.Body.Bytes(), &body))
 	c.Check(err, check.IsNil)
 	c.Check(body["result"], check.DeepEquals, map[string]interface{}{
 		"id":         ids[0],
@@ -756,7 +760,7 @@ func (s *generalSuite) TestStateChangeAbortIsReady(c *check.C) {
 	buf := bytes.NewBufferString(`{"action": "abort"}`)
 
 	// Execute
-	req, err := http.NewRequest("POST", "/v2/changes/"+ids[0], buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/changes/"+ids[0], buf))
 	c.Assert(err, check.IsNil)
 	rspe := s.errorReq(c, req, nil)
 	rec := httptest.NewRecorder()
@@ -767,7 +771,7 @@ func (s *generalSuite) TestStateChangeAbortIsReady(c *check.C) {
 	c.Check(rspe.Status, check.Equals, 400)
 
 	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	mylog.Check(json.Unmarshal(rec.Body.Bytes(), &body))
 	c.Check(err, check.IsNil)
 	c.Check(body["result"], check.DeepEquals, map[string]interface{}{
 		"message": fmt.Sprintf("cannot abort change %s with nothing pending", ids[0]),
@@ -793,7 +797,7 @@ func (s *generalSuite) testWarnings(c *check.C, all bool, body io.Reader) (calls
 	if all {
 		q.Set("select", "all")
 	}
-	req, err := http.NewRequest(method, "/v2/warnings?"+q.Encode(), body)
+	req := mylog.Check2(http.NewRequest(method, "/v2/warnings?"+q.Encode(), body))
 	c.Assert(err, check.IsNil)
 
 	rsp := s.syncReq(c, req, nil)

@@ -23,6 +23,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 )
@@ -55,11 +56,10 @@ func writeSnapReadme() error {
 	content := map[string]osutil.FileState{
 		fname: &osutil.MemoryFileState{Content: []byte(snapReadme()), Mode: 0444},
 	}
-	if err := os.MkdirAll(dirs.SnapMountDir, 0755); err != nil {
-		return err
-	}
+	mylog.Check(os.MkdirAll(dirs.SnapMountDir, 0755))
+
 	// NOTE: We are using EnsureDirState to not unconditionally write to flash
 	// and thus prolong life of the device.
-	_, _, err := osutil.EnsureDirState(dirs.SnapMountDir, fname, content)
+	_, _ := mylog.Check3(osutil.EnsureDirState(dirs.SnapMountDir, fname, content))
 	return err
 }

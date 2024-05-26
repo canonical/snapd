@@ -29,12 +29,11 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 )
 
-var (
-	_ = Suite(&repairSuite{})
-)
+var _ = Suite(&repairSuite{})
 
 type repairSuite struct {
 	modelsLine string
@@ -101,8 +100,8 @@ func (s *repairSuite) SetUpTest(c *C) {
 }
 
 func (s *repairSuite) TestDecodeOK(c *C) {
-	a, err := asserts.Decode([]byte(s.repairStr))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(s.repairStr)))
+
 	c.Check(a.Type(), Equals, asserts.RepairType)
 	_, ok := a.(asserts.SequenceMember)
 	c.Assert(ok, Equals, true)
@@ -140,11 +139,11 @@ func (s *repairSuite) TestDisabled(c *C) {
 		repairStr = strings.Replace(repairStr, "BASESLINE", "", 1)
 		repairStr = strings.Replace(repairStr, "MODESLINE", "", 1)
 
-		a, err := asserts.Decode([]byte(repairStr))
+		a := mylog.Check2(asserts.Decode([]byte(repairStr)))
 		if test.expectedErr != "" {
 			c.Check(err, ErrorMatches, repairErrPrefix+test.expectedErr)
 		} else {
-			c.Assert(err, IsNil)
+
 			repair := a.(*asserts.Repair)
 			c.Check(repair.Disabled(), Equals, test.dis)
 		}
@@ -306,7 +305,7 @@ func (s *repairSuite) TestDecodeModesAndBases(c *C) {
 		repairStr = strings.Replace(repairStr, "BASESLINE", basesStr, 1)
 		repairStr = strings.Replace(repairStr, "MODESLINE", modesStr, 1)
 
-		assert, err := asserts.Decode([]byte(repairStr))
+		assert := mylog.Check2(asserts.Decode([]byte(repairStr)))
 		if t.err != "" {
 			c.Assert(err, ErrorMatches, t.err, comment)
 		} else {
@@ -342,25 +341,25 @@ func (s *repairSuite) TestDecodeInvalid(c *C) {
 
 	for _, test := range invalidTests {
 		invalid := strings.Replace(s.repairStr, test.original, test.invalid, 1)
-		_, err := asserts.Decode([]byte(invalid))
+		_ := mylog.Check2(asserts.Decode([]byte(invalid)))
 		c.Check(err, ErrorMatches, repairErrPrefix+test.expectedErr)
 	}
 }
 
 // FIXME: move to a different layer later
 func (s *repairSuite) TestRepairCanEmbedScripts(c *C) {
-	a, err := asserts.Decode([]byte(s.repairStr))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(s.repairStr)))
+
 	c.Check(a.Type(), Equals, asserts.RepairType)
 	repair := a.(*asserts.Repair)
 
 	tmpdir := c.MkDir()
 	repairScript := filepath.Join(tmpdir, "repair")
-	err = os.WriteFile(repairScript, []byte(repair.Body()), 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(repairScript, []byte(repair.Body()), 0755))
+
 	cmd := exec.Command(repairScript)
 	cmd.Dir = tmpdir
-	output, err := cmd.CombinedOutput()
+	output := mylog.Check2(cmd.CombinedOutput())
 	c.Check(err, IsNil)
 	c.Check(string(output), Equals, `Unpack embedded payload
 hello from the inside

@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
@@ -36,8 +37,9 @@ type cmdAck struct {
 	} `positional-args:"true" required:"true"`
 }
 
-var shortAckHelp = i18n.G("Add an assertion to the system")
-var longAckHelp = i18n.G(`
+var (
+	shortAckHelp = i18n.G("Add an assertion to the system")
+	longAckHelp  = i18n.G(`
 The ack command tries to add an assertion to the system assertion database.
 
 The assertion may also be a newer revision of a pre-existing assertion that it
@@ -47,6 +49,7 @@ To succeed the assertion must be valid, its signature verified with a known
 public key and the assertion consistent with and its prerequisite in the
 database.
 `)
+)
 
 func init() {
 	addCommand("ack", shortAckHelp, longAckHelp, func() flags.Commander {
@@ -60,10 +63,7 @@ func init() {
 }
 
 func ackFile(cli *client.Client, assertFile string) error {
-	assertData, err := os.ReadFile(assertFile)
-	if err != nil {
-		return err
-	}
+	assertData := mylog.Check2(os.ReadFile(assertFile))
 
 	return cli.Ack(assertData)
 }
@@ -72,8 +72,7 @@ func (x *cmdAck) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
-	if err := ackFile(x.client, string(x.AckOptions.AssertionFile)); err != nil {
-		return fmt.Errorf("cannot assert: %v", err)
-	}
+	mylog.Check(ackFile(x.client, string(x.AckOptions.AssertionFile)))
+
 	return nil
 }

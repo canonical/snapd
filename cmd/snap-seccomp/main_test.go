@@ -29,6 +29,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/seccomp/libseccomp-golang"
 	. "gopkg.in/check.v1"
 
@@ -200,24 +201,24 @@ func (s *snapSeccompSuite) SetUpSuite(c *C) {
 
 	// build seccomp-load helper
 	s.seccompBpfLoader = filepath.Join(c.MkDir(), "seccomp_bpf_loader")
-	err := os.WriteFile(s.seccompBpfLoader+".c", seccompBpfLoaderContent, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(s.seccompBpfLoader+".c", seccompBpfLoaderContent, 0644))
+
 	cmd := exec.Command("gcc", "-Werror", "-Wall", s.seccompBpfLoader+".c", "-o", s.seccompBpfLoader)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	err = cmd.Run()
-	c.Assert(err, IsNil)
+	mylog.Check(cmd.Run())
+
 
 	// build syscall-runner helper
 	s.seccompSyscallRunner = filepath.Join(c.MkDir(), "seccomp_syscall_runner")
-	err = os.WriteFile(s.seccompSyscallRunner+".c", seccompSyscallRunnerContent, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(s.seccompSyscallRunner+".c", seccompSyscallRunnerContent, 0644))
+
 
 	cmd = exec.Command("gcc", "-std=c99", "-Werror", "-Wall", "-static", s.seccompSyscallRunner+".c", "-o", s.seccompSyscallRunner, "-Wl,-static", "-static-libgcc")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	err = cmd.Run()
-	c.Assert(err, IsNil)
+	mylog.Check(cmd.Run())
+
 
 	// Amazon Linux 2 is 64bit only and there is no multilib support
 	s.canCheckCompatArch = !release.DistroLike("amzn")
@@ -233,7 +234,7 @@ func (s *snapSeccompSuite) SetUpSuite(c *C) {
 				cmd.Args[i] = s.seccompSyscallRunner + ".m32"
 			}
 		}
-		if output, err := cmd.CombinedOutput(); err != nil {
+		if output := mylog.Check2(cmd.CombinedOutput()); err != nil {
 			fmt.Printf("cannot build multi-lib syscall runner: %v\n%s", err, output)
 		}
 	}
@@ -287,8 +288,8 @@ restart_syscall
 mprotect
 `
 	bpfPath := filepath.Join(c.MkDir(), "bpf")
-	err := main.Compile([]byte(common+seccompAllowlist), bpfPath)
-	c.Assert(err, IsNil)
+	mylog.Check(main.Compile([]byte(common+seccompAllowlist), bpfPath))
+
 
 	// default syscall runner
 	syscallRunner := s.seccompSyscallRunner
@@ -301,8 +302,8 @@ mprotect
 		syscallArch = l[1]
 	}
 
-	syscallNr, err := seccomp.GetSyscallFromName(syscallName)
-	c.Assert(err, IsNil)
+	syscallNr := mylog.Check2(seccomp.GetSyscallFromName(syscallName))
+
 
 	// Check if we want to test non-native architecture
 	// handling. Doing this via the in-kernel tests is tricky as
@@ -310,8 +311,8 @@ mprotect
 	// compiler that can produce the required binaries. Currently
 	// we only test amd64 running i386 here.
 	if syscallArch != "native" {
-		syscallNr, err = seccomp.GetSyscallFromNameByArch(syscallName, main.DpkgArchToScmpArch(syscallArch))
-		c.Assert(err, IsNil)
+		syscallNr = mylog.Check2(seccomp.GetSyscallFromNameByArch(syscallName, main.DpkgArchToScmpArch(syscallArch)))
+
 
 		switch syscallArch {
 		case "amd64":
@@ -357,9 +358,9 @@ mprotect
 			// this must match main.go:readNumber()
 			if nr, ok := main.SeccompResolver[args[i]]; ok {
 				syscallArg = nr
-			} else if nr, err := strconv.ParseUint(args[i], 10, 32); err == nil {
+			} else if nr := mylog.Check2(strconv.ParseUint(args[i], 10, 32)); err == nil {
 				syscallArg = nr
-			} else if nr, err := strconv.ParseInt(args[i], 10, 32); err == nil {
+			} else if nr := mylog.Check2(strconv.ParseInt(args[i], 10, 32)); err == nil {
 				syscallArg = uint64(uint32(nr))
 			}
 			syscallRunnerArgs[i+1] = strconv.FormatUint(syscallArg, 10)
@@ -370,7 +371,7 @@ mprotect
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	err = cmd.Run()
+	mylog.Check(cmd.Run())
 	// the exit code of the test binary is either 0 or 10, everything
 	// else is unexpected (segv, strtoll failure, ...)
 	exitCode, e := osutil.ExitCode(err)
@@ -378,9 +379,7 @@ mprotect
 	c.Assert(exitCode == 0 || exitCode == 10 || exitCode == 20, Equals, true, Commentf("unexpected exit code: %v for %v - test setup broken", exitCode, seccompAllowlist))
 	switch expected {
 	case Allow:
-		if err != nil {
-			c.Fatalf("unexpected error for %q (failed to run %q)", seccompAllowlist, err)
-		}
+
 	case Deny:
 		if exitCode != 10 {
 			c.Fatalf("unexpected exit code for %q %q (%v != %v)", seccompAllowlist, bpfInput, exitCode, 10)
@@ -403,12 +402,12 @@ mprotect
 func (s *snapSeccompSuite) TestUnrestricted(c *C) {
 	inp := "@unrestricted\n"
 	outPath := filepath.Join(c.MkDir(), "bpf")
-	err := main.Compile([]byte(inp), outPath)
-	c.Assert(err, IsNil)
+	mylog.Check(main.Compile([]byte(inp), outPath))
+
 
 	expected := [128]byte{'S', 'C', 0x1, 0x1}
-	fileContent, err := os.ReadFile(outPath)
-	c.Assert(err, IsNil)
+	fileContent := mylog.Check2(os.ReadFile(outPath))
+
 	c.Check(fileContent, DeepEquals, expected[:])
 }
 
@@ -428,7 +427,6 @@ func (s *snapSeccompSuite) TestUnrestricted(c *C) {
 //	{"read >=2", "read;native;1", main.SeccompRetKill},
 //	{"read >=2", "read;native;0", main.SeccompRetKill},
 func (s *snapSeccompSuite) TestCompile(c *C) {
-
 	for _, t := range []struct {
 		seccompAllowlist string
 		bpfInput         string
@@ -569,7 +567,6 @@ func (s *snapSeccompSuite) TestCompileSocket(c *C) {
 		bpfInput         string
 		expected         int
 	}{
-
 		// test_bad_seccomp_filter_args_socket
 		{"socket AF_UNIX", "socket;native;AF_UNIX", Allow},
 		{"socket AF_UNIX", "socket;native;99", Deny},
@@ -580,7 +577,6 @@ func (s *snapSeccompSuite) TestCompileSocket(c *C) {
 	} {
 		s.runBpf(c, t.seccompAllowlist, t.bpfInput, t.expected)
 	}
-
 }
 
 func (s *snapSeccompSuite) TestCompileBadInput(c *C) {
@@ -675,7 +671,7 @@ func (s *snapSeccompSuite) TestCompileBadInput(c *C) {
 		{"setgid g:nonexistent", `cannot parse line: cannot parse token "g:nonexistent" \(line "setgid g:nonexistent"\): group: unknown group nonexistent`},
 	} {
 		outPath := filepath.Join(c.MkDir(), "bpf")
-		err := main.Compile([]byte(t.inp), outPath)
+		mylog.Check(main.Compile([]byte(t.inp), outPath))
 		c.Check(err, ErrorMatches, t.errMsg, Commentf("%q errors in unexpected ways, got: %q expected %q", t.inp, err, t.errMsg))
 	}
 }
@@ -846,11 +842,7 @@ func (s *snapSeccompSuite) TestRestrictionsWorkingArgsTermios(c *C) {
 func (s *snapSeccompSuite) TestRestrictionsWorkingArgsUidGid(c *C) {
 	// while 'root' user usually has uid 0, 'daemon' user uid may vary
 	// across distributions, best lookup the uid directly
-	daemonUid, err := osutil.FindUid("daemon")
-
-	if err != nil {
-		c.Skip("daemon user not available, perhaps we are in a buildroot jail")
-	}
+	daemonUid := mylog.Check2(osutil.FindUid("daemon"))
 
 	for _, t := range []struct {
 		seccompAllowlist string
@@ -912,10 +904,10 @@ func (s *snapSeccompSuite) TestCompatArchWorks(c *C) {
 }
 
 func (s *snapSeccompSuite) TestExportBpfErrors(c *C) {
-	fout, err := os.Create(filepath.Join(c.MkDir(), "filter"))
-	c.Assert(err, IsNil)
+	fout := mylog.Check2(os.Create(filepath.Join(c.MkDir(), "filter")))
+
 
 	// invalid filter
-	_, err = main.ExportBPF(fout, &seccomp.ScmpFilter{})
+	_ = mylog.Check2(main.ExportBPF(fout, &seccomp.ScmpFilter{}))
 	c.Check(err, ErrorMatches, "cannot export bpf filter: filter is invalid or uninitialized")
 }

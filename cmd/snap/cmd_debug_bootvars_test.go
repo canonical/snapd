@@ -22,6 +22,7 @@ package main_test
 import (
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
@@ -34,17 +35,17 @@ func (s *SnapSuite) TestDebugBootvars(c *check.C) {
 	defer restore()
 	bloader := bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(bloader)
-	err := bloader.SetBootVars(map[string]string{
+	mylog.Check(bloader.SetBootVars(map[string]string{
 		"snap_mode":       "try",
 		"unrelated":       "thing",
 		"snap_core":       "core18_1.snap",
 		"snap_try_core":   "core18_2.snap",
 		"snap_kernel":     "pc-kernel_3.snap",
 		"snap_try_kernel": "pc-kernel_4.snap",
-	})
+	}))
 	c.Assert(err, check.IsNil)
 
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "boot-vars"})
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"debug", "boot-vars"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.HasLen, 0)
 	c.Check(s.Stdout(), check.Equals, `snap_mode=try
@@ -59,7 +60,7 @@ snap_try_kernel=pc-kernel_4.snap
 func (s *SnapSuite) TestDebugBootvarsNotOnClassic(c *check.C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "boot-vars"})
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"debug", "boot-vars"}))
 	c.Assert(err, check.ErrorMatches, `the "boot-vars" command is not available on classic systems`)
 }
 
@@ -68,18 +69,20 @@ func (s *SnapSuite) TestDebugSetBootvars(c *check.C) {
 	defer restore()
 	bloader := bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(bloader)
-	err := bloader.SetBootVars(map[string]string{
+	mylog.Check(bloader.SetBootVars(map[string]string{
 		"snap_mode":       "try",
 		"unrelated":       "thing",
 		"snap_core":       "core18_1.snap",
 		"snap_try_core":   "core18_2.snap",
 		"snap_kernel":     "pc-kernel_3.snap",
 		"snap_try_kernel": "",
-	})
+	}))
 	c.Assert(err, check.IsNil)
 
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "set-boot-vars",
-		"snap_mode=trying", "try_recovery_system=1234", "unrelated="})
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{
+		"debug", "set-boot-vars",
+		"snap_mode=trying", "try_recovery_system=1234", "unrelated=",
+	}))
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.HasLen, 0)
 	c.Check(bloader.BootVars, check.DeepEquals, map[string]string{
@@ -101,7 +104,7 @@ func (s *SnapSuite) TestDebugGetSetBootvarsWithParams(c *check.C) {
 	defer restore()
 	bloader := bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(bloader)
-	err := bloader.SetBootVars(map[string]string{
+	mylog.Check(bloader.SetBootVars(map[string]string{
 		"snapd_recovery_system":       "1234",
 		"snapd_recovery_mode":         "run",
 		"unrelated":                   "thing",
@@ -109,10 +112,10 @@ func (s *SnapSuite) TestDebugGetSetBootvarsWithParams(c *check.C) {
 		"recovery_system_status":      "try",
 		"try_recovery_system":         "9999",
 		"snapd_good_recovery_systems": "0000",
-	})
+	}))
 	c.Assert(err, check.IsNil)
 
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "boot-vars", "--root-dir", boot.InitramfsUbuntuBootDir})
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"debug", "boot-vars", "--root-dir", boot.InitramfsUbuntuBootDir}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.HasLen, 0)
 	c.Check(s.Stdout(), check.Equals, `snapd_recovery_mode=run
@@ -131,27 +134,27 @@ snapd_full_cmdline_args=
 	s.ResetStdStreams()
 
 	// and make sure that set does not blow up when passed a root dir
-	rest, err = snap.Parser(snap.Client()).ParseArgs([]string{"debug", "set-boot-vars", "--root-dir", boot.InitramfsUbuntuBootDir, "foo=bar"})
+	rest = mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"debug", "set-boot-vars", "--root-dir", boot.InitramfsUbuntuBootDir, "foo=bar"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.HasLen, 0)
 
-	v, err := bloader.GetBootVars("foo")
+	v := mylog.Check2(bloader.GetBootVars("foo"))
 	c.Assert(err, check.IsNil)
 	c.Check(v, check.DeepEquals, map[string]string{
 		"foo": "bar",
 	})
 	// and make sure that set does not blow up when passed recover bootloader flag
-	rest, err = snap.Parser(snap.Client()).ParseArgs([]string{"debug", "set-boot-vars", "--recovery", "foo=recovery"})
+	rest = mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"debug", "set-boot-vars", "--recovery", "foo=recovery"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.HasLen, 0)
 
-	v, err = bloader.GetBootVars("foo")
+	v = mylog.Check2(bloader.GetBootVars("foo"))
 	c.Assert(err, check.IsNil)
 	c.Check(v, check.DeepEquals, map[string]string{
 		"foo": "recovery",
 	})
 
 	// but basic validity checks are still done
-	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"debug", "set-boot-vars", "--recovery", "--root-dir", boot.InitramfsUbuntuBootDir, "foo=recovery"})
+	_ = mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"debug", "set-boot-vars", "--recovery", "--root-dir", boot.InitramfsUbuntuBootDir, "foo=recovery"}))
 	c.Assert(err, check.ErrorMatches, "cannot use run bootloader root-dir with a recovery flag")
 }

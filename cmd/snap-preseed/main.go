@@ -25,6 +25,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/image/preseed"
@@ -84,10 +85,7 @@ func probeCore20ImageDir(dir string) bool {
 
 func main() {
 	parser := Parser()
-	if err := run(parser, os.Args[1:]); err != nil {
-		fmt.Fprintf(Stderr, "error: %v\n", err)
-		os.Exit(1)
-	}
+	mylog.Check(run(parser, os.Args[1:]))
 }
 
 func run(parser *flags.Parser, args []string) (err error) {
@@ -95,10 +93,7 @@ func run(parser *flags.Parser, args []string) (err error) {
 	// for processing of seeds with gadget because of readInfo().
 	snap.SanitizePlugsSlots = builtin.SanitizePlugsSlots
 
-	rest, err := parser.ParseArgs(args)
-	if err != nil {
-		return err
-	}
+	rest := mylog.Check2(parser.ParseArgs(args))
 
 	if osGetuid() != 0 {
 		return fmt.Errorf("must be run as root")
@@ -112,10 +107,7 @@ func run(parser *flags.Parser, args []string) (err error) {
 			return fmt.Errorf("need chroot path as argument")
 		}
 
-		chrootDir, err = filepath.Abs(rest[0])
-		if err != nil {
-			return err
-		}
+		chrootDir = mylog.Check2(filepath.Abs(rest[0]))
 
 		// safety check
 		if chrootDir == "/" {

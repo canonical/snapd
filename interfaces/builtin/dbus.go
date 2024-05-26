@@ -25,6 +25,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/dbus"
@@ -241,9 +242,7 @@ var isInvalidSnappyBusName = regexp.MustCompile("-[0-9]+$").MatchString
 func (iface *dbusInterface) getAttribs(attribs interfaces.Attrer) (string, string, error) {
 	// bus attribute
 	var bus string
-	if err := attribs.Attr("bus", &bus); err != nil {
-		return "", "", fmt.Errorf("cannot find attribute 'bus'")
-	}
+	mylog.Check(attribs.Attr("bus", &bus))
 
 	if bus != "session" && bus != "system" {
 		return "", "", fmt.Errorf("bus '%s' must be one of 'session' or 'system'", bus)
@@ -251,14 +250,8 @@ func (iface *dbusInterface) getAttribs(attribs interfaces.Attrer) (string, strin
 
 	// name attribute
 	var name string
-	if err := attribs.Attr("name", &name); err != nil {
-		return "", "", fmt.Errorf("cannot find attribute 'name'")
-	}
-
-	err := interfaces.ValidateDBusBusName(name)
-	if err != nil {
-		return "", "", err
-	}
+	mylog.Check(attribs.Attr("name", &name))
+	mylog.Check(interfaces.ValidateDBusBusName(name))
 
 	if isInvalidSnappyBusName(name) {
 		return "", "", fmt.Errorf("DBus bus name must not end with -NUMBER")
@@ -314,15 +307,9 @@ func getAppArmorSnippet(policy string, bus string, name string) string {
 }
 
 func (iface *dbusInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	bus, name, err := iface.getAttribs(plug)
-	if err != nil {
-		return err
-	}
+	bus, name := mylog.Check3(iface.getAttribs(plug))
 
-	busSlot, nameSlot, err := iface.getAttribs(slot)
-	if err != nil {
-		return err
-	}
+	busSlot, nameSlot := mylog.Check3(iface.getAttribs(slot))
 
 	// ensure that we only connect to slot with matching attributes
 	if bus != busSlot || name != nameSlot {
@@ -333,10 +320,7 @@ func (iface *dbusInterface) AppArmorConnectedPlug(spec *apparmor.Specification, 
 	snippet := getAppArmorSnippet(dbusConnectedPlugAppArmor, bus, name)
 
 	// abstraction policy
-	abstraction, err := getAppArmorAbstraction(bus)
-	if err != nil {
-		return err
-	}
+	abstraction := mylog.Check2(getAppArmorAbstraction(bus))
 
 	old := "###DBUS_ABSTRACTION###"
 	new := abstraction
@@ -351,10 +335,7 @@ func (iface *dbusInterface) AppArmorConnectedPlug(spec *apparmor.Specification, 
 }
 
 func (iface *dbusInterface) DBusPermanentSlot(spec *dbus.Specification, slot *snap.SlotInfo) error {
-	bus, name, err := iface.getAttribs(slot)
-	if err != nil {
-		return err
-	}
+	bus, name := mylog.Check3(iface.getAttribs(slot))
 
 	// only system services need bus policy
 	if bus != "system" {
@@ -368,19 +349,13 @@ func (iface *dbusInterface) DBusPermanentSlot(spec *dbus.Specification, slot *sn
 }
 
 func (iface *dbusInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
-	bus, name, err := iface.getAttribs(slot)
-	if err != nil {
-		return err
-	}
+	bus, name := mylog.Check3(iface.getAttribs(slot))
 
 	// well-known DBus name-specific permanent slot policy
 	snippet := getAppArmorSnippet(dbusPermanentSlotAppArmor, bus, name)
 
 	// abstraction policy
-	abstraction, err := getAppArmorAbstraction(bus)
-	if err != nil {
-		return err
-	}
+	abstraction := mylog.Check2(getAppArmorAbstraction(bus))
 
 	old := "###DBUS_ABSTRACTION###"
 	new := abstraction
@@ -400,15 +375,9 @@ func (iface *dbusInterface) SecCompPermanentSlot(spec *seccomp.Specification, sl
 }
 
 func (iface *dbusInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	bus, name, err := iface.getAttribs(slot)
-	if err != nil {
-		return err
-	}
+	bus, name := mylog.Check3(iface.getAttribs(slot))
 
-	busPlug, namePlug, err := iface.getAttribs(plug)
-	if err != nil {
-		return err
-	}
+	busPlug, namePlug := mylog.Check3(iface.getAttribs(plug))
 
 	// ensure that we only connect to slot with matching attributes. This
 	// makes sure that the security policy is correct, but does not ensure
@@ -430,12 +399,12 @@ func (iface *dbusInterface) AppArmorConnectedSlot(spec *apparmor.Specification, 
 }
 
 func (iface *dbusInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
-	_, _, err := iface.getAttribs(plug)
+	_, _ := mylog.Check3(iface.getAttribs(plug))
 	return err
 }
 
 func (iface *dbusInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
-	_, _, err := iface.getAttribs(slot)
+	_, _ := mylog.Check3(iface.getAttribs(slot))
 	return err
 }
 

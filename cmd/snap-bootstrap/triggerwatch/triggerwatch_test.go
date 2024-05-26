@@ -28,6 +28,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/triggerwatch"
 	"github.com/snapcore/snapd/osutil/udev/netlink"
 )
@@ -101,17 +102,18 @@ func (m *mockTrigger) Open(filter triggerwatch.TriggerCapabilityFilter, node str
 	}
 }
 
-const testTriggerTimeout = 5 * time.Millisecond
-const testDeviceTimeout = 2 * time.Millisecond
+const (
+	testTriggerTimeout = 5 * time.Millisecond
+	testDeviceTimeout  = 2 * time.Millisecond
+)
 
 func (s *triggerwatchSuite) TestNoDevsWaitKey(c *C) {
 	md := &mockTriggerDevice{ev: &triggerwatch.KeyEvent{}}
 	mi := &mockTrigger{d: md}
 	restore := triggerwatch.MockInput(mi)
 	defer restore()
+	mylog.Check(triggerwatch.Wait(testTriggerTimeout, testDeviceTimeout))
 
-	err := triggerwatch.Wait(testTriggerTimeout, testDeviceTimeout)
-	c.Assert(err, IsNil)
 	c.Assert(mi.findMatchingCalls, Equals, 1)
 	c.Assert(md.waitForTriggerCalls, Equals, 1)
 	c.Assert(md.closeCalls, Equals, 1)
@@ -122,8 +124,7 @@ func (s *triggerwatchSuite) TestNoDevsWaitKeyTimeout(c *C) {
 	mi := &mockTrigger{d: md}
 	restore := triggerwatch.MockInput(mi)
 	defer restore()
-
-	err := triggerwatch.Wait(testTriggerTimeout, testDeviceTimeout)
+	mylog.Check(triggerwatch.Wait(testTriggerTimeout, testDeviceTimeout))
 	c.Assert(err, Equals, triggerwatch.ErrTriggerNotDetected)
 	c.Assert(mi.findMatchingCalls, Equals, 1)
 	md.withLocked(func() {
@@ -136,8 +137,7 @@ func (s *triggerwatchSuite) TestNoDevsWaitNoMatching(c *C) {
 	mi := &mockTrigger{}
 	restore := triggerwatch.MockInput(mi)
 	defer restore()
-
-	err := triggerwatch.Wait(testTriggerTimeout, testDeviceTimeout)
+	mylog.Check(triggerwatch.Wait(testTriggerTimeout, testDeviceTimeout))
 	c.Assert(err, Equals, triggerwatch.ErrNoMatchingInputDevices)
 }
 
@@ -145,8 +145,7 @@ func (s *triggerwatchSuite) TestNoDevsWaitMatchingError(c *C) {
 	mi := &mockTrigger{err: fmt.Errorf("failed")}
 	restore := triggerwatch.MockInput(mi)
 	defer restore()
-
-	err := triggerwatch.Wait(testTriggerTimeout, testDeviceTimeout)
+	mylog.Check(triggerwatch.Wait(testTriggerTimeout, testDeviceTimeout))
 	c.Assert(err, ErrorMatches, "cannot list trigger devices: failed")
 }
 
@@ -184,9 +183,8 @@ func (s *triggerwatchSuite) TestUdevEvent(c *C) {
 	}
 	restoreUevents := triggerwatch.MockUEvent(events)
 	defer restoreUevents()
+	mylog.Check(triggerwatch.Wait(testTriggerTimeout, testDeviceTimeout))
 
-	err := triggerwatch.Wait(testTriggerTimeout, testDeviceTimeout)
-	c.Assert(err, IsNil)
 	c.Assert(mi.findMatchingCalls, Equals, 1)
 
 	c.Assert(mi.openCalls, Equals, 1)
@@ -222,8 +220,7 @@ func (s *triggerwatchSuite) TestUdevEventNoKeyEvent(c *C) {
 	}
 	restoreUevents := triggerwatch.MockUEvent(events)
 	defer restoreUevents()
-
-	err := triggerwatch.Wait(testTriggerTimeout, testDeviceTimeout)
+	mylog.Check(triggerwatch.Wait(testTriggerTimeout, testDeviceTimeout))
 	c.Assert(err, Equals, triggerwatch.ErrTriggerNotDetected)
 	c.Assert(mi.findMatchingCalls, Equals, 1)
 

@@ -26,6 +26,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/sysdb"
@@ -69,18 +70,16 @@ type kernelSuite struct {
 
 var _ = Suite(&kernelSuite{})
 
-var (
-	brandPrivKey, _ = assertstest.GenerateKey(752)
-)
+var brandPrivKey, _ = assertstest.GenerateKey(752)
 
 func (s *kernelSuite) SetUpTest(c *C) {
 	s.configcoreSuite.SetUpTest(c)
 
-	var err error
+	mylog.
 
-	// File mocking
-	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/"), 0755)
-	c.Assert(err, IsNil)
+		// File mocking
+		Check(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/"), 0755))
+
 
 	// Bootloader mocking
 	bl := bootloadertest.Mock("mock", "")
@@ -88,8 +87,8 @@ func (s *kernelSuite) SetUpTest(c *C) {
 	s.AddCleanup(func() { bootloader.Force(nil) })
 	bootVars := make(map[string]string)
 	bootVars["snap_kernel"] = "pc-kernel_1.snap"
-	err = bl.SetBootVars(bootVars)
-	c.Assert(err, IsNil)
+	mylog.Check(bl.SetBootVars(bootVars))
+
 
 	// mock the modeenv file
 	modeenv := boot.Modeenv{
@@ -108,8 +107,8 @@ func (s *kernelSuite) SetUpTest(c *C) {
 		// RecoverySystem is unset, as it should be during run mode
 		RecoverySystem: "",
 	}
-	err = modeenv.WriteTo("")
-	c.Assert(err, IsNil)
+	mylog.Check(modeenv.WriteTo(""))
+
 
 	s.AddCleanup(osutil.MockMountInfo(""))
 
@@ -123,12 +122,12 @@ func (s *kernelSuite) SetUpTest(c *C) {
 	s.Brands = assertstest.NewSigningAccounts(s.StoreSigning)
 	s.Brands.Register("my-brand", brandPrivKey, nil)
 
-	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+	db := mylog.Check2(asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore:       asserts.NewMemoryBackstore(),
 		Trusted:         s.StoreSigning.Trusted,
 		OtherPredefined: s.StoreSigning.Generic,
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	s.state.Lock()
 	s.state.Set("seeded", true)
 	assertstate.ReplaceDB(s.state, db)
@@ -137,12 +136,12 @@ func (s *kernelSuite) SetUpTest(c *C) {
 	s.mockEarlyConfig()
 
 	// we need a device context for this option
-	hookMgr, err := hookstate.Manager(s.state, s.overlord.TaskRunner())
-	c.Assert(err, IsNil)
-	err = configstate.Init(s.state, hookMgr)
-	c.Assert(err, IsNil)
-	deviceMgr, err := devicestate.Manager(s.state, hookMgr, s.overlord.TaskRunner(), nil)
-	c.Assert(err, IsNil)
+	hookMgr := mylog.Check2(hookstate.Manager(s.state, s.overlord.TaskRunner()))
+
+	mylog.Check(configstate.Init(s.state, hookMgr))
+
+	deviceMgr := mylog.Check2(devicestate.Manager(s.state, hookMgr, s.overlord.TaskRunner(), nil))
+
 
 	s.overlord.AddManager(hookMgr)
 	s.overlord.AddManager(deviceMgr)
@@ -153,7 +152,8 @@ func (s *kernelSuite) SetUpTest(c *C) {
 
 func (s *kernelSuite) mockEarlyConfig() {
 	devicestate.EarlyConfig = func(*state.State, func() (
-		sysconfig.Device, *gadget.Info, error)) error {
+		sysconfig.Device, *gadget.Info, error),
+	) error {
 		return nil
 	}
 	s.AddCleanup(func() { devicestate.EarlyConfig = nil })
@@ -261,7 +261,8 @@ func (s *kernelSuite) testConfigureKernelCmdlineHappy(c *C, option []cmdlineOpti
 			// Check we have set only the needed options
 			for _, optName := range []string{
 				"system.kernel.cmdline-append",
-				"system.kernel.dangerous-cmdline-append"} {
+				"system.kernel.dangerous-cmdline-append",
+			} {
 				shouldHaveBeenSet := false
 				cmdline := ""
 				for _, opt := range option {
@@ -274,11 +275,11 @@ func (s *kernelSuite) testConfigureKernelCmdlineHappy(c *C, option []cmdlineOpti
 				key := strings.Split(optName, ".")[2]
 				var taskCmdline string
 				if shouldHaveBeenSet {
-					err := task.Get(key, &taskCmdline)
+					mylog.Check(task.Get(key, &taskCmdline))
 					c.Check(err, IsNil)
 					c.Check(taskCmdline, Equals, cmdline)
 				} else {
-					err := task.Get(key, &taskCmdline)
+					mylog.Check(task.Get(key, &taskCmdline))
 					errStr := fmt.Sprintf("no state entry for key %q", key)
 					c.Check(err, ErrorMatches, errStr)
 				}
@@ -288,8 +289,6 @@ func (s *kernelSuite) testConfigureKernelCmdlineHappy(c *C, option []cmdlineOpti
 		},
 		func(task *state.Task, tomb *tomb.Tomb) error { return nil })
 
-	var err error
-
 	s.state.Lock()
 	ts := s.state.NewTask("run-hook", "system hook task")
 	hsup := &hookstate.HookSetup{
@@ -297,9 +296,9 @@ func (s *kernelSuite) testConfigureKernelCmdlineHappy(c *C, option []cmdlineOpti
 		Snap: "core",
 	}
 	ts.Set("hook-setup", &hsup)
-	hookCtx, err := hookstate.NewContext(ts, ts.State(), hsup,
-		hooktest.NewMockHandler(), "")
-	c.Assert(err, IsNil)
+	hookCtx := mylog.Check2(hookstate.NewContext(ts, ts.State(), hsup,
+		hooktest.NewMockHandler(), ""))
+
 	s.state.Unlock()
 
 	hookCtx.Lock()
@@ -368,7 +367,8 @@ func (s *kernelSuite) TestConfigureKernelCmdlineDangerousGrade(c *C) {
 	s.testConfigureKernelCmdlineHappy(c,
 		[]cmdlineOption{{
 			name:    "system.kernel.cmdline-append",
-			cmdline: "par=val param"}},
+			cmdline: "par=val param",
+		}},
 		"dangerous", isClassic)
 }
 
@@ -377,7 +377,8 @@ func (s *kernelSuite) TestConfigureKernelCmdlineDangerousGradeClassic(c *C) {
 	s.testConfigureKernelCmdlineHappy(c,
 		[]cmdlineOption{{
 			name:    "system.kernel.cmdline-append",
-			cmdline: "par=val param"}},
+			cmdline: "par=val param",
+		}},
 		"dangerous", isClassic)
 }
 
@@ -386,7 +387,8 @@ func (s *kernelSuite) TestConfigureKernelCmdlineSignedGrade(c *C) {
 	s.testConfigureKernelCmdlineHappy(c,
 		[]cmdlineOption{{
 			name:    "system.kernel.cmdline-append",
-			cmdline: "par=val param star=val"}},
+			cmdline: "par=val param star=val",
+		}},
 		"signed", isClassic)
 }
 
@@ -395,7 +397,8 @@ func (s *kernelSuite) TestConfigureKernelCmdlineDangerousGradeDangerousCmdline(c
 	s.testConfigureKernelCmdlineHappy(c,
 		[]cmdlineOption{{
 			name:    "system.kernel.dangerous-cmdline-append",
-			cmdline: "par=val param"}},
+			cmdline: "par=val param",
+		}},
 		"dangerous", isClassic)
 }
 
@@ -405,10 +408,12 @@ func (s *kernelSuite) TestConfigureKernelCmdlineBothOptions(c *C) {
 		[]cmdlineOption{
 			{
 				name:    "system.kernel.cmdline-append",
-				cmdline: "par=val param"},
+				cmdline: "par=val param",
+			},
 			{
 				name:    "system.kernel.dangerous-cmdline-append",
-				cmdline: "dang_par=dang_val dang_param"},
+				cmdline: "dang_par=dang_val dang_param",
+			},
 		},
 		"dangerous", isClassic)
 }
@@ -418,7 +423,8 @@ func (s *kernelSuite) TestConfigureKernelCmdlineSignedGradeDangerousCmdline(c *C
 	s.testConfigureKernelCmdlineHappy(c,
 		[]cmdlineOption{{
 			name:    "system.kernel.dangerous-cmdline-append",
-			cmdline: "par=val param"}},
+			cmdline: "par=val param",
+		}},
 		"signed", isClassic)
 }
 
@@ -441,8 +447,7 @@ func (s *kernelSuite) TestConfigureKernelCmdlineConflict(c *C) {
 	s.state.Unlock()
 
 	rt.Set("core", "system.kernel.dangerous-cmdline-append", cmdline)
-
-	err := configcore.Run(core20Dev, rt)
+	mylog.Check(configcore.Run(core20Dev, rt))
 	c.Assert(err, ErrorMatches, "kernel command line already being updated, no additional changes for it allowed meanwhile")
 }
 
@@ -461,8 +466,7 @@ func (s *kernelSuite) testConfigureKernelCmdlineSignedGradeNotAllowed(c *C, cmdl
 	s.state.Unlock()
 
 	rt.Set("core", "system.kernel.cmdline-append", cmdline)
-
-	err := configcore.Run(core20Dev, rt)
+	mylog.Check(configcore.Run(core20Dev, rt))
 	c.Assert(err.Error(), Equals, fmt.Sprintf("%q is not allowed in the kernel command line by the gadget", cmdline))
 }
 

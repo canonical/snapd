@@ -28,6 +28,7 @@ import (
 	. "gopkg.in/check.v1"
 	"gopkg.in/yaml.v2"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/seed"
@@ -55,9 +56,7 @@ type seed16Suite struct {
 
 var _ = Suite(&seed16Suite{})
 
-var (
-	brandPrivKey, _ = assertstest.GenerateKey(752)
-)
+var brandPrivKey, _ = assertstest.GenerateKey(752)
 
 func (s *seed16Suite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
@@ -76,15 +75,15 @@ func (s *seed16Suite) SetUpTest(c *C) {
 	}, "")
 	assertstest.AddMany(s.StoreSigning, s.devAcct)
 
-	seed16, err := seed.Open(s.SeedDir, "")
-	c.Assert(err, IsNil)
+	seed16 := mylog.Check2(seed.Open(s.SeedDir, ""))
+
 	s.seed16 = seed16
 
-	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+	db := mylog.Check2(asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
 		Trusted:   s.StoreSigning.Trusted,
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	s.db = db
 
 	s.perfTimings = timings.New(nil)
@@ -99,15 +98,15 @@ func (s *seed16Suite) TestLoadAssertionsNoAssertions(c *C) {
 }
 
 func (s *seed16Suite) TestLoadAssertionsNoModelAssertion(c *C) {
-	err := os.Mkdir(s.AssertsDir(), 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.Mkdir(s.AssertsDir(), 0755))
+
 
 	c.Check(s.seed16.LoadAssertions(s.db, s.commitTo), ErrorMatches, "seed must have a model assertion")
 }
 
 func (s *seed16Suite) TestLoadAssertionsTwoModelAssertionsError(c *C) {
-	err := os.Mkdir(s.AssertsDir(), 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.Mkdir(s.AssertsDir(), 0755))
+
 
 	headers := map[string]interface{}{
 		"architecture": "amd64",
@@ -123,8 +122,8 @@ func (s *seed16Suite) TestLoadAssertionsTwoModelAssertionsError(c *C) {
 }
 
 func (s *seed16Suite) TestLoadAssertionsConsistencyError(c *C) {
-	err := os.Mkdir(s.AssertsDir(), 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.Mkdir(s.AssertsDir(), 0755))
+
 
 	// write out only the model assertion
 	headers := map[string]interface{}{
@@ -139,8 +138,8 @@ func (s *seed16Suite) TestLoadAssertionsConsistencyError(c *C) {
 }
 
 func (s *seed16Suite) TestLoadAssertionsModelHappy(c *C) {
-	err := os.Mkdir(s.AssertsDir(), 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.Mkdir(s.AssertsDir(), 0755))
+
 
 	headers := map[string]interface{}{
 		"architecture": "amd64",
@@ -149,27 +148,25 @@ func (s *seed16Suite) TestLoadAssertionsModelHappy(c *C) {
 	}
 	modelChain := s.MakeModelAssertionChain("my-brand", "my-model", headers)
 	s.WriteAssertions("model.asserts", modelChain...)
+	mylog.Check(s.seed16.LoadAssertions(s.db, s.commitTo))
 
-	err = s.seed16.LoadAssertions(s.db, s.commitTo)
-	c.Assert(err, IsNil)
 
 	model := s.seed16.Model()
 	c.Check(model.Model(), Equals, "my-model")
 
-	_, err = s.db.Find(asserts.ModelType, map[string]string{
+	_ = mylog.Check2(s.db.Find(asserts.ModelType, map[string]string{
 		"series":   "16",
 		"brand-id": "my-brand",
 		"model":    "my-model",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 }
 
 func (s *seed16Suite) TestLoadAssertionsModelTempDBHappy(c *C) {
 	r := seed.MockTrusted(s.StoreSigning.Trusted)
 	defer r()
+	mylog.Check(os.Mkdir(s.AssertsDir(), 0755))
 
-	err := os.Mkdir(s.AssertsDir(), 0755)
-	c.Assert(err, IsNil)
 
 	headers := map[string]interface{}{
 		"architecture": "amd64",
@@ -178,22 +175,21 @@ func (s *seed16Suite) TestLoadAssertionsModelTempDBHappy(c *C) {
 	}
 	modelChain := s.MakeModelAssertionChain("my-brand", "my-model", headers)
 	s.WriteAssertions("model.asserts", modelChain...)
+	mylog.Check(s.seed16.LoadAssertions(nil, nil))
 
-	err = s.seed16.LoadAssertions(nil, nil)
-	c.Assert(err, IsNil)
 
 	model := s.seed16.Model()
 	c.Check(model.Model(), Equals, "my-model")
 
-	brand, err := s.seed16.Brand()
-	c.Assert(err, IsNil)
+	brand := mylog.Check2(s.seed16.Brand())
+
 	c.Check(brand.AccountID(), Equals, "my-brand")
 	c.Check(brand.DisplayName(), Equals, "My-brand")
 }
 
 func (s *seed16Suite) TestLoadMetaNoMeta(c *C) {
-	err := os.Mkdir(s.AssertsDir(), 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.Mkdir(s.AssertsDir(), 0755))
+
 
 	headers := map[string]interface{}{
 		"architecture": "amd64",
@@ -202,17 +198,15 @@ func (s *seed16Suite) TestLoadMetaNoMeta(c *C) {
 	}
 	modelChain := s.MakeModelAssertionChain("my-brand", "my-model", headers)
 	s.WriteAssertions("model.asserts", modelChain...)
+	mylog.Check(s.seed16.LoadAssertions(s.db, s.commitTo))
 
-	err = s.seed16.LoadAssertions(s.db, s.commitTo)
-	c.Assert(err, IsNil)
-
-	err = s.seed16.LoadMeta(seed.AllModes, nil, s.perfTimings)
+	mylog.Check(s.seed16.LoadMeta(seed.AllModes, nil, s.perfTimings))
 	c.Check(err, Equals, seed.ErrNoMeta)
 }
 
 func (s *seed16Suite) TestLoadMetaInvalidSeedYaml(c *C) {
-	err := os.Mkdir(s.AssertsDir(), 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.Mkdir(s.AssertsDir(), 0755))
+
 
 	headers := map[string]interface{}{
 		"architecture": "amd64",
@@ -221,22 +215,20 @@ func (s *seed16Suite) TestLoadMetaInvalidSeedYaml(c *C) {
 	}
 	modelChain := s.MakeModelAssertionChain("my-brand", "my-model", headers)
 	s.WriteAssertions("model.asserts", modelChain...)
+	mylog.Check(s.seed16.LoadAssertions(s.db, s.commitTo))
 
-	err = s.seed16.LoadAssertions(s.db, s.commitTo)
-	c.Assert(err, IsNil)
 
 	// create a seed.yaml
-	content, err := yaml.Marshal(map[string]interface{}{
+	content := mylog.Check2(yaml.Marshal(map[string]interface{}{
 		"snaps": []*seed.InternalSnap16{{
 			Name:    "core",
 			Channel: "track/not-a-risk",
 		}},
-	})
-	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(s.SeedDir, "seed.yaml"), content, 0644)
-	c.Assert(err, IsNil)
+	}))
 
-	err = s.seed16.LoadMeta(seed.AllModes, nil, s.perfTimings)
+	mylog.Check(os.WriteFile(filepath.Join(s.SeedDir, "seed.yaml"), content, 0644))
+
+	mylog.Check(s.seed16.LoadMeta(seed.AllModes, nil, s.perfTimings))
 	c.Check(err, ErrorMatches, `cannot read seed yaml: invalid risk in channel name: track/not-a-risk`)
 }
 
@@ -360,15 +352,13 @@ func (s *seed16Suite) makeSeed(c *C, modelHeaders map[string]interface{}, seedSn
 		coreHeaders["kernel"] = "pc-kernel"
 		coreHeaders["gadget"] = "pc"
 	}
+	mylog.Check(os.Mkdir(s.AssertsDir(), 0755))
 
-	err := os.Mkdir(s.AssertsDir(), 0755)
-	c.Assert(err, IsNil)
 
 	modelChain := s.MakeModelAssertionChain("my-brand", "my-model", coreHeaders, modelHeaders)
 	s.WriteAssertions("model.asserts", modelChain...)
+	mylog.Check(os.Mkdir(s.SnapsDir(), 0755))
 
-	err = os.Mkdir(s.SnapsDir(), 0755)
-	c.Assert(err, IsNil)
 
 	var completeSeedSnaps []*seed.InternalSnap16
 	for _, seedSnap := range seedSnaps {
@@ -377,8 +367,8 @@ func (s *seed16Suite) makeSeed(c *C, modelHeaders map[string]interface{}, seedSn
 		if seedSnap.Unasserted {
 			mockSnapFile := snaptest.MakeTestSnapWithFiles(c, snapYaml[seedSnap.Name], snapFiles[seedSnap.Name])
 			snapFname = filepath.Base(mockSnapFile)
-			err := os.Rename(mockSnapFile, filepath.Join(s.SeedDir, "snaps", snapFname))
-			c.Assert(err, IsNil)
+			mylog.Check(os.Rename(mockSnapFile, filepath.Join(s.SeedDir, "snaps", snapFname)))
+
 		} else {
 			publisher := snapPublishers[seedSnap.Name]
 			if publisher == "" {
@@ -389,8 +379,8 @@ func (s *seed16Suite) makeSeed(c *C, modelHeaders map[string]interface{}, seedSn
 				whichYaml = whichYaml + "=" + seedSnap.Channel
 			}
 			fname, decl, rev := s.MakeAssertedSnap(c, snapYaml[whichYaml], snapFiles[whichYaml], snap.R(1), publisher)
-			acct, err := s.StoreSigning.Find(asserts.AccountType, map[string]string{"account-id": publisher})
-			c.Assert(err, IsNil)
+			acct := mylog.Check2(s.StoreSigning.Find(asserts.AccountType, map[string]string{"account-id": publisher}))
+
 			s.WriteAssertions(fmt.Sprintf("%s.asserts", seedSnap.Name), rev, decl, acct)
 			snapFname = fname
 		}
@@ -405,12 +395,12 @@ func (s *seed16Suite) makeSeed(c *C, modelHeaders map[string]interface{}, seedSn
 
 func (s *seed16Suite) writeSeed(c *C, seedSnaps []*seed.InternalSnap16) {
 	// create a seed.yaml
-	content, err := yaml.Marshal(map[string]interface{}{
+	content := mylog.Check2(yaml.Marshal(map[string]interface{}{
 		"snaps": seedSnaps,
-	})
-	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(s.SeedDir, "seed.yaml"), content, 0644)
-	c.Assert(err, IsNil)
+	}))
+
+	mylog.Check(os.WriteFile(filepath.Join(s.SeedDir, "seed.yaml"), content, 0644))
+
 }
 
 func (s *seed16Suite) expectedPath(snapName string) string {
@@ -419,12 +409,10 @@ func (s *seed16Suite) expectedPath(snapName string) string {
 
 func (s *seed16Suite) TestLoadMetaCore16Minimal(c *C) {
 	s.makeSeed(c, nil, coreSeed, kernelSeed, gadgetSeed)
+	mylog.Check(s.seed16.LoadAssertions(s.db, s.commitTo))
 
-	err := s.seed16.LoadAssertions(s.db, s.commitTo)
-	c.Assert(err, IsNil)
+	mylog.Check(s.seed16.LoadMeta(seed.AllModes, nil, s.perfTimings))
 
-	err = s.seed16.LoadMeta(seed.AllModes, nil, s.perfTimings)
-	c.Assert(err, IsNil)
 
 	c.Check(s.seed16.UsesSnapdSnap(), Equals, false)
 
@@ -456,8 +444,8 @@ func (s *seed16Suite) TestLoadMetaCore16Minimal(c *C) {
 		},
 	})
 
-	runSnaps, err := s.seed16.ModeSnaps("run")
-	c.Assert(err, IsNil)
+	runSnaps := mylog.Check2(s.seed16.ModeSnaps("run"))
+
 	c.Check(runSnaps, HasLen, 0)
 }
 
@@ -465,18 +453,16 @@ func (s *seed16Suite) TestLoadMetaCore16(c *C) {
 	s.makeSeed(c, map[string]interface{}{
 		"required-snaps": []interface{}{"required"},
 	}, coreSeed, kernelSeed, gadgetSeed, requiredSeed)
+	mylog.Check(s.seed16.LoadAssertions(s.db, s.commitTo))
 
-	err := s.seed16.LoadAssertions(s.db, s.commitTo)
-	c.Assert(err, IsNil)
+	mylog.Check(s.seed16.LoadMeta(seed.AllModes, nil, s.perfTimings))
 
-	err = s.seed16.LoadMeta(seed.AllModes, nil, s.perfTimings)
-	c.Assert(err, IsNil)
 
 	essSnaps := s.seed16.EssentialSnaps()
 	c.Check(essSnaps, HasLen, 3)
 
-	runSnaps, err := s.seed16.ModeSnaps("run")
-	c.Assert(err, IsNil)
+	runSnaps := mylog.Check2(s.seed16.ModeSnaps("run"))
+
 	c.Check(runSnaps, HasLen, 1)
 
 	// check that PlaceInfo method works
@@ -503,12 +489,10 @@ func (s *seed16Suite) TestLoadMetaCore18Minimal(c *C) {
 		"kernel": "pc-kernel=18",
 		"gadget": "pc=18",
 	}, snapdSeed, core18Seed, kernel18Seed, gadget18Seed)
+	mylog.Check(s.seed16.LoadAssertions(s.db, s.commitTo))
 
-	err := s.seed16.LoadAssertions(s.db, s.commitTo)
-	c.Assert(err, IsNil)
+	mylog.Check(s.seed16.LoadMeta(seed.AllModes, nil, s.perfTimings))
 
-	err = s.seed16.LoadMeta(seed.AllModes, nil, s.perfTimings)
-	c.Assert(err, IsNil)
 
 	c.Check(s.seed16.UsesSnapdSnap(), Equals, true)
 
@@ -547,8 +531,8 @@ func (s *seed16Suite) TestLoadMetaCore18Minimal(c *C) {
 		},
 	})
 
-	runSnaps, err := s.seed16.ModeSnaps("run")
-	c.Assert(err, IsNil)
+	runSnaps := mylog.Check2(s.seed16.ModeSnaps("run"))
+
 	c.Check(runSnaps, HasLen, 0)
 }
 
@@ -559,12 +543,10 @@ func (s *seed16Suite) TestLoadMetaCore18(c *C) {
 		"gadget":         "pc=18",
 		"required-snaps": []interface{}{"core", "required", "required18"},
 	}, snapdSeed, core18Seed, kernel18Seed, gadget18Seed, requiredSeed, coreSeed, required18Seed)
+	mylog.Check(s.seed16.LoadAssertions(s.db, s.commitTo))
 
-	err := s.seed16.LoadAssertions(s.db, s.commitTo)
-	c.Assert(err, IsNil)
+	mylog.Check(s.seed16.LoadMeta(seed.AllModes, nil, s.perfTimings))
 
-	err = s.seed16.LoadMeta(seed.AllModes, nil, s.perfTimings)
-	c.Assert(err, IsNil)
 
 	essSnaps := s.seed16.EssentialSnaps()
 	c.Check(essSnaps, HasLen, 4)
@@ -601,8 +583,8 @@ func (s *seed16Suite) TestLoadMetaCore18(c *C) {
 		},
 	})
 
-	runSnaps, err := s.seed16.ModeSnaps("run")
-	c.Assert(err, IsNil)
+	runSnaps := mylog.Check2(s.seed16.ModeSnaps("run"))
+
 	c.Check(runSnaps, HasLen, 3)
 
 	// these are not sorted by type, firstboot will do that
@@ -630,20 +612,18 @@ func (s *seed16Suite) TestLoadMetaClassicNothing(c *C) {
 	s.makeSeed(c, map[string]interface{}{
 		"classic": "true",
 	})
+	mylog.Check(s.seed16.LoadAssertions(s.db, s.commitTo))
 
-	err := s.seed16.LoadAssertions(s.db, s.commitTo)
-	c.Assert(err, IsNil)
+	mylog.Check(s.seed16.LoadMeta(seed.AllModes, nil, s.perfTimings))
 
-	err = s.seed16.LoadMeta(seed.AllModes, nil, s.perfTimings)
-	c.Assert(err, IsNil)
 
 	c.Check(s.seed16.UsesSnapdSnap(), Equals, false)
 
 	essSnaps := s.seed16.EssentialSnaps()
 	c.Check(essSnaps, HasLen, 0)
 
-	runSnaps, err := s.seed16.ModeSnaps("run")
-	c.Assert(err, IsNil)
+	runSnaps := mylog.Check2(s.seed16.ModeSnaps("run"))
+
 	c.Check(runSnaps, HasLen, 0)
 }
 
@@ -651,12 +631,10 @@ func (s *seed16Suite) TestLoadMetaClassicCore(c *C) {
 	s.makeSeed(c, map[string]interface{}{
 		"classic": "true",
 	}, coreSeed, classicSnapSeed)
+	mylog.Check(s.seed16.LoadAssertions(s.db, s.commitTo))
 
-	err := s.seed16.LoadAssertions(s.db, s.commitTo)
-	c.Assert(err, IsNil)
+	mylog.Check(s.seed16.LoadMeta(seed.AllModes, nil, s.perfTimings))
 
-	err = s.seed16.LoadMeta(seed.AllModes, nil, s.perfTimings)
-	c.Assert(err, IsNil)
 
 	c.Check(s.seed16.UsesSnapdSnap(), Equals, false)
 
@@ -674,8 +652,8 @@ func (s *seed16Suite) TestLoadMetaClassicCore(c *C) {
 	})
 
 	// classic-snap is not required, just an extra snap
-	runSnaps, err := s.seed16.ModeSnaps("run")
-	c.Assert(err, IsNil)
+	runSnaps := mylog.Check2(s.seed16.ModeSnaps("run"))
+
 	c.Check(runSnaps, HasLen, 1)
 	c.Check(runSnaps, DeepEquals, []*seed.Snap{
 		{
@@ -692,12 +670,10 @@ func (s *seed16Suite) TestLoadMetaClassicCoreWithGadget(c *C) {
 		"classic": "true",
 		"gadget":  "classic-gadget",
 	}, coreSeed, classicGadgetSeed)
+	mylog.Check(s.seed16.LoadAssertions(s.db, s.commitTo))
 
-	err := s.seed16.LoadAssertions(s.db, s.commitTo)
-	c.Assert(err, IsNil)
+	mylog.Check(s.seed16.LoadMeta(seed.AllModes, nil, s.perfTimings))
 
-	err = s.seed16.LoadMeta(seed.AllModes, nil, s.perfTimings)
-	c.Assert(err, IsNil)
 
 	c.Check(s.seed16.UsesSnapdSnap(), Equals, false)
 
@@ -722,8 +698,8 @@ func (s *seed16Suite) TestLoadMetaClassicCoreWithGadget(c *C) {
 		},
 	})
 
-	runSnaps, err := s.seed16.ModeSnaps("run")
-	c.Assert(err, IsNil)
+	runSnaps := mylog.Check2(s.seed16.ModeSnaps("run"))
+
 	c.Check(runSnaps, HasLen, 0)
 }
 
@@ -732,12 +708,10 @@ func (s *seed16Suite) TestLoadMetaClassicSnapd(c *C) {
 		"classic":        "true",
 		"required-snaps": []interface{}{"core18", "required18"},
 	}, snapdSeed, core18Seed, required18Seed)
+	mylog.Check(s.seed16.LoadAssertions(s.db, s.commitTo))
 
-	err := s.seed16.LoadAssertions(s.db, s.commitTo)
-	c.Assert(err, IsNil)
+	mylog.Check(s.seed16.LoadMeta(seed.AllModes, nil, s.perfTimings))
 
-	err = s.seed16.LoadMeta(seed.AllModes, nil, s.perfTimings)
-	c.Assert(err, IsNil)
 
 	c.Check(s.seed16.UsesSnapdSnap(), Equals, true)
 
@@ -754,8 +728,8 @@ func (s *seed16Suite) TestLoadMetaClassicSnapd(c *C) {
 		},
 	})
 
-	runSnaps, err := s.seed16.ModeSnaps("run")
-	c.Assert(err, IsNil)
+	runSnaps := mylog.Check2(s.seed16.ModeSnaps("run"))
+
 	c.Check(runSnaps, HasLen, 2)
 	c.Check(runSnaps, DeepEquals, []*seed.Snap{
 		{
@@ -777,12 +751,10 @@ func (s *seed16Suite) TestLoadMetaClassicSnapdWithGadget(c *C) {
 		"classic": "true",
 		"gadget":  "classic-gadget",
 	}, snapdSeed, classicGadgetSeed, coreSeed)
+	mylog.Check(s.seed16.LoadAssertions(s.db, s.commitTo))
 
-	err := s.seed16.LoadAssertions(s.db, s.commitTo)
-	c.Assert(err, IsNil)
+	mylog.Check(s.seed16.LoadMeta(seed.AllModes, nil, s.perfTimings))
 
-	err = s.seed16.LoadMeta(seed.AllModes, nil, s.perfTimings)
-	c.Assert(err, IsNil)
 
 	c.Check(s.seed16.UsesSnapdSnap(), Equals, true)
 
@@ -816,8 +788,8 @@ func (s *seed16Suite) TestLoadMetaClassicSnapdWithGadget(c *C) {
 		},
 	})
 
-	runSnaps, err := s.seed16.ModeSnaps("run")
-	c.Assert(err, IsNil)
+	runSnaps := mylog.Check2(s.seed16.ModeSnaps("run"))
+
 	c.Check(runSnaps, HasLen, 0)
 }
 
@@ -827,12 +799,10 @@ func (s *seed16Suite) TestLoadMetaClassicSnapdWithGadget18(c *C) {
 		"gadget":         "classic-gadget18",
 		"required-snaps": []interface{}{"core", "required"},
 	}, snapdSeed, coreSeed, requiredSeed, classicGadget18Seed, core18Seed)
+	mylog.Check(s.seed16.LoadAssertions(s.db, s.commitTo))
 
-	err := s.seed16.LoadAssertions(s.db, s.commitTo)
-	c.Assert(err, IsNil)
+	mylog.Check(s.seed16.LoadMeta(seed.AllModes, nil, s.perfTimings))
 
-	err = s.seed16.LoadMeta(seed.AllModes, nil, s.perfTimings)
-	c.Assert(err, IsNil)
 
 	c.Check(s.seed16.UsesSnapdSnap(), Equals, true)
 
@@ -866,8 +836,8 @@ func (s *seed16Suite) TestLoadMetaClassicSnapdWithGadget18(c *C) {
 		},
 	})
 
-	runSnaps, err := s.seed16.ModeSnaps("run")
-	c.Assert(err, IsNil)
+	runSnaps := mylog.Check2(s.seed16.ModeSnaps("run"))
+
 	c.Check(runSnaps, HasLen, 2)
 	c.Check(runSnaps, DeepEquals, []*seed.Snap{
 		{
@@ -896,12 +866,10 @@ func (s *seed16Suite) TestLoadMetaCore18Local(c *C) {
 		"gadget":         "pc=18",
 		"required-snaps": []interface{}{"core", "required18"},
 	}, snapdSeed, core18Seed, kernel18Seed, gadget18Seed, localRequired18Seed)
+	mylog.Check(s.seed16.LoadAssertions(s.db, s.commitTo))
 
-	err := s.seed16.LoadAssertions(s.db, s.commitTo)
-	c.Assert(err, IsNil)
+	mylog.Check(s.seed16.LoadMeta(seed.AllModes, nil, s.perfTimings))
 
-	err = s.seed16.LoadMeta(seed.AllModes, nil, s.perfTimings)
-	c.Assert(err, IsNil)
 
 	essSnaps := s.seed16.EssentialSnaps()
 	c.Check(essSnaps, HasLen, 4)
@@ -938,8 +906,8 @@ func (s *seed16Suite) TestLoadMetaCore18Local(c *C) {
 		},
 	})
 
-	runSnaps, err := s.seed16.ModeSnaps("run")
-	c.Assert(err, IsNil)
+	runSnaps := mylog.Check2(s.seed16.ModeSnaps("run"))
+
 	c.Check(runSnaps, HasLen, 1)
 
 	c.Check(runSnaps, DeepEquals, []*seed.Snap{
@@ -964,14 +932,12 @@ func (s *seed16Suite) TestLoadMetaCore18SnapHandler(c *C) {
 		"gadget":         "pc=18",
 		"required-snaps": []interface{}{"core", "required18"},
 	}, snapdSeed, core18Seed, kernel18Seed, gadget18Seed, localRequired18Seed)
+	mylog.Check(s.seed16.LoadAssertions(s.db, s.commitTo))
 
-	err := s.seed16.LoadAssertions(s.db, s.commitTo)
-	c.Assert(err, IsNil)
 
 	h := newTestSnapHandler(s.SeedDir)
+	mylog.Check(s.seed16.LoadMeta(seed.AllModes, h, s.perfTimings))
 
-	err = s.seed16.LoadMeta(seed.AllModes, h, s.perfTimings)
-	c.Assert(err, IsNil)
 
 	essSnaps := s.seed16.EssentialSnaps()
 	c.Check(essSnaps, HasLen, 4)
@@ -1008,8 +974,8 @@ func (s *seed16Suite) TestLoadMetaCore18SnapHandler(c *C) {
 		},
 	})
 
-	runSnaps, err := s.seed16.ModeSnaps("run")
-	c.Assert(err, IsNil)
+	runSnaps := mylog.Check2(s.seed16.ModeSnaps("run"))
+
 	c.Check(runSnaps, HasLen, 1)
 
 	c.Check(runSnaps, DeepEquals, []*seed.Snap{
@@ -1044,15 +1010,13 @@ func (s *seed16Suite) TestLoadMetaCore18SnapHandlerChangePath(c *C) {
 		"gadget":         "pc=18",
 		"required-snaps": []interface{}{"core", "required18"},
 	}, snapdSeed, core18Seed, kernel18Seed, gadget18Seed, localRequired18Seed)
+	mylog.Check(s.seed16.LoadAssertions(s.db, s.commitTo))
 
-	err := s.seed16.LoadAssertions(s.db, s.commitTo)
-	c.Assert(err, IsNil)
 
 	h := newTestSnapHandler(s.SeedDir)
 	h.pathPrefix = "saved"
+	mylog.Check(s.seed16.LoadMeta(seed.AllModes, h, s.perfTimings))
 
-	err = s.seed16.LoadMeta(seed.AllModes, h, s.perfTimings)
-	c.Assert(err, IsNil)
 
 	essSnaps := s.seed16.EssentialSnaps()
 	c.Check(essSnaps, HasLen, 4)
@@ -1089,8 +1053,8 @@ func (s *seed16Suite) TestLoadMetaCore18SnapHandlerChangePath(c *C) {
 		},
 	})
 
-	runSnaps, err := s.seed16.ModeSnaps("run")
-	c.Assert(err, IsNil)
+	runSnaps := mylog.Check2(s.seed16.ModeSnaps("run"))
+
 	c.Check(runSnaps, HasLen, 1)
 
 	c.Check(runSnaps, DeepEquals, []*seed.Snap{
@@ -1119,18 +1083,16 @@ func (s *seed16Suite) TestLoadMetaCore18StoreInfo(c *C) {
 		"kernel": "pc-kernel=18",
 		"gadget": "pc=18",
 	}, snapdSeed, core18Seed, kernel18Seed, gadget18Seed, privateSnapSeed, contactableSnapSeed)
+	mylog.Check(s.seed16.LoadAssertions(s.db, s.commitTo))
 
-	err := s.seed16.LoadAssertions(s.db, s.commitTo)
-	c.Assert(err, IsNil)
+	mylog.Check(s.seed16.LoadMeta(seed.AllModes, nil, s.perfTimings))
 
-	err = s.seed16.LoadMeta(seed.AllModes, nil, s.perfTimings)
-	c.Assert(err, IsNil)
 
 	essSnaps := s.seed16.EssentialSnaps()
 	c.Check(essSnaps, HasLen, 4)
 
-	runSnaps, err := s.seed16.ModeSnaps("run")
-	c.Assert(err, IsNil)
+	runSnaps := mylog.Check2(s.seed16.ModeSnaps("run"))
+
 	c.Check(runSnaps, HasLen, 2)
 
 	privateSnapSideInfo := s.AssertedSnapInfo("private-snap").SideInfo
@@ -1169,12 +1131,10 @@ func (s *seed16Suite) TestLoadMetaCore18EnforcePinnedTracks(c *C) {
 		}
 	}
 	s.writeSeed(c, seedSnaps)
+	mylog.Check(s.seed16.LoadAssertions(s.db, s.commitTo))
 
-	err := s.seed16.LoadAssertions(s.db, s.commitTo)
-	c.Assert(err, IsNil)
+	mylog.Check(s.seed16.LoadMeta(seed.AllModes, nil, s.perfTimings))
 
-	err = s.seed16.LoadMeta(seed.AllModes, nil, s.perfTimings)
-	c.Assert(err, IsNil)
 
 	c.Check(s.seed16.UsesSnapdSnap(), Equals, true)
 
@@ -1213,8 +1173,8 @@ func (s *seed16Suite) TestLoadMetaCore18EnforcePinnedTracks(c *C) {
 		},
 	})
 
-	runSnaps, err := s.seed16.ModeSnaps("run")
-	c.Assert(err, IsNil)
+	runSnaps := mylog.Check2(s.seed16.ModeSnaps("run"))
+
 	c.Check(runSnaps, HasLen, 0)
 }
 
@@ -1229,8 +1189,8 @@ func (s *seed16Suite) TestLoadMetaBrokenSeed(c *C) {
 	otherSnapFile := snaptest.MakeTestSnapWithFiles(c, `name: other
 version: other`, nil)
 	otherFname := filepath.Base(otherSnapFile)
-	err := os.Rename(otherSnapFile, filepath.Join(s.SeedDir, "snaps", otherFname))
-	c.Assert(err, IsNil)
+	mylog.Check(os.Rename(otherSnapFile, filepath.Join(s.SeedDir, "snaps", otherFname)))
+
 
 	const otherBaseGadget = `name: pc
 type: gadget
@@ -1282,11 +1242,10 @@ version: other-base
 	}
 
 	for _, t := range tests {
-		seed16, err := seed.Open(s.SeedDir, "")
-		c.Assert(err, IsNil)
+		seed16 := mylog.Check2(seed.Open(s.SeedDir, ""))
 
-		err = seed16.LoadAssertions(s.db, s.commitTo)
-		c.Assert(err, IsNil)
+		mylog.Check(seed16.LoadAssertions(s.db, s.commitTo))
+
 
 		testSeedSnap16s := make([]*seed.InternalSnap16, 5)
 		copy(testSeedSnap16s, seedSnap16s)
@@ -1377,14 +1336,12 @@ func (s *seed16Suite) TestLoadEssentialMetaCore18(c *C) {
 			unhide = hideSnaps(c, all, t.onlyTypes)
 		}
 
-		seed16, err := seed.Open(s.SeedDir, "")
-		c.Assert(err, IsNil)
+		seed16 := mylog.Check2(seed.Open(s.SeedDir, ""))
 
-		err = seed16.LoadAssertions(nil, nil)
-		c.Assert(err, IsNil)
+		mylog.Check(seed16.LoadAssertions(nil, nil))
 
-		err = seed16.LoadEssentialMeta(t.onlyTypes, s.perfTimings)
-		c.Assert(err, IsNil)
+		mylog.Check(seed16.LoadEssentialMeta(t.onlyTypes, s.perfTimings))
+
 
 		c.Check(seed16.UsesSnapdSnap(), Equals, true)
 
@@ -1393,8 +1350,8 @@ func (s *seed16Suite) TestLoadEssentialMetaCore18(c *C) {
 
 		c.Check(essSnaps, DeepEquals, t.expected)
 
-		runSnaps, err := seed16.ModeSnaps("run")
-		c.Assert(err, IsNil)
+		runSnaps := mylog.Check2(seed16.ModeSnaps("run"))
+
 		c.Check(runSnaps, HasLen, 0)
 
 		if unhide != nil {
@@ -1449,16 +1406,14 @@ func (s *seed16Suite) TestLoadEssentialMetaWithSnapHandlerCore18(c *C) {
 
 	expected := []*seed.Snap{snapdSnap, core18Snap, pcKernelSnap, pcSnap}
 
-	seed16, err := seed.Open(s.SeedDir, "")
-	c.Assert(err, IsNil)
+	seed16 := mylog.Check2(seed.Open(s.SeedDir, ""))
 
-	err = seed16.LoadAssertions(nil, nil)
-	c.Assert(err, IsNil)
+	mylog.Check(seed16.LoadAssertions(nil, nil))
+
 
 	h := newTestSnapHandler(s.SeedDir)
+	mylog.Check(seed16.LoadEssentialMetaWithSnapHandler(nil, h, s.perfTimings))
 
-	err = seed16.LoadEssentialMetaWithSnapHandler(nil, h, s.perfTimings)
-	c.Assert(err, IsNil)
 
 	c.Check(seed16.UsesSnapdSnap(), Equals, true)
 
@@ -1518,43 +1473,39 @@ func (s *seed16Suite) TestLoadEssentialAndMetaCore18(c *C) {
 		Channel:       "18",
 	}
 
-	seed16, err := seed.Open(s.SeedDir, "")
-	c.Assert(err, IsNil)
+	seed16 := mylog.Check2(seed.Open(s.SeedDir, ""))
 
-	err = seed16.LoadAssertions(nil, nil)
-	c.Assert(err, IsNil)
+	mylog.Check(seed16.LoadAssertions(nil, nil))
 
-	err = seed16.LoadEssentialMeta([]snap.Type{snap.TypeGadget}, s.perfTimings)
-	c.Assert(err, IsNil)
+	mylog.Check(seed16.LoadEssentialMeta([]snap.Type{snap.TypeGadget}, s.perfTimings))
+
 
 	c.Check(seed16.UsesSnapdSnap(), Equals, true)
 
 	essSnaps := seed16.EssentialSnaps()
 	c.Check(essSnaps, DeepEquals, []*seed.Snap{pcSnap})
+	mylog.Check(seed16.LoadEssentialMeta([]snap.Type{snap.TypeSnapd, snap.TypeKernel, snap.TypeBase, snap.TypeGadget}, s.perfTimings))
 
-	err = seed16.LoadEssentialMeta([]snap.Type{snap.TypeSnapd, snap.TypeKernel, snap.TypeBase, snap.TypeGadget}, s.perfTimings)
-	c.Assert(err, IsNil)
 
 	essSnaps = seed16.EssentialSnaps()
 	c.Check(essSnaps, DeepEquals, []*seed.Snap{snapdSnap, core18Snap, pcKernelSnap, pcSnap})
 
-	runSnaps, err := seed16.ModeSnaps("run")
-	c.Assert(err, IsNil)
+	runSnaps := mylog.Check2(seed16.ModeSnaps("run"))
+
 	c.Check(runSnaps, HasLen, 0)
 
 	// caching in place
 	hideSnaps(c, []*seed.Snap{snapdSnap, core18Snap, pcKernelSnap}, nil)
+	mylog.Check(seed16.LoadMeta(seed.AllModes, nil, s.perfTimings))
 
-	err = seed16.LoadMeta(seed.AllModes, nil, s.perfTimings)
-	c.Assert(err, IsNil)
 
 	c.Check(seed16.UsesSnapdSnap(), Equals, true)
 
 	essSnaps = seed16.EssentialSnaps()
 	c.Check(essSnaps, DeepEquals, []*seed.Snap{snapdSnap, core18Snap, pcKernelSnap, pcSnap})
 
-	runSnaps, err = seed16.ModeSnaps("run")
-	c.Assert(err, IsNil)
+	runSnaps = mylog.Check2(seed16.ModeSnaps("run"))
+
 	c.Check(runSnaps, HasLen, 3)
 	c.Check(runSnaps, DeepEquals, []*seed.Snap{
 		{

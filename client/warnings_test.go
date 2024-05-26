@@ -25,6 +25,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 )
 
@@ -55,7 +56,7 @@ func (cs *clientSuite) testWarnings(c *check.C, all bool) {
 		"warning-timestamp": "2018-09-19T12:44:19.680362867Z"
 	}`
 
-	ws, err := cs.cli.Warnings(client.WarningsOptions{All: all})
+	ws := mylog.Check2(cs.cli.Warnings(client.WarningsOptions{All: all}))
 	c.Assert(err, check.IsNil)
 	c.Check(ws, check.DeepEquals, []*client.Warning{
 		{
@@ -104,7 +105,7 @@ func (cs *clientSuite) TestOkay(c *check.C) {
 		"result": { }
 	}`
 	t0 := time.Now()
-	err := cs.cli.Okay(t0)
+	mylog.Check(cs.cli.Okay(t0))
 	c.Assert(err, check.IsNil)
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Query(), check.HasLen, 0)

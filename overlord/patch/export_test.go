@@ -20,6 +20,7 @@
 package patch
 
 import (
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
@@ -71,20 +72,20 @@ func Patch4TaskSnapSetup(task *state.Task) (*patch4SnapSetup, error) {
 
 func Patch4StateMap(st *state.State) (map[string]patch4SnapState, error) {
 	var stateMap map[string]patch4SnapState
-	err := st.Get("snaps", &stateMap)
+	mylog.Check(st.Get("snaps", &stateMap))
 
 	return stateMap, err
 }
 
 func Patch6StateMap(st *state.State) (map[string]patch6SnapState, error) {
 	var stateMap map[string]patch6SnapState
-	err := st.Get("snaps", &stateMap)
+	mylog.Check(st.Get("snaps", &stateMap))
 
 	return stateMap, err
 }
 
 func Patch6SnapSetup(task *state.Task) (patch6SnapSetup, error) {
 	var snapsup patch6SnapSetup
-	err := task.Get("snap-setup", &snapsup)
+	mylog.Check(task.Get("snap-setup", &snapsup))
 	return snapsup, err
 }

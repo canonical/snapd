@@ -19,6 +19,4 @@
 
 package daemon
 
-var (
-	SnapIcon = snapIcon
-)
+var SnapIcon = snapIcon

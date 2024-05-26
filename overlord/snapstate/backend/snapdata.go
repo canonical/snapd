@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 	unix "syscall"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -34,20 +35,14 @@ import (
 
 // RemoveSnapData removes the data for the given version of the given snap.
 func (b Backend) RemoveSnapData(snap *snap.Info, opts *dirs.SnapDirOptions) error {
-	dirs, err := snapDataDirs(snap, opts)
-	if err != nil {
-		return err
-	}
+	dirs := mylog.Check2(snapDataDirs(snap, opts))
 
 	return removeDirs(dirs)
 }
 
 // RemoveSnapCommonData removes the data common between versions of the given snap.
 func (b Backend) RemoveSnapCommonData(snap *snap.Info, opts *dirs.SnapDirOptions) error {
-	dirs, err := snapCommonDataDirs(snap, opts)
-	if err != nil {
-		return err
-	}
+	dirs := mylog.Check2(snapCommonDataDirs(snap, opts))
 
 	return removeDirs(dirs)
 }
@@ -60,11 +55,10 @@ func (b Backend) RemoveSnapSaveData(snapInfo *snap.Info, dev snap.Device) error 
 	}
 
 	saveDir := snap.CommonDataSaveDir(snapInfo.InstanceName())
-	if exists, isDir, err := osutil.DirExists(saveDir); err == nil && !(exists && isDir) {
+	if exists, isDir := mylog.Check3(osutil.DirExists(saveDir)); err == nil && !(exists && isDir) {
 		return nil
-	} else if err != nil {
-		return err
 	}
+
 	return os.RemoveAll(saveDir)
 }
 
@@ -73,20 +67,18 @@ func (b Backend) RemoveSnapDataDir(info *snap.Info, hasOtherInstances bool, opts
 	if info.InstanceKey != "" {
 		// data directories of snaps with instance key are never used by
 		// other instances
-		dirs, err := snapBaseDataDirs(info.InstanceName(), opts)
-		if err != nil {
-			return err
-		}
+		dirs := mylog.Check2(snapBaseDataDirs(info.InstanceName(), opts))
+
 		var firstRemoveErr error
 		for _, dir := range dirs {
 			// remove data symlink that could have been created by snap-run
 			// https://bugs.launchpad.net/snapd/+bug/2009617
-			if err := os.Remove(filepath.Join(dir, "current")); err != nil && !os.IsNotExist(err) {
+			if mylog.Check(os.Remove(filepath.Join(dir, "current"))); err != nil && !os.IsNotExist(err) {
 				if firstRemoveErr == nil {
 					firstRemoveErr = err
 				}
 			}
-			if err := os.Remove(dir); err != nil && !os.IsNotExist(err) {
+			if mylog.Check(os.Remove(dir)); err != nil && !os.IsNotExist(err) {
 				if firstRemoveErr == nil {
 					firstRemoveErr = err
 				}
@@ -99,20 +91,18 @@ func (b Backend) RemoveSnapDataDir(info *snap.Info, hasOtherInstances bool, opts
 	if !hasOtherInstances {
 		// remove the snap base directory only if there are no other
 		// snap instances using it
-		dirs, err := snapBaseDataDirs(info.SnapName(), opts)
-		if err != nil {
-			return err
-		}
+		dirs := mylog.Check2(snapBaseDataDirs(info.SnapName(), opts))
+
 		var firstRemoveErr error
 		for _, dir := range dirs {
 			// remove data symlink that could have been created by snap-run
 			// https://bugs.launchpad.net/snapd/+bug/2009617
-			if err := os.Remove(filepath.Join(dir, "current")); err != nil && !os.IsNotExist(err) {
+			if mylog.Check(os.Remove(filepath.Join(dir, "current"))); err != nil && !os.IsNotExist(err) {
 				if firstRemoveErr == nil {
 					firstRemoveErr = err
 				}
 			}
-			if err := os.Remove(dir); err != nil && !os.IsNotExist(err) {
+			if mylog.Check(os.Remove(dir)); err != nil && !os.IsNotExist(err) {
 				if firstRemoveErr == nil {
 					firstRemoveErr = err
 				}
@@ -127,10 +117,7 @@ func (b Backend) RemoveSnapDataDir(info *snap.Info, hasOtherInstances bool, opts
 }
 
 func (b Backend) untrashData(snap *snap.Info, opts *dirs.SnapDirOptions) error {
-	dirs, err := snapDataDirs(snap, opts)
-	if err != nil {
-		return err
-	}
+	dirs := mylog.Check2(snapDataDirs(snap, opts))
 
 	for _, d := range dirs {
 		if e := untrash(d); e != nil {
@@ -143,9 +130,7 @@ func (b Backend) untrashData(snap *snap.Info, opts *dirs.SnapDirOptions) error {
 
 func removeDirs(dirs []string) error {
 	for _, dir := range dirs {
-		if err := os.RemoveAll(dir); err != nil {
-			return err
-		}
+		mylog.Check(os.RemoveAll(dir))
 	}
 
 	return nil
@@ -157,10 +142,8 @@ func snapBaseDataDirs(snapName string, opts *dirs.SnapDirOptions) ([]string, err
 	var found []string
 
 	for _, entry := range snap.BaseDataHomeDirs(snapName, opts) {
-		entryPaths, err := filepath.Glob(entry)
-		if err != nil {
-			return nil, err
-		}
+		entryPaths := mylog.Check2(filepath.Glob(entry))
+
 		found = append(found, entryPaths...)
 	}
 
@@ -178,10 +161,8 @@ func snapDataDirs(snap *snap.Info, opts *dirs.SnapDirOptions) ([]string, error) 
 	var found []string
 
 	for _, entry := range snap.DataHomeDirs(opts) {
-		entryPaths, err := filepath.Glob(entry)
-		if err != nil {
-			return nil, err
-		}
+		entryPaths := mylog.Check2(filepath.Glob(entry))
+
 		found = append(found, entryPaths...)
 	}
 
@@ -199,10 +180,8 @@ func snapCommonDataDirs(snap *snap.Info, opts *dirs.SnapDirOptions) ([]string, e
 	var found []string
 
 	for _, entry := range snap.CommonDataHomeDirs(opts) {
-		entryPaths, err := filepath.Glob(entry)
-		if err != nil {
-			return nil, err
-		}
+		entryPaths := mylog.Check2(filepath.Glob(entry))
+
 		found = append(found, entryPaths...)
 	}
 
@@ -211,10 +190,8 @@ func snapCommonDataDirs(snap *snap.Info, opts *dirs.SnapDirOptions) ([]string, e
 	found = append(found, rootCommon)
 
 	// then XDG_RUNTIME_DIRs for the users
-	foundXdg, err := filepath.Glob(snap.XdgRuntimeDirs())
-	if err != nil {
-		return nil, err
-	}
+	foundXdg := mylog.Check2(filepath.Glob(snap.XdgRuntimeDirs()))
+
 	found = append(found, foundXdg...)
 
 	// then system data
@@ -226,10 +203,8 @@ func snapCommonDataDirs(snap *snap.Info, opts *dirs.SnapDirOptions) ([]string, e
 // Copy all data for oldSnap to newSnap
 // (but never overwrite)
 func copySnapData(oldSnap, newSnap *snap.Info, opts *dirs.SnapDirOptions) (err error) {
-	oldDataDirs, err := snapDataDirs(oldSnap, opts)
-	if err != nil {
-		return err
-	}
+	oldDataDirs := mylog.Check2(snapDataDirs(oldSnap, opts))
+
 	done := make([]string, 0, len(oldDataDirs))
 	defer func() {
 		if err == nil {
@@ -237,12 +212,9 @@ func copySnapData(oldSnap, newSnap *snap.Info, opts *dirs.SnapDirOptions) (err e
 		}
 		// something went wrong, but we'd already written stuff. Fix that.
 		for _, newDir := range done {
-			if err := os.RemoveAll(newDir); err != nil {
-				logger.Noticef("while undoing creation of new data directory %q: %v", newDir, err)
-			}
-			if err := untrash(newDir); err != nil {
-				logger.Noticef("while restoring the old version of data directory %q: %v", newDir, err)
-			}
+			mylog.Check(os.RemoveAll(newDir))
+			mylog.Check(untrash(newDir))
+
 		}
 	}()
 
@@ -250,9 +222,8 @@ func copySnapData(oldSnap, newSnap *snap.Info, opts *dirs.SnapDirOptions) (err e
 	for _, oldDir := range oldDataDirs {
 		// replace the trailing "../$old-suffix" with the "../$new-suffix"
 		newDir := filepath.Join(filepath.Dir(oldDir), newSuffix)
-		if err := copySnapDataDirectory(oldDir, newDir); err != nil {
-			return err
-		}
+		mylog.Check(copySnapDataDirectory(oldDir, newDir))
+
 		done = append(done, newDir)
 	}
 
@@ -269,7 +240,7 @@ func trashPath(path string) string {
 // already exists and is not empty it will be removed first.
 func trash(path string) error {
 	trash := trashPath(path)
-	err := os.Rename(path, trash)
+	mylog.Check(os.Rename(path, trash))
 	if err == nil {
 		return nil
 	}
@@ -284,13 +255,13 @@ func trash(path string) error {
 		// path does not exist (here we use that trashPath(path) and path differ only in the last element)
 		return nil
 	case unix.ENOTEMPTY, unix.EEXIST:
-		// path exists, but trash already exists and is non-empty
-		// (empirically always ENOTEMPTY but rename(2) says it can also be EEXIST)
-		// nuke the old trash and try again
-		if err := os.RemoveAll(trash); err != nil {
-			// well, that didn't work :-(
-			return err
-		}
+		mylog.Check(
+			// path exists, but trash already exists and is non-empty
+			// (empirically always ENOTEMPTY but rename(2) says it can also be EEXIST)
+			// nuke the old trash and try again
+			os.RemoveAll(trash))
+		// well, that didn't work :-(
+
 		return os.Rename(path, trash)
 	default:
 		// WAT
@@ -300,7 +271,7 @@ func trash(path string) error {
 
 // untrash moves the trash for path back in, if it exists.
 func untrash(path string) error {
-	err := os.Rename(trashPath(path), path)
+	mylog.Check(os.Rename(trashPath(path), path))
 	if !os.IsNotExist(err) {
 		return err
 	}
@@ -310,7 +281,7 @@ func untrash(path string) error {
 
 // clearTrash removes the trash made for path, if it exists.
 func clearTrash(path string) error {
-	err := os.RemoveAll(trashPath(path))
+	mylog.Check(os.RemoveAll(trashPath(path)))
 	if !os.IsNotExist(err) {
 		return err
 	}
@@ -320,29 +291,18 @@ func clearTrash(path string) error {
 
 // Lowlevel copy the snap data (but never override existing data)
 func copySnapDataDirectory(oldPath, newPath string) (err error) {
-	if _, err := os.Stat(oldPath); err == nil {
-		if err := trash(newPath); err != nil {
-			return err
-		}
+	if _ := mylog.Check2(os.Stat(oldPath)); err == nil {
+		mylog.Check(trash(newPath))
+		mylog.Check2(os.Stat(newPath))
 
-		if _, err := os.Stat(newPath); err != nil {
-			if err := osutil.CopyFile(oldPath, newPath, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync); err != nil {
-				msg := fmt.Sprintf("cannot copy %q to %q: %v", oldPath, newPath, err)
-				// remove the directory, in case it was a partial success
-				if e := os.RemoveAll(newPath); e != nil && !os.IsNotExist(e) {
-					msg += fmt.Sprintf("; and when trying to remove the partially-copied new data directory: %v", e)
-				}
-				// something went wrong but we already trashed what was there
-				// try to fix that; hope for the best
-				if e := untrash(newPath); e != nil {
-					// oh noes
-					// TODO: issue a warning to the user that data was lost
-					msg += fmt.Sprintf("; and when trying to restore the old data directory: %v", e)
-				}
+		// remove the directory, in case it was a partial success
 
-				return errors.New(msg)
-			}
-		}
+		// something went wrong but we already trashed what was there
+		// try to fix that; hope for the best
+
+		// oh noes
+		// TODO: issue a warning to the user that data was lost
+
 	} else if !os.IsNotExist(err) {
 		return err
 	}

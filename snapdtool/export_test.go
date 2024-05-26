@@ -19,9 +19,7 @@
 
 package snapdtool
 
-var (
-	SystemSnapSupportsReExec = systemSnapSupportsReExec
-)
+var SystemSnapSupportsReExec = systemSnapSupportsReExec
 
 func MockCoreSnapdPaths(newCoreSnap, newSnapdSnap string) func() {
 	oldOldCore := coreSnap

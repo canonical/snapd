@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/asserts"
@@ -67,15 +68,11 @@ func (x *cmdExportKey) Execute(args []string) error {
 		keyName = "default"
 	}
 
-	keypairMgr, err := signtool.GetKeypairManager()
-	if err != nil {
-		return err
-	}
+	keypairMgr := mylog.Check2(signtool.GetKeypairManager())
+
 	if x.Account != "" {
-		privKey, err := keypairMgr.GetByName(keyName)
-		if err != nil {
-			return fmt.Errorf("cannot find key named %q: %v", keyName, err)
-		}
+		privKey := mylog.Check2(keypairMgr.GetByName(keyName))
+
 		pubKey := privKey.PublicKey()
 		headers := map[string]interface{}{
 			"account-id":          x.Account,
@@ -84,20 +81,14 @@ func (x *cmdExportKey) Execute(args []string) error {
 			"since":               time.Now().UTC().Format(time.RFC3339),
 			// XXX: To support revocation, we need to check for matching known assertions and set a suitable revision if we find one.
 		}
-		body, err := asserts.EncodePublicKey(pubKey)
-		if err != nil {
-			return err
-		}
-		assertion, err := asserts.SignWithoutAuthority(asserts.AccountKeyRequestType, headers, body, privKey)
-		if err != nil {
-			return err
-		}
+		body := mylog.Check2(asserts.EncodePublicKey(pubKey))
+
+		assertion := mylog.Check2(asserts.SignWithoutAuthority(asserts.AccountKeyRequestType, headers, body, privKey))
+
 		fmt.Fprint(Stdout, string(asserts.Encode(assertion)))
 	} else {
-		encoded, err := keypairMgr.Export(keyName)
-		if err != nil {
-			return fmt.Errorf("cannot export key named %q: %v", keyName, err)
-		}
+		encoded := mylog.Check2(keypairMgr.Export(keyName))
+
 		fmt.Fprintf(Stdout, "%s\n", encoded)
 	}
 	return nil

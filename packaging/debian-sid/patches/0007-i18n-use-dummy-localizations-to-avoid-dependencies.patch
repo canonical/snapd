@@ -179,18 +179,18 @@ index b8b0b1ea57..86b59f3b43 100644
 -func makeMockTranslations(c *C, localeDir string) {
 -	fullLocaleDir := filepath.Join(localeDir, "en_DK", "LC_MESSAGES")
 -	err := os.MkdirAll(fullLocaleDir, 0755)
--	c.Assert(err, IsNil)
+-
 -
 -	po := filepath.Join(fullLocaleDir, "snappy-test.po")
 -	mo := filepath.Join(fullLocaleDir, "snappy-test.mo")
 -	err = os.WriteFile(po, mockLocalePo, 0644)
--	c.Assert(err, IsNil)
+-
 -
 -	cmd := exec.Command("msgfmt", po, "--output-file", mo)
 -	cmd.Stdout = os.Stdout
 -	cmd.Stderr = os.Stderr
 -	err = cmd.Run()
--	c.Assert(err, IsNil)
+-
 -}
 -
 -type i18nTestSuite struct {
@@ -257,7 +257,7 @@ index b8b0b1ea57..86b59f3b43 100644
 -	root := c.MkDir()
 -	localeDir := filepath.Join(root, "/usr/share/locale")
 -	err := os.MkdirAll(localeDir, 0755)
--	c.Assert(err, IsNil)
+-
 -
 -	d := filepath.Join(root, "/usr/share/locale-langpack")
 -	makeMockTranslations(c, d)

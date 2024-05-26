@@ -29,6 +29,7 @@ import (
 	"sort"
 	"strconv"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/advisor"
@@ -53,13 +54,15 @@ type cmdAdviseSnap struct {
 	DumpDb bool `long:"dump-db"`
 }
 
-var shortAdviseSnapHelp = i18n.G("Advise on available snaps")
-var longAdviseSnapHelp = i18n.G(`
+var (
+	shortAdviseSnapHelp = i18n.G("Advise on available snaps")
+	longAdviseSnapHelp  = i18n.G(`
 The advise-snap command searches for and suggests the installation of snaps.
 
 If --command is given, it suggests snaps that provide the given command.
 Otherwise it suggests snaps with the given name.
 `)
+)
 
 func init() {
 	cmd := addCommand("advise-snap", shortAdviseSnapHelp, longAdviseSnapHelp, func() flags.Commander {
@@ -134,14 +137,11 @@ func readRpc(r *bufio.Reader) (*jsonRPC, error) {
 	}
 
 	var rpc jsonRPC
-	if err := json.Unmarshal(line, &rpc); err != nil {
-		return nil, err
-	}
+	mylog.Check(json.Unmarshal(line, &rpc))
+
 	// empty \n
-	emptyNL, _, err := r.ReadLine()
-	if err != nil {
-		return nil, err
-	}
+	emptyNL, _ := mylog.Check3(r.ReadLine())
+
 	if string(emptyNL) != "" {
 		return nil, fmt.Errorf("unexpected line: %q (empty)", emptyNL)
 	}
@@ -154,10 +154,7 @@ func adviseViaAptHook() error {
 	if sockFd == "" {
 		return fmt.Errorf("cannot find APT_HOOK_SOCKET env")
 	}
-	fd, err := strconv.Atoi(sockFd)
-	if err != nil {
-		return fmt.Errorf("expected APT_HOOK_SOCKET to be a decimal integer, found %q", sockFd)
-	}
+	fd := mylog.Check2(strconv.Atoi(sockFd))
 
 	f := os.NewFile(uintptr(fd), "apt-hook-socket")
 	if f == nil {
@@ -165,34 +162,26 @@ func adviseViaAptHook() error {
 	}
 	defer f.Close()
 
-	conn, err := net.FileConn(f)
-	if err != nil {
-		return fmt.Errorf("cannot connect to %v: %v", fd, err)
-	}
+	conn := mylog.Check2(net.FileConn(f))
+
 	defer conn.Close()
 
 	r := bufio.NewReader(conn)
 
 	// handshake
-	rpc, err := readRpc(r)
-	if err != nil {
-		return err
-	}
+	rpc := mylog.Check2(readRpc(r))
+
 	if rpc.Method != "org.debian.apt.hooks.hello" {
 		return fmt.Errorf("expected 'hello' method, got: %v", rpc.Method)
 	}
-	if _, err := conn.Write([]byte(`{"jsonrpc":"2.0","id":0,"result":{"version":"0.1"}}` + "\n\n")); err != nil {
-		return err
-	}
+	mylog.Check2(conn.Write([]byte(`{"jsonrpc":"2.0","id":0,"result":{"version":"0.1"}}` + "\n\n")))
 
 	// payload
-	rpc, err = readRpc(r)
-	if err != nil {
-		return err
-	}
+	rpc = mylog.Check2(readRpc(r))
+
 	if rpc.Method == "org.debian.apt.hooks.install.fail" {
 		for _, pkgName := range rpc.Params.UnknownPackages {
-			match, err := advisor.FindPackage(pkgName)
+			match := mylog.Check2(advisor.FindPackage(pkgName))
 			if err == nil && match != nil {
 				fmt.Fprintf(Stdout, "\n")
 				fmt.Fprintf(Stdout, i18n.G("No apt package %q, but there is a snap with that name.\n"), pkgName)
@@ -200,7 +189,6 @@ func adviseViaAptHook() error {
 				fmt.Fprintf(Stdout, "\n")
 			}
 		}
-
 	}
 	// if rpc.Method == "org.debian.apt.hooks.search.post" {
 	// 	// FIXME: do a snap search here
@@ -208,10 +196,8 @@ func adviseViaAptHook() error {
 	// }
 
 	// bye
-	rpc, err = readRpc(r)
-	if err != nil {
-		return err
-	}
+	rpc = mylog.Check2(readRpc(r))
+
 	if rpc.Method != "org.debian.apt.hooks.bye" {
 		return fmt.Errorf("expected 'bye' method, got: %v", rpc.Method)
 	}
@@ -226,10 +212,7 @@ type Snap struct {
 }
 
 func dumpDbHook() error {
-	commands, err := advisor.DumpCommands()
-	if err != nil {
-		return err
-	}
+	commands := mylog.Check2(advisor.DumpCommands())
 
 	commands_processed := make([]string, 0)
 	var b []Snap
@@ -242,12 +225,10 @@ func dumpDbHook() error {
 
 	for _, key := range sortedCmds {
 		value := commands[key]
-		err := json.Unmarshal([]byte(value), &b)
-		if err != nil {
-			return err
-		}
+		mylog.Check(json.Unmarshal([]byte(value), &b))
+
 		for i := range b {
-			var s = fmt.Sprintf("%s %s %s\n", key, b[i].Snap, b[i].Version)
+			s := fmt.Sprintf("%s %s %s\n", key, b[i].Snap, b[i].Version)
 			commands_processed = append(commands_processed, s)
 		}
 	}
@@ -284,10 +265,8 @@ func (x *cmdAdviseSnap) Execute(args []string) error {
 }
 
 func advisePkg(pkgName string) error {
-	match, err := advisor.FindPackage(pkgName)
-	if err != nil {
-		return fmt.Errorf("advise for pkgname failed: %s", err)
-	}
+	match := mylog.Check2(advisor.FindPackage(pkgName))
+
 	if match != nil {
 		fmt.Fprintf(Stdout, i18n.G("Packages matching %q:\n"), pkgName)
 		fmt.Fprintf(Stdout, " * %s - %s\n", match.Snap, match.Summary)
@@ -301,10 +280,8 @@ func advisePkg(pkgName string) error {
 
 func adviseCommand(cmd string, format string) error {
 	// find exact matches
-	matches, err := advisor.FindCommand(cmd)
-	if err != nil {
-		return fmt.Errorf("advise for command failed: %s", err)
-	}
+	matches := mylog.Check2(advisor.FindCommand(cmd))
+
 	if len(matches) > 0 {
 		switch format {
 		case "json":
@@ -317,10 +294,8 @@ func adviseCommand(cmd string, format string) error {
 	}
 
 	// find misspellings
-	matches, err = advisor.FindMisspelledCommand(cmd)
-	if err != nil {
-		return err
-	}
+	matches = mylog.Check2(advisor.FindMisspelledCommand(cmd))
+
 	if len(matches) > 0 {
 		switch format {
 		case "json":

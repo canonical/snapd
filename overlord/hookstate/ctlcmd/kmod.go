@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/osutil/kmod"
@@ -69,18 +70,9 @@ type KModInsertCmd struct {
 }
 
 func (k *KModInsertCmd) Execute([]string) error {
-	context, err := k.kmod.ensureContext()
-	if err != nil {
-		return err
-	}
-
-	if err := kmodCheckConnection(context, k.Positional.Module, k.Positional.Options); err != nil {
-		return fmt.Errorf("cannot load module %q: %v", k.Positional.Module, err)
-	}
-
-	if err := kmodLoadModule(k.Positional.Module, k.Positional.Options); err != nil {
-		return fmt.Errorf("cannot load module %q: %v", k.Positional.Module, err)
-	}
+	context := mylog.Check2(k.kmod.ensureContext())
+	mylog.Check(kmodCheckConnection(context, k.Positional.Module, k.Positional.Options))
+	mylog.Check(kmodLoadModule(k.Positional.Module, k.Positional.Options))
 
 	return nil
 }
@@ -93,18 +85,9 @@ type KModRemoveCmd struct {
 }
 
 func (k *KModRemoveCmd) Execute([]string) error {
-	context, err := k.kmod.ensureContext()
-	if err != nil {
-		return err
-	}
-
-	if err := kmodCheckConnection(context, k.Positional.Module, []string{}); err != nil {
-		return fmt.Errorf("cannot unload module %q: %v", k.Positional.Module, err)
-	}
-
-	if err := kmodUnloadModule(k.Positional.Module); err != nil {
-		return fmt.Errorf("cannot unload module %q: %v", k.Positional.Module, err)
-	}
+	context := mylog.Check2(k.kmod.ensureContext())
+	mylog.Check(kmodCheckConnection(context, k.Positional.Module, []string{}))
+	mylog.Check(kmodUnloadModule(k.Positional.Module))
 
 	return nil
 }
@@ -143,10 +126,7 @@ var kmodCheckConnection = func(context *hookstate.Context, moduleName string, mo
 	st.Lock()
 	defer st.Unlock()
 
-	conns, err := ifacestate.ConnectionStates(st)
-	if err != nil {
-		return fmt.Errorf("internal error: cannot get connections: %s", err)
-	}
+	conns := mylog.Check2(ifacestate.ConnectionStates(st))
 
 	for connId, connState := range conns {
 		if connState.Interface != "kernel-module-load" {
@@ -157,10 +137,7 @@ var kmodCheckConnection = func(context *hookstate.Context, moduleName string, mo
 			continue
 		}
 
-		connRef, err := interfaces.ParseConnRef(connId)
-		if err != nil {
-			return err
-		}
+		connRef := mylog.Check2(interfaces.ParseConnRef(connId))
 
 		if connRef.PlugRef.Snap != snapName {
 			continue

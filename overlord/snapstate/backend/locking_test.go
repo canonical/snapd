@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/cmd/snaplock"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/dirs"
@@ -48,16 +49,16 @@ func (s *lockingSuite) TestRunInhibitSnapForUnlinkPositiveDecision(c *C) {
 version: 1
 `
 	info := snaptest.MockInfo(c, yaml, &snap.SideInfo{Revision: snap.R(1)})
-	lock, err := s.be.RunInhibitSnapForUnlink(info, "hint", func() error {
+	lock := mylog.Check2(s.be.RunInhibitSnapForUnlink(info, "hint", func() error {
 		// This decision function returns nil so the lock is established and
 		// the inhibition hint is set.
 		return nil
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Assert(lock, NotNil)
 	lock.Close()
-	hint, inhibitInfo, err := runinhibit.IsLocked(info.InstanceName())
-	c.Assert(err, IsNil)
+	hint, inhibitInfo := mylog.Check3(runinhibit.IsLocked(info.InstanceName()))
+
 	c.Check(string(hint), Equals, "hint")
 	c.Check(inhibitInfo, Equals, runinhibit.InhibitInfo{Previous: snap.R(1)})
 }
@@ -67,15 +68,15 @@ func (s *lockingSuite) TestRunInhibitSnapForUnlinkNegativeDecision(c *C) {
 version: 1
 `
 	info := snaptest.MockInfo(c, yaml, nil)
-	lock, err := s.be.RunInhibitSnapForUnlink(info, "hint", func() error {
+	lock := mylog.Check2(s.be.RunInhibitSnapForUnlink(info, "hint", func() error {
 		// This decision function returns an error so the lock is not
 		// established and the inhibition hint is not set.
 		return errors.New("propagated")
-	})
+	}))
 	c.Assert(err, ErrorMatches, "propagated")
 	c.Assert(lock, IsNil)
-	hint, inhibitInfo, err := runinhibit.IsLocked(info.InstanceName())
-	c.Assert(err, IsNil)
+	hint, inhibitInfo := mylog.Check3(runinhibit.IsLocked(info.InstanceName()))
+
 	c.Check(string(hint), Equals, "")
 	c.Check(inhibitInfo, Equals, runinhibit.InhibitInfo{})
 }
@@ -86,16 +87,15 @@ version: 1
 `
 	info := snaptest.MockInfo(c, yaml, nil)
 
-	lock, err := snaplock.OpenLock(info.InstanceName())
-	c.Assert(err, IsNil)
+	lock := mylog.Check2(snaplock.OpenLock(info.InstanceName()))
+
 	defer lock.Close()
 	c.Assert(lock.TryLock(), IsNil) // Lock is not held
 	lock.Unlock()
-
-	err = backend.WithSnapLock(info, func() error {
+	mylog.Check(backend.WithSnapLock(info, func() error {
 		c.Assert(lock.TryLock(), Equals, osutil.ErrAlreadyLocked) // Lock is held
 		return errors.New("error-is-propagated")
-	})
+	}))
 	c.Check(err, ErrorMatches, "error-is-propagated")
 
 	c.Assert(lock.TryLock(), IsNil) // Lock is not held

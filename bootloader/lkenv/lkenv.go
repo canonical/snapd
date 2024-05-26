@@ -28,6 +28,7 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/strutil"
@@ -225,12 +226,8 @@ func NewEnv(path, backupPath string, version Version) *Env {
 // environment file, and if that fails it will fallback to trying the backup
 // environment file.
 func (l *Env) Load() error {
-	err := l.LoadEnv(l.path)
-	if err != nil {
-		logger.Noticef("cannot load primary bootloader environment: %v\n", err)
-		logger.Noticef("attempting to load backup bootloader environment\n")
-		return l.LoadEnv(l.pathbak)
-	}
+	mylog.Check(l.LoadEnv(l.path))
+
 	return nil
 }
 
@@ -259,8 +256,9 @@ func (e compatErrNotExist) Unwrap() error {
 // The returned error may wrap os.ErrNotExist, so instead of using
 // os.IsNotExist, callers should use xerrors.Is(err,os.ErrNotExist) instead.
 func (l *Env) LoadEnv(path string) error {
-	f, err := os.Open(path)
-	if err != nil {
+	f := mylog.Check2(os.Open(path))
+	mylog.Check(
+
 		// TODO: when we drop support for Go 1.9, this code can go away, in Go
 		//       1.9 *os.PathError does not implement Unwrap(), and so callers
 		//       that try to call xerrors.Is(err,os.ErrNotExist) will fail, so
@@ -268,16 +266,8 @@ func (l *Env) LoadEnv(path string) error {
 		//       called by xerrors.Is() it will see os.ErrNotExist directly when
 		//       compiled with a version of Go that does not implement Unwrap()
 		//       on os.PathError
-		if os.IsNotExist(err) {
-			err = compatErrNotExist{err: err}
-		}
-		fmtStr := "cannot open LK env file: %w"
-		return xerrors.Errorf(fmtStr, err)
-	}
 
-	if err := binary.Read(f, binary.LittleEndian, l.variant); err != nil {
-		return fmt.Errorf("cannot read LK env from file: %v", err)
-	}
+		binary.Read(f, binary.LittleEndian, l.variant))
 
 	// validate the version and signatures
 	v := l.variant.currentVersion()
@@ -297,9 +287,7 @@ func (l *Env) LoadEnv(path string) error {
 	w := bytes.NewBuffer(nil)
 	ss := binary.Size(l.variant)
 	w.Grow(ss)
-	if err := binary.Write(w, binary.LittleEndian, l.variant); err != nil {
-		return fmt.Errorf("cannot write LK env to buffer for validation: %v", err)
-	}
+	mylog.Check(binary.Write(w, binary.LittleEndian, l.variant))
 
 	crc := crc32.ChecksumIEEE(w.Bytes()[:ss-4]) // size of crc32 itself at the end of the structure
 	if crc != l.variant.currentCrc32() {
@@ -317,9 +305,7 @@ func (l *Env) Save() error {
 	buf := bytes.NewBuffer(nil)
 	ss := binary.Size(l.variant)
 	buf.Grow(ss)
-	if err := binary.Write(buf, binary.LittleEndian, l.variant); err != nil {
-		return fmt.Errorf("cannot write LK env to buffer for saving: %v", err)
-	}
+	mylog.Check(binary.Write(buf, binary.LittleEndian, l.variant))
 
 	// calculate crc32
 	newCrc32 := crc32.ChecksumIEEE(buf.Bytes()[:ss-4])
@@ -328,35 +314,25 @@ func (l *Env) Save() error {
 	// re-write _just_ the crc32 to w as little-endian
 	buf.Truncate(ss - 4)
 	binary.Write(buf, binary.LittleEndian, &newCrc32)
+	mylog.Check(l.saveEnv(l.path, buf))
 
-	err := l.saveEnv(l.path, buf)
-	if err != nil {
-		logger.Noticef("failed to save primary bootloader environment: %v", err)
-	}
 	// if there is backup environment file save to it as well
 	if osutil.FileExists(l.pathbak) {
-		// TODO: if the primary succeeds but saving to the backup fails, we
-		// don't return non-nil error here, should we?
-		if err := l.saveEnv(l.pathbak, buf); err != nil {
-			logger.Noticef("failed to save backup environment: %v", err)
-		}
+		mylog.Check(
+			// TODO: if the primary succeeds but saving to the backup fails, we
+			// don't return non-nil error here, should we?
+			l.saveEnv(l.pathbak, buf))
 	}
 	return err
 }
 
 func (l *Env) saveEnv(path string, buf *bytes.Buffer) error {
-	f, err := os.OpenFile(path, os.O_WRONLY, 0660)
-	if err != nil {
-		return fmt.Errorf("cannot open LK env file for env storing: %v", err)
-	}
-	defer f.Close()
+	f := mylog.Check2(os.OpenFile(path, os.O_WRONLY, 0660))
 
-	if _, err := f.Write(buf.Bytes()); err != nil {
-		return fmt.Errorf("cannot write LK env buf to LK env file: %v", err)
-	}
-	if err := f.Sync(); err != nil {
-		return fmt.Errorf("cannot sync LK env file: %v", err)
-	}
+	defer f.Close()
+	mylog.Check2(f.Write(buf.Bytes()))
+	mylog.Check(f.Sync())
+
 	return nil
 }
 
@@ -378,21 +354,18 @@ func (l *Env) Set(key, value string) {
 // pre-filled by gadget built, currently it is only used inside snapd for tests.
 func (l *Env) InitializeBootPartitions(bootPartLabels ...string) error {
 	var matr bootimgMatrixGeneric
-	var err error
+
 	// calculate the min/max limits for bootPartLabels
 	var min, max int
 	switch l.version {
 	case V1, V2Run:
 		min = 2
 		max = 2
-		matr, err = l.variant.bootImgKernelMatrix()
+		matr = mylog.Check2(l.variant.bootImgKernelMatrix())
 	case V2Recovery:
 		min = 1
 		max = SNAP_RECOVERY_BOOTIMG_PART_NUM
-		matr, err = l.variant.bootImgRecoverySystemMatrix()
-	}
-	if err != nil {
-		return err
+		matr = mylog.Check2(l.variant.bootImgRecoverySystemMatrix())
 	}
 
 	return matr.initializeBootPartitions(bootPartLabels, min, max)
@@ -402,10 +375,7 @@ func (l *Env) InitializeBootPartitions(bootPartLabels ...string) error {
 // a new kernel revision. It ignores the currently installed boot image
 // partition used for the active kernel
 func (l *Env) FindFreeKernelBootPartition(kernel string) (string, error) {
-	matr, err := l.variant.bootImgKernelMatrix()
-	if err != nil {
-		return "", err
-	}
+	matr := mylog.Check2(l.variant.bootImgKernelMatrix())
 
 	// the reserved boot image partition value is just the current snap_kernel
 	// if it is set (it could be unset at image build time where the lkenv is
@@ -421,15 +391,10 @@ func (l *Env) FindFreeKernelBootPartition(kernel string) (string, error) {
 // that contains a reference to the given kernel revision. If the revision was
 // not found, a non-nil error is returned.
 func (l *Env) GetKernelBootPartition(kernel string) (string, error) {
-	matr, err := l.variant.bootImgKernelMatrix()
-	if err != nil {
-		return "", err
-	}
+	matr := mylog.Check2(l.variant.bootImgKernelMatrix())
 
-	bootPart, err := matr.getBootPartWithValue(kernel)
-	if err != nil {
-		return "", fmt.Errorf("cannot find kernel %q: %v", kernel, err)
-	}
+	bootPart := mylog.Check2(matr.getBootPartWithValue(kernel))
+
 	return bootPart, nil
 }
 
@@ -437,10 +402,7 @@ func (l *Env) GetKernelBootPartition(kernel string) (string, error) {
 // boot image partition label. It returns a non-nil err if the provided boot
 // image partition label was not found.
 func (l *Env) SetBootPartitionKernel(bootpart, kernel string) error {
-	matr, err := l.variant.bootImgKernelMatrix()
-	if err != nil {
-		return err
-	}
+	matr := mylog.Check2(l.variant.bootImgKernelMatrix())
 
 	return matr.setBootPart(bootpart, kernel)
 }
@@ -450,10 +412,7 @@ func (l *Env) SetBootPartitionKernel(bootpart, kernel string) error {
 // kernel revision. If the referenced kernel revision was not found, a non-nil
 // err is returned, otherwise the reference is removed and nil is returned.
 func (l *Env) RemoveKernelFromBootPartition(kernel string) error {
-	matr, err := l.variant.bootImgKernelMatrix()
-	if err != nil {
-		return err
-	}
+	matr := mylog.Check2(l.variant.bootImgKernelMatrix())
 
 	return matr.dropBootPartValue(kernel)
 }
@@ -463,10 +422,7 @@ func (l *Env) RemoveKernelFromBootPartition(kernel string) error {
 // only considers boot image partitions that are currently not set to a recovery
 // system to be free.
 func (l *Env) FindFreeRecoverySystemBootPartition(recoverySystem string) (string, error) {
-	matr, err := l.variant.bootImgRecoverySystemMatrix()
-	if err != nil {
-		return "", err
-	}
+	matr := mylog.Check2(l.variant.bootImgRecoverySystemMatrix())
 
 	// when we create a new recovery system partition, we set all current
 	// recovery systems as reserved, so first get that list
@@ -478,10 +434,7 @@ func (l *Env) FindFreeRecoverySystemBootPartition(recoverySystem string) (string
 // provided boot image partition. It returns a non-nil err if the provided boot
 // partition reference was not found.
 func (l *Env) SetBootPartitionRecoverySystem(bootpart, recoverySystem string) error {
-	matr, err := l.variant.bootImgRecoverySystemMatrix()
-	if err != nil {
-		return err
-	}
+	matr := mylog.Check2(l.variant.bootImgRecoverySystemMatrix())
 
 	return matr.setBootPart(bootpart, recoverySystem)
 }
@@ -490,15 +443,10 @@ func (l *Env) SetBootPartitionRecoverySystem(bootpart, recoverySystem string) er
 // label that contains a reference to the given recovery system. If the recovery
 // system was not found, a non-nil error is returned.
 func (l *Env) GetRecoverySystemBootPartition(recoverySystem string) (string, error) {
-	matr, err := l.variant.bootImgRecoverySystemMatrix()
-	if err != nil {
-		return "", err
-	}
+	matr := mylog.Check2(l.variant.bootImgRecoverySystemMatrix())
 
-	bootPart, err := matr.getBootPartWithValue(recoverySystem)
-	if err != nil {
-		return "", fmt.Errorf("cannot find recovery system %q: %v", recoverySystem, err)
-	}
+	bootPart := mylog.Check2(matr.getBootPartWithValue(recoverySystem))
+
 	return bootPart, nil
 }
 
@@ -507,10 +455,7 @@ func (l *Env) GetRecoverySystemBootPartition(recoverySystem string) (string, err
 // system. If the referenced recovery system was not found, a non-nil err is
 // returned, otherwise the reference is removed and nil is returned.
 func (l *Env) RemoveRecoverySystemFromBootPartition(recoverySystem string) error {
-	matr, err := l.variant.bootImgRecoverySystemMatrix()
-	if err != nil {
-		return err
-	}
+	matr := mylog.Check2(l.variant.bootImgRecoverySystemMatrix())
 
 	return matr.dropBootPartValue(recoverySystem)
 }

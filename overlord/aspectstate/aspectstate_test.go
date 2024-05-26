@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/aspects"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
@@ -51,11 +52,11 @@ func (s *aspectTestSuite) SetUpTest(c *C) {
 	defer s.state.Unlock()
 
 	storeSigning := assertstest.NewStoreStack("can0nical", nil)
-	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+	db := mylog.Check2(asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
 		Trusted:   storeSigning.Trusted,
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Assert(db.Add(storeSigning.StoreAccountKey("")), IsNil)
 	assertstate.ReplaceDB(s.state, db)
 
@@ -110,8 +111,8 @@ func (s *aspectTestSuite) SetUpTest(c *C) {
   }
 }`)
 
-	as, err := signingDB.Sign(asserts.AspectBundleType, headers, body, "")
-	c.Assert(err, IsNil)
+	as := mylog.Check2(signingDB.Sign(asserts.AspectBundleType, headers, body, ""))
+
 	c.Assert(assertstate.Add(s.state, as), IsNil)
 
 	s.devAccID = devAccKey.AccountID()
@@ -122,12 +123,12 @@ func (s *aspectTestSuite) TestGetAspect(c *C) {
 	defer s.state.Unlock()
 
 	databag := aspects.NewJSONDataBag()
-	err := databag.Set("wifi.ssid", "foo")
-	c.Assert(err, IsNil)
+	mylog.Check(databag.Set("wifi.ssid", "foo"))
+
 	s.state.Set("aspect-databags", map[string]map[string]aspects.JSONDataBag{s.devAccID: {"network": databag}})
 
-	res, err := aspectstate.GetAspect(s.state, s.devAccID, "network", "wifi-setup", []string{"ssid"})
-	c.Assert(err, IsNil)
+	res := mylog.Check2(aspectstate.GetAspect(s.state, s.devAccID, "network", "wifi-setup", []string{"ssid"}))
+
 	c.Assert(res, DeepEquals, map[string]interface{}{"ssid": "foo"})
 }
 
@@ -135,17 +136,17 @@ func (s *aspectTestSuite) TestGetNotFound(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	res, err := aspectstate.GetAspect(s.state, s.devAccID, "network", "other-aspect", []string{"ssid"})
+	res := mylog.Check2(aspectstate.GetAspect(s.state, s.devAccID, "network", "other-aspect", []string{"ssid"}))
 	c.Assert(err, FitsTypeOf, &aspects.NotFoundError{})
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot get "ssid" in aspect %s/network/other-aspect: aspect not found`, s.devAccID))
 	c.Check(res, IsNil)
 
-	res, err = aspectstate.GetAspect(s.state, s.devAccID, "network", "wifi-setup", []string{"ssid"})
+	res = mylog.Check2(aspectstate.GetAspect(s.state, s.devAccID, "network", "wifi-setup", []string{"ssid"}))
 	c.Assert(err, FitsTypeOf, &aspects.NotFoundError{})
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot get "ssid" in aspect %s/network/wifi-setup: matching rules don't map to any values`, s.devAccID))
 	c.Check(res, IsNil)
 
-	res, err = aspectstate.GetAspect(s.state, s.devAccID, "network", "wifi-setup", []string{"other-field"})
+	res = mylog.Check2(aspectstate.GetAspect(s.state, s.devAccID, "network", "wifi-setup", []string{"other-field"}))
 	c.Assert(err, FitsTypeOf, &aspects.NotFoundError{})
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot get "other-field" in aspect %s/network/wifi-setup: no matching read rule`, s.devAccID))
 	c.Check(res, IsNil)
@@ -154,28 +155,25 @@ func (s *aspectTestSuite) TestGetNotFound(c *C) {
 func (s *aspectTestSuite) TestSetAspect(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+	mylog.Check(aspectstate.SetAspect(s.state, s.devAccID, "network", "wifi-setup", map[string]interface{}{"ssid": "foo"}))
 
-	err := aspectstate.SetAspect(s.state, s.devAccID, "network", "wifi-setup", map[string]interface{}{"ssid": "foo"})
-	c.Assert(err, IsNil)
 
 	var databags map[string]map[string]aspects.JSONDataBag
-	err = s.state.Get("aspect-databags", &databags)
-	c.Assert(err, IsNil)
+	mylog.Check(s.state.Get("aspect-databags", &databags))
 
-	val, err := databags[s.devAccID]["network"].Get("wifi.ssid")
-	c.Assert(err, IsNil)
+
+	val := mylog.Check2(databags[s.devAccID]["network"].Get("wifi.ssid"))
+
 	c.Assert(val, DeepEquals, "foo")
 }
 
 func (s *aspectTestSuite) TestSetNotFound(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
-
-	err := aspectstate.SetAspect(s.state, s.devAccID, "network", "wifi-setup", map[string]interface{}{"foo": "bar"})
+	mylog.Check(aspectstate.SetAspect(s.state, s.devAccID, "network", "wifi-setup", map[string]interface{}{"foo": "bar"}))
 	c.Assert(err, FitsTypeOf, &aspects.NotFoundError{})
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot set "foo" in aspect %s/network/wifi-setup: no matching write rule`, s.devAccID))
-
-	err = aspectstate.SetAspect(s.state, s.devAccID, "network", "other-aspect", map[string]interface{}{"foo": "bar"})
+	mylog.Check(aspectstate.SetAspect(s.state, s.devAccID, "network", "other-aspect", map[string]interface{}{"foo": "bar"}))
 	c.Assert(err, FitsTypeOf, &aspects.NotFoundError{})
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot set "foo" in aspect %s/network/other-aspect: aspect not found`, s.devAccID))
 }
@@ -185,13 +183,12 @@ func (s *aspectTestSuite) TestUnsetAspect(c *C) {
 	defer s.state.Unlock()
 
 	databag := aspects.NewJSONDataBag()
-	err := aspectstate.SetAspect(s.state, s.devAccID, "network", "wifi-setup", map[string]interface{}{"ssid": "foo"})
-	c.Assert(err, IsNil)
+	mylog.Check(aspectstate.SetAspect(s.state, s.devAccID, "network", "wifi-setup", map[string]interface{}{"ssid": "foo"}))
 
-	err = aspectstate.SetAspect(s.state, s.devAccID, "network", "wifi-setup", map[string]interface{}{"ssid": nil})
-	c.Assert(err, IsNil)
+	mylog.Check(aspectstate.SetAspect(s.state, s.devAccID, "network", "wifi-setup", map[string]interface{}{"ssid": nil}))
 
-	val, err := databag.Get("wifi.ssid")
+
+	val := mylog.Check2(databag.Get("wifi.ssid"))
 	c.Assert(err, FitsTypeOf, aspects.PathError(""))
 	c.Assert(val, Equals, nil)
 }
@@ -201,26 +198,24 @@ func (s *aspectTestSuite) TestAspectstateSetWithExistingState(c *C) {
 	defer s.state.Unlock()
 
 	bag := aspects.NewJSONDataBag()
-	err := bag.Set("wifi.ssid", "bar")
-	c.Assert(err, IsNil)
+	mylog.Check(bag.Set("wifi.ssid", "bar"))
+
 	databags := map[string]map[string]aspects.JSONDataBag{
 		s.devAccID: {"network": bag},
 	}
 	s.state.Set("aspect-databags", databags)
 
-	results, err := aspectstate.GetAspect(s.state, s.devAccID, "network", "wifi-setup", []string{"ssid"})
-	c.Assert(err, IsNil)
+	results := mylog.Check2(aspectstate.GetAspect(s.state, s.devAccID, "network", "wifi-setup", []string{"ssid"}))
+
 	resultsMap, ok := results.(map[string]interface{})
 	c.Assert(ok, Equals, true)
 	c.Assert(resultsMap["ssid"], Equals, "bar")
+	mylog.Check(aspectstate.SetAspect(s.state, s.devAccID, "network", "wifi-setup", map[string]interface{}{"ssid": "baz"}))
 
-	err = aspectstate.SetAspect(s.state, s.devAccID, "network", "wifi-setup", map[string]interface{}{"ssid": "baz"})
-	c.Assert(err, IsNil)
+	mylog.Check(s.state.Get("aspect-databags", &databags))
 
-	err = s.state.Get("aspect-databags", &databags)
-	c.Assert(err, IsNil)
-	value, err := databags[s.devAccID]["network"].Get("wifi.ssid")
-	c.Assert(err, IsNil)
+	value := mylog.Check2(databags[s.devAccID]["network"].Get("wifi.ssid"))
+
 	c.Assert(value, Equals, "baz")
 }
 
@@ -252,16 +247,15 @@ func (s *aspectTestSuite) TestAspectstateSetWithNoState(c *C) {
 	defer s.state.Unlock()
 	for _, tc := range testcases {
 		s.state.Set("aspect-databags", tc.state)
+		mylog.Check(aspectstate.SetAspect(s.state, s.devAccID, "network", "wifi-setup", map[string]interface{}{"ssid": "bar"}))
 
-		err := aspectstate.SetAspect(s.state, s.devAccID, "network", "wifi-setup", map[string]interface{}{"ssid": "bar"})
-		c.Assert(err, IsNil)
 
 		var databags map[string]map[string]aspects.JSONDataBag
-		err = s.state.Get("aspect-databags", &databags)
-		c.Assert(err, IsNil)
+		mylog.Check(s.state.Get("aspect-databags", &databags))
 
-		value, err := databags[s.devAccID]["network"].Get("wifi.ssid")
-		c.Assert(err, IsNil)
+
+		value := mylog.Check2(databags[s.devAccID]["network"].Get("wifi.ssid"))
+
 		c.Assert(value, Equals, "bar")
 	}
 }
@@ -269,19 +263,18 @@ func (s *aspectTestSuite) TestAspectstateSetWithNoState(c *C) {
 func (s *aspectTestSuite) TestAspectstateGetEntireAspect(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
-
-	err := aspectstate.SetAspect(s.state, s.devAccID, "network", "wifi-setup", map[string]interface{}{
+	mylog.Check(aspectstate.SetAspect(s.state, s.devAccID, "network", "wifi-setup", map[string]interface{}{
 		"ssids":    []interface{}{"foo", "bar"},
 		"password": "pass",
 		"private": map[string]interface{}{
 			"a": 1,
 			"b": 2,
 		},
-	})
-	c.Assert(err, IsNil)
+	}))
 
-	res, err := aspectstate.GetAspect(s.state, s.devAccID, "network", "wifi-setup", nil)
-	c.Assert(err, IsNil)
+
+	res := mylog.Check2(aspectstate.GetAspect(s.state, s.devAccID, "network", "wifi-setup", nil))
+
 	c.Assert(res, DeepEquals, map[string]interface{}{
 		"ssids": []interface{}{"foo", "bar"},
 		"private": map[string]interface{}{

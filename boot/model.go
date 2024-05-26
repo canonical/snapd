@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
@@ -42,10 +43,7 @@ func DeviceChange(from snap.Device, to snap.Device, unlocker Unlocker) error {
 	modeenvLock()
 	defer modeenvUnlock()
 
-	m, err := loadModeenv()
-	if err != nil {
-		return err
-	}
+	m := mylog.Check2(loadModeenv())
 
 	newModel := to.Model()
 	oldModel := from.Model()
@@ -64,83 +62,53 @@ func DeviceChange(from snap.Device, to snap.Device, unlocker Unlocker) error {
 		modified = true
 	}
 	if modified {
-		if err := m.Write(); err != nil {
-			return err
-		}
+		mylog.Check(m.Write())
 	}
 
 	// reseal with both models now, such that we'd still be able to boot
 	// even if there is a reboot before the device/model file is updated, or
 	// before the final reseal with one model
 	const expectReseal = true
-	if err := resealKeyToModeenv(dirs.GlobalRootDir, m, expectReseal, unlocker); err != nil {
+	mylog.Check(resealKeyToModeenv(dirs.GlobalRootDir, m, expectReseal, unlocker))
+	mylog.Check(
 		// best effort clear the modeenv's try model
-		m.clearTryModel()
-		if mErr := m.Write(); mErr != nil {
-			return fmt.Errorf("%v (restoring modeenv failed: %v)", err, mErr)
-		}
-		return err
-	}
 
-	// update the device model file in boot (we may be overwriting the same
-	// model file if we reached this place before a reboot has occurred)
-	if err := writeModelToUbuntuBoot(to.Model()); err != nil {
-		err = fmt.Errorf("cannot write new model file: %v", err)
-		// the file has not been modified, so just clear the try model
-		m.clearTryModel()
-		if mErr := m.Write(); mErr != nil {
-			return fmt.Errorf("%v (restoring modeenv failed: %v)", err, mErr)
-		}
-		return err
-	}
+		// update the device model file in boot (we may be overwriting the same
+		// model file if we reached this place before a reboot has occurred)
+		writeModelToUbuntuBoot(to.Model()))
+
+	// the file has not been modified, so just clear the try model
 
 	// now we can update the model to the new one
 	m.setModel(newModel)
 	// and clear the try model
 	m.clearTryModel()
-
-	if err := m.Write(); err != nil {
+	mylog.Check(m.Write())
+	mylog.Check(
 		// modeenv has not been written and still contains both the old
 		// and a new model, but the model file has been modified,
 		// restore the original model file
-		if restoreErr := writeModelToUbuntuBoot(from.Model()); restoreErr != nil {
-			return fmt.Errorf("%v (restoring model failed: %v)", err, restoreErr)
-		}
+
 		// however writing modeenv failed, so trying to clear the model
 		// and write it again could be pointless, let the failure
 		// percolate up the stack
-		return err
-	}
 
-	// past a successful reseal, the old recovery systems become unusable and will
-	// not be able to access the data anymore
-	if err := resealKeyToModeenv(dirs.GlobalRootDir, m, expectReseal, unlocker); err != nil {
-		// resealing failed, but modeenv and the file have been modified
+		// past a successful reseal, the old recovery systems become unusable and will
+		// not be able to access the data anymore
+		resealKeyToModeenv(dirs.GlobalRootDir, m, expectReseal, unlocker))
+	// resealing failed, but modeenv and the file have been modified
 
-		// first restore the modeenv in case we reboot, such that if the
-		// post reboot code reseals, it will allow both models (in case
-		// even more reboots occur)
-		m.setModel(from.Model())
-		m.setTryModel(newModel)
-		if mErr := m.Write(); mErr != nil {
-			return fmt.Errorf("%v (writing modeenv failed: %v)", err, mErr)
-		}
+	// first restore the modeenv in case we reboot, such that if the
+	// post reboot code reseals, it will allow both models (in case
+	// even more reboots occur)
 
-		// restore the original model file (we have resealed for both
-		// models previously)
-		if restoreErr := writeModelToUbuntuBoot(from.Model()); restoreErr != nil {
-			return fmt.Errorf("%v (restoring model failed: %v)", err, restoreErr)
-		}
+	// restore the original model file (we have resealed for both
+	// models previously)
 
-		// drop the tried model
-		m.clearTryModel()
-		if mErr := m.Write(); mErr != nil {
-			return fmt.Errorf("%v (restoring modeenv failed: %v)", err, mErr)
-		}
+	// drop the tried model
 
-		// resealing failed, so no point in trying it again
-		return err
-	}
+	// resealing failed, so no point in trying it again
+
 	return nil
 }
 
@@ -148,13 +116,10 @@ var writeModelToUbuntuBoot = writeModelToUbuntuBootImpl
 
 func writeModelToUbuntuBootImpl(model *asserts.Model) error {
 	modelPath := filepath.Join(InitramfsUbuntuBootDir, "device/model")
-	f, err := osutil.NewAtomicFile(modelPath, 0644, 0, osutil.NoChown, osutil.NoChown)
-	if err != nil {
-		return err
-	}
+	f := mylog.Check2(osutil.NewAtomicFile(modelPath, 0644, 0, osutil.NoChown, osutil.NoChown))
+
 	defer f.Cancel()
-	if err := asserts.NewEncoder(f).Encode(model); err != nil {
-		return err
-	}
+	mylog.Check(asserts.NewEncoder(f).Encode(model))
+
 	return f.Commit()
 }

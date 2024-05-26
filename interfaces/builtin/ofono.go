@@ -312,7 +312,6 @@ func (iface *ofonoInterface) AppArmorConnectedPlug(spec *apparmor.Specification,
 		spec.AddSnippet(ofonoConnectedPlugAppArmorClassic)
 	}
 	return nil
-
 }
 
 func (iface *ofonoInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {

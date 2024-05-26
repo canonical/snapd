@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 )
 
@@ -75,7 +76,7 @@ func (ps *preseedSuite) TestValidateSeedSystemLabel(c *C) {
 	}
 	for _, label := range valid {
 		c.Logf("trying valid label: %q", label)
-		err := asserts.IsValidSystemLabel(label)
+		mylog.Check(asserts.IsValidSystemLabel(label))
 		c.Check(err, IsNil)
 	}
 
@@ -92,7 +93,7 @@ func (ps *preseedSuite) TestValidateSeedSystemLabel(c *C) {
 	}
 	for _, label := range invalid {
 		c.Logf("trying invalid label: %q", label)
-		err := asserts.IsValidSystemLabel(label)
+		mylog.Check(asserts.IsValidSystemLabel(label))
 		c.Check(err, ErrorMatches, fmt.Sprintf("invalid seed system label: %q", label))
 	}
 }
@@ -101,8 +102,8 @@ func (ps *preseedSuite) TestDecodeOK(c *C) {
 	encoded := strings.Replace(preseedExample, "TSLINE", ps.tsLine, 1)
 	encoded = strings.Replace(encoded, "OTHER", "", 1)
 
-	a, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	c.Check(a.Type(), Equals, asserts.PreseedType)
 	preseed := a.(*asserts.Preseed)
 	c.Check(preseed.AuthorityID(), Equals, "brand-id1")
@@ -156,10 +157,9 @@ func (ps *preseedSuite) TestDecodeInvalid(c *C) {
 	for _, test := range invalidTests {
 		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
 		invalid = strings.Replace(invalid, "OTHER", "", 1)
-		_, err := asserts.Decode([]byte(invalid))
+		_ := mylog.Check2(asserts.Decode([]byte(invalid)))
 		c.Check(err, ErrorMatches, errPrefix+test.expectedErr)
 	}
-
 }
 
 func (ps *preseedSuite) TestSnapRevisionImpliesSnapId(c *C) {
@@ -167,7 +167,7 @@ func (ps *preseedSuite) TestSnapRevisionImpliesSnapId(c *C) {
 	encoded = strings.Replace(encoded, "OTHER", "", 1)
 	encoded = strings.Replace(encoded, "    revision: 99\n", "", 1)
 
-	_, err := asserts.Decode([]byte(encoded))
+	_ := mylog.Check2(asserts.Decode([]byte(encoded)))
 	c.Assert(err, ErrorMatches, `assertion preseed: snap revision is required when snap id is set`)
 }
 
@@ -176,7 +176,7 @@ func (ps *preseedSuite) TestSnapIdImpliesRevision(c *C) {
 	encoded = strings.Replace(encoded, "OTHER", "", 1)
 	encoded = strings.Replace(encoded, "    id: bazlinuxidididididididididididid\n", "", 1)
 
-	_, err := asserts.Decode([]byte(encoded))
+	_ := mylog.Check2(asserts.Decode([]byte(encoded)))
 	c.Assert(err, ErrorMatches, `assertion preseed: snap id is required when revision is set`)
 }
 
@@ -186,8 +186,8 @@ func (ps *preseedSuite) TestSnapIdOptional(c *C) {
 	encoded = strings.Replace(encoded, "    revision: 99\n", "", 1)
 	encoded = strings.Replace(encoded, "    id: bazlinuxidididididididididididid\n", "", 1)
 
-	a, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	snaps := a.(*asserts.Preseed).Snaps()
 	c.Assert(snaps, HasLen, 2)
 	c.Check(snaps[0].Name, Equals, "baz-linux")

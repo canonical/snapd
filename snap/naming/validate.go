@@ -24,6 +24,8 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // almostValidName is part of snap and socket name validation. The full regexp
@@ -65,9 +67,8 @@ func ValidateInstance(instanceName string) error {
 
 	storeName := instanceName[:pos]
 	instanceKey := instanceName[pos+1:]
-	if err := ValidateSnap(storeName); err != nil {
-		return err
-	}
+	mylog.Check(ValidateSnap(storeName))
+
 	if !validInstanceKey.MatchString(instanceKey) {
 		return fmt.Errorf("invalid instance key: %q", instanceKey)
 	}
@@ -192,7 +193,7 @@ func ValidateSnapID(id string) error {
 //
 // TODO: handle the weird udev variant.
 func ValidateSecurityTag(tag string) error {
-	_, err := ParseSecurityTag(tag)
+	_ := mylog.Check2(ParseSecurityTag(tag))
 	return err
 }
 

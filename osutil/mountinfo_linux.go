@@ -28,6 +28,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 func flattenMap(m map[string]string) string {
@@ -103,10 +105,8 @@ func MockMountInfo(content string) (restore func()) {
 // can be mocked by using osutil.MockMountInfo to hard-code a specific mountinfo
 // file content to be loaded by this function
 func LoadMountInfo() ([]*MountInfoEntry, error) {
-	f, err := openMountInfoFile()
-	if err != nil {
-		return nil, err
-	}
+	f := mylog.Check2(openMountInfoFile())
+
 	defer f.Close()
 	return ReadMountInfo(f)
 }
@@ -117,22 +117,19 @@ func ReadMountInfo(reader io.Reader) ([]*MountInfoEntry, error) {
 	var entries []*MountInfoEntry
 	for scanner.Scan() {
 		s := scanner.Text()
-		entry, err := ParseMountInfoEntry(s)
-		if err != nil {
-			return nil, err
-		}
+		entry := mylog.Check2(ParseMountInfoEntry(s))
+
 		entries = append(entries, entry)
 	}
-	if err := scanner.Err(); err != nil {
-		return nil, err
-	}
+	mylog.Check(scanner.Err())
+
 	return entries, nil
 }
 
 // ParseMountInfoEntry parses a single line of /proc/$PID/mountinfo file.
 func ParseMountInfoEntry(s string) (*MountInfoEntry, error) {
 	var e MountInfoEntry
-	var err error
+
 	fields := strings.FieldsFunc(s, func(r rune) bool { return r == ' ' })
 
 	// The format is variable-length, but at least 10 fields are mandatory.
@@ -143,28 +140,20 @@ func ParseMountInfoEntry(s string) (*MountInfoEntry, error) {
 		return nil, fmt.Errorf("incorrect number of fields, expected at least 10 but found %d", len(fields))
 	}
 	// Parse MountID (decimal number).
-	e.MountID, err = strconv.Atoi(fields[0])
-	if err != nil {
-		return nil, fmt.Errorf("cannot parse mount ID: %q", fields[0])
-	}
+	e.MountID = mylog.Check2(strconv.Atoi(fields[0]))
+
 	// Parse ParentID (decimal number).
-	e.ParentID, err = strconv.Atoi(fields[1])
-	if err != nil {
-		return nil, fmt.Errorf("cannot parse parent mount ID: %q", fields[1])
-	}
+	e.ParentID = mylog.Check2(strconv.Atoi(fields[1]))
+
 	// Parses DevMajor:DevMinor pair (decimal numbers separated by colon).
 	subFields := strings.FieldsFunc(fields[2], func(r rune) bool { return r == ':' })
 	if len(subFields) != 2 {
 		return nil, fmt.Errorf("cannot parse device major:minor number pair: %q", fields[2])
 	}
-	e.DevMajor, err = strconv.Atoi(subFields[0])
-	if err != nil {
-		return nil, fmt.Errorf("cannot parse device major number: %q", subFields[0])
-	}
-	e.DevMinor, err = strconv.Atoi(subFields[1])
-	if err != nil {
-		return nil, fmt.Errorf("cannot parse device minor number: %q", subFields[1])
-	}
+	e.DevMajor = mylog.Check2(strconv.Atoi(subFields[0]))
+
+	e.DevMinor = mylog.Check2(strconv.Atoi(subFields[1]))
+
 	// NOTE: All string fields use the same escape/unescape logic as fstab files.
 	// Parse Root, MountDir and MountOptions fields.
 	e.Root = unescape(fields[3])

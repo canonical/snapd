@@ -27,6 +27,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 /*
@@ -54,28 +56,22 @@ func findWildcard(top string, descendantWithWildcard []string, seqnum int, found
 func findWildcardBottom(top, current string, pat string, names []string, foundCb func(relpath []string) error) error {
 	var hits []string
 	for _, name := range names {
-		ok, err := filepath.Match(pat, name)
-		if err != nil {
-			return fmt.Errorf("findWildcard: invoked with malformed wildcard: %v", err)
-		}
+		ok := mylog.Check2(filepath.Match(pat, name))
+
 		if !ok {
 			continue
 		}
 		fn := filepath.Join(current, name)
-		finfo, err := os.Stat(fn)
+		finfo := mylog.Check2(os.Stat(fn))
 		if os.IsNotExist(err) {
 			continue
 		}
-		if err != nil {
-			return err
-		}
+
 		if !finfo.Mode().IsRegular() {
 			return fmt.Errorf("expected a regular file: %v", fn)
 		}
-		relpath, err := filepath.Rel(top, fn)
-		if err != nil {
-			return fmt.Errorf("findWildcard: unexpected to fail at computing rel path of descendant")
-		}
+		relpath := mylog.Check2(filepath.Rel(top, fn))
+
 		hits = append(hits, relpath)
 	}
 	if len(hits) == 0 {
@@ -96,33 +92,24 @@ func findWildcardDescend(top, current string, descendantWithWildcard []string, s
 		return findWildcardDescend(top, filepath.Join(current, k), descendantWithWildcard[1:], seqnum, foundCb)
 	}
 
-	d, err := os.Open(current)
+	d := mylog.Check2(os.Open(current))
 	// ignore missing directory, higher level will produce
 	// NotFoundError as needed
 	if os.IsNotExist(err) {
 		return nil
 	}
-	if err != nil {
-		return err
-	}
+
 	defer d.Close()
-	names, err := d.Readdirnames(-1)
-	if err != nil {
-		return err
-	}
+	names := mylog.Check2(d.Readdirnames(-1))
+
 	if len(descendantWithWildcard) == 1 {
 		return findWildcardBottom(top, current, k, names, foundCb)
 	}
 	for _, name := range names {
-		ok, err := filepath.Match(k, name)
-		if err != nil {
-			return fmt.Errorf("findWildcard: invoked with malformed wildcard: %v", err)
-		}
+		ok := mylog.Check2(filepath.Match(k, name))
+
 		if ok {
-			err = findWildcardDescend(top, filepath.Join(current, name), descendantWithWildcard[1:], seqnum, foundCb)
-			if err != nil {
-				return err
-			}
+			mylog.Check(findWildcardDescend(top, filepath.Join(current, name), descendantWithWildcard[1:], seqnum, foundCb))
 		}
 	}
 	return nil
@@ -138,15 +125,13 @@ func findWildcardSequence(top, current, seqWildcard string, descendantWithWildca
 		}
 	}
 
-	d, err := os.Open(current)
+	d := mylog.Check2(os.Open(current))
 	// ignore missing directory, higher level will produce
 	// NotFoundError as needed
 	if os.IsNotExist(err) {
 		return nil
 	}
-	if err != nil {
-		return err
-	}
+
 	defer d.Close()
 	var seq []int
 	for {
@@ -154,11 +139,9 @@ func findWildcardSequence(top, current, seqWildcard string, descendantWithWildca
 		if err == io.EOF {
 			break
 		}
-		if err != nil {
-			return err
-		}
+
 		for _, n := range names {
-			sqn, err := strconv.Atoi(n)
+			sqn := mylog.Check2(strconv.Atoi(n))
 			if err != nil || sqn < 0 || prefixZeros(n) {
 				return fmt.Errorf("cannot parse %q name as a valid sequence number", filepath.Join(current, n))
 			}
@@ -178,10 +161,7 @@ func findWildcardSequence(top, current, seqWildcard string, descendantWithWildca
 		direction = -1
 	}
 	for i := start; i >= 0 && i < len(seq); i += direction {
-		err = findWildcardDescend(top, filepath.Join(current, strconv.Itoa(seq[i])), descendantWithWildcard, -1, foundCb)
-		if err != nil {
-			return err
-		}
+		mylog.Check(findWildcardDescend(top, filepath.Join(current, strconv.Itoa(seq[i])), descendantWithWildcard, -1, foundCb))
 	}
 	return nil
 }

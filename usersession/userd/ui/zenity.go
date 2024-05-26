@@ -23,6 +23,8 @@ import (
 	"fmt"
 	"os/exec"
 	"time"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // Zenity provides a zenity based UI interface
@@ -52,13 +54,8 @@ func (*Zenity) YesNo(primary, secondary string, options *DialogOptions) bool {
 	}
 
 	cmd := exec.Command("zenity", args...)
-	if err := cmd.Start(); err != nil {
-		return false
-	}
-
-	if err := cmd.Wait(); err != nil {
-		return false
-	}
+	mylog.Check(cmd.Start())
+	mylog.Check(cmd.Wait())
 
 	return true
 }

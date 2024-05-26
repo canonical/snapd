@@ -25,6 +25,7 @@ import (
 	"errors"
 	"os"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -36,7 +37,7 @@ func alreadySeeded(tr RunTransaction) (bool, error) {
 	st.Lock()
 	defer st.Unlock()
 	var seeded bool
-	err := tr.State().Get("seeded", &seeded)
+	mylog.Check(tr.State().Get("seeded", &seeded))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return false, err
 	}
@@ -62,10 +63,7 @@ func (c *cloudInitInstanceData) UnmarshalJSON(bs []byte) error {
 			AltAvailabilityZone string `json:"availability-zone"`
 		} `json:"v1"`
 	}
-
-	if err := json.Unmarshal(bs, &instanceDataJSON); err != nil {
-		return err
-	}
+	mylog.Check(json.Unmarshal(bs, &instanceDataJSON))
 
 	c.V1.Region = instanceDataJSON.V1.Region
 	switch {
@@ -81,31 +79,21 @@ func (c *cloudInitInstanceData) UnmarshalJSON(bs []byte) error {
 
 func setCloudInfoWhenSeeding(tr RunTransaction, opts *fsOnlyContext) error {
 	// if we are during seeding try to capture cloud information
-	seeded, err := alreadySeeded(tr)
-	if err != nil {
-		return err
-	}
+	seeded := mylog.Check2(alreadySeeded(tr))
+
 	if seeded {
 		// already done
 		return nil
 	}
 
-	data, err := os.ReadFile(dirs.CloudInstanceDataFile)
+	data := mylog.Check2(os.ReadFile(dirs.CloudInstanceDataFile))
 	if os.IsNotExist(err) {
 		// nothing to do
 		return nil
 	}
-	if err != nil {
-		logger.Noticef("cannot read cloud instance information %q: %v", dirs.CloudInstanceDataFile, err)
-		return nil
-	}
 
 	var instanceData cloudInitInstanceData
-	err = json.Unmarshal(data, &instanceData)
-	if err != nil {
-		logger.Noticef("cannot unmarshal cloud instance information %q: %v", dirs.CloudInstanceDataFile, err)
-		return nil
-	}
+	mylog.Check(json.Unmarshal(data, &instanceData))
 
 	cloudName := instanceData.V1.Name
 	if cloudName == "" || cloudName == "nocloud" || cloudName == "none" {

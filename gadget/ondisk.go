@@ -24,6 +24,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/disks"
@@ -103,27 +104,18 @@ type OnDiskAndGadgetStructurePair struct {
 // OnDiskVolumeFromDevice obtains the partitioning and filesystem information from
 // the block device.
 func OnDiskVolumeFromDevice(device string) (*OnDiskVolume, error) {
-	disk, err := disks.DiskFromDeviceName(device)
-	if err != nil {
-		return nil, err
-	}
+	disk := mylog.Check2(disks.DiskFromDeviceName(device))
 
 	return OnDiskVolumeFromDisk(disk)
 }
 
 func OnDiskVolumeFromDisk(disk disks.Disk) (*OnDiskVolume, error) {
-	parts, err := disk.Partitions()
-	if err != nil {
-		return nil, err
-	}
+	parts := mylog.Check2(disk.Partitions())
 
 	ds := make([]OnDiskStructure, len(parts))
 
 	for _, p := range parts {
-		s, err := OnDiskStructureFromPartition(p)
-		if err != nil {
-			return nil, err
-		}
+		s := mylog.Check2(OnDiskStructureFromPartition(p))
 
 		// Use the index of the structure on the disk rather than the order in
 		// which we iterate over the list of partitions, since the order of the
@@ -139,20 +131,11 @@ func OnDiskVolumeFromDisk(disk disks.Disk) (*OnDiskVolume, error) {
 		ds[i] = s
 	}
 
-	diskSz, err := disk.SizeInBytes()
-	if err != nil {
-		return nil, err
-	}
+	diskSz := mylog.Check2(disk.SizeInBytes())
 
-	sectorSz, err := disk.SectorSize()
-	if err != nil {
-		return nil, err
-	}
+	sectorSz := mylog.Check2(disk.SectorSize())
 
-	sectorsEnd, err := disk.UsableSectorsEnd()
-	if err != nil {
-		return nil, err
-	}
+	sectorsEnd := mylog.Check2(disk.UsableSectorsEnd())
 
 	dl := &OnDiskVolume{
 		Structure:        ds,
@@ -171,14 +154,9 @@ func OnDiskStructureFromPartition(p disks.Partition) (OnDiskStructure, error) {
 	// the PartitionLabel and FilesystemLabel are encoded, so they must be
 	// decoded before they can be used in other gadget functions
 
-	decodedPartLabel, err := disks.BlkIDDecodeLabel(p.PartitionLabel)
-	if err != nil {
-		return OnDiskStructure{}, fmt.Errorf("cannot decode partition label for partition %s: %v", p.KernelDeviceNode, err)
-	}
-	decodedFsLabel, err := disks.BlkIDDecodeLabel(p.FilesystemLabel)
-	if err != nil {
-		return OnDiskStructure{}, fmt.Errorf("cannot decode filesystem label for partition %s: %v", p.KernelDeviceNode, err)
-	}
+	decodedPartLabel := mylog.Check2(disks.BlkIDDecodeLabel(p.PartitionLabel))
+
+	decodedFsLabel := mylog.Check2(disks.BlkIDDecodeLabel(p.FilesystemLabel))
 
 	logger.Debugf("OnDiskStructureFromPartition: p.FilesystemType %q, p.FilesystemLabel %q",
 		p.FilesystemType, p.FilesystemLabel)
@@ -207,16 +185,11 @@ func OnDiskVolumeFromGadgetVol(vol *Volume) (*OnDiskVolume, error) {
 			continue
 		}
 
-		partSysfsPath, err := sysfsPathForBlockDevice(vs.Device)
-		if err != nil {
-			return nil, err
-		}
+		partSysfsPath := mylog.Check2(sysfsPathForBlockDevice(vs.Device))
 
 		// Volume needs to be resolved only once
-		diskVol, err = onDiskVolumeFromPartitionSysfsPath(partSysfsPath)
-		if err != nil {
-			return nil, err
-		}
+		diskVol = mylog.Check2(onDiskVolumeFromPartitionSysfsPath(partSysfsPath))
+
 		break
 	}
 
@@ -230,10 +203,8 @@ func OnDiskVolumeFromGadgetVol(vol *Volume) (*OnDiskVolume, error) {
 // sysfsPathForBlockDevice returns the sysfs path for a block device.
 var sysfsPathForBlockDevice = func(device string) (string, error) {
 	syfsLink := filepath.Join("/sys/class/block", filepath.Base(device))
-	partPath, err := os.Readlink(syfsLink)
-	if err != nil {
-		return "", fmt.Errorf("cannot read link %q: %v", syfsLink, err)
-	}
+	partPath := mylog.Check2(os.Readlink(syfsLink))
+
 	// Remove initial ../../ from partPath, and make path absolute
 	return filepath.Join("/sys/class/block", partPath), nil
 }
@@ -243,14 +214,9 @@ var sysfsPathForBlockDevice = func(device string) (string, error) {
 func onDiskVolumeFromPartitionSysfsPath(partPath string) (*OnDiskVolume, error) {
 	// Removing the last component will give us the disk path
 	diskPath := filepath.Dir(partPath)
-	disk, err := disks.DiskFromDevicePath(diskPath)
-	if err != nil {
-		return nil, fmt.Errorf("cannot retrieve disk information for %q: %v", partPath, err)
-	}
-	onDiskVol, err := OnDiskVolumeFromDisk(disk)
-	if err != nil {
-		return nil, fmt.Errorf("cannot retrieve on disk volume for %q: %v", partPath, err)
-	}
+	disk := mylog.Check2(disks.DiskFromDevicePath(diskPath))
+
+	onDiskVol := mylog.Check2(OnDiskVolumeFromDisk(disk))
 
 	return onDiskVol, nil
 }

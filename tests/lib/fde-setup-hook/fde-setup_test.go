@@ -28,6 +28,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	fdeHook "github.com/snapcore/snapd/tests/lib/fde-setup-hook"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -62,8 +63,8 @@ else
 fi
 `, b64Key, fdeSetupResultStdin))
 	defer mockedSnapctl.Restore()
-	err := fdeHook.RunFdeSetup()
-	c.Assert(err, IsNil)
+	mylog.Check(fdeHook.RunFdeSetup())
+
 	c.Check(fdeSetupResultStdin, testutil.FileEquals, fmt.Sprintf(`{"sealed-key":"%s","handle":"%s"}`, b64EncryptedKey, b64testKeyHandle))
 }
 
@@ -73,8 +74,7 @@ func (r *fdeSetupSuite) TestRunFdeRevealKey(c *C) {
 	mockedStdout := bytes.NewBuffer(nil)
 	restore := fdeHook.MockStdinStdout(mockedStdin, mockedStdout)
 	defer restore()
+	mylog.Check(fdeHook.RunFdeRevealKey())
 
-	err := fdeHook.RunFdeRevealKey()
-	c.Assert(err, IsNil)
 	c.Check(mockedStdout.String(), Equals, fmt.Sprintf(`{"key":"%s"}`, b64Key)+"\n")
 }

@@ -31,6 +31,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/snapdenv"
 )
@@ -130,11 +131,8 @@ func MockDeviceService(c *C, bhv *DeviceServiceBehavior) (mockServer *httptest.S
 
 			dec := asserts.NewDecoder(r.Body)
 
-			a, err := dec.Decode()
-			if err != nil {
-				w.WriteHeader(400)
-				return
-			}
+			a := mylog.Check2(dec.Decode())
+
 			serialReq, ok := a.(*asserts.SerialRequest)
 			if !ok {
 				w.WriteHeader(400)
@@ -149,22 +147,14 @@ func MockDeviceService(c *C, bhv *DeviceServiceBehavior) (mockServer *httptest.S
 				if err == io.EOF {
 					break
 				}
-				if err != nil {
-					w.WriteHeader(400)
-					return
-				}
+
 				extra = append(extra, a1)
 			}
-			err = asserts.SignatureCheck(serialReq, serialReq.DeviceKey())
+			mylog.Check(asserts.SignatureCheck(serialReq, serialReq.DeviceKey()))
 			c.Check(err, IsNil)
-			if err != nil {
-				// also return response to client
-				w.WriteHeader(400)
-				w.Write([]byte(`{
-  "error_list": [{"message": "invalid serial-request self-signature"}]
-}`))
-				return
-			}
+
+			// also return response to client
+
 			brandID := serialReq.BrandID()
 			model := serialReq.Model()
 			reqID := serialReq.RequestID()
@@ -224,7 +214,7 @@ func MockDeviceService(c *C, bhv *DeviceServiceBehavior) (mockServer *httptest.S
 				c.Check(mod.BrandID(), Equals, brandID)
 				c.Check(mod.Model(), Equals, model)
 			}
-			serial, ancillary, err := bhv.SignSerial(c, bhv, map[string]interface{}{
+			serial, ancillary := mylog.Check3(bhv.SignSerial(c, bhv, map[string]interface{}{
 				"authority-id":        "canonical",
 				"brand-id":            brandID,
 				"model":               model,
@@ -232,13 +222,11 @@ func MockDeviceService(c *C, bhv *DeviceServiceBehavior) (mockServer *httptest.S
 				"device-key":          serialReq.HeaderString("device-key"),
 				"device-key-sha3-384": serialReq.SignKeyID(),
 				"timestamp":           time.Now().Format(time.RFC3339),
-			}, serialReq.Body())
+			}, serialReq.Body()))
 			c.Check(err, IsNil)
-			if err != nil {
-				// also return response to client
-				w.WriteHeader(500)
-				return
-			}
+
+			// also return response to client
+
 			w.Header().Set("Content-Type", asserts.MediaType)
 			w.WriteHeader(200)
 			if reqID == ReqIDSerialWithBadModel {
@@ -261,8 +249,8 @@ func MockDeviceService(c *C, bhv *DeviceServiceBehavior) (mockServer *httptest.S
 			Type:  "CERTIFICATE",
 			Bytes: c1.Certificate[0],
 		}
-		err := pem.Encode(pemEncodedCerts, block)
-		c.Assert(err, IsNil)
+		mylog.Check(pem.Encode(pemEncodedCerts, block))
+
 	}
 	return server, pemEncodedCerts.Bytes()
 }

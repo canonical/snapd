@@ -7,11 +7,14 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil/sys"
 )
 
-var wg sync.WaitGroup
-var mu sync.Mutex
+var (
+	wg sync.WaitGroup
+	mu sync.Mutex
+)
 
 func check(tids []int, uids []sys.UserID, n int) {
 	// spin
@@ -34,10 +37,10 @@ func main() {
 
 	var runAsTid int
 	sys.MockRunAsUidGidRestoreUidError(fmt.Errorf("boom"))
-	err := sys.RunAsUidGid(12345, 12345, func() error {
+	mylog.Check(sys.RunAsUidGid(12345, 12345, func() error {
 		runAsTid = syscall.Gettid()
 		return nil
-	})
+	}))
 	if err.Error() != "mocked restore uid error: boom" {
 		fmt.Printf("unexpected error: %q\n", err)
 		os.Exit(1)

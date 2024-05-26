@@ -25,6 +25,7 @@ import (
 	"reflect"
 	"regexp"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 )
 
@@ -47,7 +48,7 @@ type ConfGetter interface {
 // coreCfg returns the configuration value for the core snap.
 func coreCfg(tr ConfGetter, key string) (result string, err error) {
 	var v interface{} = ""
-	if err := tr.Get("core", key, &v); err != nil && !config.IsNoOption(err) {
+	if mylog.Check(tr.Get("core", key, &v)); err != nil && !config.IsNoOption(err) {
 		return "", err
 	}
 	// TODO: we could have a fully typed approach but at the
@@ -61,10 +62,8 @@ func coreCfg(tr ConfGetter, key string) (result string, err error) {
 var supportedConfigurations = make(map[string]bool, 32)
 
 func validateBoolFlag(tr ConfGetter, flag string) error {
-	value, err := coreCfg(tr, flag)
-	if err != nil {
-		return err
-	}
+	value := mylog.Check2(coreCfg(tr, flag))
+
 	switch value {
 	case "", "true", "false":
 		// noop
@@ -104,7 +103,7 @@ func (cfg plainCoreConfig) GetPristine(snapName, key string, result interface{})
 
 // GetMaybe implements ConfGetter interface.
 func (cfg plainCoreConfig) GetMaybe(instanceName, key string, result interface{}) error {
-	err := cfg.Get(instanceName, key, result)
+	mylog.Check(cfg.Get(instanceName, key, result))
 	if err != nil && !config.IsNoOption(err) {
 		return err
 	}

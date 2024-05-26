@@ -26,6 +26,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 type SnapFileOwner struct {
@@ -73,10 +75,8 @@ func fromRaw(raw []byte) (*stat, error) {
 	}
 	p := 0
 	for _, parser := range parsers {
-		n, err := parser(raw[p:])
-		if err != nil {
-			return nil, err
-		}
+		n := mylog.Check2(parser(raw[p:]))
+
 		p += n
 		if p < len(raw) && raw[p] != ' ' {
 			return nil, errBadLine(raw)
@@ -159,10 +159,7 @@ func errBadPath(raw []byte) statError {
 
 func (st *stat) parseTimeUTC(raw []byte) (int, error) {
 	const timelen = 16
-	t, err := time.Parse("2006-01-02 15:04", string(raw[:timelen]))
-	if err != nil {
-		return 0, errBadTime(raw)
-	}
+	t := mylog.Check2(time.Parse("2006-01-02 15:04", string(raw[:timelen])))
 
 	st.mtime = t
 
@@ -190,10 +187,8 @@ func (st *stat) parseMode(raw []byte) (int, error) {
 	}
 
 	for i := 0; i < 3; i++ {
-		m, err := modeFromTriplet(raw[1+3*i:4+3*i], uint(2-i))
-		if err != nil {
-			return 0, err
-		}
+		m := mylog.Check2(modeFromTriplet(raw[1+3*i:4+3*i], uint(2-i)))
+
 		st.mode |= m
 	}
 
@@ -346,10 +341,8 @@ func (st *stat) parseSize(raw []byte) (int, error) {
 		// Also note os.FileInfo's Size needs to return an int64, and
 		// squashfs's inode->data (where it stores sizes for regular
 		// files) is a long long.
-		sz, err := strconv.ParseInt(string(raw[ni:p]), 10, 64)
-		if err != nil {
-			return 0, errBadSize(raw)
-		}
+		sz := mylog.Check2(strconv.ParseInt(string(raw[ni:p]), 10, 64))
+
 		st.size = sz
 	}
 

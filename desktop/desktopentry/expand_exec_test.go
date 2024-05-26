@@ -22,6 +22,7 @@ package desktopentry_test
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/desktop/desktopentry"
 )
 
@@ -157,7 +158,7 @@ func (s *desktopentrySuite) TestExpandExecHelper(c *C) {
 	}} {
 		c.Logf("tc %d", i)
 
-		args, err := desktopentry.ExpandExec(de, tc.in, tc.uris)
+		args := mylog.Check2(desktopentry.ExpandExec(de, tc.in, tc.uris))
 		if tc.err != "" {
 			c.Assert(err, ErrorMatches, tc.err)
 			continue

@@ -22,6 +22,7 @@ package builtin
 import (
 	"errors"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/strutil"
@@ -68,10 +69,7 @@ func (iface *netlinkAuditInterface) BeforeConnectPlug(plug *interfaces.Connected
 		// no apparmor means we don't have to deal with parser features
 		return nil
 	}
-	features, err := apparmor_sandbox.ParserFeatures()
-	if err != nil {
-		return err
-	}
+	features := mylog.Check2(apparmor_sandbox.ParserFeatures())
 
 	if !strutil.ListContains(features, "cap-audit-read") {
 		// the host system doesn't have the required feature to compile the

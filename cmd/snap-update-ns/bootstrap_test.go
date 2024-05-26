@@ -22,6 +22,7 @@ package main_test
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	update "github.com/snapcore/snapd/cmd/snap-update-ns"
 )
 
@@ -70,7 +71,6 @@ func (s *bootstrapSuite) TestValidateInstanceName(c *C) {
 	for _, name := range invalidNames {
 		c.Check(update.ValidateInstanceName(name), Equals, -1, Commentf("name %q should be invalid but is valid", name))
 	}
-
 }
 
 // Test various cases of command line handling.
@@ -143,7 +143,7 @@ func (s *bootstrapSuite) TestProcessArguments(c *C) {
 	for _, tc := range cases {
 		update.ClearBootstrapError()
 		snapName, shouldSetNs, userFstab, uid := update.ProcessArguments(tc.cmdline)
-		err := update.BootstrapError()
+		mylog.Check(update.BootstrapError())
 		comment := Commentf("failed with cmdline %q, expected error pattern %q, actual error %q",
 			tc.cmdline, tc.errPattern, err)
 		if tc.errPattern != "" {

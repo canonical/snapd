@@ -26,6 +26,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -127,10 +128,8 @@ type mapAttrMatcher map[string]attrMatcher
 func compileMapAttrMatcher(cc compileContext, m map[string]interface{}) (attrMatcher, error) {
 	matcher := make(mapAttrMatcher)
 	for k, constraint := range m {
-		matcher1, err := compileAttrMatcher(cc.keyEntry(k), constraint)
-		if err != nil {
-			return nil, err
-		}
+		matcher1 := mylog.Check2(compileAttrMatcher(cc.keyEntry(k), constraint))
+
 		matcher[k] = matcher1
 	}
 	return matcher, nil
@@ -142,17 +141,14 @@ func matchEntry(apath, k string, matcher1 attrMatcher, v interface{}, ctx *attrM
 	if _, ok := matcher1.(missingAttrMatcher); !ok && v == nil {
 		return fmt.Errorf("%s %q has constraints but is unset", ctx.attrWord, apath)
 	}
-	if err := matcher1.match(apath, v, ctx); err != nil {
-		return err
-	}
+	mylog.Check(matcher1.match(apath, v, ctx))
+
 	return nil
 }
 
 func matchList(apath string, matcher attrMatcher, l []interface{}, ctx *attrMatchingContext) error {
 	for i, elem := range l {
-		if err := matcher.match(chain(apath, strconv.Itoa(i)), elem, ctx); err != nil {
-			return err
-		}
+		mylog.Check(matcher.match(chain(apath, strconv.Itoa(i)), elem, ctx))
 	}
 	return nil
 }
@@ -172,15 +168,12 @@ func (matcher mapAttrMatcher) match(apath string, v interface{}, ctx *attrMatchi
 		// we get Atter from root-level Check (apath is "")
 		for k, matcher1 := range matcher {
 			v, _ := x.Lookup(k)
-			if err := matchEntry("", k, matcher1, v, ctx); err != nil {
-				return err
-			}
+			mylog.Check(matchEntry("", k, matcher1, v, ctx))
+
 		}
 	case map[string]interface{}: // maps in attributes look like this
 		for k, matcher1 := range matcher {
-			if err := matchEntry(apath, k, matcher1, x[k], ctx); err != nil {
-				return err
-			}
+			mylog.Check(matchEntry(apath, k, matcher1, x[k], ctx))
 		}
 	case []interface{}:
 		return matchList(apath, matcher, x, ctx)
@@ -253,10 +246,8 @@ func (matcher evalAttrMatcher) match(apath string, v interface{}, ctx *attrMatch
 	case "PLUG":
 		comp = ctx.helper.PlugAttr
 	}
-	v1, err := comp(matcher.arg)
-	if err != nil {
-		return fmt.Errorf("%s %q constraint $%s(%s) cannot be evaluated: %v", ctx.attrWord, apath, matcher.op, matcher.arg, err)
-	}
+	v1 := mylog.Check2(comp(matcher.arg))
+
 	if !reflect.DeepEqual(v, v1) {
 		return fmt.Errorf("%s %q does not match $%s(%s): %v != %v", ctx.attrWord, apath, matcher.op, matcher.arg, v, v1)
 	}
@@ -268,10 +259,8 @@ type regexpAttrMatcher struct {
 }
 
 func compileRegexpAttrMatcher(cc compileContext, s string) (attrMatcher, error) {
-	rx, err := regexp.Compile("^(" + s + ")$")
-	if err != nil {
-		return nil, fmt.Errorf("cannot compile %q constraint %q: %v", cc, s, err)
-	}
+	rx := mylog.Check2(regexp.Compile("^(" + s + ")$"))
+
 	return regexpAttrMatcher{rx}, nil
 }
 
@@ -297,7 +286,6 @@ func (matcher regexpAttrMatcher) match(apath string, v interface{}, ctx *attrMat
 		return fmt.Errorf("%s %q value %q does not match %v", ctx.attrWord, apath, s, matcher.Regexp)
 	}
 	return nil
-
 }
 
 type altAttrMatcher struct {
@@ -307,14 +295,11 @@ type altAttrMatcher struct {
 func compileAltAttrMatcher(cc compileContext, l []interface{}) (attrMatcher, error) {
 	alts := make([]attrMatcher, len(l))
 	for i, constraint := range l {
-		matcher1, err := compileAttrMatcher(cc.alt(i), constraint)
-		if err != nil {
-			return nil, err
-		}
+		matcher1 := mylog.Check2(compileAttrMatcher(cc.alt(i), constraint))
+
 		alts[i] = matcher1
 	}
 	return altAttrMatcher{alts}, nil
-
 }
 
 func (matcher altAttrMatcher) feature(flabel string) bool {
@@ -340,7 +325,7 @@ func (matcher altAttrMatcher) match(apath string, v interface{}, ctx *attrMatchi
 
 	var firstErr error
 	for _, alt := range matcher.alts {
-		err := alt.match(apath, v, ctx)
+		mylog.Check(alt.match(apath, v, ctx))
 		if err == nil {
 			return nil
 		}
@@ -404,10 +389,8 @@ func compileDeviceScopeConstraint(cMap map[string]interface{}, context string) (
 	// constraints or rarely 2
 	deviceConstr := make(map[string][]string, 2)
 	for field, validRegexp := range deviceScopeConstraints {
-		vals, err := checkStringListInMap(cMap, field, fmt.Sprintf("%s in %s", field, context), validRegexp)
-		if err != nil {
-			return nil, err
-		}
+		vals := mylog.Check2(checkStringListInMap(cMap, field, fmt.Sprintf("%s in %s", field, context), validRegexp))
+
 		deviceConstr[field] = vals
 	}
 

@@ -29,6 +29,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -187,22 +188,18 @@ func sanitizeDesktopFile(s *snap.Info, desktopFile string, rawcontent []byte) []
 
 		// rewrite exec lines to an absolute path for the binary
 		if bytes.HasPrefix(bline, []byte("Exec=")) {
-			var err error
-			line, err := rewriteExecLine(s, desktopFile, string(bline))
-			if err != nil {
-				// something went wrong, ignore the line
-				continue
-			}
+
+			line := mylog.Check2(rewriteExecLine(s, desktopFile, string(bline)))
+
+			// something went wrong, ignore the line
+
 			bline = []byte(line)
 		}
 
 		// rewrite icon line if it references an icon theme icon
 		if bytes.HasPrefix(bline, []byte("Icon=")) {
-			line, err := rewriteIconLine(s, string(bline))
-			if err != nil {
-				logger.Debugf("ignoring icon in source desktop file %q: %s", filepath.Base(desktopFile), err)
-				continue
-			}
+			line := mylog.Check2(rewriteIconLine(s, string(bline)))
+
 			bline = []byte(line)
 		}
 
@@ -227,8 +224,8 @@ func updateDesktopDatabase(desktopFiles []string) error {
 		return nil
 	}
 
-	if _, err := exec.LookPath("update-desktop-database"); err == nil {
-		if output, err := exec.Command("update-desktop-database", dirs.SnapDesktopFilesDir).CombinedOutput(); err != nil {
+	if _ := mylog.Check2(exec.LookPath("update-desktop-database")); err == nil {
+		if output := mylog.Check2(exec.Command("update-desktop-database", dirs.SnapDesktopFilesDir).CombinedOutput()); err != nil {
 			return fmt.Errorf("cannot update-desktop-database %q: %s", output, err)
 		}
 		logger.Debugf("update-desktop-database successful")
@@ -240,27 +237,20 @@ func findDesktopFiles(rootDir string) ([]string, error) {
 	if !osutil.IsDirectory(rootDir) {
 		return nil, nil
 	}
-	desktopFiles, err := filepath.Glob(filepath.Join(rootDir, "*.desktop"))
-	if err != nil {
-		return nil, fmt.Errorf("cannot get desktop files from %v: %s", rootDir, err)
-	}
+	desktopFiles := mylog.Check2(filepath.Glob(filepath.Join(rootDir, "*.desktop")))
+
 	return desktopFiles, nil
 }
 
 func deriveDesktopFilesContent(s *snap.Info) (map[string]osutil.FileState, error) {
 	rootDir := filepath.Join(s.MountDir(), "meta", "gui")
-	desktopFiles, err := findDesktopFiles(rootDir)
-	if err != nil {
-		return nil, err
-	}
+	desktopFiles := mylog.Check2(findDesktopFiles(rootDir))
 
 	content := make(map[string]osutil.FileState)
 	for _, df := range desktopFiles {
 		base := filepath.Base(df)
-		fileContent, err := os.ReadFile(df)
-		if err != nil {
-			return nil, err
-		}
+		fileContent := mylog.Check2(os.ReadFile(df))
+
 		// FIXME: don't blindly use the snap desktop filename, mangle it
 		// but we can't just use the app name because a desktop file
 		// may call the same app with multiple parameters, e.g.
@@ -281,33 +271,25 @@ func deriveDesktopFilesContent(s *snap.Info) (map[string]osutil.FileState, error
 // It also removes desktop files from the applications of the old snap revision to ensure
 // that only new snap desktop files exist.
 func EnsureSnapDesktopFiles(snaps []*snap.Info) error {
-	if err := os.MkdirAll(dirs.SnapDesktopFilesDir, 0755); err != nil {
-		return err
-	}
+	mylog.Check(os.MkdirAll(dirs.SnapDesktopFilesDir, 0755))
 
 	var updated []string
 	for _, s := range snaps {
 		if s == nil {
 			return fmt.Errorf("internal error: snap info cannot be nil")
 		}
-		content, err := deriveDesktopFilesContent(s)
-		if err != nil {
-			return err
-		}
+		content := mylog.Check2(deriveDesktopFilesContent(s))
 
 		desktopFilesGlob := fmt.Sprintf("%s_*.desktop", s.DesktopPrefix())
-		changed, removed, err := osutil.EnsureDirState(dirs.SnapDesktopFilesDir, desktopFilesGlob, content)
-		if err != nil {
-			return err
-		}
+		changed, removed := mylog.Check3(osutil.EnsureDirState(dirs.SnapDesktopFilesDir, desktopFilesGlob, content))
+
 		updated = append(updated, changed...)
 		updated = append(updated, removed...)
 	}
+	mylog.Check(
 
-	// updates mime info etc
-	if err := updateDesktopDatabase(updated); err != nil {
-		return err
-	}
+		// updates mime info etc
+		updateDesktopDatabase(updated))
 
 	return nil
 }
@@ -319,15 +301,11 @@ func RemoveSnapDesktopFiles(s *snap.Info) error {
 	}
 
 	desktopFilesGlob := fmt.Sprintf("%s_*.desktop", s.DesktopPrefix())
-	_, removed, err := osutil.EnsureDirState(dirs.SnapDesktopFilesDir, desktopFilesGlob, nil)
-	if err != nil {
-		return err
-	}
+	_, removed := mylog.Check3(osutil.EnsureDirState(dirs.SnapDesktopFilesDir, desktopFilesGlob, nil))
+	mylog.Check(
 
-	// updates mime info etc
-	if err := updateDesktopDatabase(removed); err != nil {
-		return err
-	}
+		// updates mime info etc
+		updateDesktopDatabase(removed))
 
 	return nil
 }

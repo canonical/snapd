@@ -26,6 +26,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 )
 
@@ -41,14 +42,14 @@ type Alias struct {
 func (b Backend) UpdateAliases(add []*Alias, remove []*Alias) error {
 	removed := make(map[string]bool, len(remove))
 	for _, alias := range remove {
-		err := os.Remove(filepath.Join(dirs.SnapBinariesDir, alias.Name))
+		mylog.Check(os.Remove(filepath.Join(dirs.SnapBinariesDir, alias.Name)))
 		if err != nil && !os.IsNotExist(err) {
 			return fmt.Errorf("cannot remove alias symlink: %v", err)
 		}
 		removed[alias.Name] = true
 		for _, completersPath := range []string{dirs.CompletersDir, dirs.LegacyCompletersDir} {
 			completer := filepath.Join(completersPath, alias.Name)
-			target, err := os.Readlink(completer)
+			target := mylog.Check2(os.Readlink(completer))
 			if err == nil && target == alias.Target {
 				os.Remove(completer)
 			}
@@ -59,15 +60,11 @@ func (b Backend) UpdateAliases(add []*Alias, remove []*Alias) error {
 		p := filepath.Join(dirs.SnapBinariesDir, alias.Name)
 
 		if !removed[alias.Name] {
-			if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
+			if mylog.Check(os.Remove(p)); err != nil && !os.IsNotExist(err) {
 				return fmt.Errorf("cannot remove alias symlink: %v", err)
 			}
 		}
-
-		err := os.Symlink(alias.Target, p)
-		if err != nil {
-			return fmt.Errorf("cannot create alias symlink: %v", err)
-		}
+		mylog.Check(os.Symlink(alias.Target, p))
 
 		removeLegacy := true
 		if dirs.IsCompleteShSymlink(filepath.Join(dirs.CompletersDir, alias.Target)) {
@@ -79,7 +76,7 @@ func (b Backend) UpdateAliases(add []*Alias, remove []*Alias) error {
 
 		if removeLegacy {
 			completer := filepath.Join(dirs.LegacyCompletersDir, alias.Name)
-			target, err := os.Readlink(completer)
+			target := mylog.Check2(os.Readlink(completer))
 			if err == nil && target == alias.Target {
 				os.Remove(completer)
 			}
@@ -95,26 +92,19 @@ func (b Backend) RemoveSnapAliases(snapName string) error {
 }
 
 func removeSymlinksTo(dir, snapName string) error {
-	cands, err := filepath.Glob(filepath.Join(dir, "*"))
-	if err != nil {
-		return err
-	}
+	cands := mylog.Check2(filepath.Glob(filepath.Join(dir, "*")))
+
 	prefix := fmt.Sprintf("%s.", snapName)
 	var firstErr error
 	// best effort
 	for _, cand := range cands {
-		target, err := os.Readlink(cand)
+		target := mylog.Check2(os.Readlink(cand))
 		if err, ok := err.(*os.PathError); ok && err.Err == syscall.EINVAL {
 			continue
 		}
-		if err != nil {
-			if firstErr == nil {
-				firstErr = err
-			}
-			continue
-		}
+
 		if target == snapName || strings.HasPrefix(target, prefix) {
-			err := os.Remove(cand)
+			mylog.Check(os.Remove(cand))
 			if err != nil && firstErr == nil {
 				firstErr = fmt.Errorf("cannot remove alias symlink: %v", err)
 			}

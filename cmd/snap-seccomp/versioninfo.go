@@ -25,6 +25,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/seccomp/libseccomp-golang"
 
 	"github.com/snapcore/snapd/cmd/snap-seccomp/syscalls"
@@ -34,10 +35,8 @@ import (
 var seccompSyscalls = syscalls.SeccompSyscalls
 
 func versionInfo() (string, error) {
-	myBuildID, err := osutil.MyBuildID()
-	if err != nil {
-		return "", fmt.Errorf("cannot get build-id of snap-seccomp: %v", err)
-	}
+	myBuildID := mylog.Check2(osutil.MyBuildID())
+
 	// Calculate the checksum of all syscall names supported by libseccomp
 	// library. We add that to the version info to cover the case when
 	// libseccomp version does not change, but the set of supported syscalls
@@ -45,10 +44,9 @@ func versionInfo() (string, error) {
 	sh := sha256.New()
 	newline := []byte("\n")
 	for _, syscallName := range seccompSyscalls {
-		if _, err := seccomp.GetSyscallFromName(syscallName); err != nil {
-			// syscall is unsupported by this version of libseccomp
-			continue
-		}
+		mylog.Check2(seccomp.GetSyscallFromName(syscallName))
+		// syscall is unsupported by this version of libseccomp
+
 		sh.Write([]byte(syscallName))
 		sh.Write(newline)
 	}
@@ -60,10 +58,8 @@ func versionInfo() (string, error) {
 }
 
 func showVersionInfo() error {
-	vi, err := versionInfo()
-	if err != nil {
-		return err
-	}
+	vi := mylog.Check2(versionInfo())
+
 	fmt.Fprintln(os.Stdout, vi)
 	return nil
 }

@@ -26,6 +26,7 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/hotplug"
@@ -40,10 +41,8 @@ import (
 // to compute device key - if it doesn't, we fall back to defaultDeviceKey.
 func deviceKey(device *hotplug.HotplugDeviceInfo, iface interfaces.Interface, defaultDeviceKey snap.HotplugKey) (deviceKey snap.HotplugKey, err error) {
 	if keyhandler, ok := iface.(hotplug.HotplugKeyHandler); ok {
-		deviceKey, err = keyhandler.HotplugKey(device)
-		if err != nil {
-			return "", fmt.Errorf("cannot create hotplug key for interface %q: %s", iface.Name(), err)
-		}
+		deviceKey = mylog.Check2(keyhandler.HotplugKey(device))
+
 		if deviceKey != "" {
 			return deviceKey, nil
 		}
@@ -110,30 +109,15 @@ func (m *InterfaceManager) hotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 	st := m.state
 	st.Lock()
 	defer st.Unlock()
+	mylog.Check2(systemSnapInfo(st))
 
-	if _, err := systemSnapInfo(st); err != nil {
-		logger.Noticef("system snap not available, hotplug events ignored")
-		return
-	}
+	defaultKey := mylog.Check2(defaultDeviceKey(devinfo, deviceKeyVersion))
 
-	defaultKey, err := defaultDeviceKey(devinfo, deviceKeyVersion)
-	if err != nil {
-		logger.Noticef("cannot compute default hotplug key for device %s: %v", devinfo, err.Error())
-	}
+	hotplugFeature := mylog.Check2(m.hotplugEnabled())
 
-	hotplugFeature, err := m.hotplugEnabled()
-	if err != nil {
-		logger.Noticef("internal error: cannot get hotplug feature flag: %v", err.Error())
-		return
-	}
+	deviceCtx := mylog.Check2(snapstate.DeviceCtxFromState(st, nil))
 
-	deviceCtx, err := snapstate.DeviceCtxFromState(st, nil)
-	if err != nil {
-		logger.Noticef("internal error: cannot get global device context: %v", err)
-		return
-	}
-
-	gadget, err := snapstate.GadgetInfo(st, deviceCtx)
+	gadget := mylog.Check2(snapstate.GadgetInfo(st, deviceCtx))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		logger.Noticef("internal error: cannot get gadget information: %v", err)
 	}
@@ -165,32 +149,23 @@ InterfacesLoop:
 			}
 		}
 
-		proposedSlot, err := hotplugHandler.HotplugDeviceDetected(devinfo)
-		if err != nil {
-			logger.Noticef("cannot process hotplug event by the rule of interface %q: %s", iface.Name(), err)
-			continue
-		}
+		proposedSlot := mylog.Check2(hotplugHandler.HotplugDeviceDetected(devinfo))
+
 		// if the interface doesn't propose a slot, carry on and go to the next interface
 		if proposedSlot == nil {
 			continue
 		}
 
 		// Check the key when we know the interface wants to create a hotplug slot, doing this earlier would generate too much log noise about irrelevant devices
-		key, err := deviceKey(devinfo, iface, defaultKey)
-		if err != nil {
-			logger.Noticef("internal error: cannot compute hotplug key for device %s: %v", devinfo, err.Error())
-			continue
-		}
+		key := mylog.Check2(deviceKey(devinfo, iface, defaultKey))
+
 		if key == "" {
 			logger.Noticef("no valid hotplug key provided by interface %q, device %s ignored", iface.Name(), devinfo)
 			continue
 		}
 
-		proposedSlot, err = proposedSlot.Clean()
-		if err != nil {
-			logger.Noticef("cannot validate hotplug slot proposed by interface %q for device %s: %v", iface.Name(), devinfo, err.Error())
-			continue
-		}
+		proposedSlot = mylog.Check2(proposedSlot.Clean())
+
 		if proposedSlot.Label == "" {
 			si := interfaces.StaticInfoOf(iface)
 			proposedSlot.Label = si.Summary
@@ -203,11 +178,7 @@ InterfacesLoop:
 
 		logger.Debugf("adding hotplug device %s for interface %q, hotplug key %q", devinfo, iface.Name(), key)
 
-		seq, err := allocHotplugSeq(st)
-		if err != nil {
-			logger.Noticef("internal error: cannot handle hotplug device %s: %v", devinfo, err)
-			continue
-		}
+		seq := mylog.Check2(allocHotplugSeq(st))
 
 		if !m.enumerationDone {
 			if m.enumeratedDeviceKeys[iface.Name()] == nil {
@@ -245,11 +216,7 @@ func (m *InterfaceManager) hotplugDeviceRemoved(devinfo *hotplug.HotplugDeviceIn
 	st.Lock()
 	defer st.Unlock()
 
-	hotplugFeature, err := m.hotplugEnabled()
-	if err != nil {
-		logger.Noticef("internal error: cannot get hotplug feature flag: %s", err.Error())
-		return
-	}
+	hotplugFeature := mylog.Check2(m.hotplugEnabled())
 
 	devPath := devinfo.DevicePath()
 	devs := m.hotplugDevicePaths[devPath]
@@ -259,11 +226,8 @@ func (m *InterfaceManager) hotplugDeviceRemoved(devinfo *hotplug.HotplugDeviceIn
 	for _, dev := range devs {
 		hotplugKey := dev.hotplugKey
 		ifaceName := dev.ifaceName
-		slot, err := m.repo.SlotForHotplugKey(ifaceName, hotplugKey)
-		if err != nil {
-			logger.Noticef("internal error: cannot obtain slot for hotplug interface %q, hotplug key %q: %v", ifaceName, hotplugKey, err)
-			continue
-		}
+		slot := mylog.Check2(m.repo.SlotForHotplugKey(ifaceName, hotplugKey))
+
 		if slot == nil {
 			continue
 		}
@@ -275,11 +239,7 @@ func (m *InterfaceManager) hotplugDeviceRemoved(devinfo *hotplug.HotplugDeviceIn
 
 		logger.Debugf("removing hotplug device %s for interface %q, hotplug key %q", devinfo, ifaceName, hotplugKey)
 
-		seq, err := allocHotplugSeq(st)
-		if err != nil {
-			logger.Noticef("internal error: cannot handle removal of hotplug device %s, hotplug key %q: %v", devinfo, hotplugKey, err)
-			continue
-		}
+		seq := mylog.Check2(allocHotplugSeq(st))
 
 		ts := removeDevice(st, ifaceName, hotplugKey)
 		chg := st.NewChange(fmt.Sprintf("hotplug-remove-%s", ifaceName), fmt.Sprintf("Remove hotplug connections and slots of device %s with interface %q", devinfo.ShortString(), ifaceName))
@@ -299,11 +259,7 @@ func (m *InterfaceManager) hotplugEnumerationDone() {
 	st.Lock()
 	defer st.Unlock()
 
-	hotplugSlots, err := getHotplugSlots(st)
-	if err != nil {
-		logger.Noticef("internal error obtaining hotplug slots: %v", err.Error())
-		return
-	}
+	hotplugSlots := mylog.Check2(getHotplugSlots(st))
 
 	for _, slot := range hotplugSlots {
 		if byIface, ok := m.enumeratedDeviceKeys[slot.Interface]; ok {
@@ -312,11 +268,8 @@ func (m *InterfaceManager) hotplugEnumerationDone() {
 			}
 		}
 		// device not present, disconnect its slots and remove them (as if it was unplugged)
-		seq, err := allocHotplugSeq(st)
-		if err != nil {
-			logger.Noticef("internal error: cannot handle removal of hotplug slot %q: %v", slot.Name, err)
-			continue
-		}
+		seq := mylog.Check2(allocHotplugSeq(st))
+
 		ts := removeDevice(st, slot.Interface, slot.HotplugKey)
 		chg := st.NewChange(fmt.Sprintf("hotplug-remove-%s", slot.Interface), fmt.Sprintf("Remove hotplug connections and slots of interface %q", slot.Interface))
 		chg.AddAll(ts)

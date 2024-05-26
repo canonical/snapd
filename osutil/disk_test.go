@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -55,8 +56,7 @@ func (s *diskSuite) TestCheckFreeSpaceUnhappy(c *C) {
 		return nil
 	})
 	defer restore()
-
-	err := osutil.CheckFreeSpace("/path", 8193)
+	mylog.Check(osutil.CheckFreeSpace("/path", 8193))
 	c.Assert(err, ErrorMatches, `insufficient space in "/path", at least 1B more is required`)
 	diskSpaceErr, ok := err.(*osutil.NotEnoughDiskSpaceError)
 	c.Assert(ok, Equals, true)
@@ -65,6 +65,6 @@ func (s *diskSuite) TestCheckFreeSpaceUnhappy(c *C) {
 }
 
 func (s *diskSuite) TestCheckFreeSpacePathError(c *C) {
-	err := osutil.CheckFreeSpace("/does/not/exist/path", 8193)
+	mylog.Check(osutil.CheckFreeSpace("/does/not/exist/path", 8193))
 	c.Assert(os.IsNotExist(err), Equals, true)
 }

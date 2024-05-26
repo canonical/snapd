@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
@@ -198,8 +199,8 @@ func (s *IioInterfaceSuite) TestSanitizeBadGadgetSnapSlot(c *C) {
 }
 
 func (s *IioInterfaceSuite) TestConnectedPlugUDevSnippets(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.testPlugPort1.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.testPlugPort1.Snap(), nil))
+
 	spec := udev.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUDev1), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 2)
@@ -218,11 +219,11 @@ func (s *IioInterfaceSuite) TestConnectedPlugAppArmorSingleSnippet(c *C) {
 
 /sys/devices/**/iio:device1/ r,  # Add any condensed parametric rules
 /sys/devices/**/iio:device1/** rwk,  # Add any condensed parametric rules`
-	appSet, err := interfaces.NewSnapAppSet(s.testPlugPort1.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.testPlugPort1.Snap(), nil))
+
 	apparmorSpec := apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUDev1)
-	c.Assert(err, IsNil)
+	mylog.Check(apparmorSpec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUDev1))
+
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-1-port"})
 	snippet := apparmorSpec.SnippetForTag("snap.client-snap.app-accessing-1-port")
 	c.Assert(snippet, Equals, expectedSnippet)
@@ -245,13 +246,13 @@ func (s *IioInterfaceSuite) TestConnectedPlugAppArmorSnippetsMultipleOptimized(c
 
 /sys/devices/**/iio:device{1,2}/ r,  # Add any condensed parametric rules
 /sys/devices/**/iio:device{1,2}/** rwk,  # Add any condensed parametric rules`
-	appSet, err := interfaces.NewSnapAppSet(s.testPlugPort1.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.testPlugPort1.Snap(), nil))
+
 	apparmorSpec := apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUDev1)
-	c.Assert(err, IsNil)
-	err = apparmorSpec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUDev2)
-	c.Assert(err, IsNil)
+	mylog.Check(apparmorSpec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUDev1))
+
+	mylog.Check(apparmorSpec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUDev2))
+
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-1-port"})
 	// XXX: the tag snap.client-snap.app-accessing-1-port is
 	// misleading when you are testing for '1' and '2' ports

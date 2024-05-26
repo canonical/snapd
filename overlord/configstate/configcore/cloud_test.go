@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
@@ -151,23 +152,22 @@ func (s *cloudSuite) TestHandleCloud(c *C) {
  }
 }`, "openstack", "", "nova"},
 	}
+	mylog.Check(os.MkdirAll(filepath.Dir(dirs.CloudInstanceDataFile), 0755))
 
-	err := os.MkdirAll(filepath.Dir(dirs.CloudInstanceDataFile), 0755)
-	c.Assert(err, IsNil)
 
 	for i, t := range tests {
 		c.Logf("tc: %v", i)
 		os.Remove(dirs.CloudInstanceDataFile)
 		if t.instData != "" {
-			err = os.WriteFile(dirs.CloudInstanceDataFile, []byte(t.instData), 0600)
-			c.Assert(err, IsNil)
+			mylog.Check(os.WriteFile(dirs.CloudInstanceDataFile, []byte(t.instData), 0600))
+
 		}
 
 		tr := &mockConf{
 			state: s.state,
 		}
-		err := configcore.Run(classicDev, tr)
-		c.Assert(err, IsNil)
+		mylog.Check(configcore.Run(classicDev, tr))
+
 
 		var cloudInfo auth.CloudInfo
 		tr.Get("core", "cloud", &cloudInfo)
@@ -188,11 +188,10 @@ func (s *cloudSuite) TestHandleCloudAlreadySeeded(c *C) {
   "region": "us-east-2"
  }
 }`
+	mylog.Check(os.MkdirAll(filepath.Dir(dirs.CloudInstanceDataFile), 0755))
 
-	err := os.MkdirAll(filepath.Dir(dirs.CloudInstanceDataFile), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(dirs.CloudInstanceDataFile, []byte(instData), 0600)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(dirs.CloudInstanceDataFile, []byte(instData), 0600))
+
 
 	s.state.Lock()
 	s.state.Set("seeded", true)
@@ -200,8 +199,8 @@ func (s *cloudSuite) TestHandleCloudAlreadySeeded(c *C) {
 	tr := &mockConf{
 		state: s.state,
 	}
-	err = configcore.Run(classicDev, tr)
-	c.Assert(err, IsNil)
+	mylog.Check(configcore.Run(classicDev, tr))
+
 
 	var cloudInfo auth.CloudInfo
 	tr.Get("core", "cloud", &cloudInfo)

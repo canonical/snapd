@@ -27,6 +27,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/bootloader/ubootenv"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -52,8 +53,10 @@ const (
 var ubuntuSeedDir = "/run/mnt/ubuntu-seed/"
 
 // More variables to facilitate mocking
-var rpi4RevisionCodesPath = "/sys/firmware/devicetree/base/system/linux,revision"
-var rpi4EepromTimeStampPath = "/proc/device-tree/chosen/bootloader/build-timestamp"
+var (
+	rpi4RevisionCodesPath   = "/sys/firmware/devicetree/base/system/linux,revision"
+	rpi4EepromTimeStampPath = "/proc/device-tree/chosen/bootloader/build-timestamp"
+)
 
 type piboot struct {
 	rootdir          string
@@ -129,10 +132,7 @@ func (p *piboot) Present() (bool, error) {
 //	recovery_system_status
 //	try_recovery_system
 func (p *piboot) SetBootVars(values map[string]string) error {
-	env, err := ubootenv.OpenWithFlags(p.envFile(), ubootenv.OpenBestEffort)
-	if err != nil {
-		return err
-	}
+	env := mylog.Check2(ubootenv.OpenWithFlags(p.envFile(), ubootenv.OpenBestEffort))
 
 	// Set when we change a boot env variable, to know if we need to save the env
 	dirtyEnv := false
@@ -157,32 +157,24 @@ func (p *piboot) SetBootVars(values map[string]string) error {
 			// volatile boot flag is set, so we always have a valid
 			// config.txt that will allow booting.
 			trybootPath := filepath.Join(ubuntuSeedDir, "tryboot.txt")
-			if err := os.Remove(trybootPath); err != nil {
-				logger.Noticef("cannot remove %s: %v", trybootPath, err)
-			}
+			mylog.Check(os.Remove(trybootPath))
+
 		}
 	}
 
 	if dirtyEnv {
-		if err := env.Save(); err != nil {
-			return err
-		}
+		mylog.Check(env.Save())
 	}
 
 	if reconfigBootloader {
-		if err := p.loadAndApplyConfig(env); err != nil {
-			return err
-		}
+		mylog.Check(p.loadAndApplyConfig(env))
 	}
 
 	return nil
 }
 
 func (p *piboot) SetBootVarsFromInitramfs(values map[string]string) error {
-	env, err := ubootenv.OpenWithFlags(p.envFile(), ubootenv.OpenBestEffort)
-	if err != nil {
-		return err
-	}
+	env := mylog.Check2(ubootenv.OpenWithFlags(p.envFile(), ubootenv.OpenBestEffort))
 
 	dirtyEnv := false
 	for k, v := range values {
@@ -195,9 +187,7 @@ func (p *piboot) SetBootVarsFromInitramfs(values map[string]string) error {
 	}
 
 	if dirtyEnv {
-		if err := env.Save(); err != nil {
-			return err
-		}
+		mylog.Check(env.Save())
 	}
 
 	return nil
@@ -228,19 +218,14 @@ func (p *piboot) loadAndApplyConfig(env *ubootenv.Env) error {
 
 	logger.Debugf("configure piboot %s with prefix %q, cfgDir %q, dstDir %q",
 		cfgFile, prefix, cfgDir, dstDir)
+	mylog.Check(os.MkdirAll(dstDir, 0755))
 
-	if err := os.MkdirAll(dstDir, 0755); err != nil {
-		return err
-	}
 	return p.applyConfig(env, cfgFile, prefix, cfgDir, dstDir)
 }
 
 // Writes os_prefix in RPi config.txt or tryboot.txt
 func (p *piboot) writeRPiCfgWithOsPrefix(prefix, inFile, outFile string) error {
-	buf, err := os.ReadFile(inFile)
-	if err != nil {
-		return err
-	}
+	buf := mylog.Check2(os.ReadFile(inFile))
 
 	lines := strings.Split(string(buf), "\n")
 
@@ -267,10 +252,7 @@ func (p *piboot) writeRPiCfgWithOsPrefix(prefix, inFile, outFile string) error {
 }
 
 func (p *piboot) writeCmdline(env *ubootenv.Env, defaultsFile, outFile string) error {
-	buf, err := os.ReadFile(defaultsFile)
-	if err != nil {
-		return err
-	}
+	buf := mylog.Check2(os.ReadFile(defaultsFile))
 
 	lines := strings.Split(string(buf), "\n")
 	cmdline := lines[0]
@@ -296,28 +278,20 @@ func (p *piboot) writeCmdline(env *ubootenv.Env, defaultsFile, outFile string) e
 // config files, and dstDir is where we will place the kernel command
 // line.
 func (p *piboot) applyConfig(env *ubootenv.Env,
-	configFile, prefix, cfgDir, dstDir string) error {
-
+	configFile, prefix, cfgDir, dstDir string,
+) error {
 	cmdlineFile := filepath.Join(dstDir, "cmdline.txt")
 	refCmdlineFile := filepath.Join(cfgDir, "cmdline.txt")
 	currentConfigFile := filepath.Join(cfgDir, "config.txt")
-
-	if err := p.writeCmdline(env, refCmdlineFile, cmdlineFile); err != nil {
-		return err
-	}
-	if err := p.writeRPiCfgWithOsPrefix(prefix, currentConfigFile,
-		filepath.Join(cfgDir, configFile)); err != nil {
-		return err
-	}
+	mylog.Check(p.writeCmdline(env, refCmdlineFile, cmdlineFile))
+	mylog.Check(p.writeRPiCfgWithOsPrefix(prefix, currentConfigFile,
+		filepath.Join(cfgDir, configFile)))
 
 	return nil
 }
 
 func (p *piboot) GetBootVars(names ...string) (map[string]string, error) {
-	env, err := ubootenv.OpenWithFlags(p.envFile(), ubootenv.OpenBestEffort)
-	if err != nil {
-		return nil, err
-	}
+	env := mylog.Check2(ubootenv.OpenWithFlags(p.envFile(), ubootenv.OpenBestEffort))
 
 	out := make(map[string]string, len(names))
 	for _, name := range names {
@@ -328,59 +302,48 @@ func (p *piboot) GetBootVars(names ...string) (map[string]string, error) {
 }
 
 func (p *piboot) InstallBootConfig(gadgetDir string, blOpts *Options) error {
-	// We create an empty env file
-	err := os.MkdirAll(filepath.Dir(p.envFile()), 0755)
-	if err != nil {
-		return err
-	}
+	mylog.
+		// We create an empty env file
+		Check(os.MkdirAll(filepath.Dir(p.envFile()), 0755))
 
 	// TODO: what's a reasonable size for this file?
-	env, err := ubootenv.Create(p.envFile(), 4096, ubootenv.CreateOptions{HeaderFlagByte: true})
-	if err != nil {
-		return err
-	}
+	env := mylog.Check2(ubootenv.Create(p.envFile(), 4096, ubootenv.CreateOptions{HeaderFlagByte: true}))
 
 	return env.Save()
 }
 
 func (p *piboot) layoutKernelAssetsToDir(snapf snap.Container, dstDir string) error {
 	assets := []string{"kernel.img", "initrd.img", "dtbs/*"}
-	if err := extractKernelAssetsToBootDir(dstDir, snapf, assets); err != nil {
-		return err
-	}
+	mylog.Check(extractKernelAssetsToBootDir(dstDir, snapf, assets))
 
 	// remove subdirs so mv does not complain about non-empty dirs
 	// if extraction happens multiple times
 	newOvDir := filepath.Join(dstDir, "overlays/")
-	if err := os.RemoveAll(newOvDir); err != nil {
-		return err
-	}
+	mylog.Check(os.RemoveAll(newOvDir))
+
 	// armhf and arm64 pi-kernel store dtbs in different places
 	// (dtbs/ or dtbs/broadcom/ respectively)
 	var dtbDir string
 	if _, isDir, _ := osutil.DirExists(filepath.Join(dstDir, "dtbs/broadcom")); isDir {
 		dtbDir = "dtbs/broadcom"
 		overlaysDir := filepath.Join(dstDir, "dtbs/overlays/")
-		if err := os.Rename(overlaysDir, newOvDir); err != nil {
-			return err
-		}
+		mylog.Check(os.Rename(overlaysDir, newOvDir))
+
 	} else {
 		dtbDir = "dtbs"
 	}
 
 	dtbFiles := filepath.Join(dstDir, dtbDir, "*")
-	if output, err := exec.Command("sh", "-c",
-		"mv "+dtbFiles+" "+dstDir).CombinedOutput(); err != nil {
+	if output := mylog.Check2(exec.Command("sh", "-c",
+		"mv "+dtbFiles+" "+dstDir).CombinedOutput()); err != nil {
 		return fmt.Errorf("cannot move RPi dtbs to %s:\n%s",
 			dstDir, output)
 	}
 
 	// README file is needed so os_prefix is honored for overlays. See
 	// https://www.raspberrypi.com/documentation/computers/config_txt.html#os_prefix
-	readmeOverlays, err := os.Create(filepath.Join(dstDir, "overlays", "README"))
-	if err != nil {
-		return err
-	}
+	readmeOverlays := mylog.Check2(os.Create(filepath.Join(dstDir, "overlays", "README")))
+
 	readmeOverlays.Close()
 	return nil
 }
@@ -389,10 +352,7 @@ func (p *piboot) eepromVersionSupportsTryboot() (bool, error) {
 	// To find out the EEPROM version we do the same as the
 	// rpi-eeprom-update script (see
 	// https://github.com/raspberrypi/rpi-eeprom/blob/master/rpi-eeprom-update)
-	buf, err := os.ReadFile(rpi4EepromTimeStampPath)
-	if err != nil {
-		return false, err
-	}
+	buf := mylog.Check2(os.ReadFile(rpi4EepromTimeStampPath))
 
 	// The timestamp is seconds since the epoch, UTC time
 	eepromTs := binary.BigEndian.Uint32(buf)
@@ -407,10 +367,7 @@ func (p *piboot) eepromVersionSupportsTryboot() (bool, error) {
 func (p *piboot) isRaspberryPi4() bool {
 	// For RPi4 detection we do the same as the rpi-eeprom-update script (see
 	// https://github.com/raspberrypi/rpi-eeprom/blob/master/rpi-eeprom-update)
-	buf, err := os.ReadFile(rpi4RevisionCodesPath)
-	if err != nil {
-		return false
-	}
+	buf := mylog.Check2(os.ReadFile(rpi4RevisionCodesPath))
 
 	// This is an RPi4 if we have new style codes (RPi2 or newer) and the
 	// processor is BCM2711 (RPi4's SoC). For details, see
@@ -423,10 +380,8 @@ func (p *piboot) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) err
 	if !p.prepareImageTime {
 		// If this is an RPi4, check first if EEPROM supports tryboot
 		if p.isRaspberryPi4() {
-			supportsTryboot, err := p.eepromVersionSupportsTryboot()
-			if err != nil {
-				return fmt.Errorf("cannot check EEPROM version: %v", err)
-			}
+			supportsTryboot := mylog.Check2(p.eepromVersionSupportsTryboot())
+
 			if !supportsTryboot {
 				return fmt.Errorf("your EEPROM does not support tryboot, please upgrade to a newer one before installing Ubuntu Core - see http://forum.snapcraft.io/t/29455 for more details")
 			}
@@ -442,13 +397,13 @@ func (p *piboot) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) err
 }
 
 func (p *piboot) ExtractRecoveryKernelAssets(recoverySystemDir string, s snap.PlaceInfo,
-	snapf snap.Container) error {
+	snapf snap.Container,
+) error {
 	if recoverySystemDir == "" {
 		return fmt.Errorf("internal error: recoverySystemDir unset")
 	}
 
-	recoveryKernelAssetsDir :=
-		filepath.Join(p.rootdir, recoverySystemDir, "kernel")
+	recoveryKernelAssetsDir := filepath.Join(p.rootdir, recoverySystemDir, "kernel")
 	logger.Debugf("ExtractRecoveryKernelAssets to %s", recoveryKernelAssetsDir)
 
 	return p.layoutKernelAssetsToDir(snapf, recoveryKernelAssetsDir)
@@ -460,10 +415,7 @@ func (p *piboot) RemoveKernelAssets(s snap.PlaceInfo) error {
 }
 
 func (p *piboot) GetRebootArguments() (string, error) {
-	env, err := ubootenv.OpenWithFlags(p.envFile(), ubootenv.OpenBestEffort)
-	if err != nil {
-		return "", err
-	}
+	env := mylog.Check2(ubootenv.OpenWithFlags(p.envFile(), ubootenv.OpenBestEffort))
 
 	kernStat := env.Get("kernel_status")
 	if kernStat == "try" {

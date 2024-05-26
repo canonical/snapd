@@ -30,6 +30,7 @@ import (
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/epoll"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
@@ -84,10 +85,8 @@ func newRequest(msg *notify.MsgNotificationFile) (*Request, error) {
 	var perm interface{}
 	switch msg.Class {
 	case notify.AA_CLASS_FILE:
-		_, missingPerms, err := msg.DecodeFilePermissions()
-		if err != nil {
-			return nil, err
-		}
+		_, missingPerms := mylog.Check3(msg.DecodeFilePermissions())
+
 		perm = missingPerms
 	default:
 		return nil, fmt.Errorf("unsupported mediation class: %v", msg.Class)
@@ -205,42 +204,22 @@ func Register() (listener *Listener, err error) {
 		path = override
 	}
 
-	notifyFile, err := osOpen(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, ErrNotSupported
-		}
-		return nil, fmt.Errorf("cannot open %q: %v", path, err)
-	}
+	notifyFile := mylog.Check2(osOpen(path))
+
 	defer func() {
-		if err != nil {
-			notifyFile.Close()
-		}
 	}()
 
 	msg := notify.MsgNotificationFilter{ModeSet: notify.APPARMOR_MODESET_USER}
-	data, err := msg.MarshalBinary()
-	if err != nil {
-		return nil, err
-	}
-	ioctlBuf := notify.IoctlRequestBuffer(data)
-	_, err = notifyIoctl(notifyFile.Fd(), notify.APPARMOR_NOTIF_SET_FILTER, ioctlBuf)
-	if err != nil {
-		return nil, fmt.Errorf("cannot notify ioctl to modeset user on %q: %v", path, err)
-	}
+	data := mylog.Check2(msg.MarshalBinary())
 
-	poll, err := epoll.Open()
-	if err != nil {
-		return nil, fmt.Errorf("cannot open epoll file descriptor: %v", err)
-	}
+	ioctlBuf := notify.IoctlRequestBuffer(data)
+	_ = mylog.Check2(notifyIoctl(notifyFile.Fd(), notify.APPARMOR_NOTIF_SET_FILTER, ioctlBuf))
+
+	poll := mylog.Check2(epoll.Open())
+
 	defer func() {
-		if err != nil {
-			poll.Close()
-		}
 	}()
-	if err = poll.Register(int(notifyFile.Fd()), epoll.Readable); err != nil {
-		return nil, fmt.Errorf("cannot register epoll on %q: %v", path, err)
-	}
+	mylog.Check(poll.Register(int(notifyFile.Fd()), epoll.Readable))
 
 	listener = &Listener{
 		reqs: make(chan *Request, 1),
@@ -316,16 +295,13 @@ func (l *Listener) Run() error {
 	// is called) return and close the tomb's dead channel, as it is the last
 	// and only tracked goroutine.
 	l.tomb.Go(func() error {
-		var err error
 		for {
-			err = l.tomb.Err()
+			mylog.Check(l.tomb.Err())
 			if err != tomb.ErrStillAlive {
 				break
 			}
-			err = l.runOnce()
-			if err != nil {
-				break
-			}
+			mylog.Check(l.runOnce())
+
 		}
 		return err
 	})
@@ -342,12 +318,11 @@ var listenerEpollWait = func(l *Listener) ([]epoll.Event, error) {
 }
 
 func (l *Listener) runOnce() error {
-	events, err := listenerEpollWait(l)
-	if err != nil {
-		// If epoll instance is closed, then tomb error status has already
-		// been set. Otherwise, this is a true error. Either way, return it.
-		return err
-	}
+	events := mylog.Check2(listenerEpollWait(l))
+
+	// If epoll instance is closed, then tomb error status has already
+	// been set. Otherwise, this is a true error. Either way, return it.
+
 	for _, event := range events {
 		if event.Fd != int(l.notifyFile.Fd()) {
 			logger.Debugf("unexpected event from fd %v (%v)", event.Fd, event.Readiness)
@@ -360,43 +335,37 @@ func (l *Listener) runOnce() error {
 		// maximum allowed size and will contain one or more kernel requests
 		// upon return.
 		ioctlBuf := notify.NewIoctlRequestBuffer()
-		buf, err := notifyIoctl(l.notifyFile.Fd(), notify.APPARMOR_NOTIF_RECV, ioctlBuf)
-		if err != nil {
+		buf := mylog.Check2(notifyIoctl(l.notifyFile.Fd(), notify.APPARMOR_NOTIF_RECV, ioctlBuf))
+		mylog.Check(
+
 			// If epoll instance is closed, then tomb error status has already
 			// been set. Otherwise, this is a true error. Either way, return it.
-			return err
-		}
-		if err := l.decodeAndDispatchRequest(buf); err != nil {
-			return err
-		}
+
+			l.decodeAndDispatchRequest(buf))
+
 	}
 	return nil
 }
 
 func (l *Listener) decodeAndDispatchRequest(buf []byte) error {
 	for {
-		first, rest, err := notify.ExtractFirstMsg(buf)
-		if err != nil {
-			return err
-		}
+		first, rest := mylog.Check3(notify.ExtractFirstMsg(buf))
+
 		var nmsg notify.MsgNotification
-		if err := nmsg.UnmarshalBinary(first); err != nil {
-			return err
-		}
+		mylog.Check(nmsg.UnmarshalBinary(first))
+
 		// What kind of notification message did we get?
 		if nmsg.NotificationType != notify.APPARMOR_NOTIF_OP {
 			return fmt.Errorf("unsupported notification type: %v", nmsg.NotificationType)
 		}
 		var omsg notify.MsgNotificationOp
-		if err := omsg.UnmarshalBinary(first); err != nil {
-			return err
-		}
+		mylog.Check(omsg.UnmarshalBinary(first))
+
 		// What kind of operation notification did we get?
 		switch omsg.Class {
 		case notify.AA_CLASS_FILE:
-			if err := l.handleRequestAaClassFile(first); err != nil {
-				return err
-			}
+			mylog.Check(l.handleRequestAaClassFile(first))
+
 		default:
 			return fmt.Errorf("unsupported mediation class: %v", omsg.Class)
 		}
@@ -409,14 +378,11 @@ func (l *Listener) decodeAndDispatchRequest(buf []byte) error {
 
 func (l *Listener) handleRequestAaClassFile(buf []byte) error {
 	var fmsg notify.MsgNotificationFile
-	if err := fmsg.UnmarshalBinary(buf); err != nil {
-		return err
-	}
+	mylog.Check(fmsg.UnmarshalBinary(buf))
+
 	logger.Debugf("Received access request from the kernel: %+v", fmsg)
-	req, err := newRequest(&fmsg)
-	if err != nil {
-		return err
-	}
+	req := mylog.Check2(newRequest(&fmsg))
+
 	select {
 	case l.reqs <- req:
 		// request received
@@ -464,11 +430,9 @@ func (l *Listener) waitAndRespondAaClassFile(req *Request, msg *notify.MsgNotifi
 }
 
 func (l *Listener) encodeAndSendResponse(resp *notify.MsgNotificationResponse) error {
-	buf, err := resp.MarshalBinary()
-	if err != nil {
-		return err
-	}
+	buf := mylog.Check2(resp.MarshalBinary())
+
 	ioctlBuf := notify.IoctlRequestBuffer(buf)
-	_, err = notifyIoctl(l.notifyFile.Fd(), notify.APPARMOR_NOTIF_SEND, ioctlBuf)
+	_ = mylog.Check2(notifyIoctl(l.notifyFile.Fd(), notify.APPARMOR_NOTIF_SEND, ioctlBuf))
 	return err
 }

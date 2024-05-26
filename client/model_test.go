@@ -32,6 +32,7 @@ import (
 	"golang.org/x/xerrors"
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
@@ -121,16 +122,16 @@ func (cs *clientSuite) TestClientRemodel(c *C) {
 		"change": "d728"
 	}`
 	remodelJsonData := []byte(`{"new-model": "some-model"}`)
-	id, err := cs.cli.Remodel(remodelJsonData, client.RemodelOpts{})
-	c.Assert(err, IsNil)
+	id := mylog.Check2(cs.cli.Remodel(remodelJsonData, client.RemodelOpts{}))
+
 	c.Check(id, Equals, "d728")
 	c.Assert(cs.req.Header.Get("Content-Type"), Equals, "application/json")
 
-	body, err := io.ReadAll(cs.req.Body)
-	c.Assert(err, IsNil)
+	body := mylog.Check2(io.ReadAll(cs.req.Body))
+
 	jsonBody := make(map[string]interface{})
-	err = json.Unmarshal(body, &jsonBody)
-	c.Assert(err, IsNil)
+	mylog.Check(json.Unmarshal(body, &jsonBody))
+
 	c.Check(jsonBody, HasLen, 1)
 	c.Check(jsonBody["new-model"], Equals, string(remodelJsonData))
 	c.Check(jsonBody["offline"], IsNil)
@@ -145,16 +146,16 @@ func (cs *clientSuite) TestClientRemodelOffline(c *C) {
         "change": "d728"
     }`
 	remodelJsonData := []byte(`{"new-model": "some-model"}`)
-	id, err := cs.cli.Remodel(remodelJsonData, client.RemodelOpts{Offline: true})
-	c.Assert(err, IsNil)
+	id := mylog.Check2(cs.cli.Remodel(remodelJsonData, client.RemodelOpts{Offline: true}))
+
 	c.Check(id, Equals, "d728")
 	c.Assert(cs.req.Header.Get("Content-Type"), Equals, "application/json")
 
-	body, err := io.ReadAll(cs.req.Body)
-	c.Assert(err, IsNil)
+	body := mylog.Check2(io.ReadAll(cs.req.Body))
+
 	jsonBody := make(map[string]interface{})
-	err = json.Unmarshal(body, &jsonBody)
-	c.Assert(err, IsNil)
+	mylog.Check(json.Unmarshal(body, &jsonBody))
+
 	c.Check(jsonBody, HasLen, 2)
 	c.Check(jsonBody["new-model"], Equals, string(remodelJsonData))
 	c.Check(jsonBody["offline"], Equals, true)
@@ -163,10 +164,10 @@ func (cs *clientSuite) TestClientRemodelOffline(c *C) {
 func (cs *clientSuite) TestClientGetModelHappy(c *C) {
 	cs.status = 200
 	cs.rsp = happyModelAssertionResponse
-	modelAssertion, err := cs.cli.CurrentModelAssertion()
-	c.Assert(err, IsNil)
-	expectedAssert, err := asserts.Decode([]byte(happyModelAssertionResponse))
-	c.Assert(err, IsNil)
+	modelAssertion := mylog.Check2(cs.cli.CurrentModelAssertion())
+
+	expectedAssert := mylog.Check2(asserts.Decode([]byte(happyModelAssertionResponse)))
+
 	c.Assert(modelAssertion, DeepEquals, expectedAssert)
 }
 
@@ -175,7 +176,7 @@ func (cs *clientSuite) TestClientGetModelNoModel(c *C) {
 	cs.rsp = noModelAssertionYetResponse
 	cs.header = http.Header{}
 	cs.header.Add("Content-Type", "application/json")
-	_, err := cs.cli.CurrentModelAssertion()
+	_ := mylog.Check2(cs.cli.CurrentModelAssertion())
 	c.Assert(err, ErrorMatches, "no model assertion yet")
 }
 
@@ -184,23 +185,23 @@ func (cs *clientSuite) TestClientGetModelNoSerial(c *C) {
 	cs.rsp = noSerialAssertionYetResponse
 	cs.header = http.Header{}
 	cs.header.Add("Content-Type", "application/json")
-	_, err := cs.cli.CurrentSerialAssertion()
+	_ := mylog.Check2(cs.cli.CurrentSerialAssertion())
 	c.Assert(err, ErrorMatches, "no serial assertion yet")
 }
 
 func (cs *clientSuite) TestClientGetSerialHappy(c *C) {
 	cs.status = 200
 	cs.rsp = happySerialAssertionResponse
-	serialAssertion, err := cs.cli.CurrentSerialAssertion()
-	c.Assert(err, IsNil)
-	expectedAssert, err := asserts.Decode([]byte(happySerialAssertionResponse))
-	c.Assert(err, IsNil)
+	serialAssertion := mylog.Check2(cs.cli.CurrentSerialAssertion())
+
+	expectedAssert := mylog.Check2(asserts.Decode([]byte(happySerialAssertionResponse)))
+
 	c.Assert(serialAssertion, DeepEquals, expectedAssert)
 }
 
 func (cs *clientSuite) TestClientCurrentModelAssertionErrIsWrapped(c *C) {
 	cs.err = errors.New("boom")
-	_, err := cs.cli.CurrentModelAssertion()
+	_ := mylog.Check2(cs.cli.CurrentModelAssertion())
 	var e xerrors.Wrapper
 	c.Assert(err, Implements, &e)
 }
@@ -215,16 +216,15 @@ func (cs *clientSuite) TestClientOfflineRemodel(c *C) {
 	}`
 	rawModel := []byte(`some-model`)
 
-	var err error
 	snapPaths := []string{filepath.Join(dirs.GlobalRootDir, "snap1.snap")}
-	err = os.WriteFile(snapPaths[0], []byte("snap1"), 0644)
-	c.Assert(err, IsNil)
-	assertsPaths := []string{filepath.Join(dirs.GlobalRootDir, "f1.asserts")}
-	err = os.WriteFile(assertsPaths[0], []byte("asserts1"), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(snapPaths[0], []byte("snap1"), 0644))
 
-	id, err := cs.cli.RemodelWithLocalSnaps(rawModel, snapPaths, assertsPaths)
-	c.Assert(err, IsNil)
+	assertsPaths := []string{filepath.Join(dirs.GlobalRootDir, "f1.asserts")}
+	mylog.Check(os.WriteFile(assertsPaths[0], []byte("asserts1"), 0644))
+
+
+	id := mylog.Check2(cs.cli.RemodelWithLocalSnaps(rawModel, snapPaths, assertsPaths))
+
 	c.Check(id, Equals, "d728")
 	contentTypeReStr := "^multipart/form-data; boundary=([A-Za-z0-9]*)$"
 	contentType := cs.req.Header.Get("Content-Type")
@@ -234,8 +234,8 @@ func (cs *clientSuite) TestClientOfflineRemodel(c *C) {
 	c.Assert(len(matches), Equals, 2)
 	boundary := "--" + matches[1]
 
-	body, err := io.ReadAll(cs.req.Body)
-	c.Assert(err, IsNil)
+	body := mylog.Check2(io.ReadAll(cs.req.Body))
+
 	expected := boundary + `
 Content-Disposition: form-data; name="new-model"
 Content-Type: application/x.ubuntu.assertion
@@ -262,15 +262,14 @@ func (cs *clientSuite) TestClientOfflineRemodelServerError(c *C) {
 	cs.rsp = noSerialAssertionYetResponse
 	rawModel := []byte(`some-model`)
 
-	var err error
 	snapPaths := []string{filepath.Join(dirs.GlobalRootDir, "snap1.snap")}
-	err = os.WriteFile(snapPaths[0], []byte("snap1"), 0644)
-	c.Assert(err, IsNil)
-	assertsPaths := []string{filepath.Join(dirs.GlobalRootDir, "f1.asserts")}
-	err = os.WriteFile(assertsPaths[0], []byte("asserts1"), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(snapPaths[0], []byte("snap1"), 0644))
 
-	id, err := cs.cli.RemodelWithLocalSnaps(rawModel, snapPaths, assertsPaths)
+	assertsPaths := []string{filepath.Join(dirs.GlobalRootDir, "f1.asserts")}
+	mylog.Check(os.WriteFile(assertsPaths[0], []byte("asserts1"), 0644))
+
+
+	id := mylog.Check2(cs.cli.RemodelWithLocalSnaps(rawModel, snapPaths, assertsPaths))
 	c.Assert(err.Error(), Equals, "no serial assertion yet")
 	c.Check(id, Equals, "")
 }
@@ -281,12 +280,12 @@ func (cs *clientSuite) TestClientOfflineRemodelNoFile(c *C) {
 	paths := []string{filepath.Join(dirs.GlobalRootDir, "snap1.snap")}
 
 	// No snap file
-	id, err := cs.cli.RemodelWithLocalSnaps(rawModel, paths, nil)
+	id := mylog.Check2(cs.cli.RemodelWithLocalSnaps(rawModel, paths, nil))
 	c.Assert(err, ErrorMatches, `cannot open .*: no such file or directory`)
 	c.Assert(id, Equals, "")
 
 	// No assertions file
-	id, err = cs.cli.RemodelWithLocalSnaps(rawModel, nil, paths)
+	id = mylog.Check2(cs.cli.RemodelWithLocalSnaps(rawModel, nil, paths))
 	c.Assert(err, ErrorMatches, `cannot open .*: no such file or directory`)
 	c.Assert(id, Equals, "")
 }

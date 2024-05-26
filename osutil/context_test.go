@@ -29,6 +29,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -45,7 +46,7 @@ var _ = check.Suite(&ctxSuite{})
 func (ctxSuite) TestWriter(c *check.C) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second/100)
 	defer cancel()
-	n, err := io.Copy(osutil.ContextWriter(ctx), dumbReader{})
+	n := mylog.Check2(io.Copy(osutil.ContextWriter(ctx), dumbReader{}))
 	c.Assert(err, check.Equals, context.DeadlineExceeded)
 	// but we copied things until the deadline hit
 	c.Check(n, check.Not(check.Equals), int64(0))
@@ -54,7 +55,7 @@ func (ctxSuite) TestWriter(c *check.C) {
 func (ctxSuite) TestWriterDone(c *check.C) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	n, err := io.Copy(osutil.ContextWriter(ctx), dumbReader{})
+	n := mylog.Check2(io.Copy(osutil.ContextWriter(ctx), dumbReader{}))
 	c.Assert(err, check.Equals, context.Canceled)
 	// and nothing was copied
 	c.Check(n, check.Equals, int64(0))
@@ -64,7 +65,7 @@ func (ctxSuite) TestWriterSuccess(c *check.C) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second/100)
 	defer cancel()
 	// check we can copy if we're quick
-	n, err := io.Copy(osutil.ContextWriter(ctx), strings.NewReader("hello"))
+	n := mylog.Check2(io.Copy(osutil.ContextWriter(ctx), strings.NewReader("hello")))
 	c.Check(err, check.IsNil)
 	c.Check(n, check.Equals, int64(len("hello")))
 }
@@ -73,7 +74,7 @@ func (ctxSuite) TestRun(c *check.C) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second/100)
 	defer cancel()
 	cmd := exec.Command("/bin/sleep", "1")
-	err := osutil.RunWithContext(ctx, cmd)
+	mylog.Check(osutil.RunWithContext(ctx, cmd))
 	c.Check(err, check.Equals, context.DeadlineExceeded)
 }
 
@@ -98,7 +99,7 @@ func (ctxSuite) TestRunRace(c *check.C) {
 	for nfailed == 0 || nkilled == 0 {
 		cmd := exec.Command("/bin/false")
 		ctx, cancel := context.WithTimeout(context.Background(), dt)
-		err := osutil.RunWithContext(ctx, cmd)
+		mylog.Check(osutil.RunWithContext(ctx, cmd))
 		cancel()
 		switch err.Error() {
 		case killedstr:
@@ -117,7 +118,7 @@ func (ctxSuite) TestRunDone(c *check.C) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	cmd := exec.Command("/bin/sleep", "1")
-	err := osutil.RunWithContext(ctx, cmd)
+	mylog.Check(osutil.RunWithContext(ctx, cmd))
 	c.Check(err, check.Equals, context.Canceled)
 }
 
@@ -125,7 +126,7 @@ func (ctxSuite) TestRunSuccess(c *check.C) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	cmd := exec.Command("/bin/sleep", "0.01")
-	err := osutil.RunWithContext(ctx, cmd)
+	mylog.Check(osutil.RunWithContext(ctx, cmd))
 	c.Check(err, check.IsNil)
 }
 
@@ -133,6 +134,6 @@ func (ctxSuite) TestRunSuccessfulFailure(c *check.C) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	cmd := exec.Command("not/something/you/can/run")
-	err := osutil.RunWithContext(ctx, cmd)
+	mylog.Check(osutil.RunWithContext(ctx, cmd))
 	c.Check(err, check.ErrorMatches, `fork/exec \S+: no such file or directory`)
 }

@@ -26,6 +26,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -37,11 +38,7 @@ func init() {
 		short = "Fetch and run repair assertions as necessary for the device"
 		long  = ""
 	)
-
-	if _, err := parser.AddCommand("run", short, long, &cmdRun{}); err != nil {
-		panic(err)
-	}
-
+	mylog.Check2(parser.AddCommand("run", short, long, &cmdRun{}))
 }
 
 type cmdRun struct{}
@@ -61,42 +58,29 @@ func init() {
 		baseurl = forcedURL
 	}
 
-	var err error
-	baseURL, err = url.Parse(baseurl)
-	if err != nil {
-		panic(fmt.Sprintf("cannot setup base url: %v", err))
-	}
+	baseURL = mylog.Check2(url.Parse(baseurl))
 }
 
 var rootBrandIDs = []string{"canonical"}
 
 func (c *cmdRun) Execute(args []string) error {
-	if err := os.MkdirAll(dirs.SnapRunRepairDir, 0755); err != nil {
-		return err
-	}
-	flock, err := osutil.NewFileLock(filepath.Join(dirs.SnapRunRepairDir, "lock"))
-	if err != nil {
-		return err
-	}
-	err = flock.TryLock()
+	mylog.Check(os.MkdirAll(dirs.SnapRunRepairDir, 0755))
+
+	flock := mylog.Check2(osutil.NewFileLock(filepath.Join(dirs.SnapRunRepairDir, "lock")))
+	mylog.Check(flock.TryLock())
 	if err == osutil.ErrAlreadyLocked {
 		return fmt.Errorf("cannot run, another snap-repair run already executing")
 	}
-	if err != nil {
-		return err
-	}
+
 	defer flock.Unlock()
 
 	run := NewRunner()
 	run.BaseURL = baseURL
-	err = run.LoadState()
-	if err != nil {
-		return err
-	}
+	mylog.Check(run.LoadState())
 
 	for _, rootRepairBrandID := range rootBrandIDs {
 		for {
-			repair, err := run.Next(rootRepairBrandID)
+			repair := mylog.Check2(run.Next(rootRepairBrandID))
 			if err == ErrRepairNotFound {
 				// no more repairs
 				break
@@ -108,14 +92,8 @@ func (c *cmdRun) Execute(args []string) error {
 				logger.NoGuardDebugf("running snap repair: %v", err)
 				return nil
 			}
+			mylog.Check(repair.Run())
 
-			if err != nil {
-				return err
-			}
-
-			if err := repair.Run(); err != nil {
-				return err
-			}
 		}
 	}
 

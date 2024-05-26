@@ -27,17 +27,15 @@ import (
 	"strings"
 )
 
-var (
-	// this regexp is for the DM_UUID udev property, or equivalently the dm/uuid
-	// sysfs entry for a luks2 device mapper volume dynamically created by
-	// systemd-cryptsetup when unlocking
-	// the actual value that is returned also has "-some-name" appended to this
-	// pattern, but we delete that from the string before matching with this
-	// regexp to prevent issues like a mapper volume name that has CRYPT-LUKS2-
-	// in the name and thus we might accidentally match it
-	// see also the comments in DiskFromMountPoint about this value
-	luksUUIDPatternRe = regexp.MustCompile(`^CRYPT-LUKS2-([0-9a-f]{32})$`)
-)
+// this regexp is for the DM_UUID udev property, or equivalently the dm/uuid
+// sysfs entry for a luks2 device mapper volume dynamically created by
+// systemd-cryptsetup when unlocking
+// the actual value that is returned also has "-some-name" appended to this
+// pattern, but we delete that from the string before matching with this
+// regexp to prevent issues like a mapper volume name that has CRYPT-LUKS2-
+// in the name and thus we might accidentally match it
+// see also the comments in DiskFromMountPoint about this value
+var luksUUIDPatternRe = regexp.MustCompile(`^CRYPT-LUKS2-([0-9a-f]{32})$`)
 
 func cryptLuks2DeviceMapperBackResolver(dmUUID, dmName []byte) (dev string, ok bool) {
 	if !strings.HasPrefix(string(dmUUID), "CRYPT-LUKS") {

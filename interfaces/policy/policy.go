@@ -25,6 +25,7 @@ package policy
 import (
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/snap"
@@ -109,17 +110,11 @@ func (ic *InstallCandidate) Check() error {
 	}
 
 	for _, slot := range ic.Snap.Slots {
-		err := ic.checkSlot(slot)
-		if err != nil {
-			return err
-		}
+		mylog.Check(ic.checkSlot(slot))
 	}
 
 	for _, plug := range ic.Snap.Plugs {
-		err := ic.checkPlug(plug)
-		if err != nil {
-			return err
-		}
+		mylog.Check(ic.checkPlug(plug))
 	}
 
 	return nil
@@ -194,14 +189,12 @@ func (connc *ConnectCandidate) checkPlugRule(kind string, rule *asserts.PlugRule
 		denyConst = rule.DenyAutoConnection
 		allowConst = rule.AllowAutoConnection
 	}
-	if _, err := checkPlugConnectionAltConstraints(connc, denyConst); err == nil {
+	if _ := mylog.Check2(checkPlugConnectionAltConstraints(connc, denyConst)); err == nil {
 		return nil, fmt.Errorf("%s denied by plug rule of interface %q%s", kind, connc.Plug.Interface(), context)
 	}
 
-	allowedConstraints, err := checkPlugConnectionAltConstraints(connc, allowConst)
-	if err != nil {
-		return nil, fmt.Errorf("%s not allowed by plug rule of interface %q%s", kind, connc.Plug.Interface(), context)
-	}
+	allowedConstraints := mylog.Check2(checkPlugConnectionAltConstraints(connc, allowConst))
+
 	return sideArity{allowedConstraints.SlotsPerPlug}, nil
 }
 
@@ -216,14 +209,12 @@ func (connc *ConnectCandidate) checkSlotRule(kind string, rule *asserts.SlotRule
 		denyConst = rule.DenyAutoConnection
 		allowConst = rule.AllowAutoConnection
 	}
-	if _, err := checkSlotConnectionAltConstraints(connc, denyConst); err == nil {
+	if _ := mylog.Check2(checkSlotConnectionAltConstraints(connc, denyConst)); err == nil {
 		return nil, fmt.Errorf("%s denied by slot rule of interface %q%s", kind, connc.Plug.Interface(), context)
 	}
 
-	allowedConstraints, err := checkSlotConnectionAltConstraints(connc, allowConst)
-	if err != nil {
-		return nil, fmt.Errorf("%s not allowed by slot rule of interface %q%s", kind, connc.Plug.Interface(), context)
-	}
+	allowedConstraints := mylog.Check2(checkSlotConnectionAltConstraints(connc, allowConst))
+
 	return sideArity{allowedConstraints.SlotsPerPlug}, nil
 }
 
@@ -260,16 +251,14 @@ func (connc *ConnectCandidate) check(kind string) (interfaces.SideArity, error) 
 
 // Check checks whether the connection is allowed.
 func (connc *ConnectCandidate) Check() error {
-	_, err := connc.check("connection")
+	_ := mylog.Check2(connc.check("connection"))
 	return err
 }
 
 // CheckAutoConnect checks whether the connection is allowed to auto-connect.
 func (connc *ConnectCandidate) CheckAutoConnect() (interfaces.SideArity, error) {
-	arity, err := connc.check("auto-connection")
-	if err != nil {
-		return nil, err
-	}
+	arity := mylog.Check2(connc.check("auto-connection"))
+
 	if arity == nil {
 		// shouldn't happen but be safe, the callers should be able
 		// to assume arity to be non nil
@@ -288,15 +277,15 @@ type InstallCandidateMinimalCheck struct {
 }
 
 func (ic *InstallCandidateMinimalCheck) checkSlotRule(slot *snap.SlotInfo, rule *asserts.SlotRule) error {
-	// we use the allow-installation to check if the snap type
-	// is expected to have this kind of slot at all,
-	// the potential deny-installation is ignored here, but allows
-	// to for example constraint super-privileged app-provided slots
-	// while letting user test them locally with --dangerous
-	// TODO check that the snap is an app or gadget if allow-installation had no slot-snap-type constraints
-	if _, err := checkMinimalSlotInstallationAltConstraints(slot, rule.AllowInstallation); err != nil {
-		return fmt.Errorf("installation not allowed by %q slot rule of interface %q", slot.Name, slot.Interface)
-	}
+	mylog.Check2(
+		// we use the allow-installation to check if the snap type
+		// is expected to have this kind of slot at all,
+		// the potential deny-installation is ignored here, but allows
+		// to for example constraint super-privileged app-provided slots
+		// while letting user test them locally with --dangerous
+		// TODO check that the snap is an app or gadget if allow-installation had no slot-snap-type constraints
+		checkMinimalSlotInstallationAltConstraints(slot, rule.AllowInstallation))
+
 	return nil
 }
 
@@ -315,10 +304,7 @@ func (ic *InstallCandidateMinimalCheck) Check() error {
 	}
 
 	for _, slot := range ic.Snap.Slots {
-		err := ic.checkSlot(slot)
-		if err != nil {
-			return err
-		}
+		mylog.Check(ic.checkSlot(slot))
 	}
 
 	return nil

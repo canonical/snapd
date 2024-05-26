@@ -23,6 +23,8 @@ import (
 	"os"
 	"syscall"
 	"unsafe"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 const (
@@ -66,7 +68,7 @@ func ioctl(f *os.File, request uintptr, attrp *int32) error {
 // GetAttr retrieves the attributes of a file on a linux filesystem
 func GetAttr(f *os.File) (int32, error) {
 	attr := int32(-1)
-	err := ioctl(f, _FS_IOC_GETFLAGS, &attr)
+	mylog.Check(ioctl(f, _FS_IOC_GETFLAGS, &attr))
 	return attr, err
 }
 

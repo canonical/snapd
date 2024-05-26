@@ -29,6 +29,7 @@ import (
 
 	"gopkg.in/yaml.v2"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -61,9 +62,8 @@ func (opts *SnapshotOptions) Unset() bool {
 func (opts *SnapshotOptions) MergeDynamicExcludes(dynamicExcludes []string) error {
 	mergedExcludes := append(opts.Exclude, dynamicExcludes...)
 	dryRunOptions := SnapshotOptions{Exclude: mergedExcludes}
-	if err := dryRunOptions.Validate(); err != nil {
-		return err
-	}
+	mylog.Check(dryRunOptions.Validate())
+
 	opts.Exclude = mergedExcludes
 
 	return nil
@@ -102,13 +102,11 @@ func (opts *SnapshotOptions) Validate() error {
 
 // ReadSnapshotYaml reads the snapshot manifest file for the given snap.
 func ReadSnapshotYaml(si *Info) (*SnapshotOptions, error) {
-	file, err := osOpen(filepath.Join(si.MountDir(), snapshotManifestPath))
+	file := mylog.Check2(osOpen(filepath.Join(si.MountDir(), snapshotManifestPath)))
 	if os.IsNotExist(err) {
 		return &SnapshotOptions{}, nil
 	}
-	if err != nil {
-		return nil, err
-	}
+
 	defer file.Close()
 
 	return readSnapshotYaml(file)
@@ -117,25 +115,18 @@ func ReadSnapshotYaml(si *Info) (*SnapshotOptions, error) {
 // ReadSnapshotYaml reads the snapshot manifest file for the given snap
 // container.
 func ReadSnapshotYamlFromSnapFile(snapf Container) (*SnapshotOptions, error) {
-	sy, err := snapf.ReadFile(snapshotManifestPath)
+	sy := mylog.Check2(snapf.ReadFile(snapshotManifestPath))
 	if os.IsNotExist(err) {
 		return &SnapshotOptions{}, nil
 	}
-	if err != nil {
-		return nil, err
-	}
+
 	return readSnapshotYaml(bytes.NewBuffer(sy))
 }
 
 func readSnapshotYaml(r io.Reader) (*SnapshotOptions, error) {
 	var opts SnapshotOptions
-
-	if err := yaml.NewDecoder(r).Decode(&opts); err != nil {
-		return nil, fmt.Errorf("cannot read snapshot manifest: %v", err)
-	}
-	if err := opts.Validate(); err != nil {
-		return nil, err
-	}
+	mylog.Check(yaml.NewDecoder(r).Decode(&opts))
+	mylog.Check(opts.Validate())
 
 	return &opts, nil
 }

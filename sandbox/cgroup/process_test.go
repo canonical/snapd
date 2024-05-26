@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/sandbox/cgroup"
 )
 
@@ -39,8 +40,8 @@ func (s *cgroupSuite) TestV1SnapNameFromPidHappy(c *C) {
 	restore := cgroup.MockVersion(cgroup.V1, nil)
 	defer restore()
 	pid := s.mockPidCgroup(c, string(mockCgroup)) // defined in cgroup_test.go
-	name, err := cgroup.SnapNameFromPid(pid)
-	c.Assert(err, IsNil)
+	name := mylog.Check2(cgroup.SnapNameFromPid(pid))
+
 	c.Check(name, Equals, "hello-world")
 }
 
@@ -48,7 +49,7 @@ func (s *cgroupSuite) TestV1SnapNameFromPidUnhappy(c *C) {
 	restore := cgroup.MockVersion(cgroup.V1, nil)
 	defer restore()
 	pid := s.mockPidCgroup(c, "1:freezer:/\n")
-	name, err := cgroup.SnapNameFromPid(pid)
+	name := mylog.Check2(cgroup.SnapNameFromPid(pid))
 	c.Assert(err, ErrorMatches, "cannot find a snap for pid .*")
 	c.Check(name, Equals, "")
 }
@@ -57,7 +58,7 @@ func (s *cgroupSuite) TestV1SnapNameFromPidEmptyName(c *C) {
 	restore := cgroup.MockVersion(cgroup.V1, nil)
 	defer restore()
 	pid := s.mockPidCgroup(c, "1:freezer:/snap./\n")
-	name, err := cgroup.SnapNameFromPid(pid)
+	name := mylog.Check2(cgroup.SnapNameFromPid(pid))
 	c.Assert(err, ErrorMatches, "snap name in cgroup path is empty")
 	c.Check(name, Equals, "")
 }
@@ -66,8 +67,8 @@ func (s *cgroupSuite) TestSnapNameFromPidTracking(c *C) {
 	restore := cgroup.MockVersion(cgroup.V1, nil)
 	defer restore()
 	pid := s.mockPidCgroup(c, "1:name=systemd:/user.slice/user-1000.slice/user@1000.service/apps.slice/snap.foo.bar.00000-1111-3333.service\n")
-	name, err := cgroup.SnapNameFromPid(pid)
-	c.Assert(err, IsNil)
+	name := mylog.Check2(cgroup.SnapNameFromPid(pid))
+
 	c.Check(name, Equals, "foo")
 }
 
@@ -76,7 +77,7 @@ func (s *cgroupSuite) TestSnapNameFromPidWithoutSources(c *C) {
 	defer restore()
 
 	pid := s.mockPidCgroup(c, "")
-	name, err := cgroup.SnapNameFromPid(pid)
+	name := mylog.Check2(cgroup.SnapNameFromPid(pid))
 	c.Assert(err, ErrorMatches, "not supported")
 	c.Check(name, Equals, "")
 }

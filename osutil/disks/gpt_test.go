@@ -28,6 +28,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil/disks"
 )
 
@@ -46,12 +47,14 @@ type gptSuite struct {
 	tableSize tableSizeType
 }
 
-var _ = Suite(&gptSuite{blockSize: 512, tableSize: Normal})
-var _ = Suite(&gptSuite{blockSize: 512, tableSize: Small})
-var _ = Suite(&gptSuite{blockSize: 512, tableSize: Big})
-var _ = Suite(&gptSuite{blockSize: 4096, tableSize: Normal})
-var _ = Suite(&gptSuite{blockSize: 4096, tableSize: Small})
-var _ = Suite(&gptSuite{blockSize: 4096, tableSize: Big})
+var (
+	_ = Suite(&gptSuite{blockSize: 512, tableSize: Normal})
+	_ = Suite(&gptSuite{blockSize: 512, tableSize: Small})
+	_ = Suite(&gptSuite{blockSize: 512, tableSize: Big})
+	_ = Suite(&gptSuite{blockSize: 4096, tableSize: Normal})
+	_ = Suite(&gptSuite{blockSize: 4096, tableSize: Small})
+	_ = Suite(&gptSuite{blockSize: 4096, tableSize: Big})
+)
 
 func (s *gptSuite) SetUpTest(c *C) {
 	tmpdir := c.MkDir()
@@ -65,165 +68,165 @@ func (s *gptSuite) SetUpTest(c *C) {
 	if s.tableSize == Big {
 		suffix = suffix + "_big"
 	}
-	header, err := os.Open("testdata/gpt_header" + suffix)
-	c.Assert(err, IsNil)
+	header := mylog.Check2(os.Open("testdata/gpt_header" + suffix))
+
 	defer header.Close()
-	footer, err := os.Open("testdata/gpt_footer" + suffix)
-	c.Assert(err, IsNil)
+	footer := mylog.Check2(os.Open("testdata/gpt_footer" + suffix))
+
 	defer footer.Close()
 	s.image = filepath.Join(tmpdir, "image.img")
-	image, err := os.OpenFile(s.image, os.O_WRONLY|os.O_CREATE, 0o666)
-	c.Assert(err, IsNil)
+	image := mylog.Check2(os.OpenFile(s.image, os.O_WRONLY|os.O_CREATE, 0o666))
+
 	defer image.Close()
-	_, err = io.Copy(image, header)
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(io.Copy(image, header))
+
 	// 128M - 1 block
-	_, err = image.Seek((128*1024*1024/int64(s.blockSize)-1)*int64(s.blockSize), os.SEEK_SET)
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(image.Seek((128*1024*1024/int64(s.blockSize)-1)*int64(s.blockSize), os.SEEK_SET))
+
 	io.Copy(image, footer)
 
-	stat, err := os.Stat(s.image)
-	c.Assert(err, IsNil)
+	stat := mylog.Check2(os.Stat(s.image))
+
 	size := stat.Size()
 	c.Assert(size%int64(s.blockSize), Equals, int64(0))
 	s.size = uint64(size) / s.blockSize
 }
 
 func (s *gptSuite) TestReadFirstLBA(c *C) {
-	f, err := os.Open(s.image)
-	c.Assert(err, IsNil)
-	_, err = f.Seek(int64(s.blockSize), 0)
-	c.Assert(err, IsNil)
+	f := mylog.Check2(os.Open(s.image))
 
-	gptHeader, err := disks.LoadGPTHeader(f, s.blockSize)
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(f.Seek(int64(s.blockSize), 0))
+
+
+	gptHeader := mylog.Check2(disks.LoadGPTHeader(f, s.blockSize))
+
 
 	c.Assert(uint64(gptHeader.CurrentLBA), Equals, uint64(1))
 	c.Assert(uint64(gptHeader.AlternateLBA), Equals, s.size-1)
 }
 
 func (s *gptSuite) TestReadLastLBA(c *C) {
-	f, err := os.Open(s.image)
-	c.Assert(err, IsNil)
-	_, err = f.Seek(-int64(s.blockSize), 2)
-	c.Assert(err, IsNil)
+	f := mylog.Check2(os.Open(s.image))
 
-	gptHeader, err := disks.LoadGPTHeader(f, s.blockSize)
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(f.Seek(-int64(s.blockSize), 2))
+
+
+	gptHeader := mylog.Check2(disks.LoadGPTHeader(f, s.blockSize))
+
 
 	c.Assert(uint64(gptHeader.CurrentLBA), Equals, s.size-1)
 	c.Assert(uint64(gptHeader.AlternateLBA), Equals, uint64(1))
 }
 
 func (s *gptSuite) messSignature(c *C) {
-	f, err := os.OpenFile(s.image, os.O_RDWR, 0777)
-	c.Assert(err, IsNil)
+	f := mylog.Check2(os.OpenFile(s.image, os.O_RDWR, 0777))
+
 	defer f.Close()
-	_, err = f.Seek(int64(s.blockSize), 0)
-	c.Assert(err, IsNil)
-	_, err = f.Write([]byte("NOTGPT"))
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(f.Seek(int64(s.blockSize), 0))
+
+	_ = mylog.Check2(f.Write([]byte("NOTGPT")))
+
 }
 
 func (s *gptSuite) TestBadSignature(c *C) {
 	s.messSignature(c)
 
-	f, err := os.Open(s.image)
-	c.Assert(err, IsNil)
-	_, err = f.Seek(int64(s.blockSize), 0)
-	c.Assert(err, IsNil)
+	f := mylog.Check2(os.Open(s.image))
 
-	_, err = disks.LoadGPTHeader(f, s.blockSize)
+	_ = mylog.Check2(f.Seek(int64(s.blockSize), 0))
+
+
+	_ = mylog.Check2(disks.LoadGPTHeader(f, s.blockSize))
 	c.Assert(err, ErrorMatches, `GPT Header does not start with the magic string`)
 }
 
 func (s *gptSuite) messRevision(c *C) {
-	f, err := os.OpenFile(s.image, os.O_RDWR, 0777)
-	c.Assert(err, IsNil)
+	f := mylog.Check2(os.OpenFile(s.image, os.O_RDWR, 0777))
+
 	defer f.Close()
-	_, err = f.Seek(int64(s.blockSize)+8, 0)
-	c.Assert(err, IsNil)
-	err = binary.Write(f, binary.LittleEndian, uint32(0x12345678))
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(f.Seek(int64(s.blockSize)+8, 0))
+
+	mylog.Check(binary.Write(f, binary.LittleEndian, uint32(0x12345678)))
+
 }
 
 func (s *gptSuite) TestBadRevision(c *C) {
 	s.messRevision(c)
 
-	f, err := os.Open(s.image)
-	c.Assert(err, IsNil)
-	_, err = f.Seek(int64(s.blockSize), 0)
-	c.Assert(err, IsNil)
+	f := mylog.Check2(os.Open(s.image))
 
-	_, err = disks.LoadGPTHeader(f, s.blockSize)
+	_ = mylog.Check2(f.Seek(int64(s.blockSize), 0))
+
+
+	_ = mylog.Check2(disks.LoadGPTHeader(f, s.blockSize))
 	c.Assert(err, ErrorMatches, `GPT header revision is not 1.0`)
 }
 
 func (s *gptSuite) messSize(c *C, newsize uint32) {
-	f, err := os.OpenFile(s.image, os.O_RDWR, 0777)
-	c.Assert(err, IsNil)
+	f := mylog.Check2(os.OpenFile(s.image, os.O_RDWR, 0777))
+
 	defer f.Close()
-	_, err = f.Seek(int64(s.blockSize)+8+4, 0)
-	c.Assert(err, IsNil)
-	err = binary.Write(f, binary.LittleEndian, newsize)
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(f.Seek(int64(s.blockSize)+8+4, 0))
+
+	mylog.Check(binary.Write(f, binary.LittleEndian, newsize))
+
 }
 
 func (s *gptSuite) TestSmallSize(c *C) {
 	s.messSize(c, 90)
 
-	f, err := os.Open(s.image)
-	c.Assert(err, IsNil)
-	_, err = f.Seek(int64(s.blockSize), 0)
-	c.Assert(err, IsNil)
+	f := mylog.Check2(os.Open(s.image))
 
-	_, err = disks.LoadGPTHeader(f, s.blockSize)
+	_ = mylog.Check2(f.Seek(int64(s.blockSize), 0))
+
+
+	_ = mylog.Check2(disks.LoadGPTHeader(f, s.blockSize))
 	c.Assert(err, ErrorMatches, `GPT header size is smaller than the minimum valid size`)
 }
 
 func (s *gptSuite) TestBigSize(c *C) {
 	s.messSize(c, uint32(s.blockSize)+3)
 
-	f, err := os.Open(s.image)
-	c.Assert(err, IsNil)
-	_, err = f.Seek(int64(s.blockSize), 0)
-	c.Assert(err, IsNil)
+	f := mylog.Check2(os.Open(s.image))
 
-	_, err = disks.LoadGPTHeader(f, s.blockSize)
+	_ = mylog.Check2(f.Seek(int64(s.blockSize), 0))
+
+
+	_ = mylog.Check2(disks.LoadGPTHeader(f, s.blockSize))
 	c.Assert(err, ErrorMatches, `GPT header size is larger than the maximum supported size`)
 }
 
 func (s *gptSuite) messCRC(c *C) {
-	f, err := os.OpenFile(s.image, os.O_RDWR, 0777)
-	c.Assert(err, IsNil)
+	f := mylog.Check2(os.OpenFile(s.image, os.O_RDWR, 0777))
+
 	defer f.Close()
-	_, err = f.Seek(int64(s.blockSize)+8+4+4, 0)
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(f.Seek(int64(s.blockSize)+8+4+4, 0))
+
 	var crc uint32
-	err = binary.Read(f, binary.LittleEndian, &crc)
-	c.Assert(err, IsNil)
-	_, err = f.Seek(int64(s.blockSize)+8+4+4, 0)
-	c.Assert(err, IsNil)
+	mylog.Check(binary.Read(f, binary.LittleEndian, &crc))
+
+	_ = mylog.Check2(f.Seek(int64(s.blockSize)+8+4+4, 0))
+
 	crc = crc + 1
-	err = binary.Write(f, binary.LittleEndian, crc)
-	c.Assert(err, IsNil)
+	mylog.Check(binary.Write(f, binary.LittleEndian, crc))
+
 }
 
 func (s *gptSuite) TestBadCRC(c *C) {
 	s.messCRC(c)
 
-	f, err := os.Open(s.image)
-	c.Assert(err, IsNil)
-	_, err = f.Seek(int64(s.blockSize), 0)
-	c.Assert(err, IsNil)
+	f := mylog.Check2(os.Open(s.image))
 
-	_, err = disks.LoadGPTHeader(f, s.blockSize)
+	_ = mylog.Check2(f.Seek(int64(s.blockSize), 0))
+
+
+	_ = mylog.Check2(disks.LoadGPTHeader(f, s.blockSize))
 	c.Assert(err, ErrorMatches, `GPT header CRC32 checksum failed: [0-9]+ != [0-9]+`)
 }
 
 func (s *gptSuite) TestReadFile(c *C) {
-	gptHeader, err := disks.ReadGPTHeader(s.image, s.blockSize)
-	c.Assert(err, IsNil)
+	gptHeader := mylog.Check2(disks.ReadGPTHeader(s.image, s.blockSize))
+
 
 	// Check that we got the first header
 	c.Assert(uint64(gptHeader.CurrentLBA), Equals, uint64(1))
@@ -232,8 +235,8 @@ func (s *gptSuite) TestReadFile(c *C) {
 
 func (s *gptSuite) TestReadFileFallback(c *C) {
 	s.messSignature(c)
-	gptHeader, err := disks.ReadGPTHeader(s.image, s.blockSize)
-	c.Assert(err, IsNil)
+	gptHeader := mylog.Check2(disks.ReadGPTHeader(s.image, s.blockSize))
+
 
 	// Check that we got the alternate header
 	c.Assert(uint64(gptHeader.CurrentLBA), Equals, s.size-1)
@@ -241,27 +244,27 @@ func (s *gptSuite) TestReadFileFallback(c *C) {
 }
 
 func (s *gptSuite) messAlternateRevision(c *C) {
-	f, err := os.OpenFile(s.image, os.O_RDWR, 0777)
-	c.Assert(err, IsNil)
+	f := mylog.Check2(os.OpenFile(s.image, os.O_RDWR, 0777))
+
 	defer f.Close()
-	_, err = f.Seek(-int64(s.blockSize)+8, 2)
-	c.Assert(err, IsNil)
-	err = binary.Write(f, binary.LittleEndian, uint32(0x12345678))
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(f.Seek(-int64(s.blockSize)+8, 2))
+
+	mylog.Check(binary.Write(f, binary.LittleEndian, uint32(0x12345678)))
+
 }
 
 func (s *gptSuite) TestReadFileFail(c *C) {
 	s.messSignature(c)
 	s.messAlternateRevision(c)
-	_, err := disks.ReadGPTHeader(s.image, s.blockSize)
+	_ := mylog.Check2(disks.ReadGPTHeader(s.image, s.blockSize))
 
 	// Check that we get the error from the main header
 	c.Assert(err, ErrorMatches, `GPT Header does not start with the magic string`)
 }
 
 func (s *gptSuite) TestCalculateSize(c *C) {
-	calculated, err := disks.CalculateLastUsableLBA(s.image, 128*1024*1024, s.blockSize)
-	c.Assert(err, IsNil)
+	calculated := mylog.Check2(disks.CalculateLastUsableLBA(s.image, 128*1024*1024, s.blockSize))
+
 
 	if s.tableSize == Small {
 		size := 128 * 1024 * 1024 / int64(s.blockSize)
@@ -270,18 +273,18 @@ func (s *gptSuite) TestCalculateSize(c *C) {
 		lastUsable := alternateTable - 1
 		c.Assert(calculated, Equals, uint64(lastUsable))
 	} else {
-		gptHeader, err := disks.ReadGPTHeader(s.image, s.blockSize)
-		c.Assert(err, IsNil)
+		gptHeader := mylog.Check2(disks.ReadGPTHeader(s.image, s.blockSize))
+
 		c.Assert(calculated, Equals, uint64(gptHeader.LastUsableLBA))
 	}
 }
 
 func (s *gptSuite) TestCalculateSizeResized(c *C) {
-	err := exec.Command("truncate", "--size", "256M", s.image).Run()
-	c.Assert(err, IsNil)
+	mylog.Check(exec.Command("truncate", "--size", "256M", s.image).Run())
 
-	calculated, err := disks.CalculateLastUsableLBA(s.image, 256*1024*1024, s.blockSize)
-	c.Assert(err, IsNil)
+
+	calculated := mylog.Check2(disks.CalculateLastUsableLBA(s.image, 256*1024*1024, s.blockSize))
+
 
 	if s.tableSize == Small {
 		size := 256 * 1024 * 1024 / int64(s.blockSize)
@@ -290,8 +293,8 @@ func (s *gptSuite) TestCalculateSizeResized(c *C) {
 		lastUsable := alternateTable - 1
 		c.Assert(calculated, Equals, uint64(lastUsable))
 	} else {
-		gptHeader, err := disks.ReadGPTHeader(s.image, s.blockSize)
-		c.Assert(err, IsNil)
+		gptHeader := mylog.Check2(disks.ReadGPTHeader(s.image, s.blockSize))
+
 		// We added 128*1024*2 sectors, we expect that exact value added
 		c.Assert(calculated, Equals, uint64(gptHeader.LastUsableLBA)+128*1024*1024/s.blockSize)
 	}

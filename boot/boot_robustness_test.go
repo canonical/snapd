@@ -23,6 +23,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
@@ -45,12 +46,12 @@ func runBootloaderLogic(c *C, bl bootloader.Bootloader) (snap.PlaceInfo, error) 
 // and use try-kernel.efi when kernel_status is "try" and kernel.efi in all
 // other situations
 func extractedRunKernelImageBootloaderLogic(c *C, ebl bootloader.ExtractedRunKernelImageBootloader) (snap.PlaceInfo, error) {
-	m, err := ebl.GetBootVars("kernel_status")
-	c.Assert(err, IsNil)
+	m := mylog.Check2(ebl.GetBootVars("kernel_status"))
+
 	kernStatus := m["kernel_status"]
 
-	kern, err := ebl.Kernel()
-	c.Assert(err, IsNil)
+	kern := mylog.Check2(ebl.Kernel())
+
 	c.Assert(kern, Not(IsNil))
 
 	switch kernStatus {
@@ -60,8 +61,8 @@ func extractedRunKernelImageBootloaderLogic(c *C, ebl bootloader.ExtractedRunKer
 		m["kernel_status"] = boot.TryingStatus
 
 		// ensure that the try-kernel exists
-		tryKern, err := ebl.TryKernel()
-		c.Assert(err, IsNil)
+		tryKern := mylog.Check2(ebl.TryKernel())
+
 		c.Assert(tryKern, Not(IsNil))
 		kern = tryKern
 
@@ -69,22 +70,21 @@ func extractedRunKernelImageBootloaderLogic(c *C, ebl bootloader.ExtractedRunKer
 		// boot failed, move back to default
 		m["kernel_status"] = boot.DefaultStatus
 	}
+	mylog.Check(ebl.SetBootVars(m))
 
-	err = ebl.SetBootVars(m)
-	c.Assert(err, IsNil)
 
 	return kern, nil
 }
 
 func pureenvBootloaderLogic(c *C, modeVar string, bl bootloader.Bootloader) (snap.PlaceInfo, error) {
-	m, err := bl.GetBootVars(modeVar, "snap_kernel", "snap_try_kernel")
-	c.Assert(err, IsNil)
+	m := mylog.Check2(bl.GetBootVars(modeVar, "snap_kernel", "snap_try_kernel"))
+
 	var kern snap.PlaceInfo
 
 	kernStatus := m[modeVar]
 
-	kern, err = snap.ParsePlaceInfoFromSnapFileName(m["snap_kernel"])
-	c.Assert(err, IsNil)
+	kern = mylog.Check2(snap.ParsePlaceInfoFromSnapFileName(m["snap_kernel"]))
+
 	c.Assert(kern, Not(IsNil))
 
 	switch kernStatus {
@@ -95,8 +95,8 @@ func pureenvBootloaderLogic(c *C, modeVar string, bl bootloader.Bootloader) (sna
 		// move to trying, use the try-kernel
 		m[modeVar] = boot.TryingStatus
 
-		tryKern, err := snap.ParsePlaceInfoFromSnapFileName(m["snap_try_kernel"])
-		c.Assert(err, IsNil)
+		tryKern := mylog.Check2(snap.ParsePlaceInfoFromSnapFileName(m["snap_try_kernel"]))
+
 		c.Assert(tryKern, Not(IsNil))
 		kern = tryKern
 
@@ -105,9 +105,8 @@ func pureenvBootloaderLogic(c *C, modeVar string, bl bootloader.Bootloader) (sna
 		m[modeVar] = boot.DefaultStatus
 
 	}
+	mylog.Check(bl.SetBootVars(m))
 
-	err = bl.SetBootVars(m)
-	c.Assert(err, IsNil)
 
 	return kern, nil
 }
@@ -143,34 +142,36 @@ func (s *bootenv20Suite) checkBootStateAfterUnexpectedRebootAndCleanup(
 		// don't panic anymore
 		restoreBootloaderPanic()
 	} else {
-		// just run the function directly
-		err := bootFunc(dev)
+		mylog.
+			// just run the function directly
+			Check(bootFunc(dev))
 		c.Assert(err, IsNil, Commentf(comment))
 	}
 
 	// do the bootloader kernel failover logic handling
-	nextBootingKernel, err := runBootloaderLogic(c, s.bootloader)
+	nextBootingKernel := mylog.Check2(runBootloaderLogic(c, s.bootloader))
 	c.Assert(err, IsNil, Commentf(comment))
 
 	// check that the kernel we booted now is expected
 	c.Assert(nextBootingKernel, Equals, expectedBootedKernel, Commentf(comment))
 
 	// also check that the normal kernel on the bootloader is what we expect
-	kern, err := s.bootloader.Kernel()
+	kern := mylog.Check2(s.bootloader.Kernel())
 	c.Assert(err, IsNil, Commentf(comment))
 	c.Assert(kern, Equals, blKernelAfterReboot, Commentf(comment))
+	mylog.
 
-	// mark the boot successful like we were rebooted
-	err = boot.MarkBootSuccessful(dev)
+		// mark the boot successful like we were rebooted
+		Check(boot.MarkBootSuccessful(dev))
 	c.Assert(err, IsNil, Commentf(comment))
 
 	// the boot vars should be empty now too
-	afterVars, err := s.bootloader.GetBootVars("kernel_status")
+	afterVars := mylog.Check2(s.bootloader.GetBootVars("kernel_status"))
 	c.Assert(err, IsNil, Commentf(comment))
 	c.Assert(afterVars["kernel_status"], DeepEquals, boot.DefaultStatus, Commentf(comment))
 
 	// the modeenv's setting for CurrentKernels also matches
-	m, err := boot.ReadModeenv("")
+	m := mylog.Check2(boot.ReadModeenv(""))
 	c.Assert(err, IsNil, Commentf(comment))
 	// it's nicer to pass in just the snap.PlaceInfo's, but to compare we need
 	// the string filenames
@@ -182,12 +183,12 @@ func (s *bootenv20Suite) checkBootStateAfterUnexpectedRebootAndCleanup(
 
 	// the final kernel on the bootloader should always match what we booted -
 	// after MarkSuccessful runs that is
-	afterKernel, err := s.bootloader.Kernel()
+	afterKernel := mylog.Check2(s.bootloader.Kernel())
 	c.Assert(err, IsNil, Commentf(comment))
 	c.Assert(afterKernel, DeepEquals, expectedBootedKernel, Commentf(comment))
 
 	// we should never have a leftover try kernel
-	_, err = s.bootloader.TryKernel()
+	_ = mylog.Check2(s.bootloader.TryKernel())
 	c.Assert(err, Equals, bootloader.ErrNoTryKernelRef, Commentf(comment))
 }
 
@@ -304,7 +305,7 @@ func (s *bootenv20Suite) TestHappySetNextBoot20KernelUpgradeUnexpectedReboots(c 
 
 		setNextFunc := func(snap.Device) error {
 			// we don't care about the reboot required logic here
-			_, err := bootKern.SetNextBoot(boot.NextBootContext{BootWithoutTry: false})
+			_ := mylog.Check2(bootKern.SetNextBoot(boot.NextBootContext{BootWithoutTry: false}))
 			return err
 		}
 

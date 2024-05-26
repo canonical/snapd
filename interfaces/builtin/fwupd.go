@@ -362,6 +362,7 @@ bind
 # for udev
 socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 `
+
 const fwupdConnectedPlugSecComp = `
 # Description: Allow using fwupd service. Reserved because this gives
 # privileged access to the fwupd service.

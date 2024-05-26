@@ -23,6 +23,7 @@ package sysdb
 import (
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 )
 
@@ -154,30 +155,19 @@ SWyt8kWVPmT3DCzs7u5IXYIVxcq4FjkmeU9sTrn88g==
 )
 
 func init() {
-	stagingTrustedAccount, err := asserts.Decode([]byte(encodedStagingTrustedAccount))
-	if err != nil {
-		panic(fmt.Sprintf("cannot decode trusted assertion: %v", err))
-	}
-	stagingRootAccountKey, err := asserts.Decode([]byte(encodedStagingRootAccountKey))
-	if err != nil {
-		panic(fmt.Sprintf("cannot decode trusted assertion: %v", err))
-	}
+	stagingTrustedAccount := mylog.Check2(asserts.Decode([]byte(encodedStagingTrustedAccount)))
+
+	stagingRootAccountKey := mylog.Check2(asserts.Decode([]byte(encodedStagingRootAccountKey)))
+
 	trustedStagingAssertions = []asserts.Assertion{stagingTrustedAccount, stagingRootAccountKey}
 
-	genericAccount, err := asserts.Decode([]byte(encodedStagingGenericAccount))
-	if err != nil {
-		panic(fmt.Sprintf(`cannot decode "generic"'s account: %v`, err))
-	}
-	genericModelsAccountKey, err := asserts.Decode([]byte(encodedStagingGenericModelsAccountKey))
-	if err != nil {
-		panic(fmt.Sprintf(`cannot decode "generic"'s "models" account-key: %v`, err))
-	}
+	genericAccount := mylog.Check2(asserts.Decode([]byte(encodedStagingGenericAccount)))
+
+	genericModelsAccountKey := mylog.Check2(asserts.Decode([]byte(encodedStagingGenericModelsAccountKey)))
 
 	genericStagingAssertions = []asserts.Assertion{genericAccount, genericModelsAccountKey}
 
-	a, err := asserts.Decode([]byte(encodedStagingGenericClassicModel))
-	if err != nil {
-		panic(fmt.Sprintf(`cannot decode "generic"'s "generic-classic" model: %v`, err))
-	}
+	a := mylog.Check2(asserts.Decode([]byte(encodedStagingGenericClassicModel)))
+
 	genericStagingClassicModel = a.(*asserts.Model)
 }

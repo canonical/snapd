@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil/udev/netlink"
 )
 
@@ -27,41 +28,30 @@ func ExistingDevices(queue chan Device, errors chan error, matcher netlink.Match
 	quit := make(chan struct{}, 1)
 
 	if matcher != nil {
-		if err := matcher.Compile(); err != nil {
-			errors <- fmt.Errorf("Wrong matcher, err: %v", err)
-			quit <- struct{}{}
-			return quit
-		}
+		mylog.Check(matcher.Compile())
 	}
 
 	go func() {
-		err := filepath.Walk(BASE_DEVPATH, func(path string, info os.FileInfo, err error) error {
+		mylog.Check(filepath.Walk(BASE_DEVPATH, func(path string, info os.FileInfo, err error) error {
 			select {
 			case <-quit:
 				return fmt.Errorf("abort signal receive")
 			default:
-				if err != nil {
-					return err
-				}
 
 				if info.IsDir() || info.Name() != "uevent" {
 					return nil
 				}
 
-				env, err := getEventFromUEventFile(path)
-				if err != nil {
-					return err
-				}
+				env := mylog.Check2(getEventFromUEventFile(path))
 
 				kObj := filepath.Dir(path)
 
 				// Append to env subsystem if existing
-				if link, err := os.Readlink(kObj + "/subsystem"); err == nil {
+				if link := mylog.Check2(os.Readlink(kObj + "/subsystem")); err == nil {
 					env["SUBSYSTEM"] = filepath.Base(link)
 				}
 
 				if matcher == nil || matcher.EvaluateEnv(env) {
-
 					queue <- Device{
 						KObj: kObj,
 						Env:  env,
@@ -69,11 +59,8 @@ func ExistingDevices(queue chan Device, errors chan error, matcher netlink.Match
 				}
 				return nil
 			}
-		})
+		}))
 
-		if err != nil {
-			errors <- err
-		}
 		close(queue)
 	}()
 	return quit
@@ -83,17 +70,11 @@ func ExistingDevices(queue chan Device, errors chan error, matcher netlink.Match
 // syntax: name=value for each line
 // Fonction use for /sys/.../uevent files
 func getEventFromUEventFile(path string) (rv map[string]string, err error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
+	f := mylog.Check2(os.Open(path))
 
 	defer f.Close()
 
-	data, err := io.ReadAll(f)
-	if err != nil {
-		return nil, err
-	}
+	data := mylog.Check2(io.ReadAll(f))
 
 	rv = make(map[string]string, 0)
 	buf := bufio.NewScanner(bytes.NewBuffer(data))

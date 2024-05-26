@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
@@ -53,16 +54,16 @@ func (s *snapdataSuite) TestRemoveSnapData(c *C) {
 	dirs.SetSnapHomeDirs("/home")
 	homedir := filepath.Join(dirs.GlobalRootDir, "home", "user1", "snap")
 	homeData := filepath.Join(homedir, "hello/10")
-	err := os.MkdirAll(homeData, 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(homeData, 0755))
+
 	varData := filepath.Join(dirs.SnapDataDir, "hello/10")
-	err = os.MkdirAll(varData, 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(varData, 0755))
+
 
 	info := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
-	err = s.be.RemoveSnapData(info, nil)
+	mylog.Check(s.be.RemoveSnapData(info, nil))
 
-	c.Assert(err, IsNil)
+
 	c.Assert(osutil.FileExists(homeData), Equals, false)
 	c.Assert(osutil.FileExists(filepath.Dir(homeData)), Equals, true)
 	c.Assert(osutil.FileExists(varData), Equals, false)
@@ -71,10 +72,12 @@ func (s *snapdataSuite) TestRemoveSnapData(c *C) {
 
 // same as TestRemoveSnapData but with multiple homedirs
 func (s *snapdataSuite) TestRemoveSnapDataMulti(c *C) {
-	homeDirs := []string{filepath.Join(dirs.GlobalRootDir, "home"),
+	homeDirs := []string{
+		filepath.Join(dirs.GlobalRootDir, "home"),
 		filepath.Join(dirs.GlobalRootDir, "home", "company"),
 		filepath.Join(dirs.GlobalRootDir, "home", "department"),
-		filepath.Join(dirs.GlobalRootDir, "office")}
+		filepath.Join(dirs.GlobalRootDir, "office"),
+	}
 
 	dirs.SetSnapHomeDirs(strings.Join(homeDirs, ","))
 	snapHomeDataDirs := []string{}
@@ -82,19 +85,19 @@ func (s *snapdataSuite) TestRemoveSnapDataMulti(c *C) {
 	for _, v := range homeDirs {
 		snapHomeDir := filepath.Join(v, "user1", "snap")
 		snapHomeData := filepath.Join(snapHomeDir, "hello/10")
-		err := os.MkdirAll(snapHomeData, 0755)
-		c.Assert(err, IsNil)
+		mylog.Check(os.MkdirAll(snapHomeData, 0755))
+
 		snapHomeDataDirs = append(snapHomeDataDirs, snapHomeData)
 	}
 
 	varData := filepath.Join(dirs.SnapDataDir, "hello/10")
-	err := os.MkdirAll(varData, 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(varData, 0755))
+
 	info := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
-	err = s.be.RemoveSnapData(info, nil)
+	mylog.Check(s.be.RemoveSnapData(info, nil))
 
 	for _, v := range snapHomeDataDirs {
-		c.Assert(err, IsNil)
+
 		c.Assert(osutil.FileExists(v), Equals, false)
 		c.Assert(osutil.FileExists(filepath.Dir(v)), Equals, true)
 
@@ -109,20 +112,22 @@ func (s *snapdataSuite) TestSnapDataDirs(c *C) {
 	homeDir2 := filepath.Join("remote", "users")
 	homeDirs := homeDir1 + "," + homeDir2
 	dirs.SetSnapHomeDirs(homeDirs)
-	dataHomeDirs := []string{filepath.Join(dirs.GlobalRootDir, homeDir1, "user1", "snap", "hello", "10"),
+	dataHomeDirs := []string{
+		filepath.Join(dirs.GlobalRootDir, homeDir1, "user1", "snap", "hello", "10"),
 		filepath.Join(dirs.GlobalRootDir, homeDir1, "user2", "snap", "hello", "10"),
 		filepath.Join(dirs.GlobalRootDir, homeDir2, "user3", "snap", "hello", "10"),
 		filepath.Join(dirs.GlobalRootDir, homeDir2, "user4", "snap", "hello", "10"),
 		filepath.Join(dirs.GlobalRootDir, "root", "snap", "hello", "10"),
-		filepath.Join(dirs.GlobalRootDir, "var", "snap", "hello", "10")}
+		filepath.Join(dirs.GlobalRootDir, "var", "snap", "hello", "10"),
+	}
 	for _, path := range dataHomeDirs {
-		err := os.MkdirAll(path, 0755)
-		c.Assert(err, IsNil)
+		mylog.Check(os.MkdirAll(path, 0755))
+
 	}
 
 	info := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
-	snapDataDirs, err := backend.SnapDataDirs(info, nil)
-	c.Assert(err, IsNil)
+	snapDataDirs := mylog.Check2(backend.SnapDataDirs(info, nil))
+
 	c.Check(snapDataDirs, DeepEquals, dataHomeDirs)
 }
 
@@ -131,17 +136,19 @@ func (s *snapdataSuite) TestSnapCommonDataDirs(c *C) {
 	homeDir2 := filepath.Join(dirs.GlobalRootDir, "remote", "users")
 	homeDirs := homeDir1 + "," + homeDir2
 	dirs.SetSnapHomeDirs(homeDirs)
-	dataHomeDirs := []string{filepath.Join(homeDir1, "user1", "snap", "hello", "common"), filepath.Join(homeDir1, "user2", "snap", "hello", "common"),
+	dataHomeDirs := []string{
+		filepath.Join(homeDir1, "user1", "snap", "hello", "common"), filepath.Join(homeDir1, "user2", "snap", "hello", "common"),
 		filepath.Join(homeDir2, "user3", "snap", "hello", "common"), filepath.Join(homeDir2, "user4", "snap", "hello", "common"),
-		filepath.Join(dirs.GlobalRootDir, "root", "snap", "hello", "common"), filepath.Join(dirs.GlobalRootDir, "var", "snap", "hello", "common")}
+		filepath.Join(dirs.GlobalRootDir, "root", "snap", "hello", "common"), filepath.Join(dirs.GlobalRootDir, "var", "snap", "hello", "common"),
+	}
 	for _, path := range dataHomeDirs {
-		err := os.MkdirAll(path, 0755)
-		c.Assert(err, IsNil)
+		mylog.Check(os.MkdirAll(path, 0755))
+
 	}
 
 	info := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
-	snapCommonDataDirs, err := backend.SnapCommonDataDirs(info, nil)
-	c.Assert(err, IsNil)
+	snapCommonDataDirs := mylog.Check2(backend.SnapCommonDataDirs(info, nil))
+
 	c.Check(snapCommonDataDirs, DeepEquals, dataHomeDirs)
 }
 
@@ -149,19 +156,18 @@ func (s *snapdataSuite) TestRemoveSnapCommonData(c *C) {
 	dirs.SetSnapHomeDirs("/home")
 	homedir := filepath.Join(dirs.GlobalRootDir, "home", "user1", "snap")
 	homeCommonData := filepath.Join(homedir, "hello/common")
-	err := os.MkdirAll(homeCommonData, 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(homeCommonData, 0755))
+
 	varCommonData := filepath.Join(dirs.SnapDataDir, "hello/common")
-	err = os.MkdirAll(varCommonData, 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(varCommonData, 0755))
+
 
 	rootCommonDir := filepath.Join(dirs.GlobalRootDir, "root", "snap", "hello", "common")
 	c.Assert(os.MkdirAll(rootCommonDir, 0700), IsNil)
 
 	info := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
+	mylog.Check(s.be.RemoveSnapCommonData(info, nil))
 
-	err = s.be.RemoveSnapCommonData(info, nil)
-	c.Assert(err, IsNil)
 	c.Assert(osutil.FileExists(homeCommonData), Equals, false)
 	c.Assert(osutil.FileExists(filepath.Dir(homeCommonData)), Equals, true)
 	c.Assert(osutil.FileExists(varCommonData), Equals, false)
@@ -171,20 +177,19 @@ func (s *snapdataSuite) TestRemoveSnapCommonData(c *C) {
 
 func (s *snapdataSuite) TestRemoveSnapCommonSave(c *C) {
 	varSaveData := snap.CommonDataSaveDir("hello")
-	err := os.MkdirAll(varSaveData, 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(varSaveData, 0755))
+
 
 	varCommonData := filepath.Join(dirs.SnapDataDir, "hello/common")
-	err = os.MkdirAll(varCommonData, 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(varCommonData, 0755))
+
 
 	rootCommonDir := filepath.Join(dirs.GlobalRootDir, "root", "snap", "hello", "common")
 	c.Assert(os.MkdirAll(rootCommonDir, 0700), IsNil)
 
 	info := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
+	mylog.Check(s.be.RemoveSnapSaveData(info, mockDev))
 
-	err = s.be.RemoveSnapSaveData(info, mockDev)
-	c.Assert(err, IsNil)
 	c.Check(osutil.FileExists(varSaveData), Equals, false)
 	c.Check(osutil.FileExists(filepath.Dir(varSaveData)), Equals, true)
 	c.Check(osutil.FileExists(varCommonData), Equals, true)
@@ -234,9 +239,8 @@ func (s *snapdataSuite) testRemoveSnapDataDir(c *C, hasOtherInstances bool, opts
 	}
 
 	info := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
+	mylog.Check(s.be.RemoveSnapDataDir(info, true, opts))
 
-	err := s.be.RemoveSnapDataDir(info, true, opts)
-	c.Assert(err, IsNil)
 	for _, dir := range baseDataInstanceDirs {
 		c.Assert(osutil.FileExists(dir), Equals, true)
 	}
@@ -246,8 +250,8 @@ func (s *snapdataSuite) testRemoveSnapDataDir(c *C, hasOtherInstances bool, opts
 
 	// now with instance key
 	info.InstanceKey = "instance"
-	err = s.be.RemoveSnapDataDir(info, hasOtherInstances, opts)
-	c.Assert(err, IsNil)
+	mylog.Check(s.be.RemoveSnapDataDir(info, hasOtherInstances, opts))
+
 	// instance directories are gone
 	for _, dir := range baseDataInstanceDirs {
 		c.Assert(osutil.FileExists(dir), Equals, false)
@@ -260,8 +264,8 @@ func (s *snapdataSuite) testRemoveSnapDataDir(c *C, hasOtherInstances bool, opts
 	if hasOtherInstances {
 		// back to no instance key
 		info.InstanceKey = ""
-		err = s.be.RemoveSnapDataDir(info, false, opts)
-		c.Assert(err, IsNil)
+		mylog.Check(s.be.RemoveSnapDataDir(info, false, opts))
+
 		// the snap-name directory is gone now too
 		for _, dir := range baseDataDirs {
 			c.Assert(osutil.FileExists(dir), Equals, false)
@@ -303,6 +307,6 @@ func (s *snapdataSuite) TestRemoveSnapDataDirWithUnexpectedFiles(c *C) {
 	c.Assert(os.Mkdir(filepath.Join(baseDataDir, "unexpected"), 0755), IsNil)
 
 	info := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
-	err := s.be.RemoveSnapDataDir(info, false, nil)
+	mylog.Check(s.be.RemoveSnapDataDir(info, false, nil))
 	c.Assert(err, ErrorMatches, `failed to remove snap "hello" base directory: remove .*/home/users/snap/hello: directory not empty`)
 }

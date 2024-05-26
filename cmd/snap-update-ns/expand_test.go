@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	update "github.com/snapcore/snapd/cmd/snap-update-ns"
 	"github.com/snapcore/snapd/osutil"
 )
@@ -63,8 +64,8 @@ func (s *expandSuite) TestExpandPrefixVariable(c *C) {
 func (s *expandSuite) TestExpandXdgRuntimeDir(c *C) {
 	input := "$XDG_RUNTIME_DIR/doc/by-app/snap.foo $XDG_RUNTIME_DIR/doc none bind,rw 0 0\n"
 	output := "/run/user/1234/doc/by-app/snap.foo /run/user/1234/doc none bind,rw 0 0\n"
-	profile, err := osutil.ReadMountProfile(strings.NewReader(input))
-	c.Assert(err, IsNil)
+	profile := mylog.Check2(osutil.ReadMountProfile(strings.NewReader(input)))
+
 	update.ExpandXdgRuntimeDir(profile, 1234)
 	builder := &bytes.Buffer{}
 	profile.WriteTo(builder)
@@ -76,8 +77,8 @@ func (s *expandSuite) TestExpandHomeDirHappy(c *C) {
 		"none $HOME/.local/share none x-snapd.kind=not-ensure-dir,x-snapd.must-exist-dir=$HOME 0 0\n"
 	output := "none /home/user/.local/share none x-snapd.kind=ensure-dir,x-snapd.must-exist-dir=/home/user 0 0\n" +
 		"none $HOME/.local/share none x-snapd.kind=not-ensure-dir,x-snapd.must-exist-dir=$HOME 0 0\n"
-	profile, err := osutil.ReadMountProfile(strings.NewReader(input))
-	c.Assert(err, IsNil)
+	profile := mylog.Check2(osutil.ReadMountProfile(strings.NewReader(input)))
+
 	home := func() (path string, err error) {
 		return "/home/user", nil
 	}
@@ -90,12 +91,12 @@ func (s *expandSuite) TestExpandHomeDirHappy(c *C) {
 func (s *expandSuite) TestExpandHomeDirHomeError(c *C) {
 	input := "none $HOME/.local/share none x-snapd.kind=ensure-dir,x-snapd.must-exist-dir=$HOME 0 0\n" +
 		"none $HOME/.local/share none x-snapd.kind=not-ensure-dir,x-snapd.must-exist-dir=$HOME 0 0\n"
-	profile, err := osutil.ReadMountProfile(strings.NewReader(input))
-	c.Assert(err, IsNil)
+	profile := mylog.Check2(osutil.ReadMountProfile(strings.NewReader(input)))
+
 	home := func() (path string, err error) {
 		return "/home/user", errors.New("invalid home directory")
 	}
-	err = update.ExpandHomeDir(profile, home)
+	mylog.Check(update.ExpandHomeDir(profile, home))
 	c.Assert(err, ErrorMatches, `cannot expand mount entry \(none \$HOME/.local/share none x-snapd.kind=ensure-dir,x-snapd.must-exist-dir=\$HOME 0 0\): invalid home directory`)
 	builder := &bytes.Buffer{}
 	profile.WriteTo(builder)

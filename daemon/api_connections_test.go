@@ -27,6 +27,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -45,7 +46,7 @@ func (s *interfacesSuite) testConnectionsConnected(c *check.C, d *daemon.Daemon,
 		if repoConnected != nil && !strutil.ListContains(repoConnected, crefStr) {
 			continue
 		}
-		cref, err := interfaces.ParseConnRef(crefStr)
+		cref := mylog.Check2(interfaces.ParseConnRef(crefStr))
 		c.Assert(err, check.IsNil)
 		conn := cstate.(map[string]interface{})
 		if undesiredRaw, ok := conn["undesired"]; ok {
@@ -60,7 +61,7 @@ func (s *interfacesSuite) testConnectionsConnected(c *check.C, d *daemon.Daemon,
 		dynamicPlugAttrs, _ := conn["plug-dynamic"].(map[string]interface{})
 		staticSlotAttrs, _ := conn["slot-static"].(map[string]interface{})
 		dynamicSlotAttrs, _ := conn["slot-dynamic"].(map[string]interface{})
-		_, err = repo.Connect(cref, staticPlugAttrs, dynamicPlugAttrs, staticSlotAttrs, dynamicSlotAttrs, nil)
+		_ = mylog.Check2(repo.Connect(cref, staticPlugAttrs, dynamicPlugAttrs, staticSlotAttrs, dynamicSlotAttrs, nil))
 		c.Assert(err, check.IsNil)
 	}
 
@@ -73,26 +74,26 @@ func (s *interfacesSuite) testConnectionsConnected(c *check.C, d *daemon.Daemon,
 }
 
 func (s *interfacesSuite) testConnections(c *check.C, query string, expected map[string]interface{}) {
-	req, err := http.NewRequest("GET", query, nil)
+	req := mylog.Check2(http.NewRequest("GET", query, nil))
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 200)
 	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	mylog.Check(json.Unmarshal(rec.Body.Bytes(), &body))
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, expected)
 }
 
 func (s *interfacesSuite) TestConnectionsUnhappy(c *check.C) {
 	s.daemon(c)
-	req, err := http.NewRequest("GET", "/v2/connections?select=bad", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/connections?select=bad", nil))
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 400)
 	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	mylog.Check(json.Unmarshal(rec.Body.Bytes(), &body))
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
@@ -130,13 +131,13 @@ func (s *interfacesSuite) TestConnectionsEmpty(c *check.C) {
 
 func (s *interfacesSuite) TestConnectionsNotFound(c *check.C) {
 	s.daemon(c)
-	req, err := http.NewRequest("GET", "/v2/connections?snap=not-found", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/connections?snap=not-found", nil))
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 404)
 	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	mylog.Check(json.Unmarshal(rec.Body.Bytes(), &body))
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
@@ -449,7 +450,7 @@ func (s *interfacesSuite) TestConnectionsByIfaceName(c *check.C) {
 
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
-	var differentProducerYaml = `
+	differentProducerYaml := `
 name: different-producer
 version: 1
 apps:
@@ -460,7 +461,7 @@ slots:
   key: value
   label: label
 `
-	var differentConsumerYaml = `
+	differentConsumerYaml := `
 name: different-consumer
 version: 1
 apps:
@@ -895,7 +896,7 @@ func (s *interfacesSuite) TestConnectionsSorted(c *check.C) {
 
 	d := s.daemon(c)
 
-	var anotherConsumerYaml = `
+	anotherConsumerYaml := `
 name: another-consumer-%s
 version: 1
 apps:
@@ -906,7 +907,7 @@ plugs:
   key: value
   label: label
 `
-	var anotherProducerYaml = `
+	anotherProducerYaml := `
 name: another-producer
 version: 1
 apps:

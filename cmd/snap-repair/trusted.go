@@ -22,6 +22,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/snapdenv"
 )
@@ -79,10 +80,8 @@ EMUll4dd78OWonMlIgsMRuTSn93awb4X8xSJhRi9
 )
 
 func init() {
-	repairRootAccountKey, err := asserts.Decode([]byte(encodedRepairRootAccountKey))
-	if err != nil {
-		panic(fmt.Sprintf("cannot decode trusted account-key: %v", err))
-	}
+	repairRootAccountKey := mylog.Check2(asserts.Decode([]byte(encodedRepairRootAccountKey)))
+
 	if !snapdenv.UseStagingStore() {
 		trustedRepairRootKeys = append(trustedRepairRootKeys, repairRootAccountKey.(*asserts.AccountKey))
 	}

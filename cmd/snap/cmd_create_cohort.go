@@ -20,14 +20,16 @@
 package main
 
 import (
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/i18n"
 )
 
-var shortCreateCohortHelp = i18n.G("Create cohort keys for a set of snaps")
-var longCreateCohortHelp = i18n.G(`
+var (
+	shortCreateCohortHelp = i18n.G("Create cohort keys for a set of snaps")
+	longCreateCohortHelp  = i18n.G(`
 The create-cohort command creates a set of cohort keys for a given set of snaps.
 
 A cohort is a view or snapshot of a snap's "channel map" at a given point in
@@ -38,6 +40,7 @@ using a given cohort key would use a fixed revision for up to 90 days, after
 which a new set of revisions would be fixed under that same cohort key and a
 new 90 days window started.
 `)
+)
 
 type cmdCreateCohort struct {
 	clientMixin
@@ -68,7 +71,7 @@ func (x *cmdCreateCohort) Execute(args []string) error {
 		snaps[i] = string(s)
 	}
 
-	cohorts, err := x.client.CreateCohorts(snaps)
+	cohorts := mylog.Check2(x.client.CreateCohorts(snaps))
 	if len(cohorts) == 0 || err != nil {
 		return err
 	}

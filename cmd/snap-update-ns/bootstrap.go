@@ -49,10 +49,8 @@ import (
 	"unsafe"
 )
 
-var (
-	// ErrNoNamespace is returned when a snap namespace does not exist.
-	ErrNoNamespace = errors.New("cannot update mount namespace that was not created yet")
-)
+// ErrNoNamespace is returned when a snap namespace does not exist.
+var ErrNoNamespace = errors.New("cannot update mount namespace that was not created yet")
 
 // IMPORTANT: all the code in this section may be run with elevated privileges
 // when invoking snap-update-ns from the setuid snap-confine.

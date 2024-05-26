@@ -32,6 +32,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -64,10 +65,8 @@ var (
 )
 
 func init() {
-	t, err := time.Parse(time.RFC3339, helloRefreshedDateStr)
-	if err != nil {
-		panic(err)
-	}
+	t := mylog.Check2(time.Parse(time.RFC3339, helloRefreshedDateStr))
+
 	helloRefreshedDate = t
 }
 
@@ -94,16 +93,15 @@ func (s *storeActionSuite) TestSnapAction(c *C) {
 		c.Check(r.Header.Get("Snap-Device-Location"), Equals, "")
 		c.Check(r.Header.Get("Snap-Classic"), Equals, "false")
 
-		jsonReq, err := io.ReadAll(r.Body)
-		c.Assert(err, IsNil)
+		jsonReq := mylog.Check2(io.ReadAll(r.Body))
+
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
 			Fields  []string                 `json:"fields"`
 			Actions []map[string]interface{} `json:"actions"`
 		}
+		mylog.Check(json.Unmarshal(jsonReq, &req))
 
-		err = json.Unmarshal(jsonReq, &req)
-		c.Assert(err, IsNil)
 
 		c.Check(req.Fields, DeepEquals, store.SnapActionFields)
 
@@ -156,7 +154,7 @@ func (s *storeActionSuite) TestSnapAction(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	results, aresults, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+	results, aresults := mylog.Check3(sto.SnapAction(s.ctx, []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -171,8 +169,8 @@ func (s *storeActionSuite) TestSnapAction(c *C) {
 			InstanceName: "hello-world",
 			CohortKey:    helloCohortKey,
 		},
-	}, nil, nil, nil)
-	c.Assert(err, IsNil)
+	}, nil, nil, nil))
+
 	c.Assert(aresults, HasLen, 0)
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].InstanceName(), Equals, "hello-world")
@@ -205,16 +203,15 @@ func (s *storeActionSuite) TestSnapActionNonZeroEpochAndEpochBump(c *C) {
 		c.Check(r.Header.Get("Snap-Device-Architecture"), Equals, arch.DpkgArchitecture())
 		c.Check(r.Header.Get("Snap-Classic"), Equals, "false")
 
-		jsonReq, err := io.ReadAll(r.Body)
-		c.Assert(err, IsNil)
+		jsonReq := mylog.Check2(io.ReadAll(r.Body))
+
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
 			Fields  []string                 `json:"fields"`
 			Actions []map[string]interface{} `json:"actions"`
 		}
+		mylog.Check(json.Unmarshal(jsonReq, &req))
 
-		err = json.Unmarshal(jsonReq, &req)
-		c.Assert(err, IsNil)
 
 		c.Check(req.Fields, DeepEquals, store.SnapActionFields)
 
@@ -266,7 +263,7 @@ func (s *storeActionSuite) TestSnapActionNonZeroEpochAndEpochBump(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	results, _, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+	results, _ := mylog.Check3(sto.SnapAction(s.ctx, []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -281,8 +278,8 @@ func (s *storeActionSuite) TestSnapActionNonZeroEpochAndEpochBump(c *C) {
 			SnapID:       helloWorldSnapID,
 			InstanceName: "hello-world",
 		},
-	}, nil, nil, nil)
-	c.Assert(err, IsNil)
+	}, nil, nil, nil))
+
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].InstanceName(), Equals, "hello-world")
 	c.Assert(results[0].Revision, Equals, snap.R(26))
@@ -304,15 +301,14 @@ func (s *storeActionSuite) TestSnapActionNoResults(c *C) {
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
-		jsonReq, err := io.ReadAll(r.Body)
-		c.Assert(err, IsNil)
+		jsonReq := mylog.Check2(io.ReadAll(r.Body))
+
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
 			Actions []map[string]interface{} `json:"actions"`
 		}
+		mylog.Check(json.Unmarshal(jsonReq, &req))
 
-		err = json.Unmarshal(jsonReq, &req)
-		c.Assert(err, IsNil)
 
 		c.Assert(req.Context, HasLen, 1)
 		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
@@ -339,7 +335,7 @@ func (s *storeActionSuite) TestSnapActionNoResults(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	results, _, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+	results, _ := mylog.Check3(sto.SnapAction(s.ctx, []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -347,12 +343,12 @@ func (s *storeActionSuite) TestSnapActionNoResults(c *C) {
 			Revision:        snap.R(1),
 			RefreshedDate:   helloRefreshedDate,
 		},
-	}, nil, nil, nil, nil)
+	}, nil, nil, nil, nil))
 	c.Check(results, HasLen, 0)
 	c.Check(err, DeepEquals, &store.SnapActionError{NoResults: true})
 
 	// local no-op
-	results, _, err = sto.SnapAction(s.ctx, nil, nil, nil, nil, nil)
+	results, _ = mylog.Check3(sto.SnapAction(s.ctx, nil, nil, nil, nil, nil))
 	c.Check(results, HasLen, 0)
 	c.Check(err, DeepEquals, &store.SnapActionError{NoResults: true})
 
@@ -368,15 +364,14 @@ func (s *storeActionSuite) TestSnapActionRefreshedDateIsOptional(c *C) {
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
-		jsonReq, err := io.ReadAll(r.Body)
-		c.Assert(err, IsNil)
+		jsonReq := mylog.Check2(io.ReadAll(r.Body))
+
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
 			Actions []map[string]interface{} `json:"actions"`
 		}
+		mylog.Check(json.Unmarshal(jsonReq, &req))
 
-		err = json.Unmarshal(jsonReq, &req)
-		c.Assert(err, IsNil)
 
 		c.Assert(req.Context, HasLen, 1)
 		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
@@ -403,14 +398,14 @@ func (s *storeActionSuite) TestSnapActionRefreshedDateIsOptional(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	results, _, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+	results, _ := mylog.Check3(sto.SnapAction(s.ctx, []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
 			TrackingChannel: "beta",
 			Revision:        snap.R(1),
 		},
-	}, nil, nil, nil, nil)
+	}, nil, nil, nil, nil))
 	c.Check(results, HasLen, 0)
 	c.Check(err, DeepEquals, &store.SnapActionError{NoResults: true})
 }
@@ -421,15 +416,14 @@ func (s *storeActionSuite) TestSnapActionSkipBlocked(c *C) {
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
-		jsonReq, err := io.ReadAll(r.Body)
-		c.Assert(err, IsNil)
+		jsonReq := mylog.Check2(io.ReadAll(r.Body))
+
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
 			Actions []map[string]interface{} `json:"actions"`
 		}
+		mylog.Check(json.Unmarshal(jsonReq, &req))
 
-		err = json.Unmarshal(jsonReq, &req)
-		c.Assert(err, IsNil)
 
 		c.Assert(req.Context, HasLen, 1)
 		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
@@ -479,7 +473,7 @@ func (s *storeActionSuite) TestSnapActionSkipBlocked(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	results, _, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+	results, _ := mylog.Check3(sto.SnapAction(s.ctx, []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -495,7 +489,7 @@ func (s *storeActionSuite) TestSnapActionSkipBlocked(c *C) {
 			InstanceName: "hello-world",
 			Channel:      "stable",
 		},
-	}, nil, nil, nil)
+	}, nil, nil, nil))
 	c.Assert(results, HasLen, 0)
 	c.Check(err, DeepEquals, &store.SnapActionError{
 		Refresh: map[string]error{
@@ -510,15 +504,14 @@ func (s *storeActionSuite) TestSnapActionSkipCurrent(c *C) {
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
-		jsonReq, err := io.ReadAll(r.Body)
-		c.Assert(err, IsNil)
+		jsonReq := mylog.Check2(io.ReadAll(r.Body))
+
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
 			Actions []map[string]interface{} `json:"actions"`
 		}
+		mylog.Check(json.Unmarshal(jsonReq, &req))
 
-		err = json.Unmarshal(jsonReq, &req)
-		c.Assert(err, IsNil)
 
 		c.Assert(req.Context, HasLen, 1)
 		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
@@ -568,7 +561,7 @@ func (s *storeActionSuite) TestSnapActionSkipCurrent(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	results, _, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+	results, _ := mylog.Check3(sto.SnapAction(s.ctx, []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -583,7 +576,7 @@ func (s *storeActionSuite) TestSnapActionSkipCurrent(c *C) {
 			InstanceName: "hello-world",
 			Channel:      "stable",
 		},
-	}, nil, nil, nil)
+	}, nil, nil, nil))
 	c.Assert(results, HasLen, 0)
 	c.Check(err, DeepEquals, &store.SnapActionError{
 		Refresh: map[string]error{
@@ -608,9 +601,8 @@ func (s *storeActionSuite) TestSnapActionRetryOnEOF(c *C) {
 			Context []map[string]interface{} `json:"context"`
 			Actions []map[string]interface{} `json:"actions"`
 		}
+		mylog.Check(json.NewDecoder(r.Body).Decode(&req))
 
-		err := json.NewDecoder(r.Body).Decode(&req)
-		c.Assert(err, IsNil)
 		c.Assert(req.Context, HasLen, 1)
 		c.Assert(req.Actions, HasLen, 1)
 		io.WriteString(w, `{
@@ -644,7 +636,7 @@ func (s *storeActionSuite) TestSnapActionRetryOnEOF(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	results, _, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+	results, _ := mylog.Check3(sto.SnapAction(s.ctx, []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -658,8 +650,8 @@ func (s *storeActionSuite) TestSnapActionRetryOnEOF(c *C) {
 			InstanceName: "hello-world",
 			Channel:      "stable",
 		},
-	}, nil, nil, nil)
-	c.Assert(err, IsNil)
+	}, nil, nil, nil))
+
 	c.Assert(n, Equals, 4)
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].InstanceName(), Equals, "hello-world")
@@ -671,15 +663,14 @@ func (s *storeActionSuite) TestSnapActionIgnoreValidation(c *C) {
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
-		jsonReq, err := io.ReadAll(r.Body)
-		c.Assert(err, IsNil)
+		jsonReq := mylog.Check2(io.ReadAll(r.Body))
+
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
 			Actions []map[string]interface{} `json:"actions"`
 		}
+		mylog.Check(json.Unmarshal(jsonReq, &req))
 
-		err = json.Unmarshal(jsonReq, &req)
-		c.Assert(err, IsNil)
 
 		c.Assert(req.Context, HasLen, 1)
 		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
@@ -731,7 +722,7 @@ func (s *storeActionSuite) TestSnapActionIgnoreValidation(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	results, _, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+	results, _ := mylog.Check3(sto.SnapAction(s.ctx, []*store.CurrentSnap{
 		{
 			InstanceName:     "hello-world",
 			SnapID:           helloWorldSnapID,
@@ -748,8 +739,8 @@ func (s *storeActionSuite) TestSnapActionIgnoreValidation(c *C) {
 			Channel:      "stable",
 			Flags:        store.SnapActionEnforceValidation,
 		},
-	}, nil, nil, nil)
-	c.Assert(err, IsNil)
+	}, nil, nil, nil))
+
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].InstanceName(), Equals, "hello-world")
 	c.Assert(results[0].Revision, Equals, snap.R(26))
@@ -802,7 +793,7 @@ func (s *storeActionSuite) TestSnapActionAutoRefresh(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	results, _, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+	results, _ := mylog.Check3(sto.SnapAction(s.ctx, []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -816,8 +807,8 @@ func (s *storeActionSuite) TestSnapActionAutoRefresh(c *C) {
 			SnapID:       helloWorldSnapID,
 			InstanceName: "hello-world",
 		},
-	}, nil, nil, &store.RefreshOptions{Scheduled: true})
-	c.Assert(err, IsNil)
+	}, nil, nil, &store.RefreshOptions{Scheduled: true}))
+
 	c.Assert(results, HasLen, 1)
 }
 
@@ -827,15 +818,14 @@ func (s *storeActionSuite) TestInstallFallbackChannelIsStable(c *C) {
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
-		jsonReq, err := io.ReadAll(r.Body)
-		c.Assert(err, IsNil)
+		jsonReq := mylog.Check2(io.ReadAll(r.Body))
+
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
 			Actions []map[string]interface{} `json:"actions"`
 		}
+		mylog.Check(json.Unmarshal(jsonReq, &req))
 
-		err = json.Unmarshal(jsonReq, &req)
-		c.Assert(err, IsNil)
 
 		c.Assert(req.Context, HasLen, 1)
 		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
@@ -884,7 +874,7 @@ func (s *storeActionSuite) TestInstallFallbackChannelIsStable(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	results, _, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+	results, _ := mylog.Check3(sto.SnapAction(s.ctx, []*store.CurrentSnap{
 		{
 			InstanceName:  "hello-world",
 			SnapID:        helloWorldSnapID,
@@ -897,8 +887,8 @@ func (s *storeActionSuite) TestInstallFallbackChannelIsStable(c *C) {
 			SnapID:       helloWorldSnapID,
 			InstanceName: "hello-world",
 		},
-	}, nil, nil, nil)
-	c.Assert(err, IsNil)
+	}, nil, nil, nil))
+
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].InstanceName(), Equals, "hello-world")
 	c.Assert(results[0].Revision, Equals, snap.R(26))
@@ -922,15 +912,14 @@ func (s *storeActionSuite) TestSnapActionNonDefaultsHeaders(c *C) {
 		c.Check(r.Header.Get("Snap-Device-Location"), Equals, `cloud-name="gcp" region="us-west1" availability-zone="us-west1-b"`)
 		c.Check(r.Header.Get("Snap-Classic"), Equals, "true")
 
-		jsonReq, err := io.ReadAll(r.Body)
-		c.Assert(err, IsNil)
+		jsonReq := mylog.Check2(io.ReadAll(r.Body))
+
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
 			Actions []map[string]interface{} `json:"actions"`
 		}
+		mylog.Check(json.Unmarshal(jsonReq, &req))
 
-		err = json.Unmarshal(jsonReq, &req)
-		c.Assert(err, IsNil)
 
 		c.Assert(req.Context, HasLen, 1)
 		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
@@ -981,7 +970,7 @@ func (s *storeActionSuite) TestSnapActionNonDefaultsHeaders(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device, cloudInfo: &auth.CloudInfo{Name: "gcp", Region: "us-west1", AvailabilityZone: "us-west1-b"}}
 	sto := store.New(cfg, dauthCtx)
 
-	results, _, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+	results, _ := mylog.Check3(sto.SnapAction(s.ctx, []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -995,8 +984,8 @@ func (s *storeActionSuite) TestSnapActionNonDefaultsHeaders(c *C) {
 			SnapID:       helloWorldSnapID,
 			InstanceName: "hello-world",
 		},
-	}, nil, nil, nil)
-	c.Assert(err, IsNil)
+	}, nil, nil, nil))
+
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].InstanceName(), Equals, "hello-world")
 	c.Assert(results[0].Revision, Equals, snap.R(26))
@@ -1017,15 +1006,14 @@ func (s *storeActionSuite) TestSnapActionWithDeltas(c *C) {
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
 		c.Check(r.Header.Get("Snap-Accept-Delta-Format"), Equals, "xdelta3")
-		jsonReq, err := io.ReadAll(r.Body)
-		c.Assert(err, IsNil)
+		jsonReq := mylog.Check2(io.ReadAll(r.Body))
+
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
 			Actions []map[string]interface{} `json:"actions"`
 		}
+		mylog.Check(json.Unmarshal(jsonReq, &req))
 
-		err = json.Unmarshal(jsonReq, &req)
-		c.Assert(err, IsNil)
 
 		c.Assert(req.Context, HasLen, 1)
 		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
@@ -1074,7 +1062,7 @@ func (s *storeActionSuite) TestSnapActionWithDeltas(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	results, _, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+	results, _ := mylog.Check3(sto.SnapAction(s.ctx, []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -1088,8 +1076,8 @@ func (s *storeActionSuite) TestSnapActionWithDeltas(c *C) {
 			SnapID:       helloWorldSnapID,
 			InstanceName: "hello-world",
 		},
-	}, nil, nil, nil)
-	c.Assert(err, IsNil)
+	}, nil, nil, nil))
+
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].InstanceName(), Equals, "hello-world")
 	c.Assert(results[0].Revision, Equals, snap.R(26))
@@ -1103,15 +1091,14 @@ func (s *storeActionSuite) TestSnapActionOptions(c *C) {
 
 		c.Check(r.Header.Get("Snap-Refresh-Managed"), Equals, "true")
 
-		jsonReq, err := io.ReadAll(r.Body)
-		c.Assert(err, IsNil)
+		jsonReq := mylog.Check2(io.ReadAll(r.Body))
+
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
 			Actions []map[string]interface{} `json:"actions"`
 		}
+		mylog.Check(json.Unmarshal(jsonReq, &req))
 
-		err = json.Unmarshal(jsonReq, &req)
-		c.Assert(err, IsNil)
 
 		c.Assert(req.Context, HasLen, 1)
 		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
@@ -1161,7 +1148,7 @@ func (s *storeActionSuite) TestSnapActionOptions(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	results, _, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+	results, _ := mylog.Check3(sto.SnapAction(s.ctx, []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -1176,8 +1163,8 @@ func (s *storeActionSuite) TestSnapActionOptions(c *C) {
 			InstanceName: "hello-world",
 			Channel:      "stable",
 		},
-	}, nil, nil, &store.RefreshOptions{RefreshManaged: true})
-	c.Assert(err, IsNil)
+	}, nil, nil, &store.RefreshOptions{RefreshManaged: true}))
+
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].InstanceName(), Equals, "hello-world")
 	c.Assert(results[0].Revision, Equals, snap.R(26))
@@ -1186,21 +1173,27 @@ func (s *storeActionSuite) TestSnapActionOptions(c *C) {
 func (s *storeActionSuite) TestSnapActionInstall(c *C) {
 	s.testSnapActionGet("install", "", "", nil, c)
 }
+
 func (s *storeActionSuite) TestSnapActionInstallWithCohort(c *C) {
 	s.testSnapActionGet("install", "what", "", nil, c)
 }
+
 func (s *storeActionSuite) TestSnapActionDownload(c *C) {
 	s.testSnapActionGet("download", "", "", nil, c)
 }
+
 func (s *storeActionSuite) TestSnapActionDownloadWithCohort(c *C) {
 	s.testSnapActionGet("download", "here", "", nil, c)
 }
+
 func (s *storeActionSuite) TestSnapActionInstallRedirect(c *C) {
 	s.testSnapActionGet("install", "", "2.0/candidate", nil, c)
 }
+
 func (s *storeActionSuite) TestSnapActionDownloadRedirect(c *C) {
 	s.testSnapActionGet("download", "", "2.0/candidate", nil, c)
 }
+
 func (s *storeActionSuite) testSnapActionGet(action, cohort, redirectChannel string, validationSets []snapasserts.ValidationSetKey, c *C) {
 	// action here is one of install or download
 	restore := release.MockOnClassic(false)
@@ -1221,15 +1214,14 @@ func (s *storeActionSuite) testSnapActionGet(action, cohort, redirectChannel str
 		c.Check(r.Header.Get("Snap-Device-Architecture"), Equals, arch.DpkgArchitecture())
 		c.Check(r.Header.Get("Snap-Classic"), Equals, "false")
 
-		jsonReq, err := io.ReadAll(r.Body)
-		c.Assert(err, IsNil)
+		jsonReq := mylog.Check2(io.ReadAll(r.Body))
+
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
 			Actions []map[string]interface{} `json:"actions"`
 		}
+		mylog.Check(json.Unmarshal(jsonReq, &req))
 
-		err = json.Unmarshal(jsonReq, &req)
-		c.Assert(err, IsNil)
 
 		c.Assert(req.Context, HasLen, 0)
 		c.Assert(req.Actions, HasLen, 1)
@@ -1291,7 +1283,7 @@ func (s *storeActionSuite) testSnapActionGet(action, cohort, redirectChannel str
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	results, _, err := sto.SnapAction(s.ctx, nil,
+	results, _ := mylog.Check3(sto.SnapAction(s.ctx, nil,
 		[]*store.SnapAction{
 			{
 				Action:         action,
@@ -1300,8 +1292,8 @@ func (s *storeActionSuite) testSnapActionGet(action, cohort, redirectChannel str
 				CohortKey:      cohort,
 				ValidationSets: validationSets,
 			},
-		}, nil, nil, nil)
-	c.Assert(err, IsNil)
+		}, nil, nil, nil))
+
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].InstanceName(), Equals, "hello-world")
 	c.Assert(results[0].Revision, Equals, snap.R(26))
@@ -1334,15 +1326,14 @@ func (s *storeActionSuite) TestSnapActionInstallAmend(c *C) {
 		c.Check(r.Header.Get("Snap-Device-Architecture"), Equals, arch.DpkgArchitecture())
 		c.Check(r.Header.Get("Snap-Classic"), Equals, "false")
 
-		jsonReq, err := io.ReadAll(r.Body)
-		c.Assert(err, IsNil)
+		jsonReq := mylog.Check2(io.ReadAll(r.Body))
+
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
 			Actions []map[string]interface{} `json:"actions"`
 		}
+		mylog.Check(json.Unmarshal(jsonReq, &req))
 
-		err = json.Unmarshal(jsonReq, &req)
-		c.Assert(err, IsNil)
 
 		c.Assert(req.Context, HasLen, 0)
 		c.Assert(req.Actions, HasLen, 1)
@@ -1386,7 +1377,7 @@ func (s *storeActionSuite) TestSnapActionInstallAmend(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	results, _, err := sto.SnapAction(s.ctx, nil,
+	results, _ := mylog.Check3(sto.SnapAction(s.ctx, nil,
 		[]*store.SnapAction{
 			{
 				Action:       "install",
@@ -1394,8 +1385,8 @@ func (s *storeActionSuite) TestSnapActionInstallAmend(c *C) {
 				Channel:      "beta",
 				Epoch:        snap.E("1*"),
 			},
-		}, nil, nil, nil)
-	c.Assert(err, IsNil)
+		}, nil, nil, nil))
+
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].InstanceName(), Equals, "hello-world")
 	c.Assert(results[0].Revision, Equals, snap.R(26))
@@ -1435,12 +1426,12 @@ func (s *storeActionSuite) TestSnapActionWithClientUserAgent(c *C) {
 
 	// to construct the client-user-agent context we need to
 	// create a req that simulates what the req that the daemon got
-	r, err := http.NewRequest("POST", "/snapd/api", nil)
+	r := mylog.Check2(http.NewRequest("POST", "/snapd/api", nil))
 	r.Header.Set("User-Agent", "some-snap-agent/1.0")
-	c.Assert(err, IsNil)
+
 	ctx := store.WithClientUserAgent(s.ctx, r)
 
-	results, _, err := sto.SnapAction(ctx, nil, []*store.SnapAction{{Action: "install", InstanceName: "some-snap"}}, nil, nil, nil)
+	results, _ := mylog.Check3(sto.SnapAction(ctx, nil, []*store.SnapAction{{Action: "install", InstanceName: "some-snap"}}, nil, nil, nil))
 	c.Check(serverCalls, Equals, 1)
 	c.Check(results, HasLen, 0)
 	c.Check(err, DeepEquals, &store.SnapActionError{NoResults: true})
@@ -1465,14 +1456,14 @@ func (s *storeActionSuite) TestSnapActionDownloadParallelInstanceKey(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	_, _, err := sto.SnapAction(s.ctx, nil,
+	_, _ := mylog.Check3(sto.SnapAction(s.ctx, nil,
 		[]*store.SnapAction{
 			{
 				Action:       "download",
 				InstanceName: "hello-world_foo",
 				Channel:      "beta",
 			},
-		}, nil, nil, nil)
+		}, nil, nil, nil))
 	c.Assert(err, ErrorMatches, `internal error: unsupported download with instance name "hello-world_foo"`)
 }
 
@@ -1504,15 +1495,14 @@ func (s *storeActionSuite) testSnapActionGetWithRevision(action string, c *C) {
 		c.Check(r.Header.Get("Snap-Device-Architecture"), Equals, arch.DpkgArchitecture())
 		c.Check(r.Header.Get("Snap-Classic"), Equals, "false")
 
-		jsonReq, err := io.ReadAll(r.Body)
-		c.Assert(err, IsNil)
+		jsonReq := mylog.Check2(io.ReadAll(r.Body))
+
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
 			Actions []map[string]interface{} `json:"actions"`
 		}
+		mylog.Check(json.Unmarshal(jsonReq, &req))
 
-		err = json.Unmarshal(jsonReq, &req)
-		c.Assert(err, IsNil)
 
 		c.Assert(req.Context, HasLen, 0)
 		c.Assert(req.Actions, HasLen, 1)
@@ -1555,15 +1545,15 @@ func (s *storeActionSuite) testSnapActionGetWithRevision(action string, c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	results, _, err := sto.SnapAction(s.ctx, nil,
+	results, _ := mylog.Check3(sto.SnapAction(s.ctx, nil,
 		[]*store.SnapAction{
 			{
 				Action:       action,
 				InstanceName: "hello-world",
 				Revision:     snap.R(28),
 			},
-		}, nil, nil, nil)
-	c.Assert(err, IsNil)
+		}, nil, nil, nil))
+
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].InstanceName(), Equals, "hello-world")
 	c.Assert(results[0].Revision, Equals, snap.R(28))
@@ -1581,15 +1571,14 @@ func (s *storeActionSuite) TestSnapActionRevisionNotAvailable(c *C) {
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
-		jsonReq, err := io.ReadAll(r.Body)
-		c.Assert(err, IsNil)
+		jsonReq := mylog.Check2(io.ReadAll(r.Body))
+
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
 			Actions []map[string]interface{} `json:"actions"`
 		}
+		mylog.Check(json.Unmarshal(jsonReq, &req))
 
-		err = json.Unmarshal(jsonReq, &req)
-		c.Assert(err, IsNil)
 
 		c.Assert(req.Context, HasLen, 2)
 		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
@@ -1690,7 +1679,7 @@ func (s *storeActionSuite) TestSnapActionRevisionNotAvailable(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	results, _, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+	results, _ := mylog.Check3(sto.SnapAction(s.ctx, []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -1724,7 +1713,7 @@ func (s *storeActionSuite) TestSnapActionRevisionNotAvailable(c *C) {
 			InstanceName: "bar",
 			Revision:     snap.R(42),
 		},
-	}, nil, nil, nil)
+	}, nil, nil, nil))
 	c.Assert(results, HasLen, 0)
 	c.Check(err, DeepEquals, &store.SnapActionError{
 		Refresh: map[string]error{
@@ -1762,15 +1751,14 @@ func (s *storeActionSuite) TestSnapActionSnapNotFound(c *C) {
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
-		jsonReq, err := io.ReadAll(r.Body)
-		c.Assert(err, IsNil)
+		jsonReq := mylog.Check2(io.ReadAll(r.Body))
+
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
 			Actions []map[string]interface{} `json:"actions"`
 		}
+		mylog.Check(json.Unmarshal(jsonReq, &req))
 
-		err = json.Unmarshal(jsonReq, &req)
-		c.Assert(err, IsNil)
 
 		c.Assert(req.Context, HasLen, 1)
 		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
@@ -1842,7 +1830,7 @@ func (s *storeActionSuite) TestSnapActionSnapNotFound(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	results, _, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+	results, _ := mylog.Check3(sto.SnapAction(s.ctx, []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -1865,7 +1853,7 @@ func (s *storeActionSuite) TestSnapActionSnapNotFound(c *C) {
 			InstanceName: "bar",
 			Revision:     snap.R(42),
 		},
-	}, nil, nil, nil)
+	}, nil, nil, nil))
 	c.Assert(results, HasLen, 0)
 	c.Check(err, DeepEquals, &store.SnapActionError{
 		Refresh: map[string]error{
@@ -1886,15 +1874,14 @@ func (s *storeActionSuite) TestSnapActionOtherErrors(c *C) {
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
-		jsonReq, err := io.ReadAll(r.Body)
-		c.Assert(err, IsNil)
+		jsonReq := mylog.Check2(io.ReadAll(r.Body))
+
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
 			Actions []map[string]interface{} `json:"actions"`
 		}
+		mylog.Check(json.Unmarshal(jsonReq, &req))
 
-		err = json.Unmarshal(jsonReq, &req)
-		c.Assert(err, IsNil)
 
 		c.Assert(req.Context, HasLen, 0)
 		c.Assert(req.Actions, HasLen, 1)
@@ -1930,13 +1917,13 @@ func (s *storeActionSuite) TestSnapActionOtherErrors(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	results, _, err := sto.SnapAction(s.ctx, nil, []*store.SnapAction{
+	results, _ := mylog.Check3(sto.SnapAction(s.ctx, nil, []*store.SnapAction{
 		{
 			Action:       "install",
 			InstanceName: "foo",
 			Channel:      "stable",
 		},
-	}, nil, nil, nil)
+	}, nil, nil, nil))
 	c.Assert(results, HasLen, 0)
 	c.Check(err, DeepEquals, &store.SnapActionError{
 		Other: []error{
@@ -1964,13 +1951,13 @@ func (s *storeActionSuite) TestSnapActionUnknownAction(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	results, _, err := sto.SnapAction(s.ctx, nil,
+	results, _ := mylog.Check3(sto.SnapAction(s.ctx, nil,
 		[]*store.SnapAction{
 			{
 				Action:       "something unexpected",
 				InstanceName: "hello-world",
 			},
-		}, nil, nil, nil)
+		}, nil, nil, nil))
 	c.Assert(err, ErrorMatches, `.* unsupported action .*`)
 	c.Assert(results, IsNil)
 }
@@ -1981,7 +1968,7 @@ func (s *storeActionSuite) TestSnapActionErrorError(c *C) {
 	}}
 	c.Check(e.Error(), Equals, `cannot refresh snap "foo": sad refresh`)
 
-	op, name, err := e.SingleOpError()
+	op, name := mylog.Check3(e.SingleOpError())
 	c.Check(op, Equals, "refresh")
 	c.Check(name, Equals, "foo")
 	c.Check(err, ErrorMatches, "sad refresh")
@@ -1995,7 +1982,7 @@ func (s *storeActionSuite) TestSnapActionErrorError(c *C) {
 	c.Check(errMsg, testutil.Contains, "\nsad refresh 1: \"foo\"")
 	c.Check(errMsg, testutil.Contains, "\nsad refresh 2: \"bar\"")
 
-	op, name, err = e.SingleOpError()
+	op, name = mylog.Check3(e.SingleOpError())
 	c.Check(op, Equals, "")
 	c.Check(name, Equals, "")
 	c.Check(err, IsNil)
@@ -2005,7 +1992,7 @@ func (s *storeActionSuite) TestSnapActionErrorError(c *C) {
 	}}
 	c.Check(e.Error(), Equals, `cannot install snap "foo": sad install`)
 
-	op, name, err = e.SingleOpError()
+	op, name = mylog.Check3(e.SingleOpError())
 	c.Check(op, Equals, "install")
 	c.Check(name, Equals, "foo")
 	c.Check(err, ErrorMatches, "sad install")
@@ -2019,7 +2006,7 @@ func (s *storeActionSuite) TestSnapActionErrorError(c *C) {
 	c.Check(errMsg, testutil.Contains, "\nsad install 1: \"foo\"")
 	c.Check(errMsg, testutil.Contains, "\nsad install 2: \"bar\"")
 
-	op, name, err = e.SingleOpError()
+	op, name = mylog.Check3(e.SingleOpError())
 	c.Check(op, Equals, "")
 	c.Check(name, Equals, "")
 	c.Check(err, IsNil)
@@ -2029,7 +2016,7 @@ func (s *storeActionSuite) TestSnapActionErrorError(c *C) {
 	}}
 	c.Check(e.Error(), Equals, `cannot download snap "foo": sad download`)
 
-	op, name, err = e.SingleOpError()
+	op, name = mylog.Check3(e.SingleOpError())
 	c.Check(op, Equals, "download")
 	c.Check(name, Equals, "foo")
 	c.Check(err, ErrorMatches, "sad download")
@@ -2043,71 +2030,79 @@ func (s *storeActionSuite) TestSnapActionErrorError(c *C) {
 	c.Check(errMsg, testutil.Contains, "\nsad download 1: \"foo\"")
 	c.Check(errMsg, testutil.Contains, "\nsad download 2: \"bar\"")
 
-	op, name, err = e.SingleOpError()
+	op, name = mylog.Check3(e.SingleOpError())
 	c.Check(op, Equals, "")
 	c.Check(name, Equals, "")
 	c.Check(err, IsNil)
 
-	e = &store.SnapActionError{Refresh: map[string]error{
-		"foo": fmt.Errorf("sad refresh 1"),
-	},
+	e = &store.SnapActionError{
+		Refresh: map[string]error{
+			"foo": fmt.Errorf("sad refresh 1"),
+		},
 		Install: map[string]error{
 			"bar": fmt.Errorf("sad install 2"),
-		}}
+		},
+	}
 	c.Check(e.Error(), Equals, `cannot refresh or install:
 sad refresh 1: "foo"
 sad install 2: "bar"`)
 
-	op, name, err = e.SingleOpError()
+	op, name = mylog.Check3(e.SingleOpError())
 	c.Check(op, Equals, "")
 	c.Check(name, Equals, "")
 	c.Check(err, IsNil)
 
-	e = &store.SnapActionError{Refresh: map[string]error{
-		"foo": fmt.Errorf("sad refresh 1"),
-	},
+	e = &store.SnapActionError{
+		Refresh: map[string]error{
+			"foo": fmt.Errorf("sad refresh 1"),
+		},
 		Download: map[string]error{
 			"bar": fmt.Errorf("sad download 2"),
-		}}
+		},
+	}
 	c.Check(e.Error(), Equals, `cannot refresh or download:
 sad refresh 1: "foo"
 sad download 2: "bar"`)
 
-	op, name, err = e.SingleOpError()
+	op, name = mylog.Check3(e.SingleOpError())
 	c.Check(op, Equals, "")
 	c.Check(name, Equals, "")
 	c.Check(err, IsNil)
 
-	e = &store.SnapActionError{Install: map[string]error{
-		"foo": fmt.Errorf("sad install 1"),
-	},
+	e = &store.SnapActionError{
+		Install: map[string]error{
+			"foo": fmt.Errorf("sad install 1"),
+		},
 		Download: map[string]error{
 			"bar": fmt.Errorf("sad download 2"),
-		}}
+		},
+	}
 	c.Check(e.Error(), Equals, `cannot install or download:
 sad install 1: "foo"
 sad download 2: "bar"`)
 
-	op, name, err = e.SingleOpError()
+	op, name = mylog.Check3(e.SingleOpError())
 	c.Check(op, Equals, "")
 	c.Check(name, Equals, "")
 	c.Check(err, IsNil)
 
-	e = &store.SnapActionError{Refresh: map[string]error{
-		"foo": fmt.Errorf("sad refresh 1"),
-	},
+	e = &store.SnapActionError{
+		Refresh: map[string]error{
+			"foo": fmt.Errorf("sad refresh 1"),
+		},
 		Install: map[string]error{
 			"bar": fmt.Errorf("sad install 2"),
 		},
 		Download: map[string]error{
 			"baz": fmt.Errorf("sad download 3"),
-		}}
+		},
+	}
 	c.Check(e.Error(), Equals, `cannot refresh, install, or download:
 sad refresh 1: "foo"
 sad install 2: "bar"
 sad download 3: "baz"`)
 
-	op, name, err = e.SingleOpError()
+	op, name = mylog.Check3(e.SingleOpError())
 	c.Check(op, Equals, "")
 	c.Check(name, Equals, "")
 	c.Check(err, IsNil)
@@ -2118,7 +2113,7 @@ sad download 3: "baz"`)
 	}
 	c.Check(e.Error(), Equals, `cannot refresh, install, or download: other error`)
 
-	op, name, err = e.SingleOpError()
+	op, name = mylog.Check3(e.SingleOpError())
 	c.Check(op, Equals, "")
 	c.Check(name, Equals, "")
 	c.Check(err, IsNil)
@@ -2130,7 +2125,7 @@ sad download 3: "baz"`)
 other error 1
 other error 2`)
 
-	op, name, err = e.SingleOpError()
+	op, name = mylog.Check3(e.SingleOpError())
 	c.Check(op, Equals, "")
 	c.Check(name, Equals, "")
 	c.Check(err, IsNil)
@@ -2146,7 +2141,7 @@ sad install: "bar"
 other error 1
 other error 2`)
 
-	op, name, err = e.SingleOpError()
+	op, name = mylog.Check3(e.SingleOpError())
 	c.Check(op, Equals, "")
 	c.Check(name, Equals, "")
 	c.Check(err, IsNil)
@@ -2156,7 +2151,7 @@ other error 2`)
 	}
 	c.Check(e.Error(), Equals, "no install/refresh information results from the store")
 
-	op, name, err = e.SingleOpError()
+	op, name = mylog.Check3(e.SingleOpError())
 	c.Check(op, Equals, "")
 	c.Check(name, Equals, "")
 	c.Check(err, IsNil)
@@ -2167,8 +2162,8 @@ func (s *storeActionSuite) TestSnapActionRefreshesBothAuths(c *C) {
 	// signal macaroon refreshes that allows to do a best effort
 	// with the available results
 
-	refresh, err := makeTestRefreshDischargeResponse()
-	c.Assert(err, IsNil)
+	refresh := mylog.Check2(makeTestRefreshDischargeResponse())
+
 	c.Check(s.user.StoreDischarges[0], Not(Equals), refresh)
 
 	// mock refresh response
@@ -2211,8 +2206,8 @@ func (s *storeActionSuite) TestSnapActionRefreshesBothAuths(c *C) {
 				c.Check(devAuthorization, Equals, `Macaroon root="refreshed-session-macaroon"`)
 			}
 
-			errorsJSON, err := json.Marshal(errors)
-			c.Assert(err, IsNil)
+			errorsJSON := mylog.Check2(json.Marshal(errors))
+
 
 			io.WriteString(w, fmt.Sprintf(`{
   "results": [{
@@ -2238,11 +2233,11 @@ func (s *storeActionSuite) TestSnapActionRefreshesBothAuths(c *C) {
 			io.WriteString(w, `{"nonce": "1234567890:9876543210"}`)
 		case authSessionPath:
 			// validity of request
-			jsonReq, err := io.ReadAll(r.Body)
-			c.Assert(err, IsNil)
+			jsonReq := mylog.Check2(io.ReadAll(r.Body))
+
 			var req map[string]string
-			err = json.Unmarshal(jsonReq, &req)
-			c.Assert(err, IsNil)
+			mylog.Check(json.Unmarshal(jsonReq, &req))
+
 			c.Check(strings.HasPrefix(req["device-session-request"], "type: device-session-request\n"), Equals, true)
 			c.Check(strings.HasPrefix(req["serial-assertion"], "type: serial\n"), Equals, true)
 			c.Check(strings.HasPrefix(req["model-assertion"], "type: model\n"), Equals, true)
@@ -2271,7 +2266,7 @@ func (s *storeActionSuite) TestSnapActionRefreshesBothAuths(c *C) {
 		StoreBaseURL: mockServerURL,
 	}, dauthCtx)
 
-	results, _, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+	results, _ := mylog.Check3(sto.SnapAction(s.ctx, []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -2285,8 +2280,8 @@ func (s *storeActionSuite) TestSnapActionRefreshesBothAuths(c *C) {
 			SnapID:       helloWorldSnapID,
 			InstanceName: "hello-world",
 		},
-	}, nil, s.user, nil)
-	c.Assert(err, IsNil)
+	}, nil, s.user, nil))
+
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].InstanceName(), Equals, "hello-world")
 	c.Check(refreshDischargeEndpointHit, Equals, true)
@@ -2300,15 +2295,14 @@ func (s *storeActionSuite) TestSnapActionRefreshParallelInstall(c *C) {
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
-		jsonReq, err := io.ReadAll(r.Body)
-		c.Assert(err, IsNil)
+		jsonReq := mylog.Check2(io.ReadAll(r.Body))
+
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
 			Actions []map[string]interface{} `json:"actions"`
 		}
+		mylog.Check(json.Unmarshal(jsonReq, &req))
 
-		err = json.Unmarshal(jsonReq, &req)
-		c.Assert(err, IsNil)
 
 		c.Assert(req.Context, HasLen, 2)
 		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
@@ -2366,7 +2360,7 @@ func (s *storeActionSuite) TestSnapActionRefreshParallelInstall(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	results, _, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+	results, _ := mylog.Check3(sto.SnapAction(s.ctx, []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -2387,8 +2381,8 @@ func (s *storeActionSuite) TestSnapActionRefreshParallelInstall(c *C) {
 			Channel:      "stable",
 			InstanceName: "hello-world_foo",
 		},
-	}, nil, nil, &store.RefreshOptions{PrivacyKey: "123"})
-	c.Assert(err, IsNil)
+	}, nil, nil, &store.RefreshOptions{PrivacyKey: "123"}))
+
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].SnapName(), Equals, "hello-world")
 	c.Assert(results[0].InstanceName(), Equals, "hello-world_foo")
@@ -2403,15 +2397,14 @@ func (s *storeActionSuite) TestSnapActionRefreshStableInstanceKey(c *C) {
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
-		jsonReq, err := io.ReadAll(r.Body)
-		c.Assert(err, IsNil)
+		jsonReq := mylog.Check2(io.ReadAll(r.Body))
+
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
 			Actions []map[string]interface{} `json:"actions"`
 		}
+		mylog.Check(json.Unmarshal(jsonReq, &req))
 
-		err = json.Unmarshal(jsonReq, &req)
-		c.Assert(err, IsNil)
 
 		c.Assert(req.Context, HasLen, 2)
 		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
@@ -2495,16 +2488,16 @@ func (s *storeActionSuite) TestSnapActionRefreshStableInstanceKey(c *C) {
 			InstanceName: "hello-world_foo",
 		},
 	}
-	results, _, err := sto.SnapAction(s.ctx, currentSnaps, action, nil, nil, opts)
-	c.Assert(err, IsNil)
+	results, _ := mylog.Check3(sto.SnapAction(s.ctx, currentSnaps, action, nil, nil, opts))
+
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].SnapName(), Equals, "hello-world")
 	c.Assert(results[0].InstanceName(), Equals, "hello-world_foo")
 	c.Assert(results[0].Revision, Equals, snap.R(26))
 
 	// another request with the same seed, gives same result
-	resultsAgain, _, err := sto.SnapAction(s.ctx, currentSnaps, action, nil, nil, opts)
-	c.Assert(err, IsNil)
+	resultsAgain, _ := mylog.Check3(sto.SnapAction(s.ctx, currentSnaps, action, nil, nil, opts))
+
 	c.Assert(resultsAgain, DeepEquals, results)
 }
 
@@ -2514,15 +2507,14 @@ func (s *storeActionSuite) TestSnapActionRefreshWithHeld(c *C) {
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
-		jsonReq, err := io.ReadAll(r.Body)
-		c.Assert(err, IsNil)
+		jsonReq := mylog.Check2(io.ReadAll(r.Body))
+
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
 			Actions []map[string]interface{} `json:"actions"`
 		}
+		mylog.Check(json.Unmarshal(jsonReq, &req))
 
-		err = json.Unmarshal(jsonReq, &req)
-		c.Assert(err, IsNil)
 
 		c.Assert(req.Context, HasLen, 1)
 		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
@@ -2573,7 +2565,7 @@ func (s *storeActionSuite) TestSnapActionRefreshWithHeld(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	results, _, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+	results, _ := mylog.Check3(sto.SnapAction(s.ctx, []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -2589,9 +2581,9 @@ func (s *storeActionSuite) TestSnapActionRefreshWithHeld(c *C) {
 			Channel:      "stable",
 			InstanceName: "hello-world",
 		},
-	}, nil, nil, &store.RefreshOptions{PrivacyKey: "123"})
+	}, nil, nil, &store.RefreshOptions{PrivacyKey: "123"}))
 
-	c.Assert(err, IsNil)
+
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].SnapName(), Equals, "hello-world")
 	c.Assert(results[0].InstanceName(), Equals, "hello-world")
@@ -2608,15 +2600,14 @@ func (s *storeActionSuite) TestSnapActionRefreshWithHeldUnsupportedProxy(c *C) {
 		// mock version that doesn't support `held` field (e.g. 52)
 		w.Header().Set("Snap-Store-Version", "52")
 
-		jsonReq, err := io.ReadAll(r.Body)
-		c.Assert(err, IsNil)
+		jsonReq := mylog.Check2(io.ReadAll(r.Body))
+
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
 			Actions []map[string]interface{} `json:"actions"`
 		}
+		mylog.Check(json.Unmarshal(jsonReq, &req))
 
-		err = json.Unmarshal(jsonReq, &req)
-		c.Assert(err, IsNil)
 		c.Assert(req.Context, HasLen, 1)
 		if _, exists := req.Context[0]["held"]; exists {
 			w.WriteHeader(400)
@@ -2676,7 +2667,7 @@ func (s *storeActionSuite) TestSnapActionRefreshWithHeldUnsupportedProxy(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	results, _, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+	results, _ := mylog.Check3(sto.SnapAction(s.ctx, []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -2692,9 +2683,9 @@ func (s *storeActionSuite) TestSnapActionRefreshWithHeldUnsupportedProxy(c *C) {
 			Channel:      "stable",
 			InstanceName: "hello-world",
 		},
-	}, nil, nil, &store.RefreshOptions{PrivacyKey: "123"})
+	}, nil, nil, &store.RefreshOptions{PrivacyKey: "123"}))
 
-	c.Assert(err, IsNil)
+
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].SnapName(), Equals, "hello-world")
 	c.Assert(results[0].InstanceName(), Equals, "hello-world")
@@ -2707,15 +2698,14 @@ func (s *storeActionSuite) TestSnapActionRefreshWithValidationSets(c *C) {
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
-		jsonReq, err := io.ReadAll(r.Body)
-		c.Assert(err, IsNil)
+		jsonReq := mylog.Check2(io.ReadAll(r.Body))
+
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
 			Actions []map[string]interface{} `json:"actions"`
 		}
+		mylog.Check(json.Unmarshal(jsonReq, &req))
 
-		err = json.Unmarshal(jsonReq, &req)
-		c.Assert(err, IsNil)
 
 		c.Assert(req.Context, HasLen, 1)
 		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
@@ -2767,7 +2757,7 @@ func (s *storeActionSuite) TestSnapActionRefreshWithValidationSets(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	results, _, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+	results, _ := mylog.Check3(sto.SnapAction(s.ctx, []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -2785,8 +2775,8 @@ func (s *storeActionSuite) TestSnapActionRefreshWithValidationSets(c *C) {
 			InstanceName:   "hello-world",
 			ValidationSets: []snapasserts.ValidationSetKey{"foo/bar", "foo/baz"},
 		},
-	}, nil, nil, &store.RefreshOptions{PrivacyKey: "123"})
-	c.Assert(err, IsNil)
+	}, nil, nil, &store.RefreshOptions{PrivacyKey: "123"}))
+
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].SnapName(), Equals, "hello-world")
 	c.Assert(results[0].InstanceName(), Equals, "hello-world")
@@ -2799,15 +2789,14 @@ func (s *storeActionSuite) TestSnapActionRevisionNotAvailableParallelInstall(c *
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
-		jsonReq, err := io.ReadAll(r.Body)
-		c.Assert(err, IsNil)
+		jsonReq := mylog.Check2(io.ReadAll(r.Body))
+
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
 			Actions []map[string]interface{} `json:"actions"`
 		}
+		mylog.Check(json.Unmarshal(jsonReq, &req))
 
-		err = json.Unmarshal(jsonReq, &req)
-		c.Assert(err, IsNil)
 
 		c.Assert(req.Context, HasLen, 2)
 		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
@@ -2888,7 +2877,7 @@ func (s *storeActionSuite) TestSnapActionRevisionNotAvailableParallelInstall(c *
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	results, _, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+	results, _ := mylog.Check3(sto.SnapAction(s.ctx, []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -2917,7 +2906,7 @@ func (s *storeActionSuite) TestSnapActionRevisionNotAvailableParallelInstall(c *
 			InstanceName: "other_foo",
 			Channel:      "stable",
 		},
-	}, nil, nil, &store.RefreshOptions{PrivacyKey: "123"})
+	}, nil, nil, &store.RefreshOptions{PrivacyKey: "123"}))
 	c.Assert(results, HasLen, 0)
 	c.Check(err, DeepEquals, &store.SnapActionError{
 		Refresh: map[string]error{
@@ -2945,15 +2934,14 @@ func (s *storeActionSuite) TestSnapActionInstallParallelInstall(c *C) {
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
-		jsonReq, err := io.ReadAll(r.Body)
-		c.Assert(err, IsNil)
+		jsonReq := mylog.Check2(io.ReadAll(r.Body))
+
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
 			Actions []map[string]interface{} `json:"actions"`
 		}
+		mylog.Check(json.Unmarshal(jsonReq, &req))
 
-		err = json.Unmarshal(jsonReq, &req)
-		c.Assert(err, IsNil)
 
 		c.Assert(req.Context, HasLen, 1)
 		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
@@ -3004,7 +2992,7 @@ func (s *storeActionSuite) TestSnapActionInstallParallelInstall(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	results, _, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+	results, _ := mylog.Check3(sto.SnapAction(s.ctx, []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -3018,8 +3006,8 @@ func (s *storeActionSuite) TestSnapActionInstallParallelInstall(c *C) {
 			InstanceName: "hello-world_foo",
 			Channel:      "stable",
 		},
-	}, nil, nil, nil)
-	c.Assert(err, IsNil)
+	}, nil, nil, nil))
+
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].InstanceName(), Equals, "hello-world_foo")
 	c.Assert(results[0].SnapName(), Equals, "hello-world")
@@ -3035,7 +3023,7 @@ func (s *storeActionSuite) TestSnapActionErrorsWhenNoInstanceName(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&store.Config{}, dauthCtx)
 
-	results, _, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+	results, _ := mylog.Check3(sto.SnapAction(s.ctx, []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -3048,7 +3036,7 @@ func (s *storeActionSuite) TestSnapActionErrorsWhenNoInstanceName(c *C) {
 			Action:  "install",
 			Channel: "stable",
 		},
-	}, nil, nil, nil)
+	}, nil, nil, nil))
 	c.Assert(err, ErrorMatches, "internal error: action without instance name")
 	c.Assert(results, IsNil)
 }
@@ -3059,15 +3047,14 @@ func (s *storeActionSuite) TestSnapActionInstallUnexpectedInstallKey(c *C) {
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
-		jsonReq, err := io.ReadAll(r.Body)
-		c.Assert(err, IsNil)
+		jsonReq := mylog.Check2(io.ReadAll(r.Body))
+
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
 			Actions []map[string]interface{} `json:"actions"`
 		}
+		mylog.Check(json.Unmarshal(jsonReq, &req))
 
-		err = json.Unmarshal(jsonReq, &req)
-		c.Assert(err, IsNil)
 
 		c.Assert(req.Context, HasLen, 1)
 		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
@@ -3118,7 +3105,7 @@ func (s *storeActionSuite) TestSnapActionInstallUnexpectedInstallKey(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	results, _, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+	results, _ := mylog.Check3(sto.SnapAction(s.ctx, []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -3132,7 +3119,7 @@ func (s *storeActionSuite) TestSnapActionInstallUnexpectedInstallKey(c *C) {
 			InstanceName: "hello-world_foo",
 			Channel:      "stable",
 		},
-	}, nil, nil, nil)
+	}, nil, nil, nil))
 	c.Assert(err, ErrorMatches, `unexpected invalid install/refresh API result: unexpected instance-key "foo-2"`)
 	c.Assert(results, IsNil)
 }
@@ -3143,15 +3130,14 @@ func (s *storeActionSuite) TestSnapActionRefreshUnexpectedInstanceKey(c *C) {
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
-		jsonReq, err := io.ReadAll(r.Body)
-		c.Assert(err, IsNil)
+		jsonReq := mylog.Check2(io.ReadAll(r.Body))
+
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
 			Actions []map[string]interface{} `json:"actions"`
 		}
+		mylog.Check(json.Unmarshal(jsonReq, &req))
 
-		err = json.Unmarshal(jsonReq, &req)
-		c.Assert(err, IsNil)
 
 		c.Assert(req.Context, HasLen, 1)
 		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
@@ -3201,7 +3187,7 @@ func (s *storeActionSuite) TestSnapActionRefreshUnexpectedInstanceKey(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	results, _, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+	results, _ := mylog.Check3(sto.SnapAction(s.ctx, []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -3216,7 +3202,7 @@ func (s *storeActionSuite) TestSnapActionRefreshUnexpectedInstanceKey(c *C) {
 			Channel:      "stable",
 			InstanceName: "hello-world",
 		},
-	}, nil, nil, nil)
+	}, nil, nil, nil))
 	c.Assert(err, ErrorMatches, `unexpected invalid install/refresh API result: unexpected refresh`)
 	c.Assert(results, IsNil)
 }
@@ -3227,15 +3213,14 @@ func (s *storeActionSuite) TestSnapActionUnexpectedErrorKey(c *C) {
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
-		jsonReq, err := io.ReadAll(r.Body)
-		c.Assert(err, IsNil)
+		jsonReq := mylog.Check2(io.ReadAll(r.Body))
+
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
 			Actions []map[string]interface{} `json:"actions"`
 		}
+		mylog.Check(json.Unmarshal(jsonReq, &req))
 
-		err = json.Unmarshal(jsonReq, &req)
-		c.Assert(err, IsNil)
 
 		c.Assert(req.Context, HasLen, 2)
 		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
@@ -3303,7 +3288,7 @@ func (s *storeActionSuite) TestSnapActionUnexpectedErrorKey(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	results, _, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+	results, _ := mylog.Check3(sto.SnapAction(s.ctx, []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -3322,7 +3307,7 @@ func (s *storeActionSuite) TestSnapActionUnexpectedErrorKey(c *C) {
 			Action:       "install",
 			InstanceName: "foo-2",
 		},
-	}, nil, nil, &store.RefreshOptions{PrivacyKey: "123"})
+	}, nil, nil, &store.RefreshOptions{PrivacyKey: "123"}))
 	c.Assert(err, DeepEquals, &store.SnapActionError{
 		Other: []error{fmt.Errorf(`snap "hello-world_foo": The Snap is present more than once in the request.`)},
 	})
@@ -3348,12 +3333,12 @@ func (s *storeActionSuite) TestSnapAction500(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	results, _, err := sto.SnapAction(s.ctx, nil, []*store.SnapAction{
+	results, _ := mylog.Check3(sto.SnapAction(s.ctx, nil, []*store.SnapAction{
 		{
 			Action:       "install",
 			InstanceName: "foo",
 		},
-	}, nil, nil, nil)
+	}, nil, nil, nil))
 	c.Assert(err, ErrorMatches, `cannot query the store for updates: got unexpected HTTP status code 500 via POST to "http://127\.0\.0\.1:.*/v2/snaps/refresh"`)
 	c.Check(err, FitsTypeOf, &store.UnexpectedHTTPStatusError{})
 	c.Check(results, HasLen, 0)
@@ -3376,12 +3361,12 @@ func (s *storeActionSuite) TestSnapAction400(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	results, _, err := sto.SnapAction(s.ctx, nil, []*store.SnapAction{
+	results, _ := mylog.Check3(sto.SnapAction(s.ctx, nil, []*store.SnapAction{
 		{
 			Action:       "install",
 			InstanceName: "foo",
 		},
-	}, nil, nil, nil)
+	}, nil, nil, nil))
 	c.Assert(err, ErrorMatches, `cannot query the store for updates: got unexpected HTTP status code 400 via POST to "http://127\.0\.0\.1:.*/v2/snaps/refresh"`)
 	c.Check(err, FitsTypeOf, &store.UnexpectedHTTPStatusError{})
 	c.Check(results, HasLen, 0)
@@ -3414,12 +3399,12 @@ func (s *storeActionSuite) TestSnapActionTimeout(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	_, _, err := sto.SnapAction(s.ctx, nil, []*store.SnapAction{
+	_, _ := mylog.Check3(sto.SnapAction(s.ctx, nil, []*store.SnapAction{
 		{
 			Action:       "install",
 			InstanceName: "foo",
 		},
-	}, nil, nil, nil)
+	}, nil, nil, nil))
 	close(quit)
 	// go 1.17 started quoting the failing URL, also context deadline
 	// exceeded may appear in place of request being canceled

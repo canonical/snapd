@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -79,10 +80,8 @@ func RegisterAffectedSnapsByKind(kind string, f AffectedSnapsFunc) {
 func affectedSnaps(t *state.Task) ([]string, error) {
 	// snapstate's own styled tasks
 	if t.Has("snap-setup") || t.Has("snap-setup-task") {
-		snapsup, err := TaskSnapSetup(t)
-		if err != nil {
-			return nil, fmt.Errorf("internal error: cannot obtain snap setup from task: %s", t.Summary())
-		}
+		snapsup := mylog.Check2(TaskSnapSetup(t))
+
 		return []string{snapsup.InstanceName()}, nil
 	}
 
@@ -114,33 +113,24 @@ func snapSetupFromChange(chg *state.Change) (*SnapSetup, error) {
 // setup change with a version lower than what is currently installed. If a change
 // is not SnapSetup related this returns false.
 func changeIsSnapdDowngrade(st *state.State, chg *state.Change) (bool, error) {
-	snapsup, err := snapSetupFromChange(chg)
-	if err != nil {
-		return false, err
-	}
+	snapsup := mylog.Check2(snapSetupFromChange(chg))
+
 	if snapsup == nil || snapsup.SnapName() != "snapd" {
 		return false, nil
 	}
 
 	var snapst SnapState
-	if err := Get(st, snapsup.InstanceName(), &snapst); err != nil {
-		return false, err
-	}
+	mylog.Check(Get(st, snapsup.InstanceName(), &snapst))
 
-	currentInfo, err := snapst.CurrentInfo()
-	if err != nil {
-		return false, fmt.Errorf("cannot retrieve snap info for current snapd: %v", err)
-	}
+	currentInfo := mylog.Check2(snapst.CurrentInfo())
 
 	// On older snapd's 'Version' might be empty, and in this case we assume
 	// that snapd is downgrading as we cannot determine otherwise.
 	if snapsup.Version == "" {
 		return true, nil
 	}
-	res, err := strutil.VersionCompare(currentInfo.Version, snapsup.Version)
-	if err != nil {
-		return false, fmt.Errorf("cannot compare versions of snapd [cur: %s, new: %s]: %v", currentInfo.Version, snapsup.Version, err)
-	}
+	res := mylog.Check2(strutil.VersionCompare(currentInfo.Version, snapsup.Version))
+
 	return res == 1, nil
 }
 
@@ -197,7 +187,7 @@ func checkChangeConflictExclusiveKinds(st *state.State, newExclusiveChangeKind, 
 			if ignoreChangeID != "" && chg.ID() == ignoreChangeID {
 				continue
 			}
-			if downgrading, err := changeIsSnapdDowngrade(st, chg); err != nil {
+			if downgrading := mylog.Check2(changeIsSnapdDowngrade(st, chg)); err != nil {
 				return err
 			} else if !downgrading {
 				continue
@@ -269,11 +259,10 @@ func CheckChangeConflictMany(st *state.State, instanceNames []string, ignoreChan
 	for _, k := range instanceNames {
 		snapMap[k] = true
 	}
+	mylog.Check(
 
-	// check whether there are other changes that need to run exclusively
-	if err := checkChangeConflictExclusiveKinds(st, "", ignoreChangeID); err != nil {
-		return err
-	}
+		// check whether there are other changes that need to run exclusively
+		checkChangeConflictExclusiveKinds(st, "", ignoreChangeID))
 
 	for _, task := range st.Tasks() {
 		chg := task.Change()
@@ -281,10 +270,7 @@ func CheckChangeConflictMany(st *state.State, instanceNames []string, ignoreChan
 			continue
 		}
 
-		snaps, err := affectedSnaps(task)
-		if err != nil {
-			return err
-		}
+		snaps := mylog.Check2(affectedSnaps(task))
 
 		for _, snap := range snaps {
 			if snapMap[snap] {
@@ -309,9 +295,7 @@ func CheckChangeConflict(st *state.State, instanceName string, snapst *SnapState
 }
 
 func checkChangeConflictIgnoringOneChange(st *state.State, instanceName string, snapst *SnapState, ignoreChangeID string) error {
-	if err := CheckChangeConflictMany(st, []string{instanceName}, ignoreChangeID); err != nil {
-		return err
-	}
+	mylog.Check(CheckChangeConflictMany(st, []string{instanceName}, ignoreChangeID))
 
 	if snapst != nil {
 		// caller wants us to also make sure the SnapState in state
@@ -321,7 +305,7 @@ func checkChangeConflictIgnoringOneChange(st *state.State, instanceName string, 
 		// install, while getting the snap info; for refresh, when
 		// getting what needs refreshing).
 		var cursnapst SnapState
-		if err := Get(st, instanceName, &cursnapst); err != nil && !errors.Is(err, state.ErrNoState) {
+		if mylog.Check(Get(st, instanceName, &cursnapst)); err != nil && !errors.Is(err, state.ErrNoState) {
 			return err
 		}
 
@@ -338,10 +322,9 @@ func checkChangeConflictIgnoringOneChange(st *state.State, instanceName string, 
 // than ignoreChangeID has a task that touches the kernel command
 // line.
 func CheckUpdateKernelCommandLineConflict(st *state.State, ignoreChangeID string) error {
-	// check whether there are other changes that need to run exclusively
-	if err := checkChangeConflictExclusiveKinds(st, "", ignoreChangeID); err != nil {
-		return err
-	}
+	mylog.Check(
+		// check whether there are other changes that need to run exclusively
+		checkChangeConflictExclusiveKinds(st, "", ignoreChangeID))
 
 	for _, task := range st.Tasks() {
 		chg := task.Change()

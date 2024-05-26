@@ -25,6 +25,7 @@ import (
 	"gopkg.in/check.v1"
 	"gopkg.in/yaml.v2"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -86,13 +87,13 @@ func (s epochSuite) TestBadEpochs(c *check.C) {
 
 	for _, test := range tests {
 		var v snap.Epoch
-		err := yaml.Unmarshal([]byte(test.s), &v)
+		mylog.Check(yaml.Unmarshal([]byte(test.s), &v))
 		c.Check(err, check.ErrorMatches, test.e, check.Commentf("YAML: %#q", test.s))
 
 		if test.y == 1 {
 			continue
 		}
-		err = json.Unmarshal([]byte(test.s), &v)
+		mylog.Check(json.Unmarshal([]byte(test.s), &v))
 		c.Check(err, check.ErrorMatches, test.e, check.Commentf("JSON: %#q", test.s))
 	}
 }
@@ -119,15 +120,14 @@ func (s epochSuite) TestGoodEpochs(c *check.C) {
 
 	for _, test := range tests {
 		var v snap.Epoch
-		err := yaml.Unmarshal([]byte(test.s), &v)
+		mylog.Check(yaml.Unmarshal([]byte(test.s), &v))
 		c.Check(err, check.IsNil, check.Commentf("YAML: %s", test.s))
 		c.Check(v, check.DeepEquals, test.e)
 
 		if test.y > 0 {
 			continue
 		}
-
-		err = json.Unmarshal([]byte(test.s), &v)
+		mylog.Check(json.Unmarshal([]byte(test.s), &v))
 		c.Check(err, check.IsNil, check.Commentf("JSON: %s", test.s))
 		c.Check(v, check.DeepEquals, test.e)
 	}
@@ -156,7 +156,7 @@ func (s epochSuite) TestGoodEpochsInSnapYAML(c *check.C) {
 	}
 
 	for _, test := range tests {
-		info, err := snap.InfoFromSnapYaml([]byte(test.s))
+		info := mylog.Check2(snap.InfoFromSnapYaml([]byte(test.s)))
 		c.Check(err, check.IsNil, check.Commentf("YAML: %s", test.s))
 		c.Check(info.Epoch, check.DeepEquals, test.e)
 	}
@@ -189,7 +189,7 @@ func (s epochSuite) TestGoodEpochsInJSON(c *check.C) {
 
 	for _, test := range tests {
 		var info Tinfo
-		err := json.Unmarshal([]byte(test.s), &info)
+		mylog.Check(json.Unmarshal([]byte(test.s), &info))
 		c.Check(err, check.IsNil, check.Commentf("JSON: %s", test.s))
 		c.Check(info.Epoch, check.DeepEquals, test.e, check.Commentf("JSON: %s", test.s))
 	}
@@ -205,7 +205,7 @@ func (s *epochSuite) TestEpochValidate(c *check.C) {
 		{Read: []uint32{1, 2, 3}, Write: []uint32{1, 2, 3}},
 	}
 	for _, epoch := range validEpochs {
-		err := epoch.Validate()
+		mylog.Check(epoch.Validate())
 		c.Check(err, check.IsNil, check.Commentf("%s", epoch))
 	}
 	invalidEpochs := []struct {
@@ -237,7 +237,7 @@ func (s *epochSuite) TestEpochValidate(c *check.C) {
 		}, err: epochListJustRidiculouslyLong},
 	}
 	for _, test := range invalidEpochs {
-		err := test.epoch.Validate()
+		mylog.Check(test.epoch.Validate())
 		c.Check(err, check.ErrorMatches, test.err, check.Commentf("%s", test.epoch))
 	}
 }
@@ -281,10 +281,10 @@ func (s *epochSuite) TestEpochMarshal(c *check.C) {
 		{e: snap.Epoch{Read: []uint32{1, 2, 3}, Write: []uint32{1, 2, 3}}, s: `{"read":[1,2,3],"write":[1,2,3]}`},
 	}
 	for _, test := range tests {
-		bs, err := test.e.MarshalJSON()
+		bs := mylog.Check2(test.e.MarshalJSON())
 		c.Assert(err, check.IsNil)
 		c.Check(string(bs), check.Equals, test.s, check.Commentf(test.s))
-		bs, err = json.Marshal(test.e)
+		bs = mylog.Check2(json.Marshal(test.e))
 		c.Assert(err, check.IsNil)
 		c.Check(string(bs), check.Equals, test.s, check.Commentf(test.s))
 	}

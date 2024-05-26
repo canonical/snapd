@@ -22,6 +22,7 @@ package main_test
 import (
 	"testing"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 	. "gopkg.in/check.v1"
 
@@ -53,8 +54,8 @@ func (s *startPreseedSuite) TearDownTest(c *C) {
 
 func testParser(c *C) *flags.Parser {
 	parser := main.Parser()
-	_, err := parser.ParseArgs([]string{})
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(parser.ParseArgs([]string{}))
+
 	return parser
 }
 
@@ -147,7 +148,8 @@ func (s *startPreseedSuite) TestReadInfoValidity(c *C) {
 		BadInterfaces: make(map[string]string),
 		Plugs: map[string]*snap.PlugInfo{
 			"foo": {
-				Interface: "bad"},
+				Interface: "bad",
+			},
 		},
 	}
 

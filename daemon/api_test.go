@@ -25,6 +25,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
@@ -53,7 +54,7 @@ func (s *apiSuite) TestserFromRequestNoHeader(c *check.C) {
 	req, _ := http.NewRequest("GET", "http://example.com", nil)
 
 	s.st.Lock()
-	user, err := daemon.UserFromRequest(s.st, req)
+	user := mylog.Check2(daemon.UserFromRequest(s.st, req))
 	s.st.Unlock()
 
 	c.Check(err, check.Equals, auth.ErrInvalidAuth)
@@ -65,7 +66,7 @@ func (s *apiSuite) TestUserFromRequestHeaderNoMacaroons(c *check.C) {
 	req.Header.Set("Authorization", "Invalid")
 
 	s.st.Lock()
-	user, err := daemon.UserFromRequest(s.st, req)
+	user := mylog.Check2(daemon.UserFromRequest(s.st, req))
 	s.st.Unlock()
 
 	c.Check(err, check.ErrorMatches, "authorization header misses Macaroon prefix")
@@ -77,7 +78,7 @@ func (s *apiSuite) TestUserFromRequestHeaderIncomplete(c *check.C) {
 	req.Header.Set("Authorization", `Macaroon root=""`)
 
 	s.st.Lock()
-	user, err := daemon.UserFromRequest(s.st, req)
+	user := mylog.Check2(daemon.UserFromRequest(s.st, req))
 	s.st.Unlock()
 
 	c.Check(err, check.ErrorMatches, "invalid authorization header")
@@ -89,7 +90,7 @@ func (s *apiSuite) TestUserFromRequestHeaderCorrectMissingUser(c *check.C) {
 	req.Header.Set("Authorization", `Macaroon root="macaroon", discharge="discharge"`)
 
 	s.st.Lock()
-	user, err := daemon.UserFromRequest(s.st, req)
+	user := mylog.Check2(daemon.UserFromRequest(s.st, req))
 	s.st.Unlock()
 
 	c.Check(err, check.Equals, auth.ErrInvalidAuth)
@@ -98,12 +99,12 @@ func (s *apiSuite) TestUserFromRequestHeaderCorrectMissingUser(c *check.C) {
 
 func (s *apiSuite) TestUserFromRequestHeaderValidUser(c *check.C) {
 	s.st.Lock()
-	expectedUser, err := auth.NewUser(s.st, auth.NewUserParams{
+	expectedUser := mylog.Check2(auth.NewUser(s.st, auth.NewUserParams{
 		Username:   "username",
 		Email:      "email@test.com",
 		Macaroon:   "macaroon",
 		Discharges: []string{"discharge"},
-	})
+	}))
 	s.st.Unlock()
 	c.Check(err, check.IsNil)
 
@@ -111,7 +112,7 @@ func (s *apiSuite) TestUserFromRequestHeaderValidUser(c *check.C) {
 	req.Header.Set("Authorization", fmt.Sprintf(`Macaroon root="%s"`, expectedUser.Macaroon))
 
 	s.st.Lock()
-	user, err := daemon.UserFromRequest(s.st, req)
+	user := mylog.Check2(daemon.UserFromRequest(s.st, req))
 	s.st.Unlock()
 
 	c.Check(err, check.IsNil)

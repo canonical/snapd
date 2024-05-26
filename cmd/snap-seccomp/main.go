@@ -218,6 +218,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/ddkwork/golibrary/mylog"
 	seccomp "github.com/seccomp/libseccomp-golang"
 
 	"github.com/snapcore/snapd/arch"
@@ -508,9 +509,11 @@ type SeccompData C.kernel_seccomp_data
 func (sc *SeccompData) SetNr(nr seccomp.ScmpSyscall) {
 	sc.nr = C.int(C.htot32(C.__u32(sc.arch), C.__u32(nr)))
 }
+
 func (sc *SeccompData) SetArch(arch uint32) {
 	sc.arch = C.htot32(C.__u32(arch), C.__u32(arch))
 }
+
 func (sc *SeccompData) SetArgs(args [6]uint64) {
 	for i := range args {
 		sc.args[i] = C.htot64(sc.arch, C.__u64(args[i]))
@@ -560,7 +563,7 @@ func readNumber(token string, syscallName string) (uint64, error) {
 		return value, nil
 	}
 
-	if value, err := strconv.ParseUint(token, 10, 32); err == nil {
+	if value := mylog.Check2(strconv.ParseUint(token, 10, 32)); err == nil {
 		return value, nil
 	}
 
@@ -570,10 +573,7 @@ func readNumber(token string, syscallName string) (uint64, error) {
 	}
 
 	// It is, so try to parse as an int32
-	value, err := strconv.ParseInt(token, 10, 32)
-	if err != nil {
-		return 0, err
-	}
+	value := mylog.Check2(strconv.ParseInt(token, 10, 32))
 
 	// convert the int32 to uint32 then to uint64 (see above)
 	return uint64(uint32(value)), nil
@@ -609,20 +609,17 @@ func parseLine(line string, secFilterAllow, secFilterDeny *seccomp.ScmpFilter) e
 		secFilter = secFilterDeny
 	}
 
-	secSyscall, err := seccomp.GetSyscallFromName(syscallName)
-	if err != nil {
-		// FIXME: use structed error in libseccomp-golang when
-		//   https://github.com/seccomp/libseccomp-golang/pull/26
-		// gets merged. For now, ignore
-		// unknown syscalls
-		return nil
-	}
+	secSyscall := mylog.Check2(seccomp.GetSyscallFromName(syscallName))
+
+	// FIXME: use structed error in libseccomp-golang when
+	//   https://github.com/seccomp/libseccomp-golang/pull/26
+	// gets merged. For now, ignore
+	// unknown syscalls
 
 	var conds []seccomp.ScmpCondition
 	for pos, arg := range tokens[1:] {
 		var cmpOp seccomp.ScmpCompareOp
 		var value uint64
-		var err error
 
 		if arg == "-" { // skip arg
 			continue
@@ -630,40 +627,33 @@ func parseLine(line string, secFilterAllow, secFilterDeny *seccomp.ScmpFilter) e
 
 		if strings.HasPrefix(arg, ">=") {
 			cmpOp = seccomp.CompareGreaterEqual
-			value, err = readNumber(arg[2:], syscallName)
+			value = mylog.Check2(readNumber(arg[2:], syscallName))
 		} else if strings.HasPrefix(arg, "<=") {
 			cmpOp = seccomp.CompareLessOrEqual
-			value, err = readNumber(arg[2:], syscallName)
+			value = mylog.Check2(readNumber(arg[2:], syscallName))
 		} else if strings.HasPrefix(arg, "!") {
 			cmpOp = seccomp.CompareNotEqual
-			value, err = readNumber(arg[1:], syscallName)
+			value = mylog.Check2(readNumber(arg[1:], syscallName))
 		} else if strings.HasPrefix(arg, "<") {
 			cmpOp = seccomp.CompareLess
-			value, err = readNumber(arg[1:], syscallName)
+			value = mylog.Check2(readNumber(arg[1:], syscallName))
 		} else if strings.HasPrefix(arg, ">") {
 			cmpOp = seccomp.CompareGreater
-			value, err = readNumber(arg[1:], syscallName)
+			value = mylog.Check2(readNumber(arg[1:], syscallName))
 		} else if strings.HasPrefix(arg, "|") {
 			cmpOp = seccomp.CompareMaskedEqual
-			value, err = readNumber(arg[1:], syscallName)
+			value = mylog.Check2(readNumber(arg[1:], syscallName))
 		} else if strings.HasPrefix(arg, "u:") {
 			cmpOp = seccomp.CompareEqual
-			value, err = findUid(arg[2:])
-			if err != nil {
-				return fmt.Errorf("cannot parse token %q (line %q): %v", arg, line, err)
-			}
+			value = mylog.Check2(findUid(arg[2:]))
+
 		} else if strings.HasPrefix(arg, "g:") {
 			cmpOp = seccomp.CompareEqual
-			value, err = findGid(arg[2:])
-			if err != nil {
-				return fmt.Errorf("cannot parse token %q (line %q): %v", arg, line, err)
-			}
+			value = mylog.Check2(findGid(arg[2:]))
+
 		} else {
 			cmpOp = seccomp.CompareEqual
-			value, err = readNumber(arg, syscallName)
-		}
-		if err != nil {
-			return fmt.Errorf("cannot parse token %q (line %q)", arg, line)
+			value = mylog.Check2(readNumber(arg, syscallName))
 		}
 
 		// For now only support EQ with negative args. If changing
@@ -677,26 +667,20 @@ func parseLine(line string, secFilterAllow, secFilterDeny *seccomp.ScmpFilter) e
 
 		var scmpCond seccomp.ScmpCondition
 		if cmpOp == seccomp.CompareMaskedEqual {
-			scmpCond, err = seccomp.MakeCondition(uint(pos), cmpOp, value, value)
+			scmpCond = mylog.Check2(seccomp.MakeCondition(uint(pos), cmpOp, value, value))
 		} else if syscallsWithNegArgsMaskHi32[syscallName] {
-			scmpCond, err = seccomp.MakeCondition(uint(pos), seccomp.CompareMaskedEqual, 0xFFFFFFFF, value)
+			scmpCond = mylog.Check2(seccomp.MakeCondition(uint(pos), seccomp.CompareMaskedEqual, 0xFFFFFFFF, value))
 		} else {
-			scmpCond, err = seccomp.MakeCondition(uint(pos), cmpOp, value)
+			scmpCond = mylog.Check2(seccomp.MakeCondition(uint(pos), cmpOp, value))
 		}
-		if err != nil {
-			return fmt.Errorf("cannot parse line %q: %s", line, err)
-		}
+
 		conds = append(conds, scmpCond)
 	}
+	mylog.Check(
 
-	// Default to adding a precise match if possible. Otherwise
-	// let seccomp figure out the architecture specifics.
-	if err = secFilter.AddRuleConditionalExact(secSyscall, action, conds); err != nil {
-		err = secFilter.AddRuleConditional(secSyscall, action, conds)
-	}
-	if err != nil {
-		return fmt.Errorf("cannot add rule for line %q: %v", line, err)
-	}
+		// Default to adding a precise match if possible. Otherwise
+		// let seccomp figure out the architecture specifics.
+		secFilter.AddRuleConditionalExact(secSyscall, action, conds))
 
 	return nil
 }
@@ -801,17 +785,10 @@ func exportBPF(fout *os.File, filter *seccomp.ScmpFilter) (bpfLen int64, err err
 	// TODO: use a common way to handle prefixed errors across snapd
 	errPrefixFmt := "cannot export bpf filter: %w"
 
-	oldPos, err := fout.Seek(0, io.SeekCurrent)
-	if err != nil {
-		return 0, fmt.Errorf(errPrefixFmt, err)
-	}
-	if err := filter.ExportBPF(fout); err != nil {
-		return 0, fmt.Errorf(errPrefixFmt, err)
-	}
-	nowPos, err := fout.Seek(0, io.SeekCurrent)
-	if err != nil {
-		return 0, fmt.Errorf(errPrefixFmt, err)
-	}
+	oldPos := mylog.Check2(fout.Seek(0, io.SeekCurrent))
+	mylog.Check(filter.ExportBPF(fout))
+
+	nowPos := mylog.Check2(fout.Seek(0, io.SeekCurrent))
 
 	return nowPos - oldPos, nil
 }
@@ -842,23 +819,17 @@ func writeUnrestrictedFilter(outFile string) error {
 		// tell snap-confine
 		unrestricted: 0x1,
 	}
-	fout, err := osutil.NewAtomicFile(outFile, 0644, 0, osutil.NoChown, osutil.NoChown)
-	if err != nil {
-		return err
-	}
-	defer fout.Cancel()
+	fout := mylog.Check2(osutil.NewAtomicFile(outFile, 0644, 0, osutil.NoChown, osutil.NoChown))
 
-	if err := binary.Write(fout, arch.Endian(), hdr); err != nil {
-		return err
-	}
+	defer fout.Cancel()
+	mylog.Check(binary.Write(fout, arch.Endian(), hdr))
+
 	return fout.Commit()
 }
 
 func writeSeccompFilter(outFile string, filterAllow, filterDeny *seccomp.ScmpFilter) error {
-	fout, err := osutil.NewAtomicFile(outFile, 0644, 0, osutil.NoChown, osutil.NoChown)
-	if err != nil {
-		return err
-	}
+	fout := mylog.Check2(osutil.NewAtomicFile(outFile, 0644, 0, osutil.NoChown, osutil.NoChown))
+
 	defer fout.Cancel()
 
 	// Write preliminary header because we don't know the sizes of the
@@ -868,33 +839,22 @@ func writeSeccompFilter(outFile string, filterAllow, filterDeny *seccomp.ScmpFil
 		header:  [2]byte{'S', 'C'},
 		version: 0x1,
 	}
-	if err := binary.Write(fout, arch.Endian(), hdr); err != nil {
-		return err
-	}
-	allowSize, err := exportBPF(fout.File, filterAllow)
-	if err != nil {
-		return err
-	}
-	denySize, err := exportBPF(fout.File, filterDeny)
-	if err != nil {
-		return err
-	}
+	mylog.Check(binary.Write(fout, arch.Endian(), hdr))
+
+	allowSize := mylog.Check2(exportBPF(fout.File, filterAllow))
+
+	denySize := mylog.Check2(exportBPF(fout.File, filterDeny))
 
 	// now write final header
 	hdr.lenAllowFilter = uint32(allowSize)
 	hdr.lenDenyFilter = uint32(denySize)
-	if _, err := fout.Seek(0, io.SeekStart); err != nil {
-		return err
-	}
-	if err := binary.Write(fout, arch.Endian(), hdr); err != nil {
-		return err
-	}
+	mylog.Check2(fout.Seek(0, io.SeekStart))
+	mylog.Check(binary.Write(fout, arch.Endian(), hdr))
 
 	return fout.Commit()
 }
 
 func compile(content []byte, out string) error {
-	var err error
 	var secFilterAllow, secFilterDeny *seccomp.ScmpFilter
 
 	unrestricted, complain := preprocess(content)
@@ -904,24 +864,14 @@ func compile(content []byte, out string) error {
 	case complain:
 		var complainAct seccomp.ScmpAction = complainAction()
 
-		secFilterAllow, err = seccomp.NewFilter(complainAct)
-		if err != nil {
-			if complainAct != seccomp.ActAllow {
-				// ActLog is only supported in newer versions
-				// of the kernel, libseccomp, and
-				// libseccomp-golang. Attempt to fall back to
-				// ActAllow before erroring out.
-				complainAct = seccomp.ActAllow
-				secFilterAllow, err = seccomp.NewFilter(complainAct)
-			}
-		}
-		if err != nil {
-			return fmt.Errorf("cannot create allow seccomp filter: %s", err)
-		}
-		secFilterDeny, err = seccomp.NewFilter(complainAct)
-		if err != nil {
-			return fmt.Errorf("cannot create deny seccomp filter: %s", err)
-		}
+		secFilterAllow = mylog.Check2(seccomp.NewFilter(complainAct))
+
+		// ActLog is only supported in newer versions
+		// of the kernel, libseccomp, and
+		// libseccomp-golang. Attempt to fall back to
+		// ActAllow before erroring out.
+
+		secFilterDeny = mylog.Check2(seccomp.NewFilter(complainAct))
 
 		// Set unrestricted to 'true' to fallback to the pre-ActLog
 		// behavior of simply setting the allow filter without adding
@@ -930,28 +880,18 @@ func compile(content []byte, out string) error {
 			unrestricted = true
 		}
 	default:
-		secFilterAllow, err = seccomp.NewFilter(seccomp.ActErrno.SetReturnCode(errnoOnImplicitDenial))
-		if err != nil {
-			return fmt.Errorf("cannot create seccomp filter: %s", err)
-		}
-		secFilterDeny, err = seccomp.NewFilter(seccomp.ActAllow)
-		if err != nil {
-			return fmt.Errorf("cannot create seccomp filter: %s", err)
-		}
+		secFilterAllow = mylog.Check2(seccomp.NewFilter(seccomp.ActErrno.SetReturnCode(errnoOnImplicitDenial)))
+
+		secFilterDeny = mylog.Check2(seccomp.NewFilter(seccomp.ActAllow))
+
 	}
-	if err := addSecondaryArches(secFilterAllow); err != nil {
-		return err
-	}
-	if err := addSecondaryArches(secFilterDeny); err != nil {
-		return err
-	}
+	mylog.Check(addSecondaryArches(secFilterAllow))
+	mylog.Check(addSecondaryArches(secFilterDeny))
 
 	if !unrestricted {
 		scanner := bufio.NewScanner(bytes.NewBuffer(content))
 		for scanner.Scan() {
-			if err := parseLine(scanner.Text(), secFilterAllow, secFilterDeny); err != nil {
-				return fmt.Errorf("cannot parse line: %s", err)
-			}
+			mylog.Check(parseLine(scanner.Text(), secFilterAllow, secFilterDeny))
 		}
 		if scanner.Err(); err != nil {
 			return err
@@ -962,16 +902,16 @@ func compile(content []byte, out string) error {
 		secFilterAllow.ExportPFC(os.Stdout)
 		secFilterDeny.ExportPFC(os.Stdout)
 	}
+	mylog.Check(writeSeccompFilter(out, secFilterAllow, secFilterDeny))
 
-	if err := writeSeccompFilter(out, secFilterAllow, secFilterDeny); err != nil {
-		return err
-	}
 	return nil
 }
 
 // caches for uid and gid lookups
-var uidCache = make(map[string]uint64)
-var gidCache = make(map[string]uint64)
+var (
+	uidCache = make(map[string]uint64)
+	gidCache = make(map[string]uint64)
+)
 
 // findUid returns the identifier of the given UNIX user name.
 func findUid(username string) (uint64, error) {
@@ -981,7 +921,7 @@ func findUid(username string) (uint64, error) {
 	if !osutil.IsValidSnapSystemUsername(username) {
 		return 0, fmt.Errorf("%q must be a valid username", username)
 	}
-	uid, err := osutil.FindUid(username)
+	uid := mylog.Check2(osutil.FindUid(username))
 	if err == nil {
 		uidCache[username] = uid
 	}
@@ -996,7 +936,7 @@ func findGid(group string) (uint64, error) {
 	if !osutil.IsValidSnapSystemUsername(group) {
 		return 0, fmt.Errorf("%q must be a valid group name", group)
 	}
-	gid, err := osutil.FindGid(group)
+	gid := mylog.Check2(osutil.FindGid(group))
 	if err == nil {
 		gidCache[group] = gid
 	}
@@ -1010,7 +950,6 @@ func showSeccompLibraryVersion() error {
 }
 
 func main() {
-	var err error
 	var content []byte
 
 	if len(os.Args) < 2 {
@@ -1025,21 +964,13 @@ func main() {
 			fmt.Println("compile needs an input and output file")
 			os.Exit(1)
 		}
-		content, err = os.ReadFile(os.Args[2])
-		if err != nil {
-			break
-		}
-		err = compile(content, os.Args[3])
+		content = mylog.Check2(os.ReadFile(os.Args[2]))
+		mylog.Check(compile(content, os.Args[3]))
 	case "library-version":
-		err = showSeccompLibraryVersion()
+		mylog.Check(showSeccompLibraryVersion())
 	case "version-info":
-		err = showVersionInfo()
+		mylog.Check(showVersionInfo())
 	default:
-		err = fmt.Errorf("unsupported argument %q", cmd)
-	}
-
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(1)
+		mylog.Check(fmt.Errorf("unsupported argument %q", cmd))
 	}
 }

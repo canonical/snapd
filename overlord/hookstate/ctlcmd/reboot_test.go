@@ -22,6 +22,7 @@ package ctlcmd_test
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
@@ -55,8 +56,8 @@ func (s *rebootSuite) SetUpTest(c *C) {
 	task := s.state.NewTask("test-task", "my test task")
 	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(42), Hook: "install-device"}
 
-	ctx, err := hookstate.NewContext(task, s.state, setup, s.mockHandler, "")
-	c.Assert(err, IsNil)
+	ctx := mylog.Check2(hookstate.NewContext(task, s.state, setup, s.mockHandler, ""))
+
 	s.mockContext = ctx
 
 	s.hookTask = task
@@ -69,10 +70,10 @@ func (s *rebootSuite) TestBadHook(c *C) {
 	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(42), Hook: "configure"}
 	s.state.Unlock()
 
-	ctx, err := hookstate.NewContext(task, s.state, setup, s.mockHandler, "")
-	c.Assert(err, IsNil)
+	ctx := mylog.Check2(hookstate.NewContext(task, s.state, setup, s.mockHandler, ""))
 
-	_, _, err = ctlcmd.Run(ctx, []string{"reboot", "--halt"}, 0)
+
+	_, _ = mylog.Check3(ctlcmd.Run(ctx, []string{"reboot", "--halt"}, 0))
 	c.Assert(err, ErrorMatches, `cannot use reboot command outside of gadget install-device hook`)
 }
 
@@ -95,7 +96,7 @@ func (s *rebootSuite) TestBadArgs(c *C) {
 	}
 
 	for i, t := range table {
-		_, _, err := ctlcmd.Run(s.mockContext, t.args, 0)
+		_, _ := mylog.Check3(ctlcmd.Run(s.mockContext, t.args, 0))
 		c.Check(err, ErrorMatches, t.err, Commentf("%d", i))
 	}
 }
@@ -107,14 +108,14 @@ func (s *rebootSuite) TestRegularRunHalt(c *C) {
 	chg.AddTask(s.restartTask)
 	s.state.Unlock()
 
-	_, _, err := ctlcmd.Run(s.mockContext, []string{"reboot", "--halt"}, 0)
-	c.Assert(err, IsNil)
+	_, _ := mylog.Check3(ctlcmd.Run(s.mockContext, []string{"reboot", "--halt"}, 0))
+
 
 	s.state.Lock()
 	defer s.state.Unlock()
 	var rebootOpts devicestate.RebootOptions
-	err = s.restartTask.Get("reboot", &rebootOpts)
-	c.Assert(err, IsNil)
+	mylog.Check(s.restartTask.Get("reboot", &rebootOpts))
+
 
 	c.Check(rebootOpts.Op, Equals, devicestate.RebootHaltOp)
 }
@@ -126,15 +127,14 @@ func (s *rebootSuite) TestRegularRunPoweroff(c *C) {
 	chg.AddTask(s.restartTask)
 	s.state.Unlock()
 
-	_, _, err := ctlcmd.Run(s.mockContext, []string{"reboot", "--poweroff"}, 0)
-	c.Assert(err, IsNil)
+	_, _ := mylog.Check3(ctlcmd.Run(s.mockContext, []string{"reboot", "--poweroff"}, 0))
+
 
 	s.state.Lock()
 	defer s.state.Unlock()
 	var rebootOpts devicestate.RebootOptions
-	err = s.restartTask.Get("reboot", &rebootOpts)
-	c.Assert(err, IsNil)
+	mylog.Check(s.restartTask.Get("reboot", &rebootOpts))
+
 
 	c.Check(rebootOpts.Op, Equals, devicestate.RebootPoweroffOp)
-
 }

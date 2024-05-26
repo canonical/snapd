@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	snap "github.com/snapcore/snapd/cmd/snap"
 )
 
@@ -32,8 +33,8 @@ func (s *SnapSuite) TestSandboxFeatures(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, `{"type": "sync", "result": {"sandbox-features": {"apparmor": ["a", "b", "c"], "selinux": ["1", "2", "3"]}}}`)
 	})
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "sandbox-features"})
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"debug", "sandbox-features"}))
+
 	c.Assert(s.Stdout(), Equals, ""+
 		"apparmor:  a b c\n"+
 		"selinux:   1 2 3\n")
@@ -44,8 +45,8 @@ func (s *SnapSuite) TestSandboxFeaturesRequired(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, `{"type": "sync", "result": {"sandbox-features": {"apparmor": ["a", "b", "c"], "selinux": ["1", "2", "3"]}}}`)
 	})
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "sandbox-features", "--required=apparmor:a", "--required=selinux:2"})
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"debug", "sandbox-features", "--required=apparmor:a", "--required=selinux:2"}))
+
 	c.Assert(s.Stdout(), Equals, "")
 	c.Assert(s.Stderr(), Equals, "")
 }
@@ -54,7 +55,7 @@ func (s *SnapSuite) TestSandboxFeaturesRequiredButMissing(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, `{"type": "sync", "result": {"sandbox-features": {"apparmor": ["a", "b", "c"], "selinux": ["1", "2", "3"]}}}`)
 	})
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "sandbox-features", "--required=magic:thing"})
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"debug", "sandbox-features", "--required=magic:thing"}))
 	c.Assert(err, ErrorMatches, `sandbox feature not available: "magic:thing"`)
 	c.Assert(s.Stdout(), Equals, "")
 	c.Assert(s.Stderr(), Equals, "")

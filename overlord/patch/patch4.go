@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
@@ -121,20 +122,15 @@ type patch4T struct{} // for namespacing of the helpers
 func (p4 patch4T) taskSnapSetup(task *state.Task) (*patch4SnapSetup, error) {
 	var snapsup patch4SnapSetup
 
-	if err := p4.getMaybe(task, "snap-setup", &snapsup); err == nil {
+	if mylog.Check(p4.getMaybe(task, "snap-setup", &snapsup)); err == nil {
 		return &snapsup, nil
 	} else if !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 
 	var id string
-	if err := p4.get(task, "snap-setup-task", &id); err != nil {
-		return nil, err
-	}
-
-	if err := p4.get(task.State().Task(id), "snap-setup", &snapsup); err != nil {
-		return nil, err
-	}
+	mylog.Check(p4.get(task, "snap-setup-task", &id))
+	mylog.Check(p4.get(task.State().Task(id), "snap-setup", &snapsup))
 
 	return &snapsup, nil
 }
@@ -144,24 +140,16 @@ var errNoSnapState = errors.New("no snap state")
 func (p4 patch4T) snapSetupAndState(task *state.Task) (*patch4SnapSetup, *patch4SnapState, error) {
 	var snapst patch4SnapState
 
-	snapsup, err := p4.taskSnapSetup(task)
-	if err != nil {
-		return nil, nil, err
-	}
+	snapsup := mylog.Check2(p4.taskSnapSetup(task))
 
 	var snaps map[string]*json.RawMessage
-	err = task.State().Get("snaps", &snaps)
-	if err != nil {
-		return nil, nil, errNoSnapState
-	}
+	mylog.Check(task.State().Get("snaps", &snaps))
+
 	raw, ok := snaps[snapsup.Name()]
 	if !ok {
 		return nil, nil, errNoSnapState
 	}
-	err = json.Unmarshal([]byte(*raw), &snapst)
-	if err != nil {
-		return nil, nil, fmt.Errorf("cannot get state for snap %q: %v", snapsup.Name(), err)
-	}
+	mylog.Check(json.Unmarshal([]byte(*raw), &snapst))
 
 	return snapsup, &snapst, err
 }
@@ -178,7 +166,7 @@ func (p4 patch4T) get(task *state.Task, key string, value interface{}) error {
 
 // gget does the actual work of get and getMaybe
 func (patch4T) gget(task *state.Task, key string, passThroughMissing bool, value interface{}) error {
-	err := task.Get(key, value)
+	mylog.Check(task.Get(key, value))
 	if err == nil || (passThroughMissing && errors.Is(err, state.ErrNoState)) {
 		return err
 	}
@@ -196,15 +184,10 @@ func (p4 patch4T) addCleanup(task *state.Task) error {
 		return nil
 	}
 
-	snapsup, err := p4.taskSnapSetup(task)
-	if err != nil {
-		return err
-	}
+	snapsup := mylog.Check2(p4.taskSnapSetup(task))
 
 	var tid string
-	if err := p4.get(task, "snap-setup-task", &tid); err != nil {
-		return err
-	}
+	mylog.Check(p4.get(task, "snap-setup-task", &tid))
 
 	change := task.Change()
 	revisionStr := ""
@@ -223,7 +206,7 @@ func (p4 patch4T) addCleanup(task *state.Task) error {
 }
 
 func (p4 patch4T) mangle(task *state.Task) error {
-	snapsup, snapst, err := p4.snapSetupAndState(task)
+	snapsup, snapst := mylog.Check3(p4.snapSetupAndState(task))
 	if err == errNoSnapState {
 		change := task.Change()
 		if change.Kind() != "install-snap" {
@@ -234,12 +217,9 @@ func (p4 patch4T) mangle(task *state.Task) error {
 		// have no snap state yet, nothing to do
 		return nil
 	}
-	if err != nil {
-		return err
-	}
 
 	var hadCandidate bool
-	if err := p4.getMaybe(task, "had-candidate", &hadCandidate); err != nil && !errors.Is(err, state.ErrNoState) {
+	if mylog.Check(p4.getMaybe(task, "had-candidate", &hadCandidate)); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 
@@ -260,7 +240,7 @@ func (p4 patch4T) mangle(task *state.Task) error {
 
 func (p4 patch4T) addRevertFlag(task *state.Task) error {
 	var snapsup patch4SnapSetup
-	if err := p4.getMaybe(task, "snap-setup", &snapsup); err == nil {
+	if mylog.Check(p4.getMaybe(task, "snap-setup", &snapsup)); err == nil {
 		snapsup.Flags |= patch4FlagRevert
 		// save it back
 		task.Set("snap-setup", &snapsup)
@@ -288,9 +268,7 @@ func patch4(s *state.State) error {
 			continue
 		}
 		for _, task := range change.Tasks() {
-			if err := p4.addRevertFlag(task); err != nil {
-				return err
-			}
+			mylog.Check(p4.addRevertFlag(task))
 		}
 	}
 
@@ -302,13 +280,11 @@ func patch4(s *state.State) error {
 
 		switch task.Kind() {
 		case "link-snap":
-			if err := p4.mangle(task); err != nil {
-				return err
-			}
+			mylog.Check(p4.mangle(task))
+
 		case "copy-snap-data":
-			if err := p4.addCleanup(task); err != nil {
-				return err
-			}
+			mylog.Check(p4.addCleanup(task))
+
 		}
 	}
 

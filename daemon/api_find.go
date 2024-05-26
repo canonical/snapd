@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/gorilla/mux"
 
 	"github.com/snapcore/snapd/client"
@@ -36,13 +37,11 @@ import (
 	"github.com/snapcore/snapd/store"
 )
 
-var (
-	findCmd = &Command{
-		Path:       "/v2/find",
-		GET:        searchStore,
-		ReadAccess: openAccess{},
-	}
-)
+var findCmd = &Command{
+	Path:       "/v2/find",
+	GET:        searchStore,
+	ReadAccess: openAccess{},
+}
 
 func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 	route := c.d.router.Get(snapCmd.Path)
@@ -106,14 +105,14 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	theStore := storeFrom(c.d)
 	ctx := store.WithClientUserAgent(r.Context(), r)
-	found, err := theStore.Find(ctx, &store.Search{
+	found := mylog.Check2(theStore.Find(ctx, &store.Search{
 		Query:    q,
 		Prefix:   prefix,
 		CommonID: commonID,
 		Category: category,
 		Private:  private,
 		Scope:    scope,
-	}, user)
+	}, user))
 	switch err {
 	case nil:
 		// pass
@@ -161,16 +160,14 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 func findOne(c *Command, r *http.Request, user *auth.UserState, name string) Response {
-	if err := snap.ValidateName(name); err != nil {
-		return BadRequest(err.Error())
-	}
+	mylog.Check(snap.ValidateName(name))
 
 	theStore := storeFrom(c.d)
 	spec := store.SnapSpec{
 		Name: name,
 	}
 	ctx := store.WithClientUserAgent(r.Context(), r)
-	snapInfo, err := theStore.SnapInfo(ctx, spec, user)
+	snapInfo := mylog.Check2(theStore.SnapInfo(ctx, spec, user))
 	switch err {
 	case nil:
 		// pass
@@ -183,10 +180,8 @@ func findOne(c *Command, r *http.Request, user *auth.UserState, name string) Res
 	}
 
 	results := make([]*json.RawMessage, 1)
-	data, err := json.Marshal(webify(mapRemote(snapInfo), r.URL.String()))
-	if err != nil {
-		return InternalError(err.Error())
-	}
+	data := mylog.Check2(json.Marshal(webify(mapRemote(snapInfo), r.URL.String())))
+
 	results[0] = (*json.RawMessage)(&data)
 	return &findResponse{
 		Results:           results,
@@ -203,11 +198,8 @@ func storeUpdates(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	state := c.d.overlord.State()
 	state.Lock()
-	updates, err := snapstateRefreshCandidates(state, user)
+	updates := mylog.Check2(snapstateRefreshCandidates(state, user))
 	state.Unlock()
-	if err != nil {
-		return InternalError("cannot list updates: %v", err)
-	}
 
 	return sendStorePackages(route, updates, nil)
 }
@@ -215,16 +207,10 @@ func storeUpdates(c *Command, r *http.Request, user *auth.UserState) Response {
 func sendStorePackages(route *mux.Route, found []*snap.Info, resp *findResponse) StructuredResponse {
 	results := make([]*json.RawMessage, 0, len(found))
 	for _, x := range found {
-		url, err := route.URL("name", x.InstanceName())
-		if err != nil {
-			logger.Noticef("Cannot build URL for snap %q revision %s: %v", x.InstanceName(), x.Revision, err)
-			continue
-		}
+		url := mylog.Check2(route.URL("name", x.InstanceName()))
 
-		data, err := json.Marshal(webify(mapRemote(x), url.String()))
-		if err != nil {
-			return InternalError("%v", err)
-		}
+		data := mylog.Check2(json.Marshal(webify(mapRemote(x), url.String())))
+
 		raw := json.RawMessage(data)
 		results = append(results, &raw)
 	}
@@ -239,10 +225,8 @@ func sendStorePackages(route *mux.Route, found []*snap.Info, resp *findResponse)
 }
 
 func mapRemote(remoteSnap *snap.Info) *client.Snap {
-	result, err := clientutil.ClientSnapFromSnapInfo(remoteSnap, nil)
-	if err != nil {
-		logger.Noticef("cannot get full app info for snap %q: %v", remoteSnap.SnapName(), err)
-	}
+	result := mylog.Check2(clientutil.ClientSnapFromSnapInfo(remoteSnap, nil))
+
 	result.DownloadSize = remoteSnap.Size
 	if remoteSnap.MustBuy {
 		result.Status = "priced"

@@ -30,6 +30,7 @@ import (
 	"golang.org/x/xerrors"
 
 	// for parsing
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/snap"
 )
@@ -40,9 +41,7 @@ import (
 // and its prerequisite in the database.
 func (client *Client) Ack(b []byte) error {
 	var rsp interface{}
-	if _, err := client.doSync("POST", "/v2/assertions", nil, nil, bytes.NewReader(b), &rsp); err != nil {
-		return err
-	}
+	mylog.Check2(client.doSync("POST", "/v2/assertions", nil, nil, bytes.NewReader(b), &rsp))
 
 	return nil
 }
@@ -52,11 +51,7 @@ func (client *Client) AssertionTypes() ([]string, error) {
 	var types struct {
 		Types []string `json:"types"`
 	}
-	_, err := client.doSync("GET", "/v2/assertions", nil, nil, nil, &types)
-	if err != nil {
-		fmt := "cannot get assertion type names: %w"
-		return nil, xerrors.Errorf(fmt, err)
-	}
+	_ := mylog.Check2(client.doSync("GET", "/v2/assertions", nil, nil, nil, &types))
 
 	return types.Types, nil
 }
@@ -85,21 +80,15 @@ func (client *Client) Known(assertTypeName string, headers map[string]string, op
 		q.Set("remote", "true")
 	}
 
-	response, cancel, err := client.rawWithTimeout(context.Background(), "GET", path, q, nil, nil, nil)
-	if err != nil {
-		fmt := "failed to query assertions: %w"
-		return nil, xerrors.Errorf(fmt, err)
-	}
+	response, cancel := mylog.Check3(client.rawWithTimeout(context.Background(), "GET", path, q, nil, nil, nil))
+
 	defer cancel()
 	defer response.Body.Close()
 	if response.StatusCode != 200 {
 		return nil, parseError(response)
 	}
 
-	assertionsCount, err := strconv.Atoi(response.Header.Get("X-Ubuntu-Assertions-Count"))
-	if err != nil {
-		return nil, fmt.Errorf("invalid assertions count")
-	}
+	assertionsCount := mylog.Check2(strconv.Atoi(response.Header.Get("X-Ubuntu-Assertions-Count")))
 
 	dec := asserts.NewDecoder(response.Body)
 
@@ -111,9 +100,7 @@ func (client *Client) Known(assertTypeName string, headers map[string]string, op
 		if err == io.EOF {
 			break
 		}
-		if err != nil {
-			return nil, fmt.Errorf("failed to decode assertions: %v", err)
-		}
+
 		asserts = append(asserts, a)
 	}
 
@@ -126,10 +113,8 @@ func (client *Client) Known(assertTypeName string, headers map[string]string, op
 
 // StoreAccount returns the full store account info for the specified accountID
 func (client *Client) StoreAccount(accountID string) (*snap.StoreAccount, error) {
-	assertions, err := client.Known("account", map[string]string{"account-id": accountID}, nil)
-	if err != nil {
-		return nil, err
-	}
+	assertions := mylog.Check2(client.Known("account", map[string]string{"account-id": accountID}, nil))
+
 	switch len(assertions) {
 	case 1:
 		// happy case, break out of the switch

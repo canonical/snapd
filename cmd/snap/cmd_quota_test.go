@@ -29,6 +29,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	main "github.com/snapcore/snapd/cmd/snap"
 	"github.com/snapcore/snapd/jsonutil"
 )
@@ -64,7 +65,6 @@ func (s *quotaSuite) makeFakeGetQuotaGroupNotFoundHandler(c *check.C, group stri
 			"type": "error"
 		}`)
 	}
-
 }
 
 func (s *quotaSuite) makeFakeGetQuotaGroupHandler(c *check.C, body string) func(w http.ResponseWriter, r *http.Request) {
@@ -142,7 +142,7 @@ func (s *quotaSuite) makeFakeQuotaPostHandler(c *check.C, opts fakeQuotaGroupPos
 		c.Check(r.URL.Path, check.Equals, "/v2/quotas")
 		c.Check(r.Method, check.Equals, "POST")
 
-		buf, err := io.ReadAll(r.Body)
+		buf := mylog.Check2(io.ReadAll(r.Body))
 		c.Assert(err, check.IsNil)
 
 		switch opts.action {
@@ -174,7 +174,7 @@ func (s *quotaSuite) makeFakeQuotaPostHandler(c *check.C, opts fakeQuotaGroupPos
 			}
 
 			postJSON := quotasEnsureBody{}
-			err := jsonutil.DecodeWithNumber(bytes.NewReader(buf), &postJSON)
+			mylog.Check(jsonutil.DecodeWithNumber(bytes.NewReader(buf), &postJSON))
 			c.Assert(err, check.IsNil)
 			c.Assert(postJSON, check.DeepEquals, exp)
 		default:
@@ -244,13 +244,13 @@ func (s *quotaSuite) TestParseQuotas(c *check.C) {
 		{journalRateLimit: "x/5m", err: `cannot parse journal rate limit "x/5m": cannot parse message count: strconv.Atoi: parsing "x": invalid syntax`},
 		{journalRateLimit: "1/wow", err: `cannot parse journal rate limit "1/wow": cannot parse period: time: invalid duration ["]?wow["]?`},
 	} {
-		quotas, err := main.ParseQuotaValues(testData.maxMemory, testData.cpuMax,
-			testData.cpuSet, testData.threadsMax, testData.journalSizeMax, testData.journalRateLimit)
+		quotas := mylog.Check2(main.ParseQuotaValues(testData.maxMemory, testData.cpuMax,
+			testData.cpuSet, testData.threadsMax, testData.journalSizeMax, testData.journalRateLimit))
 		testLabel := check.Commentf("%v", testData)
 		if testData.err == "" {
 			c.Check(err, check.IsNil, testLabel)
 			var jsonQuota bytes.Buffer
-			err := json.NewEncoder(&jsonQuota).Encode(quotas)
+			mylog.Check(json.NewEncoder(&jsonQuota).Encode(quotas))
 			c.Assert(err, check.IsNil, testLabel)
 			c.Check(strings.TrimSpace(jsonQuota.String()), check.Equals, testData.quotas, testLabel)
 		} else {
@@ -282,7 +282,7 @@ func (s *quotaSuite) TestSetQuotaInvalidArgs(c *check.C) {
 		s.stdout.Reset()
 		s.stderr.Reset()
 
-		_, err := main.Parser(main.Client()).ParseArgs(args.args)
+		_ := mylog.Check2(main.Parser(main.Client()).ParseArgs(args.args))
 		c.Check(err, check.ErrorMatches, args.err, check.Commentf("%q", args.args))
 	}
 }
@@ -316,7 +316,7 @@ func (s *quotaSuite) TestSetQuotaCpuHappy(c *check.C) {
 	s.RedirectClientToTestServer(dispatchFakeHandlers(c, routes))
 
 	// ensure that --cpu still works with cgroup version 1
-	_, err := main.Parser(main.Client()).ParseArgs([]string{"set-quota", "--cpu=2x50%", "foo"})
+	_ := mylog.Check2(main.Parser(main.Client()).ParseArgs([]string{"set-quota", "--cpu=2x50%", "foo"}))
 	c.Check(err, check.IsNil)
 	c.Check(s.quotaGetGroupHandlerCalls, check.Equals, 1)
 	c.Check(s.quotaPostHandlerCalls, check.Equals, 1)
@@ -353,7 +353,7 @@ func (s *quotaSuite) TestSetQuotaSnapServices(c *check.C) {
 	s.RedirectClientToTestServer(dispatchFakeHandlers(c, routes))
 
 	// ensure we correctly parse the snap.service format and send it to the daemon.
-	_, err := main.Parser(main.Client()).ParseArgs([]string{"set-quota", "--cpu=2x50%", "foo", "my-snap", "snap.svc1", "snap.svc2"})
+	_ := mylog.Check2(main.Parser(main.Client()).ParseArgs([]string{"set-quota", "--cpu=2x50%", "foo", "my-snap", "snap.svc1", "snap.svc2"}))
 	c.Check(err, check.IsNil)
 	c.Check(s.quotaGetGroupHandlerCalls, check.Equals, 1)
 	c.Check(s.quotaPostHandlerCalls, check.Equals, 1)
@@ -379,7 +379,7 @@ func (s *quotaSuite) TestGetQuotaGroup(c *check.C) {
 
 	s.RedirectClientToTestServer(s.makeFakeGetQuotaGroupHandler(c, json))
 
-	rest, err := main.Parser(main.Client()).ParseArgs([]string{"quota", "foo"})
+	rest := mylog.Check2(main.Parser(main.Client()).ParseArgs([]string{"quota", "foo"}))
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
@@ -424,7 +424,7 @@ current:
   memory:  %dB
 `[1:]
 
-	rest, err := main.Parser(main.Client()).ParseArgs([]string{"quota", "foo"})
+	rest := mylog.Check2(main.Parser(main.Client()).ParseArgs([]string{"quota", "foo"}))
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
@@ -437,7 +437,7 @@ current:
 
 	s.RedirectClientToTestServer(s.makeFakeGetQuotaGroupHandler(c, fmt.Sprintf(jsonTemplate, 500)))
 
-	rest, err = main.Parser(main.Client()).ParseArgs([]string{"quota", "foo"})
+	rest = mylog.Check2(main.Parser(main.Client()).ParseArgs([]string{"quota", "foo"}))
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
@@ -469,7 +469,7 @@ current:
   threads:  %d
 `[1:]
 
-	rest, err := main.Parser(main.Client()).ParseArgs([]string{"quota", "foo"})
+	rest := mylog.Check2(main.Parser(main.Client()).ParseArgs([]string{"quota", "foo"}))
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
@@ -481,7 +481,7 @@ current:
 
 	s.RedirectClientToTestServer(s.makeFakeGetQuotaGroupHandler(c, fmt.Sprintf(jsonTemplate, 500)))
 
-	rest, err = main.Parser(main.Client()).ParseArgs([]string{"quota", "foo"})
+	rest = mylog.Check2(main.Parser(main.Client()).ParseArgs([]string{"quota", "foo"}))
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
@@ -509,7 +509,7 @@ constraints:
 current:
 `[1:]
 
-	rest, err := main.Parser(main.Client()).ParseArgs([]string{"quota", "foo"})
+	rest := mylog.Check2(main.Parser(main.Client()).ParseArgs([]string{"quota", "foo"}))
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
@@ -541,7 +541,7 @@ func (s *quotaSuite) TestSetQuotaGroupCreateNew(c *check.C) {
 
 	s.RedirectClientToTestServer(dispatchFakeHandlers(c, routes))
 
-	rest, err := main.Parser(main.Client()).ParseArgs([]string{"set-quota", "foo", "--memory=999B", "--parent=bar", "snap-a"})
+	rest := mylog.Check2(main.Parser(main.Client()).ParseArgs([]string{"set-quota", "foo", "--memory=999B", "--parent=bar", "snap-a"}))
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
@@ -593,7 +593,7 @@ func (s *quotaSuite) testSetQuotaGroupUpdateExistingUnhappy(c *check.C, errPatte
 	}
 
 	cmdArgs := append([]string{"set-quota", "foo"}, args...)
-	_, err := main.Parser(main.Client()).ParseArgs(cmdArgs)
+	_ := mylog.Check2(main.Parser(main.Client()).ParseArgs(cmdArgs))
 	c.Assert(err, check.ErrorMatches, errPattern)
 	c.Check(s.Stdout(), check.Equals, "")
 	c.Check(s.quotaGetGroupHandlerCalls, check.Equals, 1)
@@ -630,7 +630,7 @@ func (s *quotaSuite) TestSetQuotaGroupUpdateExisting(c *check.C) {
 	s.RedirectClientToTestServer(dispatchFakeHandlers(c, routes))
 
 	// increase the memory limit to 2000
-	rest, err := main.Parser(main.Client()).ParseArgs([]string{"set-quota", "foo", "--memory=2000B"})
+	rest := mylog.Check2(main.Parser(main.Client()).ParseArgs([]string{"set-quota", "foo", "--memory=2000B"}))
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
@@ -662,7 +662,7 @@ func (s *quotaSuite) TestSetQuotaGroupUpdateExisting(c *check.C) {
 	s.RedirectClientToTestServer(dispatchFakeHandlers(c, routes))
 
 	// add a snap to the group
-	rest, err = main.Parser(main.Client()).ParseArgs([]string{"set-quota", "foo", "some-snap"})
+	rest = mylog.Check2(main.Parser(main.Client()).ParseArgs([]string{"set-quota", "foo", "some-snap"}))
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
@@ -687,7 +687,7 @@ func (s *quotaSuite) TestRemoveQuotaGroup(c *check.C) {
 
 	s.RedirectClientToTestServer(dispatchFakeHandlers(c, routes))
 
-	rest, err := main.Parser(main.Client()).ParseArgs([]string{"remove-quota", "foo"})
+	rest := mylog.Check2(main.Parser(main.Client()).ParseArgs([]string{"remove-quota", "foo"}))
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
@@ -720,7 +720,7 @@ func (s *quotaSuite) TestGetAllQuotaGroups(c *check.C) {
 			{"group-name":"js1","parent":"cp1","constraints":{"journal":{"rate-count":0,"rate-period":0}}}
 			]}`))
 
-	rest, err := main.Parser(main.Client()).ParseArgs([]string{"quotas"})
+	rest := mylog.Check2(main.Parser(main.Client()).ParseArgs([]string{"quotas"}))
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
@@ -755,7 +755,7 @@ func (s *quotaSuite) TestGetAllQuotaGroupsInconsistencyError(c *check.C) {
 		`{"type": "sync", "status-code": 200, "result": [
 			{"group-name":"aaa","subgroups":["ccc"],"max-memory":1000}]}`))
 
-	_, err := main.Parser(main.Client()).ParseArgs([]string{"quotas"})
+	_ := mylog.Check2(main.Parser(main.Client()).ParseArgs([]string{"quotas"}))
 	c.Assert(err, check.ErrorMatches, `internal error: inconsistent groups received, unknown subgroup "ccc"`)
 	c.Check(s.quotaGetGroupsHandlerCalls, check.Equals, 1)
 }
@@ -767,7 +767,7 @@ func (s *quotaSuite) TestNoQuotaGroups(c *check.C) {
 	s.RedirectClientToTestServer(s.makeFakeGetQuotaGroupsHandler(c,
 		`{"type": "sync", "status-code": 200, "result": []}`))
 
-	rest, err := main.Parser(main.Client()).ParseArgs([]string{"quotas"})
+	rest := mylog.Check2(main.Parser(main.Client()).ParseArgs([]string{"quotas"}))
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")

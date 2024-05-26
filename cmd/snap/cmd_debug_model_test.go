@@ -26,6 +26,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	snap "github.com/snapcore/snapd/cmd/snap"
 )
 
@@ -37,7 +38,7 @@ func (s *SnapSuite) TestGetModel(c *check.C) {
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/debug")
 			c.Check(r.URL.RawQuery, check.Equals, "aspect=model")
-			data, err := io.ReadAll(r.Body)
+			data := mylog.Check2(io.ReadAll(r.Body))
 			c.Check(err, check.IsNil)
 			c.Check(string(data), check.Equals, "")
 			fmt.Fprintln(w, `{"type": "sync", "result": {"model": "some-model-json"}}`)
@@ -47,7 +48,7 @@ func (s *SnapSuite) TestGetModel(c *check.C) {
 
 		n++
 	})
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "model"})
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"debug", "model"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, "some-model-json\n")

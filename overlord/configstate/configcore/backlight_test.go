@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 )
@@ -37,20 +38,19 @@ var _ = Suite(&backlightSuite{})
 
 func (s *backlightSuite) SetUpTest(c *C) {
 	s.configcoreSuite.SetUpTest(c)
+	mylog.Check(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/"), 0755))
 
-	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/"), 0755)
-	c.Assert(err, IsNil)
 }
 
 func (s *backlightSuite) TestConfigureBacklightServiceMaskIntegration(c *C) {
 	s.systemctlArgs = nil
-	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
+	mylog.Check(configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"system.disable-backlight-service": true,
 		},
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
 		{"--root", dirs.GlobalRootDir, "mask", "systemd-backlight@.service"},
 	})
@@ -58,13 +58,13 @@ func (s *backlightSuite) TestConfigureBacklightServiceMaskIntegration(c *C) {
 
 func (s *backlightSuite) TestConfigureBacklightServiceUnmaskIntegration(c *C) {
 	s.systemctlArgs = nil
-	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
+	mylog.Check(configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"system.disable-backlight-service": false,
 		},
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
 		{"--root", dirs.GlobalRootDir, "unmask", "systemd-backlight@.service"},
 	})

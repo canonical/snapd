@@ -24,6 +24,7 @@ import (
 	"os"
 	"regexp"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/randutil"
 )
@@ -49,9 +50,7 @@ func (rs *RestoreState) Cleanup() {
 	}
 	rs.Done = true
 	for _, dir := range rs.Moved {
-		if err := os.RemoveAll(dir); err != nil {
-			logger.Noticef("Cannot remove directory tree rooted at %q: %v.", dir, err)
-		}
+		mylog.Check(os.RemoveAll(dir))
 	}
 }
 
@@ -77,9 +76,8 @@ func (rs *RestoreState) Revert() {
 	rs.Done = true
 	for _, dir := range rs.Created {
 		logger.Debugf("Removing %q.", dir)
-		if err := os.RemoveAll(dir); err != nil {
-			logger.Noticef("While undoing changes because of a previous error: cannot remove %q: %v.", dir, err)
-		}
+		mylog.Check(os.RemoveAll(dir))
+
 	}
 	for _, dir := range rs.Moved {
 		orig := restoreState2orig(dir)
@@ -89,8 +87,7 @@ func (rs *RestoreState) Revert() {
 			continue
 		}
 		logger.Debugf("Restoring %q to %q.", dir, orig)
-		if err := os.Rename(dir, orig); err != nil {
-			logger.Noticef("While undoing changes because of a previous error: cannot restore %q to %q: %v.", dir, orig, err)
-		}
+		mylog.Check(os.Rename(dir, orig))
+
 	}
 }

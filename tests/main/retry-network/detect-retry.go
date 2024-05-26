@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
 )
@@ -16,7 +17,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	_, err := http.Get(os.Args[1])
+	_ := mylog.Check2(http.Get(os.Args[1]))
 	fmt.Printf("ShouldRetryError: %v\n", httputil.ShouldRetryError(err))
 	fmt.Printf("NoNetwork: %v\n", httputil.NoNetwork(err))
 }

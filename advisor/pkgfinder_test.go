@@ -22,19 +22,20 @@ package advisor_test
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/advisor"
 )
 
 func (s *cmdfinderSuite) TestFindPackageHit(c *C) {
-	pkg, err := advisor.FindPackage("foo")
-	c.Assert(err, IsNil)
+	pkg := mylog.Check2(advisor.FindPackage("foo"))
+
 	c.Check(pkg, DeepEquals, &advisor.Package{
 		Snap: "foo", Version: "1.0", Summary: "foo summary",
 	})
 }
 
 func (s *cmdfinderSuite) TestFindPackageMiss(c *C) {
-	pkg, err := advisor.FindPackage("moh")
-	c.Assert(err, IsNil)
+	pkg := mylog.Check2(advisor.FindPackage("moh"))
+
 	c.Check(pkg, IsNil)
 }

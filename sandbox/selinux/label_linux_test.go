@@ -27,6 +27,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/sandbox/selinux"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -46,7 +47,7 @@ func (l *labelSuite) TestVerifyHappyOk(c *check.C) {
 	cmd := testutil.MockCommand(c, "matchpathcon", "")
 	defer cmd.Restore()
 
-	ok, err := selinux.VerifyPathContext(l.path)
+	ok := mylog.Check2(selinux.VerifyPathContext(l.path))
 	c.Assert(err, check.IsNil)
 	c.Assert(ok, check.Equals, true)
 	c.Assert(cmd.Calls(), check.DeepEquals, [][]string{
@@ -58,7 +59,7 @@ func (l *labelSuite) TestVerifyFailGibberish(c *check.C) {
 	cmd := testutil.MockCommand(c, "matchpathcon", "echo gibberish; exit 1 ")
 	defer cmd.Restore()
 
-	ok, err := selinux.VerifyPathContext(l.path)
+	ok := mylog.Check2(selinux.VerifyPathContext(l.path))
 	c.Assert(err, check.ErrorMatches, "exit status 1")
 	c.Assert(ok, check.Equals, false)
 }
@@ -67,7 +68,7 @@ func (l *labelSuite) TestVerifyFailStatus(c *check.C) {
 	cmd := testutil.MockCommand(c, "matchpathcon", "echo gibberish; exit 5 ")
 	defer cmd.Restore()
 
-	ok, err := selinux.VerifyPathContext(l.path)
+	ok := mylog.Check2(selinux.VerifyPathContext(l.path))
 	c.Assert(err, check.ErrorMatches, "exit status 5")
 	c.Assert(ok, check.Equals, false)
 }
@@ -76,16 +77,16 @@ func (l *labelSuite) TestVerifyFailNoPath(c *check.C) {
 	cmd := testutil.MockCommand(c, "matchpathcon", ``)
 	defer cmd.Restore()
 
-	ok, err := selinux.VerifyPathContext("does-not-exist")
+	ok := mylog.Check2(selinux.VerifyPathContext("does-not-exist"))
 	c.Assert(err, check.ErrorMatches, ".* does-not-exist: no such file or directory")
 	c.Assert(ok, check.Equals, false)
 }
 
 func (l *labelSuite) TestVerifyFailNoTool(c *check.C) {
-	if _, err := exec.LookPath("matchpathcon"); err == nil {
+	if _ := mylog.Check2(exec.LookPath("matchpathcon")); err == nil {
 		c.Skip("matchpathcon found in $PATH")
 	}
-	ok, err := selinux.VerifyPathContext(l.path)
+	ok := mylog.Check2(selinux.VerifyPathContext(l.path))
 	c.Assert(err, check.ErrorMatches, `exec: "matchpathcon": executable file not found in \$PATH`)
 	c.Assert(ok, check.Equals, false)
 }
@@ -96,7 +97,7 @@ echo %s has context unconfined_u:object_r:user_home_t:s0, should be unconfined_u
 exit 1`, l.path))
 	defer cmd.Restore()
 
-	ok, err := selinux.VerifyPathContext(l.path)
+	ok := mylog.Check2(selinux.VerifyPathContext(l.path))
 	c.Assert(err, check.IsNil)
 	c.Assert(ok, check.Equals, false)
 }
@@ -104,16 +105,14 @@ exit 1`, l.path))
 func (l *labelSuite) TestRestoreHappy(c *check.C) {
 	cmd := testutil.MockCommand(c, "restorecon", "")
 	defer cmd.Restore()
-
-	err := selinux.RestoreContext(l.path, selinux.RestoreMode{})
+	mylog.Check(selinux.RestoreContext(l.path, selinux.RestoreMode{}))
 	c.Assert(err, check.IsNil)
 	c.Assert(cmd.Calls(), check.DeepEquals, [][]string{
 		{"restorecon", l.path},
 	})
 
 	cmd.ForgetCalls()
-
-	err = selinux.RestoreContext(l.path, selinux.RestoreMode{Recursive: true})
+	mylog.Check(selinux.RestoreContext(l.path, selinux.RestoreMode{Recursive: true}))
 	c.Assert(err, check.IsNil)
 	c.Assert(cmd.Calls(), check.DeepEquals, [][]string{
 		{"restorecon", "-R", l.path},
@@ -121,20 +120,18 @@ func (l *labelSuite) TestRestoreHappy(c *check.C) {
 }
 
 func (l *labelSuite) TestRestoreFailNoTool(c *check.C) {
-	if _, err := exec.LookPath("matchpathcon"); err == nil {
+	if _ := mylog.Check2(exec.LookPath("matchpathcon")); err == nil {
 		c.Skip("matchpathcon found in $PATH")
 	}
-	err := selinux.RestoreContext(l.path, selinux.RestoreMode{})
+	mylog.Check(selinux.RestoreContext(l.path, selinux.RestoreMode{}))
 	c.Assert(err, check.ErrorMatches, `exec: "restorecon": executable file not found in \$PATH`)
 }
 
 func (l *labelSuite) TestRestoreFail(c *check.C) {
 	cmd := testutil.MockCommand(c, "restorecon", "exit 1")
 	defer cmd.Restore()
-
-	err := selinux.RestoreContext(l.path, selinux.RestoreMode{})
+	mylog.Check(selinux.RestoreContext(l.path, selinux.RestoreMode{}))
 	c.Assert(err, check.ErrorMatches, "exit status 1")
-
-	err = selinux.RestoreContext("does-not-exist", selinux.RestoreMode{})
+	mylog.Check(selinux.RestoreContext("does-not-exist", selinux.RestoreMode{}))
 	c.Assert(err, check.ErrorMatches, ".* does-not-exist: no such file or directory")
 }

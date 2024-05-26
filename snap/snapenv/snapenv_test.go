@@ -28,6 +28,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
@@ -61,6 +62,7 @@ var mockSnapInfo = &snap.Info{
 		Revision: snap.R(17),
 	},
 }
+
 var mockClassicSnapInfo = &snap.Info{
 	SuggestedName: "foo",
 	Version:       "1.0",
@@ -159,12 +161,12 @@ func (ts *HTestSuite) TestUserForClassicConfinement(c *C) {
 }
 
 func (s *HTestSuite) TestSnapRunSnapExecEnv(c *C) {
-	info, err := snap.InfoFromSnapYaml(mockYaml)
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.InfoFromSnapYaml(mockYaml))
+
 	info.SideInfo.Revision = snap.R(42)
 
-	usr, err := user.Current()
-	c.Assert(err, IsNil)
+	usr := mylog.Check2(user.Current())
+
 
 	homeEnv := os.Getenv("HOME")
 	defer os.Setenv("HOME", homeEnv)
@@ -199,12 +201,12 @@ func (s *HTestSuite) TestSnapRunSnapExecEnv(c *C) {
 }
 
 func (s *HTestSuite) TestParallelInstallSnapRunSnapExecEnv(c *C) {
-	info, err := snap.InfoFromSnapYaml(mockYaml)
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.InfoFromSnapYaml(mockYaml))
+
 	info.SideInfo.Revision = snap.R(42)
 
-	usr, err := user.Current()
-	c.Assert(err, IsNil)
+	usr := mylog.Check2(user.Current())
+
 
 	homeEnv := os.Getenv("HOME")
 	defer os.Setenv("HOME", homeEnv)
@@ -315,8 +317,8 @@ func (s *HTestSuite) TestExtendEnvForRunForClassic(c *C) {
 }
 
 func (s *HTestSuite) TestHiddenDirEnv(c *C) {
-	usr, err := user.Current()
-	c.Assert(err, IsNil)
+	usr := mylog.Check2(user.Current())
+
 	testDir := c.MkDir()
 	usr.HomeDir = testDir
 
@@ -331,7 +333,8 @@ func (s *HTestSuite) TestHiddenDirEnv(c *C) {
 	}{
 		{dir: dirs.UserHomeSnapDir, opts: nil},
 		{dir: dirs.HiddenSnapDataHomeDir, opts: &dirs.SnapDirOptions{HiddenSnapDataDir: true}},
-		{dir: dirs.HiddenSnapDataHomeDir, opts: &dirs.SnapDirOptions{HiddenSnapDataDir: true, MigratedToExposedHome: true}}} {
+		{dir: dirs.HiddenSnapDataHomeDir, opts: &dirs.SnapDirOptions{HiddenSnapDataDir: true, MigratedToExposedHome: true}},
+	} {
 		env := osutil.Environment{}
 		ExtendEnvForRun(env, mockSnapInfo, t.opts)
 

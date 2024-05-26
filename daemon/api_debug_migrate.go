@@ -22,6 +22,7 @@ package daemon
 import (
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -35,14 +36,7 @@ func migrateHome(st *state.State, snaps []string) Response {
 		return BadRequest("no snaps were provided")
 	}
 
-	tss, err := snapstateMigrateHome(st, snaps)
-	if err != nil {
-		if terr, ok := err.(snap.NotInstalledError); ok {
-			return SnapNotFound(terr.Snap, err)
-		}
-
-		return InternalError(err.Error())
-	}
+	tss := mylog.Check2(snapstateMigrateHome(st, snaps))
 
 	chg := st.NewChange("migrate-home", fmt.Sprintf("Migrate snap homes to ~/Snap for snaps %s", strutil.Quoted(snaps)))
 	for _, ts := range tss {

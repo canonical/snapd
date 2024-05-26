@@ -23,6 +23,8 @@ import (
 	"errors"
 	"os"
 	"syscall"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // FileLock describes a file system lock
@@ -36,10 +38,8 @@ var ErrAlreadyLocked = errors.New("cannot acquire lock, already locked")
 // The lock is opened in read-only mode.
 func OpenExistingLockForReading(path string) (*FileLock, error) {
 	flag := syscall.O_RDONLY | syscall.O_NOFOLLOW | syscall.O_CLOEXEC
-	file, err := os.OpenFile(path, flag, 0)
-	if err != nil {
-		return nil, err
-	}
+	file := mylog.Check2(os.OpenFile(path, flag, 0))
+
 	l := &FileLock{file: file}
 	return l, nil
 }
@@ -47,10 +47,8 @@ func OpenExistingLockForReading(path string) (*FileLock, error) {
 // NewFileLockWithMode creates and opens the lock file given by "path" with the given mode.
 func NewFileLockWithMode(path string, mode os.FileMode) (*FileLock, error) {
 	flag := syscall.O_RDWR | syscall.O_CREAT | syscall.O_NOFOLLOW | syscall.O_CLOEXEC
-	file, err := os.OpenFile(path, flag, mode)
-	if err != nil {
-		return nil, err
-	}
+	file := mylog.Check2(os.OpenFile(path, flag, mode))
+
 	l := &FileLock{file: file}
 	return l, nil
 }
@@ -93,7 +91,7 @@ func (l *FileLock) ReadLock() error {
 
 // TryLock acquires an exclusive lock and errors if the lock cannot be acquired.
 func (l *FileLock) TryLock() error {
-	err := syscall.Flock(int(l.file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
+	mylog.Check(syscall.Flock(int(l.file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB))
 	if err == syscall.EWOULDBLOCK {
 		return ErrAlreadyLocked
 	}

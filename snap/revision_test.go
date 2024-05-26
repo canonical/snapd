@@ -26,6 +26,7 @@ import (
 	. "gopkg.in/check.v1"
 	"gopkg.in/yaml.v2"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -62,18 +63,18 @@ func (s revisionSuite) TestStore(c *C) {
 func (s revisionSuite) TestJSON(c *C) {
 	for _, n := range []int{0, 10, -9} {
 		r := snap.R(n)
-		data, err := json.Marshal(snap.R(n))
-		c.Assert(err, IsNil)
+		data := mylog.Check2(json.Marshal(snap.R(n)))
+
 		c.Assert(string(data), Equals, `"`+r.String()+`"`)
 
 		var got snap.Revision
-		err = json.Unmarshal(data, &got)
-		c.Assert(err, IsNil)
+		mylog.Check(json.Unmarshal(data, &got))
+
 		c.Assert(got, Equals, r)
 
 		got = snap.Revision{}
-		err = json.Unmarshal([]byte(strconv.Itoa(r.N)), &got)
-		c.Assert(err, IsNil)
+		mylog.Check(json.Unmarshal([]byte(strconv.Itoa(r.N)), &got))
+
 		c.Assert(got, Equals, r)
 	}
 }
@@ -88,18 +89,18 @@ func (s revisionSuite) TestYAML(c *C) {
 		{-9, "x9"},
 	} {
 		r := snap.R(v.n)
-		data, err := yaml.Marshal(snap.R(v.n))
-		c.Assert(err, IsNil)
+		data := mylog.Check2(yaml.Marshal(snap.R(v.n)))
+
 		c.Assert(string(data), Equals, v.s+"\n")
 
 		var got snap.Revision
-		err = yaml.Unmarshal(data, &got)
-		c.Assert(err, IsNil)
+		mylog.Check(yaml.Unmarshal(data, &got))
+
 		c.Assert(got, Equals, r)
 
 		got = snap.Revision{}
-		err = json.Unmarshal([]byte(strconv.Itoa(r.N)), &got)
-		c.Assert(err, IsNil)
+		mylog.Check(json.Unmarshal([]byte(strconv.Itoa(r.N)), &got))
+
 		c.Assert(got, Equals, r)
 	}
 }
@@ -111,7 +112,7 @@ func (s revisionSuite) ParseRevision(c *C) {
 		e string
 	}
 
-	var tests = []testItem{{
+	tests := []testItem{{
 		s: "unset",
 		n: 0,
 	}, {
@@ -135,7 +136,7 @@ func (s revisionSuite) ParseRevision(c *C) {
 	}}
 
 	for _, test := range tests {
-		r, err := snap.ParseRevision(test.s)
+		r := mylog.Check2(snap.ParseRevision(test.s))
 		if test.e != "" {
 			c.Assert(err.Error(), Equals, test.e)
 			continue
@@ -151,7 +152,7 @@ func (s *revisionSuite) TestR(c *C) {
 		e string
 	}
 
-	var tests = []testItem{{
+	tests := []testItem{{
 		v: 0,
 		n: 0,
 	}, {

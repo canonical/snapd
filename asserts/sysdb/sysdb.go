@@ -21,19 +21,16 @@
 package sysdb
 
 import (
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 )
 
 func openDatabaseAt(path string, cfg *asserts.DatabaseConfig) (*asserts.Database, error) {
-	bs, err := asserts.OpenFSBackstore(path)
-	if err != nil {
-		return nil, err
-	}
-	keypairMgr, err := asserts.OpenFSKeypairManager(path)
-	if err != nil {
-		return nil, err
-	}
+	bs := mylog.Check2(asserts.OpenFSBackstore(path))
+
+	keypairMgr := mylog.Check2(asserts.OpenFSKeypairManager(path))
+
 	cfg.Backstore = bs
 	cfg.KeypairManager = keypairMgr
 	return asserts.OpenDatabase(cfg)

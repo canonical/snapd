@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
@@ -102,8 +103,8 @@ slots:
 }
 
 func (s *uioInterfaceSuite) TestUDevSpec(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	spec := udev.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slotGadget0), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 2)
@@ -121,8 +122,8 @@ func (s *uioInterfaceSuite) TestAppArmorConnectedPlugIgnoresMissingConfigFile(c 
 		return "", os.ErrNotExist
 	})
 
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	spec := apparmor.NewSpecification(appSet)
 	// Simulate two UIO connections.
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slotGadget0), IsNil)
@@ -149,8 +150,8 @@ func (s *uioInterfaceSuite) TestAppArmorConnectedPlug(c *C) {
 		return target, nil
 	})
 
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	spec := apparmor.NewSpecification(appSet)
 	// Simulate two UIO connections.
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slotGadget0), IsNil)

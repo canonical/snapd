@@ -29,6 +29,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -79,13 +80,13 @@ func (ss *stateSuite) TestGetAndSet(c *C) {
 	st.Set("mgr2", mSt2)
 
 	var mSt1B mgrState1
-	err := st.Get("mgr1", &mSt1B)
-	c.Assert(err, IsNil)
+	mylog.Check(st.Get("mgr1", &mSt1B))
+
 	c.Check(&mSt1B, DeepEquals, mSt1)
 
 	var mSt2B mgrState2
-	err = st.Get("mgr2", &mSt2B)
-	c.Assert(err, IsNil)
+	mylog.Check(st.Get("mgr2", &mSt2B))
+
 	c.Check(&mSt2B, DeepEquals, mSt2)
 }
 
@@ -137,7 +138,7 @@ func (ss *stateSuite) TestGetNoState(c *C) {
 	defer st.Unlock()
 
 	var mSt1B mgrState1
-	err := st.Get("mgr9", &mSt1B)
+	mylog.Check(st.Get("mgr9", &mSt1B))
 	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 }
 
@@ -148,28 +149,28 @@ func (ss *stateSuite) TestSetToNilDeletes(c *C) {
 
 	st.Set("a", map[string]int{"a": 1})
 	var v map[string]int
-	err := st.Get("a", &v)
-	c.Assert(err, IsNil)
+	mylog.Check(st.Get("a", &v))
+
 	c.Check(v, HasLen, 1)
 
 	st.Set("a", nil)
 
 	var v1 map[string]int
-	err = st.Get("a", &v1)
+	mylog.Check(st.Get("a", &v1))
 	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 	c.Check(v1, HasLen, 0)
 }
 
 func (ss *stateSuite) TestNullMeansNoState(c *C) {
 	buf := bytes.NewBufferString(`{"data": {"a": null}}`)
-	st, err := state.ReadState(nil, buf)
-	c.Assert(err, IsNil)
+	st := mylog.Check2(state.ReadState(nil, buf))
+
 
 	st.Lock()
 	defer st.Unlock()
 
 	var v1 map[string]int
-	err = st.Get("a", &v1)
+	mylog.Check(st.Get("a", &v1))
 	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 	c.Check(v1, HasLen, 0)
 }
@@ -185,7 +186,7 @@ func (ss *stateSuite) TestGetUnmarshalProblem(c *C) {
 	st.Set("mgr9", &mismatched)
 
 	var mSt1B mgrState1
-	err := st.Get("mgr9", &mSt1B)
+	mylog.Check(st.Get("mgr9", &mSt1B))
 	c.Check(err, ErrorMatches, `internal error: could not unmarshal state entry "mgr9": json: cannot unmarshal .*`)
 }
 
@@ -247,26 +248,26 @@ func (ss *stateSuite) TestImplicitCheckpointAndRead(c *C) {
 
 	buf := bytes.NewBuffer(b.checkpoints[0])
 
-	st2, err := state.ReadState(nil, buf)
-	c.Assert(err, IsNil)
+	st2 := mylog.Check2(state.ReadState(nil, buf))
+
 	c.Assert(st2.Modified(), Equals, false)
 
 	st2.Lock()
 	defer st2.Unlock()
 
 	var v int
-	err = st2.Get("v", &v)
-	c.Assert(err, IsNil)
+	mylog.Check(st2.Get("v", &v))
+
 	c.Check(v, Equals, 1)
 
 	var mSt1B mgrState1
-	err = st2.Get("mgr1", &mSt1B)
-	c.Assert(err, IsNil)
+	mylog.Check(st2.Get("mgr1", &mSt1B))
+
 	c.Check(&mSt1B, DeepEquals, mSt1)
 
 	var mSt2B mgrState2
-	err = st2.Get("mgr2", &mSt2B)
-	c.Assert(err, IsNil)
+	mylog.Check(st2.Get("mgr2", &mSt2B))
+
 	c.Check(&mSt2B, DeepEquals, mSt2)
 }
 
@@ -380,8 +381,8 @@ func (ss *stateSuite) TestNewChangeAndCheckpoint(c *C) {
 
 	buf := bytes.NewBuffer(b.checkpoints[0])
 
-	st2, err := state.ReadState(nil, buf)
-	c.Assert(err, IsNil)
+	st2 := mylog.Check2(state.ReadState(nil, buf))
+
 	c.Assert(st2, NotNil)
 
 	st2.Lock()
@@ -399,7 +400,7 @@ func (ss *stateSuite) TestNewChangeAndCheckpoint(c *C) {
 	c.Check(chg0.ReadyTime().Equal(readyTime), Equals, true)
 
 	var v int
-	err = chg0.Get("a", &v)
+	mylog.Check(chg0.Get("a", &v))
 	c.Check(err, IsNil)
 	c.Check(v, Equals, 1)
 
@@ -431,8 +432,8 @@ func (ss *stateSuite) TestNewChangeAndCheckpointTaskDerivedStatus(c *C) {
 	c.Assert(b.checkpoints, HasLen, 1)
 	buf := bytes.NewBuffer(b.checkpoints[0])
 
-	st2, err := state.ReadState(nil, buf)
-	c.Assert(err, IsNil)
+	st2 := mylog.Check2(state.ReadState(nil, buf))
+
 
 	st2.Lock()
 	defer st2.Unlock()
@@ -483,8 +484,8 @@ func (ss *stateSuite) TestNewTaskAndCheckpoint(c *C) {
 
 	buf := bytes.NewBuffer(b.checkpoints[0])
 
-	st2, err := state.ReadState(nil, buf)
-	c.Assert(err, IsNil)
+	st2 := mylog.Check2(state.ReadState(nil, buf))
+
 	c.Assert(st2, NotNil)
 
 	st2.Lock()
@@ -507,7 +508,7 @@ func (ss *stateSuite) TestNewTaskAndCheckpoint(c *C) {
 	c.Check(task0_1.Change(), Equals, chg0)
 
 	var v int
-	err = task0_1.Get("a", &v)
+	mylog.Check(task0_1.Get("a", &v))
 	c.Check(err, IsNil)
 	c.Check(v, Equals, 1)
 
@@ -549,8 +550,8 @@ func (ss *stateSuite) TestEmptyStateDataAndCheckpointReadAndSet(c *C) {
 
 	buf := bytes.NewBuffer(b.checkpoints[0])
 
-	st2, err := state.ReadState(nil, buf)
-	c.Assert(err, IsNil)
+	st2 := mylog.Check2(state.ReadState(nil, buf))
+
 	c.Assert(st2, NotNil)
 
 	st2.Lock()
@@ -602,8 +603,8 @@ func (ss *stateSuite) TestEmptyTaskAndChangeDataAndCheckpointReadAndSet(c *C) {
 
 	buf := bytes.NewBuffer(b.checkpoints[0])
 
-	st2, err := state.ReadState(nil, buf)
-	c.Assert(err, IsNil)
+	st2 := mylog.Check2(state.ReadState(nil, buf))
+
 	c.Assert(st2, NotNil)
 
 	st2.Lock()
@@ -646,8 +647,8 @@ func (ss *stateSuite) TestCheckpointPreserveLastIds(c *C) {
 
 	buf := bytes.NewBuffer(b.checkpoints[0])
 
-	st2, err := state.ReadState(nil, buf)
-	c.Assert(err, IsNil)
+	st2 := mylog.Check2(state.ReadState(nil, buf))
+
 
 	st2.Lock()
 	defer st2.Unlock()
@@ -656,7 +657,6 @@ func (ss *stateSuite) TestCheckpointPreserveLastIds(c *C) {
 	c.Assert(st2.NewChange("install", "...").ID(), Equals, "2")
 
 	c.Assert(st2.NewLane(), Equals, 2)
-
 }
 
 func (ss *stateSuite) TestCheckpointPreserveCleanStatus(c *C) {
@@ -677,8 +677,8 @@ func (ss *stateSuite) TestCheckpointPreserveCleanStatus(c *C) {
 
 	buf := bytes.NewBuffer(b.checkpoints[0])
 
-	st2, err := state.ReadState(nil, buf)
-	c.Assert(err, IsNil)
+	st2 := mylog.Check2(state.ReadState(nil, buf))
+
 
 	st2.Lock()
 	defer st2.Unlock()
@@ -1079,8 +1079,8 @@ func (ss *stateSuite) TestPruneHonorsStartOperationTime(c *C) {
 }
 
 func (ss *stateSuite) TestReadStateInitsTransientMapFields(c *C) {
-	st, err := state.ReadState(nil, bytes.NewBufferString("{}"))
-	c.Assert(err, IsNil)
+	st := mylog.Check2(state.ReadState(nil, bytes.NewBufferString("{}")))
+
 	st.Lock()
 	defer st.Unlock()
 
@@ -1095,15 +1095,13 @@ func (ss *stateSuite) TestTimingsSupport(c *C) {
 	defer st.Unlock()
 
 	var tims []int
+	mylog.Check(st.GetMaybeTimings(&tims))
 
-	err := st.GetMaybeTimings(&tims)
-	c.Assert(err, IsNil)
 	c.Check(tims, IsNil)
 
 	st.SaveTimings([]int{1, 2, 3})
+	mylog.Check(st.GetMaybeTimings(&tims))
 
-	err = st.GetMaybeTimings(&tims)
-	c.Assert(err, IsNil)
 	c.Check(tims, DeepEquals, []int{1, 2, 3})
 }
 

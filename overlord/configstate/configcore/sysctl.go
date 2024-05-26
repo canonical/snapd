@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 	"strconv"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sysconfig"
@@ -50,12 +51,10 @@ const (
 var sysctlPrefixes = []string{"kernel.printk"}
 
 func validateSysctlOptions(tr ConfGetter) error {
-	consoleLoglevelStr, err := coreCfg(tr, "system.kernel.printk.console-loglevel")
-	if err != nil {
-		return err
-	}
+	consoleLoglevelStr := mylog.Check2(coreCfg(tr, "system.kernel.printk.console-loglevel"))
+
 	if consoleLoglevelStr != "" {
-		if n, err := strconv.ParseUint(consoleLoglevelStr, 10, 8); err != nil || (n < 0 || n > 7) {
+		if n := mylog.Check2(strconv.ParseUint(consoleLoglevelStr, 10, 8)); err != nil || (n < 0 || n > 7) {
 			return fmt.Errorf("console-loglevel must be a number between 0 and 7, not: %s", consoleLoglevelStr)
 		}
 	}
@@ -68,10 +67,7 @@ func handleSysctlConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyCo
 		root = opts.RootDir
 	}
 
-	consoleLoglevelStr, err := coreCfg(tr, "system.kernel.printk.console-loglevel")
-	if err != nil {
-		return nil
-	}
+	consoleLoglevelStr := mylog.Check2(coreCfg(tr, "system.kernel.printk.console-loglevel"))
 
 	content := bytes.NewBuffer(nil)
 	if consoleLoglevelStr != "" {
@@ -94,17 +90,12 @@ func handleSysctlConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyCo
 
 	dir := filepath.Join(root, sysctlConfsDir)
 	if opts != nil {
-		if err := os.MkdirAll(dir, 0755); err != nil {
-			return err
-		}
+		mylog.Check(os.MkdirAll(dir, 0755))
 	}
 
 	// write the new config
 	glob := snapdSysctlConf
-	changed, removed, err := osutil.EnsureDirState(dir, glob, dirContent)
-	if err != nil {
-		return err
-	}
+	changed, removed := mylog.Check3(osutil.EnsureDirState(dir, glob, dirContent))
 
 	if opts == nil {
 		if len(changed) > 0 || len(removed) > 0 {

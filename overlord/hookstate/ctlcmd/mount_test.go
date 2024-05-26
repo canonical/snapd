@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
@@ -116,8 +117,8 @@ func (s *mountSuite) SetUpTest(c *C) {
 	task := s.state.NewTask("test-task", "my test task")
 	setup := &hookstate.HookSetup{Snap: "snap1", Revision: snap.R(42), Hook: "mount"}
 
-	ctx, err := hookstate.NewContext(task, s.state, setup, s.mockHandler, "")
-	c.Assert(err, IsNil)
+	ctx := mylog.Check2(hookstate.NewContext(task, s.state, setup, s.mockHandler, ""))
+
 	s.mockContext = ctx
 
 	s.regularConnState = map[string]interface{}{
@@ -164,7 +165,7 @@ func (s *mountSuite) injectSnapWithProperPlug(c *C) {
 }
 
 func (s *mountSuite) TestMissingContext(c *C) {
-	_, _, err := ctlcmd.Run(nil, []string{"mount", "/src", "/dest"}, 0)
+	_, _ := mylog.Check3(ctlcmd.Run(nil, []string{"mount", "/src", "/dest"}, 0))
 	c.Check(err, ErrorMatches, `cannot invoke snapctl operation commands \(here "mount"\) from outside of a snap`)
 }
 
@@ -178,10 +179,10 @@ func (s *mountSuite) TestBadConnection(c *C) {
 	task := state.NewTask("test-task", "my test task")
 	state.Set("conns", "I wish I was JSON")
 	state.Unlock()
-	ctx, err := hookstate.NewContext(task, state, setup, s.mockHandler, "")
-	c.Assert(err, IsNil)
+	ctx := mylog.Check2(hookstate.NewContext(task, state, setup, s.mockHandler, ""))
 
-	_, _, err = ctlcmd.Run(ctx, []string{"mount", "/src", "/dest"}, 0)
+
+	_, _ = mylog.Check3(ctlcmd.Run(ctx, []string{"mount", "/src", "/dest"}, 0))
 	c.Assert(err, ErrorMatches, `.*internal error: cannot get connections: .*`)
 }
 
@@ -191,10 +192,10 @@ func (s *mountSuite) TestBadSnapInfo(c *C) {
 	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(42), Hook: "configure"}
 	s.state.Unlock()
 
-	ctx, err := hookstate.NewContext(task, s.state, setup, s.mockHandler, "")
-	c.Assert(err, IsNil)
+	ctx := mylog.Check2(hookstate.NewContext(task, s.state, setup, s.mockHandler, ""))
 
-	_, _, err = ctlcmd.Run(ctx, []string{"mount", "/src", "/dest"}, 0)
+
+	_, _ = mylog.Check3(ctlcmd.Run(ctx, []string{"mount", "/src", "/dest"}, 0))
 	c.Assert(err, ErrorMatches, `.*cannot get snap info: snap \"test-snap\" is not installed`)
 }
 
@@ -262,12 +263,12 @@ func (s *mountSuite) TestMissingProperPlug(c *C) {
 	s.state.Set("conns", connections)
 	s.state.Unlock()
 
-	_, _, err := ctlcmd.Run(s.mockContext, []string{"mount", "--persistent", "-t", "ext4", "-o", "bind,rw", "/src", "/dest"}, 0)
+	_, _ := mylog.Check3(ctlcmd.Run(s.mockContext, []string{"mount", "--persistent", "-t", "ext4", "-o", "bind,rw", "/src", "/dest"}, 0))
 	c.Check(err, ErrorMatches, `.*no matching mount-control connection found`)
 	c.Check(s.sysd.EnsureMountUnitFileWithOptionsCalls, HasLen, 0)
 
 	// Try the same without the filesystem type
-	_, _, err = ctlcmd.Run(s.mockContext, []string{"mount", "--persistent", "-o", "bind,rw", "/src", "/dest"}, 0)
+	_, _ = mylog.Check3(ctlcmd.Run(s.mockContext, []string{"mount", "--persistent", "-o", "bind,rw", "/src", "/dest"}, 0))
 	c.Check(err, ErrorMatches, `.*no matching mount-control connection found`)
 	c.Check(s.sysd.EnsureMountUnitFileWithOptionsCalls, HasLen, 0)
 }
@@ -277,7 +278,7 @@ func (s *mountSuite) TestUnitCreationFailure(c *C) {
 
 	s.sysd.EnsureMountUnitFileWithOptionsResult = ResultForEnsureMountUnitFileWithOptions{"", errors.New("creation error")}
 
-	_, _, err := ctlcmd.Run(s.mockContext, []string{"mount", "-t", "ext4", "/src", "/dest"}, 0)
+	_, _ := mylog.Check3(ctlcmd.Run(s.mockContext, []string{"mount", "-t", "ext4", "/src", "/dest"}, 0))
 	c.Check(err, ErrorMatches, `cannot ensure mount unit: creation error`)
 	c.Check(s.sysd.EnsureMountUnitFileWithOptionsCalls, DeepEquals, []*systemd.MountUnitOptions{
 		{
@@ -296,7 +297,7 @@ func (s *mountSuite) TestHappy(c *C) {
 
 	s.sysd.EnsureMountUnitFileWithOptionsResult = ResultForEnsureMountUnitFileWithOptions{"/path/unit.mount", nil}
 
-	_, _, err := ctlcmd.Run(s.mockContext, []string{"mount", "--persistent", "-t", "ext4", "-o", "sync,rw", "/src", "/dest"}, 0)
+	_, _ := mylog.Check3(ctlcmd.Run(s.mockContext, []string{"mount", "--persistent", "-t", "ext4", "-o", "sync,rw", "/src", "/dest"}, 0))
 	c.Check(err, IsNil)
 	c.Check(s.sysd.EnsureMountUnitFileWithOptionsCalls, DeepEquals, []*systemd.MountUnitOptions{
 		{
@@ -319,7 +320,7 @@ func (s *mountSuite) TestHappyWithVariableExpansion(c *C) {
 	// Now try with $SNAP_* variables in the paths
 	snapDataDir := filepath.Join(dirs.SnapDataDir, "snap1", "1")
 	where := filepath.Join(snapDataDir, "/dest")
-	_, _, err := ctlcmd.Run(s.mockContext, []string{"mount", "-o", "bind,ro", "/media/me/data", where}, 0)
+	_, _ := mylog.Check3(ctlcmd.Run(s.mockContext, []string{"mount", "-o", "bind,ro", "/media/me/data", where}, 0))
 	c.Check(err, IsNil)
 	c.Check(s.sysd.EnsureMountUnitFileWithOptionsCalls, DeepEquals, []*systemd.MountUnitOptions{
 		{
@@ -339,7 +340,7 @@ func (s *mountSuite) TestHappyWithCommasInPath(c *C) {
 	s.sysd.EnsureMountUnitFileWithOptionsResult = ResultForEnsureMountUnitFileWithOptions{"/path/unit.mount", nil}
 
 	// Now try with commas in the paths
-	_, _, err := ctlcmd.Run(s.mockContext, []string{"mount", "-o", "ro", "/dev/dma_heap/qcom,qseecom", "/dest,with,commas"}, 0)
+	_, _ := mylog.Check3(ctlcmd.Run(s.mockContext, []string{"mount", "-o", "ro", "/dev/dma_heap/qcom,qseecom", "/dest,with,commas"}, 0))
 	c.Check(err, IsNil)
 	c.Check(s.sysd.EnsureMountUnitFileWithOptionsCalls, DeepEquals, []*systemd.MountUnitOptions{
 		{
@@ -358,7 +359,7 @@ func (s *mountSuite) TestEnsureMountUnitFailed(c *C) {
 
 	s.sysd.EnsureMountUnitFileWithOptionsResult = ResultForEnsureMountUnitFileWithOptions{"", errors.New("some error")}
 
-	_, _, err := ctlcmd.Run(s.mockContext, []string{"mount", "--persistent", "-t", "ext4", "-o", "sync,rw", "/src", "/dest"}, 0)
+	_, _ := mylog.Check3(ctlcmd.Run(s.mockContext, []string{"mount", "--persistent", "-t", "ext4", "-o", "sync,rw", "/src", "/dest"}, 0))
 	c.Check(err, ErrorMatches, `cannot ensure mount unit: some error`)
 	c.Check(s.sysd.EnsureMountUnitFileWithOptionsCalls, DeepEquals, []*systemd.MountUnitOptions{
 		{
@@ -381,7 +382,7 @@ func (s *mountSuite) TestEnsureMountUnitFailedRemoveFailed(c *C) {
 	s.sysd.EnsureMountUnitFileWithOptionsResult = ResultForEnsureMountUnitFileWithOptions{"", errors.New("some error")}
 	s.sysd.RemoveMountUnitFileResult = errors.New("some other error")
 
-	_, _, err := ctlcmd.Run(s.mockContext, []string{"mount", "--persistent", "-t", "ext4", "-o", "sync,rw", "/src", "/dest"}, 0)
+	_, _ := mylog.Check3(ctlcmd.Run(s.mockContext, []string{"mount", "--persistent", "-t", "ext4", "-o", "sync,rw", "/src", "/dest"}, 0))
 	c.Check(err, ErrorMatches, `cannot ensure mount unit: some error`)
 	c.Check(s.sysd.EnsureMountUnitFileWithOptionsCalls, DeepEquals, []*systemd.MountUnitOptions{
 		{

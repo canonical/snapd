@@ -31,6 +31,7 @@ import (
 
 	"golang.org/x/crypto/ssh/terminal"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
@@ -287,13 +288,11 @@ If you understand and want to proceed repeat the command including --classic.
 func snapRevisionNotAvailableMessage(kind client.ErrorKind, snapName, action, arch, snapChannel string, releases []interface{}) string {
 	// releases contains all available (arch x channel)
 	// as reported by the store through the daemon
-	req, err := channel.Parse(snapChannel, arch)
-	if err != nil {
-		// XXX: this is no longer possible (should be caught before hitting the store), unless the state itself has an invalid channel
-		// TRANSLATORS: %q is the invalid request channel, %s is the snap name
-		msg := fmt.Sprintf(i18n.G("requested channel %q is not valid (see 'snap info %s' for valid ones)"), snapChannel, snapName)
-		return msg
-	}
+	req := mylog.Check2(channel.Parse(snapChannel, arch))
+
+	// XXX: this is no longer possible (should be caught before hitting the store), unless the state itself has an invalid channel
+	// TRANSLATORS: %q is the invalid request channel, %s is the snap name
+
 	avail := make([]*channel.Channel, 0, len(releases))
 	for _, v := range releases {
 		rel, _ := v.(map[string]interface{})
@@ -303,11 +302,8 @@ func snapRevisionNotAvailableMessage(kind client.ErrorKind, snapName, action, ar
 			logger.Debugf("internal error: %q daemon error carries a release with invalid/empty architecture: %v", kind, v)
 			continue
 		}
-		a, err := channel.Parse(relCh, relArch)
-		if err != nil {
-			logger.Debugf("internal error: %q daemon error carries a release with invalid/empty channel (%v): %v", kind, err, v)
-			continue
-		}
+		a := mylog.Check2(channel.Parse(relCh, relArch))
+
 		avail = append(avail, &a)
 	}
 

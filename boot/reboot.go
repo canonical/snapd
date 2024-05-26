@@ -25,14 +25,17 @@ import (
 	"os/exec"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/osutil"
 )
 
 // rebootArgsPath is used so we can mock the path easily in tests
-var rebootArgsPath = "/run/systemd/reboot-param"
-var bootloaderFind = bootloader.Find
+var (
+	rebootArgsPath = "/run/systemd/reboot-param"
+	bootloaderFind = bootloader.Find
+)
 
 type RebootAction int
 
@@ -70,10 +73,8 @@ func getRebootArguments(rebootInfo *RebootInfo) (string, error) {
 		return "", nil
 	}
 
-	bl, err := bootloaderFind("", rebootInfo.BootloaderOptions)
-	if err != nil {
-		return "", fmt.Errorf("cannot resolve bootloader: %v", err)
-	}
+	bl := mylog.Check2(bootloaderFind("", rebootInfo.BootloaderOptions))
+
 	if rbl, ok := bl.(bootloader.RebootBootloader); ok {
 		return rbl.GetRebootArguments()
 	}
@@ -105,19 +106,15 @@ func Reboot(action RebootAction, rebootDelay time.Duration, rebootInfo *RebootIn
 	}
 
 	// Use reboot arguments if required by the bootloader
-	rebArgs, err := getRebootArguments(rebootInfo)
-	if err != nil {
-		return err
-	}
+	rebArgs := mylog.Check2(getRebootArguments(rebootInfo))
+
 	if rebArgs != "" {
-		if err := osutil.AtomicWriteFile(rebootArgsPath,
-			[]byte(rebArgs+"\n"), 0644, 0); err != nil {
-			return err
-		}
+		mylog.Check(osutil.AtomicWriteFile(rebootArgsPath,
+			[]byte(rebArgs+"\n"), 0644, 0))
 	}
 
 	cmd := exec.Command("shutdown", arg, fmt.Sprintf("+%d", mins), msg)
-	if out, err := cmd.CombinedOutput(); err != nil {
+	if out := mylog.Check2(cmd.CombinedOutput()); err != nil {
 		os.Remove(rebootArgsPath)
 		return osutil.OutputErr(out, err)
 	}

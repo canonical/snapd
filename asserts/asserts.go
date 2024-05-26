@@ -32,6 +32,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap/naming"
 )
@@ -277,10 +278,8 @@ func SuggestFormat(assertType *AssertionType, headers map[string]interface{}, bo
 		// no analyzer, format 0 is all there is
 		return 0, nil
 	}
-	formatnum, err = analyzer(headers, body)
-	if err != nil {
-		return 0, fmt.Errorf("assertion %s: %v", assertType.Name, err)
-	}
+	formatnum = mylog.Check2(analyzer(headers, body))
+
 	return formatnum, nil
 }
 
@@ -421,10 +420,8 @@ func (ref *Ref) Unique() string {
 
 // Resolve resolves the reference using the given find function.
 func (ref *Ref) Resolve(find func(assertType *AssertionType, headers map[string]string) (Assertion, error)) (Assertion, error) {
-	headers, err := HeadersFromPrimaryKey(ref.Type, ref.PrimaryKey)
-	if err != nil {
-		return nil, fmt.Errorf("%q assertion reference primary key has the wrong length (expected %v): %v", ref.Type.Name, ref.Type.PrimaryKey, ref.PrimaryKey)
-	}
+	headers := mylog.Check2(HeadersFromPrimaryKey(ref.Type, ref.PrimaryKey))
+
 	return find(ref.Type, headers)
 }
 
@@ -494,20 +491,16 @@ func (at *AtSequence) String() string {
 // Resolve resolves the sequence with known sequence number using the given find function.
 func (at *AtSequence) Resolve(find func(assertType *AssertionType, headers map[string]string) (Assertion, error)) (Assertion, error) {
 	if at.Sequence <= 0 {
-		hdrs, err := HeadersFromSequenceKey(at.Type, at.SequenceKey)
-		if err != nil {
-			return nil, fmt.Errorf("%q assertion reference sequence key %v is invalid: %v", at.Type.Name, at.SequenceKey, err)
-		}
+		hdrs := mylog.Check2(HeadersFromSequenceKey(at.Type, at.SequenceKey))
+
 		return nil, &NotFoundError{
 			Type:    at.Type,
 			Headers: hdrs,
 		}
 	}
 	pkey := append(at.SequenceKey, fmt.Sprintf("%d", at.Sequence))
-	headers, err := HeadersFromPrimaryKey(at.Type, pkey)
-	if err != nil {
-		return nil, fmt.Errorf("%q assertion reference primary key has the wrong length (expected %v): %v", at.Type.Name, at.Type.PrimaryKey, pkey)
-	}
+	headers := mylog.Check2(HeadersFromPrimaryKey(at.Type, pkey))
+
 	return find(at.Type, headers)
 }
 
@@ -754,10 +747,7 @@ func Decode(serializedAssertion []byte) (Assertion, error) {
 		head = content[:headersBodySplit]
 	}
 
-	headers, err := parseHeaders(head)
-	if err != nil {
-		return nil, fmt.Errorf("parsing assertion headers: %v", err)
-	}
+	headers := mylog.Check2(parseHeaders(head))
 
 	return assemble(headers, body, content, signature)
 }
@@ -815,7 +805,7 @@ func NewDecoderWithTypeMaxBodySize(r io.Reader, typeMaxBodySize map[*AssertionTy
 }
 
 func (d *Decoder) peek(size int) ([]byte, error) {
-	buf, err := d.b.Peek(size)
+	buf := mylog.Check2(d.b.Peek(size))
 	if err == bufio.ErrBufferFull {
 		rebuf, reerr := d.b.Peek(d.b.Buffered())
 		if reerr != nil {
@@ -823,7 +813,7 @@ func (d *Decoder) peek(size int) ([]byte, error) {
 		}
 		mr := io.MultiReader(bytes.NewBuffer(rebuf), d.rd)
 		d.b = bufio.NewReaderSize(mr, (size/d.initialBufSize+1)*d.initialBufSize)
-		buf, err = d.b.Peek(size)
+		buf = mylog.Check2(d.b.Peek(size))
 	}
 	if err != nil && d.err == nil {
 		d.err = err
@@ -835,7 +825,7 @@ func (d *Decoder) peek(size int) ([]byte, error) {
 // buffers are valid only until the next reading call
 
 func (d *Decoder) readExact(size int) ([]byte, error) {
-	buf, err := d.peek(size)
+	buf := mylog.Check2(d.peek(size))
 	d.b.Discard(len(buf))
 	if len(buf) == size {
 		return buf, nil
@@ -850,7 +840,7 @@ func (d *Decoder) readUntil(delim []byte, maxSize int) ([]byte, error) {
 	last := 0
 	size := d.initialBufSize
 	for {
-		buf, err := d.peek(size)
+		buf := mylog.Check2(d.peek(size))
 		if i := bytes.Index(buf[last:], delim); i >= 0 {
 			d.b.Discard(last + i + len(delim))
 			return buf[:last+i+len(delim)], nil
@@ -873,29 +863,15 @@ func (d *Decoder) readUntil(delim []byte, maxSize int) ([]byte, error) {
 func (d *Decoder) Decode() (Assertion, error) {
 	// read the headers and the nlnl separator after them
 	headAndSep, err := d.readUntil(nlnl, d.maxHeadersSize)
-	if err != nil {
-		if err == io.EOF {
-			if len(headAndSep) != 0 {
-				return nil, io.ErrUnexpectedEOF
-			}
-			return nil, io.EOF
-		}
-		return nil, fmt.Errorf("error reading assertion headers: %v", err)
-	}
 
 	headLen := len(headAndSep) - len(nlnl)
-	headers, err := parseHeaders(headAndSep[:headLen])
-	if err != nil {
-		return nil, fmt.Errorf("parsing assertion headers: %v", err)
-	}
+	headers := mylog.Check2(parseHeaders(headAndSep[:headLen]))
 
 	typeStr, _ := headers["type"].(string)
 	typ := Type(typeStr)
 
-	length, err := checkIntWithDefault(headers, "body-length", 0)
-	if err != nil {
-		return nil, fmt.Errorf("assertion: %v", err)
-	}
+	length := mylog.Check2(checkIntWithDefault(headers, "body-length", 0))
+
 	if typMaxBodySize := d.typeMaxBodySize[typ]; typMaxBodySize != 0 && length > typMaxBodySize {
 		return nil, fmt.Errorf("assertion body length %d exceeds maximum body size %d for %q assertions", length, typMaxBodySize, typ.Name)
 	} else if length > d.defaultMaxBodySize {
@@ -909,10 +885,8 @@ func (d *Decoder) Decode() (Assertion, error) {
 
 	if length > 0 {
 		// read the body if length != 0
-		body, err := d.readExact(length)
-		if err != nil {
-			return nil, err
-		}
+		body := mylog.Check2(d.readExact(length))
+
 		contentBuf.Write(body)
 	}
 
@@ -956,10 +930,8 @@ func (d *Decoder) Decode() (Assertion, error) {
 }
 
 func checkIteration(headers map[string]interface{}, name string) (int, error) {
-	iternum, err := checkIntWithDefault(headers, name, 0)
-	if err != nil {
-		return -1, err
-	}
+	iternum := mylog.Check2(checkIntWithDefault(headers, name, 0))
+
 	if iternum < 0 {
 		return -1, fmt.Errorf("%s should be positive: %v", name, iternum)
 	}
@@ -976,17 +948,14 @@ func checkRevision(headers map[string]interface{}) (int, error) {
 
 // Assemble assembles an assertion from its components.
 func Assemble(headers map[string]interface{}, body, content, signature []byte) (Assertion, error) {
-	err := checkHeaders(headers)
-	if err != nil {
-		return nil, err
-	}
+	mylog.Check(checkHeaders(headers))
+
 	return assemble(headers, body, content, signature)
 }
 
 func checkAuthority(_ *AssertionType, headers map[string]interface{}) error {
-	if _, err := checkNotEmptyString(headers, "authority-id"); err != nil {
-		return err
-	}
+	mylog.Check2(checkNotEmptyString(headers, "authority-id"))
+
 	return nil
 }
 
@@ -999,9 +968,6 @@ func checkNoAuthority(assertType *AssertionType, headers map[string]interface{})
 
 func checkJSON(assertType *AssertionType, body []byte) (err error) {
 	defer func() {
-		if err != nil {
-			err = fmt.Errorf("assertion %s: %v", assertType.Name, err)
-		}
 	}()
 
 	if body == nil {
@@ -1009,14 +975,9 @@ func checkJSON(assertType *AssertionType, body []byte) (err error) {
 	}
 
 	var val interface{}
-	if err := json.Unmarshal(body, &val); err != nil {
-		return fmt.Errorf("invalid JSON in body: %v", err)
-	}
+	mylog.Check(json.Unmarshal(body, &val))
 
-	formatted, err := json.MarshalIndent(val, "", "  ")
-	if err != nil {
-		return fmt.Errorf("invalid JSON in body: %v", err)
-	}
+	formatted := mylog.Check2(json.MarshalIndent(val, "", "  "))
 
 	if !reflect.DeepEqual(body, formatted) {
 		return fmt.Errorf(`JSON in body must be indented with 2 spaces and sort object entries by key`)
@@ -1027,10 +988,8 @@ func checkJSON(assertType *AssertionType, body []byte) (err error) {
 
 // assemble is the internal variant of Assemble, assumes headers are already checked for supported types
 func assemble(headers map[string]interface{}, body, content, signature []byte) (Assertion, error) {
-	length, err := checkIntWithDefault(headers, "body-length", 0)
-	if err != nil {
-		return nil, fmt.Errorf("assertion: %v", err)
-	}
+	length := mylog.Check2(checkIntWithDefault(headers, "body-length", 0))
+
 	if length != len(body) {
 		return nil, fmt.Errorf("assertion body length and declared body-length don't match: %v != %v", len(body), length)
 	}
@@ -1038,40 +997,26 @@ func assemble(headers map[string]interface{}, body, content, signature []byte) (
 	if !utf8.Valid(body) {
 		return nil, fmt.Errorf("assertion body is not utf8")
 	}
+	mylog.Check2(checkDigest(headers, "sign-key-sha3-384", crypto.SHA3_384))
 
-	if _, err := checkDigest(headers, "sign-key-sha3-384", crypto.SHA3_384); err != nil {
-		return nil, fmt.Errorf("assertion: %v", err)
-	}
+	typ := mylog.Check2(checkNotEmptyString(headers, "type"))
 
-	typ, err := checkNotEmptyString(headers, "type")
-	if err != nil {
-		return nil, fmt.Errorf("assertion: %v", err)
-	}
 	assertType := Type(typ)
 	if assertType == nil {
 		return nil, fmt.Errorf("unknown assertion type: %q", typ)
 	}
 
 	if assertType.flags&jsonBody != 0 {
-		if err := checkJSON(assertType, body); err != nil {
-			return nil, err
-		}
+		mylog.Check(checkJSON(assertType, body))
 	}
 
 	if assertType.flags&noAuthority == 0 {
-		if err := checkAuthority(assertType, headers); err != nil {
-			return nil, fmt.Errorf("assertion: %v", err)
-		}
+		mylog.Check(checkAuthority(assertType, headers))
 	} else {
-		if err := checkNoAuthority(assertType, headers); err != nil {
-			return nil, err
-		}
+		mylog.Check(checkNoAuthority(assertType, headers))
 	}
 
-	formatnum, err := checkFormat(headers)
-	if err != nil {
-		return nil, fmt.Errorf("assertion: %v", err)
-	}
+	formatnum := mylog.Check2(checkFormat(headers))
 
 	for _, primKey := range assertType.PrimaryKey {
 		if _, ok := headers[primKey]; !ok {
@@ -1079,31 +1024,25 @@ func assemble(headers map[string]interface{}, body, content, signature []byte) (
 				headers[primKey] = defl
 			}
 		}
-		if _, err := checkPrimaryKey(headers, primKey); err != nil {
-			return nil, fmt.Errorf("assertion %s: %v", assertType.Name, err)
-		}
+		mylog.Check2(checkPrimaryKey(headers, primKey))
+
 	}
 
-	revision, err := checkRevision(headers)
-	if err != nil {
-		return nil, fmt.Errorf("assertion: %v", err)
-	}
+	revision := mylog.Check2(checkRevision(headers))
 
 	if len(signature) == 0 {
 		return nil, fmt.Errorf("empty assertion signature")
 	}
 
-	assert, err := assertType.assembler(assertionBase{
+	assert := mylog.Check2(assertType.assembler(assertionBase{
 		headers:   headers,
 		body:      body,
 		format:    formatnum,
 		revision:  revision,
 		content:   content,
 		signature: signature,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("assertion %s: %v", assertType.Name, err)
-	}
+	}))
+
 	return assert, nil
 }
 
@@ -1112,18 +1051,11 @@ func writeHeader(buf *bytes.Buffer, headers map[string]interface{}, name string)
 }
 
 func assembleAndSign(assertType *AssertionType, headers map[string]interface{}, body []byte, privKey PrivateKey) (Assertion, error) {
-	err := checkAssertType(assertType)
-	if err != nil {
-		return nil, err
-	}
+	mylog.Check(checkAssertType(assertType))
 
 	withAuthority := assertType.flags&noAuthority == 0
 	withJSONBody := assertType.flags&jsonBody != 0
-
-	err = checkHeaders(headers)
-	if err != nil {
-		return nil, err
-	}
+	mylog.Check(checkHeaders(headers))
 
 	// there's no hint at all that we will need non-textual bodies,
 	// make sure we actually enforce that
@@ -1132,9 +1064,7 @@ func assembleAndSign(assertType *AssertionType, headers map[string]interface{}, 
 	}
 
 	if withJSONBody {
-		if err := checkJSON(assertType, body); err != nil {
-			return nil, err
-		}
+		mylog.Check(checkJSON(assertType, body))
 	}
 
 	finalHeaders := copyHeaders(headers)
@@ -1146,37 +1076,24 @@ func assembleAndSign(assertType *AssertionType, headers map[string]interface{}, 
 	finalHeaders["sign-key-sha3-384"] = privKey.PublicKey().ID()
 
 	if withAuthority {
-		if err = checkAuthority(assertType, finalHeaders); err != nil {
-			return nil, err
-		}
+		mylog.Check(checkAuthority(assertType, finalHeaders))
 	} else {
-		if err := checkNoAuthority(assertType, finalHeaders); err != nil {
-			return nil, err
-		}
+		mylog.Check(checkNoAuthority(assertType, finalHeaders))
 	}
 
-	formatnum, err := checkFormat(finalHeaders)
-	if err != nil {
-		return nil, err
-	}
+	formatnum := mylog.Check2(checkFormat(finalHeaders))
 
 	if formatnum > assertType.MaxSupportedFormat() {
 		return nil, fmt.Errorf("cannot sign %q assertion with format %d higher than max supported format %d", assertType.Name, formatnum, assertType.MaxSupportedFormat())
 	}
 
-	suggestedFormat, err := SuggestFormat(assertType, finalHeaders, finalBody)
-	if err != nil {
-		return nil, err
-	}
+	suggestedFormat := mylog.Check2(SuggestFormat(assertType, finalHeaders, finalBody))
 
 	if suggestedFormat > formatnum {
 		return nil, fmt.Errorf("cannot sign %q assertion with format set to %d lower than min format %d covering included features", assertType.Name, formatnum, suggestedFormat)
 	}
 
-	revision, err := checkRevision(finalHeaders)
-	if err != nil {
-		return nil, err
-	}
+	revision := mylog.Check2(checkRevision(finalHeaders))
 
 	buf := bytes.NewBufferString("type: ")
 	buf.WriteString(assertType.Name)
@@ -1213,10 +1130,8 @@ func assembleAndSign(assertType *AssertionType, headers map[string]interface{}, 
 			finalHeaders[primKey] = defl
 			continue
 		}
-		value, err := checkPrimaryKey(finalHeaders, primKey)
-		if err != nil {
-			return nil, err
-		}
+		value := mylog.Check2(checkPrimaryKey(finalHeaders, primKey))
+
 		if value != defl {
 			writeHeader(buf, finalHeaders, primKey)
 		}
@@ -1254,24 +1169,20 @@ func assembleAndSign(assertType *AssertionType, headers map[string]interface{}, 
 	}
 	content := buf.Bytes()
 
-	signature, err := signContent(content, privKey)
-	if err != nil {
-		return nil, fmt.Errorf("cannot sign assertion: %v", err)
-	}
+	signature := mylog.Check2(signContent(content, privKey))
+
 	// be 'cat' friendly, add a ignored newline to the signature which is the last part of the encoded assertion
 	signature = append(signature, '\n')
 
-	assert, err := assertType.assembler(assertionBase{
+	assert := mylog.Check2(assertType.assembler(assertionBase{
 		headers:   finalHeaders,
 		body:      finalBody,
 		format:    formatnum,
 		revision:  revision,
 		content:   content,
 		signature: signature,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("cannot assemble assertion %s: %v", assertType.Name, err)
-	}
+	}))
+
 	return assert, nil
 }
 
@@ -1307,10 +1218,7 @@ func NewEncoder(w io.Writer) *Encoder {
 
 func (enc *Encoder) writeSep(last byte) error {
 	if last != '\n' {
-		_, err := enc.wr.Write(nl)
-		if err != nil {
-			return err
-		}
+		_ := mylog.Check2(enc.wr.Write(nl))
 	}
 	enc.nextSep = nl
 	return nil
@@ -1323,15 +1231,9 @@ func (enc *Encoder) WriteEncoded(encoded []byte) error {
 		return fmt.Errorf("internal error: encoded assertion cannot be empty")
 	}
 
-	_, err := enc.wr.Write(enc.nextSep)
-	if err != nil {
-		return err
-	}
+	_ := mylog.Check2(enc.wr.Write(enc.nextSep))
 
-	_, err = enc.wr.Write(encoded)
-	if err != nil {
-		return err
-	}
+	_ = mylog.Check2(enc.wr.Write(encoded))
 
 	return enc.writeSep(encoded[sz-1])
 }
@@ -1347,23 +1249,13 @@ func (enc *Encoder) WriteContentSignature(content, signature []byte) error {
 		return fmt.Errorf("internal error: signature cannot be empty")
 	}
 
-	_, err := enc.wr.Write(enc.nextSep)
-	if err != nil {
-		return err
-	}
+	_ := mylog.Check2(enc.wr.Write(enc.nextSep))
 
-	_, err = enc.wr.Write(content)
-	if err != nil {
-		return err
-	}
-	_, err = enc.wr.Write(nlnl)
-	if err != nil {
-		return err
-	}
-	_, err = enc.wr.Write(signature)
-	if err != nil {
-		return err
-	}
+	_ = mylog.Check2(enc.wr.Write(content))
+
+	_ = mylog.Check2(enc.wr.Write(nlnl))
+
+	_ = mylog.Check2(enc.wr.Write(signature))
 
 	return enc.writeSep(signature[sz-1])
 }
@@ -1377,13 +1269,8 @@ func (enc *Encoder) Encode(assert Assertion) error {
 // SignatureCheck checks the signature of the assertion against the given public key. Useful for assertions with no authority.
 func SignatureCheck(assert Assertion, pubKey PublicKey) error {
 	content, encodedSig := assert.Signature()
-	sig, err := decodeSignature(encodedSig)
-	if err != nil {
-		return err
-	}
-	err = pubKey.verify(content, sig)
-	if err != nil {
-		return fmt.Errorf("failed signature verification: %v", err)
-	}
+	sig := mylog.Check2(decodeSignature(encodedSig))
+	mylog.Check(pubKey.verify(content, sig))
+
 	return nil
 }

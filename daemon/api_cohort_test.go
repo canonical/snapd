@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"gopkg.in/check.v1"
 )
 
@@ -59,7 +60,7 @@ func (s *cohortSuite) TestCreateCohort(c *check.C) {
 		"bar": "cohort for bar",
 	}
 
-	req, err := http.NewRequest("POST", "/v2/cohorts", strings.NewReader(`{"action": "create", "snaps": ["foo","bar"]}]`))
+	req := mylog.Check2(http.NewRequest("POST", "/v2/cohorts", strings.NewReader(`{"action": "create", "snaps": ["foo","bar"]}]`)))
 	c.Assert(err, check.IsNil)
 
 	rsp := s.syncReq(c, req, nil)
@@ -68,7 +69,7 @@ func (s *cohortSuite) TestCreateCohort(c *check.C) {
 }
 
 func (s *cohortSuite) TestCreateCohortNoSnaps(c *check.C) {
-	req, err := http.NewRequest("POST", "/v2/cohorts", strings.NewReader(`{"action": "create"}]`))
+	req := mylog.Check2(http.NewRequest("POST", "/v2/cohorts", strings.NewReader(`{"action": "create"}]`)))
 	c.Assert(err, check.IsNil)
 
 	rsp := s.syncReq(c, req, nil)
@@ -77,7 +78,7 @@ func (s *cohortSuite) TestCreateCohortNoSnaps(c *check.C) {
 }
 
 func (s *cohortSuite) TestCreateCohortBadAction(c *check.C) {
-	req, err := http.NewRequest("POST", "/v2/cohorts", strings.NewReader(`{"action": "pupate", "snaps": ["foo","bar"]}]`))
+	req := mylog.Check2(http.NewRequest("POST", "/v2/cohorts", strings.NewReader(`{"action": "pupate", "snaps": ["foo","bar"]}]`)))
 	c.Assert(err, check.IsNil)
 
 	rspe := s.errorReq(c, req, nil)
@@ -88,7 +89,7 @@ func (s *cohortSuite) TestCreateCohortBadAction(c *check.C) {
 func (s *cohortSuite) TestCreateCohortError(c *check.C) {
 	s.err = errors.New("something went wrong")
 
-	req, err := http.NewRequest("POST", "/v2/cohorts", strings.NewReader(`{"action": "create", "snaps": ["foo","bar"]}]`))
+	req := mylog.Check2(http.NewRequest("POST", "/v2/cohorts", strings.NewReader(`{"action": "create", "snaps": ["foo","bar"]}]`)))
 	c.Assert(err, check.IsNil)
 
 	rspe := s.errorReq(c, req, nil)
@@ -97,7 +98,7 @@ func (s *cohortSuite) TestCreateCohortError(c *check.C) {
 }
 
 func (s *cohortSuite) TestCreateBadBody1(c *check.C) {
-	req, err := http.NewRequest("POST", "/v2/cohorts", strings.NewReader(`{"action": "create", "snaps": ["foo","bar"]`))
+	req := mylog.Check2(http.NewRequest("POST", "/v2/cohorts", strings.NewReader(`{"action": "create", "snaps": ["foo","bar"]`)))
 	c.Assert(err, check.IsNil)
 
 	rspe := s.errorReq(c, req, nil)
@@ -106,7 +107,7 @@ func (s *cohortSuite) TestCreateBadBody1(c *check.C) {
 }
 
 func (s *cohortSuite) TestCreateBadBody2(c *check.C) {
-	req, err := http.NewRequest("POST", "/v2/cohorts", strings.NewReader(`{"action": "create", "snaps": ["foo","bar"]}xx`))
+	req := mylog.Check2(http.NewRequest("POST", "/v2/cohorts", strings.NewReader(`{"action": "create", "snaps": ["foo","bar"]}xx`)))
 	c.Assert(err, check.IsNil)
 
 	rspe := s.errorReq(c, req, nil)

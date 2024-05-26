@@ -33,6 +33,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/juju/ratelimit"
 	. "gopkg.in/check.v1"
 	"gopkg.in/retry.v1"
@@ -82,8 +83,8 @@ func (s *downloadSuite) TestActualDownload(c *C) {
 	var buf SillyBuffer
 	// keep tests happy
 	sha3 := ""
-	err := store.Download(context.TODO(), "foo", sha3, mockServer.URL, nil, theStore, &buf, 0, nil, nil)
-	c.Assert(err, IsNil)
+	mylog.Check(store.Download(context.TODO(), "foo", sha3, mockServer.URL, nil, theStore, &buf, 0, nil, nil))
+
 	c.Check(buf.String(), Equals, "response-data")
 	c.Check(n, Equals, 1)
 }
@@ -102,8 +103,8 @@ func (s *downloadSuite) TestActualDownloadAutoRefresh(c *C) {
 	var buf SillyBuffer
 	// keep tests happy
 	sha3 := ""
-	err := store.Download(context.TODO(), "foo", sha3, mockServer.URL, nil, theStore, &buf, 0, nil, &store.DownloadOptions{Scheduled: true})
-	c.Assert(err, IsNil)
+	mylog.Check(store.Download(context.TODO(), "foo", sha3, mockServer.URL, nil, theStore, &buf, 0, nil, &store.DownloadOptions{Scheduled: true}))
+
 	c.Check(buf.String(), Equals, "response-data")
 	c.Check(n, Equals, 1)
 }
@@ -124,8 +125,8 @@ func (s *downloadSuite) TestActualDownloadNoCDN(c *C) {
 	var buf SillyBuffer
 	// keep tests happy
 	sha3 := ""
-	err := store.Download(context.TODO(), "foo", sha3, mockServer.URL, nil, theStore, &buf, 0, nil, nil)
-	c.Assert(err, IsNil)
+	mylog.Check(store.Download(context.TODO(), "foo", sha3, mockServer.URL, nil, theStore, &buf, 0, nil, nil))
+
 	c.Check(buf.String(), Equals, "response-data")
 }
 
@@ -145,8 +146,8 @@ func (s *downloadSuite) TestActualDownloadFullCloudInfoFromAuthContext(c *C) {
 	var buf SillyBuffer
 	// keep tests happy
 	sha3 := ""
-	err := store.Download(context.TODO(), "foo", sha3, mockServer.URL, nil, theStore, &buf, 0, nil, nil)
-	c.Assert(err, IsNil)
+	mylog.Check(store.Download(context.TODO(), "foo", sha3, mockServer.URL, nil, theStore, &buf, 0, nil, nil))
+
 	c.Check(buf.String(), Equals, "response-data")
 }
 
@@ -166,8 +167,8 @@ func (s *downloadSuite) TestActualDownloadLessDetailedCloudInfoFromAuthContext(c
 	var buf SillyBuffer
 	// keep tests happy
 	sha3 := ""
-	err := store.Download(context.TODO(), "foo", sha3, mockServer.URL, nil, theStore, &buf, 0, nil, nil)
-	c.Assert(err, IsNil)
+	mylog.Check(store.Download(context.TODO(), "foo", sha3, mockServer.URL, nil, theStore, &buf, 0, nil, nil))
+
 	c.Check(buf.String(), Equals, "response-data")
 }
 
@@ -194,7 +195,7 @@ func (s *downloadSuite) TestDownloadCancellation(c *C) {
 	go func() {
 		sha3 := ""
 		var buf SillyBuffer
-		err := store.Download(ctx, "foo", sha3, mockServer.URL, nil, theStore, &buf, 0, nil, nil)
+		mylog.Check(store.Download(ctx, "foo", sha3, mockServer.URL, nil, theStore, &buf, 0, nil, nil))
 		result <- err.Error()
 		close(result)
 	}()
@@ -226,7 +227,7 @@ func (s *downloadSuite) TestActualDownloadNonPurchased402(c *C) {
 
 	theStore := store.New(&store.Config{}, nil)
 	var buf bytes.Buffer
-	err := store.Download(context.TODO(), "foo", "sha3", mockServer.URL, nil, theStore, nopeSeeker{&buf}, -1, nil, nil)
+	mylog.Check(store.Download(context.TODO(), "foo", "sha3", mockServer.URL, nil, theStore, nopeSeeker{&buf}, -1, nil, nil))
 	c.Assert(err, NotNil)
 	c.Check(err.Error(), Equals, "please buy foo before installing it")
 	c.Check(n, Equals, 1)
@@ -243,7 +244,7 @@ func (s *downloadSuite) TestActualDownload404(c *C) {
 
 	theStore := store.New(&store.Config{}, nil)
 	var buf SillyBuffer
-	err := store.Download(context.TODO(), "foo", "sha3", mockServer.URL, nil, theStore, &buf, 0, nil, nil)
+	mylog.Check(store.Download(context.TODO(), "foo", "sha3", mockServer.URL, nil, theStore, &buf, 0, nil, nil))
 	c.Assert(err, NotNil)
 	c.Assert(err, FitsTypeOf, &store.DownloadError{})
 	c.Check(err.(*store.DownloadError).Code, Equals, 404)
@@ -261,7 +262,7 @@ func (s *downloadSuite) TestActualDownload500(c *C) {
 
 	theStore := store.New(&store.Config{}, nil)
 	var buf SillyBuffer
-	err := store.Download(context.TODO(), "foo", "sha3", mockServer.URL, nil, theStore, &buf, 0, nil, nil)
+	mylog.Check(store.Download(context.TODO(), "foo", "sha3", mockServer.URL, nil, theStore, &buf, 0, nil, nil))
 	c.Assert(err, NotNil)
 	c.Assert(err, FitsTypeOf, &store.DownloadError{})
 	c.Check(err.(*store.DownloadError).Code, Equals, 500)
@@ -285,8 +286,8 @@ func (s *downloadSuite) TestActualDownload500Once(c *C) {
 	var buf SillyBuffer
 	// keep tests happy
 	sha3 := ""
-	err := store.Download(context.TODO(), "foo", sha3, mockServer.URL, nil, theStore, &buf, 0, nil, nil)
-	c.Assert(err, IsNil)
+	mylog.Check(store.Download(context.TODO(), "foo", sha3, mockServer.URL, nil, theStore, &buf, 0, nil, nil))
+
 	c.Check(buf.String(), Equals, "response-data")
 	c.Check(n, Equals, 2)
 }
@@ -307,6 +308,7 @@ func NewSillyBufferString(s string) *SillyBuffer {
 	copy(sb.buf[0:], []byte(s))
 	return sb
 }
+
 func (sb *SillyBuffer) Read(b []byte) (n int, err error) {
 	if sb.pos >= int64(sb.end) {
 		return 0, io.EOF
@@ -315,6 +317,7 @@ func (sb *SillyBuffer) Read(b []byte) (n int, err error) {
 	sb.pos += int64(n)
 	return n, nil
 }
+
 func (sb *SillyBuffer) Seek(offset int64, whence int) (int64, error) {
 	if whence != 0 {
 		panic("only io.SeekStart implemented in SillyBuffer")
@@ -325,6 +328,7 @@ func (sb *SillyBuffer) Seek(offset int64, whence int) (int64, error) {
 	sb.pos = offset
 	return sb.pos, nil
 }
+
 func (sb *SillyBuffer) Write(p []byte) (n int, err error) {
 	n = copy(sb.buf[sb.pos:], p)
 	sb.pos += int64(n)
@@ -333,6 +337,7 @@ func (sb *SillyBuffer) Write(p []byte) (n int, err error) {
 	}
 	return n, nil
 }
+
 func (sb *SillyBuffer) String() string {
 	return string(sb.buf[0:sb.pos])
 }
@@ -353,7 +358,7 @@ func (s *downloadSuite) TestActualDownloadResume(c *C) {
 	h := crypto.SHA3_384.New()
 	h.Write([]byte("some data"))
 	sha3 := fmt.Sprintf("%x", h.Sum(nil))
-	err := store.Download(context.TODO(), "foo", sha3, mockServer.URL, nil, theStore, buf, int64(len("some ")), nil, nil)
+	mylog.Check(store.Download(context.TODO(), "foo", sha3, mockServer.URL, nil, theStore, buf, int64(len("some ")), nil, nil))
 	c.Check(err, IsNil)
 	c.Check(buf.String(), Equals, "some data")
 	c.Check(n, Equals, 1)
@@ -383,7 +388,7 @@ func (s *downloadSuite) TestActualDownloadServerNoResumeHandeled(c *C) {
 	h := crypto.SHA3_384.New()
 	h.Write([]byte("some data"))
 	sha3 := fmt.Sprintf("%x", h.Sum(nil))
-	err := store.Download(context.TODO(), "foo", sha3, mockServer.URL, nil, theStore, buf, int64(len("some ")), nil, nil)
+	mylog.Check(store.Download(context.TODO(), "foo", sha3, mockServer.URL, nil, theStore, buf, int64(len("some ")), nil, nil))
 	c.Check(err, IsNil)
 	c.Check(buf.String(), Equals, "some data")
 	c.Check(n, Equals, 1)
@@ -497,7 +502,6 @@ func (s *downloadSuite) TestUseDeltas(c *C) {
 				// modified to begin with in MockCommand, but keep it here just
 				// to be safe in case something does ever change
 				coreInterpCmd.Restore()
-
 			})
 		}
 
@@ -531,8 +535,8 @@ func (s *downloadSuite) TestUseDeltas(c *C) {
 		// cleanup the files we may have created before calling the function
 		// again to ensure that the caching works as expected
 		if scenario.exeInCore {
-			err := os.Remove(interpInCorePath)
-			c.Assert(err, IsNil)
+			mylog.Check(os.Remove(interpInCorePath))
+
 		}
 
 		if scenario.exeInHost {
@@ -671,17 +675,17 @@ func (s *downloadSuite) TestDownloadWithDelta(c *C) {
 		defer restore()
 		restore = store.MockApplyDelta(func(_ *store.Store, name string, deltaPath string, deltaInfo *snap.DeltaInfo, targetPath string, targetSha3_384 string) error {
 			c.Check(deltaInfo, Equals, &testCase.info.Deltas[0])
-			err := os.WriteFile(targetPath, []byte("snap-content-via-delta"), 0644)
-			c.Assert(err, IsNil)
+			mylog.Check(os.WriteFile(targetPath, []byte("snap-content-via-delta"), 0644))
+
 			return nil
 		})
 		defer restore()
 
 		theStore := store.New(&store.Config{}, nil)
 		path := filepath.Join(c.MkDir(), "subdir", "downloaded-file")
-		err := theStore.Download(context.TODO(), "foo", path, &testCase.info, nil, nil, nil)
+		mylog.Check(theStore.Download(context.TODO(), "foo", path, &testCase.info, nil, nil, nil))
 
-		c.Assert(err, IsNil)
+
 		defer os.Remove(path)
 		c.Assert(path, testutil.FileEquals, testCase.expectedContent)
 	}
@@ -703,8 +707,8 @@ func (s *downloadSuite) TestActualDownloadRateLimited(c *C) {
 
 	theStore := store.New(&store.Config{}, nil)
 	var buf SillyBuffer
-	err := store.Download(context.TODO(), "example-name", "", ts.URL, nil, theStore, &buf, 0, nil, &store.DownloadOptions{RateLimit: 1})
-	c.Assert(err, IsNil)
+	mylog.Check(store.Download(context.TODO(), "example-name", "", ts.URL, nil, theStore, &buf, 0, nil, &store.DownloadOptions{RateLimit: 1}))
+
 	c.Check(buf.String(), Equals, canary)
 	c.Check(ratelimitReaderUsed, Equals, true)
 }

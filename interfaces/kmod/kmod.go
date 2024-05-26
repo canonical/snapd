@@ -23,9 +23,7 @@ import (
 	kmod_wrapper "github.com/snapcore/snapd/osutil/kmod"
 )
 
-var (
-	kmodLoadModule = kmod_wrapper.LoadModule
-)
+var kmodLoadModule = kmod_wrapper.LoadModule
 
 // loadModules loads given list of modules via modprobe.
 // Since different kernels may not have the requested module, we treat any

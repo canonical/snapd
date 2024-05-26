@@ -24,6 +24,8 @@ import (
 	"encoding/json"
 	"net/url"
 	"strings"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // Plug represents the potential of a given snap to connect to a slot.
@@ -114,17 +116,15 @@ func (client *Client) Interfaces(opts *InterfaceOptions) ([]*Interface, error) {
 		query.Set("select", "all") // Return all interfaces.
 	}
 	var interfaces []*Interface
-	_, err := client.doSync("GET", "/v2/interfaces", query, nil, nil, &interfaces)
+	_ := mylog.Check2(client.doSync("GET", "/v2/interfaces", query, nil, nil, &interfaces))
 
 	return interfaces, err
 }
 
 // performInterfaceAction performs a single action on the interface system.
 func (client *Client) performInterfaceAction(sa *InterfaceAction) (changeID string, err error) {
-	b, err := json.Marshal(sa)
-	if err != nil {
-		return "", err
-	}
+	b := mylog.Check2(json.Marshal(sa))
+
 	return client.doAsync("POST", "/v2/interfaces", nil, nil, bytes.NewReader(b))
 }
 

@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/metautil"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -59,7 +60,7 @@ func (s *conversionssSuite) TestConvertHappy(c *C) {
 		inputValue := reflect.ValueOf(testData.inputValue)
 		outputType := reflect.TypeOf(testData.expectedValue)
 		expectedValue := testData.expectedValue
-		outputValue, err := metautil.ConvertValue(inputValue, outputType)
+		outputValue := mylog.Check2(metautil.ConvertValue(inputValue, outputType))
 		testTag := Commentf("%v -> %v", inputValue, expectedValue)
 		c.Check(err, IsNil, testTag)
 		c.Check(outputValue.Interface(), DeepEquals, expectedValue, testTag)
@@ -91,7 +92,7 @@ func (s *conversionssSuite) TestConvertUnhappy(c *C) {
 		inputValue := reflect.ValueOf(testData.inputValue)
 		outputType := testData.outputType
 		expectedError := testData.expectedError
-		outputValue, err := metautil.ConvertValue(inputValue, outputType)
+		outputValue := mylog.Check2(metautil.ConvertValue(inputValue, outputType))
 		testTag := Commentf("%v -> %T", inputValue, outputType)
 		c.Check(err, ErrorMatches, expectedError, testTag)
 		c.Check(outputValue.IsValid(), Equals, false, testTag)
@@ -101,8 +102,8 @@ func (s *conversionssSuite) TestConvertUnhappy(c *C) {
 func (s *conversionssSuite) TestSetValueFromAttributeHappy(c *C) {
 	interfaceArray := []interface{}{12, -3}
 	var outputValue []int
-	err := metautil.SetValueFromAttribute("snap0", "iface0", "attr0", interfaceArray, &outputValue)
-	c.Assert(err, IsNil)
+	mylog.Check(metautil.SetValueFromAttribute("snap0", "iface0", "attr0", interfaceArray, &outputValue))
+
 	c.Check(outputValue, DeepEquals, []int{12, -3})
 }
 
@@ -138,7 +139,7 @@ func (s *conversionssSuite) TestSetValueFromAttributeUnhappy(c *C) {
 	}
 
 	for _, td := range data {
-		err := metautil.SetValueFromAttribute(td.snapName, td.ifaceName, td.attrName, td.inputValue, td.outputValue)
+		mylog.Check(metautil.SetValueFromAttribute(td.snapName, td.ifaceName, td.attrName, td.inputValue, td.outputValue))
 		c.Check(err, ErrorMatches, td.expectedError, Commentf("input value %v", td.inputValue))
 	}
 }

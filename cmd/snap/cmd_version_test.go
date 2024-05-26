@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	snap "github.com/snapcore/snapd/cmd/snap"
 	"github.com/snapcore/snapd/snapdtool"
 )
@@ -38,8 +39,8 @@ func (s *SnapSuite) TestVersionCommandOnClassic(c *C) {
 	restore = snapdtool.MockVersion("4.56")
 	defer restore()
 
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"version"})
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"version"}))
+
 	c.Assert(s.Stdout(), Equals, "snap    4.56\nsnapd   7.89\nseries  56\nubuntu  12.34\n")
 	c.Assert(s.Stderr(), Equals, "")
 }
@@ -53,8 +54,8 @@ func (s *SnapSuite) TestVersionCommandOnAllSnap(c *C) {
 	restore = snapdtool.MockVersion("4.56")
 	defer restore()
 
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"version"})
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"version"}))
+
 	c.Assert(s.Stdout(), Equals, "snap    4.56\nsnapd   7.89\nseries  56\n")
 	c.Assert(s.Stderr(), Equals, "")
 }
@@ -68,8 +69,8 @@ func (s *SnapSuite) TestVersionCommandOnClassicNoOsVersion(c *C) {
 	restore = snapdtool.MockVersion("4.56")
 	defer restore()
 
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"version"})
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"version"}))
+
 	c.Assert(s.Stdout(), Equals, "snap    4.56\nsnapd   7.89\nseries  56\narch    -\n")
 	c.Assert(s.Stderr(), Equals, "")
 }

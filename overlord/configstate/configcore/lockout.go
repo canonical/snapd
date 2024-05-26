@@ -24,6 +24,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/sysconfig"
 )
@@ -37,10 +38,7 @@ func validateFaillockSettings(tr ConfGetter) error {
 }
 
 func handleFaillockConfiguration(dev sysconfig.Device, tr ConfGetter, opts *fsOnlyContext) error {
-	faillock, err := coreCfg(tr, "users.lockout")
-	if err != nil {
-		return err
-	}
+	faillock := mylog.Check2(coreCfg(tr, "users.lockout"))
 
 	marker := filepath.Join(dirs.GlobalRootDir, "/etc/writable/account-lockout.enabled")
 
@@ -48,11 +46,10 @@ func handleFaillockConfiguration(dev sysconfig.Device, tr ConfGetter, opts *fsOn
 	case "":
 		// nothing to do if unset
 	case "true":
-		if err := os.WriteFile(marker, nil, 0644); err != nil {
-			return err
-		}
+		mylog.Check(os.WriteFile(marker, nil, 0644))
+
 	case "false":
-		if err := os.Remove(marker); err != nil && !os.IsNotExist(err) {
+		if mylog.Check(os.Remove(marker)); err != nil && !os.IsNotExist(err) {
 			return err
 		}
 	default:

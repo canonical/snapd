@@ -28,10 +28,12 @@ import (
 	"github.com/snapcore/snapd/i18n"
 )
 
-var pathsHelp = i18n.G("Print system paths")
-var longPathsHelp = i18n.G(`
+var (
+	pathsHelp     = i18n.G("Print system paths")
+	longPathsHelp = i18n.G(`
 The paths command prints the list of paths detected and used by snapd.
 `)
+)
 
 type cmdPaths struct{}
 

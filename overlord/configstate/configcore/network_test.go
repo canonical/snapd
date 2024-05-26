@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
@@ -51,53 +52,56 @@ func (s *networkSuite) SetUpTest(c *C) {
 }
 
 func (s *networkSuite) TestConfigureNetworkIntegrationIPv6(c *C) {
-	// disable ipv6
-	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
-		state: s.state,
-		conf: map[string]interface{}{
-			"network.disable-ipv6": true,
-		},
-	})
-	c.Assert(err, IsNil)
+	mylog.
+		// disable ipv6
+		Check(configcore.FilesystemOnlyRun(coreDev, &mockConf{
+			state: s.state,
+			conf: map[string]interface{}{
+				"network.disable-ipv6": true,
+			},
+		}))
+
 
 	c.Check(s.mockNetworkSysctlPath, testutil.FileEquals, "net.ipv6.conf.all.disable_ipv6=1\n")
 	c.Check(s.mockSysctl.Calls(), DeepEquals, [][]string{
 		{"sysctl", "-w", "net.ipv6.conf.all.disable_ipv6=1"},
 	})
 	s.mockSysctl.ForgetCalls()
+	mylog.
 
-	// enable it again
-	err = configcore.FilesystemOnlyRun(coreDev, &mockConf{
-		state: s.state,
-		conf: map[string]interface{}{
-			"network.disable-ipv6": false,
-		},
-	})
-	c.Assert(err, IsNil)
+		// enable it again
+		Check(configcore.FilesystemOnlyRun(coreDev, &mockConf{
+			state: s.state,
+			conf: map[string]interface{}{
+				"network.disable-ipv6": false,
+			},
+		}))
+
 
 	c.Check(osutil.FileExists(s.mockNetworkSysctlPath), Equals, false)
 	c.Check(s.mockSysctl.Calls(), DeepEquals, [][]string{
 		{"sysctl", "-w", "net.ipv6.conf.all.disable_ipv6=0"},
 	})
 	s.mockSysctl.ForgetCalls()
+	mylog.
 
-	// enable it yet again, this does not trigger another syscall
-	err = configcore.FilesystemOnlyRun(coreDev, &mockConf{
-		state: s.state,
-		conf: map[string]interface{}{
-			"network.disable-ipv6": false,
-		},
-	})
-	c.Assert(err, IsNil)
+		// enable it yet again, this does not trigger another syscall
+		Check(configcore.FilesystemOnlyRun(coreDev, &mockConf{
+			state: s.state,
+			conf: map[string]interface{}{
+				"network.disable-ipv6": false,
+			},
+		}))
+
 	c.Check(s.mockSysctl.Calls(), HasLen, 0)
 }
 
 func (s *networkSuite) TestConfigureNetworkIntegrationNoSetting(c *C) {
-	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
+	mylog.Check(configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf:  map[string]interface{}{},
-	})
-	c.Assert(err, IsNil)
+	}))
+
 
 	// the file is not there and was not there before, nothing changed
 	// and no sysctl call is generated

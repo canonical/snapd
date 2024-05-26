@@ -22,6 +22,7 @@ package ctlcmd
 import (
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/configstate"
 )
@@ -34,8 +35,9 @@ type unsetCommand struct {
 	} `positional-args:"yes"`
 }
 
-var shortUnsetHelp = i18n.G("Remove configuration options")
-var longUnsetHelp = i18n.G(`
+var (
+	shortUnsetHelp = i18n.G("Remove configuration options")
+	longUnsetHelp  = i18n.G(`
 The unset command removes the provided configuration options as requested.
 
 $ snapctl unset name address
@@ -47,6 +49,7 @@ Nested values may be removed via a dotted path:
 
 $ snapctl unset user.name
 `)
+)
 
 func init() {
 	addCommand("unset", shortUnsetHelp, longUnsetHelp, func() command { return &unsetCommand{} })
@@ -57,10 +60,7 @@ func (s *unsetCommand) Execute(args []string) error {
 		return fmt.Errorf(i18n.G("unset which option?"))
 	}
 
-	context, err := s.ensureContext()
-	if err != nil {
-		return err
-	}
+	context := mylog.Check2(s.ensureContext())
 
 	context.Lock()
 	tr := configstate.ContextTransaction(context)

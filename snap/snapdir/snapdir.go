@@ -25,6 +25,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/internal"
@@ -75,11 +76,10 @@ func (s *SnapDir) RandomAccessFile(file string) (interface {
 	io.ReaderAt
 	io.Closer
 	Size() int64
-}, error) {
-	f, err := os.Open(filepath.Join(s.path, file))
-	if err != nil {
-		return nil, err
-	}
+}, error,
+) {
+	f := mylog.Check2(os.Open(filepath.Join(s.path, file)))
+
 	return internal.NewSizedFile(f)
 }
 
@@ -99,21 +99,14 @@ func littleWalk(dirPath string, dirHandle *os.File, dirstack *[]string, walkFn f
 	const numSt = 100
 
 	// XXX: check if os.ReadDir is more efficient
-	sts, err := dirHandle.Readdir(numSt)
-	if err != nil {
-		return err
-	}
+	sts := mylog.Check2(dirHandle.Readdir(numSt))
+
 	for _, st := range sts {
 		path := filepath.Join(dirPath, st.Name())
-		if err := walkFn(path, st, nil); err != nil {
-			if st.IsDir() && err == filepath.SkipDir {
-				// caller wants to skip this directory
-				continue
-			}
-			return err
-		} else if st.IsDir() {
-			*dirstack = append(*dirstack, path)
-		}
+		mylog.Check(walkFn(path, st, nil))
+
+		// caller wants to skip this directory
+
 	}
 
 	return nil
@@ -135,25 +128,17 @@ func (s *SnapDir) Walk(relative string, walkFn filepath.WalkFunc) error {
 	//
 	// Also the directory is always relative to the top of the container
 	// for us, which would make it a little more messy to get right.
-	f, err := os.Open(root)
-	if err != nil {
-		return walkFn(relative, nil, err)
-	}
+	f := mylog.Check2(os.Open(root))
+
 	defer func() {
 		if f != nil {
 			f.Close()
 		}
 	}()
 
-	st, err := f.Stat()
-	if err != nil {
-		return walkFn(relative, nil, err)
-	}
+	st := mylog.Check2(f.Stat())
+	mylog.Check(walkFn(relative, st, nil))
 
-	err = walkFn(relative, st, nil)
-	if err != nil {
-		return err
-	}
 	if !st.IsDir() {
 		return nil
 	}
@@ -162,10 +147,7 @@ func (s *SnapDir) Walk(relative string, walkFn filepath.WalkFunc) error {
 	for {
 		if err := littleWalk(relative, f, &dirstack, walkFn); err != nil {
 			if err != io.EOF {
-				err = walkFn(relative, nil, err)
-				if err != nil {
-					return err
-				}
+				mylog.Check(walkFn(relative, nil, err))
 			}
 			if len(dirstack) == 0 {
 				// finished
@@ -175,13 +157,8 @@ func (s *SnapDir) Walk(relative string, walkFn filepath.WalkFunc) error {
 			f = nil
 			for f == nil && len(dirstack) > 0 {
 				relative = dirstack[0]
-				f, err = os.Open(filepath.Join(s.path, relative))
-				if err != nil {
-					err = walkFn(relative, nil, err)
-					if err != nil {
-						return err
-					}
-				}
+				f = mylog.Check2(os.Open(filepath.Join(s.path, relative)))
+
 				dirstack = dirstack[1:]
 			}
 			if f == nil {
@@ -195,10 +172,7 @@ func (s *SnapDir) Walk(relative string, walkFn filepath.WalkFunc) error {
 }
 
 func (s *SnapDir) ListDir(path string) ([]string, error) {
-	fileInfos, err := os.ReadDir(filepath.Join(s.path, path))
-	if err != nil {
-		return nil, err
-	}
+	fileInfos := mylog.Check2(os.ReadDir(filepath.Join(s.path, path)))
 
 	var fileNames []string
 	for _, fileInfo := range fileInfos {

@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/aspects"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -32,24 +33,19 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
-var (
-	aspectsCmd = &Command{
-		Path:        "/v2/aspects/{account}/{bundle}/{aspect}",
-		GET:         getAspect,
-		PUT:         setAspect,
-		ReadAccess:  authenticatedAccess{Polkit: polkitActionManage},
-		WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
-	}
-)
+var aspectsCmd = &Command{
+	Path:        "/v2/aspects/{account}/{bundle}/{aspect}",
+	GET:         getAspect,
+	PUT:         setAspect,
+	ReadAccess:  authenticatedAccess{Polkit: polkitActionManage},
+	WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
+}
 
 func getAspect(c *Command, r *http.Request, _ *auth.UserState) Response {
 	st := c.d.state
 	st.Lock()
 	defer st.Unlock()
-
-	if err := validateAspectFeatureFlag(st); err != nil {
-		return err
-	}
+	mylog.Check(validateAspectFeatureFlag(st))
 
 	vars := muxVars(r)
 	account, bundleName, aspect := vars["account"], vars["bundle"], vars["aspect"]
@@ -60,10 +56,7 @@ func getAspect(c *Command, r *http.Request, _ *auth.UserState) Response {
 		fields = strutil.CommaSeparatedList(fieldStr)
 	}
 
-	results, err := aspectstateGetAspect(st, account, bundleName, aspect, fields)
-	if err != nil {
-		return toAPIError(err)
-	}
+	results := mylog.Check2(aspectstateGetAspect(st, account, bundleName, aspect, fields))
 
 	return SyncResponse(results)
 }
@@ -72,24 +65,15 @@ func setAspect(c *Command, r *http.Request, _ *auth.UserState) Response {
 	st := c.d.state
 	st.Lock()
 	defer st.Unlock()
-
-	if err := validateAspectFeatureFlag(st); err != nil {
-		return err
-	}
+	mylog.Check(validateAspectFeatureFlag(st))
 
 	vars := muxVars(r)
 	account, bundleName, aspect := vars["account"], vars["bundle"], vars["aspect"]
 
 	decoder := json.NewDecoder(r.Body)
 	var values map[string]interface{}
-	if err := decoder.Decode(&values); err != nil {
-		return BadRequest("cannot decode aspect request body: %v", err)
-	}
-
-	err := aspectstateSetAspect(st, account, bundleName, aspect, values)
-	if err != nil {
-		return toAPIError(err)
-	}
+	mylog.Check(decoder.Decode(&values))
+	mylog.Check(aspectstateSetAspect(st, account, bundleName, aspect, values))
 
 	// NOTE: could be sync but this is closer to the final version and the conf API
 	summary := fmt.Sprintf("Set aspect %s/%s/%s", account, bundleName, aspect)
@@ -115,7 +99,7 @@ func toAPIError(err error) *apiError {
 
 func validateAspectFeatureFlag(st *state.State) *apiError {
 	tr := config.NewTransaction(st)
-	enabled, err := features.Flag(tr, features.AspectsConfiguration)
+	enabled := mylog.Check2(features.Flag(tr, features.AspectsConfiguration))
 	if err != nil && !config.IsNoOption(err) {
 		return InternalError(fmt.Sprintf("internal error: cannot check aspect configuration flag: %s", err))
 	}

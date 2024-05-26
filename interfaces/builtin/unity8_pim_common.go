@@ -124,7 +124,7 @@ func (iface *unity8PimCommonInterface) StaticInfo() interfaces.StaticInfo {
 }
 
 func (iface *unity8PimCommonInterface) DBusPermanentSlot(spec *dbus.Specification, slot *snap.SlotInfo) error {
-	//FIXME: Implement support after session services are available.
+	// FIXME: Implement support after session services are available.
 	return nil
 }
 

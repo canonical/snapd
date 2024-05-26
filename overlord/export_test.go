@@ -31,9 +31,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-var (
-	LockWithTimeout = lockWithTimeout
-)
+var LockWithTimeout = lockWithTimeout
 
 // MockEnsureInterval sets the overlord ensure interval for tests.
 func MockEnsureInterval(d time.Duration) (restore func()) {

@@ -36,6 +36,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
@@ -62,10 +63,7 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 func (b *Backend) Setup(appSet *interfaces.SnapAppSet, confinement interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
 	// Record all changes to the mount system for this snap.
 	snapName := appSet.InstanceName()
-	spec, err := repo.SnapSpecification(b.Name(), appSet)
-	if err != nil {
-		return fmt.Errorf("cannot obtain mount security snippets for snap %q: %s", snapName, err)
-	}
+	spec := mylog.Check2(repo.SnapSpecification(b.Name(), appSet))
 
 	snapInfo := appSet.Info()
 
@@ -76,26 +74,15 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, confinement interfaces.Co
 	// synchronize the content with the filesystem
 	glob := fmt.Sprintf("snap.%s.*fstab", snapName)
 	dir := dirs.SnapMountPolicyDir
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return fmt.Errorf("cannot create directory for mount configuration files %q: %s", dir, err)
-	}
-	if _, _, err := osutil.EnsureDirState(dir, glob, content); err != nil {
-		return fmt.Errorf("cannot synchronize mount configuration files for snap %q: %s", snapName, err)
-	}
-	if err := UpdateSnapNamespace(snapName); err != nil {
-		// try to discard the mount namespace but only if there aren't enduring daemons in the snap
-		for _, app := range snapInfo.Apps {
-			if app.Daemon != "" && app.RefreshMode == "endure" {
-				return fmt.Errorf("cannot update mount namespace of snap %q, and cannot discard it because it contains an enduring daemon: %s", snapName, err)
-			}
-		}
-		logger.Debugf("cannot update mount namespace of snap %q; discarding namespace", snapName)
-		// In some snaps, if the layout change from a version to the next by replacing a bind by a symlink,
-		// the update can fail. Discarding the namespace allows to solve this.
-		if err = DiscardSnapNamespace(snapName); err != nil {
-			return fmt.Errorf("cannot discard mount namespace of snap %q when trying to update it: %s", snapName, err)
-		}
-	}
+	mylog.Check(os.MkdirAll(dir, 0755))
+
+	_, _ := mylog.Check3(osutil.EnsureDirState(dir, glob, content))
+	mylog.Check(UpdateSnapNamespace(snapName))
+	// try to discard the mount namespace but only if there aren't enduring daemons in the snap
+
+	// In some snaps, if the layout change from a version to the next by replacing a bind by a symlink,
+	// the update can fail. Discarding the namespace allows to solve this.
+
 	return nil
 }
 
@@ -104,10 +91,8 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, confinement interfaces.Co
 // This method should be called after removing a snap.
 func (b *Backend) Remove(snapName string) error {
 	glob := fmt.Sprintf("snap.%s.*fstab", snapName)
-	_, _, err := osutil.EnsureDirState(dirs.SnapMountPolicyDir, glob, nil)
-	if err != nil {
-		return fmt.Errorf("cannot synchronize mount configuration files for snap %q: %s", snapName, err)
-	}
+	_, _ := mylog.Check3(osutil.EnsureDirState(dirs.SnapMountPolicyDir, glob, nil))
+
 	return DiscardSnapNamespace(snapName)
 }
 

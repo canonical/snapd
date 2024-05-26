@@ -28,6 +28,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -41,16 +42,16 @@ func (ts *StatTestSuite) TestFileDoesNotExist(c *C) {
 
 func (ts *StatTestSuite) TestFileExistsSimple(c *C) {
 	fname := filepath.Join(c.MkDir(), "foo")
-	err := os.WriteFile(fname, []byte(fname), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(fname, []byte(fname), 0644))
+
 
 	c.Assert(osutil.FileExists(fname), Equals, true)
 }
 
 func (ts *StatTestSuite) TestFileExistsExistsOddPermissions(c *C) {
 	fname := filepath.Join(c.MkDir(), "foo")
-	err := os.WriteFile(fname, []byte(fname), 0100)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(fname, []byte(fname), 0100))
+
 
 	c.Assert(osutil.FileExists(fname), Equals, true)
 }
@@ -61,16 +62,16 @@ func (ts *StatTestSuite) TestIsDirectoryDoesNotExist(c *C) {
 
 func (ts *StatTestSuite) TestIsDirectorySimple(c *C) {
 	dname := filepath.Join(c.MkDir(), "bar")
-	err := os.Mkdir(dname, 0700)
-	c.Assert(err, IsNil)
+	mylog.Check(os.Mkdir(dname, 0700))
+
 
 	c.Assert(osutil.IsDirectory(dname), Equals, true)
 }
 
 func (ts *StatTestSuite) TestIsSymlink(c *C) {
 	sname := filepath.Join(c.MkDir(), "symlink")
-	err := os.Symlink("/", sname)
-	c.Assert(err, IsNil)
+	mylog.Check(os.Symlink("/", sname))
+
 
 	c.Assert(osutil.IsSymlink(sname), Equals, true)
 }
@@ -192,7 +193,7 @@ func (ts *StatTestSuite) TestDirExists(c *C) {
 		if t.make != "" {
 			makeTestPathInDir(c, base, t.make, 0755)
 		}
-		exists, isDir, err := osutil.DirExists(filepath.Join(base, t.path))
+		exists, isDir := mylog.Check3(osutil.DirExists(filepath.Join(base, t.path)))
 		c.Check(exists, Equals, t.exists, comm)
 		c.Check(isDir, Equals, t.isDir, comm)
 		c.Check(err, IsNil, comm)
@@ -201,7 +202,7 @@ func (ts *StatTestSuite) TestDirExists(c *C) {
 	p := makeTestPath(c, "foo/bar", 0)
 	c.Assert(os.Chmod(filepath.Dir(p), 0), IsNil)
 	defer os.Chmod(filepath.Dir(p), 0755)
-	exists, isDir, err := osutil.DirExists(p)
+	exists, isDir := mylog.Check3(osutil.DirExists(p))
 	c.Check(exists, Equals, false)
 	c.Check(isDir, Equals, false)
 	c.Check(err, NotNil)
@@ -228,11 +229,10 @@ func (ts *StatTestSuite) TestIsExecutable(c *C) {
 	} {
 		c.Logf("tc: %v %v", tc.mode, tc.is)
 		p := filepath.Join(dir, "foo")
-		err := os.Remove(p)
+		mylog.Check(os.Remove(p))
 		c.Check(err == nil || os.IsNotExist(err), Equals, true)
+		mylog.Check(os.WriteFile(p, []byte(""), tc.mode))
 
-		err = os.WriteFile(p, []byte(""), tc.mode)
-		c.Assert(err, IsNil)
 		c.Check(osutil.IsExecutable(p), Equals, tc.is)
 	}
 }
@@ -275,17 +275,19 @@ func (ts *StatTestSuite) TestRegularFileExists(c *C) {
 
 		if t.make {
 			if t.makeNonRegular {
-				// make it a symlink
-				err := os.Symlink("foo", fullpath)
+				mylog.Check(
+					// make it a symlink
+					os.Symlink("foo", fullpath))
 				c.Assert(err, IsNil, comment)
 			} else {
-				// make it a normal file
-				err := os.WriteFile(fullpath, nil, 0644)
+				mylog.Check(
+					// make it a normal file
+					os.WriteFile(fullpath, nil, 0644))
 				c.Assert(err, IsNil, comment)
 			}
 		}
 
-		exists, isReg, err := osutil.RegularFileExists(fullpath)
+		exists, isReg := mylog.Check3(osutil.RegularFileExists(fullpath))
 		if t.expErr != "" {
 			c.Assert(err, ErrorMatches, t.expErr, comment)
 			continue

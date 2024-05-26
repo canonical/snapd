@@ -25,6 +25,8 @@ import (
 	"os"
 	"regexp"
 	"strings"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // MountEntry describes an /etc/fstab-like mount entry.
@@ -177,7 +179,7 @@ func (e *MountEntry) XSnapdMode() (os.FileMode, error) {
 			return 0, fmt.Errorf("cannot parse octal file mode from %q", opt)
 		}
 		var mode os.FileMode
-		n, err := fmt.Sscanf(opt, "%o", &mode)
+		n := mylog.Check2(fmt.Sscanf(opt, "%o", &mode))
 		if err != nil || n != 1 {
 			return 0, fmt.Errorf("cannot parse octal file mode from %q", opt)
 		}
@@ -195,7 +197,7 @@ func (e *MountEntry) XSnapdUID() (uid uint64, err error) {
 			return math.MaxUint64, fmt.Errorf("cannot parse user name %q", opt)
 		}
 		// Try to parse a numeric ID first.
-		if n, err := fmt.Sscanf(opt, "%d", &uid); n == 1 && err == nil {
+		if n := mylog.Check2(fmt.Sscanf(opt, "%d", &uid)); n == 1 && err == nil {
 			return uid, nil
 		}
 		return uid, nil
@@ -212,7 +214,7 @@ func (e *MountEntry) XSnapdGID() (gid uint64, err error) {
 			return math.MaxUint64, fmt.Errorf("cannot parse group name %q", opt)
 		}
 		// Try to parse a numeric ID first.
-		if n, err := fmt.Sscanf(opt, "%d", &gid); n == 1 && err == nil {
+		if n := mylog.Check2(fmt.Sscanf(opt, "%d", &gid)); n == 1 && err == nil {
 			return gid, nil
 		}
 		return gid, nil

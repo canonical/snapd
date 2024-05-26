@@ -23,26 +23,21 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 func init() {
-	cmd, err := parser.AddCommand("done", "Signal repair is done", "", &cmdDone{})
-	if err != nil {
+	cmd := mylog.Check2(parser.AddCommand("done", "Signal repair is done", "", &cmdDone{}))
 
-		panic(err)
-	}
 	cmd.Hidden = true
 
-	cmd, err = parser.AddCommand("skip", "Signal repair should be skipped", "", &cmdSkip{})
-	if err != nil {
-		panic(err)
-	}
+	cmd = mylog.Check2(parser.AddCommand("skip", "Signal repair should be skipped", "", &cmdSkip{}))
+
 	cmd.Hidden = true
 
-	cmd, err = parser.AddCommand("retry", "Signal repair must be retried next time", "", &cmdRetry{})
-	if err != nil {
-		panic(err)
-	}
+	cmd = mylog.Check2(parser.AddCommand("retry", "Signal repair must be retried next time", "", &cmdRetry{}))
+
 	cmd.Hidden = true
 }
 
@@ -51,15 +46,12 @@ func writeToStatusFD(msg string) error {
 	if statusFdStr == "" {
 		return fmt.Errorf("cannot find SNAP_REPAIR_STATUS_FD environment")
 	}
-	fd, err := strconv.Atoi(statusFdStr)
-	if err != nil {
-		return fmt.Errorf("cannot parse SNAP_REPAIR_STATUS_FD environment: %s", err)
-	}
+	fd := mylog.Check2(strconv.Atoi(statusFdStr))
+
 	f := os.NewFile(uintptr(fd), "<snap-repair-status-fd>")
 	defer f.Close()
-	if _, err := f.Write([]byte(msg + "\n")); err != nil {
-		return err
-	}
+	mylog.Check2(f.Write([]byte(msg + "\n")))
+
 	return nil
 }
 

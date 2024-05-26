@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	main "github.com/snapcore/snapd/cmd/snap"
 )
 
@@ -226,8 +227,8 @@ func (s *SnapSuite) TestDebugChanges(c *C) {
 	stateFile := filepath.Join(dir, "test-state.json")
 	c.Assert(os.WriteFile(stateFile, stateJSON, 0644), IsNil)
 
-	rest, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--abs-time", "--changes", stateFile})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--abs-time", "--changes", stateFile}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	c.Check(s.Stdout(), Matches,
 		"ID   Status  Spawn                 Ready                 Label         Summary\n"+
@@ -237,7 +238,7 @@ func (s *SnapSuite) TestDebugChanges(c *C) {
 }
 
 func (s *SnapSuite) TestDebugChangesMissingState(c *C) {
-	_, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--changes", "/missing-state.json"})
+	_ := mylog.Check2(main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--changes", "/missing-state.json"}))
 	c.Check(err, ErrorMatches, "cannot read the state file: open /missing-state.json: no such file or directory")
 }
 
@@ -246,8 +247,8 @@ func (s *SnapSuite) TestDebugTask(c *C) {
 	stateFile := filepath.Join(dir, "test-state.json")
 	c.Assert(os.WriteFile(stateFile, stateJSON, 0644), IsNil)
 
-	rest, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--task=31", stateFile})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--task=31", stateFile}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	c.Check(s.Stdout(), Equals, "id: 31\n"+
 		"kind: prepare-snap\n"+
@@ -267,8 +268,8 @@ func (s *SnapSuite) TestDebugTaskEmptyLists(c *C) {
 	stateFile := filepath.Join(dir, "test-state.json")
 	c.Assert(os.WriteFile(stateFile, stateJSON, 0644), IsNil)
 
-	rest, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--task=12", stateFile})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--task=12", stateFile}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	c.Check(s.Stdout(), Equals, "id: 12\n"+
 		"kind: some-other-task\n"+
@@ -279,7 +280,7 @@ func (s *SnapSuite) TestDebugTaskEmptyLists(c *C) {
 }
 
 func (s *SnapSuite) TestDebugTaskMissingState(c *C) {
-	_, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--task=1", "/missing-state.json"})
+	_ := mylog.Check2(main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--task=1", "/missing-state.json"}))
 	c.Check(err, ErrorMatches, "cannot read the state file: open /missing-state.json: no such file or directory")
 }
 
@@ -288,7 +289,7 @@ func (s *SnapSuite) TestDebugTaskNoSuchTaskError(c *C) {
 	stateFile := filepath.Join(dir, "test-state.json")
 	c.Assert(os.WriteFile(stateFile, stateJSON, 0644), IsNil)
 
-	_, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--task=99", stateFile})
+	_ := mylog.Check2(main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--task=99", stateFile}))
 	c.Check(err, ErrorMatches, "no such task: 99")
 }
 
@@ -297,16 +298,16 @@ func (s *SnapSuite) TestDebugTaskMutuallyExclusiveCommands(c *C) {
 	stateFile := filepath.Join(dir, "test-state.json")
 	c.Assert(os.WriteFile(stateFile, stateJSON, 0644), IsNil)
 
-	_, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--task=99", "--changes", stateFile})
+	_ := mylog.Check2(main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--task=99", "--changes", stateFile}))
 	c.Check(err, ErrorMatches, "cannot use --changes and --task= together")
 
-	_, err = main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--changes", "--change=1", stateFile})
+	_ = mylog.Check2(main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--changes", "--change=1", stateFile}))
 	c.Check(err, ErrorMatches, "cannot use --changes and --change= together")
 
-	_, err = main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--change=1", "--task=1", stateFile})
+	_ = mylog.Check2(main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--change=1", "--task=1", stateFile}))
 	c.Check(err, ErrorMatches, "cannot use --change= and --task= together")
 
-	_, err = main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--change=1", "--is-seeded", stateFile})
+	_ = mylog.Check2(main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--change=1", "--is-seeded", stateFile}))
 	c.Check(err, ErrorMatches, "cannot use --change= and --is-seeded together")
 }
 
@@ -315,8 +316,8 @@ func (s *SnapSuite) TestDebugTasks(c *C) {
 	stateFile := filepath.Join(dir, "test-state.json")
 	c.Assert(os.WriteFile(stateFile, stateJSON, 0644), IsNil)
 
-	rest, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--abs-time", "--change=9", stateFile})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--abs-time", "--change=9", stateFile}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	c.Check(s.Stdout(), Matches,
 		"Lanes  ID   Status  Spawn                 Ready                 Kind             Summary\n"+
@@ -330,8 +331,8 @@ func (s *SnapSuite) TestDebugTasksWithCycles(c *C) {
 	stateFile := filepath.Join(dir, "test-state.json")
 	c.Assert(os.WriteFile(stateFile, stateCyclesJSON, 0644), IsNil)
 
-	rest, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--abs-time", "--change=1", stateFile})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--abs-time", "--change=1", stateFile}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	c.Check(s.Stdout(), Matches,
 		""+
@@ -355,8 +356,8 @@ func (s *SnapSuite) TestDebugCheckForCycles(c *C) {
 	stateFile := filepath.Join(dir, "test-state.json")
 	c.Assert(os.WriteFile(stateFile, stateCyclesJSON, 0644), IsNil)
 
-	rest, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--check", "--change=1", stateFile})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--check", "--change=1", stateFile}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	c.Check(s.Stdout(), Equals, ``+
 		`Detected task dependency cycle involving tasks:
@@ -369,7 +370,7 @@ Lanes  ID   Status  Spawn       Ready       Kind  Summary   After  Before
 }
 
 func (s *SnapSuite) TestDebugTasksMissingState(c *C) {
-	_, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--change=1", "/missing-state.json"})
+	_ := mylog.Check2(main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--change=1", "/missing-state.json"}))
 	c.Check(err, ErrorMatches, "cannot read the state file: open /missing-state.json: no such file or directory")
 }
 
@@ -378,8 +379,8 @@ func (s *SnapSuite) TestDebugIsSeededHappy(c *C) {
 	stateFile := filepath.Join(dir, "test-state.json")
 	c.Assert(os.WriteFile(stateFile, stateJSON, 0644), IsNil)
 
-	rest, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--is-seeded", stateFile})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--is-seeded", stateFile}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	c.Check(s.Stdout(), Matches, "true\n")
 	c.Check(s.Stderr(), Equals, "")
@@ -390,8 +391,8 @@ func (s *SnapSuite) TestDebugIsSeededNo(c *C) {
 	stateFile := filepath.Join(dir, "test-state.json")
 	c.Assert(os.WriteFile(stateFile, []byte("{}"), 0644), IsNil)
 
-	rest, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--is-seeded", stateFile})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--is-seeded", stateFile}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	c.Check(s.Stdout(), Matches, "false\n")
 	c.Check(s.Stderr(), Equals, "")
@@ -402,8 +403,8 @@ func (s *SnapSuite) TestDebugConnections(c *C) {
 	stateFile := filepath.Join(dir, "test-state.json")
 	c.Assert(os.WriteFile(stateFile, stateConnsJSON, 0644), IsNil)
 
-	rest, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--connections", stateFile})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--connections", stateFile}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	c.Check(s.Stdout(), Matches,
 		"Interface       Plug                             Slot                            Notes\n"+
@@ -425,8 +426,8 @@ func (s *SnapSuite) TestDebugConnectionDetails(c *C) {
 
 	for i, connArg := range []string{"gnome-calculator:gtk-3-themes", ",gtk-common-themes:gtk-3-themes"} {
 		s.ResetStdStreams()
-		rest, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", fmt.Sprintf("--connection=%s", connArg), stateFile})
-		c.Assert(err, IsNil)
+		rest := mylog.Check2(main.Parser(main.Client()).ParseArgs([]string{"debug", "state", fmt.Sprintf("--connection=%s", connArg), stateFile}))
+
 		c.Assert(rest, DeepEquals, []string{})
 		c.Check(s.Stdout(), Matches,
 			"id: gnome-calculator:gtk-3-themes gtk-common-themes:gtk-3-themes\n"+
@@ -455,8 +456,8 @@ func (s *SnapSuite) TestDebugConnectionPlugAndSlot(c *C) {
 	c.Assert(os.WriteFile(stateFile, stateConnsJSON, 0644), IsNil)
 
 	connArg := "gnome-calculator:network,core:network"
-	rest, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", fmt.Sprintf("--connection=%s", connArg), stateFile})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(main.Parser(main.Client()).ParseArgs([]string{"debug", "state", fmt.Sprintf("--connection=%s", connArg), stateFile}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	c.Check(s.Stdout(), Matches,
 		"id: gnome-calculator:network core:network\n"+
@@ -474,7 +475,7 @@ func (s *SnapSuite) TestDebugConnectionInvalidCombination(c *C) {
 	c.Assert(os.WriteFile(stateFile, stateConnsJSON, 0644), IsNil)
 
 	connArg := "gnome-calculator,core:network"
-	_, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", fmt.Sprintf("--connection=%s", connArg), stateFile})
+	_ := mylog.Check2(main.Parser(main.Client()).ParseArgs([]string{"debug", "state", fmt.Sprintf("--connection=%s", connArg), stateFile}))
 	c.Assert(err, ErrorMatches, fmt.Sprintf("invalid command with connection args: %s", connArg))
 	c.Check(s.Stdout(), Equals, "")
 }
@@ -484,8 +485,8 @@ func (s *SnapSuite) TestDebugConnectionDetailsMany(c *C) {
 	stateFile := filepath.Join(dir, "test-state.json")
 	c.Assert(os.WriteFile(stateFile, stateConnsJSON, 0644), IsNil)
 
-	rest, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--connection=core", stateFile})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--connection=core", stateFile}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	c.Check(s.Stdout(), Matches,
 		"id: gnome-calculator:desktop-legacy core:desktop-legacy\n"+
@@ -533,8 +534,8 @@ func (s *SnapSuite) TestDebugConnectionDetailsManySlotSide(c *C) {
 	stateFile := filepath.Join(dir, "test-state.json")
 	c.Assert(os.WriteFile(stateFile, stateConnsJSON, 0644), IsNil)
 
-	rest, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--connection=core:x11", stateFile})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--connection=core:x11", stateFile}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	c.Check(s.Stdout(), Matches,
 		"id: gnome-calculator:x11 core:x11\n"+

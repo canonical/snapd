@@ -20,6 +20,7 @@
 package main
 
 import (
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/i18n"
@@ -50,13 +51,8 @@ func (x *cmdAbort) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	id, err := x.GetChangeID()
-	if err != nil {
-		if err == noChangeFoundOK {
-			return nil
-		}
-		return err
-	}
-	_, err = x.client.Abort(id)
+	id := mylog.Check2(x.GetChangeID())
+
+	_ = mylog.Check2(x.client.Abort(id))
 	return err
 }

@@ -27,6 +27,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/godbus/dbus"
 	. "gopkg.in/check.v1"
 
@@ -81,8 +82,8 @@ func (s *netplanSuite) SetUpTest(c *C) {
 	s.configcoreSuite.SetUpTest(c)
 	s.DBusTest.SetUpTest(c)
 
-	backend, err := netplantest.NewNetplanServer(mockNetplanConfigYaml)
-	c.Assert(err, IsNil)
+	backend := mylog.Check2(netplantest.NewNetplanServer(mockNetplanConfigYaml))
+
 	s.AddCleanup(func() { c.Check(backend.Stop(), IsNil) })
 	s.backend = backend
 
@@ -109,9 +110,8 @@ func (s *netplanSuite) SetUpTest(c *C) {
 
 	restore = release.MockOnClassic(false)
 	s.AddCleanup(restore)
+	mylog.Check(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/netplan"), 0755))
 
-	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/netplan"), 0755)
-	c.Assert(err, IsNil)
 }
 
 func (s *netplanSuite) TearDownTest(c *C) {
@@ -127,7 +127,7 @@ func (s *netplanSuite) TestNetplanGetFromDBusNoSuchService(c *C) {
 
 	tr := config.NewTransaction(s.state)
 	netplanCfg := make(map[string]interface{})
-	err := tr.Get("core", "system.network.netplan", &netplanCfg)
+	mylog.Check(tr.Get("core", "system.network.netplan", &netplanCfg))
 	c.Assert(err, ErrorMatches, `snap "core" has no "system.network.netplan" configuration option`)
 }
 
@@ -142,7 +142,7 @@ func (s *netplanSuite) TestNetplanGetFromDBusNoV2Api(c *C) {
 
 	// no netplan configuration with the "v1" netplan api
 	var str string
-	err := tr.Get("core", "system.network.netplan", &str)
+	mylog.Check(tr.Get("core", "system.network.netplan", &str))
 	c.Assert(err, ErrorMatches, `snap "core" has no "system.network.netplan" configuration option`)
 }
 
@@ -158,7 +158,7 @@ func (s *netplanSuite) TestNetplanGetNoSupportOnClassic(c *C) {
 
 	tr := config.NewTransaction(s.state)
 	netplanCfg := make(map[string]interface{})
-	err := tr.Get("core", "system.network.netplan", &netplanCfg)
+	mylog.Check(tr.Get("core", "system.network.netplan", &netplanCfg))
 	c.Assert(err, ErrorMatches, `snap "core" has no "system.network.netplan" configuration option`)
 }
 
@@ -173,8 +173,8 @@ func (s *netplanSuite) TestNetplanGetFromDBusHappy(c *C) {
 
 	// full doc
 	netplanCfg := make(map[string]interface{})
-	err := tr.Get("core", "system.network.netplan", &netplanCfg)
-	c.Assert(err, IsNil)
+	mylog.Check(tr.Get("core", "system.network.netplan", &netplanCfg))
+
 	c.Check(netplanCfg, DeepEquals, map[string]interface{}{
 		"network": map[string]interface{}{
 			"renderer": "NetworkManager",
@@ -188,8 +188,8 @@ func (s *netplanSuite) TestNetplanGetFromDBusHappy(c *C) {
 
 	// only the "network" subset
 	netplanCfg = make(map[string]interface{})
-	err = tr.Get("core", "system.network.netplan.network", &netplanCfg)
-	c.Assert(err, IsNil)
+	mylog.Check(tr.Get("core", "system.network.netplan.network", &netplanCfg))
+
 	c.Check(netplanCfg, DeepEquals, map[string]interface{}{
 		"renderer": "NetworkManager",
 		"version":  json.Number("2"),
@@ -201,8 +201,8 @@ func (s *netplanSuite) TestNetplanGetFromDBusHappy(c *C) {
 
 	// only the "network.version" subset
 	var ver json.Number
-	err = tr.Get("core", "system.network.netplan.network.version", &ver)
-	c.Assert(err, IsNil)
+	mylog.Check(tr.Get("core", "system.network.netplan.network.version", &ver))
+
 	c.Check(ver, Equals, json.Number("2"))
 
 	s.backend.WithLocked(func() {
@@ -227,8 +227,8 @@ func (s *netplanSuite) TestNetplanGetFromDBusCancelFails(c *C) {
 
 	tr := config.NewTransaction(s.state)
 	netplanCfg := make(map[string]interface{})
-	err := tr.Get("core", "system.network.netplan", &netplanCfg)
-	c.Assert(err, IsNil)
+	mylog.Check(tr.Get("core", "system.network.netplan", &netplanCfg))
+
 	c.Check(netplanCfg, DeepEquals, map[string]interface{}{
 		"network": map[string]interface{}{
 			"renderer": "NetworkManager",
@@ -251,8 +251,8 @@ func (s *netplanSuite) TestNetplanGetFromDBusCancelErr(c *C) {
 
 	tr := config.NewTransaction(s.state)
 	netplanCfg := make(map[string]interface{})
-	err := tr.Get("core", "system.network.netplan", &netplanCfg)
-	c.Assert(err, IsNil)
+	mylog.Check(tr.Get("core", "system.network.netplan", &netplanCfg))
+
 	c.Check(netplanCfg, DeepEquals, map[string]interface{}{
 		"network": map[string]interface{}{
 			"renderer": "NetworkManager",
@@ -274,7 +274,7 @@ func (s *netplanSuite) TestNetplanGetFromDBusNoSuchConfigError(c *C) {
 	// no subkey in in our yaml configuration like that, we get an
 	// expected error from the config mechanism
 	var str string
-	err := tr.Get("core", "system.network.netplan.xxx", &str)
+	mylog.Check(tr.Get("core", "system.network.netplan.xxx", &str))
 	c.Assert(err, ErrorMatches, `snap "core" has no "system.network.netplan.xxx" configuration option`)
 }
 
@@ -296,7 +296,7 @@ func (s *netplanSuite) TestNetplanConnectivityCheck(c *C) {
 
 	for _, tc := range tests {
 		s.fakestore.status = tc.status
-		err := configcore.StoreReachable(s.state)
+		mylog.Check(configcore.StoreReachable(s.state))
 		if tc.expectedErr != "" {
 			c.Check(err, ErrorMatches, tc.expectedErr)
 		} else {
@@ -316,8 +316,7 @@ func (s *netplanSuite) TestNetplanWriteConfigSetReturnsFalse(c *C) {
 
 	s.state.Unlock()
 	rt.Set("core", "system.network.netplan.network.ethernets.eth0.dhcp4", true)
-
-	err := configcore.Run(coreDev, rt)
+	mylog.Check(configcore.Run(coreDev, rt))
 	c.Assert(err, ErrorMatches, "cannot set netplan config: no specific reason returned from netplan")
 }
 
@@ -331,8 +330,7 @@ func (s *netplanSuite) TestNetplanWriteConfigSetFailsDBusErr(c *C) {
 	rt := configcore.NewRunTransaction(config.NewTransaction(s.state), nil)
 	s.state.Unlock()
 	rt.Set("core", "system.network.netplan.network.ethernets.eth0.dhcp4", true)
-
-	err := configcore.Run(coreDev, rt)
+	mylog.Check(configcore.Run(coreDev, rt))
 	c.Assert(err, ErrorMatches, "cannot set netplan config: netplan failed with some error")
 }
 
@@ -347,8 +345,7 @@ func (s *netplanSuite) TestNetplanWriteConfigTryReturnsFalse(c *C) {
 	rt := configcore.NewRunTransaction(config.NewTransaction(s.state), nil)
 	s.state.Unlock()
 	rt.Set("core", "system.network.netplan.network.ethernets.eth0.dhcp4", true)
-
-	err := configcore.Run(coreDev, rt)
+	mylog.Check(configcore.Run(coreDev, rt))
 	c.Assert(err, ErrorMatches, "cannot try netplan config: no specific reason returned from netplan")
 }
 
@@ -363,8 +360,7 @@ func (s *netplanSuite) TestNetplanWriteConfigTryFailsDBusErr(c *C) {
 	rt := configcore.NewRunTransaction(config.NewTransaction(s.state), nil)
 	s.state.Unlock()
 	rt.Set("core", "system.network.netplan.network.ethernets.eth0.dhcp4", true)
-
-	err := configcore.Run(coreDev, rt)
+	mylog.Check(configcore.Run(coreDev, rt))
 	c.Assert(err, ErrorMatches, "cannot try netplan config: netplan failed with some error")
 }
 
@@ -395,9 +391,8 @@ func (s *netplanSuite) testNetplanWriteConfigHappy(c *C, seeded bool, expectedOr
 	s.state.Unlock()
 	rt.Set("core", "system.network.netplan.network.ethernets.eth0.dhcp4", true)
 	rt.Set("core", "system.network.netplan.network.wifi.wlan0.dhcp4", true)
+	mylog.Check(configcore.Run(coreDev, rt))
 
-	err := configcore.Run(coreDev, rt)
-	c.Assert(err, IsNil)
 
 	s.backend.WithLocked(func() {
 		c.Check(s.backend.ConfigApiSetCalls, DeepEquals, []string{
@@ -424,8 +419,7 @@ func (s *netplanSuite) TestNetplanApplyConfigFails(c *C) {
 	s.state.Unlock()
 	rt.Set("core", "system.network.netplan.network.ethernets.eth0.dhcp4", true)
 	rt.Set("core", "system.network.netplan.network.wifi.wlan0.dhcp4", true)
-
-	err := configcore.Run(coreDev, rt)
+	mylog.Check(configcore.Run(coreDev, rt))
 	c.Assert(err, ErrorMatches, "cannot apply netplan config: no specific reason returned from netplan")
 }
 
@@ -444,8 +438,7 @@ func (s *netplanSuite) TestNetplanApplyConfigErr(c *C) {
 	s.state.Unlock()
 	rt.Set("core", "system.network.netplan.network.ethernets.eth0.dhcp4", true)
 	rt.Set("core", "system.network.netplan.network.wifi.wlan0.dhcp4", true)
-
-	err := configcore.Run(coreDev, rt)
+	mylog.Check(configcore.Run(coreDev, rt))
 	c.Assert(err, ErrorMatches, "cannot apply netplan config: netplan failed with some error")
 }
 
@@ -472,8 +465,7 @@ func (s *netplanSuite) TestNetplanWriteConfigNoNetworkAfterTry(c *C) {
 	rt := configcore.NewRunTransaction(config.NewTransaction(s.state), nil)
 	s.state.Unlock()
 	rt.Set("core", "system.network.netplan.ethernets.eth0.dhcp4", true)
-
-	err := configcore.Run(coreDev, rt)
+	mylog.Check(configcore.Run(coreDev, rt))
 	c.Assert(err, ErrorMatches, `cannot set netplan config: store no longer reachable`)
 
 	s.backend.WithLocked(func() {
@@ -506,8 +498,7 @@ func (s *netplanSuite) TestNetplanWriteConfigCancelFails(c *C) {
 	rt := configcore.NewRunTransaction(config.NewTransaction(s.state), nil)
 	s.state.Unlock()
 	rt.Set("core", "system.network.netplan.ethernets.eth0.dhcp4", true)
-
-	err := configcore.Run(coreDev, rt)
+	mylog.Check(configcore.Run(coreDev, rt))
 	c.Assert(err, ErrorMatches, `cannot set netplan config: store no longer reachable and cannot cancel netplan config: no specific reason returned from netplan`)
 }
 
@@ -532,8 +523,7 @@ func (s *netplanSuite) TestNetplanWriteConfigCancelFailsWithDbusErr(c *C) {
 	rt := configcore.NewRunTransaction(config.NewTransaction(s.state), nil)
 	s.state.Unlock()
 	rt.Set("core", "system.network.netplan.ethernets.eth0.dhcp4", true)
-
-	err := configcore.Run(coreDev, rt)
+	mylog.Check(configcore.Run(coreDev, rt))
 	c.Assert(err, ErrorMatches, `cannot set netplan config: store no longer reachable and cannot cancel netplan config: netplan failed with some error`)
 }
 
@@ -562,9 +552,8 @@ network:
 	rt := configcore.NewRunTransaction(config.NewTransaction(s.state), nil)
 	s.state.Unlock()
 	rt.Set("core", "system.network.netplan.network.bridges.br54.dhcp4", nil)
+	mylog.Check(configcore.Run(coreDev, rt))
 
-	err := configcore.Run(coreDev, rt)
-	c.Assert(err, IsNil)
 
 	s.backend.WithLocked(func() {
 		c.Check(s.backend.ConfigApiSetCalls, DeepEquals, []string{
@@ -577,16 +566,14 @@ network:
 func (s *netplanSuite) TestNetplanNoApplyOnClassic(c *C) {
 	restore := release.MockOnClassic(true)
 	s.AddCleanup(restore)
-
-	err := configcore.Run(coreDev, &mockConf{
+	mylog.Check(configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		changes: map[string]interface{}{
 			"system.network.netplan.network.renderer": "networkd",
 		},
-	})
+	}))
 	c.Check(err, ErrorMatches, "cannot set netplan configuration on classic")
-
-	err = configcore.Run(coreDev, &mockConf{
+	mylog.Check(configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		changes: map[string]interface{}{
 			"system.network.netplan": map[string]interface{}{
@@ -595,6 +582,6 @@ func (s *netplanSuite) TestNetplanNoApplyOnClassic(c *C) {
 				},
 			},
 		},
-	})
+	}))
 	c.Check(err, ErrorMatches, "cannot set netplan configuration on classic")
 }

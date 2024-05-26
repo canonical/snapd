@@ -144,5 +144,4 @@ func (escapeSuite) TestParagraph(c *check.C) {
 			c.Check(u.Clean(), check.Equals, s, comm)
 		}
 	}
-
 }

@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -135,8 +136,8 @@ func (s *GpioInterfaceSuite) TestSanitizePlug(c *C) {
 
 func (s *GpioInterfaceSuite) TestSystemdConnectedSlot(c *C) {
 	spec := &systemd.Specification{}
-	err := spec.AddConnectedSlot(s.iface, s.gadgetPlug, s.gadgetGpioSlot)
-	c.Assert(err, IsNil)
+	mylog.Check(spec.AddConnectedSlot(s.iface, s.gadgetPlug, s.gadgetGpioSlot))
+
 	c.Assert(spec.Services(), DeepEquals, map[string]*systemd.Service{
 		"gpio-100": {
 			Type:            "oneshot",
@@ -156,11 +157,11 @@ func (s *GpioInterfaceSuite) TestApparmorConnectedPlugIgnoresMissingSymlink(c *C
 		return "", os.ErrNotExist
 	})
 
-	appSet, err := interfaces.NewSnapAppSet(s.gadgetPlug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.gadgetPlug.Snap(), nil))
+
 	spec := apparmor.NewSpecification(appSet)
-	err = spec.AddConnectedPlug(s.iface, s.gadgetPlug, s.gadgetGpioSlot)
-	c.Assert(err, IsNil)
+	mylog.Check(spec.AddConnectedPlug(s.iface, s.gadgetPlug, s.gadgetGpioSlot))
+
 	c.Assert(spec.Snippets(), HasLen, 0)
 	c.Assert(log.String(), testutil.Contains, "cannot export not existing gpio /sys/class/gpio/gpio100")
 }
@@ -172,11 +173,11 @@ func (s *GpioInterfaceSuite) TestApparmorConnectedPlug(c *C) {
 		return "/sys/dev/foo/class/gpio/gpio100", nil
 	})
 
-	appSet, err := interfaces.NewSnapAppSet(s.gadgetPlug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.gadgetPlug.Snap(), nil))
+
 	spec := apparmor.NewSpecification(appSet)
-	err = spec.AddConnectedPlug(s.iface, s.gadgetPlug, s.gadgetGpioSlot)
-	c.Assert(err, IsNil)
+	mylog.Check(spec.AddConnectedPlug(s.iface, s.gadgetPlug, s.gadgetGpioSlot))
+
 	c.Assert(spec.SnippetForTag("snap.my-device.svc"), testutil.Contains, `/sys/dev/foo/class/gpio/gpio100/* rwk`)
 }
 

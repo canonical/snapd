@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/device"
@@ -50,15 +51,14 @@ func (s *deviceSuite) TestEncryptionMarkersRunThrough(c *C) {
 	// nothing was written yet
 	c.Check(device.HasEncryptedMarkerUnder(filepath.Join(d, filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"))), Equals, false)
 	c.Check(device.HasEncryptedMarkerUnder(filepath.Join(d, boot.InstallHostFDESaveDir)), Equals, false)
+	mylog.Check(device.WriteEncryptionMarkers(filepath.Join(d, filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde")), filepath.Join(d, boot.InstallHostFDESaveDir), []byte("foo")))
 
-	err := device.WriteEncryptionMarkers(filepath.Join(d, filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde")), filepath.Join(d, boot.InstallHostFDESaveDir), []byte("foo"))
-	c.Assert(err, IsNil)
 	// both markers were written
 	c.Check(filepath.Join(d, filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "marker"), testutil.FileEquals, "foo")
 	c.Check(filepath.Join(d, boot.InstallHostFDESaveDir, "marker"), testutil.FileEquals, "foo")
 	// and can be read with device.ReadEncryptionMarkers
-	m1, m2, err := device.ReadEncryptionMarkers(filepath.Join(d, filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde")), filepath.Join(d, boot.InstallHostFDESaveDir))
-	c.Assert(err, IsNil)
+	m1, m2 := mylog.Check3(device.ReadEncryptionMarkers(filepath.Join(d, filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde")), filepath.Join(d, boot.InstallHostFDESaveDir)))
+
 	c.Check(m1, DeepEquals, []byte("foo"))
 	c.Check(m2, DeepEquals, []byte("foo"))
 	// and are found via HasEncryptedMarkerUnder()
@@ -71,20 +71,20 @@ func (s *deviceSuite) TestReadEncryptionMarkers(c *C) {
 
 	// simulate two different markers in "ubuntu-data" and "ubuntu-save"
 	p1 := filepath.Join(tmpdir, filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "marker")
-	err := os.MkdirAll(filepath.Dir(p1), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(p1, []byte("marker-p1"), 0600)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Dir(p1), 0755))
+
+	mylog.Check(os.WriteFile(p1, []byte("marker-p1"), 0600))
+
 
 	p2 := filepath.Join(tmpdir, boot.InstallHostFDESaveDir, "marker")
-	err = os.MkdirAll(filepath.Dir(p2), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(p2, []byte("marker-p2"), 0600)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Dir(p2), 0755))
+
+	mylog.Check(os.WriteFile(p2, []byte("marker-p2"), 0600))
+
 
 	// reading them returns the two different values
-	m1, m2, err := device.ReadEncryptionMarkers(filepath.Join(tmpdir, filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde")), filepath.Join(tmpdir, boot.InstallHostFDESaveDir))
-	c.Assert(err, IsNil)
+	m1, m2 := mylog.Check3(device.ReadEncryptionMarkers(filepath.Join(tmpdir, filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde")), filepath.Join(tmpdir, boot.InstallHostFDESaveDir)))
+
 	c.Check(m1, DeepEquals, []byte("marker-p1"))
 	c.Check(m2, DeepEquals, []byte("marker-p2"))
 }
@@ -116,15 +116,15 @@ func (s *deviceSuite) TestStampSealedKeysRunthrough(c *C) {
 		{device.SealingMethodTPM, "tpm"},
 		{device.SealingMethodFDESetupHook, "fde-setup-hook"},
 	} {
-		err := device.StampSealedKeys(root, tc.mth)
-		c.Assert(err, IsNil)
+		mylog.Check(device.StampSealedKeys(root, tc.mth))
 
-		mth, err := device.SealedKeysMethod(root)
-		c.Assert(err, IsNil)
+
+		mth := mylog.Check2(device.SealedKeysMethod(root))
+
 		c.Check(tc.mth, Equals, mth)
 
-		content, err := os.ReadFile(filepath.Join(root, "/var/lib/snapd/device/fde/sealed-keys"))
-		c.Assert(err, IsNil)
+		content := mylog.Check2(os.ReadFile(filepath.Join(root, "/var/lib/snapd/device/fde/sealed-keys")))
+
 		c.Check(string(content), Equals, tc.expected)
 	}
 }
@@ -132,7 +132,7 @@ func (s *deviceSuite) TestStampSealedKeysRunthrough(c *C) {
 func (s *deviceSuite) TestSealedKeysMethodWithMissingStamp(c *C) {
 	root := c.MkDir()
 
-	_, err := device.SealedKeysMethod(root)
+	_ := mylog.Check2(device.SealedKeysMethod(root))
 	c.Check(err, Equals, device.ErrNoSealedKeys)
 }
 
@@ -140,13 +140,13 @@ func (s *deviceSuite) TestSealedKeysMethodWithWrongContentHappy(c *C) {
 	root := c.MkDir()
 
 	mockSealedKeyPath := filepath.Join(root, "/var/lib/snapd/device/fde/sealed-keys")
-	err := os.MkdirAll(filepath.Dir(mockSealedKeyPath), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(mockSealedKeyPath, []byte("invalid-sealing-method"), 0600)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Dir(mockSealedKeyPath), 0755))
+
+	mylog.Check(os.WriteFile(mockSealedKeyPath, []byte("invalid-sealing-method"), 0600))
+
 
 	// invalid/unknown sealing methods do not error
-	mth, err := device.SealedKeysMethod(root)
+	mth := mylog.Check2(device.SealedKeysMethod(root))
 	c.Check(err, IsNil)
 	c.Check(string(mth), Equals, "invalid-sealing-method")
 }

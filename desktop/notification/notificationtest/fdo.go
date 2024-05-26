@@ -24,6 +24,7 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/godbus/dbus"
 
 	"github.com/snapcore/snapd/dbusutil"
@@ -56,10 +57,7 @@ type FdoServer struct {
 }
 
 func NewFdoServer() (*FdoServer, error) {
-	conn, err := dbusutil.SessionBusPrivate()
-	if err != nil {
-		return nil, err
-	}
+	conn := mylog.Check2(dbusutil.SessionBusPrivate())
 
 	server := &FdoServer{
 		conn:          conn,
@@ -67,11 +65,7 @@ func NewFdoServer() (*FdoServer, error) {
 	}
 	conn.Export(fdoApi{server}, fdoObjectPath, fdoInterface)
 
-	reply, err := conn.RequestName(fdoBusName, dbus.NameFlagDoNotQueue)
-	if err != nil {
-		conn.Close()
-		return nil, err
-	}
+	reply := mylog.Check2(conn.RequestName(fdoBusName, dbus.NameFlagDoNotQueue))
 
 	if reply != dbus.RequestNameReplyPrimaryOwner {
 		conn.Close()
@@ -81,9 +75,8 @@ func NewFdoServer() (*FdoServer, error) {
 }
 
 func (server *FdoServer) Stop() error {
-	if _, err := server.conn.ReleaseName(fdoBusName); err != nil {
-		return err
-	}
+	mylog.Check2(server.conn.ReleaseName(fdoBusName))
+
 	return server.conn.Close()
 }
 
@@ -185,15 +178,12 @@ func (a fdoApi) CloseNotification(id uint32) *dbus.Error {
 	if dErr != nil {
 		return dErr
 	}
+	mylog.Check(
 
-	// close reason 3 is "closed by a call to CloseNotification"
-	// https://specifications.freedesktop.org/notification-spec/latest/ar01s09.html#signal-notification-closed
-	if err := a.server.Close(id, 3); err != nil {
-		return &dbus.Error{
-			Name: "org.freedesktop.DBus.Error.Failed",
-			Body: []interface{}{err.Error()},
-		}
-	}
+		// close reason 3 is "closed by a call to CloseNotification"
+		// https://specifications.freedesktop.org/notification-spec/latest/ar01s09.html#signal-notification-closed
+		a.server.Close(id, 3))
+
 	return nil
 }
 

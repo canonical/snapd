@@ -76,13 +76,11 @@ func (ts *TimeoutTestSuite) TestHostScaledTimeout(c *C) {
 			expected: 6 * origDuration,
 		},
 		{
-
 			name:     "go test -race",
 			setup:    func() func() { return mockEnvVar("GO_TEST_RACE", "1") },
 			expected: 5 * origDuration,
 		},
 		{
-
 			name: "go test -race and riscv64 arch",
 			setup: func() func() {
 				archRestore := testutil.MockRuntimeARCH("riscv64")

@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/randutil"
 )
@@ -48,10 +49,7 @@ type RevealKeyRequest struct {
 // systemd bus so this cannot use "--pipe" or "--wait", see
 // https://github.com/snapcore/core-initrd/issues/13
 func runFDERevealKeyCommand(req *RevealKeyRequest) (output []byte, err error) {
-	stdin, err := json.Marshal(req)
-	if err != nil {
-		return nil, fmt.Errorf(`cannot build request %v for fde-reveal-key: %v`, req, err)
-	}
+	stdin := mylog.Check2(json.Marshal(req))
 
 	return runFDEinitramfsHelper("fde-reveal-key", stdin)
 }
@@ -71,9 +69,7 @@ func LockSealedKeys() error {
 	req := &RevealKeyRequest{
 		Op: "lock",
 	}
-	if _, err := runFDERevealKey(req); err != nil {
-		return err
-	}
+	mylog.Check2(runFDERevealKey(req))
 
 	return nil
 }
@@ -109,34 +105,27 @@ func Reveal(params *RevealParams) (payload []byte, err error) {
 		// deprecated but needed for v1 hooks
 		KeyName: "deprecated-" + randutil.RandomString(12),
 	}
-	output, err := runFDERevealKey(req)
-	if err != nil {
-		return nil, err
-	}
+	output := mylog.Check2(runFDERevealKey(req))
+
 	// We expect json output that fits the revealKeyResult json at
 	// this point. However the "denver" project uses the old and
 	// deprecated v1 API that returns raw bytes and we still need
 	// to support this.
 	var res revealKeyResult
-	if err := json.Unmarshal(output, &res); err != nil {
-		if params.V2Payload {
-			// We expect a v2 payload but not having json
-			// output from the hook means that either the
-			// hook is buggy or we have a v1 based hook
-			// (e.g. "denver" project) with v2 based json
-			// data on disk. This is supported but we let
-			// the higher levels unmarshaling of the
-			// payload deal with the buggy case.
-			return output, nil
-		}
-		// If the payload is not expected to be v2 and, the
-		// output is not json but matches the size of the
-		// "denver" project encrypton key (64 bytes) we assume
-		// we deal with a v1 API.
-		if len(output) != v1keySize {
-			return nil, fmt.Errorf(`cannot decode fde-reveal-key "reveal" result: %v`, err)
-		}
-		return output, nil
-	}
+	mylog.Check(json.Unmarshal(output, &res))
+
+	// We expect a v2 payload but not having json
+	// output from the hook means that either the
+	// hook is buggy or we have a v1 based hook
+	// (e.g. "denver" project) with v2 based json
+	// data on disk. This is supported but we let
+	// the higher levels unmarshaling of the
+	// payload deal with the buggy case.
+
+	// If the payload is not expected to be v2 and, the
+	// output is not json but matches the size of the
+	// "denver" project encrypton key (64 bytes) we assume
+	// we deal with a v1 API.
+
 	return res.Key, nil
 }

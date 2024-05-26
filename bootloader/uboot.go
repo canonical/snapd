@@ -24,6 +24,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/bootloader/ubootenv"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
@@ -91,7 +92,7 @@ func (u *uboot) useHeaderFlagByte(gadgetDir string) bool {
 	// if there is a "pattern" boot.sel in the gadget snap, we follow its
 	// lead. If opening it as a uboot env fails in any way we just go with
 	// the default.
-	gadgetEnv, err := ubootenv.OpenWithFlags(filepath.Join(gadgetDir, u.ubootEnvFileName), ubootenv.OpenBestEffort)
+	gadgetEnv := mylog.Check2(ubootenv.OpenWithFlags(filepath.Join(gadgetDir, u.ubootEnvFileName), ubootenv.OpenBestEffort))
 	if err == nil {
 		return gadgetEnv.HeaderFlagByte()
 	}
@@ -110,30 +111,18 @@ func (u *uboot) InstallBootConfig(gadgetDir string, blOpts *Options) error {
 	// the boot.scr, so for these setups we just don't install anything
 	// TODO:UC20: how can we do this better? maybe parse the file to get the
 	//            actual format?
-	st, err := os.Stat(gadgetFile)
-	if err != nil {
-		return err
-	}
+	st := mylog.Check2(os.Stat(gadgetFile))
+
 	if st.Size() == 0 {
 		// we have an empty uboot.conf, and hence a uboot bootloader in the
 		// gadget, but nothing to copy in this case and instead just install our
 		// own boot.sel file
 		u.processBlOpts(blOpts)
-
-		err := os.MkdirAll(filepath.Dir(u.envFile()), 0755)
-		if err != nil {
-			return err
-		}
+		mylog.Check(os.MkdirAll(filepath.Dir(u.envFile()), 0755))
 
 		// TODO:UC20: what's a reasonable size for this file?
-		env, err := ubootenv.Create(u.envFile(), 4096, ubootenv.CreateOptions{HeaderFlagByte: u.useHeaderFlagByte(gadgetDir)})
-		if err != nil {
-			return err
-		}
-
-		if err := env.Save(); err != nil {
-			return nil
-		}
+		env := mylog.Check2(ubootenv.Create(u.envFile(), 4096, ubootenv.CreateOptions{HeaderFlagByte: u.useHeaderFlagByte(gadgetDir)}))
+		mylog.Check(env.Save())
 
 		return nil
 	}
@@ -161,10 +150,7 @@ func (u *uboot) envFile() string {
 }
 
 func (u *uboot) SetBootVars(values map[string]string) error {
-	env, err := ubootenv.OpenWithFlags(u.envFile(), ubootenv.OpenBestEffort)
-	if err != nil {
-		return err
-	}
+	env := mylog.Check2(ubootenv.OpenWithFlags(u.envFile(), ubootenv.OpenBestEffort))
 
 	dirty := false
 	for k, v := range values {
@@ -186,10 +172,7 @@ func (u *uboot) SetBootVars(values map[string]string) error {
 func (u *uboot) GetBootVars(names ...string) (map[string]string, error) {
 	out := map[string]string{}
 
-	env, err := ubootenv.OpenWithFlags(u.envFile(), ubootenv.OpenBestEffort)
-	if err != nil {
-		return nil, err
-	}
+	env := mylog.Check2(ubootenv.OpenWithFlags(u.envFile(), ubootenv.OpenBestEffort))
 
 	for _, name := range names {
 		out[name] = env.Get(name)

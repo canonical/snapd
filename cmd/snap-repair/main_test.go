@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	repair "github.com/snapcore/snapd/cmd/snap-repair"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/release"
@@ -92,13 +93,12 @@ func (r *repairSuite) Stderr() string {
 var _ = Suite(&repairSuite{})
 
 func (r *repairSuite) TestUnknownArg(c *C) {
-	err := repair.ParseArgs([]string{})
+	mylog.Check(repair.ParseArgs([]string{}))
 	c.Check(err, ErrorMatches, "Please specify one command of: list, run or show")
 }
 
 func (r *repairSuite) TestRunOnClassic(c *C) {
 	defer release.MockOnClassic(true)()
-
-	err := repair.Run()
+	mylog.Check(repair.Run())
 	c.Check(err, ErrorMatches, "cannot use snap-repair on a classic system")
 }

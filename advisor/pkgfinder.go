@@ -21,6 +21,8 @@ package advisor
 
 import (
 	"os"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 type Package struct {
@@ -30,13 +32,11 @@ type Package struct {
 }
 
 func FindPackage(pkgName string) (*Package, error) {
-	finder, err := newFinder()
+	finder := mylog.Check2(newFinder())
 	if err != nil && os.IsNotExist(err) {
 		return nil, nil
 	}
-	if err != nil {
-		return nil, err
-	}
+
 	defer finder.Close()
 
 	return finder.FindPackage(pkgName)

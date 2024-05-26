@@ -26,6 +26,7 @@ import (
 
 	"gopkg.in/yaml.v2"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/cmd/snaplock"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/features"
@@ -52,8 +53,9 @@ type refreshCommand struct {
 	PrintInhibitLock bool `long:"show-lock" description:"Show the value of the run inhibit lock held during refreshes (empty means not held)"`
 }
 
-var shortRefreshHelp = i18n.G("The refresh command prints pending refreshes and can hold back disruptive ones.")
-var longRefreshHelp = i18n.G(`
+var (
+	shortRefreshHelp = i18n.G("The refresh command prints pending refreshes and can hold back disruptive ones.")
+	longRefreshHelp  = i18n.G(`
 The refresh command prints pending refreshes of the calling snap and can hold
 back disruptive refreshes of other snaps, such as refreshes of the kernel or
 base snaps that can trigger a restart. This command can be used from the
@@ -88,6 +90,7 @@ might be held back by other snaps.
 To hold refresh for up to 90 days for the calling snap:
     $ snapctl refresh --pending --hold
 `)
+)
 
 func init() {
 	cmd := addCommand("refresh", shortRefreshHelp, longRefreshHelp, func() command {
@@ -97,10 +100,7 @@ func init() {
 }
 
 func (c *refreshCommand) Execute(args []string) error {
-	context, err := c.ensureContext()
-	if err != nil {
-		return err
-	}
+	context := mylog.Check2(c.ensureContext())
 
 	if !context.IsEphemeral() && context.HookName() != "gate-auto-refresh" {
 		return fmt.Errorf("can only be used from gate-auto-refresh hook")
@@ -126,9 +126,7 @@ func (c *refreshCommand) Execute(args []string) error {
 	// --pending --proceed is a verbose way of saying --proceed, so only
 	// print pending if proceed wasn't requested.
 	if c.Pending && !c.Proceed {
-		if err := c.printPendingInfo(); err != nil {
-			return err
-		}
+		mylog.Check(c.printPendingInfo())
 	}
 
 	switch {
@@ -173,10 +171,7 @@ func getUpdateDetails(context *hookstate.Context) (*updateDetails, error) {
 
 	st := context.State()
 
-	affected, err := snapstate.AffectedByRefreshCandidates(st)
-	if err != nil {
-		return nil, err
-	}
+	affected := mylog.Check2(snapstate.AffectedByRefreshCandidates(st))
 
 	var base, restart bool
 	if affectedInfo, ok := affected[context.InstanceName()]; ok {
@@ -185,12 +180,10 @@ func getUpdateDetails(context *hookstate.Context) (*updateDetails, error) {
 	}
 
 	var snapst snapstate.SnapState
-	if err := snapstate.Get(st, context.InstanceName(), &snapst); err != nil {
-		return nil, fmt.Errorf("internal error: cannot get snap state for %q: %v", context.InstanceName(), err)
-	}
+	mylog.Check(snapstate.Get(st, context.InstanceName(), &snapst))
 
 	var candidates map[string]*refreshCandidate
-	if err := st.Get("refresh-candidates", &candidates); err != nil && !errors.Is(err, state.ErrNoState) {
+	if mylog.Check(st.Get("refresh-candidates", &candidates)); err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 
@@ -210,10 +203,8 @@ func getUpdateDetails(context *hookstate.Context) (*updateDetails, error) {
 		Pending: pending,
 	}
 
-	hasRefreshControl, err := hasSnapRefreshControlInterface(st, context.InstanceName())
-	if err != nil {
-		return nil, err
-	}
+	hasRefreshControl := mylog.Check2(hasSnapRefreshControlInterface(st, context.InstanceName()))
+
 	if hasRefreshControl {
 		up.CohortKey = snapst.CohortKey
 	}
@@ -235,14 +226,10 @@ func getUpdateDetails(context *hookstate.Context) (*updateDetails, error) {
 }
 
 func (c *refreshCommand) printPendingInfo() error {
-	details, err := getUpdateDetails(c.context())
-	if err != nil {
-		return err
-	}
-	out, err := yaml.Marshal(details)
-	if err != nil {
-		return err
-	}
+	details := mylog.Check2(getUpdateDetails(c.context()))
+
+	out := mylog.Check2(yaml.Marshal(details))
+
 	c.printf("%s", string(out))
 	return nil
 }
@@ -259,10 +246,8 @@ func (c *refreshCommand) hold() error {
 	// cache the action so that hook handler can implement default behavior
 	ctx.Cache("action", snapstate.GateAutoRefreshHold)
 
-	affecting, err := snapstate.AffectingSnapsForAffectedByRefreshCandidates(st, ctx.InstanceName())
-	if err != nil {
-		return err
-	}
+	affecting := mylog.Check2(snapstate.AffectingSnapsForAffectedByRefreshCandidates(st, ctx.InstanceName()))
+
 	if len(affecting) == 0 {
 		// this shouldn't happen because the hook is executed during auto-refresh
 		// change which conflicts with other changes (if it happens that means
@@ -274,18 +259,15 @@ func (c *refreshCommand) hold() error {
 	// no duration specified, use maximum allowed for this gating snap.
 	var holdDuration time.Duration
 	// XXX for now snaps hold other snaps only for auto-refreshes
-	remaining, err := snapstate.HoldRefresh(st, snapstate.HoldAutoRefresh, ctx.InstanceName(), holdDuration, affecting...)
-	if err != nil {
-		// TODO: let a snap hold again once for 1h.
-		return err
-	}
+	remaining := mylog.Check2(snapstate.HoldRefresh(st, snapstate.HoldAutoRefresh, ctx.InstanceName(), holdDuration, affecting...))
+
+	// TODO: let a snap hold again once for 1h.
+
 	var details holdDetails
 	details.Hold = remaining.String()
 
-	out, err := yaml.Marshal(details)
-	if err != nil {
-		return err
-	}
+	out := mylog.Check2(yaml.Marshal(details))
+
 	c.printf("%s", string(out))
 
 	return nil
@@ -299,10 +281,8 @@ func (c *refreshCommand) proceed() error {
 	// running outside of hook
 	if ctx.IsEphemeral() {
 		st := ctx.State()
-		hasRefreshControl, err := hasSnapRefreshControlInterface(st, ctx.InstanceName())
-		if err != nil {
-			return err
-		}
+		hasRefreshControl := mylog.Check2(hasSnapRefreshControlInterface(st, ctx.InstanceName()))
+
 		if !hasRefreshControl {
 			return fmt.Errorf("cannot proceed: requires snap-refresh-control interface")
 		}
@@ -310,7 +290,7 @@ func (c *refreshCommand) proceed() error {
 		// running by the snap (we don't need to do this when running from the
 		// hook because in that case hook task won't be created if not enabled).
 		tr := config.NewTransaction(st)
-		gateAutoRefreshHook, err := features.Flag(tr, features.GateAutoRefreshHook)
+		gateAutoRefreshHook := mylog.Check2(features.Flag(tr, features.GateAutoRefreshHook))
 		if err != nil && !config.IsNoOption(err) {
 			return err
 		}
@@ -330,18 +310,14 @@ func (c *refreshCommand) proceed() error {
 }
 
 func hasSnapRefreshControlInterface(st *state.State, snapName string) (bool, error) {
-	conns, err := ifacestate.ConnectionStates(st)
-	if err != nil {
-		return false, fmt.Errorf("internal error: cannot get connections: %s", err)
-	}
+	conns := mylog.Check2(ifacestate.ConnectionStates(st))
+
 	for refStr, connState := range conns {
 		if connState.Undesired || connState.Interface != "snap-refresh-control" {
 			continue
 		}
-		connRef, err := interfaces.ParseConnRef(refStr)
-		if err != nil {
-			return false, fmt.Errorf("internal error: %s", err)
-		}
+		connRef := mylog.Check2(interfaces.ParseConnRef(refStr))
+
 		if connRef.PlugRef.Snap == snapName {
 			return true, nil
 		}
@@ -356,19 +332,13 @@ func (c *refreshCommand) printInhibitLockHint() error {
 	ctx.Unlock()
 
 	// obtain snap lock before manipulating runinhibit lock.
-	lock, err := snaplock.OpenLock(snapName)
-	if err != nil {
-		return err
-	}
-	if err := lock.Lock(); err != nil {
-		return err
-	}
+	lock := mylog.Check2(snaplock.OpenLock(snapName))
+	mylog.Check(lock.Lock())
+
 	defer lock.Unlock()
 
-	hint, _, err := runinhibit.IsLocked(snapName)
-	if err != nil {
-		return err
-	}
+	hint, _ := mylog.Check3(runinhibit.IsLocked(snapName))
+
 	c.printf("%s", hint)
 	return nil
 }

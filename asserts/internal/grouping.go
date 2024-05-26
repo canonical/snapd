@@ -25,6 +25,8 @@ import (
 	"encoding/binary"
 	"fmt"
 	"sort"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // Groupings maintain labels to identify membership to one or more groups.
@@ -101,9 +103,8 @@ func bitsetContains(g *Grouping, group uint16) bool {
 
 // AddTo adds the given group to the grouping.
 func (gr *Groupings) AddTo(g *Grouping, group uint16) error {
-	if err := gr.WithinRange(group); err != nil {
-		return err
-	}
+	mylog.Check(gr.WithinRange(group))
+
 	if group > gr.maxGroup {
 		gr.maxGroup = group
 	}
@@ -197,10 +198,8 @@ const errSerializedLabelFmt = "invalid serialized grouping label: %v"
 
 // Deserialize reconstructs a grouping out of the serialized label.
 func (gr *Groupings) Deserialize(label string) (*Grouping, error) {
-	b, err := base64.RawURLEncoding.DecodeString(label)
-	if err != nil {
-		return nil, fmt.Errorf(errSerializedLabelFmt, err)
-	}
+	b := mylog.Check2(base64.RawURLEncoding.DecodeString(label))
+
 	if len(b)%2 != 0 {
 		return nil, fmt.Errorf(errSerializedLabelFmt, "not divisible into 16-bits words")
 	}
@@ -254,9 +253,7 @@ func (gr *Groupings) Iter(g *Grouping, f func(group uint16) error) error {
 		return gr.bitsetIter(g, f)
 	}
 	for _, e := range g.elems {
-		if err := f(e); err != nil {
-			return err
-		}
+		mylog.Check(f(e))
 	}
 	return nil
 }
@@ -270,9 +267,8 @@ func (gr *Groupings) bitsetIter(g *Grouping, f func(group uint16) error) error {
 		}
 		for j := uint16(0); w != 0; j++ {
 			if w&1 != 0 {
-				if err := f(i*16 + j); err != nil {
-					return err
-				}
+				mylog.Check(f(i*16 + j))
+
 				c--
 				if c == 0 {
 					// found all elements

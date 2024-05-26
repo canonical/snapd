@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	update "github.com/snapcore/snapd/cmd/snap-update-ns"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -49,8 +50,8 @@ func (s *secureBindMountSuite) TearDownTest(c *C) {
 func (s *secureBindMountSuite) TestMount(c *C) {
 	s.sys.InsertFstatResult(`fstat 5 <ptr>`, syscall.Stat_t{})
 	s.sys.InsertFstatResult(`fstat 6 <ptr>`, syscall.Stat_t{})
-	err := update.BindMount("/source/dir", "/target/dir", syscall.MS_BIND)
-	c.Assert(err, IsNil)
+	mylog.Check(update.BindMount("/source/dir", "/target/dir", syscall.MS_BIND))
+
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 3},
 		{C: `openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 4},
@@ -73,8 +74,8 @@ func (s *secureBindMountSuite) TestMount(c *C) {
 func (s *secureBindMountSuite) TestMountRecursive(c *C) {
 	s.sys.InsertFstatResult(`fstat 5 <ptr>`, syscall.Stat_t{})
 	s.sys.InsertFstatResult(`fstat 6 <ptr>`, syscall.Stat_t{})
-	err := update.BindMount("/source/dir", "/target/dir", syscall.MS_BIND|syscall.MS_REC)
-	c.Assert(err, IsNil)
+	mylog.Check(update.BindMount("/source/dir", "/target/dir", syscall.MS_BIND|syscall.MS_REC))
+
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 3},
 		{C: `openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 4},
@@ -98,8 +99,8 @@ func (s *secureBindMountSuite) TestMountReadOnly(c *C) {
 	s.sys.InsertFstatResult(`fstat 5 <ptr>`, syscall.Stat_t{})
 	s.sys.InsertFstatResult(`fstat 6 <ptr>`, syscall.Stat_t{})
 	s.sys.InsertFstatResult(`fstat 7 <ptr>`, syscall.Stat_t{})
-	err := update.BindMount("/source/dir", "/target/dir", syscall.MS_BIND|syscall.MS_RDONLY)
-	c.Assert(err, IsNil)
+	mylog.Check(update.BindMount("/source/dir", "/target/dir", syscall.MS_BIND|syscall.MS_RDONLY))
+
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 3},
 		{C: `openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 4},
@@ -128,13 +129,13 @@ func (s *secureBindMountSuite) TestMountReadOnly(c *C) {
 }
 
 func (s *secureBindMountSuite) TestBindFlagRequired(c *C) {
-	err := update.BindMount("/source/dir", "/target/dir", syscall.MS_REC)
+	mylog.Check(update.BindMount("/source/dir", "/target/dir", syscall.MS_REC))
 	c.Assert(err, ErrorMatches, "cannot perform non-bind mount operation")
 	c.Check(s.sys.RCalls(), HasLen, 0)
 }
 
 func (s *secureBindMountSuite) TestMountReadOnlyRecursive(c *C) {
-	err := update.BindMount("/source/dir", "/target/dir", syscall.MS_BIND|syscall.MS_RDONLY|syscall.MS_REC)
+	mylog.Check(update.BindMount("/source/dir", "/target/dir", syscall.MS_BIND|syscall.MS_RDONLY|syscall.MS_REC))
 	c.Assert(err, ErrorMatches, "cannot use MS_RDONLY and MS_REC together")
 	c.Check(s.sys.RCalls(), HasLen, 0)
 }
@@ -143,7 +144,7 @@ func (s *secureBindMountSuite) TestBindMountFails(c *C) {
 	s.sys.InsertFstatResult(`fstat 5 <ptr>`, syscall.Stat_t{})
 	s.sys.InsertFstatResult(`fstat 6 <ptr>`, syscall.Stat_t{})
 	s.sys.InsertFault(`mount "/proc/self/fd/5" "/proc/self/fd/6" "" MS_BIND ""`, errTesting)
-	err := update.BindMount("/source/dir", "/target/dir", syscall.MS_BIND|syscall.MS_RDONLY)
+	mylog.Check(update.BindMount("/source/dir", "/target/dir", syscall.MS_BIND|syscall.MS_RDONLY))
 	c.Assert(err, ErrorMatches, "testing")
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 3},
@@ -169,7 +170,7 @@ func (s *secureBindMountSuite) TestRemountReadOnlyFails(c *C) {
 	s.sys.InsertFstatResult(`fstat 6 <ptr>`, syscall.Stat_t{})
 	s.sys.InsertFstatResult(`fstat 7 <ptr>`, syscall.Stat_t{})
 	s.sys.InsertFault(`mount "none" "/proc/self/fd/7" "" MS_REMOUNT|MS_BIND|MS_RDONLY ""`, errTesting)
-	err := update.BindMount("/source/dir", "/target/dir", syscall.MS_BIND|syscall.MS_RDONLY)
+	mylog.Check(update.BindMount("/source/dir", "/target/dir", syscall.MS_BIND|syscall.MS_RDONLY))
 	c.Assert(err, ErrorMatches, "testing")
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 3},

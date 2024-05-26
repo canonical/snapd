@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	seccomp "github.com/snapcore/snapd/sandbox/seccomp"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -44,7 +45,6 @@ func fromCmd(c *C, cmd *testutil.MockCmd) func(string) (string, error) {
 }
 
 func (s *compilerSuite) TestVersionInfoValidate(c *C) {
-
 	for i, tc := range []struct {
 		v   string
 		exp string
@@ -87,19 +87,19 @@ func (s *compilerSuite) TestVersionInfoValidate(c *C) {
 	} {
 		c.Logf("tc: %v", i)
 		cmd := testutil.MockCommand(c, "snap-seccomp", fmt.Sprintf("echo \"%s\"", tc.v))
-		compiler, err := seccomp.NewCompiler(fromCmd(c, cmd))
-		c.Assert(err, IsNil)
+		compiler := mylog.Check2(seccomp.NewCompiler(fromCmd(c, cmd)))
 
-		v, err := compiler.VersionInfo()
+
+		v := mylog.Check2(compiler.VersionInfo())
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err)
 			c.Check(v, Equals, seccomp.VersionInfo(""))
 		} else {
 			c.Check(err, IsNil)
 			c.Check(v, Equals, seccomp.VersionInfo(tc.exp))
-			_, err := seccomp.VersionInfo(v).LibseccompVersion()
+			_ := mylog.Check2(seccomp.VersionInfo(v).LibseccompVersion())
 			c.Check(err, IsNil)
-			_, err = seccomp.VersionInfo(v).Features()
+			_ = mylog.Check2(seccomp.VersionInfo(v).Features())
 			c.Check(err, IsNil)
 		}
 		c.Check(cmd.Calls(), DeepEquals, [][]string{
@@ -107,14 +107,13 @@ func (s *compilerSuite) TestVersionInfoValidate(c *C) {
 		})
 		cmd.Restore()
 	}
-
 }
 
 func (s *compilerSuite) TestCompilerVersionInfo(c *C) {
 	const vi = "7ac348ac9c934269214b00d1692dfa50d5d4a157 2.3.3 03e996919907bc7163bc83b95bca0ecab31300f20dfa365ea14047c698340e7c bpf-actlog"
 	cmd := testutil.MockCommand(c, "snap-seccomp", fmt.Sprintf(`echo "%s"`, vi))
 
-	vi1, err := seccomp.CompilerVersionInfo(fromCmd(c, cmd))
+	vi1 := mylog.Check2(seccomp.CompilerVersionInfo(fromCmd(c, cmd)))
 	c.Check(err, IsNil)
 	c.Check(vi1, Equals, seccomp.VersionInfo(vi))
 }
@@ -122,10 +121,10 @@ func (s *compilerSuite) TestCompilerVersionInfo(c *C) {
 func (s *compilerSuite) TestEmptyVersionInfo(c *C) {
 	vi := seccomp.VersionInfo("")
 
-	_, err := vi.LibseccompVersion()
+	_ := mylog.Check2(vi.LibseccompVersion())
 	c.Check(err, ErrorMatches, "empty version-info")
 
-	_, err = vi.Features()
+	_ = mylog.Check2(vi.Features())
 	c.Check(err, ErrorMatches, "empty version-info")
 }
 
@@ -135,10 +134,10 @@ if [ "$1" = "version-info" ]; then echo "unknown command version-info"; exit 1; 
 exit 0
 `)
 	defer cmd.Restore()
-	compiler, err := seccomp.NewCompiler(fromCmd(c, cmd))
-	c.Assert(err, IsNil)
+	compiler := mylog.Check2(seccomp.NewCompiler(fromCmd(c, cmd)))
 
-	_, err = compiler.VersionInfo()
+
+	_ = mylog.Check2(compiler.VersionInfo())
 	c.Assert(err, ErrorMatches, "unknown command version-info")
 	c.Check(cmd.Calls(), DeepEquals, [][]string{
 		{"snap-seccomp", "version-info"},
@@ -151,11 +150,10 @@ if [ "$1" = "compile" ]; then exit 0; fi
 exit 1
 `)
 	defer cmd.Restore()
-	compiler, err := seccomp.NewCompiler(fromCmd(c, cmd))
-	c.Assert(err, IsNil)
+	compiler := mylog.Check2(seccomp.NewCompiler(fromCmd(c, cmd)))
 
-	err = compiler.Compile("foo.src", "foo.bin")
-	c.Assert(err, IsNil)
+	mylog.Check(compiler.Compile("foo.src", "foo.bin"))
+
 	c.Check(cmd.Calls(), DeepEquals, [][]string{
 		{"snap-seccomp", "compile", "foo.src", "foo.bin"},
 	})
@@ -167,10 +165,9 @@ if [ "$1" = "compile" ]; then echo "i will not"; exit 1; fi
 exit 0
 `)
 	defer cmd.Restore()
-	compiler, err := seccomp.NewCompiler(fromCmd(c, cmd))
-	c.Assert(err, IsNil)
+	compiler := mylog.Check2(seccomp.NewCompiler(fromCmd(c, cmd)))
 
-	err = compiler.Compile("foo.src", "foo.bin")
+	mylog.Check(compiler.Compile("foo.src", "foo.bin"))
 	c.Assert(err, ErrorMatches, "i will not")
 	c.Check(cmd.Calls(), DeepEquals, [][]string{
 		{"snap-seccomp", "compile", "foo.src", "foo.bin"},
@@ -178,7 +175,7 @@ exit 0
 }
 
 func (s *compilerSuite) TestCompilerNewUnhappy(c *C) {
-	compiler, err := seccomp.NewCompiler(func(name string) (string, error) { return "", errors.New("failed") })
+	compiler := mylog.Check2(seccomp.NewCompiler(func(name string) (string, error) { return "", errors.New("failed") }))
 	c.Assert(err, ErrorMatches, "failed")
 	c.Assert(compiler, IsNil)
 
@@ -186,11 +183,11 @@ func (s *compilerSuite) TestCompilerNewUnhappy(c *C) {
 }
 
 func (s *compilerSuite) TestLibseccompVersion(c *C) {
-	v, err := seccomp.VersionInfo("a 2.4.1 b -").LibseccompVersion()
-	c.Assert(err, IsNil)
+	v := mylog.Check2(seccomp.VersionInfo("a 2.4.1 b -").LibseccompVersion())
+
 	c.Check(v, Equals, "2.4.1")
 
-	v, err = seccomp.VersionInfo("a phooey b -").LibseccompVersion()
+	v = mylog.Check2(seccomp.VersionInfo("a phooey b -").LibseccompVersion())
 	c.Assert(err, ErrorMatches, "invalid format of version-info: .*")
 	c.Check(v, Equals, "")
 }
@@ -208,9 +205,9 @@ func (s *compilerSuite) TestGetGoSeccompFeatures(c *C) {
 		// invalid
 		{"a 2.4.1 b b@rf", "", "invalid format of version-info: .*"},
 	} {
-		v, err := seccomp.VersionInfo(tc.v).Features()
+		v := mylog.Check2(seccomp.VersionInfo(tc.v).Features())
 		if err == nil {
-			c.Assert(err, IsNil)
+
 			c.Check(v, Equals, tc.exp)
 		} else {
 			c.Assert(err, ErrorMatches, "invalid format of version-info: .*")
@@ -236,9 +233,9 @@ func (s *compilerSuite) TestHasFeature(c *C) {
 		// invalid
 		{"a 1.2.3 b b@rf", "b@rf", false, "invalid format of version-info: .*"},
 	} {
-		v, err := seccomp.VersionInfo(tc.v).HasFeature(tc.f)
+		v := mylog.Check2(seccomp.VersionInfo(tc.v).HasFeature(tc.f))
 		if err == nil {
-			c.Assert(err, IsNil)
+
 			c.Check(v, Equals, tc.exp)
 		} else {
 			c.Assert(err, ErrorMatches, "invalid format of version-info: .*")
@@ -265,9 +262,9 @@ func (s *compilerSuite) TestSupportsRobustArgumentFiltering(c *C) {
 		// invalid
 		{"a 1.2.3 b b@rf", "invalid format of version-info: .*"},
 	} {
-		err := seccomp.VersionInfo(tc.v).SupportsRobustArgumentFiltering()
+		mylog.Check(seccomp.VersionInfo(tc.v).SupportsRobustArgumentFiltering())
 		if tc.err == "" {
-			c.Assert(err, IsNil)
+
 		} else {
 			c.Assert(err, ErrorMatches, tc.err)
 		}
@@ -282,7 +279,7 @@ echo "this goes to stderr" >&2
 echo "%s"
 `, vi))
 
-	vi1, err := seccomp.CompilerVersionInfo(fromCmd(c, cmd))
+	vi1 := mylog.Check2(seccomp.CompilerVersionInfo(fromCmd(c, cmd)))
 	c.Check(err, IsNil)
 	c.Check(vi1, Equals, seccomp.VersionInfo(vi))
 }
@@ -294,6 +291,6 @@ echo "this goes to stderr" >&2
 echo "this goes to stdout"
 exit 1`)
 
-	_, err := seccomp.CompilerVersionInfo(fromCmd(c, cmd))
+	_ := mylog.Check2(seccomp.CompilerVersionInfo(fromCmd(c, cmd)))
 	c.Assert(err, ErrorMatches, "this goes to stderr")
 }

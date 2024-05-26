@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 	. "gopkg.in/check.v1"
 
@@ -88,8 +89,8 @@ func (s *SnapSuite) TestDisconnectExplicitEverything(c *C) {
 			c.Fatalf("unexpected path %q", r.URL.Path)
 		}
 	})
-	rest, err := Parser(Client()).ParseArgs([]string{"disconnect", "producer:plug", "consumer:slot"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(Parser(Client()).ParseArgs([]string{"disconnect", "producer:plug", "consumer:slot"}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	c.Assert(s.Stdout(), Equals, "")
 	c.Assert(s.Stderr(), Equals, "")
@@ -125,8 +126,8 @@ func (s *SnapSuite) TestDisconnectWithForgetFlag(c *C) {
 			c.Fatalf("unexpected path %q", r.URL.Path)
 		}
 	})
-	rest, err := Parser(Client()).ParseArgs([]string{"disconnect", "--forget", "consumer:plug", "producer:slot"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(Parser(Client()).ParseArgs([]string{"disconnect", "--forget", "consumer:plug", "producer:slot"}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	c.Assert(s.Stdout(), Equals, "")
 	c.Assert(s.Stderr(), Equals, "")
@@ -161,8 +162,8 @@ func (s *SnapSuite) TestDisconnectEverythingFromSpecificSlot(c *C) {
 			c.Fatalf("unexpected path %q", r.URL.Path)
 		}
 	})
-	rest, err := Parser(Client()).ParseArgs([]string{"disconnect", "consumer:slot"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(Parser(Client()).ParseArgs([]string{"disconnect", "consumer:slot"}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	c.Assert(s.Stdout(), Equals, "")
 	c.Assert(s.Stderr(), Equals, "")
@@ -197,8 +198,8 @@ func (s *SnapSuite) TestDisconnectEverythingFromSpecificSnapPlugOrSlot(c *C) {
 			c.Fatalf("unexpected path %q", r.URL.Path)
 		}
 	})
-	rest, err := Parser(Client()).ParseArgs([]string{"disconnect", "consumer:plug-or-slot"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(Parser(Client()).ParseArgs([]string{"disconnect", "consumer:plug-or-slot"}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	c.Assert(s.Stdout(), Equals, "")
 	c.Assert(s.Stderr(), Equals, "")
@@ -208,7 +209,7 @@ func (s *SnapSuite) TestDisconnectEverythingFromSpecificSnap(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Fatalf("expected nothing to reach the server")
 	})
-	rest, err := Parser(Client()).ParseArgs([]string{"disconnect", "consumer"})
+	rest := mylog.Check2(Parser(Client()).ParseArgs([]string{"disconnect", "consumer"}))
 	c.Assert(err, ErrorMatches, `invalid value: "consumer" \(want snap:name or :name\)`)
 	c.Assert(rest, DeepEquals, []string{"consumer"})
 	c.Assert(s.Stdout(), Equals, "")
@@ -238,32 +239,32 @@ func (s *SnapSuite) TestDisconnectCompletion(c *C) {
 	}
 
 	expected = []flags.Completion{{Item: "canonical-pi2:"}, {Item: "core:"}, {Item: "keyboard-lights:"}}
-	_, err := parser.ParseArgs([]string{"disconnect", ""})
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(parser.ParseArgs([]string{"disconnect", ""}))
+
 
 	expected = []flags.Completion{{Item: "canonical-pi2:pin-13", Description: "slot"}}
-	_, err = parser.ParseArgs([]string{"disconnect", "ca"})
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(parser.ParseArgs([]string{"disconnect", "ca"}))
+
 
 	expected = []flags.Completion{{Item: ":core-support", Description: "slot"}, {Item: ":core-support-plug", Description: "plug"}}
-	_, err = parser.ParseArgs([]string{"disconnect", ":"})
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(parser.ParseArgs([]string{"disconnect", ":"}))
+
 
 	expected = []flags.Completion{{Item: "keyboard-lights:capslock-led", Description: "plug"}}
-	_, err = parser.ParseArgs([]string{"disconnect", "k"})
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(parser.ParseArgs([]string{"disconnect", "k"}))
+
 
 	expected = []flags.Completion{{Item: "canonical-pi2:"}, {Item: "core:"}}
-	_, err = parser.ParseArgs([]string{"disconnect", "keyboard-lights:capslock-led", ""})
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(parser.ParseArgs([]string{"disconnect", "keyboard-lights:capslock-led", ""}))
+
 
 	expected = []flags.Completion{{Item: "canonical-pi2:pin-13", Description: "slot"}}
-	_, err = parser.ParseArgs([]string{"disconnect", "keyboard-lights:capslock-led", "ca"})
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(parser.ParseArgs([]string{"disconnect", "keyboard-lights:capslock-led", "ca"}))
+
 
 	expected = []flags.Completion{{Item: ":core-support", Description: "slot"}}
-	_, err = parser.ParseArgs([]string{"disconnect", ":core-support-plug", ":"})
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(parser.ParseArgs([]string{"disconnect", ":core-support-plug", ":"}))
+
 
 	c.Assert(s.Stdout(), Equals, "")
 	c.Assert(s.Stderr(), Equals, "")

@@ -25,13 +25,12 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 )
 
-var (
-	_ = Suite(&serialSuite{})
-)
+var _ = Suite(&serialSuite{})
 
 type serialSuite struct {
 	ts            time.Time
@@ -45,8 +44,8 @@ func (ss *serialSuite) SetUpSuite(c *C) {
 	ss.tsLine = "timestamp: " + ss.ts.Format(time.RFC3339) + "\n"
 
 	ss.deviceKey = testPrivKey2
-	encodedPubKey, err := asserts.EncodePublicKey(ss.deviceKey.PublicKey())
-	c.Assert(err, IsNil)
+	encodedPubKey := mylog.Check2(asserts.EncodePublicKey(ss.deviceKey.PublicKey()))
+
 	ss.encodedDevKey = string(encodedPubKey)
 }
 
@@ -68,8 +67,8 @@ func (ss *serialSuite) TestDecodeOK(c *C) {
 	encoded := strings.Replace(serialExample, "TSLINE", ss.tsLine, 1)
 	encoded = strings.Replace(encoded, "DEVICEKEY", strings.Replace(ss.encodedDevKey, "\n", "\n    ", -1), 1)
 	encoded = strings.Replace(encoded, "KEYID", ss.deviceKey.PublicKey().ID(), 1)
-	a, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	c.Check(a.Type(), Equals, asserts.SerialType)
 	serial := a.(*asserts.Serial)
 	c.Check(serial.AuthorityID(), Equals, "brand-id1")
@@ -111,7 +110,7 @@ func (ss *serialSuite) TestDecodeInvalid(c *C) {
 		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
 		invalid = strings.Replace(invalid, "DEVICEKEY", strings.Replace(ss.encodedDevKey, "\n", "\n    ", -1), 1)
 		invalid = strings.Replace(invalid, "KEYID", ss.deviceKey.PublicKey().ID(), 1)
-		_, err := asserts.Decode([]byte(invalid))
+		_ := mylog.Check2(asserts.Decode([]byte(invalid)))
 		c.Check(err, ErrorMatches, serialErrPrefix+test.expectedErr)
 	}
 }
@@ -121,7 +120,7 @@ func (ss *serialSuite) TestDecodeKeyIDMismatch(c *C) {
 	invalid = strings.Replace(invalid, "DEVICEKEY", strings.Replace(ss.encodedDevKey, "\n", "\n    ", -1), 1)
 	invalid = strings.Replace(invalid, "KEYID", "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij", 1)
 
-	_, err := asserts.Decode([]byte(invalid))
+	_ := mylog.Check2(asserts.Decode([]byte(invalid)))
 	c.Check(err, ErrorMatches, serialErrPrefix+"device key does not match provided key id")
 }
 
@@ -129,8 +128,8 @@ func (ss *serialSuite) TestSerialCheck(c *C) {
 	encoded := strings.Replace(serialExample, "TSLINE", ss.tsLine, 1)
 	encoded = strings.Replace(encoded, "DEVICEKEY", strings.Replace(ss.encodedDevKey, "\n", "\n    ", -1), 1)
 	encoded = strings.Replace(encoded, "KEYID", ss.deviceKey.PublicKey().ID(), 1)
-	ex, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	ex := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 
 	storeDB, db := makeStoreAndCheckDB(c)
 	brandDB := setup3rdPartySigning(c, "brand1", storeDB, db)
@@ -177,10 +176,10 @@ func (ss *serialSuite) TestSerialCheck(c *C) {
 			if len(test.serialAuth) != 0 {
 				modHeaders["serial-authority"] = test.serialAuth
 			}
-			model, err := brandDB.Sign(asserts.ModelType, modHeaders, nil, "")
-			c.Assert(err, IsNil)
-			err = checkDB.Add(model)
-			c.Assert(err, IsNil)
+			model := mylog.Check2(brandDB.Sign(asserts.ModelType, modHeaders, nil, ""))
+
+			mylog.Check(checkDB.Add(model))
+
 		}
 
 		headers := ex.Headers()
@@ -191,13 +190,9 @@ func (ss *serialSuite) TestSerialCheck(c *C) {
 			headers["authority-id"] = brandID
 		}
 		headers["timestamp"] = time.Now().Format(time.RFC3339)
-		serial, err := test.signDB.Sign(asserts.SerialType, headers, nil, test.keyID)
+		serial := mylog.Check2(test.signDB.Sign(asserts.SerialType, headers, nil, test.keyID))
 		c.Check(err, IsNil)
-		if err != nil {
-			continue
-		}
-
-		err = checkDB.Check(serial)
+		mylog.Check(checkDB.Check(serial))
 		if test.expectedErr == "" {
 			c.Check(err, IsNil)
 		} else {
@@ -207,24 +202,25 @@ func (ss *serialSuite) TestSerialCheck(c *C) {
 }
 
 func (ss *serialSuite) TestSerialRequestHappy(c *C) {
-	sreq, err := asserts.SignWithoutAuthority(asserts.SerialRequestType,
+	sreq := mylog.Check2(asserts.SignWithoutAuthority(asserts.SerialRequestType,
 		map[string]interface{}{
 			"brand-id":   "brand-id1",
 			"model":      "baz-3000",
 			"device-key": ss.encodedDevKey,
 			"request-id": "REQID",
-		}, []byte("HW-DETAILS"), ss.deviceKey)
-	c.Assert(err, IsNil)
+		}, []byte("HW-DETAILS"), ss.deviceKey))
+
 
 	// roundtrip
-	a, err := asserts.Decode(asserts.Encode(sreq))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode(asserts.Encode(sreq)))
+
 
 	sreq2, ok := a.(*asserts.SerialRequest)
 	c.Assert(ok, Equals, true)
+	mylog.
 
-	// standalone signature check
-	err = asserts.SignatureCheck(sreq2, sreq2.DeviceKey())
+		// standalone signature check
+		Check(asserts.SignatureCheck(sreq2, sreq2.DeviceKey()))
 	c.Check(err, IsNil)
 
 	c.Check(sreq2.BrandID(), Equals, "brand-id1")
@@ -235,19 +231,19 @@ func (ss *serialSuite) TestSerialRequestHappy(c *C) {
 }
 
 func (ss *serialSuite) TestSerialRequestHappyOptionalSerial(c *C) {
-	sreq, err := asserts.SignWithoutAuthority(asserts.SerialRequestType,
+	sreq := mylog.Check2(asserts.SignWithoutAuthority(asserts.SerialRequestType,
 		map[string]interface{}{
 			"brand-id":   "brand-id1",
 			"model":      "baz-3000",
 			"serial":     "pserial",
 			"device-key": ss.encodedDevKey,
 			"request-id": "REQID",
-		}, []byte("HW-DETAILS"), ss.deviceKey)
-	c.Assert(err, IsNil)
+		}, []byte("HW-DETAILS"), ss.deviceKey))
+
 
 	// roundtrip
-	a, err := asserts.Decode(asserts.Encode(sreq))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode(asserts.Encode(sreq)))
+
 
 	sreq2, ok := a.(*asserts.SerialRequest)
 	c.Assert(ok, Equals, true)
@@ -286,7 +282,7 @@ func (ss *serialSuite) TestSerialRequestDecodeInvalid(c *C) {
 		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
 		invalid = strings.Replace(invalid, "DEVICEKEY", strings.Replace(ss.encodedDevKey, "\n", "\n    ", -1), 1)
 
-		_, err := asserts.Decode([]byte(invalid))
+		_ := mylog.Check2(asserts.Decode([]byte(invalid)))
 		c.Check(err, ErrorMatches, serialReqErrPrefix+test.expectedErr)
 	}
 }
@@ -303,31 +299,32 @@ func (ss *serialSuite) TestSerialRequestDecodeKeyIDMismatch(c *C) {
 		"\n\n" +
 		"AXNpZw=="
 
-	_, err := asserts.Decode([]byte(invalid))
+	_ := mylog.Check2(asserts.Decode([]byte(invalid)))
 	c.Check(err, ErrorMatches, "assertion serial-request: device key does not match included signing key id")
 }
 
 func (ss *serialSuite) TestDeviceSessionRequest(c *C) {
 	ts := time.Now().UTC().Round(time.Second)
-	sessReq, err := asserts.SignWithoutAuthority(asserts.DeviceSessionRequestType,
+	sessReq := mylog.Check2(asserts.SignWithoutAuthority(asserts.DeviceSessionRequestType,
 		map[string]interface{}{
 			"brand-id":  "brand-id1",
 			"model":     "baz-3000",
 			"serial":    "99990",
 			"nonce":     "NONCE",
 			"timestamp": ts.Format(time.RFC3339),
-		}, nil, ss.deviceKey)
-	c.Assert(err, IsNil)
+		}, nil, ss.deviceKey))
+
 
 	// roundtrip
-	a, err := asserts.Decode(asserts.Encode(sessReq))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode(asserts.Encode(sessReq)))
+
 
 	sessReq2, ok := a.(*asserts.DeviceSessionRequest)
 	c.Assert(ok, Equals, true)
+	mylog.
 
-	// standalone signature check
-	err = asserts.SignatureCheck(sessReq2, ss.deviceKey.PublicKey())
+		// standalone signature check
+		Check(asserts.SignatureCheck(sessReq2, ss.deviceKey.PublicKey()))
 	c.Check(err, IsNil)
 
 	c.Check(sessReq2.BrandID(), Equals, "brand-id1")
@@ -359,7 +356,7 @@ func (ss *serialSuite) TestDeviceSessionRequestDecodeInvalid(c *C) {
 
 	for _, test := range invalidTests {
 		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
-		_, err := asserts.Decode([]byte(invalid))
+		_ := mylog.Check2(asserts.Decode([]byte(invalid)))
 		c.Check(err, ErrorMatches, deviceSessReqErrPrefix+test.expectedErr)
 	}
 }

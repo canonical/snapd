@@ -26,6 +26,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -68,10 +69,8 @@ func splitList(value string) []string {
 
 // Read parses a desktop entry file.
 func Read(filename string) (*DesktopEntry, error) {
-	f, err := os.Open(filename)
-	if err != nil {
-		return nil, err
-	}
+	f := mylog.Check2(os.Open(filename))
+
 	defer f.Close()
 	return parse(filename, f)
 }

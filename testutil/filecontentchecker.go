@@ -26,6 +26,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"gopkg.in/check.v1"
 )
 
@@ -67,20 +68,16 @@ func (c *fileContentChecker) Check(params []interface{}, names []string) (result
 		if !ok {
 			return false, "Regex must be a string"
 		}
-		rx, err := regexp.Compile(regexpr)
-		if err != nil {
-			return false, fmt.Sprintf("Cannot compile regexp %q: %v", regexpr, err)
-		}
+		rx := mylog.Check2(regexp.Compile(regexpr))
+
 		params[1] = rx
 	}
 	return fileContentCheck(filename, params[1], c.exact)
 }
 
 func fileContentCheck(filename string, content interface{}, exact bool) (result bool, error string) {
-	buf, err := os.ReadFile(filename)
-	if err != nil {
-		return false, fmt.Sprintf("Cannot read file %q: %v", filename, err)
-	}
+	buf := mylog.Check2(os.ReadFile(filename))
+
 	presentableBuf := string(buf)
 	if exact {
 		switch content := content.(type) {
@@ -93,10 +90,8 @@ func fileContentCheck(filename string, content interface{}, exact bool) (result 
 			result = presentableBuf == content.String()
 		case FileContentRef:
 			referenceFilename := string(content)
-			reference, err := os.ReadFile(referenceFilename)
-			if err != nil {
-				return false, fmt.Sprintf("Cannot read reference file %q: %v", referenceFilename, err)
-			}
+			reference := mylog.Check2(os.ReadFile(referenceFilename))
+
 			result = bytes.Equal(buf, reference)
 			if !result {
 				error = fmt.Sprintf("Failed to match contents with reference file %q:\n%v", referenceFilename, presentableBuf)

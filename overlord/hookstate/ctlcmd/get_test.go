@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -59,9 +60,8 @@ func (s *getSuite) SetUpTest(c *C) {
 	task := state.NewTask("test-task", "my test task")
 	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
 
-	var err error
-	s.mockContext, err = hookstate.NewContext(task, task.State(), setup, s.mockHandler, "")
-	c.Assert(err, IsNil)
+	s.mockContext = mylog.Check2(hookstate.NewContext(task, task.State(), setup, s.mockHandler, ""))
+
 
 	// Initialize configuration
 	tr := config.NewTransaction(state)
@@ -127,8 +127,7 @@ func (s *getSuite) TestGetTests(c *C) {
 		task := state.NewTask("test-task", "my test task")
 		setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
 
-		var err error
-		mockContext, err := hookstate.NewContext(task, task.State(), setup, mockHandler, "")
+		mockContext := mylog.Check2(hookstate.NewContext(task, task.State(), setup, mockHandler, ""))
 		c.Check(err, IsNil)
 
 		// Initialize configuration
@@ -139,7 +138,7 @@ func (s *getSuite) TestGetTests(c *C) {
 
 		state.Unlock()
 
-		stdout, stderr, err := ctlcmd.Run(mockContext, strings.Fields(test.args), 0)
+		stdout, stderr := mylog.Check3(ctlcmd.Run(mockContext, strings.Fields(test.args), 0))
 		if test.error != "" {
 			c.Check(err, ErrorMatches, test.error)
 		} else {
@@ -188,8 +187,7 @@ func (s *getSuite) TestGetPartialNestedStruct(c *C) {
 		task := state.NewTask("test-task", "my test task")
 		setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
 
-		var err error
-		mockContext, err := hookstate.NewContext(task, task.State(), setup, mockHandler, "")
+		mockContext := mylog.Check2(hookstate.NewContext(task, task.State(), setup, mockHandler, ""))
 		c.Check(err, IsNil)
 
 		// Initialize configuration
@@ -204,8 +202,8 @@ func (s *getSuite) TestGetPartialNestedStruct(c *C) {
 		tr2.Set("test-snap", test.setPath, test.setValue)
 		mockContext.Unlock()
 
-		stdout, stderr, err := ctlcmd.Run(mockContext, strings.Fields(test.args), 0)
-		c.Assert(err, IsNil)
+		stdout, stderr := mylog.Check3(ctlcmd.Run(mockContext, strings.Fields(test.args), 0))
+
 		c.Assert(string(stderr), Equals, "")
 		c.Check(string(stdout), Equals, test.stdout)
 
@@ -237,24 +235,24 @@ func (s *getSuite) TestGetRegularUser(c *C) {
 	state.Unlock()
 
 	mockHandler := hooktest.NewMockHandler()
-	mockContext, err := hookstate.NewContext(task, task.State(), setup, mockHandler, "")
-	c.Assert(err, IsNil)
-	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"get", "test-key1"}, 1000)
-	c.Assert(err, IsNil)
+	mockContext := mylog.Check2(hookstate.NewContext(task, task.State(), setup, mockHandler, ""))
+
+	stdout, stderr := mylog.Check3(ctlcmd.Run(mockContext, []string{"get", "test-key1"}, 1000))
+
 	c.Assert(string(stdout), Equals, "test-value1\n")
 	c.Assert(string(stderr), Equals, "")
 }
 
 func (s *getSuite) TestCommandWithoutContext(c *C) {
-	_, _, err := ctlcmd.Run(nil, []string{"get", "foo"}, 0)
+	_, _ := mylog.Check3(ctlcmd.Run(nil, []string{"get", "foo"}, 0))
 	c.Check(err, ErrorMatches, `cannot invoke snapctl operation commands \(here "get"\) from outside of a snap`)
 }
 
 func (s *setSuite) TestNull(c *C) {
-	_, _, err := ctlcmd.Run(s.mockContext, []string{"set", "foo=null"}, 0)
+	_, _ := mylog.Check3(ctlcmd.Run(s.mockContext, []string{"set", "foo=null"}, 0))
 	c.Check(err, IsNil)
 
-	_, _, err = ctlcmd.Run(s.mockContext, []string{"set", `bar=[null]`}, 0)
+	_, _ = mylog.Check3(ctlcmd.Run(s.mockContext, []string{"set", `bar=[null]`}, 0))
 	c.Check(err, IsNil)
 
 	// Notify the context that we're done. This should save the config.
@@ -303,15 +301,13 @@ func (s *getAttrSuite) SetUpTest(c *C) {
 	ch.AddTask(attrsTask)
 	state.Unlock()
 
-	var err error
-
 	// setup plug hook task
 	state.Lock()
 	plugHookTask := state.NewTask("run-hook", "my test task")
 	state.Unlock()
 	plugTaskSetup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "connect-plug-aplug"}
-	s.mockPlugHookContext, err = hookstate.NewContext(plugHookTask, plugHookTask.State(), plugTaskSetup, s.mockHandler, "")
-	c.Assert(err, IsNil)
+	s.mockPlugHookContext = mylog.Check2(hookstate.NewContext(plugHookTask, plugHookTask.State(), plugTaskSetup, s.mockHandler, ""))
+
 
 	s.mockPlugHookContext.Lock()
 	s.mockPlugHookContext.Set("attrs-task", attrsTask.ID())
@@ -325,8 +321,8 @@ func (s *getAttrSuite) SetUpTest(c *C) {
 	slotHookTask := state.NewTask("run-hook", "my test task")
 	state.Unlock()
 	slotTaskSetup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "connect-slot-aplug"}
-	s.mockSlotHookContext, err = hookstate.NewContext(slotHookTask, slotHookTask.State(), slotTaskSetup, s.mockHandler, "")
-	c.Assert(err, IsNil)
+	s.mockSlotHookContext = mylog.Check2(hookstate.NewContext(slotHookTask, slotHookTask.State(), slotTaskSetup, s.mockHandler, ""))
+
 
 	s.mockSlotHookContext.Lock()
 	s.mockSlotHookContext.Set("attrs-task", attrsTask.ID())
@@ -385,7 +381,7 @@ func (s *getAttrSuite) TestPlugHookTests(c *C) {
 	for _, test := range getPlugAttributesTests {
 		c.Logf("Test: %s", test.args)
 
-		stdout, stderr, err := ctlcmd.Run(s.mockPlugHookContext, strings.Fields(test.args), 0)
+		stdout, stderr := mylog.Check3(ctlcmd.Run(s.mockPlugHookContext, strings.Fields(test.args), 0))
 		if test.error != "" {
 			c.Check(err, ErrorMatches, test.error)
 		} else {
@@ -426,7 +422,7 @@ func (s *getAttrSuite) TestSlotHookTests(c *C) {
 	for _, test := range getSlotAttributesTests {
 		c.Logf("Test: %s", test.args)
 
-		stdout, stderr, err := ctlcmd.Run(s.mockSlotHookContext, strings.Fields(test.args), 0)
+		stdout, stderr := mylog.Check3(ctlcmd.Run(s.mockSlotHookContext, strings.Fields(test.args), 0))
 		if test.error != "" {
 			c.Check(err, ErrorMatches, test.error)
 		} else {

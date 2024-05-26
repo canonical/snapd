@@ -24,6 +24,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
@@ -37,12 +38,14 @@ type cmdRecovery struct {
 	ShowKeys bool `long:"show-keys"`
 }
 
-var shortRecoveryHelp = i18n.G("List available recovery systems")
-var longRecoveryHelp = i18n.G(`
+var (
+	shortRecoveryHelp = i18n.G("List available recovery systems")
+	longRecoveryHelp  = i18n.G(`
 The recovery command lists the available recovery systems.
 
 With --show-keys it displays recovery keys that can be used to unlock the encrypted partitions if the device-specific automatic unlocking does not work.
 `)
+)
 
 func init() {
 	addCommand("recovery", shortRecoveryHelp, longRecoveryHelp, func() flags.Commander {
@@ -75,10 +78,8 @@ func notesForSystem(sys *client.System) string {
 
 func (x *cmdRecovery) showKeys(w io.Writer) error {
 	var srk *client.SystemRecoveryKeysResponse
-	err := x.client.SystemRecoveryKeys(&srk)
-	if err != nil {
-		return err
-	}
+	mylog.Check(x.client.SystemRecoveryKeys(&srk))
+
 	fmt.Fprintf(w, "recovery:\t%s\n", srk.RecoveryKey)
 	if srk.ReinstallKey != "" {
 		fmt.Fprintf(w, "reinstall:\t%s\n", srk.ReinstallKey)
@@ -99,10 +100,8 @@ func (x *cmdRecovery) Execute(args []string) error {
 		return x.showKeys(w)
 	}
 
-	systems, err := x.client.ListSystems()
-	if err != nil {
-		return err
-	}
+	systems := mylog.Check2(x.client.ListSystems())
+
 	if len(systems) == 0 {
 		fmt.Fprintf(Stderr, i18n.G("No recovery systems available.\n"))
 		return nil

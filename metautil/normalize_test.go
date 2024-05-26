@@ -24,11 +24,11 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/metautil"
 )
 
-type normalizeTestSuite struct {
-}
+type normalizeTestSuite struct{}
 
 var _ = Suite(&normalizeTestSuite{})
 
@@ -60,9 +60,9 @@ func (s *normalizeTestSuite) TestNormalize(c *C) {
 		{v: map[string]interface{}{"foo": uint(1)}, err: "invalid scalar: 1"},
 		{v: map[interface{}]interface{}{"foo": uint(1)}, err: "invalid scalar: 1"},
 	} {
-		res, err := metautil.NormalizeValue(tc.v)
+		res := mylog.Check2(metautil.NormalizeValue(tc.v))
 		if tc.err == "" {
-			c.Assert(err, IsNil)
+
 			c.Assert(res, DeepEquals, tc.exp)
 		} else {
 			c.Assert(err, ErrorMatches, tc.err)

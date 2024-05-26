@@ -26,9 +26,7 @@ import (
 
 type InternalSnap16 = internal.Snap16
 
-var (
-	LoadAssertions = loadAssertions
-)
+var LoadAssertions = loadAssertions
 
 func MockOpen(f func(seedDir, label string) (Seed, error)) (restore func()) {
 	r := testutil.Backup(&open)

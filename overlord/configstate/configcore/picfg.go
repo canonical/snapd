@@ -27,6 +27,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
@@ -74,16 +75,11 @@ func init() {
 }
 
 func updatePiConfig(path string, config map[string]string) error {
-	f, err := os.Open(path)
-	if err != nil {
-		return err
-	}
+	f := mylog.Check2(os.Open(path))
+
 	defer f.Close()
 
-	toWrite, err := updateKeyValueStream(f, piConfigKeys, config)
-	if err != nil {
-		return err
-	}
+	toWrite := mylog.Check2(updateKeyValueStream(f, piConfigKeys, config))
 
 	if toWrite != nil {
 		s := strings.Join(toWrite, "\n")
@@ -110,10 +106,8 @@ func (e *piConfigNotSupportedError) Error() string {
 var reIgnorePrefix = regexp.MustCompile(`(?i)^#\s+Snapd-Edit:\s+no\s*$`)
 
 func piConfigFileIgnoreMarkerSet(configFile string) bool {
-	f, err := os.Open(configFile)
-	if err != nil {
-		return false
-	}
+	f := mylog.Check2(os.Open(configFile))
+
 	defer f.Close()
 
 	scanner := bufio.NewScanner(f)
@@ -166,28 +160,23 @@ func piConfigFile(dev sysconfig.Device, opts *fsOnlyContext) (string, error) {
 }
 
 func handlePiConfiguration(dev sysconfig.Device, tr ConfGetter, opts *fsOnlyContext) error {
-	configFile, err := piConfigFile(dev, opts)
+	configFile := mylog.Check2(piConfigFile(dev, opts))
 	if _, ok := err.(*piConfigNotSupportedError); ok {
 		logger.Noticef("ignoring pi-config settings: %v", err)
 		return nil
 	}
-	if err != nil {
-		return err
-	}
+
 	if osutil.FileExists(configFile) {
 		// snapctl can actually give us the whole dict in
 		// JSON, in a single call; use that instead of this.
 		config := map[string]string{}
 		for key := range piConfigKeys {
-			output, err := coreCfg(tr, fmt.Sprintf("pi-config.%s", strings.Replace(key, "_", "-", -1)))
-			if err != nil {
-				return err
-			}
+			output := mylog.Check2(coreCfg(tr, fmt.Sprintf("pi-config.%s", strings.Replace(key, "_", "-", -1))))
+
 			config[key] = output
 		}
-		if err := updatePiConfig(configFile, config); err != nil {
-			return err
-		}
+		mylog.Check(updatePiConfig(configFile, config))
+
 	}
 	return nil
 }

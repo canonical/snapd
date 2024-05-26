@@ -30,6 +30,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
@@ -64,11 +65,9 @@ type firstBoot20Suite struct {
 	*seedtest.TestingSeed20
 }
 
-var (
-	allGrades = []asserts.ModelGrade{
-		asserts.ModelDangerous,
-	}
-)
+var allGrades = []asserts.ModelGrade{
+	asserts.ModelDangerous,
+}
 
 var _ = Suite(&firstBoot20Suite{})
 
@@ -284,7 +283,7 @@ func checkSnapstateDevModeFlags(c *C, tsAll []*state.TaskSet, snapsWithDevModeFl
 		if task0.Kind() != "prerequisites" {
 			continue
 		}
-		snapsup, err := snapstate.TaskSnapSetup(task0)
+		snapsup := mylog.Check2(snapstate.TaskSnapSetup(task0))
 		c.Assert(err, IsNil, Commentf("%#v", task0))
 		if strutil.ListContains(allDevModeSnaps, snapsup.InstanceName()) {
 			c.Assert(snapsup.DevMode, Equals, true)
@@ -299,8 +298,8 @@ func checkSnapstateDevModeFlags(c *C, tsAll []*state.TaskSet, snapsWithDevModeFl
 
 func (s *firstBoot20Suite) earlySetup(c *C, m *boot.Modeenv, modelGrade asserts.ModelGrade, extraGadgetYaml string, extraSnaps ...string) (model *asserts.Model, bloader *bootloadertest.MockExtractedRunKernelImageBootloader) {
 	c.Assert(m, NotNil, Commentf("missing modeenv test data"))
-	err := m.WriteTo("")
-	c.Assert(err, IsNil)
+	mylog.Check(m.WriteTo(""))
+
 
 	model = s.setupCore20LikeSeed(c, core20SeedOptions{
 		sysLabel:        m.RecoverySystem,
@@ -318,8 +317,8 @@ func (s *firstBoot20Suite) earlySetup(c *C, m *boot.Modeenv, modelGrade asserts.
 	// since we are in runmode, MakeBootable will already have run from install
 	// mode, and extracted the kernel assets for the kernel snap into the
 	// bootloader, so set the current kernel there
-	kernel, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_1.snap")
-	c.Assert(err, IsNil)
+	kernel := mylog.Check2(snap.ParsePlaceInfoFromSnapFileName("pc-kernel_1.snap"))
+
 	r := bloader.SetEnabledKernel(kernel)
 	s.AddCleanup(r)
 
@@ -346,8 +345,8 @@ func (s *firstBoot20Suite) testPopulateFromSeedCore20Happy(c *C, m *boot.Modeenv
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(mgr, s.perfTimings)
-	c.Assert(err, IsNil)
+	tsAll := mylog.Check2(devicestate.PopulateStateFromSeedImpl(mgr, s.perfTimings))
+
 
 	snaps := []string{"snapd", "pc-kernel", "core20", "pc"}
 	allDevModeSnaps := stripSnapNamesWithChannels(extraDevModeSnaps)
@@ -380,36 +379,36 @@ func (s *firstBoot20Suite) testPopulateFromSeedCore20Happy(c *C, m *boot.Modeenv
 
 	// run change until it wants to restart
 	st.Unlock()
-	err = s.overlord.Settle(settleTimeout)
+	mylog.Check(s.overlord.Settle(settleTimeout))
 	st.Lock()
-	c.Assert(err, IsNil)
+
 
 	// at this point the system is "restarting", pretend the restart has
 	// happened
 	c.Assert(chg.Status(), Equals, state.DoingStatus)
 	restart.MockPending(st, restart.RestartUnset)
 	st.Unlock()
-	err = s.overlord.Settle(settleTimeout)
+	mylog.Check(s.overlord.Settle(settleTimeout))
 	st.Lock()
-	c.Assert(err, IsNil)
+
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%s", chg.Err()))
 
 	// verify
-	f, err := os.Open(dirs.SnapStateFile)
-	c.Assert(err, IsNil)
-	state, err := state.ReadState(nil, f)
-	c.Assert(err, IsNil)
+	f := mylog.Check2(os.Open(dirs.SnapStateFile))
+
+	state := mylog.Check2(state.ReadState(nil, f))
+
 
 	state.Lock()
 	defer state.Unlock()
 	// check snapd, core20, kernel, gadget
-	_, err = snapstate.CurrentInfo(state, "snapd")
+	_ = mylog.Check2(snapstate.CurrentInfo(state, "snapd"))
 	c.Check(err, IsNil)
-	_, err = snapstate.CurrentInfo(state, "core20")
+	_ = mylog.Check2(snapstate.CurrentInfo(state, "core20"))
 	c.Check(err, IsNil)
-	_, err = snapstate.CurrentInfo(state, "pc-kernel")
+	_ = mylog.Check2(snapstate.CurrentInfo(state, "pc-kernel"))
 	c.Check(err, IsNil)
-	_, err = snapstate.CurrentInfo(state, "pc")
+	_ = mylog.Check2(snapstate.CurrentInfo(state, "pc"))
 	c.Check(err, IsNil)
 
 	// No kernel extraction happens during seeding, the kernel is already
@@ -419,15 +418,15 @@ func (s *firstBoot20Suite) testPopulateFromSeedCore20Happy(c *C, m *boot.Modeenv
 	// ensure required flag is set on all essential snaps
 	var snapst snapstate.SnapState
 	for _, reqName := range []string{"snapd", "core20", "pc-kernel", "pc"} {
-		err = snapstate.Get(state, reqName, &snapst)
-		c.Assert(err, IsNil)
+		mylog.Check(snapstate.Get(state, reqName, &snapst))
+
 		c.Assert(snapst.Required, Equals, true, Commentf("required not set for %v", reqName))
 
 		if m.Mode == "run" {
 			// also ensure that in run mode none of the snaps are installed as
 			// symlinks, they must be copied onto ubuntu-data
-			files, err := filepath.Glob(filepath.Join(dirs.SnapBlobDir, reqName+"_*.snap"))
-			c.Assert(err, IsNil)
+			files := mylog.Check2(filepath.Glob(filepath.Join(dirs.SnapBlobDir, reqName+"_*.snap")))
+
 			c.Assert(files, HasLen, 1)
 			c.Assert(osutil.IsSymlink(files[0]), Equals, false)
 		}
@@ -442,19 +441,19 @@ func (s *firstBoot20Suite) testPopulateFromSeedCore20Happy(c *C, m *boot.Modeenv
 
 	// and ensure state is now considered seeded
 	var seeded bool
-	err = state.Get("seeded", &seeded)
-	c.Assert(err, IsNil)
+	mylog.Check(state.Get("seeded", &seeded))
+
 	c.Check(seeded, Equals, true)
 
 	// check we set seed-time
 	var seedTime time.Time
-	err = state.Get("seed-time", &seedTime)
-	c.Assert(err, IsNil)
+	mylog.Check(state.Get("seed-time", &seedTime))
+
 	c.Check(seedTime.IsZero(), Equals, false)
 
 	// check that we removed recovery_system from modeenv
-	m2, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	m2 := mylog.Check2(boot.ReadModeenv(""))
+
 	if m.Mode == "run" {
 		// recovery system is cleared in run mode
 		c.Assert(m2.RecoverySystem, Equals, "")
@@ -469,8 +468,8 @@ func (s *firstBoot20Suite) testPopulateFromSeedCore20Happy(c *C, m *boot.Modeenv
 	// in the snapstate manager, not the devicestate manager
 
 	// check that the default device ctx has a Modeenv
-	dev, err := devicestate.DeviceCtx(s.overlord.State(), nil, nil)
-	c.Assert(err, IsNil)
+	dev := mylog.Check2(devicestate.DeviceCtx(s.overlord.State(), nil, nil))
+
 	c.Assert(dev.HasModeenv(), Equals, true)
 	c.Assert(dev.IsCoreBoot(), Equals, true)
 
@@ -498,9 +497,9 @@ func (s *firstBoot20Suite) testPopulateFromSeedCore20Happy(c *C, m *boot.Modeenv
 	c.Assert(actual, HasLen, 0)
 
 	var whatseeded []devicestate.SeededSystem
-	err = state.Get("seeded-systems", &whatseeded)
+	mylog.Check(state.Get("seeded-systems", &whatseeded))
 	if m.Mode == "run" {
-		c.Assert(err, IsNil)
+
 		c.Assert(whatseeded, DeepEquals, []devicestate.SeededSystem{{
 			System:    m.RecoverySystem,
 			Model:     "my-model",
@@ -569,7 +568,7 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20RecoverMode(c *C) {
 
 func (s *firstBoot20Suite) TestLoadDeviceSeedCore20(c *C) {
 	r := devicestate.MockCreateAllKnownSystemUsers(func(state *state.State, assertDb asserts.RODatabase, model *asserts.Model, serial *asserts.Serial, sudoer bool) ([]*devicestate.CreatedUser, error) {
-		err := errors.New("unexpected call to CreateAllSystemUsers")
+		mylog.Check(errors.New("unexpected call to CreateAllSystemUsers"))
 		c.Error(err)
 		return nil, err
 	})
@@ -583,15 +582,15 @@ func (s *firstBoot20Suite) TestLoadDeviceSeedCore20(c *C) {
 
 	s.earlySetup(c, &m, "signed", "")
 
-	o, err := overlord.New(nil)
-	c.Assert(err, IsNil)
+	o := mylog.Check2(overlord.New(nil))
+
 	st := o.State()
 
 	st.Lock()
 	defer st.Unlock()
 
-	deviceSeed, err := devicestate.LoadDeviceSeed(st, m.RecoverySystem)
-	c.Assert(err, IsNil)
+	deviceSeed := mylog.Check2(devicestate.LoadDeviceSeed(st, m.RecoverySystem))
+
 
 	c.Check(deviceSeed.Model().BrandID(), Equals, "my-brand")
 	c.Check(deviceSeed.Model().Model(), Equals, "my-model")
@@ -600,12 +599,12 @@ func (s *firstBoot20Suite) TestLoadDeviceSeedCore20(c *C) {
 
 	// verify that the model was added
 	db := assertstate.DB(st)
-	as, err := db.Find(asserts.ModelType, map[string]string{
+	as := mylog.Check2(db.Find(asserts.ModelType, map[string]string{
 		"series":   "16",
 		"brand-id": "my-brand",
 		"model":    "my-model",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(as, DeepEquals, deviceSeed.Model())
 }
 
@@ -622,15 +621,15 @@ func (s *firstBoot20Suite) testProcessAutoImportAssertions(c *C, withAutoImportA
 		seedtest.WriteValidAutoImportAssertion(c, s.Brands, s.SeedDir, m.RecoverySystem, 0644)
 	}
 
-	o, err := overlord.New(nil)
-	c.Assert(err, IsNil)
+	o := mylog.Check2(overlord.New(nil))
+
 	st := o.State()
 
 	st.Lock()
 	defer st.Unlock()
 
-	deviceSeed, err := devicestate.LoadDeviceSeed(st, m.RecoverySystem)
-	c.Assert(err, IsNil)
+	deviceSeed := mylog.Check2(devicestate.LoadDeviceSeed(st, m.RecoverySystem))
+
 
 	c.Check(deviceSeed.Model().BrandID(), Equals, "my-brand")
 	c.Check(deviceSeed.Model().Model(), Equals, "my-model")
@@ -646,44 +645,41 @@ func (s *firstBoot20Suite) testProcessAutoImportAssertions(c *C, withAutoImportA
 
 func (s *firstBoot20Suite) TestLoadDeviceSeedCore20DangerousNoAutoImport(c *C) {
 	r := devicestate.MockCreateAllKnownSystemUsers(func(state *state.State, assertDb asserts.RODatabase, model *asserts.Model, serial *asserts.Serial, sudoer bool) ([]*devicestate.CreatedUser, error) {
-		err := errors.New("unexpected call to CreateAllSystemUsers")
+		mylog.Check(errors.New("unexpected call to CreateAllSystemUsers"))
 		c.Error(err)
 		return nil, err
 	})
 	defer r()
-
-	err := s.testProcessAutoImportAssertions(c, false)
+	mylog.Check(s.testProcessAutoImportAssertions(c, false))
 
 	c.Check(err.Error(), testutil.Contains, `no such file or directory`)
 }
 
 func (s *firstBoot20Suite) TestLoadDeviceSeedCore20DangerousAutoImportUserCreateFail(c *C) {
-	var calledcreateAllUsers = false
+	calledcreateAllUsers := false
 	r := devicestate.MockCreateAllKnownSystemUsers(func(state *state.State, assertDb asserts.RODatabase, model *asserts.Model, serial *asserts.Serial, sudoer bool) ([]*devicestate.CreatedUser, error) {
 		calledcreateAllUsers = true
 		return nil, errors.New("User already exists")
 	})
 	defer r()
-
-	err := s.testProcessAutoImportAssertions(c, true)
+	mylog.Check(s.testProcessAutoImportAssertions(c, true))
 
 	c.Check(calledcreateAllUsers, Equals, true)
 	c.Check(err.Error(), testutil.Contains, "User already exists")
 }
 
 func (s *firstBoot20Suite) TestLoadDeviceSeedCore20DangerousAutoImport(c *C) {
-	var calledcreateAllUsers = false
+	calledcreateAllUsers := false
 	r := devicestate.MockCreateAllKnownSystemUsers(func(state *state.State, assertDb asserts.RODatabase, model *asserts.Model, serial *asserts.Serial, sudoer bool) ([]*devicestate.CreatedUser, error) {
 		calledcreateAllUsers = true
 		var createdUsers []*devicestate.CreatedUser
 		return createdUsers, nil
 	})
 	defer r()
-
-	err := s.testProcessAutoImportAssertions(c, true)
+	mylog.Check(s.testProcessAutoImportAssertions(c, true))
 
 	c.Check(calledcreateAllUsers, Equals, true)
-	c.Assert(err, IsNil)
+
 }
 
 func (s *firstBoot20Suite) TestPopulateFromSeedCore20RunModeUserServiceTasks(c *C) {
@@ -719,8 +715,8 @@ defaults:
 
 	// create a new overlord and pick up the modeenv
 	// this overlord will use the proper EarlyConfig implementation
-	o, err := overlord.New(nil)
-	c.Assert(err, IsNil)
+	o := mylog.Check2(overlord.New(nil))
+
 	o.InterfaceManager().DisableUDevMonitor()
 	c.Assert(o.StartUp(), IsNil)
 
@@ -733,8 +729,8 @@ defaults:
 	enabled, _ := features.Flag(tr, features.UserDaemons)
 	c.Check(enabled, Equals, true)
 
-	_, err = devicestate.PopulateStateFromSeedImpl(o.DeviceManager(), s.perfTimings)
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(devicestate.PopulateStateFromSeedImpl(o.DeviceManager(), s.perfTimings))
+
 }
 
 func (s *firstBoot20Suite) TestUsersCreateAutomaticIsAvailableEarly(c *C) {
@@ -755,8 +751,8 @@ defaults:
 
 	// create a new overlord and pick up the modeenv
 	// this overlord will use the proper EarlyConfig implementation
-	o, err := overlord.New(nil)
-	c.Assert(err, IsNil)
+	o := mylog.Check2(overlord.New(nil))
+
 	o.InterfaceManager().DisableUDevMonitor()
 	c.Assert(o.StartUp(), IsNil)
 
@@ -767,8 +763,8 @@ defaults:
 	// early config in StartUp made the option available already
 	tr := config.NewTransaction(st)
 	var enabled bool
-	err = tr.Get("core", "users.create.automatic", &enabled)
-	c.Assert(err, IsNil)
+	mylog.Check(tr.Get("core", "users.create.automatic", &enabled))
+
 	c.Check(enabled, Equals, false)
 }
 
@@ -807,9 +803,8 @@ func (s *firstBoot20Suite) TestPopulateFromSeedClassicWithModesRunModeNoKernelAn
 		return []byte("ActiveState=inactive\n"), nil
 	})
 	defer systemctlRestorer()
+	mylog.Check(m.WriteTo(""))
 
-	err := m.WriteTo("")
-	c.Assert(err, IsNil)
 
 	model := s.setupCore20LikeSeed(c, core20SeedOptions{
 		sysLabel:        m.RecoverySystem,
@@ -825,8 +820,8 @@ func (s *firstBoot20Suite) TestPopulateFromSeedClassicWithModesRunModeNoKernelAn
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), s.perfTimings)
-	c.Assert(err, IsNil)
+	tsAll := mylog.Check2(devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), s.perfTimings))
+
 
 	snaps := []string{"snapd", "core20"}
 	checkOrder(c, tsAll, snaps...)
@@ -847,46 +842,46 @@ func (s *firstBoot20Suite) TestPopulateFromSeedClassicWithModesRunModeNoKernelAn
 
 	// run change until it wants to restart
 	st.Unlock()
-	err = s.overlord.Settle(settleTimeout)
+	mylog.Check(s.overlord.Settle(settleTimeout))
 	st.Lock()
-	c.Assert(err, IsNil)
+
 
 	// at this point the system is "restarting", pretend the restart has
 	// happened
 	c.Assert(chg.Status(), Equals, state.DoingStatus)
 	restart.MockPending(st, restart.RestartUnset)
 	st.Unlock()
-	err = s.overlord.Settle(settleTimeout)
+	mylog.Check(s.overlord.Settle(settleTimeout))
 	st.Lock()
-	c.Assert(err, IsNil)
+
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%s", chg.Err()))
 
 	// verify
-	f, err := os.Open(dirs.SnapStateFile)
-	c.Assert(err, IsNil)
-	state, err := state.ReadState(nil, f)
-	c.Assert(err, IsNil)
+	f := mylog.Check2(os.Open(dirs.SnapStateFile))
+
+	state := mylog.Check2(state.ReadState(nil, f))
+
 
 	state.Lock()
 	defer state.Unlock()
 	// check snapd, core20, kernel, gadget
-	_, err = snapstate.CurrentInfo(state, "snapd")
+	_ = mylog.Check2(snapstate.CurrentInfo(state, "snapd"))
 	c.Check(err, IsNil)
-	_, err = snapstate.CurrentInfo(state, "core20")
+	_ = mylog.Check2(snapstate.CurrentInfo(state, "core20"))
 	c.Check(err, IsNil)
 
 	// ensure required flag is set on all essential snaps
 	var snapst snapstate.SnapState
 	for _, reqName := range []string{"snapd", "core20"} {
-		err = snapstate.Get(state, reqName, &snapst)
-		c.Assert(err, IsNil)
+		mylog.Check(snapstate.Get(state, reqName, &snapst))
+
 		c.Assert(snapst.Required, Equals, true, Commentf("required not set for %v", reqName))
 
 		if m.Mode == "run" {
 			// also ensure that in run mode none of the snaps are installed as
 			// symlinks, they must be copied onto ubuntu-data
-			files, err := filepath.Glob(filepath.Join(dirs.SnapBlobDir, reqName+"_*.snap"))
-			c.Assert(err, IsNil)
+			files := mylog.Check2(filepath.Glob(filepath.Join(dirs.SnapBlobDir, reqName+"_*.snap")))
+
 			c.Assert(files, HasLen, 1)
 			c.Assert(osutil.IsSymlink(files[0]), Equals, false)
 		}
@@ -897,19 +892,19 @@ func (s *firstBoot20Suite) TestPopulateFromSeedClassicWithModesRunModeNoKernelAn
 
 	// and ensure state is now considered seeded
 	var seeded bool
-	err = state.Get("seeded", &seeded)
-	c.Assert(err, IsNil)
+	mylog.Check(state.Get("seeded", &seeded))
+
 	c.Check(seeded, Equals, true)
 
 	// check we set seed-time
 	var seedTime time.Time
-	err = state.Get("seed-time", &seedTime)
-	c.Assert(err, IsNil)
+	mylog.Check(state.Get("seed-time", &seedTime))
+
 	c.Check(seedTime.IsZero(), Equals, false)
 
 	// check that we removed recovery_system from modeenv
-	m2, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	m2 := mylog.Check2(boot.ReadModeenv(""))
+
 	if m.Mode == "run" {
 		// recovery system is cleared in run mode
 		c.Assert(m2.RecoverySystem, Equals, "")
@@ -924,14 +919,14 @@ func (s *firstBoot20Suite) TestPopulateFromSeedClassicWithModesRunModeNoKernelAn
 	// in the snapstate manager, not the devicestate manager
 
 	// check that the default device ctx has a Modeenv
-	dev, err := devicestate.DeviceCtx(s.overlord.State(), nil, nil)
-	c.Assert(err, IsNil)
+	dev := mylog.Check2(devicestate.DeviceCtx(s.overlord.State(), nil, nil))
+
 	c.Assert(dev.HasModeenv(), Equals, true)
 	c.Assert(dev.IsCoreBoot(), Equals, false)
 
 	var whatseeded []devicestate.SeededSystem
-	err = state.Get("seeded-systems", &whatseeded)
-	c.Assert(err, IsNil)
+	mylog.Check(state.Get("seeded-systems", &whatseeded))
+
 	c.Assert(whatseeded, DeepEquals, []devicestate.SeededSystem{{
 		System:    m.RecoverySystem,
 		Model:     "my-model",
@@ -964,9 +959,8 @@ func (s *firstBoot20Suite) testPopulateFromSeedClassicWithModesRunModeNoKernelAn
 		return []byte("ActiveState=inactive\n"), nil
 	})
 	defer systemctlRestorer()
+	mylog.Check(m.WriteTo(""))
 
-	err := m.WriteTo("")
-	c.Assert(err, IsNil)
 
 	s.extraSnapYaml["classic-installer"] = `name: classic-installer
 version: 1.0
@@ -996,12 +990,12 @@ apps:
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), s.perfTimings)
+	tsAll := mylog.Check2(devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), s.perfTimings))
 	if expectedErr != "" {
 		c.Check(err, ErrorMatches, expectedErr)
 		return
 	} else {
-		c.Assert(err, IsNil)
+
 	}
 
 	snaps := []string{"snapd", "core20", "classic-installer"}
@@ -1023,46 +1017,46 @@ apps:
 
 	// run change until it wants to restart
 	st.Unlock()
-	err = s.overlord.Settle(settleTimeout)
+	mylog.Check(s.overlord.Settle(settleTimeout))
 	st.Lock()
-	c.Assert(err, IsNil)
+
 
 	// at this point the system is "restarting", pretend the restart has
 	// happened
 	c.Assert(chg.Status(), Equals, state.DoingStatus)
 	restart.MockPending(st, restart.RestartUnset)
 	st.Unlock()
-	err = s.overlord.Settle(settleTimeout)
+	mylog.Check(s.overlord.Settle(settleTimeout))
 	st.Lock()
-	c.Assert(err, IsNil)
+
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%s", chg.Err()))
 
 	// verify
-	f, err := os.Open(dirs.SnapStateFile)
-	c.Assert(err, IsNil)
-	state, err := state.ReadState(nil, f)
-	c.Assert(err, IsNil)
+	f := mylog.Check2(os.Open(dirs.SnapStateFile))
+
+	state := mylog.Check2(state.ReadState(nil, f))
+
 
 	state.Lock()
 	defer state.Unlock()
 	// check snapd, core20, kernel, gadget
-	_, err = snapstate.CurrentInfo(state, "snapd")
+	_ = mylog.Check2(snapstate.CurrentInfo(state, "snapd"))
 	c.Check(err, IsNil)
-	_, err = snapstate.CurrentInfo(state, "core20")
+	_ = mylog.Check2(snapstate.CurrentInfo(state, "core20"))
 	c.Check(err, IsNil)
 
 	// ensure required flag is set on all essential snaps
 	var snapst snapstate.SnapState
 	for _, reqName := range []string{"snapd", "core20"} {
-		err = snapstate.Get(state, reqName, &snapst)
-		c.Assert(err, IsNil)
+		mylog.Check(snapstate.Get(state, reqName, &snapst))
+
 		c.Assert(snapst.Required, Equals, true, Commentf("required not set for %v", reqName))
 
 		if m.Mode == "run" {
 			// also ensure that in run mode none of the snaps are installed as
 			// symlinks, they must be copied onto ubuntu-data
-			files, err := filepath.Glob(filepath.Join(dirs.SnapBlobDir, reqName+"_*.snap"))
-			c.Assert(err, IsNil)
+			files := mylog.Check2(filepath.Glob(filepath.Join(dirs.SnapBlobDir, reqName+"_*.snap")))
+
 			c.Assert(files, HasLen, 1)
 			c.Assert(osutil.IsSymlink(files[0]), Equals, false)
 		}
@@ -1073,19 +1067,19 @@ apps:
 
 	// and ensure state is now considered seeded
 	var seeded bool
-	err = state.Get("seeded", &seeded)
-	c.Assert(err, IsNil)
+	mylog.Check(state.Get("seeded", &seeded))
+
 	c.Check(seeded, Equals, true)
 
 	// check we set seed-time
 	var seedTime time.Time
-	err = state.Get("seed-time", &seedTime)
-	c.Assert(err, IsNil)
+	mylog.Check(state.Get("seed-time", &seedTime))
+
 	c.Check(seedTime.IsZero(), Equals, false)
 
 	// check that we removed recovery_system from modeenv
-	m2, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	m2 := mylog.Check2(boot.ReadModeenv(""))
+
 	if m.Mode == "run" {
 		// recovery system is cleared in run mode
 		c.Assert(m2.RecoverySystem, Equals, "")
@@ -1100,14 +1094,14 @@ apps:
 	// in the snapstate manager, not the devicestate manager
 
 	// check that the default device ctx has a Modeenv
-	dev, err := devicestate.DeviceCtx(s.overlord.State(), nil, nil)
-	c.Assert(err, IsNil)
+	dev := mylog.Check2(devicestate.DeviceCtx(s.overlord.State(), nil, nil))
+
 	c.Assert(dev.HasModeenv(), Equals, true)
 	c.Assert(dev.IsCoreBoot(), Equals, false)
 
 	var whatseeded []devicestate.SeededSystem
-	err = state.Get("seeded-systems", &whatseeded)
-	c.Assert(err, IsNil)
+	mylog.Check(state.Get("seeded-systems", &whatseeded))
+
 	c.Assert(whatseeded, DeepEquals, []devicestate.SeededSystem{{
 		System:    m.RecoverySystem,
 		Model:     "my-model",
@@ -1168,8 +1162,8 @@ base: core20
 		RecoverySystem: "20191018",
 		Base:           "core20_1.snap",
 	}
-	err := m.WriteTo("")
-	c.Assert(err, IsNil)
+	mylog.Check(m.WriteTo(""))
+
 
 	model := s.setupCore20LikeSeed(c, core20SeedOptions{
 		sysLabel:        m.RecoverySystem,
@@ -1184,8 +1178,8 @@ base: core20
 	bootloader.Force(bloader)
 	s.AddCleanup(func() { bootloader.Force(nil) })
 
-	kernel, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_1.snap")
-	c.Assert(err, IsNil)
+	kernel := mylog.Check2(snap.ParsePlaceInfoFromSnapFileName("pc-kernel_1.snap"))
+
 	r := bloader.SetEnabledKernel(kernel)
 	s.AddCleanup(r)
 
@@ -1196,8 +1190,8 @@ base: core20
 	defer st.Unlock()
 
 	// run the firstboot code
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), s.perfTimings)
-	c.Assert(err, IsNil)
+	tsAll := mylog.Check2(devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), s.perfTimings))
+
 
 	// ensure the validation-set tracking task is present
 	tsEnd := tsAll[len(tsAll)-1]
@@ -1211,8 +1205,8 @@ base: core20
 		for _, vs := range valSets {
 			tokens := strings.Split(vs, "/")
 			c.Check(tokens, HasLen, 3)
-			seq, err := strconv.Atoi(tokens[2])
-			c.Assert(err, IsNil)
+			seq := mylog.Check2(strconv.Atoi(tokens[2]))
+
 			key := fmt.Sprintf("%s/%s/%s", release.Series, tokens[0], tokens[1])
 			expectedSeqs[key] = seq
 			expectedVss[key] = append([]string{release.Series}, tokens...)
@@ -1220,12 +1214,12 @@ base: core20
 
 		// verify that the correct data is provided to the task
 		var pinnedSeqs map[string]int
-		err = t.Get("pinned-sequence-numbers", &pinnedSeqs)
-		c.Assert(err, IsNil)
+		mylog.Check(t.Get("pinned-sequence-numbers", &pinnedSeqs))
+
 		c.Check(pinnedSeqs, DeepEquals, expectedSeqs)
 		var vsKeys map[string][]string
-		err = t.Get("validation-set-keys", &vsKeys)
-		c.Assert(err, IsNil)
+		mylog.Check(t.Get("validation-set-keys", &vsKeys))
+
 		c.Check(vsKeys, DeepEquals, expectedVss)
 	} else {
 		c.Assert(tsEnd.Tasks(), HasLen, 1)
@@ -1247,23 +1241,23 @@ base: core20
 
 	// run change until it wants to restart
 	st.Unlock()
-	err = s.overlord.Settle(settleTimeout)
+	mylog.Check(s.overlord.Settle(settleTimeout))
 	st.Lock()
-	c.Assert(err, IsNil)
+
 
 	// at this point the system is "restarting", pretend the restart has
 	// happened
 	c.Assert(chg.Status(), Equals, state.DoingStatus)
 	restart.MockPending(st, restart.RestartUnset)
 	st.Unlock()
-	err = s.overlord.Settle(settleTimeout)
+	mylog.Check(s.overlord.Settle(settleTimeout))
 	st.Lock()
-	c.Assert(err, IsNil)
+
 	return chg
 }
 
 func (s *firstBoot20Suite) TestPopulateFromSeedCore20ValidationSetTrackingHappy(c *C) {
-	vsa, err := s.StoreSigning.Sign(asserts.ValidationSetType, map[string]interface{}{
+	vsa := mylog.Check2(s.StoreSigning.Sign(asserts.ValidationSetType, map[string]interface{}{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
@@ -1291,10 +1285,10 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20ValidationSetTrackingHappy(
 			},
 		},
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	err = s.StoreSigning.Add(vsa)
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
+	mylog.Check(s.StoreSigning.Add(vsa))
+
 
 	chg := s.testPopulateFromSeedCore20ValidationSetTracking(c, "run", []string{"canonical/base-set/1"})
 
@@ -1304,8 +1298,8 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20ValidationSetTrackingHappy(
 
 	// Ensure that we are now tracking the validation-set
 	var tr assertstate.ValidationSetTracking
-	err = assertstate.GetValidationSet(s.overlord.State(), "canonical", "base-set", &tr)
-	c.Assert(err, IsNil)
+	mylog.Check(assertstate.GetValidationSet(s.overlord.State(), "canonical", "base-set", &tr))
+
 	c.Check(tr, DeepEquals, assertstate.ValidationSetTracking{
 		AccountID: "canonical",
 		Name:      "base-set",
@@ -1316,7 +1310,7 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20ValidationSetTrackingHappy(
 }
 
 func (s *firstBoot20Suite) TestPopulateFromSeedCore20ValidationSetTrackingNotAddedInInstallMode(c *C) {
-	vsa, err := s.StoreSigning.Sign(asserts.ValidationSetType, map[string]interface{}{
+	vsa := mylog.Check2(s.StoreSigning.Sign(asserts.ValidationSetType, map[string]interface{}{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
@@ -1344,10 +1338,10 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20ValidationSetTrackingNotAdd
 			},
 		},
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	err = s.StoreSigning.Add(vsa)
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
+	mylog.Check(s.StoreSigning.Add(vsa))
+
 
 	chg := s.testPopulateFromSeedCore20ValidationSetTracking(c, "install", []string{"canonical/base-set/1"})
 
@@ -1357,12 +1351,12 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20ValidationSetTrackingNotAdd
 
 	// Ensure no validation-sets are tracked
 	var tr assertstate.ValidationSetTracking
-	err = assertstate.GetValidationSet(s.overlord.State(), "canonical", "base-set", &tr)
+	mylog.Check(assertstate.GetValidationSet(s.overlord.State(), "canonical", "base-set", &tr))
 	c.Assert(err, ErrorMatches, `no state entry for key "validation-sets"`)
 }
 
 func (s *firstBoot20Suite) TestPopulateFromSeedCore20ValidationSetTrackingFailsUnmetCriterias(c *C) {
-	vsb, err := s.StoreSigning.Sign(asserts.ValidationSetType, map[string]interface{}{
+	vsb := mylog.Check2(s.StoreSigning.Sign(asserts.ValidationSetType, map[string]interface{}{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
@@ -1378,10 +1372,10 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20ValidationSetTrackingFailsU
 			},
 		},
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	err = s.StoreSigning.Add(vsb)
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
+	mylog.Check(s.StoreSigning.Add(vsb))
+
 
 	chg := s.testPopulateFromSeedCore20ValidationSetTracking(c, "run", []string{"canonical/base-set/2"})
 

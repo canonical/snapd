@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -78,7 +79,7 @@ func (s *refreshSuite) TestRefreshCheck(c *C) {
 	s.pids = map[string][]int{
 		"snap.pkg.daemon": {100},
 	}
-	err := snapstate.RefreshCheck(s.info)
+	mylog.Check(snapstate.RefreshCheck(s.info))
 	c.Check(err, IsNil)
 
 	// Apps are blocking soft refresh check. They are not stopped by
@@ -88,15 +89,15 @@ func (s *refreshSuite) TestRefreshCheck(c *C) {
 		"snap.pkg.daemon": {100},
 		"snap.pkg.app":    {101},
 	}
-	err = snapstate.RefreshCheck(s.info)
+	mylog.Check(snapstate.RefreshCheck(s.info))
 	c.Assert(err, NotNil)
 	c.Check(err.Error(), Equals, `snap "pkg" has running apps (app), pids: 101`)
 	c.Check(err.(*snapstate.BusySnapError).Pids(), DeepEquals, []int{101})
 
 	// Unless refresh-mode is set to "ignore-running"
 	s.info.Apps["app"].RefreshMode = "ignore-running"
-	err = snapstate.RefreshCheck(s.info)
-	c.Assert(err, IsNil)
+	mylog.Check(snapstate.RefreshCheck(s.info))
+
 	s.info.Apps["app"].RefreshMode = ""
 
 	// Hooks behave just like apps. IDEA: perhaps hooks should not be
@@ -104,7 +105,7 @@ func (s *refreshSuite) TestRefreshCheck(c *C) {
 	s.pids = map[string][]int{
 		"snap.pkg.hook.configure": {105},
 	}
-	err = snapstate.RefreshCheck(s.info)
+	mylog.Check(snapstate.RefreshCheck(s.info))
 	c.Assert(err, NotNil)
 	c.Check(err.Error(), Equals, `snap "pkg" has running hooks (configure), pids: 105`)
 	c.Check(err.(*snapstate.BusySnapError).Pids(), DeepEquals, []int{105})
@@ -114,23 +115,24 @@ func (s *refreshSuite) TestRefreshCheck(c *C) {
 		"snap.pkg.hook.configure": {105},
 		"snap.pkg.app":            {106},
 	}
-	err = snapstate.RefreshCheck(s.info)
+	mylog.Check(snapstate.RefreshCheck(s.info))
 	c.Assert(err, NotNil)
 	c.Check(err.Error(), Equals, `snap "pkg" has running apps (app) and hooks (configure), pids: 105,106`)
 	c.Check(err.(*snapstate.BusySnapError).Pids(), DeepEquals, []int{105, 106})
 }
 
 func (s *refreshSuite) TestPendingSnapRefreshInfo(c *C) {
-	err := snapstate.NewBusySnapError(s.info, nil, nil, nil)
+	mylog.Check(snapstate.NewBusySnapError(s.info, nil, nil, nil))
 	refreshInfo := err.PendingSnapRefreshInfo()
 	c.Check(refreshInfo.InstanceName, Equals, s.info.InstanceName())
 	// The information about a busy app is not populated because
 	// the original error did not have the corresponding information.
 	c.Check(refreshInfo.BusyAppName, Equals, "")
 	c.Check(refreshInfo.BusyAppDesktopEntry, Equals, "")
+	mylog.
 
-	// If we create a matching desktop entry then relevant meta-data is added.
-	err = snapstate.NewBusySnapError(s.info, nil, []string{"app"}, nil)
+		// If we create a matching desktop entry then relevant meta-data is added.
+		Check(snapstate.NewBusySnapError(s.info, nil, []string{"app"}, nil))
 	desktopFile := s.info.Apps["app"].DesktopFile()
 	c.Assert(os.MkdirAll(filepath.Dir(desktopFile), 0755), IsNil)
 	c.Assert(os.WriteFile(desktopFile, nil, 0644), IsNil)
@@ -171,14 +173,15 @@ func (s *refreshSuite) TestDoSoftRefreshCheckAllowed(c *C) {
 		return nil
 	})
 	defer restore()
+	mylog.
 
-	// Soft refresh should not fail.
-	err := snapstate.SoftCheckNothingRunningForRefresh(s.state, snapst, snapsup, info)
-	c.Assert(err, IsNil)
+		// Soft refresh should not fail.
+		Check(snapstate.SoftCheckNothingRunningForRefresh(s.state, snapst, snapsup, info))
+
 
 	// In addition, the inhibition lock is not set.
-	hint, inhibitInfo, err := runinhibit.IsLocked(info.InstanceName())
-	c.Assert(err, IsNil)
+	hint, inhibitInfo := mylog.Check3(runinhibit.IsLocked(info.InstanceName()))
+
 	c.Check(hint, Equals, runinhibit.HintNotInhibited)
 	c.Check(inhibitInfo, Equals, runinhibit.InhibitInfo{})
 }
@@ -195,14 +198,15 @@ func (s *refreshSuite) TestDoSoftRefreshCheckDisallowed(c *C) {
 		return snapstate.NewBusySnapError(info, []int{123}, nil, nil)
 	})
 	defer restore()
+	mylog.
 
-	// Soft refresh should fail with a proper error.
-	err := snapstate.SoftCheckNothingRunningForRefresh(s.state, snapst, snapsup, info)
+		// Soft refresh should fail with a proper error.
+		Check(snapstate.SoftCheckNothingRunningForRefresh(s.state, snapst, snapsup, info))
 	c.Assert(err, ErrorMatches, `snap "pkg" has running apps or hooks, pids: 123`)
 
 	// Validity check: the inhibition lock was not set.
-	hint, inhibitInfo, err := runinhibit.IsLocked(info.InstanceName())
-	c.Assert(err, IsNil)
+	hint, inhibitInfo := mylog.Check3(runinhibit.IsLocked(info.InstanceName()))
+
 	c.Check(hint, Equals, runinhibit.HintNotInhibited)
 	c.Check(inhibitInfo, Equals, runinhibit.InhibitInfo{})
 }
@@ -222,8 +226,8 @@ func (s *refreshSuite) TestDoHardRefreshFlowRefreshAllowed(c *C) {
 	defer restore()
 
 	// Hard refresh should not fail and return a valid lock.
-	inhibitionTimeout, lock, err := snapstate.HardEnsureNothingRunningDuringRefresh(backend, s.state, snapst, snapsup, info)
-	c.Assert(err, IsNil)
+	inhibitionTimeout, lock := mylog.Check3(snapstate.HardEnsureNothingRunningDuringRefresh(backend, s.state, snapst, snapsup, info))
+
 	c.Assert(lock, NotNil)
 	defer lock.Close()
 	// Refresh inhibition didn't timeout
@@ -253,7 +257,7 @@ func (s *refreshSuite) TestDoHardRefreshFlowRefreshDisallowed(c *C) {
 	defer restore()
 
 	// Hard refresh should fail and not return a lock.
-	inhibitionTimeout, lock, err := snapstate.HardEnsureNothingRunningDuringRefresh(backend, s.state, snapst, snapsup, info)
+	inhibitionTimeout, lock := mylog.Check3(snapstate.HardEnsureNothingRunningDuringRefresh(backend, s.state, snapst, snapsup, info))
 	c.Assert(err, ErrorMatches, `snap "pkg" has running apps or hooks, pids: 123`)
 	c.Assert(lock, IsNil)
 	// Refresh inhibition didn't timeout
@@ -287,8 +291,8 @@ func (s *refreshSuite) TestDoHardRefreshFlowRefreshInhibitionTimeout(c *C) {
 	defer restore()
 
 	// Hard refresh should not fail and return a valid lock.
-	inhibitionTimeout, lock, err := snapstate.HardEnsureNothingRunningDuringRefresh(backend, s.state, snapst, snapsup, info)
-	c.Assert(err, IsNil)
+	inhibitionTimeout, lock := mylog.Check3(snapstate.HardEnsureNothingRunningDuringRefresh(backend, s.state, snapst, snapsup, info))
+
 	c.Assert(lock, NotNil)
 	defer lock.Close()
 	// Refresh inhibition timed out

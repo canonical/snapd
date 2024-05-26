@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snapdtool"
@@ -45,12 +46,12 @@ var patches = make(map[int][]PatchFunc)
 func Init(s *state.State) {
 	s.Lock()
 	defer s.Unlock()
-	if err := s.Get("patch-level", new(int)); !errors.Is(err, state.ErrNoState) {
+	if mylog.Check(s.Get("patch-level", new(int))); !errors.Is(err, state.ErrNoState) {
 		panic("internal error: expected empty state, attempting to override patch-level without actual patching")
 	}
 	s.Set("patch-level", Level)
 
-	if err := s.Get("patch-sublevel", new(int)); !errors.Is(err, state.ErrNoState) {
+	if mylog.Check(s.Get("patch-sublevel", new(int))); !errors.Is(err, state.ErrNoState) {
 		panic("internal error: expected empty state, attempting to override patch-sublevel without actual patching")
 	}
 	s.Set("patch-sublevel", Sublevel)
@@ -63,11 +64,8 @@ func applySublevelPatches(level, firstSublevel int, s *state.State) error {
 		if sublevel > 0 {
 			logger.Noticef("Patching system state level %d to sublevel %d...", level, sublevel)
 		}
-		err := applyOne(patches[level][sublevel], s, level, sublevel)
-		if err != nil {
-			logger.Noticef("Cannot patch: %v", err)
-			return fmt.Errorf("cannot patch system state to level %d, sublevel %d: %v", level, sublevel, err)
-		}
+		mylog.Check(applyOne(patches[level][sublevel], s, level, sublevel))
+
 	}
 	return nil
 }
@@ -79,7 +77,7 @@ func maybeResetSublevelForLevel60(s *state.State, sublevel *int) error {
 	defer s.Unlock()
 
 	var lastVersion string
-	err := s.Get("patch-sublevel-last-version", &lastVersion)
+	mylog.Check(s.Get("patch-sublevel-last-version", &lastVersion))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
@@ -99,9 +97,9 @@ func maybeResetSublevelForLevel60(s *state.State, sublevel *int) error {
 func Apply(s *state.State) error {
 	var stateLevel, stateSublevel int
 	s.Lock()
-	err := s.Get("patch-level", &stateLevel)
+	mylog.Check(s.Get("patch-level", &stateLevel))
 	if err == nil || errors.Is(err, state.ErrNoState) {
-		err = s.Get("patch-sublevel", &stateSublevel)
+		mylog.Check(s.Get("patch-sublevel", &stateSublevel))
 	}
 	s.Unlock()
 
@@ -115,9 +113,7 @@ func Apply(s *state.State) error {
 
 	// check if we refreshed from 6.0 which was not aware of sublevels
 	if stateLevel == 6 && stateSublevel > 0 {
-		if err := maybeResetSublevelForLevel60(s, &stateSublevel); err != nil {
-			return err
-		}
+		mylog.Check(maybeResetSublevelForLevel60(s, &stateSublevel))
 	}
 
 	if stateLevel == Level && stateSublevel == Sublevel {
@@ -137,9 +133,7 @@ func Apply(s *state.State) error {
 	// the 0th sublevel patch is a patch for major level update (e.g. 7.0),
 	// therefore there is +1 for the indices.
 	if stateSublevel+1 < len(patches[stateLevel]) {
-		if err := applySublevelPatches(stateLevel, stateSublevel+1, s); err != nil {
-			return err
-		}
+		mylog.Check(applySublevelPatches(stateLevel, stateSublevel+1, s))
 	}
 
 	// at the lower Level - apply all new level and sublevel patches
@@ -149,9 +143,8 @@ func Apply(s *state.State) error {
 		if sublevels == nil {
 			return fmt.Errorf("cannot upgrade: snapd is too new for the current system state (patch level %d)", level-1)
 		}
-		if err := applySublevelPatches(level, 0, s); err != nil {
-			return err
-		}
+		mylog.Check(applySublevelPatches(level, 0, s))
+
 	}
 
 	s.Lock()
@@ -165,11 +158,7 @@ func Apply(s *state.State) error {
 func applyOne(patch func(s *state.State) error, s *state.State, newLevel, newSublevel int) error {
 	s.Lock()
 	defer s.Unlock()
-
-	err := patch(s)
-	if err != nil {
-		return err
-	}
+	mylog.Check(patch(s))
 
 	s.Set("patch-level", newLevel)
 	s.Set("patch-sublevel", newSublevel)

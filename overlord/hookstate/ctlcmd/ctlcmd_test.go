@@ -24,6 +24,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 	. "gopkg.in/check.v1"
 
@@ -53,13 +54,12 @@ func (s *ctlcmdSuite) SetUpTest(c *C) {
 	task := state.NewTask("test-task", "my test task")
 	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
 
-	var err error
-	s.mockContext, err = hookstate.NewContext(task, task.State(), setup, handler, "")
-	c.Assert(err, IsNil)
+	s.mockContext = mylog.Check2(hookstate.NewContext(task, task.State(), setup, handler, ""))
+
 }
 
 func (s *ctlcmdSuite) TestNonExistingCommand(c *C) {
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"foo"}, 0)
+	stdout, stderr := mylog.Check3(ctlcmd.Run(s.mockContext, []string{"foo"}, 0))
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
 	c.Check(err, ErrorMatches, ".*[Uu]nknown command.*")
@@ -72,7 +72,7 @@ func (s *ctlcmdSuite) TestCommandOutput(c *C) {
 	mockCommand.FakeStdout = "test stdout"
 	mockCommand.FakeStderr = "test stderr"
 
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"mock", "foo"}, 0)
+	stdout, stderr := mylog.Check3(ctlcmd.Run(s.mockContext, []string{"mock", "foo"}, 0))
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "test stdout")
 	c.Check(string(stderr), Equals, "test stderr")
@@ -85,9 +85,8 @@ func taskKinds(tasks []*state.Task) []string {
 		k := task.Kind()
 		if k == "run-hook" {
 			var hooksup hookstate.HookSetup
-			if err := task.Get("hook-setup", &hooksup); err != nil {
-				panic(err)
-			}
+			mylog.Check(task.Get("hook-setup", &hooksup))
+
 			k = fmt.Sprintf("%s[%s]", k, hooksup.Hook)
 		}
 		kinds[i] = k
@@ -101,7 +100,7 @@ func (s *ctlcmdSuite) TestHiddenCommand(c *C) {
 	defer ctlcmd.RemoveCommand("mock-hidden")
 	defer ctlcmd.RemoveCommand("mock-shown")
 
-	_, _, err := ctlcmd.Run(s.mockContext, []string{"--help"}, 0)
+	_, _ := mylog.Check3(ctlcmd.Run(s.mockContext, []string{"--help"}, 0))
 	// help message output is returned as *flags.Error with
 	// Type as flags.ErrHelp
 	c.Assert(err, FitsTypeOf, &flags.Error{})
@@ -115,40 +114,40 @@ func (s *ctlcmdSuite) TestHiddenCommand(c *C) {
 }
 
 func (s *ctlcmdSuite) TestRootRequiredCommandFailure(c *C) {
-	_, _, err := ctlcmd.Run(s.mockContext, []string{"start"}, 1000)
+	_, _ := mylog.Check3(ctlcmd.Run(s.mockContext, []string{"start"}, 1000))
 
 	c.Check(err, FitsTypeOf, &ctlcmd.ForbiddenCommandError{})
 	c.Check(err.Error(), Equals, `cannot use "start" with uid 1000, try with sudo`)
 }
 
 func (s *ctlcmdSuite) TestRootRequiredCommandFailureParsingTweak(c *C) {
-	_, _, err := ctlcmd.Run(s.mockContext, []string{"start", "--", "--help"}, 1000)
+	_, _ := mylog.Check3(ctlcmd.Run(s.mockContext, []string{"start", "--", "--help"}, 1000))
 
 	c.Check(err, FitsTypeOf, &ctlcmd.ForbiddenCommandError{})
 	c.Check(err.Error(), Equals, `cannot use "start" with uid 1000, try with sudo`)
 }
 
 func (s *ctlcmdSuite) TestRunNoArgsFailure(c *C) {
-	_, _, err := ctlcmd.Run(s.mockContext, []string{}, 0)
+	_, _ := mylog.Check3(ctlcmd.Run(s.mockContext, []string{}, 0))
 	c.Check(err, NotNil)
 }
 
 func (s *ctlcmdSuite) TestRunOnlyHelp(c *C) {
-	_, _, err := ctlcmd.Run(s.mockContext, []string{"-h"}, 1000)
+	_, _ := mylog.Check3(ctlcmd.Run(s.mockContext, []string{"-h"}, 1000))
 	c.Check(err, NotNil)
 	c.Assert(strings.HasPrefix(err.Error(), "Usage:"), Equals, true)
 
-	_, _, err = ctlcmd.Run(s.mockContext, []string{"--help"}, 1000)
+	_, _ = mylog.Check3(ctlcmd.Run(s.mockContext, []string{"--help"}, 1000))
 	c.Check(err, NotNil)
 	c.Assert(strings.HasPrefix(err.Error(), "Usage:"), Equals, true)
 }
 
 func (s *ctlcmdSuite) TestRunHelpAtAnyPosition(c *C) {
-	_, _, err := ctlcmd.Run(s.mockContext, []string{"start", "a", "-h"}, 1000)
+	_, _ := mylog.Check3(ctlcmd.Run(s.mockContext, []string{"start", "a", "-h"}, 1000))
 	c.Check(err, NotNil)
 	c.Assert(strings.HasPrefix(err.Error(), "Usage:"), Equals, true)
 
-	_, _, err = ctlcmd.Run(s.mockContext, []string{"start", "a", "b", "--help"}, 1000)
+	_, _ = mylog.Check3(ctlcmd.Run(s.mockContext, []string{"start", "a", "b", "--help"}, 1000))
 	c.Check(err, NotNil)
 	c.Assert(strings.HasPrefix(err.Error(), "Usage:"), Equals, true)
 }
@@ -156,7 +155,7 @@ func (s *ctlcmdSuite) TestRunHelpAtAnyPosition(c *C) {
 func (s *ctlcmdSuite) TestRunNonRootAllowedCommandWithAllowedCmdAsArg(c *C) {
 	// this test protects us against a future refactor introducing a bug that allows
 	// a root-only command to run without root if an arg is in the nonRootAllowed list
-	_, _, err := ctlcmd.Run(s.mockContext, []string{"set", "get", "a"}, 1000)
+	_, _ := mylog.Check3(ctlcmd.Run(s.mockContext, []string{"set", "get", "a"}, 1000))
 	c.Check(err, FitsTypeOf, &ctlcmd.ForbiddenCommandError{})
 	c.Check(err.Error(), Equals, `cannot use "set" with uid 1000, try with sudo`)
 }

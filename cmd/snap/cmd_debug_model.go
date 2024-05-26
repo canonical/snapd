@@ -22,6 +22,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 )
 
@@ -46,9 +47,8 @@ func (x *cmdGetModel) Execute(args []string) error {
 	var resp struct {
 		Model string `json:"model"`
 	}
-	if err := x.client.DebugGet("model", &resp, nil); err != nil {
-		return err
-	}
+	mylog.Check(x.client.DebugGet("model", &resp, nil))
+
 	fmt.Fprintf(Stdout, "%s\n", resp.Model)
 	return nil
 }

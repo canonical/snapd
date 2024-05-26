@@ -23,19 +23,22 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 )
 
-var shortCreateUserHelp = i18n.G("Create a local system user")
-var longCreateUserHelp = i18n.G(`
+var (
+	shortCreateUserHelp = i18n.G("Create a local system user")
+	longCreateUserHelp  = i18n.G(`
 The create-user command creates a local system user with the username and SSH
 keys registered on the store account identified by the provided email address.
 
 An account can be setup at https://login.ubuntu.com.
 `)
+)
 
 type cmdCreateUser struct {
 	clientMixin
@@ -83,12 +86,11 @@ func (x *cmdCreateUser) Execute(args []string) error {
 
 	var results []*client.CreateUserResult
 	var result *client.CreateUserResult
-	var err error
 
 	if options.Email == "" && options.Known {
-		results, err = x.client.CreateUsers([]*client.CreateUserOptions{&options})
+		results = mylog.Check2(x.client.CreateUsers([]*client.CreateUserOptions{&options}))
 	} else {
-		result, err = x.client.CreateUser(&options)
+		result = mylog.Check2(x.client.CreateUser(&options))
 		if err == nil {
 			results = append(results, result)
 		}
@@ -100,13 +102,11 @@ func (x *cmdCreateUser) Execute(args []string) error {
 	if x.JSON {
 		var data []byte
 		if result != nil {
-			data, err = json.Marshal(result)
+			data = mylog.Check2(json.Marshal(result))
 		} else if len(results) > 0 {
-			data, err = json.Marshal(results)
+			data = mylog.Check2(json.Marshal(results))
 		}
-		if err != nil {
-			return err
-		}
+
 		fmt.Fprintf(Stdout, "%s\n", data)
 	} else {
 		for _, result := range results {

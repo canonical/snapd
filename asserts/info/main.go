@@ -24,14 +24,13 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 )
 
 func main() {
 	maxFormats := asserts.MaxSupportedFormats(1)
-	b, err := json.Marshal(maxFormats)
-	if err != nil {
-		panic(fmt.Sprintf("cannot json marshal asserts info: %v", err))
-	}
+	b := mylog.Check2(json.Marshal(maxFormats))
+
 	fmt.Printf("SNAPD_ASSERTS_FORMATS='%s'\n", b)
 }

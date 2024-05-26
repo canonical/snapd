@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/dirs"
@@ -84,7 +85,7 @@ func fake20Model(grade string) *asserts.Model {
 }
 
 func (s *sysconfigSuite) TestConfigureTargetSystemNonUC20(c *C) {
-	err := sysconfig.ConfigureTargetSystem(fakeModel, nil)
+	mylog.Check(sysconfig.ConfigureTargetSystem(fakeModel, nil))
 	c.Assert(err, ErrorMatches, "internal error: ConfigureTargetSystem can only be used with a model with a grade")
 }
 
@@ -123,12 +124,11 @@ defaults:
 	c.Check(osutil.FileExists(sshDontRunFile), Equals, false)
 	exists, _, _ := osutil.DirExists(journalPath)
 	c.Check(exists, Equals, false)
-
-	err := sysconfig.ConfigureTargetSystem(fake20Model("signed"), &sysconfig.Options{
+	mylog.Check(sysconfig.ConfigureTargetSystem(fake20Model("signed"), &sysconfig.Options{
 		TargetRootDir: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"),
 		GadgetDir:     snapInfo.MountDir(),
-	})
-	c.Assert(err, IsNil)
+	}))
+
 
 	c.Check(osutil.FileExists(sshDontRunFile), Equals, true)
 	exists, _, _ = osutil.DirExists(journalPath)
@@ -153,11 +153,10 @@ defaults:
 	snapInfo := snaptest.MockSnapWithFiles(c, "name: pc\ntype: gadget", si, [][]string{
 		{"meta/gadget.yaml", gadgetYaml + gadgetDefaultsYaml},
 	})
-
-	err := sysconfig.ConfigureTargetSystem(fake20Model("signed"), &sysconfig.Options{
+	mylog.Check(sysconfig.ConfigureTargetSystem(fake20Model("signed"), &sysconfig.Options{
 		TargetRootDir: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"),
 		GadgetDir:     snapInfo.MountDir(),
-	})
+	}))
 	c.Check(err, ErrorMatches, `option "service.rsyslog.disable" has invalid value "foo"`)
 }
 
@@ -193,12 +192,11 @@ defaults:
 	c.Check(osutil.FileExists(sshDontRunFile), Equals, false)
 	exists, _, _ := osutil.DirExists(journalPath)
 	c.Check(exists, Equals, false)
-
-	err := sysconfig.ConfigureTargetSystem(fake20Model("signed"), &sysconfig.Options{
+	mylog.Check(sysconfig.ConfigureTargetSystem(fake20Model("signed"), &sysconfig.Options{
 		TargetRootDir: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"),
 		GadgetSnap:    snapContainer,
-	})
-	c.Assert(err, IsNil)
+	}))
+
 
 	c.Check(osutil.FileExists(sshDontRunFile), Equals, true)
 	exists, _, _ = osutil.DirExists(journalPath)

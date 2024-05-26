@@ -26,6 +26,8 @@ import (
 	"os"
 	"regexp"
 	"strconv"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // ExeRuntime is the runtime of an individual executable
@@ -97,7 +99,6 @@ func newPidTracker() *pidTracker {
 	return &pidTracker{
 		pidToExeStart: make(map[string]exeStart),
 	}
-
 }
 
 func (pt *pidTracker) Get(pid string) (startTime float64, exe string) {
@@ -136,10 +137,8 @@ func handleExecMatch(trace *ExecveTiming, pt *pidTracker, match []string) error 
 	}
 	// the pid of the process that does the execve{,at}()
 	pid := match[1]
-	execStart, err := strconv.ParseFloat(match[2], 64)
-	if err != nil {
-		return err
-	}
+	execStart := mylog.Check2(strconv.ParseFloat(match[2], 64))
+
 	exe := match[3]
 	// deal with subsequent execve()
 	if start, exe := pt.Get(pid); exe != "" {
@@ -153,10 +152,8 @@ func handleSignalMatch(trace *ExecveTiming, pt *pidTracker, match []string) erro
 	if len(match) == 0 {
 		return nil
 	}
-	sigTime, err := strconv.ParseFloat(match[1], 64)
-	if err != nil {
-		return err
-	}
+	sigTime := mylog.Check2(strconv.ParseFloat(match[1], 64))
+
 	sigPid := match[3]
 	if start, exe := pt.Get(sigPid); exe != "" {
 		trace.addExeRuntime(exe, sigTime-start)
@@ -166,10 +163,8 @@ func handleSignalMatch(trace *ExecveTiming, pt *pidTracker, match []string) erro
 }
 
 func TraceExecveTimings(straceLog string, nSlowest int) (*ExecveTiming, error) {
-	slog, err := os.Open(straceLog)
-	if err != nil {
-		return nil, err
-	}
+	slog := mylog.Check2(os.Open(straceLog))
+
 	defer slog.Close()
 
 	// pidTracker maps the "pid" string to the executable
@@ -182,9 +177,7 @@ func TraceExecveTimings(straceLog string, nSlowest int) (*ExecveTiming, error) {
 	for r.Scan() {
 		line = r.Text()
 		if start == 0.0 {
-			if _, err := fmt.Sscanf(line, "%f %f ", &tmp, &start); err != nil {
-				return nil, fmt.Errorf("cannot parse start of exec profile: %s", err)
-			}
+			mylog.Check2(fmt.Sscanf(line, "%f %f ", &tmp, &start))
 		}
 		// handleExecMatch looks for execve{,at}() calls and
 		// uses the pidTracker to keep track of execution of
@@ -199,25 +192,21 @@ func TraceExecveTimings(straceLog string, nSlowest int) (*ExecveTiming, error) {
 		//    pid 20817 execve("/bin/sh")
 		//    pid 2023  execve("/bin/true")
 		match := execveRE.FindStringSubmatch(line)
-		if err := handleExecMatch(trace, pidTracker, match); err != nil {
-			return nil, err
-		}
+		mylog.Check(handleExecMatch(trace, pidTracker, match))
+
 		match = execveatRE.FindStringSubmatch(line)
-		if err := handleExecMatch(trace, pidTracker, match); err != nil {
-			return nil, err
-		}
+		mylog.Check(handleExecMatch(trace, pidTracker, match))
+
 		// handleSignalMatch looks for SIG{CHLD,TERM} signals and
 		// maps them via the pidTracker to the execve{,at}() calls
 		// of the terminating PID to calculate the total time of
 		// a execve{,at}() call.
 		match = sigChldTermRE.FindStringSubmatch(line)
-		if err := handleSignalMatch(trace, pidTracker, match); err != nil {
-			return nil, err
-		}
+		mylog.Check(handleSignalMatch(trace, pidTracker, match))
+
 	}
-	if _, err := fmt.Sscanf(line, "%f %f", &tmp, &end); err != nil {
-		return nil, fmt.Errorf("cannot parse end of exec profile: %s", err)
-	}
+	mylog.Check2(fmt.Sscanf(line, "%f %f", &tmp, &end))
+
 	trace.TotalTime = end - start
 
 	if r.Err() != nil {

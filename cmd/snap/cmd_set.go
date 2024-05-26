@@ -23,14 +23,16 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/jsonutil"
 )
 
-var shortSetHelp = i18n.G("Change configuration options")
-var longSetHelp = i18n.G(`
+var (
+	shortSetHelp = i18n.G("Change configuration options")
+	longSetHelp  = i18n.G(`
 The set command changes the provided configuration options as requested.
 
     $ snap set snap-name username=frank password=$PASSWORD
@@ -45,6 +47,7 @@ Nested values may be modified via a dotted path:
 Configuration option may be unset with exclamation mark:
     $ snap set snap-name author!
 `)
+)
 
 var longAspectSetHelp = i18n.G(`
 If the first argument passed into set is an aspect identifier matching the
@@ -65,7 +68,7 @@ type cmdSet struct {
 }
 
 func init() {
-	if err := validateAspectFeatureFlag(); err == nil {
+	if mylog.Check(validateAspectFeatureFlag()); err == nil {
 		longSetHelp += longAspectSetHelp
 	}
 
@@ -109,49 +112,29 @@ func (x *cmdSet) Execute([]string) error {
 			patchValues[parts[0]] = parts[1]
 		} else {
 			var value interface{}
-			if err := jsonutil.DecodeWithNumber(strings.NewReader(parts[1]), &value); err != nil {
-				if x.Typed {
-					return fmt.Errorf("failed to parse JSON: %w", err)
-				}
+			mylog.Check(jsonutil.DecodeWithNumber(strings.NewReader(parts[1]), &value))
 
-				// Not valid JSON-- just save the string as-is.
-				patchValues[parts[0]] = parts[1]
-			} else {
-				patchValues[parts[0]] = value
-			}
+			// Not valid JSON-- just save the string as-is.
+
 		}
 	}
 
 	snapName := string(x.Positional.Snap)
 
 	var chgID string
-	var err error
+
 	if isAspectID(snapName) {
-		if err := validateAspectFeatureFlag(); err != nil {
-			return err
-		}
+		mylog.Check(validateAspectFeatureFlag())
 
 		// first argument is an aspectID, use the aspects API
 		aspectID := snapName
-		if err := validateAspectID(aspectID); err != nil {
-			return err
-		}
+		mylog.Check(validateAspectID(aspectID))
 
-		chgID, err = x.client.AspectSet(aspectID, patchValues)
+		chgID = mylog.Check2(x.client.AspectSet(aspectID, patchValues))
 	} else {
-		chgID, err = x.client.SetConf(snapName, patchValues)
+		chgID = mylog.Check2(x.client.SetConf(snapName, patchValues))
 	}
-
-	if err != nil {
-		return err
-	}
-
-	if _, err := x.wait(chgID); err != nil {
-		if err == noWait {
-			return nil
-		}
-		return err
-	}
+	mylog.Check2(x.wait(chgID))
 
 	return nil
 }

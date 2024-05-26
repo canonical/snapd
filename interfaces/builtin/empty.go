@@ -22,6 +22,7 @@ package builtin
 import (
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/snap"
@@ -29,14 +30,16 @@ import (
 
 type emptyInterface struct{}
 
-const emptyInterfaceSummary = `allows testing without providing any additional permissions`
-const emptyInterfaceBaseDeclarationSlots = `
+const (
+	emptyInterfaceSummary              = `allows testing without providing any additional permissions`
+	emptyInterfaceBaseDeclarationSlots = `
   empty:
     allow-installation:
       slot-snap-type:
         - app
     deny-auto-connection: true
 `
+)
 
 func (iface *emptyInterface) String() string {
 	return iface.Name()
@@ -64,22 +67,19 @@ func (iface *emptyInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 
 func (iface *emptyInterface) BeforeConnectPlug(plug *interfaces.ConnectedPlug) error {
 	var value string
-	if err := plug.Attr("before-connect", &value); err != nil {
-		return err
-	}
+	mylog.Check(plug.Attr("before-connect", &value))
+
 	value = fmt.Sprintf("plug-changed(%s)", value)
 	return plug.SetAttr("before-connect", value)
 }
 
 func (iface *emptyInterface) BeforeConnectSlot(slot *interfaces.ConnectedSlot) error {
 	var num int64
-	if err := slot.Attr("producer-num-1", &num); err != nil {
-		return err
-	}
+	mylog.Check(slot.Attr("producer-num-1", &num))
+
 	var value string
-	if err := slot.Attr("before-connect", &value); err != nil {
-		return err
-	}
+	mylog.Check(slot.Attr("before-connect", &value))
+
 	value = fmt.Sprintf("slot-changed(%s)", value)
 	return slot.SetAttr("before-connect", value)
 }

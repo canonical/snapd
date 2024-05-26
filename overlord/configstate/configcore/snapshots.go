@@ -23,6 +23,8 @@ package configcore
 import (
 	"fmt"
 	"time"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 func init() {
@@ -31,15 +33,11 @@ func init() {
 }
 
 func validateAutomaticSnapshotsExpiration(tr RunTransaction) error {
-	expirationStr, err := coreCfg(tr, "snapshots.automatic.retention")
-	if err != nil {
-		return err
-	}
+	expirationStr := mylog.Check2(coreCfg(tr, "snapshots.automatic.retention"))
+
 	if expirationStr != "" && expirationStr != "no" {
-		dur, err := time.ParseDuration(expirationStr)
-		if err != nil {
-			return fmt.Errorf("snapshots.automatic.retention cannot be parsed: %v", err)
-		}
+		dur := mylog.Check2(time.ParseDuration(expirationStr))
+
 		if dur < time.Hour*24 {
 			return fmt.Errorf("snapshots.automatic.retention must be a value greater than 24 hours, or \"no\" to disable")
 		}

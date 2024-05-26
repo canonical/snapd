@@ -34,6 +34,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/httputil"
@@ -116,11 +117,7 @@ func New(config *Config) *Client {
 			Host:   "localhost",
 		}
 	} else {
-		var err error
-		baseURL, err = url.Parse(config.BaseURL)
-		if err != nil {
-			panic(fmt.Sprintf("cannot parse server base URL: %q (%v)", config.BaseURL, err))
-		}
+		baseURL = mylog.Check2(url.Parse(config.BaseURL))
 	}
 
 	transport := &httputil.LoggedTransport{
@@ -156,24 +153,18 @@ func (client *Client) WarningsSummary() (count int, timestamp time.Time) {
 }
 
 func (client *Client) WhoAmI() (string, error) {
-	user, err := readAuthData()
+	user := mylog.Check2(readAuthData())
 	if os.IsNotExist(err) {
 		return "", nil
-	}
-	if err != nil {
-		return "", err
 	}
 
 	return user.Email, nil
 }
 
 func (client *Client) setAuthorization(req *http.Request) error {
-	user, err := readAuthData()
+	user := mylog.Check2(readAuthData())
 	if os.IsNotExist(err) {
 		return nil
-	}
-	if err != nil {
-		return err
 	}
 
 	var buf bytes.Buffer
@@ -244,10 +235,8 @@ func (client *Client) raw(ctx context.Context, method, urlpath string, query url
 	u := client.baseURL
 	u.Path = path.Join(client.baseURL.Path, urlpath)
 	u.RawQuery = query.Encode()
-	req, err := http.NewRequest(method, u.String(), body)
-	if err != nil {
-		return nil, RequestError{err}
-	}
+	req := mylog.Check2(http.NewRequest(method, u.String(), body))
+
 	if client.userAgent != "" {
 		req.Header.Set("User-Agent", client.userAgent)
 	}
@@ -259,19 +248,15 @@ func (client *Client) raw(ctx context.Context, method, urlpath string, query url
 	// directly to the request. Just setting it to the header
 	// will be ignored by go http.
 	if clStr := req.Header.Get("Content-Length"); clStr != "" {
-		cl, err := strconv.ParseInt(clStr, 10, 64)
-		if err != nil {
-			return nil, err
-		}
+		cl := mylog.Check2(strconv.ParseInt(clStr, 10, 64))
+
 		req.ContentLength = cl
 	}
 
 	if !client.disableAuth {
-		// set Authorization header if there are user's credentials
-		err = client.setAuthorization(req)
-		if err != nil {
-			return nil, AuthorizationError{err}
-		}
+		mylog.
+			// set Authorization header if there are user's credentials
+			Check(client.setAuthorization(req))
 	}
 
 	if client.interactive {
@@ -282,10 +267,7 @@ func (client *Client) raw(ctx context.Context, method, urlpath string, query url
 		req = req.WithContext(ctx)
 	}
 
-	rsp, err := client.doer.Do(req)
-	if err != nil {
-		return nil, ConnectionError{err}
-	}
+	rsp := mylog.Check2(client.doer.Do(req))
 
 	return rsp, nil
 }
@@ -303,7 +285,7 @@ func (client *Client) rawWithTimeout(ctx context.Context, method, urlpath string
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, opts.Timeout)
-	rsp, err := client.raw(ctx, method, urlpath, query, headers, body)
+	rsp := mylog.Check2(client.raw(ctx, method, urlpath, query, headers, body))
 	if err != nil && ctx.Err() != nil {
 		cancel()
 		return nil, nil, ConnectionError{ctx.Err()}
@@ -384,7 +366,7 @@ func (client *Client) do(method, path string, query url.Values, headers map[stri
 	ctx := context.Background()
 	if opts.Timeout <= 0 {
 		// no timeout and retries
-		rsp, err = client.raw(ctx, method, path, query, headers, body)
+		rsp = mylog.Check2(client.raw(ctx, method, path, query, headers, body))
 	} else {
 		if opts.Retry <= 0 {
 			return 0, InternalClientError{fmt.Errorf("retry setting %s invalid", opts.Retry)}
@@ -399,7 +381,7 @@ func (client *Client) do(method, path string, query url.Values, headers map[stri
 			// use the same timeout as for the whole of the retry
 			// loop to error out the whole do() call when a single
 			// request exceeds the deadline
-			rsp, cancel, err = client.rawWithTimeout(ctx, method, path, query, headers, body, opts)
+			rsp, cancel = mylog.Check3(client.rawWithTimeout(ctx, method, path, query, headers, body, opts))
 			if err == nil {
 				defer cancel()
 			}
@@ -414,15 +396,11 @@ func (client *Client) do(method, path string, query url.Values, headers map[stri
 			break
 		}
 	}
-	if err != nil {
-		return 0, err
-	}
+
 	defer rsp.Body.Close()
 
 	if v != nil {
-		if err := decodeInto(rsp.Body, v); err != nil {
-			return rsp.StatusCode, err
-		}
+		mylog.Check(decodeInto(rsp.Body, v))
 	}
 
 	return rsp.StatusCode, nil
@@ -435,14 +413,8 @@ func shouldNotRetryError(err error) bool {
 
 func decodeInto(reader io.Reader, v interface{}) error {
 	dec := json.NewDecoder(reader)
-	if err := dec.Decode(v); err != nil {
-		r := dec.Buffered()
-		buf, err1 := io.ReadAll(r)
-		if err1 != nil {
-			buf = []byte(fmt.Sprintf("error reading buffered response body: %s", err1))
-		}
-		return fmt.Errorf("cannot decode %q: %s", buf, err)
-	}
+	mylog.Check(dec.Decode(v))
+
 	return nil
 }
 
@@ -463,21 +435,16 @@ func (client *Client) doSync(method, path string, query url.Values, headers map[
 // if the file is missing or corrupt or empty, nothing will happen and it will
 // be silently ignored
 func (client *Client) checkMaintenanceJSON() {
-	f, err := os.Open(dirs.SnapdMaintenanceFile)
+	f := mylog.Check2(os.Open(dirs.SnapdMaintenanceFile))
 	// just continue if we can't read the maintenance file
-	if err != nil {
-		return
-	}
+
 	defer f.Close()
 
 	// we have a maintenance file, try to read it
 	maintenance := &Error{}
-
-	if err := json.NewDecoder(f).Decode(&maintenance); err != nil {
-		// if the json is malformed, just ignore it for now, we only use it for
-		// positive identification of snapd down for maintenance
-		return
-	}
+	mylog.Check(json.NewDecoder(f).Decode(&maintenance))
+	// if the json is malformed, just ignore it for now, we only use it for
+	// positive identification of snapd down for maintenance
 
 	if maintenance != nil {
 		switch maintenance.Kind {
@@ -504,21 +471,15 @@ func (client *Client) doSyncWithOpts(method, path string, query url.Values, head
 	client.checkMaintenanceJSON()
 
 	var rsp response
-	statusCode, err := client.do(method, path, query, headers, body, &rsp, opts)
-	if err != nil {
-		return nil, err
-	}
-	if err := rsp.err(client, statusCode); err != nil {
-		return nil, err
-	}
+	statusCode := mylog.Check2(client.do(method, path, query, headers, body, &rsp, opts))
+	mylog.Check(rsp.err(client, statusCode))
+
 	if rsp.Type != "sync" {
 		return nil, fmt.Errorf("expected sync response, got %q", rsp.Type)
 	}
 
 	if v != nil {
-		if err := jsonutil.DecodeWithNumber(bytes.NewReader(rsp.Result), v); err != nil {
-			return nil, fmt.Errorf("cannot unmarshal: %v", err)
-		}
+		mylog.Check(jsonutil.DecodeWithNumber(bytes.NewReader(rsp.Result), v))
 	}
 
 	client.warningCount = rsp.WarningCount
@@ -528,19 +489,15 @@ func (client *Client) doSyncWithOpts(method, path string, query url.Values, head
 }
 
 func (client *Client) doAsync(method, path string, query url.Values, headers map[string]string, body io.Reader) (changeID string, err error) {
-	_, changeID, err = client.doAsyncFull(method, path, query, headers, body, nil)
+	_, changeID = mylog.Check3(client.doAsyncFull(method, path, query, headers, body, nil))
 	return
 }
 
 func (client *Client) doAsyncFull(method, path string, query url.Values, headers map[string]string, body io.Reader, opts *doOptions) (result json.RawMessage, changeID string, err error) {
 	var rsp response
-	statusCode, err := client.do(method, path, query, headers, body, &rsp, opts)
-	if err != nil {
-		return nil, "", err
-	}
-	if err := rsp.err(client, statusCode); err != nil {
-		return nil, "", err
-	}
+	statusCode := mylog.Check2(client.do(method, path, query, headers, body, &rsp, opts))
+	mylog.Check(rsp.err(client, statusCode))
+
 	if rsp.Type != "async" {
 		return nil, "", fmt.Errorf("expected async response for %q on %q, got %q", method, path, rsp.Type)
 	}
@@ -567,10 +524,7 @@ type ServerVersion struct {
 }
 
 func (client *Client) ServerVersion() (*ServerVersion, error) {
-	sysInfo, err := client.SysInfo()
-	if err != nil {
-		return nil, err
-	}
+	sysInfo := mylog.Check2(client.SysInfo())
 
 	return &ServerVersion{
 		Version:     sysInfo.Version,
@@ -706,7 +660,7 @@ func (rsp *response) err(cli *Client, statusCode int) error {
 		return nil
 	}
 	var resultErr Error
-	err := json.Unmarshal(rsp.Result, &resultErr)
+	mylog.Check(json.Unmarshal(rsp.Result, &resultErr))
 	if err != nil || resultErr.Message == "" {
 		return fmt.Errorf("server error: %q", http.StatusText(statusCode))
 	}
@@ -722,11 +676,8 @@ func parseError(r *http.Response) error {
 	}
 
 	dec := json.NewDecoder(r.Body)
-	if err := dec.Decode(&rsp); err != nil {
-		return fmt.Errorf("cannot unmarshal error: %v", err)
-	}
-
-	err := rsp.err(nil, r.StatusCode)
+	mylog.Check(dec.Decode(&rsp))
+	mylog.Check(rsp.err(nil, r.StatusCode))
 	if err == nil {
 		return fmt.Errorf("server error: %q", r.Status)
 	}
@@ -741,9 +692,7 @@ func (client *Client) SysInfo() (*SysInfo, error) {
 		Timeout: 25 * time.Second,
 		Retry:   doRetry,
 	}
-	if _, err := client.doSyncWithOpts("GET", "/v2/system-info", nil, nil, nil, &sysInfo, opts); err != nil {
-		return nil, fmt.Errorf("cannot obtain system details: %v", err)
-	}
+	mylog.Check2(client.doSyncWithOpts("GET", "/v2/system-info", nil, nil, nil, &sysInfo, opts))
 
 	return &sysInfo, nil
 }
@@ -756,15 +705,12 @@ type debugAction struct {
 // Debug is only useful when writing test code, it will trigger
 // an internal action with the given parameters.
 func (client *Client) Debug(action string, params interface{}, result interface{}) error {
-	body, err := json.Marshal(debugAction{
+	body := mylog.Check2(json.Marshal(debugAction{
 		Action: action,
 		Params: params,
-	})
-	if err != nil {
-		return err
-	}
+	}))
 
-	_, err = client.doSync("POST", "/v2/debug", nil, nil, bytes.NewReader(body), result)
+	_ = mylog.Check2(client.doSync("POST", "/v2/debug", nil, nil, bytes.NewReader(body), result))
 	return err
 }
 
@@ -773,7 +719,7 @@ func (client *Client) DebugGet(aspect string, result interface{}, params map[str
 	for k, v := range params {
 		urlParams.Set(k, v)
 	}
-	_, err := client.doSync("GET", "/v2/debug", urlParams, nil, nil, &result)
+	_ := mylog.Check2(client.doSync("GET", "/v2/debug", urlParams, nil, nil, &result))
 	return err
 }
 
@@ -783,21 +729,18 @@ type SystemRecoveryKeysResponse struct {
 }
 
 func (client *Client) SystemRecoveryKeys(result interface{}) error {
-	_, err := client.doSync("GET", "/v2/system-recovery-keys", nil, nil, nil, &result)
+	_ := mylog.Check2(client.doSync("GET", "/v2/system-recovery-keys", nil, nil, nil, &result))
 	return err
 }
 
 func (c *Client) MigrateSnapHome(snaps []string) (changeID string, err error) {
-	body, err := json.Marshal(struct {
+	body := mylog.Check2(json.Marshal(struct {
 		Action string   `json:"action"`
 		Snaps  []string `json:"snaps"`
 	}{
 		Action: "migrate-home",
 		Snaps:  snaps,
-	})
-	if err != nil {
-		return "", err
-	}
+	}))
 
 	return c.doAsync("POST", "/v2/debug", nil, nil, bytes.NewReader(body))
 }

@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/bootloader/efi"
 	"github.com/snapcore/snapd/dirs"
@@ -50,9 +51,8 @@ func (s *efiVarsSuite) SetUpTest(c *C) {
 	s.rootdir = c.MkDir()
 	dirs.SetRootDir(s.rootdir)
 	s.AddCleanup(func() { dirs.SetRootDir("") })
+	mylog.Check(os.MkdirAll(filepath.Join(s.rootdir, "/sys/firmware/efi/efivars"), 0755))
 
-	err := os.MkdirAll(filepath.Join(s.rootdir, "/sys/firmware/efi/efivars"), 0755)
-	c.Assert(err, IsNil)
 
 	efivarfsMount := `
 38 24 0:32 / /sys/firmware/efi/efivars rw,nosuid,nodev,noexec,relatime shared:13 - efivarfs efivarfs rw
@@ -65,31 +65,31 @@ func (s *efiVarsSuite) TestNoEFISystem(c *C) {
 	// no efivarfs
 	osutil.MockMountInfo("")
 
-	_, _, err := efi.ReadVarBytes("my-cool-efi-var")
+	_, _ := mylog.Check3(efi.ReadVarBytes("my-cool-efi-var"))
 	c.Check(err, Equals, efi.ErrNoEFISystem)
 
-	_, _, err = efi.ReadVarString("my-cool-efi-var")
+	_, _ = mylog.Check3(efi.ReadVarString("my-cool-efi-var"))
 	c.Check(err, Equals, efi.ErrNoEFISystem)
 }
 
 func (s *efiVarsSuite) TestSizeError(c *C) {
 	// mock the efi var file
 	varPath := filepath.Join(s.rootdir, "/sys/firmware/efi/efivars", "my-cool-efi-var")
-	err := os.WriteFile(varPath, []byte("\x06"), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(varPath, []byte("\x06"), 0644))
 
-	_, _, err = efi.ReadVarBytes("my-cool-efi-var")
+
+	_, _ = mylog.Check3(efi.ReadVarBytes("my-cool-efi-var"))
 	c.Check(err, ErrorMatches, `cannot read EFI var "my-cool-efi-var": unexpected size: 1`)
 }
 
 func (s *efiVarsSuite) TestReadVarBytes(c *C) {
 	// mock the efi var file
 	varPath := filepath.Join(s.rootdir, "/sys/firmware/efi/efivars", "my-cool-efi-var")
-	err := os.WriteFile(varPath, []byte("\x06\x00\x00\x00\x01"), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(varPath, []byte("\x06\x00\x00\x00\x01"), 0644))
 
-	data, attr, err := efi.ReadVarBytes("my-cool-efi-var")
-	c.Assert(err, IsNil)
+
+	data, attr := mylog.Check3(efi.ReadVarBytes("my-cool-efi-var"))
+
 	c.Check(attr, Equals, efi.VariableBootServiceAccess|efi.VariableRuntimeAccess)
 	c.Assert(string(data), Equals, "\x01")
 }
@@ -97,11 +97,11 @@ func (s *efiVarsSuite) TestReadVarBytes(c *C) {
 func (s *efiVarsSuite) TestReadVarString(c *C) {
 	// mock the efi var file
 	varPath := filepath.Join(s.rootdir, "/sys/firmware/efi/efivars", "my-cool-efi-var")
-	err := os.WriteFile(varPath, []byte("\x06\x00\x00\x00A\x009\x00F\x005\x00C\x009\x004\x009\x00-\x00A\x00B\x008\x009\x00-\x005\x00B\x004\x007\x00-\x00A\x007\x00B\x00F\x00-\x005\x006\x00D\x00D\x002\x008\x00F\x009\x006\x00E\x006\x005\x00\x00\x00"), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(varPath, []byte("\x06\x00\x00\x00A\x009\x00F\x005\x00C\x009\x004\x009\x00-\x00A\x00B\x008\x009\x00-\x005\x00B\x004\x007\x00-\x00A\x007\x00B\x00F\x00-\x005\x006\x00D\x00D\x002\x008\x00F\x009\x006\x00E\x006\x005\x00\x00\x00"), 0644))
 
-	data, attr, err := efi.ReadVarString("my-cool-efi-var")
-	c.Assert(err, IsNil)
+
+	data, attr := mylog.Check3(efi.ReadVarString("my-cool-efi-var"))
+
 	c.Check(attr, Equals, efi.VariableBootServiceAccess|efi.VariableRuntimeAccess)
 	c.Assert(data, Equals, "A9F5C949-AB89-5B47-A7BF-56DD28F96E65")
 }
@@ -109,15 +109,15 @@ func (s *efiVarsSuite) TestReadVarString(c *C) {
 func (s *efiVarsSuite) TestEmpty(c *C) {
 	// mock the efi var file
 	varPath := filepath.Join(s.rootdir, "/sys/firmware/efi/efivars", "my-cool-efi-var")
-	err := os.WriteFile(varPath, []byte("\x06\x00\x00\x00"), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(varPath, []byte("\x06\x00\x00\x00"), 0644))
 
-	b, _, err := efi.ReadVarBytes("my-cool-efi-var")
-	c.Assert(err, IsNil)
+
+	b, _ := mylog.Check3(efi.ReadVarBytes("my-cool-efi-var"))
+
 	c.Check(b, HasLen, 0)
 
-	v, _, err := efi.ReadVarString("my-cool-efi-var")
-	c.Assert(err, IsNil)
+	v, _ := mylog.Check3(efi.ReadVarString("my-cool-efi-var"))
+
 	c.Check(v, HasLen, 0)
 }
 
@@ -130,16 +130,15 @@ func (s *efiVarsSuite) TestMockVars(c *C) {
 	})
 	defer restore()
 
-	b, attr, err := efi.ReadVarBytes("a")
-	c.Assert(err, IsNil)
+	b, attr := mylog.Check3(efi.ReadVarBytes("a"))
+
 	c.Check(attr, Equals, efi.VariableBootServiceAccess|efi.VariableRuntimeAccess)
 	c.Assert(string(b), Equals, "\x01")
 
-	b, attr, err = efi.ReadVarBytes("b")
-	c.Assert(err, IsNil)
+	b, attr = mylog.Check3(efi.ReadVarBytes("b"))
+
 	c.Check(attr, Equals, efi.VariableBootServiceAccess|efi.VariableRuntimeAccess|efi.VariableNonVolatile)
 	c.Assert(string(b), Equals, "\x02")
-
 }
 
 func (s *efiVarsSuite) TestMockStringVars(c *C) {
@@ -148,8 +147,8 @@ func (s *efiVarsSuite) TestMockStringVars(c *C) {
 	}, nil)
 	defer restore()
 
-	v, attr, err := efi.ReadVarString("a")
-	c.Assert(err, IsNil)
+	v, attr := mylog.Check3(efi.ReadVarString("a"))
+
 	c.Check(attr, Equals, efi.VariableBootServiceAccess|efi.VariableRuntimeAccess)
 	c.Assert(v, Equals, "foo-bar-baz")
 }
@@ -158,7 +157,7 @@ func (s *efiVarsSuite) TestMockVarsNoEFISystem(c *C) {
 	restore := efi.MockVars(nil, nil)
 	defer restore()
 
-	_, _, err := efi.ReadVarBytes("a")
+	_, _ := mylog.Check3(efi.ReadVarBytes("a"))
 	c.Check(err, Equals, efi.ErrNoEFISystem)
 }
 
@@ -168,6 +167,6 @@ func (s *efiVarsSuite) TestStringOddSize(c *C) {
 	}, nil)
 	defer restore()
 
-	_, _, err := efi.ReadVarString("a")
+	_, _ := mylog.Check3(efi.ReadVarString("a"))
 	c.Check(err, ErrorMatches, `EFI var "a" is not a valid UTF16 string, it has an extra byte`)
 }

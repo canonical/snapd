@@ -22,6 +22,8 @@ package udev
 import (
 	"fmt"
 	"os/exec"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // udevadmTrigger runs "udevadm trigger" but ignores an non-zero exit codes.
@@ -31,7 +33,7 @@ import (
 // (and https://github.com/lxc/lxd/issues/9526)
 func udevadmTrigger(args ...string) error {
 	args = append([]string{"trigger"}, args...)
-	output, err := exec.Command("udevadm", args...).CombinedOutput()
+	output := mylog.Check2(exec.Command("udevadm", args...).CombinedOutput())
 	// can happen when events for some of the devices or all of
 	// them could not be triggered, but we cannot distinguish which of
 	// those happened, in any case snapd invoked udevadm and tried its
@@ -43,9 +45,7 @@ func udevadmTrigger(args ...string) error {
 			return nil
 		}
 	}
-	if err != nil {
-		return fmt.Errorf("%s\nudev output:\n%s", err, string(output))
-	}
+
 	return nil
 }
 
@@ -65,17 +65,13 @@ func (b *Backend) reloadRules(subsystemTriggers []string) error {
 		return nil
 	}
 
-	output, err := exec.Command("udevadm", "control", "--reload-rules").CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("cannot reload udev rules: %s\nudev output:\n%s", err, string(output))
-	}
+	output := mylog.Check2(exec.Command("udevadm", "control", "--reload-rules").CombinedOutput())
+	mylog.Check(
 
-	// By default, trigger for all events except the input subsystem since
-	// it can cause noticeable blocked input on, for example, classic
-	// desktop.
-	if err = udevadmTrigger("--subsystem-nomatch=input"); err != nil {
-		return fmt.Errorf("cannot run udev triggers: %s", err)
-	}
+		// By default, trigger for all events except the input subsystem since
+		// it can cause noticeable blocked input on, for example, classic
+		// desktop.
+		udevadmTrigger("--subsystem-nomatch=input"))
 
 	mustTriggerForInputSubsystem := false
 	mustTriggerForInputKeys := false
@@ -92,30 +88,28 @@ func (b *Backend) reloadRules(subsystemTriggers []string) error {
 	}
 
 	if mustTriggerForInputSubsystem {
-		// Trigger for the whole input subsystem
-		if err := udevadmTrigger("--subsystem-match=input"); err != nil {
-			return fmt.Errorf("cannot run udev triggers for input subsystem: %s", err)
-		}
+		mylog.Check(
+			// Trigger for the whole input subsystem
+			udevadmTrigger("--subsystem-match=input"))
 	} else {
 		// More specific triggers, to avoid blocking keyboards and mice
 
 		if mustTriggerForInputKeys {
-			// If one of the interfaces said it uses the input
-			// subsystem for input keys, then trigger the keys
-			// events in a way that is specific to input keys
-			// to not block other inputs.
-			if err = udevadmTrigger("--property-match=ID_INPUT_KEY=1", "--property-match=ID_INPUT_KEYBOARD!=1"); err != nil {
-				return fmt.Errorf("cannot run udev triggers for keys: %s", err)
-			}
+			mylog.Check(
+				// If one of the interfaces said it uses the input
+				// subsystem for input keys, then trigger the keys
+				// events in a way that is specific to input keys
+				// to not block other inputs.
+				udevadmTrigger("--property-match=ID_INPUT_KEY=1", "--property-match=ID_INPUT_KEYBOARD!=1"))
 		}
-		// FIXME: if not already triggered, trigger the joystick property if it
-		// wasn't already since we are not able to detect interfaces that are
-		// removed and set subsystemTriggers correctly. When we can, remove
-		// this. Allows joysticks to be removed from the device cgroup on
-		// interface disconnect.
-		if err := udevadmTrigger("--property-match=ID_INPUT_JOYSTICK=1"); err != nil {
-			return fmt.Errorf("cannot run udev triggers for joysticks: %s", err)
-		}
+		mylog.Check(
+			// FIXME: if not already triggered, trigger the joystick property if it
+			// wasn't already since we are not able to detect interfaces that are
+			// removed and set subsystemTriggers correctly. When we can, remove
+			// this. Allows joysticks to be removed from the device cgroup on
+			// interface disconnect.
+			udevadmTrigger("--property-match=ID_INPUT_JOYSTICK=1"))
+
 	}
 
 	// give our triggered events a chance to be handled before exiting.

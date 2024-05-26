@@ -20,6 +20,7 @@
 package snapstate_test
 
 import (
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/snap"
@@ -56,11 +57,11 @@ func (s *handlersComponentsSuite) TestComponentSetupTaskFirstTask(c *C) {
 	s.state.NewChange("sample", "...").AddTask(t)
 
 	// Check that the returned task contains the data
-	setupTask, err := snapstate.ComponentSetupTask(t)
-	c.Assert(err, IsNil)
+	setupTask := mylog.Check2(snapstate.ComponentSetupTask(t))
+
 	var newcompsup snapstate.ComponentSetup
-	err = setupTask.Get("component-setup", &newcompsup)
-	c.Assert(err, IsNil)
+	mylog.Check(setupTask.Get("component-setup", &newcompsup))
+
 }
 
 func (s *handlersComponentsSuite) TestComponentSetupTaskLaterTask(c *C) {
@@ -86,11 +87,11 @@ func (s *handlersComponentsSuite) TestComponentSetupTaskLaterTask(c *C) {
 	chg.AddTask(t2)
 
 	// Check that the returned task contains the data
-	setupTask, err := snapstate.ComponentSetupTask(t2)
-	c.Assert(err, IsNil)
+	setupTask := mylog.Check2(snapstate.ComponentSetupTask(t2))
+
 	var newcompsup snapstate.ComponentSetup
-	err = setupTask.Get("component-setup", &newcompsup)
-	c.Assert(err, IsNil)
+	mylog.Check(setupTask.Get("component-setup", &newcompsup))
+
 	// and is the expected task
 	c.Assert(setupTask.ID(), Equals, t.ID())
 }
@@ -121,14 +122,14 @@ func (s *handlersComponentsSuite) TestComponentSetupsForTaskComponentInstall(c *
 	chg.AddTask(t)
 	chg.AddTask(t2)
 
-	setups, err := snapstate.ComponentSetupsForTask(t2)
-	c.Assert(err, IsNil)
+	setups := mylog.Check2(snapstate.ComponentSetupsForTask(t2))
+
 
 	c.Check(setups, HasLen, 1)
 	c.Check(setups[0], DeepEquals, compsup)
 
-	setups, err = snapstate.ComponentSetupsForTask(t)
-	c.Assert(err, IsNil)
+	setups = mylog.Check2(snapstate.ComponentSetupsForTask(t))
+
 
 	c.Check(setups, HasLen, 1)
 	c.Check(setups[0], DeepEquals, compsup)
@@ -151,13 +152,13 @@ func (s *handlersComponentsSuite) TestComponentSetupsForTaskSnapWithoutComponent
 	chg.AddTask(t)
 	chg.AddTask(t2)
 
-	setups, err := snapstate.ComponentSetupsForTask(t2)
-	c.Assert(err, IsNil)
+	setups := mylog.Check2(snapstate.ComponentSetupsForTask(t2))
+
 
 	c.Check(setups, HasLen, 0)
 
-	setups, err = snapstate.ComponentSetupsForTask(t)
-	c.Assert(err, IsNil)
+	setups = mylog.Check2(snapstate.ComponentSetupsForTask(t))
+
 
 	c.Check(setups, HasLen, 0)
 }
@@ -196,8 +197,8 @@ func (s *handlersComponentsSuite) testComponentInfoFromComponentSetup(c *C, inst
 
 	compsup := snapstate.NewComponentSetup(csi, snap.KernelModulesComponent, "")
 
-	compInfo, err := snapstate.ComponentInfoFromComponentSetup(compsup, info)
-	c.Assert(err, IsNil)
+	compInfo := mylog.Check2(snapstate.ComponentInfoFromComponentSetup(compsup, info))
+
 
 	c.Check(compInfo.Component, Equals, cref)
 	c.Check(compInfo.Type, Equals, snap.TestComponent)

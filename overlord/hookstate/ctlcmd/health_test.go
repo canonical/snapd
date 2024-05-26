@@ -22,6 +22,7 @@ package ctlcmd_test
 import (
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/healthstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
@@ -54,7 +55,7 @@ func (s *healthSuite) SetUpTest(c *check.C) {
 	task := s.state.NewTask("test-task", "my test task")
 	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(42), Hook: "check-health"}
 
-	ctx, err := hookstate.NewContext(task, s.state, setup, s.mockHandler, "")
+	ctx := mylog.Check2(hookstate.NewContext(task, s.state, setup, s.mockHandler, ""))
 	c.Assert(err, check.IsNil)
 	s.mockContext = ctx
 }
@@ -108,13 +109,13 @@ func (s *healthSuite) TestBadArgs(c *check.C) {
 	}
 
 	for i, t := range table {
-		_, _, err := ctlcmd.Run(nil, t.args, 0)
+		_, _ := mylog.Check3(ctlcmd.Run(nil, t.args, 0))
 		c.Check(err, check.ErrorMatches, t.err, check.Commentf("%d", i))
 	}
 }
 
 func (s *healthSuite) TestRegularRun(c *check.C) {
-	_, _, err := ctlcmd.Run(s.mockContext, []string{"set-health", "blocked", "message", "--code=some-code"}, 0)
+	_, _ := mylog.Check3(ctlcmd.Run(s.mockContext, []string{"set-health", "blocked", "message", "--code=some-code"}, 0))
 	c.Assert(err, check.IsNil)
 
 	s.mockContext.Lock()
@@ -129,7 +130,7 @@ func (s *healthSuite) TestRegularRun(c *check.C) {
 }
 
 func (s *healthSuite) TestMessageTruncation(c *check.C) {
-	_, _, err := ctlcmd.Run(s.mockContext, []string{"set-health", "waiting", "Sometimes messages will get a little bit too verbose and this can lead to some rather nasty UX (as well as potential memory problems in extreme cases) so we kinda have to deal with that", "--code=some-code"}, 0)
+	_, _ := mylog.Check3(ctlcmd.Run(s.mockContext, []string{"set-health", "waiting", "Sometimes messages will get a little bit too verbose and this can lead to some rather nasty UX (as well as potential memory problems in extreme cases) so we kinda have to deal with that", "--code=some-code"}, 0))
 	c.Assert(err, check.IsNil)
 
 	s.mockContext.Lock()

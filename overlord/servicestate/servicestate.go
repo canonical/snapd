@@ -31,6 +31,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/overlord/cmdstate"
@@ -129,12 +130,9 @@ func (i *Instruction) validateUsers(u *user.User, apps []*snap.AppInfo) error {
 // this validates user-list and scope. This should only be called once when the structure
 // is initialized/deserialized.
 func (i *Instruction) Validate(u *user.User, apps []*snap.AppInfo) error {
-	if err := i.validateScope(u, apps); err != nil {
-		return err
-	}
-	if err := i.validateUsers(u, apps); err != nil {
-		return err
-	}
+	mylog.Check(i.validateScope(u, apps))
+	mylog.Check(i.validateUsers(u, apps))
+
 	return nil
 }
 
@@ -182,17 +180,9 @@ func serviceControlTs(st *state.State, appInfos []*snap.AppInfo, inst *Instructi
 	var prev *state.Task
 	for _, snapName := range sortedNames {
 		var snapst snapstate.SnapState
-		if err := snapstate.Get(st, snapName, &snapst); err != nil {
-			if errors.Is(err, state.ErrNoState) {
-				return nil, fmt.Errorf("snap not found: %s", snapName)
-			}
-			return nil, err
-		}
+		mylog.Check(snapstate.Get(st, snapName, &snapst))
 
-		users, err := inst.Users.UserList(cu)
-		if err != nil {
-			return nil, err
-		}
+		users := mylog.Check2(inst.Users.UserList(cu))
 
 		cmd := &ServiceAction{
 			SnapName: snapName,
@@ -312,9 +302,7 @@ func Control(st *state.State, appInfos []*snap.AppInfo, inst *Instruction, cu *u
 	if context != nil {
 		ignoreChangeID = context.ChangeID()
 	}
-	if err := snapstate.CheckChangeConflictMany(st, snapNames, ignoreChangeID); err != nil {
-		return nil, &ServiceActionConflictError{err}
-	}
+	mylog.Check(snapstate.CheckChangeConflictMany(st, snapNames, ignoreChangeID))
 
 	for _, cmd := range ctlcmds {
 		argv := append([]string{"systemctl", cmd}, svcs...)
@@ -336,10 +324,8 @@ func Control(st *state.State, appInfos []*snap.AppInfo, inst *Instruction, cu *u
 
 	// XXX: serviceControlTs could be merged with above logic at the cost of
 	// slightly more complicated logic.
-	ts, err := serviceControlTs(st, appInfos, inst, cu)
-	if err != nil {
-		return nil, err
-	}
+	ts := mylog.Check2(serviceControlTs(st, appInfos, inst, cu))
+
 	tts = append(tts, ts)
 
 	// make a taskset wait for its predecessor
@@ -365,7 +351,8 @@ type StatusDecorator struct {
 // user.
 func NewStatusDecorator(rep interface {
 	Notify(string)
-}) clientutil.StatusDecorator {
+},
+) clientutil.StatusDecorator {
 	return &StatusDecorator{
 		sysd:           systemd.New(systemd.SystemMode, rep),
 		globalUserSysd: systemd.New(systemd.GlobalUserMode, rep),
@@ -377,7 +364,8 @@ func NewStatusDecorator(rep interface {
 // user-services for a specific user.
 func NewStatusDecoratorForUid(rep interface {
 	Notify(string)
-}, context context.Context, uid string) clientutil.StatusDecorator {
+}, context context.Context, uid string,
+) clientutil.StatusDecorator {
 	return &StatusDecorator{
 		sysd:           systemd.New(systemd.SystemMode, rep),
 		globalUserSysd: systemd.New(systemd.GlobalUserMode, rep),
@@ -405,16 +393,10 @@ func (sd *StatusDecorator) queryUserServiceStatus(units []string) ([]*systemd.Un
 		return nil, nil
 	}
 
-	uid, err := strconv.Atoi(sd.uid)
-	if err != nil {
-		return nil, err
-	}
+	uid := mylog.Check2(strconv.Atoi(sd.uid))
 
 	cli := usc.NewForUids(uid)
-	sts, failures, err := cli.ServiceStatus(sd.context, units)
-	if err != nil {
-		return nil, err
-	}
+	sts, failures := mylog.Check3(cli.ServiceStatus(sd.context, units))
 
 	// Return the first service failure, if any failures were reported
 	if len(failures[uid]) > 0 {
@@ -432,26 +414,23 @@ func (sd *StatusDecorator) queryUserServiceStatus(units []string) ([]*systemd.Un
 
 func (sd *StatusDecorator) queryServiceStatus(scope snap.DaemonScope, units []string) ([]*systemd.UnitStatus, error) {
 	var sts []*systemd.UnitStatus
-	var err error
+
 	switch scope {
 	case snap.SystemDaemon:
 		// sysd.Status() makes sure that we get only the units we asked
 		// for and raises an error otherwise.
-		sts, err = sd.sysd.Status(units)
+		sts = mylog.Check2(sd.sysd.Status(units))
 	case snap.UserDaemon:
 		// Support the previous behavior of retrieving the global enablement
 		// status of user services if no uid is configured for this status
 		// decorator.
 		if sd.uid != "" {
-			sts, err = sd.queryUserServiceStatus(units)
+			sts = mylog.Check2(sd.queryUserServiceStatus(units))
 		} else {
-			sts, err = sd.globalUserSysd.Status(units)
+			sts = mylog.Check2(sd.globalUserSysd.Status(units))
 		}
 	default:
 		return nil, fmt.Errorf("internal error: unknown daemon-scope %q", scope)
-	}
-	if err != nil {
-		return nil, err
 	}
 
 	// ensure we get the correct unit count, otherwise report an error.
@@ -492,10 +471,7 @@ func (sd *StatusDecorator) DecorateWithStatus(appInfo *client.AppInfo, snapApp *
 		serviceNames = append(serviceNames, timerUnit)
 	}
 
-	sts, err := sd.queryServiceStatus(snapApp.DaemonScope, serviceNames)
-	if err != nil {
-		return fmt.Errorf("cannot get status of services of app %q: %v", appInfo.Name, err)
-	}
+	sts := mylog.Check2(sd.queryServiceStatus(snapApp.DaemonScope, serviceNames))
 
 	for _, st := range sts {
 		switch filepath.Ext(st.Name) {
@@ -521,9 +497,8 @@ func (sd *StatusDecorator) DecorateWithStatus(appInfo *client.AppInfo, snapApp *
 	// Decorate with D-Bus names that activate this service
 	for _, slot := range snapApp.ActivatesOn {
 		var busName string
-		if err := slot.Attr("name", &busName); err != nil {
-			return fmt.Errorf("cannot get D-Bus bus name of slot %q: %v", slot.Name, err)
-		}
+		mylog.Check(slot.Attr("name", &busName))
+
 		// D-Bus activators do not correspond to systemd
 		// units, so don't have the concept of being disabled
 		// or deactivated.  As the service activation file is
@@ -553,7 +528,7 @@ func (sd *StatusDecorator) DecorateWithStatus(appInfo *client.AppInfo, snapApp *
 func SnapServiceOptions(st *state.State, snapInfo *snap.Info, quotaGroups map[string]*quota.Group) (opts *wrappers.SnapServiceOptions, err error) {
 	// if quotaGroups was not provided to us, then go get that
 	if quotaGroups == nil {
-		allGrps, err := AllQuotas(st)
+		allGrps := mylog.Check2(AllQuotas(st))
 		if err != nil && !errors.Is(err, state.ErrNoState) {
 			return nil, err
 		}
@@ -564,10 +539,8 @@ func SnapServiceOptions(st *state.State, snapInfo *snap.Info, quotaGroups map[st
 
 	tr := config.NewTransaction(st)
 	var vitalityStr string
-	err = tr.GetMaybe("core", "resilience.vitality-hint", &vitalityStr)
-	if err != nil {
-		return nil, err
-	}
+	mylog.Check(tr.GetMaybe("core", "resilience.vitality-hint", &vitalityStr))
+
 	for i, s := range strings.Split(vitalityStr, ",") {
 		if s == snapInfo.InstanceName() {
 			opts.VitalityRank = i + 1
@@ -602,7 +575,7 @@ func LogReader(appInfos []*snap.AppInfo, n int, follow bool) (io.ReadCloser, err
 	// introduced in systemd version 245. If systemd is older than that then
 	// we cannot use journal quotas in any case and don't include them.
 	includeNamespaces := false
-	if err := systemd.EnsureAtLeast(245); err == nil {
+	if mylog.Check(systemd.EnsureAtLeast(245)); err == nil {
 		includeNamespaces = true
 	} else if !systemd.IsSystemdTooOld(err) {
 		return nil, fmt.Errorf("cannot get systemd version: %v", err)

@@ -24,6 +24,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil/epoll"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/testutil"
@@ -46,10 +47,8 @@ func MockOsOpen(f func(name string) (*os.File, error)) (restore func()) {
 // it to the caller.
 func MockOsOpenWithSocket() (restore func()) {
 	f := func(name string) (*os.File, error) {
-		socket, err := unix.Socket(unix.AF_UNIX, unix.SOCK_STREAM, 0)
-		if err != nil {
-			return nil, err
-		}
+		socket := mylog.Check2(unix.Socket(unix.AF_UNIX, unix.SOCK_STREAM, 0))
+
 		notifyFile := os.NewFile(uintptr(socket), notify.SysPath)
 		return notifyFile, nil
 	}

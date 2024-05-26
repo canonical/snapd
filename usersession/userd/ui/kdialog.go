@@ -24,6 +24,8 @@ import (
 	"html"
 	"os/exec"
 	"time"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // KDialog provides a kdialog based UI interface
@@ -40,11 +42,8 @@ func (*KDialog) YesNo(primary, secondary string, options *DialogOptions) bool {
 		txt += fmt.Sprintf(`<p><small>%s</small></p>`, html.EscapeString(options.Footer))
 	}
 	cmd := exec.Command("kdialog", "--yesno="+txt)
-	if err := cmd.Start(); err != nil {
-		return false
-	}
+	mylog.Check(cmd.Start())
 
-	var err error
 	if options.Timeout > 0 {
 		done := make(chan error, 1)
 		go func() { done <- cmd.Wait() }()
@@ -58,7 +57,7 @@ func (*KDialog) YesNo(primary, secondary string, options *DialogOptions) bool {
 			return false
 		}
 	} else {
-		err = cmd.Wait()
+		mylog.Check(cmd.Wait())
 	}
 	if err == nil {
 		return true

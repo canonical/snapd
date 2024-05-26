@@ -32,6 +32,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/syscheck"
 	"github.com/snapcore/snapd/testutil"
@@ -62,8 +63,7 @@ func (s *syscheckSuite) TestRunHappy(c *C) {
 
 	restore := syscheck.MockChecks(happyChecks)
 	defer restore()
-
-	err := syscheck.CheckSystem()
+	mylog.Check(syscheck.CheckSystem())
 	c.Check(err, IsNil)
 	c.Check(happyCheckRan, Equals, 1)
 }
@@ -79,8 +79,7 @@ func (s *syscheckSuite) TestRunNotHappy(c *C) {
 
 	restore := syscheck.MockChecks(unhappyChecks)
 	defer restore()
-
-	err := syscheck.CheckSystem()
+	mylog.Check(syscheck.CheckSystem())
 	c.Check(err, IsNil)
 	c.Check(unhappyCheckRan, Equals, 1)
 }
@@ -101,14 +100,14 @@ func (s *syscheckSuite) TestUnexportedChecks(c *C) {
 	}
 
 	// collect all "check*" functions
-	goFiles, err := filepath.Glob("*.go")
-	c.Assert(err, IsNil)
+	goFiles := mylog.Check2(filepath.Glob("*.go"))
+
 	fset := token.NewFileSet()
 
 	var checkers []string
 	for _, fn := range goFiles {
-		f, err := parser.ParseFile(fset, fn, nil, 0)
-		c.Assert(err, IsNil)
+		f := mylog.Check2(parser.ParseFile(fset, fn, nil, 0))
+
 		ast.Inspect(f, func(n ast.Node) bool {
 			switch x := n.(type) {
 			case *ast.File:

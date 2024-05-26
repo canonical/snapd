@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
@@ -94,20 +95,20 @@ func (s *dspSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *dspSuite) TestApparmorConnectedPlugAmbarella(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	spec := apparmor.NewSpecification(appSet)
-	err = spec.AddConnectedPlug(s.iface, s.plug, s.ambarellaSlot)
-	c.Assert(err, IsNil)
+	mylog.Check(spec.AddConnectedPlug(s.iface, s.plug, s.ambarellaSlot))
+
 	c.Assert(spec.SnippetForTag("snap.my-device.svc"), testutil.Contains, "/proc/ambarella/vin[0-9]_idsp r,\n")
 }
 
 func (s *dspSuite) TestUDevConnectedPlugAmbarella(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	spec := udev.NewSpecification(appSet)
-	err = spec.AddConnectedPlug(s.iface, s.plug, s.ambarellaSlot)
-	c.Assert(err, IsNil)
+	mylog.Check(spec.AddConnectedPlug(s.iface, s.plug, s.ambarellaSlot))
+
 	c.Assert(spec.Snippets(), HasLen, 6)
 	c.Assert(spec.Snippets(), testutil.Contains, `# dsp
 KERNEL=="iav", TAG+="snap_my-device_svc"`)
@@ -115,20 +116,20 @@ KERNEL=="iav", TAG+="snap_my-device_svc"`)
 }
 
 func (s *dspSuite) TestUDevConnectedPlugNoFlavor(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	spec := udev.NewSpecification(appSet)
-	err = spec.AddConnectedPlug(s.iface, s.plug, s.noFlavorSlot)
-	c.Assert(err, IsNil)
+	mylog.Check(spec.AddConnectedPlug(s.iface, s.plug, s.noFlavorSlot))
+
 	c.Assert(spec.Snippets(), HasLen, 0)
 }
 
 func (s *dspSuite) TestApparmorConnectedPlugNoFlavor(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	spec := apparmor.NewSpecification(appSet)
-	err = spec.AddConnectedPlug(s.iface, s.plug, s.noFlavorSlot)
-	c.Assert(err, IsNil)
+	mylog.Check(spec.AddConnectedPlug(s.iface, s.plug, s.noFlavorSlot))
+
 	c.Assert(spec.Snippets(), HasLen, 0)
 }
 

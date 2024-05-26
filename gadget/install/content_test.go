@@ -28,6 +28,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
@@ -66,8 +67,8 @@ func (s *contentTestSuite) SetUpTest(c *C) {
 	s.mockUnmountCalls = nil
 
 	s.gadgetRoot = c.MkDir()
-	err := gadgettest.MakeMockGadget(s.gadgetRoot, gadgetContent)
-	c.Assert(err, IsNil)
+	mylog.Check(gadgettest.MakeMockGadget(s.gadgetRoot, gadgetContent))
+
 
 	s.mockMountPoint = c.MkDir()
 
@@ -153,7 +154,8 @@ type mockWriteObserver struct {
 }
 
 func (m *mockWriteObserver) Observe(op gadget.ContentOperation, partRole,
-	targetRootDir, relativeTargetPath string, data *gadget.ContentChange) (gadget.ContentChangeAction, error) {
+	targetRootDir, relativeTargetPath string, data *gadget.ContentChange,
+) (gadget.ContentChangeAction, error) {
 	if m.content == nil {
 		m.content = make(map[string][]*mockContentChange)
 	}
@@ -211,17 +213,17 @@ func (s *contentTestSuite) TestWriteFilesystemContent(c *C) {
 			observeErr:   tc.observeErr,
 			expectedRole: m.Role(),
 		}
-		err := install.WriteFilesystemContent(m, "/dev/node2", obs)
+		mylog.Check(install.WriteFilesystemContent(m, "/dev/node2", obs))
 		if tc.err == "" {
-			c.Assert(err, IsNil)
+
 		} else {
 			c.Assert(err, ErrorMatches, tc.err)
 		}
 
 		if err == nil {
 			// the target file system is mounted on a directory named after the structure index
-			content, err := os.ReadFile(filepath.Join(dirs.SnapRunDir, "gadget-install/dev-node2", "EFI/boot/grubx64.efi"))
-			c.Assert(err, IsNil)
+			content := mylog.Check2(os.ReadFile(filepath.Join(dirs.SnapRunDir, "gadget-install/dev-node2", "EFI/boot/grubx64.efi")))
+
 			c.Check(string(content), Equals, "grubx64.efi content")
 			c.Assert(obs.content, DeepEquals, map[string][]*mockContentChange{
 				filepath.Join(dirs.SnapRunDir, "gadget-install/dev-node2"): {
@@ -277,7 +279,8 @@ func (s *contentTestSuite) TestWriteFilesystemContentUnmountErrHandling(c *C) {
 		}, {
 			errors.New("umount error"),
 			errors.New("lazy umount err"),
-			`cannot unmount /dev/node2 after writing filesystem content: lazy umount err`},
+			`cannot unmount /dev/node2 after writing filesystem content: lazy umount err`,
+		},
 	} {
 		log.Reset()
 
@@ -294,10 +297,9 @@ func (s *contentTestSuite) TestWriteFilesystemContentUnmountErrHandling(c *C) {
 			}
 		})
 		defer restore()
-
-		err := install.WriteFilesystemContent(m, "/dev/node2", obs)
+		mylog.Check(install.WriteFilesystemContent(m, "/dev/node2", obs))
 		if tc.expectedErr == "" {
-			c.Assert(err, IsNil)
+
 		} else {
 			c.Assert(err, ErrorMatches, tc.expectedErr)
 		}
@@ -327,15 +329,14 @@ func (s *contentTestSuite) TestMakeFilesystem(c *C) {
 		return nil
 	})
 	defer restore()
-
-	err := install.MakeFilesystem(install.MkfsParams{
+	mylog.Check(install.MakeFilesystem(install.MkfsParams{
 		Type:       mockOnDiskStructureWritable.PartitionFSType,
 		Device:     mockOnDiskStructureWritable.Node,
 		Label:      mockOnDiskStructureWritable.PartitionFSLabel,
 		Size:       mockOnDiskStructureWritable.Size,
 		SectorSize: quantity.Size(512),
-	})
-	c.Assert(err, IsNil)
+	}))
+
 
 	c.Assert(mockUdevadm.Calls(), DeepEquals, [][]string{
 		{"udevadm", "trigger", "--settle", "/dev/node3"},
@@ -348,15 +349,14 @@ func (s *contentTestSuite) TestMakeFilesystemRealMkfs(c *C) {
 
 	mockMkfsExt4 := testutil.MockCommand(c, "mkfs.ext4", "")
 	defer mockMkfsExt4.Restore()
-
-	err := install.MakeFilesystem(install.MkfsParams{
+	mylog.Check(install.MakeFilesystem(install.MkfsParams{
 		Type:       mockOnDiskStructureWritable.PartitionFSType,
 		Device:     mockOnDiskStructureWritable.Node,
 		Label:      mockOnDiskStructureWritable.PartitionFSLabel,
 		Size:       mockOnDiskStructureWritable.Size,
 		SectorSize: quantity.Size(512),
-	})
-	c.Assert(err, IsNil)
+	}))
+
 
 	c.Assert(mockUdevadm.Calls(), DeepEquals, [][]string{
 		{"udevadm", "trigger", "--settle", "/dev/node3"},
@@ -370,10 +370,11 @@ func (s *contentTestSuite) TestMakeFilesystemRealMkfs(c *C) {
 func (s *contentTestSuite) TestMountFilesystem(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("")
+	mylog.
 
-	// mount a filesystem...
-	err := install.MountFilesystem("/dev/node2", "vfat", filepath.Join(boot.InitramfsRunMntDir, "ubuntu-seed"))
-	c.Assert(err, IsNil)
+		// mount a filesystem...
+		Check(install.MountFilesystem("/dev/node2", "vfat", filepath.Join(boot.InitramfsRunMntDir, "ubuntu-seed")))
+
 
 	// ...and check if it was mounted at the right mount point
 	c.Check(s.mockMountCalls, HasLen, 1)
@@ -383,6 +384,6 @@ func (s *contentTestSuite) TestMountFilesystem(c *C) {
 
 	// try again with mocked error
 	s.mockMountErr = fmt.Errorf("mock mount error")
-	err = install.MountFilesystem("/dev/node2", "vfat", filepath.Join(boot.InitramfsRunMntDir, "ubuntu-seed"))
+	mylog.Check(install.MountFilesystem("/dev/node2", "vfat", filepath.Join(boot.InitramfsRunMntDir, "ubuntu-seed")))
 	c.Assert(err, ErrorMatches, `cannot mount filesystem "/dev/node2" at ".*/run/mnt/ubuntu-seed": mock mount error`)
 }

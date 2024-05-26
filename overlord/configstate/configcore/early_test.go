@@ -23,6 +23,7 @@ package configcore_test
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 )
@@ -40,8 +41,8 @@ func (s *earlySuite) TestEarly(c *C) {
 		"service.ssh.disable":             true,
 	}
 	tr := &mockConf{state: s.state}
-	err := configcore.Early(coreDev, tr, patch)
-	c.Assert(err, IsNil)
+	mylog.Check(configcore.Early(coreDev, tr, patch))
+
 
 	// only early options as described by flags earlyConfigFilters
 	// were processed

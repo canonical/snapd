@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces/prompting"
 )
@@ -45,15 +46,15 @@ func (s *promptingSuite) SetUpTest(c *C) {
 }
 
 func (s *promptingSuite) TestOutcomeIsAllow(c *C) {
-	result, err := prompting.OutcomeAllow.IsAllow()
+	result := mylog.Check2(prompting.OutcomeAllow.IsAllow())
 	c.Check(err, IsNil)
 	c.Check(result, Equals, true)
-	result, err = prompting.OutcomeDeny.IsAllow()
+	result = mylog.Check2(prompting.OutcomeDeny.IsAllow())
 	c.Check(err, IsNil)
 	c.Check(result, Equals, false)
-	_, err = prompting.OutcomeUnset.IsAllow()
+	_ = mylog.Check2(prompting.OutcomeUnset.IsAllow())
 	c.Check(err, ErrorMatches, `internal error: invalid outcome.*`)
-	_, err = prompting.OutcomeType("foo").IsAllow()
+	_ = mylog.Check2(prompting.OutcomeType("foo").IsAllow())
 	c.Check(err, ErrorMatches, `internal error: invalid outcome.*`)
 }
 
@@ -69,14 +70,14 @@ func (s *promptingSuite) TestUnmarshalOutcomeHappy(c *C) {
 	} {
 		var fow1 fakeOutcomeWrapper
 		data := []byte(fmt.Sprintf(`{"field1": "%s", "field2": "%s"}`, outcome, outcome))
-		err := json.Unmarshal(data, &fow1)
+		mylog.Check(json.Unmarshal(data, &fow1))
 		c.Check(err, IsNil, Commentf("data: %v", string(data)))
 		c.Check(fow1.Field1, Equals, outcome, Commentf("data: %v", string(data)))
 		c.Check(fow1.Field2, Equals, outcome, Commentf("data: %v", string(data)))
 
 		var fow2 fakeOutcomeWrapper
 		data = []byte(fmt.Sprintf(`{"field1": "%s"}`, outcome))
-		err = json.Unmarshal(data, &fow2)
+		mylog.Check(json.Unmarshal(data, &fow2))
 		c.Check(err, IsNil, Commentf("data: %v", string(data)))
 		c.Check(fow2.Field1, Equals, outcome, Commentf("data: %v", string(data)))
 		c.Check(fow2.Field2, Equals, prompting.OutcomeUnset, Commentf("data: %v", string(data)))
@@ -90,12 +91,12 @@ func (s *promptingSuite) TestUnmarshalOutcomeUnhappy(c *C) {
 	} {
 		var fow1 fakeOutcomeWrapper
 		data := []byte(fmt.Sprintf(`{"field1": "%s", "field2": "%s"}`, outcome, outcome))
-		err := json.Unmarshal(data, &fow1)
+		mylog.Check(json.Unmarshal(data, &fow1))
 		c.Check(err, ErrorMatches, `cannot have outcome other than.*`, Commentf("data: %v", string(data)))
 
 		var fow2 fakeOutcomeWrapper
 		data = []byte(fmt.Sprintf(`{"field1": "%s", "field2": "%s"}`, prompting.OutcomeAllow, outcome))
-		err = json.Unmarshal(data, &fow2)
+		mylog.Check(json.Unmarshal(data, &fow2))
 		c.Check(err, ErrorMatches, `cannot have outcome other than.*`, Commentf("data: %v", string(data)))
 	}
 }
@@ -113,14 +114,14 @@ func (s *promptingSuite) TestUnmarshalLifespanHappy(c *C) {
 	} {
 		var flw1 fakeLifespanWrapper
 		data := []byte(fmt.Sprintf(`{"field1": "%s", "field2": "%s"}`, lifespan, lifespan))
-		err := json.Unmarshal(data, &flw1)
+		mylog.Check(json.Unmarshal(data, &flw1))
 		c.Check(err, IsNil, Commentf("data: %v", string(data)))
 		c.Check(flw1.Field1, Equals, lifespan, Commentf("data: %v", string(data)))
 		c.Check(flw1.Field2, Equals, lifespan, Commentf("data: %v", string(data)))
 
 		var flw2 fakeLifespanWrapper
 		data = []byte(fmt.Sprintf(`{"field1": "%s"}`, lifespan))
-		err = json.Unmarshal(data, &flw2)
+		mylog.Check(json.Unmarshal(data, &flw2))
 		c.Check(err, IsNil, Commentf("data: %v", string(data)))
 		c.Check(flw2.Field1, Equals, lifespan, Commentf("data: %v", string(data)))
 		c.Check(flw2.Field2, Equals, prompting.LifespanUnset, Commentf("data: %v", string(data)))
@@ -134,12 +135,12 @@ func (s *promptingSuite) TestUnmarshalLifespanUnhappy(c *C) {
 	} {
 		var flw1 fakeLifespanWrapper
 		data := []byte(fmt.Sprintf(`{"field1": "%s", "field2": "%s"}`, lifespan, lifespan))
-		err := json.Unmarshal(data, &flw1)
+		mylog.Check(json.Unmarshal(data, &flw1))
 		c.Check(err, ErrorMatches, `cannot have lifespan other than.*`, Commentf("data: %v", string(data)))
 
 		var flw2 fakeLifespanWrapper
 		data = []byte(fmt.Sprintf(`{"field1": "%s", "field2": "%s"}`, prompting.LifespanForever, lifespan))
-		err = json.Unmarshal(data, &flw2)
+		mylog.Check(json.Unmarshal(data, &flw2))
 		c.Check(err, ErrorMatches, `cannot have lifespan other than.*`, Commentf("data: %v", string(data)))
 	}
 }
@@ -154,21 +155,18 @@ func (s *promptingSuite) TestValidateExpiration(c *C) {
 		prompting.LifespanForever,
 		prompting.LifespanSingle,
 	} {
-		err := lifespan.ValidateExpiration(unsetExpiration, currTime)
+		mylog.Check(lifespan.ValidateExpiration(unsetExpiration, currTime))
 		c.Check(err, IsNil)
 		for _, exp := range []time.Time{negativeExpiration, validExpiration} {
-			err = lifespan.ValidateExpiration(exp, currTime)
+			mylog.Check(lifespan.ValidateExpiration(exp, currTime))
 			c.Check(err, ErrorMatches, `cannot have specified expiration when lifespan is.*`)
 		}
 	}
-
-	err := prompting.LifespanTimespan.ValidateExpiration(unsetExpiration, currTime)
+	mylog.Check(prompting.LifespanTimespan.ValidateExpiration(unsetExpiration, currTime))
 	c.Check(err, ErrorMatches, `cannot have unspecified expiration when lifespan is.*`)
-
-	err = prompting.LifespanTimespan.ValidateExpiration(negativeExpiration, currTime)
+	mylog.Check(prompting.LifespanTimespan.ValidateExpiration(negativeExpiration, currTime))
 	c.Check(err, ErrorMatches, `cannot have expiration time in the past.*`)
-
-	err = prompting.LifespanTimespan.ValidateExpiration(validExpiration, currTime)
+	mylog.Check(prompting.LifespanTimespan.ValidateExpiration(validExpiration, currTime))
 	c.Check(err, IsNil)
 }
 
@@ -177,42 +175,42 @@ func (s *promptingSuite) TestParseDuration(c *C) {
 	invalidDuration := "foo"
 	negativeDuration := "-5s"
 	validDuration := "10m"
-	parsedValidDuration, err := time.ParseDuration(validDuration)
-	c.Assert(err, IsNil)
+	parsedValidDuration := mylog.Check2(time.ParseDuration(validDuration))
+
 	currTime := time.Now()
 
 	for _, lifespan := range []prompting.LifespanType{
 		prompting.LifespanForever,
 		prompting.LifespanSingle,
 	} {
-		expiration, err := lifespan.ParseDuration(unsetDuration, currTime)
+		expiration := mylog.Check2(lifespan.ParseDuration(unsetDuration, currTime))
 		c.Check(expiration.IsZero(), Equals, true)
 		c.Check(err, IsNil)
 		for _, dur := range []string{invalidDuration, negativeDuration, validDuration} {
-			expiration, err = lifespan.ParseDuration(dur, currTime)
+			expiration = mylog.Check2(lifespan.ParseDuration(dur, currTime))
 			c.Check(expiration.IsZero(), Equals, true)
 			c.Check(err, ErrorMatches, `cannot have specified duration when lifespan is.*`)
 		}
 	}
 
-	expiration, err := prompting.LifespanTimespan.ParseDuration(unsetDuration, currTime)
+	expiration := mylog.Check2(prompting.LifespanTimespan.ParseDuration(unsetDuration, currTime))
 	c.Check(expiration.IsZero(), Equals, true)
 	c.Check(err, ErrorMatches, `cannot have unspecified duration when lifespan is.*`)
 
-	expiration, err = prompting.LifespanTimespan.ParseDuration(invalidDuration, currTime)
+	expiration = mylog.Check2(prompting.LifespanTimespan.ParseDuration(invalidDuration, currTime))
 	c.Check(expiration.IsZero(), Equals, true)
 	c.Check(err, ErrorMatches, `cannot parse duration.*`)
 
-	expiration, err = prompting.LifespanTimespan.ParseDuration(negativeDuration, currTime)
+	expiration = mylog.Check2(prompting.LifespanTimespan.ParseDuration(negativeDuration, currTime))
 	c.Check(expiration.IsZero(), Equals, true)
 	c.Check(err, ErrorMatches, `cannot have zero or negative duration.*`)
 
-	expiration, err = prompting.LifespanTimespan.ParseDuration(validDuration, currTime)
+	expiration = mylog.Check2(prompting.LifespanTimespan.ParseDuration(validDuration, currTime))
 	c.Check(err, IsNil)
 	c.Check(expiration.After(time.Now()), Equals, true)
 	c.Check(expiration.Before(time.Now().Add(parsedValidDuration)), Equals, true)
 
-	expiration2, err := prompting.LifespanTimespan.ParseDuration(validDuration, currTime)
+	expiration2 := mylog.Check2(prompting.LifespanTimespan.ParseDuration(validDuration, currTime))
 	c.Check(err, IsNil)
 	c.Check(expiration2.Equal(expiration), Equals, true)
 }

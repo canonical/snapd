@@ -28,6 +28,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -48,7 +49,7 @@ func init() {
 func ConfigureHookTimeout() time.Duration {
 	timeout := 5 * time.Minute
 	if s := os.Getenv("SNAPD_CONFIGURE_HOOK_TIMEOUT"); s != "" {
-		if to, err := time.ParseDuration(s); err == nil {
+		if to := mylog.Check2(time.ParseDuration(s)); err == nil {
 			timeout = to
 		}
 	}
@@ -63,7 +64,7 @@ func canConfigure(st *state.State, snapName string) error {
 	}
 
 	var snapst snapstate.SnapState
-	err := snapstate.Get(st, snapName, &snapst)
+	mylog.Check(snapstate.Get(st, snapName, &snapst))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
@@ -73,19 +74,15 @@ func canConfigure(st *state.State, snapName string) error {
 	}
 
 	// the "snapd" snap cannot be configured yet
-	typ, err := snapst.Type()
-	if err != nil {
-		return err
-	}
+	typ := mylog.Check2(snapst.Type())
+
 	if typ == snap.TypeSnapd {
 		return fmt.Errorf(`cannot configure the "snapd" snap, please use "system" instead`)
 	}
 
 	// bases cannot be configured for now
-	typ, err = snapst.Type()
-	if err != nil {
-		return err
-	}
+	typ = mylog.Check2(snapst.Type())
+
 	if typ == snap.TypeBase {
 		return fmt.Errorf("cannot configure snap %q because it is of type 'base'", snapName)
 	}
@@ -97,9 +94,7 @@ func canConfigure(st *state.State, snapName string) error {
 // configuration patch for an installed snap. It returns
 // snap.NotInstalledError if the snap is not installed.
 func ConfigureInstalled(st *state.State, snapName string, patch map[string]interface{}, flags int) (*state.TaskSet, error) {
-	if err := canConfigure(st, snapName); err != nil {
-		return nil, err
-	}
+	mylog.Check(canConfigure(st, snapName))
 
 	taskset := Configure(st, snapName, patch, flags)
 	return taskset, nil
@@ -181,31 +176,23 @@ var (
 // the model/device as sysconfig.Device.
 func EarlyConfig(st *state.State, preloadGadget func() (sysconfig.Device, *gadget.Info, error)) error {
 	// already configured
-	configed, err := systemAlreadyConfigured(st)
-	if err != nil {
-		return err
-	}
+	configed := mylog.Check2(systemAlreadyConfigured(st))
+
 	// No task is associated to the transaction if it is an early config
 	rt := configcore.NewRunTransaction(config.NewTransaction(st), nil)
 	if configed {
-		if err := configcoreExportExperimentalFlags(rt); err != nil {
-			return fmt.Errorf("cannot export experimental config flags: %v", err)
-		}
+		mylog.Check(configcoreExportExperimentalFlags(rt))
+
 		return nil
 	}
 	if preloadGadget != nil {
-		dev, gi, err := preloadGadget()
-		if err != nil {
-			if errors.Is(err, state.ErrNoState) {
-				// nothing to do
-				return nil
-			}
-			return err
-		}
+		dev, gi := mylog.Check3(preloadGadget())
+
+		// nothing to do
+
 		values := gadget.SystemDefaults(gi.Defaults)
-		if err := configcoreEarly(dev, rt, values); err != nil {
-			return err
-		}
+		mylog.Check(configcoreEarly(dev, rt, values))
+
 		rt.Commit()
 	}
 	return nil
@@ -213,13 +200,13 @@ func EarlyConfig(st *state.State, preloadGadget func() (sysconfig.Device, *gadge
 
 func systemAlreadyConfigured(st *state.State) (bool, error) {
 	var seeded bool
-	if err := st.Get("seeded", &seeded); err != nil && !errors.Is(err, state.ErrNoState) {
+	if mylog.Check(st.Get("seeded", &seeded)); err != nil && !errors.Is(err, state.ErrNoState) {
 		return false, err
 	}
 	if seeded {
 		return true, nil
 	}
-	cfg, err := config.GetSnapConfig(st, "core")
+	cfg := mylog.Check2(config.GetSnapConfig(st, "core"))
 	if cfg != nil {
 		return true, nil
 	}

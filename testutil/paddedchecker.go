@@ -24,6 +24,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"gopkg.in/check.v1"
 )
 
@@ -119,10 +120,8 @@ func (c *paddedChecker) Check(params []interface{}, names []string) (result bool
 		ws = `[\t ]`
 	}
 	if c.isRegexp {
-		_, err := regexp.Compile(expected)
-		if err != nil {
-			return false, fmt.Sprintf("right-hand value must be a valid regexp: %v", err)
-		}
+		_ := mylog.Check2(regexp.Compile(expected))
+
 		expected = spaceinator(expected, ws+"+")
 	} else {
 		fields := strings.Fields(expected)
@@ -138,10 +137,9 @@ func (c *paddedChecker) Check(params []interface{}, names []string) (result bool
 		expected = "(?s)" + expected
 	}
 
-	matches, err := regexp.MatchString(expected, other)
-	if err != nil {
-		// can't happen (really)
-		panic(err)
-	}
+	matches := mylog.Check2(regexp.MatchString(expected, other))
+
+	// can't happen (really)
+
 	return matches, ""
 }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -17,25 +18,12 @@ func main() {
 		die(fmt.Errorf("usage: %s file", os.Args[0]))
 	}
 
-	f, err := os.Open(os.Args[1])
-	if err != nil {
-		die(err)
-	}
+	f := mylog.Check2(os.Open(os.Args[1]))
 
-	before, err := osutil.GetAttr(f)
-	if err != nil {
-		die(err)
-	}
+	before := mylog.Check2(osutil.GetAttr(f))
+	mylog.Check(osutil.SetAttr(f, before^osutil.FS_IMMUTABLE_FL))
 
-	err = osutil.SetAttr(f, before^osutil.FS_IMMUTABLE_FL)
-	if err != nil {
-		die(err)
-	}
-
-	after, err := osutil.GetAttr(f)
-	if err != nil {
-		die(err)
-	}
+	after := mylog.Check2(osutil.GetAttr(f))
 
 	if before&osutil.FS_IMMUTABLE_FL != 0 {
 		fmt.Print("immutable")

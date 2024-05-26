@@ -27,6 +27,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/progress"
 )
 
@@ -132,7 +133,7 @@ func (ansiSuite) TestSetLayout(c *check.C) {
 func (ansiSuite) TestSetLayoutMultibyte(c *check.C) {
 	var buf bytes.Buffer
 	var duration string
-	var msg = "0123456789"
+	msg := "0123456789"
 	defer progress.MockStdout(&buf)()
 	defer progress.MockEmptyEscapes()()
 	defer progress.MockTermWidth(func() int { return 80 })()
@@ -253,7 +254,6 @@ func (ansiSuite) TestNotify(c *check.C) {
 		"\r<MR><ME>working    ages!"+ // the Set(0)
 		"\r<ME><CE>hello there\n"+ // first line of the Notify (no wrap!)
 		"\r<MR><ME>working    ages!") // the Set(1)
-
 }
 
 func (ansiSuite) TestWrite(c *check.C) {
@@ -265,7 +265,7 @@ func (ansiSuite) TestWrite(c *check.C) {
 	p := &progress.ANSIMeter{}
 	p.Start("123456789x", 10)
 	for i := 0; i < 10; i++ {
-		n, err := fmt.Fprintf(p, "%d", i)
+		n := mylog.Check2(fmt.Fprintf(p, "%d", i))
 		c.Assert(err, check.IsNil)
 		c.Check(n, check.Equals, 1)
 	}

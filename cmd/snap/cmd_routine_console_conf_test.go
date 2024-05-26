@@ -28,6 +28,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 	snap "github.com/snapcore/snapd/cmd/snap"
 	"github.com/snapcore/snapd/dirs"
@@ -49,8 +50,8 @@ func (s *SnapSuite) TestRoutineConsoleConfStartTrivialCase(c *C) {
 		}
 	})
 
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"routine", "console-conf-start"})
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"routine", "console-conf-start"}))
+
 	c.Check(s.Stdout(), Equals, "")
 	c.Check(s.Stderr(), Equals, "")
 	c.Assert(n, Equals, 1)
@@ -78,12 +79,11 @@ func (s *SnapSuite) TestRoutineConsoleConfStartInconsistentAPIResponseError(c *C
 		}
 	})
 
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"routine", "console-conf-start"})
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"routine", "console-conf-start"}))
 	c.Assert(err, ErrorMatches, `internal error: returned changes .* but no snap names`)
 	c.Check(s.Stdout(), Equals, "")
 	c.Check(s.Stderr(), Equals, "")
 	c.Assert(n, Equals, 1)
-
 }
 
 func (s *SnapSuite) TestRoutineConsoleConfStartNonMaintenanceErrorReturned(c *C) {
@@ -108,7 +108,7 @@ func (s *SnapSuite) TestRoutineConsoleConfStartNonMaintenanceErrorReturned(c *C)
 		}
 	})
 
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"routine", "console-conf-start"})
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"routine", "console-conf-start"}))
 	c.Assert(err, ErrorMatches, "broken server")
 	c.Check(s.Stdout(), Equals, "")
 	c.Check(s.Stderr(), Equals, "")
@@ -150,8 +150,8 @@ func (s *SnapSuite) TestRoutineConsoleConfStartSingleSnap(c *C) {
 		}
 	})
 
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"routine", "console-conf-start"})
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"routine", "console-conf-start"}))
+
 	c.Check(s.Stdout(), Equals, "")
 	c.Check(s.Stderr(), Equals, "Snaps (pc-kernel) are refreshing, please wait...\n")
 	c.Assert(n, Equals, 5)
@@ -192,8 +192,8 @@ func (s *SnapSuite) TestRoutineConsoleConfStartTwoSnaps(c *C) {
 		}
 	})
 
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"routine", "console-conf-start"})
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"routine", "console-conf-start"}))
+
 	c.Check(s.Stdout(), Equals, "")
 	c.Check(s.Stderr(), Equals, "Snaps (core20 and pc-kernel) are refreshing, please wait...\n")
 	c.Assert(n, Equals, 5)
@@ -233,8 +233,8 @@ func (s *SnapSuite) TestRoutineConsoleConfStartMultipleSnaps(c *C) {
 		}
 	})
 
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"routine", "console-conf-start"})
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"routine", "console-conf-start"}))
+
 	c.Check(s.Stdout(), Equals, "")
 	c.Check(s.Stderr(), Equals, "Snaps (core20, pc, pc-kernel, and snapd) are refreshing, please wait...\n")
 	c.Assert(n, Equals, 5)
@@ -252,12 +252,12 @@ func (s *SnapSuite) TestRoutineConsoleConfStartSnapdRefreshMaintenanceJSON(c *C)
 		Kind:    client.ErrorKindDaemonRestart,
 		Message: "daemon is restarting",
 	}
-	b, err := json.Marshal(&maintErr)
-	c.Assert(err, IsNil)
-	err = os.MkdirAll(filepath.Dir(dirs.SnapdMaintenanceFile), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(dirs.SnapdMaintenanceFile, b, 0644)
-	c.Assert(err, IsNil)
+	b := mylog.Check2(json.Marshal(&maintErr))
+
+	mylog.Check(os.MkdirAll(filepath.Dir(dirs.SnapdMaintenanceFile), 0755))
+
+	mylog.Check(os.WriteFile(dirs.SnapdMaintenanceFile, b, 0644))
+
 
 	n := 0
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
@@ -295,8 +295,8 @@ func (s *SnapSuite) TestRoutineConsoleConfStartSnapdRefreshMaintenanceJSON(c *C)
 		}
 	})
 
-	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"routine", "console-conf-start"})
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"routine", "console-conf-start"}))
+
 	c.Check(s.Stdout(), Equals, "")
 	c.Check(s.Stderr(), testutil.Contains, "Snapd is reloading, please wait...\n")
 	c.Check(s.Stderr(), testutil.Contains, "Snaps (snapd) are refreshing, please wait...\n")
@@ -318,12 +318,12 @@ func (s *SnapSuite) TestRoutineConsoleConfStartSystemRebootMaintenanceJSON(c *C)
 		Kind:    client.ErrorKindSystemRestart,
 		Message: "system is restarting",
 	}
-	b, err := json.Marshal(&maintErr)
-	c.Assert(err, IsNil)
-	err = os.MkdirAll(filepath.Dir(dirs.SnapdMaintenanceFile), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(dirs.SnapdMaintenanceFile, b, 0644)
-	c.Assert(err, IsNil)
+	b := mylog.Check2(json.Marshal(&maintErr))
+
+	mylog.Check(os.MkdirAll(filepath.Dir(dirs.SnapdMaintenanceFile), 0755))
+
+	mylog.Check(os.WriteFile(dirs.SnapdMaintenanceFile, b, 0644))
+
 
 	n := 0
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
@@ -341,7 +341,7 @@ func (s *SnapSuite) TestRoutineConsoleConfStartSystemRebootMaintenanceJSON(c *C)
 		}
 	})
 
-	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"routine", "console-conf-start"})
+	_ = mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"routine", "console-conf-start"}))
 	c.Assert(err, ErrorMatches, "system didn't reboot after 10 minutes even though snapd daemon is in maintenance")
 	c.Check(s.Stdout(), Equals, "")
 	c.Check(s.Stderr(), testutil.Contains, "System is rebooting, please wait for reboot...\n")
@@ -421,8 +421,8 @@ func (s *SnapSuite) TestRoutineConsoleConfStartSnapdRefreshRestart(c *C) {
 		}
 	})
 
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"routine", "console-conf-start"})
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"routine", "console-conf-start"}))
+
 	c.Check(s.Stdout(), Equals, "")
 	c.Check(s.Stderr(), testutil.Contains, "Snapd is reloading, please wait...\n")
 	c.Check(s.Stderr(), testutil.Contains, "Snaps (snapd) are refreshing, please wait...\n")
@@ -484,7 +484,7 @@ func (s *SnapSuite) TestRoutineConsoleConfStartKernelRefreshReboot(c *C) {
 		}
 	})
 
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"routine", "console-conf-start"})
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"routine", "console-conf-start"}))
 	// this is the internal error, which we will hit immediately for testing,
 	// in a real scenario a reboot would happen OOTB from the snap client
 	c.Assert(err, ErrorMatches, "system didn't reboot after 10 minutes even though snapd daemon is in maintenance")

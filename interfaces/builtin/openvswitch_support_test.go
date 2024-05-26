@@ -22,6 +22,7 @@ package builtin_test
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/kmod"
@@ -43,7 +44,7 @@ var _ = Suite(&OpenvSwitchSupportInterfaceSuite{
 })
 
 func (s *OpenvSwitchSupportInterfaceSuite) SetUpTest(c *C) {
-	var mockPlugSnapInfoYaml = `name: other
+	mockPlugSnapInfoYaml := `name: other
 version: 1.0
 apps:
  app:
@@ -75,8 +76,8 @@ func (s *OpenvSwitchSupportInterfaceSuite) TestSanitizePlug(c *C) {
 
 func (s *OpenvSwitchSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	spec := &kmod.Specification{}
-	err := spec.AddConnectedPlug(s.iface, s.plug, s.slot)
-	c.Assert(err, IsNil)
+	mylog.Check(spec.AddConnectedPlug(s.iface, s.plug, s.slot))
+
 	c.Assert(spec.Modules(), DeepEquals, map[string]bool{
 		"openvswitch": true,
 	})

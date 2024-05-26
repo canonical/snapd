@@ -22,6 +22,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/asserts"
@@ -59,17 +60,13 @@ func (x *cmdDeleteKey) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	keypairMgr, err := signtool.GetKeypairManager()
-	if err != nil {
-		return err
-	}
+	keypairMgr := mylog.Check2(signtool.GetKeypairManager())
+
 	keyName := string(x.Positional.KeyName)
-	err = keypairMgr.DeleteByName(keyName)
+	mylog.Check(keypairMgr.DeleteByName(keyName))
 	if _, ok := err.(*asserts.ExternalUnsupportedOpError); ok {
 		return fmt.Errorf(i18n.G("cannot delete external keypair manager key via snap command, use the appropriate external procedure"))
 	}
-	if err != nil {
-		return fmt.Errorf("cannot delete key named %q: %v", keyName, err)
-	}
+
 	return nil
 }

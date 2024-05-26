@@ -28,6 +28,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/i18n"
@@ -68,10 +69,8 @@ var (
 	IsOnMeteredConnection func() (bool, error)
 
 	defaultRefreshSchedule = func() []*timeutil.Schedule {
-		refreshSchedule, err := timeutil.ParseSchedule(defaultRefreshScheduleStr)
-		if err != nil {
-			panic(fmt.Sprintf("defaultRefreshSchedule cannot be parsed: %s", err))
-		}
+		refreshSchedule := mylog.Check2(timeutil.ParseSchedule(defaultRefreshScheduleStr))
+
 		return refreshSchedule
 	}()
 )
@@ -110,9 +109,7 @@ func (rc *refreshCandidate) Prereq(*state.State, PrereqTracker) []string {
 
 func (rc *refreshCandidate) SnapSetupForUpdate(st *state.State, _ updateParamsFunc, _ int, globalFlags *Flags, _ PrereqTracker) (*SnapSetup, *SnapState, error) {
 	var snapst SnapState
-	if err := Get(st, rc.InstanceName(), &snapst); err != nil {
-		return nil, nil, err
-	}
+	mylog.Check(Get(st, rc.InstanceName(), &snapst))
 
 	snapsup := &rc.SnapSetup
 	if globalFlags != nil {
@@ -149,7 +146,7 @@ func newAutoRefresh(st *state.State) *autoRefresh {
 // for the automatic refreshes and a flag indicating whether the schedule is a
 // legacy one.
 func (m *autoRefresh) RefreshSchedule() (schedule string, legacy bool, err error) {
-	_, schedule, legacy, err = m.refreshScheduleWithDefaultsFallback()
+	_, schedule, legacy = mylog.Check4(m.refreshScheduleWithDefaultsFallback())
 	return schedule, legacy, err
 }
 
@@ -173,7 +170,7 @@ func effectiveRefreshHold(st *state.State) (time.Time, error) {
 	var holdValue string
 
 	tr := config.NewTransaction(st)
-	err := tr.Get("core", "refresh.hold", &holdValue)
+	mylog.Check(tr.Get("core", "refresh.hold", &holdValue))
 	if err != nil && !config.IsNoOption(err) {
 		return time.Time{}, err
 	}
@@ -184,7 +181,7 @@ func effectiveRefreshHold(st *state.State) (time.Time, error) {
 
 	var holdTime time.Time
 	if holdValue != "" {
-		if holdTime, err = time.Parse(time.RFC3339, holdValue); err != nil {
+		if holdTime = mylog.Check2(time.Parse(time.RFC3339, holdValue)); err != nil {
 			return time.Time{}, err
 		}
 	}
@@ -197,17 +194,14 @@ func (m *autoRefresh) ensureRefreshHoldAtLeast(duration time.Duration) error {
 
 	// get the effective refresh hold and check if it is sooner than the
 	// specified duration in the future
-	effective, err := m.EffectiveRefreshHold()
-	if err != nil {
-		return err
-	}
+	effective := mylog.Check2(m.EffectiveRefreshHold())
 
 	if effective.IsZero() || effective.Sub(now) < duration {
 		// the effective refresh hold is sooner than the desired delay, so
 		// move it out to the specified duration
 		holdTime := now.Add(duration)
 		tr := config.NewTransaction(m.state)
-		err := tr.Set("core", "refresh.hold", &holdTime)
+		mylog.Check(tr.Set("core", "refresh.hold", &holdTime))
 		if err != nil && !config.IsNoOption(err) {
 			return err
 		}
@@ -228,10 +222,8 @@ func (m *autoRefresh) clearRefreshHold() {
 func (m *autoRefresh) AtSeed() error {
 	// on classic hold refreshes for 2h after seeding
 	if release.OnClassic {
-		holdTime, err := effectiveRefreshHold(m.state)
-		if err != nil {
-			return err
-		}
+		holdTime := mylog.Check2(effectiveRefreshHold(m.state))
+
 		if !holdTime.IsZero() {
 			// already set
 			return nil
@@ -250,7 +242,7 @@ func (m *autoRefresh) AtSeed() error {
 func canRefreshOnMeteredConnection(st *state.State) (bool, error) {
 	tr := config.NewTransaction(st)
 	var onMetered string
-	err := tr.GetMaybe("core", "refresh.metered", &onMetered)
+	mylog.Check(tr.GetMaybe("core", "refresh.metered", &onMetered))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return false, err
 	}
@@ -259,10 +251,8 @@ func canRefreshOnMeteredConnection(st *state.State) (bool, error) {
 }
 
 func (m *autoRefresh) canRefreshRespectingMetered(now, lastRefresh time.Time) (can bool, err error) {
-	can, err = canRefreshOnMeteredConnection(m.state)
-	if err != nil {
-		return false, err
-	}
+	can = mylog.Check2(canRefreshOnMeteredConnection(m.state))
+
 	if can {
 		return true, nil
 	}
@@ -289,9 +279,7 @@ func isStoreOnline(s *state.State) (bool, error) {
 	tr := config.NewTransaction(s)
 
 	var access string
-	if err := tr.GetMaybe("core", "store.access", &access); err != nil {
-		return false, err
-	}
+	mylog.Check(tr.GetMaybe("core", "store.access", &access))
 
 	return access != "offline", nil
 }
@@ -301,33 +289,25 @@ func (m *autoRefresh) Ensure() (err error) {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	online, err := isStoreOnline(m.state)
+	online := mylog.Check2(isStoreOnline(m.state))
 	if err != nil || !online {
 		return err
 	}
-
-	if err := m.restoreMonitoring(); err != nil {
-		return fmt.Errorf("cannot restore monitoring: %v", err)
-	}
+	mylog.Check(m.restoreMonitoring())
 
 	// see if it even makes sense to try to refresh
 	if CanAutoRefresh == nil {
 		return nil
 	}
-	if ok, err := CanAutoRefresh(m.state); err != nil || !ok {
+	if ok := mylog.Check2(CanAutoRefresh(m.state)); err != nil || !ok {
 		return err
 	}
 
 	// get lastRefresh and schedule
-	lastRefresh, err := m.LastRefresh()
-	if err != nil {
-		return err
-	}
+	lastRefresh := mylog.Check2(m.LastRefresh())
 
-	refreshSchedule, refreshScheduleStr, _, err := m.refreshScheduleWithDefaultsFallback()
-	if err != nil {
-		return err
-	}
+	refreshSchedule, refreshScheduleStr, _ := mylog.Check4(m.refreshScheduleWithDefaultsFallback())
+
 	if len(refreshSchedule) == 0 {
 		m.nextRefresh = time.Time{}
 		return nil
@@ -365,10 +345,7 @@ func (m *autoRefresh) Ensure() (err error) {
 		logger.Debugf("Next refresh scheduled for %s.", m.nextRefresh.Format(time.RFC3339))
 	}
 
-	held, holdTime, err := m.isRefreshHeld()
-	if err != nil {
-		return err
-	}
+	held, holdTime := mylog.Check3(m.isRefreshHeld())
 
 	// do refresh attempt (if needed)
 	if !held {
@@ -390,17 +367,14 @@ func (m *autoRefresh) Ensure() (err error) {
 		// or operation
 		if !m.nextRefresh.After(now) {
 			var can bool
-			can, err = m.canRefreshRespectingMetered(now, lastRefresh)
-			if err != nil {
-				return err
-			}
+			can = mylog.Check2(m.canRefreshRespectingMetered(now, lastRefresh))
+
 			if !can {
 				// clear nextRefresh so that another refresh time is calculated
 				m.nextRefresh = time.Time{}
 				return nil
 			}
-
-			err = m.launchAutoRefresh()
+			mylog.Check(m.launchAutoRefresh())
 			if _, ok := err.(*httputil.PersistentNetworkError); ok {
 				// refresh will be retried after refreshRetryDelay
 				return err
@@ -426,7 +400,7 @@ func (m *autoRefresh) restoreMonitoring() error {
 	m.state.Set("monitored-snaps", nil)
 
 	var refreshHints map[string]*refreshCandidate
-	if err := m.state.Get("refresh-candidates", &refreshHints); err != nil && !errors.Is(err, &state.NoStateError{}) {
+	if mylog.Check(m.state.Get("refresh-candidates", &refreshHints)); err != nil && !errors.Is(err, &state.NoStateError{}) {
 		return fmt.Errorf("cannot get refresh-candidates: %v", err)
 	}
 
@@ -447,10 +421,7 @@ func (m *autoRefresh) restoreMonitoring() error {
 	for _, snap := range monitored {
 		done := make(chan string, 1)
 		snapName := snap.InstanceName()
-		if err := cgroupMonitorSnapEnded(snapName, done); err != nil {
-			logger.Noticef("cannot restore monitoring for snap %q closure: %v", snapName, err)
-			continue
-		}
+		mylog.Check(cgroupMonitorSnapEnded(snapName, done))
 
 		refreshCtx, abort := context.WithCancel(context.Background())
 		aborts[snapName] = abort
@@ -466,10 +437,8 @@ func (m *autoRefresh) restoreMonitoring() error {
 func (m *autoRefresh) isRefreshHeld() (bool, time.Time, error) {
 	now := time.Now()
 	// should we hold back refreshes?
-	holdTime, err := m.EffectiveRefreshHold()
-	if err != nil {
-		return false, time.Time{}, err
-	}
+	holdTime := mylog.Check2(m.EffectiveRefreshHold())
+
 	if holdTime.After(now) {
 		return true, holdTime, nil
 	}
@@ -478,7 +447,7 @@ func (m *autoRefresh) isRefreshHeld() (bool, time.Time, error) {
 }
 
 func (m *autoRefresh) ensureLastRefreshAnchor() {
-	seedTime, _ := getTime(m.state, "seed-time")
+	seedTime := mylog.Check2(getTime(m.state, "seed-time"))
 	if !seedTime.IsZero() {
 		return
 	}
@@ -491,7 +460,7 @@ func (m *autoRefresh) ensureLastRefreshAnchor() {
 	}
 
 	// fallback to executable time
-	st, err := os.Stat("/proc/self/exe")
+	st := mylog.Check2(os.Stat("/proc/self/exe"))
 	if err == nil {
 		m.state.Set("last-refresh", st.ModTime())
 		return
@@ -500,15 +469,14 @@ func (m *autoRefresh) ensureLastRefreshAnchor() {
 
 func getRefreshScheduleConf(st *state.State) (confStr string, legacy bool, err error) {
 	tr := config.NewTransaction(st)
-
-	err = tr.Get("core", "refresh.timer", &confStr)
+	mylog.Check(tr.Get("core", "refresh.timer", &confStr))
 	if err != nil && !config.IsNoOption(err) {
 		return "", false, err
 	}
 
 	// if not set, fallback to refresh.schedule
 	if confStr == "" {
-		if err := tr.Get("core", "refresh.schedule", &confStr); err != nil && !config.IsNoOption(err) {
+		if mylog.Check(tr.Get("core", "refresh.schedule", &confStr)); err != nil && !config.IsNoOption(err) {
 			return "", false, err
 		}
 		legacy = true
@@ -520,10 +488,7 @@ func getRefreshScheduleConf(st *state.State) (confStr string, legacy bool, err e
 // refreshScheduleWithDefaultsFallback returns the current refresh schedule
 // and refresh string.
 func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (sched []*timeutil.Schedule, scheduleConf string, legacy bool, err error) {
-	scheduleConf, legacy, err = getRefreshScheduleConf(m.state)
-	if err != nil {
-		return nil, "", false, err
-	}
+	scheduleConf, legacy = mylog.Check3(getRefreshScheduleConf(m.state))
 
 	// user requests refreshes to be managed by an external snap
 	if scheduleConf == "managed" {
@@ -554,18 +519,14 @@ func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (sched []*timeutil.S
 	// if we read the newer 'refresh.timer' option
 	var errPrefix string
 	if !legacy {
-		sched, err = timeutil.ParseSchedule(scheduleConf)
+		sched = mylog.Check2(timeutil.ParseSchedule(scheduleConf))
 		errPrefix = "cannot use refresh.timer configuration"
 	} else {
-		sched, err = timeutil.ParseLegacySchedule(scheduleConf)
+		sched = mylog.Check2(timeutil.ParseLegacySchedule(scheduleConf))
 		errPrefix = "cannot use refresh.schedule configuration"
 	}
 
-	if err != nil {
-		// log instead of fail in order not to prevent auto-refreshes
-		logger.Noticef("%s: %v", errPrefix, err)
-		return defaultRefreshSchedule, defaultRefreshScheduleStr, false, nil
-	}
+	// log instead of fail in order not to prevent auto-refreshes
 
 	return sched, scheduleConf, legacy, nil
 }
@@ -618,7 +579,7 @@ func (m *autoRefresh) launchAutoRefresh() error {
 	}()
 
 	// NOTE: this will unlock and re-lock state for network ops
-	updated, updateTss, err := AutoRefresh(auth.EnsureContextTODO(), m.state)
+	updated, updateTss := mylog.Check3(AutoRefresh(auth.EnsureContextTODO(), m.state))
 
 	// TODO: we should have some way to lock just creating and starting changes,
 	//       as that would alleviate this race condition we are guarding against
@@ -644,14 +605,7 @@ func (m *autoRefresh) launchAutoRefresh() error {
 		return err
 	}
 	m.state.Set("last-refresh", timeNow())
-	if err != nil {
-		logger.Noticef("Cannot prepare auto-refresh change: %s", err)
-		return err
-	}
-
-	if _, err = createPreDownloadChange(m.state, updateTss); err != nil {
-		return err
-	}
+	mylog.Check2(createPreDownloadChange(m.state, updateTss))
 
 	if len(updateTss.Refresh) == 0 {
 		// NOTE: If all refresh candidates are blocked from auto-refresh by checks
@@ -689,9 +643,8 @@ func createPreDownloadChange(st *state.State, updateTss *UpdateTaskSets) (bool, 
 		for _, ts := range updateTss.PreDownload {
 			task := ts.Tasks()[0]
 			var snapsup *SnapSetup
-			if err := task.Get("snap-setup", &snapsup); err != nil {
-				return false, err
-			}
+			mylog.Check(task.Get("snap-setup", &snapsup))
+
 			snapNames = append(snapNames, snapsup.InstanceName())
 		}
 
@@ -717,7 +670,7 @@ func autoRefreshInFlight(st *state.State) bool {
 // getTime retrieves a time from a state value.
 func getTime(st *state.State, timeKey string) (time.Time, error) {
 	var t1 time.Time
-	err := st.Get(timeKey, &t1)
+	mylog.Check(st.Get(timeKey, &t1))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return time.Time{}, err
 	}
@@ -733,9 +686,7 @@ var asyncPendingRefreshNotification = func(ctx context.Context, refreshInfo *use
 
 	go func() {
 		client := userclient.New()
-		if err := client.PendingRefreshNotification(ctx, refreshInfo); err != nil {
-			logger.Noticef("Cannot send notification about pending refresh: %v", err)
-		}
+		mylog.Check(client.PendingRefreshNotification(ctx, refreshInfo))
 	}()
 }
 
@@ -745,7 +696,7 @@ var asyncPendingRefreshNotification = func(ctx context.Context, refreshInfo *use
 // interface connected and the "refresh-app-awareness-ux" experimental flag is disabled.
 func maybeAsyncPendingRefreshNotification(ctx context.Context, st *state.State, refreshInfo *userclient.PendingSnapRefreshInfo) {
 	tr := config.NewTransaction(st)
-	experimentalRefreshAppAwarenessUX, err := features.Flag(tr, features.RefreshAppAwarenessUX)
+	experimentalRefreshAppAwarenessUX := mylog.Check2(features.Flag(tr, features.RefreshAppAwarenessUX))
 	if err != nil && !config.IsNoOption(err) {
 		logger.Noticef("Cannot send notification about pending refresh: %v", err)
 		return
@@ -755,11 +706,8 @@ func maybeAsyncPendingRefreshNotification(ctx context.Context, st *state.State, 
 		return
 	}
 
-	markerExists, err := HasActiveConnection(st, "snap-refresh-observe")
-	if err != nil {
-		logger.Noticef("Cannot send notification about pending refresh: %v", err)
-		return
-	}
+	markerExists := mylog.Check2(HasActiveConnection(st, "snap-refresh-observe"))
+
 	if markerExists {
 		// found snap with marker interface, skip notification
 		return
@@ -850,24 +798,18 @@ func processInhibitedAutoRefresh(chg *state.Change, old state.Status, new state.
 	if chg.Kind() != "auto-refresh" || !new.Ready() {
 		return
 	}
-
-	if err := maybeAddRefreshInhibitNotice(chg.State()); err != nil {
-		logger.Debugf(`internal error: failed to add "refresh-inhibit" notice: %v`, err)
-	}
+	mylog.Check(maybeAddRefreshInhibitNotice(chg.State()))
 }
 
 // maybeAddRefreshInhibitNotice records a refresh-inhibit notice if the set of
 // inhibited snaps was changed since the last notice.
 func maybeAddRefreshInhibitNotice(st *state.State) error {
 	var lastRecordedInhibitedSnaps map[string]bool
-	if err := st.Get("last-recorded-inhibited-snaps", &lastRecordedInhibitedSnaps); err != nil && !errors.Is(err, state.ErrNoState) {
+	if mylog.Check(st.Get("last-recorded-inhibited-snaps", &lastRecordedInhibitedSnaps)); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 
-	snapStates, err := All(st)
-	if err != nil {
-		return err
-	}
+	snapStates := mylog.Check2(All(st))
 
 	curInhibitedSnaps := make(map[string]bool, len(lastRecordedInhibitedSnaps))
 	for _, snapst := range snapStates {
@@ -888,15 +830,11 @@ func maybeAddRefreshInhibitNotice(st *state.State) error {
 	}
 
 	if changed {
-		if _, err := st.AddNotice(nil, state.RefreshInhibitNotice, "-", nil); err != nil {
-			return err
-		}
+		mylog.Check2(st.AddNotice(nil, state.RefreshInhibitNotice, "-", nil))
+
 		st.Set("last-recorded-inhibited-snaps", curInhibitedSnaps)
 	}
-
-	if err := maybeAddRefreshInhibitWarningFallback(st, curInhibitedSnaps); err != nil {
-		logger.Noticef("Cannot add refresh inhibition warning: %v", err)
-	}
+	mylog.Check(maybeAddRefreshInhibitWarningFallback(st, curInhibitedSnaps))
 
 	return nil
 }
@@ -918,7 +856,7 @@ func maybeAddRefreshInhibitWarningFallback(st *state.State, inhibitedSnaps map[s
 	}
 
 	tr := config.NewTransaction(st)
-	experimentalRefreshAppAwarenessUX, err := features.Flag(tr, features.RefreshAppAwarenessUX)
+	experimentalRefreshAppAwarenessUX := mylog.Check2(features.Flag(tr, features.RefreshAppAwarenessUX))
 	if err != nil && !config.IsNoOption(err) {
 		return err
 	}
@@ -927,22 +865,19 @@ func maybeAddRefreshInhibitWarningFallback(st *state.State, inhibitedSnaps map[s
 		return nil
 	}
 
-	markerExists, err := HasActiveConnection(st, "snap-refresh-observe")
-	if err != nil {
-		return err
-	}
+	markerExists := mylog.Check2(HasActiveConnection(st, "snap-refresh-observe"))
+
 	if markerExists {
 		// do nothing
 		return nil
 	}
+	mylog.Check(
 
-	// let's fallback to issuing warnings if no snap exists with the
-	// marker snap-refresh-observe interface connected.
+		// let's fallback to issuing warnings if no snap exists with the
+		// marker snap-refresh-observe interface connected.
 
-	// remove inhibition warning if it exists.
-	if err := removeRefreshInhibitWarning(st); err != nil {
-		return err
-	}
+		// remove inhibition warning if it exists.
+		removeRefreshInhibitWarning(st))
 
 	// building warning message
 	var snapsBuf bytes.Buffer
@@ -969,7 +904,7 @@ func removeRefreshInhibitWarning(st *state.State) error {
 		if !strings.HasSuffix(warning.String(), "close running apps to continue refresh.") {
 			continue
 		}
-		if err := st.RemoveWarning(warning.String()); err != nil && !errors.Is(err, state.ErrNoState) {
+		if mylog.Check(st.RemoveWarning(warning.String())); err != nil && !errors.Is(err, state.ErrNoState) {
 			return err
 		}
 		return nil

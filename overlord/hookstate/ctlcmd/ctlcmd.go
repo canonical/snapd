@@ -26,6 +26,7 @@ import (
 	"io"
 	"strconv"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/logger"
@@ -169,14 +170,12 @@ func Run(context *hookstate.Context, args []string, uid uint32) (stdout, stderr 
 		cmd.setStderr(&stderrBuffer)
 		cmd.setContext(context)
 
-		theCmd, err := parser.AddCommand(name, cmdInfo.shortHelp, cmdInfo.longHelp, cmd)
+		theCmd := mylog.Check2(parser.AddCommand(name, cmdInfo.shortHelp, cmdInfo.longHelp, cmd))
 		theCmd.Hidden = cmdInfo.hidden
-		if err != nil {
-			logger.Panicf("cannot add command %q: %s", name, err)
-		}
+
 	}
 
-	_, err = parser.ParseArgs(args)
+	_ = mylog.Check2(parser.ParseArgs(args))
 	return stdoutBuffer.Bytes(), stderrBuffer.Bytes(), err
 }
 

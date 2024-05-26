@@ -22,6 +22,7 @@ package snapstate_test
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -100,8 +101,8 @@ func (s *rebootSuite) TestTaskSetsByTypeForEssentialSnapsNoBootBase(c *C) {
 		s.taskSetForSnapSetup("my-app", "", snap.TypeApp),
 	}
 
-	mappedTaskSets, err := snapstate.TaskSetsByTypeForEssentialSnaps(tss, "")
-	c.Assert(err, IsNil)
+	mappedTaskSets := mylog.Check2(snapstate.TaskSetsByTypeForEssentialSnaps(tss, ""))
+
 	c.Check(mappedTaskSets, DeepEquals, map[snap.Type]*state.TaskSet{
 		snap.TypeGadget: tss[1],
 		snap.TypeKernel: tss[2],
@@ -121,8 +122,8 @@ func (s *rebootSuite) TestTaskSetsByTypeForEssentialSnapsBootBase(c *C) {
 		s.taskSetForSnapSetup("my-app", "", snap.TypeApp),
 	}
 
-	mappedTaskSets, err := snapstate.TaskSetsByTypeForEssentialSnaps(tss, "my-base")
-	c.Assert(err, IsNil)
+	mappedTaskSets := mylog.Check2(snapstate.TaskSetsByTypeForEssentialSnaps(tss, "my-base"))
+
 	c.Check(mappedTaskSets, DeepEquals, map[snap.Type]*state.TaskSet{
 		snap.TypeBase:   tss[0],
 		snap.TypeGadget: tss[1],
@@ -179,28 +180,28 @@ func (s *rebootSuite) TestSetDefaultRestartBoundariesUnlinkCurrent(c *C) {
 
 func (s *rebootSuite) TestDeviceModelBootBaseEmpty(c *C) {
 	defer snapstatetest.MockDeviceModel(nil)()
-	bootBase, err := snapstate.DeviceModelBootBase(s.state, nil)
+	bootBase := mylog.Check2(snapstate.DeviceModelBootBase(s.state, nil))
 	c.Check(err, IsNil)
 	c.Check(bootBase, Equals, "")
 }
 
 func (s *rebootSuite) TestDeviceModelBootBaseUC16(c *C) {
 	defer snapstatetest.MockDeviceModel(DefaultModel())()
-	bootBase, err := snapstate.DeviceModelBootBase(s.state, nil)
+	bootBase := mylog.Check2(snapstate.DeviceModelBootBase(s.state, nil))
 	c.Check(err, IsNil)
 	c.Check(bootBase, Equals, "core")
 }
 
 func (s *rebootSuite) TestDeviceModelBootBaseUC(c *C) {
 	defer snapstatetest.MockDeviceModel(MakeModel20("brand-gadget", nil))()
-	bootBase, err := snapstate.DeviceModelBootBase(s.state, nil)
+	bootBase := mylog.Check2(snapstate.DeviceModelBootBase(s.state, nil))
 	c.Check(err, IsNil)
 	c.Check(bootBase, Equals, "core20")
 }
 
 func (s *rebootSuite) TestDeviceModelBootBaseClassic(c *C) {
 	defer snapstatetest.MockDeviceModel(ClassicModel())()
-	bootBase, err := snapstate.DeviceModelBootBase(s.state, nil)
+	bootBase := mylog.Check2(snapstate.DeviceModelBootBase(s.state, nil))
 	c.Check(err, IsNil)
 	c.Check(bootBase, Equals, "core")
 }
@@ -211,7 +212,7 @@ func (s *rebootSuite) TestDeviceModelBootBaseClassicModelProvided(c *C) {
 
 	// then provide a UC18 model instead
 	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: ModelWithBase("core18")}
-	bootBase, err := snapstate.DeviceModelBootBase(s.state, deviceCtx)
+	bootBase := mylog.Check2(snapstate.DeviceModelBootBase(s.state, deviceCtx))
 	c.Check(err, IsNil)
 	c.Check(bootBase, Equals, "core18")
 }
@@ -233,12 +234,9 @@ func (s *rebootSuite) hasRestartBoundaries(c *C, ts *state.TaskSet) bool {
 	c.Assert(t2, NotNil)
 
 	var boundary restart.RestartBoundaryDirection
-	if err := t1.Get("restart-boundary", &boundary); err != nil {
-		return false
-	}
-	if err := t2.Get("restart-boundary", &boundary); err != nil {
-		return false
-	}
+	mylog.Check(t1.Get("restart-boundary", &boundary))
+	mylog.Check(t2.Get("restart-boundary", &boundary))
+
 	return true
 }
 
@@ -247,9 +245,8 @@ func (s *rebootSuite) hasDoRestartBoundaries(c *C, ts *state.TaskSet) bool {
 	c.Assert(t, NotNil)
 
 	var boundary restart.RestartBoundaryDirection
-	if err := t.Get("restart-boundary", &boundary); err != nil {
-		return false
-	}
+	mylog.Check(t.Get("restart-boundary", &boundary))
+
 	return true
 }
 
@@ -258,9 +255,8 @@ func (s *rebootSuite) hasUndoRestartBoundaries(c *C, ts *state.TaskSet) bool {
 	c.Assert(t, NotNil)
 
 	var boundary restart.RestartBoundaryDirection
-	if err := t.Get("restart-boundary", &boundary); err != nil {
-		return false
-	}
+	mylog.Check(t.Get("restart-boundary", &boundary))
+
 	return true
 }
 
@@ -277,8 +273,8 @@ func (s *rebootSuite) TestSetEssentialSnapsRestartBoundariesUC16(c *C) {
 		s.taskSetForSnapSetup("core", "", snap.TypeOS),
 		s.taskSetForSnapSetup("my-app", "", snap.TypeApp),
 	}
-	err := snapstate.SetEssentialSnapsRestartBoundaries(s.state, nil, tss)
-	c.Assert(err, IsNil)
+	mylog.Check(snapstate.SetEssentialSnapsRestartBoundaries(s.state, nil, tss))
+
 	c.Check(s.hasRestartBoundaries(c, tss[0]), Equals, false)
 	c.Check(s.hasRestartBoundaries(c, tss[1]), Equals, true)
 	c.Check(s.hasRestartBoundaries(c, tss[2]), Equals, true)
@@ -299,8 +295,8 @@ func (s *rebootSuite) TestSetEssentialSnapsRestartBoundariesUC20(c *C) {
 		s.taskSetForSnapSetup("core", "", snap.TypeOS),
 		s.taskSetForSnapSetup("my-app", "", snap.TypeApp),
 	}
-	err := snapstate.SetEssentialSnapsRestartBoundaries(s.state, nil, tss)
-	c.Assert(err, IsNil)
+	mylog.Check(snapstate.SetEssentialSnapsRestartBoundaries(s.state, nil, tss))
+
 	c.Check(s.hasRestartBoundaries(c, tss[0]), Equals, true)
 	c.Check(s.hasRestartBoundaries(c, tss[1]), Equals, true)
 	c.Check(s.hasRestartBoundaries(c, tss[2]), Equals, true)
@@ -330,7 +326,7 @@ func (s *rebootSuite) TestSplitTaskSetByRebootEdgesHappy(c *C) {
 	ts.MarkEdge(t5, snapstate.EndEdge)
 
 	// Split it into two task-sets with new edges
-	before, after, err := snapstate.SplitTaskSetByRebootEdges(ts)
+	before, after := mylog.Check3(snapstate.SplitTaskSetByRebootEdges(ts))
 	c.Check(err, IsNil)
 	c.Check(before, NotNil)
 	c.Check(after, NotNil)
@@ -355,7 +351,7 @@ func (s *rebootSuite) TestSplitTaskSetByRebootEdgesMissingEdges(c *C) {
 	ts := state.NewTaskSet(t)
 
 	// Test without any edges
-	before, after, err := snapstate.SplitTaskSetByRebootEdges(ts)
+	before, after := mylog.Check3(snapstate.SplitTaskSetByRebootEdges(ts))
 	c.Check(err, ErrorMatches, `internal error: task-set is missing required edges \("begin"/"end"\)`)
 	c.Check(before, IsNil)
 	c.Check(after, IsNil)
@@ -364,7 +360,7 @@ func (s *rebootSuite) TestSplitTaskSetByRebootEdgesMissingEdges(c *C) {
 	ts.MarkEdge(t, snapstate.BeginEdge)
 	ts.MarkEdge(t, snapstate.EndEdge)
 
-	before, after, err = snapstate.SplitTaskSetByRebootEdges(ts)
+	before, after = mylog.Check3(snapstate.SplitTaskSetByRebootEdges(ts))
 	c.Check(err, ErrorMatches, `internal error: task-set is missing required edge "maybe-reboot"`)
 	c.Check(before, IsNil)
 	c.Check(after, IsNil)
@@ -372,17 +368,17 @@ func (s *rebootSuite) TestSplitTaskSetByRebootEdgesMissingEdges(c *C) {
 	// set MaybeRebootEdge
 	ts.MarkEdge(t, snapstate.MaybeRebootEdge)
 
-	before, after, err = snapstate.SplitTaskSetByRebootEdges(ts)
+	before, after = mylog.Check3(snapstate.SplitTaskSetByRebootEdges(ts))
 	c.Check(err, ErrorMatches, `internal error: task-set is missing required edge "maybe-reboot-wait"`)
 	c.Check(before, IsNil)
 	c.Check(after, IsNil)
 }
 
 func (s *rebootSuite) setDependsOn(c *C, ts, dep *state.TaskSet) bool {
-	firstTaskOfTs, err := ts.Edge(snapstate.BeginEdge)
-	c.Assert(err, IsNil)
-	lastTaskOfDep, err := dep.Edge(snapstate.EndEdge)
-	c.Assert(err, IsNil)
+	firstTaskOfTs := mylog.Check2(ts.Edge(snapstate.BeginEdge))
+
+	lastTaskOfDep := mylog.Check2(dep.Edge(snapstate.EndEdge))
+
 
 	for _, wt := range firstTaskOfTs.WaitTasks() {
 		if wt == lastTaskOfDep {
@@ -400,10 +396,9 @@ func (s *rebootSuite) TestArrangeSnapToWaitForBaseIfPresentHappy(c *C) {
 		s.taskSetForSnapSetup("my-base", "", snap.TypeBase),
 		s.taskSetForSnapSetup("my-app", "my-base", snap.TypeApp),
 	}
-
-	err := snapstate.ArrangeSnapToWaitForBaseIfPresent(tss[1], map[string]*state.TaskSet{
+	mylog.Check(snapstate.ArrangeSnapToWaitForBaseIfPresent(tss[1], map[string]*state.TaskSet{
 		"my-base": tss[0],
-	})
+	}))
 	c.Check(err, IsNil)
 	c.Check(s.setDependsOn(c, tss[1], tss[0]), Equals, true)
 }
@@ -416,10 +411,9 @@ func (s *rebootSuite) TestArrangeSnapToWaitForBaseIfPresentNotPresent(c *C) {
 		s.taskSetForSnapSetup("my-base", "", snap.TypeBase),
 		s.taskSetForSnapSetup("my-app", "my-other-base", snap.TypeApp),
 	}
-
-	err := snapstate.ArrangeSnapToWaitForBaseIfPresent(tss[1], map[string]*state.TaskSet{
+	mylog.Check(snapstate.ArrangeSnapToWaitForBaseIfPresent(tss[1], map[string]*state.TaskSet{
 		"my-base": tss[0],
-	})
+	}))
 	c.Check(err, IsNil)
 	c.Check(s.setDependsOn(c, tss[1], tss[0]), Equals, false)
 }
@@ -437,8 +431,8 @@ func (s *rebootSuite) TestArrangeSnapTaskSetsLinkageAndRestartUC16NoSplits(c *C)
 		s.taskSetForSnapSetup("core20", "", snap.TypeBase),
 		s.taskSetForSnapSetup("my-app", "", snap.TypeApp),
 	}
-	err := snapstate.ArrangeSnapTaskSetsLinkageAndRestart(s.state, nil, tss)
-	c.Assert(err, IsNil)
+	mylog.Check(snapstate.ArrangeSnapTaskSetsLinkageAndRestart(s.state, nil, tss))
+
 
 	// core, kernel should have individual restart boundaries
 	c.Check(s.hasRestartBoundaries(c, tss[0]), Equals, true)
@@ -463,8 +457,8 @@ func (s *rebootSuite) TestArrangeSnapTaskSetsLinkageAndRestartSnapdAndEssential(
 		s.taskSetForSnapSetup("my-kernel", "", snap.TypeKernel),
 		s.taskSetForSnapSetup("my-app", "", snap.TypeApp),
 	}
-	err := snapstate.ArrangeSnapTaskSetsLinkageAndRestart(s.state, nil, tss)
-	c.Assert(err, IsNil)
+	mylog.Check(snapstate.ArrangeSnapTaskSetsLinkageAndRestart(s.state, nil, tss))
+
 
 	// Snapd should have no restart boundaries
 	c.Check(s.hasRestartBoundaries(c, tss[0]), Equals, false)
@@ -494,8 +488,8 @@ func (s *rebootSuite) TestArrangeSnapTaskSetsLinkageAndRestartBaseKernel(c *C) {
 		s.taskSetForSnapSetup("core20", "", snap.TypeBase),
 		s.taskSetForSnapSetup("my-kernel", "", snap.TypeKernel),
 	}
-	err := snapstate.ArrangeSnapTaskSetsLinkageAndRestart(s.state, nil, tss)
-	c.Assert(err, IsNil)
+	mylog.Check(snapstate.ArrangeSnapTaskSetsLinkageAndRestart(s.state, nil, tss))
+
 
 	// Expect restart boundaries on both
 	c.Check(s.hasUndoRestartBoundaries(c, tss[0]), Equals, true)
@@ -522,18 +516,18 @@ func (s *rebootSuite) TestArrangeSnapTaskSetsLinkageAndRestartBaseKernel(c *C) {
 	}
 
 	// Grab the tasks we need to check dependencies between
-	firstTaskOfKernel, err := tss[1].Edge(snapstate.BeginEdge)
-	c.Assert(err, IsNil)
-	linkTaskOfKernel, err := tss[1].Edge(snapstate.MaybeRebootEdge)
-	c.Assert(err, IsNil)
-	acTaskOfKernel, err := tss[1].Edge(snapstate.MaybeRebootWaitEdge)
-	c.Assert(err, IsNil)
-	linkTaskOfBase, err := tss[0].Edge(snapstate.MaybeRebootEdge)
-	c.Assert(err, IsNil)
-	acTaskOfBase, err := tss[0].Edge(snapstate.MaybeRebootWaitEdge)
-	c.Assert(err, IsNil)
-	lastTaskOfBase, err := tss[0].Edge(snapstate.EndEdge)
-	c.Assert(err, IsNil)
+	firstTaskOfKernel := mylog.Check2(tss[1].Edge(snapstate.BeginEdge))
+
+	linkTaskOfKernel := mylog.Check2(tss[1].Edge(snapstate.MaybeRebootEdge))
+
+	acTaskOfKernel := mylog.Check2(tss[1].Edge(snapstate.MaybeRebootWaitEdge))
+
+	linkTaskOfBase := mylog.Check2(tss[0].Edge(snapstate.MaybeRebootEdge))
+
+	acTaskOfBase := mylog.Check2(tss[0].Edge(snapstate.MaybeRebootWaitEdge))
+
+	lastTaskOfBase := mylog.Check2(tss[0].Edge(snapstate.EndEdge))
+
 
 	// Things that must be correct:
 	// - "prerequisites" (BeginEdge) of kernel must depend on "link-snap" (MaybeRebootEdge) of base
@@ -564,8 +558,8 @@ func (s *rebootSuite) TestArrangeSnapTaskSetsLinkageAndRestartBaseGadget(c *C) {
 		s.taskSetForSnapSetup("core20", "", snap.TypeBase),
 		s.taskSetForSnapSetup("brand-gadget", "", snap.TypeGadget),
 	}
-	err := snapstate.ArrangeSnapTaskSetsLinkageAndRestart(s.state, nil, tss)
-	c.Assert(err, IsNil)
+	mylog.Check(snapstate.ArrangeSnapTaskSetsLinkageAndRestart(s.state, nil, tss))
+
 
 	// Expect restart boundaries on both
 	c.Check(s.hasUndoRestartBoundaries(c, tss[0]), Equals, true)
@@ -592,18 +586,18 @@ func (s *rebootSuite) TestArrangeSnapTaskSetsLinkageAndRestartBaseGadget(c *C) {
 	}
 
 	// Grab the tasks we need to check dependencies between
-	firstTaskOfGadget, err := tss[1].Edge(snapstate.BeginEdge)
-	c.Assert(err, IsNil)
-	linkTaskOfGadget, err := tss[1].Edge(snapstate.MaybeRebootEdge)
-	c.Assert(err, IsNil)
-	acTaskOfGadget, err := tss[1].Edge(snapstate.MaybeRebootWaitEdge)
-	c.Assert(err, IsNil)
-	linkTaskOfBase, err := tss[0].Edge(snapstate.MaybeRebootEdge)
-	c.Assert(err, IsNil)
-	acTaskOfBase, err := tss[0].Edge(snapstate.MaybeRebootWaitEdge)
-	c.Assert(err, IsNil)
-	lastTaskOfBase, err := tss[0].Edge(snapstate.EndEdge)
-	c.Assert(err, IsNil)
+	firstTaskOfGadget := mylog.Check2(tss[1].Edge(snapstate.BeginEdge))
+
+	linkTaskOfGadget := mylog.Check2(tss[1].Edge(snapstate.MaybeRebootEdge))
+
+	acTaskOfGadget := mylog.Check2(tss[1].Edge(snapstate.MaybeRebootWaitEdge))
+
+	linkTaskOfBase := mylog.Check2(tss[0].Edge(snapstate.MaybeRebootEdge))
+
+	acTaskOfBase := mylog.Check2(tss[0].Edge(snapstate.MaybeRebootWaitEdge))
+
+	lastTaskOfBase := mylog.Check2(tss[0].Edge(snapstate.EndEdge))
+
 
 	// Things that must be correct:
 	// - "prerequisites" (BeginEdge) of gadget must depend on "link-snap" (MaybeRebootEdge) of base
@@ -634,8 +628,8 @@ func (s *rebootSuite) TestArrangeSnapTaskSetsLinkageAndRestartGadgetKernel(c *C)
 		s.taskSetForSnapSetup("brand-gadget", "", snap.TypeGadget),
 		s.taskSetForSnapSetup("my-kernel", "", snap.TypeKernel),
 	}
-	err := snapstate.ArrangeSnapTaskSetsLinkageAndRestart(s.state, nil, tss)
-	c.Assert(err, IsNil)
+	mylog.Check(snapstate.ArrangeSnapTaskSetsLinkageAndRestart(s.state, nil, tss))
+
 
 	// Expect restart boundaries on both
 	c.Check(s.hasUndoRestartBoundaries(c, tss[0]), Equals, true)
@@ -662,18 +656,18 @@ func (s *rebootSuite) TestArrangeSnapTaskSetsLinkageAndRestartGadgetKernel(c *C)
 	}
 
 	// Grab the tasks we need to check dependencies between
-	firstTaskOfKernel, err := tss[1].Edge(snapstate.BeginEdge)
-	c.Assert(err, IsNil)
-	linkTaskOfKernel, err := tss[1].Edge(snapstate.MaybeRebootEdge)
-	c.Assert(err, IsNil)
-	acTaskOfKernel, err := tss[1].Edge(snapstate.MaybeRebootWaitEdge)
-	c.Assert(err, IsNil)
-	linkTaskOfGadget, err := tss[0].Edge(snapstate.MaybeRebootEdge)
-	c.Assert(err, IsNil)
-	acTaskOfGadget, err := tss[0].Edge(snapstate.MaybeRebootWaitEdge)
-	c.Assert(err, IsNil)
-	lastTaskOfGadget, err := tss[0].Edge(snapstate.EndEdge)
-	c.Assert(err, IsNil)
+	firstTaskOfKernel := mylog.Check2(tss[1].Edge(snapstate.BeginEdge))
+
+	linkTaskOfKernel := mylog.Check2(tss[1].Edge(snapstate.MaybeRebootEdge))
+
+	acTaskOfKernel := mylog.Check2(tss[1].Edge(snapstate.MaybeRebootWaitEdge))
+
+	linkTaskOfGadget := mylog.Check2(tss[0].Edge(snapstate.MaybeRebootEdge))
+
+	acTaskOfGadget := mylog.Check2(tss[0].Edge(snapstate.MaybeRebootWaitEdge))
+
+	lastTaskOfGadget := mylog.Check2(tss[0].Edge(snapstate.EndEdge))
+
 
 	// Things that must be correct:
 	// - "prerequisites" (BeginEdge) of kernel must depend on "link-snap" (MaybeRebootEdge) of gadget
@@ -705,8 +699,8 @@ func (s *rebootSuite) TestArrangeSnapTaskSetsLinkageAndRestartBaseGadgetKernel(c
 		s.taskSetForSnapSetup("brand-gadget", "", snap.TypeGadget),
 		s.taskSetForSnapSetup("my-kernel", "", snap.TypeKernel),
 	}
-	err := snapstate.ArrangeSnapTaskSetsLinkageAndRestart(s.state, nil, tss)
-	c.Assert(err, IsNil)
+	mylog.Check(snapstate.ArrangeSnapTaskSetsLinkageAndRestart(s.state, nil, tss))
+
 
 	linkSnapBase := tss[0].MaybeEdge(snapstate.MaybeRebootEdge)
 	c.Assert(linkSnapBase, NotNil)
@@ -729,26 +723,26 @@ func (s *rebootSuite) TestArrangeSnapTaskSetsLinkageAndRestartBaseGadgetKernel(c
 	}
 
 	// Grab the tasks we need to check dependencies between
-	linkTaskOfBase, err := tss[0].Edge(snapstate.MaybeRebootEdge)
-	c.Assert(err, IsNil)
-	acTaskOfBase, err := tss[0].Edge(snapstate.MaybeRebootWaitEdge)
-	c.Assert(err, IsNil)
-	lastTaskOfBase, err := tss[0].Edge(snapstate.EndEdge)
-	c.Assert(err, IsNil)
-	firstTaskOfGadget, err := tss[1].Edge(snapstate.BeginEdge)
-	c.Assert(err, IsNil)
-	linkTaskOfGadget, err := tss[1].Edge(snapstate.MaybeRebootEdge)
-	c.Assert(err, IsNil)
-	acTaskOfGadget, err := tss[1].Edge(snapstate.MaybeRebootWaitEdge)
-	c.Assert(err, IsNil)
-	lastTaskOfGadget, err := tss[1].Edge(snapstate.EndEdge)
-	c.Assert(err, IsNil)
-	firstTaskOfKernel, err := tss[2].Edge(snapstate.BeginEdge)
-	c.Assert(err, IsNil)
-	linkTaskOfKernel, err := tss[2].Edge(snapstate.MaybeRebootEdge)
-	c.Assert(err, IsNil)
-	acTaskOfKernel, err := tss[2].Edge(snapstate.MaybeRebootWaitEdge)
-	c.Assert(err, IsNil)
+	linkTaskOfBase := mylog.Check2(tss[0].Edge(snapstate.MaybeRebootEdge))
+
+	acTaskOfBase := mylog.Check2(tss[0].Edge(snapstate.MaybeRebootWaitEdge))
+
+	lastTaskOfBase := mylog.Check2(tss[0].Edge(snapstate.EndEdge))
+
+	firstTaskOfGadget := mylog.Check2(tss[1].Edge(snapstate.BeginEdge))
+
+	linkTaskOfGadget := mylog.Check2(tss[1].Edge(snapstate.MaybeRebootEdge))
+
+	acTaskOfGadget := mylog.Check2(tss[1].Edge(snapstate.MaybeRebootWaitEdge))
+
+	lastTaskOfGadget := mylog.Check2(tss[1].Edge(snapstate.EndEdge))
+
+	firstTaskOfKernel := mylog.Check2(tss[2].Edge(snapstate.BeginEdge))
+
+	linkTaskOfKernel := mylog.Check2(tss[2].Edge(snapstate.MaybeRebootEdge))
+
+	acTaskOfKernel := mylog.Check2(tss[2].Edge(snapstate.MaybeRebootWaitEdge))
+
 
 	// Things that must be correct between base and gadget:
 	// - "prerequisites" (BeginEdge) of gadget must depend on "link-snap" (MaybeRebootEdge) of base
@@ -790,8 +784,8 @@ func (s *rebootSuite) TestArrangeSnapTaskSetsLinkageAndRestartSnapd(c *C) {
 		s.taskSetForSnapSetup("snapd", "", snap.TypeSnapd),
 		s.taskSetForSnapSetup("core20", "", snap.TypeBase),
 	}
-	err := snapstate.ArrangeSnapTaskSetsLinkageAndRestart(s.state, nil, tss)
-	c.Assert(err, IsNil)
+	mylog.Check(snapstate.ArrangeSnapTaskSetsLinkageAndRestart(s.state, nil, tss))
+
 
 	// Do not expect any restart boundaries to be set on snapd
 	c.Check(s.hasRestartBoundaries(c, tss[0]), Equals, false)
@@ -815,8 +809,8 @@ func (s *rebootSuite) TestArrangeSnapTaskSetsLinkageAndRestartBootBaseAndOtherBa
 		s.taskSetForSnapSetup("core18", "", snap.TypeBase),
 		s.taskSetForSnapSetup("my-app", "", snap.TypeApp),
 	}
-	err := snapstate.ArrangeSnapTaskSetsLinkageAndRestart(s.state, nil, tss)
-	c.Assert(err, IsNil)
+	mylog.Check(snapstate.ArrangeSnapTaskSetsLinkageAndRestart(s.state, nil, tss))
+
 
 	// Only the boot-base should have restart boundary.
 	c.Check(s.hasRestartBoundaries(c, tss[0]), Equals, true)
@@ -839,8 +833,8 @@ func (s *rebootSuite) TestArrangeSnapTaskSetsLinkageForSnapWithBaseAndWithout(c 
 		s.taskSetForSnapSetup("snap-base-app", "snap-base", snap.TypeApp),
 		s.taskSetForSnapSetup("snap-other-app", "other-base", snap.TypeApp),
 	}
-	err := snapstate.ArrangeSnapTaskSetsLinkageAndRestart(s.state, nil, tss)
-	c.Assert(err, IsNil)
+	mylog.Check(snapstate.ArrangeSnapTaskSetsLinkageAndRestart(s.state, nil, tss))
+
 
 	// No restart boundaries
 	c.Check(s.hasRestartBoundaries(c, tss[0]), Equals, false)
@@ -869,8 +863,8 @@ func (s *rebootSuite) TestArrangeSnapTaskSetsLinkageForSnapWithBootBaseAndWithou
 		s.taskSetForSnapSetup("snap-core20-app", "snap-core20", snap.TypeApp),
 		s.taskSetForSnapSetup("snap-other-app", "other-base", snap.TypeApp),
 	}
-	err := snapstate.ArrangeSnapTaskSetsLinkageAndRestart(s.state, nil, tss)
-	c.Assert(err, IsNil)
+	mylog.Check(snapstate.ArrangeSnapTaskSetsLinkageAndRestart(s.state, nil, tss))
+
 
 	// Restart boundaries is set for core20 as the boot-base
 	c.Check(s.hasRestartBoundaries(c, tss[0]), Equals, true)
@@ -903,8 +897,8 @@ func (s *rebootSuite) TestArrangeSnapTaskSetsLinkageAndRestartAll(c *C) {
 		s.taskSetForSnapSetup("core", "", snap.TypeOS),
 		s.taskSetForSnapSetup("my-app", "", snap.TypeApp),
 	}
-	err := snapstate.ArrangeSnapTaskSetsLinkageAndRestart(s.state, nil, tss)
-	c.Assert(err, IsNil)
+	mylog.Check(snapstate.ArrangeSnapTaskSetsLinkageAndRestart(s.state, nil, tss))
+
 
 	// snapd has no restart boundaries set
 	c.Check(s.hasRestartBoundaries(c, tss[0]), Equals, false)
@@ -934,6 +928,6 @@ func (s *rebootSuite) TestArrangeSnapTaskSetsLinkageAndRestartFailsSplit(c *C) {
 	tss := []*state.TaskSet{
 		s.taskSetForSnapSetupButNoTasks("my-kernel", snap.TypeKernel),
 	}
-	err := snapstate.ArrangeSnapTaskSetsLinkageAndRestart(s.state, nil, tss)
+	mylog.Check(snapstate.ArrangeSnapTaskSetsLinkageAndRestart(s.state, nil, tss))
 	c.Assert(err, ErrorMatches, `internal error: no \"maybe-reboot\" edge set in task-set`)
 }

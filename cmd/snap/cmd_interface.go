@@ -26,6 +26,7 @@ import (
 	"sort"
 	"text/tabwriter"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
@@ -41,13 +42,15 @@ type cmdInterface struct {
 	} `positional-args:"true"`
 }
 
-var shortInterfaceHelp = i18n.G("Show details of snap interfaces")
-var longInterfaceHelp = i18n.G(`
+var (
+	shortInterfaceHelp = i18n.G("Show details of snap interfaces")
+	longInterfaceHelp  = i18n.G(`
 The interface command shows details of snap interfaces.
 
 If no interface name is provided, a list of interface names with at least
 one connection is shown, or a list of all interfaces if --all is provided.
 `)
+)
 
 func init() {
 	addCommand("interface", shortInterfaceHelp, longInterfaceHelp, func() flags.Commander {
@@ -73,27 +76,23 @@ func (x *cmdInterface) Execute(args []string) error {
 	if x.Positionals.Interface != "" {
 		// Show one interface in detail.
 		name := string(x.Positionals.Interface)
-		ifaces, err := x.client.Interfaces(&client.InterfaceOptions{
+		ifaces := mylog.Check2(x.client.Interfaces(&client.InterfaceOptions{
 			Names: []string{name},
 			Doc:   true,
 			Plugs: true,
 			Slots: true,
-		})
-		if err != nil {
-			return err
-		}
+		}))
+
 		if len(ifaces) == 0 {
 			return fmt.Errorf(i18n.G("no such interface"))
 		}
 		x.showOneInterface(ifaces[0])
 	} else {
 		// Show an overview of available interfaces.
-		ifaces, err := x.client.Interfaces(&client.InterfaceOptions{
+		ifaces := mylog.Check2(x.client.Interfaces(&client.InterfaceOptions{
 			Connected: !x.ShowAll,
-		})
-		if err != nil {
-			return err
-		}
+		}))
+
 		if len(ifaces) == 0 {
 			if x.ShowAll {
 				return fmt.Errorf(i18n.G("no interfaces found"))

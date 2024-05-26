@@ -22,17 +22,16 @@ package daemon
 import (
 	"net/http"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/store"
 )
 
-var (
-	categoriesCmd = &Command{
-		Path:       "/v2/categories",
-		GET:        getCategories,
-		ReadAccess: openAccess{},
-	}
-)
+var categoriesCmd = &Command{
+	Path:       "/v2/categories",
+	GET:        getCategories,
+	ReadAccess: openAccess{},
+}
 
 func getCategories(c *Command, r *http.Request, user *auth.UserState) Response {
 	route := c.d.router.Get(snapCmd.Path)
@@ -42,7 +41,7 @@ func getCategories(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	theStore := storeFrom(c.d)
 
-	categories, err := theStore.Categories(r.Context(), user)
+	categories := mylog.Check2(theStore.Categories(r.Context(), user))
 	switch err {
 	case nil:
 		// pass

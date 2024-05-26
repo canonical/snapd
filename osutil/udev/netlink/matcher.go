@@ -3,6 +3,8 @@ package netlink
 import (
 	"fmt"
 	"regexp"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 type Matcher interface {
@@ -23,9 +25,7 @@ type RuleDefinition struct {
 func (r RuleDefinition) Evaluate(e UEvent) bool {
 	// Compile if needed
 	if r.rule == nil {
-		if err := r.Compile(); err != nil {
-			return false
-		}
+		mylog.Check(r.Compile())
 	}
 
 	return r.EvaluateAction(e.Action) && r.EvaluateEnv(e.Env)
@@ -35,9 +35,7 @@ func (r RuleDefinition) Evaluate(e UEvent) bool {
 func (r RuleDefinition) EvaluateAction(a KObjAction) (match bool) {
 	// Compile if needed
 	if r.rule == nil {
-		if err := r.Compile(); err != nil {
-			return false
-		}
+		mylog.Check(r.Compile())
 	}
 	if match = (r.rule.Action == nil); !match {
 		match = r.rule.Action.MatchString(a.String())
@@ -49,9 +47,7 @@ func (r RuleDefinition) EvaluateAction(a KObjAction) (match bool) {
 func (r RuleDefinition) EvaluateEnv(e map[string]string) bool {
 	// Compile if needed
 	if r.rule == nil {
-		if err := r.Compile(); err != nil {
-			return false
-		}
+		mylog.Check(r.Compile())
 	}
 	return r.rule.Env.Evaluate(e)
 }
@@ -63,18 +59,14 @@ func (r *RuleDefinition) Compile() error {
 	}
 
 	if r.Action != nil {
-		action, err := regexp.Compile(*(r.Action))
-		if err != nil {
-			return err
-		}
+		action := mylog.Check2(regexp.Compile(*(r.Action)))
+
 		r.rule.Action = action
 	}
 
 	for k, v := range r.Env {
-		reg, err := regexp.Compile(v)
-		if err != nil {
-			return err
-		}
+		reg := mylog.Check2(regexp.Compile(v))
+
 		r.rule.Env[k] = reg
 	}
 	return nil
@@ -110,7 +102,6 @@ func (e Env) Evaluate(env map[string]string) bool {
 	}
 
 	return foundEnv
-
 }
 
 // RuleDefinitions is like chained rule with OR operator
@@ -124,9 +115,7 @@ func (rs *RuleDefinitions) AddRule(r RuleDefinition) {
 
 func (rs *RuleDefinitions) Compile() error {
 	for _, r := range rs.Rules {
-		if err := r.Compile(); err != nil {
-			return err
-		}
+		mylog.Check(r.Compile())
 	}
 	return nil
 }

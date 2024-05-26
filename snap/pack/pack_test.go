@@ -34,6 +34,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 
 	// for SanitizePlugsSlots
@@ -57,11 +58,11 @@ func (s *packSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
 	// chdir into a tempdir
-	pwd, err := os.Getwd()
-	c.Assert(err, IsNil)
+	pwd := mylog.Check2(os.Getwd())
+
 	s.AddCleanup(func() { os.Chdir(pwd) })
-	err = os.Chdir(c.MkDir())
-	c.Assert(err, IsNil)
+	mylog.Check(os.Chdir(c.MkDir()))
+
 
 	// use fake root
 	dirs.SetRootDir(c.MkDir())
@@ -77,10 +78,10 @@ func makeExampleSnapSourceDir(c *C, snapYamlContent string) string {
 
 	// use meta/snap.yaml
 	metaDir := filepath.Join(tempdir, "meta")
-	err := os.Mkdir(metaDir, 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(metaDir, "snap.yaml"), []byte(snapYamlContent), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.Mkdir(metaDir, 0755))
+
+	mylog.Check(os.WriteFile(filepath.Join(metaDir, "snap.yaml"), []byte(snapYamlContent), 0644))
+
 
 	const helloBinContent = `#!/bin/sh
 printf "hello world"
@@ -88,29 +89,31 @@ printf "hello world"
 
 	// an example binary
 	binDir := filepath.Join(tempdir, "bin")
-	err = os.Mkdir(binDir, 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(binDir, "hello-world"), []byte(helloBinContent), 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.Mkdir(binDir, 0755))
+
+	mylog.Check(os.WriteFile(filepath.Join(binDir, "hello-world"), []byte(helloBinContent), 0755))
+
 
 	// unusual permissions for dir
 	tmpDir := filepath.Join(tempdir, "tmp")
-	err = os.Mkdir(tmpDir, 0755)
-	c.Assert(err, IsNil)
-	// avoid umask
-	err = os.Chmod(tmpDir, 01777)
-	c.Assert(err, IsNil)
+	mylog.Check(os.Mkdir(tmpDir, 0755))
+
+	mylog.
+		// avoid umask
+		Check(os.Chmod(tmpDir, 01777))
+
 
 	// and file
 	someFile := filepath.Join(tempdir, "file-with-perm")
-	err = os.WriteFile(someFile, []byte(""), 0666)
-	c.Assert(err, IsNil)
-	err = os.Chmod(someFile, 0666)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(someFile, []byte(""), 0666))
 
-	// an example symlink
-	err = os.Symlink("bin/hello-world", filepath.Join(tempdir, "symlink"))
-	c.Assert(err, IsNil)
+	mylog.Check(os.Chmod(someFile, 0666))
+
+	mylog.
+
+		// an example symlink
+		Check(os.Symlink("bin/hello-world", filepath.Join(tempdir, "symlink")))
+
 
 	return tempdir
 }
@@ -121,17 +124,17 @@ func makeExampleComponentSourceDir(c *C, componentYaml string) string {
 
 	// use meta/snap.yaml
 	metaDir := filepath.Join(tempdir, "meta")
-	err := os.Mkdir(metaDir, 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(metaDir, "component.yaml"), []byte(componentYaml), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.Mkdir(metaDir, 0755))
+
+	mylog.Check(os.WriteFile(filepath.Join(metaDir, "component.yaml"), []byte(componentYaml), 0644))
+
 	return tempdir
 }
 
 func (s *packSuite) TestPackNoManifestFails(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, "{name: hello, version: 0}")
 	c.Assert(os.Remove(filepath.Join(sourceDir, "meta", "snap.yaml")), IsNil)
-	_, err := pack.Pack(sourceDir, pack.Defaults)
+	_ := mylog.Check2(pack.Pack(sourceDir, pack.Defaults))
 	c.Assert(err, ErrorMatches, `.*/meta/snap\.yaml: no such file or directory`)
 }
 
@@ -140,20 +143,20 @@ func (s *packSuite) TestPackInfoFromSnapYamlFails(c *C) {
 version: 0
 no-colon
 `)
-	_, err := pack.Pack(sourceDir, pack.Defaults)
+	_ := mylog.Check2(pack.Pack(sourceDir, pack.Defaults))
 	c.Assert(err, ErrorMatches, `cannot parse snap.yaml: yaml: line 4: could not find expected ':'`)
 }
 
 func (s *packSuite) TestPackComponentBadName(c *C) {
 	sourceDir := makeExampleComponentSourceDir(c, "{component: hello, version: 0}")
-	pathName, err := pack.Pack(sourceDir, pack.Defaults)
+	pathName := mylog.Check2(pack.Pack(sourceDir, pack.Defaults))
 	c.Assert(pathName, Equals, "")
 	c.Assert(err.Error(), Equals, `cannot parse component.yaml: incorrect component name "hello"`)
 }
 
 func (s *packSuite) TestPackComponentBadYaml(c *C) {
 	sourceDir := makeExampleComponentSourceDir(c, "...")
-	pathName, err := pack.Pack(sourceDir, pack.Defaults)
+	pathName := mylog.Check2(pack.Pack(sourceDir, pack.Defaults))
 	c.Assert(pathName, Equals, "")
 	c.Assert(err.Error(), Equals, `cannot parse component.yaml: yaml: did not find expected node content`)
 }
@@ -166,7 +169,7 @@ apps:
   command: bin/hello-world
 `)
 	c.Assert(os.Remove(filepath.Join(sourceDir, "bin", "hello-world")), IsNil)
-	_, err := pack.Pack(sourceDir, pack.Defaults)
+	_ := mylog.Check2(pack.Pack(sourceDir, pack.Defaults))
 	c.Assert(err, Equals, snap.ErrMissingPaths)
 }
 
@@ -179,7 +182,7 @@ apps:
 `)
 	c.Assert(os.Mkdir(filepath.Join(sourceDir, "meta", "hooks"), 0755), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(sourceDir, "meta", "hooks", "default-configure"), []byte("#!/bin/sh"), 0755), IsNil)
-	_, err := pack.Pack(sourceDir, pack.Defaults)
+	_ := mylog.Check2(pack.Pack(sourceDir, pack.Defaults))
 	c.Check(err, ErrorMatches, "cannot validate snap \"hello\": cannot specify \"default-configure\" hook without \"configure\" hook")
 }
 
@@ -194,7 +197,7 @@ apps:
 	configureHooks := []string{"configure", "default-configure"}
 	for _, hook := range configureHooks {
 		c.Assert(os.WriteFile(filepath.Join(sourceDir, "meta", "hooks", hook), []byte("#!/bin/sh"), 0666), IsNil)
-		_, err := pack.Pack(sourceDir, pack.Defaults)
+		_ := mylog.Check2(pack.Pack(sourceDir, pack.Defaults))
 		c.Check(err, ErrorMatches, "snap is unusable due to bad permissions")
 	}
 }
@@ -210,8 +213,8 @@ apps:
 	configureHooks := []string{"configure", "default-configure"}
 	for _, hook := range configureHooks {
 		c.Assert(os.WriteFile(filepath.Join(sourceDir, "meta", "hooks", hook), []byte("#!/bin/sh"), 0755), IsNil)
-		_, err := pack.Pack(sourceDir, pack.Defaults)
-		c.Assert(err, IsNil)
+		_ := mylog.Check2(pack.Pack(sourceDir, pack.Defaults))
+
 	}
 }
 
@@ -228,7 +231,7 @@ apps:
     - $SNAP_UNKNOWN_DIR/two
 `
 	c.Assert(os.WriteFile(filepath.Join(sourceDir, "meta", "snapshots.yaml"), []byte(invalidSnapshotYaml), 0444), IsNil)
-	_, err := pack.Pack(sourceDir, pack.Defaults)
+	_ := mylog.Check2(pack.Pack(sourceDir, pack.Defaults))
 	c.Assert(err, ErrorMatches, "snapshot exclude path must start with one of.*")
 }
 
@@ -245,7 +248,7 @@ apps:
     - $SNAP_COMMON/two
 `
 	c.Assert(os.WriteFile(filepath.Join(sourceDir, "meta", "snapshots.yaml"), []byte(invalidSnapshotYaml), 0411), IsNil)
-	_, err := pack.Pack(sourceDir, pack.Defaults)
+	_ := mylog.Check2(pack.Pack(sourceDir, pack.Defaults))
 	c.Assert(err, ErrorMatches, "snap is unusable due to bad permissions")
 }
 
@@ -262,8 +265,8 @@ apps:
     - $SNAP_COMMON/two
 `
 	c.Assert(os.WriteFile(filepath.Join(sourceDir, "meta", "snapshots.yaml"), []byte(invalidSnapshotYaml), 0444), IsNil)
-	_, err := pack.Pack(sourceDir, pack.Defaults)
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(pack.Pack(sourceDir, pack.Defaults))
+
 }
 
 func (s *packSuite) TestValidateMissingAppFailsWithErrMissingPaths(c *C) {
@@ -275,14 +278,13 @@ apps:
   command: bin/hello-world
   plugs: [potato]
 `)
-	err := pack.CheckSkeleton(&buf, sourceDir)
-	c.Assert(err, IsNil)
+	mylog.Check(pack.CheckSkeleton(&buf, sourceDir))
+
 	c.Check(buf.String(), Equals, "snap \"hello\" has bad plugs or slots: potato (unknown interface \"potato\")\n")
 
 	buf.Reset()
 	c.Assert(os.Remove(filepath.Join(sourceDir, "bin", "hello-world")), IsNil)
-
-	err = pack.CheckSkeleton(&buf, sourceDir)
+	mylog.Check(pack.CheckSkeleton(&buf, sourceDir))
 	c.Assert(err, Equals, snap.ErrMissingPaths)
 	c.Check(buf.String(), Equals, "")
 }
@@ -292,13 +294,13 @@ func (s *packSuite) TestPackExcludesBackups(c *C) {
 	target := c.MkDir()
 	// add a backup file
 	c.Assert(os.WriteFile(filepath.Join(sourceDir, "foo~"), []byte("hi"), 0755), IsNil)
-	snapfile, err := pack.Pack(sourceDir, &pack.Options{TargetDir: c.MkDir()})
-	c.Assert(err, IsNil)
+	snapfile := mylog.Check2(pack.Pack(sourceDir, &pack.Options{TargetDir: c.MkDir()}))
+
 	c.Assert(squashfs.New(snapfile).Unpack("*", target), IsNil)
 
 	cmd := exec.Command("diff", "-qr", sourceDir, target)
 	cmd.Env = append(cmd.Env, "LANG=C")
-	out, err := cmd.Output()
+	out := mylog.Check2(cmd.Output())
 	c.Check(err, NotNil)
 	c.Check(string(out), Matches, `(?m)Only in \S+: foo~`)
 }
@@ -310,12 +312,12 @@ func (s *packSuite) TestPackExcludesTopLevelDEBIAN(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(sourceDir, "DEBIAN", "foo"), 0755), IsNil)
 	// and a non-toplevel DEBIAN
 	c.Assert(os.MkdirAll(filepath.Join(sourceDir, "bar", "DEBIAN", "baz"), 0755), IsNil)
-	snapfile, err := pack.Pack(sourceDir, &pack.Options{TargetDir: c.MkDir()})
-	c.Assert(err, IsNil)
+	snapfile := mylog.Check2(pack.Pack(sourceDir, &pack.Options{TargetDir: c.MkDir()}))
+
 	c.Assert(squashfs.New(snapfile).Unpack("*", target), IsNil)
 	cmd := exec.Command("diff", "-qr", sourceDir, target)
 	cmd.Env = append(cmd.Env, "LANG=C")
-	out, err := cmd.Output()
+	out := mylog.Check2(cmd.Output())
 	c.Check(err, NotNil)
 	c.Check(string(out), Matches, `(?m)Only in \S+: DEBIAN`)
 	// but *only one* DEBIAN is skipped
@@ -328,14 +330,14 @@ func (s *packSuite) TestPackExcludesWholeDirs(c *C) {
 	// add a file inside a skipped dir
 	c.Assert(os.Mkdir(filepath.Join(sourceDir, ".bzr"), 0755), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(sourceDir, ".bzr", "foo"), []byte("hi"), 0755), IsNil)
-	snapfile, err := pack.Pack(sourceDir, &pack.Options{TargetDir: c.MkDir()})
-	c.Assert(err, IsNil)
+	snapfile := mylog.Check2(pack.Pack(sourceDir, &pack.Options{TargetDir: c.MkDir()}))
+
 	c.Assert(squashfs.New(snapfile).Unpack("*", target), IsNil)
 	out, _ := exec.Command("find", sourceDir).Output()
 	c.Check(string(out), Not(Equals), "")
 	cmd := exec.Command("diff", "-qr", sourceDir, target)
 	cmd.Env = append(cmd.Env, "LANG=C")
-	out, err = cmd.Output()
+	out = mylog.Check2(cmd.Output())
 	c.Check(err, NotNil)
 	c.Check(string(out), Matches, `(?m)Only in \S+: \.bzr`)
 }
@@ -376,19 +378,19 @@ version: 1.0.1
 
 	for i, t := range table {
 		comm := Commentf("%d", i)
-		resultSnap, err := pack.Pack(sourceDir, &pack.Options{
+		resultSnap := mylog.Check2(pack.Pack(sourceDir, &pack.Options{
 			TargetDir: t.outputDir,
 			SnapName:  t.filename,
-		})
+		}))
 		c.Assert(err, IsNil, comm)
 
 		// check that there is result
-		_, err = os.Stat(resultSnap)
+		_ = mylog.Check2(os.Stat(resultSnap))
 		c.Assert(err, IsNil, comm)
 		c.Assert(resultSnap, Equals, t.expected, comm)
 
 		// check that the content looks sane
-		output, err := exec.Command("unsquashfs", "-ll", resultSnap).CombinedOutput()
+		output := mylog.Check2(exec.Command("unsquashfs", "-ll", resultSnap).CombinedOutput())
 		c.Assert(err, IsNil, comm)
 		expr := fmt.Sprintf(`(?ms).*%s.*`, regexp.QuoteMeta("meta/component.yaml"))
 		c.Assert(string(output), Matches, expr, comm)
@@ -428,19 +430,19 @@ integration:
 
 	for i, t := range table {
 		comm := Commentf("%d", i)
-		resultSnap, err := pack.Pack(sourceDir, &pack.Options{
+		resultSnap := mylog.Check2(pack.Pack(sourceDir, &pack.Options{
 			TargetDir: t.outputDir,
 			SnapName:  t.filename,
-		})
+		}))
 		c.Assert(err, IsNil, comm)
 
 		// check that there is result
-		_, err = os.Stat(resultSnap)
+		_ = mylog.Check2(os.Stat(resultSnap))
 		c.Assert(err, IsNil, comm)
 		c.Assert(resultSnap, Equals, t.expected, comm)
 
 		// check that the content looks sane
-		output, err := exec.Command("unsquashfs", "-ll", resultSnap).CombinedOutput()
+		output := mylog.Check2(exec.Command("unsquashfs", "-ll", resultSnap).CombinedOutput())
 		c.Assert(err, IsNil, comm)
 		for _, needle := range []string{
 			"meta/snap.yaml",
@@ -451,7 +453,6 @@ integration:
 			c.Assert(string(output), Matches, expr, comm)
 		}
 	}
-
 }
 
 func (s *packSuite) TestPackGadgetValidate(c *C) {
@@ -460,7 +461,7 @@ version: 1.0.1
 type: gadget
 `)
 
-	var gadgetYamlContent = `
+	gadgetYamlContent := `
 volumes:
   bad:
     bootloader: grub
@@ -479,48 +480,46 @@ volumes:
           - image: bare.img
 
 `
-	err := os.WriteFile(filepath.Join(sourceDir, "meta/gadget.yaml"), []byte(gadgetYamlContent), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(sourceDir, "meta/gadget.yaml"), []byte(gadgetYamlContent), 0644))
+
 
 	outputDir := filepath.Join(c.MkDir(), "output")
 	absSnapFile := filepath.Join(c.MkDir(), "foo.snap")
 
 	// gadget validation fails during layout
-	_, err = pack.Pack(sourceDir, &pack.Options{
+	_ = mylog.Check2(pack.Pack(sourceDir, &pack.Options{
 		TargetDir: outputDir,
 		SnapName:  absSnapFile,
-	})
+	}))
 	c.Assert(err, ErrorMatches, `structure #1 \("bare-struct"\): content "bare.img": stat .*/bare.img: no such file or directory`)
+	mylog.Check(os.WriteFile(filepath.Join(sourceDir, "bare.img"), []byte("foo"), 0644))
 
-	err = os.WriteFile(filepath.Join(sourceDir, "bare.img"), []byte("foo"), 0644)
-	c.Assert(err, IsNil)
 
 	// gadget validation fails during content presence checks
-	_, err = pack.Pack(sourceDir, &pack.Options{
+	_ = mylog.Check2(pack.Pack(sourceDir, &pack.Options{
 		TargetDir: outputDir,
 		SnapName:  absSnapFile,
-	})
+	}))
 	c.Assert(err, ErrorMatches, `invalid volume "bad": structure #0 \("fs-struct"\), content source:foo/: source path does not exist`)
+	mylog.Check(os.Mkdir(filepath.Join(sourceDir, "foo"), 0644))
 
-	err = os.Mkdir(filepath.Join(sourceDir, "foo"), 0644)
-	c.Assert(err, IsNil)
 	// all good now
-	_, err = pack.Pack(sourceDir, &pack.Options{
+	_ = mylog.Check2(pack.Pack(sourceDir, &pack.Options{
 		TargetDir: outputDir,
 		SnapName:  absSnapFile,
-	})
-	c.Assert(err, IsNil)
+	}))
+
 }
 
 func (s *packSuite) TestPackWithCompressionHappy(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, "{name: hello, version: 0}")
 
 	for _, comp := range []string{"", "xz", "lzo"} {
-		snapfile, err := pack.Pack(sourceDir, &pack.Options{
+		snapfile := mylog.Check2(pack.Pack(sourceDir, &pack.Options{
 			TargetDir:   c.MkDir(),
 			Compression: comp,
-		})
-		c.Assert(err, IsNil)
+		}))
+
 		c.Assert(snapfile, testutil.FilePresent)
 	}
 }
@@ -529,10 +528,10 @@ func (s *packSuite) TestPackWithCompressionUnhappy(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, "{name: hello, version: 0}")
 
 	for _, comp := range []string{"gzip", "zstd", "silly"} {
-		snapfile, err := pack.Pack(sourceDir, &pack.Options{
+		snapfile := mylog.Check2(pack.Pack(sourceDir, &pack.Options{
 			TargetDir:   c.MkDir(),
 			Compression: comp,
-		})
+		}))
 		c.Assert(err, ErrorMatches, fmt.Sprintf("cannot use compression %q", comp))
 		c.Assert(snapfile, Equals, "")
 	}
@@ -571,11 +570,11 @@ esac
 `, verityHashSize, targetDir))
 	defer vscmd.Restore()
 
-	snapPath, err := pack.Pack(sourceDir, &pack.Options{
+	snapPath := mylog.Check2(pack.Pack(sourceDir, &pack.Options{
 		TargetDir: targetDir,
 		Integrity: true,
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(snapPath, testutil.FilePresent)
 	c.Assert(vscmd.Calls(), HasLen, 2)
 	c.Check(vscmd.Calls()[0], DeepEquals, []string{"veritysetup", "--version"})
@@ -583,12 +582,12 @@ esac
 
 	magic := []byte{'s', 'n', 'a', 'p', 'e', 'x', 't'}
 
-	snapFile, err := os.Open(snapPath)
-	c.Assert(err, IsNil)
+	snapFile := mylog.Check2(os.Open(snapPath))
+
 	defer snapFile.Close()
 
-	fi, err := snapFile.Stat()
-	c.Assert(err, IsNil)
+	fi := mylog.Check2(snapFile.Stat())
+
 
 	integrityStartOffset := squashfs.MinimumSnapSize
 	if fi.Size() > int64(65536) {
@@ -598,29 +597,29 @@ esac
 	}
 
 	// example snap has a size of 16384 (4 blocks)
-	_, err = snapFile.Seek(integrityStartOffset, io.SeekStart)
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(snapFile.Seek(integrityStartOffset, io.SeekStart))
+
 
 	integrityHdr := make([]byte, integrity.HeaderSize)
-	_, err = snapFile.Read(integrityHdr)
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(snapFile.Read(integrityHdr))
+
 
 	c.Assert(bytes.HasPrefix(integrityHdr, magic), Equals, true)
 
 	var hdr interface{}
 	integrityHdr = bytes.Trim(integrityHdr, "\x00")
-	err = json.Unmarshal(integrityHdr[len(magic):], &hdr)
+	mylog.Check(json.Unmarshal(integrityHdr[len(magic):], &hdr))
 	c.Check(err, IsNil)
 
 	integrityDataHeader, ok := hdr.(map[string]interface{})
 	c.Assert(ok, Equals, true)
 	hdrSizeStr, ok := integrityDataHeader["size"].(string)
 	c.Assert(ok, Equals, true)
-	hdrSize, err := strconv.ParseUint(hdrSizeStr, 10, 64)
-	c.Assert(err, IsNil)
+	hdrSize := mylog.Check2(strconv.ParseUint(hdrSizeStr, 10, 64))
+
 	c.Check(hdrSize, Equals, uint64(integrity.HeaderSize+verityHashSize))
 
-	fi, err = snapFile.Stat()
-	c.Assert(err, IsNil)
+	fi = mylog.Check2(snapFile.Stat())
+
 	c.Check(fi.Size(), Equals, int64(integrityStartOffset+(integrity.HeaderSize+verityHashSize)))
 }

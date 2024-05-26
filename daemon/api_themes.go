@@ -29,6 +29,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord"
@@ -40,15 +41,13 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
-var (
-	themesCmd = &Command{
-		Path:        "/v2/accessories/themes",
-		GET:         checkThemes,
-		POST:        installThemes,
-		ReadAccess:  interfaceOpenAccess{Interfaces: []string{"snap-themes-control"}},
-		WriteAccess: interfaceAuthenticatedAccess{Interfaces: []string{"snap-themes-control"}, Polkit: polkitActionManage},
-	}
-)
+var themesCmd = &Command{
+	Path:        "/v2/accessories/themes",
+	GET:         checkThemes,
+	POST:        installThemes,
+	ReadAccess:  interfaceOpenAccess{Interfaces: []string{"snap-themes-control"}},
+	WriteAccess: interfaceAuthenticatedAccess{Interfaces: []string{"snap-themes-control"}, Polkit: polkitActionManage},
+}
 
 type themeStatus string
 
@@ -72,10 +71,10 @@ func installedThemes(overlord *overlord.Overlord) (gtkThemes, iconThemes, soundT
 	for _, info := range infos {
 		for _, slot := range info.Slots {
 			var content string
-			// The content interface ensures this attribute exists
-			if err := slot.Attr("content", &content); err != nil {
-				return nil, nil, nil, err
-			}
+			mylog.Check(
+				// The content interface ensures this attribute exists
+				slot.Attr("content", &content))
+
 			var themes *[]string
 			switch content {
 			case "gtk-3-themes":
@@ -88,9 +87,8 @@ func installedThemes(overlord *overlord.Overlord) (gtkThemes, iconThemes, soundT
 				continue
 			}
 			var sources []interface{}
-			if err := slot.Attr("source.read", &sources); err != nil {
-				continue
-			}
+			mylog.Check(slot.Attr("source.read", &sources))
+
 			for _, s := range sources {
 				if path, ok := s.(string); ok {
 					*themes = append(*themes, filepath.Base(path))
@@ -136,12 +134,11 @@ func collectThemeStatusForPrefix(ctx context.Context, theStore snapstate.StoreSe
 		status[theme] = themeUnavailable
 		for _, name := range themePackageCandidates(prefix, theme) {
 			var ch *channel.Channel
-			var err error
-			if _, ch, err = theStore.SnapExists(ctx, store.SnapSpec{Name: name}, user); err == store.ErrSnapNotFound {
+
+			if _, ch = mylog.Check3(theStore.SnapExists(ctx, store.SnapSpec{Name: name}, user)); err == store.ErrSnapNotFound {
 				continue
-			} else if err != nil {
-				return err
 			}
+
 			// Only mark the theme as available if it has
 			// been published to a stable channel
 			// (latest or default track).
@@ -156,25 +153,16 @@ func collectThemeStatusForPrefix(ctx context.Context, theStore snapstate.StoreSe
 }
 
 func themeStatusAndCandidateSnaps(ctx context.Context, d *Daemon, user *auth.UserState, gtkThemes, iconThemes, soundThemes []string) (status themeStatusResponse, candidateSnaps map[string]bool, err error) {
-	installedGtk, installedIcon, installedSound, err := installedThemes(d.overlord)
-	if err != nil {
-		return themeStatusResponse{}, nil, err
-	}
+	installedGtk, installedIcon, installedSound := mylog.Check4(installedThemes(d.overlord))
 
 	theStore := storeFrom(d)
 	status.GtkThemes = make(map[string]themeStatus, len(gtkThemes))
 	status.IconThemes = make(map[string]themeStatus, len(iconThemes))
 	status.SoundThemes = make(map[string]themeStatus, len(soundThemes))
 	candidateSnaps = make(map[string]bool)
-	if err = collectThemeStatusForPrefix(ctx, theStore, user, "gtk-theme-", gtkThemes, installedGtk, status.GtkThemes, candidateSnaps); err != nil {
-		return themeStatusResponse{}, nil, err
-	}
-	if err = collectThemeStatusForPrefix(ctx, theStore, user, "icon-theme-", iconThemes, installedIcon, status.IconThemes, candidateSnaps); err != nil {
-		return themeStatusResponse{}, nil, err
-	}
-	if err = collectThemeStatusForPrefix(ctx, theStore, user, "sound-theme-", soundThemes, installedSound, status.SoundThemes, candidateSnaps); err != nil {
-		return themeStatusResponse{}, nil, err
-	}
+	mylog.Check(collectThemeStatusForPrefix(ctx, theStore, user, "gtk-theme-", gtkThemes, installedGtk, status.GtkThemes, candidateSnaps))
+	mylog.Check(collectThemeStatusForPrefix(ctx, theStore, user, "icon-theme-", iconThemes, installedIcon, status.IconThemes, candidateSnaps))
+	mylog.Check(collectThemeStatusForPrefix(ctx, theStore, user, "sound-theme-", soundThemes, installedSound, status.SoundThemes, candidateSnaps))
 
 	return status, candidateSnaps, nil
 }
@@ -182,10 +170,7 @@ func themeStatusAndCandidateSnaps(ctx context.Context, d *Daemon, user *auth.Use
 func checkThemes(c *Command, r *http.Request, user *auth.UserState) Response {
 	ctx := store.WithClientUserAgent(r.Context(), r)
 	q := r.URL.Query()
-	status, _, err := themeStatusAndCandidateSnaps(ctx, c.d, user, q["gtk-theme"], q["icon-theme"], q["sound-theme"])
-	if err != nil {
-		return InternalError("cannot get theme status: %s", err)
-	}
+	status, _ := mylog.Check3(themeStatusAndCandidateSnaps(ctx, c.d, user, q["gtk-theme"], q["icon-theme"], q["sound-theme"]))
 
 	return SyncResponse(status)
 }
@@ -199,15 +184,10 @@ type themeInstallReq struct {
 func installThemes(c *Command, r *http.Request, user *auth.UserState) Response {
 	decoder := json.NewDecoder(r.Body)
 	var req themeInstallReq
-	if err := decoder.Decode(&req); err != nil {
-		return BadRequest("cannot decode request body: %v", err)
-	}
+	mylog.Check(decoder.Decode(&req))
 
 	ctx := store.WithClientUserAgent(r.Context(), r)
-	_, candidateSnaps, err := themeStatusAndCandidateSnaps(ctx, c.d, user, req.GtkThemes, req.IconThemes, req.SoundThemes)
-	if err != nil {
-		return InternalError("cannot get theme status: %s", err)
-	}
+	_, candidateSnaps := mylog.Check3(themeStatusAndCandidateSnaps(ctx, c.d, user, req.GtkThemes, req.IconThemes, req.SoundThemes))
 
 	if len(candidateSnaps) == 0 {
 		return BadRequest("no snaps to install")
@@ -227,10 +207,8 @@ func installThemes(c *Command, r *http.Request, user *auth.UserState) Response {
 	if user != nil {
 		userID = user.ID
 	}
-	installed, tasksets, err := snapstateInstallMany(st, toInstall, nil, userID, &snapstate.Flags{})
-	if err != nil {
-		return InternalError("cannot install themes: %s", err)
-	}
+	installed, tasksets := mylog.Check3(snapstateInstallMany(st, toInstall, nil, userID, &snapstate.Flags{}))
+
 	var summary string
 	switch len(toInstall) {
 	case 1:

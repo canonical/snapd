@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
@@ -246,14 +247,14 @@ slots:
 	slotInfo := snap.Slots["shared-memory"]
 	plug := interfaces.NewConnectedPlug(plugInfo, nil, nil)
 	slot := interfaces.NewConnectedSlot(slotInfo, nil, nil)
-	list, err := builtin.StringListAttribute(plug, "write")
-	c.Assert(err, IsNil)
+	list := mylog.Check2(builtin.StringListAttribute(plug, "write"))
+
 	c.Check(list, DeepEquals, []string{"$HOME/dir1", "/etc/.hidden2"})
-	list, err = builtin.StringListAttribute(plug, "read")
-	c.Assert(err, IsNil)
+	list = mylog.Check2(builtin.StringListAttribute(plug, "read"))
+
 	c.Check(list, IsNil)
-	list, err = builtin.StringListAttribute(slot, "write")
-	c.Assert(err, IsNil)
+	list = mylog.Check2(builtin.StringListAttribute(slot, "write"))
+
 	c.Check(list, DeepEquals, []string{"foo", "bar"})
 }
 
@@ -267,7 +268,7 @@ plugs:
 	snap := snaptest.MockInfo(c, snapYaml, nil)
 	plugInfo := snap.Plugs["personal-files"]
 	plug := interfaces.NewConnectedPlug(plugInfo, nil, nil)
-	list, err := builtin.StringListAttribute(plug, "write")
+	list := mylog.Check2(builtin.StringListAttribute(plug, "write"))
 	c.Assert(list, IsNil)
 	c.Assert(err, ErrorMatches, `"write" attribute must be a list of strings, not "\[1 two\]"`)
 }

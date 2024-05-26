@@ -27,6 +27,7 @@ import (
 
 	tomb "gopkg.in/tomb.v2"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -84,10 +85,7 @@ func (m *ServiceManager) doQuotaControl(t *state.Task, _ *tomb.Tomb) error {
 	defer perfTimings.Save(st)
 
 	qcs := []QuotaControlAction{}
-	err := t.Get("quota-control-actions", &qcs)
-	if err != nil {
-		return fmt.Errorf("internal error: cannot get quota-control-actions: %v", err)
-	}
+	mylog.Check(t.Get("quota-control-actions", &qcs))
 
 	// TODO: support more than one action
 	switch {
@@ -99,67 +97,54 @@ func (m *ServiceManager) doQuotaControl(t *state.Task, _ *tomb.Tomb) error {
 
 	qc := qcs[0]
 
-	updated, servicesAffected, refreshProfiles, err := quotaStateAlreadyUpdated(t)
-	if err != nil {
-		return err
-	}
+	updated, servicesAffected, refreshProfiles := mylog.Check4(quotaStateAlreadyUpdated(t))
 
 	if !updated {
-		allGrps, err := AllQuotas(st)
-		if err != nil {
-			return err
-		}
+		allGrps := mylog.Check2(AllQuotas(st))
 
 		var grp *quota.Group
 		switch qc.Action {
 		case "create":
-			grp, allGrps, refreshProfiles, err = quotaCreate(st, qc, allGrps)
+			grp, allGrps, refreshProfiles = mylog.Check4(quotaCreate(st, qc, allGrps))
 		case "remove":
-			grp, allGrps, refreshProfiles, err = quotaRemove(st, qc, allGrps)
+			grp, allGrps, refreshProfiles = mylog.Check4(quotaRemove(st, qc, allGrps))
 		case "update":
-			grp, allGrps, refreshProfiles, err = quotaUpdate(st, qc, allGrps)
+			grp, allGrps, refreshProfiles = mylog.Check4(quotaUpdate(st, qc, allGrps))
 		default:
 			return fmt.Errorf("unknown action %q requested", qc.Action)
-		}
-
-		if err != nil {
-			return err
 		}
 
 		// ensure service and slices on disk and their states are updated
 		opts := &ensureSnapServicesForGroupOptions{
 			allGrps: allGrps,
 		}
-		servicesAffected, err = ensureSnapServicesForGroup(st, t, grp, opts)
-		if err != nil {
-			return err
-		}
+		servicesAffected = mylog.Check2(ensureSnapServicesForGroup(st, t, grp, opts))
+		mylog.Check(
 
-		// All persistent modifications to disk are made and the
-		// modifications to state will be committed by the
-		// unlocking at the end of this task. If snapd gets
-		// restarted before the end of this task, all the
-		// modifications would be redone, and those
-		// non-idempotent parts of the task would fail.
-		// For this reason we record together with the changes
-		// in state the fact that the changes were made,
-		// to avoid repeating them.
-		// What remains for this task handler is just to
-		// refresh security profiles and restart services which
-		// will happen regardless if we get rebooted after
-		// unlocking the state - if we got rebooted before unlocking
-		// the state, none of the changes we made to state would
-		// be persisted and we would run through everything above
-		// here again, but the second time around EnsureSnapServices
-		// would end up doing nothing since it is idempotent.
-		// So in the rare case that snapd gets restarted but is not a
-		// reboot also record which services do need
-		// restarting. There is a small chance that services
-		// will be restarted again but is preferable to the
-		// quota not applying to them.
-		if err := rememberQuotaStateUpdated(t, servicesAffected, refreshProfiles); err != nil {
-			return err
-		}
+			// All persistent modifications to disk are made and the
+			// modifications to state will be committed by the
+			// unlocking at the end of this task. If snapd gets
+			// restarted before the end of this task, all the
+			// modifications would be redone, and those
+			// non-idempotent parts of the task would fail.
+			// For this reason we record together with the changes
+			// in state the fact that the changes were made,
+			// to avoid repeating them.
+			// What remains for this task handler is just to
+			// refresh security profiles and restart services which
+			// will happen regardless if we get rebooted after
+			// unlocking the state - if we got rebooted before unlocking
+			// the state, none of the changes we made to state would
+			// be persisted and we would run through everything above
+			// here again, but the second time around EnsureSnapServices
+			// would end up doing nothing since it is idempotent.
+			// So in the rare case that snapd gets restarted but is not a
+			// reboot also record which services do need
+			// restarting. There is a small chance that services
+			// will be restarted again but is preferable to the
+			// quota not applying to them.
+			rememberQuotaStateUpdated(t, servicesAffected, refreshProfiles))
+
 	}
 
 	if len(servicesAffected) > 0 {
@@ -235,40 +220,26 @@ func (m *ServiceManager) doQuotaAddSnap(t *state.Task, _ *tomb.Tomb) error {
 	perfTimings := state.TimingsForTask(t)
 	defer perfTimings.Save(st)
 
-	snapsup, err := snapstate.TaskSnapSetup(t)
-	if err != nil {
-		return err
-	}
+	snapsup := mylog.Check2(snapstate.TaskSnapSetup(t))
 
 	var quotaName string
-	if err := t.Get("quota-name", &quotaName); err != nil {
-		return fmt.Errorf("internal error: cannot get quota-name: %v", err)
-	}
+	mylog.Check(t.Get("quota-name", &quotaName))
 
-	allGrps, err := AllQuotas(st)
-	if err != nil {
-		return err
-	}
+	allGrps := mylog.Check2(AllQuotas(st))
 
 	qc := QuotaControlAction{
 		Action:    "update",
 		QuotaName: quotaName,
 		AddSnaps:  []string{snapsup.InstanceName()},
 	}
-	grp, allGrps, _, err := quotaUpdate(st, qc, allGrps)
-	if err != nil {
-		return err
-	}
+	grp, allGrps, _ := mylog.Check4(quotaUpdate(st, qc, allGrps))
 
 	// ensure service and slices on disk and their states are updated
 	opts := &ensureSnapServicesForGroupOptions{
 		allGrps: allGrps,
 	}
 
-	servicesAffected, err := ensureSnapServicesForGroup(st, t, grp, opts)
-	if err != nil {
-		return err
-	}
+	servicesAffected := mylog.Check2(ensureSnapServicesForGroup(st, t, grp, opts))
 
 	// ensure that if any services are affected, they get their profiles
 	// refreshed immediately as a part of the install change.
@@ -290,14 +261,9 @@ func (m *ServiceManager) undoQuotaAddSnap(t *state.Task, _ *tomb.Tomb) error {
 	perfTimings := state.TimingsForTask(t)
 	defer perfTimings.Save(st)
 
-	snapsup, err := snapstate.TaskSnapSetup(t)
-	if err != nil {
-		return err
-	}
+	snapsup := mylog.Check2(snapstate.TaskSnapSetup(t))
+	mylog.Check(EnsureSnapAbsentFromQuota(st, snapsup.InstanceName()))
 
-	if err := EnsureSnapAbsentFromQuota(st, snapsup.InstanceName()); err != nil {
-		return err
-	}
 	return nil
 }
 
@@ -310,10 +276,8 @@ type quotaStateUpdated struct {
 }
 
 func rememberQuotaStateUpdated(t *state.Task, appsToRestartBySnap map[*snap.Info][]*snap.AppInfo, refreshProfiles bool) error {
-	bootID, err := osutilBootID()
-	if err != nil {
-		return err
-	}
+	bootID := mylog.Check2(osutilBootID())
+
 	appNamesBySnapName := make(map[string][]string, len(appsToRestartBySnap))
 	for info, apps := range appsToRestartBySnap {
 		appNames := make([]string, len(apps))
@@ -332,17 +296,10 @@ func rememberQuotaStateUpdated(t *state.Task, appsToRestartBySnap map[*snap.Info
 
 func quotaStateAlreadyUpdated(t *state.Task) (ok bool, appsToRestartBySnap map[*snap.Info][]*snap.AppInfo, refreshProfiles bool, err error) {
 	var updated quotaStateUpdated
-	if err := t.Get("state-updated", &updated); err != nil {
-		if errors.Is(err, state.ErrNoState) {
-			return false, nil, false, nil
-		}
-		return false, nil, false, err
-	}
+	mylog.Check(t.Get("state-updated", &updated))
 
-	bootID, err := osutilBootID()
-	if err != nil {
-		return false, nil, false, err
-	}
+	bootID := mylog.Check2(osutilBootID())
+
 	if bootID != updated.BootID {
 		// rebooted => nothing to restart
 		return true, nil, false, nil
@@ -352,14 +309,8 @@ func quotaStateAlreadyUpdated(t *state.Task) (ok bool, appsToRestartBySnap map[*
 	st := t.State()
 	// best effort, ignore missing snaps and apps
 	for instanceName, appNames := range updated.AppsToRestartBySnap {
-		info, err := snapstate.CurrentInfo(st, instanceName)
-		if err != nil {
-			if _, ok := err.(*snap.NotInstalledError); ok {
-				t.Logf("after snapd restart, snap %q went missing", instanceName)
-				continue
-			}
-			return false, nil, false, err
-		}
+		info := mylog.Check2(snapstate.CurrentInfo(st, instanceName))
+
 		apps := make([]*snap.AppInfo, 0, len(appNames))
 		for _, appName := range appNames {
 			app := info.Apps[appName]
@@ -388,32 +339,27 @@ func quotaCreate(st *state.State, action QuotaControlAction, allGrps map[string]
 			return nil, nil, false, fmt.Errorf("cannot create group under non-existent parent group %q", action.ParentName)
 		}
 	}
+	mylog.Check(
 
-	// make sure the resource limits for the group are valid
-	if err := action.ResourceLimits.Validate(); err != nil {
-		return nil, nil, false, fmt.Errorf("cannot create quota group %q: %v", action.QuotaName, err)
-	}
+		// make sure the resource limits for the group are valid
+		action.ResourceLimits.Validate())
 
 	// verify we are not trying to add a mixture of services and snaps
 	if len(action.AddSnaps) > 0 && len(action.AddServices) > 0 {
 		return nil, nil, false, fmt.Errorf("cannot mix services and snaps in the same quota group")
 	}
+	mylog.Check(
 
-	// make sure the specified snaps exist and aren't currently in another group
-	if err := validateSnapForAddingToGroup(st, action.AddSnaps, action.QuotaName, parentGrp, allGrps); err != nil {
-		return nil, nil, false, err
-	}
+		// make sure the specified snaps exist and aren't currently in another group
+		validateSnapForAddingToGroup(st, action.AddSnaps, action.QuotaName, parentGrp, allGrps))
+	mylog.Check(
 
-	// if services are provided, the make sure they refer to correct snaps and valid
-	// services.
-	if err := validateSnapServicesForAddingToGroup(st, action.AddServices, action.QuotaName, parentGrp, allGrps); err != nil {
-		return nil, nil, false, err
-	}
+		// if services are provided, the make sure they refer to correct snaps and valid
+		// services.
+		validateSnapServicesForAddingToGroup(st, action.AddServices, action.QuotaName, parentGrp, allGrps))
 
-	grp, allGrps, err := internal.CreateQuotaInState(st, action.QuotaName, parentGrp, action.AddSnaps, action.AddServices, action.ResourceLimits, allGrps)
-	if err != nil {
-		return nil, nil, false, err
-	}
+	grp, allGrps := mylog.Check3(internal.CreateQuotaInState(st, action.QuotaName, parentGrp, action.AddSnaps, action.AddServices, action.ResourceLimits, allGrps))
+
 	refreshProfiles := grp.JournalLimit != nil
 	return grp, allGrps, refreshProfiles, nil
 }
@@ -476,12 +422,11 @@ func quotaRemove(st *state.State, action QuotaControlAction, allGrps map[string]
 	// that we can just use SnapServiceOptions below and since it operates via
 	// state, it will immediately reflect the deletion
 	delete(allGrps, action.QuotaName)
+	mylog.Check(
 
-	// make sure that the group set is consistent before saving it - we may need
-	// to delete old links from this group's parent to the child
-	if err := quota.ResolveCrossReferences(allGrps); err != nil {
-		return nil, nil, false, fmt.Errorf("cannot remove quota group %q: %v", action.QuotaName, err)
-	}
+		// make sure that the group set is consistent before saving it - we may need
+		// to delete old links from this group's parent to the child
+		quota.ResolveCrossReferences(allGrps))
 
 	// now set it in state
 	st.Set("quotas", allGrps)
@@ -497,20 +442,16 @@ func validateQuotaLimitsChange(grp *quota.Group, oldLimits, newLimits quota.Reso
 	if newLimits.Journal != nil && len(grp.Services) > 0 {
 		return fmt.Errorf("journal quotas are not supported for individual services")
 	}
-	if err := oldLimits.ValidateChange(newLimits); err != nil {
-		return err
-	}
+	mylog.Check(oldLimits.ValidateChange(newLimits))
+
 	return nil
 }
 
 func quotaUpdateGroupLimits(grp *quota.Group, limits quota.Resources) error {
 	currentQuotas := grp.GetQuotaResources()
-	if err := validateQuotaLimitsChange(grp, currentQuotas, limits); err != nil {
-		return fmt.Errorf("cannot update limits for group %q: %v", grp.Name, err)
-	}
-	if err := currentQuotas.Change(limits); err != nil {
-		return fmt.Errorf("cannot update limits for group %q: %v", grp.Name, err)
-	}
+	mylog.Check(validateQuotaLimitsChange(grp, currentQuotas, limits))
+	mylog.Check(currentQuotas.Change(limits))
+
 	return grp.UpdateQuotaLimits(currentQuotas)
 }
 
@@ -526,24 +467,20 @@ func quotaUpdate(st *state.State, action QuotaControlAction, allGrps map[string]
 	if action.ParentName != "" {
 		return nil, nil, false, fmt.Errorf("group %q cannot be moved to a different parent (re-parenting not yet supported)", action.QuotaName)
 	}
+	mylog.Check(
 
-	// verify we are not trying to add a mixture of services and snaps
-	if err := groupEnsureOnlySnapsOrServices(action.AddSnaps, action.AddServices, grp); err != nil {
-		return nil, nil, false, err
-	}
+		// verify we are not trying to add a mixture of services and snaps
+		groupEnsureOnlySnapsOrServices(action.AddSnaps, action.AddServices, grp))
 
 	// now ensure that all of the snaps mentioned in AddSnaps exist as snaps and
 	// that they aren't already in an existing quota group
 	parentGrp := allGrps[grp.ParentGroup]
-	if err := validateSnapForAddingToGroup(st, action.AddSnaps, action.QuotaName, parentGrp, allGrps); err != nil {
-		return nil, nil, false, err
-	}
+	mylog.Check(validateSnapForAddingToGroup(st, action.AddSnaps, action.QuotaName, parentGrp, allGrps))
+	mylog.Check(
 
-	// if services are provided, the make sure they refer to correct snaps and valid
-	// services.
-	if err := validateSnapServicesForAddingToGroup(st, action.AddServices, action.QuotaName, parentGrp, allGrps); err != nil {
-		return nil, nil, false, err
-	}
+		// if services are provided, the make sure they refer to correct snaps and valid
+		// services.
+		validateSnapServicesForAddingToGroup(st, action.AddServices, action.QuotaName, parentGrp, allGrps))
 
 	// append snap list and service list in the group
 	grp.Snaps = append(grp.Snaps, action.AddSnaps...)
@@ -552,17 +489,13 @@ func quotaUpdate(st *state.State, action QuotaControlAction, allGrps map[string]
 	// store the current status of journal quota, if it changes we need
 	// to refresh the profiles for the snaps in the groups
 	hadJournalLimit := grp.JournalLimit != nil
+	mylog.Check(
 
-	// update resource limits for the group
-	if err := quotaUpdateGroupLimits(grp, action.ResourceLimits); err != nil {
-		return nil, nil, false, err
-	}
+		// update resource limits for the group
+		quotaUpdateGroupLimits(grp, action.ResourceLimits))
 
 	// update the quota group state
-	allGrps, err := internal.PatchQuotas(st, grp)
-	if err != nil {
-		return nil, nil, false, err
-	}
+	allGrps := mylog.Check2(internal.PatchQuotas(st, grp))
 
 	hasJournalLimit := (grp.JournalLimit != nil)
 	refreshProfiles := hadJournalLimit != hasJournalLimit
@@ -593,17 +526,13 @@ func snapServiceNames(info *snap.Info) []string {
 func affectedSnapServices(st *state.State, grp *quota.Group, opts *ensureSnapServicesForGroupOptions) (map[*snap.Info]*wrappers.SnapServiceOptions, []string, error) {
 	snapSvcMap := map[*snap.Info]*wrappers.SnapServiceOptions{}
 	addSnapToMap := func(sn string) (*snap.Info, error) {
-		info, err := snapstate.CurrentInfo(st, sn)
-		if err != nil {
-			return nil, err
-		}
+		info := mylog.Check2(snapstate.CurrentInfo(st, sn))
+
 		if snapSvcMap[info] != nil {
 			return info, nil
 		}
-		opts, err := SnapServiceOptions(st, info, opts.allGrps)
-		if err != nil {
-			return nil, err
-		}
+		opts := mylog.Check2(SnapServiceOptions(st, info, opts.allGrps))
+
 		snapSvcMap[info] = opts
 		return info, nil
 	}
@@ -612,10 +541,8 @@ func affectedSnapServices(st *state.State, grp *quota.Group, opts *ensureSnapSer
 	// in any case
 	var affectedServices []string
 	for _, sn := range append(grp.Snaps, opts.extraSnaps...) {
-		info, err := addSnapToMap(sn)
-		if err != nil {
-			return nil, nil, err
-		}
+		info := mylog.Check2(addSnapToMap(sn))
+
 		affectedServices = append(affectedServices, snapServiceNames(info)...)
 	}
 
@@ -625,9 +552,8 @@ func affectedSnapServices(st *state.State, grp *quota.Group, opts *ensureSnapSer
 	for _, svc := range grp.Services {
 		parts := strings.SplitN(svc, ".", 2)
 		snapName := parts[0]
-		if _, err := addSnapToMap(snapName); err != nil {
-			return nil, nil, err
-		}
+		mylog.Check2(addSnapToMap(snapName))
+
 		affectedServices = append(affectedServices, svc)
 	}
 	return snapSvcMap, affectedServices, nil
@@ -657,10 +583,7 @@ func ensureSnapServicesForGroup(st *state.State, t *state.Task, grp *quota.Group
 	}
 
 	// build the map of snap infos to options to provide to EnsureSnapServices
-	snapSvcMap, affectedServices, err := affectedSnapServices(st, grp, opts)
-	if err != nil {
-		return nil, err
-	}
+	snapSvcMap, affectedServices := mylog.Check3(affectedSnapServices(st, grp, opts))
 
 	// TODO: the following lines should maybe be EnsureOptionsForDevice() or
 	// something since it is duplicated a few places
@@ -670,10 +593,7 @@ func ensureSnapServicesForGroup(st *state.State, t *state.Task, grp *quota.Group
 	}
 
 	// set RequireMountedSnapdSnap if we are on UC18+ only
-	deviceCtx, err := snapstate.DeviceCtx(st, nil, nil)
-	if err != nil {
-		return nil, err
-	}
+	deviceCtx := mylog.Check2(snapstate.DeviceCtx(st, nil, nil))
 
 	if !deviceCtx.Classic() && deviceCtx.Model().Base() != "" {
 		ensureOpts.RequireMountedSnapdSnap = true
@@ -766,9 +686,7 @@ func ensureSnapServicesForGroup(st *state.State, t *state.Task, grp *quota.Group
 			}
 		}
 	}
-	if err := wrappers.EnsureSnapServices(snapSvcMap, ensureOpts, collectModifiedUnits, meterLocked); err != nil {
-		return nil, err
-	}
+	mylog.Check(wrappers.EnsureSnapServices(snapSvcMap, ensureOpts, collectModifiedUnits, meterLocked))
 
 	if ensureOpts.Preseeding {
 		// nothing to restart
@@ -780,10 +698,9 @@ func ensureSnapServicesForGroup(st *state.State, t *state.Task, grp *quota.Group
 
 	// now start the slices
 	for _, grp := range grpsToStart {
-		// TODO: what should these timeouts for stopping/restart slices be?
-		if err := systemSysd.Start([]string{grp.SliceFileName()}); err != nil {
-			return nil, err
-		}
+		mylog.Check(
+			// TODO: what should these timeouts for stopping/restart slices be?
+			systemSysd.Start([]string{grp.SliceFileName()}))
 	}
 
 	// after starting all the grps that we modified from EnsureSnapServices,
@@ -794,26 +711,21 @@ func ensureSnapServicesForGroup(st *state.State, t *state.Task, grp *quota.Group
 	if _, ok := allGrps[grp.Name]; !ok {
 		// stop the quota group, then remove it
 		if !ensureOpts.Preseeding {
-			if err := systemSysd.Stop([]string{grp.SliceFileName()}); err != nil {
-				logger.Noticef("unable to stop systemd slice while removing group %q: %v", grp.Name, err)
-			}
+			mylog.Check(systemSysd.Stop([]string{grp.SliceFileName()}))
 		}
+		mylog.Check(
 
-		// TODO: this results in a second systemctl daemon-reload which is
-		// undesirable, we should figure out how to do this operation with a
-		// single daemon-reload
-		err := wrappers.RemoveQuotaGroup(grp, meterLocked)
-		if err != nil {
-			return nil, err
-		}
+			// TODO: this results in a second systemctl daemon-reload which is
+			// undesirable, we should figure out how to do this operation with a
+			// single daemon-reload
+			wrappers.RemoveQuotaGroup(grp, meterLocked))
+
 	}
 
 	// lastly, lets restart journald services which were affected
 	// by the changes to the quota group
 	if len(journalsToRestart) > 0 {
-		if err := systemSysd.Restart(journalsToRestart); err != nil {
-			return nil, err
-		}
+		mylog.Check(systemSysd.Restart(journalsToRestart))
 	}
 
 	return appsToRestartBySnap, nil
@@ -840,17 +752,11 @@ func restartSnapServices(st *state.State, appsToRestartBySnap map[*snap.Info][]*
 	})
 
 	for _, sn := range snaps {
-		startupOrdered, err := snap.SortServices(appsToRestartBySnap[sn])
-		if err != nil {
-			return err
-		}
-
-		err = wrappers.RestartServices(startupOrdered, nil,
+		startupOrdered := mylog.Check2(snap.SortServices(appsToRestartBySnap[sn]))
+		mylog.Check(wrappers.RestartServices(startupOrdered, nil,
 			&wrappers.RestartServicesFlags{Reload: false},
-			progress.Null, &timings.Timings{})
-		if err != nil {
-			return err
-		}
+			progress.Null, &timings.Timings{}))
+
 	}
 	return nil
 }
@@ -861,10 +767,8 @@ func restartSnapServices(st *state.State, appsToRestartBySnap map[*snap.Info][]*
 // snap from the system which will cause an update(removal) of security profiles,
 // and thus won't should not cause a conflict.
 func ensureSnapServicesStateForGroup(st *state.State, grp *quota.Group, opts *ensureSnapServicesForGroupOptions) error {
-	appsToRestartBySnap, err := ensureSnapServicesForGroup(st, nil, grp, opts)
-	if err != nil {
-		return err
-	}
+	appsToRestartBySnap := mylog.Check2(ensureSnapServicesForGroup(st, nil, grp, opts))
+
 	return restartSnapServices(st, appsToRestartBySnap)
 }
 
@@ -904,10 +808,7 @@ func validateSnapForAddingToGroup(st *state.State, snaps []string, group string,
 
 	for _, name := range snaps {
 		// validate that the snap exists
-		_, err := snapstate.CurrentInfo(st, name)
-		if err != nil {
-			return fmt.Errorf("cannot use snap %q in group %q: %v", name, group, err)
-		}
+		_ := mylog.Check2(snapstate.CurrentInfo(st, name))
 
 		// check that the snap is not already in a group
 		for _, grp := range allGrps {
@@ -926,19 +827,15 @@ func splitSnapServiceName(name string) (string, string, error) {
 	if len(parts) != 2 {
 		return "", "", fmt.Errorf("invalid snap service: %s", name)
 	}
-	if err := naming.ValidateSnap(parts[0]); err != nil {
-		return "", "", err
-	}
+	mylog.Check(naming.ValidateSnap(parts[0]))
+
 	return parts[0], parts[1], naming.ValidateApp(parts[1])
 }
 
 // ensureAppReferenceIsService returns whether the service referred to in the
 // snap is actually a service.
 func ensureAppReferenceIsService(st *state.State, snap, service string) error {
-	snapInfo, err := snapstate.CurrentInfo(st, snap)
-	if err != nil {
-		return err
-	}
+	snapInfo := mylog.Check2(snapstate.CurrentInfo(st, snap))
 
 	appInfo, ok := snapInfo.Apps[service]
 	if !ok {
@@ -980,13 +877,9 @@ func validateSnapServicesForAddingToGroup(st *state.State, services []string, gr
 	}
 
 	for _, name := range services {
-		snap, service, err := splitSnapServiceName(name)
-		if err != nil {
-			return err
-		}
-		if err = ensureAppReferenceIsService(st, snap, service); err != nil {
-			return fmt.Errorf("cannot add snap service %q: %v", group, err)
-		}
+		snap, service := mylog.Check3(splitSnapServiceName(name))
+		mylog.Check(ensureAppReferenceIsService(st, snap, service))
+
 		if parentGroup == nil || !strutil.ListContains(parentGroup.Snaps, snap) {
 			return fmt.Errorf("cannot add snap service %q: the snap %q must be in a direct parent group of group %q", service, snap, group)
 		}
@@ -999,9 +892,8 @@ func validateSnapServicesForAddingToGroup(st *state.State, services []string, gr
 
 func affectedQuotasForQuotaControl(t *state.Task) (quotas []string, err error) {
 	qcs := []QuotaControlAction{}
-	if err := t.Get("quota-control-actions", &qcs); err != nil {
-		return nil, fmt.Errorf("internal error: cannot get quota-control-actions: %v", err)
-	}
+	mylog.Check(t.Get("quota-control-actions", &qcs))
+
 	quotas = make([]string, 0, len(qcs))
 	for _, qc := range qcs {
 		// TODO: the affected quotas will expand beyond this
@@ -1013,16 +905,12 @@ func affectedQuotasForQuotaControl(t *state.Task) (quotas []string, err error) {
 
 func affectedSnapsForQuotaControl(t *state.Task) (snaps []string, err error) {
 	qcs := []QuotaControlAction{}
-	if err := t.Get("quota-control-actions", &qcs); err != nil {
-		return nil, fmt.Errorf("internal error: cannot get quota-control-actions: %v", err)
-	}
+	mylog.Check(t.Get("quota-control-actions", &qcs))
 
 	// if state-updated was already set we can use it
 	var updated quotaStateUpdated
-	if err := t.Get("state-updated", &updated); !errors.Is(err, state.ErrNoState) {
-		if err != nil {
-			return nil, err
-		}
+	if mylog.Check(t.Get("state-updated", &updated)); !errors.Is(err, state.ErrNoState) {
+
 		// TODO: consider boot-id as well?
 		for snapName := range updated.AppsToRestartBySnap {
 			snaps = append(snaps, snapName)
@@ -1037,7 +925,7 @@ func affectedSnapsForQuotaControl(t *state.Task) (snaps []string, err error) {
 		case "remove":
 			// the snaps affected by a remove are implicitly
 			// the ones currently in the quota group
-			grp, err := GetQuota(st, qc.QuotaName)
+			grp := mylog.Check2(GetQuota(st, qc.QuotaName))
 			if err != nil && err != ErrQuotaNotFound {
 				return nil, err
 			}
@@ -1058,8 +946,7 @@ func affectedSnapsForQuotaControl(t *state.Task) (snaps []string, err error) {
 
 func affectedQuotasForQuotaAddSnap(t *state.Task) (quotas []string, err error) {
 	var quotaName string
-	if err := t.Get("quota-name", &quotaName); err != nil {
-		return nil, fmt.Errorf("internal error: cannot get quota-name: %v", err)
-	}
+	mylog.Check(t.Get("quota-name", &quotaName))
+
 	return []string{quotaName}, nil
 }

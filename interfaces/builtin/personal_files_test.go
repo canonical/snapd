@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -74,11 +75,11 @@ func (s *personalFilesInterfaceSuite) TestName(c *C) {
 }
 
 func (s *personalFilesInterfaceSuite) TestConnectedPlugAppArmorHappy(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	apparmorSpec := apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
-	c.Assert(err, IsNil)
+	mylog.Check(apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot))
+
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Check(apparmorSpec.SnippetForTag("snap.other.app"), Equals, `
 # Description: Can access specific personal files or directories in the 
@@ -117,10 +118,10 @@ apps:
 	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfo, nil)
 	plugInfo := plugSnap.Plugs["personal-files"]
 	plug := interfaces.NewConnectedPlug(plugInfo, nil, nil)
-	appSet, err := interfaces.NewSnapAppSet(plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(plug.Snap(), nil))
+
 	apparmorSpec := apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddConnectedPlug(s.iface, plug, s.slot)
+	mylog.Check(apparmorSpec.AddConnectedPlug(s.iface, plug, s.slot))
 	c.Assert(err, ErrorMatches, `cannot connect plug personal-files: 123 \(int64\) is not a string`)
 }
 
@@ -139,17 +140,17 @@ apps:
 	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfo, nil)
 	plugInfo := plugSnap.Plugs["personal-files"]
 	plug := interfaces.NewConnectedPlug(plugInfo, nil, nil)
-	appSet, err := interfaces.NewSnapAppSet(plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(plug.Snap(), nil))
+
 	apparmorSpec := apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddConnectedPlug(s.iface, plug, s.slot)
+	mylog.Check(apparmorSpec.AddConnectedPlug(s.iface, plug, s.slot))
 	c.Assert(err, ErrorMatches, `cannot connect plug personal-files: "\$NOTHOME/.local/share/target" must start with "\$HOME/"`)
 }
 
 func (s *personalFilesInterfaceSuite) TestConnectedPlugMountHappy(c *C) {
 	mountSpec := &mount.Specification{}
-	err := mountSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
-	c.Assert(err, IsNil)
+	mylog.Check(mountSpec.AddConnectedPlug(s.iface, s.plug, s.slot))
+
 	c.Assert(mountSpec.MountEntries(), HasLen, 0)
 	c.Assert(mountSpec.UserMountEntries(), HasLen, 2)
 
@@ -182,7 +183,7 @@ apps:
 	plugInfo := plugSnap.Plugs["personal-files"]
 	plug := interfaces.NewConnectedPlug(plugInfo, nil, nil)
 	mountSpec := &mount.Specification{}
-	err := mountSpec.AddConnectedPlug(s.iface, plug, s.slot)
+	mylog.Check(mountSpec.AddConnectedPlug(s.iface, plug, s.slot))
 	c.Assert(err, ErrorMatches, `cannot connect plug personal-files: "\$NOTHOME/.local/share/target" must start with "\$HOME/"`)
 }
 
@@ -208,7 +209,7 @@ apps:
 		}, nil
 	})
 	defer restore()
-	err := mountSpec.AddConnectedPlug(s.iface, plug, s.slot)
+	mylog.Check(mountSpec.AddConnectedPlug(s.iface, plug, s.slot))
 	c.Assert(err, ErrorMatches, `cannot connect plug personal-files: internal error: cannot use ensure-dir mount specification: directory that must exist "dir" is not an absolute path`)
 }
 
@@ -241,7 +242,7 @@ plugs:
   $t
 `
 	errPrefix := `cannot add personal-files plug: `
-	var testCases = []struct {
+	testCases := []struct {
 		inp    string
 		errStr string
 	}{

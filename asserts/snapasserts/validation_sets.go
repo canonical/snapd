@@ -26,6 +26,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
@@ -130,7 +131,8 @@ func (b byRevision) Less(i, j int) bool { return b[i].N < b[j].N }
 func (e *ValidationSetsValidationError) Error() string {
 	buf := bytes.NewBufferString("validation sets assertions are not met:")
 	printDetails := func(header string, details map[string][]string,
-		printSnap func(snapName string, keys []string) string) {
+		printSnap func(snapName string, keys []string) string,
+	) {
 		if len(details) == 0 {
 			return
 		}
@@ -196,8 +198,10 @@ type ValidationSets struct {
 
 const presConflict asserts.Presence = "conflict"
 
-var unspecifiedRevision = snap.R(0)
-var invalidPresRevision = snap.R(-1)
+var (
+	unspecifiedRevision = snap.R(0)
+	invalidPresRevision = snap.R(-1)
+)
 
 type snapContraints struct {
 	name     string
@@ -330,9 +334,7 @@ func valSetKey(valset *asserts.ValidationSet) string {
 // Revisions returns the set of snap revisions that is enforced by the
 // validation sets that ValidationSets manages.
 func (v *ValidationSets) Revisions() (map[string]snap.Revision, error) {
-	if err := v.Conflict(); err != nil {
-		return nil, fmt.Errorf("cannot get revisions when validation sets are in conflict: %w", err)
-	}
+	mylog.Check(v.Conflict())
 
 	snapNameToRevision := make(map[string]snap.Revision, len(v.snaps))
 	for _, sn := range v.snaps {
@@ -706,10 +708,7 @@ func ParseValidationSet(arg string) (account, name string, seq int, err error) {
 		return "", "", 0, fmt.Errorf("%s: expected account/name=seq", errPrefix())
 	}
 	if len(parts) == 2 {
-		seq, err = strconv.Atoi(parts[1])
-		if err != nil {
-			return "", "", 0, fmt.Errorf("%s: invalid sequence: %v", errPrefix(), err)
-		}
+		seq = mylog.Check2(strconv.Atoi(parts[1]))
 	}
 
 	parts = strings.Split(parts[0], "/")

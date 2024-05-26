@@ -21,6 +21,8 @@ import (
 	"sort"
 	"strconv"
 	"time"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 const (
@@ -160,10 +162,8 @@ func (n *Notice) MarshalJSON() ([]byte, error) {
 
 func (n *Notice) UnmarshalJSON(data []byte) error {
 	var jn jsonNotice
-	err := json.Unmarshal(data, &jn)
-	if err != nil {
-		return err
-	}
+	mylog.Check(json.Unmarshal(data, &jn))
+
 	n.id = jn.ID
 	n.userID = jn.UserID
 	n.noticeType = NoticeType(jn.Type)
@@ -174,16 +174,10 @@ func (n *Notice) UnmarshalJSON(data []byte) error {
 	n.occurrences = jn.Occurrences
 	n.lastData = jn.LastData
 	if jn.RepeatAfter != "" {
-		n.repeatAfter, err = time.ParseDuration(jn.RepeatAfter)
-		if err != nil {
-			return fmt.Errorf("invalid repeat-after duration: %w", err)
-		}
+		n.repeatAfter = mylog.Check2(time.ParseDuration(jn.RepeatAfter))
 	}
 	if jn.ExpireAfter != "" {
-		n.expireAfter, err = time.ParseDuration(jn.ExpireAfter)
-		if err != nil {
-			return fmt.Errorf("invalid expire-after duration: %w", err)
-		}
+		n.expireAfter = mylog.Check2(time.ParseDuration(jn.ExpireAfter))
 	}
 	return nil
 }
@@ -234,10 +228,7 @@ func (s *State) AddNotice(userID *uint32, noticeType NoticeType, key string, opt
 	if options == nil {
 		options = &AddNoticeOptions{}
 	}
-	err := ValidateNotice(noticeType, key, options)
-	if err != nil {
-		return "", fmt.Errorf("internal error: %w", err)
-	}
+	mylog.Check(ValidateNotice(noticeType, key, options))
 
 	s.writing()
 

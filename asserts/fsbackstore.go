@@ -28,6 +28,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // the default filesystem based backstore for assertions
@@ -45,26 +47,20 @@ type filesystemBackstore struct {
 // OpenFSBackstore opens a filesystem backed assertions backstore under path.
 func OpenFSBackstore(path string) (Backstore, error) {
 	top := filepath.Join(path, assertionsRoot)
-	err := ensureTop(top)
-	if err != nil {
-		return nil, err
-	}
+	mylog.Check(ensureTop(top))
+
 	return &filesystemBackstore{top: top}, nil
 }
 
 // guarantees that result assertion is of the expected type (both in the AssertionType and go type sense)
 func (fsbs *filesystemBackstore) readAssertion(assertType *AssertionType, diskPrimaryPath string) (Assertion, error) {
-	encoded, err := readEntry(fsbs.top, assertType.Name, diskPrimaryPath)
+	encoded := mylog.Check2(readEntry(fsbs.top, assertType.Name, diskPrimaryPath))
 	if os.IsNotExist(err) {
 		return nil, errNotFound
 	}
-	if err != nil {
-		return nil, fmt.Errorf("broken assertion storage, cannot read assertion: %v", err)
-	}
-	assert, err := Decode(encoded)
-	if err != nil {
-		return nil, fmt.Errorf("broken assertion storage, cannot decode assertion: %v", err)
-	}
+
+	assert := mylog.Check2(Decode(encoded))
+
 	if assert.Type() != assertType {
 		return nil, fmt.Errorf("assertion that is not of type %q under their storage tree", assertType.Name)
 	}
@@ -78,17 +74,11 @@ func (fsbs *filesystemBackstore) pickLatestAssertion(assertType *AssertionType, 
 		parts := strings.SplitN(fn, ".", 2)
 		formatnum := 0
 		if len(parts) == 2 {
-			var err error
-			formatnum, err = strconv.Atoi(parts[1])
-			if err != nil {
-				return nil, fmt.Errorf("invalid active assertion filename: %q", fn)
-			}
+			formatnum = mylog.Check2(strconv.Atoi(parts[1]))
 		}
 		if formatnum <= maxFormat {
-			a1, err := fsbs.readAssertion(assertType, diskPrimaryPath)
-			if err != nil {
-				return nil, err
-			}
+			a1 := mylog.Check2(fsbs.readAssertion(assertType, diskPrimaryPath))
+
 			if a == nil || a1.Revision() > a.Revision() {
 				a = a1
 			}
@@ -132,8 +122,7 @@ func diskPrimaryPathComps(assertType *AssertionType, primaryPath []string, activ
 func (fsbs *filesystemBackstore) currentAssertion(assertType *AssertionType, primaryPath []string, maxFormat int) (Assertion, error) {
 	var a Assertion
 	namesCb := func(relpaths []string) error {
-		var err error
-		a, err = fsbs.pickLatestAssertion(assertType, relpaths, maxFormat)
+		a = mylog.Check2(fsbs.pickLatestAssertion(assertType, relpaths, maxFormat))
 		if err == errNotFound {
 			return nil
 		}
@@ -142,10 +131,7 @@ func (fsbs *filesystemBackstore) currentAssertion(assertType *AssertionType, pri
 
 	comps := diskPrimaryPathComps(assertType, primaryPath, "active*")
 	assertTypeTop := filepath.Join(fsbs.top, assertType.Name)
-	err := findWildcard(assertTypeTop, comps, 0, namesCb)
-	if err != nil {
-		return nil, fmt.Errorf("broken assertion storage, looking for %s: %v", assertType.Name, err)
-	}
+	mylog.Check(findWildcard(assertTypeTop, comps, 0, namesCb))
 
 	if a == nil {
 		return nil, errNotFound
@@ -160,7 +146,7 @@ func (fsbs *filesystemBackstore) Put(assertType *AssertionType, assert Assertion
 
 	primaryPath := assert.Ref().PrimaryKey
 
-	curAssert, err := fsbs.currentAssertion(assertType, primaryPath, assertType.MaxSupportedFormat())
+	curAssert := mylog.Check2(fsbs.currentAssertion(assertType, primaryPath, assertType.MaxSupportedFormat()))
 	if err == nil {
 		curRev := curAssert.Revision()
 		rev := assert.Revision()
@@ -177,10 +163,8 @@ func (fsbs *filesystemBackstore) Put(assertType *AssertionType, assert Assertion
 		activeFn = fmt.Sprintf("active.%d", formatnum)
 	}
 	diskPrimaryPath := filepath.Join(diskPrimaryPathComps(assertType, primaryPath, activeFn)...)
-	err = atomicWriteEntry(Encode(assert), false, fsbs.top, assertType.Name, diskPrimaryPath)
-	if err != nil {
-		return fmt.Errorf("broken assertion storage, cannot write assertion: %v", err)
-	}
+	mylog.Check(atomicWriteEntry(Encode(assert), false, fsbs.top, assertType.Name, diskPrimaryPath))
+
 	return nil
 }
 
@@ -192,7 +176,7 @@ func (fsbs *filesystemBackstore) Get(assertType *AssertionType, key []string, ma
 		return nil, fmt.Errorf("internal error: Backstore.Get given a key longer than expected for %q: %v", assertType.Name, key)
 	}
 
-	a, err := fsbs.currentAssertion(assertType, key, maxFormat)
+	a := mylog.Check2(fsbs.currentAssertion(assertType, key, maxFormat))
 	if err == errNotFound {
 		return nil, &NotFoundError{Type: assertType}
 	}
@@ -202,20 +186,16 @@ func (fsbs *filesystemBackstore) Get(assertType *AssertionType, key []string, ma
 func (fsbs *filesystemBackstore) search(assertType *AssertionType, diskPattern []string, foundCb func(Assertion), maxFormat int) error {
 	assertTypeTop := filepath.Join(fsbs.top, assertType.Name)
 	candCb := func(diskPrimaryPaths []string) error {
-		a, err := fsbs.pickLatestAssertion(assertType, diskPrimaryPaths, maxFormat)
+		a := mylog.Check2(fsbs.pickLatestAssertion(assertType, diskPrimaryPaths, maxFormat))
 		if err == errNotFound {
 			return nil
 		}
-		if err != nil {
-			return err
-		}
+
 		foundCb(a)
 		return nil
 	}
-	err := findWildcard(assertTypeTop, diskPattern, 0, candCb)
-	if err != nil {
-		return fmt.Errorf("broken assertion storage, searching for %s: %v", assertType.Name, err)
-	}
+	mylog.Check(findWildcard(assertTypeTop, diskPattern, 0, candCb))
+
 	return nil
 }
 
@@ -235,9 +215,8 @@ func (fsbs *filesystemBackstore) searchOptional(assertType *AssertionType, kopt,
 	switch keyVal {
 	case "":
 		diskPattern[pattPos] = fmt.Sprintf("%d:*", kopt-firstOpt)
-		if err := fsbs.searchOptional(assertType, kopt+1, pattPos+1, firstOpt, diskPattern, headers, foundCb, maxFormat); err != nil {
-			return err
-		}
+		mylog.Check(fsbs.searchOptional(assertType, kopt+1, pattPos+1, firstOpt, diskPattern, headers, foundCb, maxFormat))
+
 		fallthrough
 	case assertType.OptionalPrimaryKeyDefaults[k]:
 		return fsbs.searchOptional(assertType, kopt+1, pattPos, firstOpt, diskPattern, headers, foundCb, maxFormat)
@@ -297,24 +276,18 @@ func (fsbs *filesystemBackstore) SequenceMemberAfter(assertType *AssertionType, 
 
 	var a Assertion
 	candCb := func(diskPrimaryPaths []string) error {
-		var err error
-		a, err = fsbs.pickLatestAssertion(assertType, diskPrimaryPaths, maxFormat)
+		a = mylog.Check2(fsbs.pickLatestAssertion(assertType, diskPrimaryPaths, maxFormat))
 		if err == errNotFound {
 			return nil
 		}
-		if err != nil {
-			return err
-		}
+
 		return errFound
 	}
 
 	assertTypeTop := filepath.Join(fsbs.top, assertType.Name)
-	err := findWildcard(assertTypeTop, diskPattern, after, candCb)
+	mylog.Check(findWildcard(assertTypeTop, diskPattern, after, candCb))
 	if err == errFound {
 		return a.(SequenceMember), nil
-	}
-	if err != nil {
-		return nil, fmt.Errorf("broken assertion storage, searching for %s: %v", assertType.Name, err)
 	}
 
 	return nil, &NotFoundError{Type: assertType}

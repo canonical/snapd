@@ -28,6 +28,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -112,7 +113,7 @@ func (w *hotplugTasksWitness) checkTasks(c *C, st *state.State) {
 			continue
 		}
 
-		iface, key, err := ifacestate.GetHotplugAttrs(t)
+		iface, key := mylog.Check3(ifacestate.GetHotplugAttrs(t))
 		c.Check(err, IsNil)
 
 		switch {
@@ -179,19 +180,20 @@ func (s *hotplugSuite) SetUpTest(c *C) {
 
 	s.state.Unlock()
 
-	hookMgr, err := hookstate.Manager(s.state, s.o.TaskRunner())
-	c.Assert(err, IsNil)
+	hookMgr := mylog.Check2(hookstate.Manager(s.state, s.o.TaskRunner()))
+
 	s.o.AddManager(hookMgr)
 
-	s.mgr, err = ifacestate.Manager(s.state, hookMgr, s.o.TaskRunner(), nil, nil)
-	c.Assert(err, IsNil)
+	s.mgr = mylog.Check2(ifacestate.Manager(s.state, hookMgr, s.o.TaskRunner(), nil, nil))
+
 
 	s.o.AddManager(s.mgr)
 	s.o.AddManager(s.o.TaskRunner())
+	mylog.
 
-	// startup
-	err = s.o.StartUp()
-	c.Assert(err, IsNil)
+		// startup
+		Check(s.o.StartUp())
+
 
 	autoConnectNo := func(*snap.PlugInfo, *snap.SlotInfo) bool {
 		return false
@@ -215,7 +217,8 @@ func (s *hotplugSuite) SetUpTest(c *C) {
 				Attrs: map[string]interface{}{
 					"slot-a-attr1": "a",
 					"path":         deviceInfo.DevicePath(),
-				}}, nil
+				},
+			}, nil
 		},
 	}
 	testIface2 := &ifacetest.TestHotplugInterface{
@@ -276,8 +279,8 @@ func (s *hotplugSuite) TearDownTest(c *C) {
 }
 
 func testHotplugTaskAttrs(c *C, t *state.Task, ifaceName, hotplugKey string) {
-	iface, key, err := ifacestate.GetHotplugAttrs(t)
-	c.Assert(err, IsNil)
+	iface, key := mylog.Check3(ifacestate.GetHotplugAttrs(t))
+
 	c.Assert(key, Equals, snap.HotplugKey(hotplugKey))
 	c.Assert(iface, Equals, ifaceName)
 }
@@ -291,8 +294,8 @@ func testByHotplugTaskFlag(c *C, t *state.Task) {
 func (s *hotplugSuite) TestHotplugAddBasic(c *C) {
 	s.MockModel(c, nil)
 
-	di, err := hotplug.NewHotplugDeviceInfo(map[string]string{"DEVPATH": "a/path", "ACTION": "add", "SUBSYSTEM": "foo"})
-	c.Assert(err, IsNil)
+	di := mylog.Check2(hotplug.NewHotplugDeviceInfo(map[string]string{"DEVPATH": "a/path", "ACTION": "add", "SUBSYSTEM": "foo"}))
+
 	s.udevMon.AddDevice(di)
 
 	c.Assert(s.o.Settle(5*time.Second), IsNil)
@@ -311,23 +314,24 @@ func (s *hotplugSuite) TestHotplugAddBasic(c *C) {
 
 	// make sure slots have been created in the repo
 	repo := s.mgr.Repository()
-	slot, err := repo.SlotForHotplugKey("test-a", "key-1")
-	c.Assert(err, IsNil)
+	slot := mylog.Check2(repo.SlotForHotplugKey("test-a", "key-1"))
+
 	c.Assert(slot, NotNil)
 	slots := repo.AllSlots("test-a")
 	c.Assert(slots, HasLen, 1)
 	c.Check(slots[0].Name, Equals, "hotplugslot-a")
 	c.Check(slots[0].Attrs, DeepEquals, map[string]interface{}{
 		"path":         di.DevicePath(),
-		"slot-a-attr1": "a"})
+		"slot-a-attr1": "a",
+	})
 	c.Check(slots[0].HotplugKey, DeepEquals, snap.HotplugKey("key-1"))
 
-	slot, err = repo.SlotForHotplugKey("test-b", "key-2")
-	c.Assert(err, IsNil)
+	slot = mylog.Check2(repo.SlotForHotplugKey("test-b", "key-2"))
+
 	c.Assert(slot, NotNil)
 
-	slot, err = repo.SlotForHotplugKey("test-c", "key-3")
-	c.Assert(err, IsNil)
+	slot = mylog.Check2(repo.SlotForHotplugKey("test-c", "key-3"))
+
 	c.Assert(slot, IsNil)
 
 	c.Check(s.handledByGadgetCalled, Equals, 0)
@@ -357,15 +361,17 @@ slots:
 		Active:   true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&gadgetInfo.SideInfo}),
 		Current:  snap.R(1),
-		SnapType: "gadget"})
+		SnapType: "gadget",
+	})
 	st.Unlock()
 
-	di, err := hotplug.NewHotplugDeviceInfo(map[string]string{
+	di := mylog.Check2(hotplug.NewHotplugDeviceInfo(map[string]string{
 		"DEVNAME":   "/dev/path",
 		"DEVPATH":   "a/path",
 		"ACTION":    "add",
-		"SUBSYSTEM": "foo"})
-	c.Assert(err, IsNil)
+		"SUBSYSTEM": "foo",
+	}))
+
 	s.udevMon.AddDevice(di)
 
 	c.Assert(s.o.Settle(5*time.Second), IsNil)
@@ -375,28 +381,28 @@ slots:
 
 	// make sure hotplug slot has been created in the repo
 	repo := s.mgr.Repository()
-	slot, err := repo.SlotForHotplugKey("test-a", "key-1")
-	c.Assert(err, IsNil)
+	slot := mylog.Check2(repo.SlotForHotplugKey("test-a", "key-1"))
+
 	c.Assert(slot, NotNil)
 
 	// but no hotplug slot has been created for the device path defined by gadget
-	slot, err = repo.SlotForHotplugKey("test-b", "key-2")
-	c.Assert(err, IsNil)
+	slot = mylog.Check2(repo.SlotForHotplugKey("test-b", "key-2"))
+
 	c.Assert(slot, IsNil)
 }
 
 func (s *hotplugSuite) TestHotplugAddWithDefaultKey(c *C) {
 	s.MockModel(c, nil)
 
-	di, err := hotplug.NewHotplugDeviceInfo(map[string]string{
+	di := mylog.Check2(hotplug.NewHotplugDeviceInfo(map[string]string{
 		"DEVPATH":         "a/path",
 		"ACTION":          "add",
 		"SUBSYSTEM":       "foo",
 		"ID_VENDOR_ID":    "vendor",
 		"ID_MODEL_ID":     "model",
 		"ID_SERIAL_SHORT": "serial",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	s.udevMon.AddDevice(di)
 
 	c.Assert(s.o.Settle(5*time.Second), IsNil)
@@ -414,11 +420,13 @@ func (s *hotplugSuite) TestHotplugAddWithDefaultKey(c *C) {
 	c.Assert(hp.seenHotplugAddKeys, DeepEquals, map[snap.HotplugKey]string{
 		"key-1":       "test-a",
 		"key-2":       "test-b",
-		testIfaceDkey: "test-d"})
+		testIfaceDkey: "test-d",
+	})
 	c.Assert(hp.seenHotplugConnectKeys, DeepEquals, map[snap.HotplugKey]string{
 		"key-1":       "test-a",
 		"key-2":       "test-b",
-		testIfaceDkey: "test-d"})
+		testIfaceDkey: "test-d",
+	})
 
 	// make sure the slot has been created
 	repo := s.mgr.Repository()
@@ -451,8 +459,8 @@ func (s *hotplugSuite) TestHotplugAddWithAutoconnect(c *C) {
 	})
 	st.Unlock()
 
-	di, err := hotplug.NewHotplugDeviceInfo(map[string]string{"DEVPATH": "a/path", "ACTION": "add", "SUBSYSTEM": "foo"})
-	c.Assert(err, IsNil)
+	di := mylog.Check2(hotplug.NewHotplugDeviceInfo(map[string]string{"DEVPATH": "a/path", "ACTION": "add", "SUBSYSTEM": "foo"}))
+
 	s.udevMon.AddDevice(di)
 
 	c.Assert(s.o.Settle(5*time.Second), IsNil)
@@ -469,14 +477,15 @@ func (s *hotplugSuite) TestHotplugAddWithAutoconnect(c *C) {
 	c.Check(hp.connects, DeepEquals, []string{"consumer:plug core:hotplugslot-a"})
 
 	// make sure slots have been created in the repo
-	slot, err := repo.SlotForHotplugKey("test-a", "key-1")
-	c.Assert(err, IsNil)
+	slot := mylog.Check2(repo.SlotForHotplugKey("test-a", "key-1"))
+
 	c.Assert(slot, NotNil)
 
-	conn, err := repo.Connection(&interfaces.ConnRef{
+	conn := mylog.Check2(repo.Connection(&interfaces.ConnRef{
 		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
-		SlotRef: interfaces.SlotRef{Snap: "core", Name: "hotplugslot-a"}})
-	c.Assert(err, IsNil)
+		SlotRef: interfaces.SlotRef{Snap: "core", Name: "hotplugslot-a"},
+	}))
+
 	c.Assert(conn, NotNil)
 }
 
@@ -500,13 +509,17 @@ func (s *hotplugSuite) TestHotplugRemove(c *C) {
 		"consumer:plug core:hotplugslot": map[string]interface{}{
 			"interface":    "test-a",
 			"hotplug-key":  "key-1",
-			"hotplug-gone": false}})
+			"hotplug-gone": false,
+		},
+	})
 	st.Set("hotplug-slots", map[string]interface{}{
 		"hotplugslot": map[string]interface{}{
 			"name":         "hotplugslot",
 			"interface":    "test-a",
 			"hotplug-key":  "key-1",
-			"hotplug-gone": false}})
+			"hotplug-gone": false,
+		},
+	})
 
 	repo := s.mgr.Repository()
 	si := &snap.SideInfo{RealName: "consumer", Revision: snap.R(1)}
@@ -524,8 +537,8 @@ func (s *hotplugSuite) TestHotplugRemove(c *C) {
 		SnapType: "app",
 	})
 
-	core, err := snapstate.CurrentInfo(s.state, "core")
-	c.Assert(err, IsNil)
+	core := mylog.Check2(snapstate.CurrentInfo(s.state, "core"))
+
 	c.Assert(repo.AddSlot(&snap.SlotInfo{
 		Interface:  "test-a",
 		Name:       "hotplugslot",
@@ -534,11 +547,11 @@ func (s *hotplugSuite) TestHotplugRemove(c *C) {
 		HotplugKey: "key-1",
 	}), IsNil)
 
-	conn, err := repo.Connect(&interfaces.ConnRef{
+	conn := mylog.Check2(repo.Connect(&interfaces.ConnRef{
 		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
 		SlotRef: interfaces.SlotRef{Snap: "core", Name: "hotplugslot"},
-	}, nil, nil, nil, nil, nil)
-	c.Assert(err, IsNil)
+	}, nil, nil, nil, nil, nil))
+
 	c.Assert(conn, NotNil)
 
 	restore := s.mgr.MockObservedDevicePath(filepath.Join(dirs.SysfsDir, "a/path"), "test-a", "key-1")
@@ -549,8 +562,8 @@ func (s *hotplugSuite) TestHotplugRemove(c *C) {
 	slot, _ := repo.SlotForHotplugKey("test-a", "key-1")
 	c.Assert(slot, NotNil)
 
-	di, err := hotplug.NewHotplugDeviceInfo(map[string]string{"DEVPATH": "a/path", "ACTION": "remove", "SUBSYSTEM": "foo"})
-	c.Assert(err, IsNil)
+	di := mylog.Check2(hotplug.NewHotplugDeviceInfo(map[string]string{"DEVPATH": "a/path", "ACTION": "remove", "SUBSYSTEM": "foo"}))
+
 	s.udevMon.RemoveDevice(di)
 
 	c.Assert(s.o.Settle(5*time.Second), IsNil)
@@ -576,7 +589,9 @@ func (s *hotplugSuite) TestHotplugRemove(c *C) {
 		"consumer:plug core:hotplugslot": map[string]interface{}{
 			"interface":    "test-a",
 			"hotplug-key":  "key-1",
-			"hotplug-gone": true}})
+			"hotplug-gone": true,
+		},
+	})
 }
 
 func (s *hotplugSuite) TestHotplugEnumerationDone(c *C) {
@@ -590,7 +605,9 @@ func (s *hotplugSuite) TestHotplugEnumerationDone(c *C) {
 		"consumer:plug core:hotplugslot": map[string]interface{}{
 			"interface":    "test-a",
 			"hotplug-key":  "key-other-device",
-			"hotplug-gone": false}})
+			"hotplug-gone": false,
+		},
+	})
 
 	repo := s.mgr.Repository()
 
@@ -606,10 +623,11 @@ func (s *hotplugSuite) TestHotplugEnumerationDone(c *C) {
 		Active:   true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  snap.R(1),
-		SnapType: "app"})
+		SnapType: "app",
+	})
 
-	core, err := snapstate.CurrentInfo(s.state, "core")
-	c.Assert(err, IsNil)
+	core := mylog.Check2(snapstate.CurrentInfo(s.state, "core"))
+
 	c.Assert(repo.AddSlot(&snap.SlotInfo{
 		Interface:  "test-a",
 		Name:       "hotplugslot",
@@ -618,22 +636,25 @@ func (s *hotplugSuite) TestHotplugEnumerationDone(c *C) {
 		HotplugKey: "key-other-device",
 	}), IsNil)
 
-	conn, err := repo.Connect(&interfaces.ConnRef{
+	conn := mylog.Check2(repo.Connect(&interfaces.ConnRef{
 		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
 		SlotRef: interfaces.SlotRef{Snap: "core", Name: "hotplugslot"},
-	}, nil, nil, nil, nil, nil)
-	c.Assert(err, IsNil)
+	}, nil, nil, nil, nil, nil))
+
 	c.Assert(conn, NotNil)
 
 	st.Set("hotplug-slots", map[string]interface{}{
 		"hotplugslot": map[string]interface{}{
 			"name":        "hotplugslot",
 			"interface":   "test-a",
-			"hotplug-key": "key-other-device"},
+			"hotplug-key": "key-other-device",
+		},
 		"anotherslot": map[string]interface{}{
 			"name":        "anotherslot",
 			"interface":   "test-a",
-			"hotplug-key": "yet-another-device"}})
+			"hotplug-key": "yet-another-device",
+		},
+	})
 
 	// precondition
 	slot, _ := repo.SlotForHotplugKey("test-a", "key-other-device")
@@ -642,8 +663,8 @@ func (s *hotplugSuite) TestHotplugEnumerationDone(c *C) {
 	st.Unlock()
 
 	// new device added; device for existing connection not present when enumeration is finished
-	di, err := hotplug.NewHotplugDeviceInfo(map[string]string{"DEVPATH": "a/path", "ACTION": "add", "SUBSYSTEM": "foo"})
-	c.Assert(err, IsNil)
+	di := mylog.Check2(hotplug.NewHotplugDeviceInfo(map[string]string{"DEVPATH": "a/path", "ACTION": "add", "SUBSYSTEM": "foo"}))
+
 	s.udevMon.AddDevice(di)
 	s.udevMon.EnumerationDone()
 
@@ -670,16 +691,21 @@ func (s *hotplugSuite) TestHotplugEnumerationDone(c *C) {
 		"consumer:plug core:hotplugslot": map[string]interface{}{
 			"hotplug-gone": true,
 			"hotplug-key":  "key-other-device",
-			"interface":    "test-a"}})
+			"interface":    "test-a",
+		},
+	})
 
 	var newHotplugSlots map[string]interface{}
 	c.Assert(st.Get("hotplug-slots", &newHotplugSlots), IsNil)
 	c.Check(newHotplugSlots, DeepEquals, map[string]interface{}{
 		"hotplugslot-a": map[string]interface{}{
-			"interface": "test-a", "hotplug-gone": false, "static-attrs": map[string]interface{}{"slot-a-attr1": "a", "path": di.DevicePath()}, "hotplug-key": "key-1", "name": "hotplugslot-a"},
+			"interface": "test-a", "hotplug-gone": false, "static-attrs": map[string]interface{}{"slot-a-attr1": "a", "path": di.DevicePath()}, "hotplug-key": "key-1", "name": "hotplugslot-a",
+		},
 		"hotplugslot-b": map[string]interface{}{
-			"name": "hotplugslot-b", "hotplug-gone": false, "interface": "test-b", "hotplug-key": "key-2"},
-		"hotplugslot": map[string]interface{}{"name": "hotplugslot", "hotplug-gone": true, "interface": "test-a", "hotplug-key": "key-other-device"}})
+			"name": "hotplugslot-b", "hotplug-gone": false, "interface": "test-b", "hotplug-key": "key-2",
+		},
+		"hotplugslot": map[string]interface{}{"name": "hotplugslot", "hotplug-gone": true, "interface": "test-a", "hotplug-key": "key-other-device"},
+	})
 }
 
 func (s *hotplugSuite) TestHotplugDeviceUpdate(c *C) {
@@ -693,7 +719,9 @@ func (s *hotplugSuite) TestHotplugDeviceUpdate(c *C) {
 			"interface":    "test-a",
 			"hotplug-key":  "key-1",
 			"hotplug-gone": false,
-			"slot-static":  map[string]interface{}{"path": "/path-1"}}})
+			"slot-static":  map[string]interface{}{"path": "/path-1"},
+		},
+	})
 
 	repo := s.mgr.Repository()
 	si := &snap.SideInfo{RealName: "consumer", Revision: snap.R(1)}
@@ -708,10 +736,11 @@ func (s *hotplugSuite) TestHotplugDeviceUpdate(c *C) {
 		Active:   true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  snap.R(1),
-		SnapType: "app"})
+		SnapType: "app",
+	})
 
-	core, err := snapstate.CurrentInfo(s.state, "core")
-	c.Assert(err, IsNil)
+	core := mylog.Check2(snapstate.CurrentInfo(s.state, "core"))
+
 	c.Assert(repo.AddSlot(&snap.SlotInfo{
 		Interface:  "test-a",
 		Name:       "hotplugslot-a",
@@ -720,11 +749,11 @@ func (s *hotplugSuite) TestHotplugDeviceUpdate(c *C) {
 		HotplugKey: "key-1",
 	}), IsNil)
 
-	conn, err := repo.Connect(&interfaces.ConnRef{
+	conn := mylog.Check2(repo.Connect(&interfaces.ConnRef{
 		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
 		SlotRef: interfaces.SlotRef{Snap: "core", Name: "hotplugslot-a"},
-	}, nil, nil, nil, nil, nil)
-	c.Assert(err, IsNil)
+	}, nil, nil, nil, nil, nil))
+
 	c.Assert(conn, NotNil)
 
 	st.Set("hotplug-slots", map[string]interface{}{
@@ -732,12 +761,14 @@ func (s *hotplugSuite) TestHotplugDeviceUpdate(c *C) {
 			"name":         "hotplugslot-a",
 			"interface":    "test-a",
 			"hotplug-key":  "key-1",
-			"static-attrs": map[string]interface{}{"path": "/path-1"}}})
+			"static-attrs": map[string]interface{}{"path": "/path-1"},
+		},
+	})
 	st.Unlock()
 
 	// simulate device update
-	di, err := hotplug.NewHotplugDeviceInfo(map[string]string{"DEVPATH": "a/path", "ACTION": "add", "SUBSYSTEM": "foo"})
-	c.Assert(err, IsNil)
+	di := mylog.Check2(hotplug.NewHotplugDeviceInfo(map[string]string{"DEVPATH": "a/path", "ACTION": "add", "SUBSYSTEM": "foo"}))
+
 	s.udevMon.AddDevice(di)
 	s.udevMon.EnumerationDone()
 
@@ -755,7 +786,8 @@ func (s *hotplugSuite) TestHotplugDeviceUpdate(c *C) {
 	c.Check(hp.seenHooks, DeepEquals, map[string]string{
 		"disconnect-plug-plug": "consumer",
 		"prepare-plug-plug":    "consumer",
-		"connect-plug-plug":    "consumer"})
+		"connect-plug-plug":    "consumer",
+	})
 	c.Check(hp.hotplugDisconnects, DeepEquals, map[snap.HotplugKey]string{"key-1": "test-a"})
 	c.Check(hp.seenHotplugAddKeys, DeepEquals, map[snap.HotplugKey]string{"key-1": "test-a", "key-2": "test-b"})
 	c.Check(hp.seenHotplugConnectKeys, DeepEquals, map[snap.HotplugKey]string{"key-1": "test-a", "key-2": "test-b"})
@@ -764,8 +796,8 @@ func (s *hotplugSuite) TestHotplugDeviceUpdate(c *C) {
 	c.Check(hp.disconnects, DeepEquals, []string{"consumer:plug core:hotplugslot-a"})
 
 	// make sure slots for new device have been updated in the repo
-	slot, err := repo.SlotForHotplugKey("test-a", "key-1")
-	c.Assert(err, IsNil)
+	slot := mylog.Check2(repo.SlotForHotplugKey("test-a", "key-1"))
+
 	c.Check(slot.Attrs, DeepEquals, map[string]interface{}{"path": di.DevicePath(), "slot-a-attr1": "a"})
 
 	// and the connection attributes have been updated
@@ -776,7 +808,8 @@ func (s *hotplugSuite) TestHotplugDeviceUpdate(c *C) {
 			"hotplug-key": "key-1",
 			"interface":   "test-a",
 			"slot-static": map[string]interface{}{"path": di.DevicePath(), "slot-a-attr1": "a"},
-		}})
+		},
+	})
 
 	var newHotplugSlots map[string]interface{}
 	c.Assert(st.Get("hotplug-slots", &newHotplugSlots), IsNil)
@@ -785,7 +818,8 @@ func (s *hotplugSuite) TestHotplugDeviceUpdate(c *C) {
 		"static-attrs": map[string]interface{}{"slot-a-attr1": "a", "path": di.DevicePath()},
 		"hotplug-key":  "key-1",
 		"name":         "hotplugslot-a",
-		"hotplug-gone": false})
+		"hotplug-gone": false,
+	})
 }
 
 func keyHelper(input string) snap.HotplugKey {
@@ -793,7 +827,7 @@ func keyHelper(input string) snap.HotplugKey {
 }
 
 func (s *hotplugSuite) TestDefaultDeviceKey(c *C) {
-	di, err := hotplug.NewHotplugDeviceInfo(map[string]string{
+	di := mylog.Check2(hotplug.NewHotplugDeviceInfo(map[string]string{
 		"DEVPATH":        "a/path",
 		"ACTION":         "add",
 		"SUBSYSTEM":      "foo",
@@ -803,17 +837,17 @@ func (s *hotplugSuite) TestDefaultDeviceKey(c *C) {
 		"ID_MODEL_ID":    "model",
 		"ID_SERIAL":      "serial",
 		"ID_REVISION":    "revision",
-	})
-	c.Assert(err, IsNil)
-	key, err := ifacestate.DefaultDeviceKey(di, 0)
-	c.Assert(err, IsNil)
+	}))
+
+	key := mylog.Check2(ifacestate.DefaultDeviceKey(di, 0))
+
 
 	// validity check
 	c.Check(key, HasLen, 65)
 	c.Check(key, Equals, snap.HotplugKey("08bcbdcda3fee3534c0288506d9b75d4e26fe3692a36a11e75d05eac9ebf5ca7d"))
 	c.Assert(key, Equals, keyHelper("ID_V4L_PRODUCT\x00v4lproduct\x00ID_VENDOR_ID\x00vendor\x00ID_MODEL_ID\x00model\x00ID_SERIAL\x00serial\x00"))
 
-	di, err = hotplug.NewHotplugDeviceInfo(map[string]string{
+	di = mylog.Check2(hotplug.NewHotplugDeviceInfo(map[string]string{
 		"DEVPATH":      "a/path",
 		"ACTION":       "add",
 		"SUBSYSTEM":    "foo",
@@ -821,26 +855,26 @@ func (s *hotplugSuite) TestDefaultDeviceKey(c *C) {
 		"ID_WWN":       "wnn",
 		"ID_MODEL_ENC": "modelenc",
 		"ID_REVISION":  "revision",
-	})
-	c.Assert(err, IsNil)
-	key, err = ifacestate.DefaultDeviceKey(di, 0)
-	c.Assert(err, IsNil)
+	}))
+
+	key = mylog.Check2(ifacestate.DefaultDeviceKey(di, 0))
+
 	c.Assert(key, Equals, keyHelper("NAME\x00name\x00ID_WWN\x00wnn\x00ID_MODEL_ENC\x00modelenc\x00ID_REVISION\x00revision\x00"))
 
-	di, err = hotplug.NewHotplugDeviceInfo(map[string]string{
+	di = mylog.Check2(hotplug.NewHotplugDeviceInfo(map[string]string{
 		"DEVPATH":       "a/path",
 		"ACTION":        "add",
 		"SUBSYSTEM":     "foo",
 		"PCI_SLOT_NAME": "pcislot",
 		"ID_MODEL_ENC":  "modelenc",
-	})
-	c.Assert(err, IsNil)
-	key, err = ifacestate.DefaultDeviceKey(di, 0)
+	}))
+
+	key = mylog.Check2(ifacestate.DefaultDeviceKey(di, 0))
 	c.Assert(key, Equals, keyHelper("PCI_SLOT_NAME\x00pcislot\x00ID_MODEL_ENC\x00modelenc\x00"))
-	c.Assert(err, IsNil)
+
 
 	// real device #1 - Lime SDR device
-	di, err = hotplug.NewHotplugDeviceInfo(map[string]string{
+	di = mylog.Check2(hotplug.NewHotplugDeviceInfo(map[string]string{
 		"DEVNAME":                 "/dev/bus/usb/002/002",
 		"DEVNUM":                  "002",
 		"DEVPATH":                 "/devices/pci0000:00/0000:00:14.0/usb2/2-3",
@@ -865,14 +899,14 @@ func (s *hotplugSuite) TestDefaultDeviceKey(c *C) {
 		"SUBSYSTEM":               "usb",
 		"TYPE":                    "0/0/0",
 		"USEC_INITIALIZED":        "6125378086 ",
-	})
-	c.Assert(err, IsNil)
-	key, err = ifacestate.DefaultDeviceKey(di, 0)
-	c.Assert(err, IsNil)
+	}))
+
+	key = mylog.Check2(ifacestate.DefaultDeviceKey(di, 0))
+
 	c.Assert(key, Equals, keyHelper("ID_VENDOR_ID\x001d50\x00ID_MODEL_ID\x006108\x00ID_SERIAL\x00Myriad-RF_LimeSDR-USB_0009060B00492E2C\x00"))
 
 	// real device #2 - usb-serial port adapter
-	di, err = hotplug.NewHotplugDeviceInfo(map[string]string{
+	di = mylog.Check2(hotplug.NewHotplugDeviceInfo(map[string]string{
 		"DEVLINKS":                       "/dev/serial/by-id/usb-FTDI_FT232R_USB_UART_AH06W0EQ-if00-port0 /dev/serial/by-path/pci-0000:00:14.0-usb-0:2:1.0-port0",
 		"DEVNAME":                        "/dev/ttyUSB0",
 		"DEVPATH":                        "/devices/pci0000:00/0000:00:14.0/usb1/1-2/1-2:1.0/ttyUSB0/tty/ttyUSB0",
@@ -902,14 +936,14 @@ func (s *hotplugSuite) TestDefaultDeviceKey(c *C) {
 		"SUBSYSTEM":                      "tty",
 		"TAGS":                           ":systemd:",
 		"USEC_INITIALIZED":               "6571662103",
-	})
-	c.Assert(err, IsNil)
-	key, err = ifacestate.DefaultDeviceKey(di, 0)
-	c.Assert(err, IsNil)
+	}))
+
+	key = mylog.Check2(ifacestate.DefaultDeviceKey(di, 0))
+
 	c.Assert(key, Equals, keyHelper("ID_VENDOR_ID\x000403\x00ID_MODEL_ID\x006001\x00ID_SERIAL\x00FTDI_FT232R_USB_UART_AH06W0EQ\x00"))
 
 	// real device #3 - integrated web camera
-	di, err = hotplug.NewHotplugDeviceInfo(map[string]string{
+	di = mylog.Check2(hotplug.NewHotplugDeviceInfo(map[string]string{
 		"COLORD_DEVICE":        "1",
 		"COLORD_KIND":          "camera",
 		"DEVLINKS":             "/dev/v4l/by-path/pci-0000:00:14.0-usb-0:11:1.0-video-index0 /dev/v4l/by-id/usb-CN0J8NNP7248766FA3H3A01_Integrated_Webcam_HD_200901010001-video-index0",
@@ -940,26 +974,26 @@ func (s *hotplugSuite) TestDefaultDeviceKey(c *C) {
 		"SUBSYSTEM":            "video4linux",
 		"TAGS":                 ":uaccess:seat:",
 		"USEC_INITIALIZED":     "3411321",
-	})
-	c.Assert(err, IsNil)
-	key, err = ifacestate.DefaultDeviceKey(di, 0)
-	c.Assert(err, IsNil)
+	}))
+
+	key = mylog.Check2(ifacestate.DefaultDeviceKey(di, 0))
+
 	c.Assert(key, Equals, keyHelper("ID_V4L_PRODUCT\x00Integrated_Webcam_HD: Integrate\x00ID_VENDOR_ID\x000bda\x00ID_MODEL_ID\x0057c3\x00ID_SERIAL\x00CN0J8NNP7248766FA3H3A01_Integrated_Webcam_HD_200901010001\x00"))
 
 	// key cannot be computed - empty string
-	di, err = hotplug.NewHotplugDeviceInfo(map[string]string{
+	di = mylog.Check2(hotplug.NewHotplugDeviceInfo(map[string]string{
 		"DEVPATH":   "a/path",
 		"ACTION":    "add",
 		"SUBSYSTEM": "foo",
-	})
-	c.Assert(err, IsNil)
-	key, err = ifacestate.DefaultDeviceKey(di, 0)
-	c.Assert(err, IsNil)
+	}))
+
+	key = mylog.Check2(ifacestate.DefaultDeviceKey(di, 0))
+
 	c.Assert(key, Equals, snap.HotplugKey(""))
 }
 
 func (s *hotplugSuite) TestDefaultDeviceKeyError(c *C) {
-	di, err := hotplug.NewHotplugDeviceInfo(map[string]string{
+	di := mylog.Check2(hotplug.NewHotplugDeviceInfo(map[string]string{
 		"DEVPATH":      "a/path",
 		"ACTION":       "add",
 		"SUBSYSTEM":    "foo",
@@ -967,9 +1001,9 @@ func (s *hotplugSuite) TestDefaultDeviceKeyError(c *C) {
 		"ID_VENDOR_ID": "vendor",
 		"ID_MODEL_ID":  "model",
 		"ID_SERIAL":    "serial",
-	})
-	c.Assert(err, IsNil)
-	_, err = ifacestate.DefaultDeviceKey(di, 16)
+	}))
+
+	_ = mylog.Check2(ifacestate.DefaultDeviceKey(di, 16))
 	c.Assert(err, ErrorMatches, "internal error: invalid key version 16")
 }
 
@@ -1017,50 +1051,50 @@ func (s *hotplugSuite) TestMakeSlotName(c *C) {
 }
 
 func (s *hotplugSuite) TestSuggestedSlotName(c *C) {
-
 	events := []struct {
 		eventData map[string]string
 		outName   string
-	}{{
-		map[string]string{
-			"DEVPATH":                "a/path",
-			"ACTION":                 "add",
-			"SUBSYSTEM":              "foo",
-			"NAME":                   "Name",
-			"ID_MODEL":               "Longer Name",
-			"ID_MODEL_FROM_DATABASE": "Longest Name",
+	}{
+		{
+			map[string]string{
+				"DEVPATH":                "a/path",
+				"ACTION":                 "add",
+				"SUBSYSTEM":              "foo",
+				"NAME":                   "Name",
+				"ID_MODEL":               "Longer Name",
+				"ID_MODEL_FROM_DATABASE": "Longest Name",
+			},
+			"name",
+		}, {
+			map[string]string{
+				"DEVPATH":                "a/path",
+				"ACTION":                 "add",
+				"SUBSYSTEM":              "foo",
+				"ID_MODEL":               "Longer Name",
+				"ID_MODEL_FROM_DATABASE": "Longest Name",
+			},
+			"longername",
+		}, {
+			map[string]string{
+				"DEVPATH":                "a/path",
+				"ACTION":                 "add",
+				"SUBSYSTEM":              "foo",
+				"ID_MODEL_FROM_DATABASE": "Longest Name",
+			},
+			"longestname",
+		}, {
+			map[string]string{
+				"DEVPATH":   "a/path",
+				"ACTION":    "add",
+				"SUBSYSTEM": "foo",
+			},
+			"fallbackname",
 		},
-		"name",
-	}, {
-		map[string]string{
-			"DEVPATH":                "a/path",
-			"ACTION":                 "add",
-			"SUBSYSTEM":              "foo",
-			"ID_MODEL":               "Longer Name",
-			"ID_MODEL_FROM_DATABASE": "Longest Name",
-		},
-		"longername",
-	}, {
-		map[string]string{
-			"DEVPATH":                "a/path",
-			"ACTION":                 "add",
-			"SUBSYSTEM":              "foo",
-			"ID_MODEL_FROM_DATABASE": "Longest Name",
-		},
-		"longestname",
-	}, {
-		map[string]string{
-			"DEVPATH":   "a/path",
-			"ACTION":    "add",
-			"SUBSYSTEM": "foo",
-		},
-		"fallbackname",
-	},
 	}
 
 	for _, data := range events {
-		di, err := hotplug.NewHotplugDeviceInfo(data.eventData)
-		c.Assert(err, IsNil)
+		di := mylog.Check2(hotplug.NewHotplugDeviceInfo(data.eventData))
+
 
 		slotName := ifacestate.SuggestedSlotName(di, "fallbackname")
 		c.Assert(slotName, Equals, data.outName)
@@ -1096,12 +1130,12 @@ func (s *hotplugSuite) TestHotplugSlotName(c *C) {
 	iface := &ifacetest.TestInterface{InterfaceName: "camera"}
 	repo.AddInterface(iface)
 
-	stateSlots, err := ifacestate.GetHotplugSlots(st)
-	c.Assert(err, IsNil)
+	stateSlots := mylog.Check2(ifacestate.GetHotplugSlots(st))
+
 
 	for _, data := range testData {
-		devinfo, err := hotplug.NewHotplugDeviceInfo(data.deviceData)
-		c.Assert(err, IsNil)
+		devinfo := mylog.Check2(hotplug.NewHotplugDeviceInfo(data.deviceData))
+
 		c.Check(ifacestate.HotplugSlotName("key", "core", data.slotSpecName, "ifacename", devinfo, repo, stateSlots), Equals, data.expectedName)
 		// store the slot to affect ensureUniqueName
 		stateSlots[data.expectedName] = &ifacestate.HotplugSlotInfo{}

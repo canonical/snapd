@@ -26,6 +26,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/seed/internal"
 	"github.com/snapcore/snapd/snap"
@@ -176,22 +177,10 @@ type tree20 struct {
 func (tr *tree20) mkFixedDirs() error {
 	tr.snapsDirPath = filepath.Join(tr.opts.SeedDir, "snaps")
 	tr.systemDir = filepath.Join(tr.opts.SeedDir, "systems", tr.opts.Label)
+	mylog.Check(os.MkdirAll(tr.snapsDirPath, 0755))
+	mylog.Check(os.MkdirAll(filepath.Dir(tr.systemDir), 0755))
+	mylog.Check(os.Mkdir(tr.systemDir, 0755))
 
-	if err := os.MkdirAll(tr.snapsDirPath, 0755); err != nil {
-		return err
-	}
-
-	if err := os.MkdirAll(filepath.Dir(tr.systemDir), 0755); err != nil {
-		return err
-	}
-	if err := os.Mkdir(tr.systemDir, 0755); err != nil {
-		if os.IsExist(err) {
-			return &SystemAlreadyExistsError{
-				label: tr.opts.Label,
-			}
-		}
-		return err
-	}
 	return nil
 }
 
@@ -200,9 +189,8 @@ func (tr *tree20) ensureSystemSnapsDir() (string, error) {
 	if tr.systemSnapsDirEnsured {
 		return snapsDir, nil
 	}
-	if err := os.MkdirAll(snapsDir, 0755); err != nil {
-		return "", err
-	}
+	mylog.Check(os.MkdirAll(snapsDir, 0755))
+
 	tr.systemSnapsDirEnsured = true
 	return snapsDir, nil
 }
@@ -213,34 +201,25 @@ func (tr *tree20) snapPath(sn *SeedSnap) (string, error) {
 		snapsDir = tr.snapsDirPath
 	} else {
 		// extra snap
-		var err error
-		snapsDir, err = tr.ensureSystemSnapsDir()
-		if err != nil {
-			return "", err
-		}
+
+		snapsDir = mylog.Check2(tr.ensureSystemSnapsDir())
 	}
 	return filepath.Join(snapsDir, sn.Info.Filename()), nil
 }
 
 func (tr *tree20) localSnapPath(sn *SeedSnap) (string, error) {
-	sysSnapsDir, err := tr.ensureSystemSnapsDir()
-	if err != nil {
-		return "", err
-	}
+	sysSnapsDir := mylog.Check2(tr.ensureSystemSnapsDir())
+
 	return filepath.Join(sysSnapsDir, fmt.Sprintf("%s_%s.snap", sn.SnapName(), sn.Info.Version)), nil
 }
 
 func (tr *tree20) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Ref, snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) error {
 	assertsDir := filepath.Join(tr.systemDir, "assertions")
-	if err := os.MkdirAll(assertsDir, 0755); err != nil {
-		return err
-	}
+	mylog.Check(os.MkdirAll(assertsDir, 0755))
 
 	writeByRefs := func(fname string, refsGen func(stop <-chan struct{}) <-chan *asserts.Ref) error {
-		f, err := os.OpenFile(filepath.Join(assertsDir, fname), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
-		if err != nil {
-			return err
-		}
+		f := mylog.Check2(os.OpenFile(filepath.Join(assertsDir, fname), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644))
+
 		defer f.Close()
 
 		stop := make(chan struct{})
@@ -253,13 +232,9 @@ func (tr *tree20) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Re
 			if aRef == nil {
 				break
 			}
-			a, err := aRef.Resolve(db.Find)
-			if err != nil {
-				return fmt.Errorf("internal error: lost saved assertion")
-			}
-			if err := enc.Encode(a); err != nil {
-				return err
-			}
+			a := mylog.Check2(aRef.Resolve(db.Find))
+			mylog.Check(enc.Encode(a))
+
 		}
 		return nil
 	}
@@ -293,14 +268,8 @@ func (tr *tree20) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Re
 			return refs
 		}
 	}
-
-	if err := writeByRefs("../model", modelRefsGen(modelOnly)); err != nil {
-		return err
-	}
-
-	if err := writeByRefs("model-etc", modelRefsGen(excludeModel)); err != nil {
-		return err
-	}
+	mylog.Check(writeByRefs("../model", modelRefsGen(modelOnly)))
+	mylog.Check(writeByRefs("model-etc", modelRefsGen(excludeModel)))
 
 	snapsRefGen := func(snaps []*SeedSnap) func(stop <-chan struct{}) <-chan *asserts.Ref {
 		return func(stop <-chan struct{}) <-chan *asserts.Ref {
@@ -318,15 +287,10 @@ func (tr *tree20) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Re
 			return refs
 		}
 	}
-
-	if err := writeByRefs("snaps", snapsRefGen(snapsFromModel)); err != nil {
-		return err
-	}
+	mylog.Check(writeByRefs("snaps", snapsRefGen(snapsFromModel)))
 
 	if len(extraSnaps) != 0 {
-		if err := writeByRefs("extra-snaps", snapsRefGen(extraSnaps)); err != nil {
-			return err
-		}
+		mylog.Check(writeByRefs("extra-snaps", snapsRefGen(extraSnaps)))
 	}
 
 	return nil
@@ -379,9 +343,8 @@ func (tr *tree20) writeMeta(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) 
 			return fmt.Errorf("internal error: unexpected non-model snap overrides with grade %s", tr.grade)
 		}
 		options20 := &internal.Options20{Snaps: optionsSnaps}
-		if err := options20.Write(filepath.Join(tr.systemDir, "options.yaml")); err != nil {
-			return err
-		}
+		mylog.Check(options20.Write(filepath.Join(tr.systemDir, "options.yaml")))
+
 	}
 
 	auxInfos := make(map[string]*internal.AuxInfo20)
@@ -407,21 +370,13 @@ func (tr *tree20) writeMeta(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) 
 		// nothing to do
 		return nil
 	}
+	mylog.Check2(tr.ensureSystemSnapsDir())
 
-	if _, err := tr.ensureSystemSnapsDir(); err != nil {
-		return err
-	}
+	f := mylog.Check2(os.OpenFile(filepath.Join(tr.systemDir, "snaps", "aux-info.json"), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644))
 
-	f, err := os.OpenFile(filepath.Join(tr.systemDir, "snaps", "aux-info.json"), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
-	if err != nil {
-		return err
-	}
 	defer f.Close()
 	enc := json.NewEncoder(f)
-
-	if err := enc.Encode(auxInfos); err != nil {
-		return err
-	}
+	mylog.Check(enc.Encode(auxInfos))
 
 	return nil
 }

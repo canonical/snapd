@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -54,42 +55,31 @@ func trimTrailingNewline(s string) string {
 // See interfaces/builtin/README.md
 func composeBaseDeclaration(ifaces []interfaces.Interface) ([]byte, error) {
 	var buf bytes.Buffer
-	// Trim newlines at the end of the string. All the elements may have
-	// spurious trailing newlines. All elements start with a leading newline.
-	// We don't want any blanks as that would no longer parse.
-	if _, err := buf.WriteString(trimTrailingNewline(baseDeclarationHeader)); err != nil {
-		return nil, err
-	}
-	if _, err := buf.WriteString(trimTrailingNewline(baseDeclarationPlugs)); err != nil {
-		return nil, err
-	}
+	mylog.Check2(
+		// Trim newlines at the end of the string. All the elements may have
+		// spurious trailing newlines. All elements start with a leading newline.
+		// We don't want any blanks as that would no longer parse.
+		buf.WriteString(trimTrailingNewline(baseDeclarationHeader)))
+	mylog.Check2(buf.WriteString(trimTrailingNewline(baseDeclarationPlugs)))
+
 	for _, iface := range ifaces {
 		plugPolicy := interfaces.StaticInfoOf(iface).BaseDeclarationPlugs
-		if _, err := buf.WriteString(trimTrailingNewline(plugPolicy)); err != nil {
-			return nil, err
-		}
+		mylog.Check2(buf.WriteString(trimTrailingNewline(plugPolicy)))
+
 	}
-	if _, err := buf.WriteString(trimTrailingNewline(baseDeclarationSlots)); err != nil {
-		return nil, err
-	}
+	mylog.Check2(buf.WriteString(trimTrailingNewline(baseDeclarationSlots)))
+
 	for _, iface := range ifaces {
 		slotPolicy := interfaces.StaticInfoOf(iface).BaseDeclarationSlots
-		if _, err := buf.WriteString(trimTrailingNewline(slotPolicy)); err != nil {
-			return nil, err
-		}
+		mylog.Check2(buf.WriteString(trimTrailingNewline(slotPolicy)))
+
 	}
-	if _, err := buf.WriteRune('\n'); err != nil {
-		return nil, err
-	}
+	mylog.Check2(buf.WriteRune('\n'))
+
 	return buf.Bytes(), nil
 }
 
 func init() {
-	decl, err := composeBaseDeclaration(builtin.Interfaces())
-	if err != nil {
-		panic(fmt.Sprintf("cannot compose base-declaration: %v", err))
-	}
-	if err := asserts.InitBuiltinBaseDeclaration(decl); err != nil {
-		panic(fmt.Sprintf("cannot initialize the builtin base-declaration: %v", err))
-	}
+	decl := mylog.Check2(composeBaseDeclaration(builtin.Interfaces()))
+	mylog.Check(asserts.InitBuiltinBaseDeclaration(decl))
 }

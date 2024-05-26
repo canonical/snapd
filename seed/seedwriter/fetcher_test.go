@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/seed/seedwriter"
@@ -43,7 +44,7 @@ func (s *fetcherSuite) SetUpTest(c *C) {
 }
 
 func (s *fetcherSuite) setupTestAssertion(c *C) asserts.Assertion {
-	modelAs, err := s.storeSigning.Sign(asserts.ModelType, map[string]interface{}{
+	modelAs := mylog.Check2(s.storeSigning.Sign(asserts.ModelType, map[string]interface{}{
 		"series":       "16",
 		"brand-id":     "can0nical",
 		"model":        "my-model-2",
@@ -51,10 +52,10 @@ func (s *fetcherSuite) setupTestAssertion(c *C) asserts.Assertion {
 		"gadget":       "gadget",
 		"kernel":       "kernel",
 		"timestamp":    time.Now().UTC().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	err = s.storeSigning.Add(modelAs)
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
+	mylog.Check(s.storeSigning.Add(modelAs))
+
 	return modelAs
 }
 
@@ -64,11 +65,11 @@ func (s *fetcherSuite) TestAssertFetcher(c *C) {
 	// that the as was added accordingly to the as-tracking.
 	as := s.setupTestAssertion(c)
 
-	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+	db := mylog.Check2(asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
 		Trusted:   s.storeSigning.Trusted,
-	})
-	c.Assert(err, IsNil)
+	}))
+
 
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
 		return ref.Resolve(s.storeSigning.Find)
@@ -82,18 +83,20 @@ func (s *fetcherSuite) TestAssertFetcher(c *C) {
 	af := seedwriter.MakeSeedAssertionFetcher(newFetcher)
 	c.Assert(af, NotNil)
 	c.Check(newFetcherCalled, Equals, 1)
+	mylog.
 
-	// Fetch the model assertion, then let's verify the refs was added.
-	// We expect the model, and it's account key to be added.
-	err = af.Fetch(as.Ref())
+		// Fetch the model assertion, then let's verify the refs was added.
+		// We expect the model, and it's account key to be added.
+		Check(af.Fetch(as.Ref()))
 	c.Check(err, IsNil)
 	c.Assert(af.Refs(), HasLen, 2)
 	c.Check(af.Refs()[0].Type, Equals, asserts.AccountKeyType)
 	c.Check(af.Refs()[1].String(), Equals, "model (my-model-2; series:16 brand-id:can0nical)")
+	mylog.
 
-	// Using the default fetcher, which was not created using NewSequenceFormingFetcher,
-	// FetchSequence must return us an error.
-	err = af.FetchSequence(nil)
+		// Using the default fetcher, which was not created using NewSequenceFormingFetcher,
+		// FetchSequence must return us an error.
+		Check(af.FetchSequence(nil))
 	c.Check(err, ErrorMatches, `cannot fetch assertion sequence point, fetcher must be created using NewSequenceFormingFetcher`)
 
 	// Clear the Refs using ResetRefs
@@ -106,11 +109,11 @@ func (s *fetcherSuite) TestAssertFetcherSave(c *C) {
 	// SeedAssertionFetcher.Save.
 	as := s.setupTestAssertion(c)
 
-	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+	db := mylog.Check2(asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
 		Trusted:   s.storeSigning.Trusted,
-	})
-	c.Assert(err, IsNil)
+	}))
+
 
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
 		return ref.Resolve(s.storeSigning.Find)
@@ -124,9 +127,10 @@ func (s *fetcherSuite) TestAssertFetcherSave(c *C) {
 	af := seedwriter.MakeSeedAssertionFetcher(newFetcher)
 	c.Assert(af, NotNil)
 	c.Check(newFetcherCalled, Equals, 1)
+	mylog.
 
-	// Fetch the model assertion, then let's verify the refs was added.
-	err = af.Save(as)
+		// Fetch the model assertion, then let's verify the refs was added.
+		Check(af.Save(as))
 	c.Check(err, IsNil)
 	c.Assert(af.Refs(), HasLen, 2)
 	c.Check(af.Refs()[0].Type, Equals, asserts.AccountKeyType)
@@ -155,7 +159,6 @@ func (s *fetcherSuite) TestAssertFetcherInvalidSequenceFormingFetcher(c *C) {
 	af := seedwriter.MakeSeedAssertionFetcher(newFetcher)
 	c.Assert(af, NotNil)
 	c.Check(newFetcherCalled, Equals, 1)
-
-	err := af.FetchSequence(nil)
+	mylog.Check(af.FetchSequence(nil))
 	c.Check(err, ErrorMatches, `cannot fetch assertion sequence point, fetcher must be a SequenceFormingFetcher`)
 }

@@ -22,6 +22,7 @@ package ctlcmd
 import (
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/systemd"
 )
@@ -45,29 +46,21 @@ type umountCommand struct {
 }
 
 func (m *umountCommand) Execute([]string) error {
-	context, err := m.ensureContext()
-	if err != nil {
-		return err
-	}
+	context := mylog.Check2(m.ensureContext())
 
 	snapName := context.InstanceName()
 
 	// Get the list of all our mount units, to find the matching one
 	sysd := systemd.New(systemd.SystemMode, nil)
-	mountPoints, err := sysd.ListMountUnits(snapName, "mount-control")
-	if err != nil {
-		return fmt.Errorf("cannot retrieve list of mount units: %v", err)
-	}
+	mountPoints := mylog.Check2(sysd.ListMountUnits(snapName, "mount-control"))
 
 	found := false
 	for _, where := range mountPoints {
 		if where != m.Positional.Where {
 			continue
 		}
+		mylog.Check(sysd.RemoveMountUnitFile(where))
 
-		if err := sysd.RemoveMountUnitFile(where); err != nil {
-			return fmt.Errorf("cannot remove mount unit: %v", err)
-		}
 		found = true
 	}
 

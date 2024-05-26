@@ -30,6 +30,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -205,10 +206,7 @@ func NewBundle(account string, bundleName string, aspects map[string]interface{}
 			return nil, fmt.Errorf("cannot define aspect %q: aspect rules must be non-empty list", name)
 		}
 
-		aspect, err := newAspect(aspectBundle, name, rules)
-		if err != nil {
-			return nil, fmt.Errorf("cannot define aspect %q: %w", name, err)
-		}
+		aspect := mylog.Check2(newAspect(aspectBundle, name, rules))
 
 		aspectBundle.aspects[name] = aspect
 	}
@@ -224,10 +222,7 @@ func newAspect(bundle *Bundle, name string, aspectRules []interface{}) (*Aspect,
 	}
 
 	for _, ruleRaw := range aspectRules {
-		rules, err := parseRule(nil, ruleRaw)
-		if err != nil {
-			return nil, err
-		}
+		rules := mylog.Check2(parseRule(nil, ruleRaw))
 
 		aspect.rules = append(aspect.rules, rules...)
 	}
@@ -255,9 +250,7 @@ func newAspect(bundle *Bundle, name string, aspectRules []interface{}) (*Aspect,
 	}
 
 	for _, rules := range pathToRules {
-		if err := checkSchemaMismatch(bundle.Schema, rules); err != nil {
-			return nil, err
-		}
+		mylog.Check(checkSchemaMismatch(bundle.Schema, rules))
 	}
 
 	return aspect, nil
@@ -291,10 +284,7 @@ func parseRule(parent *aspectRule, ruleRaw interface{}) ([]*aspectRule, error) {
 	if !ok {
 		return nil, errors.New(`"request" must be a string`)
 	}
-
-	if err := validateRequestStoragePair(request, storage); err != nil {
-		return nil, err
-	}
+	mylog.Check(validateRequestStoragePair(request, storage))
 
 	accessRaw, ok := ruleMap["access"]
 	var access string
@@ -310,10 +300,7 @@ func parseRule(parent *aspectRule, ruleRaw interface{}) ([]*aspectRule, error) {
 		storage = parent.originalStorage + "." + storage
 	}
 
-	rule, err := newAspectRule(request, storage, access)
-	if err != nil {
-		return nil, err
-	}
+	rule := mylog.Check2(newAspectRule(request, storage, access))
 
 	rules := []*aspectRule{rule}
 	if contentRaw, ok := ruleMap["content"]; ok {
@@ -323,10 +310,7 @@ func parseRule(parent *aspectRule, ruleRaw interface{}) ([]*aspectRule, error) {
 		}
 
 		for _, contentRule := range contentRulesRaw {
-			nestedRules, err := parseRule(rule, contentRule)
-			if err != nil {
-				return nil, err
-			}
+			nestedRules := mylog.Check2(parseRule(rule, contentRule))
 
 			rules = append(rules, nestedRules...)
 		}
@@ -340,13 +324,8 @@ func parseRule(parent *aspectRule, ruleRaw interface{}) ([]*aspectRule, error) {
 //   - all placeholders in a request are in the storage and vice-versa
 func validateRequestStoragePair(request, storage string) error {
 	opts := &validationOptions{allowPlaceholder: true}
-	if err := validateAspectDottedPath(request, opts); err != nil {
-		return fmt.Errorf("invalid request %q: %w", request, err)
-	}
-
-	if err := validateAspectDottedPath(storage, opts); err != nil {
-		return fmt.Errorf("invalid storage %q: %w", storage, err)
-	}
+	mylog.Check(validateAspectDottedPath(request, opts))
+	mylog.Check(validateAspectDottedPath(storage, opts))
 
 	reqPlaceholders, storagePlaceholders := getPlaceholders(request), getPlaceholders(storage)
 	if len(reqPlaceholders) != len(storagePlaceholders) {
@@ -476,10 +455,8 @@ func validateSetValue(v interface{}, depth int) error {
 			// the value can be nil (used to unset values for compatibility w/ options)
 			continue
 		}
+		mylog.Check(validateSetValue(v, depth+1))
 
-		if err := validateSetValue(v, depth+1); err != nil {
-			return err
-		}
 	}
 
 	return nil
@@ -487,23 +464,16 @@ func validateSetValue(v interface{}, depth int) error {
 
 // Set sets the named aspect to a specified non-nil value.
 func (a *Aspect) Set(databag DataBag, request string, value interface{}) error {
-	if err := validateAspectDottedPath(request, nil); err != nil {
-		return badRequestErrorFrom(a, "set", request, err.Error())
-	}
+	mylog.Check(validateAspectDottedPath(request, nil))
 
 	depth := 1
-	if err := validateSetValue(value, depth); err != nil {
-		return badRequestErrorFrom(a, "set", request, err.Error())
-	}
+	mylog.Check(validateSetValue(value, depth))
 
 	if value == nil {
 		return fmt.Errorf("internal error: Set value cannot be nil")
 	}
 
-	matches, err := a.matchWriteRequest(request)
-	if err != nil {
-		return err
-	}
+	matches := mylog.Check2(a.matchWriteRequest(request))
 
 	if len(matches) == 0 {
 		return notFoundErrorFrom(a, "set", request, "no matching write rule")
@@ -517,10 +487,7 @@ func (a *Aspect) Set(databag DataBag, request string, value interface{}) error {
 	var expandedMatches []expandedMatch
 	suffixes := make(map[string]struct{}, len(matches))
 	for _, match := range matches {
-		pathsToValues, err := getValuesThroughPaths(match.storagePath, match.suffixParts, value)
-		if err != nil {
-			return badRequestErrorFrom(a, "set", request, err.Error())
-		}
+		pathsToValues := mylog.Check2(getValuesThroughPaths(match.storagePath, match.suffixParts, value))
 
 		for path, val := range pathsToValues {
 			expandedMatches = append(expandedMatches, expandedMatch{
@@ -534,64 +501,48 @@ func (a *Aspect) Set(databag DataBag, request string, value interface{}) error {
 		// value is used in its entirety
 		suffixes[strings.Join(match.suffixParts, ".")] = struct{}{}
 	}
+	mylog.Check(
 
-	// check if value is entirely used. If not, we fail so this is consistent
-	// with doing the same write individually (one branch at a time)
-	if err := checkForUnusedBranches(value, suffixes); err != nil {
-		return badRequestErrorFrom(a, "set", request, err.Error())
-	}
+		// check if value is entirely used. If not, we fail so this is consistent
+		// with doing the same write individually (one branch at a time)
+		checkForUnusedBranches(value, suffixes))
 
 	for _, match := range expandedMatches {
-		if err := databag.Set(match.storagePath, match.value); err != nil {
-			return err
-		}
+		mylog.Check(databag.Set(match.storagePath, match.value))
 
-		data, err := databag.Data()
-		if err != nil {
-			return err
-		}
+		data := mylog.Check2(databag.Data())
+		mylog.Check(
 
-		// TODO: when using a transaction, the data only changes on commit so
-		// this is a bit of a waste. Maybe cache the result so we only do the first
-		// validation and then in aspectstate on Commit
-		if err := a.bundle.Schema.Validate(data); err != nil {
-			return fmt.Errorf(`cannot write data: %w`, err)
-		}
+			// TODO: when using a transaction, the data only changes on commit so
+			// this is a bit of a waste. Maybe cache the result so we only do the first
+			// validation and then in aspectstate on Commit
+			a.bundle.Schema.Validate(data))
+
 	}
 
 	return nil
 }
 
 func (a *Aspect) Unset(databag DataBag, request string) error {
-	if err := validateAspectDottedPath(request, nil); err != nil {
-		return badRequestErrorFrom(a, "unset", request, err.Error())
-	}
+	mylog.Check(validateAspectDottedPath(request, nil))
 
-	matches, err := a.matchWriteRequest(request)
-	if err != nil {
-		return err
-	}
+	matches := mylog.Check2(a.matchWriteRequest(request))
 
 	if len(matches) == 0 {
 		return notFoundErrorFrom(a, "unset", request, "no matching write rule")
 	}
 
 	for _, match := range matches {
-		if err := databag.Unset(match.storagePath); err != nil {
-			return err
-		}
+		mylog.Check(databag.Unset(match.storagePath))
 
-		data, err := databag.Data()
-		if err != nil {
-			return err
-		}
+		data := mylog.Check2(databag.Data())
+		mylog.Check(
 
-		// TODO: when using a transaction, the data only changes on commit so
-		// this is a bit of a waste. Maybe cache the result so we only do the first
-		// validation and then in aspectstate on Commit
-		if err := a.bundle.Schema.Validate(data); err != nil {
-			return fmt.Errorf(`cannot unset data: %w`, err)
-		}
+			// TODO: when using a transaction, the data only changes on commit so
+			// this is a bit of a waste. Maybe cache the result so we only do the first
+			// validation and then in aspectstate on Commit
+			a.bundle.Schema.Validate(data))
+
 	}
 
 	return nil
@@ -610,10 +561,7 @@ func (a *Aspect) matchWriteRequest(request string) ([]requestMatch, error) {
 			continue
 		}
 
-		path, err := rule.storagePath(placeholders)
-		if err != nil {
-			return nil, err
-		}
+		path := mylog.Check2(rule.storagePath(placeholders))
 
 		matches = append(matches, requestMatch{
 			storagePath: path,
@@ -633,20 +581,7 @@ out:
 	for _, rule := range rules {
 		path := rule.originalStorage
 		pathParts := strings.Split(path, ".")
-		schemas, err := schema.SchemaAt(pathParts)
-		if err != nil {
-			var serr *schemaAtError
-			if errors.As(err, &serr) {
-				parts := strings.Split(path, ".")
-				subParts := parts[:len(parts)-serr.left]
-				subPath := strings.Join(subParts, ".")
-
-				return fmt.Errorf(`storage path %q for request %q is invalid after %q: %w`,
-					path, rule.originalRequest, subPath, serr.err)
-			}
-
-			return fmt.Errorf(`internal error: unexpected error finding schema at %q: %w`, path, err)
-		}
+		schemas := mylog.Check2(schema.SchemaAt(pathParts))
 
 		var newTypes []SchemaType
 		for _, schema := range schemas {
@@ -661,7 +596,6 @@ out:
 			default:
 				newTypes = append(newTypes, t)
 			}
-
 		}
 
 		for oldPath, oldTypes := range pathTypes {
@@ -754,10 +688,7 @@ func getValuesThroughPathsImpl(storagePath string, reqSuffixParts []string, val 
 	// find the corresponding nested value.
 	for cand, candVal := range mapVal {
 		newStoragePath := replaceIn(storagePath, reqSuffixParts[placeIndex], cand)
-		pathsToValues, err := getValuesThroughPathsImpl(newStoragePath, reqSuffixParts[placeIndex+1:], candVal)
-		if err != nil {
-			return nil, err
-		}
+		pathsToValues := mylog.Check2(getValuesThroughPathsImpl(newStoragePath, reqSuffixParts[placeIndex+1:], candVal))
 
 		for path, val := range pathsToValues {
 			storagePathsToValues[path] = val
@@ -784,16 +715,14 @@ func checkForUnusedBranches(value interface{}, paths map[string]struct{}) error 
 	// don't collectively cover the entire value
 	copyValue := deepCopy(value)
 	for path := range paths {
-		var err error
+
 		var pathParts []string
 		if path != "" {
 			pathParts = strings.Split(path, ".")
 		}
 
-		copyValue, err = prunePathInValue(pathParts, copyValue)
-		if err != nil {
-			return err
-		}
+		copyValue = mylog.Check2(prunePathInValue(pathParts, copyValue))
+
 	}
 
 	// after pruning each path the value is nil, so all of it is used
@@ -857,10 +786,7 @@ func prunePathInValue(parts []string, val interface{}) (interface{}, error) {
 	if isPlaceholder(parts[0]) {
 		nested := make(map[string]interface{})
 		for k, v := range mapVal {
-			newVal, err := prunePathInValue(parts[1:], v)
-			if err != nil {
-				return nil, err
-			}
+			newVal := mylog.Check2(prunePathInValue(parts[1:], v))
 
 			if newVal != nil {
 				nested[k] = newVal
@@ -880,10 +806,7 @@ func prunePathInValue(parts []string, val interface{}) (interface{}, error) {
 		return nil, fmt.Errorf(`cannot use unmatched part %q as key in %v`, parts[0], nested)
 	}
 
-	newValue, err := prunePathInValue(parts[1:], nested)
-	if err != nil {
-		return nil, err
-	}
+	newValue := mylog.Check2(prunePathInValue(parts[1:], nested))
 
 	if newValue == nil {
 		delete(mapVal, parts[0])
@@ -917,10 +840,7 @@ func namespaceResult(res interface{}, suffixParts []string) (interface{}, error)
 
 		level := make(map[string]interface{}, len(values))
 		for k, v := range values {
-			nested, err := namespaceResult(v, suffixParts[1:])
-			if err != nil {
-				return nil, err
-			}
+			nested := mylog.Check2(namespaceResult(v, suffixParts[1:]))
 
 			level[k] = nested
 		}
@@ -928,10 +848,7 @@ func namespaceResult(res interface{}, suffixParts []string) (interface{}, error)
 		return level, nil
 	}
 
-	nested, err := namespaceResult(res, suffixParts[1:])
-	if err != nil {
-		return nil, err
-	}
+	nested := mylog.Check2(namespaceResult(res, suffixParts[1:]))
 
 	return map[string]interface{}{part: nested}, nil
 }
@@ -940,37 +857,21 @@ func namespaceResult(res interface{}, suffixParts []string) (interface{}, error)
 // aspect or the corresponding value can't be found, a NotFoundError is returned.
 func (a *Aspect) Get(databag DataBag, request string) (interface{}, error) {
 	if request != "" {
-		if err := validateAspectDottedPath(request, nil); err != nil {
-			return nil, badRequestErrorFrom(a, "get", request, err.Error())
-		}
+		mylog.Check(validateAspectDottedPath(request, nil))
 	}
 
-	matches, err := a.matchGetRequest(request)
-	if err != nil {
-		return nil, err
-	}
+	matches := mylog.Check2(a.matchGetRequest(request))
 
 	var merged interface{}
 	for _, match := range matches {
-		val, err := databag.Get(match.storagePath)
-		if err != nil {
-			if errors.Is(err, PathError("")) {
-				continue
-			}
-			return nil, err
-		}
+		val := mylog.Check2(databag.Get(match.storagePath))
 
 		// build a namespace around the result based on the unmatched suffix parts
-		val, err = namespaceResult(val, match.suffixParts)
-		if err != nil {
-			return nil, err
-		}
+		val = mylog.Check2(namespaceResult(val, match.suffixParts))
 
 		// merge result with results from other matching rules
-		merged, err = mergeNamespaces(merged, val)
-		if err != nil {
-			return nil, err
-		}
+		merged = mylog.Check2(mergeNamespaces(merged, val))
+
 	}
 
 	if merged == nil {
@@ -999,10 +900,8 @@ func mergeNamespaces(old, new interface{}) (interface{}, error) {
 	oldMap, newMap := old.(map[string]interface{}), new.(map[string]interface{})
 	for k, v := range newMap {
 		if storeVal, ok := oldMap[k]; ok {
-			merged, err := mergeNamespaces(storeVal, v)
-			if err != nil {
-				return nil, err
-			}
+			merged := mylog.Check2(mergeNamespaces(storeVal, v))
+
 			v = merged
 		}
 
@@ -1040,10 +939,7 @@ func (a *Aspect) matchGetRequest(request string) (matches []requestMatch, err er
 			continue
 		}
 
-		path, err := rule.storagePath(placeholders)
-		if err != nil {
-			return nil, err
-		}
+		path := mylog.Check2(rule.storagePath(placeholders))
 
 		if !rule.isReadable() {
 			continue
@@ -1081,10 +977,7 @@ func (a *Aspect) matchGetRequest(request string) (matches []requestMatch, err er
 }
 
 func newAspectRule(request, storage, accesstype string) (*aspectRule, error) {
-	accType, err := newAccessType(accesstype)
-	if err != nil {
-		return nil, fmt.Errorf("cannot create aspect rule: %w", err)
-	}
+	accType := mylog.Check2(newAccessType(accesstype))
 
 	requestSubkeys := strings.Split(request, ".")
 	requestMatchers := make([]requestMatcher, 0, len(requestSubkeys))
@@ -1167,14 +1060,9 @@ func (p *aspectRule) storagePath(placeholders map[string]string) (string, error)
 
 	for _, subkey := range p.storage {
 		if sb.Len() > 0 {
-			if _, err := sb.WriteRune('.'); err != nil {
-				return "", err
-			}
+			mylog.Check2(sb.WriteRune('.'))
 		}
-
-		if err := subkey.write(sb, placeholders); err != nil {
-			return "", err
-		}
+		mylog.Check(subkey.write(sb, placeholders))
 
 	}
 
@@ -1220,7 +1108,7 @@ func (p placeholder) write(sb *strings.Builder, placeholders map[string]string) 
 		subkey = fmt.Sprintf("{%s}", string(p))
 	}
 
-	_, err := sb.WriteString(subkey)
+	_ := mylog.Check2(sb.WriteString(subkey))
 	return err
 }
 
@@ -1239,7 +1127,7 @@ func (p literal) match(subkey string, _ map[string]string) bool {
 
 // write writes the literal subkey into the strings.Builder.
 func (p literal) write(sb *strings.Builder, _ map[string]string) error {
-	_, err := sb.WriteString(string(p))
+	_ := mylog.Check2(sb.WriteString(string(p)))
 	return err
 }
 
@@ -1279,9 +1167,7 @@ func (s JSONDataBag) Get(path string) (interface{}, error) {
 	// TODO: create this in the return below as well?
 	var value interface{}
 	subKeys := strings.Split(path, ".")
-	if err := get(subKeys, 0, s, &value); err != nil {
-		return nil, err
-	}
+	mylog.Check(get(subKeys, 0, s, &value))
 
 	return value, nil
 }
@@ -1308,19 +1194,15 @@ func get(subKeys []string, index int, node map[string]json.RawMessage, result *i
 			level := make(map[string]interface{}, len(node))
 			for k, v := range node {
 				var deser interface{}
-				if err := json.Unmarshal(v, &deser); err != nil {
-					return fmt.Errorf(`internal error: %w`, err)
-				}
+				mylog.Check(json.Unmarshal(v, &deser))
+
 				level[k] = deser
 			}
 
 			*result = level
 			return nil
 		}
-
-		if err := json.Unmarshal(rawLevel, result); err != nil {
-			return fmt.Errorf(`internal error: %w`, err)
-		}
+		mylog.Check(json.Unmarshal(rawLevel, result))
 
 		return nil
 	}
@@ -1330,23 +1212,15 @@ func get(subKeys []string, index int, node map[string]json.RawMessage, result *i
 
 		for k, v := range node {
 			var level map[string]json.RawMessage
-			if err := jsonutil.DecodeWithNumber(bytes.NewReader(v), &level); err != nil {
-				if _, ok := err.(*json.UnmarshalTypeError); ok {
-					// we consider only the values for which the rest of the nested sub-keys
-					// can be fulfilled
-					continue
-				}
-				return err
-			}
+			mylog.Check(jsonutil.DecodeWithNumber(bytes.NewReader(v), &level))
+
+			// we consider only the values for which the rest of the nested sub-keys
+			// can be fulfilled
 
 			// walk the path under all possible values, only return an error if no value
 			// is found under any path
 			var res interface{}
-			if err := get(subKeys, index+1, level, &res); err != nil {
-				if errors.Is(err, PathError("")) {
-					continue
-				}
-			}
+			mylog.Check(get(subKeys, index+1, level, &res))
 
 			if res != nil {
 				results[k] = res
@@ -1364,13 +1238,7 @@ func get(subKeys []string, index int, node map[string]json.RawMessage, result *i
 
 	// decode the next map level
 	var level map[string]json.RawMessage
-	if err := jsonutil.DecodeWithNumber(bytes.NewReader(rawLevel), &level); err != nil {
-		if uErr, ok := err.(*json.UnmarshalTypeError); ok {
-			pathPrefix := strings.Join(subKeys[:index+1], ".")
-			return fmt.Errorf("cannot read path prefix %q: prefix maps to %s", pathPrefix, uErr.Value)
-		}
-		return err
-	}
+	mylog.Check(jsonutil.DecodeWithNumber(bytes.NewReader(rawLevel), &level))
 
 	return get(subKeys, index+1, level, result)
 }
@@ -1381,11 +1249,10 @@ func get(subKeys []string, index int, node map[string]json.RawMessage, result *i
 func (s JSONDataBag) Set(path string, value interface{}) error {
 	subKeys := strings.Split(path, ".")
 
-	var err error
 	if value != nil {
-		_, err = set(subKeys, 0, s, value)
+		_ = mylog.Check2(set(subKeys, 0, s, value))
 	} else {
-		_, err = unset(subKeys, 0, s)
+		_ = mylog.Check2(unset(subKeys, 0, s))
 	}
 
 	return err
@@ -1415,10 +1282,7 @@ func set(subKeys []string, index int, node map[string]json.RawMessage, value int
 		// remove nil values that may be nested in the value
 		value = removeNilValues(value)
 
-		data, err := json.Marshal(value)
-		if err != nil {
-			return nil, err
-		}
+		data := mylog.Check2(json.Marshal(value))
 
 		node[key] = data
 		return json.Marshal(node)
@@ -1430,23 +1294,14 @@ func set(subKeys []string, index int, node map[string]json.RawMessage, value int
 	}
 
 	var level map[string]json.RawMessage
-	err := jsonutil.DecodeWithNumber(bytes.NewReader(rawLevel), &level)
-	if err != nil {
-		var uerr *json.UnmarshalTypeError
-		if !errors.As(err, &uerr) {
-			return nil, err
-		}
-	}
+	mylog.Check(jsonutil.DecodeWithNumber(bytes.NewReader(rawLevel), &level))
 
 	// stored valued wasn't map but new write expects one so overwrite value
 	if level == nil {
 		level = make(map[string]json.RawMessage)
 	}
 
-	rawLevel, err = set(subKeys, index+1, level, value)
-	if err != nil {
-		return nil, err
-	}
+	rawLevel = mylog.Check2(set(subKeys, index+1, level, value))
 
 	node[key] = rawLevel
 	return json.Marshal(node)
@@ -1454,7 +1309,7 @@ func set(subKeys []string, index int, node map[string]json.RawMessage, value int
 
 func (s JSONDataBag) Unset(path string) error {
 	subKeys := strings.Split(path, ".")
-	_, err := unset(subKeys, 0, s)
+	_ := mylog.Check2(unset(subKeys, 0, s))
 	return err
 }
 
@@ -1479,14 +1334,9 @@ func unset(subKeys []string, index int, node map[string]json.RawMessage) (json.R
 		}
 
 		var nextLevel map[string]json.RawMessage
-		if err := jsonutil.DecodeWithNumber(bytes.NewReader(nextLevelRaw), &nextLevel); err != nil {
-			return err
-		}
+		mylog.Check(jsonutil.DecodeWithNumber(bytes.NewReader(nextLevelRaw), &nextLevel))
 
-		updated, err := unset(subKeys, index+1, nextLevel)
-		if err != nil {
-			return err
-		}
+		updated := mylog.Check2(unset(subKeys, index+1, nextLevel))
 
 		// update the map with the sublevel which may have changed or been removed
 		if updated == nil {
@@ -1500,14 +1350,10 @@ func unset(subKeys []string, index int, node map[string]json.RawMessage) (json.R
 
 	if matchAll {
 		for k := range node {
-			if err := unsetKey(node, k); err != nil {
-				return nil, err
-			}
+			mylog.Check(unsetKey(node, k))
 		}
 	} else {
-		if err := unsetKey(node, key); err != nil {
-			return nil, err
-		}
+		mylog.Check(unsetKey(node, key))
 	}
 
 	return json.Marshal(node)

@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
@@ -93,14 +94,9 @@ func (iface *pkcs11Interface) getSocketPath(slot *snap.SlotInfo) (string, error)
 }
 
 func (iface *pkcs11Interface) BeforePrepareSlot(slot *snap.SlotInfo) error {
-	socketPath, err := iface.getSocketPath(slot)
-	if err != nil {
-		return err
-	}
+	socketPath := mylog.Check2(iface.getSocketPath(slot))
+	mylog.Check(apparmor_sandbox.ValidateNoAppArmorRegexp(socketPath))
 
-	if err := apparmor_sandbox.ValidateNoAppArmorRegexp(socketPath); err != nil {
-		return fmt.Errorf("pkcs11 unix socket path is invalid: %v", err)
-	}
 	return err
 }
 
@@ -111,7 +107,7 @@ func (iface *pkcs11Interface) SecCompPermanentSlot(spec *seccomp.Specification, 
 
 func (iface *pkcs11Interface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	var socketPath string
-	if err := slot.Attr("pkcs11-socket", &socketPath); err != nil || socketPath == "" {
+	if mylog.Check(slot.Attr("pkcs11-socket", &socketPath)); err != nil || socketPath == "" {
 		return fmt.Errorf(`internal error: pkcs11 slot %q must have a unix socket "pkcs11-socket" attribute`, slot.Ref())
 	}
 
@@ -132,10 +128,7 @@ func (iface *pkcs11Interface) AppArmorConnectedPlug(spec *apparmor.Specification
 }
 
 func (iface *pkcs11Interface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
-	socketPath, err := iface.getSocketPath(slot)
-	if err != nil {
-		return err
-	}
+	socketPath := mylog.Check2(iface.getSocketPath(slot))
 
 	// The validation from BeforePrepareSlot() ensures that the socket path starts with "/run/p11-kit"
 	socketRule := fmt.Sprintf(`"/{,var/}%s" rwk,`, socketPath[1:])

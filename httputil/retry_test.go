@@ -33,6 +33,7 @@ import (
 	. "gopkg.in/check.v1"
 	"gopkg.in/retry.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/httputil"
 )
 
@@ -104,8 +105,8 @@ func (s *retrySuite) TestRetryRequestOnEOF(c *C) {
 		return json.NewDecoder(resp.Body).Decode(&got)
 	}
 
-	_, err := httputil.RetryRequest("endp", doRequest, readResponseBody, testRetryStrategy)
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(httputil.RetryRequest("endp", doRequest, readResponseBody, testRetryStrategy))
+
 
 	c.Assert(failure, Equals, false)
 	c.Check(got, DeepEquals, map[string]interface{}{"ok": true})
@@ -142,7 +143,7 @@ func (s *retrySuite) TestRetryRequestFailWithEOF(c *C) {
 		return json.NewDecoder(resp.Body).Decode(&got)
 	}
 
-	_, err := httputil.RetryRequest("endp", doRequest, readResponseBody, testRetryStrategy)
+	_ := mylog.Check2(httputil.RetryRequest("endp", doRequest, readResponseBody, testRetryStrategy))
 	c.Assert(err, NotNil)
 	c.Check(err, ErrorMatches, `^Get \"?http://127.0.0.1:.*?\"?: EOF$`)
 
@@ -182,8 +183,8 @@ func (s *retrySuite) TestRetryRequestOn500(c *C) {
 		return json.NewDecoder(resp.Body).Decode(&got)
 	}
 
-	_, err := httputil.RetryRequest("endp", doRequest, readResponseBody, testRetryStrategy)
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(httputil.RetryRequest("endp", doRequest, readResponseBody, testRetryStrategy))
+
 
 	c.Assert(failure, Equals, false)
 	c.Check(got, DeepEquals, map[string]interface{}{"ok": true})
@@ -219,8 +220,8 @@ func (s *retrySuite) TestRetryRequestFailOn500(c *C) {
 		return json.NewDecoder(resp.Body).Decode(&got)
 	}
 
-	resp, err := httputil.RetryRequest("endp", doRequest, readResponseBody, testRetryStrategy)
-	c.Assert(err, IsNil)
+	resp := mylog.Check2(httputil.RetryRequest("endp", doRequest, readResponseBody, testRetryStrategy))
+
 	c.Assert(resp.StatusCode, Equals, 500)
 
 	c.Check(failure, Equals, true)
@@ -269,7 +270,7 @@ func (s *retrySuite) TestRetryRequestUnexpectedEOFHandling(c *C) {
 
 	// Check that we really recognize unexpected EOF error by failing on all retries
 	url = mockPermanentlyBrokenServer.URL
-	_, err := httputil.RetryRequest("endp", doRequest, readResponseBody, testRetryStrategy)
+	_ := mylog.Check2(httputil.RetryRequest("endp", doRequest, readResponseBody, testRetryStrategy))
 	c.Assert(err, NotNil)
 	c.Assert(err, Equals, io.ErrUnexpectedEOF)
 	c.Assert(err, ErrorMatches, "unexpected EOF")
@@ -282,8 +283,8 @@ func (s *retrySuite) TestRetryRequestUnexpectedEOFHandling(c *C) {
 	failure = false
 	got = nil
 	// Check that we retry on unexpected EOF and eventually succeed
-	_, err = httputil.RetryRequest("endp", doRequest, readResponseBody, testRetryStrategy)
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(httputil.RetryRequest("endp", doRequest, readResponseBody, testRetryStrategy))
+
 	// check that we retried 4 times
 	c.Check(failure, Equals, false)
 	c.Check(got, DeepEquals, map[string]interface{}{"ok": true})
@@ -317,7 +318,7 @@ func (s *retrySuite) TestRetryRequestFailOnReadResponseBody(c *C) {
 		return json.NewDecoder(resp.Body).Decode(&got)
 	}
 
-	_, err := httputil.RetryRequest("endp", doRequest, readResponseBody, testRetryStrategy)
+	_ := mylog.Check2(httputil.RetryRequest("endp", doRequest, readResponseBody, testRetryStrategy))
 	c.Assert(err, ErrorMatches, `invalid character '<' looking for beginning of value`)
 	c.Check(failure, Equals, false)
 }
@@ -350,8 +351,8 @@ func (s *retrySuite) TestRetryRequestReadResponseBodyFailure(c *C) {
 		return json.NewDecoder(resp.Body).Decode(&got)
 	}
 
-	resp, err := httputil.RetryRequest("endp", doRequest, readResponseBody, testRetryStrategy)
-	c.Assert(err, IsNil)
+	resp := mylog.Check2(httputil.RetryRequest("endp", doRequest, readResponseBody, testRetryStrategy))
+
 	c.Check(failure, Equals, true)
 	c.Check(resp.StatusCode, Equals, 404)
 }
@@ -404,7 +405,7 @@ func (s *retrySuite) TestRetryRequestTimeoutHandling(c *C) {
 
 	// Check that we really recognize unexpected EOF error by failing on all retries
 	url = mockPermanentlyBrokenServer.URL
-	_, err := httputil.RetryRequest("endp", doRequest, readResponseBody, testRetryStrategy)
+	_ := mylog.Check2(httputil.RetryRequest("endp", doRequest, readResponseBody, testRetryStrategy))
 	c.Assert(err, NotNil)
 	// context deadline detection when the response body was not received
 	// yet is racy and context.DeadlineExceeded errors are not necessarily
@@ -419,8 +420,8 @@ func (s *retrySuite) TestRetryRequestTimeoutHandling(c *C) {
 	failure = false
 	got = nil
 	// Check that we retry on unexpected EOF and eventually succeed
-	_, err = httputil.RetryRequest("endp", doRequest, readResponseBody, testRetryStrategy)
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(httputil.RetryRequest("endp", doRequest, readResponseBody, testRetryStrategy))
+
 	// check that we retried 4 times
 	c.Check(failure, Equals, false)
 	c.Check(got, DeepEquals, map[string]interface{}{"ok": true})
@@ -445,7 +446,7 @@ func (s *retrySuite) TestRetryDoesNotFailForPermanentDNSErrors(c *C) {
 		return nil
 	}
 
-	_, err := httputil.RetryRequest("endp", doRequest, readResponseBody, testRetryStrategy)
+	_ := mylog.Check2(httputil.RetryRequest("endp", doRequest, readResponseBody, testRetryStrategy))
 	c.Assert(err, NotNil)
 	// we try exactly once, a non-existing server is a permanent error
 	c.Assert(n, Equals, 1)
@@ -464,7 +465,7 @@ func (s *retrySuite) TestRetryOnTemporaryDNSfailure(c *C) {
 	readResponseBody := func(resp *http.Response) error {
 		return nil
 	}
-	_, err := httputil.RetryRequest("endp", doRequest, readResponseBody, testRetryStrategy)
+	_ := mylog.Check2(httputil.RetryRequest("endp", doRequest, readResponseBody, testRetryStrategy))
 	c.Assert(err, NotNil)
 	c.Assert(n > 1, Equals, true, Commentf("%v not > 1", n))
 }
@@ -484,7 +485,7 @@ func (s *retrySuite) TestRetryOnTemporaryDNSfailureNotGo19(c *C) {
 	readResponseBody := func(resp *http.Response) error {
 		return nil
 	}
-	_, err := httputil.RetryRequest("endp", doRequest, readResponseBody, testRetryStrategy)
+	_ := mylog.Check2(httputil.RetryRequest("endp", doRequest, readResponseBody, testRetryStrategy))
 	c.Assert(err, NotNil)
 	c.Assert(n > 1, Equals, true, Commentf("%v not > 1", n))
 }
@@ -502,7 +503,7 @@ func (s *retrySuite) TestRetryOnHttp2ProtocolErrors(c *C) {
 	readResponseBody := func(resp *http.Response) error {
 		return nil
 	}
-	_, err := httputil.RetryRequest("endp", doRequest, readResponseBody, testRetryStrategy)
+	_ := mylog.Check2(httputil.RetryRequest("endp", doRequest, readResponseBody, testRetryStrategy))
 	c.Assert(err, NotNil)
 	c.Assert(n > 1, Equals, true, Commentf("%v not > 1", n))
 }

@@ -30,6 +30,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/boot"
@@ -49,10 +50,8 @@ func autoImportCandidates() ([]string, error) {
 
 	isTesting := snapdenv.Testing()
 
-	mnts, err := osutil.LoadMountInfo()
-	if err != nil {
-		return nil, fmt.Errorf("couldn't parse mountinfo: %v", err)
-	}
+	mnts := mylog.Check2(osutil.LoadMountInfo())
+
 	for _, mnt := range mnts {
 		// skip everything that is not a device (cgroups, debugfs etc)
 		if !strings.HasPrefix(mnt.MountSource, "/dev/") {
@@ -103,10 +102,8 @@ func autoImportCandidates() ([]string, error) {
 
 func queueFile(src string) error {
 	// refuse huge files, this is for assertions
-	fi, err := os.Stat(src)
-	if err != nil {
-		return err
-	}
+	fi := mylog.Check2(os.Stat(src))
+
 	// 640kb ought be to enough for anyone
 	if fi.Size() > 640*1024 {
 		msg := fmt.Errorf("cannot queue %s, file size too big: %v", src, fi.Size())
@@ -115,69 +112,47 @@ func queueFile(src string) error {
 	}
 
 	// ensure name is predictable, weak hash is ok
-	hash, _, err := osutil.FileDigest(src, crypto.SHA3_384)
-	if err != nil {
-		return err
-	}
+	hash, _ := mylog.Check3(osutil.FileDigest(src, crypto.SHA3_384))
 
 	dst := filepath.Join(dirs.SnapAssertsSpoolDir, fmt.Sprintf("%s.assert", base64.URLEncoding.EncodeToString(hash)))
-	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
-		return err
-	}
+	mylog.Check(os.MkdirAll(filepath.Dir(dst), 0755))
 
 	return osutil.CopyFile(src, dst, osutil.CopyFlagOverwrite)
 }
 
 func autoImportFromSpool(cli *client.Client) (added int, err error) {
-	files, err := os.ReadDir(dirs.SnapAssertsSpoolDir)
+	files := mylog.Check2(os.ReadDir(dirs.SnapAssertsSpoolDir))
 	if os.IsNotExist(err) {
 		return 0, nil
-	}
-	if err != nil {
-		return 0, err
 	}
 
 	for _, fi := range files {
 		cand := filepath.Join(dirs.SnapAssertsSpoolDir, fi.Name())
-		if err := ackFile(cli, cand); err != nil {
-			logger.Noticef("error: cannot import %s: %s", cand, err)
-			continue
-		} else {
-			logger.Noticef("imported %s", cand)
-			added++
-		}
-		// FIXME: only remove stuff older than N days?
-		if err := os.Remove(cand); err != nil {
-			return 0, err
-		}
+		mylog.Check(ackFile(cli, cand))
+		mylog.Check(
+
+			// FIXME: only remove stuff older than N days?
+			os.Remove(cand))
+
 	}
 
 	return added, nil
 }
 
 func autoImportFromAllMounts(cli *client.Client) (int, error) {
-	cands, err := autoImportCandidates()
-	if err != nil {
-		return 0, err
-	}
+	cands := mylog.Check2(autoImportCandidates())
 
 	added := 0
 	for _, cand := range cands {
-		err := ackFile(cli, cand)
+		mylog.Check(ackFile(cli, cand))
 		// the server is not ready yet
 		if _, ok := err.(client.ConnectionError); ok {
 			logger.Noticef("queuing for later %s", cand)
-			if err := queueFile(cand); err != nil {
-				return 0, err
-			}
+			mylog.Check(queueFile(cand))
+
 			continue
 		}
-		if err != nil {
-			logger.Noticef("error: cannot import %s: %s", cand, err)
-			continue
-		} else {
-			logger.Noticef("imported %s", cand)
-		}
+
 		added++
 	}
 
@@ -187,21 +162,17 @@ func autoImportFromAllMounts(cli *client.Client) (int, error) {
 var osMkdirTemp = os.MkdirTemp
 
 func tryMount(deviceName string) (string, error) {
-	tmpMountTarget, err := osMkdirTemp("", "snapd-auto-import-mount-")
-	if err != nil {
-		err = fmt.Errorf("cannot create temporary mount point: %v", err)
-		logger.Noticef("error: %v", err)
-		return "", err
-	}
+	tmpMountTarget := mylog.Check2(osMkdirTemp("", "snapd-auto-import-mount-"))
+
 	// udev does not provide much environment ;)
 	if os.Getenv("PATH") == "" {
 		os.Setenv("PATH", "/usr/sbin:/usr/bin:/sbin:/bin")
 	}
 	// not using syscall.Mount() because we don't know the fs type in advance
 	cmd := exec.Command("mount", "-t", "ext4,vfat", "-o", "ro", "--make-private", deviceName, tmpMountTarget)
-	if output, err := cmd.CombinedOutput(); err != nil {
+	if output := mylog.Check2(cmd.CombinedOutput()); err != nil {
 		os.Remove(tmpMountTarget)
-		err = fmt.Errorf("cannot mount %s: %s", deviceName, osutil.OutputErr(output, err))
+		mylog.Check(fmt.Errorf("cannot mount %s: %s", deviceName, osutil.OutputErr(output, err)))
 		logger.Noticef("error: %v", err)
 		return "", err
 	}
@@ -212,9 +183,8 @@ func tryMount(deviceName string) (string, error) {
 var syscallUnmount = syscall.Unmount
 
 func doUmount(mp string) error {
-	if err := syscallUnmount(mp, 0); err != nil {
-		return err
-	}
+	mylog.Check(syscallUnmount(mp, 0))
+
 	return os.Remove(mp)
 }
 
@@ -259,7 +229,7 @@ func (x *cmdAutoImport) autoAddUsers() error {
 	options := client.CreateUserOptions{
 		Automatic: true,
 	}
-	results, err := x.client.CreateUsers([]*client.CreateUserOptions{&options})
+	results := mylog.Check2(x.client.CreateUsers([]*client.CreateUserOptions{&options}))
 	for _, result := range results {
 		fmt.Fprintf(Stdout, i18n.G("created user %q\n"), result.Username)
 	}
@@ -269,12 +239,10 @@ func (x *cmdAutoImport) autoAddUsers() error {
 
 func removableBlockDevices() (removableDevices []string) {
 	// eg. /sys/block/sda/removable
-	removable, err := filepath.Glob(filepath.Join(dirs.GlobalRootDir, "/sys/block/*/removable"))
-	if err != nil {
-		return nil
-	}
+	removable := mylog.Check2(filepath.Glob(filepath.Join(dirs.GlobalRootDir, "/sys/block/*/removable")))
+
 	for _, removableAttr := range removable {
-		val, err := os.ReadFile(removableAttr)
+		val := mylog.Check2(os.ReadFile(removableAttr))
 		if err != nil || string(val) != "1\n" {
 			// non removable
 			continue
@@ -293,7 +261,7 @@ func removableBlockDevices() (removableDevices []string) {
 		}
 
 		for _, partAttr := range partitionAttrs {
-			val, err := os.ReadFile(partAttr)
+			val := mylog.Check2(os.ReadFile(partAttr))
 			if err != nil || string(val) != "1\n" {
 				// non partition?
 				continue
@@ -309,10 +277,8 @@ func removableBlockDevices() (removableDevices []string) {
 
 // inInstallmode returns true if it's UC20 system in install/factory-reset modes
 func inInstallMode() bool {
-	modeenv, err := boot.ReadModeenv(dirs.GlobalRootDir)
-	if err != nil {
-		return false
-	}
+	modeenv := mylog.Check2(boot.ReadModeenv(dirs.GlobalRootDir))
+
 	return modeenv.Mode == "install" || modeenv.Mode == "factory-reset"
 }
 
@@ -348,22 +314,16 @@ func (x *cmdAutoImport) Execute(args []string) error {
 			continue
 		}
 
-		mp, err := tryMount(path)
-		if err != nil {
-			continue // Error was reported. Continue looking.
-		}
+		mp := mylog.Check2(tryMount(path))
+
+		// Error was reported. Continue looking.
+
 		defer doUmount(mp)
 	}
 
-	added1, err := autoImportFromSpool(x.client)
-	if err != nil {
-		return err
-	}
+	added1 := mylog.Check2(autoImportFromSpool(x.client))
 
-	added2, err := autoImportFromAllMounts(x.client)
-	if err != nil {
-		return err
-	}
+	added2 := mylog.Check2(autoImportFromAllMounts(x.client))
 
 	if added1+added2 > 0 {
 		return x.autoAddUsers()

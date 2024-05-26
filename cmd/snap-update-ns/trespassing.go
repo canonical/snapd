@@ -26,6 +26,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/logger"
 )
 
@@ -104,7 +105,6 @@ func (as *Assumptions) isRestricted(path string) bool {
 		if p == "/" || p == path || strings.HasPrefix(path, filepath.Clean(p)+"/") {
 			return false
 		}
-
 	}
 	// All other paths are restricted
 	return true
@@ -137,13 +137,11 @@ func (as *Assumptions) canWriteToDirectory(dirFd int, dirName string) (bool, err
 		return true, nil
 	}
 	var fsData syscall.Statfs_t
-	if err := sysFstatfs(dirFd, &fsData); err != nil {
-		return false, fmt.Errorf("cannot fstatfs %q: %s", dirName, err)
-	}
+	mylog.Check(sysFstatfs(dirFd, &fsData))
+
 	var fileData syscall.Stat_t
-	if err := sysFstat(dirFd, &fileData); err != nil {
-		return false, fmt.Errorf("cannot fstat %q: %s", dirName, err)
-	}
+	mylog.Check(sysFstat(dirFd, &fileData))
+
 	// Writing to read only directories is allowed because EROFS is handled
 	// by each of the writing helpers already.
 	if ok := isReadOnly(dirName, &fsData); ok {
@@ -210,7 +208,7 @@ func (rs *Restrictions) Check(dirFd int, dirName string) error {
 		return nil
 	}
 	// In restricted mode check the directory before attempting to write to it.
-	ok, err := rs.assumptions.canWriteToDirectory(dirFd, dirName)
+	ok := mylog.Check2(rs.assumptions.canWriteToDirectory(dirFd, dirName))
 	if ok || err != nil {
 		return err
 	}

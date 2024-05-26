@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
@@ -48,21 +49,21 @@ func (s *initramfsSuite) SetUpTest(c *C) {
 }
 
 func (s *initramfsSuite) TestEnsureNextBootToRunMode(c *C) {
-	// with no bootloader available we can't mark successful
-	err := boot.EnsureNextBootToRunMode("label")
+	mylog.
+		// with no bootloader available we can't mark successful
+		Check(boot.EnsureNextBootToRunMode("label"))
 	c.Assert(err, ErrorMatches, "cannot determine bootloader")
 
 	// forcing a bootloader works
 	bloader := bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
+	mylog.Check(boot.EnsureNextBootToRunMode("label"))
 
-	err = boot.EnsureNextBootToRunMode("label")
-	c.Assert(err, IsNil)
 
 	// the bloader vars have been updated
-	m, err := bloader.GetBootVars("snapd_recovery_mode", "snapd_recovery_system")
-	c.Assert(err, IsNil)
+	m := mylog.Check2(bloader.GetBootVars("snapd_recovery_mode", "snapd_recovery_system"))
+
 	c.Assert(m, DeepEquals, map[string]string{
 		"snapd_recovery_mode":   "run",
 		"snapd_recovery_system": "label",
@@ -70,27 +71,26 @@ func (s *initramfsSuite) TestEnsureNextBootToRunMode(c *C) {
 }
 
 func (s *initramfsSuite) TestEnsureNextBootToRunModeRealBootloader(c *C) {
-	// create a real grub.cfg on ubuntu-seed
-	err := os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/ubuntu"), 0755)
-	c.Assert(err, IsNil)
+	mylog.
+		// create a real grub.cfg on ubuntu-seed
+		Check(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/ubuntu"), 0755))
 
-	err = os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/ubuntu", "grub.cfg"), nil, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/ubuntu", "grub.cfg"), nil, 0644))
 
-	err = boot.EnsureNextBootToRunMode("somelabel")
-	c.Assert(err, IsNil)
+	mylog.Check(boot.EnsureNextBootToRunMode("somelabel"))
+
 
 	opts := &bootloader.Options{
 		// setup the recovery bootloader
 		Role: bootloader.RoleRecovery,
 	}
-	bloader, err := bootloader.Find(boot.InitramfsUbuntuSeedDir, opts)
-	c.Assert(err, IsNil)
+	bloader := mylog.Check2(bootloader.Find(boot.InitramfsUbuntuSeedDir, opts))
+
 	c.Assert(bloader.Name(), Equals, "grub")
 
 	// the bloader vars have been updated
-	m, err := bloader.GetBootVars("snapd_recovery_mode", "snapd_recovery_system")
-	c.Assert(err, IsNil)
+	m := mylog.Check2(bloader.GetBootVars("snapd_recovery_mode", "snapd_recovery_system"))
+
 	c.Assert(m, DeepEquals, map[string]string{
 		"snapd_recovery_mode":   "run",
 		"snapd_recovery_system": "somelabel",
@@ -100,18 +100,18 @@ func (s *initramfsSuite) TestEnsureNextBootToRunModeRealBootloader(c *C) {
 func makeSnapFilesOnInitramfsUbuntuData(c *C, rootfsDir string, comment CommentInterface, snaps ...snap.PlaceInfo) (restore func()) {
 	// also make sure the snaps also exist on ubuntu-data
 	snapDir := dirs.SnapBlobDirUnder(rootfsDir)
-	err := os.MkdirAll(snapDir, 0755)
+	mylog.Check(os.MkdirAll(snapDir, 0755))
 	c.Assert(err, IsNil, comment)
 	paths := make([]string, 0, len(snaps))
 	for _, sn := range snaps {
 		snPath := filepath.Join(snapDir, sn.Filename())
 		paths = append(paths, snPath)
-		err = os.WriteFile(snPath, nil, 0644)
+		mylog.Check(os.WriteFile(snPath, nil, 0644))
 		c.Assert(err, IsNil, comment)
 	}
 	return func() {
 		for _, path := range paths {
-			err := os.Remove(path)
+			mylog.Check(os.Remove(path))
 			c.Assert(err, IsNil, comment)
 		}
 	}
@@ -119,20 +119,20 @@ func makeSnapFilesOnInitramfsUbuntuData(c *C, rootfsDir string, comment CommentI
 
 func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 	// make some snap infos we will use in the tests
-	kernel1, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_1.snap")
-	c.Assert(err, IsNil)
+	kernel1 := mylog.Check2(snap.ParsePlaceInfoFromSnapFileName("pc-kernel_1.snap"))
 
-	kernel2, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_2.snap")
-	c.Assert(err, IsNil)
 
-	base1, err := snap.ParsePlaceInfoFromSnapFileName("core20_1.snap")
-	c.Assert(err, IsNil)
+	kernel2 := mylog.Check2(snap.ParsePlaceInfoFromSnapFileName("pc-kernel_2.snap"))
 
-	base2, err := snap.ParsePlaceInfoFromSnapFileName("core20_2.snap")
-	c.Assert(err, IsNil)
 
-	gadget, err := snap.ParsePlaceInfoFromSnapFileName("pc_1.snap")
-	c.Assert(err, IsNil)
+	base1 := mylog.Check2(snap.ParsePlaceInfoFromSnapFileName("core20_1.snap"))
+
+
+	base2 := mylog.Check2(snap.ParsePlaceInfoFromSnapFileName("core20_2.snap"))
+
+
+	gadget := mylog.Check2(snap.ParsePlaceInfoFromSnapFileName("pc_1.snap"))
+
 
 	baseT := snap.TypeBase
 	kernelT := snap.TypeKernel
@@ -686,24 +686,25 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 				r := makeSnapFilesOnInitramfsUbuntuData(c, t.rootfsDir, comment, t.snapsToMake...)
 				cleanups = append(cleanups, r)
 			}
+			mylog.Check(
 
-			// write the modeenv to somewhere so we can read it and pass that to
-			// InitramfsRunModeChooseSnapsToMount
-			err := t.m.WriteTo(t.rootfsDir)
+				// write the modeenv to somewhere so we can read it and pass that to
+				// InitramfsRunModeChooseSnapsToMount
+				t.m.WriteTo(t.rootfsDir))
 			// remove it because we are writing many modeenvs in this single test
 			cleanups = append(cleanups, func() {
 				c.Assert(os.Remove(dirs.SnapModeenvFileUnder(t.rootfsDir)), IsNil, Commentf(t.comment))
 			})
 			c.Assert(err, IsNil, comment)
 
-			m, err := boot.ReadModeenv(t.rootfsDir)
+			m := mylog.Check2(boot.ReadModeenv(t.rootfsDir))
 			c.Assert(err, IsNil, comment)
 
 			if t.expRebootPanic != "" {
 				f := func() { boot.InitramfsRunModeSelectSnapsToMount(t.typs, m, t.rootfsDir) }
 				c.Assert(f, PanicMatches, t.expRebootPanic, comment)
 			} else {
-				mountSnaps, err := boot.InitramfsRunModeSelectSnapsToMount(t.typs, m, t.rootfsDir)
+				mountSnaps := mylog.Check2(boot.InitramfsRunModeSelectSnapsToMount(t.typs, m, t.rootfsDir))
 				if t.errPattern != "" {
 					c.Assert(err, ErrorMatches, t.errPattern, comment)
 				} else {
@@ -714,7 +715,7 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 
 			// check that the modeenv changed as expected
 			if t.expectedM != nil {
-				newM, err := boot.ReadModeenv(t.rootfsDir)
+				newM := mylog.Check2(boot.ReadModeenv(t.rootfsDir))
 				c.Assert(err, IsNil, comment)
 				c.Assert(newM.Base, Equals, t.expectedM.Base, comment)
 				c.Assert(newM.BaseStatus, Equals, t.expectedM.BaseStatus, comment)
@@ -778,15 +779,14 @@ func (s *initramfsSuite) TestInitramfsRunModeUpdateBootloaderVars(c *C) {
 		bloader.SetBootVars(map[string]string{"kernel_status": t.initialStatus})
 
 		cmdlineFile := filepath.Join(c.MkDir(), "cmdline")
-		err := os.WriteFile(cmdlineFile, []byte(t.cmdline), 0644)
-		c.Assert(err, IsNil)
+		mylog.Check(os.WriteFile(cmdlineFile, []byte(t.cmdline), 0644))
+
 		r := kcmdline.MockProcCmdline(cmdlineFile)
 		defer r()
+		mylog.Check(boot.InitramfsRunModeUpdateBootloaderVars())
 
-		err = boot.InitramfsRunModeUpdateBootloaderVars()
-		c.Assert(err, IsNil)
-		vars, err := bloader.GetBootVars("kernel_status")
-		c.Assert(err, IsNil)
+		vars := mylog.Check2(bloader.GetBootVars("kernel_status"))
+
 		c.Assert(vars, DeepEquals, map[string]string{"kernel_status": t.finalStatus})
 	}
 }
@@ -802,15 +802,14 @@ func (s *initramfsSuite) TestInitramfsRunModeUpdateBootloaderVarsNotNotScriptabl
 	bloader.SetBootVars(map[string]string{"kernel_status": "try"})
 
 	cmdlineFile := filepath.Join(c.MkDir(), "cmdline")
-	err := os.WriteFile(cmdlineFile, []byte("kernel_status=trying"), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(cmdlineFile, []byte("kernel_status=trying"), 0644))
+
 	r := kcmdline.MockProcCmdline(cmdlineFile)
 	defer r()
+	mylog.Check(boot.InitramfsRunModeUpdateBootloaderVars())
 
-	err = boot.InitramfsRunModeUpdateBootloaderVars()
-	c.Assert(err, IsNil)
-	vars, err := bloader.GetBootVars("kernel_status")
-	c.Assert(err, IsNil)
+	vars := mylog.Check2(bloader.GetBootVars("kernel_status"))
+
 	c.Assert(vars, DeepEquals, map[string]string{"kernel_status": "try"})
 }
 
@@ -823,12 +822,11 @@ func (s *initramfsSuite) TestInitramfsRunModeUpdateBootloaderVarsErrOnGetBootVar
 	bloader.GetErr = fmt.Errorf(errMsg)
 
 	cmdlineFile := filepath.Join(c.MkDir(), "cmdline")
-	err := os.WriteFile(cmdlineFile, []byte("kernel_status=trying"), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(cmdlineFile, []byte("kernel_status=trying"), 0644))
+
 	r := kcmdline.MockProcCmdline(cmdlineFile)
 	defer r()
-
-	err = boot.InitramfsRunModeUpdateBootloaderVars()
+	mylog.Check(boot.InitramfsRunModeUpdateBootloaderVars())
 	c.Assert(err, ErrorMatches, errMsg)
 }
 
@@ -838,14 +836,13 @@ func (s *initramfsSuite) TestInitramfsRunModeUpdateBootloaderVarsErrNoCmdline(c 
 	defer bootloader.Force(nil)
 
 	bloader.SetBootVars(map[string]string{"kernel_status": "try"})
-
-	err := boot.InitramfsRunModeUpdateBootloaderVars()
+	mylog.Check(boot.InitramfsRunModeUpdateBootloaderVars())
 	c.Assert(err, ErrorMatches, ".*cmdline: no such file or directory")
 }
 
 func (s *initramfsSuite) TestInitramfsRunModeUpdateBootloaderVarsNoBootloaderHappy(c *C) {
-	err := boot.InitramfsRunModeUpdateBootloaderVars()
-	c.Assert(err, IsNil)
+	mylog.Check(boot.InitramfsRunModeUpdateBootloaderVars())
+
 }
 
 var classicModel = &gadgettest.ModelCharacteristics{

@@ -24,6 +24,7 @@ import (
 	"path/filepath"
 	"text/template"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
@@ -39,13 +40,15 @@ type cmdRoutinePortalInfo struct {
 	} `positional-args:"true" required:"true"`
 }
 
-var shortRoutinePortalInfoHelp = i18n.G("Return information about a process")
-var longRoutinePortalInfoHelp = i18n.G(`
+var (
+	shortRoutinePortalInfoHelp = i18n.G("Return information about a process")
+	longRoutinePortalInfoHelp  = i18n.G(`
 The portal-info command returns information about a process in keyfile format.
 
 This command is used by the xdg-desktop-portal service to retrieve
 information about snap confined processes.
 `)
+)
 
 func init() {
 	addRoutineCommand("portal-info", shortRoutinePortalInfoHelp, longRoutinePortalInfoHelp, func() flags.Commander {
@@ -68,18 +71,13 @@ func (x *cmdRoutinePortalInfo) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	snapName, err := cgroupSnapNameFromPid(x.PortalInfoOptions.Pid)
-	if err != nil {
-		return err
-	}
-	snap, _, err := x.client.Snap(snapName)
-	if err != nil {
-		return fmt.Errorf("cannot retrieve info for snap %q: %v", snapName, err)
-	}
+	snapName := mylog.Check2(cgroupSnapNameFromPid(x.PortalInfoOptions.Pid))
+
+	snap, _ := mylog.Check3(x.client.Snap(snapName))
 
 	// Try to identify the application name from AppArmor
 	var app *client.AppInfo
-	if snapName, appName, _, err := apparmorSnapAppFromPid(x.PortalInfoOptions.Pid); err == nil && snapName == snap.Name && appName != "" {
+	if snapName, appName, _ := mylog.Check4(apparmorSnapAppFromPid(x.PortalInfoOptions.Pid)); err == nil && snapName == snap.Name && appName != "" {
 		for i := range snap.Apps {
 			if snap.Apps[i].Name == appName {
 				app = &snap.Apps[i]
@@ -110,13 +108,11 @@ func (x *cmdRoutinePortalInfo) Execute(args []string) error {
 	// Determine whether the snap has access to the network status
 	// TODO: use direct API for asking about interface being connected if
 	// that becomes available
-	connections, err := x.client.Connections(&client.ConnectionOptions{
+	connections := mylog.Check2(x.client.Connections(&client.ConnectionOptions{
 		Snap:      snap.Name,
 		Interface: "network-status",
-	})
-	if err != nil {
-		return fmt.Errorf("cannot get connections for snap %q: %v", snap.Name, err)
-	}
+	}))
+
 	// XXX: on non-AppArmor systems, or systems where there is only a
 	// partial AppArmor support, the snap may still be able to access the
 	// network despite the 'network' interface being disconnected
@@ -155,8 +151,7 @@ HasNetworkStatus={{.HasNetworkStatus}}
 		CommonID:         commonID,
 		HasNetworkStatus: hasNetworkStatus,
 	}
-	if err := t.Execute(Stdout, data); err != nil {
-		return fmt.Errorf("cannot render output template: %s", err)
-	}
+	mylog.Check(t.Execute(Stdout, data))
+
 	return nil
 }

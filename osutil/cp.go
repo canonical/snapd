@@ -25,6 +25,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // CopyFlag is used to tweak the behaviour of CopyFile
@@ -62,56 +64,44 @@ func doOpenFile(name string, flag int, perm os.FileMode) (fileish, error) {
 // CopyFile copies src to dst
 func CopyFile(src, dst string, flags CopyFlag) (err error) {
 	if flags&CopyFlagPreserveAll != 0 {
-		// Our native copy code does not preserve all attributes
-		// (yet). If the user needs this functionality we just
-		// fallback to use the system's "cp" binary to do the copy.
-		if err := runCpPreserveAll(src, dst, "copy all"); err != nil {
-			return err
-		}
+		mylog.Check(
+			// Our native copy code does not preserve all attributes
+			// (yet). If the user needs this functionality we just
+			// fallback to use the system's "cp" binary to do the copy.
+			runCpPreserveAll(src, dst, "copy all"))
+
 		if flags&CopyFlagSync != 0 {
 			return runSync()
 		}
 		return nil
 	}
 
-	fin, err := openfile(src, os.O_RDONLY, 0)
-	if err != nil {
-		return fmt.Errorf("unable to open %s: %w", src, err)
-	}
+	fin := mylog.Check2(openfile(src, os.O_RDONLY, 0))
+
 	defer func() {
 		if cerr := fin.Close(); cerr != nil && err == nil {
-			err = fmt.Errorf("when closing %s: %w", src, cerr)
+			mylog.Check(fmt.Errorf("when closing %s: %w", src, cerr))
 		}
 	}()
 
-	fi, err := fin.Stat()
-	if err != nil {
-		return fmt.Errorf("unable to stat %s: %w", src, err)
-	}
+	fi := mylog.Check2(fin.Stat())
 
 	outflags := os.O_WRONLY | os.O_CREATE | os.O_TRUNC
 	if flags&CopyFlagOverwrite == 0 {
 		outflags |= os.O_EXCL
 	}
 
-	fout, err := openfile(dst, outflags, fi.Mode())
-	if err != nil {
-		return fmt.Errorf("unable to create %s: %w", dst, err)
-	}
+	fout := mylog.Check2(openfile(dst, outflags, fi.Mode()))
+
 	defer func() {
 		if cerr := fout.Close(); cerr != nil && err == nil {
-			err = fmt.Errorf("when closing %s: %w", dst, cerr)
+			mylog.Check(fmt.Errorf("when closing %s: %w", dst, cerr))
 		}
 	}()
-
-	if err := copyfile(fin, fout, fi); err != nil {
-		return fmt.Errorf("unable to copy %s to %s: %w", src, dst, err)
-	}
+	mylog.Check(copyfile(fin, fout, fi))
 
 	if flags&CopyFlagSync != 0 {
-		if err = fout.Sync(); err != nil {
-			return fmt.Errorf("unable to sync %s: %w", dst, err)
-		}
+		mylog.Check(fout.Sync())
 	}
 
 	return nil
@@ -123,46 +113,34 @@ func CopyFile(src, dst string, flags CopyFlag) (err error) {
 // the owning directory are synced after copy completes. Pass additional flags
 // for AtomicFile wrapping the destination.
 func AtomicWriteFileCopy(dst, src string, flags AtomicWriteFlags) (err error) {
-	fin, err := openfile(src, os.O_RDONLY, 0)
-	if err != nil {
-		return fmt.Errorf("unable to open source file %s: %v", src, err)
-	}
+	fin := mylog.Check2(openfile(src, os.O_RDONLY, 0))
+
 	defer func() {
 		if cerr := fin.Close(); cerr != nil && err == nil {
-			err = fmt.Errorf("when closing %s: %v", src, cerr)
+			mylog.Check(fmt.Errorf("when closing %s: %v", src, cerr))
 		}
 	}()
 
-	fi, err := fin.Stat()
-	if err != nil {
-		return fmt.Errorf("unable to stat %s: %v", src, err)
-	}
+	fi := mylog.Check2(fin.Stat())
 
-	fout, err := NewAtomicFile(dst, fi.Mode(), flags, NoChown, NoChown)
-	if err != nil {
-		return fmt.Errorf("cannot create atomic file: %v", err)
-	}
+	fout := mylog.Check2(NewAtomicFile(dst, fi.Mode(), flags, NoChown, NoChown))
+
 	fout.SetModTime(fi.ModTime())
 	defer func() {
 		if cerr := fout.Cancel(); cerr != ErrCannotCancel && err == nil {
-			err = fmt.Errorf("cannot cancel temporary file copy %s: %v", fout.Name(), cerr)
+			mylog.Check(fmt.Errorf("cannot cancel temporary file copy %s: %v", fout.Name(), cerr))
 		}
 	}()
+	mylog.Check(copyfile(fin, fout, fi))
+	mylog.Check(fout.Commit())
 
-	if err := copyfile(fin, fout, fi); err != nil {
-		return fmt.Errorf("unable to copy %s to %s: %v", src, fout.Name(), err)
-	}
-
-	if err := fout.Commit(); err != nil {
-		return fmt.Errorf("cannot commit atomic file copy: %v", err)
-	}
 	return nil
 }
 
 func runCmd(cmd *exec.Cmd, errdesc string) error {
-	if output, err := cmd.CombinedOutput(); err != nil {
+	if output := mylog.Check2(cmd.CombinedOutput()); err != nil {
 		output = bytes.TrimSpace(output)
-		if exitCode, err := ExitCode(err); err == nil {
+		if exitCode := mylog.Check2(ExitCode(err)); err == nil {
 			return &CopySpecialFileError{
 				desc:     errdesc,
 				exitCode: exitCode,
@@ -190,9 +168,8 @@ func runCpPreserveAll(path, dest, errdesc string) error {
 // CopySpecialFile is used to copy all the things that are not files
 // (like device nodes, named pipes etc)
 func CopySpecialFile(path, dest string) error {
-	if err := runCpPreserveAll(path, dest, "copy device node"); err != nil {
-		return err
-	}
+	mylog.Check(runCpPreserveAll(path, dest, "copy device node"))
+
 	return runSync(filepath.Dir(dest))
 }
 

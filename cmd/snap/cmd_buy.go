@@ -23,16 +23,19 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 )
 
-var shortBuyHelp = i18n.G("Buy a snap")
-var longBuyHelp = i18n.G(`
+var (
+	shortBuyHelp = i18n.G("Buy a snap")
+	longBuyHelp  = i18n.G(`
 The buy command buys a snap from the store.
 `)
+)
 
 type cmdBuy struct {
 	clientMixin
@@ -70,63 +73,27 @@ func buySnap(cli *client.Client, snapName string) error {
 		return fmt.Errorf(i18n.G("cannot buy snap: invalid characters in name"))
 	}
 
-	snap, resultInfo, err := cli.FindOne(snapName)
-	if err != nil {
-		return err
-	}
+	snap, resultInfo := mylog.Check3(cli.FindOne(snapName))
 
 	opts := &client.BuyOptions{
 		SnapID:   snap.ID,
 		Currency: resultInfo.SuggestedCurrency,
 	}
 
-	opts.Price, opts.Currency, err = getPrice(snap.Prices, opts.Currency)
-	if err != nil {
-		return fmt.Errorf(i18n.G("cannot buy snap: %v"), err)
-	}
+	opts.Price, opts.Currency = mylog.Check3(getPrice(snap.Prices, opts.Currency))
 
 	if snap.Status == "available" {
 		return fmt.Errorf(i18n.G("cannot buy snap: it has already been bought"))
 	}
-
-	err = cli.ReadyToBuy()
-	if err != nil {
-		if e, ok := err.(*client.Error); ok {
-			switch e.Kind {
-			case client.ErrorKindNoPaymentMethods:
-				return fmt.Errorf(i18n.G(`You need to have a payment method associated with your account in order to buy a snap, please visit https://my.ubuntu.com/payment/edit to add one.
-
-Once you’ve added your payment details, you just need to run 'snap buy %s' again.`), snap.Name)
-			case client.ErrorKindTermsNotAccepted:
-				return fmt.Errorf(i18n.G(`In order to buy %q, you need to agree to the latest terms and conditions. Please visit https://my.ubuntu.com/payment/edit to do this.
-
-Once completed, return here and run 'snap buy %s' again.`), snap.Name, snap.Name)
-			}
-		}
-		return err
-	}
+	mylog.Check(cli.ReadyToBuy())
 
 	// TRANSLATORS: %q, %q and %s are the snap name, developer, and price. Please wrap the translation at 80 characters.
 	fmt.Fprintf(Stdout, i18n.G(`Please re-enter your Ubuntu One password to purchase %q from %q
 for %s. Press ctrl-c to cancel.`), snap.Name, snap.Publisher.Username, formatPrice(opts.Price, opts.Currency))
 	fmt.Fprint(Stdout, "\n")
+	mylog.Check(requestLogin(cli, user.Email))
 
-	err = requestLogin(cli, user.Email)
-	if err != nil {
-		return err
-	}
-
-	_, err = cli.Buy(opts)
-	if err != nil {
-		if e, ok := err.(*client.Error); ok {
-			switch e.Kind {
-			case client.ErrorKindPaymentDeclined:
-				return fmt.Errorf(i18n.G(`Sorry, your payment method has been declined by the issuer. Please review your
-payment details at https://my.ubuntu.com/payment/edit and try again.`))
-			}
-		}
-		return err
-	}
+	_ = mylog.Check2(cli.Buy(opts))
 
 	// TRANSLATORS: %q and %s are the same snap name. Please wrap the translation at 80 characters.
 	fmt.Fprintf(Stdout, i18n.G(`Thanks for purchasing %q. You may now install it on any of your devices

@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	sb "github.com/snapcore/secboot"
 	"golang.org/x/xerrors"
 
@@ -72,7 +73,7 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 	// looking for the encrypted device to unlock, later on in the boot
 	// process we will look for the decrypted device to ensure it matches
 	// what we expected
-	partUUID, err := disk.FindMatchingPartitionUUIDWithFsLabel(EncryptedPartitionName(name))
+	partUUID := mylog.Check2(disk.FindMatchingPartitionUUIDWithFsLabel(EncryptedPartitionName(name)))
 	if err == nil {
 		res.IsEncrypted = true
 	} else {
@@ -83,10 +84,8 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 		}
 		// otherwise it is an error not found and we should search for the
 		// unencrypted device
-		partUUID, err = disk.FindMatchingPartitionUUIDWithFsLabel(name)
-		if err != nil {
-			return res, fmt.Errorf("error enumerating partitions for disk to find unencrypted device %q: %v", name, err)
-		}
+		partUUID = mylog.Check2(disk.FindMatchingPartitionUUIDWithFsLabel(name))
+
 	}
 
 	partDevice := filepath.Join("/dev/disk/by-partuuid", partUUID)
@@ -100,13 +99,10 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 		return res, nil
 	}
 
-	uuid, err := randutilRandomKernelUUID()
-	if err != nil {
-		// We failed before we could generate the filsystem device path for
-		// the encrypted partition device, so we return FsDevice empty.
-		res.PartDevice = partDevice
-		return res, err
-	}
+	uuid := mylog.Check2(randutilRandomKernelUUID())
+
+	// We failed before we could generate the filsystem device path for
+	// the encrypted partition device, so we return FsDevice empty.
 
 	// make up a new name for the mapped device
 	mapperName := name + "-" + uuid
@@ -130,27 +126,21 @@ func UnlockEncryptedVolumeUsingKey(disk disks.Disk, name string, key []byte) (Un
 	// looking for the encrypted device to unlock, later on in the boot
 	// process we will look for the decrypted device to ensure it matches
 	// what we expected
-	partUUID, err := disk.FindMatchingPartitionUUIDWithFsLabel(EncryptedPartitionName(name))
-	if err != nil {
-		return unlockRes, err
-	}
+	partUUID := mylog.Check2(disk.FindMatchingPartitionUUIDWithFsLabel(EncryptedPartitionName(name)))
+
 	unlockRes.IsEncrypted = true
 	// we have a device
 	encdev := filepath.Join("/dev/disk/by-partuuid", partUUID)
 	unlockRes.PartDevice = encdev
 
-	uuid, err := randutilRandomKernelUUID()
-	if err != nil {
-		// We failed before we could generate the filsystem device path for
-		// the encrypted partition device, so we return FsDevice empty.
-		return unlockRes, err
-	}
+	uuid := mylog.Check2(randutilRandomKernelUUID())
+
+	// We failed before we could generate the filsystem device path for
+	// the encrypted partition device, so we return FsDevice empty.
 
 	// make up a new name for the mapped device
 	mapperName := name + "-" + uuid
-	if err := unlockEncryptedPartitionWithKey(mapperName, encdev, key); err != nil {
-		return unlockRes, err
-	}
+	mylog.Check(unlockEncryptedPartitionWithKey(mapperName, encdev, key))
 
 	unlockRes.FsDevice = filepath.Join("/dev/mapper/", mapperName)
 	unlockRes.UnlockMethod = UnlockedWithKey
@@ -162,7 +152,7 @@ func UnlockEncryptedVolumeUsingKey(disk disks.Disk, name string, key []byte) (Un
 func unlockEncryptedPartitionWithKey(name, device string, key []byte) error {
 	// no special options set
 	options := sb.ActivateVolumeOptions{}
-	err := sbActivateVolumeWithKey(name, device, key, &options)
+	mylog.Check(sbActivateVolumeWithKey(name, device, key, &options))
 	if err == nil {
 		logger.Noticef("successfully activated encrypted device %v using a key", device)
 	}
@@ -176,10 +166,7 @@ func UnlockEncryptedVolumeWithRecoveryKey(name, device string) error {
 		RecoveryKeyTries: 3,
 		KeyringPrefix:    keyringPrefix,
 	}
-
-	if err := sbActivateVolumeWithRecoveryKey(name, device, nil, &options); err != nil {
-		return fmt.Errorf("cannot unlock encrypted device %q: %v", device, err)
-	}
+	mylog.Check(sbActivateVolumeWithRecoveryKey(name, device, nil, &options))
 
 	return nil
 }

@@ -31,6 +31,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // Env contains the data of the uboot environment
@@ -72,10 +74,8 @@ type CreateOptions struct {
 
 // Create a new empty uboot env file with the given size
 func Create(fname string, size int, opts CreateOptions) (*Env, error) {
-	f, err := os.Create(fname)
-	if err != nil {
-		return nil, err
-	}
+	f := mylog.Check2(os.Create(fname))
+
 	defer f.Close()
 
 	env := &Env{
@@ -103,31 +103,23 @@ func Open(fname string) (*Env, error) {
 
 // OpenWithFlags opens a existing uboot env file, passing additional flags.
 func OpenWithFlags(fname string, flags OpenFlags) (*Env, error) {
-	f, err := os.Open(fname)
-	if err != nil {
-		return nil, err
-	}
+	f := mylog.Check2(os.Open(fname))
+
 	defer f.Close()
 
-	contentWithHeader, err := io.ReadAll(f)
-	if err != nil {
-		return nil, err
-	}
+	contentWithHeader := mylog.Check2(io.ReadAll(f))
 
 	// Most systems have SYS_REDUNDAND_ENVIRONMENT=y, so try that first
 	tryHeaderFlagByte := true
-	env, err := readEnv(contentWithHeader, flags, tryHeaderFlagByte)
+	env := mylog.Check2(readEnv(contentWithHeader, flags, tryHeaderFlagByte))
 	// if there is a bad CRC, maybe we just assumed the wrong header size
 	if errors.Is(err, errBadCrc) {
 		tryHeaderFlagByte := false
-		env, err = readEnv(contentWithHeader, flags, tryHeaderFlagByte)
+		env = mylog.Check2(readEnv(contentWithHeader, flags, tryHeaderFlagByte))
 	}
 	// if error was not one of the ones that might indicate we assumed the wrong
 	// header size, or there is still an error after checking both header sizes
 	// something is actually wrong
-	if err != nil {
-		return nil, fmt.Errorf("cannot open %q: %w", fname, err)
-	}
 
 	env.fname = fname
 	return env, nil
@@ -136,7 +128,6 @@ func OpenWithFlags(fname string, flags OpenFlags) (*Env, error) {
 var errBadCrc = errors.New("bad CRC")
 
 func readEnv(contentWithHeader []byte, flags OpenFlags, headerFlagByte bool) (*Env, error) {
-
 	// The minimum valid env is 6 bytes (4 byte CRC + 2 null bytes for EOF)
 	// The maximum header length is 5 bytes (4 byte CRC, + )
 	// If we always make sure our env is 6 bytes long, we'll never run into
@@ -160,10 +151,7 @@ func readEnv(contentWithHeader []byte, flags OpenFlags, headerFlagByte bool) (*E
 		payload = payload[:eof]
 	}
 
-	data, err := parseData(payload, flags)
-	if err != nil {
-		return nil, err
-	}
+	data := mylog.Check2(parseData(payload, flags))
 
 	env := &Env{
 		size:           len(contentWithHeader),
@@ -283,10 +271,8 @@ func (env *Env) Save() error {
 	crc := crc32.ChecksumIEEE(w.Bytes())
 
 	// ensure dir sync
-	dir, err := os.Open(filepath.Dir(env.fname))
-	if err != nil {
-		return err
-	}
+	dir := mylog.Check2(os.Open(filepath.Dir(env.fname)))
+
 	defer dir.Close()
 
 	// Note that we overwrite the existing file and do not do
@@ -301,27 +287,16 @@ func (env *Env) Save() error {
 	//
 	// We also do not O_TRUNC to avoid reallocations on the FS
 	// to minimize risk of fs corruption.
-	f, err := os.OpenFile(env.fname, os.O_WRONLY, 0666)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
+	f := mylog.Check2(os.OpenFile(env.fname, os.O_WRONLY, 0666))
 
-	if _, err := f.Write(writeUint32(crc)); err != nil {
-		return err
-	}
+	defer f.Close()
+	mylog.Check2(f.Write(writeUint32(crc)))
+
 	// padding bytes (e.g. for redundant header)
 	pad := make([]byte, headerSize-binary.Size(crc))
-	if _, err := f.Write(pad); err != nil {
-		return err
-	}
-	if _, err := f.Write(w.Bytes()); err != nil {
-		return err
-	}
-
-	if err := f.Sync(); err != nil {
-		return err
-	}
+	mylog.Check2(f.Write(pad))
+	mylog.Check2(f.Write(w.Bytes()))
+	mylog.Check(f.Sync())
 
 	return dir.Sync()
 }

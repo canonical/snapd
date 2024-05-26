@@ -28,6 +28,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 )
@@ -40,41 +41,39 @@ var _ = Suite(&storeSuite{})
 
 func (s *storeSuite) SetUpTest(c *C) {
 	s.configcoreSuite.SetUpTest(c)
+	mylog.Check(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/"), 0755))
 
-	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/"), 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(dirs.GlobalRootDir, "/etc/environment"), nil, 0644))
 
-	err = os.WriteFile(filepath.Join(dirs.GlobalRootDir, "/etc/environment"), nil, 0644)
-	c.Assert(err, IsNil)
 }
 
 func (s *storeSuite) TestStoreAccessHappy(c *C) {
-	err := configcore.Run(coreDev, &mockConf{
+	mylog.Check(configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		changes: map[string]interface{}{
 			"store.access": "offline",
 		},
-	})
-	c.Assert(err, IsNil)
+	}))
 
-	f, err := os.Open(dirs.SnapRepairConfigFile)
-	c.Assert(err, IsNil)
+
+	f := mylog.Check2(os.Open(dirs.SnapRepairConfigFile))
+
 	defer f.Close()
 
 	var repairConfig configcore.RepairConfig
-	err = json.NewDecoder(f).Decode(&repairConfig)
-	c.Assert(err, IsNil)
+	mylog.Check(json.NewDecoder(f).Decode(&repairConfig))
+
 
 	c.Check(repairConfig.StoreOffline, Equals, true)
 }
 
 func (s *storeSuite) TestStoreAccessUnhappy(c *C) {
-	err := configcore.Run(coreDev, &mockConf{
+	mylog.Check(configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		changes: map[string]interface{}{
 			"store.access": "invalid",
 		},
-	})
+	}))
 	c.Assert(err, ErrorMatches, ".*store access can only be set to 'offline'")
 }
 
@@ -86,13 +85,13 @@ func (s *storeSuite) TestFilesystemOnlyApply(c *C) {
 	tmpDir := c.MkDir()
 	c.Assert(configcore.FilesystemOnlyApply(coreDev, tmpDir, conf), IsNil)
 
-	f, err := os.Open(dirs.SnapRepairConfigFileUnder(tmpDir))
-	c.Assert(err, IsNil)
+	f := mylog.Check2(os.Open(dirs.SnapRepairConfigFileUnder(tmpDir)))
+
 	defer f.Close()
 
 	var repairConfig configcore.RepairConfig
-	err = json.NewDecoder(f).Decode(&repairConfig)
-	c.Assert(err, IsNil)
+	mylog.Check(json.NewDecoder(f).Decode(&repairConfig))
+
 
 	c.Check(repairConfig.StoreOffline, Equals, true)
 }

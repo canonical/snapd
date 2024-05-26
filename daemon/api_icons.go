@@ -23,19 +23,18 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
 
-var (
-	appIconCmd = &Command{
-		Path:       "/v2/icons/{name}/icon",
-		GET:        appIconGet,
-		ReadAccess: openAccess{},
-	}
-)
+var appIconCmd = &Command{
+	Path:       "/v2/icons/{name}/icon",
+	GET:        appIconGet,
+	ReadAccess: openAccess{},
+}
 
 func appIconGet(c *Command, r *http.Request, user *auth.UserState) Response {
 	vars := muxVars(r)
@@ -49,13 +48,8 @@ func iconGet(st *state.State, name string) Response {
 	defer st.Unlock()
 
 	var snapst snapstate.SnapState
-	err := snapstate.Get(st, name, &snapst)
-	if err != nil {
-		if errors.Is(err, state.ErrNoState) {
-			return SnapNotFound(name, err)
-		}
-		return InternalError("cannot consult state: %v", err)
-	}
+	mylog.Check(snapstate.Get(st, name, &snapst))
+
 	sideInfo := snapst.CurrentSideInfo()
 	if sideInfo == nil {
 		return NotFound("snap has no current revision")

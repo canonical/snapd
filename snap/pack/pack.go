@@ -25,6 +25,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/kernel"
 	"github.com/snapcore/snapd/logger"
@@ -95,11 +96,9 @@ func debArchitecture(info *snap.Info) string {
 
 // CheckSkeleton attempts to validate snap data in source directory
 func CheckSkeleton(w io.Writer, sourceDir string) error {
-	yaml, err := os.ReadFile(filepath.Join(sourceDir, "meta", "snap.yaml"))
-	if err != nil {
-		return err
-	}
-	info, err := loadAndValidate(sourceDir, yaml)
+	yaml := mylog.Check2(os.ReadFile(filepath.Join(sourceDir, "meta", "snap.yaml")))
+
+	info := mylog.Check2(loadAndValidate(sourceDir, yaml))
 	if err == nil {
 		snap.SanitizePlugsSlots(info)
 		if len(info.BadInterfaces) > 0 {
@@ -112,39 +111,23 @@ func CheckSkeleton(w io.Writer, sourceDir string) error {
 func loadAndValidate(sourceDir string, yaml []byte) (*snap.Info, error) {
 	container := snapdir.New(sourceDir)
 
-	info, err := snap.InfoFromSnapYaml(yaml)
-	if err != nil {
-		return nil, err
-	}
+	info := mylog.Check2(snap.InfoFromSnapYaml(yaml))
+
 	snap.AddImplicitHooksFromContainer(info, container)
-
-	if err := snap.Validate(info); err != nil {
-		return nil, fmt.Errorf("cannot validate snap %q: %v", info.InstanceName(), err)
-	}
-
-	if err := snap.ValidateSnapContainer(container, info, logger.Noticef); err != nil {
-		return nil, err
-	}
-	if _, err := snap.ReadSnapshotYamlFromSnapFile(container); err != nil {
-		return nil, err
-	}
+	mylog.Check(snap.Validate(info))
+	mylog.Check(snap.ValidateSnapContainer(container, info, logger.Noticef))
+	mylog.Check2(snap.ReadSnapshotYamlFromSnapFile(container))
 
 	if info.SnapType == snap.TypeGadget {
 		// TODO:UC20: optionally pass model
 		// TODO:UC20: pass validation constraints which indicate intent
 		//            to have data encrypted
-		ginfo, err := gadget.ReadInfoAndValidate(sourceDir, nil, nil)
-		if err != nil {
-			return nil, err
-		}
-		if err := gadget.ValidateContent(ginfo, sourceDir, ""); err != nil {
-			return nil, err
-		}
+		ginfo := mylog.Check2(gadget.ReadInfoAndValidate(sourceDir, nil, nil))
+		mylog.Check(gadget.ValidateContent(ginfo, sourceDir, ""))
+
 	}
 	if info.SnapType == snap.TypeKernel {
-		if err := kernel.Validate(sourceDir); err != nil {
-			return nil, err
-		}
+		mylog.Check(kernel.Validate(sourceDir))
 	}
 
 	return info, nil
@@ -161,13 +144,10 @@ func snapPath(info *snap.Info, targetDir, snapName string) string {
 }
 
 func excludesFile() (filename string, err error) {
-	tmpf, err := os.CreateTemp("", ".snap-pack-exclude-")
-	if err != nil {
-		return "", err
-	}
+	tmpf := mylog.Check2(os.CreateTemp("", ".snap-pack-exclude-"))
 
 	// inspited by os.WriteFile
-	n, err := tmpf.Write([]byte(excludesContent))
+	n := mylog.Check2(tmpf.Write([]byte(excludesContent)))
 	if err == nil && n < len(excludesContent) {
 		err = io.ErrShortWrite
 	}
@@ -213,81 +193,51 @@ func Pack(sourceDir string, opts *Options) (string, error) {
 
 	// ensure we have valid content
 	packFunc := packSnap
-	yaml, err := os.ReadFile(filepath.Join(sourceDir, "meta", "snap.yaml"))
-	if err != nil {
-		if !os.IsNotExist(err) {
-			return "", err
-		}
-		// Maybe a component?
-		var errComp error
-		if yaml, errComp = os.ReadFile(filepath.Join(sourceDir, "meta", "component.yaml")); errComp != nil {
-			return "", err
-		}
-		packFunc = packComponent
-	}
+	yaml := mylog.Check2(os.ReadFile(filepath.Join(sourceDir, "meta", "snap.yaml")))
+
+	// Maybe a component?
 
 	if opts.TargetDir != "" {
-		if err := os.MkdirAll(opts.TargetDir, 0755); err != nil {
-			return "", err
-		}
+		mylog.Check(os.MkdirAll(opts.TargetDir, 0755))
 	}
 
 	return packFunc(sourceDir, yaml, opts)
 }
 
 func packSnap(sourceDir string, yaml []byte, opts *Options) (string, error) {
-	info, err := loadAndValidate(sourceDir, yaml)
-	if err != nil {
-		return "", err
-	}
+	info := mylog.Check2(loadAndValidate(sourceDir, yaml))
 
 	snapName := snapPath(info, opts.TargetDir, opts.SnapName)
-	if err := mksquashfs(sourceDir, snapName, string(info.Type()), opts); err != nil {
-		return "", err
-	}
+	mylog.Check(mksquashfs(sourceDir, snapName, string(info.Type()), opts))
 
 	return snapName, nil
 }
 
 func packComponent(sourceDir string, yaml []byte, opts *Options) (string, error) {
 	cont := snapdir.New(sourceDir)
-	ci, err := snap.InfoFromComponentYaml(yaml)
-	if err != nil {
-		return "", err
-	}
-	compPath := componentPath(ci, opts.TargetDir, opts.SnapName)
-	if err := snap.ValidateComponentContainer(cont, compPath, logger.Noticef); err != nil {
-		return "", err
-	}
+	ci := mylog.Check2(snap.InfoFromComponentYaml(yaml))
 
-	if err := mksquashfs(sourceDir, compPath, "", opts); err != nil {
-		return "", err
-	}
+	compPath := componentPath(ci, opts.TargetDir, opts.SnapName)
+	mylog.Check(snap.ValidateComponentContainer(cont, compPath, logger.Noticef))
+	mylog.Check(mksquashfs(sourceDir, compPath, "", opts))
 
 	return compPath, nil
 }
 
 func mksquashfs(sourceDir, fName, snapType string, opts *Options) error {
-	excludes, err := excludesFile()
-	if err != nil {
-		return err
-	}
+	excludes := mylog.Check2(excludesFile())
+
 	defer os.Remove(excludes)
 
 	d := squashfs.New(fName)
-	if err := d.Build(sourceDir, &squashfs.BuildOpts{
+	mylog.Check(d.Build(sourceDir, &squashfs.BuildOpts{
 		SnapType:     snapType,
 		Compression:  opts.Compression,
 		ExcludeFiles: []string{excludes},
-	}); err != nil {
-		return err
-	}
+	}))
 
 	if opts.Integrity {
-		err := integrity.GenerateAndAppend(fName)
-		if err != nil {
-			return err
-		}
+		mylog.Check(integrity.GenerateAndAppend(fName))
 	}
 
 	return nil

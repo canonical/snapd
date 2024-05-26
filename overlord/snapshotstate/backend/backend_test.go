@@ -42,6 +42,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
@@ -61,11 +62,15 @@ type snapshotSuite struct {
 }
 
 // silly wrappers to get better failure messages
-type isTestingSuite struct{ snapshotSuite }
-type noTestingSuite struct{ snapshotSuite }
+type (
+	isTestingSuite struct{ snapshotSuite }
+	noTestingSuite struct{ snapshotSuite }
+)
 
-var _ = check.Suite(&isTestingSuite{snapshotSuite{isTesting: true}})
-var _ = check.Suite(&noTestingSuite{snapshotSuite{isTesting: false}})
+var (
+	_ = check.Suite(&isTestingSuite{snapshotSuite{isTesting: true}})
+	_ = check.Suite(&noTestingSuite{snapshotSuite{isTesting: false}})
+)
 
 // tie gocheck into testing
 func TestSnapshot(t *testing.T) { check.TestingT(t) }
@@ -111,7 +116,7 @@ func (s *snapshotSuite) SetUpTest(c *check.C) {
 		c.Check(os.WriteFile(filepath.Join(t.dir, t.name), []byte(t.content), 0644), check.IsNil)
 	}
 
-	cur, err := user.Current()
+	cur := mylog.Check2(user.Current())
 	c.Assert(err, check.IsNil)
 
 	s.restore = append(s.restore, backend.MockUserLookup(func(username string) (*user.User, error) {
@@ -126,7 +131,7 @@ func (s *snapshotSuite) SetUpTest(c *check.C) {
 		backend.MockIsTesting(s.isTesting),
 	)
 
-	s.tarPath, err = exec.LookPath("tar")
+	s.tarPath = mylog.Check2(exec.LookPath("tar"))
 	c.Assert(err, check.IsNil)
 }
 
@@ -148,7 +153,7 @@ func hashkeys(snapshot *client.Snapshot) (keys []string) {
 
 func (s *snapshotSuite) TestLastSnapshotID(c *check.C) {
 	// LastSnapshotSetID is happy without any snapshots
-	setID, err := backend.LastSnapshotSetID()
+	setID := mylog.Check2(backend.LastSnapshotSetID())
 	c.Assert(err, check.IsNil)
 	c.Check(setID, check.Equals, uint64(0))
 
@@ -159,7 +164,7 @@ func (s *snapshotSuite) TestLastSnapshotID(c *check.C) {
 	} {
 		c.Assert(os.WriteFile(filepath.Join(dirs.SnapshotsDir, name), []byte{}, 0644), check.IsNil)
 	}
-	setID, err = backend.LastSnapshotSetID()
+	setID = mylog.Check2(backend.LastSnapshotSetID())
 	c.Assert(err, check.IsNil)
 	c.Check(setID, check.Equals, uint64(12))
 }
@@ -171,7 +176,7 @@ func (s *snapshotSuite) TestLastSnapshotIDErrorOnDirNames(c *check.C) {
 	defer backend.MockDirNames(func(*os.File, int) ([]string, error) {
 		return nil, fmt.Errorf("fail")
 	})()
-	setID, err := backend.LastSnapshotSetID()
+	setID := mylog.Check2(backend.LastSnapshotSetID())
 	c.Assert(err, check.ErrorMatches, "fail")
 	c.Check(setID, check.Equals, uint64(0))
 }
@@ -207,8 +212,7 @@ func (s *snapshotSuite) TestIterBailsIfContextDone(c *check.C) {
 		triedToOpenDir = true
 		return nil, nil // deal with it
 	})()
-
-	err := backend.Iter(ctx, nil)
+	mylog.Check(backend.Iter(ctx, nil))
 	c.Check(err, check.Equals, context.Canceled)
 	c.Check(triedToOpenDir, check.Equals, false)
 }
@@ -231,8 +235,7 @@ func (s *snapshotSuite) TestIterBailsIfContextDoneMidway(c *check.C) {
 		triedToOpenSnapshot = true
 		return nil, nil
 	})()
-
-	err := backend.Iter(ctx, nil)
+	mylog.Check(backend.Iter(ctx, nil))
 	c.Check(err, check.Equals, context.Canceled)
 	c.Check(triedToOpenDir, check.Equals, true)
 	// bails as soon as
@@ -246,8 +249,7 @@ func (s *snapshotSuite) TestIterReturnsOkIfSnapshotsDirNonexistent(c *check.C) {
 		triedToOpenDir = true
 		return nil, os.ErrNotExist
 	})()
-
-	err := backend.Iter(context.Background(), nil)
+	mylog.Check(backend.Iter(context.Background(), nil))
 	c.Check(err, check.IsNil)
 	c.Check(triedToOpenDir, check.Equals, true)
 }
@@ -258,8 +260,7 @@ func (s *snapshotSuite) TestIterBailsIfSnapshotsDirFails(c *check.C) {
 		triedToOpenDir = true
 		return nil, os.ErrInvalid
 	})()
-
-	err := backend.Iter(context.Background(), nil)
+	mylog.Check(backend.Iter(context.Background(), nil))
 	c.Check(err, check.ErrorMatches, "cannot open snapshots directory: invalid argument")
 	c.Check(triedToOpenDir, check.Equals, true)
 }
@@ -291,8 +292,7 @@ func (s *snapshotSuite) TestIterWarnsOnOpenErrorIfSnapshotNil(c *check.C) {
 		calledF = true
 		return nil
 	}
-
-	err := backend.Iter(context.Background(), f)
+	mylog.Check(backend.Iter(context.Background(), f))
 	// snapshot open errors are not failures:
 	c.Check(err, check.IsNil)
 	c.Check(triedToOpenDir, check.Equals, true)
@@ -334,8 +334,7 @@ func (s *snapshotSuite) TestIterCallsFuncIfSnapshotNotNil(c *check.C) {
 		calledF = true
 		return nil
 	}
-
-	err := backend.Iter(context.Background(), f)
+	mylog.Check(backend.Iter(context.Background(), f))
 	// snapshot open errors are not failures:
 	c.Check(err, check.IsNil)
 	c.Check(triedToOpenDir, check.Equals, true)
@@ -375,8 +374,7 @@ func (s *snapshotSuite) TestIterReportsCloseError(c *check.C) {
 		calledF = true
 		return nil
 	}
-
-	err := backend.Iter(context.Background(), f)
+	mylog.Check(backend.Iter(context.Background(), f))
 	// snapshot close errors _are_ failures (because they're completely unexpected):
 	c.Check(err, check.Equals, os.ErrInvalid)
 	c.Check(triedToOpenDir, check.Equals, true)
@@ -390,9 +388,9 @@ func readerForFilename(fname string, c *check.C) *backend.Reader {
 	var snapname string
 	var id uint64
 	fn := strings.TrimSuffix(filepath.Base(fname), ".zip")
-	_, err := fmt.Sscanf(fn, "%d_%s", &id, &snapname)
+	_ := mylog.Check2(fmt.Sscanf(fn, "%d_%s", &id, &snapname))
 	c.Assert(err, check.IsNil, check.Commentf(fn))
-	f, err := os.Open(os.DevNull)
+	f := mylog.Check2(os.Open(os.DevNull))
 	c.Assert(err, check.IsNil, check.Commentf(fn))
 	return &backend.Reader{
 		File: f,
@@ -433,8 +431,7 @@ func (s *snapshotSuite) TestIterIgnoresSnapshotsWithInvalidNames(c *check.C) {
 		c.Check(snapshot.SetID, check.Equals, uint64(43))
 		return nil
 	}
-
-	err := backend.Iter(context.Background(), f)
+	mylog.Check(backend.Iter(context.Background(), f))
 	c.Check(err, check.IsNil)
 	c.Check(logbuf.String(), check.Equals, "")
 	c.Check(calledF, check.Equals, 1)
@@ -450,7 +447,7 @@ func (s *snapshotSuite) TestIterSetIDoverride(c *check.C) {
 	info := &snap.Info{SideInfo: snap.SideInfo{RealName: "hello-snap", Revision: snap.R(42), SnapID: "hello-id"}, Version: "v1.33", Epoch: epoch}
 	cfg := map[string]interface{}{"some-setting": false}
 
-	shw, err := backend.Save(context.TODO(), 12, info, cfg, []string{"snapuser"}, nil, nil)
+	shw := mylog.Check2(backend.Save(context.TODO(), 12, info, cfg, []string{"snapuser"}, nil, nil))
 	c.Assert(err, check.IsNil)
 	c.Check(shw.SetID, check.Equals, uint64(12))
 
@@ -495,9 +492,9 @@ func (s *snapshotSuite) TestList(c *check.C) {
 		var snapname string
 		c.Assert(strings.HasSuffix(fn, ".zip"), check.Equals, true)
 		fn = strings.TrimSuffix(filepath.Base(fn), ".zip")
-		_, err := fmt.Sscanf(fn, "%d_%s", &id, &snapname)
+		_ := mylog.Check2(fmt.Sscanf(fn, "%d_%s", &id, &snapname))
 		c.Assert(err, check.IsNil, check.Commentf(fn))
-		f, err := os.Open(os.DevNull)
+		f := mylog.Check2(os.Open(os.DevNull))
 		c.Assert(err, check.IsNil, check.Commentf(fn))
 		return &backend.Reader{
 			File: f,
@@ -532,7 +529,7 @@ func (s *snapshotSuite) TestList(c *check.C) {
 		readNames = 0
 		logbuf.Reset()
 
-		sets, err := backend.List(context.Background(), t.setID, t.snapnames)
+		sets := mylog.Check2(backend.List(context.Background(), t.setID, t.snapnames))
 		c.Check(err, check.IsNil, comm)
 		c.Check(readNames, check.Equals, 5, comm)
 		c.Check(logbuf.String(), check.Equals, "", comm)
@@ -609,7 +606,7 @@ func (s *snapshotSuite) TestAddDirToZip(c *check.C) {
 	c.Check(snapshot.SHA3_384["an/entry"], check.HasLen, 96)
 	c.Check(snapshot.Size > 0, check.Equals, true) // actual size most likely system-dependent
 	br := bytes.NewReader(buf.Bytes())
-	r, err := zip.NewReader(br, int64(br.Len()))
+	r := mylog.Check2(zip.NewReader(br, int64(br.Len())))
 	c.Assert(err, check.IsNil)
 	c.Check(r.File, check.HasLen, 1)
 	c.Check(r.File[0].Name, check.Equals, "an/entry")
@@ -679,8 +676,7 @@ func (s *snapshotSuite) TestAddDirToZipExclusions(c *check.C) {
 		},
 	} {
 		testLabel := check.Commentf("%s/%v", testData.excludes, testData.savingUserData)
-
-		err := backend.AddSnapDirToZip(context.Background(), snapshot, z, "", "an/entry", s.root, testData.savingUserData, testData.excludes)
+		mylog.Check(backend.AddSnapDirToZip(context.Background(), snapshot, z, "", "an/entry", s.root, testData.savingUserData, testData.excludes))
 		c.Check(err, check.ErrorMatches, "tar failed.*")
 		c.Check(tarArgs, check.DeepEquals, testData.expectedArgs, testLabel)
 	}
@@ -732,7 +728,7 @@ func (s *snapshotSuite) testHappyRoundtrip(c *check.C, marker string) {
 		return statSnapshotOpts, nil
 	})()
 
-	shw, err := backend.Save(context.TODO(), shID, info, cfg, []string{"snapuser"}, dynSnapshotOpts, nil)
+	shw := mylog.Check2(backend.Save(context.TODO(), shID, info, cfg, []string{"snapuser"}, dynSnapshotOpts, nil))
 	c.Assert(err, check.IsNil)
 	c.Check(shw.SetID, check.Equals, shID)
 	c.Check(shw.Snap, check.Equals, info.InstanceName())
@@ -748,12 +744,12 @@ func (s *snapshotSuite) testHappyRoundtrip(c *check.C, marker string) {
 	c.Check(statSnapshotOpts.Exclude, check.DeepEquals, mergedExcludes)
 	c.Check(readSnapshotYamlCalled, check.Equals, 1)
 
-	shs, err := backend.List(context.TODO(), 0, nil)
+	shs := mylog.Check2(backend.List(context.TODO(), 0, nil))
 	c.Assert(err, check.IsNil)
 	c.Assert(shs, check.HasLen, 1)
 	c.Assert(shs[0].Snapshots, check.HasLen, 1)
 
-	shr, err := backend.Open(backend.Filename(shw), backend.ExtractFnameSetID)
+	shr := mylog.Check2(backend.Open(backend.Filename(shw), backend.ExtractFnameSetID))
 	c.Assert(err, check.IsNil)
 	defer shr.Close()
 
@@ -777,7 +773,7 @@ func (s *snapshotSuite) testHappyRoundtrip(c *check.C, marker string) {
 	c.Assert(os.MkdirAll(filepath.Join(newroot, "home/snapuser"), 0755), check.IsNil)
 	dirs.SetRootDir(newroot)
 
-	var diff = func() *exec.Cmd {
+	diff := func() *exec.Cmd {
 		cmd := exec.Command("diff", "-urN", "-x*.zip", s.root, newroot)
 		// cmd.Stdout = os.Stdout
 		// cmd.Stderr = os.Stderr
@@ -790,7 +786,7 @@ func (s *snapshotSuite) testHappyRoundtrip(c *check.C, marker string) {
 		c.Check(diff().Run(), check.NotNil, comm)
 
 		// restore leaves things like they were (again and again)
-		rs, err := shr.Restore(context.TODO(), snap.R(0), nil, logger.Debugf, nil)
+		rs := mylog.Check2(shr.Restore(context.TODO(), snap.R(0), nil, logger.Debugf, nil))
 		c.Assert(err, check.IsNil, comm)
 		rs.Cleanup()
 		c.Check(diff().Run(), check.IsNil, comm)
@@ -810,14 +806,14 @@ func (s *snapshotSuite) TestOpenSetIDoverride(c *check.C) {
 	info := &snap.Info{SideInfo: snap.SideInfo{RealName: "hello-snap", Revision: snap.R(42), SnapID: "hello-id"}, Version: "v1.33", Epoch: epoch}
 	cfg := map[string]interface{}{"some-setting": false}
 
-	shw, err := backend.Save(context.TODO(), 12, info, cfg, []string{"snapuser"}, nil, nil)
+	shw := mylog.Check2(backend.Save(context.TODO(), 12, info, cfg, []string{"snapuser"}, nil, nil))
 	c.Assert(err, check.IsNil)
 	c.Check(shw.SetID, check.Equals, uint64(12))
 
 	c.Check(backend.Filename(shw), check.Equals, filepath.Join(dirs.SnapshotsDir, "12_hello-snap_v1.33_42.zip"))
 	c.Check(hashkeys(shw), check.DeepEquals, []string{"archive.tgz", "user/snapuser.tgz"})
 
-	shr, err := backend.Open(backend.Filename(shw), 99)
+	shr := mylog.Check2(backend.Open(backend.Filename(shw), 99))
 	c.Assert(err, check.IsNil)
 	defer shr.Close()
 
@@ -834,11 +830,11 @@ func (s *snapshotSuite) TestRestoreRoundtripDifferentRevision(c *check.C) {
 	info := &snap.Info{SideInfo: snap.SideInfo{RealName: "hello-snap", Revision: snap.R(42), SnapID: "hello-id"}, Version: "v1.33", Epoch: epoch}
 	shID := uint64(12)
 
-	shw, err := backend.Save(context.TODO(), shID, info, nil, []string{"snapuser"}, nil, nil)
+	shw := mylog.Check2(backend.Save(context.TODO(), shID, info, nil, []string{"snapuser"}, nil, nil))
 	c.Assert(err, check.IsNil)
 	c.Check(shw.Revision, check.Equals, info.Revision)
 
-	shr, err := backend.Open(backend.Filename(shw), backend.ExtractFnameSetID)
+	shr := mylog.Check2(backend.Open(backend.Filename(shw), backend.ExtractFnameSetID))
 	c.Assert(err, check.IsNil)
 	defer shr.Close()
 
@@ -857,7 +853,7 @@ func (s *snapshotSuite) TestRestoreRoundtripDifferentRevision(c *check.C) {
 	c.Assert(os.MkdirAll(filepath.Join(newroot, "home", "snapuser"), 0755), check.IsNil)
 	dirs.SetRootDir(newroot)
 
-	var diff = func() *exec.Cmd {
+	diff := func() *exec.Cmd {
 		cmd := exec.Command("diff", "-urN", "-x*.zip", s.root, newroot)
 		// cmd.Stdout = os.Stdout
 		// cmd.Stderr = os.Stderr
@@ -868,7 +864,7 @@ func (s *snapshotSuite) TestRestoreRoundtripDifferentRevision(c *check.C) {
 	c.Check(diff().Run(), check.NotNil)
 
 	// restore leaves things like they were, but in the new dir
-	rs, err := shr.Restore(context.TODO(), snap.R("17"), nil, logger.Debugf, nil)
+	rs := mylog.Check2(shr.Restore(context.TODO(), snap.R("17"), nil, logger.Debugf, nil))
 	c.Assert(err, check.IsNil)
 	rs.Cleanup()
 	c.Check(diff().Run(), check.IsNil)
@@ -994,17 +990,17 @@ func (s *snapshotSuite) TestImport(c *check.C) {
 
 	// create snapshot export file
 	tarFile1 := path.Join(tempdir, "exported1.snapshot")
-	err := createTestExportFile(tarFile1, &createTestExportFlags{exportJSON: true})
+	mylog.Check(createTestExportFile(tarFile1, &createTestExportFlags{exportJSON: true}))
 	c.Check(err, check.IsNil)
 
 	// create an exported snapshot with missing export.json
 	tarFile2 := path.Join(tempdir, "exported2.snapshot")
-	err = createTestExportFile(tarFile2, &createTestExportFlags{})
+	mylog.Check(createTestExportFile(tarFile2, &createTestExportFlags{}))
 	c.Check(err, check.IsNil)
 
 	// create invalid exported file
 	tarFile3 := path.Join(tempdir, "exported3.snapshot")
-	err = os.WriteFile(tarFile3, []byte("invalid"), 0755)
+	mylog.Check(os.WriteFile(tarFile3, []byte("invalid"), 0755))
 	c.Check(err, check.IsNil)
 
 	// create an exported snapshot with a directory
@@ -1013,7 +1009,7 @@ func (s *snapshotSuite) TestImport(c *check.C) {
 		exportJSON: true,
 		withDir:    true,
 	}
-	err = createTestExportFile(tarFile4, flags)
+	mylog.Check(createTestExportFile(tarFile4, flags))
 	c.Check(err, check.IsNil)
 
 	// create an exported snapshot with parent path element
@@ -1022,7 +1018,7 @@ func (s *snapshotSuite) TestImport(c *check.C) {
 		exportJSON: true,
 		withParent: true,
 	}
-	err = createTestExportFile(tarFile5, flags)
+	mylog.Check(createTestExportFile(tarFile5, flags))
 	c.Check(err, check.IsNil)
 
 	type tableT struct {
@@ -1043,26 +1039,27 @@ func (s *snapshotSuite) TestImport(c *check.C) {
 
 	for i, t := range table {
 		comm := check.Commentf("%d: %d %s", i, t.setID, t.filename)
+		mylog.Check(
 
-		// reset
-		err = os.RemoveAll(dirs.SnapshotsDir)
+			// reset
+			os.RemoveAll(dirs.SnapshotsDir))
 		c.Assert(err, check.IsNil, comm)
 		importingFile := filepath.Join(dirs.SnapshotsDir, fmt.Sprintf("%d_importing", t.setID))
 		if t.inProgress {
-			err := os.MkdirAll(dirs.SnapshotsDir, 0700)
+			mylog.Check(os.MkdirAll(dirs.SnapshotsDir, 0700))
 			c.Assert(err, check.IsNil, comm)
-			err = os.WriteFile(importingFile, nil, 0644)
+			mylog.Check(os.WriteFile(importingFile, nil, 0644))
 			c.Assert(err, check.IsNil)
 		} else {
-			err = os.RemoveAll(importingFile)
+			mylog.Check(os.RemoveAll(importingFile))
 			c.Assert(err, check.IsNil, comm)
 		}
 
-		f, err := os.Open(t.filename)
+		f := mylog.Check2(os.Open(t.filename))
 		c.Assert(err, check.IsNil, comm)
 		defer f.Close()
 
-		snapNames, err := backend.Import(context.Background(), t.setID, f, nil)
+		snapNames := mylog.Check2(backend.Import(context.Background(), t.setID, f, nil))
 		if t.error != "" {
 			c.Check(err, check.ErrorMatches, t.error, comm)
 			continue
@@ -1071,17 +1068,17 @@ func (s *snapshotSuite) TestImport(c *check.C) {
 		sort.Strings(snapNames)
 		c.Check(snapNames, check.DeepEquals, []string{"bar", "baz", "foo"})
 
-		dir, err := os.Open(dirs.SnapshotsDir)
+		dir := mylog.Check2(os.Open(dirs.SnapshotsDir))
 		c.Assert(err, check.IsNil, comm)
 		defer dir.Close()
-		names, err := dir.Readdirnames(100)
+		names := mylog.Check2(dir.Readdirnames(100))
 		c.Assert(err, check.IsNil, comm)
 		c.Check(len(names), check.Equals, 3, comm)
 	}
 }
 
 func (s *snapshotSuite) TestImportCheckError(c *check.C) {
-	err := os.MkdirAll(dirs.SnapshotsDir, 0755)
+	mylog.Check(os.MkdirAll(dirs.SnapshotsDir, 0755))
 	c.Assert(err, check.IsNil)
 
 	// create snapshot export file
@@ -1090,17 +1087,17 @@ func (s *snapshotSuite) TestImportCheckError(c *check.C) {
 		exportJSON:      true,
 		corruptChecksum: true,
 	}
-	err = createTestExportFile(tarFile1, flags)
+	mylog.Check(createTestExportFile(tarFile1, flags))
 	c.Assert(err, check.IsNil)
 
-	f, err := os.Open(tarFile1)
+	f := mylog.Check2(os.Open(tarFile1))
 	c.Assert(err, check.IsNil)
-	_, err = backend.Import(context.Background(), 14, f, nil)
+	_ = mylog.Check2(backend.Import(context.Background(), 14, f, nil))
 	c.Assert(err, check.ErrorMatches, `cannot import snapshot 14: validation failed for .+/14_foo_1.0_199.zip": snapshot entry "archive.tgz" expected hash \(d5ef563…\) does not match actual \(6655519…\)`)
 }
 
 func (s *snapshotSuite) TestImportDuplicated(c *check.C) {
-	err := os.MkdirAll(dirs.SnapshotsDir, 0755)
+	mylog.Check(os.MkdirAll(dirs.SnapshotsDir, 0755))
 	c.Assert(err, check.IsNil)
 
 	ctx := context.TODO()
@@ -1109,12 +1106,12 @@ func (s *snapshotSuite) TestImportDuplicated(c *check.C) {
 	info := &snap.Info{SideInfo: snap.SideInfo{RealName: "hello-snap", Revision: snap.R(42), SnapID: "hello-id"}, Version: "v1.33", Epoch: epoch}
 	shID := uint64(12)
 
-	shw, err := backend.Save(ctx, shID, info, nil, []string{"snapuser"}, nil, nil)
+	shw := mylog.Check2(backend.Save(ctx, shID, info, nil, []string{"snapuser"}, nil, nil))
 	c.Assert(err, check.IsNil)
 
-	export, err := backend.NewSnapshotExport(ctx, shw.SetID)
+	export := mylog.Check2(backend.NewSnapshotExport(ctx, shw.SetID))
 	c.Assert(err, check.IsNil)
-	err = export.Init()
+	mylog.Check(export.Init())
 	c.Assert(err, check.IsNil)
 
 	buf := bytes.NewBuffer(nil)
@@ -1122,14 +1119,14 @@ func (s *snapshotSuite) TestImportDuplicated(c *check.C) {
 	c.Check(buf.Len(), check.Equals, int(export.Size()))
 
 	// now import it
-	_, err = backend.Import(ctx, 123, buf, nil)
+	_ = mylog.Check2(backend.Import(ctx, 123, buf, nil))
 	dupErr, ok := err.(backend.DuplicatedSnapshotImportError)
 	c.Assert(ok, check.Equals, true)
 	c.Assert(dupErr, check.DeepEquals, backend.DuplicatedSnapshotImportError{SetID: shID, SnapNames: []string{"hello-snap"}})
 }
 
 func (s *snapshotSuite) TestImportExportRoundtrip(c *check.C) {
-	err := os.MkdirAll(dirs.SnapshotsDir, 0755)
+	mylog.Check(os.MkdirAll(dirs.SnapshotsDir, 0755))
 	c.Assert(err, check.IsNil)
 
 	ctx := context.TODO()
@@ -1139,16 +1136,16 @@ func (s *snapshotSuite) TestImportExportRoundtrip(c *check.C) {
 	cfg := map[string]interface{}{"some-setting": false}
 	shID := uint64(12)
 
-	shw, err := backend.Save(ctx, shID, info, cfg, []string{"snapuser"}, nil, nil)
+	shw := mylog.Check2(backend.Save(ctx, shID, info, cfg, []string{"snapuser"}, nil, nil))
 	c.Assert(err, check.IsNil)
 	c.Check(shw.SetID, check.Equals, shID)
 
 	c.Check(backend.Filename(shw), check.Equals, filepath.Join(dirs.SnapshotsDir, "12_hello-snap_v1.33_42.zip"))
 	c.Check(hashkeys(shw), check.DeepEquals, []string{"archive.tgz", "user/snapuser.tgz"})
 
-	export, err := backend.NewSnapshotExport(ctx, shw.SetID)
+	export := mylog.Check2(backend.NewSnapshotExport(ctx, shw.SetID))
 	c.Assert(err, check.IsNil)
-	err = export.Init()
+	mylog.Check(export.Init())
 	c.Assert(err, check.IsNil)
 
 	buf := bytes.NewBuffer(nil)
@@ -1158,16 +1155,16 @@ func (s *snapshotSuite) TestImportExportRoundtrip(c *check.C) {
 	// now import it
 	c.Assert(os.Remove(filepath.Join(dirs.SnapshotsDir, "12_hello-snap_v1.33_42.zip")), check.IsNil)
 
-	names, err := backend.Import(ctx, 123, buf, nil)
+	names := mylog.Check2(backend.Import(ctx, 123, buf, nil))
 	c.Assert(err, check.IsNil)
 	c.Check(names, check.DeepEquals, []string{"hello-snap"})
 
-	sets, err := backend.List(ctx, 0, nil)
+	sets := mylog.Check2(backend.List(ctx, 0, nil))
 	c.Assert(err, check.IsNil)
 	c.Assert(sets, check.HasLen, 1)
 	c.Check(sets[0].ID, check.Equals, uint64(123))
 
-	rdr, err := backend.Open(filepath.Join(dirs.SnapshotsDir, "123_hello-snap_v1.33_42.zip"), backend.ExtractFnameSetID)
+	rdr := mylog.Check2(backend.Open(filepath.Join(dirs.SnapshotsDir, "123_hello-snap_v1.33_42.zip"), backend.ExtractFnameSetID))
 	defer rdr.Close()
 	c.Check(err, check.IsNil)
 	c.Check(rdr.SetID, check.Equals, uint64(123))
@@ -1176,14 +1173,14 @@ func (s *snapshotSuite) TestImportExportRoundtrip(c *check.C) {
 }
 
 func (s *snapshotSuite) TestEstimateSnapshotSize(c *check.C) {
-
 	for _, t := range []struct {
 		snapDir string
 		opts    *dirs.SnapDirOptions
 	}{
 		{dirs.UserHomeSnapDir, nil},
 		{dirs.UserHomeSnapDir, &dirs.SnapDirOptions{HiddenSnapDataDir: false}},
-		{dirs.HiddenSnapDataHomeDir, &dirs.SnapDirOptions{HiddenSnapDataDir: true}}} {
+		{dirs.HiddenSnapDataHomeDir, &dirs.SnapDirOptions{HiddenSnapDataDir: true}},
+	} {
 		s.testEstimateSnapshotSize(c, t.snapDir, t.opts)
 	}
 }
@@ -1194,7 +1191,7 @@ func (s *snapshotSuite) testEstimateSnapshotSize(c *check.C, snapDataDir string,
 	})
 	defer restore()
 
-	var info = &snap.Info{
+	info := &snap.Info{
 		SuggestedName: "foo",
 		SideInfo: snap.SideInfo{
 			Revision: snap.R(7),
@@ -1219,7 +1216,7 @@ func (s *snapshotSuite) testEstimateSnapshotSize(c *check.C, snapDataDir string,
 		c.Assert(os.WriteFile(filepath.Join(s.root, d, "somefile"), data, 0644), check.IsNil)
 	}
 
-	sz, err := backend.EstimateSnapshotSize(info, nil, opts)
+	sz := mylog.Check2(backend.EstimateSnapshotSize(info, nil, opts))
 	c.Assert(err, check.IsNil)
 	c.Check(sz, check.Equals, uint64(expected))
 }
@@ -1230,7 +1227,7 @@ func (s *snapshotSuite) TestEstimateSnapshotSizeEmpty(c *check.C) {
 	})
 	defer restore()
 
-	var info = &snap.Info{
+	info := &snap.Info{
 		SuggestedName: "foo",
 		SideInfo: snap.SideInfo{
 			Revision: snap.R(7),
@@ -1247,7 +1244,7 @@ func (s *snapshotSuite) TestEstimateSnapshotSizeEmpty(c *check.C) {
 		c.Assert(os.MkdirAll(filepath.Join(s.root, d), 0755), check.IsNil)
 	}
 
-	sz, err := backend.EstimateSnapshotSize(info, nil, nil)
+	sz := mylog.Check2(backend.EstimateSnapshotSize(info, nil, nil))
 	c.Assert(err, check.IsNil)
 	c.Check(sz, check.Equals, uint64(0))
 }
@@ -1260,14 +1257,14 @@ func (s *snapshotSuite) TestEstimateSnapshotPassesUsernames(c *check.C) {
 	})
 	defer restore()
 
-	var info = &snap.Info{
+	info := &snap.Info{
 		SuggestedName: "foo",
 		SideInfo: snap.SideInfo{
 			Revision: snap.R(7),
 		},
 	}
 
-	_, err := backend.EstimateSnapshotSize(info, []string{"user1", "user2"}, nil)
+	_ := mylog.Check2(backend.EstimateSnapshotSize(info, []string{"user1", "user2"}, nil))
 	c.Assert(err, check.IsNil)
 	c.Check(gotUsernames, check.DeepEquals, []string{"user1", "user2"})
 }
@@ -1278,12 +1275,12 @@ func (s *snapshotSuite) TestEstimateSnapshotSizeNotDataDirs(c *check.C) {
 	})
 	defer restore()
 
-	var info = &snap.Info{
+	info := &snap.Info{
 		SuggestedName: "foo",
 		SideInfo:      snap.SideInfo{Revision: snap.R(7)},
 	}
 
-	sz, err := backend.EstimateSnapshotSize(info, nil, nil)
+	sz := mylog.Check2(backend.EstimateSnapshotSize(info, nil, nil))
 	c.Assert(err, check.IsNil)
 	c.Check(sz, check.Equals, uint64(0))
 }
@@ -1300,7 +1297,7 @@ func (s *snapshotSuite) TestExportTwice(c *check.C) {
 	}
 	// create a snapshot
 	shID := uint64(12)
-	_, err := backend.Save(context.TODO(), shID, info, nil, []string{"snapuser"}, nil, nil)
+	_ := mylog.Check2(backend.Save(context.TODO(), shID, info, nil, []string{"snapuser"}, nil, nil))
 	c.Assert(err, check.IsNil)
 
 	// content.json + num_files + export.json + footer
@@ -1311,13 +1308,14 @@ func (s *snapshotSuite) TestExportTwice(c *check.C) {
 	// export once
 	buf := bytes.NewBuffer(nil)
 	ctx := context.Background()
-	se, err := backend.NewSnapshotExport(ctx, shID)
+	se := mylog.Check2(backend.NewSnapshotExport(ctx, shID))
 	c.Assert(err, check.IsNil)
-	err = se.Init()
+	mylog.Check(se.Init())
 	c.Assert(err, check.IsNil)
 	c.Check(se.Size(), check.Equals, expectedSize)
-	// and we can stream the data
-	err = se.StreamTo(buf)
+	mylog.
+		// and we can stream the data
+		Check(se.StreamTo(buf))
 	c.Check(err, check.IsNil)
 	c.Check(buf.Len(), check.Equals, int(expectedSize))
 
@@ -1328,20 +1326,20 @@ func (s *snapshotSuite) TestExportTwice(c *check.C) {
 	// change.
 	restore = backend.MockTimeNow(func() time.Time { return time.Date(2242, 1, 1, 12, 0, 0, 0, time.UTC) })
 	defer restore()
-	se2, err := backend.NewSnapshotExport(ctx, shID)
+	se2 := mylog.Check2(backend.NewSnapshotExport(ctx, shID))
 	c.Assert(err, check.IsNil)
-	err = se2.Init()
+	mylog.Check(se2.Init())
 	c.Assert(err, check.IsNil)
 	c.Check(se2.Size(), check.Equals, expectedSize)
 	// and we can stream the data
 	buf.Reset()
-	err = se2.StreamTo(buf)
+	mylog.Check(se2.StreamTo(buf))
 	c.Assert(err, check.IsNil)
 	c.Check(buf.Len(), check.Equals, int(expectedSize))
 }
 
 func (s *snapshotSuite) TestExportUnhappy(c *check.C) {
-	se, err := backend.NewSnapshotExport(context.Background(), 5)
+	se := mylog.Check2(backend.NewSnapshotExport(context.Background(), 5))
 	c.Assert(err, check.ErrorMatches, "no snapshot data found for 5")
 	c.Assert(se, check.IsNil)
 }
@@ -1354,10 +1352,8 @@ type createTestExportFlags struct {
 }
 
 func createTestExportFile(filename string, flags *createTestExportFlags) error {
-	tf, err := os.Create(filename)
-	if err != nil {
-		return err
-	}
+	tf := mylog.Check2(os.Create(filename))
+
 	defer tf.Close()
 	tw := tar.NewWriter(tf)
 	defer tw.Close()
@@ -1372,16 +1368,12 @@ func createTestExportFile(filename string, flags *createTestExportFlags) error {
 		sha := map[string]string{}
 
 		// create test archive.tgz
-		archiveWriter, err := zipW.CreateHeader(&zip.FileHeader{Name: "archive.tgz"})
-		if err != nil {
-			return err
-		}
+		archiveWriter := mylog.Check2(zipW.CreateHeader(&zip.FileHeader{Name: "archive.tgz"}))
+
 		var sz osutil.Sizer
 		hasher := crypto.SHA3_384.New()
 		out := io.MultiWriter(archiveWriter, hasher, &sz)
-		if _, err := out.Write([]byte(s)); err != nil {
-			return err
-		}
+		mylog.Check2(out.Write([]byte(s)))
 
 		if flags.corruptChecksum {
 			hasher.Write([]byte{0})
@@ -1391,21 +1383,15 @@ func createTestExportFile(filename string, flags *createTestExportFlags) error {
 		snapshot := backend.MockSnapshot(5, s, snap.Revision{N: 199}, sz.Size(), sha)
 
 		// create meta.json
-		metaWriter, err := zipW.Create("meta.json")
-		if err != nil {
-			return err
-		}
+		metaWriter := mylog.Check2(zipW.Create("meta.json"))
+
 		hasher = crypto.SHA3_384.New()
 		enc := json.NewEncoder(io.MultiWriter(metaWriter, hasher))
-		if err := enc.Encode(snapshot); err != nil {
-			return err
-		}
+		mylog.Check(enc.Encode(snapshot))
 
 		// write meta.sha3_384
-		metaSha3Writer, err := zipW.Create("meta.sha3_384")
-		if err != nil {
-			return err
-		}
+		metaSha3Writer := mylog.Check2(zipW.Create("meta.sha3_384"))
+
 		fmt.Fprintf(metaSha3Writer, "%x\n", hasher.Sum(nil))
 		zipW.Close()
 
@@ -1414,12 +1400,9 @@ func createTestExportFile(filename string, flags *createTestExportFlags) error {
 			Mode: 0644,
 			Size: int64(buf.Len()),
 		}
-		if err := tw.WriteHeader(hdr); err != nil {
-			return err
-		}
-		if _, err := tw.Write(buf.Bytes()); err != nil {
-			return err
-		}
+		mylog.Check(tw.WriteHeader(hdr))
+		mylog.Check2(tw.Write(buf.Bytes()))
+
 	}
 
 	if flags.withDir {
@@ -1429,12 +1412,9 @@ func createTestExportFile(filename string, flags *createTestExportFlags) error {
 			Size:     int64(0),
 			Typeflag: tar.TypeDir,
 		}
-		if err := tw.WriteHeader(hdr); err != nil {
-			return err
-		}
-		if _, err = tw.Write([]byte("")); err != nil {
-			return nil
-		}
+		mylog.Check(tw.WriteHeader(hdr))
+		mylog.Check2(tw.Write([]byte("")))
+
 	}
 
 	if flags.withParent {
@@ -1443,12 +1423,9 @@ func createTestExportFile(filename string, flags *createTestExportFlags) error {
 			Mode: 0644,
 			Size: int64(0),
 		}
-		if err := tw.WriteHeader(hdr); err != nil {
-			return err
-		}
-		if _, err = tw.Write([]byte("")); err != nil {
-			return nil
-		}
+		mylog.Check(tw.WriteHeader(hdr))
+		mylog.Check2(tw.Write([]byte("")))
+
 	}
 
 	if flags.exportJSON {
@@ -1458,12 +1435,9 @@ func createTestExportFile(filename string, flags *createTestExportFlags) error {
 			Mode: 0644,
 			Size: int64(len(exp)),
 		}
-		if err := tw.WriteHeader(hdr); err != nil {
-			return err
-		}
-		if _, err = tw.Write([]byte(exp)); err != nil {
-			return nil
-		}
+		mylog.Check(tw.WriteHeader(hdr))
+		mylog.Check2(tw.Write([]byte(exp)))
+
 	}
 
 	return nil
@@ -1474,15 +1448,15 @@ func makeMockSnapshotZipContent(c *check.C) []byte {
 	zipW := zip.NewWriter(buf)
 
 	// create test archive.tgz
-	archiveWriter, err := zipW.CreateHeader(&zip.FileHeader{Name: "archive.tgz"})
+	archiveWriter := mylog.Check2(zipW.CreateHeader(&zip.FileHeader{Name: "archive.tgz"}))
 	c.Assert(err, check.IsNil)
-	_, err = archiveWriter.Write([]byte("mock archive.tgz content"))
+	_ = mylog.Check2(archiveWriter.Write([]byte("mock archive.tgz content")))
 	c.Assert(err, check.IsNil)
 
 	// create test meta.json
-	archiveWriter, err = zipW.CreateHeader(&zip.FileHeader{Name: "meta.json"})
+	archiveWriter = mylog.Check2(zipW.CreateHeader(&zip.FileHeader{Name: "meta.json"}))
 	c.Assert(err, check.IsNil)
-	_, err = archiveWriter.Write([]byte("{}"))
+	_ = mylog.Check2(archiveWriter.Write([]byte("{}")))
 	c.Assert(err, check.IsNil)
 
 	zipW.Close()
@@ -1490,11 +1464,11 @@ func makeMockSnapshotZipContent(c *check.C) []byte {
 }
 
 func (s *snapshotSuite) TestIterWithMockedSnapshotFiles(c *check.C) {
-	err := os.MkdirAll(dirs.SnapshotsDir, 0755)
+	mylog.Check(os.MkdirAll(dirs.SnapshotsDir, 0755))
 	c.Assert(err, check.IsNil)
 
 	fn := "1_hello_1.0_x1.zip"
-	err = os.WriteFile(filepath.Join(dirs.SnapshotsDir, fn), makeMockSnapshotZipContent(c), 0644)
+	mylog.Check(os.WriteFile(filepath.Join(dirs.SnapshotsDir, fn), makeMockSnapshotZipContent(c), 0644))
 	c.Assert(err, check.IsNil)
 
 	callbackCalled := 0
@@ -1502,25 +1476,25 @@ func (s *snapshotSuite) TestIterWithMockedSnapshotFiles(c *check.C) {
 		callbackCalled++
 		return nil
 	}
-
-	err = backend.Iter(context.Background(), f)
+	mylog.Check(backend.Iter(context.Background(), f))
 	c.Check(err, check.IsNil)
 	c.Check(callbackCalled, check.Equals, 1)
 
 	// now pretend we are importing snapshot id 1
 	callbackCalled = 0
 	fn = "1_importing"
-	err = os.WriteFile(filepath.Join(dirs.SnapshotsDir, fn), nil, 0644)
+	mylog.Check(os.WriteFile(filepath.Join(dirs.SnapshotsDir, fn), nil, 0644))
 	c.Assert(err, check.IsNil)
+	mylog.
 
-	// and while importing Iter() does not call the callback
-	err = backend.Iter(context.Background(), f)
+		// and while importing Iter() does not call the callback
+		Check(backend.Iter(context.Background(), f))
 	c.Check(err, check.IsNil)
 	c.Check(callbackCalled, check.Equals, 0)
 }
 
 func (s *snapshotSuite) TestCleanupAbandonedImports(c *check.C) {
-	err := os.MkdirAll(dirs.SnapshotsDir, 0755)
+	mylog.Check(os.MkdirAll(dirs.SnapshotsDir, 0755))
 	c.Assert(err, check.IsNil)
 
 	// create 2 snapshot IDs 1,2
@@ -1529,24 +1503,24 @@ func (s *snapshotSuite) TestCleanupAbandonedImports(c *check.C) {
 		fn := fmt.Sprintf("%d_hello_%d.0_x1.zip", i, i)
 		p := filepath.Join(dirs.SnapshotsDir, fn)
 		snapshotFiles[i] = append(snapshotFiles[i], p)
-		err = os.WriteFile(p, makeMockSnapshotZipContent(c), 0644)
+		mylog.Check(os.WriteFile(p, makeMockSnapshotZipContent(c), 0644))
 		c.Assert(err, check.IsNil)
 
 		fn = fmt.Sprintf("%d_olleh_%d.0_x1.zip", i, i)
 		p = filepath.Join(dirs.SnapshotsDir, fn)
 		snapshotFiles[i] = append(snapshotFiles[i], p)
-		err = os.WriteFile(p, makeMockSnapshotZipContent(c), 0644)
+		mylog.Check(os.WriteFile(p, makeMockSnapshotZipContent(c), 0644))
 		c.Assert(err, check.IsNil)
 	}
 
 	// pretend setID 2 has a import file which means which means that
 	// an import was started in the past but did not complete
 	fn := "2_importing"
-	err = os.WriteFile(filepath.Join(dirs.SnapshotsDir, fn), nil, 0644)
+	mylog.Check(os.WriteFile(filepath.Join(dirs.SnapshotsDir, fn), nil, 0644))
 	c.Assert(err, check.IsNil)
 
 	// run cleanup
-	cleaned, err := backend.CleanupAbandonedImports()
+	cleaned := mylog.Check2(backend.CleanupAbandonedImports())
 	c.Check(cleaned, check.Equals, 1)
 	c.Check(err, check.IsNil)
 
@@ -1568,7 +1542,7 @@ func (s *snapshotSuite) TestCleanupAbandonedImportsFailMany(c *check.C) {
 	})
 	defer restore()
 
-	_, err := backend.CleanupAbandonedImports()
+	_ := mylog.Check2(backend.CleanupAbandonedImports())
 	c.Assert(err, check.ErrorMatches, `cannot cleanup imports:
 - cannot determine snapshot id from "/var/lib/snapd/snapshots/NaN_importing"
 - cannot cancel import for set id 11:
@@ -1647,16 +1621,16 @@ func (s *snapshotSuite) TestSnapshotExportContentHash(c *check.C) {
 		Version: "v1.33",
 	}
 	shID := uint64(12)
-	shw, err := backend.Save(ctx, shID, info, nil, []string{"snapuser"}, nil, nil)
+	shw := mylog.Check2(backend.Save(ctx, shID, info, nil, []string{"snapuser"}, nil, nil))
 	c.Check(err, check.IsNil)
 
 	// now export it
-	export, err := backend.NewSnapshotExport(ctx, shw.SetID)
+	export := mylog.Check2(backend.NewSnapshotExport(ctx, shw.SetID))
 	c.Assert(err, check.IsNil)
 	c.Check(export.ContentHash(), check.HasLen, sha256.Size)
 
 	// and check that exporting it again leads to the same content hash
-	export2, err := backend.NewSnapshotExport(ctx, shw.SetID)
+	export2 := mylog.Check2(backend.NewSnapshotExport(ctx, shw.SetID))
 	c.Assert(err, check.IsNil)
 	c.Check(export.ContentHash(), check.DeepEquals, export2.ContentHash())
 
@@ -1669,10 +1643,10 @@ func (s *snapshotSuite) TestSnapshotExportContentHash(c *check.C) {
 		},
 		Version: "v1.33",
 	}
-	shw, err = backend.Save(ctx, shID, info, nil, []string{"snapuser"}, nil, nil)
+	shw = mylog.Check2(backend.Save(ctx, shID, info, nil, []string{"snapuser"}, nil, nil))
 	c.Check(err, check.IsNil)
 
-	export3, err := backend.NewSnapshotExport(ctx, shw.SetID)
+	export3 := mylog.Check2(backend.NewSnapshotExport(ctx, shw.SetID))
 	c.Assert(err, check.IsNil)
 	c.Check(export.ContentHash(), check.Not(check.DeepEquals), export3.ContentHash())
 }

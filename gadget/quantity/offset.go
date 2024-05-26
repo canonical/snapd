@@ -22,6 +22,8 @@ package quantity
 import (
 	"errors"
 	"fmt"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // Offset describes the offset in bytes and is a thin wrapper around Size.
@@ -47,22 +49,17 @@ func (o *Offset) IECString() string {
 
 func (o *Offset) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var gs string
-	if err := unmarshal(&gs); err != nil {
-		return errors.New(`cannot unmarshal gadget offset`)
-	}
+	mylog.Check(unmarshal(&gs))
 
-	var err error
-	*o, err = ParseOffset(gs)
-	if err != nil {
-		return fmt.Errorf("cannot parse offset %q: %v", gs, err)
-	}
+	*o = mylog.Check2(ParseOffset(gs))
+
 	return err
 }
 
 // ParseOffset parses a string expressing offset in a gadget specific format. The
 // accepted format is one of: <bytes> | <bytes/2^20>M | <bytes/2^30>G.
 func ParseOffset(gs string) (Offset, error) {
-	offs, err := parseSizeOrOffset(gs)
+	offs := mylog.Check2(parseSizeOrOffset(gs))
 	if offs < 0 {
 		// XXX: in theory offsets can be negative, but not in gadget
 		// YAML

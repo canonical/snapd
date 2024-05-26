@@ -24,6 +24,7 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/godbus/dbus"
 
 	"github.com/snapcore/snapd/dbusutil"
@@ -50,10 +51,7 @@ type GtkServer struct {
 }
 
 func NewGtkServer() (*GtkServer, error) {
-	conn, err := dbusutil.SessionBusPrivate()
-	if err != nil {
-		return nil, err
-	}
+	conn := mylog.Check2(dbusutil.SessionBusPrivate())
 
 	server := &GtkServer{
 		conn:          conn,
@@ -61,11 +59,7 @@ func NewGtkServer() (*GtkServer, error) {
 	}
 	conn.Export(gtkApi{server}, gtkObjectPath, gtkInterface)
 
-	reply, err := conn.RequestName(gtkBusName, dbus.NameFlagDoNotQueue)
-	if err != nil {
-		conn.Close()
-		return nil, err
-	}
+	reply := mylog.Check2(conn.RequestName(gtkBusName, dbus.NameFlagDoNotQueue))
 
 	if reply != dbus.RequestNameReplyPrimaryOwner {
 		conn.Close()
@@ -96,16 +90,14 @@ func (server *GtkServer) GetAll() []*GtkNotification {
 }
 
 func (server *GtkServer) ReleaseName() error {
-	if _, err := server.conn.ReleaseName(gtkBusName); err != nil {
-		return err
-	}
+	mylog.Check2(server.conn.ReleaseName(gtkBusName))
+
 	return nil
 }
 
 func (server *GtkServer) Stop() error {
-	if _, err := server.conn.ReleaseName(gtkBusName); err != nil {
-		return err
-	}
+	mylog.Check2(server.conn.ReleaseName(gtkBusName))
+
 	return server.conn.Close()
 }
 
@@ -165,12 +157,7 @@ func (a gtkApi) RemoveNotification(desktopId, id string) *dbus.Error {
 	if dErr != nil {
 		return dErr
 	}
+	mylog.Check(a.server.Close(id))
 
-	if err := a.server.Close(id); err != nil {
-		return &dbus.Error{
-			Name: "org.gtk.Notifications.Failed",
-			Body: []interface{}{err.Error()},
-		}
-	}
 	return nil
 }

@@ -25,6 +25,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/testutil"
@@ -42,12 +43,13 @@ func (cs *clientSuite) TestClientLogin(c *check.C) {
 
 	c.Assert(cs.cli.LoggedInUser(), check.IsNil)
 
-	user, err := cs.cli.Login("username", "pass", "")
+	user := mylog.Check2(cs.cli.Login("username", "pass", ""))
 	c.Check(err, check.IsNil)
 	c.Check(user, check.DeepEquals, &client.User{
 		Username:   "the-user-name",
 		Macaroon:   "the-root-macaroon",
-		Discharges: []string{"discharge-macaroon"}})
+		Discharges: []string{"discharge-macaroon"},
+	})
 
 	c.Assert(cs.cli.LoggedInUser(), check.Not(check.IsNil))
 
@@ -65,15 +67,14 @@ func (cs *clientSuite) TestClientLoginWhenLoggedIn(c *check.C) {
 	outfile := filepath.Join(c.MkDir(), "json")
 	os.Setenv(client.TestAuthFileEnvKey, outfile)
 	defer os.Unsetenv(client.TestAuthFileEnvKey)
-
-	err := os.WriteFile(outfile, []byte(`{"email":"foo@bar.com","macaroon":"macaroon"}`), 0600)
+	mylog.Check(os.WriteFile(outfile, []byte(`{"email":"foo@bar.com","macaroon":"macaroon"}`), 0600))
 	c.Assert(err, check.IsNil)
 	c.Assert(cs.cli.LoggedInUser(), check.DeepEquals, &client.User{
 		Email:    "foo@bar.com",
 		Macaroon: "macaroon",
 	})
 
-	user, err := cs.cli.Login("username", "pass", "")
+	user := mylog.Check2(cs.cli.Login("username", "pass", ""))
 	expected := &client.User{
 		Email:      "zed@bar.com",
 		Username:   "the-user-name",
@@ -102,7 +103,7 @@ func (cs *clientSuite) TestClientLoginError(c *check.C) {
 	os.Setenv(client.TestAuthFileEnvKey, outfile)
 	defer os.Unsetenv(client.TestAuthFileEnvKey)
 
-	user, err := cs.cli.Login("username", "pass", "")
+	user := mylog.Check2(cs.cli.Login("username", "pass", ""))
 
 	c.Check(user, check.IsNil)
 	c.Check(err, check.NotNil)
@@ -116,11 +117,9 @@ func (cs *clientSuite) TestClientLogout(c *check.C) {
 	outfile := filepath.Join(c.MkDir(), "json")
 	os.Setenv(client.TestAuthFileEnvKey, outfile)
 	defer os.Unsetenv(client.TestAuthFileEnvKey)
-
-	err := os.WriteFile(outfile, []byte(`{"macaroon":"macaroon","discharges":["discharged"]}`), 0600)
+	mylog.Check(os.WriteFile(outfile, []byte(`{"macaroon":"macaroon","discharges":["discharged"]}`), 0600))
 	c.Assert(err, check.IsNil)
-
-	err = cs.cli.Logout()
+	mylog.Check(cs.cli.Logout())
 	c.Assert(err, check.IsNil)
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/logout")
@@ -137,7 +136,7 @@ func (cs *clientSuite) TestWriteAuthData(c *check.C) {
 		Macaroon:   "macaroon",
 		Discharges: []string{"discharge"},
 	}
-	err := client.TestWriteAuth(authData)
+	mylog.Check(client.TestWriteAuth(authData))
 	c.Assert(err, check.IsNil)
 
 	c.Check(osutil.FileExists(outfile), check.Equals, true)
@@ -153,10 +152,10 @@ func (cs *clientSuite) TestReadAuthData(c *check.C) {
 		Macaroon:   "macaroon",
 		Discharges: []string{"discharge"},
 	}
-	err := client.TestWriteAuth(authData)
+	mylog.Check(client.TestWriteAuth(authData))
 	c.Assert(err, check.IsNil)
 
-	readUser, err := client.TestReadAuth()
+	readUser := mylog.Check2(client.TestReadAuth())
 	c.Assert(err, check.IsNil)
 	c.Check(readUser, check.DeepEquals, &authData)
 }

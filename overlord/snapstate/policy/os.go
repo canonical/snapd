@@ -22,6 +22,7 @@ package policy
 import (
 	"errors"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -51,11 +52,11 @@ func (p *osPolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, rev s
 	// which boots in the UC way
 	if p.modelBase == "" && dev.IsCoreBoot() {
 		if !rev.Unset() {
-			// TODO: tweak boot.InUse so that it DTRT when rev.Unset, call
-			// it unconditionally as an extra precaution
-			if err := inUse(name, rev, snap.TypeOS, dev); err != nil {
-				return err
-			}
+			mylog.Check(
+				// TODO: tweak boot.InUse so that it DTRT when rev.Unset, call
+				// it unconditionally as an extra precaution
+				inUse(name, rev, snap.TypeOS, dev))
+
 			return nil
 		}
 		return errIsModel
@@ -67,7 +68,7 @@ func (p *osPolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, rev s
 		// ensure that the snapd snap is there
 
 		var snapdState snapstate.SnapState
-		err := snapstate.Get(st, "snapd", &snapdState)
+		mylog.Check(snapstate.Get(st, "snapd", &snapdState))
 		if err != nil && !errors.Is(err, state.ErrNoState) {
 			return err
 		}
@@ -89,7 +90,7 @@ func (p *osPolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, rev s
 		return errRequired
 	}
 
-	usedBy, err := baseUsedBy(st, "")
+	usedBy := mylog.Check2(baseUsedBy(st, ""))
 	if len(usedBy) == 0 || err != nil {
 		return err
 	}

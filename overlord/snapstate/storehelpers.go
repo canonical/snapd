@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/logger"
@@ -53,7 +54,7 @@ var EnforceValidationSets func(*state.State, map[string]*asserts.ValidationSet, 
 
 func userIDForSnap(st *state.State, snapst *SnapState, fallbackUserID int) (int, error) {
 	userID := snapst.UserID
-	_, err := auth.User(st, userID)
+	_ := mylog.Check2(auth.User(st, userID))
 	if err == nil {
 		return userID, nil
 	}
@@ -67,13 +68,13 @@ func userIDForSnap(st *state.State, snapst *SnapState, fallbackUserID int) (int,
 // used as successive fallbacks.
 func userFromUserID(st *state.State, userIDs ...int) (*auth.UserState, error) {
 	var user *auth.UserState
-	var err error
+
 	for _, userID := range userIDs {
 		if userID == 0 {
 			err = nil
 			continue
 		}
-		user, err = auth.User(st, userID)
+		user = mylog.Check2(auth.User(st, userID))
 		if err != auth.ErrInvalidUser {
 			break
 		}
@@ -92,7 +93,7 @@ func refreshOptions(st *state.State, origOpts *store.RefreshOptions) (*store.Ref
 		opts = *origOpts
 	}
 
-	if err := st.Get("refresh-privacy-key", &opts.PrivacyKey); err != nil && !errors.Is(err, state.ErrNoState) {
+	if mylog.Check(st.Get("refresh-privacy-key", &opts.PrivacyKey)); err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, fmt.Errorf("cannot obtain store request salt: %v", err)
 	}
 	if opts.PrivacyKey == "" {
@@ -107,15 +108,9 @@ func refreshOptions(st *state.State, origOpts *store.RefreshOptions) (*store.Ref
 // download infos set.
 // The state must be locked by the caller.
 var installSize = func(st *state.State, snaps []minimalInstallInfo, userID int, prqt PrereqTracker) (uint64, error) {
-	curSnaps, err := currentSnaps(st)
-	if err != nil {
-		return 0, err
-	}
+	curSnaps := mylog.Check2(currentSnaps(st))
 
-	user, err := userFromUserID(st, userID)
-	if err != nil {
-		return 0, err
-	}
+	user := mylog.Check2(userFromUserID(st, userID))
 
 	accountedSnaps := map[string]bool{}
 	for _, snap := range curSnaps {
@@ -161,10 +156,7 @@ var installSize = func(st *state.State, snaps []minimalInstallInfo, userID int, 
 		resolveBaseAndContentProviders(inst)
 	}
 
-	opts, err := refreshOptions(st, nil)
-	if err != nil {
-		return 0, err
-	}
+	opts := mylog.Check2(refreshOptions(st, nil))
 
 	theStore := Store(st, nil)
 	channel := defaultPrereqSnapsChannel()
@@ -184,11 +176,9 @@ var installSize = func(st *state.State, snaps []minimalInstallInfo, userID int, 
 
 		// calls to the store should be done without holding the state lock
 		st.Unlock()
-		results, _, err := theStore.SnapAction(context.TODO(), curSnaps, actions, nil, user, opts)
+		results, _ := mylog.Check3(theStore.SnapAction(context.TODO(), curSnaps, actions, nil, user, opts))
 		st.Lock()
-		if err != nil {
-			return 0, err
-		}
+
 		prereqs = []string{}
 		for _, res := range results {
 			snapSizes[res.InstanceName()] = uint64(res.Size)
@@ -202,10 +192,8 @@ var installSize = func(st *state.State, snaps []minimalInstallInfo, userID int, 
 	// since we unlock state above when querying store, other changes may affect
 	// same snaps, therefore obtain current snaps again and only compute total
 	// size of snaps that would actually need to be installed.
-	curSnaps, err = currentSnaps(st)
-	if err != nil {
-		return 0, err
-	}
+	curSnaps = mylog.Check2(currentSnaps(st))
+
 	for _, snap := range curSnaps {
 		delete(snapSizes, snap.InstanceName)
 	}
@@ -231,20 +219,11 @@ func setActionValidationSetsAndRequiredRevision(action *store.SnapAction, valset
 }
 
 func downloadInfo(ctx context.Context, st *state.State, name string, revOpts *RevisionOptions, userID int, deviceCtx DeviceContext) (store.SnapActionResult, error) {
-	curSnaps, err := currentSnaps(st)
-	if err != nil {
-		return store.SnapActionResult{}, err
-	}
+	curSnaps := mylog.Check2(currentSnaps(st))
 
-	user, err := userFromUserID(st, userID)
-	if err != nil {
-		return store.SnapActionResult{}, err
-	}
+	user := mylog.Check2(userFromUserID(st, userID))
 
-	opts, err := refreshOptions(st, nil)
-	if err != nil {
-		return store.SnapActionResult{}, err
-	}
+	opts := mylog.Check2(refreshOptions(st, nil))
 
 	action := &store.SnapAction{
 		Action:       "download",
@@ -263,27 +242,18 @@ func downloadInfo(ctx context.Context, st *state.State, name string, revOpts *Re
 
 	theStore := Store(st, deviceCtx)
 	st.Unlock() // calls to the store should be done without holding the state lock
-	res, _, err := theStore.SnapAction(ctx, curSnaps, []*store.SnapAction{action}, nil, user, opts)
+	res, _ := mylog.Check3(theStore.SnapAction(ctx, curSnaps, []*store.SnapAction{action}, nil, user, opts))
 	st.Lock()
 
 	return singleActionResult(name, action.Action, res, err)
 }
 
 func installInfo(ctx context.Context, st *state.State, name string, revOpts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext) (store.SnapActionResult, error) {
-	curSnaps, err := currentSnaps(st)
-	if err != nil {
-		return store.SnapActionResult{}, err
-	}
+	curSnaps := mylog.Check2(currentSnaps(st))
 
-	user, err := userFromUserID(st, userID)
-	if err != nil {
-		return store.SnapActionResult{}, err
-	}
+	user := mylog.Check2(userFromUserID(st, userID))
 
-	opts, err := refreshOptions(st, nil)
-	if err != nil {
-		return store.SnapActionResult{}, err
-	}
+	opts := mylog.Check2(refreshOptions(st, nil))
 
 	action := &store.SnapAction{
 		Action:       "install",
@@ -302,26 +272,19 @@ func installInfo(ctx context.Context, st *state.State, name string, revOpts *Rev
 			requiredRevision = revOpts.Revision
 			requiredValSets = revOpts.ValidationSets
 		} else {
-			enforcedSets, err := EnforcedValidationSets(st)
-			if err != nil {
-				return store.SnapActionResult{}, err
-			}
+			enforcedSets := mylog.Check2(EnforcedValidationSets(st))
 
 			if enforcedSets != nil {
 				// check for invalid presence first to have a list of sets where it's invalid
-				invalidForValSets, err := enforcedSets.CheckPresenceInvalid(naming.Snap(name))
-				if err != nil {
-					if _, ok := err.(*snapasserts.PresenceConstraintError); !ok {
-						return store.SnapActionResult{}, err
-					} // else presence is optional or required, carry on
-				}
+				invalidForValSets := mylog.Check2(enforcedSets.CheckPresenceInvalid(naming.Snap(name)))
+
+				// else presence is optional or required, carry on
+
 				if len(invalidForValSets) > 0 {
 					return store.SnapActionResult{}, fmt.Errorf("cannot install snap %q due to enforcing rules of validation set %s", name, snapasserts.ValidationSetKeySlice(invalidForValSets).CommaSeparated())
 				}
-				requiredValSets, requiredRevision, err = enforcedSets.CheckPresenceRequired(naming.Snap(name))
-				if err != nil {
-					return store.SnapActionResult{}, err
-				}
+				requiredValSets, requiredRevision = mylog.Check3(enforcedSets.CheckPresenceRequired(naming.Snap(name)))
+
 			}
 
 			// check if desired revision matches the revision required by validation sets
@@ -350,27 +313,18 @@ func installInfo(ctx context.Context, st *state.State, name string, revOpts *Rev
 
 	theStore := Store(st, deviceCtx)
 	st.Unlock() // calls to the store should be done without holding the state lock
-	res, _, err := theStore.SnapAction(ctx, curSnaps, []*store.SnapAction{action}, nil, user, opts)
+	res, _ := mylog.Check3(theStore.SnapAction(ctx, curSnaps, []*store.SnapAction{action}, nil, user, opts))
 	st.Lock()
 
 	return singleActionResult(name, action.Action, res, err)
 }
 
 func updateInfo(st *state.State, snapst *SnapState, opts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext) (*snap.Info, error) {
-	curSnaps, err := currentSnaps(st)
-	if err != nil {
-		return nil, err
-	}
+	curSnaps := mylog.Check2(currentSnaps(st))
 
-	refreshOpts, err := refreshOptions(st, nil)
-	if err != nil {
-		return nil, err
-	}
+	refreshOpts := mylog.Check2(refreshOptions(st, nil))
 
-	curInfo, user, err := preUpdateInfo(st, snapst, flags.Amend, userID)
-	if err != nil {
-		return nil, err
-	}
+	curInfo, user := mylog.Check3(preUpdateInfo(st, snapst, flags.Amend, userID))
 
 	var storeFlags store.SnapActionFlags
 	if flags.IgnoreValidation {
@@ -400,15 +354,11 @@ func updateInfo(st *state.State, snapst *SnapState, opts *RevisionOptions, userI
 	var requiredValsets []snapasserts.ValidationSetKey
 
 	if !flags.IgnoreValidation {
-		enforcedSets, err := EnforcedValidationSets(st)
-		if err != nil {
-			return nil, err
-		}
+		enforcedSets := mylog.Check2(EnforcedValidationSets(st))
+
 		if enforcedSets != nil {
-			requiredValsets, requiredRevision, err = enforcedSets.CheckPresenceRequired(naming.Snap(curInfo.InstanceName()))
-			if err != nil {
-				return nil, err
-			}
+			requiredValsets, requiredRevision = mylog.Check3(enforcedSets.CheckPresenceRequired(naming.Snap(curInfo.InstanceName())))
+
 			if !requiredRevision.Unset() && snapst.Current == requiredRevision {
 				logger.Debugf("snap %q is already at the revision %s required by validation sets: %s, skipping",
 					curInfo.InstanceName(), snapst.Current, snapasserts.ValidationSetKeySlice(requiredValsets).CommaSeparated())
@@ -440,23 +390,17 @@ func updateInfo(st *state.State, snapst *SnapState, opts *RevisionOptions, userI
 
 	theStore := Store(st, deviceCtx)
 	st.Unlock() // calls to the store should be done without holding the state lock
-	res, _, err := theStore.SnapAction(context.TODO(), curSnaps, []*store.SnapAction{action}, nil, user, refreshOpts)
+	res, _ := mylog.Check3(theStore.SnapAction(context.TODO(), curSnaps, []*store.SnapAction{action}, nil, user, refreshOpts))
 	st.Lock()
 
-	sar, err := singleActionResult(curInfo.InstanceName(), action.Action, res, err)
+	sar := mylog.Check2(singleActionResult(curInfo.InstanceName(), action.Action, res, err))
 	return sar.Info, err
 }
 
 func preUpdateInfo(st *state.State, snapst *SnapState, amend bool, userID int) (*snap.Info, *auth.UserState, error) {
-	user, err := userFromUserID(st, snapst.UserID, userID)
-	if err != nil {
-		return nil, nil, err
-	}
+	user := mylog.Check2(userFromUserID(st, snapst.UserID, userID))
 
-	curInfo, err := snapst.CurrentInfo()
-	if err != nil {
-		return nil, nil, err
-	}
+	curInfo := mylog.Check2(snapst.CurrentInfo())
 
 	if curInfo.SnapID == "" { // covers also trymode
 		if !amend {
@@ -506,20 +450,11 @@ func singleActionResult(name, action string, results []store.SnapActionResult, e
 }
 
 func updateToRevisionInfo(st *state.State, snapst *SnapState, revOpts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext) (*snap.Info, error) {
-	curSnaps, err := currentSnaps(st)
-	if err != nil {
-		return nil, err
-	}
+	curSnaps := mylog.Check2(currentSnaps(st))
 
-	curInfo, user, err := preUpdateInfo(st, snapst, false, userID)
-	if err != nil {
-		return nil, err
-	}
+	curInfo, user := mylog.Check3(preUpdateInfo(st, snapst, false, userID))
 
-	opts, err := refreshOptions(st, nil)
-	if err != nil {
-		return nil, err
-	}
+	opts := mylog.Check2(refreshOptions(st, nil))
 
 	action := &store.SnapAction{
 		Action:       "refresh",
@@ -538,15 +473,11 @@ func updateToRevisionInfo(st *state.State, snapst *SnapState, revOpts *RevisionO
 			requiredRevision = revOpts.Revision
 			requiredValsets = revOpts.ValidationSets
 		} else {
-			enforcedSets, err := EnforcedValidationSets(st)
-			if err != nil {
-				return nil, err
-			}
+			enforcedSets := mylog.Check2(EnforcedValidationSets(st))
+
 			if enforcedSets != nil {
-				requiredValsets, requiredRevision, err = enforcedSets.CheckPresenceRequired(naming.Snap(curInfo.InstanceName()))
-				if err != nil {
-					return nil, err
-				}
+				requiredValsets, requiredRevision = mylog.Check3(enforcedSets.CheckPresenceRequired(naming.Snap(curInfo.InstanceName())))
+
 				if !requiredRevision.Unset() {
 					if revOpts.Revision != requiredRevision {
 						return nil, fmt.Errorf("cannot update snap %q to revision %s without --ignore-validation, revision %s is required by validation sets: %s",
@@ -577,18 +508,15 @@ func updateToRevisionInfo(st *state.State, snapst *SnapState, revOpts *RevisionO
 
 	theStore := Store(st, deviceCtx)
 	st.Unlock() // calls to the store should be done without holding the state lock
-	res, _, err := theStore.SnapAction(context.TODO(), curSnaps, []*store.SnapAction{action}, nil, user, opts)
+	res, _ := mylog.Check3(theStore.SnapAction(context.TODO(), curSnaps, []*store.SnapAction{action}, nil, user, opts))
 	st.Lock()
 
-	sar, err := singleActionResult(curInfo.InstanceName(), action.Action, res, err)
+	sar := mylog.Check2(singleActionResult(curInfo.InstanceName(), action.Action, res, err))
 	return sar.Info, err
 }
 
 func currentSnapsImpl(st *state.State) ([]*store.CurrentSnap, error) {
-	snapStates, err := All(st)
-	if err != nil {
-		return nil, err
-	}
+	snapStates := mylog.Check2(All(st))
 
 	if len(snapStates) == 0 {
 		// no snaps installed, do not bother any further
@@ -600,10 +528,7 @@ func currentSnapsImpl(st *state.State) ([]*store.CurrentSnap, error) {
 		names = append(names, snapst.InstanceName())
 	}
 
-	holds, err := SnapHolds(st, names)
-	if err != nil {
-		return nil, err
-	}
+	holds := mylog.Check2(SnapHolds(st, names))
 
 	return collectCurrentSnaps(snapStates, holds, nil)
 }
@@ -618,10 +543,7 @@ func collectCurrentSnaps(snapStates map[string]*SnapState, holds map[string][]st
 			continue
 		}
 
-		snapInfo, err := snapst.CurrentInfo()
-		if err != nil {
-			continue
-		}
+		snapInfo := mylog.Check2(snapst.CurrentInfo())
 
 		if snapInfo.SnapID == "" {
 			// the store won't be able to tell what this
@@ -645,9 +567,7 @@ func collectCurrentSnaps(snapStates map[string]*SnapState, holds map[string][]st
 		curSnaps = append(curSnaps, installed)
 
 		if consider != nil {
-			if err := consider(installed, snapst); err != nil {
-				return nil, err
-			}
+			mylog.Check(consider(installed, snapst))
 		}
 	}
 
@@ -666,10 +586,7 @@ func collectCurrentSnaps(snapStates map[string]*SnapState, holds map[string][]st
 // solution is reached.
 func refreshCandidates(ctx context.Context, st *state.State, names []string, revOpts []*RevisionOptions, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, map[string]*SnapState, map[string]bool, error) {
 	// initialize options before using
-	opts, err := refreshOptions(st, opts)
-	if err != nil {
-		return nil, nil, nil, err
-	}
+	opts := mylog.Check2(refreshOptions(st, opts))
 
 	var revOptsByName map[string]*RevisionOptions
 	if revOpts != nil {
@@ -679,10 +596,7 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, rev
 		}
 	}
 
-	updates, stateByInstanceName, ignoreValidation, err := refreshCandidatesCore(ctx, st, names, revOpts, user, opts)
-	if err != nil {
-		return nil, nil, nil, err
-	}
+	updates, stateByInstanceName, ignoreValidation := mylog.Check4(refreshCandidatesCore(ctx, st, names, revOpts, user, opts))
 
 	if !opts.Scheduled {
 		// not an auto-refresh, just return what we got
@@ -690,14 +604,9 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, rev
 	}
 
 	var oldHints map[string]*refreshCandidate
-	if err := st.Get("refresh-candidates", &oldHints); err != nil {
-		if errors.Is(err, &state.NoStateError{}) {
-			// do nothing
-			return updates, stateByInstanceName, ignoreValidation, nil
-		}
+	mylog.Check(st.Get("refresh-candidates", &oldHints))
 
-		return nil, nil, nil, fmt.Errorf("cannot get refresh-candidates: %v", err)
-	}
+	// do nothing
 
 	var missingNames []string
 
@@ -736,10 +645,8 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, rev
 		// we already started a pre-download for this snap, so no extra
 		// load is being exerted on the store.
 		opts.Scheduled = false
-		moreUpdates, _, _, err := refreshCandidatesCore(ctx, st, missingNames, missingRevOpts, user, opts)
-		if err != nil {
-			return nil, nil, nil, err
-		}
+		moreUpdates, _, _ := mylog.Check4(refreshCandidatesCore(ctx, st, missingNames, missingRevOpts, user, opts))
+
 		updates = append(updates, moreUpdates...)
 	}
 
@@ -751,10 +658,7 @@ func refreshCandidatesCore(ctx context.Context, st *state.State, names []string,
 		return nil, nil, nil, fmt.Errorf("internal error: opts cannot be nil")
 	}
 
-	snapStates, err := All(st)
-	if err != nil {
-		return nil, nil, nil, err
-	}
+	snapStates := mylog.Check2(All(st))
 
 	// check if we have this name at all
 	for _, name := range names {
@@ -782,10 +686,7 @@ func refreshCandidatesCore(ctx context.Context, st *state.State, names []string,
 	// if refreshing to specific revision to enforce a new validation set, we've
 	// already checked against other enforced sets
 	if revOpts == nil {
-		enforcedSets, err = EnforcedValidationSets(st)
-		if err != nil {
-			return nil, nil, nil, err
-		}
+		enforcedSets = mylog.Check2(EnforcedValidationSets(st))
 	} else {
 		revOptsByName = make(map[string]*RevisionOptions, len(revOpts))
 		for i, opts := range revOpts {
@@ -826,11 +727,9 @@ func refreshCandidatesCore(ctx context.Context, st *state.State, names []string,
 				opts := revOptsByName[installed.InstanceName]
 				requiredValsets, requiredRevision = opts.ValidationSets, opts.Revision
 			} else if enforcedSets != nil {
-				requiredValsets, requiredRevision, err = enforcedSets.CheckPresenceRequired(naming.Snap(installed.InstanceName))
+				requiredValsets, requiredRevision = mylog.Check3(enforcedSets.CheckPresenceRequired(naming.Snap(installed.InstanceName)))
 				// note, this errors out the entire refresh
-				if err != nil {
-					return err
-				}
+
 				// if the snap is already at the required revision then skip it from
 				// candidates.
 				if !requiredRevision.Unset() && installed.Revision == requiredRevision {
@@ -866,16 +765,10 @@ func refreshCandidatesCore(ctx context.Context, st *state.State, names []string,
 		return nil
 	}
 
-	holds, err := SnapHolds(st, names)
-	if err != nil {
-		return nil, nil, nil, err
-	}
+	holds := mylog.Check2(SnapHolds(st, names))
 
 	// determine current snaps and collect candidates for refresh
-	curSnaps, err := collectCurrentSnaps(snapStates, holds, addCand)
-	if err != nil {
-		return nil, nil, nil, err
-	}
+	curSnaps := mylog.Check2(collectCurrentSnaps(snapStates, holds, addCand))
 
 	actionsForUser := make(map[*auth.UserState][]*store.SnapAction, len(actionsByUserID))
 	noUserActions := actionsByUserID[0]
@@ -883,10 +776,8 @@ func refreshCandidatesCore(ctx context.Context, st *state.State, names []string,
 		if userID == 0 {
 			continue
 		}
-		u, err := userFromUserID(st, userID, 0)
-		if err != nil {
-			return nil, nil, nil, err
-		}
+		u := mylog.Check2(userFromUserID(st, userID, 0))
+
 		if u.HasStoreAuth() {
 			actionsForUser[u] = actions
 		} else {
@@ -912,16 +803,10 @@ func refreshCandidatesCore(ctx context.Context, st *state.State, names []string,
 	updates := make([]*snap.Info, 0, nCands)
 	for u, actions := range actionsForUser {
 		st.Unlock()
-		sarsForUser, _, err := theStore.SnapAction(ctx, curSnaps, actions, nil, u, opts)
+		sarsForUser, _ := mylog.Check3(theStore.SnapAction(ctx, curSnaps, actions, nil, u, opts))
 		st.Lock()
-		if err != nil {
-			saErr, ok := err.(*store.SnapActionError)
-			if !ok {
-				return nil, nil, nil, err
-			}
-			// TODO: use the warning infra here when we have it
-			logger.Noticef("%v", saErr)
-		}
+
+		// TODO: use the warning infra here when we have it
 
 		for _, sar := range sarsForUser {
 			updates = append(updates, sar.Info)
@@ -934,15 +819,9 @@ func refreshCandidatesCore(ctx context.Context, st *state.State, names []string,
 // SnapHolds returns a map of held snaps to lists of holding snaps (including
 // "system" for user holds).
 func SnapHolds(st *state.State, snaps []string) (map[string][]string, error) {
-	allSnapsHoldTime, err := effectiveRefreshHold(st)
-	if err != nil {
-		return nil, err
-	}
+	allSnapsHoldTime := mylog.Check2(effectiveRefreshHold(st))
 
-	holds, err := HeldSnaps(st, HoldGeneral)
-	if err != nil {
-		return nil, err
-	}
+	holds := mylog.Check2(HeldSnaps(st, HoldGeneral))
 
 	for _, snap := range snaps {
 		if !strutil.ListContains(holds[snap], "system") && allSnapsHoldTime.After(timeNow()) {
@@ -958,24 +837,15 @@ func SnapHolds(st *state.State, snaps []string) (map[string][]string, error) {
 }
 
 func installCandidates(st *state.State, names []string, revOpts []*RevisionOptions, channel string, user *auth.UserState) ([]store.SnapActionResult, error) {
-	curSnaps, err := currentSnaps(st)
-	if err != nil {
-		return nil, err
-	}
+	curSnaps := mylog.Check2(currentSnaps(st))
 
-	opts, err := refreshOptions(st, nil)
-	if err != nil {
-		return nil, err
-	}
+	opts := mylog.Check2(refreshOptions(st, nil))
 
 	// if installing a specific revision, we may be trying to enforce a validation
 	// set so don't check against current ones.
 	var enforcedSets *snapasserts.ValidationSets
 	if revOpts == nil {
-		enforcedSets, err = EnforcedValidationSets(st)
-		if err != nil {
-			return nil, err
-		}
+		enforcedSets = mylog.Check2(EnforcedValidationSets(st))
 	}
 
 	actions := make([]*store.SnapAction, len(names))
@@ -995,20 +865,15 @@ func installCandidates(st *state.State, names []string, revOpts []*RevisionOptio
 			requiredRevision = revOpts[i].Revision
 		} else if enforcedSets != nil {
 			// check for invalid presence first to have a list of sets where it's invalid
-			invalidForValSets, err := enforcedSets.CheckPresenceInvalid(naming.Snap(name))
-			if err != nil {
-				if _, ok := err.(*snapasserts.PresenceConstraintError); !ok {
-					return nil, err
-				} // else presence is optional or required, carry on
-			}
+			invalidForValSets := mylog.Check2(enforcedSets.CheckPresenceInvalid(naming.Snap(name)))
+
+			// else presence is optional or required, carry on
 
 			if len(invalidForValSets) > 0 {
 				return nil, fmt.Errorf("cannot install snap %q due to enforcing rules of validation set %s", name, snapasserts.ValidationSetKeySlice(invalidForValSets).CommaSeparated())
 			}
-			requiredValSets, requiredRevision, err = enforcedSets.CheckPresenceRequired(naming.Snap(name))
-			if err != nil {
-				return nil, err
-			}
+			requiredValSets, requiredRevision = mylog.Check3(enforcedSets.CheckPresenceRequired(naming.Snap(name)))
+
 		}
 
 		if len(requiredValSets) > 0 {
@@ -1022,6 +887,6 @@ func installCandidates(st *state.State, names []string, revOpts []*RevisionOptio
 	theStore := Store(st, nil)
 	st.Unlock() // calls to the store should be done without holding the state lock
 	defer st.Lock()
-	results, _, err := theStore.SnapAction(context.TODO(), curSnaps, actions, nil, user, opts)
+	results, _ := mylog.Check3(theStore.SnapAction(context.TODO(), curSnaps, actions, nil, user, opts))
 	return results, err
 }

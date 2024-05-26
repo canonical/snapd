@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -72,11 +73,11 @@ func (s *systemFilesInterfaceSuite) TestName(c *C) {
 }
 
 func (s *systemFilesInterfaceSuite) TestConnectedPlugAppArmor(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	apparmorSpec := apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
-	c.Assert(err, IsNil)
+	mylog.Check(apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot))
+
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Check(apparmorSpec.SnippetForTag("snap.other.app"), Equals, `
 # Description: Can access specific system files or directories.
@@ -117,7 +118,7 @@ plugs:
   $t
 `
 	errPrefix := `cannot add system-files plug: `
-	var testCases = []struct {
+	testCases := []struct {
 		inp    string
 		errStr string
 	}{
@@ -167,10 +168,10 @@ apps:
 	s.plugInfo = plugSnap.Plugs["system-files"]
 	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	apparmorSpec := apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	mylog.Check(apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot))
 	c.Assert(err, ErrorMatches, `cannot connect plug system-files: 123 \(int64\) is not a string`)
 }
 

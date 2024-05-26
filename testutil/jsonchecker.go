@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"gopkg.in/check.v1"
 )
 
@@ -40,14 +41,11 @@ var JsonEquals check.Checker = &jsonEqualChecker{
 
 func (c *jsonEqualChecker) Check(params []interface{}, names []string) (result bool, error string) {
 	toComparableMap := func(what interface{}) interface{} {
-		b, err := json.Marshal(what)
-		if err != nil {
-			panic("cannot marshal")
-		}
+		b := mylog.Check2(json.Marshal(what))
+
 		var back interface{}
-		if err := json.Unmarshal(b, &back); err != nil {
-			panic(fmt.Sprintf("cannot unmarshal from: %s", string(b)))
-		}
+		mylog.Check(json.Unmarshal(b, &back))
+
 		return back
 	}
 

@@ -23,6 +23,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/godbus/dbus"
 )
 
@@ -36,7 +37,7 @@ type NotificationManager interface {
 
 func NewNotificationManager(conn *dbus.Conn, desktopID string) NotificationManager {
 	// first try the GTK backend
-	if manager, err := newGtkBackend(conn, desktopID); err == nil {
+	if manager := mylog.Check2(newGtkBackend(conn, desktopID)); err == nil {
 		return manager
 	}
 

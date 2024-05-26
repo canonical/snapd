@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/advisor"
 	"github.com/snapcore/snapd/dirs"
 )
@@ -37,15 +38,15 @@ func (s *backendSuite) SetUpTest(c *C) {
 	c.Assert(os.MkdirAll(dirs.SnapCacheDir, 0755), IsNil)
 
 	// create an empty DB
-	db, err := advisor.Create()
-	c.Assert(err, IsNil)
-	err = db.Commit()
-	c.Assert(err, IsNil)
+	db := mylog.Check2(advisor.Create())
+
+	mylog.Check(db.Commit())
+
 }
 
 func dumpCommands(c *C) map[string]string {
-	cmds, err := advisor.DumpCommands()
-	c.Assert(err, IsNil)
+	cmds := mylog.Check2(advisor.DumpCommands())
+
 	return cmds
 }
 
@@ -55,8 +56,8 @@ func (s *backendSuite) TestCreateCommit(c *C) {
 		"foo": `[{"snap":"foo","version":"1.0"}]`,
 	}
 
-	db, err := advisor.Create()
-	c.Assert(err, IsNil)
+	db := mylog.Check2(advisor.Create())
+
 	c.Assert(db.AddSnap("foo", "1.0", "foo summary", []string{"foo", "meh"}), IsNil)
 	// adding does not change the DB
 	c.Check(dumpCommands(c), DeepEquals, map[string]string{})
@@ -66,8 +67,8 @@ func (s *backendSuite) TestCreateCommit(c *C) {
 }
 
 func (s *backendSuite) TestCreateRollback(c *C) {
-	db, err := advisor.Create()
-	c.Assert(err, IsNil)
+	db := mylog.Check2(advisor.Create())
+
 	// adding does not change the DB
 	c.Assert(db.AddSnap("foo", "1.0", "foo summary", []string{"foo", "meh"}), IsNil)
 	// and rollback ensures any change is reverted

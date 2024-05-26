@@ -22,6 +22,7 @@ package gadget_test
 import (
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/osutil/kcmdline"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -67,8 +68,8 @@ kernel-cmdline:
 
 	for i, t := range tests {
 		c.Logf("%v: cmdline %q", i, t.cmdline)
-		gi, err := gadget.InfoFromGadgetYaml([]byte(yaml), uc20Mod)
-		c.Assert(err, IsNil)
+		gi := mylog.Check2(gadget.InfoFromGadgetYaml([]byte(yaml), uc20Mod))
+
 		allowed, forbidden := gadget.FilterKernelCmdline(t.cmdline, gi.KernelCmdline.Allow)
 		c.Check(allowed, Equals, t.allowed)
 		c.Check(forbidden, Equals, t.forbidden)
@@ -98,8 +99,8 @@ kernel-cmdline:
 
 	for i, t := range tests {
 		c.Logf("%v: cmdline %q", i, t.cmdline)
-		gi, err := gadget.InfoFromGadgetYaml([]byte(yaml), uc20Mod)
-		c.Assert(err, IsNil)
+		gi := mylog.Check2(gadget.InfoFromGadgetYaml([]byte(yaml), uc20Mod))
+
 		allowed, forbidden := gadget.FilterKernelCmdline(t.cmdline, gi.KernelCmdline.Allow)
 		c.Check(allowed, Equals, t.allowed)
 		c.Check(forbidden, Equals, t.forbidden)
@@ -135,9 +136,9 @@ kernel-cmdline:
 		snap := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, [][]string{
 			{"meta/gadget.yaml", yaml},
 		})
-		cmdline, full, removeArgs, err := gadget.KernelCommandLineFromGadget(snap, uc20Mod)
+		cmdline, full, removeArgs := mylog.Check4(gadget.KernelCommandLineFromGadget(snap, uc20Mod))
 
-		c.Assert(err, IsNil)
+
 		c.Check(cmdline, Equals, t)
 		c.Check(len(removeArgs), Equals, 0)
 		c.Check(full, Equals, false)
@@ -169,7 +170,7 @@ kernel-cmdline:
 		snap := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, [][]string{
 			{"meta/gadget.yaml", yaml},
 		})
-		_, _, _, err := gadget.KernelCommandLineFromGadget(snap, uc20Mod)
+		_, _, _ := mylog.Check4(gadget.KernelCommandLineFromGadget(snap, uc20Mod))
 
 		c.Check(err, ErrorMatches, fmt.Sprintf(`kernel parameter '%s' is not allowed`, t))
 	}
@@ -205,18 +206,26 @@ kernel-cmdline:
 		expectedRemoved    []kcmdline.Argument
 		expectedNotRemoved []kcmdline.Argument
 	}{
-		{[]string{`mock`},
+		{
+			[]string{`mock`},
 			[]kcmdline.Argument{ka(`mock`, ``)},
-			[]kcmdline.Argument{ka(`static`, ``)}},
-		{[]string{`something=*`},
+			[]kcmdline.Argument{ka(`static`, ``)},
+		},
+		{
+			[]string{`something=*`},
 			[]kcmdline.Argument{ka(`something`, `foo`), ka(`something`, ``), qka(`something`, `*`)},
-			[]kcmdline.Argument{ka(`somethingelse`, `value`), ka(`something else`, ``)}},
-		{[]string{`something="*"`},
+			[]kcmdline.Argument{ka(`somethingelse`, `value`), ka(`something else`, ``)},
+		},
+		{
+			[]string{`something="*"`},
 			[]kcmdline.Argument{ka(`something`, `*`), qka(`something`, `*`)},
-			[]kcmdline.Argument{ka(`something`, `foo`)}},
-		{[]string{`something="something with value"`},
+			[]kcmdline.Argument{ka(`something`, `foo`)},
+		},
+		{
+			[]string{`something="something with value"`},
 			[]kcmdline.Argument{qka(`something`, `something with value`)},
-			[]kcmdline.Argument{qka(`something`, `something with other value`)}},
+			[]kcmdline.Argument{qka(`something`, `something with other value`)},
+		},
 	}
 
 	for _, t := range tests {
@@ -229,8 +238,8 @@ kernel-cmdline:
 		snap := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, [][]string{
 			{"meta/gadget.yaml", yaml},
 		})
-		cmdline, full, removeArgs, err := gadget.KernelCommandLineFromGadget(snap, uc20Mod)
-		c.Assert(err, IsNil)
+		cmdline, full, removeArgs := mylog.Check4(gadget.KernelCommandLineFromGadget(snap, uc20Mod))
+
 		c.Check(cmdline, Equals, "")
 		c.Check(full, Equals, false)
 

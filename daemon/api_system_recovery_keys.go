@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 )
@@ -40,10 +41,7 @@ func getSystemRecoveryKeys(c *Command, r *http.Request, user *auth.UserState) Re
 	st.Lock()
 	defer st.Unlock()
 
-	keys, err := c.d.overlord.DeviceManager().EnsureRecoveryKeys()
-	if err != nil {
-		return InternalError(err.Error())
-	}
+	keys := mylog.Check2(c.d.overlord.DeviceManager().EnsureRecoveryKeys())
 
 	return SyncResponse(keys)
 }
@@ -55,13 +53,11 @@ type postSystemRecoveryKeysData struct {
 }
 
 func postSystemRecoveryKeys(c *Command, r *http.Request, user *auth.UserState) Response {
-
 	var postData postSystemRecoveryKeysData
 
 	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&postData); err != nil {
-		return BadRequest("cannot decode recovery keys action data from request body: %v", err)
-	}
+	mylog.Check(decoder.Decode(&postData))
+
 	if decoder.More() {
 		return BadRequest("spurious content after recovery keys action")
 	}
@@ -76,10 +72,7 @@ func postSystemRecoveryKeys(c *Command, r *http.Request, user *auth.UserState) R
 	st := c.d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
+	mylog.Check(deviceManagerRemoveRecoveryKeys(c.d.overlord.DeviceManager()))
 
-	err := deviceManagerRemoveRecoveryKeys(c.d.overlord.DeviceManager())
-	if err != nil {
-		return InternalError(err.Error())
-	}
 	return SyncResponse(nil)
 }

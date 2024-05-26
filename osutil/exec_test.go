@@ -31,6 +31,7 @@ import (
 	. "gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/testutil"
@@ -49,19 +50,19 @@ func (s *execSuite) TearDownTest(c *C) {
 }
 
 func (s *execSuite) TestRunAndWaitRunsAndWaits(c *C) {
-	buf, err := osutil.RunAndWait([]string{"sh", "-c", "echo hello; sleep .1"}, nil, time.Second, &tomb.Tomb{})
-	c.Assert(err, IsNil)
+	buf := mylog.Check2(osutil.RunAndWait([]string{"sh", "-c", "echo hello; sleep .1"}, nil, time.Second, &tomb.Tomb{}))
+
 	c.Check(string(buf), Equals, "hello\n")
 }
 
 func (s *execSuite) TestRunAndWaitRunsSetsEnviron(c *C) {
-	buf, err := osutil.RunAndWait([]string{"sh", "-c", "echo $FOO"}, []string{"FOO=42"}, time.Second, &tomb.Tomb{})
-	c.Assert(err, IsNil)
+	buf := mylog.Check2(osutil.RunAndWait([]string{"sh", "-c", "echo $FOO"}, []string{"FOO=42"}, time.Second, &tomb.Tomb{}))
+
 	c.Check(string(buf), Equals, "42\n")
 }
 
 func (s *execSuite) TestRunAndWaitRunsAndKillsOnTimeout(c *C) {
-	buf, err := osutil.RunAndWait([]string{"sleep", "1s"}, nil, time.Millisecond, &tomb.Tomb{})
+	buf := mylog.Check2(osutil.RunAndWait([]string{"sleep", "1s"}, nil, time.Millisecond, &tomb.Tomb{}))
 	c.Check(err, ErrorMatches, "exceeded maximum runtime.*")
 	c.Check(string(buf), Matches, "(?s).*exceeded maximum runtime.*")
 }
@@ -72,7 +73,7 @@ func (s *execSuite) TestRunAndWaitRunsAndKillsOnAbort(c *C) {
 		time.Sleep(10 * time.Millisecond)
 		tmb.Kill(nil)
 	}()
-	buf, err := osutil.RunAndWait([]string{"sleep", "1s"}, nil, time.Second, tmb)
+	buf := mylog.Check2(osutil.RunAndWait([]string{"sleep", "1s"}, nil, time.Second, tmb))
 	c.Check(err, ErrorMatches, "aborted.*")
 	c.Check(string(buf), Matches, "(?s).*aborted.*")
 }
@@ -81,7 +82,7 @@ func (s *execSuite) TestRunAndWaitKillImpatient(c *C) {
 	defer osutil.MockSyscallKill(func(int, syscall.Signal) error { return nil })()
 	defer osutil.MockCmdWaitTimeout(time.Millisecond)()
 
-	buf, err := osutil.RunAndWait([]string{"sleep", "1s"}, nil, time.Millisecond, &tomb.Tomb{})
+	buf := mylog.Check2(osutil.RunAndWait([]string{"sleep", "1s"}, nil, time.Millisecond, &tomb.Tomb{}))
 	c.Check(err, ErrorMatches, ".* did not stop")
 	c.Check(string(buf), Equals, "")
 }
@@ -93,7 +94,7 @@ func (s *execSuite) TestRunAndWaitExposesKillallError(c *C) {
 	})()
 	defer osutil.MockCmdWaitTimeout(time.Millisecond)()
 
-	_, err := osutil.RunAndWait([]string{"sleep", "1s"}, nil, time.Millisecond, &tomb.Tomb{})
+	_ := mylog.Check2(osutil.RunAndWait([]string{"sleep", "1s"}, nil, time.Millisecond, &tomb.Tomb{}))
 	c.Check(err, ErrorMatches, "cannot abort: xyzzy")
 }
 
@@ -113,9 +114,8 @@ func (s *execSuite) TestKillProcessGroupKillsProcessGroup(c *C) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Start()
 	defer cmd.Process.Kill()
+	mylog.Check(osutil.KillProcessGroup(cmd))
 
-	err := osutil.KillProcessGroup(cmd)
-	c.Assert(err, IsNil)
 	// process groups are passed to kill as negative numbers
 	c.Check(pid, Equals, -ppid)
 }
@@ -127,17 +127,16 @@ func (s *execSuite) TestKillProcessGroupShyOfInit(c *C) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Start()
 	defer cmd.Process.Kill()
-
-	err := osutil.KillProcessGroup(cmd)
+	mylog.Check(osutil.KillProcessGroup(cmd))
 	c.Assert(err, ErrorMatches, "cannot kill pgid 1")
 }
 
 func (s *execSuite) TestStreamCommandHappy(c *C) {
 	var buf bytes.Buffer
-	stdout, err := osutil.StreamCommand("sh", "-c", "echo hello; sleep .1; echo bye")
-	c.Assert(err, IsNil)
-	_, err = io.Copy(&buf, stdout)
-	c.Assert(err, IsNil)
+	stdout := mylog.Check2(osutil.StreamCommand("sh", "-c", "echo hello; sleep .1; echo bye"))
+
+	_ = mylog.Check2(io.Copy(&buf, stdout))
+
 	c.Check(buf.String(), Equals, "hello\nbye\n")
 
 	wrf, wrc := osutil.WaitingReaderGuts(stdout)
@@ -149,9 +148,9 @@ func (s *execSuite) TestStreamCommandHappy(c *C) {
 
 func (s *execSuite) TestStreamCommandSad(c *C) {
 	var buf bytes.Buffer
-	stdout, err := osutil.StreamCommand("false")
-	c.Assert(err, IsNil)
-	_, err = io.Copy(&buf, stdout)
+	stdout := mylog.Check2(osutil.StreamCommand("false"))
+
+	_ = mylog.Check2(io.Copy(&buf, stdout))
 	c.Assert(err, ErrorMatches, "exit status 1")
 	c.Check(buf.String(), Equals, "")
 
@@ -167,7 +166,7 @@ func (s *execSuite) TestRunCmdHappy(c *C) {
 	defer mc.Restore()
 
 	cmd := exec.Command("testcmd")
-	sout, serr, err := osutil.RunCmd(cmd)
+	sout, serr := mylog.Check3(osutil.RunCmd(cmd))
 	c.Check(err, IsNil)
 	c.Check(string(sout), Equals, "happy output\n")
 	c.Check(serr, DeepEquals, []byte{})
@@ -180,7 +179,7 @@ func (s *execSuite) TestRunCmdHappySplitOutput(c *C) {
 	defer mc.Restore()
 
 	cmd := exec.Command("testcmd")
-	sout, serr, err := osutil.RunCmd(cmd)
+	sout, serr := mylog.Check3(osutil.RunCmd(cmd))
 	c.Check(err, IsNil)
 	c.Check(string(sout), Equals, "happy output\n")
 	c.Check(string(serr), Equals, "to stderr\n")
@@ -194,14 +193,14 @@ func (s *execSuite) TestRunCmdStdoutSet(c *C) {
 
 	cmd := exec.Command("testcmd")
 	cmd.Stdout = &bytes.Buffer{}
-	sout, serr, err := osutil.RunCmd(cmd)
+	sout, serr := mylog.Check3(osutil.RunCmd(cmd))
 	c.Check(err.Error(), Equals, "osutil.Run: Stdout already set")
 	c.Check(sout, IsNil)
 	c.Check(serr, IsNil)
 
 	cmd = exec.Command("testcmd")
 	cmd.Stderr = &bytes.Buffer{}
-	sout, serr, err = osutil.RunCmd(cmd)
+	sout, serr = mylog.Check3(osutil.RunCmd(cmd))
 	c.Check(err.Error(), Equals, "osutil.Run: Stderr already set")
 	c.Check(sout, IsNil)
 	c.Check(serr, IsNil)
@@ -217,17 +216,18 @@ fi
 echo "happy output" && >&2 echo "to stderr"`)
 	defer mc.Restore()
 
-	sout, serr, err := osutil.RunSplitOutput("testcmd", "arg1", "arg2")
+	sout, serr := mylog.Check3(osutil.RunSplitOutput("testcmd", "arg1", "arg2"))
 	c.Check(err, IsNil)
 	c.Check(string(sout), Equals, "happy output\n")
 	c.Check(string(serr), Equals, "to stderr\n")
 
-	sout, serr, err = osutil.RunSplitOutput("testcmd")
+	sout, serr = mylog.Check3(osutil.RunSplitOutput("testcmd"))
 	c.Check(err.Error(), Equals, "exit status 1")
 	c.Check(len(sout), Equals, 0)
 	c.Check(len(serr), Equals, 0)
 
 	c.Check(mc.Calls(), DeepEquals, [][]string{
 		{"testcmd", "arg1", "arg2"},
-		{"testcmd"}})
+		{"testcmd"},
+	})
 }

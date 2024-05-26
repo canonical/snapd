@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/snap/integrity/dmverity"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -67,8 +68,8 @@ func (s *VerityTestSuite) TestGetRootHashFromOutput(c *C) {
 	testinput := s.makeValidVeritySetupOutput()
 	testroothash := "cf9a379613c0dc10301fe3eba4665c38b849b7aad311471faa4d2392ee4ede49"
 
-	roothash, err := dmverity.GetRootHashFromOutput([]byte(testinput))
-	c.Assert(err, IsNil)
+	roothash := mylog.Check2(dmverity.GetRootHashFromOutput([]byte(testinput)))
+
 	c.Check(roothash, Equals, testroothash)
 }
 
@@ -84,7 +85,7 @@ func (s *VerityTestSuite) TestGetRootHashFromOutputInvalid(c *C) {
 
 	for _, test := range invalidTests {
 		invalid := strings.Replace(validVeritySetupOutput, test.original, test.invalid, 1)
-		_, err := dmverity.GetRootHashFromOutput([]byte(invalid))
+		_ := mylog.Check2(dmverity.GetRootHashFromOutput([]byte(invalid)))
 		c.Check(err, ErrorMatches, test.expectedErr)
 	}
 }
@@ -116,8 +117,8 @@ esac
 `, snapPath))
 	defer vscmd.Restore()
 
-	_, err := dmverity.Format(snapPath, snapPath+".verity")
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(dmverity.Format(snapPath, snapPath+".verity"))
+
 	c.Assert(vscmd.Calls(), HasLen, 2)
 	c.Check(vscmd.Calls()[0], DeepEquals, []string{"veritysetup", "--version"})
 	c.Check(vscmd.Calls()[1], DeepEquals, []string{"veritysetup", "format", snapPath, snapPath + ".verity"})
@@ -152,8 +153,8 @@ esac
 `, snapPath))
 	defer vscmd.Restore()
 
-	_, err := dmverity.Format(snapPath, snapPath+".verity")
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(dmverity.Format(snapPath, snapPath+".verity"))
+
 	c.Assert(vscmd.Calls(), HasLen, 2)
 	c.Check(vscmd.Calls()[0], DeepEquals, []string{"veritysetup", "--version"})
 	c.Check(vscmd.Calls()[1], DeepEquals, []string{"veritysetup", "format", snapPath, snapPath + ".verity"})
@@ -175,7 +176,7 @@ esac
 `)
 	defer vscmd.Restore()
 
-	_, err := dmverity.Format(snapPath, "")
+	_ := mylog.Check2(dmverity.Format(snapPath, ""))
 	c.Check(err, ErrorMatches, "Cannot create hash image  for writing.")
 }
 
@@ -198,10 +199,8 @@ func (s *VerityTestSuite) TestVerityVersionDetect(c *C) {
 		vscmd := testutil.MockCommand(c, "veritysetup", fmt.Sprintf(`echo veritysetup %s`, t.ver))
 		defer vscmd.Restore()
 
-		deploy, err := dmverity.ShouldApplyWorkaround()
-		if err != nil {
-			c.Check(err, ErrorMatches, t.err, Commentf("test failed for version: %s", t.ver))
-		}
+		deploy := mylog.Check2(dmverity.ShouldApplyWorkaround())
+
 		c.Check(deploy, Equals, t.deploy, Commentf("test failed for version: %s", t.ver))
 	}
 }

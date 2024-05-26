@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
@@ -46,8 +47,10 @@ type setAttrSuite struct {
 	mockHandler         *hooktest.MockHandler
 }
 
-var _ = Suite(&setSuite{})
-var _ = Suite(&setAttrSuite{})
+var (
+	_ = Suite(&setSuite{})
+	_ = Suite(&setAttrSuite{})
+)
 
 func (s *setSuite) SetUpTest(c *C) {
 	s.mockHandler = hooktest.NewMockHandler()
@@ -59,22 +62,21 @@ func (s *setSuite) SetUpTest(c *C) {
 	task := state.NewTask("test-task", "my test task")
 	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
 
-	var err error
-	s.mockContext, err = hookstate.NewContext(task, task.State(), setup, s.mockHandler, "")
-	c.Assert(err, IsNil)
+	s.mockContext = mylog.Check2(hookstate.NewContext(task, task.State(), setup, s.mockHandler, ""))
+
 }
 
 func (s *setSuite) TestInvalidArguments(c *C) {
-	_, _, err := ctlcmd.Run(s.mockContext, []string{"set"}, 0)
+	_, _ := mylog.Check3(ctlcmd.Run(s.mockContext, []string{"set"}, 0))
 	c.Check(err, ErrorMatches, "set which option.*")
-	_, _, err = ctlcmd.Run(s.mockContext, []string{"set", "foo", "bar"}, 0)
+	_, _ = mylog.Check3(ctlcmd.Run(s.mockContext, []string{"set", "foo", "bar"}, 0))
 	c.Check(err, ErrorMatches, ".*invalid parameter.*want key=value.*")
-	_, _, err = ctlcmd.Run(s.mockContext, []string{"set", ":foo", "bar=baz"}, 0)
+	_, _ = mylog.Check3(ctlcmd.Run(s.mockContext, []string{"set", ":foo", "bar=baz"}, 0))
 	c.Check(err, ErrorMatches, ".*interface attributes can only be set during the execution of prepare hooks.*")
 }
 
 func (s *setSuite) TestCommand(c *C) {
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"set", "foo=bar", "baz=qux"}, 0)
+	stdout, stderr := mylog.Check3(ctlcmd.Run(s.mockContext, []string{"set", "foo=bar", "baz=qux"}, 0))
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
@@ -101,20 +103,20 @@ func (s *setSuite) TestCommand(c *C) {
 }
 
 func (s *setSuite) TestSetRegularUserForbidden(c *C) {
-	_, _, err := ctlcmd.Run(s.mockContext, []string{"set", "test-key1"}, 1000)
+	_, _ := mylog.Check3(ctlcmd.Run(s.mockContext, []string{"set", "test-key1"}, 1000))
 	c.Assert(err, ErrorMatches, `cannot use "set" with uid 1000, try with sudo`)
 	forbidden, _ := err.(*ctlcmd.ForbiddenCommandError)
 	c.Assert(forbidden, NotNil)
 }
 
 func (s *setSuite) TestSetHelpRegularUserAllowed(c *C) {
-	_, _, err := ctlcmd.Run(s.mockContext, []string{"set", "-h"}, 1000)
+	_, _ := mylog.Check3(ctlcmd.Run(s.mockContext, []string{"set", "-h"}, 1000))
 	c.Assert(err, NotNil)
 	c.Assert(strings.HasPrefix(err.Error(), "Usage:"), Equals, true)
 }
 
 func (s *setSuite) TestSetConfigOptionWithColon(c *C) {
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"set", "device-service.url=192.168.0.1:5555"}, 0)
+	stdout, stderr := mylog.Check3(ctlcmd.Run(s.mockContext, []string{"set", "device-service.url=192.168.0.1:5555"}, 0))
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
@@ -142,7 +144,7 @@ func (s *setSuite) TestUnsetConfigOptionWithInitialConfiguration(c *C) {
 	tr.Commit()
 	s.mockContext.State().Unlock()
 
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"set", "test-key1!", "test-key3.foo!"}, 0)
+	stdout, stderr := mylog.Check3(ctlcmd.Run(s.mockContext, []string{"set", "test-key1!", "test-key3.foo!"}, 0))
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
@@ -164,7 +166,7 @@ func (s *setSuite) TestUnsetConfigOptionWithInitialConfiguration(c *C) {
 }
 
 func (s *setSuite) TestUnsetConfigOptionWithNoInitialConfiguration(c *C) {
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"set", "test-key.key1=value1", "test-key.key2=value2", "test-key.key1!"}, 0)
+	stdout, stderr := mylog.Check3(ctlcmd.Run(s.mockContext, []string{"set", "test-key.key1=value1", "test-key.key2=value2", "test-key.key1!"}, 0))
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
@@ -184,7 +186,7 @@ func (s *setSuite) TestUnsetConfigOptionWithNoInitialConfiguration(c *C) {
 }
 
 func (s *setSuite) TestSetNumbers(c *C) {
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"set", "foo=1234567890", "bar=123456.7890"}, 0)
+	stdout, stderr := mylog.Check3(ctlcmd.Run(s.mockContext, []string{"set", "foo=1234567890", "bar=123456.7890"}, 0))
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
@@ -205,8 +207,8 @@ func (s *setSuite) TestSetNumbers(c *C) {
 }
 
 func (s *setSuite) TestSetStrictJSON(c *C) {
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"set", "-t", `key={"a":"b", "c": 1, "d": {"e":"f"}}`}, 0)
-	c.Assert(err, IsNil)
+	stdout, stderr := mylog.Check3(ctlcmd.Run(s.mockContext, []string{"set", "-t", `key={"a":"b", "c": 1, "d": {"e":"f"}}`}, 0))
+
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
 
@@ -223,14 +225,14 @@ func (s *setSuite) TestSetStrictJSON(c *C) {
 }
 
 func (s *setSuite) TestSetFailWithStrictJSON(c *C) {
-	_, _, err := ctlcmd.Run(s.mockContext, []string{"set", "-t", `key=a`}, 0)
+	_, _ := mylog.Check3(ctlcmd.Run(s.mockContext, []string{"set", "-t", `key=a`}, 0))
 	c.Assert(err, ErrorMatches, "failed to parse JSON:.*")
 }
 
 func (s *setSuite) TestSetAsString(c *C) {
 	expected := `{"a":"b", "c": 1, "d": {"e": "f"}}`
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"set", "-s", fmt.Sprintf("key=%s", expected)}, 0)
-	c.Assert(err, IsNil)
+	stdout, stderr := mylog.Check3(ctlcmd.Run(s.mockContext, []string{"set", "-s", fmt.Sprintf("key=%s", expected)}, 0))
+
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
 
@@ -247,7 +249,7 @@ func (s *setSuite) TestSetAsString(c *C) {
 }
 
 func (s *setSuite) TestSetErrorOnStrictJSONAndString(c *C) {
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"set", "-s", "-t", `{"a":"b"}`}, 0)
+	stdout, stderr := mylog.Check3(ctlcmd.Run(s.mockContext, []string{"set", "-s", "-t", `{"a":"b"}`}, 0))
 	c.Assert(err, ErrorMatches, "cannot use -t and -s together")
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
@@ -262,7 +264,7 @@ func (s *setSuite) TestCommandSavesDeltasOnly(c *C) {
 	tr.Commit()
 	s.mockContext.State().Unlock()
 
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"set", "test-key2=test-value3"}, 0)
+	stdout, stderr := mylog.Check3(ctlcmd.Run(s.mockContext, []string{"set", "test-key2=test-value3"}, 0))
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
@@ -282,7 +284,7 @@ func (s *setSuite) TestCommandSavesDeltasOnly(c *C) {
 }
 
 func (s *setSuite) TestCommandWithoutContext(c *C) {
-	_, _, err := ctlcmd.Run(nil, []string{"set", "foo=bar"}, 0)
+	_, _ := mylog.Check3(ctlcmd.Run(nil, []string{"set", "foo=bar"}, 0))
 	c.Check(err, ErrorMatches, `cannot invoke snapctl operation commands \(here "set"\) from outside of a snap`)
 }
 
@@ -309,15 +311,13 @@ func (s *setAttrSuite) SetUpTest(c *C) {
 	ch.AddTask(attrsTask)
 	state.Unlock()
 
-	var err error
-
 	// setup plug hook task
 	state.Lock()
 	plugHookTask := state.NewTask("run-hook", "my test task")
 	state.Unlock()
 	plugTaskSetup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "prepare-plug-aplug"}
-	s.mockPlugHookContext, err = hookstate.NewContext(plugHookTask, plugHookTask.State(), plugTaskSetup, s.mockHandler, "")
-	c.Assert(err, IsNil)
+	s.mockPlugHookContext = mylog.Check2(hookstate.NewContext(plugHookTask, plugHookTask.State(), plugTaskSetup, s.mockHandler, ""))
+
 
 	s.mockPlugHookContext.Lock()
 	s.mockPlugHookContext.Set("attrs-task", attrsTask.ID())
@@ -331,8 +331,8 @@ func (s *setAttrSuite) SetUpTest(c *C) {
 	slotHookTask := state.NewTask("run-hook", "my test task")
 	state.Unlock()
 	slotTaskSetup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "prepare-slot-aplug"}
-	s.mockSlotHookContext, err = hookstate.NewContext(slotHookTask, slotHookTask.State(), slotTaskSetup, s.mockHandler, "")
-	c.Assert(err, IsNil)
+	s.mockSlotHookContext = mylog.Check2(hookstate.NewContext(slotHookTask, slotHookTask.State(), slotTaskSetup, s.mockHandler, ""))
+
 
 	s.mockSlotHookContext.Lock()
 	s.mockSlotHookContext.Set("attrs-task", attrsTask.ID())
@@ -344,48 +344,47 @@ func (s *setAttrSuite) SetUpTest(c *C) {
 }
 
 func (s *setAttrSuite) TestSetPlugAttributesInPlugHook(c *C) {
-	stdout, stderr, err := ctlcmd.Run(s.mockPlugHookContext, []string{"set", ":aplug", "foo=bar"}, 0)
+	stdout, stderr := mylog.Check3(ctlcmd.Run(s.mockPlugHookContext, []string{"set", ":aplug", "foo=bar"}, 0))
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
 
-	attrsTask, err := ctlcmd.AttributesTask(s.mockPlugHookContext)
-	c.Assert(err, IsNil)
+	attrsTask := mylog.Check2(ctlcmd.AttributesTask(s.mockPlugHookContext))
+
 	st := s.mockPlugHookContext.State()
 	st.Lock()
 	defer st.Unlock()
 	dynattrs := make(map[string]interface{})
-	err = attrsTask.Get("plug-dynamic", &dynattrs)
-	c.Assert(err, IsNil)
+	mylog.Check(attrsTask.Get("plug-dynamic", &dynattrs))
+
 	c.Check(dynattrs["foo"], Equals, "bar")
 }
 
 func (s *setAttrSuite) TestSetPlugAttributesSupportsDottedSyntax(c *C) {
-	stdout, stderr, err := ctlcmd.Run(s.mockPlugHookContext, []string{"set", ":aplug", "my.attr1=foo", "my.attr2=bar"}, 0)
+	stdout, stderr := mylog.Check3(ctlcmd.Run(s.mockPlugHookContext, []string{"set", ":aplug", "my.attr1=foo", "my.attr2=bar"}, 0))
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
 
-	attrsTask, err := ctlcmd.AttributesTask(s.mockPlugHookContext)
-	c.Assert(err, IsNil)
+	attrsTask := mylog.Check2(ctlcmd.AttributesTask(s.mockPlugHookContext))
+
 	st := s.mockPlugHookContext.State()
 	st.Lock()
 	defer st.Unlock()
 	dynattrs := make(map[string]interface{})
-	err = attrsTask.Get("plug-dynamic", &dynattrs)
-	c.Assert(err, IsNil)
+	mylog.Check(attrsTask.Get("plug-dynamic", &dynattrs))
+
 	c.Check(dynattrs["my"], DeepEquals, map[string]interface{}{"attr1": "foo", "attr2": "bar"})
 }
 
 func (s *setAttrSuite) TestPlugOrSlotEmpty(c *C) {
-	stdout, stderr, err := ctlcmd.Run(s.mockPlugHookContext, []string{"set", ":", "foo=bar"}, 0)
+	stdout, stderr := mylog.Check3(ctlcmd.Run(s.mockPlugHookContext, []string{"set", ":", "foo=bar"}, 0))
 	c.Check(err, ErrorMatches, "plug or slot name not provided")
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
 }
 
 func (s *setAttrSuite) TestSetCommandFailsOutsideOfValidContext(c *C) {
-	var err error
 	var mockContext *hookstate.Context
 
 	state := state.New(nil)
@@ -394,10 +393,10 @@ func (s *setAttrSuite) TestSetCommandFailsOutsideOfValidContext(c *C) {
 
 	task := state.NewTask("test-task", "my test task")
 	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "not-a-connect-hook"}
-	mockContext, err = hookstate.NewContext(task, task.State(), setup, s.mockHandler, "")
-	c.Assert(err, IsNil)
+	mockContext = mylog.Check2(hookstate.NewContext(task, task.State(), setup, s.mockHandler, ""))
 
-	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"set", ":aplug", "foo=bar"}, 0)
+
+	stdout, stderr := mylog.Check3(ctlcmd.Run(mockContext, []string{"set", ":aplug", "foo=bar"}, 0))
 	c.Check(err, ErrorMatches, `interface attributes can only be set during the execution of prepare hooks`)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")

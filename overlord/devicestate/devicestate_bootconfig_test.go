@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
@@ -95,8 +96,8 @@ func (s *deviceMgrBootconfigSuite) SetUpTest(c *C) {
 			"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
 		},
 	}
-	err := modeenv.WriteTo("")
-	c.Assert(err, IsNil)
+	mylog.Check(modeenv.WriteTo(""))
+
 }
 
 func (s *deviceMgrBootconfigSuite) setupUC20Model(c *C) *asserts.Model {
@@ -175,10 +176,10 @@ kernel-cmdline:
 
 	// Set options that influence the final kernel command line
 	tr := config.NewTransaction(s.state)
-	err := tr.Set("core", "system.kernel.cmdline-append", opts.cmdlineAppend)
-	c.Assert(err, IsNil)
+	mylog.Check(tr.Set("core", "system.kernel.cmdline-append", opts.cmdlineAppend))
+
 	tr.Set("core", "system.kernel.dangerous-cmdline-append", opts.cmdlineAppendDanger)
-	c.Assert(err, IsNil)
+
 	tr.Commit()
 
 	tsk := s.state.NewTask("update-managed-boot-config", "update boot config")
@@ -256,10 +257,10 @@ kernel-cmdline:
 
 	// Set options that influence the final kernel command line
 	tr := config.NewTransaction(s.state)
-	err := tr.Set("core", "system.kernel.cmdline-append", opts.cmdlineAppend)
-	c.Assert(err, IsNil)
+	mylog.Check(tr.Set("core", "system.kernel.cmdline-append", opts.cmdlineAppend))
+
 	tr.Set("core", "system.kernel.dangerous-cmdline-append", opts.cmdlineAppendDanger)
-	c.Assert(err, IsNil)
+
 	tr.Commit()
 
 	tsk := s.state.NewTask("update-managed-boot-config", "update boot config")
@@ -324,8 +325,8 @@ func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunSuccess(c *C) {
 	}
 	s.testBootConfigUpdateRun(c, opts, "")
 
-	m, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	m := mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check([]string(m.CurrentKernelCommandLines), DeepEquals, []string{
 		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
 		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 candidate",
@@ -345,8 +346,8 @@ func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunSuccessClassicWithMode
 	}
 	s.testBootConfigUpdateRunClassic(c, opts, "")
 
-	m, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	m := mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check([]string(m.CurrentKernelCommandLines), DeepEquals, []string{
 		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
 		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 candidate",
@@ -367,8 +368,8 @@ func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunSuccessClassicWithMode
 	}
 	s.testBootConfigUpdateRunClassic(c, opts, "")
 
-	m, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	m := mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check([]string(m.CurrentKernelCommandLines), DeepEquals, []string{
 		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
 		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 candidate par1=val par2",
@@ -389,8 +390,8 @@ func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateWithGadgetExtra(c *C) {
 
 	// update the modeenv to have the gadget arguments included to mimic the
 	// state we would have in the system
-	m, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	m := mylog.Check2(boot.ReadModeenv(""))
+
 	m.CurrentKernelCommandLines = []string{
 		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 args from gadget",
 	}
@@ -402,8 +403,8 @@ func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateWithGadgetExtra(c *C) {
 	}
 	s.testBootConfigUpdateRun(c, opts, "")
 
-	m, err = boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	m = mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check([]string(m.CurrentKernelCommandLines), DeepEquals, []string{
 		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 args from gadget",
 		// gadget arguments are picked up for the candidate command line
@@ -425,8 +426,8 @@ func (s *deviceMgrBootconfigSuite) testBootConfigUpdateRunWithAppend(c *C, grade
 	}
 	s.testBootConfigUpdateRun(c, opts, "")
 
-	m, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	m := mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check([]string(m.CurrentKernelCommandLines), DeepEquals, []string{
 		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
 		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 candidate par1=val par2",
@@ -455,8 +456,8 @@ func (s *deviceMgrBootconfigSuite) testBootConfigUpdateRunWithDangerousAppend(c 
 	}
 	s.testBootConfigUpdateRun(c, opts, "")
 
-	m, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	m := mylog.Check2(boot.ReadModeenv(""))
+
 	expected := "snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 candidate"
 	if grade == "dangerous" {
 		expected += " par1=val par2"
@@ -490,8 +491,8 @@ func (s *deviceMgrBootconfigSuite) testBootConfigUpdateRunWithAppendBothOpts(c *
 	}
 	s.testBootConfigUpdateRun(c, opts, "")
 
-	m, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	m := mylog.Check2(boot.ReadModeenv(""))
+
 	expected := "snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 candidate par1=val par2"
 	if grade == "dangerous" {
 		expected += " par3=val par4"
@@ -538,7 +539,6 @@ func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateUpdateErr(c *C) {
 	}
 	s.testBootConfigUpdateRun(c, opts,
 		`(?ms).*cannot update boot config assets: update fail\)`)
-
 }
 
 func (s *deviceMgrBootconfigSuite) TestBootConfigNoUC20(c *C) {
@@ -585,8 +585,8 @@ func (s *deviceMgrBootconfigSuite) TestBootConfigRemodelDoNothing(c *C) {
 		"base":         "core20",
 		"snaps":        mockCore20ModelSnaps,
 	})
-	remodCtx, err := devicestate.RemodelCtx(s.state, uc20Model, newModel)
-	c.Assert(err, IsNil)
+	remodCtx := mylog.Check2(devicestate.RemodelCtx(s.state, uc20Model, newModel))
+
 	// be extra sure
 	c.Check(remodCtx.ForRemodeling(), Equals, true)
 	tsk := s.state.NewTask("update-managed-boot-config", "update boot config")

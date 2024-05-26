@@ -26,6 +26,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/dirs"
@@ -48,7 +49,7 @@ func (s *snapctlSuite) SetUpTest(c *check.C) {
 func (s *snapctlSuite) TestSnapctlGetNoUID(c *check.C) {
 	s.daemon(c)
 	buf := bytes.NewBufferString(`{"context-id": "some-context", "args": ["get", "something"]}`)
-	req, err := http.NewRequest("POST", "/v2/snapctl", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/snapctl", buf))
 	c.Assert(err, check.IsNil)
 	rsp := s.errorReq(c, req, nil)
 	c.Assert(rsp.Status, check.Equals, 403)
@@ -66,7 +67,7 @@ func (s *snapctlSuite) TestSnapctlForbiddenError(c *check.C) {
 	})()
 
 	buf := bytes.NewBufferString(fmt.Sprintf(`{"context-id": "some-context", "args": [%q, %q]}`, "set", "foo=bar"))
-	req, err := http.NewRequest("POST", "/v2/snapctl", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/snapctl", buf))
 	c.Assert(err, check.IsNil)
 	rsp := s.errorReq(c, req, nil)
 	c.Assert(rsp.Status, check.Equals, 403)
@@ -84,7 +85,7 @@ func (s *snapctlSuite) TestSnapctlUnsuccesfulError(c *check.C) {
 	})()
 
 	buf := bytes.NewBufferString(fmt.Sprintf(`{"context-id": "some-context", "args": [%q, %q]}`, "is-connected", "plug"))
-	req, err := http.NewRequest("POST", "/v2/snapctl", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/snapctl", buf))
 	c.Assert(err, check.IsNil)
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe.Status, check.Equals, 200)

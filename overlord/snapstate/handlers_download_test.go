@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/dirs"
@@ -254,9 +255,8 @@ func (s *downloadSnapSuite) TestDoUndoDownloadSnap(c *C) {
 
 	// and nothing is in the state for "foo"
 	var snapst snapstate.SnapState
-	err := snapstate.Get(s.state, "foo", &snapst)
+	mylog.Check(snapstate.Get(s.state, "foo", &snapst))
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
-
 }
 
 func (s *downloadSnapSuite) TestDoDownloadRateLimitedIntegration(c *C) {
@@ -301,5 +301,4 @@ func (s *downloadSnapSuite) TestDoDownloadRateLimitedIntegration(c *C) {
 			},
 		},
 	})
-
 }

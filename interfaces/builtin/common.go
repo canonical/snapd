@@ -23,6 +23,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/kmod"
@@ -152,45 +153,35 @@ func (iface *commonInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 
 func (iface *commonInterface) KModConnectedPlug(spec *kmod.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	for _, m := range iface.connectedPlugKModModules {
-		if err := spec.AddModule(m); err != nil {
-			return err
-		}
+		mylog.Check(spec.AddModule(m))
 	}
 	return nil
 }
 
 func (iface *commonInterface) KModConnectedSlot(spec *kmod.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	for _, m := range iface.connectedSlotKModModules {
-		if err := spec.AddModule(m); err != nil {
-			return err
-		}
+		mylog.Check(spec.AddModule(m))
 	}
 	return nil
 }
 
 func (iface *commonInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	for _, entry := range iface.connectedPlugMount {
-		if err := spec.AddMountEntry(entry); err != nil {
-			return err
-		}
+		mylog.Check(spec.AddMountEntry(entry))
 	}
 	return nil
 }
 
 func (iface *commonInterface) KModPermanentPlug(spec *kmod.Specification, plug *snap.PlugInfo) error {
 	for _, m := range iface.permanentPlugKModModules {
-		if err := spec.AddModule(m); err != nil {
-			return err
-		}
+		mylog.Check(spec.AddModule(m))
 	}
 	return nil
 }
 
 func (iface *commonInterface) KModPermanentSlot(spec *kmod.Specification, slot *snap.SlotInfo) error {
 	for _, m := range iface.permanentSlotKModModules {
-		if err := spec.AddModule(m); err != nil {
-			return err
-		}
+		mylog.Check(spec.AddModule(m))
 	}
 	return nil
 }

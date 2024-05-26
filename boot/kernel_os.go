@@ -22,6 +22,7 @@ package boot
 import (
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/snap"
 )
@@ -42,15 +43,10 @@ func (bp *coreBootParticipant) SetNextBoot(bootCtx NextBootContext) (rebootInfo 
 
 	const errPrefix = "cannot set next boot: %s"
 
-	rebootInfo, u, err := bp.bs.setNext(bp.s, bootCtx)
-	if err != nil {
-		return RebootInfo{RebootRequired: false}, fmt.Errorf(errPrefix, err)
-	}
+	rebootInfo, u := mylog.Check3(bp.bs.setNext(bp.s, bootCtx))
 
 	if u != nil {
-		if err := u.commit(); err != nil {
-			return RebootInfo{RebootRequired: false}, fmt.Errorf(errPrefix, err)
-		}
+		mylog.Check(u.commit())
 	}
 
 	return rebootInfo, nil
@@ -68,20 +64,15 @@ func (*coreKernel) IsTrivial() bool { return false }
 
 func (k *coreKernel) RemoveKernelAssets() error {
 	// XXX: shouldn't we check the snap type?
-	bootloader, err := bootloader.Find("", k.bopts)
-	if err != nil {
-		return fmt.Errorf("cannot remove kernel assets: %s", err)
-	}
+	bootloader := mylog.Check2(bootloader.Find("", k.bopts))
 
 	// ask bootloader to remove the kernel assets if needed
 	return bootloader.RemoveKernelAssets(k.s)
 }
 
 func (k *coreKernel) ExtractKernelAssets(snapf snap.Container) error {
-	bootloader, err := bootloader.Find("", k.bopts)
-	if err != nil {
-		return fmt.Errorf("cannot extract kernel assets: %s", err)
-	}
+	bootloader := mylog.Check2(bootloader.Find("", k.bopts))
+
 	// ask bootloader to extract the kernel assets if needed
 	return bootloader.ExtractKernelAssets(k.s, snapf)
 }

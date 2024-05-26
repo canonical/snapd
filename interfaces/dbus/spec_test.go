@@ -22,6 +22,7 @@ package dbus_test
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
@@ -65,7 +66,9 @@ var _ = Suite(&specSuite{
 				Snap: &snap.Info{
 					SuggestedName: "snap1",
 				},
-				Name: "app1"}},
+				Name: "app1",
+			},
+		},
 	},
 	slotInfo: &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "snap2"},
@@ -76,7 +79,9 @@ var _ = Suite(&specSuite{
 				Snap: &snap.Info{
 					SuggestedName: "snap2",
 				},
-				Name: "app2"}},
+				Name: "app2",
+			},
+		},
 	},
 })
 
@@ -87,8 +92,8 @@ func (s *specSuite) SetUpTest(c *C) {
 
 // The spec.Specification can be used through the interfaces.Specification interface
 func (s *specSuite) TestSpecificationIface(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	spec := dbus.NewSpecification(appSet)
 	var r interfaces.Specification = spec
 	c.Assert(r.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
@@ -99,8 +104,8 @@ func (s *specSuite) TestSpecificationIface(c *C) {
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.snap1.app1"})
 	c.Assert(spec.SnippetForTag("snap.snap1.app1"), Equals, "connected-plug\npermanent-plug\n")
 
-	appSet, err = interfaces.NewSnapAppSet(s.slot.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.slot.Snap(), nil))
+
 	spec = dbus.NewSpecification(appSet)
 	r = spec
 	c.Assert(r.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)

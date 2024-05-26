@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
@@ -54,7 +55,7 @@ func (s *systemModeSuite) TestSystemMode(c *C) {
 	s.st.Lock()
 	task := s.st.NewTask("test-task", "my test task")
 	setup := &hookstate.HookSetup{Snap: "snap1", Revision: snap.R(1), Hook: "test-hook"}
-	mockContext, err := hookstate.NewContext(task, s.st, setup, s.mockHandler, "")
+	mockContext := mylog.Check2(hookstate.NewContext(task, s.st, setup, s.mockHandler, ""))
 	c.Check(err, IsNil)
 	s.st.Unlock()
 
@@ -107,7 +108,7 @@ func (s *systemModeSuite) TestSystemMode(c *C) {
 			smi = &test.smi
 			smiErr = test.smiErr
 
-			stdout, stderr, err := ctlcmd.Run(mockContext, []string{"system-mode"}, uid)
+			stdout, stderr := mylog.Check3(ctlcmd.Run(mockContext, []string{"system-mode"}, uid))
 			comment := Commentf("%v", test)
 			if test.exitCode > 0 {
 				c.Check(err, DeepEquals, &ctlcmd.UnsuccessfulError{ExitCode: test.exitCode}, comment)

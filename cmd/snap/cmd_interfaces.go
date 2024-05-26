@@ -22,6 +22,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
@@ -36,8 +37,9 @@ type cmdInterfaces struct {
 	} `positional-args:"true"`
 }
 
-var shortInterfacesHelp = i18n.G("List interfaces' slots and plugs")
-var longInterfacesHelp = i18n.G(`
+var (
+	shortInterfacesHelp = i18n.G("List interfaces' slots and plugs")
+	longInterfacesHelp  = i18n.G(`
 The interfaces command lists interfaces available in the system.
 
 By default all slots and plugs, used and offered by all snaps, are displayed.
@@ -58,6 +60,7 @@ details are listed.
 NOTE this command is deprecated and has been replaced with the 'connections'
      command.
 `)
+)
 
 func init() {
 	cmd := addCommand("interfaces", shortInterfacesHelp, longInterfacesHelp, func() flags.Commander {
@@ -85,10 +88,8 @@ func (x *cmdInterfaces) Execute(args []string) error {
 		All:  true,
 		Snap: x.Positionals.Query.Snap,
 	}
-	ifaces, err := x.client.Connections(&opts)
-	if err != nil {
-		return err
-	}
+	ifaces := mylog.Check2(x.client.Connections(&opts))
+
 	if len(ifaces.Plugs) == 0 && len(ifaces.Slots) == 0 {
 		return fmt.Errorf(i18n.G("no interfaces found"))
 	}

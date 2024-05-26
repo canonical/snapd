@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/osutil"
@@ -53,14 +54,14 @@ func (s *androidBootTestSuite) TestNewAndroidboot(c *C) {
 	c.Assert(a, NotNil)
 	c.Assert(a.Name(), Equals, "androidboot")
 
-	present, err := a.Present()
-	c.Assert(err, IsNil)
+	present := mylog.Check2(a.Present())
+
 	c.Assert(present, Equals, false)
 
 	// now with files present, the bl is present
 	bootloader.MockAndroidBootFile(c, s.rootdir, 0644)
-	present, err = a.Present()
-	c.Assert(err, IsNil)
+	present = mylog.Check2(a.Present())
+
 	c.Assert(present, Equals, true)
 }
 
@@ -69,8 +70,8 @@ func (s *androidBootTestSuite) TestSetGetBootVar(c *C) {
 	bootVars := map[string]string{"snap_mode": boot.TryStatus}
 	a.SetBootVars(bootVars)
 
-	v, err := a.GetBootVars("snap_mode")
-	c.Assert(err, IsNil)
+	v := mylog.Check2(a.GetBootVars("snap_mode"))
+
 	c.Check(v, HasLen, 1)
 	c.Check(v["snap_mode"], Equals, boot.TryStatus)
 }
@@ -90,14 +91,13 @@ func (s *androidBootTestSuite) TestExtractKernelAssetsNoUnpacksKernel(c *C) {
 		Revision: snap.R(42),
 	}
 	fn := snaptest.MakeTestSnapWithFiles(c, packageKernel, files)
-	snapf, err := snapfile.Open(fn)
-	c.Assert(err, IsNil)
+	snapf := mylog.Check2(snapfile.Open(fn))
 
-	info, err := snap.ReadInfoFromSnapFile(snapf, si)
-	c.Assert(err, IsNil)
 
-	err = a.ExtractKernelAssets(info, snapf)
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.ReadInfoFromSnapFile(snapf, si))
+
+	mylog.Check(a.ExtractKernelAssets(info, snapf))
+
 
 	// kernel is *not* here
 	kernimg := filepath.Join(s.rootdir, "boot", "androidboot", "ubuntu-kernel_42.snap", "kernel.img")

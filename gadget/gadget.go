@@ -34,6 +34,7 @@ import (
 
 	"gopkg.in/yaml.v2"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/gadget/edition"
 	"github.com/snapcore/snapd/gadget/quantity"
@@ -203,10 +204,8 @@ func (v *Volume) MinSize() quantity.Size {
 // StructFromYamlIndex returns the structure defined at a given yaml index from
 // the original yaml file.
 func (v *Volume) StructFromYamlIndex(yamlIdx int) *VolumeStructure {
-	i, err := v.yamlIdxToStructureIdx(yamlIdx)
-	if err != nil {
-		return nil
-	}
+	i := mylog.Check2(v.yamlIdxToStructureIdx(yamlIdx))
+
 	return &v.Structure[i]
 }
 
@@ -596,10 +595,7 @@ type StructureEncryptionParameters struct {
 
 func (s *StructureEncryptionParameters) UnmarshalJSON(b []byte) error {
 	m := map[string]string{}
-
-	if err := json.Unmarshal(b, &m); err != nil {
-		return err
-	}
+	mylog.Check(json.Unmarshal(b, &m))
 
 	for key, val := range m {
 		if key == "method" {
@@ -654,16 +650,11 @@ type DiskStructureDeviceTraits struct {
 // device traits to a file inside the provided directory on disk for
 // later loading and verification.
 func SaveDiskVolumesDeviceTraits(dir string, mapping map[string]DiskVolumeDeviceTraits) error {
-	b, err := json.Marshal(mapping)
-	if err != nil {
-		return err
-	}
+	b := mylog.Check2(json.Marshal(mapping))
 
 	filename := filepath.Join(dir, "disk-mapping.json")
+	mylog.Check(os.MkdirAll(filepath.Dir(filename), 0755))
 
-	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
-		return err
-	}
 	return osutil.AtomicWriteFile(filename, b, 0644, 0)
 }
 
@@ -678,20 +669,14 @@ func LoadDiskVolumesDeviceTraits(dir string) (map[string]DiskVolumeDeviceTraits,
 		return nil, nil
 	}
 
-	b, err := os.ReadFile(filename)
-	if err != nil {
-		return nil, err
-	}
+	b := mylog.Check2(os.ReadFile(filename))
 
 	if len(b) == 0 {
 		// if the file is empty, it is safe to ignore it
 		logger.Noticef("WARNING: ignoring zero sized device traits file\n")
 		return nil, nil
 	}
-
-	if err := json.Unmarshal(b, &mapping); err != nil {
-		return nil, err
-	}
+	mylog.Check(json.Unmarshal(b, &mapping))
 
 	return mapping, nil
 }
@@ -731,17 +716,14 @@ func AllDiskVolumeDeviceTraits(allVols map[string]*Volume, optsPerVolume map[str
 				continue
 			}
 
-			structureDevice, err := FindDeviceForStructure(&vs)
+			structureDevice := mylog.Check2(FindDeviceForStructure(&vs))
 			if err != nil && err != ErrDeviceNotFound {
 				return nil, err
 			}
 			if structureDevice != "" {
 				// we found a device for this structure, get the parent disk
 				// and save that as the device for this volume
-				disk, err := disks.DiskFromPartitionDeviceNode(structureDevice)
-				if err != nil {
-					return nil, err
-				}
+				disk := mylog.Check2(disks.DiskFromPartitionDeviceNode(structureDevice))
 
 				dev = disk.KernelDeviceNode()
 				break
@@ -759,10 +741,7 @@ func AllDiskVolumeDeviceTraits(allVols map[string]*Volume, optsPerVolume map[str
 		if opts == nil {
 			opts = &DiskVolumeValidationOptions{}
 		}
-		traits, err := DiskTraitsFromDeviceAndValidate(vol, dev, opts)
-		if err != nil {
-			return nil, fmt.Errorf("cannot gather disk traits for device %s to use with volume %s: %v", dev, name, err)
-		}
+		traits := mylog.Check2(DiskTraitsFromDeviceAndValidate(vol, dev, opts))
 
 		allTraits[name] = traits
 	}
@@ -795,13 +774,10 @@ func (gcplug *ConnectionPlug) Empty() bool {
 
 func (gcplug *ConnectionPlug) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var s string
-	if err := unmarshal(&s); err != nil {
-		return err
-	}
-	snapID, name, err := parseSnapIDColonName(s)
-	if err != nil {
-		return fmt.Errorf("in gadget connection plug: %v", err)
-	}
+	mylog.Check(unmarshal(&s))
+
+	snapID, name := mylog.Check3(parseSnapIDColonName(s))
+
 	gcplug.SnapID = snapID
 	gcplug.Plug = name
 	return nil
@@ -818,13 +794,10 @@ func (gcslot *ConnectionSlot) Empty() bool {
 
 func (gcslot *ConnectionSlot) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var s string
-	if err := unmarshal(&s); err != nil {
-		return err
-	}
-	snapID, name, err := parseSnapIDColonName(s)
-	if err != nil {
-		return fmt.Errorf("in gadget connection slot: %v", err)
-	}
+	mylog.Check(unmarshal(&s))
+
+	snapID, name := mylog.Check3(parseSnapIDColonName(s))
+
 	gcslot.SnapID = snapID
 	gcslot.Slot = name
 	return nil
@@ -959,19 +932,14 @@ func validatePartial(v *Volume) error {
 // UC gadget metadata is expected to have volumes definitions.
 func InfoFromGadgetYaml(gadgetYaml []byte, model Model) (*Info, error) {
 	var gi Info
-
-	if err := yaml.Unmarshal(gadgetYaml, &gi); err != nil {
-		return nil, fmt.Errorf("cannot parse gadget metadata: %v", err)
-	}
+	mylog.Check(yaml.Unmarshal(gadgetYaml, &gi))
 
 	for k, v := range gi.Defaults {
 		if !systemOrSnapID(k) {
 			return nil, fmt.Errorf(`default stanza not keyed by "system" or snap-id: %s`, k)
 		}
-		dflt, err := metautil.NormalizeValue(v)
-		if err != nil {
-			return nil, fmt.Errorf("default value %q of %q: %v", v, k, err)
-		}
+		dflt := mylog.Check2(metautil.NormalizeValue(v))
+
 		gi.Defaults[k] = dflt.(map[string]interface{})
 	}
 
@@ -998,25 +966,18 @@ func InfoFromGadgetYaml(gadgetYaml []byte, model Model) (*Info, error) {
 		if v == nil {
 			return nil, fmt.Errorf("volume %q stanza is empty", name)
 		}
-
-		if err := validatePartial(v); err != nil {
-			return nil, err
-		}
+		mylog.Check(validatePartial(v))
 
 		// set the VolumeName for the volume
 		v.Name = name
+		mylog.Check(
 
-		// Set values that are implicit in gadget.yaml.
-		if err := setImplicitForVolume(v, model); err != nil {
-			return nil, fmt.Errorf("invalid volume %q: %v", name, err)
-		}
+			// Set values that are implicit in gadget.yaml.
+			setImplicitForVolume(v, model))
 
 		// Note that after this call we assume always ordered structures
 		v.Structure = orderStructuresByOffset(v.Structure)
-
-		if err := validateVolume(v); err != nil {
-			return nil, fmt.Errorf("invalid volume %q: %v", name, err)
-		}
+		mylog.Check(validateVolume(v))
 
 		switch v.Bootloader {
 		case "":
@@ -1122,11 +1083,10 @@ func setImplicitForVolume(vol *Volume, model Model) error {
 		}
 		// Set the pointer to the volume
 		vol.Structure[i].EnclosingVolume = vol
+		mylog.Check(
 
-		// set other implicit data for the structure
-		if err := setImplicitForVolumeStructure(&vol.Structure[i], rs, knownFsLabels, knownVfatFsLabels); err != nil {
-			return err
-		}
+			// set other implicit data for the structure
+			setImplicitForVolumeStructure(&vol.Structure[i], rs, knownFsLabels, knownVfatFsLabels))
 
 		// Set offset if it was not set (must be after setImplicitForVolumeStructure
 		// so roles are good). This is possible only if the previous structure had
@@ -1190,13 +1150,10 @@ func setImplicitForVolumeStructure(vs *VolumeStructure, rs volRuleset, knownFsLa
 }
 
 func readInfo(f func(string) ([]byte, error), gadgetYamlFn string, model Model) (*Info, error) {
-	gmeta, err := f(gadgetYamlFn)
+	gmeta := mylog.Check2(f(gadgetYamlFn))
 	if classicOrUndetermined(model) && os.IsNotExist(err) {
 		// gadget.yaml is optional for classic gadgets
 		return &Info{}, nil
-	}
-	if err != nil {
-		return nil, err
 	}
 
 	return InfoFromGadgetYaml(gmeta, model)
@@ -1208,10 +1165,8 @@ func readInfo(f func(string) ([]byte, error), gadgetYamlFn string, model Model) 
 // validation like Validate.
 func ReadInfo(gadgetSnapRootDir string, model Model) (*Info, error) {
 	gadgetYamlFn := filepath.Join(gadgetSnapRootDir, "meta", "gadget.yaml")
-	ginfo, err := readInfo(os.ReadFile, gadgetYamlFn, model)
-	if err != nil {
-		return nil, err
-	}
+	ginfo := mylog.Check2(readInfo(os.ReadFile, gadgetYamlFn, model))
+
 	return ginfo, nil
 }
 
@@ -1222,13 +1177,9 @@ func ReadInfo(gadgetSnapRootDir string, model Model) (*Info, error) {
 // See also ValidateContent for further validating the content itself
 // instead of the metadata.
 func ReadInfoAndValidate(gadgetSnapRootDir string, model Model, validationConstraints *ValidationConstraints) (*Info, error) {
-	ginfo, err := ReadInfo(gadgetSnapRootDir, model)
-	if err != nil {
-		return nil, err
-	}
-	if err := Validate(ginfo, model, validationConstraints); err != nil {
-		return nil, err
-	}
+	ginfo := mylog.Check2(ReadInfo(gadgetSnapRootDir, model))
+	mylog.Check(Validate(ginfo, model, validationConstraints))
+
 	return ginfo, err
 }
 
@@ -1237,13 +1188,9 @@ func ReadInfoAndValidate(gadgetSnapRootDir string, model Model, validationConstr
 // It also performs role-usage consistency validation as Validate does.
 // See ReadInfoFromSnapFileNoValidate for a variant that does not.
 func ReadInfoFromSnapFile(snapf snap.Container, model Model) (*Info, error) {
-	ginfo, err := ReadInfoFromSnapFileNoValidate(snapf, model)
-	if err != nil {
-		return nil, err
-	}
-	if err := Validate(ginfo, model, nil); err != nil {
-		return nil, err
-	}
+	ginfo := mylog.Check2(ReadInfoFromSnapFileNoValidate(snapf, model))
+	mylog.Check(Validate(ginfo, model, nil))
+
 	return ginfo, nil
 }
 
@@ -1253,10 +1200,8 @@ func ReadInfoFromSnapFile(snapf snap.Container, model Model) (*Info, error) {
 // validation like Validate as well.
 func ReadInfoFromSnapFileNoValidate(snapf snap.Container, model Model) (*Info, error) {
 	gadgetYamlFn := "meta/gadget.yaml"
-	ginfo, err := readInfo(snapf.ReadFile, gadgetYamlFn, model)
-	if err != nil {
-		return nil, err
-	}
+	ginfo := mylog.Check2(readInfo(snapf.ReadFile, gadgetYamlFn, model))
+
 	return ginfo, nil
 }
 
@@ -1282,9 +1227,7 @@ func validateVolume(vol *Volume) error {
 	// role there should also be at least 2 system-recovery-image roles and
 	// same for system-boot-select and at least 2 system-boot-image roles?
 	for idx, s := range vol.Structure {
-		if err := validateVolumeStructure(&s, vol); err != nil {
-			return fmt.Errorf("invalid structure %v: %v", fmtIndexAndName(idx, s.Name), err)
-		}
+		mylog.Check(validateVolumeStructure(&s, vol))
 
 		if vol.Schema == schemaGPT && s.Offset != nil {
 			// If the block size is 512, the First Usable LBA must be greater than or equal to
@@ -1348,9 +1291,8 @@ func validateCrossVolumeStructure(vol *Volume) error {
 				return fmt.Errorf(`structure %q has "mbr" role and must start at offset 0`, ps.Name)
 			}
 		}
-		if err := validateOffsetWrite(&ps, &vol.Structure[0], vol.MinSize()); err != nil {
-			return err
-		}
+		mylog.Check(validateOffsetWrite(&ps, &vol.Structure[0], vol.MinSize()))
+
 		// We are assuming ordered structures
 		if ps.Offset != nil {
 			if *(ps.Offset) < previousEnd {
@@ -1359,7 +1301,6 @@ func validateCrossVolumeStructure(vol *Volume) error {
 			previousEnd = *(ps.Offset) + quantity.Offset(ps.Size)
 		} else {
 			previousEnd += quantity.Offset(ps.Size)
-
 		}
 	}
 	return nil
@@ -1403,18 +1344,9 @@ func validateVolumeStructure(vs *VolumeStructure, vol *Volume) error {
 				vs.MinSize, vs.Size)
 		}
 	}
-	if err := validateStructureType(vs.Type, vol); err != nil {
-		return fmt.Errorf("invalid type %q: %v", vs.Type, err)
-	}
-	if err := validateRole(vs); err != nil {
-		var what string
-		if vs.Role != "" {
-			what = fmt.Sprintf("role %q", vs.Role)
-		} else {
-			what = fmt.Sprintf("implicit role %q", vs.Type)
-		}
-		return fmt.Errorf("invalid %s: %v", what, err)
-	}
+	mylog.Check(validateStructureType(vs.Type, vol))
+	mylog.Check(validateRole(vs))
+
 	if vs.Filesystem != "" && !strutil.ListContains([]string{"ext4", "vfat", "vfat-16", "vfat-32", "none"}, vs.Filesystem) {
 		return fmt.Errorf("invalid filesystem %q", vs.Filesystem)
 	}
@@ -1427,14 +1359,9 @@ func validateVolumeStructure(vs *VolumeStructure, vol *Volume) error {
 		contentChecker = validateBareContent
 	}
 	for i, c := range vs.Content {
-		if err := contentChecker(&c); err != nil {
-			return fmt.Errorf("invalid content #%v: %v", i, err)
-		}
+		mylog.Check(contentChecker(&c))
 	}
-
-	if err := validateStructureUpdate(vs, vol); err != nil {
-		return err
-	}
+	mylog.Check(validateStructureUpdate(vs, vol))
 
 	// TODO: validate structure size against sector-size; ubuntu-image uses
 	// a tmp file to find out the default sector size of the device the tmp
@@ -1634,10 +1561,8 @@ func parseRelativeOffset(grs string) (*RelativeOffset, error) {
 		return nil, errors.New("missing offset")
 	}
 
-	offset, err := quantity.ParseOffset(offsSpec)
-	if err != nil {
-		return nil, fmt.Errorf("cannot parse offset %q: %v", offsSpec, err)
-	}
+	offset := mylog.Check2(quantity.ParseOffset(offsSpec))
+
 	if offset > 4*1024*quantity.OffsetMiB {
 		return nil, fmt.Errorf("offset above 4G limit")
 	}
@@ -1650,14 +1575,10 @@ func parseRelativeOffset(grs string) (*RelativeOffset, error) {
 
 func (s *RelativeOffset) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var grs string
-	if err := unmarshal(&grs); err != nil {
-		return errors.New(`cannot unmarshal gadget relative offset`)
-	}
+	mylog.Check(unmarshal(&grs))
 
-	ro, err := parseRelativeOffset(grs)
-	if err != nil {
-		return fmt.Errorf("cannot parse relative offset %q: %v", grs, err)
-	}
+	ro := mylog.Check2(parseRelativeOffset(grs))
+
 	*s = *ro
 	return nil
 }
@@ -1675,14 +1596,9 @@ func IsCompatible(current, new *Info) error {
 	// XXX: the code below errors out with more than 1 volume in the current
 	// gadget, we allow this scenario in update but better bail out here and
 	// have users fix their gadgets
-	currentVol, newVol, err := resolveVolume(current, new)
-	if err != nil {
-		return err
-	}
+	currentVol, newVol := mylog.Check3(resolveVolume(current, new))
+	mylog.Check(isLayoutCompatible(currentVol, newVol))
 
-	if err := isLayoutCompatible(currentVol, newVol); err != nil {
-		return fmt.Errorf("incompatible layout change: %v", err)
-	}
 	return nil
 }
 
@@ -1706,7 +1622,6 @@ func checkCompatibleSchema(old, new *Volume) error {
 // and lays out the partitions on all volumes as specified. It returns the
 // volumes mentioned in the gadget.yaml and their laid out representations.
 func LaidOutVolumesFromGadget(vols map[string]*Volume, gadgetRoot, kernelRoot string, encType secboot.EncryptionType, volToGadgetToDiskStruct map[string]map[int]*OnDiskStructure) (all map[string]*LaidOutVolume, err error) {
-
 	all = make(map[string]*LaidOutVolume)
 	// layout all volumes saving them
 	opts := &LayoutOptions{
@@ -1720,10 +1635,8 @@ func LaidOutVolumesFromGadget(vols map[string]*Volume, gadgetRoot, kernelRoot st
 		if !ok {
 			return nil, fmt.Errorf("internal error: volume %q does not have a map of gadget to disk partitions", name)
 		}
-		lvol, err := LayoutVolume(vol, gadgetToDiskStruct, opts)
-		if err != nil {
-			return nil, err
-		}
+		lvol := mylog.Check2(LayoutVolume(vol, gadgetToDiskStruct, opts))
+
 		all[name] = lvol
 	}
 
@@ -1801,15 +1714,9 @@ func isKernelArgumentAllowed(arg string) bool {
 // line or just the extra parameters that will be appended to the static ones.
 // A model is neededed to know how to interpret the gadget yaml from the gadget.
 func KernelCommandLineFromGadget(gadgetDirOrSnapPath string, model Model) (cmdline string, full bool, removeArgs []kcmdline.ArgumentPattern, err error) {
-	sf, err := snapfile.Open(gadgetDirOrSnapPath)
-	if err != nil {
-		return "", false, []kcmdline.ArgumentPattern{}, fmt.Errorf("cannot open gadget snap: %v", err)
-	}
+	sf := mylog.Check2(snapfile.Open(gadgetDirOrSnapPath))
 
-	info, err := ReadInfoFromSnapFileNoValidate(sf, model)
-	if err != nil {
-		return "", false, []kcmdline.ArgumentPattern{}, fmt.Errorf("Cannot read snap info: %v", err)
-	}
+	info := mylog.Check2(ReadInfoFromSnapFileNoValidate(sf, model))
 
 	if len(info.KernelCmdline.Append) > 0 || len(info.KernelCmdline.Remove) > 0 {
 		var asStr []string
@@ -1826,12 +1733,12 @@ func KernelCommandLineFromGadget(gadgetDirOrSnapPath string, model Model) (cmdli
 	}
 
 	// Backward compatibility
-	contentExtra, err := sf.ReadFile("cmdline.extra")
+	contentExtra := mylog.Check2(sf.ReadFile("cmdline.extra"))
 	if err != nil && !os.IsNotExist(err) {
 		return "", false, []kcmdline.ArgumentPattern{}, err
 	}
 	// TODO: should we enforce the maximum kernel command line for cmdline.full?
-	contentFull, err := sf.ReadFile("cmdline.full")
+	contentFull := mylog.Check2(sf.ReadFile("cmdline.full"))
 	if err != nil && !os.IsNotExist(err) {
 		return "", false, []kcmdline.ArgumentPattern{}, err
 	}
@@ -1847,10 +1754,8 @@ func KernelCommandLineFromGadget(gadgetDirOrSnapPath string, model Model) (cmdli
 		whichFile = "cmdline.full"
 		full = true
 	}
-	parsed, err := parseCommandLineFromGadget(content)
-	if err != nil {
-		return "", full, []kcmdline.ArgumentPattern{}, fmt.Errorf("invalid kernel command line in %v: %v", whichFile, err)
-	}
+	parsed := mylog.Check2(parseCommandLineFromGadget(content))
+
 	return parsed, full, []kcmdline.ArgumentPattern{}, nil
 }
 
@@ -1881,13 +1786,10 @@ func parseCommandLineFromGadget(content []byte) (string, error) {
 		filtered.WriteRune(' ')
 		filtered.WriteString(line)
 	}
-	if err := s.Err(); err != nil {
-		return "", err
-	}
-	kargs, err := kcmdline.Split(filtered.String())
-	if err != nil {
-		return "", err
-	}
+	mylog.Check(s.Err())
+
+	kargs := mylog.Check2(kcmdline.Split(filtered.String()))
+
 	for _, argValue := range kargs {
 		if strings.HasPrefix(argValue, "#") {
 			return "", fmt.Errorf("unexpected or invalid use of # in argument %q", argValue)
@@ -1908,10 +1810,8 @@ func parseCommandLineFromGadget(content []byte) (string, error) {
 // but could be used on any known to be properly installed gadget.
 func HasRole(gadgetSnapRootDir string, roles []string) (foundRole string, err error) {
 	gadgetYamlFn := filepath.Join(gadgetSnapRootDir, "meta", "gadget.yaml")
-	gadgetYaml, err := os.ReadFile(gadgetYamlFn)
-	if err != nil {
-		return "", err
-	}
+	gadgetYaml := mylog.Check2(os.ReadFile(gadgetYamlFn))
+
 	var minInfo struct {
 		Volumes map[string]struct {
 			Structure []struct {
@@ -1919,9 +1819,8 @@ func HasRole(gadgetSnapRootDir string, roles []string) (foundRole string, err er
 			} `yaml:"structure"`
 		} `yaml:"volumes"`
 	}
-	if err := yaml.Unmarshal(gadgetYaml, &minInfo); err != nil {
-		return "", fmt.Errorf("cannot minimally parse gadget metadata: %v", err)
-	}
+	mylog.Check(yaml.Unmarshal(gadgetYaml, &minInfo))
+
 	for _, vol := range minInfo.Volumes {
 		for _, s := range vol.Structure {
 			if strutil.ListContains(roles, s.Role) {

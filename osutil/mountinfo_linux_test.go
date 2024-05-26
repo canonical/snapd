@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -37,8 +38,8 @@ var _ = Suite(&mountinfoSuite{})
 func (s *mountinfoSuite) TestParseMountInfoEntry1(c *C) {
 	real := "36 35 98:0 /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root rw,errors=continue"
 	canonical := "36 35 98:0 /mnt1 /mnt2 noatime,rw master:1 - ext3 /dev/root errors=continue,rw"
-	entry, err := osutil.ParseMountInfoEntry(real)
-	c.Assert(err, IsNil)
+	entry := mylog.Check2(osutil.ParseMountInfoEntry(real))
+
 	c.Assert(entry.String(), Equals, canonical)
 
 	c.Assert(entry.MountID, Equals, 36)
@@ -59,24 +60,24 @@ func (s *mountinfoSuite) TestParseMountInfoEntry2(c *C) {
 	// No optional fields.
 	real := "36 35 98:0 /mnt1 /mnt2 rw,noatime - ext3 /dev/root rw,errors=continue"
 	canonical := "36 35 98:0 /mnt1 /mnt2 noatime,rw - ext3 /dev/root errors=continue,rw"
-	entry, err := osutil.ParseMountInfoEntry(real)
-	c.Assert(err, IsNil)
+	entry := mylog.Check2(osutil.ParseMountInfoEntry(real))
+
 	c.Assert(entry.String(), Equals, canonical)
 
 	c.Assert(entry.MountOptions, DeepEquals, map[string]string{"rw": "", "noatime": ""})
 	c.Assert(entry.OptionalFields, HasLen, 0)
 	c.Assert(entry.FsType, Equals, "ext3")
 	// One optional field.
-	entry, err = osutil.ParseMountInfoEntry(
-		"36 35 98:0 /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root rw,errors=continue")
-	c.Assert(err, IsNil)
+	entry = mylog.Check2(osutil.ParseMountInfoEntry(
+		"36 35 98:0 /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root rw,errors=continue"))
+
 	c.Assert(entry.MountOptions, DeepEquals, map[string]string{"rw": "", "noatime": ""})
 	c.Assert(entry.OptionalFields, DeepEquals, []string{"master:1"})
 	c.Assert(entry.FsType, Equals, "ext3")
 	// Two optional fields.
-	entry, err = osutil.ParseMountInfoEntry(
-		"36 35 98:0 /mnt1 /mnt2 rw,noatime master:1 slave:2 - ext3 /dev/root rw,errors=continue")
-	c.Assert(err, IsNil)
+	entry = mylog.Check2(osutil.ParseMountInfoEntry(
+		"36 35 98:0 /mnt1 /mnt2 rw,noatime master:1 slave:2 - ext3 /dev/root rw,errors=continue"))
+
 	c.Assert(entry.MountOptions, DeepEquals, map[string]string{"rw": "", "noatime": ""})
 	c.Assert(entry.OptionalFields, DeepEquals, []string{"master:1", "slave:2"})
 	c.Assert(entry.FsType, Equals, "ext3")
@@ -86,8 +87,8 @@ func (s *mountinfoSuite) TestParseMountInfoEntry2(c *C) {
 func (s *mountinfoSuite) TestParseMountInfoEntry3(c *C) {
 	real := `36 35 98:0 /mnt\0401 /mnt\0402 noatime,rw\040 mas\040ter:1 - ext\0403 /dev/ro\040ot rw\040,errors=continue`
 	canonical := `36 35 98:0 /mnt\0401 /mnt\0402 noatime,rw\040 mas\040ter:1 - ext\0403 /dev/ro\040ot errors=continue,rw\040`
-	entry, err := osutil.ParseMountInfoEntry(real)
-	c.Assert(err, IsNil)
+	entry := mylog.Check2(osutil.ParseMountInfoEntry(real))
+
 	c.Assert(entry.String(), Equals, canonical)
 
 	c.Assert(entry.MountID, Equals, 36)
@@ -106,8 +107,8 @@ func (s *mountinfoSuite) TestParseMountInfoEntry3(c *C) {
 
 func (s *mountinfoSuite) TestBrokenEscapingPlan9(c *C) {
 	// This is a real sample collected on WSL-2 with Docker installed on the Windows host.
-	mi, err := osutil.ParseMountInfoEntry(`1146 77 0:149 / /Docker/host rw,noatime - 9p drvfs rw,dirsync,aname=drvfs;path=C:\Program Files\Docker\Docker\resources;symlinkroot=/mnt/,mmap,access=client,msize=262144,trans=virtio`)
-	c.Assert(err, IsNil)
+	mi := mylog.Check2(osutil.ParseMountInfoEntry(`1146 77 0:149 / /Docker/host rw,noatime - 9p drvfs rw,dirsync,aname=drvfs;path=C:\Program Files\Docker\Docker\resources;symlinkroot=/mnt/,mmap,access=client,msize=262144,trans=virtio`))
+
 	c.Check(mi.SuperOptions, DeepEquals, map[string]string{
 		"rw":      "",
 		"dirsync": "",
@@ -122,28 +123,28 @@ func (s *mountinfoSuite) TestBrokenEscapingPlan9(c *C) {
 
 // Check that various malformed entries are detected.
 func (s *mountinfoSuite) TestParseMountInfoEntry4(c *C) {
-	mi, err := osutil.ParseMountInfoEntry("36 35 98:0 /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root rw,errors=continue foo")
-	c.Assert(err, IsNil)
+	mi := mylog.Check2(osutil.ParseMountInfoEntry("36 35 98:0 /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root rw,errors=continue foo"))
+
 	c.Check(mi.SuperOptions, DeepEquals, map[string]string{"rw": "", "errors": "continue foo"})
-	_, err = osutil.ParseMountInfoEntry("36 35 98:0 /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root")
+	_ = mylog.Check2(osutil.ParseMountInfoEntry("36 35 98:0 /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root"))
 	c.Assert(err, ErrorMatches, "incorrect number of tail fields, expected 3 but found 2")
-	_, err = osutil.ParseMountInfoEntry("36 35 98:0 /mnt1 /mnt2 rw,noatime master:1 - ext3")
+	_ = mylog.Check2(osutil.ParseMountInfoEntry("36 35 98:0 /mnt1 /mnt2 rw,noatime master:1 - ext3"))
 	c.Assert(err, ErrorMatches, "incorrect number of fields, expected at least 10 but found 9")
-	_, err = osutil.ParseMountInfoEntry("36 35 98:0 /mnt1 /mnt2 rw,noatime master:1 -")
+	_ = mylog.Check2(osutil.ParseMountInfoEntry("36 35 98:0 /mnt1 /mnt2 rw,noatime master:1 -"))
 	c.Assert(err, ErrorMatches, "incorrect number of fields, expected at least 10 but found 8")
-	_, err = osutil.ParseMountInfoEntry("36 35 98:0 /mnt1 /mnt2 rw,noatime master:1")
+	_ = mylog.Check2(osutil.ParseMountInfoEntry("36 35 98:0 /mnt1 /mnt2 rw,noatime master:1"))
 	c.Assert(err, ErrorMatches, "incorrect number of fields, expected at least 10 but found 7")
-	_, err = osutil.ParseMountInfoEntry("36 35 98:0 /mnt1 /mnt2 rw,noatime master:1 garbage1 garbage2 garbage3")
+	_ = mylog.Check2(osutil.ParseMountInfoEntry("36 35 98:0 /mnt1 /mnt2 rw,noatime master:1 garbage1 garbage2 garbage3"))
 	c.Assert(err, ErrorMatches, "list of optional fields is not terminated properly")
-	_, err = osutil.ParseMountInfoEntry("foo 35 98:0 /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root rw,errors=continue foo")
+	_ = mylog.Check2(osutil.ParseMountInfoEntry("foo 35 98:0 /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root rw,errors=continue foo"))
 	c.Assert(err, ErrorMatches, `cannot parse mount ID: "foo"`)
-	_, err = osutil.ParseMountInfoEntry("36 bar 98:0 /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root rw,errors=continue foo")
+	_ = mylog.Check2(osutil.ParseMountInfoEntry("36 bar 98:0 /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root rw,errors=continue foo"))
 	c.Assert(err, ErrorMatches, `cannot parse parent mount ID: "bar"`)
-	_, err = osutil.ParseMountInfoEntry("36 35 froz:0 /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root rw,errors=continue foo")
+	_ = mylog.Check2(osutil.ParseMountInfoEntry("36 35 froz:0 /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root rw,errors=continue foo"))
 	c.Assert(err, ErrorMatches, `cannot parse device major number: "froz"`)
-	_, err = osutil.ParseMountInfoEntry("36 35 98:bot /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root rw,errors=continue foo")
+	_ = mylog.Check2(osutil.ParseMountInfoEntry("36 35 98:bot /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root rw,errors=continue foo"))
 	c.Assert(err, ErrorMatches, `cannot parse device minor number: "bot"`)
-	_, err = osutil.ParseMountInfoEntry("36 35 corrupt /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root rw,errors=continue foo")
+	_ = mylog.Check2(osutil.ParseMountInfoEntry("36 35 corrupt /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root rw,errors=continue foo"))
 	c.Assert(err, ErrorMatches, `cannot parse device major:minor number pair: "corrupt"`)
 }
 
@@ -151,16 +152,16 @@ func (s *mountinfoSuite) TestParseMountInfoEntry4(c *C) {
 func (s *mountinfoSuite) TestParseMountInfoEntry5(c *C) {
 	real := "2074 27 0:54 / /tmp/strange\rdir rw,relatime shared:1039 - tmpfs tmpfs rw"
 	canonical := "2074 27 0:54 / /tmp/strange\rdir relatime,rw shared:1039 - tmpfs tmpfs rw"
-	entry, err := osutil.ParseMountInfoEntry(real)
-	c.Assert(err, IsNil)
+	entry := mylog.Check2(osutil.ParseMountInfoEntry(real))
+
 	c.Assert(entry.String(), Equals, canonical)
 	c.Assert(entry.MountDir, Equals, "/tmp/strange\rdir")
 }
 
 // Test that empty mountinfo is parsed without errors.
 func (s *mountinfoSuite) TestReadMountInfo1(c *C) {
-	entries, err := osutil.ReadMountInfo(strings.NewReader(""))
-	c.Assert(err, IsNil)
+	entries := mylog.Check2(osutil.ReadMountInfo(strings.NewReader("")))
+
 	c.Assert(entries, HasLen, 0)
 }
 
@@ -171,20 +172,20 @@ const mountInfoSample = "" +
 
 // Test that mountinfo is parsed without errors.
 func (s *mountinfoSuite) TestReadMountInfo2(c *C) {
-	entries, err := osutil.ReadMountInfo(strings.NewReader(mountInfoSample))
-	c.Assert(err, IsNil)
+	entries := mylog.Check2(osutil.ReadMountInfo(strings.NewReader(mountInfoSample)))
+
 	c.Assert(entries, HasLen, 3)
 }
 
 // Test that loading mountinfo from a file works as expected.
 func (s *mountinfoSuite) TestLoadMountInfo1(c *C) {
 	fname := filepath.Join(c.MkDir(), "mountinfo")
-	err := os.WriteFile(fname, []byte(mountInfoSample), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(fname, []byte(mountInfoSample), 0644))
+
 	restore := osutil.MockProcSelfMountInfoLocation(fname)
 	defer restore()
-	entries, err := osutil.LoadMountInfo()
-	c.Assert(err, IsNil)
+	entries := mylog.Check2(osutil.LoadMountInfo())
+
 	c.Assert(entries, HasLen, 3)
 }
 
@@ -193,20 +194,20 @@ func (s *mountinfoSuite) TestLoadMountInfo2(c *C) {
 	fname := filepath.Join(c.MkDir(), "mountinfo")
 	restore := osutil.MockProcSelfMountInfoLocation(fname)
 	defer restore()
-	_, err := osutil.LoadMountInfo()
+	_ := mylog.Check2(osutil.LoadMountInfo())
 	c.Assert(err, ErrorMatches, "*. no such file or directory")
 }
 
 // Test that trying to load mountinfo without permissions reports an error.
 func (s *mountinfoSuite) TestLoadMountInfo3(c *C) {
 	fname := filepath.Join(c.MkDir(), "mountinfo")
-	err := os.WriteFile(fname, []byte(mountInfoSample), 0644)
-	c.Assert(err, IsNil)
-	err = os.Chmod(fname, 0000)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(fname, []byte(mountInfoSample), 0644))
+
+	mylog.Check(os.Chmod(fname, 0000))
+
 	restore := osutil.MockProcSelfMountInfoLocation(fname)
 	defer restore()
-	_, err = osutil.LoadMountInfo()
+	_ = mylog.Check2(osutil.LoadMountInfo())
 	c.Assert(err, ErrorMatches, "*. permission denied")
 }
 

@@ -26,12 +26,11 @@ import (
 	"os"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 )
 
-var (
-	procCmdline = "/proc/cmdline"
-)
+var procCmdline = "/proc/cmdline"
 
 // MockProcCmdline overrides the path to /proc/cmdline. For use in tests.
 func MockProcCmdline(newPath string) (restore func()) {
@@ -59,16 +58,16 @@ func Split(s string) (out []string, err error) {
 		argValueQuoteEnd              // looking at end of quoted value
 	)
 	var b bytes.Buffer
-	var rs = []rune(s)
-	var last = len(rs) - 1
-	var errUnexpectedQuote = fmt.Errorf("unexpected quoting")
-	var errUnbalancedQUote = fmt.Errorf("unbalanced quoting")
-	var errUnexpectedArgument = fmt.Errorf("unexpected argument")
-	var errUnexpectedAssignment = fmt.Errorf("unexpected assignment")
+	rs := []rune(s)
+	last := len(rs) - 1
+	errUnexpectedQuote := fmt.Errorf("unexpected quoting")
+	errUnbalancedQUote := fmt.Errorf("unbalanced quoting")
+	errUnexpectedArgument := fmt.Errorf("unexpected argument")
+	errUnexpectedAssignment := fmt.Errorf("unexpected assignment")
 	// arguments are:
 	// - arg
 	// - arg=value, where value can be any string, spaces are preserve when quoting ".."
-	var state = argNone
+	state := argNone
 	for idx, r := range rs {
 		maybeSplit := false
 		switch state {
@@ -182,10 +181,7 @@ func Split(s string) (out []string, err error) {
 // from the kernel command line, it is omitted from the returned map, but it is
 // added if present even if it has no value.
 func KeyValues(keys ...string) (map[string]string, error) {
-	cmdline, err := KernelCommandLine()
-	if err != nil {
-		return nil, err
-	}
+	cmdline := mylog.Check2(KernelCommandLine())
 
 	parsed := Parse(cmdline)
 	m := make(map[string]string, len(keys))
@@ -212,9 +208,7 @@ type Argument struct {
 // UnmarshalYAML implements the Unmarshaler interface.
 func (ka *Argument) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var arg string
-	if err := unmarshal(&arg); err != nil {
-		return errors.New("cannot unmarshal kernel argument")
-	}
+	mylog.Check(unmarshal(&arg))
 
 	parsed := Parse(arg)
 	if len(parsed) != 1 {
@@ -349,10 +343,8 @@ func parseArgument(args []byte) (argument Argument, end int) {
 
 // KernelCommandLine returns the command line reported by the running kernel.
 func KernelCommandLine() (string, error) {
-	buf, err := os.ReadFile(procCmdline)
-	if err != nil {
-		return "", err
-	}
+	buf := mylog.Check2(os.ReadFile(procCmdline))
+
 	return strings.TrimSpace(string(buf)), nil
 }
 
@@ -468,9 +460,8 @@ func (kap *ArgumentPattern) MarshalText() ([]byte, error) {
 
 func (kap *ArgumentPattern) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var arg string
-	if err := unmarshal(&arg); err != nil {
-		return fmt.Errorf("cannot unmarshal kernel argument: %v", err)
-	}
+	mylog.Check(unmarshal(&arg))
+
 	return kap.unmarshalFromString(arg)
 }
 

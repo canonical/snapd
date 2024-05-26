@@ -21,6 +21,7 @@ package cgroup_test
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/sandbox/cgroup"
 )
 
@@ -29,19 +30,19 @@ type pidsSuite struct{}
 var _ = Suite(&pidsSuite{})
 
 func (s *pidsSuite) TestParsePid(c *C) {
-	pid, err := cgroup.ParsePid("10")
-	c.Assert(err, IsNil)
+	pid := mylog.Check2(cgroup.ParsePid("10"))
+
 	c.Check(pid, Equals, 10)
-	_, err = cgroup.ParsePid("")
+	_ = mylog.Check2(cgroup.ParsePid(""))
 	c.Assert(err, ErrorMatches, `cannot parse pid ""`)
-	_, err = cgroup.ParsePid("-1")
+	_ = mylog.Check2(cgroup.ParsePid("-1"))
 	c.Assert(err, ErrorMatches, `cannot parse pid "-1"`)
-	_, err = cgroup.ParsePid("foo")
+	_ = mylog.Check2(cgroup.ParsePid("foo"))
 	c.Assert(err, ErrorMatches, `cannot parse pid "foo"`)
-	_, err = cgroup.ParsePid("12\x0034")
+	_ = mylog.Check2(cgroup.ParsePid("12\x0034"))
 	c.Assert(err.Error(), Equals, "cannot parse pid \"12\\x0034\"")
-	_, err = cgroup.ParsePid("ł")
+	_ = mylog.Check2(cgroup.ParsePid("ł"))
 	c.Assert(err, ErrorMatches, `cannot parse pid "ł"`)
-	_, err = cgroup.ParsePid("1000000000000000000000000000000000000000000000")
+	_ = mylog.Check2(cgroup.ParsePid("1000000000000000000000000000000000000000000000"))
 	c.Assert(err, ErrorMatches, `cannot parse pid "1000000000000000000000000000000000000000000000"`)
 }

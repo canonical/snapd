@@ -24,6 +24,8 @@ import (
 	"fmt"
 	"io"
 	"strings"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // Batch allows to accumulate a set of assertions possibly out of
@@ -66,15 +68,10 @@ func (b *Batch) Add(a Assertion) error {
 		err := &UnsupportedFormatError{Ref: a.Ref(), Format: a.Format()}
 		return b.unsupported(a.Ref(), err)
 	}
-	if err := b.bs.Put(a.Type(), a); err != nil {
-		if revErr, ok := err.(*RevisionError); ok {
-			if revErr.Current >= a.Revision() {
-				// we already got something more recent
-				return nil
-			}
-		}
-		return err
-	}
+	mylog.Check(b.bs.Put(a.Type(), a))
+
+	// we already got something more recent
+
 	b.added = append(b.added, a)
 	return nil
 }
@@ -91,12 +88,8 @@ func (b *Batch) AddStream(r io.Reader) ([]*Ref, error) {
 		if err == io.EOF {
 			break
 		}
-		if err != nil {
-			return nil, err
-		}
-		if err := b.Add(a); err != nil {
-			return nil, err
-		}
+		mylog.Check(b.Add(a))
+
 	}
 	added := b.added[start:]
 	if len(added) == 0 {
@@ -135,9 +128,7 @@ func (b *Batch) CommitTo(db *Database, opts *CommitOptions) error {
 		opts = &CommitOptions{}
 	}
 	if opts.Precheck {
-		if err := b.precheck(db); err != nil {
-			return err
-		}
+		mylog.Check(b.precheck(db))
 	}
 
 	return b.commitTo(db, nil)
@@ -154,9 +145,7 @@ func (b *Batch) CommitToAndObserve(db *Database, observe func(Assertion), opts *
 		opts = &CommitOptions{}
 	}
 	if opts.Precheck {
-		if err := b.precheck(db); err != nil {
-			return err
-		}
+		mylog.Check(b.precheck(db))
 	}
 
 	return b.commitTo(db, observe)
@@ -165,9 +154,7 @@ func (b *Batch) CommitToAndObserve(db *Database, observe func(Assertion), opts *
 // commitTo does a best effort of adding all the batch assertions to
 // the target database.
 func (b *Batch) commitTo(db *Database, observe func(Assertion)) error {
-	if err := b.prereqSort(db); err != nil {
-		return err
-	}
+	mylog.Check(b.prereqSort(db))
 
 	// TODO: trigger w. caller a global validity check if something is revoked
 	// (but try to save as much possible still),
@@ -175,18 +162,14 @@ func (b *Batch) commitTo(db *Database, observe func(Assertion)) error {
 
 	var errs []error
 	for _, a := range b.added {
-		err := db.Add(a)
+		mylog.Check(db.Add(a))
 		if IsUnaccceptedUpdate(err) {
 			// unsupported format case is handled before
 			// be idempotent
 			// system db has already the same or newer
 			continue
 		}
-		if err != nil {
-			errs = append(errs, err)
-		} else if observe != nil {
-			observe(a)
-		}
+
 	}
 	if len(errs) != 0 {
 		return &commitError{errs: errs}
@@ -203,14 +186,12 @@ func (b *Batch) prereqSort(db *Database) error {
 	// put in prereq order using a fetcher
 	ordered := make([]Assertion, 0, len(b.added))
 	retrieve := func(ref *Ref) (Assertion, error) {
-		a, err := b.bs.Get(ref.Type, ref.PrimaryKey, ref.Type.MaxSupportedFormat())
+		a := mylog.Check2(b.bs.Get(ref.Type, ref.PrimaryKey, ref.Type.MaxSupportedFormat()))
 		if errors.Is(err, &NotFoundError{}) {
 			// fallback to pre-existing assertions
-			a, err = ref.Resolve(db.Find)
+			a = mylog.Check2(ref.Resolve(db.Find))
 		}
-		if err != nil {
-			return nil, resolveError("cannot resolve prerequisite assertion: %s", ref, err)
-		}
+
 		return a, nil
 	}
 	save := func(a Assertion) error {
@@ -220,9 +201,7 @@ func (b *Batch) prereqSort(db *Database) error {
 	f := NewFetcher(db, retrieve, save)
 
 	for _, a := range b.added {
-		if err := f.Fetch(a.Ref()); err != nil {
-			return err
-		}
+		mylog.Check(f.Fetch(a.Ref()))
 	}
 
 	b.added = ordered

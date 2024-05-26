@@ -27,15 +27,18 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/i18n"
 )
 
-var shortHelpHelp = i18n.G("Show help about a command")
-var longHelpHelp = i18n.G(`
+var (
+	shortHelpHelp = i18n.G("Show help about a command")
+	longHelpHelp  = i18n.G(`
 The help command displays information about snap commands.
 `)
+)
 
 // addHelp adds --help like what go-flags would do for us, but hidden
 func addHelp(parser *flags.Parser) error {
@@ -64,10 +67,8 @@ func addHelp(parser *flags.Parser) error {
 		// not toplevel, so ask for regular help
 		return &flags.Error{Type: flags.ErrHelp}
 	}
-	hlpgrp, err := parser.AddGroup("Help Options", "", &help)
-	if err != nil {
-		return err
-	}
+	hlpgrp := mylog.Check2(parser.AddGroup("Help Options", "", &help))
+
 	hlpgrp.Hidden = true
 	hlp := parser.FindOptionByLongName("help")
 	hlp.Description = i18n.G("Show this help message")
@@ -115,7 +116,7 @@ func (w *manfixer) Write(buf []byte) (int, error) {
 			// io.Writer.Write must not modify the buffer, even temporarily
 			n, _ := w.Buffer.Write(buf[:9])
 			w.Buffer.Write([]byte{'8'})
-			m, err := w.Buffer.Write(buf[10:])
+			m := mylog.Check2(w.Buffer.Write(buf[10:]))
 			return n + m + 1, err
 		}
 	}
@@ -164,7 +165,7 @@ func (cmd cmdHelp) Execute(args []string) error {
 		return nil
 	}
 
-	var subcmd = cmd.parser.Command
+	subcmd := cmd.parser.Command
 	for _, subname := range cmd.Positional.Subs {
 		subcmd = subcmd.Find(subname)
 		if subcmd == nil {

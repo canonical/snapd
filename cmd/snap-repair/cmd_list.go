@@ -22,6 +22,8 @@ package main
 import (
 	"fmt"
 	"text/tabwriter"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 func init() {
@@ -29,11 +31,7 @@ func init() {
 		short = "Lists repairs run on this device"
 		long  = ""
 	)
-
-	if _, err := parser.AddCommand("list", short, long, &cmdList{}); err != nil {
-		panic(err)
-	}
-
+	mylog.Check2(parser.AddCommand("list", short, long, &cmdList{}))
 }
 
 type cmdList struct{}
@@ -56,10 +54,8 @@ func (c *cmdList) Execute([]string) error {
 	//    2/
 	//      r3.done
 	//      r3.script
-	repairTraces, err := newRepairTraces("*", "*")
-	if err != nil {
-		return err
-	}
+	repairTraces := mylog.Check2(newRepairTraces("*", "*"))
+
 	if len(repairTraces) == 0 {
 		fmt.Fprintf(Stderr, "no repairs yet\n")
 		return nil

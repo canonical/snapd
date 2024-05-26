@@ -29,6 +29,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -83,8 +84,8 @@ func (s *ValidateSuite) TestValidateVersion(c *C) {
 		"AZaz:.+~-123",
 	}
 	for _, version := range validVersions {
-		err := ValidateVersion(version)
-		c.Assert(err, IsNil)
+		mylog.Check(ValidateVersion(version))
+
 	}
 	invalidVersionsTable := [][2]string{
 		{"~foo", `must start with an ASCII alphanumeric (and not '~')`},
@@ -108,7 +109,7 @@ func (s *ValidateSuite) TestValidateVersion(c *C) {
 	}
 	for _, t := range invalidVersionsTable {
 		version, reason := t[0], t[1]
-		err := ValidateVersion(version)
+		mylog.Check(ValidateVersion(version))
 		c.Assert(err, NotNil)
 		c.Assert(err.Error(), Equals, fmt.Sprintf("invalid snap version %s: %s", strconv.QuoteToASCII(version), reason))
 	}
@@ -124,14 +125,14 @@ func (s *ValidateSuite) TestValidateLicense(c *C) {
 		"GPL-3.0", "(GPL-3.0)", "GPL-3.0+", "GPL-3.0 AND GPL-2.0", "GPL-3.0 OR GPL-2.0", "MIT OR (GPL-3.0 AND GPL-2.0)", "MIT OR(GPL-3.0 AND GPL-2.0)",
 	}
 	for _, epoch := range validLicenses {
-		err := ValidateLicense(epoch)
-		c.Assert(err, IsNil)
+		mylog.Check(ValidateLicense(epoch))
+
 	}
 	invalidLicenses := []string{
 		"GPL~3.0", "3.0-GPL", "(GPL-3.0", "(GPL-3.0))", "GPL-3.0++", "+GPL-3.0", "GPL-3.0 GPL-2.0",
 	}
 	for _, epoch := range invalidLicenses {
-		err := ValidateLicense(epoch)
+		mylog.Check(ValidateLicense(epoch))
 		c.Assert(err, NotNil)
 	}
 }
@@ -147,8 +148,8 @@ func (s *ValidateSuite) TestValidateHook(c *C) {
 		{Name: "valid", CommandChain: []string{"valid"}},
 	}
 	for _, hook := range validHooks {
-		err := ValidateHook(hook)
-		c.Assert(err, IsNil)
+		mylog.Check(ValidateHook(hook))
+
 	}
 	invalidHooks := []*HookInfo{
 		{Name: ""},
@@ -162,7 +163,7 @@ func (s *ValidateSuite) TestValidateHook(c *C) {
 		{Name: "日本語"},
 	}
 	for _, hook := range invalidHooks {
-		err := ValidateHook(hook)
+		mylog.Check(ValidateHook(hook))
 		c.Assert(err, ErrorMatches, `invalid hook name: ".*"`)
 	}
 	invalidHooks = []*HookInfo{
@@ -170,7 +171,7 @@ func (s *ValidateSuite) TestValidateHook(c *C) {
 		{Name: "valid", CommandChain: []string{"in valid"}},
 	}
 	for _, hook := range invalidHooks {
-		err := ValidateHook(hook)
+		mylog.Check(ValidateHook(hook))
 		c.Assert(err, ErrorMatches, `hook command-chain contains illegal.*`)
 	}
 }
@@ -191,14 +192,14 @@ func (s *ValidateSuite) TestValidateAppSocketsEmptyPermsOk(c *C) {
 func (s *ValidateSuite) TestValidateAppSocketsWrongPerms(c *C) {
 	app := createSampleApp()
 	app.Sockets["sock"].SocketMode = 1234
-	err := ValidateApp(app)
+	mylog.Check(ValidateApp(app))
 	c.Assert(err, ErrorMatches, `invalid definition of socket "sock": cannot use mode: 2322`)
 }
 
 func (s *ValidateSuite) TestValidateAppSocketsMissingNetworkBindPlug(c *C) {
 	app := createSampleApp()
 	delete(app.Plugs, "network-bind")
-	err := ValidateApp(app)
+	mylog.Check(ValidateApp(app))
 	c.Assert(
 		err, ErrorMatches,
 		`"network-bind" interface plug is required when sockets are used`)
@@ -207,14 +208,14 @@ func (s *ValidateSuite) TestValidateAppSocketsMissingNetworkBindPlug(c *C) {
 func (s *ValidateSuite) TestValidateAppSocketsEmptyListenStream(c *C) {
 	app := createSampleApp()
 	app.Sockets["sock"].ListenStream = ""
-	err := ValidateApp(app)
+	mylog.Check(ValidateApp(app))
 	c.Assert(err, ErrorMatches, `invalid definition of socket "sock": "listen-stream" is not defined`)
 }
 
 func (s *ValidateSuite) TestValidateAppSocketsInvalidName(c *C) {
 	app := createSampleApp()
 	app.Sockets["sock"].Name = "invalid name"
-	err := ValidateApp(app)
+	mylog.Check(ValidateApp(app))
 	c.Assert(err, ErrorMatches, `invalid definition of socket "invalid name": invalid socket name: "invalid name"`)
 }
 
@@ -239,7 +240,7 @@ func (s *ValidateSuite) TestValidateAppSocketsValidListenStreamAddresses(c *C) {
 	socket := app.Sockets["sock"]
 	for _, validAddress := range validListenAddresses {
 		socket.ListenStream = validAddress
-		err := ValidateApp(app)
+		mylog.Check(ValidateApp(app))
 		c.Check(err, IsNil, Commentf(validAddress))
 	}
 }
@@ -257,7 +258,7 @@ func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamPath(c *C) {
 	socket := app.Sockets["sock"]
 	for _, invalidAddress := range invalidListenAddresses {
 		socket.ListenStream = invalidAddress
-		err := ValidateApp(app)
+		mylog.Check(ValidateApp(app))
 		c.Assert(err, ErrorMatches, `invalid definition of socket "sock": invalid "listen-stream": system daemon sockets must have a prefix of .*`)
 	}
 }
@@ -265,7 +266,7 @@ func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamPath(c *C) {
 func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamPathContainsDots(c *C) {
 	app := createSampleApp()
 	app.Sockets["sock"].ListenStream = "$SNAP/../some.path"
-	err := ValidateApp(app)
+	mylog.Check(ValidateApp(app))
 	c.Assert(
 		err, ErrorMatches,
 		`invalid definition of socket "sock": invalid "listen-stream": "\$SNAP/../some.path" should be written as "some.path"`)
@@ -280,7 +281,7 @@ func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamPathPrefix(c *C
 	socket := app.Sockets["sock"]
 	for _, invalidAddress := range invalidListenAddresses {
 		socket.ListenStream = invalidAddress
-		err := ValidateApp(app)
+		mylog.Check(ValidateApp(app))
 		c.Assert(
 			err, ErrorMatches,
 			`invalid definition of socket "sock": invalid "listen-stream": system daemon sockets must have a prefix of \$SNAP_DATA, \$SNAP_COMMON or \$XDG_RUNTIME_DIR`)
@@ -299,7 +300,7 @@ func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamAbstractSocket(
 	socket := app.Sockets["sock"]
 	for _, invalidAddress := range invalidListenAddresses {
 		socket.ListenStream = invalidAddress
-		err := ValidateApp(app)
+		mylog.Check(ValidateApp(app))
 		c.Assert(err, ErrorMatches, `invalid definition of socket "sock": path for "listen-stream" must be prefixed with.*`)
 	}
 }
@@ -317,7 +318,7 @@ func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamAddress(c *C) {
 	socket := app.Sockets["sock"]
 	for _, invalidAddress := range invalidListenAddresses {
 		socket.ListenStream = invalidAddress
-		err := ValidateApp(app)
+		mylog.Check(ValidateApp(app))
 		c.Assert(err, ErrorMatches, `invalid definition of socket "sock": invalid "listen-stream" address ".*", must be one of: 127\.0\.0\.1, \[::1\], \[::\]`)
 	}
 }
@@ -337,7 +338,7 @@ func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamPort(c *C) {
 	socket := app.Sockets["sock"]
 	for _, invalidPort := range invalidPorts {
 		socket.ListenStream = invalidPort
-		err := ValidateApp(app)
+		mylog.Check(ValidateApp(app))
 		c.Assert(err, ErrorMatches, `invalid definition of socket "sock": invalid "listen-stream" port number.*`)
 	}
 }
@@ -364,7 +365,7 @@ func (s *ValidateSuite) TestValidateAppUserSocketsValidListenStreamAddresses(c *
 	socket := app.Sockets["sock"]
 	for _, validAddress := range validListenAddresses {
 		socket.ListenStream = validAddress
-		err := ValidateApp(app)
+		mylog.Check(ValidateApp(app))
 		c.Check(err, IsNil, Commentf(validAddress))
 	}
 }
@@ -382,7 +383,7 @@ func (s *ValidateSuite) TestValidateAppUserSocketsInvalidListenStreamPath(c *C) 
 	socket := app.Sockets["sock"]
 	for _, invalidAddress := range invalidListenAddresses {
 		socket.ListenStream = invalidAddress
-		err := ValidateApp(app)
+		mylog.Check(ValidateApp(app))
 		c.Check(err, ErrorMatches, `invalid definition of socket "sock": invalid "listen-stream": user daemon sockets must have a prefix of .*`)
 	}
 }
@@ -400,7 +401,7 @@ func (s *ValidateSuite) TestValidateAppUserSocketsInvalidListenStreamAbstractSoc
 	socket := app.Sockets["sock"]
 	for _, invalidAddress := range invalidListenAddresses {
 		socket.ListenStream = invalidAddress
-		err := ValidateApp(app)
+		mylog.Check(ValidateApp(app))
 		c.Assert(err, ErrorMatches, `invalid definition of socket "sock": path for "listen-stream" must be prefixed with.*`)
 	}
 }
@@ -421,7 +422,7 @@ func (s *ValidateSuite) TestValidateAppUserSocketsInvalidListenStreamPort(c *C) 
 	socket := app.Sockets["sock"]
 	for _, invalidAddress := range invalidListenAddresses {
 		socket.ListenStream = invalidAddress
-		err := ValidateApp(app)
+		mylog.Check(ValidateApp(app))
 		c.Check(err, ErrorMatches, `invalid definition of socket "sock": invalid "listen-stream" port number .*`)
 	}
 }
@@ -494,7 +495,7 @@ func (s *ValidateSuite) TestAppDaemonScopeValue(c *C) {
 		{"simple", "invalid-mode", false},
 	} {
 		app := &AppInfo{Name: "foo", Daemon: t.daemon, DaemonScope: t.daemonScope}
-		err := ValidateApp(app)
+		mylog.Check(ValidateApp(app))
 		if t.ok {
 			c.Check(err, IsNil)
 		} else if t.daemon == "" {
@@ -534,9 +535,10 @@ func (s *ValidateSuite) TestAppStopMode(c *C) {
 			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", DaemonScope: SystemDaemon, StopMode: t.stopMode}), ErrorMatches, fmt.Sprintf(`"stop-mode" field contains invalid value %q`, t.stopMode))
 		}
 	}
+	mylog.
 
-	// non-services cannot have a stop-mode
-	err := ValidateApp(&AppInfo{Name: "foo", Daemon: "", StopMode: "sigterm"})
+		// non-services cannot have a stop-mode
+		Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "", StopMode: "sigterm"}))
 	c.Check(err, ErrorMatches, `"stop-mode" cannot be used for "foo", only for services`)
 }
 
@@ -562,8 +564,7 @@ func (s *ValidateSuite) TestAppRefreshMode(c *C) {
 		if t.daemon != "" {
 			daemonScope = SystemDaemon
 		}
-
-		err := ValidateApp(&AppInfo{Name: "foo", Daemon: t.daemon, DaemonScope: daemonScope, RefreshMode: t.refreshMode})
+		mylog.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: t.daemon, DaemonScope: daemonScope, RefreshMode: t.refreshMode}))
 		if t.errMsg == "" {
 			c.Check(err, IsNil)
 		} else {
@@ -573,13 +574,13 @@ func (s *ValidateSuite) TestAppRefreshMode(c *C) {
 }
 
 func (s *ValidateSuite) TestAppWhitelistError(c *C) {
-	err := ValidateApp(&AppInfo{Name: "foo", Command: "x\n"})
+	mylog.Check(ValidateApp(&AppInfo{Name: "foo", Command: "x\n"}))
 	c.Assert(err, NotNil)
 	c.Check(err.Error(), Equals, `app description field 'command' contains illegal "x\n" (legal: '^[A-Za-z0-9/. _#:$-]*$')`)
 }
 
 func (s *ValidateSuite) TestAppActivatesOn(c *C) {
-	info, err := InfoFromSnapYaml([]byte(`name: foo
+	info := mylog.Check2(InfoFromSnapYaml([]byte(`name: foo
 version: 1.0
 slots:
   dbus-slot:
@@ -589,42 +590,42 @@ apps:
   server:
     daemon: simple
     activates-on: [dbus-slot]
-`))
-	c.Assert(err, IsNil)
+`)))
+
 	app := info.Apps["server"]
 	c.Check(ValidateApp(app), IsNil)
 }
 
 func (s *ValidateSuite) TestAppActivatesOnNotDaemon(c *C) {
-	info, err := InfoFromSnapYaml([]byte(`name: foo
+	info := mylog.Check2(InfoFromSnapYaml([]byte(`name: foo
 version: 1.0
 slots:
   dbus-slot:
 apps:
   server:
     activates-on: [dbus-slot]
-`))
-	c.Assert(err, IsNil)
+`)))
+
 	app := info.Apps["server"]
 	c.Check(ValidateApp(app), ErrorMatches, `activates-on is only applicable to services`)
 }
 
 func (s *ValidateSuite) TestAppActivatesOnSlotNotDbus(c *C) {
-	info, err := InfoFromSnapYaml([]byte(`name: foo
+	info := mylog.Check2(InfoFromSnapYaml([]byte(`name: foo
 version: 1.0
 apps:
   server:
     daemon: simple
     slots: [network-bind]
     activates-on: [network-bind]
-`))
-	c.Assert(err, IsNil)
+`)))
+
 	app := info.Apps["server"]
 	c.Check(ValidateApp(app), ErrorMatches, `invalid activates-on value "network-bind": slot does not use dbus interface`)
 }
 
 func (s *ValidateSuite) TestAppActivatesOnDaemonScopeMismatch(c *C) {
-	info, err := InfoFromSnapYaml([]byte(`name: foo
+	info := mylog.Check2(InfoFromSnapYaml([]byte(`name: foo
 version: 1.0
 slots:
   dbus-slot:
@@ -634,12 +635,12 @@ apps:
   server:
     daemon: simple
     activates-on: [dbus-slot]
-`))
-	c.Assert(err, IsNil)
+`)))
+
 	app := info.Apps["server"]
 	c.Check(ValidateApp(app), ErrorMatches, `invalid activates-on value "dbus-slot": bus "session" does not match daemon-scope "system"`)
 
-	info, err = InfoFromSnapYaml([]byte(`name: foo
+	info = mylog.Check2(InfoFromSnapYaml([]byte(`name: foo
 version: 1.0
 slots:
   dbus-slot:
@@ -650,14 +651,14 @@ apps:
     daemon: simple
     daemon-scope: user
     activates-on: [dbus-slot]
-`))
-	c.Assert(err, IsNil)
+`)))
+
 	app = info.Apps["server"]
 	c.Check(ValidateApp(app), ErrorMatches, `invalid activates-on value "dbus-slot": bus "system" does not match daemon-scope "user"`)
 }
 
 func (s *ValidateSuite) TestAppActivatesOnDuplicateApp(c *C) {
-	info, err := InfoFromSnapYaml([]byte(`name: foo
+	info := mylog.Check2(InfoFromSnapYaml([]byte(`name: foo
 version: 1.0
 slots:
   dbus-slot:
@@ -670,8 +671,8 @@ apps:
   dup:
     daemon: simple
     activates-on: [dbus-slot]
-`))
-	c.Assert(err, IsNil)
+`)))
+
 	app := info.Apps["server"]
 	c.Check(ValidateApp(app), ErrorMatches, `invalid activates-on value "dbus-slot": slot is also activatable on app "dup"`)
 }
@@ -679,106 +680,99 @@ apps:
 // Validate
 
 func (s *ValidateSuite) TestDetectInvalidProvenance(c *C) {
-	info, err := InfoFromSnapYaml([]byte(`name: foo
+	info := mylog.Check2(InfoFromSnapYaml([]byte(`name: foo
 version: 1.0
 provenance: "--"
-`))
-	c.Assert(err, IsNil)
+`)))
 
-	err = Validate(info)
+	mylog.Check(Validate(info))
 	c.Check(err, ErrorMatches, `invalid provenance: .*`)
 }
 
 func (s *ValidateSuite) TestDetectExplicitDefaultProvenance(c *C) {
-	info, err := InfoFromSnapYaml([]byte(`name: foo
+	info := mylog.Check2(InfoFromSnapYaml([]byte(`name: foo
 version: 1.0
 provenance: global-upload
-`))
-	c.Assert(err, IsNil)
+`)))
 
-	err = Validate(info)
+	mylog.Check(Validate(info))
 	c.Check(err, ErrorMatches, `provenance cannot be set to default \(global-upload\) explicitly`)
 }
 
 func (s *ValidateSuite) TestDetectIllegalYamlBinaries(c *C) {
-	info, err := InfoFromSnapYaml([]byte(`name: foo
+	info := mylog.Check2(InfoFromSnapYaml([]byte(`name: foo
 version: 1.0
 apps:
  tes!me:
    command: someething
-`))
-	c.Assert(err, IsNil)
+`)))
 
-	err = Validate(info)
+	mylog.Check(Validate(info))
 	c.Check(err, NotNil)
 }
 
 func (s *ValidateSuite) TestDetectIllegalYamlService(c *C) {
-	info, err := InfoFromSnapYaml([]byte(`name: foo
+	info := mylog.Check2(InfoFromSnapYaml([]byte(`name: foo
 version: 1.0
 apps:
  tes!me:
    command: something
    daemon: forking
-`))
-	c.Assert(err, IsNil)
+`)))
 
-	err = Validate(info)
+	mylog.Check(Validate(info))
 	c.Check(err, NotNil)
 }
 
 func (s *ValidateSuite) TestIllegalSnapName(c *C) {
-	info, err := InfoFromSnapYaml([]byte(`name: foo.something
+	info := mylog.Check2(InfoFromSnapYaml([]byte(`name: foo.something
 version: 1.0
-`))
-	c.Assert(err, IsNil)
+`)))
 
-	err = Validate(info)
+	mylog.Check(Validate(info))
 	c.Check(err, ErrorMatches, `invalid snap name: "foo.something"`)
 }
 
 func (s *ValidateSuite) TestValidateChecksName(c *C) {
-	info, err := InfoFromSnapYaml([]byte(`
+	info := mylog.Check2(InfoFromSnapYaml([]byte(`
 version: 1.0
-`))
-	c.Assert(err, IsNil)
+`)))
 
-	err = Validate(info)
+	mylog.Check(Validate(info))
 	c.Check(err, ErrorMatches, `snap name cannot be empty`)
 }
 
 func (s *ValidateSuite) TestIllegalSnapEpoch(c *C) {
-	_, err := InfoFromSnapYaml([]byte(`name: foo
+	_ := mylog.Check2(InfoFromSnapYaml([]byte(`name: foo
 version: 1.0
 epoch: 0*
-`))
+`)))
 	c.Assert(err, ErrorMatches, `.*invalid epoch.*`)
 }
 
 func (s *ValidateSuite) TestMissingSnapEpochIsOkay(c *C) {
-	info, err := InfoFromSnapYaml([]byte(`name: foo
+	info := mylog.Check2(InfoFromSnapYaml([]byte(`name: foo
 version: 1.0
-`))
-	c.Assert(err, IsNil)
+`)))
+
 	c.Assert(Validate(info), IsNil)
 }
 
 func (s *ValidateSuite) TestIllegalSnapLicense(c *C) {
-	info, err := InfoFromSnapYaml([]byte(`name: foo
+	info := mylog.Check2(InfoFromSnapYaml([]byte(`name: foo
 version: 1.0
 license: GPL~3.0
-`))
-	c.Assert(err, IsNil)
+`)))
 
-	err = Validate(info)
+	mylog.Check(Validate(info))
 	c.Check(err, ErrorMatches, `cannot validate license "GPL~3.0": unknown license: GPL~3.0`)
 }
 
 func (s *ValidateSuite) TestMissingSnapLicenseIsOkay(c *C) {
-	info, err := InfoFromSnapYaml([]byte(`name: foo
+	info := mylog.Check2(InfoFromSnapYaml([]byte(`name: foo
 version: 1.0
-`))
-	c.Assert(err, IsNil)
+`)))
+
 	c.Assert(Validate(info), IsNil)
 }
 
@@ -787,52 +781,49 @@ func (s *ValidateSuite) TestIllegalHookName(c *C) {
 	restore := MockSupportedHookTypes([]*HookType{hookType})
 	defer restore()
 
-	info, err := InfoFromSnapYaml([]byte(`name: foo
+	info := mylog.Check2(InfoFromSnapYaml([]byte(`name: foo
 version: 1.0
 hooks:
   123abc:
-`))
-	c.Assert(err, IsNil)
+`)))
 
-	err = Validate(info)
+	mylog.Check(Validate(info))
 	c.Check(err, ErrorMatches, `invalid hook name: "123abc"`)
 }
 
 func (s *ValidateSuite) TestIllegalHookDefaultConfigureWithoutConfigure(c *C) {
-	info, err := InfoFromSnapYaml([]byte(`name: foo
+	info := mylog.Check2(InfoFromSnapYaml([]byte(`name: foo
 version: 1.0
 hooks:
   default-configure:
-`))
-	c.Assert(err, IsNil)
+`)))
 
-	err = Validate(info)
+	mylog.Check(Validate(info))
 	c.Check(err, ErrorMatches, "cannot specify \"default-configure\" hook without \"configure\" hook")
 }
 
 func (s *ValidateSuite) TestPlugSlotNamesUnique(c *C) {
-	info, err := InfoFromSnapYaml([]byte(`name: snap
+	info := mylog.Check2(InfoFromSnapYaml([]byte(`name: snap
 version: 0
 plugs:
  foo:
 slots:
  foo:
-`))
-	c.Assert(err, IsNil)
-	err = Validate(info)
+`)))
+
+	mylog.Check(Validate(info))
 	c.Check(err, ErrorMatches, `cannot have plug and slot with the same name: "foo"`)
 }
 
 func (s *ValidateSuite) TestIllegalAliasName(c *C) {
-	info, err := InfoFromSnapYaml([]byte(`name: foo
+	info := mylog.Check2(InfoFromSnapYaml([]byte(`name: foo
 version: 1.0
 apps:
   foo:
     aliases: [foo$]
-`))
-	c.Assert(err, IsNil)
+`)))
 
-	err = Validate(info)
+	mylog.Check(Validate(info))
 	c.Check(err, ErrorMatches, `cannot have "foo\$" as alias name for app "foo" - use only letters, digits, dash, underscore and dot characters`)
 }
 
@@ -844,10 +835,10 @@ plugs:
   p--lug: null
 `
 	strk := NewScopedTracker()
-	info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml1), nil, strk)
-	c.Assert(err, IsNil)
+	info := mylog.Check2(InfoFromSnapYamlWithSideInfo([]byte(yaml1), nil, strk))
+
 	c.Assert(info.Plugs, HasLen, 1)
-	err = Validate(info)
+	mylog.Check(Validate(info))
 	c.Assert(err, ErrorMatches, `invalid plug name: "p--lug"`)
 
 	const yaml2 = `
@@ -857,10 +848,10 @@ slots:
   s--lot: null
 `
 	strk = NewScopedTracker()
-	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml2), nil, strk)
-	c.Assert(err, IsNil)
+	info = mylog.Check2(InfoFromSnapYamlWithSideInfo([]byte(yaml2), nil, strk))
+
 	c.Assert(info.Slots, HasLen, 1)
-	err = Validate(info)
+	mylog.Check(Validate(info))
 	c.Assert(err, ErrorMatches, `invalid slot name: "s--lot"`)
 
 	const yaml3 = `
@@ -871,10 +862,10 @@ plugs:
     interface: i--face
 `
 	strk = NewScopedTracker()
-	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml3), nil, strk)
-	c.Assert(err, IsNil)
+	info = mylog.Check2(InfoFromSnapYamlWithSideInfo([]byte(yaml3), nil, strk))
+
 	c.Assert(info.Plugs, HasLen, 1)
-	err = Validate(info)
+	mylog.Check(Validate(info))
 	c.Assert(err, ErrorMatches, `invalid interface name "i--face" for plug "plug"`)
 
 	const yaml4 = `
@@ -885,10 +876,10 @@ slots:
     interface: i--face
 `
 	strk = NewScopedTracker()
-	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml4), nil, strk)
-	c.Assert(err, IsNil)
+	info = mylog.Check2(InfoFromSnapYamlWithSideInfo([]byte(yaml4), nil, strk))
+
 	c.Assert(info.Slots, HasLen, 1)
-	err = Validate(info)
+	mylog.Check(Validate(info))
 	c.Assert(err, ErrorMatches, `invalid interface name "i--face" for slot "slot"`)
 }
 
@@ -898,10 +889,10 @@ version: 1
 base: none
 `
 	strk := NewScopedTracker()
-	info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), nil, strk)
-	c.Assert(err, IsNil)
-	err = Validate(info)
-	c.Assert(err, IsNil)
+	info := mylog.Check2(InfoFromSnapYamlWithSideInfo([]byte(yaml), nil, strk))
+
+	mylog.Check(Validate(info))
+
 	c.Check(info.Base, Equals, "none")
 }
 
@@ -925,9 +916,9 @@ hooks:
 	for _, appsOrHooks := range []string{apps, hooks} {
 		yaml := strings.Replace(yamlTemplate, "%APPS_OR_HOOKS%", appsOrHooks, -1)
 		strk := NewScopedTracker()
-		info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), nil, strk)
-		c.Assert(err, IsNil)
-		err = Validate(info)
+		info := mylog.Check2(InfoFromSnapYamlWithSideInfo([]byte(yaml), nil, strk))
+
+		mylog.Check(Validate(info))
 		c.Assert(err, ErrorMatches, `cannot have apps or hooks with base "none"`)
 	}
 }
@@ -1074,10 +1065,10 @@ layout:
 
 	for _, yaml := range []string{yaml1, yaml1rev} {
 		strk := NewScopedTracker()
-		info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), &SideInfo{Revision: R(42)}, strk)
-		c.Assert(err, IsNil)
+		info := mylog.Check2(InfoFromSnapYamlWithSideInfo([]byte(yaml), &SideInfo{Revision: R(42)}, strk))
+
 		c.Assert(info.Layout, HasLen, 2)
-		err = ValidateLayoutAll(info)
+		mylog.Check(ValidateLayoutAll(info))
 		c.Assert(err, ErrorMatches, `layout "/usr/foo/bar" underneath prior layout item "/usr/foo"`)
 	}
 
@@ -1100,10 +1091,10 @@ layout:
 `
 	for _, yaml := range []string{yaml2, yaml2rev} {
 		strk := NewScopedTracker()
-		info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), &SideInfo{Revision: R(42)}, strk)
-		c.Assert(err, IsNil)
+		info := mylog.Check2(InfoFromSnapYamlWithSideInfo([]byte(yaml), &SideInfo{Revision: R(42)}, strk))
+
 		c.Assert(info.Layout, HasLen, 2)
-		err = ValidateLayoutAll(info)
+		mylog.Check(ValidateLayoutAll(info))
 		c.Assert(err, ErrorMatches, `layout "/usr/foo/bar" underneath prior layout item "/usr/foo"`)
 	}
 
@@ -1126,11 +1117,11 @@ layout:
 `
 	for _, yaml := range []string{yaml3, yaml3rev} {
 		strk := NewScopedTracker()
-		info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), &SideInfo{Revision: R(42)}, strk)
-		c.Assert(err, IsNil)
+		info := mylog.Check2(InfoFromSnapYamlWithSideInfo([]byte(yaml), &SideInfo{Revision: R(42)}, strk))
+
 		c.Assert(info.Layout, HasLen, 2)
-		err = ValidateLayoutAll(info)
-		c.Assert(err, IsNil)
+		mylog.Check(ValidateLayoutAll(info))
+
 	}
 
 	// /etc/foo file is not clashing with /etc/foobar
@@ -1152,11 +1143,11 @@ layout:
 `
 	for _, yaml := range []string{yaml4, yaml4rev} {
 		strk := NewScopedTracker()
-		info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), &SideInfo{Revision: R(42)}, strk)
-		c.Assert(err, IsNil)
+		info := mylog.Check2(InfoFromSnapYamlWithSideInfo([]byte(yaml), &SideInfo{Revision: R(42)}, strk))
+
 		c.Assert(info.Layout, HasLen, 2)
-		err = ValidateLayoutAll(info)
-		c.Assert(err, IsNil)
+		mylog.Check(ValidateLayoutAll(info))
+
 	}
 
 	// /etc/foo file is also clashing with /etc/foo/bar
@@ -1178,10 +1169,10 @@ layout:
 `
 	for _, yaml := range []string{yaml5, yaml5rev} {
 		strk := NewScopedTracker()
-		info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), &SideInfo{Revision: R(42)}, strk)
-		c.Assert(err, IsNil)
+		info := mylog.Check2(InfoFromSnapYamlWithSideInfo([]byte(yaml), &SideInfo{Revision: R(42)}, strk))
+
 		c.Assert(info.Layout, HasLen, 2)
-		err = ValidateLayoutAll(info)
+		mylog.Check(ValidateLayoutAll(info))
 		c.Assert(err, ErrorMatches, `layout "/usr/foo/bar" underneath prior layout item "/usr/foo"`)
 	}
 
@@ -1194,11 +1185,11 @@ layout:
     bind-file: $SNAP/etc/norf
 `
 	strk := NewScopedTracker()
-	info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml6), &SideInfo{Revision: R(42)}, strk)
-	c.Assert(err, IsNil)
+	info := mylog.Check2(InfoFromSnapYamlWithSideInfo([]byte(yaml6), &SideInfo{Revision: R(42)}, strk))
+
 	c.Assert(info.Layout, HasLen, 1)
-	err = ValidateLayoutAll(info)
-	c.Assert(err, IsNil)
+	mylog.Check(ValidateLayoutAll(info))
+
 	c.Assert(info.Layout["/etc/norf"].Bind, Equals, "")
 	c.Assert(info.Layout["/etc/norf"].BindFile, Equals, "$SNAP/etc/norf")
 
@@ -1213,10 +1204,10 @@ layout:
 `
 
 	strk = NewScopedTracker()
-	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml7), &SideInfo{Revision: R(42)}, strk)
-	c.Assert(err, IsNil)
+	info = mylog.Check2(InfoFromSnapYamlWithSideInfo([]byte(yaml7), &SideInfo{Revision: R(42)}, strk))
+
 	c.Assert(info.Layout, HasLen, 2)
-	err = ValidateLayoutAll(info)
+	mylog.Check(ValidateLayoutAll(info))
 	c.Assert(err, ErrorMatches, `layout "/etc/norf" refers to directory "\$SNAP/etc/norf" but another layout treats it as file`)
 
 	// Two layouts refer to the same path as a directory and a file (other way around).
@@ -1229,10 +1220,10 @@ layout:
     bind: $SNAP/etc/norf
 `
 	strk = NewScopedTracker()
-	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml8), &SideInfo{Revision: R(42)}, strk)
-	c.Assert(err, IsNil)
+	info = mylog.Check2(InfoFromSnapYamlWithSideInfo([]byte(yaml8), &SideInfo{Revision: R(42)}, strk))
+
 	c.Assert(info.Layout, HasLen, 2)
-	err = ValidateLayoutAll(info)
+	mylog.Check(ValidateLayoutAll(info))
 	c.Assert(err, ErrorMatches, `layout "/etc/norf" refers to file "\$SNAP/etc/norf" but another layout treats it as a directory`)
 
 	// Two layouts refer to the same path, but one uses variable and the other doesn't.
@@ -1245,10 +1236,10 @@ layout:
     bind: /snap/clashing-source-path-3/42/etc/norf
 `
 	strk = NewScopedTracker()
-	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml9), &SideInfo{Revision: R(42)}, strk)
-	c.Assert(err, IsNil)
+	info = mylog.Check2(InfoFromSnapYamlWithSideInfo([]byte(yaml9), &SideInfo{Revision: R(42)}, strk))
+
 	c.Assert(info.Layout, HasLen, 2)
-	err = ValidateLayoutAll(info)
+	mylog.Check(ValidateLayoutAll(info))
 	c.Assert(err, ErrorMatches, `layout "/etc/norf" refers to file "\$SNAP/etc/norf" but another layout treats it as a directory`)
 
 	// Same source path referred from a bind mount and symlink doesn't clash.
@@ -1262,11 +1253,11 @@ layout:
 `
 
 	strk = NewScopedTracker()
-	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml10), &SideInfo{Revision: R(42)}, strk)
-	c.Assert(err, IsNil)
+	info = mylog.Check2(InfoFromSnapYamlWithSideInfo([]byte(yaml10), &SideInfo{Revision: R(42)}, strk))
+
 	c.Assert(info.Layout, HasLen, 2)
-	err = ValidateLayoutAll(info)
-	c.Assert(err, IsNil)
+	mylog.Check(ValidateLayoutAll(info))
+
 
 	// Same source path referred from a file bind mount and symlink doesn't clash.
 	const yaml11 = `
@@ -1279,11 +1270,11 @@ layout:
 `
 
 	strk = NewScopedTracker()
-	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml11), &SideInfo{Revision: R(42)}, strk)
-	c.Assert(err, IsNil)
+	info = mylog.Check2(InfoFromSnapYamlWithSideInfo([]byte(yaml11), &SideInfo{Revision: R(42)}, strk))
+
 	c.Assert(info.Layout, HasLen, 2)
-	err = ValidateLayoutAll(info)
-	c.Assert(err, IsNil)
+	mylog.Check(ValidateLayoutAll(info))
+
 
 	// Layout replacing files in another snap's mount point
 	const yaml12 = `
@@ -1294,10 +1285,10 @@ layout:
 `
 
 	strk = NewScopedTracker()
-	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml12), &SideInfo{Revision: R(42)}, strk)
-	c.Assert(err, IsNil)
+	info = mylog.Check2(InfoFromSnapYamlWithSideInfo([]byte(yaml12), &SideInfo{Revision: R(42)}, strk))
+
 	c.Assert(info.Layout, HasLen, 1)
-	err = ValidateLayoutAll(info)
+	mylog.Check(ValidateLayoutAll(info))
 	c.Assert(err, ErrorMatches, `layout "/snap/that-snap/current/stuff" defines a layout in space belonging to another snap`)
 
 	const yaml13 = `
@@ -1309,13 +1300,13 @@ layout:
 
 	// Layout using $SNAP/... as source
 	strk = NewScopedTracker()
-	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml13), &SideInfo{Revision: R(42)}, strk)
-	c.Assert(err, IsNil)
-	c.Assert(info.Layout, HasLen, 1)
-	err = ValidateLayoutAll(info)
-	c.Assert(err, IsNil)
+	info = mylog.Check2(InfoFromSnapYamlWithSideInfo([]byte(yaml13), &SideInfo{Revision: R(42)}, strk))
 
-	var yaml14Pattern = `
+	c.Assert(info.Layout, HasLen, 1)
+	mylog.Check(ValidateLayoutAll(info))
+
+
+	yaml14Pattern := `
 name: this-snap
 layout:
   %s:
@@ -1334,10 +1325,10 @@ layout:
 		// Layout adding a new top-level directory
 		strk = NewScopedTracker()
 		yaml14 := fmt.Sprintf(yaml14Pattern, testCase.str)
-		info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml14), &SideInfo{Revision: R(42)}, strk)
-		c.Assert(err, IsNil)
+		info = mylog.Check2(InfoFromSnapYamlWithSideInfo([]byte(yaml14), &SideInfo{Revision: R(42)}, strk))
+
 		c.Assert(info.Layout, HasLen, 1)
-		err = ValidateLayoutAll(info)
+		mylog.Check(ValidateLayoutAll(info))
 		c.Assert(err, ErrorMatches, fmt.Sprintf(`layout %q defines a new top-level directory %q`, testCase.str, testCase.topLevelDir))
 	}
 
@@ -1353,10 +1344,10 @@ layout:
 		// Layout adding a new top-level directory
 		strk = NewScopedTracker()
 		yaml14 := fmt.Sprintf(yaml14Pattern, testCase.str)
-		info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml14), &SideInfo{Revision: R(42)}, strk)
-		c.Assert(err, IsNil)
+		info = mylog.Check2(InfoFromSnapYamlWithSideInfo([]byte(yaml14), &SideInfo{Revision: R(42)}, strk))
+
 		c.Assert(info.Layout, HasLen, 1)
-		err = ValidateLayoutAll(info)
+		mylog.Check(ValidateLayoutAll(info))
 		c.Assert(err, ErrorMatches, testCase.expectedError, Commentf("path: %s", testCase.str))
 	}
 }
@@ -1532,14 +1523,13 @@ apps:
 	}}
 	for _, tc := range tcs {
 		c.Logf("trying %q", tc.name)
-		info, err := InfoFromSnapYaml(append(meta, tc.desc...))
-		c.Assert(err, IsNil)
+		info := mylog.Check2(InfoFromSnapYaml(append(meta, tc.desc...)))
 
-		err = Validate(info)
+		mylog.Check(Validate(info))
 		if tc.err != "" {
 			c.Assert(err, ErrorMatches, tc.err)
 		} else {
-			c.Assert(err, IsNil)
+
 		}
 	}
 }
@@ -1547,9 +1537,11 @@ apps:
 func (s *ValidateSuite) TestValidateAppWatchdogTimeout(c *C) {
 	s.testValidateAppTimeout(c, "watchdog")
 }
+
 func (s *ValidateSuite) TestValidateAppStartTimeout(c *C) {
 	s.testValidateAppTimeout(c, "start")
 }
+
 func (s *ValidateSuite) TestValidateAppStopTimeout(c *C) {
 	s.testValidateAppTimeout(c, "stop")
 }
@@ -1597,15 +1589,14 @@ apps:
 	}}
 	for _, tc := range tcs {
 		c.Logf("trying %q", tc.name)
-		info, err := InfoFromSnapYaml(append(meta, tc.desc...))
-		c.Assert(err, IsNil)
-		c.Assert(info, NotNil)
+		info := mylog.Check2(InfoFromSnapYaml(append(meta, tc.desc...)))
 
-		err = Validate(info)
+		c.Assert(info, NotNil)
+		mylog.Check(Validate(info))
 		if tc.err != "" {
 			c.Assert(err, ErrorMatches, `invalid definition of application "foo": `+tc.err)
 		} else {
-			c.Assert(err, IsNil)
+
 		}
 	}
 }
@@ -1651,81 +1642,76 @@ apps:
 	}}
 	for _, tc := range tcs {
 		c.Logf("trying %q", tc.name)
-		info, err := InfoFromSnapYaml(append(meta, tc.desc...))
-		c.Assert(err, IsNil)
+		info := mylog.Check2(InfoFromSnapYaml(append(meta, tc.desc...)))
 
-		err = Validate(info)
+		mylog.Check(Validate(info))
 		if tc.err != "" {
 			c.Assert(err, ErrorMatches, `invalid definition of application "foo": `+tc.err)
 		} else {
-			c.Assert(err, IsNil)
+
 		}
 	}
 }
 
 func (s *ValidateSuite) TestValidateOsCannotHaveBase(c *C) {
-	info, err := InfoFromSnapYaml([]byte(`name: foo
+	info := mylog.Check2(InfoFromSnapYaml([]byte(`name: foo
 version: 1.0
 type: os
 base: bar
-`))
-	c.Assert(err, IsNil)
+`)))
 
-	err = Validate(info)
+	mylog.Check(Validate(info))
 	c.Check(err, ErrorMatches, `cannot have "base" field on "os" snap "foo"`)
 }
 
 func (s *ValidateSuite) TestValidateOsCanHaveBaseNone(c *C) {
-	info, err := InfoFromSnapYaml([]byte(`name: foo
+	info := mylog.Check2(InfoFromSnapYaml([]byte(`name: foo
 version: 1.0
 type: os
 base: none
-`))
-	c.Assert(err, IsNil)
+`)))
+
 	c.Assert(Validate(info), IsNil)
 }
 
 func (s *ValidateSuite) TestValidateBaseInorrectSnapName(c *C) {
-	info, err := InfoFromSnapYaml([]byte(`name: foo
+	info := mylog.Check2(InfoFromSnapYaml([]byte(`name: foo
 version: 1.0
 base: aAAAA
-`))
-	c.Assert(err, IsNil)
+`)))
 
-	err = Validate(info)
+	mylog.Check(Validate(info))
 	c.Check(err, ErrorMatches, `invalid base name: invalid snap name: \"aAAAA\"`)
 }
 
 func (s *ValidateSuite) TestValidateBaseSnapInstanceNameNotAllowed(c *C) {
-	info, err := InfoFromSnapYaml([]byte(`name: foo
+	info := mylog.Check2(InfoFromSnapYaml([]byte(`name: foo
 version: 1.0
 base: foo_abc
-`))
-	c.Assert(err, IsNil)
+`)))
 
-	err = Validate(info)
+	mylog.Check(Validate(info))
 	c.Check(err, ErrorMatches, `base cannot specify a snap instance name: "foo_abc"`)
 }
 
 func (s *ValidateSuite) TestValidateBaseCannotHaveBase(c *C) {
-	info, err := InfoFromSnapYaml([]byte(`name: foo
+	info := mylog.Check2(InfoFromSnapYaml([]byte(`name: foo
 version: 1.0
 type: base
 base: bar
-`))
-	c.Assert(err, IsNil)
+`)))
 
-	err = Validate(info)
+	mylog.Check(Validate(info))
 	c.Check(err, ErrorMatches, `cannot have "base" field on "base" snap "foo"`)
 }
 
 func (s *ValidateSuite) TestValidateBaseCanHaveBaseNone(c *C) {
-	info, err := InfoFromSnapYaml([]byte(`name: foo
+	info := mylog.Check2(InfoFromSnapYaml([]byte(`name: foo
 version: 1.0
 type: base
 base: none
-`))
-	c.Assert(err, IsNil)
+`)))
+
 	c.Assert(Validate(info), IsNil)
 }
 
@@ -1758,12 +1744,11 @@ apps:
 		{bad, `application ("bar" common-id "org.foo.foo" must be unique, already used by application "foo"|"foo" common-id "org.foo.foo" must be unique, already used by application "bar")`},
 	} {
 		c.Logf("tc #%v", i)
-		info, err := InfoFromSnapYaml([]byte(tc.meta))
-		c.Assert(err, IsNil)
+		info := mylog.Check2(InfoFromSnapYaml([]byte(tc.meta)))
 
-		err = Validate(info)
+		mylog.Check(Validate(info))
 		if tc.err == "" {
-			c.Assert(err, IsNil)
+
 		} else {
 			c.Assert(err, NotNil)
 			c.Check(err, ErrorMatches, tc.err)
@@ -1829,24 +1814,23 @@ func (s *validateSuite) TestValidatePlugSlotName(c *C) {
 }
 
 func (s *ValidateSuite) TestValidateSnapInstanceNameBadSnapName(c *C) {
-	info, err := InfoFromSnapYaml([]byte(`name: foo_bad
+	info := mylog.Check2(InfoFromSnapYaml([]byte(`name: foo_bad
 version: 1.0
-`))
-	c.Assert(err, IsNil)
+`)))
 
-	err = Validate(info)
+	mylog.Check(Validate(info))
 	c.Check(err, ErrorMatches, `invalid snap name: "foo_bad"`)
 }
 
 func (s *ValidateSuite) TestValidateSnapInstanceNameBadInstanceKey(c *C) {
-	info, err := InfoFromSnapYaml([]byte(`name: foo
+	info := mylog.Check2(InfoFromSnapYaml([]byte(`name: foo
 version: 1.0
-`))
-	c.Assert(err, IsNil)
+`)))
+
 
 	for _, s := range []string{"toolonginstance", "ABCD", "_", "inst@nce", "012345678901"} {
 		info.InstanceKey = s
-		err = Validate(info)
+		mylog.Check(Validate(info))
 		c.Check(err, ErrorMatches, fmt.Sprintf(`invalid instance key: %q`, s))
 	}
 }
@@ -1919,15 +1903,14 @@ apps:
 	}}
 	for _, tc := range tcs {
 		c.Logf("trying %q", tc.name)
-		info, err := InfoFromSnapYaml(append(meta, tc.desc...))
-		c.Assert(err, IsNil)
-		c.Assert(info, NotNil)
+		info := mylog.Check2(InfoFromSnapYaml(append(meta, tc.desc...)))
 
-		err = Validate(info)
+		c.Assert(info, NotNil)
+		mylog.Check(Validate(info))
 		if tc.err != "" {
 			c.Assert(err, ErrorMatches, `invalid definition of application "foo": `+tc.err)
 		} else {
-			c.Assert(err, IsNil)
+
 		}
 	}
 }
@@ -1940,10 +1923,10 @@ system-usernames:
 `
 
 	strk := NewScopedTracker()
-	info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml1), nil, strk)
-	c.Assert(err, IsNil)
+	info := mylog.Check2(InfoFromSnapYamlWithSideInfo([]byte(yaml1), nil, strk))
+
 	c.Assert(info.SystemUsernames, HasLen, 1)
-	err = Validate(info)
+	mylog.Check(Validate(info))
 	c.Assert(err, ErrorMatches, `invalid system username "b@d"`)
 }
 
@@ -1956,11 +1939,11 @@ system-usernames:
 `
 
 	strk := NewScopedTracker()
-	info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml1), nil, strk)
-	c.Assert(err, IsNil)
+	info := mylog.Check2(InfoFromSnapYamlWithSideInfo([]byte(yaml1), nil, strk))
+
 	c.Assert(info.SystemUsernames, HasLen, 2)
-	err = Validate(info)
-	c.Assert(err, IsNil)
+	mylog.Check(Validate(info))
+
 }
 
 const yamlNeedDf = `name: need-df
@@ -1984,8 +1967,8 @@ plugs:
 
 func (s *ValidateSuite) TestNeededDefaultProviders(c *C) {
 	strk := NewScopedTracker()
-	info, err := InfoFromSnapYamlWithSideInfo([]byte(yamlNeedDf), nil, strk)
-	c.Assert(err, IsNil)
+	info := mylog.Check2(InfoFromSnapYamlWithSideInfo([]byte(yamlNeedDf), nil, strk))
+
 
 	dps := NeededDefaultProviders(info)
 	c.Check(dps, DeepEquals, map[string][]string{"gtk-common-themes": {"gtk-3-themes", "icon-themes"}})
@@ -2001,8 +1984,8 @@ plugs:
 
 func (s *ValidateSuite) TestNeededDefaultProvidersLegacyColonSyntax(c *C) {
 	strk := NewScopedTracker()
-	info, err := InfoFromSnapYamlWithSideInfo([]byte(yamlNeedDfWithSlot), nil, strk)
-	c.Assert(err, IsNil)
+	info := mylog.Check2(InfoFromSnapYamlWithSideInfo([]byte(yamlNeedDfWithSlot), nil, strk))
+
 
 	dps := NeededDefaultProviders(info)
 	c.Check(dps, DeepEquals, map[string][]string{"gtk-common-themes2": {""}})
@@ -2013,8 +1996,8 @@ func (s *validateSuite) TestValidateSnapMissingCore(c *C) {
 version: 1.0`
 
 	strk := NewScopedTracker()
-	info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), nil, strk)
-	c.Assert(err, IsNil)
+	info := mylog.Check2(InfoFromSnapYamlWithSideInfo([]byte(yaml), nil, strk))
+
 
 	infos := []*Info{info}
 	warns, errors := ValidateBasesAndProviders(infos)
@@ -2029,8 +2012,8 @@ base: some-base
 version: 1.0`
 
 	strk := NewScopedTracker()
-	info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), nil, strk)
-	c.Assert(err, IsNil)
+	info := mylog.Check2(InfoFromSnapYamlWithSideInfo([]byte(yaml), nil, strk))
+
 
 	infos := []*Info{info}
 	warns, errors := ValidateBasesAndProviders(infos)
@@ -2041,15 +2024,15 @@ version: 1.0`
 
 func (s *validateSuite) TestValidateSnapMissingDefaultProvider(c *C) {
 	strk := NewScopedTracker()
-	snapInfo, err := InfoFromSnapYamlWithSideInfo([]byte(yamlNeedDf), nil, strk)
-	c.Assert(err, IsNil)
+	snapInfo := mylog.Check2(InfoFromSnapYamlWithSideInfo([]byte(yamlNeedDf), nil, strk))
 
-	var coreYaml = `name: core
+
+	coreYaml := `name: core
 version: 1.0
 type: os`
 
-	coreInfo, err := InfoFromSnapYamlWithSideInfo([]byte(coreYaml), nil, strk)
-	c.Assert(err, IsNil)
+	coreInfo := mylog.Check2(InfoFromSnapYamlWithSideInfo([]byte(coreYaml), nil, strk))
+
 
 	infos := []*Info{snapInfo, coreInfo}
 	warns, errors := ValidateBasesAndProviders(infos)
@@ -2065,8 +2048,8 @@ base: none
 version: 1.0`
 
 	strk := NewScopedTracker()
-	info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), nil, strk)
-	c.Assert(err, IsNil)
+	info := mylog.Check2(InfoFromSnapYamlWithSideInfo([]byte(yaml), nil, strk))
+
 
 	infos := []*Info{info}
 	warns, errors := ValidateBasesAndProviders(infos)
@@ -2080,8 +2063,8 @@ type: snapd
 version: 1.0`
 
 	strk := NewScopedTracker()
-	info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), nil, strk)
-	c.Assert(err, IsNil)
+	info := mylog.Check2(InfoFromSnapYamlWithSideInfo([]byte(yaml), nil, strk))
+
 
 	infos := []*Info{info}
 	warns, errors := ValidateBasesAndProviders(infos)
@@ -2126,21 +2109,22 @@ func (s *ValidateSuite) TestAppInstallMode(c *C) {
 		// bad
 		{"invalid-thing", false},
 	} {
-		err := ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", DaemonScope: SystemDaemon, InstallMode: t.installMode})
+		mylog.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", DaemonScope: SystemDaemon, InstallMode: t.installMode}))
 		if t.ok {
 			c.Check(err, IsNil)
 		} else {
 			c.Check(err, ErrorMatches, fmt.Sprintf(`"install-mode" field contains invalid value %q`, t.installMode))
 		}
 	}
+	mylog.
 
-	// non-services cannot have a install-mode
-	err := ValidateApp(&AppInfo{Name: "foo", Daemon: "", InstallMode: "disable"})
+		// non-services cannot have a install-mode
+		Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "", InstallMode: "disable"}))
 	c.Check(err, ErrorMatches, `"install-mode" cannot be used for "foo", only for services`)
 }
 
 func (s *ValidateSuite) TestValidateLinks(c *C) {
-	info, err := InfoFromSnapYaml([]byte(`name: foo
+	info := mylog.Check2(InfoFromSnapYaml([]byte(`name: foo
 version: 1.0
 
 links:
@@ -2156,43 +2140,41 @@ links:
    - https://toto.space
  source-code:
    - https://github.com/webteam-space/toto.space
-`))
-	c.Assert(err, IsNil)
+`)))
 
-	// happy
-	err = Validate(info)
-	c.Assert(err, IsNil)
+	mylog.
 
-	info, err = InfoFromSnapYaml([]byte(`name: foo
+		// happy
+		Check(Validate(info))
+
+
+	info = mylog.Check2(InfoFromSnapYaml([]byte(`name: foo
 version: 1.0
 links:
   foo:
    - ""
-`))
-	c.Assert(err, IsNil)
+`)))
 
-	err = Validate(info)
+	mylog.Check(Validate(info))
 	c.Check(err, ErrorMatches, `empty "foo" link`)
 
-	info, err = InfoFromSnapYaml([]byte(`name: foo
+	info = mylog.Check2(InfoFromSnapYaml([]byte(`name: foo
 version: 1.0
 links:
   foo:
    - ":"
-`))
-	c.Assert(err, IsNil)
+`)))
 
-	err = Validate(info)
+	mylog.Check(Validate(info))
 	c.Check(err, ErrorMatches, `invalid "foo" link ":"`)
 
-	info, err = InfoFromSnapYaml([]byte(`name: foo
+	info = mylog.Check2(InfoFromSnapYaml([]byte(`name: foo
 version: 1.0
 links:
   foo: []
-`))
-	c.Assert(err, IsNil)
+`)))
 
-	err = Validate(info)
+	mylog.Check(Validate(info))
 	c.Check(err, ErrorMatches, `"foo" links cannot be specified and empty`)
 }
 
@@ -2208,7 +2190,7 @@ func (s *YamlSuite) TestValidateLinksKeys(c *C) {
 		links := map[string][]string{
 			k: {"link"},
 		}
-		err := ValidateLinks(links)
+		mylog.Check(ValidateLinks(links))
 		if k == "" {
 			c.Check(err, ErrorMatches, "links key cannot be empty")
 		} else {
@@ -2232,7 +2214,7 @@ func (s *YamlSuite) TestValidateLinksValues(c *C) {
 		links := map[string][]string{
 			"contact": {l.link},
 		}
-		err := ValidateLinks(links)
+		mylog.Check(ValidateLinks(links))
 		c.Check(err, ErrorMatches, l.err)
 	}
 }
@@ -2284,8 +2266,8 @@ func (s *ValidateSuite) TestSimplePrereqTracker(c *C) {
 		Interface: "content",
 		Attrs:     map[string]interface{}{"content": "bar"},
 	}
-	err := repo.AddSlot(barSlot)
-	c.Assert(err, IsNil)
+	mylog.Check(repo.AddSlot(barSlot))
+
 	providerContentAttrs = prqt.MissingProviderContentTags(info, repo)
 	c.Check(providerContentAttrs, HasLen, 2)
 	c.Check(providerContentAttrs["common-themes"], DeepEquals, []string{"foo"})
@@ -2298,8 +2280,8 @@ func (s *ValidateSuite) TestSimplePrereqTracker(c *C) {
 		Interface: "content",
 		Attrs:     map[string]interface{}{"content": "foo"},
 	}
-	err = repo.AddSlot(fooSlot)
-	c.Assert(err, IsNil)
+	mylog.Check(repo.AddSlot(fooSlot))
+
 	providerContentAttrs = prqt.MissingProviderContentTags(info, repo)
 	c.Check(providerContentAttrs, HasLen, 1)
 	c.Check(providerContentAttrs["common-themes"], IsNil)
@@ -2330,8 +2312,8 @@ func (s *validateSuite) TestSelfContainedSetPrereqTrackerSnaps(c *C) {
 		yaml := fmt.Sprintf(`name: %s
 base: some-base
 version: 1.0`, sn)
-		info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), nil, NewScopedTracker())
-		c.Assert(err, IsNil)
+		info := mylog.Check2(InfoFromSnapYamlWithSideInfo([]byte(yaml), nil, NewScopedTracker()))
+
 
 		prqt.Add(info)
 	}
@@ -2349,8 +2331,8 @@ base: some-base
 version: 1.0`
 
 	strk := NewScopedTracker()
-	info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), nil, strk)
-	c.Assert(err, IsNil)
+	info := mylog.Check2(InfoFromSnapYamlWithSideInfo([]byte(yaml), nil, strk))
+
 
 	prqt := NewSelfContainedSetPrereqTracker()
 	prqt.Add(info)
@@ -2365,8 +2347,8 @@ func (s *validateSuite) TestSelfContainedSetPrereqTrackerMissingMCore(c *C) {
 version: 1.0`
 
 	strk := NewScopedTracker()
-	info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), nil, strk)
-	c.Assert(err, IsNil)
+	info := mylog.Check2(InfoFromSnapYamlWithSideInfo([]byte(yaml), nil, strk))
+
 
 	prqt := NewSelfContainedSetPrereqTracker()
 	prqt.Add(info)
@@ -2378,15 +2360,15 @@ version: 1.0`
 
 func (s *validateSuite) TestSelfContainedSetPrereqTrackerMissingDefaultProvider(c *C) {
 	strk := NewScopedTracker()
-	snapInfo, err := InfoFromSnapYamlWithSideInfo([]byte(yamlNeedDf), nil, strk)
-	c.Assert(err, IsNil)
+	snapInfo := mylog.Check2(InfoFromSnapYamlWithSideInfo([]byte(yamlNeedDf), nil, strk))
+
 
 	const coreYaml = `name: core
 version: 1.0
 type: os`
 
-	coreInfo, err := InfoFromSnapYamlWithSideInfo([]byte(coreYaml), nil, strk)
-	c.Assert(err, IsNil)
+	coreInfo := mylog.Check2(InfoFromSnapYamlWithSideInfo([]byte(coreYaml), nil, strk))
+
 
 	prqt := NewSelfContainedSetPrereqTracker()
 	prqt.Add(snapInfo)
@@ -2400,15 +2382,15 @@ type: os`
 
 func (s *validateSuite) TestSelfContainedSetPrereqTrackerDefaultProviderHappy(c *C) {
 	strk := NewScopedTracker()
-	snapInfo, err := InfoFromSnapYamlWithSideInfo([]byte(yamlNeedDf), nil, strk)
-	c.Assert(err, IsNil)
+	snapInfo := mylog.Check2(InfoFromSnapYamlWithSideInfo([]byte(yamlNeedDf), nil, strk))
+
 
 	const coreYaml = `name: core
 version: 1.0
 type: os`
 
-	coreInfo, err := InfoFromSnapYamlWithSideInfo([]byte(coreYaml), nil, strk)
-	c.Assert(err, IsNil)
+	coreInfo := mylog.Check2(InfoFromSnapYamlWithSideInfo([]byte(coreYaml), nil, strk))
+
 
 	const gtkCommonThemesYaml = `name: gtk-common-themes
 version: 1.0
@@ -2422,8 +2404,8 @@ slots:
 `
 	defer MockSanitizePlugsSlots(builtin.SanitizePlugsSlots)()
 
-	gtkCommonThemesInfo, err := InfoFromSnapYamlWithSideInfo([]byte(gtkCommonThemesYaml), nil, strk)
-	c.Assert(err, IsNil)
+	gtkCommonThemesInfo := mylog.Check2(InfoFromSnapYamlWithSideInfo([]byte(gtkCommonThemesYaml), nil, strk))
+
 
 	prqt := NewSelfContainedSetPrereqTracker()
 	prqt.Add(snapInfo)
@@ -2437,15 +2419,15 @@ slots:
 
 func (s *validateSuite) TestSelfContainedSetPrereqTrackerAlternativeProviders(c *C) {
 	strk := NewScopedTracker()
-	snapInfo, err := InfoFromSnapYamlWithSideInfo([]byte(yamlNeedDf), nil, strk)
-	c.Assert(err, IsNil)
+	snapInfo := mylog.Check2(InfoFromSnapYamlWithSideInfo([]byte(yamlNeedDf), nil, strk))
+
 
 	const coreYaml = `name: core
 version: 1.0
 type: os`
 
-	coreInfo, err := InfoFromSnapYamlWithSideInfo([]byte(coreYaml), nil, strk)
-	c.Assert(err, IsNil)
+	coreInfo := mylog.Check2(InfoFromSnapYamlWithSideInfo([]byte(coreYaml), nil, strk))
+
 
 	const iconsProviderYaml = `name: icons-provider
 version: 1.0
@@ -2461,10 +2443,10 @@ slots:
     interface: content
     content: gtk-3-themes
 `
-	iconsProviderInfo, err := InfoFromSnapYamlWithSideInfo([]byte(iconsProviderYaml), nil, strk)
-	c.Assert(err, IsNil)
-	themesProviderInfo, err := InfoFromSnapYamlWithSideInfo([]byte(themesProviderYaml), nil, strk)
-	c.Assert(err, IsNil)
+	iconsProviderInfo := mylog.Check2(InfoFromSnapYamlWithSideInfo([]byte(iconsProviderYaml), nil, strk))
+
+	themesProviderInfo := mylog.Check2(InfoFromSnapYamlWithSideInfo([]byte(themesProviderYaml), nil, strk))
+
 
 	prqt := NewSelfContainedSetPrereqTracker()
 	prqt.Add(snapInfo)
@@ -2481,15 +2463,15 @@ slots:
 
 func (s *validateSuite) TestSelfContainedSetPrereqTrackerDefaultProviderAlternativeProviderThroughValidateBasesAndProviders(c *C) {
 	strk := NewScopedTracker()
-	snapInfo, err := InfoFromSnapYamlWithSideInfo([]byte(yamlNeedDf), nil, strk)
-	c.Assert(err, IsNil)
+	snapInfo := mylog.Check2(InfoFromSnapYamlWithSideInfo([]byte(yamlNeedDf), nil, strk))
+
 
 	const coreYaml = `name: core
 version: 1.0
 type: os`
 
-	coreInfo, err := InfoFromSnapYamlWithSideInfo([]byte(coreYaml), nil, strk)
-	c.Assert(err, IsNil)
+	coreInfo := mylog.Check2(InfoFromSnapYamlWithSideInfo([]byte(coreYaml), nil, strk))
+
 
 	const gtkCommonThemesYaml = `name: gtk-common-themes
 version: 1.0
@@ -2511,10 +2493,10 @@ slots:
 `
 	defer MockSanitizePlugsSlots(builtin.SanitizePlugsSlots)()
 
-	gtkCommonThemesInfo, err := InfoFromSnapYamlWithSideInfo([]byte(gtkCommonThemesYaml), nil, strk)
-	c.Assert(err, IsNil)
-	themesProvider2Info, err := InfoFromSnapYamlWithSideInfo([]byte(themesProvider2Yaml), nil, strk)
-	c.Assert(err, IsNil)
+	gtkCommonThemesInfo := mylog.Check2(InfoFromSnapYamlWithSideInfo([]byte(gtkCommonThemesYaml), nil, strk))
+
+	themesProvider2Info := mylog.Check2(InfoFromSnapYamlWithSideInfo([]byte(themesProvider2Yaml), nil, strk))
+
 
 	warns, errors := ValidateBasesAndProviders([]*Info{snapInfo, coreInfo, gtkCommonThemesInfo, themesProvider2Info})
 	c.Assert(errors, HasLen, 0)
@@ -2524,15 +2506,15 @@ slots:
 
 func (s *validateSuite) TestSelfContainedSetPrereqTrackerDoubleAlternativeProviders(c *C) {
 	strk := NewScopedTracker()
-	snapInfo, err := InfoFromSnapYamlWithSideInfo([]byte(yamlNeedDf), nil, strk)
-	c.Assert(err, IsNil)
+	snapInfo := mylog.Check2(InfoFromSnapYamlWithSideInfo([]byte(yamlNeedDf), nil, strk))
+
 
 	const coreYaml = `name: core
 version: 1.0
 type: os`
 
-	coreInfo, err := InfoFromSnapYamlWithSideInfo([]byte(coreYaml), nil, strk)
-	c.Assert(err, IsNil)
+	coreInfo := mylog.Check2(InfoFromSnapYamlWithSideInfo([]byte(coreYaml), nil, strk))
+
 
 	const iconsProviderYaml = `name: icons-provider
 version: 1.0
@@ -2563,12 +2545,12 @@ slots:
 `
 	defer MockSanitizePlugsSlots(builtin.SanitizePlugsSlots)()
 
-	iconsProviderInfo, err := InfoFromSnapYamlWithSideInfo([]byte(iconsProviderYaml), nil, strk)
-	c.Assert(err, IsNil)
-	themesProviderInfo, err := InfoFromSnapYamlWithSideInfo([]byte(themesProviderYaml), nil, strk)
-	c.Assert(err, IsNil)
-	themesProvider2Info, err := InfoFromSnapYamlWithSideInfo([]byte(themesProvider2Yaml), nil, strk)
-	c.Assert(err, IsNil)
+	iconsProviderInfo := mylog.Check2(InfoFromSnapYamlWithSideInfo([]byte(iconsProviderYaml), nil, strk))
+
+	themesProviderInfo := mylog.Check2(InfoFromSnapYamlWithSideInfo([]byte(themesProviderYaml), nil, strk))
+
+	themesProvider2Info := mylog.Check2(InfoFromSnapYamlWithSideInfo([]byte(themesProvider2Yaml), nil, strk))
+
 
 	prqt := NewSelfContainedSetPrereqTracker()
 	prqt.Add(snapInfo)
@@ -2585,7 +2567,7 @@ slots:
 }
 
 func (s *ValidateSuite) TestValidateComponentNames(c *C) {
-	info, err := InfoFromSnapYaml([]byte(`name: foo
+	info := mylog.Check2(InfoFromSnapYaml([]byte(`name: foo
 version: 1.0
 components:
   comp-1:
@@ -2594,23 +2576,21 @@ components:
     description: some loooong description
   comp-long123-1-name:
     type: test
-`))
-	c.Assert(err, IsNil)
+`)))
 
-	err = Validate(info)
+	mylog.Check(Validate(info))
 	c.Check(err, IsNil)
 }
 
 func (s *ValidateSuite) TestDetectInvalidComponentName(c *C) {
-	info, err := InfoFromSnapYaml([]byte(`name: foo
+	info := mylog.Check2(InfoFromSnapYaml([]byte(`name: foo
 version: 1.0
 components:
   comp_1:
     type: test
-`))
-	c.Assert(err, IsNil)
+`)))
 
-	err = Validate(info)
+	mylog.Check(Validate(info))
 	c.Check(err, ErrorMatches, `invalid snap name: "comp_1"`)
 }
 
@@ -2628,16 +2608,15 @@ components:
 		maxCodePoints int
 	}{{"summary", 128}, {"description", 4096}} {
 		text := strings.Repeat("xx", 2049)
-		info, err := InfoFromSnapYaml([]byte(fmt.Sprintf(yamlTmpl, tc.field, text)))
-		c.Assert(err, IsNil)
+		info := mylog.Check2(InfoFromSnapYaml([]byte(fmt.Sprintf(yamlTmpl, tc.field, text))))
 
-		err = Validate(info)
+		mylog.Check(Validate(info))
 		c.Check(err, ErrorMatches, fmt.Sprintf("%s can have up to %d codepoints, got %d", tc.field, tc.maxCodePoints, utf8.RuneCountInString(text)))
 	}
 }
 
 func (s *ValidateSuite) TestDetectInvalidComponentHooks(c *C) {
-	info, err := InfoFromSnapYaml([]byte(`name: foo
+	info := mylog.Check2(InfoFromSnapYaml([]byte(`name: foo
 version: 1.0
 components:
   test:
@@ -2645,9 +2624,8 @@ components:
     hooks:
       install:
         command-chain: [">_>"]
-`))
-	c.Assert(err, IsNil)
+`)))
 
-	err = Validate(info)
+	mylog.Check(Validate(info))
 	c.Check(err, ErrorMatches, `hook command-chain contains illegal.*`)
 }

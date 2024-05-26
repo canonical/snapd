@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil/disks"
 )
 
@@ -95,8 +96,8 @@ func (ts *diskLabelSuite) TestBlkIDEncodeDecodeLabelHappy(c *C) {
 		c.Assert(disks.BlkIDEncodeLabel(t.in), Equals, t.out)
 
 		// make sure the other way around works too
-		expin, err := disks.BlkIDDecodeLabel(t.out)
-		c.Assert(err, IsNil)
+		expin := mylog.Check2(disks.BlkIDDecodeLabel(t.out))
+
 
 		c.Assert(expin, Equals, t.in)
 	}
@@ -147,7 +148,7 @@ func (ts *diskLabelSuite) TestBlkIDDecodeLabelUnhappy(c *C) {
 
 	for _, t := range tt {
 		c.Logf("input: %q", t.in)
-		_, err := disks.BlkIDDecodeLabel(t.in)
+		_ := mylog.Check2(disks.BlkIDDecodeLabel(t.in))
 		c.Assert(err, ErrorMatches, t.experr)
 	}
 }

@@ -23,6 +23,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/osutil"
@@ -127,10 +128,7 @@ type accountControlInterface struct {
 }
 
 func makeAccountControlSecCompSnippet() (string, error) {
-	gid, err := osutil.FindGidOwning("/etc/shadow")
-	if err != nil {
-		return "", err
-	}
+	gid := mylog.Check2(osutil.FindGidOwning("/etc/shadow"))
 
 	snippet := strings.Replace(accountControlConnectedPlugSecCompTemplate,
 		"{{group}}", strconv.FormatUint(gid, 10), -1)
@@ -141,10 +139,8 @@ func makeAccountControlSecCompSnippet() (string, error) {
 func (iface *accountControlInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	if iface.secCompSnippet == "" {
 		// Cache the snippet after it's successfully computed once
-		snippet, err := makeAccountControlSecCompSnippet()
-		if err != nil {
-			return err
-		}
+		snippet := mylog.Check2(makeAccountControlSecCompSnippet())
+
 		iface.secCompSnippet = snippet
 	}
 	spec.AddSnippet(iface.secCompSnippet)

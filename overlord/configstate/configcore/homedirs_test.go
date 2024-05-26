@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
@@ -44,11 +45,11 @@ func (s *homedirsSuite) SetUpTest(c *C) {
 	s.configcoreSuite.SetUpTest(c)
 
 	etcDir := filepath.Join(dirs.GlobalRootDir, "/etc/")
-	err := os.MkdirAll(etcDir, 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(etcDir, 0755))
+
 	s.AddCleanup(func() {
-		err := os.RemoveAll(etcDir)
-		c.Assert(err, IsNil)
+		mylog.Check(os.RemoveAll(etcDir))
+
 	})
 
 	// Tests might create this file. Since its presence is checked by the
@@ -56,9 +57,7 @@ func (s *homedirsSuite) SetUpTest(c *C) {
 	// tests don't influence each other.
 	configPath := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "system-params")
 	s.AddCleanup(func() {
-		if err := os.Remove(configPath); err != nil {
-			c.Assert(os.IsNotExist(err), Equals, true)
-		}
+		mylog.Check(os.Remove(configPath))
 	})
 
 	restore := configcore.MockDirExists(func(path string) (exists bool, isDir bool, err error) {
@@ -95,12 +94,12 @@ func (s *homedirsSuite) TestValidationUnhappy(c *C) {
 		// combine a valid path with an invalid one
 		{"/home/existingDir,/boot/invalid", `path "/boot/invalid/" uses reserved root directory "/boot/"`},
 	} {
-		err := configcore.FilesystemOnlyRun(classicDev, &mockConf{
+		mylog.Check(configcore.FilesystemOnlyRun(classicDev, &mockConf{
 			state: s.state,
 			changes: map[string]interface{}{
 				"homedirs": testData.homedirs,
 			},
-		})
+		}))
 		c.Assert(err, ErrorMatches, testData.expectedError, Commentf("%v", testData.homedirs))
 	}
 }
@@ -112,8 +111,7 @@ func (s *homedirsSuite) TestConfigureUnchangedConfig(c *C) {
 		return nil
 	})
 	defer restore()
-
-	err := configcore.FilesystemOnlyRun(classicDev, &mockConf{
+	mylog.Check(configcore.FilesystemOnlyRun(classicDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"homedirs": "/home/existingDir",
@@ -121,8 +119,8 @@ func (s *homedirsSuite) TestConfigureUnchangedConfig(c *C) {
 		changes: map[string]interface{}{
 			"homedirs": "/home/existingDir",
 		},
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(tunableUpdated, Equals, false)
 }
 
@@ -133,16 +131,17 @@ func (s *homedirsSuite) TestConfigureApparmorTunableFailure(c *C) {
 		return errors.New("tunable error")
 	})
 	defer restore()
-
-	err := configcore.FilesystemOnlyRun(classicDev, &mockConf{
+	mylog.Check(configcore.FilesystemOnlyRun(classicDev, &mockConf{
 		state: s.state,
 		changes: map[string]interface{}{
 			"homedirs": "/home/existingDir/one,/home/existingDir/two",
 		},
-	})
+	}))
 	c.Check(err, ErrorMatches, "tunable error")
-	c.Check(homedirs, DeepEquals, []string{filepath.Join(dirs.GlobalRootDir, "/home/existingDir/one"),
-		filepath.Join(dirs.GlobalRootDir, "/home/existingDir/two"), filepath.Join(dirs.GlobalRootDir, "/home")})
+	c.Check(homedirs, DeepEquals, []string{
+		filepath.Join(dirs.GlobalRootDir, "/home/existingDir/one"),
+		filepath.Join(dirs.GlobalRootDir, "/home/existingDir/two"), filepath.Join(dirs.GlobalRootDir, "/home"),
+	})
 }
 
 func (s *homedirsSuite) TestConfigureApparmorReloadFailure(c *C) {
@@ -150,12 +149,12 @@ func (s *homedirsSuite) TestConfigureApparmorReloadFailure(c *C) {
 		return errors.New("reload error")
 	})
 	defer restore()
-	err := configcore.FilesystemOnlyRun(classicDev, &mockConf{
+	mylog.Check(configcore.FilesystemOnlyRun(classicDev, &mockConf{
 		state: s.state,
 		changes: map[string]interface{}{
 			"homedirs": "/home/existingDir",
 		},
-	})
+	}))
 	c.Assert(err, ErrorMatches, "reload error")
 }
 
@@ -193,13 +192,12 @@ func (s *homedirsSuite) TestConfigureApparmorUnsupported(c *C) {
 		// initialize test by mocking the aa level and reseting the boolean
 		resetAA := apparmor.MockLevel(testData.level)
 		reloadProfilesCalled = false
-
-		err := configcore.FilesystemOnlyRun(classicDev, &mockConf{
+		mylog.Check(configcore.FilesystemOnlyRun(classicDev, &mockConf{
 			state: s.state,
 			changes: map[string]interface{}{
 				"homedirs": "/home/existingDir",
 			},
-		})
+		}))
 		c.Check(err, IsNil)
 		c.Check(reloadProfilesCalled, Equals, testData.updateProfiles, Commentf("%v", testData.level.String()))
 		resetAA()
@@ -227,24 +225,25 @@ func (s *homedirsSuite) TestConfigureHomedirsHappy(c *C) {
 		return false, nil
 	})
 	defer restore()
-
-	err := configcore.FilesystemOnlyRun(classicDev, &mockConf{
+	mylog.Check(configcore.FilesystemOnlyRun(classicDev, &mockConf{
 		state: s.state,
 		changes: map[string]interface{}{
 			"homedirs": "/home/existingDir",
 		},
-	})
+	}))
 	c.Check(err, IsNil)
 
 	// Check that the config file has been written
 	configPath := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "system-params")
-	contents, err := os.ReadFile(configPath)
-	c.Assert(err, IsNil)
+	contents := mylog.Check2(os.ReadFile(configPath))
+
 	c.Check(string(contents), Equals, "homedirs=/home/existingDir\n")
 
 	// Check that the AppArmor tunables have been written...
-	c.Check(tunableHomedirs, DeepEquals, []string{filepath.Join(dirs.GlobalRootDir, "/home/existingDir"),
-		filepath.Join(dirs.GlobalRootDir, "/home")})
+	c.Check(tunableHomedirs, DeepEquals, []string{
+		filepath.Join(dirs.GlobalRootDir, "/home/existingDir"),
+		filepath.Join(dirs.GlobalRootDir, "/home"),
+	})
 	// ...and that profiles have been reloaded
 	c.Check(reloadProfilesCallCount, Equals, 1)
 	// and finally that snap-confine snippets was called
@@ -262,12 +261,12 @@ func (s *homedirsSuite) TestConfigureHomedirsEmptyHappy(c *C) {
 		return false, nil
 	})
 	defer restore()
-	err := configcore.FilesystemOnlyRun(classicDev, &mockConf{
+	mylog.Check(configcore.FilesystemOnlyRun(classicDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"homedirs": "",
 		},
-	})
+	}))
 	c.Check(err, IsNil)
 	c.Check(passedHomeDirs, HasLen, 0)
 }
@@ -293,13 +292,12 @@ func (s *homedirsSuite) TestConfigureHomedirsNotOnCore(c *C) {
 		return false, nil
 	})
 	defer restore()
-
-	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
+	mylog.Check(configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		changes: map[string]interface{}{
 			"homedirs": "/home/existingDir",
 		},
-	})
+	}))
 	c.Check(err, ErrorMatches, `configuration of homedir locations on Ubuntu Core is currently unsupported. Please report a bug if you need it`)
 
 	// Verify config file doesn't exist
@@ -313,8 +311,10 @@ func (s *homedirsSuite) TestConfigureHomedirsNotOnCore(c *C) {
 
 func (s *homedirsSuite) TestupdateHomedirsConfig(c *C) {
 	config := "/home/homeDir1,/home/homeDirs/homeDir1///,/home/homeDir2/,/home/homeTest/users/"
-	expectedHomeDirs := []string{filepath.Join(dirs.GlobalRootDir, "/home/homeDir1"), filepath.Join(dirs.GlobalRootDir, "/home/homeDirs/homeDir1"),
-		filepath.Join(dirs.GlobalRootDir, "/home/homeDir2"), filepath.Join(dirs.GlobalRootDir, "/home/homeTest/users"), filepath.Join(dirs.GlobalRootDir, "/home")}
+	expectedHomeDirs := []string{
+		filepath.Join(dirs.GlobalRootDir, "/home/homeDir1"), filepath.Join(dirs.GlobalRootDir, "/home/homeDirs/homeDir1"),
+		filepath.Join(dirs.GlobalRootDir, "/home/homeDir2"), filepath.Join(dirs.GlobalRootDir, "/home/homeTest/users"), filepath.Join(dirs.GlobalRootDir, "/home"),
+	}
 	configcore.UpdateHomedirsConfig(config, nil)
 	c.Check(dirs.SnapHomeDirs(), DeepEquals, expectedHomeDirs)
 }

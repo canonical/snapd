@@ -22,6 +22,7 @@ package configcore
 import (
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/systemd"
@@ -53,10 +54,8 @@ func handleBacklightServiceConfiguration(_ sysconfig.Device, tr ConfGetter, opts
 	} else {
 		sysd = systemd.NewUnderRoot(dirs.GlobalRootDir, systemd.SystemMode, &backlightSysdLogger{})
 	}
-	output, err := coreCfg(tr, "system.disable-backlight-service")
-	if err != nil {
-		return err
-	}
+	output := mylog.Check2(coreCfg(tr, "system.disable-backlight-service"))
+
 	if output != "" {
 		switch output {
 		case "true":

@@ -27,6 +27,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sandbox/selinux"
 )
@@ -46,7 +47,7 @@ func (s *selinuxSuite) TestGetMount(c *check.C) {
 	restore := osutil.MockMountInfo(selinuxMountInfo)
 	defer restore()
 
-	mnt, err := selinux.GetSELinuxMount()
+	mnt := mylog.Check2(selinux.GetSELinuxMount())
 	c.Assert(err, check.IsNil)
 	c.Assert(mnt, check.Equals, "/sys/fs/selinux")
 }
@@ -55,7 +56,7 @@ func (s *selinuxSuite) TestIsEnabledHappyEnabled(c *check.C) {
 	restore := osutil.MockMountInfo(selinuxMountInfo)
 	defer restore()
 
-	enabled, err := selinux.IsEnabled()
+	enabled := mylog.Check2(selinux.IsEnabled())
 	c.Assert(err, check.IsNil)
 	c.Assert(enabled, check.Equals, true)
 }
@@ -64,7 +65,7 @@ func (s *selinuxSuite) TestIsEnabledHappyNoSelinux(c *check.C) {
 	restore := osutil.MockMountInfo("")
 	defer restore()
 
-	enabled, err := selinux.IsEnabled()
+	enabled := mylog.Check2(selinux.IsEnabled())
 	c.Assert(err, check.IsNil)
 	c.Assert(enabled, check.Equals, false)
 }
@@ -73,7 +74,7 @@ func (s *selinuxSuite) TestIsEnabledFailGarbage(c *check.C) {
 	restore := osutil.MockMountInfo("garbage")
 	defer restore()
 
-	enabled, err := selinux.IsEnabled()
+	enabled := mylog.Check2(selinux.IsEnabled())
 	c.Assert(err, check.ErrorMatches, `failed to obtain SELinux mount path: .*`)
 	c.Assert(enabled, check.Equals, false)
 }
@@ -85,18 +86,16 @@ func (s *selinuxSuite) TestIsEnforcingHappy(c *check.C) {
 	defer restore()
 
 	enforcePath := filepath.Join(dir, "enforce")
-
-	err := os.WriteFile(enforcePath, []byte("1"), 0644)
+	mylog.Check(os.WriteFile(enforcePath, []byte("1"), 0644))
 	c.Assert(err, check.IsNil)
 
-	enforcing, err := selinux.IsEnforcing()
+	enforcing := mylog.Check2(selinux.IsEnforcing())
 	c.Assert(err, check.IsNil)
 	c.Assert(enforcing, check.Equals, true)
-
-	err = os.WriteFile(enforcePath, []byte("0"), 0644)
+	mylog.Check(os.WriteFile(enforcePath, []byte("0"), 0644))
 	c.Assert(err, check.IsNil)
 
-	enforcing, err = selinux.IsEnforcing()
+	enforcing = mylog.Check2(selinux.IsEnforcing())
 	c.Assert(err, check.IsNil)
 	c.Assert(enforcing, check.Equals, false)
 }
@@ -105,7 +104,7 @@ func (s *selinuxSuite) TestIsEnforcingNoSELinux(c *check.C) {
 	restore := osutil.MockMountInfo("")
 	defer restore()
 
-	enforcing, err := selinux.IsEnforcing()
+	enforcing := mylog.Check2(selinux.IsEnforcing())
 	c.Assert(err, check.IsNil)
 	c.Assert(enforcing, check.Equals, false)
 }
@@ -117,11 +116,10 @@ func (s *selinuxSuite) TestIsEnforcingFailGarbage(c *check.C) {
 	defer restore()
 
 	enforcePath := filepath.Join(dir, "enforce")
-
-	err := os.WriteFile(enforcePath, []byte("garbage"), 0644)
+	mylog.Check(os.WriteFile(enforcePath, []byte("garbage"), 0644))
 	c.Assert(err, check.IsNil)
 
-	enforcing, err := selinux.IsEnforcing()
+	enforcing := mylog.Check2(selinux.IsEnforcing())
 	c.Assert(err, check.ErrorMatches, "unknown SELinux status: garbage")
 	c.Assert(enforcing, check.Equals, false)
 }
@@ -133,11 +131,10 @@ func (s *selinuxSuite) TestIsEnforcingFailOther(c *check.C) {
 	defer restore()
 
 	enforcePath := filepath.Join(dir, "enforce")
-
-	err := os.WriteFile(enforcePath, []byte("not-readable"), 0000)
+	mylog.Check(os.WriteFile(enforcePath, []byte("not-readable"), 0000))
 	c.Assert(err, check.IsNil)
 
-	enforcing, err := selinux.IsEnforcing()
+	enforcing := mylog.Check2(selinux.IsEnforcing())
 	c.Assert(err, check.ErrorMatches, "open .*: permission denied")
 	c.Assert(enforcing, check.Equals, false)
 }

@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/testutil"
@@ -37,12 +38,12 @@ type certsSuite struct {
 var _ = Suite(&certsSuite{})
 
 func (s *certsSuite) TestConfigureCertsUnhappyName(c *C) {
-	err := configcore.Run(classicDev, &mockConf{
+	mylog.Check(configcore.Run(classicDev, &mockConf{
 		state: s.state,
 		changes: map[string]interface{}{
 			"store-certs.cert-illegal-!": "xxx",
 		},
-	})
+	}))
 	c.Assert(err, ErrorMatches, `cannot set store ssl certificate under name "core.store-certs.cert-illegal-!": name must only contain word characters or a dash`)
 }
 
@@ -74,50 +75,53 @@ jVaMaA==
 `
 
 func (s *certsSuite) TestConfigureCertsHappy(c *C) {
-	err := configcore.Run(classicDev, &mockConf{
+	mylog.Check(configcore.Run(classicDev, &mockConf{
 		state: s.state,
 		changes: map[string]interface{}{
 			"store-certs.cert1": mockCert,
 		},
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Assert(filepath.Join(dirs.SnapdStoreSSLCertsDir, "cert1.pem"), testutil.FileEquals, mockCert)
 }
 
 func (s *certsSuite) TestConfigureCertsSimulteRevert(c *C) {
-	// do a normal "snap set"
-	err := configcore.Run(classicDev, &mockConf{
-		state: s.state,
-		changes: map[string]interface{}{
-			"store-certs.cert1": mockCert,
-		},
-	})
-	c.Assert(err, IsNil)
+	mylog.
+		// do a normal "snap set"
+		Check(configcore.Run(classicDev, &mockConf{
+			state: s.state,
+			changes: map[string]interface{}{
+				"store-certs.cert1": mockCert,
+			},
+		}))
+
 	c.Assert(filepath.Join(dirs.SnapdStoreSSLCertsDir, "cert1.pem"), testutil.FilePresent)
-	// and one more with a new cert that will be reverted
-	err = configcore.Run(classicDev, &mockConf{
-		state: s.state,
-		conf: map[string]interface{}{
-			"store-certs.cert1": mockCert,
-		},
-		changes: map[string]interface{}{
-			"store-certs.certthatwillbereverted": mockCert,
-		},
-	})
-	c.Assert(err, IsNil)
+	mylog.
+		// and one more with a new cert that will be reverted
+		Check(configcore.Run(classicDev, &mockConf{
+			state: s.state,
+			conf: map[string]interface{}{
+				"store-certs.cert1": mockCert,
+			},
+			changes: map[string]interface{}{
+				"store-certs.certthatwillbereverted": mockCert,
+			},
+		}))
+
 	c.Assert(filepath.Join(dirs.SnapdStoreSSLCertsDir, "cert1.pem"), testutil.FilePresent)
 	c.Assert(filepath.Join(dirs.SnapdStoreSSLCertsDir, "certthatwillbereverted.pem"), testutil.FilePresent)
+	mylog.
 
-	// now simulate a "snap revert core" where "cert1" will stay in
-	// the state but "cert-that-will-be-reverted" is part of the config
-	// of the reverted core
-	err = configcore.Run(classicDev, &mockConf{
-		state: s.state,
-		conf: map[string]interface{}{
-			"store-certs.cert1": mockCert,
-		},
-	})
-	c.Assert(err, IsNil)
+		// now simulate a "snap revert core" where "cert1" will stay in
+		// the state but "cert-that-will-be-reverted" is part of the config
+		// of the reverted core
+		Check(configcore.Run(classicDev, &mockConf{
+			state: s.state,
+			conf: map[string]interface{}{
+				"store-certs.cert1": mockCert,
+			},
+		}))
+
 	c.Assert(filepath.Join(dirs.SnapdStoreSSLCertsDir, "cert1.pem"), testutil.FilePresent)
 	c.Assert(filepath.Join(dirs.SnapdStoreSSLCertsDir, "certthatwillbereverted.pem"), testutil.FileAbsent)
 }
@@ -128,21 +132,21 @@ jVaMaA==
 `
 
 func (s *certsSuite) TestConfigureCertsFailsToParse(c *C) {
-	err := configcore.Run(classicDev, &mockConf{
+	mylog.Check(configcore.Run(classicDev, &mockConf{
 		state: s.state,
 		changes: map[string]interface{}{
 			"store-certs.cert1": certThatFailsToParse,
 		},
-	})
+	}))
 	c.Assert(err, ErrorMatches, `cannot decode pem certificate "cert1"`)
 }
 
 func (s *certsSuite) TestConfigureCertsUnhappyContent(c *C) {
-	err := configcore.Run(classicDev, &mockConf{
+	mylog.Check(configcore.Run(classicDev, &mockConf{
 		state: s.state,
 		changes: map[string]interface{}{
 			"store-certs.cert-bad": "xxx",
 		},
-	})
+	}))
 	c.Assert(err, ErrorMatches, `cannot decode pem certificate "cert-bad"`)
 }

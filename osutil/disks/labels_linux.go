@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 )
@@ -36,10 +37,8 @@ import (
 // the symlink in the by-label folder.
 func CandidateByLabelPath(label string) (string, error) {
 	byLabelDir := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label/")
-	byLabelFs, err := os.ReadDir(byLabelDir)
-	if err != nil {
-		return "", err
-	}
+	byLabelFs := mylog.Check2(os.ReadDir(byLabelDir))
+
 	candidate := ""
 	// encode it so it can be compared with the files
 	label = BlkIDEncodeLabel(label)
@@ -68,10 +67,8 @@ func CandidateByLabelPath(label string) (string, error) {
 			return "", fmt.Errorf("no candidate found for label %q", label)
 		}
 		// Make sure it is vfat
-		fsType, err := filesystemTypeForPartition(filepath.Join(byLabelDir, candidate))
-		if err != nil {
-			return "", fmt.Errorf("cannot find filesystem type: %v", err)
-		}
+		fsType := mylog.Check2(filesystemTypeForPartition(filepath.Join(byLabelDir, candidate)))
+
 		if fsType != "vfat" {
 			return "", fmt.Errorf("no candidate found for label %q (%q is not vfat)", label, candidate)
 		}

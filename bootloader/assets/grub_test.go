@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/arch/archtest"
 	"github.com/snapcore/snapd/bootloader/assets"
 	"github.com/snapcore/snapd/testutil"
@@ -160,8 +161,8 @@ func (s *grubAssetsTestSuite) TestGrubAssetsWereRegenerated(c *C) {
 	} {
 		assetData := assets.Internal(tc.asset)
 		c.Assert(assetData, NotNil)
-		data, err := os.ReadFile(tc.file)
-		c.Assert(err, IsNil)
+		data := mylog.Check2(os.ReadFile(tc.file))
+
 		c.Check(assetData, DeepEquals, data, Commentf("asset %q has not been updated", tc.asset))
 	}
 }

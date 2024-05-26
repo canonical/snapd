@@ -31,6 +31,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/servicestate"
@@ -66,7 +67,7 @@ var newStatusDecorator = func(ctx context.Context, isGlobal bool, uid string) cl
 
 func readMaybeBoolValue(query url.Values, name string) (bool, error) {
 	if sel := query.Get(name); sel != "" {
-		if v, err := strconv.ParseBool(sel); err != nil {
+		if v := mylog.Check2(strconv.ParseBool(sel)); err != nil {
 			return false, fmt.Errorf("invalid %s parameter: %q", name, sel)
 		} else {
 			return v, nil
@@ -87,26 +88,17 @@ func getAppsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("invalid select parameter: %q", sel)
 	}
 
-	global, err := readMaybeBoolValue(query, "global")
-	if err != nil {
-		return BadRequest(err.Error())
-	}
+	global := mylog.Check2(readMaybeBoolValue(query, "global"))
 
 	appInfos, rspe := appInfosFor(c.d.overlord.State(), strutil.CommaSeparatedList(query.Get("names")), opts)
 	if rspe != nil {
 		return rspe
 	}
 
-	u, err := systemUserFromRequest(r)
-	if err != nil {
-		return BadRequest("cannot retrieve services: %v", err)
-	}
+	u := mylog.Check2(systemUserFromRequest(r))
 
 	sd := newStatusDecorator(r.Context(), global, u.Uid)
-	clientAppInfos, err := clientutil.ClientAppInfosFromSnapAppInfos(appInfos, sd)
-	if err != nil {
-		return InternalError("%v", err)
-	}
+	clientAppInfos := mylog.Check2(clientutil.ClientAppInfosFromSnapAppInfos(appInfos, sd))
 
 	return SyncResponse(clientAppInfos)
 }
@@ -148,10 +140,7 @@ func appInfosFor(st *state.State, names []string, opts appInfoOptions) ([]*snap.
 		snapNames[name] = true
 	}
 
-	snaps, err := allLocalSnapInfos(st, snapSelectNone, snapNames)
-	if err != nil {
-		return nil, InternalError("cannot list local snaps! %v", err)
-	}
+	snaps := mylog.Check2(allLocalSnapInfos(st, snapSelectNone, snapNames))
 
 	found := make(map[string]bool)
 	appInfos := make([]*snap.AppInfo, 0, len(requested))
@@ -216,18 +205,14 @@ func getLogs(c *Command, r *http.Request, user *auth.UserState) Response {
 	query := r.URL.Query()
 	n := 10
 	if s := query.Get("n"); s != "" {
-		m, err := strconv.ParseInt(s, 0, 32)
-		if err != nil {
-			return BadRequest(`invalid value for n: %q: %v`, s, err)
-		}
+		m := mylog.Check2(strconv.ParseInt(s, 0, 32))
+
 		n = int(m)
 	}
 	follow := false
 	if s := query.Get("follow"); s != "" {
-		f, err := strconv.ParseBool(s)
-		if err != nil {
-			return BadRequest(`invalid value for follow: %q: %v`, s, err)
-		}
+		f := mylog.Check2(strconv.ParseBool(s))
+
 		follow = f
 	}
 
@@ -241,10 +226,7 @@ func getLogs(c *Command, r *http.Request, user *auth.UserState) Response {
 		return AppNotFound("no matching services")
 	}
 
-	reader, err := servicestate.LogReader(appInfos, n, follow)
-	if err != nil {
-		return InternalError("cannot get logs: %v", err)
-	}
+	reader := mylog.Check2(servicestate.LogReader(appInfos, n, follow))
 
 	return &journalLineReaderSeqResponse{
 		ReadCloser: reader,
@@ -257,22 +239,15 @@ var servicestateControl = servicestate.Control
 func decodeServiceInstruction(body io.ReadCloser, u *user.User) (*servicestate.Instruction, error) {
 	var inst servicestate.Instruction
 	decoder := json.NewDecoder(body)
-	if err := decoder.Decode(&inst); err != nil {
-		return nil, err
-	}
+	mylog.Check(decoder.Decode(&inst))
+
 	return &inst, nil
 }
 
 var systemUserFromRequest = func(r *http.Request) (*user.User, error) {
-	uid, err := uidFromRequest(r)
-	if err != nil {
-		return nil, err
-	}
+	uid := mylog.Check2(uidFromRequest(r))
 
-	u, err := user.LookupId(strconv.Itoa(int(uid)))
-	if err != nil {
-		return nil, err
-	}
+	u := mylog.Check2(user.LookupId(strconv.Itoa(int(uid))))
 
 	// ensure that we only get the root user on a uid == 0 input
 	if u.Uid == "0" && uid != 0 {
@@ -282,14 +257,10 @@ var systemUserFromRequest = func(r *http.Request) (*user.User, error) {
 }
 
 func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
-	u, err := systemUserFromRequest(r)
-	if err != nil {
-		return BadRequest("cannot perform operation on services: %v", err)
-	}
-	inst, err := decodeServiceInstruction(r.Body, u)
-	if err != nil {
-		return BadRequest("cannot decode request body into service operation: %v", err)
-	}
+	u := mylog.Check2(systemUserFromRequest(r))
+
+	inst := mylog.Check2(decodeServiceInstruction(r.Body, u))
+
 	// XXX: decoder.More()
 	if len(inst.Names) == 0 {
 		// on POST, don't allow empty to mean all
@@ -306,11 +277,11 @@ func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
 		// shouldn't ever return an empty appInfos with no error response
 		return InternalError("no services found")
 	}
+	mylog.Check(
 
-	// Now that we know the services we are affecting, do some additional checks/fixups
-	if err := inst.Validate(u, appInfos); err != nil {
-		return BadRequest("cannot perform operation on services: %v", err)
-	}
+		// Now that we know the services we are affecting, do some additional checks/fixups
+		inst.Validate(u, appInfos))
+
 	inst.EnsureDefaultScopeForUser(u)
 
 	// do not pass flags - only create service-control tasks, do not create
@@ -318,14 +289,10 @@ func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
 	// handling momentary snap service commands.
 	st.Lock()
 	defer st.Unlock()
-	tss, err := servicestateControl(st, appInfos, inst, u, nil, nil)
-	if err != nil {
-		// TODO: use errToResponse here too and introduce a proper error kind ?
-		if _, ok := err.(servicestate.ServiceActionConflictError); ok {
-			return Conflict(err.Error())
-		}
-		return BadRequest(err.Error())
-	}
+	tss := mylog.Check2(servicestateControl(st, appInfos, inst, u, nil, nil))
+
+	// TODO: use errToResponse here too and introduce a proper error kind ?
+
 	// names received in the request can be snap or snap.app, we need to
 	// extract the actual snap names before associating them with a change
 	chg := newChange(st, "service-control", "Running service command", tss, namesToSnapNames(inst))

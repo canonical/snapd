@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/ifacestate"
@@ -50,8 +51,9 @@ type isConnectedCommand struct {
 	List          bool   `long:"list" description:"List all connected plugs and slots"`
 }
 
-var shortIsConnectedHelp = i18n.G(`Return success if the given plug or slot is connected`)
-var longIsConnectedHelp = i18n.G(`
+var (
+	shortIsConnectedHelp = i18n.G(`Return success if the given plug or slot is connected`)
+	longIsConnectedHelp  = i18n.G(`
 The is-connected command returns success if the given plug or slot of the
 calling snap is connected, and failure otherwise.
 
@@ -73,6 +75,7 @@ classic confinement, or 11 if the other process is not snap confined.
 The --pid and --apparmor-label options may only be used with slots of
 interface type "pulseaudio", "audio-record", or "cups-control".
 `)
+)
 
 func init() {
 	addCommand("is-connected", shortIsConnectedHelp, longIsConnectedHelp, func() command {
@@ -101,10 +104,7 @@ func (c *isConnectedCommand) Execute(args []string) error {
 		return fmt.Errorf("must specify either a plug/slot name or --list")
 	}
 
-	context, err := c.ensureContext()
-	if err != nil {
-		return err
-	}
+	context := mylog.Check2(c.ensureContext())
 
 	snapName := context.InstanceName()
 
@@ -112,10 +112,7 @@ func (c *isConnectedCommand) Execute(args []string) error {
 	st.Lock()
 	defer st.Unlock()
 
-	info, err := snapstate.CurrentInfo(st, snapName)
-	if err != nil {
-		return fmt.Errorf("internal error: cannot get snap info: %s", err)
-	}
+	info := mylog.Check2(snapstate.CurrentInfo(st, snapName))
 
 	// XXX: This will fail for implicit slots.  In practice, this
 	// would only affect calls that used the "core" snap as
@@ -125,10 +122,7 @@ func (c *isConnectedCommand) Execute(args []string) error {
 		return fmt.Errorf("snap %q has no plug or slot named %q", snapName, plugOrSlot)
 	}
 
-	conns, err := ifacestate.ConnectionStates(st)
-	if err != nil {
-		return fmt.Errorf("internal error: cannot get connections: %s", err)
-	}
+	conns := mylog.Check2(ifacestate.ConnectionStates(st))
 
 	var otherSnap *snap.Info
 	if c.AppArmorLabel != "" {
@@ -138,14 +132,10 @@ func (c *isConnectedCommand) Execute(args []string) error {
 		if !isConnectedPidCheckAllowed(info, plugOrSlot) {
 			return fmt.Errorf("cannot use --apparmor-label check with %s:%s", snapName, plugOrSlot)
 		}
-		name, _, _, err := apparmor.DecodeLabel(c.AppArmorLabel)
-		if err != nil {
-			return &UnsuccessfulError{ExitCode: notASnapCode}
-		}
-		otherSnap, err = snapstate.CurrentInfo(st, name)
-		if err != nil {
-			return fmt.Errorf("internal error: cannot get snap info for AppArmor label %q: %s", c.AppArmorLabel, err)
-		}
+		name, _, _ := mylog.Check4(apparmor.DecodeLabel(c.AppArmorLabel))
+
+		otherSnap = mylog.Check2(snapstate.CurrentInfo(st, name))
+
 	} else if c.Pid != 0 {
 		if plugOrSlot == "" {
 			return fmt.Errorf("cannot use --pid check without plug/slot")
@@ -153,15 +143,12 @@ func (c *isConnectedCommand) Execute(args []string) error {
 		if !isConnectedPidCheckAllowed(info, plugOrSlot) {
 			return fmt.Errorf("cannot use --pid check with %s:%s", snapName, plugOrSlot)
 		}
-		name, err := cgroupSnapNameFromPid(c.Pid)
-		if err != nil {
-			// Indicate that this pid is not a snap
-			return &UnsuccessfulError{ExitCode: notASnapCode}
-		}
-		otherSnap, err = snapstate.CurrentInfo(st, name)
-		if err != nil {
-			return fmt.Errorf("internal error: cannot get snap info for pid %d: %s", c.Pid, err)
-		}
+		name := mylog.Check2(cgroupSnapNameFromPid(c.Pid))
+
+		// Indicate that this pid is not a snap
+
+		otherSnap = mylog.Check2(snapstate.CurrentInfo(st, name))
+
 	}
 
 	if c.List {
@@ -170,10 +157,7 @@ func (c *isConnectedCommand) Execute(args []string) error {
 			if !connState.Active() {
 				continue
 			}
-			connRef, err := interfaces.ParseConnRef(refStr)
-			if err != nil {
-				return fmt.Errorf("internal error: %s", err)
-			}
+			connRef := mylog.Check2(interfaces.ParseConnRef(refStr))
 
 			if connRef.PlugRef.Snap == snapName {
 				nameSet[connRef.PlugRef.Name] = struct{}{}
@@ -203,10 +187,7 @@ func (c *isConnectedCommand) Execute(args []string) error {
 		if !connState.Active() {
 			continue
 		}
-		connRef, err := interfaces.ParseConnRef(refStr)
-		if err != nil {
-			return fmt.Errorf("internal error: %s", err)
-		}
+		connRef := mylog.Check2(interfaces.ParseConnRef(refStr))
 
 		matchingPlug := connRef.PlugRef.Snap == snapName && connRef.PlugRef.Name == plugOrSlot
 		matchingSlot := connRef.SlotRef.Snap == snapName && connRef.SlotRef.Name == plugOrSlot

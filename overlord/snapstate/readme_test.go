@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/release"
@@ -64,12 +65,13 @@ func (s *readmeSuite) TestWriteSnapREADME(c *C) {
 	// Missing file is created.
 	c.Assert(snapstate.WriteSnapReadme(), IsNil)
 	c.Check(f, testutil.FileContains, "https://forum.snapcraft.io/t/the-snap-directory/2817")
+	mylog.
 
-	// Corrupted file is cured.
-	err := os.Remove(f)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(f, []byte("corrupted"), 0644)
-	c.Assert(err, IsNil)
+		// Corrupted file is cured.
+		Check(os.Remove(f))
+
+	mylog.Check(os.WriteFile(f, []byte("corrupted"), 0644))
+
 	c.Assert(snapstate.WriteSnapReadme(), IsNil)
 	c.Check(f, testutil.FileContains, "https://forum.snapcraft.io/t/the-snap-directory/2817")
 }

@@ -26,6 +26,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil"
@@ -51,10 +52,7 @@ func validTmpfsSize(sizeStr string) error {
 
 	// TODO allow also percentages. That is allowed for CPU quotas so
 	// it is probably fine to allow that for tmp.size too.
-	size, err := quantity.ParseSize(sizeStr)
-	if err != nil {
-		return err
-	}
+	size := mylog.Check2(quantity.ParseSize(sizeStr))
 
 	// Do not allow less than 16mb
 	// 0 is special and means unlimited
@@ -66,19 +64,13 @@ func validTmpfsSize(sizeStr string) error {
 }
 
 func validateTmpfsSettings(tr ConfGetter) error {
-	tmpfsSz, err := coreCfg(tr, "tmp.size")
-	if err != nil {
-		return err
-	}
+	tmpfsSz := mylog.Check2(coreCfg(tr, "tmp.size"))
 
 	return validTmpfsSize(tmpfsSz)
 }
 
 func handleTmpfsConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyContext) error {
-	tmpfsSz, err := coreCfg(tr, "tmp.size")
-	if err != nil {
-		return err
-	}
+	tmpfsSz := mylog.Check2(coreCfg(tr, "tmp.size"))
 
 	// Create override configuration file for tmp.mount service
 
@@ -98,16 +90,15 @@ func handleTmpfsConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyCon
 	cfgFilePath := filepath.Join(overrDir, tmpMntServOverrideFile)
 	modify := true
 	if tmpfsSz != "" {
-		if err := os.MkdirAll(overrDir, 0755); err != nil {
-			return err
-		}
+		mylog.Check(os.MkdirAll(overrDir, 0755))
+
 		options = fmt.Sprintf("%s,size=%s", options, tmpfsSz)
 		content := fmt.Sprintf("[Mount]\nOptions=%s\n", options)
 		dirContent[tmpMntServOverrideFile] = &osutil.MemoryFileState{
 			Content: []byte(content),
 			Mode:    0644,
 		}
-		oldContent, err := os.ReadFile(cfgFilePath)
+		oldContent := mylog.Check2(os.ReadFile(cfgFilePath))
 		if err == nil && content == string(oldContent) {
 			modify = false
 		}
@@ -116,7 +107,7 @@ func handleTmpfsConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyCon
 		options = fmt.Sprintf("%s,size=50%%", options)
 		// In this case, we are removing the file, so we will
 		// not do anything if the file is not there alreay.
-		if _, err := os.Stat(cfgFilePath); errors.Is(err, os.ErrNotExist) {
+		if _ := mylog.Check2(os.Stat(cfgFilePath)); errors.Is(err, os.ErrNotExist) {
 			modify = false
 		}
 	}
@@ -129,15 +120,13 @@ func handleTmpfsConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyCon
 	// smaller than the currently used space in the mount. We
 	// return an error in that case.
 	if opts == nil && modify {
-		if output, err := exec.Command("mount", "-o", "remount,"+options, tmpfsMountPoint).CombinedOutput(); err != nil {
+		if output := mylog.Check2(exec.Command("mount", "-o", "remount,"+options, tmpfsMountPoint).CombinedOutput()); err != nil {
 			return fmt.Errorf("cannot remount tmpfs with new size: %s (%s)", err.Error(), output)
 		}
 	}
 
 	glob := tmpMntServOverrideFile
-	if _, _, err = osutil.EnsureDirState(overrDir, glob, dirContent); err != nil {
-		return err
-	}
+	_, _ := mylog.Check3(osutil.EnsureDirState(overrDir, glob, dirContent))
 
 	return nil
 }

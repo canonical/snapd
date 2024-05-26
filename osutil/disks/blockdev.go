@@ -24,19 +24,16 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 )
 
 func blockdevSizeCmd(cmd, devpath string) (uint64, error) {
-	out, stderr, err := osutil.RunSplitOutput("blockdev", cmd, devpath)
-	if err != nil {
-		return 0, osutil.OutputErrCombine(out, stderr, err)
-	}
+	out, stderr := mylog.Check3(osutil.RunSplitOutput("blockdev", cmd, devpath))
+
 	nospace := strings.TrimSpace(string(out))
-	sz, err := strconv.ParseUint(nospace, 10, 64)
-	if err != nil {
-		return 0, fmt.Errorf("cannot parse blockdev %s result size %q: %v", cmd, nospace, err)
-	}
+	sz := mylog.Check2(strconv.ParseUint(nospace, 10, 64))
+
 	return sz, nil
 }
 
@@ -46,10 +43,7 @@ func blockDeviceSize(devpath string) (uint64, error) {
 
 func blockDeviceSectorSize(devpath string) (uint64, error) {
 	// the size is reported in raw bytes
-	sz, err := blockdevSizeCmd("--getss", devpath)
-	if err != nil {
-		return 0, err
-	}
+	sz := mylog.Check2(blockdevSizeCmd("--getss", devpath))
 
 	if sz == 0 {
 		// in some other places we are using the sector size as a divisor (to

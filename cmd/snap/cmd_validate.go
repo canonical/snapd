@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/asserts/snapasserts"
@@ -44,8 +45,9 @@ type cmdValidate struct {
 	waitMixin
 }
 
-var shortValidateHelp = i18n.G("List or apply validation sets")
-var longValidateHelp = i18n.G(`
+var (
+	shortValidateHelp = i18n.G("List or apply validation sets")
+	longValidateHelp  = i18n.G(`
 The validate command lists or applies validation sets that state which snaps
 are required or permitted to be installed together, optionally constrained to
 fixed revisions.
@@ -54,6 +56,7 @@ A validation set can either be in monitoring mode, in which case its constraints
 aren't enforced, or in enforcing mode, in which case snapd will not allow
 operations which would result in snaps breaking the validation set's constraints.
 `)
+)
 
 func init() {
 	addCommand("validate", shortValidateHelp, longValidateHelp, func() flags.Commander { return &cmdValidate{} }, waitDescs.also(colorDescs.also(map[string]string{
@@ -112,12 +115,9 @@ func (cmd *cmdValidate) Execute(args []string) error {
 
 	var accountID, name string
 	var seq int
-	var err error
+
 	if cmd.Positional.ValidationSet != "" {
-		accountID, name, seq, err = snapasserts.ParseValidationSet(cmd.Positional.ValidationSet)
-		if err != nil {
-			return err
-		}
+		accountID, name, seq = mylog.Check4(snapasserts.ParseValidationSet(cmd.Positional.ValidationSet))
 	}
 
 	if action != "" {
@@ -126,22 +126,14 @@ func (cmd *cmdValidate) Execute(args []string) error {
 		}
 
 		if cmd.Refresh {
-			changeID, err := cmd.client.RefreshMany(nil, &client.SnapOptions{
+			changeID := mylog.Check2(cmd.client.RefreshMany(nil, &client.SnapOptions{
 				ValidationSets: []string{cmd.Positional.ValidationSet},
-			})
-			if err != nil {
-				return err
-			}
-			chg, err := cmd.wait(changeID)
-			if err != nil {
-				if err == noWait {
-					return nil
-				}
-				return err
-			}
+			}))
+
+			chg := mylog.Check2(cmd.wait(changeID))
 
 			var names []string
-			if err := chg.Get("snap-names", &names); err != nil && !errors.Is(err, client.ErrNoData) {
+			if mylog.Check(chg.Get("snap-names", &names)); err != nil && !errors.Is(err, client.ErrNoData) {
 				return err
 			}
 
@@ -163,10 +155,8 @@ func (cmd *cmdValidate) Execute(args []string) error {
 			Mode:     action,
 			Sequence: seq,
 		}
-		res, err := cmd.client.ApplyValidationSet(accountID, name, opts)
-		if err != nil {
-			return err
-		}
+		res := mylog.Check2(cmd.client.ApplyValidationSet(accountID, name, opts))
+
 		// only print valid/invalid status for monitor mode; enforce fails with an error if invalid
 		// and otherwise has no output.
 		if action == "monitor" {
@@ -177,10 +167,8 @@ func (cmd *cmdValidate) Execute(args []string) error {
 
 	// no validation set argument, print list with extended info
 	if cmd.Positional.ValidationSet == "" {
-		vsets, err := cmd.client.ListValidationsSets()
-		if err != nil {
-			return err
-		}
+		vsets := mylog.Check2(cmd.client.ListValidationsSets())
+
 		if len(vsets) == 0 {
 			fmt.Fprintln(Stderr, i18n.G("No validations are available"))
 			return nil
@@ -206,10 +194,8 @@ func (cmd *cmdValidate) Execute(args []string) error {
 		}
 		w.Flush()
 	} else {
-		vset, err := cmd.client.ValidationSet(accountID, name, seq)
-		if err != nil {
-			return err
-		}
+		vset := mylog.Check2(cmd.client.ValidationSet(accountID, name, seq))
+
 		fmt.Fprintf(Stdout, fmtValid(vset))
 		// XXX: exit status 1 if invalid?
 	}

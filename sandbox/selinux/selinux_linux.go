@@ -25,33 +25,28 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 )
 
 // IsEnabled checks whether SELinux is enabled
 func IsEnabled() (bool, error) {
-	mnt, err := getSELinuxMount()
-	if err != nil {
-		return false, fmt.Errorf("failed to obtain SELinux mount path: %v", err)
-	}
+	mnt := mylog.Check2(getSELinuxMount())
+
 	return mnt != "", nil
 }
 
 // IsEnabled checks whether SELinux is in enforcing mode
 func IsEnforcing() (bool, error) {
-	mnt, err := getSELinuxMount()
-	if err != nil {
-		return false, fmt.Errorf("failed to obtain SELinux mount path: %v", err)
-	}
+	mnt := mylog.Check2(getSELinuxMount())
+
 	if mnt == "" {
 		// not enabled
 		return false, nil
 	}
 
-	rawState, err := os.ReadFile(filepath.Join(mnt, "enforce"))
-	if err != nil {
-		return false, err
-	}
+	rawState := mylog.Check2(os.ReadFile(filepath.Join(mnt, "enforce")))
+
 	switch {
 	case bytes.Equal(rawState, []byte("0")):
 		return false, nil
@@ -62,10 +57,8 @@ func IsEnforcing() (bool, error) {
 }
 
 func getSELinuxMount() (string, error) {
-	mountinfo, err := osutil.LoadMountInfo()
-	if err != nil {
-		return "", err
-	}
+	mountinfo := mylog.Check2(osutil.LoadMountInfo())
+
 	for _, entry := range mountinfo {
 		if entry.FsType == "selinuxfs" {
 			return entry.MountDir, nil

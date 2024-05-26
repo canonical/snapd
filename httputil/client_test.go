@@ -39,6 +39,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
@@ -50,7 +51,7 @@ type clientSuite struct{}
 var _ = check.Suite(&clientSuite{})
 
 func mustParse(c *check.C, rawurl string) *url.URL {
-	url, err := url.Parse(rawurl)
+	url := mylog.Check2(url.Parse(rawurl))
 	c.Assert(err, check.IsNil)
 	return url
 }
@@ -71,9 +72,9 @@ func (s *clientSuite) TestClientOptionsWithProxy(c *check.C) {
 	c.Assert(cli, check.NotNil)
 
 	trans := cli.Transport.(*httputil.LoggedTransport).Transport.(*http.Transport)
-	req, err := http.NewRequest("GET", "http://example.com", nil)
+	req := mylog.Check2(http.NewRequest("GET", "http://example.com", nil))
 	c.Check(err, check.IsNil)
-	url, err := trans.Proxy(req)
+	url := mylog.Check2(trans.Proxy(req))
 	c.Check(err, check.IsNil)
 	c.Check(url.String(), check.Equals, "http://some-proxy:3128")
 }
@@ -93,7 +94,7 @@ func (s *clientSuite) TestClientProxyTakesUserAgent(c *check.C) {
 		},
 		ProxyConnectHeader: http.Header{"User-Agent": []string{myUserAgent}},
 	})
-	_, err := cli.Get("https://localhost:9999")
+	_ := mylog.Check2(cli.Get("https://localhost:9999"))
 	c.Check(err, check.NotNil) // because we didn't do anything in the handler
 
 	c.Assert(called, check.Equals, true)
@@ -125,23 +126,23 @@ func generateTestCertWithDates(c *check.C, certpath, keypath string, notBefore, 
 		IsCA:        true,
 		KeyUsage:    x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
 	}
-	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &privKey.PublicKey, privKey)
+	derBytes := mylog.Check2(x509.CreateCertificate(rand.Reader, &template, &template, &privKey.PublicKey, privKey))
 	c.Assert(err, check.IsNil)
 
-	certOut, err := os.Create(certpath)
+	certOut := mylog.Check2(os.Create(certpath))
 	c.Assert(err, check.IsNil)
-	err = pem.Encode(certOut, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes})
+	mylog.Check(pem.Encode(certOut, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes}))
 	c.Assert(err, check.IsNil)
-	err = certOut.Close()
+	mylog.Check(certOut.Close())
 	c.Assert(err, check.IsNil)
 
 	if keypath != "" {
-		keyOut, err := os.Create(keypath)
+		keyOut := mylog.Check2(os.Create(keypath))
 		c.Assert(err, check.IsNil)
 		privBytes := x509.MarshalPKCS1PrivateKey(privKey)
-		err = pem.Encode(keyOut, &pem.Block{Type: "PRIVATE KEY", Bytes: privBytes})
+		mylog.Check(pem.Encode(keyOut, &pem.Block{Type: "PRIVATE KEY", Bytes: privBytes}))
 		c.Assert(err, check.IsNil)
-		err = keyOut.Close()
+		mylog.Check(keyOut.Close())
 		c.Assert(err, check.IsNil)
 	}
 }
@@ -163,7 +164,7 @@ func (s *tlsSuite) SetUpTest(c *check.C) {
 
 	s.tmpdir = c.MkDir()
 	dirs.SetRootDir(s.tmpdir)
-	err := os.MkdirAll(dirs.SnapdStoreSSLCertsDir, 0755)
+	mylog.Check(os.MkdirAll(dirs.SnapdStoreSSLCertsDir, 0755))
 	c.Assert(err, check.IsNil)
 
 	s.certpath = filepath.Join(dirs.SnapdStoreSSLCertsDir, "good.pem")
@@ -174,7 +175,7 @@ func (s *tlsSuite) SetUpTest(c *check.C) {
 	s.srv = httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, `all good`)
 	}))
-	cert, err := tls.LoadX509KeyPair(s.certpath, s.keypath)
+	cert := mylog.Check2(tls.LoadX509KeyPair(s.certpath, s.keypath))
 	c.Assert(err, check.IsNil)
 	s.srv.TLS = &tls.Config{Certificates: []tls.Certificate{cert}}
 	s.srv.StartTLS()
@@ -191,7 +192,7 @@ func (s *tlsSuite) TestClientNoExtraSSLCertsByDefault(c *check.C) {
 	c.Assert(cli, check.NotNil)
 	c.Assert(s.logbuf.String(), check.Equals, "")
 
-	_, err := cli.Get(s.srv.URL)
+	_ := mylog.Check2(cli.Get(s.srv.URL))
 	c.Assert(err, check.ErrorMatches, ".* certificate signed by unknown authority")
 }
 
@@ -205,12 +206,12 @@ func (s *tlsSuite) TestClientEmptyExtraSSLCertsDirWorks(c *check.C) {
 	c.Assert(cli, check.NotNil)
 	c.Assert(s.logbuf.String(), check.Equals, "")
 
-	_, err := cli.Get(s.srv.URL)
+	_ := mylog.Check2(cli.Get(s.srv.URL))
 	c.Assert(err, check.ErrorMatches, ".* certificate signed by unknown authority")
 }
 
 func (s *tlsSuite) TestClientExtraSSLCertInvalidCertWarnsAndRefuses(c *check.C) {
-	err := os.WriteFile(filepath.Join(dirs.SnapdStoreSSLCertsDir, "garbage.pem"), []byte("garbage"), 0644)
+	mylog.Check(os.WriteFile(filepath.Join(dirs.SnapdStoreSSLCertsDir, "garbage.pem"), []byte("garbage"), 0644))
 	c.Assert(err, check.IsNil)
 
 	cli := httputil.NewHTTPClient(&httputil.ClientOptions{
@@ -220,7 +221,7 @@ func (s *tlsSuite) TestClientExtraSSLCertInvalidCertWarnsAndRefuses(c *check.C) 
 	})
 	c.Assert(cli, check.NotNil)
 
-	_, err = cli.Get(s.srv.URL)
+	_ = mylog.Check2(cli.Get(s.srv.URL))
 	c.Assert(err, check.IsNil)
 
 	c.Assert(s.logbuf.String(), check.Matches, "(?m).* cannot load ssl certificate: .*/var/lib/snapd/ssl/store-certs/garbage.pem")
@@ -235,7 +236,7 @@ func (s *tlsSuite) TestClientExtraSSLCertIntegration(c *check.C) {
 	})
 	c.Assert(cli, check.NotNil)
 	c.Assert(s.logbuf.String(), check.Equals, "")
-	res, err := cli.Get(s.srv.URL)
+	res := mylog.Check2(cli.Get(s.srv.URL))
 	c.Assert(err, check.IsNil)
 	c.Assert(res.StatusCode, check.Equals, 200)
 }
@@ -245,7 +246,7 @@ func (s *tlsSuite) TestClientMaxTLS11Error(c *check.C) {
 	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, `all good`)
 	}))
-	cert, err := tls.LoadX509KeyPair(s.certpath, s.keypath)
+	cert := mylog.Check2(tls.LoadX509KeyPair(s.certpath, s.keypath))
 	c.Assert(err, check.IsNil)
 	srv.TLS = &tls.Config{
 		Certificates: []tls.Certificate{cert},
@@ -259,7 +260,7 @@ func (s *tlsSuite) TestClientMaxTLS11Error(c *check.C) {
 	c.Assert(cli, check.NotNil)
 	c.Assert(s.logbuf.String(), check.Equals, "")
 
-	_, err = cli.Get(srv.URL)
+	_ = mylog.Check2(cli.Get(srv.URL))
 	// The protocol check is done prior to the certificate check
 	// - golang < 1.12: tls: server selected unsupported protocol version 302
 	// - golang >= 1.12: tls: protocol version not supported
@@ -272,7 +273,7 @@ func (s *tlsSuite) TestClientMaxTLS12Ok(c *check.C) {
 	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, `all good`)
 	}))
-	cert, err := tls.LoadX509KeyPair(s.certpath, s.keypath)
+	cert := mylog.Check2(tls.LoadX509KeyPair(s.certpath, s.keypath))
 	c.Assert(err, check.IsNil)
 	srv.TLS = &tls.Config{
 		Certificates: []tls.Certificate{cert},
@@ -287,7 +288,7 @@ func (s *tlsSuite) TestClientMaxTLS12Ok(c *check.C) {
 	c.Assert(cli, check.NotNil)
 	c.Assert(s.logbuf.String(), check.Equals, "")
 
-	_, err = cli.Get(srv.URL)
+	_ = mylog.Check2(cli.Get(srv.URL))
 	// The protocol check is done prior to the certificate check and since
 	// this is testing the protocol, the self-signed certificate error is
 	// fine and expected.
@@ -302,7 +303,7 @@ func (s *tlsSuite) TestCertExpireOrNotValidYet(c *check.C) {
 	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, `all good`)
 	}))
-	cert, err := tls.LoadX509KeyPair(s.certpath, s.keypath)
+	cert := mylog.Check2(tls.LoadX509KeyPair(s.certpath, s.keypath))
 	c.Assert(err, check.IsNil)
 	srv.TLS = &tls.Config{
 		Certificates: []tls.Certificate{cert},
@@ -315,7 +316,7 @@ func (s *tlsSuite) TestCertExpireOrNotValidYet(c *check.C) {
 	c.Assert(cli, check.NotNil)
 	c.Assert(s.logbuf.String(), check.Equals, "")
 
-	_, err = cli.Get(srv.URL)
+	_ = mylog.Check2(cli.Get(srv.URL))
 	c.Assert(err, check.ErrorMatches, ".*: x509: certificate has expired or is not yet valid.*")
 	c.Check(httputil.IsCertExpiredOrNotValidYetError(err), check.Equals, true)
 }

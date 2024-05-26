@@ -24,13 +24,14 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	snap "github.com/snapcore/snapd/cmd/snap"
 )
 
 func (s *SnapKeysSuite) TestExportKeyNonexistent(c *C) {
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"export-key", "nonexistent"})
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"export-key", "nonexistent"}))
 	c.Assert(err, NotNil)
 	c.Check(err.Error(), Equals, "cannot export key named \"nonexistent\": cannot find key pair in GPG keyring")
 	c.Check(s.Stdout(), Equals, "")
@@ -38,21 +39,21 @@ func (s *SnapKeysSuite) TestExportKeyNonexistent(c *C) {
 }
 
 func (s *SnapKeysSuite) TestExportKeyDefault(c *C) {
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"export-key"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"export-key"}))
+
 	c.Assert(rest, DeepEquals, []string{})
-	pubKey, err := asserts.DecodePublicKey(s.stdout.Bytes())
-	c.Assert(err, IsNil)
+	pubKey := mylog.Check2(asserts.DecodePublicKey(s.stdout.Bytes()))
+
 	c.Check(pubKey.ID(), Equals, "g4Pks54W_US4pZuxhgG_RHNAf_UeZBBuZyGRLLmMj1Do3GkE_r_5A5BFjx24ZwVJ")
 	c.Check(s.Stderr(), Equals, "")
 }
 
 func (s *SnapKeysSuite) TestExportKeyNonDefault(c *C) {
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"export-key", "another"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"export-key", "another"}))
+
 	c.Assert(rest, DeepEquals, []string{})
-	pubKey, err := asserts.DecodePublicKey(s.stdout.Bytes())
-	c.Assert(err, IsNil)
+	pubKey := mylog.Check2(asserts.DecodePublicKey(s.stdout.Bytes()))
+
 	c.Check(pubKey.ID(), Equals, "DVQf1U4mIsuzlQqAebjjTPYtYJ-GEhJy0REuj3zvpQYTZ7EJj7adBxIXLJ7Vmk3L")
 	c.Check(s.Stderr(), Equals, "")
 }
@@ -61,24 +62,24 @@ func (s *SnapKeysSuite) TestExportKeyAccount(c *C) {
 	storeSigning := assertstest.NewStoreStack("canonical", nil)
 	manager := asserts.NewGPGKeypairManager()
 	assertstest.NewAccount(storeSigning, "developer1", nil, "")
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"export-key", "another", "--account=developer1"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"export-key", "another", "--account=developer1"}))
+
 	c.Assert(rest, DeepEquals, []string{})
-	assertion, err := asserts.Decode(s.stdout.Bytes())
-	c.Assert(err, IsNil)
+	assertion := mylog.Check2(asserts.Decode(s.stdout.Bytes()))
+
 	c.Check(assertion.Type(), Equals, asserts.AccountKeyRequestType)
 	c.Check(assertion.Revision(), Equals, 0)
 	c.Check(assertion.HeaderString("account-id"), Equals, "developer1")
 	c.Check(assertion.HeaderString("name"), Equals, "another")
 	c.Check(assertion.HeaderString("public-key-sha3-384"), Equals, "DVQf1U4mIsuzlQqAebjjTPYtYJ-GEhJy0REuj3zvpQYTZ7EJj7adBxIXLJ7Vmk3L")
-	since, err := time.Parse(time.RFC3339, assertion.HeaderString("since"))
-	c.Assert(err, IsNil)
+	since := mylog.Check2(time.Parse(time.RFC3339, assertion.HeaderString("since")))
+
 	zone, offset := since.Zone()
 	c.Check(zone, Equals, "UTC")
 	c.Check(offset, Equals, 0)
 	c.Check(s.Stderr(), Equals, "")
-	privKey, err := manager.Get(assertion.HeaderString("public-key-sha3-384"))
-	c.Assert(err, IsNil)
-	err = asserts.SignatureCheck(assertion, privKey.PublicKey())
-	c.Assert(err, IsNil)
+	privKey := mylog.Check2(manager.Get(assertion.HeaderString("public-key-sha3-384")))
+
+	mylog.Check(asserts.SignatureCheck(assertion, privKey.PublicKey()))
+
 }

@@ -25,9 +25,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-var (
-	UnixEpollWait = unixEpollWait
-)
+var UnixEpollWait = unixEpollWait
 
 func MockUnixEpollWait(f func(epfd int, events []unix.EpollEvent, msec int) (n int, err error)) (restore func()) {
 	r := testutil.Backup(&unixEpollWait)

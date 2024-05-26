@@ -27,6 +27,7 @@ import (
 
 	"go.etcd.io/bbolt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/randutil"
@@ -51,31 +52,19 @@ type writer struct {
 // results to make the changes live, or Rollback to abort; either of
 // these closes the database again.
 func Create() (CommandDB, error) {
-	var err error
 	t := &writer{
 		fn: dirs.SnapCommandsDB + "." + randutil.RandomString(12) + "~",
 	}
 
-	t.db, err = bbolt.Open(t.fn, 0644, &bbolt.Options{Timeout: 1 * time.Second})
-	if err != nil {
-		return nil, err
-	}
+	t.db = mylog.Check2(bbolt.Open(t.fn, 0644, &bbolt.Options{Timeout: 1 * time.Second}))
 
-	t.tx, err = t.db.Begin(true)
+	t.tx = mylog.Check2(t.db.Begin(true))
 	if err == nil {
-		t.cmdBucket, err = t.tx.CreateBucket(cmdBucketKey)
+		t.cmdBucket = mylog.Check2(t.tx.CreateBucket(cmdBucketKey))
 		if err == nil {
-			t.pkgBucket, err = t.tx.CreateBucket(pkgBucketKey)
+			t.pkgBucket = mylog.Check2(t.tx.CreateBucket(pkgBucketKey))
 		}
 
-		if err != nil {
-			t.tx.Rollback()
-		}
-	}
-
-	if err != nil {
-		t.db.Close()
-		return nil, err
 	}
 
 	return t, nil
@@ -88,33 +77,22 @@ func (t *writer) AddSnap(snapName, version, summary string, commands []string) e
 		bcmd := []byte(cmd)
 		row := t.cmdBucket.Get(bcmd)
 		if row != nil {
-			if err := json.Unmarshal(row, &sil); err != nil {
-				return err
-			}
+			mylog.Check(json.Unmarshal(row, &sil))
 		}
 		// For the mapping of command->snap we do not need the summary, nothing is using that.
 		sil = append(sil, Package{Snap: snapName, Version: version})
-		row, err := json.Marshal(sil)
-		if err != nil {
-			return err
-		}
-		if err := t.cmdBucket.Put(bcmd, row); err != nil {
-			return err
-		}
+		row := mylog.Check2(json.Marshal(sil))
+		mylog.Check(t.cmdBucket.Put(bcmd, row))
+
 	}
 
 	// TODO: use json here as well and put the version information here
-	bj, err := json.Marshal(Package{
+	bj := mylog.Check2(json.Marshal(Package{
 		Snap:    snapName,
 		Version: version,
 		Summary: summary,
-	})
-	if err != nil {
-		return err
-	}
-	if err := t.pkgBucket.Put([]byte(snapName), bj); err != nil {
-		return err
-	}
+	}))
+	mylog.Check(t.pkgBucket.Put([]byte(snapName), bj))
 
 	return nil
 }
@@ -124,20 +102,12 @@ func (t *writer) Commit() error {
 	// will fail, and that error is more important than this one if this one
 	// then fails as well. So, ignore the error.
 	defer os.Remove(t.fn)
+	mylog.Check(t.done(true))
 
-	if err := t.done(true); err != nil {
-		return err
-	}
+	dir := mylog.Check2(os.Open(filepath.Dir(dirs.SnapCommandsDB)))
 
-	dir, err := os.Open(filepath.Dir(dirs.SnapCommandsDB))
-	if err != nil {
-		return err
-	}
 	defer dir.Close()
-
-	if err := os.Rename(t.fn, dirs.SnapCommandsDB); err != nil {
-		return err
-	}
+	mylog.Check(os.Rename(t.fn, dirs.SnapCommandsDB))
 
 	return dir.Sync()
 }
@@ -177,19 +147,15 @@ func (t *writer) done(commit bool) error {
 // DumpCommands returns the whole database as a map. For use in
 // testing and debugging.
 func DumpCommands() (map[string]string, error) {
-	db, err := bbolt.Open(dirs.SnapCommandsDB, 0644, &bbolt.Options{
+	db := mylog.Check2(bbolt.Open(dirs.SnapCommandsDB, 0644, &bbolt.Options{
 		ReadOnly: true,
 		Timeout:  1 * time.Second,
-	})
-	if err != nil {
-		return nil, err
-	}
+	}))
+
 	defer db.Close()
 
-	tx, err := db.Begin(false)
-	if err != nil {
-		return nil, err
-	}
+	tx := mylog.Check2(db.Begin(false))
+
 	defer tx.Rollback()
 
 	b := tx.Bucket(cmdBucketKey)
@@ -219,22 +185,17 @@ func Open() (Finder, error) {
 	if !osutil.FileExists(dirs.SnapCommandsDB) {
 		return nil, os.ErrNotExist
 	}
-	db, err := bbolt.Open(dirs.SnapCommandsDB, 0644, &bbolt.Options{
+	db := mylog.Check2(bbolt.Open(dirs.SnapCommandsDB, 0644, &bbolt.Options{
 		ReadOnly: true,
 		Timeout:  1 * time.Second,
-	})
-	if err != nil {
-		return nil, err
-	}
+	}))
 
 	return &boltFinder{db}, nil
 }
 
 func (f *boltFinder) FindCommand(command string) ([]Command, error) {
-	tx, err := f.Begin(false)
-	if err != nil {
-		return nil, err
-	}
+	tx := mylog.Check2(f.Begin(false))
+
 	defer tx.Rollback()
 
 	b := tx.Bucket(cmdBucketKey)
@@ -247,9 +208,8 @@ func (f *boltFinder) FindCommand(command string) ([]Command, error) {
 		return nil, nil
 	}
 	var sil []Package
-	if err := json.Unmarshal(buf, &sil); err != nil {
-		return nil, err
-	}
+	mylog.Check(json.Unmarshal(buf, &sil))
+
 	cmds := make([]Command, len(sil))
 	for i, si := range sil {
 		cmds[i] = Command{
@@ -263,10 +223,8 @@ func (f *boltFinder) FindCommand(command string) ([]Command, error) {
 }
 
 func (f *boltFinder) FindPackage(pkgName string) (*Package, error) {
-	tx, err := f.Begin(false)
-	if err != nil {
-		return nil, err
-	}
+	tx := mylog.Check2(f.Begin(false))
+
 	defer tx.Rollback()
 
 	b := tx.Bucket(pkgBucketKey)
@@ -279,10 +237,7 @@ func (f *boltFinder) FindPackage(pkgName string) (*Package, error) {
 		return nil, nil
 	}
 	var si Package
-	err = json.Unmarshal(bj, &si)
-	if err != nil {
-		return nil, err
-	}
+	mylog.Check(json.Unmarshal(bj, &si))
 
 	return &Package{Snap: pkgName, Version: si.Version, Summary: si.Summary}, nil
 }

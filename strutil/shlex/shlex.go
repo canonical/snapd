@@ -43,6 +43,8 @@ import (
 	"fmt"
 	"io"
 	"strings"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // TokenType is a top-level token classification: A word, space, comment, unknown.
@@ -142,7 +144,6 @@ type Lexer Tokenizer
 
 // NewLexer creates a new lexer from an input stream.
 func NewLexer(r io.Reader) *Lexer {
-
 	return (*Lexer)(NewTokenizer(r))
 }
 
@@ -150,10 +151,8 @@ func NewLexer(r io.Reader) *Lexer {
 // the error will be io.EOF.
 func (l *Lexer) Next() (string, error) {
 	for {
-		token, err := (*Tokenizer)(l).Next()
-		if err != nil {
-			return "", err
-		}
+		token := mylog.Check2((*Tokenizer)(l).Next())
+
 		switch token.tokenType {
 		case WordToken:
 			return token.value, nil
@@ -177,7 +176,8 @@ func NewTokenizer(r io.Reader) *Tokenizer {
 	classifier := newDefaultClassifier()
 	return &Tokenizer{
 		input:      *input,
-		classifier: classifier}
+		classifier: classifier,
+	}
 }
 
 // scanStream scans the stream for the next token using the internal state machine.
@@ -188,7 +188,6 @@ func (t *Tokenizer) scanStream() (*Token, error) {
 	var value []rune
 	var nextRune rune
 	var nextRuneType runeTokenClass
-	var err error
 
 	for {
 		nextRune, _, err = t.input.ReadRune()
@@ -197,8 +196,6 @@ func (t *Tokenizer) scanStream() (*Token, error) {
 		if err == io.EOF {
 			nextRuneType = eofRuneClass
 			err = nil
-		} else if err != nil {
-			return nil, err
 		}
 
 		switch state {
@@ -247,7 +244,8 @@ func (t *Tokenizer) scanStream() (*Token, error) {
 					{
 						token := &Token{
 							tokenType: tokenType,
-							value:     string(value)}
+							value:     string(value),
+						}
 						return token, err
 					}
 				case spaceRuneClass:
@@ -255,7 +253,8 @@ func (t *Tokenizer) scanStream() (*Token, error) {
 						t.input.UnreadRune()
 						token := &Token{
 							tokenType: tokenType,
-							value:     string(value)}
+							value:     string(value),
+						}
 						return token, err
 					}
 				case escapingQuoteRuneClass:
@@ -281,10 +280,11 @@ func (t *Tokenizer) scanStream() (*Token, error) {
 				switch nextRuneType {
 				case eofRuneClass:
 					{
-						err = fmt.Errorf("EOF found after escape character")
+						mylog.Check(fmt.Errorf("EOF found after escape character"))
 						token := &Token{
 							tokenType: tokenType,
-							value:     string(value)}
+							value:     string(value),
+						}
 						return token, err
 					}
 				default:
@@ -299,10 +299,11 @@ func (t *Tokenizer) scanStream() (*Token, error) {
 				switch nextRuneType {
 				case eofRuneClass:
 					{
-						err = fmt.Errorf("EOF found after escape character")
+						mylog.Check(fmt.Errorf("EOF found after escape character"))
 						token := &Token{
 							tokenType: tokenType,
-							value:     string(value)}
+							value:     string(value),
+						}
 						return token, err
 					}
 				default:
@@ -317,10 +318,11 @@ func (t *Tokenizer) scanStream() (*Token, error) {
 				switch nextRuneType {
 				case eofRuneClass:
 					{
-						err = fmt.Errorf("EOF found when expecting closing quote")
+						mylog.Check(fmt.Errorf("EOF found when expecting closing quote"))
 						token := &Token{
 							tokenType: tokenType,
-							value:     string(value)}
+							value:     string(value),
+						}
 						return token, err
 					}
 				case escapingQuoteRuneClass:
@@ -342,10 +344,11 @@ func (t *Tokenizer) scanStream() (*Token, error) {
 				switch nextRuneType {
 				case eofRuneClass:
 					{
-						err = fmt.Errorf("EOF found when expecting closing quote")
+						mylog.Check(fmt.Errorf("EOF found when expecting closing quote"))
 						token := &Token{
 							tokenType: tokenType,
-							value:     string(value)}
+							value:     string(value),
+						}
 						return token, err
 					}
 				case nonEscapingQuoteRuneClass:
@@ -365,7 +368,8 @@ func (t *Tokenizer) scanStream() (*Token, error) {
 					{
 						token := &Token{
 							tokenType: tokenType,
-							value:     string(value)}
+							value:     string(value),
+						}
 						return token, err
 					}
 				case spaceRuneClass:
@@ -373,7 +377,8 @@ func (t *Tokenizer) scanStream() (*Token, error) {
 						if nextRune == '\n' {
 							token := &Token{
 								tokenType: tokenType,
-								value:     string(value)}
+								value:     string(value),
+							}
 							return token, err
 						} else {
 							value = append(value, nextRune)
@@ -404,12 +409,7 @@ func Split(s string) ([]string, error) {
 	subStrings := make([]string, 0)
 	for {
 		word, err := l.Next()
-		if err != nil {
-			if err == io.EOF {
-				return subStrings, nil
-			}
-			return subStrings, err
-		}
+
 		subStrings = append(subStrings, word)
 	}
 }

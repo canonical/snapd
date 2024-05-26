@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -65,11 +66,11 @@ func (ser *Serial) Timestamp() time.Time {
 func (ser *Serial) checkConsistency(db RODatabase, acck *AccountKey) error {
 	if ser.AuthorityID() != ser.BrandID() {
 		// serial authority and brand do not match, check the model
-		a, err := db.Find(ModelType, map[string]string{
+		a := mylog.Check2(db.Find(ModelType, map[string]string{
 			"series":   release.Series,
 			"brand-id": ser.BrandID(),
 			"model":    ser.Model(),
-		})
+		}))
 		if err != nil && !errors.Is(err, &NotFoundError{}) {
 			return err
 		}
@@ -83,36 +84,21 @@ func (ser *Serial) checkConsistency(db RODatabase, acck *AccountKey) error {
 func assembleSerial(assert assertionBase) (Assertion, error) {
 	// brand-id and authority-id can diverge if the model allows
 	// for it via serial-authority, check for brand-id well-formedness
-	_, err := checkStringMatches(assert.headers, "brand-id", validAccountID)
-	if err != nil {
-		return nil, err
-	}
+	_ := mylog.Check2(checkStringMatches(assert.headers, "brand-id", validAccountID))
 
-	_, err = checkModel(assert.headers)
-	if err != nil {
-		return nil, err
-	}
+	_ = mylog.Check2(checkModel(assert.headers))
 
-	encodedKey, err := checkNotEmptyString(assert.headers, "device-key")
-	if err != nil {
-		return nil, err
-	}
-	pubKey, err := DecodePublicKey([]byte(encodedKey))
-	if err != nil {
-		return nil, err
-	}
-	keyID, err := checkNotEmptyString(assert.headers, "device-key-sha3-384")
-	if err != nil {
-		return nil, err
-	}
+	encodedKey := mylog.Check2(checkNotEmptyString(assert.headers, "device-key"))
+
+	pubKey := mylog.Check2(DecodePublicKey([]byte(encodedKey)))
+
+	keyID := mylog.Check2(checkNotEmptyString(assert.headers, "device-key-sha3-384"))
+
 	if keyID != pubKey.ID() {
 		return nil, fmt.Errorf("device key does not match provided key id")
 	}
 
-	timestamp, err := checkRFC3339Date(assert.headers, "timestamp")
-	if err != nil {
-		return nil, err
-	}
+	timestamp := mylog.Check2(checkRFC3339Date(assert.headers, "timestamp"))
 
 	// ignore extra headers and non-empty body for future compatibility
 	return &Serial{
@@ -154,34 +140,17 @@ func (sreq *SerialRequest) DeviceKey() PublicKey {
 }
 
 func assembleSerialRequest(assert assertionBase) (Assertion, error) {
-	_, err := checkNotEmptyString(assert.headers, "brand-id")
-	if err != nil {
-		return nil, err
-	}
+	_ := mylog.Check2(checkNotEmptyString(assert.headers, "brand-id"))
 
-	_, err = checkModel(assert.headers)
-	if err != nil {
-		return nil, err
-	}
+	_ = mylog.Check2(checkModel(assert.headers))
 
-	_, err = checkNotEmptyString(assert.headers, "request-id")
-	if err != nil {
-		return nil, err
-	}
+	_ = mylog.Check2(checkNotEmptyString(assert.headers, "request-id"))
 
-	_, err = checkOptionalString(assert.headers, "serial")
-	if err != nil {
-		return nil, err
-	}
+	_ = mylog.Check2(checkOptionalString(assert.headers, "serial"))
 
-	encodedKey, err := checkNotEmptyString(assert.headers, "device-key")
-	if err != nil {
-		return nil, err
-	}
-	pubKey, err := DecodePublicKey([]byte(encodedKey))
-	if err != nil {
-		return nil, err
-	}
+	encodedKey := mylog.Check2(checkNotEmptyString(assert.headers, "device-key"))
+
+	pubKey := mylog.Check2(DecodePublicKey([]byte(encodedKey)))
 
 	if pubKey.ID() != assert.SignKeyID() {
 		return nil, fmt.Errorf("device key does not match included signing key id")
@@ -228,20 +197,11 @@ func (req *DeviceSessionRequest) Timestamp() time.Time {
 }
 
 func assembleDeviceSessionRequest(assert assertionBase) (Assertion, error) {
-	_, err := checkModel(assert.headers)
-	if err != nil {
-		return nil, err
-	}
+	_ := mylog.Check2(checkModel(assert.headers))
 
-	_, err = checkNotEmptyString(assert.headers, "nonce")
-	if err != nil {
-		return nil, err
-	}
+	_ = mylog.Check2(checkNotEmptyString(assert.headers, "nonce"))
 
-	timestamp, err := checkRFC3339Date(assert.headers, "timestamp")
-	if err != nil {
-		return nil, err
-	}
+	timestamp := mylog.Check2(checkRFC3339Date(assert.headers, "timestamp"))
 
 	// ignore extra headers and non-empty body for future compatibility
 	return &DeviceSessionRequest{

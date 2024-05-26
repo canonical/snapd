@@ -22,16 +22,19 @@ package main
 import (
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/i18n"
 )
 
-var shortIsManagedHelp = i18n.G("Print whether the system is managed")
-var longIsManagedHelp = i18n.G(`
+var (
+	shortIsManagedHelp = i18n.G("Print whether the system is managed")
+	longIsManagedHelp  = i18n.G(`
 The managed command will print true or false informing whether
 snapd has registered users.
 `)
+)
 
 type cmdIsManaged struct {
 	clientMixin
@@ -47,10 +50,7 @@ func (cmd cmdIsManaged) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	sysinfo, err := cmd.client.SysInfo()
-	if err != nil {
-		return err
-	}
+	sysinfo := mylog.Check2(cmd.client.SysInfo())
 
 	fmt.Fprintf(Stdout, "%v\n", sysinfo.Managed)
 	return nil

@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -53,14 +54,14 @@ func (s *noticesSuite) TestMarshal(c *C) {
 	// (order of fields doesn't matter).
 	n := noticeToMap(c, notices[0])
 
-	firstOccurred, err := time.Parse(time.RFC3339, n["first-occurred"].(string))
-	c.Assert(err, IsNil)
+	firstOccurred := mylog.Check2(time.Parse(time.RFC3339, n["first-occurred"].(string)))
+
 	c.Assert(!firstOccurred.Before(start), Equals, true) // firstOccurred >= start
-	lastOccurred, err := time.Parse(time.RFC3339, n["last-occurred"].(string))
-	c.Assert(err, IsNil)
+	lastOccurred := mylog.Check2(time.Parse(time.RFC3339, n["last-occurred"].(string)))
+
 	c.Assert(lastOccurred.After(firstOccurred), Equals, true) // lastOccurred > firstOccurred
-	lastRepeated, err := time.Parse(time.RFC3339, n["last-repeated"].(string))
-	c.Assert(err, IsNil)
+	lastRepeated := mylog.Check2(time.Parse(time.RFC3339, n["last-repeated"].(string)))
+
 	c.Assert(lastRepeated.After(firstOccurred), Equals, true) // lastRepeated > firstOccurred
 
 	delete(n, "first-occurred")
@@ -92,8 +93,8 @@ func (s *noticesSuite) TestUnmarshal(c *C) {
 		"expire-after": "168h0m0s"
 	}`)
 	var notice *state.Notice
-	err := json.Unmarshal(noticeJSON, &notice)
-	c.Assert(err, IsNil)
+	mylog.Check(json.Unmarshal(noticeJSON, &notice))
+
 
 	// The Notice fields aren't exported, so we need to marshal it into JSON
 	// and then unmarshal it into a map to test.
@@ -125,8 +126,8 @@ func (s *noticesSuite) TestString(c *C) {
 		"occurrences": 2
 	}`)
 	var notice *state.Notice
-	err := json.Unmarshal(noticeJSON, &notice)
-	c.Assert(err, IsNil)
+	mylog.Check(json.Unmarshal(noticeJSON, &notice))
+
 
 	c.Assert(notice.String(), Equals, "Notice 1 (1000:change-update:123)")
 
@@ -140,8 +141,8 @@ func (s *noticesSuite) TestString(c *C) {
 		"last-repeated": "2023-09-01T06:23:03.123456789Z",
 		"occurrences": 2
 	}`)
-	err = json.Unmarshal(noticeJSON, &notice)
-	c.Assert(err, IsNil)
+	mylog.Check(json.Unmarshal(noticeJSON, &notice))
+
 
 	c.Assert(notice.String(), Equals, "Notice 2 (public:warning:scary)")
 }
@@ -214,10 +215,10 @@ func (s *noticesSuite) testRepeatAfter(c *C, first, second, delay time.Duration)
 	notices := st.Notices(nil)
 	c.Assert(notices, HasLen, 1)
 	n := noticeToMap(c, notices[0])
-	firstOccurred, err := time.Parse(time.RFC3339, n["first-occurred"].(string))
-	c.Assert(err, IsNil)
-	lastRepeated, err := time.Parse(time.RFC3339, n["last-repeated"].(string))
-	c.Assert(err, IsNil)
+	firstOccurred := mylog.Check2(time.Parse(time.RFC3339, n["first-occurred"].(string)))
+
+	lastRepeated := mylog.Check2(time.Parse(time.RFC3339, n["last-repeated"].(string)))
+
 
 	// LastRepeated won't yet be updated as we only waited 1us (repeat-after is long)
 	c.Assert(lastRepeated.Equal(firstOccurred), Equals, true)
@@ -231,8 +232,8 @@ func (s *noticesSuite) testRepeatAfter(c *C, first, second, delay time.Duration)
 	notices = st.Notices(nil)
 	c.Assert(notices, HasLen, 1)
 	n = noticeToMap(c, notices[0])
-	newLastRepeated, err := time.Parse(time.RFC3339, n["last-repeated"].(string))
-	c.Assert(err, IsNil)
+	newLastRepeated := mylog.Check2(time.Parse(time.RFC3339, n["last-repeated"].(string)))
+
 	c.Assert(newLastRepeated.After(lastRepeated), Equals, true)
 }
 
@@ -402,8 +403,8 @@ func (s *noticesSuite) TestNoticesFilterAfter(c *C) {
 	notices := st.Notices(nil)
 	c.Assert(notices, HasLen, 1)
 	n := noticeToMap(c, notices[0])
-	lastRepeated, err := time.Parse(time.RFC3339, n["last-repeated"].(string))
-	c.Assert(err, IsNil)
+	lastRepeated := mylog.Check2(time.Parse(time.RFC3339, n["last-repeated"].(string)))
+
 
 	time.Sleep(time.Microsecond)
 	addNotice(c, st, nil, state.WarningNotice, "foo.com/y", nil)
@@ -466,8 +467,8 @@ func (s *noticesSuite) TestCheckpoint(c *C) {
 	st.Unlock()
 	c.Assert(backend.checkpoints, HasLen, 1)
 
-	st2, err := state.ReadState(nil, bytes.NewReader(backend.checkpoints[0]))
-	c.Assert(err, IsNil)
+	st2 := mylog.Check2(state.ReadState(nil, bytes.NewReader(backend.checkpoints[0])))
+
 	st2.Lock()
 	defer st2.Unlock()
 
@@ -518,8 +519,8 @@ func (s *noticesSuite) TestWaitNoticesExisting(c *C) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	notices, err := st.WaitNotices(ctx, &state.NoticeFilter{Keys: []string{"example.com/x"}})
-	c.Assert(err, IsNil)
+	notices := mylog.Check2(st.WaitNotices(ctx, &state.NoticeFilter{Keys: []string{"example.com/x"}}))
+
 	c.Assert(notices, HasLen, 1)
 	n := noticeToMap(c, notices[0])
 	c.Check(n["user-id"], Equals, nil)
@@ -542,8 +543,8 @@ func (s *noticesSuite) TestWaitNoticesNew(c *C) {
 	defer st.Unlock()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	notices, err := st.WaitNotices(ctx, &state.NoticeFilter{Keys: []string{"example.com/y"}})
-	c.Assert(err, IsNil)
+	notices := mylog.Check2(st.WaitNotices(ctx, &state.NoticeFilter{Keys: []string{"example.com/y"}}))
+
 	c.Assert(notices, HasLen, 1)
 	n := noticeToMap(c, notices[0])
 	c.Assert(n["key"], Equals, "example.com/y")
@@ -556,7 +557,7 @@ func (s *noticesSuite) TestWaitNoticesTimeout(c *C) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
 	defer cancel()
-	notices, err := st.WaitNotices(ctx, nil)
+	notices := mylog.Check2(st.WaitNotices(ctx, nil))
 	c.Assert(err, ErrorMatches, "context deadline exceeded")
 	c.Assert(notices, HasLen, 0)
 }
@@ -566,17 +567,17 @@ func (s *noticesSuite) TestReadStateWaitNotices(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	marshalled, err := st.MarshalJSON()
-	c.Assert(err, IsNil)
+	marshalled := mylog.Check2(st.MarshalJSON())
 
-	st2, err := state.ReadState(nil, bytes.NewBuffer(marshalled))
-	c.Assert(err, IsNil)
+
+	st2 := mylog.Check2(state.ReadState(nil, bytes.NewBuffer(marshalled)))
+
 	st2.Lock()
 	defer st2.Unlock()
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
 	defer cancel()
-	notices, err := st2.WaitNotices(ctx, nil)
+	notices := mylog.Check2(st2.WaitNotices(ctx, nil))
 	c.Assert(errors.Is(err, context.DeadlineExceeded), Equals, true)
 	c.Assert(notices, HasLen, 0)
 }
@@ -599,13 +600,13 @@ func (s *noticesSuite) TestWaitNoticesLongPoll(c *C) {
 	defer cancel()
 	var after time.Time
 	for total := 0; total < 10; {
-		notices, err := st.WaitNotices(ctx, &state.NoticeFilter{After: after})
-		c.Assert(err, IsNil)
+		notices := mylog.Check2(st.WaitNotices(ctx, &state.NoticeFilter{After: after}))
+
 		c.Assert(len(notices) > 0, Equals, true)
 		total += len(notices)
 		n := noticeToMap(c, notices[len(notices)-1])
-		lastRepeated, err := time.Parse(time.RFC3339, n["last-repeated"].(string))
-		c.Assert(err, IsNil)
+		lastRepeated := mylog.Check2(time.Parse(time.RFC3339, n["last-repeated"].(string)))
+
 		after = lastRepeated
 	}
 }
@@ -625,8 +626,8 @@ func (s *noticesSuite) TestWaitNoticesConcurrent(c *C) {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 			defer cancel()
 			key := fmt.Sprintf("a.b/%d", i)
-			notices, err := st.WaitNotices(ctx, &state.NoticeFilter{Keys: []string{key}})
-			c.Assert(err, IsNil)
+			notices := mylog.Check2(st.WaitNotices(ctx, &state.NoticeFilter{Keys: []string{key}}))
+
 			c.Assert(notices, HasLen, 1)
 			n := noticeToMap(c, notices[0])
 			c.Assert(n["key"], Equals, key)
@@ -659,37 +660,37 @@ func (s *noticesSuite) TestValidateNotice(c *C) {
 	defer st.Unlock()
 
 	// Invalid type
-	id, err := st.AddNotice(nil, "bad-type", "123", nil)
+	id := mylog.Check2(st.AddNotice(nil, "bad-type", "123", nil))
 	c.Check(err, ErrorMatches, `internal error: cannot add notice with invalid type "bad-type"`)
 	c.Check(id, Equals, "")
 
 	// Empty key
-	id, err = st.AddNotice(nil, state.ChangeUpdateNotice, "", nil)
+	id = mylog.Check2(st.AddNotice(nil, state.ChangeUpdateNotice, "", nil))
 	c.Check(err, ErrorMatches, `internal error: cannot add change-update notice with invalid key ""`)
 	c.Check(id, Equals, "")
 
 	// Large key
-	id, err = st.AddNotice(nil, state.ChangeUpdateNotice, strings.Repeat("x", 257), nil)
+	id = mylog.Check2(st.AddNotice(nil, state.ChangeUpdateNotice, strings.Repeat("x", 257), nil))
 	c.Check(err, ErrorMatches, `internal error: cannot add change-update notice with invalid key: key must be 256 bytes or less`)
 	c.Check(id, Equals, "")
 
 	// Unxpected key for refresh-inhibit notice
-	id, err = st.AddNotice(nil, state.RefreshInhibitNotice, "123", nil)
+	id = mylog.Check2(st.AddNotice(nil, state.RefreshInhibitNotice, "123", nil))
 	c.Check(err, ErrorMatches, `internal error: cannot add refresh-inhibit notice with invalid key "123": only "-" key is supported`)
 	c.Check(id, Equals, "")
 }
 
 // noticeToMap converts a Notice to a map using a JSON marshal-unmarshal round trip.
 func noticeToMap(c *C, notice *state.Notice) map[string]any {
-	buf, err := json.Marshal(notice)
-	c.Assert(err, IsNil)
+	buf := mylog.Check2(json.Marshal(notice))
+
 	var n map[string]any
-	err = json.Unmarshal(buf, &n)
-	c.Assert(err, IsNil)
+	mylog.Check(json.Unmarshal(buf, &n))
+
 	return n
 }
 
 func addNotice(c *C, st *state.State, userID *uint32, noticeType state.NoticeType, key string, options *state.AddNoticeOptions) {
-	_, err := st.AddNotice(userID, noticeType, key, options)
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(st.AddNotice(userID, noticeType, key, options))
+
 }

@@ -25,12 +25,11 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 )
 
-var (
-	Stdout = os.Stdout
-)
+var Stdout = os.Stdout
 
 // Options specifies the complete input for signing an assertion.
 type Options struct {
@@ -60,10 +59,7 @@ type Options struct {
 // Sign produces the text of a signed assertion as specified by opts.
 func Sign(opts *Options, keypairMgr asserts.KeypairManager) ([]byte, error) {
 	var headers map[string]interface{}
-	err := json.Unmarshal(opts.Statement, &headers)
-	if err != nil {
-		return nil, fmt.Errorf("cannot parse the assertion input as JSON: %v", err)
-	}
+	mylog.Check(json.Unmarshal(opts.Statement, &headers))
 
 	for name, value := range opts.Complement {
 		if v, ok := headers[name]; ok {
@@ -101,12 +97,9 @@ func Sign(opts *Options, keypairMgr asserts.KeypairManager) ([]byte, error) {
 		delete(headers, "body")
 	}
 
-	adb, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+	adb := mylog.Check2(asserts.OpenDatabase(&asserts.DatabaseConfig{
 		KeypairManager: keypairMgr,
-	})
-	if err != nil {
-		return nil, err
-	}
+	}))
 
 	if opts.AccountKey != nil {
 		// cross-check with the actual account-key if provided
@@ -122,10 +115,7 @@ func Sign(opts *Options, keypairMgr asserts.KeypairManager) ([]byte, error) {
 		}
 	}
 
-	a, err := adb.Sign(typ, headers, body, opts.KeyID)
-	if err != nil {
-		return nil, err
-	}
+	a := mylog.Check2(adb.Sign(typ, headers, body, opts.KeyID))
 
 	return asserts.Encode(a), nil
 }

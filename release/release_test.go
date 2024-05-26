@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/testutil"
@@ -35,8 +36,7 @@ import (
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
-type ReleaseTestSuite struct {
-}
+type ReleaseTestSuite struct{}
 
 var _ = Suite(&ReleaseTestSuite{})
 
@@ -59,8 +59,8 @@ HOME_URL="http://www.ubuntu.com/"
 SUPPORT_URL="http://help.ubuntu.com/"
 BUG_REPORT_URL="http://bugs.launchpad.net/ubuntu/"
 `
-	err := os.WriteFile(mockOSRelease, []byte(s), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(mockOSRelease, []byte(s), 0644))
+
 
 	return mockOSRelease
 }
@@ -68,15 +68,15 @@ BUG_REPORT_URL="http://bugs.launchpad.net/ubuntu/"
 // MockFilesystemRootType changes relase.ProcMountsPath so that it points to a temp file
 // generated to contain the provided filesystem type
 func MockFilesystemRootType(c *C, fsType string) (restorer func()) {
-	tmpfile, err := os.CreateTemp(c.MkDir(), "proc_mounts_mock_")
-	c.Assert(err, IsNil)
+	tmpfile := mylog.Check2(os.CreateTemp(c.MkDir(), "proc_mounts_mock_"))
+
 
 	// Sample contents of /proc/mounts. The second line is the one that matters.
-	_, err = tmpfile.Write([]byte(fmt.Sprintf(`none /usr/lib/wsl/lib overlay rw,relatime,lowerdir=/gpu_lib_packaged:/gpu_lib_inbox,upperdir=/gpu_lib/rw/upper,workdir=/gpu_lib/rw/work 0 0
+	_ = mylog.Check2(tmpfile.Write([]byte(fmt.Sprintf(`none /usr/lib/wsl/lib overlay rw,relatime,lowerdir=/gpu_lib_packaged:/gpu_lib_inbox,upperdir=/gpu_lib/rw/upper,workdir=/gpu_lib/rw/work 0 0
 /dev/sdc / %s rw,relatime,discard,errors=remount-ro,data=ordered 0 0
 none /mnt/wslg tmpfs rw,relatime 0 0
-`, fsType)))
-	c.Assert(err, IsNil)
+`, fsType))))
+
 
 	restorer = testutil.Backup(release.ProcMountsPath)
 	*release.ProcMountsPath = tmpfile.Name()
@@ -128,8 +128,8 @@ VERSION_ID="0.4"
 HOME_URL="http://elementary.io/"
 SUPPORT_URL="http://elementary.io/support/"
 BUG_REPORT_URL="https://bugs.launchpad.net/elementary/+filebug"`
-	err := os.WriteFile(mockOSRelease, []byte(dump), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(mockOSRelease, []byte(dump), 0644))
+
 
 	reset := release.MockOSReleasePath(mockOSRelease)
 	defer reset()
@@ -156,8 +156,8 @@ CENTOS_MANTISBT_PROJECT="CentOS-7"
 CENTOS_MANTISBT_PROJECT_VERSION="7"
 REDHAT_SUPPORT_PRODUCT="centos"
 REDHAT_SUPPORT_PRODUCT_VERSION="7"`
-	err := os.WriteFile(mockOSRelease, []byte(dump), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(mockOSRelease, []byte(dump), 0644))
+
 
 	reset := release.MockOSReleasePath(mockOSRelease)
 	defer reset()
@@ -176,8 +176,8 @@ ID="ubuntu-core"
 VARIANT_ID="desktop"
 VERSION_ID="22"
 "`
-	err := os.WriteFile(mockOSRelease, []byte(dump), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(mockOSRelease, []byte(dump), 0644))
+
 
 	reset := release.MockOSReleasePath(mockOSRelease)
 	defer reset()

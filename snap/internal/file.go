@@ -21,6 +21,8 @@ package internal
 
 import (
 	"os"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // SizedFile holds an os.File plus its (initial) size.
@@ -30,10 +32,8 @@ type SizedFile struct {
 }
 
 func NewSizedFile(f *os.File) (*SizedFile, error) {
-	fi, err := f.Stat()
-	if err != nil {
-		return nil, err
-	}
+	fi := mylog.Check2(f.Stat())
+
 	return &SizedFile{File: f, size: fi.Size()}, nil
 }
 

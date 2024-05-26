@@ -42,6 +42,7 @@ import (
 	"os"
 	"sort"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/osutil"
@@ -75,14 +76,9 @@ func (b *Backend) setupModules(appSet *interfaces.SnapAppSet, spec *Specificatio
 	// synchronize the content with the filesystem
 	globs := interfaces.SecurityTagGlobs(appSet.InstanceName())
 	dir := dirs.SnapKModModulesDir
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return fmt.Errorf("cannot create directory for kmod files %q: %s", dir, err)
-	}
+	mylog.Check(os.MkdirAll(dir, 0755))
 
-	changed, _, err := osutil.EnsureDirStateGlobs(dirs.SnapKModModulesDir, globs, content)
-	if err != nil {
-		return err
-	}
+	changed, _ := mylog.Check3(osutil.EnsureDirStateGlobs(dirs.SnapKModModulesDir, globs, content))
 
 	if len(changed) > 0 {
 		b.loadModules(modules)
@@ -98,16 +94,11 @@ func (b *Backend) setupModules(appSet *interfaces.SnapAppSet, spec *Specificatio
 // - a module whose option change should get reloaded
 func (b *Backend) setupModprobe(appSet *interfaces.SnapAppSet, spec *Specification) error {
 	dir := dirs.SnapKModModprobeDir
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return fmt.Errorf("cannot create directory for kmod files %q: %s", dir, err)
-	}
+	mylog.Check(os.MkdirAll(dir, 0755))
 
 	globs := interfaces.SecurityTagGlobs(appSet.InstanceName())
 	dirContents := prepareModprobeDirContents(spec, appSet)
-	_, _, err := osutil.EnsureDirStateGlobs(dirs.SnapKModModprobeDir, globs, dirContents)
-	if err != nil {
-		return err
-	}
+	_, _ := mylog.Check3(osutil.EnsureDirStateGlobs(dirs.SnapKModModprobeDir, globs, dirContents))
 
 	return nil
 }
@@ -122,20 +113,9 @@ func (b *Backend) setupModprobe(appSet *interfaces.SnapAppSet, spec *Specificati
 func (b *Backend) Setup(appSet *interfaces.SnapAppSet, confinement interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
 	snapName := appSet.InstanceName()
 	// Get the snippets that apply to this snap
-	spec, err := repo.SnapSpecification(b.Name(), appSet)
-	if err != nil {
-		return fmt.Errorf("cannot obtain kmod specification for snap %q: %s", snapName, err)
-	}
-
-	err = b.setupModprobe(appSet, spec.(*Specification))
-	if err != nil {
-		return err
-	}
-
-	err = b.setupModules(appSet, spec.(*Specification))
-	if err != nil {
-		return err
-	}
+	spec := mylog.Check2(repo.SnapSpecification(b.Name(), appSet))
+	mylog.Check(b.setupModprobe(appSet, spec.(*Specification)))
+	mylog.Check(b.setupModules(appSet, spec.(*Specification)))
 
 	return nil
 }
@@ -148,13 +128,9 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, confinement interfaces.Co
 func (b *Backend) Remove(snapName string) error {
 	globs := interfaces.SecurityTagGlobs(snapName)
 	var errors []error
-	if _, _, err := osutil.EnsureDirStateGlobs(dirs.SnapKModModulesDir, globs, nil); err != nil {
-		errors = append(errors, err)
-	}
+	_, _ := mylog.Check3(osutil.EnsureDirStateGlobs(dirs.SnapKModModulesDir, globs, nil))
 
-	if _, _, err := osutil.EnsureDirStateGlobs(dirs.SnapKModModprobeDir, globs, nil); err != nil {
-		errors = append(errors, err)
-	}
+	_, _ := mylog.Check3(osutil.EnsureDirStateGlobs(dirs.SnapKModModprobeDir, globs, nil))
 
 	if len(errors) > 0 {
 		return fmt.Errorf("cannot remove kernel modules config files: %v", errors)

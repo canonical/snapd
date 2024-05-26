@@ -22,6 +22,7 @@ package devicestate
 import (
 	"errors"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -37,17 +38,14 @@ func DeviceCtx(st *state.State, task *state.Task, providedDeviceCtx snapstate.De
 		return providedDeviceCtx, nil
 	}
 	// use the remodelContext if the task is part of a remodel change
-	remodCtx, err := remodelCtxFromTask(task)
+	remodCtx := mylog.Check2(remodelCtxFromTask(task))
 	if err == nil {
 		return remodCtx, nil
 	}
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
-	modelAs, err := findModel(st)
-	if err != nil {
-		return nil, err
-	}
+	modelAs := mylog.Check2(findModel(st))
 
 	devMgr := deviceMgr(st)
 	return newModelDeviceContext(devMgr, modelAs), nil

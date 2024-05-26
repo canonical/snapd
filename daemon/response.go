@@ -30,6 +30,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/logger"
@@ -142,12 +143,7 @@ func (r *respJSON) addWarningCount(count int, stamp time.Time) {
 func (r *respJSON) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	status := r.Status
 	r.StatusText = http.StatusText(r.Status)
-	bs, err := json.Marshal(r)
-	if err != nil {
-		logger.Noticef("cannot marshal %#v to JSON: %v", *r, err)
-		bs = nil
-		status = 500
-	}
+	bs := mylog.Check2(json.Marshal(r))
 
 	hdr := w.Header()
 	if r.Status == 202 || r.Status == 201 {
@@ -229,11 +225,8 @@ func (s *snapStream) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	}
 
 	defer s.stream.Close()
-	bytesCopied, err := io.Copy(w, s.stream)
-	if err != nil {
-		logger.Noticef("cannot copy snap %s (%#v) to the stream: %v", s.SnapName, s.Info, err)
-		http.Error(w, err.Error(), 500)
-	}
+	bytesCopied := mylog.Check2(io.Copy(w, s.stream))
+
 	if bytesCopied != s.Info.Size-s.resume {
 		logger.Noticef("cannot copy snap %s (%#v) to the stream: bytes copied=%d, expected=%d", s.SnapName, s.Info, bytesCopied, s.Info.Size)
 		http.Error(w, io.EOF.Error(), 502)
@@ -251,9 +244,8 @@ type snapshotExportResponse struct {
 func (s snapshotExportResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Content-Length", strconv.FormatInt(s.Size(), 10))
 	w.Header().Add("Content-Type", client.SnapshotExportMediaType)
-	if err := s.StreamTo(w); err != nil {
-		logger.Debugf("cannot export snapshot: %v", err)
-	}
+	mylog.Check(s.StreamTo(w))
+
 	s.Close()
 	s.st.Lock()
 	defer s.st.Unlock()
@@ -290,28 +282,23 @@ func (rr *journalLineReaderSeqResponse) ServeHTTP(w http.ResponseWriter, r *http
 
 	flusher, hasFlusher := w.(http.Flusher)
 
-	var err error
 	dec := json.NewDecoder(rr)
 	writer := bufio.NewWriter(w)
 	enc := json.NewEncoder(writer)
 	for {
 		var log systemd.Log
-		if err = dec.Decode(&log); err != nil {
-			break
-		}
+		mylog.Check(dec.Decode(&log))
 
 		writer.WriteByte(0x1E) // RS -- see ascii(7), and RFC7464
 
 		// ignore the error...
 		t, _ := log.Time()
-		if err = enc.Encode(client.Log{
+		mylog.Check(enc.Encode(client.Log{
 			Timestamp: t,
 			Message:   log.Message(),
 			SID:       log.SID(),
 			PID:       log.PID(),
-		}); err != nil {
-			break
-		}
+		}))
 
 		if rr.follow {
 			if e := writer.Flush(); e != nil {
@@ -326,9 +313,8 @@ func (rr *journalLineReaderSeqResponse) ServeHTTP(w http.ResponseWriter, r *http
 		fmt.Fprintf(writer, `\x1E{"error": %q}\n`, err)
 		logger.Noticef("cannot stream response; problem reading: %v", err)
 	}
-	if err := writer.Flush(); err != nil {
-		logger.Noticef("cannot stream response; problem writing: %v", err)
-	}
+	mylog.Check(writer.Flush())
+
 	rr.Close()
 }
 
@@ -355,11 +341,6 @@ func (ar assertResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(200)
 	enc := asserts.NewEncoder(w)
 	for _, a := range ar.assertions {
-		err := enc.Encode(a)
-		if err != nil {
-			logger.Noticef("cannot write encoded assertion into response: %v", err)
-			break
-
-		}
+		mylog.Check(enc.Encode(a))
 	}
 }

@@ -24,6 +24,8 @@ import (
 	"fmt"
 	"net/url"
 	"time"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // Store holds a store assertion, defining the configuration needed to connect
@@ -75,15 +77,7 @@ func (store *Store) checkConsistency(db RODatabase, acck *AccountKey) error {
 			store.Store(), store.AuthorityID())
 	}
 
-	_, err := db.Find(AccountType, map[string]string{"account-id": store.OperatorID()})
-	if err != nil {
-		if errors.Is(err, &NotFoundError{}) {
-			return fmt.Errorf(
-				"store assertion %q does not have a matching account assertion for the operator %q",
-				store.Store(), store.OperatorID())
-		}
-		return err
-	}
+	_ := mylog.Check2(db.Find(AccountType, map[string]string{"account-id": store.OperatorID()}))
 
 	return nil
 }
@@ -97,10 +91,7 @@ func (store *Store) Prerequisites() []*Ref {
 
 // checkStoreURL validates the "url" header and returns a full URL or nil.
 func checkStoreURL(headers map[string]interface{}) (*url.URL, error) {
-	s, err := checkOptionalString(headers, "url")
-	if err != nil {
-		return nil, err
-	}
+	s := mylog.Check2(checkOptionalString(headers, "url"))
 
 	if s == "" {
 		return nil, nil
@@ -108,10 +99,8 @@ func checkStoreURL(headers map[string]interface{}) (*url.URL, error) {
 
 	errWhat := `"url" header`
 
-	u, err := url.Parse(s)
-	if err != nil {
-		return nil, fmt.Errorf("%s must be a valid URL: %s", errWhat, s)
-	}
+	u := mylog.Check2(url.Parse(s))
+
 	if u.Scheme != "http" && u.Scheme != "https" {
 		return nil, fmt.Errorf(`%s scheme must be "https" or "http": %s`, errWhat, s)
 	}
@@ -129,30 +118,15 @@ func checkStoreURL(headers map[string]interface{}) (*url.URL, error) {
 }
 
 func assembleStore(assert assertionBase) (Assertion, error) {
-	_, err := checkNotEmptyString(assert.headers, "operator-id")
-	if err != nil {
-		return nil, err
-	}
+	_ := mylog.Check2(checkNotEmptyString(assert.headers, "operator-id"))
 
-	url, err := checkStoreURL(assert.headers)
-	if err != nil {
-		return nil, err
-	}
+	url := mylog.Check2(checkStoreURL(assert.headers))
 
-	friendlyStores, err := checkStringList(assert.headers, "friendly-stores")
-	if err != nil {
-		return nil, err
-	}
+	friendlyStores := mylog.Check2(checkStringList(assert.headers, "friendly-stores"))
 
-	_, err = checkOptionalString(assert.headers, "location")
-	if err != nil {
-		return nil, err
-	}
+	_ = mylog.Check2(checkOptionalString(assert.headers, "location"))
 
-	timestamp, err := checkRFC3339Date(assert.headers, "timestamp")
-	if err != nil {
-		return nil, err
-	}
+	timestamp := mylog.Check2(checkRFC3339Date(assert.headers, "timestamp"))
 
 	return &Store{
 		assertionBase:  assert,

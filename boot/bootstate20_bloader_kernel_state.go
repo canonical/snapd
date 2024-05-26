@@ -22,6 +22,7 @@ package boot
 import (
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/snap"
 )
@@ -39,19 +40,13 @@ type extractedRunKernelImageBootloaderKernelState struct {
 
 func (bks *extractedRunKernelImageBootloaderKernelState) load() error {
 	// get the kernel_status
-	m, err := bks.ebl.GetBootVars("kernel_status")
-	if err != nil {
-		return err
-	}
+	m := mylog.Check2(bks.ebl.GetBootVars("kernel_status"))
 
 	bks.currentKernelStatus = m["kernel_status"]
 
 	// get the current kernel for this bootloader to compare during commit() for
 	// markSuccessful() if we booted the current kernel or not
-	kernel, err := bks.ebl.Kernel()
-	if err != nil {
-		return fmt.Errorf("cannot identify kernel snap with bootloader %s: %v", bks.ebl.Name(), err)
-	}
+	kernel := mylog.Check2(bks.ebl.Kernel())
 
 	bks.currentKernel = kernel
 
@@ -123,29 +118,23 @@ func (bks *extractedRunKernelImageBootloaderKernelState) markSuccessfulKernel(sn
 		m := map[string]string{
 			"kernel_status": DefaultStatus,
 		}
+		mylog.Check(
 
-		// set the boot variables
-		err := bks.ebl.SetBootVars(m)
-		if err != nil {
-			return err
-		}
+			// set the boot variables
+			bks.ebl.SetBootVars(m))
+
 	}
 
 	// if the kernel we booted is not the current one, we must have tried
 	// a new kernel, so enable that one as the current one now
 	if bks.currentKernel.Filename() != sn.Filename() {
-		err := bks.ebl.EnableKernel(sn)
-		if err != nil {
-			return err
-		}
+		mylog.Check(bks.ebl.EnableKernel(sn))
 	}
+	mylog.
 
-	// always disable the try kernel snap to cleanup in case we have upgrade
-	// failures which leave behind try-kernel.efi
-	err := bks.ebl.DisableTryKernel()
-	if err != nil {
-		return err
-	}
+		// always disable the try kernel snap to cleanup in case we have upgrade
+		// failures which leave behind try-kernel.efi
+		Check(bks.ebl.DisableTryKernel())
 
 	return nil
 }
@@ -157,10 +146,7 @@ func (bks *extractedRunKernelImageBootloaderKernelState) setNextKernel(sn snap.P
 	// gets stuck waiting for a user to reboot, at which point we would fallback
 	// see i.e. https://github.com/snapcore/pc-amd64-gadget/issues/36
 	if sn.Filename() != bks.currentKernel.Filename() {
-		err := bks.ebl.EnableTryKernel(sn)
-		if err != nil {
-			return err
-		}
+		mylog.Check(bks.ebl.EnableTryKernel(sn))
 	}
 
 	// only if the new kernel status is different from what we read should we
@@ -179,10 +165,7 @@ func (bks *extractedRunKernelImageBootloaderKernelState) setNextKernel(sn snap.P
 
 func (bks *extractedRunKernelImageBootloaderKernelState) setNextKernelNoTry(sn snap.PlaceInfo) error {
 	if sn.Filename() != bks.currentKernel.Filename() {
-		err := bks.ebl.EnableKernel(sn)
-		if err != nil {
-			return err
-		}
+		mylog.Check(bks.ebl.EnableKernel(sn))
 	}
 
 	// Make sure that no try-kernel.efi link is left around. We do
@@ -222,10 +205,7 @@ type envRefExtractedKernelBootloaderKernelState struct {
 func (envbks *envRefExtractedKernelBootloaderKernelState) load() error {
 	// for uc20, we only care about kernel_status, snap_kernel, and
 	// snap_try_kernel
-	m, err := envbks.bl.GetBootVars("kernel_status", "snap_kernel", "snap_try_kernel")
-	if err != nil {
-		return err
-	}
+	m := mylog.Check2(envbks.bl.GetBootVars("kernel_status", "snap_kernel", "snap_try_kernel"))
 
 	// the default commit env is the same state as the current env
 	envbks.env = m
@@ -236,10 +216,7 @@ func (envbks *envRefExtractedKernelBootloaderKernelState) load() error {
 
 	// snap_kernel is the current kernel snap
 	// parse the filename here because the kernel() method doesn't return an err
-	sn, err := snap.ParsePlaceInfoFromSnapFileName(envbks.env["snap_kernel"])
-	if err != nil {
-		return err
-	}
+	sn := mylog.Check2(snap.ParsePlaceInfoFromSnapFileName(envbks.env["snap_kernel"]))
 
 	envbks.kern = sn
 
@@ -255,10 +232,7 @@ func (envbks *envRefExtractedKernelBootloaderKernelState) tryKernel() (snap.Plac
 	if envbks.env["snap_try_kernel"] == "" {
 		return nil, bootloader.ErrNoTryKernelRef
 	}
-	sn, err := snap.ParsePlaceInfoFromSnapFileName(envbks.env["snap_try_kernel"])
-	if err != nil {
-		return nil, err
-	}
+	sn := mylog.Check2(snap.ParsePlaceInfoFromSnapFileName(envbks.env["snap_try_kernel"]))
 
 	return sn, nil
 }

@@ -33,6 +33,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
@@ -103,46 +104,31 @@ func setupDbusServiceForUserd(snapInfo *snap.Info) error {
 		dst = filepath.Join(dirs.GlobalRootDir, dst)
 		if !osutil.FileExists(src) {
 			if osutil.FileExists(dst) {
-				if err := os.Remove(dst); err != nil {
-					return err
-				}
+				mylog.Check(os.Remove(dst))
 			}
 			continue
 		}
 		if !osutil.FilesAreEqual(src, dst) {
-			if err := osutil.CopyFile(src, dst, osutil.CopyFlagPreserveAll); err != nil {
-				return err
-			}
+			mylog.Check(osutil.CopyFile(src, dst, osutil.CopyFlagPreserveAll))
 		}
 	}
 	return nil
 }
 
 func setupHostDBusConf(snapInfo *snap.Info) error {
-	sessionContent, systemContent, err := wrappers.DeriveSnapdDBusConfig(snapInfo)
-	if err != nil {
-		return err
-	}
+	sessionContent, systemContent := mylog.Check3(wrappers.DeriveSnapdDBusConfig(snapInfo))
 
 	// We don't use `dirs.SnapDBusSessionPolicyDir because we want
 	// to match the path the package on the host system uses.
 	dest := filepath.Join(dirs.GlobalRootDir, "/usr/share/dbus-1/session.d")
-	if err = os.MkdirAll(dest, 0755); err != nil {
-		return err
-	}
-	_, _, err = osutil.EnsureDirState(dest, "snapd.*.conf", sessionContent)
-	if err != nil {
-		return err
-	}
+	mylog.Check(os.MkdirAll(dest, 0755))
+
+	_, _ = mylog.Check3(osutil.EnsureDirState(dest, "snapd.*.conf", sessionContent))
 
 	dest = filepath.Join(dirs.GlobalRootDir, "/usr/share/dbus-1/system.d")
-	if err = os.MkdirAll(dest, 0755); err != nil {
-		return err
-	}
-	_, _, err = osutil.EnsureDirState(dest, "snapd.*.conf", systemContent)
-	if err != nil {
-		return err
-	}
+	mylog.Check(os.MkdirAll(dest, 0755))
+
+	_, _ = mylog.Check3(osutil.EnsureDirState(dest, "snapd.*.conf", systemContent))
 
 	return nil
 }
@@ -156,23 +142,19 @@ func setupHostDBusConf(snapInfo *snap.Info) error {
 func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
 	snapName := appSet.InstanceName()
 	// Get the snippets that apply to this snap
-	spec, err := repo.SnapSpecification(b.Name(), appSet)
-	if err != nil {
-		return fmt.Errorf("cannot obtain dbus specification for snap %q: %s", snapName, err)
-	}
+	spec := mylog.Check2(repo.SnapSpecification(b.Name(), appSet))
 
 	snapInfo := appSet.Info()
 
 	// copy some config files when installing core/snapd if we reexec
 	if shouldCopyConfigFiles(snapInfo) {
-		if err := setupDbusServiceForUserd(snapInfo); err != nil {
-			logger.Noticef("cannot create host `snap userd` dbus service file: %s", err)
-		}
-		// TODO: Make this conditional on the dbus-activation
-		// feature flag.
-		if err := setupHostDBusConf(snapInfo); err != nil {
-			logger.Noticef("cannot create host dbus config: %s", err)
-		}
+		mylog.Check(setupDbusServiceForUserd(snapInfo))
+		mylog.Check(
+
+			// TODO: Make this conditional on the dbus-activation
+			// feature flag.
+			setupHostDBusConf(snapInfo))
+
 	}
 
 	// Get the files that this snap should have
@@ -181,14 +163,10 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 	globs := profileGlobs(snapName)
 
 	dir := dirs.SnapDBusSystemPolicyDir
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return fmt.Errorf("cannot create directory for DBus configuration files %q: %s", dir, err)
-	}
+	mylog.Check(os.MkdirAll(dir, 0755))
 
-	_, _, err = osutil.EnsureDirStateGlobs(dir, globs, content)
-	if err != nil {
-		return fmt.Errorf("cannot synchronize DBus configuration files for snap %q: %s", snapName, err)
-	}
+	_, _ = mylog.Check3(osutil.EnsureDirStateGlobs(dir, globs, content))
+
 	return nil
 }
 
@@ -205,10 +183,8 @@ func profileGlobs(snapName string) []string {
 // This method should be called after removing a snap.
 func (b *Backend) Remove(snapName string) error {
 	globs := profileGlobs(snapName)
-	_, _, err := osutil.EnsureDirStateGlobs(dirs.SnapDBusSystemPolicyDir, globs, nil)
-	if err != nil {
-		return fmt.Errorf("cannot synchronize DBus configuration files for snap %q: %s", snapName, err)
-	}
+	_, _ := mylog.Check3(osutil.EnsureDirStateGlobs(dirs.SnapDBusSystemPolicyDir, globs, nil))
+
 	return nil
 }
 

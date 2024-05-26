@@ -36,6 +36,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/godbus/dbus"
 	"github.com/jessevdk/go-flags"
 
@@ -130,15 +131,13 @@ and environment.
 // isStopping returns true if the system is shutting down.
 func isStopping() (bool, error) {
 	// Make sure, just in case, that systemd doesn't localize the output string.
-	env, err := osutil.OSEnvironment()
-	if err != nil {
-		return false, err
-	}
+	env := mylog.Check2(osutil.OSEnvironment())
+
 	env["LC_MESSAGES"] = "C"
 	// Check if systemd is stopping (shutting down or rebooting).
 	cmd := exec.Command("systemctl", "is-system-running")
 	cmd.Env = env.ForExec()
-	stdout, err := cmd.Output()
+	stdout := mylog.Check2(cmd.Output())
 	// systemctl is-system-running returns non-zero for outcomes other than "running"
 	// As such, ignore any ExitError and just process the stdout buffer.
 	if _, ok := err.(*exec.ExitError); ok {
@@ -150,23 +149,18 @@ func isStopping() (bool, error) {
 func maybeWaitForSecurityProfileRegeneration(cli *client.Client) error {
 	// check if the security profiles key has changed, if so, we need
 	// to wait for snapd to re-generate all profiles
-	mismatch, err := interfaces.SystemKeyMismatch()
+	mismatch := mylog.Check2(interfaces.SystemKeyMismatch())
 	if err == nil && !mismatch {
 		return nil
 	}
 	// something went wrong with the system-key compare, try to
 	// reach snapd before continuing
-	if err != nil {
-		logger.Debugf("SystemKeyMismatch returned an error: %v", err)
-	}
 
 	// We have a mismatch but maybe it is only because systemd is shutting down
 	// and core or snapd were already unmounted and we failed to re-execute.
 	// For context see: https://bugs.launchpad.net/snapd/+bug/1871652
-	stopping, err := isStopping()
-	if err != nil {
-		logger.Debugf("cannot check if system is stopping: %s", err)
-	}
+	stopping := mylog.Check2(isStopping())
+
 	if stopping {
 		logger.Debugf("ignoring system key mismatch during system shutdown/reboot")
 		return nil
@@ -187,7 +181,7 @@ func maybeWaitForSecurityProfileRegeneration(cli *client.Client) error {
 	// connect timeout for client is 5s on each try, so 12*5s = 60s
 	timeout := 12
 	if timeoutEnv := os.Getenv("SNAPD_DEBUG_SYSTEM_KEY_RETRY"); timeoutEnv != "" {
-		if i, err := strconv.Atoi(timeoutEnv); err == nil {
+		if i := mylog.Check2(strconv.Atoi(timeoutEnv)); err == nil {
 			timeout = i
 		}
 	}
@@ -198,7 +192,7 @@ func maybeWaitForSecurityProfileRegeneration(cli *client.Client) error {
 		// TODO: we could also check cli.Maintenance() here too in case snapd is
 		// down semi-permanently for a refresh, but what message do we show to
 		// the user or what do we do if we know snapd is down for maintenance?
-		if _, err := cli.SysInfo(); err == nil {
+		if _ := mylog.Check2(cli.SysInfo()); err == nil {
 			return nil
 		}
 		// sleep a little bit for good measure
@@ -239,10 +233,7 @@ func (x *cmdRun) Execute(args []string) error {
 	}
 
 	logger.StartupStageTimestamp("start")
-
-	if err := maybeWaitForSecurityProfileRegeneration(x.client); err != nil {
-		return err
-	}
+	mylog.Check(maybeWaitForSecurityProfileRegeneration(x.client))
 
 	// Now actually handle the dispatching
 	if x.HookName != "" {
@@ -269,17 +260,15 @@ func antialias(snapApp string, args []string) (string, []string) {
 		return snapApp, args
 	}
 
-	actualApp, err := resolveApp(snapApp)
+	actualApp := mylog.Check2(resolveApp(snapApp))
 	if err != nil || actualApp == snapApp {
 		// no alias! woop.
 		return snapApp, args
 	}
 
-	compPoint, err := strconv.Atoi(args[2])
-	if err != nil {
-		// args[2] is not COMP_POINT
-		return snapApp, args
-	}
+	compPoint := mylog.Check2(strconv.Atoi(args[2]))
+
+	// args[2] is not COMP_POINT
 
 	if compPoint <= len(snapApp) {
 		// COMP_POINT is inside $0
@@ -298,7 +287,7 @@ func antialias(snapApp string, args []string) (string, []string) {
 
 	// it _should_ be COMP_LINE followed by one of
 	// COMP_WORDBREAKS, but that's hard to do
-	re, err := regexp.Compile(`^` + regexp.QuoteMeta(snapApp) + `\b`)
+	re := mylog.Check2(regexp.Compile(`^` + regexp.QuoteMeta(snapApp) + `\b`))
 	if err != nil || !re.MatchString(args[5]) {
 		// (weird regexp error, or) args[5] is not COMP_LINE
 		return snapApp, args
@@ -316,11 +305,11 @@ func antialias(snapApp string, args []string) (string, []string) {
 
 func getSnapInfo(snapName string, revision snap.Revision) (info *snap.Info, err error) {
 	if revision.Unset() {
-		info, err = snap.ReadCurrentInfo(snapName)
+		info = mylog.Check2(snap.ReadCurrentInfo(snapName))
 	} else {
-		info, err = snap.ReadInfo(snapName, &snap.SideInfo{
+		info = mylog.Check2(snap.ReadInfo(snapName, &snap.SideInfo{
 			Revision: revision,
-		})
+		}))
 	}
 
 	return info, err
@@ -332,10 +321,9 @@ func createOrUpdateUserDataSymlink(info *snap.Info, usr *user.User, opts *dirs.S
 	wantedSymlinkValue := filepath.Base(userData)
 	currentActiveSymlink := filepath.Join(userData, "..", "current")
 
-	var err error
 	var currentSymlinkValue string
 	for i := 0; i < 5; i++ {
-		currentSymlinkValue, err = os.Readlink(currentActiveSymlink)
+		currentSymlinkValue = mylog.Check2(os.Readlink(currentActiveSymlink))
 		// Failure other than non-existing symlink is fatal
 		if err != nil && !os.IsNotExist(err) {
 			// TRANSLATORS: %v the error message
@@ -347,16 +335,16 @@ func createOrUpdateUserDataSymlink(info *snap.Info, usr *user.User, opts *dirs.S
 		}
 
 		if err == nil {
-			// We may be racing with other instances of snap-run that try to do the same thing
-			// If the symlink is already removed then we can ignore this error.
-			err = os.Remove(currentActiveSymlink)
+			mylog.
+				// We may be racing with other instances of snap-run that try to do the same thing
+				// If the symlink is already removed then we can ignore this error.
+				Check(os.Remove(currentActiveSymlink))
 			if err != nil && !os.IsNotExist(err) {
 				// abort with error
 				break
 			}
 		}
-
-		err = os.Symlink(wantedSymlinkValue, currentActiveSymlink)
+		mylog.Check(os.Symlink(wantedSymlinkValue, currentActiveSymlink))
 		// Error other than symlink already exists will abort and be propagated
 		if err == nil || !os.IsExist(err) {
 			break
@@ -364,9 +352,7 @@ func createOrUpdateUserDataSymlink(info *snap.Info, usr *user.User, opts *dirs.S
 		// If we arrived here it means the symlink couldn't be created because it got created
 		// in the meantime by another instance, so we will try again.
 	}
-	if err != nil {
-		return fmt.Errorf(i18n.G("cannot update the 'current' symlink of %q: %v"), currentActiveSymlink, err)
-	}
+
 	return nil
 }
 
@@ -383,15 +369,11 @@ func createUserDataDirs(info *snap.Info, opts *dirs.SnapDirOptions) error {
 	oldUmask := syscall.Umask(0)
 	defer syscall.Umask(oldUmask)
 
-	usr, err := userCurrent()
-	if err != nil {
-		return fmt.Errorf(i18n.G("cannot get the current user: %v"), err)
-	}
+	usr := mylog.Check2(userCurrent())
 
 	snapDir := snap.SnapDir(usr.HomeDir, opts)
-	if err := os.MkdirAll(snapDir, 0700); err != nil {
-		return fmt.Errorf(i18n.G("cannot create snap home dir: %w"), err)
-	}
+	mylog.Check(os.MkdirAll(snapDir, 0700))
+
 	// see snapenv.User
 	instanceUserData := info.UserDataDir(usr.HomeDir, opts)
 	instanceCommonUserData := info.UserCommonDataDir(usr.HomeDir, opts)
@@ -406,15 +388,10 @@ func createUserDataDirs(info *snap.Info, opts *dirs.SnapDirOptions) error {
 		createDirs = append(createDirs, snapUserDir)
 	}
 	for _, d := range createDirs {
-		if err := os.MkdirAll(d, 0755); err != nil {
-			// TRANSLATORS: %q is the directory whose creation failed, %v the error message
-			return fmt.Errorf(i18n.G("cannot create %q: %v"), d, err)
-		}
+		mylog.Check(os.MkdirAll(d, 0755))
+		// TRANSLATORS: %q is the directory whose creation failed, %v the error message
 	}
-
-	if err := createOrUpdateUserDataSymlink(info, usr, opts); err != nil {
-		return err
-	}
+	mylog.Check(createOrUpdateUserDataSymlink(info, usr, opts))
 
 	return maybeRestoreSecurityContext(usr, opts)
 }
@@ -423,27 +400,21 @@ func createUserDataDirs(info *snap.Info, opts *dirs.SnapDirOptions) error {
 // systems where it's applicable
 func maybeRestoreSecurityContext(usr *user.User, opts *dirs.SnapDirOptions) error {
 	snapUserHome := snap.SnapDir(usr.HomeDir, opts)
-	enabled, err := selinuxIsEnabled()
-	if err != nil {
-		return fmt.Errorf("cannot determine SELinux status: %v", err)
-	}
+	enabled := mylog.Check2(selinuxIsEnabled())
+
 	if !enabled {
 		logger.Debugf("SELinux not enabled")
 		return nil
 	}
 
-	match, err := selinuxVerifyPathContext(snapUserHome)
-	if err != nil {
-		return fmt.Errorf("failed to verify SELinux context of %v: %v", snapUserHome, err)
-	}
+	match := mylog.Check2(selinuxVerifyPathContext(snapUserHome))
+
 	if match {
 		return nil
 	}
 	logger.Noticef("restoring default SELinux context of %v", snapUserHome)
+	mylog.Check(selinuxRestoreContext(snapUserHome, selinux.RestoreMode{Recursive: true}))
 
-	if err := selinuxRestoreContext(snapUserHome, selinux.RestoreMode{Recursive: true}); err != nil {
-		return fmt.Errorf("cannot restore SELinux context of %v: %v", snapUserHome, err)
-	}
 	return nil
 }
 
@@ -457,10 +428,7 @@ func (x *cmdRun) straceOpts() (opts []string, raw bool, err error) {
 		return nil, false, nil
 	}
 
-	split, err := shlex.Split(x.Strace)
-	if err != nil {
-		return nil, false, err
-	}
+	split := mylog.Check2(shlex.Split(x.Strace))
 
 	opts = make([]string, 0, len(split))
 	for _, opt := range split {
@@ -516,7 +484,7 @@ func (x *cmdRun) snapRunApp(snapApp string, args []string) error {
 			return fmt.Errorf("race condition detected, snap-run can only retry once")
 		}
 
-		info, app, hintFlock, err := maybeWaitWhileInhibited(context.Background(), x.client, snapName, appName)
+		info, app, hintFlock := mylog.Check4(maybeWaitWhileInhibited(context.Background(), x.client, snapName, appName))
 		if errors.Is(err, errSnapRefreshConflict) {
 			// Possible race condition detected, let's retry.
 
@@ -526,9 +494,6 @@ func (x *cmdRun) snapRunApp(snapApp string, args []string) error {
 			retryCnt++
 			logger.Debugf("retry due to possible snap refresh conflict detected")
 			continue
-		}
-		if err != nil {
-			return err
 		}
 
 		closeFlockOrRetry := func() error {
@@ -551,8 +516,7 @@ func (x *cmdRun) snapRunApp(snapApp string, args []string) error {
 			}
 			return nil
 		}
-
-		err = x.runSnapConfine(info, app.SecurityTag(), snapApp, "", closeFlockOrRetry, args)
+		mylog.Check(x.runSnapConfine(info, app.SecurityTag(), snapApp, "", closeFlockOrRetry, args))
 		if errors.Is(err, errSnapRefreshConflict) {
 			// Possible race condition detected, let's retry.
 			//
@@ -563,29 +527,18 @@ func (x *cmdRun) snapRunApp(snapApp string, args []string) error {
 			logger.Debugf("retry due to possible snap refresh conflict detected")
 			continue
 		}
-		if err != nil {
-			// Make sure we release the lock in case runSnapConfine fails before
-			// closing hint lock file, it is fine if we double close.
-			if hintFlock != nil {
-				hintFlock.Close()
-			}
-			return err
-		}
+
+		// Make sure we release the lock in case runSnapConfine fails before
+		// closing hint lock file, it is fine if we double close.
 
 		return nil
 	}
 }
 
 func (x *cmdRun) snapRunHook(snapName string) error {
-	revision, err := snap.ParseRevision(x.Revision)
-	if err != nil {
-		return err
-	}
+	revision := mylog.Check2(snap.ParseRevision(x.Revision))
 
-	info, err := getSnapInfo(snapName, revision)
-	if err != nil {
-		return err
-	}
+	info := mylog.Check2(getSnapInfo(snapName, revision))
 
 	hook := info.Hooks[x.HookName]
 	if hook == nil {
@@ -596,10 +549,7 @@ func (x *cmdRun) snapRunHook(snapName string) error {
 }
 
 func (x *cmdRun) snapRunTimer(snapApp, timer string, args []string) error {
-	schedule, err := timeutil.ParseSchedule(timer)
-	if err != nil {
-		return fmt.Errorf("invalid timer format: %v", err)
-	}
+	schedule := mylog.Check2(timeutil.ParseSchedule(timer))
 
 	now := timeNow()
 	if !timeutil.Includes(schedule, now) {
@@ -615,10 +565,8 @@ var osReadlink = os.Readlink
 // snapdHelperPath return the path of a helper like "snap-confine" or
 // "snap-exec" based on if snapd is re-execed or not
 func snapdHelperPath(toolName string) (string, error) {
-	exe, err := osReadlink("/proc/self/exe")
-	if err != nil {
-		return "", fmt.Errorf("cannot read /proc/self/exe: %v", err)
-	}
+	exe := mylog.Check2(osReadlink("/proc/self/exe"))
+
 	// no re-exec
 	if !strings.HasPrefix(exe, dirs.SnapMountDir) {
 		return filepath.Join(dirs.DistroLibExecDir, toolName), nil
@@ -641,10 +589,7 @@ func snapdHelperPath(toolName string) (string, error) {
 }
 
 func migrateXauthority(info *snap.Info) (string, error) {
-	u, err := userCurrent()
-	if err != nil {
-		return "", fmt.Errorf(i18n.G("cannot get the current user: %s"), err)
-	}
+	u := mylog.Check2(userCurrent())
 
 	// If our target directory (XDG_RUNTIME_DIR) doesn't exist we
 	// don't attempt to create it.
@@ -660,23 +605,15 @@ func migrateXauthority(info *snap.Info) (string, error) {
 		return "", nil
 	}
 
-	fin, err := os.Open(xauthPath)
-	if err != nil {
-		return "", err
-	}
+	fin := mylog.Check2(os.Open(xauthPath))
+
 	defer fin.Close()
 
 	// Abs() also calls Clean(); see https://golang.org/pkg/path/filepath/#Abs
-	xauthPathAbs, err := filepath.Abs(fin.Name())
-	if err != nil {
-		return "", nil
-	}
+	xauthPathAbs := mylog.Check2(filepath.Abs(fin.Name()))
 
 	// Remove all symlinks from path
-	xauthPathCan, err := filepath.EvalSymlinks(xauthPathAbs)
-	if err != nil {
-		return "", nil
-	}
+	xauthPathCan := mylog.Check2(filepath.EvalSymlinks(xauthPathAbs))
 
 	// Ensure the XAUTHORITY env is not abused by checking that
 	// it point to exactly the file we just opened (no symlinks,
@@ -701,10 +638,8 @@ func migrateXauthority(info *snap.Info) (string, error) {
 	// having to use snap run. This code is just to ensure that a user who
 	// doesn't have those privileges can't steal the file via snap run
 	// (also note that the (potentially untrusted) snap isn't running yet).
-	fi, err := fin.Stat()
-	if err != nil {
-		return "", err
-	}
+	fi := mylog.Check2(fin.Stat())
+
 	sys := fi.Sys()
 	if sys == nil {
 		return "", fmt.Errorf(i18n.G("cannot validate owner of file %s"), fin.Name())
@@ -725,7 +660,7 @@ func migrateXauthority(info *snap.Info) (string, error) {
 	// of snapd.
 	if osutil.FileExists(targetPath) {
 		var fout *os.File
-		if fout, err = os.Open(targetPath); err != nil {
+		if fout = mylog.Check2(os.Open(targetPath)); err != nil {
 			return "", err
 		}
 		if osutil.StreamsEqual(fin, fout) {
@@ -734,41 +669,31 @@ func migrateXauthority(info *snap.Info) (string, error) {
 		}
 
 		fout.Close()
-		if err := os.Remove(targetPath); err != nil {
-			return "", err
-		}
+		mylog.Check(os.Remove(targetPath))
+		mylog.Check2(
 
-		// Ensure we're validating the Xauthority file from the beginning
-		if _, err := fin.Seek(int64(os.SEEK_SET), 0); err != nil {
-			return "", err
-		}
-	}
+			// Ensure we're validating the Xauthority file from the beginning
+			fin.Seek(int64(os.SEEK_SET), 0))
 
-	// To guard against setting XAUTHORITY to non-xauth files, check
-	// that we have a valid Xauthority. Specifically, the file must be
-	// parseable as an Xauthority file and not be empty.
-	if err := x11.ValidateXauthority(fin); err != nil {
-		return "", err
 	}
+	mylog.Check(
 
-	// Read data from the beginning of the file
-	if _, err = fin.Seek(int64(os.SEEK_SET), 0); err != nil {
-		return "", err
-	}
+		// To guard against setting XAUTHORITY to non-xauth files, check
+		// that we have a valid Xauthority. Specifically, the file must be
+		// parseable as an Xauthority file and not be empty.
+		x11.ValidateXauthority(fin))
+	mylog.Check2(
 
-	fout, err := os.OpenFile(targetPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
-	if err != nil {
-		return "", err
-	}
+		// Read data from the beginning of the file
+		fin.Seek(int64(os.SEEK_SET), 0))
+
+	fout := mylog.Check2(os.OpenFile(targetPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600))
+
 	defer fout.Close()
+	mylog.Check2(
 
-	// Read and write validated Xauthority file to its right location
-	if _, err = io.Copy(fout, fin); err != nil {
-		if err := os.Remove(targetPath); err != nil {
-			logger.Noticef("WARNING: cannot remove file at %s: %s", targetPath, err)
-		}
-		return "", fmt.Errorf(i18n.G("cannot write new Xauthority file at %s: %s"), targetPath, err)
-	}
+		// Read and write validated Xauthority file to its right location
+		io.Copy(fout, fin))
 
 	return targetPath, nil
 }
@@ -803,14 +728,11 @@ func activateXdgDocumentPortal(info *snap.Info, snapApp, hook string) error {
 	}
 
 	documentPortal := &portal.Document{}
-	expectedMountPoint, err := documentPortal.GetDefaultMountPoint()
-	if err != nil {
-		return err
-	}
+	expectedMountPoint := mylog.Check2(documentPortal.GetDefaultMountPoint())
 
 	// If $XDG_RUNTIME_DIR/doc appears to be a mount point, assume
 	// that the document portal is up and running.
-	if mounted, err := osutil.IsMounted(expectedMountPoint); err != nil {
+	if mounted := mylog.Check2(osutil.IsMounted(expectedMountPoint)); err != nil {
 		logger.Noticef("Could not check document portal mount state: %s", err)
 	} else if mounted {
 		return nil
@@ -830,31 +752,21 @@ func activateXdgDocumentPortal(info *snap.Info, snapApp, hook string) error {
 	//
 	// As the file is in $XDG_RUNTIME_DIR, it will be cleared over
 	// full logout/login or reboot cycles.
-	xdgRuntimeDir, err := documentPortal.GetUserXdgRuntimeDir()
-	if err != nil {
-		return err
-	}
+	xdgRuntimeDir := mylog.Check2(documentPortal.GetUserXdgRuntimeDir())
 
 	portalsUnavailableFile := filepath.Join(xdgRuntimeDir, ".portals-unavailable")
 	if osutil.FileExists(portalsUnavailableFile) {
 		return nil
 	}
 
-	actualMountPoint, err := documentPortal.GetMountPoint()
-	if err != nil {
-		// It is not considered an error if
-		// xdg-document-portal is not available on the system.
-		if dbusErr, ok := err.(dbus.Error); ok && dbusErr.Name == "org.freedesktop.DBus.Error.ServiceUnknown" {
-			// We ignore errors here: if writing the file
-			// fails, we'll just try connecting to D-Bus
-			// again next time.
-			if err = os.WriteFile(portalsUnavailableFile, []byte(""), 0644); err != nil {
-				logger.Noticef("WARNING: cannot write file at %s: %s", portalsUnavailableFile, err)
-			}
-			return nil
-		}
-		return err
-	}
+	actualMountPoint := mylog.Check2(documentPortal.GetMountPoint())
+
+	// It is not considered an error if
+	// xdg-document-portal is not available on the system.
+
+	// We ignore errors here: if writing the file
+	// fails, we'll just try connecting to D-Bus
+	// again next time.
 
 	// Quick check to make sure the document portal is exposed
 	// where we think it is.
@@ -878,10 +790,8 @@ or use your favorite gdb frontend and connect to %[1]s
 `
 
 func racyFindFreePort() (int, error) {
-	l, err := net.Listen("tcp", ":0")
-	if err != nil {
-		return 0, err
-	}
+	l := mylog.Check2(net.Listen("tcp", ":0"))
+
 	defer l.Close()
 	return l.Addr().(*net.TCPAddr).Port, nil
 }
@@ -902,25 +812,19 @@ func (x *cmdRun) runCmdUnderGdbserver(origCmd []string, envForExec envForExecFun
 	gcmd.Stdout = os.Stdout
 	gcmd.Stderr = os.Stderr
 	gcmd.Env = envForExec(map[string]string{"SNAP_CONFINE_RUN_UNDER_GDBSERVER": "1"})
-	if err := gcmd.Start(); err != nil {
-		return err
-	}
+	mylog.Check(gcmd.Start())
+
 	// wait for the child process executing gdb helper to raise SIGSTOP
 	// signalling readiness to attach a gdbserver process
 	var status syscall.WaitStatus
-	_, err := syscall.Wait4(gcmd.Process.Pid, &status, syscall.WSTOPPED, nil)
-	if err != nil {
-		return err
-	}
+	_ := mylog.Check2(syscall.Wait4(gcmd.Process.Pid, &status, syscall.WSTOPPED, nil))
 
 	addr := x.Gdbserver
 	if addr == ":0" {
 		// XXX: run "gdbserver :0" instead and parse "Listening on port 45971"
 		//      on stderr instead?
-		port, err := racyFindFreePort()
-		if err != nil {
-			return fmt.Errorf("cannot find free port: %v", err)
-		}
+		port := mylog.Check2(racyFindFreePort())
+
 		addr = fmt.Sprintf(":%v", port)
 	}
 	// XXX: should we provide a helper here instead? something like
@@ -930,7 +834,7 @@ func (x *cmdRun) runCmdUnderGdbserver(origCmd []string, envForExec envForExecFun
 	// note that only gdbserver needs to run as root, the application
 	// keeps running as the user
 	gdbSrvCmd := exec.Command("sudo", "-E", "gdbserver", "--attach", addr, strconv.Itoa(gcmd.Process.Pid))
-	if output, err := gdbSrvCmd.CombinedOutput(); err != nil {
+	if output := mylog.Check2(gdbSrvCmd.CombinedOutput()); err != nil {
 		return osutil.OutputErr(output, err)
 	}
 	return nil
@@ -951,21 +855,16 @@ func (x *cmdRun) runCmdUnderGdb(origCmd []string, envForExec envForExecFunc) err
 
 func (x *cmdRun) runCmdWithTraceExec(origCmd []string, envForExec envForExecFunc) error {
 	// setup private tmp dir with strace fifo
-	straceTmp, err := os.MkdirTemp("", "exec-trace")
-	if err != nil {
-		return err
-	}
+	straceTmp := mylog.Check2(os.MkdirTemp("", "exec-trace"))
+
 	defer os.RemoveAll(straceTmp)
 	straceLog := filepath.Join(straceTmp, "strace.fifo")
-	if err := syscall.Mkfifo(straceLog, 0640); err != nil {
-		return err
-	}
+	mylog.Check(syscall.Mkfifo(straceLog, 0640))
+
 	// ensure we have one writer on the fifo so that if strace fails
 	// nothing blocks
-	fw, err := os.OpenFile(straceLog, os.O_RDWR, 0640)
-	if err != nil {
-		return err
-	}
+	fw := mylog.Check2(os.OpenFile(straceLog, os.O_RDWR, 0640))
+
 	defer fw.Close()
 
 	// read strace data from fifo async
@@ -979,16 +878,14 @@ func (x *cmdRun) runCmdWithTraceExec(origCmd []string, envForExec envForExecFunc
 		close(doneCh)
 	}()
 
-	cmd, err := strace.TraceExecCommand(straceLog, origCmd...)
-	if err != nil {
-		return err
-	}
+	cmd := mylog.Check2(strace.TraceExecCommand(straceLog, origCmd...))
+
 	// run
 	cmd.Env = envForExec(nil)
 	cmd.Stdin = Stdin
 	cmd.Stdout = Stdout
 	cmd.Stderr = Stderr
-	err = cmd.Run()
+	mylog.Check(cmd.Run())
 	// ensure we close the fifo here so that the strace.TraceExecCommand()
 	// helper gets a EOF from the fifo (i.e. all writers must be closed
 	// for this)
@@ -1005,14 +902,9 @@ func (x *cmdRun) runCmdWithTraceExec(origCmd []string, envForExec envForExecFunc
 }
 
 func (x *cmdRun) runCmdUnderStrace(origCmd []string, envForExec envForExecFunc) error {
-	extraStraceOpts, raw, err := x.straceOpts()
-	if err != nil {
-		return err
-	}
-	cmd, err := strace.Command(extraStraceOpts, origCmd...)
-	if err != nil {
-		return err
-	}
+	extraStraceOpts, raw := mylog.Check3(x.straceOpts())
+
+	cmd := mylog.Check2(strace.Command(extraStraceOpts, origCmd...))
 
 	// run with filter
 	cmd.Env = envForExec(nil)
@@ -1029,14 +921,10 @@ func (x *cmdRun) runCmdUnderStrace(origCmd []string, envForExec envForExecFunc) 
 	// note hijacking stdout, means it is no longer a tty and programs
 	// expecting stdout to be on a terminal (eg. bash) may misbehave at this
 	// point
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return err
-	}
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		return err
-	}
+	stdout := mylog.Check2(cmd.StdoutPipe())
+
+	stderr := mylog.Check2(cmd.StderrPipe())
+
 	filterDone := make(chan struct{})
 	stdoutProxyDone := make(chan struct{})
 	go func() {
@@ -1048,10 +936,8 @@ func (x *cmdRun) runCmdUnderStrace(origCmd []string, envForExec envForExecFunc) 
 		// "exeve(" - show everything until we see this to
 		// not swallow real strace errors.
 		for {
-			s, err := r.ReadString('\n')
-			if err != nil {
-				break
-			}
+			s := mylog.Check2(r.ReadString('\n'))
+
 			if strings.Contains(s, "execve(") {
 				break
 			}
@@ -1071,12 +957,7 @@ func (x *cmdRun) runCmdUnderStrace(origCmd []string, envForExec envForExecFunc) 
 		needle2 := `execve("/snap`
 		for {
 			s, err := r.ReadString('\n')
-			if err != nil {
-				if err != io.EOF {
-					fmt.Fprintf(Stderr, "cannot read strace output: %s\n", err)
-				}
-				break
-			}
+
 			// Ensure we catch the execve but *not* the
 			// exec into
 			// /snap/core/current/usr/lib/snapd/snap-confine
@@ -1094,21 +975,17 @@ func (x *cmdRun) runCmdUnderStrace(origCmd []string, envForExec envForExecFunc) 
 		defer close(stdoutProxyDone)
 		io.Copy(Stdout, stdout)
 	}()
+	mylog.Check(cmd.Start())
 
-	if err := cmd.Start(); err != nil {
-		return err
-	}
 	<-filterDone
 	<-stdoutProxyDone
-	err = cmd.Wait()
+	mylog.Check(cmd.Wait())
 	return err
 }
 
 func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook string, beforeExec func() error, args []string) error {
-	snapConfine, err := snapdHelperPath("snap-confine")
-	if err != nil {
-		return err
-	}
+	snapConfine := mylog.Check2(snapdHelperPath("snap-confine"))
+
 	if !osutil.FileExists(snapConfine) {
 		if hook != "" {
 			logger.Noticef("WARNING: skipping running hook %q of snap %q: missing snap-confine", hook, info.InstanceName())
@@ -1120,23 +997,11 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	logger.Debugf("executing snap-confine from %s", snapConfine)
 
 	snapName, appName := snap.SplitSnapApp(snapApp)
-	opts, err := getSnapDirOptions(snapName)
-	if err != nil {
-		return fmt.Errorf("cannot get snap dir options: %w", err)
-	}
+	opts := mylog.Check2(getSnapDirOptions(snapName))
+	mylog.Check(createUserDataDirs(info, opts))
 
-	if err := createUserDataDirs(info, opts); err != nil {
-		logger.Noticef("WARNING: cannot create user data directory: %s", err)
-	}
-
-	xauthPath, err := migrateXauthority(info)
-	if err != nil {
-		logger.Noticef("WARNING: cannot copy user Xauthority file: %s", err)
-	}
-
-	if err := activateXdgDocumentPortal(info, snapApp, hook); err != nil {
-		logger.Noticef("WARNING: cannot start document portal: %s", err)
-	}
+	xauthPath := mylog.Check2(migrateXauthority(info))
+	mylog.Check(activateXdgDocumentPortal(info, snapApp, hook))
 
 	cmd := []string{snapConfine}
 	if info.NeedsClassic() {
@@ -1152,14 +1017,8 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	} else {
 		if info.Type() == snap.TypeKernel {
 			// kernels have no explicit base, we use the boot base
-			modelAssertion, err := x.client.CurrentModelAssertion()
-			if err != nil {
-				if hook != "" {
-					return fmt.Errorf("cannot get model assertion to setup kernel hook run: %v", err)
-				} else {
-					return fmt.Errorf("cannot get model assertion to setup kernel app run: %v", err)
-				}
-			}
+			modelAssertion := mylog.Check2(x.client.CurrentModelAssertion())
+
 			modelBase := modelAssertion.Base()
 			if modelBase != "" {
 				cmd = append(cmd, "--base", modelBase)
@@ -1174,10 +1033,7 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	if info.NeedsClassic() {
 		// running with classic confinement, carefully pick snap-exec we
 		// are going to use
-		snapExecPath, err = snapdHelperPath("snap-exec")
-		if err != nil {
-			return err
-		}
+		snapExecPath = mylog.Check2(snapdHelperPath("snap-exec"))
 	}
 	cmd = append(cmd, snapExecPath)
 
@@ -1202,10 +1058,8 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	cmd = append(cmd, snapApp)
 	cmd = append(cmd, args...)
 
-	env, err := osutil.OSEnvironment()
-	if err != nil {
-		return err
-	}
+	env := mylog.Check2(osutil.OSEnvironment())
+
 	snapenv.ExtendEnvForRun(env, info, opts)
 
 	if len(xauthPath) > 0 {
@@ -1275,54 +1129,41 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 		// tracking cgroup, named after the systemd unit name, and those are
 		// sufficient to identify both the snap name and the app name.
 		needsTracking = false
-		// however it is still possible that the app (which is a
-		// service) was invoked by the user, so it may be running inside
-		// a user's scope cgroup, in which case separate tracking group
-		// needs to be established
-		if err := cgroupConfirmSystemdServiceTracking(securityTag); err != nil {
-			if err == cgroup.ErrCannotTrackProcess {
-				// we are not being tracked in a service cgroup
-				// after all, go ahead and create a transient
-				// scope
-				needsTracking = true
-				logger.Debugf("service app not tracked by systemd")
-			} else {
-				return err
-			}
-		}
+		mylog.Check(
+			// however it is still possible that the app (which is a
+			// service) was invoked by the user, so it may be running inside
+			// a user's scope cgroup, in which case separate tracking group
+			// needs to be established
+			cgroupConfirmSystemdServiceTracking(securityTag))
+
+		// we are not being tracked in a service cgroup
+		// after all, go ahead and create a transient
+		// scope
+
 	}
 	// Allow using the session bus for all apps but not for hooks.
 	allowSessionBus := hook == ""
-	// Track, or confirm existing tracking from systemd.
-	if err := cgroupConfirmSystemdAppTracking(securityTag); err != nil {
-		if err != cgroup.ErrCannotTrackProcess {
-			return err
-		}
-	} else {
-		// A transient scope was already created in a previous attempt. Skip creating
-		// another transient scope to avoid leaking cgroups.
-		//
-		// Note: This could happen if beforeExec fails and triggers a retry.
-		needsTracking = false
-	}
+	mylog.Check(
+		// Track, or confirm existing tracking from systemd.
+		cgroupConfirmSystemdAppTracking(securityTag))
+
+	// A transient scope was already created in a previous attempt. Skip creating
+	// another transient scope to avoid leaking cgroups.
+	//
+	// Note: This could happen if beforeExec fails and triggers a retry.
+
 	if needsTracking {
 		opts := &cgroup.TrackingOptions{AllowSessionBus: allowSessionBus}
-		if err = cgroupCreateTransientScopeForTracking(securityTag, opts); err != nil {
-			if err != cgroup.ErrCannotTrackProcess {
-				return err
-			}
-			// If we cannot track the process then log a debug message.
-			// TODO: if we could, create a warning. Currently this is not possible
-			// because only snapd can create warnings, internally.
-			logger.Debugf("snapd cannot track the started application")
-			logger.Debugf("snap refreshes will not be postponed by this process")
-		}
+		mylog.Check(cgroupCreateTransientScopeForTracking(securityTag, opts))
+
+		// If we cannot track the process then log a debug message.
+		// TODO: if we could, create a warning. Currently this is not possible
+		// because only snapd can create warnings, internally.
+
 	}
 
 	if beforeExec != nil {
-		if err := beforeExec(); err != nil {
-			return err
-		}
+		mylog.Check(beforeExec())
 	}
 
 	logger.StartupStageTimestamp("snap to snap-confine")
@@ -1331,16 +1172,10 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	} else if x.Gdb {
 		return x.runCmdUnderGdb(cmd, envForExec)
 	} else if x.useGdbserver() {
-		if _, err := exec.LookPath("gdbserver"); err != nil {
-			// TODO: use xerrors.Is(err, exec.ErrNotFound) once
-			// we moved off from go-1.9
-			if execErr, ok := err.(*exec.Error); ok {
-				if execErr.Err == exec.ErrNotFound {
-					return fmt.Errorf("please install gdbserver on your system")
-				}
-			}
-			return err
-		}
+		mylog.Check2(exec.LookPath("gdbserver"))
+		// TODO: use xerrors.Is(err, exec.ErrNotFound) once
+		// we moved off from go-1.9
+
 		return x.runCmdUnderGdbserver(cmd, envForExec)
 	} else if x.useStrace() {
 		return x.runCmdUnderStrace(cmd, envForExec)
@@ -1352,20 +1187,16 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 func getSnapDirOptions(snap string) (*dirs.SnapDirOptions, error) {
 	var opts dirs.SnapDirOptions
 
-	data, err := os.ReadFile(filepath.Join(dirs.SnapSeqDir, snap+".json"))
+	data := mylog.Check2(os.ReadFile(filepath.Join(dirs.SnapSeqDir, snap+".json")))
 	if errors.Is(err, os.ErrNotExist) {
 		return &opts, nil
-	} else if err != nil {
-		return nil, err
 	}
 
 	var seq struct {
 		MigratedToHiddenDir   bool `json:"migrated-hidden"`
 		MigratedToExposedHome bool `json:"migrated-exposed-home"`
 	}
-	if err := json.Unmarshal(data, &seq); err != nil {
-		return nil, err
-	}
+	mylog.Check(json.Unmarshal(data, &seq))
 
 	opts.HiddenSnapDataDir = seq.MigratedToHiddenDir
 	opts.MigratedToExposedHome = seq.MigratedToExposedHome
@@ -1373,6 +1204,8 @@ func getSnapDirOptions(snap string) (*dirs.SnapDirOptions, error) {
 	return &opts, nil
 }
 
-var cgroupCreateTransientScopeForTracking = cgroup.CreateTransientScopeForTracking
-var cgroupConfirmSystemdServiceTracking = cgroup.ConfirmSystemdServiceTracking
-var cgroupConfirmSystemdAppTracking = cgroup.ConfirmSystemdAppTracking
+var (
+	cgroupCreateTransientScopeForTracking = cgroup.CreateTransientScopeForTracking
+	cgroupConfirmSystemdServiceTracking   = cgroup.ConfirmSystemdServiceTracking
+	cgroupConfirmSystemdAppTracking       = cgroup.ConfirmSystemdAppTracking
+)

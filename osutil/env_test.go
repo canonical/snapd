@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -125,33 +126,33 @@ func (s *envSuite) TestParseRawEnvironmentHappy(c *C) {
 			map[string]string{"K1": "V1", "K2": "V2"},
 		},
 	} {
-		env, err := osutil.ParseRawEnvironment(t.env)
-		c.Assert(err, IsNil)
+		env := mylog.Check2(osutil.ParseRawEnvironment(t.env))
+
 		c.Check(env, DeepEquals, osutil.Environment(t.expected), Commentf("invalid result for %q, got %q expected %q", t.env, env, t.expected))
 	}
 }
 
 func (s *envSuite) TestParseRawEnvironmentNotKeyValue(c *C) {
-	env, err := osutil.ParseRawEnvironment([]string{"KEY"})
+	env := mylog.Check2(osutil.ParseRawEnvironment([]string{"KEY"}))
 	c.Assert(err, ErrorMatches, `cannot parse environment entry: "KEY"`)
 	c.Assert(env, IsNil)
 }
 
 func (s *envSuite) TestParseRawEnvironmentEmptyKey(c *C) {
-	env, err := osutil.ParseRawEnvironment([]string{"=VALUE"})
+	env := mylog.Check2(osutil.ParseRawEnvironment([]string{"=VALUE"}))
 	c.Assert(err, ErrorMatches, `environment variable name cannot be empty: "=VALUE"`)
 	c.Assert(env, IsNil)
 }
 
 func (s *envSuite) TestParseRawEnvironmentDuplicateKey(c *C) {
-	env, err := osutil.ParseRawEnvironment([]string{"K=1", "K=2"})
+	env := mylog.Check2(osutil.ParseRawEnvironment([]string{"K=1", "K=2"}))
 	c.Assert(err, ErrorMatches, `cannot overwrite earlier value of "K"`)
 	c.Assert(env, IsNil)
 }
 
 func (s *envSuite) TestOSEnvironment(c *C) {
-	env, err := osutil.OSEnvironment()
-	c.Assert(err, IsNil)
+	env := mylog.Check2(osutil.OSEnvironment())
+
 	c.Check(len(os.Environ()), Equals, len(env.ForExec()))
 	c.Check(os.Getenv("PATH"), Equals, env["PATH"])
 }
@@ -164,8 +165,8 @@ func (s *envSuite) TestOSEnvironmentUnescapeUnsafe(c *C) {
 	os.Setenv("SNAPD_UNSAFE_PREFIX_SNAPDEXTRA", "1")
 	defer os.Unsetenv("SNAPD_UNSAFE_PREFIX_SNAPDEXTRA")
 
-	env, err := osutil.OSEnvironmentUnescapeUnsafe("SNAPD_UNSAFE_PREFIX_")
-	c.Assert(err, IsNil)
+	env := mylog.Check2(osutil.OSEnvironmentUnescapeUnsafe("SNAPD_UNSAFE_PREFIX_"))
+
 	// -1 because only the unescaped SNAPDEXTRA is kept
 	c.Check(len(os.Environ())-1, Equals, len(env.ForExec()))
 	c.Check(os.Getenv("PATH"), Equals, env["PATH"])
@@ -191,6 +192,7 @@ func (s *envSuite) TestForExec(c *C) {
 	env := osutil.Environment{"K1": "V1", "K2": "V2"}
 	c.Check(env.ForExec(), DeepEquals, []string{"K1=V1", "K2=V2"})
 }
+
 func (s *envSuite) TestNewExpandableEnv(c *C) {
 	eenv := osutil.NewExpandableEnv("K1", "V1", "K2", "$K1")
 	c.Check(eenv.Get("K1"), Equals, "V1")
@@ -198,26 +200,26 @@ func (s *envSuite) TestNewExpandableEnv(c *C) {
 }
 
 func (s *envSuite) TestParseRawExpandableEnvHappy(c *C) {
-	eenv, err := osutil.ParseRawExpandableEnv([]string{"K1=V1", "K2=$K1"})
-	c.Assert(err, IsNil)
+	eenv := mylog.Check2(osutil.ParseRawExpandableEnv([]string{"K1=V1", "K2=$K1"}))
+
 	c.Check(eenv.Get("K1"), Equals, "V1")
 	c.Check(eenv.Get("K2"), Equals, "$K1")
 }
 
 func (s *envSuite) TestParseRawExpandableEnvNotKeyValue(c *C) {
-	eenv, err := osutil.ParseRawExpandableEnv([]string{"KEY"})
+	eenv := mylog.Check2(osutil.ParseRawExpandableEnv([]string{"KEY"}))
 	c.Assert(err, ErrorMatches, `cannot parse environment entry: "KEY"`)
 	c.Assert(eenv, DeepEquals, osutil.ExpandableEnv{})
 }
 
 func (s *envSuite) TestParseRawExpandableEnvEmptyKey(c *C) {
-	eenv, err := osutil.ParseRawExpandableEnv([]string{"=VALUE"})
+	eenv := mylog.Check2(osutil.ParseRawExpandableEnv([]string{"=VALUE"}))
 	c.Assert(err, ErrorMatches, `environment variable name cannot be empty: "=VALUE"`)
 	c.Assert(eenv, DeepEquals, osutil.ExpandableEnv{})
 }
 
 func (s *envSuite) TestParseRawExpandableEnvDuplicateKey(c *C) {
-	eenv, err := osutil.ParseRawExpandableEnv([]string{"K=1", "K=2"})
+	eenv := mylog.Check2(osutil.ParseRawExpandableEnv([]string{"K=1", "K=2"}))
 	c.Assert(err, ErrorMatches, `cannot overwrite earlier value of "K"`)
 	c.Assert(eenv, DeepEquals, osutil.ExpandableEnv{})
 }
@@ -277,8 +279,8 @@ func (s *envSuite) TestExtendWithExpandedVarious(c *C) {
 		{"A=$B,B=$A", "A=,B="},
 		{"A=$B,B=$C,C=$A", "A=,B=,C="},
 	} {
-		eenv, err := osutil.ParseRawExpandableEnv(strings.Split(t.env, ","))
-		c.Assert(err, IsNil)
+		eenv := mylog.Check2(osutil.ParseRawExpandableEnv(strings.Split(t.env, ",")))
+
 		env := osutil.Environment{}
 		if strings.Contains(t.env, "PATH") {
 			env["PATH"] = os.Getenv("PATH")

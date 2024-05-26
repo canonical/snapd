@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/mount"
@@ -72,9 +73,8 @@ func cleanSubPath(path string) bool {
 }
 
 func validatePath(path string) error {
-	if err := apparmor_sandbox.ValidateNoAppArmorRegexp(path); err != nil {
-		return fmt.Errorf("content interface path is invalid: %v", err)
-	}
+	mylog.Check(apparmor_sandbox.ValidateNoAppArmorRegexp(path))
+
 	if ok := cleanSubPath(path); !ok {
 		return fmt.Errorf("content interface path is not clean: %q", path)
 	}
@@ -112,9 +112,7 @@ func (iface *contentInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	paths := rpath
 	paths = append(paths, wpath...)
 	for _, p := range paths {
-		if err := validatePath(p); err != nil {
-			return err
-		}
+		mylog.Check(validatePath(p))
 	}
 	return nil
 }
@@ -132,9 +130,7 @@ func (iface *contentInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 	if !ok || len(target) == 0 {
 		return fmt.Errorf("content plug must contain target path")
 	}
-	if err := validatePath(target); err != nil {
-		return err
-	}
+	mylog.Check(validatePath(target))
 
 	return nil
 }
@@ -149,17 +145,16 @@ func (iface *contentInterface) path(attrs interfaces.Attrer, name string) []stri
 	var paths []interface{}
 	var source map[string]interface{}
 
-	if err := attrs.Attr("source", &source); err == nil {
+	if mylog.Check(attrs.Attr("source", &source)); err == nil {
 		// Access either "source.read" or "source.write" attribute.
 		var ok bool
 		if paths, ok = source[name].([]interface{}); !ok {
 			return nil
 		}
 	} else {
-		// Access either "read" or "write" attribute directly (legacy).
-		if err := attrs.Attr(name, &paths); err != nil {
-			return nil
-		}
+		mylog.Check(
+			// Access either "read" or "write" attribute directly (legacy).
+			attrs.Attr(name, &paths))
 	}
 
 	out := make([]string, len(paths))
@@ -180,7 +175,7 @@ func (iface *contentInterface) path(attrs interfaces.Attrer, name string) []stri
 func resolveSpecialVariable(path string, snapInfo *snap.Info) string {
 	// Content cannot be mounted at arbitrary locations, validate the path
 	// for extra safety.
-	if err := snap.ValidatePathVariables(path); err == nil && strings.HasPrefix(path, "$") {
+	if mylog.Check(snap.ValidatePathVariables(path)); err == nil && strings.HasPrefix(path, "$") {
 		// The path starts with $ and ValidatePathVariables() ensures
 		// path contains only $SNAP, $SNAP_DATA, $SNAP_COMMON, and no
 		// other $VARs are present. It is ok to use
@@ -202,7 +197,7 @@ func sourceTarget(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot
 
 	// Check if the "source" section is present.
 	var unused map[string]interface{}
-	if err := slot.Attr("source", &unused); err == nil {
+	if mylog.Check(slot.Attr("source", &unused)); err == nil {
 		_, sourceName := filepath.Split(source)
 		target = filepath.Join(target, sourceName)
 	}
@@ -309,16 +304,10 @@ func (iface *contentInterface) AutoConnect(plug *snap.PlugInfo, slot *snap.SlotI
 
 func (iface *contentInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	for _, r := range iface.path(slot, "read") {
-		err := spec.AddMountEntry(mountEntry(plug, slot, r, "ro"))
-		if err != nil {
-			return err
-		}
+		mylog.Check(spec.AddMountEntry(mountEntry(plug, slot, r, "ro")))
 	}
 	for _, w := range iface.path(slot, "write") {
-		err := spec.AddMountEntry(mountEntry(plug, slot, w))
-		if err != nil {
-			return err
-		}
+		mylog.Check(spec.AddMountEntry(mountEntry(plug, slot, w)))
 	}
 	return nil
 }

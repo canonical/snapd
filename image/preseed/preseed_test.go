@@ -28,6 +28,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/dirs"
@@ -162,8 +163,8 @@ func (s *preseedSuite) TestSystemSnapFromSeed(c *C) {
 	})
 	defer restore()
 
-	path, _, err := preseed.SystemSnapFromSeed(tmpDir, "")
-	c.Assert(err, IsNil)
+	path, _ := mylog.Check3(preseed.SystemSnapFromSeed(tmpDir, ""))
+
 	c.Check(path, Equals, "/some/path/core")
 }
 
@@ -179,8 +180,8 @@ func (s *preseedSuite) TestSystemSnapFromSnapdSeed(c *C) {
 	})
 	defer restore()
 
-	path, _, err := preseed.SystemSnapFromSeed(tmpDir, "")
-	c.Assert(err, IsNil)
+	path, _ := mylog.Check3(preseed.SystemSnapFromSeed(tmpDir, ""))
+
 	c.Check(path, Equals, "/some/path/snapd.snap")
 }
 
@@ -190,7 +191,7 @@ func (s *preseedSuite) TestSystemSnapFromSeedOpenError(c *C) {
 	restore := preseed.MockSeedOpen(func(rootDir, label string) (seed.Seed, error) { return nil, fmt.Errorf("fail") })
 	defer restore()
 
-	_, _, err := preseed.SystemSnapFromSeed(tmpDir, "")
+	_, _ := mylog.Check3(preseed.SystemSnapFromSeed(tmpDir, ""))
 	c.Assert(err, ErrorMatches, "fail")
 }
 
@@ -204,20 +205,20 @@ func (s *preseedSuite) TestSystemSnapFromSeedErrors(c *C) {
 	defer restore()
 
 	fakeSeed.Essential = []*seed.Snap{{Path: "", SideInfo: &snap.SideInfo{RealName: "core"}}}
-	_, _, err := preseed.SystemSnapFromSeed(tmpDir, "")
+	_, _ := mylog.Check3(preseed.SystemSnapFromSeed(tmpDir, ""))
 	c.Assert(err, ErrorMatches, "core snap not found")
 
 	fakeSeed.Essential = []*seed.Snap{{Path: "/some/path", SideInfo: &snap.SideInfo{RealName: "foosnap"}}}
-	_, _, err = preseed.SystemSnapFromSeed(tmpDir, "")
+	_, _ = mylog.Check3(preseed.SystemSnapFromSeed(tmpDir, ""))
 	c.Assert(err, ErrorMatches, "core snap not found")
 
 	fakeSeed.LoadMetaErr = fmt.Errorf("load meta failed")
-	_, _, err = preseed.SystemSnapFromSeed(tmpDir, "")
+	_, _ = mylog.Check3(preseed.SystemSnapFromSeed(tmpDir, ""))
 	c.Assert(err, ErrorMatches, "load meta failed")
 
 	fakeSeed.LoadMetaErr = nil
 	fakeSeed.LoadAssertionsErr = fmt.Errorf("load assertions failed")
-	_, _, err = preseed.SystemSnapFromSeed(tmpDir, "")
+	_, _ = mylog.Check3(preseed.SystemSnapFromSeed(tmpDir, ""))
 	c.Assert(err, ErrorMatches, "load assertions failed")
 }
 
@@ -231,7 +232,7 @@ func (s *preseedSuite) TestChooseTargetSnapdVersion(c *C) {
 	restoreMountPath := preseed.MockSnapdMountPath(targetSnapdRoot)
 	defer restoreMountPath()
 
-	var versions = []struct {
+	versions := []struct {
 		fromSnap        string
 		fromDeb         string
 		expectedPath    string
@@ -288,11 +289,11 @@ func (s *preseedSuite) TestChooseTargetSnapdVersion(c *C) {
 			c.Assert(os.WriteFile(infoFile, []byte(fmt.Sprintf("VERSION=%s", test.fromSnap)), 0644), IsNil)
 		}
 
-		targetSnapd, err := preseed.ChooseTargetSnapdVersion()
+		targetSnapd := mylog.Check2(preseed.ChooseTargetSnapdVersion())
 		if test.expectedErr != "" {
 			c.Assert(err, ErrorMatches, test.expectedErr)
 		} else {
-			c.Assert(err, IsNil)
+
 			c.Assert(targetSnapd, NotNil)
 			path, version := preseed.SnapdPathAndVersion(targetSnapd)
 			c.Check(path, Equals, test.expectedPath)
@@ -338,10 +339,12 @@ func (s *preseedSuite) TestCreatePreseedArtifact(c *C) {
 		WritableDir:      writableDir,
 	}
 
-	_, err := preseed.CreatePreseedArtifact(popts)
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(preseed.CreatePreseedArtifact(popts))
+
 	c.Check(mockTar.Calls(), DeepEquals, [][]string{
-		{"tar", "-czf", filepath.Join(tmpDir, "prepare-dir/system-seed/systems/20220203/preseed.tgz"), "-p", "-C",
-			filepath.Join(writableDir, "system-data"), "--exclude", "/etc/bar/x*", "etc/bar/a", "baz/b"},
+		{
+			"tar", "-czf", filepath.Join(tmpDir, "prepare-dir/system-seed/systems/20220203/preseed.tgz"), "-p", "-C",
+			filepath.Join(writableDir, "system-data"), "--exclude", "/etc/bar/x*", "etc/bar/a", "baz/b",
+		},
 	})
 }

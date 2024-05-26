@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	snap "github.com/snapcore/snapd/cmd/snap"
 )
 
@@ -463,7 +464,7 @@ seed-completion:   --
 				c.Assert(r.Method, Equals, "GET", comment)
 				c.Assert(r.URL.Path, Equals, "/v2/debug", comment)
 				c.Assert(r.URL.RawQuery, Equals, "aspect=seeding", comment)
-				data, err := io.ReadAll(r.Body)
+				data := mylog.Check2(io.ReadAll(r.Body))
 				c.Assert(err, IsNil, comment)
 				c.Assert(string(data), Equals, "", comment)
 				fmt.Fprintln(w, t.jsonResp)
@@ -475,7 +476,7 @@ seed-completion:   --
 		if t.hasUnicode {
 			args = append(args, "--unicode=always")
 		}
-		rest, err := snap.Parser(snap.Client()).ParseArgs(args)
+		rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs(args))
 		if t.expErr != "" {
 			c.Assert(err, ErrorMatches, t.expErr, comment)
 			c.Assert(s.Stdout(), Equals, "", comment)

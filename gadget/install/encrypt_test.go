@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/secboot"
@@ -82,7 +83,6 @@ func (s *encryptSuite) TestNewEncryptedDeviceLUKS(c *C) {
 		script := ""
 		if tc.mockedOpenErr != "" {
 			script = fmt.Sprintf("echo '%s'>&2; exit 1", tc.mockedOpenErr)
-
 		}
 		s.mockCryptsetup = testutil.MockCommand(c, "cryptsetup", script)
 		s.AddCleanup(s.mockCryptsetup.Restore)
@@ -97,18 +97,17 @@ func (s *encryptSuite) TestNewEncryptedDeviceLUKS(c *C) {
 		})
 		defer restore()
 
-		dev, err := install.NewEncryptedDeviceLUKS("/dev/node1", secboot.EncryptionTypeLUKS, s.mockedEncryptionKey, "some-label", "some-label")
+		dev := mylog.Check2(install.NewEncryptedDeviceLUKS("/dev/node1", secboot.EncryptionTypeLUKS, s.mockedEncryptionKey, "some-label", "some-label"))
 		c.Assert(calls, Equals, 1)
 		if tc.expectedErr == "" {
-			c.Assert(err, IsNil)
+
 		} else {
 			c.Assert(err, ErrorMatches, tc.expectedErr)
 			continue
 		}
 		c.Assert(dev.Node(), Equals, "/dev/mapper/some-label")
+		mylog.Check(dev.Close())
 
-		err = dev.Close()
-		c.Assert(err, IsNil)
 
 		c.Assert(s.mockCryptsetup.Calls(), DeepEquals, [][]string{
 			{"cryptsetup", "open", "--key-file", "-", "/dev/node1", "some-label"},

@@ -25,6 +25,7 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/healthstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -76,19 +77,15 @@ type healthCommand struct {
 	Code             string `long:"code" value-name:"<code>" description:"optional tool-friendly value representing the problem that makes the snap unhealthy.  Not a number, but a word with 3-30 characters matching [a-z](-?[a-z0-9])+"`
 }
 
-var (
-	validCode = regexp.MustCompile(`^[a-z](?:-?[a-z0-9])+$`).MatchString
-)
+var validCode = regexp.MustCompile(`^[a-z](?:-?[a-z0-9])+$`).MatchString
 
 func (c *healthCommand) Execute([]string) error {
 	if c.Status == "okay" && (len(c.Message) > 0 || len(c.Code) > 0) {
 		return fmt.Errorf(`when status is "okay", message and code must be empty`)
 	}
 
-	status, err := healthstate.StatusLookup(c.Status)
-	if err != nil {
-		return err
-	}
+	status := mylog.Check2(healthstate.StatusLookup(c.Status))
+
 	if status == healthstate.UnknownStatus {
 		return fmt.Errorf(`status cannot be manually set to "unknown"`)
 	}
@@ -116,10 +113,8 @@ func (c *healthCommand) Execute([]string) error {
 		}
 	}
 
-	ctx, err := c.ensureContext()
-	if err != nil {
-		return err
-	}
+	ctx := mylog.Check2(c.ensureContext())
+
 	ctx.Lock()
 	defer ctx.Unlock()
 
@@ -128,7 +123,7 @@ func (c *healthCommand) Execute([]string) error {
 	// if 'health' is there we've either already added an OnDone (and the
 	// following Set("health"), or we're in the set-health hook itself
 	// (which sets it to a fake entry for this purpose).
-	if err := ctx.Get("health", &v); errors.Is(err, state.ErrNoState) {
+	if mylog.Check(ctx.Get("health", &v)); errors.Is(err, state.ErrNoState) {
 		ctx.OnDone(func() error {
 			return healthstate.SetFromHookContext(ctx)
 		})

@@ -25,6 +25,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -56,10 +57,7 @@ func handleDebugSnapdLogConfiguration(tr RunTransaction, opts *fsOnlyContext) er
 		return nil
 	}
 
-	debugLog, err := coreCfg(tr, optionDebugSnapdLog)
-	if err != nil {
-		return err
-	}
+	debugLog := mylog.Check2(coreCfg(tr, optionDebugSnapdLog))
 
 	rootDir := dirs.GlobalRootDir
 	if opts != nil {
@@ -72,41 +70,36 @@ func handleDebugSnapdLogConfiguration(tr RunTransaction, opts *fsOnlyContext) er
 	var enableDebug bool
 	switch debugLog {
 	case "true":
-		if err := os.Mkdir(envDir, 0755); err != nil && !os.IsExist(err) {
+		if mylog.Check(os.Mkdir(envDir, 0755)); err != nil && !os.IsExist(err) {
 			return err
 		}
-		if err := osutil.EnsureFileState(snapdEnvPath, &osutil.MemoryFileState{
+		mylog.Check(osutil.EnsureFileState(snapdEnvPath, &osutil.MemoryFileState{
 			Content: []byte("SNAPD_DEBUG=1\n"),
 			Mode:    os.FileMode(0644),
-		}); err != nil {
-			return err
-		}
+		}))
+
 		enableDebug = true
 	case "false", "":
 		// We simply remove the env file as for the moment we use it
 		// just for SNAPD_DEBUG. If we change that we will need to
 		// locate the variable in the file and remove just that.
-		if err := os.Remove(snapdEnvPath); err != nil && !os.IsNotExist(err) {
+		if mylog.Check(os.Remove(snapdEnvPath)); err != nil && !os.IsNotExist(err) {
 			return err
 		}
 		enableDebug = false
 	default:
 		return fmt.Errorf("%s must be true of false, not: %q", optionDebugSnapdLog, debugLog)
 	}
+	mylog.Check(
 
-	// Enable/disable debug logging for current snapd instance
-	if err := loggerSimpleSetup(&logger.LoggerOptions{ForceDebug: enableDebug}); err != nil {
-		return err
-	}
+		// Enable/disable debug logging for current snapd instance
+		loggerSimpleSetup(&logger.LoggerOptions{ForceDebug: enableDebug}))
 
 	return nil
 }
 
 func validateDebugSystemdLogLevelSetting(tr RunTransaction) error {
-	value, err := coreCfg(tr, optionDebugSystemdLogLevel)
-	if err != nil {
-		return err
-	}
+	value := mylog.Check2(coreCfg(tr, optionDebugSystemdLogLevel))
 
 	switch value {
 	case "emerg", "alert", "crit", "err", "warning", "notice", "info", "debug",
@@ -126,10 +119,7 @@ func handleDebugSystemdLogLevelConfiguration(tr RunTransaction, opts *fsOnlyCont
 		return nil
 	}
 
-	logLevel, err := coreCfg(tr, optionDebugSystemdLogLevel)
-	if err != nil {
-		return err
-	}
+	logLevel := mylog.Check2(coreCfg(tr, optionDebugSystemdLogLevel))
 
 	var sysd systemd.Systemd
 	confDir := ""
@@ -143,25 +133,24 @@ func handleDebugSystemdLogLevelConfiguration(tr RunTransaction, opts *fsOnlyCont
 	confFile := filepath.Join(confDir, "20-debug_systemd_log-level.conf")
 
 	if logLevel == "" {
-		// On unsetting, remove the file.
-		if err := os.Remove(confFile); err != nil {
-			// Should be here, show a warning
-			logger.Noticef("warning: while removing %q: %v", confFile, err)
-		}
+		mylog.Check(
+			// On unsetting, remove the file.
+			os.Remove(confFile))
+		// Should be here, show a warning
+
 		// and set log level to the default
 		logLevel = "info"
 	} else {
 		// Otherwise, write persistent configuration
-		if err := os.MkdirAll(confDir, 0755); err != nil && !os.IsExist(err) {
+		if mylog.Check(os.MkdirAll(confDir, 0755)); err != nil && !os.IsExist(err) {
 			return err
 		}
 		confData := fmt.Sprintf("[Manager]\nLogLevel=%s\n", logLevel)
-		if err := osutil.EnsureFileState(confFile, &osutil.MemoryFileState{
+		mylog.Check(osutil.EnsureFileState(confFile, &osutil.MemoryFileState{
 			Content: []byte(confData),
 			Mode:    os.FileMode(0644),
-		}); err != nil {
-			return err
-		}
+		}))
+
 	}
 
 	// Set log level for the current systemd instance

@@ -31,6 +31,7 @@ import (
 	"golang.org/x/crypto/openpgp/packet"
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/osutil"
@@ -66,14 +67,14 @@ func (gkms *gpgKeypairMgrSuite) TearDownTest(c *C) {
 }
 
 func (gkms *gpgKeypairMgrSuite) TestGetPublicKeyLooksGood(c *C) {
-	got, err := gkms.keypairMgr.Get(assertstest.DevKeyID)
-	c.Assert(err, IsNil)
+	got := mylog.Check2(gkms.keypairMgr.Get(assertstest.DevKeyID))
+
 	keyID := got.PublicKey().ID()
 	c.Check(keyID, Equals, assertstest.DevKeyID)
 }
 
 func (gkms *gpgKeypairMgrSuite) TestGetNotFound(c *C) {
-	got, err := gkms.keypairMgr.Get("ffffffffffffffff")
+	got := mylog.Check2(gkms.keypairMgr.Get("ffffffffffffffff"))
 	c.Check(err, ErrorMatches, `cannot find key pair in GPG keyring`)
 	c.Check(asserts.IsKeyNotFound(err), Equals, true)
 	c.Check(got, IsNil)
@@ -81,7 +82,7 @@ func (gkms *gpgKeypairMgrSuite) TestGetNotFound(c *C) {
 
 func (gkms *gpgKeypairMgrSuite) TestGetByNameNotFound(c *C) {
 	gpgKeypairMgr := gkms.keypairMgr.(*asserts.GPGKeypairManager)
-	got, err := gpgKeypairMgr.GetByName("missing")
+	got := mylog.Check2(gpgKeypairMgr.GetByName("missing"))
 	c.Check(err, ErrorMatches, `cannot find key pair in GPG keyring`)
 	c.Check(asserts.IsKeyNotFound(err), Equals, true)
 	c.Check(got, IsNil)
@@ -90,32 +91,34 @@ func (gkms *gpgKeypairMgrSuite) TestGetByNameNotFound(c *C) {
 func (gkms *gpgKeypairMgrSuite) TestUseInSigning(c *C) {
 	store := assertstest.NewStoreStack("trusted", nil)
 
-	devKey, err := gkms.keypairMgr.Get(assertstest.DevKeyID)
-	c.Assert(err, IsNil)
+	devKey := mylog.Check2(gkms.keypairMgr.Get(assertstest.DevKeyID))
+
 
 	devAcct := assertstest.NewAccount(store, "devel1", map[string]interface{}{
 		"account-id": "dev1-id",
 	}, "")
 	devAccKey := assertstest.NewAccountKey(store, devAcct, nil, devKey.PublicKey(), "")
 
-	signDB, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+	signDB := mylog.Check2(asserts.OpenDatabase(&asserts.DatabaseConfig{
 		KeypairManager: gkms.keypairMgr,
-	})
-	c.Assert(err, IsNil)
+	}))
 
-	checkDB, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+
+	checkDB := mylog.Check2(asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
 		Trusted:   store.Trusted,
-	})
-	c.Assert(err, IsNil)
-	// add store key
-	err = checkDB.Add(store.StoreAccountKey(""))
-	c.Assert(err, IsNil)
-	// enable devel key
-	err = checkDB.Add(devAcct)
-	c.Assert(err, IsNil)
-	err = checkDB.Add(devAccKey)
-	c.Assert(err, IsNil)
+	}))
+
+	mylog.
+		// add store key
+		Check(checkDB.Add(store.StoreAccountKey("")))
+
+	mylog.
+		// enable devel key
+		Check(checkDB.Add(devAcct))
+
+	mylog.Check(checkDB.Add(devAccKey))
+
 
 	headers := map[string]interface{}{
 		"authority-id":  "dev1-id",
@@ -125,10 +128,9 @@ func (gkms *gpgKeypairMgrSuite) TestUseInSigning(c *C) {
 		"snap-size":     "1025",
 		"timestamp":     time.Now().Format(time.RFC3339),
 	}
-	snapBuild, err := signDB.Sign(asserts.SnapBuildType, headers, nil, assertstest.DevKeyID)
-	c.Assert(err, IsNil)
+	snapBuild := mylog.Check2(signDB.Sign(asserts.SnapBuildType, headers, nil, assertstest.DevKeyID))
 
-	err = checkDB.Check(snapBuild)
+	mylog.Check(checkDB.Check(snapBuild))
 	c.Check(err, IsNil)
 }
 
@@ -139,23 +141,23 @@ func (gkms *gpgKeypairMgrSuite) TestGetNotUnique(c *C) {
 		}
 		c.Assert(args[1], Equals, "--export")
 
-		pk1, err := rsa.GenerateKey(rand.Reader, 512)
-		c.Assert(err, IsNil)
-		pk2, err := rsa.GenerateKey(rand.Reader, 512)
-		c.Assert(err, IsNil)
+		pk1 := mylog.Check2(rsa.GenerateKey(rand.Reader, 512))
+
+		pk2 := mylog.Check2(rsa.GenerateKey(rand.Reader, 512))
+
 
 		buf := new(bytes.Buffer)
-		err = packet.NewRSAPublicKey(time.Now(), &pk1.PublicKey).Serialize(buf)
-		c.Assert(err, IsNil)
-		err = packet.NewRSAPublicKey(time.Now(), &pk2.PublicKey).Serialize(buf)
-		c.Assert(err, IsNil)
+		mylog.Check(packet.NewRSAPublicKey(time.Now(), &pk1.PublicKey).Serialize(buf))
+
+		mylog.Check(packet.NewRSAPublicKey(time.Now(), &pk2.PublicKey).Serialize(buf))
+
 
 		return buf.Bytes(), nil
 	}
 	restore := asserts.MockRunGPG(mockGPG)
 	defer restore()
 
-	_, err := gkms.keypairMgr.Get(assertstest.DevKeyID)
+	_ := mylog.Check2(gkms.keypairMgr.Get(assertstest.DevKeyID))
 	c.Check(err, ErrorMatches, `cannot load GPG public key with fingerprint "[A-F0-9]+": cannot select exported public key, found many`)
 }
 
@@ -182,9 +184,8 @@ func (gkms *gpgKeypairMgrSuite) TestUseInSigningBrokenSignature(c *C) {
 
 		h := sig.Hash.New()
 		h.Write([]byte(cont))
+		mylog.Check(sig.Sign(h, pgpPrivKey, nil))
 
-		err := sig.Sign(h, pgpPrivKey, nil)
-		c.Assert(err, IsNil)
 
 		buf := new(bytes.Buffer)
 		sig.Serialize(buf)
@@ -193,10 +194,10 @@ func (gkms *gpgKeypairMgrSuite) TestUseInSigningBrokenSignature(c *C) {
 	restore := asserts.MockRunGPG(mockGPG)
 	defer restore()
 
-	signDB, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+	signDB := mylog.Check2(asserts.OpenDatabase(&asserts.DatabaseConfig{
 		KeypairManager: gkms.keypairMgr,
-	})
-	c.Assert(err, IsNil)
+	}))
+
 
 	headers := map[string]interface{}{
 		"authority-id":  "dev1-id",
@@ -223,10 +224,9 @@ func (gkms *gpgKeypairMgrSuite) TestUseInSigningBrokenSignature(c *C) {
 	for _, t := range tests {
 		breakSig = t.breakSig
 
-		_, err = signDB.Sign(asserts.SnapBuildType, headers, nil, assertstest.DevKeyID)
+		_ = mylog.Check2(signDB.Sign(asserts.SnapBuildType, headers, nil, assertstest.DevKeyID))
 		c.Check(err, ErrorMatches, t.expectedErr)
 	}
-
 }
 
 func (gkms *gpgKeypairMgrSuite) TestUseInSigningFailure(c *C) {
@@ -241,10 +241,10 @@ func (gkms *gpgKeypairMgrSuite) TestUseInSigningFailure(c *C) {
 	restore := asserts.MockRunGPG(mockGPG)
 	defer restore()
 
-	signDB, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+	signDB := mylog.Check2(asserts.OpenDatabase(&asserts.DatabaseConfig{
 		KeypairManager: gkms.keypairMgr,
-	})
-	c.Assert(err, IsNil)
+	}))
+
 
 	headers := map[string]interface{}{
 		"authority-id":  "dev1-id",
@@ -255,7 +255,7 @@ func (gkms *gpgKeypairMgrSuite) TestUseInSigningFailure(c *C) {
 		"timestamp":     time.Now().Format(time.RFC3339),
 	}
 
-	_, err = signDB.Sign(asserts.SnapBuildType, headers, nil, assertstest.DevKeyID)
+	_ = mylog.Check2(signDB.Sign(asserts.SnapBuildType, headers, nil, assertstest.DevKeyID))
 	c.Check(err, ErrorMatches, "cannot sign assertion: cannot sign using GPG: boom")
 }
 
@@ -296,10 +296,10 @@ func (gkms *gpgKeypairMgrSuite) TestUseInSigningKeyTooShort(c *C) {
 	gkms.importKey(shortPrivKey)
 	privk, _ := assertstest.ReadPrivKey(shortPrivKey)
 
-	signDB, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+	signDB := mylog.Check2(asserts.OpenDatabase(&asserts.DatabaseConfig{
 		KeypairManager: gkms.keypairMgr,
-	})
-	c.Assert(err, IsNil)
+	}))
+
 
 	headers := map[string]interface{}{
 		"authority-id":  "dev1-id",
@@ -310,7 +310,7 @@ func (gkms *gpgKeypairMgrSuite) TestUseInSigningKeyTooShort(c *C) {
 		"timestamp":     time.Now().Format(time.RFC3339),
 	}
 
-	_, err = signDB.Sign(asserts.SnapBuildType, headers, nil, privk.PublicKey().ID())
+	_ = mylog.Check2(signDB.Sign(asserts.SnapBuildType, headers, nil, privk.PublicKey().ID()))
 	c.Check(err, ErrorMatches, `cannot sign assertion: signing needs at least a 4096 bits key, got 2048`)
 }
 
@@ -341,8 +341,8 @@ Preferences: SHA512
 func (gkms *gpgKeypairMgrSuite) TestList(c *C) {
 	gpgKeypairMgr := gkms.keypairMgr.(*asserts.GPGKeypairManager)
 
-	keys, err := gpgKeypairMgr.List()
-	c.Assert(err, IsNil)
+	keys := mylog.Check2(gpgKeypairMgr.List())
+
 	c.Check(keys, HasLen, 1)
 	c.Check(keys[0].ID, Equals, assertstest.DevKeyID)
 	c.Check(keys[0].Name, Not(Equals), "")
@@ -352,15 +352,13 @@ func (gkms *gpgKeypairMgrSuite) TestDelete(c *C) {
 	defer asserts.GPGBatchYes()()
 
 	keyID := assertstest.DevKeyID
-	_, err := gkms.keypairMgr.Get(keyID)
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(gkms.keypairMgr.Get(keyID))
 
-	err = gkms.keypairMgr.Delete(keyID)
-	c.Assert(err, IsNil)
+	mylog.Check(gkms.keypairMgr.Delete(keyID))
 
-	err = gkms.keypairMgr.Delete(keyID)
+	mylog.Check(gkms.keypairMgr.Delete(keyID))
 	c.Check(err, ErrorMatches, `cannot find key.*`)
 
-	_, err = gkms.keypairMgr.Get(keyID)
+	_ = mylog.Check2(gkms.keypairMgr.Get(keyID))
 	c.Check(err, ErrorMatches, `cannot find key.*`)
 }

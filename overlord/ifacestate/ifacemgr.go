@@ -24,6 +24,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/backends"
 	"github.com/snapcore/snapd/logger"
@@ -140,39 +141,23 @@ func (m *InterfaceManager) StartUp() error {
 	s.Lock()
 	defer s.Unlock()
 
-	snaps, err := snapsWithSecurityProfiles(m.state)
-	if err != nil {
-		return err
-	}
+	snaps := mylog.Check2(snapsWithSecurityProfiles(m.state))
+
 	// Before deciding about adding implicit slots to any snap we need to scan
 	// the set of snaps we know about. If any of those is "snapd" then for the
 	// duration of this process always add implicit slots to snapd and not to
 	// any other type: os snap and use a mapper to use names core-snapd-system
 	// on state, in memory and in API responses, respectively.
 	m.selectInterfaceMapper(snaps)
+	mylog.Check(m.addInterfaces(m.extraInterfaces))
+	mylog.Check(m.addBackends(m.extraBackends))
+	mylog.Check(m.addSnaps(snaps))
+	mylog.Check(m.renameCorePlugConnection())
+	mylog.Check(removeStaleConnections(m.state))
+	mylog.Check2(m.reloadConnections(""))
 
-	if err := m.addInterfaces(m.extraInterfaces); err != nil {
-		return err
-	}
-	if err := m.addBackends(m.extraBackends); err != nil {
-		return err
-	}
-	if err := m.addSnaps(snaps); err != nil {
-		return err
-	}
-	if err := m.renameCorePlugConnection(); err != nil {
-		return err
-	}
-	if err := removeStaleConnections(m.state); err != nil {
-		return err
-	}
-	if _, err := m.reloadConnections(""); err != nil {
-		return err
-	}
 	if profilesNeedRegeneration() {
-		if err := m.regenerateAllSecurityProfiles(perfTimings); err != nil {
-			return err
-		}
+		mylog.Check(m.regenerateAllSecurityProfiles(perfTimings))
 	}
 	if snapdAppArmorServiceIsDisabled() {
 		s.Warnf(`the snapd.apparmor service is disabled; snap applications will likely not start.
@@ -215,10 +200,8 @@ func (m *InterfaceManager) Ensure() error {
 	// retry udev monitor initialization every 5 minutes
 	now := time.Now()
 	if now.After(m.udevRetryTimeout) {
-		err := m.initUDevMonitor()
-		if err != nil {
-			m.udevRetryTimeout = now.Add(udevInitRetryTimeout)
-		}
+		mylog.Check(m.initUDevMonitor())
+
 		return err
 	}
 	return nil
@@ -233,9 +216,8 @@ func (m *InterfaceManager) Stop() {
 	if udevMon == nil {
 		return
 	}
-	if err := udevMon.Stop(); err != nil {
-		logger.Noticef("Cannot stop udev monitor: %s", err)
-	}
+	mylog.Check(udevMon.Stop())
+
 	m.udevMonMu.Lock()
 	defer m.udevMonMu.Unlock()
 	m.udevMon = nil
@@ -282,10 +264,7 @@ func (c ConnectionState) Active() bool {
 // snap info if needed.
 // The state must be locked by the caller.
 func ConnectionStates(st *state.State) (connStateByRef map[string]ConnectionState, err error) {
-	states, err := getConns(st)
-	if err != nil {
-		return nil, err
-	}
+	states := mylog.Check2(getConns(st))
 
 	connStateByRef = make(map[string]ConnectionState, len(states))
 	for cref, cstate := range states {
@@ -332,10 +311,8 @@ func (m *InterfaceManager) ResolveDisconnect(plugSnapName, plugName, slotSnapNam
 	var connectedPlugOrSlot func(snapName, plugOrSlotName string) ([]*interfaces.ConnRef, error)
 
 	if forget {
-		conns, err := getConns(m.state)
-		if err != nil {
-			return nil, err
-		}
+		conns := mylog.Check2(getConns(m.state))
+
 		connected = func(plugSn, plug, slotSn, slot string) (bool, error) {
 			cref := interfaces.ConnRef{
 				PlugRef: interfaces.PlugRef{Snap: plugSn, Name: plug},
@@ -348,10 +325,8 @@ func (m *InterfaceManager) ResolveDisconnect(plugSnapName, plugName, slotSnapNam
 		connectedPlugOrSlot = func(snapName, plugOrSlotName string) ([]*interfaces.ConnRef, error) {
 			var refs []*interfaces.ConnRef
 			for connID := range conns {
-				cref, err := interfaces.ParseConnRef(connID)
-				if err != nil {
-					return nil, err
-				}
+				cref := mylog.Check2(interfaces.ParseConnRef(connID))
+
 				if cref.PlugRef.Snap == snapName && cref.PlugRef.Name == plugOrSlotName {
 					refs = append(refs, cref)
 				}
@@ -363,16 +338,14 @@ func (m *InterfaceManager) ResolveDisconnect(plugSnapName, plugName, slotSnapNam
 		}
 	} else {
 		connected = func(plugSn, plug, slotSn, slot string) (bool, error) {
-			_, err := m.repo.Connection(&interfaces.ConnRef{
+			_ := mylog.Check2(m.repo.Connection(&interfaces.ConnRef{
 				PlugRef: interfaces.PlugRef{Snap: plugSn, Name: plug},
 				SlotRef: interfaces.SlotRef{Snap: slotSn, Name: slot},
-			})
+			}))
 			if _, notConnected := err.(*interfaces.NotConnectedError); notConnected {
 				return false, nil
 			}
-			if err != nil {
-				return false, err
-			}
+
 			return true, nil
 		}
 
@@ -397,10 +370,8 @@ func (m *InterfaceManager) ResolveDisconnect(plugSnapName, plugName, slotSnapNam
 			slotSnapName = coreSnapName
 		}
 		// Ensure that slot and plug are connected
-		isConnected, err := connected(plugSnapName, plugName, slotSnapName, slotName)
-		if err != nil {
-			return nil, err
-		}
+		isConnected := mylog.Check2(connected(plugSnapName, plugName, slotSnapName, slotName))
+
 		if !isConnected {
 			if forget {
 				return nil, fmt.Errorf("cannot forget connection %s:%s from %s:%s, it was not connected",
@@ -413,7 +384,8 @@ func (m *InterfaceManager) ResolveDisconnect(plugSnapName, plugName, slotSnapNam
 			{
 				PlugRef: interfaces.PlugRef{Snap: plugSnapName, Name: plugName},
 				SlotRef: interfaces.SlotRef{Snap: slotSnapName, Name: slotName},
-			}}, nil
+			},
+		}, nil
 	// 2: <snap>:<plug or slot> (through 1st pair)
 	// Return a list of connections involving specified plug or slot.
 	case plugName != "" && slotName == "" && slotSnapName == "":
@@ -454,12 +426,8 @@ var (
 
 func (m *InterfaceManager) initUDevMonitor() error {
 	mon := createUDevMonitor(m.hotplugDeviceAdded, m.hotplugDeviceRemoved, m.hotplugEnumerationDone)
-	if err := mon.Connect(); err != nil {
-		return err
-	}
-	if err := mon.Run(); err != nil {
-		return err
-	}
+	mylog.Check(mon.Connect())
+	mylog.Check(mon.Run())
 
 	m.udevMonMu.Lock()
 	defer m.udevMonMu.Unlock()

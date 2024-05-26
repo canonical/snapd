@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"sync/atomic"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/godbus/dbus"
 )
 
@@ -101,10 +102,8 @@ func (s *testDBusStream) decodeRequest(req []byte) {
 	}
 
 	// After authentication the buffer must contain marshaled DBus messages.
-	msgIn, err := dbus.DecodeMessage(buf)
-	if err != nil {
-		panic(fmt.Errorf("cannot decode incoming message: %v", err))
-	}
+	msgIn := mylog.Check2(dbus.DecodeMessage(buf))
+
 	switch s.n {
 	case 0:
 		// The very first message we receive is a Hello message sent from
@@ -134,10 +133,8 @@ func (s *testDBusStream) decodeRequest(req []byte) {
 			Body: []interface{}{testDBusClientName},
 		})
 	default:
-		msgOutList, err := s.handler(msgIn, s.n-1)
-		if err != nil {
-			panic("cannot handle message: " + err.Error())
-		}
+		msgOutList := mylog.Check2(s.handler(msgIn, s.n-1))
+
 		for _, msgOut := range msgOutList {
 			// Test code does not need to provide the address of the sender.
 			if _, ok := msgOut.Headers[dbus.FieldSender]; !ok {
@@ -152,9 +149,8 @@ func (s *testDBusStream) decodeRequest(req []byte) {
 func (s *testDBusStream) sendMsg(msg *dbus.Message) {
 	// TODO: handle big endian if we ever get big endian machines again.
 	var buf bytes.Buffer
-	if err := msg.EncodeTo(&buf, binary.LittleEndian); err != nil {
-		panic(fmt.Errorf("cannot encode outgoing message: %v", err))
-	}
+	mylog.Check(msg.EncodeTo(&buf, binary.LittleEndian))
+
 	s.output <- buf.Bytes()
 }
 
@@ -231,18 +227,10 @@ type InjectMessageFunc func(msg *dbus.Message)
 // test client.
 func InjectableConnection(handler DBusHandlerFunc) (*dbus.Conn, InjectMessageFunc, error) {
 	testDBusStream := newTestDBusStream(handler)
-	conn, err := dbus.NewConn(testDBusStream)
-	if err != nil {
-		return nil, nil, err
-	}
-	if err = conn.Auth([]dbus.Auth{&testAuth{}}); err != nil {
-		_ = conn.Close()
-		return nil, nil, err
-	}
-	if err = conn.Hello(); err != nil {
-		_ = conn.Close()
-		return nil, nil, err
-	}
+	conn := mylog.Check2(dbus.NewConn(testDBusStream))
+	mylog.Check(conn.Auth([]dbus.Auth{&testAuth{}}))
+	mylog.Check(conn.Hello())
+
 	return conn, testDBusStream.InjectMessage, nil
 }
 
@@ -251,6 +239,6 @@ func InjectableConnection(handler DBusHandlerFunc) (*dbus.Conn, InjectMessageFun
 // The handler function is called for each message sent to the bus. It can
 // return any number of messages to send in response.
 func Connection(handler DBusHandlerFunc) (*dbus.Conn, error) {
-	conn, _, err := InjectableConnection(handler)
+	conn, _ := mylog.Check3(InjectableConnection(handler))
 	return conn, err
 }

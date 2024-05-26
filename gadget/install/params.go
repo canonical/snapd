@@ -84,7 +84,8 @@ type MockEncryptedDeviceAndRole struct {
 // packages.
 func MockEncryptionSetupData(labelToEncDevice map[string]*MockEncryptedDeviceAndRole) *EncryptionSetupData {
 	esd := &EncryptionSetupData{
-		parts: map[string]partEncryptionData{}}
+		parts: map[string]partEncryptionData{},
+	}
 	for label, encryptData := range labelToEncDevice {
 		esd.parts[label] = partEncryptionData{
 			role:                encryptData.Role,

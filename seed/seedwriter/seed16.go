@@ -26,6 +26,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/seed/internal"
 	"github.com/snapcore/snapd/snap"
@@ -212,9 +213,7 @@ func (tr *tree16) localSnapPath(sn *SeedSnap) (string, error) {
 
 func (tr *tree16) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Ref, snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) error {
 	seedAssertsDir := filepath.Join(tr.opts.SeedDir, "assertions")
-	if err := os.MkdirAll(seedAssertsDir, 0755); err != nil {
-		return err
-	}
+	mylog.Check(os.MkdirAll(seedAssertsDir, 0755))
 
 	writeByRefs := func(aRefs []*asserts.Ref) error {
 		for _, aRef := range aRefs {
@@ -225,31 +224,20 @@ func (tr *tree16) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Re
 			} else {
 				afn = fmt.Sprintf("%s.%s", strings.Join(asserts.ReducePrimaryKey(aRef.Type, aRef.PrimaryKey), ","), aRef.Type.Name)
 			}
-			a, err := aRef.Resolve(db.Find)
-			if err != nil {
-				return fmt.Errorf("internal error: lost saved assertion")
-			}
-			if err = os.WriteFile(filepath.Join(seedAssertsDir, afn), asserts.Encode(a), 0644); err != nil {
-				return err
-			}
+			a := mylog.Check2(aRef.Resolve(db.Find))
+			mylog.Check(os.WriteFile(filepath.Join(seedAssertsDir, afn), asserts.Encode(a), 0644))
+
 		}
 		return nil
 	}
-
-	if err := writeByRefs(modelRefs); err != nil {
-		return err
-	}
+	mylog.Check(writeByRefs(modelRefs))
 
 	for _, sn := range snapsFromModel {
-		if err := writeByRefs(sn.aRefs); err != nil {
-			return err
-		}
+		mylog.Check(writeByRefs(sn.aRefs))
 	}
 
 	for _, sn := range extraSnaps {
-		if err := writeByRefs(sn.aRefs); err != nil {
-			return err
-		}
+		mylog.Check(writeByRefs(sn.aRefs))
 	}
 
 	return nil
@@ -288,9 +276,7 @@ func (tr *tree16) writeMeta(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) 
 	}
 
 	seedFn := filepath.Join(tr.opts.SeedDir, "seed.yaml")
-	if err := seedYaml.Write(seedFn); err != nil {
-		return fmt.Errorf("cannot write seed.yaml: %v", err)
-	}
+	mylog.Check(seedYaml.Write(seedFn))
 
 	return nil
 }

@@ -23,6 +23,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 	"gopkg.in/check.v1"
 )
@@ -42,7 +43,7 @@ func (renameSuite) TestSwapDirs(c *check.C) {
 	osutil.SwapDirs(dir1, dir2)
 
 	for _, path := range []string{filepath.Join(dir1, file2), filepath.Join(dir2, file1)} {
-		exists, isreg, err := osutil.RegularFileExists(path)
+		exists, isreg := mylog.Check3(osutil.RegularFileExists(path))
 		c.Check(exists, check.Equals, true)
 		c.Check(isreg, check.Equals, true)
 		c.Check(err, check.IsNil)

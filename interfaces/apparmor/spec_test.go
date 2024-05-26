@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
@@ -71,7 +72,9 @@ var _ = Suite(&specSuite{
 				Snap: &snap.Info{
 					SuggestedName: "snap1",
 				},
-				Name: "app1"}},
+				Name: "app1",
+			},
+		},
 	},
 	slotInfo: &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "snap2"},
@@ -82,7 +85,9 @@ var _ = Suite(&specSuite{
 				Snap: &snap.Info{
 					SuggestedName: "snap2",
 				},
-				Name: "app2"}},
+				Name: "app2",
+			},
+		},
 	},
 })
 
@@ -90,8 +95,8 @@ func (s *specSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 
-	appSet, err := interfaces.NewSnapAppSet(s.plugInfo.Snap, nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plugInfo.Snap, nil))
+
 
 	s.spec = apparmor.NewSpecification(appSet)
 	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
@@ -104,8 +109,8 @@ func (s *specSuite) TearDownTest(c *C) {
 
 // The spec.Specification can be used through the interfaces.Specification interface
 func (s *specSuite) TestSpecificationIface(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.plugInfo.Snap, nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plugInfo.Snap, nil))
+
 
 	spec := apparmor.NewSpecification(appSet)
 	var r interfaces.Specification = spec
@@ -115,8 +120,8 @@ func (s *specSuite) TestSpecificationIface(c *C) {
 		"snap.snap1.app1": {"connected-plug", "permanent-plug"},
 	})
 
-	appSet, err = interfaces.NewSnapAppSet(s.slotInfo.Snap, nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.slotInfo.Snap, nil))
+
 
 	spec = apparmor.NewSpecification(appSet)
 	r = spec
@@ -295,8 +300,8 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
 	restore := apparmor.SetSpecScope(s.spec, []string{"snap.vanguard.vanguard"})
 	defer restore()
 
-	appSet, err := interfaces.NewSnapAppSet(snapInfo, nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(snapInfo, nil))
+
 
 	s.spec.AddLayout(appSet)
 

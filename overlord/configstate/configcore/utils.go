@@ -24,6 +24,8 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // first match is if it is comment, second is key, third value
@@ -77,9 +79,7 @@ func updateKeyValueStream(r io.Reader, supportedConfigKeys map[string]bool, newC
 		}
 		toWrite = append(toWrite, line)
 	}
-	if err := scanner.Err(); err != nil {
-		return nil, err
-	}
+	mylog.Check(scanner.Err())
 
 	// write anything that is missing
 	for key := range newConfig {

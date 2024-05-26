@@ -24,6 +24,8 @@ import (
 	"fmt"
 	"io"
 	"strings"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 type Element struct {
@@ -82,9 +84,8 @@ type annotate struct {
 func ValidatePolicy(r io.Reader) (actionIDs []string, err error) {
 	decoder := xml.NewDecoder(r)
 	var config policyConfig
-	if err := decoder.Decode(&config); err != nil {
-		return nil, err
-	}
+	mylog.Check(decoder.Decode(&config))
+
 	// check for additional data after the root element
 	if err := decoder.Decode(new(interface{})); err != io.EOF {
 		return nil, fmt.Errorf("invalid XML: additional data after root element")
@@ -97,26 +98,14 @@ func validateConfig(config policyConfig) ([]string, error) {
 	if config.XMLName != (xml.Name{Local: "policyconfig"}) {
 		return nil, fmt.Errorf("root element must be <policyconfig>")
 	}
-
-	if err := validateElement(config.Element, "<policyconfig>", 0); err != nil {
-		return nil, err
-	}
-
-	if err := validateOptionalProperty(config.Vendor, "<vendor>", "<policyconfig>"); err != nil {
-		return nil, err
-	}
-	if err := validateOptionalProperty(config.VendorURL, "<vendor_url>", "<policyconfig>"); err != nil {
-		return nil, err
-	}
-	if err := validateOptionalProperty(config.IconName, "<icon_name>", "<policyconfig>"); err != nil {
-		return nil, err
-	}
+	mylog.Check(validateElement(config.Element, "<policyconfig>", 0))
+	mylog.Check(validateOptionalProperty(config.Vendor, "<vendor>", "<policyconfig>"))
+	mylog.Check(validateOptionalProperty(config.VendorURL, "<vendor_url>", "<policyconfig>"))
+	mylog.Check(validateOptionalProperty(config.IconName, "<icon_name>", "<policyconfig>"))
 
 	seenIDs := make(map[string]struct{})
 	for _, a := range config.Actions {
-		if err := validateAction(a, seenIDs); err != nil {
-			return nil, err
-		}
+		mylog.Check(validateAction(a, seenIDs))
 	}
 
 	actionIDs := make([]string, 0, len(seenIDs))
@@ -150,9 +139,8 @@ func validateOptionalProperty(prop []Element, name, parent string) error {
 	case 0:
 		// nothing
 	case 1:
-		if err := validateElement(prop[0], name, allowCharData); err != nil {
-			return err
-		}
+		mylog.Check(validateElement(prop[0], name, allowCharData))
+
 		if len(strings.TrimSpace(prop[0].CharData)) == 0 {
 			return fmt.Errorf("%s element has no character data", name)
 		}
@@ -163,33 +151,22 @@ func validateOptionalProperty(prop []Element, name, parent string) error {
 }
 
 func validateAction(action action, seenIDs map[string]struct{}) error {
-	if err := validateElement(action.Element, "<action>", 0); err != nil {
-		return err
-	}
+	mylog.Check(validateElement(action.Element, "<action>", 0))
 
 	if action.ID == "" {
 		return fmt.Errorf("<action> elements must have an ID")
 	}
 	seenIDs[action.ID] = struct{}{}
-
-	if err := validateOptionalProperty(action.Vendor, "<vendor>", "<action>"); err != nil {
-		return err
-	}
-	if err := validateOptionalProperty(action.VendorURL, "<vendor_url>", "<action>"); err != nil {
-		return err
-	}
-	if err := validateOptionalProperty(action.IconName, "<icon_name>", "<action>"); err != nil {
-		return err
-	}
+	mylog.Check(validateOptionalProperty(action.Vendor, "<vendor>", "<action>"))
+	mylog.Check(validateOptionalProperty(action.VendorURL, "<vendor_url>", "<action>"))
+	mylog.Check(validateOptionalProperty(action.IconName, "<icon_name>", "<action>"))
 
 	// There must be at least one description
 	if len(action.Description) == 0 {
 		return fmt.Errorf("<action> element missing <description> child")
 	}
 	for _, d := range action.Description {
-		if err := validateElement(d.Element, "<description>", allowCharData); err != nil {
-			return err
-		}
+		mylog.Check(validateElement(d.Element, "<description>", allowCharData))
 	}
 
 	// There must be at least one message
@@ -197,21 +174,17 @@ func validateAction(action action, seenIDs map[string]struct{}) error {
 		return fmt.Errorf("<action> element missing <message> child")
 	}
 	for _, m := range action.Message {
-		if err := validateElement(m.Element, "<message>", allowCharData); err != nil {
-			return err
-		}
+		mylog.Check(validateElement(m.Element, "<message>", allowCharData))
 	}
+	mylog.Check(
 
-	// Check defaults
-	if err := validateActionDefaults(action.Defaults); err != nil {
-		return err
-	}
+		// Check defaults
+		validateActionDefaults(action.Defaults))
 
 	// Check annotations
 	for _, annotation := range action.Annotate {
-		if err := validateElement(annotation.Element, "<annotate>", allowCharData); err != nil {
-			return err
-		}
+		mylog.Check(validateElement(annotation.Element, "<annotate>", allowCharData))
+
 		if len(annotation.Key) == 0 {
 			return fmt.Errorf("<annotate> elements must have a key attribute")
 		}
@@ -247,18 +220,10 @@ func validateActionDefaults(defaults []defaults) error {
 	}
 
 	d := defaults[0]
-	if err := validateElement(d.Element, "<defaults>", 0); err != nil {
-		return err
-	}
-	if err := validateDefaultAuth(d.AllowAny, "<allow_any>"); err != nil {
-		return err
-	}
-	if err := validateDefaultAuth(d.AllowInactive, "<allow_inactive>"); err != nil {
-		return err
-	}
-	if err := validateDefaultAuth(d.AllowActive, "<allow_active>"); err != nil {
-		return err
-	}
+	mylog.Check(validateElement(d.Element, "<defaults>", 0))
+	mylog.Check(validateDefaultAuth(d.AllowAny, "<allow_any>"))
+	mylog.Check(validateDefaultAuth(d.AllowInactive, "<allow_inactive>"))
+	mylog.Check(validateDefaultAuth(d.AllowActive, "<allow_active>"))
 
 	return nil
 }
@@ -268,9 +233,8 @@ func validateDefaultAuth(auth []Element, name string) error {
 	case 0:
 		// nothing
 	case 1:
-		if err := validateElement(auth[0], name, allowCharData); err != nil {
-			return err
-		}
+		mylog.Check(validateElement(auth[0], name, allowCharData))
+
 		value := strings.TrimSpace(auth[0].CharData)
 		switch value {
 		case "no", "yes", "auth_self", "auth_admin", "auth_self_keep", "auth_admin_keep":

@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 	snap "github.com/snapcore/snapd/cmd/snap"
 )
@@ -136,8 +137,8 @@ func (s *SnapSuite) TestPortalInfo(c *C) {
 		}
 		n++
 	})
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"routine", "portal-info", "42"})
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"routine", "portal-info", "42"}))
+
 	c.Check(s.Stdout(), Equals, `[Snap Info]
 InstanceName=hello
 AppName=universe
@@ -182,8 +183,8 @@ func (s *SnapSuite) TestPortalInfoCommonID(c *C) {
 		}
 		n++
 	})
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"routine", "portal-info", "42"})
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"routine", "portal-info", "42"}))
+
 	c.Check(s.Stdout(), Equals, `[Snap Info]
 InstanceName=hello
 AppName=common-id
@@ -229,8 +230,8 @@ func (s *SnapSuite) TestPortalInfoNoAppInfo(c *C) {
 		}
 		n++
 	})
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"routine", "portal-info", "42"})
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"routine", "portal-info", "42"}))
+
 	c.Check(s.Stdout(), Equals, `[Snap Info]
 InstanceName=hello
 AppName=hello

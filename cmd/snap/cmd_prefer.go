@@ -20,6 +20,7 @@
 package main
 
 import (
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/i18n"
@@ -32,12 +33,14 @@ type cmdPrefer struct {
 	} `positional-args:"true"`
 }
 
-var shortPreferHelp = i18n.G("Enable aliases from a snap, disabling any conflicting aliases")
-var longPreferHelp = i18n.G(`
+var (
+	shortPreferHelp = i18n.G("Enable aliases from a snap, disabling any conflicting aliases")
+	longPreferHelp  = i18n.G(`
 The prefer command enables all aliases of the given snap in preference
 to conflicting aliases of other snaps whose aliases will be disabled
 (or removed, for manual ones).
 `)
+)
 
 func init() {
 	addCommand("prefer", shortPreferHelp, longPreferHelp, func() flags.Commander {
@@ -52,17 +55,9 @@ func (x *cmdPrefer) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	id, err := x.client.Prefer(string(x.Positionals.Snap))
-	if err != nil {
-		return err
-	}
-	chg, err := x.wait(id)
-	if err != nil {
-		if err == noWait {
-			return nil
-		}
-		return err
-	}
+	id := mylog.Check2(x.client.Prefer(string(x.Positionals.Snap)))
+
+	chg := mylog.Check2(x.wait(id))
 
 	return showAliasChanges(chg)
 }

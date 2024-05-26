@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces/utils"
 )
 
@@ -67,11 +68,11 @@ func (s *pathPatternsSuite) TestRegexCreationHappy(c *C) {
 		pattern := testData.pattern
 		expectedRegex := testData.expectedRegex
 		const allowCommas = true
-		regex, err := utils.CreateRegex(pattern, testData.glob, allowCommas)
+		regex := mylog.Check2(utils.CreateRegex(pattern, testData.glob, allowCommas))
 		c.Assert(err, IsNil, Commentf("%s", pattern))
 		c.Assert(regex, Equals, expectedRegex, Commentf("%s", pattern))
 		// Also, make sure that the obtained regex is valid
-		_, err = regexp.Compile(regex)
+		_ = mylog.Check2(regexp.Compile(regex))
 		c.Assert(err, IsNil, Commentf("%s", pattern))
 	}
 }
@@ -96,7 +97,7 @@ func (s *pathPatternsSuite) TestRegexCreationUnhappy(c *C) {
 		pattern := testData.pattern
 		expectedError := testData.expectedError
 		const allowCommas = false
-		pathPattern, err := utils.NewPathPattern(pattern, allowCommas)
+		pathPattern := mylog.Check2(utils.NewPathPattern(pattern, allowCommas))
 		c.Assert(pathPattern, IsNil, Commentf("%s", pattern))
 		c.Assert(err, ErrorMatches, expectedError, Commentf("%s", pattern))
 	}
@@ -128,7 +129,7 @@ func (s *pathPatternsSuite) TestCreateRegexWithCommas(c *C) {
 		allowCommas := testData.allowCommas
 		shouldError := testData.shouldError
 		expectedString := testData.expectedString
-		regex, err := utils.CreateRegex(pattern, utils.GlobDefault, allowCommas)
+		regex := mylog.Check2(utils.CreateRegex(pattern, utils.GlobDefault, allowCommas))
 		if shouldError {
 			c.Assert(regex, Equals, "", Commentf("%s", pattern))
 			c.Assert(err, ErrorMatches, expectedString, Commentf("%s", pattern))
@@ -168,7 +169,7 @@ func (s *pathPatternsSuite) TestPatternMatches(c *C) {
 		testPath := testData.testPath
 		expectedMatch := testData.expectedMatch
 		const allowCommas = false
-		pathPattern, err := utils.NewPathPattern(pattern, allowCommas)
+		pathPattern := mylog.Check2(utils.NewPathPattern(pattern, allowCommas))
 		c.Assert(err, IsNil, Commentf("%s", pattern))
 		c.Assert(pathPattern.Matches(testPath), Equals, expectedMatch, Commentf("%s", pattern))
 	}
@@ -197,11 +198,11 @@ func (s *pathPatternsSuite) TestPatternWithCommasMatches(c *C) {
 		testPath := testData.testPath
 		expectedMatch := testData.expectedMatch
 		const allowCommasFalse = false
-		pathPattern, err := utils.NewPathPattern(pattern, allowCommasFalse)
+		pathPattern := mylog.Check2(utils.NewPathPattern(pattern, allowCommasFalse))
 		c.Assert(pathPattern, IsNil, Commentf("%s", pattern))
 		c.Assert(err, ErrorMatches, commaError, Commentf("%s", pattern))
 		const allowCommasTrue = true
-		pathPattern, err = utils.NewPathPattern(pattern, allowCommasTrue)
+		pathPattern = mylog.Check2(utils.NewPathPattern(pattern, allowCommasTrue))
 		c.Assert(err, IsNil, Commentf("%s", pattern))
 		c.Assert(pathPattern.Matches(testPath), Equals, expectedMatch, Commentf("%s", pattern))
 	}

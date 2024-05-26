@@ -24,14 +24,14 @@ import (
 	"encoding/json"
 	"net/url"
 	"strings"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // SetConf requests a snap to apply the provided patch to the configuration.
 func (client *Client) SetConf(snapName string, patch map[string]interface{}) (changeID string, err error) {
-	b, err := json.Marshal(patch)
-	if err != nil {
-		return "", err
-	}
+	b := mylog.Check2(json.Marshal(patch))
+
 	return client.doAsync("PUT", "/v2/snaps/"+snapName+"/conf", nil, nil, bytes.NewReader(b))
 }
 
@@ -43,10 +43,7 @@ func (client *Client) Conf(snapName string, keys []string) (configuration map[st
 	query := url.Values{}
 	query.Set("keys", strings.Join(keys, ","))
 
-	_, err = client.doSync("GET", "/v2/snaps/"+snapName+"/conf", query, nil, nil, &configuration)
-	if err != nil {
-		return nil, err
-	}
+	_ = mylog.Check2(client.doSync("GET", "/v2/snaps/"+snapName+"/conf", query, nil, nil, &configuration))
 
 	return configuration, nil
 }

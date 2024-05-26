@@ -24,6 +24,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
@@ -44,15 +45,13 @@ func gadgetDataFromInfo(info *snap.Info, model *asserts.Model) (*gadget.GadgetDa
 	// has been done when the gadget was installed for
 	// current/already local revisions, or in the check-snap task
 	// for incoming gadgets.
-	gi, err := gadget.ReadInfo(info.MountDir(), model)
-	if err != nil {
-		return nil, err
-	}
+	gi := mylog.Check2(gadget.ReadInfo(info.MountDir(), model))
+
 	return &gadget.GadgetData{Info: gi, RootDir: info.MountDir()}, nil
 }
 
 var systemForPreseeding = func() (label string, err error) {
-	systemLabels, err := filepath.Glob(filepath.Join(dirs.SnapSeedDir, "systems", "*"))
+	systemLabels := mylog.Check2(filepath.Glob(filepath.Join(dirs.SnapSeedDir, "systems", "*")))
 	if err != nil && !os.IsNotExist(err) {
 		return "", fmt.Errorf("cannot list available systems: %v", err)
 	}

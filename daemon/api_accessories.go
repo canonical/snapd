@@ -25,14 +25,12 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 )
 
-var (
-	accessoriesChangeCmd = &Command{
-		Path: "/v2/accessories/changes/{id}",
-		GET:  getAccessoriesChange,
-		// TODO: expand this to other accessories APIs as they appear
-		ReadAccess: interfaceOpenAccess{Interfaces: []string{"snap-themes-control"}},
-	}
-)
+var accessoriesChangeCmd = &Command{
+	Path: "/v2/accessories/changes/{id}",
+	GET:  getAccessoriesChange,
+	// TODO: expand this to other accessories APIs as they appear
+	ReadAccess: interfaceOpenAccess{Interfaces: []string{"snap-themes-control"}},
+}
 
 var allowedAccessoriesChanges = map[string]bool{
 	"install-themes": true,

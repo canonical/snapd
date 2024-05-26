@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/utils"
 	"github.com/snapcore/snapd/snap"
@@ -76,10 +77,12 @@ func (s *connSuite) TearDownTest(c *C) {
 }
 
 // Make sure ConnectedPlug,ConnectedSlot, PlugInfo, SlotInfo implement Attrer.
-var _ interfaces.Attrer = (*interfaces.ConnectedPlug)(nil)
-var _ interfaces.Attrer = (*interfaces.ConnectedSlot)(nil)
-var _ interfaces.Attrer = (*snap.PlugInfo)(nil)
-var _ interfaces.Attrer = (*snap.SlotInfo)(nil)
+var (
+	_ interfaces.Attrer = (*interfaces.ConnectedPlug)(nil)
+	_ interfaces.Attrer = (*interfaces.ConnectedSlot)(nil)
+	_ interfaces.Attrer = (*snap.PlugInfo)(nil)
+	_ interfaces.Attrer = (*snap.SlotInfo)(nil)
+)
 
 func (s *connSuite) TestStaticSlotAttrs(c *C) {
 	slot := interfaces.NewConnectedSlot(s.slot, nil, nil)
@@ -166,9 +169,8 @@ func (s *connSuite) TestDynamicSlotAttrs(c *C) {
 
 	c.Assert(slot.Attr("number", &intVal), IsNil)
 	c.Assert(intVal, Equals, int64(100))
+	mylog.Check(slot.SetAttr("other", map[string]interface{}{"number-two": int(222)}))
 
-	err := slot.SetAttr("other", map[string]interface{}{"number-two": int(222)})
-	c.Assert(err, IsNil)
 	c.Assert(slot.Attr("other", &mapVal), IsNil)
 	num := mapVal["number-two"]
 	c.Assert(num, Equals, int64(222))
@@ -288,9 +290,8 @@ func (s *connSuite) TestDynamicPlugAttrs(c *C) {
 
 	c.Assert(plug.Attr("number", &intVal), IsNil)
 	c.Assert(intVal, Equals, int64(100))
+	mylog.Check(plug.SetAttr("other", map[string]interface{}{"number-two": int(222)}))
 
-	err := plug.SetAttr("other", map[string]interface{}{"number-two": int(222)})
-	c.Assert(err, IsNil)
 	c.Assert(plug.Attr("other", &mapVal), IsNil)
 	num := mapVal["number-two"]
 	c.Assert(num, Equals, int64(222))
@@ -307,12 +308,10 @@ func (s *connSuite) TestOverwriteStaticAttrError(c *C) {
 	c.Assert(plug, NotNil)
 	slot := interfaces.NewConnectedSlot(s.slot, nil, attrs)
 	c.Assert(slot, NotNil)
-
-	err := plug.SetAttr("attr", "overwrite")
+	mylog.Check(plug.SetAttr("attr", "overwrite"))
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `cannot change attribute "attr" as it was statically specified in the snap details`)
-
-	err = slot.SetAttr("attr", "overwrite")
+	mylog.Check(slot.SetAttr("attr", "overwrite"))
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `cannot change attribute "attr" as it was statically specified in the snap details`)
 }
@@ -364,7 +363,7 @@ func (s *connSuite) TestNewConnectedSlotExplicitStaticAttrs(c *C) {
 func (s *connSuite) TestGetAttributeUnhappy(c *C) {
 	attrs := map[string]interface{}{}
 	var stringVal string
-	err := interfaces.GetAttribute("snap0", "iface0", attrs, attrs, "non-existent", &stringVal)
+	mylog.Check(interfaces.GetAttribute("snap0", "iface0", attrs, attrs, "non-existent", &stringVal))
 	c.Check(stringVal, Equals, "")
 	c.Check(err, ErrorMatches, `snap "snap0" does not have attribute "non-existent" for interface "iface0"`)
 	c.Check(errors.Is(err, snap.AttributeNotFoundError{}), Equals, true)
@@ -380,7 +379,7 @@ func (s *connSuite) TestGetAttributeHappy(c *C) {
 		"attr1": 42,
 	}
 	var intVal int
-	err := interfaces.GetAttribute("snap0", "iface0", staticAttrs, dynamicAttrs, "attr1", &intVal)
+	mylog.Check(interfaces.GetAttribute("snap0", "iface0", staticAttrs, dynamicAttrs, "attr1", &intVal))
 	c.Check(err, IsNil)
 	c.Check(intVal, Equals, 42)
 }

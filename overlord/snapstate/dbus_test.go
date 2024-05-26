@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
@@ -58,10 +59,10 @@ apps:
 )
 
 func (s *snapmgrTestSuite) TestCheckDBusServiceConflictsSystem(c *C) {
-	someSnap, err := snap.InfoFromSnapYaml([]byte(fmt.Sprintf(dbusSystemYamlTemplate, "some-snap")))
-	c.Assert(err, IsNil)
-	otherSnap, err := snap.InfoFromSnapYaml([]byte(fmt.Sprintf(dbusSystemYamlTemplate, "other-snap")))
-	c.Assert(err, IsNil)
+	someSnap := mylog.Check2(snap.InfoFromSnapYaml([]byte(fmt.Sprintf(dbusSystemYamlTemplate, "some-snap"))))
+
+	otherSnap := mylog.Check2(snap.InfoFromSnapYaml([]byte(fmt.Sprintf(dbusSystemYamlTemplate, "other-snap"))))
+
 
 	restore := snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
 		switch name {
@@ -87,16 +88,15 @@ func (s *snapmgrTestSuite) TestCheckDBusServiceConflictsSystem(c *C) {
 		Current:  si.Revision,
 		SnapType: "app",
 	})
-
-	err = snapstate.CheckDBusServiceConflicts(s.state, someSnap)
+	mylog.Check(snapstate.CheckDBusServiceConflicts(s.state, someSnap))
 	c.Assert(err, ErrorMatches, `snap "some-snap" requesting to activate on system bus name "org.example.Foo" conflicts with snap "other-snap" use`)
 }
 
 func (s *snapmgrTestSuite) TestCheckDBusServiceConflictsSession(c *C) {
-	someSnap, err := snap.InfoFromSnapYaml([]byte(fmt.Sprintf(dbusSessionYamlTemplate, "some-snap")))
-	c.Assert(err, IsNil)
-	otherSnap, err := snap.InfoFromSnapYaml([]byte(fmt.Sprintf(dbusSessionYamlTemplate, "other-snap")))
-	c.Assert(err, IsNil)
+	someSnap := mylog.Check2(snap.InfoFromSnapYaml([]byte(fmt.Sprintf(dbusSessionYamlTemplate, "some-snap"))))
+
+	otherSnap := mylog.Check2(snap.InfoFromSnapYaml([]byte(fmt.Sprintf(dbusSessionYamlTemplate, "other-snap"))))
+
 
 	restore := snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
 		switch name {
@@ -122,16 +122,15 @@ func (s *snapmgrTestSuite) TestCheckDBusServiceConflictsSession(c *C) {
 		Current:  si.Revision,
 		SnapType: "app",
 	})
-
-	err = snapstate.CheckDBusServiceConflicts(s.state, someSnap)
+	mylog.Check(snapstate.CheckDBusServiceConflicts(s.state, someSnap))
 	c.Assert(err, ErrorMatches, `snap "some-snap" requesting to activate on session bus name "org.example.Foo" conflicts with snap "other-snap" use`)
 }
 
 func (s *snapmgrTestSuite) TestCheckDBusServiceConflictsDifferentBuses(c *C) {
-	sessionSnap, err := snap.InfoFromSnapYaml([]byte(fmt.Sprintf(dbusSessionYamlTemplate, "session-snap")))
-	c.Assert(err, IsNil)
-	systemSnap, err := snap.InfoFromSnapYaml([]byte(fmt.Sprintf(dbusSystemYamlTemplate, "system-snap")))
-	c.Assert(err, IsNil)
+	sessionSnap := mylog.Check2(snap.InfoFromSnapYaml([]byte(fmt.Sprintf(dbusSessionYamlTemplate, "session-snap"))))
+
+	systemSnap := mylog.Check2(snap.InfoFromSnapYaml([]byte(fmt.Sprintf(dbusSystemYamlTemplate, "system-snap"))))
+
 
 	restore := snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
 		switch name {
@@ -160,7 +159,7 @@ func (s *snapmgrTestSuite) TestCheckDBusServiceConflictsDifferentBuses(c *C) {
 		Current:  si.Revision,
 		SnapType: "app",
 	})
-	err = snapstate.CheckDBusServiceConflicts(s.state, sessionSnap)
+	mylog.Check(snapstate.CheckDBusServiceConflicts(s.state, sessionSnap))
 	c.Check(err, IsNil)
 
 	// ... and the reverse
@@ -175,13 +174,13 @@ func (s *snapmgrTestSuite) TestCheckDBusServiceConflictsDifferentBuses(c *C) {
 		Current:  si.Revision,
 		SnapType: "app",
 	})
-	err = snapstate.CheckDBusServiceConflicts(s.state, systemSnap)
+	mylog.Check(snapstate.CheckDBusServiceConflicts(s.state, systemSnap))
 	c.Check(err, IsNil)
 }
 
 func (s *snapmgrTestSuite) TestCheckDBusServiceConflictsNoConflictWithSelf(c *C) {
-	info, err := snap.InfoFromSnapYaml([]byte(fmt.Sprintf(dbusSessionYamlTemplate, "some-snap")))
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(fmt.Sprintf(dbusSessionYamlTemplate, "some-snap"))))
+
 	restore := snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
 		switch name {
 		case "some-snap":
@@ -194,10 +193,11 @@ func (s *snapmgrTestSuite) TestCheckDBusServiceConflictsNoConflictWithSelf(c *C)
 
 	s.state.Lock()
 	defer s.state.Unlock()
+	mylog.
 
-	// No conflicts on first installation
-	err = snapstate.CheckDBusServiceConflicts(s.state, info)
-	c.Assert(err, IsNil)
+		// No conflicts on first installation
+		Check(snapstate.CheckDBusServiceConflicts(s.state, info))
+
 
 	// Snap does not conflict against itself
 	si := &snap.SideInfo{
@@ -210,15 +210,15 @@ func (s *snapmgrTestSuite) TestCheckDBusServiceConflictsNoConflictWithSelf(c *C)
 		Current:  si.Revision,
 		SnapType: "app",
 	})
-	err = snapstate.CheckDBusServiceConflicts(s.state, info)
-	c.Assert(err, IsNil)
+	mylog.Check(snapstate.CheckDBusServiceConflicts(s.state, info))
+
 }
 
 func (s *snapmgrTestSuite) TestInstallDBusActivationConflicts(c *C) {
-	someSnap, err := snap.InfoFromSnapYaml([]byte(fmt.Sprintf(dbusSystemYamlTemplate, "some-snap")))
-	c.Assert(err, IsNil)
-	otherSnap, err := snap.InfoFromSnapYaml([]byte(fmt.Sprintf(dbusSystemYamlTemplate, "other-snap")))
-	c.Assert(err, IsNil)
+	someSnap := mylog.Check2(snap.InfoFromSnapYaml([]byte(fmt.Sprintf(dbusSystemYamlTemplate, "some-snap"))))
+
+	otherSnap := mylog.Check2(snap.InfoFromSnapYaml([]byte(fmt.Sprintf(dbusSystemYamlTemplate, "other-snap"))))
+
 
 	restore := snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
 		switch name {
@@ -251,15 +251,15 @@ func (s *snapmgrTestSuite) TestInstallDBusActivationConflicts(c *C) {
 	tr.Commit()
 
 	opts := &snapstate.RevisionOptions{Channel: "channel-for-dbus-activation"}
-	_, err = snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
+	_ = mylog.Check2(snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{}))
 	c.Check(err, ErrorMatches, `snap "some-snap" requesting to activate on system bus name "org.example.Foo" conflicts with snap "other-snap" use`)
 }
 
 func (s *snapmgrTestSuite) TestInstallManyDBusActivationConflicts(c *C) {
-	someSnap, err := snap.InfoFromSnapYaml([]byte(fmt.Sprintf(dbusSystemYamlTemplate, "some-snap")))
-	c.Assert(err, IsNil)
-	otherSnap, err := snap.InfoFromSnapYaml([]byte(fmt.Sprintf(dbusSystemYamlTemplate, "other-snap")))
-	c.Assert(err, IsNil)
+	someSnap := mylog.Check2(snap.InfoFromSnapYaml([]byte(fmt.Sprintf(dbusSystemYamlTemplate, "some-snap"))))
+
+	otherSnap := mylog.Check2(snap.InfoFromSnapYaml([]byte(fmt.Sprintf(dbusSystemYamlTemplate, "other-snap"))))
+
 
 	restore := snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
 		switch name {
@@ -281,8 +281,8 @@ func (s *snapmgrTestSuite) TestInstallManyDBusActivationConflicts(c *C) {
 	tr.Commit()
 
 	snapNames := []string{"some-snap", "other-snap"}
-	_, tss, err := snapstate.InstallMany(s.state, snapNames, nil, s.user.ID, nil)
-	c.Assert(err, IsNil)
+	_, tss := mylog.Check3(snapstate.InstallMany(s.state, snapNames, nil, s.user.ID, nil))
+
 
 	chg := s.state.NewChange("install", "install two snaps")
 	for _, ts := range tss {

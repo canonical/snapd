@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	update "github.com/snapcore/snapd/cmd/snap-update-ns"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -87,8 +88,10 @@ func (s *updateSuite) TestUpdateFlow(c *C) {
 	restore := upCtx.MockRelatedFunctions()
 	defer restore()
 	c.Assert(update.ExecuteMountProfileUpdate(upCtx), IsNil)
-	c.Assert(funcsCalled, DeepEquals, []string{"loaded-desired", "loaded-current",
-		"changes-computed", "change-1-performed", "change-2-performed", "saved-current"})
+	c.Assert(funcsCalled, DeepEquals, []string{
+		"loaded-desired", "loaded-current",
+		"changes-computed", "change-1-performed", "change-2-performed", "saved-current",
+	})
 	c.Assert(update.ExecuteMountProfileUpdate(upCtx), IsNil)
 }
 
@@ -125,8 +128,8 @@ func (s *updateSuite) TestSynthesizedPastChanges(c *C) {
 	// that past changes (i.e. the current profile) did occur. This is used
 	// by the trespassing detector.
 	text := `tmpfs /usr tmpfs 0 0`
-	entry, err := osutil.ParseMountEntry(text)
-	c.Assert(err, IsNil)
+	entry := mylog.Check2(osutil.ParseMountEntry(text))
+
 	as := &update.Assumptions{}
 	upCtx := &testProfileUpdateContext{
 		loadCurrentProfile: func() (*osutil.MountProfile, error) { return osutil.LoadMountProfileText(text) },
@@ -253,7 +256,7 @@ func (s *updateSuite) TestCannotPerformLayoutChange(c *C) {
 	}
 	restore := upCtx.MockRelatedFunctions()
 	defer restore()
-	err := update.ExecuteMountProfileUpdate(upCtx)
+	mylog.Check(update.ExecuteMountProfileUpdate(upCtx))
 	c.Check(err, Equals, errTesting)
 	c.Check(saved, IsNil)
 }
@@ -283,7 +286,7 @@ func (s *updateSuite) TestCannotPerformOvermountChange(c *C) {
 	}
 	restore := upCtx.MockRelatedFunctions()
 	defer restore()
-	err := update.ExecuteMountProfileUpdate(upCtx)
+	mylog.Check(update.ExecuteMountProfileUpdate(upCtx))
 	c.Check(err, Equals, errTesting)
 	c.Check(saved, IsNil)
 }

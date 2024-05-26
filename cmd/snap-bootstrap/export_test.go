@@ -110,8 +110,10 @@ func MockTriggerwatchWait(f func(_ time.Duration, _ time.Duration) error) (resto
 	}
 }
 
-var DefaultTimeout = defaultTimeout
-var DefaultDeviceTimeout = defaultDeviceTimeout
+var (
+	DefaultTimeout       = defaultTimeout
+	DefaultDeviceTimeout = defaultDeviceTimeout
+)
 
 func MockDefaultMarkerFile(p string) (restore func()) {
 	old := defaultMarkerFile

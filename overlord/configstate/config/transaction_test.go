@@ -28,6 +28,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
@@ -71,9 +72,8 @@ func (op setGetOp) args() map[string]interface{} {
 		}
 		kv := strings.SplitN(pair, "=", 2)
 		var v interface{}
-		if err := jsonutil.DecodeWithNumber(strings.NewReader(kv[1]), &v); err != nil {
-			v = kv[1]
-		}
+		mylog.Check(jsonutil.DecodeWithNumber(strings.NewReader(kv[1]), &v))
+
 		m[kv[0]] = v
 	}
 	return m
@@ -372,18 +372,18 @@ func (s *transactionSuite) TestSetGet(c *C) {
 			switch op.kind() {
 			case "set":
 				for k, v := range op.args() {
-					err := t.Set(snap, k, v)
+					mylog.Check(t.Set(snap, k, v))
 					if op.fails() {
 						c.Assert(err, ErrorMatches, op.error())
 					} else {
-						c.Assert(err, IsNil)
+
 					}
 				}
 
 			case "get":
 				for k, expected := range op.args() {
 					var obtained interface{}
-					err := t.Get(snap, k, &obtained)
+					mylog.Check(t.Get(snap, k, &obtained))
 					if op.fails() {
 						c.Assert(err, ErrorMatches, op.error())
 						var nothing interface{}
@@ -401,7 +401,7 @@ func (s *transactionSuite) TestSetGet(c *C) {
 						c.Assert(nothing, IsNil)
 						continue
 					}
-					c.Assert(err, IsNil)
+
 					c.Assert(obtained, DeepEquals, expected)
 
 					obtained = nil
@@ -455,12 +455,12 @@ func (s *transactionSuite) TestSetGet(c *C) {
 				}
 			case "getroot":
 				var obtained interface{}
-				err := t.Get(snap, "", &obtained)
+				mylog.Check(t.Get(snap, "", &obtained))
 				if op.fails() {
 					c.Assert(err, ErrorMatches, op.error())
 					continue
 				}
-				c.Assert(err, IsNil)
+
 				c.Assert(obtained, DeepEquals, op.args()[""])
 			case "getrootunder":
 				var config map[string]*json.RawMessage
@@ -516,12 +516,12 @@ func (s *transactionSuite) TestGetUnmarshalError(c *C) {
 
 	// Pristine state is good, value in the transaction breaks.
 	broken := brokenType{`"break"`}
-	err := tr.Get("test-snap", "foo", &broken)
+	mylog.Check(tr.Get("test-snap", "foo", &broken))
 	c.Assert(err, ErrorMatches, ".*BAM!.*")
 
 	// Pristine state breaks, nothing in the transaction.
 	tr.Commit()
-	err = tr.Get("test-snap", "foo", &broken)
+	mylog.Check(tr.Get("test-snap", "foo", &broken))
 	c.Assert(err, ErrorMatches, ".*BAM!.*")
 }
 
@@ -531,7 +531,7 @@ func (s *transactionSuite) TestNoConfiguration(c *C) {
 
 	var res interface{}
 	tr := config.NewTransaction(s.state)
-	err := tr.Get("some-snap", "", &res)
+	mylog.Check(tr.Get("some-snap", "", &res))
 	c.Assert(err, NotNil)
 	c.Assert(config.IsNoOption(err), Equals, true)
 	c.Assert(err, ErrorMatches, `snap "some-snap" has no configuration`)
@@ -578,46 +578,49 @@ func (s *transactionSuite) TestPristineGet(c *C) {
 	// change the config
 	var res interface{}
 	tr := config.NewTransaction(s.state)
-	err := tr.Set("some-snap", "opt1", "changed-value")
-	c.Assert(err, IsNil)
+	mylog.Check(tr.Set("some-snap", "opt1", "changed-value"))
 
-	// and get will get the changed value
-	err = tr.Get("some-snap", "opt1", &res)
-	c.Assert(err, IsNil)
+	mylog.
+
+		// and get will get the changed value
+		Check(tr.Get("some-snap", "opt1", &res))
+
 	c.Assert(res, Equals, "changed-value")
+	mylog.
 
-	// but GetPristine will get the pristine value
-	err = tr.GetPristine("some-snap", "opt1", &res)
-	c.Assert(err, IsNil)
+		// but GetPristine will get the pristine value
+		Check(tr.GetPristine("some-snap", "opt1", &res))
+
 	c.Assert(res, Equals, "pristine-value")
 
 	// and GetPristine errors for options that don't exist in pristine
 	var res2 interface{}
-	err = tr.Set("some-snap", "opt2", "other-value")
-	c.Assert(err, IsNil)
-	err = tr.GetPristine("some-snap", "opt2", &res2)
+	mylog.Check(tr.Set("some-snap", "opt2", "other-value"))
+
+	mylog.Check(tr.GetPristine("some-snap", "opt2", &res2))
 	c.Assert(err, ErrorMatches, `snap "some-snap" has no "opt2" configuration option`)
-	// but GetPristineMaybe does not error but also give no value
-	err = tr.GetPristineMaybe("some-snap", "opt2", &res2)
-	c.Assert(err, IsNil)
+	mylog.
+		// but GetPristineMaybe does not error but also give no value
+		Check(tr.GetPristineMaybe("some-snap", "opt2", &res2))
+
 	c.Assert(res2, IsNil)
-	// but regular get works
-	err = tr.Get("some-snap", "opt2", &res2)
-	c.Assert(err, IsNil)
+	mylog.
+		// but regular get works
+		Check(tr.Get("some-snap", "opt2", &res2))
+
 	c.Assert(res2, Equals, "other-value")
 }
 
 func (s *transactionSuite) TestExternalGetError(c *C) {
-
 	tests := []string{
 		"/", "..", "ä#!",
 		"a..b",
 	}
 
 	for _, tc := range tests {
-		err := config.RegisterExternalConfig("some-snap", tc, func(key string) (interface{}, error) {
+		mylog.Check(config.RegisterExternalConfig("some-snap", tc, func(key string) (interface{}, error) {
 			return nil, nil
-		})
+		}))
 		c.Assert(err, ErrorMatches, "cannot register external config: invalid option name:.*")
 	}
 }
@@ -632,28 +635,30 @@ func (s *transactionSuite) TestExternalGetSimple(c *C) {
 	})
 
 	n := 0
-	err := config.RegisterExternalConfig("some-snap", "key.external", func(key string) (interface{}, error) {
+	mylog.Check(config.RegisterExternalConfig("some-snap", "key.external", func(key string) (interface{}, error) {
 		n++
 
 		s := fmt.Sprintf("%s=external-value", key)
 		return s, nil
-	})
-	c.Assert(err, IsNil)
+	}))
+
 
 	tr := config.NewTransaction(s.state)
 
 	var res string
-	// non-external keys work fine
-	err = tr.Get("some-snap", "other-key", &res)
-	c.Assert(err, IsNil)
+	mylog.
+		// non-external keys work fine
+		Check(tr.Get("some-snap", "other-key", &res))
+
 	c.Check(res, Equals, "other-value")
 	// no external helper was called because the requested key was not
 	// part of the external configuration
 	c.Check(n, Equals, 0)
+	mylog.
 
-	// simple case: subkey is external
-	err = tr.Get("some-snap", "key.external", &res)
-	c.Assert(err, IsNil)
+		// simple case: subkey is external
+		Check(tr.Get("some-snap", "key.external", &res))
+
 	c.Check(res, Equals, "key.external=external-value")
 	// the external config function was called now
 	c.Check(n, Equals, 1)
@@ -675,20 +680,19 @@ func (s *transactionSuite) TestExternalDeepNesting(c *C) {
 
 	tr := config.NewTransaction(s.state)
 	var res string
-	err := tr.Get("some-snap", "key.external.subkey", &res)
-	c.Assert(err, IsNil)
+	mylog.Check(tr.Get("some-snap", "key.external.subkey", &res))
+
 	c.Check(res, Equals, "nested-value")
 }
 
 func (s *transactionSuite) TestExternalSetShadowsExternal(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
-
-	err := config.RegisterExternalConfig("some-snap", "key.nested.external", func(key string) (interface{}, error) {
+	mylog.Check(config.RegisterExternalConfig("some-snap", "key.nested.external", func(key string) (interface{}, error) {
 		c.Fatalf("unexpected call to external config function")
 		return nil, nil
-	})
-	c.Assert(err, IsNil)
+	}))
+
 
 	tests := []struct {
 		snap, key string
@@ -719,7 +723,7 @@ func (s *transactionSuite) TestExternalSetShadowsExternal(c *C) {
 
 	for _, tc := range tests {
 		tr := config.NewTransaction(s.state)
-		err := tr.Set(tc.snap, tc.key, tc.value)
+		mylog.Check(tr.Set(tc.snap, tc.key, tc.value))
 		if tc.isOk {
 			c.Check(err, IsNil, Commentf("%v", tc))
 		} else {
@@ -739,20 +743,21 @@ func (s *transactionSuite) TestExternalGetRootDocIsMerged(c *C) {
 	})
 
 	n := 0
-	err := config.RegisterExternalConfig("some-snap", "key.external", func(key string) (interface{}, error) {
+	mylog.Check(config.RegisterExternalConfig("some-snap", "key.external", func(key string) (interface{}, error) {
 		n++
 
 		s := fmt.Sprintf("%s=external-value", key)
 		return s, nil
-	})
-	c.Assert(err, IsNil)
+	}))
+
 
 	tr := config.NewTransaction(s.state)
 
 	var res map[string]interface{}
-	// the root doc
-	err = tr.Get("some-snap", "", &res)
-	c.Assert(err, IsNil)
+	mylog.
+		// the root doc
+		Check(tr.Get("some-snap", "", &res))
+
 	c.Check(res, DeepEquals, map[string]interface{}{
 		"some-key":  "some-value",
 		"other-key": "value",
@@ -775,28 +780,29 @@ func (s *transactionSuite) TestExternalGetSubtreeMerged(c *C) {
 	})
 
 	n := 0
-	err := config.RegisterExternalConfig("some-snap", "real-and-external.external", func(key string) (interface{}, error) {
+	mylog.Check(config.RegisterExternalConfig("some-snap", "real-and-external.external", func(key string) (interface{}, error) {
 		n++
 
 		s := fmt.Sprintf("%s=external-value", key)
 		return s, nil
-	})
-	c.Assert(err, IsNil)
+	}))
+
 
 	tr := config.NewTransaction(s.state)
 
 	var res string
-	// non-external keys work fine
-	err = tr.Get("some-snap", "other-key", &res)
-	c.Assert(err, IsNil)
+	mylog.
+		// non-external keys work fine
+		Check(tr.Get("some-snap", "other-key", &res))
+
 	c.Check(res, Equals, "other-value")
 	// no external helper was called because the requested key was not
 	// part of the external configuration
 	c.Check(n, Equals, 0)
 
 	var res2 map[string]interface{}
-	err = tr.Get("some-snap", "real-and-external", &res2)
-	c.Assert(err, IsNil)
+	mylog.Check(tr.Get("some-snap", "real-and-external", &res2))
+
 	c.Check(res2, HasLen, 2)
 	// real
 	c.Check(res2["real"], Equals, "real-value")
@@ -809,22 +815,21 @@ func (s *transactionSuite) TestExternalGetSubtreeMerged(c *C) {
 func (s *transactionSuite) TestExternalCommitValuesNotStored(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+	mylog.Check(config.RegisterExternalConfig("some-snap", "simple-external", func(key string) (interface{}, error) {
+		c.Errorf("external func should not get called in this test")
+		return nil, nil
+	}))
 
-	err := config.RegisterExternalConfig("some-snap", "simple-external", func(key string) (interface{}, error) {
+	mylog.Check(config.RegisterExternalConfig("some-snap", "key.external", func(key string) (interface{}, error) {
 		c.Errorf("external func should not get called in this test")
 		return nil, nil
-	})
-	c.Assert(err, IsNil)
-	err = config.RegisterExternalConfig("some-snap", "key.external", func(key string) (interface{}, error) {
+	}))
+
+	mylog.Check(config.RegisterExternalConfig("some-snap", "key.nested.external", func(key string) (interface{}, error) {
 		c.Errorf("external func should not get called in this test")
 		return nil, nil
-	})
-	c.Assert(err, IsNil)
-	err = config.RegisterExternalConfig("some-snap", "key.nested.external", func(key string) (interface{}, error) {
-		c.Errorf("external func should not get called in this test")
-		return nil, nil
-	})
-	c.Assert(err, IsNil)
+	}))
+
 
 	tr := config.NewTransaction(s.state)
 
@@ -861,10 +866,10 @@ func (s *transactionSuite) TestExternalCommitValuesNotStored(c *C) {
 }
 
 func (s *transactionSuite) TestOverlapsWithExternalConfigErr(c *C) {
-	_, err := config.OverlapsWithExternalConfig("invalid#", "valid")
+	_ := mylog.Check2(config.OverlapsWithExternalConfig("invalid#", "valid"))
 	c.Check(err, ErrorMatches, `cannot check overlap for requested key: invalid option name: "invalid#"`)
 
-	_, err = config.OverlapsWithExternalConfig("valid", "invalid#")
+	_ = mylog.Check2(config.OverlapsWithExternalConfig("valid", "invalid#"))
 	c.Check(err, ErrorMatches, `cannot check overlap for external key: invalid option name: "invalid#"`)
 }
 
@@ -885,8 +890,8 @@ func (s *transactionSuite) TestOverlapsWithExternalConfig(c *C) {
 	}
 
 	for _, tc := range tests {
-		overlap, err := config.OverlapsWithExternalConfig(tc.requestedKey, tc.externalKey)
-		c.Assert(err, IsNil)
+		overlap := mylog.Check2(config.OverlapsWithExternalConfig(tc.requestedKey, tc.externalKey))
+
 		c.Check(overlap, Equals, tc.overlap, Commentf("%v", tc))
 	}
 }

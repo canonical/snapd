@@ -26,6 +26,7 @@ import (
 	"net/url"
 	"os"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -125,10 +126,7 @@ func (sc *storeContext) UpdateDeviceAuth(device *auth.DeviceState, newSessionMac
 	sc.state.Lock()
 	defer sc.state.Unlock()
 
-	cur, err := sc.deviceBackend.Device()
-	if err != nil {
-		return nil, err
-	}
+	cur := mylog.Check2(sc.deviceBackend.Device())
 
 	// because of remodeling now more than one place (the global store)
 	// can be trying to set sessions, don't update if the original session
@@ -139,9 +137,7 @@ func (sc *storeContext) UpdateDeviceAuth(device *auth.DeviceState, newSessionMac
 	}
 
 	cur.SessionMacaroon = newSessionMacaroon
-	if err := sc.deviceBackend.SetDevice(cur); err != nil {
-		return nil, fmt.Errorf("internal error: cannot update just read device state: %v", err)
-	}
+	mylog.Check(sc.deviceBackend.SetDevice(cur))
 
 	return cur, nil
 }
@@ -153,16 +149,11 @@ func (sc *storeContext) UpdateUserAuth(user *auth.UserState, newDischarges []str
 	sc.state.Lock()
 	defer sc.state.Unlock()
 
-	cur, err := auth.User(sc.state, user.ID)
-	if err != nil {
-		return nil, err
-	}
+	cur := mylog.Check2(auth.User(sc.state, user.ID))
 
 	// just do it, last update wins
 	cur.StoreDischarges = newDischarges
-	if err := auth.UpdateUser(sc.state, cur); err != nil {
-		return nil, fmt.Errorf("internal error: cannot update just read user state: %v", err)
-	}
+	mylog.Check(auth.UpdateUser(sc.state, cur))
 
 	return cur, nil
 }
@@ -183,7 +174,7 @@ func (sc *storeContext) StoreID(fallback string) (string, error) {
 	sc.state.Lock()
 	defer sc.state.Unlock()
 
-	mod, err := sc.deviceBackend.Model()
+	mod := mylog.Check2(sc.deviceBackend.Model())
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return "", err
 	}
@@ -203,7 +194,7 @@ func (sc *storeContext) DeviceSessionRequestParams(nonce string) (*DeviceSession
 	sc.state.Lock()
 	defer sc.state.Unlock()
 
-	params, err := sc.deviceSessionRequestParams(nonce)
+	params := mylog.Check2(sc.deviceSessionRequestParams(nonce))
 	if errors.Is(err, state.ErrNoState) {
 		return nil, store.ErrNoSerial
 	}
@@ -212,20 +203,11 @@ func (sc *storeContext) DeviceSessionRequestParams(nonce string) (*DeviceSession
 }
 
 func (sc *storeContext) deviceSessionRequestParams(nonce string) (*DeviceSessionRequestParams, error) {
-	model, err := sc.deviceBackend.Model()
-	if err != nil {
-		return nil, err
-	}
+	model := mylog.Check2(sc.deviceBackend.Model())
 
-	serial, err := sc.deviceBackend.Serial()
-	if err != nil {
-		return nil, err
-	}
+	serial := mylog.Check2(sc.deviceBackend.Serial())
 
-	deviceSessionReq, err := sc.sessionReqSigner.SignDeviceSessionRequest(serial, nonce)
-	if err != nil {
-		return nil, err
-	}
+	deviceSessionReq := mylog.Check2(sc.sessionReqSigner.SignDeviceSessionRequest(serial, nonce))
 
 	return &DeviceSessionRequestParams{
 		Request: deviceSessionReq,
@@ -239,7 +221,7 @@ func (sc *storeContext) ProxyStoreParams(defaultURL *url.URL) (proxyStoreID stri
 	sc.state.Lock()
 	defer sc.state.Unlock()
 
-	sto, err := sc.storeOptions.ProxyStore()
+	sto := mylog.Check2(sc.storeOptions.ProxyStore())
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return "", nil, err
 	}
@@ -255,7 +237,7 @@ func (sc *storeContext) StoreOffline() (bool, error) {
 	sc.state.Lock()
 	defer sc.state.Unlock()
 
-	offline, err := sc.storeOptions.StoreOffline()
+	offline := mylog.Check2(sc.storeOptions.StoreOffline())
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return false, err
 	}
@@ -270,7 +252,7 @@ func (sc *storeContext) CloudInfo() (*auth.CloudInfo, error) {
 
 	tr := config.NewTransaction(sc.state)
 	var cloudInfo auth.CloudInfo
-	err := tr.Get("core", "cloud", &cloudInfo)
+	mylog.Check(tr.Get("core", "cloud", &cloudInfo))
 	if err != nil && !config.IsNoOption(err) {
 		return nil, err
 	}

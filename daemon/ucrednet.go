@@ -29,6 +29,7 @@ import (
 	"sync"
 	sys "syscall"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -41,11 +42,13 @@ const (
 
 var raddrRegexp = regexp.MustCompile(`^pid=(\d+);uid=(\d+);socket=([^;]*);(iface=([^;]*);)?$`)
 
-var ucrednetGet = ucrednetGetImpl
-var ucrednetGetWithInterfaces = ucrednetGetWithInterfacesImpl
+var (
+	ucrednetGet               = ucrednetGetImpl
+	ucrednetGetWithInterfaces = ucrednetGetWithInterfacesImpl
+)
 
 func ucrednetGetImpl(remoteAddr string) (*ucrednet, error) {
-	uc, _, err := ucrednetGetWithInterfaces(remoteAddr)
+	uc, _ := mylog.Check3(ucrednetGetWithInterfaces(remoteAddr))
 	return uc, err
 }
 
@@ -59,10 +62,10 @@ func ucrednetGetWithInterfacesImpl(remoteAddr string) (ucred *ucrednet, ifaces [
 	}
 	subs := raddrRegexp.FindStringSubmatch(remoteAddr)
 	if subs != nil {
-		if v, err := strconv.ParseInt(subs[1], 10, 32); err == nil {
+		if v := mylog.Check2(strconv.ParseInt(subs[1], 10, 32)); err == nil {
 			u.Pid = int32(v)
 		}
-		if v, err := strconv.ParseUint(subs[2], 10, 32); err == nil {
+		if v := mylog.Check2(strconv.ParseUint(subs[2], 10, 32)); err == nil {
 			u.Uid = uint32(v)
 		}
 		// group: ([^;]*) - socket path following socket=
@@ -147,27 +150,18 @@ type ucrednetListener struct {
 var getUcred = sys.GetsockoptUcred
 
 func (wl *ucrednetListener) Accept() (net.Conn, error) {
-	con, err := wl.Listener.Accept()
-	if err != nil {
-		return nil, err
-	}
+	con := mylog.Check2(wl.Listener.Accept())
 
 	var unet *ucrednet
 	if ucon, ok := con.(*net.UnixConn); ok {
-		syscallConn, err := ucon.SyscallConn()
-		if err != nil {
-			return nil, err
-		}
+		syscallConn := mylog.Check2(ucon.SyscallConn())
 
 		var ucred *sys.Ucred
 		scErr := syscallConn.Control(func(fd uintptr) {
-			ucred, err = getUcred(int(fd), sys.SOL_SOCKET, sys.SO_PEERCRED)
+			ucred = mylog.Check2(getUcred(int(fd), sys.SOL_SOCKET, sys.SO_PEERCRED))
 		})
 		if scErr != nil {
 			return nil, scErr
-		}
-		if err != nil {
-			return nil, err
 		}
 
 		unet = &ucrednet{

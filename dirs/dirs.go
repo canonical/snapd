@@ -27,6 +27,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -223,7 +224,7 @@ func SetSnapHomeDirs(homedirs string) []string {
 	snapHomeDirsMu.Lock()
 	defer snapHomeDirsMu.Unlock()
 
-	//clear old values
+	// clear old values
 	snapHomeDirs = nil
 	snapDataHomeGlob = nil
 	hiddenSnapDataHomeGlob = nil
@@ -269,10 +270,8 @@ func StripRootDir(dir string) string {
 	if !strings.HasPrefix(dir, GlobalRootDir) {
 		panic(fmt.Sprintf("supplied path is not related to global root %q", dir))
 	}
-	result, err := filepath.Rel(GlobalRootDir, dir)
-	if err != nil {
-		panic(err)
-	}
+	result := mylog.Check2(filepath.Rel(GlobalRootDir, dir))
+
 	return "/" + result
 }
 
@@ -302,9 +301,9 @@ func SupportsClassicConfinement() bool {
 	if SnapMountDir == smd {
 		return true
 	}
-	fi, err := os.Lstat(smd)
+	fi := mylog.Check2(os.Lstat(smd))
 	if err == nil && fi.Mode()&os.ModeSymlink != 0 {
-		if target, err := filepath.EvalSymlinks(smd); err == nil {
+		if target := mylog.Check2(filepath.EvalSymlinks(smd)); err == nil {
 			if target == SnapMountDir {
 				return true
 			}
@@ -322,7 +321,7 @@ var metaSnapPath = "/meta/snap.yaml"
 // - any base snap mounted at /
 // - any os snap mounted at /
 func isInsideBaseSnap() (bool, error) {
-	_, err := os.Stat(metaSnapPath)
+	_ := mylog.Check2(os.Stat(metaSnapPath))
 	if err != nil && os.IsNotExist(err) {
 		return false, nil
 	}
@@ -440,7 +439,7 @@ func SetRootDir(rootdir string) {
 		"manjaro-arm",
 	}
 
-	isInsideBase, _ := isInsideBaseSnap()
+	isInsideBase := mylog.Check2(isInsideBaseSnap())
 	if !isInsideBase && release.DistroLike(altDirDistros...) {
 		SnapMountDir = filepath.Join(rootdir, "/var/lib/snapd/snap")
 	} else {
@@ -542,11 +541,10 @@ func SetRootDir(rootdir string) {
 		if !release.DistroLike("opensuse-tumbleweed") {
 			return false
 		}
-		v, err := strconv.Atoi(release.ReleaseInfo.VersionID)
-		if err != nil {
-			// nothing we can do here
-			return false
-		}
+		v := mylog.Check2(strconv.Atoi(release.ReleaseInfo.VersionID))
+
+		// nothing we can do here
+
 		// first seen on snapshot "20200826"
 		if v < 20200826 {
 			return false
@@ -605,7 +603,6 @@ func SetRootDir(rootdir string) {
 	for _, c := range callbacks {
 		c(rootdir)
 	}
-
 }
 
 // what inside a (non-classic) snap is /usr/lib/snapd, outside can come from different places
@@ -617,7 +614,7 @@ func libExecOutside(base string) string {
 	// if a base is set, libexec comes from the snapd snap if it's
 	// installed, and otherwise from the distro.
 	p := filepath.Join(SnapMountDir, "snapd/current/usr/lib/snapd")
-	if st, err := os.Stat(p); err == nil && st.IsDir() {
+	if st := mylog.Check2(os.Stat(p)); err == nil && st.IsDir() {
 		return p
 	}
 	return DistroLibExecDir
@@ -628,7 +625,7 @@ func CompleteShPath(base string) string {
 }
 
 func IsCompleteShSymlink(compPath string) bool {
-	target, err := os.Readlink(compPath)
+	target := mylog.Check2(os.Readlink(compPath))
 	// check if the target paths ends with "/snapd/complete.sh"
 	return err == nil && filepath.Base(filepath.Dir(target)) == "snapd" && filepath.Base(target) == "complete.sh"
 }

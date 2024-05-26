@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	// expected for digests
@@ -45,11 +46,13 @@ type cmdSignBuild struct {
 	Grade       string  `long:"grade" choice:"devel" choice:"stable" default:"stable"`
 }
 
-var shortSignBuildHelp = i18n.G("Create a snap-build assertion")
-var longSignBuildHelp = i18n.G(`
+var (
+	shortSignBuildHelp = i18n.G("Create a snap-build assertion")
+	longSignBuildHelp  = i18n.G(`
 The sign-build command creates a snap-build assertion for the provided
 snap file.
 `)
+)
 
 func init() {
 	cmd := addCommand("sign-build",
@@ -80,20 +83,13 @@ func (x *cmdSignBuild) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	snapDigest, snapSize, err := asserts.SnapFileSHA3_384(x.Positional.Filename)
-	if err != nil {
-		return err
-	}
+	snapDigest, snapSize := mylog.Check3(asserts.SnapFileSHA3_384(x.Positional.Filename))
 
-	keypairMgr, err := signtool.GetKeypairManager()
-	if err != nil {
-		return err
-	}
-	privKey, err := keypairMgr.GetByName(string(x.KeyName))
-	if err != nil {
-		// TRANSLATORS: %q is the key name, %v the error message
-		return fmt.Errorf(i18n.G("cannot use %q key: %v"), x.KeyName, err)
-	}
+	keypairMgr := mylog.Check2(signtool.GetKeypairManager())
+
+	privKey := mylog.Check2(keypairMgr.GetByName(string(x.KeyName)))
+
+	// TRANSLATORS: %q is the key name, %v the error message
 
 	pubKey := privKey.PublicKey()
 	timestamp := time.Now().Format(time.RFC3339)
@@ -108,22 +104,13 @@ func (x *cmdSignBuild) Execute(args []string) error {
 		"timestamp":     timestamp,
 	}
 
-	adb, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+	adb := mylog.Check2(asserts.OpenDatabase(&asserts.DatabaseConfig{
 		KeypairManager: keypairMgr,
-	})
-	if err != nil {
-		return fmt.Errorf(i18n.G("cannot open the assertions database: %v"), err)
-	}
+	}))
 
-	a, err := adb.Sign(asserts.SnapBuildType, headers, nil, pubKey.ID())
-	if err != nil {
-		return fmt.Errorf(i18n.G("cannot sign assertion: %v"), err)
-	}
+	a := mylog.Check2(adb.Sign(asserts.SnapBuildType, headers, nil, pubKey.ID()))
 
-	_, err = Stdout.Write(asserts.Encode(a))
-	if err != nil {
-		return err
-	}
+	_ = mylog.Check2(Stdout.Write(asserts.Encode(a)))
 
 	return nil
 }

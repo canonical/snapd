@@ -21,18 +21,16 @@ package osutil
 
 import (
 	"os"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // ChDir runs runs "f" inside the given directory
 // Note that this will only work reliable in a single-threaded context.
 func ChDir(newDir string, f func() error) (err error) {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return err
-	}
-	if err := os.Chdir(newDir); err != nil {
-		return err
-	}
+	cwd := mylog.Check2(os.Getwd())
+	mylog.Check(os.Chdir(newDir))
+
 	defer os.Chdir(cwd)
 	return f()
 }

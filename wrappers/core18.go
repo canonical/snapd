@@ -27,6 +27,7 @@ import (
 	"regexp"
 	"syscall"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -48,19 +49,14 @@ func snapdSkipStart(content []byte) bool {
 // snapdUnitSkipStart returns true for units that should not be started
 // automatically
 func snapdUnitSkipStart(unitPath string) (skip bool, err error) {
-	content, err := os.ReadFile(unitPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			// no point in starting units that do not exist
-			return true, nil
-		}
-		return false, err
-	}
+	content := mylog.Check2(os.ReadFile(unitPath))
+
+	// no point in starting units that do not exist
+
 	return snapdSkipStart(content), nil
 }
 
 func writeSnapdToolingMountUnit(sysd systemd.Systemd, prefix string, opts *AddSnapdSnapServicesOptions) error {
-
 	// TODO: the following comment is wrong, we don't need RequiredBy=snapd here?
 
 	// Not using EnsureMountUnitFile() because we need
@@ -81,35 +77,25 @@ Options=bind
 WantedBy=snapd.service
 `, prefix))
 	fullPath := filepath.Join(dirs.SnapServicesDir, SnapdToolingMountUnit)
-
-	err := osutil.EnsureFileState(fullPath,
+	mylog.Check(osutil.EnsureFileState(fullPath,
 		&osutil.MemoryFileState{
 			Content: content,
 			Mode:    0644,
 		},
-	)
+	))
 	if err == osutil.ErrSameState {
 		return nil
 	}
-	if err != nil {
-		return err
-	}
-
-	if err := sysd.DaemonReload(); err != nil {
-		return err
-	}
+	mylog.Check(sysd.DaemonReload())
 
 	units := []string{SnapdToolingMountUnit}
-	if err := sysd.EnableNoReload(units); err != nil {
-		return err
-	}
+	mylog.Check(sysd.EnableNoReload(units))
+	mylog.Check(
 
-	// meh this is killing snap services that use Requires=<this-unit> because
-	// it doesn't use verbatim systemctl restart, it instead does it with
-	// a systemctl stop and then a systemctl start, which triggers LP #1924805
-	if err := sysd.Restart(units); err != nil {
-		return err
-	}
+		// meh this is killing snap services that use Requires=<this-unit> because
+		// it doesn't use verbatim systemctl restart, it instead does it with
+		// a systemctl stop and then a systemctl start, which triggers LP #1924805
+		sysd.Restart(units))
 
 	return nil
 }
@@ -122,15 +108,14 @@ func undoSnapdToolingMountUnit(sysd systemd.Systemd) error {
 		return nil
 	}
 	units := []string{mountUnit}
-	if err := sysd.DisableNoReload(units); err != nil {
-		return err
-	}
-	// XXX: it is ok to stop the mount unit, the failover handler
-	// executes snapd directly from the previous revision of snapd snap or
-	// the core snap, the handler is running directly from the mounted snapd snap
-	if err := sysd.Stop(units); err != nil {
-		return err
-	}
+	mylog.Check(sysd.DisableNoReload(units))
+	mylog.Check(
+
+		// XXX: it is ok to stop the mount unit, the failover handler
+		// executes snapd directly from the previous revision of snapd snap or
+		// the core snap, the handler is running directly from the mounted snapd snap
+		sysd.Stop(units))
+
 	return os.Remove(mountUnitPath)
 }
 
@@ -157,30 +142,25 @@ type snapdRestartImpl struct {
 // Restart restarts systemd service units. Call this method after
 // symlink /snap/snapd/current has been updated.
 func (r *snapdRestartImpl) Restart() error {
-	if err := r.Sysd.StartNoBlock([]string{"snapd.apparmor.service"}); err != nil {
-		return err
-	}
+	mylog.Check(r.Sysd.StartNoBlock([]string{"snapd.apparmor.service"}))
+	mylog.Check(
 
-	// and finally start snapd.service (it will stop by itself and gets
-	// started by systemd then)
-	// Because of the file lock held on the snapstate by the Overlord, the new
-	// snapd will block there until we release it. For this reason, we cannot
-	// start the unit in blocking mode.
-	// TODO: move/share this responsibility with daemon so that we can make the
-	// start blocking again
-	if err := r.Sysd.StartNoBlock([]string{"snapd.service"}); err != nil {
-		return err
-	}
-	if err := r.Sysd.StartNoBlock([]string{"snapd.seeded.service"}); err != nil {
-		return err
-	}
-	// we cannot start snapd.autoimport in blocking mode because
-	// it has a "After=snapd.seeded.service" which means that on
-	// seeding a "systemctl start" that blocks would hang forever
-	// and we deadlock.
-	if err := r.Sysd.StartNoBlock([]string{"snapd.autoimport.service"}); err != nil {
-		return err
-	}
+		// and finally start snapd.service (it will stop by itself and gets
+		// started by systemd then)
+		// Because of the file lock held on the snapstate by the Overlord, the new
+		// snapd will block there until we release it. For this reason, we cannot
+		// start the unit in blocking mode.
+		// TODO: move/share this responsibility with daemon so that we can make the
+		// start blocking again
+		r.Sysd.StartNoBlock([]string{"snapd.service"}))
+	mylog.Check(r.Sysd.StartNoBlock([]string{"snapd.seeded.service"}))
+	mylog.Check(
+
+		// we cannot start snapd.autoimport in blocking mode because
+		// it has a "After=snapd.seeded.service" which means that on
+		// seeding a "systemctl start" that blocks would hang forever
+		// and we deadlock.
+		r.Sysd.StartNoBlock([]string{"snapd.autoimport.service"}))
 
 	return nil
 }
@@ -207,41 +187,26 @@ func AddSnapdSnapServices(s *snap.Info, opts *AddSnapdSnapServicesOptions, inter
 	} else {
 		sysd = systemd.NewEmulationMode("")
 	}
+	mylog.Check(writeSnapdToolingMountUnit(sysd, s.MountDir(), opts))
 
-	if err := writeSnapdToolingMountUnit(sysd, s.MountDir(), opts); err != nil {
-		return nil, err
-	}
+	serviceUnits := mylog.Check2(filepath.Glob(filepath.Join(s.MountDir(), "lib/systemd/system/*.service")))
 
-	serviceUnits, err := filepath.Glob(filepath.Join(s.MountDir(), "lib/systemd/system/*.service"))
-	if err != nil {
-		return nil, err
-	}
-	socketUnits, err := filepath.Glob(filepath.Join(s.MountDir(), "lib/systemd/system/*.socket"))
-	if err != nil {
-		return nil, err
-	}
-	timerUnits, err := filepath.Glob(filepath.Join(s.MountDir(), "lib/systemd/system/*.timer"))
-	if err != nil {
-		return nil, err
-	}
-	targetUnits, err := filepath.Glob(filepath.Join(s.MountDir(), "lib/systemd/system/*.target"))
-	if err != nil {
-		return nil, err
-	}
+	socketUnits := mylog.Check2(filepath.Glob(filepath.Join(s.MountDir(), "lib/systemd/system/*.socket")))
+
+	timerUnits := mylog.Check2(filepath.Glob(filepath.Join(s.MountDir(), "lib/systemd/system/*.timer")))
+
+	targetUnits := mylog.Check2(filepath.Glob(filepath.Join(s.MountDir(), "lib/systemd/system/*.target")))
+
 	units := append(socketUnits, serviceUnits...)
 	units = append(units, timerUnits...)
 	units = append(units, targetUnits...)
 
 	snapdUnits := make(map[string]osutil.FileState, len(units)+1)
 	for _, unit := range units {
-		st, err := os.Stat(unit)
-		if err != nil {
-			return nil, err
-		}
-		content, err := os.ReadFile(unit)
-		if err != nil {
-			return nil, err
-		}
+		st := mylog.Check2(os.Stat(unit))
+
+		content := mylog.Check2(os.ReadFile(unit))
+
 		if execStartRe.Match(content) {
 			content = execStartRe.ReplaceAll(content, []byte(fmt.Sprintf("ExecStart=%s$1", s.MountDir())))
 			// when the service executes a command from the snapd snap, make
@@ -256,11 +221,10 @@ func AddSnapdSnapServices(s *snap.Info, opts *AddSnapdSnapServicesOptions, inter
 		}
 	}
 	globs := []string{"snapd.service", "snapd.socket", "snapd.*.service", "snapd.*.timer", "snapd.*.target"}
-	changed, removed, err := osutil.EnsureDirStateGlobs(dirs.SnapServicesDir, globs, snapdUnits)
-	if err != nil {
-		// TODO: uhhhh, what do we do in this case?
-		return nil, err
-	}
+	changed, removed := mylog.Check3(osutil.EnsureDirStateGlobs(dirs.SnapServicesDir, globs, snapdUnits))
+
+	// TODO: uhhhh, what do we do in this case?
+
 	if (len(changed) + len(removed)) == 0 {
 		// nothing to do
 		return nil, nil
@@ -269,19 +233,14 @@ func AddSnapdSnapServices(s *snap.Info, opts *AddSnapdSnapServicesOptions, inter
 	// stop all removed units first
 	for _, unit := range removed {
 		serviceUnits := []string{unit}
-		if err := sysd.Stop(serviceUnits); err != nil {
-			logger.Noticef("failed to stop %q: %v", unit, err)
-		}
-		if err := sysd.DisableNoReload(serviceUnits); err != nil {
-			logger.Noticef("failed to disable %q: %v", unit, err)
-		}
+		mylog.Check(sysd.Stop(serviceUnits))
+		mylog.Check(sysd.DisableNoReload(serviceUnits))
+
 	}
 
 	// daemon-reload so that we get the new services
 	if len(changed) > 0 {
-		if err := sysd.DaemonReload(); err != nil {
-			return nil, err
-		}
+		mylog.Check(sysd.DaemonReload())
 	}
 
 	// enable/start all the new services
@@ -296,17 +255,14 @@ func AddSnapdSnapServices(s *snap.Info, opts *AddSnapdSnapServicesOptions, inter
 		// error out unless --force is passed, while new ones remove the
 		// symlink and create a new one.
 		if !opts.Preseeding {
-			enabled, err := sysd.IsEnabled(unit)
-			if err != nil {
-				return nil, err
-			}
+			enabled := mylog.Check2(sysd.IsEnabled(unit))
+
 			if enabled {
 				continue
 			}
 		}
-		if err := sysd.EnableNoReload([]string{unit}); err != nil {
-			return nil, err
-		}
+		mylog.Check(sysd.EnableNoReload([]string{unit}))
+
 	}
 
 	if !opts.Preseeding {
@@ -324,45 +280,30 @@ func AddSnapdSnapServices(s *snap.Info, opts *AddSnapdSnapServicesOptions, inter
 			// stopped (independently of snapd.socket being
 			// active) which confuses the boot order (the unit
 			// exists before we are fully seeded).
-			isActive, err := sysd.IsActive(unit)
-			if err != nil {
-				return nil, err
-			}
+			isActive := mylog.Check2(sysd.IsActive(unit))
 
 			serviceUnits := []string{unit}
 			if isActive {
 				// we can never restart the snapd.socket because
 				// this will also bring down snapd itself
 				if unit != "snapd.socket" {
-					if err := sysd.Restart(serviceUnits); err != nil {
-						return nil, err
-					}
+					mylog.Check(sysd.Restart(serviceUnits))
 				}
 			} else {
-				if err := sysd.Start(serviceUnits); err != nil {
-					return nil, err
-				}
+				mylog.Check(sysd.Start(serviceUnits))
 			}
 		}
 	}
+	mylog.Check(
 
-	// Handle the user services
-	if err := writeSnapdUserServicesOnCore(s, opts, inter); err != nil {
-		return nil, err
-	}
+		// Handle the user services
+		writeSnapdUserServicesOnCore(s, opts, inter))
+	mylog.Check(
 
-	// Handle D-Bus configuration
-	if err := writeSnapdDbusConfigOnCore(s); err != nil {
-		return nil, err
-	}
-
-	if err := writeSnapdDbusActivationOnCore(s); err != nil {
-		return nil, err
-	}
-
-	if err := writeSnapdDesktopFilesOnCore(s); err != nil {
-		return nil, err
-	}
+		// Handle D-Bus configuration
+		writeSnapdDbusConfigOnCore(s))
+	mylog.Check(writeSnapdDbusActivationOnCore(s))
+	mylog.Check(writeSnapdDesktopFilesOnCore(s))
 
 	return &snapdRestartImpl{Sysd: sysd}, nil
 }
@@ -372,22 +313,14 @@ func AddSnapdSnapServices(s *snap.Info, opts *AddSnapdSnapServicesOptions, inter
 // executed as part of a controlled undo path.
 func undoSnapdServicesOnCore(s *snap.Info, sysd systemd.Systemd) error {
 	// list service, socket and timer units present in the snapd snap
-	serviceUnits, err := filepath.Glob(filepath.Join(s.MountDir(), "lib/systemd/system/*.service"))
-	if err != nil {
-		return err
-	}
-	socketUnits, err := filepath.Glob(filepath.Join(s.MountDir(), "lib/systemd/system/*.socket"))
-	if err != nil {
-		return err
-	}
-	timerUnits, err := filepath.Glob(filepath.Join(s.MountDir(), "lib/systemd/system/*.timer"))
-	if err != nil {
-		return err
-	}
-	targetUnits, err := filepath.Glob(filepath.Join(s.MountDir(), "lib/systemd/system/*.target"))
-	if err != nil {
-		return err
-	}
+	serviceUnits := mylog.Check2(filepath.Glob(filepath.Join(s.MountDir(), "lib/systemd/system/*.service")))
+
+	socketUnits := mylog.Check2(filepath.Glob(filepath.Join(s.MountDir(), "lib/systemd/system/*.socket")))
+
+	timerUnits := mylog.Check2(filepath.Glob(filepath.Join(s.MountDir(), "lib/systemd/system/*.timer")))
+
+	targetUnits := mylog.Check2(filepath.Glob(filepath.Join(s.MountDir(), "lib/systemd/system/*.target")))
+
 	units := append(socketUnits, serviceUnits...)
 	units = append(units, timerUnits...)
 	units = append(units, targetUnits...)
@@ -403,30 +336,23 @@ func undoSnapdServicesOnCore(s *snap.Info, sysd systemd.Systemd) error {
 
 		unit := []string{sysdUnit}
 		if !existsInCore {
-			// new unit that did not exist on core, disable and stop
-			if err := sysd.DisableNoReload(unit); err != nil {
-				logger.Noticef("failed to disable %q: %v", unit, err)
-			}
-			if err := sysd.Stop(unit); err != nil {
-				return err
-			}
+			mylog.Check(
+				// new unit that did not exist on core, disable and stop
+				sysd.DisableNoReload(unit))
+			mylog.Check(sysd.Stop(unit))
+
 		}
-		if err := os.Remove(writtenUnitPath); err != nil {
-			return err
-		}
+		mylog.Check(os.Remove(writtenUnitPath))
+
 		if !existsInCore {
 			// nothing more to do here
 			continue
 		}
 
-		isEnabled, err := sysd.IsEnabled(sysdUnit)
-		if err != nil {
-			return err
-		}
+		isEnabled := mylog.Check2(sysd.IsEnabled(sysdUnit))
+
 		if !isEnabled {
-			if err := sysd.EnableNoReload(unit); err != nil {
-				return err
-			}
+			mylog.Check(sysd.EnableNoReload(unit))
 		}
 
 		if sysdUnit == "snapd.socket" {
@@ -434,24 +360,16 @@ func undoSnapdServicesOnCore(s *snap.Info, sysd systemd.Systemd) error {
 			// restart it
 			continue
 		}
-		skipStart, err := snapdUnitSkipStart(coreUnit)
-		if err != nil {
-			return err
-		}
+		skipStart := mylog.Check2(snapdUnitSkipStart(coreUnit))
+
 		if !skipStart {
 			// TODO: consider using sys.Restart() instead of is-active check
-			isActive, err := sysd.IsActive(sysdUnit)
-			if err != nil {
-				return err
-			}
+			isActive := mylog.Check2(sysd.IsActive(sysdUnit))
+
 			if isActive {
-				if err := sysd.Restart(unit); err != nil {
-					return err
-				}
+				mylog.Check(sysd.Restart(unit))
 			} else {
-				if err := sysd.Start(unit); err != nil {
-					return err
-				}
+				mylog.Check(sysd.Start(unit))
 			}
 		}
 	}
@@ -459,34 +377,25 @@ func undoSnapdServicesOnCore(s *snap.Info, sysd systemd.Systemd) error {
 }
 
 func writeSnapdUserServicesOnCore(s *snap.Info, opts *AddSnapdSnapServicesOptions, inter Interacter) error {
-	// Ensure /etc/systemd/user exists
-	if err := os.MkdirAll(dirs.SnapUserServicesDir, 0755); err != nil {
-		return err
-	}
+	mylog.Check(
+		// Ensure /etc/systemd/user exists
+		os.MkdirAll(dirs.SnapUserServicesDir, 0755))
 
 	// TODO: use EmulationMode when preseeding (teach EmulationMode about user services)?
 	sysd := systemd.New(systemd.GlobalUserMode, inter)
 
-	serviceUnits, err := filepath.Glob(filepath.Join(s.MountDir(), "usr/lib/systemd/user/*.service"))
-	if err != nil {
-		return err
-	}
-	socketUnits, err := filepath.Glob(filepath.Join(s.MountDir(), "usr/lib/systemd/user/*.socket"))
-	if err != nil {
-		return err
-	}
+	serviceUnits := mylog.Check2(filepath.Glob(filepath.Join(s.MountDir(), "usr/lib/systemd/user/*.service")))
+
+	socketUnits := mylog.Check2(filepath.Glob(filepath.Join(s.MountDir(), "usr/lib/systemd/user/*.socket")))
+
 	units := append(serviceUnits, socketUnits...)
 
 	snapdUnits := make(map[string]osutil.FileState, len(units)+1)
 	for _, unit := range units {
-		st, err := os.Stat(unit)
-		if err != nil {
-			return err
-		}
-		content, err := os.ReadFile(unit)
-		if err != nil {
-			return err
-		}
+		st := mylog.Check2(os.Stat(unit))
+
+		content := mylog.Check2(os.ReadFile(unit))
+
 		if execStartRe.Match(content) {
 			content = execStartRe.ReplaceAll(content, []byte(fmt.Sprintf("ExecStart=%s$1", s.MountDir())))
 			// when the service executes a command from the snapd snap, make
@@ -500,37 +409,29 @@ func writeSnapdUserServicesOnCore(s *snap.Info, opts *AddSnapdSnapServicesOption
 			Mode:    st.Mode(),
 		}
 	}
-	changed, removed, err := osutil.EnsureDirStateGlobs(dirs.SnapUserServicesDir, []string{"snapd.*.service", "snapd.*.socket"}, snapdUnits)
-	if err != nil {
-		// TODO: uhhhh, what do we do in this case?
-		return err
-	}
+	changed, removed := mylog.Check3(osutil.EnsureDirStateGlobs(dirs.SnapUserServicesDir, []string{"snapd.*.service", "snapd.*.socket"}, snapdUnits))
+
+	// TODO: uhhhh, what do we do in this case?
+
 	if (len(changed) + len(removed)) == 0 {
 		// nothing to do
 		return nil
 	}
 	// disable all removed units first
 	for _, unit := range removed {
-		if err := sysd.DisableNoReload([]string{unit}); err != nil {
-			logger.Noticef("failed to disable %q: %v", unit, err)
-		}
+		mylog.Check(sysd.DisableNoReload([]string{unit}))
 	}
 
 	// enable/start all the new services
 	for _, unit := range changed {
 		units := []string{unit}
-		if err := sysd.DisableNoReload(units); err != nil {
-			logger.Noticef("failed to disable %q: %v", unit, err)
-		}
-		if err := sysd.EnableNoReload(units); err != nil {
-			return err
-		}
+		mylog.Check(sysd.DisableNoReload(units))
+		mylog.Check(sysd.EnableNoReload(units))
+
 	}
 
 	if !opts.Preseeding {
-		if err := userDaemonReload(); err != nil {
-			logger.Noticef("failed to reload user systemd instances: %v", err)
-		}
+		mylog.Check(userDaemonReload())
 	}
 
 	return nil
@@ -543,14 +444,10 @@ func undoSnapdUserServicesOnCore(s *snap.Info, inter Interacter) error {
 	sysd := systemd.NewUnderRoot(dirs.GlobalRootDir, systemd.GlobalUserMode, inter)
 
 	// list user service and socket units present in the snapd snap
-	serviceUnits, err := filepath.Glob(filepath.Join(s.MountDir(), "usr/lib/systemd/user/*.service"))
-	if err != nil {
-		return err
-	}
-	socketUnits, err := filepath.Glob(filepath.Join(s.MountDir(), "usr/lib/systemd/user/*.socket"))
-	if err != nil {
-		return err
-	}
+	serviceUnits := mylog.Check2(filepath.Glob(filepath.Join(s.MountDir(), "usr/lib/systemd/user/*.service")))
+
+	socketUnits := mylog.Check2(filepath.Glob(filepath.Join(s.MountDir(), "usr/lib/systemd/user/*.socket")))
+
 	units := append(serviceUnits, socketUnits...)
 
 	for _, srcUnit := range units {
@@ -561,29 +458,22 @@ func undoSnapdUserServicesOnCore(s *snap.Info, inter Interacter) error {
 		}
 		coreUnit := filepath.Join(dirs.GlobalRootDir, "usr/lib/systemd/user", unit)
 		existsInCore := osutil.FileExists(coreUnit)
+		mylog.Check(sysd.DisableNoReload([]string{unit}))
+		mylog.Check(os.Remove(writtenUnitPath))
 
-		if err := sysd.DisableNoReload([]string{unit}); err != nil {
-			logger.Noticef("failed to disable %q: %v", unit, err)
-		}
-		if err := os.Remove(writtenUnitPath); err != nil {
-			return err
-		}
 		if !existsInCore {
 			// new unit that did not exist on core
 			continue
 		}
-		if err := sysd.EnableNoReload([]string{unit}); err != nil {
-			return err
-		}
+		mylog.Check(sysd.EnableNoReload([]string{unit}))
+
 	}
 	return nil
 }
 
 func DeriveSnapdDBusConfig(s *snap.Info) (sessionContent, systemContent map[string]osutil.FileState, err error) {
-	sessionConfigs, err := filepath.Glob(filepath.Join(s.MountDir(), "usr/share/dbus-1/session.d/snapd.*.conf"))
-	if err != nil {
-		return nil, nil, err
-	}
+	sessionConfigs := mylog.Check2(filepath.Glob(filepath.Join(s.MountDir(), "usr/share/dbus-1/session.d/snapd.*.conf")))
+
 	sessionContent = make(map[string]osutil.FileState, len(sessionConfigs)+1)
 	for _, config := range sessionConfigs {
 		sessionContent[filepath.Base(config)] = &osutil.FileReference{
@@ -591,10 +481,8 @@ func DeriveSnapdDBusConfig(s *snap.Info) (sessionContent, systemContent map[stri
 		}
 	}
 
-	systemConfigs, err := filepath.Glob(filepath.Join(s.MountDir(), "usr/share/dbus-1/system.d/snapd.*.conf"))
-	if err != nil {
-		return nil, nil, err
-	}
+	systemConfigs := mylog.Check2(filepath.Glob(filepath.Join(s.MountDir(), "usr/share/dbus-1/system.d/snapd.*.conf")))
+
 	systemContent = make(map[string]osutil.FileState, len(systemConfigs)+1)
 	for _, config := range systemConfigs {
 		systemContent[filepath.Base(config)] = &osutil.FileReference{
@@ -621,40 +509,26 @@ func isReadOnlyFsError(err error) bool {
 var ensureDirState = osutil.EnsureDirState
 
 func writeSnapdDbusConfigOnCore(s *snap.Info) error {
-	sessionContent, systemContent, err := DeriveSnapdDBusConfig(s)
-	if err != nil {
-		return err
-	}
+	sessionContent, systemContent := mylog.Check3(DeriveSnapdDBusConfig(s))
 
-	_, _, err = ensureDirState(dirs.SnapDBusSessionPolicyDir, "snapd.*.conf", sessionContent)
-	if err != nil {
-		if isReadOnlyFsError(err) {
-			// If /etc/dbus-1/session.d is read-only (which may be the case on very old core18), then
-			// err is os.PathError with syscall.Errno underneath. Hitting this prevents snapd refresh,
-			// so log the error but carry on. This fixes LP: 1899664.
-			// XXX: ideally we should regenerate session files elsewhere if we fail here (otherwise
-			// this will only happen on future snapd refresh), but realistically this
-			// is not relevant on core18 devices.
-			logger.Noticef("%s appears to be read-only, could not write snapd dbus config files", dirs.SnapDBusSessionPolicyDir)
-		} else {
-			return err
-		}
-	}
+	_, _ = mylog.Check3(ensureDirState(dirs.SnapDBusSessionPolicyDir, "snapd.*.conf", sessionContent))
 
-	_, _, err = osutil.EnsureDirState(dirs.SnapDBusSystemPolicyDir, "snapd.*.conf", systemContent)
-	if err != nil {
-		return err
-	}
+	// If /etc/dbus-1/session.d is read-only (which may be the case on very old core18), then
+	// err is os.PathError with syscall.Errno underneath. Hitting this prevents snapd refresh,
+	// so log the error but carry on. This fixes LP: 1899664.
+	// XXX: ideally we should regenerate session files elsewhere if we fail here (otherwise
+	// this will only happen on future snapd refresh), but realistically this
+	// is not relevant on core18 devices.
+
+	_, _ = mylog.Check3(osutil.EnsureDirState(dirs.SnapDBusSystemPolicyDir, "snapd.*.conf", systemContent))
 
 	return nil
 }
 
 func undoSnapdDbusConfigOnCore() error {
-	_, _, err := osutil.EnsureDirState(dirs.SnapDBusSystemPolicyDir, "snapd.*.conf", nil)
-	if err != nil {
-		return err
-	}
-	_, _, err = osutil.EnsureDirState(dirs.SnapDBusSessionPolicyDir, "snapd.*.conf", nil)
+	_, _ := mylog.Check3(osutil.EnsureDirState(dirs.SnapDBusSystemPolicyDir, "snapd.*.conf", nil))
+
+	_, _ = mylog.Check3(osutil.EnsureDirState(dirs.SnapDBusSessionPolicyDir, "snapd.*.conf", nil))
 	return err
 }
 
@@ -669,9 +543,7 @@ var dbusSessionServices = []string{
 }
 
 func writeSnapdDbusActivationOnCore(s *snap.Info) error {
-	if err := os.MkdirAll(dirs.SnapDBusSessionServicesDir, 0755); err != nil {
-		return err
-	}
+	mylog.Check(os.MkdirAll(dirs.SnapDBusSessionServicesDir, 0755))
 
 	content := make(map[string]osutil.FileState, len(dbusSessionServices)+1)
 	for _, service := range dbusSessionServices {
@@ -684,12 +556,12 @@ func writeSnapdDbusActivationOnCore(s *snap.Info) error {
 		}
 	}
 
-	_, _, err := osutil.EnsureDirStateGlobs(dirs.SnapDBusSessionServicesDir, dbusSessionServices, content)
+	_, _ := mylog.Check3(osutil.EnsureDirStateGlobs(dirs.SnapDBusSessionServicesDir, dbusSessionServices, content))
 	return err
 }
 
 func undoSnapdDbusActivationOnCore() error {
-	_, _, err := osutil.EnsureDirStateGlobs(dirs.SnapDBusSessionServicesDir, dbusSessionServices, nil)
+	_, _ := mylog.Check3(osutil.EnsureDirStateGlobs(dirs.SnapDBusSessionServicesDir, dbusSessionServices, nil))
 	return err
 }
 
@@ -702,10 +574,9 @@ var snapdDesktopFileNames = []string{
 }
 
 func writeSnapdDesktopFilesOnCore(s *snap.Info) error {
-	// Ensure /var/lib/snapd/desktop/applications exists
-	if err := os.MkdirAll(dirs.SnapDesktopFilesDir, 0755); err != nil {
-		return err
-	}
+	mylog.Check(
+		// Ensure /var/lib/snapd/desktop/applications exists
+		os.MkdirAll(dirs.SnapDesktopFilesDir, 0755))
 
 	desktopFiles := make(map[string]osutil.FileState, len(snapdDesktopFileNames))
 	for _, fileName := range snapdDesktopFileNames {
@@ -716,12 +587,12 @@ func writeSnapdDesktopFilesOnCore(s *snap.Info) error {
 		desktopFiles[fileName] = &osutil.FileReference{Path: filePathInSnap}
 	}
 
-	_, _, err := osutil.EnsureDirStateGlobs(dirs.SnapDesktopFilesDir, snapdDesktopFileNames, desktopFiles)
+	_, _ := mylog.Check3(osutil.EnsureDirStateGlobs(dirs.SnapDesktopFilesDir, snapdDesktopFileNames, desktopFiles))
 	return err
 }
 
 func undoSnapdDesktopFilesOnCore(s *snap.Info) error {
-	_, _, err := osutil.EnsureDirStateGlobs(dirs.SnapDesktopFilesDir, snapdDesktopFileNames, nil)
+	_, _ := mylog.Check3(osutil.EnsureDirStateGlobs(dirs.SnapDesktopFilesDir, snapdDesktopFileNames, nil))
 	return err
 }
 
@@ -740,25 +611,13 @@ func RemoveSnapdSnapServicesOnCore(s *snap.Info, inter Interacter) error {
 	}
 
 	sysd := systemd.NewUnderRoot(dirs.GlobalRootDir, systemd.SystemMode, inter)
+	mylog.Check(undoSnapdDesktopFilesOnCore(s))
+	mylog.Check(undoSnapdDbusActivationOnCore())
+	mylog.Check(undoSnapdDbusConfigOnCore())
+	mylog.Check(undoSnapdServicesOnCore(s, sysd))
+	mylog.Check(undoSnapdUserServicesOnCore(s, inter))
+	mylog.Check(undoSnapdToolingMountUnit(sysd))
 
-	if err := undoSnapdDesktopFilesOnCore(s); err != nil {
-		return err
-	}
-	if err := undoSnapdDbusActivationOnCore(); err != nil {
-		return err
-	}
-	if err := undoSnapdDbusConfigOnCore(); err != nil {
-		return err
-	}
-	if err := undoSnapdServicesOnCore(s, sysd); err != nil {
-		return err
-	}
-	if err := undoSnapdUserServicesOnCore(s, inter); err != nil {
-		return err
-	}
-	if err := undoSnapdToolingMountUnit(sysd); err != nil {
-		return err
-	}
 	// XXX: reload after all operations?
 	return nil
 }

@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"regexp"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/snap"
@@ -63,7 +64,7 @@ func implicitSystemConnectedSlot(slot *interfaces.ConnectedSlot) bool {
 // valid <path kind>".
 func verifySlotPathAttribute(slotRef *interfaces.SlotRef, attrs interfaces.Attrer, reg *regexp.Regexp, invalidErrFmt string) (string, error) {
 	var path string
-	if err := attrs.Attr("path", &path); err != nil || path == "" {
+	if mylog.Check(attrs.Attr("path", &path)); err != nil || path == "" {
 		return "", fmt.Errorf("slot %q must have a path attribute", slotRef)
 	}
 	cleanPath := filepath.Clean(path)
@@ -135,7 +136,7 @@ func getDesktopFileRules(snapInstanceName string) []string {
 // stringListAttribute returns a list of strings for the given attribute key if the attribute exists.
 func stringListAttribute(attrer interfaces.Attrer, key string) ([]string, error) {
 	var stringList []string
-	err := attrer.Attr(key, &stringList)
+	mylog.Check(attrer.Attr(key, &stringList))
 	if err != nil && !errors.Is(err, snap.AttributeNotFoundError{}) {
 		value, _ := attrer.Lookup(key)
 		return nil, fmt.Errorf(`%q attribute must be a list of strings, not "%v"`, key, value)

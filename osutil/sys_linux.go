@@ -22,18 +22,16 @@ package osutil
 import (
 	"syscall"
 	"unsafe"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // Symlinkat is a direct pass-through to the symlinkat(2) system call.
 func Symlinkat(target string, dirfd int, linkpath string) error {
-	targetPtr, err := syscall.BytePtrFromString(target)
-	if err != nil {
-		return err
-	}
-	linkpathPtr, err := syscall.BytePtrFromString(linkpath)
-	if err != nil {
-		return err
-	}
+	targetPtr := mylog.Check2(syscall.BytePtrFromString(target))
+
+	linkpathPtr := mylog.Check2(syscall.BytePtrFromString(linkpath))
+
 	_, _, errno := syscall.Syscall(syscall.SYS_SYMLINKAT, uintptr(unsafe.Pointer(targetPtr)), uintptr(dirfd), uintptr(unsafe.Pointer(linkpathPtr)))
 	if errno != 0 {
 		return errno
@@ -45,10 +43,8 @@ func Symlinkat(target string, dirfd int, linkpath string) error {
 func Readlinkat(dirfd int, path string, buf []byte) (n int, err error) {
 	var zero uintptr
 
-	pathPtr, err := syscall.BytePtrFromString(path)
-	if err != nil {
-		return 0, err
-	}
+	pathPtr := mylog.Check2(syscall.BytePtrFromString(path))
+
 	var bufPtr unsafe.Pointer
 	if len(buf) > 0 {
 		bufPtr = unsafe.Pointer(&buf[0])

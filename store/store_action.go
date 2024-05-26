@@ -29,6 +29,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/jsonutil"
@@ -227,11 +228,7 @@ func (s *Store) SnapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 	var toResolve map[asserts.Grouping][]*asserts.AtRevision
 	var toResolveSeq map[asserts.Grouping][]*asserts.AtSequence
 	if assertQuery != nil {
-		var err error
-		toResolve, toResolveSeq, err = assertQuery.ToResolve()
-		if err != nil {
-			return nil, nil, err
-		}
+		toResolve, toResolveSeq = mylog.Check3(assertQuery.ToResolve())
 	}
 
 	if len(currentSnaps) == 0 && len(actions) == 0 && len(toResolve) == 0 && len(toResolveSeq) == 0 {
@@ -241,7 +238,7 @@ func (s *Store) SnapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 
 	authRefreshes := 0
 	for {
-		sars, ars, err := s.snapAction(ctx, currentSnaps, actions, assertQuery, toResolve, toResolveSeq, user, opts, 0)
+		sars, ars := mylog.Check3(s.snapAction(ctx, currentSnaps, actions, assertQuery, toResolve, toResolveSeq, user, opts, 0))
 
 		if saErr, ok := err.(*SnapActionError); ok && authRefreshes < 2 && len(saErr.Other) > 0 {
 			// do we need to try to refresh auths?, 2 tries
@@ -256,11 +253,10 @@ func (s *Store) SnapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			}
 			if refreshNeed.needed() {
 				if a, ok := s.auth.(RefreshingAuthorizer); ok {
-					err := a.RefreshAuth(refreshNeed, s.dauthCtx, user, s.client)
-					if err != nil {
-						// best effort
-						logger.Noticef("cannot refresh soft-expired authorisation: %v", err)
-					}
+					mylog.Check(a.RefreshAuth(refreshNeed, s.dauthCtx, user, s.client))
+
+					// best effort
+
 					authRefreshes++
 					// TODO: we could avoid retrying here
 					// if refreshAuth gave no error we got
@@ -322,10 +318,8 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		if curSnap.SnapID == "" || curSnap.InstanceName == "" || curSnap.Revision.Unset() {
 			return nil, nil, fmt.Errorf("internal error: invalid current snap information")
 		}
-		instanceKey, err := genInstanceKey(curSnap, requestSalt)
-		if err != nil {
-			return nil, nil, err
-		}
+		instanceKey := mylog.Check2(genInstanceKey(curSnap, requestSalt))
+
 		curSnaps[instanceKey] = curSnap
 		instanceNameToKey[curSnap.InstanceName] = instanceKey
 
@@ -381,10 +375,10 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		}
 		var ignoreValidation *bool
 		if a.Flags&SnapActionIgnoreValidation != 0 {
-			var t = true
+			t := true
 			ignoreValidation = &t
 		} else if a.Flags&SnapActionEnforceValidation != 0 {
-			var f = false
+			f := false
 			ignoreValidation = &f
 		}
 
@@ -528,20 +522,14 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 	}
 
 	// build input for the install/refresh endpoint
-	jsonData, err := json.Marshal(snapActionRequest{
+	jsonData := mylog.Check2(json.Marshal(snapActionRequest{
 		Context:             curSnapJSONs,
 		Actions:             actionJSONs,
 		Fields:              snapActionFields,
 		AssertionMaxFormats: assertMaxFormats,
-	})
-	if err != nil {
-		return nil, nil, err
-	}
+	}))
 
-	u, err := s.endpointURL(snapActionEndpPath, nil)
-	if err != nil {
-		return nil, nil, err
-	}
+	u := mylog.Check2(s.endpointURL(snapActionEndpPath, nil))
 
 	reqOptions := &requestOptions{
 		Method:      "POST",
@@ -566,10 +554,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 	}
 
 	var results snapActionResultList
-	resp, err := s.retryRequestDecodeJSON(ctx, reqOptions, user, &results, nil)
-	if err != nil {
-		return nil, nil, err
-	}
+	resp := mylog.Check2(s.retryRequestDecodeJSON(ctx, reqOptions, user, &results, nil))
 
 	if resp.StatusCode != 200 {
 		// some fields might not be supported on proxies with old versions.
@@ -577,7 +562,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		// get it from the response header.
 		if resp.StatusCode == 400 && storeVer <= 0 {
 			verstr := resp.Header.Get("Snap-Store-Version")
-			ver, err := strconv.Atoi(verstr)
+			ver := mylog.Check2(strconv.Atoi(verstr))
 			if err != nil || ver <= 0 {
 				logger.Debugf("cannot parse header value of Snap-Store-Version: expected positive int got %q", verstr)
 			} else {
@@ -599,9 +584,8 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 	for _, res := range results.Results {
 		if res.Result == "fetch-assertions" {
 			if len(res.ErrorList) != 0 {
-				if err := reportFetchAssertionsError(res, assertQuery); err != nil {
-					return nil, nil, fmt.Errorf("internal error: %v", err)
-				}
+				mylog.Check(reportFetchAssertionsError(res, assertQuery))
+
 				continue
 			}
 			ars = append(ars, AssertionResult{
@@ -641,10 +625,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			otherErrors = append(otherErrors, translateSnapActionError("", "", res.Error.Code, res.Error.Message, nil))
 			continue
 		}
-		snapInfo, err := infoFromStoreSnap(&res.Snap)
-		if err != nil {
-			return nil, nil, fmt.Errorf("unexpected invalid install/refresh API result: %v", err)
-		}
+		snapInfo := mylog.Check2(infoFromStoreSnap(&res.Snap))
 
 		snapInfo.Channel = res.EffectiveChannel
 
@@ -754,7 +735,7 @@ func reportFetchAssertionsError(res *snapActionResult, assertq AssertionQuery) e
 	switch {
 	case carryingRef(&rep):
 		ref := &asserts.Ref{Type: asserts.Type(rep.Type), PrimaryKey: rep.PrimaryKey}
-		var err error
+
 		if notFound {
 			headers, _ := asserts.HeadersFromPrimaryKey(ref.Type, ref.PrimaryKey)
 			err = &asserts.NotFoundError{
@@ -762,11 +743,11 @@ func reportFetchAssertionsError(res *snapActionResult, assertq AssertionQuery) e
 				Headers: headers,
 			}
 		} else {
-			err = fmt.Errorf("%s", rep.Message)
+			mylog.Check(fmt.Errorf("%s", rep.Message))
 		}
 		return assertq.AddError(err, ref)
 	case carryingSeqKey(&rep):
-		var err error
+
 		atSeq := &asserts.AtSequence{Type: asserts.Type(rep.Type), SequenceKey: rep.SequenceKey}
 		if notFound {
 			headers, _ := asserts.HeadersFromSequenceKey(atSeq.Type, atSeq.SequenceKey)
@@ -775,7 +756,7 @@ func reportFetchAssertionsError(res *snapActionResult, assertq AssertionQuery) e
 				Headers: headers,
 			}
 		} else {
-			err = fmt.Errorf("%s", rep.Message)
+			mylog.Check(fmt.Errorf("%s", rep.Message))
 		}
 		return assertq.AddSequenceError(err, atSeq)
 	}

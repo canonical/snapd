@@ -22,6 +22,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/cmd/snaplock"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -52,25 +53,20 @@ func (upCtx *CommonProfileUpdateContext) Lock() (func(), error) {
 
 	// Lock the mount namespace so that any concurrently attempted invocations
 	// of snap-confine are synchronized and will see consistent state.
-	lock, err := snaplock.OpenLock(instanceName)
-	if err != nil {
-		return nil, fmt.Errorf("cannot open lock file for mount namespace of snap %q: %s", instanceName, err)
-	}
+	lock := mylog.Check2(snaplock.OpenLock(instanceName))
 
 	logger.Debugf("locking mount namespace of snap %q", instanceName)
 	if upCtx.fromSnapConfine {
 		// When --from-snap-confine is passed then we just ensure that the
 		// namespace is locked. This is used by snap-confine to use
 		// snap-update-ns to apply mount profiles.
-		if err := lock.TryLock(); err != osutil.ErrAlreadyLocked {
+		if mylog.Check(lock.TryLock()); err != osutil.ErrAlreadyLocked {
 			// If we managed to grab the lock we should drop it.
 			lock.Close()
 			return nil, fmt.Errorf("mount namespace of snap %q is not locked but --from-snap-confine was used", instanceName)
 		}
 	} else {
-		if err := lock.Lock(); err != nil {
-			return nil, fmt.Errorf("cannot lock mount namespace of snap %q: %s", instanceName, err)
-		}
+		mylog.Check(lock.Lock())
 	}
 
 	// Freeze the mount namespace and unfreeze it later. This lets us perform
@@ -79,11 +75,8 @@ func (upCtx *CommonProfileUpdateContext) Lock() (func(), error) {
 	// introduce a symlink that would cause us to mount something other
 	// than what we expected).
 	logger.Debugf("freezing processes of snap %q", instanceName)
-	if err := cgroup.FreezeSnapProcesses(instanceName); err != nil {
-		// If we cannot freeze the processes we should drop the lock.
-		lock.Close()
-		return nil, err
-	}
+	mylog.Check(cgroup.FreezeSnapProcesses(instanceName))
+	// If we cannot freeze the processes we should drop the lock.
 
 	unlock := func() {
 		logger.Debugf("unlocking mount namespace of snap %q", instanceName)
@@ -100,26 +93,21 @@ func (upCtx *CommonProfileUpdateContext) Assumptions() *Assumptions {
 
 // LoadDesiredProfile loads the desired mount profile.
 func (upCtx *CommonProfileUpdateContext) LoadDesiredProfile() (*osutil.MountProfile, error) {
-	profile, err := osutil.LoadMountProfile(upCtx.desiredProfilePath)
-	if err != nil {
-		return nil, fmt.Errorf("cannot load desired mount profile of snap %q: %s", upCtx.instanceName, err)
-	}
+	profile := mylog.Check2(osutil.LoadMountProfile(upCtx.desiredProfilePath))
+
 	return profile, nil
 }
 
 // LoadCurrentProfile loads the current mount profile.
 func (upCtx *CommonProfileUpdateContext) LoadCurrentProfile() (*osutil.MountProfile, error) {
-	profile, err := osutil.LoadMountProfile(upCtx.currentProfilePath)
-	if err != nil {
-		return nil, fmt.Errorf("cannot load current mount profile of snap %q: %s", upCtx.instanceName, err)
-	}
+	profile := mylog.Check2(osutil.LoadMountProfile(upCtx.currentProfilePath))
+
 	return profile, nil
 }
 
 // SaveCurrentProfile saves the current mount profile.
 func (upCtx *CommonProfileUpdateContext) SaveCurrentProfile(profile *osutil.MountProfile) error {
-	if err := profile.Save(upCtx.currentProfilePath); err != nil {
-		return fmt.Errorf("cannot save current mount profile of snap %q: %s", upCtx.instanceName, err)
-	}
+	mylog.Check(profile.Save(upCtx.currentProfilePath))
+
 	return nil
 }

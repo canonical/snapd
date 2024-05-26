@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/configstate/proxyconf"
 	"github.com/snapcore/snapd/overlord/state"
@@ -40,23 +41,23 @@ var _ = Suite(&proxyconfSuite{})
 func (s *proxyconfSuite) TestProxySettingsNoSetting(c *C) {
 	st := state.New(nil)
 
-	req, err := http.NewRequest("GET", "http://example.com", nil)
-	c.Assert(err, IsNil)
+	req := mylog.Check2(http.NewRequest("GET", "http://example.com", nil))
 
-	expected, err := http.ProxyFromEnvironment(req)
-	c.Assert(err, IsNil)
+
+	expected := mylog.Check2(http.ProxyFromEnvironment(req))
+
 
 	proxyConf := proxyconf.New(st)
-	proxy, err := proxyConf.Conf(req)
-	c.Assert(err, IsNil)
+	proxy := mylog.Check2(proxyConf.Conf(req))
+
 	c.Check(proxy, DeepEquals, expected)
 }
 
 func (s *proxyconfSuite) TestProxySettings(c *C) {
 	st := state.New(nil)
 
-	req, err := http.NewRequest("GET", "http://example.com", nil)
-	c.Assert(err, IsNil)
+	req := mylog.Check2(http.NewRequest("GET", "http://example.com", nil))
+
 
 	st.Lock()
 	tr := config.NewTransaction(st)
@@ -65,8 +66,8 @@ func (s *proxyconfSuite) TestProxySettings(c *C) {
 	st.Unlock()
 
 	proxyConf := proxyconf.New(st)
-	proxy, err := proxyConf.Conf(req)
-	c.Assert(err, IsNil)
+	proxy := mylog.Check2(proxyConf.Conf(req))
+
 	c.Check(proxy, DeepEquals, &url.URL{
 		Scheme: "http",
 		Host:   "some-proxy:3128",

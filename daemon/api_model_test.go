@@ -34,6 +34,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/client"
@@ -65,10 +66,10 @@ func (s *modelSuite) TestPostRemodelUnhappy(c *check.C) {
 
 	s.expectRootAccess()
 
-	data, err := json.Marshal(daemon.PostModelData{NewModel: "invalid model"})
+	data := mylog.Check2(json.Marshal(daemon.PostModelData{NewModel: "invalid model"}))
 	c.Check(err, check.IsNil)
 
-	req, err := http.NewRequest("POST", "/v2/model", bytes.NewBuffer(data))
+	req := mylog.Check2(http.NewRequest("POST", "/v2/model", bytes.NewBuffer(data)))
 	c.Assert(err, check.IsNil)
 	rspe := s.errorReq(c, req, nil)
 	c.Assert(rspe.Status, check.Equals, 400)
@@ -83,10 +84,10 @@ func (s *modelSuite) TestPostRemodelUnhappyWrongAssertion(c *check.C) {
 	acct := assertstest.NewAccount(s.StoreSigning, "developer1", nil, "")
 	buf := bytes.NewBuffer(asserts.Encode(acct))
 
-	data, err := json.Marshal(daemon.PostModelData{NewModel: buf.String()})
+	data := mylog.Check2(json.Marshal(daemon.PostModelData{NewModel: buf.String()}))
 	c.Check(err, check.IsNil)
 
-	req, err := http.NewRequest("POST", "/v2/model", bytes.NewBuffer(data))
+	req := mylog.Check2(http.NewRequest("POST", "/v2/model", bytes.NewBuffer(data)))
 	c.Assert(err, check.IsNil)
 	rspe := s.errorReq(c, req, nil)
 	c.Assert(rspe.Status, check.Equals, 400)
@@ -112,9 +113,9 @@ func (s *modelSuite) testPostRemodel(c *check.C, offline bool) {
 	})
 
 	d := s.daemonWithOverlordMockAndStore()
-	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
+	hookMgr := mylog.Check2(hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner()))
 	c.Assert(err, check.IsNil)
-	deviceMgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
+	deviceMgr := mylog.Check2(devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil))
 	c.Assert(err, check.IsNil)
 	d.Overlord().AddManager(deviceMgr)
 	st := d.Overlord().State()
@@ -143,15 +144,15 @@ func (s *modelSuite) testPostRemodel(c *check.C, offline bool) {
 	// create a valid model assertion
 	c.Assert(err, check.IsNil)
 	modelEncoded := string(asserts.Encode(newModel))
-	data, err := json.Marshal(daemon.PostModelData{
+	data := mylog.Check2(json.Marshal(daemon.PostModelData{
 		NewModel: modelEncoded,
 		Offline:  offline,
-	})
+	}))
 	c.Check(err, check.IsNil)
 
 	// set it and validate that this is what we was passed to
 	// devicestateRemodel
-	req, err := http.NewRequest("POST", "/v2/model", bytes.NewBuffer(data))
+	req := mylog.Check2(http.NewRequest("POST", "/v2/model", bytes.NewBuffer(data)))
 	c.Assert(err, check.IsNil)
 	rsp := s.asyncReq(c, req, nil)
 	c.Assert(rsp.Status, check.Equals, 202)
@@ -175,9 +176,9 @@ func (s *modelSuite) TestPostRemodelWrongBody(c *check.C) {
 	s.expectRootAccess()
 
 	d := s.daemonWithOverlordMockAndStore()
-	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
+	hookMgr := mylog.Check2(hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner()))
 	c.Assert(err, check.IsNil)
-	deviceMgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
+	deviceMgr := mylog.Check2(devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil))
 	c.Assert(err, check.IsNil)
 	d.Overlord().AddManager(deviceMgr)
 
@@ -189,7 +190,7 @@ func (s *modelSuite) TestPostRemodelWrongBody(c *check.C) {
 		{"garbage", `cannot decode request body into remodel operation: invalid character 'g' looking for beginning of value`},
 		{`{ "new-model": "garbage"}`, "cannot decode new model assertion: assertion content/signature separator not found"},
 	} {
-		req, err := http.NewRequest("POST", "/v2/model", bytes.NewBuffer([]byte(tc.body)))
+		req := mylog.Check2(http.NewRequest("POST", "/v2/model", bytes.NewBuffer([]byte(tc.body))))
 		req.Header.Set("Content-Type", "application/json")
 		c.Assert(err, check.IsNil)
 
@@ -205,13 +206,13 @@ func (s *modelSuite) TestPostRemodelWrongContentType(c *check.C) {
 	s.expectRootAccess()
 
 	d := s.daemonWithOverlordMockAndStore()
-	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
+	hookMgr := mylog.Check2(hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner()))
 	c.Assert(err, check.IsNil)
-	deviceMgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
+	deviceMgr := mylog.Check2(devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil))
 	c.Assert(err, check.IsNil)
 	d.Overlord().AddManager(deviceMgr)
 
-	req, err := http.NewRequest("POST", "/v2/model", bytes.NewBuffer([]byte("garbage")))
+	req := mylog.Check2(http.NewRequest("POST", "/v2/model", bytes.NewBuffer([]byte("garbage"))))
 	req.Header.Set("Content-Type", "footype")
 	c.Assert(err, check.IsNil)
 
@@ -221,7 +222,7 @@ func (s *modelSuite) TestPostRemodelWrongContentType(c *check.C) {
 	c.Assert(rspe.Value, check.IsNil)
 	c.Assert(rspe.Message, check.Equals, `unexpected media type "footype"`)
 
-	req, err = http.NewRequest("POST", "/v2/model", bytes.NewBuffer([]byte("garbage")))
+	req = mylog.Check2(http.NewRequest("POST", "/v2/model", bytes.NewBuffer([]byte("garbage"))))
 	req.Header.Set("Content-Type", "multipart/form-data")
 	c.Assert(err, check.IsNil)
 
@@ -233,15 +234,14 @@ func (s *modelSuite) TestPostRemodelWrongContentType(c *check.C) {
 }
 
 func (s *modelSuite) TestGetModelNoModelAssertion(c *check.C) {
-
 	d := s.daemonWithOverlordMockAndStore()
-	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
+	hookMgr := mylog.Check2(hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner()))
 	c.Assert(err, check.IsNil)
-	deviceMgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
+	deviceMgr := mylog.Check2(devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil))
 	c.Assert(err, check.IsNil)
 	d.Overlord().AddManager(deviceMgr)
 
-	req, err := http.NewRequest("GET", "/v2/model", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/model", nil))
 	c.Assert(err, check.IsNil)
 	rspe := s.errorReq(c, req, nil)
 	c.Assert(rspe.Status, check.Equals, 404)
@@ -299,9 +299,9 @@ func (s *modelSuite) TestGetModelJSONHasModelAssertion(c *check.C) {
 
 	// model assertion setup
 	d := s.daemonWithOverlordMockAndStore()
-	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
+	hookMgr := mylog.Check2(hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner()))
 	c.Assert(err, check.IsNil)
-	deviceMgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
+	deviceMgr := mylog.Check2(devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil))
 	c.Assert(err, check.IsNil)
 	d.Overlord().AddManager(deviceMgr)
 	st := d.Overlord().State()
@@ -312,7 +312,7 @@ func (s *modelSuite) TestGetModelJSONHasModelAssertion(c *check.C) {
 	st.Unlock()
 
 	// make a new get request to the model endpoint with json as true
-	req, err := http.NewRequest("GET", "/v2/model?json=true", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/model?json=true", nil))
 	c.Assert(err, check.IsNil)
 	rsp := s.syncReq(c, req, nil)
 	// get the body and try to unmarshal into modelAssertJSON
@@ -330,15 +330,14 @@ func (s *modelSuite) TestGetModelJSONHasModelAssertion(c *check.C) {
 }
 
 func (s *modelSuite) TestGetModelNoSerialAssertion(c *check.C) {
-
 	d := s.daemonWithOverlordMockAndStore()
-	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
+	hookMgr := mylog.Check2(hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner()))
 	c.Assert(err, check.IsNil)
-	deviceMgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
+	deviceMgr := mylog.Check2(devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil))
 	c.Assert(err, check.IsNil)
 	d.Overlord().AddManager(deviceMgr)
 
-	req, err := http.NewRequest("GET", "/v2/model/serial", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/model/serial", nil))
 	c.Assert(err, check.IsNil)
 	rspe := s.errorReq(c, req, nil)
 	c.Assert(rspe.Status, check.Equals, 404)
@@ -421,14 +420,14 @@ func (s *modelSuite) TestGetModelJSONHasSerialAssertion(c *check.C) {
 
 	deviceKey, _ := assertstest.GenerateKey(752)
 
-	encDevKey, err := asserts.EncodePublicKey(deviceKey.PublicKey())
+	encDevKey := mylog.Check2(asserts.EncodePublicKey(deviceKey.PublicKey()))
 	c.Assert(err, check.IsNil)
 
 	// model assertion setup
 	d := s.daemonWithOverlordMockAndStore()
-	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
+	hookMgr := mylog.Check2(hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner()))
 	c.Assert(err, check.IsNil)
-	deviceMgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
+	deviceMgr := mylog.Check2(devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil))
 	c.Assert(err, check.IsNil)
 	d.Overlord().AddManager(deviceMgr)
 	st := d.Overlord().State()
@@ -438,7 +437,7 @@ func (s *modelSuite) TestGetModelJSONHasSerialAssertion(c *check.C) {
 	assertstatetest.AddMany(st, s.Brands.AccountsAndKeys("my-brand")...)
 	s.mockModel(st, theModel)
 
-	serial, err := s.Brands.Signing("my-brand").Sign(asserts.SerialType, map[string]interface{}{
+	serial := mylog.Check2(s.Brands.Signing("my-brand").Sign(asserts.SerialType, map[string]interface{}{
 		"authority-id":        "my-brand",
 		"brand-id":            "my-brand",
 		"model":               "my-old-model",
@@ -446,7 +445,7 @@ func (s *modelSuite) TestGetModelJSONHasSerialAssertion(c *check.C) {
 		"device-key":          string(encDevKey),
 		"device-key-sha3-384": deviceKey.PublicKey().ID(),
 		"timestamp":           time.Now().Format(time.RFC3339),
-	}, nil, "")
+	}, nil, ""))
 	c.Assert(err, check.IsNil)
 	assertstatetest.AddMany(st, serial)
 	devicestatetest.SetDevice(st, &auth.DeviceState{
@@ -459,7 +458,7 @@ func (s *modelSuite) TestGetModelJSONHasSerialAssertion(c *check.C) {
 	defer st.Lock()
 
 	// make a new get request to the model endpoint with json as true
-	req, err := http.NewRequest("GET", "/v2/model/serial?json=true", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/model/serial?json=true", nil))
 	c.Assert(err, check.IsNil)
 	rsp := s.syncReq(c, req, nil)
 	// get the body and try to unmarshal into modelAssertJSON
@@ -479,7 +478,7 @@ func (s *modelSuite) TestGetModelJSONHasSerialAssertion(c *check.C) {
 
 func (s *userSuite) TestPostSerialBadAction(c *check.C) {
 	buf := bytes.NewBufferString(`{"action":"what"}`)
-	req, err := http.NewRequest("POST", "/v2/model/serial", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/model/serial", buf))
 	c.Assert(err, check.IsNil)
 
 	rspe := s.errorReq(c, req, nil)
@@ -496,7 +495,7 @@ func (s *userSuite) TestPostSerialForget(c *check.C) {
 	})()
 
 	buf := bytes.NewBufferString(`{"action":"forget"}`)
-	req, err := http.NewRequest("POST", "/v2/model/serial", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/model/serial", buf))
 	c.Assert(err, check.IsNil)
 
 	rsp := s.syncReq(c, req, nil)
@@ -515,7 +514,7 @@ func (s *userSuite) TestPostSerialForgetNoRegistrationUntilReboot(c *check.C) {
 	})()
 
 	buf := bytes.NewBufferString(`{"action":"forget", "no-registration-until-reboot": true}`)
-	req, err := http.NewRequest("POST", "/v2/model/serial", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/model/serial", buf))
 	c.Assert(err, check.IsNil)
 
 	rsp := s.syncReq(c, req, nil)
@@ -530,7 +529,7 @@ func (s *userSuite) TestPostSerialForgetError(c *check.C) {
 	})()
 
 	buf := bytes.NewBufferString(`{"action":"forget"}`)
-	req, err := http.NewRequest("POST", "/v2/model/serial", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/model/serial", buf))
 	c.Assert(err, check.IsNil)
 
 	rspe := s.errorReq(c, req, nil)
@@ -540,16 +539,15 @@ func (s *userSuite) TestPostSerialForgetError(c *check.C) {
 func multipartBody(c *check.C, model, snap, assertion string) (bytes.Buffer, string) {
 	var b bytes.Buffer
 	w := multipart.NewWriter(&b)
-
-	err := w.WriteField("new-model", model)
+	mylog.Check(w.WriteField("new-model", model))
 	c.Assert(err, check.IsNil)
-	part, err := w.CreateFormFile("snap", "snap_1.snap")
+	part := mylog.Check2(w.CreateFormFile("snap", "snap_1.snap"))
 	c.Assert(err, check.IsNil)
-	_, err = part.Write([]byte(snap))
+	_ = mylog.Check2(part.Write([]byte(snap)))
 	c.Assert(err, check.IsNil)
-	err = w.WriteField("assertion", assertion)
+	mylog.Check(w.WriteField("assertion", assertion))
 	c.Assert(err, check.IsNil)
-	err = w.Close()
+	mylog.Check(w.Close())
 	c.Assert(err, check.IsNil)
 
 	return b, w.Boundary()
@@ -576,9 +574,9 @@ func (s *modelSuite) testPostOfflineRemodel(c *check.C, params *testPostOfflineR
 	})
 
 	d := s.daemonWithOverlordMockAndStore()
-	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
+	hookMgr := mylog.Check2(hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner()))
 	c.Assert(err, check.IsNil)
-	deviceMgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
+	deviceMgr := mylog.Check2(devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil))
 	c.Assert(err, check.IsNil)
 	d.Overlord().AddManager(deviceMgr)
 	st := d.Overlord().State()
@@ -600,7 +598,8 @@ func (s *modelSuite) testPostOfflineRemodel(c *check.C, params *testPostOfflineR
 	snapRev := 1001
 	var devicestateRemodelGotModel *asserts.Model
 	defer daemon.MockDevicestateRemodel(func(st *state.State, nm *asserts.Model,
-		localSnaps []*snap.SideInfo, paths []string, opts devicestate.RemodelOptions) (*state.Change, error) {
+		localSnaps []*snap.SideInfo, paths []string, opts devicestate.RemodelOptions,
+	) (*state.Change, error) {
 		c.Check(opts.Offline, check.Equals, true)
 		c.Check(len(localSnaps), check.Equals, 1)
 		c.Check(localSnaps[0].RealName, check.Equals, snapName)
@@ -642,7 +641,7 @@ func (s *modelSuite) testPostOfflineRemodel(c *check.C, params *testPostOfflineR
 	body, boundary := multipartBody(c, modelEncoded, "snap_data", string(revAssert.Body()))
 
 	// set it and validate that this is what we passed to devicestateRemodel
-	req, err := http.NewRequest("POST", "/v2/model", &body)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/model", &body))
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/form-data; boundary="+boundary)
 	req.Header.Set("Content-Length", strconv.Itoa(body.Len()))

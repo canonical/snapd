@@ -36,6 +36,7 @@ import (
 	. "gopkg.in/check.v1"
 	"gopkg.in/yaml.v2"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/sysdb"
@@ -99,7 +100,7 @@ func (s *deviceMgrSerialSuite) signSerial(c *C, bhv *devicestatetest.DeviceServi
 	default:
 		return nil, nil, fmt.Errorf("unknown model: %s", model)
 	}
-	a, err := signing.Sign(asserts.SerialType, headers, body, keyID)
+	a := mylog.Check2(signing.Sign(asserts.SerialType, headers, body, keyID))
 	return a, s.ancillary, err
 }
 
@@ -114,10 +115,10 @@ func (s *deviceMgrSerialSuite) mockServer(c *C, reqID string, bhv *devicestatete
 
 	mockServer, extraCerts := devicestatetest.MockDeviceService(c, bhv)
 	fname := filepath.Join(dirs.SnapdStoreSSLCertsDir, "test-server-certs.pem")
-	err := os.MkdirAll(filepath.Dir(fname), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(fname, extraCerts, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Dir(fname), 0755))
+
+	mylog.Check(os.WriteFile(fname, extraCerts, 0644))
+
 	return mockServer
 }
 
@@ -181,8 +182,8 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappy(c *C) {
 	c.Check(becomeOperational.Status().Ready(), Equals, true)
 	c.Check(becomeOperational.Err(), IsNil)
 
-	device, err := devicestatetest.Device(s.state)
-	c.Assert(err, IsNil)
+	device := mylog.Check2(devicestatetest.Device(s.state))
+
 	c.Check(device.Brand, Equals, "canonical")
 	c.Check(device.Model, Equals, "pc")
 	c.Check(device.Serial, Equals, "9999")
@@ -196,16 +197,16 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappy(c *C) {
 	}
 	c.Check(ok, Equals, true)
 
-	a, err := s.db.Find(asserts.SerialType, map[string]string{
+	a := mylog.Check2(s.db.Find(asserts.SerialType, map[string]string{
 		"brand-id": "canonical",
 		"model":    "pc",
 		"serial":   "9999",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	serial := a.(*asserts.Serial)
 
-	privKey, err := devicestate.KeypairManager(s.mgr).Get(serial.DeviceKey().ID())
-	c.Assert(err, IsNil)
+	privKey := mylog.Check2(devicestate.KeypairManager(s.mgr).Get(serial.DeviceKey().ID()))
+
 	c.Check(privKey, NotNil)
 
 	c.Check(device.KeyID, Equals, privKey.PublicKey().ID())
@@ -238,13 +239,13 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappyWithProxy(c *C) {
 	operatorAcct := assertstest.NewAccount(s.storeSigning, "foo-operator", nil, "")
 
 	// have a store assertion.
-	stoAs, err := s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
+	stoAs := mylog.Check2(s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
 		"store":       "foo",
 		"url":         mockServer.URL,
 		"operator-id": operatorAcct.AccountID(),
 		"timestamp":   time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
 
 	assertstatetest.AddMany(s.state, operatorAcct, stoAs)
 
@@ -274,8 +275,8 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappyWithProxy(c *C) {
 	c.Check(becomeOperational.Status().Ready(), Equals, true)
 	c.Check(becomeOperational.Err(), IsNil)
 
-	device, err := devicestatetest.Device(s.state)
-	c.Assert(err, IsNil)
+	device := mylog.Check2(devicestatetest.Device(s.state))
+
 	c.Check(device.Brand, Equals, "canonical")
 	c.Check(device.Model, Equals, "pc")
 	c.Check(device.Serial, Equals, "9999")
@@ -289,16 +290,16 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappyWithProxy(c *C) {
 	}
 	c.Check(ok, Equals, true)
 
-	a, err := s.db.Find(asserts.SerialType, map[string]string{
+	a := mylog.Check2(s.db.Find(asserts.SerialType, map[string]string{
 		"brand-id": "canonical",
 		"model":    "pc",
 		"serial":   "9999",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	serial := a.(*asserts.Serial)
 
-	privKey, err := devicestate.KeypairManager(s.mgr).Get(serial.DeviceKey().ID())
-	c.Assert(err, IsNil)
+	privKey := mylog.Check2(devicestate.KeypairManager(s.mgr).Get(serial.DeviceKey().ID()))
+
 	c.Check(privKey, NotNil)
 
 	c.Check(device.KeyID, Equals, privKey.PublicKey().ID())
@@ -345,22 +346,22 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappyClassicNoGadget(c 
 	c.Check(becomeOperational.Status().Ready(), Equals, true)
 	c.Check(becomeOperational.Err(), IsNil)
 
-	device, err := devicestatetest.Device(s.state)
-	c.Assert(err, IsNil)
+	device := mylog.Check2(devicestatetest.Device(s.state))
+
 	c.Check(device.Brand, Equals, "canonical")
 	c.Check(device.Model, Equals, "classic-alt-store")
 	c.Check(device.Serial, Equals, "9999")
 
-	a, err := s.db.Find(asserts.SerialType, map[string]string{
+	a := mylog.Check2(s.db.Find(asserts.SerialType, map[string]string{
 		"brand-id": "canonical",
 		"model":    "classic-alt-store",
 		"serial":   "9999",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	serial := a.(*asserts.Serial)
 
-	privKey, err := devicestate.KeypairManager(s.mgr).Get(serial.DeviceKey().ID())
-	c.Assert(err, IsNil)
+	privKey := mylog.Check2(devicestate.KeypairManager(s.mgr).Get(serial.DeviceKey().ID()))
+
 	c.Check(privKey, NotNil)
 
 	c.Check(device.KeyID, Equals, privKey.PublicKey().ID())
@@ -410,38 +411,38 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappyClassicFallback(c 
 	c.Check(becomeOperational.Status().Ready(), Equals, true)
 	c.Check(becomeOperational.Err(), IsNil)
 
-	device, err := devicestatetest.Device(s.state)
-	c.Assert(err, IsNil)
+	device := mylog.Check2(devicestatetest.Device(s.state))
+
 	c.Check(device.Brand, Equals, "generic")
 	c.Check(device.Model, Equals, "generic-classic")
 	c.Check(device.Serial, Equals, "9999")
 
 	// model was installed
-	_, err = s.db.Find(asserts.ModelType, map[string]string{
+	_ = mylog.Check2(s.db.Find(asserts.ModelType, map[string]string{
 		"series":   "16",
 		"brand-id": "generic",
 		"model":    "generic-classic",
 		"classic":  "true",
-	})
-	c.Assert(err, IsNil)
+	}))
 
-	a, err := s.db.Find(asserts.SerialType, map[string]string{
+
+	a := mylog.Check2(s.db.Find(asserts.SerialType, map[string]string{
 		"brand-id": "generic",
 		"model":    "generic-classic",
 		"serial":   "9999",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	serial := a.(*asserts.Serial)
 
-	privKey, err := devicestate.KeypairManager(s.mgr).Get(serial.DeviceKey().ID())
-	c.Assert(err, IsNil)
+	privKey := mylog.Check2(devicestate.KeypairManager(s.mgr).Get(serial.DeviceKey().ID()))
+
 	c.Check(privKey, NotNil)
 
 	c.Check(device.KeyID, Equals, privKey.PublicKey().ID())
 
 	// auto-refreshes are possible
-	ok, err := devicestate.CanAutoRefresh(s.state)
-	c.Assert(err, IsNil)
+	ok := mylog.Check2(devicestate.CanAutoRefresh(s.state))
+
 	c.Check(ok, Equals, true)
 }
 
@@ -487,23 +488,23 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationMyBrandAcceptGenericHap
 	c.Check(becomeOperational.Status().Ready(), Equals, true)
 	c.Check(becomeOperational.Err(), IsNil)
 
-	device, err := devicestatetest.Device(s.state)
-	c.Assert(err, IsNil)
+	device := mylog.Check2(devicestatetest.Device(s.state))
+
 	c.Check(device.Brand, Equals, "my-brand")
 	c.Check(device.Model, Equals, "my-model-accept-generic")
 	c.Check(device.Serial, Equals, "9999")
 
-	a, err := s.db.Find(asserts.SerialType, map[string]string{
+	a := mylog.Check2(s.db.Find(asserts.SerialType, map[string]string{
 		"brand-id": "my-brand",
 		"model":    "my-model-accept-generic",
 		"serial":   "9999",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	serial := a.(*asserts.Serial)
 	c.Check(serial.AuthorityID(), Equals, "generic")
 
-	privKey, err := devicestate.KeypairManager(s.mgr).Get(serial.DeviceKey().ID())
-	c.Assert(err, IsNil)
+	privKey := mylog.Check2(devicestate.KeypairManager(s.mgr).Get(serial.DeviceKey().ID()))
+
 	c.Check(privKey, NotNil)
 
 	c.Check(device.KeyID, Equals, privKey.PublicKey().ID())
@@ -596,14 +597,14 @@ func (s *deviceMgrSerialSuite) TestDoRequestSerialIdempotentAfterAddSerial(c *C)
 
 	c.Check(chg.Status(), Equals, state.DoingStatus)
 	c.Check(chg.Err(), IsNil)
-	device, err := devicestatetest.Device(s.state)
+	device := mylog.Check2(devicestatetest.Device(s.state))
 	c.Check(err, IsNil)
-	_, err = s.db.Find(asserts.SerialType, map[string]string{
+	_ = mylog.Check2(s.db.Find(asserts.SerialType, map[string]string{
 		"brand-id": "canonical",
 		"model":    "pc",
 		"serial":   "9999",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 
 	ok := false
 	select {
@@ -620,7 +621,7 @@ func (s *deviceMgrSerialSuite) TestDoRequestSerialIdempotentAfterAddSerial(c *C)
 
 	// Repeated handler run but set original serial.
 	c.Check(chg.Status(), Equals, state.DoneStatus)
-	device, err = devicestatetest.Device(s.state)
+	device = mylog.Check2(devicestatetest.Device(s.state))
 	c.Check(err, IsNil)
 	c.Check(device.Serial, Equals, "9999")
 
@@ -678,13 +679,13 @@ func (s *deviceMgrSerialSuite) TestDoRequestSerialIdempotentAfterGotSerial(c *C)
 	s.state.Lock()
 
 	c.Check(chg.Status(), Equals, state.DoingStatus)
-	_, err := devicestatetest.Device(s.state)
+	_ := mylog.Check2(devicestatetest.Device(s.state))
 	c.Check(err, IsNil)
-	_, err = s.db.Find(asserts.SerialType, map[string]string{
+	_ = mylog.Check2(s.db.Find(asserts.SerialType, map[string]string{
 		"brand-id": "canonical",
 		"model":    "pc",
 		"serial":   "9999",
-	})
+	}))
 	c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 
 	s.state.Unlock()
@@ -695,7 +696,7 @@ func (s *deviceMgrSerialSuite) TestDoRequestSerialIdempotentAfterGotSerial(c *C)
 	// Repeated handler run but set original serial.
 	c.Check(chg.Status(), Equals, state.DoneStatus)
 	c.Check(chg.Err(), IsNil)
-	device, err := devicestatetest.Device(s.state)
+	device := mylog.Check2(devicestatetest.Device(s.state))
 	c.Check(err, IsNil)
 	c.Check(device.Serial, Equals, "9999")
 }
@@ -708,7 +709,7 @@ func (s *deviceMgrSerialSuite) TestDoRequestSerialErrorsOnNoHost(c *C) {
 	const nonexistent_host = "nowhere.nowhere.test"
 
 	// check internet access
-	_, err := net.LookupHost(nonexistent_host)
+	_ := mylog.Check2(net.LookupHost(nonexistent_host))
 	if netErr, ok := err.(net.Error); !ok || netErr.Temporary() {
 		c.Skip("cannot run test with no internet access, the error pattern is different")
 	}
@@ -858,8 +859,8 @@ func (s *deviceMgrSerialSuite) TestDoRequestSerialOffline(c *C) {
 	defer s.state.Unlock()
 
 	tr := config.NewTransaction(s.state)
-	err := tr.Set("pc", "device-service.access", "offline")
-	c.Assert(err, IsNil)
+	mylog.Check(tr.Set("pc", "device-service.access", "offline"))
+
 	tr.Commit()
 
 	s.state.Unlock()
@@ -875,8 +876,8 @@ func (s *deviceMgrSerialSuite) TestDoRequestSerialOffline(c *C) {
 	c.Check(chg.Status(), Equals, state.DoneStatus)
 	c.Assert(chg.Err(), IsNil)
 
-	device, err := devicestatetest.Device(s.state)
-	c.Assert(err, IsNil)
+	device := mylog.Check2(devicestatetest.Device(s.state))
+
 
 	// but the serial will not be there
 	c.Check(device.Serial, Equals, "")
@@ -902,8 +903,8 @@ func (s *deviceMgrSerialSuite) testDoRequestSerialKeepsRetrying(c *C, rt http.Ro
 	c.Check(chg.Status(), Equals, state.DoingStatus)
 
 	var nTentatives int
-	err := t.Get("pre-poll-tentatives", &nTentatives)
-	c.Assert(err, IsNil)
+	mylog.Check(t.Get("pre-poll-tentatives", &nTentatives))
+
 	c.Check(nTentatives, Equals, 0)
 }
 
@@ -992,11 +993,10 @@ func (s *deviceMgrSerialSuite) TestDoRequestSerialCertExpired(c *C) {
 	c.Assert(chg.Err(), ErrorMatches, `(?ms).*cannot retrieve request-id for making a request for a serial: Post \"?https://.*/request-id\"?: x509: certificate has expired or is not yet valid.*`)
 
 	var nTentatives int
-	err := t.Get("pre-poll-tentatives", &nTentatives)
-	c.Assert(err, IsNil)
+	mylog.Check(t.Get("pre-poll-tentatives", &nTentatives))
+
 	// this is one above maxTentativesCertExpired (35)
 	c.Check(nTentatives, Equals, 21)
-
 }
 
 func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationPollHappy(c *C) {
@@ -1050,22 +1050,22 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationPollHappy(c *C) {
 	c.Check(becomeOperational.Status().Ready(), Equals, true)
 	c.Check(becomeOperational.Err(), IsNil)
 
-	device, err := devicestatetest.Device(s.state)
-	c.Assert(err, IsNil)
+	device := mylog.Check2(devicestatetest.Device(s.state))
+
 	c.Check(device.Brand, Equals, "canonical")
 	c.Check(device.Model, Equals, "pc")
 	c.Check(device.Serial, Equals, "10002")
 
-	a, err := s.db.Find(asserts.SerialType, map[string]string{
+	a := mylog.Check2(s.db.Find(asserts.SerialType, map[string]string{
 		"brand-id": "canonical",
 		"model":    "pc",
 		"serial":   "10002",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	serial := a.(*asserts.Serial)
 
-	privKey, err := devicestate.KeypairManager(s.mgr).Get(serial.DeviceKey().ID())
-	c.Assert(err, IsNil)
+	privKey := mylog.Check2(devicestate.KeypairManager(s.mgr).Get(serial.DeviceKey().ID()))
+
 	c.Check(privKey, NotNil)
 
 	c.Check(device.KeyID, Equals, privKey.PublicKey().ID())
@@ -1146,30 +1146,30 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappyPrepareDeviceHook(
 	c.Check(becomeOperational.Status().Ready(), Equals, true)
 	c.Check(becomeOperational.Err(), IsNil)
 
-	device, err := devicestatetest.Device(s.state)
-	c.Assert(err, IsNil)
+	device := mylog.Check2(devicestatetest.Device(s.state))
+
 	c.Check(device.Brand, Equals, "canonical")
 	c.Check(device.Model, Equals, "pc2")
 	c.Check(device.Serial, Equals, "Y9999")
 
-	a, err := s.db.Find(asserts.SerialType, map[string]string{
+	a := mylog.Check2(s.db.Find(asserts.SerialType, map[string]string{
 		"brand-id": "canonical",
 		"model":    "pc2",
 		"serial":   "Y9999",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	serial := a.(*asserts.Serial)
 
 	var details map[string]interface{}
-	err = yaml.Unmarshal(serial.Body(), &details)
-	c.Assert(err, IsNil)
+	mylog.Check(yaml.Unmarshal(serial.Body(), &details))
+
 
 	c.Check(details, DeepEquals, map[string]interface{}{
 		"mac": "00:00:00:00:ff:00",
 	})
 
-	privKey, err := devicestate.KeypairManager(s.mgr).Get(serial.DeviceKey().ID())
-	c.Assert(err, IsNil)
+	privKey := mylog.Check2(devicestate.KeypairManager(s.mgr).Get(serial.DeviceKey().ID()))
+
 	c.Check(privKey, NotNil)
 
 	c.Check(device.KeyID, Equals, privKey.PublicKey().ID())
@@ -1253,13 +1253,13 @@ func (s *deviceMgrSerialSuite) testFullDeviceRegistrationHappyWithHookAndProxy(c
 	operatorAcct := assertstest.NewAccount(s.storeSigning, "foo-operator", nil, "")
 
 	// have a store assertion.
-	stoAs, err := s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
+	stoAs := mylog.Check2(s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
 		"store":       "foo",
 		"url":         mockServer.URL,
 		"operator-id": operatorAcct.AccountID(),
 		"timestamp":   time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
 
 	assertstatetest.AddMany(s.state, operatorAcct, stoAs)
 
@@ -1288,22 +1288,22 @@ func (s *deviceMgrSerialSuite) testFullDeviceRegistrationHappyWithHookAndProxy(c
 	c.Check(becomeOperational.Status().Ready(), Equals, true)
 	c.Check(becomeOperational.Err(), IsNil)
 
-	device, err := devicestatetest.Device(s.state)
-	c.Assert(err, IsNil)
+	device := mylog.Check2(devicestatetest.Device(s.state))
+
 	c.Check(device.Brand, Equals, "canonical")
 	c.Check(device.Model, Equals, "pc2")
 	c.Check(device.Serial, Equals, "9999")
 
-	a, err := s.db.Find(asserts.SerialType, map[string]string{
+	a := mylog.Check2(s.db.Find(asserts.SerialType, map[string]string{
 		"brand-id": "canonical",
 		"model":    "pc2",
 		"serial":   "9999",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	serial := a.(*asserts.Serial)
 
-	privKey, err := devicestate.KeypairManager(s.mgr).Get(serial.DeviceKey().ID())
-	c.Assert(err, IsNil)
+	privKey := mylog.Check2(devicestate.KeypairManager(s.mgr).Get(serial.DeviceKey().ID()))
+
 	c.Check(privKey, NotNil)
 
 	c.Check(device.KeyID, Equals, privKey.PublicKey().ID())
@@ -1354,8 +1354,8 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationErrorBackoff(c *C) {
 	c.Check(becomeOperational.Status().Ready(), Equals, true)
 	c.Check(becomeOperational.Err(), ErrorMatches, `(?s).*cannot deliver device serial request: bad serial-request.*`)
 
-	device, err := devicestatetest.Device(s.state)
-	c.Assert(err, IsNil)
+	device := mylog.Check2(devicestatetest.Device(s.state))
+
 	c.Check(device.KeyID, Not(Equals), "")
 	keyID := device.KeyID
 
@@ -1378,8 +1378,8 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationErrorBackoff(c *C) {
 
 	c.Check(devicestate.EnsureOperationalAttempts(s.state), Equals, 2)
 
-	device, err = devicestatetest.Device(s.state)
-	c.Assert(err, IsNil)
+	device = mylog.Check2(devicestatetest.Device(s.state))
+
 	c.Check(device.KeyID, Equals, keyID)
 	c.Check(device.Serial, Equals, "10000")
 }
@@ -1453,9 +1453,9 @@ func (s *deviceMgrSerialSuite) TestModelAndSerial(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	// nothing in the state
-	_, err := s.mgr.Model()
+	_ := mylog.Check2(s.mgr.Model())
 	c.Check(err, testutil.ErrorIs, state.ErrNoState)
-	_, err = s.mgr.Serial()
+	_ = mylog.Check2(s.mgr.Serial())
 	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 
 	// just brand and model
@@ -1463,9 +1463,9 @@ func (s *deviceMgrSerialSuite) TestModelAndSerial(c *C) {
 		Brand: "canonical",
 		Model: "pc",
 	})
-	_, err = s.mgr.Model()
+	_ = mylog.Check2(s.mgr.Model())
 	c.Check(err, testutil.ErrorIs, state.ErrNoState)
-	_, err = s.mgr.Serial()
+	_ = mylog.Check2(s.mgr.Serial())
 	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 
 	// have a model assertion
@@ -1476,11 +1476,11 @@ func (s *deviceMgrSerialSuite) TestModelAndSerial(c *C) {
 	})
 	assertstatetest.AddMany(s.state, model)
 
-	mod, err := s.mgr.Model()
-	c.Assert(err, IsNil)
+	mod := mylog.Check2(s.mgr.Model())
+
 	c.Assert(mod.BrandID(), Equals, "canonical")
 
-	_, err = s.mgr.Serial()
+	_ = mylog.Check2(s.mgr.Serial())
 	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 
 	// have a serial as well
@@ -1489,18 +1489,18 @@ func (s *deviceMgrSerialSuite) TestModelAndSerial(c *C) {
 		Model:  "pc",
 		Serial: "8989",
 	})
-	_, err = s.mgr.Model()
-	c.Assert(err, IsNil)
-	_, err = s.mgr.Serial()
+	_ = mylog.Check2(s.mgr.Model())
+
+	_ = mylog.Check2(s.mgr.Serial())
 	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 
 	// have a serial assertion
 	s.makeSerialAssertionInState(c, "canonical", "pc", "8989")
 
-	_, err = s.mgr.Model()
-	c.Assert(err, IsNil)
-	ser, err := s.mgr.Serial()
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(s.mgr.Model())
+
+	ser := mylog.Check2(s.mgr.Serial())
+
 	c.Check(ser.Serial(), Equals, "8989")
 }
 
@@ -1510,13 +1510,12 @@ func (s *deviceMgrSerialSuite) TestStoreContextBackendSetDevice(c *C) {
 
 	scb := s.mgr.StoreContextBackend()
 
-	device, err := scb.Device()
+	device := mylog.Check2(scb.Device())
 	c.Check(err, IsNil)
 	c.Check(device, DeepEquals, &auth.DeviceState{})
-
-	err = scb.SetDevice(&auth.DeviceState{Brand: "some-brand"})
+	mylog.Check(scb.SetDevice(&auth.DeviceState{Brand: "some-brand"}))
 	c.Check(err, IsNil)
-	device, err = scb.Device()
+	device = mylog.Check2(scb.Device())
 	c.Check(err, IsNil)
 	c.Check(device, DeepEquals, &auth.DeviceState{Brand: "some-brand"})
 }
@@ -1528,9 +1527,9 @@ func (s *deviceMgrSerialSuite) TestStoreContextBackendModelAndSerial(c *C) {
 	scb := s.mgr.StoreContextBackend()
 
 	// nothing in the state
-	_, err := scb.Model()
+	_ := mylog.Check2(scb.Model())
 	c.Check(err, testutil.ErrorIs, state.ErrNoState)
-	_, err = scb.Serial()
+	_ = mylog.Check2(scb.Serial())
 	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 
 	// just brand and model
@@ -1538,9 +1537,9 @@ func (s *deviceMgrSerialSuite) TestStoreContextBackendModelAndSerial(c *C) {
 		Brand: "canonical",
 		Model: "pc",
 	})
-	_, err = scb.Model()
+	_ = mylog.Check2(scb.Model())
 	c.Check(err, testutil.ErrorIs, state.ErrNoState)
-	_, err = scb.Serial()
+	_ = mylog.Check2(scb.Serial())
 	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 
 	// have a model assertion
@@ -1551,11 +1550,11 @@ func (s *deviceMgrSerialSuite) TestStoreContextBackendModelAndSerial(c *C) {
 	})
 	assertstatetest.AddMany(s.state, model)
 
-	mod, err := scb.Model()
-	c.Assert(err, IsNil)
+	mod := mylog.Check2(scb.Model())
+
 	c.Assert(mod.BrandID(), Equals, "canonical")
 
-	_, err = scb.Serial()
+	_ = mylog.Check2(scb.Serial())
 	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 
 	// have a serial as well
@@ -1564,24 +1563,22 @@ func (s *deviceMgrSerialSuite) TestStoreContextBackendModelAndSerial(c *C) {
 		Model:  "pc",
 		Serial: "8989",
 	})
-	_, err = scb.Model()
-	c.Assert(err, IsNil)
-	_, err = scb.Serial()
+	_ = mylog.Check2(scb.Model())
+
+	_ = mylog.Check2(scb.Serial())
 	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 
 	// have a serial assertion
 	s.makeSerialAssertionInState(c, "canonical", "pc", "8989")
 
-	_, err = scb.Model()
-	c.Assert(err, IsNil)
-	ser, err := scb.Serial()
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(scb.Model())
+
+	ser := mylog.Check2(scb.Serial())
+
 	c.Check(ser.Serial(), Equals, "8989")
 }
 
-var (
-	devKey, _ = assertstest.GenerateKey(testKeyLength)
-)
+var devKey, _ = assertstest.GenerateKey(testKeyLength)
 
 func (s *deviceMgrSerialSuite) TestStoreContextBackendDeviceSessionRequestParams(c *C) {
 	s.state.Lock()
@@ -1601,25 +1598,25 @@ func (s *deviceMgrSerialSuite) TestStoreContextBackendDeviceSessionRequestParams
 	scb := s.mgr.StoreContextBackend()
 
 	// nothing there
-	_, err := scb.SignDeviceSessionRequest(nil, "NONCE-1")
+	_ := mylog.Check2(scb.SignDeviceSessionRequest(nil, "NONCE-1"))
 	c.Check(err, ErrorMatches, "internal error: cannot sign a session request without a serial")
 
 	// setup state as done by device initialisation
-	encDevKey, err := asserts.EncodePublicKey(devKey.PublicKey())
+	encDevKey := mylog.Check2(asserts.EncodePublicKey(devKey.PublicKey()))
 	c.Check(err, IsNil)
-	seriala, err := s.storeSigning.Sign(asserts.SerialType, map[string]interface{}{
+	seriala := mylog.Check2(s.storeSigning.Sign(asserts.SerialType, map[string]interface{}{
 		"brand-id":            "canonical",
 		"model":               "pc",
 		"serial":              "8989",
 		"device-key":          string(encDevKey),
 		"device-key-sha3-384": devKey.PublicKey().ID(),
 		"timestamp":           time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
 	assertstatetest.AddMany(s.state, seriala)
 	serial := seriala.(*asserts.Serial)
 
-	_, err = scb.SignDeviceSessionRequest(serial, "NONCE-1")
+	_ = mylog.Check2(scb.SignDeviceSessionRequest(serial, "NONCE-1"))
 	c.Check(err, ErrorMatches, "internal error: inconsistent state with serial but no device key")
 
 	// have a key
@@ -1632,11 +1629,12 @@ func (s *deviceMgrSerialSuite) TestStoreContextBackendDeviceSessionRequestParams
 		KeyID:  devKey.PublicKey().ID(),
 	})
 
-	sessReq, err := scb.SignDeviceSessionRequest(serial, "NONCE-1")
-	c.Assert(err, IsNil)
+	sessReq := mylog.Check2(scb.SignDeviceSessionRequest(serial, "NONCE-1"))
 
-	// correctly signed with device key
-	err = asserts.SignatureCheck(sessReq, devKey.PublicKey())
+	mylog.
+
+		// correctly signed with device key
+		Check(asserts.SignatureCheck(sessReq, devKey.PublicKey()))
 	c.Check(err, IsNil)
 
 	c.Check(sessReq.BrandID(), Equals, "canonical")
@@ -1654,33 +1652,33 @@ func (s *deviceMgrSerialSuite) TestStoreContextBackendProxyStore(c *C) {
 	scb := s.mgr.StoreContextBackend()
 
 	// nothing in the state
-	_, err := scb.ProxyStore()
+	_ := mylog.Check2(scb.ProxyStore())
 	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 
 	// have a store referenced
 	tr := config.NewTransaction(s.state)
-	err = tr.Set("core", "proxy.store", "foo")
+	mylog.Check(tr.Set("core", "proxy.store", "foo"))
 	tr.Commit()
-	c.Assert(err, IsNil)
 
-	_, err = scb.ProxyStore()
+
+	_ = mylog.Check2(scb.ProxyStore())
 	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 
 	operatorAcct := assertstest.NewAccount(s.storeSigning, "foo-operator", nil, "")
 
 	// have a store assertion.
-	stoAs, err := s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
+	stoAs := mylog.Check2(s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
 		"store":       "foo",
 		"operator-id": operatorAcct.AccountID(),
 		"url":         mockServer.URL,
 		"timestamp":   time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
 
 	assertstatetest.AddMany(s.state, operatorAcct, stoAs)
 
-	sto, err := scb.ProxyStore()
-	c.Assert(err, IsNil)
+	sto := mylog.Check2(scb.ProxyStore())
+
 	c.Assert(sto.Store(), Equals, "foo")
 	c.Assert(sto.URL().String(), Equals, mockServer.URL)
 }
@@ -1692,16 +1690,16 @@ func (s *deviceMgrSerialSuite) TestStoreContextBackendStoreAccess(c *C) {
 	scb := s.mgr.StoreContextBackend()
 
 	// nothing in the state
-	_, err := scb.StoreOffline()
+	_ := mylog.Check2(scb.StoreOffline())
 	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 
 	// set the store access to offline
 	tr := config.NewTransaction(s.state)
-	err = tr.Set("core", "store.access", "offline")
+	mylog.Check(tr.Set("core", "store.access", "offline"))
 	tr.Commit()
-	c.Assert(err, IsNil)
 
-	offline, err := scb.StoreOffline()
+
+	offline := mylog.Check2(scb.StoreOffline())
 	c.Check(err, IsNil)
 	c.Check(offline, Equals, true)
 }
@@ -1711,7 +1709,7 @@ func (s *deviceMgrSerialSuite) TestInitialRegistrationContext(c *C) {
 	defer s.state.Unlock()
 
 	// have a model assertion
-	model, err := s.storeSigning.Sign(asserts.ModelType, map[string]interface{}{
+	model := mylog.Check2(s.storeSigning.Sign(asserts.ModelType, map[string]interface{}{
 		"series":       "16",
 		"brand-id":     "canonical",
 		"model":        "pc",
@@ -1719,23 +1717,23 @@ func (s *deviceMgrSerialSuite) TestInitialRegistrationContext(c *C) {
 		"kernel":       "kernel",
 		"architecture": "amd64",
 		"timestamp":    time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, model)
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
+	mylog.Check(assertstate.Add(s.state, model))
+
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
 		Model: "pc",
 	})
 
 	// TODO: will need to pass in a task later
-	regCtx, err := devicestate.RegistrationCtx(s.mgr, nil)
-	c.Assert(err, IsNil)
+	regCtx := mylog.Check2(devicestate.RegistrationCtx(s.mgr, nil))
+
 	c.Assert(regCtx, NotNil)
 
 	c.Check(regCtx.ForRemodeling(), Equals, false)
 
-	device, err := regCtx.Device()
+	device := mylog.Check2(regCtx.Device())
 	c.Check(err, IsNil)
 	c.Check(device, DeepEquals, &auth.DeviceState{
 		Brand: "canonical",
@@ -1751,7 +1749,6 @@ func (s *deviceMgrSerialSuite) TestInitialRegistrationContext(c *C) {
 	reqMod, ok := ancillary[0].(*asserts.Model)
 	c.Assert(ok, Equals, true)
 	c.Check(reqMod, DeepEquals, model)
-
 }
 
 func (s *deviceMgrSerialSuite) TestNewEnoughProxyParse(c *C) {
@@ -1762,7 +1759,7 @@ func (s *deviceMgrSerialSuite) TestNewEnoughProxyParse(c *C) {
 	defer os.Unsetenv("SNAPD_DEBUG")
 
 	badURL := &url.URL{Opaque: "%a"} // url.Parse(badURL.String()) needs to fail, which isn't easy :-)
-	newEnoughProxy, err := devicestate.NewEnoughProxy(s.state, badURL, http.DefaultClient)
+	newEnoughProxy := mylog.Check2(devicestate.NewEnoughProxy(s.state, badURL, http.DefaultClient))
 	c.Check(err, ErrorMatches, "cannot check whether proxy store supports a custom serial vault: parse .*")
 	c.Check(newEnoughProxy, Equals, false)
 }
@@ -1790,8 +1787,8 @@ func (s *deviceMgrSerialSuite) TestNewEnoughProxy(c *C) {
 		n++
 		switch n {
 		case 1:
-			conn, _, err := w.(http.Hijacker).Hijack()
-			c.Assert(err, IsNil)
+			conn, _ := mylog.Check3(w.(http.Hijacker).Hijack())
+
 			conn.Close()
 		case 2:
 			w.WriteHeader(403)
@@ -1810,10 +1807,10 @@ func (s *deviceMgrSerialSuite) TestNewEnoughProxy(c *C) {
 	}))
 	defer server.Close()
 
-	u, err := url.Parse(server.URL)
-	c.Assert(err, IsNil)
+	u := mylog.Check2(url.Parse(server.URL))
+
 	for _, expected := range expecteds {
-		newEnoughProxy, err := devicestate.NewEnoughProxy(s.state, u, http.DefaultClient)
+		newEnoughProxy := mylog.Check2(devicestate.NewEnoughProxy(s.state, u, http.DefaultClient))
 		if expected != "" {
 			expected = "cannot check whether proxy store supports a custom serial vault: " + expected
 			c.Check(err, ErrorMatches, expected)
@@ -1823,7 +1820,7 @@ func (s *deviceMgrSerialSuite) TestNewEnoughProxy(c *C) {
 	c.Check(n, Equals, len(expecteds))
 
 	// and success at last
-	newEnoughProxy, err := devicestate.NewEnoughProxy(s.state, u, http.DefaultClient)
+	newEnoughProxy := mylog.Check2(devicestate.NewEnoughProxy(s.state, u, http.DefaultClient))
 	c.Check(err, IsNil)
 	c.Check(newEnoughProxy, Equals, true)
 	c.Check(log.String(), Equals, "")
@@ -1870,11 +1867,11 @@ func (s *deviceMgrSerialSuite) testDoRequestSerialReregistration(c *C, setAncill
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
 	})
-	cur, err := s.mgr.Model()
-	c.Assert(err, IsNil)
+	cur := mylog.Check2(s.mgr.Model())
+
 
 	s.newFakeStore = func(devBE storecontext.DeviceBackend) snapstate.StoreService {
-		mod, err := devBE.Model()
+		mod := mylog.Check2(devBE.Model())
 		c.Check(err, IsNil)
 		if err == nil {
 			c.Check(mod, DeepEquals, new)
@@ -1882,8 +1879,8 @@ func (s *deviceMgrSerialSuite) testDoRequestSerialReregistration(c *C, setAncill
 		return nil
 	}
 
-	remodCtx, err := devicestate.RemodelCtx(s.state, cur, new)
-	c.Assert(err, IsNil)
+	remodCtx := mylog.Check2(devicestate.RemodelCtx(s.state, cur, new))
+
 	c.Check(remodCtx.Kind(), Equals, devicestate.ReregRemodel)
 
 	t := s.state.NewTask("request-serial", "test")
@@ -1893,8 +1890,8 @@ func (s *deviceMgrSerialSuite) testDoRequestSerialReregistration(c *C, setAncill
 	chg.AddTask(t)
 
 	// validity
-	regCtx, err := devicestate.RegistrationCtx(s.mgr, t)
-	c.Assert(err, IsNil)
+	regCtx := mylog.Check2(devicestate.RegistrationCtx(s.mgr, t))
+
 	c.Check(regCtx, Equals, remodCtx.(devicestate.RegistrationContext))
 
 	// avoid full seeding
@@ -1919,15 +1916,15 @@ func (s *deviceMgrSerialSuite) TestDoRequestSerialReregistration(c *C) {
 
 	c.Check(chg.Status(), Equals, state.DoneStatus, Commentf("%s", t.Log()))
 	c.Check(chg.Err(), IsNil)
-	device, err := devicestatetest.Device(s.state)
+	device := mylog.Check2(devicestatetest.Device(s.state))
 	c.Check(err, IsNil)
 	c.Check(device.Serial, Equals, "9999")
-	_, err = s.db.Find(asserts.SerialType, map[string]string{
+	_ = mylog.Check2(s.db.Find(asserts.SerialType, map[string]string{
 		"brand-id": "rereg-brand",
 		"model":    "rereg-model",
 		"serial":   "9999",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 }
 
 func (s *deviceMgrSerialSuite) TestDoRequestSerialReregistrationStreamFromService(c *C) {
@@ -1945,15 +1942,15 @@ func (s *deviceMgrSerialSuite) TestDoRequestSerialReregistrationStreamFromServic
 
 	c.Check(chg.Status(), Equals, state.DoneStatus, Commentf("%s", t.Log()))
 	c.Check(chg.Err(), IsNil)
-	device, err := devicestatetest.Device(s.state)
+	device := mylog.Check2(devicestatetest.Device(s.state))
 	c.Check(err, IsNil)
 	c.Check(device.Serial, Equals, "9999")
-	_, err = s.db.Find(asserts.SerialType, map[string]string{
+	_ = mylog.Check2(s.db.Find(asserts.SerialType, map[string]string{
 		"brand-id": "rereg-brand",
 		"model":    "rereg-model",
 		"serial":   "9999",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 }
 
 func (s *deviceMgrSerialSuite) TestDoRequestSerialReregistrationIncompleteStreamFromService(c *C) {
@@ -2092,8 +2089,8 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationUC20Happy(c *C) {
 	c.Check(becomeOperational.Status().Ready(), Equals, true)
 	c.Check(becomeOperational.Err(), IsNil)
 
-	device, err := devicestatetest.Device(s.state)
-	c.Assert(err, IsNil)
+	device := mylog.Check2(devicestatetest.Device(s.state))
+
 	c.Check(device.Brand, Equals, "canonical")
 	c.Check(device.Model, Equals, "pc-20")
 	c.Check(device.Serial, Equals, "9999")
@@ -2107,16 +2104,16 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationUC20Happy(c *C) {
 	}
 	c.Check(ok, Equals, true)
 
-	a, err := s.db.Find(asserts.SerialType, map[string]string{
+	a := mylog.Check2(s.db.Find(asserts.SerialType, map[string]string{
 		"brand-id": "canonical",
 		"model":    "pc-20",
 		"serial":   "9999",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	serial := a.(*asserts.Serial)
 
-	privKey, err := devicestate.KeypairManager(s.mgr).Get(serial.DeviceKey().ID())
-	c.Assert(err, IsNil)
+	privKey := mylog.Check2(devicestate.KeypairManager(s.mgr).Get(serial.DeviceKey().ID()))
+
 	c.Check(privKey, NotNil)
 
 	c.Check(device.KeyID, Equals, privKey.PublicKey().ID())
@@ -2127,22 +2124,22 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationUC20Happy(c *C) {
 
 	// check that the serial was saved to the device save assertion db
 	// as well
-	savedb, err := sysdb.OpenAt(dirs.SnapDeviceSaveDir)
-	c.Assert(err, IsNil)
+	savedb := mylog.Check2(sysdb.OpenAt(dirs.SnapDeviceSaveDir))
+
 	// a copy of model was saved there
-	_, err = savedb.Find(asserts.ModelType, map[string]string{
+	_ = mylog.Check2(savedb.Find(asserts.ModelType, map[string]string{
 		"series":   "16",
 		"brand-id": "canonical",
 		"model":    "pc-20",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	// a copy of serial was backed up there
-	_, err = savedb.Find(asserts.SerialType, map[string]string{
+	_ = mylog.Check2(savedb.Find(asserts.SerialType, map[string]string{
 		"brand-id": "canonical",
 		"model":    "pc-20",
 		"serial":   "9999",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 }
 
 func (s *deviceMgrSerialSuite) TestFullDeviceUnregisterReregisterClassicGeneric(c *C) {
@@ -2193,23 +2190,23 @@ func (s *deviceMgrSerialSuite) testFullDeviceUnregisterReregisterClassicGeneric(
 	c.Check(becomeOperational.Err(), IsNil)
 	becomeOperational1 := becomeOperational.ID()
 
-	device, err := devicestatetest.Device(s.state)
-	c.Assert(err, IsNil)
+	device := mylog.Check2(devicestatetest.Device(s.state))
+
 	c.Check(device.Brand, Equals, "generic")
 	c.Check(device.Model, Equals, "generic-classic")
 	c.Check(device.Serial, Equals, "9999")
 
 	// serial is there
-	a, err := s.db.Find(asserts.SerialType, map[string]string{
+	a := mylog.Check2(s.db.Find(asserts.SerialType, map[string]string{
 		"brand-id": "generic",
 		"model":    "generic-classic",
 		"serial":   "9999",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	serial := a.(*asserts.Serial)
 
-	privKey, err := devicestate.KeypairManager(s.mgr).Get(serial.DeviceKey().ID())
-	c.Assert(err, IsNil)
+	privKey := mylog.Check2(devicestate.KeypairManager(s.mgr).Get(serial.DeviceKey().ID()))
+
 	c.Check(privKey, NotNil)
 	c.Check(device.KeyID, Equals, privKey.PublicKey().ID())
 	keyID1 := device.KeyID
@@ -2217,12 +2214,11 @@ func (s *deviceMgrSerialSuite) testFullDeviceUnregisterReregisterClassicGeneric(
 	// mock having a store session
 	device.SessionMacaroon = "session-macaroon"
 	devicestatetest.SetDevice(s.state, device)
+	mylog.Check(s.mgr.Unregister(opts))
 
-	err = s.mgr.Unregister(opts)
-	c.Assert(err, IsNil)
 
-	device, err = devicestatetest.Device(s.state)
-	c.Assert(err, IsNil)
+	device = mylog.Check2(devicestatetest.Device(s.state))
+
 	c.Check(device.Brand, Equals, "generic")
 	c.Check(device.Model, Equals, "generic-classic")
 	// unregistered
@@ -2232,7 +2228,7 @@ func (s *deviceMgrSerialSuite) testFullDeviceUnregisterReregisterClassicGeneric(
 	// and session
 	c.Check(device.SessionMacaroon, Equals, "")
 	// key was deleted
-	_, err = devicestate.KeypairManager(s.mgr).Get(keyID1)
+	_ = mylog.Check2(devicestate.KeypairManager(s.mgr).Get(keyID1))
 	c.Check(err, ErrorMatches, "cannot find key pair")
 
 	noRegistrationUntilReboot := opts != nil && opts.NoRegistrationUntilReboot
@@ -2255,23 +2251,23 @@ func (s *deviceMgrSerialSuite) testFullDeviceUnregisterReregisterClassicGeneric(
 	c.Check(becomeOperational.Status().Ready(), Equals, true)
 	c.Check(becomeOperational.Err(), IsNil)
 
-	device, err = devicestatetest.Device(s.state)
-	c.Assert(err, IsNil)
+	device = mylog.Check2(devicestatetest.Device(s.state))
+
 	c.Check(device.Brand, Equals, "generic")
 	c.Check(device.Model, Equals, "generic-classic")
 	c.Check(device.Serial, Equals, "10000")
 
 	// serial is there
-	a, err = s.db.Find(asserts.SerialType, map[string]string{
+	a = mylog.Check2(s.db.Find(asserts.SerialType, map[string]string{
 		"brand-id": "generic",
 		"model":    "generic-classic",
 		"serial":   "10000",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	serial = a.(*asserts.Serial)
 
-	privKey, err = devicestate.KeypairManager(s.mgr).Get(serial.DeviceKey().ID())
-	c.Assert(err, IsNil)
+	privKey = mylog.Check2(devicestate.KeypairManager(s.mgr).Get(serial.DeviceKey().ID()))
+
 	c.Check(privKey, NotNil)
 	c.Check(device.KeyID, Equals, privKey.PublicKey().ID())
 	// different from previous key
@@ -2349,21 +2345,21 @@ func (s *deviceMgrSerialSuite) TestDeviceSerialRestoreHappy(c *C) {
 	// there is a device directory under it
 	c.Assert(os.MkdirAll(dirs.SnapDeviceSaveDir, 0755), IsNil)
 
-	bs, err := asserts.OpenFSBackstore(dirs.SnapAssertsDBDir)
-	c.Assert(err, IsNil)
+	bs := mylog.Check2(asserts.OpenFSBackstore(dirs.SnapAssertsDBDir))
+
 
 	// the test suite uses a memory backstore DB, but we need to look at the
 	// filesystem
-	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+	db := mylog.Check2(asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore:       bs,
 		Trusted:         s.storeSigning.Trusted,
 		OtherPredefined: s.storeSigning.Generic,
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	// cleanup is done by the suite
 	assertstate.ReplaceDB(s.state, db)
-	err = db.Add(s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
+	mylog.Check(db.Add(s.storeSigning.StoreAccountKey("")))
+
 
 	model := s.makeModelAssertionInState(c, "my-brand", "pc-20", map[string]interface{}{
 		"architecture": "amd64",
@@ -2390,8 +2386,8 @@ func (s *deviceMgrSerialSuite) TestDeviceSerialRestoreHappy(c *C) {
 	// the mock has written key under snap asserts dir, but when ubuntu-save
 	// exists, the key is written under ubuntu-save/device, thus
 	// factory-reset never restores is to the asserts dir
-	kp, err := asserts.OpenFSKeypairManager(dirs.SnapAssertsDBDir)
-	c.Assert(err, IsNil)
+	kp := mylog.Check2(asserts.OpenFSKeypairManager(dirs.SnapAssertsDBDir))
+
 
 	otherKey, _ := assertstest.GenerateKey(testKeyLength)
 	// an assertion for which there is no corresponding device key
@@ -2404,8 +2400,8 @@ func (s *deviceMgrSerialSuite) TestDeviceSerialRestoreHappy(c *C) {
 		model, devKey, "serial-1234")
 	c.Assert(kp.Delete(devKey.PublicKey().ID()), IsNil)
 	// write the key under a location which corresponds to ubuntu-save/device
-	kp, err = asserts.OpenFSKeypairManager(dirs.SnapDeviceSaveDir)
-	c.Assert(err, IsNil)
+	kp = mylog.Check2(asserts.OpenFSKeypairManager(dirs.SnapDeviceSaveDir))
+
 	c.Assert(kp.Put(devKey), IsNil)
 
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
@@ -2421,8 +2417,8 @@ func (s *deviceMgrSerialSuite) TestDeviceSerialRestoreHappy(c *C) {
 	becomeOperational := s.findBecomeOperationalChange()
 	c.Check(becomeOperational, IsNil)
 
-	device, err := devicestatetest.Device(s.state)
-	c.Assert(err, IsNil)
+	device := mylog.Check2(devicestatetest.Device(s.state))
+
 	c.Check(device.Brand, Equals, "my-brand")
 	c.Check(device.Model, Equals, "pc-20")
 	// serial was restored
@@ -2430,7 +2426,7 @@ func (s *deviceMgrSerialSuite) TestDeviceSerialRestoreHappy(c *C) {
 	// key ID was restored
 	c.Check(device.KeyID, Equals, devKey.PublicKey().ID())
 	// key is present
-	_, err = devicestate.KeypairManager(s.mgr).Get(devKey.PublicKey().ID())
+	_ = mylog.Check2(devicestate.KeypairManager(s.mgr).Get(devKey.PublicKey().ID()))
 	c.Check(err, IsNil)
 	// no session yet
 	c.Check(device.SessionMacaroon, Equals, "")
@@ -2505,18 +2501,18 @@ func (s *deviceMgrSerialSuite) TestShouldRequestSerial(c *C) {
 
 	for i, t := range testCases {
 		tr := config.NewTransaction(s.state)
-		err := tr.Set("core", "store.access", t.storeAccess)
-		c.Assert(err, IsNil)
+		mylog.Check(tr.Set("core", "store.access", t.storeAccess))
+
 
 		if t.gadgetName != "" {
-			err = tr.Set(t.gadgetName, "device-service.access", t.deviceServiceAccess)
-			c.Assert(err, IsNil)
-			err = tr.Set(t.gadgetName, "device-service.url", t.deviceServiceURL)
-			c.Assert(err, IsNil)
+			mylog.Check(tr.Set(t.gadgetName, "device-service.access", t.deviceServiceAccess))
+
+			mylog.Check(tr.Set(t.gadgetName, "device-service.url", t.deviceServiceURL))
+
 		}
 		tr.Commit()
 
-		shouldRequest, err := devicestate.ShouldRequestSerial(s.state, t.gadgetName)
+		shouldRequest := mylog.Check2(devicestate.ShouldRequestSerial(s.state, t.gadgetName))
 		c.Check(err, IsNil)
 		c.Check(shouldRequest, Equals, t.expected, Commentf("testcase %d: %+v", i, t))
 	}
@@ -2538,9 +2534,8 @@ func (s *deviceMgrSerialSuite) TestDeviceManagerFullAccess(c *C) {
 	devicestatetest.MockGadget(c, s.state, "pc", snap.R(2), nil)
 	s.state.Set("seeded", true)
 	s.state.Unlock()
+	mylog.Check(s.mgr.Ensure())
 
-	err := s.mgr.Ensure()
-	c.Assert(err, IsNil)
 
 	s.state.Lock()
 	change := s.findBecomeOperationalChange()
@@ -2575,14 +2570,13 @@ func (s *deviceMgrSerialSuite) TestDeviceManagerNoAccessHasKeyID(c *C) {
 	s.state.Set("seeded", true)
 
 	tr := config.NewTransaction(s.state)
-	err := tr.Set("pc", "device-service.access", "offline")
-	c.Assert(err, IsNil)
+	mylog.Check(tr.Set("pc", "device-service.access", "offline"))
+
 	tr.Commit()
 
 	s.state.Unlock()
+	mylog.Check(s.mgr.Ensure())
 
-	err = s.mgr.Ensure()
-	c.Assert(err, IsNil)
 
 	s.state.Lock()
 	change := s.findBecomeOperationalChange()
@@ -2610,14 +2604,13 @@ func (s *deviceMgrSerialSuite) TestDeviceManagerNoAccessNoKeyID(c *C) {
 	s.state.Set("seeded", true)
 
 	tr := config.NewTransaction(s.state)
-	err := tr.Set("pc", "device-service.access", "offline")
-	c.Assert(err, IsNil)
+	mylog.Check(tr.Set("pc", "device-service.access", "offline"))
+
 	tr.Commit()
 
 	s.state.Unlock()
+	mylog.Check(s.mgr.Ensure())
 
-	err = s.mgr.Ensure()
-	c.Assert(err, IsNil)
 
 	s.state.Lock()
 	change := s.findBecomeOperationalChange()

@@ -25,6 +25,8 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // the default simple filesystem based keypair manager/backstore
@@ -42,10 +44,8 @@ type filesystemKeypairManager struct {
 // OpenFSKeypairManager opens a filesystem backed assertions backstore under path.
 func OpenFSKeypairManager(path string) (KeypairManager, error) {
 	top := filepath.Join(path, privateKeysRoot)
-	err := ensureTop(top)
-	if err != nil {
-		return nil, err
-	}
+	mylog.Check(ensureTop(top))
+
 	return &filesystemKeypairManager{top: top}, nil
 }
 
@@ -56,18 +56,12 @@ func (fskm *filesystemKeypairManager) Put(privKey PrivateKey) error {
 	if entryExists(fskm.top, keyID) {
 		return errKeypairAlreadyExists
 	}
-	encoded, err := encodePrivateKey(privKey)
-	if err != nil {
-		return fmt.Errorf("cannot store private key: %v", err)
-	}
+	encoded := mylog.Check2(encodePrivateKey(privKey))
 
 	fskm.mu.Lock()
 	defer fskm.mu.Unlock()
+	mylog.Check(atomicWriteEntry(encoded, true, fskm.top, keyID))
 
-	err = atomicWriteEntry(encoded, true, fskm.top, keyID)
-	if err != nil {
-		return fmt.Errorf("cannot store private key: %v", err)
-	}
 	return nil
 }
 
@@ -77,30 +71,20 @@ func (fskm *filesystemKeypairManager) Get(keyID string) (PrivateKey, error) {
 	fskm.mu.RLock()
 	defer fskm.mu.RUnlock()
 
-	encoded, err := readEntry(fskm.top, keyID)
+	encoded := mylog.Check2(readEntry(fskm.top, keyID))
 	if os.IsNotExist(err) {
 		return nil, errKeypairNotFound
 	}
-	if err != nil {
-		return nil, fmt.Errorf("cannot read key pair: %v", err)
-	}
-	privKey, err := decodePrivateKey(encoded)
-	if err != nil {
-		return nil, fmt.Errorf("cannot decode key pair: %v", err)
-	}
+
+	privKey := mylog.Check2(decodePrivateKey(encoded))
+
 	return privKey, nil
 }
 
 func (fskm *filesystemKeypairManager) Delete(keyID string) error {
 	fskm.mu.RLock()
 	defer fskm.mu.RUnlock()
+	mylog.Check(removeEntry(fskm.top, keyID))
 
-	err := removeEntry(fskm.top, keyID)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return errKeypairNotFound
-		}
-		return err
-	}
 	return nil
 }

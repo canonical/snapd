@@ -4,13 +4,12 @@ import (
 	"os"
 	"syscall"
 	"testing"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 func TestRawSockStopperReadable(t *testing.T) {
-	r, w, err := os.Pipe()
-	if err != nil {
-		t.Fatalf("cannot make test pipe: %v", err)
-	}
+	r, w := mylog.Check3(os.Pipe())
 
 	oldStopperSelectTimeout := stopperSelectTimeout
 	stopperSelectTimeout = func() *syscall.Timeval {
@@ -22,47 +21,31 @@ func TestRawSockStopperReadable(t *testing.T) {
 		stopperSelectTimeout = oldStopperSelectTimeout
 	}()
 
-	readableOrStop, _, err := RawSockStopper(int(r.Fd()))
-	if err != nil {
-		t.Fatalf("rawSockStopper: %v", err)
-	}
+	readableOrStop, _ := mylog.Check3(RawSockStopper(int(r.Fd())))
 
-	readable, err := readableOrStop()
-	if err != nil {
-		t.Fatalf("readableOrStop should timeout without error: %v", err)
-	}
+	readable := mylog.Check2(readableOrStop())
+
 	if readable {
 		t.Fatal("readableOrStop: expected nothing to read yet")
 	}
 
 	w.Write([]byte{1})
-	readable, err = readableOrStop()
-	if err != nil {
-		t.Fatalf("readableOrStop should succeed without error: %v", err)
-	}
+	readable = mylog.Check2(readableOrStop())
+
 	if !readable {
 		t.Fatal("readableOrStop: expected something to read")
 	}
 }
 
 func TestRawSockStopperStop(t *testing.T) {
-	r, _, err := os.Pipe()
-	if err != nil {
-		t.Fatalf("cannot make test pipe: %v", err)
-	}
+	r, _ := mylog.Check3(os.Pipe())
 
-	readableOrStop, stop, err := RawSockStopper(int(r.Fd()))
-	if err != nil {
-		t.Fatalf("rawSockStopper: %v", err)
-	}
+	readableOrStop, stop := mylog.Check3(RawSockStopper(int(r.Fd())))
 
 	stop()
-	readable, err := readableOrStop()
-	if err != nil {
-		t.Fatalf("readableOrStop should return without error: %v", err)
-	}
+	readable := mylog.Check2(readableOrStop())
+
 	if readable {
 		t.Fatal("readableOrStop: expected nothing to read, just stopped")
 	}
-
 }

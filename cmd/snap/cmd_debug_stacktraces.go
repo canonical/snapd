@@ -22,6 +22,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 )
 
@@ -40,9 +41,8 @@ func init() {
 
 func (x *cmdGetStacktraces) Execute(args []string) error {
 	var stacktraces string
-	if err := x.client.Debug("stacktraces", nil, &stacktraces); err != nil {
-		return err
-	}
+	mylog.Check(x.client.Debug("stacktraces", nil, &stacktraces))
+
 	fmt.Fprintf(Stdout, stacktraces)
 	return nil
 }

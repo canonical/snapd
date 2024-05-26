@@ -27,6 +27,7 @@ import (
 	// TODO: add this once PR #13730 is merged:
 	// doublestar "github.com/bmatcuk/doublestar/v4"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces/prompting"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 )
@@ -67,7 +68,7 @@ func (s *constraintsSuite) TestConstraintsValidateForInterface(c *C) {
 			PathPattern: testCase.pattern,
 			Permissions: testCase.perms,
 		}
-		err := constraints.ValidateForInterface(testCase.iface)
+		mylog.Check(constraints.ValidateForInterface(testCase.iface))
 		c.Check(err, ErrorMatches, testCase.errStr)
 	}
 }
@@ -98,7 +99,7 @@ func (s *constraintsSuite) TestValidatePermissionsHappy(c *C) {
 		constraints := prompting.Constraints{
 			Permissions: testCase.initial,
 		}
-		err := constraints.ValidatePermissions(testCase.iface)
+		mylog.Check(constraints.ValidatePermissions(testCase.iface))
 		c.Check(err, IsNil, Commentf("testCase: %+v", testCase))
 		c.Check(constraints.Permissions, DeepEquals, testCase.final, Commentf("testCase: %+v", testCase))
 	}
@@ -135,7 +136,7 @@ func (s *constraintsSuite) TestValidatePermissionsUnhappy(c *C) {
 		constraints := prompting.Constraints{
 			Permissions: testCase.perms,
 		}
-		err := constraints.ValidatePermissions(testCase.iface)
+		mylog.Check(constraints.ValidatePermissions(testCase.iface))
 		c.Check(err, ErrorMatches, testCase.errStr, Commentf("testCase: %+v", testCase))
 	}
 }
@@ -163,7 +164,7 @@ func (*constraintsSuite) TestConstraintsMatch(c *C) {
 			PathPattern: testCase.pattern,
 			Permissions: []string{"read"},
 		}
-		result, err := constraints.Match(testCase.path)
+		result := mylog.Check2(constraints.Match(testCase.path))
 		c.Check(err, IsNil, Commentf("test case: %+v", testCase))
 		c.Check(result, Equals, testCase.matches, Commentf("test case: %+v", testCase))
 	}
@@ -175,7 +176,7 @@ func (s *constraintsSuite) TestConstraintsMatchUnhappy(c *C) {
 		PathPattern: badPath,
 		Permissions: []string{"read"},
 	}
-	matches, err := badConstraints.Match(badPath)
+	matches := mylog.Check2(badConstraints.Match(badPath))
 	// TODO: change to this once PR #13730 is merged:
 	// c.Check(err, Equals, doublestar.ErrBadPattern)
 	// c.Check(matches, Equals, false)
@@ -244,7 +245,7 @@ func (s *constraintsSuite) TestConstraintsRemovePermission(c *C) {
 			PathPattern: "/path/to/foo",
 			Permissions: testCase.initial,
 		}
-		err := constraints.RemovePermission(testCase.remove)
+		mylog.Check(constraints.RemovePermission(testCase.remove))
 		c.Check(err, Equals, testCase.err)
 		c.Check(constraints.Permissions, DeepEquals, testCase.final)
 	}
@@ -331,7 +332,7 @@ func (s *constraintsSuite) TestInterfacesAndPermissionsCompleteness(c *C) {
 	// interface's permissions map.
 	// Also, check that each priority only occurs once.
 	for iface, perms := range prompting.InterfacePermissionsAvailable {
-		availablePerms, err := prompting.AvailablePermissions(iface)
+		availablePerms := mylog.Check2(prompting.AvailablePermissions(iface))
 		c.Check(err, IsNil, Commentf("interface missing from interfacePermissionsAvailable: %s", iface))
 		c.Check(perms, Not(HasLen), 0, Commentf("interface has no available permissions: %s", iface))
 		c.Check(availablePerms, DeepEquals, perms)
@@ -371,11 +372,11 @@ func (s *constraintsSuite) TestInterfaceFilePermissionsMapsCorrectness(c *C) {
 
 func (s *constraintsSuite) TestAvailablePermissions(c *C) {
 	for iface, perms := range prompting.InterfacePermissionsAvailable {
-		available, err := prompting.AvailablePermissions(iface)
+		available := mylog.Check2(prompting.AvailablePermissions(iface))
 		c.Check(err, IsNil)
 		c.Check(available, DeepEquals, perms)
 	}
-	available, err := prompting.AvailablePermissions("foo")
+	available := mylog.Check2(prompting.AvailablePermissions("foo"))
 	c.Check(err, ErrorMatches, ".*unsupported interface.*")
 	c.Check(available, IsNil)
 }
@@ -418,7 +419,7 @@ func (s *constraintsSuite) TestAbstractPermissionsFromAppArmorPermissionsHappy(c
 		},
 	}
 	for _, testCase := range cases {
-		perms, err := prompting.AbstractPermissionsFromAppArmorPermissions(testCase.iface, testCase.perms)
+		perms := mylog.Check2(prompting.AbstractPermissionsFromAppArmorPermissions(testCase.iface, testCase.perms))
 		c.Check(err, IsNil, Commentf("testCase: %+v", testCase))
 		c.Check(perms, DeepEquals, testCase.list)
 	}
@@ -457,7 +458,7 @@ func (s *constraintsSuite) TestAbstractPermissionsFromAppArmorPermissionsUnhappy
 		},
 	}
 	for _, testCase := range cases {
-		perms, err := prompting.AbstractPermissionsFromAppArmorPermissions(testCase.iface, testCase.perms)
+		perms := mylog.Check2(prompting.AbstractPermissionsFromAppArmorPermissions(testCase.iface, testCase.perms))
 		c.Check(perms, IsNil, Commentf("received unexpected non-nil permissions list for test case: %+v", testCase))
 		c.Check(err, ErrorMatches, testCase.errStr)
 	}
@@ -496,7 +497,7 @@ func (s *constraintsSuite) TestAbstractPermissionsToAppArmorPermissionsHappy(c *
 		},
 	}
 	for _, testCase := range cases {
-		ret, err := prompting.AbstractPermissionsToAppArmorPermissions(testCase.iface, testCase.list)
+		ret := mylog.Check2(prompting.AbstractPermissionsToAppArmorPermissions(testCase.iface, testCase.list))
 		c.Check(err, IsNil)
 		perms, ok := ret.(notify.FilePermission)
 		c.Check(ok, Equals, true, Commentf("failed to parse return value as FilePermission for test case: %+v", testCase))
@@ -537,7 +538,7 @@ func (s *constraintsSuite) TestAbstractPermissionsToAppArmorPermissionsUnhappy(c
 		},
 	}
 	for _, testCase := range cases {
-		_, err := prompting.AbstractPermissionsToAppArmorPermissions(testCase.iface, testCase.perms)
+		_ := mylog.Check2(prompting.AbstractPermissionsToAppArmorPermissions(testCase.iface, testCase.perms))
 		c.Check(err, ErrorMatches, testCase.errStr)
 	}
 }

@@ -26,6 +26,7 @@ import (
 
 	"gopkg.in/yaml.v2"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/naming"
@@ -62,15 +63,10 @@ type Seed16 struct {
 func ReadSeedYaml(fn string) (*Seed16, error) {
 	errPrefix := "cannot read seed yaml"
 
-	yamlData, err := os.ReadFile(fn)
-	if err != nil {
-		return nil, fmt.Errorf("%s: %v", errPrefix, err)
-	}
+	yamlData := mylog.Check2(os.ReadFile(fn))
 
 	var seed Seed16
-	if err := yaml.Unmarshal(yamlData, &seed); err != nil {
-		return nil, fmt.Errorf("%s: cannot unmarshal %q: %s", errPrefix, yamlData, err)
-	}
+	mylog.Check(yaml.Unmarshal(yamlData, &seed))
 
 	seenNames := make(map[string]bool, len(seed.Snaps))
 	// validate
@@ -78,15 +74,13 @@ func ReadSeedYaml(fn string) (*Seed16, error) {
 		if sn == nil {
 			return nil, fmt.Errorf("%s: empty element in seed", errPrefix)
 		}
-		// TODO: check if it's a parallel install explicitly,
-		// need to move *Instance* helpers from snap to naming
-		if err := naming.ValidateSnap(sn.Name); err != nil {
-			return nil, fmt.Errorf("%s: %v", errPrefix, err)
-		}
+		mylog.Check(
+			// TODO: check if it's a parallel install explicitly,
+			// need to move *Instance* helpers from snap to naming
+			naming.ValidateSnap(sn.Name))
+
 		if sn.Channel != "" {
-			if _, err := channel.Parse(sn.Channel, ""); err != nil {
-				return nil, fmt.Errorf("%s: %v", errPrefix, err)
-			}
+			mylog.Check2(channel.Parse(sn.Channel, ""))
 		}
 		if sn.File == "" {
 			return nil, fmt.Errorf(`%s: "file" attribute for %q cannot be empty`, errPrefix, sn.Name)
@@ -106,12 +100,8 @@ func ReadSeedYaml(fn string) (*Seed16, error) {
 }
 
 func (seed *Seed16) Write(seedFn string) error {
-	data, err := yaml.Marshal(&seed)
-	if err != nil {
-		return err
-	}
-	if err := osutil.AtomicWriteFile(seedFn, data, 0644, 0); err != nil {
-		return err
-	}
+	data := mylog.Check2(yaml.Marshal(&seed))
+	mylog.Check(osutil.AtomicWriteFile(seedFn, data, 0644, 0))
+
 	return nil
 }

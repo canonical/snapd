@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
@@ -146,9 +147,7 @@ func (iface *qualcomIPCRouterInterface) StaticInfo() interfaces.StaticInfo {
 
 func fillSnippetSocketAddress(slot *interfaces.ConnectedSlot, snippet string) (string, error) {
 	var address string
-	if err := slot.Attr(addressAttrib, &address); err != nil {
-		return "", err
-	}
+	mylog.Check(slot.Attr(addressAttrib, &address))
 
 	return strings.ReplaceAll(snippet, "###SOCKET_ADDRESS###", address), nil
 }
@@ -175,9 +174,8 @@ func validateTag(qcipc string) error {
 	if len(qcipc) == 0 {
 		return fmt.Errorf("qualcomm-ipc-router %s attribute cannot be empty", qcipcAttrib)
 	}
-	if err := naming.ValidateIfaceTag(qcipc); err != nil {
-		return fmt.Errorf("bad name for %s attribute: %v", qcipcAttrib, err)
-	}
+	mylog.Check(naming.ValidateIfaceTag(qcipc))
+
 	return nil
 }
 
@@ -185,10 +183,10 @@ func validateAddress(address string) error {
 	if len(address) == 0 {
 		return fmt.Errorf("qualcomm-ipc-router %s attribute cannot be empty", qcipcAttrib)
 	}
-	// do not allow apparmor RE in the address
-	if err := apparmor.ValidateNoAppArmorRegexp(address); err != nil {
-		return fmt.Errorf(`address is invalid: %v`, err)
-	}
+	mylog.Check(
+		// do not allow apparmor RE in the address
+		apparmor.ValidateNoAppArmorRegexp(address))
+
 	return nil
 }
 
@@ -197,7 +195,7 @@ func (iface *qualcomIPCRouterInterface) AppArmorConnectedPlug(spec *apparmor.Spe
 	// as in BeforePreparePlug we do not know yet if we are
 	// connecting to a system or app provided slot.
 	var qcipc string
-	err := plug.Attr(qcipcAttrib, &qcipc)
+	mylog.Check(plug.Attr(qcipcAttrib, &qcipc))
 	if isConnectedSlotSystem(slot) {
 		if err == nil {
 			return fmt.Errorf("%q attribute not allowed if connecting to a system slot", qcipcAttrib)
@@ -205,19 +203,16 @@ func (iface *qualcomIPCRouterInterface) AppArmorConnectedPlug(spec *apparmor.Spe
 		// backward compatibility
 		spec.AddSnippet(qipcrtrConnectedPlugAppArmorCompat)
 	} else {
-		// Plug must have qcipc if connecting to app slot
-		if err != nil {
-			return err
-		}
-		if err := validateTag(qcipc); err != nil {
-			return err
-		}
+		mylog.Check(
+			// Plug must have qcipc if connecting to app slot
+
+			validateTag(qcipc))
 
 		old := "###SLOT_SECURITY_TAGS###"
 		slotLabel := spec.SnapAppSet().SlotLabelExpression(slot)
 		snippet := strings.ReplaceAll(qipcrtrConnectedPlugAppArmor, old, slotLabel)
-		var err error
-		if snippet, err = fillSnippetSocketAddress(slot, snippet); err != nil {
+
+		if snippet = mylog.Check2(fillSnippetSocketAddress(slot, snippet)); err != nil {
 			return err
 		}
 		spec.AddSnippet(snippet)
@@ -233,8 +228,8 @@ func (iface *qualcomIPCRouterInterface) AppArmorConnectedSlot(spec *apparmor.Spe
 	old := "###PLUG_SECURITY_TAGS###"
 	new := spec.SnapAppSet().PlugLabelExpression(plug)
 	snippet := strings.ReplaceAll(qipcrtrConnectedSlotAppArmor, old, new)
-	var err error
-	if snippet, err = fillSnippetSocketAddress(slot, snippet); err != nil {
+
+	if snippet = mylog.Check2(fillSnippetSocketAddress(slot, snippet)); err != nil {
 		return err
 	}
 	spec.AddSnippet(snippet)
@@ -247,9 +242,8 @@ func (iface *qualcomIPCRouterInterface) AppArmorPermanentSlot(spec *apparmor.Spe
 	}
 
 	var address string
-	if err := slot.Attr(addressAttrib, &address); err != nil {
-		return err
-	}
+	mylog.Check(slot.Attr(addressAttrib, &address))
+
 	snippet := strings.ReplaceAll(qipcrtrPermanentSlotAppArmor, "###SOCKET_ADDRESS###", address)
 	spec.AddSnippet(snippet)
 	return nil
@@ -276,10 +270,7 @@ func (iface *qualcomIPCRouterInterface) verifySupport(what string) error {
 		// no apparmor means we don't have to deal with parser features
 		return nil
 	}
-	features, err := apparmor_sandbox.ParserFeatures()
-	if err != nil {
-		return err
-	}
+	features := mylog.Check2(apparmor_sandbox.ParserFeatures())
 
 	if !strutil.ListContains(features, "qipcrtr-socket") {
 		// then the host system doesn't have the required feature to compile the
@@ -303,17 +294,13 @@ func (iface *qualcomIPCRouterInterface) BeforePrepareSlot(slot *snap.SlotInfo) e
 	if !ok {
 		return fmt.Errorf("qualcomm-ipc-router slot must have a %s attribute", qcipcAttrib)
 	}
-	if err := validateTag(qcipc); err != nil {
-		return err
-	}
+	mylog.Check(validateTag(qcipc))
 
 	address, ok := slot.Attrs[addressAttrib].(string)
 	if !ok {
 		return fmt.Errorf("qualcomm-ipc-router slot must have an %s attribute", addressAttrib)
 	}
-	if err := validateAddress(address); err != nil {
-		return err
-	}
+	mylog.Check(validateAddress(address))
 
 	return iface.verifySupport("prepare slot")
 }

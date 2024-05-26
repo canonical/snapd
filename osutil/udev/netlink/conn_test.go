@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	. "gopkg.in/check.v1"
 )
 
@@ -12,23 +13,20 @@ func Test(t *testing.T) { TestingT(t) }
 
 func TestConnect(t *testing.T) {
 	conn := new(UEventConn)
-	if err := conn.Connect(UdevEvent); err != nil {
-		t.Fatal("unable to subscribe to netlink uevent, err:", err)
-	}
+	mylog.Check(conn.Connect(UdevEvent))
+
 	defer conn.Close()
 
 	conn2 := new(UEventConn)
-	if err := conn2.Connect(UdevEvent); err != nil {
-		t.Fatal("unable to subscribe to netlink uevent a second time, err:", err)
-	}
+	mylog.Check(conn2.Connect(UdevEvent))
+
 	defer conn2.Close()
 }
 
 func TestMonitorStop(t *testing.T) {
 	conn := new(UEventConn)
-	if err := conn.Connect(UdevEvent); err != nil {
-		t.Fatal("unable to subscribe to netlink uevent, err:", err)
-	}
+	mylog.Check(conn.Connect(UdevEvent))
+
 	defer conn.Close()
 
 	stop := conn.Monitor(nil, nil, nil)
@@ -40,9 +38,8 @@ func TestMonitorStop(t *testing.T) {
 
 func TestMonitorSelectTimeoutIsHarmless(t *testing.T) {
 	conn := new(UEventConn)
-	if err := conn.Connect(UdevEvent); err != nil {
-		t.Fatal("unable to subscribe to netlink uevent, err:", err)
-	}
+	mylog.Check(conn.Connect(UdevEvent))
+
 	defer conn.Close()
 
 	selectCalled := 0

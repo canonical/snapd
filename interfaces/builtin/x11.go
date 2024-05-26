@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/mount"
@@ -200,9 +201,8 @@ func (iface *x11Interface) MountConnectedPlug(spec *mount.Specification, plug *i
 }
 
 func (iface *x11Interface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	if err := iface.commonInterface.AppArmorConnectedPlug(spec, plug, slot); err != nil {
-		return err
-	}
+	mylog.Check(iface.commonInterface.AppArmorConnectedPlug(spec, plug, slot))
+
 	// Consult the comments in MountConnectedPlug for the rationale of the control flow.
 	if implicitSystemConnectedSlot(slot) {
 		spec.AddUpdateNS(`

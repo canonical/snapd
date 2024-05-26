@@ -23,6 +23,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -37,7 +38,7 @@ func notifyAgentOnLinkageChange(st *state.State, snapsup *snapstate.SnapSetup) e
 	instanceName := snapsup.InstanceName()
 
 	var snapst snapstate.SnapState
-	if err := snapstate.Get(st, instanceName, &snapst); err != nil && !errors.Is(err, state.ErrNoState) {
+	if mylog.Check(snapstate.Get(st, instanceName, &snapst)); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if !snapst.IsInstalled() {
@@ -72,8 +73,6 @@ var sendClientFinishRefreshNotification = func(snapsup *snapstate.SnapSetup) {
 	client := userclient.New()
 	// run in a go-routine to avoid potentially slow operation
 	go func() {
-		if err := client.FinishRefreshNotification(context.TODO(), refreshInfo); err != nil {
-			logger.Noticef("cannot send finish refresh notification: %v", err)
-		}
+		mylog.Check(client.FinishRefreshNotification(context.TODO(), refreshInfo))
 	}()
 }

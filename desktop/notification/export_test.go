@@ -26,8 +26,10 @@ var (
 	NewGtkBackend = newGtkBackend
 )
 
-type FdoBackend = fdoBackend
-type GtkBackend = gtkBackend
+type (
+	FdoBackend = fdoBackend
+	GtkBackend = gtkBackend
+)
 
 func (srv *fdoBackend) ProcessSignal(sig *dbus.Signal, observer Observer) error {
 	return srv.processSignal(sig, observer)

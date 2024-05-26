@@ -28,6 +28,8 @@ import (
 	"mime/multipart"
 	"os"
 	"path/filepath"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // TransactionType says whether we want to treat each snap separately
@@ -80,9 +82,7 @@ type field struct {
 
 func writeFields(mw *multipart.Writer, fields []field) error {
 	for _, fd := range fields {
-		if err := writeFieldBool(mw, fd.field, fd.value); err != nil {
-			return err
-		}
+		mylog.Check(writeFieldBool(mw, fd.field, fd.value))
 	}
 
 	return nil
@@ -105,14 +105,10 @@ func (opts *SnapOptions) writeOptionFields(mw *multipart.Writer) error {
 		{"prefer", opts.Prefer},
 	}
 	if opts.Transaction != "" {
-		if err := mw.WriteField("transaction", string(opts.Transaction)); err != nil {
-			return err
-		}
+		mylog.Check(mw.WriteField("transaction", string(opts.Transaction)))
 	}
 	if opts.QuotaGroupName != "" {
-		if err := mw.WriteField("quota-group", opts.QuotaGroupName); err != nil {
-			return err
-		}
+		mylog.Check(mw.WriteField("quota-group", opts.QuotaGroupName))
 	}
 	return writeFields(mw, fields)
 }
@@ -201,19 +197,16 @@ func (client *Client) Switch(name string, options *SnapOptions) (changeID string
 
 // SnapshotMany snapshots many snaps (all, if names empty) for many users (all, if users is empty).
 func (client *Client) SnapshotMany(names []string, users []string) (setID uint64, changeID string, err error) {
-	result, changeID, err := client.doMultiSnapActionFull("snapshot", names, &SnapOptions{Users: users})
-	if err != nil {
-		return 0, "", err
-	}
+	result, changeID := mylog.Check3(client.doMultiSnapActionFull("snapshot", names, &SnapOptions{Users: users}))
+
 	if len(result) == 0 {
 		return 0, "", fmt.Errorf("server result does not contain snapshot set identifier")
 	}
 	var x struct {
 		SetID uint64 `json:"set-id"`
 	}
-	if err := json.Unmarshal(result, &x); err != nil {
-		return 0, "", err
-	}
+	mylog.Check(json.Unmarshal(result, &x))
+
 	return x.SetID, changeID, nil
 }
 
@@ -227,10 +220,8 @@ func (client *Client) doSnapAction(actionName string, snapName string, options *
 		Action:      actionName,
 		SnapOptions: options,
 	}
-	data, err := json.Marshal(&action)
-	if err != nil {
-		return "", fmt.Errorf("cannot marshal snap action: %s", err)
-	}
+	data := mylog.Check2(json.Marshal(&action))
+
 	path := fmt.Sprintf("/v2/snaps/%s", snapName)
 
 	headers := map[string]string{
@@ -241,7 +232,7 @@ func (client *Client) doSnapAction(actionName string, snapName string, options *
 }
 
 func (client *Client) doMultiSnapAction(actionName string, snaps []string, options *SnapOptions) (changeID string, err error) {
-	_, changeID, err = client.doMultiSnapActionFull(actionName, snaps, options)
+	_, changeID = mylog.Check3(client.doMultiSnapActionFull(actionName, snaps, options))
 
 	return changeID, err
 }
@@ -262,10 +253,7 @@ func (client *Client) doMultiSnapActionFull(actionName string, snaps []string, o
 		action.HoldLevel = options.HoldLevel
 	}
 
-	data, err := json.Marshal(&action)
-	if err != nil {
-		return nil, "", fmt.Errorf("cannot marshal multi-snap action: %s", err)
-	}
+	data := mylog.Check2(json.Marshal(&action))
 
 	headers := map[string]string{
 		"Content-Type": "application/json",
@@ -277,10 +265,7 @@ func (client *Client) doMultiSnapActionFull(actionName string, snaps []string, o
 // InstallPath sideloads the snap with the given path under optional provided name,
 // returning the UUID of the background operation upon success.
 func (client *Client) InstallPath(path, name string, options *SnapOptions) (changeID string, err error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return "", fmt.Errorf("cannot open %q: %w", path, err)
-	}
+	f := mylog.Check2(os.Open(path))
 
 	action := actionData{
 		Action:      "install",
@@ -302,13 +287,7 @@ func (client *Client) InstallPathMany(paths []string, options *SnapOptions) (cha
 
 	var files []*os.File
 	for _, path := range paths {
-		f, err := os.Open(path)
-		if err != nil {
-			for _, openFile := range files {
-				openFile.Close()
-			}
-			return "", fmt.Errorf("cannot open %q: %w", path, err)
-		}
+		f := mylog.Check2(os.Open(path))
 
 		files = append(files, f)
 	}
@@ -325,7 +304,7 @@ func (client *Client) sendLocalSnaps(paths []string, files []*os.File, action ac
 		"Content-Type": mw.FormDataContentType(),
 	}
 
-	_, changeID, err := client.doAsyncFull("POST", "/v2/snaps", nil, headers, pr, doNoTimeoutAndRetry)
+	_, changeID := mylog.Check3(client.doAsyncFull("POST", "/v2/snaps", nil, headers, pr, doNoTimeoutAndRetry))
 	return changeID, err
 }
 
@@ -373,42 +352,26 @@ func sendSnapFiles(paths []string, files []*os.File, pw *io.PipeWriter, mw *mult
 		fields = append(fields, []field{
 			{"name", action.Name},
 			{"snap-path", action.SnapPath},
-			{"channel", action.Channel}}...)
+			{"channel", action.Channel},
+		}...)
 	}
 
 	for _, s := range fields {
 		if s.value == "" {
 			continue
 		}
-		if err := mw.WriteField(s.name, s.value); err != nil {
-			pw.CloseWithError(err)
-			return
-		}
-	}
+		mylog.Check(mw.WriteField(s.name, s.value))
 
-	if err := action.writeModeFields(mw); err != nil {
-		pw.CloseWithError(err)
-		return
 	}
-
-	if err := action.writeOptionFields(mw); err != nil {
-		pw.CloseWithError(err)
-		return
-	}
+	mylog.Check(action.writeModeFields(mw))
+	mylog.Check(action.writeOptionFields(mw))
 
 	for i, file := range files {
 		path := paths[i]
-		fw, err := mw.CreateFormFile("snap", filepath.Base(path))
-		if err != nil {
-			pw.CloseWithError(err)
-			return
-		}
+		fw := mylog.Check2(mw.CreateFormFile("snap", filepath.Base(path)))
 
-		_, err = io.Copy(fw, file)
-		if err != nil {
-			pw.CloseWithError(err)
-			return
-		}
+		_ = mylog.Check2(io.Copy(fw, file))
+
 	}
 
 	mw.Close()
@@ -460,10 +423,8 @@ func (client *Client) Download(name string, options *DownloadOptions) (dlInfo *D
 		HeaderPeek:  options.HeaderPeek,
 		ResumeToken: options.ResumeToken,
 	}
-	data, err := json.Marshal(&action)
-	if err != nil {
-		return nil, nil, fmt.Errorf("cannot marshal snap action: %s", err)
-	}
+	data := mylog.Check2(json.Marshal(&action))
+
 	headers := map[string]string{
 		"Content-Type": "application/json",
 	}
@@ -473,17 +434,13 @@ func (client *Client) Download(name string, options *DownloadOptions) (dlInfo *D
 
 	// no deadline for downloads
 	ctx := context.Background()
-	rsp, err := client.raw(ctx, "POST", "/v2/download", nil, headers, bytes.NewBuffer(data))
-	if err != nil {
-		return nil, nil, err
-	}
+	rsp := mylog.Check2(client.raw(ctx, "POST", "/v2/download", nil, headers, bytes.NewBuffer(data)))
 
 	if rsp.StatusCode != 200 {
 		var r response
 		defer rsp.Body.Close()
-		if err := decodeInto(rsp.Body, &r); err != nil {
-			return nil, nil, err
-		}
+		mylog.Check(decodeInto(rsp.Body, &r))
+
 		return nil, nil, r.err(client, rsp.StatusCode)
 	}
 	matches := contentDispositionMatcher(rsp.Header.Get("Content-Disposition"))

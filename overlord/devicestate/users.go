@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -72,10 +73,7 @@ func CreateUser(st *state.State, sudoer bool, email string, expiration time.Time
 	}
 
 	storeService := snapstate.Store(st, nil)
-	username, opts, err := getUserDetailsFromStore(st, storeService, email)
-	if err != nil {
-		return nil, &UserError{Err: fmt.Errorf("cannot create user %q: %s", email, err)}
-	}
+	username, opts := mylog.Check3(getUserDetailsFromStore(st, storeService, email))
 
 	opts.Sudoer = sudoer
 	return addUser(st, username, email, expiration, opts)
@@ -86,12 +84,9 @@ func CreateUser(st *state.State, sudoer bool, email string, expiration time.Time
 // If no email is passed, all known users will be created based on valid system user assertions.
 // If an email is passed, only the corresponding system user assertion is used.
 func CreateKnownUsers(st *state.State, sudoer bool, email string) ([]*CreatedUser, error) {
-	model, err := findModel(st)
-	if err != nil {
-		return nil, fmt.Errorf("cannot create user: cannot get model assertion: %v", err)
-	}
+	model := mylog.Check2(findModel(st))
 
-	serial, err := findSerial(st, nil)
+	serial := mylog.Check2(findSerial(st, nil))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, fmt.Errorf("cannot create user: cannot get serial: %v", err)
 	}
@@ -101,16 +96,11 @@ func CreateKnownUsers(st *state.State, sudoer bool, email string) ([]*CreatedUse
 		return createAllKnownSystemUsers(st, db, model, serial, sudoer)
 	}
 
-	username, expiration, opts, err := getUserDetailsFromAssertion(db, model, serial, email)
-	if err != nil {
-		return nil, &UserError{Err: fmt.Errorf("cannot create user %q: %v", email, err)}
-	}
+	username, expiration, opts := mylog.Check4(getUserDetailsFromAssertion(db, model, serial, email))
 
 	opts.Sudoer = sudoer
-	createdUser, err := addUser(st, username, email, expiration, opts)
-	if err != nil {
-		return nil, err
-	}
+	createdUser := mylog.Check2(addUser(st, username, email, expiration, opts))
+
 	return []*CreatedUser{createdUser}, nil
 }
 
@@ -127,25 +117,17 @@ func RemoveUser(st *state.State, username string, opts *RemoveUserOptions) (*aut
 	}
 
 	// check the user is known to snapd
-	_, err := auth.UserByUsername(st, username)
-	if err != nil {
-		if errors.Is(err, auth.ErrInvalidUser) {
-			return nil, &UserError{Err: fmt.Errorf("user %q is not known", username)}
-		}
-		return nil, err
-	}
+	_ := mylog.Check2(auth.UserByUsername(st, username))
 
 	// first remove the system user
 	delUseropts := &osutil.DelUserOptions{
 		ExtraUsers: !release.OnClassic,
 		Force:      opts.Force,
 	}
-	if err := osutilDelUser(username, delUseropts); err != nil {
-		return nil, err
-	}
+	mylog.Check(osutilDelUser(username, delUseropts))
 
 	// then the UserState
-	u, err := auth.RemoveUserByUsername(st, username)
+	u := mylog.Check2(auth.RemoveUserByUsername(st, username))
 	// ErrInvalidUser means "not found" in this case
 	if err != nil && err != auth.ErrInvalidUser {
 		return nil, err
@@ -157,10 +139,8 @@ func getUserDetailsFromStore(st *state.State, theStore snapstate.StoreService, e
 	st.Unlock()
 	defer st.Lock()
 
-	v, err := theStore.UserInfo(email)
-	if err != nil {
-		return "", nil, err
-	}
+	v := mylog.Check2(theStore.UserInfo(email))
+
 	if len(v.SSHKeys) == 0 {
 		return "", nil, fmt.Errorf("no ssh keys found")
 	}
@@ -183,17 +163,12 @@ func createKnownSystemUser(state *state.State, userAssertion *asserts.SystemUser
 	email := userAssertion.Email()
 	// we need to use getUserDetailsFromAssertion as this verifies
 	// the assertion against the current brand/model/time
-	username, expiration, addUserOpts, err := getUserDetailsFromAssertion(assertDb, model, serial, email)
-	if err != nil {
-		if err == errSystemUserBoundToSerialButTooEarly {
-			// TODO retry later once we have acquired a device serial
-		}
-		logger.Noticef("ignoring system-user assertion for %q: %s", email, err)
-		return nil, nil
-	}
+	username, expiration, addUserOpts := mylog.Check4(getUserDetailsFromAssertion(assertDb, model, serial, email))
+
+	// TODO retry later once we have acquired a device serial
 
 	// ignore already existing users
-	if _, err := userLookup(username); err == nil {
+	if _ := mylog.Check2(userLookup(username)); err == nil {
 		return nil, nil
 	}
 
@@ -206,17 +181,15 @@ var createAllKnownSystemUsers = func(state *state.State, assertDb asserts.ROData
 		"brand-id": model.BrandID(),
 	}
 
-	assertions, err := assertDb.FindMany(asserts.SystemUserType, headers)
+	assertions := mylog.Check2(assertDb.FindMany(asserts.SystemUserType, headers))
 	if err != nil && !errors.Is(err, &asserts.NotFoundError{}) {
 		return nil, &UserError{Err: fmt.Errorf("cannot find system-user assertion: %s", err)}
 	}
 
 	var createdUsers []*CreatedUser
 	for _, as := range assertions {
-		createdUser, err := createKnownSystemUser(state, as.(*asserts.SystemUser), assertDb, model, serial, sudoer)
-		if err != nil {
-			return nil, err
-		}
+		createdUser := mylog.Check2(createKnownSystemUser(state, as.(*asserts.SystemUser), assertDb, model, serial, sudoer))
+
 		if createdUser == nil {
 			continue
 		}
@@ -233,13 +206,11 @@ func getUserDetailsFromAssertion(assertDb asserts.RODatabase, modelAs *asserts.M
 	series := modelAs.Series()
 	model := modelAs.Model()
 
-	a, err := assertDb.Find(asserts.SystemUserType, map[string]string{
+	a := mylog.Check2(assertDb.Find(asserts.SystemUserType, map[string]string{
 		"brand-id": brandID,
 		"email":    email,
-	})
-	if err != nil {
-		return "", time.Time{}, nil, err
-	}
+	}))
+
 	// the asserts package guarantees that this cast will work
 	su := a.(*asserts.SystemUser)
 
@@ -280,33 +251,25 @@ func getUserDetailsFromAssertion(assertDb asserts.RODatabase, modelAs *asserts.M
 }
 
 func setupLocalUser(state *state.State, username, email string, expiration time.Time) error {
-	user, err := userLookup(username)
-	if err != nil {
-		return fmt.Errorf("cannot lookup user %q: %s", username, err)
-	}
-	uid, gid, err := osutil.UidGid(user)
-	if err != nil {
-		return err
-	}
+	user := mylog.Check2(userLookup(username))
+
+	uid, gid := mylog.Check3(osutil.UidGid(user))
+
 	authDataFn := filepath.Join(user.HomeDir, ".snap", "auth.json")
-	if err := osutil.MkdirAllChown(filepath.Dir(authDataFn), 0700, uid, gid); err != nil {
-		return err
-	}
+	mylog.Check(osutil.MkdirAllChown(filepath.Dir(authDataFn), 0700, uid, gid))
 
 	// setup new user, local-only
-	authUser, err := auth.NewUser(state, auth.NewUserParams{
+	authUser := mylog.Check2(auth.NewUser(state, auth.NewUserParams{
 		Username:   username,
 		Email:      email,
 		Macaroon:   "",
 		Discharges: nil,
 		Expiration: expiration,
-	})
-	if err != nil {
-		return fmt.Errorf("cannot persist authentication details: %v", err)
-	}
+	}))
+
 	// store macaroon auth, user's ID, email and username in auth.json in
 	// the new users home dir
-	outStr, err := json.Marshal(struct {
+	outStr := mylog.Check2(json.Marshal(struct {
 		ID       int    `json:"id"`
 		Username string `json:"username"`
 		Email    string `json:"email"`
@@ -316,25 +279,16 @@ func setupLocalUser(state *state.State, username, email string, expiration time.
 		Username: authUser.Username,
 		Email:    authUser.Email,
 		Macaroon: authUser.Macaroon,
-	})
-	if err != nil {
-		return fmt.Errorf("cannot marshal auth data: %s", err)
-	}
-	if err := osutil.AtomicWriteFileChown(authDataFn, []byte(outStr), 0600, 0, uid, gid); err != nil {
-		return fmt.Errorf("cannot write auth file %q: %s", authDataFn, err)
-	}
+	}))
+	mylog.Check(osutil.AtomicWriteFileChown(authDataFn, []byte(outStr), 0600, 0, uid, gid))
 
 	return nil
 }
 
 func addUser(state *state.State, username string, email string, expiration time.Time, opts *osutil.AddUserOptions) (*CreatedUser, error) {
 	opts.ExtraUsers = !release.OnClassic
-	if err := osutilAddUser(username, opts); err != nil {
-		return nil, fmt.Errorf("cannot add user %q: %s", username, err)
-	}
-	if err := setupLocalUser(state, username, email, expiration); err != nil {
-		return nil, err
-	}
+	mylog.Check(osutilAddUser(username, opts))
+	mylog.Check(setupLocalUser(state, username, email, expiration))
 
 	return &CreatedUser{
 		Username: username,

@@ -27,6 +27,7 @@ import (
 	. "gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -121,8 +122,8 @@ func mockRefreshCandidate(snapName, instanceKey, channel, version string, revisi
 }
 
 func (s *gateAutoRefreshHookSuite) settle(c *C) {
-	err := s.o.Settle(5 * time.Second)
-	c.Assert(err, IsNil)
+	mylog.Check(s.o.Settle(5 * time.Second))
+
 }
 
 func checkIsHeld(c *C, st *state.State, heldSnap, gatingSnap string) {
@@ -145,8 +146,8 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshHookProceedRuninhibitLock(
 		defer ctx.Unlock()
 
 		// check that runinhibit hint has been set by Before() hook handler.
-		hint, info, err := runinhibit.IsLocked("snap-a")
-		c.Assert(err, IsNil)
+		hint, info := mylog.Check3(runinhibit.IsLocked("snap-a"))
+
 		c.Check(hint, Equals, runinhibit.HintInhibitedGateRefresh)
 		c.Check(info, Equals, runinhibit.InhibitInfo{Previous: snap.R(1)})
 
@@ -178,8 +179,8 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshHookProceedRuninhibitLock(
 	c.Assert(change.Err(), IsNil)
 	c.Assert(change.Status(), Equals, state.DoneStatus)
 
-	hint, info, err := runinhibit.IsLocked("snap-a")
-	c.Assert(err, IsNil)
+	hint, info := mylog.Check3(runinhibit.IsLocked("snap-a"))
+
 	c.Check(hint, Equals, runinhibit.HintInhibitedForRefresh)
 	c.Check(info, Equals, runinhibit.InhibitInfo{Previous: snap.R(1)})
 }
@@ -192,8 +193,8 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshHookHoldUnlocksRuninhibit(
 		defer ctx.Unlock()
 
 		// check that runinhibit hint has been set by Before() hook handler.
-		hint, info, err := runinhibit.IsLocked("snap-a")
-		c.Assert(err, IsNil)
+		hint, info := mylog.Check3(runinhibit.IsLocked("snap-a"))
+
 		c.Check(hint, Equals, runinhibit.HintInhibitedGateRefresh)
 		c.Check(info, Equals, runinhibit.InhibitInfo{Previous: snap.R(1)})
 
@@ -226,8 +227,8 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshHookHoldUnlocksRuninhibit(
 	c.Assert(change.Status(), Equals, state.DoneStatus)
 
 	// runinhibit lock is released.
-	hint, info, err := runinhibit.IsLocked("snap-a")
-	c.Assert(err, IsNil)
+	hint, info := mylog.Check3(runinhibit.IsLocked("snap-a"))
+
 	c.Check(hint, Equals, runinhibit.HintNotInhibited)
 	c.Check(info, Equals, runinhibit.InhibitInfo{})
 }
@@ -237,8 +238,8 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshHookHoldUnlocksRuninhibit(
 func (s *gateAutoRefreshHookSuite) TestGateAutorefreshDefaultProceedUnlocksRuninhibit(c *C) {
 	hookInvoke := func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
 		// validity, refresh is inhibited for snap-a.
-		hint, info, err := runinhibit.IsLocked("snap-a")
-		c.Assert(err, IsNil)
+		hint, info := mylog.Check3(runinhibit.IsLocked("snap-a"))
+
 		c.Check(hint, Equals, runinhibit.HintInhibitedGateRefresh)
 		c.Check(info, Equals, runinhibit.InhibitInfo{Previous: snap.R(1)})
 
@@ -255,8 +256,8 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshDefaultProceedUnlocksRunin
 	defer st.Unlock()
 
 	// pretend that snap-a is initially held by itself.
-	_, err := snapstate.HoldRefresh(st, snapstate.HoldAutoRefresh, "snap-a", 0, "snap-a")
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(snapstate.HoldRefresh(st, snapstate.HoldAutoRefresh, "snap-a", 0, "snap-a"))
+
 	// validity
 	checkIsHeld(c, st, "snap-a", "snap-a")
 
@@ -279,8 +280,8 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshDefaultProceedUnlocksRunin
 	checkIsNotHeld(c, st, "snap-a")
 
 	// runinhibit lock is released.
-	hint, info, err := runinhibit.IsLocked("snap-a")
-	c.Assert(err, IsNil)
+	hint, info := mylog.Check3(runinhibit.IsLocked("snap-a"))
+
 	c.Check(hint, Equals, runinhibit.HintNotInhibited)
 	c.Check(info, Equals, runinhibit.InhibitInfo{})
 }
@@ -290,8 +291,8 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshDefaultProceedUnlocksRunin
 func (s *gateAutoRefreshHookSuite) TestGateAutorefreshDefaultProceed(c *C) {
 	hookInvoke := func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
 		// no runinhibit because the refresh-app-awareness feature is disabled.
-		hint, info, err := runinhibit.IsLocked("snap-a")
-		c.Assert(err, IsNil)
+		hint, info := mylog.Check3(runinhibit.IsLocked("snap-a"))
+
 		c.Check(hint, Equals, runinhibit.HintNotInhibited)
 		c.Check(info, Equals, runinhibit.InhibitInfo{})
 
@@ -308,8 +309,8 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshDefaultProceed(c *C) {
 	defer st.Unlock()
 
 	// pretend that snap-b is initially held by snap-a.
-	_, err := snapstate.HoldRefresh(st, snapstate.HoldAutoRefresh, "snap-a", 0, "snap-b")
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(snapstate.HoldRefresh(st, snapstate.HoldAutoRefresh, "snap-a", 0, "snap-b"))
+
 	// validity
 	checkIsHeld(c, st, "snap-b", "snap-a")
 
@@ -327,8 +328,8 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshDefaultProceed(c *C) {
 	checkIsNotHeld(c, st, "snap-b")
 
 	// no runinhibit because the refresh-app-awareness feature is disabled.
-	hint, info, err := runinhibit.IsLocked("snap-a")
-	c.Assert(err, IsNil)
+	hint, info := mylog.Check3(runinhibit.IsLocked("snap-a"))
+
 	c.Check(hint, Equals, runinhibit.HintNotInhibited)
 	c.Check(info, Equals, runinhibit.InhibitInfo{})
 }
@@ -338,8 +339,8 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshDefaultProceed(c *C) {
 func (s *gateAutoRefreshHookSuite) TestGateAutorefreshHookError(c *C) {
 	hookInvoke := func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
 		// no runinhibit because the refresh-app-awareness feature is disabled.
-		hint, info, err := runinhibit.IsLocked("snap-a")
-		c.Assert(err, IsNil)
+		hint, info := mylog.Check3(runinhibit.IsLocked("snap-a"))
+
 		c.Check(hint, Equals, runinhibit.HintNotInhibited)
 		c.Check(info, Equals, runinhibit.InhibitInfo{})
 
@@ -373,8 +374,8 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshHookError(c *C) {
 	checkIsHeld(c, st, "snap-a", "snap-a")
 
 	// no runinhibit because the refresh-app-awareness feature is disabled.
-	hint, info, err := runinhibit.IsLocked("snap-a")
-	c.Assert(err, IsNil)
+	hint, info := mylog.Check3(runinhibit.IsLocked("snap-a"))
+
 	c.Check(hint, Equals, runinhibit.HintNotInhibited)
 	c.Check(info, Equals, runinhibit.InhibitInfo{})
 }
@@ -384,8 +385,8 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshHookError(c *C) {
 func (s *gateAutoRefreshHookSuite) TestGateAutorefreshHookErrorAfterProceed(c *C) {
 	hookInvoke := func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
 		// no runinhibit because the refresh-app-awareness feature is disabled.
-		hint, info, err := runinhibit.IsLocked("snap-a")
-		c.Assert(err, IsNil)
+		hint, info := mylog.Check3(runinhibit.IsLocked("snap-a"))
+
 		c.Check(hint, Equals, runinhibit.HintNotInhibited)
 		c.Check(info, Equals, runinhibit.InhibitInfo{})
 
@@ -425,8 +426,8 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshHookErrorAfterProceed(c *C
 	checkIsHeld(c, st, "snap-a", "snap-a")
 
 	// no runinhibit because the refresh-app-awareness feature is disabled.
-	hint, info, err := runinhibit.IsLocked("snap-a")
-	c.Assert(err, IsNil)
+	hint, info := mylog.Check3(runinhibit.IsLocked("snap-a"))
+
 	c.Check(hint, Equals, runinhibit.HintNotInhibited)
 	c.Check(info, Equals, runinhibit.InhibitInfo{})
 }
@@ -436,8 +437,8 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshHookErrorAfterProceed(c *C
 func (s *gateAutoRefreshHookSuite) TestGateAutorefreshHookErrorRuninhibitUnlock(c *C) {
 	hookInvoke := func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
 		// no runinhibit because the refresh-app-awareness feature is disabled.
-		hint, info, err := runinhibit.IsLocked("snap-a")
-		c.Assert(err, IsNil)
+		hint, info := mylog.Check3(runinhibit.IsLocked("snap-a"))
+
 		c.Check(hint, Equals, runinhibit.HintInhibitedGateRefresh)
 		c.Check(info, Equals, runinhibit.InhibitInfo{Previous: snap.R(1)})
 
@@ -476,8 +477,8 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshHookErrorRuninhibitUnlock(
 	checkIsHeld(c, st, "snap-a", "snap-a")
 
 	// inhibit lock is unlocked
-	hint, info, err := runinhibit.IsLocked("snap-a")
-	c.Assert(err, IsNil)
+	hint, info := mylog.Check3(runinhibit.IsLocked("snap-a"))
+
 	c.Check(hint, Equals, runinhibit.HintNotInhibited)
 	c.Check(info, Equals, runinhibit.InhibitInfo{})
 }
@@ -485,8 +486,8 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshHookErrorRuninhibitUnlock(
 func (s *gateAutoRefreshHookSuite) TestGateAutorefreshHookErrorHoldErrorLogged(c *C) {
 	hookInvoke := func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
 		// no runinhibit because the refresh-app-awareness feature is disabled.
-		hint, info, err := runinhibit.IsLocked("snap-a")
-		c.Assert(err, IsNil)
+		hint, info := mylog.Check3(runinhibit.IsLocked("snap-a"))
+
 		c.Check(hint, Equals, runinhibit.HintNotInhibited)
 		c.Check(info, Equals, runinhibit.InhibitInfo{})
 
@@ -532,8 +533,8 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshHookErrorHoldErrorLogged(c
 	c.Check(held, HasLen, 0)
 
 	// no runinhibit because the refresh-app-awareness feature is disabled.
-	hint, info, err := runinhibit.IsLocked("snap-a")
-	c.Assert(err, IsNil)
+	hint, info := mylog.Check3(runinhibit.IsLocked("snap-a"))
+
 	c.Check(hint, Equals, runinhibit.HintNotInhibited)
 	c.Check(info, Equals, runinhibit.InhibitInfo{})
 }

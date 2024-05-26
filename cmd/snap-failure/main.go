@@ -25,6 +25,7 @@ import (
 	"os"
 
 	// TODO: consider not using go-flags at all
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/logger"
@@ -47,23 +48,15 @@ reverts if appropriate.
 )
 
 func init() {
-	err := logger.SimpleSetup(nil)
-	if err != nil {
-		fmt.Fprintf(Stderr, "WARNING: failed to activate logging: %v\n", err)
-	}
+	mylog.Check(logger.SimpleSetup(nil))
 }
 
 func main() {
-	if err := run(); err != nil {
-		fmt.Fprintf(Stderr, "error: %v\n", err)
-		os.Exit(1)
-	}
+	mylog.Check(run())
 }
 
 func run() error {
-	if err := parseArgs(os.Args[1:]); err != nil {
-		return err
-	}
+	mylog.Check(parseArgs(os.Args[1:]))
 
 	return nil
 }
@@ -72,6 +65,6 @@ func parseArgs(args []string) error {
 	parser.ShortDescription = shortHelp
 	parser.LongDescription = longHelp
 
-	_, err := parser.ParseArgs(args)
+	_ := mylog.Check2(parser.ParseArgs(args))
 	return err
 }

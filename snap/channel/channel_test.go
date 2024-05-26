@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/snap/channel"
 )
@@ -35,8 +36,8 @@ type storeChannelSuite struct{}
 var _ = Suite(&storeChannelSuite{})
 
 func (s storeChannelSuite) TestParse(c *C) {
-	ch, err := channel.Parse("stable", "")
-	c.Assert(err, IsNil)
+	ch := mylog.Check2(channel.Parse("stable", ""))
+
 	c.Check(ch, DeepEquals, channel.Channel{
 		Architecture: arch.DpkgArchitecture(),
 		Name:         "stable",
@@ -45,8 +46,8 @@ func (s storeChannelSuite) TestParse(c *C) {
 		Branch:       "",
 	})
 
-	ch, err = channel.Parse("latest/stable", "")
-	c.Assert(err, IsNil)
+	ch = mylog.Check2(channel.Parse("latest/stable", ""))
+
 	c.Check(ch, DeepEquals, channel.Channel{
 		Architecture: arch.DpkgArchitecture(),
 		Name:         "stable",
@@ -55,8 +56,8 @@ func (s storeChannelSuite) TestParse(c *C) {
 		Branch:       "",
 	})
 
-	ch, err = channel.Parse("1.0/edge", "")
-	c.Assert(err, IsNil)
+	ch = mylog.Check2(channel.Parse("1.0/edge", ""))
+
 	c.Check(ch, DeepEquals, channel.Channel{
 		Architecture: arch.DpkgArchitecture(),
 		Name:         "1.0/edge",
@@ -65,8 +66,8 @@ func (s storeChannelSuite) TestParse(c *C) {
 		Branch:       "",
 	})
 
-	ch, err = channel.Parse("1.0", "")
-	c.Assert(err, IsNil)
+	ch = mylog.Check2(channel.Parse("1.0", ""))
+
 	c.Check(ch, DeepEquals, channel.Channel{
 		Architecture: arch.DpkgArchitecture(),
 		Name:         "1.0/stable",
@@ -75,8 +76,8 @@ func (s storeChannelSuite) TestParse(c *C) {
 		Branch:       "",
 	})
 
-	ch, err = channel.Parse("1.0/beta/foo", "")
-	c.Assert(err, IsNil)
+	ch = mylog.Check2(channel.Parse("1.0/beta/foo", ""))
+
 	c.Check(ch, DeepEquals, channel.Channel{
 		Architecture: arch.DpkgArchitecture(),
 		Name:         "1.0/beta/foo",
@@ -85,8 +86,8 @@ func (s storeChannelSuite) TestParse(c *C) {
 		Branch:       "foo",
 	})
 
-	ch, err = channel.Parse("candidate/foo", "")
-	c.Assert(err, IsNil)
+	ch = mylog.Check2(channel.Parse("candidate/foo", ""))
+
 	c.Check(ch, DeepEquals, channel.Channel{
 		Architecture: arch.DpkgArchitecture(),
 		Name:         "candidate/foo",
@@ -95,8 +96,8 @@ func (s storeChannelSuite) TestParse(c *C) {
 		Branch:       "foo",
 	})
 
-	ch, err = channel.Parse("candidate/foo", "other-arch")
-	c.Assert(err, IsNil)
+	ch = mylog.Check2(channel.Parse("candidate/foo", "other-arch"))
+
 	c.Check(ch, DeepEquals, channel.Channel{
 		Architecture: "other-arch",
 		Name:         "candidate/foo",
@@ -107,14 +108,14 @@ func (s storeChannelSuite) TestParse(c *C) {
 }
 
 func mustParse(c *C, channelStr string) channel.Channel {
-	ch, err := channel.Parse(channelStr, "")
-	c.Assert(err, IsNil)
+	ch := mylog.Check2(channel.Parse(channelStr, ""))
+
 	return ch
 }
 
 func (s storeChannelSuite) TestParseVerbatim(c *C) {
-	ch, err := channel.ParseVerbatim("sometrack", "")
-	c.Assert(err, IsNil)
+	ch := mylog.Check2(channel.ParseVerbatim("sometrack", ""))
+
 	c.Check(ch, DeepEquals, channel.Channel{
 		Architecture: arch.DpkgArchitecture(),
 		Track:        "sometrack",
@@ -123,8 +124,8 @@ func (s storeChannelSuite) TestParseVerbatim(c *C) {
 	c.Check(ch.VerbatimRiskOnly(), Equals, false)
 	c.Check(mustParse(c, "sometrack"), DeepEquals, ch.Clean())
 
-	ch, err = channel.ParseVerbatim("latest", "")
-	c.Assert(err, IsNil)
+	ch = mylog.Check2(channel.ParseVerbatim("latest", ""))
+
 	c.Check(ch, DeepEquals, channel.Channel{
 		Architecture: arch.DpkgArchitecture(),
 		Track:        "latest",
@@ -133,8 +134,8 @@ func (s storeChannelSuite) TestParseVerbatim(c *C) {
 	c.Check(ch.VerbatimRiskOnly(), Equals, false)
 	c.Check(mustParse(c, "latest"), DeepEquals, ch.Clean())
 
-	ch, err = channel.ParseVerbatim("edge", "")
-	c.Assert(err, IsNil)
+	ch = mylog.Check2(channel.ParseVerbatim("edge", ""))
+
 	c.Check(ch, DeepEquals, channel.Channel{
 		Architecture: arch.DpkgArchitecture(),
 		Risk:         "edge",
@@ -143,8 +144,8 @@ func (s storeChannelSuite) TestParseVerbatim(c *C) {
 	c.Check(ch.VerbatimRiskOnly(), Equals, true)
 	c.Check(mustParse(c, "edge"), DeepEquals, ch.Clean())
 
-	ch, err = channel.ParseVerbatim("latest/stable", "")
-	c.Assert(err, IsNil)
+	ch = mylog.Check2(channel.ParseVerbatim("latest/stable", ""))
+
 	c.Check(ch, DeepEquals, channel.Channel{
 		Architecture: arch.DpkgArchitecture(),
 		Track:        "latest",
@@ -154,8 +155,8 @@ func (s storeChannelSuite) TestParseVerbatim(c *C) {
 	c.Check(ch.VerbatimRiskOnly(), Equals, false)
 	c.Check(mustParse(c, "latest/stable"), DeepEquals, ch.Clean())
 
-	ch, err = channel.ParseVerbatim("latest/stable/foo", "")
-	c.Assert(err, IsNil)
+	ch = mylog.Check2(channel.ParseVerbatim("latest/stable/foo", ""))
+
 	c.Check(ch, DeepEquals, channel.Channel{
 		Architecture: arch.DpkgArchitecture(),
 		Track:        "latest",
@@ -200,13 +201,13 @@ func (s storeChannelSuite) TestParseErrors(c *C) {
 		{"stable/", "invalid branch in channel name: stable/", "latest/stable"},
 		{"/stable", "invalid track in channel name: /stable", "latest/stable"},
 	} {
-		_, err := channel.Parse(tc.channel, "")
+		_ := mylog.Check2(channel.Parse(tc.channel, ""))
 		c.Check(err, ErrorMatches, tc.err)
-		_, err = channel.ParseVerbatim(tc.channel, "")
+		_ = mylog.Check2(channel.ParseVerbatim(tc.channel, ""))
 		c.Check(err, ErrorMatches, tc.err)
 		if tc.full != "" {
 			// testing Full behavior on the malformed channel
-			full, err := channel.Full(tc.channel)
+			full := mylog.Check2(channel.Full(tc.channel))
 			c.Check(err, IsNil)
 			c.Check(full, Equals, tc.full)
 		}
@@ -227,8 +228,8 @@ func (s *storeChannelSuite) TestString(c *C) {
 	}
 
 	for _, t := range tests {
-		ch, err := channel.Parse(t.channel, "")
-		c.Assert(err, IsNil)
+		ch := mylog.Check2(channel.Parse(t.channel, ""))
+
 
 		c.Check(ch.String(), Equals, t.str)
 	}
@@ -248,8 +249,8 @@ func (s *storeChannelSuite) TestChannelFull(c *C) {
 	}
 
 	for _, t := range tests {
-		ch, err := channel.Parse(t.channel, "")
-		c.Assert(err, IsNil)
+		ch := mylog.Check2(channel.Parse(t.channel, ""))
+
 
 		c.Check(ch.Full(), Equals, t.str)
 	}
@@ -275,14 +276,14 @@ func (s *storeChannelSuite) TestFuncFull(c *C) {
 	}
 
 	for _, t := range tests {
-		can, err := channel.Full(t.channel)
-		c.Assert(err, IsNil)
+		can := mylog.Check2(channel.Full(t.channel))
+
 		c.Check(can, Equals, t.str)
 	}
 }
 
 func (s *storeChannelSuite) TestFuncFullErr(c *C) {
-	_, err := channel.Full("foo/bar/baz/quux")
+	_ := mylog.Check2(channel.Full("foo/bar/baz/quux"))
 	c.Check(err, ErrorMatches, "invalid channel")
 }
 
@@ -314,10 +315,10 @@ func (s *storeChannelSuite) TestMatch(c *C) {
 		if !t.sameArch {
 			c1Arch = "arm64"
 		}
-		req, err := channel.Parse(t.req, reqArch)
-		c.Assert(err, IsNil)
-		c1, err := channel.Parse(t.c1, c1Arch)
-		c.Assert(err, IsNil)
+		req := mylog.Check2(channel.Parse(t.req, reqArch))
+
+		c1 := mylog.Check2(channel.Parse(t.c1, c1Arch))
+
 
 		c.Check(req.Match(&c1).String(), Equals, t.res)
 	}
@@ -349,7 +350,7 @@ func (s *storeChannelSuite) TestResolve(c *C) {
 	}
 
 	for _, t := range tests {
-		r, err := channel.Resolve(t.channel, t.new)
+		r := mylog.Check2(channel.Resolve(t.channel, t.new))
 		tcomm := Commentf("%#v", t)
 		if t.expErr == "" {
 			c.Assert(err, IsNil, tcomm)
@@ -381,7 +382,7 @@ func (s *storeChannelSuite) TestResolvePinned(c *C) {
 		{"track1", "track2/stable/branch", "track2/stable/branch", "cannot switch pinned track"},
 	}
 	for _, t := range tests {
-		r, err := channel.ResolvePinned(t.track, t.new)
+		r := mylog.Check2(channel.ResolvePinned(t.track, t.new))
 		tcomm := Commentf("%#v", t)
 		if t.expErr == "" {
 			c.Assert(err, IsNil, tcomm)

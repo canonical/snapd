@@ -28,6 +28,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
@@ -43,7 +44,7 @@ func mockSnap(c *check.C, instanceName, yamlText string, sideInfo *snap.SideInfo
 	defer restoreSanitize()
 
 	// Parse the yaml (we need the Name).
-	snapInfo, err := snap.InfoFromSnapYaml([]byte(yamlText))
+	snapInfo := mylog.Check2(snap.InfoFromSnapYaml([]byte(yamlText)))
 	c.Assert(err, check.IsNil)
 
 	// Set SideInfo so that we can use MountDir below
@@ -61,16 +62,17 @@ func mockSnap(c *check.C, instanceName, yamlText string, sideInfo *snap.SideInfo
 
 	// Put the YAML on disk, in the right spot.
 	metaDir := filepath.Join(snapInfo.MountDir(), "meta")
-	err = os.MkdirAll(metaDir, 0755)
+	mylog.Check(os.MkdirAll(metaDir, 0755))
 	c.Assert(err, check.IsNil)
-	err = os.WriteFile(filepath.Join(metaDir, "snap.yaml"), []byte(yamlText), 0644)
+	mylog.Check(os.WriteFile(filepath.Join(metaDir, "snap.yaml"), []byte(yamlText), 0644))
 	c.Assert(err, check.IsNil)
+	mylog.
 
-	// Write the .snap to disk
-	err = os.MkdirAll(filepath.Dir(snapInfo.MountFile()), 0755)
+		// Write the .snap to disk
+		Check(os.MkdirAll(filepath.Dir(snapInfo.MountFile()), 0755))
 	c.Assert(err, check.IsNil)
 	snapContents := fmt.Sprintf("%s-%s-%s", sideInfo.RealName, sideInfo.SnapID, sideInfo.Revision)
-	err = os.WriteFile(snapInfo.MountFile(), []byte(snapContents), 0644)
+	mylog.Check(os.WriteFile(snapInfo.MountFile(), []byte(snapContents), 0644))
 	c.Assert(err, check.IsNil)
 	snapInfo.Size = int64(len(snapContents))
 
@@ -91,27 +93,27 @@ func MockSnap(c *check.C, yamlText string, sideInfo *snap.SideInfo) *snap.Info {
 // The caller is responsible for mocking root directory with dirs.SetRootDir()
 // and for altering the overlord state if required.
 func MockComponent(c *check.C, yamlText string, info *snap.Info, csi snap.ComponentSideInfo) *snap.ComponentInfo {
-	infoForName, err := snap.InfoFromComponentYaml([]byte(yamlText))
+	infoForName := mylog.Check2(snap.InfoFromComponentYaml([]byte(yamlText)))
 	c.Assert(err, check.IsNil)
 
 	// Put the component.yaml on disk, in the right spot.
 	mountDir := snap.ComponentMountDir(infoForName.Component.ComponentName, csi.Revision, info.InstanceName())
 	metaDir := filepath.Join(mountDir, "meta")
-	err = os.MkdirAll(metaDir, 0755)
+	mylog.Check(os.MkdirAll(metaDir, 0755))
 	c.Assert(err, check.IsNil)
-
-	err = os.WriteFile(filepath.Join(metaDir, "component.yaml"), []byte(yamlText), 0644)
+	mylog.Check(os.WriteFile(filepath.Join(metaDir, "component.yaml"), []byte(yamlText), 0644))
 	c.Assert(err, check.IsNil)
+	mylog.
 
-	// Write the .snap to disk
-	err = os.MkdirAll(filepath.Dir(info.MountFile()), 0755)
+		// Write the .snap to disk
+		Check(os.MkdirAll(filepath.Dir(info.MountFile()), 0755))
 	c.Assert(err, check.IsNil)
 
 	// TODO: write something to disk for the component snap file, like in
 	// MockSnap
 
 	container := snapdir.New(filepath.Dir(metaDir))
-	component, err := snap.ReadComponentInfoFromContainer(container, info)
+	component := mylog.Check2(snap.ReadComponentInfoFromContainer(container, info))
 	c.Assert(err, check.IsNil)
 
 	return component
@@ -133,7 +135,7 @@ func MockSnapInstance(c *check.C, instanceName, yamlText string, sideInfo *snap.
 // and for altering the overlord state if required.
 func MockSnapCurrent(c *check.C, yamlText string, sideInfo *snap.SideInfo) *snap.Info {
 	si := MockSnap(c, yamlText, sideInfo)
-	err := os.Symlink(filepath.Base(si.MountDir()), filepath.Join(si.MountDir(), "../current"))
+	mylog.Check(os.Symlink(filepath.Base(si.MountDir()), filepath.Join(si.MountDir(), "../current")))
 	c.Assert(err, check.IsNil)
 	return si
 }
@@ -145,7 +147,7 @@ func MockSnapCurrent(c *check.C, yamlText string, sideInfo *snap.SideInfo) *snap
 // and for altering the overlord state if required.
 func MockSnapInstanceCurrent(c *check.C, instanceName, yamlText string, sideInfo *snap.SideInfo) *snap.Info {
 	si := MockSnapInstance(c, instanceName, yamlText, sideInfo)
-	err := os.Symlink(si.MountDir(), filepath.Join(si.MountDir(), "../current"))
+	mylog.Check(os.Symlink(si.MountDir(), filepath.Join(si.MountDir(), "../current")))
 	c.Assert(err, check.IsNil)
 	return si
 }
@@ -161,7 +163,7 @@ func MockInfo(c *check.C, yamlText string, sideInfo *snap.SideInfo) *snap.Info {
 
 	restoreSanitize := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
 	defer restoreSanitize()
-	snapInfo, err := snap.InfoFromSnapYaml([]byte(yamlText))
+	snapInfo := mylog.Check2(snap.InfoFromSnapYaml([]byte(yamlText)))
 	c.Assert(err, check.IsNil)
 	if snapInfo.InstanceName() == "core" && snapInfo.Type() != snap.TypeOS {
 		panic("core snap must use type: os")
@@ -171,7 +173,7 @@ func MockInfo(c *check.C, yamlText string, sideInfo *snap.SideInfo) *snap.Info {
 	}
 
 	snapInfo.SideInfo = *sideInfo
-	err = snap.Validate(snapInfo)
+	mylog.Check(snap.Validate(snapInfo))
 	c.Assert(err, check.IsNil)
 	return snapInfo
 }
@@ -188,10 +190,10 @@ func MockInvalidInfo(c *check.C, yamlText string, sideInfo *snap.SideInfo) *snap
 	restoreSanitize := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
 	defer restoreSanitize()
 
-	snapInfo, err := snap.InfoFromSnapYaml([]byte(yamlText))
+	snapInfo := mylog.Check2(snap.InfoFromSnapYaml([]byte(yamlText)))
 	c.Assert(err, check.IsNil)
 	snapInfo.SideInfo = *sideInfo
-	err = snap.Validate(snapInfo)
+	mylog.Check(snap.Validate(snapInfo))
 	c.Assert(err, check.NotNil)
 	return snapInfo
 }
@@ -214,14 +216,9 @@ func PopulateDir(dir string, files [][]string) {
 		filename := filenameAndContent[0]
 		content := filenameAndContent[1]
 		fpath := filepath.Join(dir, filename)
-		err := os.MkdirAll(filepath.Dir(fpath), 0755)
-		if err != nil {
-			panic(err)
-		}
-		err = os.WriteFile(fpath, []byte(content), 0755)
-		if err != nil {
-			panic(err)
-		}
+		mylog.Check(os.MkdirAll(filepath.Dir(fpath), 0755))
+		mylog.Check(os.WriteFile(fpath, []byte(content), 0755))
+
 	}
 }
 
@@ -243,17 +240,17 @@ func MakeTestSnapWithFiles(c *check.C, snapYamlContent string, files [][]string)
 // the squashfs with files if required.
 func MakeTestComponentWithFiles(c *check.C, componentName, componentYaml string, files [][]string) (snapFilePath string) {
 	compSource := populateContainer(c, "component.yaml", componentYaml, files)
-	err := osutil.ChDir(compSource, func() error {
+	mylog.Check(osutil.ChDir(compSource, func() error {
 		d := squashfs.New(componentName)
-		err := d.Build(compSource, nil)
+		mylog.Check(d.Build(compSource, nil))
 		return err
-	})
+	}))
 	c.Assert(err, check.IsNil)
 	return filepath.Join(compSource, componentName)
 }
 
 func MakeTestComponent(c *check.C, compYaml string) string {
-	compInfo, err := snap.InfoFromComponentYaml([]byte(compYaml))
+	compInfo := mylog.Check2(snap.InfoFromComponentYaml([]byte(compYaml)))
 	c.Assert(err, check.IsNil)
 	return MakeTestComponentWithFiles(c, compInfo.FullName()+".comp", compYaml, nil)
 }
@@ -261,10 +258,10 @@ func MakeTestComponent(c *check.C, compYaml string) string {
 func populateContainer(c *check.C, yamlFile, yamlContent string, files [][]string) string {
 	tmpdir := c.MkDir()
 	snapSource := filepath.Join(tmpdir, "snapsrc")
-	err := os.MkdirAll(filepath.Join(snapSource, "meta"), 0755)
+	mylog.Check(os.MkdirAll(filepath.Join(snapSource, "meta"), 0755))
 	c.Assert(err, check.IsNil)
 	snapYamlFn := filepath.Join(snapSource, "meta", yamlFile)
-	err = os.WriteFile(snapYamlFn, []byte(yamlContent), 0644)
+	mylog.Check(os.WriteFile(snapYamlFn, []byte(yamlContent), 0644))
 	c.Assert(err, check.IsNil)
 	PopulateDir(snapSource, files)
 	return snapSource
@@ -281,16 +278,15 @@ func MakeTestSnapInfoWithFiles(c *check.C, snapYamlContent string, files [][]str
 	defer restoreSanitize()
 
 	// Parse the yaml (we need the Name).
-	snapInfo, err := snap.InfoFromSnapYaml([]byte(snapYamlContent))
+	snapInfo := mylog.Check2(snap.InfoFromSnapYaml([]byte(snapYamlContent)))
 	c.Assert(err, check.IsNil)
 	if si != nil {
 		snapInfo.SideInfo = *si
 	}
-	err = osutil.ChDir(snapSource, func() error {
-		var err error
-		snapFilePath, err = pack.Pack(snapSource, nil)
+	mylog.Check(osutil.ChDir(snapSource, func() error {
+		snapFilePath = mylog.Check2(pack.Pack(snapSource, nil))
 		return err
-	})
+	}))
 	c.Assert(err, check.IsNil)
 	return filepath.Join(snapSource, snapFilePath), snapInfo
 }
@@ -303,14 +299,13 @@ func MakeSnapFileAndDir(c *check.C, snapYamlContent string, files [][]string, si
 
 	restoreSanitize := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
 	defer restoreSanitize()
-
-	err := osutil.ChDir(info.MountDir(), func() error {
-		snapName, err := pack.Pack(info.MountDir(), &pack.Options{
+	mylog.Check(osutil.ChDir(info.MountDir(), func() error {
+		snapName := mylog.Check2(pack.Pack(info.MountDir(), &pack.Options{
 			SnapName: info.MountFile(),
-		})
+		}))
 		c.Check(snapName, check.Equals, info.MountFile())
 		return err
-	})
+	}))
 	c.Assert(err, check.IsNil)
 	return info
 }
@@ -319,10 +314,8 @@ func MakeSnapFileAndDir(c *check.C, snapYamlContent string, files [][]string, si
 // includes the given architecture, if architecture is "" the system
 // architecture is included. It panics on error.
 func MustParseChannel(s string, architecture string) channel.Channel {
-	c, err := channel.Parse(s, architecture)
-	if err != nil {
-		panic(err)
-	}
+	c := mylog.Check2(channel.Parse(s, architecture))
+
 	return c
 }
 
@@ -334,9 +327,8 @@ func RenameSlot(snapInfo *snap.Info, oldName, newName string) error {
 	if snapInfo.Slots[oldName] == nil {
 		return fmt.Errorf("cannot rename slot %q to %q: no such slot", oldName, newName)
 	}
-	if err := snap.ValidateSlotName(newName); err != nil {
-		return fmt.Errorf("cannot rename slot %q to %q: %s", oldName, newName, err)
-	}
+	mylog.Check(snap.ValidateSlotName(newName))
+
 	if oldName == newName {
 		return nil
 	}

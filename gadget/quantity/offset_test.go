@@ -25,6 +25,7 @@ import (
 	. "gopkg.in/check.v1"
 	"gopkg.in/yaml.v2"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/gadget/quantity"
 )
 
@@ -73,7 +74,7 @@ func (s *offsetTestSuite) TestUnmarshalYAMLSize(c *C) {
 		c.Logf("tc: %v", i)
 
 		var f foo
-		err := yaml.Unmarshal([]byte(fmt.Sprintf("offset: %s", tc.s)), &f)
+		mylog.Check(yaml.Unmarshal([]byte(fmt.Sprintf("offset: %s", tc.s)), &f))
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err)
 		} else {

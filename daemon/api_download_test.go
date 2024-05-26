@@ -31,6 +31,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/snap"
@@ -183,10 +184,10 @@ func (s *snapDownloadSuite) TestDownloadSnapErrors(c *check.C) {
 			err:      `invalid risk in channel name: latest/potato`,
 		},
 	} {
-		var err error
+
 		data := []byte(scen.dataJSON)
 
-		req, err := http.NewRequest("POST", "/v2/download", bytes.NewBuffer(data))
+		req := mylog.Check2(http.NewRequest("POST", "/v2/download", bytes.NewBuffer(data)))
 		c.Assert(err, check.IsNil)
 		rspe := s.errorReq(c, req, nil)
 
@@ -207,12 +208,12 @@ func (s *snapDownloadSuite) TestStreamOneSnap(c *check.C) {
 		err      string
 	}
 
-	sec, err := daemon.DownloadTokensSecret(s.d)
+	sec := mylog.Check2(daemon.DownloadTokensSecret(s.d))
 	c.Assert(err, check.IsNil)
 
-	fooResume3SS, err := daemon.NewSnapStream("foo-resume-3", storeSnaps["foo-resume-3"], sec)
+	fooResume3SS := mylog.Check2(daemon.NewSnapStream("foo-resume-3", storeSnaps["foo-resume-3"], sec))
 	c.Assert(err, check.IsNil)
-	tok, err := base64.RawURLEncoding.DecodeString(fooResume3SS.Token)
+	tok := mylog.Check2(base64.RawURLEncoding.DecodeString(fooResume3SS.Token))
 	c.Assert(err, check.IsNil)
 	c.Assert(bytes.HasPrefix(tok, []byte(`{"snap-name":"foo-resume-3","filename":"foo-resume-3_1.snap","dl-info":{"`)), check.Equals, true)
 
@@ -323,7 +324,7 @@ func (s *snapDownloadSuite) TestStreamOneSnap(c *check.C) {
 			err:      "cannot request header-only peek when resuming",
 		},
 	} {
-		req, err := http.NewRequest("POST", "/v2/download", strings.NewReader(t.dataJSON))
+		req := mylog.Check2(http.NewRequest("POST", "/v2/download", strings.NewReader(t.dataJSON)))
 		c.Assert(err, check.IsNil)
 		if t.resume != 0 {
 			req.Header.Add("Range", fmt.Sprintf("bytes=%d-", t.resume))
@@ -364,7 +365,7 @@ func (s *snapDownloadSuite) TestStreamOneSnap(c *check.C) {
 
 func (s *snapDownloadSuite) TestStreamOneSnapHeaderOnlyPeek(c *check.C) {
 	dataJSON := `{"snap-name": "bar", "header-peek": true}`
-	req, err := http.NewRequest("POST", "/v2/download", strings.NewReader(dataJSON))
+	req := mylog.Check2(http.NewRequest("POST", "/v2/download", strings.NewReader(dataJSON)))
 	c.Assert(err, check.IsNil)
 
 	rsp := s.req(c, req, nil)
@@ -398,7 +399,7 @@ func (s *snapDownloadSuite) TestStreamRangeHeaderErrors(c *check.C) {
 		// almost
 		"bytes=1--",
 	} {
-		req, err := http.NewRequest("POST", "/v2/download", strings.NewReader(dataJSON))
+		req := mylog.Check2(http.NewRequest("POST", "/v2/download", strings.NewReader(dataJSON)))
 		c.Assert(err, check.IsNil)
 		// missng "-" at the end
 		req.Header.Add("Range", t)

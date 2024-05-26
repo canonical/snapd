@@ -23,6 +23,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
@@ -99,7 +100,7 @@ func (iface *appstreamMetadataInterface) MountConnectedPlug(spec *mount.Specific
 	for _, dir := range appstreamMetadataDirs {
 		dir = filepath.Join(dirs.GlobalRootDir, dir)
 		if osutil.IsSymlink(dir) {
-			target, err := os.Readlink(dir)
+			target := mylog.Check2(os.Readlink(dir))
 			if err == nil {
 				spec.AddMountEntry(osutil.MountEntry{
 					Name:    "/var/lib/snapd/hostfs" + dir,

@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/boot"
@@ -56,9 +57,7 @@ type modelSuite struct {
 
 var _ = Suite(&modelSuite{})
 
-var (
-	brandPrivKey, _ = assertstest.GenerateKey(752)
-)
+var brandPrivKey, _ = assertstest.GenerateKey(752)
 
 func makeEncodableModel(signingAccounts *assertstest.SigningAccounts, overrides map[string]interface{}) *asserts.Model {
 	headers := map[string]interface{}{
@@ -171,39 +170,41 @@ func (s *modelSuite) SetUpTest(c *C) {
 }
 
 func (s *modelSuite) TestWriteModelToUbuntuBoot(c *C) {
-	err := boot.WriteModelToUbuntuBoot(s.oldUc20dev.Model())
-	c.Assert(err, IsNil)
+	mylog.Check(boot.WriteModelToUbuntuBoot(s.oldUc20dev.Model()))
+
 	c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"), testutil.FileContains,
 		"model: my-model-uc20\n")
+	mylog.
 
-	// overwrite the file
-	err = boot.WriteModelToUbuntuBoot(s.newUc20dev.Model())
-	c.Assert(err, IsNil)
+		// overwrite the file
+		Check(boot.WriteModelToUbuntuBoot(s.newUc20dev.Model()))
+
 	c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"), testutil.FileContains,
 		"model: my-new-model-uc20\n")
+	mylog.Check(os.RemoveAll(filepath.Join(boot.InitramfsUbuntuBootDir)))
 
-	err = os.RemoveAll(filepath.Join(boot.InitramfsUbuntuBootDir))
-	c.Assert(err, IsNil)
-	// fails when trying to write
-	err = boot.WriteModelToUbuntuBoot(s.newUc20dev.Model())
+	mylog.
+		// fails when trying to write
+		Check(boot.WriteModelToUbuntuBoot(s.newUc20dev.Model()))
 	c.Assert(err, ErrorMatches, `open .*/run/mnt/ubuntu-boot/device/model\..*: no such file or directory`)
 }
 
 func (s *modelSuite) TestDeviceChangeHappy(c *C) {
 	// system is encrypted
 	s.stampSealedKeys(c, s.rootdir)
+	mylog.
 
-	// set up the old model file
-	err := boot.WriteModelToUbuntuBoot(s.oldUc20dev.Model())
-	c.Assert(err, IsNil)
+		// set up the old model file
+		Check(boot.WriteModelToUbuntuBoot(s.oldUc20dev.Model()))
+
 	c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"), testutil.FileContains,
 		"model: my-model-uc20\n")
 
 	resealKeysCalls := 0
 	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealKeysCalls++
-		m, err := boot.ReadModeenv("")
-		c.Assert(err, IsNil)
+		m := mylog.Check2(boot.ReadModeenv(""))
+
 		currForSealing := boot.ModelUniqueID(m.ModelForSealing())
 		tryForSealing := boot.ModelUniqueID(m.TryModelForSealing())
 		switch resealKeysCalls {
@@ -256,17 +257,16 @@ func (s *modelSuite) TestDeviceChangeHappy(c *C) {
 	defer restore()
 
 	u := mockUnlocker{}
+	mylog.Check(boot.DeviceChange(s.oldUc20dev, s.newUc20dev, u.unlocker))
 
-	err = boot.DeviceChange(s.oldUc20dev, s.newUc20dev, u.unlocker)
-	c.Assert(err, IsNil)
 	c.Assert(resealKeysCalls, Equals, 4)
 	c.Check(u.unlocked, Equals, 2)
 
 	c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"), testutil.FileContains,
 		"model: my-new-model-uc20\n")
 
-	m, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	m := mylog.Check2(boot.ReadModeenv(""))
+
 	currForSealing := boot.ModelUniqueID(m.ModelForSealing())
 	tryForSealing := boot.ModelUniqueID(m.TryModelForSealing())
 	c.Assert(currForSealing, Equals, "canonical/my-new-model-uc20,secured,"+s.keyID)
@@ -277,18 +277,19 @@ func (s *modelSuite) TestDeviceChangeHappy(c *C) {
 func (s *modelSuite) TestDeviceChangeUnhappyFirstReseal(c *C) {
 	// system is encrypted
 	s.stampSealedKeys(c, s.rootdir)
+	mylog.
 
-	// set up the old model file
-	err := boot.WriteModelToUbuntuBoot(s.oldUc20dev.Model())
-	c.Assert(err, IsNil)
+		// set up the old model file
+		Check(boot.WriteModelToUbuntuBoot(s.oldUc20dev.Model()))
+
 	c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"), testutil.FileContains,
 		"model: my-model-uc20\n")
 
 	resealKeysCalls := 0
 	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealKeysCalls++
-		m, err := boot.ReadModeenv("")
-		c.Assert(err, IsNil)
+		m := mylog.Check2(boot.ReadModeenv(""))
+
 		currForSealing := boot.ModelUniqueID(m.ModelForSealing())
 		tryForSealing := boot.ModelUniqueID(m.TryModelForSealing())
 		switch resealKeysCalls {
@@ -315,16 +316,15 @@ func (s *modelSuite) TestDeviceChangeUnhappyFirstReseal(c *C) {
 		return fmt.Errorf("fail on first try")
 	})
 	defer restore()
-
-	err = boot.DeviceChange(s.oldUc20dev, s.newUc20dev, nil)
+	mylog.Check(boot.DeviceChange(s.oldUc20dev, s.newUc20dev, nil))
 	c.Assert(err, ErrorMatches, "cannot reseal the encryption key: fail on first try")
 	c.Assert(resealKeysCalls, Equals, 1)
 	// still the old model file
 	c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"), testutil.FileContains,
 		"model: my-model-uc20\n")
 
-	m, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	m := mylog.Check2(boot.ReadModeenv(""))
+
 	currForSealing := boot.ModelUniqueID(m.ModelForSealing())
 	tryForSealing := boot.ModelUniqueID(m.TryModelForSealing())
 	c.Assert(currForSealing, Equals, "canonical/my-model-uc20,dangerous,"+s.keyID)
@@ -335,18 +335,19 @@ func (s *modelSuite) TestDeviceChangeUnhappyFirstReseal(c *C) {
 func (s *modelSuite) TestDeviceChangeUnhappyFirstSwapModelFile(c *C) {
 	// system is encrypted
 	s.stampSealedKeys(c, s.rootdir)
+	mylog.
 
-	// set up the old model file
-	err := boot.WriteModelToUbuntuBoot(s.oldUc20dev.Model())
-	c.Assert(err, IsNil)
+		// set up the old model file
+		Check(boot.WriteModelToUbuntuBoot(s.oldUc20dev.Model()))
+
 	c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"), testutil.FileContains,
 		"model: my-model-uc20\n")
 
 	resealKeysCalls := 0
 	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealKeysCalls++
-		m, err := boot.ReadModeenv("")
-		c.Assert(err, IsNil)
+		m := mylog.Check2(boot.ReadModeenv(""))
+
 		currForSealing := boot.ModelUniqueID(m.ModelForSealing())
 		tryForSealing := boot.ModelUniqueID(m.TryModelForSealing())
 		switch resealKeysCalls {
@@ -384,13 +385,12 @@ func (s *modelSuite) TestDeviceChangeUnhappyFirstSwapModelFile(c *C) {
 		return nil
 	})
 	defer restore()
-
-	err = boot.DeviceChange(s.oldUc20dev, s.newUc20dev, nil)
+	mylog.Check(boot.DeviceChange(s.oldUc20dev, s.newUc20dev, nil))
 	c.Assert(err, ErrorMatches, `cannot write new model file: open .*/run/mnt/ubuntu-boot/device/model\..*: no such file or directory`)
 	c.Assert(resealKeysCalls, Equals, 2)
 
-	m, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	m := mylog.Check2(boot.ReadModeenv(""))
+
 	currForSealing := boot.ModelUniqueID(m.ModelForSealing())
 	tryForSealing := boot.ModelUniqueID(m.TryModelForSealing())
 	c.Assert(currForSealing, Equals, "canonical/my-model-uc20,dangerous,"+s.keyID)
@@ -401,18 +401,19 @@ func (s *modelSuite) TestDeviceChangeUnhappyFirstSwapModelFile(c *C) {
 func (s *modelSuite) TestDeviceChangeUnhappySecondReseal(c *C) {
 	// system is encrypted
 	s.stampSealedKeys(c, s.rootdir)
+	mylog.
 
-	// set up the old model file
-	err := boot.WriteModelToUbuntuBoot(s.oldUc20dev.Model())
-	c.Assert(err, IsNil)
+		// set up the old model file
+		Check(boot.WriteModelToUbuntuBoot(s.oldUc20dev.Model()))
+
 	c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"), testutil.FileContains,
 		"model: my-model-uc20\n")
 
 	resealKeysCalls := 0
 	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealKeysCalls++
-		m, err := boot.ReadModeenv("")
-		c.Assert(err, IsNil)
+		m := mylog.Check2(boot.ReadModeenv(""))
+
 		currForSealing := boot.ModelUniqueID(m.ModelForSealing())
 		tryForSealing := boot.ModelUniqueID(m.TryModelForSealing())
 		// which keys?
@@ -475,16 +476,15 @@ func (s *modelSuite) TestDeviceChangeUnhappySecondReseal(c *C) {
 		return nil
 	})
 	defer restore()
-
-	err = boot.DeviceChange(s.oldUc20dev, s.newUc20dev, nil)
+	mylog.Check(boot.DeviceChange(s.oldUc20dev, s.newUc20dev, nil))
 	c.Assert(err, ErrorMatches, `cannot reseal the encryption key: fail on second try`)
 	c.Assert(resealKeysCalls, Equals, 3)
 	// old model file was restored
 	c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"), testutil.FileContains,
 		"model: my-model-uc20\n")
 
-	m, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	m := mylog.Check2(boot.ReadModeenv(""))
+
 	currForSealing := boot.ModelUniqueID(m.ModelForSealing())
 	tryForSealing := boot.ModelUniqueID(m.TryModelForSealing())
 	c.Assert(currForSealing, Equals, "canonical/my-model-uc20,dangerous,"+s.keyID)
@@ -495,10 +495,11 @@ func (s *modelSuite) TestDeviceChangeUnhappySecondReseal(c *C) {
 func (s *modelSuite) TestDeviceChangeRebootBeforeNewModel(c *C) {
 	// system is encrypted
 	s.stampSealedKeys(c, s.rootdir)
+	mylog.
 
-	// set up the old model file
-	err := boot.WriteModelToUbuntuBoot(s.oldUc20dev.Model())
-	c.Assert(err, IsNil)
+		// set up the old model file
+		Check(boot.WriteModelToUbuntuBoot(s.oldUc20dev.Model()))
+
 	c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"), testutil.FileContains,
 		"model: my-model-uc20\n")
 
@@ -506,8 +507,8 @@ func (s *modelSuite) TestDeviceChangeRebootBeforeNewModel(c *C) {
 	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealKeysCalls++
 		c.Logf("reseal key call: %v", resealKeysCalls)
-		m, err := boot.ReadModeenv("")
-		c.Assert(err, IsNil)
+		m := mylog.Check2(boot.ReadModeenv(""))
+
 		currForSealing := boot.ModelUniqueID(m.ModelForSealing())
 		tryForSealing := boot.ModelUniqueID(m.TryModelForSealing())
 		// timeline & calls:
@@ -590,40 +591,41 @@ func (s *modelSuite) TestDeviceChangeRebootBeforeNewModel(c *C) {
 	c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"), testutil.FileContains,
 		"model: my-model-uc20\n")
 
-	m, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	m := mylog.Check2(boot.ReadModeenv(""))
+
 	currForSealing := boot.ModelUniqueID(m.ModelForSealing())
 	tryForSealing := boot.ModelUniqueID(m.TryModelForSealing())
 	c.Assert(currForSealing, Equals, "canonical/my-model-uc20,dangerous,"+s.keyID)
 	// try model is already set
 	c.Assert(tryForSealing, Equals, "canonical/my-new-model-uc20,secured,"+s.keyID)
+	mylog.
 
-	// let's try again
-	err = boot.DeviceChange(s.oldUc20dev, s.newUc20dev, nil)
-	c.Assert(err, IsNil)
+		// let's try again
+		Check(boot.DeviceChange(s.oldUc20dev, s.newUc20dev, nil))
+
 	c.Assert(resealKeysCalls, Equals, 5)
 	// got new model now
 	c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"), testutil.FileContains,
 		"model: my-new-model-uc20\n")
 
-	m, err = boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	m = mylog.Check2(boot.ReadModeenv(""))
+
 	currForSealing = boot.ModelUniqueID(m.ModelForSealing())
 	tryForSealing = boot.ModelUniqueID(m.TryModelForSealing())
 	// new model is current
 	c.Assert(currForSealing, Equals, "canonical/my-new-model-uc20,secured,"+s.keyID)
 	// try model has been cleared
 	c.Assert(tryForSealing, Equals, "/,,")
-
 }
 
 func (s *modelSuite) TestDeviceChangeRebootAfterNewModelFileWrite(c *C) {
 	// system is encrypted
 	s.stampSealedKeys(c, s.rootdir)
+	mylog.
 
-	// set up the old model file
-	err := boot.WriteModelToUbuntuBoot(s.oldUc20dev.Model())
-	c.Assert(err, IsNil)
+		// set up the old model file
+		Check(boot.WriteModelToUbuntuBoot(s.oldUc20dev.Model()))
+
 	c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"), testutil.FileContains,
 		"model: my-model-uc20\n")
 
@@ -631,8 +633,8 @@ func (s *modelSuite) TestDeviceChangeRebootAfterNewModelFileWrite(c *C) {
 	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealKeysCalls++
 		c.Logf("reseal key call: %v", resealKeysCalls)
-		m, err := boot.ReadModeenv("")
-		c.Assert(err, IsNil)
+		m := mylog.Check2(boot.ReadModeenv(""))
+
 		currForSealing := boot.ModelUniqueID(m.ModelForSealing())
 		tryForSealing := boot.ModelUniqueID(m.TryModelForSealing())
 		// timeline & calls:
@@ -713,40 +715,41 @@ func (s *modelSuite) TestDeviceChangeRebootAfterNewModelFileWrite(c *C) {
 	c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"), testutil.FileContains,
 		"model: my-new-model-uc20\n")
 
-	m, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	m := mylog.Check2(boot.ReadModeenv(""))
+
 	currForSealing := boot.ModelUniqueID(m.ModelForSealing())
 	tryForSealing := boot.ModelUniqueID(m.TryModelForSealing())
 	// as well as modeenv
 	c.Assert(currForSealing, Equals, "canonical/my-new-model-uc20,secured,"+s.keyID)
 	c.Assert(tryForSealing, Equals, "/,,")
+	mylog.
 
-	// let's try again (post reboot)
-	err = boot.DeviceChange(s.oldUc20dev, s.newUc20dev, nil)
-	c.Assert(err, IsNil)
+		// let's try again (post reboot)
+		Check(boot.DeviceChange(s.oldUc20dev, s.newUc20dev, nil))
+
 	c.Assert(resealKeysCalls, Equals, 5)
 	// got new model now
 	c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"), testutil.FileContains,
 		"model: my-new-model-uc20\n")
 
-	m, err = boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	m = mylog.Check2(boot.ReadModeenv(""))
+
 	currForSealing = boot.ModelUniqueID(m.ModelForSealing())
 	tryForSealing = boot.ModelUniqueID(m.TryModelForSealing())
 	// new model is current
 	c.Assert(currForSealing, Equals, "canonical/my-new-model-uc20,secured,"+s.keyID)
 	// try model has been cleared
 	c.Assert(tryForSealing, Equals, "/,,")
-
 }
 
 func (s *modelSuite) TestDeviceChangeRebootPostSameModel(c *C) {
 	// system is encrypted
 	s.stampSealedKeys(c, s.rootdir)
+	mylog.
 
-	// set up the old model file
-	err := boot.WriteModelToUbuntuBoot(s.oldUc20dev.Model())
-	c.Assert(err, IsNil)
+		// set up the old model file
+		Check(boot.WriteModelToUbuntuBoot(s.oldUc20dev.Model()))
+
 	c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"), testutil.FileContains,
 		"model: my-model-uc20\n")
 
@@ -754,8 +757,8 @@ func (s *modelSuite) TestDeviceChangeRebootPostSameModel(c *C) {
 	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealKeysCalls++
 		c.Logf("reseal key call: %v", resealKeysCalls)
-		m, err := boot.ReadModeenv("")
-		c.Assert(err, IsNil)
+		m := mylog.Check2(boot.ReadModeenv(""))
+
 		currForSealing := boot.ModelUniqueID(m.ModelForSealing())
 		tryForSealing := boot.ModelUniqueID(m.TryModelForSealing())
 		// timeline & calls:
@@ -842,18 +845,19 @@ func (s *modelSuite) TestDeviceChangeRebootPostSameModel(c *C) {
 	// model file has already been replaced
 	c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"), testutil.FileContains,
 		"model: my-new-model-uc20\n")
+	mylog.
 
-	// as if called by device manager, after the model has been changed, but
-	// the set-model task isn't marked as done
-	err = boot.DeviceChange(s.newUc20dev, s.newUc20dev, nil)
-	c.Assert(err, IsNil)
+		// as if called by device manager, after the model has been changed, but
+		// the set-model task isn't marked as done
+		Check(boot.DeviceChange(s.newUc20dev, s.newUc20dev, nil))
+
 	c.Assert(resealKeysCalls, Equals, 7)
 
 	c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"), testutil.FileContains,
 		"model: my-new-model-uc20\n")
 
-	m, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	m := mylog.Check2(boot.ReadModeenv(""))
+
 	currForSealing := boot.ModelUniqueID(m.ModelForSealing())
 	tryForSealing := boot.ModelUniqueID(m.TryModelForSealing())
 	c.Assert(currForSealing, Equals, "canonical/my-new-model-uc20,secured,"+s.keyID)
@@ -870,10 +874,11 @@ type unhappyMockedWriteModelToBootTestCase struct {
 func (s *modelSuite) testDeviceChangeUnhappyMockedWriteModelToBoot(c *C, tc unhappyMockedWriteModelToBootTestCase) {
 	// system is encrypted
 	s.stampSealedKeys(c, s.rootdir)
+	mylog.
 
-	// set up the old model file
-	err := boot.WriteModelToUbuntuBoot(s.oldUc20dev.Model())
-	c.Assert(err, IsNil)
+		// set up the old model file
+		Check(boot.WriteModelToUbuntuBoot(s.oldUc20dev.Model()))
+
 	c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"), testutil.FileContains,
 		"model: my-model-uc20\n")
 
@@ -884,8 +889,8 @@ func (s *modelSuite) testDeviceChangeUnhappyMockedWriteModelToBoot(c *C, tc unha
 	resealKeysCalls := 0
 	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealKeysCalls++
-		m, err := boot.ReadModeenv("")
-		c.Assert(err, IsNil)
+		m := mylog.Check2(boot.ReadModeenv(""))
+
 		currForSealing := boot.ModelUniqueID(m.ModelForSealing())
 		tryForSealing := boot.ModelUniqueID(m.TryModelForSealing())
 		switch resealKeysCalls {
@@ -944,8 +949,7 @@ func (s *modelSuite) testDeviceChangeUnhappyMockedWriteModelToBoot(c *C, tc unha
 		return fmt.Errorf("mocked fail in write model to boot")
 	})
 	defer restore()
-
-	err = boot.DeviceChange(s.oldUc20dev, s.newUc20dev, nil)
+	mylog.Check(boot.DeviceChange(s.oldUc20dev, s.newUc20dev, nil))
 	c.Assert(err, ErrorMatches, tc.expectedErr)
 	c.Assert(resealKeysCalls, Equals, 2)
 	if tc.breakModeenvAfterFirstWrite {
@@ -959,8 +963,8 @@ func (s *modelSuite) testDeviceChangeUnhappyMockedWriteModelToBoot(c *C, tc unha
 		"model: my-model-uc20\n")
 
 	if !tc.breakModeenvAfterFirstWrite {
-		m, err := boot.ReadModeenv("")
-		c.Assert(err, IsNil)
+		m := mylog.Check2(boot.ReadModeenv(""))
+
 		currForSealing := boot.ModelUniqueID(m.ModelForSealing())
 		tryForSealing := boot.ModelUniqueID(m.TryModelForSealing())
 		c.Assert(currForSealing, Equals, "canonical/my-model-uc20,dangerous,"+s.keyID)
@@ -1010,10 +1014,11 @@ func (s *modelSuite) TestDeviceChangeUnhappyMockedWriteModelToBootAfterModelSwap
 func (s *modelSuite) TestDeviceChangeUnhappyFailReseaWithSwappedModelMockedWriteToBoot(c *C) {
 	// system is encrypted
 	s.stampSealedKeys(c, s.rootdir)
+	mylog.
 
-	// set up the old model file
-	err := boot.WriteModelToUbuntuBoot(s.oldUc20dev.Model())
-	c.Assert(err, IsNil)
+		// set up the old model file
+		Check(boot.WriteModelToUbuntuBoot(s.oldUc20dev.Model()))
+
 	c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"), testutil.FileContains,
 		"model: my-model-uc20\n")
 
@@ -1027,8 +1032,8 @@ func (s *modelSuite) TestDeviceChangeUnhappyFailReseaWithSwappedModelMockedWrite
 			c.Assert(params.KeyFiles, DeepEquals, []string{
 				filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key"),
 			})
-			m, err := boot.ReadModeenv("")
-			c.Assert(err, IsNil)
+			m := mylog.Check2(boot.ReadModeenv(""))
+
 			currForSealing := boot.ModelUniqueID(m.ModelForSealing())
 			tryForSealing := boot.ModelUniqueID(m.TryModelForSealing())
 			// keys are first resealed for both models
@@ -1054,8 +1059,8 @@ func (s *modelSuite) TestDeviceChangeUnhappyFailReseaWithSwappedModelMockedWrite
 		case 2:
 			// handling of reseal with new model restores the old one on the disk
 			c.Check(model.Model(), Equals, "my-model-uc20")
-			m, err := boot.ReadModeenv("")
-			c.Assert(err, IsNil)
+			m := mylog.Check2(boot.ReadModeenv(""))
+
 			// and both models are present in the modeenv
 			currForSealing := boot.ModelUniqueID(m.ModelForSealing())
 			tryForSealing := boot.ModelUniqueID(m.TryModelForSealing())
@@ -1069,8 +1074,7 @@ func (s *modelSuite) TestDeviceChangeUnhappyFailReseaWithSwappedModelMockedWrite
 		return nil
 	})
 	defer restore()
-
-	err = boot.DeviceChange(s.oldUc20dev, s.newUc20dev, nil)
+	mylog.Check(boot.DeviceChange(s.oldUc20dev, s.newUc20dev, nil))
 	c.Assert(err, ErrorMatches, `cannot reseal the encryption key: mock reseal failure`)
 	c.Assert(resealKeysCalls, Equals, 3)
 	c.Assert(writeModelToBootCalls, Equals, 2)
@@ -1079,8 +1083,8 @@ func (s *modelSuite) TestDeviceChangeUnhappyFailReseaWithSwappedModelMockedWrite
 		"model: my-model-uc20\n")
 
 	// finally the try model has been dropped from modeenv
-	m, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	m := mylog.Check2(boot.ReadModeenv(""))
+
 	currForSealing := boot.ModelUniqueID(m.ModelForSealing())
 	tryForSealing := boot.ModelUniqueID(m.TryModelForSealing())
 	c.Assert(currForSealing, Equals, "canonical/my-model-uc20,dangerous,"+s.keyID)
@@ -1114,8 +1118,8 @@ func (s *modelSuite) TestDeviceChangeRebootRestoreModelKeyChangeMockedWriteModel
 	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealKeysCalls++
 		c.Logf("reseal key call: %v", resealKeysCalls)
-		m, err := boot.ReadModeenv("")
-		c.Assert(err, IsNil)
+		m := mylog.Check2(boot.ReadModeenv(""))
+
 		currForSealing := boot.ModelUniqueID(m.ModelForSealing())
 		tryForSealing := boot.ModelUniqueID(m.TryModelForSealing())
 		// timeline & calls:
@@ -1196,8 +1200,8 @@ func (s *modelSuite) TestDeviceChangeRebootRestoreModelKeyChangeMockedWriteModel
 		case 2:
 			// handling of reseal with new model restores the old one on the disk
 			c.Check(model.Model(), Equals, "my-model-uc20")
-			m, err := boot.ReadModeenv("")
-			c.Assert(err, IsNil)
+			m := mylog.Check2(boot.ReadModeenv(""))
+
 			// and both models are present in the modeenv
 			currForSealing := boot.ModelUniqueID(m.ModelForSealing())
 			tryForSealing := boot.ModelUniqueID(m.TryModelForSealing())
@@ -1217,14 +1221,13 @@ func (s *modelSuite) TestDeviceChangeRebootRestoreModelKeyChangeMockedWriteModel
 		`mock reboot before second complete reseal`)
 	c.Assert(resealKeysCalls, Equals, 4)
 	c.Assert(writeModelToBootCalls, Equals, 1)
+	mylog.Check(boot.DeviceChange(s.oldUc20dev, s.newUc20dev, nil))
 
-	err := boot.DeviceChange(s.oldUc20dev, s.newUc20dev, nil)
-	c.Assert(err, IsNil)
 	c.Assert(resealKeysCalls, Equals, 7)
 	c.Assert(writeModelToBootCalls, Equals, 2)
 
-	m, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	m := mylog.Check2(boot.ReadModeenv(""))
+
 	currForSealing := boot.ModelUniqueID(m.ModelForSealing())
 	tryForSealing := boot.ModelUniqueID(m.TryModelForSealing())
 	c.Assert(currForSealing, Equals, "my-brand/my-model-uc20,dangerous,"+newKeyID)

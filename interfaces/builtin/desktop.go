@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
@@ -481,10 +482,8 @@ func (iface *desktopInterface) fontconfigDirs(plug *interfaces.ConnectedPlug) ([
 		dirs.SystemLocalFontsDir,
 	}
 
-	shouldMountHostFontCache, err := iface.shouldMountHostFontCache(plug)
-	if err != nil {
-		return nil, err
-	}
+	shouldMountHostFontCache := mylog.Check2(iface.shouldMountHostFontCache(plug))
+
 	if shouldMountHostFontCache {
 		fontDirs = append(fontDirs, dirs.SystemFontconfigCacheDirs...)
 	}
@@ -519,10 +518,8 @@ func (iface *desktopInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 	// Allow mounting fonts. For the app-provided slot case, we
 	// assume that the slot snap is using the boot base snap as
 	// its base, and that base contains fonts.
-	fontDirs, err := iface.fontconfigDirs(plug)
-	if err != nil {
-		return err
-	}
+	fontDirs := mylog.Check2(iface.fontconfigDirs(plug))
+
 	for _, dir := range fontDirs {
 		source := "/var/lib/snapd/hostfs" + dir
 		target := dirs.StripRootDir(dir)
@@ -543,10 +540,8 @@ func (iface *desktopInterface) MountConnectedPlug(spec *mount.Specification, plu
 		Options: []string{"bind", "rw", osutil.XSnapdIgnoreMissing()},
 	})
 
-	fontDirs, err := iface.fontconfigDirs(plug)
-	if err != nil {
-		return err
-	}
+	fontDirs := mylog.Check2(iface.fontconfigDirs(plug))
+
 	for _, dir := range fontDirs {
 		if !osutil.IsDirectory(dir) {
 			continue
@@ -586,7 +581,7 @@ func (iface *desktopInterface) AppArmorPermanentSlot(spec *apparmor.Specificatio
 }
 
 func (iface *desktopInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
-	_, err := iface.shouldMountHostFontCache(plug)
+	_ := mylog.Check2(iface.shouldMountHostFontCache(plug))
 	return err
 }
 

@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 	"runtime"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/gadget"
@@ -88,19 +89,14 @@ func (mst *initramfsMountsState) LoadSeed(recoverySystem string) (seed.Seed, err
 	if runtimeNumCPU() > 1 {
 		jobs = 2
 	}
-	seed20, newTrustedEarliestTime, err := seed.ReadSeedAndBetterEarliestTime(boot.InitramfsUbuntuSeedDir, recoverySystem, now, jobs, perf)
-	if err != nil {
-		return nil, err
-	}
+	seed20, newTrustedEarliestTime := mylog.Check3(seed.ReadSeedAndBetterEarliestTime(boot.InitramfsUbuntuSeedDir, recoverySystem, now, jobs, perf))
 
 	// set the time on the system to move forward if it is in the future - never
 	// move the time backwards
 	if newTrustedEarliestTime.After(now) {
-		if err := osutilSetTime(newTrustedEarliestTime); err != nil {
-			// log the error but don't fail on it, we should be able to continue
-			// even if the time can't be moved forward
-			logger.Noticef("failed to move time forward from %s to %s: %v", now, newTrustedEarliestTime, err)
-		}
+		mylog.Check(osutilSetTime(newTrustedEarliestTime))
+		// log the error but don't fail on it, we should be able to continue
+		// even if the time can't be moved forward
 	}
 
 	mst.seeds[recoverySystem] = seed20
@@ -126,15 +122,11 @@ func (mst *initramfsMountsState) UnverifiedBootModel() (*asserts.Model, error) {
 		return nil, fmt.Errorf("internal error: unverified boot model access is for limited run mode use")
 	}
 
-	mf, err := os.Open(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"))
-	if err != nil {
-		return nil, fmt.Errorf("cannot read model assertion: %v", err)
-	}
+	mf := mylog.Check2(os.Open(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model")))
+
 	defer mf.Close()
-	ma, err := asserts.NewDecoder(mf).Decode()
-	if err != nil {
-		return nil, fmt.Errorf("cannot decode assertion: %v", err)
-	}
+	ma := mylog.Check2(asserts.NewDecoder(mf).Decode())
+
 	if ma.Type() != asserts.ModelType {
 		return nil, fmt.Errorf("unexpected assertion: %q", ma.Type().Name)
 	}

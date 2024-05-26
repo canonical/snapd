@@ -25,6 +25,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sysconfig"
@@ -35,10 +36,7 @@ func init() {
 }
 
 func validateStoreAccess(cfg ConfGetter) error {
-	storeAccess, err := coreCfg(cfg, "store.access")
-	if err != nil {
-		return err
-	}
+	storeAccess := mylog.Check2(coreCfg(cfg, "store.access"))
 
 	switch storeAccess {
 	case "", "offline":
@@ -57,26 +55,17 @@ type repairConfig struct {
 }
 
 func handleStoreAccess(_ sysconfig.Device, cfg ConfGetter, opts *fsOnlyContext) error {
-	access, err := coreCfg(cfg, "store.access")
-	if err != nil {
-		return err
-	}
+	access := mylog.Check2(coreCfg(cfg, "store.access"))
 
-	data, err := json.Marshal(repairConfig{
+	data := mylog.Check2(json.Marshal(repairConfig{
 		StoreOffline: access == "offline",
-	})
-	if err != nil {
-		return err
-	}
+	}))
 
 	configFilePath := dirs.SnapRepairConfigFile
 	if opts != nil && opts.RootDir != "" {
 		configFilePath = dirs.SnapRepairConfigFileUnder(opts.RootDir)
 	}
-
-	if err := os.MkdirAll(filepath.Dir(configFilePath), 0755); err != nil {
-		return err
-	}
+	mylog.Check(os.MkdirAll(filepath.Dir(configFilePath), 0755))
 
 	return osutil.AtomicWriteFile(configFilePath, data, 0644, 0)
 }

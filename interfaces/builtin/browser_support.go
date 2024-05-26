@@ -22,6 +22,7 @@ package builtin
 import (
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
@@ -394,10 +395,8 @@ func (iface *browserSupportInterface) AppArmorConnectedPlug(spec *apparmor.Speci
 		spec.AddSnippet(browserSupportConnectedPlugAppArmorWithSandbox)
 		// if apparmor supports userns mediation then add this too
 		if apparmor_sandbox.ProbedLevel() != apparmor_sandbox.Unsupported {
-			features, err := apparmor_sandbox.ParserFeatures()
-			if err != nil {
-				return err
-			}
+			features := mylog.Check2(apparmor_sandbox.ParserFeatures())
+
 			if strutil.ListContains(features, "userns") {
 				spec.AddSnippet(browserSupportConnectedPlugAppArmorWithSandboxUserNS)
 			}

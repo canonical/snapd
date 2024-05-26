@@ -26,6 +26,7 @@ import (
 	"unsafe"
 
 	// TODO:UC20: not packaged, reimplement the minimal things we need?
+	"github.com/ddkwork/golibrary/mylog"
 	evdev "github.com/gvalkov/golang-evdev"
 
 	"github.com/snapcore/snapd/logger"
@@ -77,7 +78,7 @@ func (e *evdevKeyboardInputDevice) probeKeyState() (bool, error) {
 
 	// obtain the large bitmap with all key states
 	// https://elixir.bootlin.com/linux/v5.5.5/source/drivers/input/evdev.c#L1163
-	_, _, err := syscall.RawSyscall(syscall.SYS_IOCTL, e.dev.File.Fd(), uintptr(evdev.EVIOCGKEY), uintptr(unsafe.Pointer(keyBitmap)))
+	_, _ := mylog.Check3(syscall.RawSyscall(syscall.SYS_IOCTL, e.dev.File.Fd(), uintptr(evdev.EVIOCGKEY), uintptr(unsafe.Pointer(keyBitmap))))
 	if err != 0 {
 		return false, err
 	}
@@ -98,10 +99,8 @@ func (e *evdevKeyboardInputDevice) WaitForTrigger(ch chan keyEvent) {
 	// but the wrapper is passing is passing (repeat, delay)
 	// https://github.com/gvalkov/golang-evdev/blob/287e62b94bcb850ab42e711bd74b2875da83af2c/device.go#L226-L230
 
-	keyDown, err := e.probeKeyState()
-	if err != nil {
-		ch <- keyEvent{Err: fmt.Errorf("cannot obtain initial key state: %v", err), Dev: e}
-	}
+	keyDown := mylog.Check2(e.probeKeyState())
+
 	if keyDown {
 		// looks like the key is pressed initially, we don't know when
 		// that happened, but pretend it happened just now
@@ -118,11 +117,8 @@ func (e *evdevKeyboardInputDevice) WaitForTrigger(ch chan keyEvent) {
 
 	monitorKey := func() {
 		for {
-			ies, err := e.dev.Read()
-			if err != nil {
-				evChan <- evdevEvent{err: err}
-				break
-			}
+			ies := mylog.Check2(e.dev.Read())
+
 			for _, ie := range ies {
 				if ie.Type != evdev.EV_KEY || ie.Code != e.keyCode {
 					continue
@@ -226,28 +222,18 @@ func matchDevice(cap evdev.CapabilityCode, dev *evdev.InputDevice) triggerDevice
 }
 
 func (e *evdevInput) Open(filter triggerEventFilter, node string) (triggerDevice, error) {
-	evdevDevice, err := evdev.Open(node)
-	if err != nil {
-		return nil, err
-	}
-	cap, err := getCapabilityCode(filter.Key)
-	if err != nil {
-		return nil, err
-	}
+	evdevDevice := mylog.Check2(evdev.Open(node))
+
+	cap := mylog.Check2(getCapabilityCode(filter.Key))
+
 	return matchDevice(cap, evdevDevice), nil
 }
 
 func (e *evdevInput) FindMatchingDevices(filter triggerEventFilter) ([]triggerDevice, error) {
-	devices, err := evdev.ListInputDevices()
-	if err != nil {
-		return nil, fmt.Errorf("cannot list input devices: %v", err)
-	}
+	devices := mylog.Check2(evdev.ListInputDevices())
 
 	// NOTE: this supports so far only key input devices
-	cap, err := getCapabilityCode(filter.Key)
-	if err != nil {
-		return nil, err
-	}
+	cap := mylog.Check2(getCapabilityCode(filter.Key))
 
 	// collect all input devices that can emit the trigger key
 	var devs []triggerDevice

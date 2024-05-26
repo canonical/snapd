@@ -24,17 +24,20 @@ import (
 	"regexp"
 	"sort"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 )
 
-var shortChangesHelp = i18n.G("List system changes")
-var shortTasksHelp = i18n.G("List a change's tasks")
-var longChangesHelp = i18n.G(`
+var (
+	shortChangesHelp = i18n.G("List system changes")
+	shortTasksHelp   = i18n.G("List a change's tasks")
+	longChangesHelp  = i18n.G(`
 The changes command displays a summary of system changes performed recently.
 `)
+)
 var longTasksHelp = i18n.G(`
 The tasks command displays a summary of tasks associated with an individual
 change.
@@ -71,13 +74,9 @@ func (s changesByTime) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 var allDigits = regexp.MustCompile(`^[0-9]+$`).MatchString
 
 func queryChanges(cli *client.Client, opts *client.ChangesOptions) ([]*client.Change, error) {
-	chgs, err := cli.Changes(opts)
-	if err != nil {
-		return nil, err
-	}
-	if err := warnMaintenance(cli); err != nil {
-		return nil, err
-	}
+	chgs := mylog.Check2(cli.Changes(opts))
+	mylog.Check(warnMaintenance(cli))
+
 	return chgs, nil
 }
 
@@ -101,10 +100,7 @@ func (c *cmdChanges) Execute(args []string) error {
 		Selector: client.ChangesAll,
 	}
 
-	changes, err := queryChanges(c.client, &opts)
-	if err != nil {
-		return err
-	}
+	changes := mylog.Check2(queryChanges(c.client, &opts))
 
 	if len(changes) == 0 {
 		fmt.Fprintln(Stderr, i18n.G("no changes found"))
@@ -132,33 +128,20 @@ func (c *cmdChanges) Execute(args []string) error {
 }
 
 func (c *cmdTasks) Execute([]string) error {
-	chid, err := c.GetChangeID()
-	if err != nil {
-		if err == noChangeFoundOK {
-			return nil
-		}
-		return err
-	}
+	chid := mylog.Check2(c.GetChangeID())
 
 	return c.showChange(chid)
 }
 
 func queryChange(cli *client.Client, chid string) (*client.Change, error) {
-	chg, err := cli.Change(chid)
-	if err != nil {
-		return nil, err
-	}
-	if err := warnMaintenance(cli); err != nil {
-		return nil, err
-	}
+	chg := mylog.Check2(cli.Change(chid))
+	mylog.Check(warnMaintenance(cli))
+
 	return chg, nil
 }
 
 func (c *cmdTasks) showChange(chid string) error {
-	chg, err := queryChange(c.client, chid)
-	if err != nil {
-		return err
-	}
+	chg := mylog.Check2(queryChange(c.client, chid))
 
 	w := tabWriter()
 
@@ -200,10 +183,8 @@ const line = "..................................................................
 
 func warnMaintenance(cli *client.Client) error {
 	if maintErr := cli.Maintenance(); maintErr != nil {
-		msg, err := errorToCmdMessage("", "", maintErr, nil)
-		if err != nil {
-			return err
-		}
+		msg := mylog.Check2(errorToCmdMessage("", "", maintErr, nil))
+
 		fmt.Fprintf(Stderr, "WARNING: %s\n", msg)
 	}
 	return nil

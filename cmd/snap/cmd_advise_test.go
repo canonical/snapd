@@ -32,6 +32,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/advisor"
 	snap "github.com/snapcore/snapd/cmd/snap"
 	"github.com/snapcore/snapd/dirs"
@@ -74,8 +75,8 @@ func (s *SnapSuite) TestAdviseCommandHappyText(c *C) {
 	restore := advisor.ReplaceCommandsFinder(mkSillyFinder)
 	defer restore()
 
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"advise-snap", "--command", "hello"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"advise-snap", "--command", "hello"}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	c.Assert(s.Stdout(), Equals, `
 Command "hello" not found, but can be installed with:
@@ -93,8 +94,8 @@ func (s *SnapSuite) TestAdviseCommandHappyJSON(c *C) {
 	restore := advisor.ReplaceCommandsFinder(mkSillyFinder)
 	defer restore()
 
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"advise-snap", "--command", "--format=json", "hello"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"advise-snap", "--command", "--format=json", "hello"}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	c.Assert(s.Stdout(), Equals, `[{"Snap":"hello","Command":"hello"},{"Snap":"hello-wcm","Command":"hello"}]`+"\n")
 	c.Assert(s.Stderr(), Equals, "")
@@ -105,16 +106,16 @@ func (s *SnapSuite) TestAdviseCommandDumpDb(c *C) {
 	c.Assert(os.MkdirAll(dirs.SnapCacheDir, 0755), IsNil)
 	defer dirs.SetRootDir("")
 
-	db, err := advisor.Create()
+	db := mylog.Check2(advisor.Create())
 	if errors.Is(err, advisor.ErrNotSupported) {
 		c.Skip("bolt is not supported")
 	}
-	c.Assert(err, IsNil)
+
 	c.Assert(db.AddSnap("foo", "1.0", "foo summary", []string{"foo", "bar"}), IsNil)
 	c.Assert(db.Commit(), IsNil)
 
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"advise-snap", "--dump-db"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"advise-snap", "--dump-db"}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	c.Assert(s.Stderr(), Equals, "")
 	c.Assert(s.Stdout(), Matches, `bar foo 1.0\nfoo foo 1.0\n`)
@@ -125,8 +126,8 @@ func (s *SnapSuite) TestAdviseCommandMisspellText(c *C) {
 	defer restore()
 
 	for _, misspelling := range []string{"helo", "0hello", "hell0", "hello0"} {
-		err := snap.AdviseCommand(misspelling, "pretty")
-		c.Assert(err, IsNil)
+		mylog.Check(snap.AdviseCommand(misspelling, "pretty"))
+
 		c.Assert(s.Stdout(), Equals, fmt.Sprintf(`
 Command "%s" not found, did you mean:
 
@@ -147,8 +148,8 @@ func (s *SnapSuite) TestAdviseFromAptIntegrationNoAptPackage(c *C) {
 	restore := advisor.ReplaceCommandsFinder(mkSillyFinder)
 	defer restore()
 
-	fds, err := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_STREAM, 0)
-	c.Assert(err, IsNil)
+	fds := mylog.Check2(syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_STREAM, 0))
+
 
 	os.Setenv("APT_HOOK_SOCKET", strconv.Itoa(int(fds[1])))
 	// note we don't close fds[1] ourselves; adviseViaAptHook might, or we might leak it
@@ -157,40 +158,40 @@ func (s *SnapSuite) TestAdviseFromAptIntegrationNoAptPackage(c *C) {
 	done := make(chan bool, 1)
 	go func() {
 		f := os.NewFile(uintptr(fds[0]), "advise-sock")
-		conn, err := net.FileConn(f)
-		c.Assert(err, IsNil)
+		conn := mylog.Check2(net.FileConn(f))
+
 		defer conn.Close()
 		defer f.Close()
 
 		// handshake
-		_, err = conn.Write([]byte(`{"jsonrpc":"2.0","method":"org.debian.apt.hooks.hello","id":0,"params":{"versions":["0.1"]}}` + "\n\n"))
-		c.Assert(err, IsNil)
+		_ = mylog.Check2(conn.Write([]byte(`{"jsonrpc":"2.0","method":"org.debian.apt.hooks.hello","id":0,"params":{"versions":["0.1"]}}` + "\n\n")))
+
 
 		// reply from snap
 		r := bufio.NewReader(conn)
-		buf, _, err := r.ReadLine()
-		c.Assert(err, IsNil)
+		buf, _ := mylog.Check3(r.ReadLine())
+
 		c.Assert(string(buf), Equals, `{"jsonrpc":"2.0","id":0,"result":{"version":"0.1"}}`)
 		// plus empty line
-		buf, _, err = r.ReadLine()
-		c.Assert(err, IsNil)
+		buf, _ = mylog.Check3(r.ReadLine())
+
 		c.Assert(string(buf), Equals, ``)
 
 		// payload
-		_, err = conn.Write([]byte(`{"jsonrpc":"2.0","method":"org.debian.apt.hooks.install.fail","params":{"command":"install","search-terms":["aws-cli"],"unknown-packages":["hello"],"packages":[]}}` + "\n\n"))
-		c.Assert(err, IsNil)
+		_ = mylog.Check2(conn.Write([]byte(`{"jsonrpc":"2.0","method":"org.debian.apt.hooks.install.fail","params":{"command":"install","search-terms":["aws-cli"],"unknown-packages":["hello"],"packages":[]}}` + "\n\n")))
+
 
 		// bye
-		_, err = conn.Write([]byte(`{"jsonrpc":"2.0","method":"org.debian.apt.hooks.bye","params":{}}` + "\n\n"))
-		c.Assert(err, IsNil)
+		_ = mylog.Check2(conn.Write([]byte(`{"jsonrpc":"2.0","method":"org.debian.apt.hooks.bye","params":{}}` + "\n\n")))
+
 
 		done <- true
 	}()
 
 	cmd := snap.CmdAdviseSnap()
 	cmd.FromApt = true
-	err = cmd.Execute(nil)
-	c.Assert(err, IsNil)
+	mylog.Check(cmd.Execute(nil))
+
 	c.Assert(s.Stdout(), Equals, `
 No apt package "hello", but there is a snap with that name.
 Try "snap install hello"
@@ -260,6 +261,6 @@ func (s *SnapSuite) TestReadRpc(c *C) {
 	// all apt rpc ends with \n\n
 	rpc = rpc + "\n\n"
 	// this can be parsed without errors
-	_, err := snap.ReadRpc(bufio.NewReader(bytes.NewBufferString(rpc)))
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(snap.ReadRpc(bufio.NewReader(bytes.NewBufferString(rpc))))
+
 }

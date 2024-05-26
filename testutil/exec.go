@@ -30,13 +30,14 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"gopkg.in/check.v1"
 )
 
 var shellcheckPath string
 
 func init() {
-	if p, err := exec.LookPath("shellcheck"); err == nil {
+	if p := mylog.Check2(exec.LookPath("shellcheck")); err == nil {
 		shellcheckPath = p
 	}
 }
@@ -73,7 +74,7 @@ func maybeShellcheck(c *check.C, script string, wholeScript io.Reader) {
 	cmd := exec.Command(shellcheckPath, "-s", "bash", "-")
 	cmd.Env = pristineEnv
 	cmd.Stdin = wholeScript
-	out, err := cmd.CombinedOutput()
+	out := mylog.Check2(cmd.CombinedOutput())
 	c.Check(err, check.IsNil, check.Commentf("shellcheck failed:\n%s", string(out)))
 }
 
@@ -115,10 +116,8 @@ func mockCommand(c *check.C, basename, script, template string) *MockCmd {
 	var newpath string
 	if filepath.IsAbs(basename) {
 		binDir = filepath.Dir(basename)
-		err := os.MkdirAll(binDir, 0755)
-		if err != nil {
-			panic(fmt.Sprintf("cannot create the directory for mocked command %q: %v", basename, err))
-		}
+		mylog.Check(os.MkdirAll(binDir, 0755))
+
 		exeFile = basename
 		logFile = basename + ".log"
 	} else {
@@ -128,10 +127,7 @@ func mockCommand(c *check.C, basename, script, template string) *MockCmd {
 		newpath = binDir + ":" + os.Getenv("PATH")
 	}
 	fmt.Fprintf(&wholeScript, template, logFile, script)
-	err := os.WriteFile(exeFile, wholeScript.Bytes(), 0700)
-	if err != nil {
-		panic(err)
-	}
+	mylog.Check(os.WriteFile(exeFile, wholeScript.Bytes(), 0700))
 
 	maybeShellcheck(c, script, &wholeScript)
 
@@ -165,10 +161,8 @@ func MockLockedCommand(c *check.C, basename, script string) *MockCmd {
 // Useful when you want to check the ordering of things.
 func (cmd *MockCmd) Also(basename, script string) *MockCmd {
 	exeFile := path.Join(cmd.binDir, basename)
-	err := os.WriteFile(exeFile, []byte(fmt.Sprintf(scriptTpl, cmd.logFile, script)), 0700)
-	if err != nil {
-		panic(err)
-	}
+	mylog.Check(os.WriteFile(exeFile, []byte(fmt.Sprintf(scriptTpl, cmd.logFile, script)), 0700))
+
 	return &MockCmd{binDir: cmd.binDir, exeFile: exeFile, logFile: cmd.logFile}
 }
 
@@ -192,13 +186,11 @@ func (cmd *MockCmd) Restore() {
 //	    {"cmd", "arg1", "arg2"}, // second invocation of "cmd"
 //	}
 func (cmd *MockCmd) Calls() [][]string {
-	raw, err := os.ReadFile(cmd.logFile)
+	raw := mylog.Check2(os.ReadFile(cmd.logFile))
 	if os.IsNotExist(err) {
 		return nil
 	}
-	if err != nil {
-		panic(err)
-	}
+
 	logContent := strings.TrimSuffix(string(raw), "\000")
 
 	allCalls := [][]string{}
@@ -212,12 +204,9 @@ func (cmd *MockCmd) Calls() [][]string {
 
 // ForgetCalls purges the list of calls made so far
 func (cmd *MockCmd) ForgetCalls() {
-	err := os.Remove(cmd.logFile)
+	mylog.Check(os.Remove(cmd.logFile))
 	if os.IsNotExist(err) {
 		return
-	}
-	if err != nil {
-		panic(err)
 	}
 }
 

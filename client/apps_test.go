@@ -28,6 +28,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 )
 
@@ -39,11 +40,10 @@ func mksvc(snap, app string) *client.AppInfo {
 		Active:  true,
 		Enabled: true,
 	}
-
 }
 
 func testClientApps(cs *clientSuite, c *check.C) ([]*client.AppInfo, error) {
-	services, err := cs.cli.Apps([]string{"foo", "bar"}, client.AppOptions{})
+	services := mylog.Check2(cs.cli.Apps([]string{"foo", "bar"}, client.AppOptions{}))
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/apps")
 	c.Check(cs.req.Method, check.Equals, "GET")
 	query := cs.req.URL.Query()
@@ -54,7 +54,7 @@ func testClientApps(cs *clientSuite, c *check.C) ([]*client.AppInfo, error) {
 }
 
 func testClientAppsService(cs *clientSuite, c *check.C) ([]*client.AppInfo, error) {
-	services, err := cs.cli.Apps([]string{"foo", "bar"}, client.AppOptions{Service: true})
+	services := mylog.Check2(cs.cli.Apps([]string{"foo", "bar"}, client.AppOptions{Service: true}))
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/apps")
 	c.Check(cs.req.Method, check.Equals, "GET")
 	query := cs.req.URL.Query()
@@ -66,7 +66,7 @@ func testClientAppsService(cs *clientSuite, c *check.C) ([]*client.AppInfo, erro
 }
 
 func testClientAppsGlobal(cs *clientSuite, c *check.C) ([]*client.AppInfo, error) {
-	services, err := cs.cli.Apps([]string{"foo", "bar"}, client.AppOptions{Global: true})
+	services := mylog.Check2(cs.cli.Apps([]string{"foo", "bar"}, client.AppOptions{Global: true}))
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/apps")
 	c.Check(cs.req.Method, check.Equals, "GET")
 	query := cs.req.URL.Query()
@@ -81,11 +81,11 @@ var appcheckers = []func(*clientSuite, *check.C) ([]*client.AppInfo, error){test
 
 func (cs *clientSuite) TestClientServiceGetHappy(c *check.C) {
 	expected := []*client.AppInfo{mksvc("foo", "foo"), mksvc("bar", "bar1")}
-	buf, err := json.Marshal(expected)
+	buf := mylog.Check2(json.Marshal(expected))
 	c.Assert(err, check.IsNil)
 	cs.rsp = fmt.Sprintf(`{"type": "sync", "result": %s}`, buf)
 	for _, chkr := range appcheckers {
-		actual, err := chkr(cs, c)
+		actual := mylog.Check2(chkr(cs, c))
 		c.Assert(err, check.IsNil)
 		c.Check(actual, check.DeepEquals, expected)
 	}
@@ -94,7 +94,7 @@ func (cs *clientSuite) TestClientServiceGetHappy(c *check.C) {
 func (cs *clientSuite) TestClientServiceGetSad(c *check.C) {
 	cs.err = fmt.Errorf("xyzzy")
 	for _, chkr := range appcheckers {
-		actual, err := chkr(cs, c)
+		actual := mylog.Check2(chkr(cs, c))
 		c.Assert(err, check.ErrorMatches, ".* xyzzy")
 		c.Check(actual, check.HasLen, 0)
 	}
@@ -106,18 +106,18 @@ func (cs *clientSuite) TestClientAppCommonID(c *check.C) {
 		Name:     "foo",
 		CommonID: "org.foo",
 	}}
-	buf, err := json.Marshal(expected)
+	buf := mylog.Check2(json.Marshal(expected))
 	c.Assert(err, check.IsNil)
 	cs.rsp = fmt.Sprintf(`{"type": "sync", "result": %s}`, buf)
 	for _, chkr := range appcheckers {
-		actual, err := chkr(cs, c)
+		actual := mylog.Check2(chkr(cs, c))
 		c.Assert(err, check.IsNil)
 		c.Check(actual, check.DeepEquals, expected)
 	}
 }
 
 func testClientLogs(cs *clientSuite, c *check.C) ([]client.Log, error) {
-	ch, err := cs.cli.Logs([]string{"foo", "bar"}, client.LogOptions{N: -1, Follow: false})
+	ch := mylog.Check2(cs.cli.Logs([]string{"foo", "bar"}, client.LogOptions{N: -1, Follow: false}))
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/logs")
 	c.Check(cs.req.Method, check.Equals, "GET")
 
@@ -146,7 +146,7 @@ func (cs *clientSuite) TestClientLogsHappy(c *check.C) {
 {"message":"bye"}
 `[1:] // remove the first \n
 
-	logs, err := testClientLogs(cs, c)
+	logs := mylog.Check2(testClientLogs(cs, c))
 	c.Assert(err, check.IsNil)
 	c.Check(logs, check.DeepEquals, []client.Log{{Message: "hello"}, {Message: "bye"}})
 }
@@ -159,14 +159,14 @@ and that was a regular line. The next one is empty, despite having a RS (and the
 
 
 `
-	logs, err := testClientLogs(cs, c)
+	logs := mylog.Check2(testClientLogs(cs, c))
 	c.Assert(err, check.IsNil)
 	c.Check(logs, check.DeepEquals, []client.Log{{Message: "hello"}, {Message: "bye"}})
 }
 
 func (cs *clientSuite) TestClientLogsSad(c *check.C) {
 	cs.err = fmt.Errorf("xyzzy")
-	actual, err := testClientLogs(cs, c)
+	actual := mylog.Check2(testClientLogs(cs, c))
 	c.Assert(err, check.ErrorMatches, ".* xyzzy")
 	c.Check(actual, check.HasLen, 0)
 }
@@ -181,7 +181,7 @@ func (cs *clientSuite) TestClientLogsOpts(c *check.C) {
 			for _, follow := range []bool{true, false} {
 				iterdesc := check.Commentf("names: %v, n: %v, follow: %v", names, n, follow)
 
-				ch, err := cs.cli.Logs(names, client.LogOptions{N: n, Follow: follow})
+				ch := mylog.Check2(cs.cli.Logs(names, client.LogOptions{N: n, Follow: follow}))
 				c.Check(err, check.IsNil, iterdesc)
 				c.Check(cs.req.URL.Path, check.Equals, "/v2/logs", iterdesc)
 				c.Check(cs.req.Method, check.Equals, "GET", iterdesc)
@@ -225,7 +225,7 @@ func (cs *clientSuite) TestClientLogsOpts(c *check.C) {
 func (cs *clientSuite) TestClientLogsNotFound(c *check.C) {
 	cs.rsp = `{"type":"error","status-code":404,"status":"Not Found","result":{"message":"snap \"foo\" not found","kind":"snap-not-found","value":"foo"}}`
 	cs.status = 404
-	actual, err := testClientLogs(cs, c)
+	actual := mylog.Check2(testClientLogs(cs, c))
 	c.Assert(err, check.ErrorMatches, `snap "foo" not found`)
 	c.Check(actual, check.HasLen, 0)
 }
@@ -326,7 +326,7 @@ func (cs *clientSuite) TestClientServiceStart(c *check.C) {
 
 	for _, sc := range tests {
 		comment := check.Commentf("{%q; %q; %q; %#v}", sc.names, sc.scope, sc.users, sc.opts)
-		id, err := cs.cli.Start(sc.names, sc.scope, sc.users, sc.opts)
+		id := mylog.Check2(cs.cli.Start(sc.names, sc.scope, sc.users, sc.opts))
 		if len(sc.names) == 0 {
 			c.Check(id, check.Equals, "", comment)
 			c.Check(err, check.Equals, client.ErrNoNames, comment)
@@ -413,7 +413,7 @@ func (cs *clientSuite) TestClientServiceStop(c *check.C) {
 
 	for _, sc := range tests {
 		comment := check.Commentf("{%q; %q; %q; %#v}", sc.names, sc.scope, sc.users, sc.opts)
-		id, err := cs.cli.Stop(sc.names, sc.scope, sc.users, sc.opts)
+		id := mylog.Check2(cs.cli.Stop(sc.names, sc.scope, sc.users, sc.opts))
 		if len(sc.names) == 0 {
 			c.Check(id, check.Equals, "", comment)
 			c.Check(err, check.Equals, client.ErrNoNames, comment)
@@ -500,7 +500,7 @@ func (cs *clientSuite) TestClientServiceRestart(c *check.C) {
 
 	for _, sc := range tests {
 		comment := check.Commentf("{%q; %q; %q; %#v}", sc.names, sc.scope, sc.users, sc.opts)
-		id, err := cs.cli.Restart(sc.names, sc.scope, sc.users, sc.opts)
+		id := mylog.Check2(cs.cli.Restart(sc.names, sc.scope, sc.users, sc.opts))
 		if len(sc.names) == 0 {
 			c.Check(id, check.Equals, "", comment)
 			c.Check(err, check.Equals, client.ErrNoNames, comment)
@@ -533,7 +533,7 @@ func (s *userSelectorSuite) TestUserScopeMarshalListOfUsernames(c *check.C) {
 	us := client.UserSelector{
 		Names: []string{"user", "user-two"},
 	}
-	b, err := json.Marshal(us)
+	b := mylog.Check2(json.Marshal(us))
 	c.Assert(err, check.IsNil)
 	c.Check(string(b), check.Equals, `["user","user-two"]`)
 }
@@ -542,7 +542,7 @@ func (s *userSelectorSuite) TestUserScopeMarshalStringKeyword(c *check.C) {
 	us := client.UserSelector{
 		Selector: client.UserSelectionSelf,
 	}
-	b, err := json.Marshal(us)
+	b := mylog.Check2(json.Marshal(us))
 	c.Assert(err, check.IsNil)
 	c.Check(string(b), check.Equals, `"self"`)
 }
@@ -551,21 +551,21 @@ func (s *userSelectorSuite) TestUserScopeMarshalInvalidSelector(c *check.C) {
 	us := client.UserSelector{
 		Selector: 42,
 	}
-	_, err := json.Marshal(us)
+	_ := mylog.Check2(json.Marshal(us))
 	c.Assert(err, check.ErrorMatches, `.* internal error: unsupported selector 42 specified`)
 }
 
 func (s *userSelectorSuite) TestUserScopeUnmarshalInvalidType(c *check.C) {
 	const userScopeJson = `1`
 	var us client.UserSelector
-	err := json.Unmarshal([]byte(userScopeJson), &us)
+	mylog.Check(json.Unmarshal([]byte(userScopeJson), &us))
 	c.Assert(err, check.ErrorMatches, `cannot unmarshal, expected a string or a list of strings`)
 }
 
 func (s *userSelectorSuite) TestUserScopeUnmarshalListOfUsernames(c *check.C) {
 	const userScopeJson = `["my-user","other-user"]`
 	var us client.UserSelector
-	err := json.Unmarshal([]byte(userScopeJson), &us)
+	mylog.Check(json.Unmarshal([]byte(userScopeJson), &us))
 	c.Assert(err, check.IsNil)
 	c.Check(us, check.DeepEquals, client.UserSelector{
 		Names: []string{"my-user", "other-user"},
@@ -575,7 +575,7 @@ func (s *userSelectorSuite) TestUserScopeUnmarshalListOfUsernames(c *check.C) {
 func (s *userSelectorSuite) TestUserScopeUnmarshalStringKeyword(c *check.C) {
 	const userScopeJson = `"all"`
 	var us client.UserSelector
-	err := json.Unmarshal([]byte(userScopeJson), &us)
+	mylog.Check(json.Unmarshal([]byte(userScopeJson), &us))
 	c.Assert(err, check.IsNil)
 	c.Check(us, check.DeepEquals, client.UserSelector{
 		Selector: client.UserSelectionAll,
@@ -587,10 +587,10 @@ func (s *userSelectorSuite) TestUserListCurrentUser(c *check.C) {
 		Selector: client.UserSelectionSelf,
 	}
 
-	users, err := us.UserList(&user.User{
+	users := mylog.Check2(us.UserList(&user.User{
 		Uid:      "1000",
 		Username: "my-user",
-	})
+	}))
 	c.Assert(err, check.IsNil)
 	c.Check(users, check.DeepEquals, []string{"my-user"})
 }
@@ -600,7 +600,7 @@ func (s *userSelectorSuite) TestUserListCurrentUserInvalidNil(c *check.C) {
 		Selector: client.UserSelectionSelf,
 	}
 
-	users, err := us.UserList(nil)
+	users := mylog.Check2(us.UserList(nil))
 	c.Assert(err, check.ErrorMatches, `internal error: for "self" the current user must be provided`)
 	c.Check(users, check.IsNil)
 }
@@ -610,10 +610,10 @@ func (s *userSelectorSuite) TestUserListCurrentUserNotValidForRoot(c *check.C) {
 		Selector: client.UserSelectionSelf,
 	}
 
-	users, err := us.UserList(&user.User{
+	users := mylog.Check2(us.UserList(&user.User{
 		Uid:      "0",
 		Username: "my-user",
-	})
+	}))
 	c.Assert(err, check.ErrorMatches, `cannot use "self" for root user`)
 	c.Check(users, check.IsNil)
 }
@@ -623,7 +623,7 @@ func (s *userSelectorSuite) TestUserListInvalidSelector(c *check.C) {
 		Selector: 42,
 	}
 
-	users, err := us.UserList(nil)
+	users := mylog.Check2(us.UserList(nil))
 	c.Assert(err, check.ErrorMatches, `internal error: unsupported selector 42 specified`)
 	c.Check(users, check.IsNil)
 }
@@ -633,7 +633,7 @@ func (s *userSelectorSuite) TestUserListUsersReturnsEmpty(c *check.C) {
 		Selector: client.UserSelectionAll,
 	}
 
-	users, err := us.UserList(nil)
+	users := mylog.Check2(us.UserList(nil))
 	c.Assert(err, check.IsNil)
 	c.Check(users, check.IsNil)
 }
@@ -645,21 +645,21 @@ var _ = check.Suite(&scopeSelectorSuite{})
 func (s *scopeSelectorSuite) TestScopeUnmarshalInvalidType(c *check.C) {
 	const userScopeJson = `1`
 	var us client.ScopeSelector
-	err := json.Unmarshal([]byte(userScopeJson), &us)
+	mylog.Check(json.Unmarshal([]byte(userScopeJson), &us))
 	c.Assert(err, check.ErrorMatches, `cannot unmarshal, expected a list of strings`)
 }
 
 func (s *scopeSelectorSuite) TestScopeUnmarshalInvalidKeyword(c *check.C) {
 	const userScopeJson = `["all"]`
 	var us client.ScopeSelector
-	err := json.Unmarshal([]byte(userScopeJson), &us)
+	mylog.Check(json.Unmarshal([]byte(userScopeJson), &us))
 	c.Assert(err, check.ErrorMatches, `cannot unmarshal, expected one of: "system", "user"`)
 }
 
 func (s *scopeSelectorSuite) TestScopeUnmarshalNone(c *check.C) {
 	const userScopeJson = `[]`
 	var us client.ScopeSelector
-	err := json.Unmarshal([]byte(userScopeJson), &us)
+	mylog.Check(json.Unmarshal([]byte(userScopeJson), &us))
 	c.Assert(err, check.IsNil)
 	c.Check(us, check.DeepEquals, client.ScopeSelector{})
 }
@@ -667,7 +667,7 @@ func (s *scopeSelectorSuite) TestScopeUnmarshalNone(c *check.C) {
 func (s *scopeSelectorSuite) TestScopeUnmarshalSystem(c *check.C) {
 	const userScopeJson = `["system"]`
 	var us client.ScopeSelector
-	err := json.Unmarshal([]byte(userScopeJson), &us)
+	mylog.Check(json.Unmarshal([]byte(userScopeJson), &us))
 	c.Assert(err, check.IsNil)
 	c.Check(us, check.DeepEquals, client.ScopeSelector{"system"})
 }
@@ -675,7 +675,7 @@ func (s *scopeSelectorSuite) TestScopeUnmarshalSystem(c *check.C) {
 func (s *scopeSelectorSuite) TestScopeUnmarshalUser(c *check.C) {
 	const userScopeJson = `["user"]`
 	var us client.ScopeSelector
-	err := json.Unmarshal([]byte(userScopeJson), &us)
+	mylog.Check(json.Unmarshal([]byte(userScopeJson), &us))
 	c.Assert(err, check.IsNil)
 	c.Check(us, check.DeepEquals, client.ScopeSelector{"user"})
 }

@@ -29,6 +29,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -49,9 +50,8 @@ type storeCtxSuite struct {
 var _ = Suite(&storeCtxSuite{})
 
 func (s *storeCtxSuite) SetupSuite(c *C) {
-	var err error
-	s.defURL, err = url.Parse("http://store")
-	c.Assert(err, IsNil)
+	s.defURL = mylog.Check2(url.Parse("http://store"))
+
 }
 
 func (s *storeCtxSuite) SetUpTest(c *C) {
@@ -71,11 +71,11 @@ func (s *storeCtxSuite) TestUpdateUserAuth(c *C) {
 	newDischarges := []string{"updated-discharge"}
 
 	storeCtx := storecontext.New(s.state, &testBackend{nothing: true})
-	user, err := storeCtx.UpdateUserAuth(user, newDischarges)
+	user := mylog.Check2(storeCtx.UpdateUserAuth(user, newDischarges))
 	c.Check(err, IsNil)
 
 	s.state.Lock()
-	userFromState, err := auth.User(s.state, user.ID)
+	userFromState := mylog.Check2(auth.User(s.state, user.ID))
 	s.state.Unlock()
 	c.Check(err, IsNil)
 	c.Check(userFromState, DeepEquals, user)
@@ -94,19 +94,19 @@ func (s *storeCtxSuite) TestUpdateUserAuthOtherUpdate(c *C) {
 	otherUpdateUser := *user
 	otherUpdateUser.Macaroon = "macaroon2"
 	otherUpdateUser.StoreDischarges = []string{"other-discharges"}
-	err := auth.UpdateUser(s.state, &otherUpdateUser)
+	mylog.Check(auth.UpdateUser(s.state, &otherUpdateUser))
 	s.state.Unlock()
-	c.Assert(err, IsNil)
+
 
 	newDischarges := []string{"updated-discharge"}
 
 	storeCtx := storecontext.New(s.state, &testBackend{nothing: true})
 	// last discharges win
-	curUser, err := storeCtx.UpdateUserAuth(user, newDischarges)
-	c.Assert(err, IsNil)
+	curUser := mylog.Check2(storeCtx.UpdateUserAuth(user, newDischarges))
+
 
 	s.state.Lock()
-	userFromState, err := auth.User(s.state, user.ID)
+	userFromState := mylog.Check2(auth.User(s.state, user.ID))
 	s.state.Unlock()
 	c.Check(err, IsNil)
 	c.Check(userFromState, DeepEquals, curUser)
@@ -138,14 +138,14 @@ func (s *storeCtxSuite) TestUpdateUserAuthInvalid(c *C) {
 	}
 
 	storeCtx := storecontext.New(s.state, &testBackend{nothing: true})
-	_, err := storeCtx.UpdateUserAuth(user, nil)
+	_ := mylog.Check2(storeCtx.UpdateUserAuth(user, nil))
 	c.Assert(err, Equals, auth.ErrInvalidUser)
 }
 
 func (s *storeCtxSuite) TestDeviceForNonExistent(c *C) {
 	storeCtx := storecontext.New(s.state, &testBackend{nothing: true})
 
-	device, err := storeCtx.Device()
+	device := mylog.Check2(storeCtx.Device())
 	c.Check(err, IsNil)
 	c.Check(device, DeepEquals, &auth.DeviceState{})
 }
@@ -154,7 +154,7 @@ func (s *storeCtxSuite) TestDevice(c *C) {
 	device := &auth.DeviceState{Brand: "some-brand"}
 	storeCtx := storecontext.New(s.state, &testBackend{device: device})
 
-	deviceFromState, err := storeCtx.Device()
+	deviceFromState := mylog.Check2(storeCtx.Device())
 	c.Check(err, IsNil)
 	c.Check(deviceFromState, DeepEquals, device)
 }
@@ -164,10 +164,10 @@ func (s *storeCtxSuite) TestUpdateDeviceAuth(c *C) {
 	storeCtx := storecontext.New(s.state, &testBackend{device: device})
 
 	sessionMacaroon := "the-device-macaroon"
-	device, err := storeCtx.UpdateDeviceAuth(device, sessionMacaroon)
+	device := mylog.Check2(storeCtx.UpdateDeviceAuth(device, sessionMacaroon))
 	c.Check(err, IsNil)
 
-	deviceFromState, err := storeCtx.Device()
+	deviceFromState := mylog.Check2(storeCtx.Device())
 	c.Check(err, IsNil)
 	c.Check(deviceFromState, DeepEquals, device)
 	c.Check(deviceFromState.SessionMacaroon, DeepEquals, sessionMacaroon)
@@ -187,8 +187,8 @@ func (s *storeCtxSuite) TestUpdateDeviceAuthOtherUpdate(c *C) {
 	// the result of a remodeling (though unlikely as we will mostly avoid
 	// other store operations during it)
 	sessionMacaroon := "the-device-macaroon"
-	curDevice, err := storeCtx.UpdateDeviceAuth(device, sessionMacaroon)
-	c.Assert(err, IsNil)
+	curDevice := mylog.Check2(storeCtx.UpdateDeviceAuth(device, sessionMacaroon))
+
 
 	c.Check(b.device, DeepEquals, curDevice)
 	c.Check(curDevice, DeepEquals, &auth.DeviceState{
@@ -200,12 +200,12 @@ func (s *storeCtxSuite) TestUpdateDeviceAuthOtherUpdate(c *C) {
 func (s *storeCtxSuite) TestStoreParamsFallback(c *C) {
 	storeCtx := storecontext.New(s.state, &testBackend{nothing: true})
 
-	storeID, err := storeCtx.StoreID("store-id")
-	c.Assert(err, IsNil)
+	storeID := mylog.Check2(storeCtx.StoreID("store-id"))
+
 	c.Check(storeID, Equals, "store-id")
 
-	proxyStoreID, proxyStoreURL, err := storeCtx.ProxyStoreParams(s.defURL)
-	c.Assert(err, IsNil)
+	proxyStoreID, proxyStoreURL := mylog.Check3(storeCtx.ProxyStoreParams(s.defURL))
+
 	c.Check(proxyStoreID, Equals, "")
 	c.Check(proxyStoreURL, Equals, s.defURL)
 }
@@ -215,16 +215,16 @@ func (s *storeCtxSuite) TestStoreIDFromEnv(c *C) {
 
 	os.Setenv("UBUNTU_STORE_ID", "env-store-id")
 	defer os.Unsetenv("UBUNTU_STORE_ID")
-	storeID, err := storeCtx.StoreID("")
-	c.Assert(err, IsNil)
+	storeID := mylog.Check2(storeCtx.StoreID(""))
+
 	c.Check(storeID, Equals, "env-store-id")
 }
 
 func (s *storeCtxSuite) TestCloudInfo(c *C) {
 	storeCtx := storecontext.New(s.state, &testBackend{nothing: true})
 
-	cloud, err := storeCtx.CloudInfo()
-	c.Assert(err, IsNil)
+	cloud := mylog.Check2(storeCtx.CloudInfo())
+
 	c.Check(cloud, IsNil)
 
 	cloudInfo := &auth.CloudInfo{
@@ -239,9 +239,9 @@ func (s *storeCtxSuite) TestCloudInfo(c *C) {
 	tr.Commit()
 
 	s.state.Unlock()
-	cloud, err = storeCtx.CloudInfo()
+	cloud = mylog.Check2(storeCtx.CloudInfo())
 	s.state.Lock()
-	c.Assert(err, IsNil)
+
 	c.Check(cloud, DeepEquals, cloudInfo)
 }
 
@@ -327,10 +327,8 @@ func (b *testBackend) Model() (*asserts.Model, error) {
 	if b.nothing {
 		return nil, state.ErrNoState
 	}
-	a, err := asserts.Decode([]byte(exModel))
-	if err != nil {
-		return nil, err
-	}
+	a := mylog.Check2(asserts.Decode([]byte(exModel)))
+
 	return a.(*asserts.Model), nil
 }
 
@@ -338,10 +336,8 @@ func (b *testBackend) Serial() (*asserts.Serial, error) {
 	if b.nothing || b.noSerial {
 		return nil, state.ErrNoState
 	}
-	a, err := asserts.Decode([]byte(exSerial))
-	if err != nil {
-		return nil, err
-	}
+	a := mylog.Check2(asserts.Decode([]byte(exSerial)))
+
 	return a.(*asserts.Serial), nil
 }
 
@@ -352,10 +348,7 @@ func (b *testBackend) SignDeviceSessionRequest(serial *asserts.Serial, nonce str
 
 	ex := strings.Replace(exDeviceSessionRequest, "@NONCE@", nonce, 1)
 	ex = strings.Replace(ex, "@TS@", time.Now().Format(time.RFC3339), 1)
-	aReq, err := asserts.Decode([]byte(ex))
-	if err != nil {
-		return nil, err
-	}
+	aReq := mylog.Check2(asserts.Decode([]byte(ex)))
 
 	return aReq.(*asserts.DeviceSessionRequest), nil
 }
@@ -364,10 +357,8 @@ func (b *testBackend) ProxyStore() (*asserts.Store, error) {
 	if b.nothing {
 		return nil, state.ErrNoState
 	}
-	a, err := asserts.Decode([]byte(exStore))
-	if err != nil {
-		return nil, err
-	}
+	a := mylog.Check2(asserts.Decode([]byte(exStore)))
+
 	return a.(*asserts.Store), nil
 }
 
@@ -383,15 +374,15 @@ func (s *storeCtxSuite) TestMissingDeviceAssertions(c *C) {
 	// no assertions in state
 	storeCtx := storecontext.New(s.state, &testBackend{nothing: true})
 
-	_, err := storeCtx.DeviceSessionRequestParams("NONCE")
+	_ := mylog.Check2(storeCtx.DeviceSessionRequestParams("NONCE"))
 	c.Check(err, Equals, store.ErrNoSerial)
 
-	storeID, err := storeCtx.StoreID("fallback")
-	c.Assert(err, IsNil)
+	storeID := mylog.Check2(storeCtx.StoreID("fallback"))
+
 	c.Check(storeID, Equals, "fallback")
 
-	proxyStoreID, proxyStoreURL, err := storeCtx.ProxyStoreParams(s.defURL)
-	c.Assert(err, IsNil)
+	proxyStoreID, proxyStoreURL := mylog.Check3(storeCtx.ProxyStoreParams(s.defURL))
+
 	c.Check(proxyStoreID, Equals, "")
 	c.Check(proxyStoreURL, Equals, s.defURL)
 }
@@ -400,8 +391,8 @@ func (s *storeCtxSuite) TestWithDeviceAssertions(c *C) {
 	// having assertions in state
 	storeCtx := storecontext.New(s.state, &testBackend{})
 
-	params, err := storeCtx.DeviceSessionRequestParams("NONCE-1")
-	c.Assert(err, IsNil)
+	params := mylog.Check2(storeCtx.DeviceSessionRequestParams("NONCE-1"))
+
 
 	req := params.EncodedRequest()
 	serial := params.EncodedSerial()
@@ -418,23 +409,23 @@ func (s *storeCtxSuite) TestWithDeviceAssertions(c *C) {
 	// going to be ignored
 	os.Setenv("UBUNTU_STORE_ID", "env-store-id")
 	defer os.Unsetenv("UBUNTU_STORE_ID")
-	storeID, err := storeCtx.StoreID("store-id")
-	c.Assert(err, IsNil)
+	storeID := mylog.Check2(storeCtx.StoreID("store-id"))
+
 	c.Check(storeID, Equals, "my-brand-store-id")
 
 	// proxy store
-	fooURL, err := url.Parse("http://foo.internal")
-	c.Assert(err, IsNil)
+	fooURL := mylog.Check2(url.Parse("http://foo.internal"))
 
-	proxyStoreID, proxyStoreURL, err := storeCtx.ProxyStoreParams(s.defURL)
-	c.Assert(err, IsNil)
+
+	proxyStoreID, proxyStoreURL := mylog.Check3(storeCtx.ProxyStoreParams(s.defURL))
+
 	c.Check(proxyStoreID, Equals, "foo")
 	c.Check(proxyStoreURL, DeepEquals, fooURL)
 }
 
 func (s *storeCtxSuite) TestWithDeviceAssertionsGenericClassicModel(c *C) {
-	model, err := asserts.Decode([]byte(exModel))
-	c.Assert(err, IsNil)
+	model := mylog.Check2(asserts.Decode([]byte(exModel)))
+
 	// (ab)use the example as the generic classic model
 	r := sysdb.MockGenericClassicModel(model.(*asserts.Model))
 	defer r()
@@ -444,14 +435,14 @@ func (s *storeCtxSuite) TestWithDeviceAssertionsGenericClassicModel(c *C) {
 	// for the generic classic model we continue to consider the env var
 	os.Setenv("UBUNTU_STORE_ID", "env-store-id")
 	defer os.Unsetenv("UBUNTU_STORE_ID")
-	storeID, err := storeCtx.StoreID("store-id")
-	c.Assert(err, IsNil)
+	storeID := mylog.Check2(storeCtx.StoreID("store-id"))
+
 	c.Check(storeID, Equals, "env-store-id")
 }
 
 func (s *storeCtxSuite) TestWithDeviceAssertionsGenericClassicModelNoEnvVar(c *C) {
-	model, err := asserts.Decode([]byte(exModel))
-	c.Assert(err, IsNil)
+	model := mylog.Check2(asserts.Decode([]byte(exModel)))
+
 	// (ab)use the example as the generic classic model
 	r := sysdb.MockGenericClassicModel(model.(*asserts.Model))
 	defer r()
@@ -461,8 +452,8 @@ func (s *storeCtxSuite) TestWithDeviceAssertionsGenericClassicModelNoEnvVar(c *C
 	// for the generic classic model we continue to consider the env var
 	// but when the env var is unset we don't do anything wrong.
 	os.Unsetenv("UBUNTU_STORE_ID")
-	storeID, err := storeCtx.StoreID("store-id")
-	c.Assert(err, IsNil)
+	storeID := mylog.Check2(storeCtx.StoreID("store-id"))
+
 	c.Check(storeID, Equals, "store-id")
 }
 
@@ -478,20 +469,20 @@ func (s *storeCtxSuite) TestComposable(c *C) {
 
 	storeCtx := storecontext.NewComposed(s.state, b, bNoSerial, b)
 
-	params, err := storeCtx.DeviceSessionRequestParams("NONCE-1")
-	c.Assert(err, IsNil)
+	params := mylog.Check2(storeCtx.DeviceSessionRequestParams("NONCE-1"))
+
 
 	req := params.EncodedRequest()
 	c.Check(strings.Contains(req, "nonce: NONCE-1\n"), Equals, true)
 	c.Check(strings.Contains(req, "serial: 9999\n"), Equals, true)
 
 	storeCtx = storecontext.NewComposed(s.state, bNoSerial, b, b)
-	params, err = storeCtx.DeviceSessionRequestParams("NONCE-1")
+	params = mylog.Check2(storeCtx.DeviceSessionRequestParams("NONCE-1"))
 	c.Assert(err, Equals, store.ErrNoSerial)
 
 	srqs := testFailingDeviceSessionRequestSigner{}
 	storeCtx = storecontext.NewComposed(s.state, b, srqs, b)
-	params, err = storeCtx.DeviceSessionRequestParams("NONCE-1")
+	params = mylog.Check2(storeCtx.DeviceSessionRequestParams("NONCE-1"))
 	c.Assert(err, ErrorMatches, "boom")
 }
 
@@ -502,7 +493,7 @@ func (s *storeCtxSuite) TestStoreOffline(c *C) {
 
 	storeCtx := storecontext.NewComposed(s.state, b, b, b)
 
-	offline, err := storeCtx.StoreOffline()
+	offline := mylog.Check2(storeCtx.StoreOffline())
 	c.Check(err, IsNil)
 	c.Check(offline, Equals, true)
 }

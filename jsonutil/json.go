@@ -26,6 +26,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -34,9 +35,8 @@ import (
 func DecodeWithNumber(r io.Reader, value interface{}) error {
 	dec := json.NewDecoder(r)
 	dec.UseNumber()
-	if err := dec.Decode(&value); err != nil {
-		return err
-	}
+	mylog.Check(dec.Decode(&value))
+
 	if dec.More() {
 		return fmt.Errorf("cannot parse json value")
 	}

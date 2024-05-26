@@ -22,6 +22,7 @@ package timeutil
 import (
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/godbus/dbus"
 
 	"github.com/snapcore/snapd/dbusutil"
@@ -51,19 +52,11 @@ func (e NoTimedate1Error) Error() string {
 // systemd-timedated.
 func IsNTPSynchronized() (bool, error) {
 	// shared connection, no need to close
-	conn, err := dbusutil.SystemBus()
-	if err != nil {
-		return false, NoTimedate1Error{err}
-	}
+	conn := mylog.Check2(dbusutil.SystemBus())
 
 	tdObj := conn.Object("org.freedesktop.timedate1", "/org/freedesktop/timedate1")
-	dbusV, err := tdObj.GetProperty("org.freedesktop.timedate1.NTPSynchronized")
-	if err != nil {
-		if isNoServiceOrUnknownPropertyDbusErr(err) {
-			return false, NoTimedate1Error{err}
-		}
-		return false, fmt.Errorf("cannot check for ntp sync: %v", err)
-	}
+	dbusV := mylog.Check2(tdObj.GetProperty("org.freedesktop.timedate1.NTPSynchronized"))
+
 	v, ok := dbusV.Value().(bool)
 	if !ok {
 		return false, fmt.Errorf("timedate1 returned invalid value for NTPSynchronized property: %s", dbusV)

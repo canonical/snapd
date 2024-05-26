@@ -28,6 +28,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	snapset "github.com/snapcore/snapd/cmd/snap"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
@@ -48,7 +49,7 @@ func (s *snapSetSuite) SetUpTest(c *check.C) {
 
 func (s *snapSetSuite) TestInvalidSetParameters(c *check.C) {
 	invalidParameters := []string{"set", "snap-name", "key", "value"}
-	_, err := snapset.Parser(snapset.Client()).ParseArgs(invalidParameters)
+	_ := mylog.Check2(snapset.Parser(snapset.Client()).ParseArgs(invalidParameters))
 	c.Check(err, check.ErrorMatches, ".*invalid configuration:.*(want key=value).*")
 	c.Check(s.setConfApiCalls, check.Equals, 0)
 }
@@ -58,7 +59,7 @@ func (s *snapSetSuite) TestSnapSetIntegrationString(c *check.C) {
 	s.mockSetConfigServer(c, "value")
 
 	// Set a config value for the active snap
-	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "snapname", "key=value"})
+	_ := mylog.Check2(snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "snapname", "key=value"}))
 	c.Assert(err, check.IsNil)
 	c.Check(s.setConfApiCalls, check.Equals, 1)
 }
@@ -68,7 +69,7 @@ func (s *snapSetSuite) TestSnapSetIntegrationNumber(c *check.C) {
 	s.mockSetConfigServer(c, json.Number("1.2"))
 
 	// Set a config value for the active snap
-	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "snapname", "key=1.2"})
+	_ := mylog.Check2(snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "snapname", "key=1.2"}))
 	c.Assert(err, check.IsNil)
 	c.Check(s.setConfApiCalls, check.Equals, 1)
 }
@@ -78,7 +79,7 @@ func (s *snapSetSuite) TestSnapSetIntegrationBigInt(c *check.C) {
 	s.mockSetConfigServer(c, json.Number("1234567890"))
 
 	// Set a config value for the active snap
-	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "snapname", "key=1234567890"})
+	_ := mylog.Check2(snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "snapname", "key=1234567890"}))
 	c.Assert(err, check.IsNil)
 	c.Check(s.setConfApiCalls, check.Equals, 1)
 }
@@ -88,7 +89,7 @@ func (s *snapSetSuite) TestSnapSetIntegrationJson(c *check.C) {
 	s.mockSetConfigServer(c, map[string]interface{}{"subkey": "value"})
 
 	// Set a config value for the active snap
-	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "snapname", `key={"subkey":"value"}`})
+	_ := mylog.Check2(snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "snapname", `key={"subkey":"value"}`}))
 	c.Assert(err, check.IsNil)
 	c.Check(s.setConfApiCalls, check.Equals, 1)
 }
@@ -98,7 +99,7 @@ func (s *snapSetSuite) TestSnapSetIntegrationUnsetWithExclamationMark(c *check.C
 	s.mockSetConfigServer(c, nil)
 
 	// Unset config value via exclamation mark
-	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "snapname", "key!"})
+	_ := mylog.Check2(snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "snapname", "key!"}))
 	c.Assert(err, check.IsNil)
 	c.Check(s.setConfApiCalls, check.Equals, 1)
 }
@@ -108,7 +109,7 @@ func (s *snapSetSuite) TestSnapSetIntegrationStringWithExclamationMark(c *check.
 	s.mockSetConfigServer(c, "value!")
 
 	// Set a config value ending with exclamation mark
-	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "snapname", "key=value!"})
+	_ := mylog.Check2(snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "snapname", "key=value!"}))
 	c.Assert(err, check.IsNil)
 	c.Check(s.setConfApiCalls, check.Equals, 1)
 }
@@ -117,18 +118,18 @@ func (s *snapSetSuite) TestSnapSetParseStrictJSON(c *check.C) {
 	// mock server
 	s.mockSetConfigServer(c, map[string]interface{}{"a": "b", "c": json.Number("1"), "d": map[string]interface{}{"e": "f"}})
 
-	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "snapname", "-t", `key={"a":"b", "c":1, "d": {"e": "f"}}`})
+	_ := mylog.Check2(snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "snapname", "-t", `key={"a":"b", "c":1, "d": {"e": "f"}}`}))
 	c.Assert(err, check.IsNil)
 	c.Check(s.setConfApiCalls, check.Equals, 1)
 }
 
 func (s *snapSetSuite) TestSnapSetFailParsingWithStrictJSON(c *check.C) {
-	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "snapname", "-t", `key=notJSON`})
+	_ := mylog.Check2(snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "snapname", "-t", `key=notJSON`}))
 	c.Assert(err, check.ErrorMatches, "failed to parse JSON:.*")
 }
 
 func (s *snapSetSuite) TestSnapSetFailOnStrictJSONAndString(c *check.C) {
-	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "snapname", "-t", "-s", "key={}"})
+	_ := mylog.Check2(snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "snapname", "-t", "-s", "key={}"}))
 	c.Assert(err, check.ErrorMatches, "cannot use -t and -s together")
 }
 
@@ -137,7 +138,7 @@ func (s *snapSetSuite) TestSnapSetAsString(c *check.C) {
 	value := `{"a":"b", "c":1}`
 	s.mockSetConfigServer(c, value)
 
-	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "snapname", "-s", fmt.Sprintf("key=%s", value)})
+	_ := mylog.Check2(snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "snapname", "-s", fmt.Sprintf("key=%s", value)}))
 	c.Assert(err, check.IsNil)
 	c.Check(s.setConfApiCalls, check.Equals, 1)
 }
@@ -208,7 +209,7 @@ func (s *aspectsSuite) mockAspectServer(c *check.C, expectedRequest string, nowa
 			c.Check(r.URL.Path, check.Equals, "/v2/aspects/foo/bar/baz")
 			c.Check(r.URL.Query(), check.HasLen, 0)
 
-			raw, err := io.ReadAll(r.Body)
+			raw := mylog.Check2(io.ReadAll(r.Body))
 			c.Check(err, check.IsNil)
 			c.Check(string(raw), check.Equals, expectedRequest)
 
@@ -216,7 +217,7 @@ func (s *aspectsSuite) mockAspectServer(c *check.C, expectedRequest string, nowa
 			fmt.Fprintln(w, asyncResp)
 		case 1:
 			if nowait {
-				err := fmt.Errorf("expected only one request, on %d (%v)", reqs+1, r)
+				mylog.Check(fmt.Errorf("expected only one request, on %d (%v)", reqs+1, r))
 				fail(w, err)
 				return
 			}
@@ -225,7 +226,7 @@ func (s *aspectsSuite) mockAspectServer(c *check.C, expectedRequest string, nowa
 			c.Check(r.URL.Path, check.Equals, "/v2/changes/123")
 			fmt.Fprintf(w, `{"type": "sync", "result": {"ready": true, "status": "Done"}}\n`)
 		default:
-			err := fmt.Errorf("expected to get 2 requests, now on %d (%v)", reqs+1, r)
+			mylog.Check(fmt.Errorf("expected to get 2 requests, now on %d (%v)", reqs+1, r))
 			fail(w, err)
 		}
 
@@ -239,7 +240,7 @@ func (s *aspectsSuite) TestAspectSet(c *check.C) {
 
 	s.mockAspectServer(c, `{"abc":"cba"}`, false)
 
-	rest, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "foo/bar/baz", `abc="cba"`})
+	rest := mylog.Check2(snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "foo/bar/baz", `abc="cba"`}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.HasLen, 0)
 
@@ -253,7 +254,7 @@ func (s *aspectsSuite) TestAspectSetMany(c *check.C) {
 
 	s.mockAspectServer(c, `{"abc":{"foo":1},"xyz":true}`, false)
 
-	rest, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "foo/bar/baz", `abc={"foo":1}`, "xyz=true"})
+	rest := mylog.Check2(snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "foo/bar/baz", `abc={"foo":1}`, "xyz=true"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.HasLen, 0)
 
@@ -265,7 +266,7 @@ func (s *aspectsSuite) TestAspectSetInvalidAspectID(c *check.C) {
 	restore := s.mockAspectsFlag(c)
 	defer restore()
 
-	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "foo//bar", "foo=bar"})
+	_ := mylog.Check2(snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "foo//bar", "foo=bar"}))
 	c.Assert(err, check.NotNil)
 	c.Check(err.Error(), check.Equals, "aspect identifier must conform to format: <account-id>/<bundle>/<aspect>")
 }
@@ -276,7 +277,7 @@ func (s *aspectsSuite) TestAspectSetNoWait(c *check.C) {
 
 	s.mockAspectServer(c, `{"abc":1}`, true)
 
-	rest, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "--no-wait", "foo/bar/baz", "abc=1"})
+	rest := mylog.Check2(snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "--no-wait", "foo/bar/baz", "abc=1"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.HasLen, 0)
 
@@ -289,7 +290,7 @@ func (s *aspectsSuite) TestAspectSetDisabledFlag(c *check.C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch reqs {
 		default:
-			err := fmt.Errorf("expected to get no requests, now on %d (%v)", reqs+1, r)
+			mylog.Check(fmt.Errorf("expected to get no requests, now on %d (%v)", reqs+1, r))
 			w.WriteHeader(500)
 			fmt.Fprintf(w, `{"type": "error", "result": {"message": %q}}`, err)
 			c.Error(err)
@@ -298,7 +299,7 @@ func (s *aspectsSuite) TestAspectSetDisabledFlag(c *check.C) {
 		reqs++
 	})
 
-	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "foo/bar/baz", "abc=1"})
+	_ := mylog.Check2(snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "foo/bar/baz", "abc=1"}))
 	c.Assert(err, check.ErrorMatches, "aspect-based configuration is disabled: you must set 'experimental.aspects-configuration' to true")
 }
 
@@ -308,6 +309,6 @@ func (s *aspectsSuite) TestAspectSetExclamationMark(c *check.C) {
 
 	s.mockAspectServer(c, `{"abc":null}`, false)
 
-	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "foo/bar/baz", "abc!"})
+	_ := mylog.Check2(snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "foo/bar/baz", "abc!"}))
 	c.Assert(err, check.IsNil)
 }

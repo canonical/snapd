@@ -29,6 +29,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/bootloader/assets"
 )
 
@@ -37,13 +38,8 @@ var errNoEdition = errors.New("no edition")
 // editionFromDiskConfigAsset extracts the edition information from a boot
 // config asset on disk.
 func editionFromDiskConfigAsset(p string) (uint, error) {
-	f, err := os.Open(p)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return 0, errNoEdition
-		}
-		return 0, fmt.Errorf("cannot load existing config asset: %v", err)
-	}
+	f := mylog.Check2(os.Open(p))
+
 	defer f.Close()
 	return editionFromConfigAsset(f)
 }
@@ -54,9 +50,9 @@ const editionHeader = "# Snapd-Boot-Config-Edition: "
 func editionFromConfigAsset(asset io.Reader) (uint, error) {
 	scanner := bufio.NewScanner(asset)
 	if !scanner.Scan() {
-		err := fmt.Errorf("cannot read config asset: unexpected EOF")
+		mylog.Check(fmt.Errorf("cannot read config asset: unexpected EOF"))
 		if sErr := scanner.Err(); sErr != nil {
-			err = fmt.Errorf("cannot read config asset: %v", err)
+			mylog.Check(fmt.Errorf("cannot read config asset: %v", err))
 		}
 		return 0, err
 	}
@@ -68,10 +64,8 @@ func editionFromConfigAsset(asset io.Reader) (uint, error) {
 
 	editionStr := line[len(editionHeader):]
 	editionStr = strings.TrimSpace(editionStr)
-	edition, err := strconv.ParseUint(editionStr, 10, 32)
-	if err != nil {
-		return 0, fmt.Errorf("cannot parse asset edition: %v", err)
-	}
+	edition := mylog.Check2(strconv.ParseUint(editionStr, 10, 32))
+
 	return uint(edition), nil
 }
 
@@ -101,7 +95,7 @@ func (g *configAsset) Raw() []byte {
 }
 
 func configAssetFrom(data []byte) (*configAsset, error) {
-	edition, err := editionFromConfigAsset(bytes.NewReader(data))
+	edition := mylog.Check2(editionFromConfigAsset(bytes.NewReader(data)))
 	if err != nil && err != errNoEdition {
 		return nil, err
 	}

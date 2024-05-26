@@ -30,6 +30,7 @@ import (
 	. "gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
@@ -163,8 +164,8 @@ func (s *deviceMgrGadgetSuite) mockModeenvForMode(c *C, mode string) {
 			"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
 		},
 	}
-	err := modeenv.WriteTo("")
-	c.Assert(err, IsNil)
+	mylog.Check(modeenv.WriteTo(""))
+
 }
 
 func (s *deviceMgrGadgetSuite) setupModelWithGadget(c *C, gadget string) {
@@ -199,7 +200,8 @@ func (s *deviceMgrGadgetSuite) setupUC20ModelWithGadget(c *C, gadget, grade stri
 				"id":              "pcididididididididididididididid",
 				"type":            "gadget",
 				"default-channel": "20",
-			}},
+			},
+		},
 	})
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand:  "canonical",
@@ -306,8 +308,8 @@ func (s *deviceMgrGadgetSuite) testUpdateGadgetSimple(c *C, grade string, encryp
 	restore := devicestate.MockGadgetUpdate(func(model gadget.Model, current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, observer gadget.ContentUpdateObserver) error {
 		updateCalled = true
 		passedRollbackDir = path
-		st, err := os.Stat(path)
-		c.Assert(err, IsNil)
+		st := mylog.Check2(os.Stat(path))
+
 		m := st.Mode()
 		c.Assert(m.IsDir(), Equals, true)
 		c.Check(m.Perm(), Equals, os.FileMode(0750))
@@ -324,17 +326,17 @@ func (s *deviceMgrGadgetSuite) testUpdateGadgetSimple(c *C, grade string, encryp
 			// check that observer is behaving correctly with
 			// respect to trusted and managed assets
 			targetDir := c.MkDir()
-			act, err := observer.Observe(gadget.ContentUpdate, gadget.SystemSeed, targetDir, "managed-asset",
-				&gadget.ContentChange{After: filepath.Join(update.RootDir, "managed-asset")})
-			c.Assert(err, IsNil)
+			act := mylog.Check2(observer.Observe(gadget.ContentUpdate, gadget.SystemSeed, targetDir, "managed-asset",
+				&gadget.ContentChange{After: filepath.Join(update.RootDir, "managed-asset")}))
+
 			c.Check(act, Equals, gadget.ChangeIgnore)
-			act, err = observer.Observe(gadget.ContentUpdate, gadget.SystemSeed, targetDir, "trusted-asset",
-				&gadget.ContentChange{After: filepath.Join(update.RootDir, "trusted-asset")})
-			c.Assert(err, IsNil)
+			act = mylog.Check2(observer.Observe(gadget.ContentUpdate, gadget.SystemSeed, targetDir, "trusted-asset",
+				&gadget.ContentChange{After: filepath.Join(update.RootDir, "trusted-asset")}))
+
 			c.Check(act, Equals, gadget.ChangeApply)
 			// check that the behavior is correct
-			m, err := boot.ReadModeenv("")
-			c.Assert(err, IsNil)
+			m := mylog.Check2(boot.ReadModeenv(""))
+
 			if encryption {
 				// with encryption enabled, trusted asset would
 				// have been picked up by the the observer and
@@ -359,15 +361,15 @@ func (s *deviceMgrGadgetSuite) testUpdateGadgetSimple(c *C, grade string, encryp
 			Mode:           "run",
 			RecoverySystem: "",
 		}
-		err := modeenv.WriteTo("")
-		c.Assert(err, IsNil)
+		mylog.Check(modeenv.WriteTo(""))
+
 
 		if encryption {
 			// sealed keys stamp
 			stamp := filepath.Join(dirs.SnapFDEDir, "sealed-keys")
 			c.Assert(os.MkdirAll(filepath.Dir(stamp), 0755), IsNil)
-			err = os.WriteFile(stamp, nil, 0644)
-			c.Assert(err, IsNil)
+			mylog.Check(os.WriteFile(stamp, nil, 0644))
+
 		}
 	}
 	devicestate.SetBootOkRan(s.mgr, true)
@@ -490,8 +492,8 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreRollbackDirCreateFailed(c *
 	chg, t := s.setupGadgetUpdate(c, "", gadgetYaml, "", isClassic)
 
 	rollbackDir := filepath.Join(dirs.SnapRollbackDir, "foo-gadget_34")
-	err := os.MkdirAll(dirs.SnapRollbackDir, 0000)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(dirs.SnapRollbackDir, 0000))
+
 
 	s.state.Lock()
 	s.state.Set("seeded", true)
@@ -702,7 +704,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCallsToGadget(c *C) {
 		Revision: snap.R(34),
 		SnapID:   "foo-id",
 	}
-	var gadgetCurrentYaml = `
+	gadgetCurrentYaml := `
 volumes:
   pc:
     bootloader: grub
@@ -713,7 +715,7 @@ volumes:
          content:
             - image: content.img
 `
-	var gadgetUpdateYaml = `
+	gadgetUpdateYaml := `
 volumes:
   pc:
     bootloader: grub
@@ -833,7 +835,7 @@ func (s *deviceMgrGadgetSuite) TestCurrentAndUpdateInfo(c *C) {
 	})
 	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: model}
 
-	current, err := devicestate.CurrentGadgetData(s.state, deviceCtx)
+	current := mylog.Check2(devicestate.CurrentGadgetData(s.state, deviceCtx))
 	c.Assert(current, IsNil)
 	c.Check(err, IsNil)
 
@@ -847,7 +849,7 @@ func (s *deviceMgrGadgetSuite) TestCurrentAndUpdateInfo(c *C) {
 	// mock current first, but gadget.yaml is still missing
 	ci := snaptest.MockSnapWithFiles(c, snapYaml, siCurrent, nil)
 
-	current, err = devicestate.CurrentGadgetData(s.state, deviceCtx)
+	current = mylog.Check2(devicestate.CurrentGadgetData(s.state, deviceCtx))
 
 	c.Assert(current, IsNil)
 	c.Assert(err, ErrorMatches, "cannot read current gadget snap details: .*/33/meta/gadget.yaml: no such file or directory")
@@ -855,8 +857,8 @@ func (s *deviceMgrGadgetSuite) TestCurrentAndUpdateInfo(c *C) {
 	// drop gadget.yaml for current snap
 	os.WriteFile(filepath.Join(ci.MountDir(), "meta/gadget.yaml"), []byte(gadgetYaml), 0644)
 
-	current, err = devicestate.CurrentGadgetData(s.state, deviceCtx)
-	c.Assert(err, IsNil)
+	current = mylog.Check2(devicestate.CurrentGadgetData(s.state, deviceCtx))
+
 	c.Assert(current, DeepEquals, &gadget.GadgetData{
 		Info: &gadget.Info{
 			Volumes: map[string]*gadget.Volume{
@@ -871,17 +873,17 @@ func (s *deviceMgrGadgetSuite) TestCurrentAndUpdateInfo(c *C) {
 	})
 
 	// pending update
-	update, err := devicestate.PendingGadgetInfo(snapsup, deviceCtx)
+	update := mylog.Check2(devicestate.PendingGadgetInfo(snapsup, deviceCtx))
 	c.Assert(update, IsNil)
 	c.Assert(err, ErrorMatches, "cannot read candidate gadget snap details: cannot find installed snap .* .*/34/meta/snap.yaml")
 
 	ui := snaptest.MockSnapWithFiles(c, snapYaml, si, nil)
 
-	update, err = devicestate.PendingGadgetInfo(snapsup, deviceCtx)
+	update = mylog.Check2(devicestate.PendingGadgetInfo(snapsup, deviceCtx))
 	c.Assert(update, IsNil)
 	c.Assert(err, ErrorMatches, "cannot read candidate snap gadget metadata: .*/34/meta/gadget.yaml: no such file or directory")
 
-	var updateGadgetYaml = `
+	updateGadgetYaml := `
 volumes:
   pc:
     bootloader: grub
@@ -891,8 +893,8 @@ volumes:
 	// drop gadget.yaml for update snap
 	os.WriteFile(filepath.Join(ui.MountDir(), "meta/gadget.yaml"), []byte(updateGadgetYaml), 0644)
 
-	update, err = devicestate.PendingGadgetInfo(snapsup, deviceCtx)
-	c.Assert(err, IsNil)
+	update = mylog.Check2(devicestate.PendingGadgetInfo(snapsup, deviceCtx))
+
 	c.Assert(update, DeepEquals, &gadget.GadgetData{
 		Info: &gadget.Info{
 			Volumes: map[string]*gadget.Volume{
@@ -1302,16 +1304,16 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineWithExistingArgs(c *C)
 
 	// update the modeenv to have the gadget arguments included to mimic the
 	// state we would have in the system
-	m, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	m := mylog.Check2(boot.ReadModeenv(""))
+
 	m.CurrentKernelCommandLines = []string{
 		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 args from old gadget",
 	}
 	c.Assert(m.Write(), IsNil)
-	err = s.managedbl.SetBootVars(map[string]string{
+	mylog.Check(s.managedbl.SetBootVars(map[string]string{
 		"snapd_extra_cmdline_args": "args from old gadget",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	s.managedbl.SetBootVarsCalls = 0
 
 	s.state.Unlock()
@@ -1332,16 +1334,16 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineWithExistingArgs(c *C)
 		},
 		"", "Updated kernel command line", opts)
 
-	m, err = boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	m = mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check([]string(m.CurrentKernelCommandLines), DeepEquals, []string{
 		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 args from old gadget",
 		// gadget arguments are picked up for the candidate command line
 		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 args from updated gadget",
 	})
 	c.Check(s.managedbl.SetBootVarsCalls, Equals, 1)
-	vars, err := s.managedbl.GetBootVars("snapd_extra_cmdline_args", "snapd_full_cmdline_args")
-	c.Assert(err, IsNil)
+	vars := mylog.Check2(s.managedbl.GetBootVars("snapd_extra_cmdline_args", "snapd_full_cmdline_args"))
+
 	// bootenv was cleared
 	c.Assert(vars, DeepEquals, map[string]string{
 		"snapd_extra_cmdline_args": "",
@@ -1360,16 +1362,16 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineClassicWithModesWithEx
 
 	// update the modeenv to have the gadget arguments included to mimic the
 	// state we would have in the system
-	m, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	m := mylog.Check2(boot.ReadModeenv(""))
+
 	m.CurrentKernelCommandLines = []string{
 		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 args from old gadget",
 	}
 	c.Assert(m.Write(), IsNil)
-	err = s.managedbl.SetBootVars(map[string]string{
+	mylog.Check(s.managedbl.SetBootVars(map[string]string{
 		"snapd_extra_cmdline_args": "args from old gadget",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	s.managedbl.SetBootVarsCalls = 0
 
 	s.state.Unlock()
@@ -1390,16 +1392,16 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineClassicWithModesWithEx
 		},
 		"", "Updated kernel command line", opts)
 
-	m, err = boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	m = mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check([]string(m.CurrentKernelCommandLines), DeepEquals, []string{
 		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 args from old gadget",
 		// gadget arguments are picked up for the candidate command line
 		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 args from updated gadget",
 	})
 	c.Check(s.managedbl.SetBootVarsCalls, Equals, 1)
-	vars, err := s.managedbl.GetBootVars("snapd_extra_cmdline_args", "snapd_full_cmdline_args")
-	c.Assert(err, IsNil)
+	vars := mylog.Check2(s.managedbl.GetBootVars("snapd_extra_cmdline_args", "snapd_full_cmdline_args"))
+
 	// bootenv was cleared
 	c.Assert(vars, DeepEquals, map[string]string{
 		"snapd_extra_cmdline_args": "",
@@ -1417,16 +1419,16 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineWithNewArgs(c *C) {
 	s.state.Set("seeded", true)
 
 	// mimic system state
-	m, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	m := mylog.Check2(boot.ReadModeenv(""))
+
 	m.CurrentKernelCommandLines = []string{
 		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
 	}
 	c.Assert(m.Write(), IsNil)
-	err = s.managedbl.SetBootVars(map[string]string{
+	mylog.Check(s.managedbl.SetBootVars(map[string]string{
 		"snapd_extra_cmdline_args": "",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	s.managedbl.SetBootVarsCalls = 0
 
 	s.state.Unlock()
@@ -1447,16 +1449,16 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineWithNewArgs(c *C) {
 		},
 		"", "Updated kernel command line", opts)
 
-	m, err = boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	m = mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check([]string(m.CurrentKernelCommandLines), DeepEquals, []string{
 		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
 		// gadget arguments are picked up for the candidate command line
 		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 args from new gadget",
 	})
 	c.Check(s.managedbl.SetBootVarsCalls, Equals, 1)
-	vars, err := s.managedbl.GetBootVars("snapd_extra_cmdline_args", "snapd_full_cmdline_args")
-	c.Assert(err, IsNil)
+	vars := mylog.Check2(s.managedbl.GetBootVars("snapd_extra_cmdline_args", "snapd_full_cmdline_args"))
+
 	// bootenv was cleared
 	c.Assert(vars, DeepEquals, map[string]string{
 		"snapd_extra_cmdline_args": "",
@@ -1474,17 +1476,17 @@ func (s *deviceMgrGadgetSuite) testUpdateGadgetCommandlineWithNewAppendedArgs(c 
 	s.state.Set("seeded", true)
 
 	// mimic system state
-	m, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	m := mylog.Check2(boot.ReadModeenv(""))
+
 	m.CurrentKernelCommandLines = []string{
 		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
 	}
 	c.Assert(m.Write(), IsNil)
-	err = s.managedbl.SetBootVars(map[string]string{
+	mylog.Check(s.managedbl.SetBootVars(map[string]string{
 		"snapd_extra_cmdline_args": "",
 		"snapd_full_cmdline_args":  "console=ttyS0 console=tty1 panic=-1",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	s.managedbl.SetBootVarsCalls = 0
 
 	s.state.Unlock()
@@ -1511,17 +1513,19 @@ kernel-cmdline:
 	// real gadget update and to/from files are the same.
 	s.testGadgetCommandlineUpdateRun(c, files, files, "", expLog, opts)
 
-	m, err = boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	m = mylog.Check2(boot.ReadModeenv(""))
+
 
 	// gadget arguments are picked up for the candidate command line
 	oldCmdline := "snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1"
 	newCmdline := strutil.JoinNonEmpty([]string{
 		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
-		opts.allowedCmdline}, " ")
+		opts.allowedCmdline,
+	}, " ")
 	if opts.grade == "dangerous" {
 		newCmdline = strutil.JoinNonEmpty([]string{
-			newCmdline, opts.cmdlineAppendDanger}, " ")
+			newCmdline, opts.cmdlineAppendDanger,
+		}, " ")
 	}
 	expCmdlines := []string{oldCmdline}
 	numSetBootVarsCalls := 0
@@ -1533,8 +1537,8 @@ kernel-cmdline:
 
 	c.Check([]string(m.CurrentKernelCommandLines), DeepEquals, expCmdlines)
 	c.Check(s.managedbl.SetBootVarsCalls, Equals, numSetBootVarsCalls)
-	vars, err := s.managedbl.GetBootVars("snapd_extra_cmdline_args", "snapd_full_cmdline_args")
-	c.Assert(err, IsNil)
+	vars := mylog.Check2(s.managedbl.GetBootVars("snapd_extra_cmdline_args", "snapd_full_cmdline_args"))
+
 	// bootenv was cleared
 	extraArgs := opts.allowedCmdline
 	if opts.grade == "dangerous" {
@@ -1626,16 +1630,16 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineDroppedArgs(c *C) {
 	s.state.Set("seeded", true)
 
 	// mimic system state
-	m, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	m := mylog.Check2(boot.ReadModeenv(""))
+
 	m.CurrentKernelCommandLines = []string{
 		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 args from gadget",
 	}
 	c.Assert(m.Write(), IsNil)
-	err = s.managedbl.SetBootVars(map[string]string{
+	mylog.Check(s.managedbl.SetBootVars(map[string]string{
 		"snapd_extra_cmdline_args": "args from gadget",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	s.managedbl.SetBootVarsCalls = 0
 
 	s.state.Unlock()
@@ -1657,16 +1661,16 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineDroppedArgs(c *C) {
 		},
 		"", "Updated kernel command line", opts)
 
-	m, err = boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	m = mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check([]string(m.CurrentKernelCommandLines), DeepEquals, []string{
 		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 args from gadget",
 		// this is the expected new command line
 		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
 	})
 	c.Check(s.managedbl.SetBootVarsCalls, Equals, 1)
-	vars, err := s.managedbl.GetBootVars("snapd_extra_cmdline_args")
-	c.Assert(err, IsNil)
+	vars := mylog.Check2(s.managedbl.GetBootVars("snapd_extra_cmdline_args"))
+
 	// bootenv was cleared
 	c.Assert(vars, DeepEquals, map[string]string{
 		"snapd_extra_cmdline_args": "",
@@ -1683,16 +1687,16 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineUnchanged(c *C) {
 	s.state.Set("seeded", true)
 
 	// mimic system state
-	m, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	m := mylog.Check2(boot.ReadModeenv(""))
+
 	m.CurrentKernelCommandLines = []string{
 		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 args from gadget",
 	}
 	c.Assert(m.Write(), IsNil)
-	err = s.managedbl.SetBootVars(map[string]string{
+	mylog.Check(s.managedbl.SetBootVars(map[string]string{
 		"snapd_extra_cmdline_args": "args from gadget",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	s.managedbl.SetBootVarsCalls = 0
 
 	s.state.Unlock()
@@ -1709,8 +1713,8 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineUnchanged(c *C) {
 	}
 	s.testGadgetCommandlineUpdateRun(c, sameFiles, sameFiles, "", "", opts)
 
-	m, err = boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	m = mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check([]string(m.CurrentKernelCommandLines), DeepEquals, []string{
 		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 args from gadget",
 	})
@@ -1756,17 +1760,16 @@ func (s *deviceMgrGadgetSuite) TestGadgetCommandlineUpdateUndo(c *C) {
 	s.state.Set("seeded", true)
 
 	// mimic system state
-	m, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	m := mylog.Check2(boot.ReadModeenv(""))
+
 	m.CurrentKernelCommandLines = []string{
 		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 args from old gadget",
 	}
 	c.Assert(m.Write(), IsNil)
-
-	err = s.managedbl.SetBootVars(map[string]string{
+	mylog.Check(s.managedbl.SetBootVars(map[string]string{
 		"snapd_extra_cmdline_args": "args from old gadget",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	s.managedbl.SetBootVarsCalls = 0
 
 	currentSi := &snap.SideInfo{
@@ -1814,8 +1817,8 @@ func (s *deviceMgrGadgetSuite) TestGadgetCommandlineUpdateUndo(c *C) {
 		// we want to observe restarts and mangle modeenv like
 		// devicemanager boot handling would do
 		restartCount++
-		m, err := boot.ReadModeenv("")
-		c.Assert(err, IsNil)
+		m := mylog.Check2(boot.ReadModeenv(""))
+
 		switch restartCount {
 		case 1:
 			c.Check([]string(m.CurrentKernelCommandLines), DeepEquals, []string{
@@ -1866,8 +1869,8 @@ func (s *deviceMgrGadgetSuite) TestGadgetCommandlineUpdateUndo(c *C) {
 	// update was applied and then undone
 	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow, restart.RestartSystemNow})
 	c.Check(restartCount, Equals, 2)
-	vars, err := s.managedbl.GetBootVars("snapd_extra_cmdline_args", "snapd_full_cmdline_args")
-	c.Assert(err, IsNil)
+	vars := mylog.Check2(s.managedbl.GetBootVars("snapd_extra_cmdline_args", "snapd_full_cmdline_args"))
+
 	c.Assert(vars, DeepEquals, map[string]string{
 		"snapd_extra_cmdline_args": "",
 		"snapd_full_cmdline_args":  "console=ttyS0 console=tty1 panic=-1 args from old gadget",
@@ -1888,17 +1891,16 @@ func (s *deviceMgrGadgetSuite) TestGadgetCommandlineClassicWithModesUpdateUndo(c
 	s.state.Set("seeded", true)
 
 	// mimic system state
-	m, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	m := mylog.Check2(boot.ReadModeenv(""))
+
 	m.CurrentKernelCommandLines = []string{
 		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 args from old gadget",
 	}
 	c.Assert(m.Write(), IsNil)
-
-	err = s.managedbl.SetBootVars(map[string]string{
+	mylog.Check(s.managedbl.SetBootVars(map[string]string{
 		"snapd_extra_cmdline_args": "args from old gadget",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	s.managedbl.SetBootVarsCalls = 0
 
 	currentSi := &snap.SideInfo{
@@ -1925,8 +1927,8 @@ func (s *deviceMgrGadgetSuite) TestGadgetCommandlineClassicWithModesUpdateUndo(c
 
 	erroringHandler := func(task *state.Task, _ *tomb.Tomb) error {
 		// We simulate the modeenv we would have after a reboot
-		m, err := boot.ReadModeenv("")
-		c.Assert(err, IsNil)
+		m := mylog.Check2(boot.ReadModeenv(""))
+
 		m.CurrentKernelCommandLines = []string{"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 args from new gadget"}
 		c.Assert(m.Write(), IsNil)
 		return errors.New("error out")
@@ -1985,8 +1987,8 @@ func (s *deviceMgrGadgetSuite) TestGadgetCommandlineClassicWithModesUpdateUndo(c
 	// update was applied and then undone, but no automatic restarts happened
 	c.Check(s.restartRequests, HasLen, 0)
 	c.Check(restartCount, Equals, 0)
-	vars, err := s.managedbl.GetBootVars("snapd_extra_cmdline_args", "snapd_full_cmdline_args")
-	c.Assert(err, IsNil)
+	vars := mylog.Check2(s.managedbl.GetBootVars("snapd_extra_cmdline_args", "snapd_full_cmdline_args"))
+
 	c.Assert(vars, DeepEquals, map[string]string{
 		"snapd_extra_cmdline_args": "",
 		"snapd_full_cmdline_args":  "console=ttyS0 console=tty1 panic=-1 args from old gadget",
@@ -2007,17 +2009,16 @@ func (s *deviceMgrGadgetSuite) TestGadgetCommandlineUpdateNoChangeNoRebootsUndo(
 	s.state.Set("seeded", true)
 
 	// mimic system state
-	m, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	m := mylog.Check2(boot.ReadModeenv(""))
+
 	m.CurrentKernelCommandLines = []string{
 		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 args from gadget",
 	}
 	c.Assert(m.Write(), IsNil)
-
-	err = s.managedbl.SetBootVars(map[string]string{
+	mylog.Check(s.managedbl.SetBootVars(map[string]string{
 		"snapd_extra_cmdline_args": "args from gadget",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	s.managedbl.SetBootVarsCalls = 0
 
 	currentSi := &snap.SideInfo{
@@ -2065,8 +2066,8 @@ func (s *deviceMgrGadgetSuite) TestGadgetCommandlineUpdateNoChangeNoRebootsUndo(
 	c.Check(s.restartRequests, HasLen, 0)
 	c.Check(s.managedbl.SetBootVarsCalls, Equals, 0)
 	// modeenv wasn't changed
-	m, err = boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	m = mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check([]string(m.CurrentKernelCommandLines), DeepEquals, []string{
 		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 args from gadget",
 	})
@@ -2081,17 +2082,17 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineWithFullArgs(c *C) {
 	s.state.Set("seeded", true)
 
 	// mimic system state
-	m, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	m := mylog.Check2(boot.ReadModeenv(""))
+
 	m.CurrentKernelCommandLines = []string{
 		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 extra args",
 	}
 	c.Assert(m.Write(), IsNil)
-	err = s.managedbl.SetBootVars(map[string]string{
+	mylog.Check(s.managedbl.SetBootVars(map[string]string{
 		"snapd_extra_cmdline_args": "extra args",
 		"snapd_full_cmdline_args":  "",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	s.managedbl.SetBootVarsCalls = 0
 
 	s.state.Unlock()
@@ -2112,16 +2113,16 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineWithFullArgs(c *C) {
 		},
 		"", "Updated kernel command line", opts)
 
-	m, err = boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	m = mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check([]string(m.CurrentKernelCommandLines), DeepEquals, []string{
 		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 extra args",
 		// gadget arguments are picked up for the candidate command line
 		"snapd_recovery_mode=run full args",
 	})
 	c.Check(s.managedbl.SetBootVarsCalls, Equals, 1)
-	vars, err := s.managedbl.GetBootVars("snapd_extra_cmdline_args", "snapd_full_cmdline_args")
-	c.Assert(err, IsNil)
+	vars := mylog.Check2(s.managedbl.GetBootVars("snapd_extra_cmdline_args", "snapd_full_cmdline_args"))
+
 	// bootenv was cleared
 	c.Assert(vars, DeepEquals, map[string]string{
 		"snapd_extra_cmdline_args": "",

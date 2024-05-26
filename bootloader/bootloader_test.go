@@ -28,6 +28,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/assets"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
@@ -78,8 +79,8 @@ func (s *bootenvTestSuite) TestForceBootloader(c *C) {
 	bootloader.Force(s.b)
 	defer bootloader.Force(nil)
 
-	got, err := bootloader.Find("", nil)
-	c.Assert(err, IsNil)
+	got := mylog.Check2(bootloader.Find("", nil))
+
 	c.Check(got, Equals, s.b)
 }
 
@@ -88,13 +89,13 @@ func (s *bootenvTestSuite) TestForceBootloaderError(c *C) {
 	bootloader.ForceError(myErr)
 	defer bootloader.ForceError(nil)
 
-	got, err := bootloader.Find("", nil)
+	got := mylog.Check2(bootloader.Find("", nil))
 	c.Assert(err, Equals, myErr)
 	c.Check(got, IsNil)
 }
 
 func (s *bootenvTestSuite) TestInstallBootloaderConfigNoConfig(c *C) {
-	err := bootloader.InstallBootConfig(c.MkDir(), s.rootdir, nil)
+	mylog.Check(bootloader.InstallBootConfig(c.MkDir(), s.rootdir, nil))
 	c.Assert(err, ErrorMatches, `cannot find boot config in.*`)
 }
 
@@ -125,9 +126,9 @@ func (s *bootenvTestSuite) TestInstallBootloaderConfigFromGadget(c *C) {
 	} {
 		mockGadgetDir := c.MkDir()
 		rootDir := c.MkDir()
-		err := os.WriteFile(filepath.Join(mockGadgetDir, t.gadgetFile), t.gadgetFileContent, 0644)
-		c.Assert(err, IsNil)
-		err = bootloader.InstallBootConfig(mockGadgetDir, rootDir, t.opts)
+		mylog.Check(os.WriteFile(filepath.Join(mockGadgetDir, t.gadgetFile), t.gadgetFileContent, 0644))
+
+		mylog.Check(bootloader.InstallBootConfig(mockGadgetDir, rootDir, t.opts))
 		c.Assert(err, IsNil, Commentf("installing boot config for %s", t.name))
 		fn := filepath.Join(rootDir, t.sysFile)
 		c.Assert(fn, testutil.FilePresent, Commentf("boot config missing for %s at %s", t.name, t.sysFile))
@@ -218,13 +219,13 @@ func (s *bootenvTestSuite) TestInstallBootloaderConfigFromAssets(c *C) {
 		mockGadgetDir := c.MkDir()
 		rootDir := c.MkDir()
 		fn := filepath.Join(rootDir, t.sysFile)
-		err := os.WriteFile(filepath.Join(mockGadgetDir, t.gadgetFile), t.gadgetFileContent, 0644)
-		c.Assert(err, IsNil)
+		mylog.Check(os.WriteFile(filepath.Join(mockGadgetDir, t.gadgetFile), t.gadgetFileContent, 0644))
+
 		var restoreAsset func()
 		if t.assetName != "" {
 			restoreAsset = assets.MockInternal(t.assetName, t.assetContent)
 		}
-		err = bootloader.InstallBootConfig(mockGadgetDir, rootDir, t.opts)
+		mylog.Check(bootloader.InstallBootConfig(mockGadgetDir, rootDir, t.opts))
 		if t.err == "" {
 			c.Assert(err, IsNil, Commentf("installing boot config for %s", t.name))
 			// mocked asset content
@@ -252,8 +253,8 @@ func (s *bootenvTestSuite) TestBootloaderFindPresentNonNilError(c *C) {
 	// make us find our bootloader
 	mockBl.MockedPresent = true
 
-	bl, err := bootloader.Find(rootdir, nil)
-	c.Assert(err, IsNil)
+	bl := mylog.Check2(bootloader.Find(rootdir, nil))
+
 	c.Assert(bl, NotNil)
 	c.Assert(bl.Name(), Equals, "mock")
 	c.Assert(bl, DeepEquals, mockBl)
@@ -261,21 +262,21 @@ func (s *bootenvTestSuite) TestBootloaderFindPresentNonNilError(c *C) {
 	// now make finding our bootloader a fatal error, this time we will get the
 	// error back
 	mockBl.PresentErr = fmt.Errorf("boom")
-	_, err = bootloader.Find(rootdir, nil)
+	_ = mylog.Check2(bootloader.Find(rootdir, nil))
 	c.Assert(err, ErrorMatches, "bootloader \"mock\" found but not usable: boom")
 }
 
 func (s *bootenvTestSuite) TestBootloaderFindBadOptions(c *C) {
-	_, err := bootloader.Find("", &bootloader.Options{
+	_ := mylog.Check2(bootloader.Find("", &bootloader.Options{
 		PrepareImageTime: true,
 		Role:             bootloader.RoleRunMode,
-	})
+	}))
 	c.Assert(err, ErrorMatches, "internal error: cannot use run mode bootloader at prepare-image time")
 
-	_, err = bootloader.Find("", &bootloader.Options{
+	_ = mylog.Check2(bootloader.Find("", &bootloader.Options{
 		NoSlashBoot: true,
 		Role:        bootloader.RoleSole,
-	})
+	}))
 	c.Assert(err, ErrorMatches, "internal error: bootloader.RoleSole doesn't expect NoSlashBoot set")
 }
 
@@ -319,12 +320,12 @@ func (s *bootenvTestSuite) TestBootloaderFind(c *C) {
 	} {
 		c.Logf("tc: %v", tc.name)
 		rootDir := c.MkDir()
-		err := os.MkdirAll(filepath.Join(rootDir, filepath.Dir(tc.sysFile)), 0755)
-		c.Assert(err, IsNil)
-		err = os.WriteFile(filepath.Join(rootDir, tc.sysFile), nil, 0644)
-		c.Assert(err, IsNil)
-		bl, err := bootloader.Find(rootDir, tc.opts)
-		c.Assert(err, IsNil)
+		mylog.Check(os.MkdirAll(filepath.Join(rootDir, filepath.Dir(tc.sysFile)), 0755))
+
+		mylog.Check(os.WriteFile(filepath.Join(rootDir, tc.sysFile), nil, 0644))
+
+		bl := mylog.Check2(bootloader.Find(rootDir, tc.opts))
+
 		c.Assert(bl, NotNil)
 		c.Check(bl.Name(), Equals, tc.expName)
 	}
@@ -347,12 +348,12 @@ func (s *bootenvTestSuite) TestBootloaderForGadget(c *C) {
 		c.Logf("tc: %v", tc.name)
 		gadgetDir := c.MkDir()
 		rootDir := c.MkDir()
-		err := os.MkdirAll(filepath.Join(rootDir, filepath.Dir(tc.gadgetFile)), 0755)
-		c.Assert(err, IsNil)
-		err = os.WriteFile(filepath.Join(gadgetDir, tc.gadgetFile), nil, 0644)
-		c.Assert(err, IsNil)
-		bl, err := bootloader.ForGadget(gadgetDir, rootDir, tc.opts)
-		c.Assert(err, IsNil)
+		mylog.Check(os.MkdirAll(filepath.Join(rootDir, filepath.Dir(tc.gadgetFile)), 0755))
+
+		mylog.Check(os.WriteFile(filepath.Join(gadgetDir, tc.gadgetFile), nil, 0644))
+
+		bl := mylog.Check2(bootloader.ForGadget(gadgetDir, rootDir, tc.opts))
+
 		c.Assert(bl, NotNil)
 		c.Check(bl.Name(), Equals, tc.expName)
 	}

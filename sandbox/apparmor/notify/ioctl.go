@@ -81,7 +81,6 @@ func SetIoctlDump(value bool) bool {
 // those filled by the syscall, but the size of the buffer is unchanged, and
 // the complete buffer and error are returned.
 func Ioctl(fd uintptr, req IoctlRequest, buf IoctlRequestBuffer) ([]byte, error) {
-	var err error
 	if dumpIoctl {
 		log.Printf(">>> ioctl %v (%d bytes) ...\n", req, len(buf))
 		log.Printf("%v\n", hexBuf(buf))

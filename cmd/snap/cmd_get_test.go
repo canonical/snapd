@@ -27,6 +27,7 @@ import (
 	"gopkg.in/check.v1"
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	snapset "github.com/snapcore/snapd/cmd/snap"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -36,72 +37,73 @@ type getCmdArgs struct {
 	isTerminal                  bool
 }
 
-var getTests = []getCmdArgs{{
-	args:  "get snap-name --foo",
-	error: ".*unknown flag.*foo.*",
-}, {
-	args:   "get snapname test-key1",
-	stdout: "test-value1\n",
-}, {
-	args:   "get snapname test-key2",
-	stdout: "2\n",
-}, {
-	args:   "get snapname missing-key",
-	stdout: "\n",
-}, {
-	args:   "get -t snapname test-key1",
-	stdout: "\"test-value1\"\n",
-}, {
-	args:   "get -t snapname test-key2",
-	stdout: "2\n",
-}, {
-	args:   "get -t snapname missing-key",
-	stdout: "null\n",
-}, {
-	args:   "get -d snapname test-key1",
-	stdout: "{\n\t\"test-key1\": \"test-value1\"\n}\n",
-}, {
-	args:   "get -l snapname test-key1",
-	stdout: "Key        Value\ntest-key1  test-value1\n",
-}, {
-	args:   "get snapname -l test-key1 test-key2",
-	stdout: "Key        Value\ntest-key1  test-value1\ntest-key2  2\n",
-}, {
-	args:   "get snapname document",
-	stderr: `WARNING: The output of 'snap get' will become a list with columns - use -d or -l to force the output format.\n`,
-	stdout: "{\n\t\"document\": {\n\t\t\"key1\": \"value1\",\n\t\t\"key2\": \"value2\"\n\t}\n}\n",
-}, {
-	isTerminal: true,
-	args:       "get snapname document",
-	stdout:     "Key            Value\ndocument.key1  value1\ndocument.key2  value2\n",
-}, {
-	args:   "get snapname -d test-key1 test-key2",
-	stdout: "{\n\t\"test-key1\": \"test-value1\",\n\t\"test-key2\": 2\n}\n",
-}, {
-	args:   "get snapname -l document",
-	stdout: "Key            Value\ndocument.key1  value1\ndocument.key2  value2\n",
-}, {
-	args:   "get -d snapname document",
-	stdout: "{\n\t\"document\": {\n\t\t\"key1\": \"value1\",\n\t\t\"key2\": \"value2\"\n\t}\n}\n",
-}, {
-	args:   "get -l snapname",
-	stdout: "Key  Value\nbar  100\nfoo  {...}\n",
-}, {
-	args:   "get snapname -l test-key3 test-key4",
-	stdout: "Key          Value\ntest-key3.a  1\ntest-key3.b  2\ntest-key3-a  9\ntest-key4.a  3\ntest-key4.b  4\n",
-}, {
-	args:   "get -d snapname",
-	stdout: "{\n\t\"bar\": 100,\n\t\"foo\": {\n\t\t\"key1\": \"value1\",\n\t\t\"key2\": \"value2\"\n\t}\n}\n",
-}, {
-	isTerminal: true,
-	args:       "get snapname  test-key1 test-key2",
-	stdout:     "Key        Value\ntest-key1  test-value1\ntest-key2  2\n",
-}, {
-	isTerminal: false,
-	args:       "get snapname  test-key1 test-key2",
-	stdout:     "{\n\t\"test-key1\": \"test-value1\",\n\t\"test-key2\": 2\n}\n",
-	stderr:     `WARNING: The output of 'snap get' will become a list with columns - use -d or -l to force the output format.\n`,
-},
+var getTests = []getCmdArgs{
+	{
+		args:  "get snap-name --foo",
+		error: ".*unknown flag.*foo.*",
+	}, {
+		args:   "get snapname test-key1",
+		stdout: "test-value1\n",
+	}, {
+		args:   "get snapname test-key2",
+		stdout: "2\n",
+	}, {
+		args:   "get snapname missing-key",
+		stdout: "\n",
+	}, {
+		args:   "get -t snapname test-key1",
+		stdout: "\"test-value1\"\n",
+	}, {
+		args:   "get -t snapname test-key2",
+		stdout: "2\n",
+	}, {
+		args:   "get -t snapname missing-key",
+		stdout: "null\n",
+	}, {
+		args:   "get -d snapname test-key1",
+		stdout: "{\n\t\"test-key1\": \"test-value1\"\n}\n",
+	}, {
+		args:   "get -l snapname test-key1",
+		stdout: "Key        Value\ntest-key1  test-value1\n",
+	}, {
+		args:   "get snapname -l test-key1 test-key2",
+		stdout: "Key        Value\ntest-key1  test-value1\ntest-key2  2\n",
+	}, {
+		args:   "get snapname document",
+		stderr: `WARNING: The output of 'snap get' will become a list with columns - use -d or -l to force the output format.\n`,
+		stdout: "{\n\t\"document\": {\n\t\t\"key1\": \"value1\",\n\t\t\"key2\": \"value2\"\n\t}\n}\n",
+	}, {
+		isTerminal: true,
+		args:       "get snapname document",
+		stdout:     "Key            Value\ndocument.key1  value1\ndocument.key2  value2\n",
+	}, {
+		args:   "get snapname -d test-key1 test-key2",
+		stdout: "{\n\t\"test-key1\": \"test-value1\",\n\t\"test-key2\": 2\n}\n",
+	}, {
+		args:   "get snapname -l document",
+		stdout: "Key            Value\ndocument.key1  value1\ndocument.key2  value2\n",
+	}, {
+		args:   "get -d snapname document",
+		stdout: "{\n\t\"document\": {\n\t\t\"key1\": \"value1\",\n\t\t\"key2\": \"value2\"\n\t}\n}\n",
+	}, {
+		args:   "get -l snapname",
+		stdout: "Key  Value\nbar  100\nfoo  {...}\n",
+	}, {
+		args:   "get snapname -l test-key3 test-key4",
+		stdout: "Key          Value\ntest-key3.a  1\ntest-key3.b  2\ntest-key3-a  9\ntest-key4.a  3\ntest-key4.b  4\n",
+	}, {
+		args:   "get -d snapname",
+		stdout: "{\n\t\"bar\": 100,\n\t\"foo\": {\n\t\t\"key1\": \"value1\",\n\t\t\"key2\": \"value2\"\n\t}\n}\n",
+	}, {
+		isTerminal: true,
+		args:       "get snapname  test-key1 test-key2",
+		stdout:     "Key        Value\ntest-key1  test-value1\ntest-key2  2\n",
+	}, {
+		isTerminal: false,
+		args:       "get snapname  test-key1 test-key2",
+		stdout:     "{\n\t\"test-key1\": \"test-value1\",\n\t\"test-key2\": 2\n}\n",
+		stderr:     `WARNING: The output of 'snap get' will become a list with columns - use -d or -l to force the output format.\n`,
+	},
 }
 
 func (s *SnapSuite) runTests(cmds []getCmdArgs, c *C) {
@@ -114,7 +116,7 @@ func (s *SnapSuite) runTests(cmds []getCmdArgs, c *C) {
 		restore := snapset.MockIsStdinTTY(test.isTerminal)
 		defer restore()
 
-		_, err := snapset.Parser(snapset.Client()).ParseArgs(strings.Fields(test.args))
+		_ := mylog.Check2(snapset.Parser(snapset.Client()).ParseArgs(strings.Fields(test.args)))
 		if test.error != "" {
 			c.Check(err, ErrorMatches, test.error)
 		} else {
@@ -255,7 +257,7 @@ func (s *aspectsSuite) TestAspectGet(c *C) {
 			w.WriteHeader(200)
 			fmt.Fprintf(w, syncResp, `{"abc": "cba"}`)
 		default:
-			err := fmt.Errorf("expected to get 1 request, now on %d (%v)", reqs+1, r)
+			mylog.Check(fmt.Errorf("expected to get 1 request, now on %d (%v)", reqs+1, r))
 			w.WriteHeader(500)
 			fmt.Fprintf(w, `{"type": "error", "result": {"message": %q}}`, err)
 			c.Error(err)
@@ -264,8 +266,8 @@ func (s *aspectsSuite) TestAspectGet(c *C) {
 		reqs++
 	})
 
-	rest, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"get", "foo/bar/baz", "abc"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(snapset.Parser(snapset.Client()).ParseArgs([]string{"get", "foo/bar/baz", "abc"}))
+
 	c.Assert(rest, HasLen, 0)
 	c.Check(s.Stdout(), Equals, "cba\n")
 	c.Check(s.Stderr(), Equals, "")
@@ -292,7 +294,7 @@ func (s *aspectsSuite) TestAspectGetAsDocument(c *C) {
 			w.WriteHeader(200)
 			fmt.Fprintf(w, syncResp, `{"abc": "cba"}`)
 		default:
-			err := fmt.Errorf("expected to get 1 request, now on %d (%v)", reqs+1, r)
+			mylog.Check(fmt.Errorf("expected to get 1 request, now on %d (%v)", reqs+1, r))
 			w.WriteHeader(500)
 			fmt.Fprintf(w, `{"type": "error", "result": {"message": %q}}`, err)
 			c.Error(err)
@@ -301,8 +303,8 @@ func (s *aspectsSuite) TestAspectGetAsDocument(c *C) {
 		reqs++
 	})
 
-	rest, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"get", "-d", "foo/bar/baz", "abc"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(snapset.Parser(snapset.Client()).ParseArgs([]string{"get", "-d", "foo/bar/baz", "abc"}))
+
 	c.Assert(rest, HasLen, 0)
 
 	c.Check(s.Stdout(), Equals, `{
@@ -333,7 +335,7 @@ func (s *aspectsSuite) TestAspectGetMany(c *C) {
 			w.WriteHeader(200)
 			fmt.Fprintf(w, syncResp, `{"abc": 1, "xyz": false}`)
 		default:
-			err := fmt.Errorf("expected to get 1 request, now on %d (%v)", reqs+1, r)
+			mylog.Check(fmt.Errorf("expected to get 1 request, now on %d (%v)", reqs+1, r))
 			w.WriteHeader(500)
 			fmt.Fprintf(w, `{"type": "error", "result": {"message": %q}}`, err)
 			c.Error(err)
@@ -342,8 +344,8 @@ func (s *aspectsSuite) TestAspectGetMany(c *C) {
 		reqs++
 	})
 
-	rest, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"get", "foo/bar/baz", "abc", "xyz"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(snapset.Parser(snapset.Client()).ParseArgs([]string{"get", "foo/bar/baz", "abc", "xyz"}))
+
 	c.Assert(rest, HasLen, 0)
 	c.Check(s.Stdout(), Equals,
 		`Key  Value
@@ -374,7 +376,7 @@ func (s *aspectsSuite) TestAspectGetManyAsDocument(c *C) {
 			w.WriteHeader(200)
 			fmt.Fprintf(w, syncResp, `{"abc": 1, "xyz": false}`)
 		default:
-			err := fmt.Errorf("expected to get 1 request, now on %d (%v)", reqs+1, r)
+			mylog.Check(fmt.Errorf("expected to get 1 request, now on %d (%v)", reqs+1, r))
 			w.WriteHeader(500)
 			fmt.Fprintf(w, `{"type": "error", "result": {"message": %q}}`, err)
 			c.Error(err)
@@ -383,8 +385,8 @@ func (s *aspectsSuite) TestAspectGetManyAsDocument(c *C) {
 		reqs++
 	})
 
-	rest, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"get", "-d", "foo/bar/baz", "abc", "xyz"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(snapset.Parser(snapset.Client()).ParseArgs([]string{"get", "-d", "foo/bar/baz", "abc", "xyz"}))
+
 	c.Assert(rest, HasLen, 0)
 
 	c.Check(s.Stdout(), Equals, `{
@@ -399,7 +401,7 @@ func (s *aspectsSuite) TestAspectGetInvalidAspectID(c *check.C) {
 	restore := s.mockAspectsFlag(c)
 	defer restore()
 
-	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"get", "foo//bar", "foo=bar"})
+	_ := mylog.Check2(snapset.Parser(snapset.Client()).ParseArgs([]string{"get", "foo//bar", "foo=bar"}))
 	c.Assert(err, NotNil)
 	c.Check(err.Error(), Equals, "aspect identifier must conform to format: <account-id>/<bundle>/<aspect>")
 }
@@ -409,7 +411,7 @@ func (s *aspectsSuite) TestAspectGetDisabledFlag(c *check.C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch reqs {
 		default:
-			err := fmt.Errorf("expected to get no requests, now on %d (%v)", reqs+1, r)
+			mylog.Check(fmt.Errorf("expected to get no requests, now on %d (%v)", reqs+1, r))
 			w.WriteHeader(500)
 			fmt.Fprintf(w, `{"type": "error", "result": {"message": %q}}`, err)
 			c.Error(err)
@@ -418,7 +420,7 @@ func (s *aspectsSuite) TestAspectGetDisabledFlag(c *check.C) {
 		reqs++
 	})
 
-	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"get", "foo/bar/baz", "abc"})
+	_ := mylog.Check2(snapset.Parser(snapset.Client()).ParseArgs([]string{"get", "foo/bar/baz", "abc"}))
 	c.Assert(err, check.ErrorMatches, "aspect-based configuration is disabled: you must set 'experimental.aspects-configuration' to true")
 }
 
@@ -439,7 +441,7 @@ func (s *aspectsSuite) TestAspectGetNoFields(c *check.C) {
 			w.WriteHeader(200)
 			fmt.Fprintf(w, syncResp, `{"abc": 1, "xyz": false}`)
 		default:
-			err := fmt.Errorf("expected to get 1 request, now on %d (%v)", reqs+1, r)
+			mylog.Check(fmt.Errorf("expected to get 1 request, now on %d (%v)", reqs+1, r))
 			w.WriteHeader(500)
 			fmt.Fprintf(w, `{"type": "error", "result": {"message": %q}}`, err)
 			c.Error(err)
@@ -448,8 +450,8 @@ func (s *aspectsSuite) TestAspectGetNoFields(c *check.C) {
 		reqs++
 	})
 
-	rest, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"get", "foo/bar/baz"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(snapset.Parser(snapset.Client()).ParseArgs([]string{"get", "foo/bar/baz"}))
+
 	c.Assert(rest, HasLen, 0)
 
 	c.Check(s.Stdout(), Equals, `{

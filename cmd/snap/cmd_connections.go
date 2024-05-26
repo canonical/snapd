@@ -24,6 +24,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
@@ -38,8 +39,9 @@ type cmdConnections struct {
 	} `positional-args:"true"`
 }
 
-var shortConnectionsHelp = i18n.G("List interface connections")
-var longConnectionsHelp = i18n.G(`
+var (
+	shortConnectionsHelp = i18n.G("List interface connections")
+	longConnectionsHelp  = i18n.G(`
 The connections command lists connections between plugs and slots
 in the system.
 
@@ -52,6 +54,7 @@ $ snap connections <snap>
 Lists connected and unconnected plugs and slots for the specified
 snap.
 `)
+)
 
 func init() {
 	addCommand("connections", shortConnectionsHelp, longConnectionsHelp, func() flags.Commander {
@@ -154,10 +157,8 @@ func (x *cmdConnections) Execute(args []string) error {
 		x.All = true
 	}
 
-	connections, err := x.client.Connections(&opts)
-	if err != nil {
-		return err
-	}
+	connections := mylog.Check2(x.client.Connections(&opts))
+
 	if len(connections.Plugs) == 0 && len(connections.Slots) == 0 {
 		return nil
 	}

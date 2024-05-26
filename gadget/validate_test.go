@@ -29,6 +29,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/gadget/quantity"
@@ -78,14 +79,13 @@ func (s *validateGadgetTestSuite) TestRuleValidateStructureReservedLabels(c *C) 
 				},
 			},
 		}
-		err := gadget.Validate(gi, tc.model, nil)
+		mylog.Check(gadget.Validate(gi, tc.model, nil))
 		if tc.err == "" {
 			c.Check(err, IsNil)
 		} else {
 			c.Check(err, ErrorMatches, ".*: "+tc.err)
 		}
 	}
-
 }
 
 // rolesYaml produces gadget metadata with volumes with structure withs the given
@@ -133,8 +133,8 @@ func rolesYaml(c *C, data, seed, save string) *gadget.Info {
 		}
 	}
 
-	gi, err := gadget.InfoFromGadgetYaml([]byte(h), nil)
-	c.Assert(err, IsNil)
+	gi := mylog.Check2(gadget.InfoFromGadgetYaml([]byte(h), nil))
+
 	return gi
 }
 
@@ -154,7 +154,6 @@ func (s *validateGadgetTestSuite) TestVolumeRulesConsistencyNoModel(c *C) {
 		gi  *gadget.Info
 		err string
 	}{
-
 		// we have the system-seed role
 		{ginfo(true, ""), ""},
 		{ginfo(true, "foobar"), `.* must have an implicit label or "ubuntu-data", not "foobar"`},
@@ -173,8 +172,7 @@ func (s *validateGadgetTestSuite) TestVolumeRulesConsistencyNoModel(c *C) {
 		{ginfoSeed("ubuntu-foo"), `.* must have an implicit label or "ubuntu-seed", not "ubuntu-foo"`},
 	} {
 		c.Logf("tc: %d %v", i, tc.gi.Volumes["roles"])
-
-		err := gadget.Validate(tc.gi, nil, nil)
+		mylog.Check(gadget.Validate(tc.gi, nil, nil))
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err)
 		} else {
@@ -193,7 +191,7 @@ func (s *validateGadgetTestSuite) TestVolumeRulesConsistencyNoModel(c *C) {
 	} {
 		c.Logf("tc: %v %v", i, tc.l)
 		gi := rolesYaml(c, "", tc.l, "-")
-		err := gadget.Validate(gi, nil, nil)
+		mylog.Check(gadget.Validate(gi, nil, nil))
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err)
 		} else {
@@ -203,26 +201,26 @@ func (s *validateGadgetTestSuite) TestVolumeRulesConsistencyNoModel(c *C) {
 
 	// Check system-seed without system-data
 	gi := rolesYaml(c, "-", "-", "-")
-	err := gadget.Validate(gi, nil, nil)
-	c.Assert(err, IsNil)
+	mylog.Check(gadget.Validate(gi, nil, nil))
+
 	gi = rolesYaml(c, "-", "", "-")
-	err = gadget.Validate(gi, nil, nil)
+	mylog.Check(gadget.Validate(gi, nil, nil))
 	c.Assert(err, ErrorMatches, "the system-seed role requires system-data to be defined")
 
 	// Check system-save
 	giWithSave := rolesYaml(c, "", "", "")
-	err = gadget.Validate(giWithSave, nil, nil)
-	c.Assert(err, IsNil)
+	mylog.Check(gadget.Validate(giWithSave, nil, nil))
+
 	// use illegal label on system-save
 	giWithSave = rolesYaml(c, "", "", "foo")
-	err = gadget.Validate(giWithSave, nil, nil)
+	mylog.Check(gadget.Validate(giWithSave, nil, nil))
 	c.Assert(err, ErrorMatches, `system-save structure must have an implicit label or "ubuntu-save", not "foo"`)
 	// complains when save is alone
 	giWithSave = rolesYaml(c, "", "-", "")
-	err = gadget.Validate(giWithSave, nil, nil)
+	mylog.Check(gadget.Validate(giWithSave, nil, nil))
 	c.Assert(err, ErrorMatches, "model does not support the system-save role")
 	giWithSave = rolesYaml(c, "-", "-", "")
-	err = gadget.Validate(giWithSave, nil, nil)
+	mylog.Check(gadget.Validate(giWithSave, nil, nil))
 	c.Assert(err, ErrorMatches, "model does not support the system-save role")
 }
 
@@ -267,9 +265,9 @@ volumes:
         filesystem-label: %s`, tc.label)
 
 		makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, b.Bytes())
-		ginfo, err := gadget.ReadInfo(s.dir, nil)
-		c.Assert(err, IsNil)
-		err = gadget.Validate(ginfo, nil, nil)
+		ginfo := mylog.Check2(gadget.ReadInfo(s.dir, nil))
+
+		mylog.Check(gadget.Validate(ginfo, nil, nil))
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, ".* "+tc.err)
 		} else {
@@ -301,23 +299,35 @@ volumes:
 		{addSeed: true, noData: true, hasModes: false, err: "the system-seed role requires system-data to be defined"},
 		{addSeed: true, hasModes: true},
 		{addSeed: true, err: `model does not support the system-seed role`},
-		{addSeed: true, dataLabel: "writable", hasModes: true,
-			err: `system-data structure must have an implicit label or "ubuntu-data", not "writable"`},
-		{addSeed: true, dataLabel: "writable",
-			err: `model does not support the system-seed role`},
+		{
+			addSeed: true, dataLabel: "writable", hasModes: true,
+			err: `system-data structure must have an implicit label or "ubuntu-data", not "writable"`,
+		},
+		{
+			addSeed: true, dataLabel: "writable",
+			err: `model does not support the system-seed role`,
+		},
 		{addSeed: true, dataLabel: "ubuntu-data", hasModes: true},
-		{addSeed: true, dataLabel: "ubuntu-data",
-			err: `model does not support the system-seed role`},
-		{dataLabel: "writable", hasModes: true,
-			err: `model requires system-seed structure, but none was found`},
+		{
+			addSeed: true, dataLabel: "ubuntu-data",
+			err: `model does not support the system-seed role`,
+		},
+		{
+			dataLabel: "writable", hasModes: true,
+			err: `model requires system-seed structure, but none was found`,
+		},
 		{dataLabel: "writable"},
-		{dataLabel: "ubuntu-data", hasModes: true,
-			err: `model requires system-seed structure, but none was found`},
+		{
+			dataLabel: "ubuntu-data", hasModes: true,
+			err: `model requires system-seed structure, but none was found`,
+		},
 		{dataLabel: "ubuntu-data", err: `system-data structure must have an implicit label or "writable", not "ubuntu-data"`},
 		{addSave: true, hasModes: true, addSeed: true},
 		{addSave: true, err: `model does not support the system-save role`},
-		{addSeed: true, hasModes: true, addSave: true, saveLabel: "foo",
-			err: `system-save structure must have an implicit label or "ubuntu-save", not "foo"`},
+		{
+			addSeed: true, hasModes: true, addSave: true, saveLabel: "foo",
+			err: `system-save structure must have an implicit label or "ubuntu-save", not "foo"`,
+		},
 		{isClassic: true, hasModes: true, addBoot: true},
 		{isClassic: true, hasModes: true, addBoot: true, addSave: true},
 		{isClassic: true, hasModes: true, addSeed: true, addBoot: true, addSave: true},
@@ -362,7 +372,6 @@ volumes:
 			if tc.saveLabel != "" {
 				fmt.Fprintf(b, `
         filesystem-label: %s`, tc.saveLabel)
-
 			}
 		}
 
@@ -372,9 +381,9 @@ volumes:
 			IsClassic: tc.isClassic,
 			HasModes:  tc.hasModes,
 		}
-		ginfo, err := gadget.ReadInfo(s.dir, mod)
-		c.Assert(err, IsNil)
-		err = gadget.Validate(ginfo, mod, nil)
+		ginfo := mylog.Check2(gadget.ReadInfo(s.dir, mod))
+
+		mylog.Check(gadget.Validate(ginfo, mod, nil))
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err)
 		} else {
@@ -389,9 +398,9 @@ volumes:
 		HasModes: true,
 	}
 
-	ginfo, err := gadget.ReadInfo(s.dir, mod)
-	c.Assert(err, IsNil)
-	err = gadget.Validate(ginfo, mod, nil)
+	ginfo := mylog.Check2(gadget.ReadInfo(s.dir, mod))
+
+	mylog.Check(gadget.Validate(ginfo, mod, nil))
 	c.Assert(err, ErrorMatches, "model requires system-seed partition, but no system-seed or system-data partition found")
 }
 
@@ -461,14 +470,13 @@ volumes:
 
 	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYamlContent))
 
-	ginfo, err := gadget.ReadInfo(s.dir, nil)
-	c.Assert(err, IsNil)
-	err = gadget.Validate(ginfo, nil, nil)
+	ginfo := mylog.Check2(gadget.ReadInfo(s.dir, nil))
+
+	mylog.Check(gadget.Validate(ginfo, nil, nil))
 	c.Assert(err, ErrorMatches, `system-boot, system-data, and system-save are expected to share the same volume as system-seed`)
 }
 
 func (s *validateGadgetTestSuite) TestValidateRoleDuplicated(c *C) {
-
 	for _, role := range []string{"system-seed", "system-seed-null", "system-data", "system-boot", "system-save"} {
 		gadgetYamlContent := fmt.Sprintf(`
 volumes:
@@ -486,15 +494,14 @@ volumes:
 `, role)
 		makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYamlContent))
 
-		ginfo, err := gadget.ReadInfo(s.dir, nil)
-		c.Assert(err, IsNil)
-		err = gadget.Validate(ginfo, nil, nil)
+		ginfo := mylog.Check2(gadget.ReadInfo(s.dir, nil))
+
+		mylog.Check(gadget.Validate(ginfo, nil, nil))
 		c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot have more than one partition with %s role`, role))
 	}
 }
 
 func (s *validateGadgetTestSuite) TestValidateSystemSeedRoleTwiceAcrossVolumes(c *C) {
-
 	for _, role := range []string{"system-seed", "system-seed-null", "system-data", "system-boot", "system-save"} {
 		gadgetYamlContent := fmt.Sprintf(`
 volumes:
@@ -514,9 +521,9 @@ volumes:
 `, role)
 		makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYamlContent))
 
-		ginfo, err := gadget.ReadInfo(s.dir, nil)
-		c.Assert(err, IsNil)
-		err = gadget.Validate(ginfo, nil, nil)
+		ginfo := mylog.Check2(gadget.ReadInfo(s.dir, nil))
+
+		mylog.Check(gadget.Validate(ginfo, nil, nil))
 		c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot have more than one partition with %s role across volumes`, role))
 	}
 }
@@ -540,9 +547,9 @@ volumes:
 `
 	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYamlContent))
 
-	ginfo, err := gadget.ReadInfo(s.dir, nil)
-	c.Assert(err, IsNil)
-	err = gadget.Validate(ginfo, nil, nil)
+	ginfo := mylog.Check2(gadget.ReadInfo(s.dir, nil))
+
+	mylog.Check(gadget.Validate(ginfo, nil, nil))
 	c.Assert(err, ErrorMatches, "cannot have more than one partition with system-seed/system-seed-null role across volumes")
 }
 
@@ -589,10 +596,9 @@ func (s *validateGadgetTestSuite) TestRuleValidateHybridGadget(c *C) {
 	mod := &gadgettest.ModelCharacteristics{
 		IsClassic: false,
 	}
-	giMeta, err := gadget.InfoFromGadgetYaml(hybridyGadgetYaml, mod)
-	c.Assert(err, IsNil)
+	giMeta := mylog.Check2(gadget.InfoFromGadgetYaml(hybridyGadgetYaml, mod))
 
-	err = gadget.Validate(giMeta, mod, nil)
+	mylog.Check(gadget.Validate(giMeta, mod, nil))
 	c.Check(err, IsNil)
 }
 
@@ -640,15 +646,14 @@ func (s *validateGadgetTestSuite) TestRuleValidateHybridGadgetBrokenDupRole(c *C
 	mod := &gadgettest.ModelCharacteristics{
 		IsClassic: false,
 	}
-	giMeta, err := gadget.InfoFromGadgetYaml(brokenGadgetYaml, mod)
-	c.Assert(err, IsNil)
+	giMeta := mylog.Check2(gadget.InfoFromGadgetYaml(brokenGadgetYaml, mod))
 
-	err = gadget.Validate(giMeta, mod, nil)
+	mylog.Check(gadget.Validate(giMeta, mod, nil))
 	c.Check(err, ErrorMatches, `cannot have more than one partition with system-boot role`)
 }
 
 func (s *validateGadgetTestSuite) TestValidateContentRawContent(c *C) {
-	var gadgetYamlContent = `
+	gadgetYamlContent := `
 volumes:
   pc:
     bootloader: grub
@@ -663,28 +668,28 @@ volumes:
 `
 	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYamlContent))
 
-	ginfo, err := gadget.ReadInfo(s.dir, nil)
-	c.Assert(err, IsNil)
-	err = gadget.ValidateContent(ginfo, s.dir, "")
+	ginfo := mylog.Check2(gadget.ReadInfo(s.dir, nil))
+
+	mylog.Check(gadget.ValidateContent(ginfo, s.dir, ""))
 	c.Assert(err, ErrorMatches, `structure #0 \("foo"\): content "foo.img": stat .*/foo.img: no such file or directory`)
 
 	// Now create the file with wrong size
 	makeSizedFile(c, filepath.Join(s.dir, "foo.img"), 100, nil)
-	ginfo, err = gadget.ReadInfo(s.dir, nil)
-	c.Assert(err, IsNil)
-	err = gadget.ValidateContent(ginfo, s.dir, "")
+	ginfo = mylog.Check2(gadget.ReadInfo(s.dir, nil))
+
+	mylog.Check(gadget.ValidateContent(ginfo, s.dir, ""))
 	c.Assert(err, ErrorMatches, `structure #0 \("foo"\): content "foo.img" size 100 is larger than declared 1`)
 
 	// Now with the right size
 	makeSizedFile(c, filepath.Join(s.dir, "foo.img"), 1, nil)
-	ginfo, err = gadget.ReadInfo(s.dir, nil)
-	c.Assert(err, IsNil)
-	err = gadget.ValidateContent(ginfo, s.dir, "")
-	c.Assert(err, IsNil)
+	ginfo = mylog.Check2(gadget.ReadInfo(s.dir, nil))
+
+	mylog.Check(gadget.ValidateContent(ginfo, s.dir, ""))
+
 }
 
 func (s *validateGadgetTestSuite) TestValidateContentMultiVolumeContent(c *C) {
-	var gadgetYamlContent = `
+	gadgetYamlContent := `
 volumes:
   first:
     bootloader: grub
@@ -707,14 +712,14 @@ volumes:
 	// only content for the first volume
 	makeSizedFile(c, filepath.Join(s.dir, "first.img"), 1, nil)
 
-	ginfo, err := gadget.ReadInfo(s.dir, nil)
-	c.Assert(err, IsNil)
-	err = gadget.ValidateContent(ginfo, s.dir, "")
+	ginfo := mylog.Check2(gadget.ReadInfo(s.dir, nil))
+
+	mylog.Check(gadget.ValidateContent(ginfo, s.dir, ""))
 	c.Assert(err, ErrorMatches, `structure #0 \("second-foo"\): content "second.img": stat .*/second.img: no such file or directory`)
 }
 
 func (s *validateGadgetTestSuite) TestValidateContentFilesystemContent(c *C) {
-	var gadgetYamlContent = `
+	gadgetYamlContent := `
 volumes:
   bad:
     bootloader: grub
@@ -730,25 +735,27 @@ volumes:
 `
 	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYamlContent))
 
-	ginfo, err := gadget.ReadInfo(s.dir, nil)
-	c.Assert(err, IsNil)
-	err = gadget.ValidateContent(ginfo, s.dir, "")
+	ginfo := mylog.Check2(gadget.ReadInfo(s.dir, nil))
+
+	mylog.Check(gadget.ValidateContent(ginfo, s.dir, ""))
 	c.Assert(err, ErrorMatches, `invalid volume "bad": structure #0 \("bad-struct"\), content source:foo/: source path does not exist`)
 
 	// make it a file, which conflicts with foo/ as 'source'
 	fooPath := filepath.Join(s.dir, "foo")
 	makeSizedFile(c, fooPath, 1, nil)
-	err = gadget.ValidateContent(ginfo, s.dir, "")
+	mylog.Check(gadget.ValidateContent(ginfo, s.dir, ""))
 	c.Assert(err, ErrorMatches, `invalid volume "bad": structure #0 \("bad-struct"\), content source:foo/: cannot specify trailing / for a source which is not a directory`)
+	mylog.
 
-	// make it a directory
-	err = os.Remove(fooPath)
-	c.Assert(err, IsNil)
-	err = os.Mkdir(fooPath, 0755)
-	c.Assert(err, IsNil)
-	// validate should no longer complain
-	err = gadget.ValidateContent(ginfo, s.dir, "")
-	c.Assert(err, IsNil)
+		// make it a directory
+		Check(os.Remove(fooPath))
+
+	mylog.Check(os.Mkdir(fooPath, 0755))
+
+	mylog.
+		// validate should no longer complain
+		Check(gadget.ValidateContent(ginfo, s.dir, ""))
+
 }
 
 var gadgetYamlContentNoSave = `
@@ -784,46 +791,46 @@ func (s *validateGadgetTestSuite) TestValidateEncryptionSupportErr(c *C) {
 	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYamlContentNoSave))
 
 	mod := &gadgettest.ModelCharacteristics{HasModes: true}
-	ginfo, err := gadget.ReadInfo(s.dir, mod)
-	c.Assert(err, IsNil)
-	err = gadget.Validate(ginfo, mod, &gadget.ValidationConstraints{
+	ginfo := mylog.Check2(gadget.ReadInfo(s.dir, mod))
+
+	mylog.Check(gadget.Validate(ginfo, mod, &gadget.ValidationConstraints{
 		EncryptedData: true,
-	})
+	}))
 	c.Assert(err, ErrorMatches, `gadget does not support encrypted data: required partition with system-save role is missing`)
 }
 
 func (s *validateGadgetTestSuite) TestValidateEncryptionSupportHappy(c *C) {
 	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYamlContentWithSave))
 	mod := &gadgettest.ModelCharacteristics{HasModes: true}
-	ginfo, err := gadget.ReadInfo(s.dir, mod)
-	c.Assert(err, IsNil)
-	err = gadget.Validate(ginfo, mod, &gadget.ValidationConstraints{
+	ginfo := mylog.Check2(gadget.ReadInfo(s.dir, mod))
+
+	mylog.Check(gadget.Validate(ginfo, mod, &gadget.ValidationConstraints{
 		EncryptedData: true,
-	})
-	c.Assert(err, IsNil)
+	}))
+
 }
 
 func (s *validateGadgetTestSuite) TestValidateEncryptionSupportNoUC20(c *C) {
 	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYamlPC))
 
 	mod := &gadgettest.ModelCharacteristics{HasModes: false}
-	ginfo, err := gadget.ReadInfo(s.dir, mod)
-	c.Assert(err, IsNil)
-	err = gadget.Validate(ginfo, mod, &gadget.ValidationConstraints{
+	ginfo := mylog.Check2(gadget.ReadInfo(s.dir, mod))
+
+	mylog.Check(gadget.Validate(ginfo, mod, &gadget.ValidationConstraints{
 		EncryptedData: true,
-	})
+	}))
 	c.Assert(err, ErrorMatches, `internal error: cannot support encrypted data in a system without modes`)
 }
 
 func (s *validateGadgetTestSuite) TestValidateEncryptionSupportMultiVolumeHappy(c *C) {
 	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(mockMultiVolumeUC20GadgetYaml))
 	mod := &gadgettest.ModelCharacteristics{HasModes: true}
-	ginfo, err := gadget.ReadInfo(s.dir, mod)
-	c.Assert(err, IsNil)
-	err = gadget.Validate(ginfo, mod, &gadget.ValidationConstraints{
+	ginfo := mylog.Check2(gadget.ReadInfo(s.dir, mod))
+
+	mylog.Check(gadget.Validate(ginfo, mod, &gadget.ValidationConstraints{
 		EncryptedData: true,
-	})
-	c.Assert(err, IsNil)
+	}))
+
 }
 
 var gadgetYamlContentKernelRef = gadgetYamlContentNoSave + `
@@ -866,15 +873,15 @@ func (s *validateGadgetTestSuite) TestValidateContentKernelAssetsRef(c *C) {
 	} {
 		gadgetYaml := strings.Replace(gadgetYamlContentKernelRef, "REPLACE_WITH_TC", tc.source, -1)
 		makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYaml))
-		ginfo, err := gadget.ReadInfoAndValidate(s.dir, nil, nil)
-		c.Assert(err, IsNil)
-		err = gadget.ValidateContent(ginfo, s.dir, "")
+		ginfo := mylog.Check2(gadget.ReadInfoAndValidate(s.dir, nil, nil))
+
+		mylog.Check(gadget.ValidateContent(ginfo, s.dir, ""))
 		if tc.good {
 			c.Check(err, IsNil, Commentf(tc.source))
 			// asset validates correctly, so let's make sure that
 			// individual pieces are correct too
-			assetName, content, err := gadget.SplitKernelRef(tc.source)
-			c.Assert(err, IsNil)
+			assetName, content := mylog.Check3(gadget.SplitKernelRef(tc.source))
+
 			c.Check(assetName, Equals, tc.asset)
 			c.Check(content, Equals, tc.content)
 		} else {
@@ -898,7 +905,7 @@ func (s *validateGadgetTestSuite) TestSplitKernelRefErrors(c *C) {
 		{"$kernel:a/b//", `invalid content in kernel ref "\$kernel:a/b//"`},
 		{"$kernel:a/b/./", `invalid content in kernel ref "\$kernel:a/b/./"`},
 	} {
-		_, _, err := gadget.SplitKernelRef(tc.kernelRef)
+		_, _ := mylog.Check3(gadget.SplitKernelRef(tc.kernelRef))
 		c.Check(err, ErrorMatches, tc.errStr, Commentf("kernelRef: %s", tc.kernelRef))
 	}
 }
@@ -996,15 +1003,14 @@ func (s *validateGadgetTestSuite) TestCanResolveOneVolumeKernelRef(c *C) {
 		{contentTwoKernelRefs, kInfoTwoRefs, true, "", ""},
 	} {
 		lv.Structure[0].Content = tc.volumeContent
-		consumed, err := gadget.GadgetVolumeKernelUpdateAssetsConsumed(lv.Volume, tc.kinfo)
+		consumed := mylog.Check2(gadget.GadgetVolumeKernelUpdateAssetsConsumed(lv.Volume, tc.kinfo))
 		if tc.consumedErr == "" {
 			c.Check(err, IsNil, Commentf("should not fail %v", tc.volumeContent))
 			c.Check(consumed, Equals, tc.consumed)
 		} else {
 			c.Check(err, ErrorMatches, tc.consumedErr, Commentf("should fail %v", tc.volumeContent))
 		}
-
-		err = gadget.GadgetVolumeConsumesOneKernelUpdateAsset(lv.Volume, tc.kinfo)
+		mylog.Check(gadget.GadgetVolumeConsumesOneKernelUpdateAsset(lv.Volume, tc.kinfo))
 		if tc.consumesOneErr == "" {
 			c.Check(err, IsNil, Commentf("should not fail %v", tc.volumeContent))
 		} else {
@@ -1014,7 +1020,7 @@ func (s *validateGadgetTestSuite) TestCanResolveOneVolumeKernelRef(c *C) {
 }
 
 func (s *validateGadgetTestSuite) TestValidateContentKernelRefMissing(c *C) {
-	var gadgetYamlContent = `
+	gadgetYamlContent := `
 volumes:
   first:
     bootloader: grub
@@ -1040,14 +1046,14 @@ volumes:
 	// note that there is no kernel.yaml
 	kernelUnpackDir := c.MkDir()
 
-	ginfo, err := gadget.ReadInfo(s.dir, nil)
-	c.Assert(err, IsNil)
-	err = gadget.ValidateContent(ginfo, s.dir, kernelUnpackDir)
+	ginfo := mylog.Check2(gadget.ReadInfo(s.dir, nil))
+
+	mylog.Check(gadget.ValidateContent(ginfo, s.dir, kernelUnpackDir))
 	c.Assert(err, ErrorMatches, `.*cannot find "ref" in kernel info.*`)
 }
 
 func (s *validateGadgetTestSuite) TestValidateContentKernelRefNotInGadget(c *C) {
-	var gadgetYamlContent = `
+	gadgetYamlContent := `
 volumes:
   first:
     bootloader: grub
@@ -1081,9 +1087,9 @@ assets:
 	makeSizedFile(c, filepath.Join(kernelUnpackDir, "meta/kernel.yaml"), 0, []byte(kernelYamlContent))
 	makeSizedFile(c, filepath.Join(kernelUnpackDir, "dtbs/foo.dtb"), 0, []byte("foo.dtb content"))
 
-	ginfo, err := gadget.ReadInfo(s.dir, nil)
-	c.Assert(err, IsNil)
-	err = gadget.ValidateContent(ginfo, s.dir, kernelUnpackDir)
+	ginfo := mylog.Check2(gadget.ReadInfo(s.dir, nil))
+
+	mylog.Check(gadget.ValidateContent(ginfo, s.dir, kernelUnpackDir))
 	c.Assert(err, ErrorMatches, `no asset from the kernel.yaml needing synced update is consumed by the gadget at "/.*"`)
 }
 
@@ -1127,10 +1133,9 @@ func (s *validateGadgetTestSuite) TestValidateClassicWithModesGadget(c *C) {
 		IsClassic: true,
 		HasModes:  true,
 	}
-	giMeta, err := gadget.InfoFromGadgetYaml([]byte(gadgetYaml), mod)
-	c.Assert(err, IsNil)
+	giMeta := mylog.Check2(gadget.InfoFromGadgetYaml([]byte(gadgetYaml), mod))
 
-	err = gadget.Validate(giMeta, mod, nil)
+	mylog.Check(gadget.Validate(giMeta, mod, nil))
 	c.Check(err, IsNil)
 }
 
@@ -1179,10 +1184,9 @@ volumes:
 		IsClassic: true,
 		HasModes:  true,
 	}
-	giMeta, err := gadget.InfoFromGadgetYaml([]byte(gadgetYaml), mod)
-	c.Assert(err, IsNil)
+	giMeta := mylog.Check2(gadget.InfoFromGadgetYaml([]byte(gadgetYaml), mod))
 
-	err = gadget.Validate(giMeta, mod, nil)
+	mylog.Check(gadget.Validate(giMeta, mod, nil))
 	c.Check(err, IsNil)
 }
 
@@ -1231,59 +1235,64 @@ volumes:
 		IsClassic: true,
 		HasModes:  true,
 	}
-	giMeta, err := gadget.InfoFromGadgetYaml([]byte(gadgetYaml), mod)
-	c.Assert(err, IsNil)
+	giMeta := mylog.Check2(gadget.InfoFromGadgetYaml([]byte(gadgetYaml), mod))
 
-	err = gadget.Validate(giMeta, mod, nil)
+	mylog.Check(gadget.Validate(giMeta, mod, nil))
 	c.Check(err, ErrorMatches, `system-boot and system-save are expected to share the same volume`)
 }
 
 func (s *validateGadgetTestSuite) TestValidateClassicWithModesNoEncryptHappy(c *C) {
 	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgettest.SingleVolumeClassicwithModesNoEncryptGadgetYaml))
 	mod := &gadgettest.ModelCharacteristics{HasModes: true, IsClassic: true}
-	ginfo, err := gadget.ReadInfo(s.dir, mod)
-	c.Assert(err, IsNil)
-	err = gadget.Validate(ginfo, mod, &gadget.ValidationConstraints{
+	ginfo := mylog.Check2(gadget.ReadInfo(s.dir, mod))
+
+	mylog.Check(gadget.Validate(ginfo, mod, &gadget.ValidationConstraints{
 		EncryptedData: true,
-	})
+	}))
 	c.Assert(err, ErrorMatches, `gadget does not support encrypted data: required partition with system-save role is missing`)
+	mylog.
 
-	// Now validate without model
-	err = gadget.Validate(ginfo, nil, &gadget.ValidationConstraints{
-		EncryptedData: true,
-	})
+		// Now validate without model
+		Check(gadget.Validate(ginfo, nil, &gadget.ValidationConstraints{
+			EncryptedData: true,
+		}))
 	c.Assert(err, ErrorMatches, `gadget does not support encrypted data: required partition with system-save role is missing`)
+	mylog.
 
-	// Should be fine if no encryption
-	err = gadget.Validate(ginfo, mod, &gadget.ValidationConstraints{})
-	c.Assert(err, IsNil)
+		// Should be fine if no encryption
+		Check(gadget.Validate(ginfo, mod, &gadget.ValidationConstraints{}))
 
-	// Now validate without model
-	err = gadget.Validate(ginfo, nil, &gadget.ValidationConstraints{})
-	c.Assert(err, IsNil)
+	mylog.
+
+		// Now validate without model
+		Check(gadget.Validate(ginfo, nil, &gadget.ValidationConstraints{}))
+
 }
 
 func (s *validateGadgetTestSuite) TestValidateClassicWithModesEncryptHappy(c *C) {
 	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgettest.SingleVolumeClassicwithModesEncryptGadgetYaml))
 	mod := &gadgettest.ModelCharacteristics{HasModes: true, IsClassic: true}
-	ginfo, err := gadget.ReadInfo(s.dir, mod)
-	c.Assert(err, IsNil)
-	err = gadget.Validate(ginfo, mod, &gadget.ValidationConstraints{
+	ginfo := mylog.Check2(gadget.ReadInfo(s.dir, mod))
+
+	mylog.Check(gadget.Validate(ginfo, mod, &gadget.ValidationConstraints{
 		EncryptedData: true,
-	})
-	c.Assert(err, IsNil)
+	}))
 
-	// Now validate without model
-	err = gadget.Validate(ginfo, nil, &gadget.ValidationConstraints{
-		EncryptedData: true,
-	})
-	c.Assert(err, IsNil)
+	mylog.
 
-	// Should be fine if no encryption
-	err = gadget.Validate(ginfo, mod, &gadget.ValidationConstraints{})
-	c.Assert(err, IsNil)
+		// Now validate without model
+		Check(gadget.Validate(ginfo, nil, &gadget.ValidationConstraints{
+			EncryptedData: true,
+		}))
 
-	// Now validate without model
-	err = gadget.Validate(ginfo, nil, &gadget.ValidationConstraints{})
-	c.Assert(err, IsNil)
+	mylog.
+
+		// Should be fine if no encryption
+		Check(gadget.Validate(ginfo, mod, &gadget.ValidationConstraints{}))
+
+	mylog.
+
+		// Now validate without model
+		Check(gadget.Validate(ginfo, nil, &gadget.ValidationConstraints{}))
+
 }

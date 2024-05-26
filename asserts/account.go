@@ -23,12 +23,12 @@ import (
 	"fmt"
 	"regexp"
 	"time"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
-var (
-	// account ids look like snap-ids or a nice identifier
-	validAccountID = regexp.MustCompile("^(?:[a-z0-9A-Z]{32}|[-a-z0-9]{2,28})$")
-)
+// account ids look like snap-ids or a nice identifier
+var validAccountID = regexp.MustCompile("^(?:[a-z0-9A-Z]{32}|[-a-z0-9]{2,28})$")
 
 // Account holds an account assertion, which ties a name for an account
 // to its identifier and provides the authority's confidence in the name's validity.
@@ -80,15 +80,10 @@ func (acc *Account) checkConsistency(db RODatabase, acck *AccountKey) error {
 var _ consistencyChecker = (*Account)(nil)
 
 func assembleAccount(assert assertionBase) (Assertion, error) {
-	_, err := checkNotEmptyString(assert.headers, "display-name")
-	if err != nil {
-		return nil, err
-	}
+	_ := mylog.Check2(checkNotEmptyString(assert.headers, "display-name"))
 
-	validation, err := checkNotEmptyString(assert.headers, "validation")
-	if err != nil {
-		return nil, err
-	}
+	validation := mylog.Check2(checkNotEmptyString(assert.headers, "validation"))
+
 	// backward compatibility with the hard-coded trusted account
 	// assertions
 	// TODO: generate revision 1 of them with validation
@@ -97,15 +92,9 @@ func assembleAccount(assert assertionBase) (Assertion, error) {
 		validation = "verified"
 	}
 
-	timestamp, err := checkRFC3339Date(assert.headers, "timestamp")
-	if err != nil {
-		return nil, err
-	}
+	timestamp := mylog.Check2(checkRFC3339Date(assert.headers, "timestamp"))
 
-	_, err = checkOptionalString(assert.headers, "username")
-	if err != nil {
-		return nil, err
-	}
+	_ = mylog.Check2(checkOptionalString(assert.headers, "username"))
 
 	return &Account{
 		assertionBase: assert,

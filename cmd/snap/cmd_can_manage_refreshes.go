@@ -22,6 +22,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 )
 
@@ -45,9 +46,8 @@ func (x *cmdCanManageRefreshes) Execute(args []string) error {
 	}
 
 	var resp bool
-	if err := x.client.Debug("can-manage-refreshes", nil, &resp); err != nil {
-		return err
-	}
+	mylog.Check(x.client.Debug("can-manage-refreshes", nil, &resp))
+
 	fmt.Fprintf(Stdout, "%v\n", resp)
 	return nil
 }

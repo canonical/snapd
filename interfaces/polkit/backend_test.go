@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
@@ -106,8 +107,8 @@ func (s *backendSuite) TestNoPolicyFiles(c *C) {
 }
 
 func (s *backendSuite) TestUnexpectedPolicyFilesremoved(c *C) {
-	err := os.MkdirAll(dirs.SnapPolkitPolicyDir, 0700)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(dirs.SnapPolkitPolicyDir, 0700))
+
 	policyFile := filepath.Join(dirs.SnapPolkitPolicyDir, "snap.samba.interface.something.policy")
 
 	for _, opts := range testedConfinementOpts {

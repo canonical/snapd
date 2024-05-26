@@ -19,6 +19,8 @@
 
 package osutil
 
+import "github.com/ddkwork/golibrary/mylog"
+
 var KernelVersion = kernelVersion
 
 // We have to implement separate functions for the kernel version and the
@@ -31,10 +33,7 @@ var KernelVersion = kernelVersion
 // for details.
 
 func kernelVersion() string {
-	u, err := uname()
-	if err != nil {
-		return "unknown"
-	}
+	u := mylog.Check2(uname())
 
 	// Release is more informative than Version.
 	buf := make([]byte, len(u.Release))
@@ -51,10 +50,7 @@ func kernelVersion() string {
 }
 
 func MachineName() string {
-	u, err := uname()
-	if err != nil {
-		return "unknown"
-	}
+	u := mylog.Check2(uname())
 
 	buf := make([]byte, len(u.Machine))
 	for i, c := range u.Machine {

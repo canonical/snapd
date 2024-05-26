@@ -27,6 +27,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -162,7 +163,7 @@ func (ts *strutilSuite) TestParseByteSizeHappy(c *check.C) {
 		{"6PB", 6 * 1000 * 1000 * 1000 * 1000 * 1000},
 		{"8EB", 8 * 1000 * 1000 * 1000 * 1000 * 1000 * 1000},
 	} {
-		val, err := strutil.ParseByteSize(t.str)
+		val := mylog.Check2(strutil.ParseByteSize(t.str))
 		c.Check(err, check.IsNil)
 		c.Check(val, check.Equals, t.expected, check.Commentf("incorrect result for input %q", t.str))
 	}
@@ -190,7 +191,7 @@ func (ts *strutilSuite) TestParseByteSizeUnhappy(c *check.C) {
 		{"٧kB", `cannot parse "٧kB": no numerical prefix`},
 		{"1٧kB", `cannot parse "1٧kB": try 'kB' or 'MB'`},
 	} {
-		_, err := strutil.ParseByteSize(t.str)
+		_ := mylog.Check2(strutil.ParseByteSize(t.str))
 		c.Check(err, check.ErrorMatches, t.errStr, check.Commentf("incorrect error for %q", t.str))
 	}
 }
@@ -315,7 +316,7 @@ func (strutilSuite) TestWordWrap(c *check.C) {
 		{input: "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.", width: 20, indent: "", indent2: "  ", output: "Lorem ipsum dolor\n  sit amet,\n  consectetur\n  adipiscing elit,\n  sed do eiusmod\n  tempor incididunt\n  ut labore et\n  dolore magna\n  aliqua.\n"},
 	} {
 		buf := new(bytes.Buffer)
-		err := strutil.WordWrap(buf, []rune(t.input), t.indent, t.indent2, t.width)
+		mylog.Check(strutil.WordWrap(buf, []rune(t.input), t.indent, t.indent2, t.width))
 		c.Assert(err, check.IsNil)
 		c.Check(buf.String(), check.Equals, t.output)
 	}
@@ -358,7 +359,7 @@ func (strutilSuite) TestWordWrapPadded(c *check.C) {
 		{input: "Lorem ipsum", width: -10, padding: "", output: "  L\n  o\n  r\n  e\n  m\n  i\n  p\n  s\n  u\n  m\n"},
 	} {
 		buf := new(bytes.Buffer)
-		err := strutil.WordWrapPadded(buf, []rune(t.input), t.padding, t.width)
+		mylog.Check(strutil.WordWrapPadded(buf, []rune(t.input), t.padding, t.width))
 		c.Assert(err, check.IsNil)
 		c.Check(buf.String(), check.Equals, t.output)
 	}

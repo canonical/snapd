@@ -26,6 +26,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
@@ -86,10 +87,8 @@ func (e *ReadOnlyFsError) Error() string {
 // The file descriptor is opened using the O_PATH, O_NOFOLLOW,
 // and O_CLOEXEC flags.
 func OpenPath(path string) (int, error) {
-	iter, err := strutil.NewPathIterator(path)
-	if err != nil {
-		return -1, fmt.Errorf("cannot open path: %s", err)
-	}
+	iter := mylog.Check2(strutil.NewPathIterator(path))
+
 	if !filepath.IsAbs(iter.Path()) {
 		return -1, fmt.Errorf("path %v is not absolute", iter.Path())
 	}
@@ -100,28 +99,21 @@ func OpenPath(path string) (int, error) {
 	//  O_DIRECTORY: we expect to find directories (except for the leaf)
 	//  O_CLOEXEC: don't leak file descriptors over exec() boundaries
 	openFlags := sys.O_PATH | syscall.O_NOFOLLOW | syscall.O_DIRECTORY | syscall.O_CLOEXEC
-	fd, err := sysOpen("/", openFlags, 0)
-	if err != nil {
-		return -1, err
-	}
+	fd := mylog.Check2(sysOpen("/", openFlags, 0))
+
 	for iter.Next() {
 		// Ensure the parent file descriptor is closed
 		defer sysClose(fd)
 		if !strings.HasSuffix(iter.CurrentName(), "/") {
 			openFlags &^= syscall.O_DIRECTORY
 		}
-		fd, err = sysOpenat(fd, iter.CurrentNameNoSlash(), openFlags, 0)
-		if err != nil {
-			return -1, err
-		}
+		fd = mylog.Check2(sysOpenat(fd, iter.CurrentNameNoSlash(), openFlags, 0))
+
 	}
 
 	var statBuf syscall.Stat_t
-	err = sysFstat(fd, &statBuf)
-	if err != nil {
-		sysClose(fd)
-		return -1, err
-	}
+	mylog.Check(sysFstat(fd, &statBuf))
+
 	if statBuf.Mode&syscall.S_IFMT == syscall.S_IFLNK {
 		sysClose(fd)
 		return -1, fmt.Errorf("%q is a symbolic link", path)
@@ -151,11 +143,10 @@ func syscallMode(i os.FileMode) (o uint32) {
 // flag. This function is a base for secure variants of mkdir, touch and
 // symlink. None of the traversed directories can be symbolic links.
 func MkPrefix(base string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, rs *Restrictions) (int, error) {
-	iter, err := strutil.NewPathIterator(base)
-	if err != nil {
-		// TODO: Reword the error and adjust the tests.
-		return -1, fmt.Errorf("cannot split unclean path %q", base)
-	}
+	iter := mylog.Check2(strutil.NewPathIterator(base))
+
+	// TODO: Reword the error and adjust the tests.
+
 	if !filepath.IsAbs(iter.Path()) {
 		return -1, fmt.Errorf("path %v is not absolute", iter.Path())
 	}
@@ -167,18 +158,14 @@ func MkPrefix(base string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, rs
 	// We don't have to check for possible trespassing on / here because we are
 	// going to check for it in sec.MkDir call below which verifies that
 	// trespassing restrictions are not violated.
-	fd, err := sysOpen("/", openFlags, 0)
-	if err != nil {
-		return -1, fmt.Errorf("cannot open root directory: %v", err)
-	}
+	fd := mylog.Check2(sysOpen("/", openFlags, 0))
+
 	for iter.Next() {
 		// Keep closing the previous descriptor as we go, so that we have the
 		// last one handy from the MkDir below.
 		defer sysClose(fd)
-		fd, err = MkDir(fd, iter.CurrentBaseNoSlash(), iter.CurrentNameNoSlash(), perm, uid, gid, rs)
-		if err != nil {
-			return -1, err
-		}
+		fd = mylog.Check2(MkDir(fd, iter.CurrentBaseNoSlash(), iter.CurrentNameNoSlash(), perm, uid, gid, rs))
+
 	}
 
 	return fd, nil
@@ -191,38 +178,25 @@ func MkPrefix(base string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, rs
 // elements of some path. The return value contains the newly created file
 // descriptor for the new directory or -1 on error.
 func MkDir(dirFd int, dirName string, name string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, rs *Restrictions) (int, error) {
-	if err := rs.Check(dirFd, dirName); err != nil {
-		return -1, err
-	}
+	mylog.Check(rs.Check(dirFd, dirName))
 
 	made := true
 	const openFlags = syscall.O_NOFOLLOW | syscall.O_CLOEXEC | syscall.O_DIRECTORY
+	mylog.Check(sysMkdirat(dirFd, name, syscallMode(perm)))
 
-	if err := sysMkdirat(dirFd, name, syscallMode(perm)); err != nil {
-		switch err {
-		case syscall.EEXIST:
-			made = false
-		case syscall.EROFS:
-			// Treat EROFS specially: this is a hint that we have to poke a
-			// hole using tmpfs. The path below is the location where we
-			// need to poke the hole.
-			return -1, &ReadOnlyFsError{Path: dirName}
-		default:
-			return -1, fmt.Errorf("cannot create directory %q: %v", filepath.Join(dirName, name), err)
-		}
-	}
-	newFd, err := sysOpenat(dirFd, name, openFlags, 0)
-	if err != nil {
-		return -1, fmt.Errorf("cannot open directory %q: %v", filepath.Join(dirName, name), err)
-	}
+	// Treat EROFS specially: this is a hint that we have to poke a
+	// hole using tmpfs. The path below is the location where we
+	// need to poke the hole.
+
+	newFd := mylog.Check2(sysOpenat(dirFd, name, openFlags, 0))
+
 	if made {
-		// Chown each segment that we made.
-		if err := sysFchown(newFd, uid, gid); err != nil {
-			// Close the FD we opened if we fail here since the caller will get
-			// an error and won't assume responsibility for the FD.
-			sysClose(newFd)
-			return -1, fmt.Errorf("cannot chown directory %q to %d.%d: %v", filepath.Join(dirName, name), uid, gid, err)
-		}
+		mylog.Check(
+			// Chown each segment that we made.
+			sysFchown(newFd, uid, gid))
+		// Close the FD we opened if we fail here since the caller will get
+		// an error and won't assume responsibility for the FD.
+
 		// As soon as we find a place that is safe to write we can switch off
 		// the restricted mode (and thus any subsequent checks). This is
 		// because we only allow "writing" to read-only filesystems where
@@ -244,9 +218,7 @@ func MkDir(dirFd int, dirName string, name string, perm os.FileMode, uid sys.Use
 // a preparation for a mount point. Existing files are reused without errors.
 // Newly created files have the specified mode and ownership.
 func MkFile(dirFd int, dirName string, name string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, rs *Restrictions) error {
-	if err := rs.Check(dirFd, dirName); err != nil {
-		return err
-	}
+	mylog.Check(rs.Check(dirFd, dirName))
 
 	made := true
 	// NOTE: Tests don't show O_RDONLY as has a value of 0 and is not
@@ -257,32 +229,20 @@ func MkFile(dirFd int, dirName string, name string, perm os.FileMode, uid sys.Us
 	// we know if we need to chown it) but fall back to just opening an
 	// existing one.
 
-	newFd, err := sysOpenat(dirFd, name, openFlags|syscall.O_CREAT|syscall.O_EXCL, syscallMode(perm))
-	if err != nil {
-		switch err {
-		case syscall.EEXIST:
-			// If the file exists then just open it without O_CREAT and O_EXCL
-			newFd, err = sysOpenat(dirFd, name, openFlags, 0)
-			if err != nil {
-				return fmt.Errorf("cannot open file %q: %v", filepath.Join(dirName, name), err)
-			}
-			made = false
-		case syscall.EROFS:
-			// Treat EROFS specially: this is a hint that we have to poke a
-			// hole using tmpfs. The path below is the location where we
-			// need to poke the hole.
-			return &ReadOnlyFsError{Path: dirName}
-		default:
-			return fmt.Errorf("cannot open file %q: %v", filepath.Join(dirName, name), err)
-		}
-	}
+	newFd := mylog.Check2(sysOpenat(dirFd, name, openFlags|syscall.O_CREAT|syscall.O_EXCL, syscallMode(perm)))
+
+	// If the file exists then just open it without O_CREAT and O_EXCL
+
+	// Treat EROFS specially: this is a hint that we have to poke a
+	// hole using tmpfs. The path below is the location where we
+	// need to poke the hole.
+
 	defer sysClose(newFd)
 
 	if made {
-		// Chown the file if we made it.
-		if err := sysFchown(newFd, uid, gid); err != nil {
-			return fmt.Errorf("cannot chown file %q to %d.%d: %v", filepath.Join(dirName, name), uid, gid, err)
-		}
+		mylog.Check(
+			// Chown the file if we made it.
+			sysFchown(newFd, uid, gid))
 	}
 
 	return nil
@@ -294,49 +254,18 @@ func MkFile(dirFd int, dirName string, name string, perm os.FileMode, uid sys.Us
 // convenience). This function is meant to be used to create the leaf symlink.
 // Existing and identical symlinks are reused without errors.
 func MkSymlink(dirFd int, dirName string, name string, oldname string, rs *Restrictions) error {
-	if err := rs.Check(dirFd, dirName); err != nil {
-		return err
-	}
+	mylog.Check(rs.Check(dirFd, dirName))
+	mylog.Check(
 
-	// Create the final path segment as a symlink.
-	if err := sysSymlinkat(oldname, dirFd, name); err != nil {
-		switch err {
-		case syscall.EEXIST:
-			var objFd int
-			// If the file exists then just open it for examination.
-			// Maybe it's the symlink we were hoping to create.
-			objFd, err = sysOpenat(dirFd, name, syscall.O_CLOEXEC|sys.O_PATH|syscall.O_NOFOLLOW, 0)
-			if err != nil {
-				return fmt.Errorf("cannot open existing file %q: %v", filepath.Join(dirName, name), err)
-			}
-			defer sysClose(objFd)
-			var statBuf syscall.Stat_t
-			err = sysFstat(objFd, &statBuf)
-			if err != nil {
-				return fmt.Errorf("cannot inspect existing file %q: %v", filepath.Join(dirName, name), err)
-			}
-			if statBuf.Mode&syscall.S_IFMT != syscall.S_IFLNK {
-				return fmt.Errorf("cannot create symbolic link %q: existing file in the way", filepath.Join(dirName, name))
-			}
-			var n int
-			buf := make([]byte, len(oldname)+2)
-			n, err = sysReadlinkat(objFd, "", buf)
-			if err != nil {
-				return fmt.Errorf("cannot read symbolic link %q: %v", filepath.Join(dirName, name), err)
-			}
-			if string(buf[:n]) != oldname {
-				return fmt.Errorf("cannot create symbolic link %q: existing symbolic link in the way", filepath.Join(dirName, name))
-			}
-			return nil
-		case syscall.EROFS:
-			// Treat EROFS specially: this is a hint that we have to poke a
-			// hole using tmpfs. The path below is the location where we
-			// need to poke the hole.
-			return &ReadOnlyFsError{Path: dirName}
-		default:
-			return fmt.Errorf("cannot create symlink %q: %v", filepath.Join(dirName, name), err)
-		}
-	}
+		// Create the final path segment as a symlink.
+		sysSymlinkat(oldname, dirFd, name))
+
+	// If the file exists then just open it for examination.
+	// Maybe it's the symlink we were hoping to create.
+
+	// Treat EROFS specially: this is a hint that we have to poke a
+	// hole using tmpfs. The path below is the location where we
+	// need to poke the hole.
 
 	return nil
 }
@@ -377,7 +306,7 @@ func MkdirAllWithin(path, parent string, perm os.FileMode, uid sys.UserID, gid s
 	}
 
 	// Check if we need to do anything
-	fi, err := osLstat(path)
+	fi := mylog.Check2(osLstat(path))
 	if err == nil {
 		if !fi.Mode().IsDir() {
 			return fmt.Errorf("cannot create directory %q: existing file in the way", path)
@@ -388,7 +317,7 @@ func MkdirAllWithin(path, parent string, perm os.FileMode, uid sys.UserID, gid s
 	}
 
 	// Check that the parent path exists
-	fi, err = osLstat(parent)
+	fi = mylog.Check2(osLstat(parent))
 	if err == nil {
 		if !fi.Mode().IsDir() {
 			return fmt.Errorf("cannot use parent path %q: not a directory", parent)
@@ -399,10 +328,8 @@ func MkdirAllWithin(path, parent string, perm os.FileMode, uid sys.UserID, gid s
 		return fmt.Errorf("cannot inspect parent path %q: %v", parent, err)
 	}
 
-	iter, err := strutil.NewPathIterator(path)
-	if err != nil {
-		return fmt.Errorf("cannot iterate over path %q: %v", path, err)
-	}
+	iter := mylog.Check2(strutil.NewPathIterator(path))
+
 	// Advance the iterator to the parent. Finding the parent is
 	// guaranteed by the earlier check isParent.
 	for iter.Next() {
@@ -416,7 +343,7 @@ func MkdirAllWithin(path, parent string, perm os.FileMode, uid sys.UserID, gid s
 			// Already confirmed path does not exist
 			break
 		}
-		fi, err = osLstat(iter.CurrentPathNoSlash())
+		fi = mylog.Check2(osLstat(iter.CurrentPathNoSlash()))
 		if err == nil {
 			if !fi.Mode().IsDir() {
 				return fmt.Errorf("cannot create directory %q: existing file in the way", iter.CurrentPathNoSlash())
@@ -432,23 +359,17 @@ func MkdirAllWithin(path, parent string, perm os.FileMode, uid sys.UserID, gid s
 	// Create the first missing directory. From this point onward all file descriptors are kept open
 	// until all missing directories have been created or failure, and then closed in reverse order.
 	const openFlags = syscall.O_NOFOLLOW | syscall.O_CLOEXEC | syscall.O_DIRECTORY
-	fd, err := sysOpen(iter.CurrentBaseNoSlash(), openFlags, 0)
-	if err != nil {
-		return fmt.Errorf("cannot open directory %q: %v", iter.CurrentBaseNoSlash(), err)
-	}
+	fd := mylog.Check2(sysOpen(iter.CurrentBaseNoSlash(), openFlags, 0))
+
 	defer sysClose(fd)
-	fd, err = MkDir(fd, iter.CurrentBaseNoSlash(), iter.CurrentNameNoSlash(), perm, uid, gid, rs)
-	if err != nil {
-		return err
-	}
+	fd = mylog.Check2(MkDir(fd, iter.CurrentBaseNoSlash(), iter.CurrentNameNoSlash(), perm, uid, gid, rs))
+
 	defer sysClose(fd)
 
 	// Create the remaining missing directories
 	for iter.Next() {
-		fd, err = MkDir(fd, iter.CurrentBaseNoSlash(), iter.CurrentNameNoSlash(), perm, uid, gid, rs)
-		if err != nil {
-			return err
-		}
+		fd = mylog.Check2(MkDir(fd, iter.CurrentBaseNoSlash(), iter.CurrentNameNoSlash(), perm, uid, gid, rs))
+
 		defer sysClose(fd)
 	}
 	return nil
@@ -480,18 +401,14 @@ func MkdirAll(path string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, rs
 	base = filepath.Clean(base) // Needed to chomp the trailing slash.
 
 	// Create the prefix.
-	dirFd, err := MkPrefix(base, perm, uid, gid, rs)
-	if err != nil {
-		return err
-	}
+	dirFd := mylog.Check2(MkPrefix(base, perm, uid, gid, rs))
+
 	defer sysClose(dirFd)
 
 	if name != "" {
 		// Create the leaf as a directory.
-		leafFd, err := MkDir(dirFd, base, name, perm, uid, gid, rs)
-		if err != nil {
-			return err
-		}
+		leafFd := mylog.Check2(MkDir(dirFd, base, name, perm, uid, gid, rs))
+
 		defer sysClose(leafFd)
 	}
 
@@ -521,15 +438,14 @@ func MkfileAll(path string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, r
 	base = filepath.Clean(base) // Needed to chomp the trailing slash.
 
 	// Create the prefix.
-	dirFd, err := MkPrefix(base, perm, uid, gid, rs)
-	if err != nil {
-		return err
-	}
+	dirFd := mylog.Check2(MkPrefix(base, perm, uid, gid, rs))
+
 	defer sysClose(dirFd)
 
 	if name != "" {
-		// Create the leaf as a file.
-		err = MkFile(dirFd, base, name, perm, uid, gid, rs)
+		mylog.
+			// Create the leaf as a file.
+			Check(MkFile(dirFd, base, name, perm, uid, gid, rs))
 	}
 	return err
 }
@@ -557,15 +473,14 @@ func MksymlinkAll(path string, perm os.FileMode, uid sys.UserID, gid sys.GroupID
 	base = filepath.Clean(base) // Needed to chomp the trailing slash.
 
 	// Create the prefix.
-	dirFd, err := MkPrefix(base, perm, uid, gid, rs)
-	if err != nil {
-		return err
-	}
+	dirFd := mylog.Check2(MkPrefix(base, perm, uid, gid, rs))
+
 	defer sysClose(dirFd)
 
 	if name != "" {
-		// Create the leaf as a symlink.
-		err = MkSymlink(dirFd, base, name, oldname, rs)
+		mylog.
+			// Create the leaf as a symlink.
+			Check(MkSymlink(dirFd, base, name, oldname, rs))
 	}
 	return err
 }
@@ -593,9 +508,7 @@ func planWritableMimic(dir, neededBy string) ([]*Change, error) {
 	// Stat the original directory to know which mode and ownership to
 	// replicate on top of the tmpfs we are about to create below.
 	var sb syscall.Stat_t
-	if err := sysLstat(dir, &sb); err != nil {
-		return nil, err
-	}
+	mylog.Check(sysLstat(dir, &sb))
 
 	// Bind mount the original directory elsewhere for safe-keeping.
 	changes = append(changes, &Change{
@@ -614,7 +527,8 @@ func planWritableMimic(dir, neededBy string) ([]*Change, error) {
 			// The undo logic handles rbind mounts and adds x-snapd.unbind
 			// flag to them, which in turns translates to MNT_DETACH on
 			// umount2(2) system call.
-			Name: dir, Dir: safeKeepingDir, Options: []string{"rbind"}},
+			Name: dir, Dir: safeKeepingDir, Options: []string{"rbind"},
+		},
 	})
 
 	// Mount tmpfs over the original directory, hiding its contents.
@@ -633,10 +547,8 @@ func planWritableMimic(dir, neededBy string) ([]*Change, error) {
 		},
 	})
 	// Iterate over the items in the original directory (nothing is mounted _yet_).
-	entries, err := osReadDir(dir)
-	if err != nil {
-		return nil, err
-	}
+	entries := mylog.Check2(osReadDir(dir))
+
 	for _, fi := range entries {
 		ch := &Change{Action: Mount, Entry: osutil.MountEntry{
 			Name: filepath.Join(safeKeepingDir, fi.Name()),
@@ -652,7 +564,7 @@ func planWritableMimic(dir, neededBy string) ([]*Change, error) {
 		case m.IsRegular():
 			ch.Entry.Options = []string{"bind", osutil.XSnapdKindFile()}
 		case m&os.ModeSymlink != 0:
-			if target, err := osReadlink(filepath.Join(dir, fi.Name())); err == nil {
+			if target := mylog.Check2(osReadlink(filepath.Join(dir, fi.Name()))); err == nil {
 				ch.Entry.Options = []string{osutil.XSnapdKindSymlink(), osutil.XSnapdSymlink(target)}
 			} else {
 				continue
@@ -703,37 +615,22 @@ type FatalError struct {
 func execWritableMimic(plan []*Change, as *Assumptions) ([]*Change, error) {
 	undoChanges := make([]*Change, 0, len(plan)-2)
 	for i, change := range plan {
-		if _, err := change.Perform(as); err != nil {
-			// Drat, we failed! Let's undo everything according to our own undo
-			// plan, by following it in reverse order.
+		mylog.Check2(change.Perform(as))
+		// Drat, we failed! Let's undo everything according to our own undo
+		// plan, by following it in reverse order.
 
-			recoveryUndoChanges := make([]*Change, 0, len(undoChanges)+1)
-			if i > 0 {
-				// The undo plan doesn't contain the entry for the initial bind
-				// mount of the safe keeping directory but we have already
-				// performed it. For this recovery phase we need to insert that
-				// in front of the undo plan manually.
-				recoveryUndoChanges = append(recoveryUndoChanges, plan[0])
-			}
-			recoveryUndoChanges = append(recoveryUndoChanges, undoChanges...)
+		// The undo plan doesn't contain the entry for the initial bind
+		// mount of the safe keeping directory but we have already
+		// performed it. For this recovery phase we need to insert that
+		// in front of the undo plan manually.
 
-			for j := len(recoveryUndoChanges) - 1; j >= 0; j-- {
-				recoveryUndoChange := recoveryUndoChanges[j]
-				// All the changes mount something, we need to reverse that.
-				// The "undo plan" is "a plan that can be undone" not "the plan
-				// for how to undo" so we need to flip the actions.
-				recoveryUndoChange.Action = Unmount
-				if recoveryUndoChange.Entry.OptBool("rbind") {
-					recoveryUndoChange.Entry.Options = append(recoveryUndoChange.Entry.Options, osutil.XSnapdDetach())
-				}
-				if _, err2 := recoveryUndoChange.Perform(as); err2 != nil {
-					// Drat, we failed when trying to recover from an error.
-					// We cannot do anything at this stage.
-					return nil, &FatalError{error: fmt.Errorf("cannot undo change %q while recovering from earlier error %v: %v", recoveryUndoChange, err, err2)}
-				}
-			}
-			return nil, err
-		}
+		// All the changes mount something, we need to reverse that.
+		// The "undo plan" is "a plan that can be undone" not "the plan
+		// for how to undo" so we need to flip the actions.
+
+		// Drat, we failed when trying to recover from an error.
+		// We cannot do anything at this stage.
+
 		if i == 0 || i == len(plan)-1 {
 			// Don't represent the initial and final changes in the undo plan.
 			// The initial change is the safe-keeping bind mount, the final
@@ -744,7 +641,6 @@ func execWritableMimic(plan []*Change, as *Assumptions) ([]*Change, error) {
 			// Don't represent symlinks in the undo plan. They are removed when
 			// the tmpfs is unmounted.
 			continue
-
 		}
 		// Store an undo change for the change we just performed.
 		undoOpts := change.Entry.Options
@@ -775,13 +671,9 @@ func execWritableMimic(plan []*Change, as *Assumptions) ([]*Change, error) {
 }
 
 func createWritableMimic(dir, neededBy string, as *Assumptions) ([]*Change, error) {
-	plan, err := planWritableMimic(dir, neededBy)
-	if err != nil {
-		return nil, err
-	}
-	changes, err := execWritableMimic(plan, as)
-	if err != nil {
-		return nil, err
-	}
+	plan := mylog.Check2(planWritableMimic(dir, neededBy))
+
+	changes := mylog.Check2(execWritableMimic(plan, as))
+
 	return changes, nil
 }

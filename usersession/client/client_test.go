@@ -34,14 +34,13 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/usersession/client"
 )
 
-var (
-	timeout = testutil.HostScaledTimeout(80 * time.Millisecond)
-)
+var timeout = testutil.HostScaledTimeout(80 * time.Millisecond)
 
 func Test(t *testing.T) { TestingT(t) }
 
@@ -65,12 +64,12 @@ func (s *clientSuite) SetUpTest(c *C) {
 	s.server = &http.Server{Handler: s}
 	for _, uid := range []int{1000, 42} {
 		sock := fmt.Sprintf("%s/%d/snapd-session-agent.socket", dirs.XdgRuntimeDirBase, uid)
-		err := os.MkdirAll(filepath.Dir(sock), 0755)
-		c.Assert(err, IsNil)
-		l, err := net.Listen("unix", sock)
-		c.Assert(err, IsNil)
+		mylog.Check(os.MkdirAll(filepath.Dir(sock), 0755))
+
+		l := mylog.Check2(net.Listen("unix", sock))
+
 		go func(l net.Listener) {
-			err := s.server.Serve(l)
+			mylog.Check(s.server.Serve(l))
 			c.Check(err, Equals, http.ErrServerClosed)
 		}(l)
 	}
@@ -81,8 +80,7 @@ func (s *clientSuite) SetUpTest(c *C) {
 func (s *clientSuite) TearDownTest(c *C) {
 	s.BaseTest.TearDownTest(c)
 	dirs.SetRootDir("")
-
-	err := s.server.Shutdown(context.Background())
+	mylog.Check(s.server.Shutdown(context.Background()))
 	c.Check(err, IsNil)
 }
 
@@ -100,7 +98,7 @@ func (s *clientSuite) TestBadJsonResponse(c *C) {
 		w.WriteHeader(200)
 		w.Write([]byte(`{"type":`))
 	})
-	si, err := s.cli.SessionInfo(context.Background())
+	si := mylog.Check2(s.cli.SessionInfo(context.Background()))
 	c.Check(si, DeepEquals, map[int]client.SessionInfo{})
 	c.Check(err, ErrorMatches, `cannot decode "{\\"type\\":": unexpected EOF`)
 }
@@ -129,7 +127,7 @@ func (s *clientSuite) TestAgentTimeout(c *C) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	si, err := s.cli.SessionInfo(ctx)
+	si := mylog.Check2(s.cli.SessionInfo(ctx))
 
 	// An error is reported, and we receive information about the
 	// agent that replied on time.
@@ -150,8 +148,8 @@ func (s *clientSuite) TestSessionInfo(c *C) {
   }
 }`))
 	})
-	si, err := s.cli.SessionInfo(context.Background())
-	c.Assert(err, IsNil)
+	si := mylog.Check2(s.cli.SessionInfo(context.Background()))
+
 	c.Check(si, DeepEquals, map[int]client.SessionInfo{
 		42:   {Version: "42"},
 		1000: {Version: "42"},
@@ -169,7 +167,7 @@ func (s *clientSuite) TestSessionInfoError(c *C) {
   }
 }`))
 	})
-	si, err := s.cli.SessionInfo(context.Background())
+	si := mylog.Check2(s.cli.SessionInfo(context.Background()))
 	c.Check(si, DeepEquals, map[int]client.SessionInfo{})
 	c.Check(err, ErrorMatches, "something bad happened")
 	c.Check(err, DeepEquals, &client.Error{
@@ -188,7 +186,7 @@ func (s *clientSuite) TestSessionInfoWrongResultType(c *C) {
   "result": ["a", "list"]
 }`))
 	})
-	si, err := s.cli.SessionInfo(context.Background())
+	si := mylog.Check2(s.cli.SessionInfo(context.Background()))
 	c.Check(si, DeepEquals, map[int]client.SessionInfo{})
 	c.Check(err, ErrorMatches, `json: cannot unmarshal array into Go value of type client.SessionInfo`)
 }
@@ -202,8 +200,8 @@ func (s *clientSuite) TestServicesDaemonReload(c *C) {
   "result": null
 }`))
 	})
-	err := s.cli.ServicesDaemonReload(context.Background())
-	c.Assert(err, IsNil)
+	mylog.Check(s.cli.ServicesDaemonReload(context.Background()))
+
 }
 
 func (s *clientSuite) TestServicesDaemonReloadError(c *C) {
@@ -217,7 +215,7 @@ func (s *clientSuite) TestServicesDaemonReloadError(c *C) {
   }
 }`))
 	})
-	err := s.cli.ServicesDaemonReload(context.Background())
+	mylog.Check(s.cli.ServicesDaemonReload(context.Background()))
 	c.Check(err, ErrorMatches, "something bad happened")
 	c.Check(err, DeepEquals, &client.Error{
 		Kind:    "",
@@ -235,8 +233,8 @@ func (s *clientSuite) TestServicesStart(c *C) {
   "result": null
 }`))
 	})
-	startFailures, stopFailures, err := s.cli.ServicesStart(context.Background(), []string{"service1.service", "service2.service"}, client.ClientServicesStartOptions{})
-	c.Assert(err, IsNil)
+	startFailures, stopFailures := mylog.Check3(s.cli.ServicesStart(context.Background(), []string{"service1.service", "service2.service"}, client.ClientServicesStartOptions{}))
+
 	c.Check(startFailures, HasLen, 0)
 	c.Check(stopFailures, HasLen, 0)
 }
@@ -262,7 +260,7 @@ func (s *clientSuite) TestServicesStartWithDisabledServices(c *C) {
   "result": null
 }`))
 	})
-	startFailures, stopFailures, err := s.cli.ServicesStart(
+	startFailures, stopFailures := mylog.Check3(s.cli.ServicesStart(
 		context.Background(),
 		[]string{"service1.service", "service2.service"},
 		client.ClientServicesStartOptions{
@@ -271,8 +269,8 @@ func (s *clientSuite) TestServicesStartWithDisabledServices(c *C) {
 				1000: {"service2.service"},
 			},
 		},
-	)
-	c.Assert(err, IsNil)
+	))
+
 	c.Check(startFailures, HasLen, 0)
 	c.Check(stopFailures, HasLen, 0)
 	c.Check(atomic.LoadInt32(&n), Equals, int32(2))
@@ -295,7 +293,7 @@ func (s *clientSuite) TestServicesStartFailure(c *C) {
   }
 }`))
 	})
-	startFailures, stopFailures, err := s.cli.ServicesStart(context.Background(), []string{"service1.service", "service2.service"}, client.ClientServicesStartOptions{})
+	startFailures, stopFailures := mylog.Check3(s.cli.ServicesStart(context.Background(), []string{"service1.service", "service2.service"}, client.ClientServicesStartOptions{}))
 	c.Assert(err, ErrorMatches, "failed to start services")
 	c.Check(startFailures, HasLen, 2)
 	c.Check(stopFailures, HasLen, 0)
@@ -342,7 +340,7 @@ func (s *clientSuite) TestServicesStartOneAgentFailure(c *C) {
   }
 }`))
 	})
-	startFailures, stopFailures, err := s.cli.ServicesStart(context.Background(), []string{"service1.service", "service2.service"}, client.ClientServicesStartOptions{})
+	startFailures, stopFailures := mylog.Check3(s.cli.ServicesStart(context.Background(), []string{"service1.service", "service2.service"}, client.ClientServicesStartOptions{}))
 	c.Assert(err, ErrorMatches, "failed to start services")
 	c.Check(startFailures, DeepEquals, []client.ServiceFailure{
 		{
@@ -379,14 +377,14 @@ func (s *clientSuite) TestServicesStartBadErrors(c *C) {
 
 	// Error value is not a map
 	errorValue = "[]"
-	startFailures, stopFailures, err := s.cli.ServicesStart(context.Background(), []string{"service1.service"}, client.ClientServicesStartOptions{})
+	startFailures, stopFailures := mylog.Check3(s.cli.ServicesStart(context.Background(), []string{"service1.service"}, client.ClientServicesStartOptions{}))
 	c.Check(err, ErrorMatches, "failed to stop services")
 	c.Check(startFailures, HasLen, 0)
 	c.Check(stopFailures, HasLen, 0)
 
 	// Error value is a map, but missing start-errors/stop-errors keys
 	errorValue = "{}"
-	startFailures, stopFailures, err = s.cli.ServicesStart(context.Background(), []string{"service1.service"}, client.ClientServicesStartOptions{})
+	startFailures, stopFailures = mylog.Check3(s.cli.ServicesStart(context.Background(), []string{"service1.service"}, client.ClientServicesStartOptions{}))
 	c.Check(err, ErrorMatches, "failed to stop services")
 	c.Check(startFailures, HasLen, 0)
 	c.Check(stopFailures, HasLen, 0)
@@ -396,7 +394,7 @@ func (s *clientSuite) TestServicesStartBadErrors(c *C) {
   "start-errors": [],
   "stop-errors": 42
 }`
-	startFailures, stopFailures, err = s.cli.ServicesStart(context.Background(), []string{"service1.service"}, client.ClientServicesStartOptions{})
+	startFailures, stopFailures = mylog.Check3(s.cli.ServicesStart(context.Background(), []string{"service1.service"}, client.ClientServicesStartOptions{}))
 	c.Check(err, ErrorMatches, "failed to stop services")
 	c.Check(startFailures, HasLen, 0)
 	c.Check(stopFailures, HasLen, 0)
@@ -410,7 +408,7 @@ func (s *clientSuite) TestServicesStartBadErrors(c *C) {
     "service1.service": {}
   }
 }`
-	startFailures, stopFailures, err = s.cli.ServicesStart(context.Background(), []string{"service1.service"}, client.ClientServicesStartOptions{})
+	startFailures, stopFailures = mylog.Check3(s.cli.ServicesStart(context.Background(), []string{"service1.service"}, client.ClientServicesStartOptions{}))
 	c.Check(err, ErrorMatches, "failed to stop services")
 	c.Check(startFailures, HasLen, 0)
 	c.Check(stopFailures, HasLen, 0)
@@ -424,7 +422,7 @@ func (s *clientSuite) TestServicesStartBadErrors(c *C) {
     "service2.service": 42
   }
 }`
-	startFailures, stopFailures, err = s.cli.ServicesStart(context.Background(), []string{"service1.service"}, client.ClientServicesStartOptions{})
+	startFailures, stopFailures = mylog.Check3(s.cli.ServicesStart(context.Background(), []string{"service1.service"}, client.ClientServicesStartOptions{}))
 	c.Check(err, ErrorMatches, "failed to stop services")
 	c.Check(startFailures, DeepEquals, []client.ServiceFailure{
 		{
@@ -445,8 +443,8 @@ func (s *clientSuite) TestServicesStop(c *C) {
   "result": null
 }`))
 	})
-	failures, err := s.cli.ServicesStop(context.Background(), []string{"service1.service", "service2.service"}, false)
-	c.Assert(err, IsNil)
+	failures := mylog.Check2(s.cli.ServicesStop(context.Background(), []string{"service1.service", "service2.service"}, false))
+
 	c.Check(failures, HasLen, 0)
 }
 
@@ -467,7 +465,7 @@ func (s *clientSuite) TestServicesStopFailure(c *C) {
   }
 }`))
 	})
-	failures, err := s.cli.ServicesStop(context.Background(), []string{"service1.service", "service2.service"}, false)
+	failures := mylog.Check2(s.cli.ServicesStop(context.Background(), []string{"service1.service", "service2.service"}, false))
 	c.Assert(err, ErrorMatches, "failed to stop services")
 	c.Check(failures, HasLen, 2)
 	failure0 := failures[0]
@@ -496,8 +494,8 @@ func (s *clientSuite) TestServicesRestart(c *C) {
   "result": null
 }`))
 	})
-	failures, err := s.cli.ServicesRestart(context.Background(), []string{"service1.service", "service2.service"}, false)
-	c.Assert(err, IsNil)
+	failures := mylog.Check2(s.cli.ServicesRestart(context.Background(), []string{"service1.service", "service2.service"}, false))
+
 	c.Check(failures, HasLen, 0)
 }
 
@@ -518,7 +516,7 @@ func (s *clientSuite) TestServicesRestartFailure(c *C) {
   }
 }`))
 	})
-	failures, err := s.cli.ServicesRestart(context.Background(), []string{"service1.service", "service2.service"}, false)
+	failures := mylog.Check2(s.cli.ServicesRestart(context.Background(), []string{"service1.service", "service2.service"}, false))
 	c.Assert(err, ErrorMatches, "failed to restart services")
 	c.Check(failures, HasLen, 2)
 	failure0 := failures[0]
@@ -547,8 +545,8 @@ func (s *clientSuite) TestServicesRestartWithReload(c *C) {
   "result": null
 }`))
 	})
-	failures, err := s.cli.ServicesRestart(context.Background(), []string{"service1.service", "service2.service"}, true)
-	c.Assert(err, IsNil)
+	failures := mylog.Check2(s.cli.ServicesRestart(context.Background(), []string{"service1.service", "service2.service"}, true))
+
 	c.Check(failures, HasLen, 0)
 }
 
@@ -569,7 +567,7 @@ func (s *clientSuite) TestServicesRestartWithReloadFailure(c *C) {
   }
 }`))
 	})
-	failures, err := s.cli.ServicesRestart(context.Background(), []string{"service1.service", "service2.service"}, true)
+	failures := mylog.Check2(s.cli.ServicesRestart(context.Background(), []string{"service1.service", "service2.service"}, true))
 	c.Assert(err, ErrorMatches, "failed to restart or reload services")
 	c.Check(failures, HasLen, 2)
 	failure0 := failures[0]
@@ -607,8 +605,8 @@ func (s *clientSuite) TestServiceStatus(c *C) {
   }]
 }`))
 	})
-	si, failures, err := s.cli.ServiceStatus(context.Background(), []string{"snap.foo.service"})
-	c.Assert(err, IsNil)
+	si, failures := mylog.Check3(s.cli.ServiceStatus(context.Background(), []string{"snap.foo.service"}))
+
 	c.Check(failures, HasLen, 0)
 	c.Check(si, DeepEquals, map[int][]client.ServiceUnitStatus{
 		42: {
@@ -649,7 +647,7 @@ func (s *clientSuite) TestServiceStatusFatalError(c *C) {
   }
 }`))
 	})
-	_, failures, err := s.cli.ServiceStatus(context.Background(), []string{"snap.foo.service"})
+	_, failures := mylog.Check3(s.cli.ServiceStatus(context.Background(), []string{"snap.foo.service"}))
 	c.Check(err, ErrorMatches, `something bad happened`)
 	c.Check(failures, HasLen, 0)
 }
@@ -663,7 +661,7 @@ func (s *clientSuite) TestServiceStatusWrongResultType(c *C) {
   "result": ["a", "list"]
 }`))
 	})
-	_, failures, err := s.cli.ServiceStatus(context.Background(), []string{"snap.foo.service"})
+	_, failures := mylog.Check3(s.cli.ServiceStatus(context.Background(), []string{"snap.foo.service"}))
 	c.Check(failures, DeepEquals, map[int][]client.ServiceFailure{})
 	c.Check(err, ErrorMatches, `json: cannot unmarshal string into Go value of type client.ServiceUnitStatus`)
 }
@@ -686,7 +684,7 @@ func (s *clientSuite) TestServiceStatusFailure(c *C) {
 }`))
 	})
 
-	si, failures, err := s.cli.ServiceStatus(context.Background(), []string{"service1.service", "service2.service"})
+	si, failures := mylog.Check3(s.cli.ServiceStatus(context.Background(), []string{"service1.service", "service2.service"}))
 	c.Check(err, IsNil)
 	c.Check(si, DeepEquals, map[int][]client.ServiceUnitStatus{})
 	c.Check(failures, HasLen, 2)
@@ -709,8 +707,8 @@ func (s *clientSuite) TestPendingRefreshNotification(c *C) {
 		w.WriteHeader(200)
 		w.Write([]byte(`{"type": "sync"}`))
 	})
-	err := s.cli.PendingRefreshNotification(context.Background(), &client.PendingSnapRefreshInfo{})
-	c.Assert(err, IsNil)
+	mylog.Check(s.cli.PendingRefreshNotification(context.Background(), &client.PendingSnapRefreshInfo{}))
+
 	c.Check(atomic.LoadInt32(&n), Equals, int32(2))
 }
 
@@ -719,12 +717,12 @@ func (s *clientSuite) TestFinishRefreshNotification(c *C) {
 	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddInt32(&n, 1)
 		c.Assert(r.URL.Path, Equals, "/v1/notifications/finish-refresh")
-		body, err := io.ReadAll(r.Body)
+		body := mylog.Check2(io.ReadAll(r.Body))
 		c.Check(err, IsNil)
 		c.Check(string(body), DeepEquals, `{"instance-name":"some-snap"}`)
 	})
-	err := s.cli.FinishRefreshNotification(context.Background(), &client.FinishedSnapRefreshInfo{InstanceName: "some-snap"})
-	c.Assert(err, IsNil)
+	mylog.Check(s.cli.FinishRefreshNotification(context.Background(), &client.FinishedSnapRefreshInfo{InstanceName: "some-snap"}))
+
 	// two calls because clientSuite simulates two user sessions (two
 	// snapd-session-agent.socket sockets).
 	c.Check(atomic.LoadInt32(&n), Equals, int32(2))
@@ -740,7 +738,7 @@ func (s *clientSuite) TestPendingRefreshNotificationOneClient(c *C) {
 		w.WriteHeader(200)
 		w.Write([]byte(`{"type": "sync"}`))
 	})
-	err := cli.PendingRefreshNotification(context.Background(), &client.PendingSnapRefreshInfo{})
-	c.Assert(err, IsNil)
+	mylog.Check(cli.PendingRefreshNotification(context.Background(), &client.PendingSnapRefreshInfo{}))
+
 	c.Check(atomic.LoadInt32(&n), Equals, int32(1))
 }

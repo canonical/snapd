@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 )
@@ -54,8 +55,8 @@ func (s *storeSuite) SetUpSuite(c *C) {
 }
 
 func (s *storeSuite) TestDecodeOK(c *C) {
-	a, err := asserts.Decode([]byte(s.validExample))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(s.validExample)))
+
 	c.Check(a.Type(), Equals, asserts.StoreType)
 	store := a.(*asserts.Store)
 
@@ -85,7 +86,7 @@ func (s *storeSuite) TestDecodeInvalidHeaders(c *C) {
 
 	for _, test := range tests {
 		invalid := strings.Replace(s.validExample, test.original, test.invalid, 1)
-		_, err := asserts.Decode([]byte(invalid))
+		_ := mylog.Check2(asserts.Decode([]byte(invalid)))
 		c.Check(err, ErrorMatches, storeErrPrefix+test.expectedErr)
 	}
 }
@@ -94,8 +95,8 @@ func (s *storeSuite) TestURLOptional(c *C) {
 	tests := []string{"", "url: \n"}
 	for _, test := range tests {
 		encoded := strings.Replace(s.validExample, "url: https://store.example.com\n", test, 1)
-		assert, err := asserts.Decode([]byte(encoded))
-		c.Assert(err, IsNil)
+		assert := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 		store := assert.(*asserts.Store)
 		c.Check(store.URL(), IsNil)
 	}
@@ -132,12 +133,12 @@ func (s *storeSuite) TestURL(c *C) {
 		encoded := strings.Replace(
 			s.validExample, "url: https://store.example.com\n",
 			fmt.Sprintf("url: %s\n", test.url), 1)
-		assert, err := asserts.Decode([]byte(encoded))
+		assert := mylog.Check2(asserts.Decode([]byte(encoded)))
 		if test.err != "" {
 			c.Assert(err, NotNil)
 			c.Check(err.Error(), Equals, storeErrPrefix+test.err+": "+test.url)
 		} else {
-			c.Assert(err, IsNil)
+
 			c.Check(assert.(*asserts.Store).URL().String(), Equals, test.url)
 		}
 	}
@@ -145,7 +146,7 @@ func (s *storeSuite) TestURL(c *C) {
 
 func (s *storeSuite) TestLocationOptional(c *C) {
 	encoded := strings.Replace(s.validExample, "location: upstairs\n", "", 1)
-	_, err := asserts.Decode([]byte(encoded))
+	_ := mylog.Check2(asserts.Decode([]byte(encoded)))
 	c.Check(err, IsNil)
 }
 
@@ -154,8 +155,8 @@ func (s *storeSuite) TestLocation(c *C) {
 		encoded := strings.Replace(
 			s.validExample, "location: upstairs\n",
 			fmt.Sprintf("location: %s\n", test), 1)
-		assert, err := asserts.Decode([]byte(encoded))
-		c.Assert(err, IsNil)
+		assert := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 		store := assert.(*asserts.Store)
 		c.Check(store.Location(), Equals, test)
 	}
@@ -166,8 +167,8 @@ func (s *storeSuite) TestCheckAuthority(c *C) {
 
 	// Add account for operator.
 	operator := assertstest.NewAccount(storeDB, "op-id1", nil, "")
-	err := db.Add(operator)
-	c.Assert(err, IsNil)
+	mylog.Check(db.Add(operator))
+
 
 	otherDB := setup3rdPartySigning(c, "other", storeDB, db)
 
@@ -178,16 +179,16 @@ func (s *storeSuite) TestCheckAuthority(c *C) {
 	}
 
 	// store signed by some other account fails.
-	store, err := otherDB.Sign(asserts.StoreType, storeHeaders, nil, "")
-	c.Assert(err, IsNil)
-	err = db.Check(store)
+	store := mylog.Check2(otherDB.Sign(asserts.StoreType, storeHeaders, nil, ""))
+
+	mylog.Check(db.Check(store))
 	c.Assert(err, ErrorMatches, `store assertion "store1" is not signed by a directly trusted authority: other`)
 
 	// but succeeds when signed by a trusted authority.
-	store, err = storeDB.Sign(asserts.StoreType, storeHeaders, nil, "")
-	c.Assert(err, IsNil)
-	err = db.Check(store)
-	c.Assert(err, IsNil)
+	store = mylog.Check2(storeDB.Sign(asserts.StoreType, storeHeaders, nil, ""))
+
+	mylog.Check(db.Check(store))
+
 }
 
 func (s *storeSuite) TestFriendlyStores(c *C) {
@@ -196,8 +197,8 @@ func (s *storeSuite) TestFriendlyStores(c *C) {
   - store2
   - store3
 `, 1)
-	assert, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	assert := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	store := assert.(*asserts.Store)
 	c.Check(store.URL(), IsNil)
 	c.Check(store.FriendlyStores(), DeepEquals, []string{"store1", "store2", "store3"})
@@ -206,30 +207,32 @@ func (s *storeSuite) TestFriendlyStores(c *C) {
 func (s *storeSuite) TestCheckOperatorAccount(c *C) {
 	storeDB, db := makeStoreAndCheckDB(c)
 
-	store, err := storeDB.Sign(asserts.StoreType, map[string]interface{}{
+	store := mylog.Check2(storeDB.Sign(asserts.StoreType, map[string]interface{}{
 		"store":       "store1",
 		"operator-id": "op-id1",
 		"timestamp":   time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
+	}, nil, ""))
 
-	// No account for operator op-id1 yet, so Check fails.
-	err = db.Check(store)
+	mylog.
+
+		// No account for operator op-id1 yet, so Check fails.
+		Check(db.Check(store))
 	c.Assert(err, ErrorMatches, `store assertion "store1" does not have a matching account assertion for the operator "op-id1"`)
 
 	// Add the op-id1 account.
 	operator := assertstest.NewAccount(storeDB, "op-id1", map[string]interface{}{"account-id": "op-id1"}, "")
-	err = db.Add(operator)
-	c.Assert(err, IsNil)
+	mylog.Check(db.Add(operator))
 
-	// Now the operator exists so Check succeeds.
-	err = db.Check(store)
-	c.Assert(err, IsNil)
+	mylog.
+
+		// Now the operator exists so Check succeeds.
+		Check(db.Check(store))
+
 }
 
 func (s *storeSuite) TestPrerequisites(c *C) {
-	assert, err := asserts.Decode([]byte(s.validExample))
-	c.Assert(err, IsNil)
+	assert := mylog.Check2(asserts.Decode([]byte(s.validExample)))
+
 	c.Assert(assert.Prerequisites(), DeepEquals, []*asserts.Ref{
 		{Type: asserts.AccountType, PrimaryKey: []string{"op-id1"}},
 	})

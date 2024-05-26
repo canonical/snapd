@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	_ "github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
@@ -75,8 +76,8 @@ WantedBy=timers.target
 	}
 	service.Timer.App = service
 
-	generatedWrapper, err := internal.GenerateSnapServiceTimerUnitFile(service)
-	c.Assert(err, IsNil)
+	generatedWrapper := mylog.Check2(internal.GenerateSnapServiceTimerUnitFile(service))
+
 
 	c.Logf("timer: \n%v\n", string(generatedWrapper))
 	c.Assert(string(generatedWrapper), Equals, expectedService)
@@ -100,7 +101,7 @@ func (s *serviceTimerUnitGenSuite) TestServiceTimerUnitBadTimer(c *C) {
 	}
 	service.Timer.App = service
 
-	generatedWrapper, err := internal.GenerateSnapServiceTimerUnitFile(service)
+	generatedWrapper := mylog.Check2(internal.GenerateSnapServiceTimerUnitFile(service))
 	c.Assert(err, ErrorMatches, `cannot parse "bad-timer": "bad" is not a valid weekday`)
 	c.Assert(generatedWrapper, IsNil)
 }
@@ -141,8 +142,8 @@ Type=%s
 		},
 	}
 
-	generatedWrapper, err := internal.GenerateSnapServiceUnitFile(service, nil)
-	c.Assert(err, IsNil)
+	generatedWrapper := mylog.Check2(internal.GenerateSnapServiceUnitFile(service, nil))
+
 
 	c.Logf("service: \n%v\n", string(generatedWrapper))
 	c.Assert(string(generatedWrapper), Equals, expectedService)
@@ -156,12 +157,10 @@ func (s *serviceTimerUnitGenSuite) TestTimerGenerateSchedules(c *C) {
 		// the following to stderr:
 		//   Failed to create bus connection: No such file or directory
 		cmd := exec.Command(systemdAnalyzePath, "calendar", "12:00")
-		err := cmd.Run()
-		if err != nil {
-			// turns out it's not usable, disable extra verification
-			fmt.Fprintln(os.Stderr, `WARNING: systemd-analyze not usable, cannot validate a known schedule "12:00"`)
-			systemdAnalyzePath = ""
-		}
+		mylog.Check(cmd.Run())
+
+		// turns out it's not usable, disable extra verification
+
 	}
 
 	if systemdAnalyzePath == "" {
@@ -266,7 +265,7 @@ func (s *serviceTimerUnitGenSuite) TestTimerGenerateSchedules(c *C) {
 	}} {
 		c.Logf("trying %+v", t)
 
-		schedule, err := timeutil.ParseSchedule(t.in)
+		schedule := mylog.Check2(timeutil.ParseSchedule(t.in))
 		c.Check(err, IsNil)
 
 		timer := internal.GenerateOnCalendarSchedules(schedule)
@@ -282,7 +281,7 @@ func (s *serviceTimerUnitGenSuite) TestTimerGenerateSchedules(c *C) {
 
 		if systemdAnalyzePath != "" {
 			cmd := exec.Command(systemdAnalyzePath, append([]string{"calendar"}, timer...)...)
-			out, err := cmd.CombinedOutput()
+			out := mylog.Check2(cmd.CombinedOutput())
 			c.Check(err, IsNil, Commentf("systemd-analyze failed with output:\n%s", string(out)))
 		}
 	}

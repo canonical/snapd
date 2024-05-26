@@ -22,11 +22,12 @@ package main_test
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	repair "github.com/snapcore/snapd/cmd/snap-repair"
 )
 
 func (r *repairSuite) TestListNoRepairsYet(c *C) {
-	err := repair.ParseArgs([]string{"list"})
+	mylog.Check(repair.ParseArgs([]string{"list"}))
 	c.Check(err, IsNil)
 	c.Check(r.Stdout(), Equals, "")
 	c.Check(r.Stderr(), Equals, "no repairs yet\n")
@@ -34,8 +35,7 @@ func (r *repairSuite) TestListNoRepairsYet(c *C) {
 
 func (r *repairSuite) TestListRepairsSimple(c *C) {
 	makeMockRepairState(c)
-
-	err := repair.ParseArgs([]string{"list"})
+	mylog.Check(repair.ParseArgs([]string{"list"}))
 	c.Check(err, IsNil)
 	c.Check(r.Stdout(), Equals, `Repair       Rev  Status   Summary
 canonical-1  3    retry    repair one

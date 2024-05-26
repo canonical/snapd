@@ -26,6 +26,7 @@ import (
 	"os/user"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -57,17 +58,16 @@ func (b Backend) CopySnapData(newSnap, oldSnap *snap.Info, opts *dirs.SnapDirOpt
 
 	// Make sure the base data directory exists for instance snaps
 	if newSnap.InstanceKey != "" {
-		err := os.MkdirAll(snap.BaseDataDir(newSnap.SnapName()), 0755)
+		mylog.Check(os.MkdirAll(snap.BaseDataDir(newSnap.SnapName()), 0755))
 		if err != nil && !os.IsExist(err) {
 			return err
 		}
 	}
+	mylog.Check(
 
-	// Make sure the common data directory exists, even if this isn't a new
-	// install.
-	if err := os.MkdirAll(newSnap.CommonDataDir(), 0755); err != nil {
-		return err
-	}
+		// Make sure the common data directory exists, even if this isn't a new
+		// install.
+		os.MkdirAll(newSnap.CommonDataDir(), 0755))
 
 	if oldSnap == nil {
 		return os.MkdirAll(newSnap.DataDir(), 0755)
@@ -115,10 +115,7 @@ func (b Backend) SetupSnapSaveData(info *snap.Info, dev snap.Device, meter progr
 
 	// verify that ubuntu-save has been mounted under the expected path and
 	// that it is indeed a mount-point.
-	if hasSave, err := osutil.IsMounted(dirs.SnapSaveDir); err != nil || !hasSave {
-		if err != nil {
-			return fmt.Errorf("cannot check if ubuntu-save is mounted: %v", err)
-		}
+	if hasSave := mylog.Check2(osutil.IsMounted(dirs.SnapSaveDir)); err != nil || !hasSave {
 		return nil
 	}
 
@@ -133,35 +130,24 @@ func (b Backend) UndoSetupSnapSaveData(newInfo, oldInfo *snap.Info, dev snap.Dev
 	}
 
 	if oldInfo == nil {
-		// Clear out snap save data when removing totally
-		if err := b.RemoveSnapSaveData(newInfo, dev); err != nil {
-			return fmt.Errorf("cannot remove save data directories for %q: %v", newInfo.InstanceName(), err)
-		}
+		mylog.Check(
+			// Clear out snap save data when removing totally
+			b.RemoveSnapSaveData(newInfo, dev))
 	}
 	return nil
 }
 
 // ClearTrashedData removes the trash. It returns no errors on the assumption that it is called very late in the game.
 func (b Backend) ClearTrashedData(oldSnap *snap.Info) {
-	dataDirs, err := snapDataDirs(oldSnap, nil)
-	if err != nil {
-		logger.Noticef("Cannot remove previous data for %q: %v", oldSnap.InstanceName(), err)
-		return
-	}
+	dataDirs := mylog.Check2(snapDataDirs(oldSnap, nil))
 
 	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
-	hiddenDirs, err := snapDataDirs(oldSnap, opts)
-	if err != nil {
-		logger.Noticef("Cannot remove previous data for %q: %v", oldSnap.InstanceName(), err)
-		return
-	}
+	hiddenDirs := mylog.Check2(snapDataDirs(oldSnap, opts))
 
 	// this will have duplicates but the second remove will just be ignored
 	dataDirs = append(dataDirs, hiddenDirs...)
 	for _, d := range dataDirs {
-		if err := clearTrash(d); err != nil {
-			logger.Noticef("Cannot remove %s: %v", d, err)
-		}
+		mylog.Check(clearTrash(d))
 	}
 }
 
@@ -170,49 +156,32 @@ func (b Backend) ClearTrashedData(oldSnap *snap.Info) {
 func (b Backend) HideSnapData(snapName string) error {
 	hiddenDirOpts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
 
-	users, err := allUsers(nil)
-	if err != nil {
-		return err
-	}
+	users := mylog.Check2(allUsers(nil))
 
 	for _, usr := range users {
-		uid, gid, err := osutil.UidGid(usr)
-		if err != nil {
-			return err
-		}
+		uid, gid := mylog.Check3(osutil.UidGid(usr))
 
 		// nothing to migrate
 		oldSnapDir := snap.UserSnapDir(usr.HomeDir, snapName, nil)
-		if _, err := os.Stat(oldSnapDir); errors.Is(err, os.ErrNotExist) {
+		if _ := mylog.Check2(os.Stat(oldSnapDir)); errors.Is(err, os.ErrNotExist) {
 			continue
-		} else if err != nil {
-			return fmt.Errorf("cannot stat snap dir %q: %w", oldSnapDir, err)
 		}
 
 		// create the new hidden snap dir
 		hiddenSnapDir := snap.SnapDir(usr.HomeDir, hiddenDirOpts)
-		if err := osutil.MkdirAllChown(hiddenSnapDir, 0700, uid, gid); err != nil {
-			return fmt.Errorf("cannot create snap dir %q: %w", hiddenSnapDir, err)
-		}
+		mylog.Check(osutil.MkdirAllChown(hiddenSnapDir, 0700, uid, gid))
 
 		newSnapDir := snap.UserSnapDir(usr.HomeDir, snapName, hiddenDirOpts)
-		if exists, _, err := osutil.DirExists(newSnapDir); err != nil {
-			return err
-		} else if exists {
-			if err := os.RemoveAll(newSnapDir); err != nil {
-				return fmt.Errorf("cannot remove existing snap dir %q: %v", newSnapDir, err)
-			}
-		}
+		exists, _ := mylog.Check3(osutil.DirExists(newSnapDir))
+		mylog.Check(
 
-		// move the snap's dir
-		if err := osutil.AtomicRename(oldSnapDir, newSnapDir); err != nil {
-			return fmt.Errorf("cannot move %q to %q: %w", oldSnapDir, newSnapDir, err)
-		}
+			// move the snap's dir
+			osutil.AtomicRename(oldSnapDir, newSnapDir))
+		mylog.Check(
 
-		// remove ~/snap if it's empty
-		if err := removeIfEmpty(snap.SnapDir(usr.HomeDir, nil)); err != nil {
-			return fmt.Errorf("failed to remove old snap dir: %w", err)
-		}
+			// remove ~/snap if it's empty
+			removeIfEmpty(snap.SnapDir(usr.HomeDir, nil)))
+
 	}
 
 	return nil
@@ -223,10 +192,7 @@ func (b Backend) HideSnapData(snapName string) error {
 func (b Backend) UndoHideSnapData(snapName string) error {
 	hiddenDirOpts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
 
-	users, err := allUsers(hiddenDirOpts)
-	if err != nil {
-		return err
-	}
+	users := mylog.Check2(allUsers(hiddenDirOpts))
 
 	var firstErr error
 	handle := func(err error) {
@@ -239,56 +205,34 @@ func (b Backend) UndoHideSnapData(snapName string) error {
 	}
 
 	for _, usr := range users {
-		uid, gid, err := osutil.UidGid(usr)
-		if err != nil {
-			handle(err)
-			continue
-		}
+		uid, gid := mylog.Check3(osutil.UidGid(usr))
 
 		// skip it if wasn't migrated
 		hiddenSnapDir := snap.UserSnapDir(usr.HomeDir, snapName, hiddenDirOpts)
-		if _, err := os.Stat(hiddenSnapDir); err != nil {
-			if !errors.Is(err, os.ErrNotExist) {
-				handle(fmt.Errorf("cannot read files in %q: %w", hiddenSnapDir, err))
-			}
-			continue
-		}
+		mylog.Check2(os.Stat(hiddenSnapDir))
 
 		// ensure parent dirs exist
 		exposedDir := snap.SnapDir(usr.HomeDir, nil)
-		if err := osutil.MkdirAllChown(exposedDir, 0700, uid, gid); err != nil {
-			handle(fmt.Errorf("cannot create snap dir %q: %w", exposedDir, err))
-			continue
-		}
+		mylog.Check(osutil.MkdirAllChown(exposedDir, 0700, uid, gid))
 
 		exposedSnapDir := snap.UserSnapDir(usr.HomeDir, snapName, nil)
-		if err := osutil.AtomicRename(hiddenSnapDir, exposedSnapDir); err != nil {
-			handle(fmt.Errorf("cannot move %q to %q: %w", hiddenSnapDir, exposedSnapDir, err))
-			continue
-		}
+		mylog.Check(osutil.AtomicRename(hiddenSnapDir, exposedSnapDir))
 
 		// remove ~/.snap/data dir if empty
 		hiddenDir := snap.SnapDir(usr.HomeDir, hiddenDirOpts)
-		if err := removeIfEmpty(hiddenDir); err != nil {
-			handle(fmt.Errorf("cannot remove dir %q: %w", hiddenDir, err))
-			continue
-		}
+		mylog.Check(removeIfEmpty(hiddenDir))
 
 		// remove ~/.snap dir if empty
 		hiddenDir = filepath.Dir(hiddenDir)
-		if err := removeIfEmpty(hiddenDir); err != nil {
-			handle(fmt.Errorf("cannot remove dir %q: %w", hiddenDir, err))
-		}
+		mylog.Check(removeIfEmpty(hiddenDir))
+
 	}
 
 	return firstErr
 }
 
 var removeIfEmpty = func(dir string) error {
-	files, err := os.ReadDir(dir)
-	if err != nil {
-		return err
-	}
+	files := mylog.Check2(os.ReadDir(dir))
 
 	if len(files) > 0 {
 		return nil
@@ -309,56 +253,29 @@ type UndoInfo struct {
 // the operation can be undone. If an error occurred, an attempt is made to undo
 // so no undoInfo is returned.
 func (b Backend) InitExposedSnapHome(snapName string, rev snap.Revision, opts *dirs.SnapDirOptions) (undoInfo *UndoInfo, err error) {
-	users, err := allUsers(opts)
-	if err != nil {
-		return nil, err
-	}
+	users := mylog.Check2(allUsers(opts))
 
 	undoInfo = &UndoInfo{}
 	defer func() {
-		if err != nil {
-			if err := b.UndoInitExposedSnapHome(snapName, undoInfo); err != nil {
-				logger.Noticef("cannot undo ~/Snap init for %q after it failed: %v", snapName, err)
-			}
-
-			undoInfo = nil
-		}
 	}()
 
 	for _, usr := range users {
-		uid, gid, err := osutil.UidGid(usr)
-		if err != nil {
-			return undoInfo, err
-		}
+		uid, gid := mylog.Check3(osutil.UidGid(usr))
 
 		newUserHome := snap.UserExposedHomeDir(usr.HomeDir, snapName)
-		if exists, isDir, err := osutil.DirExists(newUserHome); err != nil {
-			return undoInfo, err
-		} else if exists {
-			if !isDir {
-				return undoInfo, fmt.Errorf("cannot initialize new user HOME %q: already exists but is not a directory", newUserHome)
-			}
+		exists, isDir := mylog.Check3(osutil.DirExists(newUserHome))
+		mylog.Check(
 
 			// we reverted from a core22 base before, so the new HOME already exists
-			continue
-		}
 
-		if err := mkdirAllChown(newUserHome, 0700, uid, gid); err != nil {
-			return undoInfo, fmt.Errorf("cannot create %q: %v", newUserHome, err)
-		}
+			mkdirAllChown(newUserHome, 0700, uid, gid))
 
 		undoInfo.Created = append(undoInfo.Created, newUserHome)
 
 		userData := snap.UserDataDir(usr.HomeDir, snapName, rev, opts)
-		files, err := os.ReadDir(userData)
-		if err != nil {
-			if errors.Is(err, os.ErrNotExist) {
-				// there's nothing to copy into ~/Snap/<snap> (like on a fresh install)
-				continue
-			}
+		files := mylog.Check2(os.ReadDir(userData))
 
-			return undoInfo, err
-		}
+		// there's nothing to copy into ~/Snap/<snap> (like on a fresh install)
 
 		for _, f := range files {
 			// some XDG vars aren't copied to the new HOME, they will be in SNAP_USER_DATA
@@ -369,17 +286,13 @@ func (b Backend) InitExposedSnapHome(snapName string, rev snap.Revision, opts *d
 
 			src := filepath.Join(userData, f.Name())
 			dst := filepath.Join(newUserHome, f.Name())
-
-			if err := osutil.CopyFile(src, dst, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync); err != nil {
-				return undoInfo, err
-			}
+			mylog.Check(osutil.CopyFile(src, dst, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync))
 
 			// don't copy .local/share but copy other things under .local/
 			if f.Name() == ".local" {
 				shareDir := filepath.Join(dst, "share")
-				if err := os.RemoveAll(shareDir); err != nil {
-					return undoInfo, err
-				}
+				mylog.Check(os.RemoveAll(shareDir))
+
 			}
 		}
 	}
@@ -403,27 +316,18 @@ func (b Backend) UndoInitExposedSnapHome(snapName string, undoInfo *UndoInfo) er
 		}
 	}
 
-	users, err := allUsers(opts)
-	if err != nil {
-		return err
-	}
+	users := mylog.Check2(allUsers(opts))
 
 	for _, usr := range users {
 		newUserHome := snap.UserExposedHomeDir(usr.HomeDir, snapName)
 		if !strutil.ListContains(undoInfo.Created, newUserHome) {
 			continue
 		}
-
-		if err := os.RemoveAll(newUserHome); err != nil {
-			handle(fmt.Errorf("cannot remove %q: %v", newUserHome, err))
-			continue
-		}
+		mylog.Check(os.RemoveAll(newUserHome))
 
 		exposedSnapDir := filepath.Dir(newUserHome)
-		if err := removeIfEmpty(exposedSnapDir); err != nil {
-			handle(fmt.Errorf("cannot remove %q: %v", exposedSnapDir, err))
-			continue
-		}
+		mylog.Check(removeIfEmpty(exposedSnapDir))
+
 	}
 
 	return firstErr
@@ -439,40 +343,20 @@ var (
 // Must be invoked after the revisioned data has been migrated.
 func (b Backend) InitXDGDirs(info *snap.Info) error {
 	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true, MigratedToExposedHome: true}
-	users, err := allUsers(opts)
-	if err != nil {
-		return err
-	}
+	users := mylog.Check2(allUsers(opts))
 
 	for _, usr := range users {
-		uid, gid, err := osutil.UidGid(usr)
-		if err != nil {
-			return err
-		}
+		uid, gid := mylog.Check3(osutil.UidGid(usr))
 
 		revDir := info.UserDataDir(usr.HomeDir, opts)
 		for i, srcDir := range srcXDGDirs {
 			src := filepath.Join(revDir, srcDir)
 			dst := filepath.Join(revDir, dstXDGDirs[i])
 
-			if exists, _, err := osutil.DirExists(dst); err != nil {
-				return err
-			} else if exists {
-				return fmt.Errorf("cannot migrate XDG dir %q to %q because destination already exists", src, dst)
-			}
+			exists, _ := mylog.Check3(osutil.DirExists(dst))
 
-			if exists, isDir, err := osutil.DirExists(src); err != nil {
-				return err
-			} else if exists && isDir {
-				if err := os.Rename(src, dst); err != nil {
-					return err
-				}
+			exists, isDir := mylog.Check3(osutil.DirExists(src))
 
-			} else {
-				if err := mkdirAllChown(dst, 0700, uid, gid); err != nil {
-					return err
-				}
-			}
 		}
 	}
 

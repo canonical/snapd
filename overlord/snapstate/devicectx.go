@@ -22,6 +22,7 @@ package snapstate
 import (
 	"errors"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -63,10 +64,8 @@ var (
 
 // ModelFromTask returns a model assertion through the device context for the task.
 func ModelFromTask(task *state.Task) (*asserts.Model, error) {
-	deviceCtx, err := DeviceCtx(task.State(), task, nil)
-	if err != nil {
-		return nil, err
-	}
+	deviceCtx := mylog.Check2(DeviceCtx(task.State(), task, nil))
+
 	return deviceCtx.Model(), nil
 }
 
@@ -78,7 +77,7 @@ func ModelFromTask(task *state.Task) (*asserts.Model, error) {
 // during remodeling unless the providedDeviceCtx is for it.
 func DevicePastSeeding(st *state.State, providedDeviceCtx DeviceContext) (DeviceContext, error) {
 	var seeded bool
-	err := st.Get("seeded", &seeded)
+	mylog.Check(st.Get("seeded", &seeded))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
@@ -95,7 +94,7 @@ func DevicePastSeeding(st *state.State, providedDeviceCtx DeviceContext) (Device
 			}
 		}
 	}
-	devCtx, err := DeviceCtx(st, nil, providedDeviceCtx)
+	devCtx := mylog.Check2(DeviceCtx(st, nil, providedDeviceCtx))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
@@ -117,15 +116,7 @@ func DevicePastSeeding(st *state.State, providedDeviceCtx DeviceContext) (Device
 // available. Otherwise it returns a ChangeConflictError about being
 // too early unless an pre-provided DeviceContext is passed in.
 func DeviceCtxFromState(st *state.State, providedDeviceCtx DeviceContext) (DeviceContext, error) {
-	deviceCtx, err := DeviceCtx(st, nil, providedDeviceCtx)
-	if err != nil {
-		if errors.Is(err, state.ErrNoState) {
-			return nil, &ChangeConflictError{
-				Message:    "too early for operation, device model not yet acknowledged",
-				ChangeKind: "seed",
-			}
-		}
-		return nil, err
-	}
+	deviceCtx := mylog.Check2(DeviceCtx(st, nil, providedDeviceCtx))
+
 	return deviceCtx, nil
 }

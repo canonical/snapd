@@ -22,6 +22,7 @@ package userd
 import (
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/godbus/dbus"
 
 	"github.com/snapcore/snapd/sandbox/cgroup"
@@ -30,14 +31,10 @@ import (
 var snapFromSender = snapFromSenderImpl
 
 func snapFromSenderImpl(conn *dbus.Conn, sender dbus.Sender) (string, error) {
-	pid, err := connectionPid(conn, sender)
-	if err != nil {
-		return "", fmt.Errorf("cannot get connection pid: %v", err)
-	}
-	snap, err := cgroup.SnapNameFromPid(pid)
-	if err != nil {
-		return "", fmt.Errorf("cannot find snap for connection: %v", err)
-	}
+	pid := mylog.Check2(connectionPid(conn, sender))
+
+	snap := mylog.Check2(cgroup.SnapNameFromPid(pid))
+
 	// Check that the sender is still connected to the bus: if it
 	// has disconnected between the GetConnectionUnixProcessID
 	// call and when we poked around in /proc, then it is possible

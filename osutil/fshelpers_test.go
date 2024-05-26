@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -35,18 +36,18 @@ var _ = Suite(&groupFindGidOwningSuite{})
 
 func (s *groupFindGidOwningSuite) TestSelfOwnedFile(c *C) {
 	name := filepath.Join(c.MkDir(), "testownedfile")
-	err := os.WriteFile(name, nil, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(name, nil, 0644))
 
-	gid, err := osutil.FindGidOwning(name)
+
+	gid := mylog.Check2(osutil.FindGidOwning(name))
 	c.Check(err, IsNil)
 
-	self, err := osutil.UserMaybeSudoUser()
-	c.Assert(err, IsNil)
+	self := mylog.Check2(osutil.UserMaybeSudoUser())
+
 	c.Check(strconv.FormatUint(gid, 10), Equals, self.Gid)
 }
 
 func (s *groupFindGidOwningSuite) TestNoOwnedFile(c *C) {
-	_, err := osutil.FindGidOwning("/tmp/filedoesnotexistbutwhy")
+	_ := mylog.Check2(osutil.FindGidOwning("/tmp/filedoesnotexistbutwhy"))
 	c.Assert(err, DeepEquals, os.ErrNotExist)
 }

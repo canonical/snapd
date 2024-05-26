@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -104,37 +105,18 @@ func checkNameConstraints(c *asserts.NameConstraints, iface, which, name string)
 }
 
 func checkPlugConnectionConstraints1(connc *ConnectCandidate, constraints *asserts.PlugConnectionConstraints) error {
-	if err := checkNameConstraints(constraints.PlugNames, connc.Plug.Interface(), "plug name", connc.Plug.Name()); err != nil {
-		return err
-	}
-	if err := checkNameConstraints(constraints.SlotNames, connc.Slot.Interface(), "slot name", connc.Slot.Name()); err != nil {
-		return err
-	}
-
-	if err := constraints.PlugAttributes.Check(connc.Plug, connc); err != nil {
-		return err
-	}
-	if err := constraints.SlotAttributes.Check(connc.Slot, connc); err != nil {
-		return err
-	}
-	if err := checkSnapType(connc.Slot.Snap(), constraints.SlotSnapTypes); err != nil {
-		return err
-	}
-	if err := checkID("snap id", connc.slotSnapID(), constraints.SlotSnapIDs, nil); err != nil {
-		return err
-	}
-	err := checkID("publisher id", connc.slotPublisherID(), constraints.SlotPublisherIDs, map[string]string{
+	mylog.Check(checkNameConstraints(constraints.PlugNames, connc.Plug.Interface(), "plug name", connc.Plug.Name()))
+	mylog.Check(checkNameConstraints(constraints.SlotNames, connc.Slot.Interface(), "slot name", connc.Slot.Name()))
+	mylog.Check(constraints.PlugAttributes.Check(connc.Plug, connc))
+	mylog.Check(constraints.SlotAttributes.Check(connc.Slot, connc))
+	mylog.Check(checkSnapType(connc.Slot.Snap(), constraints.SlotSnapTypes))
+	mylog.Check(checkID("snap id", connc.slotSnapID(), constraints.SlotSnapIDs, nil))
+	mylog.Check(checkID("publisher id", connc.slotPublisherID(), constraints.SlotPublisherIDs, map[string]string{
 		"$PLUG_PUBLISHER_ID": connc.plugPublisherID(),
-	})
-	if err != nil {
-		return err
-	}
-	if err := checkOnClassic(constraints.OnClassic); err != nil {
-		return err
-	}
-	if err := checkDeviceScope(constraints.DeviceScope, connc.Model, connc.Store); err != nil {
-		return err
-	}
+	}))
+	mylog.Check(checkOnClassic(constraints.OnClassic))
+	mylog.Check(checkDeviceScope(constraints.DeviceScope, connc.Model, connc.Store))
+
 	return nil
 }
 
@@ -142,7 +124,7 @@ func checkPlugConnectionAltConstraints(connc *ConnectCandidate, altConstraints [
 	var firstErr error
 	// OR of constraints
 	for _, constraints := range altConstraints {
-		err := checkPlugConnectionConstraints1(connc, constraints)
+		mylog.Check(checkPlugConnectionConstraints1(connc, constraints))
 		if err == nil {
 			return constraints, nil
 		}
@@ -154,40 +136,19 @@ func checkPlugConnectionAltConstraints(connc *ConnectCandidate, altConstraints [
 }
 
 func checkSlotConnectionConstraints1(connc *ConnectCandidate, constraints *asserts.SlotConnectionConstraints) error {
-	if err := checkNameConstraints(constraints.PlugNames, connc.Plug.Interface(), "plug name", connc.Plug.Name()); err != nil {
-		return err
-	}
-	if err := checkNameConstraints(constraints.SlotNames, connc.Slot.Interface(), "slot name", connc.Slot.Name()); err != nil {
-		return err
-	}
-
-	if err := constraints.PlugAttributes.Check(connc.Plug, connc); err != nil {
-		return err
-	}
-	if err := constraints.SlotAttributes.Check(connc.Slot, connc); err != nil {
-		return err
-	}
-	if err := checkSnapType(connc.Slot.Snap(), constraints.SlotSnapTypes); err != nil {
-		return err
-	}
-	if err := checkSnapType(connc.Plug.Snap(), constraints.PlugSnapTypes); err != nil {
-		return err
-	}
-	if err := checkID("snap id", connc.plugSnapID(), constraints.PlugSnapIDs, nil); err != nil {
-		return err
-	}
-	err := checkID("publisher id", connc.plugPublisherID(), constraints.PlugPublisherIDs, map[string]string{
+	mylog.Check(checkNameConstraints(constraints.PlugNames, connc.Plug.Interface(), "plug name", connc.Plug.Name()))
+	mylog.Check(checkNameConstraints(constraints.SlotNames, connc.Slot.Interface(), "slot name", connc.Slot.Name()))
+	mylog.Check(constraints.PlugAttributes.Check(connc.Plug, connc))
+	mylog.Check(constraints.SlotAttributes.Check(connc.Slot, connc))
+	mylog.Check(checkSnapType(connc.Slot.Snap(), constraints.SlotSnapTypes))
+	mylog.Check(checkSnapType(connc.Plug.Snap(), constraints.PlugSnapTypes))
+	mylog.Check(checkID("snap id", connc.plugSnapID(), constraints.PlugSnapIDs, nil))
+	mylog.Check(checkID("publisher id", connc.plugPublisherID(), constraints.PlugPublisherIDs, map[string]string{
 		"$SLOT_PUBLISHER_ID": connc.slotPublisherID(),
-	})
-	if err != nil {
-		return err
-	}
-	if err := checkOnClassic(constraints.OnClassic); err != nil {
-		return err
-	}
-	if err := checkDeviceScope(constraints.DeviceScope, connc.Model, connc.Store); err != nil {
-		return err
-	}
+	}))
+	mylog.Check(checkOnClassic(constraints.OnClassic))
+	mylog.Check(checkDeviceScope(constraints.DeviceScope, connc.Model, connc.Store))
+
 	return nil
 }
 
@@ -195,7 +156,7 @@ func checkSlotConnectionAltConstraints(connc *ConnectCandidate, altConstraints [
 	var firstErr error
 	// OR of constraints
 	for _, constraints := range altConstraints {
-		err := checkSlotConnectionConstraints1(connc, constraints)
+		mylog.Check(checkSlotConnectionConstraints1(connc, constraints))
 		if err == nil {
 			return constraints, nil
 		}
@@ -207,12 +168,9 @@ func checkSlotConnectionAltConstraints(connc *ConnectCandidate, altConstraints [
 }
 
 func checkSnapTypeSlotInstallationConstraints1(slot *snap.SlotInfo, constraints *asserts.SlotInstallationConstraints) error {
-	if err := checkSnapType(slot.Snap, constraints.SlotSnapTypes); err != nil {
-		return err
-	}
-	if err := checkOnClassic(constraints.OnClassic); err != nil {
-		return err
-	}
+	mylog.Check(checkSnapType(slot.Snap, constraints.SlotSnapTypes))
+	mylog.Check(checkOnClassic(constraints.OnClassic))
+
 	return nil
 }
 
@@ -225,7 +183,7 @@ func checkMinimalSlotInstallationAltConstraints(slot *snap.SlotInfo, altConstrai
 			continue
 		}
 		hasSnapTypeConstraints = true
-		err := checkSnapTypeSlotInstallationConstraints1(slot, constraints)
+		mylog.Check(checkSnapTypeSlotInstallationConstraints1(slot, constraints))
 		if err == nil {
 			return true, nil
 		}
@@ -237,26 +195,16 @@ func checkMinimalSlotInstallationAltConstraints(slot *snap.SlotInfo, altConstrai
 }
 
 func checkSlotInstallationConstraints1(ic *InstallCandidate, slot *snap.SlotInfo, constraints *asserts.SlotInstallationConstraints) error {
-	if err := checkNameConstraints(constraints.SlotNames, slot.Interface, "slot name", slot.Name); err != nil {
-		return err
-	}
+	mylog.Check(checkNameConstraints(constraints.SlotNames, slot.Interface, "slot name", slot.Name))
+	mylog.Check(
 
-	// TODO: allow evaluated attr constraints here too?
-	if err := constraints.SlotAttributes.Check(slot, nil); err != nil {
-		return err
-	}
-	if err := checkSnapType(slot.Snap, constraints.SlotSnapTypes); err != nil {
-		return err
-	}
-	if err := checkID("snap id", ic.snapID(), constraints.SlotSnapIDs, nil); err != nil {
-		return err
-	}
-	if err := checkOnClassic(constraints.OnClassic); err != nil {
-		return err
-	}
-	if err := checkDeviceScope(constraints.DeviceScope, ic.Model, ic.Store); err != nil {
-		return err
-	}
+		// TODO: allow evaluated attr constraints here too?
+		constraints.SlotAttributes.Check(slot, nil))
+	mylog.Check(checkSnapType(slot.Snap, constraints.SlotSnapTypes))
+	mylog.Check(checkID("snap id", ic.snapID(), constraints.SlotSnapIDs, nil))
+	mylog.Check(checkOnClassic(constraints.OnClassic))
+	mylog.Check(checkDeviceScope(constraints.DeviceScope, ic.Model, ic.Store))
+
 	return nil
 }
 
@@ -264,7 +212,7 @@ func checkSlotInstallationAltConstraints(ic *InstallCandidate, slot *snap.SlotIn
 	var firstErr error
 	// OR of constraints
 	for _, constraints := range altConstraints {
-		err := checkSlotInstallationConstraints1(ic, slot, constraints)
+		mylog.Check(checkSlotInstallationConstraints1(ic, slot, constraints))
 		if err == nil {
 			return nil
 		}
@@ -276,26 +224,16 @@ func checkSlotInstallationAltConstraints(ic *InstallCandidate, slot *snap.SlotIn
 }
 
 func checkPlugInstallationConstraints1(ic *InstallCandidate, plug *snap.PlugInfo, constraints *asserts.PlugInstallationConstraints) error {
-	if err := checkNameConstraints(constraints.PlugNames, plug.Interface, "plug name", plug.Name); err != nil {
-		return err
-	}
+	mylog.Check(checkNameConstraints(constraints.PlugNames, plug.Interface, "plug name", plug.Name))
+	mylog.Check(
 
-	// TODO: allow evaluated attr constraints here too?
-	if err := constraints.PlugAttributes.Check(plug, nil); err != nil {
-		return err
-	}
-	if err := checkSnapType(plug.Snap, constraints.PlugSnapTypes); err != nil {
-		return err
-	}
-	if err := checkID("snap id", ic.snapID(), constraints.PlugSnapIDs, nil); err != nil {
-		return err
-	}
-	if err := checkOnClassic(constraints.OnClassic); err != nil {
-		return err
-	}
-	if err := checkDeviceScope(constraints.DeviceScope, ic.Model, ic.Store); err != nil {
-		return err
-	}
+		// TODO: allow evaluated attr constraints here too?
+		constraints.PlugAttributes.Check(plug, nil))
+	mylog.Check(checkSnapType(plug.Snap, constraints.PlugSnapTypes))
+	mylog.Check(checkID("snap id", ic.snapID(), constraints.PlugSnapIDs, nil))
+	mylog.Check(checkOnClassic(constraints.OnClassic))
+	mylog.Check(checkDeviceScope(constraints.DeviceScope, ic.Model, ic.Store))
+
 	return nil
 }
 
@@ -303,7 +241,7 @@ func checkPlugInstallationAltConstraints(ic *InstallCandidate, plug *snap.PlugIn
 	var firstErr error
 	// OR of constraints
 	for _, constraints := range altConstraints {
-		err := checkPlugInstallationConstraints1(ic, plug, constraints)
+		mylog.Check(checkPlugInstallationConstraints1(ic, plug, constraints))
 		if err == nil {
 			return nil
 		}

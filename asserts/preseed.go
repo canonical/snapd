@@ -25,6 +25,7 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/snap/naming"
 )
 
@@ -105,32 +106,20 @@ func (p *Preseed) Snaps() []*PreseedSnap {
 }
 
 func checkPreseedSnap(snap map[string]interface{}) (*PreseedSnap, error) {
-	name, err := checkNotEmptyStringWhat(snap, "name", "of snap")
-	if err != nil {
-		return nil, err
-	}
-	if err := naming.ValidateSnap(name); err != nil {
-		return nil, fmt.Errorf("invalid snap name %q", name)
-	}
+	name := mylog.Check2(checkNotEmptyStringWhat(snap, "name", "of snap"))
+	mylog.Check(naming.ValidateSnap(name))
 
 	what := fmt.Sprintf("of snap %q", name)
 
 	// snap id can be omitted if the model allows for unasserted snaps
 	var snapID string
 	if _, ok := snap["id"]; ok {
-		snapID, err = checkStringMatchesWhat(snap, "id", what, naming.ValidSnapID)
-		if err != nil {
-			return nil, err
-		}
+		snapID = mylog.Check2(checkStringMatchesWhat(snap, "id", what, naming.ValidSnapID))
 	}
 
 	var snapRevision int
 	if _, ok := snap["revision"]; ok {
-		var err error
-		snapRevision, err = checkSnapRevisionWhat(snap, "revision", what)
-		if err != nil {
-			return nil, err
-		}
+		snapRevision = mylog.Check2(checkSnapRevisionWhat(snap, "revision", what))
 	}
 
 	if snapID != "" && snapRevision <= 0 {
@@ -163,10 +152,7 @@ func checkPreseedSnaps(snapList interface{}) ([]*PreseedSnap, error) {
 		if !ok {
 			return nil, fmt.Errorf(wrongHeaderType)
 		}
-		preseedSnap, err := checkPreseedSnap(snap)
-		if err != nil {
-			return nil, err
-		}
+		preseedSnap := mylog.Check2(checkPreseedSnap(snap))
 
 		if seen[preseedSnap.Name] {
 			return nil, fmt.Errorf("cannot list the same snap %q multiple times", preseedSnap.Name)
@@ -190,34 +176,20 @@ func assemblePreseed(assert assertionBase) (Assertion, error) {
 	// authority-id should be validated against allowed IDs when the preseed
 	// blob is being checked
 
-	_, err := checkModel(assert.headers)
-	if err != nil {
-		return nil, err
-	}
+	_ := mylog.Check2(checkModel(assert.headers))
 
-	_, err = checkStringMatches(assert.headers, "system-label", validSystemLabel)
-	if err != nil {
-		return nil, err
-	}
+	_ = mylog.Check2(checkStringMatches(assert.headers, "system-label", validSystemLabel))
 
 	snapList, ok := assert.headers["snaps"]
 	if !ok {
 		return nil, fmt.Errorf(`"snaps" header is mandatory`)
 	}
-	snaps, err := checkPreseedSnaps(snapList)
-	if err != nil {
-		return nil, err
-	}
+	snaps := mylog.Check2(checkPreseedSnaps(snapList))
 
-	_, err = checkDigest(assert.headers, "artifact-sha3-384", crypto.SHA3_384)
-	if err != nil {
-		return nil, err
-	}
+	_ = mylog.Check2(checkDigest(assert.headers, "artifact-sha3-384", crypto.SHA3_384))
 
-	timestamp, err := checkRFC3339Date(assert.headers, "timestamp")
-	if err != nil {
-		return nil, err
-	}
+	timestamp := mylog.Check2(checkRFC3339Date(assert.headers, "timestamp"))
+
 	return &Preseed{
 		assertionBase: assert,
 		snaps:         snaps,

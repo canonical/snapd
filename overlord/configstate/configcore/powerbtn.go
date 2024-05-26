@@ -24,6 +24,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sysconfig"
@@ -57,9 +58,7 @@ func switchHandlePowerKey(action string, opts *fsOnlyContext) error {
 
 	cfgDir := filepath.Dir(powerBtnCfg(opts))
 	if !osutil.IsDirectory(cfgDir) {
-		if err := os.MkdirAll(cfgDir, 0755); err != nil {
-			return err
-		}
+		mylog.Check(os.MkdirAll(cfgDir, 0755))
 	}
 	if !validActions[action] {
 		return fmt.Errorf("invalid action %q supplied for system.power-key-action option", action)
@@ -72,19 +71,14 @@ HandlePowerKey=%s
 }
 
 func handlePowerButtonConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyContext) error {
-	output, err := coreCfg(tr, "system.power-key-action")
-	if err != nil {
-		return err
-	}
-	if output == "" {
-		if err := os.Remove(powerBtnCfg(opts)); err != nil && !os.IsNotExist(err) {
-			return err
-		}
+	output := mylog.Check2(coreCfg(tr, "system.power-key-action"))
 
-	} else {
-		if err := switchHandlePowerKey(output, opts); err != nil {
+	if output == "" {
+		if mylog.Check(os.Remove(powerBtnCfg(opts))); err != nil && !os.IsNotExist(err) {
 			return err
 		}
+	} else {
+		mylog.Check(switchHandlePowerKey(output, opts))
 	}
 	return nil
 }

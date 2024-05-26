@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/ddkwork/golibrary/mylog"
 	snap "github.com/snapcore/snapd/cmd/snap"
 	"gopkg.in/check.v1"
 	. "gopkg.in/check.v1"
@@ -74,7 +75,7 @@ func (s *MigrateHomeSuite) TestMigrateHome(c *C) {
 	rsp := serverWithChange(`{"type": "sync", "result": {"ready": true, "status": "Done", "data": {"snap-names": ["foo"]}}}\n`, c)
 	s.RedirectClientToTestServer(rsp)
 
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "migrate-home", "foo"})
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"debug", "migrate-home", "foo"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, "foo's home directory was migrated to ~/Snap\n")
@@ -107,7 +108,7 @@ func (s *MigrateHomeSuite) TestMigrateHomeManySnaps(c *C) {
 		n++
 	})
 
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "migrate-home", "foo", "bar"})
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"debug", "migrate-home", "foo", "bar"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, "\"foo\", \"bar\" migrated their home directories to ~/Snap\n")
@@ -119,7 +120,7 @@ func (s *MigrateHomeSuite) TestMigrateHomeNoSnaps(c *C) {
 		failRequest("unexpected request on server", w, c)
 	})
 
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "migrate-home"})
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"debug", "migrate-home"}))
 	c.Assert(err, check.ErrorMatches, "the required argument .* was not provided")
 	c.Check(s.Stdout(), check.Equals, "")
 	c.Check(s.Stderr(), check.Equals, "")
@@ -131,7 +132,7 @@ func (s *MigrateHomeSuite) TestMigrateHomeServerError(c *C) {
 		fmt.Fprintf(w, `{"type": "error", "status-code": 500, "result": {"message": "boom"}}`)
 	})
 
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "migrate-home", "foo"})
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"debug", "migrate-home", "foo"}))
 	c.Assert(err, check.ErrorMatches, "boom")
 	c.Check(s.Stdout(), check.Equals, "")
 	c.Check(s.Stderr(), check.Equals, "")
@@ -142,7 +143,7 @@ func (s *MigrateHomeSuite) TestMigrateHomeBadChangeNoSnaps(c *C) {
 	srv := serverWithChange(`{"type": "sync", "result": {"ready": true, "status": "Done", "data": {"snap-names": []}}}\n`, c)
 	s.RedirectClientToTestServer(srv)
 
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "migrate-home", "foo"})
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"debug", "migrate-home", "foo"}))
 	c.Assert(err, check.ErrorMatches, `expected "migrate-home" change to have non-empty "snap-names"`)
 	c.Check(s.Stdout(), check.Equals, "")
 	c.Check(s.Stderr(), check.Equals, "")
@@ -153,7 +154,7 @@ func (s *MigrateHomeSuite) TestMigrateHomeBadChangeNoData(c *C) {
 	srv := serverWithChange(`{"type": "sync", "result": {"ready": true, "status": "Done"}}\n`, c)
 	s.RedirectClientToTestServer(srv)
 
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "migrate-home", "foo"})
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"debug", "migrate-home", "foo"}))
 	c.Assert(err, check.ErrorMatches, `cannot get "snap-names" from change`)
 	c.Check(s.Stdout(), check.Equals, "")
 	c.Check(s.Stderr(), check.Equals, "")

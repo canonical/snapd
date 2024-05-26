@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/image/preseed"
@@ -165,8 +166,8 @@ func (s *preseedSuite) TestRunPreseedHappy(c *C) {
 
 	// relative chroot path works too
 	tmpDirPath, relativeChroot := filepath.Split(tmpDir)
-	pwd, err := os.Getwd()
-	c.Assert(err, IsNil)
+	pwd := mylog.Check2(os.Getwd())
+
 	defer func() {
 		os.Chdir(pwd)
 	}()
@@ -320,8 +321,8 @@ func (s *preseedSuite) TestRunPreseedUnsupportedVersion(c *C) {
 }
 
 func (s *preseedSuite) TestReset(c *C) {
-	startDir, err := os.Getwd()
-	c.Assert(err, IsNil)
+	startDir := mylog.Check2(os.Getwd())
+
 	defer func() {
 		os.Chdir(startDir)
 	}()
@@ -422,7 +423,7 @@ func (s *preseedSuite) TestReset(c *C) {
 		// reset complains if target is not a directory
 		fooFile := filepath.Join(resetDirArg, "foo")
 		c.Assert(os.WriteFile(fooFile, nil, os.ModePerm), IsNil)
-		err = preseed.ResetPreseededChroot(fooFile)
+		mylog.Check(preseed.ResetPreseededChroot(fooFile))
 		// the error message is always with an absolute file, so make the path
 		// absolute if we are running the relative test to properly match
 		if isRelative {
@@ -432,7 +433,6 @@ func (s *preseedSuite) TestReset(c *C) {
 		}
 		c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot reset %q, it is not a directory`, fooFile))
 	}
-
 }
 
 func (s *preseedSuite) TestResetRexec(c *C) {

@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"sort"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/ifacestate"
@@ -112,11 +113,7 @@ func collectConnections(ifaceMgr *ifacestate.InterfaceManager, filter collectFil
 	plugConns := map[string][]interfaces.SlotRef{}
 	slotConns := map[string][]interfaces.PlugRef{}
 
-	var err error
-	connStates, err = ifaceMgr.ConnectionStates()
-	if err != nil {
-		return nil, err
-	}
+	connStates = mylog.Check2(ifaceMgr.ConnectionStates())
 
 	connsjson.Established = make([]connectionJSON, 0, len(connStates))
 	connsjson.Plugs = make([]*plugJSON, 0, len(ifaces.Plugs))
@@ -131,10 +128,7 @@ func collectConnections(ifaceMgr *ifacestate.InterfaceManager, filter collectFil
 			continue
 		}
 
-		cref, err := interfaces.ParseConnRef(crefStr)
-		if err != nil {
-			return nil, err
-		}
+		cref := mylog.Check2(interfaces.ParseConnRef(crefStr))
 
 		// plug or slot not in the repository, e.g. cref is referring to an
 		// inactive revision of the snap; this can happen when the new revision
@@ -265,22 +259,15 @@ func getConnections(c *Command, r *http.Request, user *auth.UserState) Response 
 
 	snapName = ifacestate.RemapSnapFromRequest(snapName)
 	if snapName != "" {
-		if err := checkSnapInstalled(c.d.overlord.State(), snapName); err != nil {
-			if errors.Is(err, state.ErrNoState) {
-				return SnapNotFound(snapName, err)
-			}
-			return InternalError("cannot access snap state: %v", err)
-		}
+		mylog.Check(checkSnapInstalled(c.d.overlord.State(), snapName))
 	}
 
-	connsjson, err := collectConnections(c.d.overlord.InterfaceManager(), collectFilter{
+	connsjson := mylog.Check2(collectConnections(c.d.overlord.InterfaceManager(), collectFilter{
 		snapName:  snapName,
 		ifaceName: ifaceName,
 		connected: onlyConnected,
-	})
-	if err != nil {
-		return InternalError("collecting connection information failed: %v", err)
-	}
+	}))
+
 	sort.Sort(byCrefConnJSON(connsjson.Established))
 	sort.Sort(byCrefConnJSON(connsjson.Undesired))
 

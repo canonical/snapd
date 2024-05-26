@@ -26,6 +26,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/dirs"
@@ -36,9 +37,11 @@ import (
 )
 
 // for the tests
-var syscallExec = syscall.Exec
-var syscallStat = syscall.Stat
-var osReadlink = os.Readlink
+var (
+	syscallExec = syscall.Exec
+	syscallStat = syscall.Stat
+	osReadlink  = os.Readlink
+)
 
 // commandline args
 var opts struct {
@@ -53,18 +56,13 @@ func init() {
 }
 
 func main() {
-	if err := run(); err != nil {
-		fmt.Fprintf(os.Stderr, "cannot snap-exec: %s\n", err)
-		os.Exit(1)
-	}
+	mylog.Check(run())
 }
 
 func parseArgs(args []string) (app string, appArgs []string, err error) {
 	parser := flags.NewParser(&opts, flags.HelpFlag|flags.PassDoubleDash|flags.PassAfterNonOption)
-	rest, err := parser.ParseArgs(args)
-	if err != nil {
-		return "", nil, err
-	}
+	rest := mylog.Check2(parser.ParseArgs(args))
+
 	if len(rest) == 0 {
 		return "", nil, fmt.Errorf("need the application to run as argument")
 	}
@@ -81,10 +79,7 @@ func parseArgs(args []string) (app string, appArgs []string, err error) {
 }
 
 func run() error {
-	snapApp, extraArgs, err := parseArgs(os.Args[1:])
-	if err != nil {
-		return err
-	}
+	snapApp, extraArgs := mylog.Check3(parseArgs(os.Args[1:]))
 
 	// the SNAP_REVISION is set by `snap run` - we can not (easily)
 	// find it in `snap-exec` because `snap-exec` is run inside the
@@ -155,44 +150,31 @@ func expandEnvCmdArgs(args []string, env osutil.Environment) []string {
 }
 
 func completionHelper() (string, error) {
-	exe, err := osReadlink("/proc/self/exe")
-	if err != nil {
-		return "", err
-	}
+	exe := mylog.Check2(osReadlink("/proc/self/exe"))
+
 	return filepath.Join(filepath.Dir(exe), "etelpmoc.sh"), nil
 }
 
 func execApp(snapApp, revision, command string, args []string) error {
-	rev, err := snap.ParseRevision(revision)
-	if err != nil {
-		return fmt.Errorf("cannot parse revision %q: %s", revision, err)
-	}
+	rev := mylog.Check2(snap.ParseRevision(revision))
 
 	snapName, appName := snap.SplitSnapApp(snapApp)
-	info, err := snap.ReadInfo(snapName, &snap.SideInfo{
+	info := mylog.Check2(snap.ReadInfo(snapName, &snap.SideInfo{
 		Revision: rev,
-	})
-	if err != nil {
-		return fmt.Errorf("cannot read info for %q: %s", snapName, err)
-	}
+	}))
 
 	app := info.Apps[appName]
 	if app == nil {
 		return fmt.Errorf("cannot find app %q in %q", appName, snapName)
 	}
 
-	cmdAndArgs, err := findCommand(app, command)
-	if err != nil {
-		return err
-	}
+	cmdAndArgs := mylog.Check2(findCommand(app, command))
 
 	// build the environment from the yaml, translating TMPDIR and
 	// similar variables back from where they were hidden when
 	// invoking the setuid snap-confine.
-	env, err := osutil.OSEnvironmentUnescapeUnsafe(snapenv.PreservedUnsafePrefix)
-	if err != nil {
-		return err
-	}
+	env := mylog.Check2(osutil.OSEnvironmentUnescapeUnsafe(snapenv.PreservedUnsafePrefix))
+
 	for _, eenv := range app.EnvChain() {
 		env.ExtendWithExpanded(eenv)
 	}
@@ -227,10 +209,8 @@ func execApp(snapApp, revision, command string, args []string) error {
 		cmdArgs = nil
 	case "complete":
 		fullCmd[0] = defaultShell
-		helper, err := completionHelper()
-		if err != nil {
-			return fmt.Errorf("cannot find completion helper: %v", err)
-		}
+		helper := mylog.Check2(completionHelper())
+
 		cmdArgs = []string{
 			helper,
 			filepath.Join(app.Snap.MountDir(), app.Completer),
@@ -248,25 +228,18 @@ func execApp(snapApp, revision, command string, args []string) error {
 	fullCmd = append(absoluteCommandChain(app.Snap, app.CommandChain), fullCmd...)
 
 	logger.StartupStageTimestamp("snap-exec to app")
-	if err := syscallExec(fullCmd[0], fullCmd, env.ForExec()); err != nil {
-		return fmt.Errorf("cannot exec %q: %s", fullCmd[0], err)
-	}
+	mylog.Check(syscallExec(fullCmd[0], fullCmd, env.ForExec()))
+
 	// this is never reached except in tests
 	return nil
 }
 
 func execHook(snapName, revision, hookName string) error {
-	rev, err := snap.ParseRevision(revision)
-	if err != nil {
-		return err
-	}
+	rev := mylog.Check2(snap.ParseRevision(revision))
 
-	info, err := snap.ReadInfo(snapName, &snap.SideInfo{
+	info := mylog.Check2(snap.ReadInfo(snapName, &snap.SideInfo{
 		Revision: rev,
-	})
-	if err != nil {
-		return err
-	}
+	}))
 
 	hook := info.Hooks[hookName]
 	if hook == nil {
@@ -277,10 +250,8 @@ func execHook(snapName, revision, hookName string) error {
 	// NOTE: we do not use OSEnvironmentUnescapeUnsafe, we do not
 	// particurly want to transmit snapd exec environment details
 	// to the hooks
-	env, err := osutil.OSEnvironment()
-	if err != nil {
-		return err
-	}
+	env := mylog.Check2(osutil.OSEnvironment())
+
 	for _, eenv := range hook.EnvChain() {
 		env.ExtendWithExpanded(eenv)
 	}

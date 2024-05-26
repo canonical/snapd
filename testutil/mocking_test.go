@@ -7,7 +7,6 @@ import (
 )
 
 func ExampleBackup_mockingSimple() {
-
 	mockable := func() {
 		fmt.Println("Original")
 	}

@@ -22,6 +22,7 @@ package strutil
 import (
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"gopkg.in/yaml.v2"
 )
 
@@ -37,7 +38,8 @@ type OrderedMap struct {
 // NewOrderedMap creates a new ordered map initialized with the
 // given pairs of strings.
 func NewOrderedMap(pairs ...string) *OrderedMap {
-	o := &OrderedMap{vals: make(map[string]string),
+	o := &OrderedMap{
+		vals: make(map[string]string),
 		keys: make([]string, len(pairs)/2),
 	}
 	for i := 0; i+1 < len(pairs); i += 2 {
@@ -93,16 +95,13 @@ func (o *OrderedMap) Copy() *OrderedMap {
 // UnmarshalYAML unmarshals a yaml string map and preserves the order
 func (o *OrderedMap) UnmarshalYAML(u func(interface{}) error) error {
 	var vals map[string]string
-	if err := u(&vals); err != nil {
-		return err
-	}
+	mylog.Check(u(&vals))
 
-	var seen = make(map[string]bool)
-	var keys = make([]string, len(vals))
+	seen := make(map[string]bool)
+	keys := make([]string, len(vals))
 	var order yaml.MapSlice
-	if err := u(&order); err != nil {
-		return err
-	}
+	mylog.Check(u(&order))
+
 	for i, item := range order {
 		k, ok := item.Key.(string)
 		_, good := vals[k]

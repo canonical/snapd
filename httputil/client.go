@@ -30,6 +30,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 )
@@ -56,16 +57,12 @@ type ExtraSSLCertsFromDir struct {
 
 // Certs returns a slice CertData or an error.
 func (e *ExtraSSLCertsFromDir) Certs() ([]*CertData, error) {
-	extraCertFiles, err := filepath.Glob(filepath.Join(e.Dir, "*.pem"))
-	if err != nil {
-		return nil, err
-	}
+	extraCertFiles := mylog.Check2(filepath.Glob(filepath.Join(e.Dir, "*.pem")))
+
 	extraCerts := make([]*CertData, 0, len(extraCertFiles))
 	for _, p := range extraCertFiles {
-		cert, err := os.ReadFile(p)
-		if err != nil {
-			return nil, fmt.Errorf("cannot read certificate: %v", err)
-		}
+		cert := mylog.Check2(os.ReadFile(p))
+
 		extraCerts = append(extraCerts, &CertData{
 			Raw:    cert,
 			Origin: p,
@@ -94,11 +91,10 @@ func (d *dialTLS) dialTLS(network, addr string) (net.Conn, error) {
 	if d.conf.MinVersion < tls.VersionTLS12 {
 		d.conf.MinVersion = tls.VersionTLS12
 	}
+	mylog.Check(
 
-	// add extraSSLCerts if needed
-	if err := d.addLocalSSLCertificates(); err != nil {
-		logger.Noticef("cannot add local ssl certificates: %v", err)
-	}
+		// add extraSSLCerts if needed
+		d.addLocalSSLCertificates())
 
 	return tls.Dial(network, addr, d.conf)
 }
@@ -116,20 +112,15 @@ func (d *dialTLS) addLocalSSLCertificates() (err error) {
 	if d.conf.RootCAs != nil {
 		allCAs = d.conf.RootCAs
 	} else {
-		allCAs, err = x509.SystemCertPool()
-		if err != nil {
-			return fmt.Errorf("cannot read system certificates: %v", err)
-		}
+		allCAs = mylog.Check2(x509.SystemCertPool())
 	}
 	if allCAs == nil {
 		return fmt.Errorf("cannot use empty certificate pool")
 	}
 
 	// and now collect any new ones
-	extraCerts, err := d.extraSSLCerts.Certs()
-	if err != nil {
-		return err
-	}
+	extraCerts := mylog.Check2(d.extraSSLCerts.Certs())
+
 	for _, cert := range extraCerts {
 		if ok := allCAs.AppendCertsFromPEM(cert.Raw); !ok {
 			logger.Noticef("cannot load ssl certificate: %v", cert.Origin)

@@ -29,6 +29,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	snap "github.com/snapcore/snapd/cmd/snap"
 	"github.com/snapcore/snapd/store"
@@ -47,12 +48,12 @@ var statement = []byte(fmt.Sprintf(`{"type": "snap-build",
 func (s *SnapKeysSuite) TestHappyDefaultKey(c *C) {
 	s.stdin.Write(statement)
 
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"sign"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"sign"}))
+
 	c.Assert(rest, DeepEquals, []string{})
 
-	a, err := asserts.Decode(s.stdout.Bytes())
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode(s.stdout.Bytes()))
+
 	c.Check(a.Type(), Equals, asserts.SnapBuildType)
 
 	c.Check(s.stderr.String(), Equals, "WARNING: could not fetch account-key to cross-check signed assertion with key constraints.\n")
@@ -61,12 +62,12 @@ func (s *SnapKeysSuite) TestHappyDefaultKey(c *C) {
 func (s *SnapKeysSuite) TestHappyNonDefaultKey(c *C) {
 	s.stdin.Write(statement)
 
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"sign", "-k", "another"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"sign", "-k", "another"}))
+
 	c.Assert(rest, DeepEquals, []string{})
 
-	a, err := asserts.Decode(s.stdout.Bytes())
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode(s.stdout.Bytes()))
+
 	c.Check(a.Type(), Equals, asserts.SnapBuildType)
 }
 
@@ -118,7 +119,7 @@ func (s *SnapKeysSuite) checkSignChainResults(c *C, statementType *asserts.Asser
 		if err == io.EOF {
 			break
 		}
-		c.Assert(err, IsNil)
+
 		switch a.Type() {
 		case asserts.AccountType:
 			foundAccount = true
@@ -171,8 +172,8 @@ func (s *SnapKeysSuite) TestSignChain(c *C) {
 	}))
 
 	s.stdin.Write([]byte(statement))
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"sign", "--chain"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"sign", "--chain"}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	s.checkSignChainResults(c, asserts.SnapBuildType)
 
@@ -207,7 +208,7 @@ func (s *SnapKeysSuite) TestSignChainUnknownAccountOrKey(c *C) {
 	}))
 
 	s.stdin.Write([]byte(statement))
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"sign", "--chain"})
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"sign", "--chain"}))
 	c.Assert(err, ErrorMatches, "cannot create assertion chain: account-key .* not found")
 	// if we fail in retrieving the account-key assertion, we should not write
 	// partial output
@@ -233,7 +234,7 @@ func (s *SnapKeysSuite) TestSignChainUnknownAccountOrKey(c *C) {
 	s.stdin.Reset()
 	s.stdout.Reset()
 	s.stdin.Write([]byte(statement))
-	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"sign", "--chain"})
+	_ = mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"sign", "--chain"}))
 	c.Assert(err, ErrorMatches, "cannot create assertion chain: account .* not found")
 	// if we fail in retrieving the account assertion, we should not write
 	// partial output

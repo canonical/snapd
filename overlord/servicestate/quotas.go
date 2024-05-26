@@ -22,6 +22,7 @@ package servicestate
 import (
 	"errors"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord/servicestate/internal"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap/quota"
@@ -37,10 +38,7 @@ func AllQuotas(st *state.State) (map[string]*quota.Group, error) {
 
 // GetQuota returns an individual quota group by name.
 func GetQuota(st *state.State, name string) (*quota.Group, error) {
-	allGrps, err := internal.AllQuotas(st)
-	if err != nil {
-		return nil, err
-	}
+	allGrps := mylog.Check2(internal.AllQuotas(st))
 
 	group, ok := allGrps[name]
 	if !ok {

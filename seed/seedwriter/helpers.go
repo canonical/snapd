@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/snap"
@@ -106,27 +107,18 @@ func (s seedSnapsByType) Less(i, j int) bool {
 // model is used to cross check that the found snap-revision is applicable
 // on the device.
 func DeriveSideInfo(snapPath string, model *asserts.Model, sf SeedAssertionFetcher, db asserts.RODatabase) (*snap.SideInfo, []*asserts.Ref, error) {
-	digest, size, err := asserts.SnapFileSHA3_384(snapPath)
-	if err != nil {
-		return nil, nil, err
-	}
+	digest, size := mylog.Check3(asserts.SnapFileSHA3_384(snapPath))
+
 	// XXX assume that the input to the writer is trusted or the whole
 	// build is isolated
-	snapf, err := snapfile.Open(snapPath)
-	if err != nil {
-		return nil, nil, err
-	}
-	info, err := snap.ReadInfoFromSnapFile(snapf, nil)
-	if err != nil {
-		return nil, nil, err
-	}
+	snapf := mylog.Check2(snapfile.Open(snapPath))
+
+	info := mylog.Check2(snap.ReadInfoFromSnapFile(snapf, nil))
+
 	prev := len(sf.Refs())
-	if err := snapasserts.FetchSnapAssertions(sf, digest, info.Provenance()); err != nil {
-		return nil, nil, err
-	}
-	si, err := snapasserts.DeriveSideInfoFromDigestAndSize(snapPath, digest, size, model, db)
-	if err != nil {
-		return nil, nil, err
-	}
+	mylog.Check(snapasserts.FetchSnapAssertions(sf, digest, info.Provenance()))
+
+	si := mylog.Check2(snapasserts.DeriveSideInfoFromDigestAndSize(snapPath, digest, size, model, db))
+
 	return si, sf.Refs()[prev:], nil
 }

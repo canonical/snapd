@@ -24,6 +24,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/jsonutil/safejson"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
@@ -134,10 +135,8 @@ func infoFromStoreInfo(si *storeInfo) (*snap.Info, error) {
 	// changed to copy to a list if needed.
 	copyNonZeroFrom(&si.Snap, &thisSnap)
 
-	info, err := infoFromStoreSnap(&thisSnap)
-	if err != nil {
-		return nil, err
-	}
+	info := mylog.Check2(infoFromStoreSnap(&thisSnap))
+
 	info.Channel = thisOne.Channel.Name
 	info.Channels = make(map[string]*snap.ChannelSnapInfo, len(si.ChannelMap))
 	seen := make(map[string]bool, len(si.ChannelMap))
@@ -271,7 +270,7 @@ func infoFromStoreSnap(d *storeSnap) (*snap.Info, error) {
 	info := &snap.Info{}
 	// if snap-yaml is available fill in as much as possible from there
 	if len(d.SnapYAML) != 0 {
-		if parsedYamlInfo, err := snap.InfoFromSnapYaml([]byte(d.SnapYAML)); err == nil {
+		if parsedYamlInfo := mylog.Check2(snap.InfoFromSnapYaml([]byte(d.SnapYAML))); err == nil {
 			info = parsedYamlInfo
 		}
 	}
@@ -331,10 +330,8 @@ func infoFromStoreSnap(d *storeSnap) (*snap.Info, error) {
 	if len(d.Prices) > 0 {
 		prices := make(map[string]float64, len(d.Prices))
 		for currency, priceStr := range d.Prices {
-			price, err := strconv.ParseFloat(priceStr, 64)
-			if err != nil {
-				return nil, fmt.Errorf("cannot parse snap price: %v", err)
-			}
+			price := mylog.Check2(strconv.ParseFloat(priceStr, 64))
+
 			prices[currency] = price
 		}
 		info.Paid = true

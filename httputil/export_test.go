@@ -19,6 +19,4 @@
 
 package httputil
 
-var (
-	GetFlags = (*LoggedTransport).getFlags
-)
+var GetFlags = (*LoggedTransport).getFlags

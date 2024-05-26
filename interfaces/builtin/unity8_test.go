@@ -22,6 +22,7 @@ package builtin_test
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
@@ -61,7 +62,6 @@ apps:
 	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)
 	s.plugInfo = plugSnap.Plugs["unity8"]
 	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
-
 }
 
 func (s *unity8InterfaceSuite) TearDownTest(c *C) {
@@ -74,21 +74,21 @@ func (s *unity8InterfaceSuite) TestName(c *C) {
 
 func (s *unity8InterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	apparmorSpec := apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
-	c.Assert(err, IsNil)
+	mylog.Check(apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot))
+
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.unity8-app"})
 	c.Check(apparmorSpec.SnippetForTag("snap.other.unity8-app"), testutil.Contains, "name=com.canonical.URLDispatcher")
 }
 
 func (s *unity8InterfaceSuite) TestSecurityTags(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	apparmorSpec := apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
-	c.Assert(err, IsNil)
+	mylog.Check(apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot))
+
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.unity8-app"})
 	c.Check(apparmorSpec.SnippetForTag("snap.other.unity8-app"), testutil.Contains, "label=\"snap.unity8-session.*\"")
 }

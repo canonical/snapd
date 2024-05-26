@@ -22,6 +22,7 @@ package main_test
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	. "github.com/snapcore/snapd/cmd/snap"
 )
 
@@ -31,14 +32,16 @@ var _ = Suite(&SnapAndNameSuite{})
 
 func (s *SnapAndNameSuite) TestUnmarshalFlag(c *C) {
 	var sn SnapAndName
-	// Typical
-	err := sn.UnmarshalFlag("snap:name")
-	c.Assert(err, IsNil)
+	mylog.
+		// Typical
+		Check(sn.UnmarshalFlag("snap:name"))
+
 	c.Check(sn.Snap, Equals, "snap")
 	c.Check(sn.Name, Equals, "name")
-	// Abbreviated
-	err = sn.UnmarshalFlag("snap")
-	c.Assert(err, IsNil)
+	mylog.
+		// Abbreviated
+		Check(sn.UnmarshalFlag("snap"))
+
 	c.Check(sn.Snap, Equals, "snap")
 	c.Check(sn.Name, Equals, "")
 	// Invalid
@@ -48,7 +51,7 @@ func (s *SnapAndNameSuite) TestUnmarshalFlag(c *C) {
 		"snap:name:more", // Name containing :, probably a typo
 		"",               // Empty input
 	} {
-		err = sn.UnmarshalFlag(input)
+		mylog.Check(sn.UnmarshalFlag(input))
 		c.Assert(err, ErrorMatches, `invalid value: ".*" \(want snap:name or snap\)`)
 		c.Check(sn.Snap, Equals, "")
 		c.Check(sn.Name, Equals, "")
@@ -57,16 +60,18 @@ func (s *SnapAndNameSuite) TestUnmarshalFlag(c *C) {
 
 func (s *SnapAndNameSuite) TestUnmarshalFlagStrict(c *C) {
 	var sn SnapAndNameStrict
+	mylog.
 
-	// Typical
-	err := sn.UnmarshalFlag("snap:name")
-	c.Assert(err, IsNil)
+		// Typical
+		Check(sn.UnmarshalFlag("snap:name"))
+
 	c.Check(sn.Snap, Equals, "snap")
 	c.Check(sn.Name, Equals, "name")
+	mylog.
 
-	// Core snap
-	err = sn.UnmarshalFlag(":name")
-	c.Assert(err, IsNil)
+		// Core snap
+		Check(sn.UnmarshalFlag(":name"))
+
 	c.Check(sn.Snap, Equals, "")
 	c.Check(sn.Name, Equals, "name")
 
@@ -78,7 +83,7 @@ func (s *SnapAndNameSuite) TestUnmarshalFlagStrict(c *C) {
 		"",               // Empty input
 		"snap",           // Name empty unsupported for strict
 	} {
-		err = sn.UnmarshalFlag(input)
+		mylog.Check(sn.UnmarshalFlag(input))
 		c.Assert(err, ErrorMatches, `invalid value: ".*" \(want snap:name or :name\)`)
 		c.Check(sn.Snap, Equals, "")
 		c.Check(sn.Name, Equals, "")

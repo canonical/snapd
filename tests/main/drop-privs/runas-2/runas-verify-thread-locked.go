@@ -7,11 +7,14 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil/sys"
 )
 
-var wg sync.WaitGroup
-var mu sync.Mutex
+var (
+	wg sync.WaitGroup
+	mu sync.Mutex
+)
 
 func check(tids []int, uids []sys.UserID, n int) {
 	// spin
@@ -31,8 +34,7 @@ func main() {
 	tids := make([]int, N)
 	uids := make([]sys.UserID, N)
 	origUid := sys.Geteuid()
-
-	err := sys.RunAsUidGid(12345, 54321, func() error {
+	mylog.Check(sys.RunAsUidGid(12345, 54321, func() error {
 		// running in a locked os thread, get the ID
 		lockedTid := syscall.Gettid()
 
@@ -71,9 +73,5 @@ func main() {
 			return fmt.Errorf("bad tids: %d, bad uids: %d", badTids, badUids)
 		}
 		return nil
-	})
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
+	}))
 }

@@ -22,6 +22,7 @@ package interfaces
 import (
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -44,9 +45,7 @@ func SetupMany(repo *Repository, backend SecurityBackend, appSets []*SnapAppSet,
 
 			// Refresh security of this snap and backend
 			timings.Run(tm, "setup-security-backend", fmt.Sprintf("setup security backend %q for snap %q", backend.Name(), snapInfo.InstanceName()), func(nesttm timings.Measurer) {
-				if err := backend.Setup(set, opts, repo, nesttm); err != nil {
-					errors = append(errors, err)
-				}
+				mylog.Check(backend.Setup(set, opts, repo, nesttm))
 			})
 		}
 	}

@@ -23,19 +23,14 @@ import (
 	"fmt"
 	"os/exec"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 )
 
 var modprobeCommand = func(args ...string) error {
 	allArgs := append([]string{"--syslog"}, args...)
-	err := exec.Command("modprobe", allArgs...).Run()
-	if err != nil {
-		exitCode, err := osutil.ExitCode(err)
-		if err != nil {
-			return err
-		}
-		return fmt.Errorf("modprobe failed with exit status %d (see syslog for details)", exitCode)
-	}
+	mylog.Check(exec.Command("modprobe", allArgs...).Run())
+
 	return nil
 }
 

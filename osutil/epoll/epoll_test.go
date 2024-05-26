@@ -10,6 +10,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil/epoll"
 	"github.com/snapcore/snapd/testutil"
 
@@ -31,149 +32,146 @@ func (*epollSuite) TestString(c *C) {
 }
 
 func (*epollSuite) TestOpenClose(c *C) {
-	e, err := epoll.Open()
-	c.Assert(err, IsNil)
+	e := mylog.Check2(epoll.Open())
+
 	c.Assert(e.RegisteredFdCount(), Equals, 0)
 	c.Assert(e.IsClosed(), Equals, false)
+	mylog.Check(e.Close())
 
-	err = e.Close()
-	c.Assert(err, IsNil)
 	c.Assert(e.IsClosed(), Equals, true)
 }
 
 func concurrentlyRegister(e *epoll.Epoll, fd int, errCh chan error) {
-	err := e.Register(fd, epoll.Readable)
+	mylog.Check(e.Register(fd, epoll.Readable))
 	errCh <- err
 }
 
 func concurrentlyDeregister(e *epoll.Epoll, fd int, errCh chan error) {
-	err := e.Deregister(fd)
+	mylog.Check(e.Deregister(fd))
 	errCh <- err
 }
 
 func waitThenWriteToFd(duration time.Duration, fd int, msg []byte) error {
 	time.Sleep(duration)
-	_, err := unix.Write(fd, msg)
+	_ := mylog.Check2(unix.Write(fd, msg))
 	return err
 }
 
 func waitSomewhereElse(e *epoll.Epoll, eventCh chan []epoll.Event, errCh chan error) {
-	events, err := e.Wait()
+	events := mylog.Check2(e.Wait())
 	eventCh <- events
 	errCh <- err
 }
 
 func waitTimeoutSomewhereElse(e *epoll.Epoll, timeout time.Duration, eventCh chan []epoll.Event, errCh chan error) {
-	events, err := e.WaitTimeout(timeout)
+	events := mylog.Check2(e.WaitTimeout(timeout))
 	eventCh <- events
 	errCh <- err
 }
 
 func closeAfter(c *C, e *epoll.Epoll, duration time.Duration) {
 	_ = time.AfterFunc(duration, func() {
-		err := e.Close()
+		mylog.Check(e.Close())
 		c.Assert(err, Equals, nil)
 	})
 }
 
 func (*epollSuite) TestRegisterWaitModifyDeregister(c *C) {
-	e, err := epoll.Open()
-	c.Assert(err, IsNil)
+	e := mylog.Check2(epoll.Open())
 
-	socketFds, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_STREAM, 0)
-	c.Assert(err, IsNil)
+
+	socketFds := mylog.Check2(unix.Socketpair(unix.AF_UNIX, unix.SOCK_STREAM, 0))
+
 	defer unix.Close(socketFds[0])
 	defer unix.Close(socketFds[1])
 
 	listenerFd := socketFds[0]
 	senderFd := socketFds[1]
+	mylog.Check(unix.SetNonblock(listenerFd, true))
 
-	err = unix.SetNonblock(listenerFd, true)
-	c.Assert(err, IsNil)
+	mylog.Check(e.Register(listenerFd, epoll.Readable))
 
-	err = e.Register(listenerFd, epoll.Readable)
-	c.Assert(err, IsNil)
 
 	msg := []byte("foo")
 
 	go waitThenWriteToFd(defaultDuration, senderFd, msg)
 
-	events, err := e.Wait()
-	c.Assert(err, IsNil)
+	events := mylog.Check2(e.Wait())
+
 	c.Assert(events, HasLen, 1)
 	c.Assert(events[0].Fd, Equals, listenerFd)
 
 	buf := make([]byte, len(msg))
-	_, err = unix.Read(events[0].Fd, buf)
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(unix.Read(events[0].Fd, buf))
+
 	c.Assert(buf, DeepEquals, msg)
+	mylog.Check(e.Modify(listenerFd, epoll.Readable|epoll.Writable))
 
-	err = e.Modify(listenerFd, epoll.Readable|epoll.Writable)
-	c.Assert(err, IsNil)
+	mylog.Check(e.Deregister(listenerFd))
 
-	err = e.Deregister(listenerFd)
-	c.Assert(err, IsNil)
+	mylog.Check(e.Close())
 
-	err = e.Close()
-	c.Assert(err, IsNil)
 }
 
 // need a large enough FD that it will not match any FD opened during these tests
 const arbitraryNonexistentLargeFd int = 98765
 
 func (*epollSuite) TestRegisterUnhappy(c *C) {
-	e, err := epoll.Open()
-	c.Assert(err, IsNil)
+	e := mylog.Check2(epoll.Open())
+
 
 	// attempt to register a standard file
-	newFile, err := os.CreateTemp("/tmp", "snapd-TestRegisterUnhappy-")
-	c.Assert(err, IsNil)
+	newFile := mylog.Check2(os.CreateTemp("/tmp", "snapd-TestRegisterUnhappy-"))
+
 	defer newFile.Close()
 	defer os.Remove(newFile.Name())
-	err = e.Register(int(newFile.Fd()), epoll.Readable)
-	c.Check(err, Equals, syscall.Errno(unix.EPERM)) // "operation not permitted"
+	mylog.Check(e.Register(int(newFile.Fd()), epoll.Readable))
+	c.Check(err, Equals, syscall.Errno(unix.EPERM))
+	mylog. // "operation not permitted"
+		Check(
 
-	// attempt to register nonexistent FD
-	err = e.Register(arbitraryNonexistentLargeFd, epoll.Readable)
-	c.Check(err, Equals, syscall.Errno(unix.EBADF)) // "bad file descriptor"
+			// attempt to register nonexistent FD
+			e.Register(arbitraryNonexistentLargeFd, epoll.Readable))
+	c.Check(err, Equals, syscall.Errno(unix.EBADF))
+	mylog. // "bad file descriptor"
+		Check(e.Close())
 
-	err = e.Close()
-	c.Assert(err, IsNil)
 }
 
 func (*epollSuite) TestDeregisterUnhappy(c *C) {
-	e, err := epoll.Open()
-	c.Assert(err, IsNil)
+	e := mylog.Check2(epoll.Open())
 
-	// attempt to deregister an unregistered FD
-	err = e.Deregister(1)
-	c.Check(err, Equals, syscall.Errno(unix.ENOENT)) // "no such file or directory"
+	mylog.
 
-	// attempt to deregister nonexistent FD
-	err = e.Deregister(arbitraryNonexistentLargeFd)
-	c.Check(err, Equals, syscall.Errno(unix.EBADF)) // "bad file descriptor"
+		// attempt to deregister an unregistered FD
+		Check(e.Deregister(1))
+	c.Check(err, Equals, syscall.Errno(unix.ENOENT))
+	mylog. // "no such file or directory"
+		Check(
 
-	err = e.Close()
-	c.Assert(err, IsNil)
+			// attempt to deregister nonexistent FD
+			e.Deregister(arbitraryNonexistentLargeFd))
+	c.Check(err, Equals, syscall.Errno(unix.EBADF))
+	mylog. // "bad file descriptor"
+		Check(e.Close())
+
 }
 
 func (*epollSuite) TestWaitTimeout(c *C) {
-	e, err := epoll.Open()
-	c.Assert(err, IsNil)
+	e := mylog.Check2(epoll.Open())
 
-	socketFds, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_STREAM, 0)
-	c.Assert(err, IsNil)
+
+	socketFds := mylog.Check2(unix.Socketpair(unix.AF_UNIX, unix.SOCK_STREAM, 0))
+
 	defer unix.Close(socketFds[0])
 	defer unix.Close(socketFds[1])
 
 	listenerFd := socketFds[0]
 	senderFd := socketFds[1]
+	mylog.Check(unix.SetNonblock(listenerFd, true))
 
-	err = unix.SetNonblock(listenerFd, true)
-	c.Assert(err, IsNil)
+	mylog.Check(e.Register(listenerFd, epoll.Readable))
 
-	err = e.Register(listenerFd, epoll.Readable)
-	c.Assert(err, IsNil)
 
 	msg := []byte("foo")
 
@@ -181,45 +179,41 @@ func (*epollSuite) TestWaitTimeout(c *C) {
 	go waitThenWriteToFd(longerDuration, senderFd, msg)
 
 	// timeout shorter than wait time before writing
-	events, err := e.WaitTimeout(defaultDuration)
-	c.Assert(err, IsNil)
+	events := mylog.Check2(e.WaitTimeout(defaultDuration))
+
 	c.Assert(events, HasLen, 0)
 
 	evenLongerDuration := defaultDuration * 10
-	events, err = e.WaitTimeout(evenLongerDuration)
-	c.Assert(err, IsNil)
+	events = mylog.Check2(e.WaitTimeout(evenLongerDuration))
+
 	c.Assert(events, HasLen, 1)
 	c.Assert(events[0].Fd, Equals, listenerFd)
 
 	buf := make([]byte, len(msg))
-	_, err = unix.Read(events[0].Fd, buf)
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(unix.Read(events[0].Fd, buf))
+
 	c.Assert(buf, DeepEquals, msg)
+	mylog.Check(e.Deregister(listenerFd))
 
-	err = e.Deregister(listenerFd)
-	c.Assert(err, IsNil)
+	mylog.Check(e.Close())
 
-	err = e.Close()
-	c.Assert(err, IsNil)
 }
 
 func (*epollSuite) TestEpollWaitEintrHandling(c *C) {
-	e, err := epoll.Open()
-	c.Assert(err, IsNil)
+	e := mylog.Check2(epoll.Open())
 
-	socketFds, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_STREAM, 0)
-	c.Assert(err, IsNil)
+
+	socketFds := mylog.Check2(unix.Socketpair(unix.AF_UNIX, unix.SOCK_STREAM, 0))
+
 	defer unix.Close(socketFds[0])
 	defer unix.Close(socketFds[1])
 
 	listenerFd := socketFds[0]
 	senderFd := socketFds[1]
+	mylog.Check(unix.SetNonblock(listenerFd, true))
 
-	err = unix.SetNonblock(listenerFd, true)
-	c.Assert(err, IsNil)
+	mylog.Check(e.Register(listenerFd, epoll.Readable))
 
-	err = e.Register(listenerFd, epoll.Readable)
-	c.Assert(err, IsNil)
 	c.Assert(e.RegisteredFdCount(), Equals, 1)
 
 	var mu sync.Mutex
@@ -246,14 +240,14 @@ func (*epollSuite) TestEpollWaitEintrHandling(c *C) {
 	eventCh := make(chan []epoll.Event)
 	errCh := make(chan error)
 
-	events, err := e.WaitTimeout(defaultDuration)
-	c.Assert(err, IsNil)
+	events := mylog.Check2(e.WaitTimeout(defaultDuration))
+
 	c.Assert(events, HasLen, 0)
 
 	go waitSomewhereElse(e, eventCh, errCh)
 
 	msg := []byte("foo")
-	_, err = unix.Write(senderFd, msg)
+	_ = mylog.Check2(unix.Write(senderFd, msg))
 	c.Check(err, IsNil)
 
 	startTime := time.Now()
@@ -265,36 +259,33 @@ func (*epollSuite) TestEpollWaitEintrHandling(c *C) {
 
 	// Check that WaitTimeout kept retrying until unixEpollWait was restored
 	c.Assert(time.Now().After(startTime.Add(defaultDuration)), Equals, true)
-	c.Assert(err, IsNil)
+
 	c.Assert(events, HasLen, 1)
 	c.Assert(events[0].Fd, Equals, listenerFd)
 
 	buf := make([]byte, len(msg))
-	_, err = unix.Read(events[0].Fd, buf)
-	c.Assert(err, IsNil)
-	c.Assert(buf, DeepEquals, msg)
+	_ = mylog.Check2(unix.Read(events[0].Fd, buf))
 
-	err = e.Close()
-	c.Assert(err, IsNil)
+	c.Assert(buf, DeepEquals, msg)
+	mylog.Check(e.Close())
+
 }
 
 func (*epollSuite) TestWriteBeforeWait(c *C) {
-	e, err := epoll.Open()
-	c.Assert(err, IsNil)
+	e := mylog.Check2(epoll.Open())
 
-	socketFds, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_STREAM, 0)
-	c.Assert(err, IsNil)
+
+	socketFds := mylog.Check2(unix.Socketpair(unix.AF_UNIX, unix.SOCK_STREAM, 0))
+
 	defer unix.Close(socketFds[0])
 	defer unix.Close(socketFds[1])
 
 	listenerFd := socketFds[0]
 	senderFd := socketFds[1]
+	mylog.Check(unix.SetNonblock(listenerFd, true))
 
-	err = unix.SetNonblock(listenerFd, true)
-	c.Assert(err, IsNil)
+	mylog.Check(e.Register(listenerFd, epoll.Readable))
 
-	err = e.Register(listenerFd, epoll.Readable)
-	c.Assert(err, IsNil)
 
 	msgs := [][]byte{
 		[]byte("foo"),
@@ -303,32 +294,30 @@ func (*epollSuite) TestWriteBeforeWait(c *C) {
 	}
 
 	for _, msg := range msgs {
-		_, err = unix.Write(senderFd, msg)
-		c.Assert(err, IsNil)
+		_ = mylog.Check2(unix.Write(senderFd, msg))
+
 	}
 
 	for _, msg := range msgs {
-		events, err := e.Wait()
-		c.Assert(err, IsNil)
+		events := mylog.Check2(e.Wait())
+
 		c.Assert(events, HasLen, 1) // multiple writes to same fd appear as one event per Wait
 
 		c.Assert(events[0].Fd, Equals, listenerFd)
 		buf := make([]byte, len(msg))
-		_, err = unix.Read(events[0].Fd, buf)
-		c.Assert(err, IsNil)
+		_ = mylog.Check2(unix.Read(events[0].Fd, buf))
+
 		c.Assert(buf, DeepEquals, msg)
 	}
+	mylog.Check(e.Deregister(listenerFd))
 
-	err = e.Deregister(listenerFd)
-	c.Assert(err, IsNil)
+	mylog.Check(e.Close())
 
-	err = e.Close()
-	c.Assert(err, IsNil)
 }
 
 func (*epollSuite) TestRegisterMultiple(c *C) {
-	e, err := epoll.Open()
-	c.Assert(err, IsNil)
+	e := mylog.Check2(epoll.Open())
+
 
 	numSockets := 20
 
@@ -339,83 +328,80 @@ func (*epollSuite) TestRegisterMultiple(c *C) {
 	msg2 := []byte("bar")
 
 	for i := 0; i < numSockets; i++ {
-		socketFds, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_STREAM, 0)
-		c.Assert(err, IsNil)
+		socketFds := mylog.Check2(unix.Socketpair(unix.AF_UNIX, unix.SOCK_STREAM, 0))
+
 		defer unix.Close(socketFds[0])
 		defer unix.Close(socketFds[1])
 
 		listenerFd := socketFds[0]
 		senderFd := socketFds[1]
+		mylog.Check(unix.SetNonblock(listenerFd, true))
 
-		err = unix.SetNonblock(listenerFd, true)
-		c.Assert(err, IsNil)
+		mylog.Check(e.Register(listenerFd, epoll.Readable))
 
-		err = e.Register(listenerFd, epoll.Readable)
-		c.Assert(err, IsNil)
 
-		_, err = unix.Write(senderFd, msg1)
-		c.Assert(err, IsNil)
+		_ = mylog.Check2(unix.Write(senderFd, msg1))
+
 
 		socketRxFds = append(socketRxFds, listenerFd)
 		socketTxFds = append(socketTxFds, senderFd)
 	}
 
 	for _, senderFd := range socketTxFds {
-		_, err = unix.Write(senderFd, msg2)
-		c.Assert(err, IsNil)
+		_ = mylog.Check2(unix.Write(senderFd, msg2))
+
 	}
 
-	events, err := e.Wait()
-	c.Assert(err, IsNil)
+	events := mylog.Check2(e.Wait())
+
 	c.Assert(len(events), Equals, len(socketRxFds))
 
 	for i, listenerFd := range socketRxFds {
 		buf := make([]byte, len(msg1))
 		c.Assert(events[i].Fd, Equals, listenerFd)
-		_, err = unix.Read(events[i].Fd, buf)
-		c.Assert(err, IsNil)
+		_ = mylog.Check2(unix.Read(events[i].Fd, buf))
+
 		c.Assert(buf, DeepEquals, msg1)
 	}
 
 	for i, listenerFd := range socketRxFds {
 		buf := make([]byte, len(msg2))
 		c.Assert(events[i].Fd, Equals, listenerFd)
-		_, err = unix.Read(events[i].Fd, buf)
-		c.Assert(err, IsNil)
+		_ = mylog.Check2(unix.Read(events[i].Fd, buf))
+
 		c.Assert(buf, DeepEquals, msg2)
 	}
 
 	for i := 0; i < len(socketRxFds)/2; i++ {
-		err = e.Deregister(socketRxFds[i])
-		c.Assert(err, IsNil)
+		mylog.Check(e.Deregister(socketRxFds[i]))
+
 	}
 
 	msg3 := []byte("baz")
 
 	for _, senderFd := range socketTxFds {
-		_, err = unix.Write(senderFd, msg3)
-		c.Assert(err, IsNil)
+		_ = mylog.Check2(unix.Write(senderFd, msg3))
+
 	}
 
-	events, err = e.Wait()
-	c.Assert(err, IsNil)
+	events = mylog.Check2(e.Wait())
+
 	c.Assert(len(events), Equals, len(socketRxFds)/2)
 
 	for i, listenerFd := range socketRxFds[len(socketRxFds)/2:] {
 		buf := make([]byte, len(msg3))
 		c.Assert(events[i].Fd, Equals, listenerFd)
-		_, err = unix.Read(events[i].Fd, buf)
-		c.Assert(err, IsNil)
+		_ = mylog.Check2(unix.Read(events[i].Fd, buf))
+
 		c.Assert(buf, DeepEquals, msg3)
 	}
+	mylog.Check(e.Close())
 
-	err = e.Close()
-	c.Assert(err, IsNil)
 }
 
 func (epollSuite) TestRegisterDeregisterConcurrency(c *C) {
-	e, err := epoll.Open()
-	c.Assert(err, IsNil)
+	e := mylog.Check2(epoll.Open())
+
 	c.Assert(e.RegisteredFdCount(), Equals, 0)
 
 	concurrencyCount := 20
@@ -423,15 +409,14 @@ func (epollSuite) TestRegisterDeregisterConcurrency(c *C) {
 	listenerFds := make([]int, 0, concurrencyCount)
 
 	for i := 0; i < concurrencyCount; i++ {
-		socketFds, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_STREAM, 0)
-		c.Assert(err, IsNil)
+		socketFds := mylog.Check2(unix.Socketpair(unix.AF_UNIX, unix.SOCK_STREAM, 0))
+
 		defer unix.Close(socketFds[0])
 		defer unix.Close(socketFds[1])
 
 		listenerFd := socketFds[0]
+		mylog.Check(unix.SetNonblock(listenerFd, true))
 
-		err = unix.SetNonblock(listenerFd, true)
-		c.Assert(err, IsNil)
 
 		listenerFds = append(listenerFds, listenerFd)
 	}
@@ -459,68 +444,62 @@ func (epollSuite) TestRegisterDeregisterConcurrency(c *C) {
 	}
 
 	c.Assert(e.RegisteredFdCount(), Equals, 0)
+	mylog.Check(e.Close())
 
-	err = e.Close()
-	c.Assert(err, IsNil)
 }
 
 func (*epollSuite) TestWaitWithoutRegistering(c *C) {
-	e, err := epoll.Open()
-	c.Assert(err, IsNil)
+	e := mylog.Check2(epoll.Open())
 
-	events, err := e.WaitTimeout(defaultDuration)
-	c.Assert(err, IsNil)
+
+	events := mylog.Check2(e.WaitTimeout(defaultDuration))
+
 	c.Assert(events, HasLen, 0)
+	mylog.Check(e.Close())
 
-	err = e.Close()
-	c.Assert(err, IsNil)
 }
 
 func (*epollSuite) TestWaitThenDeregister(c *C) {
-	e, err := epoll.Open()
-	c.Assert(err, IsNil)
+	e := mylog.Check2(epoll.Open())
 
-	socketFds, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_STREAM, 0)
-	c.Assert(err, IsNil)
+
+	socketFds := mylog.Check2(unix.Socketpair(unix.AF_UNIX, unix.SOCK_STREAM, 0))
+
 	defer unix.Close(socketFds[0])
 	defer unix.Close(socketFds[1])
 
 	listenerFd := socketFds[0]
 	senderFd := socketFds[1]
+	mylog.Check(unix.SetNonblock(listenerFd, true))
 
-	err = unix.SetNonblock(listenerFd, true)
-	c.Assert(err, IsNil)
+	mylog.Check(e.Register(listenerFd, epoll.Readable))
 
-	err = e.Register(listenerFd, epoll.Readable)
-	c.Assert(err, IsNil)
 	c.Assert(e.RegisteredFdCount(), Equals, 1)
 
 	eventCh := make(chan []epoll.Event)
 	errCh := make(chan error)
 
 	go waitTimeoutSomewhereElse(e, defaultDuration, eventCh, errCh)
-
-	err = e.Deregister(listenerFd)
+	mylog.Check(e.Deregister(listenerFd))
 	c.Check(err, IsNil)
 	c.Check(e.RegisteredFdCount(), Equals, 0)
 
 	// check that deregistered FD does not trigger epoll event
 	msg := []byte("foo")
-	_, err = unix.Write(senderFd, msg)
+	_ = mylog.Check2(unix.Write(senderFd, msg))
 	c.Check(err, IsNil)
 
 	events := <-eventCh
 	err = <-errCh
 	c.Assert(events, HasLen, 0)
-	c.Assert(err, IsNil)
 
-	err = e.Close()
-	c.Assert(err, IsNil)
+	mylog.Check(e.Close())
+
 }
 
 func (*epollSuite) TestWaitThenRegister(c *C) {
-	e, err := epoll.Open()
-	c.Assert(err, IsNil)
+	e := mylog.Check2(epoll.Open())
+
 
 	eventCh := make(chan []epoll.Event)
 	errCh := make(chan error)
@@ -529,68 +508,59 @@ func (*epollSuite) TestWaitThenRegister(c *C) {
 
 	time.Sleep(defaultDuration)
 
-	socketFds, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_STREAM, 0)
+	socketFds := mylog.Check2(unix.Socketpair(unix.AF_UNIX, unix.SOCK_STREAM, 0))
 	c.Check(err, IsNil)
 	defer unix.Close(socketFds[0])
 	defer unix.Close(socketFds[1])
 
 	listenerFd := socketFds[0]
 	senderFd := socketFds[1]
-
-	err = unix.SetNonblock(listenerFd, true)
+	mylog.Check(unix.SetNonblock(listenerFd, true))
 	c.Check(err, IsNil)
-
-	err = e.Register(listenerFd, epoll.Readable)
+	mylog.Check(e.Register(listenerFd, epoll.Readable))
 	c.Check(err, IsNil)
 	c.Check(e.RegisteredFdCount(), Equals, 1)
 
 	// check that fd registered after Wait() began still triggers epoll event
 	msg := []byte("foo")
-	_, err = unix.Write(senderFd, msg)
+	_ = mylog.Check2(unix.Write(senderFd, msg))
 	c.Check(err, IsNil)
 
 	events := <-eventCh
 	err = <-errCh
-	c.Assert(err, IsNil)
+
 	c.Assert(events, HasLen, 1)
 
 	buf := make([]byte, len(msg))
 	c.Assert(events[0].Fd, Equals, listenerFd)
-	_, err = unix.Read(events[0].Fd, buf)
-	c.Assert(err, IsNil)
-	c.Assert(buf, DeepEquals, msg)
+	_ = mylog.Check2(unix.Read(events[0].Fd, buf))
 
-	err = e.Close()
-	c.Assert(err, IsNil)
+	c.Assert(buf, DeepEquals, msg)
+	mylog.Check(e.Close())
+
 }
 
 func (*epollSuite) TestErrorsOnClosedEpoll(c *C) {
-	e, err := epoll.Open()
-	c.Assert(err, IsNil)
+	e := mylog.Check2(epoll.Open())
 
-	err = e.Close()
-	c.Assert(err, IsNil)
+	mylog.Check(e.Close())
 
-	err = e.Close()
+	mylog.Check(e.Close())
+	c.Assert(err, Equals, epoll.ErrEpollClosed)
+	mylog.Check(e.Register(0, epoll.Readable))
+	c.Assert(err, Equals, epoll.ErrEpollClosed)
+	mylog.Check(e.Deregister(0))
+	c.Assert(err, Equals, epoll.ErrEpollClosed)
+	mylog.Check(e.Modify(0, epoll.Readable))
+	c.Assert(err, Equals, epoll.ErrEpollClosed)
+	mylog.Check(e.Modify(0, epoll.Readable))
 	c.Assert(err, Equals, epoll.ErrEpollClosed)
 
-	err = e.Register(0, epoll.Readable)
-	c.Assert(err, Equals, epoll.ErrEpollClosed)
-
-	err = e.Deregister(0)
-	c.Assert(err, Equals, epoll.ErrEpollClosed)
-
-	err = e.Modify(0, epoll.Readable)
-	c.Assert(err, Equals, epoll.ErrEpollClosed)
-
-	err = e.Modify(0, epoll.Readable)
-	c.Assert(err, Equals, epoll.ErrEpollClosed)
-
-	events, err := e.WaitTimeout(defaultDuration)
+	events := mylog.Check2(e.WaitTimeout(defaultDuration))
 	c.Assert(err, Equals, epoll.ErrEpollClosed)
 	c.Assert(events, HasLen, 0)
 
-	events, err = e.Wait()
+	events = mylog.Check2(e.Wait())
 	c.Assert(err, Equals, epoll.ErrEpollClosed)
 	c.Assert(events, HasLen, 0)
 }
@@ -603,34 +573,32 @@ func (*epollSuite) TestWaitErrors(c *C) {
 	})
 	defer restore()
 
-	e, err := epoll.Open()
-	c.Assert(err, IsNil)
+	e := mylog.Check2(epoll.Open())
 
-	events, err := e.Wait()
+
+	events := mylog.Check2(e.Wait())
 	c.Assert(err, Equals, fakeError)
 	c.Assert(events, HasLen, 0)
+	mylog.Check(e.Close())
 
-	err = e.Close()
-	c.Assert(err, IsNil)
 
 	restore = epoll.MockUnixEpollWait(func(epfd int, events []unix.EpollEvent, msec int) (n int, err error) {
 		return unix.EpollWait(-1, events, msec)
 	})
 	defer restore()
 
-	e, err = epoll.Open()
-	c.Assert(err, IsNil)
+	e = mylog.Check2(epoll.Open())
 
-	events, err = e.Wait()
+
+	events = mylog.Check2(e.Wait())
 	c.Assert(err, Equals, unix.EBADF)
 	c.Assert(events, HasLen, 0)
+	mylog.Check(e.Close())
 
-	err = e.Close()
-	c.Assert(err, IsNil)
 
 	restore = epoll.MockUnixEpollWait(func(epfd int, events []unix.EpollEvent, msec int) (n int, err error) {
 		// Make syscall on bad fd, as if it had been closed.
-		n, err = unix.EpollWait(-1, events, msec)
+		n = mylog.Check2(unix.EpollWait(-1, events, msec))
 		// Close the epoll, as if it had been the reason the fd in the syscall
 		// had been closed.
 		e.Close()
@@ -638,40 +606,39 @@ func (*epollSuite) TestWaitErrors(c *C) {
 	})
 	defer restore()
 
-	e, err = epoll.Open()
-	c.Assert(err, IsNil)
+	e = mylog.Check2(epoll.Open())
 
-	events, err = e.Wait()
+
+	events = mylog.Check2(e.Wait())
 	c.Assert(err, Equals, epoll.ErrEpollClosed)
 	c.Assert(events, HasLen, 0)
-
-	err = e.Close()
+	mylog.Check(e.Close())
 	c.Assert(err, Equals, epoll.ErrEpollClosed)
 }
 
 func (*epollSuite) TestWaitThenClose(c *C) {
-	e, err := epoll.Open()
-	c.Assert(err, IsNil)
+	e := mylog.Check2(epoll.Open())
+
 
 	closeAfter(c, e, defaultDuration)
 
 	startTime := time.Now()
 
-	events, err := e.Wait()
+	events := mylog.Check2(e.Wait())
 
 	// Check that Wait() returned "immediately"
 	c.Assert(time.Now().Before(startTime.Add(2*defaultDuration)), Equals, true)
 	c.Assert(err, Equals, epoll.ErrEpollClosed)
 	c.Assert(events, HasLen, 0)
 
-	e, err = epoll.Open()
-	c.Assert(err, IsNil)
+	e = mylog.Check2(epoll.Open())
+
 
 	closeAfter(c, e, defaultDuration)
 
 	startTime = time.Now()
 
-	events, err = e.WaitTimeout(defaultDuration * 2)
+	events = mylog.Check2(e.WaitTimeout(defaultDuration * 2))
 
 	// Check that WaitTimeout() returned "immediately"
 	c.Assert(time.Now().Before(startTime.Add(2*defaultDuration)), Equals, true)

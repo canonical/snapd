@@ -23,22 +23,21 @@ import (
 	"os"
 	"os/exec"
 	"syscall"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // FileExists return true if given path can be stat()ed by us. Note that
 // it may return false on e.g. permission issues.
 func FileExists(path string) bool {
-	_, err := os.Stat(path)
+	_ := mylog.Check2(os.Stat(path))
 	return err == nil
 }
 
 // IsDirectory return true if the given path can be stat()ed by us and
 // is a directory. Note that it may return false on e.g. permission issues.
 func IsDirectory(path string) bool {
-	fileInfo, err := os.Stat(path)
-	if err != nil {
-		return false
-	}
+	fileInfo := mylog.Check2(os.Stat(path))
 
 	return fileInfo.IsDir()
 }
@@ -50,26 +49,21 @@ func IsDevice(mode os.FileMode) bool {
 
 // IsSymlink returns true if the given file is a symlink
 func IsSymlink(path string) bool {
-	fileInfo, err := os.Lstat(path)
-	if err != nil {
-		return false
-	}
+	fileInfo := mylog.Check2(os.Lstat(path))
 
 	return (fileInfo.Mode() & os.ModeSymlink) != 0
 }
 
 // IsExecutable returns true when given path points to an executable file
 func IsExecutable(path string) bool {
-	stat, err := os.Stat(path)
-	if err != nil {
-		return false
-	}
+	stat := mylog.Check2(os.Stat(path))
+
 	return !stat.IsDir() && (stat.Mode().Perm()&0111 != 0)
 }
 
 // ExecutableExists returns whether there an exists an executable with the given name somewhere on $PATH.
 func ExecutableExists(name string) bool {
-	_, err := exec.LookPath(name)
+	_ := mylog.Check2(exec.LookPath(name))
 
 	return err == nil
 }
@@ -80,10 +74,8 @@ var lookPath func(name string) (string, error) = exec.LookPath
 // listed in the environment variable PATH and returns the found path or the
 // provided default path.
 func LookPathDefault(name string, defaultPath string) string {
-	p, err := lookPath(name)
-	if err != nil {
-		return defaultPath
-	}
+	p := mylog.Check2(lookPath(name))
+
 	return p
 }
 
@@ -92,8 +84,7 @@ func LookPathDefault(name string, defaultPath string) string {
 func IsWritable(path string) bool {
 	// from "fcntl.h"
 	const W_OK = 2
-
-	err := syscall.Access(path, W_OK)
+	mylog.Check(syscall.Access(path, W_OK))
 	return err == nil
 }
 
@@ -115,21 +106,14 @@ func IsDirNotExist(err error) bool {
 
 // DirExists checks whether a given path exists, and if so whether it is a directory.
 func DirExists(fn string) (exists bool, isDir bool, err error) {
-	st, err := os.Stat(fn)
-	if err != nil {
-		if IsDirNotExist(err) {
-			return false, false, nil
-		}
-		return false, false, err
-	}
+	st := mylog.Check2(os.Stat(fn))
+
 	return true, st.IsDir(), nil
 }
 
 // RegularFileExists checks whether a given path exists, and if so whether it is a regular file.
 func RegularFileExists(fn string) (exists, isReg bool, err error) {
-	fileStat, err := os.Lstat(fn)
-	if err != nil {
-		return false, false, err
-	}
+	fileStat := mylog.Check2(os.Lstat(fn))
+
 	return true, fileStat.Mode().IsRegular(), nil
 }

@@ -10,6 +10,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 )
@@ -22,8 +23,8 @@ func (*ioctlSuite) TestIoctlRequestBuffer(c *C) {
 	buf := notify.NewIoctlRequestBuffer()
 	c.Assert(buf, HasLen, 0xFFFF)
 	var header notify.MsgHeader
-	err := header.UnmarshalBinary(buf)
-	c.Assert(err, IsNil)
+	mylog.Check(header.UnmarshalBinary(buf))
+
 	c.Check(header, Equals, notify.MsgHeader{
 		Length:  0xFFFF,
 		Version: 3,
@@ -43,8 +44,8 @@ func (*ioctlSuite) TestIoctlHappy(c *C) {
 			return uintptr(len(ioctlBuf)), 0, 0
 		})
 	defer restore()
-	buf, err := notify.Ioctl(fd, req, ioctlBuf)
-	c.Assert(err, IsNil)
+	buf := mylog.Check2(notify.Ioctl(fd, req, ioctlBuf))
+
 	c.Assert(buf, DeepEquals, []byte(ioctlBuf))
 }
 
@@ -67,7 +68,7 @@ func (*ioctlSuite) TestIoctlBuffer(c *C) {
 		})
 	defer restore()
 
-	buf, err := notify.Ioctl(fd, req, ioctlBuf)
+	buf := mylog.Check2(notify.Ioctl(fd, req, ioctlBuf))
 	c.Assert(err, Equals, nil)
 	c.Assert(buf, DeepEquals, contents)
 }
@@ -82,7 +83,7 @@ func (*ioctlSuite) TestIoctlReturnValueSizeMismatch(c *C) {
 			return uintptr(len(ioctlBuf) * 2), 0, 0
 		})
 	defer restore()
-	buf, err := notify.Ioctl(fd, req, ioctlBuf)
+	buf := mylog.Check2(notify.Ioctl(fd, req, ioctlBuf))
 	c.Assert(err, Equals, notify.ErrIoctlReturnInvalid)
 	c.Assert(buf, HasLen, len(ioctlBuf))
 }
@@ -98,7 +99,7 @@ func (*ioctlSuite) TestIoctlReturnError(c *C) {
 			return ^zero, 0, unix.EBADF
 		})
 	defer restore()
-	buf, err := notify.Ioctl(fd, req, ioctlBuf)
+	buf := mylog.Check2(notify.Ioctl(fd, req, ioctlBuf))
 	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot perform IOCTL request .*"))
 	c.Assert(buf, IsNil)
 }
@@ -137,7 +138,7 @@ func (*ioctlSuite) TestIoctlDump(c *C) {
 		sendDataStr = "0xff, 0xff, 0x00, 0x03, "
 	}
 
-	buf, err := notify.Ioctl(fd, req, ioctlBuf)
+	buf := mylog.Check2(notify.Ioctl(fd, req, ioctlBuf))
 	c.Assert(err, Equals, nil)
 	c.Assert(buf, DeepEquals, contents)
 

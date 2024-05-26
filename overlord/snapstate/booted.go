@@ -22,6 +22,7 @@ package snapstate
 import (
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
@@ -40,19 +41,15 @@ func UpdateBootRevisions(st *state.State) error {
 	const errorPrefix = "cannot update revisions after boot changes: "
 
 	// nothing to check if there's no kernel
-	ok, err := HasSnapOfType(st, snap.TypeKernel)
-	if err != nil {
-		return fmt.Errorf(errorPrefix+"%s", err)
-	}
+	ok := mylog.Check2(HasSnapOfType(st, snap.TypeKernel))
+
 	if !ok {
 		return nil
 	}
 
-	deviceCtx, err := DeviceCtx(st, nil, nil)
-	if err != nil {
-		// if we have a kernel, we should have a model
-		return err
-	}
+	deviceCtx := mylog.Check2(DeviceCtx(st, nil, nil))
+
+	// if we have a kernel, we should have a model
 
 	var tsAll []*state.TaskSet
 	for _, typ := range []snap.Type{snap.TypeKernel, snap.TypeBase} {
@@ -60,22 +57,15 @@ func UpdateBootRevisions(st *state.State) error {
 			continue
 		}
 
-		actual, err := boot.GetCurrentBoot(typ, deviceCtx)
-		if err != nil {
-			return fmt.Errorf(errorPrefix+"%s", err)
-		}
-		info, err := CurrentInfo(st, actual.SnapName())
-		if err != nil {
-			logger.Noticef("cannot get info for %q: %s", actual.SnapName(), err)
-			continue
-		}
+		actual := mylog.Check2(boot.GetCurrentBoot(typ, deviceCtx))
+
+		info := mylog.Check2(CurrentInfo(st, actual.SnapName()))
+
 		if actual.SnapRevision() != info.SideInfo.Revision {
 			// FIXME: check that there is no task
 			//        for this already in progress
-			ts, err := RevertToRevision(st, actual.SnapName(), actual.SnapRevision(), Flags{}, "")
-			if err != nil {
-				return err
-			}
+			ts := mylog.Check2(RevertToRevision(st, actual.SnapName(), actual.SnapRevision(), Flags{}, ""))
+
 			tsAll = append(tsAll, ts)
 		}
 	}

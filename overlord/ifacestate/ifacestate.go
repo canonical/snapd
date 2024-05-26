@@ -27,6 +27,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
@@ -56,20 +57,16 @@ func (e ErrAlreadyConnected) Error() string {
 
 // findSymmetricAutoconnectTask checks if there is another auto-connect task affecting same snap because of plug/slot.
 func findSymmetricAutoconnectTask(st *state.State, plugSnap, slotSnap string, installTask *state.Task) (bool, error) {
-	snapsup, err := snapstate.TaskSnapSetup(installTask)
-	if err != nil {
-		return false, fmt.Errorf("internal error: cannot obtain snap setup from task: %s", installTask.Summary())
-	}
+	snapsup := mylog.Check2(snapstate.TaskSnapSetup(installTask))
+
 	installedSnap := snapsup.InstanceName()
 
 	// if we find any auto-connect task that's not ready and is affecting our snap, return true to indicate that
 	// it should be ignored (we shouldn't create connect tasks for it)
 	for _, task := range st.Tasks() {
 		if !task.Status().Ready() && task.ID() != installTask.ID() && task.Kind() == "auto-connect" {
-			snapsup, err := snapstate.TaskSnapSetup(task)
-			if err != nil {
-				return false, fmt.Errorf("internal error: cannot obtain snap setup from task: %s", task.Summary())
-			}
+			snapsup := mylog.Check2(snapstate.TaskSnapSetup(task))
+
 			otherSnap := snapsup.InstanceName()
 
 			if (otherSnap == plugSnap && installedSnap == slotSnap) || (otherSnap == slotSnap && installedSnap == plugSnap) {
@@ -89,9 +86,7 @@ type connectOpts struct {
 
 // Connect returns a set of tasks for connecting an interface.
 func Connect(st *state.State, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
-	if err := snapstate.CheckChangeConflictMany(st, []string{plugSnap, slotSnap}, ""); err != nil {
-		return nil, err
-	}
+	mylog.Check(snapstate.CheckChangeConflictMany(st, []string{plugSnap, slotSnap}, ""))
 
 	return connect(st, plugSnap, plugName, slotSnap, slotName, connectOpts{})
 }
@@ -115,35 +110,22 @@ func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, fla
 	// 'snapctl get' can read both slot's and plug's attributes.
 
 	// check if the connection already exists
-	conns, err := getConns(st)
-	if err != nil {
-		return nil, err
-	}
+	conns := mylog.Check2(getConns(st))
+
 	connRef := interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: plugSnap, Name: plugName}, SlotRef: interfaces.SlotRef{Snap: slotSnap, Name: slotName}}
 	if conn, ok := conns[connRef.ID()]; ok && !conn.Undesired && !conn.HotplugGone {
 		return nil, &ErrAlreadyConnected{Connection: connRef}
 	}
 
 	var plugSnapst, slotSnapst snapstate.SnapState
-	if err = snapstate.Get(st, plugSnap, &plugSnapst); err != nil {
-		return nil, err
-	}
-	if err = snapstate.Get(st, slotSnap, &slotSnapst); err != nil {
-		return nil, err
-	}
-	plugSnapInfo, err := plugSnapst.CurrentInfo()
-	if err != nil {
-		return nil, err
-	}
-	slotSnapInfo, err := slotSnapst.CurrentInfo()
-	if err != nil {
-		return nil, err
-	}
+	mylog.Check(snapstate.Get(st, plugSnap, &plugSnapst))
+	mylog.Check(snapstate.Get(st, slotSnap, &slotSnapst))
 
-	plugStatic, slotStatic, err := initialConnectAttributes(st, plugSnapInfo, plugSnap, plugName, slotSnapInfo, slotSnap, slotName)
-	if err != nil {
-		return nil, err
-	}
+	plugSnapInfo := mylog.Check2(plugSnapst.CurrentInfo())
+
+	slotSnapInfo := mylog.Check2(slotSnapst.CurrentInfo())
+
+	plugStatic, slotStatic := mylog.Check3(initialConnectAttributes(st, plugSnapInfo, plugSnap, plugName, slotSnapInfo, slotSnap, slotName))
 
 	connectInterface := st.NewTask("connect", fmt.Sprintf(i18n.G("Connect %s:%s to %s:%s"), plugSnap, plugName, slotSnap, slotName))
 	initialContext := make(map[string]interface{})
@@ -282,10 +264,7 @@ func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, fla
 
 func initialConnectAttributes(st *state.State, plugSnapInfo *snap.Info, plugSnap string, plugName string, slotSnapInfo *snap.Info, slotSnap string, slotName string) (plugStatic, slotStatic map[string]interface{}, err error) {
 	var plugSnapst snapstate.SnapState
-
-	if err = snapstate.Get(st, plugSnap, &plugSnapst); err != nil {
-		return nil, nil, err
-	}
+	mylog.Check(snapstate.Get(st, plugSnap, &plugSnapst))
 
 	plug, ok := plugSnapInfo.Plugs[plugName]
 	if !ok {
@@ -293,14 +272,8 @@ func initialConnectAttributes(st *state.State, plugSnapInfo *snap.Info, plugSnap
 	}
 
 	var slotSnapst snapstate.SnapState
-
-	if err = snapstate.Get(st, slotSnap, &slotSnapst); err != nil {
-		return nil, nil, err
-	}
-
-	if err := addImplicitSlots(st, slotSnapInfo); err != nil {
-		return nil, nil, err
-	}
+	mylog.Check(snapstate.Get(st, slotSnap, &slotSnapst))
+	mylog.Check(addImplicitSlots(st, slotSnapInfo))
 
 	slot, ok := slotSnapInfo.Slots[slotName]
 	if !ok {
@@ -314,9 +287,7 @@ func initialConnectAttributes(st *state.State, plugSnapInfo *snap.Info, plugSnap
 func Disconnect(st *state.State, conn *interfaces.Connection) (*state.TaskSet, error) {
 	plugSnap := conn.Plug.Snap().InstanceName()
 	slotSnap := conn.Slot.Snap().InstanceName()
-	if err := snapstate.CheckChangeConflictMany(st, []string{plugSnap, slotSnap}, ""); err != nil {
-		return nil, err
-	}
+	mylog.Check(snapstate.CheckChangeConflictMany(st, []string{plugSnap, slotSnap}, ""))
 
 	return disconnectTasks(st, conn, disconnectOpts{})
 }
@@ -325,15 +296,13 @@ func Disconnect(st *state.State, conn *interfaces.Connection) (*state.TaskSet, e
 // If the interface is already disconnected, it will be removed from the state
 // (forgotten).
 func Forget(st *state.State, repo *interfaces.Repository, connRef *interfaces.ConnRef) (*state.TaskSet, error) {
-	if err := snapstate.CheckChangeConflictMany(st, []string{connRef.PlugRef.Snap, connRef.SlotRef.Snap}, ""); err != nil {
-		return nil, err
-	}
+	mylog.Check(snapstate.CheckChangeConflictMany(st, []string{connRef.PlugRef.Snap, connRef.SlotRef.Snap}, ""))
 
-	if conn, err := repo.Connection(connRef); err == nil {
+	if conn := mylog.Check2(repo.Connection(connRef)); err == nil {
 		// connection exists - run regular set of disconnect tasks with forget
 		// flag.
 		opts := disconnectOpts{Forget: true}
-		ts, err := disconnectTasks(st, conn, opts)
+		ts := mylog.Check2(disconnectTasks(st, conn, opts))
 		return ts, err
 	}
 
@@ -370,12 +339,8 @@ func disconnectTasks(st *state.State, conn *interfaces.Connection, flags disconn
 	slotName := conn.Slot.Name()
 
 	var plugSnapst, slotSnapst snapstate.SnapState
-	if err := snapstate.Get(st, slotSnap, &slotSnapst); err != nil {
-		return nil, err
-	}
-	if err := snapstate.Get(st, plugSnap, &plugSnapst); err != nil {
-		return nil, err
-	}
+	mylog.Check(snapstate.Get(st, slotSnap, &slotSnapst))
+	mylog.Check(snapstate.Get(st, plugSnap, &plugSnapst))
 
 	summary := fmt.Sprintf(i18n.G("Disconnect %s:%s from %s:%s"),
 		plugSnap, plugName, slotSnap, slotName)
@@ -411,14 +376,9 @@ func disconnectTasks(st *state.State, conn *interfaces.Connection, flags disconn
 	initialContext := make(map[string]interface{})
 	initialContext["attrs-task"] = disconnectTask.ID()
 
-	plugSnapInfo, err := plugSnapst.CurrentInfo()
-	if err != nil {
-		return nil, err
-	}
-	slotSnapInfo, err := slotSnapst.CurrentInfo()
-	if err != nil {
-		return nil, err
-	}
+	plugSnapInfo := mylog.Check2(plugSnapst.CurrentInfo())
+
+	slotSnapInfo := mylog.Check2(slotSnapst.CurrentInfo())
 
 	// only run slot hooks if slotSnap is active
 	if slotSnapst.Active {
@@ -474,26 +434,22 @@ func disconnectTasks(st *state.State, conn *interfaces.Connection, flags disconn
 
 // CheckInterfaces checks whether plugs and slots of snap are allowed for installation.
 func CheckInterfaces(st *state.State, snapInfo *snap.Info, deviceCtx snapstate.DeviceContext) error {
-	// XXX: addImplicitSlots is really a brittle interface
-	if err := addImplicitSlots(st, snapInfo); err != nil {
-		return err
-	}
+	mylog.Check(
+		// XXX: addImplicitSlots is really a brittle interface
+		addImplicitSlots(st, snapInfo))
 
 	modelAs := deviceCtx.Model()
 
 	var storeAs *asserts.Store
 	if modelAs.Store() != "" {
-		var err error
-		storeAs, err = assertstate.Store(st, modelAs.Store())
+
+		storeAs = mylog.Check2(assertstate.Store(st, modelAs.Store()))
 		if err != nil && !errors.Is(err, &asserts.NotFoundError{}) {
 			return err
 		}
 	}
 
-	baseDecl, err := assertstate.BaseDeclaration(st)
-	if err != nil {
-		return fmt.Errorf("internal error: cannot find base declaration: %v", err)
-	}
+	baseDecl := mylog.Check2(assertstate.BaseDeclaration(st))
 
 	if snapInfo.SnapID == "" {
 		// no SnapID means --dangerous was given, perform a minimal check about the compatibility of the snap type and the interface
@@ -506,10 +462,7 @@ func CheckInterfaces(st *state.State, snapInfo *snap.Info, deviceCtx snapstate.D
 		return ic.Check()
 	}
 
-	snapDecl, err := assertstate.SnapDeclaration(st, snapInfo.SnapID)
-	if err != nil {
-		return fmt.Errorf("cannot find snap declaration for %q: %v", snapInfo.InstanceName(), err)
-	}
+	snapDecl := mylog.Check2(assertstate.SnapDeclaration(st, snapInfo.SnapID))
 
 	ic := policy.InstallCandidate{
 		Snap:            snapInfo,
@@ -555,7 +508,7 @@ func OnSnapLinkageChanged(st *state.State, snapsup *snapstate.SnapSetup) error {
 	instanceName := snapsup.InstanceName()
 
 	var snapst snapstate.SnapState
-	if err := snapstate.Get(st, instanceName, &snapst); err != nil && !errors.Is(err, state.ErrNoState) {
+	if mylog.Check(snapstate.Get(st, instanceName, &snapst)); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if !snapst.IsInstalled() {

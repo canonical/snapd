@@ -26,6 +26,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // Container is the interface to interact with the low-level snap files.
@@ -143,10 +145,8 @@ func evalSymlink(c Container, path string) (symlinkInfo, error) {
 	currentDepth := 0
 	for currentDepth < maxDepth {
 		currentDepth++
-		target, err := c.ReadLink(path)
-		if err != nil {
-			return symlinkInfo{}, err
-		}
+		target := mylog.Check2(c.ReadLink(path))
+
 		// record first symlink target
 		if currentDepth == 1 {
 			naiveTarget = target
@@ -166,11 +166,8 @@ func evalSymlink(c Container, path string) (symlinkInfo, error) {
 			return symlinkInfo{target, os.FileMode(0), naiveTarget, true}, nil
 		}
 
-		info, err := c.Lstat(target)
+		info := mylog.Check2(c.Lstat(target))
 		// cannot follow bad targets
-		if err != nil {
-			return symlinkInfo{}, err
-		}
 
 		// non-symlink, let's return
 		if info.Mode().Type() != os.ModeSymlink {
@@ -200,10 +197,7 @@ func evalAndValidateSymlink(c Container, path string) (symlinkInfo, error) {
 		return symlinkInfo{}, fmt.Errorf("meta directory cannot be a symlink")
 	}
 
-	info, err := evalSymlink(c, path)
-	if err != nil {
-		return symlinkInfo{}, err
-	}
+	info := mylog.Check2(evalSymlink(c, path))
 
 	if info.isExternal {
 		return symlinkInfo{}, fmt.Errorf("external symlink found: %s -> %s", path, info.naiveTarget)
@@ -319,11 +313,7 @@ func validateContainer(c Container, needsrx, needsx, needsr, needsf, noskipd map
 	// bad modes are logged instead of being returned because the end user
 	// can do nothing with the info (and the developer can read the logs)
 	hasBadModes := false
-	err := c.Walk(".", func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
+	mylog.Check(c.Walk(".", func(path string, info os.FileInfo, err error) error {
 		mode := info.Mode()
 		if needsrx[path] || needsx[path] || needsr[path] {
 			seen[path] = true
@@ -339,14 +329,9 @@ func validateContainer(c Container, needsrx, needsx, needsr, needsf, noskipd map
 		}
 
 		if mode&os.ModeSymlink != 0 && shouldValidateSymlink(path) {
-			symlinkInfo, err := evalAndValidateSymlink(c, path)
-			if err != nil {
-				logf("%s", err)
-				hasBadModes = true
-			} else {
-				// use target mode for checks below
-				mode = symlinkInfo.targetMode
-			}
+			symlinkInfo := mylog.Check2(evalAndValidateSymlink(c, path))
+
+			// use target mode for checks below
 		}
 
 		if mode.IsDir() {
@@ -382,10 +367,8 @@ func validateContainer(c Container, needsrx, needsx, needsr, needsf, noskipd map
 			}
 		}
 		return nil
-	})
-	if err != nil {
-		return err
-	}
+	}))
+
 	if len(seen) != len(needsx)+len(needsrx)+len(needsr) {
 		for _, needs := range []map[string]bool{needsx, needsrx, needsr} {
 			for path := range needs {

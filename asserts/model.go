@@ -25,6 +25,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/naming"
@@ -130,10 +131,7 @@ func checkExtendedSnaps(extendedSnaps interface{}, base string, grade ModelGrade
 		if !ok {
 			return nil, fmt.Errorf(wrongHeaderType)
 		}
-		modelSnap, err := checkModelSnap(snap, base, grade, modelIsClassic)
-		if err != nil {
-			return nil, err
-		}
+		modelSnap := mylog.Check2(checkModelSnap(snap, base, grade, modelIsClassic))
 
 		if seen[modelSnap.Name] {
 			return nil, fmt.Errorf("cannot list the same snap %q multiple times", modelSnap.Name)
@@ -198,11 +196,9 @@ func isEssentialSnap(snapName, snapType, modelBase string) bool {
 }
 
 func checkModesForSnap(snap map[string]interface{}, isEssential bool, what string) ([]string, error) {
-	modes, err := checkStringListInMap(snap, "modes", fmt.Sprintf("%q %s", "modes", what),
-		validSnapMode)
-	if err != nil {
-		return nil, err
-	}
+	modes := mylog.Check2(checkStringListInMap(snap, "modes", fmt.Sprintf("%q %s", "modes", what),
+		validSnapMode))
+
 	if isEssential {
 		if len(modes) != 0 {
 			return nil, fmt.Errorf("essential snaps are always available, cannot specify modes %s", what)
@@ -218,24 +214,15 @@ func checkModesForSnap(snap map[string]interface{}, isEssential bool, what strin
 }
 
 func checkModelSnap(snap map[string]interface{}, modelBase string, grade ModelGrade, modelIsClassic bool) (*ModelSnap, error) {
-	name, err := checkNotEmptyStringWhat(snap, "name", "of snap")
-	if err != nil {
-		return nil, err
-	}
-	if err := naming.ValidateSnap(name); err != nil {
-		return nil, fmt.Errorf("invalid snap name %q", name)
-	}
+	name := mylog.Check2(checkNotEmptyStringWhat(snap, "name", "of snap"))
+	mylog.Check(naming.ValidateSnap(name))
 
 	what := fmt.Sprintf("of snap %q", name)
 
 	var snapID string
 	_, ok := snap["id"]
 	if ok {
-		var err error
-		snapID, err = checkStringMatchesWhat(snap, "id", what, naming.ValidSnapID)
-		if err != nil {
-			return nil, err
-		}
+		snapID = mylog.Check2(checkStringMatchesWhat(snap, "id", what, naming.ValidSnapID))
 	} else {
 		// snap ids are optional with grade dangerous to allow working
 		// with local/not pushed yet to the store snaps
@@ -244,10 +231,8 @@ func checkModelSnap(snap map[string]interface{}, modelBase string, grade ModelGr
 		}
 	}
 
-	typ, err := checkOptionalStringWhat(snap, "type", what)
-	if err != nil {
-		return nil, err
-	}
+	typ := mylog.Check2(checkOptionalStringWhat(snap, "type", what))
+
 	if typ == "" {
 		typ = "app"
 	}
@@ -255,10 +240,8 @@ func checkModelSnap(snap map[string]interface{}, modelBase string, grade ModelGr
 		return nil, fmt.Errorf("type of snap %q must be one of %s", name, strings.Join(validSnapTypes, "|"))
 	}
 
-	presence, err := checkOptionalStringWhat(snap, "presence", what)
-	if err != nil {
-		return nil, err
-	}
+	presence := mylog.Check2(checkOptionalStringWhat(snap, "presence", what))
+
 	if presence != "" && !strutil.ListContains(validSnapPresences, presence) {
 		return nil, fmt.Errorf("presence of snap %q must be one of required|optional", name)
 	}
@@ -270,30 +253,21 @@ func checkModelSnap(snap map[string]interface{}, modelBase string, grade ModelGr
 		presence = "required"
 	}
 
-	modes, err := checkModesForSnap(snap, essential, what)
-	if err != nil {
-		return nil, err
-	}
+	modes := mylog.Check2(checkModesForSnap(snap, essential, what))
 
-	defaultChannel, err := checkOptionalStringWhat(snap, "default-channel", what)
-	if err != nil {
-		return nil, err
-	}
+	defaultChannel := mylog.Check2(checkOptionalStringWhat(snap, "default-channel", what))
+
 	if defaultChannel == "" {
 		defaultChannel = "latest/stable"
 	}
-	defCh, err := channel.ParseVerbatim(defaultChannel, "-")
-	if err != nil {
-		return nil, fmt.Errorf("invalid default channel for snap %q: %v", name, err)
-	}
+	defCh := mylog.Check2(channel.ParseVerbatim(defaultChannel, "-"))
+
 	if defCh.Track == "" {
 		return nil, fmt.Errorf("default channel for snap %q must specify a track", name)
 	}
 
-	isClassic, err := checkOptionalBoolWhat(snap, "classic", what)
-	if err != nil {
-		return nil, err
-	}
+	isClassic := mylog.Check2(checkOptionalBoolWhat(snap, "classic", what))
+
 	if isClassic && !modelIsClassic {
 		return nil, fmt.Errorf("snap %q cannot be classic in non-classic model", name)
 	}
@@ -305,10 +279,7 @@ func checkModelSnap(snap map[string]interface{}, modelBase string, grade ModelGr
 			name, modes)
 	}
 
-	components, err := checkComponentsForMaps(snap, modes, what)
-	if err != nil {
-		return nil, err
-	}
+	components := mylog.Check2(checkComponentsForMaps(snap, modes, what))
 
 	return &ModelSnap{
 		Name:           name,
@@ -352,10 +323,9 @@ func checkComponentsForMaps(m map[string]interface{}, validModes []string, what 
 
 	res := make(map[string]ModelComponent, len(comps))
 	for name, comp := range comps {
-		// Name of component follows the same rules as snap components
-		if err := naming.ValidateSnap(name); err != nil {
-			return nil, fmt.Errorf("invalid component name %s", name)
-		}
+		mylog.Check(
+			// Name of component follows the same rules as snap components
+			naming.ValidateSnap(name))
 
 		// "comp: required|optional" case
 		compWhat := fmt.Sprintf("of component %q %s", name, what)
@@ -364,8 +334,10 @@ func checkComponentsForMaps(m map[string]interface{}, validModes []string, what 
 			if !strutil.ListContains(validSnapPresences, presence) {
 				return nil, fmt.Errorf("presence %s must be one of required|optional", compWhat)
 			}
-			res[name] = ModelComponent{Presence: presence,
-				Modes: append([]string(nil), validModes...)}
+			res[name] = ModelComponent{
+				Presence: presence,
+				Modes:    append([]string(nil), validModes...),
+			}
 			continue
 		}
 
@@ -381,18 +353,14 @@ func checkComponentsForMaps(m map[string]interface{}, validModes []string, what 
 				return nil, fmt.Errorf("entry %q %s is unknown", key, compWhat)
 			}
 		}
-		presence, err := checkNotEmptyStringWhat(compFields, "presence", compWhat)
-		if err != nil {
-			return nil, err
-		}
+		presence := mylog.Check2(checkNotEmptyStringWhat(compFields, "presence", compWhat))
+
 		if !strutil.ListContains(validSnapPresences, presence) {
 			return nil, fmt.Errorf("presence %s must be one of required|optional", compWhat)
 		}
-		modes, err := checkStringListInMap(compFields, "modes",
-			fmt.Sprintf("modes %s", compWhat), validSnapMode)
-		if err != nil {
-			return nil, err
-		}
+		modes := mylog.Check2(checkStringListInMap(compFields, "modes",
+			fmt.Sprintf("modes %s", compWhat), validSnapMode))
+
 		if len(modes) == 0 {
 			modes = append([]string(nil), validModes...)
 		} else {
@@ -423,9 +391,8 @@ func checkSnapWithTrack(headers map[string]interface{}, which string) (*ModelSna
 
 	name := l[0]
 	track := ""
-	if err := validateSnapName(name, which); err != nil {
-		return nil, err
-	}
+	mylog.Check(validateSnapName(name, which))
+
 	if len(l) > 1 {
 		track = l[1]
 		if strings.Count(track, "/") != 0 {
@@ -447,16 +414,13 @@ func checkSnapWithTrack(headers map[string]interface{}, which string) (*ModelSna
 }
 
 func validateSnapName(name string, headerName string) error {
-	if err := naming.ValidateSnap(name); err != nil {
-		return fmt.Errorf("invalid snap name in %q header: %s", headerName, name)
-	}
+	mylog.Check(naming.ValidateSnap(name))
+
 	return nil
 }
 
 func checkRequiredSnap(name string, headerName string, snapType string) (*ModelSnap, error) {
-	if err := validateSnapName(name, headerName); err != nil {
-		return nil, err
-	}
+	mylog.Check(validateSnapName(name, headerName))
 
 	return &ModelSnap{
 		Name:     name,
@@ -788,10 +752,7 @@ var _ consistencyChecker = (*Model)(nil)
 var validModel = regexp.MustCompile("^[a-zA-Z0-9](?:-?[a-zA-Z0-9])*$")
 
 func checkModel(headers map[string]interface{}) (string, error) {
-	s, err := checkStringMatches(headers, "model", validModel)
-	if err != nil {
-		return "", err
-	}
+	s := mylog.Check2(checkStringMatches(headers, "model", validModel))
 
 	// TODO: support the concept of case insensitive/preserving string headers
 	if strings.ToLower(s) != s {
@@ -822,7 +783,7 @@ func checkOptionalAuthority(headers map[string]interface{}, name string, brandID
 			return nil, nil
 		}
 	case []interface{}:
-		lst, err := checkStringListMatches(headers, name, validAccountID)
+		lst := mylog.Check2(checkStringListMatches(headers, name, validAccountID))
 		if err == nil {
 			if !strutil.ListContains(lst, brandID) {
 				lst = append(ids, lst...)
@@ -854,10 +815,7 @@ func checkOptionalPreseedAuthority(headers map[string]interface{}, brandID strin
 }
 
 func checkModelValidationSetAccountID(headers map[string]interface{}, what, brandID string) (string, error) {
-	accountID, err := checkOptionalStringWhat(headers, "account-id", what)
-	if err != nil {
-		return "", err
-	}
+	accountID := mylog.Check2(checkOptionalStringWhat(headers, "account-id", what))
 
 	// default to brand ID if account ID is not provided
 	if accountID == "" {
@@ -875,10 +833,7 @@ func checkOptionalModelValidationSetSequence(headers map[string]interface{}, wha
 		return 0, nil
 	}
 
-	seq, err := checkIntWhat(headers, "sequence", what)
-	if err != nil {
-		return 0, err
-	}
+	seq := mylog.Check2(checkIntWhat(headers, "sequence", what))
 
 	// If sequence is provided, only accept positive values above 0
 	if seq <= 0 {
@@ -888,10 +843,7 @@ func checkOptionalModelValidationSetSequence(headers map[string]interface{}, wha
 }
 
 func checkModelValidationSetMode(headers map[string]interface{}, what string) (ModelValidationSetMode, error) {
-	modeStr, err := checkNotEmptyStringWhat(headers, "mode", what)
-	if err != nil {
-		return "", err
-	}
+	modeStr := mylog.Check2(checkNotEmptyStringWhat(headers, "mode", what))
 
 	if modeStr != "" && !strutil.ListContains(validModelValidationSetModes, modeStr) {
 		return "", fmt.Errorf("\"mode\" %s must be %s, not %q", what, strings.Join(validModelValidationSetModes, "|"), modeStr)
@@ -900,27 +852,15 @@ func checkModelValidationSetMode(headers map[string]interface{}, what string) (M
 }
 
 func checkModelValidationSet(headers map[string]interface{}, brandID string) (*ModelValidationSet, error) {
-	name, err := checkStringMatchesWhat(headers, "name", "of validation-set", validValidationSetName)
-	if err != nil {
-		return nil, err
-	}
+	name := mylog.Check2(checkStringMatchesWhat(headers, "name", "of validation-set", validValidationSetName))
 
 	what := fmt.Sprintf("of validation-set %q", name)
-	accountID, err := checkModelValidationSetAccountID(headers, what, brandID)
-	if err != nil {
-		return nil, err
-	}
+	accountID := mylog.Check2(checkModelValidationSetAccountID(headers, what, brandID))
 
 	what = fmt.Sprintf("of validation-set \"%s/%s\"", accountID, name)
-	seq, err := checkOptionalModelValidationSetSequence(headers, what)
-	if err != nil {
-		return nil, err
-	}
+	seq := mylog.Check2(checkOptionalModelValidationSetSequence(headers, what))
 
-	mode, err := checkModelValidationSetMode(headers, what)
-	if err != nil {
-		return nil, err
-	}
+	mode := mylog.Check2(checkModelValidationSetMode(headers, what))
 
 	return &ModelValidationSet{
 		AccountID: accountID,
@@ -949,10 +889,8 @@ func checkOptionalModelValidationSets(headers map[string]interface{}, brandID st
 			return nil, fmt.Errorf(`entry in "validation-sets" is not a valid validation-set`)
 		}
 
-		vs, err := checkModelValidationSet(data, brandID)
-		if err != nil {
-			return nil, err
-		}
+		vs := mylog.Check2(checkModelValidationSet(data, brandID))
+
 		vsKey := fmt.Sprintf("%s/%s", vs.AccountID, vs.Name)
 		if seen[vsKey] {
 			return nil, fmt.Errorf("cannot add validation set %q twice", vsKey)
@@ -976,20 +914,11 @@ var (
 )
 
 func assembleModel(assert assertionBase) (Assertion, error) {
-	err := checkAuthorityMatchesBrand(&assert)
-	if err != nil {
-		return nil, err
-	}
+	mylog.Check(checkAuthorityMatchesBrand(&assert))
 
-	_, err = checkModel(assert.headers)
-	if err != nil {
-		return nil, err
-	}
+	_ = mylog.Check2(checkModel(assert.headers))
 
-	classic, err := checkOptionalBool(assert.headers, "classic")
-	if err != nil {
-		return nil, err
-	}
+	classic := mylog.Check2(checkOptionalBool(assert.headers, "classic"))
 
 	// Core 20 extended snaps header
 	extendedSnaps, extended := assert.headers["snaps"]
@@ -1020,10 +949,7 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 	// distribution mandatory for classic with extended snaps, not
 	// allowed otherwise.
 	if classic && extended {
-		_, err := checkStringMatches(assert.headers, "distribution", validDistribution)
-		if err != nil {
-			return nil, fmt.Errorf("%v, see distribution ID in os-release spec", err)
-		}
+		_ := mylog.Check2(checkStringMatches(assert.headers, "distribution", validDistribution))
 	} else if _, ok := assert.headers["distribution"]; ok {
 		return nil, fmt.Errorf("cannot specify distribution for model unless it is classic and has an extended snaps header")
 	}
@@ -1038,42 +964,31 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 	}
 
 	for _, h := range toCheck {
-		if _, err := checker(assert.headers, h); err != nil {
-			return nil, err
-		}
+		mylog.Check2(checker(assert.headers, h))
 	}
 
 	// base, if provided, must be a valid snap name too
 	var baseSnap *ModelSnap
-	base, err := checkOptionalString(assert.headers, "base")
-	if err != nil {
-		return nil, err
-	}
+	base := mylog.Check2(checkOptionalString(assert.headers, "base"))
+
 	if base != "" {
-		baseSnap, err = checkRequiredSnap(base, "base", "base")
-		if err != nil {
-			return nil, err
-		}
+		baseSnap = mylog.Check2(checkRequiredSnap(base, "base", "base"))
 	}
+	mylog.Check2(
 
-	// store is optional but must be a string, defaults to the ubuntu store
-	if _, err = checkOptionalString(assert.headers, "store"); err != nil {
-		return nil, err
-	}
+		// store is optional but must be a string, defaults to the ubuntu store
+		checkOptionalString(assert.headers, "store"))
+	mylog.Check2(
 
-	// display-name is optional but must be a string
-	if _, err = checkOptionalString(assert.headers, "display-name"); err != nil {
-		return nil, err
-	}
+		// display-name is optional but must be a string
+		checkOptionalString(assert.headers, "display-name"))
 
 	var modSnaps *modelSnaps
 	grade := ModelGradeUnset
 	storageSafety := StorageSafetyUnset
 	if extended {
-		gradeStr, err := checkOptionalString(assert.headers, "grade")
-		if err != nil {
-			return nil, err
-		}
+		gradeStr := mylog.Check2(checkOptionalString(assert.headers, "grade"))
+
 		if gradeStr != "" && !strutil.ListContains(validModelGrades, gradeStr) {
 			return nil, fmt.Errorf("grade for model must be %s, not %q", strings.Join(validModelGrades, "|"), gradeStr)
 		}
@@ -1082,10 +997,8 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 			grade = ModelGrade(gradeStr)
 		}
 
-		storageSafetyStr, err := checkOptionalString(assert.headers, "storage-safety")
-		if err != nil {
-			return nil, err
-		}
+		storageSafetyStr := mylog.Check2(checkOptionalString(assert.headers, "storage-safety"))
+
 		if storageSafetyStr != "" && !strutil.ListContains(validStorageSafeties, storageSafetyStr) {
 			return nil, fmt.Errorf("storage-safety for model must be %s, not %q", strings.Join(validStorageSafeties, "|"), storageSafetyStr)
 		}
@@ -1103,10 +1016,8 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 			return nil, fmt.Errorf(`secured grade model must not have storage-safety overridden, only "encrypted" is valid`)
 		}
 
-		modSnaps, err = checkExtendedSnaps(extendedSnaps, base, grade, classic)
-		if err != nil {
-			return nil, err
-		}
+		modSnaps = mylog.Check2(checkExtendedSnaps(extendedSnaps, base, grade, classic))
+
 		hasKernel := modSnaps.kernel != nil
 		hasGadget := modSnaps.gadget != nil
 		if !classic {
@@ -1141,57 +1052,33 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 		}
 		// kernel/gadget must be valid snap names and can have (optional) tracks
 		// - validate those
-		modSnaps.kernel, err = checkSnapWithTrack(assert.headers, "kernel")
-		if err != nil {
-			return nil, err
-		}
-		modSnaps.gadget, err = checkSnapWithTrack(assert.headers, "gadget")
-		if err != nil {
-			return nil, err
-		}
+		modSnaps.kernel = mylog.Check2(checkSnapWithTrack(assert.headers, "kernel"))
+
+		modSnaps.gadget = mylog.Check2(checkSnapWithTrack(assert.headers, "gadget"))
 
 		// required snap must be valid snap names
-		reqSnaps, err := checkStringList(assert.headers, "required-snaps")
-		if err != nil {
-			return nil, err
-		}
+		reqSnaps := mylog.Check2(checkStringList(assert.headers, "required-snaps"))
+
 		for _, name := range reqSnaps {
-			reqSnap, err := checkRequiredSnap(name, "required-snaps", "")
-			if err != nil {
-				return nil, err
-			}
+			reqSnap := mylog.Check2(checkRequiredSnap(name, "required-snaps", ""))
+
 			modSnaps.snapsNoEssential = append(modSnaps.snapsNoEssential, reqSnap)
 		}
 	}
 
 	brandID := assert.HeaderString("brand-id")
 
-	serialAuthority, err := checkOptionalSerialAuthority(assert.headers, brandID)
-	if err != nil {
-		return nil, err
-	}
+	serialAuthority := mylog.Check2(checkOptionalSerialAuthority(assert.headers, brandID))
 
-	sysUserAuthority, err := checkOptionalSystemUserAuthority(assert.headers, brandID)
-	if err != nil {
-		return nil, err
-	}
+	sysUserAuthority := mylog.Check2(checkOptionalSystemUserAuthority(assert.headers, brandID))
 
-	preseedAuthority, err := checkOptionalPreseedAuthority(assert.headers, brandID)
-	if err != nil {
-		return nil, err
-	}
+	preseedAuthority := mylog.Check2(checkOptionalPreseedAuthority(assert.headers, brandID))
 
-	timestamp, err := checkRFC3339Date(assert.headers, "timestamp")
-	if err != nil {
-		return nil, err
-	}
+	timestamp := mylog.Check2(checkRFC3339Date(assert.headers, "timestamp"))
 
 	allSnaps, requiredWithEssentialSnaps, numEssentialSnaps := modSnaps.list()
 
-	valSets, err := checkOptionalModelValidationSets(assert.headers, brandID)
-	if err != nil {
-		return nil, err
-	}
+	valSets := mylog.Check2(checkOptionalModelValidationSets(assert.headers, brandID))
 
 	// NB:
 	// * core is not supported at this time, it defaults to ubuntu-core

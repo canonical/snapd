@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 	"runtime"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 )
@@ -54,10 +55,7 @@ func findStrace(u *user.User) (stracePath string, userOpts []string, err error) 
 		return path, []string{"-u", fmt.Sprintf("%s:%s", u.Uid, u.Gid)}, nil
 	}
 
-	stracePath, err = exec.LookPath("strace")
-	if err != nil {
-		return "", nil, fmt.Errorf("cannot find an installed strace, please try 'snap install strace-static'")
-	}
+	stracePath = mylog.Check2(exec.LookPath("strace"))
 
 	return stracePath, []string{"-u", u.Username}, nil
 }
@@ -65,14 +63,9 @@ func findStrace(u *user.User) (stracePath string, userOpts []string, err error) 
 // Command returns how to run strace in the users context with the
 // right set of excluded system calls.
 func Command(extraStraceOpts []string, traceeCmd ...string) (*exec.Cmd, error) {
-	current, err := user.Current()
-	if err != nil {
-		return nil, err
-	}
-	sudoPath, err := exec.LookPath("sudo")
-	if err != nil {
-		return nil, fmt.Errorf("cannot use strace without sudo: %s", err)
-	}
+	current := mylog.Check2(user.Current())
+
+	sudoPath := mylog.Check2(exec.LookPath("sudo"))
 
 	// Try strace from the snap first, we use new syscalls like "_newselect"
 	// that are known to not work with the strace of e.g. Ubuntu 14.04.
@@ -81,10 +74,7 @@ func Command(extraStraceOpts []string, traceeCmd ...string) (*exec.Cmd, error) {
 	// have _newselect). In https://github.com/strace/strace/issues/57 options
 	// are discussed. We could use "-e trace=?syscall" but that is only
 	// available since strace 4.17 which is not even in Ubuntu 17.10.
-	stracePath, userOpts, err := findStrace(current)
-	if err != nil {
-		return nil, fmt.Errorf("cannot find an installed strace, please try 'snap install strace-static'")
-	}
+	stracePath, userOpts := mylog.Check3(findStrace(current))
 
 	args := []string{
 		sudoPath,

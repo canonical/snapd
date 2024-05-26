@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"net/url"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"golang.org/x/xerrors"
 )
 
@@ -66,14 +67,11 @@ func (client *Client) ForgetValidationSet(accountID, name string, sequence int) 
 	}
 
 	var body bytes.Buffer
-	if err := json.NewEncoder(&body).Encode(data); err != nil {
-		return err
-	}
+	mylog.Check(json.NewEncoder(&body).Encode(data))
+
 	path := fmt.Sprintf("/v2/validation-sets/%s/%s", accountID, name)
-	if _, err := client.doSync("POST", path, nil, nil, &body, nil); err != nil {
-		fmt := "cannot forget validation set: %w"
-		return xerrors.Errorf(fmt, err)
-	}
+	mylog.Check2(client.doSync("POST", path, nil, nil, &body, nil))
+
 	return nil
 }
 
@@ -92,25 +90,19 @@ func (client *Client) ApplyValidationSet(accountID, name string, opts *ValidateA
 	}
 
 	var body bytes.Buffer
-	if err := json.NewEncoder(&body).Encode(data); err != nil {
-		return nil, err
-	}
-	path := fmt.Sprintf("/v2/validation-sets/%s/%s", accountID, name)
+	mylog.Check(json.NewEncoder(&body).Encode(data))
 
-	if _, err := client.doSync("POST", path, nil, nil, &body, &res); err != nil {
-		fmt := "cannot apply validation set: %w"
-		return nil, xerrors.Errorf(fmt, err)
-	}
+	path := fmt.Sprintf("/v2/validation-sets/%s/%s", accountID, name)
+	mylog.Check2(client.doSync("POST", path, nil, nil, &body, &res))
+
 	return res, nil
 }
 
 // ListValidationsSets queries all validation sets.
 func (client *Client) ListValidationsSets() ([]*ValidationSetResult, error) {
 	var res []*ValidationSetResult
-	if _, err := client.doSync("GET", "/v2/validation-sets", nil, nil, nil, &res); err != nil {
-		fmt := "cannot list validation sets: %w"
-		return nil, xerrors.Errorf(fmt, err)
-	}
+	mylog.Check2(client.doSync("GET", "/v2/validation-sets", nil, nil, nil, &res))
+
 	return res, nil
 }
 
@@ -127,9 +119,7 @@ func (client *Client) ValidationSet(accountID, name string, sequence int) (*Vali
 
 	var res *ValidationSetResult
 	path := fmt.Sprintf("/v2/validation-sets/%s/%s", accountID, name)
-	if _, err := client.doSync("GET", path, q, nil, nil, &res); err != nil {
-		fmt := "cannot query validation set: %w"
-		return nil, xerrors.Errorf(fmt, err)
-	}
+	mylog.Check2(client.doSync("GET", path, q, nil, nil, &res))
+
 	return res, nil
 }

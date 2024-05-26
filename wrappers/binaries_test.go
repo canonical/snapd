@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
@@ -41,20 +42,24 @@ type binariesTestSuite struct {
 }
 
 // silly wrappers to get better failure messages
-type noBaseBinariesSuite struct{ binariesTestSuite }
-type withBaseBinariesSuite struct{ binariesTestSuite }
-type withSnapdBinariesSuite struct{ binariesTestSuite }
+type (
+	noBaseBinariesSuite    struct{ binariesTestSuite }
+	withBaseBinariesSuite  struct{ binariesTestSuite }
+	withSnapdBinariesSuite struct{ binariesTestSuite }
+)
 
-var _ = Suite(&noBaseBinariesSuite{})
-var _ = Suite(&withBaseBinariesSuite{binariesTestSuite{base: "core99"}})
-var _ = Suite(&withSnapdBinariesSuite{binariesTestSuite{base: "core-with-snapd"}})
+var (
+	_ = Suite(&noBaseBinariesSuite{})
+	_ = Suite(&withBaseBinariesSuite{binariesTestSuite{base: "core99"}})
+	_ = Suite(&withSnapdBinariesSuite{binariesTestSuite{base: "core-with-snapd"}})
+)
 
 func (s *binariesTestSuite) SetUpTest(c *C) {
 	s.tempdir = c.MkDir()
 	dirs.SetRootDir(s.tempdir)
 	c.Assert(os.MkdirAll(filepath.Dir(dirs.BashCompletionScript), 0755), IsNil)
-	f, err := os.OpenFile(dirs.BashCompletionScript, os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0644)
-	c.Assert(err, IsNil)
+	f := mylog.Check2(os.OpenFile(dirs.BashCompletionScript, os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0644))
+
 	f.Write([]byte("#\nBASH_COMPLETION_VERSINFO=(2 6)\n"))
 	f.Close()
 }
@@ -126,8 +131,8 @@ func (s *binariesTestSuite) prepareReadOnlyLegacyDir(c *C) {
 	c.Assert(os.MkdirAll(filepath.Dir(dirs.CompleteShPath(s.base)), 0755), IsNil)
 	c.Assert(os.WriteFile(dirs.CompleteShPath(s.base), nil, 0644), IsNil)
 
-	f, err := os.OpenFile(dirs.BashCompletionScript, os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0644)
-	c.Assert(err, IsNil)
+	f := mylog.Check2(os.OpenFile(dirs.BashCompletionScript, os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0644))
+
 	f.Write([]byte("#\n#   RELEASE: 2.1\n"))
 	f.Close()
 }
@@ -151,8 +156,8 @@ func (s *binariesTestSuite) prepareUseLegacy(c *C) {
 	c.Assert(os.MkdirAll(filepath.Dir(dirs.CompleteShPath(s.base)), 0755), IsNil)
 	c.Assert(os.WriteFile(dirs.CompleteShPath(s.base), nil, 0644), IsNil)
 
-	f, err := os.OpenFile(dirs.BashCompletionScript, os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0644)
-	c.Assert(err, IsNil)
+	f := mylog.Check2(os.OpenFile(dirs.BashCompletionScript, os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0644))
+
 	f.Write([]byte("#\n#   RELEASE: 2.1\n"))
 	f.Close()
 }
@@ -175,8 +180,8 @@ func (s *binariesTestSuite) prepareOldButNotThatOld(c *C) {
 	c.Assert(os.MkdirAll(filepath.Dir(dirs.CompleteShPath(s.base)), 0755), IsNil)
 	c.Assert(os.WriteFile(dirs.CompleteShPath(s.base), nil, 0644), IsNil)
 
-	f, err := os.OpenFile(dirs.BashCompletionScript, os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0644)
-	c.Assert(err, IsNil)
+	f := mylog.Check2(os.OpenFile(dirs.BashCompletionScript, os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0644))
+
 	f.Write([]byte("#\n#   RELEASE: 2.2\n"))
 	f.Close()
 }
@@ -199,8 +204,8 @@ func (s *binariesTestSuite) prepareUnknownVersion(c *C) {
 	c.Assert(os.MkdirAll(filepath.Dir(dirs.CompleteShPath(s.base)), 0755), IsNil)
 	c.Assert(os.WriteFile(dirs.CompleteShPath(s.base), nil, 0644), IsNil)
 
-	f, err := os.OpenFile(dirs.BashCompletionScript, os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0644)
-	c.Assert(err, IsNil)
+	f := mylog.Check2(os.OpenFile(dirs.BashCompletionScript, os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0644))
+
 	f.Close()
 }
 
@@ -266,8 +271,8 @@ func (s *binariesTestSuite) TestAddSnapBinariesAndRemoveWithLegacyCompleters(c *
 
 func (s *binariesTestSuite) TestRemoveWithLegacyCompleters(c *C) {
 	info := snaptest.MockSnap(c, packageHello+"base: "+s.base+"\n", &snap.SideInfo{Revision: snap.R(11)})
-	err := wrappers.EnsureSnapBinaries(info)
-	c.Assert(err, IsNil)
+	mylog.Check(wrappers.EnsureSnapBinaries(info))
+
 
 	// Simulate legacy installation
 	newCompleter := filepath.Join(dirs.CompletersDir, "hello-snap.world")
@@ -277,9 +282,8 @@ func (s *binariesTestSuite) TestRemoveWithLegacyCompleters(c *C) {
 	c.Assert(os.MkdirAll(dirs.LegacyCompletersDir, 0755), IsNil)
 	legacyCompleter := filepath.Join(dirs.LegacyCompletersDir, "hello-snap.world")
 	c.Assert(os.Symlink(dirs.CompleteShPath(s.base), legacyCompleter), IsNil)
+	mylog.Check(wrappers.RemoveSnapBinaries(info))
 
-	err = wrappers.RemoveSnapBinaries(info)
-	c.Assert(err, IsNil)
 
 	c.Assert(osutil.IsSymlink(legacyCompleter), Equals, false)
 }
@@ -335,15 +339,14 @@ func (s *binariesTestSuite) testAddSnapBinariesAndRemove(c *C, useLegacy bool, d
 		completer = filepath.Join(dirs.LegacyCompletersDir, "hello-snap.world")
 	}
 	completerExisted := osutil.FileExists(completer) && !osutil.IsSymlink(completer)
+	mylog.Check(wrappers.EnsureSnapBinaries(info))
 
-	err := wrappers.EnsureSnapBinaries(info)
-	c.Assert(err, IsNil)
 
 	bins := []string{"hello-snap.hello", "hello-snap.world"}
 
 	for _, bin := range bins {
 		link := filepath.Join(dirs.SnapBinariesDir, bin)
-		target, err := os.Readlink(link)
+		target := mylog.Check2(os.Readlink(link))
 		c.Assert(err, IsNil, Commentf(bin))
 		c.Check(target, Equals, "/usr/bin/snap", Commentf(bin))
 	}
@@ -364,8 +367,8 @@ func (s *binariesTestSuite) testAddSnapBinariesAndRemove(c *C, useLegacy bool, d
 			c.Check(osutil.FileExists(completer), Equals, true)
 			c.Assert(osutil.IsSymlink(completer), Equals, false)
 		} else {
-			target, err := os.Readlink(completer)
-			c.Assert(err, IsNil)
+			target := mylog.Check2(os.Readlink(completer))
+
 			c.Check(target, Equals, dirs.CompleteShPath(s.base))
 		}
 	}
@@ -374,9 +377,8 @@ func (s *binariesTestSuite) testAddSnapBinariesAndRemove(c *C, useLegacy bool, d
 		legacyCompleter := filepath.Join(dirs.LegacyCompletersDir, "hello-snap.world")
 		c.Assert(osutil.IsSymlink(legacyCompleter), Equals, false)
 	}
+	mylog.Check(wrappers.RemoveSnapBinaries(info))
 
-	err = wrappers.RemoveSnapBinaries(info)
-	c.Assert(err, IsNil)
 
 	for _, bin := range bins {
 		link := filepath.Join(dirs.SnapBinariesDir, bin)
@@ -394,8 +396,8 @@ func (s *binariesTestSuite) testEnsureSnapBinariesAndRemove(c *C, useLegacy bool
 		oldCompleter = filepath.Join(dirs.LegacyCompletersDir, "hello-snap.world")
 	}
 	oldCompleterExisted := osutil.FileExists(oldCompleter) && !osutil.IsSymlink(oldCompleter)
-	err := wrappers.EnsureSnapBinaries(oldInfo)
-	c.Assert(err, IsNil)
+	mylog.Check(wrappers.EnsureSnapBinaries(oldInfo))
+
 
 	newInfo := snaptest.MockSnap(c, packageHelloV2+"base: "+s.base+"\n", &snap.SideInfo{Revision: snap.R(12)})
 	newCompleter := filepath.Join(dirs.CompletersDir, "hello-snap.universe")
@@ -403,15 +405,15 @@ func (s *binariesTestSuite) testEnsureSnapBinariesAndRemove(c *C, useLegacy bool
 		newCompleter = filepath.Join(dirs.LegacyCompletersDir, "hello-snap.universe")
 	}
 	newCompleterExisted := osutil.FileExists(newCompleter) && !osutil.IsSymlink(newCompleter)
-	err = wrappers.EnsureSnapBinaries(newInfo)
-	c.Assert(err, IsNil)
+	mylog.Check(wrappers.EnsureSnapBinaries(newInfo))
+
 
 	binsAdded := []string{"hello-snap.hello", "hello-snap.universe"}
 	binsRemoved := []string{"hello-snap.world"}
 
 	for _, bin := range binsAdded {
 		link := filepath.Join(dirs.SnapBinariesDir, bin)
-		target, err := os.Readlink(link)
+		target := mylog.Check2(os.Readlink(link))
 		c.Assert(err, IsNil, Commentf(bin))
 		c.Check(target, Equals, "/usr/bin/snap", Commentf(bin))
 	}
@@ -447,8 +449,8 @@ func (s *binariesTestSuite) testEnsureSnapBinariesAndRemove(c *C, useLegacy bool
 			c.Check(osutil.FileExists(newCompleter), Equals, true)
 			c.Assert(osutil.IsSymlink(newCompleter), Equals, false)
 		} else {
-			target, err := os.Readlink(newCompleter)
-			c.Assert(err, IsNil)
+			target := mylog.Check2(os.Readlink(newCompleter))
+
 			c.Check(target, Equals, dirs.CompleteShPath(s.base))
 		}
 	}
@@ -457,9 +459,8 @@ func (s *binariesTestSuite) testEnsureSnapBinariesAndRemove(c *C, useLegacy bool
 		legacyCompleter := filepath.Join(dirs.LegacyCompletersDir, "hello-snap.universe")
 		c.Assert(osutil.IsSymlink(legacyCompleter), Equals, false)
 	}
+	mylog.Check(wrappers.RemoveSnapBinaries(newInfo))
 
-	err = wrappers.RemoveSnapBinaries(newInfo)
-	c.Assert(err, IsNil)
 
 	for _, bin := range binsAdded {
 		link := filepath.Join(dirs.SnapBinariesDir, bin)
@@ -479,8 +480,7 @@ func (s *binariesTestSuite) TestAddSnapBinariesCleansUpOnFailure(c *C) {
  bye:
   command: bin/bye
 `, &snap.SideInfo{Revision: snap.R(11)})
-
-	err := wrappers.EnsureSnapBinaries(info)
+	mylog.Check(wrappers.EnsureSnapBinaries(info))
 	c.Assert(err, NotNil)
 
 	c.Check(osutil.FileExists(link), Equals, false)

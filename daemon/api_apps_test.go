@@ -36,6 +36,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/daemon"
@@ -107,10 +108,7 @@ func (s *appsSuite) fakeServiceControl(st *state.State, appInfos []*snap.AppInfo
 		return nil, s.serviceControlError
 	}
 
-	users, err := inst.Users.UserList(cu)
-	if err != nil {
-		return nil, err
-	}
+	users := mylog.Check2(inst.Users.UserList(cu))
 
 	serviceCommand := serviceControlArgs{action: inst.Action, scope: inst.Scope, users: users}
 	if inst.RestartOptions.Reload {
@@ -223,7 +221,7 @@ NeedDaemonReload=no
 	svcNames = append(svcNames, "snap-e.svc4")
 	s.SysctlBufs = append(s.SysctlBufs, []byte("enabled\n"))
 
-	req, err := http.NewRequest("GET", "/v2/apps?global=true", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/apps?global=true", nil))
 	c.Assert(err, check.IsNil)
 
 	rsp := s.syncReq(c, req, nil)
@@ -269,8 +267,7 @@ NeedDaemonReload=no
 }
 
 func (s *appsSuite) TestGetAppsInfoNames(c *check.C) {
-
-	req, err := http.NewRequest("GET", "/v2/apps?names=snap-d", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/apps?names=snap-d", nil))
 	c.Assert(err, check.IsNil)
 
 	rsp := s.syncReq(c, req, nil)
@@ -328,7 +325,7 @@ func (s *appsSuite) TestGetAppsInfoServices(c *check.C) {
 	// User services from active snaps
 	svcNames = append(svcNames, "snap-e.svc4")
 
-	req, err := http.NewRequest("GET", "/v2/apps?select=service", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/apps?select=service", nil))
 	c.Assert(err, check.IsNil)
 
 	rsp := s.syncReq(c, req, nil)
@@ -384,7 +381,7 @@ NeedDaemonReload=no
 	svcNames = append(svcNames, "snap-e.svc4")
 	s.SysctlBufs = append(s.SysctlBufs, []byte("enabled\n"))
 
-	req, err := http.NewRequest("GET", "/v2/apps?select=service&global=true", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/apps?select=service&global=true", nil))
 	c.Assert(err, check.IsNil)
 	s.asUserAuth(c, req)
 
@@ -462,7 +459,7 @@ func (s *appsSuite) TestGetUserAppsInfoServices(c *check.C) {
 	}
 
 	// Perform the request as a non-root uid
-	req, err := http.NewRequest("GET", "/v2/apps?select=service", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/apps?select=service", nil))
 	c.Assert(err, check.IsNil)
 	s.asUserAuth(c, req)
 
@@ -501,7 +498,7 @@ func (s *appsSuite) TestGetUserAppsInfoServices(c *check.C) {
 }
 
 func (s *appsSuite) TestGetAppsInfoBadSelect(c *check.C) {
-	req, err := http.NewRequest("GET", "/v2/apps?select=potato", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/apps?select=potato", nil))
 	c.Assert(err, check.IsNil)
 
 	rspe := s.errorReq(c, req, nil)
@@ -509,7 +506,7 @@ func (s *appsSuite) TestGetAppsInfoBadSelect(c *check.C) {
 }
 
 func (s *appsSuite) TestGetAppsInfoBadName(c *check.C) {
-	req, err := http.NewRequest("GET", "/v2/apps?names=potato", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/apps?names=potato", nil))
 	c.Assert(err, check.IsNil)
 
 	rspe := s.errorReq(c, req, nil)
@@ -639,10 +636,10 @@ func (s *appsSuite) TestAppInfosForMissingSnap(c *check.C) {
 }
 
 func (s *appsSuite) testPostApps(c *check.C, inst servicestate.Instruction, servicecmds []serviceControlArgs) *state.Change {
-	postBody, err := json.Marshal(inst)
+	postBody := mylog.Check2(json.Marshal(inst))
 	c.Assert(err, check.IsNil)
 
-	req, err := http.NewRequest("POST", "/v2/apps", bytes.NewBuffer(postBody))
+	req := mylog.Check2(http.NewRequest("POST", "/v2/apps", bytes.NewBuffer(postBody)))
 	c.Assert(err, check.IsNil)
 
 	rsp := s.asyncReq(c, req, s.authUser)
@@ -665,10 +662,10 @@ func (s *appsSuite) testPostApps(c *check.C, inst servicestate.Instruction, serv
 }
 
 func (s *appsSuite) testPostAppsUser(c *check.C, inst servicestate.Instruction, servicecmds []serviceControlArgs, expectedErr string) *state.Change {
-	postBody, err := json.Marshal(inst)
+	postBody := mylog.Check2(json.Marshal(inst))
 	c.Assert(err, check.IsNil)
 
-	req, err := http.NewRequest("POST", "/v2/apps", bytes.NewBuffer(postBody))
+	req := mylog.Check2(http.NewRequest("POST", "/v2/apps", bytes.NewBuffer(postBody)))
 	c.Assert(err, check.IsNil)
 	s.asUserAuth(c, req)
 
@@ -708,7 +705,7 @@ func (s *appsSuite) TestPostAppsStartOne(c *check.C) {
 	defer chg.State().Unlock()
 
 	var names []string
-	err := chg.Get("snap-names", &names)
+	mylog.Check(chg.Get("snap-names", &names))
 	c.Assert(err, check.IsNil)
 	c.Assert(names, check.DeepEquals, []string{"snap-a"})
 }
@@ -724,7 +721,7 @@ func (s *appsSuite) TestPostAppsStartTwo(c *check.C) {
 	defer chg.State().Unlock()
 
 	var names []string
-	err := chg.Get("snap-names", &names)
+	mylog.Check(chg.Get("snap-names", &names))
 	c.Assert(err, check.IsNil)
 	c.Assert(names, check.DeepEquals, []string{"snap-a"})
 }
@@ -741,7 +738,7 @@ func (s *appsSuite) TestPostAppsStartThree(c *check.C) {
 	defer chg.State().Unlock()
 
 	var names []string
-	err := chg.Get("snap-names", &names)
+	mylog.Check(chg.Get("snap-names", &names))
 	c.Assert(err, check.IsNil)
 	c.Assert(names, check.DeepEquals, []string{"snap-a", "snap-b"})
 }
@@ -795,7 +792,7 @@ func (s *appsSuite) TestPostAppsFailedToGetUser(c *check.C) {
 	})
 	defer r()
 
-	req, err := http.NewRequest("POST", "/v2/apps", nil)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/apps", nil))
 	c.Assert(err, check.IsNil)
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe.Status, check.Equals, 400)
@@ -811,10 +808,10 @@ func (s *appsSuite) TestPostAppsScopesSelfAsRootNotAllowed(c *check.C) {
 			Selector: client.UserSelectionSelf,
 		},
 	}
-	postBody, err := json.Marshal(inst)
+	postBody := mylog.Check2(json.Marshal(inst))
 	c.Assert(err, check.IsNil)
 
-	req, err := http.NewRequest("POST", "/v2/apps", bytes.NewBuffer(postBody))
+	req := mylog.Check2(http.NewRequest("POST", "/v2/apps", bytes.NewBuffer(postBody)))
 	c.Assert(err, check.IsNil)
 
 	rspe := s.errorReq(c, req, s.authUser)
@@ -915,7 +912,7 @@ func (s *appsSuite) TestPostAppsUserNotSpecifiedForUser(c *check.C) {
 }
 
 func (s *appsSuite) TestPostAppsBadJSON(c *check.C) {
-	req, err := http.NewRequest("POST", "/v2/apps", bytes.NewBufferString(`'junk`))
+	req := mylog.Check2(http.NewRequest("POST", "/v2/apps", bytes.NewBufferString(`'junk`)))
 	c.Assert(err, check.IsNil)
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe.Status, check.Equals, 400)
@@ -923,7 +920,7 @@ func (s *appsSuite) TestPostAppsBadJSON(c *check.C) {
 }
 
 func (s *appsSuite) TestPostAppsBadOp(c *check.C) {
-	req, err := http.NewRequest("POST", "/v2/apps", bytes.NewBufferString(`{"random": "json"}`))
+	req := mylog.Check2(http.NewRequest("POST", "/v2/apps", bytes.NewBufferString(`{"random": "json"}`)))
 	c.Assert(err, check.IsNil)
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe.Status, check.Equals, 400)
@@ -931,7 +928,7 @@ func (s *appsSuite) TestPostAppsBadOp(c *check.C) {
 }
 
 func (s *appsSuite) TestPostAppsBadSnap(c *check.C) {
-	req, err := http.NewRequest("POST", "/v2/apps", bytes.NewBufferString(`{"action": "stop", "names": ["snap-c"]}`))
+	req := mylog.Check2(http.NewRequest("POST", "/v2/apps", bytes.NewBufferString(`{"action": "stop", "names": ["snap-c"]}`)))
 	c.Assert(err, check.IsNil)
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe.Status, check.Equals, 404)
@@ -939,7 +936,7 @@ func (s *appsSuite) TestPostAppsBadSnap(c *check.C) {
 }
 
 func (s *appsSuite) TestPostAppsBadApp(c *check.C) {
-	req, err := http.NewRequest("POST", "/v2/apps", bytes.NewBufferString(`{"action": "stop", "names": ["snap-a.what"]}`))
+	req := mylog.Check2(http.NewRequest("POST", "/v2/apps", bytes.NewBufferString(`{"action": "stop", "names": ["snap-a.what"]}`)))
 	c.Assert(err, check.IsNil)
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe.Status, check.Equals, 404)
@@ -947,7 +944,7 @@ func (s *appsSuite) TestPostAppsBadApp(c *check.C) {
 }
 
 func (s *appsSuite) TestPostAppsServiceControlError(c *check.C) {
-	req, err := http.NewRequest("POST", "/v2/apps", bytes.NewBufferString(`{"action": "start", "names": ["snap-a.svc1"]}`))
+	req := mylog.Check2(http.NewRequest("POST", "/v2/apps", bytes.NewBufferString(`{"action": "start", "names": ["snap-a.svc1"]}`)))
 	c.Assert(err, check.IsNil)
 	s.serviceControlError = fmt.Errorf("total failure")
 	rspe := s.errorReq(c, req, nil)
@@ -956,7 +953,7 @@ func (s *appsSuite) TestPostAppsServiceControlError(c *check.C) {
 }
 
 func (s *appsSuite) TestPostAppsConflict(c *check.C) {
-	req, err := http.NewRequest("POST", "/v2/apps", bytes.NewBufferString(`{"action": "start", "names": ["snap-a.svc1"]}`))
+	req := mylog.Check2(http.NewRequest("POST", "/v2/apps", bytes.NewBufferString(`{"action": "start", "names": ["snap-a.svc1"]}`)))
 	c.Assert(err, check.IsNil)
 	s.serviceControlError = &snapstate.ChangeConflictError{Snap: "snap-a", ChangeKind: "enable"}
 	rspe := s.errorReq(c, req, nil)
@@ -979,7 +976,7 @@ func (s *appsSuite) TestLogs(c *check.C) {
 {"MESSAGE": "hello5", "SYSLOG_IDENTIFIER": "xyzzy", "_PID": "42", "__REALTIME_TIMESTAMP": "50"}
 	`))}
 
-	req, err := http.NewRequest("GET", "/v2/logs?names=snap-a.svc2&n=42&follow=false", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/logs?names=snap-a.svc2&n=42&follow=false", nil))
 	c.Assert(err, check.IsNil)
 
 	rec := httptest.NewRecorder()
@@ -1009,7 +1006,7 @@ func (s *appsSuite) TestLogsNoNamespaceOption(c *check.C) {
 
 	s.jctlRCs = []io.ReadCloser{io.NopCloser(strings.NewReader(""))}
 
-	req, err := http.NewRequest("GET", "/v2/logs?names=snap-a.svc2&n=42&follow=false", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/logs?names=snap-a.svc2&n=42&follow=false", nil))
 	c.Assert(err, check.IsNil)
 
 	rec := httptest.NewRecorder()
@@ -1033,7 +1030,7 @@ func (s *appsSuite) TestLogsWithNamespaceOption(c *check.C) {
 
 	s.jctlRCs = []io.ReadCloser{io.NopCloser(strings.NewReader(""))}
 
-	req, err := http.NewRequest("GET", "/v2/logs?names=snap-a.svc2&n=42&follow=false", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/logs?names=snap-a.svc2&n=42&follow=false", nil))
 	c.Assert(err, check.IsNil)
 
 	rec := httptest.NewRecorder()
@@ -1068,7 +1065,7 @@ func (s *appsSuite) TestLogsN(c *check.C) {
 		s.jctlRCs = []io.ReadCloser{io.NopCloser(strings.NewReader(""))}
 		s.jctlNs = nil
 
-		req, err := http.NewRequest("GET", "/v2/logs?n="+t.in, nil)
+		req := mylog.Check2(http.NewRequest("GET", "/v2/logs?n="+t.in, nil))
 		c.Assert(err, check.IsNil)
 
 		rec := httptest.NewRecorder()
@@ -1081,7 +1078,7 @@ func (s *appsSuite) TestLogsN(c *check.C) {
 func (s *appsSuite) TestLogsBadN(c *check.C) {
 	s.expectLogsAccess()
 
-	req, err := http.NewRequest("GET", "/v2/logs?n=hello", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/logs?n=hello", nil))
 	c.Assert(err, check.IsNil)
 
 	rspe := s.errorReq(c, req, nil)
@@ -1097,11 +1094,11 @@ func (s *appsSuite) TestLogsFollow(c *check.C) {
 		io.NopCloser(strings.NewReader("")),
 	}
 
-	reqT, err := http.NewRequest("GET", "/v2/logs?follow=true", nil)
+	reqT := mylog.Check2(http.NewRequest("GET", "/v2/logs?follow=true", nil))
 	c.Assert(err, check.IsNil)
-	reqF, err := http.NewRequest("GET", "/v2/logs?follow=false", nil)
+	reqF := mylog.Check2(http.NewRequest("GET", "/v2/logs?follow=false", nil))
 	c.Assert(err, check.IsNil)
-	reqN, err := http.NewRequest("GET", "/v2/logs", nil)
+	reqN := mylog.Check2(http.NewRequest("GET", "/v2/logs", nil))
 	c.Assert(err, check.IsNil)
 
 	rec := httptest.NewRecorder()
@@ -1115,7 +1112,7 @@ func (s *appsSuite) TestLogsFollow(c *check.C) {
 func (s *appsSuite) TestLogsBadFollow(c *check.C) {
 	s.expectLogsAccess()
 
-	req, err := http.NewRequest("GET", "/v2/logs?follow=hello", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/logs?follow=hello", nil))
 	c.Assert(err, check.IsNil)
 
 	rspe := s.errorReq(c, req, nil)
@@ -1125,7 +1122,7 @@ func (s *appsSuite) TestLogsBadFollow(c *check.C) {
 func (s *appsSuite) TestLogsBadName(c *check.C) {
 	s.expectLogsAccess()
 
-	req, err := http.NewRequest("GET", "/v2/logs?names=hello", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/logs?names=hello", nil))
 	c.Assert(err, check.IsNil)
 
 	rspe := s.errorReq(c, req, nil)
@@ -1136,7 +1133,7 @@ func (s *appsSuite) TestLogsSad(c *check.C) {
 	s.expectLogsAccess()
 
 	s.jctlErrs = []error{errors.New("potato")}
-	req, err := http.NewRequest("GET", "/v2/logs", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/logs", nil))
 	c.Assert(err, check.IsNil)
 
 	rspe := s.errorReq(c, req, nil)
@@ -1152,7 +1149,7 @@ func (s *appsSuite) TestLogsNoServices(c *check.C) {
 	st.Set("snaps", nil)
 	st.Unlock()
 
-	req, err := http.NewRequest("GET", "/v2/logs", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/logs", nil))
 	c.Assert(err, check.IsNil)
 
 	rspe := s.errorReq(c, req, nil)

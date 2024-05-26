@@ -30,6 +30,7 @@ import (
 	"path/filepath"
 	"unicode/utf16"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 )
@@ -45,17 +46,13 @@ const (
 	VariableRuntimeAccess     VariableAttr = 0x00000004
 )
 
-var (
-	openEFIVar = openEFIVarImpl
-)
+var openEFIVar = openEFIVarImpl
 
 const expectedEFIvarfsDir = "/sys/firmware/efi/efivars"
 
 func openEFIVarImpl(name string) (r io.ReadCloser, attr VariableAttr, size int64, err error) {
-	mounts, err := osutil.LoadMountInfo()
-	if err != nil {
-		return nil, 0, 0, err
-	}
+	mounts := mylog.Check2(osutil.LoadMountInfo())
+
 	found := false
 	for _, mnt := range mounts {
 		if mnt.MountDir == expectedEFIvarfsDir {
@@ -68,27 +65,18 @@ func openEFIVarImpl(name string) (r io.ReadCloser, attr VariableAttr, size int64
 	if !found {
 		return nil, 0, 0, ErrNoEFISystem
 	}
-	varf, err := os.Open(filepath.Join(dirs.GlobalRootDir, expectedEFIvarfsDir, name))
-	if err != nil {
-		return nil, 0, 0, err
-	}
+	varf := mylog.Check2(os.Open(filepath.Join(dirs.GlobalRootDir, expectedEFIvarfsDir, name)))
+
 	defer func() {
-		if err != nil {
-			varf.Close()
-		}
 	}()
-	fi, err := varf.Stat()
-	if err != nil {
-		return nil, 0, 0, err
-	}
+	fi := mylog.Check2(varf.Stat())
+
 	sz := fi.Size()
 	if sz < 4 {
 		return nil, 0, 0, fmt.Errorf("unexpected size: %d", sz)
 	}
+	mylog.Check(binary.Read(varf, binary.LittleEndian, &attr))
 
-	if err = binary.Read(varf, binary.LittleEndian, &attr); err != nil {
-		return nil, 0, 0, err
-	}
 	return varf, attr, sz - 4, nil
 }
 
@@ -104,18 +92,11 @@ func cannotReadError(name string, err error) error {
 // https://www.kernel.org/doc/Documentation/filesystems/efivarfs.txt
 // for more details.
 func ReadVarBytes(name string) ([]byte, VariableAttr, error) {
-	varf, attr, _, err := openEFIVar(name)
-	if err != nil {
-		if err == ErrNoEFISystem {
-			return nil, 0, err
-		}
-		return nil, 0, cannotReadError(name, err)
-	}
+	varf, attr, _ := mylog.Check4(openEFIVar(name))
+
 	defer varf.Close()
-	b, err := io.ReadAll(varf)
-	if err != nil {
-		return nil, 0, cannotReadError(name, err)
-	}
+	b := mylog.Check2(io.ReadAll(varf))
+
 	return b, attr, nil
 }
 
@@ -128,13 +109,8 @@ func ReadVarBytes(name string) ([]byte, VariableAttr, error) {
 // https://www.kernel.org/doc/Documentation/filesystems/efivarfs.txt
 // for more details.
 func ReadVarString(name string) (string, VariableAttr, error) {
-	varf, attr, sz, err := openEFIVar(name)
-	if err != nil {
-		if err == ErrNoEFISystem {
-			return "", 0, err
-		}
-		return "", 0, cannotReadError(name, err)
-	}
+	varf, attr, sz := mylog.Check4(openEFIVar(name))
+
 	defer varf.Close()
 	// TODO: consider using golang.org/x/text/encoding/unicode here
 	if sz%2 != 0 {
@@ -145,9 +121,8 @@ func ReadVarString(name string) (string, VariableAttr, error) {
 		return "", attr, nil
 	}
 	r16 := make([]uint16, n)
-	if err := binary.Read(varf, binary.LittleEndian, r16); err != nil {
-		return "", 0, cannotReadError(name, err)
-	}
+	mylog.Check(binary.Read(varf, binary.LittleEndian, r16))
+
 	if r16[n-1] == 0 {
 		n--
 	}

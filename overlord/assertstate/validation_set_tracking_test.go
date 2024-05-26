@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/snapasserts"
@@ -49,11 +50,11 @@ func (s *validationSetTrackingSuite) SetUpTest(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 	storeSigning := assertstest.NewStoreStack("can0nical", nil)
-	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+	db := mylog.Check2(asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
 		Trusted:   storeSigning.Trusted,
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Assert(db.Add(storeSigning.StoreAccountKey("")), IsNil)
 	assertstate.ReplaceDB(s.st, db)
 
@@ -74,8 +75,8 @@ func (s *validationSetTrackingSuite) TestUpdate(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	all, err := assertstate.ValidationSets(s.st)
-	c.Assert(err, IsNil)
+	all := mylog.Check2(assertstate.ValidationSets(s.st))
+
 	c.Assert(all, HasLen, 0)
 
 	tr := assertstate.ValidationSetTracking{
@@ -87,8 +88,8 @@ func (s *validationSetTrackingSuite) TestUpdate(c *C) {
 	}
 	assertstate.UpdateValidationSet(s.st, &tr)
 
-	all, err = assertstate.ValidationSets(s.st)
-	c.Assert(err, IsNil)
+	all = mylog.Check2(assertstate.ValidationSets(s.st))
+
 	c.Assert(all, HasLen, 1)
 	for k, v := range all {
 		c.Check(k, Equals, "foo/bar")
@@ -104,8 +105,8 @@ func (s *validationSetTrackingSuite) TestUpdate(c *C) {
 	}
 	assertstate.UpdateValidationSet(s.st, &tr)
 
-	all, err = assertstate.ValidationSets(s.st)
-	c.Assert(err, IsNil)
+	all = mylog.Check2(assertstate.ValidationSets(s.st))
+
 	c.Assert(all, HasLen, 1)
 	for k, v := range all {
 		c.Check(k, Equals, "foo/bar")
@@ -120,8 +121,8 @@ func (s *validationSetTrackingSuite) TestUpdate(c *C) {
 	}
 	assertstate.UpdateValidationSet(s.st, &tr)
 
-	all, err = assertstate.ValidationSets(s.st)
-	c.Assert(err, IsNil)
+	all = mylog.Check2(assertstate.ValidationSets(s.st))
+
 	c.Assert(all, HasLen, 2)
 
 	var gotFirst, gotSecond bool
@@ -169,8 +170,8 @@ func (s *validationSetTrackingSuite) TestForget(c *C) {
 
 	// delete non-existing one is fine
 	assertstate.ForgetValidationSet(s.st, "foo", "bar", assertstate.ForgetValidationSetOpts{})
-	all, err := assertstate.ValidationSets(s.st)
-	c.Assert(err, IsNil)
+	all := mylog.Check2(assertstate.ValidationSets(s.st))
+
 	c.Assert(all, HasLen, 0)
 
 	tr := assertstate.ValidationSetTracking{
@@ -180,22 +181,21 @@ func (s *validationSetTrackingSuite) TestForget(c *C) {
 	}
 	assertstate.UpdateValidationSet(s.st, &tr)
 
-	all, err = assertstate.ValidationSets(s.st)
-	c.Assert(err, IsNil)
+	all = mylog.Check2(assertstate.ValidationSets(s.st))
+
 	c.Assert(all, HasLen, 1)
 
 	// forget existing one
 	assertstate.ForgetValidationSet(s.st, "foo", "bar", assertstate.ForgetValidationSetOpts{})
-	all, err = assertstate.ValidationSets(s.st)
-	c.Assert(err, IsNil)
+	all = mylog.Check2(assertstate.ValidationSets(s.st))
+
 	c.Assert(all, HasLen, 0)
 }
 
 func (s *validationSetTrackingSuite) TestGet(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
-
-	err := assertstate.GetValidationSet(s.st, "foo", "bar", nil)
+	mylog.Check(assertstate.GetValidationSet(s.st, "foo", "bar", nil))
 	c.Assert(err, ErrorMatches, `internal error: tr is nil`)
 
 	tr := assertstate.ValidationSetTracking{
@@ -207,12 +207,13 @@ func (s *validationSetTrackingSuite) TestGet(c *C) {
 	assertstate.UpdateValidationSet(s.st, &tr)
 
 	var res assertstate.ValidationSetTracking
-	err = assertstate.GetValidationSet(s.st, "foo", "bar", &res)
-	c.Assert(err, IsNil)
-	c.Check(res, DeepEquals, tr)
+	mylog.Check(assertstate.GetValidationSet(s.st, "foo", "bar", &res))
 
-	// non-existing
-	err = assertstate.GetValidationSet(s.st, "foo", "baz", &res)
+	c.Check(res, DeepEquals, tr)
+	mylog.
+
+		// non-existing
+		Check(assertstate.GetValidationSet(s.st, "foo", "baz", &res))
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 }
 
@@ -232,8 +233,8 @@ func (s *validationSetTrackingSuite) mockAssert(c *C, name, sequence, presence s
 		"timestamp":    "2030-11-06T09:16:26Z",
 		"snaps":        snaps,
 	}
-	as, err := s.dev1Signing.Sign(asserts.ValidationSetType, headers, nil, "")
-	c.Assert(err, IsNil)
+	as := mylog.Check2(s.dev1Signing.Sign(asserts.ValidationSetType, headers, nil, ""))
+
 	return as
 }
 
@@ -275,13 +276,14 @@ func (s *validationSetTrackingSuite) TestEnforcedValidationSets(c *C) {
 	vs3 := s.mockAssert(c, "baz", "5", "invalid")
 	c.Assert(assertstate.Add(s.st, vs3), IsNil)
 
-	valsets, err := assertstate.TrackedEnforcedValidationSets(s.st)
-	c.Assert(err, IsNil)
+	valsets := mylog.Check2(assertstate.TrackedEnforcedValidationSets(s.st))
 
-	// foo and bar are in conflict, use this as an indirect way of checking
-	// that both were added to valsets.
-	// XXX: switch to CheckPresenceInvalid / CheckPresenceRequired once available.
-	err = valsets.Conflict()
+	mylog.
+
+		// foo and bar are in conflict, use this as an indirect way of checking
+		// that both were added to valsets.
+		// XXX: switch to CheckPresenceInvalid / CheckPresenceRequired once available.
+		Check(valsets.Conflict())
 	c.Check(err, ErrorMatches, `validation sets are in conflict:\n- cannot constrain snap "snap-b" as both invalid \(.*/bar\) and required at any revision \(.*/foo\)`)
 }
 
@@ -312,50 +314,48 @@ func (s *validationSetTrackingSuite) TestEnforcedValidationSetsWithExtraSets(c *
 	vs2 := s.mockAssert(c, "bar", "1", "required")
 	c.Assert(assertstate.Add(s.st, vs2), IsNil)
 
-	valsets, err := assertstate.TrackedEnforcedValidationSets(s.st)
-	c.Assert(err, IsNil)
+	valsets := mylog.Check2(assertstate.TrackedEnforcedValidationSets(s.st))
 
-	err = valsets.Conflict()
-	c.Assert(err, IsNil)
+	mylog.Check(valsets.Conflict())
+
 
 	// use extra validation sets that trigger conflicts to verify they are
 	// considered by EnforcedValidationSets.
 
 	// extra validation set "foo" replaces vs from the state
 	extra1 := s.mockAssert(c, "foo", "9", "required")
-	valsets, err = assertstate.TrackedEnforcedValidationSets(s.st, extra1.(*asserts.ValidationSet))
-	c.Assert(err, IsNil)
+	valsets = mylog.Check2(assertstate.TrackedEnforcedValidationSets(s.st, extra1.(*asserts.ValidationSet)))
 
-	err = valsets.Conflict()
-	c.Assert(err, IsNil)
+	mylog.Check(valsets.Conflict())
+
 
 	// extra validations set "baz" is not tracked, it augments computed validation sets (and creates a conflict)
 	extra2 := s.mockAssert(c, "baz", "9", "invalid")
-	valsets, err = assertstate.TrackedEnforcedValidationSets(s.st, extra1.(*asserts.ValidationSet), extra2.(*asserts.ValidationSet))
-	c.Assert(err, IsNil)
-	err = valsets.Conflict()
+	valsets = mylog.Check2(assertstate.TrackedEnforcedValidationSets(s.st, extra1.(*asserts.ValidationSet), extra2.(*asserts.ValidationSet)))
+
+	mylog.Check(valsets.Conflict())
 	c.Check(err, ErrorMatches, `validation sets are in conflict:\n- cannot constrain snap "snap-b" as both invalid \(.*/baz\) and required at any revision \(.*/foo\)`)
 
 	// extra validations set "baz" is not tracked, it augments computed validation sets (no conflict this time)
 	extra2 = s.mockAssert(c, "baz", "9", "optional")
-	valsets, err = assertstate.TrackedEnforcedValidationSets(s.st, extra1.(*asserts.ValidationSet), extra2.(*asserts.ValidationSet))
-	c.Assert(err, IsNil)
-	err = valsets.Conflict()
-	c.Assert(err, IsNil)
+	valsets = mylog.Check2(assertstate.TrackedEnforcedValidationSets(s.st, extra1.(*asserts.ValidationSet), extra2.(*asserts.ValidationSet)))
+
+	mylog.Check(valsets.Conflict())
+
 
 	// extra validations set replace both foo and bar vs from the state
 	extra1 = s.mockAssert(c, "foo", "9", "required")
 	extra2 = s.mockAssert(c, "bar", "9", "invalid")
-	valsets, err = assertstate.TrackedEnforcedValidationSets(s.st, extra1.(*asserts.ValidationSet), extra2.(*asserts.ValidationSet))
-	c.Assert(err, IsNil)
-	err = valsets.Conflict()
+	valsets = mylog.Check2(assertstate.TrackedEnforcedValidationSets(s.st, extra1.(*asserts.ValidationSet), extra2.(*asserts.ValidationSet)))
+
+	mylog.Check(valsets.Conflict())
 	c.Check(err, ErrorMatches, `validation sets are in conflict:\n- cannot constrain snap "snap-b" as both invalid \(.*/bar\) and required at any revision \(.*/foo\)`)
 
 	// no conflict once both are invalid
 	extra1 = s.mockAssert(c, "foo", "9", "invalid")
-	valsets, err = assertstate.TrackedEnforcedValidationSets(s.st, extra1.(*asserts.ValidationSet), extra2.(*asserts.ValidationSet))
-	c.Assert(err, IsNil)
-	err = valsets.Conflict()
+	valsets = mylog.Check2(assertstate.TrackedEnforcedValidationSets(s.st, extra1.(*asserts.ValidationSet), extra2.(*asserts.ValidationSet)))
+
+	mylog.Check(valsets.Conflict())
 	c.Check(err, IsNil)
 }
 
@@ -363,8 +363,8 @@ func (s *validationSetTrackingSuite) TestAddToValidationSetsHistory(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	all, err := assertstate.ValidationSets(s.st)
-	c.Assert(err, IsNil)
+	all := mylog.Check2(assertstate.ValidationSets(s.st))
+
 	c.Assert(all, HasLen, 0)
 
 	tr1 := assertstate.ValidationSetTracking{
@@ -384,8 +384,8 @@ func (s *validationSetTrackingSuite) TestAddToValidationSetsHistory(c *C) {
 	assertstate.UpdateValidationSet(s.st, &tr2)
 
 	c.Assert(assertstate.AddCurrentTrackingToValidationSetsHistory(s.st), IsNil)
-	top, err := assertstate.ValidationSetsHistoryTop(s.st)
-	c.Assert(err, IsNil)
+	top := mylog.Check2(assertstate.ValidationSetsHistoryTop(s.st))
+
 	c.Check(top, DeepEquals, map[string]*assertstate.ValidationSetTracking{
 		"foo/bar": {
 			AccountID: "foo",
@@ -404,11 +404,11 @@ func (s *validationSetTrackingSuite) TestAddToValidationSetsHistory(c *C) {
 
 	// adding unchanged validation set tracking doesn't create another entry
 	c.Assert(assertstate.AddCurrentTrackingToValidationSetsHistory(s.st), IsNil)
-	top2, err := assertstate.ValidationSetsHistoryTop(s.st)
-	c.Assert(err, IsNil)
+	top2 := mylog.Check2(assertstate.ValidationSetsHistoryTop(s.st))
+
 	c.Check(top, DeepEquals, top2)
-	vshist, err := assertstate.ValidationSetsHistory(s.st)
-	c.Assert(err, IsNil)
+	vshist := mylog.Check2(assertstate.ValidationSetsHistory(s.st))
+
 	c.Check(vshist, HasLen, 1)
 
 	tr3 := assertstate.ValidationSetTracking{
@@ -420,13 +420,13 @@ func (s *validationSetTrackingSuite) TestAddToValidationSetsHistory(c *C) {
 	assertstate.UpdateValidationSet(s.st, &tr3)
 	c.Assert(assertstate.AddCurrentTrackingToValidationSetsHistory(s.st), IsNil)
 
-	vshist, err = assertstate.ValidationSetsHistory(s.st)
-	c.Assert(err, IsNil)
+	vshist = mylog.Check2(assertstate.ValidationSetsHistory(s.st))
+
 	// the history now has 2 entries
 	c.Check(vshist, HasLen, 2)
 
-	top3, err := assertstate.ValidationSetsHistoryTop(s.st)
-	c.Assert(err, IsNil)
+	top3 := mylog.Check2(assertstate.ValidationSetsHistoryTop(s.st))
+
 	c.Check(top3, DeepEquals, map[string]*assertstate.ValidationSetTracking{
 		"foo/bar": {
 			AccountID: "foo",
@@ -457,8 +457,8 @@ func (s *validationSetTrackingSuite) TestAddToValidationSetsHistoryRemovesOldEnt
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	all, err := assertstate.ValidationSets(s.st)
-	c.Assert(err, IsNil)
+	all := mylog.Check2(assertstate.ValidationSets(s.st))
+
 	c.Assert(all, HasLen, 0)
 
 	for i := 1; i <= 6; i++ {
@@ -473,8 +473,8 @@ func (s *validationSetTrackingSuite) TestAddToValidationSetsHistoryRemovesOldEnt
 		c.Assert(assertstate.AddCurrentTrackingToValidationSetsHistory(s.st), IsNil)
 	}
 
-	vshist, err := assertstate.ValidationSetsHistory(s.st)
-	c.Assert(err, IsNil)
+	vshist := mylog.Check2(assertstate.ValidationSetsHistory(s.st))
+
 
 	// two first entries got dropped
 	c.Check(vshist, DeepEquals, []map[string]*assertstate.ValidationSetTracking{
@@ -535,8 +535,8 @@ func (s *validationSetTrackingSuite) TestRestoreValidationSetsTracking(c *C) {
 
 	c.Assert(assertstate.AddCurrentTrackingToValidationSetsHistory(s.st), IsNil)
 
-	all, err := assertstate.ValidationSets(s.st)
-	c.Assert(err, IsNil)
+	all := mylog.Check2(assertstate.ValidationSets(s.st))
+
 	c.Assert(all, HasLen, 1)
 
 	tr2 := assertstate.ValidationSetTracking{
@@ -547,8 +547,8 @@ func (s *validationSetTrackingSuite) TestRestoreValidationSetsTracking(c *C) {
 	}
 	assertstate.UpdateValidationSet(s.st, &tr2)
 
-	all, err = assertstate.ValidationSets(s.st)
-	c.Assert(err, IsNil)
+	all = mylog.Check2(assertstate.ValidationSets(s.st))
+
 	// two validation sets are now tracked
 	c.Check(all, DeepEquals, map[string]*assertstate.ValidationSetTracking{
 		"foo/bar": &tr1,
@@ -559,8 +559,8 @@ func (s *validationSetTrackingSuite) TestRestoreValidationSetsTracking(c *C) {
 	c.Assert(assertstate.RestoreValidationSetsTracking(s.st), IsNil)
 
 	// and we're back at one validation set being tracked
-	all, err = assertstate.ValidationSets(s.st)
-	c.Assert(err, IsNil)
+	all = mylog.Check2(assertstate.ValidationSets(s.st))
+
 	c.Check(all, DeepEquals, map[string]*assertstate.ValidationSetTracking{
 		"foo/bar": &tr1,
 	})
@@ -623,8 +623,8 @@ func (s *validationSetTrackingSuite) TestTrackedEnforcedValidationSets(c *C) {
 		c.Assert(assertstate.Add(s.st, vs), IsNil)
 	}
 
-	sets, err := assertstate.TrackedEnforcedValidationSetsForModel(s.st, model)
-	c.Assert(err, IsNil)
+	sets := mylog.Check2(assertstate.TrackedEnforcedValidationSetsForModel(s.st, model))
+
 
 	keys := sets.Keys()
 	c.Check(keys, testutil.Contains, snapasserts.ValidationSetKey(fmt.Sprintf("16/%s/%s/9", s.dev1acct.AccountID(), "foo")))

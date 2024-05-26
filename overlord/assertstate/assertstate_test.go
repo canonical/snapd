@@ -33,6 +33,7 @@ import (
 	"golang.org/x/crypto/sha3"
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/snapasserts"
@@ -120,10 +121,8 @@ func (sto *fakeStore) SeqFormingAssertion(assertType *asserts.AssertionType, seq
 	}
 
 	if ref.Sequence <= 0 {
-		hdrs, err := asserts.HeadersFromSequenceKey(ref.Type, ref.SequenceKey)
-		if err != nil {
-			return nil, err
-		}
+		hdrs := mylog.Check2(asserts.HeadersFromSequenceKey(ref.Type, ref.SequenceKey))
+
 		return sto.db.FindSequence(ref.Type, hdrs, -1, -1)
 	}
 
@@ -137,10 +136,7 @@ func (sto *fakeStore) SnapAction(_ context.Context, currentSnaps []*store.Curren
 		panic("only assertion query supported")
 	}
 
-	toResolve, toResolveSeq, err := assertQuery.ToResolve()
-	if err != nil {
-		return nil, nil, err
-	}
+	toResolve, toResolveSeq := mylog.Check3(assertQuery.ToResolve())
 
 	if sto.snapActionErr != nil {
 		return nil, nil, sto.snapActionErr
@@ -160,11 +156,8 @@ func (sto *fakeStore) SnapAction(_ context.Context, currentSnaps []*store.Curren
 		urls := make([]string, 0, len(ats))
 		for _, at := range ats {
 			reqTypes[at.Ref.Type.Name] = true
-			a, err := at.Ref.Resolve(sto.db.Find)
-			if err != nil {
-				assertQuery.AddError(err, &at.Ref)
-				continue
-			}
+			a := mylog.Check2(at.Ref.Resolve(sto.db.Find))
+
 			if a.Revision() > at.Revision {
 				urls = append(urls, fmt.Sprintf("/assertions/%s", at.Unique()))
 			}
@@ -180,19 +173,14 @@ func (sto *fakeStore) SnapAction(_ context.Context, currentSnaps []*store.Curren
 		for _, at := range ats {
 			reqTypes[at.Type.Name] = true
 			var a asserts.Assertion
-			headers, err := asserts.HeadersFromSequenceKey(at.Type, at.SequenceKey)
-			if err != nil {
-				return nil, nil, err
-			}
+			headers := mylog.Check2(asserts.HeadersFromSequenceKey(at.Type, at.SequenceKey))
+
 			if !at.Pinned {
-				a, err = sto.db.FindSequence(at.Type, headers, -1, asserts.ValidationSetType.MaxSupportedFormat())
+				a = mylog.Check2(sto.db.FindSequence(at.Type, headers, -1, asserts.ValidationSetType.MaxSupportedFormat()))
 			} else {
-				a, err = at.Resolve(sto.db.Find)
+				a = mylog.Check2(at.Resolve(sto.db.Find))
 			}
-			if err != nil {
-				assertQuery.AddSequenceError(err, at)
-				continue
-			}
+
 			storeVs := a.(*asserts.ValidationSet)
 			if storeVs.Sequence() > at.Sequence || (storeVs.Sequence() == at.Sequence && storeVs.Revision() >= at.Revision) {
 				urls = append(urls, fmt.Sprintf("/assertions/%s/%s", a.Type().Name, strings.Join(a.At().PrimaryKey, "/")))
@@ -247,21 +235,15 @@ func (sto *fakeStore) DownloadAssertions(urls []string, b *asserts.Batch, user *
 		assertType := asserts.Type(comps[2])
 		key := comps[3:]
 		ref := &asserts.Ref{Type: assertType, PrimaryKey: key}
-		a, err := resolve(ref)
-		if err != nil {
-			return err
-		}
-		if err := b.Add(a); err != nil {
-			return err
-		}
+		a := mylog.Check2(resolve(ref))
+		mylog.Check(b.Add(a))
+
 	}
 
 	return nil
 }
 
-var (
-	dev1PrivKey, _ = assertstest.GenerateKey(752)
-)
+var dev1PrivKey, _ = assertstest.GenerateKey(752)
 
 func (s *assertMgrSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
@@ -270,21 +252,21 @@ func (s *assertMgrSuite) SetUpTest(c *C) {
 	s.AddCleanup(sysdb.InjectTrusted(s.storeSigning.Trusted))
 
 	s.dev1Acct = assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
-	err := s.storeSigning.Add(s.dev1Acct)
-	c.Assert(err, IsNil)
+	mylog.Check(s.storeSigning.Add(s.dev1Acct))
+
 
 	// developer signing
 	s.dev1AcctKey = assertstest.NewAccountKey(s.storeSigning, s.dev1Acct, nil, dev1PrivKey.PublicKey(), "")
-	err = s.storeSigning.Add(s.dev1AcctKey)
-	c.Assert(err, IsNil)
+	mylog.Check(s.storeSigning.Add(s.dev1AcctKey))
+
 
 	s.dev1Signing = assertstest.NewSigningDB(s.dev1Acct.AccountID(), dev1PrivKey)
 
 	s.o = overlord.Mock()
 	s.state = s.o.State()
 	s.se = s.o.StateEngine()
-	mgr, err := assertstate.Manager(s.state, s.o.TaskRunner())
-	c.Assert(err, IsNil)
+	mgr := mylog.Check2(assertstate.Manager(s.state, s.o.TaskRunner()))
+
 	s.mgr = mgr
 	s.o.AddManager(s.mgr)
 
@@ -313,19 +295,19 @@ func (s *assertMgrSuite) TestDB(c *C) {
 func (s *assertMgrSuite) TestAdd(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+	mylog.
 
-	// prereq store key
-	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
+		// prereq store key
+		Check(assertstate.Add(s.state, s.storeSigning.StoreAccountKey("")))
 
-	err = assertstate.Add(s.state, s.dev1Acct)
-	c.Assert(err, IsNil)
+	mylog.Check(assertstate.Add(s.state, s.dev1Acct))
+
 
 	db := assertstate.DB(s.state)
-	devAcct, err := db.Find(asserts.AccountType, map[string]string{
+	devAcct := mylog.Check2(db.Find(asserts.AccountType, map[string]string{
 		"account-id": s.dev1Acct.AccountID(),
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(devAcct.(*asserts.Account).Username(), Equals, "developer1")
 }
 
@@ -335,32 +317,33 @@ func (s *assertMgrSuite) TestAddBatch(c *C) {
 
 	b := &bytes.Buffer{}
 	enc := asserts.NewEncoder(b)
-	// wrong order is ok
-	err := enc.Encode(s.dev1Acct)
-	c.Assert(err, IsNil)
+	mylog.
+		// wrong order is ok
+		Check(enc.Encode(s.dev1Acct))
+
 	enc.Encode(s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
+
 
 	batch := asserts.NewBatch(nil)
-	refs, err := batch.AddStream(b)
-	c.Assert(err, IsNil)
+	refs := mylog.Check2(batch.AddStream(b))
+
 	c.Check(refs, DeepEquals, []*asserts.Ref{
 		{Type: asserts.AccountType, PrimaryKey: []string{s.dev1Acct.AccountID()}},
 		{Type: asserts.AccountKeyType, PrimaryKey: []string{s.storeSigning.StoreAccountKey("").PublicKeyID()}},
 	})
+	mylog.
 
-	// noop
-	err = batch.Add(s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
+		// noop
+		Check(batch.Add(s.storeSigning.StoreAccountKey("")))
 
-	err = assertstate.AddBatch(s.state, batch, nil)
-	c.Assert(err, IsNil)
+	mylog.Check(assertstate.AddBatch(s.state, batch, nil))
+
 
 	db := assertstate.DB(s.state)
-	devAcct, err := db.Find(asserts.AccountType, map[string]string{
+	devAcct := mylog.Check2(db.Find(asserts.AccountType, map[string]string{
 		"account-id": s.dev1Acct.AccountID(),
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(devAcct.(*asserts.Account).Username(), Equals, "developer1")
 }
 
@@ -368,19 +351,19 @@ func (s *assertMgrSuite) TestAddBatchPartial(c *C) {
 	// Commit does add any successful assertion until the first error
 	s.state.Lock()
 	defer s.state.Unlock()
+	mylog.
 
-	// store key already present
-	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
+		// store key already present
+		Check(assertstate.Add(s.state, s.storeSigning.StoreAccountKey("")))
+
 
 	batch := asserts.NewBatch(nil)
 
 	snapDeclFoo := s.snapDecl(c, "foo", nil)
+	mylog.Check(batch.Add(snapDeclFoo))
 
-	err = batch.Add(snapDeclFoo)
-	c.Assert(err, IsNil)
-	err = batch.Add(s.dev1Acct)
-	c.Assert(err, IsNil)
+	mylog.Check(batch.Add(s.dev1Acct))
+
 
 	// too old
 	rev := 1
@@ -392,39 +375,37 @@ func (s *assertMgrSuite) TestAddBatchPartial(c *C) {
 		"developer-id":  s.dev1Acct.AccountID(),
 		"timestamp":     time.Time{}.Format(time.RFC3339),
 	}
-	snapRev, err := s.storeSigning.Sign(asserts.SnapRevisionType, headers, nil, "")
-	c.Assert(err, IsNil)
+	snapRev := mylog.Check2(s.storeSigning.Sign(asserts.SnapRevisionType, headers, nil, ""))
 
-	err = batch.Add(snapRev)
-	c.Assert(err, IsNil)
+	mylog.Check(batch.Add(snapRev))
 
-	err = assertstate.AddBatch(s.state, batch, nil)
+	mylog.Check(assertstate.AddBatch(s.state, batch, nil))
 	c.Check(err, ErrorMatches, `(?ms).*validity.*`)
 
 	// snap-declaration was added anyway
-	_, err = assertstate.DB(s.state).Find(asserts.SnapDeclarationType, map[string]string{
+	_ = mylog.Check2(assertstate.DB(s.state).Find(asserts.SnapDeclarationType, map[string]string{
 		"series":  "16",
 		"snap-id": "foo-id",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 }
 
 func (s *assertMgrSuite) TestAddBatchPrecheckPartial(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+	mylog.
 
-	// store key already present
-	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
+		// store key already present
+		Check(assertstate.Add(s.state, s.storeSigning.StoreAccountKey("")))
+
 
 	batch := asserts.NewBatch(nil)
 
 	snapDeclFoo := s.snapDecl(c, "foo", nil)
+	mylog.Check(batch.Add(snapDeclFoo))
 
-	err = batch.Add(snapDeclFoo)
-	c.Assert(err, IsNil)
-	err = batch.Add(s.dev1Acct)
-	c.Assert(err, IsNil)
+	mylog.Check(batch.Add(s.dev1Acct))
+
 
 	// too old
 	rev := 1
@@ -436,41 +417,39 @@ func (s *assertMgrSuite) TestAddBatchPrecheckPartial(c *C) {
 		"developer-id":  s.dev1Acct.AccountID(),
 		"timestamp":     time.Time{}.Format(time.RFC3339),
 	}
-	snapRev, err := s.storeSigning.Sign(asserts.SnapRevisionType, headers, nil, "")
-	c.Assert(err, IsNil)
+	snapRev := mylog.Check2(s.storeSigning.Sign(asserts.SnapRevisionType, headers, nil, ""))
 
-	err = batch.Add(snapRev)
-	c.Assert(err, IsNil)
+	mylog.Check(batch.Add(snapRev))
 
-	err = assertstate.AddBatch(s.state, batch, &asserts.CommitOptions{
+	mylog.Check(assertstate.AddBatch(s.state, batch, &asserts.CommitOptions{
 		Precheck: true,
-	})
+	}))
 	c.Check(err, ErrorMatches, `(?ms).*validity.*`)
 
 	// nothing was added
-	_, err = assertstate.DB(s.state).Find(asserts.SnapDeclarationType, map[string]string{
+	_ = mylog.Check2(assertstate.DB(s.state).Find(asserts.SnapDeclarationType, map[string]string{
 		"series":  "16",
 		"snap-id": "foo-id",
-	})
+	}))
 	c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 }
 
 func (s *assertMgrSuite) TestAddBatchPrecheckHappy(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+	mylog.
 
-	// store key already present
-	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
+		// store key already present
+		Check(assertstate.Add(s.state, s.storeSigning.StoreAccountKey("")))
+
 
 	batch := asserts.NewBatch(nil)
 
 	snapDeclFoo := s.snapDecl(c, "foo", nil)
+	mylog.Check(batch.Add(snapDeclFoo))
 
-	err = batch.Add(snapDeclFoo)
-	c.Assert(err, IsNil)
-	err = batch.Add(s.dev1Acct)
-	c.Assert(err, IsNil)
+	mylog.Check(batch.Add(s.dev1Acct))
+
 
 	rev := 1
 	revDigest := makeDigest(rev)
@@ -482,20 +461,18 @@ func (s *assertMgrSuite) TestAddBatchPrecheckHappy(c *C) {
 		"developer-id":  s.dev1Acct.AccountID(),
 		"timestamp":     time.Now().Format(time.RFC3339),
 	}
-	snapRev, err := s.storeSigning.Sign(asserts.SnapRevisionType, headers, nil, "")
-	c.Assert(err, IsNil)
+	snapRev := mylog.Check2(s.storeSigning.Sign(asserts.SnapRevisionType, headers, nil, ""))
 
-	err = batch.Add(snapRev)
-	c.Assert(err, IsNil)
+	mylog.Check(batch.Add(snapRev))
 
-	err = assertstate.AddBatch(s.state, batch, &asserts.CommitOptions{
+	mylog.Check(assertstate.AddBatch(s.state, batch, &asserts.CommitOptions{
 		Precheck: true,
-	})
-	c.Assert(err, IsNil)
+	}))
 
-	_, err = assertstate.DB(s.state).Find(asserts.SnapRevisionType, map[string]string{
+
+	_ = mylog.Check2(assertstate.DB(s.state).Find(asserts.SnapRevisionType, map[string]string{
 		"snap-sha3-384": revDigest,
-	})
+	}))
 	c.Check(err, IsNil)
 }
 
@@ -510,10 +487,8 @@ func fakeHash(rev int) []byte {
 }
 
 func makeDigest(rev int) string {
-	d, err := asserts.EncodeDigest(crypto.SHA3_384, fakeHash(rev))
-	if err != nil {
-		panic(err)
-	}
+	d := mylog.Check2(asserts.EncodeDigest(crypto.SHA3_384, fakeHash(rev)))
+
 	return string(d)
 }
 
@@ -534,18 +509,18 @@ func (s *assertMgrSuite) prereqSnapAssertions(c *C, revisions ...int) (paths map
 		"publisher-id": s.dev1Acct.AccountID(),
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}
-	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
-	c.Assert(err, IsNil)
-	err = s.storeSigning.Add(snapDecl)
-	c.Assert(err, IsNil)
+	snapDecl := mylog.Check2(s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, ""))
+
+	mylog.Check(s.storeSigning.Add(snapDecl))
+
 
 	paths = make(map[int]string)
 	digests = make(map[int]string)
 
 	for _, rev := range revisions {
 		snapPath := s.makeTestSnap(c, rev, "")
-		digest, sz, err := asserts.SnapFileSHA3_384(snapPath)
-		c.Assert(err, IsNil)
+		digest, sz := mylog.Check3(asserts.SnapFileSHA3_384(snapPath))
+
 		paths[rev] = snapPath
 		digests[rev] = digest
 
@@ -557,10 +532,10 @@ func (s *assertMgrSuite) prereqSnapAssertions(c *C, revisions ...int) (paths map
 			"developer-id":  s.dev1Acct.AccountID(),
 			"timestamp":     time.Now().Format(time.RFC3339),
 		}
-		snapRev, err := s.storeSigning.Sign(asserts.SnapRevisionType, headers, nil, "")
-		c.Assert(err, IsNil)
-		err = s.storeSigning.Add(snapRev)
-		c.Assert(err, IsNil)
+		snapRev := mylog.Check2(s.storeSigning.Sign(asserts.SnapRevisionType, headers, nil, ""))
+
+		mylog.Check(s.storeSigning.Add(snapRev))
+
 	}
 
 	return paths, digests
@@ -576,14 +551,13 @@ func (s *assertMgrSuite) TestDoFetch(c *C) {
 		Type:       asserts.SnapRevisionType,
 		PrimaryKey: []string{digests[10]},
 	}
-
-	err := assertstate.DoFetch(s.state, 0, s.trivialDeviceCtx, nil, func(f asserts.Fetcher) error {
+	mylog.Check(assertstate.DoFetch(s.state, 0, s.trivialDeviceCtx, nil, func(f asserts.Fetcher) error {
 		return f.Fetch(ref)
-	})
-	c.Assert(err, IsNil)
+	}))
 
-	snapRev, err := ref.Resolve(assertstate.DB(s.state).Find)
-	c.Assert(err, IsNil)
+
+	snapRev := mylog.Check2(ref.Resolve(assertstate.DB(s.state).Find))
+
 	c.Check(snapRev.(*asserts.SnapRevision).SnapRevision(), Equals, 10)
 }
 
@@ -600,26 +574,24 @@ func (s *assertMgrSuite) TestFetchIdempotent(c *C) {
 	fetching := func(f asserts.Fetcher) error {
 		return f.Fetch(ref)
 	}
+	mylog.Check(assertstate.DoFetch(s.state, 0, s.trivialDeviceCtx, nil, fetching))
 
-	err := assertstate.DoFetch(s.state, 0, s.trivialDeviceCtx, nil, fetching)
-	c.Assert(err, IsNil)
 
 	ref = &asserts.Ref{
 		Type:       asserts.SnapRevisionType,
 		PrimaryKey: []string{digests[11]},
 	}
+	mylog.Check(assertstate.DoFetch(s.state, 0, s.trivialDeviceCtx, nil, fetching))
 
-	err = assertstate.DoFetch(s.state, 0, s.trivialDeviceCtx, nil, fetching)
-	c.Assert(err, IsNil)
 
-	snapRev, err := ref.Resolve(assertstate.DB(s.state).Find)
-	c.Assert(err, IsNil)
+	snapRev := mylog.Check2(ref.Resolve(assertstate.DB(s.state).Find))
+
 	c.Check(snapRev.(*asserts.SnapRevision).SnapRevision(), Equals, 11)
 }
 
 func (s *assertMgrSuite) settle(c *C) {
-	err := s.o.Settle(5 * time.Second)
-	c.Assert(err, IsNil)
+	mylog.Check(s.o.Settle(5 * time.Second))
+
 }
 
 func (s *assertMgrSuite) TestFetchUnsupportedUpdateIgnored(c *C) {
@@ -636,13 +608,12 @@ func (s *assertMgrSuite) TestFetchUnsupportedUpdateIgnored(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
+	mylog.Check(assertstate.Add(s.state, s.storeSigning.StoreAccountKey("")))
 
-	err = assertstate.Add(s.state, s.dev1Acct)
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, snapDeclFoo0)
-	c.Assert(err, IsNil)
+	mylog.Check(assertstate.Add(s.state, s.dev1Acct))
+
+	mylog.Check(assertstate.Add(s.state, snapDeclFoo0))
+
 
 	var snapDeclFoo1 *asserts.SnapDeclaration
 	(func() {
@@ -664,11 +635,11 @@ func (s *assertMgrSuite) TestFetchUnsupportedUpdateIgnored(c *C) {
 	}
 
 	s.fakeStore.(*fakeStore).maxDeclSupportedFormat = 999
-	err = assertstate.DoFetch(s.state, 0, s.trivialDeviceCtx, nil, fetching)
+	mylog.Check(assertstate.DoFetch(s.state, 0, s.trivialDeviceCtx, nil, fetching))
 	// no error and the old one was kept
-	c.Assert(err, IsNil)
-	snapDecl, err := ref.Resolve(assertstate.DB(s.state).Find)
-	c.Assert(err, IsNil)
+
+	snapDecl := mylog.Check2(ref.Resolve(assertstate.DB(s.state).Find))
+
 	c.Check(snapDecl.Revision(), Equals, 0)
 
 	// we log the issue
@@ -705,7 +676,7 @@ func (s *assertMgrSuite) TestFetchUnsupportedError(c *C) {
 	}
 
 	s.fakeStore.(*fakeStore).maxDeclSupportedFormat = 999
-	err := assertstate.DoFetch(s.state, 0, s.trivialDeviceCtx, nil, fetching)
+	mylog.Check(assertstate.DoFetch(s.state, 0, s.trivialDeviceCtx, nil, fetching))
 	c.Check(err, ErrorMatches, `(?s).*proposed "snap-declaration" assertion has format 999 but 111 is latest supported.*`)
 }
 
@@ -733,13 +704,13 @@ func (s *assertMgrSuite) setupModelAndStore(c *C) *asserts.Store {
 	})
 	s.setModel(a.(*asserts.Model))
 
-	a, err := s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
+	a := mylog.Check2(s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
 		"authority-id": s.storeSigning.AuthorityID,
 		"operator-id":  s.storeSigning.AuthorityID,
 		"store":        "my-brand-store",
 		"timestamp":    time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
 	return a.(*asserts.Store)
 }
 
@@ -752,8 +723,8 @@ func (s *assertMgrSuite) TestValidateSnap(c *C) {
 
 	// have a model and the store assertion available
 	storeAs := s.setupModelAndStore(c)
-	err := s.storeSigning.Add(storeAs)
-	c.Assert(err, IsNil)
+	mylog.Check(s.storeSigning.Add(storeAs))
+
 
 	chg := s.state.NewChange("install", "...")
 	t := s.state.NewTask("validate-snap", "Fetch and check snap assertions")
@@ -776,18 +747,18 @@ func (s *assertMgrSuite) TestValidateSnap(c *C) {
 
 	c.Assert(chg.Err(), IsNil)
 
-	snapRev, err := assertstate.DB(s.state).Find(asserts.SnapRevisionType, map[string]string{
+	snapRev := mylog.Check2(assertstate.DB(s.state).Find(asserts.SnapRevisionType, map[string]string{
 		"snap-id":       "snap-id-1",
 		"snap-sha3-384": digests[10],
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(snapRev.(*asserts.SnapRevision).SnapRevision(), Equals, 10)
 
 	// store assertion was also fetched
-	_, err = assertstate.DB(s.state).Find(asserts.StoreType, map[string]string{
+	_ = mylog.Check2(assertstate.DB(s.state).Find(asserts.StoreType, map[string]string{
 		"store": "my-brand-store",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 }
 
 func (s *assertMgrSuite) TestValidateSnapStoreNotFound(c *C) {
@@ -822,17 +793,17 @@ func (s *assertMgrSuite) TestValidateSnapStoreNotFound(c *C) {
 
 	c.Assert(chg.Err(), IsNil)
 
-	snapRev, err := assertstate.DB(s.state).Find(asserts.SnapRevisionType, map[string]string{
+	snapRev := mylog.Check2(assertstate.DB(s.state).Find(asserts.SnapRevisionType, map[string]string{
 		"snap-id":       "snap-id-1",
 		"snap-sha3-384": digests[10],
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(snapRev.(*asserts.SnapRevision).SnapRevision(), Equals, 10)
 
 	// store assertion was not found and ignored
-	_, err = assertstate.DB(s.state).Find(asserts.StoreType, map[string]string{
+	_ = mylog.Check2(assertstate.DB(s.state).Find(asserts.StoreType, map[string]string{
 		"store": "my-brand-store",
-	})
+	}))
 	c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 }
 
@@ -916,8 +887,8 @@ func (s *assertMgrSuite) TestValidateSnapCrossCheckFail(c *C) {
 
 func (s *assertMgrSuite) TestValidateDelegatedSnap(c *C) {
 	snapPath := s.makeTestSnap(c, 10, `provenance: delegated-prov`)
-	digest, sz, err := asserts.SnapFileSHA3_384(snapPath)
-	c.Assert(err, IsNil)
+	digest, sz := mylog.Check3(asserts.SnapFileSHA3_384(snapPath))
+
 
 	headers := map[string]interface{}{
 		"series":       "16",
@@ -934,10 +905,10 @@ func (s *assertMgrSuite) TestValidateDelegatedSnap(c *C) {
 		},
 		"timestamp": time.Now().Format(time.RFC3339),
 	}
-	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
-	c.Assert(err, IsNil)
-	err = s.storeSigning.Add(snapDecl)
-	c.Assert(err, IsNil)
+	snapDecl := mylog.Check2(s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, ""))
+
+	mylog.Check(s.storeSigning.Add(snapDecl))
+
 
 	headers = map[string]interface{}{
 		"authority-id":  s.dev1Acct.AccountID(),
@@ -950,18 +921,18 @@ func (s *assertMgrSuite) TestValidateDelegatedSnap(c *C) {
 		"developer-id":  s.dev1Acct.AccountID(),
 		"timestamp":     time.Now().Format(time.RFC3339),
 	}
-	snapRev, err := s.dev1Signing.Sign(asserts.SnapRevisionType, headers, nil, "")
-	c.Assert(err, IsNil)
-	err = s.storeSigning.Add(snapRev)
-	c.Assert(err, IsNil)
+	snapRev := mylog.Check2(s.dev1Signing.Sign(asserts.SnapRevisionType, headers, nil, ""))
+
+	mylog.Check(s.storeSigning.Add(snapRev))
+
 
 	s.state.Lock()
 	defer s.state.Unlock()
 
 	// have a model and the store assertion available
 	storeAs := s.setupModelAndStore(c)
-	err = s.storeSigning.Add(storeAs)
-	c.Assert(err, IsNil)
+	mylog.Check(s.storeSigning.Add(storeAs))
+
 
 	chg := s.state.NewChange("install", "...")
 	t := s.state.NewTask("validate-snap", "Fetch and check snap assertions")
@@ -985,43 +956,44 @@ func (s *assertMgrSuite) TestValidateDelegatedSnap(c *C) {
 
 	c.Assert(chg.Err(), IsNil)
 
-	snapRev1, err := assertstate.DB(s.state).Find(asserts.SnapRevisionType, map[string]string{
+	snapRev1 := mylog.Check2(assertstate.DB(s.state).Find(asserts.SnapRevisionType, map[string]string{
 		"snap-id":       "snap-id-1",
 		"snap-sha3-384": digest,
 		"provenance":    "delegated-prov",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(snapRev1.(*asserts.SnapRevision).SnapRevision(), Equals, 10)
 
 	// store assertion was also fetched
-	_, err = assertstate.DB(s.state).Find(asserts.StoreType, map[string]string{
+	_ = mylog.Check2(assertstate.DB(s.state).Find(asserts.StoreType, map[string]string{
 		"store": "my-brand-store",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 }
 
 func (s *assertMgrSuite) TestValidateDelegatedSnapProvenanceMismatch(c *C) {
-	err := s.testValidateDelegatedSnapMismatch(c, `provenance: delegated-prov-other`, "delegated-prov-other", "delegated-prov", map[string]interface{}{
+	mylog.Check(s.testValidateDelegatedSnapMismatch(c, `provenance: delegated-prov-other`, "delegated-prov-other", "delegated-prov", map[string]interface{}{
 		"account-id": s.dev1Acct.AccountID(),
 		"provenance": []interface{}{"delegated-prov"},
-	})
+	}))
 	c.Check(err, ErrorMatches, `(?s).*cannot verify snap "foo", no matching signatures found.*`)
 }
 
 func (s *assertMgrSuite) TestValidateDelegatedSnapStoreProvenanceMismatch(c *C) {
-	// this is a scenario where a store is serving information matching
-	// the assertions which themselves don't match the snap
-	err := s.testValidateDelegatedSnapMismatch(c, `provenance: delegated-prov-other`, "delegated-prov", "delegated-prov", map[string]interface{}{
-		"account-id": s.dev1Acct.AccountID(),
-		"provenance": []interface{}{"delegated-prov"},
-	})
+	mylog.
+		// this is a scenario where a store is serving information matching
+		// the assertions which themselves don't match the snap
+		Check(s.testValidateDelegatedSnapMismatch(c, `provenance: delegated-prov-other`, "delegated-prov", "delegated-prov", map[string]interface{}{
+			"account-id": s.dev1Acct.AccountID(),
+			"provenance": []interface{}{"delegated-prov"},
+		}))
 	c.Check(err, ErrorMatches, `(?s).*snap ".*foo.*\.snap" has been signed under provenance "delegated-prov" different from the metadata one: "delegated-prov-other".*`)
 }
 
 func (s *assertMgrSuite) testValidateDelegatedSnapMismatch(c *C, provenanceFrag, expectedProv, revProvenance string, revisionAuthority map[string]interface{}) error {
 	snapPath := s.makeTestSnap(c, 10, provenanceFrag)
-	digest, sz, err := asserts.SnapFileSHA3_384(snapPath)
-	c.Assert(err, IsNil)
+	digest, sz := mylog.Check3(asserts.SnapFileSHA3_384(snapPath))
+
 
 	headers := map[string]interface{}{
 		"series":       "16",
@@ -1033,10 +1005,10 @@ func (s *assertMgrSuite) testValidateDelegatedSnapMismatch(c *C, provenanceFrag,
 		},
 		"timestamp": time.Now().Format(time.RFC3339),
 	}
-	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
-	c.Assert(err, IsNil)
-	err = s.storeSigning.Add(snapDecl)
-	c.Assert(err, IsNil)
+	snapDecl := mylog.Check2(s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, ""))
+
+	mylog.Check(s.storeSigning.Add(snapDecl))
+
 
 	headers = map[string]interface{}{
 		"authority-id":  s.dev1Acct.AccountID(),
@@ -1051,18 +1023,18 @@ func (s *assertMgrSuite) testValidateDelegatedSnapMismatch(c *C, provenanceFrag,
 	if revProvenance != "" {
 		headers["provenance"] = revProvenance
 	}
-	snapRev, err := s.dev1Signing.Sign(asserts.SnapRevisionType, headers, nil, "")
-	c.Assert(err, IsNil)
-	err = s.storeSigning.Add(snapRev)
-	c.Assert(err, IsNil)
+	snapRev := mylog.Check2(s.dev1Signing.Sign(asserts.SnapRevisionType, headers, nil, ""))
+
+	mylog.Check(s.storeSigning.Add(snapRev))
+
 
 	s.state.Lock()
 	defer s.state.Unlock()
 
 	// have a model and the store assertion available
 	storeAs := s.setupModelAndStore(c)
-	err = s.storeSigning.Add(storeAs)
-	c.Assert(err, IsNil)
+	mylog.Check(s.storeSigning.Add(storeAs))
+
 
 	chg := s.state.NewChange("install", "...")
 	t := s.state.NewTask("validate-snap", "Fetch and check snap assertions")
@@ -1088,20 +1060,20 @@ func (s *assertMgrSuite) testValidateDelegatedSnapMismatch(c *C, provenanceFrag,
 }
 
 func (s *assertMgrSuite) TestValidateDelegatedSnapDeviceMismatch(c *C) {
-	err := s.testValidateDelegatedSnapMismatch(c, `provenance: delegated-prov`, "delegated-prov", "delegated-prov", map[string]interface{}{
+	mylog.Check(s.testValidateDelegatedSnapMismatch(c, `provenance: delegated-prov`, "delegated-prov", "delegated-prov", map[string]interface{}{
 		"account-id": s.dev1Acct.AccountID(),
 		"provenance": []interface{}{"delegated-prov"},
 		"on-store":   []interface{}{"other-store"},
-	})
+	}))
 	c.Check(err, ErrorMatches, `(?s).*snap "foo" revision assertion with provenance "delegated-prov" is not signed by an authority authorized on this device: .*`)
 }
 
 func (s *assertMgrSuite) TestValidateDelegatedSnapDefaultProvenanceMismatch(c *C) {
-	err := s.testValidateDelegatedSnapMismatch(c, "", "", "delegated-prov", map[string]interface{}{
+	mylog.Check(s.testValidateDelegatedSnapMismatch(c, "", "", "delegated-prov", map[string]interface{}{
 		"account-id": s.dev1Acct.AccountID(),
 		"provenance": []interface{}{"delegated-prov"},
 		"on-store":   []interface{}{"my-brand-store"},
-	})
+	}))
 	c.Check(err, ErrorMatches, `(?s).*cannot verify snap "foo", no matching signatures found.*`)
 }
 
@@ -1129,8 +1101,8 @@ func (s *assertMgrSuite) validationSetAssertForSnaps(c *C, name, sequence, revis
 		"timestamp":    time.Now().Format(time.RFC3339),
 		"revision":     revision,
 	}
-	a, err := s.dev1Signing.Sign(asserts.ValidationSetType, headers, nil, "")
-	c.Assert(err, IsNil)
+	a := mylog.Check2(s.dev1Signing.Sign(asserts.ValidationSetType, headers, nil, ""))
+
 	return a.(*asserts.ValidationSet)
 }
 
@@ -1145,10 +1117,10 @@ func (s *assertMgrSuite) snapDecl(c *C, name string, extraHeaders map[string]int
 	for h, v := range extraHeaders {
 		headers[h] = v
 	}
-	decl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
-	c.Assert(err, IsNil)
-	err = s.storeSigning.Add(decl)
-	c.Assert(err, IsNil)
+	decl := mylog.Check2(s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, ""))
+
+	mylog.Check(s.storeSigning.Add(decl))
+
 	return decl.(*asserts.SnapDeclaration)
 }
 
@@ -1207,52 +1179,52 @@ func (s *assertMgrSuite) TestRefreshAssertionsRefreshSnapDeclarationsAndValidati
 		"timestamp":    time.Now().Format(time.RFC3339),
 		"revision":     "1",
 	}
-	snapDeclFoo1, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
-	c.Assert(err, IsNil)
-	err = s.storeSigning.Add(snapDeclFoo1)
-	c.Assert(err, IsNil)
+	snapDeclFoo1 := mylog.Check2(s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, ""))
+
+	mylog.Check(s.storeSigning.Add(snapDeclFoo1))
+
 
 	// changed validation set assertion
 	vsetAs2 := s.validationSetAssert(c, "bar", "2", "3", "required", "1")
 	c.Assert(s.storeSigning.Add(vsetAs2), IsNil)
+	mylog.Check(assertstate.RefreshSnapAssertions(s.state, 0, &assertstate.RefreshAssertionsOptions{IsRefreshOfAllSnaps: true}))
 
-	err = assertstate.RefreshSnapAssertions(s.state, 0, &assertstate.RefreshAssertionsOptions{IsRefreshOfAllSnaps: true})
-	c.Assert(err, IsNil)
 
-	a, err := assertstate.DB(s.state).Find(asserts.SnapDeclarationType, map[string]string{
+	a := mylog.Check2(assertstate.DB(s.state).Find(asserts.SnapDeclarationType, map[string]string{
 		"series":  "16",
 		"snap-id": "foo-id",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(a.(*asserts.SnapDeclaration).SnapName(), Equals, "fo-o")
 
-	a, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
+	a = mylog.Check2(assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
 		"account-id": s.dev1Acct.AccountID(),
 		"name":       "bar",
 		"sequence":   "2",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(a.Revision(), Equals, 3)
 
-	c.Assert(err, IsNil)
+
 	c.Check(s.fakeStore.(*fakeStore).opts.Scheduled, Equals, false)
 
 	// changed validation set assertion again
 	vsetAs3 := s.validationSetAssert(c, "bar", "4", "5", "required", "1")
 	c.Assert(s.storeSigning.Add(vsetAs3), IsNil)
+	mylog.
 
-	// but pretend it's not a refresh of all snaps
-	err = assertstate.RefreshSnapAssertions(s.state, 0, &assertstate.RefreshAssertionsOptions{IsRefreshOfAllSnaps: false})
-	c.Assert(err, IsNil)
+		// but pretend it's not a refresh of all snaps
+		Check(assertstate.RefreshSnapAssertions(s.state, 0, &assertstate.RefreshAssertionsOptions{IsRefreshOfAllSnaps: false}))
+
 
 	// so the assertion is not updated
-	_, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
+	_ = mylog.Check2(assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
 		"account-id": s.dev1Acct.AccountID(),
 		"name":       "bar",
 		"sequence":   "4",
-	})
+	}))
 	c.Check(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 }
 
@@ -1262,8 +1234,7 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsTooEarly(c *C) {
 
 	r := snapstatetest.MockDeviceModel(nil)
 	defer r()
-
-	err := assertstate.RefreshSnapDeclarations(s.state, 0, nil)
+	mylog.Check(assertstate.RefreshSnapDeclarations(s.state, 0, nil))
 	c.Check(err, FitsTypeOf, &snapstate.ChangeConflictError{})
 }
 
@@ -1272,9 +1243,8 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsNop(c *C) {
 	defer s.state.Unlock()
 
 	s.setModel(sysdb.GenericClassicModel())
+	mylog.Check(assertstate.RefreshSnapDeclarations(s.state, 0, &assertstate.RefreshAssertionsOptions{IsAutoRefresh: true}))
 
-	err := assertstate.RefreshSnapDeclarations(s.state, 0, &assertstate.RefreshAssertionsOptions{IsAutoRefresh: true})
-	c.Assert(err, IsNil)
 	c.Check(s.fakeStore.(*fakeStore).opts.Scheduled, Equals, true)
 }
 
@@ -1296,16 +1266,17 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsNoStore(c *C) {
 		}),
 		Current: snap.R(-1),
 	})
+	mylog.
 
-	// previous state
-	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, s.dev1Acct)
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, snapDeclFoo)
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, snapDeclBar)
-	c.Assert(err, IsNil)
+		// previous state
+		Check(assertstate.Add(s.state, s.storeSigning.StoreAccountKey("")))
+
+	mylog.Check(assertstate.Add(s.state, s.dev1Acct))
+
+	mylog.Check(assertstate.Add(s.state, snapDeclFoo))
+
+	mylog.Check(assertstate.Add(s.state, snapDeclBar))
+
 
 	// one changed assertion
 	headers := map[string]interface{}{
@@ -1316,19 +1287,18 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsNoStore(c *C) {
 		"timestamp":    time.Now().Format(time.RFC3339),
 		"revision":     "1",
 	}
-	snapDeclFoo1, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
-	c.Assert(err, IsNil)
-	err = s.storeSigning.Add(snapDeclFoo1)
-	c.Assert(err, IsNil)
+	snapDeclFoo1 := mylog.Check2(s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, ""))
 
-	err = assertstate.RefreshSnapDeclarations(s.state, 0, nil)
-	c.Assert(err, IsNil)
+	mylog.Check(s.storeSigning.Add(snapDeclFoo1))
 
-	a, err := assertstate.DB(s.state).Find(asserts.SnapDeclarationType, map[string]string{
+	mylog.Check(assertstate.RefreshSnapDeclarations(s.state, 0, nil))
+
+
+	a := mylog.Check2(assertstate.DB(s.state).Find(asserts.SnapDeclarationType, map[string]string{
 		"series":  "16",
 		"snap-id": "foo-id",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(a.(*asserts.SnapDeclaration).SnapName(), Equals, "fo-o")
 
 	// another one
@@ -1336,18 +1306,17 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsNoStore(c *C) {
 	headers = s.dev1Acct.Headers()
 	headers["display-name"] = "Dev 1 edited display-name"
 	headers["revision"] = "1"
-	dev1Acct1, err := s.storeSigning.Sign(asserts.AccountType, headers, nil, "")
-	c.Assert(err, IsNil)
-	err = s.storeSigning.Add(dev1Acct1)
-	c.Assert(err, IsNil)
+	dev1Acct1 := mylog.Check2(s.storeSigning.Sign(asserts.AccountType, headers, nil, ""))
 
-	err = assertstate.RefreshSnapDeclarations(s.state, 0, nil)
-	c.Assert(err, IsNil)
+	mylog.Check(s.storeSigning.Add(dev1Acct1))
 
-	a, err = assertstate.DB(s.state).Find(asserts.AccountType, map[string]string{
+	mylog.Check(assertstate.RefreshSnapDeclarations(s.state, 0, nil))
+
+
+	a = mylog.Check2(assertstate.DB(s.state).Find(asserts.AccountType, map[string]string{
 		"account-id": s.dev1Acct.AccountID(),
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(a.(*asserts.Account).DisplayName(), Equals, "Dev 1 edited display-name")
 
 	// change snap decl to something that has a too new format
@@ -1366,21 +1335,22 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsNoStore(c *C) {
 			"revision":     "2",
 		}
 
-		snapDeclFoo2, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
-		c.Assert(err, IsNil)
-		err = s.storeSigning.Add(snapDeclFoo2)
-		c.Assert(err, IsNil)
+		snapDeclFoo2 := mylog.Check2(s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, ""))
+
+		mylog.Check(s.storeSigning.Add(snapDeclFoo2))
+
 	})()
+	mylog.
 
-	// no error, kept the old one
-	err = assertstate.RefreshSnapDeclarations(s.state, 0, nil)
-	c.Assert(err, IsNil)
+		// no error, kept the old one
+		Check(assertstate.RefreshSnapDeclarations(s.state, 0, nil))
 
-	a, err = assertstate.DB(s.state).Find(asserts.SnapDeclarationType, map[string]string{
+
+	a = mylog.Check2(assertstate.DB(s.state).Find(asserts.SnapDeclarationType, map[string]string{
 		"series":  "16",
 		"snap-id": "foo-id",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(a.(*asserts.SnapDeclaration).SnapName(), Equals, "fo-o")
 	c.Check(a.(*asserts.SnapDeclaration).Revision(), Equals, 1)
 }
@@ -1394,23 +1364,24 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsChangingKey(c *C) {
 	snapDeclFoo := s.snapDecl(c, "foo", nil)
 
 	s.stateFromDecl(c, snapDeclFoo, "", snap.R(7))
+	mylog.
 
-	// previous state
-	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, s.dev1Acct)
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, snapDeclFoo)
-	c.Assert(err, IsNil)
+		// previous state
+		Check(assertstate.Add(s.state, s.storeSigning.StoreAccountKey("")))
+
+	mylog.Check(assertstate.Add(s.state, s.dev1Acct))
+
+	mylog.Check(assertstate.Add(s.state, snapDeclFoo))
+
 
 	storePrivKey2, _ := assertstest.GenerateKey(752)
-	err = s.storeSigning.ImportKey(storePrivKey2)
-	c.Assert(err, IsNil)
+	mylog.Check(s.storeSigning.ImportKey(storePrivKey2))
+
 	storeKey2 := assertstest.NewAccountKey(s.storeSigning.RootSigning, s.storeSigning.TrustedAccount, map[string]interface{}{
 		"name": "store2",
 	}, storePrivKey2.PublicKey(), "")
-	err = s.storeSigning.Add(storeKey2)
-	c.Assert(err, IsNil)
+	mylog.Check(s.storeSigning.Add(storeKey2))
+
 
 	// one changed assertion signed with different key
 	headers := map[string]interface{}{
@@ -1422,28 +1393,27 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsChangingKey(c *C) {
 		"revision":     "1",
 	}
 	storeKey2ID := storePrivKey2.PublicKey().ID()
-	snapDeclFoo1, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, storeKey2ID)
-	c.Assert(err, IsNil)
+	snapDeclFoo1 := mylog.Check2(s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, storeKey2ID))
+
 	c.Check(snapDeclFoo1.SignKeyID(), Not(Equals), snapDeclFoo.SignKeyID())
-	err = s.storeSigning.Add(snapDeclFoo1)
-	c.Assert(err, IsNil)
+	mylog.Check(s.storeSigning.Add(snapDeclFoo1))
 
-	_, err = storeKey2.Ref().Resolve(assertstate.DB(s.state).Find)
+
+	_ = mylog.Check2(storeKey2.Ref().Resolve(assertstate.DB(s.state).Find))
 	c.Check(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
+	mylog.Check(assertstate.RefreshSnapDeclarations(s.state, 0, nil))
 
-	err = assertstate.RefreshSnapDeclarations(s.state, 0, nil)
-	c.Assert(err, IsNil)
 
-	a, err := assertstate.DB(s.state).Find(asserts.SnapDeclarationType, map[string]string{
+	a := mylog.Check2(assertstate.DB(s.state).Find(asserts.SnapDeclarationType, map[string]string{
 		"series":  "16",
 		"snap-id": "foo-id",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(a.Revision(), Equals, 1)
 	c.Check(a.SignKeyID(), Equals, storeKey2ID)
 
 	// key was fetched as well
-	_, err = storeKey2.Ref().Resolve(assertstate.DB(s.state).Find)
+	_ = mylog.Check2(storeKey2.Ref().Resolve(assertstate.DB(s.state).Find))
 	c.Check(err, IsNil)
 }
 
@@ -1456,14 +1426,15 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsWithStore(c *C) {
 	snapDeclFoo := s.snapDecl(c, "foo", nil)
 
 	s.stateFromDecl(c, snapDeclFoo, "", snap.R(7))
+	mylog.
 
-	// previous state
-	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, s.dev1Acct)
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, snapDeclFoo)
-	c.Assert(err, IsNil)
+		// previous state
+		Check(assertstate.Add(s.state, s.storeSigning.StoreAccountKey("")))
+
+	mylog.Check(assertstate.Add(s.state, s.dev1Acct))
+
+	mylog.Check(assertstate.Add(s.state, snapDeclFoo))
+
 
 	// one changed assertion
 	headers := map[string]interface{}{
@@ -1474,20 +1445,21 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsWithStore(c *C) {
 		"timestamp":    time.Now().Format(time.RFC3339),
 		"revision":     "1",
 	}
-	snapDeclFoo1, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
-	c.Assert(err, IsNil)
-	err = s.storeSigning.Add(snapDeclFoo1)
-	c.Assert(err, IsNil)
+	snapDeclFoo1 := mylog.Check2(s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, ""))
 
-	// store assertion is missing
-	err = assertstate.RefreshSnapDeclarations(s.state, 0, nil)
-	c.Assert(err, IsNil)
+	mylog.Check(s.storeSigning.Add(snapDeclFoo1))
 
-	a, err := assertstate.DB(s.state).Find(asserts.SnapDeclarationType, map[string]string{
+	mylog.
+
+		// store assertion is missing
+		Check(assertstate.RefreshSnapDeclarations(s.state, 0, nil))
+
+
+	a := mylog.Check2(assertstate.DB(s.state).Find(asserts.SnapDeclarationType, map[string]string{
 		"series":  "16",
 		"snap-id": "foo-id",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(a.(*asserts.SnapDeclaration).SnapName(), Equals, "fo-o")
 
 	// changed again
@@ -1499,50 +1471,49 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsWithStore(c *C) {
 		"timestamp":    time.Now().Format(time.RFC3339),
 		"revision":     "2",
 	}
-	snapDeclFoo2, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
-	c.Assert(err, IsNil)
-	err = s.storeSigning.Add(snapDeclFoo2)
-	c.Assert(err, IsNil)
+	snapDeclFoo2 := mylog.Check2(s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, ""))
 
-	// store assertion is available
-	err = s.storeSigning.Add(storeAs)
-	c.Assert(err, IsNil)
+	mylog.Check(s.storeSigning.Add(snapDeclFoo2))
 
-	err = assertstate.RefreshSnapDeclarations(s.state, 0, nil)
-	c.Assert(err, IsNil)
+	mylog.
 
-	a, err = assertstate.DB(s.state).Find(asserts.SnapDeclarationType, map[string]string{
+		// store assertion is available
+		Check(s.storeSigning.Add(storeAs))
+
+	mylog.Check(assertstate.RefreshSnapDeclarations(s.state, 0, nil))
+
+
+	a = mylog.Check2(assertstate.DB(s.state).Find(asserts.SnapDeclarationType, map[string]string{
 		"series":  "16",
 		"snap-id": "foo-id",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(a.(*asserts.SnapDeclaration).SnapName(), Equals, "f-oo")
 
-	_, err = assertstate.DB(s.state).Find(asserts.StoreType, map[string]string{
+	_ = mylog.Check2(assertstate.DB(s.state).Find(asserts.StoreType, map[string]string{
 		"store": "my-brand-store",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 
 	// store assertion has changed
-	a, err = s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
+	a = mylog.Check2(s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
 		"authority-id": s.storeSigning.AuthorityID,
 		"operator-id":  s.storeSigning.AuthorityID,
 		"store":        "my-brand-store",
 		"location":     "the-cloud",
 		"revision":     "1",
 		"timestamp":    time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	storeAs = a.(*asserts.Store)
-	err = s.storeSigning.Add(storeAs)
-	c.Assert(err, IsNil)
+	}, nil, ""))
 
-	err = assertstate.RefreshSnapDeclarations(s.state, 0, nil)
-	c.Assert(err, IsNil)
-	a, err = assertstate.DB(s.state).Find(asserts.StoreType, map[string]string{
+	storeAs = a.(*asserts.Store)
+	mylog.Check(s.storeSigning.Add(storeAs))
+
+	mylog.Check(assertstate.RefreshSnapDeclarations(s.state, 0, nil))
+
+	a = mylog.Check2(assertstate.DB(s.state).Find(asserts.StoreType, map[string]string{
 		"store": "my-brand-store",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(a.(*asserts.Store).Location(), Equals, "the-cloud")
 }
 
@@ -1555,14 +1526,15 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsDownloadError(c *C) {
 	snapDeclFoo := s.snapDecl(c, "foo", nil)
 
 	s.stateFromDecl(c, snapDeclFoo, "", snap.R(7))
+	mylog.
 
-	// previous state
-	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, s.dev1Acct)
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, snapDeclFoo)
-	c.Assert(err, IsNil)
+		// previous state
+		Check(assertstate.Add(s.state, s.storeSigning.StoreAccountKey("")))
+
+	mylog.Check(assertstate.Add(s.state, s.dev1Acct))
+
+	mylog.Check(assertstate.Add(s.state, snapDeclFoo))
+
 
 	// one changed assertion
 	headers := map[string]interface{}{
@@ -1573,14 +1545,13 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsDownloadError(c *C) {
 		"timestamp":    time.Now().Format(time.RFC3339),
 		"revision":     "1",
 	}
-	snapDeclFoo1, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
-	c.Assert(err, IsNil)
-	err = s.storeSigning.Add(snapDeclFoo1)
-	c.Assert(err, IsNil)
+	snapDeclFoo1 := mylog.Check2(s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, ""))
+
+	mylog.Check(s.storeSigning.Add(snapDeclFoo1))
+
 
 	s.fakeStore.(*fakeStore).downloadAssertionsErr = errors.New("download error")
-
-	err = assertstate.RefreshSnapDeclarations(s.state, 0, nil)
+	mylog.Check(assertstate.RefreshSnapDeclarations(s.state, 0, nil))
 	c.Assert(err, ErrorMatches, `cannot refresh snap-declarations for snaps:
  - foo: download error`)
 }
@@ -1594,14 +1565,15 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsPersistentNetworkError(c *C)
 	snapDeclFoo := s.snapDecl(c, "foo", nil)
 
 	s.stateFromDecl(c, snapDeclFoo, "", snap.R(7))
+	mylog.
 
-	// previous state
-	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, s.dev1Acct)
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, snapDeclFoo)
-	c.Assert(err, IsNil)
+		// previous state
+		Check(assertstate.Add(s.state, s.storeSigning.StoreAccountKey("")))
+
+	mylog.Check(assertstate.Add(s.state, s.dev1Acct))
+
+	mylog.Check(assertstate.Add(s.state, snapDeclFoo))
+
 
 	// one changed assertion
 	headers := map[string]interface{}{
@@ -1612,15 +1584,14 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsPersistentNetworkError(c *C)
 		"timestamp":    time.Now().Format(time.RFC3339),
 		"revision":     "1",
 	}
-	snapDeclFoo1, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
-	c.Assert(err, IsNil)
-	err = s.storeSigning.Add(snapDeclFoo1)
-	c.Assert(err, IsNil)
+	snapDeclFoo1 := mylog.Check2(s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, ""))
+
+	mylog.Check(s.storeSigning.Add(snapDeclFoo1))
+
 
 	pne := new(httputil.PersistentNetworkError)
 	s.fakeStore.(*fakeStore).snapActionErr = pne
-
-	err = assertstate.RefreshSnapDeclarations(s.state, 0, nil)
+	mylog.Check(assertstate.RefreshSnapDeclarations(s.state, 0, nil))
 	c.Assert(err, Equals, pne)
 }
 
@@ -1674,22 +1645,24 @@ func (s *assertMgrSuite) testRefreshSnapDeclarationsMany(c *C, n int) error {
 	// reduce maxGroups to test and stress the logic that deals
 	// with overflowing it
 	s.AddCleanup(assertstate.MockMaxGroups(16))
+	mylog.
 
-	// previous state
-	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, s.dev1Acct)
-	c.Assert(err, IsNil)
+		// previous state
+		Check(assertstate.Add(s.state, s.storeSigning.StoreAccountKey("")))
+
+	mylog.Check(assertstate.Add(s.state, s.dev1Acct))
+
 
 	for i := 1; i <= n; i++ {
 		name := fmt.Sprintf("foo%d", i)
 		snapDeclFooX := s.snapDecl(c, name, nil)
 
 		s.stateFromDecl(c, snapDeclFooX, "", snap.R(7+i))
+		mylog.Check(
 
-		// previous state
-		err = assertstate.Add(s.state, snapDeclFooX)
-		c.Assert(err, IsNil)
+			// previous state
+			assertstate.Add(s.state, snapDeclFooX))
+
 
 		// make an update on top
 		headers := map[string]interface{}{
@@ -1700,26 +1673,23 @@ func (s *assertMgrSuite) testRefreshSnapDeclarationsMany(c *C, n int) error {
 			"timestamp":    time.Now().Format(time.RFC3339),
 			"revision":     "1",
 		}
-		snapDeclFooX1, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
-		c.Assert(err, IsNil)
-		err = s.storeSigning.Add(snapDeclFooX1)
-		c.Assert(err, IsNil)
-	}
+		snapDeclFooX1 := mylog.Check2(s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, ""))
 
-	err = assertstate.RefreshSnapDeclarations(s.state, 0, nil)
-	if err != nil {
-		// fot the caller to check
-		return err
+		mylog.Check(s.storeSigning.Add(snapDeclFooX1))
+
 	}
+	mylog.Check(assertstate.RefreshSnapDeclarations(s.state, 0, nil))
+
+	// fot the caller to check
 
 	// check we got the updates
 	for i := 1; i <= n; i++ {
 		name := fmt.Sprintf("foo%d", i)
-		a, err := assertstate.DB(s.state).Find(asserts.SnapDeclarationType, map[string]string{
+		a := mylog.Check2(assertstate.DB(s.state).Find(asserts.SnapDeclarationType, map[string]string{
 			"series":  "16",
 			"snap-id": name + "-id",
-		})
-		c.Assert(err, IsNil)
+		}))
+
 		c.Check(a.(*asserts.SnapDeclaration).SnapName(), Equals, fmt.Sprintf("fo-o-%d", i))
 	}
 
@@ -1730,9 +1700,8 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsMany14NoStore(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	s.setModel(sysdb.GenericClassicModel())
+	mylog.Check(s.testRefreshSnapDeclarationsMany(c, 14))
 
-	err := s.testRefreshSnapDeclarationsMany(c, 14)
-	c.Assert(err, IsNil)
 
 	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
 		{"account", "account-key", "snap-declaration"},
@@ -1743,9 +1712,8 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsMany16NoStore(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	s.setModel(sysdb.GenericClassicModel())
+	mylog.Check(s.testRefreshSnapDeclarationsMany(c, 16))
 
-	err := s.testRefreshSnapDeclarationsMany(c, 16)
-	c.Assert(err, IsNil)
 
 	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
 		{"account", "account-key", "snap-declaration"},
@@ -1757,11 +1725,10 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsMany16WithStore(c *C) {
 	defer s.state.Unlock()
 	// have a model and the store assertion available
 	storeAs := s.setupModelAndStore(c)
-	err := s.storeSigning.Add(storeAs)
-	c.Assert(err, IsNil)
+	mylog.Check(s.storeSigning.Add(storeAs))
 
-	err = s.testRefreshSnapDeclarationsMany(c, 16)
-	c.Assert(err, IsNil)
+	mylog.Check(s.testRefreshSnapDeclarationsMany(c, 16))
+
 
 	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
 		// first 16 groups request
@@ -1771,19 +1738,18 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsMany16WithStore(c *C) {
 	})
 
 	// store assertion was also fetched
-	_, err = assertstate.DB(s.state).Find(asserts.StoreType, map[string]string{
+	_ = mylog.Check2(assertstate.DB(s.state).Find(asserts.StoreType, map[string]string{
 		"store": "my-brand-store",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 }
 
 func (s *assertMgrSuite) TestRefreshSnapDeclarationsMany17NoStore(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	s.setModel(sysdb.GenericClassicModel())
+	mylog.Check(s.testRefreshSnapDeclarationsMany(c, 17))
 
-	err := s.testRefreshSnapDeclarationsMany(c, 17)
-	c.Assert(err, IsNil)
 
 	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
 		// first 16 groups request
@@ -1799,8 +1765,7 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsMany17NoStoreMergeErrors(c *
 	s.setModel(sysdb.GenericClassicModel())
 
 	s.fakeStore.(*fakeStore).downloadAssertionsErr = errors.New("download error")
-
-	err := s.testRefreshSnapDeclarationsMany(c, 17)
+	mylog.Check(s.testRefreshSnapDeclarationsMany(c, 17))
 	c.Check(err, ErrorMatches, `(?s)cannot refresh snap-declarations for snaps:
  - foo1: download error.* - foo9: download error`)
 	// all foo* snaps accounted for
@@ -1819,11 +1784,10 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsMany31WithStore(c *C) {
 	defer s.state.Unlock()
 	// have a model and the store assertion available
 	storeAs := s.setupModelAndStore(c)
-	err := s.storeSigning.Add(storeAs)
-	c.Assert(err, IsNil)
+	mylog.Check(s.storeSigning.Add(storeAs))
 
-	err = s.testRefreshSnapDeclarationsMany(c, 31)
-	c.Assert(err, IsNil)
+	mylog.Check(s.testRefreshSnapDeclarationsMany(c, 31))
+
 
 	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
 		// first 16 groups request
@@ -1833,10 +1797,10 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsMany31WithStore(c *C) {
 	})
 
 	// store assertion was also fetched
-	_, err = assertstate.DB(s.state).Find(asserts.StoreType, map[string]string{
+	_ = mylog.Check2(assertstate.DB(s.state).Find(asserts.StoreType, map[string]string{
 		"store": "my-brand-store",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 }
 
 func (s *assertMgrSuite) TestRefreshSnapDeclarationsMany32WithStore(c *C) {
@@ -1844,11 +1808,10 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsMany32WithStore(c *C) {
 	defer s.state.Unlock()
 	// have a model and the store assertion available
 	storeAs := s.setupModelAndStore(c)
-	err := s.storeSigning.Add(storeAs)
-	c.Assert(err, IsNil)
+	mylog.Check(s.storeSigning.Add(storeAs))
 
-	err = s.testRefreshSnapDeclarationsMany(c, 32)
-	c.Assert(err, IsNil)
+	mylog.Check(s.testRefreshSnapDeclarationsMany(c, 32))
+
 
 	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
 		// first 16 groups request
@@ -1860,18 +1823,18 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsMany32WithStore(c *C) {
 	})
 
 	// store assertion was also fetched
-	_, err = assertstate.DB(s.state).Find(asserts.StoreType, map[string]string{
+	_ = mylog.Check2(assertstate.DB(s.state).Find(asserts.StoreType, map[string]string{
 		"store": "my-brand-store",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 }
 
 func (s *assertMgrSuite) TestValidateRefreshesNothing(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	validated, err := assertstate.ValidateRefreshes(s.state, nil, nil, 0, s.trivialDeviceCtx)
-	c.Assert(err, IsNil)
+	validated := mylog.Check2(assertstate.ValidateRefreshes(s.state, nil, nil, 0, s.trivialDeviceCtx))
+
 	c.Check(validated, HasLen, 0)
 }
 
@@ -1883,22 +1846,21 @@ func (s *assertMgrSuite) TestValidateRefreshesNoControl(c *C) {
 	snapDeclBar := s.snapDecl(c, "bar", nil)
 	s.stateFromDecl(c, snapDeclFoo, "", snap.R(7))
 	s.stateFromDecl(c, snapDeclBar, "", snap.R(3))
+	mylog.Check(assertstate.Add(s.state, s.storeSigning.StoreAccountKey("")))
 
-	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, s.dev1Acct)
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, snapDeclFoo)
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, snapDeclBar)
-	c.Assert(err, IsNil)
+	mylog.Check(assertstate.Add(s.state, s.dev1Acct))
+
+	mylog.Check(assertstate.Add(s.state, snapDeclFoo))
+
+	mylog.Check(assertstate.Add(s.state, snapDeclBar))
+
 
 	fooRefresh := &snap.Info{
 		SideInfo: snap.SideInfo{RealName: "foo", SnapID: "foo-id", Revision: snap.R(9)},
 	}
 
-	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh}, nil, 0, s.trivialDeviceCtx)
-	c.Assert(err, IsNil)
+	validated := mylog.Check2(assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh}, nil, 0, s.trivialDeviceCtx))
+
 	c.Check(validated, DeepEquals, []*snap.Info{fooRefresh})
 }
 
@@ -1912,21 +1874,20 @@ func (s *assertMgrSuite) TestValidateRefreshesMissingValidation(c *C) {
 	})
 	s.stateFromDecl(c, snapDeclFoo, "", snap.R(7))
 	s.stateFromDecl(c, snapDeclBar, "", snap.R(3))
+	mylog.Check(assertstate.Add(s.state, s.storeSigning.StoreAccountKey("")))
 
-	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, s.dev1Acct)
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, snapDeclFoo)
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, snapDeclBar)
-	c.Assert(err, IsNil)
+	mylog.Check(assertstate.Add(s.state, s.dev1Acct))
+
+	mylog.Check(assertstate.Add(s.state, snapDeclFoo))
+
+	mylog.Check(assertstate.Add(s.state, snapDeclBar))
+
 
 	fooRefresh := &snap.Info{
 		SideInfo: snap.SideInfo{RealName: "foo", SnapID: "foo-id", Revision: snap.R(9)},
 	}
 
-	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh}, nil, 0, s.trivialDeviceCtx)
+	validated := mylog.Check2(assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh}, nil, 0, s.trivialDeviceCtx))
 	c.Assert(err, ErrorMatches, `cannot refresh "foo" to revision 9: no validation by "bar"`)
 	c.Check(validated, HasLen, 0)
 }
@@ -1942,22 +1903,21 @@ func (s *assertMgrSuite) TestParallelInstanceValidateRefreshesMissingValidation(
 	s.stateFromDecl(c, snapDeclFoo, "", snap.R(7))
 	s.stateFromDecl(c, snapDeclFoo, "foo_instance", snap.R(7))
 	s.stateFromDecl(c, snapDeclBar, "", snap.R(3))
+	mylog.Check(assertstate.Add(s.state, s.storeSigning.StoreAccountKey("")))
 
-	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, s.dev1Acct)
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, snapDeclFoo)
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, snapDeclBar)
-	c.Assert(err, IsNil)
+	mylog.Check(assertstate.Add(s.state, s.dev1Acct))
+
+	mylog.Check(assertstate.Add(s.state, snapDeclFoo))
+
+	mylog.Check(assertstate.Add(s.state, snapDeclBar))
+
 
 	fooInstanceRefresh := &snap.Info{
 		SideInfo:    snap.SideInfo{RealName: "foo", SnapID: "foo-id", Revision: snap.R(9)},
 		InstanceKey: "instance",
 	}
 
-	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooInstanceRefresh}, nil, 0, s.trivialDeviceCtx)
+	validated := mylog.Check2(assertstate.ValidateRefreshes(s.state, []*snap.Info{fooInstanceRefresh}, nil, 0, s.trivialDeviceCtx))
 	c.Assert(err, ErrorMatches, `cannot refresh "foo_instance" to revision 9: no validation by "bar"`)
 	c.Check(validated, HasLen, 0)
 }
@@ -1972,22 +1932,21 @@ func (s *assertMgrSuite) TestValidateRefreshesMissingValidationButIgnore(c *C) {
 	})
 	s.stateFromDecl(c, snapDeclFoo, "", snap.R(7))
 	s.stateFromDecl(c, snapDeclBar, "", snap.R(3))
+	mylog.Check(assertstate.Add(s.state, s.storeSigning.StoreAccountKey("")))
 
-	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, s.dev1Acct)
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, snapDeclFoo)
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, snapDeclBar)
-	c.Assert(err, IsNil)
+	mylog.Check(assertstate.Add(s.state, s.dev1Acct))
+
+	mylog.Check(assertstate.Add(s.state, snapDeclFoo))
+
+	mylog.Check(assertstate.Add(s.state, snapDeclBar))
+
 
 	fooRefresh := &snap.Info{
 		SideInfo: snap.SideInfo{RealName: "foo", SnapID: "foo-id", Revision: snap.R(9)},
 	}
 
-	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh}, map[string]bool{"foo": true}, 0, s.trivialDeviceCtx)
-	c.Assert(err, IsNil)
+	validated := mylog.Check2(assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh}, map[string]bool{"foo": true}, 0, s.trivialDeviceCtx))
+
 	c.Check(validated, DeepEquals, []*snap.Info{fooRefresh})
 }
 
@@ -2002,15 +1961,14 @@ func (s *assertMgrSuite) TestParallelInstanceValidateRefreshesMissingValidationB
 	s.stateFromDecl(c, snapDeclFoo, "", snap.R(7))
 	s.stateFromDecl(c, snapDeclFoo, "foo_instance", snap.R(7))
 	s.stateFromDecl(c, snapDeclBar, "", snap.R(3))
+	mylog.Check(assertstate.Add(s.state, s.storeSigning.StoreAccountKey("")))
 
-	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, s.dev1Acct)
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, snapDeclFoo)
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, snapDeclBar)
-	c.Assert(err, IsNil)
+	mylog.Check(assertstate.Add(s.state, s.dev1Acct))
+
+	mylog.Check(assertstate.Add(s.state, snapDeclFoo))
+
+	mylog.Check(assertstate.Add(s.state, snapDeclBar))
+
 
 	fooRefresh := &snap.Info{
 		SideInfo: snap.SideInfo{RealName: "foo", SnapID: "foo-id", Revision: snap.R(9)},
@@ -2021,7 +1979,7 @@ func (s *assertMgrSuite) TestParallelInstanceValidateRefreshesMissingValidationB
 	}
 
 	// validation is ignore for foo_instance but not for foo
-	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh, fooInstanceRefresh}, map[string]bool{"foo_instance": true}, 0, s.trivialDeviceCtx)
+	validated := mylog.Check2(assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh, fooInstanceRefresh}, map[string]bool{"foo_instance": true}, 0, s.trivialDeviceCtx))
 	c.Assert(err, ErrorMatches, `cannot refresh "foo" to revision 9: no validation by "bar"`)
 	c.Check(validated, DeepEquals, []*snap.Info{fooInstanceRefresh})
 }
@@ -2036,23 +1994,22 @@ func (s *assertMgrSuite) TestParallelInstanceValidateRefreshesMissingValidationB
 	})
 	s.stateFromDecl(c, snapDeclFoo, "foo_instance", snap.R(7))
 	s.stateFromDecl(c, snapDeclBar, "", snap.R(3))
+	mylog.Check(assertstate.Add(s.state, s.storeSigning.StoreAccountKey("")))
 
-	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, s.dev1Acct)
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, snapDeclFoo)
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, snapDeclBar)
-	c.Assert(err, IsNil)
+	mylog.Check(assertstate.Add(s.state, s.dev1Acct))
+
+	mylog.Check(assertstate.Add(s.state, snapDeclFoo))
+
+	mylog.Check(assertstate.Add(s.state, snapDeclBar))
+
 
 	fooInstanceRefresh := &snap.Info{
 		SideInfo:    snap.SideInfo{RealName: "foo", SnapID: "foo-id", Revision: snap.R(9)},
 		InstanceKey: "instance",
 	}
 
-	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooInstanceRefresh}, map[string]bool{"foo_instance": true}, 0, s.trivialDeviceCtx)
-	c.Assert(err, IsNil)
+	validated := mylog.Check2(assertstate.ValidateRefreshes(s.state, []*snap.Info{fooInstanceRefresh}, map[string]bool{"foo_instance": true}, 0, s.trivialDeviceCtx))
+
 	c.Check(validated, DeepEquals, []*snap.Info{fooInstanceRefresh})
 }
 
@@ -2067,15 +2024,14 @@ func (s *assertMgrSuite) TestParallelInstanceValidateRefreshesMissingValidationB
 	s.stateFromDecl(c, snapDeclFoo, "", snap.R(7))
 	s.stateFromDecl(c, snapDeclFoo, "foo_instance", snap.R(7))
 	s.stateFromDecl(c, snapDeclBar, "", snap.R(3))
+	mylog.Check(assertstate.Add(s.state, s.storeSigning.StoreAccountKey("")))
 
-	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, s.dev1Acct)
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, snapDeclFoo)
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, snapDeclBar)
-	c.Assert(err, IsNil)
+	mylog.Check(assertstate.Add(s.state, s.dev1Acct))
+
+	mylog.Check(assertstate.Add(s.state, snapDeclFoo))
+
+	mylog.Check(assertstate.Add(s.state, snapDeclBar))
+
 
 	fooRefresh := &snap.Info{
 		SideInfo: snap.SideInfo{RealName: "foo", SnapID: "foo-id", Revision: snap.R(9)},
@@ -2085,7 +2041,7 @@ func (s *assertMgrSuite) TestParallelInstanceValidateRefreshesMissingValidationB
 		InstanceKey: "instance",
 	}
 
-	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh, fooInstanceRefresh}, map[string]bool{"foo_instance": true}, 0, s.trivialDeviceCtx)
+	validated := mylog.Check2(assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh, fooInstanceRefresh}, map[string]bool{"foo_instance": true}, 0, s.trivialDeviceCtx))
 	c.Assert(err, ErrorMatches, `cannot refresh "foo" to revision 9: no validation by "bar"`)
 	c.Check(validated, DeepEquals, []*snap.Info{fooInstanceRefresh})
 }
@@ -2121,10 +2077,10 @@ func (s *assertMgrSuite) TestValidateRefreshesValidationOK(c *C) {
 		"approved-snap-revision": "9",
 		"timestamp":              time.Now().Format(time.RFC3339),
 	}
-	barValidation, err := s.dev1Signing.Sign(asserts.ValidationType, headers, nil, "")
-	c.Assert(err, IsNil)
-	err = s.storeSigning.Add(barValidation)
-	c.Assert(err, IsNil)
+	barValidation := mylog.Check2(s.dev1Signing.Sign(asserts.ValidationType, headers, nil, ""))
+
+	mylog.Check(s.storeSigning.Add(barValidation))
+
 
 	// validation by baz
 	headers = map[string]interface{}{
@@ -2134,21 +2090,20 @@ func (s *assertMgrSuite) TestValidateRefreshesValidationOK(c *C) {
 		"approved-snap-revision": "9",
 		"timestamp":              time.Now().Format(time.RFC3339),
 	}
-	bazValidation, err := s.dev1Signing.Sign(asserts.ValidationType, headers, nil, "")
-	c.Assert(err, IsNil)
-	err = s.storeSigning.Add(bazValidation)
-	c.Assert(err, IsNil)
+	bazValidation := mylog.Check2(s.dev1Signing.Sign(asserts.ValidationType, headers, nil, ""))
 
-	err = assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, s.dev1Acct)
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, snapDeclFoo)
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, snapDeclBar)
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, snapDeclBaz)
-	c.Assert(err, IsNil)
+	mylog.Check(s.storeSigning.Add(bazValidation))
+
+	mylog.Check(assertstate.Add(s.state, s.storeSigning.StoreAccountKey("")))
+
+	mylog.Check(assertstate.Add(s.state, s.dev1Acct))
+
+	mylog.Check(assertstate.Add(s.state, snapDeclFoo))
+
+	mylog.Check(assertstate.Add(s.state, snapDeclBar))
+
+	mylog.Check(assertstate.Add(s.state, snapDeclBaz))
+
 
 	fooRefresh := &snap.Info{
 		SideInfo: snap.SideInfo{RealName: "foo", SnapID: "foo-id", Revision: snap.R(9)},
@@ -2158,8 +2113,8 @@ func (s *assertMgrSuite) TestValidateRefreshesValidationOK(c *C) {
 		InstanceKey: "instance",
 	}
 
-	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh, fooInstanceRefresh}, nil, 0, s.trivialDeviceCtx)
-	c.Assert(err, IsNil)
+	validated := mylog.Check2(assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh, fooInstanceRefresh}, nil, 0, s.trivialDeviceCtx))
+
 	c.Check(validated, DeepEquals, []*snap.Info{fooRefresh, fooInstanceRefresh})
 }
 
@@ -2193,10 +2148,10 @@ func (s *assertMgrSuite) TestValidateRefreshesRevokedValidation(c *C) {
 		"approved-snap-revision": "9",
 		"timestamp":              time.Now().Format(time.RFC3339),
 	}
-	barValidation, err := s.dev1Signing.Sign(asserts.ValidationType, headers, nil, "")
-	c.Assert(err, IsNil)
-	err = s.storeSigning.Add(barValidation)
-	c.Assert(err, IsNil)
+	barValidation := mylog.Check2(s.dev1Signing.Sign(asserts.ValidationType, headers, nil, ""))
+
+	mylog.Check(s.storeSigning.Add(barValidation))
+
 
 	// revoked validation by baz
 	headers = map[string]interface{}{
@@ -2207,27 +2162,26 @@ func (s *assertMgrSuite) TestValidateRefreshesRevokedValidation(c *C) {
 		"revoked":                "true",
 		"timestamp":              time.Now().Format(time.RFC3339),
 	}
-	bazValidation, err := s.dev1Signing.Sign(asserts.ValidationType, headers, nil, "")
-	c.Assert(err, IsNil)
-	err = s.storeSigning.Add(bazValidation)
-	c.Assert(err, IsNil)
+	bazValidation := mylog.Check2(s.dev1Signing.Sign(asserts.ValidationType, headers, nil, ""))
 
-	err = assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, s.dev1Acct)
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, snapDeclFoo)
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, snapDeclBar)
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, snapDeclBaz)
-	c.Assert(err, IsNil)
+	mylog.Check(s.storeSigning.Add(bazValidation))
+
+	mylog.Check(assertstate.Add(s.state, s.storeSigning.StoreAccountKey("")))
+
+	mylog.Check(assertstate.Add(s.state, s.dev1Acct))
+
+	mylog.Check(assertstate.Add(s.state, snapDeclFoo))
+
+	mylog.Check(assertstate.Add(s.state, snapDeclBar))
+
+	mylog.Check(assertstate.Add(s.state, snapDeclBaz))
+
 
 	fooRefresh := &snap.Info{
 		SideInfo: snap.SideInfo{RealName: "foo", SnapID: "foo-id", Revision: snap.R(9)},
 	}
 
-	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh}, nil, 0, s.trivialDeviceCtx)
+	validated := mylog.Check2(assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh}, nil, 0, s.trivialDeviceCtx))
 	c.Assert(err, ErrorMatches, `(?s).*cannot refresh "foo" to revision 9: validation by "baz" \(id "baz-id"\) revoked.*`)
 	c.Check(validated, HasLen, 0)
 }
@@ -2239,7 +2193,7 @@ func (s *assertMgrSuite) TestBaseSnapDeclaration(c *C) {
 	r1 := assertstest.MockBuiltinBaseDeclaration(nil)
 	defer r1()
 
-	baseDecl, err := assertstate.BaseDeclaration(s.state)
+	baseDecl := mylog.Check2(assertstate.BaseDeclaration(s.state))
 	c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 	c.Check(baseDecl, IsNil)
 
@@ -2252,8 +2206,8 @@ plugs:
 `))
 	defer r2()
 
-	baseDecl, err = assertstate.BaseDeclaration(s.state)
-	c.Assert(err, IsNil)
+	baseDecl = mylog.Check2(assertstate.BaseDeclaration(s.state))
+
 	c.Check(baseDecl, NotNil)
 	c.Check(baseDecl.PlugRule("iface"), NotNil)
 }
@@ -2261,46 +2215,48 @@ plugs:
 func (s *assertMgrSuite) TestSnapDeclaration(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+	mylog.
 
-	// have a declaration in the system db
-	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, s.dev1Acct)
-	c.Assert(err, IsNil)
+		// have a declaration in the system db
+		Check(assertstate.Add(s.state, s.storeSigning.StoreAccountKey("")))
+
+	mylog.Check(assertstate.Add(s.state, s.dev1Acct))
+
 	snapDeclFoo := s.snapDecl(c, "foo", nil)
-	err = assertstate.Add(s.state, snapDeclFoo)
-	c.Assert(err, IsNil)
+	mylog.Check(assertstate.Add(s.state, snapDeclFoo))
 
-	_, err = assertstate.SnapDeclaration(s.state, "snap-id-other")
+
+	_ = mylog.Check2(assertstate.SnapDeclaration(s.state, "snap-id-other"))
 	c.Check(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 
-	snapDecl, err := assertstate.SnapDeclaration(s.state, "foo-id")
-	c.Assert(err, IsNil)
+	snapDecl := mylog.Check2(assertstate.SnapDeclaration(s.state, "foo-id"))
+
 	c.Check(snapDecl.SnapName(), Equals, "foo")
 }
 
 func (s *assertMgrSuite) TestAutoAliasesTemporaryFallback(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+	mylog.
 
-	// prereqs for developer assertions in the system db
-	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, s.dev1Acct)
-	c.Assert(err, IsNil)
+		// prereqs for developer assertions in the system db
+		Check(assertstate.Add(s.state, s.storeSigning.StoreAccountKey("")))
+
+	mylog.Check(assertstate.Add(s.state, s.dev1Acct))
+
 
 	// not from the store
-	aliases, err := assertstate.AutoAliases(s.state, &snap.Info{SuggestedName: "local"})
-	c.Assert(err, IsNil)
+	aliases := mylog.Check2(assertstate.AutoAliases(s.state, &snap.Info{SuggestedName: "local"}))
+
 	c.Check(aliases, HasLen, 0)
 
 	// missing
-	_, err = assertstate.AutoAliases(s.state, &snap.Info{
+	_ = mylog.Check2(assertstate.AutoAliases(s.state, &snap.Info{
 		SideInfo: snap.SideInfo{
 			RealName: "baz",
 			SnapID:   "baz-id",
 		},
-	})
+	}))
 	c.Check(err, ErrorMatches, `internal error: cannot find snap-declaration for installed snap "baz": snap-declaration \(baz-id; series:16\) not found`)
 
 	info := snaptest.MockInfo(c, `
@@ -2319,10 +2275,10 @@ apps:
 	// empty list
 	// have a declaration in the system db
 	snapDeclFoo := s.snapDecl(c, "foo", nil)
-	err = assertstate.Add(s.state, snapDeclFoo)
-	c.Assert(err, IsNil)
-	aliases, err = assertstate.AutoAliases(s.state, info)
-	c.Assert(err, IsNil)
+	mylog.Check(assertstate.Add(s.state, snapDeclFoo))
+
+	aliases = mylog.Check2(assertstate.AutoAliases(s.state, info))
+
 	c.Check(aliases, HasLen, 0)
 
 	// some aliases
@@ -2330,10 +2286,10 @@ apps:
 		"auto-aliases": []interface{}{"alias1", "alias2", "alias3"},
 		"revision":     "1",
 	})
-	err = assertstate.Add(s.state, snapDeclFoo)
-	c.Assert(err, IsNil)
-	aliases, err = assertstate.AutoAliases(s.state, info)
-	c.Assert(err, IsNil)
+	mylog.Check(assertstate.Add(s.state, snapDeclFoo))
+
+	aliases = mylog.Check2(assertstate.AutoAliases(s.state, info))
+
 	c.Check(aliases, DeepEquals, map[string]string{
 		"alias1": "cmd1",
 		"alias2": "cmd2",
@@ -2343,39 +2299,40 @@ apps:
 func (s *assertMgrSuite) TestAutoAliasesExplicit(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+	mylog.
 
-	// prereqs for developer assertions in the system db
-	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, s.dev1Acct)
-	c.Assert(err, IsNil)
+		// prereqs for developer assertions in the system db
+		Check(assertstate.Add(s.state, s.storeSigning.StoreAccountKey("")))
+
+	mylog.Check(assertstate.Add(s.state, s.dev1Acct))
+
 
 	// not from the store
-	aliases, err := assertstate.AutoAliases(s.state, &snap.Info{SuggestedName: "local"})
-	c.Assert(err, IsNil)
+	aliases := mylog.Check2(assertstate.AutoAliases(s.state, &snap.Info{SuggestedName: "local"}))
+
 	c.Check(aliases, HasLen, 0)
 
 	// missing
-	_, err = assertstate.AutoAliases(s.state, &snap.Info{
+	_ = mylog.Check2(assertstate.AutoAliases(s.state, &snap.Info{
 		SideInfo: snap.SideInfo{
 			RealName: "baz",
 			SnapID:   "baz-id",
 		},
-	})
+	}))
 	c.Check(err, ErrorMatches, `internal error: cannot find snap-declaration for installed snap "baz": snap-declaration \(baz-id; series:16\) not found`)
 
 	// empty list
 	// have a declaration in the system db
 	snapDeclFoo := s.snapDecl(c, "foo", nil)
-	err = assertstate.Add(s.state, snapDeclFoo)
-	c.Assert(err, IsNil)
-	aliases, err = assertstate.AutoAliases(s.state, &snap.Info{
+	mylog.Check(assertstate.Add(s.state, snapDeclFoo))
+
+	aliases = mylog.Check2(assertstate.AutoAliases(s.state, &snap.Info{
 		SideInfo: snap.SideInfo{
 			RealName: "foo",
 			SnapID:   "foo-id",
 		},
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(aliases, HasLen, 0)
 
 	// some aliases
@@ -2396,9 +2353,9 @@ func (s *assertMgrSuite) TestAutoAliasesExplicit(c *C) {
 		},
 		"revision": "1",
 	})
-	err = assertstate.Add(s.state, snapDeclFoo)
-	c.Assert(err, IsNil)
-	aliases, err = assertstate.AutoAliases(s.state, &snap.Info{
+	mylog.Check(assertstate.Add(s.state, snapDeclFoo))
+
+	aliases = mylog.Check2(assertstate.AutoAliases(s.state, &snap.Info{
 		SideInfo: snap.SideInfo{
 			RealName: "foo",
 			SnapID:   "foo-id",
@@ -2408,8 +2365,8 @@ func (s *assertMgrSuite) TestAutoAliasesExplicit(c *C) {
 			"cmd2": {},
 			// no cmd-missing
 		},
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(aliases, DeepEquals, map[string]string{
 		"alias1": "cmd1",
 		"alias2": "cmd2",
@@ -2419,21 +2376,22 @@ func (s *assertMgrSuite) TestAutoAliasesExplicit(c *C) {
 func (s *assertMgrSuite) TestPublisher(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+	mylog.
 
-	// have a declaration in the system db
-	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, s.dev1Acct)
-	c.Assert(err, IsNil)
+		// have a declaration in the system db
+		Check(assertstate.Add(s.state, s.storeSigning.StoreAccountKey("")))
+
+	mylog.Check(assertstate.Add(s.state, s.dev1Acct))
+
 	snapDeclFoo := s.snapDecl(c, "foo", nil)
-	err = assertstate.Add(s.state, snapDeclFoo)
-	c.Assert(err, IsNil)
+	mylog.Check(assertstate.Add(s.state, snapDeclFoo))
 
-	_, err = assertstate.SnapDeclaration(s.state, "snap-id-other")
+
+	_ = mylog.Check2(assertstate.SnapDeclaration(s.state, "snap-id-other"))
 	c.Check(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 
-	acct, err := assertstate.Publisher(s.state, "foo-id")
-	c.Assert(err, IsNil)
+	acct := mylog.Check2(assertstate.Publisher(s.state, "foo-id"))
+
 	c.Check(acct.AccountID(), Equals, s.dev1Acct.AccountID())
 	c.Check(acct.Username(), Equals, "developer1")
 }
@@ -2441,21 +2399,22 @@ func (s *assertMgrSuite) TestPublisher(c *C) {
 func (s *assertMgrSuite) TestPublisherStoreAccount(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+	mylog.
 
-	// have a declaration in the system db
-	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, s.dev1Acct)
-	c.Assert(err, IsNil)
+		// have a declaration in the system db
+		Check(assertstate.Add(s.state, s.storeSigning.StoreAccountKey("")))
+
+	mylog.Check(assertstate.Add(s.state, s.dev1Acct))
+
 	snapDeclFoo := s.snapDecl(c, "foo", nil)
-	err = assertstate.Add(s.state, snapDeclFoo)
-	c.Assert(err, IsNil)
+	mylog.Check(assertstate.Add(s.state, snapDeclFoo))
 
-	_, err = assertstate.SnapDeclaration(s.state, "snap-id-other")
+
+	_ = mylog.Check2(assertstate.SnapDeclaration(s.state, "snap-id-other"))
 	c.Check(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 
-	acct, err := assertstate.PublisherStoreAccount(s.state, "foo-id")
-	c.Assert(err, IsNil)
+	acct := mylog.Check2(assertstate.PublisherStoreAccount(s.state, "foo-id"))
+
 	c.Check(acct.ID, Equals, s.dev1Acct.AccountID())
 	c.Check(acct.Username, Equals, "developer1")
 	c.Check(acct.DisplayName, Equals, "Developer1")
@@ -2465,26 +2424,25 @@ func (s *assertMgrSuite) TestPublisherStoreAccount(c *C) {
 func (s *assertMgrSuite) TestStore(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+	mylog.Check(assertstate.Add(s.state, s.storeSigning.StoreAccountKey("")))
 
-	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, s.dev1Acct)
-	c.Assert(err, IsNil)
+	mylog.Check(assertstate.Add(s.state, s.dev1Acct))
+
 	storeHeaders := map[string]interface{}{
 		"store":       "foo",
 		"operator-id": s.dev1Acct.AccountID(),
 		"timestamp":   time.Now().Format(time.RFC3339),
 	}
-	fooStore, err := s.storeSigning.Sign(asserts.StoreType, storeHeaders, nil, "")
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, fooStore)
-	c.Assert(err, IsNil)
+	fooStore := mylog.Check2(s.storeSigning.Sign(asserts.StoreType, storeHeaders, nil, ""))
 
-	_, err = assertstate.Store(s.state, "bar")
+	mylog.Check(assertstate.Add(s.state, fooStore))
+
+
+	_ = mylog.Check2(assertstate.Store(s.state, "bar"))
 	c.Check(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 
-	store, err := assertstate.Store(s.state, "foo")
-	c.Assert(err, IsNil)
+	store := mylog.Check2(assertstate.Store(s.state, "foo"))
+
 	c.Check(store.Store(), Equals, "foo")
 }
 
@@ -2495,9 +2453,8 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsNop(c *C) {
 	defer s.state.Unlock()
 
 	s.setModel(sysdb.GenericClassicModel())
+	mylog.Check(assertstate.RefreshValidationSetAssertions(s.state, 0, nil))
 
-	err := assertstate.RefreshValidationSetAssertions(s.state, 0, nil)
-	c.Assert(err, IsNil)
 }
 
 func (s *assertMgrSuite) TestValidationSetAssertionsAutoRefresh(c *C) {
@@ -2530,13 +2487,13 @@ func (s *assertMgrSuite) TestValidationSetAssertionsAutoRefresh(c *C) {
 	c.Assert(assertstate.AutoRefreshAssertions(s.state, 0), IsNil)
 	c.Check(s.fakeStore.(*fakeStore).opts.Scheduled, Equals, true)
 
-	a, err := assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
+	a := mylog.Check2(assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
 		"account-id": s.dev1Acct.AccountID(),
 		"name":       "bar",
 		"sequence":   "2",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(a.Revision(), Equals, 3)
 }
 
@@ -2555,7 +2512,7 @@ func (s *assertMgrSuite) TestValidationSetAssertionsAutoRefreshError(c *C) {
 		Current:   1,
 	}
 	assertstate.UpdateValidationSet(s.state, &tr)
-	err := assertstate.AutoRefreshAssertions(s.state, 0)
+	mylog.Check(assertstate.AutoRefreshAssertions(s.state, 0))
 	c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 }
 
@@ -2581,8 +2538,7 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsStoreError(c *C) {
 		Current:   1,
 	}
 	assertstate.UpdateValidationSet(s.state, &tr)
-
-	err := assertstate.RefreshValidationSetAssertions(s.state, 0, nil)
+	mylog.Check(assertstate.RefreshValidationSetAssertions(s.state, 0, nil))
 	c.Assert(err, ErrorMatches, `cannot refresh validation set assertions: cannot : got unexpected HTTP status code 400.*`)
 }
 
@@ -2592,8 +2548,8 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertions(c *C) {
 
 	// have a model and the store assertion available
 	storeAs := s.setupModelAndStore(c)
-	err := s.storeSigning.Add(storeAs)
-	c.Assert(err, IsNil)
+	mylog.Check(s.storeSigning.Add(storeAs))
+
 
 	// store key already present
 	c.Assert(assertstate.Add(s.state, s.storeSigning.StoreAccountKey("")), IsNil)
@@ -2604,8 +2560,8 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertions(c *C) {
 	c.Assert(assertstate.Add(s.state, vsetAs1), IsNil)
 
 	vsetAs2 := s.validationSetAssert(c, "bar", "1", "2", "required", "1")
-	err = s.storeSigning.Add(vsetAs2)
-	c.Assert(err, IsNil)
+	mylog.Check(s.storeSigning.Add(vsetAs2))
+
 
 	tr := assertstate.ValidationSetTracking{
 		AccountID: s.dev1Acct.AccountID(),
@@ -2614,17 +2570,16 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertions(c *C) {
 		Current:   1,
 	}
 	assertstate.UpdateValidationSet(s.state, &tr)
+	mylog.Check(assertstate.RefreshValidationSetAssertions(s.state, 0, &assertstate.RefreshAssertionsOptions{IsAutoRefresh: true}))
 
-	err = assertstate.RefreshValidationSetAssertions(s.state, 0, &assertstate.RefreshAssertionsOptions{IsAutoRefresh: true})
-	c.Assert(err, IsNil)
 
-	a, err := assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
+	a := mylog.Check2(assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
 		"account-id": s.dev1Acct.AccountID(),
 		"name":       "bar",
 		"sequence":   "1",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(a.(*asserts.ValidationSet).Name(), Equals, "bar")
 	c.Check(a.Revision(), Equals, 2)
 
@@ -2635,34 +2590,34 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertions(c *C) {
 
 	// sequence changed in the store to 4
 	vsetAs3 := s.validationSetAssert(c, "bar", "4", "3", "required", "1")
-	err = s.storeSigning.Add(vsetAs3)
-	c.Assert(err, IsNil)
+	mylog.Check(s.storeSigning.Add(vsetAs3))
+
 
 	// precondition check - sequence 4 not available locally yet
-	_, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
+	_ = mylog.Check2(assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
 		"account-id": s.dev1Acct.AccountID(),
 		"name":       "bar",
 		"sequence":   "4",
-	})
+	}))
 	c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 
 	s.fakeStore.(*fakeStore).requestedTypes = nil
-	err = assertstate.RefreshValidationSetAssertions(s.state, 0, nil)
-	c.Assert(err, IsNil)
+	mylog.Check(assertstate.RefreshValidationSetAssertions(s.state, 0, nil))
+
 
 	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
 		{"account", "account-key", "validation-set"},
 	})
 
 	// new sequence is available in the db
-	a, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
+	a = mylog.Check2(assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
 		"account-id": s.dev1Acct.AccountID(),
 		"name":       "bar",
 		"sequence":   "4",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(a.(*asserts.ValidationSet).Name(), Equals, "bar")
 
 	// tracking current was updated
@@ -2676,12 +2631,13 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsPinned(c *C) {
 
 	// have a model and the store assertion available
 	storeAs := s.setupModelAndStore(c)
-	err := s.storeSigning.Add(storeAs)
-	c.Assert(err, IsNil)
+	mylog.Check(s.storeSigning.Add(storeAs))
 
-	// store key already present
-	err = assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
+	mylog.
+
+		// store key already present
+		Check(assertstate.Add(s.state, s.storeSigning.StoreAccountKey("")))
+
 
 	c.Assert(assertstate.Add(s.state, s.dev1Acct), IsNil)
 	c.Assert(assertstate.Add(s.state, s.dev1AcctKey), IsNil)
@@ -2690,8 +2646,8 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsPinned(c *C) {
 	c.Assert(assertstate.Add(s.state, vsetAs1), IsNil)
 
 	vsetAs2 := s.validationSetAssert(c, "bar", "2", "5", "required", "1")
-	err = s.storeSigning.Add(vsetAs2)
-	c.Assert(err, IsNil)
+	mylog.Check(s.storeSigning.Add(vsetAs2))
+
 
 	tr := assertstate.ValidationSetTracking{
 		AccountID: s.dev1Acct.AccountID(),
@@ -2701,17 +2657,16 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsPinned(c *C) {
 		PinnedAt:  2,
 	}
 	assertstate.UpdateValidationSet(s.state, &tr)
+	mylog.Check(assertstate.RefreshValidationSetAssertions(s.state, 0, nil))
 
-	err = assertstate.RefreshValidationSetAssertions(s.state, 0, nil)
-	c.Assert(err, IsNil)
 
-	a, err := assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
+	a := mylog.Check2(assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
 		"account-id": s.dev1Acct.AccountID(),
 		"name":       "bar",
 		"sequence":   "2",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(a.(*asserts.ValidationSet).Name(), Equals, "bar")
 	c.Check(a.(*asserts.ValidationSet).Sequence(), Equals, 2)
 	c.Check(a.Revision(), Equals, 5)
@@ -2722,24 +2677,24 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsPinned(c *C) {
 
 	// sequence changed in the store to 7
 	vsetAs3 := s.validationSetAssert(c, "bar", "7", "8", "required", "1")
-	err = s.storeSigning.Add(vsetAs3)
-	c.Assert(err, IsNil)
+	mylog.Check(s.storeSigning.Add(vsetAs3))
+
 
 	s.fakeStore.(*fakeStore).requestedTypes = nil
-	err = assertstate.RefreshValidationSetAssertions(s.state, 0, nil)
-	c.Assert(err, IsNil)
+	mylog.Check(assertstate.RefreshValidationSetAssertions(s.state, 0, nil))
+
 
 	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
 		{"account", "account-key", "validation-set"},
 	})
 
 	// new sequence is not available in the db
-	_, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
+	_ = mylog.Check2(assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
 		"account-id": s.dev1Acct.AccountID(),
 		"name":       "bar",
 		"sequence":   "7",
-	})
+	}))
 	c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 
 	// tracking current remains at 2
@@ -2754,8 +2709,8 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsLocalOnlyFailed(c *C)
 
 	// have a model and the store assertion available
 	storeAs := s.setupModelAndStore(c)
-	err := s.storeSigning.Add(storeAs)
-	c.Assert(err, IsNil)
+	mylog.Check(s.storeSigning.Add(storeAs))
+
 
 	// store key already present
 	c.Assert(assertstate.Add(st, s.storeSigning.StoreAccountKey("")), IsNil)
@@ -2770,8 +2725,8 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsLocalOnlyFailed(c *C)
 
 	// vset2 present and updated in the store
 	vsetAs2_2 := s.validationSetAssert(c, "baz", "3", "2", "required", "1")
-	err = s.storeSigning.Add(vsetAs2_2)
-	c.Assert(err, IsNil)
+	mylog.Check(s.storeSigning.Add(vsetAs2_2))
+
 
 	tr1 := assertstate.ValidationSetTracking{
 		AccountID: s.dev1Acct.AccountID(),
@@ -2790,31 +2745,30 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsLocalOnlyFailed(c *C)
 	}
 	assertstate.UpdateValidationSet(s.state, &tr1)
 	assertstate.UpdateValidationSet(s.state, &tr2)
+	mylog.Check(assertstate.RefreshValidationSetAssertions(s.state, 0, nil))
 
-	err = assertstate.RefreshValidationSetAssertions(s.state, 0, nil)
-	c.Assert(err, IsNil)
 
 	// precondition - local assertion vsetAs1 is the latest
-	a, err := assertstate.DB(s.state).FindSequence(asserts.ValidationSetType, map[string]string{
+	a := mylog.Check2(assertstate.DB(s.state).FindSequence(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
 		"account-id": s.dev1Acct.AccountID(),
 		"name":       "bar",
 		"sequence":   "1",
-	}, -1, -1)
-	c.Assert(err, IsNil)
+	}, -1, -1))
+
 	vs := a.(*asserts.ValidationSet)
 	c.Check(vs.Name(), Equals, "bar")
 	c.Check(vs.Sequence(), Equals, 1)
 	c.Check(vs.Revision(), Equals, 1)
 
 	// but vsetAs2 was updated with vsetAs2_2
-	a, err = assertstate.DB(s.state).FindSequence(asserts.ValidationSetType, map[string]string{
+	a = mylog.Check2(assertstate.DB(s.state).FindSequence(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
 		"account-id": s.dev1Acct.AccountID(),
 		"name":       "baz",
 		"sequence":   "1",
-	}, -1, -1)
-	c.Assert(err, IsNil)
+	}, -1, -1))
+
 	vs = a.(*asserts.ValidationSet)
 	c.Check(vs.Name(), Equals, "baz")
 	c.Check(vs.Sequence(), Equals, 3)
@@ -2832,12 +2786,13 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsEnforcingModeHappyNot
 	})
 	snaptest.MockSnap(c, string(`name: foo
 version: 1`), &snap.SideInfo{
-		Revision: snap.R("1")})
+		Revision: snap.R("1"),
+	})
 
 	// have a model and the store assertion available
 	storeAs := s.setupModelAndStore(c)
-	err := s.storeSigning.Add(storeAs)
-	c.Assert(err, IsNil)
+	mylog.Check(s.storeSigning.Add(storeAs))
+
 
 	// store key already present
 	c.Assert(assertstate.Add(s.state, s.storeSigning.StoreAccountKey("")), IsNil)
@@ -2871,27 +2826,26 @@ version: 1`), &snap.SideInfo{
 		Current:   1,
 	}
 	assertstate.UpdateValidationSet(s.state, &tr)
+	mylog.Check(assertstate.RefreshValidationSetAssertions(s.state, 0, nil))
 
-	err = assertstate.RefreshValidationSetAssertions(s.state, 0, nil)
-	c.Assert(err, IsNil)
 
-	a, err := assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
+	a := mylog.Check2(assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
 		"account-id": s.dev1Acct.AccountID(),
 		"name":       "foo",
 		"sequence":   "1",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(a.(*asserts.ValidationSet).Name(), Equals, "foo")
 	c.Check(a.Revision(), Equals, 2)
 
-	a, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
+	a = mylog.Check2(assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
 		"account-id": s.dev1Acct.AccountID(),
 		"name":       "bar",
 		"sequence":   "2",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(a.(*asserts.ValidationSet).Name(), Equals, "bar")
 	c.Check(a.(*asserts.ValidationSet).Sequence(), Equals, 2)
 	c.Check(a.Revision(), Equals, 3)
@@ -2919,8 +2873,8 @@ version: 1`), &snap.SideInfo{Revision: snap.R("1")})
 
 	// have a model and the store assertion available
 	storeAs := s.setupModelAndStore(c)
-	err := s.storeSigning.Add(storeAs)
-	c.Assert(err, IsNil)
+	mylog.Check(s.storeSigning.Add(storeAs))
+
 
 	// store key already present
 	c.Assert(assertstate.Add(s.state, s.storeSigning.StoreAccountKey("")), IsNil)
@@ -2947,13 +2901,13 @@ version: 1`), &snap.SideInfo{Revision: snap.R("1")})
 
 	c.Assert(assertstate.RefreshValidationSetAssertions(s.state, 0, nil), IsNil)
 
-	a, err := assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
+	a := mylog.Check2(assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
 		"account-id": s.dev1Acct.AccountID(),
 		"name":       "bar",
 		"sequence":   "1",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(a.(*asserts.ValidationSet).Name(), Equals, "bar")
 	c.Check(a.(*asserts.ValidationSet).Sequence(), Equals, 1)
 	c.Check(a.Revision(), Equals, 2)
@@ -2976,8 +2930,8 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsEnforcingModeConflict
 
 	// have a model and the store assertion available
 	storeAs := s.setupModelAndStore(c)
-	err := s.storeSigning.Add(storeAs)
-	c.Assert(err, IsNil)
+	mylog.Check(s.storeSigning.Add(storeAs))
+
 
 	// store key already present
 	c.Assert(assertstate.Add(s.state, s.storeSigning.StoreAccountKey("")), IsNil)
@@ -3012,23 +2966,23 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsEnforcingModeConflict
 	c.Assert(assertstate.RefreshValidationSetAssertions(s.state, 0, nil), IsNil)
 	c.Assert(logbuf.String(), Matches, `.*cannot refresh to conflicting validation set assertions: validation sets are in conflict:\n- cannot constrain snap "foo" as both invalid .* and required at revision 1.*\n`)
 
-	a, err := assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
+	a := mylog.Check2(assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
 		"account-id": s.dev1Acct.AccountID(),
 		"name":       "foo",
 		"sequence":   "1",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(a.(*asserts.ValidationSet).Name(), Equals, "foo")
 	c.Check(a.Revision(), Equals, 1)
 
 	// new assertion wasn't committed to the database.
-	_, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
+	_ = mylog.Check2(assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
 		"account-id": s.dev1Acct.AccountID(),
 		"name":       "foo",
 		"sequence":   "2",
-	})
+	}))
 	c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 
 	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
@@ -3049,8 +3003,8 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsEnforcingModeMissingS
 
 	// have a model and the store assertion available
 	storeAs := s.setupModelAndStore(c)
-	err := s.storeSigning.Add(storeAs)
-	c.Assert(err, IsNil)
+	mylog.Check(s.storeSigning.Add(storeAs))
+
 
 	// store key already present
 	c.Assert(assertstate.Add(s.state, s.storeSigning.StoreAccountKey("")), IsNil)
@@ -3076,23 +3030,23 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsEnforcingModeMissingS
 	c.Assert(assertstate.RefreshValidationSetAssertions(s.state, 0, nil), IsNil)
 	c.Assert(logbuf.String(), Matches, `.*cannot refresh to validation set assertions that do not satisfy installed snaps: validation sets assertions are not met:\n- missing required snaps:\n  - foo \(required at any revision by sets .*/foo\)\n`)
 
-	a, err := assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
+	a := mylog.Check2(assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
 		"account-id": s.dev1Acct.AccountID(),
 		"name":       "foo",
 		"sequence":   "1",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(a.(*asserts.ValidationSet).Name(), Equals, "foo")
 	c.Check(a.Revision(), Equals, 1)
 
 	// new assertion wasn't committed to the database.
-	_, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
+	_ = mylog.Check2(assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
 		"account-id": s.dev1Acct.AccountID(),
 		"name":       "foo",
 		"sequence":   "2",
-	})
+	}))
 	c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 
 	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
@@ -3110,8 +3064,8 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsEnforcingModeWrongSna
 
 	// have a model and the store assertion available
 	storeAs := s.setupModelAndStore(c)
-	err := s.storeSigning.Add(storeAs)
-	c.Assert(err, IsNil)
+	mylog.Check(s.storeSigning.Add(storeAs))
+
 
 	// store key already present
 	c.Assert(assertstate.Add(s.state, s.storeSigning.StoreAccountKey("")), IsNil)
@@ -3145,13 +3099,13 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsEnforcingModeWrongSna
 	c.Assert(assertstate.RefreshValidationSetAssertions(s.state, 0, nil), IsNil)
 
 	// new assertion has been committed to the database.
-	_, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
+	_ = mylog.Check2(assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
 		"account-id": s.dev1Acct.AccountID(),
 		"name":       "bar",
 		"sequence":   "2",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 
 	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
 		{"account", "account-key", "validation-set"},
@@ -3180,8 +3134,8 @@ func (s *assertMgrSuite) TestValidationSetAssertionForMonitorLocalFallbackForPin
 	c.Assert(assertstate.Add(st, vsetAs), IsNil)
 
 	opts := assertstate.ResolveOptions{AllowLocalFallback: true}
-	vs, local, err := assertstate.ValidationSetAssertionForMonitor(st, s.dev1Acct.AccountID(), "bar", 1, true, 0, &opts)
-	c.Assert(err, IsNil)
+	vs, local := mylog.Check3(assertstate.ValidationSetAssertionForMonitor(st, s.dev1Acct.AccountID(), "bar", 1, true, 0, &opts))
+
 	c.Assert(vs, NotNil)
 	c.Assert(local, Equals, true)
 }
@@ -3207,8 +3161,8 @@ func (s *assertMgrSuite) TestValidationSetAssertionForMonitorPinnedRefreshedFrom
 	vsetAs2 := s.validationSetAssert(c, "bar", "1", "2", "required", "1")
 	c.Assert(s.storeSigning.Add(vsetAs2), IsNil)
 
-	vs, local, err := assertstate.ValidationSetAssertionForMonitor(st, s.dev1Acct.AccountID(), "bar", 1, true, 0, nil)
-	c.Assert(err, IsNil)
+	vs, local := mylog.Check3(assertstate.ValidationSetAssertionForMonitor(st, s.dev1Acct.AccountID(), "bar", 1, true, 0, nil))
+
 	c.Assert(local, Equals, false)
 	c.Check(vs.Revision(), Equals, 2)
 	c.Check(vs.Sequence(), Equals, 1)
@@ -3235,8 +3189,8 @@ func (s *assertMgrSuite) TestValidationSetAssertionForMonitorUnpinnedRefreshedFr
 	vsetAs2 := s.validationSetAssert(c, "bar", "3", "1", "required", "1")
 	c.Assert(s.storeSigning.Add(vsetAs2), IsNil)
 
-	vs, local, err := assertstate.ValidationSetAssertionForMonitor(st, s.dev1Acct.AccountID(), "bar", 0, false, 0, nil)
-	c.Assert(err, IsNil)
+	vs, local := mylog.Check3(assertstate.ValidationSetAssertionForMonitor(st, s.dev1Acct.AccountID(), "bar", 0, false, 0, nil))
+
 	c.Assert(local, Equals, false)
 	c.Check(vs.Revision(), Equals, 1)
 	c.Check(vs.Sequence(), Equals, 3)
@@ -3252,7 +3206,7 @@ func (s *assertMgrSuite) TestValidationSetAssertionForMonitorUnpinnedNotFound(c 
 	storeAs := s.setupModelAndStore(c)
 	c.Assert(s.storeSigning.Add(storeAs), IsNil)
 
-	_, _, err := assertstate.ValidationSetAssertionForMonitor(st, s.dev1Acct.AccountID(), "bar", 0, false, 0, nil)
+	_, _ := mylog.Check3(assertstate.ValidationSetAssertionForMonitor(st, s.dev1Acct.AccountID(), "bar", 0, false, 0, nil))
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot fetch and resolve assertions:\n - validation-set/16/%s/bar: validation-set assertion not found.*`, s.dev1Acct.AccountID()))
 }
 
@@ -3281,19 +3235,19 @@ func (s *assertMgrSuite) TestValidationSetAssertionForEnforceNotPinnedHappy(c *C
 	}
 
 	sequence := 0
-	vs, err := assertstate.ValidationSetAssertionForEnforce(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil)
-	c.Assert(err, IsNil)
+	vs := mylog.Check2(assertstate.ValidationSetAssertionForEnforce(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil))
+
 	c.Check(vs.Revision(), Equals, 2)
 	c.Check(vs.Sequence(), Equals, 2)
 
 	// and it has been committed
-	_, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
+	_ = mylog.Check2(assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
 		"account-id": s.dev1Acct.AccountID(),
 		"name":       "bar",
 		"sequence":   "2",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 }
 
 func (s *assertMgrSuite) TestValidationSetAssertionForEnforcePinnedHappy(c *C) {
@@ -3318,19 +3272,19 @@ func (s *assertMgrSuite) TestValidationSetAssertionForEnforcePinnedHappy(c *C) {
 	}
 
 	sequence := 2
-	vs, err := assertstate.ValidationSetAssertionForEnforce(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil)
-	c.Assert(err, IsNil)
+	vs := mylog.Check2(assertstate.ValidationSetAssertionForEnforce(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil))
+
 	c.Check(vs.Revision(), Equals, 2)
 	c.Check(vs.Sequence(), Equals, 2)
 
 	// and it has been committed
-	_, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
+	_ = mylog.Check2(assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
 		"account-id": s.dev1Acct.AccountID(),
 		"name":       "bar",
 		"sequence":   "2",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(s.fakeStore.(*fakeStore).opts.Scheduled, Equals, false)
 }
 
@@ -3353,7 +3307,7 @@ func (s *assertMgrSuite) TestValidationSetAssertionForEnforceNotPinnedUnhappyMis
 
 	snaps := []*snapasserts.InstalledSnap{}
 	sequence := 0
-	_, err := assertstate.ValidationSetAssertionForEnforce(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil)
+	_ := mylog.Check2(assertstate.ValidationSetAssertionForEnforce(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil))
 	c.Assert(err, NotNil)
 	verr, ok := err.(*snapasserts.ValidationSetsValidationError)
 	c.Assert(ok, Equals, true)
@@ -3364,12 +3318,12 @@ func (s *assertMgrSuite) TestValidationSetAssertionForEnforceNotPinnedUnhappyMis
 	})
 
 	// and it hasn't been committed
-	_, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
+	_ = mylog.Check2(assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
 		"account-id": s.dev1Acct.AccountID(),
 		"name":       "bar",
 		"sequence":   "2",
-	})
+	}))
 	c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 }
 
@@ -3407,16 +3361,16 @@ func (s *assertMgrSuite) TestValidationSetAssertionForEnforceNotPinnedUnhappyCon
 
 	snaps := []*snapasserts.InstalledSnap{}
 	sequence := 0
-	_, err := assertstate.ValidationSetAssertionForEnforce(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil)
+	_ := mylog.Check2(assertstate.ValidationSetAssertionForEnforce(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil))
 	c.Check(err, ErrorMatches, fmt.Sprintf(`validation sets are in conflict:\n- cannot constrain snap "foo" as both invalid \(%s/boo\) and required at revision 1 \(%s/bar\)`, s.dev1Acct.AccountID(), s.dev1Acct.AccountID()))
 
 	// and it hasn't been committed
-	_, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
+	_ = mylog.Check2(assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
 		"account-id": s.dev1Acct.AccountID(),
 		"name":       "bar",
 		"sequence":   "2",
-	})
+	}))
 	c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 }
 
@@ -3447,20 +3401,20 @@ func (s *assertMgrSuite) TestValidationSetAssertionForEnforceNotPinnedAfterForge
 	}
 
 	sequence := 0
-	vs, err := assertstate.ValidationSetAssertionForEnforce(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil)
-	c.Assert(err, IsNil)
+	vs := mylog.Check2(assertstate.ValidationSetAssertionForEnforce(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil))
+
 	// new assertion got fetched
 	c.Check(vs.Revision(), Equals, 5)
 	c.Check(vs.Sequence(), Equals, 3)
 
 	// and it has been committed
-	_, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
+	_ = mylog.Check2(assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
 		"account-id": s.dev1Acct.AccountID(),
 		"name":       "bar",
 		"sequence":   "3",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 }
 
 func (s *assertMgrSuite) TestValidationSetAssertionForEnforceNotPinnedAfterMonitorHappy(c *C) {
@@ -3498,20 +3452,20 @@ func (s *assertMgrSuite) TestValidationSetAssertionForEnforceNotPinnedAfterMonit
 	}
 
 	sequence := 0
-	vs, err := assertstate.ValidationSetAssertionForEnforce(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil)
-	c.Assert(err, IsNil)
+	vs := mylog.Check2(assertstate.ValidationSetAssertionForEnforce(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil))
+
 	// doesn't fetch new assertion
 	c.Check(vs.Revision(), Equals, 1)
 	c.Check(vs.Sequence(), Equals, 1)
 
 	// old assertion is stil in the database
-	_, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
+	_ = mylog.Check2(assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
 		"account-id": s.dev1Acct.AccountID(),
 		"name":       "bar",
 		"sequence":   "1",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 }
 
 func (s *assertMgrSuite) TestTemporaryDB(c *C) {
@@ -3519,11 +3473,10 @@ func (s *assertMgrSuite) TestTemporaryDB(c *C) {
 
 	st.Lock()
 	defer st.Unlock()
+	mylog.Check(assertstate.Add(st, s.storeSigning.StoreAccountKey("")))
 
-	err := assertstate.Add(st, s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
 
-	a, err := s.storeSigning.Sign(asserts.ModelType, map[string]interface{}{
+	a := mylog.Check2(s.storeSigning.Sign(asserts.ModelType, map[string]interface{}{
 		"type":         "model",
 		"series":       "16",
 		"authority-id": s.storeSigning.AuthorityID,
@@ -3533,11 +3486,11 @@ func (s *assertMgrSuite) TestTemporaryDB(c *C) {
 		"gadget":       "gadget",
 		"kernel":       "krnl",
 		"timestamp":    time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
 	model := a.(*asserts.Model)
 
-	aRev2, err := s.storeSigning.Sign(asserts.ModelType, map[string]interface{}{
+	aRev2 := mylog.Check2(s.storeSigning.Sign(asserts.ModelType, map[string]interface{}{
 		"type":         "model",
 		"series":       "16",
 		"authority-id": s.storeSigning.AuthorityID,
@@ -3548,8 +3501,8 @@ func (s *assertMgrSuite) TestTemporaryDB(c *C) {
 		"kernel":       "krnl",
 		"timestamp":    time.Now().Format(time.RFC3339),
 		"revision":     "2",
-	}, nil, "")
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
 	modelRev2 := aRev2.(*asserts.Model)
 
 	hdrs := map[string]string{
@@ -3558,37 +3511,39 @@ func (s *assertMgrSuite) TestTemporaryDB(c *C) {
 		"brand-id": s.storeSigning.AuthorityID,
 	}
 	// model isn't found in the main DB
-	_, err = assertstate.DB(st).Find(asserts.ModelType, hdrs)
+	_ = mylog.Check2(assertstate.DB(st).Find(asserts.ModelType, hdrs))
 	c.Assert(err, NotNil)
 	c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 	// let's get a temporary DB
 	tempDB := assertstate.TemporaryDB(st)
 	c.Assert(tempDB, NotNil)
-	// and add the model to it
-	err = tempDB.Add(model)
-	c.Assert(err, IsNil)
-	fromTemp, err := tempDB.Find(asserts.ModelType, hdrs)
-	c.Assert(err, IsNil)
+	mylog.
+		// and add the model to it
+		Check(tempDB.Add(model))
+
+	fromTemp := mylog.Check2(tempDB.Find(asserts.ModelType, hdrs))
+
 	c.Assert(fromTemp.(*asserts.Model), DeepEquals, model)
 	// the model is only in the temp database
-	_, err = assertstate.DB(st).Find(asserts.ModelType, hdrs)
+	_ = mylog.Check2(assertstate.DB(st).Find(asserts.ModelType, hdrs))
 	c.Assert(err, NotNil)
 	c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
+	mylog.
 
-	// let's add it to the DB now
-	err = assertstate.Add(st, model)
-	c.Assert(err, IsNil)
+		// let's add it to the DB now
+		Check(assertstate.Add(st, model))
+
 	// such that we can lookup the revision 2 in a temporary DB
 	tempDB = assertstate.TemporaryDB(st)
 	c.Assert(tempDB, NotNil)
-	err = tempDB.Add(modelRev2)
-	c.Assert(err, IsNil)
-	fromTemp, err = tempDB.Find(asserts.ModelType, hdrs)
-	c.Assert(err, IsNil)
+	mylog.Check(tempDB.Add(modelRev2))
+
+	fromTemp = mylog.Check2(tempDB.Find(asserts.ModelType, hdrs))
+
 	c.Assert(fromTemp.(*asserts.Model), DeepEquals, modelRev2)
 	// but the main DB still returns the old model
-	fromDB, err := assertstate.DB(st).Find(asserts.ModelType, hdrs)
-	c.Assert(err, IsNil)
+	fromDB := mylog.Check2(assertstate.DB(st).Find(asserts.ModelType, hdrs))
+
 	c.Assert(fromDB.(*asserts.Model), DeepEquals, model)
 }
 
@@ -3614,17 +3569,17 @@ func (s *assertMgrSuite) TestEnforceValidationSetAssertion(c *C) {
 	}
 
 	sequence := 2
-	tracking, err := assertstate.FetchAndApplyEnforcedValidationSet(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil)
-	c.Assert(err, IsNil)
+	tracking := mylog.Check2(assertstate.FetchAndApplyEnforcedValidationSet(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil))
+
 
 	// and it has been committed
-	_, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
+	_ = mylog.Check2(assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
 		"account-id": s.dev1Acct.AccountID(),
 		"name":       "bar",
 		"sequence":   "2",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(s.fakeStore.(*fakeStore).opts.Scheduled, Equals, false)
 
 	var tr assertstate.ValidationSetTracking
@@ -3640,8 +3595,8 @@ func (s *assertMgrSuite) TestEnforceValidationSetAssertion(c *C) {
 	})
 
 	// and it was added to the history
-	vshist, err := assertstate.ValidationSetsHistory(st)
-	c.Assert(err, IsNil)
+	vshist := mylog.Check2(assertstate.ValidationSetsHistory(st))
+
 	c.Check(vshist, DeepEquals, []map[string]*assertstate.ValidationSetTracking{{
 		fmt.Sprintf("%s/bar", s.dev1Acct.AccountID()): {
 			AccountID: s.dev1Acct.AccountID(),
@@ -3675,17 +3630,17 @@ func (s *assertMgrSuite) TestEnforceValidationSetAssertionUpdate(c *C) {
 	}
 
 	sequence := 2
-	tracking, err := assertstate.FetchAndApplyEnforcedValidationSet(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil)
-	c.Assert(err, IsNil)
+	tracking := mylog.Check2(assertstate.FetchAndApplyEnforcedValidationSet(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil))
+
 
 	// and it has been committed
-	_, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
+	_ = mylog.Check2(assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
 		"account-id": s.dev1Acct.AccountID(),
 		"name":       "bar",
 		"sequence":   "2",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(s.fakeStore.(*fakeStore).opts.Scheduled, Equals, false)
 
 	var tr assertstate.ValidationSetTracking
@@ -3700,8 +3655,8 @@ func (s *assertMgrSuite) TestEnforceValidationSetAssertionUpdate(c *C) {
 	c.Check(tr, DeepEquals, *tracking)
 
 	// and it was added to the history
-	vshist, err := assertstate.ValidationSetsHistory(st)
-	c.Assert(err, IsNil)
+	vshist := mylog.Check2(assertstate.ValidationSetsHistory(st))
+
 	c.Check(vshist, DeepEquals, []map[string]*assertstate.ValidationSetTracking{{
 		fmt.Sprintf("%s/bar", s.dev1Acct.AccountID()): {
 			AccountID: s.dev1Acct.AccountID(),
@@ -3714,8 +3669,8 @@ func (s *assertMgrSuite) TestEnforceValidationSetAssertionUpdate(c *C) {
 
 	// not pinned
 	sequence = 0
-	tracking, err = assertstate.FetchAndApplyEnforcedValidationSet(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil)
-	c.Assert(err, IsNil)
+	tracking = mylog.Check2(assertstate.FetchAndApplyEnforcedValidationSet(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil))
+
 
 	c.Assert(assertstate.GetValidationSet(s.state, s.dev1Acct.AccountID(), "bar", &tr), IsNil)
 	c.Check(tr, DeepEquals, assertstate.ValidationSetTracking{
@@ -3752,17 +3707,17 @@ func (s *assertMgrSuite) TestEnforceValidationSetAssertionPinToOlderSequence(c *
 	}
 
 	sequence := 2
-	tracking, err := assertstate.FetchAndApplyEnforcedValidationSet(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil)
-	c.Assert(err, IsNil)
+	tracking := mylog.Check2(assertstate.FetchAndApplyEnforcedValidationSet(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil))
+
 
 	// and it has been committed
-	_, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
+	_ = mylog.Check2(assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
 		"account-id": s.dev1Acct.AccountID(),
 		"name":       "bar",
 		"sequence":   "2",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(s.fakeStore.(*fakeStore).opts.Scheduled, Equals, false)
 
 	var tr assertstate.ValidationSetTracking
@@ -3778,8 +3733,8 @@ func (s *assertMgrSuite) TestEnforceValidationSetAssertionPinToOlderSequence(c *
 
 	// pin to older
 	sequence = 1
-	tracking, err = assertstate.FetchAndApplyEnforcedValidationSet(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil)
-	c.Assert(err, IsNil)
+	tracking = mylog.Check2(assertstate.FetchAndApplyEnforcedValidationSet(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil))
+
 
 	c.Assert(assertstate.GetValidationSet(s.state, s.dev1Acct.AccountID(), "bar", &tr), IsNil)
 	c.Check(tr, DeepEquals, assertstate.ValidationSetTracking{
@@ -3827,17 +3782,17 @@ func (s *assertMgrSuite) TestEnforceValidationSetAssertionAfterMonitor(c *C) {
 	c.Assert(s.storeSigning.Add(vsetAs), IsNil)
 
 	sequence := 2
-	tracking, err := assertstate.FetchAndApplyEnforcedValidationSet(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil)
-	c.Assert(err, IsNil)
+	tracking := mylog.Check2(assertstate.FetchAndApplyEnforcedValidationSet(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil))
+
 
 	// and it has been committed
-	_, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
+	_ = mylog.Check2(assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
 		"account-id": s.dev1Acct.AccountID(),
 		"name":       "bar",
 		"sequence":   "2",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(s.fakeStore.(*fakeStore).opts.Scheduled, Equals, false)
 
 	var tr assertstate.ValidationSetTracking
@@ -3876,23 +3831,23 @@ func (s *assertMgrSuite) TestEnforceValidationSetAssertionIgnoreValidation(c *C)
 
 	sequence := 2
 	ignoreValidation := map[string]bool{}
-	_, err := assertstate.FetchAndApplyEnforcedValidationSet(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, ignoreValidation)
+	_ := mylog.Check2(assertstate.FetchAndApplyEnforcedValidationSet(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, ignoreValidation))
 	wrongRevErr, ok := err.(*snapasserts.ValidationSetsValidationError)
 	c.Assert(ok, Equals, true)
 	c.Check(wrongRevErr.WrongRevisionSnaps["foo"], NotNil)
 
 	ignoreValidation["foo"] = true
-	tracking, err := assertstate.FetchAndApplyEnforcedValidationSet(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, ignoreValidation)
-	c.Assert(err, IsNil)
+	tracking := mylog.Check2(assertstate.FetchAndApplyEnforcedValidationSet(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, ignoreValidation))
+
 
 	// and it has been committed
-	_, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
+	_ = mylog.Check2(assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
 		"account-id": s.dev1Acct.AccountID(),
 		"name":       "bar",
 		"sequence":   "2",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(s.fakeStore.(*fakeStore).opts.Scheduled, Equals, false)
 
 	var tr assertstate.ValidationSetTracking
@@ -3926,7 +3881,8 @@ func (s *assertMgrSuite) TestTryEnforceValidationSetsAssertionsValidationError(c
 			"id":       "qOqKhntON3vR7kwEbVPsILm7bUViPDzz",
 			"name":     "some-snap",
 			"presence": "required",
-		}}
+		},
+	}
 	vsetAs3 := s.validationSetAssertForSnaps(c, "foo", "1", "1", snaps3)
 	c.Assert(assertstate.Add(st, vsetAs3), IsNil)
 	assertstate.UpdateValidationSet(st, &assertstate.ValidationSetTracking{
@@ -3948,7 +3904,8 @@ func (s *assertMgrSuite) TestTryEnforceValidationSetsAssertionsValidationError(c
 			"id":       "aAqKhntON3vR7kwEbVPsILm7bUViPDaa",
 			"name":     "other-snap",
 			"presence": "required",
-		}}
+		},
+	}
 	vsetAs := s.validationSetAssertForSnaps(c, "bar", "2", "2", snaps1)
 	c.Assert(s.storeSigning.Add(vsetAs), IsNil)
 	snaps2 := []interface{}{
@@ -3956,7 +3913,8 @@ func (s *assertMgrSuite) TestTryEnforceValidationSetsAssertionsValidationError(c
 			"id":       "cccchntON3vR7kwEbVPsILm7bUViPDcc",
 			"name":     "invalid-snap",
 			"presence": "invalid",
-		}}
+		},
+	}
 	vsetAs2 := s.validationSetAssertForSnaps(c, "baz", "1", "1", snaps2)
 	c.Assert(s.storeSigning.Add(vsetAs2), IsNil)
 
@@ -3966,7 +3924,7 @@ func (s *assertMgrSuite) TestTryEnforceValidationSetsAssertionsValidationError(c
 		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}),
 		snapasserts.NewInstalledSnap("invalid-snap", "cccchntON3vR7kwEbVPsILm7bUViPDcc", snap.Revision{N: 1}),
 	}
-	err := assertstate.TryEnforcedValidationSets(st, []string{fmt.Sprintf("%s/bar", s.dev1Acct.AccountID()), fmt.Sprintf("%s/baz", s.dev1Acct.AccountID())}, 0, installedSnaps, nil)
+	mylog.Check(assertstate.TryEnforcedValidationSets(st, []string{fmt.Sprintf("%s/bar", s.dev1Acct.AccountID()), fmt.Sprintf("%s/baz", s.dev1Acct.AccountID())}, 0, installedSnaps, nil))
 	verr, ok := err.(*snapasserts.ValidationSetsValidationError)
 	c.Assert(ok, Equals, true)
 	c.Check(verr.WrongRevisionSnaps, DeepEquals, map[string]map[snap.Revision][]string{
@@ -3982,19 +3940,19 @@ func (s *assertMgrSuite) TestTryEnforceValidationSetsAssertionsValidationError(c
 	c.Check(verr.InvalidSnaps, DeepEquals, map[string][]string{"invalid-snap": {fmt.Sprintf("%s/baz", s.dev1Acct.AccountID())}})
 
 	// new assertions were not committed
-	_, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
+	_ = mylog.Check2(assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
 		"account-id": s.dev1Acct.AccountID(),
 		"name":       "bar",
 		"sequence":   "2",
-	})
+	}))
 	c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
-	_, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
+	_ = mylog.Check2(assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
 		"account-id": s.dev1Acct.AccountID(),
 		"name":       "baz",
 		"sequence":   "1",
-	})
+	}))
 	c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 	c.Check(s.fakeStore.(*fakeStore).opts.Scheduled, Equals, false)
 }
@@ -4017,7 +3975,8 @@ func (s *assertMgrSuite) TestTryEnforceValidationSetsAssertionsOK(c *C) {
 			"id":       "qOqKhntON3vR7kwEbVPsILm7bUViPDzz",
 			"name":     "some-snap",
 			"presence": "required",
-		}}
+		},
+	}
 	vsetAs3 := s.validationSetAssertForSnaps(c, "foo", "1", "1", snaps3)
 	c.Assert(assertstate.Add(st, vsetAs3), IsNil)
 	assertstate.UpdateValidationSet(st, &assertstate.ValidationSetTracking{
@@ -4034,7 +3993,8 @@ func (s *assertMgrSuite) TestTryEnforceValidationSetsAssertionsOK(c *C) {
 			"name":     "some-snap",
 			"presence": "required",
 			"revision": "3",
-		}}
+		},
+	}
 	vsetAs := s.validationSetAssertForSnaps(c, "bar", "2", "2", snaps1)
 	c.Assert(s.storeSigning.Add(vsetAs), IsNil)
 	snaps2 := []interface{}{
@@ -4042,32 +4002,33 @@ func (s *assertMgrSuite) TestTryEnforceValidationSetsAssertionsOK(c *C) {
 			"id":       "aAqKhntON3vR7kwEbVPsILm7bUViPDaa",
 			"name":     "other-snap",
 			"presence": "optional",
-		}}
+		},
+	}
 	vsetAs2 := s.validationSetAssertForSnaps(c, "baz", "1", "1", snaps2)
 	c.Assert(s.storeSigning.Add(vsetAs2), IsNil)
 
 	installedSnaps := []*snapasserts.InstalledSnap{
 		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 3}),
 	}
-	err := assertstate.TryEnforcedValidationSets(st, []string{fmt.Sprintf("%s/bar", s.dev1Acct.AccountID()), fmt.Sprintf("%s/baz=1", s.dev1Acct.AccountID())}, 0, installedSnaps, nil)
-	c.Assert(err, IsNil)
+	mylog.Check(assertstate.TryEnforcedValidationSets(st, []string{fmt.Sprintf("%s/bar", s.dev1Acct.AccountID()), fmt.Sprintf("%s/baz=1", s.dev1Acct.AccountID())}, 0, installedSnaps, nil))
+
 
 	// new assertions were committed
-	_, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
+	_ = mylog.Check2(assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
 		"account-id": s.dev1Acct.AccountID(),
 		"name":       "bar",
 		"sequence":   "2",
-	})
-	c.Assert(err, IsNil)
+	}))
 
-	_, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
+
+	_ = mylog.Check2(assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
 		"account-id": s.dev1Acct.AccountID(),
 		"name":       "baz",
 		"sequence":   "1",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(s.fakeStore.(*fakeStore).opts.Scheduled, Equals, false)
 
 	// tracking was updated
@@ -4091,8 +4052,8 @@ func (s *assertMgrSuite) TestTryEnforceValidationSetsAssertionsOK(c *C) {
 	// and it was added to the history
 	// note, normally there would be a map with just "foo" as well, but there isn't one
 	// since we created the initial state in the test manually.
-	vshist, err := assertstate.ValidationSetsHistory(st)
-	c.Assert(err, IsNil)
+	vshist := mylog.Check2(assertstate.ValidationSetsHistory(st))
+
 	c.Check(vshist, DeepEquals, []map[string]*assertstate.ValidationSetTracking{{
 		fmt.Sprintf("%s/foo", s.dev1Acct.AccountID()): {
 			AccountID: s.dev1Acct.AccountID(),
@@ -4134,7 +4095,8 @@ func (s *assertMgrSuite) TestTryEnforceValidationSetsAssertionsAlreadyTrackedUpd
 			"id":       "qOqKhntON3vR7kwEbVPsILm7bUViPDzz",
 			"name":     "some-snap",
 			"presence": "required",
-		}}
+		},
+	}
 	vsetAs1 := s.validationSetAssertForSnaps(c, "foo", "1", "1", snaps3)
 	c.Assert(assertstate.Add(st, vsetAs1), IsNil)
 	assertstate.UpdateValidationSet(st, &assertstate.ValidationSetTracking{
@@ -4151,24 +4113,25 @@ func (s *assertMgrSuite) TestTryEnforceValidationSetsAssertionsAlreadyTrackedUpd
 			"name":     "some-snap",
 			"presence": "required",
 			"revision": "3",
-		}}
+		},
+	}
 	vsetAs2 := s.validationSetAssertForSnaps(c, "foo", "2", "2", snaps1)
 	c.Assert(s.storeSigning.Add(vsetAs2), IsNil)
 
 	installedSnaps := []*snapasserts.InstalledSnap{
 		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 3}),
 	}
-	err := assertstate.TryEnforcedValidationSets(st, []string{fmt.Sprintf("%s/foo", s.dev1Acct.AccountID())}, 0, installedSnaps, nil)
-	c.Assert(err, IsNil)
+	mylog.Check(assertstate.TryEnforcedValidationSets(st, []string{fmt.Sprintf("%s/foo", s.dev1Acct.AccountID())}, 0, installedSnaps, nil))
+
 
 	// new assertion was committed
-	_, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
+	_ = mylog.Check2(assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
 		"account-id": s.dev1Acct.AccountID(),
 		"name":       "foo",
 		"sequence":   "2",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(s.fakeStore.(*fakeStore).opts.Scheduled, Equals, false)
 
 	// tracking was updated
@@ -4184,8 +4147,8 @@ func (s *assertMgrSuite) TestTryEnforceValidationSetsAssertionsAlreadyTrackedUpd
 	// and it was added to the history
 	// note, normally there would be a map with just "foo" as well, but there isn't one
 	// since we created the initial state in the test manually.
-	vshist, err := assertstate.ValidationSetsHistory(st)
-	c.Assert(err, IsNil)
+	vshist := mylog.Check2(assertstate.ValidationSetsHistory(st))
+
 	c.Check(vshist, DeepEquals, []map[string]*assertstate.ValidationSetTracking{{
 		fmt.Sprintf("%s/foo", s.dev1Acct.AccountID()): {
 			AccountID: s.dev1Acct.AccountID(),
@@ -4214,7 +4177,8 @@ func (s *assertMgrSuite) TestTryEnforceValidationSetsAssertionsConflictError(c *
 			"id":       "qOqKhntON3vR7kwEbVPsILm7bUViPDzz",
 			"name":     "some-snap",
 			"presence": "required",
-		}}
+		},
+	}
 	vsetAs3 := s.validationSetAssertForSnaps(c, "foo", "1", "1", snaps3)
 	c.Assert(assertstate.Add(st, vsetAs3), IsNil)
 	assertstate.UpdateValidationSet(st, &assertstate.ValidationSetTracking{
@@ -4230,7 +4194,8 @@ func (s *assertMgrSuite) TestTryEnforceValidationSetsAssertionsConflictError(c *
 			"id":       "qOqKhntON3vR7kwEbVPsILm7bUViPDzz",
 			"name":     "some-snap",
 			"presence": "invalid",
-		}}
+		},
+	}
 	vsetAs := s.validationSetAssertForSnaps(c, "bar", "2", "2", snaps1)
 	c.Assert(s.storeSigning.Add(vsetAs), IsNil)
 
@@ -4239,18 +4204,18 @@ func (s *assertMgrSuite) TestTryEnforceValidationSetsAssertionsConflictError(c *
 	installedSnaps := []*snapasserts.InstalledSnap{
 		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}),
 	}
-	err := assertstate.TryEnforcedValidationSets(st, []string{fmt.Sprintf("%s/bar", s.dev1Acct.AccountID())}, 0, installedSnaps, nil)
+	mylog.Check(assertstate.TryEnforcedValidationSets(st, []string{fmt.Sprintf("%s/bar", s.dev1Acct.AccountID())}, 0, installedSnaps, nil))
 	_, ok := err.(*snapasserts.ValidationSetsConflictError)
 	c.Assert(ok, Equals, true)
 	c.Assert(err, ErrorMatches, `validation sets are in conflict:\n- cannot constrain snap "some-snap" as both invalid \(.*/bar\) and required at any revision \(.*/foo\).*`)
 
 	// new assertion wasn't committed
-	_, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
+	_ = mylog.Check2(assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
 		"account-id": s.dev1Acct.AccountID(),
 		"name":       "bar",
 		"sequence":   "2",
-	})
+	}))
 	c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 	c.Check(s.fakeStore.(*fakeStore).opts.Scheduled, Equals, false)
 }
@@ -4273,8 +4238,8 @@ func (s *assertMgrSuite) TestMonitorValidationSet(c *C) {
 	c.Assert(s.storeSigning.Add(vsetAs), IsNil)
 
 	sequence := 2
-	tr1, err := assertstate.MonitorValidationSet(st, s.dev1Acct.AccountID(), "bar", sequence, 0)
-	c.Assert(err, IsNil)
+	tr1 := mylog.Check2(assertstate.MonitorValidationSet(st, s.dev1Acct.AccountID(), "bar", sequence, 0))
+
 	c.Check(tr1, DeepEquals, &assertstate.ValidationSetTracking{
 		AccountID: s.dev1Acct.AccountID(),
 		Name:      "bar",
@@ -4284,13 +4249,13 @@ func (s *assertMgrSuite) TestMonitorValidationSet(c *C) {
 	})
 
 	// and it has been committed
-	_, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
+	_ = mylog.Check2(assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
 		"account-id": s.dev1Acct.AccountID(),
 		"name":       "bar",
 		"sequence":   "2",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(s.fakeStore.(*fakeStore).opts.Scheduled, Equals, false)
 
 	var tr assertstate.ValidationSetTracking
@@ -4305,8 +4270,8 @@ func (s *assertMgrSuite) TestMonitorValidationSet(c *C) {
 	})
 
 	// and it was added to the history
-	vshist, err := assertstate.ValidationSetsHistory(st)
-	c.Assert(err, IsNil)
+	vshist := mylog.Check2(assertstate.ValidationSetsHistory(st))
+
 	c.Check(vshist, DeepEquals, []map[string]*assertstate.ValidationSetTracking{{
 		fmt.Sprintf("%s/bar", s.dev1Acct.AccountID()): {
 			AccountID: s.dev1Acct.AccountID(),
@@ -4338,8 +4303,8 @@ func (s *assertMgrSuite) TestForgetValidationSet(c *C) {
 	vsetAs2 := s.validationSetAssert(c, "baz", "2", "2", "required", "1")
 	c.Assert(s.storeSigning.Add(vsetAs2), IsNil)
 
-	tr1, err := assertstate.MonitorValidationSet(st, s.dev1Acct.AccountID(), "bar", 2, 0)
-	c.Assert(err, IsNil)
+	tr1 := mylog.Check2(assertstate.MonitorValidationSet(st, s.dev1Acct.AccountID(), "bar", 2, 0))
+
 	c.Check(tr1, DeepEquals, &assertstate.ValidationSetTracking{
 		AccountID: s.dev1Acct.AccountID(),
 		Name:      "bar",
@@ -4348,8 +4313,8 @@ func (s *assertMgrSuite) TestForgetValidationSet(c *C) {
 		Current:   2,
 	})
 
-	tr2, err := assertstate.MonitorValidationSet(st, s.dev1Acct.AccountID(), "baz", 2, 0)
-	c.Assert(err, IsNil)
+	tr2 := mylog.Check2(assertstate.MonitorValidationSet(st, s.dev1Acct.AccountID(), "baz", 2, 0))
+
 	c.Check(tr2, DeepEquals, &assertstate.ValidationSetTracking{
 		AccountID: s.dev1Acct.AccountID(),
 		Name:      "baz",
@@ -4361,8 +4326,8 @@ func (s *assertMgrSuite) TestForgetValidationSet(c *C) {
 	c.Assert(assertstate.ForgetValidationSet(st, s.dev1Acct.AccountID(), "bar", assertstate.ForgetValidationSetOpts{}), IsNil)
 
 	// and it was added to the history
-	vshist, err := assertstate.ValidationSetsHistory(st)
-	c.Assert(err, IsNil)
+	vshist := mylog.Check2(assertstate.ValidationSetsHistory(st))
+
 	c.Check(vshist, DeepEquals, []map[string]*assertstate.ValidationSetTracking{{
 		fmt.Sprintf("%s/bar", s.dev1Acct.AccountID()): {
 			AccountID: s.dev1Acct.AccountID(),
@@ -4424,7 +4389,8 @@ func (s *assertMgrSuite) testEnforceValidationSets(c *C, pinnedSeq int) {
 			"id":       "qOqKhntON3vR7kwEbVPsILm7bUViPDzz",
 			"name":     "some-snap",
 			"presence": "required",
-		}}
+		},
+	}
 	localVs := s.validationSetAssertForSnaps(c, "foo", "1", "1", snaps)
 	c.Assert(assertstate.Add(st, localVs), IsNil)
 
@@ -4434,7 +4400,8 @@ func (s *assertMgrSuite) testEnforceValidationSets(c *C, pinnedSeq int) {
 			"id":       "qOqKhntON3vR7kwEbVPsILm7bUViPDzz",
 			"name":     "some-snap",
 			"presence": "invalid",
-		}}
+		},
+	}
 	remoteVs := s.validationSetAssertForSnaps(c, "foo", "2", "1", snaps)
 	c.Assert(s.storeSigning.Add(remoteVs), IsNil)
 
@@ -4450,22 +4417,22 @@ func (s *assertMgrSuite) testEnforceValidationSets(c *C, pinnedSeq int) {
 	installedSnaps := []*snapasserts.InstalledSnap{
 		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}),
 	}
-	err := assertstate.ApplyEnforcedValidationSets(st, valSets, pinnedSeqs, installedSnaps, nil, 0)
-	c.Assert(err, IsNil)
+	mylog.Check(assertstate.ApplyEnforcedValidationSets(st, valSets, pinnedSeqs, installedSnaps, nil, 0))
+
 
 	// the updated assertion wasn't fetched
-	valsetAssrt, err := assertstate.DB(s.state).FindSequence(asserts.ValidationSetType, map[string]string{
+	valsetAssrt := mylog.Check2(assertstate.DB(s.state).FindSequence(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
 		"account-id": s.dev1Acct.AccountID(),
 		"name":       "foo",
-	}, -1, -1)
-	c.Assert(err, IsNil)
+	}, -1, -1))
+
 	c.Assert(valsetAssrt, FitsTypeOf, &asserts.ValidationSet{})
 	c.Check(valsetAssrt.(*asserts.ValidationSet).Sequence(), Equals, 1)
 
 	var tr assertstate.ValidationSetTracking
-	err = assertstate.GetValidationSet(st, s.dev1Acct.AccountID(), "foo", &tr)
-	c.Assert(err, IsNil)
+	mylog.Check(assertstate.GetValidationSet(st, s.dev1Acct.AccountID(), "foo", &tr))
+
 	c.Check(tr, DeepEquals, assertstate.ValidationSetTracking{
 		AccountID: s.dev1Acct.AccountID(),
 		Name:      "foo",
@@ -4491,7 +4458,8 @@ func (s *assertMgrSuite) TestEnforceValidationSetsWithNoLocalAssertions(c *C) {
 			"id":       "qOqKhntON3vR7kwEbVPsILm7bUViPDzz",
 			"name":     "some-snap",
 			"presence": "required",
-		}}
+		},
+	}
 
 	oldVs := s.validationSetAssertForSnaps(c, "foo", "1", "1", snaps)
 	c.Assert(s.storeSigning.Add(oldVs), IsNil)
@@ -4502,7 +4470,8 @@ func (s *assertMgrSuite) TestEnforceValidationSetsWithNoLocalAssertions(c *C) {
 			"id":       "qOqKhntON3vR7kwEbVPsILm7bUViPDzz",
 			"name":     "some-snap",
 			"presence": "invalid",
-		}}
+		},
+	}
 	newVs := s.validationSetAssertForSnaps(c, "foo", "2", "1", snaps)
 	c.Assert(s.storeSigning.Add(newVs), IsNil)
 
@@ -4513,29 +4482,28 @@ func (s *assertMgrSuite) TestEnforceValidationSetsWithNoLocalAssertions(c *C) {
 	installedSnaps := []*snapasserts.InstalledSnap{
 		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}),
 	}
+	mylog.Check(assertstate.ApplyEnforcedValidationSets(st, valSets, pinnedSeqs, installedSnaps, nil, 0))
 
-	err := assertstate.ApplyEnforcedValidationSets(st, valSets, pinnedSeqs, installedSnaps, nil, 0)
-	c.Assert(err, IsNil)
 
 	// the old assertion is in the state
-	vsAssrt, err := assertstate.DB(s.state).FindSequence(asserts.ValidationSetType, map[string]string{
+	vsAssrt := mylog.Check2(assertstate.DB(s.state).FindSequence(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
 		"account-id": s.dev1Acct.AccountID(),
 		"name":       "foo",
-	}, -1, -1)
-	c.Assert(err, IsNil)
+	}, -1, -1))
+
 	c.Assert(vsAssrt, FitsTypeOf, &asserts.ValidationSet{})
 	c.Check(vsAssrt.(*asserts.ValidationSet).Sequence(), Equals, 1)
 
-	assrt, err := assertstate.DB(s.state).Find(asserts.AccountKeyType, map[string]string{
+	assrt := mylog.Check2(assertstate.DB(s.state).Find(asserts.AccountKeyType, map[string]string{
 		"public-key-sha3-384": oldVs.SignKeyID(),
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Assert(assrt, FitsTypeOf, &asserts.AccountKey{})
 
 	var tr assertstate.ValidationSetTracking
-	err = assertstate.GetValidationSet(st, s.dev1Acct.AccountID(), "foo", &tr)
-	c.Assert(err, IsNil)
+	mylog.Check(assertstate.GetValidationSet(st, s.dev1Acct.AccountID(), "foo", &tr))
+
 	c.Check(tr, DeepEquals, assertstate.ValidationSetTracking{
 		AccountID: s.dev1Acct.AccountID(),
 		Name:      "foo",
@@ -4560,7 +4528,8 @@ func (s *assertMgrSuite) TestEnforceValidationSetsWithMismatchedPinnedSeq(c *C) 
 			"id":       "qOqKhntON3vR7kwEbVPsILm7bUViPDzz",
 			"name":     "some-snap",
 			"presence": "required",
-		}})
+		},
+	})
 
 	// user requested op with sequence 2 but we're passing a different sequence
 	vsKey := fmt.Sprintf("%s/foo", s.dev1Acct.AccountID())
@@ -4568,8 +4537,7 @@ func (s *assertMgrSuite) TestEnforceValidationSetsWithMismatchedPinnedSeq(c *C) 
 		vsKey: vs,
 	}
 	pinnedSeqs := map[string]int{vsKey: 2}
-
-	err := assertstate.ApplyEnforcedValidationSets(st, valSets, pinnedSeqs, nil, nil, 0)
+	mylog.Check(assertstate.ApplyEnforcedValidationSets(st, valSets, pinnedSeqs, nil, nil, 0))
 	c.Assert(err, ErrorMatches, fmt.Sprintf("internal error: trying to enforce validation set %q with sequence point 1 different than pinned 2", vsKey))
 }
 
@@ -4588,7 +4556,8 @@ func (s *assertMgrSuite) TestEnforceValidationSetsWithUnmetConstraints(c *C) {
 			"name":     "some-snap",
 			"presence": "required",
 			"revision": "1",
-		}}
+		},
+	}
 
 	vs := s.validationSetAssertForSnaps(c, "foo", "1", "1", snaps)
 	c.Assert(s.storeSigning.Add(vs), IsNil)
@@ -4600,23 +4569,21 @@ func (s *assertMgrSuite) TestEnforceValidationSetsWithUnmetConstraints(c *C) {
 	installedSnaps := []*snapasserts.InstalledSnap{
 		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 2}),
 	}
-
-	err := assertstate.ApplyEnforcedValidationSets(st, valSets, nil, installedSnaps, nil, 0)
+	mylog.Check(assertstate.ApplyEnforcedValidationSets(st, valSets, nil, installedSnaps, nil, 0))
 	c.Assert(err, FitsTypeOf, &snapasserts.ValidationSetsValidationError{})
 
-	_, err = assertstate.DB(s.state).FindSequence(asserts.ValidationSetType, map[string]string{
+	_ = mylog.Check2(assertstate.DB(s.state).FindSequence(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
 		"account-id": s.dev1Acct.AccountID(),
 		"name":       "foo",
-	}, -1, -1)
+	}, -1, -1))
 	c.Assert(err, testutil.ErrorIs, &asserts.NotFoundError{})
 
-	_, err = assertstate.DB(s.state).Find(asserts.AccountKeyType, map[string]string{
+	_ = mylog.Check2(assertstate.DB(s.state).Find(asserts.AccountKeyType, map[string]string{
 		"public-key-sha3-384": vs.SignKeyID(),
-	})
+	}))
 	c.Assert(err, testutil.ErrorIs, &asserts.NotFoundError{})
-
-	err = assertstate.GetValidationSet(st, s.dev1Acct.AccountID(), "foo", &assertstate.ValidationSetTracking{})
+	mylog.Check(assertstate.GetValidationSet(st, s.dev1Acct.AccountID(), "foo", &assertstate.ValidationSetTracking{}))
 	c.Assert(err, testutil.ErrorIs, &state.NoStateError{})
 }
 
@@ -4631,7 +4598,8 @@ func (s *assertMgrSuite) testApplyLocalEnforcedValidationSets(c *C, pinnedSeq in
 			"id":       "qOqKhntON3vR7kwEbVPsILm7bUViPDzz",
 			"name":     "some-snap",
 			"presence": "required",
-		}}
+		},
+	}
 	localVs := s.validationSetAssertForSnaps(c, "foo", "1", "1", snaps)
 	c.Assert(assertstate.Add(st, s.storeSigning.StoreAccountKey("")), IsNil)
 	c.Assert(assertstate.Add(st, s.dev1Acct), IsNil)
@@ -4650,12 +4618,12 @@ func (s *assertMgrSuite) testApplyLocalEnforcedValidationSets(c *C, pinnedSeq in
 	installedSnaps := []*snapasserts.InstalledSnap{
 		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}),
 	}
-	err := assertstate.ApplyLocalEnforcedValidationSets(st, valSets, pinnedSeqs, installedSnaps, nil)
-	c.Assert(err, IsNil)
+	mylog.Check(assertstate.ApplyLocalEnforcedValidationSets(st, valSets, pinnedSeqs, installedSnaps, nil))
+
 
 	var tr assertstate.ValidationSetTracking
-	err = assertstate.GetValidationSet(st, s.dev1Acct.AccountID(), "foo", &tr)
-	c.Assert(err, IsNil)
+	mylog.Check(assertstate.GetValidationSet(st, s.dev1Acct.AccountID(), "foo", &tr))
+
 	c.Check(tr, DeepEquals, assertstate.ValidationSetTracking{
 		AccountID: s.dev1Acct.AccountID(),
 		Name:      "foo",
@@ -4696,8 +4664,7 @@ func (s *assertMgrSuite) TestApplyLocalEnforcedValidationSetsWithMismatchedPinne
 		vsKey: {release.Series, s.dev1Acct.AccountID(), "foo", "1"},
 	}
 	pinnedSeqs := map[string]int{vsKey: 2}
-
-	err := assertstate.ApplyLocalEnforcedValidationSets(st, valSets, pinnedSeqs, nil, nil)
+	mylog.Check(assertstate.ApplyLocalEnforcedValidationSets(st, valSets, pinnedSeqs, nil, nil))
 	c.Assert(err, ErrorMatches, fmt.Sprintf("internal error: trying to enforce validation set %q with sequence point 1 different than pinned 2", vsKey))
 }
 
@@ -4728,11 +4695,9 @@ func (s *assertMgrSuite) TestApplyLocalEnforcedValidationSetsWithUnmetConstraint
 	installedSnaps := []*snapasserts.InstalledSnap{
 		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 2}),
 	}
-
-	err := assertstate.ApplyLocalEnforcedValidationSets(st, valSets, nil, installedSnaps, nil)
+	mylog.Check(assertstate.ApplyLocalEnforcedValidationSets(st, valSets, nil, installedSnaps, nil))
 	c.Assert(err, FitsTypeOf, &snapasserts.ValidationSetsValidationError{})
-
-	err = assertstate.GetValidationSet(st, s.dev1Acct.AccountID(), "foo", &assertstate.ValidationSetTracking{})
+	mylog.Check(assertstate.GetValidationSet(st, s.dev1Acct.AccountID(), "foo", &assertstate.ValidationSetTracking{}))
 	c.Assert(err, testutil.ErrorIs, &state.NoStateError{})
 }
 
@@ -4752,15 +4717,15 @@ func (s *assertMgrSuite) mockDeviceWithValidationSets(c *C, validationSets []int
 	})
 	s.setModel(a.(*asserts.Model))
 
-	a, err := s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
+	a := mylog.Check2(s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
 		"authority-id": s.storeSigning.AuthorityID,
 		"operator-id":  s.storeSigning.AuthorityID,
 		"store":        "my-brand-store",
 		"timestamp":    time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	err = s.storeSigning.Add(a)
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
+	mylog.Check(s.storeSigning.Add(a))
+
 
 	c.Assert(assertstate.Add(st, s.storeSigning.StoreAccountKey("")), IsNil)
 	c.Assert(assertstate.Add(st, s.dev1Acct), IsNil)
@@ -4779,7 +4744,7 @@ func (s *assertMgrSuite) TestFetchAndApplyEnforcedValidationSetEnforceModeSequen
 		},
 	})
 
-	_, err := assertstate.FetchAndApplyEnforcedValidationSet(s.state, s.dev1Acct.AccountID(), "bar", 5, 0, nil, nil)
+	_ := mylog.Check2(assertstate.FetchAndApplyEnforcedValidationSet(s.state, s.dev1Acct.AccountID(), "bar", 5, 0, nil, nil))
 	c.Check(err, ErrorMatches, fmt.Sprintf(`cannot enforce sequence 5 of validation set %s/bar: only sequence 10 allowed by model`, s.dev1Acct.AccountID()))
 }
 
@@ -4800,7 +4765,7 @@ func (s *assertMgrSuite) TestFetchAndApplyEnforcedValidationSetEnforceModeSequen
 	c.Assert(assertstate.Add(s.state, vsetAs), IsNil)
 	c.Assert(s.storeSigning.Add(vsetAs), IsNil)
 
-	vss, err := assertstate.FetchAndApplyEnforcedValidationSet(s.state, s.dev1Acct.AccountID(), "bar", 0, 0, nil, nil)
+	vss := mylog.Check2(assertstate.FetchAndApplyEnforcedValidationSet(s.state, s.dev1Acct.AccountID(), "bar", 0, 0, nil, nil))
 	c.Check(err, IsNil)
 	c.Check(vss, DeepEquals, &assertstate.ValidationSetTracking{
 		AccountID: s.dev1Acct.AccountID(),
@@ -4823,7 +4788,7 @@ func (s *assertMgrSuite) TestMonitorValidationSetEnforceModeSequenceMismatch(c *
 		},
 	})
 
-	_, err := assertstate.MonitorValidationSet(s.state, s.dev1Acct.AccountID(), "bar", 1, 0)
+	_ := mylog.Check2(assertstate.MonitorValidationSet(s.state, s.dev1Acct.AccountID(), "bar", 1, 0))
 	c.Check(err, ErrorMatches, fmt.Sprintf(`cannot monitor sequence 1 of validation set %s/bar: only sequence 3 allowed by model`, s.dev1Acct.AccountID()))
 }
 
@@ -4844,7 +4809,7 @@ func (s *assertMgrSuite) TestMonitorValidationSetEnforceModeSequenceFromModel(c 
 	c.Assert(assertstate.Add(s.state, vsetAs), IsNil)
 	c.Assert(s.storeSigning.Add(vsetAs), IsNil)
 
-	vss, err := assertstate.MonitorValidationSet(s.state, s.dev1Acct.AccountID(), "bar", 0, 0)
+	vss := mylog.Check2(assertstate.MonitorValidationSet(s.state, s.dev1Acct.AccountID(), "bar", 0, 0))
 	c.Check(err, IsNil)
 	c.Check(vss, DeepEquals, &assertstate.ValidationSetTracking{
 		AccountID: s.dev1Acct.AccountID(),
@@ -4874,16 +4839,14 @@ func (s *assertMgrSuite) TestForgetValidationSetEnforcedByModel(c *C) {
 		Current:   9,
 	}
 	assertstate.UpdateValidationSet(s.state, &tr)
-
-	err := assertstate.ForgetValidationSet(s.state, s.dev1Acct.AccountID(), "foo", assertstate.ForgetValidationSetOpts{})
+	mylog.Check(assertstate.ForgetValidationSet(s.state, s.dev1Acct.AccountID(), "foo", assertstate.ForgetValidationSetOpts{}))
 	c.Check(err, ErrorMatches, `validation-set is enforced by the model`)
-
-	err = assertstate.ForgetValidationSet(s.state, s.dev1Acct.AccountID(), "foo", assertstate.ForgetValidationSetOpts{
+	mylog.Check(assertstate.ForgetValidationSet(s.state, s.dev1Acct.AccountID(), "foo", assertstate.ForgetValidationSetOpts{
 		ForceForget: true,
-	})
+	}))
 	c.Check(err, IsNil)
 
-	vsets, err := assertstate.TrackedEnforcedValidationSets(s.state)
+	vsets := mylog.Check2(assertstate.TrackedEnforcedValidationSets(s.state))
 	c.Check(err, IsNil)
 	c.Check(vsets.Keys(), HasLen, 0)
 }
@@ -4907,8 +4870,7 @@ func (s *assertMgrSuite) TestForgetValidationSetPreferEnforcedByModelHappy(c *C)
 		Current:   9,
 	}
 	assertstate.UpdateValidationSet(s.state, &tr)
-
-	err := assertstate.ForgetValidationSet(s.state, s.dev1Acct.AccountID(), "foo", assertstate.ForgetValidationSetOpts{})
+	mylog.Check(assertstate.ForgetValidationSet(s.state, s.dev1Acct.AccountID(), "foo", assertstate.ForgetValidationSetOpts{}))
 	c.Check(err, IsNil)
 }
 
@@ -5058,11 +5020,10 @@ func (s *assertMgrSuite) testFetchValidationSets(c *C, opts testFetchValidationS
 
 		model.ValidationSets()
 
-		var err error
-		sets, err = assertstate.ValidationSetsFromModel(s.state, model, assertstate.FetchValidationSetsOptions{
+		sets = mylog.Check2(assertstate.ValidationSetsFromModel(s.state, model, assertstate.FetchValidationSetsOptions{
 			Offline: opts.Offline,
-		}, deviceCtx)
-		c.Assert(err, IsNil)
+		}, deviceCtx))
+
 	} else {
 		toFetch := []*asserts.AtSequence{
 			{
@@ -5079,11 +5040,10 @@ func (s *assertMgrSuite) testFetchValidationSets(c *C, opts testFetchValidationS
 			},
 		}
 
-		var err error
-		sets, err = assertstate.FetchValidationSets(s.state, toFetch, assertstate.FetchValidationSetsOptions{
+		sets = mylog.Check2(assertstate.FetchValidationSets(s.state, toFetch, assertstate.FetchValidationSetsOptions{
 			Offline: opts.Offline,
-		}, deviceCtx)
-		c.Assert(err, IsNil)
+		}, deviceCtx))
+
 	}
 
 	c.Check(sets.RequiredSnaps(), testutil.DeepUnsortedMatches, []string{"some-snap", "some-other-snap"})
@@ -5149,9 +5109,9 @@ func (s *assertMgrSuite) TestValidationSetsFromModelConflict(c *C) {
 	c.Assert(assertstate.Add(s.state, barVset), IsNil)
 	c.Assert(assertstate.Add(s.state, fooVset), IsNil)
 
-	_, err := assertstate.ValidationSetsFromModel(s.state, model, assertstate.FetchValidationSetsOptions{
+	_ := mylog.Check2(assertstate.ValidationSetsFromModel(s.state, model, assertstate.FetchValidationSetsOptions{
 		Offline: true,
-	}, s.trivialDeviceCtx)
+	}, s.trivialDeviceCtx))
 	c.Check(err, testutil.ErrorIs, &snapasserts.ValidationSetsConflictError{})
 }
 
@@ -5167,8 +5127,8 @@ func (s *assertMgrSuite) aspectBundle(c *C, name string, extraHeaders map[string
 		headers[h] = v
 	}
 
-	as, err := s.dev1Signing.Sign(asserts.AspectBundleType, headers, []byte(body), "")
-	c.Assert(err, IsNil)
+	as := mylog.Check2(s.dev1Signing.Sign(asserts.AspectBundleType, headers, []byte(body), ""))
+
 
 	return as.(*asserts.AspectBundle)
 }
@@ -5176,13 +5136,12 @@ func (s *assertMgrSuite) aspectBundle(c *C, name string, extraHeaders map[string
 func (s *assertMgrSuite) TestAspectBundle(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+	mylog.Check(assertstate.Add(s.state, s.storeSigning.StoreAccountKey("")))
 
-	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, s.dev1Acct)
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, s.dev1AcctKey)
-	c.Assert(err, IsNil)
+	mylog.Check(assertstate.Add(s.state, s.dev1Acct))
+
+	mylog.Check(assertstate.Add(s.state, s.dev1AcctKey))
+
 
 	aspectBundleFoo := s.aspectBundle(c, "foo", map[string]interface{}{
 		"aspects": map[string]interface{}{
@@ -5202,14 +5161,14 @@ func (s *assertMgrSuite) TestAspectBundle(c *C) {
     }
   }
 }`)
-	err = assertstate.Add(s.state, aspectBundleFoo)
-	c.Assert(err, IsNil)
+	mylog.Check(assertstate.Add(s.state, aspectBundleFoo))
 
-	_, err = assertstate.AspectBundle(s.state, "no-account", "foo")
+
+	_ = mylog.Check2(assertstate.AspectBundle(s.state, "no-account", "foo"))
 	c.Assert(err, testutil.ErrorIs, &asserts.NotFoundError{})
 
-	bundleAs, err := assertstate.AspectBundle(s.state, s.dev1AcctKey.AccountID(), "foo")
-	c.Assert(err, IsNil)
+	bundleAs := mylog.Check2(assertstate.AspectBundle(s.state, s.dev1AcctKey.AccountID(), "foo"))
+
 
 	bundle := bundleAs.Bundle()
 	c.Check(bundle.Account, Equals, s.dev1AcctKey.AccountID())

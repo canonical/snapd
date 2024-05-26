@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/systemd"
@@ -33,10 +34,7 @@ var opts struct {
 }
 
 func main() {
-	args, err := flags.ParseArgs(&opts, os.Args)
-	if err != nil {
-		os.Exit(1)
-	}
+	args := mylog.Check2(flags.ParseArgs(&opts, os.Args))
 
 	if !opts.Path {
 		panic("cannot use this systemd-escape without --path")

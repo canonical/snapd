@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	sys "syscall"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"gopkg.in/check.v1"
 )
 
@@ -47,6 +48,7 @@ func (s *ucrednetSuite) TearDownTest(c *check.C) {
 	s.ucred = nil
 	s.err = nil
 }
+
 func (s *ucrednetSuite) TearDownSuite(c *check.C) {
 	getUcred = sys.GetsockoptUcred
 }
@@ -56,32 +58,32 @@ func (s *ucrednetSuite) TestAcceptConnRemoteAddrString(c *check.C) {
 	d := c.MkDir()
 	sock := filepath.Join(d, "sock")
 
-	l, err := net.Listen("unix", sock)
+	l := mylog.Check2(net.Listen("unix", sock))
 	c.Assert(err, check.IsNil)
 	wl := &ucrednetListener{Listener: l}
 
 	defer wl.Close()
 
 	go func() {
-		cli, err := net.Dial("unix", sock)
+		cli := mylog.Check2(net.Dial("unix", sock))
 		c.Assert(err, check.IsNil)
 		cli.Close()
 	}()
 
-	conn, err := wl.Accept()
+	conn := mylog.Check2(wl.Accept())
 	c.Assert(err, check.IsNil)
 	defer conn.Close()
 
 	remoteAddr := conn.RemoteAddr().String()
 	c.Check(remoteAddr, check.Matches, "pid=100;uid=42;.*")
-	u, err := ucrednetGet(remoteAddr)
+	u := mylog.Check2(ucrednetGet(remoteAddr))
 	c.Assert(err, check.IsNil)
 	c.Check(u.Pid, check.Equals, int32(100))
 	c.Check(u.Uid, check.Equals, uint32(42))
 }
 
 func (s *ucrednetSuite) TestNonUnix(c *check.C) {
-	l, err := net.Listen("tcp", "localhost:0")
+	l := mylog.Check2(net.Listen("tcp", "localhost:0"))
 	c.Assert(err, check.IsNil)
 
 	wl := &ucrednetListener{Listener: l}
@@ -90,18 +92,18 @@ func (s *ucrednetSuite) TestNonUnix(c *check.C) {
 	addr := l.Addr().String()
 
 	go func() {
-		cli, err := net.Dial("tcp", addr)
+		cli := mylog.Check2(net.Dial("tcp", addr))
 		c.Assert(err, check.IsNil)
 		cli.Close()
 	}()
 
-	conn, err := wl.Accept()
+	conn := mylog.Check2(wl.Accept())
 	c.Assert(err, check.IsNil)
 	defer conn.Close()
 
 	remoteAddr := conn.RemoteAddr().String()
 	c.Check(remoteAddr, check.Matches, "pid=;uid=;.*")
-	u, err := ucrednetGet(remoteAddr)
+	u := mylog.Check2(ucrednetGet(remoteAddr))
 	c.Check(u, check.IsNil)
 	c.Check(err, check.Equals, errNoID)
 }
@@ -111,13 +113,13 @@ func (s *ucrednetSuite) TestAcceptErrors(c *check.C) {
 	d := c.MkDir()
 	sock := filepath.Join(d, "sock")
 
-	l, err := net.Listen("unix", sock)
+	l := mylog.Check2(net.Listen("unix", sock))
 	c.Assert(err, check.IsNil)
 	c.Assert(l.Close(), check.IsNil)
 
 	wl := &ucrednetListener{Listener: l}
 
-	_, err = wl.Accept()
+	_ = mylog.Check2(wl.Accept())
 	c.Assert(err, check.NotNil)
 }
 
@@ -126,19 +128,19 @@ func (s *ucrednetSuite) TestUcredErrors(c *check.C) {
 	d := c.MkDir()
 	sock := filepath.Join(d, "sock")
 
-	l, err := net.Listen("unix", sock)
+	l := mylog.Check2(net.Listen("unix", sock))
 	c.Assert(err, check.IsNil)
 
 	wl := &ucrednetListener{Listener: l}
 	defer wl.Close()
 
 	go func() {
-		cli, err := net.Dial("unix", sock)
+		cli := mylog.Check2(net.Dial("unix", sock))
 		c.Assert(err, check.IsNil)
 		cli.Close()
 	}()
 
-	_, err = wl.Accept()
+	_ = mylog.Check2(wl.Accept())
 	c.Assert(err, check.Equals, s.err)
 }
 
@@ -147,7 +149,7 @@ func (s *ucrednetSuite) TestIdempotentClose(c *check.C) {
 	d := c.MkDir()
 	sock := filepath.Join(d, "sock")
 
-	l, err := net.Listen("unix", sock)
+	l := mylog.Check2(net.Listen("unix", sock))
 	c.Assert(err, check.IsNil)
 	wl := &ucrednetListener{Listener: l}
 
@@ -156,37 +158,37 @@ func (s *ucrednetSuite) TestIdempotentClose(c *check.C) {
 }
 
 func (s *ucrednetSuite) TestGetNoUid(c *check.C) {
-	u, err := ucrednetGet("pid=100;uid=;socket=;")
+	u := mylog.Check2(ucrednetGet("pid=100;uid=;socket=;"))
 	c.Check(err, check.Equals, errNoID)
 	c.Check(u, check.IsNil)
 }
 
 func (s *ucrednetSuite) TestGetBadUid(c *check.C) {
-	u, err := ucrednetGet("pid=100;uid=4294967296;socket=;")
+	u := mylog.Check2(ucrednetGet("pid=100;uid=4294967296;socket=;"))
 	c.Check(err, check.Equals, errNoID)
 	c.Check(u, check.IsNil)
 }
 
 func (s *ucrednetSuite) TestGetNonUcrednet(c *check.C) {
-	u, err := ucrednetGet("hello")
+	u := mylog.Check2(ucrednetGet("hello"))
 	c.Check(err, check.Equals, errNoID)
 	c.Check(u, check.IsNil)
 }
 
 func (s *ucrednetSuite) TestGetNothing(c *check.C) {
-	u, err := ucrednetGet("")
+	u := mylog.Check2(ucrednetGet(""))
 	c.Check(err, check.Equals, errNoID)
 	c.Check(u, check.IsNil)
 }
 
 func (s *ucrednetSuite) TestGet(c *check.C) {
-	u, err := ucrednetGet("pid=100;uid=42;socket=/run/snap.socket;")
+	u := mylog.Check2(ucrednetGet("pid=100;uid=42;socket=/run/snap.socket;"))
 	c.Assert(err, check.IsNil)
 	c.Check(u.Pid, check.Equals, int32(100))
 	c.Check(u.Uid, check.Equals, uint32(42))
 	c.Check(u.Socket, check.Equals, "/run/snap.socket")
 
-	u, err = ucrednetGet("pid=100;uid=42;socket=/run/snap.socket;iface=snap-refresh-observe;")
+	u = mylog.Check2(ucrednetGet("pid=100;uid=42;socket=/run/snap.socket;iface=snap-refresh-observe;"))
 	c.Assert(err, check.IsNil)
 	c.Check(u.Pid, check.Equals, int32(100))
 	c.Check(u.Uid, check.Equals, uint32(42))
@@ -194,13 +196,13 @@ func (s *ucrednetSuite) TestGet(c *check.C) {
 }
 
 func (s *ucrednetSuite) TestGetSneak(c *check.C) {
-	u, err := ucrednetGet("pid=100;uid=42;socket=/run/snap.socket;pid=0;uid=0;socket=/tmp/my.socket")
+	u := mylog.Check2(ucrednetGet("pid=100;uid=42;socket=/run/snap.socket;pid=0;uid=0;socket=/tmp/my.socket"))
 	c.Check(err, check.Equals, errNoID)
 	c.Check(u, check.IsNil)
 }
 
 func (s *ucrednetSuite) TestGetWithInterface(c *check.C) {
-	u, ifaces, err := ucrednetGetWithInterfaces("pid=100;uid=42;socket=/run/snap.socket;iface=snap-refresh-observe;")
+	u, ifaces := mylog.Check3(ucrednetGetWithInterfaces("pid=100;uid=42;socket=/run/snap.socket;iface=snap-refresh-observe;"))
 	c.Assert(err, check.IsNil)
 	c.Check(u.Pid, check.Equals, int32(100))
 	c.Check(u.Uid, check.Equals, uint32(42))
@@ -208,7 +210,7 @@ func (s *ucrednetSuite) TestGetWithInterface(c *check.C) {
 	c.Check(ifaces, check.DeepEquals, []string{"snap-refresh-observe"})
 
 	// iface is optional
-	u, ifaces, err = ucrednetGetWithInterfaces("pid=100;uid=42;socket=/run/snap.socket;")
+	u, ifaces = mylog.Check3(ucrednetGetWithInterfaces("pid=100;uid=42;socket=/run/snap.socket;"))
 	c.Assert(err, check.IsNil)
 	c.Check(u.Pid, check.Equals, int32(100))
 	c.Check(u.Uid, check.Equals, uint32(42))
@@ -220,7 +222,7 @@ func (s *ucrednetSuite) TestAttachInterface(c *check.C) {
 	remoteAddr := ucrednetAttachInterface("pid=100;uid=42;socket=/run/snap.socket;", "snap-refresh-observe")
 	c.Check(remoteAddr, check.Equals, "pid=100;uid=42;socket=/run/snap.socket;iface=snap-refresh-observe;")
 
-	u, ifaces, err := ucrednetGetWithInterfaces(remoteAddr)
+	u, ifaces := mylog.Check3(ucrednetGetWithInterfaces(remoteAddr))
 	c.Assert(err, check.IsNil)
 	c.Check(u.Pid, check.Equals, int32(100))
 	c.Check(u.Uid, check.Equals, uint32(42))
@@ -234,7 +236,7 @@ func (s *ucrednetSuite) TestAttachInterfaceRepeatedly(c *check.C) {
 		remoteAddr = ucrednetAttachInterface(remoteAddr, "snap-refresh-observe")
 		c.Check(remoteAddr, check.Equals, "pid=100;uid=42;socket=/run/snap.socket;iface=snap-refresh-observe;")
 
-		u, ifaces, err := ucrednetGetWithInterfaces(remoteAddr)
+		u, ifaces := mylog.Check3(ucrednetGetWithInterfaces(remoteAddr))
 		c.Assert(err, check.IsNil)
 		c.Check(u.Pid, check.Equals, int32(100))
 		c.Check(u.Uid, check.Equals, uint32(42))
@@ -256,7 +258,7 @@ func (s *ucrednetSuite) TestAttachInterfaceMultiple(c *check.C) {
 	remoteAddr = ucrednetAttachInterface(remoteAddr, "foo")
 	c.Check(remoteAddr, check.Equals, "pid=100;uid=42;socket=/run/snap.socket;iface=snap-refresh-observe&snap-prompting-control&foo;")
 
-	u, ifaces, err := ucrednetGetWithInterfaces(remoteAddr)
+	u, ifaces := mylog.Check3(ucrednetGetWithInterfaces(remoteAddr))
 	c.Assert(err, check.IsNil)
 	c.Check(u.Pid, check.Equals, int32(100))
 	c.Check(u.Uid, check.Equals, uint32(42))

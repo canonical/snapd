@@ -21,6 +21,8 @@ package utils
 
 import (
 	"encoding/json"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // NormalizeInterfaceAttributes normalises types of an attribute values.
@@ -47,7 +49,7 @@ func NormalizeInterfaceAttributes(value interface{}) interface{} {
 		return vc
 	case json.Number:
 		jsonval := value.(json.Number)
-		if asInt, err := jsonval.Int64(); err == nil {
+		if asInt := mylog.Check2(jsonval.Int64()); err == nil {
 			return asInt
 		}
 		asFloat, _ := jsonval.Float64()

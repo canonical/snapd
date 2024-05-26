@@ -27,12 +27,13 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	repair "github.com/snapcore/snapd/cmd/snap-repair"
 )
 
 func (r *repairSuite) TestStatusNoStatusFdEnv(c *C) {
 	for _, s := range []string{"done", "skip", "retry"} {
-		err := repair.ParseArgs([]string{s})
+		mylog.Check(repair.ParseArgs([]string{s}))
 		c.Check(err, ErrorMatches, "cannot find SNAP_REPAIR_STATUS_FD environment")
 	}
 }
@@ -41,8 +42,7 @@ func (r *repairSuite) TestStatusBadStatusFD(c *C) {
 	for _, s := range []string{"done", "skip", "retry"} {
 		os.Setenv("SNAP_REPAIR_STATUS_FD", "123456789")
 		defer os.Unsetenv("SNAP_REPAIR_STATUS_FD")
-
-		err := repair.ParseArgs([]string{s})
+		mylog.Check(repair.ParseArgs([]string{s}))
 		c.Check(err, ErrorMatches, `write <snap-repair-status-fd>: bad file descriptor`)
 	}
 }
@@ -51,16 +51,15 @@ func (r *repairSuite) TestStatusUnparsableStatusFD(c *C) {
 	for _, s := range []string{"done", "skip", "retry"} {
 		os.Setenv("SNAP_REPAIR_STATUS_FD", "xxx")
 		defer os.Unsetenv("SNAP_REPAIR_STATUS_FD")
-
-		err := repair.ParseArgs([]string{s})
+		mylog.Check(repair.ParseArgs([]string{s}))
 		c.Check(err, ErrorMatches, `cannot parse SNAP_REPAIR_STATUS_FD environment: strconv.*: parsing "xxx": invalid syntax`)
 	}
 }
 
 func (r *repairSuite) TestStatusHappy(c *C) {
 	for _, s := range []string{"done", "skip", "retry"} {
-		rp, wp, err := os.Pipe()
-		c.Assert(err, IsNil)
+		rp, wp := mylog.Check3(os.Pipe())
+
 		defer rp.Close()
 		defer wp.Close()
 
@@ -70,12 +69,11 @@ func (r *repairSuite) TestStatusHappy(c *C) {
 
 		os.Setenv("SNAP_REPAIR_STATUS_FD", strconv.Itoa(fd))
 		defer os.Unsetenv("SNAP_REPAIR_STATUS_FD")
-
-		err = repair.ParseArgs([]string{s})
+		mylog.Check(repair.ParseArgs([]string{s}))
 		c.Check(err, IsNil)
 
-		status, err := io.ReadAll(rp)
-		c.Assert(err, IsNil)
+		status := mylog.Check2(io.ReadAll(rp))
+
 		c.Check(string(status), Equals, s+"\n")
 	}
 }

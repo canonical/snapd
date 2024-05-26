@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	snap "github.com/snapcore/snapd/cmd/snap"
 )
 
@@ -37,8 +38,8 @@ func makeLoginTestServer(c *C, n *int) func(w http.ResponseWriter, r *http.Reque
 		case 0:
 			c.Check(r.URL.Path, Equals, "/v2/login")
 			c.Check(r.Method, Equals, "POST")
-			postData, err := io.ReadAll(r.Body)
-			c.Assert(err, IsNil)
+			postData := mylog.Check2(io.ReadAll(r.Body))
+
 			c.Check(string(postData), Equals, `{"email":"foo@example.com","password":"some-password"}`+"\n")
 			fmt.Fprintln(w, mockLoginRsp)
 		default:
@@ -54,8 +55,8 @@ func (s *SnapSuite) TestLoginSimple(c *C) {
 
 	// send the password
 	s.password = "some-password\n"
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"login", "foo@example.com"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"login", "foo@example.com"}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	c.Check(s.Stdout(), Equals, `Personal information is handled as per our privacy notice at
 https://www.ubuntu.com/legal/dataprivacy/snap-store
@@ -76,8 +77,8 @@ func (s *SnapSuite) TestLoginAskEmail(c *C) {
 	// send the password
 	s.password = "some-password"
 
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"login"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"login"}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	// test slightly ugly, on a real system STDOUT will be:
 	//    Email address: foo@example.com\n

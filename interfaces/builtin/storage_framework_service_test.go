@@ -22,6 +22,7 @@ package builtin_test
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -65,7 +66,6 @@ apps:
 	consumerInfo := snaptest.MockInfo(c, consumerYaml, nil)
 	s.plugInfo = consumerInfo.Plugs["storage-framework-service"]
 	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
-
 }
 
 func (s *StorageFrameworkServiceInterfaceSuite) TestName(c *C) {
@@ -73,8 +73,8 @@ func (s *StorageFrameworkServiceInterfaceSuite) TestName(c *C) {
 }
 
 func (s *StorageFrameworkServiceInterfaceSuite) TestAppArmorConnectedPlug(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
@@ -82,8 +82,8 @@ func (s *StorageFrameworkServiceInterfaceSuite) TestAppArmorConnectedPlug(c *C) 
 }
 
 func (s *StorageFrameworkServiceInterfaceSuite) TestAppArmorConnectedSlot(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.slot.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.slot.Snap(), nil))
+
 	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.provider.app"})
@@ -91,8 +91,8 @@ func (s *StorageFrameworkServiceInterfaceSuite) TestAppArmorConnectedSlot(c *C) 
 }
 
 func (s *StorageFrameworkServiceInterfaceSuite) TestAppArmorPermanentSlot(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.slotInfo.Snap, nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.slotInfo.Snap, nil))
+
 	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.provider.app"})
@@ -100,8 +100,8 @@ func (s *StorageFrameworkServiceInterfaceSuite) TestAppArmorPermanentSlot(c *C) 
 }
 
 func (s *StorageFrameworkServiceInterfaceSuite) TestSecCompPermanentSlot(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.slotInfo.Snap, nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.slotInfo.Snap, nil))
+
 	spec := seccomp.NewSpecification(appSet)
 	c.Assert(spec.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.provider.app"})

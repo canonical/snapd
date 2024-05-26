@@ -28,6 +28,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
@@ -59,11 +60,7 @@ type Context struct {
 // A random ID is generated if contextID is empty.
 func NewContext(task *state.Task, state *state.State, setup *HookSetup, handler Handler, contextID string) (*Context, error) {
 	if contextID == "" {
-		var err error
-		contextID, err = randutil.CryptoToken(32)
-		if err != nil {
-			return nil, err
-		}
+		contextID = mylog.Check2(randutil.CryptoToken(32))
 	}
 
 	return &Context{
@@ -77,19 +74,14 @@ func NewContext(task *state.Task, state *state.State, setup *HookSetup, handler 
 }
 
 func newEphemeralHookContextWithData(st *state.State, setup *HookSetup, contextData map[string]interface{}) (*Context, error) {
-	context, err := NewContext(nil, st, setup, nil, "")
-	if err != nil {
-		return nil, err
-	}
+	context := mylog.Check2(NewContext(nil, st, setup, nil, ""))
+
 	if contextData != nil {
-		serialized, err := json.Marshal(contextData)
-		if err != nil {
-			return nil, err
-		}
+		serialized := mylog.Check2(json.Marshal(contextData))
+
 		var data map[string]*json.RawMessage
-		if err := json.Unmarshal(serialized, &data); err != nil {
-			return nil, err
-		}
+		mylog.Check(json.Unmarshal(serialized, &data))
+
 		context.cache["ephemeral-context"] = data
 	}
 	return context, nil
@@ -168,7 +160,7 @@ func (c *Context) Set(key string, value interface{}) {
 	if c.IsEphemeral() {
 		data, _ = c.cache["ephemeral-context"].(map[string]*json.RawMessage)
 	} else {
-		if err := c.task.Get("hook-context", &data); err != nil && !errors.Is(err, state.ErrNoState) {
+		if mylog.Check(c.task.Get("hook-context", &data)); err != nil && !errors.Is(err, state.ErrNoState) {
 			panic(fmt.Sprintf("internal error: cannot unmarshal context: %v", err))
 		}
 	}
@@ -176,10 +168,8 @@ func (c *Context) Set(key string, value interface{}) {
 		data = make(map[string]*json.RawMessage)
 	}
 
-	marshalledValue, err := json.Marshal(value)
-	if err != nil {
-		panic(fmt.Sprintf("internal error: cannot marshal context value for %q: %s", key, err))
-	}
+	marshalledValue := mylog.Check2(json.Marshal(value))
+
 	raw := json.RawMessage(marshalledValue)
 	data[key] = &raw
 
@@ -203,20 +193,14 @@ func (c *Context) Get(key string, value interface{}) error {
 			return state.ErrNoState
 		}
 	} else {
-		if err := c.task.Get("hook-context", &data); err != nil {
-			return err
-		}
+		mylog.Check(c.task.Get("hook-context", &data))
 	}
 
 	raw, ok := data[key]
 	if !ok {
 		return state.ErrNoState
 	}
-
-	err := jsonutil.DecodeWithNumber(bytes.NewReader(*raw), &value)
-	if err != nil {
-		return fmt.Errorf("cannot unmarshal context value for %q: %s", key, err)
-	}
+	mylog.Check(jsonutil.DecodeWithNumber(bytes.NewReader(*raw), &value))
 
 	return nil
 }
@@ -262,7 +246,7 @@ func (c *Context) Done() error {
 
 	var firstErr error
 	for _, f := range c.onDone {
-		if err := f(); err != nil && firstErr == nil {
+		if mylog.Check(f()); err != nil && firstErr == nil {
 			firstErr = err
 		}
 	}

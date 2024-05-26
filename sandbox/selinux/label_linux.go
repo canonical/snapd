@@ -24,27 +24,25 @@ import (
 	"os/exec"
 	"regexp"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 )
 
-var (
-	// actual matchpathcon -V output:
-	// /home/guest/snap has context unconfined_u:object_r:user_home_t:s0, should be unconfined_u:object_r:snappy_home_t:s0
-	matchIncorrectLabel = regexp.MustCompile("^.* has context .* should be .*\n$")
-)
+// actual matchpathcon -V output:
+// /home/guest/snap has context unconfined_u:object_r:user_home_t:s0, should be unconfined_u:object_r:snappy_home_t:s0
+var matchIncorrectLabel = regexp.MustCompile("^.* has context .* should be .*\n$")
 
 // VerifyPathContext checks whether a given path is labeled according to its default
 // SELinux context
 func VerifyPathContext(aPath string) (bool, error) {
-	if _, err := os.Stat(aPath); err != nil {
-		// path that cannot be accessed cannot be verified
-		return false, err
-	}
+	mylog.Check2(os.Stat(aPath))
+	// path that cannot be accessed cannot be verified
+
 	// matchpathcon -V verifies whether the context of a path matches the
 	// default
 	cmd := exec.Command("matchpathcon", "-V", aPath)
 	cmd.Env = append(os.Environ(), "LC_ALL=C")
-	out, err := cmd.Output()
+	out := mylog.Check2(cmd.Output())
 	if err == nil {
 		// the path was verified
 		return true, nil
@@ -64,10 +62,8 @@ func VerifyPathContext(aPath string) (bool, error) {
 
 // RestoreContext restores the default SELinux context of given path
 func RestoreContext(aPath string, mode RestoreMode) error {
-	if _, err := os.Stat(aPath); err != nil {
-		// path that cannot be accessed cannot be restored
-		return err
-	}
+	mylog.Check2(os.Stat(aPath))
+	// path that cannot be accessed cannot be restored
 
 	args := make([]string, 0, 2)
 	if mode.Recursive {

@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/logger"
 )
 
@@ -66,9 +67,8 @@ type Epoch struct {
 // testing, as it panics at the first sign of trouble.
 func E(s string) Epoch {
 	var e Epoch
-	if err := e.fromString(s); err != nil {
-		panic(fmt.Errorf("%q: %v", s, err))
-	}
+	mylog.Check(e.fromString(s))
+
 	return e
 }
 
@@ -83,10 +83,8 @@ func (e *Epoch) fromString(s string) error {
 		star = true
 		s = s[:len(s)-1]
 	}
-	n, err := parseInt(s)
-	if err != nil {
-		return err
-	}
+	n := mylog.Check2(parseInt(s))
+
 	if star {
 		if n == 0 {
 			return &EpochError{Message: epochZeroStar}
@@ -117,9 +115,7 @@ func (e *Epoch) fromStructured(structured structuredEpoch) error {
 	}
 
 	p := &Epoch{Read: structured.Read, Write: structured.Write}
-	if err := p.Validate(); err != nil {
-		return err
-	}
+	mylog.Check(p.Validate())
 
 	*e = *p
 
@@ -134,13 +130,11 @@ func (e *Epoch) UnmarshalJSON(bs []byte) error {
 
 func (e *Epoch) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var shortEpoch string
-	if err := unmarshal(&shortEpoch); err == nil {
+	if mylog.Check(unmarshal(&shortEpoch)); err == nil {
 		return e.fromString(shortEpoch)
 	}
 	var structured structuredEpoch
-	if err := unmarshal(&structured); err != nil {
-		return err
-	}
+	mylog.Check(unmarshal(&structured))
 
 	return e.fromStructured(structured)
 }
@@ -236,12 +230,10 @@ func (e Epoch) String() string {
 		return s
 	}
 
-	buf, err := json.Marshal(i)
-	if err != nil {
-		// can this happen?
-		logger.Noticef("trying to marshal %#v, simplified to %#v, got %v", e, i, err)
-		return "-1"
-	}
+	buf := mylog.Check2(json.Marshal(i))
+
+	// can this happen?
+
 	return string(buf)
 }
 
@@ -303,7 +295,7 @@ const (
 
 func parseInt(s string) (uint32, error) {
 	if !(len(s) > 1 && s[0] == '0') {
-		u, err := strconv.ParseUint(s, 10, 32)
+		u := mylog.Check2(strconv.ParseUint(s, 10, 32))
 		if err == nil {
 			return uint32(u), nil
 		}
@@ -324,15 +316,12 @@ type uint32slice []uint32
 
 func (z *uint32slice) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var ss []string
-	if err := unmarshal(&ss); err != nil {
-		return &EpochError{Message: badEpochList}
-	}
+	mylog.Check(unmarshal(&ss))
+
 	x := make([]uint32, len(ss))
 	for i, s := range ss {
-		n, err := parseInt(s)
-		if err != nil {
-			return err
-		}
+		n := mylog.Check2(parseInt(s))
+
 		x[i] = n
 	}
 	*z = x
@@ -341,15 +330,12 @@ func (z *uint32slice) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 func (z *uint32slice) UnmarshalJSON(bs []byte) error {
 	var ss []json.RawMessage
-	if err := json.Unmarshal(bs, &ss); err != nil {
-		return &EpochError{Message: badEpochList}
-	}
+	mylog.Check(json.Unmarshal(bs, &ss))
+
 	x := make([]uint32, len(ss))
 	for i, s := range ss {
-		n, err := parseInt(string(s))
-		if err != nil {
-			return err
-		}
+		n := mylog.Check2(parseInt(string(s)))
+
 		x[i] = n
 	}
 	*z = x

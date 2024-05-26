@@ -28,6 +28,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
@@ -74,39 +75,38 @@ func (s *backendSuite) TestName(c *C) {
 
 func (s *backendSuite) TestRemove(c *C) {
 	appCanaryToGo := filepath.Join(dirs.SnapMountPolicyDir, "snap.hello-world.hello-world.fstab")
-	err := os.WriteFile(appCanaryToGo, []byte("ni! ni! ni!"), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(appCanaryToGo, []byte("ni! ni! ni!"), 0644))
+
 
 	hookCanaryToGo := filepath.Join(dirs.SnapMountPolicyDir, "snap.hello-world.hook.configure.fstab")
-	err = os.WriteFile(hookCanaryToGo, []byte("ni! ni! ni!"), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(hookCanaryToGo, []byte("ni! ni! ni!"), 0644))
+
 
 	snapCanaryToGo := filepath.Join(dirs.SnapMountPolicyDir, "snap.hello-world.fstab")
-	err = os.WriteFile(snapCanaryToGo, []byte("ni! ni! ni!"), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(snapCanaryToGo, []byte("ni! ni! ni!"), 0644))
+
 
 	appCanaryToStay := filepath.Join(dirs.SnapMountPolicyDir, "snap.i-stay.really.fstab")
-	err = os.WriteFile(appCanaryToStay, []byte("stay!"), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(appCanaryToStay, []byte("stay!"), 0644))
+
 
 	snapCanaryToStay := filepath.Join(dirs.SnapMountPolicyDir, "snap.i-stay.fstab")
-	err = os.WriteFile(snapCanaryToStay, []byte("stay!"), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(snapCanaryToStay, []byte("stay!"), 0644))
+
 
 	// Write the .mnt file, the logic for discarding mount namespaces uses it
 	// as a canary file to look for to even attempt to run the mount discard
 	// tool.
 	mntFile := filepath.Join(dirs.SnapRunNsDir, "hello-world.mnt")
-	err = os.WriteFile(mntFile, []byte(""), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(mntFile, []byte(""), 0644))
+
 
 	// Mock snap-discard-ns and allow tweak distro libexec dir so that it is used.
 	cmd := testutil.MockCommand(c, "snap-discard-ns", "")
 	defer cmd.Restore()
 	dirs.DistroLibExecDir = cmd.BinDir()
+	mylog.Check(s.Backend.Remove("hello-world"))
 
-	err = s.Backend.Remove("hello-world")
-	c.Assert(err, IsNil)
 
 	c.Assert(osutil.FileExists(snapCanaryToGo), Equals, false)
 	c.Assert(osutil.FileExists(appCanaryToGo), Equals, false)
@@ -139,9 +139,8 @@ func (s *backendSuite) TestSetupSetsupSimple(c *C) {
 
 	// Give the plug a permanent effect
 	s.Iface.MountPermanentPlugCallback = func(spec *mount.Specification, plug *snap.PlugInfo) error {
-		if err := spec.AddMountEntry(fsEntry1); err != nil {
-			return err
-		}
+		mylog.Check(spec.AddMountEntry(fsEntry1))
+
 		return spec.AddUserMountEntry(fsEntry3)
 	}
 	// Give the slot a permanent effect
@@ -157,14 +156,14 @@ func (s *backendSuite) TestSetupSetsupSimple(c *C) {
 	expected := strings.Split(fmt.Sprintf("%s\n%s\n", fsEntry1, fsEntry2), "\n")
 	// and that we have the modern fstab file (global for snap)
 	fn := filepath.Join(dirs.SnapMountPolicyDir, "snap.snap-name.fstab")
-	content, err := os.ReadFile(fn)
+	content := mylog.Check2(os.ReadFile(fn))
 	c.Assert(err, IsNil, Commentf("Expected mount profile for the whole snap"))
 	got := strings.Split(string(content), "\n")
 	c.Check(got, testutil.DeepUnsortedMatches, expected)
 
 	// Check that the user-fstab file was written with the user mount
 	fn = filepath.Join(dirs.SnapMountPolicyDir, "snap.snap-name.user-fstab")
-	content, err = os.ReadFile(fn)
+	content = mylog.Check2(os.ReadFile(fn))
 	c.Assert(err, IsNil, Commentf("Expected user mount profile for the whole snap"))
 	c.Check(string(content), Equals, fsEntry3.String()+"\n")
 }
@@ -193,9 +192,8 @@ func (s *backendSuite) TestParallelInstanceSetup(c *C) {
 
 	// Give the plug a permanent effect
 	s.Iface.MountPermanentPlugCallback = func(spec *mount.Specification, plug *snap.PlugInfo) error {
-		if err := spec.AddMountEntry(fsEntry1); err != nil {
-			return err
-		}
+		mylog.Check(spec.AddMountEntry(fsEntry1))
+
 		return spec.AddUserMountEntry(userFsEntry)
 	}
 	// Give the slot a permanent effect
@@ -256,9 +254,7 @@ func (s *backendSuite) TestSetupUpdates(c *C) {
 	// Give the slot a permanent effect
 	s.iface2.MountPermanentSlotCallback = func(spec *mount.Specification, slot *snap.SlotInfo) error {
 		if update {
-			if err := spec.AddMountEntry(fsEntry3); err != nil {
-				return err
-			}
+			mylog.Check(spec.AddMountEntry(fsEntry3))
 		}
 		return spec.AddMountEntry(fsEntry2)
 	}
@@ -275,7 +271,7 @@ func (s *backendSuite) TestSetupUpdates(c *C) {
 	expected := strings.Split(fmt.Sprintf("%s\n%s\n", fsEntry1, fsEntry2), "\n")
 	// and that we have the modern fstab file (global for snap)
 	fn := filepath.Join(dirs.SnapMountPolicyDir, "snap.snap-name.fstab")
-	content, err := os.ReadFile(fn)
+	content := mylog.Check2(os.ReadFile(fn))
 	c.Assert(err, IsNil, Commentf("Expected mount profile for the whole snap"))
 	got := strings.Split(string(content), "\n")
 	c.Check(got, testutil.DeepUnsortedMatches, expected)
@@ -283,8 +279,8 @@ func (s *backendSuite) TestSetupUpdates(c *C) {
 	update = true
 	// ensure .mnt file
 	mntFile := filepath.Join(dirs.SnapRunNsDir, "snap-name.mnt")
-	err = os.WriteFile(mntFile, []byte(""), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(mntFile, []byte(""), 0644))
+
 
 	// confinement options are irrelevant to this security backend
 	s.UpdateSnap(c, snapInfo, interfaces.ConfinementOptions{}, mockSnapYaml, 1)
@@ -296,7 +292,7 @@ func (s *backendSuite) TestSetupUpdates(c *C) {
 	// (because mount profiles are global in the whole snap)
 	expected = strings.Split(fmt.Sprintf("%s\n%s\n%s\n", fsEntry1, fsEntry2, fsEntry3), "\n")
 	// and that we have the modern fstab file (global for snap)
-	content, err = os.ReadFile(fn)
+	content = mylog.Check2(os.ReadFile(fn))
 	c.Assert(err, IsNil, Commentf("Expected mount profile for the whole snap"))
 	got = strings.Split(string(content), "\n")
 	c.Check(got, testutil.DeepUnsortedMatches, expected)
@@ -315,9 +311,7 @@ func (s *backendSuite) TestSetupEndureUpdatesError(c *C) {
 	// Give the slot a permanent effect
 	s.iface2.MountPermanentSlotCallback = func(spec *mount.Specification, slot *snap.SlotInfo) error {
 		if update {
-			if err := spec.AddMountEntry(fsEntry3); err != nil {
-				return err
-			}
+			mylog.Check(spec.AddMountEntry(fsEntry3))
 		}
 		return spec.AddMountEntry(fsEntry2)
 	}
@@ -333,11 +327,11 @@ func (s *backendSuite) TestSetupEndureUpdatesError(c *C) {
 	update = true
 	// ensure .mnt file
 	mntFile := filepath.Join(dirs.SnapRunNsDir, "snap-name.mnt")
-	err := os.WriteFile(mntFile, []byte(""), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(mntFile, []byte(""), 0644))
+
 
 	// confinement options are irrelevant to this security backend
-	_, err = s.UpdateSnapMaybeErr(c, snapInfo, interfaces.ConfinementOptions{}, mockEndureSnapYaml, 1)
+	_ = mylog.Check2(s.UpdateSnapMaybeErr(c, snapInfo, interfaces.ConfinementOptions{}, mockEndureSnapYaml, 1))
 	c.Check(err, ErrorMatches, `cannot update mount namespace of snap "snap-name", and cannot discard it because it contains an enduring daemon:.*`)
 
 	// snap-update-ns was invoked, snap-discard-ns wasn't
@@ -347,7 +341,7 @@ func (s *backendSuite) TestSetupEndureUpdatesError(c *C) {
 	expected := strings.Split(fmt.Sprintf("%s\n%s\n%s\n", fsEntry1, fsEntry2, fsEntry3), "\n")
 	// and that we have the modern fstab file (global for snap)
 	fn := filepath.Join(dirs.SnapMountPolicyDir, "snap.snap-name.fstab")
-	content, err := os.ReadFile(fn)
+	content := mylog.Check2(os.ReadFile(fn))
 	c.Assert(err, IsNil, Commentf("Expected mount profile for the whole snap"))
 	got := strings.Split(string(content), "\n")
 	c.Check(got, testutil.DeepUnsortedMatches, expected)
@@ -386,9 +380,7 @@ func (s *backendSuite) TestSetupUpdatesErrorDiscardsNs(c *C) {
 	// Give the slot a permanent effect
 	s.iface2.MountPermanentSlotCallback = func(spec *mount.Specification, slot *snap.SlotInfo) error {
 		if update {
-			if err := spec.AddMountEntry(fsEntry3); err != nil {
-				return err
-			}
+			mylog.Check(spec.AddMountEntry(fsEntry3))
 		}
 		return spec.AddMountEntry(fsEntry2)
 	}
@@ -404,8 +396,8 @@ func (s *backendSuite) TestSetupUpdatesErrorDiscardsNs(c *C) {
 	update = true
 	// ensure .mnt file
 	mntFile := filepath.Join(dirs.SnapRunNsDir, "snap-name.mnt")
-	err := os.WriteFile(mntFile, []byte(""), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(mntFile, []byte(""), 0644))
+
 
 	// confinement options are irrelevant to this security backend
 	s.UpdateSnap(c, snapInfo, interfaces.ConfinementOptions{}, mockSnapYaml, 1)
@@ -416,7 +408,7 @@ func (s *backendSuite) TestSetupUpdatesErrorDiscardsNs(c *C) {
 	expected := strings.Split(fmt.Sprintf("%s\n%s\n%s\n", fsEntry1, fsEntry2, fsEntry3), "\n")
 	// and that we have the modern fstab file (global for snap)
 	fn := filepath.Join(dirs.SnapMountPolicyDir, "snap.snap-name.fstab")
-	content, err := os.ReadFile(fn)
+	content := mylog.Check2(os.ReadFile(fn))
 	c.Assert(err, IsNil, Commentf("Expected mount profile for the whole snap"))
 	got := strings.Split(string(content), "\n")
 	c.Check(got, testutil.DeepUnsortedMatches, expected)

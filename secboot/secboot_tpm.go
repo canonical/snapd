@@ -30,6 +30,7 @@ import (
 
 	"github.com/canonical/go-tpm2"
 	"github.com/canonical/go-tpm2/mu"
+	"github.com/ddkwork/golibrary/mylog"
 	sb "github.com/snapcore/secboot"
 	sb_efi "github.com/snapcore/secboot/efi"
 	sb_tpm2 "github.com/snapcore/secboot/tpm2"
@@ -79,19 +80,13 @@ var (
 
 func CheckTPMKeySealingSupported(mode TPMProvisionMode) error {
 	logger.Noticef("checking if secure boot is enabled...")
-	if err := checkSecureBootEnabled(); err != nil {
-		logger.Noticef("secure boot not enabled: %v", err)
-		return err
-	}
+	mylog.Check(checkSecureBootEnabled())
+
 	logger.Noticef("secure boot is enabled")
 
 	logger.Noticef("checking if TPM device is available...")
-	tpm, err := sbConnectToDefaultTPM()
-	if err != nil {
-		err = fmt.Errorf("cannot connect to TPM device: %v", err)
-		logger.Noticef("%v", err)
-		return err
-	}
+	tpm := mylog.Check2(sbConnectToDefaultTPM())
+
 	defer tpm.Close()
 
 	if !isTPMEnabled(tpm) {
@@ -112,13 +107,8 @@ func CheckTPMKeySealingSupported(mode TPMProvisionMode) error {
 
 func checkSecureBootEnabled() error {
 	// 8be4df61-93ca-11d2-aa0d-00e098032b8c is the EFI Global Variable vendor GUID
-	b, _, err := efi.ReadVarBytes("SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c")
-	if err != nil {
-		if err == efi.ErrNoEFISystem {
-			return err
-		}
-		return fmt.Errorf("cannot read secure boot variable: %v", err)
-	}
+	b, _ := mylog.Check3(efi.ReadVarBytes("SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c"))
+
 	if len(b) < 1 {
 		return errors.New("secure boot variable does not exist")
 	}
@@ -139,13 +129,8 @@ func insecureConnectToTPM() (*sb_tpm2.Connection, error) {
 
 func measureWhenPossible(whatHow func(tpm *sb_tpm2.Connection) error) error {
 	// the model is ready, we're good to try measuring it now
-	tpm, err := insecureConnectToTPM()
-	if err != nil {
-		if xerrors.Is(err, sb_tpm2.ErrNoTPM2Device) {
-			return nil
-		}
-		return fmt.Errorf("cannot open TPM connection: %v", err)
-	}
+	tpm := mylog.Check2(insecureConnectToTPM())
+
 	defer tpm.Close()
 
 	if !isTPMEnabled(tpm) {
@@ -161,10 +146,7 @@ func MeasureSnapSystemEpochWhenPossible() error {
 	measure := func(tpm *sb_tpm2.Connection) error {
 		return sbMeasureSnapSystemEpochToTPM(tpm, initramfsPCR)
 	}
-
-	if err := measureWhenPossible(measure); err != nil {
-		return fmt.Errorf("cannot measure snap system epoch: %v", err)
-	}
+	mylog.Check(measureWhenPossible(measure))
 
 	return nil
 }
@@ -173,16 +155,11 @@ func MeasureSnapSystemEpochWhenPossible() error {
 // available. If there's no TPM device success is returned.
 func MeasureSnapModelWhenPossible(findModel func() (*asserts.Model, error)) error {
 	measure := func(tpm *sb_tpm2.Connection) error {
-		model, err := findModel()
-		if err != nil {
-			return err
-		}
+		model := mylog.Check2(findModel())
+
 		return sbMeasureSnapModelToTPM(tpm, initramfsPCR, model)
 	}
-
-	if err := measureWhenPossible(measure); err != nil {
-		return fmt.Errorf("cannot measure snap model: %v", err)
-	}
+	mylog.Check(measureWhenPossible(measure))
 
 	return nil
 }
@@ -239,9 +216,8 @@ func unlockVolumeUsingSealedKeyTPM(name, sealedEncryptionKeyFile, sourceDevice, 
 	// if we don't have a tpm, and we allow using a recovery key, do that
 	// directly
 	if !tpmDeviceAvailable && opts.AllowRecoveryKey {
-		if err := UnlockEncryptedVolumeWithRecoveryKey(mapperName, sourceDevice); err != nil {
-			return res, err
-		}
+		mylog.Check(UnlockEncryptedVolumeWithRecoveryKey(mapperName, sourceDevice))
+
 		res.FsDevice = targetDevice
 		res.UnlockMethod = UnlockedWithRecoveryKey
 		return res, nil
@@ -249,7 +225,7 @@ func unlockVolumeUsingSealedKeyTPM(name, sealedEncryptionKeyFile, sourceDevice, 
 
 	// otherwise we have a tpm and we should use the sealed key first, but
 	// this method will fallback to using the recovery key if enabled
-	method, err := unlockEncryptedPartitionWithSealedKey(mapperName, sourceDevice, sealedEncryptionKeyFile, opts.AllowRecoveryKey)
+	method := mylog.Check2(unlockEncryptedPartitionWithSealedKey(mapperName, sourceDevice, sealedEncryptionKeyFile, opts.AllowRecoveryKey))
 	res.UnlockMethod = method
 	if err == nil {
 		res.FsDevice = targetDevice
@@ -275,20 +251,16 @@ func activateVolOpts(allowRecoveryKey bool) *sb.ActivateVolumeOptions {
 // device. If activation with the sealed key fails, this function will attempt to
 // activate it with the fallback recovery key instead.
 func unlockEncryptedPartitionWithSealedKey(mapperName, sourceDevice, keyfile string, allowRecovery bool) (UnlockMethod, error) {
-	keyData, err := sbNewKeyDataFromSealedKeyObjectFile(keyfile)
-	if err != nil {
-		return NotUnlocked, fmt.Errorf("cannot read key data: %v", err)
-	}
+	keyData := mylog.Check2(sbNewKeyDataFromSealedKeyObjectFile(keyfile))
+
 	options := activateVolOpts(allowRecovery)
 	// ignoring model checker as it doesn't work with tpm "legacy" platform key data
-	_, err = sbActivateVolumeWithKeyData(mapperName, sourceDevice, keyData, options)
+	_ = mylog.Check2(sbActivateVolumeWithKeyData(mapperName, sourceDevice, keyData, options))
 	if err == sb.ErrRecoveryKeyUsed {
 		logger.Noticef("successfully activated encrypted device %q using a fallback activation method", sourceDevice)
 		return UnlockedWithRecoveryKey, nil
 	}
-	if err != nil {
-		return NotUnlocked, fmt.Errorf("cannot activate encrypted device %q: %v", sourceDevice, err)
-	}
+
 	logger.Noticef("successfully activated encrypted device %q with TPM", sourceDevice)
 	return UnlockedWithSealedKey, nil
 }
@@ -296,18 +268,14 @@ func unlockEncryptedPartitionWithSealedKey(mapperName, sourceDevice, keyfile str
 // ProvisionTPM provisions the default TPM and saves the lockout authorization
 // key to the specified file.
 func ProvisionTPM(mode TPMProvisionMode, lockoutAuthFile string) error {
-	tpm, err := sbConnectToDefaultTPM()
-	if err != nil {
-		return fmt.Errorf("cannot connect to TPM: %v", err)
-	}
+	tpm := mylog.Check2(sbConnectToDefaultTPM())
+
 	defer tpm.Close()
 	if !isTPMEnabled(tpm) {
 		return fmt.Errorf("TPM device is not enabled")
 	}
+	mylog.Check(tpmProvision(tpm, mode, lockoutAuthFile))
 
-	if err := tpmProvision(tpm, mode, lockoutAuthFile); err != nil {
-		return err
-	}
 	return nil
 }
 
@@ -321,13 +289,8 @@ func ProvisionTPM(mode TPMProvisionMode, lockoutAuthFile string) error {
 // - it is fatal if TPM Provisioning requires a Lockout file
 // - Custom SRK file is required in InitramfsUbuntuSeedDir
 func ProvisionForCVM(initramfsUbuntuSeedDir string) error {
-	tpm, err := insecureConnectToTPM()
-	if err != nil {
-		if xerrors.Is(err, sb_tpm2.ErrNoTPM2Device) {
-			return nil
-		}
-		return fmt.Errorf("cannot open TPM connection: %v", err)
-	}
+	tpm := mylog.Check2(insecureConnectToTPM())
+
 	defer tpm.Close()
 
 	if !isTPMEnabled(tpm) {
@@ -335,28 +298,17 @@ func ProvisionForCVM(initramfsUbuntuSeedDir string) error {
 	}
 
 	srkTmplPath := filepath.Join(initramfsUbuntuSeedDir, "tpm2-srk.tmpl")
-	f, err := os.Open(srkTmplPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil
-		}
-		return fmt.Errorf("cannot open SRK template file: %v", err)
-	}
+	f := mylog.Check2(os.Open(srkTmplPath))
+
 	defer f.Close()
 
 	var srkTmpl *tpm2.Public
-	if _, err := mu.UnmarshalFromReader(f, mu.Sized(&srkTmpl)); err != nil {
-		return fmt.Errorf("cannot read SRK template: %v", err)
-	}
-
-	err = sbTPMEnsureProvisionedWithCustomSRK(tpm, sb_tpm2.ProvisionModeWithoutLockout, nil, srkTmpl)
+	mylog.Check2(mu.UnmarshalFromReader(f, mu.Sized(&srkTmpl)))
+	mylog.Check(sbTPMEnsureProvisionedWithCustomSRK(tpm, sb_tpm2.ProvisionModeWithoutLockout, nil, srkTmpl))
 	if err != nil && err != sb_tpm2.ErrTPMProvisioningRequiresLockout {
 		return fmt.Errorf("cannot prepare TPM: %v", err)
 	}
-
-	if err := os.Remove(srkTmplPath); err != nil {
-		return fmt.Errorf("cannot remove SRK template file: %v", err)
-	}
+	mylog.Check(os.Remove(srkTmplPath))
 
 	return nil
 }
@@ -370,19 +322,14 @@ func SealKeys(keys []SealKeyRequest, params *SealKeysParams) error {
 		return fmt.Errorf("at least one set of model-specific parameters is required")
 	}
 
-	tpm, err := sbConnectToDefaultTPM()
-	if err != nil {
-		return fmt.Errorf("cannot connect to TPM: %v", err)
-	}
+	tpm := mylog.Check2(sbConnectToDefaultTPM())
+
 	defer tpm.Close()
 	if !isTPMEnabled(tpm) {
 		return fmt.Errorf("TPM device is not enabled")
 	}
 
-	pcrProfile, err := buildPCRProtectionProfile(params.ModelParams)
-	if err != nil {
-		return err
-	}
+	pcrProfile := mylog.Check2(buildPCRProtectionProfile(params.ModelParams))
 
 	pcrHandle := params.PCRPolicyCounterHandle
 	logger.Noticef("sealing with PCR handle %#x", pcrHandle)
@@ -401,15 +348,10 @@ func SealKeys(keys []SealKeyRequest, params *SealKeysParams) error {
 		})
 	}
 
-	authKey, err := sbSealKeyToTPMMultiple(tpm, sbKeys, &creationParams)
-	if err != nil {
-		logger.Debugf("seal key error: %v", err)
-		return err
-	}
+	authKey := mylog.Check2(sbSealKeyToTPMMultiple(tpm, sbKeys, &creationParams))
+
 	if params.TPMPolicyAuthKeyFile != "" {
-		if err := osutil.AtomicWriteFile(params.TPMPolicyAuthKeyFile, authKey, 0600, 0); err != nil {
-			return fmt.Errorf("cannot write the policy auth key file: %v", err)
-		}
+		mylog.Check(osutil.AtomicWriteFile(params.TPMPolicyAuthKeyFile, authKey, 0600, 0))
 	}
 	return nil
 }
@@ -426,44 +368,30 @@ func ResealKeys(params *ResealKeysParams) error {
 		return fmt.Errorf("at least one key file is required")
 	}
 
-	tpm, err := sbConnectToDefaultTPM()
-	if err != nil {
-		return fmt.Errorf("cannot connect to TPM: %v", err)
-	}
+	tpm := mylog.Check2(sbConnectToDefaultTPM())
+
 	defer tpm.Close()
 	if !isTPMEnabled(tpm) {
 		return fmt.Errorf("TPM device is not enabled")
 	}
 
-	pcrProfile, err := buildPCRProtectionProfile(params.ModelParams)
-	if err != nil {
-		return err
-	}
+	pcrProfile := mylog.Check2(buildPCRProtectionProfile(params.ModelParams))
 
-	authKey, err := os.ReadFile(params.TPMPolicyAuthKeyFile)
-	if err != nil {
-		return fmt.Errorf("cannot read the policy auth key file: %v", err)
-	}
+	authKey := mylog.Check2(os.ReadFile(params.TPMPolicyAuthKeyFile))
 
 	sealedKeyObjects := make([]*sb_tpm2.SealedKeyObject, 0, numSealedKeyObjects)
 	for _, keyfile := range params.KeyFiles {
-		sealedKeyObject, err := sbReadSealedKeyObjectFromFile(keyfile)
-		if err != nil {
-			return err
-		}
+		sealedKeyObject := mylog.Check2(sbReadSealedKeyObjectFromFile(keyfile))
+
 		sealedKeyObjects = append(sealedKeyObjects, sealedKeyObject)
 	}
-
-	if err := sbUpdateKeyPCRProtectionPolicyMultiple(tpm, sealedKeyObjects, authKey, pcrProfile); err != nil {
-		return err
-	}
+	mylog.Check(sbUpdateKeyPCRProtectionPolicyMultiple(tpm, sealedKeyObjects, authKey, pcrProfile))
 
 	// write key files
 	for i, sko := range sealedKeyObjects {
 		w := sb_tpm2.NewFileSealedKeyObjectWriter(params.KeyFiles[i])
-		if err := sko.WriteAtomic(w); err != nil {
-			return fmt.Errorf("cannot write key data file: %v", err)
-		}
+		mylog.Check(sko.WriteAtomic(w))
+
 	}
 
 	// revoke old policies via the primary key object
@@ -477,10 +405,7 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb_tpm2.PCRP
 	for _, mp := range modelParams {
 		modelProfile := sb_tpm2.NewPCRProtectionProfile()
 
-		loadSequences, err := buildLoadSequences(mp.EFILoadChains)
-		if err != nil {
-			return nil, fmt.Errorf("cannot build EFI image load sequences: %v", err)
-		}
+		loadSequences := mylog.Check2(buildLoadSequences(mp.EFILoadChains))
 
 		// Add EFI secure boot policy profile
 		policyParams := sb_efi.SecureBootPolicyProfileParams{
@@ -491,19 +416,14 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb_tpm2.PCRP
 			//            This also requires integration of sbkeysync, and some work to
 			//            ensure that the PCR profile is updated before/after sbkeysync executes.
 		}
-
-		if err := sbefiAddSecureBootPolicyProfile(modelProfile, &policyParams); err != nil {
-			return nil, fmt.Errorf("cannot add EFI secure boot policy profile: %v", err)
-		}
+		mylog.Check(sbefiAddSecureBootPolicyProfile(modelProfile, &policyParams))
 
 		// Add EFI boot manager profile
 		bootManagerParams := sb_efi.BootManagerProfileParams{
 			PCRAlgorithm:  tpm2.HashAlgorithmSHA256,
 			LoadSequences: loadSequences,
 		}
-		if err := sbefiAddBootManagerProfile(modelProfile, &bootManagerParams); err != nil {
-			return nil, fmt.Errorf("cannot add EFI boot manager profile: %v", err)
-		}
+		mylog.Check(sbefiAddBootManagerProfile(modelProfile, &bootManagerParams))
 
 		// Add systemd EFI stub profile
 		if len(mp.KernelCmdlines) != 0 {
@@ -512,9 +432,8 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb_tpm2.PCRP
 				PCRIndex:       initramfsPCR,
 				KernelCmdlines: mp.KernelCmdlines,
 			}
-			if err := sbefiAddSystemdStubProfile(modelProfile, &systemdStubParams); err != nil {
-				return nil, fmt.Errorf("cannot add systemd EFI stub profile: %v", err)
-			}
+			mylog.Check(sbefiAddSystemdStubProfile(modelProfile, &systemdStubParams))
+
 		}
 
 		// Add snap model profile
@@ -524,9 +443,8 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb_tpm2.PCRP
 				PCRIndex:     initramfsPCR,
 				Models:       []sb.SnapModel{mp.Model},
 			}
-			if err := sbAddSnapModelProfile(modelProfile, &snapModelParams); err != nil {
-				return nil, fmt.Errorf("cannot add snap model profile: %v", err)
-			}
+			mylog.Check(sbAddSnapModelProfile(modelProfile, &snapModelParams))
+
 		}
 
 		modelPCRProfiles = append(modelPCRProfiles, modelProfile)
@@ -548,22 +466,15 @@ func tpmProvision(tpm *sb_tpm2.Connection, mode TPMProvisionMode, lockoutAuthFil
 	var currentLockoutAuth []byte
 	if mode == TPMPartialReprovision {
 		logger.Debugf("using existing lockout authorization")
-		d, err := os.ReadFile(lockoutAuthFile)
-		if err != nil {
-			return fmt.Errorf("cannot read existing lockout auth: %v", err)
-		}
+		d := mylog.Check2(os.ReadFile(lockoutAuthFile))
+
 		currentLockoutAuth = d
 	}
 	// Create and save the lockout authorization file
 	lockoutAuth := make([]byte, 16)
 	// crypto rand is protected against short reads
-	_, err := rand.Read(lockoutAuth)
-	if err != nil {
-		return fmt.Errorf("cannot create lockout authorization: %v", err)
-	}
-	if err := osutil.AtomicWriteFile(lockoutAuthFile, lockoutAuth, 0600, 0); err != nil {
-		return fmt.Errorf("cannot write the lockout authorization file: %v", err)
-	}
+	_ := mylog.Check2(rand.Read(lockoutAuth))
+	mylog.Check(osutil.AtomicWriteFile(lockoutAuthFile, lockoutAuth, 0600, 0))
 
 	// TODO:UC20: ideally we should ask the firmware to clear the TPM and then reboot
 	//            if the device has previously been provisioned, see
@@ -573,10 +484,8 @@ func tpmProvision(tpm *sb_tpm2.Connection, mode TPMProvisionMode, lockoutAuthFil
 		// provisioning
 		tpm.LockoutHandleContext().SetAuthValue(currentLockoutAuth)
 	}
-	if err := sbTPMEnsureProvisioned(tpm, sb_tpm2.ProvisionModeFull, lockoutAuth); err != nil {
-		logger.Noticef("TPM provisioning error: %v", err)
-		return fmt.Errorf("cannot provision TPM: %v", err)
-	}
+	mylog.Check(sbTPMEnsureProvisioned(tpm, sb_tpm2.ProvisionModeFull, lockoutAuth))
+
 	return nil
 }
 
@@ -593,10 +502,8 @@ func buildLoadSequences(chains []*LoadChain) (loadseqs []*sb_efi.ImageLoadEvent,
 
 	for _, chain := range chains {
 		// root of load events has source Firmware
-		loadseq, err := chain.loadEvent(sb_efi.Firmware)
-		if err != nil {
-			return nil, err
-		}
+		loadseq := mylog.Check2(chain.loadEvent(sb_efi.Firmware))
+
 		loadseqs = append(loadseqs, loadseq)
 	}
 	return loadseqs, nil
@@ -607,16 +514,12 @@ func (lc *LoadChain) loadEvent(source sb_efi.ImageLoadEventSource) (*sb_efi.Imag
 	var next []*sb_efi.ImageLoadEvent
 	for _, nextChain := range lc.Next {
 		// everything that is not the root has source shim
-		ev, err := nextChain.loadEvent(sb_efi.Shim)
-		if err != nil {
-			return nil, err
-		}
+		ev := mylog.Check2(nextChain.loadEvent(sb_efi.Shim))
+
 		next = append(next, ev)
 	}
-	image, err := efiImageFromBootFile(lc.BootFile)
-	if err != nil {
-		return nil, err
-	}
+	image := mylog.Check2(efiImageFromBootFile(lc.BootFile))
+
 	return &sb_efi.ImageLoadEvent{
 		Source: source,
 		Image:  image,
@@ -632,10 +535,8 @@ func efiImageFromBootFile(b *bootloader.BootFile) (sb_efi.Image, error) {
 		return sb_efi.FileImage(b.Path), nil
 	}
 
-	snapf, err := snapfile.Open(b.Snap)
-	if err != nil {
-		return nil, err
-	}
+	snapf := mylog.Check2(snapfile.Open(b.Snap))
+
 	return sb_efi.SnapFileImage{
 		Container: snapf,
 		FileName:  b.Path,
@@ -645,49 +546,37 @@ func efiImageFromBootFile(b *bootloader.BootFile) (sb_efi.Image, error) {
 // PCRHandleOfSealedKey retunrs the PCR handle which was used when sealing a
 // given key object.
 func PCRHandleOfSealedKey(p string) (uint32, error) {
-	r, err := sb_tpm2.NewFileSealedKeyObjectReader(p)
-	if err != nil {
-		return 0, fmt.Errorf("cannot open key file: %v", err)
-	}
-	sko, err := sb_tpm2.ReadSealedKeyObject(r)
-	if err != nil {
-		return 0, fmt.Errorf("cannot read sealed key file: %v", err)
-	}
+	r := mylog.Check2(sb_tpm2.NewFileSealedKeyObjectReader(p))
+
+	sko := mylog.Check2(sb_tpm2.ReadSealedKeyObject(r))
+
 	handle := uint32(sko.PCRPolicyCounterHandle())
 	return handle, nil
 }
 
 func tpmReleaseResourcesImpl(tpm *sb_tpm2.Connection, handle tpm2.Handle) error {
-	rc, err := tpm.CreateResourceContextFromTPM(handle)
-	if err != nil {
-		if _, ok := err.(tpm2.ResourceUnavailableError); ok {
-			// there's nothing to release, the handle isn't used
-			return nil
-		}
-		return fmt.Errorf("cannot create resource context: %v", err)
-	}
-	if err := tpm.NVUndefineSpace(tpm.OwnerHandleContext(), rc, tpm.HmacSession()); err != nil {
-		return fmt.Errorf("cannot undefine space: %v", err)
-	}
+	rc := mylog.Check2(tpm.CreateResourceContextFromTPM(handle))
+	mylog.Check(
+
+		// there's nothing to release, the handle isn't used
+
+		tpm.NVUndefineSpace(tpm.OwnerHandleContext(), rc, tpm.HmacSession()))
+
 	return nil
 }
 
 // ReleasePCRResourceHandles releases any TPM resources associated with given
 // PCR handles.
 func ReleasePCRResourceHandles(handles ...uint32) error {
-	tpm, err := sbConnectToDefaultTPM()
-	if err != nil {
-		err = fmt.Errorf("cannot connect to TPM device: %v", err)
-		return err
-	}
+	tpm := mylog.Check2(sbConnectToDefaultTPM())
+
 	defer tpm.Close()
 
 	var errs []string
 	for _, handle := range handles {
 		logger.Debugf("releasing PCR handle %#x", handle)
-		if err := tpmReleaseResources(tpm, tpm2.Handle(handle)); err != nil {
-			errs = append(errs, fmt.Sprintf("handle %#x: %v", handle, err))
-		}
+		mylog.Check(tpmReleaseResources(tpm, tpm2.Handle(handle)))
+
 	}
 	if errCnt := len(errs); errCnt != 0 {
 		return fmt.Errorf("cannot release TPM resources for %v handles:\n%v", errCnt, strings.Join(errs, "\n"))
@@ -696,21 +585,14 @@ func ReleasePCRResourceHandles(handles ...uint32) error {
 }
 
 func resetLockoutCounter(lockoutAuthFile string) error {
-	tpm, err := sbConnectToDefaultTPM()
-	if err != nil {
-		return fmt.Errorf("cannot connect to TPM: %v", err)
-	}
+	tpm := mylog.Check2(sbConnectToDefaultTPM())
+
 	defer tpm.Close()
 
-	lockoutAuth, err := os.ReadFile(lockoutAuthFile)
-	if err != nil {
-		return fmt.Errorf("cannot read existing lockout auth: %v", err)
-	}
-	tpm.LockoutHandleContext().SetAuthValue(lockoutAuth)
+	lockoutAuth := mylog.Check2(os.ReadFile(lockoutAuthFile))
 
-	if err := sbTPMDictionaryAttackLockReset(tpm, tpm.LockoutHandleContext(), tpm.HmacSession()); err != nil {
-		return err
-	}
+	tpm.LockoutHandleContext().SetAuthValue(lockoutAuth)
+	mylog.Check(sbTPMDictionaryAttackLockReset(tpm, tpm.LockoutHandleContext(), tpm.HmacSession()))
 
 	return nil
 }

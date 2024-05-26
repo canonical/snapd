@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/ifacestate"
@@ -132,7 +133,7 @@ func (s *handlersSuite) TestBuildConfinementOptions(c *C) {
 
 	snapInfo := mockInstalledSnap(c, s.st, snapAyaml)
 	flags := snapstate.Flags{}
-	opts, err := ifacestate.BuildConfinementOptions(s.st, snapInfo, snapstate.Flags{})
+	opts := mylog.Check2(ifacestate.BuildConfinementOptions(s.st, snapInfo, snapstate.Flags{}))
 
 	c.Check(err, IsNil)
 	c.Check(len(opts.ExtraLayouts), Equals, 0)
@@ -152,13 +153,14 @@ func (s *handlersSuite) TestBuildConfinementOptionsWithLogNamespace(c *C) {
 	tr.Commit()
 
 	snapInfo := mockInstalledSnap(c, s.st, snapAyaml)
+	mylog.
 
-	// Create a new quota group with a journal quota
-	err := servicestatetest.MockQuotaInState(s.st, "foo", "", []string{snapInfo.InstanceName()}, nil, quota.NewResourcesBuilder().WithJournalNamespace().Build())
-	c.Assert(err, IsNil)
+		// Create a new quota group with a journal quota
+		Check(servicestatetest.MockQuotaInState(s.st, "foo", "", []string{snapInfo.InstanceName()}, nil, quota.NewResourcesBuilder().WithJournalNamespace().Build()))
+
 
 	flags := snapstate.Flags{}
-	opts, err := ifacestate.BuildConfinementOptions(s.st, snapInfo, snapstate.Flags{})
+	opts := mylog.Check2(ifacestate.BuildConfinementOptions(s.st, snapInfo, snapstate.Flags{}))
 
 	c.Check(err, IsNil)
 	c.Assert(len(opts.ExtraLayouts), Equals, 1)

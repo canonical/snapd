@@ -29,6 +29,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os/exec"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // HasRevealKey return true if the current system has a "fde-reveal-key"
@@ -39,7 +41,7 @@ import (
 func HasRevealKey() bool {
 	// XXX: should we record during initial sealing that the fde-setup
 	//      was used and only use fde-reveal-key in that case?
-	_, err := exec.LookPath("fde-reveal-key")
+	_ := mylog.Check2(exec.LookPath("fde-reveal-key"))
 	return err == nil
 }
 
@@ -56,16 +58,10 @@ func unmarshalInitialSetupResult(hookOutput []byte) (*InitialSetupResult, error)
 	// uses the old and deprecated v1 API that returns raw
 	// bytes and we still need to support this.
 	var res InitialSetupResult
-	if err := json.Unmarshal(hookOutput, &res); err != nil {
-		// If the outout is not json and looks like va
-		if !isV1Hook(hookOutput) {
-			return nil, fmt.Errorf("cannot decode hook output %q: %v", hookOutput, err)
-		}
-		// v1 hooks do not support a handle
-		handle := json.RawMessage(v1NoHandle)
-		res.Handle = &handle
-		res.EncryptedKey = hookOutput
-	}
+	mylog.Check(json.Unmarshal(hookOutput, &res))
+	// If the outout is not json and looks like va
+
+	// v1 hooks do not support a handle
 
 	return &res, nil
 }
@@ -115,14 +111,10 @@ func InitialSetup(runSetupHook RunSetupHookFunc, params *InitialSetupParams) (*I
 		Key:     params.Key,
 		KeyName: params.KeyName,
 	}
-	hookOutput, err := runSetupHook(req)
-	if err != nil {
-		return nil, err
-	}
-	res, err := unmarshalInitialSetupResult(hookOutput)
-	if err != nil {
-		return nil, err
-	}
+	hookOutput := mylog.Check2(runSetupHook(req))
+
+	res := mylog.Check2(unmarshalInitialSetupResult(hookOutput))
+
 	return res, nil
 }
 
@@ -131,17 +123,14 @@ func CheckFeatures(runSetupHook RunSetupHookFunc) ([]string, error) {
 	req := &SetupRequest{
 		Op: "features",
 	}
-	output, err := runSetupHook(req)
-	if err != nil {
-		return nil, err
-	}
+	output := mylog.Check2(runSetupHook(req))
+
 	var res struct {
 		Features []string `json:"features"`
 		Error    string   `json:"error"`
 	}
-	if err := json.Unmarshal(output, &res); err != nil {
-		return nil, fmt.Errorf("cannot parse hook output %q: %v", output, err)
-	}
+	mylog.Check(json.Unmarshal(output, &res))
+
 	if res.Features == nil && res.Error == "" {
 		return nil, fmt.Errorf(`cannot use hook: neither "features" nor "error" returned`)
 	}

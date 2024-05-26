@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -108,12 +109,12 @@ apps:
 		clientYaml := strings.ReplaceAll(clientYamlTmpl, "##QCIPC##", tc.tag)
 		s.plug, s.plugInfo = MockConnectedPlug(c, clientYaml, nil, "qc-router")
 
-		appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-		c.Assert(err, IsNil)
+		appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 		spec := apparmor.NewSpecification(appSet)
-		err = spec.AddConnectedPlug(s.iface, s.plug, s.slot)
+		mylog.Check(spec.AddConnectedPlug(s.iface, s.plug, s.slot))
 		if tc.err == "" {
-			c.Assert(err, IsNil)
+
 		} else {
 			c.Assert(err.Error(), Equals, tc.err)
 		}
@@ -158,9 +159,9 @@ slots:
 		defer r()
 		r = apparmor_sandbox.MockFeatures(nil, nil, []string{"qipcrtr-socket"}, nil)
 		defer r()
-		err := interfaces.BeforePrepareSlot(s.iface, s.slotInfo)
+		mylog.Check(interfaces.BeforePrepareSlot(s.iface, s.slotInfo))
 		if tc.err == "" {
-			c.Assert(err, IsNil)
+
 		} else {
 			c.Assert(err.Error(), Equals, tc.err)
 		}
@@ -198,9 +199,9 @@ slots:
 		defer r()
 		r = apparmor_sandbox.MockFeatures(nil, nil, []string{"qipcrtr-socket"}, nil)
 		defer r()
-		err := interfaces.BeforePrepareSlot(s.iface, s.slotInfo)
+		mylog.Check(interfaces.BeforePrepareSlot(s.iface, s.slotInfo))
 		if tc.err == "" {
-			c.Assert(err, IsNil)
+
 		} else {
 			c.Logf(err.Error())
 			c.Assert(err.Error(), Equals, tc.err)
@@ -213,7 +214,7 @@ func (s *QrtrInterfaceSuite) TestSanitizeSlotMissingFeature(c *C) {
 	defer r()
 	r = apparmor_sandbox.MockFeatures(nil, nil, nil, nil)
 	defer r()
-	err := interfaces.BeforePrepareSlot(s.iface, s.slotInfo)
+	mylog.Check(interfaces.BeforePrepareSlot(s.iface, s.slotInfo))
 	c.Assert(err, ErrorMatches, "cannot prepare slot on system without qipcrtr socket support")
 }
 
@@ -232,13 +233,13 @@ func (s *QrtrInterfaceSuite) TestSanitizePlugConnectionMissingAppArmorSandboxFea
 	defer r()
 	r = apparmor_sandbox.MockFeatures(nil, nil, nil, nil)
 	defer r()
-	err := interfaces.BeforeConnectPlug(s.iface, s.plug)
+	mylog.Check(interfaces.BeforeConnectPlug(s.iface, s.plug))
 	c.Assert(err, ErrorMatches, "cannot connect plug on system without qipcrtr socket support")
 }
 
 func (s *QrtrInterfaceSuite) TestAppArmorSpec(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.slotInfo.Snap, nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.slotInfo.Snap, nil))
+
 	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
 	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
@@ -250,8 +251,8 @@ func (s *QrtrInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SnippetForTag("snap.server.app"), testutil.Contains, `unix (accept, send, receive) type=seqpacket addr="@\x00\x00" peer=(label="snap.client.app"),`)
 	c.Assert(spec.SnippetForTag("snap.server.app"), testutil.Contains, `unix (bind, listen) type=seqpacket addr="@\x00\x00",`)
 
-	appSet, err = interfaces.NewSnapAppSet(s.plugInfo.Snap, nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.plugInfo.Snap, nil))
+
 	spec = apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 
@@ -260,12 +261,11 @@ func (s *QrtrInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SnippetForTag("snap.client.app"), testutil.Contains, "network qipcrtr,\n")
 	c.Assert(spec.SnippetForTag("snap.client.app"), Not(testutil.Contains), "capability net_admin,\n")
 	c.Assert(spec.SnippetForTag("snap.client.app"), testutil.Contains, `unix (connect, send, receive) type=seqpacket addr="@\x00\x00" peer=(label="snap.server.app"),`)
-
 }
 
 func (s *QrtrInterfaceSuite) TestSecCompSpec(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.slotInfo.Snap, nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.slotInfo.Snap, nil))
+
 	spec := seccomp.NewSpecification(appSet)
 	c.Assert(spec.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
 
@@ -328,10 +328,10 @@ apps:
     plugs: [qualcomm-ipc-router]
 `, nil, "qualcomm-ipc-router")
 
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	spec := apparmor.NewSpecification(appSet)
-	err = spec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	mylog.Check(spec.AddConnectedPlug(s.iface, s.plug, s.slot))
 	c.Assert(err.Error(), Equals, `"qcipc" attribute not allowed if connecting to a system slot`)
 }
 
@@ -358,20 +358,20 @@ func (s *QrtrInterfaceCompatSuite) TestSanitizePlugConnectionMissingAppArmorSand
 	defer r()
 	r = apparmor_sandbox.MockFeatures(nil, nil, nil, nil)
 	defer r()
-	err := interfaces.BeforeConnectPlug(s.iface, s.plug)
+	mylog.Check(interfaces.BeforeConnectPlug(s.iface, s.plug))
 	c.Assert(err, ErrorMatches, "cannot connect plug on system without qipcrtr socket support")
 }
 
 func (s *QrtrInterfaceCompatSuite) TestSanitizePlugConnectionMissingNoAppArmor(c *C) {
 	r := apparmor_sandbox.MockLevel(apparmor_sandbox.Unsupported)
 	defer r()
-	err := interfaces.BeforeConnectPlug(s.iface, s.plug)
-	c.Assert(err, IsNil)
+	mylog.Check(interfaces.BeforeConnectPlug(s.iface, s.plug))
+
 }
 
 func (s *QrtrInterfaceCompatSuite) TestAppArmorSpec(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
@@ -380,8 +380,8 @@ func (s *QrtrInterfaceCompatSuite) TestAppArmorSpec(c *C) {
 }
 
 func (s *QrtrInterfaceCompatSuite) TestSecCompSpec(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	spec := seccomp.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})

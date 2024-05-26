@@ -26,6 +26,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/state"
@@ -34,12 +35,8 @@ import (
 
 func cookies(st *state.State) (map[string]string, error) {
 	var snapCookies map[string]string
-	if err := st.Get("snap-cookies", &snapCookies); err != nil {
-		if !errors.Is(err, state.ErrNoState) {
-			return nil, fmt.Errorf("cannot get snap cookies: %v", err)
-		}
-		snapCookies = make(map[string]string)
-	}
+	mylog.Check(st.Get("snap-cookies", &snapCookies))
+
 	return snapCookies, nil
 }
 
@@ -49,14 +46,11 @@ func cookies(st *state.State) (map[string]string, error) {
 // It is the caller's responsibility to lock state before calling this function.
 func (m *SnapManager) SyncCookies(st *state.State) error {
 	var instanceNames map[string]*json.RawMessage
-	if err := st.Get("snaps", &instanceNames); err != nil && !errors.Is(err, state.ErrNoState) {
+	if mylog.Check(st.Get("snaps", &instanceNames)); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 
-	snapCookies, err := cookies(st)
-	if err != nil {
-		return err
-	}
+	snapCookies := mylog.Check2(cookies(st))
 
 	snapsWithCookies := make(map[string]bool)
 	for _, snap := range snapCookies {
@@ -75,10 +69,8 @@ func (m *SnapManager) SyncCookies(st *state.State) error {
 	// make sure every snap has a cookie, generate one if necessary
 	for snap := range instanceNames {
 		if _, ok := snapsWithCookies[snap]; !ok {
-			cookie, err := makeCookie()
-			if err != nil {
-				return err
-			}
+			cookie := mylog.Check2(makeCookie())
+
 			snapCookies[cookie] = snap
 			changed = true
 		}
@@ -91,9 +83,7 @@ func (m *SnapManager) SyncCookies(st *state.State) error {
 			Mode:    0600,
 		}
 	}
-	if _, _, err := osutil.EnsureDirState(dirs.SnapCookieDir, "snap.*", content); err != nil {
-		return fmt.Errorf("Failed to synchronize snap cookies: %s", err)
-	}
+	_, _ := mylog.Check3(osutil.EnsureDirState(dirs.SnapCookieDir, "snap.*", content))
 
 	if changed {
 		st.Set("snap-cookies", &snapCookies)
@@ -102,10 +92,7 @@ func (m *SnapManager) SyncCookies(st *state.State) error {
 }
 
 func (m *SnapManager) createSnapCookie(st *state.State, instanceName string) error {
-	snapCookies, err := cookies(st)
-	if err != nil {
-		return err
-	}
+	snapCookies := mylog.Check2(cookies(st))
 
 	// make sure we don't create cookie if it already exists
 	for _, snap := range snapCookies {
@@ -114,10 +101,7 @@ func (m *SnapManager) createSnapCookie(st *state.State, instanceName string) err
 		}
 	}
 
-	cookieID, err := createCookieFile(instanceName)
-	if err != nil {
-		return err
-	}
+	cookieID := mylog.Check2(createCookieFile(instanceName))
 
 	snapCookies[cookieID] = instanceName
 	st.Set("snap-cookies", &snapCookies)
@@ -125,19 +109,12 @@ func (m *SnapManager) createSnapCookie(st *state.State, instanceName string) err
 }
 
 func (m *SnapManager) removeSnapCookie(st *state.State, instanceName string) error {
-	if err := removeCookieFile(instanceName); err != nil {
-		return err
-	}
+	mylog.Check(removeCookieFile(instanceName))
 
 	var snapCookies map[string]string
-	err := st.Get("snap-cookies", &snapCookies)
-	if err != nil {
-		if !errors.Is(err, state.ErrNoState) {
-			return fmt.Errorf("cannot get snap cookies: %v", err)
-		}
-		// no cookies in the state
-		return nil
-	}
+	mylog.Check(st.Get("snap-cookies", &snapCookies))
+
+	// no cookies in the state
 
 	for cookieID, snap := range snapCookies {
 		if instanceName == snap {
@@ -154,21 +131,17 @@ func makeCookie() (string, error) {
 }
 
 func createCookieFile(instanceName string) (cookieID string, err error) {
-	cookieID, err = makeCookie()
-	if err != nil {
-		return "", err
-	}
+	cookieID = mylog.Check2(makeCookie())
+
 	path := filepath.Join(dirs.SnapCookieDir, fmt.Sprintf("snap.%s", instanceName))
-	err = osutil.AtomicWriteFile(path, []byte(cookieID), 0600, 0)
-	if err != nil {
-		return "", fmt.Errorf("Failed to create cookie file %q: %s", path, err)
-	}
+	mylog.Check(osutil.AtomicWriteFile(path, []byte(cookieID), 0600, 0))
+
 	return cookieID, nil
 }
 
 func removeCookieFile(instanceName string) error {
 	path := filepath.Join(dirs.SnapCookieDir, fmt.Sprintf("snap.%s", instanceName))
-	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+	if mylog.Check(os.Remove(path)); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("Failed to remove cookie file %q: %s", path, err)
 	}
 	return nil

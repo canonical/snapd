@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -33,15 +34,13 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
-var (
-	snapConfCmd = &Command{
-		Path:        "/v2/snaps/{name}/conf",
-		GET:         getSnapConf,
-		PUT:         setSnapConf,
-		ReadAccess:  authenticatedAccess{Polkit: polkitActionManageConfiguration},
-		WriteAccess: authenticatedAccess{Polkit: polkitActionManageConfiguration},
-	}
-)
+var snapConfCmd = &Command{
+	Path:        "/v2/snaps/{name}/conf",
+	GET:         getSnapConf,
+	PUT:         setSnapConf,
+	ReadAccess:  authenticatedAccess{Polkit: polkitActionManageConfiguration},
+	WriteAccess: authenticatedAccess{Polkit: polkitActionManageConfiguration},
+}
 
 func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	vars := muxVars(r)
@@ -61,23 +60,10 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 	for _, key := range keys {
 		var value interface{}
-		if err := tr.Get(snapName, key, &value); err != nil {
-			if config.IsNoOption(err) {
-				if key == "" {
-					// no configuration - return empty document
-					currentConfValues = make(map[string]interface{})
-					break
-				}
-				return &apiError{
-					Status:  400,
-					Message: err.Error(),
-					Kind:    client.ErrorKindConfigNoSuchOption,
-					Value:   err,
-				}
-			} else {
-				return InternalError("%v", err)
-			}
-		}
+		mylog.Check(tr.Get(snapName, key, &value))
+
+		// no configuration - return empty document
+
 		if key == "" {
 			if len(keys) > 1 {
 				return BadRequest("keys contains zero-length string")
@@ -96,22 +82,15 @@ func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	snapName := configstate.RemapSnapFromRequest(vars["name"])
 
 	var patchValues map[string]interface{}
-	if err := jsonutil.DecodeWithNumber(r.Body, &patchValues); err != nil {
-		return BadRequest("cannot decode request body into patch values: %v", err)
-	}
+	mylog.Check(jsonutil.DecodeWithNumber(r.Body, &patchValues))
 
 	st := c.d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
 
-	taskset, err := configstate.ConfigureInstalled(st, snapName, patchValues, 0)
-	if err != nil {
-		// TODO: just return snap-not-installed instead ?
-		if _, ok := err.(*snap.NotInstalledError); ok {
-			return SnapNotFound(snapName, err)
-		}
-		return errToResponse(err, []string{snapName}, InternalError, "%v")
-	}
+	taskset := mylog.Check2(configstate.ConfigureInstalled(st, snapName, patchValues, 0))
+
+	// TODO: just return snap-not-installed instead ?
 
 	summary := fmt.Sprintf("Change configuration of %q snap", snapName)
 	change := newChange(st, "configure-snap", summary, []*state.TaskSet{taskset}, []string{snapName})

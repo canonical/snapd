@@ -24,20 +24,17 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 )
 
 // utilities to read/write fs entries
 
 func ensureTop(path string) error {
-	err := os.MkdirAll(path, 0775)
-	if err != nil {
-		return fmt.Errorf("cannot create assert storage root: %v", err)
-	}
-	info, err := os.Stat(path)
-	if err != nil {
-		return fmt.Errorf("cannot create assert storage root: %v", err)
-	}
+	mylog.Check(os.MkdirAll(path, 0775))
+
+	info := mylog.Check2(os.Stat(path))
+
 	if info.Mode().Perm()&0002 != 0 {
 		return fmt.Errorf("assert storage root unexpectedly world-writable: %v", path)
 	}
@@ -47,10 +44,8 @@ func ensureTop(path string) error {
 func atomicWriteEntry(data []byte, secret bool, top string, subpath ...string) error {
 	fpath := filepath.Join(top, filepath.Join(subpath...))
 	dir := filepath.Dir(fpath)
-	err := os.MkdirAll(dir, 0775)
-	if err != nil {
-		return err
-	}
+	mylog.Check(os.MkdirAll(dir, 0775))
+
 	fperm := 0664
 	if secret {
 		fperm = 0600

@@ -22,6 +22,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 )
 
@@ -46,9 +47,7 @@ func (x *cmdConnectivityCheck) Execute(args []string) error {
 	var status struct {
 		Unreachable []string
 	}
-	if err := x.client.DebugGet("connectivity", &status, nil); err != nil {
-		return err
-	}
+	mylog.Check(x.client.DebugGet("connectivity", &status, nil))
 
 	fmt.Fprintf(Stdout, "Connectivity status:\n")
 	if len(status.Unreachable) == 0 {

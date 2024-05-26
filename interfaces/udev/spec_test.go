@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
@@ -89,8 +90,8 @@ slots:
 }
 
 func (s *specSuite) SetUpTest(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.plugInfo.Snap, nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plugInfo.Snap, nil))
+
 	s.spec = udev.NewSpecification(appSet)
 }
 
@@ -155,16 +156,16 @@ func (s *specSuite) TestTagDeviceAltLibexecdir(c *C) {
 
 // The spec.Specification can be used through the interfaces.Specification interface
 func (s *specSuite) TestSpecificationIface(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.plugInfo.Snap, nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plugInfo.Snap, nil))
+
 	spec := udev.NewSpecification(appSet)
 	var r interfaces.Specification = spec
 	c.Assert(r.AddPermanentPlug(s.iface, s.plugInfo), IsNil)
 	c.Assert(r.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.Snippets(), DeepEquals, []string{"connected-plug", "permanent-plug"})
 
-	appSet, err = interfaces.NewSnapAppSet(s.slotInfo.Snap, nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.slotInfo.Snap, nil))
+
 	spec = udev.NewSpecification(appSet)
 	r = spec
 	c.Assert(r.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)

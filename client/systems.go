@@ -26,6 +26,7 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/snap"
 )
@@ -71,10 +72,8 @@ func (client *Client) ListSystems() ([]System, error) {
 	}
 
 	var rsp systemsResponse
+	mylog.Check2(client.doSync("GET", "/v2/systems", nil, nil, nil, &rsp))
 
-	if _, err := client.doSync("GET", "/v2/systems", nil, nil, nil, &rsp); err != nil {
-		return nil, xerrors.Errorf("cannot list recovery systems: %v", err)
-	}
 	return rsp.Systems, nil
 }
 
@@ -98,12 +97,9 @@ func (client *Client) DoSystemAction(systemLabel string, action *SystemAction) e
 	}
 
 	var body bytes.Buffer
-	if err := json.NewEncoder(&body).Encode(&req); err != nil {
-		return err
-	}
-	if _, err := client.doSync("POST", "/v2/systems/"+systemLabel, nil, nil, &body, nil); err != nil {
-		return xerrors.Errorf("cannot request system action: %v", err)
-	}
+	mylog.Check(json.NewEncoder(&body).Encode(&req))
+	mylog.Check2(client.doSync("POST", "/v2/systems/"+systemLabel, nil, nil, &body, nil))
+
 	return nil
 }
 
@@ -130,15 +126,9 @@ func (client *Client) RebootToSystem(systemLabel, mode string) error {
 	}
 
 	var body bytes.Buffer
-	if err := json.NewEncoder(&body).Encode(&req); err != nil {
-		return err
-	}
-	if _, err := client.doSync("POST", "/v2/systems/"+systemLabel, nil, nil, &body, nil); err != nil {
-		if systemLabel != "" {
-			return xerrors.Errorf("cannot request system reboot into %q: %v", systemLabel, err)
-		}
-		return xerrors.Errorf("cannot request system reboot: %v", err)
-	}
+	mylog.Check(json.NewEncoder(&body).Encode(&req))
+	mylog.Check2(client.doSync("POST", "/v2/systems/"+systemLabel, nil, nil, &body, nil))
+
 	return nil
 }
 
@@ -190,10 +180,8 @@ type SystemDetails struct {
 
 func (client *Client) SystemDetails(systemLabel string) (*SystemDetails, error) {
 	var rsp SystemDetails
+	mylog.Check2(client.doSync("GET", "/v2/systems/"+systemLabel, nil, nil, nil, &rsp))
 
-	if _, err := client.doSync("GET", "/v2/systems/"+systemLabel, nil, nil, nil, &rsp); err != nil {
-		return nil, xerrors.Errorf("cannot get details for system %q: %v", systemLabel, err)
-	}
 	gadget.SetEnclosingVolumeInStructs(rsp.Volumes)
 	return &rsp, nil
 }
@@ -239,13 +227,10 @@ func (client *Client) InstallSystem(systemLabel string, opts *InstallSystemOptio
 	}
 
 	var body bytes.Buffer
-	if err := json.NewEncoder(&body).Encode(&req); err != nil {
-		return "", err
-	}
-	chgID, err := client.doAsync("POST", "/v2/systems/"+systemLabel, nil, nil, &body)
-	if err != nil {
-		return "", xerrors.Errorf("cannot request system install for %q: %v", systemLabel, err)
-	}
+	mylog.Check(json.NewEncoder(&body).Encode(&req))
+
+	chgID := mylog.Check2(client.doAsync("POST", "/v2/systems/"+systemLabel, nil, nil, &body))
+
 	return chgID, nil
 }
 

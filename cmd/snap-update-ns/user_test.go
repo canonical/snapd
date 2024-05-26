@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	update "github.com/snapcore/snapd/cmd/snap-update-ns"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
@@ -39,28 +40,28 @@ var _ = Suite(&userSuite{})
 
 func (s *userSuite) TestIsPlausibleHomeHappy(c *C) {
 	tmpHomeDir := c.MkDir()
-	err := update.IsPlausibleHome(tmpHomeDir)
-	c.Assert(err, IsNil)
+	mylog.Check(update.IsPlausibleHome(tmpHomeDir))
+
 }
 
 func (s *userSuite) TestIsPlausibleHomeErrorPathEmpty(c *C) {
-	err := update.IsPlausibleHome("")
+	mylog.Check(update.IsPlausibleHome(""))
 	c.Assert(err, ErrorMatches, "cannot allow empty path")
 }
 
 func (s *userSuite) TestIsPlausibleHomeErrorPathNotClean(c *C) {
-	err := update.IsPlausibleHome("/PathNotClean/")
+	mylog.Check(update.IsPlausibleHome("/PathNotClean/"))
 	c.Assert(err, ErrorMatches, "cannot allow unclean path")
 }
 
 func (s *userSuite) TestIsPlausibleHomeErrorPathRelative(c *C) {
-	err := update.IsPlausibleHome("PathRelative")
+	mylog.Check(update.IsPlausibleHome("PathRelative"))
 	c.Assert(err, ErrorMatches, "cannot allow relative path")
 }
 
 func (s *userSuite) TestIsPlausibleHomeErrorPathNotExist(c *C) {
 	tmpHomeDir := c.MkDir() + "/user-does-not-exist"
-	err := update.IsPlausibleHome(tmpHomeDir)
+	mylog.Check(update.IsPlausibleHome(tmpHomeDir))
 	c.Assert(err, ErrorMatches, "no such file or directory")
 }
 
@@ -71,12 +72,12 @@ func (s *userSuite) TestLock(c *C) {
 	tmpHomeDir := c.MkDir()
 	restore := update.MockSnapConfineUserEnv("/run/user/1234/snap.snapname", tmpHomeDir)
 	defer restore()
-	upCtx, err := update.NewUserProfileUpdateContext("foo", false, 1234)
-	c.Assert(err, IsNil)
+	upCtx := mylog.Check2(update.NewUserProfileUpdateContext("foo", false, 1234))
+
 
 	// Locking is a no-op.
-	unlock, err := upCtx.Lock()
-	c.Assert(err, IsNil)
+	unlock := mylog.Check2(upCtx.Lock())
+
 	c.Check(unlock, NotNil)
 	unlock()
 }
@@ -85,8 +86,8 @@ func (s *userSuite) TestAssumptionsHomeValid(c *C) {
 	tmpHomeDir := c.MkDir()
 	restore := update.MockSnapConfineUserEnv("/run/user/1234/snap.snapname", tmpHomeDir)
 	defer restore()
-	upCtx, err := update.NewUserProfileUpdateContext("foo", false, 1234)
-	c.Assert(err, IsNil)
+	upCtx := mylog.Check2(update.NewUserProfileUpdateContext("foo", false, 1234))
+
 	as := upCtx.Assumptions()
 	c.Check(as.UnrestrictedPaths(), DeepEquals, []string{tmpHomeDir})
 	c.Check(as.ModeForPath(tmpHomeDir+"/dir"), Equals, os.FileMode(0755))
@@ -95,8 +96,8 @@ func (s *userSuite) TestAssumptionsHomeValid(c *C) {
 func (s *userSuite) TestAssumptionsHomeInvalid(c *C) {
 	restore := update.MockSnapConfineUserEnv("/run/user/1234/snap.snapname", "")
 	defer restore()
-	upCtx, err := update.NewUserProfileUpdateContext("foo", false, 1234)
-	c.Assert(err, IsNil)
+	upCtx := mylog.Check2(update.NewUserProfileUpdateContext("foo", false, 1234))
+
 	as := upCtx.Assumptions()
 	c.Check(as.UnrestrictedPaths(), IsNil)
 }
@@ -109,8 +110,8 @@ func (s *userSuite) TestLoadDesiredProfileHomeRequiredAndValid(c *C) {
 	tmpHomeDir := c.MkDir()
 	restore := update.MockSnapConfineUserEnv("/run/user/1234/snap.snapname", tmpHomeDir)
 	defer restore()
-	upCtx, err := update.NewUserProfileUpdateContext("foo", false, 1234)
-	c.Assert(err, IsNil)
+	upCtx := mylog.Check2(update.NewUserProfileUpdateContext("foo", false, 1234))
+
 
 	input := "$XDG_RUNTIME_DIR/doc/by-app/snap.foo $XDG_RUNTIME_DIR/doc none bind,rw 0 0\n" +
 		"none $HOME/.local/share none x-snapd.kind=ensure-dir,x-snapd.must-exist-dir=$HOME 0 0\n"
@@ -123,8 +124,8 @@ func (s *userSuite) TestLoadDesiredProfileHomeRequiredAndValid(c *C) {
 	c.Assert(os.WriteFile(path, []byte(input), 0644), IsNil)
 
 	// Ask the user profile update helper to read the desired profile.
-	profile, err := upCtx.LoadDesiredProfile()
-	c.Assert(err, IsNil)
+	profile := mylog.Check2(upCtx.LoadDesiredProfile())
+
 	builder := &bytes.Buffer{}
 	profile.WriteTo(builder)
 
@@ -137,11 +138,11 @@ func (s *userSuite) TestLoadDesiredProfileHomeNotRequiredAndMissing(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("/")
 	dirs.XdgRuntimeDirBase = "/run/user"
-	//tmpHomeDir := c.MkDir()
+	// tmpHomeDir := c.MkDir()
 	restore := update.MockSnapConfineUserEnv("/run/user/1234/snap.snapname", "")
 	defer restore()
-	upCtx, err := update.NewUserProfileUpdateContext("foo", false, 1234)
-	c.Assert(err, IsNil)
+	upCtx := mylog.Check2(update.NewUserProfileUpdateContext("foo", false, 1234))
+
 
 	input := "$XDG_RUNTIME_DIR/doc/by-app/snap.foo $XDG_RUNTIME_DIR/doc none bind,rw 0 0\n"
 	output := "/run/user/1234/doc/by-app/snap.foo /run/user/1234/doc none bind,rw 0 0\n"
@@ -152,8 +153,8 @@ func (s *userSuite) TestLoadDesiredProfileHomeNotRequiredAndMissing(c *C) {
 	c.Assert(os.WriteFile(path, []byte(input), 0644), IsNil)
 
 	// Ask the user profile update helper to read the desired profile.
-	profile, err := upCtx.LoadDesiredProfile()
-	c.Assert(err, IsNil)
+	profile := mylog.Check2(upCtx.LoadDesiredProfile())
+
 	builder := &bytes.Buffer{}
 	profile.WriteTo(builder)
 
@@ -166,11 +167,11 @@ func (s *userSuite) TestLoadDesiredProfileErrorHomeRequiredAndMissing(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("/")
 	dirs.XdgRuntimeDirBase = "/run/user"
-	//tmpHomeDir := c.MkDir()
+	// tmpHomeDir := c.MkDir()
 	restore := update.MockSnapConfineUserEnv("/run/user/1234/snap.snapname", "")
 	defer restore()
-	upCtx, err := update.NewUserProfileUpdateContext("foo", false, 1234)
-	c.Assert(err, IsNil)
+	upCtx := mylog.Check2(update.NewUserProfileUpdateContext("foo", false, 1234))
+
 
 	input := "$XDG_RUNTIME_DIR/doc/by-app/snap.foo $XDG_RUNTIME_DIR/doc none bind,rw 0 0\n" +
 		"none $HOME/.local/share none x-snapd.kind=ensure-dir,x-snapd.must-exist-dir=$HOME 0 0\n"
@@ -181,7 +182,7 @@ func (s *userSuite) TestLoadDesiredProfileErrorHomeRequiredAndMissing(c *C) {
 	c.Assert(os.WriteFile(path, []byte(input), 0644), IsNil)
 
 	// Ask the user profile update helper to read the desired profile.
-	profile, err := upCtx.LoadDesiredProfile()
+	profile := mylog.Check2(upCtx.LoadDesiredProfile())
 	c.Assert(err, ErrorMatches, `cannot expand mount entry \(none \$HOME/.local/share none x-snapd.kind=ensure-dir,x-snapd.must-exist-dir=\$HOME 0 0\): cannot use invalid home directory \"\": cannot allow empty path`)
 	c.Assert(profile, IsNil)
 }
@@ -192,8 +193,8 @@ func (s *userSuite) TestLoadCurrentProfile(c *C) {
 	tmpHomeDir := c.MkDir()
 	restore := update.MockSnapConfineUserEnv("/run/user/1234/snap.snapname", tmpHomeDir)
 	defer restore()
-	upCtx, err := update.NewUserProfileUpdateContext("foo", false, 1234)
-	c.Assert(err, IsNil)
+	upCtx := mylog.Check2(update.NewUserProfileUpdateContext("foo", false, 1234))
+
 
 	// Write a current user mount profile for snap "foo".
 	text := "/run/user/1234/doc/by-app/snap.foo /run/user/1234/doc none bind,rw 0 0\n"
@@ -202,8 +203,8 @@ func (s *userSuite) TestLoadCurrentProfile(c *C) {
 	c.Assert(os.WriteFile(path, []byte(text), 0644), IsNil)
 
 	// Ask the user profile update helper to read the current profile.
-	profile, err := upCtx.LoadCurrentProfile()
-	c.Assert(err, IsNil)
+	profile := mylog.Check2(upCtx.LoadCurrentProfile())
+
 	builder := &bytes.Buffer{}
 	profile.WriteTo(builder)
 
@@ -220,22 +221,23 @@ func (s *userSuite) TestSaveCurrentProfile(c *C) {
 	tmpHomeDir := c.MkDir()
 	restore := update.MockSnapConfineUserEnv("/run/user/1234/snap.snapname", tmpHomeDir)
 	defer restore()
-	upCtx, err := update.NewUserProfileUpdateContext("foo", false, 1234)
-	c.Assert(err, IsNil)
+	upCtx := mylog.Check2(update.NewUserProfileUpdateContext("foo", false, 1234))
+
 
 	// Prepare a mount profile to be saved.
 	text := "/run/user/1234/doc/by-app/snap.foo /run/user/1234/doc none bind,rw 0 0\n"
-	profile, err := osutil.LoadMountProfileText(text)
-	c.Assert(err, IsNil)
+	profile := mylog.Check2(osutil.LoadMountProfileText(text))
+
 
 	// Write a fake current user mount profile for snap "foo".
 	path := update.CurrentUserProfilePath("foo", 1234)
 	c.Assert(os.MkdirAll(filepath.Dir(path), 0755), IsNil)
 	c.Assert(os.WriteFile(path, []byte("banana"), 0644), IsNil)
+	mylog.
 
-	// Ask the user profile update helper to write the current profile.
-	err = upCtx.SaveCurrentProfile(profile)
-	c.Assert(err, IsNil)
+		// Ask the user profile update helper to write the current profile.
+		Check(upCtx.SaveCurrentProfile(profile))
+
 
 	// Note that the profile was not modified.
 	// Currently user profiles are not persisted.

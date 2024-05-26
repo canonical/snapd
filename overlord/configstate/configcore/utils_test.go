@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 )
 
@@ -36,7 +37,7 @@ func (s *utilsSuite) TestUpdateKeyValueStreamNoNewConfig(c *C) {
 	newConfig := map[string]string{}
 	supportedConfigKeys := map[string]bool{}
 
-	toWrite, err := configcore.UpdateKeyValueStream(in, supportedConfigKeys, newConfig)
+	toWrite := mylog.Check2(configcore.UpdateKeyValueStream(in, supportedConfigKeys, newConfig))
 	c.Check(err, IsNil)
 	c.Check(toWrite, IsNil)
 }
@@ -48,7 +49,7 @@ func (s *utilsSuite) TestUpdateKeyValueStreamConfigNotInAllConfig(c *C) {
 		"foo": true,
 	}
 
-	_, err := configcore.UpdateKeyValueStream(in, supportedConfigKeys, newConfig)
+	_ := mylog.Check2(configcore.UpdateKeyValueStream(in, supportedConfigKeys, newConfig))
 	c.Check(err, ErrorMatches, `cannot set unsupported configuration value "unsupported-options"`)
 }
 
@@ -59,7 +60,7 @@ func (s *utilsSuite) TestUpdateKeyValueStreamOneChange(c *C) {
 		"foo": true,
 	}
 
-	toWrite, err := configcore.UpdateKeyValueStream(in, supportedConfigKeys, newConfig)
+	toWrite := mylog.Check2(configcore.UpdateKeyValueStream(in, supportedConfigKeys, newConfig))
 	c.Check(err, IsNil)
 	c.Check(toWrite, DeepEquals, []string{"foo=baz"})
 }

@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/gadget/quantity"
@@ -118,11 +119,11 @@ func createVirtioDevicesInSysfs(c *C, path string, devsToPartition map[string]bo
 	}
 	diskDir := filepath.Join(dirs.SysfsDir, path)
 	for dev, isPartition := range devsToPartition {
-		err := os.MkdirAll(filepath.Join(diskDir, dev), 0755)
-		c.Assert(err, IsNil)
+		mylog.Check(os.MkdirAll(filepath.Join(diskDir, dev), 0755))
+
 		if isPartition {
-			err = os.WriteFile(filepath.Join(diskDir, dev, "partition"), []byte("1"), 0644)
-			c.Assert(err, IsNil)
+			mylog.Check(os.WriteFile(filepath.Join(diskDir, dev, "partition"), []byte("1"), 0644))
+
 		}
 	}
 }
@@ -154,8 +155,8 @@ func (s *diskSuite) TestDiskFromDeviceNameHappy(c *C) {
 	})
 	defer restore()
 
-	d, err := disks.DiskFromDeviceName("sda")
-	c.Assert(err, IsNil)
+	d := mylog.Check2(disks.DiskFromDeviceName("sda"))
+
 	c.Assert(d.Dev(), Equals, "1:2")
 	c.Assert(d.DiskID(), Equals, "foo")
 	c.Assert(d.Schema(), Equals, "gpt")
@@ -171,8 +172,8 @@ func (s *diskSuite) TestDiskFromDeviceNameHappy(c *C) {
 		"sda2": true,
 	})
 
-	d, err = disks.DiskFromDeviceName("sda")
-	c.Assert(err, IsNil)
+	d = mylog.Check2(disks.DiskFromDeviceName("sda"))
+
 	c.Assert(d.Dev(), Equals, "1:2")
 	c.Assert(d.KernelDeviceNode(), Equals, "/dev/sda")
 	c.Assert(d.HasPartitions(), Equals, true)
@@ -254,8 +255,8 @@ func (s *diskSuite) TestDiskFromDevicePathHappy(c *C) {
 	})
 	defer restore()
 
-	d, err := disks.DiskFromDevicePath(fullSysPath)
-	c.Assert(err, IsNil)
+	d := mylog.Check2(disks.DiskFromDevicePath(fullSysPath))
+
 	c.Assert(d.Dev(), Equals, "1:2")
 	c.Assert(d.DiskID(), Equals, "bar")
 	c.Assert(d.Schema(), Equals, "dos")
@@ -273,14 +274,14 @@ func (s *diskSuite) TestDiskFromDevicePathHappy(c *C) {
 		"vdb2": true,
 	})
 
-	d, err = disks.DiskFromDevicePath(fullSysPath)
-	c.Assert(err, IsNil)
+	d = mylog.Check2(disks.DiskFromDevicePath(fullSysPath))
+
 	c.Assert(d.Dev(), Equals, "1:2")
 	c.Assert(d.KernelDeviceNode(), Equals, "/dev/vdb")
 	c.Assert(d.HasPartitions(), Equals, true)
 
-	parts, err := d.Partitions()
-	c.Assert(err, IsNil)
+	parts := mylog.Check2(d.Partitions())
+
 	c.Assert(parts, DeepEquals, []disks.Partition{
 		{
 			Major:            1,
@@ -347,8 +348,8 @@ func (s *diskSuite) TestDiskFromPartitionDeviceNodeHappy(c *C) {
 		"sda1": true,
 	})
 
-	d, err := disks.DiskFromPartitionDeviceNode("/dev/sda1")
-	c.Assert(err, IsNil)
+	d := mylog.Check2(disks.DiskFromPartitionDeviceNode("/dev/sda1"))
+
 	c.Assert(d.Dev(), Equals, "42:0")
 	c.Assert(d.DiskID(), Equals, "foo-id")
 	c.Assert(d.Schema(), Equals, "gpt")
@@ -373,7 +374,7 @@ func (s *diskSuite) TestDiskFromDeviceNameUnhappyPartition(c *C) {
 	})
 	defer restore()
 
-	_, err := disks.DiskFromDeviceName("sda1")
+	_ := mylog.Check2(disks.DiskFromDeviceName("sda1"))
 	c.Assert(err, ErrorMatches, "device \"sda1\" is not a disk, it has DEVTYPE of \"partition\"")
 }
 
@@ -392,7 +393,7 @@ func (s *diskSuite) TestDiskFromDeviceNameUnhappyNonPhysicalDisk(c *C) {
 	})
 	defer restore()
 
-	_, err := disks.DiskFromDeviceName("loop1")
+	_ := mylog.Check2(disks.DiskFromDeviceName("loop1"))
 	c.Assert(err, ErrorMatches, "device with name \"loop1\" is not a physical disk")
 }
 
@@ -410,7 +411,7 @@ func (s *diskSuite) TestDiskFromDeviceNameUnhappyUnknownDiskSchema(c *C) {
 	})
 	defer restore()
 
-	_, err := disks.DiskFromDeviceName("loop1")
+	_ := mylog.Check2(disks.DiskFromDeviceName("loop1"))
 	c.Assert(err, ErrorMatches, "unsupported disk schema \"foobar\"")
 }
 
@@ -427,7 +428,7 @@ func (s *diskSuite) TestDiskFromDeviceNameUnhappyBadUdevOutput(c *C) {
 	})
 	defer restore()
 
-	_, err := disks.DiskFromDeviceName("sda")
+	_ := mylog.Check2(disks.DiskFromDeviceName("sda"))
 	c.Assert(err, ErrorMatches, "cannot find disk with name \"sda\": malformed udev output")
 }
 
@@ -436,7 +437,7 @@ func (s *diskSuite) TestDiskFromMountPointUnhappyMissingMountpoint(c *C) {
 	restore := osutil.MockMountInfo(``)
 	defer restore()
 
-	_, err := disks.DiskFromMountPoint("/run/mnt/blah", nil)
+	_ := mylog.Check2(disks.DiskFromMountPoint("/run/mnt/blah", nil))
 	c.Assert(err, ErrorMatches, "cannot find mountpoint \"/run/mnt/blah\"")
 }
 
@@ -454,7 +455,7 @@ func (s *diskSuite) TestDiskFromMountPointUnhappyMissingUdevProps(c *C) {
 	})
 	defer restore()
 
-	_, err := disks.DiskFromMountPoint("/run/mnt/point", nil)
+	_ := mylog.Check2(disks.DiskFromMountPoint("/run/mnt/point", nil))
 	c.Assert(err, ErrorMatches, "cannot find disk from mountpoint source /dev/vda4 of /run/mnt/point: incomplete udev output missing required property \"ID_PART_ENTRY_DISK\"")
 }
 
@@ -473,7 +474,7 @@ func (s *diskSuite) TestDiskFromMountPointUnhappyBadUdevPropsMountpointPartition
 	})
 	defer restore()
 
-	_, err := disks.DiskFromMountPoint("/run/mnt/point", nil)
+	_ := mylog.Check2(disks.DiskFromMountPoint("/run/mnt/point", nil))
 	c.Assert(err, ErrorMatches, `cannot find disk from mountpoint source /dev/vda4 of /run/mnt/point: bad udev output: invalid device number format: \(expected <int>:<int>\)`)
 }
 
@@ -501,7 +502,7 @@ func (s *diskSuite) TestDiskFromMountPointUnhappyIsDecryptedDeviceNotDiskDevice(
 	defer restore()
 
 	opts := &disks.Options{IsDecryptedDevice: true}
-	_, err := disks.DiskFromMountPoint("/run/mnt/point", opts)
+	_ := mylog.Check2(disks.DiskFromMountPoint("/run/mnt/point", opts))
 	c.Assert(err, ErrorMatches, `cannot process properties of /dev/vda4 parent device: not a decrypted device: devtype is not disk \(is partition\)`)
 }
 
@@ -529,7 +530,7 @@ func (s *diskSuite) TestDiskFromMountPointUnhappyIsDecryptedDeviceNoSysfs(c *C) 
 	// no sysfs files mocking
 
 	opts := &disks.Options{IsDecryptedDevice: true}
-	_, err := disks.DiskFromMountPoint("/run/mnt/point", opts)
+	_ := mylog.Check2(disks.DiskFromMountPoint("/run/mnt/point", opts))
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot process properties of /dev/mapper/something parent device: not a decrypted device: could not read device mapper metadata: open %s/dev/block/252:0/dm/uuid: no such file or directory`, dirs.SysfsDir))
 }
 
@@ -603,16 +604,16 @@ func (s *diskSuite) TestDiskFromMountPointHappySinglePartitionIgnoresNonPartitio
 		"vda5": false,
 	})
 
-	disk, err := disks.DiskFromMountPoint("/run/mnt/point", nil)
-	c.Assert(err, IsNil)
+	disk := mylog.Check2(disks.DiskFromMountPoint("/run/mnt/point", nil))
+
 	c.Assert(disk.Dev(), Equals, "42:0")
 	c.Assert(disk.HasPartitions(), Equals, true)
 	// searching for the single label we have for this partition will succeed
-	label, err := disk.FindMatchingPartitionUUIDWithFsLabel("some-label")
-	c.Assert(err, IsNil)
+	label := mylog.Check2(disk.FindMatchingPartitionUUIDWithFsLabel("some-label"))
+
 	c.Assert(label, Equals, "some-uuid")
-	parts, err := disk.Partitions()
-	c.Assert(err, IsNil)
+	parts := mylog.Check2(disk.Partitions())
+
 	c.Assert(parts, DeepEquals, []disks.Partition{
 		{
 			FilesystemLabel:  "some-label",
@@ -629,12 +630,12 @@ func (s *diskSuite) TestDiskFromMountPointHappySinglePartitionIgnoresNonPartitio
 		},
 	})
 
-	matches, err := disk.MountPointIsFromDisk("/run/mnt/point", nil)
-	c.Assert(err, IsNil)
+	matches := mylog.Check2(disk.MountPointIsFromDisk("/run/mnt/point", nil))
+
 	c.Assert(matches, Equals, true)
 
 	// trying to search for any other labels though will fail
-	_, err = disk.FindMatchingPartitionUUIDWithFsLabel("ubuntu-boot")
+	_ = mylog.Check2(disk.FindMatchingPartitionUUIDWithFsLabel("ubuntu-boot"))
 	c.Assert(err, ErrorMatches, "filesystem label \"ubuntu-boot\" not found")
 	c.Assert(err, DeepEquals, disks.PartitionNotFoundError{
 		SearchType:  "filesystem-label",
@@ -669,8 +670,8 @@ fi
 `, virtioDiskDevPath))
 	defer udevadmCmd.Restore()
 
-	d, err := disks.DiskFromMountPoint("/run/mnt/point", nil)
-	c.Assert(err, IsNil)
+	d := mylog.Check2(disks.DiskFromMountPoint("/run/mnt/point", nil))
+
 	c.Assert(d.Dev(), Equals, "42:0")
 
 	c.Assert(d.HasPartitions(), Equals, true)
@@ -700,7 +701,7 @@ fi
 `)
 	defer udevadmCmd.Restore()
 
-	_, err := disks.DiskFromMountPoint("/run/mnt/point", nil)
+	_ := mylog.Check2(disks.DiskFromMountPoint("/run/mnt/point", nil))
 	c.Assert(err, ErrorMatches, "cannot find disk from mountpoint source /dev/mapper/something of /run/mnt/point: incomplete udev output missing required property \"ID_PART_ENTRY_DISK\"")
 }
 
@@ -739,16 +740,16 @@ func (s *diskSuite) TestDiskFromMountPointIsDecryptedLUKSDeviceVolumeHappy(c *C)
 
 	// mock the sysfs dm uuid and name files
 	dmDir := filepath.Join(filepath.Join(dirs.SysfsDir, "dev", "block"), "242:1", "dm")
-	err := os.MkdirAll(dmDir, 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(dmDir, 0755))
+
 
 	b := []byte("something")
-	err = os.WriteFile(filepath.Join(dmDir, "name"), b, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(dmDir, "name"), b, 0644))
+
 
 	b = []byte("CRYPT-LUKS2-5a522809c87e4dfa81a88dc5667d1304-something")
-	err = os.WriteFile(filepath.Join(dmDir, "uuid"), b, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(dmDir, "uuid"), b, 0644))
+
 
 	opts := &disks.Options{IsDecryptedDevice: true}
 
@@ -759,14 +760,14 @@ func (s *diskSuite) TestDiskFromMountPointIsDecryptedLUKSDeviceVolumeHappy(c *C)
 		disks.RegisterDeviceMapperBackResolver("crypt-luks2", disks.CryptLuks2DeviceMapperBackResolver)
 	}()
 
-	_, err = disks.DiskFromMountPoint("/run/mnt/point", opts)
+	_ = mylog.Check2(disks.DiskFromMountPoint("/run/mnt/point", opts))
 	c.Assert(err, ErrorMatches, `cannot process properties of /dev/mapper/something parent device: internal error: no back resolver supports decrypted device mapper with UUID "CRYPT-LUKS2-5a522809c87e4dfa81a88dc5667d1304-something" and name "something"`)
 
 	// but when it is available it works
 	disks.RegisterDeviceMapperBackResolver("crypt-luks2", disks.CryptLuks2DeviceMapperBackResolver)
 
-	d, err := disks.DiskFromMountPoint("/run/mnt/point", opts)
-	c.Assert(err, IsNil)
+	d := mylog.Check2(disks.DiskFromMountPoint("/run/mnt/point", opts))
+
 	c.Assert(d.Dev(), Equals, "42:0")
 	c.Assert(d.HasPartitions(), Equals, true)
 	c.Assert(d.Schema(), Equals, "dos")
@@ -789,7 +790,7 @@ fi
 `)
 	defer udevadmCmd.Restore()
 
-	_, err := disks.DiskFromMountPoint("/run/mnt/point", nil)
+	_ := mylog.Check2(disks.DiskFromMountPoint("/run/mnt/point", nil))
 	c.Assert(err, ErrorMatches, "cannot find disk from mountpoint source /dev/not-a-disk of /run/mnt/point: unsupported DEVTYPE \"not-a-disk\"")
 
 	c.Assert(udevadmCmd.Calls(), DeepEquals, [][]string{
@@ -821,7 +822,7 @@ fi
 `)
 	defer udevadmCmd.Restore()
 
-	_, err := disks.DiskFromMountPoint("/run/mnt/point", nil)
+	_ := mylog.Check2(disks.DiskFromMountPoint("/run/mnt/point", nil))
 	c.Assert(err, ErrorMatches, "cannot find disk from mountpoint source /dev/not-a-supported-schema-disk of /run/mnt/point: unsupported disk schema \"foo\"")
 
 	c.Assert(udevadmCmd.Calls(), DeepEquals, [][]string{
@@ -932,53 +933,53 @@ func (s *diskSuite) TestDiskFromMountPointPartitionsHappy(c *C) {
 		"vda4": true,
 	})
 
-	ubuntuDataDisk, err := disks.DiskFromMountPoint("/run/mnt/data", nil)
-	c.Assert(err, IsNil)
+	ubuntuDataDisk := mylog.Check2(disks.DiskFromMountPoint("/run/mnt/data", nil))
+
 	c.Assert(ubuntuDataDisk, Not(IsNil))
 	c.Assert(ubuntuDataDisk.Dev(), Equals, "42:0")
 
 	// we have the ubuntu-seed, ubuntu-boot, and ubuntu-data partition labels
 	for _, label := range []string{"ubuntu-seed", "ubuntu-boot", "ubuntu-data"} {
-		id, err := ubuntuDataDisk.FindMatchingPartitionUUIDWithFsLabel(label)
-		c.Assert(err, IsNil)
+		id := mylog.Check2(ubuntuDataDisk.FindMatchingPartitionUUIDWithFsLabel(label))
+
 		c.Assert(id, Equals, label+"-partuuid")
 	}
 
 	// and the mountpoint for ubuntu-boot at /run/mnt/ubuntu-boot matches the
 	// same disk
-	matches, err := ubuntuDataDisk.MountPointIsFromDisk("/run/mnt/ubuntu-boot", nil)
-	c.Assert(err, IsNil)
+	matches := mylog.Check2(ubuntuDataDisk.MountPointIsFromDisk("/run/mnt/ubuntu-boot", nil))
+
 	c.Assert(matches, Equals, true)
 
 	// and we can find the partition for ubuntu-boot first and then match
 	// that with ubuntu-data too
-	ubuntuBootDisk, err := disks.DiskFromMountPoint("/run/mnt/ubuntu-boot", nil)
-	c.Assert(err, IsNil)
+	ubuntuBootDisk := mylog.Check2(disks.DiskFromMountPoint("/run/mnt/ubuntu-boot", nil))
+
 	c.Assert(ubuntuBootDisk, Not(IsNil))
 	c.Assert(ubuntuBootDisk.Dev(), Equals, "42:0")
 
 	// we have the ubuntu-seed, ubuntu-boot, and ubuntu-data partition labels
 	for _, label := range []string{"ubuntu-seed", "ubuntu-boot", "ubuntu-data"} {
-		id, err := ubuntuBootDisk.FindMatchingPartitionUUIDWithFsLabel(label)
-		c.Assert(err, IsNil)
+		id := mylog.Check2(ubuntuBootDisk.FindMatchingPartitionUUIDWithFsLabel(label))
+
 		c.Assert(id, Equals, label+"-partuuid")
 	}
 
 	// and the mountpoint for ubuntu-boot at /run/mnt/ubuntu-boot matches the
 	// same disk
-	matches, err = ubuntuBootDisk.MountPointIsFromDisk("/run/mnt/data", nil)
-	c.Assert(err, IsNil)
+	matches = mylog.Check2(ubuntuBootDisk.MountPointIsFromDisk("/run/mnt/data", nil))
+
 	c.Assert(matches, Equals, true)
 
 	// finally we can't find the bios-boot partition because it has no fs label
-	_, err = ubuntuBootDisk.FindMatchingPartitionUUIDWithFsLabel("bios-boot")
+	_ = mylog.Check2(ubuntuBootDisk.FindMatchingPartitionUUIDWithFsLabel("bios-boot"))
 	c.Assert(err, ErrorMatches, "filesystem label \"bios-boot\" not found")
 	c.Assert(err, DeepEquals, disks.PartitionNotFoundError{
 		SearchType:  "filesystem-label",
 		SearchQuery: "bios-boot",
 	})
 
-	_, err = ubuntuDataDisk.FindMatchingPartitionUUIDWithFsLabel("bios-boot")
+	_ = mylog.Check2(ubuntuDataDisk.FindMatchingPartitionUUIDWithFsLabel("bios-boot"))
 	c.Assert(err, ErrorMatches, "filesystem label \"bios-boot\" not found")
 	c.Assert(err, DeepEquals, disks.PartitionNotFoundError{
 		SearchType:  "filesystem-label",
@@ -986,16 +987,16 @@ func (s *diskSuite) TestDiskFromMountPointPartitionsHappy(c *C) {
 	})
 
 	// however we can find it via the partition label
-	uuid, err := ubuntuBootDisk.FindMatchingPartitionUUIDWithPartLabel("BIOS Boot")
-	c.Assert(err, IsNil)
+	uuid := mylog.Check2(ubuntuBootDisk.FindMatchingPartitionUUIDWithPartLabel("BIOS Boot"))
+
 	c.Assert(uuid, Equals, "bios-boot-partuuid")
 
-	uuid, err = ubuntuDataDisk.FindMatchingPartitionUUIDWithPartLabel("BIOS Boot")
-	c.Assert(err, IsNil)
+	uuid = mylog.Check2(ubuntuDataDisk.FindMatchingPartitionUUIDWithPartLabel("BIOS Boot"))
+
 	c.Assert(uuid, Equals, "bios-boot-partuuid")
 
 	// trying to find an unknown partition label fails however
-	_, err = ubuntuDataDisk.FindMatchingPartitionUUIDWithPartLabel("NOT BIOS Boot")
+	_ = mylog.Check2(ubuntuDataDisk.FindMatchingPartitionUUIDWithPartLabel("NOT BIOS Boot"))
 	c.Assert(err, ErrorMatches, "partition label \"NOT BIOS Boot\" not found")
 	c.Assert(err, DeepEquals, disks.PartitionNotFoundError{
 		SearchType:  "partition-label",
@@ -1196,16 +1197,16 @@ func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
 
 	// mock the sysfs dm uuid and name files
 	dmDir := filepath.Join(filepath.Join(dirs.SysfsDir, "dev", "block"), "252:0", "dm")
-	err := os.MkdirAll(dmDir, 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(dmDir, 0755))
+
 
 	b := []byte("ubuntu-data-3776bab4-8bcc-46b7-9da2-6a84ce7f93b4")
-	err = os.WriteFile(filepath.Join(dmDir, "name"), b, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(dmDir, "name"), b, 0644))
+
 
 	b = []byte("CRYPT-LUKS2-5a522809c87e4dfa81a88dc5667d1304-ubuntu-data-3776bab4-8bcc-46b7-9da2-6a84ce7f93b4")
-	err = os.WriteFile(filepath.Join(dmDir, "uuid"), b, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(dmDir, "uuid"), b, 0644))
+
 
 	// mock the dev nodes in sysfs for the partitions
 	createVirtioDevicesInSysfs(c, "", map[string]bool{
@@ -1216,12 +1217,12 @@ func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
 	})
 
 	opts := &disks.Options{IsDecryptedDevice: true}
-	ubuntuDataDisk, err := disks.DiskFromMountPoint("/run/mnt/data", opts)
-	c.Assert(err, IsNil)
+	ubuntuDataDisk := mylog.Check2(disks.DiskFromMountPoint("/run/mnt/data", opts))
+
 	c.Assert(ubuntuDataDisk, Not(IsNil))
 	c.Assert(ubuntuDataDisk.Dev(), Equals, "42:0")
-	parts, err := ubuntuDataDisk.Partitions()
-	c.Assert(err, IsNil)
+	parts := mylog.Check2(ubuntuDataDisk.Partitions())
+
 	c.Assert(parts, DeepEquals, []disks.Partition{
 		partsOnDisk["ubuntu-data-enc"],
 		partsOnDisk["ubuntu-boot"],
@@ -1231,39 +1232,39 @@ func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
 
 	// we have the ubuntu-seed, ubuntu-boot, and ubuntu-data partition labels
 	for _, label := range []string{"ubuntu-seed", "ubuntu-boot", "ubuntu-data-enc"} {
-		id, err := ubuntuDataDisk.FindMatchingPartitionUUIDWithFsLabel(label)
-		c.Assert(err, IsNil)
+		id := mylog.Check2(ubuntuDataDisk.FindMatchingPartitionUUIDWithFsLabel(label))
+
 		c.Assert(id, Equals, label+"-partuuid")
 
-		part, err := ubuntuDataDisk.FindMatchingPartitionWithFsLabel(label)
-		c.Assert(err, IsNil)
+		part := mylog.Check2(ubuntuDataDisk.FindMatchingPartitionWithFsLabel(label))
+
 		c.Assert(part, DeepEquals, partsOnDisk[label])
 	}
 
 	// and the mountpoint for ubuntu-boot at /run/mnt/ubuntu-boot matches the
 	// same disk
-	matches, err := ubuntuDataDisk.MountPointIsFromDisk("/run/mnt/ubuntu-boot", nil)
-	c.Assert(err, IsNil)
+	matches := mylog.Check2(ubuntuDataDisk.MountPointIsFromDisk("/run/mnt/ubuntu-boot", nil))
+
 	c.Assert(matches, Equals, true)
 
 	// and we can find the partition for ubuntu-boot first and then match
 	// that with ubuntu-data too
-	ubuntuBootDisk, err := disks.DiskFromMountPoint("/run/mnt/ubuntu-boot", nil)
-	c.Assert(err, IsNil)
+	ubuntuBootDisk := mylog.Check2(disks.DiskFromMountPoint("/run/mnt/ubuntu-boot", nil))
+
 	c.Assert(ubuntuBootDisk, Not(IsNil))
 	c.Assert(ubuntuBootDisk.Dev(), Equals, "42:0")
 
 	// we have the ubuntu-seed, ubuntu-boot, and ubuntu-data partition labels
 	for _, label := range []string{"ubuntu-seed", "ubuntu-boot", "ubuntu-data-enc"} {
-		id, err := ubuntuBootDisk.FindMatchingPartitionUUIDWithFsLabel(label)
-		c.Assert(err, IsNil)
+		id := mylog.Check2(ubuntuBootDisk.FindMatchingPartitionUUIDWithFsLabel(label))
+
 		c.Assert(id, Equals, label+"-partuuid")
 	}
 
 	// and the mountpoint for ubuntu-boot at /run/mnt/ubuntu-boot matches the
 	// same disk
-	matches, err = ubuntuBootDisk.MountPointIsFromDisk("/run/mnt/data", opts)
-	c.Assert(err, IsNil)
+	matches = mylog.Check2(ubuntuBootDisk.MountPointIsFromDisk("/run/mnt/data", opts))
+
 	c.Assert(matches, Equals, true)
 
 	c.Assert(mockUdevadm.Calls(), DeepEquals, [][]string{
@@ -1386,7 +1387,7 @@ func (s *diskSuite) TestMountPointsForPartitionRoot(c *C) {
 			part.Minor = 1
 		}
 
-		res, err := disks.MountPointsForPartitionRoot(part, t.mountOpts)
+		res := mylog.Check2(disks.MountPointsForPartitionRoot(part, t.mountOpts))
 		c.Check(err, IsNil, cmt)
 
 		if len(t.exp) == 0 {
@@ -1432,8 +1433,8 @@ echo '{
 `)
 	defer sfdiskCmd.Restore()
 
-	d, err := disks.DiskFromDeviceName("sda")
-	c.Assert(err, IsNil)
+	d := mylog.Check2(disks.DiskFromDeviceName("sda"))
+
 	c.Assert(d.Schema(), Equals, "gpt")
 	c.Assert(d.KernelDeviceNode(), Equals, "/dev/sda")
 
@@ -1449,8 +1450,8 @@ fi
 `)
 	defer blockDevCmd.Restore()
 
-	endSectors, err := d.UsableSectorsEnd()
-	c.Assert(err, IsNil)
+	endSectors := mylog.Check2(d.UsableSectorsEnd())
+
 	c.Assert(endSectors, Equals, uint64(43))
 	c.Assert(sfdiskCmd.Calls(), DeepEquals, [][]string{
 		{"sfdisk", "--version"},
@@ -1462,8 +1463,8 @@ fi
 	blockDevCmd.ForgetCalls()
 	sfdiskCmd.ForgetCalls()
 
-	sz, err := d.SizeInBytes()
-	c.Assert(err, IsNil)
+	sz := mylog.Check2(d.SizeInBytes())
+
 	c.Assert(sz, Equals, uint64(10000*512))
 	c.Assert(blockDevCmd.Calls(), DeepEquals, [][]string{
 		{"blockdev", "--getsize64", "/dev/sda"},
@@ -1471,8 +1472,8 @@ fi
 
 	blockDevCmd.ForgetCalls()
 
-	sectorSz, err := d.SectorSize()
-	c.Assert(err, IsNil)
+	sectorSz := mylog.Check2(d.SectorSize())
+
 	c.Assert(sectorSz, Equals, uint64(512))
 	c.Assert(blockDevCmd.Calls(), DeepEquals, [][]string{
 		{"blockdev", "--getss", "/dev/sda"},
@@ -1515,13 +1516,13 @@ echo '{
 `)
 	defer sfdiskCmd.Restore()
 
-	d, err := disks.DiskFromDeviceName("sda")
-	c.Assert(err, IsNil)
+	d := mylog.Check2(disks.DiskFromDeviceName("sda"))
+
 	c.Assert(d.Schema(), Equals, "gpt")
 	c.Assert(d.KernelDeviceNode(), Equals, "/dev/sda")
 
-	endSectors, err := d.UsableSectorsEnd()
-	c.Assert(err, IsNil)
+	endSectors := mylog.Check2(d.UsableSectorsEnd())
+
 	c.Assert(endSectors, Equals, uint64(43))
 	c.Assert(sfdiskCmd.Calls(), DeepEquals, [][]string{
 		{"sfdisk", "--version"},
@@ -1559,12 +1560,12 @@ echo '{
 `)
 	defer cmd.Restore()
 
-	d, err := disks.DiskFromDeviceName("sda")
-	c.Assert(err, IsNil)
+	d := mylog.Check2(disks.DiskFromDeviceName("sda"))
+
 	c.Assert(d.Schema(), Equals, "gpt")
 	c.Assert(d.KernelDeviceNode(), Equals, "/dev/sda")
 
-	_, err = d.UsableSectorsEnd()
+	_ = mylog.Check2(d.UsableSectorsEnd())
 	c.Assert(err, ErrorMatches, "cannot get size in sectors, sfdisk reported unknown unit not-sectors")
 
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
@@ -1603,13 +1604,13 @@ echo '{
 `)
 	defer sfdiskCmd.Restore()
 
-	d, err := disks.DiskFromDeviceName("sda")
-	c.Assert(err, IsNil)
+	d := mylog.Check2(disks.DiskFromDeviceName("sda"))
+
 	c.Assert(d.Schema(), Equals, "gpt")
 	c.Assert(d.KernelDeviceNode(), Equals, "/dev/sda")
 
-	endSectors, err := d.UsableSectorsEnd()
-	c.Assert(err, IsNil)
+	endSectors := mylog.Check2(d.UsableSectorsEnd())
+
 	c.Assert(endSectors, Equals, uint64(43))
 	c.Assert(sfdiskCmd.Calls(), DeepEquals, [][]string{
 		{"sfdisk", "--version"},
@@ -1630,8 +1631,8 @@ fi
 `)
 	defer blockDevCmd.Restore()
 
-	sz, err := d.SizeInBytes()
-	c.Assert(err, IsNil)
+	sz := mylog.Check2(d.SizeInBytes())
+
 	c.Assert(sz, Equals, uint64(5120000))
 	c.Assert(blockDevCmd.Calls(), DeepEquals, [][]string{
 		{"blockdev", "--getsize64", "/dev/sda"},
@@ -1639,8 +1640,8 @@ fi
 
 	blockDevCmd.ForgetCalls()
 
-	sectorSz, err := d.SectorSize()
-	c.Assert(err, IsNil)
+	sectorSz := mylog.Check2(d.SectorSize())
+
 	c.Assert(sectorSz, Equals, uint64(4096))
 	c.Assert(blockDevCmd.Calls(), DeepEquals, [][]string{
 		{"blockdev", "--getss", "/dev/sda"},
@@ -1681,15 +1682,15 @@ fi
 `)
 	defer blockDevCmd.Restore()
 
-	d, err := disks.DiskFromDeviceName("sda")
-	c.Assert(err, IsNil)
+	d := mylog.Check2(disks.DiskFromDeviceName("sda"))
+
 	c.Assert(d.Schema(), Equals, "dos")
 	c.Assert(d.KernelDeviceNode(), Equals, "/dev/sda")
 
 	// the usable sectors ends up being exactly what blockdev gave us, but only
 	// because the sector size is exactly what blockdev naturally assumes
-	endSectors, err := d.UsableSectorsEnd()
-	c.Assert(err, IsNil)
+	endSectors := mylog.Check2(d.UsableSectorsEnd())
+
 	c.Assert(endSectors, Equals, uint64(10000))
 
 	c.Assert(blockDevCmd.Calls(), DeepEquals, [][]string{
@@ -1700,8 +1701,8 @@ fi
 	blockDevCmd.ForgetCalls()
 
 	// the size of the disk does not depend on querying the sector size
-	sz, err := d.SizeInBytes()
-	c.Assert(err, IsNil)
+	sz := mylog.Check2(d.SizeInBytes())
+
 	c.Assert(sz, Equals, uint64(10000*512))
 
 	c.Assert(blockDevCmd.Calls(), DeepEquals, [][]string{
@@ -1743,13 +1744,13 @@ fi
 `)
 	defer blockDevCmd.Restore()
 
-	d, err := disks.DiskFromDeviceName("sda")
-	c.Assert(err, IsNil)
+	d := mylog.Check2(disks.DiskFromDeviceName("sda"))
+
 	c.Assert(d.Schema(), Equals, "dos")
 	c.Assert(d.KernelDeviceNode(), Equals, "/dev/sda")
 
-	endSectors, err := d.UsableSectorsEnd()
-	c.Assert(err, IsNil)
+	endSectors := mylog.Check2(d.UsableSectorsEnd())
+
 	c.Assert(endSectors, Equals, uint64(10000*512/4096))
 
 	c.Assert(blockDevCmd.Calls(), DeepEquals, [][]string{
@@ -1760,8 +1761,8 @@ fi
 	blockDevCmd.ForgetCalls()
 
 	// the size of the disk does not depend on querying the sector size
-	sz, err := d.SizeInBytes()
-	c.Assert(err, IsNil)
+	sz := mylog.Check2(d.SizeInBytes())
+
 	c.Assert(sz, Equals, uint64(10000*512))
 
 	c.Assert(blockDevCmd.Calls(), DeepEquals, [][]string{
@@ -1776,12 +1777,12 @@ func (s *diskSuite) TestAllPhysicalDisks(c *C) {
 	// mock some devices in /sys/block
 
 	blockDir := filepath.Join(dirs.SysfsDir, "block")
-	err := os.MkdirAll(blockDir, 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(blockDir, 0755))
+
 	devsToCreate := []string{"sda", "loop1", "loop2", "sdb", "nvme0n1", "mmcblk0"}
 	for _, dev := range devsToCreate {
-		err := os.WriteFile(filepath.Join(blockDir, dev), nil, 0644)
-		c.Assert(err, IsNil)
+		mylog.Check(os.WriteFile(filepath.Join(blockDir, dev), nil, 0644))
+
 	}
 
 	restore := disks.MockUdevPropertiesForDevice(func(typ, dev string) (map[string]string, error) {
@@ -1839,8 +1840,8 @@ func (s *diskSuite) TestAllPhysicalDisks(c *C) {
 	})
 	defer restore()
 
-	d, err := disks.AllPhysicalDisks()
-	c.Assert(err, IsNil)
+	d := mylog.Check2(disks.AllPhysicalDisks())
+
 	c.Assert(d, HasLen, 4)
 
 	c.Assert(d[0].KernelDeviceNode(), Equals, "/dev/mmcblk0")
@@ -1853,7 +1854,7 @@ func (s *diskSuite) TestPartitionUUIDFromMopuntPointErrs(c *C) {
 	restore := osutil.MockMountInfo(``)
 	defer restore()
 
-	_, err := disks.PartitionUUIDFromMountPoint("/run/mnt/blah", nil)
+	_ := mylog.Check2(disks.PartitionUUIDFromMountPoint("/run/mnt/blah", nil))
 	c.Assert(err, ErrorMatches, "cannot find mountpoint \"/run/mnt/blah\"")
 
 	restore = osutil.MockMountInfo(`130 30 42:1 / /run/mnt/point rw,relatime shared:54 - ext4 /dev/vda4 rw
@@ -1870,7 +1871,7 @@ func (s *diskSuite) TestPartitionUUIDFromMopuntPointErrs(c *C) {
 	})
 	defer restore()
 
-	_, err = disks.PartitionUUIDFromMountPoint("/run/mnt/point", nil)
+	_ = mylog.Check2(disks.PartitionUUIDFromMountPoint("/run/mnt/point", nil))
 	c.Assert(err, ErrorMatches, "cannot get required partition UUID udev property for device /dev/vda4")
 }
 
@@ -1888,8 +1889,8 @@ func (s *diskSuite) TestPartitionUUIDFromMountPointPlain(c *C) {
 	})
 	defer restore()
 
-	uuid, err := disks.PartitionUUIDFromMountPoint("/run/mnt/point", nil)
-	c.Assert(err, IsNil)
+	uuid := mylog.Check2(disks.PartitionUUIDFromMountPoint("/run/mnt/point", nil))
+
 	c.Assert(uuid, Equals, "foo-uuid")
 }
 
@@ -1919,21 +1920,21 @@ func (s *diskSuite) TestPartitionUUIDFromMopuntPointDecrypted(c *C) {
 
 	// mock the sysfs dm uuid and name files
 	dmDir := filepath.Join(filepath.Join(dirs.SysfsDir, "dev", "block"), "242:1", "dm")
-	err := os.MkdirAll(dmDir, 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(dmDir, 0755))
+
 
 	b := []byte("something")
-	err = os.WriteFile(filepath.Join(dmDir, "name"), b, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(dmDir, "name"), b, 0644))
+
 
 	b = []byte("CRYPT-LUKS2-5a522809c87e4dfa81a88dc5667d1304-something")
-	err = os.WriteFile(filepath.Join(dmDir, "uuid"), b, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(dmDir, "uuid"), b, 0644))
 
-	uuid, err := disks.PartitionUUIDFromMountPoint("/run/mnt/point", &disks.Options{
+
+	uuid := mylog.Check2(disks.PartitionUUIDFromMountPoint("/run/mnt/point", &disks.Options{
 		IsDecryptedDevice: true,
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Assert(uuid, Equals, "foo-uuid")
 }
 
@@ -1958,15 +1959,15 @@ func (s *diskSuite) TestPartitionUUID(c *C) {
 	})
 	defer restore()
 
-	uuid, err := disks.PartitionUUID("/dev/vda4")
-	c.Assert(err, IsNil)
+	uuid := mylog.Check2(disks.PartitionUUID("/dev/vda4"))
+
 	c.Assert(uuid, Equals, "foo-uuid")
 
-	uuid, err = disks.PartitionUUID("/dev/no-uuid")
+	uuid = mylog.Check2(disks.PartitionUUID("/dev/no-uuid"))
 	c.Assert(err, ErrorMatches, "cannot get required udev partition UUID property")
 	c.Check(uuid, Equals, "")
 
-	uuid, err = disks.PartitionUUID("/dev/mock-failure")
+	uuid = mylog.Check2(disks.PartitionUUID("/dev/mock-failure"))
 	c.Assert(err, ErrorMatches, "cannot process udev properties: mock failure")
 	c.Check(uuid, Equals, "")
 }
@@ -1990,15 +1991,15 @@ func (s *diskSuite) TestFilesystemTypeForPartition(c *C) {
 	})
 	defer restore()
 
-	fs, err := disks.FilesystemTypeForPartition("/dev/vda4")
-	c.Assert(err, IsNil)
+	fs := mylog.Check2(disks.FilesystemTypeForPartition("/dev/vda4"))
+
 	c.Check(fs, Equals, "vfat")
 
-	fs, err = disks.FilesystemTypeForPartition("/dev/no-fs")
-	c.Assert(err, IsNil)
+	fs = mylog.Check2(disks.FilesystemTypeForPartition("/dev/no-fs"))
+
 	c.Check(fs, Equals, "")
 
-	fs, err = disks.FilesystemTypeForPartition("/dev/mock-failure")
+	fs = mylog.Check2(disks.FilesystemTypeForPartition("/dev/mock-failure"))
 	c.Assert(err.Error(), Equals, "mock failure")
 	c.Check(fs, Equals, "")
 }
@@ -2010,22 +2011,22 @@ func (s *diskSuite) TestFindMatchingPartitionWithFsLabel(c *C) {
 	})
 	defer restore()
 
-	d, err := disks.DiskFromDeviceName("/dev/vda")
-	c.Assert(err, IsNil)
+	d := mylog.Check2(disks.DiskFromDeviceName("/dev/vda"))
+
 
 	// seed partition is vfat, capitals are ignored when searching
 	for _, searchLabel := range []string{"ubuntu-seed", "UBUNTU-SEED", "ubuntu-SEED"} {
-		p, err := d.FindMatchingPartitionWithFsLabel(searchLabel)
-		c.Assert(err, IsNil)
+		p := mylog.Check2(d.FindMatchingPartitionWithFsLabel(searchLabel))
+
 		c.Check(p.KernelDeviceNode, Equals, "/dev/vda1")
 		c.Check(p.FilesystemLabel, Equals, "UBUNTU-SEED")
 	}
 
 	// boot partition is not vfat, case-sensitive search
 	for _, searchLabel := range []string{"ubuntu-boot", "UBUNTU-BOOT", "ubuntu-BOOT"} {
-		p, err := d.FindMatchingPartitionWithFsLabel(searchLabel)
+		p := mylog.Check2(d.FindMatchingPartitionWithFsLabel(searchLabel))
 		if searchLabel == "ubuntu-boot" {
-			c.Assert(err, IsNil)
+
 			c.Check(p.KernelDeviceNode, Equals, "/dev/vda2")
 			c.Check(p.FilesystemLabel, Equals, "ubuntu-boot")
 		} else {

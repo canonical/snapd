@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 	. "gopkg.in/check.v1"
 
@@ -36,7 +37,7 @@ func (s *SnapSuite) TestInterfacesZeroSlotsOnePlug(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/connections")
-		body, err := io.ReadAll(r.Body)
+		body := mylog.Check2(io.ReadAll(r.Body))
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
@@ -51,8 +52,8 @@ func (s *SnapSuite) TestInterfacesZeroSlotsOnePlug(c *C) {
 			},
 		})
 	})
-	rest, err := Parser(Client()).ParseArgs([]string{"interfaces"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(Parser(Client()).ParseArgs([]string{"interfaces"}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
 		"Slot  Plug\n" +
@@ -65,7 +66,7 @@ func (s *SnapSuite) TestInterfacesZeroPlugsOneSlot(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/connections")
-		body, err := io.ReadAll(r.Body)
+		body := mylog.Check2(io.ReadAll(r.Body))
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
@@ -82,8 +83,8 @@ func (s *SnapSuite) TestInterfacesZeroPlugsOneSlot(c *C) {
 			},
 		})
 	})
-	rest, err := Parser(Client()).ParseArgs([]string{"interfaces"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(Parser(Client()).ParseArgs([]string{"interfaces"}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
 		"Slot                  Plug\n" +
@@ -96,7 +97,7 @@ func (s *SnapSuite) TestInterfacesOneSlotOnePlug(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/connections")
-		body, err := io.ReadAll(r.Body)
+		body := mylog.Check2(io.ReadAll(r.Body))
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
@@ -133,8 +134,8 @@ func (s *SnapSuite) TestInterfacesOneSlotOnePlug(c *C) {
 			},
 		})
 	})
-	rest, err := Parser(Client()).ParseArgs([]string{"interfaces"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(Parser(Client()).ParseArgs([]string{"interfaces"}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
 		"Slot                  Plug\n" +
@@ -144,15 +145,15 @@ func (s *SnapSuite) TestInterfacesOneSlotOnePlug(c *C) {
 
 	s.ResetStdStreams()
 	// should be the same
-	rest, err = Parser(Client()).ParseArgs([]string{"interfaces", "canonical-pi2"})
-	c.Assert(err, IsNil)
+	rest = mylog.Check2(Parser(Client()).ParseArgs([]string{"interfaces", "canonical-pi2"}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), testutil.EqualsWrapped, InterfacesDeprecationNotice)
 	s.ResetStdStreams()
 	// and the same again
-	rest, err = Parser(Client()).ParseArgs([]string{"interfaces", "keyboard-lights"})
-	c.Assert(err, IsNil)
+	rest = mylog.Check2(Parser(Client()).ParseArgs([]string{"interfaces", "keyboard-lights"}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), testutil.EqualsWrapped, InterfacesDeprecationNotice)
@@ -162,7 +163,7 @@ func (s *SnapSuite) TestInterfacesTwoPlugs(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/connections")
-		body, err := io.ReadAll(r.Body)
+		body := mylog.Check2(io.ReadAll(r.Body))
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
@@ -189,8 +190,8 @@ func (s *SnapSuite) TestInterfacesTwoPlugs(c *C) {
 			},
 		})
 	})
-	rest, err := Parser(Client()).ParseArgs([]string{"interfaces"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(Parser(Client()).ParseArgs([]string{"interfaces"}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
 		"Slot                  Plug\n" +
@@ -203,7 +204,7 @@ func (s *SnapSuite) TestInterfacesPlugsWithCommonName(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/connections")
-		body, err := io.ReadAll(r.Body)
+		body := mylog.Check2(io.ReadAll(r.Body))
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
@@ -256,8 +257,8 @@ func (s *SnapSuite) TestInterfacesPlugsWithCommonName(c *C) {
 			},
 		})
 	})
-	rest, err := Parser(Client()).ParseArgs([]string{"interfaces"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(Parser(Client()).ParseArgs([]string{"interfaces"}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
 		"Slot                             Plug\n" +
@@ -270,7 +271,7 @@ func (s *SnapSuite) TestInterfacesOsSnapSlots(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/connections")
-		body, err := io.ReadAll(r.Body)
+		body := mylog.Check2(io.ReadAll(r.Body))
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
@@ -323,8 +324,8 @@ func (s *SnapSuite) TestInterfacesOsSnapSlots(c *C) {
 			},
 		})
 	})
-	rest, err := Parser(Client()).ParseArgs([]string{"interfaces"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(Parser(Client()).ParseArgs([]string{"interfaces"}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
 		"Slot                Plug\n" +
@@ -337,7 +338,7 @@ func (s *SnapSuite) TestInterfacesTwoSlotsAndFiltering(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/connections")
-		body, err := io.ReadAll(r.Body)
+		body := mylog.Check2(io.ReadAll(r.Body))
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
@@ -372,8 +373,8 @@ func (s *SnapSuite) TestInterfacesTwoSlotsAndFiltering(c *C) {
 			},
 		})
 	})
-	rest, err := Parser(Client()).ParseArgs([]string{"interfaces", "-i=serial-port"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(Parser(Client()).ParseArgs([]string{"interfaces", "-i=serial-port"}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
 		"Slot                         Plug\n" +
@@ -386,7 +387,7 @@ func (s *SnapSuite) TestInterfacesOfSpecificSnap(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/connections")
-		body, err := io.ReadAll(r.Body)
+		body := mylog.Check2(io.ReadAll(r.Body))
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
@@ -415,8 +416,8 @@ func (s *SnapSuite) TestInterfacesOfSpecificSnap(c *C) {
 			},
 		})
 	})
-	rest, err := Parser(Client()).ParseArgs([]string{"interfaces", "wake-up-alarm"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(Parser(Client()).ParseArgs([]string{"interfaces", "wake-up-alarm"}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
 		"Slot                  Plug\n" +
@@ -430,7 +431,7 @@ func (s *SnapSuite) TestInterfacesOfSystemNicknameSnap(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/connections")
-		body, err := io.ReadAll(r.Body)
+		body := mylog.Check2(io.ReadAll(r.Body))
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
@@ -459,8 +460,8 @@ func (s *SnapSuite) TestInterfacesOfSystemNicknameSnap(c *C) {
 			},
 		})
 	})
-	rest, err := Parser(Client()).ParseArgs([]string{"interfaces", "system"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(Parser(Client()).ParseArgs([]string{"interfaces", "system"}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
 		"Slot           Plug\n" +
@@ -471,8 +472,8 @@ func (s *SnapSuite) TestInterfacesOfSystemNicknameSnap(c *C) {
 	s.ResetStdStreams()
 
 	// when called with system nickname we get the same output
-	rest, err = Parser(Client()).ParseArgs([]string{"interfaces", "system"})
-	c.Assert(err, IsNil)
+	rest = mylog.Check2(Parser(Client()).ParseArgs([]string{"interfaces", "system"}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdoutSystem := "" +
 		"Slot           Plug\n" +
@@ -485,7 +486,7 @@ func (s *SnapSuite) TestInterfacesOfSpecificSnapAndSlot(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/connections")
-		body, err := io.ReadAll(r.Body)
+		body := mylog.Check2(io.ReadAll(r.Body))
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
@@ -514,8 +515,8 @@ func (s *SnapSuite) TestInterfacesOfSpecificSnapAndSlot(c *C) {
 			},
 		})
 	})
-	rest, err := Parser(Client()).ParseArgs([]string{"interfaces", "wake-up-alarm:snooze"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(Parser(Client()).ParseArgs([]string{"interfaces", "wake-up-alarm:snooze"}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
 		"Slot                  Plug\n" +
@@ -528,7 +529,7 @@ func (s *SnapSuite) TestInterfacesNothingAtAll(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/connections")
-		body, err := io.ReadAll(r.Body)
+		body := mylog.Check2(io.ReadAll(r.Body))
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
@@ -536,7 +537,7 @@ func (s *SnapSuite) TestInterfacesNothingAtAll(c *C) {
 			"result": client.Connections{},
 		})
 	})
-	rest, err := Parser(Client()).ParseArgs([]string{"interfaces"})
+	rest := mylog.Check2(Parser(Client()).ParseArgs([]string{"interfaces"}))
 	c.Assert(err, ErrorMatches, "no interfaces found")
 	// XXX: not sure why this is returned, I guess that's what happens when a
 	// command Execute returns an error.
@@ -549,7 +550,7 @@ func (s *SnapSuite) TestInterfacesOfSpecificType(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/connections")
-		body, err := io.ReadAll(r.Body)
+		body := mylog.Check2(io.ReadAll(r.Body))
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
@@ -578,8 +579,8 @@ func (s *SnapSuite) TestInterfacesOfSpecificType(c *C) {
 			},
 		})
 	})
-	rest, err := Parser(Client()).ParseArgs([]string{"interfaces", "-i", "bool-file"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(Parser(Client()).ParseArgs([]string{"interfaces", "-i", "bool-file"}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
 		"Slot                  Plug\n" +
@@ -613,16 +614,16 @@ func (s *SnapSuite) TestInterfacesCompletion(c *C) {
 	}
 
 	expected = []flags.Completion{{Item: "canonical-pi2:"}, {Item: "core:"}, {Item: "keyboard-lights:"}, {Item: "paste-daemon:"}, {Item: "potato:"}, {Item: "wake-up-alarm:"}}
-	_, err := parser.ParseArgs([]string{"interfaces", ""})
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(parser.ParseArgs([]string{"interfaces", ""}))
+
 
 	expected = []flags.Completion{{Item: "paste-daemon:network-listening", Description: "plug"}}
-	_, err = parser.ParseArgs([]string{"interfaces", "pa"})
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(parser.ParseArgs([]string{"interfaces", "pa"}))
+
 
 	expected = []flags.Completion{{Item: "wake-up-alarm:toggle", Description: "slot"}}
-	_, err = parser.ParseArgs([]string{"interfaces", "wa"})
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(parser.ParseArgs([]string{"interfaces", "wa"}))
+
 
 	c.Assert(s.Stdout(), Equals, "")
 	c.Assert(s.Stderr(), Equals, "")
@@ -648,7 +649,7 @@ func (s *SnapSuite) checkConnectionsSystemCoreRemapping(c *C, apiSnapName, cliSn
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/connections")
-		body, err := io.ReadAll(r.Body)
+		body := mylog.Check2(io.ReadAll(r.Body))
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
@@ -663,8 +664,8 @@ func (s *SnapSuite) checkConnectionsSystemCoreRemapping(c *C, apiSnapName, cliSn
 			},
 		})
 	})
-	rest, err := Parser(Client()).ParseArgs([]string{"interfaces", cliSnapName})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(Parser(Client()).ParseArgs([]string{"interfaces", cliSnapName}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
 		"Slot      Plug\n" +

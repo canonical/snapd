@@ -24,6 +24,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snapdtool"
@@ -39,12 +40,10 @@ func mountNsPath(snapName string) string {
 func runNamespaceTool(toolName, snapName string) ([]byte, error) {
 	mntFile := mountNsPath(snapName)
 	if osutil.FileExists(mntFile) {
-		toolPath, err := snapdtool.InternalToolPath(toolName)
-		if err != nil {
-			return nil, err
-		}
+		toolPath := mylog.Check2(snapdtool.InternalToolPath(toolName))
+
 		cmd := exec.Command(toolPath, snapName)
-		output, err := cmd.CombinedOutput()
+		output := mylog.Check2(cmd.CombinedOutput())
 		return output, err
 	}
 	return nil, nil
@@ -52,18 +51,14 @@ func runNamespaceTool(toolName, snapName string) ([]byte, error) {
 
 // Discard the mount namespace of a given snap.
 func DiscardSnapNamespace(snapName string) error {
-	output, err := runNamespaceTool("snap-discard-ns", snapName)
-	if err != nil {
-		return fmt.Errorf("cannot discard preserved namespace of snap %q: %s", snapName, osutil.OutputErr(output, err))
-	}
+	output := mylog.Check2(runNamespaceTool("snap-discard-ns", snapName))
+
 	return nil
 }
 
 // Update the mount namespace of a given snap.
 func UpdateSnapNamespace(snapName string) error {
-	output, err := runNamespaceTool("snap-update-ns", snapName)
-	if err != nil {
-		return fmt.Errorf("cannot update preserved namespace of snap %q: %s", snapName, osutil.OutputErr(output, err))
-	}
+	output := mylog.Check2(runNamespaceTool("snap-update-ns", snapName))
+
 	return nil
 }

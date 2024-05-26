@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/bootloader/lkenv"
 	"github.com/snapcore/snapd/bootloader/ubootenv"
 	"github.com/snapcore/snapd/osutil/disks"
@@ -39,10 +40,10 @@ func NewAndroidBoot(rootdir string) Bootloader {
 
 func MockAndroidBootFile(c *C, rootdir string, mode os.FileMode) {
 	f := &androidboot{rootdir: rootdir}
-	err := os.MkdirAll(f.dir(), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(f.configFile(), nil, mode)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(f.dir(), 0755))
+
+	mylog.Check(os.WriteFile(f.configFile(), nil, mode))
+
 }
 
 func NewUboot(rootdir string, blOpts *Options) ExtractedRecoveryKernelImageBootloader {
@@ -53,14 +54,14 @@ func MockUbootFiles(c *C, rootdir string, blOpts *Options) {
 	u := &uboot{rootdir: rootdir}
 	u.setDefaults()
 	u.processBlOpts(blOpts)
-	err := os.MkdirAll(u.dir(), 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(u.dir(), 0755))
+
 
 	// ensure that we have a valid uboot.env too
-	env, err := ubootenv.Create(u.envFile(), 4096, ubootenv.CreateOptions{HeaderFlagByte: true})
-	c.Assert(err, IsNil)
-	err = env.Save()
-	c.Assert(err, IsNil)
+	env := mylog.Check2(ubootenv.Create(u.envFile(), 4096, ubootenv.CreateOptions{HeaderFlagByte: true}))
+
+	mylog.Check(env.Save())
+
 }
 
 func NewGrub(rootdir string, opts *Options) RecoveryAwareBootloader {
@@ -68,10 +69,10 @@ func NewGrub(rootdir string, opts *Options) RecoveryAwareBootloader {
 }
 
 func MockGrubFiles(c *C, rootdir string) {
-	err := os.MkdirAll(filepath.Join(rootdir, "/boot/grub"), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(rootdir, "/boot/grub/grub.cfg"), nil, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Join(rootdir, "/boot/grub"), 0755))
+
+	mylog.Check(os.WriteFile(filepath.Join(rootdir, "/boot/grub/grub.cfg"), nil, 0644))
+
 }
 
 func NewLk(rootdir string, opts *Options) ExtractedRecoveryKernelImageBootloader {
@@ -180,12 +181,12 @@ func MockLkFiles(c *C, rootdir string, opts *Options) (restore func()) {
 
 	// next create empty env file
 	buf := make([]byte, 4096)
-	f, err := l.envBackstore(primaryStorage)
-	c.Assert(err, IsNil)
+	f := mylog.Check2(l.envBackstore(primaryStorage))
+
 
 	c.Assert(os.MkdirAll(filepath.Dir(f), 0755), IsNil)
-	err = os.WriteFile(f, buf, 0660)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(f, buf, 0660))
+
 
 	// now write env in it with correct crc
 	env := lkenv.NewEnv(f, "", version)
@@ -194,9 +195,8 @@ func MockLkFiles(c *C, rootdir string, opts *Options) (restore func()) {
 	} else {
 		env.InitializeBootPartitions("boot_a", "boot_b")
 	}
+	mylog.Check(env.Save())
 
-	err = env.Save()
-	c.Assert(err, IsNil)
 
 	// also make the empty files for the boot_a and boot_b partitions
 	if opts.Role == RoleRunMode || opts.Role == RoleRecovery {
@@ -204,10 +204,10 @@ func MockLkFiles(c *C, rootdir string, opts *Options) (restore func()) {
 		// and we also need to mock the snapbootselbak file (the snapbootsel
 		// was created above when we created envFile())
 		for _, label := range []string{"boot_a", "boot_b", "boot_ra", "boot_rb", "snapbootselbak"} {
-			disk, err := disks.DiskFromDeviceName("lk-boot-disk")
-			c.Assert(err, IsNil)
-			partUUID, err := disk.FindMatchingPartitionUUIDWithPartLabel(label)
-			c.Assert(err, IsNil)
+			disk := mylog.Check2(disks.DiskFromDeviceName("lk-boot-disk"))
+
+			partUUID := mylog.Check2(disk.FindMatchingPartitionUUIDWithPartLabel(label))
+
 			bootFile := filepath.Join(rootdir, "/dev/disk/by-partuuid", partUUID)
 			c.Assert(os.MkdirAll(filepath.Dir(bootFile), 0755), IsNil)
 			c.Assert(os.WriteFile(bootFile, nil, 0755), IsNil)
@@ -216,10 +216,10 @@ func MockLkFiles(c *C, rootdir string, opts *Options) (restore func()) {
 		// for non-uc20 roles just mock the files in /dev/disk/by-partlabel
 		for _, partName := range []string{"boot_a", "boot_b"} {
 			mockPart := filepath.Join(rootdir, "/dev/disk/by-partlabel/", partName)
-			err := os.MkdirAll(filepath.Dir(mockPart), 0755)
-			c.Assert(err, IsNil)
-			err = os.WriteFile(mockPart, nil, 0600)
-			c.Assert(err, IsNil)
+			mylog.Check(os.MkdirAll(filepath.Dir(mockPart), 0755))
+
+			mylog.Check(os.WriteFile(mockPart, nil, 0600))
+
 		}
 	}
 	return func() {
@@ -253,21 +253,21 @@ func MockPibootFiles(c *C, rootdir string, blOpts *Options) func() {
 	p := &piboot{rootdir: rootdir}
 	p.setDefaults()
 	p.processBlOpts(blOpts)
-	err := os.MkdirAll(p.dir(), 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(p.dir(), 0755))
+
 
 	// ensure that we have a valid piboot.conf
-	env, err := ubootenv.Create(p.envFile(), 4096, ubootenv.CreateOptions{HeaderFlagByte: true})
-	c.Assert(err, IsNil)
-	err = env.Save()
-	c.Assert(err, IsNil)
+	env := mylog.Check2(ubootenv.Create(p.envFile(), 4096, ubootenv.CreateOptions{HeaderFlagByte: true}))
+
+	mylog.Check(env.Save())
+
 
 	// Create configuration files expected to come from the gadget
-	cmdLineFile, err := os.Create(filepath.Join(rootdir, "cmdline.txt"))
-	c.Assert(err, IsNil)
+	cmdLineFile := mylog.Check2(os.Create(filepath.Join(rootdir, "cmdline.txt")))
+
 	cmdLineFile.Close()
-	cfgFile, err := os.Create(filepath.Join(rootdir, "config.txt"))
-	c.Assert(err, IsNil)
+	cfgFile := mylog.Check2(os.Create(filepath.Join(rootdir, "config.txt")))
+
 	cfgFile.Close()
 
 	return func() { ubuntuSeedDir = oldSeedPartDir }
@@ -296,11 +296,11 @@ func MockRPi4Files(c *C, rootdir string, rpiRevisionCode, eepromTimeStamp []byte
 		if len(file.data) == 0 {
 			continue
 		}
-		fd, err := os.Create(file.path)
-		c.Assert(err, IsNil)
+		fd := mylog.Check2(os.Create(file.path))
+
 		defer fd.Close()
-		written, err := fd.Write(file.data)
-		c.Assert(err, IsNil)
+		written := mylog.Check2(fd.Write(file.data))
+
 		c.Assert(written, Equals, len(file.data))
 	}
 

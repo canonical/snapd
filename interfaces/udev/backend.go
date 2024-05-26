@@ -33,6 +33,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/osutil"
@@ -78,21 +79,13 @@ func snapDeviceCgroupSelfManageFilePath(snapName string) string {
 // If the method fails it should be re-tried (with a sensible strategy) by the caller.
 func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
 	snapName := appSet.InstanceName()
-	spec, err := repo.SnapSpecification(b.Name(), appSet)
-	if err != nil {
-		return fmt.Errorf("cannot obtain udev specification for snap %q: %w", snapName, err)
-	}
+	spec := mylog.Check2(repo.SnapSpecification(b.Name(), appSet))
 
 	udevSpec := spec.(*Specification)
 	content := b.deriveContent(udevSpec)
 	subsystemTriggers := udevSpec.TriggeredSubsystems()
-
-	if err := os.MkdirAll(dirs.SnapUdevRulesDir, 0755); err != nil {
-		return fmt.Errorf("cannot create directory for udev rules: %w", err)
-	}
-	if err := os.MkdirAll(dirs.SnapCgroupPolicyDir, 0755); err != nil {
-		return fmt.Errorf("cannot create directory for cgroup flags: %w", err)
-	}
+	mylog.Check(os.MkdirAll(dirs.SnapUdevRulesDir, 0755))
+	mylog.Check(os.MkdirAll(dirs.SnapCgroupPolicyDir, 0755))
 
 	rulesFilePath := snapRulesFilePath(snapName)
 	selfManageDeviceCgroupPath := snapDeviceCgroupSelfManageFilePath(snapName)
@@ -101,9 +94,10 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 	// content is always empty whenever the snap controls device
 	// cgroup
 	if len(content) == 0 || udevSpec.ControlsDeviceCgroup() {
-		// Make sure that the rules file gets removed when we don't have any
-		// content and exists.
-		err = os.Remove(rulesFilePath)
+		mylog.
+			// Make sure that the rules file gets removed when we don't have any
+			// content and exists.
+			Check(os.Remove(rulesFilePath))
 		if err != nil && !errors.Is(err, fs.ErrNotExist) {
 			return err
 		} else if err == nil {
@@ -128,11 +122,12 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 			Content: rulesBuf.Bytes(),
 			Mode:    0644,
 		}
+		mylog.Check(
 
-		// EnsureFileState will make sure the file will be only updated when its content
-		// has changed and will otherwise return an error which prevents us from reloading
-		// udev rules when not needed.
-		err = osutil.EnsureFileState(rulesFilePath, rulesFileState)
+			// EnsureFileState will make sure the file will be only updated when its content
+			// has changed and will otherwise return an error which prevents us from reloading
+			// udev rules when not needed.
+			osutil.EnsureFileState(rulesFilePath, rulesFileState))
 		if err != nil && !errors.Is(err, osutil.ErrSameState) {
 			return err
 		} else if !errors.Is(err, osutil.ErrSameState) {
@@ -143,12 +138,11 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 	// do not trigger a reload when running in preseeding mode (as we're
 	// running in a chroot environment and it would most likely fail)
 	if needReload && !b.preseed {
-		// FIXME: somehow detect the interfaces that were disconnected and set
-		// subsystemTriggers appropriately. ATM, it is always going to be empty
-		// on disconnect.
-		if err := b.reloadRules(subsystemTriggers); err != nil {
-			return err
-		}
+		mylog.Check(
+			// FIXME: somehow detect the interfaces that were disconnected and set
+			// subsystemTriggers appropriately. ATM, it is always going to be empty
+			// on disconnect.
+			b.reloadRules(subsystemTriggers))
 	}
 
 	var deviceBuf bytes.Buffer
@@ -166,12 +160,13 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 		deviceBuf.WriteString("# snap uses non-strict confinement.\n")
 		deviceBuf.WriteString("non-strict=true\n")
 	}
+	mylog.
 
-	// the file serves as a checkpoint that udev backend was set up
-	err = osutil.EnsureFileState(selfManageDeviceCgroupPath, &osutil.MemoryFileState{
-		Content: deviceBuf.Bytes(),
-		Mode:    0644,
-	})
+		// the file serves as a checkpoint that udev backend was set up
+		Check(osutil.EnsureFileState(selfManageDeviceCgroupPath, &osutil.MemoryFileState{
+			Content: deviceBuf.Bytes(),
+			Mode:    0644,
+		}))
 	if err != nil && !errors.Is(err, osutil.ErrSameState) {
 		return err
 	}
@@ -190,13 +185,13 @@ func (b *Backend) Remove(snapName string) error {
 
 	// If file doesn't exist we avoid reloading the udev rules when we return here
 	needReload := false
-	if err := os.Remove(rulesFilePath); err == nil {
+	if mylog.Check(os.Remove(rulesFilePath)); err == nil {
 		needReload = true
 	} else if !errors.Is(err, fs.ErrNotExist) {
 		return err
 	}
 
-	if err := os.Remove(selfManageDeviceCgroupPath); err != nil && !errors.Is(err, fs.ErrNotExist) {
+	if mylog.Check(os.Remove(selfManageDeviceCgroupPath)); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return err
 	}
 

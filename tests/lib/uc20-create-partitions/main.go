@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/asserts"
@@ -62,14 +63,10 @@ func (c uc20Constraints) Classic() bool             { return false }
 func (c uc20Constraints) Grade() asserts.ModelGrade { return asserts.ModelSigned }
 
 func main() {
-	if err := logger.SimpleSetup(nil); err != nil {
-		fmt.Fprintf(os.Stderr, i18n.G("WARNING: failed to activate logging: %v\n"), err)
-	}
+	mylog.Check(logger.SimpleSetup(nil))
 
 	args := &cmdCreatePartitions{}
-	if _, err := flags.ParseArgs(args, os.Args[1:]); err != nil {
-		panic(err)
-	}
+	mylog.Check2(flags.ParseArgs(args, os.Args[1:]))
 
 	obs := &simpleObserver{}
 
@@ -82,10 +79,7 @@ func main() {
 		Mount:          args.Mount,
 		EncryptionType: encryptionType,
 	}
-	installSideData, err := installRun(uc20Constraints{}, args.Positional.GadgetRoot, args.Positional.KernelRoot, args.Positional.Device, options, obs, timings.New(nil))
-	if err != nil {
-		panic(err)
-	}
+	installSideData := mylog.Check2(installRun(uc20Constraints{}, args.Positional.GadgetRoot, args.Positional.KernelRoot, args.Positional.Device, options, obs, timings.New(nil)))
 
 	if args.Encrypt {
 		if installSideData == nil || len(installSideData.KeyForRole) == 0 {
@@ -104,9 +98,7 @@ func main() {
 			"save-key":     saveKey[:],
 		}
 		for keyFileName, keyData := range toWrite {
-			if err := os.WriteFile(keyFileName, keyData, 0644); err != nil {
-				panic(err)
-			}
+			mylog.Check(os.WriteFile(keyFileName, keyData, 0644))
 		}
 	}
 }

@@ -26,6 +26,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
@@ -65,16 +66,13 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, confinement interfaces.Co
 	// Record all the extra systemd services for this snap.
 	snapName := appSet.InstanceName()
 	// Get the services that apply to this snap
-	spec, err := repo.SnapSpecification(b.Name(), appSet)
-	if err != nil {
-		return fmt.Errorf("cannot obtain systemd services for snap %q: %s", snapName, err)
-	}
+	spec := mylog.Check2(repo.SnapSpecification(b.Name(), appSet))
+
 	content := deriveContent(spec.(*Specification), appSet)
 	// synchronize the content with the filesystem
 	dir := dirs.SnapServicesDir
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return fmt.Errorf("cannot create directory for systemd services %q: %s", dir, err)
-	}
+	mylog.Check(os.MkdirAll(dir, 0755))
+
 	glob := serviceName(snapName, "*")
 
 	var systemd sysd.Systemd
@@ -83,38 +81,32 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, confinement interfaces.Co
 	} else {
 		systemd = sysd.New(sysd.SystemMode, &noopReporter{})
 	}
+	mylog.Check(
 
-	// We need to be carefully here and stop all removed service units before
-	// we remove their files as otherwise systemd is not able to disable/stop
-	// them anymore.
-	if err := b.disableRemovedServices(systemd, dir, glob, content); err != nil {
-		logger.Noticef("cannot stop removed services: %s", err)
-	}
+		// We need to be carefully here and stop all removed service units before
+		// we remove their files as otherwise systemd is not able to disable/stop
+		// them anymore.
+		b.disableRemovedServices(systemd, dir, glob, content))
+
 	changed, removed, errEnsure := osutil.EnsureDirState(dir, glob, content)
 	// Reload systemd whenever something is added or removed
 	if !b.preseed && (len(changed) > 0 || len(removed) > 0) {
-		err := systemd.DaemonReload()
-		if err != nil {
-			logger.Noticef("cannot reload systemd state: %s", err)
-		}
+		mylog.Check(systemd.DaemonReload())
 	}
 	if len(changed) > 0 {
-		// Ensure the services are running right now and on reboots
-		if err := systemd.EnableNoReload(changed); err != nil {
-			logger.Noticef("cannot enable services %q: %s", changed, err)
-		}
+		mylog.Check(
+			// Ensure the services are running right now and on reboots
+			systemd.EnableNoReload(changed))
+
 		if !b.preseed {
-			// If we have new services here which aren't started yet the restart
-			// operation will start them.
-			if err := systemd.Restart(changed); err != nil {
-				logger.Noticef("cannot restart services %q: %s", changed, err)
-			}
+			mylog.Check(
+				// If we have new services here which aren't started yet the restart
+				// operation will start them.
+				systemd.Restart(changed))
 		}
 	}
 	if !b.preseed && len(changed) > 0 {
-		if err := systemd.DaemonReload(); err != nil {
-			logger.Noticef("cannot reload systemd state after enabling the services: %s", err)
-		}
+		mylog.Check(systemd.DaemonReload())
 	}
 	return errEnsure
 }
@@ -135,21 +127,15 @@ func (b *Backend) Remove(snapName string) error {
 
 	if len(removed) > 0 {
 		logger.Noticef("systemd-backend: Disable: removed services: %q", removed)
-		if err := systemd.DisableNoReload(removed); err != nil {
-			logger.Noticef("cannot disable services %q: %s", removed, err)
-		}
+		mylog.Check(systemd.DisableNoReload(removed))
+
 		if !b.preseed {
-			if err := systemd.Stop(removed); err != nil {
-				logger.Noticef("cannot stop services %q: %s", removed, err)
-			}
+			mylog.Check(systemd.Stop(removed))
 		}
 	}
 	// Reload systemd whenever something is removed
 	if !b.preseed && len(removed) > 0 {
-		err := systemd.DaemonReload()
-		if err != nil {
-			logger.Noticef("cannot reload systemd state: %s", err)
-		}
+		mylog.Check(systemd.DaemonReload())
 	}
 	return errEnsure
 }
@@ -182,10 +168,7 @@ func deriveContent(spec *Specification, appSet *interfaces.SnapAppSet) map[strin
 }
 
 func (b *Backend) disableRemovedServices(systemd sysd.Systemd, dir, glob string, content map[string]osutil.FileState) error {
-	paths, err := filepath.Glob(filepath.Join(dir, glob))
-	if err != nil {
-		return err
-	}
+	paths := mylog.Check2(filepath.Glob(filepath.Join(dir, glob)))
 
 	var stopUnits []string
 	var disableUnits []string
@@ -199,14 +182,10 @@ func (b *Backend) disableRemovedServices(systemd sysd.Systemd, dir, glob string,
 		}
 	}
 	if len(disableUnits) > 0 {
-		if err := systemd.DisableNoReload(disableUnits); err != nil {
-			logger.Noticef("cannot disable services %q: %s", disableUnits, err)
-		}
+		mylog.Check(systemd.DisableNoReload(disableUnits))
 	}
 	if len(stopUnits) > 0 {
-		if err := systemd.Stop(stopUnits); err != nil {
-			logger.Noticef("cannot stop services %q: %s", stopUnits, err)
-		}
+		mylog.Check(systemd.Stop(stopUnits))
 	}
 	return nil
 }

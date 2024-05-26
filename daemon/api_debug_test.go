@@ -28,6 +28,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/overlord/state"
@@ -55,7 +56,7 @@ func (s *postDebugSuite) TestPostDebugEnsureStateSoon(c *check.C) {
 	defer restore()
 
 	buf := bytes.NewBufferString(`{"action": "ensure-state-soon"}`)
-	req, err := http.NewRequest("POST", "/v2/debug", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/debug", buf))
 	c.Assert(err, check.IsNil)
 
 	rsp := s.syncReq(c, req, nil)
@@ -71,7 +72,7 @@ func (s *postDebugSuite) TestDebugConnectivityHappy(c *check.C) {
 		"another.good.host.com": true,
 	}
 
-	req, err := http.NewRequest("GET", "/v2/debug?aspect=connectivity", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/debug?aspect=connectivity", nil))
 	c.Assert(err, check.IsNil)
 
 	rsp := s.syncReq(c, req, nil)
@@ -89,7 +90,7 @@ func (s *postDebugSuite) TestDebugConnectivityUnhappy(c *check.C) {
 		"bad.host.com":  false,
 	}
 
-	req, err := http.NewRequest("GET", "/v2/debug?aspect=connectivity", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/debug?aspect=connectivity", nil))
 	c.Assert(err, check.IsNil)
 
 	rsp := s.syncReq(c, req, nil)
@@ -102,7 +103,7 @@ func (s *postDebugSuite) TestDebugConnectivityUnhappy(c *check.C) {
 func (s *postDebugSuite) TestGetDebugBaseDeclaration(c *check.C) {
 	_ = s.daemon(c)
 
-	req, err := http.NewRequest("GET", "/v2/debug?aspect=base-declaration", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/debug?aspect=base-declaration", nil))
 	c.Assert(err, check.IsNil)
 
 	rsp := s.syncReq(c, req, nil)
@@ -125,7 +126,7 @@ func (s *postDebugSuite) getDebugTimings(c *check.C, request string) []interface
 
 	s.daemonWithOverlordMock()
 
-	req, err := http.NewRequest("GET", request, nil)
+	req := mylog.Check2(http.NewRequest("GET", request, nil))
 	c.Assert(err, check.IsNil)
 
 	st := s.d.Overlord().State()
@@ -167,7 +168,7 @@ func (s *postDebugSuite) getDebugTimings(c *check.C, request string) []interface
 	st.Unlock()
 
 	rsp := s.syncReq(c, req, nil)
-	data, err := json.Marshal(rsp.Result)
+	data := mylog.Check2(json.Marshal(rsp.Result))
 	c.Assert(err, check.IsNil)
 	var dataJSON []interface{}
 	json.Unmarshal(data, &dataJSON)
@@ -212,12 +213,12 @@ func (s *postDebugSuite) TestGetDebugTimingsEnsureAll(c *check.C) {
 func (s *postDebugSuite) TestGetDebugTimingsError(c *check.C) {
 	s.daemonWithOverlordMock()
 
-	req, err := http.NewRequest("GET", "/v2/debug?aspect=change-timings&ensure=unknown", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/debug?aspect=change-timings&ensure=unknown", nil))
 	c.Assert(err, check.IsNil)
 	rsp := s.errorReq(c, req, nil)
 	c.Check(rsp.Status, check.Equals, 400)
 
-	req, err = http.NewRequest("GET", "/v2/debug?aspect=change-timings&change-id=9999", nil)
+	req = mylog.Check2(http.NewRequest("GET", "/v2/debug?aspect=change-timings&change-id=9999", nil))
 	c.Assert(err, check.IsNil)
 	rsp = s.errorReq(c, req, nil)
 	c.Check(rsp.Status, check.Equals, 400)
@@ -259,7 +260,7 @@ func (s *postDebugSuite) TestMigrateHome(c *check.C) {
 	defer restore()
 
 	body := strings.NewReader(`{"action": "migrate-home", "snaps": ["foo", "bar"]}`)
-	req, err := http.NewRequest("POST", "/v2/debug", body)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/debug", body))
 	c.Assert(err, check.IsNil)
 
 	rsp := s.req(c, req, nil)
@@ -282,7 +283,7 @@ func (s *postDebugSuite) TestMigrateHomeNoSnaps(c *check.C) {
 	s.expectRootAccess()
 
 	body := strings.NewReader(`{"action": "migrate-home"}`)
-	req, err := http.NewRequest("POST", "/v2/debug", body)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/debug", body))
 	c.Assert(err, check.IsNil)
 
 	rsp := s.req(c, req, nil)
@@ -303,7 +304,7 @@ func (s *postDebugSuite) TestMigrateHomeNotInstalled(c *check.C) {
 	defer restore()
 
 	body := strings.NewReader(`{"action": "migrate-home", "snaps": ["some-snap"]}`)
-	req, err := http.NewRequest("POST", "/v2/debug", body)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/debug", body))
 	c.Assert(err, check.IsNil)
 
 	rsp := s.req(c, req, nil)
@@ -326,7 +327,7 @@ func (s *postDebugSuite) TestMigrateHomeInternalError(c *check.C) {
 	defer restore()
 
 	body := strings.NewReader(`{"action": "migrate-home", "snaps": ["some-snap"]}`)
-	req, err := http.NewRequest("POST", "/v2/debug", body)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/debug", body))
 	c.Assert(err, check.IsNil)
 
 	rsp := s.req(c, req, nil)

@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/kmod"
@@ -368,9 +369,7 @@ func (iface *kubernetesSupportInterface) KModConnectedPlug(spec *kmod.Specificat
 	flavor := k8sFlavor(plug)
 	if flavor == "kubeproxy" || flavor == "" {
 		for _, m := range kubernetesSupportConnectedPlugKmodKubeProxy {
-			if err := spec.AddModule(m); err != nil {
-				return err
-			}
+			mylog.Check(spec.AddModule(m))
 		}
 	}
 	return nil

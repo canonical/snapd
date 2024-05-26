@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"sort"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"gopkg.in/check.v1"
 )
 
@@ -34,27 +35,25 @@ var _ = check.Suite(&findWildcardSuite{})
 
 func (fs *findWildcardSuite) TestFindWildcard(c *check.C) {
 	top := filepath.Join(c.MkDir(), "top")
-
-	err := os.MkdirAll(top, os.ModePerm)
+	mylog.Check(os.MkdirAll(top, os.ModePerm))
 	c.Assert(err, check.IsNil)
-	err = os.MkdirAll(filepath.Join(top, "acc-id1"), os.ModePerm)
+	mylog.Check(os.MkdirAll(filepath.Join(top, "acc-id1"), os.ModePerm))
 	c.Assert(err, check.IsNil)
-	err = os.MkdirAll(filepath.Join(top, "acc-id1", "abcd"), os.ModePerm)
+	mylog.Check(os.MkdirAll(filepath.Join(top, "acc-id1", "abcd"), os.ModePerm))
 	c.Assert(err, check.IsNil)
-	err = os.MkdirAll(filepath.Join(top, "acc-id1", "e5cd"), os.ModePerm)
+	mylog.Check(os.MkdirAll(filepath.Join(top, "acc-id1", "e5cd"), os.ModePerm))
 	c.Assert(err, check.IsNil)
-	err = os.MkdirAll(filepath.Join(top, "acc-id2"), os.ModePerm)
+	mylog.Check(os.MkdirAll(filepath.Join(top, "acc-id2"), os.ModePerm))
 	c.Assert(err, check.IsNil)
-	err = os.MkdirAll(filepath.Join(top, "acc-id2", "f444"), os.ModePerm)
+	mylog.Check(os.MkdirAll(filepath.Join(top, "acc-id2", "f444"), os.ModePerm))
 	c.Assert(err, check.IsNil)
-
-	err = os.WriteFile(filepath.Join(top, "acc-id1", "abcd", "active"), nil, os.ModePerm)
+	mylog.Check(os.WriteFile(filepath.Join(top, "acc-id1", "abcd", "active"), nil, os.ModePerm))
 	c.Assert(err, check.IsNil)
-	err = os.WriteFile(filepath.Join(top, "acc-id1", "abcd", "active.1"), nil, os.ModePerm)
+	mylog.Check(os.WriteFile(filepath.Join(top, "acc-id1", "abcd", "active.1"), nil, os.ModePerm))
 	c.Assert(err, check.IsNil)
-	err = os.WriteFile(filepath.Join(top, "acc-id1", "e5cd", "active"), nil, os.ModePerm)
+	mylog.Check(os.WriteFile(filepath.Join(top, "acc-id1", "e5cd", "active"), nil, os.ModePerm))
 	c.Assert(err, check.IsNil)
-	err = os.WriteFile(filepath.Join(top, "acc-id2", "f444", "active"), nil, os.ModePerm)
+	mylog.Check(os.WriteFile(filepath.Join(top, "acc-id2", "f444", "active"), nil, os.ModePerm))
 	c.Assert(err, check.IsNil)
 
 	var res []string
@@ -62,61 +61,56 @@ func (fs *findWildcardSuite) TestFindWildcard(c *check.C) {
 		res = append(res, relpath...)
 		return nil
 	}
-
-	err = findWildcard(top, []string{"*", "*", "active"}, 0, foundCb)
+	mylog.Check(findWildcard(top, []string{"*", "*", "active"}, 0, foundCb))
 	c.Assert(err, check.IsNil)
 	sort.Strings(res)
 	c.Check(res, check.DeepEquals, []string{"acc-id1/abcd/active", "acc-id1/e5cd/active", "acc-id2/f444/active"})
 
 	res = nil
-	err = findWildcard(top, []string{"*", "*", "active*"}, 0, foundCb)
+	mylog.Check(findWildcard(top, []string{"*", "*", "active*"}, 0, foundCb))
 	c.Assert(err, check.IsNil)
 	sort.Strings(res)
 	c.Check(res, check.DeepEquals, []string{"acc-id1/abcd/active", "acc-id1/abcd/active.1", "acc-id1/e5cd/active", "acc-id2/f444/active"})
 
 	res = nil
-	err = findWildcard(top, []string{"zoo", "*", "active"}, 0, foundCb)
+	mylog.Check(findWildcard(top, []string{"zoo", "*", "active"}, 0, foundCb))
 	c.Assert(err, check.IsNil)
 	c.Check(res, check.HasLen, 0)
 
 	res = nil
-	err = findWildcard(top, []string{"zoo", "*", "active*"}, 0, foundCb)
+	mylog.Check(findWildcard(top, []string{"zoo", "*", "active*"}, 0, foundCb))
 	c.Assert(err, check.IsNil)
 	c.Check(res, check.HasLen, 0)
 
 	res = nil
-	err = findWildcard(top, []string{"a*", "zoo", "active"}, 0, foundCb)
+	mylog.Check(findWildcard(top, []string{"a*", "zoo", "active"}, 0, foundCb))
 	c.Assert(err, check.IsNil)
 	c.Check(res, check.HasLen, 0)
 
 	res = nil
-	err = findWildcard(top, []string{"acc-id1", "*cd", "active"}, 0, foundCb)
+	mylog.Check(findWildcard(top, []string{"acc-id1", "*cd", "active"}, 0, foundCb))
 	c.Assert(err, check.IsNil)
 	sort.Strings(res)
 	c.Check(res, check.DeepEquals, []string{"acc-id1/abcd/active", "acc-id1/e5cd/active"})
 
 	res = nil
-	err = findWildcard(top, []string{"acc-id1", "*cd", "active*"}, 0, foundCb)
+	mylog.Check(findWildcard(top, []string{"acc-id1", "*cd", "active*"}, 0, foundCb))
 	c.Assert(err, check.IsNil)
 	sort.Strings(res)
 	c.Check(res, check.DeepEquals, []string{"acc-id1/abcd/active", "acc-id1/abcd/active.1", "acc-id1/e5cd/active"})
-
 }
 
 func (fs *findWildcardSuite) TestFindWildcardSomeErrors(c *check.C) {
 	top := filepath.Join(c.MkDir(), "top-errors")
-
-	err := os.MkdirAll(top, os.ModePerm)
+	mylog.Check(os.MkdirAll(top, os.ModePerm))
 	c.Assert(err, check.IsNil)
-	err = os.MkdirAll(filepath.Join(top, "acc-id1"), os.ModePerm)
+	mylog.Check(os.MkdirAll(filepath.Join(top, "acc-id1"), os.ModePerm))
 	c.Assert(err, check.IsNil)
-	err = os.MkdirAll(filepath.Join(top, "acc-id2"), os.ModePerm)
+	mylog.Check(os.MkdirAll(filepath.Join(top, "acc-id2"), os.ModePerm))
 	c.Assert(err, check.IsNil)
-
-	err = os.WriteFile(filepath.Join(top, "acc-id1", "abcd"), nil, os.ModePerm)
+	mylog.Check(os.WriteFile(filepath.Join(top, "acc-id1", "abcd"), nil, os.ModePerm))
 	c.Assert(err, check.IsNil)
-
-	err = os.MkdirAll(filepath.Join(top, "acc-id2", "dddd"), os.ModePerm)
+	mylog.Check(os.MkdirAll(filepath.Join(top, "acc-id2", "dddd"), os.ModePerm))
 	c.Assert(err, check.IsNil)
 
 	var res []string
@@ -128,19 +122,18 @@ func (fs *findWildcardSuite) TestFindWildcardSomeErrors(c *check.C) {
 
 	myErr := errors.New("boom")
 	retErr = myErr
-	err = findWildcard(top, []string{"acc-id1", "*"}, 0, foundCb)
+	mylog.Check(findWildcard(top, []string{"acc-id1", "*"}, 0, foundCb))
 	c.Check(err, check.Equals, myErr)
 
 	retErr = nil
 	res = nil
-	err = findWildcard(top, []string{"acc-id2", "*"}, 0, foundCb)
+	mylog.Check(findWildcard(top, []string{"acc-id2", "*"}, 0, foundCb))
 	c.Check(err, check.ErrorMatches, "expected a regular file: .*")
 }
 
 func (fs *findWildcardSuite) TestFindWildcardSequence(c *check.C) {
 	top := filepath.Join(c.MkDir(), "top")
-
-	err := os.MkdirAll(top, os.ModePerm)
+	mylog.Check(os.MkdirAll(top, os.ModePerm))
 	c.Assert(err, check.IsNil)
 
 	files := []string{
@@ -151,9 +144,9 @@ func (fs *findWildcardSuite) TestFindWildcardSequence(c *check.C) {
 		"s1/1/active",
 	}
 	for _, fn := range files {
-		err := os.MkdirAll(filepath.Dir(filepath.Join(top, fn)), os.ModePerm)
+		mylog.Check(os.MkdirAll(filepath.Dir(filepath.Join(top, fn)), os.ModePerm))
 		c.Assert(err, check.IsNil)
-		err = os.WriteFile(filepath.Join(top, fn), nil, os.ModePerm)
+		mylog.Check(os.WriteFile(filepath.Join(top, fn), nil, os.ModePerm))
 		c.Assert(err, check.IsNil)
 	}
 
@@ -168,10 +161,10 @@ func (fs *findWildcardSuite) TestFindWildcardSequence(c *check.C) {
 			sort.Strings(r)
 		}
 	}
+	mylog.
 
-	// ascending
-
-	err = findWildcard(top, []string{"s1", "#>", "active*"}, 1, foundCb)
+		// ascending
+		Check(findWildcard(top, []string{"s1", "#>", "active*"}, 1, foundCb))
 	c.Assert(err, check.IsNil)
 	sort()
 	c.Check(res, check.DeepEquals, [][]string{
@@ -180,7 +173,7 @@ func (fs *findWildcardSuite) TestFindWildcardSequence(c *check.C) {
 	})
 
 	res = nil
-	err = findWildcard(top, []string{"s1", "#>", "active*"}, 2, foundCb)
+	mylog.Check(findWildcard(top, []string{"s1", "#>", "active*"}, 2, foundCb))
 	c.Assert(err, check.IsNil)
 	sort()
 	c.Check(res, check.DeepEquals, [][]string{
@@ -188,12 +181,12 @@ func (fs *findWildcardSuite) TestFindWildcardSequence(c *check.C) {
 	})
 
 	res = nil
-	err = findWildcard(top, []string{"s1", "#>", "active*"}, 3, foundCb)
+	mylog.Check(findWildcard(top, []string{"s1", "#>", "active*"}, 3, foundCb))
 	c.Assert(err, check.IsNil)
 	c.Check(res, check.HasLen, 0)
 
 	res = nil
-	err = findWildcard(top, []string{"s1", "#>", "active*"}, -1, foundCb)
+	mylog.Check(findWildcard(top, []string{"s1", "#>", "active*"}, -1, foundCb))
 	c.Assert(err, check.IsNil)
 	sort()
 	c.Check(res, check.DeepEquals, [][]string{
@@ -205,7 +198,7 @@ func (fs *findWildcardSuite) TestFindWildcardSequence(c *check.C) {
 	// descending
 
 	res = nil
-	err = findWildcard(top, []string{"s1", "#<", "active*"}, -1, foundCb)
+	mylog.Check(findWildcard(top, []string{"s1", "#<", "active*"}, -1, foundCb))
 	c.Assert(err, check.IsNil)
 	sort()
 	c.Check(res, check.DeepEquals, [][]string{
@@ -215,7 +208,7 @@ func (fs *findWildcardSuite) TestFindWildcardSequence(c *check.C) {
 	})
 
 	res = nil
-	err = findWildcard(top, []string{"s1", "#<", "active*"}, 3, foundCb)
+	mylog.Check(findWildcard(top, []string{"s1", "#<", "active*"}, 3, foundCb))
 	c.Assert(err, check.IsNil)
 	sort()
 	c.Check(res, check.DeepEquals, [][]string{
@@ -224,7 +217,7 @@ func (fs *findWildcardSuite) TestFindWildcardSequence(c *check.C) {
 	})
 
 	res = nil
-	err = findWildcard(top, []string{"s1", "#<", "active*"}, 2, foundCb)
+	mylog.Check(findWildcard(top, []string{"s1", "#<", "active*"}, 2, foundCb))
 	c.Assert(err, check.IsNil)
 	sort()
 	c.Check(res, check.DeepEquals, [][]string{
@@ -232,21 +225,20 @@ func (fs *findWildcardSuite) TestFindWildcardSequence(c *check.C) {
 	})
 
 	res = nil
-	err = findWildcard(top, []string{"s1", "#<", "active*"}, 1, foundCb)
+	mylog.Check(findWildcard(top, []string{"s1", "#<", "active*"}, 1, foundCb))
 	c.Assert(err, check.IsNil)
 	c.Check(res, check.HasLen, 0)
 
 	// missing dir
 	res = nil
-	err = findWildcard(top, []string{"s2", "#<", "active*"}, 1, foundCb)
+	mylog.Check(findWildcard(top, []string{"s2", "#<", "active*"}, 1, foundCb))
 	c.Assert(err, check.IsNil)
 	c.Check(res, check.HasLen, 0)
 }
 
 func (fs *findWildcardSuite) TestFindWildcardSequenceSomeErrors(c *check.C) {
 	top := filepath.Join(c.MkDir(), "top-errors")
-
-	err := os.MkdirAll(top, os.ModePerm)
+	mylog.Check(os.MkdirAll(top, os.ModePerm))
 	c.Assert(err, check.IsNil)
 
 	files := []string{
@@ -256,9 +248,9 @@ func (fs *findWildcardSuite) TestFindWildcardSequenceSomeErrors(c *check.C) {
 		"s4/01/active",
 	}
 	for _, fn := range files {
-		err := os.MkdirAll(filepath.Dir(filepath.Join(top, fn)), os.ModePerm)
+		mylog.Check(os.MkdirAll(filepath.Dir(filepath.Join(top, fn)), os.ModePerm))
 		c.Assert(err, check.IsNil)
-		err = os.WriteFile(filepath.Join(top, fn), nil, os.ModePerm)
+		mylog.Check(os.WriteFile(filepath.Join(top, fn), nil, os.ModePerm))
 		c.Assert(err, check.IsNil)
 	}
 
@@ -266,16 +258,12 @@ func (fs *findWildcardSuite) TestFindWildcardSequenceSomeErrors(c *check.C) {
 	foundCb := func(relpath []string) error {
 		return myErr
 	}
-
-	err = findWildcard(top, []string{"s1", "#>", "active*"}, -1, foundCb)
+	mylog.Check(findWildcard(top, []string{"s1", "#>", "active*"}, -1, foundCb))
 	c.Assert(err, check.Equals, myErr)
-
-	err = findWildcard(top, []string{"s2", "#>", "active*"}, -1, foundCb)
+	mylog.Check(findWildcard(top, []string{"s2", "#>", "active*"}, -1, foundCb))
 	c.Assert(err, check.ErrorMatches, `cannot parse ".*/top-errors/s2/a" name as a valid sequence number`)
-
-	err = findWildcard(top, []string{"s3", "#>", "active*"}, -1, foundCb)
+	mylog.Check(findWildcard(top, []string{"s3", "#>", "active*"}, -1, foundCb))
 	c.Assert(err, check.ErrorMatches, `cannot parse ".*/top-errors/s3/-9" name as a valid sequence number`)
-
-	err = findWildcard(top, []string{"s4", "#>", "active*"}, -1, foundCb)
+	mylog.Check(findWildcard(top, []string{"s4", "#>", "active*"}, -1, foundCb))
 	c.Assert(err, check.ErrorMatches, `cannot parse ".*/top-errors/s4/01" name as a valid sequence number`)
 }

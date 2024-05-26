@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/mount"
@@ -95,14 +96,11 @@ func validateCupsSocketDirSlotAttr(a interfaces.Attrer, snapInfo *snap.Info) (st
 	}
 
 	var cupsdSocketSourceDir string
-	if err := a.Attr("cups-socket-directory", &cupsdSocketSourceDir); err != nil {
-		return "", err
-	}
+	mylog.Check(a.Attr("cups-socket-directory", &cupsdSocketSourceDir))
+	mylog.Check(
 
-	// make sure that the cups socket dir is not an AppArmor Regular expression
-	if err := apparmor.ValidateNoAppArmorRegexp(cupsdSocketSourceDir); err != nil {
-		return "", fmt.Errorf("cups-socket-directory is not usable: %v", err)
-	}
+		// make sure that the cups socket dir is not an AppArmor Regular expression
+		apparmor.ValidateNoAppArmorRegexp(cupsdSocketSourceDir))
 
 	if !cleanSubPath(cupsdSocketSourceDir) {
 		return "", fmt.Errorf("cups-socket-directory is not clean: %q", cupsdSocketSourceDir)
@@ -115,12 +113,10 @@ func validateCupsSocketDirSlotAttr(a interfaces.Attrer, snapInfo *snap.Info) (st
 	if !strings.HasPrefix(cupsdSocketSourceDir, "$SNAP_COMMON") && !strings.HasPrefix(cupsdSocketSourceDir, "$SNAP_DATA") {
 		return "", fmt.Errorf("cups-socket-directory must be a directory of $SNAP_COMMON or $SNAP_DATA")
 	}
-	// otherwise it must have a prefix of either SNAP_COMMON or SNAP_DATA,
-	// validate that it has no other variables in it
-	err := snap.ValidatePathVariables(cupsdSocketSourceDir)
-	if err != nil {
-		return "", err
-	}
+	mylog.
+		// otherwise it must have a prefix of either SNAP_COMMON or SNAP_DATA,
+		// validate that it has no other variables in it
+		Check(snap.ValidatePathVariables(cupsdSocketSourceDir))
 
 	// The path starts with $ and ValidatePathVariables() ensures
 	// path contains only $SNAP, $SNAP_DATA, $SNAP_COMMON, and no
@@ -134,15 +130,12 @@ func (iface *cupsInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	// verify that the snap has a cups-socket-directory interface attribute, which is
 	// needed to identify where to find the cups socket is located in the snap
 	// providing the cups socket
-	_, err := validateCupsSocketDirSlotAttr(slot, slot.Snap)
+	_ := mylog.Check2(validateCupsSocketDirSlotAttr(slot, slot.Snap))
 	return err
 }
 
 func (iface *cupsInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	cupsdSocketSourceDir, err := validateCupsSocketDirSlotAttr(slot, slot.Snap())
-	if err != nil {
-		return err
-	}
+	cupsdSocketSourceDir := mylog.Check2(validateCupsSocketDirSlotAttr(slot, slot.Snap()))
 
 	// add the base snippet
 	spec.AddSnippet(cupsConnectedPlugAppArmor)
@@ -186,10 +179,7 @@ func (iface *cupsInterface) AppArmorConnectedPlug(spec *apparmor.Specification, 
 }
 
 func (iface *cupsInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	cupsdSocketSourceDir, err := validateCupsSocketDirSlotAttr(slot, slot.Snap())
-	if err != nil {
-		return err
-	}
+	cupsdSocketSourceDir := mylog.Check2(validateCupsSocketDirSlotAttr(slot, slot.Snap()))
 
 	if cupsdSocketSourceDir == "" {
 		// no other rules, this is the legacy slot without the additional

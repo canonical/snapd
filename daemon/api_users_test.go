@@ -28,6 +28,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/client"
@@ -97,7 +98,7 @@ func (s *userSuite) SetUpTest(c *check.C) {
 
 func mkUserLookup(userHomeDir string) func(string) (*user.User, error) {
 	return func(username string) (*user.User, error) {
-		cur, err := user.Current()
+		cur := mylog.Check2(user.Current())
 		cur.Username = username
 		cur.HomeDir = userHomeDir
 		return cur, err
@@ -116,13 +117,13 @@ func (s *userSuite) TestLoginUser(c *check.C) {
 	s.loginUserStoreMacaroon = "user-macaroon"
 	s.loginUserDischarge = "the-discharge-macaroon-serialized-data"
 	buf := bytes.NewBufferString(`{"username": "email@.com", "password": "password"}`)
-	req, err := http.NewRequest("POST", "/v2/login", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/login", buf))
 	c.Assert(err, check.IsNil)
 
 	rsp := s.syncReq(c, req, nil)
 
 	state.Lock()
-	user, err := auth.User(state, 1)
+	user := mylog.Check2(auth.User(state, 1))
 	state.Unlock()
 	c.Check(err, check.IsNil)
 
@@ -145,7 +146,7 @@ func (s *userSuite) TestLoginUser(c *check.C) {
 	c.Check(user.StoreMacaroon, check.Equals, s.loginUserStoreMacaroon)
 	c.Check(user.StoreDischarges, check.DeepEquals, []string{"the-discharge-macaroon-serialized-data"})
 	// snapd macaroon was setup too
-	snapdMacaroon, err := auth.MacaroonDeserialize(user.Macaroon)
+	snapdMacaroon := mylog.Check2(auth.MacaroonDeserialize(user.Macaroon))
 	c.Check(err, check.IsNil)
 	c.Check(snapdMacaroon.Id(), check.Equals, "1")
 	c.Check(snapdMacaroon.Location(), check.Equals, "snapd")
@@ -159,13 +160,13 @@ func (s *userSuite) TestLoginUserWithUsername(c *check.C) {
 	s.loginUserStoreMacaroon = "user-macaroon"
 	s.loginUserDischarge = "the-discharge-macaroon-serialized-data"
 	buf := bytes.NewBufferString(`{"username": "username", "email": "email@.com", "password": "password"}`)
-	req, err := http.NewRequest("POST", "/v2/login", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/login", buf))
 	c.Assert(err, check.IsNil)
 
 	rsp := s.syncReq(c, req, nil)
 
 	state.Lock()
-	user, err := auth.User(state, 1)
+	user := mylog.Check2(auth.User(state, 1))
 	state.Unlock()
 	c.Check(err, check.IsNil)
 
@@ -187,7 +188,7 @@ func (s *userSuite) TestLoginUserWithUsername(c *check.C) {
 	c.Check(user.StoreMacaroon, check.Equals, s.loginUserStoreMacaroon)
 	c.Check(user.StoreDischarges, check.DeepEquals, []string{"the-discharge-macaroon-serialized-data"})
 	// snapd macaroon was setup too
-	snapdMacaroon, err := auth.MacaroonDeserialize(user.Macaroon)
+	snapdMacaroon := mylog.Check2(auth.MacaroonDeserialize(user.Macaroon))
 	c.Check(err, check.IsNil)
 	c.Check(snapdMacaroon.Id(), check.Equals, "1")
 	c.Check(snapdMacaroon.Location(), check.Equals, "snapd")
@@ -200,19 +201,19 @@ func (s *userSuite) TestLoginUserNoEmailWithExistentLocalUser(c *check.C) {
 
 	// setup local-only user
 	state.Lock()
-	localUser, err := auth.NewUser(state, auth.NewUserParams{
+	localUser := mylog.Check2(auth.NewUser(state, auth.NewUserParams{
 		Username:   "username",
 		Email:      "email@test.com",
 		Macaroon:   "",
 		Discharges: nil,
-	})
+	}))
 	state.Unlock()
 	c.Assert(err, check.IsNil)
 
 	s.loginUserStoreMacaroon = "user-macaroon"
 	s.loginUserDischarge = "the-discharge-macaroon-serialized-data"
 	buf := bytes.NewBufferString(`{"username": "username", "email": "", "password": "password"}`)
-	req, err := http.NewRequest("POST", "/v2/login", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/login", buf))
 	c.Assert(err, check.IsNil)
 
 	rsp := s.syncReq(c, req, localUser)
@@ -230,7 +231,7 @@ func (s *userSuite) TestLoginUserNoEmailWithExistentLocalUser(c *check.C) {
 	c.Check(rsp.Result, check.DeepEquals, expected)
 
 	state.Lock()
-	user, err := auth.User(state, localUser.ID)
+	user := mylog.Check2(auth.User(state, localUser.ID))
 	state.Unlock()
 	c.Check(err, check.IsNil)
 	c.Check(user.Username, check.Equals, "username")
@@ -248,19 +249,19 @@ func (s *userSuite) TestLoginUserWithExistentLocalUser(c *check.C) {
 
 	// setup local-only user
 	state.Lock()
-	localUser, err := auth.NewUser(state, auth.NewUserParams{
+	localUser := mylog.Check2(auth.NewUser(state, auth.NewUserParams{
 		Username:   "username",
 		Email:      "email@test.com",
 		Macaroon:   "",
 		Discharges: nil,
-	})
+	}))
 	state.Unlock()
 	c.Assert(err, check.IsNil)
 
 	s.loginUserStoreMacaroon = "user-macaroon"
 	s.loginUserDischarge = "the-discharge-macaroon-serialized-data"
 	buf := bytes.NewBufferString(`{"username": "username", "email": "email@test.com", "password": "password"}`)
-	req, err := http.NewRequest("POST", "/v2/login", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/login", buf))
 	c.Assert(err, check.IsNil)
 
 	rsp := s.syncReq(c, req, localUser)
@@ -278,7 +279,7 @@ func (s *userSuite) TestLoginUserWithExistentLocalUser(c *check.C) {
 	c.Check(rsp.Result, check.DeepEquals, expected)
 
 	state.Lock()
-	user, err := auth.User(state, localUser.ID)
+	user := mylog.Check2(auth.User(state, localUser.ID))
 	state.Unlock()
 	c.Check(err, check.IsNil)
 	c.Check(user.Username, check.Equals, "username")
@@ -296,12 +297,12 @@ func (s *userSuite) TestLoginUserNewEmailWithExistentLocalUser(c *check.C) {
 
 	// setup local-only user
 	state.Lock()
-	localUser, err := auth.NewUser(state, auth.NewUserParams{
+	localUser := mylog.Check2(auth.NewUser(state, auth.NewUserParams{
 		Username:   "username",
 		Email:      "email@test.com",
 		Macaroon:   "",
 		Discharges: nil,
-	})
+	}))
 	state.Unlock()
 	c.Assert(err, check.IsNil)
 
@@ -309,7 +310,7 @@ func (s *userSuite) TestLoginUserNewEmailWithExistentLocalUser(c *check.C) {
 	s.loginUserDischarge = "the-discharge-macaroon-serialized-data"
 	// same local user, but using a new SSO account
 	buf := bytes.NewBufferString(`{"username": "username", "email": "new.email@test.com", "password": "password"}`)
-	req, err := http.NewRequest("POST", "/v2/login", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/login", buf))
 	c.Assert(err, check.IsNil)
 
 	rsp := s.syncReq(c, req, localUser)
@@ -327,7 +328,7 @@ func (s *userSuite) TestLoginUserNewEmailWithExistentLocalUser(c *check.C) {
 	c.Check(rsp.Result, check.DeepEquals, expected)
 
 	state.Lock()
-	user, err := auth.User(state, localUser.ID)
+	user := mylog.Check2(auth.User(state, localUser.ID))
 	state.Unlock()
 	c.Check(err, check.IsNil)
 	c.Check(user.Username, check.Equals, "username")
@@ -344,23 +345,23 @@ func (s *userSuite) TestLogoutUser(c *check.C) {
 	s.expectLoginAccess()
 
 	state.Lock()
-	user, err := auth.NewUser(state, auth.NewUserParams{
+	user := mylog.Check2(auth.NewUser(state, auth.NewUserParams{
 		Username:   "username",
 		Email:      "email@test.com",
 		Macaroon:   "macaroon",
 		Discharges: []string{"discharge"},
-	})
+	}))
 	state.Unlock()
 	c.Assert(err, check.IsNil)
 
-	req, err := http.NewRequest("POST", "/v2/logout", nil)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/logout", nil))
 	c.Assert(err, check.IsNil)
 
 	rsp := s.syncReq(c, req, user)
 	c.Check(rsp.Status, check.Equals, 200)
 
 	state.Lock()
-	_, err = auth.User(state, user.ID)
+	_ = mylog.Check2(auth.User(state, user.ID))
 	state.Unlock()
 	c.Check(err, check.Equals, auth.ErrInvalidUser)
 }
@@ -369,7 +370,7 @@ func (s *userSuite) TestLoginUserBadRequest(c *check.C) {
 	s.expectLoginAccess()
 
 	buf := bytes.NewBufferString(`hello`)
-	req, err := http.NewRequest("POST", "/v2/login", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/login", buf))
 	c.Assert(err, check.IsNil)
 
 	rspe := s.errorReq(c, req, nil)
@@ -381,7 +382,7 @@ func (s *userSuite) TestLoginUserNotEmailish(c *check.C) {
 	s.expectLoginAccess()
 
 	buf := bytes.NewBufferString(`{"username": "notemail", "password": "password"}`)
-	req, err := http.NewRequest("POST", "/v2/login", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/login", buf))
 	c.Assert(err, check.IsNil)
 
 	rspe := s.errorReq(c, req, nil)
@@ -394,7 +395,7 @@ func (s *userSuite) TestLoginUserDeveloperAPIError(c *check.C) {
 
 	s.err = fmt.Errorf("error-from-login-user")
 	buf := bytes.NewBufferString(`{"username": "email@.com", "password": "password"}`)
-	req, err := http.NewRequest("POST", "/v2/login", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/login", buf))
 	c.Assert(err, check.IsNil)
 
 	rspe := s.errorReq(c, req, nil)
@@ -407,7 +408,7 @@ func (s *userSuite) TestLoginUserTwoFactorRequiredError(c *check.C) {
 
 	s.err = store.ErrAuthenticationNeeds2fa
 	buf := bytes.NewBufferString(`{"username": "email@.com", "password": "password"}`)
-	req, err := http.NewRequest("POST", "/v2/login", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/login", buf))
 	c.Assert(err, check.IsNil)
 
 	rspe := s.errorReq(c, req, nil)
@@ -420,7 +421,7 @@ func (s *userSuite) TestLoginUserTwoFactorFailedError(c *check.C) {
 
 	s.err = store.Err2faFailed
 	buf := bytes.NewBufferString(`{"username": "email@.com", "password": "password"}`)
-	req, err := http.NewRequest("POST", "/v2/login", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/login", buf))
 	c.Assert(err, check.IsNil)
 
 	rspe := s.errorReq(c, req, nil)
@@ -433,7 +434,7 @@ func (s *userSuite) TestLoginUserInvalidCredentialsError(c *check.C) {
 
 	s.err = store.ErrInvalidCredentials
 	buf := bytes.NewBufferString(`{"username": "email@.com", "password": "password"}`)
-	req, err := http.NewRequest("POST", "/v2/login", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/login", buf))
 	c.Assert(err, check.IsNil)
 
 	rspe := s.errorReq(c, req, nil)
@@ -446,7 +447,7 @@ func (s *userSuite) TestLoginUserInvalidAuthDataError(c *check.C) {
 
 	s.err = store.InvalidAuthDataError{"foo": {"bar"}}
 	buf := bytes.NewBufferString(`{"username": "email@.com", "password": "password"}`)
-	req, err := http.NewRequest("POST", "/v2/login", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/login", buf))
 	c.Assert(err, check.IsNil)
 
 	rspe := s.errorReq(c, req, nil)
@@ -460,7 +461,7 @@ func (s *userSuite) TestLoginUserPasswordPolicyError(c *check.C) {
 
 	s.err = store.PasswordPolicyError{"foo": {"bar"}}
 	buf := bytes.NewBufferString(`{"username": "email@.com", "password": "password"}`)
-	req, err := http.NewRequest("POST", "/v2/login", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/login", buf))
 	c.Assert(err, check.IsNil)
 
 	rspe := s.errorReq(c, req, nil)
@@ -508,15 +509,15 @@ func (s *userSuite) testCreateUser(c *check.C, oldWay bool) {
 	}
 
 	if oldWay {
-		var err error
+
 		buf := bytes.NewBufferString(fmt.Sprintf(`{"email": "%s"}`, expectedEmail))
-		req, err = http.NewRequest("POST", "/v2/create-user", buf)
+		req = mylog.Check2(http.NewRequest("POST", "/v2/create-user", buf))
 		c.Assert(err, check.IsNil)
 		expected = &expectedItem
 	} else {
-		var err error
+
 		buf := bytes.NewBufferString(fmt.Sprintf(`{"action":"create","email": "%s"}`, expectedEmail))
-		req, err = http.NewRequest("POST", "/v2/users", buf)
+		req = mylog.Check2(http.NewRequest("POST", "/v2/users", buf))
 		c.Assert(err, check.IsNil)
 		expected = []daemon.UserResponseData{expectedItem}
 	}
@@ -547,7 +548,7 @@ func (s *userSuite) testCreateUserErr(c *check.C, internalErr bool) {
 	})()
 
 	buf := bytes.NewBufferString(`{"email": "foo@bar.com","known":true}`)
-	req, err := http.NewRequest("POST", "/v2/create-user", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/create-user", buf))
 	c.Assert(err, check.IsNil)
 
 	rspe := s.errorReq(c, req, nil)
@@ -569,7 +570,7 @@ func (s *userSuite) testNoUserAdmin(c *check.C, endpoint string) {
 	defer daemon.MockHasUserAdmin(false)()
 
 	buf := bytes.NewBufferString("{}")
-	req, err := http.NewRequest("POST", endpoint, buf)
+	req := mylog.Check2(http.NewRequest("POST", endpoint, buf))
 	c.Assert(err, check.IsNil)
 
 	rspe := s.errorReq(c, req, nil)
@@ -587,7 +588,7 @@ func (s *userSuite) testNoUserAdmin(c *check.C, endpoint string) {
 
 func (s *userSuite) TestPostUserBadBody(c *check.C) {
 	buf := bytes.NewBufferString(`42`)
-	req, err := http.NewRequest("POST", "/v2/users", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/users", buf))
 	c.Assert(err, check.IsNil)
 
 	rspe := s.errorReq(c, req, nil)
@@ -596,7 +597,7 @@ func (s *userSuite) TestPostUserBadBody(c *check.C) {
 
 func (s *userSuite) TestPostUserBadAfterBody(c *check.C) {
 	buf := bytes.NewBufferString(`{}42`)
-	req, err := http.NewRequest("POST", "/v2/users", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/users", buf))
 	c.Assert(err, check.IsNil)
 
 	rspe := s.errorReq(c, req, nil)
@@ -605,7 +606,7 @@ func (s *userSuite) TestPostUserBadAfterBody(c *check.C) {
 
 func (s *userSuite) TestPostUserNoAction(c *check.C) {
 	buf := bytes.NewBufferString("{}")
-	req, err := http.NewRequest("POST", "/v2/users", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/users", buf))
 	c.Assert(err, check.IsNil)
 
 	rspe := s.errorReq(c, req, nil)
@@ -614,7 +615,7 @@ func (s *userSuite) TestPostUserNoAction(c *check.C) {
 
 func (s *userSuite) TestPostUserBadAction(c *check.C) {
 	buf := bytes.NewBufferString(`{"action":"patatas"}`)
-	req, err := http.NewRequest("POST", "/v2/users", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/users", buf))
 	c.Assert(err, check.IsNil)
 
 	rspe := s.errorReq(c, req, nil)
@@ -632,12 +633,12 @@ func (s *userSuite) TestPostUserActionRemoveDelUserErrInternal(c *check.C) {
 func (s *userSuite) testpostUserActionRemoveDelUserErr(c *check.C, internalErr bool) {
 	st := s.d.Overlord().State()
 	st.Lock()
-	_, err := auth.NewUser(st, auth.NewUserParams{
+	_ := mylog.Check2(auth.NewUser(st, auth.NewUserParams{
 		Username:   "some-user",
 		Email:      "email@test.com",
 		Macaroon:   "macaroon",
 		Discharges: []string{"discharge"},
-	})
+	}))
 	st.Unlock()
 	c.Check(err, check.IsNil)
 
@@ -652,7 +653,7 @@ func (s *userSuite) testpostUserActionRemoveDelUserErr(c *check.C, internalErr b
 	})()
 
 	buf := bytes.NewBufferString(`{"action":"remove","username":"some-user"}`)
-	req, err := http.NewRequest("POST", "/v2/users", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/users", buf))
 	c.Assert(err, check.IsNil)
 
 	rspe := s.errorReq(c, req, nil)
@@ -680,7 +681,7 @@ func (s *userSuite) TestPostUserActionRemove(c *check.C) {
 	})()
 
 	buf := bytes.NewBufferString(`{"action":"remove","username":"some-user"}`)
-	req, err := http.NewRequest("POST", "/v2/users", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/users", buf))
 	c.Assert(err, check.IsNil)
 	rsp := s.syncReq(c, req, nil)
 	c.Check(rsp.Status, check.Equals, 200)
@@ -735,9 +736,9 @@ func (s *userSuite) makeSystemUsers(c *check.C, systemUsers []map[string]interfa
 	assertstatetest.AddMany(st, model)
 	// and a serial
 	deviceKey, _ := assertstest.GenerateKey(752)
-	encDevKey, err := asserts.EncodePublicKey(deviceKey.PublicKey())
+	encDevKey := mylog.Check2(asserts.EncodePublicKey(deviceKey.PublicKey()))
 	c.Assert(err, check.IsNil)
-	serial, err := s.Brands.Signing("my-brand").Sign(asserts.SerialType, map[string]interface{}{
+	serial := mylog.Check2(s.Brands.Signing("my-brand").Sign(asserts.SerialType, map[string]interface{}{
 		"authority-id":        "my-brand",
 		"brand-id":            "my-brand",
 		"model":               "my-model",
@@ -745,23 +746,24 @@ func (s *userSuite) makeSystemUsers(c *check.C, systemUsers []map[string]interfa
 		"device-key":          string(encDevKey),
 		"device-key-sha3-384": deviceKey.PublicKey().ID(),
 		"timestamp":           time.Now().Format(time.RFC3339),
-	}, nil, "")
+	}, nil, ""))
 	c.Assert(err, check.IsNil)
 	assertstatetest.AddMany(st, serial)
 
 	for _, suMap := range systemUsers {
-		su, err := s.Brands.Signing(suMap["authority-id"].(string)).Sign(asserts.SystemUserType, suMap, nil, "")
+		su := mylog.Check2(s.Brands.Signing(suMap["authority-id"].(string)).Sign(asserts.SystemUserType, suMap, nil, ""))
 		c.Assert(err, check.IsNil)
 		su = su.(*asserts.SystemUser)
 		// now add system-user assertion to the system
 		assertstatetest.AddMany(st, su)
 	}
-	// create fake device
-	err = devicestatetest.SetDevice(st, &auth.DeviceState{
-		Brand:  "my-brand",
-		Model:  "my-model",
-		Serial: "serialserial",
-	})
+	mylog.
+		// create fake device
+		Check(devicestatetest.SetDevice(st, &auth.DeviceState{
+			Brand:  "my-brand",
+			Model:  "my-model",
+			Serial: "serialserial",
+		}))
 	c.Assert(err, check.IsNil)
 }
 
@@ -856,7 +858,7 @@ func (s *userSuite) TestPostCreateUserFromAssertionAllKnownClassicErrors(c *chec
 
 	// do it!
 	buf := bytes.NewBufferString(`{"known":true}`)
-	req, err := http.NewRequest("POST", "/v2/create-user", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/create-user", buf))
 	c.Assert(err, check.IsNil)
 
 	rspe := s.errorReq(c, req, nil)
@@ -868,18 +870,18 @@ func (s *userSuite) TestPostCreateUserFromAssertionAllKnownButOwnedErrors(c *che
 
 	st := s.d.Overlord().State()
 	st.Lock()
-	_, err := auth.NewUser(st, auth.NewUserParams{
+	_ := mylog.Check2(auth.NewUser(st, auth.NewUserParams{
 		Username:   "username",
 		Email:      "email@test.com",
 		Macaroon:   "macaroon",
 		Discharges: []string{"discharge"},
-	})
+	}))
 	st.Unlock()
 	c.Check(err, check.IsNil)
 
 	// do it!
 	buf := bytes.NewBufferString(`{"known":true}`)
-	req, err := http.NewRequest("POST", "/v2/create-user", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/create-user", buf))
 	c.Assert(err, check.IsNil)
 
 	rspe := s.errorReq(c, req, nil)
@@ -891,18 +893,18 @@ func (s *userSuite) TestPostCreateUserAutomaticManagedDoesNotActOrError(c *check
 
 	st := s.d.Overlord().State()
 	st.Lock()
-	_, err := auth.NewUser(st, auth.NewUserParams{
+	_ := mylog.Check2(auth.NewUser(st, auth.NewUserParams{
 		Username:   "username",
 		Email:      "email@test.com",
 		Macaroon:   "macaroon",
 		Discharges: []string{"discharge"},
-	})
+	}))
 	st.Unlock()
 	c.Check(err, check.IsNil)
 
 	// do it!
 	buf := bytes.NewBufferString(`{"automatic":true}`)
-	req, err := http.NewRequest("POST", "/v2/create-user", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/create-user", buf))
 	c.Assert(err, check.IsNil)
 
 	rsp := s.syncReq(c, req, nil)
@@ -920,7 +922,7 @@ func (s *userSuite) TestPostCreateUserAutomaticDisabled(c *check.C) {
 	st := s.d.Overlord().State()
 	st.Lock()
 	tr := config.NewTransaction(st)
-	err := tr.Set("core", "users.create.automatic", false)
+	mylog.Check(tr.Set("core", "users.create.automatic", false))
 	tr.Commit()
 	st.Unlock()
 	c.Assert(err, check.IsNil)
@@ -929,7 +931,7 @@ func (s *userSuite) TestPostCreateUserAutomaticDisabled(c *check.C) {
 
 	// do it!
 	buf := bytes.NewBufferString(`{"automatic": true}`)
-	req, err := http.NewRequest("POST", "/v2/create-user", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/create-user", buf))
 	c.Assert(err, check.IsNil)
 
 	rsp := s.syncReq(c, req, nil)
@@ -941,7 +943,7 @@ func (s *userSuite) TestPostCreateUserAutomaticDisabled(c *check.C) {
 
 	// ensure no user was added to the state
 	st.Lock()
-	users, err := auth.Users(st)
+	users := mylog.Check2(auth.Users(st))
 	c.Assert(err, check.IsNil)
 	st.Unlock()
 	c.Check(users, check.HasLen, 0)
@@ -971,7 +973,7 @@ func (s *userSuite) TestPostCreateUserExpirationHappy(c *check.C) {
 
 	buf := bytes.NewBufferString(fmt.Sprintf(`{"email":"%s","expiration":"%s"}`,
 		expectedEmail, expectedTime.Format(time.RFC3339)))
-	req, err := http.NewRequest("POST", "/v2/create-user", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/create-user", buf))
 	c.Assert(err, check.IsNil)
 
 	rsp := s.syncReq(c, req, nil)
@@ -988,7 +990,7 @@ func (s *userSuite) TestPostCreateUserExpirationHappy(c *check.C) {
 func (s *userSuite) TestPostCreateUserExpirationDateSetInPast(c *check.C) {
 	buf := bytes.NewBufferString(fmt.Sprintf(`{"expiration":"%s"}`,
 		time.Now().Add(-(time.Hour * 24)).Format(time.RFC3339)))
-	req, err := http.NewRequest("POST", "/v2/create-user", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/create-user", buf))
 	c.Assert(err, check.IsNil)
 
 	rspe := s.errorReq(c, req, nil)
@@ -998,7 +1000,7 @@ func (s *userSuite) TestPostCreateUserExpirationDateSetInPast(c *check.C) {
 func (s *userSuite) TestPostCreateUserExpirationKnownNotAllowed(c *check.C) {
 	buf := bytes.NewBufferString(fmt.Sprintf(`{"known": true, "expiration":"%s"}`,
 		time.Now().Add(time.Hour*24).Format(time.RFC3339)))
-	req, err := http.NewRequest("POST", "/v2/create-user", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/create-user", buf))
 	c.Assert(err, check.IsNil)
 
 	rspe := s.errorReq(c, req, nil)
@@ -1010,7 +1012,7 @@ func (s *userSuite) TestPostCreateUserExpirationAutomaticNotAllowed(c *check.C) 
 	// the known unit test
 	buf := bytes.NewBufferString(fmt.Sprintf(`{"automatic": true, "expiration":"%s"}`,
 		time.Now().Add(time.Hour*24).Format(time.RFC3339)))
-	req, err := http.NewRequest("POST", "/v2/create-user", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/create-user", buf))
 	c.Assert(err, check.IsNil)
 
 	rspe := s.errorReq(c, req, nil)
@@ -1018,7 +1020,7 @@ func (s *userSuite) TestPostCreateUserExpirationAutomaticNotAllowed(c *check.C) 
 }
 
 func (s *userSuite) TestUsersEmpty(c *check.C) {
-	req, err := http.NewRequest("GET", "/v2/users", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/users", nil))
 	c.Assert(err, check.IsNil)
 
 	rsp := s.syncReq(c, req, nil)
@@ -1031,16 +1033,16 @@ func (s *userSuite) TestUsersEmpty(c *check.C) {
 func (s *userSuite) TestUsersHasUser(c *check.C) {
 	st := s.d.Overlord().State()
 	st.Lock()
-	u, err := auth.NewUser(st, auth.NewUserParams{
+	u := mylog.Check2(auth.NewUser(st, auth.NewUserParams{
 		Username:   "someuser",
 		Email:      "email@test.com",
 		Macaroon:   "macaroon",
 		Discharges: []string{"discharge"},
-	})
+	}))
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 
-	req, err := http.NewRequest("GET", "/v2/users", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/users", nil))
 	c.Assert(err, check.IsNil)
 
 	rsp := s.syncReq(c, req, nil)
@@ -1079,7 +1081,7 @@ func (s *userSuite) testPostCreateUserFromAssertion(c *check.C, postData string,
 
 	// do it!
 	buf := bytes.NewBufferString(postData)
-	req, err := http.NewRequest("POST", "/v2/create-user", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/create-user", buf))
 	c.Assert(err, check.IsNil)
 
 	rsp := s.syncReq(c, req, nil)

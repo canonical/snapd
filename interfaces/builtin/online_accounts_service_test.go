@@ -22,6 +22,7 @@ package builtin_test
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -58,7 +59,7 @@ apps:
 	s.slotInfo = providerInfo.Slots["online-accounts-service"]
 	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 
-	var consumerYaml = `name: consumer
+	consumerYaml := `name: consumer
 version: 1.0
 apps:
  app:
@@ -80,8 +81,8 @@ func (s *OnlineAccountsServiceInterfaceSuite) TestSanitize(c *C) {
 }
 
 func (s *OnlineAccountsServiceInterfaceSuite) TestAppArmorConnectedPlug(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 1)
@@ -89,16 +90,16 @@ func (s *OnlineAccountsServiceInterfaceSuite) TestAppArmorConnectedPlug(c *C) {
 }
 
 func (s *OnlineAccountsServiceInterfaceSuite) TestAppArmorConnectedSlot(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.slot.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.slot.Snap(), nil))
+
 	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
 	c.Check(spec.SnippetForTag("snap.provider.app"), testutil.Contains, `peer=(label="snap.consumer.app")`)
 }
 
 func (s *OnlineAccountsServiceInterfaceSuite) TestAppArrmorPermanentSlot(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.slotInfo.Snap, nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.slotInfo.Snap, nil))
+
 	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
@@ -107,8 +108,8 @@ func (s *OnlineAccountsServiceInterfaceSuite) TestAppArrmorPermanentSlot(c *C) {
 }
 
 func (s *OnlineAccountsServiceInterfaceSuite) TestSecCompPermanentSlot(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.slotInfo.Snap, nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.slotInfo.Snap, nil))
+
 	spec := seccomp.NewSpecification(appSet)
 	c.Assert(spec.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
 	c.Check(spec.SnippetForTag("snap.provider.app"), testutil.Contains, "listen\n")

@@ -22,6 +22,7 @@ package hotplug
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -44,37 +45,37 @@ func (s *proposedSlotSuite) TearDownTest(c *C) {
 
 func (s *proposedSlotSuite) TestCleanHappy(c *C) {
 	slot := &ProposedSlot{Name: "slot1", Label: "A slot", Attrs: map[string]interface{}{"foo": "bar"}}
-	slot, err := slot.Clean()
-	c.Assert(err, IsNil)
+	slot := mylog.Check2(slot.Clean())
+
 	c.Assert(slot, DeepEquals, &ProposedSlot{Name: "slot1", Label: "A slot", Attrs: map[string]interface{}{"foo": "bar"}})
 }
 
 func (s *proposedSlotSuite) TestNilAttrs(c *C) {
 	slot := &ProposedSlot{Name: "slot"}
-	slot, err := slot.Clean()
-	c.Assert(err, IsNil)
+	slot := mylog.Check2(slot.Clean())
+
 	c.Assert(slot, DeepEquals, &ProposedSlot{Name: "slot", Attrs: map[string]interface{}{}})
 }
 
 func (s *proposedSlotSuite) TestDeepCopy(c *C) {
 	attrs := map[string]interface{}{"foo": "bar"}
 	slot := &ProposedSlot{Name: "slot1", Attrs: attrs}
-	slot, err := slot.Clean()
-	c.Assert(err, IsNil)
+	slot := mylog.Check2(slot.Clean())
+
 	attrs["foo"] = "modified"
 	c.Assert(slot, DeepEquals, &ProposedSlot{Name: "slot1", Label: "", Attrs: map[string]interface{}{"foo": "bar"}})
 }
 
 func (s *proposedSlotSuite) TestEmptyName(c *C) {
 	slot := &ProposedSlot{Label: "A slot", Attrs: map[string]interface{}{"foo": "bar"}}
-	slot, err := slot.Clean()
-	c.Assert(err, IsNil)
+	slot := mylog.Check2(slot.Clean())
+
 	c.Assert(slot, DeepEquals, &ProposedSlot{Name: "", Label: "A slot", Attrs: map[string]interface{}{"foo": "bar"}})
 }
 
 func (s *proposedSlotSuite) TestInvalidName(c *C) {
 	slot := &ProposedSlot{Name: "slot!"}
-	slot, err := slot.Clean()
+	slot := mylog.Check2(slot.Clean())
 	c.Assert(err, ErrorMatches, `invalid slot name: "slot!"`)
 	c.Assert(slot, IsNil)
 }

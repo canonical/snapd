@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -34,25 +35,25 @@ var _ = Suite(&ExitCodeTestSuite{})
 
 func (ts *ExitCodeTestSuite) TestExitCode(c *C) {
 	cmd := exec.Command("true")
-	err := cmd.Run()
-	c.Assert(err, IsNil)
+	mylog.Check(cmd.Run())
+
 
 	cmd = exec.Command("false")
-	err = cmd.Run()
+	mylog.Check(cmd.Run())
 	c.Assert(err, NotNil)
-	e, err := osutil.ExitCode(err)
-	c.Assert(err, IsNil)
+	e := mylog.Check2(osutil.ExitCode(err))
+
 	c.Assert(e, Equals, 1)
 
 	cmd = exec.Command("sh", "-c", "exit 7")
-	err = cmd.Run()
-	e, err = osutil.ExitCode(err)
-	c.Assert(err, IsNil)
+	mylog.Check(cmd.Run())
+	e = mylog.Check2(osutil.ExitCode(err))
+
 	c.Assert(e, Equals, 7)
 
 	// ensure that non exec.ExitError values give a error
-	_, err = os.Stat("/random/file/that/is/not/there")
+	_ = mylog.Check2(os.Stat("/random/file/that/is/not/there"))
 	c.Assert(err, NotNil)
-	_, err = osutil.ExitCode(err)
+	_ = mylog.Check2(osutil.ExitCode(err))
 	c.Assert(err, NotNil)
 }

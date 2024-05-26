@@ -25,17 +25,18 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	snapunset "github.com/snapcore/snapd/cmd/snap"
 )
 
 func (s *snapSetSuite) TestInvalidUnsetParameters(c *check.C) {
 	invalidParameters := []string{"unset"}
-	_, err := snapunset.Parser(snapunset.Client()).ParseArgs(invalidParameters)
+	_ := mylog.Check2(snapunset.Parser(snapunset.Client()).ParseArgs(invalidParameters))
 	c.Check(err, check.ErrorMatches, "the required arguments `<snap>` and `<conf key> \\(at least 1 argument\\)` were not provided")
 	c.Check(s.setConfApiCalls, check.Equals, 0)
 
 	invalidParameters = []string{"unset", "snap-name"}
-	_, err = snapunset.Parser(snapunset.Client()).ParseArgs(invalidParameters)
+	_ = mylog.Check2(snapunset.Parser(snapunset.Client()).ParseArgs(invalidParameters))
 	c.Check(err, check.ErrorMatches, "the required argument `<conf key> \\(at least 1 argument\\)` was not provided")
 	c.Check(s.setConfApiCalls, check.Equals, 0)
 }
@@ -44,7 +45,7 @@ func (s *snapSetSuite) TestSnapUnset(c *check.C) {
 	// expected value is "nil" as the key is unset
 	s.mockSetConfigServer(c, nil)
 
-	_, err := snapunset.Parser(snapunset.Client()).ParseArgs([]string{"unset", "snapname", "key"})
+	_ := mylog.Check2(snapunset.Parser(snapunset.Client()).ParseArgs([]string{"unset", "snapname", "key"}))
 	c.Assert(err, check.IsNil)
 	c.Check(s.setConfApiCalls, check.Equals, 1)
 }
@@ -55,7 +56,7 @@ func (s *aspectsSuite) TestAspectUnset(c *check.C) {
 
 	s.mockAspectServer(c, `{"abc":null}`, false)
 
-	_, err := snapunset.Parser(snapunset.Client()).ParseArgs([]string{"unset", "foo/bar/baz", "abc"})
+	_ := mylog.Check2(snapunset.Parser(snapunset.Client()).ParseArgs([]string{"unset", "foo/bar/baz", "abc"}))
 	c.Assert(err, check.IsNil)
 }
 
@@ -65,7 +66,7 @@ func (s *aspectsSuite) TestAspectUnsetNoWait(c *check.C) {
 
 	s.mockAspectServer(c, `{"abc":null}`, true)
 
-	rest, err := snapunset.Parser(snapunset.Client()).ParseArgs([]string{"unset", "--no-wait", "foo/bar/baz", "abc"})
+	rest := mylog.Check2(snapunset.Parser(snapunset.Client()).ParseArgs([]string{"unset", "--no-wait", "foo/bar/baz", "abc"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.HasLen, 0)
 
@@ -78,7 +79,7 @@ func (s *aspectsSuite) TestAspectUnsetDisabledFlag(c *check.C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch reqs {
 		default:
-			err := fmt.Errorf("expected to get no requests, now on %d (%v)", reqs+1, r)
+			mylog.Check(fmt.Errorf("expected to get no requests, now on %d (%v)", reqs+1, r))
 			w.WriteHeader(500)
 			fmt.Fprintf(w, `{"type": "error", "result": {"message": %q}}`, err)
 			c.Error(err)
@@ -87,7 +88,7 @@ func (s *aspectsSuite) TestAspectUnsetDisabledFlag(c *check.C) {
 		reqs++
 	})
 
-	_, err := snapunset.Parser(snapunset.Client()).ParseArgs([]string{"unset", "foo/bar/baz", "abc"})
+	_ := mylog.Check2(snapunset.Parser(snapunset.Client()).ParseArgs([]string{"unset", "foo/bar/baz", "abc"}))
 	c.Assert(err, check.ErrorMatches, "aspect-based configuration is disabled: you must set 'experimental.aspects-configuration' to true")
 }
 
@@ -95,7 +96,7 @@ func (s *aspectsSuite) TestAspectUnsetInvalidAspectID(c *check.C) {
 	restore := s.mockAspectsFlag(c)
 	defer restore()
 
-	_, err := snapunset.Parser(snapunset.Client()).ParseArgs([]string{"unset", "foo//bar", "abc"})
+	_ := mylog.Check2(snapunset.Parser(snapunset.Client()).ParseArgs([]string{"unset", "foo//bar", "abc"}))
 	c.Assert(err, check.NotNil)
 	c.Check(err.Error(), check.Equals, "aspect identifier must conform to format: <account-id>/<bundle>/<aspect>")
 }

@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -161,13 +162,8 @@ func remodelCtx(st *state.State, oldModel, newModel *asserts.Model) (remodelCont
 		return nil, fmt.Errorf("unsupported remodel: %s", kind)
 	}
 
-	device, err := devMgr.device()
-	if err != nil {
-		return nil, err
-	}
-	if err := remodCtx.initialDevice(device); err != nil {
-		return nil, err
-	}
+	device := mylog.Check2(devMgr.device())
+	mylog.Check(remodCtx.initialDevice(device))
 
 	return remodCtx, nil
 }
@@ -185,9 +181,7 @@ func remodelCtxFromTask(t *state.Task) (remodelContext, error) {
 	}
 
 	var encNewModel string
-	if err := chg.Get("new-model", &encNewModel); err != nil {
-		return nil, err
-	}
+	mylog.Check(chg.Get("new-model", &encNewModel))
 
 	// shortcut, cached?
 	if remodCtx, ok := cachedRemodelCtx(chg); ok {
@@ -195,23 +189,17 @@ func remodelCtxFromTask(t *state.Task) (remodelContext, error) {
 	}
 
 	st := t.State()
-	oldModel, err := findModel(st)
-	if err != nil {
-		return nil, fmt.Errorf("internal error: cannot find old model during remodel: %v", err)
-	}
-	newModelA, err := asserts.Decode([]byte(encNewModel))
-	if err != nil {
-		return nil, err
-	}
+	oldModel := mylog.Check2(findModel(st))
+
+	newModelA := mylog.Check2(asserts.Decode([]byte(encNewModel)))
+
 	newModel, ok := newModelA.(*asserts.Model)
 	if !ok {
 		return nil, fmt.Errorf("internal error: cannot use a remodel new-model, wrong type")
 	}
 
-	remodCtx, err := remodelCtx(st, oldModel, newModel)
-	if err != nil {
-		return nil, err
-	}
+	remodCtx := mylog.Check2(remodelCtx(st, oldModel, newModel))
+
 	remodCtx.associate(chg)
 	return remodCtx, nil
 }
@@ -262,10 +250,7 @@ func (rc *baseRemodelContext) setRecoverySystemLabel(label string) {
 // updateRunModeSystem updates the device context used during boot and makes a
 // record of the new seeded system.
 func (rc *baseRemodelContext) updateRunModeSystem() error {
-	hasSystemSeed, err := checkForSystemSeed(rc.st, &rc.groundDeviceContext)
-	if err != nil {
-		return fmt.Errorf("cannot look up ubuntu seed role: %w", err)
-	}
+	hasSystemSeed := mylog.Check2(checkForSystemSeed(rc.st, &rc.groundDeviceContext))
 
 	if rc.model.Grade() == asserts.ModelGradeUnset || !hasSystemSeed {
 		// nothing special for non-UC20 systems or systems without a real seed
@@ -279,21 +264,17 @@ func (rc *baseRemodelContext) updateRunModeSystem() error {
 	// booting and consider a new recovery system as as seeded
 	oldDeviceContext := rc.GroundContext()
 	newDeviceContext := &rc.groundDeviceContext
-	err = boot.DeviceChange(oldDeviceContext, newDeviceContext, rc.st.Unlocker())
-	if err != nil {
-		return fmt.Errorf("cannot switch device: %v", err)
-	}
+	mylog.Check(boot.DeviceChange(oldDeviceContext, newDeviceContext, rc.st.Unlocker()))
+
 	now := time.Now()
-	if err := rc.deviceMgr.recordSeededSystem(rc.st, &seededSystem{
+	mylog.Check(rc.deviceMgr.recordSeededSystem(rc.st, &seededSystem{
 		System:    rc.recoverySystemLabel,
 		Model:     rc.model.Model(),
 		BrandID:   rc.model.BrandID(),
 		Revision:  rc.model.Revision(),
 		Timestamp: rc.model.Timestamp(),
 		SeedTime:  now,
-	}); err != nil {
-		return fmt.Errorf("cannot record a new seeded system: %v", err)
-	}
+	}))
 
 	rc.st.Set("default-recovery-system", DefaultRecoverySystem{
 		System:          rc.recoverySystemLabel,
@@ -303,10 +284,8 @@ func (rc *baseRemodelContext) updateRunModeSystem() error {
 		Timestamp:       rc.model.Timestamp(),
 		TimeMadeDefault: now,
 	})
+	mylog.Check(boot.MarkRecoveryCapableSystem(rc.recoverySystemLabel))
 
-	if err := boot.MarkRecoveryCapableSystem(rc.recoverySystemLabel); err != nil {
-		return fmt.Errorf("cannot mark system %q as recovery capable", rc.recoverySystemLabel)
-	}
 	return nil
 }
 
@@ -405,13 +384,12 @@ func (rc *newStoreRemodelContext) Store() snapstate.StoreService {
 }
 
 func (rc *newStoreRemodelContext) device() (*auth.DeviceState, error) {
-	var err error
 	var device auth.DeviceState
 	if rc.remodelChange == nil {
 		// no remodelChange yet
 		device = *rc.deviceState
 	} else {
-		err = rc.remodelChange.Get("device", &device)
+		mylog.Check(rc.remodelChange.Get("device", &device))
 	}
 	return &device, err
 }
@@ -428,13 +406,9 @@ func (rc *newStoreRemodelContext) setCtxDevice(device *auth.DeviceState) {
 func (rc *newStoreRemodelContext) Finish() error {
 	// expose the device state of the remodel with the new session
 	// to the rest of the system
-	remodelDevice, err := rc.device()
-	if err != nil {
-		return err
-	}
-	if err := rc.deviceMgr.setDevice(remodelDevice); err != nil {
-		return err
-	}
+	remodelDevice := mylog.Check2(rc.device())
+	mylog.Check(rc.deviceMgr.setDevice(remodelDevice))
+
 	return rc.updateRunModeSystem()
 }
 
@@ -462,10 +436,8 @@ func (b remodelDeviceBackend) Model() (*asserts.Model, error) {
 func (b remodelDeviceBackend) Serial() (*asserts.Serial, error) {
 	// this the shared logic, also correct for the rereg case
 	// we should lookup the serial with the remodeling device state
-	device, err := b.device()
-	if err != nil {
-		return nil, err
-	}
+	device := mylog.Check2(b.device())
+
 	return findSerial(b.st, device)
 }
 
@@ -487,14 +459,10 @@ func (rc *reregRemodelContext) associate(chg *state.Change) {
 }
 
 func (rc *reregRemodelContext) initialDevice(device *auth.DeviceState) error {
-	origModel, err := findModel(rc.st)
-	if err != nil {
-		return err
-	}
-	origSerial, err := findSerial(rc.st, nil)
-	if err != nil {
-		return fmt.Errorf("cannot find current serial before proceeding with re-registration: %v", err)
-	}
+	origModel := mylog.Check2(findModel(rc.st))
+
+	origSerial := mylog.Check2(findSerial(rc.st, nil))
+
 	rc.origModel = origModel
 	rc.origSerial = origSerial
 
@@ -536,10 +504,7 @@ func (rc *reregRemodelContext) SerialRequestAncillaryAssertions() []asserts.Asse
 }
 
 func (rc *reregRemodelContext) FinishRegistration(serial *asserts.Serial) error {
-	device, err := rc.device()
-	if err != nil {
-		return err
-	}
+	device := mylog.Check2(rc.device())
 
 	device.Serial = serial.Serial()
 	rc.setCtxDevice(device)

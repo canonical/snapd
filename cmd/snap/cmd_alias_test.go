@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	. "github.com/snapcore/snapd/cmd/snap"
 )
 
@@ -64,8 +65,8 @@ func (s *SnapSuite) TestAlias(c *C) {
 			c.Fatalf("unexpected path %q", r.URL.Path)
 		}
 	})
-	rest, err := Parser(Client()).ParseArgs([]string{"alias", "alias-snap.cmd1", "alias1"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(Parser(Client()).ParseArgs([]string{"alias", "alias-snap.cmd1", "alias1"}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	c.Assert(s.Stdout(), Equals, ""+
 		"Added:\n"+

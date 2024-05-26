@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -76,25 +77,18 @@ func (s Size) IECString() string {
 
 func (s *Size) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var gs string
-	if err := unmarshal(&gs); err != nil {
-		return errors.New(`cannot unmarshal gadget size`)
-	}
+	mylog.Check(unmarshal(&gs))
 
-	var err error
-	*s, err = ParseSize(gs)
-	if err != nil {
-		return fmt.Errorf("cannot parse size %q: %v", gs, err)
-	}
+	*s = mylog.Check2(ParseSize(gs))
+
 	return err
 }
 
 // parseSizeOrOffset parses a string expressing size or offset in a gadget
 // specific format.
 func parseSizeOrOffset(szOrOffs string) (int64, error) {
-	number, unit, err := strutil.SplitUnit(szOrOffs)
-	if err != nil {
-		return 0, err
-	}
+	number, unit := mylog.Check3(strutil.SplitUnit(szOrOffs))
+
 	switch unit {
 	case "M":
 		// MiB
@@ -114,7 +108,7 @@ func parseSizeOrOffset(szOrOffs string) (int64, error) {
 // ParseSize parses a string expressing size in a gadget specific format. The
 // accepted format is one of: <bytes> | <bytes/2^20>M | <bytes/2^30>G.
 func ParseSize(gs string) (Size, error) {
-	sz, err := parseSizeOrOffset(gs)
+	sz := mylog.Check2(parseSizeOrOffset(gs))
 	if sz < 0 {
 		return 0, errors.New("size cannot be negative")
 	}

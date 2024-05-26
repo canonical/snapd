@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
@@ -49,7 +50,7 @@ func (s *privilegedDesktopLauncherSuite) SetUpTest(c *C) {
 	c.Assert(os.MkdirAll(dirs.SnapDesktopFilesDir, 0755), IsNil)
 	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/usr/share/applications"), 0755), IsNil)
 
-	var rawMircadeDesktop = `[Desktop Entry]
+	rawMircadeDesktop := `[Desktop Entry]
   X-SnapInstanceName=mircade
   Name=mircade
   Exec=env BAMF_DESKTOP_FILE_HINT=/var/lib/snapd/desktop/applications/mircade_mircade.desktop /snap/bin/mircade
@@ -97,40 +98,36 @@ func (s *privilegedDesktopLauncherSuite) TestDesktopFileLookup(c *C) {
 	// We have more extensive tests for this API in
 	// privileged_desktop_launcher_internal_test.go: here we just
 	// test it without mocking the stat calls.
-	filename, err := userd.DesktopFileIDToFilename("mircade_mircade.desktop")
-	c.Assert(err, IsNil)
-	err = userd.VerifyDesktopFileLocation(filename)
+	filename := mylog.Check2(userd.DesktopFileIDToFilename("mircade_mircade.desktop"))
+
+	mylog.Check(userd.VerifyDesktopFileLocation(filename))
 	c.Check(err, IsNil)
 }
 
 func (s *privilegedDesktopLauncherSuite) TestOpenDesktopEntrySucceedsWithGoodDesktopId(c *C) {
 	cmd := testutil.MockCommand(c, "systemd-run", "true")
 	defer cmd.Restore()
-
-	err := s.launcher.OpenDesktopEntry("mircade_mircade.desktop", ":some-dbus-sender")
+	mylog.Check(s.launcher.OpenDesktopEntry("mircade_mircade.desktop", ":some-dbus-sender"))
 	c.Check(err, IsNil)
 }
 
 func (s *privilegedDesktopLauncherSuite) TestOpenDesktopEntryFailsWithBadDesktopId(c *C) {
 	cmd := testutil.MockCommand(c, "systemd-run", "false")
 	defer cmd.Restore()
-
-	err := s.launcher.OpenDesktopEntry("not-mircade_mircade.desktop", ":some-dbus-sender")
+	mylog.Check(s.launcher.OpenDesktopEntry("not-mircade_mircade.desktop", ":some-dbus-sender"))
 	c.Assert(err, ErrorMatches, `cannot find desktop file for "not-mircade_mircade.desktop"`)
 }
 
 func (s *privilegedDesktopLauncherSuite) TestOpenDesktopEntryFailsWithBadExecutable(c *C) {
 	cmd := testutil.MockCommand(c, "systemd-run", "false")
 	defer cmd.Restore()
-
-	err := s.launcher.OpenDesktopEntry("mircade_mircade.desktop", ":some-dbus-sender")
+	mylog.Check(s.launcher.OpenDesktopEntry("mircade_mircade.desktop", ":some-dbus-sender"))
 	c.Check(err, ErrorMatches, `cannot run \[.*\]: exit status 1`)
 }
 
 func (s *privilegedDesktopLauncherSuite) TestOpenDesktopEntryFailsForNonSnap(c *C) {
 	cmd := testutil.MockCommand(c, "systemd-run", "false")
 	defer cmd.Restore()
-
-	err := s.launcher.OpenDesktopEntry("shadow-test.desktop", ":some-dbus-sender")
+	mylog.Check(s.launcher.OpenDesktopEntry("shadow-test.desktop", ":some-dbus-sender"))
 	c.Check(err, ErrorMatches, `only launching snap applications from .* is supported`)
 }

@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/features"
@@ -49,10 +50,8 @@ func maybeWaitWhileInhibited(ctx context.Context, cli *client.Client, snapName s
 		return waitWhileInhibited(ctx, cli, snapName, appName)
 	}
 
-	info, app, err = getInfoAndApp(snapName, appName, snap.R(0))
-	if err != nil {
-		return nil, nil, nil, err
-	}
+	info, app = mylog.Check3(getInfoAndApp(snapName, appName, snap.R(0)))
+
 	return info, app, nil, nil
 }
 
@@ -69,7 +68,7 @@ func waitWhileInhibited(ctx context.Context, cli *client.Client, snapName string
 	notified := false
 	notInhibited := func(ctx context.Context) (err error) {
 		// Get updated "current" snap info.
-		info, app, err = getInfoAndApp(snapName, appName, snap.R(0))
+		info, app = mylog.Check3(getInfoAndApp(snapName, appName, snap.R(0)))
 		// We might have started without a hint lock file and we have an
 		// ongoing refresh which removed current symlink.
 		if errors.As(err, &snap.NotFoundError{}) {
@@ -82,10 +81,8 @@ func waitWhileInhibited(ctx context.Context, cli *client.Client, snapName string
 	inhibited := func(ctx context.Context, hint runinhibit.Hint, inhibitInfo *runinhibit.InhibitInfo) (cont bool, err error) {
 		if !notified {
 			flow = newInhibitionFlow(cli, snapName)
-			info, app, err = getInfoAndApp(snapName, appName, inhibitInfo.Previous)
-			if err != nil {
-				return false, err
-			}
+			info, app = mylog.Check3(getInfoAndApp(snapName, appName, inhibitInfo.Previous))
+
 			// Don't wait, continue with old revision.
 			if app.IsService() {
 				return true, nil
@@ -94,10 +91,10 @@ func waitWhileInhibited(ctx context.Context, cli *client.Client, snapName string
 			if hint != runinhibit.HintInhibitedForRefresh {
 				return false, nil
 			}
-			// Start notification flow.
-			if err := flow.StartInhibitionNotification(ctx); err != nil {
-				return true, err
-			}
+			mylog.Check(
+				// Start notification flow.
+				flow.StartInhibitionNotification(ctx))
+
 			// Make sure we call notification flow only once.
 			notified = true
 		}
@@ -106,29 +103,21 @@ func waitWhileInhibited(ctx context.Context, cli *client.Client, snapName string
 
 	// If the snap is inhibited from being used then postpone running it until
 	// that condition passes.
-	hintFlock, err = runinhibitWaitWhileInhibited(ctx, snapName, notInhibited, inhibited, 500*time.Millisecond)
-	if err != nil {
-		// It is fine to return an error here without finishing the notification
-		// flow because we either failed because of it or before it, so it
-		// should not have started in the first place.
-		return nil, nil, nil, err
-	}
+	hintFlock = mylog.Check2(runinhibitWaitWhileInhibited(ctx, snapName, notInhibited, inhibited, 500*time.Millisecond))
+
+	// It is fine to return an error here without finishing the notification
+	// flow because we either failed because of it or before it, so it
+	// should not have started in the first place.
 
 	if notified {
-		if err := flow.FinishInhibitionNotification(ctx); err != nil {
-			hintFlock.Close()
-			return nil, nil, nil, err
-		}
+		mylog.Check(flow.FinishInhibitionNotification(ctx))
 	}
 
 	return info, app, hintFlock, nil
 }
 
 func getInfoAndApp(snapName, appName string, rev snap.Revision) (*snap.Info, *snap.AppInfo, error) {
-	info, err := getSnapInfo(snapName, rev)
-	if err != nil {
-		return nil, nil, err
-	}
+	info := mylog.Check2(getSnapInfo(snapName, rev))
 
 	app, exists := info.Apps[appName]
 	if !exists {
@@ -158,10 +147,7 @@ func (gf *noticesFlow) StartInhibitionNotification(ctx context.Context) error {
 		Type: client.SnapRunInhibitNotice,
 		Key:  gf.instanceName,
 	}
-	_, err := gf.cli.Notify(&opts)
-	if err != nil {
-		return err
-	}
+	_ := mylog.Check2(gf.cli.Notify(&opts))
 
 	// Fallback to text notification if marker "snap-refresh-observe"
 	// interface is not connected and a terminal is detected.
@@ -183,12 +169,11 @@ func markerInterfaceConnected(cli *client.Client) bool {
 	connOpts := client.ConnectionOptions{
 		Interface: "snap-refresh-observe",
 	}
-	connections, err := cli.Connections(&connOpts)
-	if err != nil {
-		// Ignore error (maybe snapd is being updated) and fallback to
-		// text flow instead.
-		return false
-	}
+	connections := mylog.Check2(cli.Connections(&connOpts))
+
+	// Ignore error (maybe snapd is being updated) and fallback to
+	// text flow instead.
+
 	if len(connections.Established) == 0 {
 		// Marker interface is not connected.
 		// No snap (i.e. snapd-desktop-integration) is listening, let's fallback

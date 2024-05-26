@@ -27,6 +27,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // common checks used when decoding/assembling assertions
@@ -52,10 +54,8 @@ func checkNotEmptyString(headers map[string]interface{}, name string) (string, e
 }
 
 func checkNotEmptyStringWhat(m map[string]interface{}, name, what string) (string, error) {
-	s, err := checkExistsStringWhat(m, name, what)
-	if err != nil {
-		return "", err
-	}
+	s := mylog.Check2(checkExistsStringWhat(m, name, what))
+
 	if len(s) == 0 {
 		return "", fmt.Errorf("%q %s should not be empty", name, what)
 	}
@@ -79,10 +79,8 @@ func checkOptionalString(headers map[string]interface{}, name string) (string, e
 }
 
 func checkPrimaryKey(headers map[string]interface{}, primKey string) (string, error) {
-	value, err := checkNotEmptyString(headers, primKey)
-	if err != nil {
-		return "", err
-	}
+	value := mylog.Check2(checkNotEmptyString(headers, primKey))
+
 	if strings.Contains(value, "/") {
 		return "", fmt.Errorf("%q primary key header cannot contain '/'", primKey)
 	}
@@ -116,10 +114,8 @@ func checkIntWithDefault(headers map[string]interface{}, name string, defl int) 
 	if !ok {
 		return -1, fmt.Errorf("%q header is not an integer: %v", name, value)
 	}
-	m, err := atoi(s, "%q %s", name, "header")
-	if err != nil {
-		return -1, err
-	}
+	m := mylog.Check2(atoi(s, "%q %s", name, "header"))
+
 	return m, nil
 }
 
@@ -128,14 +124,10 @@ func checkInt(headers map[string]interface{}, name string) (int, error) {
 }
 
 func checkIntWhat(headers map[string]interface{}, name, what string) (int, error) {
-	valueStr, err := checkNotEmptyStringWhat(headers, name, what)
-	if err != nil {
-		return -1, err
-	}
-	value, err := atoi(valueStr, "%q %s", name, what)
-	if err != nil {
-		return -1, err
-	}
+	valueStr := mylog.Check2(checkNotEmptyStringWhat(headers, name, what))
+
+	value := mylog.Check2(atoi(valueStr, "%q %s", name, what))
+
 	return value, nil
 }
 
@@ -146,14 +138,8 @@ func (e intSyntaxError) Error() string {
 }
 
 func atoi(valueStr, whichFmt string, whichArgs ...interface{}) (int, error) {
-	value, err := strconv.Atoi(valueStr)
-	if err != nil {
-		which := fmt.Sprintf(whichFmt, whichArgs...)
-		if ne, ok := err.(*strconv.NumError); ok && ne.Err == strconv.ErrRange {
-			return -1, fmt.Errorf("%s is out of range: %v", which, valueStr)
-		}
-		return -1, intSyntaxError(fmt.Sprintf("%s is not an integer: %v", which, valueStr))
-	}
+	value := mylog.Check2(strconv.Atoi(valueStr))
+
 	if prefixZeros(valueStr) {
 		return -1, fmt.Errorf("%s has invalid prefix zeros: %s", fmt.Sprintf(whichFmt, whichArgs...), valueStr)
 	}
@@ -169,14 +155,10 @@ func checkRFC3339Date(headers map[string]interface{}, name string) (time.Time, e
 }
 
 func checkRFC3339DateWhat(m map[string]interface{}, name, what string) (time.Time, error) {
-	dateStr, err := checkNotEmptyStringWhat(m, name, what)
-	if err != nil {
-		return time.Time{}, err
-	}
-	date, err := time.Parse(time.RFC3339, dateStr)
-	if err != nil {
-		return time.Time{}, fmt.Errorf("%q %s is not a RFC3339 date: %v", name, what, err)
-	}
+	dateStr := mylog.Check2(checkNotEmptyStringWhat(m, name, what))
+
+	date := mylog.Check2(time.Parse(time.RFC3339, dateStr))
+
 	return date, nil
 }
 
@@ -189,10 +171,8 @@ func checkRFC3339DateWithDefaultWhat(m map[string]interface{}, name, what string
 	if !ok {
 		return time.Time{}, fmt.Errorf("%q %s must be a string", name, what)
 	}
-	date, err := time.Parse(time.RFC3339, dateStr)
-	if err != nil {
-		return time.Time{}, fmt.Errorf("%q %s is not a RFC3339 date: %v", name, what, err)
-	}
+	date := mylog.Check2(time.Parse(time.RFC3339, dateStr))
+
 	return date, nil
 }
 
@@ -201,17 +181,10 @@ func checkUint(headers map[string]interface{}, name string, bitSize int) (uint64
 }
 
 func checkUintWhat(headers map[string]interface{}, name string, bitSize int, what string) (uint64, error) {
-	valueStr, err := checkNotEmptyStringWhat(headers, name, what)
-	if err != nil {
-		return 0, err
-	}
-	value, err := strconv.ParseUint(valueStr, 10, bitSize)
-	if err != nil {
-		if ne, ok := err.(*strconv.NumError); ok && ne.Err == strconv.ErrRange {
-			return 0, fmt.Errorf("%q %s is out of range: %v", name, what, valueStr)
-		}
-		return 0, fmt.Errorf("%q %s is not an unsigned integer: %v", name, what, valueStr)
-	}
+	valueStr := mylog.Check2(checkNotEmptyStringWhat(headers, name, what))
+
+	value := mylog.Check2(strconv.ParseUint(valueStr, 10, bitSize))
+
 	if prefixZeros(valueStr) {
 		return 0, fmt.Errorf("%q %s has invalid prefix zeros: %s", name, what, valueStr)
 	}
@@ -223,14 +196,10 @@ func checkDigest(headers map[string]interface{}, name string, h crypto.Hash) ([]
 }
 
 func checkDigestWhat(headers map[string]interface{}, name string, h crypto.Hash, what string) ([]byte, error) {
-	digestStr, err := checkNotEmptyStringWhat(headers, name, what)
-	if err != nil {
-		return nil, err
-	}
-	b, err := base64.RawURLEncoding.DecodeString(digestStr)
-	if err != nil {
-		return nil, fmt.Errorf("%q %s cannot be decoded: %v", name, what, err)
-	}
+	digestStr := mylog.Check2(checkNotEmptyStringWhat(headers, name, what))
+
+	b := mylog.Check2(base64.RawURLEncoding.DecodeString(digestStr))
+
 	if len(b) != h.Size() {
 		return nil, fmt.Errorf("%q %s does not have the expected bit length: %d", name, what, len(b)*8)
 	}
@@ -281,10 +250,8 @@ func checkStringMatches(headers map[string]interface{}, name string, pattern *re
 }
 
 func checkStringMatchesWhat(headers map[string]interface{}, name, what string, pattern *regexp.Regexp) (string, error) {
-	s, err := checkNotEmptyStringWhat(headers, name, what)
-	if err != nil {
-		return "", err
-	}
+	s := mylog.Check2(checkNotEmptyStringWhat(headers, name, what))
+
 	if !pattern.MatchString(s) {
 		return "", fmt.Errorf("%q %s contains invalid characters: %q", name, what, s)
 	}

@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"golang.org/x/xerrors"
 )
 
@@ -33,18 +34,10 @@ type CohortAction struct {
 }
 
 func (client *Client) CreateCohorts(snaps []string) (map[string]string, error) {
-	data, err := json.Marshal(&CohortAction{Action: "create", Snaps: snaps})
-	if err != nil {
-		return nil, fmt.Errorf("cannot request cohorts: %v", err)
-	}
+	data := mylog.Check2(json.Marshal(&CohortAction{Action: "create", Snaps: snaps}))
 
 	var cohorts map[string]string
-
-	if _, err := client.doSync("POST", "/v2/cohorts", nil, nil, bytes.NewReader(data), &cohorts); err != nil {
-		fmt := "cannot create cohorts: %w"
-		return nil, xerrors.Errorf(fmt, err)
-	}
+	mylog.Check2(client.doSync("POST", "/v2/cohorts", nil, nil, bytes.NewReader(data), &cohorts))
 
 	return cohorts, nil
-
 }

@@ -24,6 +24,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -48,14 +49,9 @@ type patch1SideInfo struct {
 
 var patch1ReadType = func(name string, rev snap.Revision) (snap.Type, error) {
 	snapYamlFn := filepath.Join(snap.MountDir(name, rev), "meta", "snap.yaml")
-	meta, err := os.ReadFile(snapYamlFn)
-	if err != nil {
-		return snap.TypeApp, err
-	}
-	info, err := snap.InfoFromSnapYaml(meta)
-	if err != nil {
-		return snap.TypeApp, err
-	}
+	meta := mylog.Check2(os.ReadFile(snapYamlFn))
+
+	info := mylog.Check2(snap.InfoFromSnapYaml(meta))
 
 	return info.Type(), nil
 }
@@ -88,13 +84,9 @@ type patch1SnapState struct {
 // patch1 adds the snap type and the current revision to the snap state.
 func patch1(s *state.State) error {
 	var stateMap map[string]*patch1SnapState
-
-	err := s.Get("snaps", &stateMap)
+	mylog.Check(s.Get("snaps", &stateMap))
 	if errors.Is(err, state.ErrNoState) {
 		return nil
-	}
-	if err != nil {
-		return err
 	}
 
 	for snapName, snapst := range stateMap {
@@ -103,12 +95,8 @@ func patch1(s *state.State) error {
 			continue
 		}
 		snapst.Current = seq[len(seq)-1].Revision
-		typ, err := patch1ReadType(snapName, snapst.Current)
-		if err != nil {
-			logger.Noticef("Recording type for snap %q: cannot retrieve info, assuming it's a app: %v", snapName, err)
-		} else {
-			logger.Noticef("Recording type for snap %q: setting to %q", snapName, typ)
-		}
+		typ := mylog.Check2(patch1ReadType(snapName, snapst.Current))
+
 		snapst.SnapType = string(typ)
 	}
 

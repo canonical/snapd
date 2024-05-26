@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
@@ -213,7 +214,7 @@ plugs:
 	defer s.st.Lock()
 
 	for _, test := range isConnectedTests {
-		stdout, stderr, err := ctlcmd.Run(context, test.args, 0)
+		stdout, stderr := mylog.Check3(ctlcmd.Run(context, test.args, 0))
 		comment := Commentf("%s", test.args)
 		if test.exitCode > 0 {
 			c.Check(err, DeepEquals, &ctlcmd.UnsuccessfulError{ExitCode: test.exitCode}, comment)
@@ -237,7 +238,7 @@ func (s *isConnectedSuite) TestIsConnectedFromHook(c *C) {
 	task := s.st.NewTask("test-task", "my test task")
 	setup := &hookstate.HookSetup{Snap: "snap1", Revision: snap.R(1), Hook: "test-hook"}
 
-	mockContext, err := hookstate.NewContext(task, s.st, setup, s.mockHandler, "")
+	mockContext := mylog.Check2(hookstate.NewContext(task, s.st, setup, s.mockHandler, ""))
 	c.Check(err, IsNil)
 
 	s.testIsConnected(c, mockContext)
@@ -249,7 +250,7 @@ func (s *isConnectedSuite) TestIsConnectedFromApp(c *C) {
 
 	// ephemeral context
 	setup := &hookstate.HookSetup{Snap: "snap1", Revision: snap.R(1)}
-	mockContext, err := hookstate.NewContext(nil, s.st, setup, s.mockHandler, "")
+	mockContext := mylog.Check2(hookstate.NewContext(nil, s.st, setup, s.mockHandler, ""))
 	c.Check(err, IsNil)
 
 	// validity
@@ -259,7 +260,7 @@ func (s *isConnectedSuite) TestIsConnectedFromApp(c *C) {
 }
 
 func (s *isConnectedSuite) TestNoContextError(c *C) {
-	stdout, stderr, err := ctlcmd.Run(nil, []string{"is-connected", "foo"}, 0)
+	stdout, stderr := mylog.Check3(ctlcmd.Run(nil, []string{"is-connected", "foo"}, 0))
 	c.Check(err, ErrorMatches, `cannot invoke snapctl operation commands \(here "is-connected"\) from outside of a snap`)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
@@ -281,9 +282,9 @@ plugs:
 
 	s.st.Unlock()
 
-	mockContext, err := hookstate.NewContext(nil, s.st, setup, s.mockHandler, "")
-	c.Assert(err, IsNil)
-	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"is-connected", "plug1"}, 1000)
+	mockContext := mylog.Check2(hookstate.NewContext(nil, s.st, setup, s.mockHandler, ""))
+
+	stdout, stderr := mylog.Check3(ctlcmd.Run(mockContext, []string{"is-connected", "plug1"}, 1000))
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
@@ -296,7 +297,7 @@ func (s *isConnectedSuite) TestIsConnectedList(c *C) {
 	task := s.st.NewTask("test-task", "my test task")
 	setup := &hookstate.HookSetup{Snap: "snap1", Revision: snap.R(1), Hook: "test-hook"}
 
-	mockContext, err := hookstate.NewContext(task, s.st, setup, s.mockHandler, "")
+	mockContext := mylog.Check2(hookstate.NewContext(task, s.st, setup, s.mockHandler, ""))
 	c.Check(err, IsNil)
 
 	mockInstalledSnap(c, s.st, `name: snap1
@@ -345,7 +346,7 @@ slots:
 	s.st.Unlock()
 	defer s.st.Lock()
 
-	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"is-connected", "--list"}, 0)
+	stdout, stderr := mylog.Check3(ctlcmd.Run(mockContext, []string{"is-connected", "--list"}, 0))
 	c.Check(err, IsNil)
 
 	c.Check(string(stdout), Equals, "plug1a\nslot1a\n")

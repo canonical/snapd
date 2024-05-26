@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/logger"
@@ -40,11 +41,7 @@ such as initramfs.
 )
 
 func main() {
-	err := run(os.Args[1:])
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: %s\n", err)
-		os.Exit(1)
-	}
+	mylog.Check(run(os.Args[1:]))
 }
 
 func run(args []string) error {
@@ -58,10 +55,8 @@ func run(args []string) error {
 func parseArgs(args []string) error {
 	p := parser()
 
-	_, err := p.ParseArgs(args)
-	if err != nil {
-		logger.Noticef("execution error: %v", err)
-	}
+	_ := mylog.Check2(p.ParseArgs(args))
+
 	return err
 }
 

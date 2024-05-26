@@ -27,6 +27,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/udev"
@@ -79,9 +80,7 @@ func (iface *customDeviceInterface) validateFilePath(path string, attrName strin
 	}
 
 	const allowCommas = true
-	if _, err := utils.NewPathPattern(path, allowCommas); err != nil {
-		return fmt.Errorf(`custom-device %q path cannot be used: %v`, attrName, err)
-	}
+	mylog.Check2(utils.NewPathPattern(path, allowCommas))
 
 	// We don't allow "**" because that's an AppArmor specific globbing pattern
 	// which we don't want to expose in our API contract.
@@ -97,19 +96,14 @@ func (iface *customDeviceInterface) validateDevice(path string, attrName string)
 	if !customDeviceUDevDeviceRegexp.MatchString(path) {
 		return fmt.Errorf(`custom-device %q path must start with /dev/ and cannot contain special characters: %q`, attrName, path)
 	}
-
-	if err := iface.validateFilePath(path, attrName); err != nil {
-		return err
-	}
+	mylog.Check(iface.validateFilePath(path, attrName))
 
 	return nil
 }
 
 func (iface *customDeviceInterface) validatePaths(attrName string, paths []string) error {
 	for _, path := range paths {
-		if err := iface.validateFilePath(path, attrName); err != nil {
-			return err
-		}
+		mylog.Check(iface.validateFilePath(path, attrName))
 	}
 
 	return nil
@@ -138,9 +132,8 @@ func (iface *customDeviceInterface) validateUDevValueMap(value interface{}) erro
 		if !customDeviceUDevValueRegexp.MatchString(key) {
 			return fmt.Errorf(`key "%v" contains invalid characters`, key)
 		}
-		if err := iface.validateUDevValue(val); err != nil {
-			return err
-		}
+		mylog.Check(iface.validateUDevValue(val))
+
 	}
 
 	return nil
@@ -167,16 +160,13 @@ func (iface *customDeviceInterface) validateKernelMatchesOneDeviceBasename(kerne
 func (iface *customDeviceInterface) validateUDevTaggingRule(rule map[string]interface{}, devices []string) error {
 	hasKernelTag := false
 	for key, value := range rule {
-		var err error
 		switch key {
 		case "subsystem":
-			err = iface.validateUDevValue(value)
+			mylog.Check(iface.validateUDevValue(value))
 		case "kernel":
 			hasKernelTag = true
-			err = iface.validateUDevValue(value)
-			if err != nil {
-				break
-			}
+			mylog.Check(iface.validateUDevValue(value))
+
 			kernelVal := value.(string)
 			// The kernel device name must match the full path of
 			// one of the given devices, stripped of the leading
@@ -184,17 +174,14 @@ func (iface *customDeviceInterface) validateUDevTaggingRule(rule map[string]inte
 			if strutil.ListContains(devices, "/dev/"+kernelVal) {
 				break
 			}
-			// Not a full path, so check if it matches the basename
-			// of a device path, and not more than one.
-			err = iface.validateKernelMatchesOneDeviceBasename(kernelVal, devices)
+			mylog.
+				// Not a full path, so check if it matches the basename
+				// of a device path, and not more than one.
+				Check(iface.validateKernelMatchesOneDeviceBasename(kernelVal, devices))
 		case "attributes", "environment":
-			err = iface.validateUDevValueMap(value)
+			mylog.Check(iface.validateUDevValueMap(value))
 		default:
-			err = errors.New(`unknown tag`)
-		}
-
-		if err != nil {
-			return fmt.Errorf(`custom-device "udev-tagging" invalid %q tag: %v`, key, err)
+			mylog.Check(errors.New(`unknown tag`))
 		}
 	}
 
@@ -232,25 +219,22 @@ func (iface *customDeviceInterface) BeforePrepareSlot(slot *snap.SlotInfo) error
 	}
 
 	var devices []string
-	err := slot.Attr("devices", &devices)
+	mylog.Check(slot.Attr("devices", &devices))
 	if err != nil && !errors.Is(err, snap.AttributeNotFoundError{}) {
 		return err
 	}
 	for _, device := range devices {
-		if err := iface.validateDevice(device, "devices"); err != nil {
-			return err
-		}
+		mylog.Check(iface.validateDevice(device, "devices"))
 	}
 
 	var readDevices []string
-	err = slot.Attr("read-devices", &readDevices)
+	mylog.Check(slot.Attr("read-devices", &readDevices))
 	if err != nil && !errors.Is(err, snap.AttributeNotFoundError{}) {
 		return err
 	}
 	for _, device := range readDevices {
-		if err := iface.validateDevice(device, "read-devices"); err != nil {
-			return err
-		}
+		mylog.Check(iface.validateDevice(device, "read-devices"))
+
 		if strutil.ListContains(devices, device) {
 			return fmt.Errorf(`cannot specify path %q both in "devices" and "read-devices" attributes`, device)
 		}
@@ -261,20 +245,18 @@ func (iface *customDeviceInterface) BeforePrepareSlot(slot *snap.SlotInfo) error
 
 	// validate files
 	var filesMap map[string][]string
-	err = slot.Attr("files", &filesMap)
+	mylog.Check(slot.Attr("files", &filesMap))
 	if err != nil && !errors.Is(err, snap.AttributeNotFoundError{}) {
 		return err
 	}
 	for key, val := range filesMap {
 		switch key {
 		case "read":
-			if err := iface.validatePaths("read", val); err != nil {
-				return err
-			}
+			mylog.Check(iface.validatePaths("read", val))
+
 		case "write":
-			if err := iface.validatePaths("write", val); err != nil {
-				return err
-			}
+			mylog.Check(iface.validatePaths("write", val))
+
 		default:
 			return fmt.Errorf(`cannot specify %q in "files" section, only "read" and "write" allowed`, key)
 		}
@@ -285,14 +267,12 @@ func (iface *customDeviceInterface) BeforePrepareSlot(slot *snap.SlotInfo) error
 	}
 
 	var udevTaggingRules []map[string]interface{}
-	err = slot.Attr("udev-tagging", &udevTaggingRules)
+	mylog.Check(slot.Attr("udev-tagging", &udevTaggingRules))
 	if err != nil && !errors.Is(err, snap.AttributeNotFoundError{}) {
 		return err
 	}
 	for _, udevTaggingRule := range udevTaggingRules {
-		if err := iface.validateUDevTaggingRule(udevTaggingRule, allDevices); err != nil {
-			return err
-		}
+		mylog.Check(iface.validateUDevTaggingRule(udevTaggingRule, allDevices))
 	}
 
 	return nil
@@ -336,7 +316,7 @@ func (iface *customDeviceInterface) AppArmorConnectedPlug(spec *apparmor.Specifi
 	emitRule(readDevicePaths, "r")
 
 	var filesMap map[string][]string
-	err := slot.Attr("files", &filesMap)
+	mylog.Check(slot.Attr("files", &filesMap))
 	if err != nil && !errors.Is(err, snap.AttributeNotFoundError{}) {
 		return err
 	}

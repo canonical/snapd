@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -39,12 +40,10 @@ func (s *sysctlSuite) TestSysctl(c *C) {
 
 	systemdSysctl := testutil.MockCommand(c, "systemd-sysctl", "")
 	defer systemdSysctl.Restore()
+	mylog.Check(systemd.Sysctl(nil))
 
-	err := systemd.Sysctl(nil)
-	c.Assert(err, IsNil)
+	mylog.Check(systemd.Sysctl([]string{"kernel.printk", "net"}))
 
-	err = systemd.Sysctl([]string{"kernel.printk", "net"})
-	c.Assert(err, IsNil)
 
 	c.Check(systemdSysctl.Calls(), DeepEquals, [][]string{
 		{"systemd-sysctl"},
@@ -60,18 +59,15 @@ echo foo >&2
 exit 1
 `)
 	defer systemdSysctl.Restore()
-
-	err := systemd.Sysctl(nil)
+	mylog.Check(systemd.Sysctl(nil))
 	c.Assert(err, ErrorMatches, `(?m)systemd-sysctl invoked with \[\] failed with exit status 1: foo`)
-
-	err = systemd.Sysctl([]string{"net"})
+	mylog.Check(systemd.Sysctl([]string{"net"}))
 	c.Assert(err, ErrorMatches, `(?m)systemd-sysctl invoked with \[--prefix net\] failed with exit status 1: foo`)
 }
 
 func (s *sysctlSuite) TestSysctlFailedExec(c *C) {
 	defer systemd.MockSystemdSysctlPath("/i/bet/this/does/not/exist/systemd-sysctl")()
-
-	err := systemd.Sysctl(nil)
+	mylog.Check(systemd.Sysctl(nil))
 	c.Assert(err, ErrorMatches, `fork/exec /i/bet/this/does/not/exist/systemd-sysctl: no such file or directory`)
 }
 
@@ -83,14 +79,13 @@ func (s *sysctlSuite) TestMockSystemdSysctl(c *C) {
 		return sysctlErr
 	})
 	defer r()
+	mylog.Check(systemd.Sysctl([]string{"kernel.printk", "net"}))
 
-	err := systemd.Sysctl([]string{"kernel.printk", "net"})
-	c.Assert(err, IsNil)
 
 	c.Check(capturedArgs, DeepEquals, []string{"--prefix", "kernel.printk", "--prefix", "net"})
 
 	sysctlErr = errors.New("boom")
-	err = systemd.Sysctl(nil)
+	mylog.Check(systemd.Sysctl(nil))
 	c.Check(err, Equals, sysctlErr)
 	c.Check(capturedArgs, HasLen, 0)
 }

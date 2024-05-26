@@ -23,6 +23,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/godbus/dbus"
 	. "gopkg.in/check.v1"
 
@@ -133,15 +134,15 @@ func (s *settingsSuite) TestGetUnhappy(c *C) {
 		{"invälid", `invalid setting "invälid"`},
 		{"", `invalid setting ""`},
 	} {
-		_, err := s.settings.Get(t.setting, ":some-dbus-sender")
+		_ := mylog.Check2(s.settings.Get(t.setting, ":some-dbus-sender"))
 		c.Assert(err, ErrorMatches, t.errMatcher)
 		c.Assert(s.mockXdgSettings.Calls(), IsNil)
 	}
 }
 
 func (s *settingsSuite) TestGetHappy(c *C) {
-	defaultBrowser, err := s.settings.Get("default-web-browser", ":some-dbus-sender")
-	c.Assert(err, IsNil)
+	defaultBrowser := mylog.Check2(s.settings.Get("default-web-browser", ":some-dbus-sender"))
+
 	c.Check(defaultBrowser, Equals, "foo.desktop")
 	c.Check(s.mockXdgSettings.Calls(), DeepEquals, [][]string{
 		{"xdg-settings", "get", "default-web-browser"},
@@ -149,14 +150,14 @@ func (s *settingsSuite) TestGetHappy(c *C) {
 }
 
 func (s *settingsSuite) TestCheckInvalidSetting(c *C) {
-	_, err := s.settings.Check("random-setting", "foo.desktop", ":some-dbus-sender")
+	_ := mylog.Check2(s.settings.Check("random-setting", "foo.desktop", ":some-dbus-sender"))
 	c.Assert(err, ErrorMatches, `invalid setting "random-setting"`)
 	c.Assert(s.mockXdgSettings.Calls(), IsNil)
 }
 
 func (s *settingsSuite) TestCheckIsDefault(c *C) {
-	isDefault, err := s.settings.Check("default-web-browser", "foo.desktop", ":some-dbus-sender")
-	c.Assert(err, IsNil)
+	isDefault := mylog.Check2(s.settings.Check("default-web-browser", "foo.desktop", ":some-dbus-sender"))
+
 	c.Check(isDefault, Equals, "yes")
 	c.Check(s.mockXdgSettings.Calls(), DeepEquals, [][]string{
 		{"xdg-settings", "check", "default-web-browser", "some-snap_foo.desktop"},
@@ -164,8 +165,8 @@ func (s *settingsSuite) TestCheckIsDefault(c *C) {
 }
 
 func (s *settingsSuite) TestCheckIsDefaultUrlScheme(c *C) {
-	isDefault, err := s.settings.CheckSub("default-url-scheme-handler", "irc", "ircclient.desktop", ":some-dbus-sender")
-	c.Assert(err, IsNil)
+	isDefault := mylog.Check2(s.settings.CheckSub("default-url-scheme-handler", "irc", "ircclient.desktop", ":some-dbus-sender"))
+
 	c.Check(isDefault, Equals, "yes")
 	c.Check(s.mockXdgSettings.Calls(), DeepEquals, [][]string{
 		{"xdg-settings", "check", "default-url-scheme-handler", "irc", "some-snap_ircclient.desktop"},
@@ -173,8 +174,8 @@ func (s *settingsSuite) TestCheckIsDefaultUrlScheme(c *C) {
 }
 
 func (s *settingsSuite) TestCheckNoDefault(c *C) {
-	isDefault, err := s.settings.Check("default-web-browser", "bar.desktop", ":some-dbus-sender")
-	c.Assert(err, IsNil)
+	isDefault := mylog.Check2(s.settings.Check("default-web-browser", "bar.desktop", ":some-dbus-sender"))
+
 	c.Check(isDefault, Equals, "no")
 	c.Check(s.mockXdgSettings.Calls(), DeepEquals, [][]string{
 		{"xdg-settings", "check", "default-web-browser", "some-snap_bar.desktop"},
@@ -182,8 +183,8 @@ func (s *settingsSuite) TestCheckNoDefault(c *C) {
 }
 
 func (s *settingsSuite) TestCheckNoDefaultUrlScheme(c *C) {
-	isDefault, err := s.settings.CheckSub("default-url-scheme-handler", "irc", "bar.desktop", ":some-dbus-sender")
-	c.Assert(err, IsNil)
+	isDefault := mylog.Check2(s.settings.CheckSub("default-url-scheme-handler", "irc", "bar.desktop", ":some-dbus-sender"))
+
 	c.Check(isDefault, Equals, "no")
 	c.Check(s.mockXdgSettings.Calls(), DeepEquals, [][]string{
 		{"xdg-settings", "check", "default-url-scheme-handler", "irc", "some-snap_bar.desktop"},
@@ -206,8 +207,8 @@ exit 1
 `)
 	defer mockXdgSettings.Restore()
 
-	defaultBrowser, err := s.settings.Get("default-web-browser", ":some-dbus-sender")
-	c.Assert(err, IsNil)
+	defaultBrowser := mylog.Check2(s.settings.Get("default-web-browser", ":some-dbus-sender"))
+
 	c.Check(defaultBrowser, Equals, "NOT-THIS-SNAP.desktop")
 	c.Check(mockXdgSettings.Calls(), DeepEquals, [][]string{
 		{"xdg-settings", "get", "default-web-browser"},
@@ -215,8 +216,8 @@ exit 1
 
 	mockXdgSettings.ForgetCalls()
 
-	defaultSchemeHandler, err := s.settings.GetSub("default-url-scheme-handler", "irc", ":some-dbus-sender")
-	c.Assert(err, IsNil)
+	defaultSchemeHandler := mylog.Check2(s.settings.GetSub("default-url-scheme-handler", "irc", ":some-dbus-sender"))
+
 	c.Check(defaultSchemeHandler, Equals, "NOT-THIS-SNAP.desktop")
 	c.Check(mockXdgSettings.Calls(), DeepEquals, [][]string{
 		{"xdg-settings", "get", "default-url-scheme-handler", "irc"},
@@ -224,37 +225,36 @@ exit 1
 }
 
 func (s *settingsSuite) TestSetInvalidSetting(c *C) {
-	err := s.settings.Set("random-setting", "foo.desktop", ":some-dbus-sender")
+	mylog.Check(s.settings.Set("random-setting", "foo.desktop", ":some-dbus-sender"))
 	c.Assert(err, ErrorMatches, `invalid setting "random-setting"`)
 	c.Assert(s.mockXdgSettings.Calls(), IsNil)
 }
 
 func (s *settingsSuite) TestSetInvalidValue(c *C) {
-	err := s.settings.Set("default-web-browser", "foo", ":some-dbus-sender")
+	mylog.Check(s.settings.Set("default-web-browser", "foo", ":some-dbus-sender"))
 	c.Assert(err, ErrorMatches, `cannot set "default-web-browser" setting to invalid value "foo"`)
 	c.Assert(s.mockXdgSettings.Calls(), IsNil)
 }
 
 func (s *settingsSuite) TestSetSubInvalidSetting(c *C) {
-	err := s.settings.SetSub("random-setting", "subprop", "foo.desktop", ":some-dbus-sender")
+	mylog.Check(s.settings.SetSub("random-setting", "subprop", "foo.desktop", ":some-dbus-sender"))
 	c.Assert(err, ErrorMatches, `invalid setting "random-setting"`)
 	c.Assert(s.mockXdgSettings.Calls(), IsNil)
 }
 
 func (s *settingsSuite) TestSetSubInvalidValue(c *C) {
-	err := s.settings.SetSub("default-url-scheme-handler", "irc", "foo", ":some-dbus-sender")
+	mylog.Check(s.settings.SetSub("default-url-scheme-handler", "irc", "foo", ":some-dbus-sender"))
 	c.Assert(err, ErrorMatches, `cannot set "default-url-scheme-handler" subproperty "irc" setting to invalid value "foo"`)
 	c.Assert(s.mockXdgSettings.Calls(), IsNil)
 }
 
 func (s *settingsSuite) testSetUserDeclined(c *C) {
 	df := filepath.Join(dirs.SnapDesktopFilesDir, "some-snap_bar.desktop")
-	err := os.MkdirAll(filepath.Dir(df), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(df, nil, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Dir(df), 0755))
 
-	err = s.settings.Set("default-web-browser", "bar.desktop", ":some-dbus-sender")
+	mylog.Check(os.WriteFile(df, nil, 0644))
+
+	mylog.Check(s.settings.Set("default-web-browser", "bar.desktop", ":some-dbus-sender"))
 	c.Assert(err, ErrorMatches, `cannot change configuration: user declined change`)
 	c.Check(s.mockXdgSettings.Calls(), IsNil)
 	// FIXME: this needs PR#4342
@@ -291,13 +291,12 @@ func (s *settingsSuite) TestSetUserDeclinedZenity(c *C) {
 
 func (s *settingsSuite) testSetUserAccepts(c *C) {
 	df := filepath.Join(dirs.SnapDesktopFilesDir, "some-snap_foo.desktop")
-	err := os.MkdirAll(filepath.Dir(df), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(df, nil, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Dir(df), 0755))
 
-	err = s.settings.Set("default-web-browser", "foo.desktop", ":some-dbus-sender")
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(df, nil, 0644))
+
+	mylog.Check(s.settings.Set("default-web-browser", "foo.desktop", ":some-dbus-sender"))
+
 	c.Check(s.mockXdgSettings.Calls(), DeepEquals, [][]string{
 		{"xdg-settings", "set", "default-web-browser", "some-snap_foo.desktop"},
 	})
@@ -311,13 +310,12 @@ func (s *settingsSuite) testSetUserAccepts(c *C) {
 
 func (s *settingsSuite) testSetUserAcceptsURLScheme(c *C) {
 	df := filepath.Join(dirs.SnapDesktopFilesDir, "some-snap_ircclient.desktop")
-	err := os.MkdirAll(filepath.Dir(df), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(df, nil, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Dir(df), 0755))
 
-	err = s.settings.SetSub("default-url-scheme-handler", "irc", "ircclient.desktop", ":some-dbus-sender")
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(df, nil, 0644))
+
+	mylog.Check(s.settings.SetSub("default-url-scheme-handler", "irc", "ircclient.desktop", ":some-dbus-sender"))
+
 	c.Check(s.mockXdgSettings.Calls(), DeepEquals, [][]string{
 		{"xdg-settings", "set", "default-url-scheme-handler", "irc", "some-snap_ircclient.desktop"},
 	})
@@ -381,12 +379,11 @@ func (s *settingsSuite) TestSetUserAcceptsZenityUrlSchemeXdgSettingsError(c *C) 
 	}()
 
 	df := filepath.Join(dirs.SnapDesktopFilesDir, "some-snap_ircclient.desktop")
-	err := os.MkdirAll(filepath.Dir(df), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(df, nil, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Dir(df), 0755))
 
-	err = s.settings.SetSub("default-url-scheme-handler", "irc2", "ircclient.desktop", ":some-dbus-sender")
+	mylog.Check(os.WriteFile(df, nil, 0644))
+
+	mylog.Check(s.settings.SetSub("default-url-scheme-handler", "irc2", "ircclient.desktop", ":some-dbus-sender"))
 	c.Assert(err, ErrorMatches, `cannot set "default-url-scheme-handler" subproperty "irc2" setting: fail`)
 	c.Check(s.mockXdgSettings.Calls(), DeepEquals, [][]string{
 		{"xdg-settings", "set", "default-url-scheme-handler", "irc2", "some-snap_ircclient.desktop"},
@@ -397,21 +394,20 @@ func (s *settingsSuite) TestFailsOnUbuntuCore(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	_, err := s.settings.Check("default-web-browser", "foo.desktop", ":some-dbus-sender")
+	_ := mylog.Check2(s.settings.Check("default-web-browser", "foo.desktop", ":some-dbus-sender"))
 	c.Check(err, ErrorMatches, "not supported on Ubuntu Core")
 
-	_, err = s.settings.CheckSub("default-url-scheme-handler", "irc", "bar.desktop", ":some-dbus-sender")
+	_ = mylog.Check2(s.settings.CheckSub("default-url-scheme-handler", "irc", "bar.desktop", ":some-dbus-sender"))
 	c.Check(err, ErrorMatches, "not supported on Ubuntu Core")
 
-	_, err = s.settings.Get("default-web-browser", ":some-dbus-sender")
+	_ = mylog.Check2(s.settings.Get("default-web-browser", ":some-dbus-sender"))
 	c.Check(err, ErrorMatches, "not supported on Ubuntu Core")
 
-	_, err = s.settings.GetSub("default-url-scheme-handler", "irc", ":some-dbus-sender")
+	_ = mylog.Check2(s.settings.GetSub("default-url-scheme-handler", "irc", ":some-dbus-sender"))
 	c.Check(err, ErrorMatches, "not supported on Ubuntu Core")
-
-	err = s.settings.Set("default-web-browser", "foo.desktop", ":some-dbus-sender")
+	mylog.Check(s.settings.Set("default-web-browser", "foo.desktop", ":some-dbus-sender"))
 	c.Check(err, ErrorMatches, "not supported on Ubuntu Core")
-	err = s.settings.SetSub("default-url-scheme-handler", "irc", "ircclient.desktop", ":some-dbus-sender")
+	mylog.Check(s.settings.SetSub("default-url-scheme-handler", "irc", "ircclient.desktop", ":some-dbus-sender"))
 	c.Check(err, ErrorMatches, "not supported on Ubuntu Core")
 
 	c.Check(s.mockXdgSettings.Calls(), HasLen, 0)

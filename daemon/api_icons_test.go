@@ -27,6 +27,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/snap"
 )
@@ -48,7 +49,7 @@ func (s *iconsSuite) TestAppIconGet(c *check.C) {
 	c.Assert(os.MkdirAll(filepath.Dir(iconfile), 0755), check.IsNil)
 	c.Check(os.WriteFile(iconfile, []byte("ick"), 0644), check.IsNil)
 
-	req, err := http.NewRequest("GET", "/v2/icons/foo/icon", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/icons/foo/icon", nil))
 	c.Assert(err, check.IsNil)
 
 	rec := httptest.NewRecorder()
@@ -69,7 +70,7 @@ func (s *iconsSuite) TestAppIconGetInactive(c *check.C) {
 	c.Assert(os.MkdirAll(filepath.Dir(iconfile), 0755), check.IsNil)
 	c.Check(os.WriteFile(iconfile, []byte("ick"), 0644), check.IsNil)
 
-	req, err := http.NewRequest("GET", "/v2/icons/foo/icon", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/icons/foo/icon", nil))
 	c.Assert(err, check.IsNil)
 
 	rec := httptest.NewRecorder()
@@ -84,12 +85,13 @@ func (s *iconsSuite) TestAppIconGetNoIcon(c *check.C) {
 
 	// have an *in*active foo in the system
 	info := s.mkInstalledInState(c, d, "foo", "bar", "v1", snap.R(10), true, "")
+	mylog.
 
-	// NO ICON!
-	err := os.RemoveAll(filepath.Join(info.MountDir(), "meta", "gui", "icon.svg"))
+		// NO ICON!
+		Check(os.RemoveAll(filepath.Join(info.MountDir(), "meta", "gui", "icon.svg")))
 	c.Assert(err, check.IsNil)
 
-	req, err := http.NewRequest("GET", "/v2/icons/foo/icon", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/icons/foo/icon", nil))
 	c.Assert(err, check.IsNil)
 
 	rec := httptest.NewRecorder()
@@ -101,7 +103,7 @@ func (s *iconsSuite) TestAppIconGetNoIcon(c *check.C) {
 func (s *iconsSuite) TestAppIconGetNoApp(c *check.C) {
 	s.daemon(c)
 
-	req, err := http.NewRequest("GET", "/v2/icons/foo/icon", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/icons/foo/icon", nil))
 	c.Assert(err, check.IsNil)
 
 	rec := httptest.NewRecorder()

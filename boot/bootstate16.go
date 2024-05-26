@@ -22,6 +22,7 @@ package boot
 import (
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/snap"
 )
@@ -47,20 +48,14 @@ func newBootState16(typ snap.Type, dev snap.Device) bootState {
 }
 
 func (s16 *bootState16) revisions() (s, tryS snap.PlaceInfo, status string, err error) {
-	bloader, err := bootloader.Find("", nil)
-	if err != nil {
-		return nil, nil, "", fmt.Errorf("cannot get boot settings: %s", err)
-	}
+	bloader := mylog.Check2(bootloader.Find("", nil))
 
 	snapVar := "snap_" + s16.varSuffix
 	trySnapVar := "snap_try_" + s16.varSuffix
 	vars := []string{"snap_mode", snapVar, trySnapVar}
 	snaps := make(map[string]snap.PlaceInfo, 2)
 
-	m, err := bloader.GetBootVars(vars...)
-	if err != nil {
-		return nil, nil, "", fmt.Errorf("cannot get boot variables: %s", err)
-	}
+	m := mylog.Check2(bloader.GetBootVars(vars...))
 
 	for _, vName := range vars {
 		v := m[vName]
@@ -78,10 +73,8 @@ func (s16 *bootState16) revisions() (s, tryS snap.PlaceInfo, status string, err 
 			if v == "" {
 				return nil, nil, "", fmt.Errorf("cannot get name and revision of %s (%s): boot variable unset", s16.errName, vName)
 			}
-			snap, err := snap.ParsePlaceInfoFromSnapFileName(v)
-			if err != nil {
-				return nil, nil, "", fmt.Errorf("cannot get name and revision of %s (%s): %v", s16.errName, vName, err)
-			}
+			snap := mylog.Check2(snap.ParsePlaceInfoFromSnapFileName(v))
+
 			snaps[vName] = snap
 		}
 	}
@@ -103,14 +96,10 @@ func newBootStateUpdate16(u bootStateUpdate, names ...string) (*bootStateUpdate1
 		}
 		return u16, nil
 	}
-	bl, err := bootloader.Find("", nil)
-	if err != nil {
-		return nil, err
-	}
-	m, err := bl.GetBootVars(names...)
-	if err != nil {
-		return nil, err
-	}
+	bl := mylog.Check2(bootloader.Find("", nil))
+
+	m := mylog.Check2(bl.GetBootVars(names...))
+
 	return &bootStateUpdate16{bl: bl, env: m, toCommit: make(map[string]string)}, nil
 }
 
@@ -129,10 +118,7 @@ func (u16 *bootStateUpdate16) commit() error {
 }
 
 func (s16 *bootState16) markSuccessful(update bootStateUpdate) (bootStateUpdate, error) {
-	u16, err := newBootStateUpdate16(update, "snap_mode", "snap_try_core", "snap_try_kernel")
-	if err != nil {
-		return nil, err
-	}
+	u16 := mylog.Check2(newBootStateUpdate16(update, "snap_mode", "snap_try_core", "snap_try_kernel"))
 
 	env := u16.env
 	toCommit := u16.toCommit
@@ -163,10 +149,7 @@ func (s16 *bootState16) setNext(s snap.PlaceInfo, bootCtx NextBootContext) (rbi 
 	nextBootVar := fmt.Sprintf("snap_try_%s", s16.varSuffix)
 	goodBootVar := fmt.Sprintf("snap_%s", s16.varSuffix)
 
-	u16, err := newBootStateUpdate16(nil, "snap_mode", goodBootVar)
-	if err != nil {
-		return RebootInfo{RebootRequired: false}, nil, err
-	}
+	u16 := mylog.Check2(newBootStateUpdate16(nil, "snap_mode", goodBootVar))
 
 	env := u16.env
 	toCommit := u16.toCommit

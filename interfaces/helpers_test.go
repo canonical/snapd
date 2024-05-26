@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
@@ -65,12 +66,12 @@ func (s *HelpersSuite) SetUpTest(c *C) {
 	snap1Info := snaptest.MockSnap(c, snapYaml1, &snap.SideInfo{Revision: snap.R(1)})
 	snap2Info := snaptest.MockSnap(c, snapYaml2, &snap.SideInfo{Revision: snap.R(1)})
 
-	snap1AppSet, err := interfaces.NewSnapAppSet(snap1Info, nil)
-	c.Assert(err, IsNil)
+	snap1AppSet := mylog.Check2(interfaces.NewSnapAppSet(snap1Info, nil))
+
 	s.snap1 = snap1AppSet
 
-	snap2AppSet, err := interfaces.NewSnapAppSet(snap2Info, nil)
-	c.Assert(err, IsNil)
+	snap2AppSet := mylog.Check2(interfaces.NewSnapAppSet(snap2Info, nil))
+
 	s.snap2 = snap2AppSet
 }
 
@@ -88,7 +89,8 @@ func (s *HelpersSuite) TestSetupManyRunsSetupManyIfImplemented(c *C) {
 	setupManyCalls := 0
 
 	backend := &ifacetest.TestSecurityBackendSetupMany{
-		TestSecurityBackend: ifacetest.TestSecurityBackend{BackendName: "fake",
+		TestSecurityBackend: ifacetest.TestSecurityBackend{
+			BackendName: "fake",
 			SetupCallback: func(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
 				setupCalls++
 				return nil

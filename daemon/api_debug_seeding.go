@@ -23,6 +23,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -66,19 +67,19 @@ type seedingInfo struct {
 
 func getSeedingInfo(st *state.State) Response {
 	var seeded, preseeded bool
-	err := st.Get("seeded", &seeded)
+	mylog.Check(st.Get("seeded", &seeded))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return InternalError(err.Error())
 	}
-	if err = st.Get("preseeded", &preseeded); err != nil && !errors.Is(err, state.ErrNoState) {
+	if mylog.Check(st.Get("preseeded", &preseeded)); err != nil && !errors.Is(err, state.ErrNoState) {
 		return InternalError(err.Error())
 	}
 
 	var preseedSysKey, seedRestartSysKey interface{}
-	if err := st.Get("preseed-system-key", &preseedSysKey); err != nil && !errors.Is(err, state.ErrNoState) {
+	if mylog.Check(st.Get("preseed-system-key", &preseedSysKey)); err != nil && !errors.Is(err, state.ErrNoState) {
 		return InternalError(err.Error())
 	}
-	if err := st.Get("seed-restart-system-key", &seedRestartSysKey); err != nil && !errors.Is(err, state.ErrNoState) {
+	if mylog.Check(st.Get("seed-restart-system-key", &seedRestartSysKey)); err != nil && !errors.Is(err, state.ErrNoState) {
 		return InternalError(err.Error())
 	}
 
@@ -89,12 +90,8 @@ func getSeedingInfo(st *state.State) Response {
 			if chg.Kind() != "seed" && !chg.IsReady() {
 				continue
 			}
-			if err := chg.Err(); err != nil {
-				if seedErrorChangeTime.IsZero() || chg.SpawnTime().Before(seedErrorChangeTime) {
-					seedError = chg.Err().Error()
-					seedErrorChangeTime = chg.SpawnTime()
-				}
-			}
+			mylog.Check(chg.Err())
+
 		}
 	}
 
@@ -117,7 +114,7 @@ func getSeedingInfo(st *state.State) Response {
 		{"seed-time", &data.SeedTime},
 	} {
 		var tm time.Time
-		if err := st.Get(t.name, &tm); err != nil && !errors.Is(err, state.ErrNoState) {
+		if mylog.Check(st.Get(t.name, &tm)); err != nil && !errors.Is(err, state.ErrNoState) {
 			return InternalError(err.Error())
 		}
 		if !tm.IsZero() {

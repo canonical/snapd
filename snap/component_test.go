@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
@@ -59,11 +60,11 @@ description: long description
 	compName := "mysnap+test-info"
 	testComp := snaptest.MakeTestComponentWithFiles(c, compName+".comp", componentYaml, nil)
 
-	compf, err := snapfile.Open(testComp)
-	c.Assert(err, IsNil)
+	compf := mylog.Check2(snapfile.Open(testComp))
 
-	ci, err := snap.ReadComponentInfoFromContainer(compf, nil)
-	c.Assert(err, IsNil)
+
+	ci := mylog.Check2(snap.ReadComponentInfoFromContainer(compf, nil))
+
 	c.Assert(ci, DeepEquals, snap.NewComponentInfo(
 		naming.NewComponentRef("mysnap", "test-info"),
 		"test",
@@ -82,11 +83,11 @@ version: 1.0.2
 	compName := "mysnap+test-info"
 	testComp := snaptest.MakeTestComponentWithFiles(c, compName+".comp", componentYaml, nil)
 
-	compf, err := snapfile.Open(testComp)
-	c.Assert(err, IsNil)
+	compf := mylog.Check2(snapfile.Open(testComp))
 
-	ci, err := snap.ReadComponentInfoFromContainer(compf, nil)
-	c.Assert(err, IsNil)
+
+	ci := mylog.Check2(snap.ReadComponentInfoFromContainer(compf, nil))
+
 	c.Assert(ci, DeepEquals, snap.NewComponentInfo(
 		naming.NewComponentRef("mysnap", "test-info"),
 		"test", "1.0.2", "", "",
@@ -103,10 +104,10 @@ description: long description
 `
 	testComp := snaptest.MakeTestComponentWithFiles(c, "mysnap-test-info.comp", componentYaml, nil)
 
-	compf, err := snapfile.Open(testComp)
-	c.Assert(err, IsNil)
+	compf := mylog.Check2(snapfile.Open(testComp))
 
-	ci, err := snap.ReadComponentInfoFromContainer(compf, nil)
+
+	ci := mylog.Check2(snap.ReadComponentInfoFromContainer(compf, nil))
 	c.Assert(err.Error(), Equals, `cannot parse component.yaml: incorrect component name "mysnap-test-info"`)
 	c.Assert(ci, IsNil)
 }
@@ -119,10 +120,10 @@ foo: bar
 `
 	testComp := snaptest.MakeTestComponentWithFiles(c, "mysnap+extra.comp", componentYaml, nil)
 
-	compf, err := snapfile.Open(testComp)
-	c.Assert(err, IsNil)
+	compf := mylog.Check2(snapfile.Open(testComp))
 
-	ci, err := snap.ReadComponentInfoFromContainer(compf, nil)
+
+	ci := mylog.Check2(snap.ReadComponentInfoFromContainer(compf, nil))
 	c.Assert(err, ErrorMatches, `.*\n.*: field foo not found in type snap.ComponentInfo`)
 	c.Assert(ci, IsNil)
 }
@@ -144,10 +145,10 @@ version: 1.0
 		componentYaml := fmt.Sprintf(componentYamlTmpl, tc.name)
 		testComp := snaptest.MakeTestComponentWithFiles(c, "mysnap+extra.comp", componentYaml, nil)
 
-		compf, err := snapfile.Open(testComp)
-		c.Assert(err, IsNil)
+		compf := mylog.Check2(snapfile.Open(testComp))
 
-		ci, err := snap.ReadComponentInfoFromContainer(compf, nil)
+
+		ci := mylog.Check2(snap.ReadComponentInfoFromContainer(compf, nil))
 		c.Assert(err, ErrorMatches, tc.error)
 		c.Assert(ci, IsNil)
 	}
@@ -159,10 +160,10 @@ version: 1.0
 `
 	testComp := snaptest.MakeTestComponentWithFiles(c, "mysnap+extra.comp", componentYaml, nil)
 
-	compf, err := snapfile.Open(testComp)
-	c.Assert(err, IsNil)
+	compf := mylog.Check2(snapfile.Open(testComp))
 
-	ci, err := snap.ReadComponentInfoFromContainer(compf, nil)
+
+	ci := mylog.Check2(snap.ReadComponentInfoFromContainer(compf, nil))
 	c.Assert(err.Error(), Equals, `component type cannot be empty`)
 	c.Assert(ci, IsNil)
 }
@@ -174,10 +175,10 @@ version: 1.0
 `
 	testComp := snaptest.MakeTestComponentWithFiles(c, "mysnap+extra.comp", componentYaml, nil)
 
-	compf, err := snapfile.Open(testComp)
-	c.Assert(err, IsNil)
+	compf := mylog.Check2(snapfile.Open(testComp))
 
-	ci, err := snap.ReadComponentInfoFromContainer(compf, nil)
+
+	ci := mylog.Check2(snap.ReadComponentInfoFromContainer(compf, nil))
 	c.Assert(err.Error(), Equals, `cannot parse component.yaml: unknown component type "unknowntype"`)
 	c.Assert(ci, IsNil)
 }
@@ -194,18 +195,20 @@ version: %s
 		{version: "1.0a", error: ""},
 		{version: "1.2.3.4", error: ""},
 		{version: "1.2_", error: ".*must end with an ASCII alphanumeric.*"},
-		{version: "0123456789012345678901234567890123456789",
-			error: ".*cannot be longer than 32 characters.*"},
+		{
+			version: "0123456789012345678901234567890123456789",
+			error:   ".*cannot be longer than 32 characters.*",
+		},
 		// version is optional
 		{version: "", error: ""},
 	} {
 		componentYaml := fmt.Sprintf(componentYamlTmpl, tc.version)
 		testComp := snaptest.MakeTestComponentWithFiles(c, "snap+comp.comp", componentYaml, nil)
 
-		compf, err := snapfile.Open(testComp)
-		c.Assert(err, IsNil)
+		compf := mylog.Check2(snapfile.Open(testComp))
 
-		ci, err := snap.ReadComponentInfoFromContainer(compf, nil)
+
+		ci := mylog.Check2(snap.ReadComponentInfoFromContainer(compf, nil))
 		if tc.error != "" {
 			c.Check(err, ErrorMatches, tc.error)
 			c.Check(ci, IsNil)
@@ -231,10 +234,10 @@ version: 1.0
 		componentYaml := fmt.Sprintf(componentYamlTmpl, tc.name)
 		testComp := snaptest.MakeTestComponentWithFiles(c, "snap+comp.comp", componentYaml, nil)
 
-		compf, err := snapfile.Open(testComp)
-		c.Assert(err, IsNil)
+		compf := mylog.Check2(snapfile.Open(testComp))
 
-		ci, err := snap.ReadComponentInfoFromContainer(compf, nil)
+
+		ci := mylog.Check2(snap.ReadComponentInfoFromContainer(compf, nil))
 		c.Check(err, ErrorMatches, tc.error)
 		c.Assert(ci, IsNil)
 	}
@@ -251,10 +254,10 @@ description: 👹👺👻👽👾🤖
 	componentYaml := fmt.Sprintf(componentYamlTmpl, strings.Repeat("👾🤖", 65))
 	testComp := snaptest.MakeTestComponentWithFiles(c, "snap+comp.comp", componentYaml, nil)
 
-	compf, err := snapfile.Open(testComp)
-	c.Assert(err, IsNil)
+	compf := mylog.Check2(snapfile.Open(testComp))
 
-	ci, err := snap.ReadComponentInfoFromContainer(compf, nil)
+
+	ci := mylog.Check2(snap.ReadComponentInfoFromContainer(compf, nil))
 	c.Assert(err, ErrorMatches, "summary can have up to 128 codepoints, got 130")
 	c.Assert(ci, IsNil)
 }
@@ -269,10 +272,10 @@ description: %s
 	componentYaml := fmt.Sprintf(componentYamlTmpl, strings.Repeat("👾🤖", 2049))
 	testComp := snaptest.MakeTestComponentWithFiles(c, "snap+comp.comp", componentYaml, nil)
 
-	compf, err := snapfile.Open(testComp)
-	c.Assert(err, IsNil)
+	compf := mylog.Check2(snapfile.Open(testComp))
 
-	ci, err := snap.ReadComponentInfoFromContainer(compf, nil)
+
+	ci := mylog.Check2(snap.ReadComponentInfoFromContainer(compf, nil))
 	c.Assert(err, ErrorMatches, "description can have up to 4096 codepoints, got 4098")
 	c.Assert(ci, IsNil)
 }
@@ -336,8 +339,8 @@ description: long description
 		{"meta/hooks/pre-refresh", "echo 'implicit hook'"},
 	})
 
-	compf, err := snapfile.Open(testComp)
-	c.Assert(err, IsNil)
+	compf := mylog.Check2(snapfile.Open(testComp))
+
 
 	const snapYaml = `
 name: snap
@@ -353,11 +356,11 @@ plugs:
   explicit-bad:
 `
 
-	snapInfo, err := snap.InfoFromSnapYaml([]byte(snapYaml))
-	c.Assert(err, IsNil)
+	snapInfo := mylog.Check2(snap.InfoFromSnapYaml([]byte(snapYaml)))
 
-	ci, err := snap.ReadComponentInfoFromContainer(compf, snapInfo)
-	c.Assert(err, IsNil)
+
+	ci := mylog.Check2(snap.ReadComponentInfoFromContainer(compf, snapInfo))
+
 
 	c.Check(ci.Component.ComponentName, Equals, "component")
 	c.Check(ci.Component.SnapName, Equals, "snap")
@@ -407,8 +410,8 @@ description: long description
 	const compName = "snap+component"
 	testComp := snaptest.MakeTestComponentWithFiles(c, compName+".comp", componentYaml, nil)
 
-	compf, err := snapfile.Open(testComp)
-	c.Assert(err, IsNil)
+	compf := mylog.Check2(snapfile.Open(testComp))
+
 
 	const snapYaml = `
 name: snap
@@ -417,10 +420,10 @@ components:
     type: test
 `
 
-	snapInfo, err := snap.InfoFromSnapYaml([]byte(snapYaml))
-	c.Assert(err, IsNil)
+	snapInfo := mylog.Check2(snap.InfoFromSnapYaml([]byte(snapYaml)))
 
-	_, err = snap.ReadComponentInfoFromContainer(compf, snapInfo)
+
+	_ = mylog.Check2(snap.ReadComponentInfoFromContainer(compf, snapInfo))
 	c.Assert(err, ErrorMatches, `"component" is not a component for snap "snap"`)
 }
 
@@ -434,8 +437,8 @@ description: long description
 	const compName = "snap+component"
 	testComp := snaptest.MakeTestComponentWithFiles(c, compName+".comp", componentYaml, nil)
 
-	compf, err := snapfile.Open(testComp)
-	c.Assert(err, IsNil)
+	compf := mylog.Check2(snapfile.Open(testComp))
+
 
 	const snapYaml = `
 name: other-snap
@@ -444,10 +447,10 @@ components:
     type: test
 `
 
-	snapInfo, err := snap.InfoFromSnapYaml([]byte(snapYaml))
-	c.Assert(err, IsNil)
+	snapInfo := mylog.Check2(snap.InfoFromSnapYaml([]byte(snapYaml)))
 
-	_, err = snap.ReadComponentInfoFromContainer(compf, snapInfo)
+
+	_ = mylog.Check2(snap.ReadComponentInfoFromContainer(compf, snapInfo))
 	c.Assert(err, ErrorMatches, `component "snap\+component" is not a component for snap "other-snap"`)
 }
 
@@ -461,8 +464,8 @@ description: long description
 	const compName = "snap+component"
 	testComp := snaptest.MakeTestComponentWithFiles(c, compName+".comp", componentYaml, nil)
 
-	compf, err := snapfile.Open(testComp)
-	c.Assert(err, IsNil)
+	compf := mylog.Check2(snapfile.Open(testComp))
+
 
 	const snapYaml = `
 name: snap
@@ -471,10 +474,10 @@ components:
     type: kernel-modules
 `
 
-	snapInfo, err := snap.InfoFromSnapYaml([]byte(snapYaml))
-	c.Assert(err, IsNil)
+	snapInfo := mylog.Check2(snap.InfoFromSnapYaml([]byte(snapYaml)))
 
-	_, err = snap.ReadComponentInfoFromContainer(compf, snapInfo)
+
+	_ = mylog.Check2(snap.ReadComponentInfoFromContainer(compf, snapInfo))
 	c.Assert(err, ErrorMatches, `inconsistent component type \("kernel-modules" in snap, "test" in component\)`)
 }
 

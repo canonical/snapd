@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
@@ -58,8 +59,8 @@ func (s *kmodSuite) SetUpTest(c *C) {
 	task := s.state.NewTask("test-task", "my test task")
 	setup := &hookstate.HookSetup{Snap: "snap1", Revision: snap.R(42), Hook: "kmod"}
 
-	ctx, err := hookstate.NewContext(task, s.state, setup, s.mockHandler, "")
-	c.Assert(err, IsNil)
+	ctx := mylog.Check2(hookstate.NewContext(task, s.state, setup, s.mockHandler, ""))
+
 	s.mockContext = ctx
 
 	s.regularConnState = map[string]interface{}{
@@ -91,9 +92,9 @@ func (s *kmodSuite) injectSnapWithProperPlug(c *C) {
 }
 
 func (s *kmodSuite) TestMissingContext(c *C) {
-	_, _, err := ctlcmd.Run(nil, []string{"kmod", "insert", "module1"}, 0)
+	_, _ := mylog.Check3(ctlcmd.Run(nil, []string{"kmod", "insert", "module1"}, 0))
 	c.Check(err, ErrorMatches, `cannot invoke snapctl operation commands \(here "kmod"\) from outside of a snap`)
-	_, _, err = ctlcmd.Run(nil, []string{"kmod", "remove", "module1"}, 0)
+	_, _ = mylog.Check3(ctlcmd.Run(nil, []string{"kmod", "remove", "module1"}, 0))
 	c.Check(err, ErrorMatches, `cannot invoke snapctl operation commands \(here "kmod"\) from outside of a snap`)
 }
 
@@ -137,10 +138,9 @@ func (s *kmodSuite) TestFindConnectionBadConnection(c *C) {
 	task := state.NewTask("test-task", "my test task")
 	state.Set("conns", "I wish I was JSON")
 	state.Unlock()
-	ctx, err := hookstate.NewContext(task, state, setup, s.mockHandler, "")
-	c.Assert(err, IsNil)
+	ctx := mylog.Check2(hookstate.NewContext(task, state, setup, s.mockHandler, ""))
 
-	err = ctlcmd.KmodCheckConnection(ctx, "module1", []string{"one", "two"})
+	mylog.Check(ctlcmd.KmodCheckConnection(ctx, "module1", []string{"one", "two"}))
 	c.Assert(err, ErrorMatches, `.*internal error: cannot get connections: .*`)
 }
 
@@ -175,15 +175,13 @@ func (s *kmodSuite) TestFindConnectionMissingProperPlug(c *C) {
 
 	s.state.Set("conns", connections)
 	s.state.Unlock()
-
-	err := ctlcmd.KmodCheckConnection(s.mockContext, "module3", []string{"opt1=v1"})
+	mylog.Check(ctlcmd.KmodCheckConnection(s.mockContext, "module3", []string{"opt1=v1"}))
 	c.Check(err, ErrorMatches, "required interface not connected")
 }
 
 func (s *kmodSuite) TestFindConnectionHappy(c *C) {
 	s.injectSnapWithProperPlug(c)
-
-	err := ctlcmd.KmodCheckConnection(s.mockContext, "module2", []string{"opt1=v1"})
+	mylog.Check(ctlcmd.KmodCheckConnection(s.mockContext, "module2", []string{"opt1=v1"}))
 	c.Check(err, IsNil)
 }
 
@@ -225,7 +223,7 @@ func (s *kmodSuite) TestInsertFailure(c *C) {
 	} {
 		ensureConnectionError = td.ensureConnectionError
 		loadModuleError = td.loadModuleError
-		_, _, err := ctlcmd.Run(s.mockContext, []string{"kmod", "insert", "moderr", "o1=v1", "o2=v2"}, 0)
+		_, _ := mylog.Check3(ctlcmd.Run(s.mockContext, []string{"kmod", "insert", "moderr", "o1=v1", "o2=v2"}, 0))
 		c.Check(err, ErrorMatches, td.expectedError)
 	}
 }
@@ -242,8 +240,8 @@ func (s *kmodSuite) TestInsertHappy(c *C) {
 	})
 	defer restore()
 
-	_, _, err := ctlcmd.Run(s.mockContext,
-		[]string{"kmod", "insert", "module2", "opt1=v1", "opt2=v2"}, 0)
+	_, _ := mylog.Check3(ctlcmd.Run(s.mockContext,
+		[]string{"kmod", "insert", "module2", "opt1=v1", "opt2=v2"}, 0))
 	c.Check(err, IsNil)
 	c.Check(loadModuleCalls, Equals, 1)
 }
@@ -285,7 +283,7 @@ func (s *kmodSuite) TestRemoveFailure(c *C) {
 	} {
 		ensureConnectionError = td.ensureConnectionError
 		loadModuleError = td.loadModuleError
-		_, _, err := ctlcmd.Run(s.mockContext, []string{"kmod", "remove", "moderr"}, 0)
+		_, _ := mylog.Check3(ctlcmd.Run(s.mockContext, []string{"kmod", "remove", "moderr"}, 0))
 		c.Check(err, ErrorMatches, td.expectedError)
 	}
 }
@@ -301,8 +299,8 @@ func (s *kmodSuite) TestRemoveHappy(c *C) {
 	})
 	defer restore()
 
-	_, _, err := ctlcmd.Run(s.mockContext,
-		[]string{"kmod", "remove", "module2"}, 0)
+	_, _ := mylog.Check3(ctlcmd.Run(s.mockContext,
+		[]string{"kmod", "remove", "module2"}, 0))
 	c.Check(err, IsNil)
 	c.Check(unloadModuleCalls, Equals, 1)
 }
@@ -311,6 +309,6 @@ func (s *kmodSuite) TestkmodCommandExecute(c *C) {
 	// This is a useless test just to make test coverage greener. The Execute()
 	// method exercised here is never called in real life.
 	cmd := &ctlcmd.KmodCommand{}
-	err := cmd.Execute([]string{})
+	mylog.Check(cmd.Execute([]string{}))
 	c.Check(err, IsNil)
 }

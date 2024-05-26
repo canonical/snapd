@@ -28,6 +28,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/snap"
@@ -271,10 +272,7 @@ WantedBy={{.TimersTarget}}
 	var templateOut bytes.Buffer
 	t := template.Must(template.New("timer-wrapper").Parse(timerTemplate))
 
-	timerSchedule, err := timeutil.ParseSchedule(app.Timer.Timer)
-	if err != nil {
-		return nil, err
-	}
+	timerSchedule := mylog.Check2(timeutil.ParseSchedule(app.Timer.Timer))
 
 	schedules := generateOnCalendarSchedules(timerSchedule)
 
@@ -300,11 +298,8 @@ WantedBy={{.TimersTarget}}
 	default:
 		panic("unknown snap.DaemonScope")
 	}
-
-	if err := t.Execute(&templateOut, wrapperData); err != nil {
-		// this can never happen, except we forget a variable
-		logger.Panicf("Unable to execute template: %v", err)
-	}
+	mylog.Check(t.Execute(&templateOut, wrapperData))
+	// this can never happen, except we forget a variable
 
 	return templateOut.Bytes(), nil
 }

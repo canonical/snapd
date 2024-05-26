@@ -26,12 +26,11 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 )
 
-var (
-	_ = Suite(&systemUserSuite{})
-)
+var _ = Suite(&systemUserSuite{})
 
 type systemUserSuite struct {
 	until            time.Time
@@ -83,8 +82,8 @@ func (s *systemUserSuite) SetUpTest(c *C) {
 }
 
 func (s *systemUserSuite) TestDecodeOK(c *C) {
-	a, err := asserts.Decode([]byte(s.systemUserStr))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(s.systemUserStr)))
+
 	c.Check(a.Type(), Equals, asserts.SystemUserType)
 	systemUser := a.(*asserts.SystemUser)
 	c.Check(systemUser.BrandID(), Equals, "canonical")
@@ -107,26 +106,25 @@ func (s *systemUserSuite) TestDecodePasswd(c *C) {
 	}
 	for _, test := range validTests {
 		valid := strings.Replace(s.systemUserStr, test.original, test.valid, 1)
-		_, err := asserts.Decode([]byte(valid))
+		_ := mylog.Check2(asserts.Decode([]byte(valid)))
 		c.Check(err, IsNil)
 	}
 }
 
 func (s *systemUserSuite) TestDecodeForcePasswdChange(c *C) {
-
 	old := "password: $6$salt$hash\n"
 	new := "password: $6$salt$hash\nforce-password-change: true\n"
 
 	valid := strings.Replace(s.systemUserStr, old, new, 1)
-	a, err := asserts.Decode([]byte(valid))
+	a := mylog.Check2(asserts.Decode([]byte(valid)))
 	c.Check(err, IsNil)
 	systemUser := a.(*asserts.SystemUser)
 	c.Check(systemUser.ForcePasswordChange(), Equals, true)
 }
 
 func (s *systemUserSuite) TestValidAt(c *C) {
-	a, err := asserts.Decode([]byte(s.systemUserStr))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(s.systemUserStr)))
+
 	su := a.(*asserts.SystemUser)
 
 	c.Check(su.ValidAt(su.Since()), Equals, true)
@@ -141,8 +139,8 @@ func (s *systemUserSuite) TestValidAt(c *C) {
 func (s *systemUserSuite) TestValidAtRevoked(c *C) {
 	// With since == until, i.e. system-user has been revoked.
 	revoked := strings.Replace(s.systemUserStr, s.sinceLine, fmt.Sprintf("since: %s\n", s.until.Format(time.RFC3339)), 1)
-	a, err := asserts.Decode([]byte(revoked))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(revoked)))
+
 	su := a.(*asserts.SystemUser)
 
 	c.Check(su.ValidAt(su.Since()), Equals, false)
@@ -201,7 +199,7 @@ func (s *systemUserSuite) TestDecodeInvalid(c *C) {
 
 	for _, test := range invalidTests {
 		invalid := strings.Replace(s.systemUserStr, test.original, test.invalid, 1)
-		_, err := asserts.Decode([]byte(invalid))
+		_ := mylog.Check2(asserts.Decode([]byte(invalid)))
 		c.Check(err, ErrorMatches, systemUserErrPrefix+test.expectedErr)
 	}
 }
@@ -209,13 +207,13 @@ func (s *systemUserSuite) TestDecodeInvalid(c *C) {
 func (s *systemUserSuite) TestUntilNoModels(c *C) {
 	// no models is good for <1y
 	su := strings.Replace(s.systemUserStr, s.modelsLine, "", -1)
-	_, err := asserts.Decode([]byte(su))
+	_ := mylog.Check2(asserts.Decode([]byte(su)))
 	c.Check(err, IsNil)
 
 	// but invalid for more than one year
 	oneYearPlusOne := time.Now().AddDate(1, 0, 1).Truncate(time.Second)
 	su = strings.Replace(su, s.untilLine, fmt.Sprintf("until: %s\n", oneYearPlusOne.Format(time.RFC3339)), -1)
-	_, err = asserts.Decode([]byte(su))
+	_ = mylog.Check2(asserts.Decode([]byte(su)))
 	c.Check(err, ErrorMatches, systemUserErrPrefix+"'until' time cannot be more than 365 days in the future when no models are specified")
 }
 
@@ -223,7 +221,7 @@ func (s *systemUserSuite) TestUntilWithModels(c *C) {
 	// with models it can be valid forever
 	oneYearPlusOne := time.Now().AddDate(10, 0, 1).Truncate(time.Second)
 	su := strings.Replace(s.systemUserStr, s.untilLine, fmt.Sprintf("until: %s\n", oneYearPlusOne.Format(time.RFC3339)), -1)
-	_, err := asserts.Decode([]byte(su))
+	_ := mylog.Check2(asserts.Decode([]byte(su)))
 	c.Check(err, IsNil)
 }
 
@@ -241,7 +239,7 @@ func (s *systemUserSuite) TestDecodeInvalidFormat1Serials(c *C) {
 	}
 	for _, test := range invalidTests {
 		invalid := strings.Replace(s.systemUserStr, test.original, test.invalid, 1)
-		_, err := asserts.Decode([]byte(invalid))
+		_ := mylog.Check2(asserts.Decode([]byte(invalid)))
 		c.Check(err, ErrorMatches, systemUserErrPrefix+test.expectedErr)
 	}
 }
@@ -250,15 +248,14 @@ func (s *systemUserSuite) TestDecodeOKFormat1Serials(c *C) {
 	s.systemUserStr = strings.Replace(s.systemUserStr, s.formatLine, "format: 1\n", 1)
 
 	s.systemUserStr = strings.Replace(s.systemUserStr, s.modelsLine, s.modelsLine+serialsLine, 1)
-	a, err := asserts.Decode([]byte(s.systemUserStr))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(s.systemUserStr)))
+
 	c.Check(a.Type(), Equals, asserts.SystemUserType)
 	systemUser := a.(*asserts.SystemUser)
 	// just for double checking, already covered by "format: 0" tests
 	c.Check(systemUser.BrandID(), Equals, "canonical")
 	// new in "format: 1"
 	c.Check(systemUser.Serials(), DeepEquals, []string{"7c7f435d-ed28-4281-bd77-e271e0846904"})
-
 }
 
 func (s *systemUserSuite) TestDecodeInvalidFormat2UserPresence(c *C) {
@@ -270,7 +267,7 @@ func (s *systemUserSuite) TestDecodeInvalidFormat2UserPresence(c *C) {
 	}
 	for _, test := range invalidTests {
 		invalid := strings.Replace(s.systemUserStr, test.original, test.invalid, 1)
-		_, err := asserts.Decode([]byte(invalid))
+		_ := mylog.Check2(asserts.Decode([]byte(invalid)))
 		c.Check(err, ErrorMatches, systemUserErrPrefix+test.expectedErr)
 	}
 }
@@ -279,8 +276,8 @@ func (s *systemUserSuite) TestDecodeOKFormat2UserPresence(c *C) {
 	s.systemUserStr = strings.Replace(s.systemUserStr, s.formatLine, "format: 2\n", 1)
 
 	s.systemUserStr = strings.Replace(s.systemUserStr, s.userPresenceLine, "user-presence: until-expiration\n", 1)
-	a, err := asserts.Decode([]byte(s.systemUserStr))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(s.systemUserStr)))
+
 	c.Check(a.Type(), Equals, asserts.SystemUserType)
 	systemUser := a.(*asserts.SystemUser)
 	// new in "format: 2"
@@ -288,21 +285,21 @@ func (s *systemUserSuite) TestDecodeOKFormat2UserPresence(c *C) {
 }
 
 func (s *systemUserSuite) TestSuggestedFormat(c *C) {
-	fmtnum, err := asserts.SuggestFormat(asserts.SystemUserType, nil, nil)
-	c.Assert(err, IsNil)
+	fmtnum := mylog.Check2(asserts.SuggestFormat(asserts.SystemUserType, nil, nil))
+
 	c.Check(fmtnum, Equals, 0)
 
 	headers := map[string]interface{}{
 		"serials": []interface{}{"serialserial"},
 	}
-	fmtnum, err = asserts.SuggestFormat(asserts.SystemUserType, headers, nil)
-	c.Assert(err, IsNil)
+	fmtnum = mylog.Check2(asserts.SuggestFormat(asserts.SystemUserType, headers, nil))
+
 	c.Check(fmtnum, Equals, 1)
 
 	headers = map[string]interface{}{
 		"user-presence": "until-expiration",
 	}
-	fmtnum, err = asserts.SuggestFormat(asserts.SystemUserType, headers, nil)
-	c.Assert(err, IsNil)
+	fmtnum = mylog.Check2(asserts.SuggestFormat(asserts.SystemUserType, headers, nil))
+
 	c.Check(fmtnum, Equals, 2)
 }

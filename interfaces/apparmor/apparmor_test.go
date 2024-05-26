@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -57,7 +58,7 @@ func (s *appArmorSuite) TestValidateNoAppArmorRegexp(c *C) {
 		{`double"quotes`, `"double\\"quotes" contains a reserved apparmor char.*`},
 	} {
 		testLabel := Commentf("input: %s", testData.inputString)
-		err := apparmor.ValidateNoAppArmorRegexp(testData.inputString)
+		mylog.Check(apparmor.ValidateNoAppArmorRegexp(testData.inputString))
 		if testData.expectedError != "" {
 			c.Check(err, ErrorMatches, testData.expectedError, testLabel)
 		} else {

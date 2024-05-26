@@ -26,6 +26,7 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/snap/naming"
 )
 
@@ -59,10 +60,8 @@ func compileAttributeConstraints(constraints interface{}) (*AttributeConstraints
 			allowedOperations: []string{"SLOT", "PLUG"},
 		},
 	}
-	matcher, err := compileAttrMatcher(cc, constraints)
-	if err != nil {
-		return nil, err
-	}
+	matcher := mylog.Check2(compileAttrMatcher(cc, constraints))
+
 	return &AttributeConstraints{matcher: matcher}, nil
 }
 
@@ -129,7 +128,7 @@ func compileSideArityConstraint(context *subruleContext, which string, v interfa
 	if x == "*" {
 		return SideArityConstraint{N: -1}, nil
 	}
-	n, err := atoi(x, "%s in %s", which, context)
+	n := mylog.Check2(atoi(x, "%s in %s", which, context))
 	switch _, syntax := err.(intSyntaxError); {
 	case err == nil && n < 1:
 		fallthrough
@@ -186,10 +185,8 @@ type nameMatcher interface {
 	match(name string, special map[string]string) error
 }
 
-var (
-	// validates special name constraints like $INTERFACE
-	validSpecialNameConstraint = regexp.MustCompile(`^\$[A-Z][A-Z0-9_]*$`)
-)
+// validates special name constraints like $INTERFACE
+var validSpecialNameConstraint = regexp.MustCompile(`^\$[A-Z][A-Z0-9_]*$`)
 
 func compileNameMatcher(whichName string, v interface{}) (nameMatcher, error) {
 	s, ok := v.(string)
@@ -205,10 +202,8 @@ func compileNameMatcher(whichName string, v interface{}) (nameMatcher, error) {
 	if strings.IndexFunc(s, unicode.IsSpace) != -1 {
 		return nil, fmt.Errorf("%s constraint entry regexp contains unexpected spaces", whichName)
 	}
-	rx, err := regexp.Compile("^(" + s + ")$")
-	if err != nil {
-		return nil, fmt.Errorf("cannot compile %s constraint entry %q: %v", whichName, s, err)
-	}
+	rx := mylog.Check2(regexp.Compile("^(" + s + ")$"))
+
 	return regexpNameMatcher{rx}, nil
 }
 
@@ -248,10 +243,8 @@ func compileNameConstraints(whichName string, constraints interface{}) (*NameCon
 	}
 	matchers := make([]nameMatcher, 0, len(l))
 	for _, nm := range l {
-		matcher, err := compileNameMatcher(whichName, nm)
-		if err != nil {
-			return nil, err
-		}
+		matcher := mylog.Check2(compileNameMatcher(whichName, nm))
+
 		matchers = append(matchers, matcher)
 	}
 	return &NameConstraints{matchers: matchers}, nil
@@ -260,7 +253,7 @@ func compileNameConstraints(whichName string, constraints interface{}) (*NameCon
 // Check checks whether name doesn't match the constraints.
 func (nc *NameConstraints) Check(whichName, name string, special map[string]string) error {
 	for _, m := range nc.matchers {
-		if err := m.match(name, special); err == nil {
+		if mylog.Check(m.match(name, special)); err == nil {
 			return nil
 		}
 	}
@@ -323,10 +316,8 @@ func baseCompileConstraints(context *subruleContext, cDef constraintsDef, target
 	for _, field := range nameConstraints {
 		v := cMap[field]
 		if v != nil {
-			nc, err := compileNameConstraints(field, v)
-			if err != nil {
-				return err
-			}
+			nc := mylog.Check2(compileNameConstraints(field, v))
+
 			target.setNameConstraints(field, nc)
 		} else {
 			defaultUsed++
@@ -336,21 +327,15 @@ func baseCompileConstraints(context *subruleContext, cDef constraintsDef, target
 		cstrs := AlwaysMatchAttributes
 		v := cMap[field]
 		if v != nil {
-			var err error
-			cstrs, err = compileAttributeConstraints(cMap[field])
-			if err != nil {
-				return fmt.Errorf("cannot compile %s in %s: %v", field, context, err)
-			}
+			cstrs = mylog.Check2(compileAttributeConstraints(cMap[field]))
 		} else {
 			defaultUsed++
 		}
 		target.setAttributeConstraints(field, cstrs)
 	}
 	for _, field := range idConstraints {
-		lst, err := checkStringListInMap(cMap, field, fmt.Sprintf("%s in %s", field, context), validIDConstraints[field])
-		if err != nil {
-			return err
-		}
+		lst := mylog.Check2(checkStringListInMap(cMap, field, fmt.Sprintf("%s in %s", field, context), validIDConstraints[field]))
+
 		if lst == nil {
 			defaultUsed++
 		}
@@ -359,10 +344,8 @@ func baseCompileConstraints(context *subruleContext, cDef constraintsDef, target
 	for _, field := range sideArityConstraints {
 		v := cMap[field]
 		if v != nil {
-			c, err := compileSideArityConstraint(context, field, v)
-			if err != nil {
-				return err
-			}
+			c := mylog.Check2(compileSideArityConstraint(context, field, v))
+
 			h, ok := target.(sideArityConstraintsHolder)
 			if !ok {
 				return fmt.Errorf("internal error: side arity constraint compiled for unexpected subrule %T", target)
@@ -386,10 +369,8 @@ func baseCompileConstraints(context *subruleContext, cDef constraintsDef, target
 				c = &OnClassicConstraint{Classic: false}
 			}
 		case []interface{}:
-			lst, err := checkStringListInMap(cMap, "on-classic", fmt.Sprintf("on-classic in %s", context), validDistro)
-			if err != nil {
-				return err
-			}
+			lst := mylog.Check2(checkStringListInMap(cMap, "on-classic", fmt.Sprintf("on-classic in %s", context), validDistro))
+
 			c = &OnClassicConstraint{Classic: true, SystemIDs: lst}
 		}
 		if c == nil {
@@ -397,10 +378,8 @@ func baseCompileConstraints(context *subruleContext, cDef constraintsDef, target
 		}
 		target.setOnClassicConstraint(c)
 	}
-	dsc, err := compileDeviceScopeConstraint(cMap, context.String())
-	if err != nil {
-		return err
-	}
+	dsc := mylog.Check2(compileDeviceScopeConstraint(cMap, context.String()))
+
 	if dsc == nil {
 		defaultUsed++
 	} else {
@@ -468,10 +447,8 @@ func (c *subruleContext) autoConnection() bool {
 type subruleCompiler func(context *subruleContext, def constraintsDef) (constraintsHolder, error)
 
 func baseCompileRule(context string, rule interface{}, target rule, subrules []string, compilers map[string]subruleCompiler, defaultOutcome, invertedOutcome map[string]interface{}) error {
-	rMap, invert, err := checkMapOrShortcut(rule)
-	if err != nil {
-		return fmt.Errorf("%s must be a map or one of the shortcuts 'true' or 'false'", context)
-	}
+	rMap, invert := mylog.Check3(checkMapOrShortcut(rule))
+
 	if rMap == nil {
 		rMap = defaultOutcome // "true"
 		if invert {
@@ -508,7 +485,7 @@ func baseCompileRule(context string, rule interface{}, target rule, subrules []s
 			if alternatives {
 				subctxt.alt = i + 1
 			}
-			cMap, invert, err := checkMapOrShortcut(alt)
+			cMap, invert := mylog.Check3(checkMapOrShortcut(alt))
 			if err != nil || (cMap == nil && alternatives) {
 				efmt := "%s must be a map"
 				if !alternatives {
@@ -517,13 +494,11 @@ func baseCompileRule(context string, rule interface{}, target rule, subrules []s
 				return fmt.Errorf(efmt, subctxt)
 			}
 
-			cstrs, err := compiler(subctxt, constraintsDef{
+			cstrs := mylog.Check2(compiler(subctxt, constraintsDef{
 				cMap:   cMap,
 				invert: invert,
-			})
-			if err != nil {
-				return err
-			}
+			}))
+
 			alts[i] = cstrs
 		}
 		target.setConstraints(subrule, alts)
@@ -681,12 +656,11 @@ func (c *PlugInstallationConstraints) setDeviceScopeConstraint(deviceScope *Devi
 
 func compilePlugInstallationConstraints(context *subruleContext, cDef constraintsDef) (constraintsHolder, error) {
 	plugInstCstrs := &PlugInstallationConstraints{}
-	// plug-snap-id is supported here mainly for symmetry with the slot case
-	// see discussion there
-	err := baseCompileConstraints(context, cDef, plugInstCstrs, []string{"plug-names"}, []string{"plug-attributes"}, []string{"plug-snap-type", "plug-snap-id"})
-	if err != nil {
-		return nil, err
-	}
+	mylog.
+		// plug-snap-id is supported here mainly for symmetry with the slot case
+		// see discussion there
+		Check(baseCompileConstraints(context, cDef, plugInstCstrs, []string{"plug-names"}, []string{"plug-attributes"}, []string{"plug-snap-type", "plug-snap-id"}))
+
 	return plugInstCstrs, nil
 }
 
@@ -791,10 +765,8 @@ var (
 
 func compilePlugConnectionConstraints(context *subruleContext, cDef constraintsDef) (constraintsHolder, error) {
 	plugConnCstrs := &PlugConnectionConstraints{}
-	err := baseCompileConstraints(context, cDef, plugConnCstrs, nameConstraints, attributeConstraints, plugIDConstraints)
-	if err != nil {
-		return nil, err
-	}
+	mylog.Check(baseCompileConstraints(context, cDef, plugConnCstrs, nameConstraints, attributeConstraints, plugIDConstraints))
+
 	normalizeSideArityConstraints(context, plugConnCstrs)
 	return plugConnCstrs, nil
 }
@@ -835,10 +807,8 @@ func compilePlugRule(interfaceName string, rule interface{}) (*PlugRule, error) 
 	plugRule := &PlugRule{
 		Interface: interfaceName,
 	}
-	err := baseCompileRule(context, rule, plugRule, ruleSubrules, plugRuleCompilers, defaultOutcome, invertedOutcome)
-	if err != nil {
-		return nil, err
-	}
+	mylog.Check(baseCompileRule(context, rule, plugRule, ruleSubrules, plugRuleCompilers, defaultOutcome, invertedOutcome))
+
 	return plugRule, nil
 }
 
@@ -990,20 +960,19 @@ func (c *SlotInstallationConstraints) setDeviceScopeConstraint(deviceScope *Devi
 
 func compileSlotInstallationConstraints(context *subruleContext, cDef constraintsDef) (constraintsHolder, error) {
 	slotInstCstrs := &SlotInstallationConstraints{}
-	// slot-snap-id here is mostly useful to restrict a relaxed
-	// base-declaration slot-snap-type constraint because the latter is used
-	// also for --dangerous installations. So in rare complex situations
-	// slot-snap-type might constraint to core and app
-	// but the intention is really that only system snaps should have the
-	// slot without a snap-declaration rule, slot-snap-id then can
-	// be used to limit to the known system snap snap-ids.
-	// This means we want app-slots to be super-privileged but we have
-	// slots for the interface on the system snaps as well.
-	// An example of this is shared-memory.
-	err := baseCompileConstraints(context, cDef, slotInstCstrs, []string{"slot-names"}, []string{"slot-attributes"}, []string{"slot-snap-type", "slot-snap-id"})
-	if err != nil {
-		return nil, err
-	}
+	mylog.
+		// slot-snap-id here is mostly useful to restrict a relaxed
+		// base-declaration slot-snap-type constraint because the latter is used
+		// also for --dangerous installations. So in rare complex situations
+		// slot-snap-type might constraint to core and app
+		// but the intention is really that only system snaps should have the
+		// slot without a snap-declaration rule, slot-snap-id then can
+		// be used to limit to the known system snap snap-ids.
+		// This means we want app-slots to be super-privileged but we have
+		// slots for the interface on the system snaps as well.
+		// An example of this is shared-memory.
+		Check(baseCompileConstraints(context, cDef, slotInstCstrs, []string{"slot-names"}, []string{"slot-attributes"}, []string{"slot-snap-type", "slot-snap-id"}))
+
 	return slotInstCstrs, nil
 }
 
@@ -1084,9 +1053,7 @@ func (c *SlotConnectionConstraints) setIDConstraints(field string, cstrs []strin
 	}
 }
 
-var (
-	slotIDConstraints = []string{"slot-snap-type", "plug-snap-type", "plug-publisher-id", "plug-snap-id"}
-)
+var slotIDConstraints = []string{"slot-snap-type", "plug-snap-type", "plug-publisher-id", "plug-snap-id"}
 
 func (c *SlotConnectionConstraints) setSlotsPerPlug(a SideArityConstraint) {
 	c.SlotsPerPlug = a
@@ -1114,10 +1081,8 @@ func (c *SlotConnectionConstraints) setDeviceScopeConstraint(deviceScope *Device
 
 func compileSlotConnectionConstraints(context *subruleContext, cDef constraintsDef) (constraintsHolder, error) {
 	slotConnCstrs := &SlotConnectionConstraints{}
-	err := baseCompileConstraints(context, cDef, slotConnCstrs, nameConstraints, attributeConstraints, slotIDConstraints)
-	if err != nil {
-		return nil, err
-	}
+	mylog.Check(baseCompileConstraints(context, cDef, slotConnCstrs, nameConstraints, attributeConstraints, slotIDConstraints))
+
 	normalizeSideArityConstraints(context, slotConnCstrs)
 	return slotConnCstrs, nil
 }
@@ -1136,9 +1101,7 @@ func compileSlotRule(interfaceName string, rule interface{}) (*SlotRule, error) 
 	slotRule := &SlotRule{
 		Interface: interfaceName,
 	}
-	err := baseCompileRule(context, rule, slotRule, ruleSubrules, slotRuleCompilers, defaultOutcome, invertedOutcome)
-	if err != nil {
-		return nil, err
-	}
+	mylog.Check(baseCompileRule(context, rule, slotRule, ruleSubrules, slotRuleCompilers, defaultOutcome, invertedOutcome))
+
 	return slotRule, nil
 }

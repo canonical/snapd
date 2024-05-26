@@ -24,6 +24,7 @@ import (
 	"path"
 	"sort"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
@@ -168,9 +169,7 @@ func (spec *Specification) AddUserEnsureDirs(ensureDirSpecs []*interfaces.Ensure
 	})
 
 	for _, ensureDirSpec := range ensureDirSpecs {
-		if err := ensureDirSpec.Validate(); err != nil {
-			return fmt.Errorf("internal error: cannot use ensure-dir mount specification: %v", err)
-		}
+		mylog.Check(ensureDirSpec.Validate())
 	}
 
 	for _, ensureDirSpec := range ensureDirSpecs {

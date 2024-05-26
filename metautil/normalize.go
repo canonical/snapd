@@ -22,6 +22,8 @@ package metautil
 
 import (
 	"fmt"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // NormalizeValue validates values and returns a normalized version of it
@@ -43,10 +45,8 @@ func NormalizeValue(v interface{}) (interface{}, error) {
 	case []interface{}:
 		l := make([]interface{}, len(x))
 		for i, el := range x {
-			el, err := NormalizeValue(el)
-			if err != nil {
-				return nil, err
-			}
+			el := mylog.Check2(NormalizeValue(el))
+
 			l[i] = el
 		}
 		return l, nil
@@ -57,20 +57,16 @@ func NormalizeValue(v interface{}) (interface{}, error) {
 			if !ok {
 				return nil, fmt.Errorf("non-string key: %v", k)
 			}
-			item, err := NormalizeValue(item)
-			if err != nil {
-				return nil, err
-			}
+			item := mylog.Check2(NormalizeValue(item))
+
 			m[kStr] = item
 		}
 		return m, nil
 	case map[string]interface{}:
 		m := make(map[string]interface{}, len(x))
 		for k, item := range x {
-			item, err := NormalizeValue(item)
-			if err != nil {
-				return nil, err
-			}
+			item := mylog.Check2(NormalizeValue(item))
+
 			m[k] = item
 		}
 		return m, nil

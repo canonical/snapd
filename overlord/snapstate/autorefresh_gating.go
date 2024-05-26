@@ -28,6 +28,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -59,24 +60,19 @@ var timeNow = func() time.Time {
 
 func lastRefreshed(st *state.State, snapName string) (time.Time, error) {
 	var snapst SnapState
-	if err := Get(st, snapName, &snapst); err != nil {
-		return time.Time{}, fmt.Errorf("internal error, cannot get snap %q: %v", snapName, err)
-	}
+	mylog.Check(Get(st, snapName, &snapst))
+
 	// try to get last refresh time from snapstate, but it may not be present
 	// for snaps installed before the introduction of last-refresh attribute.
 	if snapst.LastRefreshTime != nil {
 		return *snapst.LastRefreshTime, nil
 	}
-	snapInfo, err := snapst.CurrentInfo()
-	if err != nil {
-		return time.Time{}, err
-	}
+	snapInfo := mylog.Check2(snapst.CurrentInfo())
+
 	// fall back to the modification time of .snap blob file as it's the best
 	// approximation of last refresh time.
-	fst, err := os.Stat(snapInfo.MountFile())
-	if err != nil {
-		return time.Time{}, err
-	}
+	fst := mylog.Check2(os.Stat(snapInfo.MountFile()))
+
 	return fst.ModTime(), nil
 }
 
@@ -103,7 +99,7 @@ type holdState struct {
 func refreshGating(st *state.State) (map[string]map[string]*holdState, error) {
 	// held snaps -> holding snap(s) -> first-held/hold-until time
 	var gating map[string]map[string]*holdState
-	err := st.Get("snaps-hold", &gating)
+	mylog.Check(st.Get("snaps-hold", &gating))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, fmt.Errorf("internal error: cannot get snaps-hold: %v", err)
 	}
@@ -163,10 +159,7 @@ func holdDurationLeft(now time.Time, lastRefresh, firstHeld time.Time, maxDurati
 // A hold level can be specified indicating which operations are affected by the
 // hold.
 func HoldRefreshesBySystem(st *state.State, level HoldLevel, holdTime string, holdSnaps []string) error {
-	snaps, err := All(st)
-	if err != nil {
-		return err
-	}
+	snaps := mylog.Check2(All(st))
 
 	for _, holdSnap := range holdSnaps {
 		if _, ok := snaps[holdSnap]; !ok {
@@ -177,15 +170,12 @@ func HoldRefreshesBySystem(st *state.State, level HoldLevel, holdTime string, ho
 	// zero value durations denote max allowed time in HoldRefresh
 	var holdDuration time.Duration
 	if holdTime != "forever" {
-		holdTime, err := time.Parse(time.RFC3339, holdTime)
-		if err != nil {
-			return err
-		}
+		holdTime := mylog.Check2(time.Parse(time.RFC3339, holdTime))
 
 		holdDuration = holdTime.Sub(timeNow())
 	}
 
-	_, err = HoldRefresh(st, level, "system", holdDuration, holdSnaps...)
+	_ = mylog.Check2(HoldRefresh(st, level, "system", holdDuration, holdSnaps...))
 	return err
 }
 
@@ -198,10 +188,8 @@ func HoldRefreshesBySystem(st *state.State, level HoldLevel, holdTime string, ho
 // A hold level can be specified indicating which operations are affected by the
 // hold.
 func HoldRefresh(st *state.State, level HoldLevel, gatingSnap string, holdDuration time.Duration, affectingSnaps ...string) (time.Duration, error) {
-	gating, err := refreshGating(st)
-	if err != nil {
-		return 0, err
-	}
+	gating := mylog.Check2(refreshGating(st))
+
 	herr := &HoldError{
 		SnapsInError: make(map[string]HoldDurationError),
 	}
@@ -230,10 +218,7 @@ func HoldRefresh(st *state.State, level HoldLevel, gatingSnap string, holdDurati
 			hold.HoldUntil = now.Add(holdDuration)
 			left = holdDuration
 		} else {
-			lastRefreshTime, err := lastRefreshed(st, heldSnap)
-			if err != nil {
-				return 0, err
-			}
+			lastRefreshTime := mylog.Check2(lastRefreshed(st, heldSnap))
 
 			mp := maxPostponement - maxPostponementBuffer
 			maxDur := maxAllowedPostponement(gatingSnap, heldSnap, mp)
@@ -310,10 +295,7 @@ func HoldRefresh(st *state.State, level HoldLevel, gatingSnap string, holdDurati
 // If no snaps are specified, all snaps held by gatingSnap are unblocked. This
 // should be called for --proceed on the gatingSnap.
 func ProceedWithRefresh(st *state.State, gatingSnap string, unholdSnaps []string) error {
-	gating, err := refreshGating(st)
-	if err != nil {
-		return err
-	}
+	gating := mylog.Check2(refreshGating(st))
 
 	var changed bool
 	for heldSnap, gatingSnaps := range gating {
@@ -340,10 +322,7 @@ func ProceedWithRefresh(st *state.State, gatingSnap string, unholdSnaps []string
 // pruneGating removes affecting snaps that are not in candidates (meaning
 // there is no update for them anymore).
 func pruneGating(st *state.State, candidates map[string]*refreshCandidate) error {
-	gating, err := refreshGating(st)
-	if err != nil {
-		return err
-	}
+	gating := mylog.Check2(refreshGating(st))
 
 	if len(gating) == 0 {
 		return nil
@@ -385,10 +364,8 @@ func pruneHoldStatesForSnap(gating map[string]map[string]*holdState, snapName st
 // (they are not held anymore). This should be called for snaps about to be
 // refreshed.
 func resetGatingForRefreshed(st *state.State, refreshedSnaps ...string) error {
-	gating, err := refreshGating(st)
-	if err != nil {
-		return err
-	}
+	gating := mylog.Check2(refreshGating(st))
+
 	if len(gating) == 0 {
 		return nil
 	}
@@ -411,10 +388,8 @@ func resetGatingForRefreshed(st *state.State, refreshedSnaps ...string) error {
 // affecting snap or gating snap. This should be called when a snap gets
 // removed.
 func pruneSnapsHold(st *state.State, snapName string) error {
-	gating, err := refreshGating(st)
-	if err != nil {
-		return err
-	}
+	gating := mylog.Check2(refreshGating(st))
+
 	if len(gating) == 0 {
 		return nil
 	}
@@ -447,10 +422,8 @@ func pruneSnapsHold(st *state.State, snapName string) error {
 // restricting ones and shouldn't be refreshed. The snaps are mapped to a list
 // of snaps with currently effective holds on them.
 func HeldSnaps(st *state.State, level HoldLevel) (map[string][]string, error) {
-	gating, err := refreshGating(st)
-	if err != nil {
-		return nil, err
-	}
+	gating := mylog.Check2(refreshGating(st))
+
 	if len(gating) == 0 {
 		return nil, nil
 	}
@@ -459,10 +432,7 @@ func HeldSnaps(st *state.State, level HoldLevel) (map[string][]string, error) {
 
 	held := make(map[string][]string)
 	for heldSnap, holds := range gating {
-		lastRefresh, err := lastRefreshed(st, heldSnap)
-		if err != nil {
-			return nil, err
-		}
+		lastRefresh := mylog.Check2(lastRefreshed(st, heldSnap))
 
 		for holdingSnap, hold := range holds {
 			// the snap is not considered held for the given
@@ -489,10 +459,7 @@ func HeldSnaps(st *state.State, level HoldLevel) (map[string][]string, error) {
 // SystemHold returns the time until which the snap's refreshes have been held
 // by the sysadmin. If no such hold exists, returns a zero time.Time value.
 func SystemHold(st *state.State, snap string) (time.Time, error) {
-	gating, err := refreshGating(st)
-	if err != nil {
-		return time.Time{}, err
-	}
+	gating := mylog.Check2(refreshGating(st))
 
 	holds := gating[snap]
 	for holdingSnap, hold := range holds {
@@ -507,10 +474,7 @@ func SystemHold(st *state.State, snap string) (time.Time, error) {
 // LongestGatingHold returns the time until which the snap's refreshes have been held
 // by a gating snap. If no such hold exists, returns a zero time.Time value.
 func LongestGatingHold(st *state.State, snap string) (time.Time, error) {
-	gating, err := refreshGating(st)
-	if err != nil {
-		return time.Time{}, err
-	}
+	gating := mylog.Check2(refreshGating(st))
 
 	holds := gating[snap]
 
@@ -536,7 +500,7 @@ func AffectedByRefreshCandidates(st *state.State) (map[string]*AffectedSnapInfo,
 	// we care only about the keys so this can use
 	// *json.RawMessage instead of refreshCandidates
 	var candidates map[string]*json.RawMessage
-	if err := st.Get("refresh-candidates", &candidates); err != nil && !errors.Is(err, state.ErrNoState) {
+	if mylog.Check(st.Get("refresh-candidates", &candidates)); err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 
@@ -544,7 +508,7 @@ func AffectedByRefreshCandidates(st *state.State) (map[string]*AffectedSnapInfo,
 	for cand := range candidates {
 		snaps = append(snaps, cand)
 	}
-	affected, err := affectedByRefresh(st, snaps)
+	affected := mylog.Check2(affectedByRefresh(st, snaps))
 	return affected, err
 }
 
@@ -552,10 +516,8 @@ func AffectedByRefreshCandidates(st *state.State) (map[string]*AffectedSnapInfo,
 // affecting affectedSnap (i.e. a gating snap), based on upcoming updates
 // from refresh-candidates.
 func AffectingSnapsForAffectedByRefreshCandidates(st *state.State, affectedSnap string) ([]string, error) {
-	affected, err := AffectedByRefreshCandidates(st)
-	if err != nil {
-		return nil, err
-	}
+	affected := mylog.Check2(AffectedByRefreshCandidates(st))
+
 	affectedInfo := affected[affectedSnap]
 	if affectedInfo == nil || len(affectedInfo.AffectingSnaps) == 0 {
 		return nil, nil
@@ -569,22 +531,16 @@ func AffectingSnapsForAffectedByRefreshCandidates(st *state.State, affectedSnap 
 }
 
 func affectedByRefresh(st *state.State, updates []string) (map[string]*AffectedSnapInfo, error) {
-	allSnaps, err := All(st)
-	if err != nil {
-		return nil, err
-	}
+	allSnaps := mylog.Check2(All(st))
+
 	snapsWithHook := make(map[string]*SnapState)
 
 	var bootBase string
 	if !release.OnClassic {
-		deviceCtx, err := DeviceCtx(st, nil, nil)
-		if err != nil {
-			return nil, fmt.Errorf("cannot get device context: %v", err)
-		}
-		bootBaseInfo, err := BootBaseInfo(st, deviceCtx)
-		if err != nil {
-			return nil, fmt.Errorf("cannot get boot base info: %v", err)
-		}
+		deviceCtx := mylog.Check2(DeviceCtx(st, nil, nil))
+
+		bootBaseInfo := mylog.Check2(BootBaseInfo(st, deviceCtx))
+
 		bootBase = bootBaseInfo.InstanceName()
 	}
 
@@ -594,10 +550,8 @@ func affectedByRefresh(st *state.State, updates []string) (map[string]*AffectedS
 			delete(allSnaps, name)
 			continue
 		}
-		inf, err := snapSt.CurrentInfo()
-		if err != nil {
-			return nil, err
-		}
+		inf := mylog.Check2(snapSt.CurrentInfo())
+
 		// optimization: do not consider snaps that don't have gate-auto-refresh hook.
 		if inf.Hooks[gateAutoRefreshHookName] == nil {
 			continue
@@ -639,10 +593,7 @@ func affectedByRefresh(st *state.State, updates []string) (map[string]*AffectedS
 			// are filtered out above).
 			return nil, fmt.Errorf("internal error: no state for snap %q", snapName)
 		}
-		up, err := snapSt.CurrentInfo()
-		if err != nil {
-			return nil, err
-		}
+		up := mylog.Check2(snapSt.CurrentInfo())
 
 		// the snap affects itself (as long as it has the hook)
 		if snapSt := snapsWithHook[up.InstanceName()]; snapSt != nil {
@@ -678,10 +629,8 @@ func affectedByRefresh(st *state.State, updates []string) (map[string]*AffectedS
 		// by snap updates.
 		if up.SnapType != snap.TypeSnapd && up.SnapName() != "core" {
 			for _, slotInfo := range up.Slots {
-				conns, err := repo.Connected(up.InstanceName(), slotInfo.Name)
-				if err != nil {
-					return nil, err
-				}
+				conns := mylog.Check2(repo.Connected(up.InstanceName(), slotInfo.Name))
+
 				for _, cref := range conns {
 					// affected only if it wasn't optimized out above
 					if snapsWithHook[cref.PlugRef.Snap] != nil {
@@ -704,10 +653,8 @@ func affectedByRefresh(st *state.State, updates []string) (map[string]*AffectedS
 				if !si.AffectsPlugOnRefresh {
 					continue
 				}
-				conns, err := repo.Connected(up.InstanceName(), slotInfo.Name)
-				if err != nil {
-					return nil, err
-				}
+				conns := mylog.Check2(repo.Connected(up.InstanceName(), slotInfo.Name))
+
 				for _, cref := range conns {
 					if snapsWithHook[cref.PlugRef.Snap] != nil {
 						addAffected(cref.PlugRef.Snap, up.InstanceName(), true, false)
@@ -739,9 +686,8 @@ func createGateAutoRefreshHooks(st *state.State, affectedSnaps []string) *state.
 
 func conditionalAutoRefreshAffectedSnaps(t *state.Task) ([]string, error) {
 	var snaps map[string]*json.RawMessage
-	if err := t.Get("snaps", &snaps); err != nil {
-		return nil, fmt.Errorf("internal error: cannot get snaps to update for %s task %s", t.Kind(), t.ID())
-	}
+	mylog.Check(t.Get("snaps", &snaps))
+
 	names := make([]string, 0, len(snaps))
 	for sn := range snaps {
 		// TODO: drop snaps once we know the outcome of gate-auto-refresh hooks.
@@ -754,14 +700,9 @@ func conditionalAutoRefreshAffectedSnaps(t *state.Task) ([]string, error) {
 // hold behavior.
 var snapsToRefresh = func(gatingTask *state.Task) ([]*refreshCandidate, error) {
 	var snaps map[string]*refreshCandidate
-	if err := gatingTask.Get("snaps", &snaps); err != nil {
-		return nil, err
-	}
+	mylog.Check(gatingTask.Get("snaps", &snaps))
 
-	held, err := HeldSnaps(gatingTask.State(), HoldAutoRefresh)
-	if err != nil {
-		return nil, err
-	}
+	held := mylog.Check2(HeldSnaps(gatingTask.State(), HoldAutoRefresh))
 
 	var skipped []string
 	var candidates []*refreshCandidate
@@ -792,10 +733,7 @@ func AutoRefreshForGatingSnap(st *state.State, gatingSnap string) error {
 		return fmt.Errorf("there is an auto-refresh in progress")
 	}
 
-	gating, err := refreshGating(st)
-	if err != nil {
-		return err
-	}
+	gating := mylog.Check2(refreshGating(st))
 
 	var hasHeld bool
 	for _, holdingSnaps := range gating {
@@ -810,10 +748,8 @@ func AutoRefreshForGatingSnap(st *state.State, gatingSnap string) error {
 
 	// NOTE: this will unlock and re-lock state for network ops
 	// XXX: should we refresh assertions (just call AutoRefresh()?)
-	updated, tasksets, err := autoRefreshPhase1(auth.EnsureContextTODO(), st, gatingSnap)
-	if err != nil {
-		return err
-	}
+	updated, tasksets := mylog.Check3(autoRefreshPhase1(auth.EnsureContextTODO(), st, gatingSnap))
+
 	msg := autoRefreshSummary(updated)
 	if msg == "" {
 		logger.Noticef("auto-refresh: all snaps previously held by %q are up-to-date", gatingSnap)

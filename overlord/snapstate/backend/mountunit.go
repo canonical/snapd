@@ -20,6 +20,7 @@
 package backend
 
 import (
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
@@ -30,8 +31,8 @@ func addMountUnit(c snap.ContainerPlaceInfo, mountFlags systemd.EnsureMountUnitF
 	squashfsPath := dirs.StripRootDir(c.MountFile())
 	whereDir := dirs.StripRootDir(c.MountDir())
 
-	_, err := sysd.EnsureMountUnitFile(c.MountDescription(), squashfsPath, whereDir, "squashfs",
-		mountFlags)
+	_ := mylog.Check2(sysd.EnsureMountUnitFile(c.MountDescription(), squashfsPath, whereDir, "squashfs",
+		mountFlags))
 	return err
 }
 
@@ -43,14 +44,10 @@ func removeMountUnit(mountDir string, meter progress.Meter) error {
 func (b Backend) RemoveContainerMountUnits(s snap.ContainerPlaceInfo, meter progress.Meter) error {
 	sysd := systemd.New(systemd.SystemMode, meter)
 	originFilter := ""
-	mountPoints, err := sysd.ListMountUnits(s.ContainerName(), originFilter)
-	if err != nil {
-		return err
-	}
+	mountPoints := mylog.Check2(sysd.ListMountUnits(s.ContainerName(), originFilter))
+
 	for _, mountPoint := range mountPoints {
-		if err := sysd.RemoveMountUnitFile(mountPoint); err != nil {
-			return err
-		}
+		mylog.Check(sysd.RemoveMountUnitFile(mountPoint))
 	}
 	return nil
 }

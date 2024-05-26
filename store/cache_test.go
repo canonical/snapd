@@ -28,6 +28,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
@@ -53,29 +54,31 @@ func (s *cacheSuite) SetUpTest(c *C) {
 func (s *cacheSuite) makeTestFile(c *C, name, content string) string {
 	return s.makeTestFileInDir(c, c.MkDir(), name, content)
 }
+
 func (s *cacheSuite) makeTestFileInDir(c *C, dir, name, content string) string {
 	p := filepath.Join(dir, name)
-	err := os.WriteFile(p, []byte(content), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(p, []byte(content), 0644))
+
 	return p
 }
 
 func (s *cacheSuite) TestPutMany(c *C) {
-	dataDir, err := os.Open(c.MkDir())
-	c.Assert(err, IsNil)
+	dataDir := mylog.Check2(os.Open(c.MkDir()))
+
 	defer dataDir.Close()
-	cacheDir, err := os.Open(s.cm.CacheDir())
-	c.Assert(err, IsNil)
+	cacheDir := mylog.Check2(os.Open(s.cm.CacheDir()))
+
 	defer cacheDir.Close()
 
 	for i := 1; i < s.maxItems+10; i++ {
 		p := s.makeTestFileInDir(c, dataDir.Name(), fmt.Sprintf("f%d", i), fmt.Sprintf("%d", i))
-		err := s.cm.Put(fmt.Sprintf("cacheKey-%d", i), p)
+		mylog.Check(s.cm.Put(fmt.Sprintf("cacheKey-%d", i), p))
 		c.Check(err, IsNil)
+		mylog.Check(
 
-		// Remove the test file again, it is now only in the cache
-		err = os.Remove(p)
-		c.Assert(err, IsNil)
+			// Remove the test file again, it is now only in the cache
+			os.Remove(p))
+
 		// We need to sync the (meta)data here or the test is racy
 		c.Assert(dataDir.Sync(), IsNil)
 		c.Assert(cacheDir.Sync(), IsNil)
@@ -103,8 +106,8 @@ func (s *cacheSuite) TestGetNotExistent(c *C) {
 func (s *cacheSuite) TestGet(c *C) {
 	canary := "some content"
 	p := s.makeTestFile(c, "foo", canary)
-	err := s.cm.Put("some-cache-key", p)
-	c.Assert(err, IsNil)
+	mylog.Check(s.cm.Put("some-cache-key", p))
+
 
 	targetPath := filepath.Join(s.tmp, "new-location")
 	cacheHit := s.cm.Get("some-cache-key", targetPath)
@@ -141,8 +144,8 @@ func (s *cacheSuite) TestCleanup(c *C) {
 
 	// Remove the test files again, they are now only in the cache.
 	for _, p := range testFiles {
-		err := os.Remove(p)
-		c.Assert(err, IsNil)
+		mylog.Check(os.Remove(p))
+
 	}
 	s.cm.Cleanup()
 
@@ -158,8 +161,8 @@ func (s *cacheSuite) TestCleanup(c *C) {
 func (s *cacheSuite) TestCleanupContinuesOnError(c *C) {
 	cacheKeys, testFiles := s.makeTestFiles(c, s.maxItems+2)
 	for _, p := range testFiles {
-		err := os.Remove(p)
-		c.Assert(err, IsNil)
+		mylog.Check(os.Remove(p))
+
 	}
 
 	// simulate error with the removal of a file in cachedir
@@ -170,9 +173,10 @@ func (s *cacheSuite) TestCleanupContinuesOnError(c *C) {
 		return os.Remove(name)
 	})
 	defer restore()
+	mylog.
 
-	// verify that cleanup returns the last error
-	err := s.cm.Cleanup()
+		// verify that cleanup returns the last error
+		Check(s.cm.Cleanup())
 	c.Check(err, ErrorMatches, "simulated error")
 
 	// and also verify that the cache still got cleaned up
@@ -184,41 +188,42 @@ func (s *cacheSuite) TestCleanupContinuesOnError(c *C) {
 
 func (s *cacheSuite) TestHardLinkCount(c *C) {
 	p := filepath.Join(s.tmp, "foo")
-	err := os.WriteFile(p, nil, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(p, nil, 0644))
+
 
 	// trivial case
-	fi, err := os.Stat(p)
-	c.Assert(err, IsNil)
-	n, err := store.HardLinkCount(fi)
-	c.Assert(err, IsNil)
+	fi := mylog.Check2(os.Stat(p))
+
+	n := mylog.Check2(store.HardLinkCount(fi))
+
 	c.Check(n, Equals, uint64(1))
 
 	// add some hardlinks
 	for i := 0; i < 10; i++ {
-		err := os.Link(p, filepath.Join(s.tmp, strconv.Itoa(i)))
-		c.Assert(err, IsNil)
-	}
-	fi, err = os.Stat(p)
-	c.Assert(err, IsNil)
-	n, err = store.HardLinkCount(fi)
-	c.Assert(err, IsNil)
-	c.Check(n, Equals, uint64(11))
+		mylog.Check(os.Link(p, filepath.Join(s.tmp, strconv.Itoa(i))))
 
-	// and remove one
-	err = os.Remove(filepath.Join(s.tmp, "0"))
-	c.Assert(err, IsNil)
-	fi, err = os.Stat(p)
-	c.Assert(err, IsNil)
-	n, err = store.HardLinkCount(fi)
-	c.Assert(err, IsNil)
+	}
+	fi = mylog.Check2(os.Stat(p))
+
+	n = mylog.Check2(store.HardLinkCount(fi))
+
+	c.Check(n, Equals, uint64(11))
+	mylog.
+
+		// and remove one
+		Check(os.Remove(filepath.Join(s.tmp, "0")))
+
+	fi = mylog.Check2(os.Stat(p))
+
+	n = mylog.Check2(store.HardLinkCount(fi))
+
 	c.Check(n, Equals, uint64(10))
 }
 
 func (s *cacheSuite) TestCacheHitOnErrExist(c *C) {
 	targetPath := filepath.Join(s.tmp, "foo")
-	err := os.WriteFile(targetPath, nil, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(targetPath, nil, 0644))
+
 
 	// put file in target path
 	c.Assert(s.cm.Put("foo", targetPath), IsNil)

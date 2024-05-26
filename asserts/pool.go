@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts/internal"
 )
 
@@ -90,10 +91,8 @@ type Pool struct {
 // assertions to update and their prerequisites. Up to n groups can be
 // used to organize the assertions.
 func NewPool(groundDB RODatabase, n int) *Pool {
-	groupings, err := internal.NewGroupings(n)
-	if err != nil {
-		panic(fmt.Sprintf("NewPool: %v", err))
-	}
+	groupings := mylog.Check2(internal.NewGroupings(n))
+
 	return &Pool{
 		groundDB:            groundDB,
 		numbering:           make(map[string]uint16),
@@ -112,18 +111,15 @@ func (p *Pool) groupNum(group string) (gnum uint16, err error) {
 		return gnum, nil
 	}
 	gnum = uint16(len(p.numbering))
-	if err = p.groupings.WithinRange(gnum); err != nil {
-		return 0, err
-	}
+	mylog.Check(p.groupings.WithinRange(gnum))
+
 	p.numbering[group] = gnum
 	return gnum, nil
 }
 
 func (p *Pool) ensureGroup(group string) (gnum uint16, err error) {
-	gnum, err = p.groupNum(group)
-	if err != nil {
-		return 0, err
-	}
+	gnum = mylog.Check2(p.groupNum(group))
+
 	if gRec := p.groups[gnum]; gRec == nil {
 		p.groups[gnum] = &groupRec{
 			name: group,
@@ -136,10 +132,7 @@ func (p *Pool) ensureGroup(group string) (gnum uint16, err error) {
 // It is useful mainly for tests and to drive Add are AddBatch when the
 // server is pushing assertions (instead of the usual pull scenario).
 func (p *Pool) Singleton(group string) (Grouping, error) {
-	gnum, err := p.ensureGroup(group)
-	if err != nil {
-		return Grouping(""), nil
-	}
+	gnum := mylog.Check2(p.ensureGroup(group))
 
 	var grouping internal.Grouping
 	p.groupings.AddTo(&grouping, gnum)
@@ -298,7 +291,7 @@ func (p *Pool) setErr(grouping *internal.Grouping, err error) {
 }
 
 func (p *Pool) isPredefined(ref *Ref) (bool, error) {
-	_, err := ref.Resolve(p.groundDB.FindPredefined)
+	_ := mylog.Check2(ref.Resolve(p.groundDB.FindPredefined))
 	if err == nil {
 		return true, nil
 	}
@@ -312,7 +305,7 @@ func (p *Pool) isResolved(ref *Ref) (bool, error) {
 	if p.unchanged[ref.Unique()] {
 		return true, nil
 	}
-	_, err := p.bs.Get(ref.Type, ref.PrimaryKey, ref.Type.MaxSupportedFormat())
+	_ := mylog.Check2(p.bs.Get(ref.Type, ref.PrimaryKey, ref.Type.MaxSupportedFormat()))
 	if err == nil {
 		return true, nil
 	}
@@ -323,7 +316,7 @@ func (p *Pool) isResolved(ref *Ref) (bool, error) {
 }
 
 func (p *Pool) curRevision(ref *Ref) (int, error) {
-	a, err := ref.Resolve(p.groundDB.Find)
+	a := mylog.Check2(ref.Resolve(p.groundDB.Find))
 	if err != nil && !errors.Is(err, &NotFoundError{}) {
 		return 0, err
 	}
@@ -334,7 +327,7 @@ func (p *Pool) curRevision(ref *Ref) (int, error) {
 }
 
 func (p *Pool) curSeqRevision(seq *AtSequence) (int, error) {
-	a, err := seq.Resolve(p.groundDB.Find)
+	a := mylog.Check2(seq.Resolve(p.groundDB.Find))
 	if err != nil && !errors.Is(err, &NotFoundError{}) {
 		return 0, err
 	}
@@ -371,19 +364,13 @@ func (p *Pool) AddUnresolved(unresolved *AtRevision, group string) error {
 	if unresolved.Type.SequenceForming() {
 		return fmt.Errorf("internal error: AddUnresolved requested for sequence-forming assertion")
 	}
+	mylog.Check(p.phase(poolPhaseAddUnresolved))
 
-	if err := p.phase(poolPhaseAddUnresolved); err != nil {
-		return err
-	}
-	gnum, err := p.ensureGroup(group)
-	if err != nil {
-		return err
-	}
+	gnum := mylog.Check2(p.ensureGroup(group))
+
 	u := *unresolved
-	ok, err := p.isPredefined(&u.Ref)
-	if err != nil {
-		return err
-	}
+	ok := mylog.Check2(p.isPredefined(&u.Ref))
+
 	if ok {
 		// predefined, nothing to do
 		return nil
@@ -396,26 +383,21 @@ func (p *Pool) AddUnresolved(unresolved *AtRevision, group string) error {
 // Usually unresolved.Revision will have been set to RevisionNotKnown.
 // Given sequence can only be added once to the Pool.
 func (p *Pool) AddUnresolvedSequence(unresolved *AtSequence, group string) error {
-	if err := p.phase(poolPhaseAddUnresolved); err != nil {
-		return err
-	}
+	mylog.Check(p.phase(poolPhaseAddUnresolved))
+
 	if p.unresolvedSequences[unresolved.Unique()] != nil {
 		return fmt.Errorf("internal error: sequence %v is already being resolved", unresolved.SequenceKey)
 	}
-	gnum, err := p.ensureGroup(group)
-	if err != nil {
-		return err
-	}
+	gnum := mylog.Check2(p.ensureGroup(group))
+
 	u := *unresolved
 	p.addUnresolvedSeq(&u, gnum)
 	return nil
 }
 
 func (p *Pool) addUnresolved(unresolved *AtRevision, gnum uint16) error {
-	ok, err := p.isResolved(&unresolved.Ref)
-	if err != nil {
-		return err
-	}
+	ok := mylog.Check2(p.isResolved(&unresolved.Ref))
+
 	if ok {
 		// We assume that either the resolving of
 		// prerequisites for the already resolved assertion in
@@ -470,10 +452,8 @@ func (p *Pool) ToResolve() (map[Grouping][]*AtRevision, map[Grouping][]*AtSequen
 	for _, ur := range p.unresolved {
 		u := ur.(*unresolvedRec)
 		if u.at.Revision == RevisionNotKnown {
-			rev, err := p.curRevision(&u.at.Ref)
-			if err != nil {
-				return nil, nil, err
-			}
+			rev := mylog.Check2(p.curRevision(&u.at.Ref))
+
 			if rev != RevisionNotKnown {
 				u.at.Revision = rev
 			}
@@ -485,10 +465,8 @@ func (p *Pool) ToResolve() (map[Grouping][]*AtRevision, map[Grouping][]*AtSequen
 	for _, u := range p.unresolvedSequences {
 		seq := u.(*unresolvedSeqRec)
 		if seq.at.Revision == RevisionNotKnown {
-			rev, err := p.curSeqRevision(seq.at)
-			if err != nil {
-				return nil, nil, err
-			}
+			rev := mylog.Check2(p.curSeqRevision(seq.at))
+
 			if rev != RevisionNotKnown {
 				seq.at.Revision = rev
 			}
@@ -517,18 +495,14 @@ func (p *Pool) addPrerequisite(pref *Ref, g *internal.Grouping) error {
 		})
 		return nil
 	}
-	ok, err := p.isPredefined(pref)
-	if err != nil {
-		return err
-	}
+	ok := mylog.Check2(p.isPredefined(pref))
+
 	if ok {
 		// nothing to do
 		return nil
 	}
-	ok, err = p.isResolved(pref)
-	if err != nil {
-		return err
-	}
+	ok = mylog.Check2(p.isResolved(pref))
+
 	if ok {
 		// nothing to do, it is anyway implied
 		return nil
@@ -541,20 +515,12 @@ func (p *Pool) addPrerequisite(pref *Ref, g *internal.Grouping) error {
 }
 
 func (p *Pool) add(a Assertion, g *internal.Grouping) error {
-	if err := p.bs.Put(a.Type(), a); err != nil {
-		if revErr, ok := err.(*RevisionError); ok {
-			if revErr.Current >= a.Revision() {
-				// we already got something more recent
-				return nil
-			}
-		}
+	mylog.Check(p.bs.Put(a.Type(), a))
 
-		return err
-	}
+	// we already got something more recent
+
 	for _, pref := range a.Prerequisites() {
-		if err := p.addPrerequisite(pref, g); err != nil {
-			return err
-		}
+		mylog.Check(p.addPrerequisite(pref, g))
 	}
 	keyRef := &Ref{
 		Type:       AccountKeyType,
@@ -582,10 +548,8 @@ func (p *Pool) resolveWith(unresolved map[string]unresolvedAssertRecord, uniq st
 			// it will be ultimately handled in
 			// unresolvedBookkeeping if it stays around
 			delete(unresolved, uniq)
-			if err := p.add(a, extrag); err != nil {
-				p.setErr(extrag, err)
-				return false, err
-			}
+			mylog.Check(p.add(a, extrag))
+
 		}
 	}
 	return true, nil
@@ -604,9 +568,7 @@ func (p *Pool) resolveWith(unresolved map[string]unresolvedAssertRecord, uniq st
 // Errors related to the assertions are associated with the relevant groups
 // and can be retrieved with Err, in which case ok is set to false.
 func (p *Pool) Add(a Assertion, grouping Grouping) (ok bool, err error) {
-	if err := p.phase(poolPhaseAdd); err != nil {
-		return false, err
-	}
+	mylog.Check(p.phase(poolPhaseAdd))
 
 	if !a.SupportedFormat() {
 		e := &UnsupportedFormatError{Ref: a.Ref(), Format: a.Format()}
@@ -631,10 +593,8 @@ func (p *Pool) addToGrouping(a Assertion, grouping Grouping, deserializeGrouping
 		} else if u = p.prerequisites[uniq]; u != nil {
 			unresolved = p.prerequisites
 		} else {
-			ok, err := p.isPredefined(a.Ref())
-			if err != nil {
-				return false, err
-			}
+			ok := mylog.Check2(p.isPredefined(a.Ref()))
+
 			if ok {
 				// nothing to do
 				return true, nil
@@ -680,11 +640,7 @@ func (p *Pool) addToGrouping(a Assertion, grouping Grouping, deserializeGrouping
 	}
 
 	if u.label() != grouping {
-		var err error
-		extrag, err = deserializeGrouping(string(grouping))
-		if err != nil {
-			return false, err
-		}
+		extrag = mylog.Check2(deserializeGrouping(string(grouping)))
 	}
 
 	return p.resolveWith(unresolved, uniq, u, a, extrag)
@@ -697,9 +653,7 @@ func (p *Pool) addToGrouping(a Assertion, grouping Grouping, deserializeGrouping
 // Errors related to the assertions are associated with the relevant groups
 // and can be retrieved with Err, in which case ok set to false.
 func (p *Pool) AddBatch(b *Batch, grouping Grouping) (ok bool, err error) {
-	if err := p.phase(poolPhaseAdd); err != nil {
-		return false, err
-	}
+	mylog.Check(p.phase(poolPhaseAdd))
 
 	// b dealt with unsupported formats already
 
@@ -712,17 +666,15 @@ func (p *Pool) AddBatch(b *Batch, grouping Grouping) (ok bool, err error) {
 			g := cachedGrouping.Copy()
 			return &g, nil
 		}
-		var err error
-		cachedGrouping, err = p.groupings.Deserialize(string(grouping))
+
+		cachedGrouping = mylog.Check2(p.groupings.Deserialize(string(grouping)))
 		return cachedGrouping, err
 	}
 
 	inError := false
 	for _, a := range b.added {
-		ok, err := p.addToGrouping(a, grouping, deser)
-		if err != nil {
-			return false, err
-		}
+		ok := mylog.Check2(p.addToGrouping(a, grouping, deser))
+
 		if !ok {
 			inError = true
 		}
@@ -796,10 +748,8 @@ func (p *Pool) unresolvedBookkeeping() {
 
 // Err returns the error for group if group is in error, nil otherwise.
 func (p *Pool) Err(group string) error {
-	gnum, err := p.groupNum(group)
-	if err != nil {
-		return err
-	}
+	gnum := mylog.Check2(p.groupNum(group))
+
 	gRec := p.groups[gnum]
 	if gRec == nil {
 		return ErrUnknownPoolGroup
@@ -811,9 +761,7 @@ func (p *Pool) Err(group string) error {
 func (p *Pool) Errors() map[string]error {
 	res := make(map[string]error)
 	for _, gRec := range p.groups {
-		if err := gRec.err; err != nil {
-			res[gRec.name] = err
-		}
+		mylog.Check(gRec.err)
 	}
 	if len(res) == 0 {
 		return nil
@@ -825,9 +773,8 @@ func (p *Pool) Errors() map[string]error {
 // The error will be propagated to all the affected groups at
 // the next ToResolve.
 func (p *Pool) AddError(e error, ref *Ref) error {
-	if err := p.phase(poolPhaseAdd); err != nil {
-		return err
-	}
+	mylog.Check(p.phase(poolPhaseAdd))
+
 	uniq := ref.Unique()
 	if u := p.unresolved[uniq]; u != nil && u.(*unresolvedRec).err == nil {
 		u.(*unresolvedRec).err = e
@@ -840,9 +787,8 @@ func (p *Pool) AddError(e error, ref *Ref) error {
 // The error will be propagated to all the affected groups at
 // the next ToResolve.
 func (p *Pool) AddSequenceError(e error, atSeq *AtSequence) error {
-	if err := p.phase(poolPhaseAdd); err != nil {
-		return err
-	}
+	mylog.Check(p.phase(poolPhaseAdd))
+
 	uniq := atSeq.Unique()
 	if u := p.unresolvedSequences[uniq]; u != nil && u.(*unresolvedSeqRec).err == nil {
 		u.(*unresolvedSeqRec).err = e
@@ -852,14 +798,9 @@ func (p *Pool) AddSequenceError(e error, atSeq *AtSequence) error {
 
 // AddGroupingError puts all the groups of grouping in error, with error e.
 func (p *Pool) AddGroupingError(e error, grouping Grouping) error {
-	if err := p.phase(poolPhaseAdd); err != nil {
-		return err
-	}
+	mylog.Check(p.phase(poolPhaseAdd))
 
-	g, err := p.groupings.Deserialize(string(grouping))
-	if err != nil {
-		return err
-	}
+	g := mylog.Check2(p.groupings.Deserialize(string(grouping)))
 
 	p.setErr(g, e)
 	return nil
@@ -877,13 +818,10 @@ func (p *Pool) AddToUpdate(toUpdate *Ref, group string) error {
 	if toUpdate.Type.SequenceForming() {
 		return fmt.Errorf("internal error: AddToUpdate requested for sequence-forming assertion")
 	}
-	if err := p.phase(poolPhaseAddUnresolved); err != nil {
-		return err
-	}
-	gnum, err := p.ensureGroup(group)
-	if err != nil {
-		return err
-	}
+	mylog.Check(p.phase(poolPhaseAddUnresolved))
+
+	gnum := mylog.Check2(p.ensureGroup(group))
+
 	retrieve := func(ref *Ref) (Assertion, error) {
 		return ref.Resolve(p.groundDB.Find)
 	}
@@ -891,9 +829,8 @@ func (p *Pool) AddToUpdate(toUpdate *Ref, group string) error {
 		return p.addUnresolved(a.At(), gnum)
 	}
 	f := NewFetcher(p.groundDB, retrieve, add)
-	if err := f.Fetch(toUpdate); err != nil {
-		return err
-	}
+	mylog.Check(f.Fetch(toUpdate))
+
 	return nil
 }
 
@@ -907,19 +844,16 @@ func (p *Pool) AddToUpdate(toUpdate *Ref, group string) error {
 // at their current ones. If toUpdate is pinned, then it will be resolved
 // to the highest revision with same sequence point (toUpdate.Sequence).
 func (p *Pool) AddSequenceToUpdate(toUpdate *AtSequence, group string) error {
-	if err := p.phase(poolPhaseAddUnresolved); err != nil {
-		return err
-	}
+	mylog.Check(p.phase(poolPhaseAddUnresolved))
+
 	if toUpdate.Sequence <= 0 {
 		return fmt.Errorf("internal error: sequence to update must have a sequence number set")
 	}
 	if p.unresolvedSequences[toUpdate.Unique()] != nil {
 		return fmt.Errorf("internal error: sequence %v is already being resolved", toUpdate.SequenceKey)
 	}
-	gnum, err := p.ensureGroup(group)
-	if err != nil {
-		return err
-	}
+	gnum := mylog.Check2(p.ensureGroup(group))
+
 	retrieve := func(ref *Ref) (Assertion, error) {
 		return ref.Resolve(p.groundDB.Find)
 	}
@@ -937,9 +871,8 @@ func (p *Pool) AddSequenceToUpdate(toUpdate *AtSequence, group string) error {
 		return p.addUnresolvedSeq(&u, gnum)
 	}
 	f := NewSequenceFormingFetcher(p.groundDB, retrieve, retrieveSeq, add)
-	if err := f.FetchSequence(toUpdate); err != nil {
-		return err
-	}
+	mylog.Check(f.FetchSequence(toUpdate))
+
 	return nil
 }
 
@@ -954,18 +887,16 @@ func (p *Pool) CommitTo(db *Database) error {
 	p.unresolvedBookkeeping()
 
 	retrieve := func(ref *Ref) (Assertion, error) {
-		a, err := p.bs.Get(ref.Type, ref.PrimaryKey, ref.Type.MaxSupportedFormat())
+		a := mylog.Check2(p.bs.Get(ref.Type, ref.PrimaryKey, ref.Type.MaxSupportedFormat()))
 		if errors.Is(err, &NotFoundError{}) {
 			// fallback to pre-existing assertions
-			a, err = ref.Resolve(db.Find)
+			a = mylog.Check2(ref.Resolve(db.Find))
 		}
-		if err != nil {
-			return nil, resolveError("cannot resolve prerequisite assertion: %s", ref, err)
-		}
+
 		return a, nil
 	}
 	save := func(a Assertion) error {
-		err := db.Add(a)
+		mylog.Check(db.Add(a))
 		if IsUnaccceptedUpdate(err) {
 			// unsupported format case is handled before.
 			// be idempotent, db has already the same or
@@ -984,10 +915,7 @@ NextGroup:
 		// TODO: try to reuse fetcher
 		f := NewFetcher(db, retrieve, save)
 		for i := range gRec.resolved {
-			if err := f.Fetch(&gRec.resolved[i]); err != nil {
-				gRec.setErr(err)
-				continue NextGroup
-			}
+			mylog.Check(f.Fetch(&gRec.resolved[i]))
 		}
 	}
 

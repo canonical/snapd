@@ -25,16 +25,16 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // CryptoTokenBytes returns a crypthographically secure token of
 // nbytes random bytes.
 func CryptoTokenBytes(nbytes int) ([]byte, error) {
 	b := make([]byte, nbytes)
-	_, err := cryptorand.Read(b)
-	if err != nil {
-		return nil, fmt.Errorf("cannot obtain %d crypto random bytes: %v", nbytes, err)
-	}
+	_ := mylog.Check2(cryptorand.Read(b))
+
 	return b, nil
 }
 
@@ -42,10 +42,8 @@ func CryptoTokenBytes(nbytes int) ([]byte, error) {
 // encoding nbytes random bytes.
 // The result is URL-safe.
 func CryptoToken(nbytes int) (string, error) {
-	b, err := CryptoTokenBytes(nbytes)
-	if err != nil {
-		return "", err
-	}
+	b := mylog.Check2(CryptoTokenBytes(nbytes))
+
 	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
@@ -56,9 +54,7 @@ var kernelUUIDPath = "/proc/sys/kernel/random/uuid"
 // /proc/sys/kernel/random/uuid. Only to be used in very specific uses, most
 // random code should use CryptoToken(Bytes) instead.
 func RandomKernelUUID() (string, error) {
-	b, err := os.ReadFile(kernelUUIDPath)
-	if err != nil {
-		return "", fmt.Errorf("cannot read kernel generated uuid: %w", err)
-	}
+	b := mylog.Check2(os.ReadFile(kernelUUIDPath))
+
 	return strings.TrimSpace(string(b)), nil
 }

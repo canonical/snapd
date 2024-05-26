@@ -23,18 +23,16 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/snap"
 )
 
 func getPriceString(prices map[string]float64, suggestedCurrency, status string) string {
-	price, currency, err := getPrice(prices, suggestedCurrency)
+	price, currency := mylog.Check3(getPrice(prices, suggestedCurrency))
 
 	// If there are no prices, then the snap is free
-	if err != nil {
-		return ""
-	}
 
 	// If the snap is priced, but has been purchased
 	if status == "available" {

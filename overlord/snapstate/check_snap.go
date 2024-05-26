@@ -26,6 +26,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/logger"
@@ -206,24 +207,20 @@ func validateFlagsForInfo(info *snap.Info, snapst *SnapState, flags Flags) error
 // with the given SnapState and the user-specified Flags should be
 // installable on the current system.
 func validateInfoAndFlags(info *snap.Info, snapst *SnapState, flags Flags) error {
-	if err := validateFlagsForInfo(info, snapst, flags); err != nil {
-		return err
-	}
+	mylog.Check(validateFlagsForInfo(info, snapst, flags))
 
 	// verify we have a valid architecture
 	if !arch.IsSupportedArchitecture(info.Architectures) {
 		return fmt.Errorf("snap %q supported architectures (%s) are incompatible with this system (%s)", info.InstanceName(), strings.Join(info.Architectures, ", "), arch.DpkgArchitecture())
 	}
+	mylog.Check(
 
-	// check assumes
-	if err := checkAssumes(info); err != nil {
-		return err
-	}
+		// check assumes
+		checkAssumes(info))
+	mylog.Check(
 
-	// check and create system-usernames
-	if err := checkAndCreateSystemUsernames(info); err != nil {
-		return err
-	}
+		// check and create system-usernames
+		checkAndCreateSystemUsernames(info))
 
 	return nil
 }
@@ -231,7 +228,7 @@ func validateInfoAndFlags(info *snap.Info, snapst *SnapState, flags Flags) error
 var openSnapFile = backend.OpenSnapFile
 
 func validateContainer(c snap.Container, s *snap.Info, logf func(format string, v ...interface{})) error {
-	err := snap.ValidateSnapContainer(c, s, logf)
+	mylog.Check(snap.ValidateSnapContainer(c, s, logf))
 	if err == nil {
 		return nil
 	}
@@ -242,18 +239,9 @@ func validateContainer(c snap.Container, s *snap.Info, logf func(format string, 
 func checkSnap(st *state.State, snapFilePath, instanceName string, si *snap.SideInfo, curInfo *snap.Info, flags Flags, deviceCtx DeviceContext) error {
 	// This assumes that the snap was already verified or --dangerous was used.
 
-	s, c, err := openSnapFile(snapFilePath, si)
-	if err != nil {
-		return err
-	}
-
-	if err := validateInfoAndFlags(s, nil, flags); err != nil {
-		return err
-	}
-
-	if err := validateContainer(c, s, logger.Noticef); err != nil {
-		return err
-	}
+	s, c := mylog.Check3(openSnapFile(snapFilePath, si))
+	mylog.Check(validateInfoAndFlags(s, nil, flags))
+	mylog.Check(validateContainer(c, s, logger.Noticef))
 
 	snapName, instanceKey := snap.SplitInstanceName(instanceName)
 	// update instance key to what was requested
@@ -265,10 +253,7 @@ func checkSnap(st *state.State, snapFilePath, instanceName string, si *snap.Side
 	// allow registered checks to run first as they may produce more
 	// precise errors
 	for _, check := range checkSnapCallbacks {
-		err := check(st, s, curInfo, c, flags, deviceCtx)
-		if err != nil {
-			return err
-		}
+		mylog.Check(check(st, s, curInfo, c, flags, deviceCtx))
 	}
 
 	if snapName != s.SnapName() {
@@ -317,12 +302,9 @@ func checkCoreName(st *state.State, snapInfo, curInfo *snap.Info, _ snap.Contain
 		// already one of these installed
 		return nil
 	}
-	core, err := coreInfo(st)
+	core := mylog.Check2(coreInfo(st))
 	if errors.Is(err, state.ErrNoState) {
 		return nil
-	}
-	if err != nil {
-		return err
 	}
 
 	// Allow installing "core" even if "ubuntu-core" is already
@@ -359,17 +341,15 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, snapf sn
 		// not a relevant check
 		return nil
 	}
-	ok, err := HasSnapOfType(st, typ)
-	if err != nil {
-		return fmt.Errorf("cannot detect original %s snap: %v", kind, err)
-	}
+	ok := mylog.Check2(HasSnapOfType(st, typ))
+
 	// in firstboot we have no gadget/kernel yet - that is ok
 	// first install rules are in devicestate!
 	if !ok {
 		return nil
 	}
 
-	currentSnap, err := infoForDeviceSnap(st, deviceCtx, whichName)
+	currentSnap := mylog.Check2(infoForDeviceSnap(st, deviceCtx, whichName))
 	if errors.Is(err, state.ErrNoState) {
 		// check if we are in the remodel case
 		if deviceCtx != nil && deviceCtx.ForRemodeling() {
@@ -378,9 +358,6 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, snapf sn
 			}
 		}
 		return fmt.Errorf("internal error: no state for %s snap %q", kind, snapInfo.InstanceName())
-	}
-	if err != nil {
-		return fmt.Errorf("cannot find original %s snap: %v", kind, err)
 	}
 
 	if currentSnap.SnapID != "" && snapInfo.SnapID == "" && deviceCtx.Model().Grade() != asserts.ModelDangerous {
@@ -414,15 +391,11 @@ func checkBases(st *state.State, snapInfo, curInfo *snap.Info, _ snap.Container,
 		return nil
 	}
 
-	snapStates, err := All(st)
-	if err != nil {
-		return err
-	}
+	snapStates := mylog.Check2(All(st))
+
 	for otherSnap, snapst := range snapStates {
-		typ, err := snapst.Type()
-		if err != nil {
-			return err
-		}
+		typ := mylog.Check2(snapst.Type())
+
 		if typ == snap.TypeBase && otherSnap == snapInfo.Base {
 			return nil
 		}
@@ -457,27 +430,17 @@ func earlyEpochCheck(info *snap.Info, snapst *SnapState) error {
 		// no snapst, no problem
 		return nil
 	}
-	cur, err := snapst.CurrentInfo()
-	if err != nil {
-		if err == ErrNoCurrent {
-			// refreshing a disabled snap (maybe via InstallPath)
-			return nil
-		}
-		return err
-	}
+	cur := mylog.Check2(snapst.CurrentInfo())
+
+	// refreshing a disabled snap (maybe via InstallPath)
 
 	return checkEpochs(nil, info, cur, nil, Flags{}, nil)
 }
 
 func earlyChecks(st *state.State, snapst *SnapState, update *snap.Info, flags Flags) (Flags, error) {
-	flags, err := ensureInstallPreconditions(st, update, flags, snapst)
-	if err != nil {
-		return flags, err
-	}
+	flags := mylog.Check2(ensureInstallPreconditions(st, update, flags, snapst))
+	mylog.Check(earlyEpochCheck(update, snapst))
 
-	if err := earlyEpochCheck(update, snapst); err != nil {
-		return flags, err
-	}
 	return flags, nil
 }
 
@@ -521,24 +484,16 @@ func checkAndCreateSystemUsernames(si *snap.Info) error {
 	}
 
 	// Run /.../snap-seccomp version-info
-	vi, err := seccomp_compiler.CompilerVersionInfo(snapdtool.InternalToolPath)
-	if err != nil {
-		return fmt.Errorf("cannot obtain seccomp compiler information: %v", err)
-	}
+	vi := mylog.Check2(seccomp_compiler.CompilerVersionInfo(snapdtool.InternalToolPath))
+	mylog.Check(
 
-	// If the system doesn't support robust argument filtering then we
-	// can't support system-usernames
-	if err := vi.SupportsRobustArgumentFiltering(); err != nil {
-		if re, ok := err.(*seccomp_compiler.BuildTimeRequirementError); ok {
-			return fmt.Errorf("snap %q system usernames require a snapd built against %s", si.InstanceName(), re.RequirementsString())
-		}
-		return err
-	}
+		// If the system doesn't support robust argument filtering then we
+		// can't support system-usernames
+		vi.SupportsRobustArgumentFiltering())
+	mylog.Check(
 
-	// first validate
-	if err := validateSystemUsernames(si); err != nil {
-		return err
-	}
+		// first validate
+		validateSystemUsernames(si))
 
 	// then create
 	// TODO: move user creation to a more appropriate place like "link-snap"
@@ -553,14 +508,11 @@ func checkAndCreateSystemUsernames(si *snap.Info) error {
 			// base (see above)
 			rangeStart := id & 0xFFFF0000
 			rangeName := fmt.Sprintf("snapd-range-%d-root", rangeStart)
-			if err := osutilEnsureSnapUserGroup(rangeName, rangeStart, extrausers); err != nil {
-				return fmt.Errorf(`cannot ensure users for snap %q required system username "%s": %v`, si.InstanceName(), user.Name, err)
-			}
+			mylog.Check(osutilEnsureSnapUserGroup(rangeName, rangeStart, extrausers))
+			mylog.Check(
 
-			// Create the requested user and group
-			if err := osutilEnsureSnapUserGroup(user.Name, id, extrausers); err != nil {
-				return fmt.Errorf(`cannot ensure users for snap %q required system username "%s": %v`, si.InstanceName(), user.Name, err)
-			}
+				// Create the requested user and group
+				osutilEnsureSnapUserGroup(user.Name, id, extrausers))
 		}
 	}
 	return nil

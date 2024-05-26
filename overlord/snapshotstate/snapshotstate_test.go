@@ -37,6 +37,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
@@ -89,7 +90,7 @@ func (snapshotSuite) TestNewSnapshotSetID(c *check.C) {
 	defer st.Unlock()
 
 	// Disk last set id unset, state set id unset, use 1
-	sid, err := snapshotstate.NewSnapshotSetID(st)
+	sid := mylog.Check2(snapshotstate.NewSnapshotSetID(st))
 	c.Assert(err, check.IsNil)
 	c.Check(sid, check.Equals, uint64(1))
 
@@ -100,7 +101,7 @@ func (snapshotSuite) TestNewSnapshotSetID(c *check.C) {
 	c.Assert(os.WriteFile(filepath.Join(dirs.SnapshotsDir, "9_some-snap-1.zip"), []byte{}, 0644), check.IsNil)
 
 	// Disk last set id 9 > state set id 1, use 9++ = 10
-	sid, err = snapshotstate.NewSnapshotSetID(st)
+	sid = mylog.Check2(snapshotstate.NewSnapshotSetID(st))
 	c.Assert(err, check.IsNil)
 	c.Check(sid, check.Equals, uint64(10))
 
@@ -108,7 +109,7 @@ func (snapshotSuite) TestNewSnapshotSetID(c *check.C) {
 	c.Check(stateSetID, check.Equals, uint64(10))
 
 	// Disk last set id 9 < state set id 10, use 10++ = 11
-	sid, err = snapshotstate.NewSnapshotSetID(st)
+	sid = mylog.Check2(snapshotstate.NewSnapshotSetID(st))
 	c.Assert(err, check.IsNil)
 	c.Check(sid, check.Equals, uint64(11))
 
@@ -118,7 +119,7 @@ func (snapshotSuite) TestNewSnapshotSetID(c *check.C) {
 	c.Assert(os.WriteFile(filepath.Join(dirs.SnapshotsDir, "88_some-snap-1.zip"), []byte{}, 0644), check.IsNil)
 
 	// Disk last set id 88 > state set id 11, use 88++ = 89
-	sid, err = snapshotstate.NewSnapshotSetID(st)
+	sid = mylog.Check2(snapshotstate.NewSnapshotSetID(st))
 	c.Assert(err, check.IsNil)
 	c.Check(sid, check.Equals, uint64(89))
 
@@ -139,7 +140,7 @@ func (snapshotSuite) TestAllActiveSnapNames(c *check.C) {
 
 	// loop to check sortedness
 	for i := 0; i < 100; i++ {
-		names, err := snapshotstate.AllActiveSnapNames(nil)
+		names := mylog.Check2(snapshotstate.AllActiveSnapNames(nil))
 		c.Assert(err, check.IsNil)
 		c.Check(names, check.DeepEquals, []string{"a-snap", "c-snap"})
 	}
@@ -153,16 +154,16 @@ func (snapshotSuite) TestAllActiveSnapNamesError(c *check.C) {
 
 	defer snapshotstate.MockSnapstateAll(fakeSnapstateAll)()
 
-	names, err := snapshotstate.AllActiveSnapNames(nil)
+	names := mylog.Check2(snapshotstate.AllActiveSnapNames(nil))
 	c.Check(err, check.Equals, errBad)
 	c.Check(names, check.IsNil)
 }
 
 func (snapshotSuite) TestSnapSummariesInSnapshotSet(c *check.C) {
-	shotfileA, err := os.Create(filepath.Join(c.MkDir(), "foo.zip"))
+	shotfileA := mylog.Check2(os.Create(filepath.Join(c.MkDir(), "foo.zip")))
 	c.Assert(err, check.IsNil)
 	defer shotfileA.Close()
-	shotfileB, err := os.Create(filepath.Join(c.MkDir(), "foo.zip"))
+	shotfileB := mylog.Check2(os.Create(filepath.Join(c.MkDir(), "foo.zip")))
 	c.Assert(err, check.IsNil)
 	defer shotfileB.Close()
 
@@ -187,7 +188,7 @@ func (snapshotSuite) TestSnapSummariesInSnapshotSet(c *check.C) {
 	}
 	defer snapshotstate.MockBackendIter(fakeIter)()
 
-	summaries, err := snapshotstate.SnapSummariesInSnapshotSet(setID, nil)
+	summaries := mylog.Check2(snapshotstate.SnapSummariesInSnapshotSet(setID, nil))
 	c.Assert(err, check.IsNil)
 	c.Assert(summaries.AsMaps(), check.DeepEquals, []map[string]string{
 		{"snap": "a-snap", "snapID": "a-id", "filename": shotfileA.Name(), "epoch": `{"read":[42],"write":[17]}`},
@@ -196,7 +197,7 @@ func (snapshotSuite) TestSnapSummariesInSnapshotSet(c *check.C) {
 }
 
 func (snapshotSuite) TestSnapSummariesInSnapshotSetSnaps(c *check.C) {
-	shotfile, err := os.Create(filepath.Join(c.MkDir(), "foo.zip"))
+	shotfile := mylog.Check2(os.Create(filepath.Join(c.MkDir(), "foo.zip")))
 	c.Assert(err, check.IsNil)
 	defer shotfile.Close()
 	setID := uint64(42)
@@ -220,7 +221,7 @@ func (snapshotSuite) TestSnapSummariesInSnapshotSetSnaps(c *check.C) {
 	}
 	defer snapshotstate.MockBackendIter(fakeIter)()
 
-	summaries, err := snapshotstate.SnapSummariesInSnapshotSet(setID, []string{"a-snap"})
+	summaries := mylog.Check2(snapshotstate.SnapSummariesInSnapshotSet(setID, []string{"a-snap"}))
 	c.Assert(err, check.IsNil)
 	c.Check(summaries.AsMaps(), check.DeepEquals, []map[string]string{
 		{"snap": "a-snap", "snapID": "a-id", "filename": shotfile.Name(), "epoch": "0"},
@@ -228,7 +229,7 @@ func (snapshotSuite) TestSnapSummariesInSnapshotSetSnaps(c *check.C) {
 }
 
 func (snapshotSuite) TestSnapSummariesInSnapshotSetErrors(c *check.C) {
-	shotfile, err := os.Create(filepath.Join(c.MkDir(), "foo.zip"))
+	shotfile := mylog.Check2(os.Create(filepath.Join(c.MkDir(), "foo.zip")))
 	c.Assert(err, check.IsNil)
 	defer shotfile.Close()
 	setID := uint64(42)
@@ -244,14 +245,14 @@ func (snapshotSuite) TestSnapSummariesInSnapshotSetErrors(c *check.C) {
 	}
 	defer snapshotstate.MockBackendIter(fakeIter)()
 
-	summaries, err := snapshotstate.SnapSummariesInSnapshotSet(setID, nil)
+	summaries := mylog.Check2(snapshotstate.SnapSummariesInSnapshotSet(setID, nil))
 	c.Assert(err, check.Equals, errBad)
 	c.Check(summaries, check.IsNil)
 }
 
 func (snapshotSuite) TestSnapSummariesInSnapshotSetNotFound(c *check.C) {
 	setID := uint64(42)
-	shotfile, err := os.Create(filepath.Join(c.MkDir(), "foo.zip"))
+	shotfile := mylog.Check2(os.Create(filepath.Join(c.MkDir(), "foo.zip")))
 	c.Assert(err, check.IsNil)
 	defer shotfile.Close()
 	fakeIter := func(_ context.Context, f func(*backend.Reader) error) error {
@@ -265,7 +266,7 @@ func (snapshotSuite) TestSnapSummariesInSnapshotSetNotFound(c *check.C) {
 	}
 	defer snapshotstate.MockBackendIter(fakeIter)()
 
-	summaries, err := snapshotstate.SnapSummariesInSnapshotSet(setID, nil)
+	summaries := mylog.Check2(snapshotstate.SnapSummariesInSnapshotSet(setID, nil))
 	c.Assert(err, check.Equals, client.ErrSnapshotSetNotFound)
 	c.Check(summaries, check.IsNil)
 }
@@ -274,14 +275,14 @@ func (snapshotSuite) TestSnapSummariesInSnapshotSetEmptyNotFound(c *check.C) {
 	fakeIter := func(_ context.Context, f func(*backend.Reader) error) error { return nil }
 	defer snapshotstate.MockBackendIter(fakeIter)()
 
-	summaries, err := snapshotstate.SnapSummariesInSnapshotSet(42, nil)
+	summaries := mylog.Check2(snapshotstate.SnapSummariesInSnapshotSet(42, nil))
 	c.Assert(err, check.Equals, client.ErrSnapshotSetNotFound)
 	c.Check(summaries, check.IsNil)
 }
 
 func (snapshotSuite) TestSnapSummariesInSnapshotSetSnapNotFound(c *check.C) {
 	setID := uint64(42)
-	shotfile, err := os.Create(filepath.Join(c.MkDir(), "foo.zip"))
+	shotfile := mylog.Check2(os.Create(filepath.Join(c.MkDir(), "foo.zip")))
 	c.Assert(err, check.IsNil)
 	defer shotfile.Close()
 	fakeIter := func(_ context.Context, f func(*backend.Reader) error) error {
@@ -295,7 +296,7 @@ func (snapshotSuite) TestSnapSummariesInSnapshotSetSnapNotFound(c *check.C) {
 	}
 	defer snapshotstate.MockBackendIter(fakeIter)()
 
-	summaries, err := snapshotstate.SnapSummariesInSnapshotSet(setID, []string{"b-snap"})
+	summaries := mylog.Check2(snapshotstate.SnapSummariesInSnapshotSet(setID, []string{"b-snap"}))
 	c.Assert(err, check.Equals, client.ErrSnapshotSnapsNotFound)
 	c.Check(summaries, check.IsNil)
 }
@@ -308,19 +309,19 @@ func (snapshotSuite) TestCheckConflict(c *check.C) {
 	tsk := st.NewTask("some-task", "...")
 	tsk.SetStatus(state.DoingStatus)
 	chg.AddTask(tsk)
+	mylog.
 
-	// no snapshot state
-	err := snapshotstate.CheckSnapshotConflict(st, 42, "some-task")
+		// no snapshot state
+		Check(snapshotstate.CheckSnapshotConflict(st, 42, "some-task"))
 	c.Assert(err, check.ErrorMatches, "internal error: task 1 .some-task. is missing snapshot information")
 
 	// wrong snapshot state
 	tsk.Set("snapshot-setup", "hello")
-	err = snapshotstate.CheckSnapshotConflict(st, 42, "some-task")
+	mylog.Check(snapshotstate.CheckSnapshotConflict(st, 42, "some-task"))
 	c.Assert(err, check.ErrorMatches, "internal error.* could not unmarshal.*")
 
 	tsk.Set("snapshot-setup", map[string]int{"set-id": 42})
-
-	err = snapshotstate.CheckSnapshotConflict(st, 42, "some-task")
+	mylog.Check(snapshotstate.CheckSnapshotConflict(st, 42, "some-task"))
 	c.Assert(err, check.ErrorMatches, "cannot operate on snapshot set #42 while change \"1\" is in progress")
 
 	// no change with that label
@@ -358,12 +359,12 @@ func (snapshotSuite) TestSaveChecksSnapnamesError(c *check.C) {
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
-	_, _, _, err := snapshotstate.Save(st, nil, nil, nil)
+	_, _, _ := mylog.Check4(snapshotstate.Save(st, nil, nil, nil))
 	c.Check(err, check.ErrorMatches, "bzzt")
 }
 
 func (snapshotSuite) createConflictingChange(c *check.C) (st *state.State, restore func()) {
-	shotfile, err := os.Create(filepath.Join(c.MkDir(), "foo.zip"))
+	shotfile := mylog.Check2(os.Create(filepath.Join(c.MkDir(), "foo.zip")))
 	c.Assert(err, check.IsNil)
 	shotfile.Close()
 
@@ -380,7 +381,7 @@ func (snapshotSuite) createConflictingChange(c *check.C) (st *state.State, resto
 	o := overlord.Mock()
 	st = o.State()
 
-	stmgr, err := snapstate.Manager(st, o.TaskRunner())
+	stmgr := mylog.Check2(snapstate.Manager(st, o.TaskRunner()))
 	c.Assert(err, check.IsNil)
 	o.AddManager(stmgr)
 	shmgr := snapshotstate.Manager(st, o.TaskRunner())
@@ -407,7 +408,7 @@ func (snapshotSuite) createConflictingChange(c *check.C) (st *state.State, resto
 	defer r()
 
 	chg := st.NewChange("rm foo", "...")
-	rmTasks, err := snapstate.Remove(st, "foo", snap.R(0), nil)
+	rmTasks := mylog.Check2(snapstate.Remove(st, "foo", snap.R(0), nil))
 	c.Assert(err, check.IsNil)
 	c.Assert(rmTasks, check.NotNil)
 	chg.AddAll(rmTasks)
@@ -423,7 +424,7 @@ func (s snapshotSuite) TestSaveChecksSnapstateConflict(c *check.C) {
 	st, restore := s.createConflictingChange(c)
 	defer restore()
 
-	_, _, _, err := snapshotstate.Save(st, []string{"foo"}, nil, nil)
+	_, _, _ := mylog.Check4(snapshotstate.Save(st, []string{"foo"}, nil, nil))
 	c.Assert(err, check.NotNil)
 	c.Check(err, check.FitsTypeOf, &snapstate.ChangeConflictError{})
 }
@@ -440,7 +441,7 @@ func (snapshotSuite) TestSaveConflictsWithSnapstate(c *check.C) {
 	o := overlord.Mock()
 	st := o.State()
 
-	stmgr, err := snapstate.Manager(st, o.TaskRunner())
+	stmgr := mylog.Check2(snapstate.Manager(st, o.TaskRunner()))
 	c.Assert(err, check.IsNil)
 	o.AddManager(stmgr)
 	shmgr := snapshotstate.Manager(st, o.TaskRunner())
@@ -459,11 +460,11 @@ func (snapshotSuite) TestSaveConflictsWithSnapstate(c *check.C) {
 	})
 
 	chg := st.NewChange("snapshot-save", "...")
-	_, _, saveTasks, err := snapshotstate.Save(st, nil, nil, nil)
+	_, _, saveTasks := mylog.Check4(snapshotstate.Save(st, nil, nil, nil))
 	c.Assert(err, check.IsNil)
 	chg.AddAll(saveTasks)
 
-	_, err = snapstate.Disable(st, "foo")
+	_ = mylog.Check2(snapstate.Disable(st, "foo"))
 	c.Assert(err, check.ErrorMatches, `snap "foo" has "snapshot-save" change in progress`)
 }
 
@@ -475,7 +476,7 @@ func (snapshotSuite) TestSaveChecksSnapstateConflictError(c *check.C) {
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
-	_, _, _, err := snapshotstate.Save(st, nil, nil, nil)
+	_, _, _ := mylog.Check4(snapshotstate.Save(st, nil, nil, nil))
 	c.Check(err, check.ErrorMatches, "bzzt")
 }
 
@@ -486,7 +487,7 @@ func (snapshotSuite) TestSaveChecksSetIDError(c *check.C) {
 
 	st.Set("last-snapshot-set-id", "3/4")
 
-	_, _, _, err := snapshotstate.Save(st, nil, nil, nil)
+	_, _, _ := mylog.Check4(snapshotstate.Save(st, nil, nil, nil))
 	c.Check(err, check.ErrorMatches, ".* could not unmarshal .*")
 }
 
@@ -495,7 +496,7 @@ func (snapshotSuite) TestSaveNoSnapsInState(c *check.C) {
 	st.Lock()
 	defer st.Unlock()
 
-	setID, saved, taskset, err := snapshotstate.Save(st, nil, nil, nil)
+	setID, saved, taskset := mylog.Check4(snapshotstate.Save(st, nil, nil, nil))
 	c.Assert(err, check.IsNil)
 	c.Check(setID, check.Equals, uint64(1))
 	c.Check(saved, check.HasLen, 0)
@@ -507,7 +508,7 @@ func (snapshotSuite) TestSaveSnapNotInstalled(c *check.C) {
 	st.Lock()
 	defer st.Unlock()
 
-	setID, saved, taskset, err := snapshotstate.Save(st, []string{"foo"}, nil, nil)
+	setID, saved, taskset := mylog.Check4(snapshotstate.Save(st, []string{"foo"}, nil, nil))
 	c.Assert(err, check.ErrorMatches, `snap "foo" is not installed`)
 	c.Check(setID, check.Equals, uint64(0))
 	c.Check(saved, check.HasLen, 0)
@@ -533,7 +534,7 @@ func (snapshotSuite) TestSaveSomeSnaps(c *check.C) {
 		"a-snap": {Exclude: []string{"$SNAP_COMMON/exclude", "$SNAP_DATA/exclude"}},
 	}
 
-	setID, saved, taskset, err := snapshotstate.Save(st, nil, nil, snapshotOptions)
+	setID, saved, taskset := mylog.Check4(snapshotstate.Save(st, nil, nil, snapshotOptions))
 	c.Assert(err, check.IsNil)
 	c.Check(setID, check.Equals, uint64(1))
 	c.Check(saved, check.DeepEquals, []string{"a-snap", "c-snap"})
@@ -579,7 +580,7 @@ func (s snapshotSuite) TestSaveOneSnap(c *check.C) {
 		Current: snap.R(1),
 	})
 
-	setID, saved, taskset, err := snapshotstate.Save(st, []string{"a-snap"}, []string{"a-user"}, nil)
+	setID, saved, taskset := mylog.Check4(snapshotstate.Save(st, []string{"a-snap"}, []string{"a-user"}, nil))
 	c.Assert(err, check.IsNil)
 	c.Check(setID, check.Equals, uint64(1))
 	c.Check(saved, check.DeepEquals, []string{"a-snap"})
@@ -619,7 +620,7 @@ func (snapshotSuite) TestSaveIntegration(c *check.C) {
 	o := overlord.Mock()
 	st := o.State()
 
-	stmgr, err := snapstate.Manager(st, o.TaskRunner())
+	stmgr := mylog.Check2(snapstate.Manager(st, o.TaskRunner()))
 	c.Assert(err, check.IsNil)
 	o.AddManager(stmgr)
 	shmgr := snapshotstate.Manager(st, o.TaskRunner())
@@ -658,7 +659,7 @@ func (snapshotSuite) TestSaveIntegration(c *check.C) {
 		}
 	}
 
-	setID, saved, taskset, err := snapshotstate.Save(st, nil, []string{"a-user"}, snapshotOptions)
+	setID, saved, taskset := mylog.Check4(snapshotstate.Save(st, nil, []string{"a-user"}, snapshotOptions))
 	c.Assert(err, check.IsNil)
 	c.Check(setID, check.Equals, uint64(1))
 	c.Check(saved, check.DeepEquals, []string{"one-snap", "too-snap", "tri-snap"})
@@ -699,7 +700,7 @@ func (snapshotSuite) TestSaveIntegrationFails(c *check.C) {
 	}
 	c.Assert(os.MkdirAll(dirs.SnapshotsDir, 0755), check.IsNil)
 	// precondition check: no files in snapshot dir
-	out, err := exec.Command("find", dirs.SnapshotsDir, "-type", "f").CombinedOutput()
+	out := mylog.Check2(exec.Command("find", dirs.SnapshotsDir, "-type", "f").CombinedOutput())
 	c.Assert(err, check.IsNil)
 	c.Check(string(out), check.Equals, "")
 
@@ -736,7 +737,7 @@ exec /bin/tar "$@"
 	o := overlord.Mock()
 	st := o.State()
 
-	stmgr, err := snapstate.Manager(st, o.TaskRunner())
+	stmgr := mylog.Check2(snapstate.Manager(st, o.TaskRunner()))
 	c.Assert(err, check.IsNil)
 	o.AddManager(stmgr)
 	shmgr := snapshotstate.Manager(st, o.TaskRunner())
@@ -765,7 +766,7 @@ exec /bin/tar "$@"
 		c.Assert(os.Mkdir(filepath.Join(homedir, "snap", name, "common", "common-"+name), mode), check.IsNil)
 	}
 
-	setID, saved, taskset, err := snapshotstate.Save(st, nil, []string{"a-user"}, nil)
+	setID, saved, taskset := mylog.Check4(snapshotstate.Save(st, nil, []string{"a-user"}, nil))
 	c.Assert(err, check.IsNil)
 	c.Check(setID, check.Equals, uint64(1))
 	c.Check(saved, check.DeepEquals, []string{"one-snap", "too-snap", "tri-snap"})
@@ -798,7 +799,7 @@ exec /bin/tar "$@"
 	c.Check(strings.Join(tasks[2].Log(), "\n"), check.Matches, `\S+ ERROR( tar failed:)? context canceled`)
 
 	// no zips left behind, not for errors, not for undos \o/
-	out, err = exec.Command("find", dirs.SnapshotsDir, "-type", "f").CombinedOutput()
+	out = mylog.Check2(exec.Command("find", dirs.SnapshotsDir, "-type", "f").CombinedOutput())
 	c.Assert(err, check.IsNil)
 	c.Check(string(out), check.Equals, "")
 }
@@ -809,7 +810,7 @@ func (snapshotSuite) testSaveIntegrationTarFails(c *check.C, tarLogLines int, ex
 	}
 	c.Assert(os.MkdirAll(dirs.SnapshotsDir, 0755), check.IsNil)
 	// precondition check: no files in snapshot dir
-	out, err := exec.Command("find", dirs.SnapshotsDir, "-type", "f").CombinedOutput()
+	out := mylog.Check2(exec.Command("find", dirs.SnapshotsDir, "-type", "f").CombinedOutput())
 	c.Assert(err, check.IsNil)
 	c.Check(string(out), check.Equals, "")
 
@@ -842,7 +843,7 @@ exec /bin/tar "$@"
 	o := overlord.Mock()
 	st := o.State()
 
-	stmgr, err := snapstate.Manager(st, o.TaskRunner())
+	stmgr := mylog.Check2(snapstate.Manager(st, o.TaskRunner()))
 	c.Assert(err, check.IsNil)
 	o.AddManager(stmgr)
 	shmgr := snapshotstate.Manager(st, o.TaskRunner())
@@ -865,7 +866,7 @@ exec /bin/tar "$@"
 	// these dir permissions (000) make tar unhappy
 	c.Assert(os.Mkdir(filepath.Join(homedir, "snap/tar-fail-snap/common/common-tar-fail-snap"), 00), check.IsNil)
 
-	setID, saved, taskset, err := snapshotstate.Save(st, nil, []string{"a-user"}, nil)
+	setID, saved, taskset := mylog.Check4(snapshotstate.Save(st, nil, []string{"a-user"}, nil))
 	c.Assert(err, check.IsNil)
 	c.Check(setID, check.Equals, uint64(1))
 	c.Check(saved, check.DeepEquals, []string{"tar-fail-snap"})
@@ -886,7 +887,7 @@ exec /bin/tar "$@"
 	c.Check(strings.Join(tasks[0].Log(), "\n"), check.Matches, expectedErr)
 
 	// no zips left behind, not for errors, not for undos \o/
-	out, err = exec.Command("find", dirs.SnapshotsDir, "-type", "f").CombinedOutput()
+	out = mylog.Check2(exec.Command("find", dirs.SnapshotsDir, "-type", "f").CombinedOutput())
 	c.Assert(err, check.IsNil)
 	c.Check(string(out), check.Equals, "")
 }
@@ -928,7 +929,7 @@ func (snapshotSuite) TestRestoreChecksIterError(c *check.C) {
 	st.Lock()
 	defer st.Unlock()
 
-	_, _, err := snapshotstate.Restore(st, 42, nil, nil)
+	_, _ := mylog.Check3(snapshotstate.Restore(st, 42, nil, nil))
 	c.Assert(err, check.ErrorMatches, "bzzt")
 }
 
@@ -936,14 +937,13 @@ func (s snapshotSuite) TestRestoreChecksSnapstateConflicts(c *check.C) {
 	st, restore := s.createConflictingChange(c)
 	defer restore()
 
-	_, _, err := snapshotstate.Restore(st, 42, nil, nil)
+	_, _ := mylog.Check3(snapshotstate.Restore(st, 42, nil, nil))
 	c.Assert(err, check.NotNil)
 	c.Check(err, check.FitsTypeOf, &snapstate.ChangeConflictError{})
-
 }
 
 func (snapshotSuite) TestRestoreConflictsWithSnapstate(c *check.C) {
-	shotfile, err := os.Create(filepath.Join(c.MkDir(), "foo.zip"))
+	shotfile := mylog.Check2(os.Create(filepath.Join(c.MkDir(), "foo.zip")))
 	c.Assert(err, check.IsNil)
 	defer shotfile.Close()
 
@@ -974,7 +974,7 @@ func (snapshotSuite) TestRestoreConflictsWithSnapstate(c *check.C) {
 	o := overlord.Mock()
 	st := o.State()
 
-	stmgr, err := snapstate.Manager(st, o.TaskRunner())
+	stmgr := mylog.Check2(snapstate.Manager(st, o.TaskRunner()))
 	c.Assert(err, check.IsNil)
 	o.AddManager(stmgr)
 	shmgr := snapshotstate.Manager(st, o.TaskRunner())
@@ -993,16 +993,16 @@ func (snapshotSuite) TestRestoreConflictsWithSnapstate(c *check.C) {
 	})
 
 	chg := st.NewChange("snapshot-restore", "...")
-	_, restoreTasks, err := snapshotstate.Restore(st, 42, nil, nil)
+	_, restoreTasks := mylog.Check3(snapshotstate.Restore(st, 42, nil, nil))
 	c.Assert(err, check.IsNil)
 	chg.AddAll(restoreTasks)
 
-	_, err = snapstate.Disable(st, "foo")
+	_ = mylog.Check2(snapstate.Disable(st, "foo"))
 	c.Assert(err, check.ErrorMatches, `snap "foo" has "snapshot-restore" change in progress`)
 }
 
 func (snapshotSuite) TestRestoreChecksForgetConflicts(c *check.C) {
-	shotfile, err := os.Create(filepath.Join(c.MkDir(), "yadda.zip"))
+	shotfile := mylog.Check2(os.Create(filepath.Join(c.MkDir(), "yadda.zip")))
 	c.Assert(err, check.IsNil)
 	defer shotfile.Close()
 	fakeIter := func(_ context.Context, f func(*backend.Reader) error) error {
@@ -1025,12 +1025,12 @@ func (snapshotSuite) TestRestoreChecksForgetConflicts(c *check.C) {
 	tsk.Set("snapshot-setup", map[string]int{"set-id": 42})
 	chg.AddTask(tsk)
 
-	_, _, err = snapshotstate.Restore(st, 42, nil, nil)
+	_, _ = mylog.Check3(snapshotstate.Restore(st, 42, nil, nil))
 	c.Assert(err, check.ErrorMatches, `cannot operate on snapshot set #42 while change \"1\" is in progress`)
 }
 
 func (snapshotSuite) TestRestoreChecksChangesToSnapID(c *check.C) {
-	shotfile, err := os.Create(filepath.Join(c.MkDir(), "yadda.zip"))
+	shotfile := mylog.Check2(os.Create(filepath.Join(c.MkDir(), "yadda.zip")))
 	c.Assert(err, check.IsNil)
 	defer shotfile.Close()
 	fakeSnapstateAll := func(*state.State) (map[string]*snapstate.SnapState, error) {
@@ -1060,12 +1060,12 @@ func (snapshotSuite) TestRestoreChecksChangesToSnapID(c *check.C) {
 	st.Lock()
 	defer st.Unlock()
 
-	_, _, err = snapshotstate.Restore(st, 42, nil, nil)
+	_, _ = mylog.Check3(snapshotstate.Restore(st, 42, nil, nil))
 	c.Assert(err, check.ErrorMatches, `cannot restore snapshot for "a-snap": current snap \(ID 1234567…\) does not match snapshot \(ID 0987654…\)`)
 }
 
 func (snapshotSuite) TestRestoreChecksChangesToEpoch(c *check.C) {
-	shotfile, err := os.Create(filepath.Join(c.MkDir(), "yadda.zip"))
+	shotfile := mylog.Check2(os.Create(filepath.Join(c.MkDir(), "yadda.zip")))
 	c.Assert(err, check.IsNil)
 	defer shotfile.Close()
 
@@ -1101,12 +1101,12 @@ func (snapshotSuite) TestRestoreChecksChangesToEpoch(c *check.C) {
 	st.Lock()
 	defer st.Unlock()
 
-	_, _, err = snapshotstate.Restore(st, 42, nil, nil)
+	_, _ = mylog.Check3(snapshotstate.Restore(st, 42, nil, nil))
 	c.Assert(err, check.ErrorMatches, `cannot restore snapshot for "a-snap": current snap \(epoch 17\) cannot read snapshot data \(epoch 42\)`)
 }
 
 func (snapshotSuite) TestRestoreWorksWithCompatibleEpoch(c *check.C) {
-	shotfile, err := os.Create(filepath.Join(c.MkDir(), "yadda.zip"))
+	shotfile := mylog.Check2(os.Create(filepath.Join(c.MkDir(), "yadda.zip")))
 	c.Assert(err, check.IsNil)
 	defer shotfile.Close()
 
@@ -1142,7 +1142,7 @@ func (snapshotSuite) TestRestoreWorksWithCompatibleEpoch(c *check.C) {
 	st.Lock()
 	defer st.Unlock()
 
-	found, taskset, err := snapshotstate.Restore(st, 42, nil, nil)
+	found, taskset := mylog.Check3(snapshotstate.Restore(st, 42, nil, nil))
 	c.Assert(err, check.IsNil)
 	c.Check(found, check.DeepEquals, []string{"a-snap"})
 	tasks := taskset.Tasks()
@@ -1161,7 +1161,7 @@ func (snapshotSuite) TestRestoreWorksWithCompatibleEpoch(c *check.C) {
 }
 
 func (snapshotSuite) TestRestore(c *check.C) {
-	shotfile, err := os.Create(filepath.Join(c.MkDir(), "yadda.zip"))
+	shotfile := mylog.Check2(os.Create(filepath.Join(c.MkDir(), "yadda.zip")))
 	c.Assert(err, check.IsNil)
 	defer shotfile.Close()
 	fakeIter := func(_ context.Context, f func(*backend.Reader) error) error {
@@ -1179,7 +1179,7 @@ func (snapshotSuite) TestRestore(c *check.C) {
 	st.Lock()
 	defer st.Unlock()
 
-	found, taskset, err := snapshotstate.Restore(st, 42, []string{"a-snap", "b-snap"}, []string{"a-user"})
+	found, taskset := mylog.Check3(snapshotstate.Restore(st, 42, []string{"a-snap", "b-snap"}, []string{"a-user"}))
 	c.Assert(err, check.IsNil)
 	c.Check(found, check.DeepEquals, []string{"a-snap"})
 	tasks := taskset.Tasks()
@@ -1231,13 +1231,12 @@ func testRestoreIntegration(c *check.C, snapDataDir string, opts *dirs.SnapDirOp
 			Username: username,
 			HomeDir:  filepath.Join(dirs.GlobalRootDir, "home", username),
 		}, nil
-
 	})()
 
 	o := overlord.Mock()
 	st := o.State()
 
-	stmgr, err := snapstate.Manager(st, o.TaskRunner())
+	stmgr := mylog.Check2(snapstate.Manager(st, o.TaskRunner()))
 	c.Assert(err, check.IsNil)
 	o.AddManager(stmgr)
 	shmgr := snapshotstate.Manager(st, o.TaskRunner())
@@ -1261,7 +1260,7 @@ func testRestoreIntegration(c *check.C, snapDataDir string, opts *dirs.SnapDirOp
 			c.Assert(os.MkdirAll(filepath.Join(home, snapDataDir, name, "common", "common-"+name), 0755), check.IsNil)
 		}
 
-		_, err := backend.Save(context.TODO(), 42, snapInfo, nil, []string{"a-user", "b-user"}, nil, opts)
+		_ := mylog.Check2(backend.Save(context.TODO(), 42, snapInfo, nil, []string{"a-user", "b-user"}, nil, opts))
 		c.Assert(err, check.IsNil)
 	}
 
@@ -1270,7 +1269,7 @@ func testRestoreIntegration(c *check.C, snapDataDir string, opts *dirs.SnapDirOp
 	// remove b-user's home
 	c.Assert(os.RemoveAll(homedirB), check.IsNil)
 
-	found, taskset, err := snapshotstate.Restore(st, 42, nil, []string{"a-user", "b-user"})
+	found, taskset := mylog.Check3(snapshotstate.Restore(st, 42, nil, []string{"a-user", "b-user"}))
 	c.Assert(err, check.IsNil)
 	sort.Strings(found)
 	c.Check(found, check.DeepEquals, []string{"one-snap", "too-snap", "tri-snap"})
@@ -1292,7 +1291,7 @@ func testRestoreIntegration(c *check.C, snapDataDir string, opts *dirs.SnapDirOp
 	}
 
 	// check it was all brought back \o/
-	out, err := exec.Command("diff", "-rN", filepath.Join(homedirA, snapDataDir), filepath.Join("snap.old")).CombinedOutput()
+	out := mylog.Check2(exec.Command("diff", "-rN", filepath.Join(homedirA, snapDataDir), filepath.Join("snap.old")).CombinedOutput())
 	c.Check(err, check.IsNil)
 	c.Check(string(out), check.Equals, "")
 }
@@ -1318,7 +1317,7 @@ func (snapshotSuite) TestRestoreIntegrationFails(c *check.C) {
 	o := overlord.Mock()
 	st := o.State()
 
-	stmgr, err := snapstate.Manager(st, o.TaskRunner())
+	stmgr := mylog.Check2(snapstate.Manager(st, o.TaskRunner()))
 	c.Assert(err, check.IsNil)
 	o.AddManager(stmgr)
 	shmgr := snapshotstate.Manager(st, o.TaskRunner())
@@ -1340,7 +1339,7 @@ func (snapshotSuite) TestRestoreIntegrationFails(c *check.C) {
 		c.Assert(os.MkdirAll(filepath.Join(homedir, "snap", name, fmt.Sprint(i+1), "canary-"+name), 0755), check.IsNil)
 		c.Assert(os.MkdirAll(filepath.Join(homedir, "snap", name, "common", "common-"+name), 0755), check.IsNil)
 
-		_, err := backend.Save(context.TODO(), 42, snapInfo, nil, []string{"a-user"}, nil, nil)
+		_ := mylog.Check2(backend.Save(context.TODO(), 42, snapInfo, nil, []string{"a-user"}, nil, nil))
 		c.Assert(err, check.IsNil)
 	}
 
@@ -1350,7 +1349,7 @@ func (snapshotSuite) TestRestoreIntegrationFails(c *check.C) {
 	c.Assert(os.MkdirAll(filepath.Join(homedir, "snap"), 0755), check.IsNil)
 	c.Assert(os.MkdirAll(filepath.Join(homedir, "snap", "too-snap"), 0), check.IsNil)
 
-	found, taskset, err := snapshotstate.Restore(st, 42, nil, []string{"a-user"})
+	found, taskset := mylog.Check3(snapshotstate.Restore(st, 42, nil, []string{"a-user"}))
 	c.Assert(err, check.IsNil)
 	sort.Strings(found)
 	c.Check(found, check.DeepEquals, []string{"one-snap", "too-snap", "tri-snap"})
@@ -1390,7 +1389,7 @@ func (snapshotSuite) TestRestoreIntegrationFails(c *check.C) {
 	c.Assert(os.Remove(filepath.Join(homedir, "snap", "too-snap")), check.IsNil)
 
 	// check that nothing else was put there
-	out, err := exec.Command("find", filepath.Join(homedir, "snap")).CombinedOutput()
+	out := mylog.Check2(exec.Command("find", filepath.Join(homedir, "snap")).CombinedOutput())
 	c.Assert(err, check.IsNil)
 	c.Check(strings.TrimSpace(string(out)), check.Equals, filepath.Join(homedir, "snap"))
 }
@@ -1404,7 +1403,7 @@ func (snapshotSuite) TestCheckChecksIterError(c *check.C) {
 	st.Lock()
 	defer st.Unlock()
 
-	_, _, err := snapshotstate.Check(st, 42, nil, nil)
+	_, _ := mylog.Check3(snapshotstate.Check(st, 42, nil, nil))
 	c.Assert(err, check.ErrorMatches, "bzzt")
 }
 
@@ -1412,12 +1411,12 @@ func (s snapshotSuite) TestCheckDoesNotTriggerSnapstateConflict(c *check.C) {
 	st, restore := s.createConflictingChange(c)
 	defer restore()
 
-	_, _, err := snapshotstate.Check(st, 42, nil, nil)
+	_, _ := mylog.Check3(snapshotstate.Check(st, 42, nil, nil))
 	c.Assert(err, check.IsNil)
 }
 
 func (snapshotSuite) TestCheckChecksForgetConflicts(c *check.C) {
-	shotfile, err := os.Create(filepath.Join(c.MkDir(), "yadda.zip"))
+	shotfile := mylog.Check2(os.Create(filepath.Join(c.MkDir(), "yadda.zip")))
 	c.Assert(err, check.IsNil)
 	defer shotfile.Close()
 	fakeIter := func(_ context.Context, f func(*backend.Reader) error) error {
@@ -1440,12 +1439,12 @@ func (snapshotSuite) TestCheckChecksForgetConflicts(c *check.C) {
 	tsk.Set("snapshot-setup", map[string]int{"set-id": 42})
 	chg.AddTask(tsk)
 
-	_, _, err = snapshotstate.Check(st, 42, nil, nil)
+	_, _ = mylog.Check3(snapshotstate.Check(st, 42, nil, nil))
 	c.Assert(err, check.ErrorMatches, `cannot operate on snapshot set #42 while change \"1\" is in progress`)
 }
 
 func (snapshotSuite) TestCheck(c *check.C) {
-	shotfile, err := os.Create(filepath.Join(c.MkDir(), "yadda.zip"))
+	shotfile := mylog.Check2(os.Create(filepath.Join(c.MkDir(), "yadda.zip")))
 	c.Assert(err, check.IsNil)
 	defer shotfile.Close()
 	fakeIter := func(_ context.Context, f func(*backend.Reader) error) error {
@@ -1463,7 +1462,7 @@ func (snapshotSuite) TestCheck(c *check.C) {
 	st.Lock()
 	defer st.Unlock()
 
-	found, taskset, err := snapshotstate.Check(st, 42, []string{"a-snap", "b-snap"}, []string{"a-user"})
+	found, taskset := mylog.Check3(snapshotstate.Check(st, 42, []string{"a-snap", "b-snap"}, []string{"a-user"}))
 	c.Assert(err, check.IsNil)
 	c.Check(found, check.DeepEquals, []string{"a-snap"})
 	tasks := taskset.Tasks()
@@ -1490,7 +1489,7 @@ func (snapshotSuite) TestForgetChecksIterError(c *check.C) {
 	st.Lock()
 	defer st.Unlock()
 
-	_, _, err := snapshotstate.Forget(st, 42, nil)
+	_, _ := mylog.Check3(snapshotstate.Forget(st, 42, nil))
 	c.Assert(err, check.ErrorMatches, "bzzt")
 }
 
@@ -1498,12 +1497,12 @@ func (s snapshotSuite) TestForgetDoesNotTriggerSnapstateConflict(c *check.C) {
 	st, restore := s.createConflictingChange(c)
 	defer restore()
 
-	_, _, err := snapshotstate.Forget(st, 42, nil)
+	_, _ := mylog.Check3(snapshotstate.Forget(st, 42, nil))
 	c.Assert(err, check.IsNil)
 }
 
 func (snapshotSuite) TestForgetChecksCheckConflicts(c *check.C) {
-	shotfile, err := os.Create(filepath.Join(c.MkDir(), "yadda.zip"))
+	shotfile := mylog.Check2(os.Create(filepath.Join(c.MkDir(), "yadda.zip")))
 	c.Assert(err, check.IsNil)
 	defer shotfile.Close()
 	fakeIter := func(_ context.Context, f func(*backend.Reader) error) error {
@@ -1526,12 +1525,12 @@ func (snapshotSuite) TestForgetChecksCheckConflicts(c *check.C) {
 	tsk.Set("snapshot-setup", map[string]int{"set-id": 42})
 	chg.AddTask(tsk)
 
-	_, _, err = snapshotstate.Forget(st, 42, nil)
+	_, _ = mylog.Check3(snapshotstate.Forget(st, 42, nil))
 	c.Assert(err, check.ErrorMatches, `cannot operate on snapshot set #42 while change \"1\" is in progress`)
 }
 
 func (snapshotSuite) TestForgetChecksExportConflicts(c *check.C) {
-	shotfile, err := os.Create(filepath.Join(c.MkDir(), "yadda.zip"))
+	shotfile := mylog.Check2(os.Create(filepath.Join(c.MkDir(), "yadda.zip")))
 	c.Assert(err, check.IsNil)
 	defer shotfile.Close()
 	fakeIter := func(_ context.Context, f func(*backend.Reader) error) error {
@@ -1550,12 +1549,12 @@ func (snapshotSuite) TestForgetChecksExportConflicts(c *check.C) {
 
 	snapshotstate.SetSnapshotOpInProgress(st, 42, "export-snapshot")
 
-	_, _, err = snapshotstate.Forget(st, 42, nil)
+	_, _ = mylog.Check3(snapshotstate.Forget(st, 42, nil))
 	c.Assert(err, check.ErrorMatches, `cannot operate on snapshot set #42 while operation export-snapshot is in progress`)
 }
 
 func (snapshotSuite) TestForgetChecksRestoreConflicts(c *check.C) {
-	shotfile, err := os.Create(filepath.Join(c.MkDir(), "yadda.zip"))
+	shotfile := mylog.Check2(os.Create(filepath.Join(c.MkDir(), "yadda.zip")))
 	c.Assert(err, check.IsNil)
 	defer shotfile.Close()
 	fakeIter := func(_ context.Context, f func(*backend.Reader) error) error {
@@ -1578,12 +1577,12 @@ func (snapshotSuite) TestForgetChecksRestoreConflicts(c *check.C) {
 	tsk.Set("snapshot-setup", map[string]int{"set-id": 42})
 	chg.AddTask(tsk)
 
-	_, _, err = snapshotstate.Forget(st, 42, nil)
+	_, _ = mylog.Check3(snapshotstate.Forget(st, 42, nil))
 	c.Assert(err, check.ErrorMatches, `cannot operate on snapshot set #42 while change \"1\" is in progress`)
 }
 
 func (snapshotSuite) TestForget(c *check.C) {
-	shotfile, err := os.Create(filepath.Join(c.MkDir(), "yadda.zip"))
+	shotfile := mylog.Check2(os.Create(filepath.Join(c.MkDir(), "yadda.zip")))
 	c.Assert(err, check.IsNil)
 	defer shotfile.Close()
 	fakeIter := func(_ context.Context, f func(*backend.Reader) error) error {
@@ -1601,7 +1600,7 @@ func (snapshotSuite) TestForget(c *check.C) {
 	st.Lock()
 	defer st.Unlock()
 
-	found, taskset, err := snapshotstate.Forget(st, 42, []string{"a-snap", "b-snap"})
+	found, taskset := mylog.Check3(snapshotstate.Forget(st, 42, []string{"a-snap", "b-snap"}))
 	c.Assert(err, check.IsNil)
 	c.Check(found, check.DeepEquals, []string{"a-snap"})
 	tasks := taskset.Tasks()
@@ -1624,11 +1623,11 @@ func (snapshotSuite) TestSaveExpiration(c *check.C) {
 	defer st.Unlock()
 
 	var expirations map[uint64]interface{}
-	tm, err := time.Parse(time.RFC3339, "2019-03-11T11:24:00Z")
+	tm := mylog.Check2(time.Parse(time.RFC3339, "2019-03-11T11:24:00Z"))
 	c.Assert(err, check.IsNil)
 	c.Assert(snapshotstate.SaveExpiration(st, 12, tm), check.IsNil)
 
-	tm, err = time.Parse(time.RFC3339, "2019-02-12T12:50:00Z")
+	tm = mylog.Check2(time.Parse(time.RFC3339, "2019-02-12T12:50:00Z"))
 	c.Assert(err, check.IsNil)
 	c.Assert(snapshotstate.SaveExpiration(st, 13, tm), check.IsNil)
 
@@ -1664,23 +1663,23 @@ func (snapshotSuite) TestExpiredSnapshotSets(c *check.C) {
 	st.Lock()
 	defer st.Unlock()
 
-	tm, err := time.Parse(time.RFC3339, "2019-03-11T11:24:00Z")
+	tm := mylog.Check2(time.Parse(time.RFC3339, "2019-03-11T11:24:00Z"))
 	c.Assert(err, check.IsNil)
 	c.Assert(snapshotstate.SaveExpiration(st, 12, tm), check.IsNil)
 
-	tm, err = time.Parse(time.RFC3339, "2019-02-12T12:50:00Z")
+	tm = mylog.Check2(time.Parse(time.RFC3339, "2019-02-12T12:50:00Z"))
 	c.Assert(err, check.IsNil)
 	c.Assert(snapshotstate.SaveExpiration(st, 13, tm), check.IsNil)
 
-	tm, err = time.Parse(time.RFC3339, "2020-03-11T11:24:00Z")
+	tm = mylog.Check2(time.Parse(time.RFC3339, "2020-03-11T11:24:00Z"))
 	c.Assert(err, check.IsNil)
-	expired, err := snapshotstate.ExpiredSnapshotSets(st, tm)
+	expired := mylog.Check2(snapshotstate.ExpiredSnapshotSets(st, tm))
 	c.Assert(err, check.IsNil)
 	c.Check(expired, check.DeepEquals, map[uint64]bool{12: true, 13: true})
 
-	tm, err = time.Parse(time.RFC3339, "2019-03-01T11:24:00Z")
+	tm = mylog.Check2(time.Parse(time.RFC3339, "2019-03-01T11:24:00Z"))
 	c.Assert(err, check.IsNil)
-	expired, err = snapshotstate.ExpiredSnapshotSets(st, tm)
+	expired = mylog.Check2(snapshotstate.ExpiredSnapshotSets(st, tm))
 	c.Assert(err, check.IsNil)
 	c.Check(expired, check.DeepEquals, map[uint64]bool{13: true})
 }
@@ -1694,7 +1693,7 @@ func (snapshotSuite) TestAutomaticSnapshotDisabled(c *check.C) {
 	tr.Set("core", "snapshots.automatic.retention", "no")
 	tr.Commit()
 
-	_, err := snapshotstate.AutomaticSnapshot(st, "foo")
+	_ := mylog.Check2(snapshotstate.AutomaticSnapshot(st, "foo"))
 	c.Assert(err, check.Equals, snapstate.ErrNothingToDo)
 }
 
@@ -1707,7 +1706,7 @@ func (snapshotSuite) TestAutomaticSnapshot(c *check.C) {
 	tr.Set("core", "snapshots.automatic.retention", "24h")
 	tr.Commit()
 
-	ts, err := snapshotstate.AutomaticSnapshot(st, "foo")
+	ts := mylog.Check2(snapshotstate.AutomaticSnapshot(st, "foo"))
 	c.Assert(err, check.IsNil)
 
 	tasks := ts.Tasks()
@@ -1731,7 +1730,7 @@ func (snapshotSuite) TestAutomaticSnapshotDefaultClassic(c *check.C) {
 	st.Lock()
 	defer st.Unlock()
 
-	du, err := snapshotstate.AutomaticSnapshotExpiration(st)
+	du := mylog.Check2(snapshotstate.AutomaticSnapshotExpiration(st))
 	c.Assert(err, check.IsNil)
 	c.Assert(du, check.Equals, snapshotstate.DefaultAutomaticSnapshotExpiration)
 }
@@ -1743,7 +1742,7 @@ func (snapshotSuite) TestAutomaticSnapshotDefaultUbuntuCore(c *check.C) {
 	st.Lock()
 	defer st.Unlock()
 
-	du, err := snapshotstate.AutomaticSnapshotExpiration(st)
+	du := mylog.Check2(snapshotstate.AutomaticSnapshotExpiration(st))
 	c.Assert(err, check.IsNil)
 	c.Assert(du, check.Equals, time.Duration(0))
 }
@@ -1758,7 +1757,7 @@ func (snapshotSuite) TestListError(c *check.C) {
 	st.Lock()
 	defer st.Unlock()
 
-	_, err := snapshotstate.List(context.TODO(), st, 0, nil)
+	_ := mylog.Check2(snapshotstate.List(context.TODO(), st, 0, nil))
 	c.Assert(err, check.ErrorMatches, "boom")
 }
 
@@ -1810,7 +1809,7 @@ func (snapshotSuite) TestListSetsAutoFlag(c *check.C) {
 	})
 	defer restore()
 
-	sets, err := snapshotstate.List(context.TODO(), st, 0, nil)
+	sets := mylog.Check2(snapshotstate.List(context.TODO(), st, 0, nil))
 	c.Assert(err, check.IsNil)
 	c.Assert(sets, check.HasLen, 3)
 
@@ -1843,14 +1842,14 @@ func (snapshotSuite) TestImportSnapshotHappy(c *check.C) {
 
 	buf := bytes.NewBufferString(fakeSnapshotData)
 	restore := snapshotstate.MockBackendImport(func(ctx context.Context, id uint64, r io.Reader, flags *backend.ImportFlags) ([]string, error) {
-		d, err := io.ReadAll(r)
+		d := mylog.Check2(io.ReadAll(r))
 		c.Assert(err, check.IsNil)
 		c.Check(fakeSnapshotData, check.Equals, string(d))
 		return fakeSnapNames, nil
 	})
 	defer restore()
 
-	sid, names, err := snapshotstate.Import(context.TODO(), st, buf)
+	sid, names := mylog.Check3(snapshotstate.Import(context.TODO(), st, buf))
 	c.Assert(err, check.IsNil)
 	c.Check(sid, check.Equals, uint64(1))
 	c.Check(names, check.DeepEquals, fakeSnapNames)
@@ -1865,7 +1864,7 @@ func (snapshotSuite) TestImportSnapshotImportError(c *check.C) {
 	defer restore()
 
 	r := bytes.NewBufferString("faked-import-data")
-	sid, _, err := snapshotstate.Import(context.TODO(), st, r)
+	sid, _ := mylog.Check3(snapshotstate.Import(context.TODO(), st, r))
 	c.Assert(err, check.NotNil)
 	c.Assert(err.Error(), check.Equals, "some-error")
 	c.Check(sid, check.Equals, uint64(0))
@@ -1886,7 +1885,7 @@ func (snapshotSuite) TestImportSnapshotDuplicate(c *check.C) {
 	})
 	st.Unlock()
 
-	sid, snapNames, err := snapshotstate.Import(context.TODO(), st, bytes.NewBufferString(""))
+	sid, snapNames := mylog.Check3(snapshotstate.Import(context.TODO(), st, bytes.NewBufferString("")))
 	c.Assert(err, check.IsNil)
 	c.Check(sid, check.Equals, uint64(3))
 	c.Check(snapNames, check.DeepEquals, []string{"foo-snap"})
@@ -1917,7 +1916,7 @@ func (snapshotSuite) TestEstimateSnapshotSize(c *check.C) {
 		return 123, nil
 	})()
 
-	sz, err := snapshotstate.EstimateSnapshotSize(st, "some-snap", nil)
+	sz := mylog.Check2(snapshotstate.EstimateSnapshotSize(st, "some-snap", nil))
 	c.Assert(err, check.IsNil)
 	c.Check(sz, check.Equals, uint64(123))
 }
@@ -1944,7 +1943,7 @@ func (snapshotSuite) TestEstimateSnapshotSizeWithConfig(c *check.C) {
 		return &buf, nil
 	})()
 
-	sz, err := snapshotstate.EstimateSnapshotSize(st, "some-snap", nil)
+	sz := mylog.Check2(snapshotstate.EstimateSnapshotSize(st, "some-snap", nil))
 	c.Assert(err, check.IsNil)
 	// size is 100 + 18
 	c.Check(sz, check.Equals, uint64(118))
@@ -1966,7 +1965,7 @@ func (snapshotSuite) TestEstimateSnapshotSizeError(c *check.C) {
 		return 0, fmt.Errorf("an error")
 	})()
 
-	_, err := snapshotstate.EstimateSnapshotSize(st, "some-snap", nil)
+	_ := mylog.Check2(snapshotstate.EstimateSnapshotSize(st, "some-snap", nil))
 	c.Assert(err, check.ErrorMatches, `an error`)
 }
 
@@ -1988,7 +1987,7 @@ func (snapshotSuite) TestEstimateSnapshotSizeWithUsers(c *check.C) {
 		return 0, nil
 	})()
 
-	_, err := snapshotstate.EstimateSnapshotSize(st, "some-snap", []string{"user1", "user2"})
+	_ := mylog.Check2(snapshotstate.EstimateSnapshotSize(st, "some-snap", []string{"user1", "user2"}))
 	c.Assert(err, check.IsNil)
 	c.Check(gotUsers, check.DeepEquals, []string{"user1", "user2"})
 }
@@ -2004,7 +2003,7 @@ func (snapshotSuite) TestExportSnapshotConflictsWithForget(c *check.C) {
 	tsk.Set("snapshot-setup", map[string]int{"set-id": 42})
 	chg.AddTask(tsk)
 
-	_, err := snapshotstate.Export(context.TODO(), st, 42)
+	_ := mylog.Check2(snapshotstate.Export(context.TODO(), st, 42))
 	c.Assert(err, check.NotNil)
 	c.Assert(err.Error(), check.Equals, `cannot operate on snapshot set #42 while change "1" is in progress`)
 }
@@ -2020,7 +2019,7 @@ func (snapshotSuite) TestImportSnapshotDuplicatedNoConflict(c *check.C) {
 	defer restore()
 
 	st := state.New(nil)
-	setID, snaps, err := snapshotstate.Import(context.TODO(), st, buf)
+	setID, snaps := mylog.Check3(snapshotstate.Import(context.TODO(), st, buf))
 	c.Check(importCalls, check.Equals, 1)
 	c.Assert(err, check.IsNil)
 	c.Check(setID, check.Equals, uint64(42))
@@ -2060,7 +2059,7 @@ func (snapshotSuite) TestImportSnapshotConflictsWithForget(c *check.C) {
 	chg.AddTask(tsk)
 
 	st.Unlock()
-	setID, snaps, err := snapshotstate.Import(context.TODO(), st, buf)
+	setID, snaps := mylog.Check3(snapshotstate.Import(context.TODO(), st, buf))
 	st.Lock()
 	c.Check(importCalls, check.Equals, 2)
 	c.Assert(err, check.IsNil)
@@ -2078,7 +2077,7 @@ func (snapshotSuite) TestExportSnapshotSetsOpInProgress(c *check.C) {
 	st.Lock()
 	defer st.Unlock()
 
-	_, err := snapshotstate.Export(context.TODO(), st, 42)
+	_ := mylog.Check2(snapshotstate.Export(context.TODO(), st, 42))
 	c.Assert(err, check.IsNil)
 
 	ops := st.Cached("snapshot-ops")

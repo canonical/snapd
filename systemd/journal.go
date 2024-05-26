@@ -25,6 +25,8 @@ import (
 	"log/syslog"
 	"net"
 	"os"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 var journalStdoutPath = "/run/systemd/journal/stdout"
@@ -32,16 +34,11 @@ var journalStdoutPath = "/run/systemd/journal/stdout"
 // NewJournalStreamFile creates log stream file descriptor to the journal. The
 // semantics is identical to that of sd_journal_stream_fd(3) call.
 func NewJournalStreamFile(identifier string, priority syslog.Priority, levelPrefix bool) (*os.File, error) {
-	conn, err := net.DialUnix("unix", nil, &net.UnixAddr{Name: journalStdoutPath})
-	if err != nil {
-		return nil, err
-	}
+	conn := mylog.Check2(net.DialUnix("unix", nil, &net.UnixAddr{Name: journalStdoutPath}))
+
 	// does not affect *os.File created through conn.File() later on
 	defer conn.Close()
-
-	if err := conn.CloseRead(); err != nil {
-		return nil, err
-	}
+	mylog.Check(conn.CloseRead())
 
 	// header contents taken from the original systemd code:
 	// https://github.com/systemd/systemd/blob/97a33b126c845327a3a19d6e66f05684823868fb/src/journal/journal-send.c#L395
@@ -63,10 +60,7 @@ func NewJournalStreamFile(identifier string, priority syslog.Priority, levelPref
 	header.WriteByte('\n')
 	header.WriteByte('0')
 	header.WriteByte('\n')
-
-	if _, err := conn.Write(header.Bytes()); err != nil {
-		return nil, fmt.Errorf("failed to write header: %v", err)
-	}
+	mylog.Check2(conn.Write(header.Bytes()))
 
 	return conn.File()
 }

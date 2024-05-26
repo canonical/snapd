@@ -20,6 +20,7 @@
 package main
 
 import (
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 )
@@ -42,21 +43,13 @@ type MountProfileUpdateContext interface {
 }
 
 func executeMountProfileUpdate(upCtx MountProfileUpdateContext) error {
-	unlock, err := upCtx.Lock()
-	if err != nil {
-		return err
-	}
+	unlock := mylog.Check2(upCtx.Lock())
+
 	defer unlock()
 
-	desired, err := upCtx.LoadDesiredProfile()
-	if err != nil {
-		return err
-	}
+	desired := mylog.Check2(upCtx.LoadDesiredProfile())
 
-	currentBefore, err := upCtx.LoadCurrentProfile()
-	if err != nil {
-		return err
-	}
+	currentBefore := mylog.Check2(upCtx.LoadCurrentProfile())
 
 	// Synthesize mount changes that were applied before for the purpose of the tmpfs detector.
 	as := upCtx.Assumptions()
@@ -71,21 +64,14 @@ func executeMountProfileUpdate(upCtx MountProfileUpdateContext) error {
 
 	var changesMade []*Change
 	for _, change := range changesNeeded {
-		synthesised, err := change.Perform(as)
+		synthesised := mylog.Check2(change.Perform(as))
 		changesMade = append(changesMade, synthesised...)
-		if err != nil {
-			// We may have done something even if Perform itself has
-			// failed. We need to collect synthesized changes and
-			// store them.
-			origin := change.Entry.XSnapdOrigin()
-			if origin == "layout" || origin == "overname" {
-				// TODO: convert the test to a method over origin.
-				return err
-			} else if err != ErrIgnoredMissingMount {
-				logger.Noticef("cannot change mount namespace according to change %s: %s", change, err)
-			}
-			continue
-		}
+
+		// We may have done something even if Perform itself has
+		// failed. We need to collect synthesized changes and
+		// store them.
+
+		// TODO: convert the test to a method over origin.
 
 		changesMade = append(changesMade, change)
 	}

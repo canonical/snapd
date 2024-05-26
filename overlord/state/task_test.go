@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -91,8 +92,8 @@ func (ts *taskSuite) TestGetSet(c *C) {
 	t.Set("a", 1)
 
 	var v int
-	err := t.Get("a", &v)
-	c.Assert(err, IsNil)
+	mylog.Check(t.Get("a", &v))
+
 	c.Check(v, Equals, 1)
 }
 
@@ -121,8 +122,8 @@ func (ts *taskSuite) TestClear(c *C) {
 	t.Set("a", 1)
 
 	var v int
-	err := t.Get("a", &v)
-	c.Assert(err, IsNil)
+	mylog.Check(t.Get("a", &v))
+
 	c.Check(v, Equals, 1)
 
 	t.Clear("a")
@@ -191,8 +192,8 @@ func (ts *taskSuite) TestTaskMarshalsWaitStatus(c *C) {
 	t1 := st.NewTask("download", "1...")
 	t1.SetToWait(state.UndoStatus)
 
-	d, err := t1.MarshalJSON()
-	c.Assert(err, IsNil)
+	d := mylog.Check2(t1.MarshalJSON())
+
 
 	needle := fmt.Sprintf(`"waited-status":%d`, t1.WaitedStatus())
 	c.Assert(string(d), testutil.Contains, needle)
@@ -214,10 +215,8 @@ func (ts *taskSuite) TestIsCleanAndSetClean(c *C) {
 }
 
 func jsonStr(m json.Marshaler) string {
-	data, err := m.MarshalJSON()
-	if err != nil {
-		panic(err)
-	}
+	data := mylog.Check2(m.MarshalJSON())
+
 	return string(data)
 }
 
@@ -311,8 +310,8 @@ func (ts *taskSuite) TestTaskMarshalsWaitFor(c *C) {
 	t2 := st.NewTask("install", "2...")
 	t2.WaitFor(t1)
 
-	d, err := t2.MarshalJSON()
-	c.Assert(err, IsNil)
+	d := mylog.Check2(t2.MarshalJSON())
+
 
 	needle := fmt.Sprintf(`"wait-tasks":["%s"`, t1.ID())
 	c.Assert(string(d), testutil.Contains, needle)
@@ -327,8 +326,8 @@ func (ts *taskSuite) TestTaskMarshalsDoingUndoingTime(c *C) {
 	t.AccumulateDoingTime(123456)
 	t.AccumulateUndoingTime(654321)
 
-	d, err := t.MarshalJSON()
-	c.Assert(err, IsNil)
+	d := mylog.Check2(t.MarshalJSON())
+
 
 	c.Assert(string(d), testutil.Contains, `"doing-time":123456`)
 	c.Assert(string(d), testutil.Contains, `"undoing-time":654321`)
@@ -438,8 +437,8 @@ func (ts *taskSuite) TestTaskMarshalsLog(c *C) {
 	t := st.NewTask("download", "1...")
 	t.Logf("foo")
 
-	d, err := t.MarshalJSON()
-	c.Assert(err, IsNil)
+	d := mylog.Check2(t.MarshalJSON())
+
 
 	c.Assert(string(d), Matches, `.*"log":\["....-..-..T.* INFO foo"\].*`)
 }
@@ -621,33 +620,33 @@ func (cs *taskSuite) TestTaskSetEdge(c *C) {
 	c.Check(func() { ts.MarkEdge(nil, edge1) }, PanicMatches, `cannot set edge "on-edge" with nil task`)
 
 	// no edge marked yet
-	t, err := ts.Edge(edge1)
+	t := mylog.Check2(ts.Edge(edge1))
 	c.Assert(t, IsNil)
 	c.Assert(err, ErrorMatches, `internal error: missing "on-edge" edge in task set`)
-	t, err = ts.Edge(edge2)
+	t = mylog.Check2(ts.Edge(edge2))
 	c.Assert(t, IsNil)
 	c.Assert(err, ErrorMatches, `internal error: missing "eddie" edge in task set`)
 
 	// one edge
 	ts.MarkEdge(t1, edge1)
-	t, err = ts.Edge(edge1)
+	t = mylog.Check2(ts.Edge(edge1))
 	c.Assert(t, Equals, t1)
-	c.Assert(err, IsNil)
+
 
 	// two edges
 	ts.MarkEdge(t2, edge2)
-	t, err = ts.Edge(edge1)
+	t = mylog.Check2(ts.Edge(edge1))
 	c.Assert(t, Equals, t1)
-	c.Assert(err, IsNil)
-	t, err = ts.Edge(edge2)
+
+	t = mylog.Check2(ts.Edge(edge2))
 	c.Assert(t, Equals, t2)
-	c.Assert(err, IsNil)
+
 
 	// edges can be reassigned
 	ts.MarkEdge(t3, edge1)
-	t, err = ts.Edge(edge1)
+	t = mylog.Check2(ts.Edge(edge1))
 	c.Assert(t, Equals, t3)
-	c.Assert(err, IsNil)
+
 
 	// it is possible to check if edge exists without failing
 	t = ts.MaybeEdge(edge1)
@@ -669,28 +668,29 @@ func (cs *taskSuite) TestTaskAddAllWithEdges(c *C) {
 	ts := state.NewTaskSet(t1, t2, t3)
 
 	ts.MarkEdge(t1, edge1)
-	t, err := ts.Edge(edge1)
+	t := mylog.Check2(ts.Edge(edge1))
 	c.Assert(t, Equals, t1)
-	c.Assert(err, IsNil)
+
 
 	ts2 := state.NewTaskSet()
-	err = ts2.AddAllWithEdges(ts)
-	c.Assert(err, IsNil)
-	t, err = ts2.Edge(edge1)
-	c.Assert(t, Equals, t1)
-	c.Assert(err, IsNil)
+	mylog.Check(ts2.AddAllWithEdges(ts))
 
-	// doing it again is no harm
-	err = ts2.AddAllWithEdges(ts)
-	c.Assert(err, IsNil)
-	t, err = ts2.Edge(edge1)
+	t = mylog.Check2(ts2.Edge(edge1))
 	c.Assert(t, Equals, t1)
-	c.Assert(err, IsNil)
+
+	mylog.
+
+		// doing it again is no harm
+		Check(ts2.AddAllWithEdges(ts))
+
+	t = mylog.Check2(ts2.Edge(edge1))
+	c.Assert(t, Equals, t1)
+
 
 	// but conflicting edges are an error
 	t4 := st.NewTask("another-kind", "4...")
 	tsWithDuplicatedEdge := state.NewTaskSet(t4)
 	tsWithDuplicatedEdge.MarkEdge(t4, edge1)
-	err = ts2.AddAllWithEdges(tsWithDuplicatedEdge)
+	mylog.Check(ts2.AddAllWithEdges(tsWithDuplicatedEdge))
 	c.Assert(err, ErrorMatches, `cannot add taskset: duplicated edge "install"`)
 }

@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/testutil"
@@ -68,8 +69,8 @@ func (s *cgroupSuite) TestProbeVersion2(c *C) {
 		return int64(cgroup.Cgroup2SuperMagic), nil
 	})
 	defer restore()
-	v, err := cgroup.ProbeCgroupVersion()
-	c.Assert(err, IsNil)
+	v := mylog.Check2(cgroup.ProbeCgroupVersion())
+
 	c.Assert(v, Equals, cgroup.V2)
 }
 
@@ -80,8 +81,8 @@ func (s *cgroupSuite) TestProbeVersion1(c *C) {
 		return TMPFS_MAGIC, nil
 	})
 	defer restore()
-	v, err := cgroup.ProbeCgroupVersion()
-	c.Assert(err, IsNil)
+	v := mylog.Check2(cgroup.ProbeCgroupVersion())
+
 	c.Assert(v, Equals, cgroup.V1)
 }
 
@@ -91,7 +92,7 @@ func (s *cgroupSuite) TestProbeVersionUnhappy(c *C) {
 		return 0, errors.New("statfs fail")
 	})
 	defer restore()
-	v, err := cgroup.ProbeCgroupVersion()
+	v := mylog.Check2(cgroup.ProbeCgroupVersion())
 	c.Assert(err, ErrorMatches, "cannot determine cgroup version: statfs fail")
 	c.Assert(v, Equals, cgroup.Unknown)
 }
@@ -99,25 +100,25 @@ func (s *cgroupSuite) TestProbeVersionUnhappy(c *C) {
 func (s *cgroupSuite) TestVersion(c *C) {
 	restore := cgroup.MockVersion(cgroup.V2, nil)
 	defer restore()
-	v, err := cgroup.Version()
+	v := mylog.Check2(cgroup.Version())
 	c.Assert(v, Equals, cgroup.V2)
-	c.Assert(err, IsNil)
+
 
 	restore = cgroup.MockVersion(cgroup.V1, nil)
 	defer restore()
-	v, err = cgroup.Version()
+	v = mylog.Check2(cgroup.Version())
 	c.Assert(v, Equals, cgroup.V1)
-	c.Assert(err, IsNil)
+
 
 	restore = cgroup.MockVersion(cgroup.Unknown, nil)
 	defer restore()
-	v, err = cgroup.Version()
+	v = mylog.Check2(cgroup.Version())
 	c.Assert(v, Equals, cgroup.Unknown)
-	c.Assert(err, IsNil)
+
 
 	restore = cgroup.MockVersion(cgroup.Unknown, errors.New("foo"))
 	defer restore()
-	v, err = cgroup.Version()
+	v = mylog.Check2(cgroup.Version())
 	c.Assert(v, Equals, cgroup.Unknown)
 	c.Assert(err, ErrorMatches, "foo")
 }
@@ -144,60 +145,59 @@ var mockCgroup = []byte(`
 `)
 
 func (s *cgroupSuite) TestProgGroupHappy(c *C) {
-	err := os.MkdirAll(filepath.Join(s.rootDir, "proc/333"), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(s.rootDir, "proc/333/cgroup"), mockCgroup, 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Join(s.rootDir, "proc/333"), 0755))
 
-	group, err := cgroup.ProcGroup(333, cgroup.MatchV1Controller("freezer"))
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(s.rootDir, "proc/333/cgroup"), mockCgroup, 0755))
+
+
+	group := mylog.Check2(cgroup.ProcGroup(333, cgroup.MatchV1Controller("freezer")))
+
 	c.Check(group, Equals, "/snap.hello-world")
 
-	group, err = cgroup.ProcGroup(333, cgroup.MatchV1Controller("memory"))
-	c.Assert(err, IsNil)
+	group = mylog.Check2(cgroup.ProcGroup(333, cgroup.MatchV1Controller("memory")))
+
 	c.Check(group, Equals, "/memory/group")
 
-	group, err = cgroup.ProcGroup(333, cgroup.MatchV1NamedHierarchy("systemd"))
-	c.Assert(err, IsNil)
+	group = mylog.Check2(cgroup.ProcGroup(333, cgroup.MatchV1NamedHierarchy("systemd")))
+
 	c.Check(group, Equals, "/user.slice/user-1000.slice/user@1000.service/gnome-terminal-server.service")
 
-	group, err = cgroup.ProcGroup(333, cgroup.MatchV1NamedHierarchy("snapd"))
-	c.Assert(err, IsNil)
+	group = mylog.Check2(cgroup.ProcGroup(333, cgroup.MatchV1NamedHierarchy("snapd")))
+
 	c.Check(group, Equals, "/snap.foo.bar")
 
-	group, err = cgroup.ProcGroup(333, cgroup.MatchUnifiedHierarchy())
-	c.Assert(err, IsNil)
+	group = mylog.Check2(cgroup.ProcGroup(333, cgroup.MatchUnifiedHierarchy()))
+
 	c.Check(group, Equals, "/systemd/unified")
 }
 
 func (s *cgroupSuite) TestProgGroupMissingFile(c *C) {
-	err := os.MkdirAll(filepath.Join(s.rootDir, "proc/333"), 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Join(s.rootDir, "proc/333"), 0755))
 
-	group, err := cgroup.ProcGroup(333, cgroup.MatchV1Controller("freezer"))
+
+	group := mylog.Check2(cgroup.ProcGroup(333, cgroup.MatchV1Controller("freezer")))
 	c.Assert(err, ErrorMatches, "open .*/proc/333/cgroup: no such file or directory")
 	c.Check(group, Equals, "")
 }
 
 func (s *cgroupSuite) TestProgGroupMissingGroup(c *C) {
-	var noFreezerCgroup = []byte(`
+	noFreezerCgroup := []byte(`
 10:devices:/user.slice
 `)
+	mylog.Check(os.MkdirAll(filepath.Join(s.rootDir, "proc/333"), 0755))
 
-	err := os.MkdirAll(filepath.Join(s.rootDir, "proc/333"), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(s.rootDir, "proc/333/cgroup"), noFreezerCgroup, 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(s.rootDir, "proc/333/cgroup"), noFreezerCgroup, 0755))
 
-	group, err := cgroup.ProcGroup(333, cgroup.MatchV1Controller("freezer"))
+
+	group := mylog.Check2(cgroup.ProcGroup(333, cgroup.MatchV1Controller("freezer")))
 	c.Assert(err, ErrorMatches, `cannot find controller "freezer" cgroup path for pid 333`)
 	c.Check(group, Equals, "")
 
-	group, err = cgroup.ProcGroup(333, cgroup.MatchUnifiedHierarchy())
+	group = mylog.Check2(cgroup.ProcGroup(333, cgroup.MatchUnifiedHierarchy()))
 	c.Assert(err, ErrorMatches, `cannot find unified hierarchy cgroup path for pid 333`)
 	c.Check(group, Equals, "")
 
-	group, err = cgroup.ProcGroup(333, cgroup.MatchV1NamedHierarchy("snapd"))
+	group = mylog.Check2(cgroup.ProcGroup(333, cgroup.MatchV1NamedHierarchy("snapd")))
 	c.Assert(err, ErrorMatches, `cannot find named hierarchy "snapd" cgroup path for pid 333`)
 	c.Check(group, Equals, "")
 }
@@ -208,26 +208,26 @@ var mockCgroupConfusingCpu = []byte(`
 `)
 
 func (s *cgroupSuite) TestProgGroupConfusingCpu(c *C) {
-	err := os.MkdirAll(filepath.Join(s.rootDir, "proc/333"), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(s.rootDir, "proc/333/cgroup"), mockCgroupConfusingCpu, 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Join(s.rootDir, "proc/333"), 0755))
 
-	group, err := cgroup.ProcGroup(333, cgroup.MatchV1Controller("cpu"))
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(s.rootDir, "proc/333/cgroup"), mockCgroupConfusingCpu, 0755))
+
+
+	group := mylog.Check2(cgroup.ProcGroup(333, cgroup.MatchV1Controller("cpu")))
+
 	c.Check(group, Equals, "/foo.many-cpu")
 
-	group, err = cgroup.ProcGroup(333, cgroup.MatchV1Controller("cpuacct"))
-	c.Assert(err, IsNil)
+	group = mylog.Check2(cgroup.ProcGroup(333, cgroup.MatchV1Controller("cpuacct")))
+
 	c.Check(group, Equals, "/foo.cpuacct")
 
-	group, err = cgroup.ProcGroup(333, cgroup.MatchV1Controller("cpuset"))
-	c.Assert(err, IsNil)
+	group = mylog.Check2(cgroup.ProcGroup(333, cgroup.MatchV1Controller("cpuset")))
+
 	c.Check(group, Equals, "/foo.many-cpu")
 }
 
 func (s *cgroupSuite) TestProgGroupBadSelector(c *C) {
-	group, err := cgroup.ProcGroup(333, nil)
+	group := mylog.Check2(cgroup.ProcGroup(333, nil))
 	c.Assert(err, ErrorMatches, `internal error: cgroup matcher is nil`)
 	c.Check(group, Equals, "")
 }
@@ -273,12 +273,12 @@ func (s *cgroupSuite) TestProcessPathInTrackingCgroup(c *C) {
 		restoreCGVersion := cgroup.MockVersion(scenario.cgVersion, nil)
 
 		c.Assert(os.WriteFile(f, []byte(scenario.cgroups), 0644), IsNil)
-		path, err := cgroup.ProcessPathInTrackingCgroup(1234)
+		path := mylog.Check2(cgroup.ProcessPathInTrackingCgroup(1234))
 		if scenario.errMsg != "" {
 			c.Assert(err, ErrorMatches, scenario.errMsg)
 		} else {
 			c.Assert(path, Equals, scenario.path)
-			c.Assert(err, IsNil)
+
 		}
 
 		restoreCGVersion()
@@ -300,8 +300,8 @@ func (s *cgroupSuite) TestProcessPathInTrackingCgroupV2SpecialCase(c *C) {
 	c.Assert(os.MkdirAll(filepath.Dir(f), 0755), IsNil)
 
 	c.Assert(os.WriteFile(f, []byte(text), 0644), IsNil)
-	path, err := cgroup.ProcessPathInTrackingCgroup(1234)
-	c.Assert(err, IsNil)
+	path := mylog.Check2(cgroup.ProcessPathInTrackingCgroup(1234))
+
 	// Because v2 is not really mounted, we ignore the entry 0::/
 	// and return the v1 version instead.
 	c.Assert(path, Equals, "/user.slice/user-0.slice/session-1.scope")

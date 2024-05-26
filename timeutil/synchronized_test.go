@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/godbus/dbus"
 	. "gopkg.in/check.v1"
 
@@ -47,20 +48,13 @@ type mockTimedate1 struct {
 }
 
 func newMockTimedate1() (*mockTimedate1, error) {
-	conn, err := dbusutil.SessionBusPrivate()
-	if err != nil {
-		return nil, err
-	}
+	conn := mylog.Check2(dbusutil.SessionBusPrivate())
 
 	server := &mockTimedate1{
 		conn: conn,
 	}
 
-	reply, err := conn.RequestName(timedate1BusName, dbus.NameFlagDoNotQueue)
-	if err != nil {
-		conn.Close()
-		return nil, err
-	}
+	reply := mylog.Check2(conn.RequestName(timedate1BusName, dbus.NameFlagDoNotQueue))
 
 	if reply != dbus.RequestNameReplyPrimaryOwner {
 		conn.Close()
@@ -75,9 +69,8 @@ func (server *mockTimedate1) Export() {
 }
 
 func (server *mockTimedate1) Stop() error {
-	if _, err := server.conn.ReleaseName(timedate1BusName); err != nil {
-		return err
-	}
+	mylog.Check2(server.conn.ReleaseName(timedate1BusName))
+
 	return server.conn.Close()
 }
 
@@ -122,16 +115,16 @@ func (s *syncedSuite) TearDownTest(c *C) {
 }
 
 func (s *syncedSuite) TestIsNTPSynchronized(c *C) {
-	backend, err := newMockTimedate1()
-	c.Assert(err, IsNil)
+	backend := mylog.Check2(newMockTimedate1())
+
 	defer backend.Stop()
 	backend.Export()
 
 	for _, v := range []bool{true, false} {
 		backend.reset(v)
 
-		synced, err := timeutil.IsNTPSynchronized()
-		c.Assert(err, IsNil)
+		synced := mylog.Check2(timeutil.IsNTPSynchronized())
+
 		c.Check(synced, Equals, v)
 
 		func() {
@@ -145,19 +138,19 @@ func (s *syncedSuite) TestIsNTPSynchronized(c *C) {
 }
 
 func (s *syncedSuite) TestIsNTPSynchronizedStrangeEr(c *C) {
-	backend, err := newMockTimedate1()
-	c.Assert(err, IsNil)
+	backend := mylog.Check2(newMockTimedate1())
+
 	defer backend.Stop()
 	// Note that we did not export anything here - this error is a bit
 	// artificial
 
-	_, err = timeutil.IsNTPSynchronized()
+	_ = mylog.Check2(timeutil.IsNTPSynchronized())
 	c.Check(err, ErrorMatches, `cannot check for ntp sync: Object does not implement the interface`)
 }
 
 func (s *syncedSuite) TestIsNTPSynchronizedNoTimedatectlNoErr(c *C) {
 	// note that there is no mock timedate1 created so we are on an empty bus
-	synced, err := timeutil.IsNTPSynchronized()
+	synced := mylog.Check2(timeutil.IsNTPSynchronized())
 	c.Check(err, ErrorMatches, `cannot find org.freedesktop.timedate1 dbus service: .*`)
 	c.Check(errors.As(err, &timeutil.NoTimedate1Error{}), Equals, true)
 	c.Check(synced, Equals, false)

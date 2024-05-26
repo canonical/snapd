@@ -24,6 +24,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapdir"
 	"github.com/snapcore/snapd/snap/squashfs"
@@ -53,16 +54,12 @@ var formatHandlers = []snapFormat{
 // snap/snapdir could not be opened (e.g. file not found or dir
 // empty).
 func notSnapErrorDetails(path string) error {
-	f, err := os.Open(path)
-	if err != nil {
-		return err
-	}
+	f := mylog.Check2(os.Open(path))
+
 	defer f.Close()
 
-	stat, err := f.Stat()
-	if err != nil {
-		return err
-	}
+	stat := mylog.Check2(f.Stat())
+
 	if stat.IsDir() {
 		if _, err := f.Readdir(1); err == io.EOF {
 			return fmt.Errorf("directory %q is empty", path)
@@ -72,9 +69,8 @@ func notSnapErrorDetails(path string) error {
 	// Arbitrary value but big enough to show some header
 	// information (the squashfs header is type u32)
 	var header [15]byte
-	if _, err := f.Read(header[:]); err != nil {
-		return fmt.Errorf("cannot read %q: %v", path, err)
-	}
+	mylog.Check2(f.Read(header[:]))
+
 	return fmt.Errorf("file %q is invalid (header %v %q)", path, header, header)
 }
 

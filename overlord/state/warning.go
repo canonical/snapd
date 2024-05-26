@@ -27,6 +27,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/logger"
 )
 
@@ -85,10 +86,8 @@ func (w *Warning) MarshalJSON() ([]byte, error) {
 
 func (w *Warning) UnmarshalJSON(data []byte) error {
 	var jw jsonWarning
-	err := json.Unmarshal(data, &jw)
-	if err != nil {
-		return err
-	}
+	mylog.Check(json.Unmarshal(data, &jw))
+
 	w.message = jw.Message
 	w.firstAdded = jw.FirstAdded
 	w.lastAdded = jw.LastAdded
@@ -96,16 +95,10 @@ func (w *Warning) UnmarshalJSON(data []byte) error {
 		w.lastShown = *jw.LastShown
 	}
 	if jw.ExpireAfter != "" {
-		w.expireAfter, err = time.ParseDuration(jw.ExpireAfter)
-		if err != nil {
-			return err
-		}
+		w.expireAfter = mylog.Check2(time.ParseDuration(jw.ExpireAfter))
 	}
 	if jw.RepeatAfter != "" {
-		w.repeatAfter, err = time.ParseDuration(jw.RepeatAfter)
-		if err != nil {
-			return err
-		}
+		w.repeatAfter = mylog.Check2(time.ParseDuration(jw.RepeatAfter))
 	}
 
 	return w.validate()
@@ -217,11 +210,9 @@ func (s *State) AddWarning(message string, options *AddWarningOptions) {
 			firstAdded:  now,
 			expireAfter: defaultWarningExpireAfter,
 		}
-		if err := warning.validate(); err != nil {
-			// programming error!
-			logger.Panicf("internal error, please report: attempted to add invalid warning: %v", err)
-			return
-		}
+		mylog.Check(warning.validate())
+		// programming error!
+
 		s.warnings[message] = warning
 	}
 

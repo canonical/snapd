@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/logger"
 )
 
@@ -145,10 +146,8 @@ func (t *Task) UnmarshalJSON(data []byte) error {
 		t.state.writing()
 	}
 	var unmarshalled marshalledTask
-	err := json.Unmarshal(data, &unmarshalled)
-	if err != nil {
-		return err
-	}
+	mylog.Check(json.Unmarshal(data, &unmarshalled))
+
 	t.id = unmarshalled.ID
 	t.kind = unmarshalled.Kind
 	t.summary = unmarshalled.Summary

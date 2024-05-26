@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/testutil"
@@ -47,26 +48,24 @@ func (s *powerbtnSuite) SetUpTest(c *C) {
 }
 
 func (s *powerbtnSuite) TestConfigurePowerButtonInvalid(c *C) {
-	err := configcore.SwitchHandlePowerKey("invalid-action", nil)
+	mylog.Check(configcore.SwitchHandlePowerKey("invalid-action", nil))
 	c.Check(err, ErrorMatches, `invalid action "invalid-action" supplied for system.power-key-action option`)
 }
 
 func (s *powerbtnSuite) TestConfigurePowerIntegration(c *C) {
 	for _, action := range []string{"ignore", "poweroff", "reboot", "halt", "kexec", "suspend", "hibernate", "hybrid-sleep", "lock"} {
-
-		err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
+		mylog.Check(configcore.FilesystemOnlyRun(coreDev, &mockConf{
 			state: s.state,
 			conf: map[string]interface{}{
 				"system.power-key-action": action,
 			},
-		})
-		c.Assert(err, IsNil)
+		}))
+
 
 		// ensure nothing gets enabled/disabled when an unsupported
 		// service is set for disable
 		c.Check(s.mockPowerBtnCfg, testutil.FileEquals, fmt.Sprintf("[Login]\nHandlePowerKey=%s\n", action))
 	}
-
 }
 
 func (s *powerbtnSuite) TestFilesystemOnlyApply(c *C) {

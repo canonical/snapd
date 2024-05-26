@@ -22,6 +22,7 @@ package ctlcmd
 import (
 	"gopkg.in/yaml.v2"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/strutil"
@@ -60,19 +61,13 @@ type systemModeResult struct {
 }
 
 func (c *systemModeCommand) Execute(args []string) error {
-	context, err := c.ensureContext()
-	if err != nil {
-		return err
-	}
+	context := mylog.Check2(c.ensureContext())
 
 	st := context.State()
 	st.Lock()
 	defer st.Unlock()
 
-	smi, err := devicestateSystemModeInfoFromState(st)
-	if err != nil {
-		return err
-	}
+	smi := mylog.Check2(devicestateSystemModeInfoFromState(st))
 
 	res := systemModeResult{
 		SystemMode: smi.Mode,
@@ -82,10 +77,7 @@ func (c *systemModeCommand) Execute(args []string) error {
 		res.Factory = true
 	}
 
-	b, err := yaml.Marshal(res)
-	if err != nil {
-		return err
-	}
+	b := mylog.Check2(yaml.Marshal(res))
 
 	c.printf("%s", string(b))
 

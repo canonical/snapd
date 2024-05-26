@@ -24,6 +24,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/udev"
@@ -123,15 +124,12 @@ const invalidDeviceNodeSlotPathErrFmt = "slot %q path attribute must be a valid 
 
 // Check validity of the defined slot
 func (iface *rawVolumeInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
-	_, err := verifySlotPathAttribute(&interfaces.SlotRef{Snap: slot.Snap.InstanceName(), Name: slot.Name}, slot, rawVolumePartitionPattern, invalidDeviceNodeSlotPathErrFmt)
+	_ := mylog.Check2(verifySlotPathAttribute(&interfaces.SlotRef{Snap: slot.Snap.InstanceName(), Name: slot.Name}, slot, rawVolumePartitionPattern, invalidDeviceNodeSlotPathErrFmt))
 	return err
 }
 
 func (iface *rawVolumeInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	cleanedPath, err := verifySlotPathAttribute(slot.Ref(), slot, rawVolumePartitionPattern, invalidDeviceNodeSlotPathErrFmt)
-	if err != nil {
-		return nil
-	}
+	cleanedPath := mylog.Check2(verifySlotPathAttribute(slot.Ref(), slot, rawVolumePartitionPattern, invalidDeviceNodeSlotPathErrFmt))
 
 	spec.AddSnippet(fmt.Sprintf(rawVolumeConnectedPlugAppArmorPath, cleanedPath))
 
@@ -139,10 +137,7 @@ func (iface *rawVolumeInterface) AppArmorConnectedPlug(spec *apparmor.Specificat
 }
 
 func (iface *rawVolumeInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	cleanedPath, err := verifySlotPathAttribute(slot.Ref(), slot, rawVolumePartitionPattern, invalidDeviceNodeSlotPathErrFmt)
-	if err != nil {
-		return nil
-	}
+	cleanedPath := mylog.Check2(verifySlotPathAttribute(slot.Ref(), slot, rawVolumePartitionPattern, invalidDeviceNodeSlotPathErrFmt))
 
 	spec.TagDevice(fmt.Sprintf(`KERNEL=="%s"`, strings.TrimPrefix(cleanedPath, "/dev/")))
 

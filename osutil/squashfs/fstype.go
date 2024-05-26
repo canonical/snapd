@@ -23,6 +23,7 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -35,10 +36,7 @@ var needsFuseImpl = func() bool {
 		return false
 	}
 
-	out, err := exec.Command("systemd-detect-virt", "--container").Output()
-	if err != nil {
-		return false
-	}
+	out := mylog.Check2(exec.Command("systemd-detect-virt", "--container").Output())
 
 	virt := strings.TrimSpace(string(out))
 	if virt != "none" {

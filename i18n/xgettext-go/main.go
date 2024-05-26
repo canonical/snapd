@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 )
 
@@ -51,7 +52,7 @@ func findCommentsForTranslation(fset *token.FileSet, f *ast.File, posCall token.
 			c := cg.List[i]
 
 			posComment := fset.Position(c.End())
-			//println(posCall.Line, posComment.Line, c.Text)
+			// println(posCall.Line, posComment.Line, c.Text)
 			if posCall.Line == posComment.Line+1 {
 				posCall = posComment
 				com = fmt.Sprintf("%s\n%s", c.Text, com)
@@ -161,9 +162,7 @@ func processFiles(args []string) error {
 
 	fset := token.NewFileSet()
 	for _, fname := range args {
-		if err := processSingleGoSource(fset, fname); err != nil {
-			return err
-		}
+		mylog.Check(processSingleGoSource(fset, fname))
 	}
 
 	return nil
@@ -179,7 +178,7 @@ func readContent(fname string) (content []byte, err error) {
 	// Otherwise, search for the file in each of the configured
 	// directories.
 	for _, dir := range opts.Directories {
-		content, err = os.ReadFile(filepath.Join(dir, fname))
+		content = mylog.Check2(os.ReadFile(filepath.Join(dir, fname)))
 		if !os.IsNotExist(err) {
 			break
 		}
@@ -188,16 +187,10 @@ func readContent(fname string) (content []byte, err error) {
 }
 
 func processSingleGoSource(fset *token.FileSet, fname string) error {
-	fnameContent, err := readContent(fname)
-	if err != nil {
-		return err
-	}
+	fnameContent := mylog.Check2(readContent(fname))
 
 	// Create the AST by parsing src.
-	f, err := parser.ParseFile(fset, fname, fnameContent, parser.ParseComments)
-	if err != nil {
-		return err
-	}
+	f := mylog.Check2(parser.ParseFile(fset, fname, fnameContent, parser.ParseComments))
 
 	ast.Inspect(f, func(n ast.Node) bool {
 		return inspectNodeForTranslations(fset, f, n)
@@ -213,14 +206,10 @@ var formatTime = func() string {
 // mustFprintf will write the given format string to the given
 // writer. Any error will make it panic.
 func mustFprintf(w io.Writer, format string, a ...interface{}) {
-	_, err := fmt.Fprintf(w, format, a...)
-	if err != nil {
-		panic(fmt.Sprintf("cannot write output: %v", err))
-	}
+	_ := mylog.Check2(fmt.Fprintf(w, format, a...))
 }
 
 func writePotFile(out io.Writer) {
-
 	header := fmt.Sprintf(`# SOME DESCRIPTIVE TITLE.
 # Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
 # This file is distributed under the same license as the PACKAGE package.
@@ -270,7 +259,7 @@ msgstr  "Project-Id-Version: %s\n"
 		if msgid.formatHint != "" {
 			mustFprintf(out, "#, %s\n", msgid.formatHint)
 		}
-		var formatOutput = func(in string) string {
+		formatOutput := func(in string) string {
 			// split string with \n into multiple lines
 			// to make the output nicer
 			out := strings.Replace(in, "\\n", "\\n\"\n        \"", -1)
@@ -287,7 +276,6 @@ msgstr  "Project-Id-Version: %s\n"
 		}
 		mustFprintf(out, "\n")
 	}
-
 }
 
 // FIXME: this must be setable via go-flags
@@ -316,33 +304,22 @@ var opts struct {
 
 func main() {
 	// parse args
-	args, err := flags.ParseArgs(&opts, os.Args)
-	if err != nil {
-		log.Fatalf("ParseArgs failed %s", err)
-	}
+	args := mylog.Check2(flags.ParseArgs(&opts, os.Args))
 
 	var files []string
 	if opts.FilesFrom != "" {
-		content, err := os.ReadFile(opts.FilesFrom)
-		if err != nil {
-			log.Fatalf("cannot read file %v: %v", opts.FilesFrom, err)
-		}
+		content := mylog.Check2(os.ReadFile(opts.FilesFrom))
+
 		content = bytes.TrimSpace(content)
 		files = strings.Split(string(content), "\n")
 	} else {
 		files = args[1:]
 	}
-	if err := processFiles(files); err != nil {
-		log.Fatalf("processFiles failed with: %s", err)
-	}
+	mylog.Check(processFiles(files))
 
 	out := os.Stdout
 	if opts.Output != "" {
-		var err error
-		out, err = os.Create(opts.Output)
-		if err != nil {
-			log.Fatalf("failed to create %s: %s", opts.Output, err)
-		}
+		out = mylog.Check2(os.Create(opts.Output))
 	}
 	writePotFile(out)
 }

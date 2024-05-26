@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/overlord/configstate"
@@ -43,8 +44,9 @@ type setCommand struct {
 	Typed  bool `short:"t" description:"parse the value strictly as JSON document"`
 }
 
-var shortSetHelp = i18n.G("Set either configuration options or interface connection settings")
-var longSetHelp = i18n.G(`
+var (
+	shortSetHelp = i18n.G("Set either configuration options or interface connection settings")
+	longSetHelp  = i18n.G(`
 The set command sets the provided configuration options as requested.
 
     $ snapctl set username=frank password=$PASSWORD
@@ -64,6 +66,7 @@ by naming the respective plug or slot:
 
     $ snapctl set :myplug path=/dev/ttyS0
 `)
+)
 
 func init() {
 	addCommand("set", shortSetHelp, longSetHelp, func() command { return &setCommand{} })
@@ -74,10 +77,7 @@ func (s *setCommand) Execute(args []string) error {
 		return fmt.Errorf(i18n.G("set which option?"))
 	}
 
-	context, err := s.ensureContext()
-	if err != nil {
-		return err
-	}
+	context := mylog.Check2(s.ensureContext())
 
 	if s.Typed && s.String {
 		return fmt.Errorf("cannot use -t and -s together")
@@ -123,14 +123,9 @@ func (s *setCommand) setConfigSetting(context *hookstate.Context) error {
 		if s.String {
 			value = parts[1]
 		} else {
-			if err := jsonutil.DecodeWithNumber(strings.NewReader(parts[1]), &value); err != nil {
-				if s.Typed {
-					return fmt.Errorf("failed to parse JSON: %w", err)
-				}
+			mylog.Check(jsonutil.DecodeWithNumber(strings.NewReader(parts[1]), &value))
 
-				// Not valid JSON-- just save the string as-is.
-				value = parts[1]
-			}
+			// Not valid JSON-- just save the string as-is.
 		}
 
 		tr.Set(s.context().InstanceName(), key, value)
@@ -140,16 +135,11 @@ func (s *setCommand) setConfigSetting(context *hookstate.Context) error {
 }
 
 func setInterfaceAttribute(context *hookstate.Context, staticAttrs map[string]interface{}, dynamicAttrs map[string]interface{}, key string, value interface{}) error {
-	data, err := json.Marshal(value)
-	if err != nil {
-		return fmt.Errorf("cannot marshal snap %q option %q: %s", context.InstanceName(), key, err)
-	}
+	data := mylog.Check2(json.Marshal(value))
+
 	raw := json.RawMessage(data)
 
-	subkeys, err := config.ParseKey(key)
-	if err != nil {
-		return err
-	}
+	subkeys := mylog.Check2(config.ParseKey(key))
 
 	// We're called from setInterfaceSetting, subkeys is derived from key
 	// part of key=value argument and is guaranteed to be non-empty at this
@@ -158,7 +148,7 @@ func setInterfaceAttribute(context *hookstate.Context, staticAttrs map[string]in
 		return fmt.Errorf("internal error: unexpected empty subkeys for key %q", key)
 	}
 	var existing interface{}
-	err = getAttribute(context.InstanceName(), subkeys[:1], 0, staticAttrs, &existing)
+	mylog.Check(getAttribute(context.InstanceName(), subkeys[:1], 0, staticAttrs, &existing))
 	if err == nil {
 		return fmt.Errorf(i18n.G("attribute %q cannot be overwritten"), key)
 	}
@@ -167,7 +157,7 @@ func setInterfaceAttribute(context *hookstate.Context, staticAttrs map[string]in
 		return err
 	}
 
-	_, err = config.PatchConfig(context.InstanceName(), subkeys, 0, dynamicAttrs, &raw)
+	_ = mylog.Check2(config.PatchConfig(context.InstanceName(), subkeys, 0, dynamicAttrs, &raw))
 	return err
 }
 
@@ -178,15 +168,11 @@ func (s *setCommand) setInterfaceSetting(context *hookstate.Context, plugOrSlot 
 		return fmt.Errorf(i18n.G("interface attributes can only be set during the execution of prepare hooks"))
 	}
 
-	attrsTask, err := attributesTask(context)
-	if err != nil {
-		return err
-	}
+	attrsTask := mylog.Check2(attributesTask(context))
+	mylog.Check(
 
-	// check if the requested plug or slot is correct for this hook.
-	if err := validatePlugOrSlot(attrsTask, hookType == preparePlugHook, plugOrSlot); err != nil {
-		return err
-	}
+		// check if the requested plug or slot is correct for this hook.
+		validatePlugOrSlot(attrsTask, hookType == preparePlugHook, plugOrSlot))
 
 	var which string
 	if hookType == preparePlugHook {
@@ -199,14 +185,10 @@ func (s *setCommand) setInterfaceSetting(context *hookstate.Context, plugOrSlot 
 	defer context.Unlock()
 
 	var staticAttrs, dynamicAttrs map[string]interface{}
-	if err = attrsTask.Get(which+"-static", &staticAttrs); err != nil {
-		return fmt.Errorf(i18n.G("internal error: cannot get %s from appropriate task, %s"), which, err)
-	}
+	mylog.Check(attrsTask.Get(which+"-static", &staticAttrs))
 
 	dynKey := which + "-dynamic"
-	if err = attrsTask.Get(dynKey, &dynamicAttrs); err != nil {
-		return fmt.Errorf(i18n.G("internal error: cannot get %s from appropriate task, %s"), which, err)
-	}
+	mylog.Check(attrsTask.Get(dynKey, &dynamicAttrs))
 
 	for _, attrValue := range s.Positional.ConfValues {
 		parts := strings.SplitN(attrValue, "=", 2)
@@ -215,14 +197,12 @@ func (s *setCommand) setInterfaceSetting(context *hookstate.Context, plugOrSlot 
 		}
 
 		var value interface{}
-		if err := jsonutil.DecodeWithNumber(strings.NewReader(parts[1]), &value); err != nil {
+		mylog.Check(jsonutil.DecodeWithNumber(strings.NewReader(parts[1]), &value))
+		mylog.Check(
 			// Not valid JSON, save the string as-is
-			value = parts[1]
-		}
-		err = setInterfaceAttribute(context, staticAttrs, dynamicAttrs, parts[0], value)
-		if err != nil {
-			return fmt.Errorf(i18n.G("cannot set attribute: %v"), err)
-		}
+
+			setInterfaceAttribute(context, staticAttrs, dynamicAttrs, parts[0], value))
+
 	}
 
 	attrsTask.Set(dynKey, dynamicAttrs)

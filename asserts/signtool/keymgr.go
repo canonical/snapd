@@ -26,6 +26,7 @@ import (
 
 	"golang.org/x/crypto/ssh/terminal"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/i18n"
 )
@@ -46,10 +47,8 @@ type KeypairManager interface {
 func GetKeypairManager() (KeypairManager, error) {
 	keymgrPath := os.Getenv("SNAPD_EXT_KEYMGR")
 	if keymgrPath != "" {
-		keypairMgr, err := asserts.NewExternalKeypairManager(keymgrPath)
-		if err != nil {
-			return nil, fmt.Errorf(i18n.G("cannot setup external keypair manager: %v"), err)
-		}
+		keypairMgr := mylog.Check2(asserts.NewExternalKeypairManager(keymgrPath))
+
 		return keypairMgr, nil
 	}
 	keypairMgr := asserts.NewGPGKeypairManager()
@@ -70,7 +69,7 @@ func GenerateKey(keypairMgr KeypairManager, keyName string) error {
 	case takingPassKeyGen:
 		return takePassGenKey(keyGen, keyName)
 	case ownSecuringKeyGen:
-		err := keyGen.Generate(keyName)
+		mylog.Check(keyGen.Generate(keyName))
 		if _, ok := err.(*asserts.ExternalUnsupportedOpError); ok {
 			return fmt.Errorf(i18n.G("cannot generate external keypair manager key via snap command, use the appropriate external procedure to create a 4096-bit RSA key under the name/label %q"), keyName)
 		}
@@ -82,17 +81,13 @@ func GenerateKey(keypairMgr KeypairManager, keyName string) error {
 
 func takePassGenKey(keyGen takingPassKeyGen, keyName string) error {
 	fmt.Fprint(Stdout, i18n.G("Passphrase: "))
-	passphrase, err := terminal.ReadPassword(0)
+	passphrase := mylog.Check2(terminal.ReadPassword(0))
 	fmt.Fprint(Stdout, "\n")
-	if err != nil {
-		return err
-	}
+
 	fmt.Fprint(Stdout, i18n.G("Confirm passphrase: "))
-	confirmPassphrase, err := terminal.ReadPassword(0)
+	confirmPassphrase := mylog.Check2(terminal.ReadPassword(0))
 	fmt.Fprint(Stdout, "\n")
-	if err != nil {
-		return err
-	}
+
 	if string(passphrase) != string(confirmPassphrase) {
 		return errors.New(i18n.G("passphrases do not match"))
 	}

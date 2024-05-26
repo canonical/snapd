@@ -28,6 +28,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/boot"
@@ -75,11 +76,11 @@ func (s *remodelLogicBaseSuite) SetUpTest(c *C) {
 	s.brands = assertstest.NewSigningAccounts(s.storeSigning)
 	s.brands.Register("my-brand", brandPrivKey, nil)
 
-	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+	db := mylog.Check2(asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
 		Trusted:   s.storeSigning.Trusted,
-	})
-	c.Assert(err, IsNil)
+	}))
+
 
 	func() {
 		s.state.Lock()
@@ -97,10 +98,10 @@ func (s *remodelLogicBaseSuite) SetUpTest(c *C) {
 		return s.testStore
 	}
 
-	hookMgr, err := hookstate.Manager(s.state, o.TaskRunner())
-	c.Assert(err, IsNil)
-	s.mgr, err = devicestate.Manager(s.state, hookMgr, o.TaskRunner(), newStore)
-	c.Assert(err, IsNil)
+	hookMgr := mylog.Check2(hookstate.Manager(s.state, o.TaskRunner()))
+
+	s.mgr = mylog.Check2(devicestate.Manager(s.state, hookMgr, o.TaskRunner(), newStore))
+
 }
 
 type remodelLogicSuite struct {
@@ -183,8 +184,8 @@ func (s *remodelLogicSuite) TestUpdateRemodelContext(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	remodCtx, err := devicestate.RemodelCtx(s.state, oldModel, newModel)
-	c.Assert(err, IsNil)
+	remodCtx := mylog.Check2(devicestate.RemodelCtx(s.state, oldModel, newModel))
+
 
 	c.Check(remodCtx.ForRemodeling(), Equals, true)
 	c.Check(remodCtx.Kind(), Equals, devicestate.UpdateRemodel)
@@ -225,8 +226,8 @@ func (s *remodelLogicSuite) TestNewStoreRemodelContextInit(c *C) {
 		SessionMacaroon: "prev-session",
 	})
 
-	remodCtx, err := devicestate.RemodelCtx(s.state, oldModel, newModel)
-	c.Assert(err, IsNil)
+	remodCtx := mylog.Check2(devicestate.RemodelCtx(s.state, oldModel, newModel))
+
 
 	c.Check(remodCtx.ForRemodeling(), Equals, true)
 	c.Check(remodCtx.Kind(), Equals, devicestate.StoreSwitchRemodel)
@@ -272,22 +273,22 @@ func (s *remodelLogicSuite) TestRemodelDeviceBackendNoChangeYet(c *C) {
 		Serial: "serialserialserial",
 	})
 
-	remodCtx, err := devicestate.RemodelCtx(s.state, oldModel, newModel)
-	c.Assert(err, IsNil)
+	remodCtx := mylog.Check2(devicestate.RemodelCtx(s.state, oldModel, newModel))
+
 
 	devBE := s.capturedDevBE
 	c.Check(devBE, NotNil)
 
-	device, err := devBE.Device()
-	c.Assert(err, IsNil)
+	device := mylog.Check2(devBE.Device())
+
 	c.Check(device, DeepEquals, &auth.DeviceState{
 		Brand:  "my-brand",
 		Model:  "my-model",
 		Serial: "serialserialserial",
 	})
 
-	mod, err := devBE.Model()
-	c.Assert(err, IsNil)
+	mod := mylog.Check2(devBE.Model())
+
 	c.Check(mod, DeepEquals, newModel)
 
 	// set device state for the context
@@ -297,12 +298,11 @@ func (s *remodelLogicSuite) TestRemodelDeviceBackendNoChangeYet(c *C) {
 		Serial:          "serialserialserial",
 		SessionMacaroon: "session",
 	}
+	mylog.Check(devBE.SetDevice(device1))
 
-	err = devBE.SetDevice(device1)
-	c.Assert(err, IsNil)
 
-	device, err = devBE.Device()
-	c.Assert(err, IsNil)
+	device = mylog.Check2(devBE.Device())
+
 	c.Check(device, DeepEquals, device1)
 
 	// have a change
@@ -311,8 +311,8 @@ func (s *remodelLogicSuite) TestRemodelDeviceBackendNoChangeYet(c *C) {
 	remodCtx.Init(chg)
 
 	// check device state is preserved across association with a Change
-	device, err = devBE.Device()
-	c.Assert(err, IsNil)
+	device = mylog.Check2(devBE.Device())
+
 	c.Check(device, DeepEquals, device1)
 }
 
@@ -333,8 +333,8 @@ func (s *remodelLogicSuite) TestRemodelDeviceBackend(c *C) {
 		Serial: "serialserialserial",
 	})
 
-	remodCtx, err := devicestate.RemodelCtx(s.state, oldModel, newModel)
-	c.Assert(err, IsNil)
+	remodCtx := mylog.Check2(devicestate.RemodelCtx(s.state, oldModel, newModel))
+
 
 	devBE := devicestate.RemodelDeviceBackend(remodCtx)
 
@@ -342,16 +342,16 @@ func (s *remodelLogicSuite) TestRemodelDeviceBackend(c *C) {
 
 	remodCtx.Init(chg)
 
-	device, err := devBE.Device()
-	c.Assert(err, IsNil)
+	device := mylog.Check2(devBE.Device())
+
 	c.Check(device, DeepEquals, &auth.DeviceState{
 		Brand:  "my-brand",
 		Model:  "my-model",
 		Serial: "serialserialserial",
 	})
 
-	mod, err := devBE.Model()
-	c.Assert(err, IsNil)
+	mod := mylog.Check2(devBE.Model())
+
 	c.Check(mod, DeepEquals, newModel)
 
 	// set a device state for the context
@@ -361,17 +361,16 @@ func (s *remodelLogicSuite) TestRemodelDeviceBackend(c *C) {
 		Serial:          "serialserialserial",
 		SessionMacaroon: "session",
 	}
+	mylog.Check(devBE.SetDevice(device1))
 
-	err = devBE.SetDevice(device1)
-	c.Assert(err, IsNil)
 
 	// it's stored on change now
 	var device2 *auth.DeviceState
 	c.Assert(chg.Get("device", &device2), IsNil)
 	c.Check(device2, DeepEquals, device1)
 
-	device, err = devBE.Device()
-	c.Assert(err, IsNil)
+	device = mylog.Check2(devBE.Device())
+
 	c.Check(device, DeepEquals, device1)
 }
 
@@ -392,22 +391,21 @@ func (s *remodelLogicSuite) TestRemodelDeviceBackendIsolation(c *C) {
 		Serial: "serialserialserial",
 	})
 
-	remodCtx, err := devicestate.RemodelCtx(s.state, oldModel, newModel)
-	c.Assert(err, IsNil)
+	remodCtx := mylog.Check2(devicestate.RemodelCtx(s.state, oldModel, newModel))
+
 
 	chg := s.state.NewChange("remodel", "...")
 
 	remodCtx.Init(chg)
 
 	devBE := devicestate.RemodelDeviceBackend(remodCtx)
-
-	err = devBE.SetDevice(&auth.DeviceState{
+	mylog.Check(devBE.SetDevice(&auth.DeviceState{
 		Brand:           "my-brand",
 		Model:           "my-model",
 		Serial:          "serialserialserial",
 		SessionMacaroon: "remodel-session",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 
 	// the global device state is as before
 	expectedGlobalDevice := &auth.DeviceState{
@@ -416,10 +414,11 @@ func (s *remodelLogicSuite) TestRemodelDeviceBackendIsolation(c *C) {
 		Serial: "serialserialserial",
 	}
 
-	device, err := s.mgr.StoreContextBackend().Device()
-	c.Assert(err, IsNil)
+	device := mylog.Check2(s.mgr.StoreContextBackend().Device())
+
 	c.Check(device, DeepEquals, expectedGlobalDevice)
 }
+
 func (s *remodelLogicSuite) TestNewStoreRemodelContextStore(c *C) {
 	oldModel := fakeRemodelingModel(nil)
 	newModel := fakeRemodelingModel(map[string]interface{}{
@@ -438,15 +437,15 @@ func (s *remodelLogicSuite) TestNewStoreRemodelContextStore(c *C) {
 		SessionMacaroon: "prev-session",
 	})
 
-	remodCtx, err := devicestate.RemodelCtx(s.state, oldModel, newModel)
-	c.Assert(err, IsNil)
+	remodCtx := mylog.Check2(devicestate.RemodelCtx(s.state, oldModel, newModel))
+
 
 	c.Check(s.capturedDevBE, NotNil)
 
 	// new store remodel context device state built ignoring the
 	// previous session
-	device1, err := s.capturedDevBE.Device()
-	c.Assert(err, IsNil)
+	device1 := mylog.Check2(s.capturedDevBE.Device())
+
 	c.Check(device1, DeepEquals, &auth.DeviceState{
 		Brand:  "my-brand",
 		Model:  "my-model",
@@ -481,25 +480,23 @@ func (s *remodelLogicSuite) TestNewStoreRemodelContextFinish(c *C) {
 		SessionMacaroon: "orig-session",
 	})
 
-	remodCtx, err := devicestate.RemodelCtx(s.state, oldModel, newModel)
-	c.Assert(err, IsNil)
+	remodCtx := mylog.Check2(devicestate.RemodelCtx(s.state, oldModel, newModel))
+
 
 	chg := s.state.NewChange("remodel", "...")
 
 	remodCtx.Init(chg)
 
 	devBE := devicestate.RemodelDeviceBackend(remodCtx)
-
-	err = devBE.SetDevice(&auth.DeviceState{
+	mylog.Check(devBE.SetDevice(&auth.DeviceState{
 		Brand:           "my-brand",
 		Model:           "my-model",
 		Serial:          "serialserialserial",
 		SessionMacaroon: "new-session",
-	})
-	c.Assert(err, IsNil)
+	}))
 
-	err = remodCtx.Finish()
-	c.Assert(err, IsNil)
+	mylog.Check(remodCtx.Finish())
+
 
 	// the global device now matches the state reached in the remodel
 	expectedGlobalDevice := &auth.DeviceState{
@@ -509,8 +506,8 @@ func (s *remodelLogicSuite) TestNewStoreRemodelContextFinish(c *C) {
 		SessionMacaroon: "new-session",
 	}
 
-	device, err := s.mgr.StoreContextBackend().Device()
-	c.Assert(err, IsNil)
+	device := mylog.Check2(s.mgr.StoreContextBackend().Device())
+
 	c.Check(device, DeepEquals, expectedGlobalDevice)
 }
 
@@ -532,22 +529,21 @@ func (s *remodelLogicSuite) TestNewStoreRemodelContextFinishVsGlobalUpdateDevice
 		SessionMacaroon: "old-session",
 	})
 
-	remodCtx, err := devicestate.RemodelCtx(s.state, oldModel, newModel)
-	c.Assert(err, IsNil)
+	remodCtx := mylog.Check2(devicestate.RemodelCtx(s.state, oldModel, newModel))
+
 
 	chg := s.state.NewChange("remodel", "...")
 
 	remodCtx.Init(chg)
 
 	devBE := devicestate.RemodelDeviceBackend(remodCtx)
-
-	err = devBE.SetDevice(&auth.DeviceState{
+	mylog.Check(devBE.SetDevice(&auth.DeviceState{
 		Brand:           "my-brand",
 		Model:           "my-model",
 		Serial:          "serialserialserial",
 		SessionMacaroon: "remodel-session",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 
 	// global store device and auth context
 	scb := s.mgr.StoreContextBackend()
@@ -555,18 +551,17 @@ func (s *remodelLogicSuite) TestNewStoreRemodelContextFinishVsGlobalUpdateDevice
 	// this is the unlikely start of the global store trying to
 	// refresh the session
 	s.state.Unlock()
-	globalDevice, err := dac.Device()
+	globalDevice := mylog.Check2(dac.Device())
 	s.state.Lock()
-	c.Assert(err, IsNil)
-	c.Check(globalDevice.SessionMacaroon, Equals, "old-session")
 
-	err = remodCtx.Finish()
-	c.Assert(err, IsNil)
+	c.Check(globalDevice.SessionMacaroon, Equals, "old-session")
+	mylog.Check(remodCtx.Finish())
+
 
 	s.state.Unlock()
-	device1, err := dac.UpdateDeviceAuth(globalDevice, "fresh-session")
+	device1 := mylog.Check2(dac.UpdateDeviceAuth(globalDevice, "fresh-session"))
 	s.state.Lock()
-	c.Assert(err, IsNil)
+
 
 	// the global device now matches the state reached in the remodel
 	expectedGlobalDevice := &auth.DeviceState{
@@ -577,9 +572,9 @@ func (s *remodelLogicSuite) TestNewStoreRemodelContextFinishVsGlobalUpdateDevice
 	}
 
 	s.state.Unlock()
-	device, err := dac.Device()
+	device := mylog.Check2(dac.Device())
 	s.state.Lock()
-	c.Assert(err, IsNil)
+
 	c.Check(device, DeepEquals, expectedGlobalDevice)
 
 	// also this was already the case
@@ -605,25 +600,25 @@ func (s *remodelLogicSuite) TestRemodelDeviceBackendKeptSerial(c *C) {
 
 	makeSerialAssertionInState(c, s.brands, s.state, "my-brand", "my-model", "serialserialserial1")
 
-	serial, err := s.mgr.Serial()
-	c.Assert(err, IsNil)
+	serial := mylog.Check2(s.mgr.Serial())
+
 	c.Check(serial.Serial(), Equals, "serialserialserial1")
 
-	remodCtx, err := devicestate.RemodelCtx(s.state, oldModel, newModel)
-	c.Assert(err, IsNil)
+	remodCtx := mylog.Check2(devicestate.RemodelCtx(s.state, oldModel, newModel))
+
 
 	devBE := devicestate.RemodelDeviceBackend(remodCtx)
 
-	serial0, err := devBE.Serial()
-	c.Assert(err, IsNil)
+	serial0 := mylog.Check2(devBE.Serial())
+
 	c.Check(serial0.Serial(), Equals, "serialserialserial1")
 
 	chg := s.state.NewChange("remodel", "...")
 
 	remodCtx.Init(chg)
 
-	serial0, err = devBE.Serial()
-	c.Assert(err, IsNil)
+	serial0 = mylog.Check2(devBE.Serial())
+
 	c.Check(serial0.Serial(), Equals, "serialserialserial1")
 }
 
@@ -641,8 +636,8 @@ func (s *remodelLogicSuite) TestRemodelContextSystemModeDefaultRun(c *C) {
 		Serial: "serialserialserial",
 	})
 
-	remodCtx, err := devicestate.RemodelCtx(s.state, oldModel, newModel)
-	c.Assert(err, IsNil)
+	remodCtx := mylog.Check2(devicestate.RemodelCtx(s.state, oldModel, newModel))
+
 	c.Check(remodCtx.SystemMode(), Equals, "run")
 }
 
@@ -661,8 +656,8 @@ func (s *remodelLogicSuite) TestRemodelContextSystemModeWorks(c *C) {
 	})
 	devicestate.SetSystemMode(s.mgr, "install")
 
-	remodCtx, err := devicestate.RemodelCtx(s.state, oldModel, newModel)
-	c.Assert(err, IsNil)
+	remodCtx := mylog.Check2(devicestate.RemodelCtx(s.state, oldModel, newModel))
+
 	c.Check(remodCtx.SystemMode(), Equals, "install")
 }
 
@@ -684,8 +679,8 @@ func (s *remodelLogicSuite) TestRemodelContextForTaskAndCaching(c *C) {
 		Serial: "serialserialserial",
 	})
 
-	remodCtx, err := devicestate.RemodelCtx(s.state, oldModel, newModel)
-	c.Assert(err, IsNil)
+	remodCtx := mylog.Check2(devicestate.RemodelCtx(s.state, oldModel, newModel))
+
 
 	c.Check(remodCtx.ForRemodeling(), Equals, true)
 
@@ -697,16 +692,16 @@ func (s *remodelLogicSuite) TestRemodelContextForTaskAndCaching(c *C) {
 	chg.AddTask(t)
 
 	// caching, internally this use remodelCtxFromTask
-	remodCtx1, err := devicestate.DeviceCtx(s.state, t, nil)
-	c.Assert(err, IsNil)
+	remodCtx1 := mylog.Check2(devicestate.DeviceCtx(s.state, t, nil))
+
 	c.Check(remodCtx1, Equals, remodCtx)
 
 	// if the context goes away (e.g. because of restart) we
 	// compute a new one
 	devicestate.CleanupRemodelCtx(chg)
 
-	remodCtx2, err := devicestate.DeviceCtx(s.state, t, nil)
-	c.Assert(err, IsNil)
+	remodCtx2 := mylog.Check2(devicestate.DeviceCtx(s.state, t, nil))
+
 	c.Check(remodCtx2 != remodCtx, Equals, true)
 	c.Check(remodCtx2.Model(), DeepEquals, newModel)
 }
@@ -718,19 +713,19 @@ func (s *remodelLogicSuite) TestRemodelContextForTaskNo(c *C) {
 	// internally these use remodelCtxFromTask
 
 	// task is nil
-	remodCtx1, err := devicestate.DeviceCtx(s.state, nil, nil)
+	remodCtx1 := mylog.Check2(devicestate.DeviceCtx(s.state, nil, nil))
 	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 	c.Check(remodCtx1, IsNil)
 
 	// no change
 	t := s.state.NewTask("random-task", "...")
-	_, err = devicestate.DeviceCtx(s.state, t, nil)
+	_ = mylog.Check2(devicestate.DeviceCtx(s.state, t, nil))
 	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 
 	// not a remodel change
 	chg := s.state.NewChange("not-remodel", "...")
 	chg.AddTask(t)
-	_, err = devicestate.DeviceCtx(s.state, t, nil)
+	_ = mylog.Check2(devicestate.DeviceCtx(s.state, t, nil))
 	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 }
 
@@ -746,9 +741,9 @@ func (s *remodelLogicSuite) setupForRereg(c *C) (oldModel, newModel *asserts.Mod
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	encDevKey, err := asserts.EncodePublicKey(devKey.PublicKey())
-	c.Assert(err, IsNil)
-	serial, err := s.brands.Signing("my-brand").Sign(asserts.SerialType, map[string]interface{}{
+	encDevKey := mylog.Check2(asserts.EncodePublicKey(devKey.PublicKey()))
+
+	serial := mylog.Check2(s.brands.Signing("my-brand").Sign(asserts.SerialType, map[string]interface{}{
 		"authority-id":        "my-brand",
 		"brand-id":            "my-brand",
 		"model":               "my-model",
@@ -756,8 +751,8 @@ func (s *remodelLogicSuite) setupForRereg(c *C) (oldModel, newModel *asserts.Mod
 		"device-key":          string(encDevKey),
 		"device-key-sha3-384": devKey.PublicKey().ID(),
 		"timestamp":           time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
 
 	assertstatetest.AddMany(s.state, oldModel, serial)
 
@@ -779,8 +774,8 @@ func (s *remodelLogicSuite) TestReregRemodelContextInit(c *C) {
 		SessionMacaroon: "prev-session",
 	})
 
-	remodCtx, err := devicestate.RemodelCtx(s.state, oldModel, newModel)
-	c.Assert(err, IsNil)
+	remodCtx := mylog.Check2(devicestate.RemodelCtx(s.state, oldModel, newModel))
+
 
 	c.Check(remodCtx.ForRemodeling(), Equals, true)
 	c.Check(remodCtx.Kind(), Equals, devicestate.ReregRemodel)
@@ -811,8 +806,8 @@ func (s *remodelLogicSuite) TestReregRemodelContextInit(c *C) {
 	t := s.state.NewTask("remodel-task-1", "...")
 	chg.AddTask(t)
 
-	remodCtx1, err := devicestate.DeviceCtx(s.state, t, nil)
-	c.Assert(err, IsNil)
+	remodCtx1 := mylog.Check2(devicestate.DeviceCtx(s.state, t, nil))
+
 	c.Check(remodCtx1, Equals, remodCtx)
 }
 
@@ -831,8 +826,8 @@ func (s *remodelLogicSuite) TestReregRemodelContextAsRegistrationContext(c *C) {
 		SessionMacaroon: "prev-session",
 	})
 
-	remodCtx, err := devicestate.RemodelCtx(s.state, oldModel, newModel)
-	c.Assert(err, IsNil)
+	remodCtx := mylog.Check2(devicestate.RemodelCtx(s.state, oldModel, newModel))
+
 
 	c.Check(remodCtx.Kind(), Equals, devicestate.ReregRemodel)
 
@@ -843,8 +838,8 @@ func (s *remodelLogicSuite) TestReregRemodelContextAsRegistrationContext(c *C) {
 	regCtx := remodCtx.(devicestate.RegistrationContext)
 
 	c.Check(regCtx.ForRemodeling(), Equals, true)
-	device1, err := regCtx.Device()
-	c.Assert(err, IsNil)
+	device1 := mylog.Check2(regCtx.Device())
+
 	// fresh device state before registration but with device-key
 	c.Check(device1, DeepEquals, &auth.DeviceState{
 		Brand: "other-brand",
@@ -858,8 +853,8 @@ func (s *remodelLogicSuite) TestReregRemodelContextAsRegistrationContext(c *C) {
 		"original-serial":   "orig-serial",
 	})
 
-	serial, err := s.mgr.Serial()
-	c.Assert(err, IsNil)
+	serial := mylog.Check2(s.mgr.Serial())
+
 	c.Check(regCtx.SerialRequestAncillaryAssertions(), DeepEquals, []asserts.Assertion{newModel, serial})
 }
 
@@ -884,17 +879,17 @@ func (s *remodelLogicSuite) TestReregRemodelContextNewSerial(c *C) {
 
 	makeSerialAssertionInState(c, s.brands, s.state, "my-brand", "my-model", "serialserialserial1")
 
-	serial, err := s.mgr.Serial()
-	c.Assert(err, IsNil)
+	serial := mylog.Check2(s.mgr.Serial())
+
 	c.Check(serial.Serial(), Equals, "serialserialserial1")
 
-	remodCtx, err := devicestate.RemodelCtx(s.state, oldModel, newModel)
-	c.Assert(err, IsNil)
+	remodCtx := mylog.Check2(devicestate.RemodelCtx(s.state, oldModel, newModel))
+
 
 	devBE := devicestate.RemodelDeviceBackend(remodCtx)
 
 	// no new serial yet
-	_, err = devBE.Serial()
+	_ = mylog.Check2(devBE.Serial())
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 
 	chg := s.state.NewChange("remodel", "...")
@@ -902,45 +897,46 @@ func (s *remodelLogicSuite) TestReregRemodelContextNewSerial(c *C) {
 	remodCtx.Init(chg)
 
 	// validity check
-	device1, err := devBE.Device()
-	c.Assert(err, IsNil)
+	device1 := mylog.Check2(devBE.Device())
+
 	c.Check(device1, DeepEquals, &auth.DeviceState{
 		Brand: "my-brand",
 		Model: "other-model",
 	})
 
 	// still no new serial
-	_, err = devBE.Serial()
+	_ = mylog.Check2(devBE.Serial())
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 
 	newSerial := makeSerialAssertionInState(c, s.brands, s.state, "my-brand", "other-model", "serialserialserial2")
 
 	// same
-	_, err = devBE.Serial()
+	_ = mylog.Check2(devBE.Serial())
 	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 
 	// finish registration
 	regCtx := remodCtx.(devicestate.RegistrationContext)
-	err = regCtx.FinishRegistration(newSerial)
-	c.Assert(err, IsNil)
+	mylog.Check(regCtx.FinishRegistration(newSerial))
 
-	serial, err = devBE.Serial()
+
+	serial = mylog.Check2(devBE.Serial())
 	c.Check(err, IsNil)
 	c.Check(serial.Model(), Equals, "other-model")
 	c.Check(serial.Serial(), Equals, "serialserialserial2")
 
 	// not exposed yet
-	serial, err = s.mgr.Serial()
-	c.Assert(err, IsNil)
+	serial = mylog.Check2(s.mgr.Serial())
+
 	c.Check(serial.Model(), Equals, "my-model")
 	c.Check(serial.Serial(), Equals, "serialserialserial1")
+	mylog.
 
-	// finish
-	err = remodCtx.Finish()
-	c.Assert(err, IsNil)
+		// finish
+		Check(remodCtx.Finish())
 
-	serial, err = s.mgr.Serial()
-	c.Assert(err, IsNil)
+
+	serial = mylog.Check2(s.mgr.Serial())
+
 	c.Check(serial.Model(), Equals, "other-model")
 	c.Check(serial.Serial(), Equals, "serialserialserial2")
 }
@@ -984,8 +980,8 @@ func (s *uc20RemodelLogicSuite) SetUpTest(c *C) {
 		BrandID:        s.oldModel.BrandID(),
 		ModelSignKeyID: s.oldModel.SignKeyID(),
 	}
-	err := m.WriteTo("")
-	c.Assert(err, IsNil)
+	mylog.Check(m.WriteTo(""))
+
 
 	restore := boot.MockResealKeyToModeenv(func(_ string, m *boot.Modeenv, expectReseal bool, _ boot.Unlocker) error {
 		return fmt.Errorf("not expected to be called")
@@ -1004,14 +1000,13 @@ func (s *uc20RemodelLogicSuite) SetUpTest(c *C) {
 
 		SeedTime: time.Now(),
 	}
-	err = devicestate.RecordSeededSystem(s.mgr, s.state, &sys)
-	c.Assert(err, IsNil)
-	s.oldSeededTs = sys.SeedTime
+	mylog.Check(devicestate.RecordSeededSystem(s.mgr, s.state, &sys))
 
-	err = s.bootloader.SetBootVars(map[string]string{
+	s.oldSeededTs = sys.SeedTime
+	mylog.Check(s.bootloader.SetBootVars(map[string]string{
 		"snapd_good_recovery_systems": "0000",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 }
 
 var uc20ModelDefaults = map[string]interface{}{
@@ -1030,14 +1025,15 @@ var uc20ModelDefaults = map[string]interface{}{
 			"id":              snaptest.AssertedSnapID("pc"),
 			"type":            "gadget",
 			"default-channel": "20",
-		}},
+		},
+	},
 }
 
 func (s *uc20RemodelLogicSuite) TestReregRemodelContextUC20(c *C) {
 	newModel := s.brands.Model("my-brand", "other-model", uc20ModelDefaults)
 
-	m, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	m := mylog.Check2(boot.ReadModeenv(""))
+
 	// the system has already been promoted
 	m.CurrentRecoverySystems = append(m.CurrentRecoverySystems, "1234")
 	m.GoodRecoverySystems = append(m.GoodRecoverySystems, "1234")
@@ -1057,12 +1053,12 @@ func (s *uc20RemodelLogicSuite) TestReregRemodelContextUC20(c *C) {
 
 	makeSerialAssertionInState(c, s.brands, s.state, "my-brand", "my-model", "serialserialserial1")
 
-	serial, err := s.mgr.Serial()
-	c.Assert(err, IsNil)
+	serial := mylog.Check2(s.mgr.Serial())
+
 	c.Check(serial.Serial(), Equals, "serialserialserial1")
 
-	remodCtx, err := devicestate.RemodelCtx(s.state, s.oldModel, newModel)
-	c.Assert(err, IsNil)
+	remodCtx := mylog.Check2(devicestate.RemodelCtx(s.state, s.oldModel, newModel))
+
 	c.Check(remodCtx.ForRemodeling(), Equals, true)
 	c.Check(remodCtx.Kind(), Equals, devicestate.ReregRemodel)
 
@@ -1073,8 +1069,8 @@ func (s *uc20RemodelLogicSuite) TestReregRemodelContextUC20(c *C) {
 	remodCtx.Init(chg)
 
 	// validity check
-	device1, err := devBE.Device()
-	c.Assert(err, IsNil)
+	device1 := mylog.Check2(devBE.Device())
+
 	c.Check(device1, DeepEquals, &auth.DeviceState{
 		Brand: "my-brand",
 		Model: "other-model",
@@ -1084,8 +1080,8 @@ func (s *uc20RemodelLogicSuite) TestReregRemodelContextUC20(c *C) {
 
 	// finish registration
 	regCtx := remodCtx.(devicestate.RegistrationContext)
-	err = regCtx.FinishRegistration(newSerial)
-	c.Assert(err, IsNil)
+	mylog.Check(regCtx.FinishRegistration(newSerial))
+
 
 	resealKeysCalls := 0
 	restore := boot.MockResealKeyToModeenv(func(_ string, m *boot.Modeenv, expectReseal bool, u boot.Unlocker) error {
@@ -1110,28 +1106,29 @@ func (s *uc20RemodelLogicSuite) TestReregRemodelContextUC20(c *C) {
 		u()()
 		// this is running as part of post finish step, so the state has
 		// already been updated
-		serial, err = s.mgr.Serial()
-		c.Assert(err, IsNil)
+		serial = mylog.Check2(s.mgr.Serial())
+
 		c.Check(serial.Model(), Equals, "other-model")
 		c.Check(serial.Serial(), Equals, "serialserialserial2")
 		return nil
 	})
 	s.AddCleanup(restore)
+	mylog.
 
-	// finish fails because we haven't set the seed system label yet
-	err = remodCtx.Finish()
+		// finish fails because we haven't set the seed system label yet
+		Check(remodCtx.Finish())
 	c.Assert(err, ErrorMatches, "internal error: recovery system label is unset during remodel finish")
 	c.Check(resealKeysCalls, Equals, 0)
 
 	// set the label internally
 	devicestate.RemodelSetRecoverySystemLabel(remodCtx, "1234")
-	err = remodCtx.Finish()
-	c.Assert(err, IsNil)
+	mylog.Check(remodCtx.Finish())
+
 	c.Check(resealKeysCalls, Equals, 2)
 
 	var seededSystemsFromState []map[string]interface{}
-	err = s.state.Get("seeded-systems", &seededSystemsFromState)
-	c.Assert(err, IsNil)
+	mylog.Check(s.state.Get("seeded-systems", &seededSystemsFromState))
+
 	c.Assert(seededSystemsFromState, HasLen, 2)
 	c.Assert(seededSystemsFromState[1], DeepEquals, map[string]interface{}{
 		"system":    "0000",
@@ -1143,8 +1140,8 @@ func (s *uc20RemodelLogicSuite) TestReregRemodelContextUC20(c *C) {
 	})
 	// new system is prepended, since timestamps are involved clear ones that weren't mocked
 	c.Assert(seededSystemsFromState[0]["seed-time"], FitsTypeOf, "")
-	newSeedTs, err := time.Parse(time.RFC3339Nano, seededSystemsFromState[0]["seed-time"].(string))
-	c.Assert(err, IsNil)
+	newSeedTs := mylog.Check2(time.Parse(time.RFC3339Nano, seededSystemsFromState[0]["seed-time"].(string)))
+
 	seededSystemsFromState[0]["seed-time"] = ""
 	c.Assert(seededSystemsFromState[0], DeepEquals, map[string]interface{}{
 		"system":    "1234",
@@ -1155,8 +1152,8 @@ func (s *uc20RemodelLogicSuite) TestReregRemodelContextUC20(c *C) {
 		"seed-time": "",
 	})
 	c.Assert(newSeedTs.After(s.oldSeededTs), Equals, true)
-	env, err := s.bootloader.GetBootVars("snapd_good_recovery_systems")
-	c.Assert(err, IsNil)
+	env := mylog.Check2(s.bootloader.GetBootVars("snapd_good_recovery_systems"))
+
 	c.Assert(env, DeepEquals, map[string]string{
 		"snapd_good_recovery_systems": "0000,1234",
 	})
@@ -1174,15 +1171,15 @@ func (s *uc20RemodelLogicSuite) TestUpdateRemodelContext(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	m, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	m := mylog.Check2(boot.ReadModeenv(""))
+
 	// the system has already been promoted
 	m.CurrentRecoverySystems = append(m.CurrentRecoverySystems, "1234")
 	m.GoodRecoverySystems = append(m.GoodRecoverySystems, "1234")
 	c.Assert(m.Write(), IsNil)
 
-	remodCtx, err := devicestate.RemodelCtx(s.state, s.oldModel, newModel)
-	c.Assert(err, IsNil)
+	remodCtx := mylog.Check2(devicestate.RemodelCtx(s.state, s.oldModel, newModel))
+
 	c.Check(remodCtx.ForRemodeling(), Equals, true)
 	c.Check(remodCtx.Kind(), Equals, devicestate.UpdateRemodel)
 	groundCtx := remodCtx.GroundContext()
@@ -1223,21 +1220,22 @@ func (s *uc20RemodelLogicSuite) TestUpdateRemodelContext(c *C) {
 		return nil
 	})
 	s.AddCleanup(restore)
+	mylog.
 
-	// finish fails because we haven't set the seed system label yet
-	err = remodCtx.Finish()
+		// finish fails because we haven't set the seed system label yet
+		Check(remodCtx.Finish())
 	c.Assert(err, ErrorMatches, "internal error: recovery system label is unset during remodel finish")
 	c.Check(resealKeysCalls, Equals, 0)
 
 	// set the label internally
 	devicestate.RemodelSetRecoverySystemLabel(remodCtx, "1234")
-	err = remodCtx.Finish()
-	c.Assert(err, IsNil)
+	mylog.Check(remodCtx.Finish())
+
 	c.Check(resealKeysCalls, Equals, 2)
 
 	var seededSystemsFromState []map[string]interface{}
-	err = s.state.Get("seeded-systems", &seededSystemsFromState)
-	c.Assert(err, IsNil)
+	mylog.Check(s.state.Get("seeded-systems", &seededSystemsFromState))
+
 	c.Assert(seededSystemsFromState, HasLen, 2)
 	c.Assert(seededSystemsFromState[1], DeepEquals, map[string]interface{}{
 		"system":    "0000",
@@ -1249,8 +1247,8 @@ func (s *uc20RemodelLogicSuite) TestUpdateRemodelContext(c *C) {
 	})
 	// new system is prepended, since timestamps are involved clear ones that weren't mocked
 	c.Assert(seededSystemsFromState[0]["seed-time"], FitsTypeOf, "")
-	newSeedTs, err := time.Parse(time.RFC3339Nano, seededSystemsFromState[0]["seed-time"].(string))
-	c.Assert(err, IsNil)
+	newSeedTs := mylog.Check2(time.Parse(time.RFC3339Nano, seededSystemsFromState[0]["seed-time"].(string)))
+
 	seededSystemsFromState[0]["seed-time"] = ""
 	c.Assert(seededSystemsFromState[0], DeepEquals, map[string]interface{}{
 		"system":    "1234",
@@ -1261,8 +1259,8 @@ func (s *uc20RemodelLogicSuite) TestUpdateRemodelContext(c *C) {
 		"seed-time": "",
 	})
 	c.Assert(newSeedTs.After(s.oldSeededTs), Equals, true)
-	env, err := s.bootloader.GetBootVars("snapd_good_recovery_systems")
-	c.Assert(err, IsNil)
+	env := mylog.Check2(s.bootloader.GetBootVars("snapd_good_recovery_systems"))
+
 	c.Assert(env, DeepEquals, map[string]string{
 		"snapd_good_recovery_systems": "0000,1234",
 	})
@@ -1280,15 +1278,15 @@ func (s *uc20RemodelLogicSuite) TestSimpleRemodelErr(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	m, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	m := mylog.Check2(boot.ReadModeenv(""))
+
 	// the system has already been promoted
 	m.CurrentRecoverySystems = append(m.CurrentRecoverySystems, "1234")
 	m.GoodRecoverySystems = append(m.GoodRecoverySystems, "1234")
 	c.Assert(m.Write(), IsNil)
 
-	remodCtx, err := devicestate.RemodelCtx(s.state, s.oldModel, newModel)
-	c.Assert(err, IsNil)
+	remodCtx := mylog.Check2(devicestate.RemodelCtx(s.state, s.oldModel, newModel))
+
 	c.Check(remodCtx.ForRemodeling(), Equals, true)
 	c.Check(remodCtx.Kind(), Equals, devicestate.UpdateRemodel)
 
@@ -1322,14 +1320,14 @@ func (s *uc20RemodelLogicSuite) TestSimpleRemodelErr(c *C) {
 
 	// set the label internally
 	devicestate.RemodelSetRecoverySystemLabel(remodCtx, "1234")
-	err = remodCtx.Finish()
+	mylog.Check(remodCtx.Finish())
 	c.Assert(err, ErrorMatches, "cannot switch device: mock reseal failure")
 	c.Check(resealKeysCalls, Equals, 1)
 
 	// the error occurred before seeded systems was updated
 	var seededSystemsFromState []map[string]interface{}
-	err = s.state.Get("seeded-systems", &seededSystemsFromState)
-	c.Assert(err, IsNil)
+	mylog.Check(s.state.Get("seeded-systems", &seededSystemsFromState))
+
 	c.Assert(seededSystemsFromState, DeepEquals, []map[string]interface{}{{
 		"system":    "0000",
 		"model":     "my-model",
@@ -1338,8 +1336,8 @@ func (s *uc20RemodelLogicSuite) TestSimpleRemodelErr(c *C) {
 		"timestamp": s.oldModel.Timestamp().Format(time.RFC3339Nano),
 		"seed-time": s.oldSeededTs.Format(time.RFC3339Nano),
 	}})
-	env, err := s.bootloader.GetBootVars("snapd_good_recovery_systems")
-	c.Assert(err, IsNil)
+	env := mylog.Check2(s.bootloader.GetBootVars("snapd_good_recovery_systems"))
+
 	c.Assert(env, DeepEquals, map[string]string{
 		"snapd_good_recovery_systems": "0000",
 	})

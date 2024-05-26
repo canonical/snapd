@@ -29,6 +29,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/integrity/dmverity"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -73,8 +74,8 @@ func (s *IntegrityTestSuite) TestIntegrityHeaderMarshalJSON(c *C) {
 	dmVerityBlock := &dmverity.Info{}
 	integrityDataHeader := integrity.NewIntegrityDataHeader(dmVerityBlock, 4096)
 
-	jsonHeader, err := json.Marshal(integrityDataHeader)
-	c.Assert(err, IsNil)
+	jsonHeader := mylog.Check2(json.Marshal(integrityDataHeader))
+
 
 	c.Check(json.Valid(jsonHeader), Equals, true)
 
@@ -91,9 +92,8 @@ func (s *IntegrityTestSuite) TestIntegrityHeaderUnmarshalJSON(c *C) {
 			"root-hash": "00000000000000000000000000000000"
 		}
 	}`
+	mylog.Check(json.Unmarshal([]byte(integrityHeaderJSON), &integrityDataHeader))
 
-	err := json.Unmarshal([]byte(integrityHeaderJSON), &integrityDataHeader)
-	c.Assert(err, IsNil)
 
 	c.Check(integrityDataHeader.Type, Equals, "integrity")
 	c.Check(integrityDataHeader.Size, Equals, uint64(4096))
@@ -104,8 +104,8 @@ func (s *IntegrityTestSuite) TestIntegrityHeaderEncode(c *C) {
 	var integrityDataHeader integrity.IntegrityDataHeader
 	magic := integrity.Magic
 
-	header, err := integrityDataHeader.Encode()
-	c.Assert(err, IsNil)
+	header := mylog.Check2(integrityDataHeader.Encode())
+
 
 	magicRead := header[0:len(magic)]
 	c.Check(magicRead, DeepEquals, magic)
@@ -120,7 +120,7 @@ func (s *IntegrityTestSuite) TestIntegrityHeaderEncodeInvalidSize(c *C) {
 	var integrityDataHeader integrity.IntegrityDataHeader
 	integrityDataHeader.Type = strings.Repeat("a", integrity.BlockSize)
 
-	_, err := integrityDataHeader.Encode()
+	_ := mylog.Check2(integrityDataHeader.Encode())
 	c.Assert(err, ErrorMatches, "internal error: invalid integrity data header: wrong size")
 }
 
@@ -140,9 +140,8 @@ func (s *IntegrityTestSuite) TestIntegrityHeaderDecode(c *C) {
 
 	headerBlock := make([]byte, 4096)
 	copy(headerBlock, header)
+	mylog.Check(integrityDataHeader.Decode(headerBlock))
 
-	err := integrityDataHeader.Decode(headerBlock)
-	c.Assert(err, IsNil)
 
 	c.Check(integrityDataHeader.Type, Equals, "integrity")
 	c.Check(integrityDataHeader.Size, Equals, uint64(4096))
@@ -165,8 +164,7 @@ func (s *IntegrityTestSuite) TestIntegrityHeaderDecodeInvalidMagic(c *C) {
 
 	headerBlock := make([]byte, 4096)
 	copy(headerBlock, header)
-
-	err := integrityDataHeader.Decode(headerBlock)
+	mylog.Check(integrityDataHeader.Decode(headerBlock))
 	c.Check(err, ErrorMatches, "invalid integrity data header: invalid magic value")
 }
 
@@ -186,8 +184,7 @@ func (s *IntegrityTestSuite) TestIntegrityHeaderDecodeInvalidJSON(c *C) {
 
 	headerBlock := make([]byte, 4096)
 	copy(headerBlock, header)
-
-	err := integrityDataHeader.Decode(headerBlock)
+	mylog.Check(integrityDataHeader.Decode(headerBlock))
 
 	_, ok := err.(*json.SyntaxError)
 	c.Check(ok, Equals, true)
@@ -208,8 +205,7 @@ func (s *IntegrityTestSuite) TestIntegrityHeaderDecodeInvalidTermination(c *C) {
 
 	headerBlock := make([]byte, len(header))
 	copy(headerBlock, header)
-
-	err := integrityDataHeader.Decode(headerBlock)
+	mylog.Check(integrityDataHeader.Decode(headerBlock))
 	c.Check(err, ErrorMatches, "invalid integrity data header: no null byte found at end of input")
 }
 
@@ -247,28 +243,27 @@ esac
 `, verityHashSize, snapPath))
 	defer vscmd.Restore()
 
-	snapFileInfo, err := os.Stat(snapPath)
-	c.Assert(err, IsNil)
+	snapFileInfo := mylog.Check2(os.Stat(snapPath))
+
 	orig_size := snapFileInfo.Size()
+	mylog.Check(integrity.GenerateAndAppend(snapPath))
 
-	err = integrity.GenerateAndAppend(snapPath)
-	c.Assert(err, IsNil)
 
-	snapFile, err := os.Open(snapPath)
-	c.Assert(err, IsNil)
+	snapFile := mylog.Check2(os.Open(snapPath))
+
 	defer snapFile.Close()
 
 	// check integrity header
-	_, err = snapFile.Seek(orig_size, io.SeekStart)
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(snapFile.Seek(orig_size, io.SeekStart))
+
 
 	header := make([]byte, blockSize-1)
-	n, err := snapFile.Read(header)
-	c.Assert(err, IsNil)
+	n := mylog.Check2(snapFile.Read(header))
+
 	c.Assert(n, Equals, int(blockSize)-1)
 
 	var integrityDataHeader integrity.IntegrityDataHeader
-	err = integrityDataHeader.Decode(header)
+	mylog.Check(integrityDataHeader.Decode(header))
 	c.Check(err, IsNil)
 	c.Check(integrityDataHeader.Type, Equals, "integrity")
 	c.Check(integrityDataHeader.Size, Equals, uint64(verityHashSize+integrity.HeaderSize))

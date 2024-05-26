@@ -25,6 +25,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/i18n"
@@ -51,14 +52,12 @@ func init() {
 
 func (x *cmdHandleLink) ensureSnapStoreInstalled() error {
 	// If the snap-store snap is installed, our work is done
-	if _, _, err := x.client.Snap("snap-store"); err == nil {
+	if _, _ := mylog.Check3(x.client.Snap("snap-store")); err == nil {
 		return nil
 	}
 
-	dialog, err := ui.New()
-	if err != nil {
-		return err
-	}
+	dialog := mylog.Check2(ui.New())
+
 	answeredYes := dialog.YesNo(
 		i18n.G("Install snap-aware Snap Store snap?"),
 		i18n.G("The Snap Store is required to open snaps from a web browser."),
@@ -70,11 +69,9 @@ func (x *cmdHandleLink) ensureSnapStoreInstalled() error {
 		return fmt.Errorf(i18n.G("Snap Store required"))
 	}
 
-	changeID, err := x.client.Install("snap-store", nil)
-	if err != nil {
-		return err
-	}
-	_, err = x.wait(changeID)
+	changeID := mylog.Check2(x.client.Install("snap-store", nil))
+
+	_ = mylog.Check2(x.wait(changeID))
 	if err != nil && err != noWait {
 		return err
 	}
@@ -82,9 +79,7 @@ func (x *cmdHandleLink) ensureSnapStoreInstalled() error {
 }
 
 func (x *cmdHandleLink) Execute([]string) error {
-	if err := x.ensureSnapStoreInstalled(); err != nil {
-		return err
-	}
+	mylog.Check(x.ensureSnapStoreInstalled())
 
 	argv := []string{"snap", "run", "snap-store", x.Positional.Uri}
 	return syscall.Exec("/proc/self/exe", argv, os.Environ())

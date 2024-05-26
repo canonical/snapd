@@ -24,6 +24,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
@@ -31,8 +32,10 @@ import (
 	"github.com/snapcore/snapd/systemd"
 )
 
-var osutilFindGid = osutil.FindGid
-var sysChownPath = sys.ChownPath
+var (
+	osutilFindGid = osutil.FindGid
+	sysChownPath  = sys.ChownPath
+)
 
 func init() {
 	supportedConfigurations["core.journal.persistent"] = true
@@ -43,10 +46,7 @@ func validateJournalSettings(tr ConfGetter) error {
 }
 
 func handleJournalConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyContext) error {
-	output, err := coreCfg(tr, "journal.persistent")
-	if err != nil {
-		return err
-	}
+	output := mylog.Check2(coreCfg(tr, "journal.persistent"))
 
 	if output == "" {
 		return nil
@@ -72,15 +72,10 @@ func handleJournalConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyC
 			// to false is attempted.
 			return nil
 		}
-		if err := os.MkdirAll(tempLogPath, 0755); err != nil {
-			return err
-		}
-		if err := osutil.AtomicWriteFile(filepath.Join(tempLogPath, marker), nil, 0700, 0); err != nil {
-			return nil
-		}
-		if err := os.Rename(tempLogPath, logPath); err != nil {
-			return err
-		}
+		mylog.Check(os.MkdirAll(tempLogPath, 0755))
+		mylog.Check(osutil.AtomicWriteFile(filepath.Join(tempLogPath, marker), nil, 0700, 0))
+		mylog.Check(os.Rename(tempLogPath, logPath))
+
 	case "false":
 		if !logDirExists {
 			return nil
@@ -89,27 +84,27 @@ func handleJournalConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyC
 		if !osutil.FileExists(filepath.Join(logPath, marker)) {
 			return fmt.Errorf("the %s directory was not created by snapd, journal logs will not be removed nor disabled", logPath)
 		}
-		// This removes all logs from /var/log/journal when journal.persistent
-		// is set to false.
-		// It's assumed that core device is fully controlled by snapd.
-		if err := os.RemoveAll(logPath); err != nil {
-			return err
-		}
+		mylog.Check(
+			// This removes all logs from /var/log/journal when journal.persistent
+			// is set to false.
+			// It's assumed that core device is fully controlled by snapd.
+			os.RemoveAll(logPath))
+
 	default:
 		return fmt.Errorf("unsupported journal.persistent option: %q", output)
 	}
 
 	if opts == nil {
-		// old systemd-journal (e.g. on core16) closes the pipes on SIGUSR1,
-		// causing SIGPIPE and restart of snapd and other services.
-		// upstream bug: https://bugs.freedesktop.org/show_bug.cgi?id=84923,
-		// therefore only tell journald to reload if it's new enough.
-		err := systemd.EnsureAtLeast(236)
+		mylog.
+			// old systemd-journal (e.g. on core16) closes the pipes on SIGUSR1,
+			// causing SIGPIPE and restart of snapd and other services.
+			// upstream bug: https://bugs.freedesktop.org/show_bug.cgi?id=84923,
+			// therefore only tell journald to reload if it's new enough.
+			Check(systemd.EnsureAtLeast(236))
 		if err == nil {
 			sysd := systemd.NewUnderRoot(dirs.GlobalRootDir, systemd.SystemMode, nil)
-			if err := sysd.Kill("systemd-journald", "USR1", ""); err != nil {
-				return err
-			}
+			mylog.Check(sysd.Kill("systemd-journald", "USR1", ""))
+
 		} else if !systemd.IsSystemdTooOld(err) {
 			// systemd not available
 			return err

@@ -127,7 +127,8 @@ func MockSbBlockPCRProtectionPolicies(f func(tpm *sb_tpm2.Connection, pcrs []int
 }
 
 func MockSbActivateVolumeWithRecoveryKey(f func(volumeName, sourceDevicePath string,
-	keyReader io.Reader, options *sb.ActivateVolumeOptions) error) (restore func()) {
+	keyReader io.Reader, options *sb.ActivateVolumeOptions) error,
+) (restore func()) {
 	old := sbActivateVolumeWithRecoveryKey
 	sbActivateVolumeWithRecoveryKey = f
 	return func() {
@@ -136,7 +137,8 @@ func MockSbActivateVolumeWithRecoveryKey(f func(volumeName, sourceDevicePath str
 }
 
 func MockSbActivateVolumeWithKey(f func(volumeName, sourceDevicePath string, key []byte,
-	options *sb.ActivateVolumeOptions) error) (restore func()) {
+	options *sb.ActivateVolumeOptions) error,
+) (restore func()) {
 	old := sbActivateVolumeWithKey
 	sbActivateVolumeWithKey = f
 	return func() {
@@ -177,7 +179,8 @@ func MockRandomKernelUUID(f func() (string, error)) (restore func()) {
 }
 
 func MockSbInitializeLUKS2Container(f func(devicePath, label string, key []byte,
-	opts *sb.InitializeLUKS2ContainerOptions) error) (restore func()) {
+	opts *sb.InitializeLUKS2ContainerOptions) error,
+) (restore func()) {
 	old := sbInitializeLUKS2Container
 	sbInitializeLUKS2Container = f
 	return func() {

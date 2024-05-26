@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -39,16 +40,16 @@ func (s *cpSuite) TestCpMulti(c *C) {
 func (s *cpSuite) TestDoCpErr(c *C) {
 	c.Assert(os.WriteFile(s.f2, nil, 0444), IsNil)
 
-	src, err := os.Open(s.f1)
-	c.Assert(err, IsNil)
+	src := mylog.Check2(os.Open(s.f1))
+
 	defer src.Close()
 
-	roFd, err := os.Open(s.f2)
-	c.Assert(err, IsNil)
+	roFd := mylog.Check2(os.Open(s.f2))
+
 	defer roFd.Close()
 
 	// force an error by asking it to write to a readonly stream
-	st, err := src.Stat()
-	c.Assert(err, IsNil)
+	st := mylog.Check2(src.Stat())
+
 	c.Check(osutil.DoCopyFile(src, roFd, st), NotNil)
 }

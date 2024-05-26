@@ -27,6 +27,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
@@ -74,10 +75,7 @@ func GenerateSnapServiceUnitFile(appInfo *snap.AppInfo, opts *SnapServicesUnitOp
 	if opts == nil {
 		opts = &SnapServicesUnitOptions{}
 	}
-
-	if err := snap.ValidateApp(appInfo); err != nil {
-		return nil, err
-	}
+	mylog.Check(snap.ValidateApp(appInfo))
 
 	// assemble all of the service directive snippets for all interfaces that
 	// this service needs to include in the generated systemd file
@@ -94,14 +92,10 @@ func GenerateSnapServiceUnitFile(appInfo *snap.AppInfo, opts *SnapServicesUnitOp
 	ifaceServiceSnippets := &strutil.OrderedSet{}
 
 	for _, plug := range appInfo.Plugs {
-		iface, err := interfaces.ByName(plug.Interface)
-		if err != nil {
-			return nil, fmt.Errorf("error processing plugs while generating service unit for %v: %v", appInfo.SecurityTag(), err)
-		}
-		snips, err := interfaces.PermanentPlugServiceSnippets(iface, plug)
-		if err != nil {
-			return nil, fmt.Errorf("error processing plugs while generating service unit for %v: %v", appInfo.SecurityTag(), err)
-		}
+		iface := mylog.Check2(interfaces.ByName(plug.Interface))
+
+		snips := mylog.Check2(interfaces.PermanentPlugServiceSnippets(iface, plug))
+
 		for _, snip := range snips {
 			ifaceServiceSnippets.Put(snip)
 		}
@@ -230,10 +224,9 @@ WantedBy={{.ServicesTarget}}
 		busName = appInfo.BusName
 		if busName == "" && len(appInfo.ActivatesOn) != 0 {
 			slot := appInfo.ActivatesOn[len(appInfo.ActivatesOn)-1]
-			if err := slot.Attr("name", &busName); err != nil {
-				// This should be impossible for a valid AppInfo
-				logger.Noticef("Cannot get 'name' attribute of dbus slot %q: %v", slot.Name, err)
-			}
+			mylog.Check(slot.Attr("name", &busName))
+			// This should be impossible for a valid AppInfo
+
 		}
 	}
 
@@ -316,11 +309,8 @@ WantedBy={{.ServicesTarget}}
 	if opts.CoreMountedSnapdSnapDep != "" {
 		wrapperData.CoreMountedSnapdSnapDep = []string{opts.CoreMountedSnapdSnapDep}
 	}
-
-	if err := t.Execute(&templateOut, wrapperData); err != nil {
-		// this can never happen, except we forget a variable
-		logger.Panicf("Unable to execute template: %v", err)
-	}
+	mylog.Check(t.Execute(&templateOut, wrapperData))
+	// this can never happen, except we forget a variable
 
 	return templateOut.Bytes(), nil
 }

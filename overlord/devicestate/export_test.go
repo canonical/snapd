@@ -26,6 +26,7 @@ import (
 	"os/user"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/gadget"
@@ -96,14 +97,13 @@ func MockTimeNow(f func() time.Time) (restore func()) {
 }
 
 func KeypairManager(m *DeviceManager) (keypairMgr asserts.KeypairManager) {
-	// XXX expose the with... method at some point
-	err := m.withKeypairMgr(func(km asserts.KeypairManager) error {
-		keypairMgr = km
-		return nil
-	})
-	if err != nil {
-		panic(err)
-	}
+	mylog.
+		// XXX expose the with... method at some point
+		Check(m.withKeypairMgr(func(km asserts.KeypairManager) error {
+			keypairMgr = km
+			return nil
+		}))
+
 	return keypairMgr
 }
 
@@ -210,10 +210,8 @@ func PopulateStateFromSeedImpl(m *DeviceManager, tm timings.Measurer) ([]*state.
 func MockPopulateStateFromSeed(m *DeviceManager, f func(seedLabel, seedMode string, tm timings.Measurer) ([]*state.TaskSet, error)) (restore func()) {
 	old := m.populateStateFromSeed
 	m.populateStateFromSeed = func(tm timings.Measurer) ([]*state.TaskSet, error) {
-		sLabel, sMode, err := m.seedLabelAndMode()
-		if err != nil {
-			panic(err)
-		}
+		sLabel, sMode := mylog.Check3(m.seedLabelAndMode())
+
 		return f(sLabel, sMode, tm)
 	}
 	return func() {
@@ -428,7 +426,8 @@ func MockInstallSaveStorageTraits(f func(model gadget.Model, allLaidOutVols map[
 }
 
 func MockMatchDisksToGadgetVolumes(f func(gVols map[string]*gadget.Volume,
-	volCompatOpts *gadget.VolumeCompatibilityOptions) (map[string]map[int]*gadget.OnDiskStructure, error)) (restore func()) {
+	volCompatOpts *gadget.VolumeCompatibilityOptions) (map[string]map[int]*gadget.OnDiskStructure, error),
+) (restore func()) {
 	restore = testutil.Backup(&installMatchDisksToGadgetVolumes)
 	installMatchDisksToGadgetVolumes = f
 	return restore

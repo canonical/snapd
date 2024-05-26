@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os/exec"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -58,7 +59,7 @@ func CreateLinearMapperDevice(device, name, uuid string, offset, size uint64) (s
 		cmd.Args = append(cmd.Args, []string{"--uuid", uuid}...)
 	}
 	cmd.Args = append(cmd.Args, []string{"--table", dmTable}...)
-	if output, err := cmd.CombinedOutput(); err != nil {
+	if output := mylog.Check2(cmd.CombinedOutput()); err != nil {
 		return "", fmt.Errorf("%s%v", errPrefix, osutil.OutputErr(output, err))
 	}
 

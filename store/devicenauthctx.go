@@ -64,7 +64,5 @@ func (p *DeviceSessionRequestParams) EncodedModel() string {
 	return string(asserts.Encode(p.Model))
 }
 
-var (
-	// ErrNoSerial indicates that a device serial is not set yet.
-	ErrNoSerial = errors.New("no device serial yet")
-)
+// ErrNoSerial indicates that a device serial is not set yet.
+var ErrNoSerial = errors.New("no device serial yet")

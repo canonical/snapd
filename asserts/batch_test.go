@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 )
@@ -44,14 +45,14 @@ func (s *batchSuite) SetUpTest(c *C) {
 	s.storeSigning = assertstest.NewStoreStack("can0nical", nil)
 
 	s.dev1Acct = assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
-	err := s.storeSigning.Add(s.dev1Acct)
-	c.Assert(err, IsNil)
+	mylog.Check(s.storeSigning.Add(s.dev1Acct))
 
-	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+
+	db := mylog.Check2(asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
 		Trusted:   s.storeSigning.Trusted,
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	s.db = db
 }
 
@@ -66,76 +67,79 @@ func (s *batchSuite) snapDecl(c *C, name string, extraHeaders map[string]interfa
 	for h, v := range extraHeaders {
 		headers[h] = v
 	}
-	decl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
-	c.Assert(err, IsNil)
-	err = s.storeSigning.Add(decl)
-	c.Assert(err, IsNil)
+	decl := mylog.Check2(s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, ""))
+
+	mylog.Check(s.storeSigning.Add(decl))
+
 	return decl.(*asserts.SnapDeclaration)
 }
 
 func (s *batchSuite) TestAddStream(c *C) {
 	b := &bytes.Buffer{}
 	enc := asserts.NewEncoder(b)
-	// wrong order is ok
-	err := enc.Encode(s.dev1Acct)
-	c.Assert(err, IsNil)
+	mylog.
+		// wrong order is ok
+		Check(enc.Encode(s.dev1Acct))
+
 	enc.Encode(s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
+
 
 	batch := asserts.NewBatch(nil)
-	refs, err := batch.AddStream(b)
-	c.Assert(err, IsNil)
+	refs := mylog.Check2(batch.AddStream(b))
+
 	c.Check(refs, DeepEquals, []*asserts.Ref{
 		{Type: asserts.AccountType, PrimaryKey: []string{s.dev1Acct.AccountID()}},
 		{Type: asserts.AccountKeyType, PrimaryKey: []string{s.storeSigning.StoreAccountKey("").PublicKeyID()}},
 	})
+	mylog.
 
-	// noop
-	err = batch.Add(s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
+		// noop
+		Check(batch.Add(s.storeSigning.StoreAccountKey("")))
 
-	err = batch.CommitTo(s.db, nil)
-	c.Assert(err, IsNil)
+	mylog.Check(batch.CommitTo(s.db, nil))
 
-	devAcct, err := s.db.Find(asserts.AccountType, map[string]string{
+
+	devAcct := mylog.Check2(s.db.Find(asserts.AccountType, map[string]string{
 		"account-id": s.dev1Acct.AccountID(),
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(devAcct.(*asserts.Account).Username(), Equals, "developer1")
 }
 
 func (s *batchSuite) TestCommitToAndObserve(c *C) {
 	b := &bytes.Buffer{}
 	enc := asserts.NewEncoder(b)
-	// wrong order is ok
-	err := enc.Encode(s.dev1Acct)
-	c.Assert(err, IsNil)
+	mylog.
+		// wrong order is ok
+		Check(enc.Encode(s.dev1Acct))
+
 	enc.Encode(s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
+
 
 	batch := asserts.NewBatch(nil)
-	refs, err := batch.AddStream(b)
-	c.Assert(err, IsNil)
+	refs := mylog.Check2(batch.AddStream(b))
+
 	c.Check(refs, DeepEquals, []*asserts.Ref{
 		{Type: asserts.AccountType, PrimaryKey: []string{s.dev1Acct.AccountID()}},
 		{Type: asserts.AccountKeyType, PrimaryKey: []string{s.storeSigning.StoreAccountKey("").PublicKeyID()}},
 	})
+	mylog.
 
-	// noop
-	err = batch.Add(s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
+		// noop
+		Check(batch.Add(s.storeSigning.StoreAccountKey("")))
+
 
 	var seen []*asserts.Ref
 	obs := func(verified asserts.Assertion) {
 		seen = append(seen, verified.Ref())
 	}
-	err = batch.CommitToAndObserve(s.db, obs, nil)
-	c.Assert(err, IsNil)
+	mylog.Check(batch.CommitToAndObserve(s.db, obs, nil))
 
-	devAcct, err := s.db.Find(asserts.AccountType, map[string]string{
+
+	devAcct := mylog.Check2(s.db.Find(asserts.AccountType, map[string]string{
 		"account-id": s.dev1Acct.AccountID(),
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(devAcct.(*asserts.Account).Username(), Equals, "developer1")
 
 	// this is the order they needed to be added
@@ -149,59 +153,58 @@ func (s *batchSuite) TestAddEmptyStream(c *C) {
 	b := &bytes.Buffer{}
 
 	batch := asserts.NewBatch(nil)
-	refs, err := batch.AddStream(b)
-	c.Assert(err, IsNil)
+	refs := mylog.Check2(batch.AddStream(b))
+
 	c.Check(refs, HasLen, 0)
 }
 
 func (s *batchSuite) TestConsiderPreexisting(c *C) {
-	// prereq store key
-	err := s.db.Add(s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
+	mylog.
+		// prereq store key
+		Check(s.db.Add(s.storeSigning.StoreAccountKey("")))
+
 
 	batch := asserts.NewBatch(nil)
-	err = batch.Add(s.dev1Acct)
-	c.Assert(err, IsNil)
+	mylog.Check(batch.Add(s.dev1Acct))
 
-	err = batch.CommitTo(s.db, nil)
-	c.Assert(err, IsNil)
+	mylog.Check(batch.CommitTo(s.db, nil))
 
-	devAcct, err := s.db.Find(asserts.AccountType, map[string]string{
+
+	devAcct := mylog.Check2(s.db.Find(asserts.AccountType, map[string]string{
 		"account-id": s.dev1Acct.AccountID(),
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(devAcct.(*asserts.Account).Username(), Equals, "developer1")
 }
 
 func (s *batchSuite) TestAddStreamReturnsEffectivelyAddedRefs(c *C) {
 	batch := asserts.NewBatch(nil)
+	mylog.Check(batch.Add(s.storeSigning.StoreAccountKey("")))
 
-	err := batch.Add(s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
 
 	b := &bytes.Buffer{}
 	enc := asserts.NewEncoder(b)
-	// wrong order is ok
-	err = enc.Encode(s.dev1Acct)
-	c.Assert(err, IsNil)
+	mylog.
+		// wrong order is ok
+		Check(enc.Encode(s.dev1Acct))
+
 	// this was already added to the batch
 	enc.Encode(s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
+
 
 	// effectively adds only the developer1 account
-	refs, err := batch.AddStream(b)
-	c.Assert(err, IsNil)
+	refs := mylog.Check2(batch.AddStream(b))
+
 	c.Check(refs, DeepEquals, []*asserts.Ref{
 		{Type: asserts.AccountType, PrimaryKey: []string{s.dev1Acct.AccountID()}},
 	})
+	mylog.Check(batch.CommitTo(s.db, nil))
 
-	err = batch.CommitTo(s.db, nil)
-	c.Assert(err, IsNil)
 
-	devAcct, err := s.db.Find(asserts.AccountType, map[string]string{
+	devAcct := mylog.Check2(s.db.Find(asserts.AccountType, map[string]string{
 		"account-id": s.dev1Acct.AccountID(),
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(devAcct.(*asserts.Account).Username(), Equals, "developer1")
 }
 
@@ -209,8 +212,8 @@ func (s *batchSuite) TestCommitRefusesSelfSignedKey(c *C) {
 	aKey, _ := assertstest.GenerateKey(752)
 	aSignDB := assertstest.NewSigningDB("can0nical", aKey)
 
-	aKeyEncoded, err := asserts.EncodePublicKey(aKey.PublicKey())
-	c.Assert(err, IsNil)
+	aKeyEncoded := mylog.Check2(asserts.EncodePublicKey(aKey.PublicKey()))
+
 
 	headers := map[string]interface{}{
 		"authority-id":        "can0nical",
@@ -219,8 +222,8 @@ func (s *batchSuite) TestCommitRefusesSelfSignedKey(c *C) {
 		"name":                "default",
 		"since":               time.Now().UTC().Format(time.RFC3339),
 	}
-	acctKey, err := aSignDB.Sign(asserts.AccountKeyType, headers, aKeyEncoded, "")
-	c.Assert(err, IsNil)
+	acctKey := mylog.Check2(aSignDB.Sign(asserts.AccountKeyType, headers, aKeyEncoded, ""))
+
 
 	headers = map[string]interface{}{
 		"authority-id": "can0nical",
@@ -229,19 +232,18 @@ func (s *batchSuite) TestCommitRefusesSelfSignedKey(c *C) {
 		"summary":      "repair two",
 		"timestamp":    time.Now().UTC().Format(time.RFC3339),
 	}
-	repair, err := aSignDB.Sign(asserts.RepairType, headers, []byte("#script"), "")
-	c.Assert(err, IsNil)
+	repair := mylog.Check2(aSignDB.Sign(asserts.RepairType, headers, []byte("#script"), ""))
+
 
 	batch := asserts.NewBatch(nil)
+	mylog.Check(batch.Add(repair))
 
-	err = batch.Add(repair)
-	c.Assert(err, IsNil)
+	mylog.Check(batch.Add(acctKey))
 
-	err = batch.Add(acctKey)
-	c.Assert(err, IsNil)
+	mylog.
 
-	// this must fail
-	err = batch.CommitTo(s.db, nil)
+		// this must fail
+		Check(batch.CommitTo(s.db, nil))
 	c.Assert(err, ErrorMatches, `circular assertions are not expected:.*`)
 }
 
@@ -264,12 +266,11 @@ func (s *batchSuite) TestAddUnsupported(c *C) {
 			"publisher-id": s.dev1Acct.AccountID(),
 			"timestamp":    time.Now().Format(time.RFC3339),
 		}
-		var err error
-		a, err = s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
-		c.Assert(err, IsNil)
-	})()
 
-	err := batch.Add(a)
+		a = mylog.Check2(s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, ""))
+
+	})()
+	mylog.Check(batch.Add(a))
 	c.Check(err, ErrorMatches, `proposed "snap-declaration" assertion has format 999 but 111 is latest supported`)
 }
 
@@ -298,12 +299,11 @@ func (s *batchSuite) TestAddUnsupportedIgnore(c *C) {
 			"publisher-id": s.dev1Acct.AccountID(),
 			"timestamp":    time.Now().Format(time.RFC3339),
 		}
-		var err error
-		a, err = s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
-		c.Assert(err, IsNil)
-	})()
 
-	err := batch.Add(a)
+		a = mylog.Check2(s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, ""))
+
+	})()
+	mylog.Check(batch.Add(a))
 	c.Check(err, IsNil)
 	c.Check(uRef, DeepEquals, &asserts.Ref{
 		Type:       asserts.SnapDeclarationType,
@@ -312,20 +312,21 @@ func (s *batchSuite) TestAddUnsupportedIgnore(c *C) {
 }
 
 func (s *batchSuite) TestCommitPartial(c *C) {
-	// Commit does add any successful assertion until the first error
+	mylog.
+		// Commit does add any successful assertion until the first error
+		Check(
 
-	// store key already present
-	err := s.db.Add(s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
+			// store key already present
+			s.db.Add(s.storeSigning.StoreAccountKey("")))
+
 
 	batch := asserts.NewBatch(nil)
 
 	snapDeclFoo := s.snapDecl(c, "foo", nil)
+	mylog.Check(batch.Add(snapDeclFoo))
 
-	err = batch.Add(snapDeclFoo)
-	c.Assert(err, IsNil)
-	err = batch.Add(s.dev1Acct)
-	c.Assert(err, IsNil)
+	mylog.Check(batch.Add(s.dev1Acct))
+
 
 	// too old
 	rev := 1
@@ -337,52 +338,49 @@ func (s *batchSuite) TestCommitPartial(c *C) {
 		"developer-id":  s.dev1Acct.AccountID(),
 		"timestamp":     time.Time{}.Format(time.RFC3339),
 	}
-	snapRev, err := s.storeSigning.Sign(asserts.SnapRevisionType, headers, nil, "")
-	c.Assert(err, IsNil)
+	snapRev := mylog.Check2(s.storeSigning.Sign(asserts.SnapRevisionType, headers, nil, ""))
 
-	err = batch.Add(snapRev)
-	c.Assert(err, IsNil)
+	mylog.Check(batch.Add(snapRev))
 
-	err = batch.CommitTo(s.db, &asserts.CommitOptions{Precheck: false})
+	mylog.Check(batch.CommitTo(s.db, &asserts.CommitOptions{Precheck: false}))
 	c.Check(err, ErrorMatches, `(?ms).*validity.*`)
 
 	// snap-declaration was added anyway
-	_, err = s.db.Find(asserts.SnapDeclarationType, map[string]string{
+	_ = mylog.Check2(s.db.Find(asserts.SnapDeclarationType, map[string]string{
 		"series":  "16",
 		"snap-id": "foo-id",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 }
 
 func (s *batchSuite) TestCommitMissing(c *C) {
-	// store key already present
-	err := s.db.Add(s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
+	mylog.
+		// store key already present
+		Check(s.db.Add(s.storeSigning.StoreAccountKey("")))
+
 
 	batch := asserts.NewBatch(nil)
 
 	snapDeclFoo := s.snapDecl(c, "foo", nil)
+	mylog.Check(batch.Add(snapDeclFoo))
 
-	err = batch.Add(snapDeclFoo)
-	c.Assert(err, IsNil)
-
-	err = batch.CommitTo(s.db, nil)
+	mylog.Check(batch.CommitTo(s.db, nil))
 	c.Check(err, ErrorMatches, `cannot resolve prerequisite assertion: account.*`)
 }
 
 func (s *batchSuite) TestPrecheckPartial(c *C) {
-	// store key already present
-	err := s.db.Add(s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
+	mylog.
+		// store key already present
+		Check(s.db.Add(s.storeSigning.StoreAccountKey("")))
+
 
 	batch := asserts.NewBatch(nil)
 
 	snapDeclFoo := s.snapDecl(c, "foo", nil)
+	mylog.Check(batch.Add(snapDeclFoo))
 
-	err = batch.Add(snapDeclFoo)
-	c.Assert(err, IsNil)
-	err = batch.Add(s.dev1Acct)
-	c.Assert(err, IsNil)
+	mylog.Check(batch.Add(s.dev1Acct))
+
 
 	// too old
 	rev := 1
@@ -394,36 +392,34 @@ func (s *batchSuite) TestPrecheckPartial(c *C) {
 		"developer-id":  s.dev1Acct.AccountID(),
 		"timestamp":     time.Time{}.Format(time.RFC3339),
 	}
-	snapRev, err := s.storeSigning.Sign(asserts.SnapRevisionType, headers, nil, "")
-	c.Assert(err, IsNil)
+	snapRev := mylog.Check2(s.storeSigning.Sign(asserts.SnapRevisionType, headers, nil, ""))
 
-	err = batch.Add(snapRev)
-	c.Assert(err, IsNil)
+	mylog.Check(batch.Add(snapRev))
 
-	err = batch.CommitTo(s.db, &asserts.CommitOptions{Precheck: true})
+	mylog.Check(batch.CommitTo(s.db, &asserts.CommitOptions{Precheck: true}))
 	c.Check(err, ErrorMatches, `(?ms).*validity.*`)
 
 	// nothing was added
-	_, err = s.db.Find(asserts.SnapDeclarationType, map[string]string{
+	_ = mylog.Check2(s.db.Find(asserts.SnapDeclarationType, map[string]string{
 		"series":  "16",
 		"snap-id": "foo-id",
-	})
+	}))
 	c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 }
 
 func (s *batchSuite) TestPrecheckHappy(c *C) {
-	// store key already present
-	err := s.db.Add(s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
+	mylog.
+		// store key already present
+		Check(s.db.Add(s.storeSigning.StoreAccountKey("")))
+
 
 	batch := asserts.NewBatch(nil)
 
 	snapDeclFoo := s.snapDecl(c, "foo", nil)
+	mylog.Check(batch.Add(snapDeclFoo))
 
-	err = batch.Add(snapDeclFoo)
-	c.Assert(err, IsNil)
-	err = batch.Add(s.dev1Acct)
-	c.Assert(err, IsNil)
+	mylog.Check(batch.Add(s.dev1Acct))
+
 
 	rev := 1
 	revDigest := makeDigest(rev)
@@ -435,36 +431,37 @@ func (s *batchSuite) TestPrecheckHappy(c *C) {
 		"developer-id":  s.dev1Acct.AccountID(),
 		"timestamp":     time.Now().Format(time.RFC3339),
 	}
-	snapRev, err := s.storeSigning.Sign(asserts.SnapRevisionType, headers, nil, "")
-	c.Assert(err, IsNil)
+	snapRev := mylog.Check2(s.storeSigning.Sign(asserts.SnapRevisionType, headers, nil, ""))
 
-	err = batch.Add(snapRev)
-	c.Assert(err, IsNil)
+	mylog.Check(batch.Add(snapRev))
 
-	// test precheck on its own
-	err = batch.DoPrecheck(s.db)
-	c.Assert(err, IsNil)
+	mylog.
+
+		// test precheck on its own
+		Check(batch.DoPrecheck(s.db))
+
 
 	// nothing was added yet
-	_, err = s.db.Find(asserts.SnapDeclarationType, map[string]string{
+	_ = mylog.Check2(s.db.Find(asserts.SnapDeclarationType, map[string]string{
 		"series":  "16",
 		"snap-id": "foo-id",
-	})
+	}))
 	c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
+	mylog.
 
-	// commit (with precheck)
-	err = batch.CommitTo(s.db, &asserts.CommitOptions{Precheck: true})
-	c.Assert(err, IsNil)
+		// commit (with precheck)
+		Check(batch.CommitTo(s.db, &asserts.CommitOptions{Precheck: true}))
 
-	_, err = s.db.Find(asserts.SnapRevisionType, map[string]string{
+
+	_ = mylog.Check2(s.db.Find(asserts.SnapRevisionType, map[string]string{
 		"snap-sha3-384": revDigest,
-	})
+	}))
 	c.Check(err, IsNil)
 }
 
 func (s *batchSuite) TestFetch(c *C) {
-	err := s.db.Add(s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
+	mylog.Check(s.db.Add(s.storeSigning.StoreAccountKey("")))
+
 
 	s.snapDecl(c, "foo", nil)
 
@@ -478,11 +475,10 @@ func (s *batchSuite) TestFetch(c *C) {
 		"developer-id":  s.dev1Acct.AccountID(),
 		"timestamp":     time.Now().Format(time.RFC3339),
 	}
-	snapRev, err := s.storeSigning.Sign(asserts.SnapRevisionType, headers, nil, "")
-	c.Assert(err, IsNil)
+	snapRev := mylog.Check2(s.storeSigning.Sign(asserts.SnapRevisionType, headers, nil, ""))
 
-	err = s.storeSigning.Add(snapRev)
-	c.Assert(err, IsNil)
+	mylog.Check(s.storeSigning.Add(snapRev))
+
 	ref := snapRev.Ref()
 
 	batch := asserts.NewBatch(nil)
@@ -495,23 +491,23 @@ func (s *batchSuite) TestFetch(c *C) {
 	fetching := func(f asserts.Fetcher) error {
 		return f.Fetch(ref)
 	}
+	mylog.Check(batch.Fetch(s.db, retrieve, fetching))
 
-	err = batch.Fetch(s.db, retrieve, fetching)
-	c.Assert(err, IsNil)
 
 	// nothing was added yet
-	_, err = s.db.Find(asserts.SnapDeclarationType, map[string]string{
+	_ = mylog.Check2(s.db.Find(asserts.SnapDeclarationType, map[string]string{
 		"series":  "16",
 		"snap-id": "foo-id",
-	})
+	}))
 	c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
+	mylog.
 
-	// commit
-	err = batch.CommitTo(s.db, nil)
-	c.Assert(err, IsNil)
+		// commit
+		Check(batch.CommitTo(s.db, nil))
 
-	_, err = s.db.Find(asserts.SnapRevisionType, map[string]string{
+
+	_ = mylog.Check2(s.db.Find(asserts.SnapRevisionType, map[string]string{
 		"snap-sha3-384": revDigest,
-	})
+	}))
 	c.Check(err, IsNil)
 }

@@ -29,6 +29,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/dirs"
@@ -91,9 +92,8 @@ type: os
 	task := s.state.NewTask("test-task", "my test task")
 	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
 
-	var err error
-	s.context, err = hookstate.NewContext(task, task.State(), setup, hooktest.NewMockHandler(), "")
-	c.Assert(err, IsNil)
+	s.context = mylog.Check2(hookstate.NewContext(task, task.State(), setup, hooktest.NewMockHandler(), ""))
+
 
 	s.handler = configstate.NewConfigureHandler(s.context)
 }
@@ -140,7 +140,7 @@ func (s *configureHandlerSuite) TestBeforeInitializesTransactionUseDefaults(c *C
 name: canonical-pc
 type: gadget
 `
-	var mockGadgetYaml = []byte(`
+	mockGadgetYaml := []byte(`
 defaults:
   testsnapidididididididididididid:
       bar: baz
@@ -152,8 +152,8 @@ volumes:
 `)
 
 	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(1)})
-	err := os.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockGadgetYaml, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockGadgetYaml, 0644))
+
 
 	s.state.Lock()
 	snapstate.Set(s.state, "canonical-pc", &snapstate.SnapState{
@@ -214,7 +214,7 @@ func (s *configureHandlerSuite) TestBeforeUseDefaultsMissingHook(c *C) {
 name: canonical-pc
 type: gadget
 `
-	var mockGadgetYaml = []byte(`
+	mockGadgetYaml := []byte(`
 defaults:
   testsnapidididididididididididid:
       bar: baz
@@ -226,8 +226,8 @@ volumes:
 `)
 
 	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(1)})
-	err := os.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockGadgetYaml, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockGadgetYaml, 0644))
+
 
 	s.state.Lock()
 	snapstate.Set(s.state, "canonical-pc", &snapstate.SnapState{
@@ -258,8 +258,7 @@ volumes:
 	s.context.Lock()
 	s.context.Set("use-defaults", true)
 	s.context.Unlock()
-
-	err = s.handler.Before()
+	mylog.Check(s.handler.Before())
 	c.Check(err, ErrorMatches, `cannot apply gadget config defaults for snap "test-snap", no configure hook`)
 }
 
@@ -284,23 +283,22 @@ func (s *defaultConfigureHandlerSuite) SetUpTest(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	var err error
 	task := s.state.NewTask("run-hook", "Run default-configure hook")
 	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "default-configure"}
-	s.defaultConfigureContext, err = hookstate.NewContext(task, task.State(), setup, hooktest.NewMockHandler(), "")
-	c.Assert(err, IsNil)
+	s.defaultConfigureContext = mylog.Check2(hookstate.NewContext(task, task.State(), setup, hooktest.NewMockHandler(), ""))
+
 
 	task = s.state.NewTask("run-hook", "Run configure hook")
 	setup = &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "configure"}
-	s.configureContext, err = hookstate.NewContext(task, task.State(), setup, hooktest.NewMockHandler(), "")
-	c.Assert(err, IsNil)
+	s.configureContext = mylog.Check2(hookstate.NewContext(task, task.State(), setup, hooktest.NewMockHandler(), ""))
+
 
 	s.defaultConfigureHandler = configstate.NewDefaultConfigureHandler(s.defaultConfigureContext)
 	s.configureHandler = configstate.NewConfigureHandler(s.configureContext)
 }
 
 func (s *defaultConfigureHandlerSuite) TestBeforeNotInstalledError(c *C) {
-	err := s.defaultConfigureHandler.Before()
+	mylog.Check(s.defaultConfigureHandler.Before())
 	var notInstalledError *snap.NotInstalledError
 	c.Assert(errors.As(err, &notInstalledError), Equals, true)
 
@@ -327,8 +325,7 @@ hooks:
 		SnapType: "app",
 	})
 	s.state.Unlock()
-
-	err := s.defaultConfigureHandler.Before()
+	mylog.Check(s.defaultConfigureHandler.Before())
 	c.Check(err, ErrorMatches, `cannot use default-configure hook for snap "test-snap", no configure hook`)
 
 	s.defaultConfigureContext.Lock()
@@ -345,7 +342,7 @@ func (s *defaultConfigureHandlerSuite) TestBeforeUseDefaults(c *C) {
 name: canonical-pc
 type: gadget
 `
-	var mockGadgetYaml = []byte(`
+	mockGadgetYaml := []byte(`
 defaults:
   testsnapidididididididididididid:
       bar: baz
@@ -357,8 +354,8 @@ volumes:
 `)
 
 	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(1)})
-	err := os.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockGadgetYaml, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockGadgetYaml, 0644))
+
 
 	s.state.Lock()
 	snapstate.Set(s.state, "canonical-pc", &snapstate.SnapState{
@@ -447,17 +444,16 @@ func (s *configcoreHandlerSuite) SetUpTest(c *C) {
 	restore := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
 	s.AddCleanup(restore)
 
-	hookMgr, err := hookstate.Manager(s.state, s.o.TaskRunner())
-	c.Assert(err, IsNil)
+	hookMgr := mylog.Check2(hookstate.Manager(s.state, s.o.TaskRunner()))
+
 	s.o.AddManager(hookMgr)
 	r := configstate.MockConfigcoreExportExperimentalFlags(func(_ configcore.ConfGetter) error {
 		return nil
 	})
 	s.AddCleanup(r)
+	mylog.Check(configstate.Init(s.state, hookMgr))
 
-	err = configstate.Init(s.state, hookMgr)
 
-	c.Assert(err, IsNil)
 	s.o.AddManager(s.o.TaskRunner())
 
 	r = snapstatetest.MockDeviceModel(makeModel(map[string]interface{}{
@@ -488,7 +484,7 @@ func (s *configcoreHandlerSuite) TestRunsWhenSnapdOnly(c *C) {
 	r := release.MockOnClassic(false)
 	defer r()
 
-	var mockGadgetYaml = `
+	mockGadgetYaml := `
 defaults:
   system:
       foo: bar
@@ -523,8 +519,8 @@ volumes:
 		conf.State().Lock()
 		defer conf.State().Unlock()
 		var val string
-		err := conf.Get("core", "foo", &val)
-		c.Assert(err, IsNil)
+		mylog.Check(conf.Get("core", "foo", &val))
+
 		c.Check(val, Equals, "bar")
 		return nil
 	}
@@ -532,15 +528,15 @@ volumes:
 	defer r()
 
 	s.state.Unlock()
-	err := s.o.Settle(5 * time.Second)
+	mylog.Check(s.o.Settle(5 * time.Second))
 	s.state.Lock()
 	// Initialize context
-	c.Assert(err, IsNil)
+
 
 	tr := config.NewTransaction(s.state)
 	var foo string
-	err = tr.Get("core", "foo", &foo)
-	c.Assert(err, IsNil)
+	mylog.Check(tr.Get("core", "foo", &foo))
+
 	c.Check(foo, Equals, "bar")
 }
 
@@ -548,7 +544,7 @@ func (s *configcoreHandlerSuite) TestRunsWhenCoreOnly(c *C) {
 	r := release.MockOnClassic(false)
 	defer r()
 
-	var mockGadgetYaml = `
+	mockGadgetYaml := `
 defaults:
   system:
       foo: bar
@@ -583,8 +579,8 @@ volumes:
 		conf.State().Lock()
 		defer conf.State().Unlock()
 		var val string
-		err := conf.Get("core", "foo", &val)
-		c.Assert(err, IsNil)
+		mylog.Check(conf.Get("core", "foo", &val))
+
 		c.Check(val, Equals, "bar")
 		return nil
 	}
@@ -592,14 +588,14 @@ volumes:
 	defer r()
 
 	s.state.Unlock()
-	err := s.o.Settle(5 * time.Second)
+	mylog.Check(s.o.Settle(5 * time.Second))
 	s.state.Lock()
 	// Initialize context
-	c.Assert(err, IsNil)
+
 
 	tr := config.NewTransaction(s.state)
 	var foo string
-	err = tr.Get("core", "foo", &foo)
-	c.Assert(err, IsNil)
+	mylog.Check(tr.Get("core", "foo", &foo))
+
 	c.Check(foo, Equals, "bar")
 }

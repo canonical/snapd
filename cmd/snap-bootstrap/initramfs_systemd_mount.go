@@ -26,6 +26,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/systemd"
@@ -166,28 +167,20 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 		overrideContent := []byte(fmt.Sprintf(unitFileDependOverride, unitName))
 		for _, initrdUnit := range []string{"initrd-fs.target", "local-fs.target"} {
 			targetDir := filepath.Join(dirs.GlobalRootDir, "/run/systemd/system", initrdUnit+".d")
-			err := os.MkdirAll(targetDir, 0755)
-			if err != nil {
-				return err
-			}
+			mylog.Check(os.MkdirAll(targetDir, 0755))
 
 			// add an override file for the initrd unit to depend on this mount
 			// unit so that when we isolate to the initrd unit, it does not get
 			// unmounted
 			fname := fmt.Sprintf("snap_bootstrap_%s.conf", whereEscaped)
-			err = os.WriteFile(filepath.Join(targetDir, fname), overrideContent, 0644)
-			if err != nil {
-				return err
-			}
+			mylog.Check(os.WriteFile(filepath.Join(targetDir, fname), overrideContent, 0644))
+
 		}
 		// local-fs.target is already automatically a depenency
 		args = append(args, "--property=Before=initrd-fs.target")
 	}
 
-	stdout, stderr, err := osutil.RunSplitOutput("systemd-mount", args...)
-	if err != nil {
-		return osutil.OutputErrCombine(stdout, stderr, err)
-	}
+	stdout, stderr := mylog.Check3(osutil.RunSplitOutput("systemd-mount", args...))
 
 	if !opts.NoWait {
 		// TODO: is this necessary, systemd-mount seems to only return when the
@@ -199,13 +192,11 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 		start := timeNow()
 		var now time.Time
 		for now = timeNow(); now.Sub(start) < defaultMountUnitWaitTimeout; now = timeNow() {
-			mounted, err := osutilIsMounted(where)
+			mounted := mylog.Check2(osutilIsMounted(where))
 			if mounted == !opts.Umount {
 				break
 			}
-			if err != nil {
-				return err
-			}
+
 		}
 
 		if now.Sub(start) > defaultMountUnitWaitTimeout {

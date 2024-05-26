@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
@@ -53,27 +54,28 @@ func (s *sysctlSuite) TearDownTest(c *C) {
 }
 
 func (s *sysctlSuite) TestConfigureSysctlIntegration(c *C) {
-	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
+	mylog.Check(configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"system.kernel.printk.console-loglevel": "2",
 		},
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(s.mockSysctlConfPath, testutil.FileEquals, "kernel.printk = 2 4 1 7\n")
 	c.Check(s.systemdSysctlArgs, DeepEquals, [][]string{
 		{"--prefix", "kernel.printk"},
 	})
 	s.systemdSysctlArgs = nil
+	mylog.
 
-	// Unset console-loglevel and restore default vaule
-	err = configcore.FilesystemOnlyRun(coreDev, &mockConf{
-		state: s.state,
-		conf: map[string]interface{}{
-			"system.kernel.printk.console-loglevel": "",
-		},
-	})
-	c.Assert(err, IsNil)
+		// Unset console-loglevel and restore default vaule
+		Check(configcore.FilesystemOnlyRun(coreDev, &mockConf{
+			state: s.state,
+			conf: map[string]interface{}{
+				"system.kernel.printk.console-loglevel": "",
+			},
+		}))
+
 	c.Check(osutil.FileExists(s.mockSysctlConfPath), Equals, false)
 	c.Check(s.systemdSysctlArgs, DeepEquals, [][]string{
 		{"--prefix", "kernel.printk"},
@@ -81,44 +83,44 @@ func (s *sysctlSuite) TestConfigureSysctlIntegration(c *C) {
 }
 
 func (s *sysctlSuite) TestConfigureLoglevelUnderRange(c *C) {
-	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
+	mylog.Check(configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"system.kernel.printk.console-loglevel": "-1",
 		},
-	})
+	}))
 	c.Check(osutil.FileExists(s.mockSysctlConfPath), Equals, false)
 	c.Assert(err, ErrorMatches, `console-loglevel must be a number between 0 and 7, not: -1`)
 }
 
 func (s *sysctlSuite) TestConfigureLoglevelOverRange(c *C) {
-	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
+	mylog.Check(configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"system.kernel.printk.console-loglevel": "8",
 		},
-	})
+	}))
 	c.Check(osutil.FileExists(s.mockSysctlConfPath), Equals, false)
 	c.Assert(err, ErrorMatches, `console-loglevel must be a number between 0 and 7, not: 8`)
 }
 
 func (s *sysctlSuite) TestConfigureLevelRejected(c *C) {
-	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
+	mylog.Check(configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"system.kernel.printk.console-loglevel": "invalid",
 		},
-	})
+	}))
 	c.Check(osutil.FileExists(s.mockSysctlConfPath), Equals, false)
 	c.Assert(err, ErrorMatches, `console-loglevel must be a number between 0 and 7, not: invalid`)
 }
 
 func (s *sysctlSuite) TestConfigureSysctlIntegrationNoSetting(c *C) {
-	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
+	mylog.Check(configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf:  map[string]interface{}{},
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(osutil.FileExists(s.mockSysctlConfPath), Equals, false)
 }
 

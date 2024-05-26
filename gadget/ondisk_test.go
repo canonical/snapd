@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/gadget/quantity"
@@ -50,26 +51,16 @@ func (s *ondiskTestSuite) SetUpTest(c *C) {
 	s.dir = c.MkDir()
 
 	s.gadgetRoot = c.MkDir()
-	err := makeMockGadget(s.gadgetRoot, gadgetContent)
-	c.Assert(err, IsNil)
+	mylog.Check(makeMockGadget(s.gadgetRoot, gadgetContent))
+
 }
 
 func makeMockGadget(gadgetRoot, gadgetContent string) error {
-	if err := os.MkdirAll(filepath.Join(gadgetRoot, "meta"), 0755); err != nil {
-		return err
-	}
-	if err := os.WriteFile(filepath.Join(gadgetRoot, "meta", "gadget.yaml"), []byte(gadgetContent), 0644); err != nil {
-		return err
-	}
-	if err := os.WriteFile(filepath.Join(gadgetRoot, "pc-boot.img"), []byte("pc-boot.img content"), 0644); err != nil {
-		return err
-	}
-	if err := os.WriteFile(filepath.Join(gadgetRoot, "pc-core.img"), []byte("pc-core.img content"), 0644); err != nil {
-		return err
-	}
-	if err := os.WriteFile(filepath.Join(gadgetRoot, "grubx64.efi"), []byte("grubx64.efi content"), 0644); err != nil {
-		return err
-	}
+	mylog.Check(os.MkdirAll(filepath.Join(gadgetRoot, "meta"), 0755))
+	mylog.Check(os.WriteFile(filepath.Join(gadgetRoot, "meta", "gadget.yaml"), []byte(gadgetContent), 0644))
+	mylog.Check(os.WriteFile(filepath.Join(gadgetRoot, "pc-boot.img"), []byte("pc-boot.img content"), 0644))
+	mylog.Check(os.WriteFile(filepath.Join(gadgetRoot, "pc-core.img"), []byte("pc-core.img content"), 0644))
+	mylog.Check(os.WriteFile(filepath.Join(gadgetRoot, "grubx64.efi"), []byte("grubx64.efi content"), 0644))
 
 	return nil
 }
@@ -158,8 +149,8 @@ func (s *ondiskTestSuite) TestDeviceInfoGPT(c *C) {
 	restore := disks.MockDeviceNameToDiskMapping(m)
 	defer restore()
 
-	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
-	c.Assert(err, IsNil)
+	dl := mylog.Check2(gadget.OnDiskVolumeFromDevice("/dev/node"))
+
 
 	c.Assert(dl, DeepEquals, &gadget.OnDiskVolume{
 		Device:     "/dev/node",
@@ -234,8 +225,8 @@ func (s *ondiskTestSuite) TestDeviceInfoGPT4096SectorSize(c *C) {
 	restore := disks.MockDeviceNameToDiskMapping(m)
 	defer restore()
 
-	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
-	c.Assert(err, IsNil)
+	dl := mylog.Check2(gadget.OnDiskVolumeFromDevice("/dev/node"))
+
 	c.Assert(dl, DeepEquals, &gadget.OnDiskVolume{
 		Device:     "/dev/node",
 		ID:         "9151F25B-CDF0-48F1-9EDE-68CBD616E2CA",
@@ -268,7 +259,6 @@ func (s *ondiskTestSuite) TestDeviceInfoGPT4096SectorSize(c *C) {
 }
 
 func (s *ondiskTestSuite) TestDeviceInfoMBR(c *C) {
-
 	m := map[string]*disks.MockDiskMapping{
 		"/dev/node": {
 			DevNum:          "42:0",
@@ -337,8 +327,8 @@ func (s *ondiskTestSuite) TestDeviceInfoMBR(c *C) {
 	restore := disks.MockDeviceNameToDiskMapping(m)
 	defer restore()
 
-	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
-	c.Assert(err, IsNil)
+	dl := mylog.Check2(gadget.OnDiskVolumeFromDevice("/dev/node"))
+
 
 	c.Assert(dl, DeepEquals, &gadget.OnDiskVolume{
 		Device:     "/dev/node",
@@ -392,7 +382,6 @@ func (s *ondiskTestSuite) TestDeviceInfoMBR(c *C) {
 }
 
 func (s *ondiskTestSuite) TestOnDiskStructureFromPartition(c *C) {
-
 	p := disks.Partition{
 		PartitionUUID:    "abcdef-01234",
 		PartitionLabel:   "foobar",
@@ -405,8 +394,8 @@ func (s *ondiskTestSuite) TestOnDiskStructureFromPartition(c *C) {
 		KernelDeviceNode: "/dev/sda2",
 	}
 
-	res, err := gadget.OnDiskStructureFromPartition(p)
-	c.Assert(err, IsNil)
+	res := mylog.Check2(gadget.OnDiskStructureFromPartition(p))
+
 
 	c.Assert(res, DeepEquals, gadget.OnDiskStructure{
 		DiskIndex:        2,
@@ -431,12 +420,12 @@ func (s *ondiskTestSuite) TestOnDiskVolumeFromGadgetVol(c *C) {
 	defer restore()
 
 	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
-	ginfo, _, _, restore, err := gadgettest.MockGadgetPartitionedDisk(gadgettest.SingleVolumeClassicWithModesGadgetYaml, gadgetRoot)
-	c.Assert(err, IsNil)
+	ginfo, _, _, restore := mylog.Check5(gadgettest.MockGadgetPartitionedDisk(gadgettest.SingleVolumeClassicWithModesGadgetYaml, gadgetRoot))
+
 	defer restore()
 
 	// Initially without setting devices
-	diskVol, err := gadget.OnDiskVolumeFromGadgetVol(ginfo.Volumes["pc"])
+	diskVol := mylog.Check2(gadget.OnDiskVolumeFromGadgetVol(ginfo.Volumes["pc"]))
 	c.Check(err.Error(), Equals, `volume "pc" has no device assigned`)
 	c.Check(diskVol, IsNil)
 
@@ -450,19 +439,19 @@ func (s *ondiskTestSuite) TestOnDiskVolumeFromGadgetVol(c *C) {
 		}
 	}
 
-	diskVol, err = gadget.OnDiskVolumeFromGadgetVol(ginfo.Volumes["pc"])
+	diskVol = mylog.Check2(gadget.OnDiskVolumeFromGadgetVol(ginfo.Volumes["pc"]))
 	c.Check(err, IsNil)
 	c.Check(diskVol, DeepEquals, &gadgettest.MockGadgetPartitionedOnDiskVolume)
 
 	// Now setting it for the mbr
 	ginfo.Volumes["pc"].Structure[0].Device = "/dev/vda"
-	diskVol, err = gadget.OnDiskVolumeFromGadgetVol(ginfo.Volumes["pc"])
+	diskVol = mylog.Check2(gadget.OnDiskVolumeFromGadgetVol(ginfo.Volumes["pc"]))
 	c.Check(err, IsNil)
 	c.Check(diskVol, DeepEquals, &gadgettest.MockGadgetPartitionedOnDiskVolume)
 
 	// Setting a wrong partition name
 	ginfo.Volumes["pc"].Structure[1].Device = "/dev/mmcblk0p1"
-	diskVol, err = gadget.OnDiskVolumeFromGadgetVol(ginfo.Volumes["pc"])
+	diskVol = mylog.Check2(gadget.OnDiskVolumeFromGadgetVol(ginfo.Volumes["pc"]))
 	c.Check(err.Error(), Equals, "bad disk")
 	c.Check(diskVol, IsNil)
 }

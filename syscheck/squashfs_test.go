@@ -22,6 +22,7 @@ package syscheck_test
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil/squashfs"
 	"github.com/snapcore/snapd/sandbox/selinux"
 	"github.com/snapcore/snapd/syscheck"
@@ -38,8 +39,7 @@ func (s *syscheckSuite) TestCheckSquashfsMountHappy(c *C) {
 
 	mockUmount := testutil.MockCommand(c, "umount", "")
 	defer mockUmount.Restore()
-
-	err := syscheck.CheckSquashfsMount()
+	mylog.Check(syscheck.CheckSquashfsMount())
 	c.Check(err, IsNil)
 
 	c.Check(mockMount.Calls(), HasLen, 1)
@@ -64,8 +64,7 @@ func (s *syscheckSuite) TestCheckSquashfsMountNotHappy(c *C) {
 
 	mockUmount := testutil.MockCommand(c, "umount", "")
 	defer mockUmount.Restore()
-
-	err := syscheck.CheckSquashfsMount()
+	mylog.Check(syscheck.CheckSquashfsMount())
 	c.Check(err, ErrorMatches, "cannot mount squashfs image using.*")
 
 	c.Check(mockMount.Calls(), HasLen, 1)
@@ -87,8 +86,7 @@ func (s *syscheckSuite) TestCheckSquashfsMountWrongContent(c *C) {
 
 	mockUmount := testutil.MockCommand(c, "umount", "")
 	defer mockUmount.Restore()
-
-	err := syscheck.CheckSquashfsMount()
+	mylog.Check(syscheck.CheckSquashfsMount())
 	c.Check(err, ErrorMatches, `unexpected squashfs canary content: "wrong content\\n"`)
 
 	c.Check(mockMount.Calls(), HasLen, 1)
@@ -107,8 +105,7 @@ func (s *syscheckSuite) TestCheckSquashfsMountSELinuxContext(c *C) {
 
 	mockSELinux := selinux.MockIsEnabled(func() (bool, error) { return true, nil })
 	defer mockSELinux()
-
-	err := syscheck.CheckSquashfsMount()
+	mylog.Check(syscheck.CheckSquashfsMount())
 	c.Assert(err, ErrorMatches, `squashfs mount returned no err but canary file cannot be read`)
 
 	c.Check(mockMount.Calls(), HasLen, 1)

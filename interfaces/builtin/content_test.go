@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
@@ -333,11 +334,11 @@ slots:
 	}}
 	c.Assert(spec.MountEntries(), DeepEquals, expectedMnt)
 
-	appSet, err := interfaces.NewSnapAppSet(plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(plug.Snap(), nil))
+
 	apparmorSpec := apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddConnectedPlug(s.iface, plug, slot)
-	c.Assert(err, IsNil)
+	mylog.Check(apparmorSpec.AddConnectedPlug(s.iface, plug, slot))
+
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	expected := `
 # In addition to the bind mount, add any AppArmor rules so that
@@ -516,11 +517,11 @@ slots:
 	}}
 	c.Assert(spec.MountEntries(), DeepEquals, expectedMnt)
 
-	appSet, err := interfaces.NewSnapAppSet(plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(plug.Snap(), nil))
+
 	apparmorSpec := apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddConnectedPlug(s.iface, plug, slot)
-	c.Assert(err, IsNil)
+	mylog.Check(apparmorSpec.AddConnectedPlug(s.iface, plug, slot))
+
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	expected := `
 # In addition to the bind mount, add any AppArmor rules so that
@@ -583,11 +584,11 @@ slots:
 	}}
 	c.Assert(spec.MountEntries(), DeepEquals, expectedMnt)
 
-	appSet, err := interfaces.NewSnapAppSet(plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(plug.Snap(), nil))
+
 	apparmorSpec := apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddConnectedPlug(s.iface, plug, slot)
-	c.Assert(err, IsNil)
+	mylog.Check(apparmorSpec.AddConnectedPlug(s.iface, plug, slot))
+
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	expected := `
 # In addition to the bind mount, add any AppArmor rules so that
@@ -652,8 +653,8 @@ slots:
 	// Create the mount and apparmor specifications.
 	mountSpec := &mount.Specification{}
 	c.Assert(mountSpec.AddConnectedPlug(s.iface, connectedPlug, connectedSlot), IsNil)
-	appSet, err := interfaces.NewSnapAppSet(connectedPlug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(connectedPlug.Snap(), nil))
+
 	apparmorSpec := apparmor.NewSpecification(appSet)
 	c.Assert(apparmorSpec.AddConnectedPlug(s.iface, connectedPlug, connectedSlot), IsNil)
 
@@ -922,8 +923,8 @@ slots:
 
 	// Create the mount and apparmor specifications.
 	mountSpec := &mount.Specification{}
-	appSet, err := interfaces.NewSnapAppSet(connectedPlug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(connectedPlug.Snap(), nil))
+
 	apparmorSpec := apparmor.NewSpecification(appSet)
 	for _, connectedSlot := range []*interfaces.ConnectedSlot{connectedSlotOne, connectedSlotTwo} {
 		c.Assert(mountSpec.AddConnectedPlug(s.iface, connectedPlug, connectedSlot), IsNil)
@@ -990,8 +991,8 @@ slots:
 	// Create the mount and apparmor specifications.
 	mountSpec := &mount.Specification{}
 	c.Assert(mountSpec.AddConnectedPlug(s.iface, connectedPlug, connectedSlot), IsNil)
-	appSet, err := interfaces.NewSnapAppSet(connectedPlug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(connectedPlug.Snap(), nil))
+
 	apparmorSpec := apparmor.NewSpecification(appSet)
 	c.Assert(apparmorSpec.AddConnectedPlug(s.iface, connectedPlug, connectedSlot), IsNil)
 
@@ -1047,11 +1048,11 @@ apps:
 	producerInfo := snaptest.MockInfo(c, producerYaml, &snap.SideInfo{Revision: snap.R(5)})
 	slot := interfaces.NewConnectedSlot(producerInfo.Slots["content"], nil, nil)
 
-	appSet, err := interfaces.NewSnapAppSet(slot.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(slot.Snap(), nil))
+
 	apparmorSpec := apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddConnectedSlot(s.iface, plug, slot)
-	c.Assert(err, IsNil)
+	mylog.Check(apparmorSpec.AddConnectedSlot(s.iface, plug, slot))
+
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
 	expected := `
 # When the content interface is writable, allow this slot

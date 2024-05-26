@@ -25,6 +25,7 @@ package internal
 import (
 	"errors"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
 )
@@ -32,12 +33,9 @@ import (
 // Device returns the device details from the state.
 func Device(st *state.State) (*auth.DeviceState, error) {
 	var authStateData auth.AuthState
-
-	err := st.Get("auth", &authStateData)
+	mylog.Check(st.Get("auth", &authStateData))
 	if errors.Is(err, state.ErrNoState) {
 		return &auth.DeviceState{}, nil
-	} else if err != nil {
-		return nil, err
 	}
 
 	if authStateData.Device == nil {
@@ -50,12 +48,9 @@ func Device(st *state.State) (*auth.DeviceState, error) {
 // SetDevice updates the device details in the state.
 func SetDevice(st *state.State, device *auth.DeviceState) error {
 	var authStateData auth.AuthState
-
-	err := st.Get("auth", &authStateData)
+	mylog.Check(st.Get("auth", &authStateData))
 	if errors.Is(err, state.ErrNoState) {
 		authStateData = auth.AuthState{}
-	} else if err != nil {
-		return err
 	}
 
 	authStateData.Device = device

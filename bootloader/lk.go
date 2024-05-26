@@ -27,6 +27,7 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/bootloader/lkenv"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
@@ -119,20 +120,15 @@ func (l *lk) InstallBootConfig(gadgetDir string, opts *Options) error {
 	// since we are just installing static files from the gadget, there is no
 	// backup to copy, the backup will be created automatically (if allowed) by
 	// lkenv when we go to Save() the environment file.
-	systemFile, err := l.envBackstore(primaryStorage)
-	if err != nil {
-		return err
-	}
+	systemFile := mylog.Check2(l.envBackstore(primaryStorage))
+
 	return genericInstallBootConfig(gadgetFile, systemFile)
 }
 
 func (l *lk) Present() (bool, error) {
 	// if we are in prepare-image mode or in V1, just check the env file
 	if l.prepareImageTime || l.role == RoleSole {
-		primary, err := l.envBackstore(primaryStorage)
-		if err != nil {
-			return false, err
-		}
+		primary := mylog.Check2(l.envBackstore(primaryStorage))
 
 		if osutil.FileExists(primary) {
 			return true, nil
@@ -146,10 +142,8 @@ func (l *lk) Present() (bool, error) {
 
 		// but at runtime we should check the backup in case the primary
 		// partition got corrupted
-		backup, err := l.envBackstore(backupStorage)
-		if err != nil {
-			return false, err
-		}
+		backup := mylog.Check2(l.envBackstore(backupStorage))
+
 		return osutil.FileExists(backup), nil
 	}
 
@@ -158,7 +152,7 @@ func (l *lk) Present() (bool, error) {
 	// partiallyFound as true if it reasonably concludes that this is a lk
 	// device, so in that case forward err, otherwise return err as nil
 	partitionLabel := l.partLabelForRole()
-	_, partiallyFound, err := l.devPathForPartName(partitionLabel)
+	_, partiallyFound := mylog.Check3(l.devPathForPartName(partitionLabel))
 	if partiallyFound {
 		return true, err
 	}
@@ -207,10 +201,8 @@ func (l *lk) envBackstore(backup bool) (string, error) {
 	}
 
 	// for RoleRun or RoleRecovery, we need to find the partition securely
-	partitionFile, _, err := l.devPathForPartName(partitionLabelOrConfFile)
-	if err != nil {
-		return "", err
-	}
+	partitionFile, _ := mylog.Check3(l.devPathForPartName(partitionLabelOrConfFile))
+
 	return partitionFile, nil
 }
 
@@ -230,12 +222,11 @@ func (l *lk) devPathForPartName(partName string) (string, bool, error) {
 		// parameter "snapd_lk_boot_disk" to indicated which disk we should look
 		// for partitions on. In typical boot scenario this will be something like
 		// "snapd_lk_boot_disk=mmcblk0".
-		m, err := kcmdline.KeyValues("snapd_lk_boot_disk")
-		if err != nil {
-			// return false, since we don't have enough info to conclude there
-			// is likely a lk bootloader here or not
-			return "", false, err
-		}
+		m := mylog.Check2(kcmdline.KeyValues("snapd_lk_boot_disk"))
+
+		// return false, since we don't have enough info to conclude there
+		// is likely a lk bootloader here or not
+
 		blDiskName, ok := m["snapd_lk_boot_disk"]
 		if blDiskName == "" {
 			// we switch on ok here, since if "snapd_lk_boot_disk" was found at
@@ -250,18 +241,12 @@ func (l *lk) devPathForPartName(partName string) (string, bool, error) {
 			return "", false, fmt.Errorf("kernel command line parameter \"snapd_lk_boot_disk\" is missing")
 		}
 
-		disk, err := disks.DiskFromDeviceName(blDiskName)
-		if err != nil {
-			return "", true, fmt.Errorf("cannot find disk from bootloader supplied disk name %q: %v", blDiskName, err)
-		}
+		disk := mylog.Check2(disks.DiskFromDeviceName(blDiskName))
 
 		l.blDisk = disk
 	}
 
-	partitionUUID, err := l.blDisk.FindMatchingPartitionUUIDWithPartLabel(partName)
-	if err != nil {
-		return "", true, err
-	}
+	partitionUUID := mylog.Check2(l.blDisk.FindMatchingPartitionUUIDWithPartLabel(partName))
 
 	// for the runtime lk bootloader we should never prefix the path with the
 	// bootloader rootdir and instead always use dirs.GlobalRootDir, since the
@@ -284,15 +269,9 @@ func (l *lk) newenv() (*lkenv.Env, error) {
 	case RoleRunMode:
 		version = lkenv.V2Run
 	}
-	f, err := l.envBackstore(primaryStorage)
-	if err != nil {
-		return nil, err
-	}
+	f := mylog.Check2(l.envBackstore(primaryStorage))
 
-	backup, err := l.envBackstore(backupStorage)
-	if err != nil {
-		return nil, err
-	}
+	backup := mylog.Check2(l.envBackstore(backupStorage))
 
 	return lkenv.NewEnv(f, backup, version), nil
 }
@@ -300,13 +279,8 @@ func (l *lk) newenv() (*lkenv.Env, error) {
 func (l *lk) GetBootVars(names ...string) (map[string]string, error) {
 	out := make(map[string]string)
 
-	env, err := l.newenv()
-	if err != nil {
-		return nil, err
-	}
-	if err := env.Load(); err != nil {
-		return nil, err
-	}
+	env := mylog.Check2(l.newenv())
+	mylog.Check(env.Load())
 
 	for _, name := range names {
 		out[name] = env.Get(name)
@@ -316,28 +290,21 @@ func (l *lk) GetBootVars(names ...string) (map[string]string, error) {
 }
 
 func (l *lk) SetBootVars(values map[string]string) error {
-	env, err := l.newenv()
-	if err != nil {
-		return err
-	}
-	// if we couldn't find the env, that's okay, as this may be the first thing
-	// to write boot vars to the env
-	if err := env.Load(); err != nil {
-		// if the error was something other than file not found, it is fatal
-		if !xerrors.Is(err, os.ErrNotExist) {
-			return err
-		}
-		// otherwise at prepare-image time it is okay to not have the file
-		// existing, but we should always have it at runtime as it is a
-		// partition, so it is highly unexpected for it to be missing and we
-		// cannot proceed
-		// also note that env.Load() will automatically try the backup, so if
-		// Load() failed to get the backup at runtime there's nothing left to
-		// try here
-		if !l.prepareImageTime {
-			return err
-		}
-	}
+	env := mylog.Check2(l.newenv())
+	mylog.Check(
+
+		// if we couldn't find the env, that's okay, as this may be the first thing
+		// to write boot vars to the env
+		env.Load())
+	// if the error was something other than file not found, it is fatal
+
+	// otherwise at prepare-image time it is okay to not have the file
+	// existing, but we should always have it at runtime as it is a
+	// partition, so it is highly unexpected for it to be missing and we
+	// cannot proceed
+	// also note that env.Load() will automatically try the backup, so if
+	// Load() failed to get the backup at runtime there's nothing left to
+	// try here
 
 	// update environment only if something changes
 	dirty := false
@@ -367,38 +334,25 @@ func (l *lk) ExtractRecoveryKernelAssets(recoverySystemDir string, sn snap.Place
 		return fmt.Errorf("internal error: extracting recovery kernel assets is not supported for a runtime lk bootloader")
 	}
 
-	env, err := l.newenv()
-	if err != nil {
-		return err
-	}
-	if err := env.Load(); err != nil {
-		// don't handle os.ErrNotExist specially here, it doesn't really make
-		// sense to extract kernel assets if we can't load the existing env,
-		// since then the caller would just see an error about not being able
-		// to find the kernel blob name (as they will all be empty in the env),
-		// when in reality the reason one can't find an available boot image
-		// partition is because we couldn't read the env file and so returning
-		// that error is better
-		return err
-	}
+	env := mylog.Check2(l.newenv())
+	mylog.Check(env.Load())
+	// don't handle os.ErrNotExist specially here, it doesn't really make
+	// sense to extract kernel assets if we can't load the existing env,
+	// since then the caller would just see an error about not being able
+	// to find the kernel blob name (as they will all be empty in the env),
+	// when in reality the reason one can't find an available boot image
+	// partition is because we couldn't read the env file and so returning
+	// that error is better
 
 	recoverySystem := filepath.Base(recoverySystemDir)
 
-	bootPartition, err := env.FindFreeRecoverySystemBootPartition(recoverySystem)
-	if err != nil {
-		return err
-	}
+	bootPartition := mylog.Check2(env.FindFreeRecoverySystemBootPartition(recoverySystem))
 
 	// we are preparing a recovery system, just extract boot image to bootloader
 	// directory
 	logger.Debugf("extracting recovery kernel %s to %s with lk bootloader", sn.SnapName(), recoverySystem)
-	if err := snapf.Unpack(env.GetBootImageName(), l.dir()); err != nil {
-		return fmt.Errorf("cannot open unpacked %s: %v", env.GetBootImageName(), err)
-	}
-
-	if err := env.SetBootPartitionRecoverySystem(bootPartition, recoverySystem); err != nil {
-		return err
-	}
+	mylog.Check(snapf.Unpack(env.GetBootImageName(), l.dir()))
+	mylog.Check(env.SetBootPartitionRecoverySystem(bootPartition, recoverySystem))
 
 	return env.Save()
 }
@@ -414,51 +368,37 @@ func (l *lk) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 
 	logger.Debugf("extracting kernel assets for %s with lk bootloader", s.SnapName())
 
-	env, err := l.newenv()
-	if err != nil {
-		return err
-	}
-	if err := env.Load(); err != nil {
-		// don't handle os.ErrNotExist specially here, it doesn't really make
-		// sense to extract kernel assets if we can't load the existing env,
-		// since then the caller would just see an error about not being able
-		// to find the kernel blob name (as they will all be empty in the env),
-		// when in reality the reason one can't find an available boot image
-		// partition is because we couldn't read the env file and so returning
-		// that error is better
-		return err
-	}
+	env := mylog.Check2(l.newenv())
+	mylog.Check(env.Load())
+	// don't handle os.ErrNotExist specially here, it doesn't really make
+	// sense to extract kernel assets if we can't load the existing env,
+	// since then the caller would just see an error about not being able
+	// to find the kernel blob name (as they will all be empty in the env),
+	// when in reality the reason one can't find an available boot image
+	// partition is because we couldn't read the env file and so returning
+	// that error is better
 
-	bootPartition, err := env.FindFreeKernelBootPartition(blobName)
-	if err != nil {
-		return err
-	}
+	bootPartition := mylog.Check2(env.FindFreeKernelBootPartition(blobName))
 
 	if l.prepareImageTime {
-		// we are preparing image, just extract boot image to bootloader directory
-		if err := snapf.Unpack(env.GetBootImageName(), l.dir()); err != nil {
-			return fmt.Errorf("cannot open unpacked %s: %v", env.GetBootImageName(), err)
-		}
+		mylog.Check(
+			// we are preparing image, just extract boot image to bootloader directory
+			snapf.Unpack(env.GetBootImageName(), l.dir()))
 	} else {
 		// this is live system, extracted bootimg needs to be flashed to
 		// free bootimg partition and env has to be updated with
 		// new kernel snap to bootimg partition mapping
-		tmpdir, err := os.MkdirTemp("", "bootimg")
-		if err != nil {
-			return fmt.Errorf("cannot create temp directory: %v", err)
-		}
+		tmpdir := mylog.Check2(os.MkdirTemp("", "bootimg"))
+
 		defer os.RemoveAll(tmpdir)
 
 		bootImg := env.GetBootImageName()
-		if err := snapf.Unpack(bootImg, tmpdir); err != nil {
-			return fmt.Errorf("cannot unpack %s: %v", bootImg, err)
-		}
+		mylog.Check(snapf.Unpack(bootImg, tmpdir))
+
 		// write boot.img to free boot partition
 		bootimgName := filepath.Join(tmpdir, bootImg)
-		bif, err := os.Open(bootimgName)
-		if err != nil {
-			return fmt.Errorf("cannot open unpacked %s: %v", bootImg, err)
-		}
+		bif := mylog.Check2(os.Open(bootimgName))
+
 		defer bif.Close()
 		var bpart string
 		// TODO: for RoleSole bootloaders this will eventually be the same
@@ -466,26 +406,16 @@ func (l *lk) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 		if l.role == RoleSole {
 			bpart = filepath.Join(l.dir(), bootPartition)
 		} else {
-			bpart, _, err = l.devPathForPartName(bootPartition)
-			if err != nil {
-				return err
-			}
+			bpart, _ = mylog.Check3(l.devPathForPartName(bootPartition))
 		}
 
-		bpf, err := os.OpenFile(bpart, os.O_WRONLY, 0660)
-		if err != nil {
-			return fmt.Errorf("cannot open boot partition [%s]: %v", bpart, err)
-		}
+		bpf := mylog.Check2(os.OpenFile(bpart, os.O_WRONLY, 0660))
+
 		defer bpf.Close()
+		mylog.Check2(io.Copy(bpf, bif))
 
-		if _, err := io.Copy(bpf, bif); err != nil {
-			return err
-		}
 	}
-
-	if err := env.SetBootPartitionKernel(bootPartition, blobName); err != nil {
-		return err
-	}
+	mylog.Check(env.SetBootPartitionKernel(bootPartition, blobName))
 
 	return env.Save()
 }
@@ -494,19 +424,16 @@ func (l *lk) RemoveKernelAssets(s snap.PlaceInfo) error {
 	blobName := s.Filename()
 	logger.Debugf("removing kernel assets for %s with lk bootloader", s.SnapName())
 
-	env, err := l.newenv()
-	if err != nil {
-		return err
-	}
-	if err := env.Load(); err != nil {
+	env := mylog.Check2(l.newenv())
+	mylog.Check(env.Load())
+	mylog.Check(
 		// don't handle os.ErrNotExist specially here, it doesn't really make
 		// sense to delete kernel assets if we can't load the existing env,
 		// since then the caller would just see an error about not being able
 		// to find the kernel blob name, when in reality the reason one can't
 		// find that kernel blob name is because we couldn't read the env file
-		return err
-	}
-	err = env.RemoveKernelFromBootPartition(blobName)
+
+		env.RemoveKernelFromBootPartition(blobName))
 	if err == nil {
 		// found and removed the revision from the bootimg matrix, need to
 		// update the env to persist the change

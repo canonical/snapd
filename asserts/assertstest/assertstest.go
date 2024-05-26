@@ -35,23 +35,22 @@ import (
 	"golang.org/x/crypto/openpgp/armor"
 	"golang.org/x/crypto/openpgp/packet"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/randutil"
 )
 
 // GenerateKey generates a private/public key pair of the given bits. It panics on error.
 func GenerateKey(bits int) (asserts.PrivateKey, *rsa.PrivateKey) {
-	priv, err := rsa.GenerateKey(rand.Reader, bits)
-	if err != nil {
-		panic(fmt.Errorf("failed to create private key: %v", err))
-	}
+	priv := mylog.Check2(rsa.GenerateKey(rand.Reader, bits))
+
 	return asserts.RSAPrivateKey(priv), priv
 }
 
 // ReadPrivKey reads a PGP private key (either armored or simply base64 encoded). It panics on error.
 func ReadPrivKey(pk string) (asserts.PrivateKey, *rsa.PrivateKey) {
 	rd := bytes.NewReader([]byte(pk))
-	blk, err := armor.Decode(rd)
+	blk := mylog.Check2(armor.Decode(rd))
 	var body io.Reader
 	if err == nil {
 		body = blk.Body
@@ -60,10 +59,7 @@ func ReadPrivKey(pk string) (asserts.PrivateKey, *rsa.PrivateKey) {
 		// try unarmored
 		body = base64.NewDecoder(base64.StdEncoding, rd)
 	}
-	pkt, err := packet.Read(body)
-	if err != nil {
-		panic(err)
-	}
+	pkt := mylog.Check2(packet.Read(body))
 
 	pkPkt := pkt.(*packet.PrivateKey)
 	rsaPrivKey, ok := pkPkt.PrivateKey.(*rsa.PrivateKey)
@@ -141,19 +137,11 @@ x2O3wmjxoaX/2FmyuU5WhcVkcpRFgceyf1/86NP9gT5MKbWtJC85YYpxibnvPdGd
 
 // GPGImportKey imports the given PGP armored key into the GnuPG setup at homedir. It panics on error.
 func GPGImportKey(homedir, armoredKey string) {
-	path, err := exec.LookPath("gpg1")
-	if err != nil {
-		path, err = exec.LookPath("gpg")
-	}
-	if err != nil {
-		panic(err)
-	}
+	path := mylog.Check2(exec.LookPath("gpg1"))
+
 	gpg := exec.Command(path, "--homedir", homedir, "-q", "--batch", "--import", "--armor")
 	gpg.Stdin = bytes.NewBufferString(armoredKey)
-	out, err := gpg.CombinedOutput()
-	if err != nil {
-		panic(fmt.Errorf("cannot import test key into GPG setup at %q: %v (%q)", homedir, err, out))
-	}
+	out := mylog.Check2(gpg.CombinedOutput())
 }
 
 // A SignerDB can sign assertions using its key pairs.
@@ -180,10 +168,8 @@ func NewAccount(db SignerDB, username string, otherHeaders map[string]interface{
 	if otherHeaders["timestamp"] == nil {
 		otherHeaders["timestamp"] = time.Now().Format(time.RFC3339)
 	}
-	a, err := db.Sign(asserts.AccountType, otherHeaders, nil, keyID)
-	if err != nil {
-		panic(err)
-	}
+	a := mylog.Check2(db.Sign(asserts.AccountType, otherHeaders, nil, keyID))
+
 	return a.(*asserts.Account)
 }
 
@@ -201,14 +187,10 @@ func NewAccountKey(db SignerDB, acct *asserts.Account, otherHeaders map[string]i
 	if otherHeaders["since"] == nil {
 		otherHeaders["since"] = time.Now().Format(time.RFC3339)
 	}
-	encodedPubKey, err := asserts.EncodePublicKey(pubKey)
-	if err != nil {
-		panic(err)
-	}
-	a, err := db.Sign(asserts.AccountKeyType, otherHeaders, encodedPubKey, keyID)
-	if err != nil {
-		panic(err)
-	}
+	encodedPubKey := mylog.Check2(asserts.EncodePublicKey(pubKey))
+
+	a := mylog.Check2(db.Sign(asserts.AccountKeyType, otherHeaders, encodedPubKey, keyID))
+
 	return a.(*asserts.AccountKey)
 }
 
@@ -224,14 +206,9 @@ type SigningDB struct {
 
 // NewSigningDB creates a test signing assertion db with the given defaults. It panics on error.
 func NewSigningDB(authorityID string, privKey asserts.PrivateKey) *SigningDB {
-	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{})
-	if err != nil {
-		panic(err)
-	}
-	err = db.ImportKey(privKey)
-	if err != nil {
-		panic(err)
-	}
+	db := mylog.Check2(asserts.OpenDatabase(&asserts.DatabaseConfig{}))
+	mylog.Check(db.ImportKey(privKey))
+
 	return &SigningDB{
 		AuthorityID: authorityID,
 		KeyID:       privKey.PublicKey().ID(),
@@ -330,61 +307,42 @@ func NewStoreStack(authorityID string, keys *StoreKeys) *StoreStack {
 		"validation": "verified",
 		"timestamp":  ts,
 	}, "")
+	mylog.Check(rootSigning.ImportKey(keys.GenericModels))
 
-	err := rootSigning.ImportKey(keys.GenericModels)
-	if err != nil {
-		panic(err)
-	}
 	genericModelsKey := NewAccountKey(rootSigning, genericAcct, map[string]interface{}{
 		"name":  "models",
 		"since": ts,
 	}, keys.GenericModels.PublicKey(), "")
 	generic := []asserts.Assertion{genericAcct, genericModelsKey}
 
-	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+	db := mylog.Check2(asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore:       asserts.NewMemoryBackstore(),
 		Trusted:         trusted,
 		OtherPredefined: generic,
-	})
-	if err != nil {
-		panic(err)
-	}
-	err = db.ImportKey(keys.Store)
-	if err != nil {
-		panic(err)
-	}
+	}))
+	mylog.Check(db.ImportKey(keys.Store))
+
 	storeKey := NewAccountKey(rootSigning, trustedAcct, map[string]interface{}{
 		"name": "store",
 	}, keys.Store.PublicKey(), "")
-	err = db.Add(storeKey)
-	if err != nil {
-		panic(err)
-	}
+	mylog.Check(db.Add(storeKey))
+	mylog.Check(db.ImportKey(keys.Generic))
 
-	err = db.ImportKey(keys.Generic)
-	if err != nil {
-		panic(err)
-	}
 	genericKey := NewAccountKey(rootSigning, genericAcct, map[string]interface{}{
 		"name":  "serials",
 		"since": ts,
 	}, keys.Generic.PublicKey(), "")
-	err = db.Add(genericKey)
-	if err != nil {
-		panic(err)
-	}
+	mylog.Check(db.Add(genericKey))
 
-	a, err := rootSigning.Sign(asserts.ModelType, map[string]interface{}{
+	a := mylog.Check2(rootSigning.Sign(asserts.ModelType, map[string]interface{}{
 		"authority-id": "generic",
 		"series":       "16",
 		"brand-id":     "generic",
 		"model":        "generic-classic",
 		"classic":      "true",
 		"timestamp":    ts,
-	}, nil, genericModelsKey.PublicKeyID())
-	if err != nil {
-		panic(err)
-	}
+	}, nil, genericModelsKey.PublicKeyID()))
+
 	genericClassicMod := a.(*asserts.Model)
 
 	return &StoreStack{
@@ -414,16 +372,14 @@ func (ss *StoreStack) StoreAccountKey(keyID string) *asserts.AccountKey {
 	if keyID == "" {
 		keyID = ss.KeyID
 	}
-	key, err := ss.Find(asserts.AccountKeyType, map[string]string{
+	key := mylog.Check2(ss.Find(asserts.AccountKeyType, map[string]string{
 		"account-id":          ss.AuthorityID,
 		"public-key-sha3-384": keyID,
-	})
+	}))
 	if errors.Is(err, &asserts.NotFoundError{}) {
 		return nil
 	}
-	if err != nil {
-		panic(err)
-	}
+
 	return key.(*asserts.AccountKey)
 }
 
@@ -434,17 +390,10 @@ func MockBuiltinBaseDeclaration(headers []byte) (restore func()) {
 	if decl != nil {
 		prevHeaders, _ = decl.Signature()
 	}
-
-	err := asserts.InitBuiltinBaseDeclaration(headers)
-	if err != nil {
-		panic(err)
-	}
+	mylog.Check(asserts.InitBuiltinBaseDeclaration(headers))
 
 	return func() {
-		err := asserts.InitBuiltinBaseDeclaration(prevHeaders)
-		if err != nil {
-			panic(err)
-		}
+		mylog.Check(asserts.InitBuiltinBaseDeclaration(prevHeaders))
 	}
 }
 
@@ -468,10 +417,8 @@ func FakeAssertionWithBody(body []byte, headerLayers ...map[string]interface{}) 
 		headers["timestamp"] = time.Now().Format(time.RFC3339)
 	}
 
-	a, err := asserts.Assemble(headers, body, nil, []byte("AXNpZw=="))
-	if err != nil {
-		panic(fmt.Sprintf("cannot build fake assertion: %v", err))
-	}
+	a := mylog.Check2(asserts.Assemble(headers, body, nil, []byte("AXNpZw==")))
+
 	return a
 }
 
@@ -491,11 +438,8 @@ type accuDB interface {
 // It is idempotent but otherwise panics on error.
 func AddMany(db accuDB, assertions ...asserts.Assertion) {
 	for _, a := range assertions {
-		err := db.Add(a)
+		mylog.Check(db.Add(a))
 		if _, ok := err.(*asserts.RevisionError); !ok {
-			if err != nil {
-				panic(fmt.Sprintf("cannot add test assertions: %v", err))
-			}
 		}
 	}
 }
@@ -535,10 +479,8 @@ func (sa *SigningAccounts) Register(accountID string, brandPrivKey asserts.Priva
 	brandAcct := NewAccount(sa.store, accountID, acctHeaders, "")
 	sa.accts[accountID] = brandAcct
 
-	brandPubKey, err := brandSigning.PublicKey("")
-	if err != nil {
-		panic(err)
-	}
+	brandPubKey := mylog.Check2(brandSigning.PublicKey(""))
+
 	brandAcctKey := NewAccountKey(sa.store, brandAcct, nil, brandPubKey, "")
 	sa.acctKeys[accountID] = brandAcctKey
 
@@ -560,10 +502,8 @@ func (sa *SigningAccounts) AccountKey(accountID string) *asserts.AccountKey {
 }
 
 func (sa *SigningAccounts) PublicKey(accountID string) asserts.PublicKey {
-	pubKey, err := sa.Signing(accountID).PublicKey("")
-	if err != nil {
-		panic(err)
-	}
+	pubKey := mylog.Check2(sa.Signing(accountID).PublicKey(""))
+
 	return pubKey
 }
 
@@ -594,10 +534,8 @@ func (sa *SigningAccounts) Model(accountID, model string, extras ...map[string]i
 
 	signer := sa.Signing(accountID)
 
-	modelAs, err := signer.Sign(asserts.ModelType, headers, nil, "")
-	if err != nil {
-		panic(err)
-	}
+	modelAs := mylog.Check2(signer.Sign(asserts.ModelType, headers, nil, ""))
+
 	return modelAs.(*asserts.Model)
 }
 

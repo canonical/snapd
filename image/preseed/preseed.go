@@ -32,6 +32,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/signtool"
 	"github.com/snapcore/snapd/asserts/sysdb"
@@ -98,50 +99,35 @@ func MockTrusted(mockTrusted []asserts.Assertion) (restore func()) {
 }
 
 func writePreseedAssertion(artifactDigest []byte, opts *preseedCoreOptions) error {
-	keypairMgr, err := getKeypairManager()
-	if err != nil {
-		return err
-	}
+	keypairMgr := mylog.Check2(getKeypairManager())
 
 	key := opts.PreseedSignKey
 	if key == "" {
 		key = `default`
 	}
-	privKey, err := keypairMgr.GetByName(key)
-	if err != nil {
-		// TRANSLATORS: %q is the key name, %v the error message
-		return fmt.Errorf(i18n.G("cannot use %q key: %v"), key, err)
-	}
+	privKey := mylog.Check2(keypairMgr.GetByName(key))
+
+	// TRANSLATORS: %q is the key name, %v the error message
 
 	sysDir := filepath.Join(opts.PrepareImageDir, "system-seed")
-	sd, err := seedOpen(sysDir, opts.SystemLabel)
-	if err != nil {
-		return err
-	}
+	sd := mylog.Check2(seedOpen(sysDir, opts.SystemLabel))
 
 	bs := asserts.NewMemoryBackstore()
-	adb, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+	adb := mylog.Check2(asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Trusted:        trusted,
 		KeypairManager: keypairMgr,
 		Backstore:      bs,
-	})
-	if err != nil {
-		return err
-	}
+	}))
 
 	commitTo := func(b *asserts.Batch) error {
 		return b.CommitTo(adb, nil)
 	}
+	mylog.Check(sd.LoadAssertions(adb, commitTo))
 
-	if err := sd.LoadAssertions(adb, commitTo); err != nil {
-		return err
-	}
 	model := sd.Model()
 
 	tm := timings.New(nil)
-	if err := sd.LoadMeta("run", nil, tm); err != nil {
-		return err
-	}
+	mylog.Check(sd.LoadMeta("run", nil, tm))
 
 	snaps := []interface{}{}
 	addSnap := func(sn *seed.Snap) {
@@ -154,10 +140,8 @@ func writePreseedAssertion(artifactDigest []byte, opts *preseedCoreOptions) erro
 		snaps = append(snaps, preseedSnap)
 	}
 
-	modeSnaps, err := sd.ModeSnaps("run")
-	if err != nil {
-		return err
-	}
+	modeSnaps := mylog.Check2(sd.ModeSnaps("run"))
+
 	for _, ess := range sd.EssentialSnaps() {
 		addSnap(ess)
 	}
@@ -165,10 +149,8 @@ func writePreseedAssertion(artifactDigest []byte, opts *preseedCoreOptions) erro
 		addSnap(msnap)
 	}
 
-	base64Digest, err := asserts.EncodeDigest(crypto.SHA3_384, artifactDigest)
-	if err != nil {
-		return err
-	}
+	base64Digest := mylog.Check2(asserts.EncodeDigest(crypto.SHA3_384, artifactDigest))
+
 	headers := map[string]interface{}{
 		"type":              "preseed",
 		"authority-id":      model.AuthorityID(),
@@ -181,15 +163,10 @@ func writePreseedAssertion(artifactDigest []byte, opts *preseedCoreOptions) erro
 		"snaps":             snaps,
 	}
 
-	signedAssert, err := adb.Sign(asserts.PreseedType, headers, nil, privKey.PublicKey().ID())
-	if err != nil {
-		return fmt.Errorf("cannot sign preseed assertion: %v", err)
-	}
+	signedAssert := mylog.Check2(adb.Sign(asserts.PreseedType, headers, nil, privKey.PublicKey().ID()))
 
-	tsto, err := newToolingStoreFromModel(model, "")
-	if err != nil {
-		return err
-	}
+	tsto := mylog.Check2(newToolingStoreFromModel(model, ""))
+
 	tsto.Stdout = Stdout
 
 	newFetcher := func(save func(asserts.Assertion) error) asserts.Fetcher {
@@ -197,26 +174,18 @@ func writePreseedAssertion(artifactDigest []byte, opts *preseedCoreOptions) erro
 	}
 
 	f := seedwriter.MakeSeedAssertionFetcher(newFetcher)
-	if err := f.Save(signedAssert); err != nil {
-		return fmt.Errorf("cannot fetch assertion: %v", err)
-	}
+	mylog.Check(f.Save(signedAssert))
 
-	serialized, err := os.OpenFile(filepath.Join(sysDir, "systems", opts.SystemLabel, "preseed"), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
-	if err != nil {
-		return err
-	}
+	serialized := mylog.Check2(os.OpenFile(filepath.Join(sysDir, "systems", opts.SystemLabel, "preseed"), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644))
+
 	defer serialized.Close()
 
 	enc := asserts.NewEncoder(serialized)
 	for _, aref := range f.Refs() {
 		if aref.Type == asserts.PreseedType || aref.Type == asserts.AccountKeyType {
-			as, err := aref.Resolve(adb.Find)
-			if err != nil {
-				return fmt.Errorf("internal error: %v", err)
-			}
-			if err := enc.Encode(as); err != nil {
-				return fmt.Errorf("cannot write assertion %s: %v", aref, err)
-			}
+			as := mylog.Check2(aref.Resolve(adb.Find))
+			mylog.Check(enc.Encode(as))
+
 		}
 	}
 

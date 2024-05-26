@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
@@ -45,8 +46,9 @@ type cmdWarnings struct {
 
 type cmdOkay struct{ clientMixin }
 
-var shortWarningsHelp = i18n.G("List warnings")
-var longWarningsHelp = i18n.G(`
+var (
+	shortWarningsHelp = i18n.G("List warnings")
+	longWarningsHelp  = i18n.G(`
 The warnings command lists the warnings that have been reported to the system.
 
 Once warnings have been listed with 'snap warnings', 'snap okay' may be used to
@@ -55,14 +57,17 @@ again unless it happens again, _and_ a cooldown time has passed.
 
 Warnings expire automatically, and once expired they are forgotten.
 `)
+)
 
-var shortOkayHelp = i18n.G("Acknowledge warnings")
-var longOkayHelp = i18n.G(`
+var (
+	shortOkayHelp = i18n.G("Acknowledge warnings")
+	longOkayHelp  = i18n.G(`
 The okay command acknowledges the warnings listed with 'snap warnings'.
 
 Once acknowledged a warning won't appear again unless it re-occurrs and
 sufficient time has passed.
 `)
+)
 
 func init() {
 	addCommand("warnings", shortWarningsHelp, longWarningsHelp, func() flags.Commander { return &cmdWarnings{} }, timeDescs.also(unicodeDescs).also(map[string]string{
@@ -80,22 +85,17 @@ func (cmd *cmdWarnings) Execute(args []string) error {
 	}
 	now := time.Now()
 
-	warnings, err := cmd.client.Warnings(client.WarningsOptions{All: cmd.All})
-	if err != nil {
-		return err
-	}
+	warnings := mylog.Check2(cmd.client.Warnings(client.WarningsOptions{All: cmd.All}))
+
 	if len(warnings) == 0 {
-		if t, _ := lastWarningTimestamp(); t.IsZero() {
+		if t := mylog.Check2(lastWarningTimestamp()); t.IsZero() {
 			fmt.Fprintln(Stdout, i18n.G("No warnings."))
 		} else {
 			fmt.Fprintln(Stdout, i18n.G("No further warnings."))
 		}
 		return nil
 	}
-
-	if err := writeWarningTimestamp(now); err != nil {
-		return err
-	}
+	mylog.Check(writeWarningTimestamp(now))
 
 	termWidth, _ := termSize()
 	if termWidth > 100 {
@@ -136,10 +136,7 @@ func (cmd *cmdOkay) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	last, err := lastWarningTimestamp()
-	if err != nil {
-		return err
-	}
+	last := mylog.Check2(lastWarningTimestamp())
 
 	return cmd.client.Okay(last)
 }
@@ -159,54 +156,33 @@ type clientWarningData struct {
 }
 
 func writeWarningTimestamp(t time.Time) error {
-	user, err := osutil.UserMaybeSudoUser()
-	if err != nil {
-		return err
-	}
-	uid, gid, err := osutil.UidGid(user)
-	if err != nil {
-		return err
-	}
+	user := mylog.Check2(osutil.UserMaybeSudoUser())
+
+	uid, gid := mylog.Check3(osutil.UidGid(user))
 
 	filename := warnFilename(user.HomeDir)
-	if err := osutil.MkdirAllChown(filepath.Dir(filename), 0700, uid, gid); err != nil {
-		return err
-	}
+	mylog.Check(osutil.MkdirAllChown(filepath.Dir(filename), 0700, uid, gid))
 
-	aw, err := osutil.NewAtomicFile(filename, 0600, 0, uid, gid)
-	if err != nil {
-		return err
-	}
+	aw := mylog.Check2(osutil.NewAtomicFile(filename, 0600, 0, uid, gid))
+
 	// Cancel once Committed is a NOP :-)
 	defer aw.Cancel()
 
 	enc := json.NewEncoder(aw)
-	if err := enc.Encode(clientWarningData{Timestamp: t}); err != nil {
-		return err
-	}
+	mylog.Check(enc.Encode(clientWarningData{Timestamp: t}))
 
 	return aw.Commit()
 }
 
 func lastWarningTimestamp() (time.Time, error) {
-	user, err := osutil.UserMaybeSudoUser()
-	if err != nil {
-		return time.Time{}, fmt.Errorf("cannot determine real user: %v", err)
-	}
+	user := mylog.Check2(osutil.UserMaybeSudoUser())
 
-	f, err := os.Open(warnFilename(user.HomeDir))
-	if err != nil {
-		if os.IsNotExist(err) {
-			return time.Time{}, fmt.Errorf("you must have looked at the warnings before acknowledging them. Try 'snap warnings'.")
-		}
-		return time.Time{}, fmt.Errorf("cannot open timestamp file: %v", err)
+	f := mylog.Check2(os.Open(warnFilename(user.HomeDir)))
 
-	}
 	dec := json.NewDecoder(f)
 	var d clientWarningData
-	if err := dec.Decode(&d); err != nil {
-		return time.Time{}, fmt.Errorf("cannot decode timestamp file: %v", err)
-	}
+	mylog.Check(dec.Decode(&d))
+
 	if dec.More() {
 		return time.Time{}, fmt.Errorf("spurious extra data in timestamp file")
 	}
@@ -218,7 +194,7 @@ func maybePresentWarnings(count int, timestamp time.Time) {
 		return
 	}
 
-	if last, _ := lastWarningTimestamp(); !timestamp.After(last) {
+	if last := mylog.Check2(lastWarningTimestamp()); !timestamp.After(last) {
 		return
 	}
 

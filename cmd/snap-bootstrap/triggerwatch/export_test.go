@@ -32,10 +32,12 @@ func MockInput(newInput TriggerProvider) (restore func()) {
 	}
 }
 
-type TriggerProvider = triggerProvider
-type TriggerDevice = triggerDevice
-type TriggerCapabilityFilter = triggerEventFilter
-type KeyEvent = keyEvent
+type (
+	TriggerProvider         = triggerProvider
+	TriggerDevice           = triggerDevice
+	TriggerCapabilityFilter = triggerEventFilter
+	KeyEvent                = keyEvent
+)
 
 type mockUEventConnection struct {
 	events []netlink.UEvent

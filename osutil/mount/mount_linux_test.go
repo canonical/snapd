@@ -39,8 +39,10 @@ func (s *mountSuite) TestMountFlagsToOpts(c *C) {
 	opts, unknown := mount.MountFlagsToOpts(syscall.MS_REMOUNT |
 		syscall.MS_BIND | syscall.MS_REC | syscall.MS_RDONLY | syscall.MS_SHARED |
 		syscall.MS_SLAVE | syscall.MS_PRIVATE | syscall.MS_UNBINDABLE)
-	c.Check(opts, DeepEquals, []string{"MS_REMOUNT", "MS_BIND", "MS_REC",
-		"MS_RDONLY", "MS_SHARED", "MS_SLAVE", "MS_PRIVATE", "MS_UNBINDABLE"})
+	c.Check(opts, DeepEquals, []string{
+		"MS_REMOUNT", "MS_BIND", "MS_REC",
+		"MS_RDONLY", "MS_SHARED", "MS_SLAVE", "MS_PRIVATE", "MS_UNBINDABLE",
+	})
 	c.Check(unknown, Equals, 0)
 	// Unknown flags are retained and returned.
 	opts, unknown = mount.MountFlagsToOpts(1 << 24)
@@ -57,8 +59,10 @@ func (s *mountSuite) TestUnmountFlagsToOpts(c *C) {
 	const UMOUNT_NOFOLLOW = 8
 	opts, unknown := mount.UnmountFlagsToOpts(syscall.MNT_FORCE |
 		syscall.MNT_DETACH | syscall.MNT_EXPIRE | UMOUNT_NOFOLLOW)
-	c.Check(opts, DeepEquals, []string{"UMOUNT_NOFOLLOW", "MNT_FORCE",
-		"MNT_DETACH", "MNT_EXPIRE"})
+	c.Check(opts, DeepEquals, []string{
+		"UMOUNT_NOFOLLOW", "MNT_FORCE",
+		"MNT_DETACH", "MNT_EXPIRE",
+	})
 	c.Check(unknown, Equals, 0)
 	// Unknown flags are retained and returned.
 	opts, unknown = mount.UnmountFlagsToOpts(1 << 24)
@@ -70,8 +74,10 @@ func (s *mountSuite) TestUnmountFlagsToOpts(c *C) {
 	c.Check(unknown, Equals, 1<<24)
 }
 
-var benchResultOpt []string
-var benchResultUnknown int
+var (
+	benchResultOpt     []string
+	benchResultUnknown int
+)
 
 func benchUnmount(flags int, b *testing.B) {
 	var opts []string

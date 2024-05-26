@@ -37,6 +37,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/mvo5/goconfigparser"
 	"gopkg.in/retry.v1"
 
@@ -53,10 +54,8 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
-var (
-	// TODO: move inside the repairs themselves?
-	defaultRepairTimeout = 30 * time.Minute
-)
+// TODO: move inside the repairs themselves?
+var defaultRepairTimeout = 30 * time.Minute
 
 // Repair is a runnable repair.
 type Repair struct {
@@ -86,15 +85,14 @@ func (r *Repair) SetStatus(status RepairStatus) {
 // makeRepairSymlink ensures $dir/repair exists and is a symlink to
 // /usr/lib/snapd/snap-repair
 func makeRepairSymlink(dir string) (err error) {
-	// make "repair" binary available to the repair scripts via symlink
-	// to the real snap-repair
-	if err = os.MkdirAll(dir, 0755); err != nil {
-		return err
-	}
+	mylog.Check(
+		// make "repair" binary available to the repair scripts via symlink
+		// to the real snap-repair
+		os.MkdirAll(dir, 0755))
 
 	old := filepath.Join(dirs.CoreLibExecDir, "snap-repair")
 	new := filepath.Join(dir, "repair")
-	if err := os.Symlink(old, new); err != nil && !os.IsExist(err) {
+	if mylog.Check(os.Symlink(old, new)); err != nil && !os.IsExist(err) {
 		return err
 	}
 
@@ -105,29 +103,19 @@ func makeRepairSymlink(dir string) (err error) {
 func (r *Repair) Run() error {
 	// write the script to disk
 	rundir := r.RunDir()
-	err := os.MkdirAll(rundir, 0775)
-	if err != nil {
-		return err
-	}
+	mylog.Check(os.MkdirAll(rundir, 0775))
 
 	// ensure the script can use "repair done"
 	repairToolsDir := filepath.Join(dirs.SnapRunRepairDir, "tools")
-	if err := makeRepairSymlink(repairToolsDir); err != nil {
-		return err
-	}
+	mylog.Check(makeRepairSymlink(repairToolsDir))
 
 	baseName := fmt.Sprintf("r%d", r.Revision())
 	script := filepath.Join(rundir, baseName+".script")
-	err = osutil.AtomicWriteFile(script, r.Body(), 0700, 0)
-	if err != nil {
-		return err
-	}
+	mylog.Check(osutil.AtomicWriteFile(script, r.Body(), 0700, 0))
 
 	logPath := filepath.Join(rundir, baseName+".running")
-	logf, err := os.OpenFile(logPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
-	if err != nil {
-		return err
-	}
+	logf := mylog.Check2(os.OpenFile(logPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600))
+
 	defer logf.Close()
 
 	fmt.Fprintf(logf, "repair: %s\n", r)
@@ -135,10 +123,8 @@ func (r *Repair) Run() error {
 	fmt.Fprintf(logf, "summary: %s\n", r.Summary())
 	fmt.Fprintf(logf, "output:\n")
 
-	statusR, statusW, err := os.Pipe()
-	if err != nil {
-		return err
-	}
+	statusR, statusW := mylog.Check3(os.Pipe())
+
 	defer statusR.Close()
 	defer statusW.Close()
 
@@ -175,9 +161,7 @@ func (r *Repair) Run() error {
 	}
 
 	workdir := filepath.Join(rundir, "work")
-	if err := os.MkdirAll(workdir, 0700); err != nil {
-		return err
-	}
+	mylog.Check(os.MkdirAll(workdir, 0700))
 
 	cmd := exec.Command(script)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
@@ -186,9 +170,8 @@ func (r *Repair) Run() error {
 	cmd.ExtraFiles = []*os.File{statusW}
 	cmd.Stdout = logf
 	cmd.Stderr = logf
-	if err = cmd.Start(); err != nil {
-		return err
-	}
+	mylog.Check(cmd.Start())
+
 	statusW.Close()
 
 	// wait for repair to finish or timeout
@@ -203,9 +186,8 @@ func (r *Repair) Run() error {
 	case scriptErr = <-doneCh:
 		// done
 	case <-killTimerCh:
-		if err := osutil.KillProcessGroup(cmd); err != nil {
-			logger.Noticef("cannot kill timed out repair %s: %s", r, err)
-		}
+		mylog.Check(osutil.KillProcessGroup(cmd))
+
 		scriptErr = fmt.Errorf("repair did not finish within %s", defaultRepairTimeout)
 	}
 	// read repair status pipe, use the last value
@@ -220,9 +202,8 @@ func (r *Repair) Run() error {
 		// ensure the error is present in the output log
 		fmt.Fprintf(logf, "\n%s", scriptErr)
 	}
-	if err := os.Rename(logPath, statusPath); err != nil {
-		return err
-	}
+	mylog.Check(os.Rename(logPath, statusPath))
+
 	r.SetStatus(status)
 
 	return nil
@@ -298,9 +279,7 @@ var (
 	ErrRepairNotModified = errors.New("repair was not modified")
 )
 
-var (
-	maxRepairScriptSize = 24 * 1024 * 1024
-)
+var maxRepairScriptSize = 24 * 1024 * 1024
 
 // repairConfig is a set of configuration data that is consumed by the
 // snap-repair command. This struct is duplicated in o/c/configcore.
@@ -311,16 +290,12 @@ type repairConfig struct {
 }
 
 func isStoreOffline(path string) bool {
-	f, err := os.Open(path)
-	if err != nil {
-		return false
-	}
+	f := mylog.Check2(os.Open(path))
+
 	defer f.Close()
 
 	var repairConfig repairConfig
-	if err := json.NewDecoder(f).Decode(&repairConfig); err != nil {
-		return false
-	}
+	mylog.Check(json.NewDecoder(f).Decode(&repairConfig))
 
 	return repairConfig.StoreOffline
 }
@@ -336,17 +311,12 @@ func (run *Runner) Fetch(brandID string, repairID int, revision int) (*asserts.R
 		return nil, nil, errStoreOffline
 	}
 
-	u, err := run.BaseURL.Parse(fmt.Sprintf("repairs/%s/%d", brandID, repairID))
-	if err != nil {
-		return nil, nil, err
-	}
+	u := mylog.Check2(run.BaseURL.Parse(fmt.Sprintf("repairs/%s/%d", brandID, repairID)))
 
 	var r []asserts.Assertion
-	resp, err := httputil.RetryRequest(u.String(), func() (*http.Response, error) {
-		req, err := http.NewRequest("GET", u.String(), nil)
-		if err != nil {
-			return nil, err
-		}
+	resp := mylog.Check2(httputil.RetryRequest(u.String(), func() (*http.Response, error) {
+		req := mylog.Check2(http.NewRequest("GET", u.String(), nil))
+
 		req.Header.Set("User-Agent", snapdenv.UserAgent())
 		req.Header.Set("Accept", "application/x.ubuntu.assertion")
 		if revision >= 0 {
@@ -367,9 +337,7 @@ func (run *Runner) Fetch(brandID string, repairID int, revision int) (*asserts.R
 				if err == io.EOF {
 					break
 				}
-				if err != nil {
-					return err
-				}
+
 				r = append(r, a)
 			}
 			if len(r) == 0 {
@@ -377,11 +345,7 @@ func (run *Runner) Fetch(brandID string, repairID int, revision int) (*asserts.R
 			}
 		}
 		return nil
-	}, fetchRetryStrategy)
-
-	if err != nil {
-		return nil, nil, err
-	}
+	}, fetchRetryStrategy))
 
 	moveTimeLowerBound := true
 	defer func() {
@@ -404,10 +368,7 @@ func (run *Runner) Fetch(brandID string, repairID int, revision int) (*asserts.R
 		return nil, nil, fmt.Errorf("cannot fetch repair, unexpected status %d", resp.StatusCode)
 	}
 
-	repair, aux, err := checkStream(brandID, repairID, r)
-	if err != nil {
-		return nil, nil, fmt.Errorf("cannot fetch repair, %v", err)
-	}
+	repair, aux := mylog.Check3(checkStream(brandID, repairID, r))
 
 	if repair.Revision() <= revision {
 		// this shouldn't happen but if it does we behave like
@@ -446,20 +407,15 @@ func (run *Runner) Peek(brandID string, repairID int) (headers map[string]interf
 		return nil, errStoreOffline
 	}
 
-	u, err := run.BaseURL.Parse(fmt.Sprintf("repairs/%s/%d", brandID, repairID))
-	if err != nil {
-		return nil, err
-	}
+	u := mylog.Check2(run.BaseURL.Parse(fmt.Sprintf("repairs/%s/%d", brandID, repairID)))
 
 	var rsp peekResp
 
-	resp, err := httputil.RetryRequest(u.String(), func() (*http.Response, error) {
+	resp := mylog.Check2(httputil.RetryRequest(u.String(), func() (*http.Response, error) {
 		// TODO: setup a overall request timeout using contexts
 		// can be many minutes but not unlimited like now
-		req, err := http.NewRequest("GET", u.String(), nil)
-		if err != nil {
-			return nil, err
-		}
+		req := mylog.Check2(http.NewRequest("GET", u.String(), nil))
+
 		req.Header.Set("User-Agent", snapdenv.UserAgent())
 		req.Header.Set("Accept", "application/json")
 		return run.cli.Do(req)
@@ -470,11 +426,7 @@ func (run *Runner) Peek(brandID string, repairID int) (headers map[string]interf
 			return dec.Decode(&rsp)
 		}
 		return nil
-	}, peekRetryStrategy)
-
-	if err != nil {
-		return nil, err
-	}
+	}, peekRetryStrategy))
 
 	moveTimeLowerBound := true
 	defer func() {
@@ -561,10 +513,8 @@ func (run *Runner) setRepairState(brandID string, state RepairState) {
 }
 
 func (run *Runner) readState() error {
-	r, err := os.Open(dirs.SnapRepairStateFile)
-	if err != nil {
-		return err
-	}
+	r := mylog.Check2(os.Open(dirs.SnapRepairStateFile))
+
 	defer r.Close()
 	dec := json.NewDecoder(r)
 	return dec.Decode(&run.state)
@@ -588,20 +538,19 @@ func (run *Runner) now() time.Time {
 }
 
 func (run *Runner) initState() error {
-	if err := os.MkdirAll(dirs.SnapRepairDir, 0775); err != nil {
-		return fmt.Errorf("cannot create repair state directory: %v", err)
-	}
+	mylog.Check(os.MkdirAll(dirs.SnapRepairDir, 0775))
+
 	// best-effort remove old
 	os.Remove(dirs.SnapRepairStateFile)
 	run.state = state{}
-	// initialize time lower bound with image built time/seed.yaml time
-	if err := run.findTimeLowerBound(); err != nil {
-		return err
-	}
-	// initialize device info
-	if err := run.initDeviceInfo(); err != nil {
-		return err
-	}
+	mylog.Check(
+		// initialize time lower bound with image built time/seed.yaml time
+		run.findTimeLowerBound())
+	mylog.Check(
+
+		// initialize device info
+		run.initDeviceInfo())
+
 	run.stateModified = true
 	return run.SaveState()
 }
@@ -622,7 +571,7 @@ func checkAuthorityID(a asserts.Assertion, trusted asserts.Backstore) error {
 	// check that account and account-key assertions are signed by
 	// a trusted authority
 	acctID := a.AuthorityID()
-	_, err := trusted.Get(asserts.AccountType, []string{acctID}, asserts.AccountType.MaxSupportedFormat())
+	_ := mylog.Check2(trusted.Get(asserts.AccountType, []string{acctID}, asserts.AccountType.MaxSupportedFormat()))
 	if err != nil && !errors.Is(err, &asserts.NotFoundError{}) {
 		return err
 	}
@@ -633,9 +582,8 @@ func checkAuthorityID(a asserts.Assertion, trusted asserts.Backstore) error {
 }
 
 func verifySignatures(a asserts.Assertion, workBS asserts.Backstore, trusted asserts.Backstore) error {
-	if err := checkAuthorityID(a, trusted); err != nil {
-		return err
-	}
+	mylog.Check(checkAuthorityID(a, trusted))
+
 	acctKeyMaxSuppFormat := asserts.AccountKeyType.MaxSupportedFormat()
 
 	seen := make(map[string]bool)
@@ -647,27 +595,25 @@ func verifySignatures(a asserts.Assertion, workBS asserts.Backstore, trusted ass
 		}
 		seen[u] = true
 		signKey := []string{a.SignKeyID()}
-		key, err := trusted.Get(asserts.AccountKeyType, signKey, acctKeyMaxSuppFormat)
+		key := mylog.Check2(trusted.Get(asserts.AccountKeyType, signKey, acctKeyMaxSuppFormat))
 		if err != nil && !errors.Is(err, &asserts.NotFoundError{}) {
 			return err
 		}
 		if err == nil {
 			bottom = true
 		} else {
-			key, err = workBS.Get(asserts.AccountKeyType, signKey, acctKeyMaxSuppFormat)
+			key = mylog.Check2(workBS.Get(asserts.AccountKeyType, signKey, acctKeyMaxSuppFormat))
 			if err != nil && !errors.Is(err, &asserts.NotFoundError{}) {
 				return err
 			}
 			if errors.Is(err, &asserts.NotFoundError{}) {
 				return fmt.Errorf("cannot find public key %q", signKey[0])
 			}
-			if err := checkAuthorityID(key, trusted); err != nil {
-				return err
-			}
+			mylog.Check(checkAuthorityID(key, trusted))
+
 		}
-		if err := asserts.CheckSignature(a, key.(*asserts.AccountKey), nil, time.Time{}, time.Time{}); err != nil {
-			return err
-		}
+		mylog.Check(asserts.CheckSignature(a, key.(*asserts.AccountKey), nil, time.Time{}, time.Time{}))
+
 		a = key
 	}
 	return nil
@@ -681,21 +627,17 @@ func (run *Runner) findTimeLowerBound() error {
 		dirs.SnapModeenvFile,
 	}
 	// add all model files from uc20 seeds
-	allModels, err := filepath.Glob(filepath.Join(dirs.SnapSeedDir, "systems/*/model"))
-	if err != nil {
-		return err
-	}
+	allModels := mylog.Check2(filepath.Glob(filepath.Join(dirs.SnapSeedDir, "systems/*/model")))
+
 	timeLowerBoundSources = append(timeLowerBoundSources, allModels...)
 
 	// use all files as potential time inputs
 	for _, p := range timeLowerBoundSources {
-		info, err := os.Stat(p)
+		info := mylog.Check2(os.Stat(p))
 		if os.IsNotExist(err) {
 			continue
 		}
-		if err != nil {
-			return err
-		}
+
 		run.moveTimeLowerBound(info.ModTime())
 	}
 	return nil
@@ -711,32 +653,20 @@ func findBrandAndModel() (*deviceInfo, error) {
 func findDevInfo20() (*deviceInfo, error) {
 	cfg := goconfigparser.New()
 	cfg.AllowNoSectionHeader = true
-	if err := cfg.ReadFile(dirs.SnapModeenvFile); err != nil {
-		return nil, err
-	}
-	brandAndModel, err := cfg.Get("", "model")
-	if err != nil {
-		return nil, err
-	}
+	mylog.Check(cfg.ReadFile(dirs.SnapModeenvFile))
+
+	brandAndModel := mylog.Check2(cfg.Get("", "model"))
+
 	l := strings.SplitN(brandAndModel, "/", 2)
 	if len(l) != 2 {
 		return nil, fmt.Errorf("cannot find brand/model in modeenv model string %q", brandAndModel)
 	}
 
-	mode, err := cfg.Get("", "mode")
-	if err != nil {
-		return nil, err
-	}
+	mode := mylog.Check2(cfg.Get("", "mode"))
 
-	baseName, err := cfg.Get("", "base")
-	if err != nil {
-		return nil, err
-	}
+	baseName := mylog.Check2(cfg.Get("", "base"))
 
-	baseSn, err := snap.ParsePlaceInfoFromSnapFileName(baseName)
-	if err != nil {
-		return nil, err
-	}
+	baseSn := mylog.Check2(snap.ParsePlaceInfoFromSnapFileName(baseName))
 
 	return &deviceInfo{
 		Brand: l[0],
@@ -749,25 +679,21 @@ func findDevInfo20() (*deviceInfo, error) {
 func findDevInfo16() (*deviceInfo, error) {
 	workBS := asserts.NewMemoryBackstore()
 	assertSeedDir := filepath.Join(dirs.SnapSeedDir, "assertions")
-	dc, err := os.ReadDir(assertSeedDir)
-	if err != nil {
-		return nil, err
-	}
+	dc := mylog.Check2(os.ReadDir(assertSeedDir))
+
 	var modelAs *asserts.Model
 	for _, fi := range dc {
 		fn := filepath.Join(assertSeedDir, fi.Name())
-		f, err := os.Open(fn)
-		if err != nil {
-			// best effort
-			continue
-		}
+		f := mylog.Check2(os.Open(fn))
+
+		// best effort
+
 		dec := asserts.NewDecoder(f)
 		for {
-			a, err := dec.Decode()
-			if err != nil {
-				// best effort
-				break
-			}
+			a := mylog.Check2(dec.Decode())
+
+			// best effort
+
 			switch a.Type() {
 			case asserts.ModelType:
 				if modelAs != nil {
@@ -783,22 +709,12 @@ func findDevInfo16() (*deviceInfo, error) {
 		return nil, fmt.Errorf("no model assertion in seed data")
 	}
 	trustedBS := trustedBackstore(sysdb.Trusted())
-	if err := verifySignatures(modelAs, workBS, trustedBS); err != nil {
-		return nil, err
-	}
+	mylog.Check(verifySignatures(modelAs, workBS, trustedBS))
+
 	acctPK := []string{modelAs.BrandID()}
 	acctMaxSupFormat := asserts.AccountType.MaxSupportedFormat()
-	acct, err := trustedBS.Get(asserts.AccountType, acctPK, acctMaxSupFormat)
-	if err != nil {
-		var err error
-		acct, err = workBS.Get(asserts.AccountType, acctPK, acctMaxSupFormat)
-		if err != nil {
-			return nil, fmt.Errorf("no brand account assertion in seed data")
-		}
-	}
-	if err := verifySignatures(acct, workBS, trustedBS); err != nil {
-		return nil, err
-	}
+	acct := mylog.Check2(trustedBS.Get(asserts.AccountType, acctPK, acctMaxSupFormat))
+	mylog.Check(verifySignatures(acct, workBS, trustedBS))
 
 	// get the base snap as well, on uc16 it won't be specified in the model
 	// assertion and instead will be empty, so in this case we replace it with
@@ -817,10 +733,8 @@ func findDevInfo16() (*deviceInfo, error) {
 }
 
 func (run *Runner) initDeviceInfo() error {
-	dev, err := findBrandAndModel()
-	if err != nil {
-		return fmt.Errorf("cannot set device information: %v", err)
-	}
+	dev := mylog.Check2(findBrandAndModel())
+
 	run.state.Device = *dev
 
 	return nil
@@ -828,7 +742,7 @@ func (run *Runner) initDeviceInfo() error {
 
 // LoadState loads the repairs' state from disk, and (re)initializes it if it's missing or corrupted.
 func (run *Runner) LoadState() error {
-	err := run.readState()
+	mylog.Check(run.readState())
 	if err == nil {
 		return nil
 	}
@@ -844,14 +758,9 @@ func (run *Runner) SaveState() error {
 	if !run.stateModified {
 		return nil
 	}
-	m, err := json.Marshal(&run.state)
-	if err != nil {
-		return fmt.Errorf("cannot marshal repair state: %v", err)
-	}
-	err = osutil.AtomicWriteFile(dirs.SnapRepairStateFile, m, 0600, 0)
-	if err != nil {
-		return fmt.Errorf("cannot save repair state: %v", err)
-	}
+	m := mylog.Check2(json.Marshal(&run.state))
+	mylog.Check(osutil.AtomicWriteFile(dirs.SnapRepairStateFile, m, 0600, 0))
+
 	run.stateModified = false
 	return nil
 }
@@ -881,25 +790,19 @@ func (run *Runner) Applicable(headers map[string]interface{}) bool {
 	if headers["disabled"] == "true" {
 		return false
 	}
-	series, err := stringList(headers, "series")
-	if err != nil {
-		return false
-	}
+	series := mylog.Check2(stringList(headers, "series"))
+
 	if len(series) != 0 && !strutil.ListContains(series, release.Series) {
 		return false
 	}
-	archs, err := stringList(headers, "architectures")
-	if err != nil {
-		return false
-	}
+	archs := mylog.Check2(stringList(headers, "architectures"))
+
 	if len(archs) != 0 && !strutil.ListContains(archs, arch.DpkgArchitecture()) {
 		return false
 	}
 	brandModel := fmt.Sprintf("%s/%s", run.state.Device.Brand, run.state.Device.Model)
-	models, err := stringList(headers, "models")
-	if err != nil {
-		return false
-	}
+	models := mylog.Check2(stringList(headers, "models"))
+
 	if len(models) != 0 && !strutil.ListContains(models, brandModel) {
 		// model prefix matching: brand/prefix*
 		hit := false
@@ -917,19 +820,13 @@ func (run *Runner) Applicable(headers map[string]interface{}) bool {
 	}
 
 	// also filter by base snaps and modes
-	bases, err := stringList(headers, "bases")
-	if err != nil {
-		return false
-	}
+	bases := mylog.Check2(stringList(headers, "bases"))
 
 	if len(bases) != 0 && !strutil.ListContains(bases, run.state.Device.Base) {
 		return false
 	}
 
-	modes, err := stringList(headers, "modes")
-	if err != nil {
-		return false
-	}
+	modes := mylog.Check2(stringList(headers, "modes"))
 
 	// modes is slightly more nuanced, if the modes setting in the assertion
 	// header is unset, then it means it runs on all uc16/uc18 devices, but only
@@ -964,10 +861,8 @@ func (run *Runner) Applicable(headers map[string]interface{}) bool {
 var errSkip = errors.New("repair unnecessary on this system")
 
 func (run *Runner) fetch(brandID string, repairID int) (repair *asserts.Repair, aux []asserts.Assertion, err error) {
-	headers, err := run.Peek(brandID, repairID)
-	if err != nil {
-		return nil, nil, err
-	}
+	headers := mylog.Check2(run.Peek(brandID, repairID))
+
 	if !run.Applicable(headers) {
 		return nil, nil, errSkip
 	}
@@ -980,17 +875,13 @@ func (run *Runner) refetch(brandID string, repairID, revision int) (repair *asse
 
 func (run *Runner) saveStream(brandID string, repairID int, repair *asserts.Repair, aux []asserts.Assertion) error {
 	d := filepath.Join(dirs.SnapRepairAssertsDir, brandID, strconv.Itoa(repairID))
-	err := os.MkdirAll(d, 0775)
-	if err != nil {
-		return err
-	}
+	mylog.Check(os.MkdirAll(d, 0775))
+
 	buf := &bytes.Buffer{}
 	enc := asserts.NewEncoder(buf)
 	r := append([]asserts.Assertion{repair}, aux...)
 	for _, a := range r {
-		if err := enc.Encode(a); err != nil {
-			return fmt.Errorf("cannot encode repair assertions %s-%d for saving: %v", brandID, repairID, err)
-		}
+		mylog.Check(enc.Encode(a))
 	}
 	p := filepath.Join(d, fmt.Sprintf("r%d.repair", r[0].Revision()))
 	return osutil.AtomicWriteFile(p, buf.Bytes(), 0600, 0)
@@ -999,10 +890,8 @@ func (run *Runner) saveStream(brandID string, repairID int, repair *asserts.Repa
 func (run *Runner) readSavedStream(brandID string, repairID, revision int) (repair *asserts.Repair, aux []asserts.Assertion, err error) {
 	d := filepath.Join(dirs.SnapRepairAssertsDir, brandID, strconv.Itoa(repairID))
 	p := filepath.Join(d, fmt.Sprintf("r%d.repair", revision))
-	f, err := os.Open(p)
-	if err != nil {
-		return nil, nil, err
-	}
+	f := mylog.Check2(os.Open(p))
+
 	defer f.Close()
 
 	dec := asserts.NewDecoder(f)
@@ -1012,9 +901,7 @@ func (run *Runner) readSavedStream(brandID string, repairID, revision int) (repa
 		if err == io.EOF {
 			break
 		}
-		if err != nil {
-			return nil, nil, fmt.Errorf("cannot decode repair assertions %s-%d from disk: %v", brandID, repairID, err)
-		}
+
 		r = append(r, a)
 	}
 	return checkStream(brandID, repairID, r)
@@ -1030,24 +917,17 @@ func (run *Runner) makeReady(brandID string, sequenceNext int) (repair *asserts.
 		if state.Status != RetryStatus {
 			return nil, errSkip
 		}
-		var err error
-		repair, aux, err = run.refetch(brandID, state.Sequence, state.Revision)
-		if err != nil {
-			if err != ErrRepairNotModified {
-				logger.Noticef("cannot refetch repair %s-%d, will retry what is on disk: %v", brandID, sequenceNext, err)
-			}
-			// try to use what we have already on disk
-			repair, aux, err = run.readSavedStream(brandID, state.Sequence, state.Revision)
-			if err != nil {
-				return nil, err
-			}
-		}
+
+		repair, aux = mylog.Check3(run.refetch(brandID, state.Sequence, state.Revision))
+
+		// try to use what we have already on disk
+
 	} else {
 		// fetch the next repair in the sequence
 		// assumes no gaps, each repair id is present so far,
 		// possibly skipped
-		var err error
-		repair, aux, err = run.fetch(brandID, sequenceNext)
+
+		repair, aux = mylog.Check3(run.fetch(brandID, sequenceNext))
 		if err != nil && err != errSkip {
 			return nil, err
 		}
@@ -1061,13 +941,11 @@ func (run *Runner) makeReady(brandID string, sequenceNext int) (repair *asserts.
 			return nil, errSkip
 		}
 	}
-	// verify with signatures
-	if err := run.Verify(repair, aux); err != nil {
-		return nil, fmt.Errorf("cannot verify repair %s-%d: %v", brandID, state.Sequence, err)
-	}
-	if err := run.saveStream(brandID, state.Sequence, repair, aux); err != nil {
-		return nil, err
-	}
+	mylog.Check(
+		// verify with signatures
+		run.Verify(repair, aux))
+	mylog.Check(run.saveStream(brandID, state.Sequence, repair, aux))
+
 	state.Revision = repair.Revision()
 	if !run.Applicable(repair.Headers()) {
 		state.Status = SkipStatus
@@ -1086,7 +964,7 @@ func (run *Runner) Next(brandID string) (*Repair, error) {
 		sequenceNext = 1
 	}
 	for {
-		repair, err := run.makeReady(brandID, sequenceNext)
+		repair := mylog.Check2(run.makeReady(brandID, sequenceNext))
 		// SaveState is a no-op unless makeReady modified the state
 		stateErr := run.SaveState()
 		if err != nil && err != errSkip && err != ErrRepairNotFound {
@@ -1134,10 +1012,8 @@ func (run *Runner) Verify(repair *asserts.Repair, aux []asserts.Assertion) error
 		if a.Type() != asserts.AccountKeyType {
 			continue
 		}
-		err := workBS.Put(asserts.AccountKeyType, a)
-		if err != nil {
-			return err
-		}
+		mylog.Check(workBS.Put(asserts.AccountKeyType, a))
+
 	}
 	trustedBS := asserts.NewMemoryBackstore()
 	for _, t := range trustedRepairRootKeys {

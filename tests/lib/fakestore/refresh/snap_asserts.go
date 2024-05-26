@@ -26,6 +26,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/systestkeys"
 )
@@ -37,14 +38,9 @@ func snapNameFromPath(snapPath string) string {
 // TODO: also support reading/copying form a store snap
 
 func NewSnapRevision(targetDir string, snap string, headers map[string]interface{}) (string, error) {
-	db, err := newAssertsDB(systestkeys.TestStorePrivKey)
-	if err != nil {
-		return "", err
-	}
-	digest, size, err := asserts.SnapFileSHA3_384(snap)
-	if err != nil {
-		return "", err
-	}
+	db := mylog.Check2(newAssertsDB(systestkeys.TestStorePrivKey))
+
+	digest, size := mylog.Check3(asserts.SnapFileSHA3_384(snap))
 
 	fallbacks := map[string]interface{}{
 		"developer-id":  "testrootorg",
@@ -61,18 +57,13 @@ func NewSnapRevision(targetDir string, snap string, headers map[string]interface
 	headers["snap-size"] = fmt.Sprintf("%d", size)
 	headers["timestamp"] = time.Now().Format(time.RFC3339)
 
-	a, err := db.Sign(asserts.SnapRevisionType, headers, nil, systestkeys.TestStoreKeyID)
-	if err != nil {
-		return "", err
-	}
+	a := mylog.Check2(db.Sign(asserts.SnapRevisionType, headers, nil, systestkeys.TestStoreKeyID))
+
 	return writeAssert(a, targetDir)
 }
 
 func NewSnapDeclaration(targetDir string, snap string, headers map[string]interface{}) (string, error) {
-	db, err := newAssertsDB(systestkeys.TestStorePrivKey)
-	if err != nil {
-		return "", err
-	}
+	db := mylog.Check2(newAssertsDB(systestkeys.TestStorePrivKey))
 
 	fallbacks := map[string]interface{}{
 		"snap-id":      snapNameFromPath(snap) + "-id",
@@ -88,10 +79,8 @@ func NewSnapDeclaration(targetDir string, snap string, headers map[string]interf
 	headers["series"] = "16"
 	headers["timestamp"] = time.Now().Format(time.RFC3339)
 
-	a, err := db.Sign(asserts.SnapDeclarationType, headers, nil, systestkeys.TestStoreKeyID)
-	if err != nil {
-		return "", err
-	}
+	a := mylog.Check2(db.Sign(asserts.SnapDeclarationType, headers, nil, systestkeys.TestStoreKeyID))
+
 	return writeAssert(a, targetDir)
 }
 
@@ -99,10 +88,7 @@ func NewSnapDeclaration(targetDir string, snap string, headers map[string]interf
 // body of the assertion.
 func NewRepair(targetDir string, scriptFilename string, headers map[string]interface{}) (string, error) {
 	// use the separate root of trust for signing repair assertions
-	db, err := newAssertsDB(systestkeys.TestRepairRootPrivKey)
-	if err != nil {
-		return "", err
-	}
+	db := mylog.Check2(newAssertsDB(systestkeys.TestRepairRootPrivKey))
 
 	fallbacks := map[string]interface{}{
 		"brand-id":  "testrootorg",
@@ -115,20 +101,14 @@ func NewRepair(targetDir string, scriptFilename string, headers map[string]inter
 		}
 	}
 
-	scriptBodyBytes, err := os.ReadFile(scriptFilename)
-	if err != nil {
-		return "", err
-	}
+	scriptBodyBytes := mylog.Check2(os.ReadFile(scriptFilename))
 
 	headers["authority-id"] = "testrootorg"
 	// note that series is a list for repair assertions
 	headers["series"] = []interface{}{"16"}
 	headers["timestamp"] = time.Now().Format(time.RFC3339)
 
-	a, err := db.Sign(asserts.RepairType, headers, scriptBodyBytes, systestkeys.TestRepairKeyID)
-	if err != nil {
-		return "", err
-	}
+	a := mylog.Check2(db.Sign(asserts.RepairType, headers, scriptBodyBytes, systestkeys.TestRepairKeyID))
 
 	return writeAssert(a, targetDir)
 }

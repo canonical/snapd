@@ -22,6 +22,8 @@ package osutil
 import (
 	"fmt"
 	"strings"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // isRootWritableOverlay detects if the current '/' is a writable overlay
@@ -42,10 +44,8 @@ import (
 //
 // Currently uses variables and Mock functions from nfs.go
 var isRootWritableOverlay = func() (string, error) {
-	mountinfo, err := LoadMountInfo()
-	if err != nil {
-		return "", fmt.Errorf("cannot parse mountinfo: %s", err)
-	}
+	mountinfo := mylog.Check2(LoadMountInfo())
+
 	for _, entry := range mountinfo {
 		if entry.FsType == "overlay" && entry.MountDir == "/" {
 			if dir, ok := entry.SuperOptions["upperdir"]; ok {

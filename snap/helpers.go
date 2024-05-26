@@ -25,13 +25,12 @@ import (
 	"strconv"
 	"syscall"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap/naming"
 )
 
-var (
-	userLookupId = user.LookupId
-)
+var userLookupId = user.LookupId
 
 func IsSnapd(snapID string) bool {
 	return snapID == naming.WellKnownSnapID("snapd")
@@ -43,54 +42,45 @@ func AllUsers(opts *dirs.SnapDirOptions) ([]*user.User, error) {
 	var ds []string
 
 	for _, entry := range dirs.DataHomeGlobs(opts) {
-		entryPaths, err := filepath.Glob(entry)
-		if err != nil {
-			return nil, err
-		}
+		entryPaths := mylog.Check2(filepath.Glob(entry))
+
 		ds = append(ds, entryPaths...)
 	}
 
 	users := make([]*user.User, 1, len(ds)+1)
-	root, err := user.LookupId("0")
-	if err != nil {
-		return nil, err
-	}
+	root := mylog.Check2(user.LookupId("0"))
+
 	users[0] = root
 	seen := make(map[uint32]bool, len(ds)+1)
 	seen[0] = true
 	var st syscall.Stat_t
 	for _, d := range ds {
-		err := syscall.Stat(d, &st)
-		if err != nil {
-			continue
-		}
+		mylog.Check(syscall.Stat(d, &st))
+
 		if seen[st.Uid] {
 			continue
 		}
 		seen[st.Uid] = true
-		usr, err := userLookupId(strconv.FormatUint(uint64(st.Uid), 10))
-		if err != nil {
-			// Treat all non-nil errors as user.Unknown{User,Group}Error's, as
-			// currently Go's handling of returned errno from get{pw,gr}nam_r
-			// in the cgo implementation of user.Lookup is lacking, and thus
-			// user.Unknown{User,Group}Error is returned only when errno is 0
-			// and the list of users/groups is empty, but as per the man page
-			// for get{pw,gr}nam_r, there are many other errno's that typical
-			// systems could return to indicate that the user/group wasn't
-			// found, however unfortunately the POSIX standard does not actually
-			// dictate what errno should be used to indicate "user/group not
-			// found", and so even if Go is more robust, it may not ever be
-			// fully robust. See from the man page:
-			//
-			// > It [POSIX.1-2001] does not call "not found" an error, hence
-			// > does not specify what value errno might have in this situation.
-			// > But that makes it impossible to recognize errors.
-			//
-			// See upstream Go issue: https://github.com/golang/go/issues/40334
-			continue
-		} else {
-			users = append(users, usr)
-		}
+		usr := mylog.Check2(userLookupId(strconv.FormatUint(uint64(st.Uid), 10)))
+
+		// Treat all non-nil errors as user.Unknown{User,Group}Error's, as
+		// currently Go's handling of returned errno from get{pw,gr}nam_r
+		// in the cgo implementation of user.Lookup is lacking, and thus
+		// user.Unknown{User,Group}Error is returned only when errno is 0
+		// and the list of users/groups is empty, but as per the man page
+		// for get{pw,gr}nam_r, there are many other errno's that typical
+		// systems could return to indicate that the user/group wasn't
+		// found, however unfortunately the POSIX standard does not actually
+		// dictate what errno should be used to indicate "user/group not
+		// found", and so even if Go is more robust, it may not ever be
+		// fully robust. See from the man page:
+		//
+		// > It [POSIX.1-2001] does not call "not found" an error, hence
+		// > does not specify what value errno might have in this situation.
+		// > But that makes it impossible to recognize errors.
+		//
+		// See upstream Go issue: https://github.com/golang/go/issues/40334
+
 	}
 
 	return users, nil

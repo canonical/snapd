@@ -26,6 +26,7 @@ import (
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
@@ -41,17 +42,14 @@ import (
 
 func makeRollbackDir(name string) (string, error) {
 	rollbackDir := filepath.Join(dirs.SnapRollbackDir, name)
-
-	if err := os.MkdirAll(rollbackDir, 0750); err != nil {
-		return "", err
-	}
+	mylog.Check(os.MkdirAll(rollbackDir, 0750))
 
 	return rollbackDir, nil
 }
 
 // CurrentGadgetData returns the GadgetData for the currently active gadget.
 func CurrentGadgetData(st *state.State, curDeviceCtx snapstate.DeviceContext) (*gadget.GadgetData, error) {
-	currentInfo, err := snapstate.GadgetInfo(st, curDeviceCtx)
+	currentInfo := mylog.Check2(snapstate.GadgetInfo(st, curDeviceCtx))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
@@ -60,29 +58,20 @@ func CurrentGadgetData(st *state.State, curDeviceCtx snapstate.DeviceContext) (*
 		return nil, nil
 	}
 
-	ci, err := gadgetDataFromInfo(currentInfo, curDeviceCtx.Model())
-	if err != nil {
-		return nil, fmt.Errorf("cannot read current gadget snap details: %v", err)
-	}
+	ci := mylog.Check2(gadgetDataFromInfo(currentInfo, curDeviceCtx.Model()))
+
 	return ci, nil
 }
 
 func pendingGadgetData(snapsup *snapstate.SnapSetup, pendingDeviceCtx snapstate.DeviceContext) (*gadget.GadgetData, error) {
-	info, err := snap.ReadInfo(snapsup.InstanceName(), snapsup.SideInfo)
-	if err != nil {
-		return nil, fmt.Errorf("cannot read candidate gadget snap details: %v", err)
-	}
+	info := mylog.Check2(snap.ReadInfo(snapsup.InstanceName(), snapsup.SideInfo))
 
-	gi, err := gadgetDataFromInfo(info, pendingDeviceCtx.Model())
-	if err != nil {
-		return nil, fmt.Errorf("cannot read candidate snap gadget metadata: %v", err)
-	}
+	gi := mylog.Check2(gadgetDataFromInfo(info, pendingDeviceCtx.Model()))
+
 	return gi, nil
 }
 
-var (
-	gadgetUpdate = gadget.Update
-)
+var gadgetUpdate = gadget.Update
 
 func setGadgetRestartRequired(t *state.Task) {
 	chg := t.Change()
@@ -94,15 +83,10 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 	st.Lock()
 	defer st.Unlock()
 
-	snapsup, err := snapstate.TaskSnapSetup(t)
-	if err != nil {
-		return err
-	}
+	snapsup := mylog.Check2(snapstate.TaskSnapSetup(t))
 
-	remodelCtx, err := DeviceCtx(st, t, nil)
-	if err != nil {
-		return err
-	}
+	remodelCtx := mylog.Check2(DeviceCtx(st, t, nil))
+
 	if remodelCtx.IsClassicBoot() {
 		return fmt.Errorf("cannot run update gadget assets task on a classic system")
 	}
@@ -123,10 +107,8 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 				snapsup.InstanceName(), expectedGadgetSnap)
 		}
 
-		updateData, err = pendingGadgetData(snapsup, remodelCtx)
-		if err != nil {
-			return err
-		}
+		updateData = mylog.Check2(pendingGadgetData(snapsup, remodelCtx))
+
 	case snap.TypeKernel:
 		expectedKernelSnap := model.Kernel()
 		if snapsup.InstanceName() != expectedKernelSnap {
@@ -136,25 +118,21 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 
 		// now calculate the "update" data, it's the same gadget but
 		// argumented from a different kernel
-		updateData, err = CurrentGadgetData(t.State(), groundDeviceCtx)
-		if err != nil {
-			return err
-		}
+		updateData = mylog.Check2(CurrentGadgetData(t.State(), groundDeviceCtx))
+
 	default:
 		return fmt.Errorf("internal errror: doUpdateGadgetAssets called with snap type %v", snapsup.Type)
 	}
 
-	currentData, err := CurrentGadgetData(t.State(), groundDeviceCtx)
-	if err != nil {
-		return err
-	}
+	currentData := mylog.Check2(CurrentGadgetData(t.State(), groundDeviceCtx))
+
 	if currentData == nil {
 		// no updates during first boot & seeding
 		return nil
 	}
 
 	// add kernel directories
-	currentKernelInfo, err := snapstate.CurrentInfo(st, groundDeviceCtx.Model().Kernel())
+	currentKernelInfo := mylog.Check2(snapstate.CurrentInfo(st, groundDeviceCtx.Model().Kernel()))
 	// XXX: switch to the normal `if err != nil { return err }` pattern
 	// here once all tests are updated and have a kernel
 	if err == nil {
@@ -164,17 +142,12 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 	// if this is a gadget update triggered by an updated kernel we
 	// need to ensure "updateData.KernelRootDir" points to the new kernel
 	if snapsup.Type == snap.TypeKernel {
-		updateKernelInfo, err := snap.ReadInfo(snapsup.InstanceName(), snapsup.SideInfo)
-		if err != nil {
-			return fmt.Errorf("cannot read candidate kernel snap details: %v", err)
-		}
+		updateKernelInfo := mylog.Check2(snap.ReadInfo(snapsup.InstanceName(), snapsup.SideInfo))
+
 		updateData.KernelRootDir = updateKernelInfo.MountDir()
 	}
 
-	snapRollbackDir, err := makeRollbackDir(fmt.Sprintf("%v_%v", snapsup.InstanceName(), snapsup.SideInfo.Revision))
-	if err != nil {
-		return fmt.Errorf("cannot prepare update rollback directory: %v", err)
-	}
+	snapRollbackDir := mylog.Check2(makeRollbackDir(fmt.Sprintf("%v_%v", snapsup.InstanceName(), snapsup.SideInfo.Revision)))
 
 	var updatePolicy gadget.UpdatePolicyFunc = nil
 
@@ -186,10 +159,9 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 		// structures
 		updatePolicy = gadget.RemodelUpdatePolicy
 	}
-
-	err = func() error {
+	mylog.Check(func() error {
 		var updateObserver gadget.ContentUpdateObserver
-		observeTrustedBootAssets, err := boot.TrustedAssetsUpdateObserverForModel(model, updateData.RootDir)
+		observeTrustedBootAssets := mylog.Check2(boot.TrustedAssetsUpdateObserverForModel(model, updateData.RootDir))
 		if err != nil && err != boot.ErrObserverNotApplicable {
 			return fmt.Errorf("cannot setup asset update observer: %v", err)
 		}
@@ -202,17 +174,11 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 		// guarded by the state lock; on top of that we do not expect
 		// the update to be moving large amounts of data
 		return gadgetUpdate(model, *currentData, *updateData, snapRollbackDir, updatePolicy, updateObserver)
-	}()
-	if err != nil {
-		if err == gadget.ErrNoUpdate {
-			// no update needed
-			t.Logf("No gadget assets update needed")
-			return nil
-		}
-		return err
-	}
+	}())
 
-	if err := os.RemoveAll(snapRollbackDir); err != nil && !os.IsNotExist(err) {
+	// no update needed
+
+	if mylog.Check(os.RemoveAll(snapRollbackDir)); err != nil && !os.IsNotExist(err) {
 		logger.Noticef("failed to remove gadget update rollback directory %q: %v", snapRollbackDir, err)
 	}
 
@@ -241,10 +207,10 @@ func fromSystemOption(t *state.Task) bool {
 // this is a task created when setting a kernel option or by gadget
 // installation.
 func kernelCommandLineAppendArgs(tsk *state.Task, tr *config.Transaction,
-	taskParam string) (string, error) {
-
+	taskParam string,
+) (string, error) {
 	var value string
-	err := tsk.Get(taskParam, &value)
+	mylog.Check(tsk.Get(taskParam, &value))
 	if err == nil {
 		return value, nil
 	}
@@ -261,7 +227,7 @@ func kernelCommandLineAppendArgs(tsk *state.Task, tr *config.Transaction,
 	default:
 		return "", fmt.Errorf("internal error, unexpected task parameter %q", taskParam)
 	}
-	if err := tr.Get("core", option, &value); err != nil && !config.IsNoOption(err) {
+	if mylog.Check(tr.Get("core", option, &value)); err != nil && !config.IsNoOption(err) {
 		return "", err
 	}
 
@@ -270,10 +236,8 @@ func kernelCommandLineAppendArgs(tsk *state.Task, tr *config.Transaction,
 
 func buildAppendedKernelCommandLine(t *state.Task, gd *gadget.GadgetData, deviceCtx snapstate.DeviceContext) (string, error) {
 	tr := config.NewTransaction(t.State())
-	rawCmdlineAppend, err := kernelCommandLineAppendArgs(t, tr, "cmdline-append")
-	if err != nil {
-		return "", err
-	}
+	rawCmdlineAppend := mylog.Check2(kernelCommandLineAppendArgs(t, tr, "cmdline-append"))
+
 	// Validation against allow list has already happened in
 	// configcore, but the gadget might have changed, so we check
 	// again and filter any unallowed argument.
@@ -286,11 +250,9 @@ func buildAppendedKernelCommandLine(t *state.Task, gd *gadget.GadgetData, device
 
 	// Dangerous extra cmdline only considered for dangerous models
 	if deviceCtx.Model().Grade() == asserts.ModelDangerous {
-		cmdlineAppendDanger, err := kernelCommandLineAppendArgs(t, tr,
-			"dangerous-cmdline-append")
-		if err != nil {
-			return "", err
-		}
+		cmdlineAppendDanger := mylog.Check2(kernelCommandLineAppendArgs(t, tr,
+			"dangerous-cmdline-append"))
+
 		cmdlineAppend = strutil.JoinNonEmpty(
 			[]string{cmdlineAppend, cmdlineAppendDanger}, " ")
 	}
@@ -302,10 +264,8 @@ func buildAppendedKernelCommandLine(t *state.Task, gd *gadget.GadgetData, device
 
 func (m *DeviceManager) updateGadgetCommandLine(t *state.Task, st *state.State, useCurrentGadget bool) (updated bool, err error) {
 	logger.Debugf("updating kernel command line")
-	devCtx, err := DeviceCtx(st, t, nil)
-	if err != nil {
-		return false, err
-	}
+	devCtx := mylog.Check2(DeviceCtx(st, t, nil))
+
 	if devCtx.Model().Grade() == asserts.ModelGradeUnset {
 		// pre UC20 system, do nothing
 		return false, nil
@@ -313,34 +273,23 @@ func (m *DeviceManager) updateGadgetCommandLine(t *state.Task, st *state.State, 
 	var gadgetData *gadget.GadgetData
 	if !useCurrentGadget {
 		// command line comes from the new gadget when updating
-		snapsup, err := snapstate.TaskSnapSetup(t)
-		if err != nil {
-			return false, err
-		}
-		gadgetData, err = pendingGadgetData(snapsup, devCtx)
-		if err != nil {
-			return false, err
-		}
+		snapsup := mylog.Check2(snapstate.TaskSnapSetup(t))
+
+		gadgetData = mylog.Check2(pendingGadgetData(snapsup, devCtx))
+
 	} else {
 		// but when undoing or when the change comes from a
 		// system option (no setup task), we use the current
 		// gadget (should have been restored in the undo case)
-		currentGadgetData, err := CurrentGadgetData(st, devCtx)
-		if err != nil {
-			return false, err
-		}
+		currentGadgetData := mylog.Check2(CurrentGadgetData(st, devCtx))
+
 		gadgetData = currentGadgetData
 	}
 
-	cmdlineAppend, err := buildAppendedKernelCommandLine(t, gadgetData, devCtx)
-	if err != nil {
-		return false, err
-	}
+	cmdlineAppend := mylog.Check2(buildAppendedKernelCommandLine(t, gadgetData, devCtx))
 
-	updated, err = boot.UpdateCommandLineForGadgetComponent(devCtx, gadgetData.RootDir, cmdlineAppend)
-	if err != nil {
-		return false, fmt.Errorf("cannot update kernel command line from gadget: %v", err)
-	}
+	updated = mylog.Check2(boot.UpdateCommandLineForGadgetComponent(devCtx, gadgetData.RootDir, cmdlineAppend))
+
 	if updated {
 		setGadgetRestartRequired(t)
 	}
@@ -352,16 +301,14 @@ func (m *DeviceManager) doUpdateGadgetCommandLine(t *state.Task, _ *tomb.Tomb) e
 	st.Lock()
 	defer st.Unlock()
 
-	devCtx, err := DeviceCtx(st, t, nil)
-	if err != nil {
-		return err
-	}
+	devCtx := mylog.Check2(DeviceCtx(st, t, nil))
+
 	if devCtx.IsClassicBoot() {
 		return fmt.Errorf("internal error: cannot run update gadget kernel command line task on a classic system")
 	}
 
 	var seeded bool
-	err = st.Get("seeded", &seeded)
+	mylog.Check(st.Get("seeded", &seeded))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
@@ -377,10 +324,8 @@ func (m *DeviceManager) doUpdateGadgetCommandLine(t *state.Task, _ *tomb.Tomb) e
 	// We use the current gadget kernel command line if the change comes
 	// from setting a system option.
 	useCurrentGadget := isSysOption
-	updated, err := m.updateGadgetCommandLine(t, st, useCurrentGadget)
-	if err != nil {
-		return err
-	}
+	updated := mylog.Check2(m.updateGadgetCommandLine(t, st, useCurrentGadget))
+
 	if !updated {
 		logger.Debugf("no kernel command line update from gadget")
 		return nil
@@ -406,16 +351,14 @@ func (m *DeviceManager) undoUpdateGadgetCommandLine(t *state.Task, _ *tomb.Tomb)
 	st.Lock()
 	defer st.Unlock()
 
-	devCtx, err := DeviceCtx(st, t, nil)
-	if err != nil {
-		return err
-	}
+	devCtx := mylog.Check2(DeviceCtx(st, t, nil))
+
 	if devCtx.IsClassicBoot() {
 		return fmt.Errorf("internal error: cannot run undo update gadget kernel command line task on a classic system")
 	}
 
 	var seeded bool
-	err = st.Get("seeded", &seeded)
+	mylog.Check(st.Get("seeded", &seeded))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
@@ -425,10 +368,8 @@ func (m *DeviceManager) undoUpdateGadgetCommandLine(t *state.Task, _ *tomb.Tomb)
 	}
 
 	const isUndo = true
-	updated, err := m.updateGadgetCommandLine(t, st, isUndo)
-	if err != nil {
-		return err
-	}
+	updated := mylog.Check2(m.updateGadgetCommandLine(t, st, isUndo))
+
 	if !updated {
 		logger.Debugf("no kernel command line update to undo")
 		return nil

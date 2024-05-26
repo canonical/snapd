@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/tests/lib/fakestore/refresh"
 )
 
@@ -39,19 +40,13 @@ type cmdNewSnapRevision struct {
 func (x *cmdNewSnapRevision) Execute(args []string) error {
 	headers := map[string]interface{}{}
 	if x.SnapRevJsonPath != "" {
-		content, err := os.ReadFile(x.SnapRevJsonPath)
-		if err != nil {
-			return err
-		}
-		if err := json.Unmarshal(content, &headers); err != nil {
-			return err
-		}
+		content := mylog.Check2(os.ReadFile(x.SnapRevJsonPath))
+		mylog.Check(json.Unmarshal(content, &headers))
+
 	}
 
-	p, err := refresh.NewSnapRevision(x.TopDir, x.Positional.Snap, headers)
-	if err != nil {
-		return err
-	}
+	p := mylog.Check2(refresh.NewSnapRevision(x.TopDir, x.Positional.Snap, headers))
+
 	fmt.Println(p)
 	return nil
 }

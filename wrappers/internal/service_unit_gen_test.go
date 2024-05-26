@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/quantity"
 	_ "github.com/snapcore/snapd/interfaces/builtin"
@@ -94,9 +95,7 @@ Type=%s
 WantedBy=default.target
 `
 
-var (
-	mountUnitPrefix = strings.Replace(dirs.SnapMountDir[1:], "/", "-", -1)
-)
+var mountUnitPrefix = strings.Replace(dirs.SnapMountDir[1:], "/", "-", -1)
 
 var (
 	expectedAppService     = fmt.Sprintf(expectedServiceFmt, mountUnitPrefix, mountUnitPrefix, "on-failure", "simple", expectedInstallSection)
@@ -151,13 +150,13 @@ apps:
         stop-timeout: 10s
         daemon: simple
 `
-	info, err := snap.InfoFromSnapYaml([]byte(yamlText))
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(yamlText)))
+
 	info.Revision = snap.R(44)
 	app := info.Apps["app"]
 
-	generatedWrapper, err := internal.GenerateSnapServiceUnitFile(app, nil)
-	c.Assert(err, IsNil)
+	generatedWrapper := mylog.Check2(internal.GenerateSnapServiceUnitFile(app, nil))
+
 	c.Check(string(generatedWrapper), Equals, expectedAppService)
 }
 
@@ -193,8 +192,8 @@ apps:
         command: bin/start
         daemon: simple
 `
-	info, err := snap.InfoFromSnapYaml([]byte(yamlText))
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(yamlText)))
+
 	info.Revision = snap.R(44)
 	app := info.Apps["app"]
 
@@ -208,16 +207,16 @@ apps:
 	opts := internal.SnapServicesUnitOptions{
 		CoreMountedSnapdSnapDep: "",
 	}
-	generatedWrapper, err := internal.GenerateSnapServiceUnitFile(app, &opts)
-	c.Assert(err, IsNil)
+	generatedWrapper := mylog.Check2(internal.GenerateSnapServiceUnitFile(app, &opts))
+
 	c.Check(string(generatedWrapper), Equals, expectedAppServiceOnCore)
 
 	// now with additional dependency on tooling
 	opts = internal.SnapServicesUnitOptions{
 		CoreMountedSnapdSnapDep: "usr-lib-snapd.mount",
 	}
-	generatedWrapper, err = internal.GenerateSnapServiceUnitFile(app, &opts)
-	c.Assert(err, IsNil)
+	generatedWrapper = mylog.Check2(internal.GenerateSnapServiceUnitFile(app, &opts))
+
 	// we gain additional Requires= & After= on usr-lib-snapd.mount
 	expectedAppServiceOnCoreWithSnapd := `[Unit]
 # Auto-generated, DO NOT EDIT
@@ -255,13 +254,13 @@ apps:
         start-timeout: 10m
         daemon: simple
 `
-	info, err := snap.InfoFromSnapYaml([]byte(yamlText))
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(yamlText)))
+
 	info.Revision = snap.R(44)
 	app := info.Apps["app"]
 
-	generatedWrapper, err := internal.GenerateSnapServiceUnitFile(app, nil)
-	c.Assert(err, IsNil)
+	generatedWrapper := mylog.Check2(internal.GenerateSnapServiceUnitFile(app, nil))
+
 	c.Check(string(generatedWrapper), testutil.Contains, "\nTimeoutStartSec=600\n")
 }
 
@@ -276,13 +275,13 @@ apps:
 	for name, cond := range snap.RestartMap {
 		yamlText := fmt.Sprintf(yamlTextTemplate, cond)
 
-		info, err := snap.InfoFromSnapYaml([]byte(yamlText))
-		c.Assert(err, IsNil)
+		info := mylog.Check2(snap.InfoFromSnapYaml([]byte(yamlText)))
+
 		info.Revision = snap.R(44)
 		app := info.Apps["app"]
 
-		generatedWrapper, err := internal.GenerateSnapServiceUnitFile(app, nil)
-		c.Assert(err, IsNil)
+		generatedWrapper := mylog.Check2(internal.GenerateSnapServiceUnitFile(app, nil))
+
 		wrapperText := string(generatedWrapper)
 		if cond == snap.RestartNever {
 			c.Check(wrapperText, Matches,
@@ -311,8 +310,8 @@ func (s *serviceUnitGenSuite) TestWriteSnapServiceUnitFileTypeForking(c *C) {
 		DaemonScope:     snap.SystemDaemon,
 	}
 
-	generatedWrapper, err := internal.GenerateSnapServiceUnitFile(service, nil)
-	c.Assert(err, IsNil)
+	generatedWrapper := mylog.Check2(internal.GenerateSnapServiceUnitFile(service, nil))
+
 	c.Assert(string(generatedWrapper), Equals, expectedTypeForkingWrapper)
 }
 
@@ -333,7 +332,7 @@ func (s *serviceUnitGenSuite) TestWriteSnapServiceUnitFileIllegalChars(c *C) {
 		DaemonScope:     snap.SystemDaemon,
 	}
 
-	_, err := internal.GenerateSnapServiceUnitFile(service, nil)
+	_ := mylog.Check2(internal.GenerateSnapServiceUnitFile(service, nil))
 	c.Assert(err, NotNil)
 }
 
@@ -358,19 +357,18 @@ apps:
         activates-on: [dbus-slot]
 `
 
-	info, err := snap.InfoFromSnapYaml([]byte(yamlText))
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(yamlText)))
+
 	info.Revision = snap.R(44)
 	app := info.Apps["app"]
 
-	generatedWrapper, err := internal.GenerateSnapServiceUnitFile(app, nil)
-	c.Assert(err, IsNil)
+	generatedWrapper := mylog.Check2(internal.GenerateSnapServiceUnitFile(app, nil))
+
 
 	c.Assert(string(generatedWrapper), Equals, expectedDbusService)
 }
 
 func (s *serviceUnitGenSuite) TestGenServiceFileWithBusNameOnly(c *C) {
-
 	yamlText := `
 name: snap
 version: 1.0
@@ -385,20 +383,19 @@ apps:
         daemon: dbus
 `
 
-	info, err := snap.InfoFromSnapYaml([]byte(yamlText))
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(yamlText)))
+
 	info.Revision = snap.R(44)
 	app := info.Apps["app"]
 
-	generatedWrapper, err := internal.GenerateSnapServiceUnitFile(app, nil)
-	c.Assert(err, IsNil)
+	generatedWrapper := mylog.Check2(internal.GenerateSnapServiceUnitFile(app, nil))
+
 
 	expectedDbusService := fmt.Sprintf(expectedServiceFmt, mountUnitPrefix, mountUnitPrefix, "on-failure", "dbus\nBusName=foo.bar.baz", expectedInstallSection)
 	c.Assert(string(generatedWrapper), Equals, expectedDbusService)
 }
 
 func (s *serviceUnitGenSuite) TestGenServiceFileWithBusNameFromSlot(c *C) {
-
 	yamlText := `
 name: snap
 version: 1.0
@@ -422,13 +419,13 @@ apps:
         activates-on: [dbus-slot1, dbus-slot2]
 `
 
-	info, err := snap.InfoFromSnapYaml([]byte(yamlText))
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(yamlText)))
+
 	info.Revision = snap.R(44)
 	app := info.Apps["app"]
 
-	generatedWrapper, err := internal.GenerateSnapServiceUnitFile(app, nil)
-	c.Assert(err, IsNil)
+	generatedWrapper := mylog.Check2(internal.GenerateSnapServiceUnitFile(app, nil))
+
 
 	// Bus name defaults to the name from the last slot the daemon
 	// activates on.
@@ -436,7 +433,6 @@ apps:
 }
 
 func (s *serviceUnitGenSuite) TestGenOneshotServiceFile(c *C) {
-
 	info := snaptest.MockInfo(c, `
 name: snap
 version: 1.0
@@ -452,8 +448,8 @@ apps:
 
 	app := info.Apps["app"]
 
-	generatedWrapper, err := internal.GenerateSnapServiceUnitFile(app, nil)
-	c.Assert(err, IsNil)
+	generatedWrapper := mylog.Check2(internal.GenerateSnapServiceUnitFile(app, nil))
+
 
 	c.Assert(string(generatedWrapper), Equals, expectedOneshotService)
 }
@@ -472,13 +468,13 @@ apps:
         daemon: simple
         daemon-scope: user
 `
-	info, err := snap.InfoFromSnapYaml([]byte(yamlText))
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(yamlText)))
+
 	info.Revision = snap.R(44)
 	app := info.Apps["app"]
 
-	generatedWrapper, err := internal.GenerateSnapServiceUnitFile(app, nil)
-	c.Assert(err, IsNil)
+	generatedWrapper := mylog.Check2(internal.GenerateSnapServiceUnitFile(app, nil))
+
 	c.Check(string(generatedWrapper), Equals, expectedUserAppService)
 }
 
@@ -549,23 +545,24 @@ WantedBy=multi-user.target
 		before          []string
 		generatedAfter  string
 		generatedBefore string
-	}{{
-		after:           []string{"bar", "zed"},
-		generatedAfter:  "snap.snap.bar.service snap.snap.zed.service",
-		before:          []string{"foo", "baz"},
-		generatedBefore: "snap.snap.foo.service snap.snap.baz.service",
-	}, {
-		after:           []string{"bar"},
-		generatedAfter:  "snap.snap.bar.service",
-		before:          []string{"foo"},
-		generatedBefore: "snap.snap.foo.service",
-	},
+	}{
+		{
+			after:           []string{"bar", "zed"},
+			generatedAfter:  "snap.snap.bar.service snap.snap.zed.service",
+			before:          []string{"foo", "baz"},
+			generatedBefore: "snap.snap.foo.service snap.snap.baz.service",
+		}, {
+			after:           []string{"bar"},
+			generatedAfter:  "snap.snap.bar.service",
+			before:          []string{"foo"},
+			generatedBefore: "snap.snap.foo.service",
+		},
 	} {
 		c.Logf("tc: %v", tc)
 		service.After = tc.after
 		service.Before = tc.before
-		generatedWrapper, err := internal.GenerateSnapServiceUnitFile(service, nil)
-		c.Assert(err, IsNil)
+		generatedWrapper := mylog.Check2(internal.GenerateSnapServiceUnitFile(service, nil))
+
 
 		expectedService := fmt.Sprintf(expectedServiceFmt, mountUnitPrefix, mountUnitPrefix,
 			tc.generatedAfter, tc.generatedBefore, "on-failure", "simple")
@@ -588,8 +585,8 @@ func (s *serviceUnitGenSuite) TestKillModeSig(c *C) {
 			StopMode:    snap.StopModeType(rm),
 		}
 
-		generatedWrapper, err := internal.GenerateSnapServiceUnitFile(service, nil)
-		c.Assert(err, IsNil)
+		generatedWrapper := mylog.Check2(internal.GenerateSnapServiceUnitFile(service, nil))
+
 
 		c.Check(string(generatedWrapper), Equals, fmt.Sprintf(`[Unit]
 # Auto-generated, DO NOT EDIT
@@ -630,8 +627,8 @@ func (s *serviceUnitGenSuite) TestRestartDelay(c *C) {
 		RestartDelay: timeout.Timeout(20 * time.Second),
 	}
 
-	generatedWrapper, err := internal.GenerateSnapServiceUnitFile(service, nil)
-	c.Assert(err, IsNil)
+	generatedWrapper := mylog.Check2(internal.GenerateSnapServiceUnitFile(service, nil))
+
 
 	c.Check(string(generatedWrapper), Equals, fmt.Sprintf(`[Unit]
 # Auto-generated, DO NOT EDIT
@@ -671,8 +668,8 @@ func (s *serviceUnitGenSuite) TestVitalityScore(c *C) {
 	}
 
 	opts := &internal.SnapServicesUnitOptions{VitalityRank: 1}
-	generatedWrapper, err := internal.GenerateSnapServiceUnitFile(service, opts)
-	c.Assert(err, IsNil)
+	generatedWrapper := mylog.Check2(internal.GenerateSnapServiceUnitFile(service, opts))
+
 
 	c.Check(string(generatedWrapper), Equals, fmt.Sprintf(`[Unit]
 # Auto-generated, DO NOT EDIT
@@ -711,12 +708,12 @@ func (s *serviceUnitGenSuite) TestQuotaGroupSlice(c *C) {
 		DaemonScope: snap.SystemDaemon,
 	}
 
-	grp, err := quota.NewGroup("foo", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
-	c.Assert(err, IsNil)
+	grp := mylog.Check2(quota.NewGroup("foo", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build()))
+
 
 	opts := &internal.SnapServicesUnitOptions{QuotaGroup: grp}
-	generatedWrapper, err := internal.GenerateSnapServiceUnitFile(service, opts)
-	c.Assert(err, IsNil)
+	generatedWrapper := mylog.Check2(internal.GenerateSnapServiceUnitFile(service, opts))
+
 
 	c.Check(string(generatedWrapper), Equals, fmt.Sprintf(`[Unit]
 # Auto-generated, DO NOT EDIT
@@ -754,12 +751,12 @@ func (s *serviceUnitGenSuite) TestQuotaGroupLogNamespace(c *C) {
 		DaemonScope: snap.SystemDaemon,
 	}
 
-	grp, err := quota.NewGroup("foo", quota.NewResourcesBuilder().WithJournalNamespace().Build())
-	c.Assert(err, IsNil)
+	grp := mylog.Check2(quota.NewGroup("foo", quota.NewResourcesBuilder().WithJournalNamespace().Build()))
+
 
 	opts := &internal.SnapServicesUnitOptions{QuotaGroup: grp}
-	generatedWrapper, err := internal.GenerateSnapServiceUnitFile(service, opts)
-	c.Assert(err, IsNil)
+	generatedWrapper := mylog.Check2(internal.GenerateSnapServiceUnitFile(service, opts))
+
 
 	c.Check(string(generatedWrapper), Equals, fmt.Sprintf(`[Unit]
 # Auto-generated, DO NOT EDIT
@@ -825,17 +822,17 @@ func (s *serviceUnitGenSuite) TestQuotaGroupLogNamespaceInheritParent(c *C) {
 	}
 
 	for _, t := range testCases {
-		grp, err := quota.NewGroup("foo", t.topResources)
-		c.Assert(err, IsNil)
-		sub, err := grp.NewSubGroup("foosub", t.subResources)
-		c.Assert(err, IsNil)
+		grp := mylog.Check2(quota.NewGroup("foo", t.topResources))
+
+		sub := mylog.Check2(grp.NewSubGroup("foosub", t.subResources))
+
 
 		// if this is not set, then it won't be considered
 		sub.Services = []string{"snap.app"}
 
 		opts := &internal.SnapServicesUnitOptions{QuotaGroup: sub}
-		generatedWrapper, err := internal.GenerateSnapServiceUnitFile(service, opts)
-		c.Assert(err, IsNil)
+		generatedWrapper := mylog.Check2(internal.GenerateSnapServiceUnitFile(service, opts))
+
 		c.Check(string(generatedWrapper), testutil.Contains, "Slice=snap.foo-foosub.slice", Commentf("test failed: %s", t.description))
 		if t.expectedLog != "" {
 			c.Check(string(generatedWrapper), testutil.Contains, fmt.Sprintf("LogNamespace=%s", t.expectedLog), Commentf("test failed: %s", t.description))

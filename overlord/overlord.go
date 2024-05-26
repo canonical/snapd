@@ -34,6 +34,7 @@ import (
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -128,10 +129,7 @@ func New(restartHandler restart.Handler) (*Overlord, error) {
 		path:         dirs.SnapStateFile,
 		ensureBefore: o.ensureBefore,
 	}
-	s, restartMgr, err := o.loadState(backend, restartHandler)
-	if err != nil {
-		return nil, err
-	}
+	s, restartMgr := mylog.Check3(o.loadState(backend, restartHandler))
 
 	o.stateEng = NewStateEngine(s)
 	o.runner = state.NewTaskRunner(s)
@@ -144,45 +142,33 @@ func New(restartHandler restart.Handler) (*Overlord, error) {
 
 	o.addManager(restartMgr)
 
-	hookMgr, err := hookstate.Manager(s, o.runner)
-	if err != nil {
-		return nil, err
-	}
+	hookMgr := mylog.Check2(hookstate.Manager(s, o.runner))
+
 	o.addManager(hookMgr)
 
-	snapMgr, err := snapstate.Manager(s, o.runner)
-	if err != nil {
-		return nil, err
-	}
+	snapMgr := mylog.Check2(snapstate.Manager(s, o.runner))
+
 	o.addManager(snapMgr)
 
 	serviceMgr := servicestate.Manager(s, o.runner)
 	o.addManager(serviceMgr)
 
-	assertMgr, err := assertstate.Manager(s, o.runner)
-	if err != nil {
-		return nil, err
-	}
+	assertMgr := mylog.Check2(assertstate.Manager(s, o.runner))
+
 	o.addManager(assertMgr)
 
-	ifaceMgr, err := ifacestate.Manager(s, hookMgr, o.runner, nil, nil)
-	if err != nil {
-		return nil, err
-	}
+	ifaceMgr := mylog.Check2(ifacestate.Manager(s, hookMgr, o.runner, nil, nil))
+
 	o.addManager(ifaceMgr)
 
-	deviceMgr, err := devicestate.Manager(s, hookMgr, o.runner, o.newStore)
-	if err != nil {
-		return nil, err
-	}
+	deviceMgr := mylog.Check2(devicestate.Manager(s, hookMgr, o.runner, o.newStore))
+
 	o.addManager(deviceMgr)
 
 	o.addManager(cmdstate.Manager(s, o.runner))
 	o.addManager(snapshotstate.Manager(s, o.runner))
+	mylog.Check(configstateInit(s, hookMgr))
 
-	if err := configstateInit(s, hookMgr); err != nil {
-		return nil, err
-	}
 	healthstate.Init(hookMgr)
 
 	// the shared task runner should be added last!
@@ -226,9 +212,7 @@ func (o *Overlord) addManager(mgr StateManager) {
 
 func initStateFileLock() (*osutil.FileLock, error) {
 	lockFilePath := dirs.SnapStateLockFile
-	if err := os.MkdirAll(filepath.Dir(lockFilePath), 0755); err != nil {
-		return nil, err
-	}
+	mylog.Check(os.MkdirAll(filepath.Dir(lockFilePath), 0755))
 
 	return osutil.NewFileLockWithMode(lockFilePath, 0644)
 }
@@ -237,7 +221,7 @@ func lockWithTimeout(l *osutil.FileLock, timeout time.Duration) error {
 	startTime := time.Now()
 	systemdWasNotified := false
 	for {
-		err := l.TryLock()
+		mylog.Check(l.TryLock())
 		if err != osutil.ErrAlreadyLocked {
 			// We return nil if err is nil (that is, if we got the lock); we
 			// also return for any error except for ErrAlreadyLocked, because
@@ -262,23 +246,16 @@ func lockWithTimeout(l *osutil.FileLock, timeout time.Duration) error {
 }
 
 func (o *Overlord) loadState(backend state.Backend, restartHandler restart.Handler) (*state.State, *restart.RestartManager, error) {
-	flock, err := initStateFileLock()
-	if err != nil {
-		return nil, nil, fmt.Errorf("fatal: error opening lock file: %v", err)
-	}
+	flock := mylog.Check2(initStateFileLock())
+
 	o.stateFLock = flock
 
 	logger.Noticef("Acquiring state lock file")
-	if err := lockWithTimeout(o.stateFLock, stateLockTimeout); err != nil {
-		logger.Noticef("Failed to lock state file")
-		return nil, nil, fmt.Errorf("fatal: could not lock state file: %v", err)
-	}
+	mylog.Check(lockWithTimeout(o.stateFLock, stateLockTimeout))
+
 	logger.Noticef("Acquired state lock file")
 
-	curBootID, err := osutil.BootID()
-	if err != nil {
-		return nil, nil, fmt.Errorf("fatal: cannot find current boot id: %v", err)
-	}
+	curBootID := mylog.Check2(osutil.BootID())
 
 	perfTimings := timings.New(map[string]string{"startup": "load-state"})
 
@@ -290,41 +267,31 @@ func (o *Overlord) loadState(backend state.Backend, restartHandler restart.Handl
 			return nil, nil, fmt.Errorf("fatal: directory %q must be present", stateDir)
 		}
 		s := state.New(backend)
-		restartMgr, err := initRestart(s, curBootID, restartHandler)
-		if err != nil {
-			return nil, nil, err
-		}
+		restartMgr := mylog.Check2(initRestart(s, curBootID, restartHandler))
+
 		patch.Init(s)
 		return s, restartMgr, nil
 	}
 
-	r, err := os.Open(dirs.SnapStateFile)
-	if err != nil {
-		return nil, nil, fmt.Errorf("cannot read the state file: %s", err)
-	}
+	r := mylog.Check2(os.Open(dirs.SnapStateFile))
+
 	defer r.Close()
 
 	var s *state.State
 	timings.Run(perfTimings, "read-state", "read snapd state from disk", func(tm timings.Measurer) {
-		s, err = state.ReadState(backend, r)
+		s = mylog.Check2(state.ReadState(backend, r))
 	})
-	if err != nil {
-		return nil, nil, err
-	}
+
 	s.Lock()
 	perfTimings.Save(s)
 	s.Unlock()
 
-	restartMgr, err := initRestart(s, curBootID, restartHandler)
-	if err != nil {
-		return nil, nil, err
-	}
+	restartMgr := mylog.Check2(initRestart(s, curBootID, restartHandler))
+	mylog.Check(
 
-	// one-shot migrations
-	err = patch.Apply(s)
-	if err != nil {
-		return nil, nil, err
-	}
+		// one-shot migrations
+		patch.Apply(s))
+
 	return s, restartMgr, nil
 }
 
@@ -360,19 +327,17 @@ func (o *Overlord) StartUp() error {
 	// account for deviceMgr == nil as it's not always present in
 	// the tests.
 	if o.deviceMgr != nil && !snapdenv.Preseeding() {
-		var err error
+
 		st := o.State()
 		st.Lock()
-		o.startOfOperationTime, err = o.deviceMgr.StartOfOperationTime()
+		o.startOfOperationTime = mylog.Check2(o.deviceMgr.StartOfOperationTime())
 		st.Unlock()
-		if err != nil {
-			return fmt.Errorf("cannot get start of operation time: %s", err)
-		}
+
 	}
 
 	// slow down for tests
 	if s := os.Getenv("SNAPD_SLOW_STARTUP"); s != "" {
-		if d, err := time.ParseDuration(s); err == nil {
+		if d := mylog.Check2(time.ParseDuration(s)); err == nil {
 			logger.Noticef("slowing down startup by %v as requested", d)
 
 			time.Sleep(d)
@@ -389,10 +354,8 @@ func (o *Overlord) StartupTimeout() (timeout time.Duration, reasoning string, er
 	st := o.State()
 	st.Lock()
 	defer st.Unlock()
-	n, err := snapstate.NumSnaps(st)
-	if err != nil {
-		return 0, "", err
-	}
+	n := mylog.Check2(snapstate.NumSnaps(st))
+
 	// number of snaps (and connections) play a role
 	reasoning = "pessimistic estimate of 30s plus 5s per snap"
 	to := (30 * time.Second) + time.Duration(n)*(5*time.Second)
@@ -460,9 +423,10 @@ func (o *Overlord) Loop() {
 		for {
 			// TODO: pass a proper context into Ensure
 			o.ensureTimerReset()
-			// in case of errors engine logs them,
-			// continue to the next Ensure() try for now
-			err := o.stateEng.Ensure()
+			mylog.
+				// in case of errors engine logs them,
+				// continue to the next Ensure() try for now
+				Check(o.stateEng.Ensure())
 			if err != nil && preseed {
 				st := o.State()
 				// acquire state lock to ensure nothing attempts to write state
@@ -503,10 +467,9 @@ func (o *Overlord) CanStandby() bool {
 
 // Stop stops the ensure loop and the managers under the StateEngine.
 func (o *Overlord) Stop() error {
-	var err error
 	if o.loopTomb != nil {
 		o.loopTomb.Kill(nil)
-		err = o.loopTomb.Wait()
+		mylog.Check(o.loopTomb.Wait())
 	}
 	o.stateEng.Stop()
 	if o.stateFLock != nil {
@@ -518,9 +481,7 @@ func (o *Overlord) Stop() error {
 }
 
 func (o *Overlord) settle(timeout time.Duration, beforeCleanups func()) error {
-	if err := o.StartUp(); err != nil {
-		return err
-	}
+	mylog.Check(o.StartUp())
 
 	func() {
 		o.ensureLock.Lock()
@@ -543,14 +504,14 @@ func (o *Overlord) settle(timeout time.Duration, beforeCleanups func()) error {
 	var errs []error
 	for !done {
 		if timeout > 0 && time.Since(t0) > timeout {
-			err := fmt.Errorf("Settle is not converging")
+			mylog.Check(fmt.Errorf("Settle is not converging"))
 			if len(errs) != 0 {
 				return &ensureError{append(errs, err)}
 			}
 			return err
 		}
 		next := o.ensureTimerReset()
-		err := o.stateEng.Ensure()
+		mylog.Check(o.stateEng.Ensure())
 		switch ee := err.(type) {
 		case nil:
 		case *ensureError:

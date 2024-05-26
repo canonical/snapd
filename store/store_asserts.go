@@ -30,15 +30,14 @@ import (
 	"path"
 	"strconv"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/overlord/auth"
 )
 
 func (s *Store) assertionsEndpointURL(p string, query url.Values) (*url.URL, error) {
-	if err := s.checkStoreOnline(); err != nil {
-		return nil, err
-	}
+	mylog.Check(s.checkStoreOnline())
 
 	defBaseURL := s.cfg.StoreBaseURL
 	// can be overridden separately!
@@ -93,14 +92,10 @@ func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string
 	v := url.Values{}
 	s.setMaxFormat(v, assertType)
 
-	u, err := s.assertionsEndpointURL(path.Join(assertType.Name, path.Join(asserts.ReducePrimaryKey(assertType, primaryKey)...)), v)
-	if err != nil {
-		return nil, err
-	}
+	u := mylog.Check2(s.assertionsEndpointURL(path.Join(assertType.Name, path.Join(asserts.ReducePrimaryKey(assertType, primaryKey)...)), v))
 
 	var asrt asserts.Assertion
-
-	err = s.downloadAssertions(u, func(r io.Reader) error {
+	mylog.Check(s.downloadAssertions(u, func(r io.Reader) error {
 		// decode assertion
 		dec := asserts.NewDecoder(r)
 		var e error
@@ -118,10 +113,8 @@ func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string
 		}
 		// default error
 		return nil
-	}, "fetch assertion", user)
-	if err != nil {
-		return nil, err
-	}
+	}, "fetch assertion", user))
+
 	return asrt, nil
 }
 
@@ -144,14 +137,10 @@ func (s *Store) SeqFormingAssertion(assertType *asserts.AssertionType, sequenceK
 		// query for the latest sequence.
 		v.Set("sequence", "latest")
 	}
-	u, err := s.assertionsEndpointURL(path.Join(assertType.Name, path.Join(sequenceKey...)), v)
-	if err != nil {
-		return nil, err
-	}
+	u := mylog.Check2(s.assertionsEndpointURL(path.Join(assertType.Name, path.Join(sequenceKey...)), v))
 
 	var asrt asserts.Assertion
-
-	err = s.downloadAssertions(u, func(r io.Reader) error {
+	mylog.Check(s.downloadAssertions(u, func(r io.Reader) error {
 		// decode assertion
 		dec := asserts.NewDecoder(r)
 		var e error
@@ -185,10 +174,8 @@ func (s *Store) SeqFormingAssertion(assertType *asserts.AssertionType, sequenceK
 		}
 		// default error
 		return nil
-	}, "fetch assertion", user)
-	if err != nil {
-		return nil, err
-	}
+	}, "fetch assertion", user))
+
 	return asrt, nil
 }
 
@@ -199,7 +186,7 @@ func (s *Store) downloadAssertions(u *url.URL, decodeBody func(io.Reader) error,
 		Accept: asserts.MediaType,
 	}
 
-	resp, err := httputil.RetryRequest(reqOptions.URL.String(), func() (*http.Response, error) {
+	resp := mylog.Check2(httputil.RetryRequest(reqOptions.URL.String(), func() (*http.Response, error) {
 		return s.doRequest(context.TODO(), s.client, reqOptions, user)
 	}, func(resp *http.Response) error {
 		var e error
@@ -223,11 +210,7 @@ func (s *Store) downloadAssertions(u *url.URL, decodeBody func(io.Reader) error,
 			}
 		}
 		return e
-	}, defaultRetryStrategy)
-
-	if err != nil {
-		return err
-	}
+	}, defaultRetryStrategy))
 
 	if resp.StatusCode != 200 {
 		return respToError(resp, what)
@@ -240,19 +223,12 @@ func (s *Store) downloadAssertions(u *url.URL, decodeBody func(io.Reader) error,
 // and adds their assertions to the given asserts.Batch.
 func (s *Store) DownloadAssertions(streamURLs []string, b *asserts.Batch, user *auth.UserState) error {
 	for _, ustr := range streamURLs {
-		u, err := url.Parse(ustr)
-		if err != nil {
-			return fmt.Errorf("invalid assertions stream URL: %v", err)
-		}
-
-		err = s.downloadAssertions(u, func(r io.Reader) error {
+		u := mylog.Check2(url.Parse(ustr))
+		mylog.Check(s.downloadAssertions(u, func(r io.Reader) error {
 			// decode stream
 			_, e := b.AddStream(r)
 			return e
-		}, nil, "download assertion stream", user)
-		if err != nil {
-			return err
-		}
+		}, nil, "download assertion stream", user))
 
 	}
 	return nil

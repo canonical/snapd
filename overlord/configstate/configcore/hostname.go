@@ -27,6 +27,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/sysconfig"
@@ -60,43 +61,32 @@ func validateHostname(hostname string) error {
 }
 
 func handleHostnameConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyContext) error {
-	hostname, err := coreCfg(tr, "system.hostname")
-	if err != nil {
-		return nil
-	}
+	hostname := mylog.Check2(coreCfg(tr, "system.hostname"))
+
 	// nothing to do
 	if hostname == "" {
 		return nil
 	}
 	// runtime system
 	if opts == nil {
-		currentHostname, err := getHostnameFromSystem()
-		if err != nil {
-			return err
-		}
+		currentHostname := mylog.Check2(getHostnameFromSystem())
+
 		if hostname == currentHostname {
 			return nil
 		}
-		output, err := exec.Command("hostnamectl", "set-hostname", hostname).CombinedOutput()
-		if err != nil {
-			return fmt.Errorf("cannot set hostname: %v", osutil.OutputErr(output, err))
-		}
+		output := mylog.Check2(exec.Command("hostnamectl", "set-hostname", hostname).CombinedOutput())
+
 	} else {
-		if err := validateHostname(hostname); err != nil {
-			return err
-		}
+		mylog.Check(validateHostname(hostname))
 
 		// On the UC16/UC18/UC20 images the file /etc/hostname is a
 		// symlink to /etc/writable/hostname. The /etc/hostname is
 		// not part of the "writable-path" so we must set the file
 		// in /etc/writable here for this to work.
 		hostnamePath := filepath.Join(opts.RootDir, "/etc/writable/hostname")
-		if err := os.MkdirAll(filepath.Dir(hostnamePath), 0755); err != nil {
-			return err
-		}
-		if err := osutil.AtomicWriteFile(hostnamePath, []byte(hostname+"\n"), 0644, 0); err != nil {
-			return fmt.Errorf("cannot write hostname: %v", err)
-		}
+		mylog.Check(os.MkdirAll(filepath.Dir(hostnamePath), 0755))
+		mylog.Check(osutil.AtomicWriteFile(hostnamePath, []byte(hostname+"\n"), 0644, 0))
+
 	}
 
 	return nil
@@ -109,19 +99,15 @@ func getHostnameFromSystemHelper(key string) (interface{}, error) {
 
 func getHostnameFromSystem() (string, error) {
 	// try pretty hostname first
-	output, stderr, err := osutil.RunSplitOutput("hostnamectl", "status", "--pretty")
-	if err != nil {
-		return "", fmt.Errorf("cannot get hostname (pretty): %v", osutil.OutputErrCombine(output, stderr, err))
-	}
+	output, stderr := mylog.Check3(osutil.RunSplitOutput("hostnamectl", "status", "--pretty"))
+
 	prettyHostname := strings.TrimSpace(string(output))
 	if len(prettyHostname) > 0 {
 		return prettyHostname, nil
 	}
 
 	// then static hostname
-	output, stderr, err = osutil.RunSplitOutput("hostnamectl", "status", "--static")
-	if err != nil {
-		return "", fmt.Errorf("cannot get hostname: %v", osutil.OutputErrCombine(output, stderr, err))
-	}
+	output, stderr = mylog.Check3(osutil.RunSplitOutput("hostnamectl", "status", "--static"))
+
 	return strings.TrimSpace(string(output)), nil
 }

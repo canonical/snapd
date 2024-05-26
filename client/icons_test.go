@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"golang.org/x/xerrors"
 	. "gopkg.in/check.v1"
 )
@@ -40,34 +41,34 @@ func (cs *clientSuite) TestClientIconCallsEndpoint(c *C) {
 
 func (cs *clientSuite) TestClientIconHttpError(c *C) {
 	cs.err = errors.New("fail")
-	_, err := cs.cli.Icon(pkgID)
+	_ := mylog.Check2(cs.cli.Icon(pkgID))
 	c.Assert(err, ErrorMatches, ".*server: fail")
 }
 
 func (cs *clientSuite) TestClientIconResponseNotFound(c *C) {
 	cs.status = 404
-	_, err := cs.cli.Icon(pkgID)
+	_ := mylog.Check2(cs.cli.Icon(pkgID))
 	c.Assert(err, ErrorMatches, `.*Not Found`)
 }
 
 func (cs *clientSuite) TestClientIconInvalidContentDisposition(c *C) {
 	cs.header = http.Header{"Content-Disposition": {"invalid"}}
-	_, err := cs.cli.Icon(pkgID)
+	_ := mylog.Check2(cs.cli.Icon(pkgID))
 	c.Assert(err, ErrorMatches, `.*cannot determine filename`)
 }
 
 func (cs *clientSuite) TestClientIcon(c *C) {
 	cs.rsp = "pixels"
 	cs.header = http.Header{"Content-Disposition": {"attachment; filename=myicon.png"}}
-	icon, err := cs.cli.Icon(pkgID)
-	c.Assert(err, IsNil)
+	icon := mylog.Check2(cs.cli.Icon(pkgID))
+
 	c.Assert(icon.Filename, Equals, "myicon.png")
 	c.Assert(icon.Content, DeepEquals, []byte("pixels"))
 }
 
 func (cs *clientSuite) TestClientIconErrIsWrapped(c *C) {
 	cs.err = errors.New("boom")
-	_, err := cs.cli.Icon("something")
+	_ := mylog.Check2(cs.cli.Icon("something"))
 	var e xerrors.Wrapper
 	c.Assert(err, Implements, &e)
 }

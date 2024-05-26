@@ -23,6 +23,7 @@ package systestkeys
 import (
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 )
 
@@ -322,22 +323,13 @@ var (
 )
 
 func init() {
-	acct, err := asserts.Decode([]byte(encodedTestRootAccount))
-	if err != nil {
-		panic(fmt.Sprintf("cannot decode trusted assertion: %v", err))
-	}
-	accKey, err := asserts.Decode([]byte(encodedTestRootAccountKey))
-	if err != nil {
-		panic(fmt.Sprintf("cannot decode trusted assertion: %v", err))
-	}
-	storeAccKey, err := asserts.Decode([]byte(encodedTestStoreAccountKey))
-	if err != nil {
-		panic(fmt.Sprintf("cannot decode test store assertion: %v", err))
-	}
-	repairAccKey, err := asserts.Decode([]byte(encodedTestRepairRootAccountKey))
-	if err != nil {
-		panic(fmt.Sprintf("cannot decode test repair root assertion: %v", err))
-	}
+	acct := mylog.Check2(asserts.Decode([]byte(encodedTestRootAccount)))
+
+	accKey := mylog.Check2(asserts.Decode([]byte(encodedTestRootAccountKey)))
+
+	storeAccKey := mylog.Check2(asserts.Decode([]byte(encodedTestStoreAccountKey)))
+
+	repairAccKey := mylog.Check2(asserts.Decode([]byte(encodedTestRepairRootAccountKey)))
 
 	TestRootAccount = acct
 	TestRootAccountKey = accKey

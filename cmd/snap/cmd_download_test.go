@@ -26,6 +26,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	snapCmd "github.com/snapcore/snapd/cmd/snap"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store/tooling"
@@ -35,33 +36,33 @@ import (
 // because we're not (yet!) mocking the tooling store
 
 func (s *SnapSuite) TestDownloadBadBasename(c *check.C) {
-	_, err := snapCmd.Parser(snapCmd.Client()).ParseArgs([]string{
+	_ := mylog.Check2(snapCmd.Parser(snapCmd.Client()).ParseArgs([]string{
 		"download", "--basename=/foo", "a-snap",
-	})
+	}))
 
 	c.Check(err, check.ErrorMatches, "cannot specify a path in basename .use --target-dir for that.")
 }
 
 func (s *SnapSuite) TestDownloadBadChannelCombo(c *check.C) {
-	_, err := snapCmd.Parser(snapCmd.Client()).ParseArgs([]string{
+	_ := mylog.Check2(snapCmd.Parser(snapCmd.Client()).ParseArgs([]string{
 		"download", "--beta", "--channel=foo", "a-snap",
-	})
+	}))
 
 	c.Check(err, check.ErrorMatches, "Please specify a single channel")
 }
 
 func (s *SnapSuite) TestDownloadCohortAndRevision(c *check.C) {
-	_, err := snapCmd.Parser(snapCmd.Client()).ParseArgs([]string{
+	_ := mylog.Check2(snapCmd.Parser(snapCmd.Client()).ParseArgs([]string{
 		"download", "--cohort=what", "--revision=1234", "a-snap",
-	})
+	}))
 
 	c.Check(err, check.ErrorMatches, "cannot specify both cohort and revision")
 }
 
 func (s *SnapSuite) TestDownloadChannelAndRevision(c *check.C) {
-	_, err := snapCmd.Parser(snapCmd.Client()).ParseArgs([]string{
+	_ := mylog.Check2(snapCmd.Parser(snapCmd.Client()).ParseArgs([]string{
 		"download", "--beta", "--revision=1234", "a-snap",
-	})
+	}))
 
 	c.Check(err, check.ErrorMatches, "cannot specify both channel and revision")
 }
@@ -74,7 +75,7 @@ func (s *SnapSuite) TestPrintInstalHint(c *check.C) {
 `)
 	s.stdout.Reset()
 
-	cwd, err := os.Getwd()
+	cwd := mylog.Check2(os.Getwd())
 	c.Assert(err, check.IsNil)
 	as := filepath.Join(cwd, "some-dir/foo_1.assert")
 	sn := filepath.Join(cwd, "some-dir/foo_1.snap")
@@ -100,14 +101,15 @@ func (s *SnapSuite) TestDownloadDirect(c *check.C) {
 	defer restore()
 
 	// check that a direct download got issued
-	_, err := snapCmd.Parser(snapCmd.Client()).ParseArgs([]string{
+	_ := mylog.Check2(snapCmd.Parser(snapCmd.Client()).ParseArgs([]string{
 		"download",
 		"--target-directory=some-target-dir",
 		"--basename=some-base-name",
 		"--channel=some-channel",
 		"--cohort=some-cohort",
-		"a-snap"},
-	)
+		"a-snap",
+	},
+	))
 	c.Assert(err, check.IsNil)
 	c.Check(n, check.Equals, 1)
 }
@@ -121,10 +123,11 @@ func (s *SnapSuite) TestDownloadDirectErrors(c *check.C) {
 	defer restore()
 
 	// check that a direct download got issued
-	_, err := snapCmd.Parser(snapCmd.Client()).ParseArgs([]string{
+	_ := mylog.Check2(snapCmd.Parser(snapCmd.Client()).ParseArgs([]string{
 		"download",
-		"a-snap"},
-	)
+		"a-snap",
+	},
+	))
 	c.Assert(err, check.ErrorMatches, "some-error")
 	c.Check(n, check.Equals, 1)
 }

@@ -19,6 +19,7 @@
 package backend
 
 import (
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/cmd/snaplock"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/osutil"
@@ -34,10 +35,8 @@ func (b Backend) RunInhibitSnapForUnlink(info *snap.Info, hint runinhibit.Hint, 
 	// sufficient to perform the check, even though individual processes
 	// may fork or exit, we will have per-security-tag information about
 	// what is running.
-	lock, err = snaplock.OpenLock(info.InstanceName())
-	if err != nil {
-		return nil, err
-	}
+	lock = mylog.Check2(snaplock.OpenLock(info.InstanceName()))
+
 	// Keep a copy of lock, so that we can close it in the function below.
 	// The regular lock variable is assigned to by return, due to the named
 	// return values.
@@ -49,13 +48,12 @@ func (b Backend) RunInhibitSnapForUnlink(info *snap.Info, hint runinhibit.Hint, 
 			lockToClose.Close()
 		}
 	}()
-	if err := lock.Lock(); err != nil {
-		return nil, err
-	}
-	//
-	if err := decision(); err != nil {
-		return nil, err
-	}
+	mylog.Check(lock.Lock())
+	mylog.Check(
+
+		//
+		decision())
+
 	// Decision function did not fail so we can, while we still hold the snap
 	// lock, install the snap run inhibition hint, returning the snap lock to
 	// the caller.
@@ -65,9 +63,8 @@ func (b Backend) RunInhibitSnapForUnlink(info *snap.Info, hint runinhibit.Hint, 
 	// and hard checks, as it would effectively make hard check a no-op,
 	// but it might provide a nicer user experience.
 	inhibitInfo := runinhibit.InhibitInfo{Previous: info.SnapRevision()}
-	if err := runinhibit.LockWithHint(info.InstanceName(), hint, inhibitInfo); err != nil {
-		return nil, err
-	}
+	mylog.Check(runinhibit.LockWithHint(info.InstanceName(), hint, inhibitInfo))
+
 	return lock, nil
 }
 
@@ -81,14 +78,11 @@ func (b Backend) RunInhibitSnapForUnlink(info *snap.Info, hint runinhibit.Hint, 
 // Note that this is not a method of the Backend type, so that it can be
 // invoked from doInstall, which does not have access to a backend object.
 func WithSnapLock(info *snap.Info, action func() error) error {
-	lock, err := snaplock.OpenLock(info.InstanceName())
-	if err != nil {
-		return err
-	}
+	lock := mylog.Check2(snaplock.OpenLock(info.InstanceName()))
+
 	// Closing the lock also unlocks it, if locked.
 	defer lock.Close()
-	if err := lock.Lock(); err != nil {
-		return err
-	}
+	mylog.Check(lock.Lock())
+
 	return action()
 }

@@ -28,6 +28,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil"
 )
@@ -63,14 +64,10 @@ func NewRawStructureWriter(contentDir string, ps *LaidOutStructure) (*RawStructu
 // laid out content. The number of bytes read from input stream must match
 // exactly the declared size of the content entry.
 func writeRawStream(out io.WriteSeeker, pc *LaidOutContent, in io.Reader) error {
-	if _, err := out.Seek(int64(pc.StartOffset), io.SeekStart); err != nil {
-		return fmt.Errorf("cannot seek to content start offset 0x%x: %v", pc.StartOffset, err)
-	}
+	mylog.Check2(out.Seek(int64(pc.StartOffset), io.SeekStart))
 
-	_, err := io.CopyN(out, in, int64(pc.Size))
-	if err != nil {
-		return fmt.Errorf("cannot write image: %v", err)
-	}
+	_ := mylog.Check2(io.CopyN(out, in, int64(pc.Size)))
+
 	return nil
 }
 
@@ -79,10 +76,8 @@ func (r *RawStructureWriter) writeRawImage(out io.WriteSeeker, pc *LaidOutConten
 	if pc.Image == "" {
 		return fmt.Errorf("internal error: no image defined")
 	}
-	img, err := os.Open(filepath.Join(r.contentDir, pc.Image))
-	if err != nil {
-		return fmt.Errorf("cannot open image file: %v", err)
-	}
+	img := mylog.Check2(os.Open(filepath.Join(r.contentDir, pc.Image)))
+
 	defer img.Close()
 
 	return writeRawStream(out, pc, img)
@@ -91,9 +86,7 @@ func (r *RawStructureWriter) writeRawImage(out io.WriteSeeker, pc *LaidOutConten
 // Write will write whole contents of a structure into the output stream.
 func (r *RawStructureWriter) Write(out io.WriteSeeker) error {
 	for _, pc := range r.ps.LaidOutContent {
-		if err := r.writeRawImage(out, &pc); err != nil {
-			return fmt.Errorf("failed to write image %v: %v", pc, err)
-		}
+		mylog.Check(r.writeRawImage(out, &pc))
 	}
 	return nil
 }
@@ -119,10 +112,8 @@ func newRawStructureUpdater(contentDir string, ps *LaidOutStructure, backupDir s
 		return nil, fmt.Errorf("internal error: backup directory cannot be unset")
 	}
 
-	rw, err := NewRawStructureWriter(contentDir, ps)
-	if err != nil {
-		return nil, err
-	}
+	rw := mylog.Check2(NewRawStructureWriter(contentDir, ps))
+
 	ru := &rawStructureUpdater{
 		RawStructureWriter: rw,
 		backupDir:          backupDir,
@@ -145,19 +136,14 @@ func (r *rawStructureUpdater) backupOrCheckpointContent(disk io.ReadSeeker, pc *
 		// before
 		return nil
 	}
-
-	if _, err := disk.Seek(int64(pc.StartOffset), io.SeekStart); err != nil {
-		return fmt.Errorf("cannot seek to structure's start offset: %v", err)
-	}
+	mylog.Check2(disk.Seek(int64(pc.StartOffset), io.SeekStart))
 
 	// copy out at most the size of updated content
 	lr := io.LimitReader(disk, int64(pc.Size))
 
 	// backup the original content
-	backup, err := osutil.NewAtomicFile(backupName, 0644, 0, osutil.NoChown, osutil.NoChown)
-	if err != nil {
-		return fmt.Errorf("cannot create backup file: %v", err)
-	}
+	backup := mylog.Check2(osutil.NewAtomicFile(backupName, 0644, 0, osutil.NoChown, osutil.NoChown))
+
 	// becomes a noop if canceled
 	defer backup.Commit()
 
@@ -165,26 +151,18 @@ func (r *rawStructureUpdater) backupOrCheckpointContent(disk io.ReadSeeker, pc *
 	origHash := crypto.SHA1.New()
 	htr := io.TeeReader(lr, origHash)
 
-	_, err = io.CopyN(backup, htr, int64(pc.Size))
-	if err != nil {
-		defer backup.Cancel()
-		return fmt.Errorf("cannot backup original image: %v", err)
-	}
+	_ = mylog.Check2(io.CopyN(backup, htr, int64(pc.Size)))
 
 	// digest of the update
-	updateDigest, _, err := osutil.FileDigest(filepath.Join(r.contentDir, pc.Image), crypto.SHA1)
-	if err != nil {
-		defer backup.Cancel()
-		return fmt.Errorf("cannot checksum update image: %v", err)
-	}
+	updateDigest, _ := mylog.Check3(osutil.FileDigest(filepath.Join(r.contentDir, pc.Image), crypto.SHA1))
+
 	// digest of the currently present data
 	origDigest := origHash.Sum(nil)
 
 	if bytes.Equal(origDigest, updateDigest) {
-		// files are identical, no update needed
-		if err := osutil.AtomicWriteFile(sameName, nil, 0644, 0); err != nil {
-			return fmt.Errorf("cannot create a checkpoint file: %v", err)
-		}
+		mylog.Check(
+			// files are identical, no update needed
+			osutil.AtomicWriteFile(sameName, nil, 0644, 0))
 
 		// makes the previous commit a noop
 		backup.Cancel()
@@ -196,10 +174,7 @@ func (r *rawStructureUpdater) backupOrCheckpointContent(disk io.ReadSeeker, pc *
 // matchDevice identifies the device matching the configured structure, returns
 // device path and a shifted structure should any offset adjustments be needed
 func (r *rawStructureUpdater) matchDevice() (device string, shifted *LaidOutStructure, err error) {
-	device, offs, err := r.deviceLookup(r.ps)
-	if err != nil {
-		return "", nil, fmt.Errorf("cannot find device matching structure %v: %v", r.ps, err)
-	}
+	device, offs := mylog.Check3(r.deviceLookup(r.ps))
 
 	if offs == r.ps.StartOffset {
 		return device, r.ps, nil
@@ -217,21 +192,14 @@ func (r *rawStructureUpdater) matchDevice() (device string, shifted *LaidOutStru
 // and backup of each region is checkpointed. Regions that have been backed up
 // or determined to be identical will not be analyzed on subsequent calls.
 func (r *rawStructureUpdater) Backup() error {
-	device, structForDevice, err := r.matchDevice()
-	if err != nil {
-		return err
-	}
+	device, structForDevice := mylog.Check3(r.matchDevice())
 
-	disk, err := os.OpenFile(device, os.O_RDONLY, 0)
-	if err != nil {
-		return fmt.Errorf("cannot open device for reading: %v", err)
-	}
+	disk := mylog.Check2(os.OpenFile(device, os.O_RDONLY, 0))
+
 	defer disk.Close()
 
 	for _, pc := range structForDevice.LaidOutContent {
-		if err := r.backupOrCheckpointContent(disk, &pc); err != nil {
-			return fmt.Errorf("cannot backup image %v: %v", pc, err)
-		}
+		mylog.Check(r.backupOrCheckpointContent(disk, &pc))
 	}
 
 	return nil
@@ -245,35 +213,22 @@ func (r *rawStructureUpdater) rollbackDifferent(out io.WriteSeeker, pc *LaidOutC
 		return nil
 	}
 
-	backup, err := os.Open(backupPath + ".backup")
-	if err != nil {
-		return fmt.Errorf("cannot open backup image: %v", err)
-	}
-
-	if err := writeRawStream(out, pc, backup); err != nil {
-		return fmt.Errorf("cannot restore backup: %v", err)
-	}
+	backup := mylog.Check2(os.Open(backupPath + ".backup"))
+	mylog.Check(writeRawStream(out, pc, backup))
 
 	return nil
 }
 
 // Rollback attempts to restore original content from the backup copies prepared during Backup().
 func (r *rawStructureUpdater) Rollback() error {
-	device, structForDevice, err := r.matchDevice()
-	if err != nil {
-		return err
-	}
+	device, structForDevice := mylog.Check3(r.matchDevice())
 
-	disk, err := os.OpenFile(device, os.O_WRONLY, 0)
-	if err != nil {
-		return fmt.Errorf("cannot open device for writing: %v", err)
-	}
+	disk := mylog.Check2(os.OpenFile(device, os.O_WRONLY, 0))
+
 	defer disk.Close()
 
 	for _, pc := range structForDevice.LaidOutContent {
-		if err := r.rollbackDifferent(disk, &pc); err != nil {
-			return fmt.Errorf("cannot rollback image %v: %v", pc, err)
-		}
+		mylog.Check(r.rollbackDifferent(disk, &pc))
 	}
 
 	return nil
@@ -292,10 +247,7 @@ func (r *rawStructureUpdater) updateDifferent(disk io.WriteSeeker, pc *LaidOutCo
 		// case
 		return fmt.Errorf("missing backup file")
 	}
-
-	if err := r.writeRawImage(disk, pc); err != nil {
-		return err
-	}
+	mylog.Check(r.writeRawImage(disk, pc))
 
 	return nil
 }
@@ -303,26 +255,15 @@ func (r *rawStructureUpdater) updateDifferent(disk io.WriteSeeker, pc *LaidOutCo
 // Update attempts to update the structure. The structure must have been
 // analyzed and backed up by a prior Backup() call.
 func (r *rawStructureUpdater) Update() error {
-	device, structForDevice, err := r.matchDevice()
-	if err != nil {
-		return err
-	}
+	device, structForDevice := mylog.Check3(r.matchDevice())
 
-	disk, err := os.OpenFile(device, os.O_WRONLY, 0)
-	if err != nil {
-		return fmt.Errorf("cannot open device for writing: %v", err)
-	}
+	disk := mylog.Check2(os.OpenFile(device, os.O_WRONLY, 0))
+
 	defer disk.Close()
 
 	skipped := 0
 	for _, pc := range structForDevice.LaidOutContent {
-		if err := r.updateDifferent(disk, &pc); err != nil {
-			if err == ErrNoUpdate {
-				skipped++
-				continue
-			}
-			return fmt.Errorf("cannot update image %v: %v", pc, err)
-		}
+		mylog.Check(r.updateDifferent(disk, &pc))
 	}
 
 	if skipped == len(structForDevice.LaidOutContent) {

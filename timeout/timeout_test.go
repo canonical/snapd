@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	. "gopkg.in/check.v1"
 	"gopkg.in/yaml.v2"
 )
@@ -31,14 +32,13 @@ import (
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
-type TimeoutTestSuite struct {
-}
+type TimeoutTestSuite struct{}
 
 var _ = Suite(&TimeoutTestSuite{})
 
 func (s *TimeoutTestSuite) TestTimeoutMarshal(c *C) {
-	bs, err := Timeout(DefaultTimeout).MarshalJSON()
-	c.Assert(err, IsNil)
+	bs := mylog.Check2(Timeout(DefaultTimeout).MarshalJSON())
+
 	c.Check(string(bs), Equals, `"30s"`)
 }
 
@@ -47,8 +47,8 @@ type testT struct {
 }
 
 func (s *TimeoutTestSuite) TestTimeoutMarshalIndirect(c *C) {
-	bs, err := json.Marshal(testT{DefaultTimeout})
-	c.Assert(err, IsNil)
+	bs := mylog.Check2(json.Marshal(testT{DefaultTimeout}))
+
 	c.Check(string(bs), Equals, `{"T":"30s"}`)
 }
 

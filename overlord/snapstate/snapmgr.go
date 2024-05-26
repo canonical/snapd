@@ -31,6 +31,7 @@ import (
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
@@ -53,9 +54,7 @@ import (
 	"github.com/snapcore/snapd/wrappers"
 )
 
-var (
-	snapdTransitionDelayWithRandomness = 3*time.Hour + randutil.RandomDuration(4*time.Hour)
-)
+var snapdTransitionDelayWithRandomness = 3*time.Hour + randutil.RandomDuration(4*time.Hour)
 
 // SnapManager is responsible for the installation and removal of snaps.
 type SnapManager struct {
@@ -234,10 +233,8 @@ func ComponentSetupsForTask(t *state.Task) ([]*ComponentSetup, error) {
 	case t.Has("component-setup") || t.Has("component-setup-task"):
 		// task comes from a singular component installation for an already
 		// installed snap
-		compsup, _, err := TaskComponentSetup(t)
-		if err != nil {
-			return nil, err
-		}
+		compsup, _ := mylog.Check3(TaskComponentSetup(t))
+
 		return []*ComponentSetup{compsup}, nil
 	default:
 		// task comes from a snap installation that doesn't contain any
@@ -354,10 +351,8 @@ type PendingSecurityState struct {
 }
 
 func (snapst *SnapState) SetTrackingChannel(s string) error {
-	s, err := channel.Full(s)
-	if err != nil {
-		return err
-	}
+	s := mylog.Check2(channel.Full(s))
+
 	snapst.TrackingChannel = s
 	return nil
 }
@@ -496,18 +491,18 @@ const (
 var snapReadInfo = snap.ReadInfo
 
 // AutomaticSnapshot allows to hook snapshot manager's AutomaticSnapshot.
-var AutomaticSnapshot func(st *state.State, instanceName string) (ts *state.TaskSet, err error)
-var AutomaticSnapshotExpiration func(st *state.State) (time.Duration, error)
-var EstimateSnapshotSize func(st *state.State, instanceName string, users []string) (uint64, error)
+var (
+	AutomaticSnapshot           func(st *state.State, instanceName string) (ts *state.TaskSet, err error)
+	AutomaticSnapshotExpiration func(st *state.State) (time.Duration, error)
+	EstimateSnapshotSize        func(st *state.State, instanceName string, users []string) (uint64, error)
+)
 
 func readInfo(name string, si *snap.SideInfo, flags int) (*snap.Info, error) {
-	info, err := snapReadInfo(name, si)
+	info := mylog.Check2(snapReadInfo(name, si))
 	if err != nil && flags&errorOnBroken != 0 {
 		return nil, err
 	}
-	if err != nil {
-		logger.Noticef("cannot read snap info of snap %q at revision %s: %s", name, si.Revision, err)
-	}
+
 	if bse, ok := err.(snap.BrokenSnapError); ok {
 		_, instanceKey := snap.SplitInstanceName(name)
 		info = &snap.Info{
@@ -522,9 +517,7 @@ func readInfo(name string, si *snap.SideInfo, flags int) (*snap.Info, error) {
 		err = nil
 	}
 	if err == nil && flags&withAuxStoreInfo != 0 {
-		if err := retrieveAuxStoreInfo(info); err != nil {
-			logger.Debugf("cannot read auxiliary store info for snap %q: %v", name, err)
-		}
+		mylog.Check(retrieveAuxStoreInfo(info))
 	}
 	return info, err
 }
@@ -533,10 +526,8 @@ var revisionDate = revisionDateImpl
 
 // revisionDate returns a good approximation of when a revision reached the system.
 func revisionDateImpl(info *snap.Info) time.Time {
-	fi, err := os.Lstat(info.MountFile())
-	if err != nil {
-		return time.Time{}
-	}
+	fi := mylog.Check2(os.Lstat(info.MountFile()))
+
 	return fi.ModTime()
 }
 
@@ -574,20 +565,14 @@ func (snapst *SnapState) ComponentInfosForRevision(rev snap.Revision) ([]*snap.C
 	revState := snapst.Sequence.Revisions[index]
 
 	instanceName := snap.InstanceName(revState.Snap.RealName, snapst.InstanceKey)
-	si, err := readInfo(instanceName, revState.Snap, withAuxStoreInfo)
-	if err != nil {
-		return nil, err
-	}
+	si := mylog.Check2(readInfo(instanceName, revState.Snap, withAuxStoreInfo))
 
 	compInfos := make([]*snap.ComponentInfo, 0, len(revState.Components))
 	for _, comp := range revState.Components {
 		cpi := snap.MinimalComponentContainerPlaceInfo(comp.SideInfo.Component.ComponentName,
 			comp.SideInfo.Revision, si.InstanceName())
 
-		compInfo, err := readComponentInfo(cpi.MountDir(), si)
-		if err != nil {
-			return nil, err
-		}
+		compInfo := mylog.Check2(readComponentInfo(cpi.MountDir(), si))
 
 		compInfos = append(compInfos, compInfo)
 	}
@@ -604,10 +589,7 @@ func (snapst *SnapState) CurrentComponentInfo(cref naming.ComponentRef) (*snap.C
 		return nil, ErrNoCurrent
 	}
 
-	si, err := snapst.CurrentInfo()
-	if err != nil {
-		return nil, err
-	}
+	si := mylog.Check2(snapst.CurrentInfo())
 
 	cpi := snap.MinimalComponentContainerPlaceInfo(csi.Component.ComponentName,
 		csi.Revision, si.InstanceName())
@@ -699,14 +681,8 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	} else {
 		m.backend = backend.Backend{}
 	}
-
-	if err := os.MkdirAll(dirs.SnapCookieDir, 0700); err != nil {
-		return nil, fmt.Errorf("cannot create directory %q: %v", dirs.SnapCookieDir, err)
-	}
-
-	if err := genRefreshRequestSalt(st); err != nil {
-		return nil, fmt.Errorf("cannot generate request salt: %v", err)
-	}
+	mylog.Check(os.MkdirAll(dirs.SnapCookieDir, 0700))
+	mylog.Check(genRefreshRequestSalt(st))
 
 	// this handler does nothing
 	runner.AddHandler("nop", func(t *state.Task, _ *tomb.Tomb) error {
@@ -789,9 +765,7 @@ func (m *SnapManager) StartUp() error {
 
 	m.state.Lock()
 	defer m.state.Unlock()
-	if err := m.SyncCookies(m.state); err != nil {
-		return fmt.Errorf("failed to generate cookies: %q", err)
-	}
+	mylog.Check(m.SyncCookies(m.state))
 
 	// register handler that records a refresh-inhibit notice when
 	// the set of inhibited snaps is changed.
@@ -811,7 +785,7 @@ func (m *SnapManager) Stop() {
 }
 
 func (m *SnapManager) CanStandby() bool {
-	if n, err := NumSnaps(m.state); err == nil && n == 0 {
+	if n := mylog.Check2(NumSnaps(m.state)); err == nil && n == 0 {
 		return true
 	}
 	return false
@@ -823,7 +797,7 @@ func genRefreshRequestSalt(st *state.State) error {
 	st.Lock()
 	defer st.Unlock()
 
-	if err := st.Get("refresh-privacy-key", &refreshPrivacyKey); err != nil && !errors.Is(err, state.ErrNoState) {
+	if mylog.Check(st.Get("refresh-privacy-key", &refreshPrivacyKey)); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if refreshPrivacyKey != "" {
@@ -883,13 +857,11 @@ func (m *SnapManager) RefreshSchedule() (string, bool, error) {
 // of time, as well as return any active auto-refresh changes that are currently
 // not ready so that the client can wait for those.
 func (m *SnapManager) EnsureAutoRefreshesAreDelayed(delay time.Duration) ([]*state.Change, error) {
-	// always delay for at least the specified time, this ensures that even if
-	// there are active refreshes right now, there won't be more auto-refreshes
-	// that happen after the current set finish
-	err := m.autoRefresh.ensureRefreshHoldAtLeast(delay)
-	if err != nil {
-		return nil, err
-	}
+	mylog.
+		// always delay for at least the specified time, this ensures that even if
+		// there are active refreshes right now, there won't be more auto-refreshes
+		// that happen after the current set finish
+		Check(m.autoRefresh.ensureRefreshHoldAtLeast(delay))
 
 	// look for auto refresh changes in progress
 	autoRefreshChgsInFlight := []*state.Change{}
@@ -914,14 +886,14 @@ func (m *SnapManager) ensureVulnerableSnapRemoved(name string) error {
 	// not exploitable in the current versions of snapd/core snaps.
 	var alreadyRemoved bool
 	key := fmt.Sprintf("%s-snap-cve-2022-3328-vuln-removed", name)
-	if err := m.state.Get(key, &alreadyRemoved); err != nil && !errors.Is(err, state.ErrNoState) {
+	if mylog.Check(m.state.Get(key, &alreadyRemoved)); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if alreadyRemoved {
 		return nil
 	}
 	var snapSt SnapState
-	err := Get(m.state, name, &snapSt)
+	mylog.Check(Get(m.state, name, &snapSt))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
@@ -936,15 +908,11 @@ func (m *SnapManager) ensureVulnerableSnapRemoved(name string) error {
 	for _, si := range snapSt.Sequence.SideInfos() {
 		// check this version
 		s := snap.Info{SideInfo: *si}
-		ver, _, err := snapdtool.SnapdVersionFromInfoFile(filepath.Join(s.MountDir(), dirs.CoreLibExecDir))
-		if err != nil {
-			return err
-		}
+		ver, _ := mylog.Check3(snapdtool.SnapdVersionFromInfoFile(filepath.Join(s.MountDir(), dirs.CoreLibExecDir)))
+
 		// res is < 0 if "ver" is lower than "2.57.6"
-		res, err := strutil.VersionCompare(ver, "2.57.6")
-		if err != nil {
-			return err
-		}
+		res := mylog.Check2(strutil.VersionCompare(ver, "2.57.6"))
+
 		revIsVulnerable := (res < 0)
 		switch {
 		case !revIsVulnerable && si.Revision == snapSt.Current:
@@ -974,17 +942,10 @@ func (m *SnapManager) ensureVulnerableSnapRemoved(name string) error {
 
 	// remove all the inactive vulnerable revisions
 	for _, rev := range inactiveVulnRevisions {
-		tss, err := Remove(m.state, name, rev, nil)
+		tss := mylog.Check2(Remove(m.state, name, rev, nil))
 
-		if err != nil {
-			// in case of conflict, just trigger another ensure in a little
-			// bit and try again later
-			if _, ok := err.(*ChangeConflictError); ok {
-				m.state.EnsureBefore(time.Minute)
-				return nil
-			}
-			return fmt.Errorf("cannot make task set for removing %s snap: %v", name, err)
-		}
+		// in case of conflict, just trigger another ensure in a little
+		// bit and try again later
 
 		msg := fmt.Sprintf(i18n.G("Remove inactive vulnerable %q snap (%v)"), name, rev)
 
@@ -1013,19 +974,15 @@ func (m *SnapManager) ensureVulnerableSnapConfineVersionsRemovedOnClassic() erro
 
 	m.state.Lock()
 	defer m.state.Unlock()
+	mylog.Check(
 
-	// we have to remove vulnerable versions of both the core and snapd snaps
-	// only when we now have fixed versions installed / active
-	// the fixed version is 2.57.6, so if the version of the current core/snapd
-	// snap is that or higher, then we proceed (if we didn't already do this)
+		// we have to remove vulnerable versions of both the core and snapd snaps
+		// only when we now have fixed versions installed / active
+		// the fixed version is 2.57.6, so if the version of the current core/snapd
+		// snap is that or higher, then we proceed (if we didn't already do this)
 
-	if err := m.ensureVulnerableSnapRemoved("snapd"); err != nil {
-		return err
-	}
-
-	if err := m.ensureVulnerableSnapRemoved("core"); err != nil {
-		return err
-	}
+		m.ensureVulnerableSnapRemoved("snapd"))
+	mylog.Check(m.ensureVulnerableSnapRemoved("core"))
 
 	return nil
 }
@@ -1042,7 +999,7 @@ func (m *SnapManager) ensureForceDevmodeDropsDevmodeFromState() error {
 
 	// int because we might want to come back and do a second pass at cleanup
 	var fixed int
-	if err := m.state.Get("fix-forced-devmode", &fixed); err != nil && !errors.Is(err, state.ErrNoState) {
+	if mylog.Check(m.state.Get("fix-forced-devmode", &fixed)); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 
@@ -1052,13 +1009,12 @@ func (m *SnapManager) ensureForceDevmodeDropsDevmodeFromState() error {
 
 	for _, name := range []string{"core", "ubuntu-core"} {
 		var snapst SnapState
-		if err := Get(m.state, name, &snapst); errors.Is(err, state.ErrNoState) {
+		if mylog.Check(Get(m.state, name, &snapst)); errors.Is(err, state.ErrNoState) {
 			// nothing to see here
 			continue
-		} else if err != nil {
-			// bad
-			return err
 		}
+		// bad
+
 		if info := snapst.CurrentSideInfo(); info == nil || info.SnapID == "" {
 			continue
 		}
@@ -1095,21 +1051,17 @@ func (m *SnapManager) ensureSnapdSnapTransition() error {
 
 	// Wait for the system to be seeded before transtioning
 	var seeded bool
-	err := m.state.Get("seeded", &seeded)
-	if err != nil {
-		if !errors.Is(err, state.ErrNoState) {
-			// already seeded or other error
-			return err
-		}
-		return nil
-	}
+	mylog.Check(m.state.Get("seeded", &seeded))
+
+	// already seeded or other error
+
 	if !seeded {
 		return nil
 	}
 
 	// check if snapd snap is installed
 	var snapst SnapState
-	err = Get(m.state, "snapd", &snapst)
+	mylog.Check(Get(m.state, "snapd", &snapst))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
@@ -1119,27 +1071,24 @@ func (m *SnapManager) ensureSnapdSnapTransition() error {
 	}
 
 	// check if the user opts into the snapd snap
-	optedIntoSnapdTransition, err := optedIntoSnapdSnap(m.state)
-	if err != nil {
-		return err
-	}
+	optedIntoSnapdTransition := mylog.Check2(optedIntoSnapdSnap(m.state))
+
 	// nothing to do: the user does not want the snapd snap yet
 	if !optedIntoSnapdTransition {
 		return nil
 	}
 
 	// ensure we only transition systems that have snaps already
-	installedSnaps, err := NumSnaps(m.state)
-	if err != nil {
-		return err
-	}
+	installedSnaps := mylog.Check2(NumSnaps(m.state))
+
 	// no installed snaps (yet): do nothing (fresh classic install)
 	if installedSnaps == 0 {
 		return nil
 	}
+	mylog.
 
-	// get current core snap and use same channel/user for the snapd snap
-	err = Get(m.state, "core", &snapst)
+		// get current core snap and use same channel/user for the snapd snap
+		Check(Get(m.state, "core", &snapst))
 	// Note that state.ErrNoState should never happen in practice. However
 	// if it *does* happen we still want to fix those systems by installing
 	// the snapd snap.
@@ -1159,7 +1108,7 @@ func (m *SnapManager) ensureSnapdSnapTransition() error {
 
 	// ensure we limit the retries in case something goes wrong
 	var lastSnapdTransitionAttempt time.Time
-	err = m.state.Get("snapd-transition-last-retry-time", &lastSnapdTransitionAttempt)
+	mylog.Check(m.state.Get("snapd-transition-last-retry-time", &lastSnapdTransitionAttempt))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
@@ -1170,16 +1119,13 @@ func (m *SnapManager) ensureSnapdSnapTransition() error {
 	m.state.Set("snapd-transition-last-retry-time", now)
 
 	var retryCount int
-	err = m.state.Get("snapd-transition-retry", &retryCount)
+	mylog.Check(m.state.Get("snapd-transition-retry", &retryCount))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	m.state.Set("snapd-transition-retry", retryCount+1)
 
-	ts, err := Install(context.Background(), m.state, "snapd", &RevisionOptions{Channel: coreChannel}, userID, Flags{})
-	if err != nil {
-		return err
-	}
+	ts := mylog.Check2(Install(context.Background(), m.state, "snapd", &RevisionOptions{Channel: coreChannel}, userID, Flags{}))
 
 	msg := i18n.G("Transition to the snapd snap")
 	chg := m.state.NewChange("transition-to-snapd-snap", msg)
@@ -1195,7 +1141,7 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 	defer m.state.Unlock()
 
 	var snapst SnapState
-	err := Get(m.state, "ubuntu-core", &snapst)
+	mylog.Check(Get(m.state, "ubuntu-core", &snapst))
 	if errors.Is(err, state.ErrNoState) {
 		return nil
 	}
@@ -1205,14 +1151,10 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 
 	// Wait for the system to be seeded before transitioning
 	var seeded bool
-	err = m.state.Get("seeded", &seeded)
-	if err != nil {
-		if !errors.Is(err, state.ErrNoState) {
-			// already seeded or other error
-			return err
-		}
-		return nil
-	}
+	mylog.Check(m.state.Get("seeded", &seeded))
+
+	// already seeded or other error
+
 	if !seeded {
 		return nil
 	}
@@ -1226,7 +1168,7 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 
 	// ensure we limit the retries in case something goes wrong
 	var lastUbuntuCoreTransitionAttempt time.Time
-	err = m.state.Get("ubuntu-core-transition-last-retry-time", &lastUbuntuCoreTransitionAttempt)
+	mylog.Check(m.state.Get("ubuntu-core-transition-last-retry-time", &lastUbuntuCoreTransitionAttempt))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
@@ -1244,7 +1186,7 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 	m.state.Set("ubuntu-core-transition-last-retry-time", now)
 
 	var retryCount int
-	err = m.state.Get("ubuntu-core-transition-retry", &retryCount)
+	mylog.Check(m.state.Get("ubuntu-core-transition-retry", &retryCount))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
@@ -1268,17 +1210,14 @@ func (m *SnapManager) atSeed() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 	var seeded bool
-	err := m.state.Get("seeded", &seeded)
+	mylog.Check(m.state.Get("seeded", &seeded))
 	if !errors.Is(err, state.ErrNoState) {
 		// already seeded or other error
 		return err
 	}
-	if err := m.autoRefresh.AtSeed(); err != nil {
-		return err
-	}
-	if err := m.refreshHints.AtSeed(); err != nil {
-		return err
-	}
+	mylog.Check(m.autoRefresh.AtSeed())
+	mylog.Check(m.refreshHints.AtSeed())
+
 	return nil
 }
 
@@ -1306,20 +1245,15 @@ func (m *SnapManager) localInstallCleanup() error {
 	}
 	localInstallLastCleanup = now
 
-	d, err := os.Open(dirs.SnapBlobDir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil
-		}
-		return err
-	}
+	d := mylog.Check2(os.Open(dirs.SnapBlobDir))
+
 	defer d.Close()
 
 	var filenames []string
 	var fis []os.FileInfo
 	for err == nil {
 		// TODO: if we had fstatat we could avoid a bunch of stats
-		fis, err = d.Readdir(100)
+		fis = mylog.Check2(d.Readdir(100))
 		// fis is nil if err isn't
 		for _, fi := range fis {
 			name := fi.Name()
@@ -1365,7 +1299,7 @@ func (m *SnapManager) ensureMountsUpdated() error {
 
 	// only run after we are seeded
 	var seeded bool
-	err := m.state.Get("seeded", &seeded)
+	mylog.Check(m.state.Get("seeded", &seeded))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
@@ -1373,7 +1307,7 @@ func (m *SnapManager) ensureMountsUpdated() error {
 		return nil
 	}
 
-	allStates, err := All(m.state)
+	allStates := mylog.Check2(All(m.state))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
@@ -1382,11 +1316,9 @@ func (m *SnapManager) ensureMountsUpdated() error {
 		sysd := getSystemD()
 
 		for _, snapSt := range allStates {
-			info, err := snapSt.CurrentInfo()
-			if err != nil {
-				return err
-			}
-			dev, err := DeviceCtx(m.state, nil, nil)
+			info := mylog.Check2(snapSt.CurrentInfo())
+
+			dev := mylog.Check2(DeviceCtx(m.state, nil, nil))
 			// Ignore error if model assertion not yet known
 			if err != nil && !errors.Is(err, state.ErrNoState) {
 				return err
@@ -1409,16 +1341,16 @@ func (m *SnapManager) ensureMountsUpdated() error {
 			if snapType == snap.TypeKernel && dev == nil {
 				continue
 			}
-			if _, err = sysd.EnsureMountUnitFile(info.MountDescription(),
+			mylog.Check2(sysd.EnsureMountUnitFile(info.MountDescription(),
 				squashfsPath, whereDir, "squashfs",
 				systemd.EnsureMountUnitFlags{
 					PreventRestartIfModified: true,
 					// We need early mounts only for UC20+/hybrid, also 16.04
 					// systemd seems to be buggy if we enable this.
 					StartBeforeDriversLoad: snapType == snap.TypeKernel &&
-						dev.HasModeenv()}); err != nil {
-				return err
-			}
+						dev.HasModeenv(),
+				}))
+
 		}
 	}
 
@@ -1437,7 +1369,7 @@ func (m *SnapManager) ensureDesktopFilesUpdated() error {
 
 	// only run after we are seeded
 	var seeded bool
-	err := m.state.Get("seeded", &seeded)
+	mylog.Check(m.state.Get("seeded", &seeded))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
@@ -1445,22 +1377,18 @@ func (m *SnapManager) ensureDesktopFilesUpdated() error {
 		return nil
 	}
 
-	allStates, err := All(m.state)
+	allStates := mylog.Check2(All(m.state))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 
 	var snaps []*snap.Info
 	for _, snapSt := range allStates {
-		info, err := snapSt.CurrentInfo()
-		if err != nil {
-			return err
-		}
+		info := mylog.Check2(snapSt.CurrentInfo())
+
 		snaps = append(snaps, info)
 	}
-	if err := wrappers.EnsureSnapDesktopFiles(snaps); err != nil {
-		return err
-	}
+	mylog.Check(wrappers.EnsureSnapDesktopFiles(snaps))
 
 	m.ensuredDesktopFilesUpdated = true
 
@@ -1477,17 +1405,14 @@ func (m *SnapManager) ensureDownloadsCleaned() error {
 
 	// only run after we are seeded
 	var seeded bool
-	err := m.state.Get("seeded", &seeded)
+	mylog.Check(m.state.Get("seeded", &seeded))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if !seeded {
 		return nil
 	}
-
-	if err := cleanDownloads(m.state); err != nil {
-		return err
-	}
+	mylog.Check(cleanDownloads(m.state))
 
 	m.ensuredDownloadsCleaned = true
 
@@ -1519,7 +1444,7 @@ func (m *SnapManager) Ensure() error {
 		m.ensureDownloadsCleaned(),
 	}
 
-	//FIXME: use firstErr helper
+	// FIXME: use firstErr helper
 	for _, e := range errs {
 		if e != nil {
 			return e

@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord/snapstate"
 )
 
@@ -36,9 +37,11 @@ func (s *snapmgrTestSuite) TestTrySetsTryMode(c *C) {
 func (s *snapmgrTestSuite) TestTrySetsTryModeDevMode(c *C) {
 	s.testTrySetsTryMode(snapstate.Flags{DevMode: true}, c)
 }
+
 func (s *snapmgrTestSuite) TestTrySetsTryModeJailMode(c *C) {
 	s.testTrySetsTryMode(snapstate.Flags{JailMode: true}, c)
 }
+
 func (s *snapmgrTestSuite) TestTrySetsTryModeClassic(c *C) {
 	restore := maybeMockClassicSupport(c)
 	defer restore()
@@ -54,8 +57,8 @@ func (s *snapmgrTestSuite) testTrySetsTryMode(flags snapstate.Flags, c *C, extra
 	d := c.MkDir()
 	c.Assert(os.Chmod(d, 0755), IsNil)
 	tryYaml := filepath.Join(d, "meta", "snap.yaml")
-	err := os.MkdirAll(filepath.Dir(tryYaml), 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Dir(tryYaml), 0755))
+
 	buf := bytes.Buffer{}
 	buf.WriteString("name: foo\nversion: 1.0\n")
 	if len(extraYaml) > 0 {
@@ -63,12 +66,12 @@ func (s *snapmgrTestSuite) testTrySetsTryMode(flags snapstate.Flags, c *C, extra
 			buf.WriteString(extra)
 		}
 	}
-	err = os.WriteFile(tryYaml, buf.Bytes(), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(tryYaml, buf.Bytes(), 0644))
+
 
 	chg := s.state.NewChange("try", "try snap")
-	ts, err := snapstate.TryPath(s.state, "foo", d, flags)
-	c.Assert(err, IsNil)
+	ts := mylog.Check2(snapstate.TryPath(s.state, "foo", d, flags))
+
 	chg.AddAll(ts)
 
 	s.settle(c)
@@ -78,8 +81,8 @@ func (s *snapmgrTestSuite) testTrySetsTryMode(flags snapstate.Flags, c *C, extra
 
 	// verify snap is in TryMode
 	var snapst snapstate.SnapState
-	err = snapstate.Get(s.state, "foo", &snapst)
-	c.Assert(err, IsNil)
+	mylog.Check(snapstate.Get(s.state, "foo", &snapst))
+
 
 	flags.TryMode = true
 	c.Check(snapst.Flags, DeepEquals, flags)
@@ -101,7 +104,6 @@ func (s *snapmgrTestSuite) testTrySetsTryMode(flags snapstate.Flags, c *C, extra
 		"run-hook[configure]",
 		"run-hook[check-health]",
 	})
-
 }
 
 func (s *snapmgrTestSuite) TestTryUndoRemovesTryFlag(c *C) {
@@ -113,9 +115,11 @@ func (s *snapmgrTestSuite) TestTryUndoRemovesTryFlag(c *C) {
 func (s *snapmgrTestSuite) TestTryUndoRemovesTryFlagLeavesDevMode(c *C) {
 	s.testTrySetsTryMode(snapstate.Flags{DevMode: true}, c)
 }
+
 func (s *snapmgrTestSuite) TestTryUndoRemovesTryFlagLeavesJailMode(c *C) {
 	s.testTrySetsTryMode(snapstate.Flags{JailMode: true}, c)
 }
+
 func (s *snapmgrTestSuite) TestTryUndoRemovesTryFlagLeavesClassic(c *C) {
 	restore := maybeMockClassicSupport(c)
 	defer restore()

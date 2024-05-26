@@ -25,6 +25,8 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // udevadm export output is divided in per-device blocks, blocks are separated
@@ -84,25 +86,12 @@ func scanDoubleNewline(data []byte, atEOF bool) (advance int, token []byte, err 
 func parseUdevadmOutput(cmd *exec.Cmd, rd *bufio.Scanner) (devices []*HotplugDeviceInfo, parseErrors []error) {
 	for rd.Scan() {
 		block := rd.Text()
-		env, err := parseEnvBlock(block)
-		if err != nil {
-			parseErrors = append(parseErrors, err)
-		} else {
-			dev, err := NewHotplugDeviceInfo(env)
-			if err != nil {
-				parseErrors = append(parseErrors, err)
-			} else {
-				devices = append(devices, dev)
-			}
-		}
-	}
+		env := mylog.Check2(parseEnvBlock(block))
 
-	if err := rd.Err(); err != nil {
-		parseErrors = append(parseErrors, fmt.Errorf("cannot read udevadm output: %s", err))
 	}
-	if err := cmd.Wait(); err != nil {
-		parseErrors = append(parseErrors, fmt.Errorf("cannot read udevadm output: %s", err))
-	}
+	mylog.Check(rd.Err())
+	mylog.Check(cmd.Wait())
+
 	return devices, parseErrors
 }
 
@@ -110,16 +99,11 @@ func parseUdevadmOutput(cmd *exec.Cmd, rd *bufio.Scanner) (devices []*HotplugDev
 // Non-fatal parsing errors are reported via parseErrors and they don't stop the parser.
 func EnumerateExistingDevices() (devices []*HotplugDeviceInfo, parseErrors []error, fatalError error) {
 	cmd := exec.Command(udevadmBin, "info", "-e")
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return nil, nil, err
-	}
+	stdout := mylog.Check2(cmd.StdoutPipe())
 
 	rd := bufio.NewScanner(stdout)
 	rd.Split(scanDoubleNewline)
-	if err = cmd.Start(); err != nil {
-		return nil, nil, err
-	}
+	mylog.Check(cmd.Start())
 
 	devices, parseErrors = parseUdevadmOutput(cmd, rd)
 	return devices, parseErrors, nil

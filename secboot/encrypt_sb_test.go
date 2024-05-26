@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	sb "github.com/snapcore/secboot"
 	. "gopkg.in/check.v1"
 
@@ -55,7 +56,8 @@ func (s *encryptSuite) TestFormatEncryptedDevice(c *C) {
 
 		calls := 0
 		restore := secboot.MockSbInitializeLUKS2Container(func(devicePath, label string, key []byte,
-			opts *sb.InitializeLUKS2ContainerOptions) error {
+			opts *sb.InitializeLUKS2ContainerOptions,
+		) error {
 			calls++
 			c.Assert(devicePath, Equals, "/dev/node")
 			c.Assert(label, Equals, "my label")
@@ -71,11 +73,10 @@ func (s *encryptSuite) TestFormatEncryptedDevice(c *C) {
 			return tc.initErr
 		})
 		defer restore()
-
-		err := secboot.FormatEncryptedDevice(myKey, secboot.EncryptionTypeLUKS, "my label", "/dev/node")
+		mylog.Check(secboot.FormatEncryptedDevice(myKey, secboot.EncryptionTypeLUKS, "my label", "/dev/node"))
 		c.Assert(calls, Equals, 1)
 		if tc.err == "" {
-			c.Assert(err, IsNil)
+
 		} else {
 			c.Assert(err, ErrorMatches, tc.err)
 		}
@@ -83,7 +84,7 @@ func (s *encryptSuite) TestFormatEncryptedDevice(c *C) {
 }
 
 func (s *encryptSuite) TestFormatEncryptedDeviceInvalidEncType(c *C) {
-	err := secboot.FormatEncryptedDevice(keys.EncryptionKey{}, secboot.EncryptionType("other-enc-type"), "my label", "/dev/node")
+	mylog.Check(secboot.FormatEncryptedDevice(keys.EncryptionKey{}, secboot.EncryptionType("other-enc-type"), "my label", "/dev/node"))
 	c.Check(err, ErrorMatches, `internal error: FormatEncryptedDevice for "/dev/node" expects a LUKS encryption type, not "other-enc-type"`)
 }
 
@@ -159,13 +160,11 @@ fi
 	s.AddCleanup(restore)
 }
 
-var (
-	key = keys.EncryptionKey{'e', 'n', 'c', 'r', 'y', 'p', 't', 1, 1, 1, 1}
-)
+var key = keys.EncryptionKey{'e', 'n', 'c', 'r', 'y', 'p', 't', 1, 1, 1, 1}
 
 func (s *keymgrSuite) TestStageEncryptionKeyHappy(c *C) {
-	err := secboot.StageEncryptionKeyChange("/dev/foo/bar", key)
-	c.Assert(err, IsNil)
+	mylog.Check(secboot.StageEncryptionKeyChange("/dev/foo/bar", key))
+
 	c.Check(s.udevadmCmd.Calls(), DeepEquals, [][]string{
 		{"udevadm", "info", "--query", "property", "--name", "/dev/foo/bar"},
 	})
@@ -195,7 +194,7 @@ func (s *keymgrSuite) TestStageEncryptionKeyBadUdev(c *C) {
 	echo "unhappy udev"
 `)
 	defer udevadmCmd.Restore()
-	err := secboot.StageEncryptionKeyChange("/dev/foo/bar", key)
+	mylog.Check(secboot.StageEncryptionKeyChange("/dev/foo/bar", key))
 	c.Assert(err, ErrorMatches, "cannot get UUID of partition /dev/foo/bar: cannot get required udev partition UUID property")
 	c.Check(udevadmCmd.Calls(), DeepEquals, [][]string{
 		{"udevadm", "info", "--query", "property", "--name", "/dev/foo/bar"},
@@ -212,8 +211,7 @@ func (s *keymgrSuite) TestStageTransitionEncryptionKeyBadKeymgr(c *C) {
 		return filepath.Join(filepath.Dir(keymgrCmd.Exe()), "snapd"), nil
 	})
 	defer restore()
-
-	err := secboot.StageEncryptionKeyChange("/dev/foo/bar", key)
+	mylog.Check(secboot.StageEncryptionKeyChange("/dev/foo/bar", key))
 	c.Assert(err, ErrorMatches, "cannot run FDE key manager tool: cannot run .*: keymgr very unhappy")
 
 	c.Check(s.systemdRunCmd.Calls(), DeepEquals, [][]string{
@@ -233,7 +231,7 @@ func (s *keymgrSuite) TestStageTransitionEncryptionKeyBadKeymgr(c *C) {
 	keymgrCmd.ForgetCalls()
 
 	s.mocksForDeviceMounts(c)
-	err = secboot.TransitionEncryptionKeyChange("/foo", key)
+	mylog.Check(secboot.TransitionEncryptionKeyChange("/foo", key))
 	c.Assert(err, ErrorMatches, "cannot run FDE key manager tool: cannot run .*: keymgr very unhappy")
 
 	c.Check(s.systemdRunCmd.Calls(), DeepEquals, [][]string{
@@ -258,16 +256,14 @@ func (s *keymgrSuite) TestTransitionEncryptionKeyNoMountDev(c *C) {
 
 	udevadmCmd := testutil.MockCommand(c, "udevadm", `echo nope; exit 1`)
 	defer udevadmCmd.Restore()
-
-	err := secboot.TransitionEncryptionKeyChange("/foo", key)
+	mylog.Check(secboot.TransitionEncryptionKeyChange("/foo", key))
 	c.Assert(err, ErrorMatches, "cannot find matching device: cannot partition for mount /foo: cannot process udev properties of /dev/mapper/foo: nope")
 }
 
 func (s *keymgrSuite) TestTransitionEncryptionKeyHappy(c *C) {
 	udevadmCmd := s.mocksForDeviceMounts(c)
+	mylog.Check(secboot.TransitionEncryptionKeyChange("/foo", key))
 
-	err := secboot.TransitionEncryptionKeyChange("/foo", key)
-	c.Assert(err, IsNil)
 	c.Check(udevadmCmd.Calls(), DeepEquals, [][]string{
 		{"udevadm", "info", "--query", "property", "--name", "/dev/mapper/foo"},
 		{"udevadm", "info", "--query", "property", "--name", "/dev/disk/by-uuid/5a522809-c87e-4dfa-81a8-8dc5667d1304"},
@@ -347,11 +343,11 @@ done
 func (s *keymgrSuite) TestEnsureRecoveryKey(c *C) {
 	udevadmCmd := s.mocksForDeviceMounts(c)
 
-	rkey, err := secboot.EnsureRecoveryKey(filepath.Join(s.d, "recovery.key"), []secboot.RecoveryKeyDevice{
+	rkey := mylog.Check2(secboot.EnsureRecoveryKey(filepath.Join(s.d, "recovery.key"), []secboot.RecoveryKeyDevice{
 		{Mountpoint: "/foo"},
 		{Mountpoint: "/bar", AuthorizingKeyFile: "/authz/key.file"},
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(udevadmCmd.Calls(), DeepEquals, [][]string{
 		{"udevadm", "info", "--query", "property", "--name", "/dev/mapper/foo"},
 		{"udevadm", "info", "--query", "property", "--name", "/dev/disk/by-uuid/5a522809-c87e-4dfa-81a8-8dc5667d1304"},
@@ -388,12 +384,13 @@ func (s *keymgrSuite) TestRemoveRecoveryKey(c *C) {
 	snaptest.PopulateDir(s.d, [][]string{
 		{"recovery.key", "foobar"},
 	})
-	// only one of the key files exists
-	err := secboot.RemoveRecoveryKeys(map[secboot.RecoveryKeyDevice]string{
-		{Mountpoint: "/foo"}: filepath.Join(s.d, "recovery.key"),
-		{Mountpoint: "/bar", AuthorizingKeyFile: "/authz/key.file"}: filepath.Join(s.d, "missing-recovery.key"),
-	})
-	c.Assert(err, IsNil)
+	mylog.
+		// only one of the key files exists
+		Check(secboot.RemoveRecoveryKeys(map[secboot.RecoveryKeyDevice]string{
+			{Mountpoint: "/foo"}: filepath.Join(s.d, "recovery.key"),
+			{Mountpoint: "/bar", AuthorizingKeyFile: "/authz/key.file"}: filepath.Join(s.d, "missing-recovery.key"),
+		}))
+
 
 	expectedUdevCalls := [][]string{
 		// order can change depending on map iteration

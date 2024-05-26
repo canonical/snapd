@@ -27,6 +27,7 @@ import (
 	"os/user"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
 )
@@ -55,36 +56,26 @@ func (client *Client) Login(email, password, otp string) (*User, error) {
 		Otp:      otp,
 	}
 	var body bytes.Buffer
-	if err := json.NewEncoder(&body).Encode(postData); err != nil {
-		return nil, err
-	}
+	mylog.Check(json.NewEncoder(&body).Encode(postData))
 
 	var user User
-	if _, err := client.doSync("POST", "/v2/login", nil, nil, &body, &user); err != nil {
-		return nil, err
-	}
+	mylog.Check2(client.doSync("POST", "/v2/login", nil, nil, &body, &user))
+	mylog.Check(writeAuthData(user))
 
-	if err := writeAuthData(user); err != nil {
-		return nil, fmt.Errorf("cannot persist login information: %v", err)
-	}
 	return &user, nil
 }
 
 // Logout logs the user out.
 func (client *Client) Logout() error {
-	_, err := client.doSync("POST", "/v2/logout", nil, nil, nil, nil)
-	if err != nil {
-		return err
-	}
+	_ := mylog.Check2(client.doSync("POST", "/v2/logout", nil, nil, nil, nil))
+
 	return removeAuthData()
 }
 
 // LoggedInUser returns the logged in User or nil
 func (client *Client) LoggedInUser() *User {
-	u, err := readAuthData()
-	if err != nil {
-		return nil
-	}
+	u := mylog.Check2(readAuthData())
+
 	return u
 }
 
@@ -96,10 +87,8 @@ func storeAuthDataFilename(homeDir string) string {
 	}
 
 	if homeDir == "" {
-		real, err := osutil.UserMaybeSudoUser()
-		if err != nil {
-			panic(err)
-		}
+		real := mylog.Check2(osutil.UserMaybeSudoUser())
+
 		homeDir = real.HomeDir
 	}
 
@@ -109,36 +98,23 @@ func storeAuthDataFilename(homeDir string) string {
 // realUidGid finds the real user when the command is run
 // via sudo. It returns the users record and uid,gid.
 func realUidGid() (*user.User, sys.UserID, sys.GroupID, error) {
-	real, err := osutil.UserMaybeSudoUser()
-	if err != nil {
-		return nil, 0, 0, err
-	}
+	real := mylog.Check2(osutil.UserMaybeSudoUser())
 
-	uid, gid, err := osutil.UidGid(real)
-	if err != nil {
-		return nil, 0, 0, err
-	}
+	uid, gid := mylog.Check3(osutil.UidGid(real))
+
 	return real, uid, gid, err
 }
 
 // writeAuthData saves authentication details for later reuse through ReadAuthData
 func writeAuthData(user User) error {
-	real, uid, gid, err := realUidGid()
-	if err != nil {
-		return err
-	}
+	real, uid, gid := mylog.Check4(realUidGid())
 
 	targetFile := storeAuthDataFilename(real.HomeDir)
 
-	out, err := json.Marshal(user)
-	if err != nil {
-		return err
-	}
+	out := mylog.Check2(json.Marshal(user))
 
 	return sys.RunAsUidGid(uid, gid, func() error {
-		if err := os.MkdirAll(filepath.Dir(targetFile), 0700); err != nil {
-			return err
-		}
+		mylog.Check(os.MkdirAll(filepath.Dir(targetFile), 0700))
 
 		return osutil.AtomicWriteFile(targetFile, out, 0600, 0)
 	})
@@ -146,37 +122,26 @@ func writeAuthData(user User) error {
 
 // readAuthData reads previously written authentication details
 func readAuthData() (*User, error) {
-	_, uid, _, err := realUidGid()
-	if err != nil {
-		return nil, err
-	}
+	_, uid, _ := mylog.Check4(realUidGid())
 
 	var user User
 	sourceFile := storeAuthDataFilename("")
+	mylog.Check(sys.RunAsUidGid(uid, sys.FlagID, func() error {
+		f := mylog.Check2(os.Open(sourceFile))
 
-	if err := sys.RunAsUidGid(uid, sys.FlagID, func() error {
-		f, err := os.Open(sourceFile)
-		if err != nil {
-			return err
-		}
 		defer f.Close()
 
 		dec := json.NewDecoder(f)
 
 		return dec.Decode(&user)
-	}); err != nil {
-		return nil, err
-	}
+	}))
 
 	return &user, nil
 }
 
 // removeAuthData removes any previously written authentication details.
 func removeAuthData() error {
-	_, uid, _, err := realUidGid()
-	if err != nil {
-		return err
-	}
+	_, uid, _ := mylog.Check4(realUidGid())
 
 	filename := storeAuthDataFilename("")
 

@@ -22,6 +22,7 @@ package builtin
 import (
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
@@ -94,10 +95,8 @@ func (iface *lxdSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specifica
 	spec.AddSnippet(lxdSupportConnectedPlugAppArmor)
 	// if apparmor supports userns mediation then add this too
 	if apparmor_sandbox.ProbedLevel() != apparmor_sandbox.Unsupported {
-		features, err := apparmor_sandbox.ParserFeatures()
-		if err != nil {
-			return err
-		}
+		features := mylog.Check2(apparmor_sandbox.ParserFeatures())
+
 		if strutil.ListContains(features, "userns") {
 			spec.AddSnippet(lxdSupportConnectedPlugAppArmorWithUserNS)
 		}
@@ -120,14 +119,16 @@ func (iface *lxdSupportInterface) SecCompConnectedPlug(spec *seccomp.Specificati
 }
 
 func init() {
-	registerIface(&lxdSupportInterface{commonInterface{
-		name:                    "lxd-support",
-		summary:                 lxdSupportSummary,
-		implicitOnCore:          true,
-		implicitOnClassic:       true,
-		appArmorUnconfinedPlugs: true,
-		baseDeclarationSlots:    lxdSupportBaseDeclarationSlots,
-		baseDeclarationPlugs:    lxdSupportBaseDeclarationPlugs,
-		serviceSnippets:         []string{lxdSupportServiceSnippet}},
+	registerIface(&lxdSupportInterface{
+		commonInterface{
+			name:                    "lxd-support",
+			summary:                 lxdSupportSummary,
+			implicitOnCore:          true,
+			implicitOnClassic:       true,
+			appArmorUnconfinedPlugs: true,
+			baseDeclarationSlots:    lxdSupportBaseDeclarationSlots,
+			baseDeclarationPlugs:    lxdSupportBaseDeclarationPlugs,
+			serviceSnippets:         []string{lxdSupportServiceSnippet},
+		},
 	})
 }

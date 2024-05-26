@@ -36,6 +36,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/boot"
@@ -162,7 +163,8 @@ func (s *systemsSuite) mockSystemSeeds(c *check.C) (restore func()) {
 				"id":              seed20.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
-			}},
+			},
+		},
 	}, nil)
 	seed20.MakeSeed(c, "20200318", "my-brand", "my-model-2", map[string]interface{}{
 		"display-name": "same brand different model",
@@ -180,7 +182,8 @@ func (s *systemsSuite) mockSystemSeeds(c *check.C) (restore func()) {
 				"id":              seed20.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
-			}},
+			},
+		},
 	}, nil)
 
 	return restore
@@ -190,13 +193,13 @@ func (s *systemsSuite) TestSystemsGetSome(c *check.C) {
 	m := boot.Modeenv{
 		Mode: "run",
 	}
-	err := m.WriteTo("")
+	mylog.Check(m.WriteTo(""))
 	c.Assert(err, check.IsNil)
 
 	d := s.daemonWithOverlordMockAndStore()
-	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
+	hookMgr := mylog.Check2(hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner()))
 	c.Assert(err, check.IsNil)
-	mgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
+	mgr := mylog.Check2(devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil))
 	c.Assert(err, check.IsNil)
 	d.Overlord().AddManager(mgr)
 
@@ -220,7 +223,7 @@ func (s *systemsSuite) TestSystemsGetSome(c *check.C) {
 	restore := s.mockSystemSeeds(c)
 	defer restore()
 
-	req, err := http.NewRequest("GET", "/v2/systems", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/systems", nil))
 	c.Assert(err, check.IsNil)
 	rsp := s.syncReq(c, req, nil)
 
@@ -270,28 +273,29 @@ func (s *systemsSuite) TestSystemsGetSome(c *check.C) {
 					{Title: "Run normally", Mode: "run"},
 				},
 			},
-		}})
+		},
+	})
 }
 
 func (s *systemsSuite) TestSystemsGetNone(c *check.C) {
 	m := boot.Modeenv{
 		Mode: "run",
 	}
-	err := m.WriteTo("")
+	mylog.Check(m.WriteTo(""))
 	c.Assert(err, check.IsNil)
 
 	// model assertion setup
 	d := s.daemonWithOverlordMockAndStore()
-	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
+	hookMgr := mylog.Check2(hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner()))
 	c.Assert(err, check.IsNil)
-	mgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
+	mgr := mylog.Check2(devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil))
 	c.Assert(err, check.IsNil)
 	d.Overlord().AddManager(mgr)
 
 	s.expectAuthenticatedAccess()
 
 	// no system seeds
-	req, err := http.NewRequest("GET", "/v2/systems", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/systems", nil))
 	c.Assert(err, check.IsNil)
 	rsp := s.syncReq(c, req, nil)
 
@@ -306,14 +310,14 @@ func (s *systemsSuite) TestSystemActionRequestErrors(c *check.C) {
 	m := boot.Modeenv{
 		Mode: "run",
 	}
-	err := m.WriteTo("")
+	mylog.Check(m.WriteTo(""))
 	c.Assert(err, check.IsNil)
 
 	d := s.daemonWithOverlordMockAndStore()
 
-	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
+	hookMgr := mylog.Check2(hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner()))
 	c.Assert(err, check.IsNil)
-	mgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
+	mgr := mylog.Check2(devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil))
 	c.Assert(err, check.IsNil)
 	d.Overlord().AddManager(mgr)
 
@@ -376,14 +380,14 @@ func (s *systemsSuite) TestSystemActionRequestErrors(c *check.C) {
 				Mode:           "run",
 				RecoverySystem: tc.label,
 			}
-			err := m.WriteTo("")
+			mylog.Check(m.WriteTo(""))
 			c.Assert(err, check.IsNil)
 		} else {
 			st.Set("seeded", true)
 		}
 		st.Unlock()
 		c.Logf("tc: %#v", tc)
-		req, err := http.NewRequest("POST", path.Join("/v2/systems", tc.label), strings.NewReader(tc.body))
+		req := mylog.Check2(http.NewRequest("POST", path.Join("/v2/systems", tc.label), strings.NewReader(tc.body)))
 		c.Assert(err, check.IsNil)
 		rspe := s.errorReq(c, req, nil)
 		c.Check(rspe.Status, check.Equals, tc.status)
@@ -536,7 +540,7 @@ func (s *systemsSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 		if tc.currentMode != "run" {
 			m.RecoverySystem = "20191119"
 		}
-		err := m.WriteTo("")
+		mylog.Check(m.WriteTo(""))
 		c.Assert(err, check.IsNil)
 		d := s.daemon(c)
 		st := d.Overlord().State()
@@ -559,10 +563,10 @@ func (s *systemsSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 			"action": "do",
 			"mode":   tc.actionMode,
 		}
-		b, err := json.Marshal(body)
+		b := mylog.Check2(json.Marshal(body))
 		c.Assert(err, check.IsNil, check.Commentf(tc.comment))
 		buf := bytes.NewBuffer(b)
-		req, err := http.NewRequest("POST", "/v2/systems/20191119", buf)
+		req := mylog.Check2(http.NewRequest("POST", "/v2/systems/20191119", buf))
 		c.Assert(err, check.IsNil, check.Commentf(tc.comment))
 		// as root
 		s.asRootAuth(req)
@@ -575,7 +579,7 @@ func (s *systemsSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 		}
 
 		var rspBody map[string]interface{}
-		err = json.Unmarshal(rec.Body.Bytes(), &rspBody)
+		mylog.Check(json.Unmarshal(rec.Body.Bytes(), &rspBody))
 		c.Assert(err, check.IsNil, check.Commentf(tc.comment))
 
 		var expResp map[string]interface{}
@@ -625,13 +629,13 @@ func (s *systemsSuite) TestSystemActionBrokenSeed(c *check.C) {
 	m := boot.Modeenv{
 		Mode: "run",
 	}
-	err := m.WriteTo("")
+	mylog.Check(m.WriteTo(""))
 	c.Assert(err, check.IsNil)
 
 	d := s.daemonWithOverlordMockAndStore()
-	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
+	hookMgr := mylog.Check2(hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner()))
 	c.Assert(err, check.IsNil)
-	mgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
+	mgr := mylog.Check2(devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil))
 	c.Assert(err, check.IsNil)
 	d.Overlord().AddManager(mgr)
 
@@ -643,12 +647,11 @@ func (s *systemsSuite) TestSystemActionBrokenSeed(c *check.C) {
 
 	restore := s.mockSystemSeeds(c)
 	defer restore()
-
-	err = os.Remove(filepath.Join(dirs.SnapSeedDir, "systems", "20191119", "model"))
+	mylog.Check(os.Remove(filepath.Join(dirs.SnapSeedDir, "systems", "20191119", "model")))
 	c.Assert(err, check.IsNil)
 
 	body := `{"action":"do","title":"reinstall","mode":"install"}`
-	req, err := http.NewRequest("POST", "/v2/systems/20191119", strings.NewReader(body))
+	req := mylog.Check2(http.NewRequest("POST", "/v2/systems/20191119", strings.NewReader(body)))
 	c.Assert(err, check.IsNil)
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe.Status, check.Equals, 500)
@@ -657,16 +660,16 @@ func (s *systemsSuite) TestSystemActionBrokenSeed(c *check.C) {
 
 func (s *systemsSuite) TestSystemActionNonRoot(c *check.C) {
 	d := s.daemonWithOverlordMockAndStore()
-	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
+	hookMgr := mylog.Check2(hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner()))
 	c.Assert(err, check.IsNil)
-	mgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
+	mgr := mylog.Check2(devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil))
 	c.Assert(err, check.IsNil)
 	d.Overlord().AddManager(mgr)
 
 	body := `{"action":"do","title":"reinstall","mode":"install"}`
 
 	// pretend to be a simple user
-	req, err := http.NewRequest("POST", "/v2/systems/20191119", strings.NewReader(body))
+	req := mylog.Check2(http.NewRequest("POST", "/v2/systems/20191119", strings.NewReader(body)))
 	c.Assert(err, check.IsNil)
 	// non root
 	s.asUserAuth(c, req)
@@ -676,7 +679,7 @@ func (s *systemsSuite) TestSystemActionNonRoot(c *check.C) {
 	c.Assert(rec.Code, check.Equals, 403)
 
 	var rspBody map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &rspBody)
+	mylog.Check(json.Unmarshal(rec.Body.Bytes(), &rspBody))
 	c.Check(err, check.IsNil)
 	c.Check(rspBody, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
@@ -700,7 +703,7 @@ func (s *systemsSuite) TestSystemRebootNeedsRoot(c *check.C) {
 
 	body := `{"action":"reboot"}`
 	url := "/v2/systems"
-	req, err := http.NewRequest("POST", url, strings.NewReader(body))
+	req := mylog.Check2(http.NewRequest("POST", url, strings.NewReader(body)))
 	c.Assert(err, check.IsNil)
 	// non root
 	s.asUserAuth(c, req)
@@ -740,7 +743,7 @@ func (s *systemsSuite) TestSystemRebootHappy(c *check.C) {
 		if tc.systemLabel != "" {
 			url += "/" + tc.systemLabel
 		}
-		req, err := http.NewRequest("POST", url, strings.NewReader(body))
+		req := mylog.Check2(http.NewRequest("POST", url, strings.NewReader(body)))
 		c.Assert(err, check.IsNil)
 		s.asRootAuth(req)
 
@@ -772,7 +775,7 @@ func (s *systemsSuite) TestSystemRebootUnhappy(c *check.C) {
 
 		body := `{"action":"reboot"}`
 		url := "/v2/systems"
-		req, err := http.NewRequest("POST", url, strings.NewReader(body))
+		req := mylog.Check2(http.NewRequest("POST", url, strings.NewReader(body)))
 		c.Assert(err, check.IsNil)
 		s.asRootAuth(req)
 
@@ -782,7 +785,7 @@ func (s *systemsSuite) TestSystemRebootUnhappy(c *check.C) {
 		c.Check(called, check.Equals, 1)
 
 		var rspBody map[string]interface{}
-		err = json.Unmarshal(rec.Body.Bytes(), &rspBody)
+		mylog.Check(json.Unmarshal(rec.Body.Bytes(), &rspBody))
 		c.Check(err, check.IsNil)
 		c.Check(rspBody["status-code"], check.Equals, float64(tc.expectedHttpCode))
 		result := rspBody["result"].(map[string]interface{})
@@ -869,7 +872,7 @@ func (s *systemsSuite) TestSystemsGetSystemDetailsForLabel(c *check.C) {
 		})
 		defer r()
 
-		req, err := http.NewRequest("GET", "/v2/systems/20191119", nil)
+		req := mylog.Check2(http.NewRequest("GET", "/v2/systems/20191119", nil))
 		c.Assert(err, check.IsNil)
 		rsp := s.syncReq(c, req, nil)
 
@@ -903,7 +906,7 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelError(c *check.C) {
 	})
 	defer r()
 
-	req, err := http.NewRequest("GET", "/v2/systems/something", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/systems/something", nil))
 	c.Assert(err, check.IsNil)
 	rspe := s.errorReq(c, req, nil)
 
@@ -918,7 +921,7 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelNotFoundIntegration(c *check.C
 	s.daemon(c)
 	s.expectRootAccess()
 
-	req, err := http.NewRequest("GET", "/v2/systems/does-not-exist", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/systems/does-not-exist", nil))
 	c.Assert(err, check.IsNil)
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe.Status, check.Equals, 500)
@@ -939,7 +942,7 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 	r := daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(mgr *devicestate.DeviceManager, label string) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
 		// mockSystemSeed will ensure everything here is coming from
 		// the mocked seed except the encryptionInfo
-		sys, gadgetInfo, encInfo, err := deviceMgr.SystemAndGadgetAndEncryptionInfo(label)
+		sys, gadgetInfo, encInfo := mylog.Check4(deviceMgr.SystemAndGadgetAndEncryptionInfo(label))
 		// encryptionInfo needs get overridden here to get reliable tests
 		encInfo.Available = false
 		encInfo.StorageSafety = asserts.StorageSafetyPreferEncrypted
@@ -949,7 +952,7 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 	})
 	defer r()
 
-	req, err := http.NewRequest("GET", "/v2/systems/20191119", nil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/systems/20191119", nil))
 	c.Assert(err, check.IsNil)
 	rsp := s.syncReq(c, req, nil)
 
@@ -1119,10 +1122,10 @@ func (s *systemsSuite) testSystemInstallActionCallsDevicestate(c *check.C, step 
 			},
 		},
 	}
-	b, err := json.Marshal(body)
+	b := mylog.Check2(json.Marshal(body))
 	c.Assert(err, check.IsNil)
 	buf := bytes.NewBuffer(b)
-	req, err := http.NewRequest("POST", "/v2/systems/20191119", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/systems/20191119", buf))
 	c.Assert(err, check.IsNil)
 
 	rsp := s.asyncReq(c, req, nil)
@@ -1170,10 +1173,10 @@ func (s *systemsSuite) TestSystemInstallActionGeneratesTasks(c *check.C) {
 				},
 			},
 		}
-		b, err := json.Marshal(body)
+		b := mylog.Check2(json.Marshal(body))
 		c.Assert(err, check.IsNil)
 		buf := bytes.NewBuffer(b)
-		req, err := http.NewRequest("POST", "/v2/systems/20191119", buf)
+		req := mylog.Check2(http.NewRequest("POST", "/v2/systems/20191119", buf))
 		c.Assert(err, check.IsNil)
 
 		rsp := s.asyncReq(c, req, nil)
@@ -1205,10 +1208,10 @@ func (s *systemsSuite) TestSystemInstallActionErrorMissingVolumes(c *check.C) {
 			// note that "on-volumes" is missing which will
 			// trigger a bug
 		}
-		b, err := json.Marshal(body)
+		b := mylog.Check2(json.Marshal(body))
 		c.Assert(err, check.IsNil)
 		buf := bytes.NewBuffer(b)
-		req, err := http.NewRequest("POST", "/v2/systems/20191119", buf)
+		req := mylog.Check2(http.NewRequest("POST", "/v2/systems/20191119", buf))
 		c.Assert(err, check.IsNil)
 
 		rspe := s.errorReq(c, req, nil)
@@ -1223,10 +1226,10 @@ func (s *systemsSuite) TestSystemInstallActionError(c *check.C) {
 		"action": "install",
 		"step":   "unknown-install-step",
 	}
-	b, err := json.Marshal(body)
+	b := mylog.Check2(json.Marshal(body))
 	c.Assert(err, check.IsNil)
 	buf := bytes.NewBuffer(b)
-	req, err := http.NewRequest("POST", "/v2/systems/20191119", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/systems/20191119", buf))
 	c.Assert(err, check.IsNil)
 
 	rspe := s.errorReq(c, req, nil)
@@ -1260,7 +1263,7 @@ func (s *systemsCreateSuite) mockDevAssertion(c *check.C, t *asserts.AssertionTy
 		headers[k] = v
 	}
 
-	vs, err := s.dev1Signing.Sign(t, headers, nil, "")
+	vs := mylog.Check2(s.dev1Signing.Sign(t, headers, nil, ""))
 	c.Assert(err, check.IsNil)
 	return vs
 }
@@ -1279,7 +1282,7 @@ func (s *systemsCreateSuite) mockStoreAssertion(c *check.C, t *asserts.Assertion
 		headers[k] = v
 	}
 
-	vs, err := s.storeSigning.Sign(t, headers, nil, "")
+	vs := mylog.Check2(s.storeSigning.Sign(t, headers, nil, ""))
 	c.Assert(err, check.IsNil)
 	return vs
 }
@@ -1378,7 +1381,7 @@ func (s *systemsCreateSuite) TestCreateSystemActionBadRequests(c *check.C) {
 	}
 
 	for _, tc := range tests {
-		b, err := json.Marshal(tc.body)
+		b := mylog.Check2(json.Marshal(tc.body))
 		c.Assert(err, check.IsNil)
 
 		url := "/v2/systems"
@@ -1386,7 +1389,7 @@ func (s *systemsCreateSuite) TestCreateSystemActionBadRequests(c *check.C) {
 			url += "/" + tc.routeLabel
 		}
 
-		req, err := http.NewRequest("POST", url, bytes.NewBuffer(b))
+		req := mylog.Check2(http.NewRequest("POST", url, bytes.NewBuffer(b)))
 		c.Assert(err, check.IsNil)
 
 		rspe := s.errorReq(c, req, nil)
@@ -1438,10 +1441,7 @@ func (s *systemsCreateSuite) testCreateSystemAction(c *check.C, requestedValSetS
 	})
 
 	s.mockAssertionFn = func(at *asserts.AssertionType, key []string, user *auth.UserState) (asserts.Assertion, error) {
-		headers, err := asserts.HeadersFromPrimaryKey(at, key)
-		if err != nil {
-			return nil, err
-		}
+		headers := mylog.Check2(asserts.HeadersFromPrimaryKey(at, key))
 
 		return s.storeSigning.Find(at, headers)
 	}
@@ -1491,10 +1491,10 @@ func (s *systemsCreateSuite) testCreateSystemAction(c *check.C, requestedValSetS
 		"test-system":     testSystem,
 	}
 
-	b, err := json.Marshal(body)
+	b := mylog.Check2(json.Marshal(body))
 	c.Assert(err, check.IsNil)
 
-	req, err := http.NewRequest("POST", "/v2/systems", bytes.NewBuffer(b))
+	req := mylog.Check2(http.NewRequest("POST", "/v2/systems", bytes.NewBuffer(b)))
 	c.Assert(err, check.IsNil)
 
 	res := s.asyncReq(c, req, nil)
@@ -1512,20 +1512,19 @@ func createFormData(c *check.C, fields map[string][]string, snaps map[string]str
 
 	for k, vs := range fields {
 		for _, v := range vs {
-			err := w.WriteField(k, v)
+			mylog.Check(w.WriteField(k, v))
 			c.Assert(err, check.IsNil)
 		}
 	}
 
 	for name, content := range snaps {
-		part, err := w.CreateFormFile("snap", name)
+		part := mylog.Check2(w.CreateFormFile("snap", name))
 		c.Assert(err, check.IsNil)
 
-		_, err = part.Write([]byte(content))
+		_ = mylog.Check2(part.Write([]byte(content)))
 		c.Assert(err, check.IsNil)
 	}
-
-	err := w.Close()
+	mylog.Check(w.Close())
 	c.Assert(err, check.IsNil)
 
 	return b, w.Boundary()
@@ -1544,10 +1543,10 @@ func (s *systemsCreateSuite) TestRemoveSystemAction(c *check.C) {
 		"action": "remove",
 	}
 
-	b, err := json.Marshal(body)
+	b := mylog.Check2(json.Marshal(body))
 	c.Assert(err, check.IsNil)
 
-	req, err := http.NewRequest("POST", "/v2/systems/"+expectedLabel, bytes.NewBuffer(b))
+	req := mylog.Check2(http.NewRequest("POST", "/v2/systems/"+expectedLabel, bytes.NewBuffer(b)))
 	c.Assert(err, check.IsNil)
 
 	res := s.asyncReq(c, req, nil)
@@ -1571,10 +1570,10 @@ func (s *systemsCreateSuite) TestRemoveSystemActionNotFound(c *check.C) {
 		"action": "remove",
 	}
 
-	b, err := json.Marshal(body)
+	b := mylog.Check2(json.Marshal(body))
 	c.Assert(err, check.IsNil)
 
-	req, err := http.NewRequest("POST", "/v2/systems/"+expectedLabel, bytes.NewBuffer(b))
+	req := mylog.Check2(http.NewRequest("POST", "/v2/systems/"+expectedLabel, bytes.NewBuffer(b)))
 	c.Assert(err, check.IsNil)
 
 	res := s.errorReq(c, req, nil)
@@ -1654,7 +1653,7 @@ func (s *systemsCreateSuite) TestCreateSystemActionOfflineBadRequests(c *check.C
 	for _, tc := range tests {
 		form, boundary := createFormData(c, tc.fields, snaps)
 
-		req, err := http.NewRequest("POST", "/v2/systems", &form)
+		req := mylog.Check2(http.NewRequest("POST", "/v2/systems", &form))
 		c.Assert(err, check.IsNil)
 		req.Header.Set("Content-Type", "multipart/form-data; boundary="+boundary)
 		req.Header.Set("Content-Length", strconv.Itoa(form.Len()))
@@ -1664,7 +1663,7 @@ func (s *systemsCreateSuite) TestCreateSystemActionOfflineBadRequests(c *check.C
 		c.Check(rspe, check.ErrorMatches, tc.result, check.Commentf("%+v", tc))
 
 		// make sure that form files we uploaded get removed on failure
-		files, err := filepath.Glob(filepath.Join(dirs.SnapBlobDir, dirs.LocalInstallBlobTempPrefix+"*"))
+		files := mylog.Check2(filepath.Glob(filepath.Join(dirs.SnapBlobDir, dirs.LocalInstallBlobTempPrefix+"*")))
 		c.Assert(err, check.IsNil)
 		c.Check(files, check.HasLen, 0)
 	}
@@ -1714,7 +1713,7 @@ func (s *systemsCreateSuite) TestCreateSystemActionOffline(c *check.C) {
 	snapFormData := make(map[string]string)
 	for _, name := range []string{"pc-kernel", "pc", "core20"} {
 		f := snaptest.MakeTestSnapWithFiles(c, fmt.Sprintf("name: %s\nversion: 1", name), nil)
-		digest, size, err := asserts.SnapFileSHA3_384(f)
+		digest, size := mylog.Check3(asserts.SnapFileSHA3_384(f))
 		c.Assert(err, check.IsNil)
 
 		rev := s.mockStoreAssertion(c, asserts.SnapRevisionType, map[string]interface{}{
@@ -1736,7 +1735,7 @@ func (s *systemsCreateSuite) TestCreateSystemActionOffline(c *check.C) {
 
 		assertions = append(assertions, string(asserts.Encode(rev)), string(asserts.Encode(decl)))
 
-		content, err := os.ReadFile(f)
+		content := mylog.Check2(os.ReadFile(f))
 		c.Assert(err, check.IsNil)
 
 		snapFormData[name] = string(content)
@@ -1766,7 +1765,7 @@ func (s *systemsCreateSuite) TestCreateSystemActionOffline(c *check.C) {
 		return st.NewChange("change", "..."), nil
 	})
 
-	req, err := http.NewRequest("POST", "/v2/systems", &form)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/systems", &form))
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/form-data; boundary="+boundary)
 	req.Header.Set("Content-Length", strconv.Itoa(form.Len()))
@@ -1800,10 +1799,10 @@ func (s *systemsCreateSuite) TestCreateSystemActionOfflinePreinstalledJSON(c *ch
 		"offline": true,
 	}
 
-	b, err := json.Marshal(body)
+	b := mylog.Check2(json.Marshal(body))
 	c.Assert(err, check.IsNil)
 
-	req, err := http.NewRequest("POST", "/v2/systems", bytes.NewBuffer(b))
+	req := mylog.Check2(http.NewRequest("POST", "/v2/systems", bytes.NewBuffer(b)))
 	c.Assert(err, check.IsNil)
 
 	res := s.asyncReq(c, req, nil)
@@ -1836,7 +1835,7 @@ func (s *systemsCreateSuite) TestCreateSystemActionOfflinePreinstalledForm(c *ch
 		return st.NewChange("change", "..."), nil
 	})
 
-	req, err := http.NewRequest("POST", "/v2/systems", &form)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/systems", &form))
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/form-data; boundary="+boundary)
 	req.Header.Set("Content-Length", strconv.Itoa(form.Len()))
@@ -1909,7 +1908,7 @@ func (s *systemsCreateSuite) TestCreateSystemActionOfflineJustValidationSets(c *
 		return st.NewChange("change", "..."), nil
 	})
 
-	req, err := http.NewRequest("POST", "/v2/systems", &form)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/systems", &form))
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/form-data; boundary="+boundary)
 	req.Header.Set("Content-Length", strconv.Itoa(form.Len()))

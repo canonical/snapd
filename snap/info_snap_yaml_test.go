@@ -28,6 +28,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
@@ -59,8 +60,8 @@ func (s *InfoSnapYamlTestSuite) TearDownTest(c *C) {
 }
 
 func (s *InfoSnapYamlTestSuite) TestSimple(c *C) {
-	info, err := snap.InfoFromSnapYaml(mockYaml)
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.InfoFromSnapYaml(mockYaml))
+
 	c.Assert(info.InstanceName(), Equals, "foo")
 	c.Assert(info.Version, Equals, "1.0")
 	c.Assert(info.Type(), Equals, snap.TypeApp)
@@ -70,25 +71,25 @@ func (s *InfoSnapYamlTestSuite) TestSimple(c *C) {
 }
 
 func (s *InfoSnapYamlTestSuite) TestSnapdTypeAddedByMagic(c *C) {
-	info, err := snap.InfoFromSnapYaml([]byte(`name: snapd
-version: 1.0`))
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(`name: snapd
+version: 1.0`)))
+
 	c.Assert(info.InstanceName(), Equals, "snapd")
 	c.Assert(info.Version, Equals, "1.0")
 	c.Assert(info.Type(), Equals, snap.TypeSnapd)
 }
 
 func (s *InfoSnapYamlTestSuite) TestNonDefaultProvenance(c *C) {
-	info, err := snap.InfoFromSnapYaml([]byte(`name: foo
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(`name: foo
 provenance: delegated-prov
-version: 1.0`))
-	c.Assert(err, IsNil)
+version: 1.0`)))
+
 	c.Check(info.Provenance(), Equals, "delegated-prov")
 	c.Check(info.SnapProvenance, Equals, "delegated-prov")
 }
 
 func (s *InfoSnapYamlTestSuite) TestFail(c *C) {
-	_, err := snap.InfoFromSnapYaml([]byte("random-crap"))
+	_ := mylog.Check2(snap.InfoFromSnapYaml([]byte("random-crap")))
 	c.Assert(err, ErrorMatches, "(?m)cannot parse snap.yaml:.*")
 }
 
@@ -112,13 +113,13 @@ func (s *YamlSuite) TearDownTest(c *C) {
 }
 
 func (s *YamlSuite) TestUnmarshalGarbage(c *C) {
-	_, err := snap.InfoFromSnapYaml([]byte(`"`))
+	_ := mylog.Check2(snap.InfoFromSnapYaml([]byte(`"`)))
 	c.Assert(err, ErrorMatches, ".*: yaml: found unexpected end of stream")
 }
 
 func (s *YamlSuite) TestUnmarshalEmpty(c *C) {
-	info, err := snap.InfoFromSnapYaml([]byte(``))
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(``)))
+
 	c.Assert(info.Plugs, HasLen, 0)
 	c.Assert(info.Slots, HasLen, 0)
 	c.Assert(info.Apps, HasLen, 0)
@@ -128,12 +129,12 @@ func (s *YamlSuite) TestUnmarshalEmpty(c *C) {
 
 func (s *YamlSuite) TestUnmarshalStandaloneImplicitPlug(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
-	info, err := snap.InfoFromSnapYaml([]byte(`
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 plugs:
     network-client:
-`))
-	c.Assert(err, IsNil)
+`)))
+
 	c.Check(info.InstanceName(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 1)
 	c.Check(info.Slots, HasLen, 0)
@@ -147,12 +148,12 @@ plugs:
 
 func (s *YamlSuite) TestUnmarshalStandaloneAbbreviatedPlug(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
-	info, err := snap.InfoFromSnapYaml([]byte(`
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 plugs:
     net: network-client
-`))
-	c.Assert(err, IsNil)
+`)))
+
 	c.Check(info.InstanceName(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 1)
 	c.Check(info.Slots, HasLen, 0)
@@ -166,13 +167,13 @@ plugs:
 
 func (s *YamlSuite) TestUnmarshalStandaloneMinimalisticPlug(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
-	info, err := snap.InfoFromSnapYaml([]byte(`
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 plugs:
     net:
         interface: network-client
-`))
-	c.Assert(err, IsNil)
+`)))
+
 	c.Check(info.InstanceName(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 1)
 	c.Check(info.Slots, HasLen, 0)
@@ -186,14 +187,14 @@ plugs:
 
 func (s *YamlSuite) TestUnmarshalStandaloneCompletePlug(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
-	info, err := snap.InfoFromSnapYaml([]byte(`
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 plugs:
     net:
         interface: network-client
         ipv6-aware: true
-`))
-	c.Assert(err, IsNil)
+`)))
+
 	c.Check(info.InstanceName(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 1)
 	c.Check(info.Slots, HasLen, 0)
@@ -208,7 +209,7 @@ plugs:
 
 func (s *YamlSuite) TestUnmarshalStandalonePlugWithIntAndListAndMap(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
-	info, err := snap.InfoFromSnapYaml([]byte(`
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 plugs:
     iface:
@@ -218,8 +219,8 @@ plugs:
         m:
           a: A
           b: B
-`))
-	c.Assert(err, IsNil)
+`)))
+
 	c.Check(info.InstanceName(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 1)
 	c.Check(info.Slots, HasLen, 0)
@@ -238,7 +239,7 @@ plugs:
 
 func (s *YamlSuite) TestUnmarshalLastPlugDefinitionWins(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
-	info, err := snap.InfoFromSnapYaml([]byte(`
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 plugs:
     net:
@@ -247,8 +248,8 @@ plugs:
     net:
         interface: network-client
         attr: 2
-`))
-	c.Assert(err, IsNil)
+`)))
+
 	c.Check(info.InstanceName(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 1)
 	c.Check(info.Slots, HasLen, 0)
@@ -263,14 +264,14 @@ plugs:
 
 func (s *YamlSuite) TestUnmarshalPlugsExplicitlyDefinedImplicitlyBoundToApps(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
-	info, err := snap.InfoFromSnapYaml([]byte(`
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 plugs:
     network-client:
 apps:
     app:
-`))
-	c.Assert(err, IsNil)
+`)))
+
 	c.Check(info.InstanceName(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 1)
 	c.Check(info.Slots, HasLen, 0)
@@ -294,7 +295,7 @@ apps:
 
 func (s *YamlSuite) TestUnmarshalGlobalPlugBoundToOneApp(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
-	info, err := snap.InfoFromSnapYaml([]byte(`
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 plugs:
     network-client:
@@ -302,8 +303,8 @@ apps:
     with-plug:
         plugs: [network-client]
     without-plug:
-`))
-	c.Assert(err, IsNil)
+`)))
+
 	c.Check(info.InstanceName(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 1)
 	c.Check(info.Slots, HasLen, 0)
@@ -332,15 +333,15 @@ apps:
 
 func (s *YamlSuite) TestUnmarshalPlugsExplicitlyDefinedExplicitlyBoundToApps(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
-	info, err := snap.InfoFromSnapYaml([]byte(`
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 plugs:
     net: network-client
 apps:
     app:
         plugs: ["net"]
-`))
-	c.Assert(err, IsNil)
+`)))
+
 	c.Check(info.InstanceName(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 1)
 	c.Check(info.Slots, HasLen, 0)
@@ -362,13 +363,13 @@ apps:
 
 func (s *YamlSuite) TestUnmarshalPlugsImplicitlyDefinedExplicitlyBoundToApps(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
-	info, err := snap.InfoFromSnapYaml([]byte(`
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 apps:
     app:
         plugs: ["network-client"]
-`))
-	c.Assert(err, IsNil)
+`)))
+
 	c.Check(info.InstanceName(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 1)
 	c.Check(info.Slots, HasLen, 0)
@@ -390,13 +391,13 @@ apps:
 
 func (s *YamlSuite) TestUnmarshalPlugWithoutInterfaceName(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
-	info, err := snap.InfoFromSnapYaml([]byte(`
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 plugs:
     network-client:
         ipv6-aware: true
-`))
-	c.Assert(err, IsNil)
+`)))
+
 	c.Check(info.InstanceName(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 1)
 	c.Check(info.Slots, HasLen, 0)
@@ -412,13 +413,13 @@ plugs:
 
 func (s *YamlSuite) TestUnmarshalPlugWithLabel(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
-	info, err := snap.InfoFromSnapYaml([]byte(`
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 plugs:
     bool-file:
         label: Disk I/O indicator
-`))
-	c.Assert(err, IsNil)
+`)))
+
 	c.Check(info.InstanceName(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 1)
 	c.Check(info.Slots, HasLen, 0)
@@ -434,86 +435,86 @@ plugs:
 
 func (s *YamlSuite) TestUnmarshalCorruptedPlugWithNonStringInterfaceName(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
-	_, err := snap.InfoFromSnapYaml([]byte(`
+	_ := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 plugs:
     net:
         interface: 1.0
         ipv6-aware: true
-`))
+`)))
 	c.Assert(err, ErrorMatches, `interface name on plug "net" is not a string \(found float64\)`)
 }
 
 func (s *YamlSuite) TestUnmarshalCorruptedPlugWithNonStringLabel(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
-	_, err := snap.InfoFromSnapYaml([]byte(`
+	_ := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 plugs:
     bool-file:
         label: 1.0
-`))
+`)))
 	c.Assert(err, ErrorMatches, `label of plug "bool-file" is not a string \(found float64\)`)
 }
 
 func (s *YamlSuite) TestUnmarshalCorruptedPlugWithNonStringAttributes(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
-	_, err := snap.InfoFromSnapYaml([]byte(`
+	_ := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 plugs:
     net:
         1: ok
-`))
+`)))
 	c.Assert(err, ErrorMatches, `plug "net" has attribute key that is not a string \(found int\)`)
 }
 
 func (s *YamlSuite) TestUnmarshalCorruptedPlugWithEmptyAttributeKey(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
-	_, err := snap.InfoFromSnapYaml([]byte(`
+	_ := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 plugs:
     net:
         "": ok
-`))
+`)))
 	c.Assert(err, ErrorMatches, `plug "net" has an empty attribute key`)
 }
 
 func (s *YamlSuite) TestUnmarshalCorruptedPlugWithUnexpectedType(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
-	_, err := snap.InfoFromSnapYaml([]byte(`
+	_ := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 plugs:
     net: 5
-`))
+`)))
 	c.Assert(err, ErrorMatches, `plug "net" has malformed definition \(found int\)`)
 }
 
 func (s *YamlSuite) TestUnmarshalReservedPlugAttribute(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
-	_, err := snap.InfoFromSnapYaml([]byte(`
+	_ := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 plugs:
     serial:
         interface: serial-port
         $baud-rate: [9600]
-`))
+`)))
 	c.Assert(err, ErrorMatches, `plug "serial" uses reserved attribute "\$baud-rate"`)
 }
 
 func (s *YamlSuite) TestUnmarshalInvalidPlugAttribute(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
-	_, err := snap.InfoFromSnapYaml([]byte(`
+	_ := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 plugs:
     serial:
         interface: serial-port
         foo: null
-`))
+`)))
 	c.Assert(err, ErrorMatches, `attribute "foo" of plug \"serial\": invalid scalar:.*`)
 }
 
 func (s *YamlSuite) TestUnmarshalInvalidAttributeMapKey(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
-	_, err := snap.InfoFromSnapYaml([]byte(`
+	_ := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 plugs:
     serial:
@@ -521,7 +522,7 @@ plugs:
         bar:
           baz:
           - 1: A
-`))
+`)))
 	c.Assert(err, ErrorMatches, `attribute "bar" of plug \"serial\": non-string key: 1`)
 }
 
@@ -529,12 +530,12 @@ plugs:
 
 func (s *YamlSuite) TestUnmarshalStandaloneImplicitSlot(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
-	info, err := snap.InfoFromSnapYaml([]byte(`
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 slots:
     network-client:
-`))
-	c.Assert(err, IsNil)
+`)))
+
 	c.Check(info.InstanceName(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 0)
 	c.Check(info.Slots, HasLen, 1)
@@ -548,12 +549,12 @@ slots:
 
 func (s *YamlSuite) TestUnmarshalStandaloneAbbreviatedSlot(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
-	info, err := snap.InfoFromSnapYaml([]byte(`
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 slots:
     net: network-client
-`))
-	c.Assert(err, IsNil)
+`)))
+
 	c.Check(info.InstanceName(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 0)
 	c.Check(info.Slots, HasLen, 1)
@@ -567,13 +568,13 @@ slots:
 
 func (s *YamlSuite) TestUnmarshalStandaloneMinimalisticSlot(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
-	info, err := snap.InfoFromSnapYaml([]byte(`
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 slots:
     net:
         interface: network-client
-`))
-	c.Assert(err, IsNil)
+`)))
+
 	c.Check(info.InstanceName(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 0)
 	c.Check(info.Slots, HasLen, 1)
@@ -587,14 +588,14 @@ slots:
 
 func (s *YamlSuite) TestUnmarshalStandaloneCompleteSlot(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
-	info, err := snap.InfoFromSnapYaml([]byte(`
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 slots:
     net:
         interface: network-client
         ipv6-aware: true
-`))
-	c.Assert(err, IsNil)
+`)))
+
 	c.Check(info.InstanceName(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 0)
 	c.Check(info.Slots, HasLen, 1)
@@ -609,7 +610,7 @@ slots:
 
 func (s *YamlSuite) TestUnmarshalStandaloneSlotWithIntAndListAndMap(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
-	info, err := snap.InfoFromSnapYaml([]byte(`
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 slots:
     iface:
@@ -618,8 +619,8 @@ slots:
         l: [1,2]
         m:
           a: "A"
-`))
-	c.Assert(err, IsNil)
+`)))
+
 	c.Check(info.InstanceName(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 0)
 	c.Check(info.Slots, HasLen, 1)
@@ -638,7 +639,7 @@ slots:
 
 func (s *YamlSuite) TestUnmarshalLastSlotDefinitionWins(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
-	info, err := snap.InfoFromSnapYaml([]byte(`
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 slots:
     net:
@@ -647,8 +648,8 @@ slots:
     net:
         interface: network-client
         attr: 2
-`))
-	c.Assert(err, IsNil)
+`)))
+
 	c.Check(info.InstanceName(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 0)
 	c.Check(info.Slots, HasLen, 1)
@@ -663,14 +664,14 @@ slots:
 
 func (s *YamlSuite) TestUnmarshalSlotsExplicitlyDefinedImplicitlyBoundToApps(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
-	info, err := snap.InfoFromSnapYaml([]byte(`
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 slots:
     network-client:
 apps:
     app:
-`))
-	c.Assert(err, IsNil)
+`)))
+
 	c.Check(info.InstanceName(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 0)
 	c.Check(info.Slots, HasLen, 1)
@@ -693,15 +694,15 @@ apps:
 
 func (s *YamlSuite) TestUnmarshalSlotsExplicitlyDefinedExplicitlyBoundToApps(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
-	info, err := snap.InfoFromSnapYaml([]byte(`
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 slots:
     net: network-client
 apps:
     app:
         slots: ["net"]
-`))
-	c.Assert(err, IsNil)
+`)))
+
 	c.Check(info.InstanceName(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 0)
 	c.Check(info.Slots, HasLen, 1)
@@ -723,13 +724,13 @@ apps:
 
 func (s *YamlSuite) TestUnmarshalSlotsImplicitlyDefinedExplicitlyBoundToApps(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
-	info, err := snap.InfoFromSnapYaml([]byte(`
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 apps:
     app:
         slots: ["network-client"]
-`))
-	c.Assert(err, IsNil)
+`)))
+
 	c.Check(info.InstanceName(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 0)
 	c.Check(info.Slots, HasLen, 1)
@@ -751,13 +752,13 @@ apps:
 
 func (s *YamlSuite) TestUnmarshalSlotWithoutInterfaceName(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
-	info, err := snap.InfoFromSnapYaml([]byte(`
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 slots:
     network-client:
         ipv6-aware: true
-`))
-	c.Assert(err, IsNil)
+`)))
+
 	c.Check(info.InstanceName(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 0)
 	c.Check(info.Slots, HasLen, 1)
@@ -773,14 +774,14 @@ slots:
 
 func (s *YamlSuite) TestUnmarshalSlotWithLabel(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
-	info, err := snap.InfoFromSnapYaml([]byte(`
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 slots:
     led0:
         interface: bool-file
         label: Front panel LED (red)
-`))
-	c.Assert(err, IsNil)
+`)))
+
 	c.Check(info.InstanceName(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 0)
 	c.Check(info.Slots, HasLen, 1)
@@ -796,14 +797,14 @@ slots:
 
 func (s *YamlSuite) TestUnmarshalGlobalSlotsBindToHooks(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
-	info, err := snap.InfoFromSnapYaml([]byte(`
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 slots:
     test-slot:
 hooks:
     test-hook:
-`))
-	c.Assert(err, IsNil)
+`)))
+
 	c.Check(info.InstanceName(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 0)
 	c.Check(info.Slots, HasLen, 1)
@@ -832,13 +833,13 @@ hooks:
 
 func (s *YamlSuite) TestUnmarshalHookWithSlot(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
-	info, err := snap.InfoFromSnapYaml([]byte(`
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 hooks:
     test-hook:
         slots: [test-slot]
-`))
-	c.Assert(err, IsNil)
+`)))
+
 	c.Check(info.InstanceName(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 0)
 	c.Check(info.Slots, HasLen, 1)
@@ -866,91 +867,91 @@ hooks:
 
 func (s *YamlSuite) TestUnmarshalCorruptedSlotWithNonStringInterfaceName(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
-	_, err := snap.InfoFromSnapYaml([]byte(`
+	_ := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 slots:
     net:
         interface: 1.0
         ipv6-aware: true
-`))
+`)))
 	c.Assert(err, ErrorMatches, `interface name on slot "net" is not a string \(found float64\)`)
 }
 
 func (s *YamlSuite) TestUnmarshalCorruptedSlotWithNonStringLabel(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
-	_, err := snap.InfoFromSnapYaml([]byte(`
+	_ := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 slots:
     bool-file:
         label: 1.0
-`))
+`)))
 	c.Assert(err, ErrorMatches, `label of slot "bool-file" is not a string \(found float64\)`)
 }
 
 func (s *YamlSuite) TestUnmarshalCorruptedSlotWithNonStringAttributes(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
-	_, err := snap.InfoFromSnapYaml([]byte(`
+	_ := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 slots:
     net:
         1: ok
-`))
+`)))
 	c.Assert(err, ErrorMatches, `slot "net" has attribute key that is not a string \(found int\)`)
 }
 
 func (s *YamlSuite) TestUnmarshalCorruptedSlotWithEmptyAttributeKey(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
-	_, err := snap.InfoFromSnapYaml([]byte(`
+	_ := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 slots:
     net:
         "": ok
-`))
+`)))
 	c.Assert(err, ErrorMatches, `slot "net" has an empty attribute key`)
 }
 
 func (s *YamlSuite) TestUnmarshalCorruptedSlotWithUnexpectedType(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
-	_, err := snap.InfoFromSnapYaml([]byte(`
+	_ := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 slots:
     net: 5
-`))
+`)))
 	c.Assert(err, ErrorMatches, `slot "net" has malformed definition \(found int\)`)
 }
 
 func (s *YamlSuite) TestUnmarshalReservedSlotAttribute(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
-	_, err := snap.InfoFromSnapYaml([]byte(`
+	_ := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 slots:
     serial:
         interface: serial-port
         $baud-rate: [9600]
-`))
+`)))
 	c.Assert(err, ErrorMatches, `slot "serial" uses reserved attribute "\$baud-rate"`)
 }
 
 func (s *YamlSuite) TestUnmarshalInvalidSlotAttribute(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
-	_, err := snap.InfoFromSnapYaml([]byte(`
+	_ := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 slots:
     serial:
         interface: serial-port
         foo: null
-`))
+`)))
 	c.Assert(err, ErrorMatches, `attribute "foo" of slot \"serial\": invalid scalar:.*`)
 }
 
 func (s *YamlSuite) TestUnmarshalHook(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
-	info, err := snap.InfoFromSnapYaml([]byte(`
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 hooks:
     test-hook:
-`))
-	c.Assert(err, IsNil)
+`)))
+
 	c.Check(info.InstanceName(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 0)
 	c.Check(info.Slots, HasLen, 0)
@@ -975,12 +976,12 @@ func (s *YamlSuite) TestUnmarshalUnsupportedHook(c *C) {
 	s.restore = snap.MockSupportedHookTypes([]*snap.HookType{hookType})
 
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
-	info, err := snap.InfoFromSnapYaml([]byte(`
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 hooks:
     test-hook:
-`))
-	c.Assert(err, IsNil)
+`)))
+
 	c.Check(info.InstanceName(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 0)
 	c.Check(info.Slots, HasLen, 0)
@@ -994,13 +995,13 @@ func (s *YamlSuite) TestUnmarshalHookFiltersOutUnsupportedHooks(c *C) {
 	s.restore = snap.MockSupportedHookTypes([]*snap.HookType{hookType})
 
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
-	info, err := snap.InfoFromSnapYaml([]byte(`
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 hooks:
     test-hook:
     foo-hook:
-`))
-	c.Assert(err, IsNil)
+`)))
+
 	c.Check(info.InstanceName(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 0)
 	c.Check(info.Slots, HasLen, 0)
@@ -1021,13 +1022,13 @@ hooks:
 
 func (s *YamlSuite) TestUnmarshalHookWithPlug(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
-	info, err := snap.InfoFromSnapYaml([]byte(`
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 hooks:
     test-hook:
         plugs: [test-plug]
-`))
-	c.Assert(err, IsNil)
+`)))
+
 	c.Check(info.InstanceName(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 1)
 	c.Check(info.Slots, HasLen, 0)
@@ -1055,14 +1056,14 @@ hooks:
 
 func (s *YamlSuite) TestUnmarshalGlobalPlugsBindToHooks(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
-	info, err := snap.InfoFromSnapYaml([]byte(`
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 plugs:
     test-plug:
 hooks:
     test-hook:
-`))
-	c.Assert(err, IsNil)
+`)))
+
 	c.Check(info.InstanceName(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 1)
 	c.Check(info.Slots, HasLen, 0)
@@ -1091,7 +1092,7 @@ hooks:
 
 func (s *YamlSuite) TestUnmarshalGlobalPlugBoundToOneHook(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
-	info, err := snap.InfoFromSnapYaml([]byte(`
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 plugs:
     test-plug:
@@ -1099,8 +1100,8 @@ hooks:
     with-plug:
         plugs: [test-plug]
     without-plug:
-`))
-	c.Assert(err, IsNil)
+`)))
+
 	c.Check(info.InstanceName(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 1)
 	c.Check(info.Slots, HasLen, 0)
@@ -1133,15 +1134,15 @@ hooks:
 
 func (s *YamlSuite) TestUnmarshalExplicitGlobalPlugBoundToHook(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
-	info, err := snap.InfoFromSnapYaml([]byte(`
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 plugs:
     test-plug: test-interface
 hooks:
     test-hook:
         plugs: ["test-plug"]
-`))
-	c.Assert(err, IsNil)
+`)))
+
 	c.Check(info.InstanceName(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 1)
 	c.Check(info.Slots, HasLen, 0)
@@ -1169,7 +1170,7 @@ hooks:
 
 func (s *YamlSuite) TestUnmarshalGlobalPlugBoundToHookNotApp(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
-	info, err := snap.InfoFromSnapYaml([]byte(`
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 plugs:
     test-plug:
@@ -1178,8 +1179,8 @@ hooks:
         plugs: [test-plug]
 apps:
     test-app:
-`))
-	c.Assert(err, IsNil)
+`)))
+
 	c.Check(info.InstanceName(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 1)
 	c.Check(info.Slots, HasLen, 0)
@@ -1211,7 +1212,7 @@ apps:
 
 func (s *YamlSuite) TestUnmarshalComplexExample(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
-	info, err := snap.InfoFromSnapYaml([]byte(`
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: foo
 version: 1.2
 title: Foo
@@ -1247,8 +1248,8 @@ slots:
         protocol: foo
     tracing:
         interface: ptrace
-`))
-	c.Assert(err, IsNil)
+`)))
+
 	c.Check(info.InstanceName(), Equals, "foo")
 	c.Check(info.Version, Equals, "1.2")
 	c.Check(info.Type(), Equals, snap.TypeApp)
@@ -1284,9 +1285,11 @@ slots:
 	c.Check(app1.Name, Equals, "daemon")
 	c.Check(app1.Command, Equals, "foo --daemon")
 	c.Check(app1.Plugs, DeepEquals, map[string]*snap.PlugInfo{
-		plug1.Name: plug1, plug2.Name: plug2, plug4.Name: plug4})
+		plug1.Name: plug1, plug2.Name: plug2, plug4.Name: plug4,
+	})
 	c.Check(app1.Slots, DeepEquals, map[string]*snap.SlotInfo{
-		slot1.Name: slot1, slot2.Name: slot2})
+		slot1.Name: slot1, slot2.Name: slot2,
+	})
 
 	// app2 ("foo") has two plugs ("foo-socket", "logging") and one slot
 	// ("tracing"). The slot "tracing" and plug "logging" are  global while
@@ -1297,9 +1300,11 @@ slots:
 	c.Check(app2.Name, Equals, "foo")
 	c.Check(app2.Command, Equals, "fooctl")
 	c.Check(app2.Plugs, DeepEquals, map[string]*snap.PlugInfo{
-		plug3.Name: plug3, plug4.Name: plug4})
+		plug3.Name: plug3, plug4.Name: plug4,
+	})
 	c.Check(app2.Slots, DeepEquals, map[string]*snap.SlotInfo{
-		slot2.Name: slot2})
+		slot2.Name: slot2,
+	})
 
 	// hook1 has two plugs ("foo-socket", "logging") and two slots ("foo-socket", "tracing").
 	// The plug "logging" and slot "tracing" are global while "foo-socket" is hook-bound.
@@ -1308,9 +1313,11 @@ slots:
 	c.Check(hook.Snap, Equals, info)
 	c.Check(hook.Name, Equals, "test-hook")
 	c.Check(hook.Plugs, DeepEquals, map[string]*snap.PlugInfo{
-		plug3.Name: plug3, plug4.Name: plug4})
+		plug3.Name: plug3, plug4.Name: plug4,
+	})
 	c.Check(hook.Slots, DeepEquals, map[string]*snap.SlotInfo{
-		slot1.Name: slot1, slot2.Name: slot2})
+		slot1.Name: slot1, slot2.Name: slot2,
+	})
 
 	// plug1 ("network") is implicitly defined and app-bound to "daemon"
 
@@ -1351,7 +1358,8 @@ slots:
 	c.Check(plug4.Attrs, HasLen, 0)
 	c.Check(plug4.Label, Equals, "")
 	c.Check(plug4.Apps, DeepEquals, map[string]*snap.AppInfo{
-		app1.Name: app1, app2.Name: app2})
+		app1.Name: app1, app2.Name: app2,
+	})
 
 	// slot1 ("foo-socket") is app-bound to "daemon"
 
@@ -1360,7 +1368,8 @@ slots:
 	c.Check(slot1.Name, Equals, "foo-socket-slot")
 	c.Check(slot1.Interface, Equals, "socket")
 	c.Check(slot1.Attrs, DeepEquals, map[string]interface{}{
-		"protocol": "foo", "path": "$SNAP_DATA/socket"})
+		"protocol": "foo", "path": "$SNAP_DATA/socket",
+	})
 	c.Check(slot1.Label, Equals, "")
 	c.Check(slot1.Apps, DeepEquals, map[string]*snap.AppInfo{app1.Name: app1})
 
@@ -1373,11 +1382,12 @@ slots:
 	c.Check(slot2.Attrs, HasLen, 0)
 	c.Check(slot2.Label, Equals, "")
 	c.Check(slot2.Apps, DeepEquals, map[string]*snap.AppInfo{
-		app1.Name: app1, app2.Name: app2})
+		app1.Name: app1, app2.Name: app2,
+	})
 }
 
 func (s *YamlSuite) TestUnmarshalActivatesOn(c *C) {
-	info, err := snap.InfoFromSnapYaml([]byte(`
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 slots:
     test-slot1:
@@ -1386,8 +1396,8 @@ apps:
     daemon:
         activates-on: ["test-slot1", "test-slot2"]
     foo:
-`))
-	c.Assert(err, IsNil)
+`)))
+
 	c.Check(info.InstanceName(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 0)
 	c.Check(info.Slots, HasLen, 2)
@@ -1404,7 +1414,8 @@ apps:
 	c.Check(app1.ActivatesOn, DeepEquals, []*snap.SlotInfo{slot1, slot2})
 	// activates-on slots are implicitly added to the app
 	c.Check(app1.Slots, DeepEquals, map[string]*snap.SlotInfo{
-		slot1.Name: slot1, slot2.Name: slot2})
+		slot1.Name: slot1, slot2.Name: slot2,
+	})
 
 	c.Assert(app2, Not(IsNil))
 	c.Check(app2.Name, Equals, "foo")
@@ -1415,21 +1426,23 @@ apps:
 	c.Assert(slot1, Not(IsNil))
 	c.Check(slot1.Name, Equals, "test-slot1")
 	c.Check(slot1.Apps, DeepEquals, map[string]*snap.AppInfo{
-		app1.Name: app1})
+		app1.Name: app1,
+	})
 
 	c.Assert(slot2, Not(IsNil))
 	c.Check(slot2.Name, Equals, "test-slot2")
 	c.Check(slot2.Apps, DeepEquals, map[string]*snap.AppInfo{
-		app1.Name: app1})
+		app1.Name: app1,
+	})
 }
 
 func (s *YamlSuite) TestUnmarshalActivatesOnUnknownSlot(c *C) {
-	info, err := snap.InfoFromSnapYaml([]byte(`
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 apps:
     daemon:
         activates-on: ["test-slot"]
-`))
+`)))
 	c.Check(info, IsNil)
 	c.Check(err, ErrorMatches, `invalid activates-on value "test-slot" on app "daemon": slot not found`)
 }
@@ -1440,8 +1453,8 @@ func (s *YamlSuite) TestSnapYamlTypeDefault(c *C) {
 	y := []byte(`name: binary
 version: 1.0
 `)
-	info, err := snap.InfoFromSnapYaml(y)
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.InfoFromSnapYaml(y))
+
 	c.Assert(info.Type(), Equals, snap.TypeApp)
 }
 
@@ -1449,8 +1462,8 @@ func (s *YamlSuite) TestSnapYamlEpochDefault(c *C) {
 	y := []byte(`name: binary
 version: 1.0
 `)
-	info, err := snap.InfoFromSnapYaml(y)
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.InfoFromSnapYaml(y))
+
 	c.Assert(info.Epoch, DeepEquals, snap.E("0"))
 }
 
@@ -1458,8 +1471,8 @@ func (s *YamlSuite) TestSnapYamlConfinementDefault(c *C) {
 	y := []byte(`name: binary
 version: 1.0
 `)
-	info, err := snap.InfoFromSnapYaml(y)
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.InfoFromSnapYaml(y))
+
 	c.Assert(info.Confinement, Equals, snap.StrictConfinement)
 }
 
@@ -1468,8 +1481,8 @@ func (s *YamlSuite) TestSnapYamlMultipleArchitecturesParsing(c *C) {
 version: 1.0
 architectures: [i386, armhf]
 `)
-	info, err := snap.InfoFromSnapYaml(y)
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.InfoFromSnapYaml(y))
+
 	c.Assert(info.Architectures, DeepEquals, []string{"i386", "armhf"})
 }
 
@@ -1478,8 +1491,8 @@ func (s *YamlSuite) TestSnapYamlSingleArchitecturesParsing(c *C) {
 version: 1.0
 architectures: [i386]
 `)
-	info, err := snap.InfoFromSnapYaml(y)
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.InfoFromSnapYaml(y))
+
 	c.Assert(info.Architectures, DeepEquals, []string{"i386"})
 }
 
@@ -1488,8 +1501,8 @@ func (s *YamlSuite) TestSnapYamlAssumesParsing(c *C) {
 version: 1.0
 assumes: [feature2, feature1]
 `)
-	info, err := snap.InfoFromSnapYaml(y)
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.InfoFromSnapYaml(y))
+
 	c.Assert(info.Assumes, DeepEquals, []string{"feature1", "feature2"})
 }
 
@@ -1497,8 +1510,8 @@ func (s *YamlSuite) TestSnapYamlNoArchitecturesParsing(c *C) {
 	y := []byte(`name: binary
 version: 1.0
 `)
-	info, err := snap.InfoFromSnapYaml(y)
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.InfoFromSnapYaml(y))
+
 	c.Assert(info.Architectures, DeepEquals, []string{"all"})
 }
 
@@ -1509,7 +1522,7 @@ architectures:
   armhf:
     no
 `)
-	_, err := snap.InfoFromSnapYaml(y)
+	_ := mylog.Check2(snap.InfoFromSnapYaml(y))
 	c.Assert(err, NotNil)
 }
 
@@ -1522,8 +1535,8 @@ apps:
  cm:
    command: cm0
 `)
-	info, err := snap.InfoFromSnapYaml(y)
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.InfoFromSnapYaml(y))
+
 	c.Check(info.Apps, DeepEquals, map[string]*snap.AppInfo{
 		"cm": {
 			Snap:    info,
@@ -1553,8 +1566,8 @@ apps:
        listen-stream: $SNAP_DATA/sock1.socket
        socket-mode: 0666
 `)
-	info, err := snap.InfoFromSnapYaml(y)
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.InfoFromSnapYaml(y))
+
 
 	app := snap.AppInfo{
 		Snap:            info,
@@ -1590,8 +1603,8 @@ apps:
    daemon: simple
    daemon-scope: user
 `)
-	info, err := snap.InfoFromSnapYaml(y)
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.InfoFromSnapYaml(y))
+
 	c.Check(info.Apps["svc"].DaemonScope, Equals, snap.UserDaemon)
 }
 
@@ -1603,8 +1616,8 @@ apps:
    command: svc1
    daemon: simple
 `)
-	info, err := snap.InfoFromSnapYaml(y)
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.InfoFromSnapYaml(y))
+
 
 	// If daemon-scope is unset, default to system scope
 	c.Check(info.Apps["svc"].DaemonScope, Equals, snap.SystemDaemon)
@@ -1620,8 +1633,8 @@ apps:
      sock:
        listen-stream: 8080
 `)
-	info, err := snap.InfoFromSnapYaml(y)
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.InfoFromSnapYaml(y))
+
 
 	app := snap.AppInfo{
 		Snap:    info,
@@ -1652,7 +1665,7 @@ apps:
        listen-stream: 8080
        socket-mode: asdfasdf
 `)
-	_, err := snap.InfoFromSnapYaml(y)
+	_ := mylog.Check2(snap.InfoFromSnapYaml(y))
 	c.Check(err.Error(), Matches, "cannot parse snap.yaml: yaml: unmarshal errors:\n"+
 		"  line 9: cannot unmarshal !!str `asdfasdf` into (os|fs).FileMode")
 }
@@ -1665,7 +1678,7 @@ apps:
    command: svc
    daemon-scope: invalid
 `)
-	_, err := snap.InfoFromSnapYaml(y)
+	_ := mylog.Check2(snap.InfoFromSnapYaml(y))
 	c.Check(err.Error(), Equals, "cannot parse snap.yaml: invalid daemon scope: \"invalid\"")
 }
 
@@ -1677,8 +1690,8 @@ environment:
  foo: bar
  baz: boom
 `)
-	info, err := snap.InfoFromSnapYaml(y)
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.InfoFromSnapYaml(y))
+
 	c.Assert(info.Environment, DeepEquals, *strutil.NewOrderedMap("foo", "bar", "baz", "boom"))
 }
 
@@ -1692,8 +1705,8 @@ apps:
    k1: v1
    k2: v2
 `)
-	info, err := snap.InfoFromSnapYaml(y)
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.InfoFromSnapYaml(y))
+
 	c.Assert(info.Apps["foo"].Environment, DeepEquals, *strutil.NewOrderedMap("k1", "v1", "k2", "v2"))
 }
 
@@ -1707,8 +1720,8 @@ hooks:
    k1: v1
    k2: v2
 `)
-	info, err := snap.InfoFromSnapYaml(y)
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.InfoFromSnapYaml(y))
+
 	c.Assert(info.Hooks["foo"].Environment, DeepEquals, *strutil.NewOrderedMap("k1", "v1", "k2", "v2"))
 }
 
@@ -1718,8 +1731,8 @@ func (s *YamlSuite) TestClassicConfinement(c *C) {
 name: foo
 confinement: classic
 `)
-	info, err := snap.InfoFromSnapYaml(y)
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.InfoFromSnapYaml(y))
+
 	c.Assert(info.Confinement, Equals, snap.ClassicConfinement)
 }
 
@@ -1733,8 +1746,8 @@ apps:
   bar:
     aliases: [bar, bar1]
 `)
-	info, err := snap.InfoFromSnapYaml(y)
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.InfoFromSnapYaml(y))
+
 
 	c.Check(info.Apps["foo"].LegacyAliases, DeepEquals, []string{"foo"})
 	c.Check(info.Apps["bar"].LegacyAliases, DeepEquals, []string{"bar", "bar1"})
@@ -1756,7 +1769,7 @@ apps:
   bar:
     aliases: [bar]
 `)
-	_, err := snap.InfoFromSnapYaml(y)
+	_ := mylog.Check2(snap.InfoFromSnapYaml(y))
 	c.Assert(err, ErrorMatches, `cannot set "bar" as alias for both ("foo" and "bar"|"bar" and "foo")`)
 }
 
@@ -1773,8 +1786,8 @@ apps:
  zed:
 
 `)
-	info, err := snap.InfoFromSnapYaml(y)
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.InfoFromSnapYaml(y))
+
 
 	c.Check(info.Apps, DeepEquals, map[string]*snap.AppInfo{
 		"foo": {
@@ -1807,8 +1820,8 @@ apps:
   foo:
     watchdog-timeout: 12s
 `)
-	info, err := snap.InfoFromSnapYaml(y)
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.InfoFromSnapYaml(y))
+
 
 	c.Check(info.Apps["foo"].WatchdogTimeout, Equals, timeout.Timeout(12*time.Second))
 }
@@ -1825,8 +1838,8 @@ layout:
   /etc/froz:
     bind-file: $SNAP/etc/froz
 `)
-	info, err := snap.InfoFromSnapYaml(y)
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.InfoFromSnapYaml(y))
+
 	c.Assert(info.Layout["/usr/share/foo"], DeepEquals, &snap.Layout{
 		Snap:  info,
 		Path:  "/usr/share/foo",
@@ -1861,7 +1874,7 @@ layouts:
   /usr/share/foo:
     bind: $SNAP/usr/share/foo
 `)
-	info, err := snap.InfoFromSnapYaml(y)
+	info := mylog.Check2(snap.InfoFromSnapYaml(y))
 	c.Assert(err, ErrorMatches, `cannot parse snap.yaml: typo detected: use singular "layout" instead of plural "layouts"`)
 	c.Assert(info, IsNil)
 }
@@ -1875,8 +1888,8 @@ apps:
    timer: mon,10:00-12:00
 
 `)
-	info, err := snap.InfoFromSnapYaml(y)
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.InfoFromSnapYaml(y))
+
 	app := info.Apps["foo"]
 	c.Check(app.Timer, DeepEquals, &snap.TimerInfo{App: app, Timer: "mon,10:00-12:00"})
 }
@@ -1890,8 +1903,8 @@ apps:
    autostart: foo.desktop
 
 `)
-	info, err := snap.InfoFromSnapYaml(yAutostart)
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.InfoFromSnapYaml(yAutostart))
+
 	app := info.Apps["foo"]
 	c.Check(app.Autostart, Equals, "foo.desktop")
 
@@ -1902,8 +1915,8 @@ apps:
    command: bin/foo
 
 `)
-	info, err = snap.InfoFromSnapYaml(yNoAutostart)
-	c.Assert(err, IsNil)
+	info = mylog.Check2(snap.InfoFromSnapYaml(yNoAutostart))
+
 	app = info.Apps["foo"]
 	c.Check(app.Autostart, Equals, "")
 }
@@ -1922,8 +1935,8 @@ apps:
    command: bin/foo
 
 `)
-	info, err := snap.InfoFromSnapYaml(yAutostart)
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.InfoFromSnapYaml(yAutostart))
+
 	c.Check(info.Apps["foo"].CommonID, Equals, "org.foo")
 	c.Check(info.Apps["bar"].CommonID, Equals, "org.bar")
 	c.Check(info.Apps["baz"].CommonID, Equals, "")
@@ -1945,8 +1958,8 @@ hooks:
  configure:
   command-chain: [hookchain1, hookchain2]
 `)
-	info, err := snap.InfoFromSnapYaml(yAutostart)
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.InfoFromSnapYaml(yAutostart))
+
 	app := info.Apps["foo"]
 	c.Check(app.CommandChain, DeepEquals, []string{"chain1", "chain2"})
 	hook := info.Hooks["configure"]
@@ -1962,8 +1975,8 @@ apps:
   daemon: simple
   restart-delay: 12s
 `)
-	info, err := snap.InfoFromSnapYaml(yAutostart)
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.InfoFromSnapYaml(yAutostart))
+
 	app := info.Apps["foo"]
 	c.Assert(app, NotNil)
 	c.Check(app.RestartDelay, Equals, timeout.Timeout(12*time.Second))
@@ -1982,8 +1995,8 @@ system-usernames:
     attr2: corge
     attr3: ""
 `)
-	info, err := snap.InfoFromSnapYaml(y)
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.InfoFromSnapYaml(y))
+
 	c.Check(info.SystemUsernames, HasLen, 3)
 	c.Assert(info.SystemUsernames["foo"], DeepEquals, &snap.SystemUsernameInfo{
 		Name:  "foo",
@@ -2010,7 +2023,7 @@ version: 1.0
 system-usernames:
   a: true
 `)
-	info, err := snap.InfoFromSnapYaml(y)
+	info := mylog.Check2(snap.InfoFromSnapYaml(y))
 	c.Assert(err, ErrorMatches, `system username "a" has malformed definition \(found bool\)`)
 	c.Assert(info, IsNil)
 }
@@ -2021,7 +2034,7 @@ version: 1.0
 system-usernames:
   a: [b, c]
 `)
-	info, err := snap.InfoFromSnapYaml(y)
+	info := mylog.Check2(snap.InfoFromSnapYaml(y))
 	c.Assert(err, ErrorMatches, `system username "a" has malformed definition \(found \[\]interface {}\)`)
 	c.Assert(info, IsNil)
 }
@@ -2032,7 +2045,7 @@ version: 1.0
 system-usernames:
   "": shared
 `)
-	_, err := snap.InfoFromSnapYaml(y)
+	_ := mylog.Check2(snap.InfoFromSnapYaml(y))
 	c.Assert(err, ErrorMatches, `system username cannot be empty`)
 }
 
@@ -2042,7 +2055,7 @@ version: 1.0
 system-usernames:
 - foo: shared
 `)
-	_, err := snap.InfoFromSnapYaml(y)
+	_ := mylog.Check2(snap.InfoFromSnapYaml(y))
 	c.Assert(err, ErrorMatches, `(?m)cannot parse snap.yaml:.*`)
 }
 
@@ -2052,7 +2065,7 @@ version: 1.0
 system-usernames:
   a: ""
 `)
-	_, err := snap.InfoFromSnapYaml(y)
+	_ := mylog.Check2(snap.InfoFromSnapYaml(y))
 	c.Assert(err, ErrorMatches, `system username "a" does not specify a scope`)
 }
 
@@ -2062,7 +2075,7 @@ version: 1.0
 system-usernames:
   a: null
 `)
-	_, err := snap.InfoFromSnapYaml(y)
+	_ := mylog.Check2(snap.InfoFromSnapYaml(y))
 	c.Assert(err, ErrorMatches, `system username "a" does not specify a scope`)
 }
 
@@ -2074,7 +2087,7 @@ system-usernames:
     scope: shared
     "": bar
 `)
-	_, err := snap.InfoFromSnapYaml(y)
+	_ := mylog.Check2(snap.InfoFromSnapYaml(y))
 	c.Assert(err, ErrorMatches, `system username "foo" has an empty attribute key`)
 }
 
@@ -2086,7 +2099,7 @@ system-usernames:
     scope: shared
     1: bar
 `)
-	_, err := snap.InfoFromSnapYaml(y)
+	_ := mylog.Check2(snap.InfoFromSnapYaml(y))
 	c.Assert(err, ErrorMatches, `system username "foo" has attribute key that is not a string \(found int\)`)
 }
 
@@ -2098,7 +2111,7 @@ system-usernames:
     scope: shared
     bar: null
 `)
-	_, err := snap.InfoFromSnapYaml(y)
+	_ := mylog.Check2(snap.InfoFromSnapYaml(y))
 	c.Assert(err, ErrorMatches, `attribute "bar" of system username "foo": invalid scalar:.*`)
 }
 
@@ -2109,7 +2122,7 @@ system-usernames:
   foo:
     scope: 10
 `)
-	_, err := snap.InfoFromSnapYaml(y)
+	_ := mylog.Check2(snap.InfoFromSnapYaml(y))
 	c.Assert(err, ErrorMatches, `scope on system username "foo" is not a string \(found int\)`)
 }
 
@@ -2130,8 +2143,8 @@ links:
  source-code:
    - https://github.com/webteam-space/toto.space
 `)
-	info, err := snap.InfoFromSnapYaml(yLinks)
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.InfoFromSnapYaml(yLinks))
+
 	c.Check(info.Links(), DeepEquals, map[string][]string{
 		"bug-url":     {"https://github.com/webteam-space/toto.space/issues"},
 		"contact":     {"mailto:me@toto.space", "https://toto.space"},
@@ -2150,7 +2163,7 @@ links:
  "":
    - htps://toto.space
 `)
-	_, err := snap.InfoFromSnapYaml(yLinks)
+	_ := mylog.Check2(snap.InfoFromSnapYaml(yLinks))
 	c.Check(err, ErrorMatches, `links key cannot be empty`)
 }
 
@@ -2170,13 +2183,13 @@ links:
 	}
 
 	for _, k := range invalid {
-		_, err := snap.InfoFromSnapYaml([]byte(fmt.Sprintf(yLinks, k)))
+		_ := mylog.Check2(snap.InfoFromSnapYaml([]byte(fmt.Sprintf(yLinks, k))))
 		c.Check(err, ErrorMatches, fmt.Sprintf(`links key is invalid: %s`, k))
 	}
 }
 
 func (s *YamlSuite) TestUnmarshalComponents(c *C) {
-	info, err := snap.InfoFromSnapYaml([]byte(`
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 components:
   test1:
@@ -2187,8 +2200,8 @@ components:
     type: test
     summary: test component 2
     description: long component description 2
-`))
-	c.Assert(err, IsNil)
+`)))
+
 	c.Check(info.InstanceName(), Equals, "snap")
 	c.Check(info.Components, DeepEquals, map[string]*snap.Component{
 		"test1": {
@@ -2207,7 +2220,7 @@ components:
 }
 
 func (s *YamlSuite) TestUnmarshalComponentsHook(c *C) {
-	info, err := snap.InfoFromSnapYaml([]byte(`
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 components:
   test1:
@@ -2221,8 +2234,8 @@ components:
         environment:
           k1: v1
           k2: v2
-`))
-	c.Assert(err, IsNil)
+`)))
+
 	c.Check(info.InstanceName(), Equals, "snap")
 
 	component := info.Components["test1"]
@@ -2235,7 +2248,7 @@ components:
 }
 
 func (s *YamlSuite) TestUnmarshalComponentsHooksWithPlugs(c *C) {
-	info, err := snap.InfoFromSnapYaml([]byte(`
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 components:
   test1:
@@ -2255,8 +2268,8 @@ components:
         plugs: [test-plug, test2-plug]
 plugs:
   network-client:
-`))
-	c.Assert(err, IsNil)
+`)))
+
 	c.Check(info.InstanceName(), Equals, "snap")
 
 	type hook struct {
@@ -2320,7 +2333,7 @@ plugs:
 }
 
 func (s *YamlSuite) TestUnmarshalComponentsHooksUnsupported(c *C) {
-	_, err := snap.InfoFromSnapYaml([]byte(`
+	_ := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 components:
   test1:
@@ -2332,23 +2345,23 @@ components:
         plugs: [plug-for-unsupported]
 plugs:
   network-client:
-`))
+`)))
 	c.Assert(err, ErrorMatches, `unsupported component hook: "unsupported"`)
 }
 
 func (s *YamlSuite) TestUnmarshalComponentsError(c *C) {
-	info, err := snap.InfoFromSnapYaml([]byte(`
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 components:
   test1:
     type: badtype
-`))
+`)))
 	c.Assert(err.Error(), Equals, `cannot parse snap.yaml: unknown component type "badtype"`)
 	c.Assert(info, IsNil)
 }
 
 func (s *YamlSuite) TestUnmarshalComponentsHookSlotsError(c *C) {
-	info, err := snap.InfoFromSnapYaml([]byte(`
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snap
 components:
   test1:
@@ -2356,7 +2369,7 @@ components:
     hooks:
       install:
         slots: [slot-for-install]
-`))
+`)))
 	c.Assert(err.Error(), Equals, `component hooks cannot have slots`)
 	c.Assert(info, IsNil)
 }

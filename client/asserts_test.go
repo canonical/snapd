@@ -28,6 +28,7 @@ import (
 	"golang.org/x/xerrors"
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/snap"
@@ -39,10 +40,10 @@ func (cs *clientSuite) TestClientAssert(c *C) {
 		"result": {}
 	}`
 	a := []byte("Assertion.")
-	err := cs.cli.Ack(a)
-	c.Assert(err, IsNil)
-	body, err := io.ReadAll(cs.req.Body)
-	c.Assert(err, IsNil)
+	mylog.Check(cs.cli.Ack(a))
+
+	body := mylog.Check2(io.ReadAll(cs.req.Body))
+
 	c.Check(body, DeepEquals, a)
 	c.Check(cs.req.Method, Equals, "POST")
 	c.Check(cs.req.URL.Path, Equals, "/v2/assertions")
@@ -57,8 +58,8 @@ func (cs *clientSuite) TestClientAssertsTypes(c *C) {
     "status-code": 200,
     "type": "sync"
 }`
-	typs, err := cs.cli.AssertionTypes()
-	c.Assert(err, IsNil)
+	typs := mylog.Check2(cs.cli.AssertionTypes())
+
 	c.Check(typs, DeepEquals, []string{"one", "two"})
 }
 
@@ -80,8 +81,8 @@ func (cs *clientSuite) TestClientAssertsCallsEndpointWithFilter(c *C) {
 		"snap-id":       "snap-id-1",
 		"snap-sha3-384": "sha3-384...",
 	}, nil)
-	u, err := url.ParseRequestURI(cs.req.URL.String())
-	c.Assert(err, IsNil)
+	u := mylog.Check2(url.ParseRequestURI(cs.req.URL.String()))
+
 	c.Check(u.Path, Equals, "/v2/assertions/snap-revision")
 	c.Check(u.Query(), DeepEquals, url.Values{
 		"snap-sha3-384": []string{"sha3-384..."},
@@ -91,7 +92,7 @@ func (cs *clientSuite) TestClientAssertsCallsEndpointWithFilter(c *C) {
 
 func (cs *clientSuite) TestClientAssertsHttpError(c *C) {
 	cs.err = errors.New("fail")
-	_, err := cs.cli.Known("snap-build", nil, nil)
+	_ := mylog.Check2(cs.cli.Known("snap-build", nil, nil))
 	c.Assert(err, ErrorMatches, "failed to query assertions: cannot communicate with server: fail")
 }
 
@@ -106,7 +107,7 @@ func (cs *clientSuite) TestClientAssertsJSONError(c *C) {
 			"message": "invalid"
 		}
 	}`
-	_, err := cs.cli.Known("snap-build", nil, nil)
+	_ := mylog.Check2(cs.cli.Known("snap-build", nil, nil))
 	c.Assert(err, ErrorMatches, "invalid")
 }
 
@@ -142,8 +143,8 @@ sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQ
 openpgp ...
 `
 
-	a, err := cs.cli.Known("snap-revision", nil, nil)
-	c.Assert(err, IsNil)
+	a := mylog.Check2(cs.cli.Known("snap-revision", nil, nil))
+
 	c.Check(a, HasLen, 2)
 
 	c.Check(a[0].Type(), Equals, asserts.SnapRevisionType)
@@ -154,8 +155,8 @@ func (cs *clientSuite) TestClientAssertsNoAssertions(c *C) {
 	cs.header.Add("X-Ubuntu-Assertions-Count", "0")
 	cs.rsp = ""
 	cs.status = 200
-	a, err := cs.cli.Known("snap-revision", nil, nil)
-	c.Assert(err, IsNil)
+	a := mylog.Check2(cs.cli.Known("snap-revision", nil, nil))
+
 	c.Check(a, HasLen, 0)
 }
 
@@ -164,7 +165,7 @@ func (cs *clientSuite) TestClientAssertsMissingAssertions(c *C) {
 	cs.header.Add("X-Ubuntu-Assertions-Count", "4")
 	cs.rsp = ""
 	cs.status = 200
-	_, err := cs.cli.Known("snap-build", nil, nil)
+	_ := mylog.Check2(cs.cli.Known("snap-build", nil, nil))
 	c.Assert(err, ErrorMatches, "response did not have the expected number of assertions")
 }
 
@@ -201,8 +202,8 @@ LQAdm3xZ7t4WnxYC8YSCk9mXf3CZg59SpmnV5Q5Z6A5Pl7Nc3sj7hcsMBZEsOMPzNC9dPsBnZvjs
 WpPUffJzEdhHBFhvYMuD4Vqj6ejUv9l3oTrjQWVC
 `
 
-	account, err := cs.cli.StoreAccount("canonicalID")
-	c.Assert(err, IsNil)
+	account := mylog.Check2(cs.cli.StoreAccount("canonicalID"))
+
 	c.Check(cs.req.Method, Equals, "GET")
 	c.Check(cs.req.URL.Query(), HasLen, 1)
 	c.Check(cs.req.URL.Query().Get("account-id"), Equals, "canonicalID")
@@ -219,20 +220,20 @@ func (cs *clientSuite) TestStoreAccountNoAssertionFound(c *C) {
 	cs.header.Add("X-Ubuntu-Assertions-Count", "0")
 	cs.rsp = ""
 
-	_, err := cs.cli.StoreAccount("canonicalID")
+	_ := mylog.Check2(cs.cli.StoreAccount("canonicalID"))
 	c.Assert(err, ErrorMatches, "no assertion found for account-id canonicalID")
 }
 
 func (cs *clientSuite) TestClientAssertTypesErrIsWrapped(c *C) {
 	cs.err = errors.New("boom")
-	_, err := cs.cli.AssertionTypes()
+	_ := mylog.Check2(cs.cli.AssertionTypes())
 	var e xerrors.Wrapper
 	c.Assert(err, Implements, &e)
 }
 
 func (cs *clientSuite) TestClientKnownErrIsWrapped(c *C) {
 	cs.err = errors.New("boom")
-	_, err := cs.cli.Known("foo", nil, nil)
+	_ := mylog.Check2(cs.cli.Known("foo", nil, nil))
 	var e xerrors.Wrapper
 	c.Assert(err, Implements, &e)
 }

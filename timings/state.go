@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/logger"
 )
 
@@ -132,20 +133,14 @@ type GetSaver interface {
 // function.
 func (t *Timings) Save(s GetSaver) {
 	var stateTimings []*json.RawMessage
-	if err := s.GetMaybeTimings(&stateTimings); err != nil {
-		logger.Noticef("could not get timings data from the state: %v", err)
-		return
-	}
+	mylog.Check(s.GetMaybeTimings(&stateTimings))
 
 	data := t.flatten()
 	if data == nil {
 		return
 	}
-	serialized, err := json.Marshal(data)
-	if err != nil {
-		logger.Noticef("could not marshal timings: %v", err)
-		return
-	}
+	serialized := mylog.Check2(json.Marshal(data))
+
 	entryJSON := json.RawMessage(serialized)
 
 	stateTimings = append(stateTimings, &entryJSON)
@@ -162,9 +157,7 @@ func (t *Timings) Save(s GetSaver) {
 // lock the state before calling this function.
 func Get(s GetSaver, maxLevel int, filter func(tags map[string]string) bool) ([]*TimingsInfo, error) {
 	var stateTimings []rootTimingsJSON
-	if err := s.GetMaybeTimings(&stateTimings); err != nil {
-		return nil, fmt.Errorf("could not get timings data from the state: %v", err)
-	}
+	mylog.Check(s.GetMaybeTimings(&stateTimings))
 
 	var result []*TimingsInfo
 	for _, tm := range stateTimings {

@@ -26,6 +26,7 @@ import (
 
 	"gopkg.in/yaml.v2"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/naming"
@@ -63,15 +64,10 @@ type Options20 struct {
 func ReadOptions20(optionsFn string) (*Options20, error) {
 	errPrefix := "cannot read grade dangerous options yaml"
 
-	yamlData, err := os.ReadFile(optionsFn)
-	if err != nil {
-		return nil, fmt.Errorf("%s: %v", errPrefix, err)
-	}
+	yamlData := mylog.Check2(os.ReadFile(optionsFn))
 
 	var options Options20
-	if err := yaml.Unmarshal(yamlData, &options); err != nil {
-		return nil, fmt.Errorf("%s: cannot unmarshal %q: %s", errPrefix, yamlData, err)
-	}
+	mylog.Check(yaml.Unmarshal(yamlData, &options))
 
 	seenNames := make(map[string]bool, len(options.Snaps))
 	// validate
@@ -79,23 +75,19 @@ func ReadOptions20(optionsFn string) (*Options20, error) {
 		if sn == nil {
 			return nil, fmt.Errorf("%s: empty snaps element", errPrefix)
 		}
-		// TODO: check if it's a parallel install explicitly,
-		// need to move *Instance* helpers from snap to naming
-		if err := naming.ValidateSnap(sn.Name); err != nil {
-			return nil, fmt.Errorf("%s: %v", errPrefix, err)
-		}
+		mylog.Check(
+			// TODO: check if it's a parallel install explicitly,
+			// need to move *Instance* helpers from snap to naming
+			naming.ValidateSnap(sn.Name))
+
 		if sn.SnapID == "" && sn.Channel == "" && sn.Unasserted == "" {
 			return nil, fmt.Errorf("%s: at least one of id, channel or unasserted must be set for snap %q", errPrefix, sn.Name)
 		}
 		if sn.SnapID != "" {
-			if err := naming.ValidateSnapID(sn.SnapID); err != nil {
-				return nil, fmt.Errorf("%s: %v", errPrefix, err)
-			}
+			mylog.Check(naming.ValidateSnapID(sn.SnapID))
 		}
 		if sn.Channel != "" {
-			if _, err := channel.Parse(sn.Channel, ""); err != nil {
-				return nil, fmt.Errorf("%s: %v", errPrefix, err)
-			}
+			mylog.Check2(channel.Parse(sn.Channel, ""))
 		}
 		if sn.Unasserted != "" && strings.Contains(sn.Unasserted, "/") {
 			return nil, fmt.Errorf("%s: %q must be a filename, not a path", errPrefix, sn.Unasserted)
@@ -112,12 +104,8 @@ func ReadOptions20(optionsFn string) (*Options20, error) {
 }
 
 func (options *Options20) Write(optionsFn string) error {
-	data, err := yaml.Marshal(options)
-	if err != nil {
-		return err
-	}
-	if err := osutil.AtomicWriteFile(optionsFn, data, 0644, 0); err != nil {
-		return err
-	}
+	data := mylog.Check2(yaml.Marshal(options))
+	mylog.Check(osutil.AtomicWriteFile(optionsFn, data, 0644, 0))
+
 	return nil
 }

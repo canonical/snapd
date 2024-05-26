@@ -25,6 +25,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	snap "github.com/snapcore/snapd/cmd/snap"
 )
 
@@ -46,7 +47,7 @@ func (s *SnapSuite) TestAbortLast(c *check.C) {
 			c.Errorf("expected 2 queries, currently on %d", n)
 		}
 	})
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"abort", "--last=install"})
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"abort", "--last=install"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, "")
@@ -71,13 +72,13 @@ func (s *SnapSuite) TestAbortLastQuestionmark(c *check.C) {
 		}
 	})
 	for i := 0; i < 2; i++ {
-		rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"abort", "--last=foobar?"})
+		rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"abort", "--last=foobar?"}))
 		c.Assert(err, check.IsNil)
 		c.Assert(rest, check.DeepEquals, []string{})
 		c.Check(s.Stdout(), check.Matches, "")
 		c.Check(s.Stderr(), check.Equals, "")
 
-		_, err = snap.Parser(snap.Client()).ParseArgs([]string{"abort", "--last=foobar"})
+		_ = mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"abort", "--last=foobar"}))
 		if i == 0 {
 			c.Assert(err, check.ErrorMatches, `no changes found`)
 		} else {

@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -21,9 +22,7 @@ func main() {
 	default:
 		log.Fatalf("unknown fnName: %q", fnName)
 	}
-	id, err := fn(userOrGroupName)
-	if err != nil {
-		log.Fatalf("fn failed: %q", err)
-	}
+	id := mylog.Check2(fn(userOrGroupName))
+
 	fmt.Println(id)
 }

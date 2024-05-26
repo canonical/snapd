@@ -25,6 +25,7 @@ import (
 	"golang.org/x/crypto/openpgp/packet"
 	"golang.org/x/crypto/sha3"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 )
@@ -46,9 +47,7 @@ func init() {
 	pkt := packet.NewRSAPrivateKey(asserts.V1FixedTimestamp, testPrivKey1RSA)
 	h := sha3.New384()
 	h.Write([]byte{0x1})
-	err := pkt.PublicKey.Serialize(h)
-	if err != nil {
-		panic(err)
-	}
+	mylog.Check(pkt.PublicKey.Serialize(h))
+
 	testPrivKey1SHA3_384 = base64.RawURLEncoding.EncodeToString(h.Sum(nil))
 }

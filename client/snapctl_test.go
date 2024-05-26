@@ -26,6 +26,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 )
 
@@ -55,14 +56,14 @@ func (cs *clientSuite) TestClientRunSnapctl(c *check.C) {
 		Args:      []string{"foo", "bar"},
 	}
 
-	stdout, stderr, err := cs.cli.RunSnapctl(options, mockStdin)
+	stdout, stderr := mylog.Check3(cs.cli.RunSnapctl(options, mockStdin))
 	c.Assert(err, check.IsNil)
 	c.Check(string(stdout), check.Equals, "test stdout")
 	c.Check(string(stderr), check.Equals, "test stderr")
 
 	var body map[string]interface{}
 	decoder := json.NewDecoder(cs.req.Body)
-	err = decoder.Decode(&body)
+	mylog.Check(decoder.Decode(&body))
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"context-id": "1234ABCD",
@@ -100,7 +101,7 @@ func (cs *clientSuite) TestClientRunSnapctlReadLimitOneTooMuch(c *check.C) {
 		Args:      []string{"foo", "bar"},
 	}
 
-	_, _, err := cs.cli.RunSnapctl(options, mockStdin)
+	_, _ := mylog.Check3(cs.cli.RunSnapctl(options, mockStdin))
 	c.Check(err, check.ErrorMatches, "cannot read more than 10 bytes of data from stdin")
 }
 
@@ -121,6 +122,6 @@ func (cs *clientSuite) TestClientRunSnapctlReadLimitExact(c *check.C) {
 		Args:      []string{"foo", "bar"},
 	}
 
-	_, _, err := cs.cli.RunSnapctl(options, mockStdin)
+	_, _ := mylog.Check3(cs.cli.RunSnapctl(options, mockStdin))
 	c.Check(err, check.IsNil)
 }

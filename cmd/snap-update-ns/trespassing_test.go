@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	update "github.com/snapcore/snapd/cmd/snap-update-ns"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/testutil"
@@ -61,7 +62,6 @@ func (s *trespassingSuite) TestAddUnrestrictedPaths(c *C) {
 
 	a.AddUnrestrictedPaths("/")
 	c.Assert(a.IsRestricted("/foo"), Equals, false)
-
 }
 
 func (s *trespassingSuite) TestMockUnrestrictedPaths(c *C) {
@@ -80,15 +80,15 @@ func (s *trespassingSuite) TestCanWriteToDirectoryWritableExt4(c *C) {
 	a := &update.Assumptions{}
 
 	path := "/etc"
-	fd, err := s.sys.Open(path, syscall.O_DIRECTORY, 0)
-	c.Assert(err, IsNil)
+	fd := mylog.Check2(s.sys.Open(path, syscall.O_DIRECTORY, 0))
+
 	defer s.sys.Close(fd)
 
 	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.Ext4Magic})
 	s.sys.InsertFstatResult(`fstat 3 <ptr>`, syscall.Stat_t{})
 
-	ok, err := a.CanWriteToDirectory(fd, path)
-	c.Assert(err, IsNil)
+	ok := mylog.Check2(a.CanWriteToDirectory(fd, path))
+
 	c.Assert(ok, Equals, false)
 }
 
@@ -97,15 +97,15 @@ func (s *trespassingSuite) TestCanWriteToDirectoryReadOnlyExt4(c *C) {
 	a := &update.Assumptions{}
 
 	path := "/etc"
-	fd, err := s.sys.Open(path, syscall.O_DIRECTORY, 0)
-	c.Assert(err, IsNil)
+	fd := mylog.Check2(s.sys.Open(path, syscall.O_DIRECTORY, 0))
+
 	defer s.sys.Close(fd)
 
 	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.Ext4Magic, Flags: update.StReadOnly})
 	s.sys.InsertFstatResult(`fstat 3 <ptr>`, syscall.Stat_t{})
 
-	ok, err := a.CanWriteToDirectory(fd, path)
-	c.Assert(err, IsNil)
+	ok := mylog.Check2(a.CanWriteToDirectory(fd, path))
+
 	c.Assert(ok, Equals, true)
 }
 
@@ -114,15 +114,15 @@ func (s *trespassingSuite) TestCanWriteToDirectoryTmpfs(c *C) {
 	a := &update.Assumptions{}
 
 	path := "/etc"
-	fd, err := s.sys.Open(path, syscall.O_DIRECTORY, 0)
-	c.Assert(err, IsNil)
+	fd := mylog.Check2(s.sys.Open(path, syscall.O_DIRECTORY, 0))
+
 	defer s.sys.Close(fd)
 
 	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.TmpfsMagic})
 	s.sys.InsertFstatResult(`fstat 3 <ptr>`, syscall.Stat_t{})
 
-	ok, err := a.CanWriteToDirectory(fd, path)
-	c.Assert(err, IsNil)
+	ok := mylog.Check2(a.CanWriteToDirectory(fd, path))
+
 	c.Assert(ok, Equals, false)
 }
 
@@ -131,8 +131,8 @@ func (s *trespassingSuite) TestCanWriteToDirectoryTmpfsMountedBySnapd(c *C) {
 	a := &update.Assumptions{}
 
 	path := "/etc"
-	fd, err := s.sys.Open(path, syscall.O_DIRECTORY, 0)
-	c.Assert(err, IsNil)
+	fd := mylog.Check2(s.sys.Open(path, syscall.O_DIRECTORY, 0))
+
 	defer s.sys.Close(fd)
 
 	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.TmpfsMagic})
@@ -140,10 +140,11 @@ func (s *trespassingSuite) TestCanWriteToDirectoryTmpfsMountedBySnapd(c *C) {
 
 	a.AddChange(&update.Change{
 		Action: update.Mount,
-		Entry:  osutil.MountEntry{Type: "tmpfs", Dir: path}})
+		Entry:  osutil.MountEntry{Type: "tmpfs", Dir: path},
+	})
 
-	ok, err := a.CanWriteToDirectory(fd, path)
-	c.Assert(err, IsNil)
+	ok := mylog.Check2(a.CanWriteToDirectory(fd, path))
+
 	c.Assert(ok, Equals, true)
 }
 
@@ -152,8 +153,8 @@ func (s *trespassingSuite) TestCanWriteToDirectoryTmpfsMountedBySnapdEarlier(c *
 	a := &update.Assumptions{}
 
 	path := "/etc"
-	fd, err := s.sys.Open(path, syscall.O_DIRECTORY, 0)
-	c.Assert(err, IsNil)
+	fd := mylog.Check2(s.sys.Open(path, syscall.O_DIRECTORY, 0))
+
 	defer s.sys.Close(fd)
 
 	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.TmpfsMagic})
@@ -161,10 +162,11 @@ func (s *trespassingSuite) TestCanWriteToDirectoryTmpfsMountedBySnapdEarlier(c *
 
 	a.AddChange(&update.Change{
 		Action: update.Keep,
-		Entry:  osutil.MountEntry{Type: "tmpfs", Dir: path}})
+		Entry:  osutil.MountEntry{Type: "tmpfs", Dir: path},
+	})
 
-	ok, err := a.CanWriteToDirectory(fd, path)
-	c.Assert(err, IsNil)
+	ok := mylog.Check2(a.CanWriteToDirectory(fd, path))
+
 	c.Assert(ok, Equals, true)
 }
 
@@ -172,8 +174,8 @@ func (s *trespassingSuite) TestCanWriteToDirectoryTmpfsMountedBySnapdEarlier(c *
 func (s *trespassingSuite) TestCanWriteToDirectoryUnderTmpfsMountedBySnapd(c *C) {
 	a := &update.Assumptions{}
 
-	fd, err := s.sys.Open("/etc", syscall.O_DIRECTORY, 0)
-	c.Assert(err, IsNil)
+	fd := mylog.Check2(s.sys.Open("/etc", syscall.O_DIRECTORY, 0))
+
 	defer s.sys.Close(fd)
 
 	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.TmpfsMagic})
@@ -181,10 +183,11 @@ func (s *trespassingSuite) TestCanWriteToDirectoryUnderTmpfsMountedBySnapd(c *C)
 
 	a.AddChange(&update.Change{
 		Action: update.Mount,
-		Entry:  osutil.MountEntry{Type: "tmpfs", Dir: "/etc"}})
+		Entry:  osutil.MountEntry{Type: "tmpfs", Dir: "/etc"},
+	})
 
-	ok, err := a.CanWriteToDirectory(fd, "/etc")
-	c.Assert(err, IsNil)
+	ok := mylog.Check2(a.CanWriteToDirectory(fd, "/etc"))
+
 	c.Assert(ok, Equals, true)
 
 	// Now we have primed the assumption state with knowledge of 0x42 device as
@@ -192,15 +195,15 @@ func (s *trespassingSuite) TestCanWriteToDirectoryUnderTmpfsMountedBySnapd(c *C)
 	// /etc/conf.d and seeing that is allowed even though /etc/conf.d itself is
 	// not a mount point representing tmpfs.
 
-	fd2, err := s.sys.Open("/etc/conf.d", syscall.O_DIRECTORY, 0)
-	c.Assert(err, IsNil)
+	fd2 := mylog.Check2(s.sys.Open("/etc/conf.d", syscall.O_DIRECTORY, 0))
+
 	defer s.sys.Close(fd2)
 
 	s.sys.InsertFstatfsResult(`fstatfs 4 <ptr>`, syscall.Statfs_t{Type: update.TmpfsMagic})
 	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{Dev: 0x42})
 
-	ok, err = a.CanWriteToDirectory(fd2, "/etc/conf.d")
-	c.Assert(err, IsNil)
+	ok = mylog.Check2(a.CanWriteToDirectory(fd2, "/etc/conf.d"))
+
 	c.Assert(ok, Equals, true)
 }
 
@@ -208,8 +211,8 @@ func (s *trespassingSuite) TestCanWriteToDirectoryUnderTmpfsMountedBySnapd(c *C)
 func (s *trespassingSuite) TestCanWriteToDirectoryUnderReboundTmpfsMountedBySnapd(c *C) {
 	a := &update.Assumptions{}
 
-	fd, err := s.sys.Open("/etc", syscall.O_DIRECTORY, 0)
-	c.Assert(err, IsNil)
+	fd := mylog.Check2(s.sys.Open("/etc", syscall.O_DIRECTORY, 0))
+
 	c.Assert(fd, Equals, 3)
 	defer s.sys.Close(fd)
 
@@ -218,26 +221,27 @@ func (s *trespassingSuite) TestCanWriteToDirectoryUnderReboundTmpfsMountedBySnap
 
 	a.AddChange(&update.Change{
 		Action: update.Mount,
-		Entry:  osutil.MountEntry{Type: "tmpfs", Dir: "/etc"}})
+		Entry:  osutil.MountEntry{Type: "tmpfs", Dir: "/etc"},
+	})
 
-	ok, err := a.CanWriteToDirectory(fd, "/etc")
-	c.Assert(err, IsNil)
+	ok := mylog.Check2(a.CanWriteToDirectory(fd, "/etc"))
+
 	c.Assert(ok, Equals, true)
 
 	// Now we have primed the assumption state with knowledge of 0x42 device as
 	// a verified tmpfs. Unlike in the test above though the directory
 	// /etc/conf.d is a bind mount from another tmpfs that we know nothing
 	// about.
-	fd2, err := s.sys.Open("/etc/conf.d", syscall.O_DIRECTORY, 0)
-	c.Assert(err, IsNil)
+	fd2 := mylog.Check2(s.sys.Open("/etc/conf.d", syscall.O_DIRECTORY, 0))
+
 	c.Assert(fd2, Equals, 4)
 	defer s.sys.Close(fd2)
 
 	s.sys.InsertFstatfsResult(`fstatfs 4 <ptr>`, syscall.Statfs_t{Type: update.TmpfsMagic})
 	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{Dev: 0xdeadbeef})
 
-	ok, err = a.CanWriteToDirectory(fd2, "/etc/conf.d")
-	c.Assert(err, IsNil)
+	ok = mylog.Check2(a.CanWriteToDirectory(fd2, "/etc/conf.d"))
+
 	c.Assert(ok, Equals, false)
 }
 
@@ -246,8 +250,8 @@ func (s *trespassingSuite) TestCanWriteToDirectoryUnrestricted(c *C) {
 	a := &update.Assumptions{}
 
 	path := "/var/snap/foo/common"
-	fd, err := s.sys.Open(path, syscall.O_DIRECTORY, 0)
-	c.Assert(err, IsNil)
+	fd := mylog.Check2(s.sys.Open(path, syscall.O_DIRECTORY, 0))
+
 	defer s.sys.Close(fd)
 
 	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.Ext4Magic})
@@ -255,8 +259,8 @@ func (s *trespassingSuite) TestCanWriteToDirectoryUnrestricted(c *C) {
 
 	a.AddUnrestrictedPaths(path)
 
-	ok, err := a.CanWriteToDirectory(fd, path)
-	c.Assert(err, IsNil)
+	ok := mylog.Check2(a.CanWriteToDirectory(fd, path))
+
 	c.Assert(ok, Equals, true)
 }
 
@@ -265,13 +269,13 @@ func (s *trespassingSuite) TestCanWriteToDirectoryErrorsFstatfs(c *C) {
 	a := &update.Assumptions{}
 
 	path := "/etc"
-	fd, err := s.sys.Open(path, syscall.O_DIRECTORY, 0)
-	c.Assert(err, IsNil)
+	fd := mylog.Check2(s.sys.Open(path, syscall.O_DIRECTORY, 0))
+
 	defer s.sys.Close(fd)
 
 	s.sys.InsertFault(`fstatfs 3 <ptr>`, errTesting)
 
-	ok, err := a.CanWriteToDirectory(fd, path)
+	ok := mylog.Check2(a.CanWriteToDirectory(fd, path))
 	c.Assert(err, ErrorMatches, `cannot fstatfs "/etc": testing`)
 	c.Assert(ok, Equals, false)
 }
@@ -281,14 +285,14 @@ func (s *trespassingSuite) TestCanWriteToDirectoryErrorsFstat(c *C) {
 	a := &update.Assumptions{}
 
 	path := "/etc"
-	fd, err := s.sys.Open(path, syscall.O_DIRECTORY, 0)
-	c.Assert(err, IsNil)
+	fd := mylog.Check2(s.sys.Open(path, syscall.O_DIRECTORY, 0))
+
 	defer s.sys.Close(fd)
 
 	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{})
 	s.sys.InsertFault(`fstat 3 <ptr>`, errTesting)
 
-	ok, err := a.CanWriteToDirectory(fd, path)
+	ok := mylog.Check2(a.CanWriteToDirectory(fd, path))
 	c.Assert(err, ErrorMatches, `cannot fstat "/etc": testing`)
 	c.Assert(ok, Equals, false)
 }
@@ -302,14 +306,15 @@ func (s *trespassingSuite) TestRestrictionsForEtc(c *C) {
 	rs := a.RestrictionsFor("/etc/test.conf")
 	c.Assert(rs, NotNil)
 
-	fd, err := s.sys.Open("/etc", syscall.O_DIRECTORY, 0)
-	c.Assert(err, IsNil)
+	fd := mylog.Check2(s.sys.Open("/etc", syscall.O_DIRECTORY, 0))
+
 	defer s.sys.Close(fd)
 	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.Ext4Magic})
 	s.sys.InsertFstatResult(`fstat 3 <ptr>`, syscall.Stat_t{})
+	mylog.
 
-	// Check reports trespassing error, restrictions may be lifted though.
-	err = rs.Check(fd, "/etc")
+		// Check reports trespassing error, restrictions may be lifted though.
+		Check(rs.Check(fd, "/etc"))
 	c.Assert(err, ErrorMatches, `cannot write to "/etc/test.conf" because it would affect the host in "/etc"`)
 	c.Assert(err.(*update.TrespassingError).ViolatedPath, Equals, "/etc")
 	c.Assert(err.(*update.TrespassingError).DesiredPath, Equals, "/etc/test.conf")
@@ -325,12 +330,11 @@ func (s *trespassingSuite) TestRestrictionsForErrors(c *C) {
 	rs := a.RestrictionsFor("/etc/test.conf")
 	c.Assert(rs, NotNil)
 
-	fd, err := s.sys.Open("/etc", syscall.O_DIRECTORY, 0)
-	c.Assert(err, IsNil)
+	fd := mylog.Check2(s.sys.Open("/etc", syscall.O_DIRECTORY, 0))
+
 	defer s.sys.Close(fd)
 	s.sys.InsertFault(`fstatfs 3 <ptr>`, errTesting)
-
-	err = rs.Check(fd, "/etc")
+	mylog.Check(rs.Check(fd, "/etc"))
 	c.Assert(err, ErrorMatches, `cannot fstatfs "/etc": testing`)
 }
 
@@ -361,13 +365,12 @@ func (s *trespassingSuite) TestRestrictionsForRunSystemd(c *C) {
 	rs = a.RestrictionsFor("/run/test.txt")
 	c.Assert(rs, NotNil)
 
-	fd, err := s.sys.Open("/run", syscall.O_DIRECTORY, 0)
-	c.Assert(err, IsNil)
+	fd := mylog.Check2(s.sys.Open("/run", syscall.O_DIRECTORY, 0))
+
 	defer s.sys.Close(fd)
 	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.Ext4Magic})
 	s.sys.InsertFstatResult(`fstat 3 <ptr>`, syscall.Stat_t{})
-
-	err = rs.Check(fd, "/run")
+	mylog.Check(rs.Check(fd, "/run"))
 	c.Assert(err, ErrorMatches, `cannot write to "/run/test.txt" because it would affect the host in "/run"`)
 	c.Assert(err.(*update.TrespassingError).ViolatedPath, Equals, "/run")
 	c.Assert(err.(*update.TrespassingError).DesiredPath, Equals, "/run/test.txt")
@@ -384,8 +387,8 @@ func (s *trespassingSuite) TestRestrictionsForRootfsEntries(c *C) {
 	// directory today.
 	rs := a.RestrictionsFor("/foo.conf")
 
-	fd, err := s.sys.Open("/", syscall.O_DIRECTORY, 0)
-	c.Assert(err, IsNil)
+	fd := mylog.Check2(s.sys.Open("/", syscall.O_DIRECTORY, 0))
+
 	defer s.sys.Close(fd)
 	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.Ext4Magic})
 	s.sys.InsertFstatResult(`fstat 3 <ptr>`, syscall.Stat_t{})

@@ -27,6 +27,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -43,10 +44,8 @@ func init() {
 var validTimezone = regexp.MustCompile(`^[a-zA-Z0-9+_-]+(/[a-zA-Z0-9+_-]+)?(/[a-zA-Z0-9+_-]+)?$`).MatchString
 
 func validateTimezoneSettings(tr ConfGetter) error {
-	timezone, err := coreCfg(tr, "system.timezone")
-	if err != nil {
-		return err
-	}
+	timezone := mylog.Check2(coreCfg(tr, "system.timezone"))
+
 	if timezone == "" {
 		return nil
 	}
@@ -58,10 +57,8 @@ func validateTimezoneSettings(tr ConfGetter) error {
 }
 
 func handleTimezoneConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyContext) error {
-	timezone, err := coreCfg(tr, "system.timezone")
-	if err != nil {
-		return err
-	}
+	timezone := mylog.Check2(coreCfg(tr, "system.timezone"))
+
 	// nothing to do
 	if timezone == "" {
 		return nil
@@ -69,34 +66,26 @@ func handleTimezoneConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnly
 	// runtime system
 	if opts == nil {
 		// see if anything has changed
-		currentTimezone, err := getTimezoneFromSystem()
-		if err != nil {
-			return err
-		}
+		currentTimezone := mylog.Check2(getTimezoneFromSystem())
+
 		if timezone == currentTimezone {
 			return nil
 		}
 
-		output, err := exec.Command("timedatectl", "set-timezone", timezone).CombinedOutput()
-		if err != nil {
-			return fmt.Errorf("cannot set timezone: %v", osutil.OutputErr(output, err))
-		}
+		output := mylog.Check2(exec.Command("timedatectl", "set-timezone", timezone).CombinedOutput())
+
 	} else {
 		// On the UC16/UC18/UC20 images the file /etc/hostname is a
 		// symlink to /etc/writable/hostname. The /etc/hostname is
 		// not part of the "writable-path" so we must set the file
 		// in /etc/writable here for this to work.
 		localtimePath := filepath.Join(opts.RootDir, "/etc/writable/localtime")
-		if err := os.MkdirAll(filepath.Dir(localtimePath), 0755); err != nil {
-			return err
-		}
-		if err := os.Symlink(filepath.Join("/usr/share/zoneinfo", timezone), localtimePath); err != nil {
-			return err
-		}
+		mylog.Check(os.MkdirAll(filepath.Dir(localtimePath), 0755))
+		mylog.Check(os.Symlink(filepath.Join("/usr/share/zoneinfo", timezone), localtimePath))
+
 		timezonePath := filepath.Join(opts.RootDir, "/etc/writable/timezone")
-		if err := osutil.AtomicWriteFile(timezonePath, []byte(timezone+"\n"), 0644, 0); err != nil {
-			return fmt.Errorf("cannot write timezone: %v", err)
-		}
+		mylog.Check(osutil.AtomicWriteFile(timezonePath, []byte(timezone+"\n"), 0644, 0))
+
 	}
 
 	return nil
@@ -112,15 +101,13 @@ func getTimezoneFromSystem() (string, error) {
 	//
 	// Note that this code only runs on UbuntuCore systems which all
 	// have /etc/writable/localtime
-	link, err := os.Readlink(filepath.Join(dirs.GlobalRootDir, "/etc/writable/localtime"))
+	link := mylog.Check2(os.Readlink(filepath.Join(dirs.GlobalRootDir, "/etc/writable/localtime")))
 	// see localtime(5)
 	// "If /etc/localtime is missing, the default "UTC" timezone is used."
 	if os.IsNotExist(err) {
 		return "UTC", nil
 	}
-	if err != nil {
-		return "", fmt.Errorf("cannot get timezone: %v", err)
-	}
+
 	val := strings.TrimPrefix(link, "/usr/share/zoneinfo/")
 	return val, nil
 }

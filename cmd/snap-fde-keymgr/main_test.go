@@ -28,6 +28,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	main "github.com/snapcore/snapd/cmd/snap-fde-keymgr"
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/testutil"
@@ -68,15 +69,15 @@ func (s *mainSuite) TestAddKey(c *C) {
 	})
 	defer restore()
 	c.Assert(os.WriteFile(filepath.Join(d, "authz.key"), []byte{1, 1, 1}, 0644), IsNil)
-	err := main.Run([]string{
+	mylog.Check(main.Run([]string{
 		"add-recovery-key",
 		"--devices", "/dev/vda4",
 		"--authorizations", "keyring",
 		"--devices", "/dev/vda5",
 		"--authorizations", "file:" + filepath.Join(d, "authz.key"),
 		"--key-file", filepath.Join(d, "recovery.key"),
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(addCalls, Equals, 1)
 	c.Check(dev, Equals, "/dev/vda4")
 	c.Check(addUsingKeyCalls, Equals, 1)
@@ -85,16 +86,17 @@ func (s *mainSuite) TestAddKey(c *C) {
 	c.Assert(filepath.Join(d, "recovery.key"), testutil.FileEquals, rkey[:])
 
 	oldKey := rkey
-	// add again, in which case already existing key is read back
-	err = main.Run([]string{
-		"add-recovery-key",
-		"--devices", "/dev/vda4",
-		"--authorizations", "keyring",
-		"--devices", "/dev/vda5",
-		"--authorizations", "file:" + filepath.Join(d, "authz.key"),
-		"--key-file", filepath.Join(d, "recovery.key"),
-	})
-	c.Assert(err, IsNil)
+	mylog.
+		// add again, in which case already existing key is read back
+		Check(main.Run([]string{
+			"add-recovery-key",
+			"--devices", "/dev/vda4",
+			"--authorizations", "keyring",
+			"--devices", "/dev/vda5",
+			"--authorizations", "file:" + filepath.Join(d, "authz.key"),
+			"--key-file", filepath.Join(d, "recovery.key"),
+		}))
+
 	c.Check(addCalls, Equals, 2)
 	c.Check(dev, Equals, "/dev/vda4")
 	c.Check(addUsingKeyCalls, Equals, 2)
@@ -117,35 +119,37 @@ func (s *mainSuite) TestAddKeyRequiresAuthz(c *C) {
 	})
 	defer restore()
 	d := c.MkDir()
-	err := main.Run([]string{
+	mylog.Check(main.Run([]string{
 		"add-recovery-key",
 		"--devices", "/dev/vda4",
 		"--authorizations", "keyring",
 		"--devices", "/dev/vda5",
 		"--key-file", filepath.Join(d, "recovery.key"),
-	})
+	}))
 	c.Assert(err, ErrorMatches, "cannot add recovery keys: mismatch in the number of devices and authorizations")
+	mylog.
 
-	// --authorization=invalid
-	err = main.Run([]string{
-		"add-recovery-key",
-		"--devices", "/dev/vda4",
-		"--authorizations", "invalid",
-		"--devices", "/dev/vda5",
-		"--authorizations", "file:" + filepath.Join(d, "authz.key"),
-		"--key-file", filepath.Join(d, "recovery.key"),
-	})
+		// --authorization=invalid
+		Check(main.Run([]string{
+			"add-recovery-key",
+			"--devices", "/dev/vda4",
+			"--authorizations", "invalid",
+			"--devices", "/dev/vda5",
+			"--authorizations", "file:" + filepath.Join(d, "authz.key"),
+			"--key-file", filepath.Join(d, "recovery.key"),
+		}))
 	c.Assert(err, ErrorMatches, `cannot add recovery keys with invalid authorizations: unknown authorization method "invalid"`)
+	mylog.
 
-	// authorization key file does not exist
-	err = main.Run([]string{
-		"add-recovery-key",
-		"--devices", "/dev/vda4",
-		"--authorizations", "keyring",
-		"--devices", "/dev/vda5",
-		"--authorizations", "file:" + filepath.Join(d, "authz.key"),
-		"--key-file", filepath.Join(d, "recovery.key"),
-	})
+		// authorization key file does not exist
+		Check(main.Run([]string{
+			"add-recovery-key",
+			"--devices", "/dev/vda4",
+			"--authorizations", "keyring",
+			"--devices", "/dev/vda5",
+			"--authorizations", "file:" + filepath.Join(d, "authz.key"),
+			"--key-file", filepath.Join(d, "recovery.key"),
+		}))
 	c.Assert(err, ErrorMatches, `cannot add recovery keys with invalid authorizations: authorization file .*/authz.key does not exist`)
 }
 
@@ -179,19 +183,18 @@ func (s *mainSuite) testAddKeyIdempotent(c *C, tc addKeyTestCase) {
 		return tc.errAddToLUKSUsingKey
 	})
 	defer restore()
-
-	err := main.Run([]string{
+	mylog.Check(main.Run([]string{
 		"add-recovery-key",
 		"--devices", "/dev/vda4",
 		"--authorizations", "keyring",
 		"--devices", "/dev/vda5",
 		"--authorizations", "file:" + filepath.Join(d, "authz.key"),
 		"--key-file", filepath.Join(d, "recovery.key"),
-	})
+	}))
 	if tc.expErr != "" {
 		c.Assert(err, ErrorMatches, tc.expErr)
 	} else {
-		c.Assert(err, IsNil)
+
 	}
 	c.Check(addCalls, Equals, tc.addCalls)
 	c.Check(addUsingKeyCalls, Equals, tc.addUsingKeyCalls)
@@ -264,33 +267,34 @@ func (s *mainSuite) TestRemoveKey(c *C) {
 	c.Assert(os.WriteFile(filepath.Join(d, "recovery.key"), []byte{0, 0, 0}, 0644), IsNil)
 
 	c.Assert(os.WriteFile(filepath.Join(d, "authz.key"), []byte{1, 1, 1}, 0644), IsNil)
-	err := main.Run([]string{
+	mylog.Check(main.Run([]string{
 		"remove-recovery-key",
 		"--devices", "/dev/vda4",
 		"--authorizations", "keyring",
 		"--devices", "/dev/vda5",
 		"--authorizations", "file:" + filepath.Join(d, "authz.key"),
 		"--key-files", filepath.Join(d, "recovery.key"),
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(removeCalls, Equals, 1)
 	c.Check(dev, Equals, "/dev/vda4")
 	c.Check(removeUsingKeyCalls, Equals, 1)
 	c.Check(devUsingKey, Equals, "/dev/vda5")
 	c.Assert(authzKey, DeepEquals, keys.EncryptionKey([]byte{1, 1, 1}))
 	c.Assert(filepath.Join(d, "recovery.key"), testutil.FileAbsent)
-	// again when the recover key file is gone already
-	err = main.Run([]string{
-		"remove-recovery-key",
-		"--devices", "/dev/vda4",
-		"--authorizations", "keyring",
-		"--devices", "/dev/vda5",
-		"--authorizations", "file:" + filepath.Join(d, "authz.key"),
-		"--key-files", filepath.Join(d, "recovery.key"),
-	})
+	mylog.
+		// again when the recover key file is gone already
+		Check(main.Run([]string{
+			"remove-recovery-key",
+			"--devices", "/dev/vda4",
+			"--authorizations", "keyring",
+			"--devices", "/dev/vda5",
+			"--authorizations", "file:" + filepath.Join(d, "authz.key"),
+			"--key-files", filepath.Join(d, "recovery.key"),
+		}))
 	c.Check(removeCalls, Equals, 2)
 	c.Check(removeUsingKeyCalls, Equals, 2)
-	c.Assert(err, IsNil)
+
 }
 
 func (s *mainSuite) TestRemoveKeyRequiresAuthz(c *C) {
@@ -305,36 +309,37 @@ func (s *mainSuite) TestRemoveKeyRequiresAuthz(c *C) {
 	})
 	defer restore()
 	d := c.MkDir()
-
-	err := main.Run([]string{
+	mylog.Check(main.Run([]string{
 		"remove-recovery-key",
 		"--devices", "/dev/vda4",
 		"--authorizations", "keyring",
 		"--devices", "/dev/vda5",
 		"--key-files", filepath.Join(d, "recovery.key"),
-	})
+	}))
 	c.Assert(err, ErrorMatches, "cannot remove recovery keys: mismatch in the number of devices and authorizations")
+	mylog.
 
-	// --authorization=invalid
-	err = main.Run([]string{
-		"remove-recovery-key",
-		"--devices", "/dev/vda4",
-		"--authorizations", "invalid",
-		"--devices", "/dev/vda5",
-		"--authorizations", "file:" + filepath.Join(d, "authz.key"),
-		"--key-files", filepath.Join(d, "recovery.key"),
-	})
+		// --authorization=invalid
+		Check(main.Run([]string{
+			"remove-recovery-key",
+			"--devices", "/dev/vda4",
+			"--authorizations", "invalid",
+			"--devices", "/dev/vda5",
+			"--authorizations", "file:" + filepath.Join(d, "authz.key"),
+			"--key-files", filepath.Join(d, "recovery.key"),
+		}))
 	c.Assert(err, ErrorMatches, `cannot remove recovery keys with invalid authorizations: unknown authorization method "invalid"`)
+	mylog.
 
-	// authorization key file does not exist
-	err = main.Run([]string{
-		"remove-recovery-key",
-		"--devices", "/dev/vda4",
-		"--authorizations", "keyring",
-		"--devices", "/dev/vda5",
-		"--authorizations", "file:" + filepath.Join(d, "authz.key"),
-		"--key-files", filepath.Join(d, "recovery.key"),
-	})
+		// authorization key file does not exist
+		Check(main.Run([]string{
+			"remove-recovery-key",
+			"--devices", "/dev/vda4",
+			"--authorizations", "keyring",
+			"--devices", "/dev/vda5",
+			"--authorizations", "file:" + filepath.Join(d, "authz.key"),
+			"--key-files", filepath.Join(d, "recovery.key"),
+		}))
 	c.Assert(err, ErrorMatches, `cannot remove recovery keys with invalid authorizations: authorization file .*/authz.key does not exist`)
 }
 
@@ -351,18 +356,16 @@ func (s *mainSuite) TestChangeEncryptionKey(c *C) {
 	}
 	defer main.MockStageLUKSEncryptionKeyChange(unexpectedCall)
 	defer main.MockTransitionLUKSEncryptionKeyChange(unexpectedCall)
-
-	err := main.Run([]string{
+	mylog.Check(main.Run([]string{
 		"change-encryption-key",
 		"--device", "/dev/vda4",
-	})
+	}))
 	c.Assert(err, ErrorMatches, "cannot change encryption key without stage or transition request")
-
-	err = main.Run([]string{
+	mylog.Check(main.Run([]string{
 		"change-encryption-key",
 		"--device", "/dev/vda4",
 		"--stage", "--transition",
-	})
+	}))
 	c.Assert(err, ErrorMatches, "cannot both stage and transition the encryption key change")
 }
 
@@ -386,12 +389,12 @@ func (s *mainSuite) TestStageEncryptionKey(c *C) {
 		return fmt.Errorf("unexpected call")
 	})
 	defer restore()
-	err := main.Run([]string{
+	mylog.Check(main.Run([]string{
 		"change-encryption-key",
 		"--device", "/dev/vda4",
 		"--stage",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(stageCalls, Equals, 1)
 	c.Check(dev, Equals, "/dev/vda4")
 	// secboot encryption key size
@@ -400,11 +403,11 @@ func (s *mainSuite) TestStageEncryptionKey(c *C) {
 	restore = main.MockOsStdin(bytes.NewBufferString(all1sKey))
 	defer restore()
 	stageErr = fmt.Errorf("mock stage error")
-	err = main.Run([]string{
+	mylog.Check(main.Run([]string{
 		"change-encryption-key",
 		"--device", "/dev/vda4",
 		"--stage",
-	})
+	}))
 	c.Assert(err, ErrorMatches, "cannot stage LUKS device encryption key change: mock stage error")
 }
 
@@ -429,12 +432,12 @@ func (s *mainSuite) TestTransitionEncryptionKey(c *C) {
 	})
 	defer restore()
 	defer restore()
-	err := main.Run([]string{
+	mylog.Check(main.Run([]string{
 		"change-encryption-key",
 		"--device", "/dev/vda4",
 		"--transition",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(transitionCalls, Equals, 1)
 	c.Check(dev, Equals, "/dev/vda4")
 	// secboot encryption key size
@@ -443,10 +446,10 @@ func (s *mainSuite) TestTransitionEncryptionKey(c *C) {
 	restore = main.MockOsStdin(bytes.NewBufferString(all1sKey))
 	defer restore()
 	transitionErr = fmt.Errorf("mock transition error")
-	err = main.Run([]string{
+	mylog.Check(main.Run([]string{
 		"change-encryption-key",
 		"--device", "/dev/vda4",
 		"--transition",
-	})
+	}))
 	c.Assert(err, ErrorMatches, "cannot transition LUKS device encryption key change: mock transition error")
 }

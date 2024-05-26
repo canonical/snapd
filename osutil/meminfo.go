@@ -25,11 +25,11 @@ import (
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
-var (
-	procMeminfo = "/proc/meminfo"
-)
+var procMeminfo = "/proc/meminfo"
 
 // TotalUsableMemory returns the total usable memory in the system in bytes.
 //
@@ -39,10 +39,8 @@ var (
 // CMA memory is taken up by e.g. the framebuffer on the Raspberry Pi or
 // by DSPs on specific boards.
 func TotalUsableMemory() (totalMem uint64, err error) {
-	f, err := os.Open(procMeminfo)
-	if err != nil {
-		return 0, err
-	}
+	f := mylog.Check2(os.Open(procMeminfo))
+
 	defer f.Close()
 	s := bufio.NewScanner(f)
 
@@ -62,15 +60,12 @@ func TotalUsableMemory() (totalMem uint64, err error) {
 		if len(fields) != 3 || fields[2] != "kB" {
 			return 0, fmt.Errorf("cannot process unexpected meminfo entry %q", l)
 		}
-		v, err := strconv.ParseUint(fields[1], 10, 64)
-		if err != nil {
-			return 0, fmt.Errorf("cannot convert memory size value: %v", err)
-		}
+		v := mylog.Check2(strconv.ParseUint(fields[1], 10, 64))
+
 		*p = v * 1024
 	}
-	if err := s.Err(); err != nil {
-		return 0, err
-	}
+	mylog.Check(s.Err())
+
 	if memTotal == 0 {
 		return 0, fmt.Errorf("cannot determine the total amount of memory in the system from %s", procMeminfo)
 	}

@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/state"
@@ -98,31 +99,31 @@ var statePatch3JSON = []byte(`
 
 func (s *patch3Suite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
+	mylog.Check(os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755))
 
-	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(dirs.SnapStateFile, statePatch3JSON, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(dirs.SnapStateFile, statePatch3JSON, 0644))
+
 }
 
 func (s *patch3Suite) TestPatch3(c *C) {
 	restorer := patch.MockLevel(3, 1)
 	defer restorer()
 
-	r, err := os.Open(dirs.SnapStateFile)
-	c.Assert(err, IsNil)
+	r := mylog.Check2(os.Open(dirs.SnapStateFile))
+
 	defer r.Close()
-	st, err := state.ReadState(nil, r)
-	c.Assert(err, IsNil)
+	st := mylog.Check2(state.ReadState(nil, r))
+
 
 	// our mocks are correct
 	st.Lock()
 	c.Assert(st.Tasks(), HasLen, 4)
 	st.Unlock()
+	mylog.
 
-	// go from patch level 2 -> 3
-	err = patch.Apply(st)
-	c.Assert(err, IsNil)
+		// go from patch level 2 -> 3
+		Check(patch.Apply(st))
+
 
 	st.Lock()
 	defer st.Unlock()

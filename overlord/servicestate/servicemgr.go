@@ -28,6 +28,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -94,7 +95,7 @@ func (m *ServiceManager) ensureSnapServicesUpdated() (err error) {
 
 	// only run after we are seeded
 	var seeded bool
-	err = m.state.Get("seeded", &seeded)
+	mylog.Check(m.state.Get("seeded", &seeded))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
@@ -106,7 +107,7 @@ func (m *ServiceManager) ensureSnapServicesUpdated() (err error) {
 	// services as necessary
 
 	// ensure all snap services are updated
-	allStates, err := snapstate.All(m.state)
+	allStates := mylog.Check2(snapstate.All(m.state))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
@@ -117,7 +118,7 @@ func (m *ServiceManager) ensureSnapServicesUpdated() (err error) {
 		return nil
 	}
 
-	allGrps, err := AllQuotas(m.state)
+	allGrps := mylog.Check2(AllQuotas(m.state))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
@@ -125,10 +126,7 @@ func (m *ServiceManager) ensureSnapServicesUpdated() (err error) {
 	snapsMap := map[*snap.Info]*wrappers.SnapServiceOptions{}
 
 	for _, snapSt := range allStates {
-		info, err := snapSt.CurrentInfo()
-		if err != nil {
-			return err
-		}
+		info := mylog.Check2(snapSt.CurrentInfo())
 
 		// don't use EnsureSnapServices with the snapd snap
 		if info.Type() == snap.TypeSnapd {
@@ -136,10 +134,8 @@ func (m *ServiceManager) ensureSnapServicesUpdated() (err error) {
 		}
 
 		// use the cached copy of all quota groups
-		snapSvcOpts, err := SnapServiceOptions(m.state, info, allGrps)
-		if err != nil {
-			return err
-		}
+		snapSvcOpts := mylog.Check2(SnapServiceOptions(m.state, info, allGrps))
+
 		snapsMap[info] = snapSvcOpts
 	}
 
@@ -149,10 +145,7 @@ func (m *ServiceManager) ensureSnapServicesUpdated() (err error) {
 	}
 
 	// set RequireMountedSnapdSnap if we are on UC18+ only
-	deviceCtx, err := snapstate.DeviceCtx(m.state, nil, nil)
-	if err != nil {
-		return err
-	}
+	deviceCtx := mylog.Check2(snapstate.DeviceCtx(m.state, nil, nil))
 
 	if !deviceCtx.Classic() && deviceCtx.Model().Base() != "" {
 		ensureOpts.RequireMountedSnapdSnap = true
@@ -170,29 +163,22 @@ func (m *ServiceManager) ensureSnapServicesUpdated() (err error) {
 			}
 		}
 	}
-
-	err = wrappers.EnsureSnapServices(snapsMap, ensureOpts, observeChange, progress.Null)
-	if err != nil {
-		return err
-	}
+	mylog.Check(wrappers.EnsureSnapServices(snapsMap, ensureOpts, observeChange, progress.Null))
 
 	// if nothing was modified or we are not on UC18+, we are done
 	if len(rewrittenServices) == 0 || deviceCtx.Classic() || deviceCtx.Model().Base() == "" || !serviceKillingMightHaveOccurred {
 		m.ensuredSnapSvcs = true
 		return nil
 	}
+	mylog.Check(
 
-	// otherwise, we know now that we have rewritten some snap services, we need
-	// to handle the case of LP #1924805, and restart any services that were
-	// accidentally killed when we refreshed snapd
-	if err := restartServicesKilledInSnapdSnapRefresh(rewrittenServices); err != nil {
-		// we failed to restart services that were killed by a snapd refresh, so
-		// we need to immediately reboot in the hopes that this restores
-		// services to a functioning state
-
-		restart.Request(m.state, restart.RestartSystemNow, nil)
-		return fmt.Errorf("error trying to restart killed services, immediately rebooting: %v", err)
-	}
+		// otherwise, we know now that we have rewritten some snap services, we need
+		// to handle the case of LP #1924805, and restart any services that were
+		// accidentally killed when we refreshed snapd
+		restartServicesKilledInSnapdSnapRefresh(rewrittenServices))
+	// we failed to restart services that were killed by a snapd refresh, so
+	// we need to immediately reboot in the hopes that this restores
+	// services to a functioning state
 
 	m.ensuredSnapSvcs = true
 
@@ -201,9 +187,8 @@ func (m *ServiceManager) ensureSnapServicesUpdated() (err error) {
 
 // Ensure implements StateManager.Ensure.
 func (m *ServiceManager) Ensure() error {
-	if err := m.ensureSnapServicesUpdated(); err != nil {
-		return err
-	}
+	mylog.Check(m.ensureSnapServicesUpdated())
+
 	return nil
 }
 
@@ -216,25 +201,18 @@ func delayedCrossMgrInit() {
 
 func serviceControlAffectedSnaps(t *state.Task) ([]string, error) {
 	var serviceAction ServiceAction
-	if err := t.Get("service-action", &serviceAction); err != nil {
-		return nil, fmt.Errorf("internal error: cannot obtain service action from task: %s", t.Summary())
-	}
+	mylog.Check(t.Get("service-action", &serviceAction))
+
 	return []string{serviceAction.SnapName}, nil
 }
 
 func getBootTime() (time.Time, error) {
 	cmd := exec.Command("uptime", "-s")
 	cmd.Env = append(cmd.Env, "TZ=UTC")
-	out, stderr, err := osutil.RunCmd(cmd)
-	if err != nil {
-		return time.Time{}, osutil.OutputErrCombine(out, stderr, err)
-	}
+	out, stderr := mylog.Check3(osutil.RunCmd(cmd))
 
 	// parse the output from the command as a time
-	t, err := time.ParseInLocation("2006-01-02 15:04:05", strings.TrimSpace(string(out)), time.UTC)
-	if err != nil {
-		return time.Time{}, err
-	}
+	t := mylog.Check2(time.ParseInLocation("2006-01-02 15:04:05", strings.TrimSpace(string(out)), time.UTC))
 
 	return t, nil
 }
@@ -247,10 +225,7 @@ func restartServicesKilledInSnapdSnapRefresh(modified map[*snap.Info][]*snap.App
 	// all snap services using Requires=, see LP #1924805 for full details, so
 	// we need to undo that by restarting those snaps
 
-	st, err := os.Stat(filepath.Join(dirs.SnapServicesDir, wrappers.SnapdToolingMountUnit))
-	if err != nil {
-		return err
-	}
+	st := mylog.Check2(os.Stat(filepath.Join(dirs.SnapServicesDir, wrappers.SnapdToolingMountUnit)))
 
 	// always truncate all times to second precision, since that is the least
 	// precise time we have of all the times we consider, due to using systemctl
@@ -266,12 +241,10 @@ func restartServicesKilledInSnapdSnapRefresh(modified map[*snap.Info][]*snap.App
 	// if the time that the usr-lib-snapd.mount was modified is before the time
 	// that this device was booted up, then we can skip this since we know we
 	// that a refresh is not being performed
-	bootTime, err := getBootTime()
-	if err != nil {
-		// don't fail if we can't get the boot time, if we don't get it the
-		// below check will be always false (no time can be before zero time)
-		logger.Noticef("error getting boot time: %v", err)
-	}
+	bootTime := mylog.Check2(getBootTime())
+
+	// don't fail if we can't get the boot time, if we don't get it the
+	// below check will be always false (no time can be before zero time)
 
 	if lowerTimeBound.Before(bootTime) {
 		return nil
@@ -295,10 +268,7 @@ func restartServicesKilledInSnapdSnapRefresh(modified map[*snap.Info][]*snap.App
 	// TODO: pass a real interactor here?
 	sysd := systemd.New(systemd.SystemMode, progress.Null)
 
-	upperTimeBound, err := sysd.InactiveEnterTimestamp(wrappers.SnapdToolingMountUnit)
-	if err != nil {
-		return err
-	}
+	upperTimeBound := mylog.Check2(sysd.InactiveEnterTimestamp(wrappers.SnapdToolingMountUnit))
 
 	if upperTimeBound.IsZero() {
 		// this means that the usr-lib-snapd.mount unit never exited during this
@@ -322,10 +292,7 @@ func restartServicesKilledInSnapdSnapRefresh(modified map[*snap.Info][]*snap.App
 	for sn, apps := range modified {
 		for _, app := range apps {
 			// get the InactiveEnterTimestamp for the service
-			t, err := sysd.InactiveEnterTimestamp(app.ServiceName())
-			if err != nil {
-				return err
-			}
+			t := mylog.Check2(sysd.InactiveEnterTimestamp(app.ServiceName()))
 
 			// always truncate to second precision
 			t = t.Truncate(time.Second)
@@ -349,21 +316,14 @@ func restartServicesKilledInSnapdSnapRefresh(modified map[*snap.Info][]*snap.App
 	for sn, apps := range candidateAppsToRestartBySnap {
 		// TODO: should we try to start as many services as possible here before
 		// giving up given the severity of the bug?
-		disabledSvcs, err := wrappers.QueryDisabledServices(sn, progress.Null)
-		if err != nil {
-			return err
-		}
+		disabledSvcs := mylog.Check2(wrappers.QueryDisabledServices(sn, progress.Null))
 
-		startupOrdered, err := snap.SortServices(apps)
-		if err != nil {
-			return err
-		}
+		startupOrdered := mylog.Check2(snap.SortServices(apps))
 
 		// TODO: what to do about timings here?
 		nullPerfTimings := &timings.Timings{}
-		if err := wrappers.StartServices(startupOrdered, disabledSvcs, nil, progress.Null, nullPerfTimings); err != nil {
-			return err
-		}
+		mylog.Check(wrappers.StartServices(startupOrdered, disabledSvcs, nil, progress.Null, nullPerfTimings))
+
 	}
 
 	return nil

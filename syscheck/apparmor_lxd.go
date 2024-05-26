@@ -22,6 +22,8 @@ package syscheck
 import (
 	"fmt"
 	"os"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 func init() {
@@ -40,7 +42,7 @@ func checkApparmorUsable() error {
 	// if /sys/kernel/security/apparmor/profiles is readable (like
 	// aa-status does), and if it isn't, we know we can't manipulate
 	// policy.
-	f, err := os.Open(apparmorProfilesPath)
+	f := mylog.Check2(os.Open(apparmorProfilesPath))
 	if os.IsPermission(err) {
 		return fmt.Errorf("apparmor detected but insufficient permissions to use it")
 	}

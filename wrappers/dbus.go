@@ -26,6 +26,7 @@ import (
 	"regexp"
 	"text/template"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
@@ -57,9 +58,8 @@ X-Snap={{.App.Snap.InstanceName}}
 		BusName: busName,
 	}
 	var templateOut bytes.Buffer
-	if err := t.Execute(&templateOut, serviceData); err != nil {
-		return nil, err
-	}
+	mylog.Check(t.Execute(&templateOut, serviceData))
+
 	return templateOut.Bytes(), nil
 }
 
@@ -67,10 +67,8 @@ var snapNameLine = regexp.MustCompile(`(?m)^X-Snap=(.*)$`)
 
 // snapNameFromServiceFile returns the snap name for the D-Bus service activation file.
 func snapNameFromServiceFile(filename string) (owner string, err error) {
-	content, err := os.ReadFile(filename)
-	if err != nil {
-		return "", err
-	}
+	content := mylog.Check2(os.ReadFile(filename))
+
 	m := snapNameLine.FindSubmatch(content)
 	if m != nil {
 		owner = string(m[1])
@@ -81,15 +79,11 @@ func snapNameFromServiceFile(filename string) (owner string, err error) {
 // snapServiceActivationFiles returns the list of service activation files for a snap.
 func snapServiceActivationFiles(dir, snapName string) (services []string, err error) {
 	glob := filepath.Join(dir, "*.service")
-	matches, err := filepath.Glob(glob)
-	if err != nil {
-		return nil, err
-	}
+	matches := mylog.Check2(filepath.Glob(glob))
+
 	for _, match := range matches {
-		serviceSnap, err := snapNameFromServiceFile(match)
-		if err != nil {
-			return nil, err
-		}
+		serviceSnap := mylog.Check2(snapNameFromServiceFile(match))
+
 		if serviceSnap == snapName {
 			services = append(services, filepath.Base(match))
 		}
@@ -98,23 +92,14 @@ func snapServiceActivationFiles(dir, snapName string) (services []string, err er
 }
 
 func AddSnapDBusActivationFiles(s *snap.Info) error {
-	if err := os.MkdirAll(dirs.SnapDBusSessionServicesDir, 0755); err != nil {
-		return err
-	}
-	if err := os.MkdirAll(dirs.SnapDBusSystemServicesDir, 0755); err != nil {
-		return err
-	}
+	mylog.Check(os.MkdirAll(dirs.SnapDBusSessionServicesDir, 0755))
+	mylog.Check(os.MkdirAll(dirs.SnapDBusSystemServicesDir, 0755))
 
 	// Make sure we include any service files that claim to have
 	// been written by the snap.
-	sessionServices, err := snapServiceActivationFiles(dirs.SnapDBusSessionServicesDir, s.InstanceName())
-	if err != nil {
-		return err
-	}
-	systemServices, err := snapServiceActivationFiles(dirs.SnapDBusSystemServicesDir, s.InstanceName())
-	if err != nil {
-		return err
-	}
+	sessionServices := mylog.Check2(snapServiceActivationFiles(dirs.SnapDBusSessionServicesDir, s.InstanceName()))
+
+	systemServices := mylog.Check2(snapServiceActivationFiles(dirs.SnapDBusSystemServicesDir, s.InstanceName()))
 
 	sessionContent := make(map[string]osutil.FileState)
 	systemContent := make(map[string]osutil.FileState)
@@ -126,14 +111,10 @@ func AddSnapDBusActivationFiles(s *snap.Info) error {
 
 		for _, slot := range app.ActivatesOn {
 			var busName string
-			if err := slot.Attr("name", &busName); err != nil {
-				return err
-			}
+			mylog.Check(slot.Attr("name", &busName))
 
-			content, err := generateDBusActivationFile(app, busName)
-			if err != nil {
-				return err
-			}
+			content := mylog.Check2(generateDBusActivationFile(app, busName))
+
 			filename := busName + ".service"
 			fileState := &osutil.MemoryFileState{
 				Content: content,
@@ -150,15 +131,10 @@ func AddSnapDBusActivationFiles(s *snap.Info) error {
 		}
 	}
 
-	if _, _, err = osutil.EnsureDirStateGlobs(dirs.SnapDBusSessionServicesDir, sessionServices, sessionContent); err != nil {
-		return err
-	}
+	_, _ := mylog.Check3(osutil.EnsureDirStateGlobs(dirs.SnapDBusSessionServicesDir, sessionServices, sessionContent))
 
-	if _, _, err = osutil.EnsureDirStateGlobs(dirs.SnapDBusSystemServicesDir, systemServices, systemContent); err != nil {
-		// On error, remove files installed by first invocation
-		osutil.EnsureDirStateGlobs(dirs.SnapDBusSessionServicesDir, sessionServices, nil)
-		return err
-	}
+	_, _ := mylog.Check3(osutil.EnsureDirStateGlobs(dirs.SnapDBusSystemServicesDir, systemServices, systemContent))
+	// On error, remove files installed by first invocation
 
 	return nil
 }
@@ -171,13 +147,10 @@ func RemoveSnapDBusActivationFiles(s *snap.Info) error {
 		dirs.SnapDBusSessionServicesDir,
 		dirs.SnapDBusSystemServicesDir,
 	} {
-		toRemove, err := snapServiceActivationFiles(servicesDir, s.InstanceName())
-		if err != nil {
-			return err
-		}
-		if _, _, err = osutil.EnsureDirStateGlobs(servicesDir, toRemove, nil); err != nil {
-			return err
-		}
+		toRemove := mylog.Check2(snapServiceActivationFiles(servicesDir, s.InstanceName()))
+
+		_, _ := mylog.Check3(osutil.EnsureDirStateGlobs(servicesDir, toRemove, nil))
+
 	}
 	return nil
 }

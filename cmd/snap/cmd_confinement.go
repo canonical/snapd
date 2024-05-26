@@ -22,16 +22,19 @@ package main
 import (
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/i18n"
 )
 
-var shortConfinementHelp = i18n.G("Print the confinement mode the system operates in")
-var longConfinementHelp = i18n.G(`
+var (
+	shortConfinementHelp = i18n.G("Print the confinement mode the system operates in")
+	longConfinementHelp  = i18n.G(`
 The confinement command will print the confinement mode (strict,
 partial or none) the system operates in.
 `)
+)
 
 type cmdConfinement struct {
 	clientMixin
@@ -48,10 +51,8 @@ func (cmd cmdConfinement) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	sysInfo, err := cmd.client.SysInfo()
-	if err != nil {
-		return err
-	}
+	sysInfo := mylog.Check2(cmd.client.SysInfo())
+
 	fmt.Fprintf(Stdout, "%s\n", sysInfo.Confinement)
 	return nil
 }

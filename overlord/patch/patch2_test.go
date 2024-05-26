@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -115,26 +116,26 @@ var statePatch2JSON = []byte(`
 
 func (s *patch2Suite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
+	mylog.Check(os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755))
 
-	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(dirs.SnapStateFile, statePatch2JSON, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(dirs.SnapStateFile, statePatch2JSON, 0644))
+
 }
 
 func (s *patch2Suite) TestPatch2(c *C) {
 	restorer := patch.MockLevel(2, 1)
 	defer restorer()
 
-	r, err := os.Open(dirs.SnapStateFile)
-	c.Assert(err, IsNil)
-	defer r.Close()
-	st, err := state.ReadState(nil, r)
-	c.Assert(err, IsNil)
+	r := mylog.Check2(os.Open(dirs.SnapStateFile))
 
-	// go from patch level 1 -> 2
-	err = patch.Apply(st)
-	c.Assert(err, IsNil)
+	defer r.Close()
+	st := mylog.Check2(state.ReadState(nil, r))
+
+	mylog.
+
+		// go from patch level 1 -> 2
+		Check(patch.Apply(st))
+
 
 	st.Lock()
 	defer st.Unlock()
@@ -147,8 +148,8 @@ func (s *patch2Suite) TestPatch2(c *C) {
 	// transition of:
 	// - SnapSetup.{Name,Revision} -> SnapSetup.SideInfo.{RealName,Revision}
 	t := st.Task("1")
-	err = t.Get("snap-setup", &snapsup)
-	c.Assert(err, IsNil)
+	mylog.Check(t.Get("snap-setup", &snapsup))
+
 	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: "foo",
 		Revision: snap.R("x3"),
@@ -157,22 +158,23 @@ func (s *patch2Suite) TestPatch2(c *C) {
 	// transition of:
 	// - SnapState.Sequence is backfilled with "RealName" (if missing)
 	var snapst snapstate.SnapState
-	err = snapstate.Get(st, "foo", &snapst)
-	c.Assert(err, IsNil)
+	mylog.Check(snapstate.Get(st, "foo", &snapst))
+
 	c.Check(snapst.Sequence.Revisions[0].Snap.RealName, Equals, "foo")
 	c.Check(snapst.Sequence.Revisions[1].Snap.RealName, Equals, "foo")
 
 	// transition of:
 	// - Candidate for "bar" -> tasks SnapSetup.SideInfo
 	t = st.Task("2")
-	err = t.Get("snap-setup", &snapsup)
-	c.Assert(err, IsNil)
+	mylog.Check(t.Get("snap-setup", &snapsup))
+
 	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: "bar",
 		Revision: snap.R("x1"),
 	})
+	mylog.
 
-	// FIXME: bar is now empty and should no longer be there?
-	err = snapstate.Get(st, "bar", &snapst)
-	c.Assert(err, IsNil)
+		// FIXME: bar is now empty and should no longer be there?
+		Check(snapstate.Get(st, "bar", &snapst))
+
 }

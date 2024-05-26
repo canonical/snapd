@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/policy"
@@ -54,7 +55,7 @@ var _ = Suite(&policySuite{})
 
 func (s *policySuite) SetUpSuite(c *C) {
 	s.restoreSanitize = snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
-	a, err := asserts.Decode([]byte(`type: base-declaration
+	a := mylog.Check2(asserts.Decode([]byte(`type: base-declaration
 authority-id: canonical
 series: 16
 plugs:
@@ -331,8 +332,8 @@ slots:
 timestamp: 2016-09-30T12:00:00Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
-AXNpZw==`))
-	c.Assert(err, IsNil)
+AXNpZw==`)))
+
 	s.baseDecl = a.(*asserts.BaseDeclaration)
 
 	s.plugSnap = snaptest.MockInfo(c, `
@@ -710,7 +711,7 @@ slots:
 
 `, nil)
 
-	a, err = asserts.Decode([]byte(`type: snap-declaration
+	a = mylog.Check2(asserts.Decode([]byte(`type: snap-declaration
 authority-id: canonical
 series: 16
 snap-name: plug-snap
@@ -793,11 +794,11 @@ plugs:
 timestamp: 2016-09-30T12:00:00Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
-AXNpZw==`))
-	c.Assert(err, IsNil)
+AXNpZw==`)))
+
 	s.plugDecl = a.(*asserts.SnapDeclaration)
 
-	a, err = asserts.Decode([]byte(`type: snap-declaration
+	a = mylog.Check2(asserts.Decode([]byte(`type: snap-declaration
 authority-id: canonical
 series: 16
 snap-name: slot-snap
@@ -879,8 +880,8 @@ slots:
 timestamp: 2016-09-30T12:00:00Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
-AXNpZw==`))
-	c.Assert(err, IsNil)
+AXNpZw==`)))
+
 	s.slotDecl = a.(*asserts.SnapDeclaration)
 
 	s.randomSnap = snaptest.MockInfo(c, `
@@ -897,7 +898,7 @@ slots:
   same-plug-publisher-id:
 `, nil)
 
-	a, err = asserts.Decode([]byte(`type: snap-declaration
+	a = mylog.Check2(asserts.Decode([]byte(`type: snap-declaration
 authority-id: canonical
 series: 16
 snap-name: random-snap
@@ -906,8 +907,8 @@ publisher-id: random-publisher
 timestamp: 2016-09-30T12:00:00Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
-AXNpZw==`))
-	c.Assert(err, IsNil)
+AXNpZw==`)))
+
 	s.randomDecl = a.(*asserts.SnapDeclaration)
 }
 
@@ -923,7 +924,7 @@ func (s *policySuite) TestBaselineDefaultIsAllow(c *C) {
 	}
 
 	c.Check(cand.Check(), IsNil)
-	arity, err := cand.CheckAutoConnect()
+	arity := mylog.Check2(cand.CheckAutoConnect())
 	c.Check(err, IsNil)
 	c.Check(arity.SlotsPerPlugAny(), Equals, false)
 }
@@ -967,8 +968,7 @@ func (s *policySuite) TestBaseDeclAllowDenyConnection(c *C) {
 			Slot:            interfaces.NewConnectedSlot(s.slotSnap.Slots[t.iface], nil, nil),
 			BaseDeclaration: s.baseDecl,
 		}
-
-		err := cand.Check()
+		mylog.Check(cand.Check())
 		if t.expected == "" {
 			c.Check(err, IsNil)
 		} else {
@@ -1007,7 +1007,7 @@ func (s *policySuite) TestBaseDeclAllowDenyAutoConnection(c *C) {
 			BaseDeclaration: s.baseDecl,
 		}
 
-		arity, err := cand.CheckAutoConnect()
+		arity := mylog.Check2(cand.CheckAutoConnect())
 		if t.expected == "" {
 			c.Check(err, IsNil)
 			c.Check(arity.SlotsPerPlugAny(), Equals, false)
@@ -1043,8 +1043,7 @@ func (s *policySuite) TestSnapDeclAllowDenyConnection(c *C) {
 			SlotSnapDeclaration: s.slotDecl,
 			BaseDeclaration:     s.baseDecl,
 		}
-
-		err := cand.Check()
+		mylog.Check(cand.Check())
 		if t.expected == "" {
 			c.Check(err, IsNil)
 		} else {
@@ -1080,7 +1079,7 @@ func (s *policySuite) TestSnapDeclAllowDenyAutoConnection(c *C) {
 			BaseDeclaration:     s.baseDecl,
 		}
 
-		arity, err := cand.CheckAutoConnect()
+		arity := mylog.Check2(cand.CheckAutoConnect())
 		if t.expected == "" {
 			c.Check(err, IsNil)
 			c.Check(arity.SlotsPerPlugAny(), Equals, false)
@@ -1319,7 +1318,7 @@ slots:
   same-plug-publisher-id:
 `, nil)
 
-	a, err := asserts.Decode([]byte(`type: snap-declaration
+	a := mylog.Check2(asserts.Decode([]byte(`type: snap-declaration
 authority-id: canonical
 series: 16
 snap-name: same-pub-slot-snap
@@ -1328,8 +1327,8 @@ publisher-id: plug-publisher
 timestamp: 2016-09-30T12:00:00Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
-AXNpZw==`))
-	c.Assert(err, IsNil)
+AXNpZw==`)))
+
 	samePubSlotDecl := a.(*asserts.SnapDeclaration)
 
 	cand = policy.ConnectCandidate{
@@ -1378,7 +1377,7 @@ plugs:
   same-slot-publisher-id:
 `, nil)
 
-	a, err := asserts.Decode([]byte(`type: snap-declaration
+	a := mylog.Check2(asserts.Decode([]byte(`type: snap-declaration
 authority-id: canonical
 series: 16
 snap-name: same-pub-plug-snap
@@ -1387,8 +1386,8 @@ publisher-id: slot-publisher
 timestamp: 2016-09-30T12:00:00Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
-AXNpZw==`))
-	c.Assert(err, IsNil)
+AXNpZw==`)))
+
 	samePubPlugDecl := a.(*asserts.SnapDeclaration)
 
 	cand = policy.ConnectCandidate{
@@ -1420,7 +1419,6 @@ plugs:
 }
 
 func (s *policySuite) TestBaseDeclAllowDenyInstallation(c *C) {
-
 	tests := []struct {
 		installYaml string
 		expected    string // "" => no error
@@ -1507,8 +1505,7 @@ slots:
 			Snap:            installSnap,
 			BaseDeclaration: s.baseDecl,
 		}
-
-		err := cand.Check()
+		mylog.Check(cand.Check())
 		if t.expected == "" {
 			c.Check(err, IsNil)
 		} else {
@@ -1518,7 +1515,6 @@ slots:
 }
 
 func (s *policySuite) TestSnapDeclAllowDenyInstallation(c *C) {
-
 	tests := []struct {
 		installYaml string
 		plugsSlots  string
@@ -1593,7 +1589,7 @@ plugs:
 	for _, t := range tests {
 		installSnap := snaptest.MockInfo(c, t.installYaml, nil)
 
-		a, err := asserts.Decode([]byte(strings.Replace(`type: snap-declaration
+		a := mylog.Check2(asserts.Decode([]byte(strings.Replace(`type: snap-declaration
 authority-id: canonical
 series: 16
 snap-name: install-snap
@@ -1603,8 +1599,8 @@ publisher-id: publisher
 timestamp: 2016-09-30T12:00:00Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
-AXNpZw==`, "@plugsSlots@", strings.TrimSpace(t.plugsSlots), 1)))
-		c.Assert(err, IsNil)
+AXNpZw==`, "@plugsSlots@", strings.TrimSpace(t.plugsSlots), 1))))
+
 		snapDecl := a.(*asserts.SnapDeclaration)
 
 		cand := policy.InstallCandidate{
@@ -1612,8 +1608,7 @@ AXNpZw==`, "@plugsSlots@", strings.TrimSpace(t.plugsSlots), 1)))
 			SnapDeclaration: snapDecl,
 			BaseDeclaration: s.baseDecl,
 		}
-
-		err = cand.Check()
+		mylog.Check(cand.Check())
 		if t.expected == "" {
 			c.Check(err, IsNil)
 		} else {
@@ -1658,8 +1653,7 @@ plugs:
 			Snap:            installSnap,
 			BaseDeclaration: s.baseDecl,
 		}
-
-		err := cand.Check()
+		mylog.Check(cand.Check())
 		if t.expected == "" {
 			c.Check(err, IsNil)
 		} else {
@@ -1713,7 +1707,7 @@ plugs:
 			Snap:            installSnap,
 			BaseDeclaration: s.baseDecl,
 		}
-		err := cand.Check()
+		mylog.Check(cand.Check())
 		if t.err == "" {
 			c.Check(err, IsNil)
 		} else {
@@ -1757,7 +1751,7 @@ func (s *policySuite) TestPlugOnClassicCheckConnection(c *C) {
 			Slot:            interfaces.NewConnectedSlot(s.slotSnap.Slots[t.iface], nil, nil),
 			BaseDeclaration: s.baseDecl,
 		}
-		err := cand.Check()
+		mylog.Check(cand.Check())
 		if t.err == "" {
 			c.Check(err, IsNil)
 		} else {
@@ -1801,7 +1795,7 @@ func (s *policySuite) TestSlotOnClassicCheckConnection(c *C) {
 			Slot:            interfaces.NewConnectedSlot(s.slotSnap.Slots[t.iface], nil, nil),
 			BaseDeclaration: s.baseDecl,
 		}
-		err := cand.Check()
+		mylog.Check(cand.Check())
 		if t.err == "" {
 			c.Check(err, IsNil)
 		} else {
@@ -1855,7 +1849,7 @@ plugs:
 			Snap:            installSnap,
 			BaseDeclaration: s.baseDecl,
 		}
-		err := cand.Check()
+		mylog.Check(cand.Check())
 		if t.err == "" {
 			c.Check(err, IsNil)
 		} else {
@@ -1874,7 +1868,7 @@ var (
 )
 
 func init() {
-	a, err := asserts.Decode([]byte(`type: model
+	a := mylog.Check2(asserts.Decode([]byte(`type: model
 authority-id: other-brand
 series: 16
 brand-id: other-brand
@@ -1884,13 +1878,11 @@ gadget: gadget
 timestamp: 2018-09-12T12:00:00Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
-AXNpZw==`))
-	if err != nil {
-		panic(err)
-	}
+AXNpZw==`)))
+
 	otherModel = a.(*asserts.Model)
 
-	a, err = asserts.Decode([]byte(`type: model
+	a = mylog.Check2(asserts.Decode([]byte(`type: model
 authority-id: my-brand
 series: 16
 brand-id: my-brand
@@ -1902,13 +1894,11 @@ gadget: gadget
 timestamp: 2018-09-12T12:00:00Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
-AXNpZw==`))
-	if err != nil {
-		panic(err)
-	}
+AXNpZw==`)))
+
 	myModel1 = a.(*asserts.Model)
 
-	a, err = asserts.Decode([]byte(`type: model
+	a = mylog.Check2(asserts.Decode([]byte(`type: model
 authority-id: my-brand-subbrand
 series: 16
 brand-id: my-brand-subbrand
@@ -1920,13 +1910,11 @@ gadget: gadget
 timestamp: 2018-09-12T12:00:00Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
-AXNpZw==`))
-	if err != nil {
-		panic(err)
-	}
+AXNpZw==`)))
+
 	myModel2 = a.(*asserts.Model)
 
-	a, err = asserts.Decode([]byte(`type: model
+	a = mylog.Check2(asserts.Decode([]byte(`type: model
 authority-id: my-brand
 series: 16
 brand-id: my-brand
@@ -1938,13 +1926,11 @@ gadget: gadget
 timestamp: 2018-09-12T12:00:00Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
-AXNpZw==`))
-	if err != nil {
-		panic(err)
-	}
+AXNpZw==`)))
+
 	myModel3 = a.(*asserts.Model)
 
-	a, err = asserts.Decode([]byte(`type: store
+	a = mylog.Check2(asserts.Decode([]byte(`type: store
 store: substore1
 authority-id: canonical
 operator-id: canonical
@@ -1955,10 +1941,8 @@ friendly-stores:
 timestamp: 2018-09-12T12:00:00Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
-AXNpZw==`))
-	if err != nil {
-		panic(err)
-	}
+AXNpZw==`)))
+
 	substore1 = a.(*asserts.Store)
 }
 
@@ -1995,7 +1979,7 @@ func (s *policySuite) TestPlugDeviceScopeCheckAutoConnection(c *C) {
 
 			Model: t.model,
 		}
-		arity, err := cand.CheckAutoConnect()
+		arity := mylog.Check2(cand.CheckAutoConnect())
 		if t.err == "" {
 			c.Check(err, IsNil)
 			c.Check(arity.SlotsPerPlugAny(), Equals, false)
@@ -2030,7 +2014,7 @@ func (s *policySuite) TestPlugDeviceScopeFriendlyStoreCheckAutoConnection(c *C) 
 			Model: t.model,
 			Store: t.store,
 		}
-		arity, err := cand.CheckAutoConnect()
+		arity := mylog.Check2(cand.CheckAutoConnect())
 		if t.err == "" {
 			c.Check(err, IsNil)
 			c.Check(arity.SlotsPerPlugAny(), Equals, false)
@@ -2073,7 +2057,7 @@ func (s *policySuite) TestSlotDeviceScopeCheckAutoConnection(c *C) {
 
 			Model: t.model,
 		}
-		arity, err := cand.CheckAutoConnect()
+		arity := mylog.Check2(cand.CheckAutoConnect())
 		if t.err == "" {
 			c.Check(err, IsNil)
 			c.Check(arity.SlotsPerPlugAny(), Equals, false)
@@ -2108,7 +2092,7 @@ func (s *policySuite) TestSlotDeviceScopeFriendlyStoreCheckAutoConnection(c *C) 
 			Model: t.model,
 			Store: t.store,
 		}
-		arity, err := cand.CheckAutoConnect()
+		arity := mylog.Check2(cand.CheckAutoConnect())
 		if t.err == "" {
 			c.Check(err, IsNil)
 			c.Check(arity.SlotsPerPlugAny(), Equals, false)
@@ -2184,7 +2168,7 @@ slots:
 	for _, t := range tests {
 		installSnap := snaptest.MockInfo(c, t.installYaml, nil)
 
-		a, err := asserts.Decode([]byte(strings.Replace(`type: snap-declaration
+		a := mylog.Check2(asserts.Decode([]byte(strings.Replace(`type: snap-declaration
 authority-id: canonical
 series: 16
 snap-name: install-snap
@@ -2194,8 +2178,8 @@ publisher-id: publisher
 timestamp: 2016-09-30T12:00:00Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
-AXNpZw==`, "@plugsSlots@", strings.TrimSpace(t.plugsSlots), 1)))
-		c.Assert(err, IsNil)
+AXNpZw==`, "@plugsSlots@", strings.TrimSpace(t.plugsSlots), 1))))
+
 		snapDecl := a.(*asserts.SnapDeclaration)
 
 		cand := policy.InstallCandidate{
@@ -2205,7 +2189,7 @@ AXNpZw==`, "@plugsSlots@", strings.TrimSpace(t.plugsSlots), 1)))
 			Model:           t.model,
 			Store:           t.store,
 		}
-		err = cand.Check()
+		mylog.Check(cand.Check())
 		if t.err == "" {
 			c.Check(err, IsNil)
 		} else {
@@ -2377,8 +2361,8 @@ func (s *policySuite) TestSlotsArityAutoConnection(c *C) {
 
 			BaseDeclaration: s.baseDecl,
 		}
-		arity, err := cand.CheckAutoConnect()
-		c.Assert(err, IsNil)
+		arity := mylog.Check2(cand.CheckAutoConnect())
+
 		c.Check(arity.SlotsPerPlugAny(), Equals, t.any)
 	}
 }
@@ -2434,7 +2418,7 @@ slots:
 			plugsSlots = "\n" + plugsSlots
 		}
 
-		a, err := asserts.Decode([]byte(strings.Replace(`type: snap-declaration
+		a := mylog.Check2(asserts.Decode([]byte(strings.Replace(`type: snap-declaration
 authority-id: canonical
 series: 16
 snap-name: install-snap
@@ -2444,8 +2428,8 @@ publisher-id: publisher
 timestamp: 2016-09-30T12:00:00Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
-AXNpZw==`, "\n@plugsSlots@", plugsSlots, 1)))
-		c.Assert(err, IsNil)
+AXNpZw==`, "\n@plugsSlots@", plugsSlots, 1))))
+
 		snapDecl := a.(*asserts.SnapDeclaration)
 
 		cand := policy.InstallCandidate{
@@ -2453,7 +2437,7 @@ AXNpZw==`, "\n@plugsSlots@", plugsSlots, 1)))
 			SnapDeclaration: snapDecl,
 			BaseDeclaration: s.baseDecl,
 		}
-		err = cand.Check()
+		mylog.Check(cand.Check())
 		if t.err == "" {
 			c.Check(err, IsNil)
 		} else {
@@ -2486,7 +2470,7 @@ func (s *policySuite) TestNameConstraintsAutoConnection(c *C) {
 
 			BaseDeclaration: s.baseDecl,
 		}
-		_, err := cand.CheckAutoConnect()
+		_ := mylog.Check2(cand.CheckAutoConnect())
 		if t.ok {
 			c.Check(err, IsNil, Commentf("%s:%s", t.plug, t.slot))
 		} else {
@@ -2500,7 +2484,6 @@ func (s *policySuite) TestNameConstraintsAutoConnection(c *C) {
 			c.Check(err, ErrorMatches, expected)
 		}
 	}
-
 }
 
 // Test miscellaneous store patterns when base declaration has
@@ -2565,8 +2548,8 @@ timestamp: 2016-09-30T12:00:00Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
 AXNpZw==`
-	a, err := asserts.Decode([]byte(baseDeclStr))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(baseDeclStr)))
+
 	baseDecl := a.(*asserts.BaseDeclaration)
 
 	tests := []struct {
@@ -2854,8 +2837,8 @@ timestamp: 2016-09-30T12:00:00Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
 AXNpZw==`, "@plugsSlots@", strings.TrimSpace(t.snapDeclPlugsSlots), 1)
-		b, err := asserts.Decode([]byte(snapDeclStr))
-		c.Assert(err, IsNil)
+		b := mylog.Check2(asserts.Decode([]byte(snapDeclStr)))
+
 		snapDecl := b.(*asserts.SnapDeclaration)
 
 		cand := policy.InstallCandidate{
@@ -2863,8 +2846,7 @@ AXNpZw==`, "@plugsSlots@", strings.TrimSpace(t.snapDeclPlugsSlots), 1)
 			SnapDeclaration: snapDecl,
 			BaseDeclaration: baseDecl,
 		}
-
-		err = cand.Check()
+		mylog.Check(cand.Check())
 		if t.expected == "" {
 			c.Check(err, IsNil)
 		} else {
@@ -2890,8 +2872,8 @@ timestamp: 2022-03-20T12:00:00Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
 AXNpZw==`
-	a, err := asserts.Decode([]byte(baseDeclStr))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(baseDeclStr)))
+
 	baseDecl := a.(*asserts.BaseDeclaration)
 
 	appSnap := snaptest.MockInfo(c, `name: app-snap
@@ -2907,11 +2889,11 @@ slots:
 		Snap:            appSnap,
 		BaseDeclaration: baseDecl,
 	}
-	err = minCand.Check()
+	mylog.Check(minCand.Check())
 	c.Check(err, IsNil)
 
 	// not ok without snap-declaration rule
-	a, err = asserts.Decode([]byte(`type: snap-declaration
+	a = mylog.Check2(asserts.Decode([]byte(`type: snap-declaration
 authority-id: canonical
 series: 16
 snap-name: app-snap
@@ -2920,8 +2902,8 @@ publisher-id: publisher
 timestamp: 2022-03-20T12:00:00Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
-AXNpZw==`))
-	c.Assert(err, IsNil)
+AXNpZw==`)))
+
 	snapDecl := a.(*asserts.SnapDeclaration)
 
 	cand := policy.InstallCandidate{
@@ -2929,7 +2911,7 @@ AXNpZw==`))
 		SnapDeclaration: snapDecl,
 		BaseDeclaration: baseDecl,
 	}
-	err = cand.Check()
+	mylog.Check(cand.Check())
 	c.Check(err, NotNil)
 
 	snapdSnap := snaptest.MockInfo(c, `name: snapd
@@ -2938,7 +2920,7 @@ type: snapd
 slots:
   superprivileged-vs-allowed-system-slot:
 `, nil)
-	a, err = asserts.Decode([]byte(`type: snap-declaration
+	a = mylog.Check2(asserts.Decode([]byte(`type: snap-declaration
 authority-id: canonical
 series: 16
 snap-name: snapd
@@ -2947,8 +2929,8 @@ publisher-id: canonical
 timestamp: 2022-03-20T12:00:00Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
-AXNpZw==`))
-	c.Assert(err, IsNil)
+AXNpZw==`)))
+
 	snapDecl = a.(*asserts.SnapDeclaration)
 	c.Check(snapdSnap.Type(), Equals, snap.TypeSnapd)
 	cand = policy.InstallCandidate{
@@ -2956,7 +2938,7 @@ AXNpZw==`))
 		SnapDeclaration: snapDecl,
 		BaseDeclaration: baseDecl,
 	}
-	err = cand.Check()
+	mylog.Check(cand.Check())
 	c.Check(err, IsNil)
 }
 
@@ -2979,8 +2961,8 @@ timestamp: 2022-03-20T12:00:00Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
 AXNpZw==`
-	a, err := asserts.Decode([]byte(baseDeclStr))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(baseDeclStr)))
+
 	baseDecl := a.(*asserts.BaseDeclaration)
 
 	appSnap := snaptest.MockInfo(c, `name: app-snap
@@ -2998,11 +2980,11 @@ plugs:
 		Snap:            appSnap,
 		BaseDeclaration: baseDecl,
 	}
-	err = minCand.Check()
+	mylog.Check(minCand.Check())
 	c.Check(err, IsNil)
 
 	// not ok without snap-declaration rule
-	a, err = asserts.Decode([]byte(`type: snap-declaration
+	a = mylog.Check2(asserts.Decode([]byte(`type: snap-declaration
 authority-id: canonical
 series: 16
 snap-name: app-snap
@@ -3011,8 +2993,8 @@ publisher-id: publisher
 timestamp: 2022-03-20T12:00:00Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
-AXNpZw==`))
-	c.Assert(err, IsNil)
+AXNpZw==`)))
+
 	snapDecl := a.(*asserts.SnapDeclaration)
 
 	cand := policy.InstallCandidate{
@@ -3020,6 +3002,6 @@ AXNpZw==`))
 		SnapDeclaration: snapDecl,
 		BaseDeclaration: baseDecl,
 	}
-	err = cand.Check()
+	mylog.Check(cand.Check())
 	c.Check(err, NotNil)
 }

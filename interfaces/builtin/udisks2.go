@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/dbus"
@@ -441,14 +442,10 @@ func (iface *udisks2Interface) UDevPermanentSlot(spec *udev.Specification, slot 
 		slot.Attr("udev-file", &udevFile)
 		if udevFile != "" {
 			mountDir := slot.Snap.MountDir()
-			resolvedPath, err := osutil.ResolvePathNoEscape(mountDir, udevFile)
-			if err != nil {
-				return fmt.Errorf("cannot resolve udev-file: %v", err)
-			}
-			data, err := os.ReadFile(filepath.Join(mountDir, resolvedPath))
-			if err != nil {
-				return fmt.Errorf("cannot open udev-file: %v", err)
-			}
+			resolvedPath := mylog.Check2(osutil.ResolvePathNoEscape(mountDir, udevFile))
+
+			data := mylog.Check2(os.ReadFile(filepath.Join(mountDir, resolvedPath)))
+
 			spec.AddSnippet(string(data))
 		} else {
 			spec.AddSnippet(udisks2PermanentSlotUDev)

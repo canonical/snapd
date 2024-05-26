@@ -24,6 +24,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/tests/lib/fakestore/store"
 )
 
@@ -50,17 +51,12 @@ func (x *cmdRun) Execute(args []string) error {
 }
 
 func init() {
-	if _, err := parser.AddCommand("run", shortRunHelp, "", &cmdRun{}); err != nil {
-		panic(err)
-	}
+	mylog.Check2(parser.AddCommand("run", shortRunHelp, "", &cmdRun{}))
 }
 
 func runServer(topDir, addr string, assertFallback bool) error {
 	st := store.NewStore(topDir, addr, assertFallback)
-
-	if err := st.Start(); err != nil {
-		return err
-	}
+	mylog.Check(st.Start())
 
 	ch := make(chan os.Signal, 2)
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)

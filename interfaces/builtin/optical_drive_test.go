@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
@@ -111,11 +112,11 @@ func (s *OpticalDriveInterfaceSuite) TestAppArmorSpec(c *C) {
 		excludeSnippets []string
 	}
 	checkConnectedPlugSnippet := func(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot, opts *options) {
-		appSet, err := interfaces.NewSnapAppSet(plug.Snap(), nil)
-		c.Assert(err, IsNil)
+		appSet := mylog.Check2(interfaces.NewSnapAppSet(plug.Snap(), nil))
+
 		apparmorSpec := apparmor.NewSpecification(appSet)
-		err = apparmorSpec.AddConnectedPlug(s.iface, plug, slot)
-		c.Assert(err, IsNil)
+		mylog.Check(apparmorSpec.AddConnectedPlug(s.iface, plug, slot))
+
 		c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{opts.appName})
 		for _, expectedSnippet := range opts.includeSnippets {
 			c.Assert(apparmorSpec.SnippetForTag(opts.appName), testutil.Contains, expectedSnippet)
@@ -146,8 +147,8 @@ func (s *OpticalDriveInterfaceSuite) TestAppArmorSpec(c *C) {
 }
 
 func (s *OpticalDriveInterfaceSuite) TestUDevSpec(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.testPlugDefault.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.testPlugDefault.Snap(), nil))
+
 	spec := udev.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugDefault, s.slot), IsNil)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugReadonly, s.slot), IsNil)

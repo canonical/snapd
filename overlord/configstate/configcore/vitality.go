@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -46,10 +47,10 @@ func init() {
 func handleVitalityConfiguration(tr RunTransaction, opts *fsOnlyContext) error {
 	var pristineVitalityStr, newVitalityStr string
 
-	if err := tr.GetPristine("core", vitalityOpt, &pristineVitalityStr); err != nil && !config.IsNoOption(err) {
+	if mylog.Check(tr.GetPristine("core", vitalityOpt, &pristineVitalityStr)); err != nil && !config.IsNoOption(err) {
 		return err
 	}
-	if err := tr.Get("core", vitalityOpt, &newVitalityStr); err != nil && !config.IsNoOption(err) {
+	if mylog.Check(tr.Get("core", vitalityOpt, &newVitalityStr)); err != nil && !config.IsNoOption(err) {
 		return err
 	}
 	if pristineVitalityStr == newVitalityStr {
@@ -76,31 +77,23 @@ func handleVitalityConfiguration(tr RunTransaction, opts *fsOnlyContext) error {
 
 	// use a single cache of the quota groups for calculating the quota groups
 	// that services should be in
-	grps, err := servicestate.AllQuotas(st)
-	if err != nil {
-		return err
-	}
+	grps := mylog.Check2(servicestate.AllQuotas(st))
 
 	for instanceName, rank := range newVitalityMap {
 		var snapst snapstate.SnapState
-		err := snapstate.Get(st, instanceName, &snapst)
+		mylog.Check(snapstate.Get(st, instanceName, &snapst))
 		// not installed, vitality-score will be applied when the snap
 		// gets installed
 		if errors.Is(err, state.ErrNoState) {
 			continue
 		}
-		if err != nil {
-			return err
-		}
+
 		// not active, vitality-score will be applied when the snap
 		// becomes active
 		if !snapst.Active {
 			continue
 		}
-		info, err := snapst.CurrentInfo()
-		if err != nil {
-			return err
-		}
+		info := mylog.Check2(snapst.CurrentInfo())
 
 		// nothing to do if rank is unchanged
 		if oldVitalityMap[instanceName] == newVitalityMap[instanceName] {
@@ -112,10 +105,7 @@ func handleVitalityConfiguration(tr RunTransaction, opts *fsOnlyContext) error {
 		// first get the device context to decide if we need to set
 		// RequireMountedSnapdSnap
 		// TODO: use sysconfig.Device instead
-		deviceCtx, err := snapstate.DeviceCtx(st, nil, nil)
-		if err != nil {
-			return err
-		}
+		deviceCtx := mylog.Check2(snapstate.DeviceCtx(st, nil, nil))
 
 		ensureOpts := &wrappers.EnsureSnapServicesOptions{}
 
@@ -126,10 +116,7 @@ func handleVitalityConfiguration(tr RunTransaction, opts *fsOnlyContext) error {
 		}
 
 		// get the options for this snap service
-		snapSvcOpts, err := servicestate.SnapServiceOptions(st, info, grps)
-		if err != nil {
-			return err
-		}
+		snapSvcOpts := mylog.Check2(servicestate.SnapServiceOptions(st, info, grps))
 
 		m := map[*snap.Info]*wrappers.SnapServiceOptions{
 			info: snapSvcOpts,
@@ -138,11 +125,10 @@ func handleVitalityConfiguration(tr RunTransaction, opts *fsOnlyContext) error {
 		// overwrite the VitalityRank we got from SnapServiceOptions to use the
 		// rank we calculated as part of this transaction
 		m[info].VitalityRank = rank
+		mylog.Check(
 
-		// ensure that the snap services are re-written with these units
-		if err := wrappers.EnsureSnapServices(m, ensureOpts, nil, progress.Null); err != nil {
-			return err
-		}
+			// ensure that the snap services are re-written with these units
+			wrappers.EnsureSnapServices(m, ensureOpts, nil, progress.Null))
 
 		// and then restart the services
 
@@ -156,31 +142,23 @@ func handleVitalityConfiguration(tr RunTransaction, opts *fsOnlyContext) error {
 
 		// XXX: copied from handlers.go:startSnapServices()
 
-		disabledSvcs, err := wrappers.QueryDisabledServices(info, progress.Null)
-		if err != nil {
-			return err
-		}
+		disabledSvcs := mylog.Check2(wrappers.QueryDisabledServices(info, progress.Null))
 
 		svcs := info.Services()
-		startupOrdered, err := snap.SortServices(svcs)
-		if err != nil {
-			return err
-		}
+		startupOrdered := mylog.Check2(snap.SortServices(svcs))
+
 		flags := &wrappers.StartServicesFlags{Enable: true}
 		tm := timings.New(nil)
-		if err = wrappers.StartServices(startupOrdered, disabledSvcs, flags, progress.Null, tm); err != nil {
-			return err
-		}
+		mylog.Check(wrappers.StartServices(startupOrdered, disabledSvcs, flags, progress.Null, tm))
+
 	}
 
 	return nil
 }
 
 func validateVitalitySettings(tr RunTransaction) error {
-	option, err := coreCfg(tr, vitalityOpt)
-	if err != nil {
-		return err
-	}
+	option := mylog.Check2(coreCfg(tr, vitalityOpt))
+
 	if option == "" {
 		return nil
 	}
@@ -189,9 +167,8 @@ func validateVitalitySettings(tr RunTransaction) error {
 		return fmt.Errorf("cannot set more than 100 snaps in %q: got %v", vitalityOpt, len(vitalityHints))
 	}
 	for _, instanceName := range vitalityHints {
-		if err := naming.ValidateInstance(instanceName); err != nil {
-			return fmt.Errorf("cannot set %q: %v", vitalityOpt, err)
-		}
+		mylog.Check(naming.ValidateInstance(instanceName))
+
 		// The "snapd" snap is always at OOMScoreAdjust=-900.
 		if instanceName == "snapd" {
 			return fmt.Errorf("cannot set %q: snapd snap vitality cannot be changed", vitalityOpt)

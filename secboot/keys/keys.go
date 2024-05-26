@@ -26,6 +26,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -52,16 +53,15 @@ type EncryptionKey []byte
 func NewEncryptionKey() (EncryptionKey, error) {
 	key := make(EncryptionKey, EncryptionKeySize)
 	// rand.Read() is protected against short reads
-	_, err := randRead(key[:])
+	_ := mylog.Check2(randRead(key[:]))
 	// On return, n == len(b) if and only if err == nil
 	return key, err
 }
 
 // Save writes the key in the location specified by filename.
 func (key EncryptionKey) Save(filename string) error {
-	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
-		return err
-	}
+	mylog.Check(os.MkdirAll(filepath.Dir(filename), 0755))
+
 	return osutil.AtomicWriteFile(filename, key[:], 0600, 0)
 }
 
@@ -72,37 +72,31 @@ type RecoveryKey [RecoveryKeySize]byte
 func NewRecoveryKey() (RecoveryKey, error) {
 	var key RecoveryKey
 	// rand.Read() is protected against short reads
-	_, err := randRead(key[:])
+	_ := mylog.Check2(randRead(key[:]))
 	// On return, n == len(b) if and only if err == nil
 	return key, err
 }
 
 // Save writes the recovery key in the location specified by filename.
 func (key RecoveryKey) Save(filename string) error {
-	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
-		return err
-	}
+	mylog.Check(os.MkdirAll(filepath.Dir(filename), 0755))
+
 	return osutil.AtomicWriteFile(filename, key[:], 0600, 0)
 }
 
 func RecoveryKeyFromFile(recoveryKeyFile string) (*RecoveryKey, error) {
-	f, err := os.Open(recoveryKeyFile)
-	if err != nil {
-		return nil, fmt.Errorf("cannot open recovery key: %v", err)
-	}
+	f := mylog.Check2(os.Open(recoveryKeyFile))
+
 	defer f.Close()
-	st, err := f.Stat()
-	if err != nil {
-		return nil, fmt.Errorf("cannot stat recovery key: %v", err)
-	}
+	st := mylog.Check2(f.Stat())
+
 	if st.Size() != int64(len(RecoveryKey{})) {
 		return nil, fmt.Errorf("cannot read recovery key: unexpected size %v for the recovery key file %s", st.Size(), recoveryKeyFile)
 	}
 
 	var rkey RecoveryKey
-	if _, err := io.ReadFull(f, rkey[:]); err != nil {
-		return nil, fmt.Errorf("cannot read recovery key: %v", err)
-	}
+	mylog.Check2(io.ReadFull(f, rkey[:]))
+
 	return &rkey, nil
 }
 
@@ -112,7 +106,7 @@ type AuxKey [AuxKeySize]byte
 func NewAuxKey() (AuxKey, error) {
 	var key AuxKey
 	// rand.Read() is protected against short reads
-	_, err := randRead(key[:])
+	_ := mylog.Check2(randRead(key[:]))
 	// On return, n == len(b) if and only if err == nil
 	return key, err
 }

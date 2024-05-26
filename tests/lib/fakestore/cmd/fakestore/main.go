@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/logger"
@@ -33,19 +34,13 @@ type Options struct{}
 var parser = flags.NewParser(&Options{}, flags.HelpFlag|flags.PassDoubleDash)
 
 func main() {
-	if err := logger.SimpleSetup(nil); err != nil {
-		fmt.Fprintf(os.Stderr, "failed to activate logging: %v\n", err)
-		os.Exit(1)
-	}
-	logger.Debugf("fakestore starting")
+	mylog.Check(logger.SimpleSetup(nil))
 
-	if err := run(); err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(1)
-	}
+	logger.Debugf("fakestore starting")
+	mylog.Check(run())
 }
 
 func run() error {
-	_, err := parser.Parse()
+	_ := mylog.Check2(parser.Parse())
 	return err
 }

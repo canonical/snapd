@@ -33,6 +33,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/client"
@@ -226,7 +227,7 @@ func (s *sideloadSuite) sideloadCheck(c *check.C, content string, head map[strin
 	})()
 
 	buf := bytes.NewBufferString(content)
-	req, err := http.NewRequest("POST", "/v2/snaps", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/snaps", buf))
 	c.Assert(err, check.IsNil)
 	for k, v := range head {
 		req.Header.Set(k, v)
@@ -253,11 +254,11 @@ func (s *sideloadSuite) sideloadCheck(c *check.C, content string, head map[strin
 
 	c.Check(chg.Kind(), check.Equals, "install-snap")
 	var names []string
-	err = chg.Get("snap-names", &names)
+	mylog.Check(chg.Get("snap-names", &names))
 	c.Assert(err, check.IsNil)
 	c.Check(names, check.DeepEquals, []string{expectedInstanceName})
 	var apiData map[string]interface{}
-	err = chg.Get("api-data", &apiData)
+	mylog.Check(chg.Get("api-data", &apiData))
 	c.Assert(err, check.IsNil)
 	c.Check(apiData, check.DeepEquals, map[string]interface{}{
 		"snap-name":  expectedInstanceName,
@@ -265,7 +266,7 @@ func (s *sideloadSuite) sideloadCheck(c *check.C, content string, head map[strin
 	})
 
 	summary = chg.Summary()
-	err = chg.Get("system-restart-immediate", &systemRestartImmediate)
+	mylog.Check(chg.Get("system-restart-immediate", &systemRestartImmediate))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		c.Error(err)
 	}
@@ -334,7 +335,7 @@ func (s *sideloadSuite) TestSideloadComponentNoDangerousFlag(c *check.C) {
 		return nil, daemon.BadRequest("mocking error to force reading as component")
 	})()
 
-	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
+	req := mylog.Check2(http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body)))
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
 
@@ -374,18 +375,21 @@ func (s *sideloadSuite) TestSideloadComponentForNotInstalledSnap(c *check.C) {
 
 	st := s.d.Overlord().State()
 	st.Lock()
-	ssi := &snap.SideInfo{RealName: "other", Revision: snap.R(1),
-		SnapID: "some-other-snap-id"}
+	ssi := &snap.SideInfo{
+		RealName: "other", Revision: snap.R(1),
+		SnapID: "some-other-snap-id",
+	}
 	snapstate.Set(st, "other", &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
 			[]*sequence.RevisionSideState{
-				sequence.NewRevisionSideState(ssi, nil)}),
+				sequence.NewRevisionSideState(ssi, nil),
+			}),
 		Current: snap.R(1),
 	})
 	st.Unlock()
 
-	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
+	req := mylog.Check2(http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body)))
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
 
@@ -401,8 +405,8 @@ func (s *sideloadSuite) TestSideloadComponentForNotInstalledSnap(c *check.C) {
 func (s *sideloadSuite) sideloadComponentCheck(c *check.C, content string,
 	head map[string]string, expectedInstanceName string, expectedFlags snapstate.Flags,
 	expectedCompSideInfo *snap.ComponentSideInfo) (
-	summary string, systemRestartImmediate bool) {
-
+	summary string, systemRestartImmediate bool,
+) {
 	d := s.daemonWithFakeSnapManager(c)
 	s.markSeeded(d)
 
@@ -410,13 +414,16 @@ func (s *sideloadSuite) sideloadComponentCheck(c *check.C, content string,
 
 	st.Lock()
 	defer st.Unlock()
-	ssi := &snap.SideInfo{RealName: "local", Revision: snap.R(1),
-		SnapID: "some-snap-id"}
+	ssi := &snap.SideInfo{
+		RealName: "local", Revision: snap.R(1),
+		SnapID: "some-snap-id",
+	}
 	snapstate.Set(st, expectedInstanceName, &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
 			[]*sequence.RevisionSideState{
-				sequence.NewRevisionSideState(ssi, nil)}),
+				sequence.NewRevisionSideState(ssi, nil),
+			}),
 		Current: snap.R(1),
 	})
 	st.Unlock()
@@ -443,7 +450,8 @@ func (s *sideloadSuite) sideloadComponentCheck(c *check.C, content string,
 	})()
 
 	defer daemon.MockSnapstateInstallComponentPath(func(st *state.State, csi *snap.ComponentSideInfo, info *snap.Info,
-		path string, flags snapstate.Flags) (*state.TaskSet, error) {
+		path string, flags snapstate.Flags,
+	) (*state.TaskSet, error) {
 		c.Check(csi, check.DeepEquals, expectedCompSideInfo)
 		c.Check(flags, check.DeepEquals, expectedFlags)
 		c.Check(path, testutil.FileEquals, "xyzzy")
@@ -454,7 +462,7 @@ func (s *sideloadSuite) sideloadComponentCheck(c *check.C, content string,
 	})()
 
 	buf := bytes.NewBufferString(content)
-	req, err := http.NewRequest("POST", "/v2/snaps", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/snaps", buf))
 	c.Assert(err, check.IsNil)
 	for k, v := range head {
 		req.Header.Set(k, v)
@@ -477,12 +485,12 @@ func (s *sideloadSuite) sideloadComponentCheck(c *check.C, content string,
 
 	c.Check(chg.Kind(), check.Equals, "install-component")
 	var names []string
-	err = chg.Get("snap-names", &names)
+	mylog.Check(chg.Get("snap-names", &names))
 
 	c.Assert(err, check.IsNil)
 	c.Check(names, check.DeepEquals, []string{expectedInstanceName})
 	var apiData map[string]interface{}
-	err = chg.Get("api-data", &apiData)
+	mylog.Check(chg.Get("api-data", &apiData))
 	c.Assert(err, check.IsNil)
 	c.Check(apiData, check.DeepEquals, map[string]interface{}{
 		"snap-name":      expectedInstanceName,
@@ -491,7 +499,7 @@ func (s *sideloadSuite) sideloadComponentCheck(c *check.C, content string,
 	})
 
 	summary = chg.Summary()
-	err = chg.Get("system-restart-immediate", &systemRestartImmediate)
+	mylog.Check(chg.Get("system-restart-immediate", &systemRestartImmediate))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		c.Error(err)
 	}
@@ -515,7 +523,7 @@ func (s *sideloadSuite) TestSideloadSnapJailModeAndDevmode(c *check.C) {
 		"----hello--\r\n"
 	s.daemonWithOverlordMockAndStore()
 
-	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
+	req := mylog.Check2(http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body)))
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
 
@@ -536,7 +544,7 @@ func (s *sideloadSuite) TestSideloadSnapJailModeInDevModeOS(c *check.C) {
 		"----hello--\r\n"
 	s.daemonWithOverlordMockAndStore()
 
-	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
+	req := mylog.Check2(http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body)))
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
 
@@ -555,30 +563,30 @@ func (s *sideloadSuite) TestLocalInstallSnapDeriveSideInfo(c *check.C) {
 
 	fooSnap := snaptest.MakeTestSnapWithFiles(c, `name: foo
 version: 1`, nil)
-	digest, size, err := asserts.SnapFileSHA3_384(fooSnap)
+	digest, size := mylog.Check3(asserts.SnapFileSHA3_384(fooSnap))
 	c.Assert(err, check.IsNil)
-	fooSnapBytes, err := os.ReadFile(fooSnap)
+	fooSnapBytes := mylog.Check2(os.ReadFile(fooSnap))
 	c.Assert(err, check.IsNil)
 
 	dev1Acct := assertstest.NewAccount(s.StoreSigning, "devel1", nil, "")
 
-	snapDecl, err := s.StoreSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	snapDecl := mylog.Check2(s.StoreSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 		"series":       "16",
 		"snap-id":      "foo-id",
 		"snap-name":    "foo",
 		"publisher-id": dev1Acct.AccountID(),
 		"timestamp":    time.Now().Format(time.RFC3339),
-	}, nil, "")
+	}, nil, ""))
 	c.Assert(err, check.IsNil)
 
-	snapRev, err := s.StoreSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
+	snapRev := mylog.Check2(s.StoreSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
 		"snap-sha3-384": digest,
 		"snap-size":     fmt.Sprintf("%d", size),
 		"snap-id":       "foo-id",
 		"snap-revision": "41",
 		"developer-id":  dev1Acct.AccountID(),
 		"timestamp":     time.Now().Format(time.RFC3339),
-	}, nil, "")
+	}, nil, ""))
 	c.Assert(err, check.IsNil)
 
 	func() {
@@ -592,7 +600,7 @@ version: 1`, nil)
 		"Content-Disposition: form-data; name=\"snap\"; filename=\"foo.snap\"\r\n\r\n")
 	bodyBuf.Write(fooSnapBytes)
 	bodyBuf.WriteString("\r\n----hello--\r\n")
-	req, err := http.NewRequest("POST", "/v2/snaps", bodyBuf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/snaps", bodyBuf))
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
 
@@ -615,11 +623,11 @@ version: 1`, nil)
 	c.Assert(chg, check.NotNil)
 	c.Check(chg.Summary(), check.Equals, `Install "foo" snap from file "foo.snap"`)
 	var names []string
-	err = chg.Get("snap-names", &names)
+	mylog.Check(chg.Get("snap-names", &names))
 	c.Assert(err, check.IsNil)
 	c.Check(names, check.DeepEquals, []string{"foo"})
 	var apiData map[string]interface{}
-	err = chg.Get("api-data", &apiData)
+	mylog.Check(chg.Get("api-data", &apiData))
 	c.Assert(err, check.IsNil)
 	c.Check(apiData, check.DeepEquals, map[string]interface{}{
 		"snap-name":  "foo",
@@ -637,7 +645,7 @@ func (s *sideloadSuite) TestSideloadSnapNoSignaturesDangerOff(c *check.C) {
 	d := s.daemonWithOverlordMockAndStore()
 	s.markSeeded(d)
 
-	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
+	req := mylog.Check2(http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body)))
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
 
@@ -663,7 +671,7 @@ func (s *sideloadSuite) TestSideloadSnapNotValidFormFile(c *check.C) {
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
 
 	buf := bytes.NewBufferString(content)
-	req, err := http.NewRequest("POST", "/v2/snaps", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/snaps", buf))
 	c.Assert(err, check.IsNil)
 	for k, v := range head {
 		req.Header.Set(k, v)
@@ -695,7 +703,7 @@ func (s *sideloadSuite) TestSideloadSnapChangeConflict(c *check.C) {
 		return nil, nil, &snapstate.ChangeConflictError{Snap: "foo"}
 	})()
 
-	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
+	req := mylog.Check2(http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body)))
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
 
@@ -741,7 +749,7 @@ func (s *sideloadSuite) TestSideloadSnapInstanceNameMismatch(c *check.C) {
 		"foo_instance\r\n" +
 		"----hello--\r\n"
 
-	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
+	req := mylog.Check2(http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body)))
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
 
@@ -806,11 +814,11 @@ func (s *sideloadSuite) TestFormdataIsWrittenToCorrectTmpLocation(c *check.C) {
 	chgSummary, _ := s.sideloadCheck(c, sideLoadBodyWithoutDevMode, head, "local", snapstate.Flags{RemoveSnapPath: true, Transaction: client.TransactionPerSnap})
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "a/b/local.snap"`)
 
-	files, err := os.ReadDir(tmpDir)
+	files := mylog.Check2(os.ReadDir(tmpDir))
 	c.Assert(err, check.IsNil)
 	c.Assert(files, check.HasLen, 0)
 
-	matches, err := filepath.Glob(filepath.Join(dirs.SnapBlobDir, dirs.LocalInstallBlobTempPrefix+"*"))
+	matches := mylog.Check2(filepath.Glob(filepath.Join(dirs.SnapBlobDir, dirs.LocalInstallBlobTempPrefix+"*")))
 	c.Assert(err, check.IsNil)
 	c.Assert(matches, check.HasLen, 1)
 
@@ -827,7 +835,7 @@ func (s *sideloadSuite) TestSideloadExceedMemoryLimit(c *check.C) {
 
 	for i := range bufs {
 		bufs[i] = make([]byte, daemon.MaxReadBuflen/2+1)
-		_, err := rand.Read(bufs[i])
+		_ := mylog.Check2(rand.Read(bufs[i]))
 		c.Assert(err, check.IsNil)
 
 		body += "--foo\r\n" +
@@ -837,7 +845,7 @@ func (s *sideloadSuite) TestSideloadExceedMemoryLimit(c *check.C) {
 			"\r\n"
 	}
 
-	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
+	req := mylog.Check2(http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body)))
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/thing; boundary=foo")
 
@@ -849,7 +857,7 @@ func (s *sideloadSuite) TestSideloadUsePreciselyAllMemory(c *check.C) {
 	s.daemonWithOverlordMockAndStore()
 
 	buf := make([]byte, daemon.MaxReadBuflen)
-	_, err := rand.Read(buf)
+	_ := mylog.Check2(rand.Read(buf))
 	c.Assert(err, check.IsNil)
 
 	body := "----hello--\r\n" +
@@ -859,7 +867,7 @@ func (s *sideloadSuite) TestSideloadUsePreciselyAllMemory(c *check.C) {
 		"\r\n" +
 		"----hello--\r\n"
 
-	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
+	req := mylog.Check2(http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body)))
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
 
@@ -882,7 +890,7 @@ func (s *sideloadSuite) TestSideloadCleanUpTempFilesIfRequestFailed(c *check.C) 
 
 	// make the request fail
 	buf := make([]byte, daemon.MaxReadBuflen+1)
-	_, err := rand.Read(buf)
+	_ := mylog.Check2(rand.Read(buf))
 	c.Assert(err, check.IsNil)
 
 	body += "----hello--\r\n" +
@@ -892,13 +900,13 @@ func (s *sideloadSuite) TestSideloadCleanUpTempFilesIfRequestFailed(c *check.C) 
 		"\r\n" +
 		"----hello--\r\n"
 
-	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
+	req := mylog.Check2(http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body)))
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
 
 	apiErr := s.errorReq(c, req, nil)
 	c.Check(apiErr, check.NotNil)
-	matches, err := filepath.Glob(filepath.Join(dirs.SnapBlobDir, "*"))
+	matches := mylog.Check2(filepath.Glob(filepath.Join(dirs.SnapBlobDir, "*")))
 	c.Assert(err, check.IsNil)
 	c.Check(matches, check.HasLen, 0)
 }
@@ -923,7 +931,7 @@ func (s *sideloadSuite) TestSideloadCleanUpUnusedTempSnapFiles(c *check.C) {
 	chgSummary, _ := s.sideloadCheck(c, body, head, "local", snapstate.Flags{RemoveSnapPath: true, DevMode: true, Transaction: client.TransactionPerSnap})
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "one"`)
 
-	matches, err := filepath.Glob(filepath.Join(dirs.SnapBlobDir, dirs.LocalInstallBlobTempPrefix+"*"))
+	matches := mylog.Check2(filepath.Glob(filepath.Join(dirs.SnapBlobDir, dirs.LocalInstallBlobTempPrefix+"*")))
 	c.Assert(err, check.IsNil)
 	// only the file passed into the change (the request's first file) remains
 	c.Check(matches, check.HasLen, 1)
@@ -977,7 +985,7 @@ func (s *sideloadSuite) TestSideloadManySnaps(c *check.C) {
 			"----hello--\r\n"
 	}
 
-	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
+	req := mylog.Check2(http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body)))
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
 	s.asUserAuth(c, req)
@@ -1020,7 +1028,7 @@ func (s *sideloadSuite) TestSideloadManyFailInstallPathMany(c *check.C) {
 			"----hello--\r\n"
 	}
 
-	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
+	req := mylog.Check2(http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body)))
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
 	apiErr := s.errorReq(c, req, nil)
@@ -1048,7 +1056,7 @@ func (s *sideloadSuite) TestSideloadManyFailUnsafeReadInfo(c *check.C) {
 			"----hello--\r\n"
 	}
 
-	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
+	req := mylog.Check2(http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body)))
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
 	apiErr := s.errorReq(c, req, nil)
@@ -1087,7 +1095,7 @@ func (s *sideloadSuite) errReadInfo(c *check.C, body string) {
 			"----hello--\r\n"
 	}
 
-	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
+	req := mylog.Check2(http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body)))
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
 	rsp := s.errorReq(c, req, nil)
@@ -1134,7 +1142,7 @@ func (s *sideloadSuite) TestSideloadManySnapsAsserted(c *check.C) {
 		bodyBuf.WriteString("\r\n----hello--\r\n")
 	}
 
-	req, err := http.NewRequest("POST", "/v2/snaps", bodyBuf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/snaps", bodyBuf))
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
 	rsp := s.asyncReq(c, req, nil)
@@ -1145,7 +1153,6 @@ func (s *sideloadSuite) TestSideloadManySnapsAsserted(c *check.C) {
 	chg := st.Change(rsp.Change)
 	c.Assert(chg, check.NotNil)
 	c.Check(chg.Summary(), check.Equals, fmt.Sprintf(`Install snaps %s from files %s`, strutil.Quoted(snaps), strutil.Quoted(fileSnaps)))
-
 }
 
 func (s *sideloadSuite) TestSideloadManySnapsOneNotAsserted(c *check.C) {
@@ -1157,7 +1164,7 @@ func (s *sideloadSuite) TestSideloadManySnapsOneNotAsserted(c *check.C) {
 	// unasserted snap
 	twoSnap := snaptest.MakeTestSnapWithFiles(c, `name: two
 version: 1`, nil)
-	twoSnapData, err := os.ReadFile(twoSnap)
+	twoSnapData := mylog.Check2(os.ReadFile(twoSnap))
 	c.Assert(err, check.IsNil)
 	snapData = append(snapData, twoSnapData)
 
@@ -1170,7 +1177,7 @@ version: 1`, nil)
 		bodyBuf.WriteString("\r\n----hello--\r\n")
 	}
 
-	req, err := http.NewRequest("POST", "/v2/snaps", bodyBuf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/snaps", bodyBuf))
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
 	rsp := s.errorReq(c, req, nil)
@@ -1183,29 +1190,29 @@ func (s *sideloadSuite) mockAssertions(c *check.C, st *state.State, snaps []stri
 	for _, snap := range snaps {
 		thisSnap := snaptest.MakeTestSnapWithFiles(c, fmt.Sprintf(`name: %s
 version: 1`, snap), nil)
-		digest, size, err := asserts.SnapFileSHA3_384(thisSnap)
+		digest, size := mylog.Check3(asserts.SnapFileSHA3_384(thisSnap))
 		c.Assert(err, check.IsNil)
-		thisSnapData, err := os.ReadFile(thisSnap)
+		thisSnapData := mylog.Check2(os.ReadFile(thisSnap))
 		c.Assert(err, check.IsNil)
 		snapData = append(snapData, thisSnapData)
 
 		dev1Acct := assertstest.NewAccount(s.StoreSigning, "devel1", nil, "")
-		snapDecl, err := s.StoreSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+		snapDecl := mylog.Check2(s.StoreSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 			"series":       "16",
 			"snap-id":      snap + "-id",
 			"snap-name":    snap,
 			"publisher-id": dev1Acct.AccountID(),
 			"timestamp":    time.Now().Format(time.RFC3339),
-		}, nil, "")
+		}, nil, ""))
 		c.Assert(err, check.IsNil)
-		snapRev, err := s.StoreSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
+		snapRev := mylog.Check2(s.StoreSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
 			"snap-sha3-384": digest,
 			"snap-size":     fmt.Sprintf("%d", size),
 			"snap-id":       snap + "-id",
 			"snap-revision": "41",
 			"developer-id":  dev1Acct.AccountID(),
 			"timestamp":     time.Now().Format(time.RFC3339),
-		}, nil, "")
+		}, nil, ""))
 		c.Assert(err, check.IsNil)
 
 		st.Lock()
@@ -1229,14 +1236,12 @@ func (s *trySuite) SetUpTest(c *check.C) {
 func (s *trySuite) TestTrySnap(c *check.C) {
 	d := s.daemonWithFakeSnapManager(c)
 
-	var err error
-
 	// mock a try dir
 	tryDir := c.MkDir()
 	snapYaml := filepath.Join(tryDir, "meta", "snap.yaml")
-	err = os.MkdirAll(filepath.Dir(snapYaml), 0755)
+	mylog.Check(os.MkdirAll(filepath.Dir(snapYaml), 0755))
 	c.Assert(err, check.IsNil)
-	err = os.WriteFile(snapYaml, []byte("name: foo\nversion: 1.0\n"), 0644)
+	mylog.Check(os.WriteFile(snapYaml, []byte("name: foo\nversion: 1.0\n"), 0644))
 	c.Assert(err, check.IsNil)
 
 	reqForFlags := func(f snapstate.Flags) *http.Request {
@@ -1268,7 +1273,7 @@ func (s *trySuite) TestTrySnap(c *check.C) {
 		}
 		b += "--\r\n"
 
-		req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(b))
+		req := mylog.Check2(http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(b)))
 		c.Assert(err, check.IsNil)
 		req.Header.Set("Content-Type", "multipart/thing; boundary=hello")
 
@@ -1332,11 +1337,11 @@ func (s *trySuite) TestTrySnap(c *check.C) {
 		c.Check(chg.Kind(), check.Equals, "try-snap", check.Commentf(t.desc))
 		c.Check(chg.Summary(), check.Equals, fmt.Sprintf(`Try "%s" snap from %s`, "foo", tryDir), check.Commentf(t.desc))
 		var names []string
-		err = chg.Get("snap-names", &names)
+		mylog.Check(chg.Get("snap-names", &names))
 		c.Assert(err, check.IsNil, check.Commentf(t.desc))
 		c.Check(names, check.DeepEquals, []string{"foo"}, check.Commentf(t.desc))
 		var apiData map[string]interface{}
-		err = chg.Get("api-data", &apiData)
+		mylog.Check(chg.Get("api-data", &apiData))
 		c.Assert(err, check.IsNil, check.Commentf(t.desc))
 		c.Check(apiData, check.DeepEquals, map[string]interface{}{
 			"snap-name":  "foo",
@@ -1394,7 +1399,7 @@ func (s *sideloadSuite) TestSideloadSnapInvalidTransaction(c *check.C) {
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
 
 	buf := bytes.NewBufferString(content)
-	req, err := http.NewRequest("POST", "/v2/snaps", buf)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/snaps", buf))
 	c.Assert(err, check.IsNil)
 	for k, v := range head {
 		req.Header.Set(k, v)

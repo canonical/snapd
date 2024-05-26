@@ -21,6 +21,8 @@ package selinux
 
 import (
 	"fmt"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // LevelType encodes the state of SELinux support found on this system.
@@ -58,18 +60,14 @@ func Status() (level LevelType, summary string) {
 }
 
 func probeSELinux() (LevelType, string) {
-	enabled, err := selinuxIsEnabled()
-	if err != nil {
-		return Unsupported, err.Error()
-	}
+	enabled := mylog.Check2(selinuxIsEnabled())
+
 	if !enabled {
 		return Unsupported, ""
 	}
 
-	enforcing, err := selinuxIsEnforcing()
-	if err != nil {
-		return Unsupported, fmt.Sprintf("SELinux is enabled, but status cannot be determined: %v", err)
-	}
+	enforcing := mylog.Check2(selinuxIsEnforcing())
+
 	if !enforcing {
 		return Permissive, "SELinux is enabled but in permissive mode"
 	}

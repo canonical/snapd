@@ -19,6 +19,4 @@
 
 package strutil
 
-var (
-	VersionIsValid = versionIsValid
-)
+var VersionIsValid = versionIsValid

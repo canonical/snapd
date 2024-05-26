@@ -28,6 +28,7 @@ import (
 	"net/url"
 	"sync"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/snapdenv"
@@ -90,14 +91,12 @@ type deviceAuthorizer struct {
 func (a *deviceAuthorizer) Authorize(r *http.Request, dauthCtx DeviceAndAuthContext, user *auth.UserState, opts *AuthorizeOptions) error {
 	var firstError error
 	if opts.deviceAuth {
-		if device, err := dauthCtx.Device(); err == nil && device != nil && device.SessionMacaroon != "" {
+		if device := mylog.Check2(dauthCtx.Device()); err == nil && device != nil && device.SessionMacaroon != "" {
 			r.Header.Set(hdrSnapDeviceAuthorization[opts.apiLevel], fmt.Sprintf(`Macaroon root="%s"`, device.SessionMacaroon))
-		} else if err != nil {
-			firstError = err
 		}
 	}
 
-	if err := a.UserAuthorizer.Authorize(r, dauthCtx, user, opts); err != nil && firstError == nil {
+	if mylog.Check(a.UserAuthorizer.Authorize(r, dauthCtx, user, opts)); err != nil && firstError == nil {
 		firstError = err
 	}
 	return firstError
@@ -115,10 +114,7 @@ func (a *deviceAuthorizer) EnsureDeviceSession(dauthCtx DeviceAndAuthContext, cl
 		return fmt.Errorf("internal error: no authContext")
 	}
 
-	device, err := dauthCtx.Device()
-	if err != nil {
-		return err
-	}
+	device := mylog.Check2(dauthCtx.Device())
 
 	if device.SessionMacaroon != "" {
 		// we have already a session, nothing to do
@@ -137,10 +133,8 @@ func (a *deviceAuthorizer) refreshDeviceSession(device *auth.DeviceState, dauthC
 	a.sessionMu.Lock()
 	defer a.sessionMu.Unlock()
 	// check that no other goroutine has already got a new session etc...
-	device1, err := dauthCtx.Device()
-	if err != nil {
-		return err
-	}
+	device1 := mylog.Check2(dauthCtx.Device())
+
 	// We can compare device with "device1" here because Device
 	// and UpdateDeviceAuth (and the underlying SetDevice)
 	// require/use the global state lock, so the reading/setting
@@ -152,42 +146,23 @@ func (a *deviceAuthorizer) refreshDeviceSession(device *auth.DeviceState, dauthC
 		return nil
 	}
 
-	nonceEndpoint, err := a.endpointURL(deviceNonceEndpPath, nil)
-	if err != nil {
-		return err
-	}
+	nonceEndpoint := mylog.Check2(a.endpointURL(deviceNonceEndpPath, nil))
 
-	nonce, err := requestStoreDeviceNonce(client, nonceEndpoint.String())
-	if err != nil {
-		return err
-	}
+	nonce := mylog.Check2(requestStoreDeviceNonce(client, nonceEndpoint.String()))
 
-	devSessReqParams, err := dauthCtx.DeviceSessionRequestParams(nonce)
-	if err != nil {
-		return err
-	}
+	devSessReqParams := mylog.Check2(dauthCtx.DeviceSessionRequestParams(nonce))
 
-	deviceSessionEndpoint, err := a.endpointURL(deviceSessionEndpPath, nil)
-	if err != nil {
-		return err
-	}
+	deviceSessionEndpoint := mylog.Check2(a.endpointURL(deviceSessionEndpPath, nil))
 
-	session, err := requestDeviceSession(client, deviceSessionEndpoint.String(), devSessReqParams, device1.SessionMacaroon)
-	if err != nil {
-		return err
-	}
+	session := mylog.Check2(requestDeviceSession(client, deviceSessionEndpoint.String(), devSessReqParams, device1.SessionMacaroon))
+	mylog.Check2(dauthCtx.UpdateDeviceAuth(device1, session))
 
-	if _, err := dauthCtx.UpdateDeviceAuth(device1, session); err != nil {
-		return err
-	}
 	return nil
 }
 
 func (a *deviceAuthorizer) RefreshAuth(need AuthRefreshNeed, dauthCtx DeviceAndAuthContext, user *auth.UserState, client *http.Client) error {
 	if need.User {
-		if err := a.UserAuthorizer.RefreshAuth(need, dauthCtx, user, client); err != nil {
-			return err
-		}
+		mylog.Check(a.UserAuthorizer.RefreshAuth(need, dauthCtx, user, client))
 	}
 	if need.Device {
 		// refresh device session
@@ -214,10 +189,7 @@ func requestStoreDeviceNonce(httpClient *http.Client, deviceNonceEndpoint string
 		"User-Agent": snapdenv.UserAgent(),
 		"Accept":     "application/json",
 	}
-	resp, err := retryPostRequestDecodeJSON(httpClient, deviceNonceEndpoint, headers, nil, &responseData, nil)
-	if err != nil {
-		return "", fmt.Errorf(errorPrefix+"%v", err)
-	}
+	resp := mylog.Check2(retryPostRequestDecodeJSON(httpClient, deviceNonceEndpoint, headers, nil, &responseData, nil))
 
 	// check return code, error on anything !200
 	if resp.StatusCode != 200 {
@@ -245,11 +217,8 @@ func requestDeviceSession(httpClient *http.Client, deviceSessionEndpoint string,
 		"serial-assertion":       paramsEncoder.EncodedSerial(),
 		"model-assertion":        paramsEncoder.EncodedModel(),
 	}
-	var err error
-	deviceJSONData, err := json.Marshal(data)
-	if err != nil {
-		return "", fmt.Errorf(errorPrefix+"%v", err)
-	}
+
+	deviceJSONData := mylog.Check2(json.Marshal(data))
 
 	var responseData struct {
 		Macaroon string `json:"macaroon"`
@@ -264,16 +233,14 @@ func requestDeviceSession(httpClient *http.Client, deviceSessionEndpoint string,
 		headers["X-Device-Authorization"] = fmt.Sprintf(`Macaroon root="%s"`, previousSession)
 	}
 
-	_, err = retryPostRequest(httpClient, deviceSessionEndpoint, headers, deviceJSONData, func(resp *http.Response) error {
+	_ = mylog.Check2(retryPostRequest(httpClient, deviceSessionEndpoint, headers, deviceJSONData, func(resp *http.Response) error {
 		if resp.StatusCode == 200 || resp.StatusCode == 202 {
 			return json.NewDecoder(resp.Body).Decode(&responseData)
 		}
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1e6)) // do our best to read the body
 		return fmt.Errorf("store server returned status %d and body %q", resp.StatusCode, body)
-	})
-	if err != nil {
-		return "", fmt.Errorf(errorPrefix+"%v", err)
-	}
+	}))
+
 	// TODO: retry at least once on 400
 
 	if responseData.Macaroon == "" {
@@ -293,10 +260,8 @@ func retryPostRequestDecodeJSON(httpClient *http.Client, endpoint string, header
 // retryPostRequest calls doRequest and decodes the response in a retry loop.
 func retryPostRequest(httpClient *http.Client, endpoint string, headers map[string]string, data []byte, readResponseBody func(resp *http.Response) error) (*http.Response, error) {
 	return httputil.RetryRequest(endpoint, func() (*http.Response, error) {
-		req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(data))
-		if err != nil {
-			return nil, err
-		}
+		req := mylog.Check2(http.NewRequest("POST", endpoint, bytes.NewBuffer(data)))
+
 		for k, v := range headers {
 			req.Header.Set(k, v)
 		}

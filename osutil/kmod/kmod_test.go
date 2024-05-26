@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil/kmod"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -53,15 +54,14 @@ func (s *kmodSuite) TestModprobeCommandNotFound(c *C) {
 	}()
 
 	os.Unsetenv("PATH")
-	err := kmod.ModprobeCommand("name", "opt1=v1", "opt2=v2")
+	mylog.Check(kmod.ModprobeCommand("name", "opt1=v1", "opt2=v2"))
 	c.Check(err, ErrorMatches, `exec: "modprobe": executable file not found in \$PATH`)
 }
 
 func (s *kmodSuite) TestModprobeCommandFailure(c *C) {
 	cmd := testutil.MockCommand(c, "modprobe", "exit 1")
 	defer cmd.Restore()
-
-	err := kmod.ModprobeCommand("name", "opt1=v1", "opt2=v2")
+	mylog.Check(kmod.ModprobeCommand("name", "opt1=v1", "opt2=v2"))
 	c.Check(err, ErrorMatches, `modprobe failed with exit status 1 \(see syslog for details\)`)
 	c.Check(cmd.Calls(), DeepEquals, [][]string{
 		{"modprobe", "--syslog", "name", "opt1=v1", "opt2=v2"},
@@ -71,8 +71,7 @@ func (s *kmodSuite) TestModprobeCommandFailure(c *C) {
 func (s *kmodSuite) TestModprobeCommandHappy(c *C) {
 	cmd := testutil.MockCommand(c, "modprobe", "")
 	defer cmd.Restore()
-
-	err := kmod.ModprobeCommand("name", "opt1=v1", "opt2=v2")
+	mylog.Check(kmod.ModprobeCommand("name", "opt1=v1", "opt2=v2"))
 	c.Check(err, IsNil)
 	c.Check(cmd.Calls(), DeepEquals, [][]string{
 		{"modprobe", "--syslog", "name", "opt1=v1", "opt2=v2"},
@@ -100,7 +99,7 @@ func (s *kmodSuite) TestLoadModule(c *C) {
 		{"mod2", []string{}, []string{"mod2"}, errors.New("some error")},
 	} {
 		returnValue = testData.expectedError
-		err := kmod.LoadModule(testData.moduleName, testData.moduleOptions)
+		mylog.Check(kmod.LoadModule(testData.moduleName, testData.moduleOptions))
 		c.Check(err, Equals, testData.expectedError)
 		c.Check(receivedArguments, DeepEquals, testData.expectedArgs)
 	}
@@ -124,7 +123,7 @@ func (s *kmodSuite) TestUnloadModule(c *C) {
 		{"mod2", []string{"-r", "mod2"}, errors.New("some error")},
 	} {
 		returnValue = testData.expectedError
-		err := kmod.UnloadModule(testData.moduleName)
+		mylog.Check(kmod.UnloadModule(testData.moduleName))
 		c.Check(err, Equals, testData.expectedError)
 		c.Check(receivedArguments, DeepEquals, testData.expectedArgs)
 	}

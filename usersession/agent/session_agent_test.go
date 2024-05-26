@@ -33,6 +33,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/desktop/notification/notificationtest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
@@ -74,8 +75,8 @@ func (s *sessionAgentSuite) TearDownTest(c *C) {
 }
 
 func (s *sessionAgentSuite) TestStartStop(c *C) {
-	agent, err := agent.New()
-	c.Assert(err, IsNil)
+	agent := mylog.Check2(agent.New())
+
 	agent.Version = "42"
 	agent.Start()
 	defer func() { c.Check(agent.Stop(), IsNil) }()
@@ -86,8 +87,8 @@ func (s *sessionAgentSuite) TestStartStop(c *C) {
 	c.Check(hasOwner, Equals, true)
 
 	// The agent is listening for REST API requests
-	response, err := s.client.Get("http://localhost/v1/session-info")
-	c.Assert(err, IsNil)
+	response := mylog.Check2(s.client.Get("http://localhost/v1/session-info"))
+
 	defer response.Body.Close()
 	c.Check(response.StatusCode, Equals, 200)
 
@@ -104,8 +105,8 @@ func (s *sessionAgentSuite) TestStartStop(c *C) {
 }
 
 func (s *sessionAgentSuite) TestDying(c *C) {
-	agent, err := agent.New()
-	c.Assert(err, IsNil)
+	agent := mylog.Check2(agent.New())
+
 	agent.Start()
 	select {
 	case <-agent.Dying():
@@ -124,16 +125,16 @@ func (s *sessionAgentSuite) TestDying(c *C) {
 }
 
 func (s *sessionAgentSuite) TestExitOnIdle(c *C) {
-	agent, err := agent.New()
-	c.Assert(err, IsNil)
+	agent := mylog.Check2(agent.New())
+
 	agent.IdleTimeout = 150 * time.Millisecond
 	startTime := time.Now()
 	agent.Start()
 	defer agent.Stop()
 
 	makeRequest := func() {
-		response, err := s.client.Get("http://localhost/v1/session-info")
-		c.Assert(err, IsNil)
+		response := mylog.Check2(s.client.Get("http://localhost/v1/session-info"))
+
 		defer response.Body.Close()
 		c.Check(response.StatusCode, Equals, 200)
 	}
@@ -159,12 +160,12 @@ func (s *sessionAgentSuite) TestFdoNotification(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapDesktopFilesDir), 0755), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(dirs.SnapDesktopFilesDir, "app.desktop"), []byte(desktopFile), 0644), IsNil)
 
-	backend, err := notificationtest.NewFdoServer()
-	c.Assert(err, IsNil)
+	backend := mylog.Check2(notificationtest.NewFdoServer())
+
 	defer backend.Stop()
 
-	agent, err := agent.New()
-	c.Assert(err, IsNil)
+	agent := mylog.Check2(agent.New())
+
 	agent.IdleTimeout = 150 * time.Millisecond
 	agent.Start()
 	defer agent.Stop()
@@ -172,8 +173,8 @@ func (s *sessionAgentSuite) TestFdoNotification(c *C) {
 	// simulate snap refresh message
 	makeRequest := func() {
 		data := bytes.NewBufferString(`{"instance-name":"some-snap", "busy-app-name":"App", "busy-app-desktop-entry":"app"}`)
-		response, err := s.client.Post("http://localhost/v1/notifications/pending-refresh", "application/json", data)
-		c.Assert(err, IsNil)
+		response := mylog.Check2(s.client.Post("http://localhost/v1/notifications/pending-refresh", "application/json", data))
+
 		defer response.Body.Close()
 		c.Check(response.StatusCode, Equals, 200)
 	}
@@ -203,12 +204,12 @@ func (s *sessionAgentSuite) TestGtkNotification(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapDesktopFilesDir), 0755), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(dirs.SnapDesktopFilesDir, "app.desktop"), []byte(desktopFile), 0644), IsNil)
 
-	backend, err := notificationtest.NewGtkServer()
-	c.Assert(err, IsNil)
+	backend := mylog.Check2(notificationtest.NewGtkServer())
+
 	defer backend.Stop()
 
-	agent, err := agent.New()
-	c.Assert(err, IsNil)
+	agent := mylog.Check2(agent.New())
+
 	agent.IdleTimeout = 150 * time.Millisecond
 	agent.Start()
 	defer agent.Stop()
@@ -216,8 +217,8 @@ func (s *sessionAgentSuite) TestGtkNotification(c *C) {
 	// simulate snap refresh message
 	makeRequest := func() {
 		data := bytes.NewBufferString(`{"instance-name":"some-snap", "busy-app-name":"App", "busy-app-desktop-entry":"app"}`)
-		response, err := s.client.Post("http://localhost/v1/notifications/pending-refresh", "application/json", data)
-		c.Assert(err, IsNil)
+		response := mylog.Check2(s.client.Post("http://localhost/v1/notifications/pending-refresh", "application/json", data))
+
 		defer response.Body.Close()
 		c.Check(response.StatusCode, Equals, 200)
 	}
@@ -250,12 +251,12 @@ func (s *sessionAgentSuite) TestConnectFromOtherUser(c *C) {
 	restore = agent.MockUcred(&syscall.Ucred{Uid: uid + 1}, nil)
 	defer restore()
 
-	sa, err := agent.New()
-	c.Assert(err, IsNil)
+	sa := mylog.Check2(agent.New())
+
 	sa.Start()
 	defer sa.Stop()
 
-	_, err = s.client.Get("http://localhost/v1/session-info")
+	_ = mylog.Check2(s.client.Get("http://localhost/v1/session-info"))
 	// This could be an EOF error or a failed read, depending on timing
 	c.Assert(err, ErrorMatches, "Get \"?http://localhost/v1/session-info\"?: .*")
 	logger.WithLoggerLock(func() {
@@ -271,13 +272,13 @@ func (s *sessionAgentSuite) TestConnectFromRoot(c *C) {
 	restore = agent.MockUcred(&syscall.Ucred{Uid: 0}, nil)
 	defer restore()
 
-	sa, err := agent.New()
-	c.Assert(err, IsNil)
+	sa := mylog.Check2(agent.New())
+
 	sa.Start()
 	defer sa.Stop()
 
-	response, err := s.client.Get("http://localhost/v1/session-info")
-	c.Assert(err, IsNil)
+	response := mylog.Check2(s.client.Get("http://localhost/v1/session-info"))
+
 	defer response.Body.Close()
 	c.Check(response.StatusCode, Equals, 200)
 	logger.WithLoggerLock(func() {
@@ -293,12 +294,12 @@ func (s *sessionAgentSuite) TestConnectWithFailedPeerCredentials(c *C) {
 	restore = agent.MockUcred(nil, fmt.Errorf("SO_PEERCRED failed"))
 	defer restore()
 
-	sa, err := agent.New()
-	c.Assert(err, IsNil)
+	sa := mylog.Check2(agent.New())
+
 	sa.Start()
 	defer sa.Stop()
 
-	_, err = s.client.Get("http://localhost/v1/session-info")
+	_ = mylog.Check2(s.client.Get("http://localhost/v1/session-info"))
 	c.Assert(err, ErrorMatches, "Get \"?http://localhost/v1/session-info\"?: .*")
 	logger.WithLoggerLock(func() {
 		c.Check(logbuf.String(), testutil.Contains, "Failed to retrieve peer credentials: SO_PEERCRED failed")

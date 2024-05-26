@@ -27,6 +27,7 @@ import (
 	"io"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	sb "github.com/snapcore/secboot"
 
 	"github.com/snapcore/snapd/logger"
@@ -42,8 +43,10 @@ var (
 	sbAddRecoveryKeyToLUKS2Container = sb.AddRecoveryKeyToLUKS2Container
 )
 
-const keyslotsAreaKiBSize = 2560 // 2.5MB
-const metadataKiBSize = 2048     // 2MB
+const (
+	keyslotsAreaKiBSize = 2560 // 2.5MB
+	metadataKiBSize     = 2048 // 2MB
+)
 
 // FormatEncryptedDevice initializes an encrypted volume on the block device
 // given by node, setting the specified label. The key used to unlock the volume
@@ -82,10 +85,7 @@ func AddRecoveryKey(key keys.EncryptionKey, rkey keys.RecoveryKey, node string) 
 }
 
 func runSnapFDEKeymgr(args []string, stdin io.Reader) error {
-	toolPath, err := snapdtool.InternalToolPath("snap-fde-keymgr")
-	if err != nil {
-		return fmt.Errorf("cannot find keymgr tool: %v", err)
-	}
+	toolPath := mylog.Check2(snapdtool.InternalToolPath("snap-fde-keymgr"))
 
 	sysd := systemd.New(systemd.SystemMode, nil)
 
@@ -93,10 +93,10 @@ func runSnapFDEKeymgr(args []string, stdin io.Reader) error {
 		toolPath,
 	}
 	command = append(command, args...)
-	_, err = sysd.Run(command, &systemd.RunOptions{
+	_ = mylog.Check2(sysd.Run(command, &systemd.RunOptions{
 		KeyringMode: systemd.KeyringModeInherit,
 		Stdin:       stdin,
-	})
+	}))
 	return err
 }
 
@@ -109,10 +109,8 @@ func EnsureRecoveryKey(keyFile string, rkeyDevs []RecoveryKeyDevice) (keys.Recov
 		"--key-file", keyFile,
 	}
 	for _, rkeyDev := range rkeyDevs {
-		dev, err := devByPartUUIDFromMount(rkeyDev.Mountpoint)
-		if err != nil {
-			return keys.RecoveryKey{}, fmt.Errorf("cannot find matching device for: %v", err)
-		}
+		dev := mylog.Check2(devByPartUUIDFromMount(rkeyDev.Mountpoint))
+
 		logger.Debugf("ensuring recovery key on device: %v", dev)
 		authzMethod := "keyring"
 		if rkeyDev.AuthorizingKeyFile != "" {
@@ -123,25 +121,18 @@ func EnsureRecoveryKey(keyFile string, rkeyDevs []RecoveryKeyDevice) (keys.Recov
 			"--authorizations", authzMethod,
 		}...)
 	}
+	mylog.Check(runSnapFDEKeymgr(command, nil))
 
-	if err := runSnapFDEKeymgr(command, nil); err != nil {
-		return keys.RecoveryKey{}, fmt.Errorf("cannot run keymgr tool: %v", err)
-	}
+	rk := mylog.Check2(keys.RecoveryKeyFromFile(keyFile))
 
-	rk, err := keys.RecoveryKeyFromFile(keyFile)
-	if err != nil {
-		return keys.RecoveryKey{}, fmt.Errorf("cannot read recovery key: %v", err)
-	}
 	return *rk, nil
 }
 
 func devByPartUUIDFromMount(mp string) (string, error) {
-	partUUID, err := disks.PartitionUUIDFromMountPoint(mp, &disks.Options{
+	partUUID := mylog.Check2(disks.PartitionUUIDFromMountPoint(mp, &disks.Options{
 		IsDecryptedDevice: true,
-	})
-	if err != nil {
-		return "", fmt.Errorf("cannot partition for mount %v: %v", mp, err)
-	}
+	}))
+
 	dev := filepath.Join("/dev/disk/by-partuuid", partUUID)
 	return dev, nil
 }
@@ -155,10 +146,8 @@ func RemoveRecoveryKeys(rkeyDevToKey map[RecoveryKeyDevice]string) error {
 		"remove-recovery-key",
 	}
 	for rkeyDev, keyFile := range rkeyDevToKey {
-		dev, err := devByPartUUIDFromMount(rkeyDev.Mountpoint)
-		if err != nil {
-			return fmt.Errorf("cannot find matching device for: %v", err)
-		}
+		dev := mylog.Check2(devByPartUUIDFromMount(rkeyDev.Mountpoint))
+
 		logger.Debugf("removing recovery key from device: %v", dev)
 		authzMethod := "keyring"
 		if rkeyDev.AuthorizingKeyFile != "" {
@@ -170,10 +159,8 @@ func RemoveRecoveryKeys(rkeyDevToKey map[RecoveryKeyDevice]string) error {
 			"--key-files", keyFile,
 		}...)
 	}
+	mylog.Check(runSnapFDEKeymgr(command, nil))
 
-	if err := runSnapFDEKeymgr(command, nil); err != nil {
-		return fmt.Errorf("cannot run keymgr tool: %v", err)
-	}
 	return nil
 }
 
@@ -182,33 +169,25 @@ func RemoveRecoveryKeys(rkeyDevToKey map[RecoveryKeyDevice]string) error {
 // encryption key change process, a call to TransitionEncryptionKeyChange is
 // needed.
 func StageEncryptionKeyChange(node string, key keys.EncryptionKey) error {
-	partitionUUID, err := disks.PartitionUUID(node)
-	if err != nil {
-		return fmt.Errorf("cannot get UUID of partition %v: %v", node, err)
-	}
+	partitionUUID := mylog.Check2(disks.PartitionUUID(node))
 
 	dev := filepath.Join("/dev/disk/by-partuuid", partitionUUID)
 	logger.Debugf("stage encryption key change on device: %v", dev)
 
 	var buf bytes.Buffer
-	err = json.NewEncoder(&buf).Encode(struct {
+	mylog.Check(json.NewEncoder(&buf).Encode(struct {
 		Key []byte `json:"key"`
 	}{
 		Key: key,
-	})
-	if err != nil {
-		return fmt.Errorf("cannot encode key for the FDE key manager tool: %v", err)
-	}
+	}))
 
 	command := []string{
 		"change-encryption-key",
 		"--device", dev,
 		"--stage",
 	}
+	mylog.Check(runSnapFDEKeymgr(command, &buf))
 
-	if err := runSnapFDEKeymgr(command, &buf); err != nil {
-		return fmt.Errorf("cannot run FDE key manager tool: %v", err)
-	}
 	return nil
 }
 
@@ -216,30 +195,23 @@ func StageEncryptionKeyChange(node string, key keys.EncryptionKey) error {
 // device corresponding to the given mount point. The change is authorized using
 // the new key, thus a prior call to StageEncryptionKeyChange must be done.
 func TransitionEncryptionKeyChange(mountpoint string, key keys.EncryptionKey) error {
-	dev, err := devByPartUUIDFromMount(mountpoint)
-	if err != nil {
-		return fmt.Errorf("cannot find matching device: %v", err)
-	}
+	dev := mylog.Check2(devByPartUUIDFromMount(mountpoint))
+
 	logger.Debugf("transition encryption key change on device: %v", dev)
 
 	var buf bytes.Buffer
-	err = json.NewEncoder(&buf).Encode(struct {
+	mylog.Check(json.NewEncoder(&buf).Encode(struct {
 		Key []byte `json:"key"`
 	}{
 		Key: key,
-	})
-	if err != nil {
-		return fmt.Errorf("cannot encode key for the FDE key manager tool: %v", err)
-	}
+	}))
 
 	command := []string{
 		"change-encryption-key",
 		"--device", dev,
 		"--transition",
 	}
+	mylog.Check(runSnapFDEKeymgr(command, &buf))
 
-	if err := runSnapFDEKeymgr(command, &buf); err != nil {
-		return fmt.Errorf("cannot run FDE key manager tool: %v", err)
-	}
 	return nil
 }

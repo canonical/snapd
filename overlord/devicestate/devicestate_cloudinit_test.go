@@ -10,6 +10,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -50,10 +51,11 @@ func (s *cloudInitBaseSuite) SetUpTest(c *C) {
 	logbuf, r := logger.MockLogger()
 	s.logbuf = logbuf
 	s.AddCleanup(r)
+	mylog.
 
-	// mock /etc/cloud on writable
-	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc", "cloud"), 0755)
-	c.Assert(err, IsNil)
+		// mock /etc/cloud on writable
+		Check(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc", "cloud"), 0755))
+
 }
 
 type cloudInitUC20Suite struct {
@@ -90,7 +92,8 @@ func (s *cloudInitUC20Suite) SetUpTest(c *C) {
 				"id":              "pcididididididididididididididid",
 				"type":            "gadget",
 				"default-channel": "20",
-			}},
+			},
+		},
 	})
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand:  "canonical",
@@ -129,9 +132,8 @@ func (s *cloudInitUC20Suite) TestCloudInitUC20CloudGadgetNoDisable(c *C) {
 		}, nil
 	})
 	defer r()
+	mylog.Check(devicestate.EnsureCloudInitRestricted(s.mgr))
 
-	err := devicestate.EnsureCloudInitRestricted(s.mgr)
-	c.Assert(err, IsNil)
 	c.Assert(statusCalls, Equals, 1)
 	c.Assert(restrictCalls, Equals, 1)
 	c.Assert(strings.TrimSpace(s.logbuf.String()), Matches, `.*System initialized, cloud-init reported to be done, set datasource_list to \[ GCE \].*`)
@@ -161,9 +163,8 @@ func (s *cloudInitUC20Suite) TestCloudInitUC20NoCloudGadgetDisables(c *C) {
 		}, nil
 	})
 	defer r()
+	mylog.Check(devicestate.EnsureCloudInitRestricted(s.mgr))
 
-	err := devicestate.EnsureCloudInitRestricted(s.mgr)
-	c.Assert(err, IsNil)
 	c.Assert(statusCalls, Equals, 1)
 	c.Assert(restrictCalls, Equals, 1)
 
@@ -198,9 +199,8 @@ fi`)
 		}, nil
 	})
 	defer r()
+	mylog.Check(devicestate.EnsureCloudInitRestricted(s.mgr))
 
-	err := devicestate.EnsureCloudInitRestricted(s.mgr)
-	c.Assert(err, IsNil)
 
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
 		{"cloud-init", "status"},
@@ -248,9 +248,8 @@ func (s *cloudInitSuite) TestClassicCloudInitDoesNothing(c *C) {
 		return sysconfig.CloudInitRestrictionResult{}, fmt.Errorf("broken")
 	})
 	defer r()
+	mylog.Check(devicestate.EnsureCloudInitRestricted(s.mgr))
 
-	err := devicestate.EnsureCloudInitRestricted(s.mgr)
-	c.Assert(err, IsNil)
 }
 
 func (s *cloudInitSuite) TestCloudInitEnsureBeforeSeededDoesNothing(c *C) {
@@ -270,9 +269,8 @@ func (s *cloudInitSuite) TestCloudInitEnsureBeforeSeededDoesNothing(c *C) {
 		return sysconfig.CloudInitRestrictionResult{}, fmt.Errorf("broken")
 	})
 	defer r()
+	mylog.Check(devicestate.EnsureCloudInitRestricted(s.mgr))
 
-	err := devicestate.EnsureCloudInitRestricted(s.mgr)
-	c.Assert(err, IsNil)
 }
 
 func (s *cloudInitSuite) TestCloudInitAlreadyEnsuredRestrictedDoesNothing(c *C) {
@@ -291,16 +289,18 @@ func (s *cloudInitSuite) TestCloudInitAlreadyEnsuredRestrictedDoesNothing(c *C) 
 		}
 	})
 	defer r()
+	mylog.
 
-	// run it once to set the internal bool
-	err := devicestate.EnsureCloudInitRestricted(s.mgr)
-	c.Assert(err, IsNil)
+		// run it once to set the internal bool
+		Check(devicestate.EnsureCloudInitRestricted(s.mgr))
+
 
 	c.Assert(n, Equals, 1)
+	mylog.
 
-	// it should run again without checking anything
-	err = devicestate.EnsureCloudInitRestricted(s.mgr)
-	c.Assert(err, IsNil)
+		// it should run again without checking anything
+		Check(devicestate.EnsureCloudInitRestricted(s.mgr))
+
 
 	c.Assert(n, Equals, 1)
 }
@@ -321,15 +321,17 @@ func (s *cloudInitSuite) TestCloudInitDeviceManagerEnsureRestrictsCloudInit(c *C
 		}
 	})
 	defer r()
+	mylog.
 
-	// run it once to set the internal bool
-	err := s.mgr.Ensure()
-	c.Assert(err, IsNil)
+		// run it once to set the internal bool
+		Check(s.mgr.Ensure())
+
 	c.Assert(n, Equals, 1)
+	mylog.
 
-	// running again is still okay and won't call CloudInitStatus again
-	err = s.mgr.Ensure()
-	c.Assert(err, IsNil)
+		// running again is still okay and won't call CloudInitStatus again
+		Check(s.mgr.Ensure())
+
 	c.Assert(n, Equals, 1)
 }
 
@@ -346,19 +348,18 @@ func (s *cloudInitSuite) TestCloudInitAlreadyRestrictedDoesNothing(c *C) {
 		return sysconfig.CloudInitRestrictionResult{}, fmt.Errorf("broken")
 	})
 	defer r()
+	mylog.Check(devicestate.EnsureCloudInitRestricted(s.mgr))
 
-	err := devicestate.EnsureCloudInitRestricted(s.mgr)
-	c.Assert(err, IsNil)
 	c.Assert(statusCalls, Equals, 1)
 }
 
 func (s *cloudInitSuite) TestCloudInitAlreadyRestrictedFileDoesNothing(c *C) {
 	// write a cloud-init restriction file
 	disableFile := filepath.Join(dirs.GlobalRootDir, "/etc/cloud/cloud.cfg.d/zzzz_snapd.cfg")
-	err := os.MkdirAll(filepath.Dir(disableFile), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(disableFile, nil, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Dir(disableFile), 0755))
+
+	mylog.Check(os.WriteFile(disableFile, nil, 0644))
+
 
 	// mock cloud-init command, but make it always fail, it shouldn't be called
 	// as cloud-init.disabled should tell sysconfig to never consult cloud-init
@@ -373,9 +374,8 @@ exit 1`)
 		return sysconfig.CloudInitRestrictionResult{}, fmt.Errorf("broken")
 	})
 	defer r()
+	mylog.Check(devicestate.EnsureCloudInitRestricted(s.mgr))
 
-	err = devicestate.EnsureCloudInitRestricted(s.mgr)
-	c.Assert(err, IsNil)
 
 	c.Assert(s.logbuf.String(), Equals, "")
 
@@ -389,10 +389,10 @@ func (s *cloudInitSuite) TestCloudInitAlreadyDisabledDoesNothing(c *C) {
 
 	// write a cloud-init disabled file
 	disableFile := filepath.Join(dirs.GlobalRootDir, "/etc/cloud/cloud-init.disabled")
-	err := os.MkdirAll(filepath.Dir(disableFile), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(disableFile, nil, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Dir(disableFile), 0755))
+
+	mylog.Check(os.WriteFile(disableFile, nil, 0644))
+
 
 	// mock cloud-init command, but make it always fail, it shouldn't be called
 	// as cloud-init.disabled should tell sysconfig to never consult cloud-init
@@ -407,9 +407,8 @@ exit 1`)
 		return sysconfig.CloudInitRestrictionResult{}, fmt.Errorf("broken")
 	})
 	defer r()
+	mylog.Check(devicestate.EnsureCloudInitRestricted(s.mgr))
 
-	err = devicestate.EnsureCloudInitRestricted(s.mgr)
-	c.Assert(err, IsNil)
 
 	c.Assert(s.logbuf.String(), Equals, "")
 
@@ -445,9 +444,8 @@ fi`)
 		return sysconfig.CloudInitRestrictionResult{Action: "disable"}, nil
 	})
 	defer r()
+	mylog.Check(devicestate.EnsureCloudInitRestricted(s.mgr))
 
-	err := devicestate.EnsureCloudInitRestricted(s.mgr)
-	c.Assert(err, IsNil)
 
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
 		{"cloud-init", "status"},
@@ -492,9 +490,8 @@ fi`)
 		}, nil
 	})
 	defer r()
+	mylog.Check(devicestate.EnsureCloudInitRestricted(s.mgr))
 
-	err := devicestate.EnsureCloudInitRestricted(s.mgr)
-	c.Assert(err, IsNil)
 
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
 		{"cloud-init", "status"},
@@ -540,9 +537,8 @@ fi`)
 		}, nil
 	})
 	defer r()
+	mylog.Check(devicestate.EnsureCloudInitRestricted(s.mgr))
 
-	err := devicestate.EnsureCloudInitRestricted(s.mgr)
-	c.Assert(err, IsNil)
 
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
 		{"cloud-init", "status"},
@@ -604,9 +600,8 @@ fi`, cloudInitScriptStateFile))
 		}, nil
 	})
 	defer r()
+	mylog.Check(devicestate.EnsureCloudInitRestricted(s.mgr))
 
-	err := devicestate.EnsureCloudInitRestricted(s.mgr)
-	c.Assert(err, IsNil)
 
 	// no log messages while we wait for the transition
 	c.Assert(s.logbuf.String(), Equals, "")
@@ -693,9 +688,8 @@ fi`)
 		}
 	})
 	defer r()
+	mylog.Check(devicestate.EnsureCloudInitRestricted(s.mgr))
 
-	err := devicestate.EnsureCloudInitRestricted(s.mgr)
-	c.Assert(err, IsNil)
 
 	// should not have called restrict
 	c.Assert(restrictCalls, Equals, 0)
@@ -798,9 +792,8 @@ fi`)
 		}
 	})
 	defer r()
+	mylog.Check(devicestate.EnsureCloudInitRestricted(s.mgr))
 
-	err := devicestate.EnsureCloudInitRestricted(s.mgr)
-	c.Assert(err, IsNil)
 
 	// should not have called restrict
 	c.Assert(restrictCalls, Equals, 0)
@@ -894,9 +887,8 @@ fi`)
 		}
 	})
 	defer r()
+	mylog.Check(devicestate.EnsureCloudInitRestricted(s.mgr))
 
-	err := devicestate.EnsureCloudInitRestricted(s.mgr)
-	c.Assert(err, IsNil)
 
 	// should not have called to disable
 	c.Assert(restrictCalls, Equals, 0)
@@ -993,9 +985,8 @@ fi`)
 		}
 	})
 	defer r()
+	mylog.Check(devicestate.EnsureCloudInitRestricted(s.mgr))
 
-	err := devicestate.EnsureCloudInitRestricted(s.mgr)
-	c.Assert(err, IsNil)
 
 	// should not have called to disable
 	c.Assert(restrictCalls, Equals, 0)
@@ -1099,9 +1090,8 @@ fi`, cloudInitScriptStateFile))
 		}
 	})
 	defer r()
+	mylog.Check(devicestate.EnsureCloudInitRestricted(s.mgr))
 
-	err := devicestate.EnsureCloudInitRestricted(s.mgr)
-	c.Assert(err, IsNil)
 
 	// should not have called to restrict
 	c.Assert(restrictCalls, Equals, 0)
@@ -1137,6 +1127,7 @@ fi`, cloudInitScriptStateFile))
 	// we now have a message about restricting
 	c.Assert(strings.TrimSpace(s.logbuf.String()), Matches, `.*System initialized, cloud-init reported to be done, set datasource_list to \[ NoCloud \] and disabled auto-import by filesystem label`)
 }
+
 func (s *cloudInitSuite) TestCloudInitHappyNotFound(c *C) {
 	// pretend that cloud-init was not found on PATH
 	statusCalls := 0
@@ -1156,9 +1147,8 @@ func (s *cloudInitSuite) TestCloudInitHappyNotFound(c *C) {
 		}, nil
 	})
 	defer r()
+	mylog.Check(devicestate.EnsureCloudInitRestricted(s.mgr))
 
-	err := devicestate.EnsureCloudInitRestricted(s.mgr)
-	c.Assert(err, IsNil)
 	c.Assert(statusCalls, Equals, 1)
 	c.Assert(restrictCalls, Equals, 1)
 	c.Assert(strings.TrimSpace(s.logbuf.String()), Matches, `.*System initialized, cloud-init not found, disabled permanently`)

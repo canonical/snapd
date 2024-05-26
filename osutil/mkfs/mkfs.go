@@ -25,6 +25,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/strutil/shlex"
@@ -35,14 +36,12 @@ import (
 // in the mkfsHandlers map
 type MakeFunc func(imgFile, label, contentsRootDir string, deviceSize, sectorSize quantity.Size) error
 
-var (
-	mkfsHandlers = map[string]MakeFunc{
-		"vfat-16": mkfsVfat16,
-		"vfat":    mkfsVfat32,
-		"vfat-32": mkfsVfat32,
-		"ext4":    mkfsExt4,
-	}
-)
+var mkfsHandlers = map[string]MakeFunc{
+	"vfat-16": mkfsVfat16,
+	"vfat":    mkfsVfat32,
+	"vfat-32": mkfsVfat32,
+	"ext4":    mkfsExt4,
+}
 
 // Make creates a filesystem of given type and provided label in the device or
 // file. The device size and sector size provides hints for additional tuning of
@@ -112,10 +111,8 @@ func mkfsExt4(img, label, contentsRootDir string, deviceSize, sectorSize quantit
 		if fakerootFlags != "" {
 			// When executing fakeroot from a classic confinement snap the location of
 			// libfakeroot must be specified, or else it will be loaded from the host system
-			flags, err := shlex.Split(fakerootFlags)
-			if err != nil {
-				return fmt.Errorf("cannot split fakeroot command: %v", err)
-			}
+			flags := mylog.Check2(shlex.Split(fakerootFlags))
+
 			if len(fakerootFlags) > 0 {
 				fakerootArgs := append(flags, "--")
 				mkfsArgs = append(fakerootArgs, mkfsArgs...)
@@ -126,10 +123,8 @@ func mkfsExt4(img, label, contentsRootDir string, deviceSize, sectorSize quantit
 		// no need to fake it if we're already root
 		cmd = exec.Command(mkfsArgs[0], mkfsArgs[1:]...)
 	}
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return osutil.OutputErr(out, err)
-	}
+	out := mylog.Check2(cmd.CombinedOutput())
+
 	return nil
 }
 
@@ -171,10 +166,7 @@ func mkfsVfat(img, label, contentsRootDir string, deviceSize, sectorSize quantit
 	mkfsArgs = append(mkfsArgs, img)
 
 	cmd := exec.Command("mkfs.vfat", mkfsArgs...)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return osutil.OutputErr(out, err)
-	}
+	out := mylog.Check2(cmd.CombinedOutput())
 
 	// if there is no content to copy we are done now
 	if contentsRootDir == "" {
@@ -184,10 +176,8 @@ func mkfsVfat(img, label, contentsRootDir string, deviceSize, sectorSize quantit
 	// mkfs.vfat does not know how to populate the filesystem with contents,
 	// we need to do the work ourselves
 
-	fis, err := os.ReadDir(contentsRootDir)
-	if err != nil {
-		return fmt.Errorf("cannot list directory contents: %v", err)
-	}
+	fis := mylog.Check2(os.ReadDir(contentsRootDir))
+
 	if len(fis) == 0 {
 		// nothing to copy to the image
 		return nil
@@ -211,9 +201,7 @@ func mkfsVfat(img, label, contentsRootDir string, deviceSize, sectorSize quantit
 	// skip mtools checks to avoid unnecessary warnings
 	cmd.Env = append(cmd.Env, "MTOOLS_SKIP_CHECK=1")
 
-	out, err = cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("cannot populate vfat filesystem with contents: %v", osutil.OutputErr(out, err))
-	}
+	out = mylog.Check2(cmd.CombinedOutput())
+
 	return nil
 }

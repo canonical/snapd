@@ -29,6 +29,7 @@ import (
 	// expected for digests
 	_ "golang.org/x/crypto/sha3"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap/naming"
@@ -120,14 +121,11 @@ func (snapdcl *SnapDeclaration) checkConsistency(db RODatabase, acck *AccountKey
 	if !db.IsTrustedAccount(snapdcl.AuthorityID()) {
 		return fmt.Errorf("snap-declaration assertion for %q (id %q) is not signed by a directly trusted authority: %s", snapdcl.SnapName(), snapdcl.SnapID(), snapdcl.AuthorityID())
 	}
-	_, err := db.Find(AccountType, map[string]string{
+	_ := mylog.Check2(db.Find(AccountType, map[string]string{
 		"account-id": snapdcl.PublisherID(),
-	})
+	}))
 	if errors.Is(err, &NotFoundError{}) {
 		return fmt.Errorf("snap-declaration assertion for %q (id %q) does not have a matching account assertion for the publisher %q", snapdcl.SnapName(), snapdcl.SnapID(), snapdcl.PublisherID())
-	}
-	if err != nil {
-		return err
 	}
 
 	return nil
@@ -145,10 +143,8 @@ func (snapdcl *SnapDeclaration) Prerequisites() []*Ref {
 
 func compilePlugRules(plugs map[string]interface{}, compiled func(iface string, plugRule *PlugRule)) error {
 	for iface, rule := range plugs {
-		plugRule, err := compilePlugRule(iface, rule)
-		if err != nil {
-			return err
-		}
+		plugRule := mylog.Check2(compilePlugRule(iface, rule))
+
 		compiled(iface, plugRule)
 	}
 	return nil
@@ -156,10 +152,8 @@ func compilePlugRules(plugs map[string]interface{}, compiled func(iface string, 
 
 func compileSlotRules(slots map[string]interface{}, compiled func(iface string, slotRule *SlotRule)) error {
 	for iface, rule := range slots {
-		slotRule, err := compileSlotRule(iface, rule)
-		if err != nil {
-			return err
-		}
+		slotRule := mylog.Check2(compileSlotRule(iface, rule))
+
 		compiled(iface, slotRule)
 	}
 	return nil
@@ -179,11 +173,8 @@ func snapDeclarationFormatAnalyze(headers map[string]interface{}, body []byte) (
 		}
 	}
 
-	plugs, err := checkMap(headers, "plugs")
-	if err != nil {
-		return 0, err
-	}
-	err = compilePlugRules(plugs, func(_ string, rule *PlugRule) {
+	plugs := mylog.Check2(checkMap(headers, "plugs"))
+	mylog.Check(compilePlugRules(plugs, func(_ string, rule *PlugRule) {
 		if rule.feature(dollarAttrConstraintsFeature) {
 			setFormatNum(2)
 		}
@@ -196,16 +187,10 @@ func snapDeclarationFormatAnalyze(headers map[string]interface{}, body []byte) (
 		if rule.feature(altAttrMatcherFeature) {
 			setFormatNum(5)
 		}
-	})
-	if err != nil {
-		return 0, err
-	}
+	}))
 
-	slots, err := checkMap(headers, "slots")
-	if err != nil {
-		return 0, err
-	}
-	err = compileSlotRules(slots, func(_ string, rule *SlotRule) {
+	slots := mylog.Check2(checkMap(headers, "slots"))
+	mylog.Check(compileSlotRules(slots, func(_ string, rule *SlotRule) {
 		if rule.feature(dollarAttrConstraintsFeature) {
 			setFormatNum(2)
 		}
@@ -218,10 +203,7 @@ func snapDeclarationFormatAnalyze(headers map[string]interface{}, body []byte) (
 		if rule.feature(altAttrMatcherFeature) {
 			setFormatNum(5)
 		}
-	})
-	if err != nil {
-		return 0, err
-	}
+	}))
 
 	return formatnum, nil
 }
@@ -247,16 +229,10 @@ func checkAliases(headers map[string]interface{}) (map[string]string, error) {
 		}
 
 		what := fmt.Sprintf(`in "aliases" item %d`, i+1)
-		name, err := checkStringMatchesWhat(aliasItem, "name", what, naming.ValidAlias)
-		if err != nil {
-			return nil, err
-		}
+		name := mylog.Check2(checkStringMatchesWhat(aliasItem, "name", what, naming.ValidAlias))
 
 		what = fmt.Sprintf(`for alias %q`, name)
-		target, err := checkStringMatchesWhat(aliasItem, "target", what, naming.ValidApp)
-		if err != nil {
-			return nil, err
-		}
+		target := mylog.Check2(checkStringMatchesWhat(aliasItem, "target", what, naming.ValidApp))
 
 		if _, ok := aliasMap[name]; ok {
 			return nil, fmt.Errorf(`duplicated definition in "aliases" for alias %q`, name)
@@ -269,68 +245,42 @@ func checkAliases(headers map[string]interface{}) (map[string]string, error) {
 }
 
 func assembleSnapDeclaration(assert assertionBase) (Assertion, error) {
-	_, err := checkExistsString(assert.headers, "snap-name")
-	if err != nil {
-		return nil, err
-	}
+	_ := mylog.Check2(checkExistsString(assert.headers, "snap-name"))
 
-	_, err = checkNotEmptyString(assert.headers, "publisher-id")
-	if err != nil {
-		return nil, err
-	}
+	_ = mylog.Check2(checkNotEmptyString(assert.headers, "publisher-id"))
 
-	timestamp, err := checkRFC3339Date(assert.headers, "timestamp")
-	if err != nil {
-		return nil, err
-	}
+	timestamp := mylog.Check2(checkRFC3339Date(assert.headers, "timestamp"))
 
 	var refControl []string
 	var plugRules map[string]*PlugRule
 	var slotRules map[string]*SlotRule
 
-	refControl, err = checkStringList(assert.headers, "refresh-control")
-	if err != nil {
-		return nil, err
-	}
+	refControl = mylog.Check2(checkStringList(assert.headers, "refresh-control"))
 
-	plugs, err := checkMap(assert.headers, "plugs")
-	if err != nil {
-		return nil, err
-	}
+	plugs := mylog.Check2(checkMap(assert.headers, "plugs"))
+
 	if plugs != nil {
 		plugRules = make(map[string]*PlugRule, len(plugs))
-		err := compilePlugRules(plugs, func(iface string, rule *PlugRule) {
+		mylog.Check(compilePlugRules(plugs, func(iface string, rule *PlugRule) {
 			plugRules[iface] = rule
-		})
-		if err != nil {
-			return nil, err
-		}
+		}))
+
 	}
 
-	slots, err := checkMap(assert.headers, "slots")
-	if err != nil {
-		return nil, err
-	}
+	slots := mylog.Check2(checkMap(assert.headers, "slots"))
+
 	if slots != nil {
 		slotRules = make(map[string]*SlotRule, len(slots))
-		err := compileSlotRules(slots, func(iface string, rule *SlotRule) {
+		mylog.Check(compileSlotRules(slots, func(iface string, rule *SlotRule) {
 			slotRules[iface] = rule
-		})
-		if err != nil {
-			return nil, err
-		}
+		}))
+
 	}
 
 	// XXX: depracated, will go away later
-	autoAliases, err := checkStringListMatches(assert.headers, "auto-aliases", naming.ValidAlias)
-	if err != nil {
-		return nil, err
-	}
+	autoAliases := mylog.Check2(checkStringListMatches(assert.headers, "auto-aliases", naming.ValidAlias))
 
-	aliases, err := checkAliases(assert.headers)
-	if err != nil {
-		return nil, err
-	}
+	aliases := mylog.Check2(checkAliases(assert.headers))
 
 	var ras []*RevisionAuthority
 
@@ -350,40 +300,26 @@ func assembleSnapDeclaration(assert assertionBase) (Assertion, error) {
 			if !ok {
 				return nil, fmt.Errorf("revision-authority stanza must be a list of maps")
 			}
-			accountID, err := checkStringMatchesWhat(m, "account-id", "in revision authority", validAccountID)
-			if err != nil {
-				return nil, err
-			}
-			prov, err := checkStringListInMap(m, "provenance", "provenance in revision authority", naming.ValidProvenance)
-			if err != nil {
-				return nil, err
-			}
+			accountID := mylog.Check2(checkStringMatchesWhat(m, "account-id", "in revision authority", validAccountID))
+
+			prov := mylog.Check2(checkStringListInMap(m, "provenance", "provenance in revision authority", naming.ValidProvenance))
+
 			if len(prov) == 0 {
 				return nil, fmt.Errorf("provenance in revision authority cannot be empty")
 			}
 			minRevision := 1
 			maxRevision := 0
 			if _, ok := m["min-revision"]; ok {
-				var err error
-				minRevision, err = checkSnapRevisionWhat(m, "min-revision", "in revision authority")
-				if err != nil {
-					return nil, err
-				}
+				minRevision = mylog.Check2(checkSnapRevisionWhat(m, "min-revision", "in revision authority"))
 			}
 			if _, ok := m["max-revision"]; ok {
-				var err error
-				maxRevision, err = checkSnapRevisionWhat(m, "max-revision", "in revision authority")
-				if err != nil {
-					return nil, err
-				}
+				maxRevision = mylog.Check2(checkSnapRevisionWhat(m, "max-revision", "in revision authority"))
 			}
 			if maxRevision != 0 && maxRevision < minRevision {
 				return nil, fmt.Errorf("optional max-revision cannot be less than min-revision in revision-authority")
 			}
-			devscope, err := compileDeviceScopeConstraint(m, "revision-authority")
-			if err != nil {
-				return nil, err
-			}
+			devscope := mylog.Check2(compileDeviceScopeConstraint(m, "revision-authority"))
+
 			ras = append(ras, &RevisionAuthority{
 				AccountID:   accountID,
 				Provenance:  prov,
@@ -422,7 +358,8 @@ type RevisionAuthority struct {
 func (ra *RevisionAuthority) checkProvenanceAndRevision(a interface {
 	Assertion
 	Provenance() string
-}, what string, revno int, model *Model, store *Store) error {
+}, what string, revno int, model *Model, store *Store,
+) error {
 	if !strutil.ListContains(ra.Provenance, a.Provenance()) {
 		return fmt.Errorf("provenance mismatch")
 	}
@@ -437,9 +374,8 @@ func (ra *RevisionAuthority) checkProvenanceAndRevision(a interface {
 	}
 	if ra.DeviceScope != nil && model != nil {
 		opts := DeviceScopeConstraintCheckOptions{UseFriendlyStores: true}
-		if err := ra.DeviceScope.Check(model, store, &opts); err != nil {
-			return err
-		}
+		mylog.Check(ra.DeviceScope.Check(model, store, &opts))
+
 	}
 	return nil
 }
@@ -468,15 +404,10 @@ type SnapIntegrity struct {
 // SnapFileSHA3_384 computes the SHA3-384 digest of the given snap file.
 // It also returns its size.
 func SnapFileSHA3_384(snapPath string) (digest string, size uint64, err error) {
-	sha3_384Dgst, size, err := osutil.FileDigest(snapPath, crypto.SHA3_384)
-	if err != nil {
-		return "", 0, fmt.Errorf("cannot compute snap %q digest: %v", snapPath, err)
-	}
+	sha3_384Dgst, size := mylog.Check3(osutil.FileDigest(snapPath, crypto.SHA3_384))
 
-	sha3_384, err := EncodeDigest(crypto.SHA3_384, sha3_384Dgst)
-	if err != nil {
-		return "", 0, fmt.Errorf("cannot encode snap %q digest: %v", snapPath, err)
-	}
+	sha3_384 := mylog.Check2(EncodeDigest(crypto.SHA3_384, sha3_384Dgst))
+
 	return sha3_384, size, nil
 }
 
@@ -514,30 +445,16 @@ func (snapbld *SnapBuild) Timestamp() time.Time {
 }
 
 func assembleSnapBuild(assert assertionBase) (Assertion, error) {
-	_, err := checkDigest(assert.headers, "snap-sha3-384", crypto.SHA3_384)
-	if err != nil {
-		return nil, err
-	}
+	_ := mylog.Check2(checkDigest(assert.headers, "snap-sha3-384", crypto.SHA3_384))
 
-	_, err = checkNotEmptyString(assert.headers, "snap-id")
-	if err != nil {
-		return nil, err
-	}
+	_ = mylog.Check2(checkNotEmptyString(assert.headers, "snap-id"))
 
-	_, err = checkNotEmptyString(assert.headers, "grade")
-	if err != nil {
-		return nil, err
-	}
+	_ = mylog.Check2(checkNotEmptyString(assert.headers, "grade"))
 
-	size, err := checkUint(assert.headers, "snap-size", 64)
-	if err != nil {
-		return nil, err
-	}
+	size := mylog.Check2(checkUint(assert.headers, "snap-size", 64))
 
-	timestamp, err := checkRFC3339Date(assert.headers, "timestamp")
-	if err != nil {
-		return nil, err
-	}
+	timestamp := mylog.Check2(checkRFC3339Date(assert.headers, "timestamp"))
+
 	// ignore extra headers and non-empty body for future compatibility
 	return &SnapBuild{
 		assertionBase: assert,
@@ -607,26 +524,22 @@ func (snaprev *SnapRevision) checkConsistency(db RODatabase, acck *AccountKey) e
 		// delegating global-upload revisions is not allowed
 		return fmt.Errorf("snap-revision assertion for snap id %q is not signed by a store: %s", snaprev.SnapID(), snaprev.AuthorityID())
 	}
-	_, err := db.Find(AccountType, map[string]string{
+	_ := mylog.Check2(db.Find(AccountType, map[string]string{
 		"account-id": snaprev.DeveloperID(),
-	})
+	}))
 	if errors.Is(err, &NotFoundError{}) {
 		return fmt.Errorf("snap-revision assertion for snap id %q does not have a matching account assertion for the developer %q", snaprev.SnapID(), snaprev.DeveloperID())
 	}
-	if err != nil {
-		return err
-	}
-	a, err := db.Find(SnapDeclarationType, map[string]string{
+
+	a := mylog.Check2(db.Find(SnapDeclarationType, map[string]string{
 		// XXX: mediate getting current series through some context object? this gets the job done for now
 		"series":  release.Series,
 		"snap-id": snaprev.SnapID(),
-	})
+	}))
 	if errors.Is(err, &NotFoundError{}) {
 		return fmt.Errorf("snap-revision assertion for snap id %q does not have a matching snap-declaration assertion", snaprev.SnapID())
 	}
-	if err != nil {
-		return err
-	}
+
 	if otherProvenance {
 		decl := a.(*SnapDeclaration)
 		ras := decl.RevisionAuthority(snaprev.Provenance())
@@ -635,7 +548,7 @@ func (snaprev *SnapRevision) checkConsistency(db RODatabase, acck *AccountKey) e
 			// model==store==nil, we do not perform device-specific
 			// checks at this level, those are performed at
 			// higher-level guarding installing actual snaps
-			if err := ra.Check(snaprev, nil, nil); err == nil {
+			if mylog.Check(ra.Check(snaprev, nil, nil)); err == nil {
 				matchingRevAuthority = true
 				break
 			}
@@ -660,10 +573,8 @@ func (snaprev *SnapRevision) Prerequisites() []*Ref {
 }
 
 func checkSnapRevisionWhat(headers map[string]interface{}, name, what string) (snapRevision int, err error) {
-	snapRevision, err = checkIntWhat(headers, name, what)
-	if err != nil {
-		return 0, err
-	}
+	snapRevision = mylog.Check2(checkIntWhat(headers, name, what))
+
 	if snapRevision < 1 {
 		return 0, fmt.Errorf(`%q %s must be >=1: %d`, name, what, snapRevision)
 	}
@@ -671,59 +582,29 @@ func checkSnapRevisionWhat(headers map[string]interface{}, name, what string) (s
 }
 
 func assembleSnapRevision(assert assertionBase) (Assertion, error) {
-	_, err := checkDigest(assert.headers, "snap-sha3-384", crypto.SHA3_384)
-	if err != nil {
-		return nil, err
-	}
+	_ := mylog.Check2(checkDigest(assert.headers, "snap-sha3-384", crypto.SHA3_384))
 
-	_, err = checkStringMatches(assert.headers, "provenance", naming.ValidProvenance)
-	if err != nil {
-		return nil, err
-	}
+	_ = mylog.Check2(checkStringMatches(assert.headers, "provenance", naming.ValidProvenance))
 
-	_, err = checkNotEmptyString(assert.headers, "snap-id")
-	if err != nil {
-		return nil, err
-	}
+	_ = mylog.Check2(checkNotEmptyString(assert.headers, "snap-id"))
 
-	snapSize, err := checkUint(assert.headers, "snap-size", 64)
-	if err != nil {
-		return nil, err
-	}
+	snapSize := mylog.Check2(checkUint(assert.headers, "snap-size", 64))
 
-	snapRevision, err := checkSnapRevisionWhat(assert.headers, "snap-revision", "header")
-	if err != nil {
-		return nil, err
-	}
+	snapRevision := mylog.Check2(checkSnapRevisionWhat(assert.headers, "snap-revision", "header"))
 
-	_, err = checkNotEmptyString(assert.headers, "developer-id")
-	if err != nil {
-		return nil, err
-	}
+	_ = mylog.Check2(checkNotEmptyString(assert.headers, "developer-id"))
 
-	timestamp, err := checkRFC3339Date(assert.headers, "timestamp")
-	if err != nil {
-		return nil, err
-	}
+	timestamp := mylog.Check2(checkRFC3339Date(assert.headers, "timestamp"))
 
-	integrityMap, err := checkMap(assert.headers, "integrity")
-	if err != nil {
-		return nil, err
-	}
+	integrityMap := mylog.Check2(checkMap(assert.headers, "integrity"))
 
 	var snapIntegrity *SnapIntegrity
 
 	if integrityMap != nil {
 		// TODO: this will change again to support format agility
-		_, err := checkDigestWhat(integrityMap, "sha3-384", crypto.SHA3_384, "of integrity header")
-		if err != nil {
-			return nil, err
-		}
+		_ := mylog.Check2(checkDigestWhat(integrityMap, "sha3-384", crypto.SHA3_384, "of integrity header"))
 
-		size, err := checkUintWhat(integrityMap, "size", 64, "of integrity header")
-		if err != nil {
-			return nil, err
-		}
+		size := mylog.Check2(checkUintWhat(integrityMap, "size", 64, "of integrity header"))
 
 		snapIntegrity = &SnapIntegrity{
 			SHA3_384: integrityMap["sha3-384"].(string),
@@ -783,25 +664,20 @@ func (validation *Validation) Timestamp() time.Time {
 
 // Implement further consistency checks.
 func (validation *Validation) checkConsistency(db RODatabase, acck *AccountKey) error {
-	_, err := db.Find(SnapDeclarationType, map[string]string{
+	_ := mylog.Check2(db.Find(SnapDeclarationType, map[string]string{
 		"series":  validation.Series(),
 		"snap-id": validation.ApprovedSnapID(),
-	})
+	}))
 	if errors.Is(err, &NotFoundError{}) {
 		return fmt.Errorf("validation assertion by snap-id %q does not have a matching snap-declaration assertion for approved-snap-id %q", validation.SnapID(), validation.ApprovedSnapID())
 	}
-	if err != nil {
-		return err
-	}
-	a, err := db.Find(SnapDeclarationType, map[string]string{
+
+	a := mylog.Check2(db.Find(SnapDeclarationType, map[string]string{
 		"series":  validation.Series(),
 		"snap-id": validation.SnapID(),
-	})
+	}))
 	if errors.Is(err, &NotFoundError{}) {
 		return fmt.Errorf("validation assertion by snap-id %q does not have a matching snap-declaration assertion", validation.SnapID())
-	}
-	if err != nil {
-		return err
 	}
 
 	gatingDecl := a.(*SnapDeclaration)
@@ -824,20 +700,11 @@ func (validation *Validation) Prerequisites() []*Ref {
 }
 
 func assembleValidation(assert assertionBase) (Assertion, error) {
-	approvedSnapRevision, err := checkSnapRevisionWhat(assert.headers, "approved-snap-revision", "header")
-	if err != nil {
-		return nil, err
-	}
+	approvedSnapRevision := mylog.Check2(checkSnapRevisionWhat(assert.headers, "approved-snap-revision", "header"))
 
-	revoked, err := checkOptionalBool(assert.headers, "revoked")
-	if err != nil {
-		return nil, err
-	}
+	revoked := mylog.Check2(checkOptionalBool(assert.headers, "revoked"))
 
-	timestamp, err := checkRFC3339Date(assert.headers, "timestamp")
-	if err != nil {
-		return nil, err
-	}
+	timestamp := mylog.Check2(checkRFC3339Date(assert.headers, "timestamp"))
 
 	return &Validation{
 		assertionBase:        assert,
@@ -891,39 +758,28 @@ var _ consistencyChecker = (*BaseDeclaration)(nil)
 
 func assembleBaseDeclaration(assert assertionBase) (Assertion, error) {
 	var plugRules map[string]*PlugRule
-	plugs, err := checkMap(assert.headers, "plugs")
-	if err != nil {
-		return nil, err
-	}
+	plugs := mylog.Check2(checkMap(assert.headers, "plugs"))
+
 	if plugs != nil {
 		plugRules = make(map[string]*PlugRule, len(plugs))
-		err := compilePlugRules(plugs, func(iface string, rule *PlugRule) {
+		mylog.Check(compilePlugRules(plugs, func(iface string, rule *PlugRule) {
 			plugRules[iface] = rule
-		})
-		if err != nil {
-			return nil, err
-		}
+		}))
+
 	}
 
 	var slotRules map[string]*SlotRule
-	slots, err := checkMap(assert.headers, "slots")
-	if err != nil {
-		return nil, err
-	}
+	slots := mylog.Check2(checkMap(assert.headers, "slots"))
+
 	if slots != nil {
 		slotRules = make(map[string]*SlotRule, len(slots))
-		err := compileSlotRules(slots, func(iface string, rule *SlotRule) {
+		mylog.Check(compileSlotRules(slots, func(iface string, rule *SlotRule) {
 			slotRules[iface] = rule
-		})
-		if err != nil {
-			return nil, err
-		}
+		}))
+
 	}
 
-	timestamp, err := checkRFC3339Date(assert.headers, "timestamp")
-	if err != nil {
-		return nil, err
-	}
+	timestamp := mylog.Check2(checkRFC3339Date(assert.headers, "timestamp"))
 
 	return &BaseDeclaration{
 		assertionBase: assert,
@@ -956,31 +812,25 @@ func InitBuiltinBaseDeclaration(headers []byte) error {
 		return nil
 	}
 	trimmed := bytes.TrimSpace(headers)
-	h, err := parseHeaders(trimmed)
-	if err != nil {
-		return err
-	}
+	h := mylog.Check2(parseHeaders(trimmed))
+
 	for _, name := range builtinBaseDeclarationCheckOrder {
 		expected := builtinBaseDeclarationExpectedHeaders[name]
 		if h[name] != expected {
 			return fmt.Errorf("the builtin base-declaration %q header is not set to expected value %q", name, expected)
 		}
 	}
-	revision, err := checkRevision(h)
-	if err != nil {
-		return fmt.Errorf("cannot assemble the builtin-base declaration: %v", err)
-	}
+	revision := mylog.Check2(checkRevision(h))
+
 	h["timestamp"] = time.Now().UTC().Format(time.RFC3339)
-	a, err := assembleBaseDeclaration(assertionBase{
+	a := mylog.Check2(assembleBaseDeclaration(assertionBase{
 		headers:   h,
 		body:      nil,
 		revision:  revision,
 		content:   trimmed,
 		signature: []byte("$builtin"),
-	})
-	if err != nil {
-		return fmt.Errorf("cannot assemble the builtin base-declaration: %v", err)
-	}
+	}))
+
 	builtinBaseDeclaration = a.(*BaseDeclaration)
 	return nil
 }
@@ -1024,39 +874,22 @@ func (snapdev *SnapDeveloper) checkConsistency(db RODatabase, acck *AccountKey) 
 	// Check snap-declaration for the snap-id exists for the series.
 	// Note: the current publisher is irrelevant here because this assertion
 	// may be for a future publisher.
-	_, err := db.Find(SnapDeclarationType, map[string]string{
+	_ := mylog.Check2(db.Find(SnapDeclarationType, map[string]string{
 		// XXX: mediate getting current series through some context object? this gets the job done for now
 		"series":  release.Series,
 		"snap-id": snapdev.SnapID(),
-	})
-	if err != nil {
-		if errors.Is(err, &NotFoundError{}) {
-			return fmt.Errorf("snap-developer assertion for snap id %q does not have a matching snap-declaration assertion", snapdev.SnapID())
-		}
-		return err
-	}
+	}))
 
 	// check there's an account for the publisher-id
-	_, err = db.Find(AccountType, map[string]string{"account-id": publisherID})
-	if err != nil {
-		if errors.Is(err, &NotFoundError{}) {
-			return fmt.Errorf("snap-developer assertion for snap-id %q does not have a matching account assertion for the publisher %q", snapdev.SnapID(), publisherID)
-		}
-		return err
-	}
+	_ = mylog.Check2(db.Find(AccountType, map[string]string{"account-id": publisherID}))
 
 	// check there's an account for each developer
 	for developerID := range snapdev.developerRanges {
 		if developerID == publisherID {
 			continue
 		}
-		_, err = db.Find(AccountType, map[string]string{"account-id": developerID})
-		if err != nil {
-			if errors.Is(err, &NotFoundError{}) {
-				return fmt.Errorf("snap-developer assertion for snap-id %q does not have a matching account assertion for the developer %q", snapdev.SnapID(), developerID)
-			}
-			return err
-		}
+		_ = mylog.Check2(db.Find(AccountType, map[string]string{"account-id": developerID}))
+
 	}
 
 	return nil
@@ -1087,10 +920,7 @@ func (snapdev *SnapDeveloper) Prerequisites() []*Ref {
 }
 
 func assembleSnapDeveloper(assert assertionBase) (Assertion, error) {
-	developerRanges, err := checkDevelopers(assert.headers)
-	if err != nil {
-		return nil, err
-	}
+	developerRanges := mylog.Check2(checkDevelopers(assert.headers))
 
 	return &SnapDeveloper{
 		assertionBase:   assert,
@@ -1124,20 +954,13 @@ func checkDevelopers(headers map[string]interface{}) (map[string][]*dateRange, e
 		}
 
 		what := fmt.Sprintf(`in "developers" item %d`, i+1)
-		accountID, err := checkStringMatchesWhat(developer, "developer-id", what, validAccountID)
-		if err != nil {
-			return nil, err
-		}
+		accountID := mylog.Check2(checkStringMatchesWhat(developer, "developer-id", what, validAccountID))
 
 		what = fmt.Sprintf(`in "developers" item %d for developer %q`, i+1, accountID)
-		since, err := checkRFC3339DateWhat(developer, "since", what)
-		if err != nil {
-			return nil, err
-		}
-		until, err := checkRFC3339DateWithDefaultWhat(developer, "until", what, time.Time{})
-		if err != nil {
-			return nil, err
-		}
+		since := mylog.Check2(checkRFC3339DateWhat(developer, "since", what))
+
+		until := mylog.Check2(checkRFC3339DateWithDefaultWhat(developer, "until", what, time.Time{}))
+
 		if !until.IsZero() && since.After(until) {
 			return nil, fmt.Errorf(`"since" %s must be less than or equal to "until"`, what)
 		}

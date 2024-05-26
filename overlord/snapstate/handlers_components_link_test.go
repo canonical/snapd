@@ -23,6 +23,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/sequence"
@@ -45,9 +46,8 @@ func (s *linkCompSnapSuite) SetUpTest(c *C) {
 	s.baseHandlerSuite.SetUpTest(c)
 	s.AddCleanup(snapstatetest.MockDeviceModel(DefaultModel()))
 
-	var err error
-	taskRunTime, err = time.Parse(time.RFC3339, "2024-01-01T00:00:00Z")
-	c.Assert(err, IsNil)
+	taskRunTime = mylog.Check2(time.Parse(time.RFC3339, "2024-01-01T00:00:00Z"))
+
 	s.AddCleanup(snapstate.MockTimeNow(func() time.Time {
 		return taskRunTime
 	}))

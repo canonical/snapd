@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
@@ -76,8 +77,8 @@ func (s *copySnapDataSuite) TestDoCopySnapDataFailedRead(c *C) {
 
 	// And observe the results.
 	var snapst snapstate.SnapState
-	err := snapstate.Get(s.state, "pkg", &snapst)
-	c.Assert(err, IsNil)
+	mylog.Check(snapstate.Get(s.state, "pkg", &snapst))
+
 	c.Check(task.Status(), Equals, state.ErrorStatus)
 	c.Check(chg.Status(), Equals, state.ErrorStatus)
 	c.Check(chg.Err(), ErrorMatches, `(?s).*\(some error\)`)

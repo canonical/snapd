@@ -88,7 +88,7 @@ const (
 
 	// EmailCategory is a generic notification category related to electronic mail.
 	EmailCategory Category = "email"
-	//EmailArrivedCategory indicates that an e-mail has arrived.
+	// EmailArrivedCategory indicates that an e-mail has arrived.
 	EmailArrivedCategory Category = "email.arrived"
 	// EmailBouncedCategory indicates that an e-mail message has bounced.
 	EmailBouncedCategory Category = "email.bounced"

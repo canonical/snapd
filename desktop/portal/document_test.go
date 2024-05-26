@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/godbus/dbus"
 	. "gopkg.in/check.v1"
 
@@ -58,11 +59,11 @@ func (s *documentPortalSuite) SetUpSuite(c *C) {
 	s.DBusTest.SetUpSuite(c)
 
 	s.portal = &fakeDocumentPortal{s}
-	err := s.SessionBus.Export(s.portal, portal.DocumentPortalObjectPath, portal.DocumentPortalIface)
-	c.Assert(err, IsNil)
+	mylog.Check(s.SessionBus.Export(s.portal, portal.DocumentPortalObjectPath, portal.DocumentPortalIface))
 
-	_, err = s.SessionBus.RequestName(portal.DocumentPortalBusName, dbus.NameFlagAllowReplacement|dbus.NameFlagReplaceExisting)
-	c.Assert(err, IsNil)
+
+	_ = mylog.Check2(s.SessionBus.RequestName(portal.DocumentPortalBusName, dbus.NameFlagAllowReplacement|dbus.NameFlagReplaceExisting))
+
 
 	s.BaseTest.AddCleanup(portal.MockUserCurrent(func() (*user.User, error) {
 		return &user.User{Uid: fakeUserId}, nil
@@ -77,7 +78,7 @@ func (s *documentPortalSuite) SetUpSuite(c *C) {
 
 func (s *documentPortalSuite) TearDownSuite(c *C) {
 	if s.SessionBus != nil {
-		_, err := s.SessionBus.ReleaseName(portal.DocumentPortalBusName)
+		_ := mylog.Check2(s.SessionBus.ReleaseName(portal.DocumentPortalBusName))
 		c.Check(err, IsNil)
 	}
 
@@ -88,8 +89,8 @@ func (s *documentPortalSuite) SetUpTest(c *C) {
 	s.DBusTest.SetUpTest(c)
 
 	os.RemoveAll(s.userRuntimePath)
-	err := os.MkdirAll(s.userRuntimePath, 0777)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(s.userRuntimePath, 0777))
+
 	s.withLocked(func() {
 		s.getMountPointError = nil
 		s.mountPointResponse = ""
@@ -112,14 +113,14 @@ func (s *documentPortalSuite) TestGetDefaultMountPointWithUserError(c *C) {
 	defer restore()
 
 	document := &portal.Document{}
-	mountPoint, err := document.GetDefaultMountPoint()
+	mountPoint := mylog.Check2(document.GetDefaultMountPoint())
 	c.Check(err, ErrorMatches, ".*some user error")
 	c.Check(mountPoint, Equals, "")
 }
 
 func (s *documentPortalSuite) TestGetDefaultMountPointHappy(c *C) {
 	document := &portal.Document{}
-	mountPoint, err := document.GetDefaultMountPoint()
+	mountPoint := mylog.Check2(document.GetDefaultMountPoint())
 	c.Check(err, IsNil)
 	expectedMountPoint := filepath.Join(s.userRuntimePath, "doc")
 	c.Check(mountPoint, Equals, expectedMountPoint)
@@ -131,7 +132,7 @@ func (s *documentPortalSuite) TestGetMountPointResponseError(c *C) {
 	})
 
 	document := &portal.Document{}
-	mountPoint, err := document.GetMountPoint()
+	mountPoint := mylog.Check2(document.GetMountPoint())
 	c.Check(err, FitsTypeOf, dbus.Error{})
 	c.Check(err, ErrorMatches, `something went wrong`)
 	c.Check(mountPoint, Equals, "")
@@ -148,7 +149,7 @@ func (s *documentPortalSuite) TestGetMountPointHappy(c *C) {
 	})
 
 	document := &portal.Document{}
-	mountPoint, err := document.GetMountPoint()
+	mountPoint := mylog.Check2(document.GetMountPoint())
 	c.Check(err, IsNil)
 	c.Check(mountPoint, Equals, s.mountPointResponse)
 	s.withLocked(func() {

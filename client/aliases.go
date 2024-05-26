@@ -22,6 +22,8 @@ package client
 import (
 	"bytes"
 	"encoding/json"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // aliasAction represents an action performed on aliases.
@@ -36,10 +38,8 @@ type aliasAction struct {
 
 // performAliasAction performs a single action on aliases.
 func (client *Client) performAliasAction(sa *aliasAction) (changeID string, err error) {
-	b, err := json.Marshal(sa)
-	if err != nil {
-		return "", err
-	}
+	b := mylog.Check2(json.Marshal(sa))
+
 	return client.doAsync("POST", "/v2/aliases", nil, nil, bytes.NewReader(b))
 }
 
@@ -97,6 +97,6 @@ type AliasStatus struct {
 
 // Aliases returns a map snap -> alias -> AliasStatus for all snaps and aliases in the system.
 func (client *Client) Aliases() (allStatuses map[string]map[string]AliasStatus, err error) {
-	_, err = client.doSync("GET", "/v2/aliases", nil, nil, nil, &allStatuses)
+	_ = mylog.Check2(client.doSync("GET", "/v2/aliases", nil, nil, nil, &allStatuses))
 	return
 }

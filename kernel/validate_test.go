@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/kernel"
 )
 
@@ -40,7 +41,7 @@ func (s *validateKernelSuite) SetUpTest(c *C) {
 }
 
 func (s *validateKernelSuite) TestValidateMissingContentFile(c *C) {
-	var kernelYaml = `
+	kernelYaml := `
 assets:
   dtbs:
     edition: 1
@@ -48,13 +49,12 @@ assets:
       - foo
 `
 	mockKernelRoot := makeMockKernel(c, kernelYaml, nil)
-
-	err := kernel.Validate(mockKernelRoot)
+	mylog.Check(kernel.Validate(mockKernelRoot))
 	c.Assert(err, ErrorMatches, `asset "dtbs": content "foo" source path does not exist`)
 }
 
 func (s *validateKernelSuite) TestValidateMissingContentDir(c *C) {
-	var kernelYaml = `
+	kernelYaml := `
 assets:
   dtbs:
     edition: 1
@@ -62,13 +62,12 @@ assets:
       - dir/
 `
 	mockKernelRoot := makeMockKernel(c, kernelYaml, map[string]string{"dir": ""})
-
-	err := kernel.Validate(mockKernelRoot)
+	mylog.Check(kernel.Validate(mockKernelRoot))
 	c.Assert(err, ErrorMatches, `asset "dtbs": content "dir/" is not a directory`)
 }
 
 func (s *validateKernelSuite) TestValidateHappy(c *C) {
-	var kernelYaml = `
+	kernelYaml := `
 assets:
   dtbs:
     edition: 1
@@ -79,21 +78,20 @@ assets:
 	mockKernelRoot := makeMockKernel(c, kernelYaml, map[string]string{
 		"foo": "",
 	})
-	err := os.MkdirAll(filepath.Join(mockKernelRoot, "dir"), 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Join(mockKernelRoot, "dir"), 0755))
 
-	err = kernel.Validate(mockKernelRoot)
-	c.Assert(err, IsNil)
+	mylog.Check(kernel.Validate(mockKernelRoot))
+
 }
 
 func (s *validateKernelSuite) TestValidateHappyNoKernelYaml(c *C) {
 	emptyDir := c.MkDir()
-	err := kernel.Validate(emptyDir)
-	c.Assert(err, IsNil)
+	mylog.Check(kernel.Validate(emptyDir))
+
 }
 
 func (s *validateKernelSuite) TestValidateBadContent(c *C) {
-	var kernelYamlFmt = `
+	kernelYamlFmt := `
 assets:
   dtbs:
     edition: 1
@@ -107,8 +105,7 @@ assets:
 		"//",
 	} {
 		mockKernelRoot := makeMockKernel(c, fmt.Sprintf(kernelYamlFmt, tc), nil)
-
-		err := kernel.Validate(mockKernelRoot)
+		mylog.Check(kernel.Validate(mockKernelRoot))
 		c.Assert(err, ErrorMatches, fmt.Sprintf(`asset "dtbs": invalid content %q`, tc))
 	}
 }

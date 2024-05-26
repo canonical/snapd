@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap/naming"
 )
@@ -89,25 +90,21 @@ func (resrev *SnapResourceRevision) checkConsistency(db RODatabase, acck *Accoun
 		// delegating global-upload revisions is not allowed
 		return fmt.Errorf("snap-resource-revision assertion for snap id %q is not signed by a store: %s", resrev.SnapID(), resrev.AuthorityID())
 	}
-	_, err := db.Find(AccountType, map[string]string{
+	_ := mylog.Check2(db.Find(AccountType, map[string]string{
 		"account-id": resrev.DeveloperID(),
-	})
+	}))
 	if errors.Is(err, &NotFoundError{}) {
 		return fmt.Errorf("snap-resource-revision assertion for snap id %q does not have a matching account assertion for the developer %q", resrev.SnapID(), resrev.DeveloperID())
 	}
-	if err != nil {
-		return err
-	}
-	a, err := db.Find(SnapDeclarationType, map[string]string{
+
+	a := mylog.Check2(db.Find(SnapDeclarationType, map[string]string{
 		"series":  release.Series,
 		"snap-id": resrev.SnapID(),
-	})
+	}))
 	if errors.Is(err, &NotFoundError{}) {
 		return fmt.Errorf("snap-resource-revision assertion for snap id %q does not have a matching snap-declaration assertion", resrev.SnapID())
 	}
-	if err != nil {
-		return err
-	}
+
 	if otherProvenance {
 		decl := a.(*SnapDeclaration)
 		ras := decl.RevisionAuthority(resrev.Provenance())
@@ -116,7 +113,7 @@ func (resrev *SnapResourceRevision) checkConsistency(db RODatabase, acck *Accoun
 			// model==store==nil, we do not perform device-specific
 			// checks at this level, those are performed at
 			// higher-level guarding installing actual components
-			if err := ra.CheckResourceRevision(resrev, nil, nil); err == nil {
+			if mylog.Check(ra.CheckResourceRevision(resrev, nil, nil)); err == nil {
 				matchingRevAuthority = true
 				break
 			}
@@ -140,51 +137,29 @@ func (resrev *SnapResourceRevision) Prerequisites() []*Ref {
 }
 
 func checkResourceName(headers map[string]interface{}) error {
-	resName, err := checkNotEmptyString(headers, "resource-name")
-	if err != nil {
-		return err
-	}
-	// same format as snap names
-	if err := naming.ValidateSnap(resName); err != nil {
-		return fmt.Errorf("invalid resource name %q", resName)
-	}
+	resName := mylog.Check2(checkNotEmptyString(headers, "resource-name"))
+	mylog.Check(
+
+		// same format as snap names
+		naming.ValidateSnap(resName))
+
 	return nil
 }
 
 func assembleSnapResourceRevision(assert assertionBase) (Assertion, error) {
-	if err := checkResourceName(assert.headers); err != nil {
-		return nil, err
-	}
+	mylog.Check(checkResourceName(assert.headers))
 
-	_, err := checkDigest(assert.headers, "resource-sha3-384", crypto.SHA3_384)
-	if err != nil {
-		return nil, err
-	}
+	_ := mylog.Check2(checkDigest(assert.headers, "resource-sha3-384", crypto.SHA3_384))
 
-	_, err = checkStringMatches(assert.headers, "provenance", naming.ValidProvenance)
-	if err != nil {
-		return nil, err
-	}
+	_ = mylog.Check2(checkStringMatches(assert.headers, "provenance", naming.ValidProvenance))
 
-	resourceSize, err := checkUint(assert.headers, "resource-size", 64)
-	if err != nil {
-		return nil, err
-	}
+	resourceSize := mylog.Check2(checkUint(assert.headers, "resource-size", 64))
 
-	resourceRevision, err := checkSnapRevisionWhat(assert.headers, "resource-revision", "header")
-	if err != nil {
-		return nil, err
-	}
+	resourceRevision := mylog.Check2(checkSnapRevisionWhat(assert.headers, "resource-revision", "header"))
 
-	_, err = checkNotEmptyString(assert.headers, "developer-id")
-	if err != nil {
-		return nil, err
-	}
+	_ = mylog.Check2(checkNotEmptyString(assert.headers, "developer-id"))
 
-	timestamp, err := checkRFC3339Date(assert.headers, "timestamp")
-	if err != nil {
-		return nil, err
-	}
+	timestamp := mylog.Check2(checkRFC3339Date(assert.headers, "timestamp"))
 
 	// TODO: implement integrity stanza when format is stabilized again
 
@@ -250,25 +225,21 @@ func (respair *SnapResourcePair) checkConsistency(db RODatabase, acck *AccountKe
 		// delegating global-upload revisions is not allowed
 		return fmt.Errorf("snap-resource-pair assertion for snap id %q is not signed by a store: %s", respair.SnapID(), respair.AuthorityID())
 	}
-	_, err := db.Find(AccountType, map[string]string{
+	_ := mylog.Check2(db.Find(AccountType, map[string]string{
 		"account-id": respair.DeveloperID(),
-	})
+	}))
 	if errors.Is(err, &NotFoundError{}) {
 		return fmt.Errorf("snap-resource-pair assertion for snap id %q does not have a matching account assertion for the developer %q", respair.SnapID(), respair.DeveloperID())
 	}
-	if err != nil {
-		return err
-	}
-	a, err := db.Find(SnapDeclarationType, map[string]string{
+
+	a := mylog.Check2(db.Find(SnapDeclarationType, map[string]string{
 		"series":  release.Series,
 		"snap-id": respair.SnapID(),
-	})
+	}))
 	if errors.Is(err, &NotFoundError{}) {
 		return fmt.Errorf("snap-resource-pair assertion for snap id %q does not have a matching snap-declaration assertion", respair.SnapID())
 	}
-	if err != nil {
-		return err
-	}
+
 	if otherProvenance {
 		decl := a.(*SnapDeclaration)
 		ras := decl.RevisionAuthority(respair.Provenance())
@@ -278,7 +249,7 @@ func (respair *SnapResourcePair) checkConsistency(db RODatabase, acck *AccountKe
 			// model==store==nil, we do not perform device-specific
 			// checks at this level, those are performed at
 			// higher-level guarding installing actual components
-			if err := ra.checkProvenanceAndRevision(respair, "snap", respair.SnapRevision(), nil, nil); err == nil {
+			if mylog.Check(ra.checkProvenanceAndRevision(respair, "snap", respair.SnapRevision(), nil, nil)); err == nil {
 				matchingRevAuthority = true
 				break
 			}
@@ -301,34 +272,17 @@ func (respair *SnapResourcePair) Prerequisites() []*Ref {
 }
 
 func assembleSnapResourcePair(assert assertionBase) (Assertion, error) {
-	if err := checkResourceName(assert.headers); err != nil {
-		return nil, err
-	}
+	mylog.Check(checkResourceName(assert.headers))
 
-	_, err := checkStringMatches(assert.headers, "provenance", naming.ValidProvenance)
-	if err != nil {
-		return nil, err
-	}
+	_ := mylog.Check2(checkStringMatches(assert.headers, "provenance", naming.ValidProvenance))
 
-	resourceRevision, err := checkSnapRevisionWhat(assert.headers, "resource-revision", "header")
-	if err != nil {
-		return nil, err
-	}
+	resourceRevision := mylog.Check2(checkSnapRevisionWhat(assert.headers, "resource-revision", "header"))
 
-	snapRevision, err := checkSnapRevisionWhat(assert.headers, "snap-revision", "header")
-	if err != nil {
-		return nil, err
-	}
+	snapRevision := mylog.Check2(checkSnapRevisionWhat(assert.headers, "snap-revision", "header"))
 
-	_, err = checkNotEmptyString(assert.headers, "developer-id")
-	if err != nil {
-		return nil, err
-	}
+	_ = mylog.Check2(checkNotEmptyString(assert.headers, "developer-id"))
 
-	timestamp, err := checkRFC3339Date(assert.headers, "timestamp")
-	if err != nil {
-		return nil, err
-	}
+	timestamp := mylog.Check2(checkRFC3339Date(assert.headers, "timestamp"))
 
 	return &SnapResourcePair{
 		assertionBase:    assert,

@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -55,10 +56,8 @@ func (g *Env) Set(key, value string) {
 }
 
 func (g *Env) Load() error {
-	buf, err := os.ReadFile(g.path)
-	if err != nil {
-		return err
-	}
+	buf := mylog.Check2(os.ReadFile(g.path))
+
 	if len(buf) != 1024 {
 		return fmt.Errorf("grubenv %q must be exactly 1024 byte, got %d", g.path, len(buf))
 	}
@@ -87,9 +86,7 @@ func (g *Env) Save() error {
 
 	fmt.Fprintf(w, "# GRUB Environment Block\n")
 	for _, k := range g.ordering {
-		if _, err := fmt.Fprintf(w, "%s=%s\n", k, g.env[k]); err != nil {
-			return err
-		}
+		mylog.Check2(fmt.Fprintf(w, "%s=%s\n", k, g.env[k]))
 	}
 	if w.Len() > 1024 {
 		return fmt.Errorf("cannot write grubenv %q: bigger than 1024 bytes (%d)", g.path, w.Len())
@@ -101,16 +98,9 @@ func (g *Env) Save() error {
 
 	// write in place to avoid the file moving on disk
 	// (thats what grubenv is also doing)
-	f, err := os.Create(g.path)
-	if err != nil {
-		return err
-	}
-	if _, err := f.Write(content); err != nil {
-		return err
-	}
-	if err := f.Sync(); err != nil {
-		return err
-	}
+	f := mylog.Check2(os.Create(g.path))
+	mylog.Check2(f.Write(content))
+	mylog.Check(f.Sync())
 
 	return f.Close()
 }

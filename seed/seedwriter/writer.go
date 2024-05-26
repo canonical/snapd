@@ -26,6 +26,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/osutil"
@@ -284,9 +285,8 @@ func New(model *asserts.Model, opts *Options) (*Writer, error) {
 		if opts.Label == "" {
 			return nil, fmt.Errorf("internal error: cannot write UC20+ seed without Options.Label set")
 		}
-		if err := asserts.IsValidSystemLabel(opts.Label); err != nil {
-			return nil, err
-		}
+		mylog.Check(asserts.IsValidSystemLabel(opts.Label))
+
 		pol = &policy20{model: model, opts: opts, warningf: w.warningf}
 		treeImpl = &tree20{grade: model.Grade(), opts: opts}
 	} else {
@@ -295,13 +295,9 @@ func New(model *asserts.Model, opts *Options) (*Writer, error) {
 	}
 
 	if opts.DefaultChannel != "" {
-		deflCh, err := channel.ParseVerbatim(opts.DefaultChannel, "_")
-		if err != nil {
-			return nil, fmt.Errorf("cannot use global default option channel: %v", err)
-		}
-		if err := pol.checkDefaultChannel(deflCh); err != nil {
-			return nil, err
-		}
+		deflCh := mylog.Check2(channel.ParseVerbatim(opts.DefaultChannel, "_"))
+		mylog.Check(pol.checkDefaultChannel(deflCh))
+
 	}
 
 	w.tree = treeImpl
@@ -382,9 +378,7 @@ func (w *Writer) warningf(format string, a ...interface{}) {
 
 // SetOptionsSnaps accepts options-referred snaps represented as OptionsSnap.
 func (w *Writer) SetOptionsSnaps(optSnaps []*OptionsSnap) error {
-	if err := w.checkStep(setOptionsSnapsStep); err != nil {
-		return err
-	}
+	mylog.Check(w.checkStep(setOptionsSnapsStep))
 
 	if len(optSnaps) == 0 {
 		return nil
@@ -403,9 +397,7 @@ func (w *Writer) SetOptionsSnaps(optSnaps []*OptionsSnap) error {
 				// be specific about this error
 				return fmt.Errorf("cannot use snap %q, parallel snap instances are unsupported", snapName)
 			}
-			if err := naming.ValidateSnap(snapName); err != nil {
-				return err
-			}
+			mylog.Check(naming.ValidateSnap(snapName))
 
 			if w.byNameOptSnaps.Contains(sn) {
 				return fmt.Errorf("snap %q is repeated in options", snapName)
@@ -423,13 +415,9 @@ func (w *Writer) SetOptionsSnaps(optSnaps []*OptionsSnap) error {
 			local = true
 		}
 		if sn.Channel != "" {
-			ch, err := channel.ParseVerbatim(sn.Channel, "_")
-			if err != nil {
-				return fmt.Errorf("cannot use option channel for snap %q: %v", whichSnap, err)
-			}
-			if err := w.policy.checkSnapChannel(ch, whichSnap); err != nil {
-				return err
-			}
+			ch := mylog.Check2(channel.ParseVerbatim(sn.Channel, "_"))
+			mylog.Check(w.policy.checkSnapChannel(ch, whichSnap))
+
 		}
 		if local {
 			if w.localSnaps == nil {
@@ -509,13 +497,9 @@ func (w *Writer) finalValidationSetAtSequence(vsm *asserts.ModelValidationSet) (
 
 func (w *Writer) fetchValidationSets(f SeedAssertionFetcher) error {
 	for _, vs := range w.model.ValidationSets() {
-		atSeq, err := w.finalValidationSetAtSequence(vs)
-		if err != nil {
-			return err
-		}
-		if err := f.FetchSequence(atSeq); err != nil {
-			return err
-		}
+		atSeq := mylog.Check2(w.finalValidationSetAtSequence(vs))
+		mylog.Check(f.FetchSequence(atSeq))
+
 	}
 	return nil
 }
@@ -527,9 +511,8 @@ func (w *Writer) fetchValidationSets(f SeedAssertionFetcher) error {
 // (writing assertions database). When the system seed directory is already present,
 // SystemAlreadyExistsError is returned.
 func (w *Writer) Start(db asserts.RODatabase, f SeedAssertionFetcher) error {
-	if err := w.checkStep(startStep); err != nil {
-		return err
-	}
+	mylog.Check(w.checkStep(startStep))
+
 	if db == nil {
 		return fmt.Errorf("internal error: Writer *asserts.RODatabase is nil")
 	}
@@ -537,38 +520,22 @@ func (w *Writer) Start(db asserts.RODatabase, f SeedAssertionFetcher) error {
 		return fmt.Errorf("internal error: Writer fetcher is nil")
 	}
 	w.db = db
+	mylog.Check(f.Save(w.model))
 
-	if err := f.Save(w.model); err != nil {
-		const msg = "cannot fetch and check prerequisites for the model assertion: %v"
-		if !w.opts.TestSkipCopyUnverifiedModel {
-			return fmt.Errorf(msg, err)
-		}
-		// Some naive tests including ubuntu-image ones use
-		// unverified models
-		w.warningf(msg, err)
-		f.ResetRefs()
-	}
+	// Some naive tests including ubuntu-image ones use
+	// unverified models
 
 	// fetch device store assertion (and prereqs) if available
 	if w.model.Store() != "" {
-		err := snapasserts.FetchStore(f, w.model.Store())
-		if err != nil {
-			if nfe, ok := err.(*asserts.NotFoundError); !ok || nfe.Type != asserts.StoreType {
-				return err
-			}
-		}
+		mylog.Check(snapasserts.FetchStore(f, w.model.Store()))
 	}
+	mylog.Check(
 
-	// fetch model validation sets if any
-	if err := w.fetchValidationSets(f); err != nil {
-		return err
-	}
+		// fetch model validation sets if any
+		w.fetchValidationSets(f))
 
 	w.modelRefs = f.Refs()
-
-	if err := w.tree.mkFixedDirs(); err != nil {
-		return err
-	}
+	mylog.Check(w.tree.mkFixedDirs())
 
 	return nil
 }
@@ -580,9 +547,7 @@ func (w *Writer) Start(db asserts.RODatabase, f SeedAssertionFetcher) error {
 // available through the AssertsFetchFunc passed to Downloaded later, the
 // assumption is also that they are added to the writing assertion database.
 func (w *Writer) LocalSnaps() ([]*SeedSnap, error) {
-	if err := w.checkStep(localSnapsStep); err != nil {
-		return nil, err
-	}
+	mylog.Check(w.checkStep(localSnapsStep))
 
 	if len(w.localSnaps) == 0 {
 		return nil, nil
@@ -600,9 +565,7 @@ func (w *Writer) LocalSnaps() ([]*SeedSnap, error) {
 // InfoDerived checks the local snaps metadata provided via setting it
 // into the SeedSnaps returned by the previous LocalSnaps.
 func (w *Writer) InfoDerived() error {
-	if err := w.checkStep(infoDerivedStep); err != nil {
-		return err
-	}
+	mylog.Check(w.checkStep(infoDerivedStep))
 
 	// loop this way to process for consistency in the same order
 	// as LocalSnaps result
@@ -616,11 +579,10 @@ func (w *Writer) InfoDerived() error {
 		}
 
 		if sn.Info.ID() == "" {
-			// this check is here in case we relax the checks in
-			// SetOptionsSnaps
-			if err := w.policy.allowsDangerousFeatures(); err != nil {
-				return err
-			}
+			mylog.Check(
+				// this check is here in case we relax the checks in
+				// SetOptionsSnaps
+				w.policy.allowsDangerousFeatures())
 		}
 
 		// local snap gets local revision
@@ -657,9 +619,7 @@ func (w *Writer) InfoDerived() error {
 // destination Path.
 func (w *Writer) SetInfo(sn *SeedSnap, info *snap.Info) error {
 	if info.NeedsDevMode() {
-		if err := w.policy.allowsDangerousFeatures(); err != nil {
-			return err
-		}
+		mylog.Check(w.policy.allowsDangerousFeatures())
 	}
 	sn.Info = info
 
@@ -669,10 +629,8 @@ func (w *Writer) SetInfo(sn *SeedSnap, info *snap.Info) error {
 		return nil
 	}
 
-	p, err := w.tree.snapPath(sn)
-	if err != nil {
-		return err
-	}
+	p := mylog.Check2(w.tree.snapPath(sn))
+
 	sn.Path = p
 	return nil
 }
@@ -690,13 +648,10 @@ func (w *Writer) SetRedirectChannel(sn *SeedSnap, redirectChannel string) error 
 		// nothing to do
 		return nil
 	}
-	_, err := channel.ParseVerbatim(redirectChannel, "-")
-	if err != nil {
-		return fmt.Errorf("invalid redirect channel for snap %q: %v", sn.SnapName(), err)
-	}
+	_ := mylog.Check2(channel.ParseVerbatim(redirectChannel, "-"))
+
 	sn.Channel = redirectChannel
 	return nil
-
 }
 
 // Manifest returns the manifest for the current seed.
@@ -737,10 +692,8 @@ func (w *Writer) modelSnapToSeed(modSnap *asserts.ModelSnap) (*SeedSnap, error) 
 		optSnap = sn.optionSnap
 	}
 
-	channel, err := w.resolveChannel(modSnap.SnapName(), modSnap, optSnap)
-	if err != nil {
-		return nil, err
-	}
+	channel := mylog.Check2(w.resolveChannel(modSnap.SnapName(), modSnap, optSnap))
+
 	sn.modelSnap = modSnap
 	sn.Channel = channel
 	return sn, nil
@@ -754,13 +707,11 @@ func (w *Writer) modelSnapsToDownload(modSnaps []*asserts.ModelSnap) (toDownload
 
 	alreadyConsidered := len(w.snapsFromModel)
 	for _, modSnap := range modSnaps {
-		sn, err := w.modelSnapToSeed(modSnap)
+		sn := mylog.Check2(w.modelSnapToSeed(modSnap))
 		if err == errSkipOptional {
 			continue
 		}
-		if err != nil {
-			return nil, err
-		}
+
 		if !sn.local {
 			toDownload = append(toDownload, sn)
 		}
@@ -837,10 +788,8 @@ func (w *Writer) extraSnapToSeed(optSnap *OptionsSnap) (*SeedSnap, error) {
 		return nil, fmt.Errorf("internal error: option extra snap has no associated name: %#v %#v", optSnap, sn)
 	}
 
-	channel, err := w.resolveChannel(sn.SnapName(), nil, optSnap)
-	if err != nil {
-		return nil, err
-	}
+	channel := mylog.Check2(w.resolveChannel(sn.SnapName(), nil, optSnap))
+
 	sn.Channel = channel
 	return sn, nil
 }
@@ -853,10 +802,8 @@ func (w *Writer) extraSnapsToDownload(extraSnaps []*OptionsSnap) (toDownload []*
 
 	alreadyConsidered := len(w.extraSnaps)
 	for _, optSnap := range extraSnaps {
-		sn, err := w.extraSnapToSeed(optSnap)
-		if err != nil {
-			return nil, err
-		}
+		sn := mylog.Check2(w.extraSnapToSeed(optSnap))
+
 		if !sn.local {
 			toDownload = append(toDownload, sn)
 		}
@@ -871,29 +818,21 @@ func (w *Writer) extraSnapsToDownload(extraSnaps []*OptionsSnap) (toDownload []*
 // is done and their SeedSnaps Info field is set with SetInfo fields
 // Downloaded should be called next.
 func (w *Writer) SnapsToDownload() (snaps []*SeedSnap, err error) {
-	if err := w.checkStep(snapsToDownloadStep); err != nil {
-		return nil, err
-	}
+	mylog.Check(w.checkStep(snapsToDownloadStep))
 
 	switch w.toDownload {
 	case toDownloadModel:
-		modSnaps, err := w.modSnaps()
-		if err != nil {
-			return nil, err
-		}
+		modSnaps := mylog.Check2(w.modSnaps())
 
 		w.recordUsageWithThePolicy(modSnaps)
 
-		toDownload, err := w.modelSnapsToDownload(modSnaps)
-		if err != nil {
-			return nil, err
-		}
+		toDownload := mylog.Check2(w.modelSnapsToDownload(modSnaps))
+
 		if w.extraSnapsGuessNum > 0 {
-			// this check is here in case we relax the checks in
-			// SetOptionsSnaps
-			if err := w.policy.allowsDangerousFeatures(); err != nil {
-				return nil, err
-			}
+			mylog.Check(
+				// this check is here in case we relax the checks in
+				// SetOptionsSnaps
+				w.policy.allowsDangerousFeatures())
 		}
 		return toDownload, nil
 	case toDownloadImplicit:
@@ -917,15 +856,14 @@ func (w *Writer) resolveChannel(whichSnap string, modSnap *asserts.ModelSnap, op
 	}
 
 	if modSnap != nil && modSnap.PinnedTrack != "" {
-		resChannel, err := channel.ResolvePinned(modSnap.PinnedTrack, optChannel)
+		resChannel := mylog.Check2(channel.ResolvePinned(modSnap.PinnedTrack, optChannel))
 		if err == channel.ErrPinnedTrackSwitch {
 			return "", fmt.Errorf("option channel %q for %s has a track incompatible with the pinned track from model assertion: %s", optChannel, whichModelSnap(modSnap, w.model), modSnap.PinnedTrack)
 		}
-		if err != nil {
-			// shouldn't happen given that we check that
-			// the inputs parse before
-			return "", fmt.Errorf("internal error: cannot resolve pinned track %q and option channel %q for snap %q", modSnap.PinnedTrack, optChannel, whichSnap)
-		}
+
+		// shouldn't happen given that we check that
+		// the inputs parse before
+
 		return resChannel, nil
 	}
 
@@ -939,12 +877,11 @@ func (w *Writer) resolveChannel(whichSnap string, modSnap *asserts.ModelSnap, op
 		defaultChannel = w.policy.extraSnapDefaultChannel()
 	}
 
-	resChannel, err := channel.Resolve(defaultChannel, optChannel)
-	if err != nil {
-		// shouldn't happen given that we check that
-		// the inputs parse before
-		return "", fmt.Errorf("internal error: cannot resolve model default channel %q and option channel %q for snap %q", defaultChannel, optChannel, whichSnap)
-	}
+	resChannel := mylog.Check2(channel.Resolve(defaultChannel, optChannel))
+
+	// shouldn't happen given that we check that
+	// the inputs parse before
+
 	return resChannel, nil
 }
 
@@ -1030,9 +967,8 @@ func (w *Writer) ensureARefs(upToSnap *SeedSnap, fetchAsserts AssertsFetchFunc) 
 				j -= n
 			}
 			sn := snaps[j]
-			if err := f(sn); err != nil {
-				return -1, err
-			}
+			mylog.Check(f(sn))
+
 			indexAfter++
 			if sn == upToSnap {
 				break
@@ -1064,23 +1000,19 @@ func (w *Writer) ensureARefs(upToSnap *SeedSnap, fetchAsserts AssertsFetchFunc) 
 		}
 	}
 
-	indexAfter, err := applyFromUpTo(w.consideredForAssertionsIndex, func(sn *SeedSnap) error {
+	indexAfter := mylog.Check2(applyFromUpTo(w.consideredForAssertionsIndex, func(sn *SeedSnap) error {
 		if sn.Info.ID() == "" {
 			return nil
 		}
-		aRefs, err := fetchAsserts(sn, w.systemSnap, w.kernelSnap)
-		if err != nil {
-			return err
-		}
+		aRefs := mylog.Check2(fetchAsserts(sn, w.systemSnap, w.kernelSnap))
+
 		if aRefs == nil {
 			return fmt.Errorf("internal error: fetching assertions for snap %q returned empty", sn.SnapName())
 		}
 		sn.aRefs = aRefs
 		return w.checkPublisher(sn)
-	})
-	if err != nil {
-		return err
-	}
+	}))
+
 	w.consideredForAssertionsIndex = indexAfter
 	return nil
 }
@@ -1119,15 +1051,10 @@ func (w *Writer) downloaded(seedSnaps []*SeedSnap, fetchAsserts AssertsFetchFunc
 				return fmt.Errorf("internal error: before seedwriter.Writer.Downloaded snap %q snap-id should have been set", sn.SnapName())
 			}
 		}
-
-		if err := checkType(sn, w.model); err != nil {
-			return err
-		}
+		mylog.Check(checkType(sn, w.model))
 
 		if info.ID() != "" {
-			if err := w.ensureARefs(sn, fetchAsserts); err != nil {
-				return err
-			}
+			mylog.Check(w.ensureARefs(sn, fetchAsserts))
 		}
 
 		// TODO: optionally check that model snap name and
@@ -1138,16 +1065,13 @@ func (w *Writer) downloaded(seedSnaps []*SeedSnap, fetchAsserts AssertsFetchFunc
 			if !w.model.Classic() {
 				return fmt.Errorf("cannot use classic snap %q in a core system", info.SnapName())
 			}
-			if err := w.policy.checkClassicSnap(sn); err != nil {
-				return err
-			}
+			mylog.Check(w.policy.checkClassicSnap(sn))
+
 		}
 
 		modes := sn.modes()
+		mylog.Check(w.checkBase(info, modes))
 
-		if err := w.checkBase(info, modes); err != nil {
-			return err
-		}
 	}
 
 	return nil
@@ -1160,9 +1084,7 @@ func (w *Writer) downloaded(seedSnaps []*SeedSnap, fetchAsserts AssertsFetchFunc
 // An AssertsFetchFunc must be provided for Downloaded to request to fetch snap
 // assertions as appropriate.
 func (w *Writer) Downloaded(fetchAsserts AssertsFetchFunc) (complete bool, err error) {
-	if err := w.checkStep(downloadedStep); err != nil {
-		return false, err
-	}
+	mylog.Check(w.checkStep(downloadedStep))
 
 	var considered []*SeedSnap
 	switch w.toDownload {
@@ -1179,17 +1101,12 @@ func (w *Writer) Downloaded(fetchAsserts AssertsFetchFunc) (complete bool, err e
 	}
 
 	considered = considered[len(considered)-w.toDownloadConsideredNum:]
-	err = w.downloaded(considered, fetchAsserts)
-	if err != nil {
-		return false, err
-	}
+	mylog.Check(w.downloaded(considered, fetchAsserts))
 
 	switch w.toDownload {
 	case toDownloadModel:
-		implicitNeeded, err := w.policy.needsImplicitSnaps(w.availableByMode)
-		if err != nil {
-			return false, err
-		}
+		implicitNeeded := mylog.Check2(w.policy.needsImplicitSnaps(w.availableByMode))
+
 		if implicitNeeded {
 			w.toDownload = toDownloadImplicit
 			w.expectedStep = snapsToDownloadStep
@@ -1203,10 +1120,8 @@ func (w *Writer) Downloaded(fetchAsserts AssertsFetchFunc) (complete bool, err e
 			return false, nil
 		}
 	case toDownloadExtra:
-		implicitNeeded, err := w.policy.needsImplicitSnaps(w.availableByMode)
-		if err != nil {
-			return false, err
-		}
+		implicitNeeded := mylog.Check2(w.policy.needsImplicitSnaps(w.availableByMode))
+
 		if implicitNeeded {
 			w.toDownload = toDownloadExtraImplicit
 			w.expectedStep = snapsToDownloadStep
@@ -1219,14 +1134,8 @@ func (w *Writer) Downloaded(fetchAsserts AssertsFetchFunc) (complete bool, err e
 	default:
 		panic(fmt.Sprintf("unknown to-download set: %d", w.toDownload))
 	}
-
-	if err := w.ensureARefs(nil, fetchAsserts); err != nil {
-		return false, err
-	}
-
-	if err := w.checkPrereqs(); err != nil {
-		return false, err
-	}
+	mylog.Check(w.ensureARefs(nil, fetchAsserts))
+	mylog.Check(w.checkPrereqs())
 
 	return true, nil
 }
@@ -1251,9 +1160,7 @@ func (w *Writer) checkPrereqs() error {
 	}
 	sort.Strings(modes[fixed:])
 	for _, m := range modes {
-		if err := w.checkPrereqsInMode(m); err != nil {
-			return err
-		}
+		mylog.Check(w.checkPrereqsInMode(m))
 	}
 	return nil
 }
@@ -1314,10 +1221,8 @@ func (w *Writer) checkPublisher(sn *SeedSnap) error {
 		return nil
 	}
 	// TODO: share helpers with devicestate if the policy becomes much more complicated
-	snapDecl, err := w.snapDecl(sn)
-	if err != nil {
-		return err
-	}
+	snapDecl := mylog.Check2(w.snapDecl(sn))
+
 	publisher := snapDecl.PublisherID()
 	if publisher != w.model.BrandID() && publisher != "canonical" {
 		return fmt.Errorf("cannot use %s %q published by %q for model by %q", kind, info.SnapName(), publisher, w.model.BrandID())
@@ -1328,10 +1233,8 @@ func (w *Writer) checkPublisher(sn *SeedSnap) error {
 func (w *Writer) snapDecl(sn *SeedSnap) (*asserts.SnapDeclaration, error) {
 	for _, ref := range sn.aRefs {
 		if ref.Type == asserts.SnapDeclarationType {
-			a, err := ref.Resolve(w.db.Find)
-			if err != nil {
-				return nil, fmt.Errorf("internal error: lost saved assertion")
-			}
+			a := mylog.Check2(ref.Resolve(w.db.Find))
+
 			return a.(*asserts.SnapDeclaration), nil
 		}
 	}
@@ -1346,10 +1249,8 @@ func (w *Writer) Warnings() []string {
 
 func (w *Writer) resolveValidationSetAssertion(seq *asserts.AtSequence) (asserts.Assertion, error) {
 	if seq.Sequence <= 0 {
-		hdrs, err := asserts.HeadersFromSequenceKey(seq.Type, seq.SequenceKey)
-		if err != nil {
-			return nil, err
-		}
+		hdrs := mylog.Check2(asserts.HeadersFromSequenceKey(seq.Type, seq.SequenceKey))
+
 		return w.db.FindSequence(seq.Type, hdrs, -1, seq.Type.MaxSupportedFormat())
 	}
 	return seq.Resolve(w.db.Find)
@@ -1359,24 +1260,17 @@ func (w *Writer) validationSetAsserts() (map[*asserts.AtSequence]*asserts.Valida
 	vsAsserts := make(map[*asserts.AtSequence]*asserts.ValidationSet)
 	vss := w.model.ValidationSets()
 	for _, vs := range vss {
-		atSeq, err := w.finalValidationSetAtSequence(vs)
-		if err != nil {
-			return nil, fmt.Errorf("internal error: %v", err)
-		}
-		a, err := w.resolveValidationSetAssertion(atSeq)
-		if err != nil {
-			return nil, fmt.Errorf("internal error: cannot resolve validation-set: %v", err)
-		}
+		atSeq := mylog.Check2(w.finalValidationSetAtSequence(vs))
+
+		a := mylog.Check2(w.resolveValidationSetAssertion(atSeq))
+
 		vsAsserts[atSeq] = a.(*asserts.ValidationSet)
 	}
 	return vsAsserts, nil
 }
 
 func (w *Writer) validationSets() (*snapasserts.ValidationSets, error) {
-	vss, err := w.validationSetAsserts()
-	if err != nil {
-		return nil, err
-	}
+	vss := mylog.Check2(w.validationSetAsserts())
 
 	valsets := snapasserts.NewValidationSets()
 	for _, vs := range vss {
@@ -1418,16 +1312,12 @@ func (w *Writer) CheckValidationSets() error {
 		return fmt.Errorf("internal error: seedwriter.Writer cannot check validation-sets before Downloaded signaled complete")
 	}
 
-	valsets, err := w.validationSets()
-	if err != nil {
-		return err
-	}
+	valsets := mylog.Check2(w.validationSets())
+	mylog.Check(
 
-	// Check for validation set conflicts first, then we check all
-	// the seeded snaps against them
-	if err := valsets.Conflict(); err != nil {
-		return err
-	}
+		// Check for validation set conflicts first, then we check all
+		// the seeded snaps against them
+		valsets.Conflict())
 
 	// Make one aggregated list of snaps we are seeding, then check that
 	// against the validation sets
@@ -1437,18 +1327,14 @@ func (w *Writer) CheckValidationSets() error {
 
 // SeedSnaps checks seed snaps and copies local snaps into the seed using copySnap.
 func (w *Writer) SeedSnaps(copySnap func(name, src, dst string) error) error {
-	if err := w.checkStep(seedSnapsStep); err != nil {
-		return err
-	}
+	mylog.Check(w.checkStep(seedSnapsStep))
 
 	seedSnaps := func(snaps []*SeedSnap) error {
 		for _, sn := range snaps {
 			info := sn.Info
 			if !sn.local {
-				expectedPath, err := w.tree.snapPath(sn)
-				if err != nil {
-					return err
-				}
+				expectedPath := mylog.Check2(w.tree.snapPath(sn))
+
 				if sn.Path != expectedPath {
 					return fmt.Errorf("internal error: before seedwriter.Writer.SeedSnaps snap %q Path should have been set to %q", sn.SnapName(), expectedPath)
 				}
@@ -1464,71 +1350,49 @@ func (w *Writer) SeedSnaps(copySnap func(name, src, dst string) error) error {
 					// purely local
 					snapPath = w.tree.localSnapPath
 				}
-				dst, err := snapPath(sn)
-				if err != nil {
-					return err
-				}
-				if err := copySnap(info.SnapName(), sn.Path, dst); err != nil {
-					return err
-				}
+				dst := mylog.Check2(snapPath(sn))
+				mylog.Check(copySnap(info.SnapName(), sn.Path, dst))
+
 				// record final destination path
 				sn.Path = dst
 			}
 			if !info.Revision.Unset() {
-				if err := w.manifest.MarkSnapRevisionSeeded(sn.Info.SnapName(), sn.Info.Revision); err != nil {
-					return fmt.Errorf("cannot record snap for manifest: %s", err)
-				}
+				mylog.Check(w.manifest.MarkSnapRevisionSeeded(sn.Info.SnapName(), sn.Info.Revision))
 			}
 		}
 		return nil
 	}
-
-	if err := seedSnaps(w.snapsFromModel); err != nil {
-		return err
-	}
-	if err := seedSnaps(w.extraSnaps); err != nil {
-		return err
-	}
+	mylog.Check(seedSnaps(w.snapsFromModel))
+	mylog.Check(seedSnaps(w.extraSnaps))
 
 	return nil
 }
 
 func (w *Writer) markValidationSetsSeeded() error {
-	vsm, err := w.validationSetAsserts()
-	if err != nil {
-		return err
-	}
+	vsm := mylog.Check2(w.validationSetAsserts())
+
 	for seq, vs := range vsm {
-		if err := w.manifest.MarkValidationSetSeeded(vs, seq.Pinned); err != nil {
-			return err
-		}
+		mylog.Check(w.manifest.MarkValidationSetSeeded(vs, seq.Pinned))
 	}
 	return nil
 }
 
 // WriteMeta writes seed metadata and assertions into the seed.
 func (w *Writer) WriteMeta() error {
-	if err := w.checkStep(writeMetaStep); err != nil {
-		return err
-	}
+	mylog.Check(w.checkStep(writeMetaStep))
 
 	if w.opts.ManifestPath != "" {
-		// Mark validation sets seeded in the manifest if the options
-		// are set to produce a manifest.
-		if err := w.markValidationSetsSeeded(); err != nil {
-			return err
-		}
-		if err := w.manifest.Write(w.opts.ManifestPath); err != nil {
-			return err
-		}
+		mylog.Check(
+			// Mark validation sets seeded in the manifest if the options
+			// are set to produce a manifest.
+			w.markValidationSetsSeeded())
+		mylog.Check(w.manifest.Write(w.opts.ManifestPath))
+
 	}
 
 	snapsFromModel := w.snapsFromModel
 	extraSnaps := w.extraSnaps
-
-	if err := w.tree.writeAssertions(w.db, w.modelRefs, snapsFromModel, extraSnaps); err != nil {
-		return err
-	}
+	mylog.Check(w.tree.writeAssertions(w.db, w.modelRefs, snapsFromModel, extraSnaps))
 
 	return w.tree.writeMeta(snapsFromModel, extraSnaps)
 }
@@ -1547,9 +1411,8 @@ func (w *Writer) checkSnapsAccessor() error {
 // true. It returns an error for classic models as for those no snaps
 // participate in boot before user space.
 func (w *Writer) BootSnaps() ([]*SeedSnap, error) {
-	if err := w.checkSnapsAccessor(); err != nil {
-		return nil, err
-	}
+	mylog.Check(w.checkSnapsAccessor())
+
 	if w.model.Classic() {
 		return nil, fmt.Errorf("no snaps participating in boot on classic")
 	}
@@ -1558,7 +1421,6 @@ func (w *Writer) BootSnaps() ([]*SeedSnap, error) {
 		bootSnaps = append(bootSnaps, sn)
 		if sn.Info.Type() == snap.TypeGadget {
 			break
-
 		}
 	}
 	return bootSnaps, nil
@@ -1568,9 +1430,8 @@ func (w *Writer) BootSnaps() ([]*SeedSnap, error) {
 // It can be invoked only after Downloaded returns complete ==
 // true.
 func (w *Writer) UnassertedSnaps() ([]naming.SnapRef, error) {
-	if err := w.checkSnapsAccessor(); err != nil {
-		return nil, err
-	}
+	mylog.Check(w.checkSnapsAccessor())
+
 	var res []naming.SnapRef
 	for _, sn := range w.snapsFromModel {
 		if sn.Info.ID() != "" {

@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/bootloader/grubenv"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -64,9 +65,8 @@ func (g *grubenvTestSuite) TestSave(c *C) {
 	env.Set("key7", "value7")
 	// set "key1" again, ordering (position) does not change
 	env.Set("key1", "value1")
+	mylog.Check(env.Save())
 
-	err := env.Save()
-	c.Assert(err, IsNil)
 
 	c.Assert(g.envPath, testutil.FileEquals, `# GRUB Environment Block
 key1=value1
@@ -86,7 +86,6 @@ func (g *grubenvTestSuite) TestSaveOverflow(c *C) {
 	for i := 0; i < 101; i++ {
 		env.Set(fmt.Sprintf("key%d", i), "foo")
 	}
-
-	err := env.Save()
+	mylog.Check(env.Save())
 	c.Assert(err, ErrorMatches, `cannot write grubenv .*: bigger than 1024 bytes \(1026\)`)
 }

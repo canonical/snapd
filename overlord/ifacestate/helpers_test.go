@@ -28,6 +28,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
@@ -158,8 +159,8 @@ func (s *helpersSuite) TestGetConns(c *C) {
 	restore := ifacestate.MockSnapMapper(&caseMapper{})
 	defer restore()
 
-	conns, err := ifacestate.GetConns(s.st)
-	c.Assert(err, IsNil)
+	conns := mylog.Check2(ifacestate.GetConns(s.st))
+
 	for id, connState := range conns {
 		c.Assert(id, Equals, "APP:network CORE:network")
 		c.Assert(connState.Auto, Equals, true)
@@ -178,13 +179,14 @@ func (s *helpersSuite) TestSetConns(c *C) {
 	// This has upper-case data internally, see export_test.go
 	ifacestate.SetConns(s.st, ifacestate.UpperCaseConnState())
 	var conns map[string]interface{}
-	err := s.st.Get("conns", &conns)
-	c.Assert(err, IsNil)
+	mylog.Check(s.st.Get("conns", &conns))
+
 	c.Assert(conns, DeepEquals, map[string]interface{}{
 		"app:network core:network": map[string]interface{}{
 			"auto":      true,
 			"interface": "network",
-		}})
+		},
+	})
 }
 
 func (s *helpersSuite) TestHotplugTaskHelpers(c *C) {
@@ -192,11 +194,11 @@ func (s *helpersSuite) TestHotplugTaskHelpers(c *C) {
 	defer s.st.Unlock()
 
 	t := s.st.NewTask("foo", "")
-	_, _, err := ifacestate.GetHotplugAttrs(t)
+	_, _ := mylog.Check3(ifacestate.GetHotplugAttrs(t))
 	c.Assert(err, ErrorMatches, `internal error: cannot get interface name from hotplug task: no state entry for key "interface"`)
 
 	t.Set("interface", "x")
-	_, _, err = ifacestate.GetHotplugAttrs(t)
+	_, _ = mylog.Check3(ifacestate.GetHotplugAttrs(t))
 	c.Assert(err, ErrorMatches, `internal error: cannot get hotplug key from hotplug task: no state entry for key "hotplug-key"`)
 
 	ifacestate.SetHotplugAttrs(t, "iface", "key")
@@ -209,8 +211,8 @@ func (s *helpersSuite) TestHotplugTaskHelpers(c *C) {
 	c.Assert(t.Get("interface", &iface), IsNil)
 	c.Assert(iface, Equals, "iface")
 
-	iface, key, err = ifacestate.GetHotplugAttrs(t)
-	c.Assert(err, IsNil)
+	iface, key = mylog.Check3(ifacestate.GetHotplugAttrs(t))
+
 	c.Assert(key, DeepEquals, snap.HotplugKey("key"))
 	c.Assert(iface, Equals, "iface")
 }
@@ -219,8 +221,8 @@ func (s *helpersSuite) TestHotplugSlotInfo(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	slots, err := ifacestate.GetHotplugSlots(s.st)
-	c.Assert(err, IsNil)
+	slots := mylog.Check2(ifacestate.GetHotplugSlots(s.st))
+
 	c.Assert(slots, HasLen, 0)
 
 	defs := map[string]*ifacestate.HotplugSlotInfo{}
@@ -241,10 +243,11 @@ func (s *helpersSuite) TestHotplugSlotInfo(c *C) {
 			"static-attrs": map[string]interface{}{"attr": "value"},
 			"hotplug-key":  "key",
 			"hotplug-gone": false,
-		}})
+		},
+	})
 
-	slots, err = ifacestate.GetHotplugSlots(s.st)
-	c.Assert(err, IsNil)
+	slots = mylog.Check2(ifacestate.GetHotplugSlots(s.st))
+
 	c.Assert(slots, DeepEquals, defs)
 }
 
@@ -274,8 +277,8 @@ func (s *helpersSuite) TestFindConnsForHotplugKey(c *C) {
 		},
 	})
 
-	conns, err := ifacestate.GetConns(st)
-	c.Assert(err, IsNil)
+	conns := mylog.Check2(ifacestate.GetConns(st))
+
 
 	hotplugConns := ifacestate.FindConnsForHotplugKey(conns, "iface1", "key1")
 	c.Assert(hotplugConns, DeepEquals, []string{"snap1:plug1 core:slot1"})
@@ -339,8 +342,8 @@ func (s *helpersSuite) TestCheckIsSystemSnapPresentWithSnapd(c *C) {
 		InstanceKey: snapInfo.InstanceKey,
 	})
 
-	inf, err := ifacestate.SystemSnapInfo(s.st)
-	c.Assert(err, IsNil)
+	inf := mylog.Check2(ifacestate.SystemSnapInfo(s.st))
+
 	c.Assert(inf.InstanceName(), Equals, "snapd")
 
 	s.st.Unlock()
@@ -397,21 +400,22 @@ apps:
 	defer restore()
 	restore = ifacestate.MockWriteSystemKey(func() error { panic("should not attempt to write system key") })
 	defer restore()
-	// Put a fake system key in place, we just want to see that file being removed.
-	err := os.MkdirAll(filepath.Dir(dirs.SnapSystemKeyFile), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(dirs.SnapSystemKeyFile, []byte("system-key"), 0755)
-	c.Assert(err, IsNil)
+	mylog.
+		// Put a fake system key in place, we just want to see that file being removed.
+		Check(os.MkdirAll(filepath.Dir(dirs.SnapSystemKeyFile), 0755))
+
+	mylog.Check(os.WriteFile(dirs.SnapSystemKeyFile, []byte("system-key"), 0755))
+
 
 	// Put up a fake logger to capture logged messages.
 	log, restore := logger.MockLogger()
 	defer restore()
 
 	// Construct and start up the interface manager.
-	mgr, err := ifacestate.Manager(st, nil, ovld.TaskRunner(), nil, nil)
-	c.Assert(err, IsNil)
-	err = mgr.StartUp()
-	c.Assert(err, IsNil)
+	mgr := mylog.Check2(ifacestate.Manager(st, nil, ovld.TaskRunner(), nil, nil))
+
+	mylog.Check(mgr.StartUp())
+
 
 	// Check that system key is not on disk.
 	c.Check(log.String(), Matches, `.*cannot regenerate BROKEN profiles\n.*FAILED.*\n`)
@@ -477,10 +481,10 @@ func (s *helpersSuite) TestProfileRegenerationSetupMany(c *C) {
 	defer restore()
 
 	// Construct and start up the interface manager.
-	mgr, err := ifacestate.Manager(st, nil, ovld.TaskRunner(), nil, nil)
-	c.Assert(err, IsNil)
-	err = mgr.StartUp()
-	c.Assert(err, IsNil)
+	mgr := mylog.Check2(ifacestate.Manager(st, nil, ovld.TaskRunner(), nil, nil))
+
+	mylog.Check(mgr.StartUp())
+
 
 	c.Check(writeKey, Equals, true)
 	c.Check(setupManyCalls, Equals, 1)
@@ -525,10 +529,10 @@ func (s *helpersSuite) TestProfileRegenerationSetupManyFailsSystemKeyNotWritten(
 	defer restore()
 
 	// Construct and start up the interface manager.
-	mgr, err := ifacestate.Manager(st, nil, ovld.TaskRunner(), nil, nil)
-	c.Assert(err, IsNil)
-	err = mgr.StartUp()
-	c.Assert(err, IsNil)
+	mgr := mylog.Check2(ifacestate.Manager(st, nil, ovld.TaskRunner(), nil, nil))
+
+	mylog.Check(mgr.StartUp())
+
 
 	// Check that system key is not on disk.
 	c.Check(writeKey, Equals, false)
@@ -555,25 +559,25 @@ func (s *helpersSuite) TestGetHotplugChangeAttrs(c *C) {
 	defer s.st.Unlock()
 
 	chg := s.st.NewChange("none-set", "")
-	_, _, err := ifacestate.GetHotplugChangeAttrs(chg)
+	_, _ := mylog.Check3(ifacestate.GetHotplugChangeAttrs(chg))
 	c.Assert(err, ErrorMatches, `internal error: hotplug-key not set on change "none-set"`)
 
 	chg = s.st.NewChange("foo", "")
 	chg.Set("hotplug-seq", 1)
-	_, _, err = ifacestate.GetHotplugChangeAttrs(chg)
+	_, _ = mylog.Check3(ifacestate.GetHotplugChangeAttrs(chg))
 	c.Assert(err, ErrorMatches, `internal error: hotplug-key not set on change "foo"`)
 
 	chg = s.st.NewChange("bar", "")
 	chg.Set("hotplug-key", "2222")
-	_, _, err = ifacestate.GetHotplugChangeAttrs(chg)
+	_, _ = mylog.Check3(ifacestate.GetHotplugChangeAttrs(chg))
 	c.Assert(err, ErrorMatches, `internal error: hotplug-seq not set on change "bar"`)
 
 	chg = s.st.NewChange("baz", "")
 	chg.Set("hotplug-key", "1234")
 	chg.Set("hotplug-seq", 7)
 
-	seq, key, err := ifacestate.GetHotplugChangeAttrs(chg)
-	c.Assert(err, IsNil)
+	seq, key := mylog.Check3(ifacestate.GetHotplugChangeAttrs(chg))
+
 	c.Check(key, DeepEquals, snap.HotplugKey("1234"))
 	c.Check(seq, Equals, 7)
 }
@@ -602,12 +606,12 @@ func (s *helpersSuite) TestAllocHotplugSeq(c *C) {
 	// precondition
 	c.Assert(s.st.Get("hotplug-seq", &stateSeq), testutil.ErrorIs, state.ErrNoState)
 
-	seq, err := ifacestate.AllocHotplugSeq(s.st)
-	c.Assert(err, IsNil)
+	seq := mylog.Check2(ifacestate.AllocHotplugSeq(s.st))
+
 	c.Assert(seq, Equals, 1)
 
-	seq, err = ifacestate.AllocHotplugSeq(s.st)
-	c.Assert(err, IsNil)
+	seq = mylog.Check2(ifacestate.AllocHotplugSeq(s.st))
+
 	c.Assert(seq, Equals, 2)
 
 	c.Assert(s.st.Get("hotplug-seq", &stateSeq), IsNil)
@@ -627,8 +631,8 @@ func (s *helpersSuite) TestAddHotplugSeqWaitTask(c *C) {
 	ifacestate.AddHotplugSeqWaitTask(chg, "1234", 1)
 	// hotplug change got an extra task
 	c.Assert(chg.Tasks(), HasLen, 3)
-	seq, key, err := ifacestate.GetHotplugChangeAttrs(chg)
-	c.Assert(err, IsNil)
+	seq, key := mylog.Check3(ifacestate.GetHotplugChangeAttrs(chg))
+
 	c.Check(seq, Equals, 1)
 	c.Check(key, DeepEquals, snap.HotplugKey("1234"))
 
@@ -663,8 +667,8 @@ func (s *helpersSuite) TestAddHotplugSlot(c *C) {
 	}
 	repo.AddInterface(iface)
 
-	stateSlots, err := ifacestate.GetHotplugSlots(s.st)
-	c.Assert(err, IsNil)
+	stateSlots := mylog.Check2(ifacestate.GetHotplugSlots(s.st))
+
 	c.Check(stateSlots, HasLen, 0)
 
 	si := &snap.SideInfo{Revision: snap.R(1)}
@@ -684,8 +688,8 @@ func (s *helpersSuite) TestAddHotplugSlot(c *C) {
 	// same slot cannot be re-added to repo
 	c.Assert(ifacestate.AddHotplugSlot(s.st, repo, stateSlots, iface, slot), ErrorMatches, `cannot add hotplug slot "slot" for interface test: snap "core" has slots conflicting on name "slot"`)
 
-	stateSlots, err = ifacestate.GetHotplugSlots(s.st)
-	c.Assert(err, IsNil)
+	stateSlots = mylog.Check2(ifacestate.GetHotplugSlots(s.st))
+
 	c.Assert(stateSlots, HasLen, 1)
 
 	stateSlot := stateSlots["slot"]
@@ -695,7 +699,8 @@ func (s *helpersSuite) TestAddHotplugSlot(c *C) {
 		Interface:   "test",
 		StaticAttrs: map[string]interface{}{"foo": "bar"},
 		HotplugKey:  "key",
-		HotplugGone: false})
+		HotplugGone: false,
+	})
 }
 
 func (s *helpersSuite) TestAddHotplugSlotValidationErrors(c *C) {
@@ -709,8 +714,8 @@ func (s *helpersSuite) TestAddHotplugSlotValidationErrors(c *C) {
 	}
 	repo.AddInterface(iface)
 
-	stateSlots, err := ifacestate.GetHotplugSlots(s.st)
-	c.Assert(err, IsNil)
+	stateSlots := mylog.Check2(ifacestate.GetHotplugSlots(s.st))
+
 	c.Check(stateSlots, HasLen, 0)
 
 	si := &snap.SideInfo{Revision: snap.R(1)}
@@ -754,16 +759,18 @@ func (s *helpersSuite) TestDiscardLateBackendViaSnapstate(c *C) {
 	ovld := overlord.Mock()
 	st := ovld.State()
 	// manager
-	mgr, err := ifacestate.Manager(st, nil, ovld.TaskRunner(), nil, nil)
-	c.Assert(err, IsNil)
-	// installs the ifacemgr helper
-	err = mgr.StartUp()
-	c.Assert(err, IsNil)
+	mgr := mylog.Check2(ifacestate.Manager(st, nil, ovld.TaskRunner(), nil, nil))
 
-	// call via the snapstate hook
-	err = snapstate.SecurityProfilesRemoveLate("snapd", snap.R(1234), snap.TypeSnapd)
-	c.Assert(err, IsNil)
-	err = snapstate.SecurityProfilesRemoveLate("this-fails", snap.R(12), snap.TypeApp)
+	mylog.
+		// installs the ifacemgr helper
+		Check(mgr.StartUp())
+
+	mylog.
+
+		// call via the snapstate hook
+		Check(snapstate.SecurityProfilesRemoveLate("snapd", snap.R(1234), snap.TypeSnapd))
+
+	mylog.Check(snapstate.SecurityProfilesRemoveLate("this-fails", snap.R(12), snap.TypeApp))
 	c.Assert(err, ErrorMatches, "remove late fails")
 	c.Check(backend.RemoveLateCalledFor, DeepEquals, [][]string{
 		{"snapd", "1234", "snapd"},
@@ -780,11 +787,11 @@ func (s *helpersSuite) TestHasActiveConnection(c *C) {
 		"consumer-2:home core:home":                       {"interface": "home"},
 	})
 
-	active, err := ifacestate.HasActiveConnection(s.st, "snap-refresh-observe")
-	c.Assert(err, IsNil)
+	active := mylog.Check2(ifacestate.HasActiveConnection(s.st, "snap-refresh-observe"))
+
 	c.Check(active, Equals, false)
 
-	active, err = ifacestate.HasActiveConnection(s.st, "browser-support")
-	c.Assert(err, IsNil)
+	active = mylog.Check2(ifacestate.HasActiveConnection(s.st, "browser-support"))
+
 	c.Check(active, Equals, true)
 }

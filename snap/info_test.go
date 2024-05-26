@@ -32,6 +32,7 @@ import (
 	. "gopkg.in/check.v1"
 	"gopkg.in/yaml.v2"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
@@ -47,8 +48,10 @@ type infoSuite struct {
 
 type infoSimpleSuite struct{}
 
-var _ = Suite(&infoSuite{})
-var _ = Suite(&infoSimpleSuite{})
+var (
+	_ = Suite(&infoSuite{})
+	_ = Suite(&infoSimpleSuite{})
+)
 
 func (s *infoSimpleSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
@@ -252,24 +255,24 @@ func (s *infoSuite) TestAppInfoSecurityTag(c *C) {
 }
 
 func (s *infoSuite) TestAppInfoWrapperPath(c *C) {
-	info, err := snap.InfoFromSnapYaml([]byte(`name: foo
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(`name: foo
 apps:
    foo:
    bar:
-`))
-	c.Assert(err, IsNil)
+`)))
+
 
 	c.Check(info.Apps["bar"].WrapperPath(), Equals, filepath.Join(dirs.SnapBinariesDir, "foo.bar"))
 	c.Check(info.Apps["foo"].WrapperPath(), Equals, filepath.Join(dirs.SnapBinariesDir, "foo"))
 }
 
 func (s *infoSuite) TestAppInfoCompleterPath(c *C) {
-	info, err := snap.InfoFromSnapYaml([]byte(`name: foo
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(`name: foo
 apps:
    foo:
    bar:
-`))
-	c.Assert(err, IsNil)
+`)))
+
 
 	c.Check(info.Apps["bar"].CompleterPath(), Equals, filepath.Join(dirs.CompletersDir, "foo.bar"))
 	c.Check(info.Apps["foo"].CompleterPath(), Equals, filepath.Join(dirs.CompletersDir, "foo"))
@@ -278,7 +281,7 @@ apps:
 func (s *infoSuite) TestAppInfoLauncherCommand(c *C) {
 	dirs.SetRootDir("")
 
-	info, err := snap.InfoFromSnapYaml([]byte(`name: foo
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(`name: foo
 apps:
    foo:
      command: foo-bin
@@ -287,8 +290,8 @@ apps:
    baz:
      command: bar-bin -x
      timer: 10:00-12:00,,mon,12:00~14:00
-`))
-	c.Assert(err, IsNil)
+`)))
+
 	info.Revision = snap.R(42)
 	c.Check(info.Apps["bar"].LauncherCommand(), Equals, "/usr/bin/snap run foo.bar")
 	c.Check(info.Apps["bar"].LauncherStopCommand(), Equals, "/usr/bin/snap run --command=stop foo.bar")
@@ -328,8 +331,8 @@ func (s *infoSuite) TestReadInfo(c *C) {
 
 	snapInfo1 := snaptest.MockSnap(c, sampleYaml, si)
 
-	snapInfo2, err := snap.ReadInfo("sample", si)
-	c.Assert(err, IsNil)
+	snapInfo2 := mylog.Check2(snap.ReadInfo("sample", si))
+
 
 	c.Check(snapInfo2.InstanceName(), Equals, "sample")
 	c.Check(snapInfo2.Revision, Equals, snap.R(42))
@@ -347,8 +350,8 @@ func (s *infoSuite) TestReadInfoWithInstance(c *C) {
 
 	snapInfo1 := snaptest.MockSnapInstance(c, "sample_instance", sampleYaml, si)
 
-	snapInfo2, err := snap.ReadInfo("sample_instance", si)
-	c.Assert(err, IsNil)
+	snapInfo2 := mylog.Check2(snap.ReadInfo("sample_instance", si))
+
 
 	c.Check(snapInfo2.InstanceName(), Equals, "sample_instance")
 	c.Check(snapInfo2.SnapName(), Equals, "sample")
@@ -367,14 +370,14 @@ func (s *infoSuite) TestReadCurrentInfo(c *C) {
 
 	snapInfo1 := snaptest.MockSnapCurrent(c, sampleYaml, si)
 
-	snapInfo2, err := snap.ReadCurrentInfo("sample")
-	c.Assert(err, IsNil)
+	snapInfo2 := mylog.Check2(snap.ReadCurrentInfo("sample"))
+
 
 	c.Check(snapInfo2.InstanceName(), Equals, "sample")
 	c.Check(snapInfo2.Revision, Equals, snap.R(42))
 	c.Check(snapInfo2, DeepEquals, snapInfo1)
 
-	snapInfo3, err := snap.ReadCurrentInfo("not-sample")
+	snapInfo3 := mylog.Check2(snap.ReadCurrentInfo("not-sample"))
 	c.Check(snapInfo3, IsNil)
 	c.Assert(err, ErrorMatches, `cannot find current revision for snap not-sample:.*`)
 	c.Assert(errors.As(err, &snap.NotFoundError{}), Equals, true)
@@ -385,15 +388,15 @@ func (s *infoSuite) TestReadCurrentInfoWithInstance(c *C) {
 
 	snapInfo1 := snaptest.MockSnapInstanceCurrent(c, "sample_instance", sampleYaml, si)
 
-	snapInfo2, err := snap.ReadCurrentInfo("sample_instance")
-	c.Assert(err, IsNil)
+	snapInfo2 := mylog.Check2(snap.ReadCurrentInfo("sample_instance"))
+
 
 	c.Check(snapInfo2.InstanceName(), Equals, "sample_instance")
 	c.Check(snapInfo2.SnapName(), Equals, "sample")
 	c.Check(snapInfo2.Revision, Equals, snap.R(42))
 	c.Check(snapInfo2, DeepEquals, snapInfo1)
 
-	snapInfo3, err := snap.ReadCurrentInfo("sample_other")
+	snapInfo3 := mylog.Check2(snap.ReadCurrentInfo("sample_other"))
 	c.Check(snapInfo3, IsNil)
 	c.Assert(err, ErrorMatches, `cannot find current revision for snap sample_other:.*`)
 	c.Assert(errors.As(err, &snap.NotFoundError{}), Equals, true)
@@ -411,8 +414,8 @@ func (s *infoSuite) TestInstallDate(c *C) {
 	c.Assert(os.MkdirAll(dir, 0755), IsNil)
 	cur := filepath.Join(dir, "current")
 	c.Assert(os.Symlink(rev, cur), IsNil)
-	st, err := os.Lstat(cur)
-	c.Assert(err, IsNil)
+	st := mylog.Check2(os.Lstat(cur))
+
 	instTime := st.ModTime()
 	// validity
 	c.Check(instTime.IsZero(), Equals, false)
@@ -423,7 +426,7 @@ func (s *infoSuite) TestInstallDate(c *C) {
 
 func (s *infoSuite) TestReadInfoNotFound(c *C) {
 	si := &snap.SideInfo{Revision: snap.R(42), EditedSummary: "esummary"}
-	info, err := snap.ReadInfo("sample", si)
+	info := mylog.Check2(snap.ReadInfo("sample", si))
 	c.Check(info, IsNil)
 	c.Check(err, ErrorMatches, `cannot find installed snap "sample" at revision 42: missing file .*sample/42/meta/snap.yaml`)
 	bse, ok := err.(snap.BrokenSnapError)
@@ -435,7 +438,7 @@ func (s *infoSuite) TestReadInfoUnreadable(c *C) {
 	si := &snap.SideInfo{Revision: snap.R(42), EditedSummary: "esummary"}
 	c.Assert(os.MkdirAll(filepath.Join(snap.MinimalPlaceInfo("sample", si.Revision).MountDir(), "meta", "snap.yaml"), 0755), IsNil)
 
-	info, err := snap.ReadInfo("sample", si)
+	info := mylog.Check2(snap.ReadInfo("sample", si))
 	c.Check(info, IsNil)
 	// TODO: maybe improve this error message
 	c.Check(err, ErrorMatches, ".* is a directory")
@@ -447,7 +450,7 @@ func (s *infoSuite) TestReadInfoUnparsable(c *C) {
 	c.Assert(os.MkdirAll(filepath.Dir(p), 0755), IsNil)
 	c.Assert(os.WriteFile(p, []byte(`- :`), 0644), IsNil)
 
-	info, err := snap.ReadInfo("sample", si)
+	info := mylog.Check2(snap.ReadInfo("sample", si))
 	c.Check(info, IsNil)
 	// TODO: maybe improve this error message
 	c.Check(err, ErrorMatches, `cannot use installed snap "sample" at revision 42: cannot parse snap.yaml: yaml: .*`)
@@ -462,7 +465,7 @@ func (s *infoSuite) TestReadInfoUnfindable(c *C) {
 	c.Assert(os.MkdirAll(filepath.Dir(p), 0755), IsNil)
 	c.Assert(os.WriteFile(p, []byte(``), 0644), IsNil)
 
-	info, err := snap.ReadInfo("sample", si)
+	info := mylog.Check2(snap.ReadInfo("sample", si))
 	c.Check(err, ErrorMatches, `cannot find installed snap "sample" at revision 42: missing file .*var/lib/snapd/snaps/sample_42.snap`)
 	c.Check(info, IsNil)
 }
@@ -476,7 +479,7 @@ func (s *infoSuite) TestReadInfoDanglingSymlink(c *C) {
 	c.Assert(os.MkdirAll(filepath.Dir(mpi.MountFile()), 0755), IsNil)
 	c.Assert(os.Symlink("/dangling", mpi.MountFile()), IsNil)
 
-	info, err := snap.ReadInfo("sample", si)
+	info := mylog.Check2(snap.ReadInfo("sample", si))
 	c.Check(err, IsNil)
 	c.Check(info.SnapName(), Equals, "test")
 	c.Check(info.Revision, Equals, snap.R(42))
@@ -493,18 +496,18 @@ func makeTestSnap(c *C, snapYaml string) string {
 
 	tmp := c.MkDir()
 	snapSource := filepath.Join(tmp, "snapsrc")
+	mylog.Check(os.MkdirAll(filepath.Join(snapSource, "meta"), 0755))
 
-	err := os.MkdirAll(filepath.Join(snapSource, "meta"), 0755)
-	c.Assert(err, IsNil)
+	mylog.
 
-	// our regular snap.yaml
-	err = os.WriteFile(filepath.Join(snapSource, "meta", "snap.yaml"), []byte(snapYaml), 0644)
-	c.Assert(err, IsNil)
+		// our regular snap.yaml
+		Check(os.WriteFile(filepath.Join(snapSource, "meta", "snap.yaml"), []byte(snapYaml), 0644))
+
 
 	dest := filepath.Join(tmp, "foo.snap")
 	snap := squashfs.New(dest)
-	err = snap.Build(snapSource, &squashfs.BuildOpts{SnapType: m.Type})
-	c.Assert(err, IsNil)
+	mylog.Check(snap.Build(snapSource, &squashfs.BuildOpts{SnapType: m.Type}))
+
 
 	return dest
 }
@@ -525,11 +528,11 @@ epoch: 1*
 confinement: devmode`
 	snapPath := snaptest.MakeTestSnapWithFiles(c, yaml, nil)
 
-	snapf, err := snapfile.Open(snapPath)
-	c.Assert(err, IsNil)
+	snapf := mylog.Check2(snapfile.Open(snapPath))
 
-	info, err := snap.ReadInfoFromSnapFile(snapf, nil)
-	c.Assert(err, IsNil)
+
+	info := mylog.Check2(snap.ReadInfoFromSnapFile(snapf, nil))
+
 	c.Check(info.InstanceName(), Equals, "foo")
 	c.Check(info.Version, Equals, "1.0")
 	c.Check(info.Type(), Equals, snap.TypeApp)
@@ -547,11 +550,11 @@ type: app
 confinement: classic`
 	snapPath := snaptest.MakeTestSnapWithFiles(c, yaml, nil)
 
-	snapf, err := snapfile.Open(snapPath)
-	c.Assert(err, IsNil)
+	snapf := mylog.Check2(snapfile.Open(snapPath))
 
-	info, err := snap.ReadInfoFromSnapFile(snapf, nil)
-	c.Assert(err, IsNil)
+
+	info := mylog.Check2(snap.ReadInfoFromSnapFile(snapf, nil))
+
 	c.Check(info.InstanceName(), Equals, "foo")
 	c.Check(info.Version, Equals, "1.0")
 	c.Check(info.Type(), Equals, snap.TypeApp)
@@ -567,11 +570,11 @@ version: 1.0
 type: app`
 	snapPath := snaptest.MakeTestSnapWithFiles(c, yaml, nil)
 
-	snapf, err := snapfile.Open(snapPath)
-	c.Assert(err, IsNil)
+	snapf := mylog.Check2(snapfile.Open(snapPath))
 
-	info, err := snap.ReadInfoFromSnapFile(snapf, nil)
-	c.Assert(err, IsNil)
+
+	info := mylog.Check2(snap.ReadInfoFromSnapFile(snapf, nil))
+
 	c.Check(info.InstanceName(), Equals, "foo")
 	c.Check(info.Version, Equals, "1.0")
 	c.Check(info.Type(), Equals, snap.TypeApp)
@@ -587,14 +590,14 @@ version: 1.0
 type: app`
 	snapPath := snaptest.MakeTestSnapWithFiles(c, yaml, nil)
 
-	snapf, err := snapfile.Open(snapPath)
-	c.Assert(err, IsNil)
+	snapf := mylog.Check2(snapfile.Open(snapPath))
 
-	info, err := snap.ReadInfoFromSnapFile(snapf, &snap.SideInfo{
+
+	info := mylog.Check2(snap.ReadInfoFromSnapFile(snapf, &snap.SideInfo{
 		RealName: "baz",
 		Revision: snap.R(42),
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(info.InstanceName(), Equals, "baz")
 	c.Check(info.Version, Equals, "1.0")
 	c.Check(info.Type(), Equals, snap.TypeApp)
@@ -607,10 +610,10 @@ version: 1.0
 type: app`
 	snapPath := makeTestSnap(c, yaml)
 
-	snapf, err := snapfile.Open(snapPath)
-	c.Assert(err, IsNil)
+	snapf := mylog.Check2(snapfile.Open(snapPath))
 
-	_, err = snap.ReadInfoFromSnapFile(snapf, nil)
+
+	_ = mylog.Check2(snap.ReadInfoFromSnapFile(snapf, nil))
 	c.Assert(err, ErrorMatches, `invalid snap name.*`)
 }
 
@@ -620,10 +623,10 @@ version: 1.0
 type: foo`
 	snapPath := makeTestSnap(c, yaml)
 
-	snapf, err := snapfile.Open(snapPath)
-	c.Assert(err, IsNil)
+	snapf := mylog.Check2(snapfile.Open(snapPath))
 
-	_, err = snap.ReadInfoFromSnapFile(snapf, nil)
+
+	_ = mylog.Check2(snap.ReadInfoFromSnapFile(snapf, nil))
 	c.Assert(err, ErrorMatches, ".*invalid snap type.*")
 }
 
@@ -633,10 +636,10 @@ version: 1.0
 confinement: foo`
 	snapPath := makeTestSnap(c, yaml)
 
-	snapf, err := snapfile.Open(snapPath)
-	c.Assert(err, IsNil)
+	snapf := mylog.Check2(snapfile.Open(snapPath))
 
-	_, err = snap.ReadInfoFromSnapFile(snapf, nil)
+
+	_ = mylog.Check2(snap.ReadInfoFromSnapFile(snapf, nil))
 	c.Assert(err, ErrorMatches, ".*invalid confinement type.*")
 }
 
@@ -650,10 +653,10 @@ type: app`
 	sideInfo := &snap.SideInfo{}
 	snapInfo := snaptest.MockSnapWithFiles(c, yaml, sideInfo, contents)
 
-	snapf, err := snapfile.Open(snapInfo.MountDir())
-	c.Assert(err, IsNil)
+	snapf := mylog.Check2(snapfile.Open(snapInfo.MountDir()))
 
-	_, err = snap.ReadInfoFromSnapFile(snapf, nil)
+
+	_ = mylog.Check2(snap.ReadInfoFromSnapFile(snapf, nil))
 	c.Assert(err, ErrorMatches, "cannot read snapshot manifest: yaml: unmarshal errors:\n.*")
 }
 
@@ -668,8 +671,8 @@ apps:
     environment:
       app-k: app-v
 `
-	info, err := snap.InfoFromSnapYaml([]byte(yaml))
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(yaml)))
+
 
 	c.Check(info.Apps["foo"].EnvChain(), DeepEquals, []osutil.ExpandableEnv{
 		osutil.NewExpandableEnv("global-k", "global-v"),
@@ -690,8 +693,8 @@ apps:
       app-k: app-v
       global-and-local: local-v
 `
-	info, err := snap.InfoFromSnapYaml([]byte(yaml))
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(yaml)))
+
 
 	c.Check(info.Apps["foo"].EnvChain(), DeepEquals, []osutil.ExpandableEnv{
 		osutil.NewExpandableEnv("global-k", "global-v", "global-and-local", "global-v"),
@@ -710,8 +713,8 @@ hooks:
     environment:
       app-k: app-v
 `
-	info, err := snap.InfoFromSnapYaml([]byte(yaml))
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(yaml)))
+
 
 	c.Check(info.Hooks["foo"].EnvChain(), DeepEquals, []osutil.ExpandableEnv{
 		osutil.NewExpandableEnv("global-k", "global-v"),
@@ -732,8 +735,8 @@ hooks:
       app-k: app-v
       global-and-local: local-v
 `
-	info, err := snap.InfoFromSnapYaml([]byte(yaml))
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(yaml)))
+
 
 	c.Check(info.Hooks["foo"].EnvChain(), DeepEquals, []osutil.ExpandableEnv{
 		osutil.NewExpandableEnv("global-k", "global-v", "global-and-local", "global-v"),
@@ -798,10 +801,10 @@ hooks:
   123abc:`
 	snapPath := makeTestSnap(c, yaml)
 
-	snapf, err := snapfile.Open(snapPath)
-	c.Assert(err, IsNil)
+	snapf := mylog.Check2(snapfile.Open(snapPath))
 
-	_, err = snap.ReadInfoFromSnapFile(snapf, nil)
+
+	_ = mylog.Check2(snap.ReadInfoFromSnapFile(snapf, nil))
 	c.Assert(err, ErrorMatches, ".*invalid hook name.*")
 }
 
@@ -814,10 +817,10 @@ version: 1.0`
 	}
 	sideInfo := &snap.SideInfo{}
 	snapInfo := snaptest.MockSnapWithFiles(c, yaml, sideInfo, contents)
-	snapf, err := snapfile.Open(snapInfo.MountDir())
-	c.Assert(err, IsNil)
+	snapf := mylog.Check2(snapfile.Open(snapInfo.MountDir()))
 
-	_, err = snap.ReadInfoFromSnapFile(snapf, nil)
+
+	_ = mylog.Check2(snap.ReadInfoFromSnapFile(snapf, nil))
 	c.Assert(err, ErrorMatches, ".*invalid hook name.*")
 }
 
@@ -830,10 +833,10 @@ version: 1.0`
 	}
 	sideInfo := &snap.SideInfo{}
 	snapInfo := snaptest.MockSnapWithFiles(c, yaml, sideInfo, contents)
-	snapf, err := snapfile.Open(snapInfo.MountDir())
-	c.Assert(err, IsNil)
+	snapf := mylog.Check2(snapfile.Open(snapInfo.MountDir()))
 
-	_, err = snap.ReadInfoFromSnapFile(snapf, nil)
+
+	_ = mylog.Check2(snap.ReadInfoFromSnapFile(snapf, nil))
 	c.Assert(err, ErrorMatches, "cannot specify \"default-configure\" hook without \"configure\" hook")
 }
 
@@ -842,15 +845,15 @@ func (s *infoSuite) checkInstalledSnapAndSnapFile(c *C, instanceName, yaml strin
 	sideInfo := &snap.SideInfo{Revision: snap.R(42)}
 	info0 := snaptest.MockSnapInstance(c, instanceName, yaml, sideInfo)
 	snaptest.PopulateDir(info0.MountDir(), emptyHooks(hooks...))
-	info, err := snap.ReadInfo(info0.InstanceName(), sideInfo)
+	info := mylog.Check2(snap.ReadInfo(info0.InstanceName(), sideInfo))
 	c.Check(err, IsNil)
 	checker(c, info)
 
 	// Now check snap file
 	snapPath := snaptest.MakeTestSnapWithFiles(c, yaml, emptyHooks(hooks...))
-	snapf, err := snapfile.Open(snapPath)
-	c.Assert(err, IsNil)
-	info, err = snap.ReadInfoFromSnapFile(snapf, nil)
+	snapf := mylog.Check2(snapfile.Open(snapPath))
+
+	info = mylog.Check2(snap.ReadInfoFromSnapFile(snapf, nil))
 	c.Check(err, IsNil)
 	checker(c, info)
 }
@@ -1088,7 +1091,6 @@ slots:
 		c.Assert(implicit1Hook.Slots["test-slot"], DeepEquals, slot)
 		c.Assert(implicit2Hook.Slots["test-slot"], DeepEquals, slot)
 	})
-
 }
 
 func verifyImplicitHook(c *C, info *snap.Info, hookName string, plugNames []string) {
@@ -1137,7 +1139,6 @@ func verifyExplicitHook(c *C, info *snap.Info, hookName string, plugNames []stri
 		// Verify also that the hook plug made it into info.Slots
 		c.Check(info.Slots[slotName], DeepEquals, slot)
 	}
-
 }
 
 func (s *infoSuite) TestPlaceInfoRevision(c *C) {
@@ -1230,19 +1231,27 @@ func (s *infoSuite) TestDataHomeDirs(c *C) {
 	info := &snap.Info{SuggestedName: "name"}
 	info.SideInfo = snap.SideInfo{Revision: snap.R(1)}
 
-	homeDirs := []string{filepath.Join(dirs.GlobalRootDir, "/home/*/snap/name/1"), filepath.Join(dirs.GlobalRootDir, "/home/group1/*/snap/name/1"),
-		filepath.Join(dirs.GlobalRootDir, "/home/group2/*/snap/name/1"), filepath.Join(dirs.GlobalRootDir, "/home/group3/*/snap/name/1")}
-	commonHomeDirs := []string{filepath.Join(dirs.GlobalRootDir, "/home/*/snap/name/common"), filepath.Join(dirs.GlobalRootDir, "/home/group1/*/snap/name/common"),
-		filepath.Join(dirs.GlobalRootDir, "/home/group2/*/snap/name/common"), filepath.Join(dirs.GlobalRootDir, "/home/group3/*/snap/name/common")}
+	homeDirs := []string{
+		filepath.Join(dirs.GlobalRootDir, "/home/*/snap/name/1"), filepath.Join(dirs.GlobalRootDir, "/home/group1/*/snap/name/1"),
+		filepath.Join(dirs.GlobalRootDir, "/home/group2/*/snap/name/1"), filepath.Join(dirs.GlobalRootDir, "/home/group3/*/snap/name/1"),
+	}
+	commonHomeDirs := []string{
+		filepath.Join(dirs.GlobalRootDir, "/home/*/snap/name/common"), filepath.Join(dirs.GlobalRootDir, "/home/group1/*/snap/name/common"),
+		filepath.Join(dirs.GlobalRootDir, "/home/group2/*/snap/name/common"), filepath.Join(dirs.GlobalRootDir, "/home/group3/*/snap/name/common"),
+	}
 	c.Check(info.DataHomeDirs(nil), DeepEquals, homeDirs)
 	c.Check(info.CommonDataHomeDirs(nil), DeepEquals, commonHomeDirs)
 
 	// Same test but with a hidden snap directory
 	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
-	hiddenHomeDirs := []string{filepath.Join(dirs.GlobalRootDir, "/home/*/.snap/data/name/1"), filepath.Join(dirs.GlobalRootDir, "/home/group1/*/.snap/data/name/1"),
-		filepath.Join(dirs.GlobalRootDir, "/home/group2/*/.snap/data/name/1"), filepath.Join(dirs.GlobalRootDir, "/home/group3/*/.snap/data/name/1")}
-	hiddenCommonHomeDirs := []string{filepath.Join(dirs.GlobalRootDir, "/home/*/.snap/data/name/common"), filepath.Join(dirs.GlobalRootDir, "/home/group1/*/.snap/data/name/common"),
-		filepath.Join(dirs.GlobalRootDir, "/home/group2/*/.snap/data/name/common"), filepath.Join(dirs.GlobalRootDir, "/home/group3/*/.snap/data/name/common")}
+	hiddenHomeDirs := []string{
+		filepath.Join(dirs.GlobalRootDir, "/home/*/.snap/data/name/1"), filepath.Join(dirs.GlobalRootDir, "/home/group1/*/.snap/data/name/1"),
+		filepath.Join(dirs.GlobalRootDir, "/home/group2/*/.snap/data/name/1"), filepath.Join(dirs.GlobalRootDir, "/home/group3/*/.snap/data/name/1"),
+	}
+	hiddenCommonHomeDirs := []string{
+		filepath.Join(dirs.GlobalRootDir, "/home/*/.snap/data/name/common"), filepath.Join(dirs.GlobalRootDir, "/home/group1/*/.snap/data/name/common"),
+		filepath.Join(dirs.GlobalRootDir, "/home/group2/*/.snap/data/name/common"), filepath.Join(dirs.GlobalRootDir, "/home/group3/*/.snap/data/name/common"),
+	}
 	c.Check(info.DataHomeDirs(opts), DeepEquals, hiddenHomeDirs)
 	c.Check(info.CommonDataHomeDirs(opts), DeepEquals, hiddenCommonHomeDirs)
 }
@@ -1250,14 +1259,18 @@ func (s *infoSuite) TestDataHomeDirs(c *C) {
 func (s *infoSuite) TestBaseDataHomeDirs(c *C) {
 	dirs.SetSnapHomeDirs("/home,/home/group1,/home/group2,/home/group3")
 
-	homeDirs := []string{filepath.Join(dirs.GlobalRootDir, "/home/*/snap/name"), filepath.Join(dirs.GlobalRootDir, "/home/group1/*/snap/name"),
-		filepath.Join(dirs.GlobalRootDir, "/home/group2/*/snap/name"), filepath.Join(dirs.GlobalRootDir, "/home/group3/*/snap/name")}
+	homeDirs := []string{
+		filepath.Join(dirs.GlobalRootDir, "/home/*/snap/name"), filepath.Join(dirs.GlobalRootDir, "/home/group1/*/snap/name"),
+		filepath.Join(dirs.GlobalRootDir, "/home/group2/*/snap/name"), filepath.Join(dirs.GlobalRootDir, "/home/group3/*/snap/name"),
+	}
 	c.Check(snap.BaseDataHomeDirs("name", nil), DeepEquals, homeDirs)
 
 	// Same test but with a hidden snap directory
 	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
-	hiddenHomeDirs := []string{filepath.Join(dirs.GlobalRootDir, "/home/*/.snap/data/name"), filepath.Join(dirs.GlobalRootDir, "/home/group1/*/.snap/data/name"),
-		filepath.Join(dirs.GlobalRootDir, "/home/group2/*/.snap/data/name"), filepath.Join(dirs.GlobalRootDir, "/home/group3/*/.snap/data/name")}
+	hiddenHomeDirs := []string{
+		filepath.Join(dirs.GlobalRootDir, "/home/*/.snap/data/name"), filepath.Join(dirs.GlobalRootDir, "/home/group1/*/.snap/data/name"),
+		filepath.Join(dirs.GlobalRootDir, "/home/group2/*/.snap/data/name"), filepath.Join(dirs.GlobalRootDir, "/home/group3/*/.snap/data/name"),
+	}
 	c.Check(snap.BaseDataHomeDirs("name", opts), DeepEquals, hiddenHomeDirs)
 }
 
@@ -1292,7 +1305,7 @@ func (s *infoSuite) TestParsePlaceInfoFromSnapFileName(c *C) {
 		{sn: "name_key_12.snap", expectErr: "too many '_' in snap file name"},
 	}
 	for _, t := range tt {
-		p, err := snap.ParsePlaceInfoFromSnapFileName(t.sn)
+		p := mylog.Check2(snap.ParsePlaceInfoFromSnapFileName(t.sn))
 		if t.expectErr != "" {
 			c.Check(err, ErrorMatches, t.expectErr)
 		} else {
@@ -1304,8 +1317,8 @@ func (s *infoSuite) TestParsePlaceInfoFromSnapFileName(c *C) {
 
 func (s *infoSuite) TestAppDesktopFile(c *C) {
 	snaptest.MockSnap(c, sampleYaml, &snap.SideInfo{})
-	snapInfo, err := snap.ReadInfo("sample", &snap.SideInfo{})
-	c.Assert(err, IsNil)
+	snapInfo := mylog.Check2(snap.ReadInfo("sample", &snap.SideInfo{}))
+
 
 	c.Check(snapInfo.InstanceName(), Equals, "sample")
 	c.Check(snapInfo.Apps["app"].DesktopFile(), Matches, `.*/var/lib/snapd/desktop/applications/sample_app.desktop`)
@@ -1332,11 +1345,11 @@ plugs:
 func (s *infoSuite) TestReadInfoFromSnapFileRenamesCorePlus(c *C) {
 	snapPath := snaptest.MakeTestSnapWithFiles(c, coreSnapYaml, nil)
 
-	snapf, err := snapfile.Open(snapPath)
-	c.Assert(err, IsNil)
+	snapf := mylog.Check2(snapfile.Open(snapPath))
 
-	info, err := snap.ReadInfoFromSnapFile(snapf, nil)
-	c.Assert(err, IsNil)
+
+	info := mylog.Check2(snap.ReadInfoFromSnapFile(snapf, nil))
+
 	c.Check(info.Plugs["network-bind"], IsNil)
 	c.Check(info.Plugs["core-support"], IsNil)
 	c.Check(info.Plugs["network-bind-plug"], NotNil)
@@ -1347,8 +1360,8 @@ func (s *infoSuite) TestReadInfoFromSnapFileRenamesCorePlus(c *C) {
 func (s *infoSuite) TestReadInfoRenamesCorePlugs(c *C) {
 	si := &snap.SideInfo{Revision: snap.R(42), RealName: "core"}
 	snaptest.MockSnap(c, coreSnapYaml, si)
-	info, err := snap.ReadInfo("core", si)
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.ReadInfo("core", si))
+
 	c.Check(info.Plugs["network-bind"], IsNil)
 	c.Check(info.Plugs["core-support"], IsNil)
 	c.Check(info.Plugs["network-bind-plug"], NotNil)
@@ -1357,8 +1370,8 @@ func (s *infoSuite) TestReadInfoRenamesCorePlugs(c *C) {
 
 // reading snap via InfoFromSnapYaml renames clashing core plugs
 func (s *infoSuite) TestInfoFromSnapYamlRenamesCorePlugs(c *C) {
-	info, err := snap.InfoFromSnapYaml([]byte(coreSnapYaml))
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(coreSnapYaml)))
+
 	c.Check(info.Plugs["network-bind"], IsNil)
 	c.Check(info.Plugs["core-support"], IsNil)
 	c.Check(info.Plugs["network-bind-plug"], NotNil)
@@ -1366,7 +1379,7 @@ func (s *infoSuite) TestInfoFromSnapYamlRenamesCorePlugs(c *C) {
 }
 
 func (s *infoSuite) TestInfoServices(c *C) {
-	info, err := snap.InfoFromSnapYaml([]byte(`name: pans
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(`name: pans
 apps:
   svc1:
     daemon: potato
@@ -1374,8 +1387,8 @@ apps:
     daemon: no
   app1:
   app2:
-`))
-	c.Assert(err, IsNil)
+`)))
+
 	svcNames := []string{}
 	svcs := info.Services()
 	for i := range svcs {
@@ -1401,7 +1414,7 @@ apps:
 }
 
 func (s *infoSuite) TestAppInfoIsService(c *C) {
-	info, err := snap.InfoFromSnapYaml([]byte(`name: pans
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(`name: pans
 apps:
   svc1:
     daemon: potato
@@ -1412,8 +1425,8 @@ apps:
     daemon-scope: user
   app1:
   app2:
-`))
-	c.Assert(err, IsNil)
+`)))
+
 
 	svc := info.Apps["svc1"]
 	c.Check(svc.IsService(), Equals, true)
@@ -1439,26 +1452,26 @@ apps:
 }
 
 func (s *infoSuite) TestAppInfoStringer(c *C) {
-	info, err := snap.InfoFromSnapYaml([]byte(`name: asnap
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(`name: asnap
 apps:
   one:
    daemon: simple
-`))
-	c.Assert(err, IsNil)
+`)))
+
 	c.Check(fmt.Sprintf("%q", info.Apps["one"].String()), Equals, `"asnap.one"`)
 }
 
 func (s *infoSuite) TestSocketFile(c *C) {
-	info, err := snap.InfoFromSnapYaml([]byte(`name: pans
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(`name: pans
 apps:
   app1:
     daemon: true
     sockets:
       sock1:
         listen-stream: /tmp/sock1.socket
-`))
+`)))
 
-	c.Assert(err, IsNil)
+
 
 	app := info.Apps["app1"]
 	socket := app.Sockets["sock1"]
@@ -1470,14 +1483,14 @@ apps:
 }
 
 func (s *infoSuite) TestTimerFile(c *C) {
-	info, err := snap.InfoFromSnapYaml([]byte(`name: pans
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(`name: pans
 apps:
   app1:
     daemon: true
     timer: mon,10:00-12:00
-`))
+`)))
 
-	c.Assert(err, IsNil)
+
 
 	app := info.Apps["app1"]
 	timerFile := app.Timer.File()
@@ -1490,7 +1503,7 @@ apps:
 }
 
 func (s *infoSuite) TestLayoutParsing(c *C) {
-	info, err := snap.InfoFromSnapYaml([]byte(`name: layout-demo
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(`name: layout-demo
 layout:
   /usr:
     bind: $SNAP/usr
@@ -1499,8 +1512,8 @@ layout:
     mode: 1777
   /mylink:
     symlink: /link/target
-`))
-	c.Assert(err, IsNil)
+`)))
+
 
 	layout := info.Layout
 	c.Assert(layout, NotNil)
@@ -1637,8 +1650,8 @@ func (s *infoSuite) TestDottedPathPlug(c *C) {
 }
 
 func (s *infoSuite) TestDefaultContentProviders(c *C) {
-	info, err := snap.InfoFromSnapYaml([]byte(yamlNeedDf))
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(yamlNeedDf)))
+
 
 	plugs := make([]*snap.PlugInfo, 0, len(info.Plugs))
 	for _, plug := range info.Plugs {
@@ -1651,8 +1664,8 @@ func (s *infoSuite) TestDefaultContentProviders(c *C) {
 
 func (s *infoSuite) TestExpandSnapVariables(c *C) {
 	dirs.SetRootDir("")
-	info, err := snap.InfoFromSnapYaml([]byte(`name: foo`))
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(`name: foo`)))
+
 	info.Revision = snap.R(42)
 	c.Assert(info.ExpandSnapVariables("$SNAP/stuff"), Equals, "/snap/foo/42/stuff")
 	c.Assert(info.ExpandSnapVariables("$SNAP_DATA/stuff"), Equals, "/var/snap/foo/42/stuff")
@@ -1988,11 +2001,11 @@ func (s *infoSuite) TestSortApps(c *C) {
 		sorted: []string{"foo", "bar", "baz"},
 	}}
 	for _, tc := range tcs {
-		sorted, err := snap.SortServices(tc.apps)
+		sorted := mylog.Check2(snap.SortServices(tc.apps))
 		if tc.err != "" {
 			c.Assert(err, ErrorMatches, tc.err)
 		} else {
-			c.Assert(err, IsNil)
+
 			c.Assert(sorted, HasLen, len(tc.sorted))
 			sortedNames := make([]string, len(sorted))
 			for i, app := range sorted {
@@ -2039,7 +2052,7 @@ func (s *infoSuite) TestHelpersWithHiddenSnapFolder(c *C) {
 func (s *infoSuite) TestGetAttributeUnhappy(c *C) {
 	attrs := map[string]interface{}{}
 	var stringVal string
-	err := snap.GetAttribute("snap0", "iface0", attrs, "non-existent", &stringVal)
+	mylog.Check(snap.GetAttribute("snap0", "iface0", attrs, "non-existent", &stringVal))
 	c.Check(stringVal, Equals, "")
 	c.Check(err, ErrorMatches, `snap "snap0" does not have attribute "non-existent" for interface "iface0"`)
 	c.Check(errors.Is(err, snap.AttributeNotFoundError{}), Equals, true)
@@ -2051,7 +2064,7 @@ func (s *infoSuite) TestGetAttributeHappy(c *C) {
 		"attr1": 12,
 	}
 	var intVal int
-	err := snap.GetAttribute("snap0", "iface0", attrs, "attr1", &intVal)
+	mylog.Check(snap.GetAttribute("snap0", "iface0", attrs, "attr1", &intVal))
 	c.Check(err, IsNil)
 	c.Check(intVal, Equals, 12)
 }
@@ -2083,12 +2096,13 @@ SNAPD_ASSERTS_FORMATS='{"snap-declaration":5,"system-user":1}'`, snapDecl: 5, sy
 		snapdPath := snaptest.MakeTestSnapWithFiles(c, `name: snapd
 type: snapd
 version: 1.0`, [][]string{{
-			"/usr/lib/snapd/info", t.info}})
-		snapf, err := snapfile.Open(snapdPath)
-		c.Assert(err, IsNil)
+			"/usr/lib/snapd/info", t.info,
+		}})
+		snapf := mylog.Check2(snapfile.Open(snapdPath))
 
-		maxFormats, ver, err := snap.SnapdAssertionMaxFormatsFromSnapFile(snapf)
-		c.Assert(err, IsNil)
+
+		maxFormats, ver := mylog.Check3(snap.SnapdAssertionMaxFormatsFromSnapFile(snapf))
+
 		expectedMaxFormats := map[string]int{}
 		if t.sysUser > 0 {
 			expectedMaxFormats["system-user"] = t.sysUser
@@ -2105,12 +2119,13 @@ func (s *infoSuite) TestSnapdAssertionMaxFormatsFromSnapFileFromCore(c *C) {
 	corePath := snaptest.MakeTestSnapWithFiles(c, `name: core
 type: os
 version: 1.0`, [][]string{{
-		"/usr/lib/snapd/info", `VERSION=2.47`}})
-	snapf, err := snapfile.Open(corePath)
-	c.Assert(err, IsNil)
+		"/usr/lib/snapd/info", `VERSION=2.47`,
+	}})
+	snapf := mylog.Check2(snapfile.Open(corePath))
 
-	maxFormats, ver, err := snap.SnapdAssertionMaxFormatsFromSnapFile(snapf)
-	c.Assert(err, IsNil)
+
+	maxFormats, ver := mylog.Check3(snap.SnapdAssertionMaxFormatsFromSnapFile(snapf))
+
 	c.Check(ver, Equals, "2.47")
 	c.Check(maxFormats, DeepEquals, map[string]int{
 		"snap-declaration": 4,
@@ -2123,12 +2138,13 @@ func (s *infoSuite) TestSnapdAssertionMaxFormatsFromSnapFileFromKernel(c *C) {
 type: kernel
 version: 1.0`, [][]string{{
 		"/snapd-info", `VERSION=2.56
-SNAPD_ASSERTS_FORMATS='{"snap-declaration":5,"system-user":1}'`}})
-	snapf, err := snapfile.Open(krnlPath)
-	c.Assert(err, IsNil)
+SNAPD_ASSERTS_FORMATS='{"snap-declaration":5,"system-user":1}'`,
+	}})
+	snapf := mylog.Check2(snapfile.Open(krnlPath))
 
-	maxFormats, ver, err := snap.SnapdAssertionMaxFormatsFromSnapFile(snapf)
-	c.Assert(err, IsNil)
+
+	maxFormats, ver := mylog.Check3(snap.SnapdAssertionMaxFormatsFromSnapFile(snapf))
+
 	c.Check(ver, Equals, "2.56")
 	c.Check(maxFormats, DeepEquals, map[string]int{
 		"snap-declaration": 5,
@@ -2139,11 +2155,11 @@ SNAPD_ASSERTS_FORMATS='{"snap-declaration":5,"system-user":1}'`}})
 	krnlPath = snaptest.MakeTestSnapWithFiles(c, `name: krnl
 type: kernel
 version: 1.0`, nil)
-	snapf, err = snapfile.Open(krnlPath)
-	c.Assert(err, IsNil)
+	snapf = mylog.Check2(snapfile.Open(krnlPath))
 
-	maxFormats, ver, err = snap.SnapdAssertionMaxFormatsFromSnapFile(snapf)
-	c.Assert(err, IsNil)
+
+	maxFormats, ver = mylog.Check3(snap.SnapdAssertionMaxFormatsFromSnapFile(snapf))
+
 	c.Check(ver, Equals, "")
 	c.Check(maxFormats, IsNil)
 }
@@ -2151,10 +2167,10 @@ version: 1.0`, nil)
 func (s *infoSuite) TestSnapdAssertionMaxFormatsFromSnapFileFromOther(c *C) {
 	appPath := snaptest.MakeTestSnapWithFiles(c, `name: app
 version: 1.0`, nil)
-	snapf, err := snapfile.Open(appPath)
-	c.Assert(err, IsNil)
+	snapf := mylog.Check2(snapfile.Open(appPath))
 
-	_, _, err = snap.SnapdAssertionMaxFormatsFromSnapFile(snapf)
+
+	_, _ = mylog.Check3(snap.SnapdAssertionMaxFormatsFromSnapFile(snapf))
 	c.Check(err, ErrorMatches, `cannot extract assertion max formats information, snaps of type app do not carry snapd`)
 }
 

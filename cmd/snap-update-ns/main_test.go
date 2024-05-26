@@ -28,6 +28,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	update "github.com/snapcore/snapd/cmd/snap-update-ns"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
@@ -75,20 +76,20 @@ func (s *mainSuite) TestExecuteMountProfileUpdate(c *C) {
 /var/lib/snapd/hostfs/usr/local/share/fonts /usr/local/share/fonts none bind,ro 0 0`
 
 	desiredProfilePath := fmt.Sprintf("%s/snap.%s.fstab", dirs.SnapMountPolicyDir, snapName)
-	err := os.MkdirAll(filepath.Dir(desiredProfilePath), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(desiredProfilePath, []byte(desiredProfileContent), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Dir(desiredProfilePath), 0755))
+
+	mylog.Check(os.WriteFile(desiredProfilePath, []byte(desiredProfileContent), 0644))
+
 
 	currentProfilePath := fmt.Sprintf("%s/snap.%s.fstab", dirs.SnapRunNsDir, snapName)
-	err = os.MkdirAll(filepath.Dir(currentProfilePath), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(currentProfilePath, nil, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Dir(currentProfilePath), 0755))
+
+	mylog.Check(os.WriteFile(currentProfilePath, nil, 0644))
+
 
 	upCtx := update.NewSystemProfileUpdateContext(snapName, false)
-	err = update.ExecuteMountProfileUpdate(upCtx)
-	c.Assert(err, IsNil)
+	mylog.Check(update.ExecuteMountProfileUpdate(upCtx))
+
 
 	c.Check(currentProfilePath, testutil.FileEquals, `/var/lib/snapd/hostfs/usr/local/share/fonts /usr/local/share/fonts none bind,ro 0 0
 /var/lib/snapd/hostfs/usr/share/fonts /usr/share/fonts none bind,ro 0 0
@@ -129,13 +130,16 @@ func (s *mainSuite) TestAddingSyntheticChanges(c *C) {
 			Action: update.Mount, Entry: osutil.MountEntry{
 				Name: "/snap/mysnap/42/usr/share/mysnap",
 				Dir:  "/usr/share/mysnap", Type: "none",
-				Options: []string{"bind", "ro"}}})
+				Options: []string{"bind", "ro"},
+			},
+		})
 		synthetic := []*update.Change{
 			// The original directory (which was a part of the core snap and is
 			// read only) was hidden with a tmpfs.
 			{Action: update.Mount, Entry: osutil.MountEntry{
 				Dir: "/usr/share", Name: "tmpfs", Type: "tmpfs",
-				Options: []string{"x-snapd.synthetic", "x-snapd.needed-by=/usr/share/mysnap"}}},
+				Options: []string{"x-snapd.synthetic", "x-snapd.needed-by=/usr/share/mysnap"},
+			}},
 			// For the sake of brevity we will only represent a few of the
 			// entries typically there. Normally this list can get quite long.
 			// Also note that the entry is a little fake. In reality it was
@@ -145,10 +149,12 @@ func (s *mainSuite) TestAddingSyntheticChanges(c *C) {
 			// undo operation when /usr/share/mysnap is no longer needed.
 			{Action: update.Mount, Entry: osutil.MountEntry{
 				Dir: "/usr/share/adduser", Name: "/usr/share/adduser",
-				Options: []string{"bind", "ro", "x-snapd.synthetic", "x-snapd.needed-by=/usr/share/mysnap"}}},
+				Options: []string{"bind", "ro", "x-snapd.synthetic", "x-snapd.needed-by=/usr/share/mysnap"},
+			}},
 			{Action: update.Mount, Entry: osutil.MountEntry{
 				Dir: "/usr/share/awk", Name: "/usr/share/awk",
-				Options: []string{"bind", "ro", "x-snapd.synthetic", "x-snapd.needed-by=/usr/share/mysnap"}}},
+				Options: []string{"bind", "ro", "x-snapd.synthetic", "x-snapd.needed-by=/usr/share/mysnap"},
+			}},
 		}
 		return synthetic, nil
 	})
@@ -386,18 +392,18 @@ func (s *mainSuite) TestApplyUserFstabHomeRequiredAndValid(c *C) {
 	desiredProfileContent := `$XDG_RUNTIME_DIR/doc/by-app/snap.foo $XDG_RUNTIME_DIR/doc none bind,rw 0 0
 none $HOME/.local/share none x-snapd.kind=ensure-dir,x-snapd.must-exist-dir=$HOME 0 0`
 	desiredProfilePath := fmt.Sprintf("%s/snap.%s.user-fstab", dirs.SnapMountPolicyDir, snapName)
-	err := os.MkdirAll(filepath.Dir(desiredProfilePath), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(desiredProfilePath, []byte(desiredProfileContent), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Dir(desiredProfilePath), 0755))
+
+	mylog.Check(os.WriteFile(desiredProfilePath, []byte(desiredProfileContent), 0644))
+
 
 	tmpHomeDir := c.MkDir()
 	restoreEnv := update.MockSnapConfineUserEnv("/run/user/1000/snap.snapname", tmpHomeDir)
 	defer restoreEnv()
-	upCtx, err := update.NewUserProfileUpdateContext(snapName, true, 1000)
-	c.Assert(err, IsNil)
-	err = update.ExecuteMountProfileUpdate(upCtx)
-	c.Assert(err, IsNil)
+	upCtx := mylog.Check2(update.NewUserProfileUpdateContext(snapName, true, 1000))
+
+	mylog.Check(update.ExecuteMountProfileUpdate(upCtx))
+
 	c.Assert(changes, HasLen, 2)
 
 	c.Assert(changes[0].Entry.Name, Equals, "none")
@@ -424,17 +430,17 @@ func (s *mainSuite) TestApplyUserFstabErrorHomeRequiredAndMissing(c *C) {
 	desiredProfileContent := `$XDG_RUNTIME_DIR/doc/by-app/snap.foo $XDG_RUNTIME_DIR/doc none bind,rw 0 0
 none $HOME/.local/share none x-snapd.kind=ensure-dir,x-snapd.must-exist-dir=$HOME 0 0`
 	desiredProfilePath := fmt.Sprintf("%s/snap.%s.user-fstab", dirs.SnapMountPolicyDir, snapName)
-	err := os.MkdirAll(filepath.Dir(desiredProfilePath), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(desiredProfilePath, []byte(desiredProfileContent), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Dir(desiredProfilePath), 0755))
+
+	mylog.Check(os.WriteFile(desiredProfilePath, []byte(desiredProfileContent), 0644))
+
 
 	tmpHomeDir := c.MkDir() + "/does-not-exist"
 	restoreEnv := update.MockSnapConfineUserEnv("/run/user/1000/snap.snapname", tmpHomeDir)
 	defer restoreEnv()
-	upCtx, err := update.NewUserProfileUpdateContext(snapName, true, 1000)
-	c.Assert(err, IsNil)
-	err = update.ExecuteMountProfileUpdate(upCtx)
+	upCtx := mylog.Check2(update.NewUserProfileUpdateContext(snapName, true, 1000))
+
+	mylog.Check(update.ExecuteMountProfileUpdate(upCtx))
 	c.Assert(err, ErrorMatches, `cannot expand mount entry \(none \$HOME/.local/share none x-snapd.kind=ensure-dir,x-snapd.must-exist-dir=\$HOME 0 0\): cannot use invalid home directory `+fmt.Sprintf("\"%s\"", tmpHomeDir)+": no such file or directory")
 	c.Assert(changes, HasLen, 0)
 }

@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
@@ -156,9 +157,8 @@ var featuresExported = map[SnapdFeature]bool{
 var featuresSupportedCallbacks = map[SnapdFeature]func() (bool, string){
 	// QuotaGroups requires systemd version 230 or higher
 	QuotaGroups: func() (bool, string) {
-		if err := systemd.EnsureAtLeast(230); err != nil {
-			return false, err.Error()
-		}
+		mylog.Check(systemd.EnsureAtLeast(230))
+
 		return true, ""
 	},
 	// UserDaemons requires user units
@@ -172,17 +172,13 @@ var featuresSupportedCallbacks = map[SnapdFeature]func() (bool, string){
 	// prompting, as well as a newer version of snapd with all the
 	// prompting components in place. TODO: change this callback once ready.
 	AppArmorPrompting: func() (bool, string) {
-		kernelFeatures, err := apparmorKernelFeatures()
-		if err != nil {
-			return false, fmt.Sprintf("error checking apparmor kernel features: %v", err)
-		}
+		kernelFeatures := mylog.Check2(apparmorKernelFeatures())
+
 		if !strutil.ListContains(kernelFeatures, "policy:permstable32:prompt") {
 			return false, "apparmor kernel features do not support prompting"
 		}
-		parserFeatures, err := apparmorParserFeatures()
-		if err != nil {
-			return false, fmt.Sprintf("error checking apparmor parser features: %v", err)
-		}
+		parserFeatures := mylog.Check2(apparmorParserFeatures())
+
 		if !strutil.ListContains(parserFeatures, "prompt") {
 			return false, "apparmor parser does not support the prompt qualifier"
 		}
@@ -263,9 +259,8 @@ type confGetter interface {
 func Flag(tr confGetter, feature SnapdFeature) (bool, error) {
 	var isEnabled interface{}
 	snapName, confName := feature.ConfigOption()
-	if err := tr.GetMaybe(snapName, confName, &isEnabled); err != nil {
-		return false, err
-	}
+	mylog.Check(tr.GetMaybe(snapName, confName, &isEnabled))
+
 	switch isEnabled {
 	case true, "true":
 		return true, nil
@@ -299,11 +294,10 @@ func All(tr confGetter) map[string]FeatureInfo {
 	knownFeatures := KnownFeatures()
 	allFeaturesInfo := make(map[string]FeatureInfo, len(knownFeatures))
 	for _, feature := range knownFeatures {
-		enabled, err := Flag(tr, feature)
-		if err != nil {
-			// Skip features with values other than true or false
-			continue
-		}
+		enabled := mylog.Check2(Flag(tr, feature))
+
+		// Skip features with values other than true or false
+
 		// Features implicitly supported if no callback exists
 		supported := true
 		var unsupportedReason string

@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -134,14 +135,14 @@ func (s *meminfoSuite) TestMemInfoHappy(c *C) {
 
 	c.Assert(os.WriteFile(p, []byte(meminfoExampleFromLiveSystem), 0644), IsNil)
 
-	mem, err := osutil.TotalUsableMemory()
-	c.Assert(err, IsNil)
+	mem := mylog.Check2(osutil.TotalUsableMemory())
+
 	c.Check(mem, Equals, uint64(32876680)*1024)
 
 	c.Assert(os.WriteFile(p, []byte(`MemTotal:    1234 kB`), 0644), IsNil)
 
-	mem, err = osutil.TotalUsableMemory()
-	c.Assert(err, IsNil)
+	mem = mylog.Check2(osutil.TotalUsableMemory())
+
 	c.Check(mem, Equals, uint64(1234)*1024)
 
 	const meminfoReorderedWithEmptyLine = `MemAvailable:   20527370 kB
@@ -151,21 +152,21 @@ MemFree:         3478104 kB
 `
 	c.Assert(os.WriteFile(p, []byte(meminfoReorderedWithEmptyLine), 0644), IsNil)
 
-	mem, err = osutil.TotalUsableMemory()
-	c.Assert(err, IsNil)
+	mem = mylog.Check2(osutil.TotalUsableMemory())
+
 	c.Check(mem, Equals, uint64(32876699)*1024)
 
 	c.Assert(os.WriteFile(p, []byte(meminfoExampleFromPi3), 0644), IsNil)
 
 	// CmaTotal is taken correctly into account
-	mem, err = osutil.TotalUsableMemory()
-	c.Assert(err, IsNil)
+	mem = mylog.Check2(osutil.TotalUsableMemory())
+
 	c.Check(mem, Equals, uint64(929956-131072)*1024)
 }
 
 func (s *meminfoSuite) TestMemInfoFromHost(c *C) {
-	mem, err := osutil.TotalUsableMemory()
-	c.Assert(err, IsNil)
+	mem := mylog.Check2(osutil.TotalUsableMemory())
+
 	c.Check(mem > uint64(32*1024*1024),
 		Equals, true, Commentf("unexpected system memory %v", mem))
 }
@@ -210,7 +211,7 @@ Cached:         14550292 kB
 		},
 	} {
 		c.Assert(os.WriteFile(p, []byte(tc.content), 0644), IsNil)
-		mem, err := osutil.TotalUsableMemory()
+		mem := mylog.Check2(osutil.TotalUsableMemory())
 		c.Assert(err, ErrorMatches, tc.err)
 		c.Check(mem, Equals, uint64(0))
 	}

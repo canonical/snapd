@@ -27,6 +27,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/bootloader/assets"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snapdenv"
@@ -53,12 +54,9 @@ func MaybeInjectTestingBootloaderAssets() {
 	logger.Noticef("maybe inject boot assets?")
 
 	// is there a marker file at /usr/lib/snapd/ in the snap?
-	selfExe, err := maybeInjectOsReadlink("/proc/self/exe")
-	if err != nil {
-		panic(fmt.Sprintf("cannot readlink: %v", err))
-	}
+	selfExe := mylog.Check2(maybeInjectOsReadlink("/proc/self/exe"))
 
-	injectPieceRaw, err := os.ReadFile(filepath.Join(filepath.Dir(selfExe), "bootassetstesting"))
+	injectPieceRaw := mylog.Check2(os.ReadFile(filepath.Join(filepath.Dir(selfExe), "bootassetstesting")))
 	if os.IsNotExist(err) {
 		logger.Noticef("no boot asset testing marker")
 		return
@@ -80,10 +78,8 @@ func MaybeInjectTestingBootloaderAssets() {
 		panic(fmt.Sprintf("cannot obtain internal grub.cfg:static-cmdline snippets"))
 	}
 
-	internalEdition, err := editionFromConfigAsset(bytes.NewReader(grubBootconfig))
-	if err != nil {
-		panic(fmt.Sprintf("cannot inject boot config for asset: %v", err))
-	}
+	internalEdition := mylog.Check2(editionFromConfigAsset(bytes.NewReader(grubBootconfig)))
+
 	// bump the injected edition number
 	injectedEdition := internalEdition + 1
 

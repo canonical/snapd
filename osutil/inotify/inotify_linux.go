@@ -35,6 +35,8 @@ import (
 	"strings"
 	"syscall"
 	"unsafe"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // NewWatcher creates and returns a new inotify instance using inotify_init(2)
@@ -88,15 +90,7 @@ func (w *Watcher) AddWatch(path string, flags uint32) error {
 
 	w.mu.Lock() // synchronize with readEvents goroutine
 
-	wd, err := syscall.InotifyAddWatch(w.fd, path, flags)
-	if err != nil {
-		w.mu.Unlock()
-		return &os.PathError{
-			Op:   "inotify_add_watch",
-			Path: path,
-			Err:  err,
-		}
-	}
+	wd := mylog.Check2(syscall.InotifyAddWatch(w.fd, path, flags))
 
 	if !found {
 		w.watches[path] = &watch{wd: uint32(wd), flags: flags}
@@ -145,7 +139,7 @@ func (w *Watcher) readEvents() {
 
 	for {
 		// wait until there are events from the kernel
-		n, err := w.notifyFile.Read(buf[:])
+		n := mylog.Check2(w.notifyFile.Read(buf[:]))
 
 		// If EOF is received
 		if n == 0 {

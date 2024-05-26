@@ -54,10 +54,12 @@ type cmdShowRepair struct {
 	} `positional-args:"yes"`
 }
 
-var shortRepairHelp = i18n.G("Show specific repairs")
-var longRepairHelp = i18n.G(`
+var (
+	shortRepairHelp = i18n.G("Show specific repairs")
+	longRepairHelp  = i18n.G(`
 The repair command shows the details about one or multiple repairs.
 `)
+)
 
 func init() {
 	cmd := addCommand("repair", shortRepairHelp, longRepairHelp, func() flags.Commander {
@@ -78,10 +80,12 @@ func (x *cmdShowRepair) Execute(args []string) error {
 
 type cmdListRepairs struct{}
 
-var shortRepairsHelp = i18n.G("Lists all repairs")
-var longRepairsHelp = i18n.G(`
+var (
+	shortRepairsHelp = i18n.G("Lists all repairs")
+	longRepairsHelp  = i18n.G(`
 The repairs command lists all processed repairs for this device.
 `)
+)
 
 func init() {
 	cmd := addCommand("repairs", shortRepairsHelp, longRepairsHelp, func() flags.Commander {

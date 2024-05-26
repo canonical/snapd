@@ -27,6 +27,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -34,9 +35,7 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate"
 )
 
-var (
-	devicestateResetSession = devicestate.ResetSession
-)
+var devicestateResetSession = devicestate.ResetSession
 
 var proxyConfigKeys = map[string]bool{
 	"http_proxy":  true,
@@ -59,16 +58,12 @@ func etcEnvironment() string {
 }
 
 func updateEtcEnvironmentConfig(path string, config map[string]string) error {
-	f, err := os.OpenFile(path, os.O_RDONLY|os.O_CREATE, 0644)
-	if err != nil {
-		return err
-	}
+	f := mylog.Check2(os.OpenFile(path, os.O_RDONLY|os.O_CREATE, 0644))
+
 	defer f.Close()
 
-	toWrite, err := updateKeyValueStream(f, proxyConfigKeys, config)
-	if err != nil {
-		return err
-	}
+	toWrite := mylog.Check2(updateKeyValueStream(f, proxyConfigKeys, config))
+
 	if toWrite != nil {
 		// XXX: would be great to atomically write but /etc/environment
 		//      is a single bind mount :/
@@ -82,31 +77,21 @@ func handleProxyConfiguration(tr RunTransaction, opts *fsOnlyContext) error {
 	config := map[string]string{}
 	// normal proxy settings
 	for _, key := range []string{"http", "https", "ftp"} {
-		output, err := coreCfg(tr, "proxy."+key)
-		if err != nil {
-			return err
-		}
+		output := mylog.Check2(coreCfg(tr, "proxy."+key))
+
 		config[key+"_proxy"] = output
 	}
 	// handle no_proxy
-	output, err := coreCfg(tr, "proxy.no-proxy")
-	if err != nil {
-		return err
-	}
-	config["no_proxy"] = output
+	output := mylog.Check2(coreCfg(tr, "proxy.no-proxy"))
 
-	if err := updateEtcEnvironmentConfig(etcEnvironment(), config); err != nil {
-		return err
-	}
+	config["no_proxy"] = output
+	mylog.Check(updateEtcEnvironmentConfig(etcEnvironment(), config))
 
 	return nil
 }
 
 func validateProxyStore(tr RunTransaction) error {
-	proxyStore, err := coreCfg(tr, "proxy.store")
-	if err != nil {
-		return err
-	}
+	proxyStore := mylog.Check2(coreCfg(tr, "proxy.store"))
 
 	if proxyStore == "" {
 		return nil
@@ -116,7 +101,7 @@ func validateProxyStore(tr RunTransaction) error {
 	st.Lock()
 	defer st.Unlock()
 
-	store, err := assertstate.Store(st, proxyStore)
+	store := mylog.Check2(assertstate.Store(st, proxyStore))
 	if errors.Is(err, &asserts.NotFoundError{}) {
 		return fmt.Errorf("cannot set proxy.store to %q without a matching store assertion", proxyStore)
 	}
@@ -139,12 +124,10 @@ func handleProxyStore(tr RunTransaction, opts *fsOnlyContext) error {
 		return nil
 	}
 
-	proxyStore, err := coreCfg(tr, "proxy.store")
-	if err != nil {
-		return err
-	}
+	proxyStore := mylog.Check2(coreCfg(tr, "proxy.store"))
+
 	var prevProxyStore string
-	if err := tr.GetPristine("core", "proxy.store", &prevProxyStore); err != nil && !config.IsNoOption(err) {
+	if mylog.Check(tr.GetPristine("core", "proxy.store", &prevProxyStore)); err != nil && !config.IsNoOption(err) {
 		return err
 	}
 	if proxyStore != prevProxyStore {
@@ -160,9 +143,8 @@ func handleProxyStore(tr RunTransaction, opts *fsOnlyContext) error {
 		state := tr.State()
 		state.Lock()
 		defer state.Unlock()
-		if err := devicestateResetSession(state); err != nil {
-			return err
-		}
+		mylog.Check(devicestateResetSession(state))
+
 	}
 	return nil
 }

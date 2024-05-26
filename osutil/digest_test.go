@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -39,11 +40,11 @@ func (ts *FileDigestSuite) TestFileDigest(c *C) {
 
 	tempdir := c.MkDir()
 	fn := filepath.Join(tempdir, "ex.file")
-	err := os.WriteFile(fn, exData, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(fn, exData, 0644))
 
-	digest, size, err := osutil.FileDigest(fn, crypto.SHA512)
-	c.Assert(err, IsNil)
+
+	digest, size := mylog.Check3(osutil.FileDigest(fn, crypto.SHA512))
+
 	c.Check(size, Equals, uint64(len(exData)))
 	h512 := sha512.Sum512(exData)
 	c.Check(digest, DeepEquals, h512[:])

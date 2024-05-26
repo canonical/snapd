@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
@@ -50,9 +51,8 @@ func (s *journalSuite) SetUpTest(c *C) {
 		return output, nil
 	}))
 	s.systemctlArgs = nil
+	mylog.Check(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/"), 0755))
 
-	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/"), 0755)
-	c.Assert(err, IsNil)
 
 	findGidRestore := configcore.MockFindGid(func(group string) (uint64, error) {
 		c.Assert(group, Equals, "systemd-journal")
@@ -69,46 +69,45 @@ func (s *journalSuite) SetUpTest(c *C) {
 }
 
 func (s *journalSuite) TestConfigurePersistentJournalInvalid(c *C) {
-	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
+	mylog.Check(configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf:  map[string]interface{}{"journal.persistent": "foo"},
-	})
+	}))
 	c.Assert(err, ErrorMatches, `journal.persistent can only be set to 'true' or 'false'`)
 }
 
 func (s *journalSuite) TestConfigurePersistentJournalOnCore(c *C) {
-	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
+	mylog.Check(configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf:  map[string]interface{}{"journal.persistent": "true"},
-	})
-	c.Assert(err, IsNil)
+	}))
+
 
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
 		{"--version"},
 		{"kill", "systemd-journald", "-s", "USR1", "--kill-who=all"},
 	})
 
-	exists, _, err := osutil.DirExists(filepath.Join(dirs.GlobalRootDir, "/var/log/journal"))
-	c.Assert(err, IsNil)
+	exists, _ := mylog.Check3(osutil.DirExists(filepath.Join(dirs.GlobalRootDir, "/var/log/journal")))
+
 	c.Check(exists, Equals, true)
 	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/var/log/journal/.snapd-created")), Equals, true)
 }
 
 func (s *journalSuite) TestConfigurePersistentJournalOldSystemd(c *C) {
 	s.systemdVersion = "235"
-
-	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
+	mylog.Check(configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf:  map[string]interface{}{"journal.persistent": "true"},
-	})
-	c.Assert(err, IsNil)
+	}))
+
 
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
 		{"--version"}, // version query, but no usr1 signal sent
 	})
 
-	exists, _, err := osutil.DirExists(filepath.Join(dirs.GlobalRootDir, "/var/log/journal"))
-	c.Assert(err, IsNil)
+	exists, _ := mylog.Check3(osutil.DirExists(filepath.Join(dirs.GlobalRootDir, "/var/log/journal")))
+
 	c.Check(exists, Equals, true)
 	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/var/log/journal/.snapd-created")), Equals, true)
 }
@@ -116,18 +115,17 @@ func (s *journalSuite) TestConfigurePersistentJournalOldSystemd(c *C) {
 func (s *journalSuite) TestConfigurePersistentJournalOnCoreNoopIfExists(c *C) {
 	// existing journal directory, not created by snapd (no marker file)
 	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/var/log/journal"), 0755), IsNil)
-
-	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
+	mylog.Check(configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf:  map[string]interface{}{"journal.persistent": "true"},
-	})
-	c.Assert(err, IsNil)
+	}))
+
 
 	// systemctl was not called
 	c.Check(s.systemctlArgs, HasLen, 0)
 
-	exists, _, err := osutil.DirExists(filepath.Join(dirs.GlobalRootDir, "/var/log/journal"))
-	c.Assert(err, IsNil)
+	exists, _ := mylog.Check3(osutil.DirExists(filepath.Join(dirs.GlobalRootDir, "/var/log/journal")))
+
 	c.Check(exists, Equals, true)
 
 	// marker was not created
@@ -137,11 +135,10 @@ func (s *journalSuite) TestConfigurePersistentJournalOnCoreNoopIfExists(c *C) {
 func (s *journalSuite) TestDisablePersistentJournalNotManagedBySnapdError(c *C) {
 	// journal directory exists, but no marker file
 	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/var/log/journal"), 0755), IsNil)
-
-	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
+	mylog.Check(configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf:  map[string]interface{}{"journal.persistent": "false"},
-	})
+	}))
 	c.Assert(err, ErrorMatches, `.*/var/log/journal directory was not created by snapd.*`)
 	exists, _, _ := osutil.DirExists(filepath.Join(dirs.GlobalRootDir, "/var/log/journal"))
 	c.Check(exists, Equals, true)
@@ -150,20 +147,19 @@ func (s *journalSuite) TestDisablePersistentJournalNotManagedBySnapdError(c *C) 
 func (s *journalSuite) TestDisablePersistentJournalOnCore(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/var/log/journal"), 0755), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/log/journal/.snapd-created"), nil, 0755), IsNil)
-
-	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
+	mylog.Check(configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf:  map[string]interface{}{"journal.persistent": "false"},
-	})
-	c.Assert(err, IsNil)
+	}))
+
 
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
 		{"--version"},
 		{"kill", "systemd-journald", "-s", "USR1", "--kill-who=all"},
 	})
 
-	exists, _, err := osutil.DirExists(filepath.Join(dirs.GlobalRootDir, "/var/log/journal"))
-	c.Assert(err, IsNil)
+	exists, _ := mylog.Check3(osutil.DirExists(filepath.Join(dirs.GlobalRootDir, "/var/log/journal")))
+
 	c.Check(exists, Equals, false)
 }
 
@@ -175,7 +171,7 @@ func (s *journalSuite) TestFilesystemOnlyApply(c *C) {
 	c.Assert(configcore.FilesystemOnlyApply(coreDev, tmpDir, conf), IsNil)
 	c.Check(s.systemctlArgs, HasLen, 0)
 
-	exists, _, err := osutil.DirExists(filepath.Join(tmpDir, "/var/log/journal"))
-	c.Assert(err, IsNil)
+	exists, _ := mylog.Check3(osutil.DirExists(filepath.Join(tmpDir, "/var/log/journal")))
+
 	c.Check(exists, Equals, true)
 }

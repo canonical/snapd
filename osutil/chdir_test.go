@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -35,27 +36,27 @@ var _ = Suite(&ChdirTestSuite{})
 func (ts *ChdirTestSuite) TestChdir(c *C) {
 	tmpdir := c.MkDir()
 
-	cwd, err := os.Getwd()
-	c.Assert(err, IsNil)
+	cwd := mylog.Check2(os.Getwd())
+
 	c.Assert(cwd, Not(Equals), tmpdir)
 	osutil.ChDir(tmpdir, func() error {
-		cwd, err := os.Getwd()
-		c.Assert(err, IsNil)
+		cwd := mylog.Check2(os.Getwd())
+
 		c.Assert(cwd, Equals, tmpdir)
 		return err
 	})
 }
 
 func (ts *ChdirTestSuite) TestChdirErrorNoDir(c *C) {
-	err := osutil.ChDir("random-dir-that-does-not-exist", func() error {
+	mylog.Check(osutil.ChDir("random-dir-that-does-not-exist", func() error {
 		return nil
-	})
+	}))
 	c.Assert(err, ErrorMatches, "chdir .*: no such file or directory")
 }
 
 func (ts *ChdirTestSuite) TestChdirErrorFromFunc(c *C) {
-	err := osutil.ChDir("/", func() error {
+	mylog.Check(osutil.ChDir("/", func() error {
 		return fmt.Errorf("meep")
-	})
+	}))
 	c.Assert(err, ErrorMatches, "meep")
 }

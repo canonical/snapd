@@ -26,12 +26,11 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 )
 
-var (
-	_ = Suite(&accountSuite{})
-)
+var _ = Suite(&accountSuite{})
 
 type accountSuite struct {
 	ts     time.Time
@@ -57,8 +56,8 @@ const accountExample = "type: account\n" +
 
 func (s *accountSuite) TestDecodeOK(c *C) {
 	encoded := strings.Replace(accountExample, "TSLINE", s.tsLine, 1)
-	a, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
+	a := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 	c.Check(a.Type(), Equals, asserts.AccountType)
 	account := a.(*asserts.Account)
 	c.Check(account.AuthorityID(), Equals, "canonical")
@@ -79,7 +78,7 @@ func (s *accountSuite) TestOptional(c *C) {
 
 	for _, test := range tests {
 		valid := strings.Replace(encoded, test.original, test.replacement, 1)
-		_, err := asserts.Decode([]byte(valid))
+		_ := mylog.Check2(asserts.Decode([]byte(valid)))
 		c.Check(err, IsNil)
 	}
 }
@@ -103,8 +102,8 @@ func (s *accountSuite) TestValidation(c *C) {
 			fmt.Sprintf("validation: %s\n", test.value),
 			1,
 		)
-		assert, err := asserts.Decode([]byte(encoded))
-		c.Assert(err, IsNil)
+		assert := mylog.Check2(asserts.Decode([]byte(encoded)))
+
 		account := assert.(*asserts.Account)
 		expected := test.value
 		if test.isVerified {
@@ -136,29 +135,28 @@ func (s *accountSuite) TestDecodeInvalid(c *C) {
 
 	for _, test := range invalidTests {
 		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
-		_, err := asserts.Decode([]byte(invalid))
+		_ := mylog.Check2(asserts.Decode([]byte(invalid)))
 		c.Check(err, ErrorMatches, accountErrPrefix+test.expectedErr)
 	}
 }
 
 func (s *accountSuite) TestCheckInconsistentTimestamp(c *C) {
-	ex, err := asserts.Decode([]byte(strings.Replace(accountExample, "TSLINE", s.tsLine, 1)))
-	c.Assert(err, IsNil)
+	ex := mylog.Check2(asserts.Decode([]byte(strings.Replace(accountExample, "TSLINE", s.tsLine, 1))))
+
 
 	storeDB, db := makeStoreAndCheckDB(c)
 
 	headers := ex.Headers()
 	headers["timestamp"] = "2011-01-01T14:00:00Z"
-	account, err := storeDB.Sign(asserts.AccountType, headers, nil, "")
-	c.Assert(err, IsNil)
+	account := mylog.Check2(storeDB.Sign(asserts.AccountType, headers, nil, ""))
 
-	err = db.Check(account)
+	mylog.Check(db.Check(account))
 	c.Assert(err, ErrorMatches, `account assertion timestamp "2011-01-01 14:00:00 \+0000 UTC" outside of signing key validity \(key valid since.*\)`)
 }
 
 func (s *accountSuite) TestCheckUntrustedAuthority(c *C) {
-	ex, err := asserts.Decode([]byte(strings.Replace(accountExample, "TSLINE", s.tsLine, 1)))
-	c.Assert(err, IsNil)
+	ex := mylog.Check2(asserts.Decode([]byte(strings.Replace(accountExample, "TSLINE", s.tsLine, 1))))
+
 
 	storeDB, db := makeStoreAndCheckDB(c)
 	otherDB := setup3rdPartySigning(c, "other", storeDB, db)
@@ -167,10 +165,9 @@ func (s *accountSuite) TestCheckUntrustedAuthority(c *C) {
 	// default to signing db's authority
 	delete(headers, "authority-id")
 	headers["timestamp"] = time.Now().Format(time.RFC3339)
-	account, err := otherDB.Sign(asserts.AccountType, headers, nil, "")
-	c.Assert(err, IsNil)
+	account := mylog.Check2(otherDB.Sign(asserts.AccountType, headers, nil, ""))
 
-	err = db.Check(account)
+	mylog.Check(db.Check(account))
 	c.Assert(err, ErrorMatches, `account assertion for "abc-123" is not signed by a directly trusted authority:.*`)
 }
 

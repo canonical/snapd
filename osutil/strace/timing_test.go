@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil/strace"
 )
 
@@ -76,7 +77,6 @@ func (s *timingSuite) TestExecveTimingPrunes(c *C) {
 		{Exe: "t2", TotalSec: 5},
 		{Exe: "t3", TotalSec: 4},
 	})
-
 }
 
 // generated with:
@@ -117,15 +117,15 @@ var sampleStraceSimple = []byte(`21616 1542882400.198907 execve("/snap/bin/test-
 `)
 
 func (s *timingSuite) TestTraceExecveTimings(c *C) {
-	f, err := os.CreateTemp("", "strace-extract-test-")
-	c.Assert(err, IsNil)
+	f := mylog.Check2(os.CreateTemp("", "strace-extract-test-"))
+
 	defer os.Remove(f.Name())
-	_, err = f.Write(sampleStraceSimple)
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(f.Write(sampleStraceSimple))
+
 	f.Sync()
 
-	st, err := strace.TraceExecveTimings(f.Name(), 10)
-	c.Assert(err, IsNil)
+	st := mylog.Check2(strace.TraceExecveTimings(f.Name(), 10))
+
 	c.Assert(st.TotalTime, Equals, 0.1860671043395996)
 	c.Assert(st.ExeRuntimes(), DeepEquals, []strace.ExeRuntime{
 		{Exe: "/snap/bin/test-snapd-tools.echo", TotalSec: 0.005803108215332031},

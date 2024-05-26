@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	main "github.com/snapcore/snapd/cmd/snap-bootstrap"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/testutil"
@@ -45,6 +46,6 @@ func (s *cmdSuite) SetUpTest(c *C) {
 }
 
 func (s *cmdSuite) TestNoArgsErrors(c *C) {
-	_, err := main.Parser().ParseArgs(nil)
+	_ := mylog.Check2(main.Parser().ParseArgs(nil))
 	c.Assert(err, ErrorMatches, "Please specify .*")
 }

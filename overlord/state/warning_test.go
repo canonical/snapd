@@ -27,6 +27,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -48,7 +49,7 @@ func (stateSuite) testMarshalWarning(shown bool, c *check.C) {
 	ws := st.AllWarnings()
 	c.Assert(ws, check.HasLen, 1)
 	c.Check(ws[0].String(), check.Equals, "hello")
-	buf, err := json.Marshal(ws)
+	buf := mylog.Check2(json.Marshal(ws))
 	c.Assert(err, check.IsNil)
 
 	var v []map[string]string
@@ -59,14 +60,14 @@ func (stateSuite) testMarshalWarning(shown bool, c *check.C) {
 	c.Check(v[0]["expire-after"], check.Equals, state.DefaultWarningExpireAfter.String())
 	c.Check(v[0]["repeat-after"], check.Equals, state.DefaultWarningRepeatAfter.String())
 	c.Check(v[0]["first-added"], check.Equals, v[0]["last-added"])
-	t, err := time.Parse(time.RFC3339, v[0]["first-added"])
+	t := mylog.Check2(time.Parse(time.RFC3339, v[0]["first-added"]))
 	c.Assert(err, check.IsNil)
 	dt := t.Sub(now)
 	// 'now' was just *after* creating the warning
 	c.Check(dt <= 0, check.Equals, true)
 	c.Check(-time.Minute < dt, check.Equals, true)
 	if shown {
-		t, err := time.Parse(time.RFC3339, v[0]["last-shown"])
+		t := mylog.Check2(time.Parse(time.RFC3339, v[0]["last-shown"]))
 		c.Assert(err, check.IsNil)
 		dt := t.Sub(now)
 		// 'now' was just *before* marking the warning as shown
@@ -189,7 +190,7 @@ func (stateSuite) TestCheckpoint(c *check.C) {
 	st.Unlock()
 	c.Assert(b.checkpoints, check.HasLen, 1)
 
-	st2, err := state.ReadState(nil, bytes.NewReader(b.checkpoints[0]))
+	st2 := mylog.Check2(state.ReadState(nil, bytes.NewReader(b.checkpoints[0])))
 	c.Assert(err, check.IsNil)
 	st2.Lock()
 	defer st2.Unlock()
@@ -277,9 +278,10 @@ func (stateSuite) TestRemoveWarning(c *check.C) {
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
+	mylog.
 
-	// cannot replace a non existing warning
-	err := st.RemoveWarning("this warning does not exist")
+		// cannot replace a non existing warning
+		Check(st.RemoveWarning("this warning does not exist"))
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 	ws := st.AllWarnings()
 	c.Check(ws, check.HasLen, 0)
@@ -288,9 +290,10 @@ func (stateSuite) TestRemoveWarning(c *check.C) {
 	ws = st.AllWarnings()
 	c.Check(ws, check.HasLen, 1)
 	c.Check(ws[0].String(), check.Equals, "this warning exists")
+	mylog.
 
-	// check warning is removed
-	err = st.RemoveWarning("this warning exists")
+		// check warning is removed
+		Check(st.RemoveWarning("this warning exists"))
 	c.Assert(err, check.IsNil)
 	ws = st.AllWarnings()
 	c.Check(ws, check.HasLen, 0)

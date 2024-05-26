@@ -23,9 +23,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-var (
-	ModprobeCommand = modprobeCommand
-)
+var ModprobeCommand = modprobeCommand
 
 func MockModprobeCommand(f func(args ...string) error) (restore func()) {
 	r := testutil.Backup(&modprobeCommand)

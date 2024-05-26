@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/timings"
@@ -223,9 +224,8 @@ type Copier interface {
 // label if not empty is used to identify a Core 20 recovery system seed.
 func Open(seedDir, label string) (Seed, error) {
 	if label != "" {
-		if err := asserts.IsValidSystemLabel(label); err != nil {
-			return nil, err
-		}
+		mylog.Check(asserts.IsValidSystemLabel(label))
+
 		return &seed20{systemDir: filepath.Join(seedDir, "systems", label)}, nil
 	}
 	return &seed16{seedDir: seedDir}, nil
@@ -238,20 +238,15 @@ func ReadSystemEssential(seedDir, label string, essentialTypes []snap.Type, tm t
 	if label == "" {
 		return nil, nil, fmt.Errorf("system label cannot be empty")
 	}
-	seed20, err := Open(seedDir, label)
-	if err != nil {
-		return nil, nil, err
-	}
+	seed20 := mylog.Check2(Open(seedDir, label))
+	mylog.Check(
 
-	// load assertions into a temporary database
-	if err := seed20.LoadAssertions(nil, nil); err != nil {
-		return nil, nil, err
-	}
+		// load assertions into a temporary database
+		seed20.LoadAssertions(nil, nil))
+	mylog.Check(
 
-	// load and verify info about essential snaps
-	if err := seed20.LoadEssentialMeta(essentialTypes, tm); err != nil {
-		return nil, nil, err
-	}
+		// load and verify info about essential snaps
+		seed20.LoadEssentialMeta(essentialTypes, tm))
 
 	return seed20.Model(), seed20.EssentialSnaps(), nil
 }
@@ -268,11 +263,7 @@ func ReadSeedAndBetterEarliestTime(seedDir, label string, earliestTime time.Time
 	if label == "" {
 		return nil, time.Time{}, fmt.Errorf("system label cannot be empty")
 	}
-	seed20, err := open(seedDir, label)
-	if err != nil {
-		return nil, time.Time{}, err
-
-	}
+	seed20 := mylog.Check2(open(seedDir, label))
 
 	if numJobs > 0 {
 		seed20.SetParallelism(numJobs)
@@ -304,18 +295,15 @@ func ReadSeedAndBetterEarliestTime(seedDir, label string, earliestTime time.Time
 	}
 
 	// create a temporary database, commitTo will invoke improve
-	db, commitTo, err := newMemAssertionsDB(improve)
-	if err != nil {
-		return nil, time.Time{}, err
-	}
+	db, commitTo := mylog.Check3(newMemAssertionsDB(improve))
+
 	// set up the database to check for key expiry only assuming
 	// earliestTime (if not zero)
 	db.SetEarliestTime(earliestTime)
+	mylog.Check(
 
-	// load assertions into the temporary database
-	if err := seed20.LoadAssertions(db, commitTo); err != nil {
-		return nil, time.Time{}, err
-	}
+		// load assertions into the temporary database
+		seed20.LoadAssertions(db, commitTo))
 
 	// consider the model's timestamp as well - it must be signed
 	// by the brand so is safe from the attack detailed above

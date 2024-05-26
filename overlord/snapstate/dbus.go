@@ -22,6 +22,7 @@ package snapstate
 import (
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
@@ -56,19 +57,14 @@ func checkDBusServiceConflicts(st *state.State, info *snap.Info) error {
 		return nil
 	}
 
-	stateMap, err := All(st)
-	if err != nil {
-		return err
-	}
+	stateMap := mylog.Check2(All(st))
+
 	for instanceName, snapst := range stateMap {
 		if instanceName == info.InstanceName() {
 			continue
 		}
 
-		otherInfo, err := snapst.CurrentInfo()
-		if err != nil {
-			return err
-		}
+		otherInfo := mylog.Check2(snapst.CurrentInfo())
 
 		otherSessionServices, otherSystemServices := getActivatableDBusServices(otherInfo)
 		for svc := range sessionServices {

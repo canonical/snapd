@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/testutil"
@@ -76,33 +77,33 @@ func (s *mockDiskSuite) TestMockDeviceNameToDiskMapping(c *C) {
 	r := disks.MockDeviceNameToDiskMapping(m)
 	defer r()
 
-	res, err := disks.DiskFromDeviceName("devName1")
-	c.Assert(err, IsNil)
+	res := mylog.Check2(disks.DiskFromDeviceName("devName1"))
+
 	c.Assert(res.KernelDeviceNode(), Equals, "/dev/vda")
 	c.Assert(res.KernelDevicePath(), Equals, "/sys/devices/foo1")
-	parts, err := res.Partitions()
-	c.Assert(err, IsNil)
+	parts := mylog.Check2(res.Partitions())
+
 	c.Assert(parts, DeepEquals, []disks.Partition{{FilesystemLabel: "label1", PartitionUUID: "part1"}})
 	c.Assert(res, DeepEquals, d1)
 
-	res2, err := disks.DiskFromDeviceName("devName2")
-	c.Assert(err, IsNil)
+	res2 := mylog.Check2(disks.DiskFromDeviceName("devName2"))
+
 	c.Assert(res2.KernelDeviceNode(), Equals, "/dev/vda")
 	c.Assert(res2.KernelDevicePath(), Equals, "/sys/devices/foo1")
-	parts, err = res.Partitions()
-	c.Assert(err, IsNil)
+	parts = mylog.Check2(res.Partitions())
+
 	c.Assert(parts, DeepEquals, []disks.Partition{{FilesystemLabel: "label1", PartitionUUID: "part1"}})
 	c.Assert(res2, DeepEquals, d1)
 
-	_, err = disks.DiskFromDeviceName("devName3")
+	_ = mylog.Check2(disks.DiskFromDeviceName("devName3"))
 	c.Assert(err, ErrorMatches, fmt.Sprintf("device name %q not mocked", "devName3"))
 
-	res3, err := disks.DiskFromDeviceName("other-disk")
-	c.Assert(err, IsNil)
+	res3 := mylog.Check2(disks.DiskFromDeviceName("other-disk"))
+
 	c.Assert(res3.KernelDeviceNode(), Equals, "/dev/vdb")
 	c.Assert(res3.KernelDevicePath(), Equals, "/sys/devices/foo2")
-	parts, err = res3.Partitions()
-	c.Assert(err, IsNil)
+	parts = mylog.Check2(res3.Partitions())
+
 	c.Assert(parts, DeepEquals, []disks.Partition{{FilesystemLabel: "label2", PartitionUUID: "part2"}})
 	c.Assert(res3, DeepEquals, d2)
 }
@@ -147,33 +148,33 @@ func (s *mockDiskSuite) TestMockDevicePathToDiskMapping(c *C) {
 	r := disks.MockDevicePathToDiskMapping(m)
 	defer r()
 
-	res, err := disks.DiskFromDevicePath("/sys/devices/pci/foo/dev1")
-	c.Assert(err, IsNil)
+	res := mylog.Check2(disks.DiskFromDevicePath("/sys/devices/pci/foo/dev1"))
+
 	c.Assert(res.KernelDeviceNode(), Equals, "/dev/vda")
 	c.Assert(res.KernelDevicePath(), Equals, "/sys/devices/pci/foo/dev1")
-	parts, err := res.Partitions()
-	c.Assert(err, IsNil)
+	parts := mylog.Check2(res.Partitions())
+
 	c.Assert(parts, DeepEquals, []disks.Partition{{FilesystemLabel: "label1", PartitionUUID: "part1"}})
 	c.Assert(res, DeepEquals, d1)
 
-	res2, err := disks.DiskFromDevicePath("/sys/block/dev1")
-	c.Assert(err, IsNil)
+	res2 := mylog.Check2(disks.DiskFromDevicePath("/sys/block/dev1"))
+
 	c.Assert(res2.KernelDeviceNode(), Equals, "/dev/vda")
 	c.Assert(res2.KernelDevicePath(), Equals, "/sys/devices/pci/foo/dev1")
-	parts, err = res.Partitions()
-	c.Assert(err, IsNil)
+	parts = mylog.Check2(res.Partitions())
+
 	c.Assert(parts, DeepEquals, []disks.Partition{{FilesystemLabel: "label1", PartitionUUID: "part1"}})
 	c.Assert(res2, DeepEquals, d1)
 
-	_, err = disks.DiskFromDevicePath("/sys/device/nvme/foo/dev3")
+	_ = mylog.Check2(disks.DiskFromDevicePath("/sys/device/nvme/foo/dev3"))
 	c.Assert(err, ErrorMatches, fmt.Sprintf("device path %q not mocked", "/sys/device/nvme/foo/dev3"))
 
-	res3, err := disks.DiskFromDevicePath("/sys/device/mmc/bar/dev2")
-	c.Assert(err, IsNil)
+	res3 := mylog.Check2(disks.DiskFromDevicePath("/sys/device/mmc/bar/dev2"))
+
 	c.Assert(res3.KernelDeviceNode(), Equals, "/dev/vdb")
 	c.Assert(res3.KernelDevicePath(), Equals, "/sys/devices/foo2")
-	parts, err = res3.Partitions()
-	c.Assert(err, IsNil)
+	parts = mylog.Check2(res3.Partitions())
+
 	c.Assert(parts, DeepEquals, []disks.Partition{{FilesystemLabel: "label2", PartitionUUID: "part2"}})
 	c.Assert(res3, DeepEquals, d2)
 }
@@ -217,33 +218,33 @@ func (s *mockDiskSuite) TestMockPartitionDeviceNodeToDiskMapping(c *C) {
 	r := disks.MockPartitionDeviceNodeToDiskMapping(m)
 	defer r()
 
-	res, err := disks.DiskFromPartitionDeviceNode("/dev/vda1")
-	c.Assert(err, IsNil)
+	res := mylog.Check2(disks.DiskFromPartitionDeviceNode("/dev/vda1"))
+
 	c.Assert(res.KernelDeviceNode(), Equals, "/dev/vda")
 	c.Assert(res.KernelDevicePath(), Equals, "/sys/devices/foo1")
-	parts, err := res.Partitions()
-	c.Assert(err, IsNil)
+	parts := mylog.Check2(res.Partitions())
+
 	c.Assert(parts, DeepEquals, []disks.Partition{{FilesystemLabel: "label1", PartitionUUID: "part1"}})
 	c.Assert(res, DeepEquals, d1)
 
-	res2, err := disks.DiskFromPartitionDeviceNode("/dev/vda2")
-	c.Assert(err, IsNil)
+	res2 := mylog.Check2(disks.DiskFromPartitionDeviceNode("/dev/vda2"))
+
 	c.Assert(res2.KernelDeviceNode(), Equals, "/dev/vda")
 	c.Assert(res2.KernelDevicePath(), Equals, "/sys/devices/foo1")
-	parts, err = res.Partitions()
-	c.Assert(err, IsNil)
+	parts = mylog.Check2(res.Partitions())
+
 	c.Assert(parts, DeepEquals, []disks.Partition{{FilesystemLabel: "label1", PartitionUUID: "part1"}})
 	c.Assert(res2, DeepEquals, d1)
 
-	_, err = disks.DiskFromPartitionDeviceNode("/dev/vda3")
+	_ = mylog.Check2(disks.DiskFromPartitionDeviceNode("/dev/vda3"))
 	c.Assert(err, ErrorMatches, fmt.Sprintf("partition device node %q not mocked", "/dev/vda3"))
 
-	res3, err := disks.DiskFromPartitionDeviceNode("/dev/vdb1")
-	c.Assert(err, IsNil)
+	res3 := mylog.Check2(disks.DiskFromPartitionDeviceNode("/dev/vdb1"))
+
 	c.Assert(res3.KernelDeviceNode(), Equals, "/dev/vdb")
 	c.Assert(res3.KernelDevicePath(), Equals, "/sys/devices/foo2")
-	parts, err = res3.Partitions()
-	c.Assert(err, IsNil)
+	parts = mylog.Check2(res3.Partitions())
+
 	c.Assert(parts, DeepEquals, []disks.Partition{{FilesystemLabel: "label2", PartitionUUID: "part2"}})
 	c.Assert(res3, DeepEquals, d2)
 }
@@ -366,29 +367,29 @@ func (s *mockDiskSuite) TestMockMountPointDisksToPartitionMapping(c *C) {
 	defer r()
 
 	// we can find the mock disk
-	foundDisk, err := disks.DiskFromMountPoint("mount1", nil)
-	c.Assert(err, IsNil)
+	foundDisk := mylog.Check2(disks.DiskFromMountPoint("mount1", nil))
+
 
 	// and it has filesystem labels
-	uuid, err := foundDisk.FindMatchingPartitionUUIDWithFsLabel("label1")
-	c.Assert(err, IsNil)
+	uuid := mylog.Check2(foundDisk.FindMatchingPartitionUUIDWithFsLabel("label1"))
+
 	c.Assert(uuid, Equals, "part1")
 
 	// and partition labels
-	uuid, err = foundDisk.FindMatchingPartitionUUIDWithPartLabel("part-label1")
-	c.Assert(err, IsNil)
+	uuid = mylog.Check2(foundDisk.FindMatchingPartitionUUIDWithPartLabel("part-label1"))
+
 	c.Assert(uuid, Equals, "part1")
 
-	part, err := foundDisk.FindMatchingPartitionWithFsLabel("label1")
-	c.Assert(err, IsNil)
+	part := mylog.Check2(foundDisk.FindMatchingPartitionWithFsLabel("label1"))
+
 	c.Assert(part, DeepEquals, disks.Partition{
 		PartitionLabel:  "part-label1",
 		FilesystemLabel: "label1",
 		PartitionUUID:   "part1",
 	})
 
-	part, err = foundDisk.FindMatchingPartitionWithPartLabel("part-label1")
-	c.Assert(err, IsNil)
+	part = mylog.Check2(foundDisk.FindMatchingPartitionWithPartLabel("part-label1"))
+
 	c.Assert(part, DeepEquals, disks.Partition{
 		PartitionLabel:  "part-label1",
 		FilesystemLabel: "label1",
@@ -396,51 +397,51 @@ func (s *mockDiskSuite) TestMockMountPointDisksToPartitionMapping(c *C) {
 	})
 
 	// and it has the right set of partitions
-	parts, err := foundDisk.Partitions()
-	c.Assert(err, IsNil)
+	parts := mylog.Check2(foundDisk.Partitions())
+
 	c.Assert(parts, DeepEquals, []disks.Partition{
 		{PartitionLabel: "part-label1", FilesystemLabel: "label1", PartitionUUID: "part1"},
 	})
 
 	// the same mount point is always from the same disk
-	matches, err := foundDisk.MountPointIsFromDisk("mount1", nil)
-	c.Assert(err, IsNil)
+	matches := mylog.Check2(foundDisk.MountPointIsFromDisk("mount1", nil))
+
 	c.Assert(matches, Equals, true)
 
 	// mount2 goes to the same disk, as per the mapping above
-	matches, err = foundDisk.MountPointIsFromDisk("mount2", nil)
-	c.Assert(err, IsNil)
+	matches = mylog.Check2(foundDisk.MountPointIsFromDisk("mount2", nil))
+
 	c.Assert(matches, Equals, true)
 
 	// mount3 does not however
-	matches, err = foundDisk.MountPointIsFromDisk("mount3", nil)
-	c.Assert(err, IsNil)
+	matches = mylog.Check2(foundDisk.MountPointIsFromDisk("mount3", nil))
+
 	c.Assert(matches, Equals, false)
 
 	// a disk from mount3 is also able to be found
-	foundDisk2, err := disks.DiskFromMountPoint("mount3", nil)
-	c.Assert(err, IsNil)
+	foundDisk2 := mylog.Check2(disks.DiskFromMountPoint("mount3", nil))
+
 
 	// we can find label2 from mount3's disk
-	uuid, err = foundDisk2.FindMatchingPartitionUUIDWithFsLabel("label2")
-	c.Assert(err, IsNil)
+	uuid = mylog.Check2(foundDisk2.FindMatchingPartitionUUIDWithFsLabel("label2"))
+
 	c.Assert(uuid, Equals, "part2")
 
 	// and the partition label
-	uuid, err = foundDisk2.FindMatchingPartitionUUIDWithPartLabel("part-label2")
-	c.Assert(err, IsNil)
+	uuid = mylog.Check2(foundDisk2.FindMatchingPartitionUUIDWithPartLabel("part-label2"))
+
 	c.Assert(uuid, Equals, "part2")
 
-	part, err = foundDisk2.FindMatchingPartitionWithFsLabel("label2")
-	c.Assert(err, IsNil)
+	part = mylog.Check2(foundDisk2.FindMatchingPartitionWithFsLabel("label2"))
+
 	c.Assert(part, DeepEquals, disks.Partition{
 		PartitionLabel:  "part-label2",
 		FilesystemLabel: "label2",
 		PartitionUUID:   "part2",
 	})
 
-	part, err = foundDisk2.FindMatchingPartitionWithPartLabel("part-label2")
-	c.Assert(err, IsNil)
+	part = mylog.Check2(foundDisk2.FindMatchingPartitionWithPartLabel("part-label2"))
+
 	c.Assert(part, DeepEquals, disks.Partition{
 		PartitionLabel:  "part-label2",
 		FilesystemLabel: "label2",
@@ -448,21 +449,21 @@ func (s *mockDiskSuite) TestMockMountPointDisksToPartitionMapping(c *C) {
 	})
 
 	// and it has the right set of partitions
-	parts, err = foundDisk2.Partitions()
-	c.Assert(err, IsNil)
+	parts = mylog.Check2(foundDisk2.Partitions())
+
 	c.Assert(parts, DeepEquals, []disks.Partition{
 		{PartitionLabel: "part-label2", FilesystemLabel: "label2", PartitionUUID: "part2"},
 	})
 
 	// we can't find label1 from mount1's or mount2's disk
-	_, err = foundDisk2.FindMatchingPartitionUUIDWithFsLabel("label1")
+	_ = mylog.Check2(foundDisk2.FindMatchingPartitionUUIDWithFsLabel("label1"))
 	c.Assert(err, ErrorMatches, "filesystem label \"label1\" not found")
 	c.Assert(err, DeepEquals, disks.PartitionNotFoundError{
 		SearchType:  "filesystem-label",
 		SearchQuery: "label1",
 	})
 
-	_, err = foundDisk2.FindMatchingPartitionUUIDWithPartLabel("part-label1")
+	_ = mylog.Check2(foundDisk2.FindMatchingPartitionUUIDWithPartLabel("part-label1"))
 	c.Assert(err, ErrorMatches, "partition label \"part-label1\" not found")
 	c.Assert(err, DeepEquals, disks.PartitionNotFoundError{
 		SearchType:  "partition-label",
@@ -470,11 +471,11 @@ func (s *mockDiskSuite) TestMockMountPointDisksToPartitionMapping(c *C) {
 	})
 
 	// mount1 and mount2 do not match mount3 disk
-	matches, err = foundDisk2.MountPointIsFromDisk("mount1", nil)
-	c.Assert(err, IsNil)
+	matches = mylog.Check2(foundDisk2.MountPointIsFromDisk("mount1", nil))
+
 	c.Assert(matches, Equals, false)
-	matches, err = foundDisk2.MountPointIsFromDisk("mount2", nil)
-	c.Assert(err, IsNil)
+	matches = mylog.Check2(foundDisk2.MountPointIsFromDisk("mount2", nil))
+
 	c.Assert(matches, Equals, false)
 }
 
@@ -511,23 +512,23 @@ func (s *mockDiskSuite) TestMockMountPointDisksToPartitionMappingDecryptedDevice
 	defer r()
 
 	// first we get ubuntu-boot (which is not a decrypted device)
-	d, err := disks.DiskFromMountPoint("/run/mnt/ubuntu-boot", nil)
-	c.Assert(err, IsNil)
+	d := mylog.Check2(disks.DiskFromMountPoint("/run/mnt/ubuntu-boot", nil))
+
 
 	// next we find ubuntu-seed (also not decrypted)
-	label, err := d.FindMatchingPartitionUUIDWithFsLabel("ubuntu-seed")
-	c.Assert(err, IsNil)
+	label := mylog.Check2(d.FindMatchingPartitionUUIDWithFsLabel("ubuntu-seed"))
+
 	c.Assert(label, Equals, "ubuntu-seed-part")
 
 	// then we find ubuntu-data-enc, which is not a decrypted device
-	label, err = d.FindMatchingPartitionUUIDWithFsLabel("ubuntu-data-enc")
-	c.Assert(err, IsNil)
+	label = mylog.Check2(d.FindMatchingPartitionUUIDWithFsLabel("ubuntu-data-enc"))
+
 	c.Assert(label, Equals, "ubuntu-data-enc-part")
 
 	// and then finally ubuntu-data enc is from the same disk as ubuntu-boot
 	// with IsDecryptedDevice = true
 	opts := &disks.Options{IsDecryptedDevice: true}
-	matches, err := d.MountPointIsFromDisk("/run/mnt/ubuntu-data", opts)
-	c.Assert(err, IsNil)
+	matches := mylog.Check2(d.MountPointIsFromDisk("/run/mnt/ubuntu-data", opts))
+
 	c.Assert(matches, Equals, true)
 }

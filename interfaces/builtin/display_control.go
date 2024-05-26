@@ -25,6 +25,7 @@ import (
 	"path"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 )
@@ -95,16 +96,11 @@ type displayControlInterface struct {
 func (iface *displayControlInterface) dereferencedBacklightPaths() []string {
 	var paths []string
 	sysClass := "/sys/class/backlight"
-	dirs, err := readDir(sysClass)
-	if err != nil {
-		return paths
-	}
+	dirs := mylog.Check2(readDir(sysClass))
 
 	for _, s := range dirs {
-		p, err := evalSymlinks(filepath.Join(sysClass, s.Name()))
-		if err != nil {
-			continue
-		}
+		p := mylog.Check2(evalSymlinks(filepath.Join(sysClass, s.Name())))
+
 		paths = append(paths, filepath.Clean(p))
 	}
 	return paths

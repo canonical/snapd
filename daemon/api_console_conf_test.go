@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -42,15 +43,15 @@ type consoleConfSuite struct {
 func (s *consoleConfSuite) TestPostConsoleConfStartRoutine(c *C) {
 	t0 := time.Now()
 	d := s.daemonWithOverlordMock()
-	snapMgr, err := snapstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
-	c.Assert(err, IsNil)
+	snapMgr := mylog.Check2(snapstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner()))
+
 	d.Overlord().AddManager(snapMgr)
 
 	st := d.Overlord().State()
 
 	body := bytes.NewBuffer(nil)
-	req, err := http.NewRequest("POST", "/v2/internal/console-conf-start", body)
-	c.Assert(err, IsNil)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/internal/console-conf-start", body))
+
 
 	// no changes in state, no changes in response
 	rsp := s.syncReq(c, req, nil)
@@ -62,8 +63,8 @@ func (s *consoleConfSuite) TestPostConsoleConfStartRoutine(c *C) {
 
 	tr := config.NewTransaction(st)
 	var t1 time.Time
-	err = tr.Get("core", "refresh.hold", &t1)
-	c.Assert(err, IsNil)
+	mylog.Check(tr.Get("core", "refresh.hold", &t1))
+
 
 	c.Assert(t0.Add(20*time.Minute).After(t1), Equals, false)
 
@@ -99,8 +100,8 @@ func (s *consoleConfSuite) TestPostConsoleConfStartRoutine(c *C) {
 	st.Unlock()
 	defer st.Lock()
 
-	req2, err := http.NewRequest("POST", "/v2/internal/console-conf-start", body)
-	c.Assert(err, IsNil)
+	req2 := mylog.Check2(http.NewRequest("POST", "/v2/internal/console-conf-start", body))
+
 	rsp2 := s.syncReq(c, req2, nil)
 	c.Assert(rsp2.Result, FitsTypeOf, &daemon.ConsoleConfStartRoutineResult{})
 	res := rsp2.Result.(*daemon.ConsoleConfStartRoutineResult)

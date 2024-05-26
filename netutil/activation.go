@@ -27,6 +27,7 @@ import (
 	unix "syscall"
 
 	"github.com/coreos/go-systemd/activation"
+	"github.com/ddkwork/golibrary/mylog"
 
 	"github.com/snapcore/snapd/logger"
 )
@@ -38,28 +39,22 @@ func GetListener(socketPath string, listenerMap map[string]net.Listener) (net.Li
 		return listener, nil
 	}
 
-	if c, err := net.Dial("unix", socketPath); err == nil {
+	if c := mylog.Check2(net.Dial("unix", socketPath)); err == nil {
 		c.Close()
 		return nil, fmt.Errorf("socket %q already in use", socketPath)
 	}
 
-	if err := os.Remove(socketPath); err != nil && !os.IsNotExist(err) {
+	if mylog.Check(os.Remove(socketPath)); err != nil && !os.IsNotExist(err) {
 		return nil, err
 	}
 
-	address, err := net.ResolveUnixAddr("unix", socketPath)
-	if err != nil {
-		return nil, err
-	}
+	address := mylog.Check2(net.ResolveUnixAddr("unix", socketPath))
 
 	runtime.LockOSThread()
 	oldmask := unix.Umask(0111)
-	listener, err := net.ListenUnix("unix", address)
+	listener := mylog.Check2(net.ListenUnix("unix", address))
 	unix.Umask(oldmask)
 	runtime.UnlockOSThread()
-	if err != nil {
-		return nil, err
-	}
 
 	logger.Debugf("socket %q was not activated; listening", socketPath)
 
@@ -74,10 +69,8 @@ func ActivationListeners() (lns map[string]net.Listener, err error) {
 	lns = make(map[string]net.Listener, len(files))
 
 	for _, f := range files {
-		ln, err := net.FileListener(f)
-		if err != nil {
-			return nil, err
-		}
+		ln := mylog.Check2(net.FileListener(f))
+
 		addr := ln.Addr().String()
 		lns[addr] = ln
 	}

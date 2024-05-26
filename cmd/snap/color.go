@@ -222,5 +222,4 @@ func shortPublisher(esc *escapes, storeAccount *snap.StoreAccount) string {
 		color = esc.green
 	}
 	return storeAccount.Username + color + badge + esc.end
-
 }

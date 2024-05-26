@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/godbus/dbus"
 
 	"github.com/snapcore/snapd/dbusutil"
@@ -17,9 +18,11 @@ import (
 	"github.com/snapcore/snapd/systemd"
 )
 
-var osGetuid = os.Getuid
-var osGetpid = os.Getpid
-var cgroupProcessPathInTrackingCgroup = ProcessPathInTrackingCgroup
+var (
+	osGetuid                          = os.Getuid
+	osGetpid                          = os.Getpid
+	cgroupProcessPathInTrackingCgroup = ProcessPathInTrackingCgroup
+)
 
 var ErrCannotTrackProcess = errors.New("cannot track application process")
 
@@ -60,32 +63,21 @@ func CreateTransientScopeForTracking(securityTag string, opts *TrackingOptions) 
 	// bus to the system bus.
 	var isSessionBus bool
 	var conn *dbus.Conn
-	var err error
+
 	if opts.AllowSessionBus {
-		isSessionBus, conn, err = sessionOrMaybeSystemBus(uid)
-		if err != nil {
-			return ErrCannotTrackProcess
-		}
+		isSessionBus, conn = mylog.Check3(sessionOrMaybeSystemBus(uid))
 	} else {
 		isSessionBus = false
-		conn, err = dbusutil.SystemBus()
-		if err != nil {
-			return ErrCannotTrackProcess
-		}
+		conn = mylog.Check2(dbusutil.SystemBus())
+
 	}
 
 	// We ask the kernel for a random UUID. We need one because each transient
 	// scope needs a unique name. The unique name is composed of said UUID and
 	// the snap security tag.
-	uuid, err := randomUUID()
-	if err != nil {
-		return err
-	}
+	uuid := mylog.Check2(randomUUID())
 
-	securityTagUnitName, err := systemd.SecurityTagToUnitName(securityTag)
-	if err != nil {
-		return err
-	}
+	securityTagUnitName := mylog.Check2(systemd.SecurityTagToUnitName(securityTag))
 
 	// Enforcing uniqueness is preferred to reusing an existing scope for
 	// simplicity since doing otherwise by joining an existing scope has
@@ -98,31 +90,13 @@ func CreateTransientScopeForTracking(securityTag string, opts *TrackingOptions) 
 	pid := osGetpid()
 	start := time.Now()
 tryAgain:
-	// Create a transient scope by talking to systemd over DBus.
-	if err := doCreateTransientScope(conn, unitName, pid); err != nil {
-		switch err {
-		case errDBusUnknownMethod:
-			return ErrCannotTrackProcess
-		case errDBusSpawnChildExited:
-			fallthrough
-		case errDBusNameHasNoOwner:
-			if isSessionBus && uid == 0 {
-				// We cannot activate systemd --user for root,
-				// try the system bus as a fallback.
-				logger.Debugf("cannot activate systemd --user on session bus, falling back to system bus: %s", err)
-				isSessionBus = false
-				conn, err = dbusutil.SystemBus()
-				if err != nil {
-					logger.Debugf("system bus is not available: %s", err)
-					return ErrCannotTrackProcess
-				}
-				logger.Debugf("using system bus now, session bus could not activate systemd --user")
-				goto tryAgain
-			}
-			return ErrCannotTrackProcess
-		}
-		return err
-	}
+	mylog.Check(
+		// Create a transient scope by talking to systemd over DBus.
+		doCreateTransientScope(conn, unitName, pid))
+
+	// We cannot activate systemd --user for root,
+	// try the system bus as a fallback.
+
 	// We may have created a transient scope but due to the constraints the
 	// kernel puts on process transitions on unprivileged users (and remember
 	// that systemd --user is unprivileged) the actual re-association with the
@@ -139,10 +113,8 @@ tryAgain:
 	// contained therein.
 	hasTracking := false
 	for tries := 0; tries < 100; tries++ {
-		path, err := cgroupProcessPathInTrackingCgroup(pid)
-		if err != nil {
-			return err
-		}
+		path := mylog.Check2(cgroupProcessPathInTrackingCgroup(pid))
+
 		if strings.HasSuffix(path, unitName) {
 			hasTracking = true
 			break
@@ -162,16 +134,10 @@ tryAgain:
 //
 // If the application process is not tracked then ErrCannotTrackProcess is returned.
 func ConfirmSystemdAppTracking(securityTag string) error {
-	unitName, err := systemd.SecurityTagToUnitName(securityTag)
-	if err != nil {
-		return err
-	}
+	unitName := mylog.Check2(systemd.SecurityTagToUnitName(securityTag))
 
 	pid := osGetpid()
-	path, err := cgroupProcessPathInTrackingCgroup(pid)
-	if err != nil {
-		return err
-	}
+	path := mylog.Check2(cgroupProcessPathInTrackingCgroup(pid))
 
 	// the transient scope of the application carries the security tag, eg:
 	// snap.hello-world.sh-4706fe54-7802-4808-aa7e-ae8b567239e0.scope
@@ -192,10 +158,8 @@ func ConfirmSystemdAppTracking(securityTag string) error {
 // If the application process is not tracked then ErrCannotTrackProcess is returned.
 func ConfirmSystemdServiceTracking(securityTag string) error {
 	pid := osGetpid()
-	path, err := cgroupProcessPathInTrackingCgroup(pid)
-	if err != nil {
-		return err
-	}
+	path := mylog.Check2(cgroupProcessPathInTrackingCgroup(pid))
+
 	unitName := fmt.Sprintf("%s.service", securityTag)
 	if !strings.Contains(path, unitName) {
 		return ErrCannotTrackProcess
@@ -212,7 +176,7 @@ func sessionOrMaybeSystemBus(uid int) (isSessionBus bool, conn *dbus.Conn, err e
 	// It is worth noting that hooks will not normally have a session bus to
 	// connect to, as they are invoked as descendants of snapd, and snapd is a
 	// service running outside of any session.
-	conn, err = dbusutil.SessionBus()
+	conn = mylog.Check2(dbusutil.SessionBus())
 	if err == nil {
 		logger.Debugf("using session bus")
 		return true, conn, nil
@@ -220,12 +184,8 @@ func sessionOrMaybeSystemBus(uid int) (isSessionBus bool, conn *dbus.Conn, err e
 	logger.Debugf("session bus is not available: %s", err)
 	if uid == 0 {
 		logger.Debugf("falling back to system bus")
-		conn, err = dbusutil.SystemBus()
-		if err != nil {
-			logger.Debugf("system bus is not available: %s", err)
-		} else {
-			logger.Debugf("using system bus now, session bus was not available")
-		}
+		conn = mylog.Check2(dbusutil.SystemBus())
+
 	}
 	return false, conn, err
 }
@@ -320,33 +280,22 @@ func startTransientScope(conn *dbus.Conn, unitName string, pid int) (job dbus.Ob
 		properties,
 		aux,
 	)
-	if err := call.Store(&job); err != nil {
-		if dbusErr, ok := err.(dbus.Error); ok {
-			logger.Debugf("StartTransientUnit failed with %q: %v", dbusErr.Name, dbusErr.Body)
-			// Some specific DBus errors have distinct handling.
-			switch dbusErr.Name {
-			case "org.freedesktop.DBus.Error.NameHasNoOwner":
-				// Nothing is providing systemd bus name. This is, most likely,
-				// an Ubuntu 14.04 system with the special deputy systemd.
-				return "", errDBusNameHasNoOwner
-			case "org.freedesktop.DBus.Error.UnknownMethod":
-				// The DBus API is not supported on this system. This can happen on
-				// very old versions of Systemd, for instance on Ubuntu 14.04.
-				return "", errDBusUnknownMethod
-			case "org.freedesktop.DBus.Error.Spawn.ChildExited":
-				// We tried to socket-activate dbus-daemon or bus-activate
-				// systemd --user but it failed.
-				return "", errDBusSpawnChildExited
-			case "org.freedesktop.systemd1.UnitExists":
-				// Starting a scope with a name that already exists is an
-				// error. Normally this should never happen.
-				return "", fmt.Errorf("cannot create transient scope: scope %q clashed: %s", unitName, err)
-			default:
-				return "", fmt.Errorf("cannot create transient scope: DBus error %q: %v", dbusErr.Name, dbusErr.Body)
-			}
-		}
-		return "", fmt.Errorf("cannot create transient scope: %s", err)
-	}
+	mylog.Check(call.Store(&job))
+
+	// Some specific DBus errors have distinct handling.
+
+	// Nothing is providing systemd bus name. This is, most likely,
+	// an Ubuntu 14.04 system with the special deputy systemd.
+
+	// The DBus API is not supported on this system. This can happen on
+	// very old versions of Systemd, for instance on Ubuntu 14.04.
+
+	// We tried to socket-activate dbus-daemon or bus-activate
+	// systemd --user but it failed.
+
+	// Starting a scope with a name that already exists is an
+	// error. Normally this should never happen.
+
 	logger.Debugf("create transient scope job: %s", job)
 	return job, nil
 }
@@ -355,7 +304,7 @@ func startTransientScope(conn *dbus.Conn, unitName string, pid int) (job dbus.Ob
 // given unit name asking systemd to move the provided pid to that scope, does
 // not wait for the systemd job to complete
 func doCreateTransientScopeNoSync(conn *dbus.Conn, unitName string, pid int) error {
-	_, err := startTransientScope(conn, unitName, pid)
+	_ := mylog.Check2(startTransientScope(conn, unitName, pid))
 	return err
 }
 
@@ -369,9 +318,8 @@ func doCreateTransientScopeJobRemovedSync(conn *dbus.Conn, unitName string, pid 
 		dbus.WithMatchInterface("org.freedesktop.systemd1.Manager"),
 		dbus.WithMatchMember("JobRemoved"),
 	}
-	if err := conn.AddMatchSignal(jobRemoveMatch...); err != nil {
-		return fmt.Errorf("cannot subscribe to systemd signals: %v", err)
-	}
+	mylog.Check(conn.AddMatchSignal(jobRemoveMatch...))
+
 	// signal channel with buffer for some messages
 	signals := make(chan *dbus.Signal, 10)
 	// for receiving job results
@@ -425,9 +373,8 @@ func doCreateTransientScopeJobRemovedSync(conn *dbus.Conn, unitName string, pid 
 				var jobFromSignal dbus.ObjectPath
 				var unit string
 				var result string
-				if err := dbus.Store(sig.Body, &id, &jobFromSignal, &unit, &result); err != nil {
-					continue
-				}
+				mylog.Check(dbus.Store(sig.Body, &id, &jobFromSignal, &unit, &result))
+
 				if jobFromSignal == expectedJob {
 					// we are already expecting results for this job
 					jobResultChan <- result
@@ -440,10 +387,8 @@ func doCreateTransientScopeJobRemovedSync(conn *dbus.Conn, unitName string, pid 
 			}
 		}
 	}()
-	job, err := startTransientScope(conn, unitName, pid)
-	if err != nil {
-		return err
-	}
+	job := mylog.Check2(startTransientScope(conn, unitName, pid))
+
 	jobWaitFor <- job
 	select {
 	case result := <-jobResultChan:

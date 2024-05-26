@@ -19,6 +19,4 @@
 
 package ubootenv
 
-var (
-	WriteUint32 = writeUint32
-)
+var WriteUint32 = writeUint32

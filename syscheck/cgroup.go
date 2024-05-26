@@ -22,6 +22,7 @@ package syscheck
 import (
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/sandbox/cgroup"
 )
 
@@ -30,10 +31,8 @@ func init() {
 }
 
 func checkCgroup() error {
-	v, err := cgroup.Version()
-	if err != nil {
-		return fmt.Errorf("snapd could not probe cgroup version: %v", err)
-	}
+	v := mylog.Check2(cgroup.Version())
+
 	if v == cgroup.Unknown {
 		return fmt.Errorf("snapd could not determine cgroup version")
 	}

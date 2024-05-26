@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"runtime"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/osutil"
@@ -39,15 +40,7 @@ func serverVersion(cli *client.Client) *client.ServerVersion {
 			KernelVersion: fmt.Sprintf("%s (%s)", osutil.KernelVersion(), runtime.GOARCH),
 		}
 	}
-	sv, err := cli.ServerVersion()
+	sv := mylog.Check2(cli.ServerVersion())
 
-	if err != nil {
-		sv = &client.ServerVersion{
-			Version:     i18n.G("unavailable"),
-			Series:      "-",
-			OSID:        "-",
-			OSVersionID: "-",
-		}
-	}
 	return sv
 }

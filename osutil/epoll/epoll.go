@@ -34,6 +34,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"golang.org/x/sys/unix"
 )
 
@@ -71,10 +72,8 @@ type Epoll struct {
 
 // Open opens an event monitoring descriptor.
 func Open() (*Epoll, error) {
-	fd, err := unix.EpollCreate1(unix.EPOLL_CLOEXEC)
-	if err != nil {
-		return nil, fmt.Errorf("cannot open epoll file descriptor: %w", err)
-	}
+	fd := mylog.Check2(unix.EpollCreate1(unix.EPOLL_CLOEXEC))
+
 	e := &Epoll{
 		fd:                fd,
 		registeredFdCount: 0,
@@ -132,17 +131,11 @@ func (e *Epoll) Register(fd int, mask Readiness) error {
 		return ErrEpollClosed
 	}
 	e.incrementRegisteredFdCount()
-	err := unix.EpollCtl(e.fd, unix.EPOLL_CTL_ADD, fd, &unix.EpollEvent{
+	mylog.Check(unix.EpollCtl(e.fd, unix.EPOLL_CTL_ADD, fd, &unix.EpollEvent{
 		Events: uint32(mask),
 		Fd:     int32(fd),
-	})
-	if err != nil {
-		e.decrementRegisteredFdCount()
-		if e.IsClosed() {
-			return ErrEpollClosed
-		}
-		return err
-	}
+	}))
+
 	runtime.KeepAlive(e)
 	return err
 }
@@ -154,13 +147,8 @@ func (e *Epoll) Deregister(fd int) error {
 	if e.IsClosed() {
 		return ErrEpollClosed
 	}
-	err := unix.EpollCtl(e.fd, unix.EPOLL_CTL_DEL, fd, &unix.EpollEvent{})
-	if err != nil {
-		if e.IsClosed() {
-			return ErrEpollClosed
-		}
-		return err
-	}
+	mylog.Check(unix.EpollCtl(e.fd, unix.EPOLL_CTL_DEL, fd, &unix.EpollEvent{}))
+
 	e.decrementRegisteredFdCount()
 	return err
 }
@@ -172,10 +160,10 @@ func (e *Epoll) Modify(fd int, mask Readiness) error {
 	if e.IsClosed() {
 		return ErrEpollClosed
 	}
-	err := unix.EpollCtl(e.fd, unix.EPOLL_CTL_MOD, fd, &unix.EpollEvent{
+	mylog.Check(unix.EpollCtl(e.fd, unix.EPOLL_CTL_MOD, fd, &unix.EpollEvent{
 		Events: uint32(mask),
 		Fd:     int32(fd),
-	})
+	}))
 	if err != nil && e.IsClosed() {
 		return ErrEpollClosed
 	}
@@ -203,7 +191,7 @@ func (e *Epoll) waitTimeoutInternal(duration time.Duration, eventCh chan []Event
 		noTimeout = true
 	}
 	n := 0
-	var err error
+
 	var sysEvents []unix.EpollEvent
 	for {
 		bufLen := e.RegisteredFdCount()
@@ -218,7 +206,7 @@ func (e *Epoll) waitTimeoutInternal(duration time.Duration, eventCh chan []Event
 			bufLen = 1
 		}
 		sysEvents = make([]unix.EpollEvent, bufLen)
-		n, err = unixEpollWait(e.fd, sysEvents, msec)
+		n = mylog.Check2(unixEpollWait(e.fd, sysEvents, msec))
 		// If the epoll fd was closed during epoll_wait and an error
 		// occurred, then return ErrEpollClosed immediately.
 		if err != nil && e.IsClosed() {

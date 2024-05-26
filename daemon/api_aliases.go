@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -32,15 +33,13 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-var (
-	aliasesCmd = &Command{
-		Path:        "/v2/aliases",
-		GET:         getAliases,
-		POST:        changeAliases,
-		ReadAccess:  openAccess{},
-		WriteAccess: authenticatedAccess{},
-	}
-)
+var aliasesCmd = &Command{
+	Path:        "/v2/aliases",
+	GET:         getAliases,
+	POST:        changeAliases,
+	ReadAccess:  openAccess{},
+	WriteAccess: authenticatedAccess{},
+}
 
 // aliasAction is an action performed on aliases
 type aliasAction struct {
@@ -55,15 +54,13 @@ type aliasAction struct {
 func changeAliases(c *Command, r *http.Request, user *auth.UserState) Response {
 	var a aliasAction
 	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&a); err != nil {
-		return BadRequest("cannot decode request body into an alias action: %v", err)
-	}
+	mylog.Check(decoder.Decode(&a))
+
 	if len(a.Aliases) != 0 {
 		return BadRequest("cannot interpret request, snaps can no longer be expected to declare their aliases")
 	}
 
 	var taskset *state.TaskSet
-	var err error
 
 	st := c.d.overlord.State()
 	st.Lock()
@@ -73,14 +70,14 @@ func changeAliases(c *Command, r *http.Request, user *auth.UserState) Response {
 	default:
 		return BadRequest("unsupported alias action: %q", a.Action)
 	case "alias":
-		taskset, err = snapstate.Alias(st, a.Snap, a.App, a.Alias)
+		taskset = mylog.Check2(snapstate.Alias(st, a.Snap, a.App, a.Alias))
 	case "unalias":
 		if a.Alias == a.Snap {
 			// Do What I mean:
 			// check if a snap is referred/intended
 			// or just an alias
 			var snapst snapstate.SnapState
-			err := snapstate.Get(st, a.Snap, &snapst)
+			mylog.Check(snapstate.Get(st, a.Snap, &snapst))
 			if err != nil && !errors.Is(err, state.ErrNoState) {
 				return InternalError("%v", err)
 			}
@@ -90,15 +87,12 @@ func changeAliases(c *Command, r *http.Request, user *auth.UserState) Response {
 		}
 		if a.Snap != "" {
 			a.Alias = ""
-			taskset, err = snapstate.DisableAllAliases(st, a.Snap)
+			taskset = mylog.Check2(snapstate.DisableAllAliases(st, a.Snap))
 		} else {
-			taskset, a.Snap, err = snapstate.RemoveManualAlias(st, a.Alias)
+			taskset, a.Snap = mylog.Check3(snapstate.RemoveManualAlias(st, a.Alias))
 		}
 	case "prefer":
-		taskset, err = snapstate.Prefer(st, a.Snap)
-	}
-	if err != nil {
-		return errToResponse(err, nil, BadRequest, "%v")
+		taskset = mylog.Check2(snapstate.Prefer(st, a.Snap))
 	}
 
 	var summary string
@@ -136,10 +130,7 @@ func getAliases(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	res := make(map[string]map[string]aliasStatus)
 
-	allStates, err := snapstate.All(state)
-	if err != nil {
-		return InternalError("cannot list local snaps: %v", err)
-	}
+	allStates := mylog.Check2(snapstate.All(state))
 
 	for snapName, snapst := range allStates {
 		if len(snapst.Aliases) != 0 {

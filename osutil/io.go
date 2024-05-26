@@ -29,6 +29,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/randutil"
 )
@@ -81,7 +82,7 @@ type AtomicFile struct {
 // rather poor state. Good luck.
 func NewAtomicFile(filename string, perm os.FileMode, flags AtomicWriteFlags, uid sys.UserID, gid sys.GroupID) (aw *AtomicFile, err error) {
 	if flags&AtomicWriteFollow != 0 {
-		if fn, err := os.Readlink(filename); err == nil || (fn != "" && os.IsNotExist(err)) {
+		if fn := mylog.Check2(os.Readlink(filename)); err == nil || (fn != "" && os.IsNotExist(err)) {
 			if filepath.IsAbs(fn) {
 				filename = fn
 			} else {
@@ -98,10 +99,7 @@ func NewAtomicFile(filename string, perm os.FileMode, flags AtomicWriteFlags, ui
 	// suffixes, such as the one we selected below.
 	tmp := filename + "." + randutil.RandomString(12) + "~"
 
-	fd, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC|os.O_EXCL, perm)
-	if err != nil {
-		return nil, err
-	}
+	fd := mylog.Check2(os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC|os.O_EXCL, perm))
 
 	return &AtomicFile{
 		File:    fd,
@@ -154,39 +152,26 @@ func (aw *AtomicFile) SetModTime(t time.Time) {
 
 func (aw *AtomicFile) commit() error {
 	if aw.uid != NoChown || aw.gid != NoChown {
-		if err := chown(aw.File, aw.uid, aw.gid); err != nil {
-			return err
-		}
+		mylog.Check(chown(aw.File, aw.uid, aw.gid))
 	}
 
 	var dir *os.File
 	if !snapdUnsafeIO {
 		// XXX: if go switches to use aio_fsync, we need to open the dir for writing
-		d, err := os.Open(filepath.Dir(aw.target))
-		if err != nil {
-			return err
-		}
+		d := mylog.Check2(os.Open(filepath.Dir(aw.target)))
+
 		dir = d
 		defer dir.Close()
+		mylog.Check(aw.Sync())
 
-		if err := aw.Sync(); err != nil {
-			return err
-		}
 	}
-
-	if err := aw.Close(); err != nil {
-		return err
-	}
+	mylog.Check(aw.Close())
 
 	if !aw.mtime.IsZero() {
-		if err := os.Chtimes(aw.tmpname, time.Now(), aw.mtime); err != nil {
-			return err
-		}
+		mylog.Check(os.Chtimes(aw.tmpname, time.Now(), aw.mtime))
 	}
+	mylog.Check(os.Rename(aw.tmpname, aw.target))
 
-	if err := os.Rename(aw.tmpname, aw.target); err != nil {
-		return err
-	}
 	aw.renamed = true // it is now too late to Cancel()
 
 	if !snapdUnsafeIO {
@@ -246,17 +231,11 @@ func AtomicWriteFileChown(filename string, data []byte, perm os.FileMode, flags 
 }
 
 func AtomicWriteChown(filename string, reader io.Reader, perm os.FileMode, flags AtomicWriteFlags, uid sys.UserID, gid sys.GroupID) (err error) {
-	aw, err := NewAtomicFile(filename, perm, flags, uid, gid)
-	if err != nil {
-		return err
-	}
+	aw := mylog.Check2(NewAtomicFile(filename, perm, flags, uid, gid))
 
 	// Cancel once Committed is a NOP :-)
 	defer aw.Cancel()
-
-	if _, err := io.Copy(aw, reader); err != nil {
-		return err
-	}
+	mylog.Check2(io.Copy(aw, reader))
 
 	return aw.Commit()
 }
@@ -276,26 +255,18 @@ func AtomicRename(oldName, newName string) (err error) {
 		oldDirPath := filepath.Dir(oldName)
 		newDirPath := filepath.Dir(newName)
 
-		oldDir, err = os.Open(oldDirPath)
-		if err != nil {
-			return err
-		}
+		oldDir = mylog.Check2(os.Open(oldDirPath))
+
 		defer oldDir.Close()
 
-		newDir, err = os.Open(newDirPath)
-		if err != nil {
-			return err
-		}
+		newDir = mylog.Check2(os.Open(newDirPath))
+
 		defer newDir.Close()
 
-		oldInfo, err := oldDir.Stat()
-		if err != nil {
-			return err
-		}
-		newInfo, err := newDir.Stat()
-		if err != nil {
-			return err
-		}
+		oldInfo := mylog.Check2(oldDir.Stat())
+
+		newInfo := mylog.Check2(newDir.Stat())
+
 		if oldStat, ok := oldInfo.Sys().(*syscall.Stat_t); ok {
 			if newStat, ok := newInfo.Sys().(*syscall.Stat_t); ok {
 				// Old and new directories refer to the same location. We can only sync once.
@@ -305,10 +276,8 @@ func AtomicRename(oldName, newName string) (err error) {
 			}
 		}
 	}
+	mylog.Check(os.Rename(oldName, newName))
 
-	if err := os.Rename(oldName, newName); err != nil {
-		return err
-	}
 	var err1, err2 error
 	if oldDir != nil {
 		err1 = oldDir.Sync()
@@ -331,12 +300,8 @@ const maxSymlinkTries = 10
 func AtomicSymlink(target, linkPath string) error {
 	for tries := 0; tries < maxSymlinkTries; tries++ {
 		tmp := linkPath + "." + randutil.RandomString(12) + "~"
-		if err := os.Symlink(target, tmp); err != nil {
-			if os.IsExist(err) {
-				continue
-			}
-			return err
-		}
+		mylog.Check(os.Symlink(target, tmp))
+
 		defer os.Remove(tmp)
 		return AtomicRename(tmp, linkPath)
 	}

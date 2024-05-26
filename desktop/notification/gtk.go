@@ -23,6 +23,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/godbus/dbus"
 )
 
@@ -46,9 +47,7 @@ var newGtkBackend = func(conn *dbus.Conn, desktopID string) (NotificationManager
 	// Use owner to verify that the return values of the method call have the
 	// types we expect, which is generally a good validity check.
 	var owner string
-	if err := conn.BusObject().Call("org.freedesktop.DBus.GetNameOwner", 0, gtkBusName).Store(&owner); err != nil {
-		return nil, err
-	}
+	mylog.Check(conn.BusObject().Call("org.freedesktop.DBus.GetNameOwner", 0, gtkBusName).Store(&owner))
 
 	b := &gtkBackend{
 		conn:      conn,

@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 )
@@ -39,15 +40,14 @@ var _ = Suite(&deviceSuite{})
 func (d *deviceSuite) SetUpTest(c *C) {
 	d.dir = c.MkDir()
 	dirs.SetRootDir(d.dir)
+	mylog.Check(os.MkdirAll(filepath.Join(d.dir, "/dev/disk/by-label"), 0755))
 
-	err := os.MkdirAll(filepath.Join(d.dir, "/dev/disk/by-label"), 0755)
-	c.Assert(err, IsNil)
-	err = os.MkdirAll(filepath.Join(d.dir, "/dev/disk/by-partlabel"), 0755)
-	c.Assert(err, IsNil)
-	err = os.MkdirAll(filepath.Join(d.dir, "/dev/mapper"), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(d.dir, "/dev/fakedevice"), []byte(""), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Join(d.dir, "/dev/disk/by-partlabel"), 0755))
+
+	mylog.Check(os.MkdirAll(filepath.Join(d.dir, "/dev/mapper"), 0755))
+
+	mylog.Check(os.WriteFile(filepath.Join(d.dir, "/dev/fakedevice"), []byte(""), 0644))
+
 }
 
 func (d *deviceSuite) TearDownTest(c *C) {
@@ -67,23 +67,23 @@ func (d *deviceSuite) TestDeviceFindByStructureName(c *C) {
 		{`pinkié\x20pie`, `pinkié pie`},
 	}
 	for _, name := range names {
-		err := os.Symlink(filepath.Join(d.dir, "/dev/fakedevice"), filepath.Join(d.dir, "/dev/disk/by-partlabel", name.escaped))
-		c.Assert(err, IsNil)
+		mylog.Check(os.Symlink(filepath.Join(d.dir, "/dev/fakedevice"), filepath.Join(d.dir, "/dev/disk/by-partlabel", name.escaped)))
+
 	}
 
 	for _, tc := range names {
 		c.Logf("trying: %q", tc)
-		found, err := gadget.FindDeviceForStructure(&gadget.VolumeStructure{Name: tc.structure, EnclosingVolume: &gadget.Volume{}})
+		found := mylog.Check2(gadget.FindDeviceForStructure(&gadget.VolumeStructure{Name: tc.structure, EnclosingVolume: &gadget.Volume{}}))
 		c.Check(err, IsNil)
 		c.Check(found, Equals, filepath.Join(d.dir, "/dev/fakedevice"))
 	}
 }
 
 func (d *deviceSuite) TestDeviceFindRelativeSymlink(c *C) {
-	err := os.Symlink("../../fakedevice", filepath.Join(d.dir, "/dev/disk/by-partlabel/relative"))
-	c.Assert(err, IsNil)
+	mylog.Check(os.Symlink("../../fakedevice", filepath.Join(d.dir, "/dev/disk/by-partlabel/relative")))
 
-	found, err := gadget.FindDeviceForStructure(&gadget.VolumeStructure{Name: "relative", EnclosingVolume: &gadget.Volume{}})
+
+	found := mylog.Check2(gadget.FindDeviceForStructure(&gadget.VolumeStructure{Name: "relative", EnclosingVolume: &gadget.Volume{}}))
 	c.Check(err, IsNil)
 	c.Check(found, Equals, filepath.Join(d.dir, "/dev/fakedevice"))
 }
@@ -101,16 +101,16 @@ func (d *deviceSuite) TestDeviceFindByFilesystemLabel(c *C) {
 		{`pinkié\x20pie`, `pinkié pie`},
 	}
 	for _, name := range names {
-		err := os.Symlink(filepath.Join(d.dir, "/dev/fakedevice"), filepath.Join(d.dir, "/dev/disk/by-label", name.escaped))
-		c.Assert(err, IsNil)
+		mylog.Check(os.Symlink(filepath.Join(d.dir, "/dev/fakedevice"), filepath.Join(d.dir, "/dev/disk/by-label", name.escaped)))
+
 	}
 
 	for _, tc := range names {
 		c.Logf("trying: %q", tc)
-		found, err := gadget.FindDeviceForStructure(&gadget.VolumeStructure{
+		found := mylog.Check2(gadget.FindDeviceForStructure(&gadget.VolumeStructure{
 			Filesystem: "ext4",
 			Label:      tc.structure,
-		})
+		}))
 		c.Check(err, IsNil)
 		c.Check(found, Equals, filepath.Join(d.dir, "/dev/fakedevice"))
 	}
@@ -118,109 +118,109 @@ func (d *deviceSuite) TestDeviceFindByFilesystemLabel(c *C) {
 
 func (d *deviceSuite) TestDeviceFindChecksPartlabelAndFilesystemLabelHappy(c *C) {
 	fakedevice := filepath.Join(d.dir, "/dev/fakedevice")
-	err := os.Symlink(fakedevice, filepath.Join(d.dir, "/dev/disk/by-label/foo"))
-	c.Assert(err, IsNil)
+	mylog.Check(os.Symlink(fakedevice, filepath.Join(d.dir, "/dev/disk/by-label/foo")))
 
-	err = os.Symlink(fakedevice, filepath.Join(d.dir, "/dev/disk/by-partlabel/bar"))
-	c.Assert(err, IsNil)
+	mylog.Check(os.Symlink(fakedevice, filepath.Join(d.dir, "/dev/disk/by-partlabel/bar")))
 
-	found, err := gadget.FindDeviceForStructure(&gadget.VolumeStructure{
+
+	found := mylog.Check2(gadget.FindDeviceForStructure(&gadget.VolumeStructure{
 		Name:            "bar",
 		Label:           "foo",
 		EnclosingVolume: &gadget.Volume{},
-	})
+	}))
 	c.Check(err, IsNil)
 	c.Check(found, Equals, filepath.Join(d.dir, "/dev/fakedevice"))
 }
 
 func (d *deviceSuite) TestDeviceFindFilesystemLabelToNameFallback(c *C) {
 	fakedevice := filepath.Join(d.dir, "/dev/fakedevice")
-	// only the by-filesystem-label symlink
-	err := os.Symlink(fakedevice, filepath.Join(d.dir, "/dev/disk/by-label/foo"))
-	c.Assert(err, IsNil)
+	mylog.
+		// only the by-filesystem-label symlink
+		Check(os.Symlink(fakedevice, filepath.Join(d.dir, "/dev/disk/by-label/foo")))
 
-	found, err := gadget.FindDeviceForStructure(&gadget.VolumeStructure{
+
+	found := mylog.Check2(gadget.FindDeviceForStructure(&gadget.VolumeStructure{
 		Name:       "foo",
 		Filesystem: "ext4",
-	})
+	}))
 	c.Check(err, IsNil)
 	c.Check(found, Equals, filepath.Join(d.dir, "/dev/fakedevice"))
 }
 
 func (d *deviceSuite) TestDeviceFindChecksPartlabelAndFilesystemLabelMismatch(c *C) {
 	fakedevice := filepath.Join(d.dir, "/dev/fakedevice")
-	err := os.Symlink(fakedevice, filepath.Join(d.dir, "/dev/disk/by-label/foo"))
-	c.Assert(err, IsNil)
+	mylog.Check(os.Symlink(fakedevice, filepath.Join(d.dir, "/dev/disk/by-label/foo")))
+
 
 	// partlabel of the structure points to a different device
 	fakedeviceOther := filepath.Join(d.dir, "/dev/fakedevice-other")
-	err = os.WriteFile(fakedeviceOther, []byte(""), 0644)
-	c.Assert(err, IsNil)
-	err = os.Symlink(fakedeviceOther, filepath.Join(d.dir, "/dev/disk/by-partlabel/bar"))
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(fakedeviceOther, []byte(""), 0644))
 
-	found, err := gadget.FindDeviceForStructure(&gadget.VolumeStructure{
+	mylog.Check(os.Symlink(fakedeviceOther, filepath.Join(d.dir, "/dev/disk/by-partlabel/bar")))
+
+
+	found := mylog.Check2(gadget.FindDeviceForStructure(&gadget.VolumeStructure{
 		Name:       "bar",
 		Label:      "foo",
 		Filesystem: "ext4",
-	})
+	}))
 	c.Check(err, ErrorMatches, `conflicting device match, ".*/by-label/foo" points to ".*/fakedevice", previous match ".*/by-partlabel/bar" points to ".*/fakedevice-other"`)
 	c.Check(found, Equals, "")
 }
 
 func (d *deviceSuite) TestDeviceFindNotFound(c *C) {
-	found, err := gadget.FindDeviceForStructure(&gadget.VolumeStructure{
+	found := mylog.Check2(gadget.FindDeviceForStructure(&gadget.VolumeStructure{
 		Name:            "bar",
 		Label:           "foo",
 		EnclosingVolume: &gadget.Volume{},
-	})
+	}))
 	c.Check(err, ErrorMatches, `device not found`)
 	c.Check(found, Equals, "")
 }
 
 func (d *deviceSuite) TestDeviceFindNotFoundEmpty(c *C) {
 	// neither name nor filesystem label set
-	found, err := gadget.FindDeviceForStructure(&gadget.VolumeStructure{
+	found := mylog.Check2(gadget.FindDeviceForStructure(&gadget.VolumeStructure{
 		Name: "",
 		// structure has no filesystem, fs label check is
 		// ineffective
 		Label:           "",
 		EnclosingVolume: &gadget.Volume{},
-	})
+	}))
 	c.Check(err, ErrorMatches, `device not found`)
 	c.Check(found, Equals, "")
 
 	// try with proper filesystem now
-	found, err = gadget.FindDeviceForStructure(&gadget.VolumeStructure{
+	found = mylog.Check2(gadget.FindDeviceForStructure(&gadget.VolumeStructure{
 		Name:            "",
 		Label:           "",
 		Filesystem:      "ext4",
 		EnclosingVolume: &gadget.Volume{},
-	})
+	}))
 	c.Check(err, ErrorMatches, `device not found`)
 	c.Check(found, Equals, "")
 }
 
 func (d *deviceSuite) TestDeviceFindNotFoundSymlinkPointsNowhere(c *C) {
 	fakedevice := filepath.Join(d.dir, "/dev/fakedevice-not-found")
-	err := os.Symlink(fakedevice, filepath.Join(d.dir, "/dev/disk/by-label/foo"))
-	c.Assert(err, IsNil)
+	mylog.Check(os.Symlink(fakedevice, filepath.Join(d.dir, "/dev/disk/by-label/foo")))
 
-	found, err := gadget.FindDeviceForStructure(&gadget.VolumeStructure{
+
+	found := mylog.Check2(gadget.FindDeviceForStructure(&gadget.VolumeStructure{
 		Label: "foo", EnclosingVolume: &gadget.Volume{},
-	})
+	}))
 	c.Check(err, ErrorMatches, `device not found`)
 	c.Check(found, Equals, "")
 }
 
 func (d *deviceSuite) TestDeviceFindNotFoundNotASymlink(c *C) {
-	err := os.WriteFile(filepath.Join(d.dir, "/dev/disk/by-label/foo"), nil, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(d.dir, "/dev/disk/by-label/foo"), nil, 0644))
 
-	found, err := gadget.FindDeviceForStructure(&gadget.VolumeStructure{
+
+	found := mylog.Check2(gadget.FindDeviceForStructure(&gadget.VolumeStructure{
 		Filesystem: "ext4",
 		Label:      "foo",
-	})
+	}))
 	c.Check(err, ErrorMatches, `candidate .*/dev/disk/by-label/foo is not a symlink`)
 	c.Check(found, Equals, "")
 }
@@ -228,8 +228,8 @@ func (d *deviceSuite) TestDeviceFindNotFoundNotASymlink(c *C) {
 func (d *deviceSuite) TestDeviceFindBadEvalSymlinks(c *C) {
 	fakedevice := filepath.Join(d.dir, "/dev/fakedevice")
 	fooSymlink := filepath.Join(d.dir, "/dev/disk/by-label/foo")
-	err := os.Symlink(fakedevice, fooSymlink)
-	c.Assert(err, IsNil)
+	mylog.Check(os.Symlink(fakedevice, fooSymlink))
+
 
 	restore := gadget.MockEvalSymlinks(func(p string) (string, error) {
 		c.Assert(p, Equals, fooSymlink)
@@ -237,10 +237,10 @@ func (d *deviceSuite) TestDeviceFindBadEvalSymlinks(c *C) {
 	})
 	defer restore()
 
-	found, err := gadget.FindDeviceForStructure(&gadget.VolumeStructure{
+	found := mylog.Check2(gadget.FindDeviceForStructure(&gadget.VolumeStructure{
 		Filesystem: "vfat",
 		Label:      "foo",
-	})
+	}))
 	c.Check(err, ErrorMatches, `cannot read device link: failed`)
 	c.Check(found, Equals, "")
 }

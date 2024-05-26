@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
@@ -87,11 +88,11 @@ func (s *polkitInterfaceSuite) TestName(c *C) {
 }
 
 func (s *polkitInterfaceSuite) TestConnectedPlugAppArmor(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	apparmorSpec := apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
-	c.Assert(err, IsNil)
+	mylog.Check(apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot))
+
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Check(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "# Description: Can talk to polkitd's CheckAuthorization API")
 	c.Check(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `member="{,Cancel}CheckAuthorization"`)
@@ -118,8 +119,8 @@ func (s *polkitInterfaceSuite) TestConnectedPlugPolkit(c *C) {
 	c.Assert(os.WriteFile(policyPath, []byte(samplePolicy2), 0644), IsNil)
 
 	polkitSpec := &polkit.Specification{}
-	err := polkitSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
-	c.Assert(err, IsNil)
+	mylog.Check(polkitSpec.AddConnectedPlug(s.iface, s.plug, s.slot))
+
 
 	c.Check(polkitSpec.Policies(), DeepEquals, map[string]polkit.Policy{
 		"polkit.foo": polkit.Policy(samplePolicy1),
@@ -129,7 +130,7 @@ func (s *polkitInterfaceSuite) TestConnectedPlugPolkit(c *C) {
 
 func (s *polkitInterfaceSuite) TestConnectedPlugPolkitMissing(c *C) {
 	polkitSpec := &polkit.Specification{}
-	err := polkitSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	mylog.Check(polkitSpec.AddConnectedPlug(s.iface, s.plug, s.slot))
 	c.Check(err, ErrorMatches, `cannot find any policy files for plug "polkit"`)
 }
 
@@ -139,7 +140,7 @@ func (s *polkitInterfaceSuite) TestConnectedPlugPolkitNotFile(c *C) {
 	c.Assert(os.Mkdir(policyPath, 0755), IsNil)
 
 	polkitSpec := &polkit.Specification{}
-	err := polkitSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	mylog.Check(polkitSpec.AddConnectedPlug(s.iface, s.plug, s.slot))
 	c.Check(err, ErrorMatches, `cannot read file ".*/meta/polkit/polkit.foo.policy": read .*: is a directory`)
 }
 
@@ -150,7 +151,7 @@ func (s *polkitInterfaceSuite) TestConnectedPlugPolkitBadXML(c *C) {
 	c.Assert(os.WriteFile(policyPath, []byte(samplePolicy), 0644), IsNil)
 
 	polkitSpec := &polkit.Specification{}
-	err := polkitSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	mylog.Check(polkitSpec.AddConnectedPlug(s.iface, s.plug, s.slot))
 	c.Check(err, ErrorMatches, `cannot validate policy file ".*/meta/polkit/polkit.foo.policy": XML syntax error on line 1: unexpected EOF`)
 }
 
@@ -169,7 +170,7 @@ func (s *polkitInterfaceSuite) TestConnectedPlugPolkitBadAction(c *C) {
 	c.Assert(os.WriteFile(policyPath, []byte(samplePolicy), 0644), IsNil)
 
 	polkitSpec := &polkit.Specification{}
-	err := polkitSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	mylog.Check(polkitSpec.AddConnectedPlug(s.iface, s.plug, s.slot))
 	c.Check(err, ErrorMatches, `policy file ".*/meta/polkit/polkit.foo.policy" contains unexpected action ID "org.freedesktop.systemd1.manage-units"`)
 }
 
@@ -189,7 +190,7 @@ func (s *polkitInterfaceSuite) TestConnectedPlugPolkitBadImplies(c *C) {
 	c.Assert(os.WriteFile(policyPath, []byte(samplePolicy), 0644), IsNil)
 
 	polkitSpec := &polkit.Specification{}
-	err := polkitSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	mylog.Check(polkitSpec.AddConnectedPlug(s.iface, s.plug, s.slot))
 	c.Check(err, ErrorMatches, `policy file ".*/meta/polkit/polkit.foo.policy" contains unexpected action ID "org.freedesktop.systemd1.manage-units"`)
 }
 
@@ -220,7 +221,7 @@ plugs:
  polkit:
   $t
 `
-	var testCases = []struct {
+	testCases := []struct {
 		inp    string
 		errStr string
 	}{
@@ -269,13 +270,13 @@ apps:
 	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 
 	polkitSpec := &polkit.Specification{}
-	err := polkitSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	mylog.Check(polkitSpec.AddConnectedPlug(s.iface, s.plug, s.slot))
 	c.Assert(err, ErrorMatches, `snap "other" has interface "polkit" with invalid value type bool for "action-prefix" attribute: \*string`)
 }
 
 func (s *polkitInterfaceSuite) isProfilePathAccessible(c *C) bool {
-	mntProfile, err := osutil.LoadMountProfile("/proc/self/mounts")
-	c.Assert(err, IsNil)
+	mntProfile := mylog.Check2(osutil.LoadMountProfile("/proc/self/mounts"))
+
 	return builtin.IsPathMountedWritable(mntProfile, "/usr/share/polkit-1/actions")
 }
 
@@ -293,7 +294,6 @@ func (s *polkitInterfaceSuite) TestInterfaces(c *C) {
 }
 
 func (s *polkitInterfaceSuite) TestIsPathMountedWritable(c *C) {
-
 	tests := []struct {
 		mounts   string
 		path     string
@@ -371,8 +371,8 @@ nsfs /run/snapd/ns/jq-core22.mnt nsfs rw 0 0
 	}
 
 	for _, t := range tests {
-		mntProfile, err := osutil.LoadMountProfileText(t.mounts)
-		c.Assert(err, IsNil)
+		mntProfile := mylog.Check2(osutil.LoadMountProfileText(t.mounts))
+
 		c.Check(builtin.IsPathMountedWritable(mntProfile, t.path), Equals, t.expected)
 	}
 }

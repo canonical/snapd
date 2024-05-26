@@ -30,8 +30,7 @@ func Test(t *testing.T) { TestingT(t) }
 
 var _ = Suite(&ArchTestSuite{})
 
-type ArchTestSuite struct {
-}
+type ArchTestSuite struct{}
 
 func (ts *ArchTestSuite) TestArchDpkgArchitecture(c *C) {
 	c.Check(dpkgArchFromGoArch("386"), Equals, "i386")

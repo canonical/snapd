@@ -33,6 +33,7 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 )
 
@@ -50,13 +51,11 @@ type RemodelOpts struct {
 
 // Remodel tries to remodel the system with the given assertion data
 func (client *Client) Remodel(b []byte, opts RemodelOpts) (changeID string, err error) {
-	data, err := json.Marshal(&remodelData{
+	data := mylog.Check2(json.Marshal(&remodelData{
 		NewModel: string(b),
 		Offline:  opts.Offline,
-	})
-	if err != nil {
-		return "", fmt.Errorf("cannot marshal remodel data: %v", err)
-	}
+	}))
+
 	headers := map[string]string{
 		"Content-Type": "application/json",
 	}
@@ -68,17 +67,12 @@ func (client *Client) Remodel(b []byte, opts RemodelOpts) (changeID string, err 
 // assertion and local snaps and assertion files. Remodeling using this method
 // will ensure that snapd does not contact the store.
 func (client *Client) RemodelWithLocalSnaps(
-	model []byte, snapPaths, assertPaths []string) (changeID string, err error) {
-
+	model []byte, snapPaths, assertPaths []string,
+) (changeID string, err error) {
 	// Check if all files exist before starting the go routine
-	snapFiles, err := checkAndOpenFiles(snapPaths)
-	if err != nil {
-		return "", err
-	}
-	assertsFiles, err := checkAndOpenFiles(assertPaths)
-	if err != nil {
-		return "", err
-	}
+	snapFiles := mylog.Check2(checkAndOpenFiles(snapPaths))
+
+	assertsFiles := mylog.Check2(checkAndOpenFiles(assertPaths))
 
 	pr, pw := io.Pipe()
 	mw := multipart.NewWriter(pw)
@@ -88,20 +82,14 @@ func (client *Client) RemodelWithLocalSnaps(
 		"Content-Type": mw.FormDataContentType(),
 	}
 
-	_, changeID, err = client.doAsyncFull("POST", "/v2/model", nil, headers, pr, doNoTimeoutAndRetry)
+	_, changeID = mylog.Check3(client.doAsyncFull("POST", "/v2/model", nil, headers, pr, doNoTimeoutAndRetry))
 	return changeID, err
 }
 
 func checkAndOpenFiles(paths []string) ([]*os.File, error) {
 	var files []*os.File
 	for _, path := range paths {
-		f, err := os.Open(path)
-		if err != nil {
-			for _, openFile := range files {
-				openFile.Close()
-			}
-			return nil, fmt.Errorf("cannot open %q: %w", path, err)
-		}
+		f := mylog.Check2(os.Open(path))
 
 		files = append(files, f)
 	}
@@ -124,35 +112,22 @@ func sendRemodelFiles(model []byte, paths []string, files, assertFiles []*os.Fil
 		}
 	}()
 
-	w, err := createAssertionPart("new-model", mw)
-	if err != nil {
-		pw.CloseWithError(err)
-		return
-	}
-	_, err = w.Write(model)
-	if err != nil {
-		pw.CloseWithError(err)
-		return
-	}
+	w := mylog.Check2(createAssertionPart("new-model", mw))
+
+	_ = mylog.Check2(w.Write(model))
 
 	for _, file := range assertFiles {
-		if err := sendPartFromFile(file,
+		mylog.Check(sendPartFromFile(file,
 			func() (io.Writer, error) {
 				return createAssertionPart("assertion", mw)
-			}); err != nil {
-			pw.CloseWithError(err)
-			return
-		}
+			}))
 	}
 
 	for i, file := range files {
-		if err := sendPartFromFile(file,
+		mylog.Check(sendPartFromFile(file,
 			func() (io.Writer, error) {
 				return mw.CreateFormFile("snap", filepath.Base(paths[i]))
-			}); err != nil {
-			pw.CloseWithError(err)
-			return
-		}
+			}))
 	}
 
 	mw.Close()
@@ -160,25 +135,17 @@ func sendRemodelFiles(model []byte, paths []string, files, assertFiles []*os.Fil
 }
 
 func sendPartFromFile(file *os.File, writeHeader func() (io.Writer, error)) error {
-	fw, err := writeHeader()
-	if err != nil {
-		return err
-	}
+	fw := mylog.Check2(writeHeader())
 
-	_, err = io.Copy(fw, file)
-	if err != nil {
-		return err
-	}
+	_ = mylog.Check2(io.Copy(fw, file))
 
 	return nil
 }
 
 // CurrentModelAssertion returns the current model assertion
 func (client *Client) CurrentModelAssertion() (*asserts.Model, error) {
-	assert, err := currentAssertion(client, "/v2/model")
-	if err != nil {
-		return nil, err
-	}
+	assert := mylog.Check2(currentAssertion(client, "/v2/model"))
+
 	modelAssert, ok := assert.(*asserts.Model)
 	if !ok {
 		return nil, fmt.Errorf("unexpected assertion type (%s) returned", assert.Type().Name)
@@ -188,10 +155,8 @@ func (client *Client) CurrentModelAssertion() (*asserts.Model, error) {
 
 // CurrentSerialAssertion returns the current serial assertion
 func (client *Client) CurrentSerialAssertion() (*asserts.Serial, error) {
-	assert, err := currentAssertion(client, "/v2/model/serial")
-	if err != nil {
-		return nil, err
-	}
+	assert := mylog.Check2(currentAssertion(client, "/v2/model/serial"))
+
 	serialAssert, ok := assert.(*asserts.Serial)
 	if !ok {
 		return nil, fmt.Errorf("unexpected assertion type (%s) returned", assert.Type().Name)
@@ -203,11 +168,8 @@ func (client *Client) CurrentSerialAssertion() (*asserts.Serial, error) {
 func currentAssertion(client *Client, path string) (asserts.Assertion, error) {
 	q := url.Values{}
 
-	response, cancel, err := client.rawWithTimeout(context.Background(), "GET", path, q, nil, nil, nil)
-	if err != nil {
-		fmt := "failed to query current assertion: %w"
-		return nil, xerrors.Errorf(fmt, err)
-	}
+	response, cancel := mylog.Check3(client.rawWithTimeout(context.Background(), "GET", path, q, nil, nil, nil))
+
 	defer cancel()
 	defer response.Body.Close()
 	if response.StatusCode != 200 {
@@ -218,10 +180,7 @@ func currentAssertion(client *Client, path string) (asserts.Assertion, error) {
 
 	// only decode a single assertion - we can't ever get more than a single
 	// assertion through these endpoints by design
-	assert, err := dec.Decode()
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode assertions: %v", err)
-	}
+	assert := mylog.Check2(dec.Decode())
 
 	return assert, nil
 }

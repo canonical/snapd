@@ -22,6 +22,7 @@ package snapstate_test
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/servicestate"
@@ -81,8 +82,8 @@ func (s *discardSnapSuite) TestDoDiscardSnapSuccess(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	var snapst snapstate.SnapState
-	err := snapstate.Get(s.state, "foo", &snapst)
-	c.Assert(err, IsNil)
+	mylog.Check(snapstate.Get(s.state, "foo", &snapst))
+
 
 	c.Check(snapst.Sequence.Revisions, HasLen, 1)
 	c.Check(snapst.Current, Equals, snap.R(3))
@@ -129,7 +130,7 @@ func (s *discardSnapSuite) TestDoDiscardSnapInQuotaGroup(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	var snapst snapstate.SnapState
-	err := snapstate.Get(s.state, "foo", &snapst)
+	mylog.Check(snapstate.Get(s.state, "foo", &snapst))
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 
 	c.Check(t.Status(), Equals, state.DoneStatus)
@@ -161,7 +162,7 @@ func (s *discardSnapSuite) TestDoDiscardSnapToEmpty(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	var snapst snapstate.SnapState
-	err := snapstate.Get(s.state, "foo", &snapst)
+	mylog.Check(snapstate.Get(s.state, "foo", &snapst))
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 }
 
@@ -227,8 +228,8 @@ func (s *discardSnapSuite) TestDoDiscardSnapNoErrorsForActive(c *C) {
 	defer s.state.Unlock()
 
 	var snapst snapstate.SnapState
-	err := snapstate.Get(s.state, "foo", &snapst)
-	c.Assert(err, IsNil)
+	mylog.Check(snapstate.Get(s.state, "foo", &snapst))
+
 
 	c.Assert(chg.Err(), IsNil)
 	c.Check(snapst.Sequence.Revisions, HasLen, 1)
@@ -274,8 +275,8 @@ func (s *discardSnapSuite) TestDoDiscardSnapdRemovesLate(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	var snapst snapstate.SnapState
-	err := snapstate.Get(s.state, "snapd", &snapst)
-	c.Assert(err, IsNil)
+	mylog.Check(snapstate.Get(s.state, "snapd", &snapst))
+
 
 	c.Check(snapst.Sequence.Revisions, HasLen, 1)
 	c.Check(snapst.Current, Equals, snap.R(3))

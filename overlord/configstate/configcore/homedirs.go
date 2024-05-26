@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -44,24 +45,22 @@ var (
 	apparmorSetupSnapConfineSnippets = apparmor.SetupSnapConfineSnippets
 )
 
-var (
-	// No path located under any of these top-level directories can be used.
-	// This is not a security measure (the configuration can only be changed by
-	// the system administrator anyways) but rather a check around unintended
-	// mistakes.
-	invalidPrefixes = []string{
-		"/bin/",
-		"/boot/",
-		"/dev/",
-		"/etc/",
-		"/lib/",
-		"/proc/",
-		"/root/",
-		"/sbin/",
-		"/sys/",
-		"/tmp/",
-	}
-)
+// No path located under any of these top-level directories can be used.
+// This is not a security measure (the configuration can only be changed by
+// the system administrator anyways) but rather a check around unintended
+// mistakes.
+var invalidPrefixes = []string{
+	"/bin/",
+	"/boot/",
+	"/dev/",
+	"/etc/",
+	"/lib/",
+	"/proc/",
+	"/root/",
+	"/sbin/",
+	"/sys/",
+	"/tmp/",
+}
 
 func init() {
 	// add supported configuration of this module
@@ -75,24 +74,19 @@ func configureHomedirsInAppArmorAndReload(homedirs []string, opts *fsOnlyContext
 	if apparmor.ProbedLevel() != apparmor.Full && apparmor.ProbedLevel() != apparmor.Partial {
 		return nil
 	}
-
-	if err := apparmorUpdateHomedirsTunable(homedirs); err != nil {
-		return err
-	}
+	mylog.Check(apparmorUpdateHomedirsTunable(homedirs))
 
 	// Only update snap-confine apparmor snippets and reload profiles
 	// if it's during runtime
 	if opts == nil {
-		if _, err := apparmorSetupSnapConfineSnippets(); err != nil {
-			return err
-		}
+		mylog.Check2(apparmorSetupSnapConfineSnippets())
+		mylog.Check(
 
-		// We must reload the apparmor profiles in order for our changes to become
-		// effective. In theory, all profiles are affected; in practice, we are a
-		// bit egoist and only care about snapd.
-		if err := apparmorReloadAllSnapProfiles(); err != nil {
-			return err
-		}
+			// We must reload the apparmor profiles in order for our changes to become
+			// effective. In theory, all profiles are affected; in practice, we are a
+			// bit egoist and only care about snapd.
+			apparmorReloadAllSnapProfiles())
+
 	}
 	return nil
 }
@@ -104,18 +98,12 @@ func updateHomedirsConfig(config string, opts *fsOnlyContext) error {
 		rootDir = opts.RootDir
 	}
 	sspPath := dirs.SnapSystemParamsUnder(rootDir)
-	if err := os.MkdirAll(path.Dir(sspPath), 0755); err != nil {
-		return err
-	}
+	mylog.Check(os.MkdirAll(path.Dir(sspPath), 0755))
 
-	ssp, err := sysparams.Open(rootDir)
-	if err != nil {
-		return err
-	}
+	ssp := mylog.Check2(sysparams.Open(rootDir))
+
 	ssp.Homedirs = config
-	if err := ssp.Write(); err != nil {
-		return err
-	}
+	mylog.Check(ssp.Write())
 
 	// Update value in dirs
 	homedirs := dirs.SetSnapHomeDirs(config)
@@ -123,12 +111,10 @@ func updateHomedirsConfig(config string, opts *fsOnlyContext) error {
 }
 
 func handleHomedirsConfiguration(dev sysconfig.Device, tr ConfGetter, opts *fsOnlyContext) error {
-	conf, err := coreCfg(tr, "homedirs")
-	if err != nil {
-		return err
-	}
+	conf := mylog.Check2(coreCfg(tr, "homedirs"))
+
 	var prevConfig string
-	if err := tr.GetPristine("core", "homedirs", &prevConfig); err != nil && !config.IsNoOption(err) {
+	if mylog.Check(tr.GetPristine("core", "homedirs", &prevConfig)); err != nil && !config.IsNoOption(err) {
 		return err
 	}
 	if conf == prevConfig {
@@ -143,19 +129,13 @@ func handleHomedirsConfiguration(dev sysconfig.Device, tr ConfGetter, opts *fsOn
 		// on core as well.
 		return fmt.Errorf("configuration of homedir locations on Ubuntu Core is currently unsupported. Please report a bug if you need it")
 	}
-
-	if err := updateHomedirsConfig(conf, opts); err != nil {
-		return err
-	}
+	mylog.Check(updateHomedirsConfig(conf, opts))
 
 	return nil
 }
 
 func validateHomedirsConfiguration(tr ConfGetter) error {
-	config, err := coreCfg(tr, "homedirs")
-	if err != nil {
-		return err
-	}
+	config := mylog.Check2(coreCfg(tr, "homedirs"))
 
 	if config == "" {
 		return nil
@@ -166,12 +146,11 @@ func validateHomedirsConfiguration(tr ConfGetter) error {
 		if !filepath.IsAbs(dir) {
 			return fmt.Errorf("path %q is not absolute", dir)
 		}
+		mylog.Check(
 
-		// Ensure that the paths are not too fancy, as this could cause
-		// AppArmor to interpret them as patterns
-		if err := apparmor.ValidateNoAppArmorRegexp(dir); err != nil {
-			return fmt.Errorf("home path invalid: %v", err)
-		}
+			// Ensure that the paths are not too fancy, as this could cause
+			// AppArmor to interpret them as patterns
+			apparmor.ValidateNoAppArmorRegexp(dir))
 
 		// Also make sure that the path is not going to interfere with standard
 		// locations
@@ -184,10 +163,8 @@ func validateHomedirsConfiguration(tr ConfGetter) error {
 			}
 		}
 
-		exists, isDir, err := osutilDirExists(dir)
-		if err != nil {
-			return fmt.Errorf("cannot get directory info for %q: %v", dir, err)
-		}
+		exists, isDir := mylog.Check3(osutilDirExists(dir))
+
 		if !exists {
 			// There's no harm in letting this pass even if the directory does
 			// not exist, as long as snap-confine handles it properly. But for

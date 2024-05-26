@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/progress"
@@ -123,7 +124,7 @@ func (s *mountunitSuite) testAddMountUnit(c *C, flags systemd.EnsureMountUnitFla
 		Version:       "1.1",
 		Architectures: []string{"all"},
 	}
-	err := backend.AddMountUnit(info, flags, systemd.New(systemd.SystemMode, progress.Null))
+	mylog.Check(backend.AddMountUnit(info, flags, systemd.New(systemd.SystemMode, progress.Null)))
 	c.Check(err, Equals, expectedErr)
 
 	// ensure correct parameters
@@ -149,8 +150,7 @@ func (s *mountunitSuite) TestRemoveMountUnit(c *C) {
 		return sysd
 	})
 	defer restore()
-
-	err := backend.RemoveMountUnit("/some/where", progress.Null)
+	mylog.Check(backend.RemoveMountUnit("/some/where", progress.Null))
 	c.Check(err, Equals, expectedErr)
 	c.Check(sysd.RemoveMountUnitFileCalls, HasLen, 1)
 	c.Check(sysd.RemoveMountUnitFileCalls[0], Equals, "/some/where")
@@ -177,7 +177,7 @@ func (s *mountunitSuite) TestRemoveSnapMountUnitsFailOnList(c *C) {
 	defer restore()
 
 	b := backend.Backend{}
-	err := b.RemoveContainerMountUnits(info, progress.Null)
+	mylog.Check(b.RemoveContainerMountUnits(info, progress.Null))
 	c.Check(err, Equals, expectedErr)
 	c.Check(sysd.ListMountUnitsCalls, HasLen, 1)
 	c.Check(sysd.ListMountUnitsCalls, DeepEquals, []ParamsForListMountUnits{
@@ -209,7 +209,7 @@ func (s *mountunitSuite) TestRemoveSnapMountUnitsFailOnRemoval(c *C) {
 	defer restore()
 
 	b := backend.Backend{}
-	err := b.RemoveContainerMountUnits(info, progress.Null)
+	mylog.Check(b.RemoveContainerMountUnits(info, progress.Null))
 	c.Check(err, Equals, expectedErr)
 	c.Check(sysd.ListMountUnitsCalls, HasLen, 1)
 	c.Check(sysd.ListMountUnitsCalls, DeepEquals, []ParamsForListMountUnits{
@@ -242,7 +242,7 @@ func (s *mountunitSuite) TestRemoveSnapMountUnitsHappy(c *C) {
 	defer restore()
 
 	b := backend.Backend{}
-	err := b.RemoveContainerMountUnits(info, progress.Null)
+	mylog.Check(b.RemoveContainerMountUnits(info, progress.Null))
 	c.Check(err, IsNil)
 	c.Check(sysd.ListMountUnitsCalls, HasLen, 1)
 	c.Check(sysd.ListMountUnitsCalls, DeepEquals, []ParamsForListMountUnits{

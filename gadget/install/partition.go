@@ -30,6 +30,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/logger"
@@ -37,9 +38,7 @@ import (
 	"github.com/snapcore/snapd/osutil/disks"
 )
 
-var (
-	ensureNodesExist = ensureNodesExistImpl
-)
+var ensureNodesExist = ensureNodesExistImpl
 
 // reloadPartitionTable reloads the partition table depending on what the gadget
 // says - if the gadget has a special marker file, then we will use a special
@@ -70,10 +69,8 @@ type CreateOptions struct {
 // OnDiskStructure, as it is meant to be used externally (i.e. by
 // muinstaller).
 func CreateMissingPartitions(dv *gadget.OnDiskVolume, gv *gadget.Volume, opts *CreateOptions) ([]*gadget.OnDiskAndGadgetStructurePair, error) {
-	dgpairs, err := createMissingPartitions(dv, gv, opts)
-	if err != nil {
-		return nil, err
-	}
+	dgpairs := mylog.Check2(createMissingPartitions(dv, gv, opts))
+
 	return dgpairs, nil
 }
 
@@ -85,10 +82,8 @@ func createMissingPartitions(dv *gadget.OnDiskVolume, gv *gadget.Volume, opts *C
 		opts = &CreateOptions{}
 	}
 
-	buf, created, err := buildPartitionList(dv, gv, opts)
-	if err != nil {
-		return nil, err
-	}
+	buf, created := mylog.Check3(buildPartitionList(dv, gv, opts))
+
 	if len(created) == 0 {
 		return created, nil
 	}
@@ -101,19 +96,18 @@ func createMissingPartitions(dv *gadget.OnDiskVolume, gv *gadget.Volume, opts *C
 	// mounted (so it fails on removal). Use --no-reread to skip this attempt.
 	cmd := exec.Command("sfdisk", "--append", "--no-reread", dv.Device)
 	cmd.Stdin = buf
-	if output, err := cmd.CombinedOutput(); err != nil {
+	if output := mylog.Check2(cmd.CombinedOutput()); err != nil {
 		return created, osutil.OutputErr(output, err)
 	}
+	mylog.Check(
 
-	// Re-read the partition table
-	if err := reloadPartitionTable(opts.GadgetRootDir, dv.Device); err != nil {
-		return nil, err
-	}
+		// Re-read the partition table
+		reloadPartitionTable(opts.GadgetRootDir, dv.Device))
 
 	// run udevadm settle to wait for udev events that may have been triggered
 	// by reloading the partition table to be processed, as we need the udev
 	// database to be freshly updated
-	if out, err := exec.Command("udevadm", "settle", "--timeout=180").CombinedOutput(); err != nil {
+	if out := mylog.Check2(exec.Command("udevadm", "settle", "--timeout=180").CombinedOutput()); err != nil {
 		return nil, fmt.Errorf("cannot wait for udev to settle after reloading partition table: %v", osutil.OutputErr(out, err))
 	}
 
@@ -124,9 +118,7 @@ func createMissingPartitions(dv *gadget.OnDiskVolume, gv *gadget.Volume, opts *C
 	}
 	// do it in deterministic order
 	sort.Strings(nodes)
-	if err := ensureNodesExist(nodes, 5*time.Second); err != nil {
-		return nil, fmt.Errorf("partition not available: %v", err)
-	}
+	mylog.Check(ensureNodesExist(nodes, 5*time.Second))
 
 	return created, nil
 }
@@ -165,7 +157,7 @@ func buildPartitionList(dl *gadget.OnDiskVolume, vol *gadget.Volume, opts *Creat
 	if !opts.CreateAllMissingPartitions {
 		// EnsureVolumeCompatibility will ignore missing partitions as
 		// the AssumeCreatablePartitionsCreated option is false by default.
-		if matchedStructs, err = gadget.EnsureVolumeCompatibility(vol, dl, nil); err != nil {
+		if matchedStructs = mylog.Check2(gadget.EnsureVolumeCompatibility(vol, dl, nil)); err != nil {
 			return nil, nil, fmt.Errorf(
 				"gadget and boot device %v partition table not compatible: %v",
 				dl.Device, err)
@@ -245,7 +237,8 @@ func buildPartitionList(dl *gadget.OnDiskVolume, vol *gadget.Volume, opts *Creat
 		newVs := vs
 		toBeCreated = append(toBeCreated,
 			&gadget.OnDiskAndGadgetStructurePair{
-				DiskStructure: diskSt, GadgetStructure: &newVs})
+				DiskStructure: diskSt, GadgetStructure: &newVs,
+			})
 	}
 
 	return buf, toBeCreated, nil
@@ -295,15 +288,14 @@ func removeCreatedPartitions(gadgetRoot string, gv *gadget.Volume, dl *gadget.On
 	// Delete disk partitions
 	logger.Debugf("delete disk partitions %v", sfdiskIndexes)
 	cmd := exec.Command("sfdisk", append([]string{"--no-reread", "--delete", dl.Device}, sfdiskIndexes...)...)
-	if output, err := cmd.CombinedOutput(); err != nil {
+	if output := mylog.Check2(cmd.CombinedOutput()); err != nil {
 		return osutil.OutputErr(output, err)
 	}
+	mylog.Check(
 
-	// Reload the partition table - note that this specifically does not trigger
-	// udev events to remove the deleted devices, see the doc-comment below
-	if err := reloadPartitionTable(gadgetRoot, dl.Device); err != nil {
-		return err
-	}
+		// Reload the partition table - note that this specifically does not trigger
+		// udev events to remove the deleted devices, see the doc-comment below
+		reloadPartitionTable(gadgetRoot, dl.Device))
 
 	// Remove the partitions we deleted from the OnDiskVolume - note that we
 	// specifically don't try to just re-build the OnDiskVolume since doing
@@ -350,9 +342,7 @@ func ensureNodesExistImpl(nodes []string, timeout time.Duration) error {
 			time.Sleep(100 * time.Millisecond)
 		}
 		if found {
-			if err := udevTrigger(node); err != nil {
-				return err
-			}
+			mylog.Check(udevTrigger(node))
 		} else {
 			return fmt.Errorf("device %s not available", node)
 		}
@@ -365,25 +355,19 @@ func ensureNodesExistImpl(nodes []string, timeout time.Duration) error {
 // specific device in the form of executing the equivalent of:
 // bash -c "echo 1 > /sys/block/sd?/device/rescan"
 func reloadPartitionTableWithDeviceRescan(device string) error {
-	disk, err := disks.DiskFromDeviceName(device)
-	if err != nil {
-		return err
-	}
+	disk := mylog.Check2(disks.DiskFromDeviceName(device))
 
 	rescanFile := filepath.Join(disk.KernelDevicePath(), "device", "rescan")
 
 	logger.Noticef("reload partition table via rescan file %s for device %s as indicated by gadget", rescanFile, device)
-	f, err := os.OpenFile(rescanFile, os.O_WRONLY, 0644)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
+	f := mylog.Check2(os.OpenFile(rescanFile, os.O_WRONLY, 0644))
 
-	// this could potentially fail with strange sysfs errno's since rescan isn't
-	// a real file
-	if _, err := f.WriteString("1\n"); err != nil {
-		return fmt.Errorf("unable to trigger reload with rescan file: %v", err)
-	}
+	defer f.Close()
+	mylog.Check2(
+
+		// this could potentially fail with strange sysfs errno's since rescan isn't
+		// a real file
+		f.WriteString("1\n"))
 
 	return nil
 }
@@ -395,17 +379,15 @@ func reloadPartitionTableWithPartx(device string) error {
 	// remove existing partitions, only appends new partitions with the right
 	// size and offset. As long as we provide consistent partitioning from
 	// userspace we're safe.
-	output, err := exec.Command("partx", "-u", device).CombinedOutput()
-	if err != nil {
-		return osutil.OutputErr(output, err)
-	}
+	output := mylog.Check2(exec.Command("partx", "-u", device).CombinedOutput())
+
 	return nil
 }
 
 // udevTrigger triggers udev for the specified device and waits until
 // all events in the udev queue are handled.
 func udevTrigger(device string) error {
-	if output, err := exec.Command("udevadm", "trigger", "--settle", device).CombinedOutput(); err != nil {
+	if output := mylog.Check2(exec.Command("udevadm", "trigger", "--settle", device).CombinedOutput()); err != nil {
 		return osutil.OutputErr(output, err)
 	}
 	return nil

@@ -28,6 +28,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -38,9 +39,11 @@ type buildIDSuite struct {
 
 var _ = Suite(&buildIDSuite{})
 
-var truePath = osutil.LookPathDefault("true", "/bin/true")
-var falsePath = osutil.LookPathDefault("false", "/bin/false")
-var gccPath = osutil.LookPathDefault("gcc", "/usr/bin/gcc")
+var (
+	truePath  = osutil.LookPathDefault("true", "/bin/true")
+	falsePath = osutil.LookPathDefault("false", "/bin/false")
+	gccPath   = osutil.LookPathDefault("gcc", "/usr/bin/gcc")
+)
 
 func (s *buildIDSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
@@ -49,8 +52,8 @@ func (s *buildIDSuite) SetUpTest(c *C) {
 func buildID(c *C, fname string) string {
 	// XXX host's 'file' command may be too old to know about Go BuildID or
 	// hexstring GNU BuildID, use with caution
-	output, err := exec.Command("file", fname).CombinedOutput()
-	c.Assert(err, IsNil)
+	output := mylog.Check2(exec.Command("file", fname).CombinedOutput())
+
 
 	c.Logf("file output: %q", string(output))
 
@@ -69,8 +72,8 @@ func buildID(c *C, fname string) string {
 func (s *buildIDSuite) TestReadBuildID(c *C) {
 	for _, fname := range []string{truePath, falsePath} {
 
-		id, err := osutil.ReadBuildID(fname)
-		c.Assert(err, IsNil)
+		id := mylog.Check2(osutil.ReadBuildID(fname))
+
 		c.Assert(id, Equals, buildID(c, fname), Commentf("executable: %s", fname))
 	}
 }
@@ -78,11 +81,11 @@ func (s *buildIDSuite) TestReadBuildID(c *C) {
 func (s *buildIDSuite) TestReadBuildIDNoID(c *C) {
 	stripedTruth := filepath.Join(c.MkDir(), "true")
 	osutil.CopyFile(truePath, stripedTruth, 0)
-	output, err := exec.Command("strip", "-R", ".note.gnu.build-id", stripedTruth).CombinedOutput()
+	output := mylog.Check2(exec.Command("strip", "-R", ".note.gnu.build-id", stripedTruth).CombinedOutput())
 	c.Assert(string(output), Equals, "")
-	c.Assert(err, IsNil)
 
-	id, err := osutil.ReadBuildID(stripedTruth)
+
+	id := mylog.Check2(osutil.ReadBuildID(stripedTruth))
 	c.Assert(err, Equals, osutil.ErrNoBuildID)
 	c.Assert(id, Equals, "")
 }
@@ -93,14 +96,14 @@ func (s *buildIDSuite) TestReadBuildIDmd5(c *C) {
 	}
 
 	md5Truth := filepath.Join(c.MkDir(), "true")
-	err := os.WriteFile(md5Truth+".c", []byte(`int main(){return 0;}`), 0644)
-	c.Assert(err, IsNil)
-	output, err := exec.Command(gccPath, "-Wl,--build-id=md5", "-xc", md5Truth+".c", "-o", md5Truth).CombinedOutput()
-	c.Assert(string(output), Equals, "")
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(md5Truth+".c", []byte(`int main(){return 0;}`), 0644))
 
-	id, err := osutil.ReadBuildID(md5Truth)
-	c.Assert(err, IsNil)
+	output := mylog.Check2(exec.Command(gccPath, "-Wl,--build-id=md5", "-xc", md5Truth+".c", "-o", md5Truth).CombinedOutput())
+	c.Assert(string(output), Equals, "")
+
+
+	id := mylog.Check2(osutil.ReadBuildID(md5Truth))
+
 	c.Assert(id, Equals, buildID(c, md5Truth))
 }
 
@@ -110,14 +113,14 @@ func (s *buildIDSuite) TestReadBuildIDFixedELF(c *C) {
 	}
 
 	md5Truth := filepath.Join(c.MkDir(), "true")
-	err := os.WriteFile(md5Truth+".c", []byte(`int main(){return 0;}`), 0644)
-	c.Assert(err, IsNil)
-	output, err := exec.Command(gccPath, "-Wl,--build-id=0xdeadcafe", "-xc", md5Truth+".c", "-o", md5Truth).CombinedOutput()
-	c.Assert(string(output), Equals, "")
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(md5Truth+".c", []byte(`int main(){return 0;}`), 0644))
 
-	id, err := osutil.ReadBuildID(md5Truth)
-	c.Assert(err, IsNil)
+	output := mylog.Check2(exec.Command(gccPath, "-Wl,--build-id=0xdeadcafe", "-xc", md5Truth+".c", "-o", md5Truth).CombinedOutput())
+	c.Assert(string(output), Equals, "")
+
+
+	id := mylog.Check2(osutil.ReadBuildID(md5Truth))
+
 	// XXX cannot call buildID() as the host's 'file' command may be too old
 	// to know about hexstring format of GNU BuildID
 	c.Assert(id, Equals, "deadcafe")
@@ -129,8 +132,8 @@ func (s *buildIDSuite) TestMyBuildID(c *C) {
 	})
 	defer restore()
 
-	id, err := osutil.MyBuildID()
-	c.Assert(err, IsNil)
+	id := mylog.Check2(osutil.MyBuildID())
+
 	c.Check(id, Equals, buildID(c, truePath))
 }
 
@@ -146,25 +149,25 @@ func (s *buildIDSuite) TestReadBuildGo(c *C) {
 
 	tmpdir := c.MkDir()
 	goTruth := filepath.Join(tmpdir, "true")
-	err := os.WriteFile(goTruth+".go", []byte(`package main; func main(){}`), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(goTruth+".go", []byte(`package main; func main(){}`), 0644))
+
 	// force specific Go BuildID
 	cmd := exec.Command("go", "build", "-o", goTruth, "-ldflags=-buildid=foobar", goTruth+".go")
 	// set custom homedir to ensure tests work in an sbuild environment
 	// that force a non-existing homedir
 	cmd.Env = append(os.Environ(), "HOME="+tmpdir)
 	cmd.Dir = tmpdir
-	output, err := cmd.CombinedOutput()
+	output := mylog.Check2(cmd.CombinedOutput())
 	c.Assert(string(output), Equals, "")
-	c.Assert(err, IsNil)
 
-	id, err := osutil.ReadBuildID(goTruth)
-	c.Assert(err, IsNil)
+
+	id := mylog.Check2(osutil.ReadBuildID(goTruth))
+
 
 	// ReadBuildID returns a hex encoded string, however buildID()
 	// returns the "raw" string so we need to decode first
-	decoded, err := hex.DecodeString(id)
-	c.Assert(err, IsNil)
+	decoded := mylog.Check2(hex.DecodeString(id))
+
 	// XXX cannot call buildID() as the host's 'file' command may be too old
 	// to know about Go BuildID
 	c.Assert(string(decoded), Equals, "foobar")

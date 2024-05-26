@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/testutil"
@@ -61,8 +62,8 @@ func (s *hotplugSuite) TestBasicProperties(c *C) {
 		"TYPE": "0/0/0", "BUSNUM": "002",
 	}
 
-	di, err := NewHotplugDeviceInfo(env)
-	c.Assert(err, IsNil)
+	di := mylog.Check2(NewHotplugDeviceInfo(env))
+
 
 	c.Assert(di.DeviceName(), Equals, "bus/usb/002/003")
 	c.Assert(di.DeviceType(), Equals, "usb_device")
@@ -85,12 +86,12 @@ func (s *hotplugSuite) TestPropertiesMissing(c *C) {
 		"ACTION":  "add", "SUBSYSTEM": "usb",
 	}
 
-	_, err := NewHotplugDeviceInfo(map[string]string{})
+	_ := mylog.Check2(NewHotplugDeviceInfo(map[string]string{}))
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `missing device path attribute`)
 
-	di, err := NewHotplugDeviceInfo(env)
-	c.Assert(err, IsNil)
+	di := mylog.Check2(NewHotplugDeviceInfo(env))
+
 
 	c.Assert(di.DeviceName(), Equals, "")
 	c.Assert(di.DeviceType(), Equals, "")
@@ -173,19 +174,19 @@ func (s *hotplugSuite) TestStringFormat(c *C) {
 	}
 
 	for _, tst := range tests {
-		di, err := NewHotplugDeviceInfo(tst.env)
-		c.Assert(err, IsNil)
+		di := mylog.Check2(NewHotplugDeviceInfo(tst.env))
+
 
 		c.Check(di.String(), Equals, tst.out)
 	}
 }
 
 func (s *hotplugSuite) TestShortStringFormat(c *C) {
-	di, err := NewHotplugDeviceInfo(map[string]string{
+	di := mylog.Check2(NewHotplugDeviceInfo(map[string]string{
 		"DEVPATH":                 "/devices/a",
 		"ID_VENDOR_FROM_DATABASE": "very long vendor name",
 		"ACTION":                  "add",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(di.ShortString(), Equals, "/sys/devices/a (very long vendor…)")
 }

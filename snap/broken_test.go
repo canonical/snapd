@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -43,10 +44,10 @@ func (s *brokenSuite) TearDownTest(c *C) {
 }
 
 func touch(c *C, path string) {
-	err := os.MkdirAll(filepath.Dir(path), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(path, nil, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Dir(path), 0755))
+
+	mylog.Check(os.WriteFile(path, nil, 0644))
+
 }
 
 func (s *brokenSuite) TestGuessAppsForBrokenBinaries(c *C) {

@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/strutil/shlex"
 )
 
@@ -34,10 +35,8 @@ func shellQuote(s string) string {
 }
 
 func toFilePath(uri string) (string, error) {
-	u, err := url.Parse(uri)
-	if err != nil {
-		return "", err
-	}
+	u := mylog.Check2(url.Parse(uri))
+
 	if !u.IsAbs() {
 		return "", fmt.Errorf("%q is not an absolute URI", uri)
 	}
@@ -55,10 +54,8 @@ func expandMacro(r rune, buf *bytes.Buffer, de *DesktopEntry, uris []string) ([]
 	case 'u':
 		if len(uris) > 0 {
 			// Format as a file path, falling back to a URI
-			arg, err := toFilePath(uris[0])
-			if err != nil {
-				arg = uris[0]
-			}
+			arg := mylog.Check2(toFilePath(uris[0]))
+
 			buf.WriteString(shellQuote(arg))
 			uris = uris[1:]
 		}
@@ -70,19 +67,15 @@ func expandMacro(r rune, buf *bytes.Buffer, de *DesktopEntry, uris []string) ([]
 			}
 			first = false
 			// Format as a file path, falling back to a URI
-			arg, err := toFilePath(u)
-			if err != nil {
-				arg = u
-			}
+			arg := mylog.Check2(toFilePath(u))
+
 			buf.WriteString(shellQuote(arg))
 		}
 		uris = nil
 	case 'f':
 		if len(uris) > 0 {
-			arg, err := toFilePath(uris[0])
-			if err != nil {
-				return nil, err
-			}
+			arg := mylog.Check2(toFilePath(uris[0]))
+
 			buf.WriteString(shellQuote(arg))
 			uris = uris[1:]
 		}
@@ -93,10 +86,8 @@ func expandMacro(r rune, buf *bytes.Buffer, de *DesktopEntry, uris []string) ([]
 				buf.WriteRune(' ')
 			}
 			first = false
-			arg, err := toFilePath(u)
-			if err != nil {
-				return nil, err
-			}
+			arg := mylog.Check2(toFilePath(u))
+
 			buf.WriteString(shellQuote(arg))
 		}
 		uris = nil
@@ -133,7 +124,7 @@ func expandExec(de *DesktopEntry, exec string, uris []string) (args []string, er
 	nUris := len(uris)
 	for _, r := range exec {
 		if isMacro {
-			if uris, err = expandMacro(r, &buf, de, uris); err != nil {
+			if uris = mylog.Check2(expandMacro(r, &buf, de, uris)); err != nil {
 				return nil, err
 			}
 			isMacro = false
@@ -147,9 +138,8 @@ func expandExec(de *DesktopEntry, exec string, uris []string) (args []string, er
 	// implicit %f argument
 	if len(uris) > 0 && len(uris) == nUris {
 		buf.WriteRune(' ')
-		if _, err = expandMacro('f', &buf, de, uris); err != nil {
-			return nil, err
-		}
+		mylog.Check2(expandMacro('f', &buf, de, uris))
+
 	}
 
 	return shlex.Split(buf.String())

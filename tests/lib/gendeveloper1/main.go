@@ -44,6 +44,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 )
@@ -67,9 +68,7 @@ func main() {
 
 	var headers map[string]interface{}
 	dec := json.NewDecoder(os.Stdin)
-	if err := dec.Decode(&headers); err != nil {
-		log.Fatalf("failed to decode model headers data: %v", err)
-	}
+	mylog.Check(dec.Decode(&headers))
 
 	headerType := headers["type"]
 	assertType := asserts.ModelType
@@ -87,9 +86,7 @@ func main() {
 		delete(headers, "body")
 	}
 
-	clModel, err := devSigning.Sign(assertType, headers, body, "")
-	if err != nil {
-		log.Fatalf("failed to sign the model: %v", err)
-	}
+	clModel := mylog.Check2(devSigning.Sign(assertType, headers, body, ""))
+
 	os.Stdout.Write(asserts.Encode(clModel))
 }

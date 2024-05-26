@@ -29,6 +29,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -57,9 +58,8 @@ func (s *autostartSuite) SetUpTest(c *C) {
 	s.userCurrentRestore = autostart.MockUserCurrent(func() (*user.User, error) {
 		return &user.User{HomeDir: s.userDir}, nil
 	})
+	mylog.Check(os.MkdirAll(s.autostartDir, 0755))
 
-	err := os.MkdirAll(s.autostartDir, 0755)
-	c.Assert(err, IsNil)
 }
 
 func (s *autostartSuite) TearDownTest(c *C) {
@@ -92,12 +92,11 @@ func (s *autostartSuite) TestTryAutostartAppValid(c *C) {
 Exec=this-is-ignored -a -b --foo="a b c" -z "dev"
 `))
 
-	cmd, err := autostart.AutostartCmd("snapname", fooDesktopFile)
-	c.Assert(err, IsNil)
-	c.Assert(cmd.Path, Equals, appWrapperPath)
+	cmd := mylog.Check2(autostart.AutostartCmd("snapname", fooDesktopFile))
 
-	err = cmd.Start()
-	c.Assert(err, IsNil)
+	c.Assert(cmd.Path, Equals, appWrapperPath)
+	mylog.Check(cmd.Start())
+
 	cmd.Wait()
 
 	c.Assert(appCmd.Calls(), DeepEquals,
@@ -124,7 +123,7 @@ OnlyShowIn=KDE
 `))
 
 	defer autostart.MockCurrentDesktop("GNOME")()
-	cmd, err := autostart.AutostartCmd("snapname", fooDesktopFile)
+	cmd := mylog.Check2(autostart.AutostartCmd("snapname", fooDesktopFile))
 	c.Assert(cmd, IsNil)
 	c.Assert(err, ErrorMatches, `skipped`)
 }
@@ -138,7 +137,7 @@ func (s *autostartSuite) TestTryAutostartAppNoMatchingApp(c *C) {
 Exec=this-is-ignored -a -b --foo="a b c" -z "dev"
 `))
 
-	cmd, err := autostart.AutostartCmd("snapname", fooDesktopFile)
+	cmd := mylog.Check2(autostart.AutostartCmd("snapname", fooDesktopFile))
 	c.Assert(cmd, IsNil)
 	c.Assert(err, ErrorMatches, `cannot match desktop file with snap snapname applications`)
 }
@@ -150,7 +149,7 @@ func (s *autostartSuite) TestTryAutostartAppNoSnap(c *C) {
 Exec=this-is-ignored -a -b --foo="a b c" -z "dev"
 `))
 
-	cmd, err := autostart.AutostartCmd("snapname", fooDesktopFile)
+	cmd := mylog.Check2(autostart.AutostartCmd("snapname", fooDesktopFile))
 	c.Assert(cmd, IsNil)
 	c.Assert(err, ErrorMatches, `cannot find current revision for snap snapname.*`)
 }
@@ -164,7 +163,7 @@ func (s *autostartSuite) TestTryAutostartAppBadExec(c *C) {
 Foo=bar
 `))
 
-	cmd, err := autostart.AutostartCmd("snapname", fooDesktopFile)
+	cmd := mylog.Check2(autostart.AutostartCmd("snapname", fooDesktopFile))
 	c.Assert(cmd, IsNil)
 	c.Assert(err, ErrorMatches, `invalid application startup command: desktop file ".*" has no Exec line`)
 }
@@ -175,20 +174,20 @@ func (s *autostartSuite) TestTryAutostartInvalid(c *C) {
 	// If we don't write anything, the desktopentry.Read() call will fail
 	fooDesktopFile := filepath.Join(s.autostartDir, "foo-stable.desktop")
 
-	cmd, err := autostart.AutostartCmd("snapname", fooDesktopFile)
+	cmd := mylog.Check2(autostart.AutostartCmd("snapname", fooDesktopFile))
 	c.Check(cmd, IsNil)
 	c.Check(err, ErrorMatches, `cannot parse desktop file for application foo in snap snapname: .*`)
 }
 
 func writeFile(c *C, path string, content []byte) {
-	err := os.MkdirAll(filepath.Dir(path), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(path, content, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Dir(path), 0755))
+
+	mylog.Check(os.WriteFile(path, content, 0644))
+
 }
 
 func (s *autostartSuite) TestTryAutostartMany(c *C) {
-	var mockYamlTemplate = `name: {snap}
+	mockYamlTemplate := `name: {snap}
 version: 1.0
 apps:
  foo:
@@ -214,7 +213,7 @@ Exec=no-snap
 `))
 
 	usrSnapDir := filepath.Join(s.userDir, "snap")
-	err := autostart.AutostartSessionApps(usrSnapDir)
+	mylog.Check(autostart.AutostartSessionApps(usrSnapDir))
 	c.Assert(err, NotNil)
 	c.Check(err, ErrorMatches, `- "foo-stable.desktop": invalid application startup command: desktop file ".*" has no Exec line
 - "no-match.desktop": cannot match desktop file with snap b-foo applications

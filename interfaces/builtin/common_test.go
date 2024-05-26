@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
@@ -59,8 +60,8 @@ slots:
 		name:              "common",
 		connectedPlugUDev: []string{`KERNEL=="foo"`},
 	}
-	appSet, err := interfaces.NewSnapAppSet(plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(plug.Snap(), nil))
+
 	spec := udev.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(iface, plug, slot), IsNil)
 	c.Assert(spec.Snippets(), DeepEquals, []string{
@@ -78,8 +79,8 @@ KERNEL=="foo", TAG+="snap_consumer_app-c"`,
 		name: "common",
 	}
 
-	appSet, err = interfaces.NewSnapAppSet(plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(plug.Snap(), nil))
+
 
 	spec = udev.NewSpecification(appSet)
 
@@ -228,8 +229,8 @@ slots:
 	}
 
 	for _, test := range tests {
-		appSet, err := interfaces.NewSnapAppSet(plug.Snap(), nil)
-		c.Assert(err, IsNil)
+		appSet := mylog.Check2(interfaces.NewSnapAppSet(plug.Snap(), nil))
+
 		spec := apparmor.NewSpecification(appSet)
 		iface := test.iface
 		// before connection, everything should be set to false
@@ -263,8 +264,8 @@ slots:
 		name:                 "common",
 		controlsDeviceCgroup: false,
 	}
-	appSet, err := interfaces.NewSnapAppSet(plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(plug.Snap(), nil))
+
 	spec := udev.NewSpecification(appSet)
 	c.Assert(spec.ControlsDeviceCgroup(), Equals, false)
 	c.Assert(spec.AddConnectedPlug(iface, plug, slot), IsNil)
@@ -274,8 +275,8 @@ slots:
 		name:                 "common",
 		controlsDeviceCgroup: true,
 	}
-	appSet, err = interfaces.NewSnapAppSet(plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(plug.Snap(), nil))
+
 
 	spec = udev.NewSpecification(appSet)
 

@@ -26,6 +26,7 @@ import (
 	"encoding/json"
 	"errors"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
 )
@@ -64,9 +65,8 @@ func (bsi RevisionSideState) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaler interface
 func (bsi *RevisionSideState) UnmarshalJSON(in []byte) error {
 	var aux revisionSideInfoMarshal
-	if err := json.Unmarshal(in, &aux); err != nil {
-		return err
-	}
+	mylog.Check(json.Unmarshal(in, &aux))
+
 	bsi.Snap = aux.SideInfo
 	bsi.Components = aux.Components
 	return nil
@@ -110,9 +110,8 @@ func (snapSeq SnapSequence) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaler interface
 func (snapSeq *SnapSequence) UnmarshalJSON(in []byte) error {
 	aux := []*RevisionSideState{}
-	if err := json.Unmarshal(in, &aux); err != nil {
-		return err
-	}
+	mylog.Check(json.Unmarshal(in, &aux))
+
 	snapSeq.Revisions = aux
 	return nil
 }

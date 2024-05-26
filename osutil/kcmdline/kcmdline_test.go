@@ -29,6 +29,7 @@ import (
 	. "gopkg.in/check.v1"
 	"gopkg.in/yaml.v2"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil/kcmdline"
 )
 
@@ -88,12 +89,12 @@ func (s *kcmdlineTestSuite) TestSplitKernelCommandLine(c *C) {
 		{cmd: `foo ==a`, errStr: "unexpected assignment"},
 	} {
 		c.Logf("%v: cmd: %q", idx, tc.cmd)
-		out, err := kcmdline.Split(tc.cmd)
+		out := mylog.Check2(kcmdline.Split(tc.cmd))
 		if tc.errStr != "" {
 			c.Assert(err, ErrorMatches, tc.errStr)
 			c.Check(out, IsNil)
 		} else {
-			c.Assert(err, IsNil)
+
 			c.Check(out, DeepEquals, tc.exp)
 		}
 	}
@@ -184,15 +185,15 @@ func (s *kcmdlineTestSuite) TestGetKernelCommandLineKeyValue(c *C) {
 		},
 	} {
 		cmdlineFile := filepath.Join(c.MkDir(), "cmdline")
-		err := os.WriteFile(cmdlineFile, []byte(t.cmdline), 0644)
-		c.Assert(err, IsNil)
+		mylog.Check(os.WriteFile(cmdlineFile, []byte(t.cmdline), 0644))
+
 		r := kcmdline.MockProcCmdline(cmdlineFile)
 		defer r()
-		res, err := kcmdline.KeyValues(t.keys...)
+		res := mylog.Check2(kcmdline.KeyValues(t.keys...))
 		if t.err != "" {
 			c.Assert(err, ErrorMatches, t.err, Commentf(t.comment))
 		} else {
-			c.Assert(err, IsNil)
+
 			exp := t.exp
 			if t.exp == nil {
 				exp = map[string]string{}
@@ -208,14 +209,13 @@ func (s *kcmdlineTestSuite) TestKernelCommandLine(c *C) {
 	restore := kcmdline.MockProcCmdline(newProcCmdline)
 	defer restore()
 
-	cmd, err := kcmdline.KernelCommandLine()
+	cmd := mylog.Check2(kcmdline.KernelCommandLine())
 	c.Assert(err, ErrorMatches, `.*/cmdline: no such file or directory`)
 	c.Check(cmd, Equals, "")
+	mylog.Check(os.WriteFile(newProcCmdline, []byte("foo bar baz panic=-1\n"), 0644))
 
-	err = os.WriteFile(newProcCmdline, []byte("foo bar baz panic=-1\n"), 0644)
-	c.Assert(err, IsNil)
-	cmd, err = kcmdline.KernelCommandLine()
-	c.Assert(err, IsNil)
+	cmd = mylog.Check2(kcmdline.KernelCommandLine())
+
 	c.Check(cmd, Equals, "foo bar baz panic=-1")
 }
 
@@ -230,25 +230,35 @@ func (s *kcmdlineTestSuite) TestKernelParseCommandLine(c *C) {
 	}{
 		{cmd: ``, exp: []kcmdline.Argument{}},
 		{cmd: `foo bar baz`, exp: []kcmdline.Argument{
-			{"foo", "", false}, {"bar", "", false}, {"baz", "", false}}},
+			{"foo", "", false}, {"bar", "", false}, {"baz", "", false},
+		}},
 		{cmd: `"foo"=" many   spaces  " bar`, exp: []kcmdline.Argument{
-			{`foo"`, " many   spaces  ", true}, {"bar", "", false}}},
+			{`foo"`, " many   spaces  ", true}, {"bar", "", false},
+		}},
 		{cmd: `"foo=bar" foo="bar"`, exp: []kcmdline.Argument{
-			{"foo", "bar", true}, {"foo", "bar", true}}},
+			{"foo", "bar", true}, {"foo", "bar", true},
+		}},
 		{cmd: `foo=* baz=bar`, exp: []kcmdline.Argument{
-			{"foo", "*", false}, {"baz", "bar", false}}},
+			{"foo", "*", false}, {"baz", "bar", false},
+		}},
 		{cmd: `foo-dev-mode`, exp: []kcmdline.Argument{
-			{"foo-dev-mode", "", false}}},
+			{"foo-dev-mode", "", false},
+		}},
 		{cmd: `foo_bar-tee=bar_aa-bb`, exp: []kcmdline.Argument{
-			{"foo_bar-tee", "bar_aa-bb", false}}},
+			{"foo_bar-tee", "bar_aa-bb", false},
+		}},
 		{cmd: `foo="1$2"`, exp: []kcmdline.Argument{{"foo", "1$2", true}}},
 		{cmd: `foo=1$2`, exp: []kcmdline.Argument{{"foo", "1$2", false}}},
 		{cmd: `foo= bar`, exp: []kcmdline.Argument{{"foo", "", false}, {"bar", "", false}}},
 		{cmd: `foo=""`, exp: []kcmdline.Argument{{"foo", "", true}}},
-		{cmd: `   cpu=1,2,3   mem=0x2000;0x4000:$2  `,
-			exp: []kcmdline.Argument{{"cpu", "1,2,3", false}, {"mem", "0x2000;0x4000:$2", false}}},
-		{cmd: "isolcpus=1,2,10-20,100-2000:2/25",
-			exp: []kcmdline.Argument{{"isolcpus", "1,2,10-20,100-2000:2/25", false}}},
+		{
+			cmd: `   cpu=1,2,3   mem=0x2000;0x4000:$2  `,
+			exp: []kcmdline.Argument{{"cpu", "1,2,3", false}, {"mem", "0x2000;0x4000:$2", false}},
+		},
+		{
+			cmd: "isolcpus=1,2,10-20,100-2000:2/25",
+			exp: []kcmdline.Argument{{"isolcpus", "1,2,10-20,100-2000:2/25", false}},
+		},
 		// something more realistic
 		{
 			cmd: `BOOT_IMAGE=/vmlinuz-linux root=/dev/mapper/linux-root rw quiet loglevel=3 rd.udev.log_priority=3 vt.global_cursor_default=0 rd.luks.uuid=1a273f76-3118-434b-8597-a3b12a59e017 rd.luks.uuid=775e4582-33c1-423b-ac19-f734e0d5e21c rd.luks.options=discard,timeout=0 root=/dev/mapper/linux-root apparmor=1 security=apparmor`,
@@ -353,7 +363,7 @@ func (s *kcmdlineTestSuite) TestUnmarshalKernelArgument(c *C) {
 	} {
 		c.Logf("%v, args: %v", idx, tc.args)
 		var args argsList
-		err := yaml.Unmarshal([]byte(buildYamlArgsList(tc.args)), &args)
+		mylog.Check(yaml.Unmarshal([]byte(buildYamlArgsList(tc.args)), &args))
 		if tc.errStr == "" {
 			c.Check(err, IsNil)
 			c.Check(args, DeepEquals, tc.exp)
@@ -453,7 +463,7 @@ func (s *kcmdlineTestSuite) TestUnmarshalKernelArgumentPattern(c *C) {
 	} {
 		c.Logf("%v, args: %v", idx, tc.args)
 		var args patternsList
-		err := yaml.Unmarshal([]byte(buildYamlArgsList(tc.args)), &args)
+		mylog.Check(yaml.Unmarshal([]byte(buildYamlArgsList(tc.args)), &args))
 		if tc.errStr == "" {
 			c.Check(err, IsNil)
 			c.Check(args, DeepEquals, tc.exp)
@@ -520,7 +530,7 @@ func (s *kcmdlineTestSuite) TestUnmarshalKernelArgumentPatternBinary(c *C) {
 		arg := kcmdline.ArgumentPattern{}
 		// useless but need to verify interface
 		unmarshaler := encoding.BinaryUnmarshaler(&arg)
-		err := unmarshaler.UnmarshalBinary(tc.encoded)
+		mylog.Check(unmarshaler.UnmarshalBinary(tc.encoded))
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err)
 		} else {
@@ -528,10 +538,10 @@ func (s *kcmdlineTestSuite) TestUnmarshalKernelArgumentPatternBinary(c *C) {
 			c.Check(arg, DeepEquals, tc.pattern)
 
 			marshaler := encoding.BinaryMarshaler(&arg)
-			reencoded, err := marshaler.MarshalBinary()
+			reencoded := mylog.Check2(marshaler.MarshalBinary())
 			c.Check(err, IsNil)
 			secondArg := kcmdline.ArgumentPattern{}
-			err = secondArg.UnmarshalBinary(reencoded)
+			mylog.Check(secondArg.UnmarshalBinary(reencoded))
 			c.Check(err, IsNil)
 			c.Check(secondArg, DeepEquals, tc.pattern)
 		}
@@ -595,7 +605,7 @@ func (s *kcmdlineTestSuite) TestUnmarshalKernelArgumentPatternText(c *C) {
 		arg := kcmdline.ArgumentPattern{}
 		// useless but need to verify interface
 		unmarshaler := encoding.TextUnmarshaler(&arg)
-		err := unmarshaler.UnmarshalText(tc.encoded)
+		mylog.Check(unmarshaler.UnmarshalText(tc.encoded))
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err)
 		} else {
@@ -604,10 +614,10 @@ func (s *kcmdlineTestSuite) TestUnmarshalKernelArgumentPatternText(c *C) {
 
 			// useless but need to verify interface
 			marshaler := encoding.TextMarshaler(&arg)
-			reencoded, err := marshaler.MarshalText()
+			reencoded := mylog.Check2(marshaler.MarshalText())
 			c.Check(err, IsNil)
 			secondArg := kcmdline.ArgumentPattern{}
-			err = secondArg.UnmarshalText(reencoded)
+			mylog.Check(secondArg.UnmarshalText(reencoded))
 			c.Check(err, IsNil)
 			c.Check(secondArg, DeepEquals, tc.pattern)
 		}

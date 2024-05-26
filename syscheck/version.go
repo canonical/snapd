@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -41,10 +42,8 @@ func init() {
 // and set to proper value
 func supportsMayDetachMounts(kver string) error {
 	p := filepath.Join(dirs.GlobalRootDir, "/proc/sys/fs/may_detach_mounts")
-	value, err := os.ReadFile(p)
-	if err != nil {
-		return fmt.Errorf("cannot read the value of fs.may_detach_mounts kernel parameter: %v", err)
-	}
+	value := mylog.Check2(os.ReadFile(p))
+
 	if !bytes.Equal(value, []byte("1\n")) {
 		return fmt.Errorf("fs.may_detach_mounts kernel parameter is supported but disabled")
 	}
@@ -65,11 +64,8 @@ func checkKernelVersion() error {
 			// a kernel version looks like this: "4.4.0-112-generic" and
 			// we are only interested in the bits before the "-"
 			kver = strings.SplitN(kver, "-", 2)[0]
-			cmp, err := strutil.VersionCompare(kver, "3.13.0")
-			if err != nil {
-				logger.Noticef("cannot check kernel: %v", err)
-				return nil
-			}
+			cmp := mylog.Check2(strutil.VersionCompare(kver, "3.13.0"))
+
 			if cmp <= 0 {
 				return fmt.Errorf("you need to reboot into a 4.4 kernel to start using snapd")
 			}
@@ -83,11 +79,8 @@ func checkKernelVersion() error {
 		fullKver := osutil.KernelVersion()
 		// kernel version looks like this: "3.10.0-957.el7.x86_64"
 		kver := strings.SplitN(fullKver, "-", 2)[0]
-		cmp, err := strutil.VersionCompare(kver, "3.18.0")
-		if err != nil {
-			logger.Noticef("cannot check kernel: %v", err)
-			return nil
-		}
+		cmp := mylog.Check2(strutil.VersionCompare(kver, "3.18.0"))
+
 		if cmp < 0 {
 			// pre 3.18 kernels here
 			if idx := strings.Index(fullKver, ".el7."); idx == -1 {

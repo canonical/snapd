@@ -24,6 +24,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -33,9 +34,9 @@ func BeforePreparePlug(iface Interface, plugInfo *snap.PlugInfo) error {
 		return fmt.Errorf("cannot sanitize plug %q (interface %q) using interface %q",
 			PlugRef{Snap: plugInfo.Snap.InstanceName(), Name: plugInfo.Name}, plugInfo.Interface, iface.Name())
 	}
-	var err error
+
 	if iface, ok := iface.(PlugSanitizer); ok {
-		err = iface.BeforePreparePlug(plugInfo)
+		mylog.Check(iface.BeforePreparePlug(plugInfo))
 	}
 	return err
 }
@@ -45,9 +46,9 @@ func BeforeConnectPlug(iface Interface, plug *ConnectedPlug) error {
 		return fmt.Errorf("cannot sanitize connection for plug %q (interface %q) using interface %q",
 			PlugRef{Snap: plug.plugInfo.Snap.InstanceName(), Name: plug.plugInfo.Name}, plug.plugInfo.Interface, iface.Name())
 	}
-	var err error
+
 	if iface, ok := iface.(ConnPlugSanitizer); ok {
-		err = iface.BeforeConnectPlug(plug)
+		mylog.Check(iface.BeforeConnectPlug(plug))
 	}
 	return err
 }
@@ -84,9 +85,9 @@ func BeforePrepareSlot(iface Interface, slotInfo *snap.SlotInfo) error {
 		return fmt.Errorf("cannot sanitize slot %q (interface %q) using interface %q",
 			SlotRef{Snap: slotInfo.Snap.InstanceName(), Name: slotInfo.Name}, slotInfo.Interface, iface.Name())
 	}
-	var err error
+
 	if iface, ok := iface.(SlotSanitizer); ok {
-		err = iface.BeforePrepareSlot(slotInfo)
+		mylog.Check(iface.BeforePrepareSlot(slotInfo))
 	}
 	return err
 }
@@ -252,11 +253,9 @@ type StaticInfo struct {
 // The plug is provided because the snippet may depend on plug attributes for
 // example. The plug is sanitized before the snippets are returned.
 func PermanentPlugServiceSnippets(iface Interface, plug *snap.PlugInfo) (snips []string, err error) {
-	// sanitize the plug first
-	err = BeforePreparePlug(iface, plug)
-	if err != nil {
-		return nil, err
-	}
+	mylog.
+		// sanitize the plug first
+		Check(BeforePreparePlug(iface, plug))
 
 	type serviceSnippetPlugger interface {
 		ServicePermanentPlug(plug *snap.PlugInfo) []string

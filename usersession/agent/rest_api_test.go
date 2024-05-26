@@ -30,6 +30,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/godbus/dbus"
 	. "gopkg.in/check.v1"
 
@@ -70,13 +71,12 @@ func (s *restSuite) SetUpTest(c *C) {
 	restore = systemd.MockStopDelays(2*time.Millisecond, 4*time.Millisecond)
 	s.AddCleanup(restore)
 
-	var err error
-	s.notify, err = notificationtest.NewFdoServer()
-	c.Assert(err, IsNil)
+	s.notify = mylog.Check2(notificationtest.NewFdoServer())
+
 	s.AddCleanup(func() { s.notify.Stop() })
 
-	s.agent, err = agent.New()
-	c.Assert(err, IsNil)
+	s.agent = mylog.Check2(agent.New())
+
 	s.agent.Start()
 	s.AddCleanup(func() { s.agent.Stop() })
 }
@@ -869,8 +869,8 @@ func (s *restSuite) TestPostPendingRefreshNotificationNoSessionBus(c *C) {
 }
 
 func (s *restSuite) testPostPendingRefreshNotificationBody(c *C, refreshInfo *client.PendingSnapRefreshInfo) {
-	reqBody, err := json.Marshal(refreshInfo)
-	c.Assert(err, IsNil)
+	reqBody := mylog.Check2(json.Marshal(refreshInfo))
+
 	req := httptest.NewRequest("POST", "/v1/notifications/pending-refresh", bytes.NewBuffer(reqBody))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
@@ -962,14 +962,14 @@ func (s *restSuite) TestPostPendingRefreshNotificationBusyAppDesktopFile(c *C) {
 		BusyAppName:         "app",
 		BusyAppDesktopEntry: "pkg_app",
 	}
-	err := os.MkdirAll(dirs.SnapDesktopFilesDir, 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(dirs.SnapDesktopFilesDir, 0755))
+
 	desktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "pkg_app.desktop")
-	err = os.WriteFile(desktopFilePath, []byte(`
+	mylog.Check(os.WriteFile(desktopFilePath, []byte(`
 [Desktop Entry]
 Icon=app.png
-	`), 0644)
-	c.Assert(err, IsNil)
+	`), 0644))
+
 
 	s.testPostPendingRefreshNotificationBody(c, refreshInfo)
 	notifications := s.notify.GetAll()
@@ -989,11 +989,11 @@ func (s *restSuite) TestPostPendingRefreshNotificationBusyAppMalformedDesktopFil
 		BusyAppName:         "app",
 		BusyAppDesktopEntry: "pkg_app",
 	}
-	err := os.MkdirAll(dirs.SnapDesktopFilesDir, 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(dirs.SnapDesktopFilesDir, 0755))
+
 	desktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "pkg_app.desktop")
-	err = os.WriteFile(desktopFilePath, []byte(`garbage!`), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(desktopFilePath, []byte(`garbage!`), 0644))
+
 
 	s.testPostPendingRefreshNotificationBody(c, refreshInfo)
 	notifications := s.notify.GetAll()
@@ -1013,8 +1013,8 @@ func (s *restSuite) TestPostPendingRefreshNotificationNotificationServerFailure(
 	refreshInfo := &client.PendingSnapRefreshInfo{
 		InstanceName: "pkg",
 	}
-	reqBody, err := json.Marshal(refreshInfo)
-	c.Assert(err, IsNil)
+	reqBody := mylog.Check2(json.Marshal(refreshInfo))
+
 	req := httptest.NewRequest("POST", "/v1/notifications/pending-refresh", bytes.NewBuffer(reqBody))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
@@ -1029,8 +1029,8 @@ func (s *restSuite) TestPostPendingRefreshNotificationNotificationServerFailure(
 }
 
 func (s *restSuite) testPostFinishRefreshNotificationBody(c *C, refreshInfo *client.FinishedSnapRefreshInfo) {
-	reqBody, err := json.Marshal(refreshInfo)
-	c.Assert(err, IsNil)
+	reqBody := mylog.Check2(json.Marshal(refreshInfo))
+
 	req := httptest.NewRequest("POST", "/v1/notifications/finish-refresh", bytes.NewBuffer(reqBody))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()

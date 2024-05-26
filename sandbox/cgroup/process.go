@@ -23,14 +23,14 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 func snapNameFromPidUsingTrackingCgroup(pid int) (string, error) {
 	// Maybe we have application tracking and can use it?
-	path, err := ProcessPathInTrackingCgroup(pid)
-	if err != nil {
-		return "", err
-	}
+	path := mylog.Check2(ProcessPathInTrackingCgroup(pid))
+
 	if parsedTag := securityTagFromCgroupPath(path); parsedTag != nil {
 		return parsedTag.InstanceName(), nil
 	}
@@ -44,10 +44,8 @@ func snapNameFromPidUsingFreezerV1Cgroup(pid int) (string, error) {
 	}
 
 	// Find the path in the freezer cgroup.
-	group, err := ProcGroup(pid, MatchV1Controller("freezer"))
-	if err != nil {
-		return "", fmt.Errorf("cannot determine cgroup path of pid %v: %v", pid, err)
-	}
+	group := mylog.Check2(ProcGroup(pid, MatchV1Controller("freezer")))
+
 	if !strings.HasPrefix(group, "/snap.") {
 		return "", fmt.Errorf("cannot find a snap for pid %v", pid)
 	}
@@ -61,7 +59,7 @@ func snapNameFromPidUsingFreezerV1Cgroup(pid int) (string, error) {
 }
 
 func SnapNameFromPid(pid int) (string, error) {
-	if snapName, err := snapNameFromPidUsingTrackingCgroup(pid); err == nil {
+	if snapName := mylog.Check2(snapNameFromPidUsingTrackingCgroup(pid)); err == nil {
 		return snapName, nil
 	}
 	return snapNameFromPidUsingFreezerV1Cgroup(pid)

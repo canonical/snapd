@@ -30,6 +30,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/dirs"
@@ -50,19 +51,19 @@ func (s *recoveryKeysSuite) SetUpTest(c *C) {
 
 func mockSystemRecoveryKeys(c *C) {
 	// same inputs/outputs as secboot:crypt_test.go in this test
-	rkeystr, err := hex.DecodeString("e1f01302c5d43726a9b85b4a8d9c7f6e")
-	c.Assert(err, IsNil)
+	rkeystr := mylog.Check2(hex.DecodeString("e1f01302c5d43726a9b85b4a8d9c7f6e"))
+
 	rkeyPath := filepath.Join(dirs.SnapFDEDir, "recovery.key")
-	err = os.MkdirAll(filepath.Dir(rkeyPath), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(rkeyPath, []byte(rkeystr), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Dir(rkeyPath), 0755))
+
+	mylog.Check(os.WriteFile(rkeyPath, []byte(rkeystr), 0644))
+
 
 	skeystr := "1234567890123456"
-	c.Assert(err, IsNil)
+
 	skeyPath := filepath.Join(dirs.SnapFDEDir, "reinstall.key")
-	err = os.WriteFile(skeyPath, []byte(skeystr), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(skeyPath, []byte(skeystr), 0644))
+
 }
 
 func (s *recoveryKeysSuite) TestGetSystemRecoveryKeysAsRootHappy(c *C) {
@@ -73,8 +74,8 @@ func (s *recoveryKeysSuite) TestGetSystemRecoveryKeysAsRootHappy(c *C) {
 	s.daemon(c)
 	mockSystemRecoveryKeys(c)
 
-	req, err := http.NewRequest("GET", "/v2/system-recovery-keys", nil)
-	c.Assert(err, IsNil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/system-recovery-keys", nil))
+
 
 	rsp := s.syncReq(c, req, nil)
 	c.Assert(rsp.Status, Equals, 200)
@@ -89,8 +90,8 @@ func (s *recoveryKeysSuite) TestGetSystemRecoveryKeysAsUserErrors(c *C) {
 	s.daemon(c)
 	mockSystemRecoveryKeys(c)
 
-	req, err := http.NewRequest("GET", "/v2/system-recovery-keys", nil)
-	c.Assert(err, IsNil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/system-recovery-keys", nil))
+
 
 	// being properly authorized as user is not enough, needs root
 	s.asUserAuth(c, req)
@@ -109,8 +110,8 @@ func (s *recoveryKeysSuite) TestPostSystemRecoveryKeysActionRemove(c *C) {
 	})()
 
 	buf := bytes.NewBufferString(`{"action":"remove"}`)
-	req, err := http.NewRequest("POST", "/v2/system-recovery-keys", buf)
-	c.Assert(err, IsNil)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/system-recovery-keys", buf))
+
 	rsp := s.syncReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 200)
 	c.Check(called, Equals, 1)
@@ -120,8 +121,8 @@ func (s *recoveryKeysSuite) TestPostSystemRecoveryKeysAsUserErrors(c *C) {
 	s.daemon(c)
 	mockSystemRecoveryKeys(c)
 
-	req, err := http.NewRequest("POST", "/v2/system-recovery-keys", nil)
-	c.Assert(err, IsNil)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/system-recovery-keys", nil))
+
 
 	// being properly authorized as user is not enough, needs root
 	s.asUserAuth(c, req)
@@ -140,8 +141,8 @@ func (s *recoveryKeysSuite) TestPostSystemRecoveryKeysBadAction(c *C) {
 	})()
 
 	buf := bytes.NewBufferString(`{"action":"unknown"}`)
-	req, err := http.NewRequest("POST", "/v2/system-recovery-keys", buf)
-	c.Assert(err, IsNil)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/system-recovery-keys", buf))
+
 
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe, DeepEquals, daemon.BadRequest(`unsupported recovery keys action "unknown"`))
@@ -158,8 +159,8 @@ func (s *recoveryKeysSuite) TestPostSystemRecoveryKeysActionRemoveError(c *C) {
 	})()
 
 	buf := bytes.NewBufferString(`{"action":"remove"}`)
-	req, err := http.NewRequest("POST", "/v2/system-recovery-keys", buf)
-	c.Assert(err, IsNil)
+	req := mylog.Check2(http.NewRequest("POST", "/v2/system-recovery-keys", buf))
+
 
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe, DeepEquals, daemon.InternalError("boom"))

@@ -28,6 +28,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/secboot/luks2"
 	"github.com/snapcore/snapd/testutil"
@@ -55,7 +56,7 @@ func (s *luks2Suite) SetUpTest(c *C) {
 }
 
 func (s *luks2Suite) TestKillSlot(c *C) {
-	err := luks2.KillSlot("/my/device", 123, []byte("some-key"))
+	mylog.Check(luks2.KillSlot("/my/device", 123, []byte("some-key")))
 	c.Check(err, IsNil)
 	c.Check(s.mockCryptsetup.Calls(), DeepEquals, [][]string{
 		{"cryptsetup", "luksKillSlot", "--type", "luks2", "--key-file", "-", "/my/device", "123"},
@@ -65,15 +66,14 @@ func (s *luks2Suite) TestKillSlot(c *C) {
 }
 
 func (s *luks2Suite) TestAddKeyHappy(c *C) {
-	err := os.MkdirAll(filepath.Join(s.tmpdir, "run"), 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Join(s.tmpdir, "run"), 0755))
+
 
 	mockCryptsetup := testutil.MockCommand(c, "cryptsetup", fmt.Sprintf(`
 cat - > %[1]s/stdout 2>%[1]s/stderr
 `, s.tmpdir))
 	defer mockCryptsetup.Restore()
-
-	err = luks2.AddKey("/my/device", []byte("old-key"), []byte("new-key"), nil)
+	mylog.Check(luks2.AddKey("/my/device", []byte("old-key"), []byte("new-key"), nil))
 	c.Check(err, IsNil)
 	c.Check(mockCryptsetup.Calls(), HasLen, 1)
 	lenExisting := strconv.Itoa(len("old-key"))
@@ -85,12 +85,11 @@ cat - > %[1]s/stdout 2>%[1]s/stderr
 }
 
 func (s *luks2Suite) TestAddKeyBadCryptsetup(c *C) {
-	err := os.MkdirAll(filepath.Join(s.tmpdir, "run"), 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Join(s.tmpdir, "run"), 0755))
+
 
 	mockCryptsetup := testutil.MockCommand(c, "cryptsetup", "echo some-error; exit  1")
 	defer mockCryptsetup.Restore()
-
-	err = luks2.AddKey("/my/device", []byte("old-key"), []byte("new-key"), nil)
+	mylog.Check(luks2.AddKey("/my/device", []byte("old-key"), []byte("new-key"), nil))
 	c.Check(err, ErrorMatches, "cryptsetup failed with: some-error")
 }

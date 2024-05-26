@@ -33,6 +33,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	snaprun "github.com/snapcore/snapd/cmd/snap"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/dirs"
@@ -86,7 +87,7 @@ func (s *RunSuite) SetUpTest(c *check.C) {
 	s.BaseSnapSuite.SetUpTest(c)
 	s.fakeHome = c.MkDir()
 
-	u, err := user.Current()
+	u := mylog.Check2(user.Current())
 	c.Assert(err, check.IsNil)
 	s.AddCleanup(snaprun.MockUserCurrent(func() (*user.User, error) {
 		return &user.User{Uid: u.Uid, HomeDir: s.fakeHome}, nil
@@ -120,27 +121,27 @@ func (s *RunSuite) SetUpTest(c *check.C) {
 
 func (s *RunSuite) TestInvalidParameters(c *check.C) {
 	invalidParameters := []string{"run", "--hook=configure", "--command=command-name", "--", "snap-name"}
-	_, err := snaprun.Parser(snaprun.Client()).ParseArgs(invalidParameters)
+	_ := mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs(invalidParameters))
 	c.Check(err, check.ErrorMatches, ".*you can only use one of --hook, --command, and --timer.*")
 
 	invalidParameters = []string{"run", "--hook=configure", "--timer=10:00-12:00", "--", "snap-name"}
-	_, err = snaprun.Parser(snaprun.Client()).ParseArgs(invalidParameters)
+	_ = mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs(invalidParameters))
 	c.Check(err, check.ErrorMatches, ".*you can only use one of --hook, --command, and --timer.*")
 
 	invalidParameters = []string{"run", "--command=command-name", "--timer=10:00-12:00", "--", "snap-name"}
-	_, err = snaprun.Parser(snaprun.Client()).ParseArgs(invalidParameters)
+	_ = mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs(invalidParameters))
 	c.Check(err, check.ErrorMatches, ".*you can only use one of --hook, --command, and --timer.*")
 
 	invalidParameters = []string{"run", "-r=1", "--command=command-name", "--", "snap-name"}
-	_, err = snaprun.Parser(snaprun.Client()).ParseArgs(invalidParameters)
+	_ = mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs(invalidParameters))
 	c.Check(err, check.ErrorMatches, ".*-r can only be used with --hook.*")
 
 	invalidParameters = []string{"run", "-r=1", "--", "snap-name"}
-	_, err = snaprun.Parser(snaprun.Client()).ParseArgs(invalidParameters)
+	_ = mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs(invalidParameters))
 	c.Check(err, check.ErrorMatches, ".*-r can only be used with --hook.*")
 
 	invalidParameters = []string{"run", "--hook=configure", "--", "foo", "bar", "snap-name"}
-	_, err = snaprun.Parser(snaprun.Client()).ParseArgs(invalidParameters)
+	_ = mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs(invalidParameters))
 	c.Check(err, check.ErrorMatches, ".*too many arguments for hook \"configure\": bar.*")
 }
 
@@ -155,10 +156,10 @@ func (s *RunSuite) TestRunCmdWithBaseNone(c *check.C) {
 		Revision: snap.R("1"),
 	})
 
-	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname1.app", "--arg1", "arg2"})
+	_ := mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname1.app", "--arg1", "arg2"}))
 	c.Assert(err, check.ErrorMatches, `cannot run hooks / applications with base \"none\"`)
 
-	_, err = snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--hook=configure", "--", "snapname2"})
+	_ = mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--hook=configure", "--", "snapname2"}))
 	c.Assert(err, check.ErrorMatches, `cannot run hooks / applications with base \"none\"`)
 }
 
@@ -181,10 +182,10 @@ func (s *RunSuite) TestSnapRunWhenMissingConfine(c *check.C) {
 
 	// and run it!
 	// a regular run will fail
-	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1", "arg2"})
+	_ := mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1", "arg2"}))
 	c.Assert(err, check.ErrorMatches, `.* your core/snapd package`)
 	// a hook run will not fail
-	_, err = snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--hook=configure", "--", "snapname"})
+	_ = mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--hook=configure", "--", "snapname"}))
 	c.Assert(err, check.IsNil)
 
 	// but nothing is run ever
@@ -219,7 +220,7 @@ func (s *RunSuite) TestSnapRunAppIntegration(c *check.C) {
 	defer restorer()
 
 	// and run it!
-	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1", "arg2"})
+	rest := mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1", "arg2"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
 	c.Check(execArg0, check.Equals, filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
@@ -227,20 +228,21 @@ func (s *RunSuite) TestSnapRunAppIntegration(c *check.C) {
 		filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
 		"snap.snapname.app",
 		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
-		"snapname.app", "--arg1", "arg2"})
+		"snapname.app", "--arg1", "arg2",
+	})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=x2")
 	c.Check(execEnv, testutil.Contains, fmt.Sprintf("TMPDIR=%s", tmpdir))
 }
 
 func checkHintFileNotLocked(c *check.C, snapName string) {
-	flock, err := openHintFileLock(snapName)
+	flock := mylog.Check2(openHintFileLock(snapName))
 	c.Assert(err, check.IsNil)
 	c.Check(flock.TryLock(), check.IsNil)
 	flock.Close()
 }
 
 func checkHintFileLocked(c *check.C, snapName string) {
-	flock, err := openHintFileLock(snapName)
+	flock := mylog.Check2(openHintFileLock(snapName))
 	c.Assert(err, check.IsNil)
 	c.Check(flock.TryLock(), check.Equals, osutil.ErrAlreadyLocked)
 	flock.Close()
@@ -275,20 +277,18 @@ func (s *RunSuite) TestSnapRunAppRunsChecksInhibitionLock(c *check.C) {
 		c.Check(snapName, check.Equals, "snapname")
 		c.Check(ctx, check.NotNil)
 
-		var err error
-		flock, err = openHintFileLock(snapName)
+		flock = mylog.Check2(openHintFileLock(snapName))
 		c.Assert(err, check.IsNil)
 		// mock held lock and check that it is released after snap run finishes
 		c.Assert(flock.ReadLock(), check.IsNil)
-
-		err = notInhibited(ctx)
+		mylog.Check(notInhibited(ctx))
 		c.Assert(err, check.IsNil)
 
 		return flock, nil
 	})
 	defer restore()
 
-	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1"})
+	rest := mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1"}))
 	c.Assert(err, check.IsNil)
 	c.Check(called, check.Equals, 1)
 	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1"})
@@ -297,7 +297,8 @@ func (s *RunSuite) TestSnapRunAppRunsChecksInhibitionLock(c *check.C) {
 		filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
 		"snap.snapname.app",
 		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
-		"snapname.app", "--arg1"})
+		"snapname.app", "--arg1",
+	})
 
 	// lock should be released now
 	checkHintFileNotLocked(c, "snapname")
@@ -326,7 +327,7 @@ func (s *RunSuite) TestSnapRunAppRefreshAppAwarenessUnsetSkipsInhibitionLockChec
 	})
 	defer restore()
 
-	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1"})
+	_ := mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1"}))
 	c.Assert(err, check.IsNil)
 }
 
@@ -355,14 +356,13 @@ func (s *RunSuite) TestSnapRunAppNewRevisionAfterInhibition(c *check.C) {
 		called = true
 		c.Check(snapName, check.Equals, "snapname")
 
-		var err error
-		flock, err = openHintFileLock(snapName)
+		flock = mylog.Check2(openHintFileLock(snapName))
 		c.Assert(err, check.IsNil)
 		c.Assert(flock.ReadLock(), check.IsNil)
 
 		// snap is inhibited for sometime
 		for i := 0; i < 3; i++ {
-			cont, err := inhibited(ctx, runinhibit.HintInhibitedForRefresh, &runinhibit.InhibitInfo{Previous: snap.R("x2")})
+			cont := mylog.Check2(inhibited(ctx, runinhibit.HintInhibitedForRefresh, &runinhibit.InhibitInfo{Previous: snap.R("x2")}))
 			c.Assert(err, check.IsNil)
 			// non-service apps should keep waiting
 			c.Check(cont, check.Equals, false)
@@ -370,16 +370,17 @@ func (s *RunSuite) TestSnapRunAppNewRevisionAfterInhibition(c *check.C) {
 
 		// mock installed snap's new revision with current symlink
 		snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{Revision: snap.R("x3")})
+		mylog.Check(
 
-		// snap is not inhibited anymore
-		err = notInhibited(ctx)
+			// snap is not inhibited anymore
+			notInhibited(ctx))
 		c.Assert(err, check.IsNil)
 
 		return flock, nil
 	})
 	defer restore()
 
-	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1"})
+	rest := mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1"}))
 	c.Assert(err, check.IsNil)
 	c.Check(called, check.Equals, true)
 	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1"})
@@ -418,22 +419,23 @@ apps:
 		c.Check(snapName, check.Equals, "snapname")
 
 		// snap is inhibited
-		cont, err := inhibited(ctx, runinhibit.HintInhibitedForRefresh, &runinhibit.InhibitInfo{Previous: snap.R("x2")})
+		cont := mylog.Check2(inhibited(ctx, runinhibit.HintInhibitedForRefresh, &runinhibit.InhibitInfo{Previous: snap.R("x2")}))
 		c.Assert(err, check.IsNil)
 		// non-service apps should keep waiting
 		c.Check(cont, check.Equals, false)
 
 		// mock installed snap's new revision with current symlink
 		snaptest.MockSnapCurrent(c, string(mockYaml2), &snap.SideInfo{Revision: snap.R("x3")})
+		mylog.Check(
 
-		// snap is not inhibited anymore
-		err = notInhibited(ctx)
+			// snap is not inhibited anymore
+			notInhibited(ctx))
 		c.Assert(err, check.ErrorMatches, `cannot find app "app-1" in "snapname"`)
 		return nil, err
 	})
 	defer restore()
 
-	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app-1", "--arg1"})
+	_ := mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app-1", "--arg1"}))
 	c.Assert(err, check.ErrorMatches, `cannot find app "app-1" in "snapname"`)
 	c.Check(called, check.Equals, true)
 }
@@ -469,14 +471,15 @@ func (s *RunSuite) TestSnapRunHookNoRuninhibit(c *check.C) {
 	c.Assert(os.WriteFile(features.RefreshAppAwareness.ControlFile(), []byte(nil), 0644), check.IsNil)
 
 	// Run a hook from the active revision
-	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--hook=configure", "--", "snapname"})
+	_ := mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--hook=configure", "--", "snapname"}))
 	c.Assert(err, check.IsNil)
 	c.Check(execArg0, check.Equals, filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
 	c.Check(execArgs, check.DeepEquals, []string{
 		filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
 		"snap.snapname.hook.configure",
 		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
-		"--hook=configure", "snapname"})
+		"--hook=configure", "snapname",
+	})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=42")
 }
 
@@ -507,13 +510,12 @@ func (s *RunSuite) TestSnapRunAppRuninhibitSkipsServices(c *check.C) {
 		called++
 		c.Check(snapName, check.Equals, "snapname")
 
-		var err error
-		flock, err = openHintFileLock(snapName)
+		flock = mylog.Check2(openHintFileLock(snapName))
 		c.Assert(err, check.IsNil)
 		c.Assert(flock.ReadLock(), check.IsNil)
 
 		// snap is inhibited
-		cont, err := inhibited(ctx, runinhibit.HintInhibitedForRefresh, &inhibitInfo)
+		cont := mylog.Check2(inhibited(ctx, runinhibit.HintInhibitedForRefresh, &inhibitInfo))
 		c.Assert(err, check.IsNil)
 		// services should not be blocked waiting
 		c.Check(cont, check.Equals, true)
@@ -528,14 +530,15 @@ func (s *RunSuite) TestSnapRunAppRuninhibitSkipsServices(c *check.C) {
 	})
 	defer restore()
 
-	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.svc"})
+	rest := mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.svc"}))
 	c.Assert(err, check.IsNil)
 	c.Check(called, check.Equals, 1)
 	c.Assert(rest, check.DeepEquals, []string{"snapname.svc"})
 	c.Check(execArg0, check.Equals, filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
 	c.Check(execArgs, check.DeepEquals, []string{
 		filepath.Join(dirs.DistroLibExecDir, "snap-confine"), "snap.snapname.svc",
-		filepath.Join(dirs.CoreLibExecDir, "snap-exec"), "snapname.svc"})
+		filepath.Join(dirs.CoreLibExecDir, "snap-exec"), "snapname.svc",
+	})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=x2")
 
 	// lock should be released now
@@ -574,7 +577,7 @@ func (s *RunSuite) TestSnapRunAppHintUnlockedOnSnapConfineFailure(c *check.C) {
 	})
 	defer restore()
 
-	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1"})
+	_ := mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1"}))
 	c.Assert(err, check.ErrorMatches, "boom")
 	c.Check(confirmCgroupCalled, check.Equals, 1)
 
@@ -624,7 +627,7 @@ func (s *RunSuite) TestSnapRunAppHintLockedUntilTrackingCgroupIsCreated(c *check
 	})
 	defer restore()
 
-	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1"})
+	rest := mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1"})
 	c.Check(execArg0, check.Equals, filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
@@ -632,7 +635,8 @@ func (s *RunSuite) TestSnapRunAppHintLockedUntilTrackingCgroupIsCreated(c *check
 		filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
 		"snap.snapname.app",
 		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
-		"snapname.app", "--arg1"})
+		"snapname.app", "--arg1",
+	})
 	c.Check(confirmCgroupCalled, check.Equals, 1)
 
 	// lock should be released on failure
@@ -678,7 +682,7 @@ func (s *RunSuite) testSnapRunAppRetryNoInhibitHintFileThenOngoingRefresh(c *che
 
 		c.Check(snapName, check.Equals, "snapname")
 		if waitWhileInhibitedCalled == 1 {
-			err := notInhibited(ctx)
+			mylog.Check(notInhibited(ctx))
 			c.Assert(err, check.IsNil)
 
 			// mock snap inhibited to trigger race condition detection
@@ -689,14 +693,13 @@ func (s *RunSuite) testSnapRunAppRetryNoInhibitHintFileThenOngoingRefresh(c *che
 			// nil FileLock means no inhibit file exists
 			return nil, nil
 		} else {
-			var err error
 
-			flock, err = openHintFileLock(snapName)
+			flock = mylog.Check2(openHintFileLock(snapName))
 			c.Assert(err, check.IsNil)
 			c.Assert(flock.ReadLock(), check.IsNil)
 
 			// snap is inhibited
-			cont, err := inhibited(ctx, runinhibit.HintInhibitedForRefresh, &runinhibit.InhibitInfo{Previous: snap.R("x2")})
+			cont := mylog.Check2(inhibited(ctx, runinhibit.HintInhibitedForRefresh, &runinhibit.InhibitInfo{Previous: snap.R("x2")}))
 			c.Check(err, check.IsNil)
 			c.Check(cont, check.Equals, false)
 
@@ -704,9 +707,10 @@ func (s *RunSuite) testSnapRunAppRetryNoInhibitHintFileThenOngoingRefresh(c *che
 			c.Assert(os.RemoveAll(filepath.Join(si.MountDir(), "../current")), check.IsNil)
 			// update current snap revision
 			snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{Revision: snap.R("x3")})
+			mylog.Check(
 
-			// snap is not inhibited anymore
-			err = notInhibited(ctx)
+				// snap is not inhibited anymore
+				notInhibited(ctx))
 			c.Assert(err, check.IsNil)
 
 			return flock, nil
@@ -744,7 +748,7 @@ func (s *RunSuite) testSnapRunAppRetryNoInhibitHintFileThenOngoingRefresh(c *che
 		cmd = "snapname.svc"
 	}
 
-	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--debug-log", "--", cmd})
+	_ := mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--debug-log", "--", cmd}))
 	c.Assert(err, check.IsNil)
 
 	if svc {
@@ -826,7 +830,7 @@ func (s *RunSuite) TestSnapRunAppRetryNoInhibitHintFileThenOngoingRefreshMissing
 
 		c.Check(snapName, check.Equals, "snapname")
 		if waitWhileInhibitedCalled == 1 {
-			err := notInhibited(ctx)
+			mylog.Check(notInhibited(ctx))
 			// mock edge case where we started without a hint lock file
 			// and we have an ongoing refresh which removed current symlink.
 			c.Assert(err, testutil.ErrorIs, snaprun.ErrSnapRefreshConflict)
@@ -834,9 +838,8 @@ func (s *RunSuite) TestSnapRunAppRetryNoInhibitHintFileThenOngoingRefreshMissing
 			c.Assert(runinhibit.LockWithHint("snapname", runinhibit.HintInhibitedForRefresh, runinhibit.InhibitInfo{Previous: snap.R("x2")}), check.IsNil)
 			return nil, err
 		} else {
-			var err error
 
-			flock, err = openHintFileLock(snapName)
+			flock = mylog.Check2(openHintFileLock(snapName))
 			c.Assert(err, check.IsNil)
 			c.Assert(flock.ReadLock(), check.IsNil)
 
@@ -844,12 +847,13 @@ func (s *RunSuite) TestSnapRunAppRetryNoInhibitHintFileThenOngoingRefreshMissing
 			inhibitInfo := runinhibit.InhibitInfo{Previous: snap.R("x3")}
 			// update current snap revision
 			snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{Revision: snap.R("x3")})
-			cont, err := inhibited(ctx, runinhibit.HintInhibitedForRefresh, &inhibitInfo)
+			cont := mylog.Check2(inhibited(ctx, runinhibit.HintInhibitedForRefresh, &inhibitInfo))
 			c.Check(err, check.IsNil)
 			c.Check(cont, check.Equals, false)
+			mylog.Check(
 
-			// snap is not inhibited anymore
-			err = notInhibited(ctx)
+				// snap is not inhibited anymore
+				notInhibited(ctx))
 			c.Assert(err, check.IsNil)
 
 			return flock, nil
@@ -878,7 +882,7 @@ func (s *RunSuite) TestSnapRunAppRetryNoInhibitHintFileThenOngoingRefreshMissing
 	restore = snaprun.MockConfirmSystemdAppTracking(confirmCgroup)
 	defer restore()
 
-	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--debug-log", "--", "snapname.app"})
+	_ := mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--debug-log", "--", "snapname.app"}))
 	c.Assert(err, check.IsNil)
 
 	// two calls due to retry
@@ -923,8 +927,7 @@ func (s *RunSuite) TestSnapRunAppMaxRetry(c *check.C) {
 	restore = snaprun.MockWaitWhileInhibited(func(ctx context.Context, snapName string, notInhibited func(ctx context.Context) error, inhibited func(ctx context.Context, hint runinhibit.Hint, inhibitInfo *runinhibit.InhibitInfo) (cont bool, err error), interval time.Duration) (flock *osutil.FileLock, retErr error) {
 		called++
 		c.Check(snapName, check.Equals, "snapname")
-
-		err := notInhibited(ctx)
+		mylog.Check(notInhibited(ctx))
 		c.Assert(err, check.IsNil)
 
 		// mock snap inhibited to trigger race condition detection
@@ -937,7 +940,7 @@ func (s *RunSuite) TestSnapRunAppMaxRetry(c *check.C) {
 	})
 	defer restore()
 
-	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1"})
+	_ := mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1"}))
 	c.Assert(err, check.ErrorMatches, "race condition detected, snap-run can only retry once")
 	// check we only retried once
 	c.Check(called, check.Equals, 2)
@@ -971,7 +974,7 @@ func (s *RunSuite) TestSnapRunClassicAppIntegration(c *check.C) {
 	defer restorer()
 
 	// and run it!
-	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1", "arg2"})
+	rest := mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1", "arg2"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
 	c.Check(execArg0, check.Equals, filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
@@ -979,7 +982,8 @@ func (s *RunSuite) TestSnapRunClassicAppIntegration(c *check.C) {
 		filepath.Join(dirs.DistroLibExecDir, "snap-confine"), "--classic",
 		"snap.snapname.app",
 		filepath.Join(dirs.DistroLibExecDir, "snap-exec"),
-		"snapname.app", "--arg1", "arg2"})
+		"snapname.app", "--arg1", "arg2",
+	})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=x2")
 	c.Check(execEnv, testutil.Contains, fmt.Sprintf("SNAP_SAVED_TMPDIR=%s", tmpdir))
 }
@@ -1007,14 +1011,15 @@ func (s *RunSuite) TestSnapRunClassicAppIntegrationReexecedFromCore(c *check.C) 
 		return nil
 	})
 	defer restorer()
-	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1", "arg2"})
+	rest := mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1", "arg2"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
 	c.Check(execArgs, check.DeepEquals, []string{
 		filepath.Join(mountedCoreLibExecPath, "snap-confine"), "--classic",
 		"snap.snapname.app",
 		filepath.Join(mountedCoreLibExecPath, "snap-exec"),
-		"snapname.app", "--arg1", "arg2"})
+		"snapname.app", "--arg1", "arg2",
+	})
 }
 
 func (s *RunSuite) TestSnapRunClassicAppIntegrationReexecedFromSnapd(c *check.C) {
@@ -1040,14 +1045,15 @@ func (s *RunSuite) TestSnapRunClassicAppIntegrationReexecedFromSnapd(c *check.C)
 		return nil
 	})
 	defer restorer()
-	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1", "arg2"})
+	rest := mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1", "arg2"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
 	c.Check(execArgs, check.DeepEquals, []string{
 		filepath.Join(mountedSnapdLibExecPath, "snap-confine"), "--classic",
 		"snap.snapname.app",
 		filepath.Join(mountedSnapdLibExecPath, "snap-exec"),
-		"snapname.app", "--arg1", "arg2"})
+		"snapname.app", "--arg1", "arg2",
+	})
 }
 
 func (s *RunSuite) TestSnapRunAppWithCommandIntegration(c *check.C) {
@@ -1071,14 +1077,15 @@ func (s *RunSuite) TestSnapRunAppWithCommandIntegration(c *check.C) {
 	defer restorer()
 
 	// and run it!
-	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--command=my-command", "--", "snapname.app", "arg1", "arg2"})
+	_ := mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--command=my-command", "--", "snapname.app", "arg1", "arg2"}))
 	c.Assert(err, check.IsNil)
 	c.Check(execArg0, check.Equals, filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
 	c.Check(execArgs, check.DeepEquals, []string{
 		filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
 		"snap.snapname.app",
 		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
-		"--command=my-command", "snapname.app", "arg1", "arg2"})
+		"--command=my-command", "snapname.app", "arg1", "arg2",
+	})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=42")
 }
 
@@ -1098,11 +1105,10 @@ func (s *RunSuite) TestSnapRunCreateDataDirs(c *check.C) {
 }
 
 func (s *RunSuite) testSnapRunCreateDataDirs(c *check.C, snapDir string, opts *dirs.SnapDirOptions) {
-	info, err := snap.InfoFromSnapYaml(mockYaml)
+	info := mylog.Check2(snap.InfoFromSnapYaml(mockYaml))
 	c.Assert(err, check.IsNil)
 	info.SideInfo.Revision = snap.R(42)
-
-	err = snaprun.CreateUserDataDirs(info, opts)
+	mylog.Check(snaprun.CreateUserDataDirs(info, opts))
 	c.Assert(err, check.IsNil)
 	c.Check(osutil.FileExists(filepath.Join(s.fakeHome, snapDir, "snapname/42")), check.Equals, true)
 	c.Check(osutil.FileExists(filepath.Join(s.fakeHome, snapDir, "snapname/common")), check.Equals, true)
@@ -1117,19 +1123,18 @@ func (s *RunSuite) testSnapRunCreateDataDirs(c *check.C, snapDir string, opts *d
 }
 
 func (s *RunSuite) TestParallelInstanceSnapRunCreateDataDirs(c *check.C) {
-	info, err := snap.InfoFromSnapYaml(mockYaml)
+	info := mylog.Check2(snap.InfoFromSnapYaml(mockYaml))
 	c.Assert(err, check.IsNil)
 	info.SideInfo.Revision = snap.R(42)
 	info.InstanceKey = "foo"
-
-	err = snaprun.CreateUserDataDirs(info, nil)
+	mylog.Check(snaprun.CreateUserDataDirs(info, nil))
 	c.Assert(err, check.IsNil)
 	c.Check(osutil.FileExists(filepath.Join(s.fakeHome, "/snap/snapname_foo/42")), check.Equals, true)
 	c.Check(osutil.FileExists(filepath.Join(s.fakeHome, "/snap/snapname_foo/common")), check.Equals, true)
 	// mount point for snap instance mapping has been created
 	c.Check(osutil.FileExists(filepath.Join(s.fakeHome, "/snap/snapname")), check.Equals, true)
 	// and it's empty inside
-	m, err := filepath.Glob(filepath.Join(s.fakeHome, "/snap/snapname/*"))
+	m := mylog.Check2(filepath.Glob(filepath.Join(s.fakeHome, "/snap/snapname/*")))
 	c.Assert(err, check.IsNil)
 	c.Assert(m, check.HasLen, 0)
 }
@@ -1155,14 +1160,15 @@ func (s *RunSuite) TestSnapRunHookIntegration(c *check.C) {
 	defer restorer()
 
 	// Run a hook from the active revision
-	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--hook=configure", "--", "snapname"})
+	_ := mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--hook=configure", "--", "snapname"}))
 	c.Assert(err, check.IsNil)
 	c.Check(execArg0, check.Equals, filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
 	c.Check(execArgs, check.DeepEquals, []string{
 		filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
 		"snap.snapname.hook.configure",
 		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
-		"--hook=configure", "snapname"})
+		"--hook=configure", "snapname",
+	})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=42")
 }
 
@@ -1187,14 +1193,15 @@ func (s *RunSuite) TestSnapRunHookUnsetRevisionIntegration(c *check.C) {
 	defer restorer()
 
 	// Specifically pass "unset" which would use the active version.
-	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--hook=configure", "-r=unset", "--", "snapname"})
+	_ := mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--hook=configure", "-r=unset", "--", "snapname"}))
 	c.Assert(err, check.IsNil)
 	c.Check(execArg0, check.Equals, filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
 	c.Check(execArgs, check.DeepEquals, []string{
 		filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
 		"snap.snapname.hook.configure",
 		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
-		"--hook=configure", "snapname"})
+		"--hook=configure", "snapname",
+	})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=42")
 }
 
@@ -1223,14 +1230,15 @@ func (s *RunSuite) TestSnapRunHookSpecificRevisionIntegration(c *check.C) {
 	defer restorer()
 
 	// Run a hook on revision 41
-	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--hook=configure", "-r=41", "--", "snapname"})
+	_ := mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--hook=configure", "-r=41", "--", "snapname"}))
 	c.Assert(err, check.IsNil)
 	c.Check(execArg0, check.Equals, filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
 	c.Check(execArgs, check.DeepEquals, []string{
 		filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
 		"snap.snapname.hook.configure",
 		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
-		"--hook=configure", "snapname"})
+		"--hook=configure", "snapname",
+	})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=41")
 }
 
@@ -1247,13 +1255,13 @@ func (s *RunSuite) TestSnapRunHookMissingRevisionIntegration(c *check.C) {
 	defer restorer()
 
 	// Attempt to run a hook on revision 41, which doesn't exist
-	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--hook=configure", "-r=41", "--", "snapname"})
+	_ := mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--hook=configure", "-r=41", "--", "snapname"}))
 	c.Assert(err, check.NotNil)
 	c.Check(err, check.ErrorMatches, "cannot find .*")
 }
 
 func (s *RunSuite) TestSnapRunHookInvalidRevisionIntegration(c *check.C) {
-	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--hook=configure", "-r=invalid", "--", "snapname"})
+	_ := mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--hook=configure", "-r=invalid", "--", "snapname"}))
 	c.Assert(err, check.NotNil)
 	c.Check(err, check.ErrorMatches, "invalid snap revision: \"invalid\"")
 }
@@ -1272,23 +1280,23 @@ func (s *RunSuite) TestSnapRunHookMissingHookIntegration(c *check.C) {
 	})
 	defer restorer()
 
-	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--hook=missing-hook", "--", "snapname"})
+	_ := mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--hook=missing-hook", "--", "snapname"}))
 	c.Assert(err, check.ErrorMatches, `cannot find hook "missing-hook" in "snapname"`)
 	c.Check(called, check.Equals, false)
 }
 
 func (s *RunSuite) TestSnapRunErorsForUnknownRunArg(c *check.C) {
-	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--unknown", "--", "snapname.app", "--arg1", "arg2"})
+	_ := mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--unknown", "--", "snapname.app", "--arg1", "arg2"}))
 	c.Assert(err, check.ErrorMatches, "unknown flag `unknown'")
 }
 
 func (s *RunSuite) TestSnapRunErorsForMissingApp(c *check.C) {
-	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--command=shell"})
+	_ := mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--command=shell"}))
 	c.Assert(err, check.ErrorMatches, "need the application to run as argument")
 }
 
 func (s *RunSuite) TestSnapRunErorrForUnavailableApp(c *check.C) {
-	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "not-there"})
+	_ := mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "not-there"}))
 	c.Assert(err, check.ErrorMatches, fmt.Sprintf("cannot find current revision for snap not-there: readlink %s/not-there/current: no such file or directory", dirs.SnapMountDir))
 }
 
@@ -1318,7 +1326,7 @@ func (s *RunSuite) TestSnapRunSaneEnvironmentHandling(c *check.C) {
 	defer os.Unsetenv("SNAP_THE_WORLD")
 
 	// and ensure those SNAP_ vars get overridden
-	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1", "arg2"})
+	rest := mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1", "arg2"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=42")
@@ -1365,7 +1373,7 @@ func (s *RunSuite) TestSnapRunSnapdHelperPath(c *check.C) {
 		},
 	} {
 		osReadlinkResult = t.readlink
-		toolPath, err := snaprun.SnapdHelperPath(tool)
+		toolPath := mylog.Check2(snaprun.SnapdHelperPath(tool))
 		c.Assert(err, check.IsNil)
 		c.Check(toolPath, check.Equals, t.expected)
 	}
@@ -1398,7 +1406,7 @@ func (s *RunSuite) TestSnapRunAppIntegrationFromCore(c *check.C) {
 	defer restorer()
 
 	// and run it!
-	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1", "arg2"})
+	rest := mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1", "arg2"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
 	c.Check(execArg0, check.Equals, filepath.Join(dirs.SnapMountDir, "/core/111", dirs.CoreLibExecDir, "snap-confine"))
@@ -1406,7 +1414,8 @@ func (s *RunSuite) TestSnapRunAppIntegrationFromCore(c *check.C) {
 		filepath.Join(dirs.SnapMountDir, "/core/111", dirs.CoreLibExecDir, "snap-confine"),
 		"snap.snapname.app",
 		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
-		"snapname.app", "--arg1", "arg2"})
+		"snapname.app", "--arg1", "arg2",
+	})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=x2")
 }
 
@@ -1437,7 +1446,7 @@ func (s *RunSuite) TestSnapRunAppIntegrationFromSnapd(c *check.C) {
 	defer restorer()
 
 	// and run it!
-	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1", "arg2"})
+	rest := mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1", "arg2"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
 	c.Check(execArg0, check.Equals, filepath.Join(dirs.SnapMountDir, "/snapd/222", dirs.CoreLibExecDir, "snap-confine"))
@@ -1445,18 +1454,20 @@ func (s *RunSuite) TestSnapRunAppIntegrationFromSnapd(c *check.C) {
 		filepath.Join(dirs.SnapMountDir, "/snapd/222", dirs.CoreLibExecDir, "snap-confine"),
 		"snap.snapname.app",
 		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
-		"snapname.app", "--arg1", "arg2"})
+		"snapname.app", "--arg1", "arg2",
+	})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=x2")
 }
 
 func (s *RunSuite) TestSnapRunXauthorityMigration(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
-	u, err := user.Current()
+	u := mylog.Check2(user.Current())
 	c.Assert(err, check.IsNil)
+	mylog.
 
-	// Ensure XDG_RUNTIME_DIR exists for the user we're testing with
-	err = os.MkdirAll(filepath.Join(dirs.XdgRuntimeDirBase, u.Uid), 0700)
+		// Ensure XDG_RUNTIME_DIR exists for the user we're testing with
+		Check(os.MkdirAll(filepath.Join(dirs.XdgRuntimeDirBase, u.Uid), 0700))
 	c.Assert(err, check.IsNil)
 
 	// mock installed snap; happily this also gives us a directory
@@ -1477,7 +1488,7 @@ func (s *RunSuite) TestSnapRunXauthorityMigration(c *check.C) {
 	})
 	defer restorer()
 
-	xauthPath, err := x11.MockXauthority(2)
+	xauthPath := mylog.Check2(x11.MockXauthority(2))
 	c.Assert(err, check.IsNil)
 	defer os.Remove(xauthPath)
 
@@ -1489,7 +1500,7 @@ func (s *RunSuite) TestSnapRunXauthorityMigration(c *check.C) {
 	})()
 
 	// and run it!
-	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app"})
+	rest := mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{"snapname.app"})
 	c.Check(execArg0, check.Equals, filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
@@ -1497,16 +1508,16 @@ func (s *RunSuite) TestSnapRunXauthorityMigration(c *check.C) {
 		filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
 		"snap.snapname.app",
 		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
-		"snapname.app"})
+		"snapname.app",
+	})
 
 	expectedXauthPath := filepath.Join(dirs.XdgRuntimeDirBase, u.Uid, ".Xauthority")
 	c.Check(execEnv, testutil.Contains, fmt.Sprintf("XAUTHORITY=%s", expectedXauthPath))
 
-	info, err := os.Stat(expectedXauthPath)
+	info := mylog.Check2(os.Stat(expectedXauthPath))
 	c.Assert(err, check.IsNil)
 	c.Assert(info.Mode().Perm(), check.Equals, os.FileMode(0600))
-
-	err = x11.ValidateXauthorityFile(expectedXauthPath)
+	mylog.Check(x11.ValidateXauthorityFile(expectedXauthPath))
 	c.Assert(err, check.IsNil)
 }
 
@@ -1608,11 +1619,11 @@ echo "stdout output 2"
 	straceCmd := testutil.MockCommand(c, "strace", "")
 	defer straceCmd.Restore()
 
-	user, err := user.Current()
+	user := mylog.Check2(user.Current())
 	c.Assert(err, check.IsNil)
 
 	// and run it under strace
-	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--strace", "--", "snapname.app", "--arg1", "arg2"})
+	rest := mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--strace", "--", "snapname.app", "--arg1", "arg2"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
 	c.Check(sudoCmd.Calls(), check.DeepEquals, [][]string{
@@ -1635,7 +1646,7 @@ echo "stdout output 2"
 	sudoCmd.ForgetCalls()
 
 	// try again without filtering
-	rest, err = snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--strace=--raw", "--", "snapname.app", "--arg1", "arg2"})
+	rest = mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--strace=--raw", "--", "snapname.app", "--arg1", "arg2"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
 	c.Check(sudoCmd.Calls(), check.DeepEquals, [][]string{
@@ -1674,9 +1685,9 @@ and more
 		s.ResetStdStreams()
 		sudoCmd.ForgetCalls()
 
-		rest, err = snaprun.Parser(snaprun.Client()).ParseArgs([]string{
+		rest = mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs([]string{
 			"run", "--strace=" + tc.arg, "--", "snapname.app", "--arg1", "arg2",
-		})
+		}))
 		c.Assert(err, check.IsNil)
 		c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
 		c.Check(sudoCmd.Calls(), check.DeepEquals, [][]string{
@@ -1717,11 +1728,11 @@ func (s *RunSuite) TestSnapRunAppWithStraceOptions(c *check.C) {
 	straceCmd := testutil.MockCommand(c, "strace", "")
 	defer straceCmd.Restore()
 
-	user, err := user.Current()
+	user := mylog.Check2(user.Current())
 	c.Assert(err, check.IsNil)
 
 	// and run it under strace
-	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", `--strace=-tt --raw -o "file with spaces"`, "--", "snapname.app", "--arg1", "arg2"})
+	rest := mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", `--strace=-tt --raw -o "file with spaces"`, "--", "snapname.app", "--arg1", "arg2"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
 	c.Check(sudoCmd.Calls(), check.DeepEquals, [][]string{
@@ -1763,7 +1774,7 @@ func (s *RunSuite) TestSnapRunShellIntegration(c *check.C) {
 	defer restorer()
 
 	// and run it!
-	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--shell", "--", "snapname.app", "--arg1", "arg2"})
+	rest := mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--shell", "--", "snapname.app", "--arg1", "arg2"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
 	c.Check(execArg0, check.Equals, filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
@@ -1771,7 +1782,8 @@ func (s *RunSuite) TestSnapRunShellIntegration(c *check.C) {
 		filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
 		"snap.snapname.app",
 		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
-		"--command=shell", "snapname.app", "--arg1", "arg2"})
+		"--command=shell", "snapname.app", "--arg1", "arg2",
+	})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=x2")
 }
 
@@ -1803,7 +1815,7 @@ func (s *RunSuite) TestSnapRunAppTimer(c *check.C) {
 	defer restorer()
 
 	// pretend we are outside of timer range
-	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", `--timer="mon,10:00~12:00,,fri,13:00"`, "--", "snapname.app", "--arg1", "arg2"})
+	rest := mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", `--timer="mon,10:00~12:00,,fri,13:00"`, "--", "snapname.app", "--arg1", "arg2"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
 	c.Assert(execCalled, check.Equals, false)
@@ -1819,7 +1831,7 @@ func (s *RunSuite) TestSnapRunAppTimer(c *check.C) {
 	defer restorer()
 
 	// and run it under strace
-	_, err = snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", `--timer="mon,10:00~12:00,,fri,13:00"`, "--", "snapname.app", "--arg1", "arg2"})
+	_ = mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", `--timer="mon,10:00~12:00,,fri,13:00"`, "--", "snapname.app", "--arg1", "arg2"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(execCalled, check.Equals, true)
 	c.Check(execArg0, check.Equals, filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
@@ -1827,7 +1839,8 @@ func (s *RunSuite) TestSnapRunAppTimer(c *check.C) {
 		filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
 		"snap.snapname.app",
 		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
-		"snapname.app", "--arg1", "arg2"})
+		"snapname.app", "--arg1", "arg2",
+	})
 }
 
 func (s *RunSuite) TestRunCmdWithTraceExecUnhappy(c *check.C) {
@@ -1849,7 +1862,7 @@ func (s *RunSuite) TestRunCmdWithTraceExecUnhappy(c *check.C) {
 	straceCmd := testutil.MockCommand(c, "strace", "")
 	defer straceCmd.Restore()
 
-	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--trace-exec", "--", "snapname.app", "--arg1", "arg2"})
+	rest := mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--trace-exec", "--", "snapname.app", "--arg1", "arg2"}))
 	c.Assert(err, check.ErrorMatches, "exit status 12")
 	c.Assert(rest, check.DeepEquals, []string{"--", "snapname.app", "--arg1", "arg2"})
 	c.Check(s.Stdout(), check.Equals, "unhappy\n")
@@ -1904,7 +1917,7 @@ func (s *RunSuite) TestSnapRunRestoreSecurityContextHappy(c *check.C) {
 	})
 	defer restorer()
 
-	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app"})
+	_ := mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app"}))
 	c.Assert(err, check.IsNil)
 	c.Check(execCalled, check.Equals, 1)
 	c.Check(isEnabledCalls, check.Equals, 1)
@@ -1914,7 +1927,7 @@ func (s *RunSuite) TestSnapRunRestoreSecurityContextHappy(c *check.C) {
 	// pretend SELinux is on
 	enabled = true
 
-	_, err = snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app"})
+	_ = mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app"}))
 	c.Assert(err, check.IsNil)
 	c.Check(execCalled, check.Equals, 2)
 	c.Check(isEnabledCalls, check.Equals, 2)
@@ -1926,7 +1939,7 @@ func (s *RunSuite) TestSnapRunRestoreSecurityContextHappy(c *check.C) {
 
 	logbuf.Reset()
 
-	_, err = snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app"})
+	_ = mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app"}))
 	c.Assert(err, check.IsNil)
 	c.Check(execCalled, check.Equals, 3)
 	c.Check(isEnabledCalls, check.Equals, 3)
@@ -1986,7 +1999,7 @@ func (s *RunSuite) TestSnapRunRestoreSecurityContextFail(c *check.C) {
 	})
 	defer restorer()
 
-	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app"})
+	_ := mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app"}))
 	// these errors are only logged, but we still run the snap
 	c.Assert(err, check.IsNil)
 	c.Check(execCalled, check.Equals, 1)
@@ -1999,7 +2012,7 @@ func (s *RunSuite) TestSnapRunRestoreSecurityContextFail(c *check.C) {
 
 	logbuf.Reset()
 
-	_, err = snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app"})
+	_ = mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app"}))
 	c.Assert(err, check.IsNil)
 	c.Check(execCalled, check.Equals, 2)
 	c.Check(logbuf.String(), testutil.Contains, fmt.Sprintf("failed to verify SELinux context of %s: verify failed", snapUserDir))
@@ -2012,7 +2025,7 @@ func (s *RunSuite) TestSnapRunRestoreSecurityContextFail(c *check.C) {
 
 	logbuf.Reset()
 
-	_, err = snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app"})
+	_ = mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app"}))
 	c.Assert(err, check.IsNil)
 	c.Check(execCalled, check.Equals, 3)
 	c.Check(logbuf.String(), testutil.Contains, fmt.Sprintf("cannot restore SELinux context of %s: restore failed", snapUserDir))
@@ -2032,7 +2045,7 @@ case "$1" in
 esac
 `)
 	defer systemctl.Restore()
-	stop, err := snaprun.IsStopping()
+	stop := mylog.Check2(snaprun.IsStopping())
 	c.Check(err, check.IsNil)
 	c.Check(stop, check.Equals, false)
 	c.Check(systemctl.Calls(), check.DeepEquals, [][]string{
@@ -2053,7 +2066,7 @@ case "$1" in
 esac
 `)
 	defer systemctl.Restore()
-	stop, err := snaprun.IsStopping()
+	stop := mylog.Check2(snaprun.IsStopping())
 	c.Check(err, check.IsNil)
 	c.Check(stop, check.Equals, true)
 	c.Check(systemctl.Calls(), check.DeepEquals, [][]string{
@@ -2073,7 +2086,7 @@ case "$1" in
 esac
 `)
 	defer systemctl.Restore()
-	stop, err := snaprun.IsStopping()
+	stop := mylog.Check2(snaprun.IsStopping())
 	c.Check(err, check.IsNil)
 	c.Check(stop, check.Equals, false)
 	c.Check(systemctl.Calls(), check.DeepEquals, [][]string{
@@ -2124,7 +2137,7 @@ func (s *RunSuite) TestSnapRunTrackingApps(c *check.C) {
 	defer restore()
 
 	// and run it!
-	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1", "arg2"})
+	rest := mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1", "arg2"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
 	c.Check(execArg0, check.Equals, filepath.Join(dirs.SnapMountDir, "/core/111", dirs.CoreLibExecDir, "snap-confine"))
@@ -2132,7 +2145,8 @@ func (s *RunSuite) TestSnapRunTrackingApps(c *check.C) {
 		filepath.Join(dirs.SnapMountDir, "/core/111", dirs.CoreLibExecDir, "snap-confine"),
 		"snap.snapname.app",
 		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
-		"snapname.app", "--arg1", "arg2"})
+		"snapname.app", "--arg1", "arg2",
+	})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=x2")
 	c.Assert(created, check.Equals, true)
 }
@@ -2180,7 +2194,7 @@ func (s *RunSuite) TestSnapRunTrackingHooks(c *check.C) {
 	defer restore()
 
 	// and run it!
-	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--hook", "configure", "-r", "x2", "snapname"})
+	rest := mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--hook", "configure", "-r", "x2", "snapname"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{"snapname"})
 	c.Check(execArg0, check.Equals, filepath.Join(dirs.SnapMountDir, "/core/111", dirs.CoreLibExecDir, "snap-confine"))
@@ -2188,7 +2202,8 @@ func (s *RunSuite) TestSnapRunTrackingHooks(c *check.C) {
 		filepath.Join(dirs.SnapMountDir, "/core/111", dirs.CoreLibExecDir, "snap-confine"),
 		"snap.snapname.hook.configure",
 		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
-		"--hook=configure", "snapname"})
+		"--hook=configure", "snapname",
+	})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=x2")
 	c.Assert(created, check.Equals, true)
 }
@@ -2234,7 +2249,7 @@ func (s *RunSuite) TestSnapRunTrackingServices(c *check.C) {
 	defer restore()
 
 	// and run it!
-	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.svc", "--arg1", "arg2"})
+	rest := mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.svc", "--arg1", "arg2"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{"snapname.svc", "--arg1", "arg2"})
 	c.Check(execArg0, check.Equals, filepath.Join(dirs.SnapMountDir, "/core/111", dirs.CoreLibExecDir, "snap-confine"))
@@ -2242,7 +2257,8 @@ func (s *RunSuite) TestSnapRunTrackingServices(c *check.C) {
 		filepath.Join(dirs.SnapMountDir, "/core/111", dirs.CoreLibExecDir, "snap-confine"),
 		"snap.snapname.svc",
 		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
-		"snapname.svc", "--arg1", "arg2"})
+		"snapname.svc", "--arg1", "arg2",
+	})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=x2")
 	c.Assert(confirmed, check.Equals, true)
 }
@@ -2292,7 +2308,7 @@ func (s *RunSuite) TestSnapRunTrackingServicesWhenRunByUser(c *check.C) {
 	defer restore()
 
 	// invoked as: snap run -- snapname.svc --arg1 arg2
-	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.svc", "--arg1", "arg2"})
+	rest := mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.svc", "--arg1", "arg2"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{"snapname.svc", "--arg1", "arg2"})
 	c.Check(execArg0, check.Equals, filepath.Join(dirs.SnapMountDir, "/core/111", dirs.CoreLibExecDir, "snap-confine"))
@@ -2300,7 +2316,8 @@ func (s *RunSuite) TestSnapRunTrackingServicesWhenRunByUser(c *check.C) {
 		filepath.Join(dirs.SnapMountDir, "/core/111", dirs.CoreLibExecDir, "snap-confine"),
 		"snap.snapname.svc",
 		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
-		"snapname.svc", "--arg1", "arg2"})
+		"snapname.svc", "--arg1", "arg2",
+	})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=x2")
 	c.Assert(confirmCalls, check.Equals, 1)
 	c.Assert(createTransientScopeCalls, check.Equals, 1)
@@ -2359,7 +2376,7 @@ func (s *RunSuite) TestSnapRunTrackingFailure(c *check.C) {
 	defer restore()
 
 	// and run it!
-	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1", "arg2"})
+	rest := mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1", "arg2"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
 	c.Check(execArg0, check.Equals, filepath.Join(dirs.SnapMountDir, "/core/111", dirs.CoreLibExecDir, "snap-confine"))
@@ -2367,7 +2384,8 @@ func (s *RunSuite) TestSnapRunTrackingFailure(c *check.C) {
 		filepath.Join(dirs.SnapMountDir, "/core/111", dirs.CoreLibExecDir, "snap-confine"),
 		"snap.snapname.app",
 		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
-		"snapname.app", "--arg1", "arg2"})
+		"snapname.app", "--arg1", "arg2",
+	})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=x2")
 	c.Assert(created, check.Equals, true)
 
@@ -2419,7 +2437,7 @@ func (s *RunSuite) TestSnapRunHookKernelImplicitBase(c *check.C) {
 	defer restorer()
 
 	// Run a hook from the active revision
-	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--hook=fde-setup", "--", "pc-kernel"})
+	_ := mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--hook=fde-setup", "--", "pc-kernel"}))
 	c.Assert(err, check.IsNil)
 	c.Check(execArg0, check.Equals, filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
 	c.Check(execArgs, check.DeepEquals, []string{
@@ -2427,7 +2445,8 @@ func (s *RunSuite) TestSnapRunHookKernelImplicitBase(c *check.C) {
 		"--base", "core20",
 		"snap.pc-kernel.hook.fde-setup",
 		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
-		"--hook=fde-setup", "pc-kernel"})
+		"--hook=fde-setup", "pc-kernel",
+	})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=42")
 	c.Check(nModel, check.Equals, 1)
 }
@@ -2442,7 +2461,7 @@ func (s *RunSuite) TestRunGdbserverNoGdbserver(c *check.C) {
 		Revision: snap.R("x2"),
 	})
 
-	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--gdbserver", "snapname.app"})
+	_ := mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--gdbserver", "snapname.app"}))
 	c.Assert(err, check.ErrorMatches, "please install gdbserver on your system")
 }
 
@@ -2451,7 +2470,7 @@ func openHintFileLock(snapName string) (*osutil.FileLock, error) {
 }
 
 func (s *RunSuite) TestCreateSnapDirPermissions(c *check.C) {
-	usr, err := user.Current()
+	usr := mylog.Check2(user.Current())
 	c.Assert(err, check.IsNil)
 
 	usr.HomeDir = s.fakeHome
@@ -2462,7 +2481,7 @@ func (s *RunSuite) TestCreateSnapDirPermissions(c *check.C) {
 	info := &snap.Info{SuggestedName: "some-snap"}
 	c.Assert(snaprun.CreateUserDataDirs(info, nil), check.IsNil)
 
-	fi, err := os.Stat(filepath.Join(s.fakeHome, dirs.UserHomeSnapDir))
+	fi := mylog.Check2(os.Stat(filepath.Join(s.fakeHome, dirs.UserHomeSnapDir)))
 	c.Assert(err, check.IsNil)
 	c.Assert(fi.Mode()&os.ModePerm, check.Equals, os.FileMode(0700))
 }
@@ -2481,14 +2500,14 @@ func (s *RunSuite) TestGetSnapDirOptions(c *check.C) {
 		MigratedHidden:        true,
 		MigratedToExposedHome: true,
 	}
-	data, err := json.Marshal(&str)
+	data := mylog.Check2(json.Marshal(&str))
 	c.Assert(err, check.IsNil)
 	c.Assert(os.WriteFile(seqFile, data, 0660), check.IsNil)
 
 	// write control file for hidden dir feature
 	c.Assert(os.WriteFile(features.HiddenSnapDataHomeDir.ControlFile(), []byte{}, 0660), check.IsNil)
 
-	opts, err := snaprun.GetSnapDirOptions("somesnap")
+	opts := mylog.Check2(snaprun.GetSnapDirOptions("somesnap"))
 	c.Assert(err, check.IsNil)
 	c.Assert(opts, check.DeepEquals, &dirs.SnapDirOptions{HiddenSnapDataDir: true, MigratedToExposedHome: true})
 }
@@ -2522,14 +2541,15 @@ func (s *RunSuite) TestRunDebugLog(c *check.C) {
 	})
 
 	// this will modify the current process environment
-	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--debug-log", "snapname.app"})
+	_ := mylog.Check2(snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--debug-log", "snapname.app"}))
 	c.Assert(err, check.IsNil)
 	c.Check(execArg0, check.Equals, filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
 	c.Check(execArgs, check.DeepEquals, []string{
 		filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
 		"snap.snapname.app",
 		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
-		"snapname.app"})
+		"snapname.app",
+	})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=12")
 	c.Check(execEnv, testutil.Contains, "SNAPD_DEBUG=1")
 	// also set in env

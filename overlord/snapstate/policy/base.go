@@ -22,6 +22,7 @@ package policy
 import (
 	"sort"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -44,11 +45,11 @@ func (p *basePolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, rev
 
 	if p.modelBase == name {
 		if !rev.Unset() {
-			// TODO: tweak boot.InUse so that it DTRT when rev.Unset, call
-			// it unconditionally as an extra precaution
-			if err := inUse(name, rev, snap.TypeBase, dev); err != nil {
-				return err
-			}
+			mylog.Check(
+				// TODO: tweak boot.InUse so that it DTRT when rev.Unset, call
+				// it unconditionally as an extra precaution
+				inUse(name, rev, snap.TypeBase, dev))
+
 			return nil
 		}
 		return errIsModel
@@ -64,7 +65,7 @@ func (p *basePolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, rev
 	}
 
 	// here we use that bases can't be instantiated (InstanceName == SnapName always)
-	usedBy, err := baseUsedBy(st, name)
+	usedBy := mylog.Check2(baseUsedBy(st, name))
 	if len(usedBy) == 0 || err != nil {
 		return err
 	}
@@ -72,11 +73,10 @@ func (p *basePolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, rev
 }
 
 func baseUsedBy(st *state.State, baseName string) ([]string, error) {
-	snapStates, err := snapstate.All(st)
-	if err != nil {
-		// note snapstate.All doesn't currently return ErrNoState
-		return nil, err
-	}
+	snapStates := mylog.Check2(snapstate.All(st))
+
+	// note snapstate.All doesn't currently return ErrNoState
+
 	alsoCore16 := false
 	if baseName == "" {
 		// if core is installed, a snap having base: core16 will not
@@ -94,12 +94,12 @@ func baseUsedBy(st *state.State, baseName string) ([]string, error) {
 
 	var usedBy []string
 	for name, snapst := range snapStates {
-		if typ, err := snapst.Type(); err == nil && typ != snap.TypeApp && typ != snap.TypeGadget {
+		if typ := mylog.Check2(snapst.Type()); err == nil && typ != snap.TypeApp && typ != snap.TypeGadget {
 			continue
 		}
 
 		for _, si := range snapst.Sequence.SideInfos() {
-			snapInfo, err := snap.ReadInfo(name, si)
+			snapInfo := mylog.Check2(snap.ReadInfo(name, si))
 			if err == nil {
 				if typ := snapInfo.Type(); typ != snap.TypeApp && typ != snap.TypeGadget {
 					continue

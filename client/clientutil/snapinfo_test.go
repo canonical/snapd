@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/dirs"
@@ -94,13 +95,14 @@ func (*cmdSuite) TestClientSnapFromSnapInfo(c *C) {
 			{Featured: false, Name: "productivity"},
 		},
 	}
-	// valid InstallDate
-	err := os.MkdirAll(si.MountDir(), 0755)
-	c.Assert(err, IsNil)
-	err = os.Symlink(si.Revision.String(), filepath.Join(filepath.Dir(si.MountDir()), "current"))
-	c.Assert(err, IsNil)
+	mylog.
+		// valid InstallDate
+		Check(os.MkdirAll(si.MountDir(), 0755))
 
-	ci, err := clientutil.ClientSnapFromSnapInfo(si, nil)
+	mylog.Check(os.Symlink(si.Revision.String(), filepath.Join(filepath.Dir(si.MountDir()), "current")))
+
+
+	ci := mylog.Check2(clientutil.ClientSnapFromSnapInfo(si, nil))
 	c.Check(err, IsNil)
 
 	// check that fields are filled
@@ -198,13 +200,13 @@ func (*cmdSuite) TestClientSnapFromSnapInfoAppsInactive(c *C) {
 	c.Check(si.IsActive(), Equals, false)
 	// desktop file
 	df := si.Apps["app"].DesktopFile()
-	err := os.MkdirAll(filepath.Dir(df), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(df, nil, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Dir(df), 0755))
+
+	mylog.Check(os.WriteFile(df, nil, 0644))
+
 
 	sd := &testStatusDecorator{}
-	ci, err := clientutil.ClientSnapFromSnapInfo(si, sd)
+	ci := mylog.Check2(clientutil.ClientSnapFromSnapInfo(si, sd))
 	c.Check(err, IsNil)
 
 	c.Check(ci.Name, Equals, "the-snap_insta")
@@ -240,15 +242,16 @@ func (*cmdSuite) TestClientSnapFromSnapInfoAppsActive(c *C) {
 	si.Apps = map[string]*snap.AppInfo{
 		"svc": {Snap: si, Name: "svc", Daemon: "simple", DaemonScope: snap.SystemDaemon},
 	}
-	// make it active
-	err := os.MkdirAll(si.MountDir(), 0755)
-	c.Assert(err, IsNil)
-	err = os.Symlink(si.Revision.String(), filepath.Join(filepath.Dir(si.MountDir()), "current"))
-	c.Assert(err, IsNil)
+	mylog.
+		// make it active
+		Check(os.MkdirAll(si.MountDir(), 0755))
+
+	mylog.Check(os.Symlink(si.Revision.String(), filepath.Join(filepath.Dir(si.MountDir()), "current")))
+
 	c.Check(si.IsActive(), Equals, true)
 
 	sd := &testStatusDecorator{}
-	ci, err := clientutil.ClientSnapFromSnapInfo(si, sd)
+	ci := mylog.Check2(clientutil.ClientSnapFromSnapInfo(si, sd))
 	c.Check(err, IsNil)
 	// ... service status
 	c.Check(ci.Name, Equals, "the-snap_insta")

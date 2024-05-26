@@ -30,6 +30,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	snapExec "github.com/snapcore/snapd/cmd/snap-exec"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
@@ -102,19 +103,19 @@ printf "\n" >> %[1]q`
 
 func (s *snapExecSuite) TestInvalidCombinedParameters(c *C) {
 	invalidParameters := []string{"--hook=hook-name", "--command=command-name", "snap-name"}
-	_, _, err := snapExec.ParseArgs(invalidParameters)
+	_, _ := mylog.Check3(snapExec.ParseArgs(invalidParameters))
 	c.Check(err, ErrorMatches, ".*cannot use --hook and --command together.*")
 }
 
 func (s *snapExecSuite) TestInvalidExtraParameters(c *C) {
 	invalidParameters := []string{"--hook=hook-name", "snap-name", "foo", "bar"}
-	_, _, err := snapExec.ParseArgs(invalidParameters)
+	_, _ := mylog.Check3(snapExec.ParseArgs(invalidParameters))
 	c.Check(err, ErrorMatches, ".*too many arguments for hook \"hook-name\": snap-name foo bar.*")
 }
 
 func (s *snapExecSuite) TestFindCommand(c *C) {
-	info, err := snap.InfoFromSnapYaml(mockYaml)
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.InfoFromSnapYaml(mockYaml))
+
 
 	for _, t := range []struct {
 		cmd      string
@@ -124,25 +125,25 @@ func (s *snapExecSuite) TestFindCommand(c *C) {
 		{cmd: "stop", expected: "stop-app"},
 		{cmd: "post-stop", expected: "post-stop-app"},
 	} {
-		cmd, err := snapExec.FindCommand(info.Apps["app"], t.cmd)
+		cmd := mylog.Check2(snapExec.FindCommand(info.Apps["app"], t.cmd))
 		c.Check(err, IsNil)
 		c.Check(cmd, Equals, t.expected)
 	}
 }
 
 func (s *snapExecSuite) TestFindCommandInvalidCommand(c *C) {
-	info, err := snap.InfoFromSnapYaml(mockYaml)
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.InfoFromSnapYaml(mockYaml))
 
-	_, err = snapExec.FindCommand(info.Apps["app"], "xxx")
+
+	_ = mylog.Check2(snapExec.FindCommand(info.Apps["app"], "xxx"))
 	c.Check(err, ErrorMatches, `cannot use "xxx" command`)
 }
 
 func (s *snapExecSuite) TestFindCommandNoCommand(c *C) {
-	info, err := snap.InfoFromSnapYaml(mockYaml)
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.InfoFromSnapYaml(mockYaml))
 
-	_, err = snapExec.FindCommand(info.Apps["nostop"], "stop")
+
+	_ = mylog.Check2(snapExec.FindCommand(info.Apps["nostop"], "stop"))
 	c.Check(err, ErrorMatches, `no "stop" command found for "nostop"`)
 }
 
@@ -168,10 +169,11 @@ func (s *snapExecSuite) TestSnapExecAppIntegration(c *C) {
 	oldPath := os.Getenv("TEST_PATH")
 	os.Setenv("TEST_PATH", "/vanilla")
 	defer os.Setenv("TEST_PATH", oldPath)
+	mylog.
 
-	// launch and verify its run the right way
-	err := snapExec.ExecApp("snapname.app", "42", "stop", []string{"arg1", "arg2"})
-	c.Assert(err, IsNil)
+		// launch and verify its run the right way
+		Check(snapExec.ExecApp("snapname.app", "42", "stop", []string{"arg1", "arg2"}))
+
 	c.Check(execArgv0, Equals, fmt.Sprintf("%s/snapname/42/stop-app", dirs.SnapMountDir))
 	c.Check(execArgs, DeepEquals, []string{execArgv0, "arg1", "arg2"})
 	c.Check(execEnv, testutil.Contains, "BASE_PATH=/some/path")
@@ -215,10 +217,11 @@ func (s *snapExecSuite) TestSnapExecAppIntegrationCupsServerWorkaround(c *C) {
 		return nil
 	})
 	defer restore()
+	mylog.
 
-	// launch and verify its run the right way
-	err := snapExec.ExecApp("snapname.app", "42", "stop", []string{"arg1", "arg2"})
-	c.Assert(err, IsNil)
+		// launch and verify its run the right way
+		Check(snapExec.ExecApp("snapname.app", "42", "stop", []string{"arg1", "arg2"}))
+
 	c.Check(execArgv0, Equals, fmt.Sprintf("%s/snapname/42/stop-app", dirs.SnapMountDir))
 	c.Check(execArgs, DeepEquals, []string{execArgv0, "arg1", "arg2"})
 
@@ -264,8 +267,8 @@ func (s *snapExecSuite) TestSnapExecAppCommandChainIntegration(c *C) {
 		{cmd: "post-stop", expected: []string{chain1_path, chain2_path, post_stop_path}},
 		{cmd: "post-stop", args: []string{"arg1", "arg2"}, expected: []string{chain1_path, chain2_path, post_stop_path, "arg1", "arg2"}},
 	} {
-		err := snapExec.ExecApp("snapname.app2", "42", t.cmd, t.args)
-		c.Assert(err, IsNil)
+		mylog.Check(snapExec.ExecApp("snapname.app2", "42", t.cmd, t.args))
+
 		c.Check(execArgv0, Equals, t.expected[0])
 		c.Check(execArgs, DeepEquals, t.expected)
 	}
@@ -285,10 +288,11 @@ func (s *snapExecSuite) TestSnapExecHookIntegration(c *C) {
 		return nil
 	})
 	defer restore()
+	mylog.
 
-	// launch and verify it ran correctly
-	err := snapExec.ExecHook("snapname", "42", "configure")
-	c.Assert(err, IsNil)
+		// launch and verify it ran correctly
+		Check(snapExec.ExecHook("snapname", "42", "configure"))
+
 	c.Check(execArgv0, Equals, fmt.Sprintf("%s/snapname/42/meta/hooks/configure", dirs.SnapMountDir))
 	c.Check(execArgs, DeepEquals, []string{execArgv0})
 }
@@ -311,9 +315,8 @@ func (s *snapExecSuite) TestSnapExecHookCommandChainIntegration(c *C) {
 	chain1_path := fmt.Sprintf("%s/snapname/42/chain1", dirs.SnapMountDir)
 	chain2_path := fmt.Sprintf("%s/snapname/42/chain2", dirs.SnapMountDir)
 	hook_path := fmt.Sprintf("%s/snapname/42/meta/hooks/configure", dirs.SnapMountDir)
+	mylog.Check(snapExec.ExecHook("snapname", "42", "configure"))
 
-	err := snapExec.ExecHook("snapname", "42", "configure")
-	c.Assert(err, IsNil)
 	c.Check(execArgv0, Equals, chain1_path)
 	c.Check(execArgs, DeepEquals, []string{chain1_path, chain2_path, hook_path})
 }
@@ -323,27 +326,26 @@ func (s *snapExecSuite) TestSnapExecHookMissingHookIntegration(c *C) {
 	snaptest.MockSnap(c, string(mockHookYaml), &snap.SideInfo{
 		Revision: snap.R("42"),
 	})
-
-	err := snapExec.ExecHook("snapname", "42", "missing-hook")
+	mylog.Check(snapExec.ExecHook("snapname", "42", "missing-hook"))
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, "cannot find hook \"missing-hook\" in \"snapname\"")
 }
 
 func (s *snapExecSuite) TestSnapExecIgnoresUnknownArgs(c *C) {
-	snapApp, rest, err := snapExec.ParseArgs([]string{"--command=shell", "snapname.app", "--arg1", "arg2"})
-	c.Assert(err, IsNil)
+	snapApp, rest := mylog.Check3(snapExec.ParseArgs([]string{"--command=shell", "snapname.app", "--arg1", "arg2"}))
+
 	c.Assert(snapExec.GetOptsCommand(), Equals, "shell")
 	c.Assert(snapApp, DeepEquals, "snapname.app")
 	c.Assert(rest, DeepEquals, []string{"--arg1", "arg2"})
 }
 
 func (s *snapExecSuite) TestSnapExecErrorsOnUnknown(c *C) {
-	_, _, err := snapExec.ParseArgs([]string{"--command=shell", "--unknown", "snapname.app", "--arg1", "arg2"})
+	_, _ := mylog.Check3(snapExec.ParseArgs([]string{"--command=shell", "--unknown", "snapname.app", "--arg1", "arg2"}))
 	c.Check(err, ErrorMatches, "unknown flag `unknown'")
 }
 
 func (s *snapExecSuite) TestSnapExecErrorsOnMissingSnapApp(c *C) {
-	_, _, err := snapExec.ParseArgs([]string{"--command=shell"})
+	_, _ := mylog.Check3(snapExec.ParseArgs([]string{"--command=shell"}))
 	c.Check(err, ErrorMatches, "need the application to run as argument")
 }
 
@@ -363,8 +365,8 @@ func (s *snapExecSuite) TestSnapExecAppRealIntegration(c *C) {
 
 	canaryFile := filepath.Join(c.MkDir(), "canary.txt")
 	script := fmt.Sprintf("%s/snapname/42/run-app", dirs.SnapMountDir)
-	err := os.WriteFile(script, []byte(fmt.Sprintf(binaryTemplate, canaryFile)), 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(script, []byte(fmt.Sprintf(binaryTemplate, canaryFile)), 0755))
+
 
 	// we can not use the real syscall.execv here because it would
 	// replace the entire test :)
@@ -373,8 +375,8 @@ func (s *snapExecSuite) TestSnapExecAppRealIntegration(c *C) {
 
 	// run it
 	os.Args = []string{"snap-exec", "snapname.app", "foo", "--bar=baz", "foobar"}
-	err = snapExec.Run()
-	c.Assert(err, IsNil)
+	mylog.Check(snapExec.Run())
+
 
 	c.Assert(canaryFile, testutil.FileEquals, `run-app
 cmd-arg1
@@ -413,8 +415,8 @@ func (s *snapExecSuite) TestSnapExecHookRealIntegration(c *C) {
 
 	// run it
 	os.Args = []string{"snap-exec", "--hook=configure", "snapname"}
-	err := snapExec.Run()
-	c.Assert(err, IsNil)
+	mylog.Check(snapExec.Run())
+
 
 	c.Assert(canaryFile, testutil.FileEquals, "configure\n\n")
 }
@@ -422,7 +424,7 @@ func (s *snapExecSuite) TestSnapExecHookRealIntegration(c *C) {
 func actuallyExec(argv0 string, argv []string, env []string) error {
 	cmd := exec.Command(argv[0], argv[1:]...)
 	cmd.Env = env
-	output, err := cmd.CombinedOutput()
+	output := mylog.Check2(cmd.CombinedOutput())
 	if len(output) > 0 {
 		return fmt.Errorf("Expected output length to be 0, it was %d", len(output))
 	}
@@ -445,17 +447,19 @@ func (s *snapExecSuite) TestSnapExecShellIntegration(c *C) {
 		return nil
 	})
 	defer restore()
+	mylog.
 
-	// launch and verify its run the right way
-	err := snapExec.ExecApp("snapname.app", "42", "shell", []string{"-c", "echo foo"})
-	c.Assert(err, IsNil)
+		// launch and verify its run the right way
+		Check(snapExec.ExecApp("snapname.app", "42", "shell", []string{"-c", "echo foo"}))
+
 	c.Check(execArgv0, Equals, "/bin/bash")
 	c.Check(execArgs, DeepEquals, []string{execArgv0, "-c", "echo foo"})
 	c.Check(execEnv, testutil.Contains, "LD_LIBRARY_PATH=/some/path/lib")
+	mylog.
 
-	// launch and verify shell still runs the command chain
-	err = snapExec.ExecApp("snapname.app2", "42", "shell", []string{"-c", "echo foo"})
-	c.Assert(err, IsNil)
+		// launch and verify shell still runs the command chain
+		Check(snapExec.ExecApp("snapname.app2", "42", "shell", []string{"-c", "echo foo"}))
+
 	chain1 := fmt.Sprintf("%s/snapname/42/chain1", dirs.SnapMountDir)
 	chain2 := fmt.Sprintf("%s/snapname/42/chain2", dirs.SnapMountDir)
 	c.Check(execArgv0, Equals, chain1)
@@ -482,10 +486,11 @@ func (s *snapExecSuite) TestSnapExecAppIntegrationWithVars(c *C) {
 	// setup env
 	os.Setenv("SNAP_DATA", "/var/snap/snapname/42")
 	defer os.Unsetenv("SNAP_DATA")
+	mylog.
 
-	// launch and verify its run the right way
-	err := snapExec.ExecApp("snapname.app", "42", "", []string{"user-arg1"})
-	c.Assert(err, IsNil)
+		// launch and verify its run the right way
+		Check(snapExec.ExecApp("snapname.app", "42", "", []string{"user-arg1"}))
+
 	c.Check(execArgv0, Equals, fmt.Sprintf("%s/snapname/42/run-app", dirs.SnapMountDir))
 	c.Check(execArgs, DeepEquals, []string{execArgv0, "cmd-arg1", "/var/snap/snapname/42", "user-arg1"})
 	c.Check(execEnv, testutil.Contains, "BASE_PATH=/some/path")
@@ -540,9 +545,10 @@ func (s *snapExecSuite) TestSnapExecCompleteError(c *C) {
 	// setup env
 	os.Setenv("SNAP_DATA", "/var/snap/snapname/42")
 	defer os.Unsetenv("SNAP_DATA")
+	mylog.
 
-	// launch and verify its run the right way
-	err := snapExec.ExecApp("snapname.app", "42", "complete", []string{"foo"})
+		// launch and verify its run the right way
+		Check(snapExec.ExecApp("snapname.app", "42", "complete", []string{"foo"}))
 	c.Assert(err, ErrorMatches, "cannot find completion helper: fail")
 }
 
@@ -571,15 +577,18 @@ func (s *snapExecSuite) TestSnapExecCompleteConfined(c *C) {
 	// setup env
 	os.Setenv("SNAP_DATA", "/var/snap/snapname/42")
 	defer os.Unsetenv("SNAP_DATA")
+	mylog.
 
-	// launch and verify its run the right way
-	err := snapExec.ExecApp("snapname.app", "42", "complete", []string{"foo"})
-	c.Assert(err, IsNil)
+		// launch and verify its run the right way
+		Check(snapExec.ExecApp("snapname.app", "42", "complete", []string{"foo"}))
+
 	c.Check(execArgv0, Equals, "/bin/bash")
-	c.Check(execArgs, DeepEquals, []string{execArgv0,
+	c.Check(execArgs, DeepEquals, []string{
+		execArgv0,
 		dirs.CompletionHelperInCore,
 		filepath.Join(dirs.SnapMountDir, "snapname/42/you/complete/me"),
-		"foo"})
+		"foo",
+	})
 }
 
 func (s *snapExecSuite) TestSnapExecCompleteClassicReexec(c *C) {
@@ -609,15 +618,18 @@ func (s *snapExecSuite) TestSnapExecCompleteClassicReexec(c *C) {
 	// setup env
 	os.Setenv("SNAP_DATA", "/var/snap/snapname/42")
 	defer os.Unsetenv("SNAP_DATA")
+	mylog.
 
-	// launch and verify its run the right way
-	err := snapExec.ExecApp("snapname.app", "42", "complete", []string{"foo"})
-	c.Assert(err, IsNil)
+		// launch and verify its run the right way
+		Check(snapExec.ExecApp("snapname.app", "42", "complete", []string{"foo"}))
+
 	c.Check(execArgv0, Equals, "/bin/bash")
-	c.Check(execArgs, DeepEquals, []string{execArgv0,
+	c.Check(execArgs, DeepEquals, []string{
+		execArgv0,
 		filepath.Join(dirs.SnapMountDir, "core/current", dirs.CompletionHelperInCore),
 		filepath.Join(dirs.SnapMountDir, "snapname/42/you/complete/me"),
-		"foo"})
+		"foo",
+	})
 }
 
 func (s *snapExecSuite) TestSnapExecCompleteClassicNoReexec(c *C) {
@@ -651,15 +663,18 @@ func (s *snapExecSuite) TestSnapExecCompleteClassicNoReexec(c *C) {
 	defer os.Unsetenv("SNAP_DATA")
 	os.Setenv("SNAP_SAVED_TMPDIR", "/var/tmp99")
 	defer os.Unsetenv("SNAP_SAVED_TMPDIR")
+	mylog.
 
-	// launch and verify its run the right way
-	err := snapExec.ExecApp("snapname.app", "42", "complete", []string{"foo"})
-	c.Assert(err, IsNil)
+		// launch and verify its run the right way
+		Check(snapExec.ExecApp("snapname.app", "42", "complete", []string{"foo"}))
+
 	c.Check(execArgv0, Equals, "/bin/bash")
-	c.Check(execArgs, DeepEquals, []string{execArgv0,
+	c.Check(execArgs, DeepEquals, []string{
+		execArgv0,
 		filepath.Join(dirs.DistroLibExecDir, "etelpmoc.sh"),
 		filepath.Join(dirs.SnapMountDir, "snapname/42/you/complete/me"),
-		"foo"})
+		"foo",
+	})
 	c.Check(execEnv, testutil.Contains, "SNAP_DATA=/var/snap/snapname/42")
 	c.Check(execEnv, testutil.Contains, "TMPDIR=/var/tmp99")
 }

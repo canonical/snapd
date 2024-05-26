@@ -30,6 +30,7 @@ import (
 	. "gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/overlord/restart"
@@ -72,8 +73,8 @@ func (s *reRefreshSuite) SetUpTest(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	_, err := restart.Manager(s.state, "boot-id-1", nil)
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(restart.Manager(s.state, "boot-id-1", nil))
+
 }
 
 func (s *reRefreshSuite) TestDoCheckReRefreshFailsWithoutReRefreshSetup(c *C) {
@@ -281,8 +282,8 @@ func (s *reRefreshSuite) TestDoCheckReRefreshWaitOnPendingRestart(c *C) {
 
 // wrapper around snapstate.RefreshedSnaps for easier testing
 func refreshedSnaps(c *C, task *state.Task) string {
-	snaps, _, err := snapstate.RefreshedSnaps(task)
-	c.Assert(err, IsNil)
+	snaps, _ := mylog.Check3(snapstate.RefreshedSnaps(task))
+
 	sort.Strings(snaps)
 	return strings.Join(snaps, ",")
 }
@@ -440,7 +441,7 @@ func (s *reRefreshSuite) TestLaneSnapsInvalidSetup(c *C) {
 	task := s.state.NewTask("check-rerefresh", "...")
 	chg.AddTask(task)
 
-	snaps, _, err := snapstate.RefreshedSnaps(task)
+	snaps, _ := mylog.Check3(snapstate.RefreshedSnaps(task))
 	c.Check(snaps, HasLen, 0)
 	c.Check(err, ErrorMatches, `internal error: expected SnapSetup for download-snap: no state entry for key "snap-setup"`)
 }
@@ -511,8 +512,8 @@ func (s *refreshSuite) TestMaybeRestoreValidationSetsAndRevertSnaps(c *C) {
 
 	refreshedSnaps := []string{"foo", "bar"}
 	// nothing to do with no enforced validation sets
-	ts, err := snapstate.MaybeRestoreValidationSetsAndRevertSnaps(st, refreshedSnaps, "")
-	c.Assert(err, IsNil)
+	ts := mylog.Check2(snapstate.MaybeRestoreValidationSetsAndRevertSnaps(st, refreshedSnaps, ""))
+
 	c.Check(ts, IsNil)
 }
 
@@ -621,8 +622,8 @@ func (s *validationSetsSuite) TestMaybeRestoreValidationSetsAndRevertSnapsOneRev
 	// some-snap2 failed to refresh
 	refreshedSnaps := []string{"some-snap1", "some-snap3"}
 	// pass change id to make sure revert doesn't conflict
-	ts, err := snapstate.MaybeRestoreValidationSetsAndRevertSnaps(st, refreshedSnaps, chg.ID())
-	c.Assert(err, IsNil)
+	ts := mylog.Check2(snapstate.MaybeRestoreValidationSetsAndRevertSnaps(st, refreshedSnaps, chg.ID()))
+
 
 	// we expect revert of snap1
 	c.Assert(ts, HasLen, 1)
@@ -643,8 +644,8 @@ func (s *validationSetsSuite) TestMaybeRestoreValidationSetsAndRevertSnapsOneRev
 		"run-hook[check-health]",
 	})
 
-	snapsup, err := snapstate.TaskSnapSetup(revertTasks[0])
-	c.Assert(err, IsNil)
+	snapsup := mylog.Check2(snapstate.TaskSnapSetup(revertTasks[0]))
+
 	c.Check(snapsup.Flags, Equals, snapstate.Flags{Revert: true, RevertStatus: snapstate.NotBlocked})
 	c.Check(snapsup.InstanceName(), Equals, "some-snap1")
 	c.Check(snapsup.Revision(), Equals, snap.R(1))
@@ -695,8 +696,8 @@ func (s *validationSetsSuite) TestMaybeRestoreValidationSetsAndRevertNoSnapsRefr
 	snaptest.MockSnap(c, `name: some-snap1`, si1)
 
 	// no snaps get refreshed
-	ts, err := snapstate.MaybeRestoreValidationSetsAndRevertSnaps(st, nil, "")
-	c.Assert(err, IsNil)
+	ts := mylog.Check2(snapstate.MaybeRestoreValidationSetsAndRevertSnaps(st, nil, ""))
+
 
 	// we expect no snap reverts
 	c.Assert(ts, HasLen, 0)
@@ -775,8 +776,8 @@ func (s *validationSetsSuite) TestMaybeRestoreValidationSetsAndRevertJustValidat
 	snaptest.MockSnap(c, `name: some-snap2`, si3)
 
 	refreshedSnaps := []string{"some-snap2"}
-	ts, err := snapstate.MaybeRestoreValidationSetsAndRevertSnaps(st, refreshedSnaps, "")
-	c.Assert(err, IsNil)
+	ts := mylog.Check2(snapstate.MaybeRestoreValidationSetsAndRevertSnaps(st, refreshedSnaps, ""))
+
 
 	// we expect no snap reverts
 	c.Assert(ts, HasLen, 0)
@@ -844,8 +845,8 @@ func (s *validationSetsSuite) TestMaybeRestoreValidationSetsAndRevertStillValid(
 	// pretend that some-snap1 was refreshed (and some-snap2 failed), some-snap1 is now at revision 3; validation set
 	// with sequence 3 is still valid though so no snap reverts.
 	refreshedSnaps := []string{"some-snap1"}
-	ts, err := snapstate.MaybeRestoreValidationSetsAndRevertSnaps(st, refreshedSnaps, "")
-	c.Assert(err, IsNil)
+	ts := mylog.Check2(snapstate.MaybeRestoreValidationSetsAndRevertSnaps(st, refreshedSnaps, ""))
+
 
 	// we expect no snap reverts
 	c.Assert(ts, HasLen, 0)

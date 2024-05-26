@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
@@ -56,16 +57,16 @@ func (s *deviceMgrRecoveryKeysSuite) SetUpTest(c *C) {
 
 func mockSnapFDEFile(c *C, fname string, data []byte) {
 	p := filepath.Join(dirs.SnapFDEDir, fname)
-	err := os.MkdirAll(filepath.Dir(p), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(p, data, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Dir(p), 0755))
+
+	mylog.Check(os.WriteFile(p, data, 0644))
+
 }
 
 func mockSystemRecoveryKeys(c *C, alsoReinstall bool) {
 	// same inputs/outputs as secboot:crypt_test.go in this test
-	rkeystr, err := hex.DecodeString("e1f01302c5d43726a9b85b4a8d9c7f6e")
-	c.Assert(err, IsNil)
+	rkeystr := mylog.Check2(hex.DecodeString("e1f01302c5d43726a9b85b4a8d9c7f6e"))
+
 	mockSnapFDEFile(c, "recovery.key", []byte(rkeystr))
 
 	if alsoReinstall {
@@ -80,8 +81,8 @@ func (s *deviceMgrRecoveryKeysSuite) TestEnsureRecoveryKeysBackwardCompat(c *C) 
 
 	mockSystemRecoveryKeys(c, true)
 
-	keys, err := s.mgr.EnsureRecoveryKeys()
-	c.Assert(err, IsNil)
+	keys := mylog.Check2(s.mgr.EnsureRecoveryKeys())
+
 
 	c.Assert(keys, DeepEquals, &client.SystemRecoveryKeysResponse{
 		RecoveryKey:  "61665-00531-54469-09783-47273-19035-40077-28287",
@@ -128,11 +129,11 @@ func (s *deviceMgrRecoveryKeysSuite) testEnsureRecoveryKey(c *C, classic bool) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	_, err := s.mgr.EnsureRecoveryKeys()
+	_ := mylog.Check2(s.mgr.EnsureRecoveryKeys())
 	c.Check(err, ErrorMatches, `system does not use disk encryption`)
 
-	rkeystr, err := hex.DecodeString("e1f01302c5d43726a9b85b4a8d9c7f6e")
-	c.Assert(err, IsNil)
+	rkeystr := mylog.Check2(hex.DecodeString("e1f01302c5d43726a9b85b4a8d9c7f6e"))
+
 	defer devicestate.MockSecbootEnsureRecoveryKey(func(keyFile string, rkeyDevs []secboot.RecoveryKeyDevice) (keys.RecoveryKey, error) {
 		c.Check(keyFile, Equals, filepath.Join(dirs.SnapFDEDir, "recovery.key"))
 		keyFilePath := "var/lib/snapd/device/fde/ubuntu-save.key"
@@ -153,8 +154,8 @@ func (s *deviceMgrRecoveryKeysSuite) testEnsureRecoveryKey(c *C, classic bool) {
 	})()
 	mockSnapFDEFile(c, "marker", nil)
 
-	keys, err := s.mgr.EnsureRecoveryKeys()
-	c.Assert(err, IsNil)
+	keys := mylog.Check2(s.mgr.EnsureRecoveryKeys())
+
 
 	c.Assert(keys, DeepEquals, &client.SystemRecoveryKeysResponse{
 		RecoveryKey: "61665-00531-54469-09783-47273-19035-40077-28287",
@@ -177,8 +178,8 @@ func (s *deviceMgrRecoveryKeysSuite) TestEnsureRecoveryKeyInstallMode(c *C) {
 
 	devicestate.SetSystemMode(s.mgr, "install")
 
-	rkeystr, err := hex.DecodeString("e1f01302c5d43726a9b85b4a8d9c7f6e")
-	c.Assert(err, IsNil)
+	rkeystr := mylog.Check2(hex.DecodeString("e1f01302c5d43726a9b85b4a8d9c7f6e"))
+
 	defer devicestate.MockSecbootEnsureRecoveryKey(func(keyFile string, rkeyDevs []secboot.RecoveryKeyDevice) (keys.RecoveryKey, error) {
 		c.Check(keyFile, Equals, filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "recovery.key"))
 		c.Check(rkeyDevs, DeepEquals, []secboot.RecoveryKeyDevice{
@@ -197,13 +198,13 @@ func (s *deviceMgrRecoveryKeysSuite) TestEnsureRecoveryKeyInstallMode(c *C) {
 	})()
 
 	p := filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "marker")
-	err = os.MkdirAll(filepath.Dir(p), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(p, nil, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Dir(p), 0755))
 
-	keys, err := s.mgr.EnsureRecoveryKeys()
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(p, nil, 0644))
+
+
+	keys := mylog.Check2(s.mgr.EnsureRecoveryKeys())
+
 
 	c.Assert(keys, DeepEquals, &client.SystemRecoveryKeysResponse{
 		RecoveryKey: "61665-00531-54469-09783-47273-19035-40077-28287",
@@ -216,7 +217,7 @@ func (s *deviceMgrRecoveryKeysSuite) TestEnsureRecoveryKeyRecoverMode(c *C) {
 
 	devicestate.SetSystemMode(s.mgr, "recover")
 
-	_, err := s.mgr.EnsureRecoveryKeys()
+	_ := mylog.Check2(s.mgr.EnsureRecoveryKeys())
 	c.Check(err, ErrorMatches, `cannot ensure recovery keys from system mode "recover"`)
 }
 
@@ -226,8 +227,7 @@ func (s *deviceMgrRecoveryKeysSuite) testRemoveRecoveryKeys(c *C, classic bool) 
 	}
 	s.state.Lock()
 	defer s.state.Unlock()
-
-	err := s.mgr.RemoveRecoveryKeys()
+	mylog.Check(s.mgr.RemoveRecoveryKeys())
 	c.Check(err, ErrorMatches, `system does not use disk encryption`)
 
 	called := false
@@ -248,9 +248,8 @@ func (s *deviceMgrRecoveryKeysSuite) testRemoveRecoveryKeys(c *C, classic bool) 
 		return nil
 	})()
 	mockSnapFDEFile(c, "marker", nil)
+	mylog.Check(s.mgr.RemoveRecoveryKeys())
 
-	err = s.mgr.RemoveRecoveryKeys()
-	c.Assert(err, IsNil)
 	c.Check(called, Equals, true)
 }
 
@@ -283,17 +282,15 @@ func (s *deviceMgrRecoveryKeysSuite) TestRemoveRecoveryKeysBackwardCompat(c *C) 
 	})()
 	mockSnapFDEFile(c, "marker", nil)
 	mockSnapFDEFile(c, "reinstall.key", nil)
+	mylog.Check(s.mgr.RemoveRecoveryKeys())
 
-	err := s.mgr.RemoveRecoveryKeys()
-	c.Assert(err, IsNil)
 	c.Check(called, Equals, true)
 }
 
 func (s *deviceMgrRecoveryKeysSuite) TestRemoveRecoveryKeysOtherModes(c *C) {
 	for _, mode := range []string{"recover", "install"} {
 		devicestate.SetSystemMode(s.mgr, mode)
-
-		err := s.mgr.RemoveRecoveryKeys()
+		mylog.Check(s.mgr.RemoveRecoveryKeys())
 		c.Check(err, ErrorMatches, fmt.Sprintf(`cannot remove recovery keys from system mode %q`, mode))
 	}
 }

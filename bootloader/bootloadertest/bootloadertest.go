@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/snap"
 )
@@ -55,17 +56,19 @@ type MockBootloader struct {
 }
 
 // ensure MockBootloader(s) implement the Bootloader interface
-var _ bootloader.Bootloader = (*MockBootloader)(nil)
-var _ bootloader.RecoveryAwareBootloader = (*MockRecoveryAwareBootloader)(nil)
-var _ bootloader.TrustedAssetsBootloader = (*MockTrustedAssetsBootloader)(nil)
-var _ bootloader.ExtractedRunKernelImageBootloader = (*MockExtractedRunKernelImageBootloader)(nil)
-var _ bootloader.ExtractedRecoveryKernelImageBootloader = (*MockExtractedRecoveryKernelImageBootloader)(nil)
-var _ bootloader.RecoveryAwareBootloader = (*MockRecoveryAwareTrustedAssetsBootloader)(nil)
-var _ bootloader.TrustedAssetsBootloader = (*MockRecoveryAwareTrustedAssetsBootloader)(nil)
-var _ bootloader.NotScriptableBootloader = (*MockNotScriptableBootloader)(nil)
-var _ bootloader.NotScriptableBootloader = (*MockExtractedRecoveryKernelNotScriptableBootloader)(nil)
-var _ bootloader.ExtractedRecoveryKernelImageBootloader = (*MockExtractedRecoveryKernelNotScriptableBootloader)(nil)
-var _ bootloader.RebootBootloader = (*MockRebootBootloader)(nil)
+var (
+	_ bootloader.Bootloader                             = (*MockBootloader)(nil)
+	_ bootloader.RecoveryAwareBootloader                = (*MockRecoveryAwareBootloader)(nil)
+	_ bootloader.TrustedAssetsBootloader                = (*MockTrustedAssetsBootloader)(nil)
+	_ bootloader.ExtractedRunKernelImageBootloader      = (*MockExtractedRunKernelImageBootloader)(nil)
+	_ bootloader.ExtractedRecoveryKernelImageBootloader = (*MockExtractedRecoveryKernelImageBootloader)(nil)
+	_ bootloader.RecoveryAwareBootloader                = (*MockRecoveryAwareTrustedAssetsBootloader)(nil)
+	_ bootloader.TrustedAssetsBootloader                = (*MockRecoveryAwareTrustedAssetsBootloader)(nil)
+	_ bootloader.NotScriptableBootloader                = (*MockNotScriptableBootloader)(nil)
+	_ bootloader.NotScriptableBootloader                = (*MockExtractedRecoveryKernelNotScriptableBootloader)(nil)
+	_ bootloader.ExtractedRecoveryKernelImageBootloader = (*MockExtractedRecoveryKernelNotScriptableBootloader)(nil)
+	_ bootloader.RebootBootloader                       = (*MockRebootBootloader)(nil)
+)
 
 func Mock(name, bootdir string) *MockBootloader {
 	return &MockBootloader{
@@ -248,7 +251,8 @@ func (b *MockExtractedRecoveryKernelImageBootloader) ExtractRecoveryKernelAssets
 		b.ExtractRecoveryKernelAssetsCalls,
 		ExtractedRecoveryKernelCall{
 			S:                 s,
-			RecoverySystemDir: recoverySystemDir},
+			RecoverySystemDir: recoverySystemDir,
+		},
 	)
 	return nil
 }
@@ -380,9 +384,7 @@ func (b *MockExtractedRunKernelImageMixin) Kernel() (snap.PlaceInfo, error) {
 	b.maybePanic("Kernel")
 	b.runKernelImageMockedNumCalls["Kernel"]++
 	err := b.runKernelImageMockedErrs["Kernel"]
-	if err != nil {
-		return nil, err
-	}
+
 	return b.runKernelImageEnabledKernel, nil
 }
 
@@ -392,9 +394,7 @@ func (b *MockExtractedRunKernelImageMixin) TryKernel() (snap.PlaceInfo, error) {
 	b.maybePanic("TryKernel")
 	b.runKernelImageMockedNumCalls["TryKernel"]++
 	err := b.runKernelImageMockedErrs["TryKernel"]
-	if err != nil {
-		return nil, err
-	}
+
 	if b.runKernelImageEnabledTryKernel == nil {
 		return nil, bootloader.ErrNoTryKernelRef
 	}
@@ -459,9 +459,7 @@ func (b *MockTrustedAssetsMixin) UpdateBootConfig() (bool, error) {
 }
 
 func glueCommandLine(pieces bootloader.CommandLineComponents, staticArgs string) (string, error) {
-	if err := pieces.Validate(); err != nil {
-		return "", err
-	}
+	mylog.Check(pieces.Validate())
 
 	args := []string(nil)
 	extraOrFull := []string{staticArgs, pieces.ExtraArgs}
@@ -579,7 +577,8 @@ func (b *MockExtractedRecoveryKernelNotScriptableBootloader) ExtractRecoveryKern
 		b.ExtractRecoveryKernelAssetsCalls,
 		ExtractedRecoveryKernelCall{
 			S:                 s,
-			RecoverySystemDir: recoverySystemDir},
+			RecoverySystemDir: recoverySystemDir,
+		},
 	)
 	return nil
 }

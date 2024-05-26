@@ -32,6 +32,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/logger"
@@ -82,16 +83,12 @@ func newToolingStore(arch, storeID string) (*ToolingStore, error) {
 	cfg := store.DefaultConfig()
 	cfg.Architecture = arch
 	cfg.StoreID = storeID
-	creds, err := getAuthorizer()
-	if err != nil {
-		return nil, err
-	}
+	creds := mylog.Check2(getAuthorizer())
+
 	cfg.Authorizer = creds
 	if storeURL := os.Getenv("UBUNTU_STORE_URL"); storeURL != "" {
-		u, err := url.Parse(storeURL)
-		if err != nil {
-			return nil, fmt.Errorf("invalid UBUNTU_STORE_URL: %v", err)
-		}
+		u := mylog.Check2(url.Parse(storeURL))
+
 		cfg.StoreBaseURL = u
 	}
 	sto := store.New(cfg, nil)
@@ -178,16 +175,13 @@ type DownloadedSnap struct {
 // It returns the final full path of the snap and a snap.Info for it and
 // optionally a channel the snap got redirected to wrapped in DownloadedSnap.
 func (tsto *ToolingStore) DownloadSnap(name string, opts DownloadSnapOptions) (downloadedSnap *DownloadedSnap, err error) {
-	if err := opts.validate(); err != nil {
-		return nil, err
-	}
+	mylog.Check(opts.validate())
+
 	sto := tsto.sto
 
 	if opts.TargetDir == "" {
-		pwd, err := os.Getwd()
-		if err != nil {
-			return nil, err
-		}
+		pwd := mylog.Check2(os.Getwd())
+
 		opts.TargetDir = pwd
 	}
 
@@ -206,11 +200,10 @@ func (tsto *ToolingStore) DownloadSnap(name string, opts DownloadSnapOptions) (d
 		Channel:      opts.Channel,
 	}}
 
-	sars, _, err := sto.SnapAction(context.TODO(), nil, actions, nil, nil, nil)
-	if err != nil {
-		// err will be 'cannot download snap "foo": <reasons>'
-		return nil, err
-	}
+	sars, _ := mylog.Check3(sto.SnapAction(context.TODO(), nil, actions, nil, nil, nil))
+
+	// err will be 'cannot download snap "foo": <reasons>'
+
 	sar := &sars[0]
 
 	baseName := opts.Basename
@@ -230,7 +223,7 @@ func (tsto *ToolingStore) snapDownload(targetFn string, sar *store.SnapActionRes
 
 	// check if we already have the right file
 	if osutil.FileExists(targetFn) {
-		sha3_384Dgst, size, err := osutil.FileDigest(targetFn, crypto.SHA3_384)
+		sha3_384Dgst, size := mylog.Check3(osutil.FileDigest(targetFn, crypto.SHA3_384))
 		if err == nil && size == uint64(snap.DownloadInfo.Size) && fmt.Sprintf("%x", sha3_384Dgst) == snap.DownloadInfo.Sha3_384 {
 			logger.Debugf("not downloading, using existing file %s", targetFn)
 			return &DownloadedSnap{
@@ -255,9 +248,7 @@ func (tsto *ToolingStore) snapDownload(targetFn string, sar *store.SnapActionRes
 	}()
 
 	dlOpts := &store.DownloadOptions{LeavePartialOnError: opts.LeavePartialOnError}
-	if err = tsto.sto.Download(context.TODO(), snap.SnapName(), targetFn, &snap.DownloadInfo, pb, nil, dlOpts); err != nil {
-		return nil, err
-	}
+	mylog.Check(tsto.sto.Download(context.TODO(), snap.SnapName(), targetFn, &snap.DownloadInfo, pb, nil, dlOpts))
 
 	signal.Reset(syscall.SIGINT)
 
@@ -346,21 +337,15 @@ func (tsto *ToolingStore) DownloadMany(toDownload []SnapToDownload, curSnaps []*
 		})
 	}
 
-	sars, _, err := tsto.sto.SnapAction(context.TODO(), current, actions, nil, nil, nil)
-	if err != nil {
-		// err will be 'cannot download snap "foo": <reasons>'
-		return nil, err
-	}
+	sars, _ := mylog.Check3(tsto.sto.SnapAction(context.TODO(), current, actions, nil, nil, nil))
+
+	// err will be 'cannot download snap "foo": <reasons>'
 
 	for _, sar := range sars {
-		targetPath, err := opts.BeforeDownloadFunc(sar.Info)
-		if err != nil {
-			return nil, err
-		}
-		dlSnap, err := tsto.snapDownload(targetPath, &sar, DownloadSnapOptions{})
-		if err != nil {
-			return nil, err
-		}
+		targetPath := mylog.Check2(opts.BeforeDownloadFunc(sar.Info))
+
+		dlSnap := mylog.Check2(tsto.snapDownload(targetPath, &sar, DownloadSnapOptions{}))
+
 		downloadedSnaps[sar.SnapName()] = dlSnap
 	}
 
@@ -374,14 +359,10 @@ func (tsto *ToolingStore) AssertionFetcher(db *asserts.Database, save func(asser
 		return tsto.sto.Assertion(ref.Type, ref.PrimaryKey, nil)
 	}
 	save2 := func(a asserts.Assertion) error {
-		// for checking
-		err := db.Add(a)
-		if err != nil {
-			if _, ok := err.(*asserts.RevisionError); ok {
-				return nil
-			}
-			return fmt.Errorf("cannot add assertion %v: %v", a.Ref(), err)
-		}
+		mylog.
+			// for checking
+			Check(db.Add(a))
+
 		return save(a)
 	}
 	return asserts.NewFetcher(db, retrieve, save2)
@@ -398,14 +379,10 @@ func (tsto *ToolingStore) AssertionSequenceFormingFetcher(db *asserts.Database, 
 		return tsto.sto.SeqFormingAssertion(seq.Type, seq.SequenceKey, seq.Sequence, nil)
 	}
 	save2 := func(a asserts.Assertion) error {
-		// for checking
-		err := db.Add(a)
-		if err != nil {
-			if _, ok := err.(*asserts.RevisionError); ok {
-				return nil
-			}
-			return fmt.Errorf("cannot add assertion %v: %v", a.Ref(), err)
-		}
+		mylog.
+			// for checking
+			Check(db.Add(a))
+
 		return save(a)
 	}
 	return asserts.NewSequenceFormingFetcher(db, retrieve, retrieveSeq, save2)
@@ -413,10 +390,8 @@ func (tsto *ToolingStore) AssertionSequenceFormingFetcher(db *asserts.Database, 
 
 // Find provides the snapsserts.Finder interface for snapasserts.DerviceSideInfo
 func (tsto *ToolingStore) Find(at *asserts.AssertionType, headers map[string]string) (asserts.Assertion, error) {
-	pk, err := asserts.PrimaryKeyFromHeaders(at, headers)
-	if err != nil {
-		return nil, err
-	}
+	pk := mylog.Check2(asserts.PrimaryKeyFromHeaders(at, headers))
+
 	return tsto.sto.Assertion(at, pk, nil)
 }
 

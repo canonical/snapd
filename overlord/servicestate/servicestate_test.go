@@ -32,6 +32,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/quantity"
@@ -64,16 +65,16 @@ func (s *statusDecoratorSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(s.tempdir)
 
 	xdgRuntimeDir := fmt.Sprintf("%s/%d", dirs.XdgRuntimeDirBase, os.Getuid())
-	err := os.MkdirAll(xdgRuntimeDir, 0700)
-	c.Assert(err, IsNil)
-	s.agent, err = agent.New()
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(xdgRuntimeDir, 0700))
+
+	s.agent = mylog.Check2(agent.New())
+
 	s.agent.Start()
 }
 
 func (s *statusDecoratorSuite) TearDownTest(c *C) {
 	if s.agent != nil {
-		err := s.agent.Stop()
+		mylog.Check(s.agent.Stop())
 		c.Check(err, IsNil)
 	}
 	dirs.SetRootDir("")
@@ -87,10 +88,10 @@ func (s *statusDecoratorSuite) TestDecorateWithStatus(c *C) {
 			Revision: snap.R(1),
 		},
 	}
-	err := os.MkdirAll(snp.MountDir(), 0755)
-	c.Assert(err, IsNil)
-	err = os.Symlink(snp.Revision.String(), filepath.Join(filepath.Dir(snp.MountDir()), "current"))
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(snp.MountDir(), 0755))
+
+	mylog.Check(os.Symlink(snp.Revision.String(), filepath.Join(filepath.Dir(snp.MountDir()), "current")))
+
 
 	disabled := false
 	r := systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
@@ -143,9 +144,8 @@ NeedDaemonReload=no
 		Name: "app",
 	}
 	snapApp := &snap.AppInfo{Snap: snp, Name: "app"}
+	mylog.Check(sd.DecorateWithStatus(app, snapApp))
 
-	err = sd.DecorateWithStatus(app, snapApp)
-	c.Assert(err, IsNil)
 
 	for _, enabled := range []bool{true, false} {
 		disabled = !enabled
@@ -162,9 +162,8 @@ NeedDaemonReload=no
 			Daemon:      "simple",
 			DaemonScope: snap.SystemDaemon,
 		}
+		mylog.Check(sd.DecorateWithStatus(app, snapApp))
 
-		err = sd.DecorateWithStatus(app, snapApp)
-		c.Assert(err, IsNil)
 		c.Check(app.Active, Equals, enabled)
 		c.Check(app.Enabled, Equals, enabled)
 
@@ -184,9 +183,8 @@ NeedDaemonReload=no
 			App:   snapApp,
 			Timer: "10:00",
 		}
+		mylog.Check(sd.DecorateWithStatus(app, snapApp))
 
-		err = sd.DecorateWithStatus(app, snapApp)
-		c.Assert(err, IsNil)
 		c.Check(app.Active, Equals, enabled)
 		c.Check(app.Enabled, Equals, enabled)
 		c.Check(app.Activators, DeepEquals, []client.AppActivator{
@@ -212,9 +210,8 @@ NeedDaemonReload=no
 				ListenStream: "a.socket",
 			},
 		}
+		mylog.Check(sd.DecorateWithStatus(app, snapApp))
 
-		err = sd.DecorateWithStatus(app, snapApp)
-		c.Assert(err, IsNil)
 		c.Check(app.Active, Equals, enabled)
 		c.Check(app.Enabled, Equals, enabled)
 		c.Check(app.Activators, DeepEquals, []client.AppActivator{
@@ -245,9 +242,8 @@ NeedDaemonReload=no
 				},
 			},
 		}
+		mylog.Check(sd.DecorateWithStatus(app, snapApp))
 
-		err = sd.DecorateWithStatus(app, snapApp)
-		c.Assert(err, IsNil)
 		c.Check(app.Active, Equals, enabled)
 		c.Check(app.Enabled, Equals, true)
 		c.Check(app.Activators, DeepEquals, []client.AppActivator{
@@ -289,9 +285,8 @@ NeedDaemonReload=no
 				},
 			},
 		}
+		mylog.Check(sd.DecorateWithStatus(app, snapApp))
 
-		err = sd.DecorateWithStatus(app, snapApp)
-		c.Assert(err, IsNil)
 		c.Check(app.Active, Equals, false)
 		c.Check(app.Enabled, Equals, true) // when a service is slot activated its always enabled
 		c.Check(app.Activators, DeepEquals, []client.AppActivator{
@@ -309,10 +304,10 @@ func (s *statusDecoratorSuite) TestUserServiceDecorateWithStatus(c *C) {
 			Revision: snap.R(1),
 		},
 	}
-	err := os.MkdirAll(snp.MountDir(), 0755)
-	c.Assert(err, IsNil)
-	err = os.Symlink(snp.Revision.String(), filepath.Join(filepath.Dir(snp.MountDir()), "current"))
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(snp.MountDir(), 0755))
+
+	mylog.Check(os.Symlink(snp.Revision.String(), filepath.Join(filepath.Dir(snp.MountDir()), "current")))
+
 
 	disabled := false
 	r := systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
@@ -346,8 +341,8 @@ NeedDaemonReload=no
 	})
 	defer r()
 
-	curr, err := user.Current()
-	c.Assert(err, IsNil)
+	curr := mylog.Check2(user.Current())
+
 
 	sd := servicestate.NewStatusDecoratorForUid(nil, context.Background(), curr.Uid)
 
@@ -357,9 +352,8 @@ NeedDaemonReload=no
 		Name: "app",
 	}
 	snapApp := &snap.AppInfo{Snap: snp, Name: "app"}
+	mylog.Check(sd.DecorateWithStatus(app, snapApp))
 
-	err = sd.DecorateWithStatus(app, snapApp)
-	c.Assert(err, IsNil)
 
 	for _, enabled := range []bool{true, false} {
 		disabled = !enabled
@@ -397,9 +391,8 @@ NeedDaemonReload=no
 				},
 			},
 		}
+		mylog.Check(sd.DecorateWithStatus(app, snapApp))
 
-		err = sd.DecorateWithStatus(app, snapApp)
-		c.Assert(err, IsNil)
 		c.Check(app.Active, Equals, enabled)
 		c.Check(app.Enabled, Equals, true) // when a service is slot activated its always enabled
 		c.Check(app.Activators, DeepEquals, []client.AppActivator{
@@ -458,8 +451,8 @@ func (s *instructionSuite) SetUpTest(c *C) {
 func (s *instructionSuite) TestUnmarshalEmpty(c *C) {
 	const instJson = `{}`
 	var us servicestate.Instruction
-	err := json.Unmarshal([]byte(instJson), &us)
-	c.Assert(err, IsNil)
+	mylog.Check(json.Unmarshal([]byte(instJson), &us))
+
 	c.Check(us, DeepEquals, servicestate.Instruction{})
 
 	// Scope and users has custom unmarshal logic, test they are set
@@ -472,8 +465,8 @@ func (s *instructionSuite) TestUnmarshalEmpty(c *C) {
 func (s *instructionSuite) TestUnmarshalSimple(c *C) {
 	const instJson = `{"action":"start", "names":["svc1", "svc2"], "enable": true}`
 	var us servicestate.Instruction
-	err := json.Unmarshal([]byte(instJson), &us)
-	c.Assert(err, IsNil)
+	mylog.Check(json.Unmarshal([]byte(instJson), &us))
+
 	c.Check(us, DeepEquals, servicestate.Instruction{
 		Action: "start",
 		Names:  []string{"svc1", "svc2"},
@@ -492,8 +485,8 @@ func (s *instructionSuite) TestUnmarshalSimple(c *C) {
 func (s *instructionSuite) TestUnmarshalWithScopes(c *C) {
 	const instJson = `{"action":"restart", "names":["svc1"], "reload": true, "scope": ["user"], "users": "all"}`
 	var us servicestate.Instruction
-	err := json.Unmarshal([]byte(instJson), &us)
-	c.Assert(err, IsNil)
+	mylog.Check(json.Unmarshal([]byte(instJson), &us))
+
 	c.Check(us, DeepEquals, servicestate.Instruction{
 		Action: "restart",
 		Names:  []string{"svc1"},
@@ -601,26 +594,26 @@ func (s *snapServiceOptionsSuite) TestSnapServiceOptionsVitalityRank(c *C) {
 	st.Lock()
 	defer st.Unlock()
 	t := config.NewTransaction(st)
-	err := t.Set("core", "resilience.vitality-hint", "bar,foo")
-	c.Assert(err, IsNil)
+	mylog.Check(t.Set("core", "resilience.vitality-hint", "bar,foo"))
+
 	t.Commit()
 
 	fooInfo := snaptest.MockInfo(c, "name: foo\nversion: 0", nil)
 	barInfo := snaptest.MockInfo(c, "name: bar\nversion: 0", nil)
 	bazInfo := snaptest.MockInfo(c, "name: baz\nversion: 0", nil)
 
-	opts, err := servicestate.SnapServiceOptions(st, fooInfo, nil)
-	c.Assert(err, IsNil)
+	opts := mylog.Check2(servicestate.SnapServiceOptions(st, fooInfo, nil))
+
 	c.Check(opts, DeepEquals, &wrappers.SnapServiceOptions{
 		VitalityRank: 2,
 	})
-	opts, err = servicestate.SnapServiceOptions(st, barInfo, nil)
-	c.Assert(err, IsNil)
+	opts = mylog.Check2(servicestate.SnapServiceOptions(st, barInfo, nil))
+
 	c.Check(opts, DeepEquals, &wrappers.SnapServiceOptions{
 		VitalityRank: 1,
 	})
-	opts, err = servicestate.SnapServiceOptions(st, bazInfo, nil)
-	c.Assert(err, IsNil)
+	opts = mylog.Check2(servicestate.SnapServiceOptions(st, bazInfo, nil))
+
 	c.Check(opts, DeepEquals, &wrappers.SnapServiceOptions{
 		VitalityRank: 0,
 	})
@@ -637,68 +630,68 @@ version: 0
 `, nil)
 
 	// make a quota group
-	grp, err := quota.NewGroup("foogroup", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
-	c.Assert(err, IsNil)
+	grp := mylog.Check2(quota.NewGroup("foogroup", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build()))
+
 
 	grp.Snaps = []string{"foosnap"}
 
 	// add it into the state
-	newGrps, err := servicestatetest.PatchQuotas(st, grp)
-	c.Assert(err, IsNil)
+	newGrps := mylog.Check2(servicestatetest.PatchQuotas(st, grp))
+
 	c.Assert(newGrps, DeepEquals, map[string]*quota.Group{
 		"foogroup": grp,
 	})
 
-	opts, err := servicestate.SnapServiceOptions(st, fooInfo, nil)
-	c.Assert(err, IsNil)
+	opts := mylog.Check2(servicestate.SnapServiceOptions(st, fooInfo, nil))
+
 	c.Check(opts, DeepEquals, &wrappers.SnapServiceOptions{
 		QuotaGroup: grp,
 	})
 
 	// save the current state of the quota group before modifying it to prove
 	// that the group caching works
-	grps, err := servicestate.AllQuotas(st)
-	c.Assert(err, IsNil)
+	grps := mylog.Check2(servicestate.AllQuotas(st))
+
 
 	// modify state to use an instance name instead now
 	grp.Snaps = []string{"foosnap_instance"}
-	newGrps, err = servicestatetest.PatchQuotas(st, grp)
-	c.Assert(err, IsNil)
+	newGrps = mylog.Check2(servicestatetest.PatchQuotas(st, grp))
+
 	c.Assert(newGrps, DeepEquals, map[string]*quota.Group{
 		"foogroup": grp,
 	})
 
 	// we can still get the quota group using the local map we got before
 	// modifying state
-	opts, err = servicestate.SnapServiceOptions(st, fooInfo, grps)
-	c.Assert(err, IsNil)
+	opts = mylog.Check2(servicestate.SnapServiceOptions(st, fooInfo, grps))
+
 	grp.Snaps = []string{"foosnap"}
 	c.Check(opts, DeepEquals, &wrappers.SnapServiceOptions{
 		QuotaGroup: grp,
 	})
 
 	// but using state produces nothing for the non-instance name snap
-	opts, err = servicestate.SnapServiceOptions(st, fooInfo, nil)
-	c.Assert(err, IsNil)
+	opts = mylog.Check2(servicestate.SnapServiceOptions(st, fooInfo, nil))
+
 	c.Check(opts, DeepEquals, &wrappers.SnapServiceOptions{})
 
 	// but it does work with instance names
 	fooInfo.InstanceKey = "instance"
 	grp.Snaps = []string{"foosnap_instance"}
-	opts, err = servicestate.SnapServiceOptions(st, fooInfo, nil)
-	c.Assert(err, IsNil)
+	opts = mylog.Check2(servicestate.SnapServiceOptions(st, fooInfo, nil))
+
 	c.Check(opts, DeepEquals, &wrappers.SnapServiceOptions{
 		QuotaGroup: grp,
 	})
 
 	// works with vitality rank for the snap too
 	t := config.NewTransaction(st)
-	err = t.Set("core", "resilience.vitality-hint", "bar,foosnap_instance")
-	c.Assert(err, IsNil)
+	mylog.Check(t.Set("core", "resilience.vitality-hint", "bar,foosnap_instance"))
+
 	t.Commit()
 
-	opts, err = servicestate.SnapServiceOptions(st, fooInfo, nil)
-	c.Assert(err, IsNil)
+	opts = mylog.Check2(servicestate.SnapServiceOptions(st, fooInfo, nil))
+
 	c.Check(opts, DeepEquals, &wrappers.SnapServiceOptions{
 		VitalityRank: 2,
 		QuotaGroup:   grp,
@@ -768,7 +761,7 @@ func (s *snapServiceOptionsSuite) TestServiceControlTaskSummaries(c *C) {
 			`Run service command "stop" for services ["svc1"] of snap "foo"`,
 		},
 	} {
-		taskSet, err := servicestate.ServiceControlTs(st, appInfos, tc.instruction, nil)
+		taskSet := mylog.Check2(servicestate.ServiceControlTs(st, appInfos, tc.instruction, nil))
 		c.Check(err, IsNil)
 		tasks := taskSet.Tasks()
 		c.Assert(tasks, HasLen, 1)
@@ -910,8 +903,8 @@ func (s *snapServiceOptionsSuite) TestServiceControlServiceAction(c *C) {
 			},
 		},
 	} {
-		ts, err := servicestate.ServiceControlTs(st, appInfos, tc.instruction, nil)
-		c.Assert(err, IsNil)
+		ts := mylog.Check2(servicestate.ServiceControlTs(st, appInfos, tc.instruction, nil))
+
 		s.checkServiceAction(c, ts, tc.expectedAction)
 	}
 }
@@ -958,8 +951,8 @@ func (s *snapServiceOptionsSuite) TestLogReader(c *C) {
 	})
 	defer restore()
 
-	_, err := servicestate.LogReader(appInfos, 100, false)
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(servicestate.LogReader(appInfos, 100, false))
+
 	c.Check(jctlCalls, Equals, 1)
 }
 
@@ -990,7 +983,7 @@ func (s *snapServiceOptionsSuite) TestLogReaderFailsWithNonServices(c *C) {
 		},
 	}
 
-	_, err := servicestate.LogReader(appInfos, 100, false)
+	_ := mylog.Check2(servicestate.LogReader(appInfos, 100, false))
 	c.Assert(err.Error(), Equals, `cannot read logs for app "app1": not a service`)
 }
 
@@ -1036,7 +1029,7 @@ func (s *snapServiceOptionsSuite) TestLogReaderNamespaces(c *C) {
 	})
 	defer restore()
 
-	_, err := servicestate.LogReader(appInfos, 100, false)
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(servicestate.LogReader(appInfos, 100, false))
+
 	c.Check(jctlCalls, Equals, 1)
 }

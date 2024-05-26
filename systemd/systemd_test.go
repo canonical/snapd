@@ -33,6 +33,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil"
@@ -92,10 +93,10 @@ var _ = Suite(&SystemdTestSuite{})
 
 func (s *SystemdTestSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
-	err := os.MkdirAll(dirs.SnapServicesDir, 0755)
-	c.Assert(err, IsNil)
-	err = os.MkdirAll(dirs.SnapRuntimeServicesDir, 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(dirs.SnapServicesDir, 0755))
+
+	mylog.Check(os.MkdirAll(dirs.SnapRuntimeServicesDir, 0755))
+
 	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapServicesDir, "snapd.mounts.target.wants"), 0755), IsNil)
 	// This is only to handle older version of snapd
 	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants"), 0755), IsNil)
@@ -165,7 +166,6 @@ func (s *SystemdTestSuite) myRun(args ...string) (out []byte, delay time.Duratio
 }
 
 func (s *SystemdTestSuite) myJctl(svcs []string, n int, follow, namespaces bool) (io.ReadCloser, error) {
-	var err error
 	var out []byte
 
 	s.jns = append(s.jns, strconv.Itoa(n))
@@ -199,7 +199,7 @@ func (s *SystemdTestSuite) TestMockVersion(c *C) {
 		restore := MockSystemdVersion(tc.version, tc.err)
 		defer restore()
 
-		version, err := Version()
+		version := mylog.Check2(Version())
 		c.Check(version, Equals, tc.version)
 		c.Check(err, Equals, tc.err)
 	}
@@ -218,8 +218,7 @@ func (s *SystemdTestSuite) TestEnsureAtLeastFail(c *C) {
 	} {
 		restore := MockSystemdVersion(tc.mockedVersion, tc.mockedErr)
 		defer restore()
-
-		err := EnsureAtLeast(tc.requiredVersion)
+		mylog.Check(EnsureAtLeast(tc.requiredVersion))
 		if tc.expectedErr != "" {
 			c.Check(err, ErrorMatches, tc.expectedErr)
 		} else {
@@ -233,38 +232,38 @@ func (s *SystemdTestSuite) TestBackend(c *C) {
 }
 
 func (s *SystemdTestSuite) TestDaemonReload(c *C) {
-	err := New(SystemMode, s.rep).DaemonReload()
-	c.Assert(err, IsNil)
+	mylog.Check(New(SystemMode, s.rep).DaemonReload())
+
 	c.Assert(s.argses, DeepEquals, [][]string{{"daemon-reload"}})
 }
 
 func (s *SystemdTestSuite) TestDaemonReexec(c *C) {
-	err := New(SystemMode, s.rep).DaemonReexec()
-	c.Assert(err, IsNil)
+	mylog.Check(New(SystemMode, s.rep).DaemonReexec())
+
 	c.Assert(s.argses, DeepEquals, [][]string{{"daemon-reexec"}})
 }
 
 func (s *SystemdTestSuite) TestStart(c *C) {
 	sysd := New(SystemMode, s.rep)
-	err := sysd.Start([]string{"foo"})
-	c.Assert(err, IsNil)
+	mylog.Check(sysd.Start([]string{"foo"}))
+
 	c.Check(s.argses, DeepEquals, [][]string{{"start", "foo"}})
 
 	s.argses = nil
-	err = sysd.Start([]string{"foo", "bar", "baz"})
-	c.Assert(err, IsNil)
+	mylog.Check(sysd.Start([]string{"foo", "bar", "baz"}))
+
 	c.Check(s.argses, DeepEquals, [][]string{{"start", "foo", "bar", "baz"}})
 }
 
 func (s *SystemdTestSuite) TestStartNoBlock(c *C) {
 	sysd := New(SystemMode, s.rep)
-	err := sysd.StartNoBlock([]string{"foo"})
-	c.Assert(err, IsNil)
+	mylog.Check(sysd.StartNoBlock([]string{"foo"}))
+
 	c.Check(s.argses, DeepEquals, [][]string{{"start", "--no-block", "foo"}})
 
 	s.argses = nil
-	err = sysd.StartNoBlock([]string{"foo", "bar"})
-	c.Assert(err, IsNil)
+	mylog.Check(sysd.StartNoBlock([]string{"foo", "bar"}))
+
 	c.Check(s.argses, DeepEquals, [][]string{{"start", "--no-block", "foo", "bar"}})
 }
 
@@ -274,7 +273,7 @@ func (s *SystemdTestSuite) TestStopSystemCtlStopError(c *C) {
 	restore := MockStopDelays(2*time.Millisecond, 4*time.Millisecond)
 	defer restore()
 	s.stopErrors = []error{errors.New("mock error")}
-	err := New(SystemMode, s.rep).Stop([]string{"foo"})
+	mylog.Check(New(SystemMode, s.rep).Stop([]string{"foo"}))
 	c.Assert(err, ErrorMatches, "mock error")
 	c.Assert(s.stopArgses, HasLen, 1)
 	c.Check(s.stopArgses[0], DeepEquals, []string{"stop", "foo"})
@@ -298,8 +297,7 @@ func (s *SystemdTestSuite) TestSystemCtlShowError(c *C) {
 
 	// 'systemctl show'
 	s.errors = []error{errors.New("mock error")}
-
-	err := New(SystemMode, s.rep).Stop([]string{"foo"})
+	mylog.Check(New(SystemMode, s.rep).Stop([]string{"foo"}))
 	c.Assert(err, ErrorMatches, "mock error")
 	c.Assert(s.stopArgses, HasLen, 1)
 	c.Check(s.stopArgses[0], DeepEquals, []string{"stop", "foo"})
@@ -330,9 +328,8 @@ func (s *SystemdTestSuite) TestStopBeforeNotify(c *C) {
 		[]byte("ActiveState=inactive\n"),
 	}
 	s.errors = []error{nil, errors.New("mock error")}
+	mylog.Check(New(SystemMode, s.rep).Stop([]string{"foo"}))
 
-	err := New(SystemMode, s.rep).Stop([]string{"foo"})
-	c.Assert(err, IsNil)
 	// 'systemctl stop'
 	c.Assert(s.stopArgses, HasLen, 1)
 	c.Check(s.stopArgses[0], DeepEquals, []string{"stop", "foo"})
@@ -370,9 +367,8 @@ func (s *SystemdTestSuite) TestStopAfterNotify(c *C) {
 	// The timeout error output should never by reached because the 's.outs'
 	// entry before this slot indicates the unit has stopped
 	s.errors = []error{nil, nil, nil, nil, nil, errors.New("mock error")}
+	mylog.Check(New(SystemMode, s.rep).Stop([]string{"foo"}))
 
-	err := New(SystemMode, s.rep).Stop([]string{"foo"})
-	c.Assert(err, IsNil)
 	// 'systemctl stop'
 	c.Assert(s.stopArgses, HasLen, 1)
 	c.Check(s.stopArgses[0], DeepEquals, []string{"stop", "foo"})
@@ -419,8 +415,8 @@ func (s *SystemdTestSuite) TestStopMany(c *C) {
 	// The timeout error output should never by reached because the 's.outs'
 	// entry before this slot indicates the unit has stopped
 	s.errors = []error{nil, nil, nil, nil, nil, nil, nil, nil, nil, errors.New("mock error")}
-	err := New(SystemMode, s.rep).Stop([]string{"foo", "bar"})
-	c.Assert(err, IsNil)
+	mylog.Check(New(SystemMode, s.rep).Stop([]string{"foo", "bar"}))
+
 	// 'systemctl stop'
 	c.Assert(s.stopArgses, HasLen, 1)
 	c.Check(s.stopArgses[0], DeepEquals, []string{"stop", "foo", "bar"})
@@ -504,8 +500,8 @@ NeedDaemonReload=yes
 		"missing.service", "some.timer", "other.socket",
 		"reboot.target", "ctrl-alt-del.target",
 	}
-	out, err := New(SystemMode, s.rep).Status(units)
-	c.Assert(err, IsNil)
+	out := mylog.Check2(New(SystemMode, s.rep).Status(units))
+
 	c.Check(out, DeepEquals, []*UnitStatus{
 		{
 			Daemon:           "simple",
@@ -603,7 +599,7 @@ NeedDaemonReload=no
 `[1:]),
 	}
 	s.errors = []error{nil}
-	out, err := New(SystemMode, s.rep).Status([]string{"foo.service"})
+	out := mylog.Check2(New(SystemMode, s.rep).Status([]string{"foo.service"}))
 	c.Check(err, ErrorMatches, "cannot get unit status: got more results than expected")
 	c.Check(out, IsNil)
 	c.Check(s.rep.msgs, IsNil)
@@ -629,7 +625,7 @@ NeedDaemonReload=no
 	}
 	s.errors = []error{nil}
 	units := []string{"foo.service", "bar.service", "test.service"}
-	out, err := New(SystemMode, s.rep).Status(units)
+	out := mylog.Check2(New(SystemMode, s.rep).Status(units))
 	c.Check(err, ErrorMatches, "cannot get unit status: expected 3 results, got 2")
 	c.Check(out, IsNil)
 	c.Check(s.rep.msgs, IsNil)
@@ -647,7 +643,7 @@ Potatoes
 `[1:]),
 	}
 	s.errors = []error{nil}
-	out, err := New(SystemMode, s.rep).Status([]string{"foo.service"})
+	out := mylog.Check2(New(SystemMode, s.rep).Status([]string{"foo.service"}))
 	c.Assert(err, ErrorMatches, `.* bad line "Potatoes" .*`)
 	c.Check(out, IsNil)
 }
@@ -664,7 +660,7 @@ NeedDaemonReload=no
 `[1:]),
 	}
 	s.errors = []error{nil}
-	out, err := New(SystemMode, s.rep).Status([]string{"foo.service"})
+	out := mylog.Check2(New(SystemMode, s.rep).Status([]string{"foo.service"}))
 	c.Assert(err, ErrorMatches, `.* queried status of "foo.service" but got status of "bar.service"`)
 	c.Check(out, IsNil)
 }
@@ -682,7 +678,7 @@ NeedDaemonReload=no
 `[1:]),
 	}
 	s.errors = []error{nil}
-	out, err := New(SystemMode, s.rep).Status([]string{"foo.service"})
+	out := mylog.Check2(New(SystemMode, s.rep).Status([]string{"foo.service"}))
 	c.Assert(err, ErrorMatches, `.* unexpected field "Potatoes" .*`)
 	c.Check(out, IsNil)
 }
@@ -696,7 +692,7 @@ NeedDaemonReload=no
 `[1:]),
 	}
 	s.errors = []error{nil}
-	out, err := New(SystemMode, s.rep).Status([]string{"foo.service"})
+	out := mylog.Check2(New(SystemMode, s.rep).Status([]string{"foo.service"}))
 	c.Assert(err, ErrorMatches, `.* missing UnitFileState, Type.*`)
 	c.Check(out, IsNil)
 }
@@ -709,7 +705,7 @@ ActiveState=active
 `[1:]),
 	}
 	s.errors = []error{nil}
-	out, err := New(SystemMode, s.rep).Status([]string{"foo.timer"})
+	out := mylog.Check2(New(SystemMode, s.rep).Status([]string{"foo.timer"}))
 	c.Assert(err, ErrorMatches, `.* missing UnitFileState, Names.*`)
 	c.Check(out, IsNil)
 }
@@ -722,7 +718,7 @@ ActiveState=active
 `[1:]),
 	}
 	s.errors = []error{nil}
-	out, err := New(SystemMode, s.rep).Status([]string{"reboot.target"})
+	out := mylog.Check2(New(SystemMode, s.rep).Status([]string{"reboot.target"}))
 	c.Assert(err, ErrorMatches, `.* missing UnitFileState, Names.*`)
 	c.Check(out, IsNil)
 }
@@ -740,7 +736,7 @@ NeedDaemonReload=no
 `[1:]),
 	}
 	s.errors = []error{nil}
-	out, err := New(SystemMode, s.rep).Status([]string{"foo.service"})
+	out := mylog.Check2(New(SystemMode, s.rep).Status([]string{"foo.service"}))
 	c.Assert(err, ErrorMatches, `.* duplicate field "ActiveState" .*`)
 	c.Check(out, IsNil)
 }
@@ -757,32 +753,32 @@ NeedDaemonReload=no
 `[1:]),
 	}
 	s.errors = []error{nil}
-	out, err := New(SystemMode, s.rep).Status([]string{"foo.service"})
+	out := mylog.Check2(New(SystemMode, s.rep).Status([]string{"foo.service"}))
 	c.Assert(err, ErrorMatches, `.* empty field "Id" .*`)
 	c.Check(out, IsNil)
 }
 
 func (s *SystemdTestSuite) TestDisable(c *C) {
 	sysd := New(SystemMode, s.rep)
-	err := sysd.DisableNoReload([]string{"foo"})
-	c.Assert(err, IsNil)
+	mylog.Check(sysd.DisableNoReload([]string{"foo"}))
+
 	c.Check(s.argses, DeepEquals, [][]string{{"--no-reload", "disable", "foo"}})
 
 	s.argses = nil
-	err = sysd.DisableNoReload([]string{"foo", "bar"})
-	c.Assert(err, IsNil)
+	mylog.Check(sysd.DisableNoReload([]string{"foo", "bar"}))
+
 	c.Check(s.argses, DeepEquals, [][]string{{"--no-reload", "disable", "foo", "bar"}})
 }
 
 func (s *SystemdTestSuite) TestUnderRootDisable(c *C) {
-	err := NewUnderRoot("xyzzy", SystemMode, s.rep).DisableNoReload([]string{"foo"})
-	c.Assert(err, IsNil)
+	mylog.Check(NewUnderRoot("xyzzy", SystemMode, s.rep).DisableNoReload([]string{"foo"}))
+
 	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "disable", "foo"}})
 }
 
 func (s *SystemdTestSuite) TestAvailable(c *C) {
-	err := Available()
-	c.Assert(err, IsNil)
+	mylog.Check(Available())
+
 	c.Check(s.argses, DeepEquals, [][]string{{"--version"}})
 }
 
@@ -796,21 +792,21 @@ func (s *SystemdTestSuite) TestVersion(c *C) {
 		[]byte("systemd abc\n+PAM\n"),
 	}
 
-	v, err := Version()
-	c.Assert(err, IsNil)
+	v := mylog.Check2(Version())
+
 	c.Check(v, Equals, 223)
 
-	v, err = Version()
-	c.Assert(err, IsNil)
+	v = mylog.Check2(Version())
+
 	c.Check(v, Equals, 245)
 
-	_, err = Version()
+	_ = mylog.Check2(Version())
 	c.Assert(err, ErrorMatches, `cannot parse systemd version: expected "systemd", got "foo"`)
 
-	_, err = Version()
+	_ = mylog.Check2(Version())
 	c.Assert(err, ErrorMatches, `cannot read systemd version: <nil>`)
 
-	_, err = Version()
+	_ = mylog.Check2(Version())
 	c.Assert(err, ErrorMatches, `cannot convert systemd version to number: abc`)
 
 	c.Check(s.argses, DeepEquals, [][]string{
@@ -824,43 +820,43 @@ func (s *SystemdTestSuite) TestVersion(c *C) {
 
 func (s *SystemdTestSuite) TestEnable(c *C) {
 	sysd := New(SystemMode, s.rep)
-	err := sysd.EnableNoReload([]string{"foo"})
-	c.Assert(err, IsNil)
+	mylog.Check(sysd.EnableNoReload([]string{"foo"}))
+
 	c.Check(s.argses, DeepEquals, [][]string{{"--no-reload", "enable", "foo"}})
 
 	s.argses = nil
-	err = sysd.EnableNoReload([]string{"foo", "bar"})
-	c.Assert(err, IsNil)
+	mylog.Check(sysd.EnableNoReload([]string{"foo", "bar"}))
+
 	c.Check(s.argses, DeepEquals, [][]string{{"--no-reload", "enable", "foo", "bar"}})
 }
 
 func (s *SystemdTestSuite) TestEnableUnderRoot(c *C) {
-	err := NewUnderRoot("xyzzy", SystemMode, s.rep).EnableNoReload([]string{"foo"})
-	c.Assert(err, IsNil)
+	mylog.Check(NewUnderRoot("xyzzy", SystemMode, s.rep).EnableNoReload([]string{"foo"}))
+
 	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "enable", "foo"}})
 }
 
 func (s *SystemdTestSuite) TestMask(c *C) {
-	err := New(SystemMode, s.rep).Mask("foo")
-	c.Assert(err, IsNil)
+	mylog.Check(New(SystemMode, s.rep).Mask("foo"))
+
 	c.Check(s.argses, DeepEquals, [][]string{{"mask", "foo"}})
 }
 
 func (s *SystemdTestSuite) TestMaskUnderRoot(c *C) {
-	err := NewUnderRoot("xyzzy", SystemMode, s.rep).Mask("foo")
-	c.Assert(err, IsNil)
+	mylog.Check(NewUnderRoot("xyzzy", SystemMode, s.rep).Mask("foo"))
+
 	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "mask", "foo"}})
 }
 
 func (s *SystemdTestSuite) TestUnmask(c *C) {
-	err := New(SystemMode, s.rep).Unmask("foo")
-	c.Assert(err, IsNil)
+	mylog.Check(New(SystemMode, s.rep).Unmask("foo"))
+
 	c.Check(s.argses, DeepEquals, [][]string{{"unmask", "foo"}})
 }
 
 func (s *SystemdTestSuite) TestUnmaskUnderRoot(c *C) {
-	err := NewUnderRoot("xyzzy", SystemMode, s.rep).Unmask("foo")
-	c.Assert(err, IsNil)
+	mylog.Check(NewUnderRoot("xyzzy", SystemMode, s.rep).Unmask("foo"))
+
 	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "unmask", "foo"}})
 }
 
@@ -881,8 +877,8 @@ func (s *SystemdTestSuite) TestRestart(c *C) {
 		nil, // for the "start"
 	}
 	s.errors = []error{nil, nil, errors.New("mock error")}
-	err := New(SystemMode, s.rep).Restart([]string{"foo"})
-	c.Assert(err, IsNil)
+	mylog.Check(New(SystemMode, s.rep).Restart([]string{"foo"}))
+
 	c.Check(s.stopArgses, HasLen, 1)
 	c.Check(s.stopArgses[0], DeepEquals, []string{"stop", "foo"})
 	c.Check(s.argses, HasLen, 2)
@@ -908,8 +904,8 @@ func (s *SystemdTestSuite) TestRestartMany(c *C) {
 		nil,                              // for the "start"
 	}
 	s.errors = []error{nil, nil, nil, errors.New("mock error")}
-	err := New(SystemMode, s.rep).Restart([]string{"foo", "bar"})
-	c.Assert(err, IsNil)
+	mylog.Check(New(SystemMode, s.rep).Restart([]string{"foo", "bar"}))
+
 	c.Check(s.stopArgses, HasLen, 1)
 	c.Check(s.stopArgses[0], DeepEquals, []string{"stop", "foo", "bar"})
 	c.Check(s.argses, HasLen, 3)
@@ -926,7 +922,7 @@ func (s *SystemdTestSuite) TestKill(c *C) {
 func (s *SystemdTestSuite) TestLogErrJctl(c *C) {
 	s.jerrs = []error{errors.New("mock journalctl error")}
 
-	reader, err := New(SystemMode, s.rep).LogReader([]string{"foo"}, 24, false, false)
+	reader := mylog.Check2(New(SystemMode, s.rep).LogReader([]string{"foo"}, 24, false, false))
 	c.Check(err, NotNil)
 	c.Check(reader, IsNil)
 	c.Check(s.jns, DeepEquals, []string{"24"})
@@ -942,10 +938,10 @@ func (s *SystemdTestSuite) TestLogs(c *C) {
 `
 	s.jouts = [][]byte{[]byte(expected)}
 
-	reader, err := New(SystemMode, s.rep).LogReader([]string{"foo"}, 24, false, false)
+	reader := mylog.Check2(New(SystemMode, s.rep).LogReader([]string{"foo"}, 24, false, false))
 	c.Check(err, IsNil)
-	logs, err := io.ReadAll(reader)
-	c.Assert(err, IsNil)
+	logs := mylog.Check2(io.ReadAll(reader))
+
 	c.Check(string(logs), Equals, expected)
 	c.Check(s.jns, DeepEquals, []string{"24"})
 	c.Check(s.jsvcs, DeepEquals, [][]string{{"foo"}})
@@ -956,10 +952,8 @@ func (s *SystemdTestSuite) TestLogs(c *C) {
 
 // mustJSONMarshal panic's if the value cannot be marshaled
 func mustJSONMarshal(v interface{}) *json.RawMessage {
-	b, err := json.Marshal(v)
-	if err != nil {
-		panic(fmt.Sprintf("couldn't marshal json in test fixture: %v", err))
-	}
+	b := mylog.Check2(json.Marshal(v))
+
 	msg := json.RawMessage(b)
 	return &msg
 }
@@ -1002,7 +996,6 @@ func (s *SystemdTestSuite) TestLogPIDWithNonTrivialKeyValues(c *C) {
 }
 
 func (s *SystemdTestSuite) TestLogsMessageWithNonUniqueKeys(c *C) {
-
 	tt := []struct {
 		msg     *json.RawMessage
 		exp     string
@@ -1087,7 +1080,6 @@ func (s *SystemdTestSuite) TestLogsMessageWithNonUniqueKeys(c *C) {
 
 	for _, t := range tt {
 		if t.msg == nil {
-
 		}
 		c.Check(Log{
 			"MESSAGE": t.msg,
@@ -1101,7 +1093,6 @@ func (s *SystemdTestSuite) TestLogSID(c *C) {
 	c.Check(Log{"SYSLOG_IDENTIFIER": mustJSONMarshal([]string{"abcdef"})}.SID(), Equals, "abcdef")
 	// multiple string values are not supported
 	c.Check(Log{"SYSLOG_IDENTIFIER": mustJSONMarshal([]string{"abc", "def"})}.SID(), Equals, "-")
-
 }
 
 func (s *SystemdTestSuite) TestLogPID(c *C) {
@@ -1117,24 +1108,24 @@ func (s *SystemdTestSuite) TestLogPID(c *C) {
 }
 
 func (s *SystemdTestSuite) TestTime(c *C) {
-	t, err := Log{}.Time()
+	t := mylog.Check2(Log{}.Time())
 	c.Check(t.IsZero(), Equals, true)
 	c.Check(err, ErrorMatches, "key \"__REALTIME_TIMESTAMP\" missing from message")
 
 	// multiple timestampe keys mean we don't have a timestamp
-	t, err = Log{"__REALTIME_TIMESTAMP": mustJSONMarshal([]string{"1", "2"})}.Time()
+	t = mylog.Check2(Log{"__REALTIME_TIMESTAMP": mustJSONMarshal([]string{"1", "2"})}.Time())
 	c.Check(t.IsZero(), Equals, true)
 	c.Check(err, ErrorMatches, `no timestamp`)
 
-	t, err = Log{"__REALTIME_TIMESTAMP": mustJSONMarshal("what")}.Time()
+	t = mylog.Check2(Log{"__REALTIME_TIMESTAMP": mustJSONMarshal("what")}.Time())
 	c.Check(t.IsZero(), Equals, true)
 	c.Check(err, ErrorMatches, `timestamp not a decimal number: "what"`)
 
-	t, err = Log{"__REALTIME_TIMESTAMP": mustJSONMarshal("0")}.Time()
+	t = mylog.Check2(Log{"__REALTIME_TIMESTAMP": mustJSONMarshal("0")}.Time())
 	c.Check(err, IsNil)
 	c.Check(t.String(), Equals, "1970-01-01 00:00:00 +0000 UTC")
 
-	t, err = Log{"__REALTIME_TIMESTAMP": mustJSONMarshal("42")}.Time()
+	t = mylog.Check2(Log{"__REALTIME_TIMESTAMP": mustJSONMarshal("42")}.Time())
 	c.Check(err, IsNil)
 	c.Check(t.String(), Equals, "1970-01-01 00:00:00.000042 +0000 UTC")
 }
@@ -1144,10 +1135,10 @@ func (s *SystemdTestSuite) TestMountUnitPath(c *C) {
 }
 
 func makeMockFile(c *C, path string) {
-	err := os.MkdirAll(filepath.Dir(path), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(path, nil, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Dir(path), 0755))
+
+	mylog.Check(os.WriteFile(path, nil, 0644))
+
 }
 
 func (s *SystemdTestSuite) TestAddMountUnit(c *C) {
@@ -1159,8 +1150,8 @@ func (s *SystemdTestSuite) TestAddMountUnit(c *C) {
 	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
 	makeMockFile(c, mockSnapPath)
 
-	mountUnitName, err := NewUnderRoot(rootDir, SystemMode, nil).EnsureMountUnitFile("Mount unit for foo, revision 42", mockSnapPath, "/snap/snapname/123", "squashfs", systemd.EnsureMountUnitFlags{})
-	c.Assert(err, IsNil)
+	mountUnitName := mylog.Check2(NewUnderRoot(rootDir, SystemMode, nil).EnsureMountUnitFile("Mount unit for foo, revision 42", mockSnapPath, "/snap/snapname/123", "squashfs", systemd.EnsureMountUnitFlags{}))
+
 	defer os.Remove(mountUnitName)
 
 	c.Assert(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(`
@@ -1196,10 +1187,11 @@ func (s *SystemdTestSuite) TestEnsureMountUnitUnchanged(c *C) {
 
 	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
 	makeMockFile(c, mockSnapPath)
+	mylog.
 
-	// Now we create the mount unit already
-	err := os.MkdirAll(dirs.SnapServicesDir, 0755)
-	c.Assert(err, IsNil)
+		// Now we create the mount unit already
+		Check(os.MkdirAll(dirs.SnapServicesDir, 0755))
+
 	content := fmt.Sprintf(`
 [Unit]
 Description=Mount unit for foo, revision 42
@@ -1217,11 +1209,11 @@ LazyUnmount=yes
 WantedBy=snapd.mounts.target
 WantedBy=multi-user.target
 `[1:], mockSnapPath)
-	err = os.WriteFile(filepath.Join(dirs.SnapServicesDir, "snap-snapname-123.mount"), []byte(content), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(dirs.SnapServicesDir, "snap-snapname-123.mount"), []byte(content), 0644))
 
-	mountUnitName, err := NewUnderRoot(rootDir, SystemMode, nil).EnsureMountUnitFile("Mount unit for foo, revision 42", mockSnapPath, "/snap/snapname/123", "squashfs", systemd.EnsureMountUnitFlags{})
-	c.Assert(err, IsNil)
+
+	mountUnitName := mylog.Check2(NewUnderRoot(rootDir, SystemMode, nil).EnsureMountUnitFile("Mount unit for foo, revision 42", mockSnapPath, "/snap/snapname/123", "squashfs", systemd.EnsureMountUnitFlags{}))
+
 
 	// Should still be the same file
 	c.Assert(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(`
@@ -1263,10 +1255,11 @@ func (s *SystemdTestSuite) testEnsureMountUnitChanged(c *C, mountFlags systemd.E
 
 	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
 	makeMockFile(c, mockSnapPath)
+	mylog.
 
-	// Now we create the mount unit already
-	err := os.MkdirAll(dirs.SnapServicesDir, 0755)
-	c.Assert(err, IsNil)
+		// Now we create the mount unit already
+		Check(os.MkdirAll(dirs.SnapServicesDir, 0755))
+
 
 	// Note the "someotheroption" that should be removed
 	content := fmt.Sprintf(`
@@ -1285,11 +1278,11 @@ LazyUnmount=yes
 WantedBy=snapd.mounts.target
 WantedBy=multi-user.target
 `[1:], mockSnapPath)
-	err = os.WriteFile(filepath.Join(dirs.SnapServicesDir, "snap-snapname-123.mount"), []byte(content), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(dirs.SnapServicesDir, "snap-snapname-123.mount"), []byte(content), 0644))
 
-	mountUnitName, err := NewUnderRoot(rootDir, SystemMode, nil).EnsureMountUnitFile("Mount unit for foo, revision 42", mockSnapPath, "/snap/snapname/123", "squashfs", mountFlags)
-	c.Assert(err, IsNil)
+
+	mountUnitName := mylog.Check2(NewUnderRoot(rootDir, SystemMode, nil).EnsureMountUnitFile("Mount unit for foo, revision 42", mockSnapPath, "/snap/snapname/123", "squashfs", mountFlags))
+
 
 	// Should still be the same file
 	c.Assert(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(`
@@ -1313,7 +1306,8 @@ WantedBy=multi-user.target
 	// No call systemctl
 	expectedCalls := [][]string{
 		{"daemon-reload"},
-		{"--root", rootDir, "enable", "snap-snapname-123.mount"}}
+		{"--root", rootDir, "enable", "snap-snapname-123.mount"},
+	}
 	if !mountFlags.PreventRestartIfModified {
 		expectedCalls = append(expectedCalls, []string{"restart", "snap-snapname-123.mount"})
 	}
@@ -1326,8 +1320,8 @@ func (s *SystemdTestSuite) TestAddMountUnitForDirs(c *C) {
 
 	// a directory instead of a file produces a different output
 	snapDir := c.MkDir()
-	mountUnitName, err := New(SystemMode, nil).EnsureMountUnitFile("Mount unit for foodir, revision x1", snapDir, "/snap/snapname/x1", "squashfs", systemd.EnsureMountUnitFlags{})
-	c.Assert(err, IsNil)
+	mountUnitName := mylog.Check2(New(SystemMode, nil).EnsureMountUnitFile("Mount unit for foodir, revision x1", snapDir, "/snap/snapname/x1", "squashfs", systemd.EnsureMountUnitFlags{}))
+
 	defer os.Remove(mountUnitName)
 
 	c.Assert(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(`
@@ -1362,8 +1356,8 @@ func (s *SystemdTestSuite) TestAddMountUnitStartBeforeDriversLoad(c *C) {
 	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
 	makeMockFile(c, mockSnapPath)
 
-	mountUnitName, err := New(SystemMode, nil).EnsureMountUnitFile("Mount unit for foo, revision x1", mockSnapPath, "/snap/snapname/x1", "squashfs", systemd.EnsureMountUnitFlags{StartBeforeDriversLoad: true})
-	c.Assert(err, IsNil)
+	mountUnitName := mylog.Check2(New(SystemMode, nil).EnsureMountUnitFile("Mount unit for foo, revision x1", mockSnapPath, "/snap/snapname/x1", "squashfs", systemd.EnsureMountUnitFlags{StartBeforeDriversLoad: true}))
+
 	defer os.Remove(mountUnitName)
 
 	c.Assert(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(`
@@ -1410,8 +1404,8 @@ func (s *SystemdTestSuite) TestAddMountUnitTransient(c *C) {
 		Options:     []string{"remount,ro"},
 		Origin:      "bar",
 	}
-	mountUnitName, err := NewUnderRoot(rootDir, SystemMode, nil).EnsureMountUnitFileWithOptions(addMountUnitOptions)
-	c.Assert(err, IsNil)
+	mountUnitName := mylog.Check2(NewUnderRoot(rootDir, SystemMode, nil).EnsureMountUnitFileWithOptions(addMountUnitOptions))
+
 	defer os.Remove(mountUnitName)
 
 	c.Assert(filepath.Join(dirs.SnapRuntimeServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(`
@@ -1459,8 +1453,8 @@ func (s *SystemdTestSuite) TestAddKernelModulesMountUnit(c *C) {
 		Options:       []string{"nodev,ro,x-gdu.hide,x-gvfs-hide"},
 		Origin:        "",
 	}
-	mountUnitName, err := NewUnderRoot(rootDir, SystemMode, nil).EnsureMountUnitFileWithOptions(addMountUnitOptions)
-	c.Assert(err, IsNil)
+	mountUnitName := mylog.Check2(NewUnderRoot(rootDir, SystemMode, nil).EnsureMountUnitFileWithOptions(addMountUnitOptions))
+
 	defer os.Remove(mountUnitName)
 
 	c.Assert(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(`[Unit]
@@ -1506,8 +1500,8 @@ func (s *SystemdTestSuite) TestAddKernelTreeMountUnit(c *C) {
 		Options:       []string{"bind"},
 		Origin:        "",
 	}
-	mountUnitName, err := NewUnderRoot(rootDir, SystemMode, nil).EnsureMountUnitFileWithOptions(addMountUnitOptions)
-	c.Assert(err, IsNil)
+	mountUnitName := mylog.Check2(NewUnderRoot(rootDir, SystemMode, nil).EnsureMountUnitFileWithOptions(addMountUnitOptions))
+
 	defer os.Remove(mountUnitName)
 
 	c.Assert(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(`[Unit]
@@ -1544,13 +1538,13 @@ func (s *SystemdTestSuite) TestWriteSELinuxMountUnit(c *C) {
 	defer restore()
 
 	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
-	err := os.MkdirAll(filepath.Dir(mockSnapPath), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(mockSnapPath, nil, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Dir(mockSnapPath), 0755))
 
-	mountUnitName, err := New(SystemMode, nil).EnsureMountUnitFile("Mount unit for foo, revision 42", mockSnapPath, "/snap/snapname/123", "squashfs", systemd.EnsureMountUnitFlags{})
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(mockSnapPath, nil, 0644))
+
+
+	mountUnitName := mylog.Check2(New(SystemMode, nil).EnsureMountUnitFile("Mount unit for foo, revision 42", mockSnapPath, "/snap/snapname/123", "squashfs", systemd.EnsureMountUnitFlags{}))
+
 	defer os.Remove(mountUnitName)
 
 	c.Assert(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(`
@@ -1589,13 +1583,13 @@ exit 0
 	defer fuseCmd.Restore()
 
 	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
-	err := os.MkdirAll(filepath.Dir(mockSnapPath), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(mockSnapPath, nil, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Dir(mockSnapPath), 0755))
 
-	mountUnitName, err := New(SystemMode, nil).EnsureMountUnitFile("Mount unit for foo, revision x1", mockSnapPath, "/snap/snapname/123", "squashfs", systemd.EnsureMountUnitFlags{})
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(mockSnapPath, nil, 0644))
+
+
+	mountUnitName := mylog.Check2(New(SystemMode, nil).EnsureMountUnitFile("Mount unit for foo, revision x1", mockSnapPath, "/snap/snapname/123", "squashfs", systemd.EnsureMountUnitFlags{}))
+
 	defer os.Remove(mountUnitName)
 
 	c.Check(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(`
@@ -1630,13 +1624,13 @@ exit 0
 	defer fuseCmd.Restore()
 
 	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
-	err := os.MkdirAll(filepath.Dir(mockSnapPath), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(mockSnapPath, nil, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Dir(mockSnapPath), 0755))
 
-	mountUnitName, err := New(SystemMode, nil).EnsureMountUnitFile("Mount unit for foo, revision x1", mockSnapPath, "/snap/snapname/123", "squashfs", systemd.EnsureMountUnitFlags{})
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(mockSnapPath, nil, 0644))
+
+
+	mountUnitName := mylog.Check2(New(SystemMode, nil).EnsureMountUnitFile("Mount unit for foo, revision x1", mockSnapPath, "/snap/snapname/123", "squashfs", systemd.EnsureMountUnitFlags{}))
+
 	defer os.Remove(mountUnitName)
 
 	c.Assert(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(`
@@ -1660,24 +1654,24 @@ WantedBy=multi-user.target
 
 func (s *SystemdTestSuite) TestJctl(c *C) {
 	var args []string
-	var err error
+
 	MockOsutilStreamCommand(func(name string, myargs ...string) (io.ReadCloser, error) {
 		c.Check(cap(myargs) <= len(myargs)+3, Equals, true, Commentf("cap:%d, len:%d", cap(myargs), len(myargs)))
 		args = myargs
 		return nil, nil
 	})
 
-	_, err = Jctl([]string{"foo", "bar"}, 10, false, false)
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(Jctl([]string{"foo", "bar"}, 10, false, false))
+
 	c.Check(args, DeepEquals, []string{"-o", "json", "--no-pager", "-n", "10", "-u", "foo", "-u", "bar"})
-	_, err = Jctl([]string{"foo", "bar", "baz"}, 99, true, false)
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(Jctl([]string{"foo", "bar", "baz"}, 99, true, false))
+
 	c.Check(args, DeepEquals, []string{"-o", "json", "--no-pager", "-n", "99", "-f", "-u", "foo", "-u", "bar", "-u", "baz"})
-	_, err = Jctl([]string{"foo", "bar"}, -1, false, false)
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(Jctl([]string{"foo", "bar"}, -1, false, false))
+
 	c.Check(args, DeepEquals, []string{"-o", "json", "--no-pager", "--no-tail", "-u", "foo", "-u", "bar"})
-	_, err = Jctl([]string{"foo", "bar"}, -1, false, true)
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(Jctl([]string{"foo", "bar"}, -1, false, true))
+
 	c.Check(args, DeepEquals, []string{"-o", "json", "--no-pager", "--no-tail", "--namespace=*", "-u", "foo", "-u", "bar"})
 }
 
@@ -1689,8 +1683,8 @@ func (s *SystemdTestSuite) TestIsActiveUnderRoot(c *C) {
 	sysErr.SetMsg([]byte("inactive\n"))
 	s.errors = []error{sysErr}
 
-	_, err := NewUnderRoot("xyzzy", SystemMode, s.rep).IsActive("foo")
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(NewUnderRoot("xyzzy", SystemMode, s.rep).IsActive("foo"))
+
 	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "is-active", "foo"}})
 }
 
@@ -1702,9 +1696,9 @@ func (s *SystemdTestSuite) TestIsActiveIsInactive(c *C) {
 	sysErr.SetMsg([]byte("inactive\n"))
 	s.errors = []error{sysErr}
 
-	active, err := New(SystemMode, s.rep).IsActive("foo")
+	active := mylog.Check2(New(SystemMode, s.rep).IsActive("foo"))
 	c.Assert(active, Equals, false)
-	c.Assert(err, IsNil)
+
 	c.Check(s.argses, DeepEquals, [][]string{{"is-active", "foo"}})
 }
 
@@ -1717,9 +1711,9 @@ func (s *SystemdTestSuite) TestIsActiveIsInactiveAlternativeMessage(c *C) {
 	sysErr.SetMsg([]byte("unknown\n"))
 	s.errors = []error{sysErr}
 
-	active, err := New(SystemMode, s.rep).IsActive("foo")
+	active := mylog.Check2(New(SystemMode, s.rep).IsActive("foo"))
 	c.Assert(active, Equals, false)
-	c.Assert(err, IsNil)
+
 	c.Check(s.argses, DeepEquals, [][]string{{"is-active", "foo"}})
 }
 
@@ -1730,18 +1724,18 @@ func (s *SystemdTestSuite) TestIsActiveIsFailed(c *C) {
 	sysErr.SetMsg([]byte("failed\n"))
 	s.errors = []error{sysErr}
 
-	active, err := New(SystemMode, s.rep).IsActive("foo")
+	active := mylog.Check2(New(SystemMode, s.rep).IsActive("foo"))
 	c.Assert(active, Equals, false)
-	c.Assert(err, IsNil)
+
 	c.Check(s.argses, DeepEquals, [][]string{{"is-active", "foo"}})
 }
 
 func (s *SystemdTestSuite) TestIsActiveIsActive(c *C) {
 	s.errors = []error{nil}
 
-	active, err := New(SystemMode, s.rep).IsActive("foo")
+	active := mylog.Check2(New(SystemMode, s.rep).IsActive("foo"))
 	c.Assert(active, Equals, true)
-	c.Assert(err, IsNil)
+
 	c.Check(s.argses, DeepEquals, [][]string{{"is-active", "foo"}})
 }
 
@@ -1751,15 +1745,15 @@ func (s *SystemdTestSuite) TestIsActiveUnexpectedErr(c *C) {
 	sysErr.SetMsg([]byte("random-failure\n"))
 	s.errors = []error{sysErr}
 
-	active, err := NewUnderRoot("xyzzy", SystemMode, s.rep).IsActive("foo")
+	active := mylog.Check2(NewUnderRoot("xyzzy", SystemMode, s.rep).IsActive("foo"))
 	c.Assert(active, Equals, false)
 	c.Assert(err, ErrorMatches, ".* failed with exit status 1: random-failure\n")
 }
 
 func makeMockMountUnit(c *C, mountDir string) string {
 	mountUnit := MountUnitPath(dirs.StripRootDir(mountDir))
-	err := os.WriteFile(mountUnit, nil, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(mountUnit, nil, 0644))
+
 	return mountUnit
 }
 
@@ -1772,9 +1766,9 @@ func (s *SystemdTestSuite) TestRemoveMountUnit(c *C) {
 
 	mountDir := rootDir + "/snap/foo/42"
 	mountUnit := makeMockMountUnit(c, mountDir)
-	err := NewUnderRoot(rootDir, SystemMode, nil).RemoveMountUnitFile(mountDir)
+	mylog.Check(NewUnderRoot(rootDir, SystemMode, nil).RemoveMountUnitFile(mountDir))
 
-	c.Assert(err, IsNil)
+
 	// the file is gone
 	c.Check(osutil.FileExists(mountUnit), Equals, false)
 	// and the unit is disabled and the daemon reloaded
@@ -1806,7 +1800,7 @@ func (s *SystemdTestSuite) testDaemonOpWithMutex(c *C, testFunc func(Systemd) er
 				close(stoppedCh)
 				return
 			default:
-				//pass
+				// pass
 			}
 		}
 	}()
@@ -1815,8 +1809,8 @@ func (s *SystemdTestSuite) testDaemonOpWithMutex(c *C, testFunc func(Systemd) er
 	// daemon-reload. This will be serialized, if not this would
 	// panic because systemd.daemonReloadNoLock ensures the lock is
 	// taken when this happens.
-	_, err := sysd.EnsureMountUnitFile("42", mockSnapPath, "/snap/foo/42", "squashfs", systemd.EnsureMountUnitFlags{})
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(sysd.EnsureMountUnitFile("42", mockSnapPath, "/snap/foo/42", "squashfs", systemd.EnsureMountUnitFlags{}))
+
 	close(stopCh)
 	<-stoppedCh
 }
@@ -1847,7 +1841,7 @@ func (s *SystemdTestSuite) TestGlobalUserMode(c *C) {
 	c.Check(s.argses[2], DeepEquals, []string{"--user", "--global", "--root", rootDir, "mask", "foo"})
 	c.Assert(sysd.Unmask("foo"), IsNil)
 	c.Check(s.argses[3], DeepEquals, []string{"--user", "--global", "--root", rootDir, "unmask", "foo"})
-	_, err := sysd.IsEnabled("foo")
+	_ := mylog.Check2(sysd.IsEnabled("foo"))
 	c.Check(err, IsNil)
 	c.Check(s.argses[4], DeepEquals, []string{"--user", "--global", "--root", rootDir, "is-enabled", "foo"})
 
@@ -1873,7 +1867,7 @@ func (s *SystemdTestSuite) TestStatusGlobalUserMode(c *C) {
 
 	rootDir := dirs.GlobalRootDir
 	sysd := NewUnderRoot(rootDir, GlobalUserMode, nil)
-	sts, err := sysd.Status([]string{"foo", "bar", "baz"})
+	sts := mylog.Check2(sysd.Status([]string{"foo", "bar", "baz"}))
 	c.Check(err, IsNil)
 	c.Check(sts, DeepEquals, []*UnitStatus{
 		{Name: "foo", Enabled: true},
@@ -1883,7 +1877,7 @@ func (s *SystemdTestSuite) TestStatusGlobalUserMode(c *C) {
 	c.Check(s.argses[0], DeepEquals, []string{"--user", "--global", "--root", rootDir, "is-enabled", "foo", "bar", "baz"})
 
 	// Output is collected if systemctl has a non-zero exit status
-	sts, err = sysd.Status([]string{"one", "two", "three"})
+	sts = mylog.Check2(sysd.Status([]string{"one", "two", "three"}))
 	c.Check(err, IsNil)
 	c.Check(sts, DeepEquals, []*UnitStatus{
 		{Name: "one", Enabled: true},
@@ -1893,7 +1887,7 @@ func (s *SystemdTestSuite) TestStatusGlobalUserMode(c *C) {
 	c.Check(s.argses[1], DeepEquals, []string{"--user", "--global", "--root", rootDir, "is-enabled", "one", "two", "three"})
 
 	// An error is returned if the wrong number of statuses are returned
-	sts, err = sysd.Status([]string{"one"})
+	sts = mylog.Check2(sysd.Status([]string{"one"}))
 	c.Check(err, ErrorMatches, "cannot get enabled status of services: expected 1 results, got 3")
 	c.Check(sts, IsNil)
 	c.Check(s.argses[2], DeepEquals, []string{"--user", "--global", "--root", rootDir, "is-enabled", "one"})
@@ -1934,8 +1928,8 @@ func (s *SystemdTestSuite) TestPreseedModeAddMountUnit(c *C) {
 	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
 	makeMockFile(c, mockSnapPath)
 
-	mountUnitName, err := sysd.EnsureMountUnitFile("Mount unit for foo, revision 42", mockSnapPath, "/snap/snapname/123", "squashfs", systemd.EnsureMountUnitFlags{})
-	c.Assert(err, IsNil)
+	mountUnitName := mylog.Check2(sysd.EnsureMountUnitFile("Mount unit for foo, revision 42", mockSnapPath, "/snap/snapname/123", "squashfs", systemd.EnsureMountUnitFlags{}))
+
 	defer os.Remove(mountUnitName)
 
 	c.Check(s.argses, DeepEquals, [][]string{{"--root", dirs.GlobalRootDir, "enable", "snap-snapname-123.mount"}})
@@ -1955,9 +1949,8 @@ func (s *SystemdTestSuite) TestPreseedModeAddMountUnitUnchanged(c *C) {
 
 	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
 	makeMockFile(c, mockSnapPath)
+	mylog.Check(os.MkdirAll(dirs.SnapServicesDir, 0755))
 
-	err := os.MkdirAll(dirs.SnapServicesDir, 0755)
-	c.Assert(err, IsNil)
 	content := fmt.Sprintf(`
 [Unit]
 Description=Mount unit for foo, revision 42
@@ -1975,11 +1968,11 @@ LazyUnmount=yes
 WantedBy=snapd.mounts.target
 WantedBy=multi-user.target
 `[1:], mockSnapPath)
-	err = os.WriteFile(filepath.Join(dirs.SnapServicesDir, "snap-snapname-123.mount"), []byte(content), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(dirs.SnapServicesDir, "snap-snapname-123.mount"), []byte(content), 0644))
 
-	_, err = sysd.EnsureMountUnitFile("Mount unit for foo, revision 42", mockSnapPath, "/snap/snapname/123", "squashfs", systemd.EnsureMountUnitFlags{})
-	c.Assert(err, IsNil)
+
+	_ = mylog.Check2(sysd.EnsureMountUnitFile("Mount unit for foo, revision 42", mockSnapPath, "/snap/snapname/123", "squashfs", systemd.EnsureMountUnitFlags{}))
+
 
 	// systemd was not called
 	c.Check(s.argses, HasLen, 0)
@@ -1998,9 +1991,8 @@ func (s *SystemdTestSuite) TestPreseedModeAddMountUniModified(c *C) {
 
 	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
 	makeMockFile(c, mockSnapPath)
+	mylog.Check(os.MkdirAll(dirs.SnapServicesDir, 0755))
 
-	err := os.MkdirAll(dirs.SnapServicesDir, 0755)
-	c.Assert(err, IsNil)
 	// Note the "anotheroption"
 	content := fmt.Sprintf(`
 [Unit]
@@ -2019,11 +2011,11 @@ LazyUnmount=yes
 WantedBy=snapd.mounts.target
 WantedBy=multi-user.target
 `[1:], mockSnapPath)
-	err = os.WriteFile(filepath.Join(dirs.SnapServicesDir, "snap-snapname-123.mount"), []byte(content), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(dirs.SnapServicesDir, "snap-snapname-123.mount"), []byte(content), 0644))
 
-	mountUnitName, err := sysd.EnsureMountUnitFile("Mount unit for foo, revision 42", mockSnapPath, "/snap/snapname/123", "squashfs", systemd.EnsureMountUnitFlags{})
-	c.Assert(err, IsNil)
+
+	mountUnitName := mylog.Check2(sysd.EnsureMountUnitFile("Mount unit for foo, revision 42", mockSnapPath, "/snap/snapname/123", "squashfs", systemd.EnsureMountUnitFlags{}))
+
 
 	c.Check(s.argses, DeepEquals, [][]string{{"--root", dirs.GlobalRootDir, "enable", "snap-snapname-123.mount"}})
 	// mount was called with remount option
@@ -2043,8 +2035,8 @@ func (s *SystemdTestSuite) TestPreseedModeAddMountUnitWithFuse(c *C) {
 	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
 	makeMockFile(c, mockSnapPath)
 
-	mountUnitName, err := sysd.EnsureMountUnitFile("Mount unit for foo, revision 42", mockSnapPath, "/snap/snapname/123", "squashfs", systemd.EnsureMountUnitFlags{})
-	c.Assert(err, IsNil)
+	mountUnitName := mylog.Check2(sysd.EnsureMountUnitFile("Mount unit for foo, revision 42", mockSnapPath, "/snap/snapname/123", "squashfs", systemd.EnsureMountUnitFlags{}))
+
 	defer os.Remove(mountUnitName)
 
 	c.Check(mockMountCmd.Calls()[0], DeepEquals, []string{"mount", "-t", "fuse.squashfuse", mockSnapPath, "/snap/snapname/123", "-o", "nodev,a,b,c"})
@@ -2072,9 +2064,9 @@ func (s *SystemdTestSuite) TestPreseedModeAddMountUnitWithOptions(c *C) {
 		Fstype:        "squashfs",
 		Options:       []string{"nodev,ro,x-gdu.hide,x-gvfs-hide"},
 	}
-	mountUnitName, err := sysd.EnsureMountUnitFileWithOptions(mountUnitOptions)
+	mountUnitName := mylog.Check2(sysd.EnsureMountUnitFileWithOptions(mountUnitOptions))
 
-	c.Assert(err, IsNil)
+
 	defer os.Remove(mountUnitName)
 
 	c.Check(mockMountCmd.Calls()[0], DeepEquals, []string{"mount", "-t", "fuse.squashfuse", mockSnapPath, "/run/mnt/kernel-snaps/pc-kernel/1", "-o", "nodev,a,b,c"})
@@ -2112,7 +2104,7 @@ func (s *SystemdTestSuite) TestPreseedModeMountError(c *C) {
 	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
 	makeMockFile(c, mockSnapPath)
 
-	_, err := sysd.EnsureMountUnitFile("42", mockSnapPath, "/snap/snapname/123", "squashfs", systemd.EnsureMountUnitFlags{})
+	_ := mylog.Check2(sysd.EnsureMountUnitFile("42", mockSnapPath, "/snap/snapname/123", "squashfs", systemd.EnsureMountUnitFlags{}))
 	c.Assert(err, ErrorMatches, `cannot mount .*/var/lib/snappy/snaps/foo_1.0.snap \(squashfs\) at /snap/snapname/123 in preseed mode: exit status 1; some failure\n`)
 }
 
@@ -2178,7 +2170,7 @@ func (s *SystemdTestSuite) TestPreseedModeBindmountNotSupported(c *C) {
 
 	mockSnapPath := c.MkDir()
 
-	_, err := sysd.EnsureMountUnitFile("42", mockSnapPath, "/snap/snapname/123", "", systemd.EnsureMountUnitFlags{})
+	_ := mylog.Check2(sysd.EnsureMountUnitFile("42", mockSnapPath, "/snap/snapname/123", "", systemd.EnsureMountUnitFlags{}))
 	c.Assert(err, ErrorMatches, `bind-mounted directory is not supported in emulation mode`)
 }
 
@@ -2190,7 +2182,8 @@ func (s *SystemdTestSuite) TestEnableInEmulationMode(c *C) {
 	c.Assert(sysd.EnableNoReload([]string{"bar"}), IsNil)
 	c.Check(s.argses, DeepEquals, [][]string{
 		{"--root", "/path", "enable", "foo"},
-		{"--root", dirs.GlobalRootDir, "enable", "bar"}})
+		{"--root", dirs.GlobalRootDir, "enable", "bar"},
+	})
 }
 
 func (s *SystemdTestSuite) TestDisableInEmulationMode(c *C) {
@@ -2198,7 +2191,8 @@ func (s *SystemdTestSuite) TestDisableInEmulationMode(c *C) {
 	c.Assert(sysd.DisableNoReload([]string{"foo"}), IsNil)
 
 	c.Check(s.argses, DeepEquals, [][]string{
-		{"--root", "/path", "disable", "foo"}})
+		{"--root", "/path", "disable", "foo"},
+	})
 }
 
 func (s *SystemdTestSuite) TestMaskInEmulationMode(c *C) {
@@ -2206,7 +2200,8 @@ func (s *SystemdTestSuite) TestMaskInEmulationMode(c *C) {
 	c.Assert(sysd.Mask("foo"), IsNil)
 
 	c.Check(s.argses, DeepEquals, [][]string{
-		{"--root", "/path", "mask", "foo"}})
+		{"--root", "/path", "mask", "foo"},
+	})
 }
 
 func (s *SystemdTestSuite) TestUnmaskInEmulationMode(c *C) {
@@ -2214,7 +2209,8 @@ func (s *SystemdTestSuite) TestUnmaskInEmulationMode(c *C) {
 	c.Assert(sysd.Unmask("foo"), IsNil)
 
 	c.Check(s.argses, DeepEquals, [][]string{
-		{"--root", "/path", "unmask", "foo"}})
+		{"--root", "/path", "unmask", "foo"},
+	})
 }
 
 func (s *SystemdTestSuite) TestListMountUnitsEmpty(c *C) {
@@ -2223,7 +2219,7 @@ func (s *SystemdTestSuite) TestListMountUnitsEmpty(c *C) {
 	}
 
 	sysd := New(SystemMode, nil)
-	units, err := sysd.ListMountUnits("some-snap", "")
+	units := mylog.Check2(sysd.ListMountUnits("some-snap", ""))
 	c.Check(units, HasLen, 0)
 	c.Check(err, IsNil)
 }
@@ -2238,14 +2234,14 @@ HereIsOneLineWithoutAnEqualSign
 	}
 
 	sysd := New(SystemMode, nil)
-	units, err := sysd.ListMountUnits("some-snap", "")
+	units := mylog.Check2(sysd.ListMountUnits("some-snap", ""))
 	c.Check(units, HasLen, 0)
 	c.Check(err, ErrorMatches, "cannot parse systemctl output:.*")
 }
 
 func (s *SystemdTestSuite) TestListMountUnitsHappy(c *C) {
-	tmpDir, err := os.MkdirTemp("/tmp", "snapd-systemd-test-list-mounts-*")
-	c.Assert(err, IsNil)
+	tmpDir := mylog.Check2(os.MkdirTemp("/tmp", "snapd-systemd-test-list-mounts-*"))
+
 	defer os.RemoveAll(tmpDir)
 
 	var systemctlOutput string
@@ -2273,14 +2269,15 @@ X-SnapdOrigin=%s
 `, snapName, where, origin)
 		return os.WriteFile(path, []byte(contents), 0644)
 	}
+	mylog.
 
-	// Prepare the unit files
-	err = createFakeUnit("somepath-somedir.mount", "some-snap", "/somepath/somedir", "module1")
-	c.Assert(err, IsNil)
-	err = createFakeUnit("somewhere-here.mount", "some-other-snap", "/somewhere/here", "module2")
-	c.Assert(err, IsNil)
-	err = createFakeUnit("somewhere-there.mount", "some-snap", "/somewhere/there", "module3")
-	c.Assert(err, IsNil)
+		// Prepare the unit files
+		Check(createFakeUnit("somepath-somedir.mount", "some-snap", "/somepath/somedir", "module1"))
+
+	mylog.Check(createFakeUnit("somewhere-here.mount", "some-other-snap", "/somewhere/here", "module2"))
+
+	mylog.Check(createFakeUnit("somewhere-there.mount", "some-snap", "/somewhere/there", "module3"))
+
 
 	s.outs = [][]byte{
 		[]byte(systemctlOutput),
@@ -2288,13 +2285,13 @@ X-SnapdOrigin=%s
 	sysd := New(SystemMode, nil)
 
 	// First, get all mount units for some-snap, without filter on the origin module
-	units, err := sysd.ListMountUnits("some-snap", "")
+	units := mylog.Check2(sysd.ListMountUnits("some-snap", ""))
 	c.Check(units, DeepEquals, []string{"/somepath/somedir", "/somewhere/there"})
 	c.Check(err, IsNil)
 
 	// Now repeat the same, filtering on the origin module
 	s.i = 0 // this resets the systemctl output iterator back to the beginning
-	units, err = sysd.ListMountUnits("some-snap", "module3")
+	units = mylog.Check2(sysd.ListMountUnits("some-snap", "module3"))
 	c.Check(units, DeepEquals, []string{"/somewhere/there"})
 	c.Check(err, IsNil)
 }
@@ -2321,8 +2318,7 @@ func (s *SystemdTestSuite) TestMountErr(c *C) {
 
 	cmd := testutil.MockCommand(c, "systemd-mount", `echo "failed"; exit 111`)
 	defer cmd.Restore()
-
-	err := sysd.Mount("foo", "bar")
+	mylog.Check(sysd.Mount("foo", "bar"))
 	c.Assert(err, ErrorMatches, "failed")
 	c.Check(cmd.Calls(), DeepEquals, [][]string{
 		{"systemd-mount", "foo", "bar"},
@@ -2346,8 +2342,7 @@ func (s *SystemdTestSuite) TestUmountErr(c *C) {
 
 	cmd := testutil.MockCommand(c, "systemd-mount", `echo "failed"; exit 111`)
 	defer cmd.Restore()
-
-	err := sysd.Umount("bar")
+	mylog.Check(sysd.Umount("bar"))
 	c.Assert(err, ErrorMatches, "failed")
 	c.Check(cmd.Calls(), DeepEquals, [][]string{
 		{"systemd-mount", "--umount", "bar"},
@@ -2360,9 +2355,9 @@ func (s *SystemdTestSuite) TestCurrentUsageFamilyReallyInvalid(c *C) {
 		[]byte(`gahstringsarehard`),
 	}
 	sysd := New(SystemMode, s.rep)
-	_, err := sysd.CurrentMemoryUsage("bar.service")
+	_ := mylog.Check2(sysd.CurrentMemoryUsage("bar.service"))
 	c.Assert(err, ErrorMatches, `invalid property format from systemd for MemoryCurrent \(got gahstringsarehard\)`)
-	_, err = sysd.CurrentTasksCount("bar.service")
+	_ = mylog.Check2(sysd.CurrentTasksCount("bar.service"))
 	c.Assert(err, ErrorMatches, `invalid property format from systemd for TasksCurrent \(got gahstringsarehard\)`)
 	c.Check(s.argses, DeepEquals, [][]string{
 		{"show", "--property", "MemoryCurrent", "bar.service"},
@@ -2376,9 +2371,9 @@ func (s *SystemdTestSuite) TestCurrentUsageFamilyInactive(c *C) {
 		[]byte(`TasksCurrent=[not set]`),
 	}
 	sysd := New(SystemMode, s.rep)
-	_, err := sysd.CurrentMemoryUsage("bar.service")
+	_ := mylog.Check2(sysd.CurrentMemoryUsage("bar.service"))
 	c.Assert(err, ErrorMatches, "memory usage unavailable")
-	_, err = sysd.CurrentTasksCount("bar.service")
+	_ = mylog.Check2(sysd.CurrentTasksCount("bar.service"))
 	c.Assert(err, ErrorMatches, "tasks count unavailable")
 	c.Check(s.argses, DeepEquals, [][]string{
 		{"show", "--property", "MemoryCurrent", "bar.service"},
@@ -2392,9 +2387,9 @@ func (s *SystemdTestSuite) TestCurrentUsageFamilyInvalid(c *C) {
 		[]byte(`TasksCurrent=blahhhhhhhhhhhhhh`),
 	}
 	sysd := New(SystemMode, s.rep)
-	_, err := sysd.CurrentMemoryUsage("bar.service")
+	_ := mylog.Check2(sysd.CurrentMemoryUsage("bar.service"))
 	c.Assert(err, ErrorMatches, `invalid property value from systemd for MemoryCurrent: cannot parse "blahhhhhhhhhhhhhh" as an integer`)
-	_, err = sysd.CurrentTasksCount("bar.service")
+	_ = mylog.Check2(sysd.CurrentTasksCount("bar.service"))
 	c.Assert(err, ErrorMatches, `invalid property value from systemd for TasksCurrent: cannot parse "blahhhhhhhhhhhhhh" as an integer`)
 	c.Check(s.argses, DeepEquals, [][]string{
 		{"show", "--property", "MemoryCurrent", "bar.service"},
@@ -2409,16 +2404,16 @@ func (s *SystemdTestSuite) TestCurrentUsageFamilyHappy(c *C) {
 		[]byte(`TasksCurrent=10`),
 	}
 	sysd := New(SystemMode, s.rep)
-	memUsage, err := sysd.CurrentMemoryUsage("bar.service")
-	c.Assert(err, IsNil)
+	memUsage := mylog.Check2(sysd.CurrentMemoryUsage("bar.service"))
+
 	c.Assert(memUsage, Equals, quantity.SizeKiB)
-	memUsage, err = sysd.CurrentMemoryUsage("bar.service")
-	c.Assert(err, IsNil)
+	memUsage = mylog.Check2(sysd.CurrentMemoryUsage("bar.service"))
+
 	const sixteenExb = quantity.Size(1<<64 - 1)
 	c.Assert(memUsage, Equals, sixteenExb)
-	tasksUsage, err := sysd.CurrentTasksCount("bar.service")
+	tasksUsage := mylog.Check2(sysd.CurrentTasksCount("bar.service"))
 	c.Assert(tasksUsage, Equals, uint64(10))
-	c.Assert(err, IsNil)
+
 	c.Check(s.argses, DeepEquals, [][]string{
 		{"show", "--property", "MemoryCurrent", "bar.service"},
 		{"show", "--property", "MemoryCurrent", "bar.service"},
@@ -2431,8 +2426,8 @@ func (s *SystemdTestSuite) TestInactiveEnterTimestampZero(c *C) {
 		[]byte(`InactiveEnterTimestamp=`),
 	}
 	sysd := New(SystemMode, s.rep)
-	stamp, err := sysd.InactiveEnterTimestamp("bar.service")
-	c.Assert(err, IsNil)
+	stamp := mylog.Check2(sysd.InactiveEnterTimestamp("bar.service"))
+
 	c.Check(s.argses, DeepEquals, [][]string{
 		{"show", "--property", "InactiveEnterTimestamp", "bar.service"},
 	})
@@ -2445,8 +2440,8 @@ func (s *SystemdTestSuite) TestInactiveEnterTimestampValidWhitespace(c *C) {
 `),
 	}
 
-	stamp, err := New(SystemMode, s.rep).InactiveEnterTimestamp("bar.service")
-	c.Assert(err, IsNil)
+	stamp := mylog.Check2(New(SystemMode, s.rep).InactiveEnterTimestamp("bar.service"))
+
 	c.Check(s.argses, DeepEquals, [][]string{
 		{"show", "--property", "InactiveEnterTimestamp", "bar.service"},
 	})
@@ -2458,8 +2453,8 @@ func (s *SystemdTestSuite) TestInactiveEnterTimestampValid(c *C) {
 		[]byte(`InactiveEnterTimestamp=Fri 2021-04-16 15:32:21 UTC`),
 	}
 
-	stamp, err := New(SystemMode, s.rep).InactiveEnterTimestamp("bar.service")
-	c.Assert(err, IsNil)
+	stamp := mylog.Check2(New(SystemMode, s.rep).InactiveEnterTimestamp("bar.service"))
+
 	c.Check(s.argses, DeepEquals, [][]string{
 		{"show", "--property", "InactiveEnterTimestamp", "bar.service"},
 	})
@@ -2473,7 +2468,7 @@ func (s *SystemdTestSuite) TestInactiveEnterTimestampFailure(c *C) {
 	s.errors = []error{
 		fmt.Errorf("mocked failure"),
 	}
-	stamp, err := New(SystemMode, s.rep).InactiveEnterTimestamp("bar.service")
+	stamp := mylog.Check2(New(SystemMode, s.rep).InactiveEnterTimestamp("bar.service"))
 	c.Assert(err, ErrorMatches, "mocked failure")
 	c.Check(stamp.IsZero(), Equals, true)
 }
@@ -2488,7 +2483,7 @@ with newlines`),
 	sysd := New(SystemMode, s.rep)
 	for i := 0; i < len(s.outs); i++ {
 		s.argses = nil
-		stamp, err := sysd.InactiveEnterTimestamp("bar.service")
+		stamp := mylog.Check2(sysd.InactiveEnterTimestamp("bar.service"))
 		c.Assert(err.Error(), testutil.Contains, `invalid property format from systemd for InactiveEnterTimestamp (got`)
 		c.Check(s.argses, DeepEquals, [][]string{
 			{"show", "--property", "InactiveEnterTimestamp", "bar.service"},
@@ -2503,7 +2498,7 @@ func (s *SystemdTestSuite) TestInactiveEnterTimestampMalformedMore(c *C) {
 	}
 	sysd := New(SystemMode, s.rep)
 
-	stamp, err := sysd.InactiveEnterTimestamp("bar.service")
+	stamp := mylog.Check2(sysd.InactiveEnterTimestamp("bar.service"))
 
 	c.Assert(err, ErrorMatches, `internal error: systemctl time output \(0\) is malformed`)
 	c.Check(s.argses, DeepEquals, [][]string{
@@ -2517,7 +2512,7 @@ func (s *SystemdTestSuite) TestSystemdRunError(c *C) {
 	defer sr.Restore()
 
 	sysd := New(SystemMode, s.rep)
-	output, err := sysd.Run([]string{"bad-cmd", "arg1"}, nil)
+	output := mylog.Check2(sysd.Run([]string{"bad-cmd", "arg1"}, nil))
 	c.Check(output, IsNil)
 	c.Assert(err, ErrorMatches, `cannot run \["bad-cmd" "arg1"\]: fail`)
 }
@@ -2527,7 +2522,7 @@ func (s *SystemdTestSuite) TestSystemdRunHappyNoStderr(c *C) {
 	defer sr.Restore()
 
 	sysd := New(SystemMode, s.rep)
-	output, err := sysd.Run([]string{"happy-cmd", "arg1"}, nil)
+	output := mylog.Check2(sysd.Run([]string{"happy-cmd", "arg1"}, nil))
 	c.Check(string(output), Equals, "happy output\n")
 	c.Check(err, IsNil)
 	c.Check(sr.Calls(), DeepEquals, [][]string{
@@ -2541,7 +2536,7 @@ func (s *SystemdTestSuite) TestSystemdRunHappyWithStdin(c *C) {
 
 	sysd := New(SystemMode, s.rep)
 	opts := &RunOptions{Stdin: bytes.NewBufferString("stdin input\n")}
-	output, err := sysd.Run([]string{"cmd-with-stdin", "arg1"}, opts)
+	output := mylog.Check2(sysd.Run([]string{"cmd-with-stdin", "arg1"}, opts))
 	c.Check(string(output), Equals, "some output\nstdin input\n")
 	c.Check(err, IsNil)
 	c.Check(sr.Calls(), DeepEquals, [][]string{
@@ -2555,7 +2550,7 @@ func (s *SystemdTestSuite) TestSystemdRunKeyringMode(c *C) {
 
 	sysd := New(SystemMode, s.rep)
 	opts := &RunOptions{KeyringMode: KeyringModePrivate}
-	output, err := sysd.Run([]string{"happy-cmd", "arg1"}, opts)
+	output := mylog.Check2(sysd.Run([]string{"happy-cmd", "arg1"}, opts))
 	c.Check(string(output), Equals, "happy output\n")
 	c.Check(err, IsNil)
 	c.Check(sr.Calls(), DeepEquals, [][]string{
@@ -2571,7 +2566,7 @@ func (s *systemdErrorSuite) TestErrorStringNormalError(c *C) {
 	systemctl := testutil.MockCommand(c, "systemctl", `echo "I fail"; exit 11`)
 	defer systemctl.Restore()
 
-	_, err := Version()
+	_ := mylog.Check2(Version())
 	c.Check(err, ErrorMatches, `systemctl command \[--version\] failed with exit status 11: I fail`)
 }
 
@@ -2579,7 +2574,7 @@ func (s *systemdErrorSuite) TestErrorStringNoOutput(c *C) {
 	systemctl := testutil.MockCommand(c, "systemctl", `exit 22`)
 	defer systemctl.Restore()
 
-	_, err := Version()
+	_ := mylog.Check2(Version())
 	c.Check(err, ErrorMatches, `systemctl command \[--version\] failed with exit status 22`)
 }
 
@@ -2588,7 +2583,7 @@ func (s *systemdErrorSuite) TestErrorStringNoSystemctl(c *C) {
 	os.Setenv("PATH", "/xxx")
 	defer func() { os.Setenv("PATH", oldPath) }()
 
-	_, err := Version()
+	_ := mylog.Check2(Version())
 	c.Check(err, ErrorMatches, `systemctl command \[--version\] failed with: exec: "systemctl": executable file not found in \$PATH`)
 }
 
@@ -2601,12 +2596,13 @@ func (s *systemdErrorSuite) TestEnsureMountUnitFileEnsureFileStateErr(c *C) {
 
 	mockSnapPath := filepath.Join(dirs.GlobalRootDir, "/var/lib/snappy/snaps/foo_1.0.snap")
 	makeMockFile(c, mockSnapPath)
+	mylog.
 
-	// trigger an error below by creating a directory with the
-	// same name as the mount unit file
-	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap-snapname-123.mount"), 0755)
-	c.Assert(err, IsNil)
+		// trigger an error below by creating a directory with the
+		// same name as the mount unit file
+		Check(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap-snapname-123.mount"), 0755))
 
-	_, err = New(SystemMode, nil).EnsureMountUnitFile("42", mockSnapPath, "/snap/snapname/123", "squashfs", systemd.EnsureMountUnitFlags{})
+
+	_ = mylog.Check2(New(SystemMode, nil).EnsureMountUnitFile("42", mockSnapPath, "/snap/snapname/123", "squashfs", systemd.EnsureMountUnitFlags{}))
 	c.Assert(err, ErrorMatches, fmt.Sprintf("internal error: only regular files are supported, got %q instead", os.ModeDir))
 }

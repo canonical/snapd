@@ -23,22 +23,15 @@ import (
 	"fmt"
 	"os/exec"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 )
 
-var (
-	systemdSysctlPath = "/lib/systemd/systemd-sysctl"
-)
+var systemdSysctlPath = "/lib/systemd/systemd-sysctl"
 
 var systemdSysctlCmd = func(args ...string) error {
-	bs, err := exec.Command(systemdSysctlPath, args...).CombinedOutput()
-	if err != nil {
-		exitCode, err := osutil.ExitCode(err)
-		if err != nil {
-			return err
-		}
-		return fmt.Errorf("%s invoked with %v failed with exit status %d: %s", systemdSysctlPath, args, exitCode, bs)
-	}
+	bs := mylog.Check2(exec.Command(systemdSysctlPath, args...).CombinedOutput())
+
 	return nil
 }
 

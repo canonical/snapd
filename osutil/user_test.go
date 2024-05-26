@@ -28,6 +28,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/testutil"
@@ -50,10 +51,8 @@ var _ = check.Suite(&createUserSuite{})
 func (s *createUserSuite) SetUpTest(c *check.C) {
 	s.mockHome = c.MkDir()
 	s.restorer = osutil.MockUserLookup(func(string) (*user.User, error) {
-		current, err := user.Current()
-		if err != nil {
-			c.Fatalf("user.Current() failed with %s", err)
-		}
+		current := mylog.Check2(user.Current())
+
 		return &user.User{
 			HomeDir: s.mockHome,
 			Gid:     current.Gid,
@@ -77,11 +76,10 @@ func (s *createUserSuite) TearDownTest(c *check.C) {
 func (s *createUserSuite) TestAddUserExtraUsersFalse(c *check.C) {
 	r := osutil.MockhasAddUserExecutable(func() bool { return true })
 	defer r()
-
-	err := osutil.AddUser("lakatos", &osutil.AddUserOptions{
+	mylog.Check(osutil.AddUser("lakatos", &osutil.AddUserOptions{
 		Gecos:      "my gecos",
 		ExtraUsers: false,
-	})
+	}))
 	c.Assert(err, check.IsNil)
 
 	c.Check(s.mockAddUser.Calls(), check.DeepEquals, [][]string{
@@ -92,11 +90,10 @@ func (s *createUserSuite) TestAddUserExtraUsersFalse(c *check.C) {
 func (s *createUserSuite) TestUserAddExtraUsersFalse(c *check.C) {
 	r := osutil.MockhasAddUserExecutable(func() bool { return false })
 	defer r()
-
-	err := osutil.AddUser("lakatos", &osutil.AddUserOptions{
+	mylog.Check(osutil.AddUser("lakatos", &osutil.AddUserOptions{
 		Gecos:      "my gecos",
 		ExtraUsers: false,
-	})
+	}))
 	c.Assert(err, check.IsNil)
 
 	c.Check(s.mockUserAdd.Calls(), check.DeepEquals, [][]string{
@@ -107,11 +104,10 @@ func (s *createUserSuite) TestUserAddExtraUsersFalse(c *check.C) {
 func (s *createUserSuite) TestAddUserExtraUsersTrue(c *check.C) {
 	r := osutil.MockhasAddUserExecutable(func() bool { return true })
 	defer r()
-
-	err := osutil.AddUser("lakatos", &osutil.AddUserOptions{
+	mylog.Check(osutil.AddUser("lakatos", &osutil.AddUserOptions{
 		Gecos:      "my gecos",
 		ExtraUsers: true,
-	})
+	}))
 	c.Assert(err, check.IsNil)
 
 	c.Check(s.mockAddUser.Calls(), check.DeepEquals, [][]string{
@@ -122,11 +118,10 @@ func (s *createUserSuite) TestAddUserExtraUsersTrue(c *check.C) {
 func (s *createUserSuite) TestUserAddExtraUsersTrue(c *check.C) {
 	r := osutil.MockhasAddUserExecutable(func() bool { return false })
 	defer r()
-
-	err := osutil.AddUser("lakatos", &osutil.AddUserOptions{
+	mylog.Check(osutil.AddUser("lakatos", &osutil.AddUserOptions{
 		Gecos:      "my gecos",
 		ExtraUsers: true,
-	})
+	}))
 	c.Assert(err, check.IsNil)
 
 	c.Check(s.mockUserAdd.Calls(), check.DeepEquals, [][]string{
@@ -140,12 +135,11 @@ func (s *createUserSuite) TestAddSudoUser(c *check.C) {
 	mockSudoers := c.MkDir()
 	restorer := osutil.MockSudoersDotD(mockSudoers)
 	defer restorer()
-
-	err := osutil.AddUser("karl.sagan", &osutil.AddUserOptions{
+	mylog.Check(osutil.AddUser("karl.sagan", &osutil.AddUserOptions{
 		Gecos:      "my gecos",
 		Sudoer:     true,
 		ExtraUsers: true,
-	})
+	}))
 	c.Assert(err, check.IsNil)
 
 	c.Check(s.mockAddUser.Calls(), check.DeepEquals, [][]string{
@@ -166,18 +160,17 @@ karl.sagan ALL=(ALL) NOPASSWD:ALL
 func (s *createUserSuite) TestAddUserSSHKeys(c *check.C) {
 	r := osutil.MockhasAddUserExecutable(func() bool { return true })
 	defer r()
-	err := osutil.AddUser("karl.sagan", &osutil.AddUserOptions{
+	mylog.Check(osutil.AddUser("karl.sagan", &osutil.AddUserOptions{
 		SSHKeys: []string{"ssh-key1", "ssh-key2"},
-	})
+	}))
 	c.Assert(err, check.IsNil)
 	c.Check(filepath.Join(s.mockHome, ".ssh", "authorized_keys"), testutil.FileEquals, "ssh-key1\nssh-key2")
-
 }
 
 func (s *createUserSuite) TestAddUserInvalidUsername(c *check.C) {
 	r := osutil.MockhasAddUserExecutable(func() bool { return true })
 	defer r()
-	err := osutil.AddUser("k!", nil)
+	mylog.Check(osutil.AddUser("k!", nil))
 	c.Assert(err, check.ErrorMatches, `cannot add user "k!": name contains invalid characters`)
 }
 
@@ -188,11 +181,10 @@ func (s *createUserSuite) TestAddUserWithPassword(c *check.C) {
 	mockSudoers := c.MkDir()
 	restorer := osutil.MockSudoersDotD(mockSudoers)
 	defer restorer()
-
-	err := osutil.AddUser("karl.sagan", &osutil.AddUserOptions{
+	mylog.Check(osutil.AddUser("karl.sagan", &osutil.AddUserOptions{
 		Gecos:    "my gecos",
 		Password: "$6$salt$hash",
-	})
+	}))
 	c.Assert(err, check.IsNil)
 
 	c.Check(s.mockAddUser.Calls(), check.DeepEquals, [][]string{
@@ -210,12 +202,11 @@ func (s *createUserSuite) TestAddUserWithPasswordForceChange(c *check.C) {
 	mockSudoers := c.MkDir()
 	restorer := osutil.MockSudoersDotD(mockSudoers)
 	defer restorer()
-
-	err := osutil.AddUser("karl.popper", &osutil.AddUserOptions{
+	mylog.Check(osutil.AddUser("karl.popper", &osutil.AddUserOptions{
 		Gecos:               "my gecos",
 		Password:            "$6$salt$hash",
 		ForcePasswordChange: true,
-	})
+	}))
 	c.Assert(err, check.IsNil)
 
 	c.Check(s.mockUserAdd.Calls(), check.DeepEquals, [][]string{
@@ -235,11 +226,10 @@ func (s *createUserSuite) TestAddUserPasswordForceChangeUnhappy(c *check.C) {
 	mockSudoers := c.MkDir()
 	restorer := osutil.MockSudoersDotD(mockSudoers)
 	defer restorer()
-
-	err := osutil.AddUser("karl.popper", &osutil.AddUserOptions{
+	mylog.Check(osutil.AddUser("karl.popper", &osutil.AddUserOptions{
 		Gecos:               "my gecos",
 		ForcePasswordChange: true,
-	})
+	}))
 	c.Assert(err, check.ErrorMatches, `cannot force password change when no password is provided`)
 }
 
@@ -269,7 +259,7 @@ func (s *createUserSuite) TestUserMaybeSudoUser(c *check.C) {
 		defer restore()
 
 		os.Setenv("SUDO_USER", t.SudoUsername)
-		cur, err := osutil.UserMaybeSudoUser()
+		cur := mylog.Check2(osutil.UserMaybeSudoUser())
 		c.Assert(err, check.IsNil)
 		c.Check(cur.Username, check.Equals, t.CurrentUsername)
 	}
@@ -286,7 +276,7 @@ func (s *createUserSuite) TestUidGid(c *check.C) {
 		"bad uid": {&user.User{Uid: "x", Gid: "10"}, sys.FlagID, sys.FlagID, "cannot parse user id x"},
 		"bad gid": {&user.User{Uid: "10", Gid: "x"}, sys.FlagID, sys.FlagID, "cannot parse group id x"},
 	} {
-		uid, gid, err := osutil.UidGid(t.User)
+		uid, gid := mylog.Check3(osutil.UidGid(t.User))
 		c.Check(uid, check.Equals, t.Uid, check.Commentf(k))
 		c.Check(gid, check.Equals, t.Gid, check.Commentf(k))
 		if t.Err == "" {
@@ -303,10 +293,8 @@ func (s *createUserSuite) TestAddUserUnhappy(c *check.C) {
 
 	mockAddUser := testutil.MockCommand(c, "adduser", "echo some error; exit 1")
 	defer mockAddUser.Restore()
-
-	err := osutil.AddUser("lakatos", nil)
+	mylog.Check(osutil.AddUser("lakatos", nil))
 	c.Assert(err, check.ErrorMatches, "adduser failed with: some error")
-
 }
 
 func (s *createUserSuite) TestUserAddUnhappy(c *check.C) {
@@ -315,7 +303,7 @@ func (s *createUserSuite) TestUserAddUnhappy(c *check.C) {
 
 	mockUserAdd := testutil.MockCommand(c, "useradd", "echo some error; exit 1")
 	defer mockUserAdd.Restore()
-	err := osutil.AddUser("lakatos", nil)
+	mylog.Check(osutil.AddUser("lakatos", nil))
 	c.Assert(err, check.ErrorMatches, "useradd failed with: some error")
 }
 
@@ -369,8 +357,10 @@ type delUserSuite struct {
 	restore     func()
 }
 
-var _ = check.Suite(&delUserSuite{opts: nil})
-var _ = check.Suite(&delUserSuite{opts: &osutil.DelUserOptions{ExtraUsers: true}})
+var (
+	_ = check.Suite(&delUserSuite{opts: nil})
+	_ = check.Suite(&delUserSuite{opts: &osutil.DelUserOptions{ExtraUsers: true}})
+)
 
 func (s *delUserSuite) SetUpTest(c *check.C) {
 	s.mockUserDel = testutil.MockCommand(c, "userdel", "")
@@ -471,7 +461,7 @@ func (s *ensureUserSuite) TearDownTest(c *check.C) {
 
 func (s *ensureUserSuite) TestEnsureSnapUserGroupExtraUsersFalse(c *check.C) {
 	falsePath = osutil.LookPathDefault("false", "/bin/false")
-	err := osutil.EnsureSnapUserGroup("lakatos", 123456, false)
+	mylog.Check(osutil.EnsureSnapUserGroup("lakatos", 123456, false))
 	c.Assert(err, check.IsNil)
 
 	c.Check(s.mockGroupAdd.Calls(), check.DeepEquals, [][]string{
@@ -484,7 +474,7 @@ func (s *ensureUserSuite) TestEnsureSnapUserGroupExtraUsersFalse(c *check.C) {
 
 func (s *ensureUserSuite) TestEnsureSnapUserGroupExtraUsersTrue(c *check.C) {
 	falsePath = osutil.LookPathDefault("false", "/bin/false")
-	err := osutil.EnsureSnapUserGroup("lakatos", 123456, true)
+	mylog.Check(osutil.EnsureSnapUserGroup("lakatos", 123456, true))
 	c.Assert(err, check.IsNil)
 
 	c.Check(s.mockGroupAdd.Calls(), check.DeepEquals, [][]string{
@@ -496,7 +486,7 @@ func (s *ensureUserSuite) TestEnsureSnapUserGroupExtraUsersTrue(c *check.C) {
 }
 
 func (s *ensureUserSuite) TestEnsureSnapUserGroupBadUser(c *check.C) {
-	err := osutil.EnsureSnapUserGroup("k!", 123456, false)
+	mylog.Check(osutil.EnsureSnapUserGroup("k!", 123456, false))
 	c.Assert(err, check.ErrorMatches, `cannot add user/group "k!": name contains invalid characters`)
 
 	// shouldn't run these on error
@@ -509,8 +499,7 @@ func (s *ensureUserSuite) TestEnsureSnapUserGroupUnexpectedFindUidError(c *check
 		return 0, fmt.Errorf("some odd FindUid error")
 	})
 	defer restore()
-
-	err := osutil.EnsureSnapUserGroup("lakatos", 1234, false)
+	mylog.Check(osutil.EnsureSnapUserGroup("lakatos", 1234, false))
 	c.Assert(err, check.ErrorMatches, `some odd FindUid error`)
 
 	// shouldn't run these on error
@@ -523,8 +512,7 @@ func (s *ensureUserSuite) TestEnsureSnapUserGroupUnexpectedFindGidError(c *check
 		return 0, fmt.Errorf("some odd FindGid error")
 	})
 	defer restore()
-
-	err := osutil.EnsureSnapUserGroup("lakatos", 1234, false)
+	mylog.Check(osutil.EnsureSnapUserGroup("lakatos", 1234, false))
 	c.Assert(err, check.ErrorMatches, `some odd FindGid error`)
 
 	// shouldn't run these on error
@@ -541,8 +529,7 @@ func (s *ensureUserSuite) TestEnsureSnapUserGroupUnexpectedUid(c *check.C) {
 		return uint64(1234), nil
 	})
 	defer restore()
-
-	err := osutil.EnsureSnapUserGroup("lakatos", 1234, false)
+	mylog.Check(osutil.EnsureSnapUserGroup("lakatos", 1234, false))
 	c.Assert(err, check.ErrorMatches, `found unexpected uid for user "lakatos": 5432`)
 
 	// shouldn't run these on error
@@ -559,8 +546,7 @@ func (s *ensureUserSuite) TestEnsureSnapUserGroupUnexpectedGid(c *check.C) {
 		return uint64(5432), nil
 	})
 	defer restore()
-
-	err := osutil.EnsureSnapUserGroup("lakatos", 1234, false)
+	mylog.Check(osutil.EnsureSnapUserGroup("lakatos", 1234, false))
 	c.Assert(err, check.ErrorMatches, `found unexpected gid for group "lakatos": 5432`)
 
 	// shouldn't run these on error
@@ -577,8 +563,7 @@ func (s *ensureUserSuite) TestEnsureSnapUserGroupFoundBoth(c *check.C) {
 		return uint64(1234), nil
 	})
 	defer restore()
-
-	err := osutil.EnsureSnapUserGroup("lakatos", 1234, false)
+	mylog.Check(osutil.EnsureSnapUserGroup("lakatos", 1234, false))
 	c.Assert(err, check.IsNil)
 
 	// we found both with expected values, shouldn't run these
@@ -591,8 +576,7 @@ func (s *ensureUserSuite) TestEnsureSnapUserGroupUnexpectedGroupMissing(c *check
 		return uint64(1234), nil
 	})
 	defer restore()
-
-	err := osutil.EnsureSnapUserGroup("lakatos", 1234, false)
+	mylog.Check(osutil.EnsureSnapUserGroup("lakatos", 1234, false))
 	c.Assert(err, check.ErrorMatches, `cannot add user/group "lakatos": user exists and group does not`)
 
 	// shouldn't run these on error
@@ -605,8 +589,7 @@ func (s *ensureUserSuite) TestEnsureSnapUserGroupUnexpectedUserMissing(c *check.
 		return uint64(1234), nil
 	})
 	defer restore()
-
-	err := osutil.EnsureSnapUserGroup("lakatos", 1234, false)
+	mylog.Check(osutil.EnsureSnapUserGroup("lakatos", 1234, false))
 	c.Assert(err, check.ErrorMatches, `cannot add user/group "lakatos": group exists and user does not`)
 
 	// shouldn't run these on error
@@ -617,8 +600,7 @@ func (s *ensureUserSuite) TestEnsureSnapUserGroupUnexpectedUserMissing(c *check.
 func (s *ensureUserSuite) TestEnsureSnapUserGroupFailedGroupadd(c *check.C) {
 	mockGroupAdd := testutil.MockCommand(c, "groupadd", "echo some error; exit 1")
 	defer mockGroupAdd.Restore()
-
-	err := osutil.EnsureSnapUserGroup("lakatos", 123456, false)
+	mylog.Check(osutil.EnsureSnapUserGroup("lakatos", 123456, false))
 	c.Assert(err, check.ErrorMatches, "groupadd failed with: some error")
 
 	// shouldn't run this on error
@@ -628,8 +610,7 @@ func (s *ensureUserSuite) TestEnsureSnapUserGroupFailedGroupadd(c *check.C) {
 func (s *ensureUserSuite) TestEnsureSnapUserGroupFailedUseraddClassic(c *check.C) {
 	mockUserAdd := testutil.MockCommand(c, "useradd", "echo some error; exit 1")
 	defer mockUserAdd.Restore()
-
-	err := osutil.EnsureSnapUserGroup("lakatos", 123456, false)
+	mylog.Check(osutil.EnsureSnapUserGroup("lakatos", 123456, false))
 	c.Assert(err, check.ErrorMatches, "useradd failed with: some error")
 
 	c.Check(s.mockGroupDel.Calls(), check.DeepEquals, [][]string{
@@ -640,8 +621,7 @@ func (s *ensureUserSuite) TestEnsureSnapUserGroupFailedUseraddClassic(c *check.C
 func (s *ensureUserSuite) TestEnsureSnapUserGroupFailedUseraddCore(c *check.C) {
 	mockUserAdd := testutil.MockCommand(c, "useradd", "echo some error; exit 1")
 	defer mockUserAdd.Restore()
-
-	err := osutil.EnsureSnapUserGroup("lakatos", 123456, true)
+	mylog.Check(osutil.EnsureSnapUserGroup("lakatos", 123456, true))
 	c.Assert(err, check.ErrorMatches, "useradd failed with: some error")
 
 	c.Check(s.mockGroupDel.Calls(), check.DeepEquals, [][]string{
@@ -656,8 +636,7 @@ func (s *ensureUserSuite) TestEnsureSnapUserGroupFailedUseraddCoreNoExtra(c *che
 	mockGroupDel := testutil.MockCommand(c, "groupdel",
 		`echo "groupdel: unrecognized option '--extrauser'" > /dev/stderr; exit 1`)
 	defer mockGroupDel.Restore()
-
-	err := osutil.EnsureSnapUserGroup("lakatos", 123456, true)
+	mylog.Check(osutil.EnsureSnapUserGroup("lakatos", 123456, true))
 	c.Assert(err, check.ErrorMatches, `errors encountered ensuring user lakatos exists:
 - useradd failed with: some error
 - groupdel: unrecognized option '--extrauser'`)

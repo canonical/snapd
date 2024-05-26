@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/testutil"
@@ -42,56 +43,54 @@ func (s *faillockSuite) SetUpTest(c *C) {
 	s.configcoreSuite.SetUpTest(c)
 
 	s.markerPath = filepath.Join(dirs.GlobalRootDir, "/etc/writable/account-lockout.enabled")
-	err := os.MkdirAll(filepath.Dir(s.markerPath), 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Dir(s.markerPath), 0755))
+
 }
 
 func (s *faillockSuite) TestFaillockSetTrue(c *C) {
-	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
+	mylog.Check(configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf:  map[string]interface{}{"users.lockout": "true"},
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(s.markerPath, testutil.FilePresent)
 }
 
 func (s *faillockSuite) TestFaillockSetFalse(c *C) {
-	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
+	mylog.Check(configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf:  map[string]interface{}{"users.lockout": "false"},
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(s.markerPath, testutil.FileAbsent)
 }
 
 func (s *faillockSuite) TestFaillockSetFalseReset(c *C) {
-	err := os.WriteFile(s.markerPath, nil, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(s.markerPath, nil, 0644))
 
-	err = configcore.FilesystemOnlyRun(coreDev, &mockConf{
+	mylog.Check(configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf:  map[string]interface{}{"users.lockout": "false"},
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(s.markerPath, testutil.FileAbsent)
 }
 
 func (s *faillockSuite) TestFaillockHandlesErrors(c *C) {
-	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
+	mylog.Check(configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf:  map[string]interface{}{"users.lockout": "invalid-value"},
-	})
+	}))
 	c.Assert(err, ErrorMatches, "users.lockout can only be set to 'true' or 'false'")
 }
 
 func (s *faillockSuite) TestFaillockUnsetChangeNothing(c *C) {
-	err := os.WriteFile(s.markerPath, nil, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(s.markerPath, nil, 0644))
 
-	err = configcore.FilesystemOnlyRun(coreDev, &mockConf{
+	mylog.Check(configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf:  map[string]interface{}{"users.lockout": ""},
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	c.Check(s.markerPath, testutil.FilePresent)
 }

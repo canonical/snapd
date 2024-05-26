@@ -22,6 +22,7 @@ package sysdb
 import (
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/snapdenv"
 )
@@ -116,14 +117,10 @@ var (
 )
 
 func init() {
-	canonicalAccount, err := asserts.Decode([]byte(encodedCanonicalAccount))
-	if err != nil {
-		panic(fmt.Sprintf("cannot decode trusted assertion: %v", err))
-	}
-	canonicalRootAccountKey, err := asserts.Decode([]byte(encodedCanonicalRootAccountKey))
-	if err != nil {
-		panic(fmt.Sprintf("cannot decode trusted assertion: %v", err))
-	}
+	canonicalAccount := mylog.Check2(asserts.Decode([]byte(encodedCanonicalAccount)))
+
+	canonicalRootAccountKey := mylog.Check2(asserts.Decode([]byte(encodedCanonicalRootAccountKey)))
+
 	trustedAssertions = []asserts.Assertion{canonicalAccount, canonicalRootAccountKey}
 }
 

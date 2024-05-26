@@ -24,6 +24,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 )
 
@@ -41,12 +42,12 @@ func (cs *clientSuite) TestClientAlias(c *check.C) {
 		"result": { },
                 "change": "chgid"
 	}`
-	id, err := cs.cli.Alias("alias-snap", "cmd1", "alias1")
+	id := mylog.Check2(cs.cli.Alias("alias-snap", "cmd1", "alias1"))
 	c.Assert(err, check.IsNil)
 	c.Check(id, check.Equals, "chgid")
 	var body map[string]interface{}
 	decoder := json.NewDecoder(cs.req.Body)
-	err = decoder.Decode(&body)
+	mylog.Check(decoder.Decode(&body))
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"action": "alias",
@@ -70,12 +71,12 @@ func (cs *clientSuite) TestClientUnalias(c *check.C) {
 		"result": { },
                 "change": "chgid"
 	}`
-	id, err := cs.cli.Unalias("alias1")
+	id := mylog.Check2(cs.cli.Unalias("alias1"))
 	c.Assert(err, check.IsNil)
 	c.Check(id, check.Equals, "chgid")
 	var body map[string]interface{}
 	decoder := json.NewDecoder(cs.req.Body)
-	err = decoder.Decode(&body)
+	mylog.Check(decoder.Decode(&body))
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"action": "unalias",
@@ -98,12 +99,12 @@ func (cs *clientSuite) TestClientDisableAllAliases(c *check.C) {
 		"result": { },
                 "change": "chgid"
 	}`
-	id, err := cs.cli.DisableAllAliases("some-snap")
+	id := mylog.Check2(cs.cli.DisableAllAliases("some-snap"))
 	c.Assert(err, check.IsNil)
 	c.Check(id, check.Equals, "chgid")
 	var body map[string]interface{}
 	decoder := json.NewDecoder(cs.req.Body)
-	err = decoder.Decode(&body)
+	mylog.Check(decoder.Decode(&body))
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"action": "unalias",
@@ -125,12 +126,12 @@ func (cs *clientSuite) TestClientRemoveManualAlias(c *check.C) {
 		"result": { },
                 "change": "chgid"
 	}`
-	id, err := cs.cli.RemoveManualAlias("alias1")
+	id := mylog.Check2(cs.cli.RemoveManualAlias("alias1"))
 	c.Assert(err, check.IsNil)
 	c.Check(id, check.Equals, "chgid")
 	var body map[string]interface{}
 	decoder := json.NewDecoder(cs.req.Body)
-	err = decoder.Decode(&body)
+	mylog.Check(decoder.Decode(&body))
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"action": "unalias",
@@ -152,12 +153,12 @@ func (cs *clientSuite) TestClientPrefer(c *check.C) {
 		"result": { },
                 "change": "chgid"
 	}`
-	id, err := cs.cli.Prefer("some-snap")
+	id := mylog.Check2(cs.cli.Prefer("some-snap"))
 	c.Assert(err, check.IsNil)
 	c.Check(id, check.Equals, "chgid")
 	var body map[string]interface{}
 	decoder := json.NewDecoder(cs.req.Body)
-	err = decoder.Decode(&body)
+	mylog.Check(decoder.Decode(&body))
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"action": "prefer",
@@ -185,7 +186,7 @@ func (cs *clientSuite) TestClientAliases(c *check.C) {
                     }
 		}
 	}`
-	allStatuses, err := cs.cli.Aliases()
+	allStatuses := mylog.Check2(cs.cli.Aliases())
 	c.Assert(err, check.IsNil)
 	c.Check(allStatuses, check.DeepEquals, map[string]map[string]client.AliasStatus{
 		"foo": {

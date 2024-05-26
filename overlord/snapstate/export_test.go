@@ -23,6 +23,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
@@ -333,7 +334,7 @@ var (
 )
 
 func (m *SnapManager) MaybeUndoRemodelBootChanges(t *state.Task) (restartRequested, rebootRequired bool, err error) {
-	restartPoss, err := m.maybeUndoRemodelBootChanges(t)
+	restartPoss := mylog.Check2(m.maybeUndoRemodelBootChanges(t))
 	if restartPoss != nil {
 		return true, restartPoss.RebootRequired, nil
 	}
@@ -388,9 +389,7 @@ func MockGenerateSnapdWrappers(f func(snapInfo *snap.Info, opts *backend.Generat
 	}
 }
 
-var (
-	NotifyLinkParticipants = notifyLinkParticipants
-)
+var NotifyLinkParticipants = notifyLinkParticipants
 
 // autorefresh
 var (
@@ -401,8 +400,10 @@ var (
 	MaybeAsyncPendingRefreshNotification = maybeAsyncPendingRefreshNotification
 )
 
-type RefreshCandidate = refreshCandidate
-type TimedBusySnapError = timedBusySnapError
+type (
+	RefreshCandidate   = refreshCandidate
+	TimedBusySnapError = timedBusySnapError
+)
 
 func NewBusySnapError(info *snap.Info, pids []int, busyAppNames, busyHookNames []string) *BusySnapError {
 	return &BusySnapError{
@@ -458,17 +459,11 @@ func MockTimeNow(f func() time.Time) (restore func()) {
 }
 
 func MockHoldState(firstHeld string, holdUntil string) *HoldState {
-	first, err := time.Parse(time.RFC3339, firstHeld)
-	if err != nil {
-		panic(err)
-	}
+	first := mylog.Check2(time.Parse(time.RFC3339, firstHeld))
+
 	var until time.Time
 	if holdUntil != "forever" {
-		var err error
-		until, err = time.Parse(time.RFC3339, holdUntil)
-		if err != nil {
-			panic(err)
-		}
+		until = mylog.Check2(time.Parse(time.RFC3339, holdUntil))
 	} else {
 		until = first.Add(maxDuration)
 	}

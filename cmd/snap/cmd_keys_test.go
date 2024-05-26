@@ -29,6 +29,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	snap "github.com/snapcore/snapd/cmd/snap"
 	"github.com/snapcore/snapd/store"
 )
@@ -69,17 +70,16 @@ func (s *SnapKeysSuite) SetUpTest(c *C) {
 
 	s.tempdir = c.MkDir()
 	for _, fileName := range []string{"pubring.gpg", "secring.gpg", "trustdb.gpg"} {
-		data, err := os.ReadFile(filepath.Join("test-data", fileName))
-		c.Assert(err, IsNil)
-		err = os.WriteFile(filepath.Join(s.tempdir, fileName), data, 0644)
-		c.Assert(err, IsNil)
+		data := mylog.Check2(os.ReadFile(filepath.Join("test-data", fileName)))
+
+		mylog.Check(os.WriteFile(filepath.Join(s.tempdir, fileName), data, 0644))
+
 	}
 	fakePinentryFn := filepath.Join(s.tempdir, "pinentry-fake")
-	err := os.WriteFile(fakePinentryFn, fakePinentryData, 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(fakePinentryFn, fakePinentryData, 0755))
+
 	gpgAgentConfFn := filepath.Join(s.tempdir, "gpg-agent.conf")
-	err = os.WriteFile(gpgAgentConfFn, []byte(fmt.Sprintf(`pinentry-program %s`, fakePinentryFn)), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(gpgAgentConfFn, []byte(fmt.Sprintf(`pinentry-program %s`, fakePinentryFn)), 0644))
 
 	os.Setenv("SNAP_GNUPG_HOME", s.tempdir)
 	os.Setenv("SNAP_GNUPG_CMD", s.GnupgCmd)
@@ -102,8 +102,8 @@ func (s *SnapKeysSuite) TearDownTest(c *C) {
 }
 
 func (s *SnapKeysSuite) TestKeys(c *C) {
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"keys"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"keys"}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	c.Check(s.Stdout(), Matches, `Name +SHA3-384
 default +g4Pks54W_US4pZuxhgG_RHNAf_UeZBBuZyGRLLmMj1Do3GkE_r_5A5BFjx24ZwVJ
@@ -113,20 +113,20 @@ another +DVQf1U4mIsuzlQqAebjjTPYtYJ-GEhJy0REuj3zvpQYTZ7EJj7adBxIXLJ7Vmk3L
 }
 
 func (s *SnapKeysSuite) TestKeysEmptyNoHeader(c *C) {
-	// simulate empty keys
-	err := os.RemoveAll(s.tempdir)
-	c.Assert(err, IsNil)
+	mylog.
+		// simulate empty keys
+		Check(os.RemoveAll(s.tempdir))
 
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"keys"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"keys"}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	c.Check(s.Stdout(), Equals, "")
 	c.Check(s.Stderr(), Equals, "No keys registered, see `snapcraft create-key`\n")
 }
 
 func (s *SnapKeysSuite) TestKeysJSON(c *C) {
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"keys", "--json"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"keys", "--json"}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	expectedResponse := []snap.Key{
 		{
@@ -145,10 +145,10 @@ func (s *SnapKeysSuite) TestKeysJSON(c *C) {
 }
 
 func (s *SnapKeysSuite) TestKeysJSONEmpty(c *C) {
-	err := os.RemoveAll(os.Getenv("SNAP_GNUPG_HOME"))
-	c.Assert(err, IsNil)
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"keys", "--json"})
-	c.Assert(err, IsNil)
+	mylog.Check(os.RemoveAll(os.Getenv("SNAP_GNUPG_HOME")))
+
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"keys", "--json"}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	c.Check(s.Stdout(), Equals, "[]\n")
 	c.Check(s.Stderr(), Equals, "")

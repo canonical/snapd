@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 	. "gopkg.in/check.v1"
 
@@ -89,8 +90,8 @@ func (s *SnapSuite) TestConnectExplicitEverything(c *C) {
 			c.Fatalf("unexpected path %q", r.URL.Path)
 		}
 	})
-	rest, err := Parser(Client()).ParseArgs([]string{"connect", "producer:plug", "consumer:slot"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(Parser(Client()).ParseArgs([]string{"connect", "producer:plug", "consumer:slot"}))
+
 	c.Assert(rest, DeepEquals, []string{})
 }
 
@@ -123,8 +124,8 @@ func (s *SnapSuite) TestConnectExplicitPlugImplicitSlot(c *C) {
 			c.Fatalf("unexpected path %q", r.URL.Path)
 		}
 	})
-	rest, err := Parser(Client()).ParseArgs([]string{"connect", "producer:plug", "consumer"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(Parser(Client()).ParseArgs([]string{"connect", "producer:plug", "consumer"}))
+
 	c.Assert(rest, DeepEquals, []string{})
 }
 
@@ -157,8 +158,8 @@ func (s *SnapSuite) TestConnectImplicitPlugExplicitSlot(c *C) {
 			c.Fatalf("unexpected path %q", r.URL.Path)
 		}
 	})
-	rest, err := Parser(Client()).ParseArgs([]string{"connect", "plug", "consumer:slot"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(Parser(Client()).ParseArgs([]string{"connect", "plug", "consumer:slot"}))
+
 	c.Assert(rest, DeepEquals, []string{})
 }
 
@@ -191,8 +192,8 @@ func (s *SnapSuite) TestConnectImplicitPlugImplicitSlot(c *C) {
 			c.Fatalf("unexpected path %q", r.URL.Path)
 		}
 	})
-	rest, err := Parser(Client()).ParseArgs([]string{"connect", "plug", "consumer"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(Parser(Client()).ParseArgs([]string{"connect", "plug", "consumer"}))
+
 	c.Assert(rest, DeepEquals, []string{})
 }
 
@@ -300,29 +301,29 @@ func (s *SnapSuite) TestConnectCompletion(c *C) {
 	}
 
 	expected = []flags.Completion{{Item: "core:"}, {Item: "paste-daemon:"}, {Item: "potato:"}}
-	_, err := parser.ParseArgs([]string{"connect", ""})
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(parser.ParseArgs([]string{"connect", ""}))
+
 
 	// connect's first argument can't start with : (only for the 2nd arg, the slot)
 	expected = nil
-	_, err = parser.ParseArgs([]string{"connect", ":"})
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(parser.ParseArgs([]string{"connect", ":"}))
+
 
 	expected = []flags.Completion{{Item: "paste-daemon:network-listening", Description: "plug"}}
-	_, err = parser.ParseArgs([]string{"connect", "pa"})
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(parser.ParseArgs([]string{"connect", "pa"}))
+
 
 	expected = []flags.Completion{{Item: "core:"}, {Item: "wake-up-alarm:"}}
-	_, err = parser.ParseArgs([]string{"connect", "paste-daemon:network-listening", ""})
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(parser.ParseArgs([]string{"connect", "paste-daemon:network-listening", ""}))
+
 
 	expected = []flags.Completion{{Item: "wake-up-alarm:toggle", Description: "slot"}}
-	_, err = parser.ParseArgs([]string{"connect", "paste-daemon:network-listening", "w"})
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(parser.ParseArgs([]string{"connect", "paste-daemon:network-listening", "w"}))
+
 
 	expected = []flags.Completion{{Item: ":x11", Description: "slot"}}
-	_, err = parser.ParseArgs([]string{"connect", "paste-daemon:network-listening", ":"})
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(parser.ParseArgs([]string{"connect", "paste-daemon:network-listening", ":"}))
+
 
 	c.Assert(s.Stdout(), Equals, "")
 	c.Assert(s.Stderr(), Equals, "")

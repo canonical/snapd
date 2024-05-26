@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/cmd/snaplock"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/dirs"
@@ -125,7 +126,7 @@ func (s *refreshSuite) TestRefreshFromHook(c *C) {
 	s.st.Lock()
 	task := s.st.NewTask("test-task", "my test task")
 	setup := &hookstate.HookSetup{Snap: "snap1", Revision: snap.R(1), Hook: "gate-auto-refresh"}
-	mockContext, err := hookstate.NewContext(task, s.st, setup, s.mockHandler, "")
+	mockContext := mylog.Check2(hookstate.NewContext(task, s.st, setup, s.mockHandler, ""))
 	c.Check(err, IsNil)
 	mockInstalledSnap(c, s.st, `name: snap1
 base: snap1-base
@@ -154,7 +155,7 @@ version: 1
 		}
 		s.st.Unlock()
 
-		stdout, stderr, err := ctlcmd.Run(mockContext, test.args, 0)
+		stdout, stderr := mylog.Check3(ctlcmd.Run(mockContext, test.args, 0))
 		comment := Commentf("%s", test.args)
 		if test.exitCode > 0 {
 			c.Check(err, DeepEquals, &ctlcmd.UnsuccessfulError{ExitCode: test.exitCode}, comment)
@@ -175,7 +176,7 @@ func (s *refreshSuite) TestRefreshHold(c *C) {
 	s.st.Lock()
 	task := s.st.NewTask("test-task", "my test task")
 	setup := &hookstate.HookSetup{Snap: "snap1", Revision: snap.R(1), Hook: "gate-auto-refresh"}
-	mockContext, err := hookstate.NewContext(task, s.st, setup, s.mockHandler, "")
+	mockContext := mylog.Check2(hookstate.NewContext(task, s.st, setup, s.mockHandler, ""))
 	c.Check(err, IsNil)
 
 	mockInstalledSnap(c, s.st, `name: snap1
@@ -196,8 +197,8 @@ version: 1
 
 	s.st.Unlock()
 
-	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"refresh", "--hold"}, 0)
-	c.Assert(err, IsNil)
+	stdout, stderr := mylog.Check3(ctlcmd.Run(mockContext, []string{"refresh", "--hold"}, 0))
+
 	c.Check(string(stdout), Equals, "hold: 48h0m0s\n")
 	c.Check(string(stderr), Equals, "")
 
@@ -216,7 +217,7 @@ func (s *refreshSuite) TestRefreshProceed(c *C) {
 	s.st.Lock()
 	task := s.st.NewTask("test-task", "my test task")
 	setup := &hookstate.HookSetup{Snap: "snap1", Revision: snap.R(1), Hook: "gate-auto-refresh"}
-	mockContext, err := hookstate.NewContext(task, s.st, setup, s.mockHandler, "")
+	mockContext := mylog.Check2(hookstate.NewContext(task, s.st, setup, s.mockHandler, ""))
 	c.Check(err, IsNil)
 
 	mockInstalledSnap(c, s.st, `name: foo
@@ -224,7 +225,7 @@ version: 1
 `, "")
 
 	// pretend snap foo is held initially
-	_, err = snapstate.HoldRefresh(s.st, snapstate.HoldAutoRefresh, "snap1", 0, "foo")
+	_ = mylog.Check2(snapstate.HoldRefresh(s.st, snapstate.HoldAutoRefresh, "snap1", 0, "foo"))
 	c.Check(err, IsNil)
 	s.st.Unlock()
 
@@ -240,8 +241,8 @@ version: 1
 	mockContext.Set("affecting-snaps", []string{"foo"})
 	mockContext.Unlock()
 
-	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"refresh", "--proceed"}, 0)
-	c.Assert(err, IsNil)
+	stdout, stderr := mylog.Check3(ctlcmd.Run(mockContext, []string{"refresh", "--proceed"}, 0))
+
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
 
@@ -262,8 +263,8 @@ version: 1
 	defer mockContext.Lock()
 
 	// refresh --pending --proceed is the same as just saying --proceed.
-	stdout, stderr, err = ctlcmd.Run(mockContext, []string{"refresh", "--pending", "--proceed"}, 0)
-	c.Assert(err, IsNil)
+	stdout, stderr = mylog.Check3(ctlcmd.Run(mockContext, []string{"refresh", "--pending", "--proceed"}, 0))
+
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
 
@@ -279,11 +280,11 @@ func (s *refreshSuite) TestRefreshFromUnsupportedHook(c *C) {
 
 	task := s.st.NewTask("test-task", "my test task")
 	setup := &hookstate.HookSetup{Snap: "snap", Revision: snap.R(1), Hook: "install"}
-	mockContext, err := hookstate.NewContext(task, s.st, setup, s.mockHandler, "")
+	mockContext := mylog.Check2(hookstate.NewContext(task, s.st, setup, s.mockHandler, ""))
 	c.Check(err, IsNil)
 	s.st.Unlock()
 
-	_, _, err = ctlcmd.Run(mockContext, []string{"refresh"}, 0)
+	_, _ = mylog.Check3(ctlcmd.Run(mockContext, []string{"refresh"}, 0))
 	c.Check(err, ErrorMatches, `can only be used from gate-auto-refresh hook`)
 }
 
@@ -315,13 +316,13 @@ version: 1
 
 	// foo is the snap that is going to call --proceed.
 	setup := &hookstate.HookSetup{Snap: "foo", Revision: snap.R(1)}
-	mockContext, err := hookstate.NewContext(nil, s.st, setup, nil, "")
+	mockContext := mylog.Check2(hookstate.NewContext(nil, s.st, setup, nil, ""))
 	c.Check(err, IsNil)
 	s.st.Unlock()
 	defer s.st.Lock()
 
-	_, _, err = ctlcmd.Run(mockContext, []string{"refresh", "--proceed"}, 0)
-	c.Assert(err, IsNil)
+	_, _ = mylog.Check3(ctlcmd.Run(mockContext, []string{"refresh", "--proceed"}, 0))
+
 	c.Check(called, Equals, true)
 }
 
@@ -334,13 +335,13 @@ version: 1
 `, "")
 
 	setup := &hookstate.HookSetup{Snap: "foo", Revision: snap.R(1)}
-	mockContext, err := hookstate.NewContext(nil, s.st, setup, nil, "")
+	mockContext := mylog.Check2(hookstate.NewContext(nil, s.st, setup, nil, ""))
 	c.Check(err, IsNil)
 	s.st.Unlock()
 	defer s.st.Lock()
 
-	stdout, _, err := ctlcmd.Run(mockContext, []string{"refresh", "--pending"}, 0)
-	c.Assert(err, IsNil)
+	stdout, _ := mylog.Check3(ctlcmd.Run(mockContext, []string{"refresh", "--pending"}, 0))
+
 	c.Check(string(stdout), Equals, "pending: none\nchannel: stable\nbase: false\nrestart: false\n")
 }
 
@@ -353,14 +354,14 @@ version: 1
 `, "some-cohort-key")
 
 	setup := &hookstate.HookSetup{Snap: "foo", Revision: snap.R(1)}
-	mockContext, err := hookstate.NewContext(nil, s.st, setup, nil, "")
+	mockContext := mylog.Check2(hookstate.NewContext(nil, s.st, setup, nil, ""))
 	c.Check(err, IsNil)
 
 	s.st.Unlock()
 	defer s.st.Lock()
 
-	stdout, _, err := ctlcmd.Run(mockContext, []string{"refresh", "--pending"}, 0)
-	c.Assert(err, IsNil)
+	stdout, _ := mylog.Check3(ctlcmd.Run(mockContext, []string{"refresh", "--pending"}, 0))
+
 	// cohort is not printed if snap-refresh-control isn't connected
 	c.Check(string(stdout), Equals, "pending: none\nchannel: stable\nbase: false\nrestart: false\n")
 
@@ -370,8 +371,8 @@ version: 1
 	})
 	s.st.Unlock()
 
-	stdout, _, err = ctlcmd.Run(mockContext, []string{"refresh", "--pending"}, 0)
-	c.Assert(err, IsNil)
+	stdout, _ = mylog.Check3(ctlcmd.Run(mockContext, []string{"refresh", "--pending"}, 0))
+
 	// cohort is printed
 	c.Check(string(stdout), Equals, "pending: none\nchannel: stable\ncohort: some-cohort-key\nbase: false\nrestart: false\n")
 }
@@ -386,7 +387,7 @@ version: 1
 
 	task := s.st.NewTask("test-task", "my test task")
 	setup := &hookstate.HookSetup{Snap: "foo", Revision: snap.R(1), Hook: "gate-auto-refresh"}
-	mockContext, err := hookstate.NewContext(task, s.st, setup, s.mockHandler, "")
+	mockContext := mylog.Check2(hookstate.NewContext(task, s.st, setup, s.mockHandler, ""))
 	c.Check(err, IsNil)
 
 	s.st.Set("conns", map[string]interface{}{
@@ -396,8 +397,8 @@ version: 1
 	s.st.Unlock()
 	defer s.st.Lock()
 
-	stdout, _, err := ctlcmd.Run(mockContext, []string{"refresh", "--pending"}, 0)
-	c.Assert(err, IsNil)
+	stdout, _ := mylog.Check3(ctlcmd.Run(mockContext, []string{"refresh", "--pending"}, 0))
+
 	// cohort is printed
 	c.Check(string(stdout), Equals, "pending: none\nchannel: stable\ncohort: some-cohort-key\nbase: false\nrestart: false\n")
 }
@@ -426,12 +427,12 @@ version: 1
 
 	// foo is the snap that is going to call --proceed.
 	setup := &hookstate.HookSetup{Snap: "foo", Revision: snap.R(1)}
-	mockContext, err := hookstate.NewContext(nil, s.st, setup, nil, "")
+	mockContext := mylog.Check2(hookstate.NewContext(nil, s.st, setup, nil, ""))
 	c.Check(err, IsNil)
 	s.st.Unlock()
 	defer s.st.Lock()
 
-	_, _, err = ctlcmd.Run(mockContext, []string{"refresh", "--proceed"}, 0)
+	_, _ = mylog.Check3(ctlcmd.Run(mockContext, []string{"refresh", "--proceed"}, 0))
 	c.Assert(err, ErrorMatches, "boom")
 }
 
@@ -463,12 +464,12 @@ version: 1
 
 	// foo is the snap that is going to call --proceed.
 	setup := &hookstate.HookSetup{Snap: "foo", Revision: snap.R(1)}
-	mockContext, err := hookstate.NewContext(nil, s.st, setup, nil, "")
+	mockContext := mylog.Check2(hookstate.NewContext(nil, s.st, setup, nil, ""))
 	c.Check(err, IsNil)
 	s.st.Unlock()
 	defer s.st.Lock()
 
-	_, _, err = ctlcmd.Run(mockContext, []string{"refresh", "--proceed"}, 0)
+	_, _ = mylog.Check3(ctlcmd.Run(mockContext, []string{"refresh", "--proceed"}, 0))
 	c.Assert(err, ErrorMatches, "cannot proceed: requires snap-refresh-control interface")
 	c.Assert(called, Equals, false)
 
@@ -480,7 +481,7 @@ version: 1
 	})
 	s.st.Unlock()
 
-	_, _, err = ctlcmd.Run(mockContext, []string{"refresh", "--proceed"}, 0)
+	_, _ = mylog.Check3(ctlcmd.Run(mockContext, []string{"refresh", "--proceed"}, 0))
 	c.Assert(err, ErrorMatches, "cannot proceed: requires snap-refresh-control interface")
 	c.Assert(called, Equals, false)
 }
@@ -490,9 +491,9 @@ func (s *refreshSuite) TestRefreshRegularUserForbidden(c *C) {
 	setup := &hookstate.HookSetup{Snap: "snap", Revision: snap.R(1)}
 	s.st.Unlock()
 
-	mockContext, err := hookstate.NewContext(nil, s.st, setup, s.mockHandler, "")
-	c.Assert(err, IsNil)
-	_, _, err = ctlcmd.Run(mockContext, []string{"refresh"}, 1000)
+	mockContext := mylog.Check2(hookstate.NewContext(nil, s.st, setup, s.mockHandler, ""))
+
+	_, _ = mylog.Check3(ctlcmd.Run(mockContext, []string{"refresh"}, 1000))
 	c.Assert(err, ErrorMatches, `cannot use "refresh" with uid 1000, try with sudo`)
 	forbidden, _ := err.(*ctlcmd.ForbiddenCommandError)
 	c.Assert(forbidden, NotNil)
@@ -502,20 +503,20 @@ func (s *refreshSuite) TestRefreshPrintInhibitHint(c *C) {
 	s.st.Lock()
 	task := s.st.NewTask("test-task", "my test task")
 	setup := &hookstate.HookSetup{Snap: "snap1", Revision: snap.R(1), Hook: "gate-auto-refresh"}
-	mockContext, err := hookstate.NewContext(task, s.st, setup, s.mockHandler, "")
+	mockContext := mylog.Check2(hookstate.NewContext(task, s.st, setup, s.mockHandler, ""))
 	c.Check(err, IsNil)
 	s.st.Unlock()
 
-	lock, err := snaplock.OpenLock("snap1")
-	c.Assert(err, IsNil)
-	err = lock.Lock()
-	c.Assert(err, IsNil)
+	lock := mylog.Check2(snaplock.OpenLock("snap1"))
+
+	mylog.Check(lock.Lock())
+
 	inhibitInfo := runinhibit.InhibitInfo{Previous: snap.R(1)}
 	c.Check(runinhibit.LockWithHint("snap1", runinhibit.HintInhibitedForRefresh, inhibitInfo), IsNil)
 	lock.Unlock()
 
-	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"refresh", "--show-lock"}, 0)
-	c.Assert(err, IsNil)
+	stdout, stderr := mylog.Check3(ctlcmd.Run(mockContext, []string{"refresh", "--show-lock"}, 0))
+
 	c.Check(string(stdout), Equals, "refresh")
 	c.Check(string(stderr), Equals, "")
 }
@@ -524,12 +525,12 @@ func (s *refreshSuite) TestRefreshPrintInhibitHintEmpty(c *C) {
 	s.st.Lock()
 	task := s.st.NewTask("test-task", "my test task")
 	setup := &hookstate.HookSetup{Snap: "some-snap", Revision: snap.R(1), Hook: "gate-auto-refresh"}
-	mockContext, err := hookstate.NewContext(task, s.st, setup, s.mockHandler, "")
+	mockContext := mylog.Check2(hookstate.NewContext(task, s.st, setup, s.mockHandler, ""))
 	c.Check(err, IsNil)
 	s.st.Unlock()
 
-	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"refresh", "--show-lock"}, 0)
-	c.Assert(err, IsNil)
+	stdout, stderr := mylog.Check3(ctlcmd.Run(mockContext, []string{"refresh", "--show-lock"}, 0))
+
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
 }

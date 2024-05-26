@@ -26,6 +26,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	snap "github.com/snapcore/snapd/cmd/snap"
 )
 
@@ -58,7 +59,7 @@ func makeRemoveUserChecker(c *check.C, n *int, username string, fmtJsonReply str
 			c.Check(r.URL.Path, check.Equals, "/v2/users")
 			var gotBody map[string]interface{}
 			dec := json.NewDecoder(r.Body)
-			err := dec.Decode(&gotBody)
+			mylog.Check(dec.Decode(&gotBody))
 			c.Assert(err, check.IsNil)
 
 			wantBody := map[string]interface{}{
@@ -82,7 +83,7 @@ func (s *SnapSuite) TestRemoveUser(c *check.C) {
 	username := "karl"
 	s.RedirectClientToTestServer(makeRemoveUserChecker(c, &n, username, fmt.Sprintf(removeUserJsonFmtReplyHappy, username)))
 
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"remove-user", "karl"})
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"remove-user", "karl"}))
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.DeepEquals, []string{})
 	c.Check(n, check.Equals, 1)
@@ -94,7 +95,7 @@ func (s *SnapSuite) TestRemoveUserUnhappyTooMany(c *check.C) {
 	n := 0
 	s.RedirectClientToTestServer(makeRemoveUserChecker(c, &n, "karl", removeUserJsonReplyTooMany))
 
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"remove-user", "karl"})
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"remove-user", "karl"}))
 	c.Assert(err, check.ErrorMatches, `internal error: RemoveUser returned unexpected number of removed users: 2`)
 	c.Check(n, check.Equals, 1)
 }
@@ -103,7 +104,7 @@ func (s *SnapSuite) TestRemoveUserUnhappyTooFew(c *check.C) {
 	n := 0
 	s.RedirectClientToTestServer(makeRemoveUserChecker(c, &n, "karl", removeUserJsonReplyTooFew))
 
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"remove-user", "karl"})
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"remove-user", "karl"}))
 	c.Assert(err, check.ErrorMatches, `internal error: RemoveUser returned unexpected number of removed users: 0`)
 	c.Check(n, check.Equals, 1)
 }

@@ -26,6 +26,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -77,18 +78,11 @@ func DistroSupportsReExec() bool {
 // version of core that do not yet have it.
 func systemSnapSupportsReExec(coreOrSnapdPath string) bool {
 	infoDir := filepath.Join(coreOrSnapdPath, filepath.Join(dirs.CoreLibExecDir))
-	ver, _, err := SnapdVersionFromInfoFile(infoDir)
-	if err != nil {
-		logger.Noticef("%v", err)
-		return false
-	}
+	ver, _ := mylog.Check3(SnapdVersionFromInfoFile(infoDir))
 
 	// > 0 means our Version is bigger than the version of snapd in core
-	res, err := strutil.VersionCompare(Version, ver)
-	if err != nil {
-		logger.Debugf("cannot version compare %q and %q: %v", Version, ver, err)
-		return false
-	}
+	res := mylog.Check2(strutil.VersionCompare(Version, ver))
+
 	if res > 0 {
 		logger.Debugf("snap (at %q) is older (%q) than distribution package (%q)", coreOrSnapdPath, ver, Version)
 		return false
@@ -108,10 +102,7 @@ func InternalToolPath(tool string) (string, error) {
 	// find the internal path relative to the running snapd, this
 	// ensure we don't rely on the state of the system (like
 	// having a valid "current" symlink).
-	exe, err := osReadlink("/proc/self/exe")
-	if err != nil {
-		return "", err
-	}
+	exe := mylog.Check2(osReadlink("/proc/self/exe"))
 
 	if !strings.HasPrefix(exe, dirs.DistroLibExecDir) {
 		// either running from mounted location or /usr/bin/snap*
@@ -159,20 +150,14 @@ func IsReexecEnabled() bool {
 // mustUnsetenv will unset the given environment key or panic if it
 // cannot do that
 func mustUnsetenv(key string) {
-	if err := os.Unsetenv(key); err != nil {
-		log.Panicf("cannot unset %s: %s", key, err)
-	}
+	mylog.Check(os.Unsetenv(key))
 }
 
 // ExecInSnapdOrCoreSnap makes sure you're executing the binary that ships in
 // the snapd/core snap.
 func ExecInSnapdOrCoreSnap() {
 	// Which executable are we?
-	exe, err := os.Readlink(selfExe)
-	if err != nil {
-		logger.Noticef("cannot read /proc/self/exe: %v", err)
-		return
-	}
+	exe := mylog.Check2(os.Readlink(selfExe))
 
 	// Special case for snapd re-execing from 2.21. In this
 	// version of snap/snapd we did set SNAP_REEXEC=0 when we
@@ -221,10 +206,8 @@ func ExecInSnapdOrCoreSnap() {
 
 // IsReexecd returns true when the current process binary is running from a snap.
 func IsReexecd() (bool, error) {
-	exe, err := osReadlink(selfExe)
-	if err != nil {
-		return false, err
-	}
+	exe := mylog.Check2(osReadlink(selfExe))
+
 	if strings.HasPrefix(exe, dirs.SnapMountDir) {
 		return true, nil
 	}

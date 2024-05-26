@@ -25,6 +25,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
@@ -55,7 +56,7 @@ func ClientSnapFromSnapInfo(snapInfo *snap.Info, decorator StatusDecorator) (*cl
 	}
 	sort.Sort(snap.AppInfoBySnapApp(snapapps))
 
-	apps, err := ClientAppInfosFromSnapAppInfos(snapapps, decorator)
+	apps := mylog.Check2(ClientAppInfosFromSnapAppInfos(snapapps, decorator))
 	result := &client.Snap{
 		Description: snapInfo.Description(),
 		Developer:   snapInfo.Publisher.Username,
@@ -96,7 +97,7 @@ func ClientAppInfoNotes(app *client.AppInfo) string {
 		return "-"
 	}
 
-	var notes = make([]string, 0, 4)
+	notes := make([]string, 0, 4)
 	if app.DaemonScope == snap.UserDaemon {
 		notes = append(notes, "user")
 	}
@@ -149,10 +150,8 @@ func ClientAppInfosFromSnapAppInfos(apps []*snap.AppInfo, decorator StatusDecora
 			out = append(out, appInfo)
 			continue
 		}
+		mylog.Check(decorator.DecorateWithStatus(&appInfo, app))
 
-		if err := decorator.DecorateWithStatus(&appInfo, app); err != nil {
-			return nil, err
-		}
 		out = append(out, appInfo)
 	}
 

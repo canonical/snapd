@@ -29,6 +29,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/godbus/dbus"
 	"github.com/gorilla/mux"
 	"gopkg.in/tomb.v2"
@@ -74,7 +75,7 @@ type Command struct {
 
 func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var rspf ResponseFunc
-	var rsp = MethodNotAllowed("method %q not allowed", r.Method)
+	rsp := MethodNotAllowed("method %q not allowed", r.Method)
 
 	switch r.Method {
 	case "GET":
@@ -103,10 +104,8 @@ var sysGetsockoptUcred = syscall.GetsockoptUcred
 
 func getUcred(conn net.Conn) (*syscall.Ucred, error) {
 	if uconn, ok := conn.(*net.UnixConn); ok {
-		f, err := uconn.File()
-		if err != nil {
-			return nil, err
-		}
+		f := mylog.Check2(uconn.File())
+
 		defer f.Close()
 		return sysGetsockoptUcred(int(f.Fd()), syscall.SOL_SOCKET, syscall.SO_PEERCRED)
 	}
@@ -116,12 +115,8 @@ func getUcred(conn net.Conn) (*syscall.Ucred, error) {
 func (it *idleTracker) trackConn(conn net.Conn, state http.ConnState) {
 	// Perform peer credentials check
 	if state == http.StateNew {
-		ucred, err := getUcred(conn)
-		if err != nil {
-			logger.Noticef("Failed to retrieve peer credentials: %v", err)
-			conn.Close()
-			return
-		}
+		ucred := mylog.Check2(getUcred(conn))
+
 		if ucred.Uid != 0 && ucred.Uid != uint32(sys.Geteuid()) {
 			logger.Noticef("Blocking request from user ID %v", ucred.Uid)
 			conn.Close()
@@ -172,16 +167,12 @@ func (l *closeOnceListener) Close() error {
 }
 
 func (s *SessionAgent) Init() error {
-	// Set up D-Bus connection
-	if err := s.tryConnectSessionBus(); err != nil {
-		return err
-	}
+	mylog.Check(
+		// Set up D-Bus connection
+		s.tryConnectSessionBus())
 
 	// Set up REST API server
-	listenerMap, err := netutil.ActivationListeners()
-	if err != nil {
-		return err
-	}
+	listenerMap := mylog.Check2(netutil.ActivationListeners())
 
 	// Set up notification manager
 	// Note that session bus may be nil, see the comment in tryConnectSessionBus.
@@ -190,7 +181,7 @@ func (s *SessionAgent) Init() error {
 	}
 
 	agentSocket := fmt.Sprintf("%s/%d/snapd-session-agent.socket", dirs.XdgRuntimeDirBase, os.Getuid())
-	if l, err := netutil.GetListener(agentSocket, listenerMap); err != nil {
+	if l := mylog.Check2(netutil.GetListener(agentSocket, listenerMap)); err != nil {
 		return fmt.Errorf("cannot listen on socket %s: %v", agentSocket, err)
 	} else {
 		s.listener = &closeOnceListener{Listener: l}
@@ -209,25 +200,17 @@ func (s *SessionAgent) Init() error {
 }
 
 func (s *SessionAgent) tryConnectSessionBus() (err error) {
-	s.bus, err = dbusutil.SessionBusPrivate()
-	if err != nil {
-		// ssh sessions on Ubuntu 16.04 may have a user
-		// instance of systemd but no D-Bus session bus.  So
-		// don't treat this as an error.
-		logger.Noticef("Could not connect to session bus: %v", err)
-		return nil
-	}
+	s.bus = mylog.Check2(dbusutil.SessionBusPrivate())
+
+	// ssh sessions on Ubuntu 16.04 may have a user
+	// instance of systemd but no D-Bus session bus.  So
+	// don't treat this as an error.
+
 	defer func() {
-		if err != nil {
-			s.bus.Close()
-			s.bus = nil
-		}
 	}()
 
-	reply, err := s.bus.RequestName(sessionAgentBusName, dbus.NameFlagDoNotQueue)
-	if err != nil {
-		return err
-	}
+	reply := mylog.Check2(s.bus.RequestName(sessionAgentBusName, dbus.NameFlagDoNotQueue))
+
 	if reply != dbus.RequestNameReplyPrimaryOwner {
 		return fmt.Errorf("cannot obtain bus name %q: %v", sessionAgentBusName, reply)
 	}
@@ -254,7 +237,7 @@ func (s *SessionAgent) Start() {
 }
 
 func (s *SessionAgent) runServer() error {
-	err := s.serve.Serve(s.listener)
+	mylog.Check(s.serve.Serve(s.listener))
 	if err == http.ErrServerClosed {
 		err = nil
 	}
@@ -316,10 +299,8 @@ Loop:
 // handleNotifications handles notifications in a blocking manner.
 // This should only be called when notificationMgr is available (i.e. s.bus is set).
 func (s *SessionAgent) handleNotifications() error {
-	err := s.notificationMgr.HandleNotifications(s.tomb.Context(context.Background()))
-	if err != nil {
-		logger.Noticef("%v", err)
-	}
+	mylog.Check(s.notificationMgr.HandleNotifications(s.tomb.Context(context.Background())))
+
 	return nil
 }
 
@@ -327,10 +308,7 @@ func (s *SessionAgent) handleNotifications() error {
 // seconds for it to complete.
 func (s *SessionAgent) Stop() error {
 	if s.bus != nil {
-		_, err := s.bus.ReleaseName(sessionAgentBusName)
-		if err != nil {
-			logger.Noticef("%v", err)
-		}
+		_ := mylog.Check2(s.bus.ReleaseName(sessionAgentBusName))
 	}
 	s.tomb.Kill(nil)
 	return s.tomb.Wait()
@@ -342,8 +320,7 @@ func (s *SessionAgent) Dying() <-chan struct{} {
 
 func New() (*SessionAgent, error) {
 	agent := &SessionAgent{}
-	if err := agent.Init(); err != nil {
-		return nil, err
-	}
+	mylog.Check(agent.Init())
+
 	return agent, nil
 }

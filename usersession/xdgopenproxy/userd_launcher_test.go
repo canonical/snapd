@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"syscall"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/godbus/dbus"
 	. "gopkg.in/check.v1"
 
@@ -47,16 +48,16 @@ func (s *userdSuite) SetUpSuite(c *C) {
 	s.DBusTest.SetUpSuite(c)
 
 	s.userd = &fakeUserd{s}
-	err := s.SessionBus.Export(s.userd, xdgopenproxy.UserdLauncherObjectPath, xdgopenproxy.UserdLauncherIface)
-	c.Assert(err, IsNil)
+	mylog.Check(s.SessionBus.Export(s.userd, xdgopenproxy.UserdLauncherObjectPath, xdgopenproxy.UserdLauncherIface))
 
-	_, err = s.SessionBus.RequestName(xdgopenproxy.UserdLauncherBusName, dbus.NameFlagAllowReplacement|dbus.NameFlagReplaceExisting)
-	c.Assert(err, IsNil)
+
+	_ = mylog.Check2(s.SessionBus.RequestName(xdgopenproxy.UserdLauncherBusName, dbus.NameFlagAllowReplacement|dbus.NameFlagReplaceExisting))
+
 }
 
 func (s *userdSuite) TearDownSuite(c *C) {
 	if s.SessionBus != nil {
-		_, err := s.SessionBus.ReleaseName(xdgopenproxy.UserdLauncherBusName)
+		_ := mylog.Check2(s.SessionBus.ReleaseName(xdgopenproxy.UserdLauncherBusName))
 		c.Check(err, IsNil)
 	}
 
@@ -75,8 +76,7 @@ func (s *userdSuite) TestOpenFile(c *C) {
 
 	path := filepath.Join(c.MkDir(), "test.txt")
 	c.Assert(os.WriteFile(path, []byte("hello world"), 0644), IsNil)
-
-	err := launcher.OpenFile(s.SessionBus, path)
+	mylog.Check(launcher.OpenFile(s.SessionBus, path))
 	c.Check(err, IsNil)
 	c.Check(s.calls, DeepEquals, []string{
 		"OpenFile",
@@ -90,8 +90,7 @@ func (s *userdSuite) TestOpenFileError(c *C) {
 
 	path := filepath.Join(c.MkDir(), "test.txt")
 	c.Assert(os.WriteFile(path, []byte("hello world"), 0644), IsNil)
-
-	err := launcher.OpenFile(s.SessionBus, path)
+	mylog.Check(launcher.OpenFile(s.SessionBus, path))
 	c.Check(err, FitsTypeOf, dbus.Error{})
 	c.Check(err, ErrorMatches, "failure")
 	c.Check(s.calls, DeepEquals, []string{
@@ -103,7 +102,7 @@ func (s *userdSuite) TestOpenDir(c *C) {
 	launcher := &xdgopenproxy.UserdLauncher{}
 
 	dir := c.MkDir()
-	err := launcher.OpenFile(s.SessionBus, dir)
+	mylog.Check(launcher.OpenFile(s.SessionBus, dir))
 	c.Check(err, IsNil)
 	c.Check(s.calls, DeepEquals, []string{
 		"OpenFile",
@@ -114,7 +113,7 @@ func (s *userdSuite) TestOpenMissingFile(c *C) {
 	launcher := &xdgopenproxy.UserdLauncher{}
 
 	path := filepath.Join(c.MkDir(), "no-such-file.txt")
-	err := launcher.OpenFile(s.SessionBus, path)
+	mylog.Check(launcher.OpenFile(s.SessionBus, path))
 	c.Check(err, ErrorMatches, "no such file or directory")
 	c.Check(s.calls, HasLen, 0)
 }
@@ -125,16 +124,14 @@ func (s *userdSuite) TestOpenUnreadableFile(c *C) {
 	path := filepath.Join(c.MkDir(), "test.txt")
 	c.Assert(os.WriteFile(path, []byte("hello world"), 0644), IsNil)
 	c.Assert(os.Chmod(path, 0), IsNil)
-
-	err := launcher.OpenFile(s.SessionBus, path)
+	mylog.Check(launcher.OpenFile(s.SessionBus, path))
 	c.Check(err, ErrorMatches, "permission denied")
 	c.Check(s.calls, HasLen, 0)
 }
 
 func (s *userdSuite) TestOpenURI(c *C) {
 	launcher := &xdgopenproxy.UserdLauncher{}
-
-	err := launcher.OpenURI(s.SessionBus, "http://example.com")
+	mylog.Check(launcher.OpenURI(s.SessionBus, "http://example.com"))
 	c.Check(err, IsNil)
 	c.Check(s.calls, DeepEquals, []string{
 		"OpenURI http://example.com",
@@ -145,7 +142,7 @@ func (s *userdSuite) TestOpenURIError(c *C) {
 	s.openError = dbus.MakeFailedError(fmt.Errorf("failure"))
 
 	launcher := &xdgopenproxy.UserdLauncher{}
-	err := launcher.OpenURI(s.SessionBus, "http://example.com")
+	mylog.Check(launcher.OpenURI(s.SessionBus, "http://example.com"))
 	c.Check(err, FitsTypeOf, dbus.Error{})
 	c.Check(err, ErrorMatches, "failure")
 	c.Check(s.calls, DeepEquals, []string{

@@ -36,6 +36,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
@@ -125,7 +126,7 @@ func (cs *clientSuite) TestNewPanics(c *C) {
 
 func (cs *clientSuite) TestClientDoReportsErrors(c *C) {
 	cs.err = errors.New("ouchie")
-	_, err := cs.cli.Do("GET", "/", nil, nil, nil, nil)
+	_ := mylog.Check2(cs.cli.Do("GET", "/", nil, nil, nil, nil))
 	c.Check(err, ErrorMatches, "cannot communicate with server: ouchie")
 	if cs.doCalls < 2 {
 		c.Fatalf("do did not retry")
@@ -136,7 +137,7 @@ func (cs *clientSuite) TestClientWorks(c *C) {
 	var v []int
 	cs.rsp = `[1,2]`
 	reqBody := io.NopCloser(strings.NewReader(""))
-	statusCode, err := cs.cli.Do("GET", "/this", nil, reqBody, &v, nil)
+	statusCode := mylog.Check2(cs.cli.Do("GET", "/this", nil, reqBody, &v, nil))
 	c.Check(err, IsNil)
 	c.Check(statusCode, Equals, 200)
 	c.Check(v, DeepEquals, []int{1, 2})
@@ -158,13 +159,13 @@ func (cs *clientSuite) TestClientSetMaintenanceForMaintenanceJSON(c *C) {
 		Kind:    client.ErrorKindSystemRestart,
 		Message: "system is restarting",
 	}
-	b, err := json.Marshal(maintErr)
-	c.Assert(err, IsNil)
+	b := mylog.Check2(json.Marshal(maintErr))
+
 	makeMaintenanceFile(c, b)
 
 	// now after a Do(), we will have maintenance set to what we wrote
 	// originally
-	_, err = cs.cli.Do("GET", "/this", nil, nil, nil, nil)
+	_ = mylog.Check2(cs.cli.Do("GET", "/this", nil, nil, nil, nil))
 	c.Check(err, IsNil)
 
 	returnedErr := cs.cli.Maintenance()
@@ -176,7 +177,7 @@ func (cs *clientSuite) TestClientIgnoresGarbageMaintenanceJSON(c *C) {
 	makeMaintenanceFile(c, []byte("blah blah blah not json"))
 
 	// after a Do(), no maintenance set and also no error returned from Do()
-	_, err := cs.cli.Do("GET", "/this", nil, nil, nil, nil)
+	_ := mylog.Check2(cs.cli.Do("GET", "/this", nil, nil, nil, nil))
 	c.Check(err, IsNil)
 
 	returnedErr := cs.cli.Maintenance()
@@ -193,7 +194,7 @@ func (cs *clientSuite) TestClientDoNoTimeoutIgnoresRetry(c *C) {
 		// once even though there is an error
 		Retry: time.Duration(time.Second),
 	}
-	_, err := cs.cli.Do("GET", "/this", nil, reqBody, &v, doOpts)
+	_ := mylog.Check2(cs.cli.Do("GET", "/this", nil, reqBody, &v, doOpts))
 	c.Check(err, ErrorMatches, "cannot communicate with server: borken")
 	c.Assert(cs.doCalls, Equals, 1)
 }
@@ -206,7 +207,7 @@ func (cs *clientSuite) TestClientDoRetryValidation(c *C) {
 		Retry:   time.Duration(-1),
 		Timeout: time.Duration(time.Minute),
 	}
-	_, err := cs.cli.Do("GET", "/this", nil, reqBody, &v, doOpts)
+	_ := mylog.Check2(cs.cli.Do("GET", "/this", nil, reqBody, &v, doOpts))
 	c.Check(err, ErrorMatches, "internal error: retry setting.*invalid")
 	c.Assert(cs.req, IsNil)
 }
@@ -218,7 +219,7 @@ func (cs *clientSuite) TestClientDoRetryWorks(c *C) {
 		Retry:   time.Duration(time.Millisecond),
 		Timeout: time.Duration(time.Second),
 	}
-	_, err := cs.cli.Do("GET", "/this", nil, reqBody, nil, doOpts)
+	_ := mylog.Check2(cs.cli.Do("GET", "/this", nil, reqBody, nil, doOpts))
 	c.Check(err, ErrorMatches, "cannot communicate with server: borken")
 	// best effort checking given that execution could be slow
 	// on some machines
@@ -240,7 +241,7 @@ func (cs *clientSuite) TestClientOnlyRetryAppropriateErrors(c *C) {
 		cs.doCalls = 0
 		cs.err = t.error
 
-		_, err := cs.cli.Do("GET", "/this", nil, reqBody, nil, doOpts)
+		_ := mylog.Check2(cs.cli.Do("GET", "/this", nil, reqBody, nil, doOpts))
 		c.Check(err, ErrorMatches, fmt.Sprintf(".*%s", t.error.Error()))
 		c.Assert(cs.doCalls, Equals, 1)
 	}
@@ -251,7 +252,7 @@ func (cs *clientSuite) TestClientUnderstandsStatusCode(c *C) {
 	cs.status = 202
 	cs.rsp = `[1,2]`
 	reqBody := io.NopCloser(strings.NewReader(""))
-	statusCode, err := cs.cli.Do("GET", "/this", nil, reqBody, &v, nil)
+	statusCode := mylog.Check2(cs.cli.Do("GET", "/this", nil, reqBody, &v, nil))
 	c.Check(err, IsNil)
 	c.Check(statusCode, Equals, 202)
 	c.Check(v, DeepEquals, []int{1, 2})
@@ -281,8 +282,8 @@ func (cs *clientSuite) TestClientSetsAuthorization(c *C) {
 		Macaroon:   "macaroon",
 		Discharges: []string{"discharge"},
 	}
-	err := client.TestWriteAuth(mockUserData)
-	c.Assert(err, IsNil)
+	mylog.Check(client.TestWriteAuth(mockUserData))
+
 
 	var v string
 	_, _ = cs.cli.Do("GET", "/this", nil, nil, &v, nil)
@@ -298,8 +299,8 @@ func (cs *clientSuite) TestClientHonorsDisableAuth(c *C) {
 		Macaroon:   "macaroon",
 		Discharges: []string{"discharge"},
 	}
-	err := client.TestWriteAuth(mockUserData)
-	c.Assert(err, IsNil)
+	mylog.Check(client.TestWriteAuth(mockUserData))
+
 
 	var v string
 	cli := client.New(&client.Config{DisableAuth: true})
@@ -325,15 +326,15 @@ func (cs *clientSuite) TestClientHonorsInteractive(c *C) {
 }
 
 func (cs *clientSuite) TestClientWhoAmINobody(c *C) {
-	email, err := cs.cli.WhoAmI()
-	c.Assert(err, IsNil)
+	email := mylog.Check2(cs.cli.WhoAmI())
+
 	c.Check(email, Equals, "")
 }
 
 func (cs *clientSuite) TestClientWhoAmIRubbish(c *C) {
 	c.Assert(os.WriteFile(client.TestStoreAuthFilename(os.Getenv("HOME")), []byte("rubbish"), 0644), IsNil)
 
-	email, err := cs.cli.WhoAmI()
+	email := mylog.Check2(cs.cli.WhoAmI())
 	c.Check(err, NotNil)
 	c.Check(email, Equals, "")
 }
@@ -344,7 +345,7 @@ func (cs *clientSuite) TestClientWhoAmISomebody(c *C) {
 	}
 	c.Assert(client.TestWriteAuth(mockUserData), IsNil)
 
-	email, err := cs.cli.WhoAmI()
+	email := mylog.Check2(cs.cli.WhoAmI())
 	c.Check(err, IsNil)
 	c.Check(email, Equals, "foo@example.com")
 }
@@ -370,7 +371,7 @@ func (cs *clientSuite) TestClientSysInfo(c *C) {
     }
   }
 }`
-	sysInfo, err := cs.cli.SysInfo()
+	sysInfo := mylog.Check2(cs.cli.SysInfo())
 	c.Check(err, IsNil)
 	c.Check(sysInfo, DeepEquals, &client.SysInfo{
 		Version: "2",
@@ -404,7 +405,7 @@ func (cs *clientSuite) TestServerVersion(c *C) {
                       "architecture": "m32",
                       "virtualization": "qemu"
 }}}`
-	version, err := cs.cli.ServerVersion()
+	version := mylog.Check2(cs.cli.ServerVersion())
 	c.Check(err, IsNil)
 	c.Check(version, DeepEquals, &client.ServerVersion{
 		Version:        "2",
@@ -418,10 +419,7 @@ func (cs *clientSuite) TestServerVersion(c *C) {
 
 func (cs *clientSuite) TestSnapdClientIntegration(c *C) {
 	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapdSocket), 0755), IsNil)
-	l, err := net.Listen("unix", dirs.SnapdSocket)
-	if err != nil {
-		c.Fatalf("unable to listen on %q: %v", dirs.SnapdSocket, err)
-	}
+	l := mylog.Check2(net.Listen("unix", dirs.SnapdSocket))
 
 	f := func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.URL.Path, Equals, "/v2/system-info")
@@ -438,17 +436,14 @@ func (cs *clientSuite) TestSnapdClientIntegration(c *C) {
 	defer srv.Close()
 
 	cli := client.New(nil)
-	si, err := cli.SysInfo()
-	c.Assert(err, IsNil)
+	si := mylog.Check2(cli.SysInfo())
+
 	c.Check(si.Series, Equals, "42")
 }
 
 func (cs *clientSuite) TestSnapClientIntegration(c *C) {
 	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapSocket), 0755), IsNil)
-	l, err := net.Listen("unix", dirs.SnapSocket)
-	if err != nil {
-		c.Fatalf("unable to listen on %q: %v", dirs.SnapSocket, err)
-	}
+	l := mylog.Check2(net.Listen("unix", dirs.SnapSocket))
 
 	f := func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.URL.Path, Equals, "/v2/snapctl")
@@ -472,7 +467,7 @@ func (cs *clientSuite) TestSnapClientIntegration(c *C) {
 		Args:      []string{"bar", "--baz"},
 	}
 
-	stdout, stderr, err := cli.RunSnapctl(options, nil)
+	stdout, stderr := mylog.Check3(cli.RunSnapctl(options, nil))
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "test stdout")
 	c.Check(string(stderr), Equals, "test stderr")
@@ -481,7 +476,7 @@ func (cs *clientSuite) TestSnapClientIntegration(c *C) {
 func (cs *clientSuite) TestClientReportsOpError(c *C) {
 	cs.status = 500
 	cs.rsp = `{"type": "error"}`
-	_, err := cs.cli.SysInfo()
+	_ := mylog.Check2(cs.cli.SysInfo())
 	c.Check(err, ErrorMatches, `.*server error: "Internal Server Error"`)
 }
 
@@ -493,56 +488,56 @@ func (cs *clientSuite) TestClientReportsOpErrorStr(c *C) {
 		"status-code": 400,
 		"type": "error"
 	}`
-	_, err := cs.cli.SysInfo()
+	_ := mylog.Check2(cs.cli.SysInfo())
 	c.Check(err, ErrorMatches, `.*server error: "Bad Request"`)
 }
 
 func (cs *clientSuite) TestClientReportsBadType(c *C) {
 	cs.rsp = `{"type": "what"}`
-	_, err := cs.cli.SysInfo()
+	_ := mylog.Check2(cs.cli.SysInfo())
 	c.Check(err, ErrorMatches, `.*expected sync response, got "what"`)
 }
 
 func (cs *clientSuite) TestClientReportsOuterJSONError(c *C) {
 	cs.rsp = "this isn't really json is it"
-	_, err := cs.cli.SysInfo()
+	_ := mylog.Check2(cs.cli.SysInfo())
 	c.Check(err, ErrorMatches, `.*invalid character .*`)
 }
 
 func (cs *clientSuite) TestClientReportsInnerJSONError(c *C) {
 	cs.rsp = `{"type": "sync", "result": "this isn't really json is it"}`
-	_, err := cs.cli.SysInfo()
+	_ := mylog.Check2(cs.cli.SysInfo())
 	c.Check(err, ErrorMatches, `.*cannot unmarshal.*`)
 }
 
 func (cs *clientSuite) TestClientMaintenance(c *C) {
 	cs.rsp = `{"type":"sync", "result":{"series":"42"}, "maintenance": {"kind": "system-restart", "message": "system is restarting"}}`
-	_, err := cs.cli.SysInfo()
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(cs.cli.SysInfo())
+
 	c.Check(cs.cli.Maintenance().(*client.Error), DeepEquals, &client.Error{
 		Kind:    client.ErrorKindSystemRestart,
 		Message: "system is restarting",
 	})
 
 	cs.rsp = `{"type":"sync", "result":{"series":"42"}}`
-	_, err = cs.cli.SysInfo()
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(cs.cli.SysInfo())
+
 	c.Check(cs.cli.Maintenance(), Equals, error(nil))
 }
 
 func (cs *clientSuite) TestClientAsyncOpMaintenance(c *C) {
 	cs.status = 202
 	cs.rsp = `{"type":"async", "status-code": 202, "change": "42", "maintenance": {"kind": "system-restart", "message": "system is restarting"}}`
-	_, err := cs.cli.Install("foo", nil)
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(cs.cli.Install("foo", nil))
+
 	c.Check(cs.cli.Maintenance().(*client.Error), DeepEquals, &client.Error{
 		Kind:    client.ErrorKindSystemRestart,
 		Message: "system is restarting",
 	})
 
 	cs.rsp = `{"type":"async", "status-code": 202, "change": "42"}`
-	_, err = cs.cli.Install("foo", nil)
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(cs.cli.Install("foo", nil))
+
 	c.Check(cs.cli.Maintenance(), Equals, error(nil))
 }
 
@@ -550,7 +545,7 @@ func (cs *clientSuite) TestParseError(c *C) {
 	resp := &http.Response{
 		Status: "404 Not Found",
 	}
-	err := client.ParseErrorInTest(resp)
+	mylog.Check(client.ParseErrorInTest(resp))
 	c.Check(err, ErrorMatches, `server error: "404 Not Found"`)
 
 	h := http.Header{}
@@ -566,7 +561,7 @@ func (cs *clientSuite) TestParseError(c *C) {
 			}
 		}`)),
 	}
-	err = client.ParseErrorInTest(resp)
+	mylog.Check(client.ParseErrorInTest(resp))
 	c.Check(err, ErrorMatches, "invalid")
 
 	resp = &http.Response{
@@ -574,7 +569,7 @@ func (cs *clientSuite) TestParseError(c *C) {
 		Header: h,
 		Body:   io.NopCloser(strings.NewReader("{}")),
 	}
-	err = client.ParseErrorInTest(resp)
+	mylog.Check(client.ParseErrorInTest(resp))
 	c.Check(err, ErrorMatches, `server error: "400 Bad Request"`)
 }
 
@@ -608,13 +603,13 @@ func (cs *clientSuite) TestUserAgent(c *C) {
 
 func (cs *clientSuite) TestDebugEnsureStateSoon(c *C) {
 	cs.rsp = `{"type": "sync", "result":true}`
-	err := cs.cli.Debug("ensure-state-soon", nil, nil)
+	mylog.Check(cs.cli.Debug("ensure-state-soon", nil, nil))
 	c.Check(err, IsNil)
 	c.Check(cs.reqs, HasLen, 1)
 	c.Check(cs.reqs[0].Method, Equals, "POST")
 	c.Check(cs.reqs[0].URL.Path, Equals, "/v2/debug")
-	data, err := io.ReadAll(cs.reqs[0].Body)
-	c.Assert(err, IsNil)
+	data := mylog.Check2(io.ReadAll(cs.reqs[0].Body))
+
 	c.Check(data, DeepEquals, []byte(`{"action":"ensure-state-soon"}`))
 }
 
@@ -622,14 +617,14 @@ func (cs *clientSuite) TestDebugGeneric(c *C) {
 	cs.rsp = `{"type": "sync", "result":["res1","res2"]}`
 
 	var result []string
-	err := cs.cli.Debug("do-something", []string{"param1", "param2"}, &result)
+	mylog.Check(cs.cli.Debug("do-something", []string{"param1", "param2"}, &result))
 	c.Check(err, IsNil)
 	c.Check(result, DeepEquals, []string{"res1", "res2"})
 	c.Check(cs.reqs, HasLen, 1)
 	c.Check(cs.reqs[0].Method, Equals, "POST")
 	c.Check(cs.reqs[0].URL.Path, Equals, "/v2/debug")
-	data, err := io.ReadAll(cs.reqs[0].Body)
-	c.Assert(err, IsNil)
+	data := mylog.Check2(io.ReadAll(cs.reqs[0].Body))
+
 	c.Check(string(data), DeepEquals, `{"action":"do-something","params":["param1","param2"]}`)
 }
 
@@ -637,7 +632,7 @@ func (cs *clientSuite) TestDebugGet(c *C) {
 	cs.rsp = `{"type": "sync", "result":["res1","res2"]}`
 
 	var result []string
-	err := cs.cli.DebugGet("do-something", &result, map[string]string{"foo": "bar"})
+	mylog.Check(cs.cli.DebugGet("do-something", &result, map[string]string{"foo": "bar"}))
 	c.Check(err, IsNil)
 	c.Check(result, DeepEquals, []string{"res1", "res2"})
 	c.Check(cs.reqs, HasLen, 1)
@@ -651,15 +646,15 @@ func (cs *clientSuite) TestDebugMigrateHome(c *C) {
 	cs.rsp = `{"type": "async", "status-code": 202, "change": "123"}`
 
 	snaps := []string{"foo", "bar"}
-	changeID, err := cs.cli.MigrateSnapHome(snaps)
+	changeID := mylog.Check2(cs.cli.MigrateSnapHome(snaps))
 	c.Check(err, IsNil)
 	c.Check(changeID, Equals, "123")
 
 	c.Check(cs.reqs, HasLen, 1)
 	c.Check(cs.reqs[0].Method, Equals, "POST")
 	c.Check(cs.reqs[0].URL.Path, Equals, "/v2/debug")
-	data, err := io.ReadAll(cs.reqs[0].Body)
-	c.Assert(err, IsNil)
+	data := mylog.Check2(io.ReadAll(cs.reqs[0].Body))
+
 	c.Check(string(data), Equals, `{"action":"migrate-home","snaps":["foo","bar"]}`)
 }
 
@@ -677,10 +672,10 @@ func (cs *integrationSuite) TestClientTimeoutLP1837804(c *C) {
 	defer func() { testServer.Close() }()
 
 	cli := client.New(&client.Config{BaseURL: testServer.URL})
-	_, err := cli.Do("GET", "/", nil, nil, nil, nil)
+	_ := mylog.Check2(cli.Do("GET", "/", nil, nil, nil, nil))
 	c.Assert(err, ErrorMatches, `.* timeout exceeded while waiting for response`)
 
-	_, err = cli.Do("POST", "/", nil, nil, nil, nil)
+	_ = mylog.Check2(cli.Do("POST", "/", nil, nil, nil, nil))
 	c.Assert(err, ErrorMatches, `.* timeout exceeded while waiting for response`)
 }
 
@@ -688,8 +683,8 @@ func (cs *clientSuite) TestClientSystemRecoveryKeys(c *C) {
 	cs.rsp = `{"type":"sync", "result":{"recovery-key":"42"}}`
 
 	var key client.SystemRecoveryKeysResponse
-	err := cs.cli.SystemRecoveryKeys(&key)
-	c.Assert(err, IsNil)
+	mylog.Check(cs.cli.SystemRecoveryKeys(&key))
+
 	c.Check(cs.reqs, HasLen, 1)
 	c.Check(cs.reqs[0].Method, Equals, "GET")
 	c.Check(cs.reqs[0].URL.Path, Equals, "/v2/system-recovery-keys")
@@ -718,8 +713,8 @@ func (cs *clientSuite) TestClientDebugEnvVar(c *C) {
 
 	cli := client.New(&client.Config{BaseURL: srv.URL})
 	c.Assert(cli, NotNil)
-	_, err := cli.Do("GET", "/", nil, strings.NewReader("foo"), nil, nil)
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(cli.Do("GET", "/", nil, strings.NewReader("foo"), nil, nil))
+
 
 	// check request
 	c.Assert(buf.String(), testutil.Contains, `logger.go:67: DEBUG: > "GET`)

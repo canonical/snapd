@@ -25,6 +25,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/snap"
@@ -68,12 +69,14 @@ type ModuleInfo struct {
 	options string
 }
 
-var kernelModuleNameRegexp = regexp.MustCompile(`^[-a-zA-Z0-9_]+$`)
-var kernelModuleOptionsRegexp = regexp.MustCompile(`^([a-zA-Z][a-zA-Z0-9_]*(=[[:graph:]]+)? *)+$`)
+var (
+	kernelModuleNameRegexp    = regexp.MustCompile(`^[-a-zA-Z0-9_]+$`)
+	kernelModuleOptionsRegexp = regexp.MustCompile(`^([a-zA-Z][a-zA-Z0-9_]*(=[[:graph:]]+)? *)+$`)
+)
 
 func enumerateModules(plug interfaces.Attrer, handleModule func(moduleInfo *ModuleInfo) error) error {
 	var modules []map[string]interface{}
-	err := plug.Attr("modules", &modules)
+	mylog.Check(plug.Attr("modules", &modules))
 	if err != nil && !errors.Is(err, snap.AttributeNotFoundError{}) {
 		return modulesAttrTypeError
 	}
@@ -116,10 +119,8 @@ func enumerateModules(plug interfaces.Attrer, handleModule func(moduleInfo *Modu
 			load:    load,
 			options: options,
 		}
+		mylog.Check(handleModule(moduleInfo))
 
-		if err := handleModule(moduleInfo); err != nil {
-			return err
-		}
 	}
 
 	return nil
@@ -151,13 +152,8 @@ func validateOptionsAttr(moduleInfo *ModuleInfo) error {
 }
 
 func validateModuleInfo(moduleInfo *ModuleInfo) error {
-	if err := validateNameAttr(moduleInfo.name); err != nil {
-		return err
-	}
-
-	if err := validateOptionsAttr(moduleInfo); err != nil {
-		return err
-	}
+	mylog.Check(validateNameAttr(moduleInfo.name))
+	mylog.Check(validateOptionsAttr(moduleInfo))
 
 	if moduleInfo.options == "" && moduleInfo.load == loadNone {
 		return errors.New(`kernel-module-load: must specify at least "load" or "options"`)
@@ -168,13 +164,10 @@ func validateModuleInfo(moduleInfo *ModuleInfo) error {
 
 func (iface *kernelModuleLoadInterface) BeforeConnectPlug(plug *interfaces.ConnectedPlug) error {
 	numModulesEntries := 0
-	err := enumerateModules(plug, func(moduleInfo *ModuleInfo) error {
+	mylog.Check(enumerateModules(plug, func(moduleInfo *ModuleInfo) error {
 		numModulesEntries++
 		return validateModuleInfo(moduleInfo)
-	})
-	if err != nil {
-		return err
-	}
+	}))
 
 	if numModulesEntries == 0 {
 		return modulesAttrTypeError
@@ -186,17 +179,13 @@ func (iface *kernelModuleLoadInterface) BeforeConnectPlug(plug *interfaces.Conne
 func (iface *kernelModuleLoadInterface) KModConnectedPlug(spec *kmod.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	snapInfo := plug.Snap()
 	commonDataDir := snapInfo.CommonDataDir()
-
-	err := enumerateModules(plug, func(moduleInfo *ModuleInfo) error {
-		var err error
+	mylog.Check(enumerateModules(plug, func(moduleInfo *ModuleInfo) error {
 		switch moduleInfo.load {
 		case loadDenied:
-			err = spec.DisallowModule(moduleInfo.name)
+			mylog.Check(spec.DisallowModule(moduleInfo.name))
 		case loadOnBoot:
-			err = spec.AddModule(moduleInfo.name)
-			if err != nil {
-				break
-			}
+			mylog.Check(spec.AddModule(moduleInfo.name))
+
 			fallthrough
 		case loadNone, loadDynamic:
 			if len(moduleInfo.options) > 0 && moduleInfo.options != "*" {
@@ -211,14 +200,14 @@ func (iface *kernelModuleLoadInterface) KModConnectedPlug(spec *kmod.Specificati
 				// extra "/" at the end ensures that the variable is
 				// terminated.
 				options := strings.ReplaceAll(moduleInfo.options, "$SNAP_COMMON/", commonDataDir+"/")
-				err = spec.SetModuleOptions(moduleInfo.name, options)
+				mylog.Check(spec.SetModuleOptions(moduleInfo.name, options))
 			}
 		default:
 			// we can panic, this will be catched on validation
 			panic("Unsupported module load option")
 		}
 		return err
-	})
+	}))
 	return err
 }
 

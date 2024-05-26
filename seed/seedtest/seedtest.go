@@ -29,6 +29,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/osutil"
@@ -84,8 +85,8 @@ func (ss *SeedSnaps) MakeAssertedSnap(c *C, snapYaml string, files [][]string, r
 }
 
 func (ss *SeedSnaps) makeAssertedSnap(c *C, snapYaml string, files [][]string, revision snap.Revision, developerID string, revSigning *assertstest.SigningDB, revProvenance string, revisionAuthority map[string]interface{}, dbs ...*asserts.Database) (*asserts.SnapDeclaration, *asserts.SnapRevision) {
-	info, err := snap.InfoFromSnapYaml([]byte(snapYaml))
-	c.Assert(err, IsNil)
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(snapYaml)))
+
 	snapName := info.SnapName()
 
 	snapFile := snaptest.MakeTestSnapWithFiles(c, snapYaml, files)
@@ -101,11 +102,11 @@ func (ss *SeedSnaps) makeAssertedSnap(c *C, snapYaml string, files [][]string, r
 	if revisionAuthority != nil {
 		headers["revision-authority"] = []interface{}{revisionAuthority}
 	}
-	declA, err := ss.StoreSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
-	c.Assert(err, IsNil)
+	declA := mylog.Check2(ss.StoreSigning.Sign(asserts.SnapDeclarationType, headers, nil, ""))
 
-	sha3_384, size, err := asserts.SnapFileSHA3_384(snapFile)
-	c.Assert(err, IsNil)
+
+	sha3_384, size := mylog.Check3(asserts.SnapFileSHA3_384(snapFile))
+
 
 	revHeaders := map[string]interface{}{
 		"authority-id":  revSigning.AuthorityID,
@@ -119,8 +120,8 @@ func (ss *SeedSnaps) makeAssertedSnap(c *C, snapYaml string, files [][]string, r
 	if revProvenance != "" {
 		revHeaders["provenance"] = revProvenance
 	}
-	revA, err := revSigning.Sign(asserts.SnapRevisionType, revHeaders, nil, "")
-	c.Assert(err, IsNil)
+	revA := mylog.Check2(revSigning.Sign(asserts.SnapRevisionType, revHeaders, nil, ""))
+
 
 	if !revision.Unset() {
 		info.SnapID = snapID
@@ -128,10 +129,10 @@ func (ss *SeedSnaps) makeAssertedSnap(c *C, snapYaml string, files [][]string, r
 	}
 
 	for _, db := range dbs {
-		err := db.Add(declA)
-		c.Assert(err, IsNil)
-		err = db.Add(revA)
-		c.Assert(err, IsNil)
+		mylog.Check(db.Add(declA))
+
+		mylog.Check(db.Add(revA))
+
 	}
 
 	if ss.snaps == nil {
@@ -188,8 +189,8 @@ func (s *TestingSeed16) MakeAssertedSnap(c *C, snapYaml string, files [][]string
 
 	snapFname = filepath.Base(snapFile)
 	targetFile := filepath.Join(s.SnapsDir(), snapFname)
-	err := os.Rename(snapFile, targetFile)
-	c.Assert(err, IsNil)
+	mylog.Check(os.Rename(snapFile, targetFile))
+
 
 	return snapFname, decl, rev
 }
@@ -213,23 +214,18 @@ func (s *TestingSeed16) WriteAssertions(fn string, assertions ...asserts.Asserti
 }
 
 func WriteAssertions(fn string, assertions ...asserts.Assertion) {
-	f, err := os.OpenFile(fn, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
-	if err != nil {
-		panic(err)
-	}
+	f := mylog.Check2(os.OpenFile(fn, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644))
+
 	defer f.Close()
 	enc := asserts.NewEncoder(f)
 	for _, a := range assertions {
-		err := enc.Encode(a)
-		if err != nil {
-			panic(err)
-		}
+		mylog.Check(enc.Encode(a))
 	}
 }
 
 func ReadAssertions(c *C, fn string) []asserts.Assertion {
 	f, err := os.Open(fn)
-	c.Assert(err, IsNil)
+
 
 	var as []asserts.Assertion
 	dec := asserts.NewDecoder(f)
@@ -238,7 +234,7 @@ func ReadAssertions(c *C, fn string) []asserts.Assertion {
 		if err == io.EOF {
 			break
 		}
-		c.Assert(err, IsNil)
+
 		as = append(as, a)
 	}
 
@@ -264,35 +260,29 @@ func (s *TestingSeed20) MakeSeed(c *C, label, brandID, modelID string, modelHead
 
 // MakeSeedWithModel creates the seed with given label for a given model
 func (s *TestingSeed20) MakeSeedWithModel(c *C, label string, model *asserts.Model, optSnaps []*seedwriter.OptionsSnap) {
-	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+	db := mylog.Check2(asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
 		Trusted:   s.StoreSigning.Trusted,
-	})
-	c.Assert(err, IsNil)
+	}))
+
 
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
 		return ref.Resolve(s.StoreSigning.Find)
 	}
 	retrieveSeq := func(seq *asserts.AtSequence) (asserts.Assertion, error) {
 		if seq.Sequence <= 0 {
-			hdrs, err := asserts.HeadersFromSequenceKey(seq.Type, seq.SequenceKey)
-			if err != nil {
-				return nil, err
-			}
+			hdrs := mylog.Check2(asserts.HeadersFromSequenceKey(seq.Type, seq.SequenceKey))
+
 			return s.StoreSigning.FindSequence(seq.Type, hdrs, -1, seq.Type.MaxSupportedFormat())
 		}
 		return seq.Resolve(s.StoreSigning.Find)
 	}
 	newFetcher := func(save func(asserts.Assertion) error) asserts.Fetcher {
 		save2 := func(a asserts.Assertion) error {
-			// for checking
-			err := db.Add(a)
-			if err != nil {
-				if _, ok := err.(*asserts.RevisionError); ok {
-					return nil
-				}
-				return err
-			}
+			mylog.
+				// for checking
+				Check(db.Add(a))
+
 			return save(a)
 		}
 		return asserts.NewSequenceFormingFetcher(db, retrieve, retrieveSeq, save2)
@@ -303,72 +293,67 @@ func (s *TestingSeed20) MakeSeedWithModel(c *C, label string, model *asserts.Mod
 		SeedDir: s.SeedDir,
 		Label:   label,
 	}
-	w, err := seedwriter.New(model, &opts)
-	c.Assert(err, IsNil)
+	w := mylog.Check2(seedwriter.New(model, &opts))
 
-	err = w.SetOptionsSnaps(optSnaps)
-	c.Assert(err, IsNil)
+	mylog.Check(w.SetOptionsSnaps(optSnaps))
 
-	err = w.Start(db, sf)
-	c.Assert(err, IsNil)
+	mylog.Check(w.Start(db, sf))
 
-	localSnaps, err := w.LocalSnaps()
-	c.Assert(err, IsNil)
+
+	localSnaps := mylog.Check2(w.LocalSnaps())
+
 
 	localARefs := make(map[*seedwriter.SeedSnap][]*asserts.Ref)
 
 	for _, sn := range localSnaps {
-		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, model, sf, db)
+		si, aRefs := mylog.Check3(seedwriter.DeriveSideInfo(sn.Path, model, sf, db))
 		if !errors.Is(err, &asserts.NotFoundError{}) {
-			c.Assert(err, IsNil)
+
 		}
-		f, err := snapfile.Open(sn.Path)
-		c.Assert(err, IsNil)
-		info, err := snap.ReadInfoFromSnapFile(f, si)
-		c.Assert(err, IsNil)
+		f := mylog.Check2(snapfile.Open(sn.Path))
+
+		info := mylog.Check2(snap.ReadInfoFromSnapFile(f, si))
+
 		w.SetInfo(sn, info)
 		if aRefs != nil {
 			localARefs[sn] = aRefs
 		}
 	}
+	mylog.Check(w.InfoDerived())
 
-	err = w.InfoDerived()
-	c.Assert(err, IsNil)
 
 	fetchAsserts := func(sn, _, _ *seedwriter.SeedSnap) ([]*asserts.Ref, error) {
 		if aRefs, ok := localARefs[sn]; ok {
 			return aRefs, nil
 		}
 		prev := len(sf.Refs())
-		if err = sf.Save(s.snapRevs[sn.SnapName()]); err != nil {
-			return nil, err
-		}
+		mylog.Check(sf.Save(s.snapRevs[sn.SnapName()]))
+
 		return sf.Refs()[prev:], nil
 	}
 
 	for {
-		snaps, err := w.SnapsToDownload()
-		c.Assert(err, IsNil)
+		snaps := mylog.Check2(w.SnapsToDownload())
+
 
 		for _, sn := range snaps {
 			name := sn.SnapName()
 
 			info := s.AssertedSnapInfo(name)
 			c.Assert(info, NotNil, Commentf("no snap info for %q", name))
-			err := w.SetInfo(sn, info)
-			c.Assert(err, IsNil)
+			mylog.Check(w.SetInfo(sn, info))
 
-			if _, err := os.Stat(sn.Path); err == nil {
+
+			if _ := mylog.Check2(os.Stat(sn.Path)); err == nil {
 				// snap is already present
 				continue
 			}
+			mylog.Check(os.Rename(s.AssertedSnap(name), sn.Path))
 
-			err = os.Rename(s.AssertedSnap(name), sn.Path)
-			c.Assert(err, IsNil)
 		}
 
-		complete, err := w.Downloaded(fetchAsserts)
-		c.Assert(err, IsNil)
+		complete := mylog.Check2(w.Downloaded(fetchAsserts))
+
 		if complete {
 			break
 		}
@@ -377,33 +362,29 @@ func (s *TestingSeed20) MakeSeedWithModel(c *C, label string, model *asserts.Mod
 	copySnap := func(name, src, dst string) error {
 		return osutil.CopyFile(src, dst, 0)
 	}
+	mylog.Check(w.SeedSnaps(copySnap))
 
-	err = w.SeedSnaps(copySnap)
-	c.Assert(err, IsNil)
+	mylog.Check(w.WriteMeta())
 
-	err = w.WriteMeta()
-	c.Assert(err, IsNil)
 }
 
 func ValidateSeed(c *C, root, label string, usesSnapd bool, trusted []asserts.Assertion) seed.Seed {
 	tm := &timings.Timings{}
-	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+	db := mylog.Check2(asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
 		Trusted:   trusted,
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	commitTo := func(b *asserts.Batch) error {
 		return b.CommitTo(db, nil)
 	}
 
-	sd, err := seed.Open(root, label)
-	c.Assert(err, IsNil)
+	sd := mylog.Check2(seed.Open(root, label))
 
-	err = sd.LoadAssertions(db, commitTo)
-	c.Assert(err, IsNil)
+	mylog.Check(sd.LoadAssertions(db, commitTo))
 
-	err = sd.LoadMeta(seed.AllModes, nil, tm)
-	c.Assert(err, IsNil)
+	mylog.Check(sd.LoadMeta(seed.AllModes, nil, tm))
+
 
 	// core18/core20 use the snapd snap, old core does not
 	c.Check(sd.UsesSnapdSnap(), Equals, usesSnapd)
@@ -434,17 +415,17 @@ func WriteValidAutoImportAssertion(c *C, brands *assertstest.SigningAccounts, se
 	systemUsers := []map[string]interface{}{goodUser}
 	// write system user assertion to the system seed root
 	autoImportAssert := filepath.Join(seedDir, "systems", sysLabel, "auto-import.assert")
-	f, err := os.OpenFile(autoImportAssert, os.O_CREATE|os.O_WRONLY, perm)
-	c.Assert(err, IsNil)
+	f := mylog.Check2(os.OpenFile(autoImportAssert, os.O_CREATE|os.O_WRONLY, perm))
+
 	defer f.Close()
 	enc := asserts.NewEncoder(f)
 	c.Assert(enc, NotNil)
 
 	for _, suMap := range systemUsers {
-		systemUser, err := brands.Signing(suMap["authority-id"].(string)).Sign(asserts.SystemUserType, suMap, nil, "")
-		c.Assert(err, IsNil)
+		systemUser := mylog.Check2(brands.Signing(suMap["authority-id"].(string)).Sign(asserts.SystemUserType, suMap, nil, ""))
+
 		systemUser = systemUser.(*asserts.SystemUser)
-		err = enc.Encode(systemUser)
-		c.Assert(err, IsNil)
+		mylog.Check(enc.Encode(systemUser))
+
 	}
 }

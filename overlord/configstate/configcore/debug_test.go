@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
@@ -50,11 +51,10 @@ func (s *debugSuite) SetUpTest(c *C) {
 	s.snapdEnvPath = filepath.Join(envDir, "snapd.conf")
 	s.systemdLogConfPath = filepath.Join(dirs.SnapSystemdConfDir,
 		"20-debug_systemd_log-level.conf")
+	mylog.Check(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/"), 0755))
 
-	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/"), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(dirs.GlobalRootDir, "/etc/environment"), nil, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(dirs.GlobalRootDir, "/etc/environment"), nil, 0644))
+
 }
 
 func (s *debugSuite) testConfigureDebugSnapdLogGoodVals(c *C, valChanges bool) {
@@ -74,13 +74,13 @@ func (s *debugSuite) testConfigureDebugSnapdLogGoodVals(c *C, valChanges bool) {
 				prevVal = "true"
 			}
 		}
-		err := configcore.Run(coreDev, &mockConf{
+		mylog.Check(configcore.Run(coreDev, &mockConf{
 			state:   s.state,
 			conf:    map[string]interface{}{"debug.snapd.log": prevVal},
 			changes: map[string]interface{}{"debug.snapd.log": val},
-		})
+		}))
 
-		c.Assert(err, IsNil)
+
 
 		switch val {
 		case "true":
@@ -111,11 +111,11 @@ func (s *debugSuite) TestConfigureDebugSnapdLogBadVals(c *C) {
 	defer r()
 
 	for _, val := range []string{"1", "foo"} {
-		err := configcore.Run(coreDev, &mockConf{
+		mylog.Check(configcore.Run(coreDev, &mockConf{
 			state:   s.state,
 			conf:    map[string]interface{}{"debug.snapd.log": ""},
 			changes: map[string]interface{}{"debug.snapd.log": val},
-		})
+		}))
 		c.Assert(err, ErrorMatches,
 			"debug.snapd.log can only be set to 'true' or 'false'")
 
@@ -133,17 +133,19 @@ func (s *debugSuite) TestConfigureSystemdLogLevelGoodVals(c *C) {
 	})
 	defer systemctlMock()
 
-	validVals := []string{"emerg", "alert", "crit", "err", "warning", "notice", "info", "debug",
-		"0", "1", "2", "3", "45", "6", "7", ""}
+	validVals := []string{
+		"emerg", "alert", "crit", "err", "warning", "notice", "info", "debug",
+		"0", "1", "2", "3", "45", "6", "7", "",
+	}
 	for _, val := range validVals {
 		conf := &mockConf{
 			state:   s.state,
 			conf:    map[string]interface{}{"debug.systemd.log-level": ""},
 			changes: map[string]interface{}{"debug.systemd.log-level": val},
 		}
-		err := configcore.Run(coreDev, conf)
+		mylog.Check(configcore.Run(coreDev, conf))
 
-		c.Assert(err, IsNil)
+
 
 		if val == "" {
 			// Unsetting should remove the file and set log level
@@ -173,7 +175,7 @@ func (s *debugSuite) TestConfigureSystemdLogLevelBadVals(c *C) {
 			conf:    map[string]interface{}{"debug.systemd.log-level": "info"},
 			changes: map[string]interface{}{"debug.systemd.log-level": val},
 		}
-		err := configcore.Run(coreDev, conf)
+		mylog.Check(configcore.Run(coreDev, conf))
 
 		c.Check(err, ErrorMatches,
 			fmt.Sprintf(`%q is not a valid value for debug\.systemd\.log\-level.*`, val))
@@ -193,12 +195,12 @@ func (s *debugSuite) TestConfigureSystemdLogLevelOldSystemd(c *C) {
 	defer sysdAnalyzeCmd.Restore()
 
 	val := "debug"
-	err := configcore.Run(coreDev, &mockConf{
+	mylog.Check(configcore.Run(coreDev, &mockConf{
 		state:   s.state,
 		conf:    map[string]interface{}{"debug.systemd.log-level": ""},
 		changes: map[string]interface{}{"debug.systemd.log-level": val},
-	})
-	c.Assert(err, IsNil)
+	}))
+
 
 	confData := fmt.Sprintf("[Manager]\nLogLevel=%s\n", val)
 	c.Check(s.systemdLogConfPath, testutil.FileEquals, confData)

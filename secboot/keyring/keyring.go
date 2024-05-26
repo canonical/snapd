@@ -20,6 +20,7 @@
 package keyring
 
 import (
+	"github.com/ddkwork/golibrary/mylog"
 	"golang.org/x/sys/unix"
 )
 
@@ -33,6 +34,6 @@ func formatDesc(devicePath, purpose, prefix string) string {
 }
 
 func AddKeyToUserKeyring(key []byte, devicePath, purpose, prefix string) error {
-	_, err := unix.AddKey(userKeyType, formatDesc(devicePath, purpose, prefix), key, userKeyring)
+	_ := mylog.Check2(unix.AddKey(userKeyType, formatDesc(devicePath, purpose, prefix), key, userKeyring))
 	return err
 }

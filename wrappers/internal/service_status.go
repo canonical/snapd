@@ -26,6 +26,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timeout"
@@ -132,10 +133,7 @@ func mapServiceStatusMany(stss []client.ServiceUnitStatus) map[string]*systemd.U
 }
 
 func queryUserServiceStatusMany(apps []*snap.AppInfo, units []string) (map[int][]*ServiceStatus, error) {
-	usrUnitStss, _, err := userSessionQueryServiceStatusMany(units)
-	if err != nil {
-		return nil, err
-	}
+	usrUnitStss, _ := mylog.Check3(userSessionQueryServiceStatusMany(units))
 
 	constructStatus := func(app *snap.AppInfo, stss map[string]*systemd.UnitStatus) *ServiceStatus {
 		primarySvcName, activators := SnapServiceUnits(app)
@@ -189,10 +187,7 @@ func queryUserServiceStatusMany(apps []*snap.AppInfo, units []string) (map[int][
 }
 
 func querySystemServiceStatusMany(sysd systemd.Systemd, apps []*snap.AppInfo, units []string) ([]*ServiceStatus, error) {
-	sysUnitStss, err := sysd.Status(units)
-	if err != nil {
-		return nil, err
-	}
+	sysUnitStss := mylog.Check2(sysd.Status(units))
 
 	var sysIndex int
 	getStatus := func(app *snap.AppInfo, activators []string) *ServiceStatus {
@@ -230,14 +225,10 @@ func querySystemServiceStatusMany(sysd systemd.Systemd, apps []*snap.AppInfo, un
 // is returned, and a map detailing the statuses of services per logged in user.
 func QueryServiceStatusMany(apps []*snap.AppInfo, sysd systemd.Systemd) (sysSvcs []*ServiceStatus, userSvcs map[int][]*ServiceStatus, err error) {
 	sysUnits, usrUnits := appServiceUnitsMany(apps)
-	sysSvcs, err = querySystemServiceStatusMany(sysd, apps, sysUnits)
-	if err != nil {
-		return nil, nil, err
-	}
-	userSvcs, err = queryUserServiceStatusMany(apps, usrUnits)
-	if err != nil {
-		return nil, nil, err
-	}
+	sysSvcs = mylog.Check2(querySystemServiceStatusMany(sysd, apps, sysUnits))
+
+	userSvcs = mylog.Check2(queryUserServiceStatusMany(apps, usrUnits))
+
 	return sysSvcs, userSvcs, nil
 }
 

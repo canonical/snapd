@@ -27,6 +27,7 @@ import (
 	. "gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
@@ -147,8 +148,8 @@ func (s *prereqSuite) TestDoPrereqWithBaseNone(c *C) {
 	lane := 0
 	for _, t := range chg.Tasks() {
 		if t.Kind() == "link-snap" {
-			snapsup, err := snapstate.TaskSnapSetup(t)
-			c.Assert(err, IsNil)
+			snapsup := mylog.Check2(snapstate.TaskSnapSetup(t))
+
 			linkedSnaps = append(linkedSnaps, snapsup.InstanceName())
 		} else if t.Kind() == "prerequisites" {
 			c.Assert(t.Lanes(), DeepEquals, []int{lane})
@@ -170,7 +171,8 @@ func (s *prereqSuite) TestDoPrereqManyTransactional(c *C) {
 		},
 		Base: "none",
 		PrereqContentAttrs: map[string][]string{
-			"prereq1": {"some-content"}, "prereq2": {"other-content"}},
+			"prereq1": {"some-content"}, "prereq2": {"other-content"},
+		},
 		Flags: snapstate.Flags{Transaction: client.TransactionAllSnaps},
 	})
 	// Set lane to make sure new tasks will match this one
@@ -196,8 +198,8 @@ func (s *prereqSuite) TestDoPrereqManyTransactional(c *C) {
 		c.Assert(t.Lanes(), DeepEquals, []int{lane})
 
 		if t.Kind() == "link-snap" {
-			snapsup, err := snapstate.TaskSnapSetup(t)
-			c.Assert(err, IsNil)
+			snapsup := mylog.Check2(snapstate.TaskSnapSetup(t))
+
 			linkedSnaps = append(linkedSnaps, snapsup.InstanceName())
 		}
 	}
@@ -215,7 +217,8 @@ func (s *prereqSuite) TestDoPrereqTransactionalFailTooManyLanes(c *C) {
 		},
 		Base: "none",
 		PrereqContentAttrs: map[string][]string{
-			"prereq1": {"some-content"}},
+			"prereq1": {"some-content"},
+		},
 		Flags: snapstate.Flags{Transaction: client.TransactionAllSnaps},
 	})
 	// There should be only one lane in a transactional change
@@ -309,8 +312,8 @@ func (s *prereqSuite) TestDoPrereqTalksToStoreAndQueues(c *C) {
 	linkedSnaps := make([]string, 0, len(expectedLinkedSnaps))
 	for _, t := range chg.Tasks() {
 		if t.Kind() == "link-snap" {
-			snapsup, err := snapstate.TaskSnapSetup(t)
-			c.Assert(err, IsNil)
+			snapsup := mylog.Check2(snapstate.TaskSnapSetup(t))
+
 			linkedSnaps = append(linkedSnaps, snapsup.InstanceName())
 		}
 	}
@@ -902,6 +905,6 @@ func (s *prereqSuite) TestDoPrereqSkipDuringRemodel(c *C) {
 	// finished successfully. this is because, during a remodel, we do not wait
 	// for (or attempt) prerequisites installs.
 	var snapst snapstate.SnapState
-	err := snapstate.Get(s.state, "core18", &snapst)
+	mylog.Check(snapstate.Get(s.state, "core18", &snapst))
 	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 }

@@ -20,6 +20,7 @@
 package store
 
 import (
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -41,10 +42,7 @@ func infoFromStoreSearchResult(si *storeSearchResult) (*snap.Info, error) {
 	thisSnap := si.Snap
 	copyNonZeroFrom(&si.Revision.storeSnap, &thisSnap)
 
-	info, err := infoFromStoreSnap(&thisSnap)
-	if err != nil {
-		return nil, err
-	}
+	info := mylog.Check2(infoFromStoreSnap(&thisSnap))
 
 	info.SnapID = si.SnapID
 	info.RealName = si.Name

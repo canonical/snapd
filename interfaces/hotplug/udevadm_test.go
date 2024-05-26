@@ -22,6 +22,7 @@ package hotplug
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -81,8 +82,8 @@ __END__
 `)
 	defer cmd.Restore()
 
-	devices, perrs, err := EnumerateExistingDevices()
-	c.Assert(err, IsNil)
+	devices, perrs := mylog.Check3(EnumerateExistingDevices())
+
 	c.Assert(perrs, HasLen, 0)
 	c.Assert(devices, HasLen, 2)
 
@@ -113,8 +114,8 @@ __END__
 `)
 	defer cmd.Restore()
 
-	devices, perrs, err := EnumerateExistingDevices()
-	c.Assert(err, IsNil)
+	devices, perrs := mylog.Check3(EnumerateExistingDevices())
+
 	c.Assert(perrs, HasLen, 2)
 	c.Assert(perrs[0], ErrorMatches, `cannot parse udevadm output "E: DEVPATH"`)
 	c.Assert(perrs[1], ErrorMatches, `no device block marker found before "E: K=V"`)

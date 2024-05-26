@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/state"
 )
@@ -76,14 +77,14 @@ func (ses *stateEngineSuite) TestStartUp(c *C) {
 
 	se.AddManager(mgr1)
 	se.AddManager(mgr2)
+	mylog.Check(se.StartUp())
 
-	err := se.StartUp()
-	c.Assert(err, IsNil)
 	c.Check(calls, DeepEquals, []string{"startup:mgr1", "startup:mgr2"})
+	mylog.
 
-	// noop
-	err = se.StartUp()
-	c.Assert(err, IsNil)
+		// noop
+		Check(se.StartUp())
+
 	c.Check(calls, HasLen, 2)
 }
 
@@ -101,8 +102,7 @@ func (ses *stateEngineSuite) TestStartUpError(c *C) {
 
 	se.AddManager(mgr1)
 	se.AddManager(mgr2)
-
-	err := se.StartUp()
+	mylog.Check(se.StartUp())
 	c.Check(err.Error(), DeepEquals, "state startup errors: [boom1 boom2]")
 	c.Check(calls, DeepEquals, []string{"startup:mgr1", "startup:mgr2"})
 }
@@ -118,18 +118,15 @@ func (ses *stateEngineSuite) TestEnsure(c *C) {
 
 	se.AddManager(mgr1)
 	se.AddManager(mgr2)
-
-	err := se.Ensure()
+	mylog.Check(se.Ensure())
 	c.Check(err, ErrorMatches, "state engine skipped startup")
 	c.Assert(se.StartUp(), IsNil)
 	calls = []string{}
+	mylog.Check(se.Ensure())
 
-	err = se.Ensure()
-	c.Assert(err, IsNil)
 	c.Check(calls, DeepEquals, []string{"ensure:mgr1", "ensure:mgr2"})
+	mylog.Check(se.Ensure())
 
-	err = se.Ensure()
-	c.Assert(err, IsNil)
 	c.Check(calls, DeepEquals, []string{"ensure:mgr1", "ensure:mgr2", "ensure:mgr1", "ensure:mgr2"})
 }
 
@@ -150,8 +147,7 @@ func (ses *stateEngineSuite) TestEnsureError(c *C) {
 
 	c.Assert(se.StartUp(), IsNil)
 	calls = []string{}
-
-	err := se.Ensure()
+	mylog.Check(se.Ensure())
 	c.Check(err.Error(), DeepEquals, "state ensure errors: [boom1 boom2]")
 	c.Check(calls, DeepEquals, []string{"ensure:mgr1", "ensure:mgr2"})
 }
@@ -175,7 +171,6 @@ func (ses *stateEngineSuite) TestStop(c *C) {
 	c.Check(calls, DeepEquals, []string{"stop:mgr1", "stop:mgr2"})
 	se.Stop()
 	c.Check(calls, HasLen, 2)
-
-	err := se.Ensure()
+	mylog.Check(se.Ensure())
 	c.Check(err, ErrorMatches, "state engine already stopped")
 }

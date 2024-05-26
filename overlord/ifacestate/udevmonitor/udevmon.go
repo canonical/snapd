@@ -25,6 +25,7 @@ import (
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/udev/netlink"
@@ -36,9 +37,11 @@ type Interface interface {
 	Stop() error
 }
 
-type DeviceAddedFunc func(device *hotplug.HotplugDeviceInfo)
-type DeviceRemovedFunc func(device *hotplug.HotplugDeviceInfo)
-type EnumerationDoneFunc func()
+type (
+	DeviceAddedFunc     func(device *hotplug.HotplugDeviceInfo)
+	DeviceRemovedFunc   func(device *hotplug.HotplugDeviceInfo)
+	EnumerationDoneFunc func()
+)
 
 // Monitor monitors kernel uevents making it possible to find hotpluggable devices.
 type Monitor struct {
@@ -86,10 +89,7 @@ func (m *Monitor) Connect() error {
 		// this cannot happen in real code but may happen in tests
 		return fmt.Errorf("cannot connect: already connected")
 	}
-
-	if err := m.netlinkConn.Connect(netlink.UdevEvent); err != nil {
-		return fmt.Errorf("cannot start udev monitor: %s", err)
-	}
+	mylog.Check(m.netlinkConn.Connect(netlink.UdevEvent))
 
 	var filter netlink.Matcher
 	// TODO: extend with other criteria based on the hotplug interfaces
@@ -98,7 +98,8 @@ func (m *Monitor) Connect() error {
 			{Env: map[string]string{"SUBSYSTEM": "net"}},
 			{Env: map[string]string{"SUBSYSTEM": "tty"}},
 			{Env: map[string]string{"SUBSYSTEM": "usb"}},
-		}}
+		},
+	}
 
 	m.monitorStop = m.netlinkConn.Monitor(m.netlinkEvents, m.netlinkErrors, filter)
 
@@ -119,11 +120,8 @@ func (m *Monitor) disconnect() error {
 // The goroutine must be stopped by calling Stop() method.
 func (m *Monitor) Run() error {
 	// Gather devices from udevadm info output (enumeration on startup).
-	devices, parseErrors, err := hotplug.EnumerateExistingDevices()
-	if err != nil {
-		m.disconnect()
-		return fmt.Errorf("cannot enumerate existing devices: %s", err)
-	}
+	devices, parseErrors := mylog.Check3(hotplug.EnumerateExistingDevices())
+
 	m.tomb.Go(func() error {
 		for _, perr := range parseErrors {
 			logger.Noticef("udev enumeration error: %s", perr)
@@ -160,7 +158,7 @@ func (m *Monitor) Run() error {
 
 func (m *Monitor) Stop() error {
 	m.tomb.Kill(nil)
-	err := m.tomb.Wait()
+	mylog.Check(m.tomb.Wait())
 	m.netlinkConn = nil
 	return err
 }
@@ -176,10 +174,8 @@ func (m *Monitor) udevEvent(ev *netlink.UEvent) {
 }
 
 func (m *Monitor) addDevice(kobj string, env map[string]string) {
-	dev, err := hotplug.NewHotplugDeviceInfo(env)
-	if err != nil {
-		return
-	}
+	dev := mylog.Check2(hotplug.NewHotplugDeviceInfo(env))
+
 	devPath := dev.DevicePath()
 	if m.seen[devPath] {
 		return
@@ -191,10 +187,8 @@ func (m *Monitor) addDevice(kobj string, env map[string]string) {
 }
 
 func (m *Monitor) removeDevice(kobj string, env map[string]string) {
-	dev, err := hotplug.NewHotplugDeviceInfo(env)
-	if err != nil {
-		return
-	}
+	dev := mylog.Check2(hotplug.NewHotplugDeviceInfo(env))
+
 	devPath := dev.DevicePath()
 	if !m.seen[devPath] {
 		logger.Debugf("udev monitor observed remove event for unknown device %s", dev)

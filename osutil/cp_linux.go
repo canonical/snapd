@@ -22,6 +22,8 @@ package osutil
 import (
 	"os"
 	"syscall"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 const maxint = int64(^uint(0) >> 1)
@@ -38,10 +40,8 @@ func doCopyFile(fin, fout fileish, fi os.FileInfo) error {
 		if count > maxcp {
 			count = maxcp
 		}
+		mylog.Check2(syscall.Sendfile(int(fout.Fd()), int(fin.Fd()), &offset, int(count)))
 
-		if _, err := syscall.Sendfile(int(fout.Fd()), int(fin.Fd()), &offset, int(count)); err != nil {
-			return err
-		}
 	}
 
 	return nil

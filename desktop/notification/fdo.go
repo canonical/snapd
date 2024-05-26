@@ -25,6 +25,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/godbus/dbus"
 
 	"github.com/snapcore/snapd/logger"
@@ -66,9 +67,8 @@ var newFdoBackend = func(conn *dbus.Conn, desktopID string) NotificationManager 
 // ServerInformation returns the information about the notification server.
 func (srv *fdoBackend) ServerInformation() (name, vendor, version, specVersion string, err error) {
 	call := srv.obj.Call(dBusInterfaceName+".GetServerInformation", 0)
-	if err := call.Store(&name, &vendor, &version, &specVersion); err != nil {
-		return "", "", "", "", err
-	}
+	mylog.Check(call.Store(&name, &vendor, &version, &specVersion))
+
 	return name, vendor, version, specVersion, nil
 }
 
@@ -76,9 +76,8 @@ func (srv *fdoBackend) ServerInformation() (name, vendor, version, specVersion s
 func (srv *fdoBackend) ServerCapabilities() ([]ServerCapability, error) {
 	call := srv.obj.Call(dBusInterfaceName+".GetCapabilities", 0)
 	var caps []ServerCapability
-	if err := call.Store(&caps); err != nil {
-		return nil, err
-	}
+	mylog.Check(call.Store(&caps))
+
 	return caps, nil
 }
 
@@ -103,9 +102,7 @@ func (srv *fdoBackend) SendNotification(id ID, msg *Message) error {
 		msg.AppName, serverSideId, msg.Icon, msg.Title, msg.Body,
 		flattenActions(msg.Actions), hints,
 		int32(msg.ExpireTimeout.Nanoseconds()/1e6))
-	if err := call.Store(&serverSideId); err != nil {
-		return err
-	}
+	mylog.Check(call.Store(&serverSideId))
 
 	srv.mu.Lock()
 	defer srv.mu.Unlock()
@@ -191,17 +188,14 @@ func (srv *fdoBackend) ObserveNotifications(ctx context.Context, observer Observ
 		dbus.WithMatchObjectPath(dBusObjectPath),
 		dbus.WithMatchInterface(dBusInterfaceName),
 	}
-	if err := srv.conn.AddMatchSignal(matchRules...); err != nil {
-		return err
-	}
+	mylog.Check(srv.conn.AddMatchSignal(matchRules...))
+
 	defer func() {
-		if err := srv.conn.RemoveMatchSignal(matchRules...); err != nil {
-			// XXX: this should not fail for us in practice but we don't want
-			// to clobber the actual error being returned from the function in
-			// general, so ignore RemoveMatchSignal errors and just log them
-			// instead.
-			logger.Noticef("Cannot remove D-Bus signal matcher: %v", err)
-		}
+		mylog.Check(srv.conn.RemoveMatchSignal(matchRules...))
+		// XXX: this should not fail for us in practice but we don't want
+		// to clobber the actual error being returned from the function in
+		// general, so ignore RemoveMatchSignal errors and just log them
+		// instead.
 	}()
 
 	for {
@@ -212,9 +206,8 @@ func (srv *fdoBackend) ObserveNotifications(ctx context.Context, observer Observ
 			if !ok {
 				return nil
 			}
-			if err := srv.processSignal(sig, observer); err != nil {
-				return err
-			}
+			mylog.Check(srv.processSignal(sig, observer))
+
 		}
 	}
 }
@@ -222,13 +215,11 @@ func (srv *fdoBackend) ObserveNotifications(ctx context.Context, observer Observ
 func (srv *fdoBackend) processSignal(sig *dbus.Signal, observer Observer) error {
 	switch sig.Name {
 	case dBusInterfaceName + ".NotificationClosed":
-		if err := srv.processNotificationClosed(sig, observer); err != nil {
-			return fmt.Errorf("cannot process NotificationClosed signal: %v", err)
-		}
+		mylog.Check(srv.processNotificationClosed(sig, observer))
+
 	case dBusInterfaceName + ".ActionInvoked":
-		if err := srv.processActionInvoked(sig, observer); err != nil {
-			return fmt.Errorf("cannot process ActionInvoked signal: %v", err)
-		}
+		mylog.Check(srv.processActionInvoked(sig, observer))
+
 	}
 	return nil
 }

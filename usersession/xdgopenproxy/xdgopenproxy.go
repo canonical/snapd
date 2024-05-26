@@ -23,6 +23,7 @@ package xdgopenproxy
 import (
 	"net/url"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/godbus/dbus"
 	"golang.org/x/xerrors"
 )
@@ -50,17 +51,15 @@ var availableLaunchers = []desktopLauncher{
 
 // Run attempts to open given file or URL using one of available launchers
 func Run(urlOrFile string) error {
-	bus, err := dbus.SessionBus()
-	if err != nil {
-		return err
-	}
+	bus := mylog.Check2(dbus.SessionBus())
+
 	defer bus.Close()
 
 	return launch(bus, availableLaunchers, urlOrFile)
 }
 
 func launchWithOne(bus *dbus.Conn, l desktopLauncher, urlOrFile string) error {
-	if u, err := url.Parse(urlOrFile); err == nil {
+	if u := mylog.Check2(url.Parse(urlOrFile)); err == nil {
 		if u.Scheme == "file" {
 			return l.OpenFile(bus, u.Path)
 		} else if u.Scheme != "" {
@@ -71,9 +70,8 @@ func launchWithOne(bus *dbus.Conn, l desktopLauncher, urlOrFile string) error {
 }
 
 func launch(bus *dbus.Conn, launchers []desktopLauncher, urlOrFile string) error {
-	var err error
 	for _, l := range launchers {
-		err = launchWithOne(bus, l, urlOrFile)
+		mylog.Check(launchWithOne(bus, l, urlOrFile))
 		if err == nil {
 			break
 		}

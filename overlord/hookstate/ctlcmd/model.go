@@ -28,6 +28,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/i18n"
@@ -114,18 +115,14 @@ func (c *modelCommand) reportError(format string, a ...interface{}) {
 // hasSnapdControlInterface returns true if the requesting snap has the
 // snapd-control plug and only if it is connected as well.
 func (c *modelCommand) hasSnapdControlInterface(st *state.State, snapName string) (bool, error) {
-	conns, err := ifacestate.ConnectionStates(st)
-	if err != nil {
-		return false, err
-	}
+	conns := mylog.Check2(ifacestate.ConnectionStates(st))
+
 	for refStr, connState := range conns {
 		if connState.Undesired || connState.Interface != "snapd-control" {
 			continue
 		}
-		connRef, err := interfaces.ParseConnRef(refStr)
-		if err != nil {
-			return false, err
-		}
+		connRef := mylog.Check2(interfaces.ParseConnRef(refStr))
+
 		if connRef.PlugRef.Snap == snapName {
 			return true, nil
 		}
@@ -137,16 +134,11 @@ func (c *modelCommand) hasSnapdControlInterface(st *state.State, snapName string
 // which also fills the publisher information.
 func (c *modelCommand) getSnapInfoWithPublisher(st *state.State, snapName string) (*snap.Info, error) {
 	var snapst snapstate.SnapState
-	if err := snapstate.Get(st, snapName, &snapst); err != nil {
-		return nil, fmt.Errorf("failed to get snapstate for snap %s: %v", snapName, err)
-	}
+	mylog.Check(snapstate.Get(st, snapName, &snapst))
 
-	snapInfo, err := snapst.CurrentInfo()
-	if err != nil {
-		return nil, err
-	}
+	snapInfo := mylog.Check2(snapst.CurrentInfo())
 
-	snapInfo.Publisher, err = assertstate.PublisherStoreAccount(st, snapInfo.SnapID)
+	snapInfo.Publisher = mylog.Check2(assertstate.PublisherStoreAccount(st, snapInfo.SnapID))
 	return snapInfo, err
 }
 
@@ -163,7 +155,7 @@ func (c *modelCommand) checkPermissions(st *state.State, deviceCtx snapstate.Dev
 	if snapInfo.Publisher.ID == deviceCtx.Model().BrandID() {
 		return nil
 	}
-	if conn, err := c.hasSnapdControlInterface(st, snapInfo.SnapName()); err != nil {
+	if conn := mylog.Check2(c.hasSnapdControlInterface(st, snapInfo.SnapName())); err != nil {
 		return fmt.Errorf("cannot check for snapd-control interface: %v", err)
 	} else if conn {
 		return nil
@@ -178,10 +170,10 @@ func (c *modelCommand) checkPermissions(st *state.State, deviceCtx snapstate.Dev
 // findSerialAssertion is a helper function to find the newest matching serial assertion
 // for the provided model assertion.
 func (c *modelCommand) findSerialAssertion(st *state.State, modelAssertion *asserts.Model) (*asserts.Serial, error) {
-	assertions, err := assertstate.DB(st).FindMany(asserts.SerialType, map[string]string{
+	assertions := mylog.Check2(assertstate.DB(st).FindMany(asserts.SerialType, map[string]string{
 		"brand-id": modelAssertion.BrandID(),
 		"model":    modelAssertion.Model(),
-	})
+	}))
 	if err != nil || len(assertions) == 0 {
 		return nil, err
 	}
@@ -205,10 +197,7 @@ func (c *modelCommand) findSerialAssertion(st *state.State, modelAssertion *asse
 }
 
 func (c *modelCommand) Execute([]string) error {
-	context, err := c.ensureContext()
-	if err != nil {
-		return err
-	}
+	context := mylog.Check2(c.ensureContext())
 
 	st := context.State()
 	st.Lock()
@@ -217,22 +206,16 @@ func (c *modelCommand) Execute([]string) error {
 	// ignore the valid bool as we just pass the task whether it is
 	// nil or not.
 	task, _ := context.Task()
-	deviceCtx, err := snapstate.DeviceCtx(st, task, nil)
-	if err != nil {
-		return err
-	}
+	deviceCtx := mylog.Check2(snapstate.DeviceCtx(st, task, nil))
 
 	// We only return an error in case we could not the get the snap.Info
 	// structure, and 'ignore' any error that caused us not to get the store
 	// account publisher
-	snapInfo, err := c.getSnapInfoWithPublisher(st, context.InstanceName())
+	snapInfo := mylog.Check2(c.getSnapInfoWithPublisher(st, context.InstanceName()))
 	if snapInfo == nil {
 		return err
 	}
-
-	if err := c.checkPermissions(st, deviceCtx, snapInfo); err != nil {
-		return err
-	}
+	mylog.Check(c.checkPermissions(st, deviceCtx, snapInfo))
 
 	// use the same tab-writer settings as the 'snap model' in cmd_list.go
 	w := c.newTabWriter(c.stdout)
@@ -251,7 +234,7 @@ func (c *modelCommand) Execute([]string) error {
 		Assertion: c.Assertion,
 	}
 
-	serialAssertion, err := c.findSerialAssertion(st, deviceCtx.Model())
+	serialAssertion := mylog.Check2(c.findSerialAssertion(st, deviceCtx.Model()))
 	// Ignore the error in case the serial assertion wasn't found. We will
 	// then use the model assertion instead.
 	if err != nil && !errors.Is(err, &asserts.NotFoundError{}) {
@@ -259,16 +242,13 @@ func (c *modelCommand) Execute([]string) error {
 	}
 
 	if c.Json {
-		if err := clientutil.PrintModelAssertionJSON(w, *deviceCtx.Model(), serialAssertion, opts); err != nil {
-			return err
-		}
+		mylog.Check(clientutil.PrintModelAssertionJSON(w, *deviceCtx.Model(), serialAssertion, opts))
 	} else {
 		modelFormatter := modelCommandFormatter{
 			snapInfo: snapInfo,
 		}
-		if err := clientutil.PrintModelAssertion(w, *deviceCtx.Model(), serialAssertion, modelFormatter, opts); err != nil {
-			return err
-		}
+		mylog.Check(clientutil.PrintModelAssertion(w, *deviceCtx.Model(), serialAssertion, modelFormatter, opts))
+
 	}
 	return nil
 }

@@ -28,6 +28,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/testutil"
@@ -183,13 +184,9 @@ func MockOsReadlink(f func(string) (string, error)) func() {
 // MockEtcFstab mocks content of /etc/fstab read by IsHomeUsingNFS
 func MockEtcFstab(text string) (restore func()) {
 	old := etcFstab
-	f, err := os.CreateTemp("", "fstab")
-	if err != nil {
-		panic(fmt.Errorf("cannot open temporary file: %s", err))
-	}
-	if err := os.WriteFile(f.Name(), []byte(text), 0644); err != nil {
-		panic(fmt.Errorf("cannot write mock fstab file: %s", err))
-	}
+	f := mylog.Check2(os.CreateTemp("", "fstab"))
+	mylog.Check(os.WriteFile(f.Name(), []byte(text), 0644))
+
 	etcFstab = f.Name()
 	return func() {
 		if etcFstab == "/etc/fstab" {
@@ -235,10 +232,8 @@ var ParseRawEnvironment = parseRawEnvironment
 func ParseRawExpandableEnv(entries []string) (ExpandableEnv, error) {
 	om := strutil.NewOrderedMap()
 	for _, entry := range entries {
-		key, value, err := parseEnvEntry(entry)
-		if err != nil {
-			return ExpandableEnv{}, err
-		}
+		key, value := mylog.Check3(parseEnvEntry(entry))
+
 		if om.Get(key) != "" {
 			return ExpandableEnv{}, fmt.Errorf("cannot overwrite earlier value of %q", key)
 		}

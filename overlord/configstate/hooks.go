@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -50,7 +51,7 @@ func (h *configureHandler) Before() error {
 
 	var patch map[string]interface{}
 	var useDefaults bool
-	if err := h.context.Get("use-defaults", &useDefaults); err != nil && !errors.Is(err, state.ErrNoState) {
+	if mylog.Check(h.context.Get("use-defaults", &useDefaults)); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 
@@ -58,12 +59,9 @@ func (h *configureHandler) Before() error {
 	if useDefaults {
 		st := h.context.State()
 		task, _ := h.context.Task()
-		deviceCtx, err := snapstate.DeviceCtx(st, task, nil)
-		if err != nil {
-			return err
-		}
+		deviceCtx := mylog.Check2(snapstate.DeviceCtx(st, task, nil))
 
-		patch, err = snapstate.ConfigDefaults(st, deviceCtx, instanceName)
+		patch = mylog.Check2(snapstate.ConfigDefaults(st, deviceCtx, instanceName))
 		if err != nil && !errors.Is(err, state.ErrNoState) {
 			return err
 		}
@@ -71,10 +69,8 @@ func (h *configureHandler) Before() error {
 		// hook, for other snaps double check that the hook is present
 		if len(patch) != 0 && instanceName != "core" {
 			// TODO: helper on context?
-			info, err := snapstate.CurrentInfo(st, instanceName)
-			if err != nil {
-				return err
-			}
+			info := mylog.Check2(snapstate.CurrentInfo(st, instanceName))
+
 			if info.Hooks["configure"] == nil {
 				return fmt.Errorf("cannot apply gadget config defaults for snap %q, no configure hook", instanceName)
 			}
@@ -85,14 +81,11 @@ func (h *configureHandler) Before() error {
 			}
 		}
 	} else {
-		if err := h.context.Get("patch", &patch); err != nil && !errors.Is(err, state.ErrNoState) {
+		if mylog.Check(h.context.Get("patch", &patch)); err != nil && !errors.Is(err, state.ErrNoState) {
 			return err
 		}
 	}
-
-	if err := config.Patch(tr, instanceName, patch); err != nil {
-		return err
-	}
+	mylog.Check(config.Patch(tr, instanceName, patch))
 
 	return nil
 }
@@ -127,10 +120,8 @@ func (h *defaultConfigureHandler) Before() error {
 
 	instanceName := h.context.InstanceName()
 	st := h.context.State()
-	info, err := snapstate.CurrentInfo(st, instanceName)
-	if err != nil {
-		return err
-	}
+	info := mylog.Check2(snapstate.CurrentInfo(st, instanceName))
+
 	hasDefaultConfigureHook := info.Hooks["default-configure"] != nil
 	hasConfigureHook := info.Hooks["configure"] != nil
 
@@ -143,19 +134,14 @@ func (h *defaultConfigureHandler) Before() error {
 
 	if hasDefaultConfigureHook {
 		task, _ := h.context.Task()
-		deviceCtx, err := snapstate.DeviceCtx(st, task, nil)
-		if err != nil {
-			return err
-		}
+		deviceCtx := mylog.Check2(snapstate.DeviceCtx(st, task, nil))
 
-		patch, err := snapstate.ConfigDefaults(st, deviceCtx, instanceName)
+		patch := mylog.Check2(snapstate.ConfigDefaults(st, deviceCtx, instanceName))
 		if err != nil && !errors.Is(err, state.ErrNoState) {
 			return err
 		}
+		mylog.Check(config.Patch(tr, instanceName, patch))
 
-		if err := config.Patch(tr, instanceName, patch); err != nil {
-			return err
-		}
 	}
 
 	return nil

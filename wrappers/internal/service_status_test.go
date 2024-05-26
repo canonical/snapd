@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	_ "github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/progress"
@@ -64,16 +65,16 @@ func (s *serviceStatusSuite) SetUpTest(c *C) {
 	s.delaysRestorer = systemd.MockStopDelays(2*time.Millisecond, 4*time.Millisecond)
 
 	xdgRuntimeDir := fmt.Sprintf("%s/%d", dirs.XdgRuntimeDirBase, os.Getuid())
-	err := os.MkdirAll(xdgRuntimeDir, 0700)
-	c.Assert(err, IsNil)
-	s.agent, err = agent.New()
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(xdgRuntimeDir, 0700))
+
+	s.agent = mylog.Check2(agent.New())
+
 	s.agent.Start()
 }
 
 func (s *serviceStatusSuite) TearDownTest(c *C) {
 	if s.agent != nil {
-		err := s.agent.Stop()
+		mylog.Check(s.agent.Stop())
 		c.Check(err, IsNil)
 	}
 	s.systemctlRestorer()
@@ -127,9 +128,8 @@ NeedDaemonReload=no
 		return []byte(`ActiveState=inactive`), nil
 	})
 	defer r()
+	mylog.Check(s.addSnapServices(info, false))
 
-	err := s.addSnapServices(info, false)
-	c.Assert(err, IsNil)
 
 	sorted := info.Services()
 	sort.Slice(sorted, func(i, j int) bool {
@@ -137,8 +137,8 @@ NeedDaemonReload=no
 	})
 
 	sysd := systemd.New(systemd.SystemMode, progress.Null)
-	svcs, usrSvcs, err := internal.QueryServiceStatusMany(sorted, sysd)
-	c.Assert(err, IsNil)
+	svcs, usrSvcs := mylog.Check3(internal.QueryServiceStatusMany(sorted, sysd))
+
 	c.Assert(svcs, HasLen, 1)
 	c.Check(svcs[0].Name(), Equals, "bar")
 	c.Check(svcs[0].IsUserService(), Equals, false)
@@ -228,9 +228,8 @@ NeedDaemonReload=no
 `, cmd[len(cmd)-1])), nil
 	})
 	defer r()
+	mylog.Check(s.addSnapServices(info, false))
 
-	err := s.addSnapServices(info, false)
-	c.Assert(err, IsNil)
 
 	sorted := info.Services()
 	sort.Slice(sorted, func(i, j int) bool {
@@ -238,8 +237,8 @@ NeedDaemonReload=no
 	})
 
 	sysd := systemd.New(systemd.SystemMode, progress.Null)
-	svcs, usrSvcs, err := internal.QueryServiceStatusMany(sorted, sysd)
-	c.Assert(err, IsNil)
+	svcs, usrSvcs := mylog.Check3(internal.QueryServiceStatusMany(sorted, sysd))
+
 	c.Assert(svcs, HasLen, 1)
 	c.Check(svcs[0].Name(), Equals, "bar")
 	c.Check(svcs[0].IsUserService(), Equals, false)
@@ -347,9 +346,8 @@ NeedDaemonReload=no
 `, cmd[len(cmd)-1])), nil
 	})
 	defer r()
+	mylog.Check(s.addSnapServices(info, false))
 
-	err := s.addSnapServices(info, false)
-	c.Assert(err, IsNil)
 
 	sorted := info.Services()
 	sort.Slice(sorted, func(i, j int) bool {
@@ -357,8 +355,8 @@ NeedDaemonReload=no
 	})
 
 	sysd := systemd.New(systemd.SystemMode, progress.Null)
-	svcs, usrSvcs, err := internal.QueryServiceStatusMany(sorted, sysd)
-	c.Assert(err, IsNil)
+	svcs, usrSvcs := mylog.Check3(internal.QueryServiceStatusMany(sorted, sysd))
+
 	c.Assert(svcs, HasLen, 1)
 	c.Check(svcs[0].Name(), Equals, "bar")
 	c.Check(svcs[0].IsUserService(), Equals, false)
@@ -451,9 +449,8 @@ apps:
 		return nil, fmt.Errorf("oh noes")
 	})
 	defer r()
+	mylog.Check(s.addSnapServices(info, false))
 
-	err := s.addSnapServices(info, false)
-	c.Assert(err, IsNil)
 
 	sorted := info.Services()
 	sort.Slice(sorted, func(i, j int) bool {
@@ -461,7 +458,7 @@ apps:
 	})
 
 	sysd := systemd.New(systemd.SystemMode, progress.Null)
-	svcs, usrSvcs, err := internal.QueryServiceStatusMany(sorted, sysd)
+	svcs, usrSvcs := mylog.Check3(internal.QueryServiceStatusMany(sorted, sysd))
 	c.Assert(err, ErrorMatches, `oh noes`)
 	c.Assert(svcs, HasLen, 0)
 	c.Assert(usrSvcs, HasLen, 0)
@@ -507,9 +504,8 @@ NeedDaemonReload=no
 		return []byte(`okay`), nil
 	})
 	defer r()
+	mylog.Check(s.addSnapServices(info, false))
 
-	err := s.addSnapServices(info, false)
-	c.Assert(err, IsNil)
 
 	sorted := info.Services()
 	sort.Slice(sorted, func(i, j int) bool {
@@ -517,8 +513,8 @@ NeedDaemonReload=no
 	})
 
 	sysd := systemd.New(systemd.SystemMode, progress.Null)
-	svcs, usrSvcs, err := internal.QueryServiceStatusMany(sorted, sysd)
-	c.Assert(err, IsNil)
+	svcs, usrSvcs := mylog.Check3(internal.QueryServiceStatusMany(sorted, sysd))
+
 	c.Assert(svcs, HasLen, 0)
 	c.Assert(usrSvcs, HasLen, 0)
 
@@ -544,9 +540,8 @@ apps:
 `
 	info := snaptest.MockSnap(c, snapYaml, &snap.SideInfo{Revision: snap.R(1)})
 	fooSrvFile := "snap.test-snap.foo.service"
+	mylog.Check(s.addSnapServices(info, false))
 
-	err := s.addSnapServices(info, false)
-	c.Assert(err, IsNil)
 
 	sorted := info.Services()
 	sort.Slice(sorted, func(i, j int) bool {
@@ -563,7 +558,7 @@ apps:
 	defer r()
 
 	sysd := systemd.New(systemd.SystemMode, progress.Null)
-	svcs, usrSvcs, err := internal.QueryServiceStatusMany(sorted, sysd)
+	svcs, usrSvcs := mylog.Check3(internal.QueryServiceStatusMany(sorted, sysd))
 	c.Assert(err, ErrorMatches, `internal error: no status received for service snap.test-snap.bar.service`)
 	c.Assert(svcs, HasLen, 0)
 	c.Assert(usrSvcs, HasLen, 0)

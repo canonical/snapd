@@ -27,6 +27,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
@@ -173,15 +174,9 @@ func (iface *sharedMemoryInterface) BeforePrepareSlot(slot *snap.SlotInfo) error
 		slot.Attrs["shared-memory"] = slot.Name
 	}
 
-	readPaths, err := stringListAttribute(slot, "read")
-	if err != nil {
-		return fmt.Errorf("shared-memory %v", err)
-	}
+	readPaths := mylog.Check2(stringListAttribute(slot, "read"))
 
-	writePaths, err := stringListAttribute(slot, "write")
-	if err != nil {
-		return fmt.Errorf("shared-memory %v", err)
-	}
+	writePaths := mylog.Check2(stringListAttribute(slot, "write"))
 
 	// We perform the same validation for read-only and writable paths, so
 	// let's just put them all in the same array
@@ -191,9 +186,7 @@ func (iface *sharedMemoryInterface) BeforePrepareSlot(slot *snap.SlotInfo) error
 	}
 
 	for _, path := range allPaths {
-		if err := validateSharedMemoryPath(path); err != nil {
-			return err
-		}
+		mylog.Check(validateSharedMemoryPath(path))
 	}
 
 	return nil
@@ -207,7 +200,8 @@ const (
 )
 
 func writeSharedMemoryPaths(w io.Writer, slot *interfaces.ConnectedSlot,
-	snippetType sharedMemorySnippetType) {
+	snippetType sharedMemorySnippetType,
+) {
 	emitWritableRule := func(path string) {
 		// Ubuntu 14.04 uses /run/shm instead of the most common /dev/shm
 		fmt.Fprintf(w, "\"/{dev,run}/shm/%s\" mrwlk,\n", path)
@@ -287,17 +281,14 @@ func (iface *sharedMemoryInterface) isPrivate(plug *interfaces.ConnectedPlug) (b
 	// interface repository in the state and not from the
 	// snap.yaml so this attribute is missing.
 	var private bool
-	if err := plug.Attr("private", &private); err != nil && !errors.Is(err, snap.AttributeNotFoundError{}) {
+	if mylog.Check(plug.Attr("private", &private)); err != nil && !errors.Is(err, snap.AttributeNotFoundError{}) {
 		return false, err
 	}
 	return private, nil
 }
 
 func (iface *sharedMemoryInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	private, err := iface.isPrivate(plug)
-	if err != nil {
-		return err
-	}
+	private := mylog.Check2(iface.isPrivate(plug))
 
 	if private {
 		spec.AddSnippet(sharedMemoryPrivateConnectedPlugAppArmor)
@@ -326,10 +317,7 @@ func (iface *sharedMemoryInterface) AppArmorConnectedSlot(spec *apparmor.Specifi
 }
 
 func (iface *sharedMemoryInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	private, err := iface.isPrivate(plug)
-	if err != nil {
-		return err
-	}
+	private := mylog.Check2(iface.isPrivate(plug))
 
 	if !private {
 		return nil

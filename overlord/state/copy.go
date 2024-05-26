@@ -29,6 +29,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/osutil"
 )
@@ -38,9 +39,8 @@ type checkpointOnlyBackend struct {
 }
 
 func (b *checkpointOnlyBackend) Checkpoint(data []byte) error {
-	if err := os.MkdirAll(filepath.Dir(b.path), 0755); err != nil {
-		return err
-	}
+	mylog.Check(os.MkdirAll(filepath.Dir(b.path), 0755))
+
 	return osutil.AtomicWriteFile(b.path, data, 0600, 0)
 }
 
@@ -68,9 +68,7 @@ func copyData(subkeys []string, pos int, srcData map[string]*json.RawMessage, ds
 	}
 
 	var srcDatam map[string]*json.RawMessage
-	if err := jsonutil.DecodeWithNumber(bytes.NewReader(*raw), &srcDatam); err != nil {
-		return fmt.Errorf("cannot unmarshal state entry %q with value %q as a map while trying to copy over %q", strings.Join(subkeys[:pos+1], "."), *raw, strings.Join(subkeys, "."))
-	}
+	mylog.Check(jsonutil.DecodeWithNumber(bytes.NewReader(*raw), &srcDatam))
 
 	// no subkey entry -> create one
 	if _, ok := dstData[subkeys[pos]]; !ok {
@@ -83,9 +81,8 @@ func copyData(subkeys []string, pos int, srcData map[string]*json.RawMessage, ds
 		dstDatam = dstDataEntry
 	case *json.RawMessage:
 		dstDatam = make(map[string]interface{})
-		if err := jsonutil.DecodeWithNumber(bytes.NewReader(*dstDataEntry), &dstDatam); err != nil {
-			return fmt.Errorf("internal error: cannot decode subkey %s (%q) for %v (%T)", subkeys[pos], strings.Join(subkeys, "."), dstData, dstDataEntry)
-		}
+		mylog.Check(jsonutil.DecodeWithNumber(bytes.NewReader(*dstDataEntry), &dstDatam))
+
 	default:
 		return fmt.Errorf("internal error: cannot create subkey %s (%q) for %v (%T)", subkeys[pos], strings.Join(subkeys, "."), dstData, dstData[subkeys[pos]])
 	}
@@ -107,24 +104,19 @@ func CopyState(srcStatePath, dstStatePath string, dataEntries []string) error {
 		return fmt.Errorf("cannot copy state: must provide at least one data entry to copy")
 	}
 
-	f, err := os.Open(srcStatePath)
-	if err != nil {
-		return fmt.Errorf("cannot open state: %s", err)
-	}
+	f := mylog.Check2(os.Open(srcStatePath))
+
 	defer f.Close()
 
 	// No need to lock/unlock the state here, srcState should not be
 	// in use at all.
-	srcState, err := ReadState(nil, f)
-	if err != nil {
-		return err
-	}
+	srcState := mylog.Check2(ReadState(nil, f))
 
 	// copy relevant data
 	dstData := make(map[string]interface{})
 	for _, dataEntry := range dataEntries {
 		subkeys := strings.Split(dataEntry, ".")
-		if err := copyData(subkeys, 0, srcState.data, dstData); err != nil && !errors.Is(err, ErrNoState) {
+		if mylog.Check(copyData(subkeys, 0, srcState.data, dstData)); err != nil && !errors.Is(err, ErrNoState) {
 			return err
 		}
 	}

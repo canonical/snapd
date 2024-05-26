@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
@@ -83,11 +84,11 @@ func (s *SystemObserveInterfaceSuite) TestSanitizePlug(c *C) {
 
 func (s *SystemObserveInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	apparmorSpec := apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
-	c.Assert(err, IsNil)
+	mylog.Check(apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot))
+
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "ptrace")
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "@{PROC}/partitions r,")
@@ -101,11 +102,11 @@ func (s *SystemObserveInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(strings.Join(updateNS[:], "\n"), Equals, expectedUpdateNS)
 
 	// connected plugs have a non-nil security snippet for seccomp
-	appSet, err = interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	seccompSpec := seccomp.NewSpecification(appSet)
-	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
-	c.Assert(err, IsNil)
+	mylog.Check(seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot))
+
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 	c.Check(seccompSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "ptrace\n")
 }
@@ -118,8 +119,8 @@ func (s *SystemObserveInterfaceSuite) TestMountPermanentPlug(c *C) {
 	// mount for it
 	fakeBootDir := filepath.Join(tmpdir, "/boot")
 	c.Assert(os.MkdirAll(fakeBootDir, 0777), IsNil)
-	file, err := os.OpenFile(filepath.Join(fakeBootDir, "config-5.10"), os.O_CREATE, 0644)
-	c.Assert(err, IsNil)
+	file := mylog.Check2(os.OpenFile(filepath.Join(fakeBootDir, "config-5.10"), os.O_CREATE, 0644))
+
 	c.Assert(file.Close(), IsNil)
 
 	mountSpec := &mount.Specification{}

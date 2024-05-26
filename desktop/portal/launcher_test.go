@@ -27,6 +27,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/godbus/dbus"
 	. "gopkg.in/check.v1"
 
@@ -57,19 +58,19 @@ func (s *portalSuite) SetUpSuite(c *C) {
 	s.DBusTest.SetUpSuite(c)
 
 	s.portal = &fakePortal{s}
-	err := s.SessionBus.Export(s.portal, portal.DesktopPortalObjectPath, portal.DesktopPortalOpenURIIface)
-	c.Assert(err, IsNil)
-	s.request = &fakePortalRequest{s}
-	err = s.SessionBus.Export(s.request, portalRequestPath, portal.DesktopPortalRequestIface)
-	c.Assert(err, IsNil)
+	mylog.Check(s.SessionBus.Export(s.portal, portal.DesktopPortalObjectPath, portal.DesktopPortalOpenURIIface))
 
-	_, err = s.SessionBus.RequestName(portal.DesktopPortalBusName, dbus.NameFlagAllowReplacement|dbus.NameFlagReplaceExisting)
-	c.Assert(err, IsNil)
+	s.request = &fakePortalRequest{s}
+	mylog.Check(s.SessionBus.Export(s.request, portalRequestPath, portal.DesktopPortalRequestIface))
+
+
+	_ = mylog.Check2(s.SessionBus.RequestName(portal.DesktopPortalBusName, dbus.NameFlagAllowReplacement|dbus.NameFlagReplaceExisting))
+
 }
 
 func (s *portalSuite) TearDownSuite(c *C) {
 	if s.SessionBus != nil {
-		_, err := s.SessionBus.ReleaseName(portal.DesktopPortalBusName)
+		_ := mylog.Check2(s.SessionBus.ReleaseName(portal.DesktopPortalBusName))
 		c.Check(err, IsNil)
 	}
 
@@ -88,8 +89,7 @@ func (s *portalSuite) SetUpTest(c *C) {
 func (s *portalSuite) TestOpenFile(c *C) {
 	path := filepath.Join(c.MkDir(), "test.txt")
 	c.Assert(os.WriteFile(path, []byte("hello world"), 0644), IsNil)
-
-	err := portal.OpenFile(s.SessionBus, path)
+	mylog.Check(portal.OpenFile(s.SessionBus, path))
 	c.Check(err, IsNil)
 	c.Check(s.calls, DeepEquals, []string{
 		"OpenFile",
@@ -101,8 +101,7 @@ func (s *portalSuite) TestOpenFileCallError(c *C) {
 
 	path := filepath.Join(c.MkDir(), "test.txt")
 	c.Assert(os.WriteFile(path, []byte("hello world"), 0644), IsNil)
-
-	err := portal.OpenFile(s.SessionBus, path)
+	mylog.Check(portal.OpenFile(s.SessionBus, path))
 	c.Check(err, FitsTypeOf, dbus.Error{})
 	c.Check(err, ErrorMatches, "failure")
 	c.Check(s.calls, DeepEquals, []string{
@@ -115,8 +114,7 @@ func (s *portalSuite) TestOpenFileResponseError(c *C) {
 
 	path := filepath.Join(c.MkDir(), "test.txt")
 	c.Assert(os.WriteFile(path, []byte("hello world"), 0644), IsNil)
-
-	err := portal.OpenFile(s.SessionBus, path)
+	mylog.Check(portal.OpenFile(s.SessionBus, path))
 	c.Check(err, FitsTypeOf, (*portal.ResponseError)(nil))
 	c.Check(err, ErrorMatches, `request declined by the user \(code 2\)`)
 	c.Check(s.calls, DeepEquals, []string{
@@ -131,8 +129,7 @@ func (s *portalSuite) TestOpenFileTimeout(c *C) {
 
 	file := filepath.Join(c.MkDir(), "test.txt")
 	c.Assert(os.WriteFile(file, []byte("hello world"), 0644), IsNil)
-
-	err := portal.OpenFile(s.SessionBus, file)
+	mylog.Check(portal.OpenFile(s.SessionBus, file))
 	c.Check(err, FitsTypeOf, (*portal.ResponseError)(nil))
 	c.Check(err, ErrorMatches, "timeout waiting for user response")
 	c.Check(s.calls, DeepEquals, []string{
@@ -143,7 +140,7 @@ func (s *portalSuite) TestOpenFileTimeout(c *C) {
 
 func (s *portalSuite) TestOpenDir(c *C) {
 	dir := c.MkDir()
-	err := portal.OpenFile(s.SessionBus, dir)
+	mylog.Check(portal.OpenFile(s.SessionBus, dir))
 	c.Check(err, IsNil)
 	c.Check(s.calls, DeepEquals, []string{
 		"OpenFile",
@@ -152,7 +149,7 @@ func (s *portalSuite) TestOpenDir(c *C) {
 
 func (s *portalSuite) TestOpenMissingFile(c *C) {
 	path := filepath.Join(c.MkDir(), "no-such-file.txt")
-	err := portal.OpenFile(s.SessionBus, path)
+	mylog.Check(portal.OpenFile(s.SessionBus, path))
 	c.Check(err, ErrorMatches, "no such file or directory")
 	c.Check(s.calls, HasLen, 0)
 }
@@ -161,14 +158,13 @@ func (s *portalSuite) TestOpenUnreadableFile(c *C) {
 	path := filepath.Join(c.MkDir(), "test.txt")
 	c.Assert(os.WriteFile(path, []byte("hello world"), 0644), IsNil)
 	c.Assert(os.Chmod(path, 0), IsNil)
-
-	err := portal.OpenFile(s.SessionBus, path)
+	mylog.Check(portal.OpenFile(s.SessionBus, path))
 	c.Check(err, ErrorMatches, "permission denied")
 	c.Check(s.calls, HasLen, 0)
 }
 
 func (s *portalSuite) TestOpenURI(c *C) {
-	err := portal.OpenURI(s.SessionBus, "http://example.com")
+	mylog.Check(portal.OpenURI(s.SessionBus, "http://example.com"))
 	c.Check(err, IsNil)
 	c.Check(s.calls, DeepEquals, []string{
 		"OpenURI http://example.com",
@@ -177,8 +173,7 @@ func (s *portalSuite) TestOpenURI(c *C) {
 
 func (s *portalSuite) TestOpenURICallError(c *C) {
 	s.openError = dbus.MakeFailedError(fmt.Errorf("failure"))
-
-	err := portal.OpenURI(s.SessionBus, "http://example.com")
+	mylog.Check(portal.OpenURI(s.SessionBus, "http://example.com"))
 	c.Check(err, FitsTypeOf, dbus.Error{})
 	c.Check(err, ErrorMatches, "failure")
 	c.Check(s.calls, DeepEquals, []string{
@@ -188,8 +183,7 @@ func (s *portalSuite) TestOpenURICallError(c *C) {
 
 func (s *portalSuite) TestOpenURIResponseError(c *C) {
 	s.openResponse = 2
-
-	err := portal.OpenURI(s.SessionBus, "http://example.com")
+	mylog.Check(portal.OpenURI(s.SessionBus, "http://example.com"))
 	c.Check(err, FitsTypeOf, (*portal.ResponseError)(nil))
 	c.Check(err, ErrorMatches, `request declined by the user \(code 2\)`)
 	c.Check(s.calls, DeepEquals, []string{
@@ -201,8 +195,7 @@ func (s *portalSuite) TestOpenURITimeout(c *C) {
 	s.sendResponse = false
 	restore := portal.MockPortalTimeout(5 * time.Millisecond)
 	defer restore()
-
-	err := portal.OpenURI(s.SessionBus, "http://example.com")
+	mylog.Check(portal.OpenURI(s.SessionBus, "http://example.com"))
 	c.Check(err, FitsTypeOf, (*portal.ResponseError)(nil))
 	c.Check(err, ErrorMatches, "timeout waiting for user response")
 	c.Check(s.calls, DeepEquals, []string{

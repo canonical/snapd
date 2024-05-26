@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	_ "github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
@@ -88,8 +89,8 @@ func (s *dbusTestSuite) TestGenerateDBusActivationFile(c *C) {
 	info := snaptest.MockSnap(c, dbusSnapYaml, &snap.SideInfo{Revision: snap.R(12)})
 
 	app := info.Apps["system-svc"]
-	svcWrapper, err := wrappers.GenerateDBusActivationFile(app, "org.example.Foo")
-	c.Assert(err, IsNil)
+	svcWrapper := mylog.Check2(wrappers.GenerateDBusActivationFile(app, "org.example.Foo"))
+
 	c.Check(string(svcWrapper), Equals, `[D-BUS Service]
 Name=org.example.Foo
 Comment=Bus name for snap application snapname.system-svc
@@ -101,8 +102,8 @@ X-Snap=snapname
 `)
 
 	app = info.Apps["session-svc"]
-	svcWrapper, err = wrappers.GenerateDBusActivationFile(app, "org.example.Foo")
-	c.Assert(err, IsNil)
+	svcWrapper = mylog.Check2(wrappers.GenerateDBusActivationFile(app, "org.example.Foo"))
+
 	c.Check(string(svcWrapper), Equals, `[D-BUS Service]
 Name=org.example.Foo
 Comment=Bus name for snap application snapname.session-svc
@@ -115,9 +116,8 @@ X-Snap=snapname
 
 func (s *dbusTestSuite) TestAddSnapDBusActivationFiles(c *C) {
 	info := snaptest.MockSnap(c, dbusSnapYaml, &snap.SideInfo{Revision: snap.R(12)})
+	mylog.Check(wrappers.AddSnapDBusActivationFiles(info))
 
-	err := wrappers.AddSnapDBusActivationFiles(info)
-	c.Assert(err, IsNil)
 
 	c.Check(filepath.Join(dirs.SnapDBusSessionServicesDir, "org.example.Foo.service"), testutil.FileContains, "SystemdService=snap.snapname.session-svc.service\n")
 	c.Check(filepath.Join(dirs.SnapDBusSessionServicesDir, "org.example.Bar.service"), testutil.FileContains, "SystemdService=snap.snapname.session-svc.service\n")
@@ -141,8 +141,8 @@ func (s *dbusTestSuite) TestAddSnapDBusActivationFilesRemovesLeftovers(c *C) {
 	c.Assert(os.WriteFile(otherSystemSvc, []byte("[D-BUS Service]\nX-Snap=other-snap\n"), 0644), IsNil)
 
 	info := snaptest.MockSnap(c, dbusSnapYaml, &snap.SideInfo{Revision: snap.R(12)})
-	err := wrappers.AddSnapDBusActivationFiles(info)
-	c.Assert(err, IsNil)
+	mylog.Check(wrappers.AddSnapDBusActivationFiles(info))
+
 
 	c.Check(sessionSvc, testutil.FileAbsent)
 	c.Check(systemSvc, testutil.FileAbsent)
@@ -167,8 +167,8 @@ func (s *dbusTestSuite) TestRemoveSnapDBusActivationFiles(c *C) {
 	c.Assert(os.WriteFile(otherSystemSvc, []byte("[D-BUS Service]\nX-Snap=other-snap\n"), 0644), IsNil)
 
 	info := snaptest.MockSnap(c, dbusSnapYaml, &snap.SideInfo{Revision: snap.R(12)})
-	err := wrappers.RemoveSnapDBusActivationFiles(info)
-	c.Assert(err, IsNil)
+	mylog.Check(wrappers.RemoveSnapDBusActivationFiles(info))
+
 
 	c.Check(sessionSvc, testutil.FileAbsent)
 	c.Check(systemSvc, testutil.FileAbsent)
@@ -179,7 +179,7 @@ func (s *dbusTestSuite) TestRemoveSnapDBusActivationFiles(c *C) {
 }
 
 func (s *dbusTestSuite) TestAddSnapDBusActivationFilesInvalidData(c *C) {
-	info, err := snap.InfoFromSnapYaml([]byte(`
+	info := mylog.Check2(snap.InfoFromSnapYaml([]byte(`
 name: snapname
 version: 1.0
 slots:
@@ -196,20 +196,21 @@ apps:
     command: bin/svc
     daemon: simple
     activates-on: [invalid-name, invalid-bus]
-`))
-	c.Assert(err, IsNil)
+`)))
+
 	// The slots with invalid data have been removed
 	c.Check(info.Slots, HasLen, 0)
 	c.Check(info.BadInterfaces["invalid-name"], Equals, `invalid DBus bus name: "invalid bus name"`)
 	c.Check(info.BadInterfaces["invalid-bus"], Equals, `bus 'accessibility' must be one of 'session' or 'system'`)
+	mylog.
 
-	// No activation files are written out for the invalid slots
-	err = wrappers.AddSnapDBusActivationFiles(info)
-	c.Assert(err, IsNil)
-	matches, err := filepath.Glob(filepath.Join(dirs.SnapDBusSessionServicesDir, "*.service"))
+		// No activation files are written out for the invalid slots
+		Check(wrappers.AddSnapDBusActivationFiles(info))
+
+	matches := mylog.Check2(filepath.Glob(filepath.Join(dirs.SnapDBusSessionServicesDir, "*.service")))
 	c.Check(err, IsNil)
 	c.Check(matches, HasLen, 0)
-	matches, err = filepath.Glob(filepath.Join(dirs.SnapDBusSystemServicesDir, "*.service"))
+	matches = mylog.Check2(filepath.Glob(filepath.Join(dirs.SnapDBusSystemServicesDir, "*.service")))
 	c.Check(err, IsNil)
 	c.Check(matches, HasLen, 0)
 }

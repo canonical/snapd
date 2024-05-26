@@ -19,6 +19,4 @@
 
 package metautil
 
-var (
-	ConvertValue = convertValue
-)
+var ConvertValue = convertValue

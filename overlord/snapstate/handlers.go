@@ -34,6 +34,7 @@ import (
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/boot"
@@ -85,8 +86,7 @@ var cgroupMonitorSnapEnded = cgroup.MonitorSnapEnded
 // TaskSnapSetup returns the SnapSetup with task params hold by or referred to by the task.
 func TaskSnapSetup(t *state.Task) (*SnapSetup, error) {
 	var snapsup SnapSetup
-
-	err := t.Get("snap-setup", &snapsup)
+	mylog.Check(t.Get("snap-setup", &snapsup))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
@@ -95,18 +95,14 @@ func TaskSnapSetup(t *state.Task) (*SnapSetup, error) {
 	}
 
 	var id string
-	err = t.Get("snap-setup-task", &id)
-	if err != nil {
-		return nil, err
-	}
+	mylog.Check(t.Get("snap-setup-task", &id))
 
 	ts := t.State().Task(id)
 	if ts == nil {
 		return nil, fmt.Errorf("internal error: tasks are being pruned")
 	}
-	if err := ts.Get("snap-setup", &snapsup); err != nil {
-		return nil, err
-	}
+	mylog.Check(ts.Get("snap-setup", &snapsup))
+
 	return &snapsup, nil
 }
 
@@ -117,10 +113,7 @@ func snapSetupTask(t *state.Task) (*state.Task, error) {
 	} else {
 		// this task isn't the snap-setup-task, so go get that
 		var id string
-		err := t.Get("snap-setup-task", &id)
-		if err != nil {
-			return nil, err
-		}
+		mylog.Check(t.Get("snap-setup-task", &id))
 
 		ts := t.State().Task(id)
 		if ts == nil {
@@ -134,21 +127,17 @@ func snapSetupTask(t *state.Task) (*state.Task, error) {
 // snap-setup-task Task, or to the task itself if the task does not have a
 // snap-setup-task (i.e. it _is_ the snap-setup-task)
 func SetTaskSnapSetup(t *state.Task, snapsup *SnapSetup) error {
-	ts, err := snapSetupTask(t)
-	if err != nil {
-		return err
-	}
+	ts := mylog.Check2(snapSetupTask(t))
+
 	ts.Set("snap-setup", snapsup)
 	return nil
 }
 
 func snapSetupAndState(t *state.Task) (*SnapSetup, *SnapState, error) {
-	snapsup, err := TaskSnapSetup(t)
-	if err != nil {
-		return nil, nil, err
-	}
+	snapsup := mylog.Check2(TaskSnapSetup(t))
+
 	var snapst SnapState
-	err = Get(t.State(), snapsup.InstanceName(), &snapst)
+	mylog.Check(Get(t.State(), snapsup.InstanceName(), &snapst))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, nil, err
 	}
@@ -226,10 +215,8 @@ func findLinkSnapTaskForSnap(st *state.State, snapName string) (*state.Task, err
 				continue
 			}
 			if tc.Kind() == "link-snap" {
-				snapsup, err := TaskSnapSetup(tc)
-				if err != nil {
-					return nil, err
-				}
+				snapsup := mylog.Check2(TaskSnapSetup(tc))
+
 				if snapsup.InstanceName() == snapName {
 					return tc, nil
 				}
@@ -242,7 +229,7 @@ func findLinkSnapTaskForSnap(st *state.State, snapName string) (*state.Task, err
 
 func isInstalled(st *state.State, snapName string) (bool, error) {
 	var snapState SnapState
-	err := Get(st, snapName, &snapState)
+	mylog.Check(Get(st, snapName, &snapState))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return false, err
 	}
@@ -261,10 +248,7 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 	defer perfTimings.Save(st)
 
 	// check if we need to inject tasks to install core
-	snapsup, _, err := snapSetupAndState(t)
-	if err != nil {
-		return err
-	}
+	snapsup, _ := mylog.Check3(snapSetupAndState(t))
 
 	// os/base/kernel/gadget cannot have prerequisites other
 	// than the models default base (or core) which is installed anyway
@@ -293,10 +277,7 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 			snapsup.PrereqContentAttrs[prereq] = nil
 		}
 	}
-
-	if err := m.installPrereqs(t, base, snapsup.PrereqContentAttrs, snapsup.UserID, perfTimings, snapsup.Flags); err != nil {
-		return err
-	}
+	mylog.Check(m.installPrereqs(t, base, snapsup.PrereqContentAttrs, snapsup.UserID, perfTimings, snapsup.Flags))
 
 	return nil
 }
@@ -305,30 +286,23 @@ func (m *SnapManager) installOneBaseOrRequired(t *state.Task, snapName string, c
 	st := t.State()
 
 	// The core snap provides everything we need for core16.
-	coreInstalled, err := isInstalled(st, "core")
-	if err != nil {
-		return nil, err
-	}
+	coreInstalled := mylog.Check2(isInstalled(st, "core"))
+
 	if snapName == "core16" && coreInstalled {
 		return nil, nil
 	}
 
 	// installed already?
-	isInstalled, err := isInstalled(st, snapName)
-	if err != nil {
-		return nil, err
-	}
+	isInstalled := mylog.Check2(isInstalled(st, snapName))
+
 	if isInstalled {
 		return updatePrereqIfOutdated(t, snapName, contentAttrs, userID, flags)
 	}
 
-	deviceCtx, err := DeviceCtx(st, t, nil)
-	if err != nil {
-		return nil, err
-	}
+	deviceCtx := mylog.Check2(DeviceCtx(st, t, nil))
 
 	// in progress?
-	if linkTask, err := findLinkSnapTaskForSnap(st, snapName); err != nil {
+	if linkTask := mylog.Check2(findLinkSnapTaskForSnap(st, snapName)); err != nil {
 		return nil, err
 	} else if linkTask != nil {
 		// if we are remodeling, then we should return early due to the way that
@@ -343,7 +317,7 @@ func (m *SnapManager) installOneBaseOrRequired(t *state.Task, snapName string, c
 	}
 
 	// not installed, nor queued for install -> install it
-	ts, err := InstallWithDeviceContext(context.TODO(), st, snapName, &RevisionOptions{Channel: channel}, userID, Flags{RequireTypeBase: requireTypeBase}, nil, deviceCtx, "")
+	ts := mylog.Check2(InstallWithDeviceContext(context.TODO(), st, snapName, &RevisionOptions{Channel: channel}, userID, Flags{RequireTypeBase: requireTypeBase}, nil, deviceCtx, ""))
 
 	// something might have triggered an explicit install while
 	// the state was unlocked -> deal with that here by simply
@@ -368,7 +342,7 @@ func updatePrereqIfOutdated(t *state.Task, snapName string, contentAttrs []strin
 	st := t.State()
 
 	// check if the default provider has all expected content tags
-	if ok, err := hasAllContentAttrs(st, snapName, contentAttrs); err != nil {
+	if ok := mylog.Check2(hasAllContentAttrs(st, snapName, contentAttrs)); err != nil {
 		return nil, err
 	} else if ok {
 		return nil, nil
@@ -376,42 +350,25 @@ func updatePrereqIfOutdated(t *state.Task, snapName string, contentAttrs []strin
 
 	// this is an optimization since the Update would also detect a conflict
 	// but only after accessing the store
-	if ok, err := shouldSkipToAvoidConflict(t, snapName); err != nil {
+	if ok := mylog.Check2(shouldSkipToAvoidConflict(t, snapName)); err != nil {
 		return nil, err
 	} else if ok {
 		return nil, nil
 	}
 
-	deviceCtx, err := DeviceCtx(st, t, nil)
-	if err != nil {
-		return nil, err
-	}
+	deviceCtx := mylog.Check2(DeviceCtx(st, t, nil))
 
 	// default provider is missing some content tags (likely outdated) so update it
-	ts, err := UpdateWithDeviceContext(st, snapName, nil, userID, flags, nil, deviceCtx, "")
-	if err != nil {
-		if conflErr, ok := err.(*ChangeConflictError); ok {
-			// If we aren't seeded, then it's too early to do any updates and we cannot
-			// handle this during seeding, so expect the ChangeConflictError in this scenario.
-			if conflErr.ChangeKind == "seed" {
-				t.Logf("cannot update %q during seeding, will not have required content %q: %s", snapName, strings.Join(contentAttrs, ", "), conflErr)
-				return nil, nil
-			}
+	ts := mylog.Check2(UpdateWithDeviceContext(st, snapName, nil, userID, flags, nil, deviceCtx, ""))
 
-			// there's already an update for the same snap in this change,
-			// just skip this one
-			if conflErr.ChangeID == t.Change().ID() {
-				return nil, nil
-			}
+	// If we aren't seeded, then it's too early to do any updates and we cannot
+	// handle this during seeding, so expect the ChangeConflictError in this scenario.
 
-			return nil, &state.Retry{After: prerequisitesRetryTimeout}
-		}
+	// there's already an update for the same snap in this change,
+	// just skip this one
 
-		// don't propagate error to avoid failing the main install since the
-		// content provider is (for now) a soft dependency
-		t.Logf("cannot update %q, will not have required content %q: %s", snapName, strings.Join(contentAttrs, ", "), err)
-		return nil, nil
-	}
+	// don't propagate error to avoid failing the main install since the
+	// content provider is (for now) a soft dependency
 
 	return ts, nil
 }
@@ -419,10 +376,7 @@ func updatePrereqIfOutdated(t *state.Task, snapName string, contentAttrs []strin
 // Checks for conflicting tasks. Returns true if the operation should be skipped. The error
 // can be a state.Retry if the operation should be retried later.
 func shouldSkipToAvoidConflict(task *state.Task, snapName string) (bool, error) {
-	otherTask, err := findLinkSnapTaskForSnap(task.State(), snapName)
-	if err != nil {
-		return false, err
-	}
+	otherTask := mylog.Check2(findLinkSnapTaskForSnap(task.State(), snapName))
 
 	if otherTask == nil {
 		return false, nil
@@ -482,15 +436,13 @@ func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq map[stri
 	var tss []*state.TaskSet
 	for prereqName, contentAttrs := range prereq {
 		var onInFlightErr error = nil
-		var err error
+
 		var ts *state.TaskSet
 		timings.Run(tm, "install-prereq", fmt.Sprintf("install %q", prereqName), func(timings.Measurer) {
 			noTypeBaseCheck := false
-			ts, err = m.installOneBaseOrRequired(t, prereqName, contentAttrs, noTypeBaseCheck, defaultPrereqSnapsChannel(), onInFlightErr, userID, flags)
+			ts = mylog.Check2(m.installOneBaseOrRequired(t, prereqName, contentAttrs, noTypeBaseCheck, defaultPrereqSnapsChannel(), onInFlightErr, userID, flags))
 		})
-		if err != nil {
-			return prereqError("prerequisite", prereqName, err)
-		}
+
 		if ts == nil {
 			continue
 		}
@@ -502,36 +454,26 @@ func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq map[stri
 	onInFlightErr := &state.Retry{After: prerequisitesRetryTimeout}
 
 	var tsBase *state.TaskSet
-	var err error
+
 	if base != "none" {
 		timings.Run(tm, "install-prereq", fmt.Sprintf("install base %q", base), func(timings.Measurer) {
 			requireTypeBase := true
-			tsBase, err = m.installOneBaseOrRequired(t, base, nil, requireTypeBase, defaultBaseSnapsChannel(), onInFlightErr, userID, Flags{})
+			tsBase = mylog.Check2(m.installOneBaseOrRequired(t, base, nil, requireTypeBase, defaultBaseSnapsChannel(), onInFlightErr, userID, Flags{}))
 		})
-		if err != nil {
-			return prereqError("snap base", base, err)
-		}
 	}
 
 	// on systems without core or snapd need to install snapd to
 	// make interfaces work - LP: 1819318
 	var tsSnapd *state.TaskSet
-	snapdSnapInstalled, err := isInstalled(st, "snapd")
-	if err != nil {
-		return err
-	}
-	coreSnapInstalled, err := isInstalled(st, "core")
-	if err != nil {
-		return err
-	}
+	snapdSnapInstalled := mylog.Check2(isInstalled(st, "snapd"))
+
+	coreSnapInstalled := mylog.Check2(isInstalled(st, "core"))
+
 	if base != "core" && !snapdSnapInstalled && !coreSnapInstalled {
 		timings.Run(tm, "install-prereq", "install snapd", func(timings.Measurer) {
 			noTypeBaseCheck := false
-			tsSnapd, err = m.installOneBaseOrRequired(t, "snapd", nil, noTypeBaseCheck, defaultSnapdSnapsChannel(), onInFlightErr, userID, Flags{})
+			tsSnapd = mylog.Check2(m.installOneBaseOrRequired(t, "snapd", nil, noTypeBaseCheck, defaultSnapdSnapsChannel(), onInFlightErr, userID, Flags{}))
 		})
-		if err != nil {
-			return prereqError("system snap", "snapd", err)
-		}
 	}
 
 	// If transactional, use a single lane for all tasks, so when
@@ -592,10 +534,7 @@ func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
-	snapsup, snapst, err := snapSetupAndState(t)
-	if err != nil {
-		return err
-	}
+	snapsup, snapst := mylog.Check3(snapSetupAndState(t))
 
 	if snapsup.Revision().Unset() {
 		// Local revisions start at -1 and go down.
@@ -620,10 +559,7 @@ func (m *SnapManager) undoPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	snapsup, err := TaskSnapSetup(t)
-	if err != nil {
-		return err
-	}
+	snapsup := mylog.Check2(TaskSnapSetup(t))
 
 	if snapsup.SideInfo == nil || snapsup.SideInfo.RealName == "" {
 		return nil
@@ -639,7 +575,7 @@ func (m *SnapManager) undoPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 		tintro := fmt.Sprintf("%s: %s", t.Kind(), t.Status())
 		logMsg = append(logMsg, tintro)
 		dupSig = append(dupSig, tintro)
-		if snapsup, err := TaskSnapSetup(t); err == nil && snapsup.SideInfo != nil {
+		if snapsup := mylog.Check2(TaskSnapSetup(t)); err == nil && snapsup.SideInfo != nil {
 			snapSetup1 := fmt.Sprintf(" snap-setup: %q (%v) %q", snapsup.SideInfo.RealName, snapsup.SideInfo.Revision, snapsup.SideInfo.Channel)
 			if snapSetup1 != snapSetup {
 				snapSetup = snapSetup1
@@ -662,7 +598,7 @@ func (m *SnapManager) undoPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	var ubuntuCoreTransitionCount int
-	err = st.Get("ubuntu-core-transition-retry", &ubuntuCoreTransitionCount)
+	mylog.Check(st.Get("ubuntu-core-transition-retry", &ubuntuCoreTransitionCount))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
@@ -692,35 +628,22 @@ func autoRefreshRateLimited(st *state.State) (rate int64) {
 	tr := config.NewTransaction(st)
 
 	var rateLimit string
-	err := tr.Get("core", "refresh.rate-limit", &rateLimit)
-	if err != nil {
-		return 0
-	}
+	mylog.Check(tr.Get("core", "refresh.rate-limit", &rateLimit))
+
 	// NOTE ParseByteSize errors on negative rates
-	val, err := strutil.ParseByteSize(rateLimit)
-	if err != nil {
-		return 0
-	}
+	val := mylog.Check2(strutil.ParseByteSize(rateLimit))
+
 	return val
 }
 
 func downloadSnapParams(st *state.State, t *state.Task) (*SnapSetup, StoreService, *auth.UserState, error) {
-	snapsup, err := TaskSnapSetup(t)
-	if err != nil {
-		return nil, nil, nil, err
-	}
+	snapsup := mylog.Check2(TaskSnapSetup(t))
 
-	deviceCtx, err := DeviceCtx(st, t, nil)
-	if err != nil {
-		return nil, nil, nil, err
-	}
+	deviceCtx := mylog.Check2(DeviceCtx(st, t, nil))
 
 	sto := Store(st, deviceCtx)
 
-	user, err := userFromUserID(st, snapsup.UserID)
-	if err != nil {
-		return nil, nil, nil, err
-	}
+	user := mylog.Check2(userFromUserID(st, snapsup.UserID))
 
 	return snapsup, sto, user, nil
 }
@@ -731,19 +654,13 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 
 	st.Lock()
 	perfTimings := state.TimingsForTask(t)
-	snapsup, theStore, user, err := downloadSnapParams(st, t)
+	snapsup, theStore, user := mylog.Check4(downloadSnapParams(st, t))
 	if snapsup != nil && snapsup.IsAutoRefresh {
 		// NOTE rate is never negative
 		rate = autoRefreshRateLimited(st)
 	}
 	st.Unlock()
-	if err != nil {
-		return err
-	}
-
-	if err := waitForPreDownload(t, snapsup); err != nil {
-		return err
-	}
+	mylog.Check(waitForPreDownload(t, snapsup))
 
 	meter := NewTaskProgressAdapterUnlocked(t)
 	targetFn := snapsup.MountFile()
@@ -757,21 +674,16 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 		// COMPATIBILITY - this task was created from an older version
 		// of snapd that did not store the DownloadInfo in the state
 		// yet. Therefore do not worry about DeviceContext.
-		storeInfo, err = installInfoUnlocked(st, snapsup, nil)
-		if err != nil {
-			return err
-		}
+		storeInfo = mylog.Check2(installInfoUnlocked(st, snapsup, nil))
+
 		timings.Run(perfTimings, "download", fmt.Sprintf("download snap %q", snapsup.SnapName()), func(timings.Measurer) {
-			err = theStore.Download(tomb.Context(nil), snapsup.SnapName(), targetFn, &storeInfo.DownloadInfo, meter, user, dlOpts)
+			mylog.Check(theStore.Download(tomb.Context(nil), snapsup.SnapName(), targetFn, &storeInfo.DownloadInfo, meter, user, dlOpts))
 		})
 		snapsup.SideInfo = &storeInfo.SideInfo
 	} else {
 		timings.Run(perfTimings, "download", fmt.Sprintf("download snap %q", snapsup.SnapName()), func(timings.Measurer) {
-			err = theStore.Download(tomb.Context(nil), snapsup.SnapName(), targetFn, snapsup.DownloadInfo, meter, user, dlOpts)
+			mylog.Check(theStore.Download(tomb.Context(nil), snapsup.SnapName(), targetFn, snapsup.DownloadInfo, meter, user, dlOpts))
 		})
-	}
-	if err != nil {
-		return err
 	}
 
 	snapsup.SnapPath = targetFn
@@ -790,10 +702,7 @@ func waitForPreDownload(task *state.Task, snapsup *SnapSetup) error {
 	st.Lock()
 	defer st.Unlock()
 
-	tasks, err := findTasksMatchingKindAndSnap(st, "pre-download-snap", snapsup.InstanceName(), snapsup.Revision())
-	if err != nil {
-		return err
-	}
+	tasks := mylog.Check2(findTasksMatchingKindAndSnap(st, "pre-download-snap", snapsup.InstanceName(), snapsup.Revision()))
 
 	// if there is a pre-download task for the same snap, wait for it to finish
 	for _, preTask := range tasks {
@@ -802,7 +711,7 @@ func waitForPreDownload(task *state.Task, snapsup *SnapSetup) error {
 		}
 
 		var taskIDs []string
-		if err := preTask.Get("waiting-tasks", &taskIDs); err != nil && !errors.Is(err, &state.NoStateError{}) {
+		if mylog.Check(preTask.Get("waiting-tasks", &taskIDs)); err != nil && !errors.Is(err, &state.NoStateError{}) {
 			return err
 		}
 
@@ -824,10 +733,7 @@ func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	snapsup, theStore, user, err := downloadSnapParams(st, t)
-	if err != nil {
-		return err
-	}
+	snapsup, theStore, user := mylog.Check4(downloadSnapParams(st, t))
 
 	targetFn := snapsup.MountFile()
 	dlOpts := &store.DownloadOptions{
@@ -839,16 +745,14 @@ func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	perfTimings := state.TimingsForTask(t)
 	st.Unlock()
 	timings.Run(perfTimings, "pre-download", fmt.Sprintf("pre-download snap %q", snapsup.SnapName()), func(timings.Measurer) {
-		err = theStore.Download(tomb.Context(nil), snapsup.SnapName(), targetFn, snapsup.DownloadInfo, nil, user, dlOpts)
+		mylog.Check(theStore.Download(tomb.Context(nil), snapsup.SnapName(), targetFn, snapsup.DownloadInfo, nil, user, dlOpts))
 	})
 	st.Lock()
-	if err != nil {
-		return err
-	}
+
 	perfTimings.Save(st)
 
 	var waitingTasks []string
-	if err := t.Get("waiting-tasks", &waitingTasks); err != nil && !errors.Is(err, &state.NoStateError{}) {
+	if mylog.Check(t.Get("waiting-tasks", &waitingTasks)); err != nil && !errors.Is(err, &state.NoStateError{}) {
 		return err
 	}
 
@@ -862,40 +766,22 @@ func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 		st.EnsureBefore(0)
 		return nil
 	}
+	mylog.Check(
 
-	// remove snap downloads that are no longer needed
-	if err := cleanSnapDownloads(st, snapsup.InstanceName()); err != nil {
-		return err
-	}
+		// remove snap downloads that are no longer needed
+		cleanSnapDownloads(st, snapsup.InstanceName()))
 
-	_, snapst, err := snapSetupAndState(t)
-	if err != nil {
-		return err
-	}
+	_, snapst := mylog.Check3(snapSetupAndState(t))
 
-	info, err := snapst.CurrentInfo()
-	if err != nil {
-		return err
-	}
+	info := mylog.Check2(snapst.CurrentInfo())
 
 	snapName := snapsup.InstanceName()
-	// TODO: in the future, do a hard check before starting an auto-refresh so there's
-	// no chance of the snap starting between changes and preventing it from going through
-	err = backend.WithSnapLock(info, func() error {
-		return refreshAppsCheck(info)
-	})
-	if err != nil {
-		if !errors.Is(err, &BusySnapError{}) {
-			return err
-		}
-
-		var refreshInfo *userclient.PendingSnapRefreshInfo
-		if err := t.Get("refresh-info", &refreshInfo); err != nil {
-			return err
-		}
-
-		return asyncRefreshOnSnapClose(m.state, snapName, refreshInfo)
-	}
+	mylog.
+		// TODO: in the future, do a hard check before starting an auto-refresh so there's
+		// no chance of the snap starting between changes and preventing it from going through
+		Check(backend.WithSnapLock(info, func() error {
+			return refreshAppsCheck(info)
+		}))
 
 	return continueInhibitedAutoRefresh(st, snapName)
 }
@@ -912,12 +798,10 @@ func asyncRefreshOnSnapClose(st *state.State, snapName string, refreshInfo *user
 	// monitor the snap until it closes. Use buffered channel to prevent the sender
 	// from blocking if the receiver stops before reading from it
 	done := make(chan string, 1)
-	if err := cgroupMonitorSnapEnded(snapName, done); err != nil {
-		return fmt.Errorf("cannot monitor for snap closure: %w", err)
-	}
+	mylog.Check(cgroupMonitorSnapEnded(snapName, done))
 
 	refreshCtx, abort := context.WithCancel(context.Background())
-	if ok, err := addMonitoring(st, snapName, abort); err != nil {
+	if ok := mylog.Check2(addMonitoring(st, snapName, abort)); err != nil {
 		return fmt.Errorf("cannot save monitoring state for %q: %v", snapName, err)
 	} else if !ok {
 		// refresh candidate missing, no need to monitor
@@ -936,26 +820,16 @@ func asyncRefreshOnSnapClose(st *state.State, snapName string, refreshInfo *user
 // the monitoring shouldn't proceed.
 func addMonitoring(st *state.State, snapName string, abort context.CancelFunc) (bool, error) {
 	var refreshHints map[string]*refreshCandidate
-	if err := st.Get("refresh-candidates", &refreshHints); err != nil {
-		if errors.Is(err, &state.NoStateError{}) {
-			// the candidate may have been reverted from the channel after the
-			// auto-refresh, so it's missing here and there's nothing to refresh to
-			logger.Noticef("cannot get refresh candidate for %q (possibly reverted): nothing to refresh", snapName)
-			return false, nil
-		}
+	mylog.Check(st.Get("refresh-candidates", &refreshHints))
 
-		return false, fmt.Errorf("cannot get refresh-candidates: %v", err)
-	} else if _, ok := refreshHints[snapName]; !ok {
-		// the candidate may have been reverted from the channel after the
-		// auto-refresh, so it's missing here and there's nothing to refresh to
-		logger.Noticef("cannot get refresh candidate for %q (possibly reverted): nothing to refresh", snapName)
-		return false, nil
-	}
+	// the candidate may have been reverted from the channel after the
+	// auto-refresh, so it's missing here and there's nothing to refresh to
 
-	abortChans, err := getMonitoringAborts(st)
-	if err != nil {
-		return false, err
-	}
+	// the candidate may have been reverted from the channel after the
+	// auto-refresh, so it's missing here and there's nothing to refresh to
+
+	abortChans := mylog.Check2(getMonitoringAborts(st))
+
 	if abortChans == nil {
 		abortChans = make(map[string]context.CancelFunc)
 	}
@@ -972,19 +846,13 @@ func addMonitoring(st *state.State, snapName string, abort context.CancelFunc) (
 // removeMonitoring removes monitoring state related to the specified snap.
 func removeMonitoring(st *state.State, snapName string) error {
 	var refreshHints map[string]*refreshCandidate
-	if err := st.Get("refresh-candidates", &refreshHints); err != nil {
-		return fmt.Errorf("cannot get refresh-candidates: %v", err)
-	} else if _, ok := refreshHints[snapName]; !ok {
-		return fmt.Errorf(`cannot reset the "monitored" field for %q in "refresh-candidates"`, snapName)
-	}
+	mylog.Check(st.Get("refresh-candidates", &refreshHints))
 
 	refreshHints[snapName].Monitored = false
 	st.Set("refresh-candidates", refreshHints)
 
-	abortChans, err := getMonitoringAborts(st)
-	if err != nil {
-		return nil
-	}
+	abortChans := mylog.Check2(getMonitoringAborts(st))
+
 	if abortChans == nil {
 		return nil
 	}
@@ -1011,28 +879,20 @@ func continueRefreshOnSnapClose(st *state.State, snapName string, done <-chan st
 	defer st.Unlock()
 
 	defer func() {
-		if err := removeMonitoring(st, snapName); err != nil {
-			logger.Noticef("cannot remove monitoring information: %v", err)
-		}
+		mylog.Check(removeMonitoring(st, snapName))
 	}()
 
 	if aborted {
 		logger.Debugf("monitoring for pre-downloaded snap %q was aborted", snapName)
 		return
 	}
-
-	if err := continueInhibitedAutoRefresh(st, snapName); err != nil {
-		logger.Noticef("cannot continue inhibited auto-refresh for %q: %v", snapName, err)
-		return
-	}
+	mylog.Check(continueInhibitedAutoRefresh(st, snapName))
 }
 
 // continueInhibitedAutoRefresh refreshes the snap to continue the inhibited auto-refresh
 func continueInhibitedAutoRefresh(st *state.State, snapName string) error {
 	var refreshHints map[string]*refreshCandidate
-	if err := st.Get("refresh-candidates", &refreshHints); err != nil {
-		return fmt.Errorf("cannot get refresh-candidates: %v", err)
-	}
+	mylog.Check(st.Get("refresh-candidates", &refreshHints))
 
 	hint, ok := refreshHints[snapName]
 	if !ok {
@@ -1040,16 +900,10 @@ func continueInhibitedAutoRefresh(st *state.State, snapName string) error {
 	}
 
 	flags := &Flags{IsAutoRefresh: true, IsContinuedAutoRefresh: true}
-	tss, err := autoRefreshPhase2(context.TODO(), st, []*refreshCandidate{hint}, flags, "")
-	if err != nil {
-		return err
-	}
+	tss := mylog.Check2(autoRefreshPhase2(context.TODO(), st, []*refreshCandidate{hint}, flags, ""))
 
 	// TODO: do a check so this can't happen?
-	createdPreDl, err := createPreDownloadChange(st, tss)
-	if err != nil {
-		return err
-	}
+	createdPreDl := mylog.Check2(createPreDownloadChange(st, tss))
 
 	if !createdPreDl {
 		snaps := []string{snapName}
@@ -1080,10 +934,8 @@ func getMonitoringAborts(st *state.State) (map[string]context.CancelFunc, error)
 }
 
 func monitoringAbort(st *state.State, snapName string) context.CancelFunc {
-	aborts, err := getMonitoringAborts(st)
-	if err != nil {
-		logger.Noticef("%v", err)
-	}
+	aborts := mylog.Check2(getMonitoringAborts(st))
+
 	return aborts[snapName]
 }
 
@@ -1093,16 +945,14 @@ func abortMonitoring(st *state.State, snapName string) {
 	}
 }
 
-var (
-	mountPollInterval = 1 * time.Second
-)
+var mountPollInterval = 1 * time.Second
 
 // hasOtherInstances checks whether there are other instances of the snap, be it
 // instance keyed or not
 func hasOtherInstances(st *state.State, instanceName string) (bool, error) {
 	snapName, _ := snap.SplitInstanceName(instanceName)
 	var all map[string]*json.RawMessage
-	if err := st.Get("snaps", &all); err != nil && !errors.Is(err, state.ErrNoState) {
+	if mylog.Check(st.Get("snaps", &all)); err != nil && !errors.Is(err, state.ErrNoState) {
 		return false, err
 	}
 	for otherName := range all {
@@ -1120,14 +970,12 @@ var ErrKernelGadgetUpdateTaskMissing = errors.New("cannot refresh kernel with ch
 
 func checkKernelHasUpdateAssetsTask(t *state.Task) error {
 	for _, other := range t.Change().Tasks() {
-		snapsup, err := TaskSnapSetup(other)
+		snapsup := mylog.Check2(TaskSnapSetup(other))
 		if errors.Is(err, state.ErrNoState) {
 			// XXX: hooks have no snapsup, is this detection okay?
 			continue
 		}
-		if err != nil {
-			return err
-		}
+
 		if snapsup.Type != "kernel" {
 			continue
 		}
@@ -1142,13 +990,10 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	perfTimings := state.TimingsForTask(t)
-	snapsup, snapst, err := snapSetupAndState(t)
+	snapsup, snapst := mylog.Check3(snapSetupAndState(t))
 	st.Unlock()
-	if err != nil {
-		return err
-	}
 
-	curInfo, err := snapst.CurrentInfo()
+	curInfo := mylog.Check2(snapst.CurrentInfo())
 	if err != nil && err != ErrNoCurrent {
 		return err
 	}
@@ -1156,45 +1001,31 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	m.backend.CurrentInfo(curInfo)
 
 	st.Lock()
-	deviceCtx, err := DeviceCtx(t.State(), t, nil)
+	deviceCtx := mylog.Check2(DeviceCtx(t.State(), t, nil))
 	st.Unlock()
-	if err != nil {
-		return err
-	}
 
 	// check that there is a "update-gadget-assets" task for kernels too,
 	// see https://bugs.launchpad.net/snapd/+bug/1940553
 	if snapsup.Type == snap.TypeKernel {
 		st.Lock()
-		err = checkKernelHasUpdateAssetsTask(t)
+		mylog.Check(checkKernelHasUpdateAssetsTask(t))
 		st.Unlock()
-		if err != nil {
-			return err
-		}
+
 	}
 
 	timings.Run(perfTimings, "check-snap", fmt.Sprintf("check snap %q", snapsup.InstanceName()), func(timings.Measurer) {
-		err = checkSnap(st, snapsup.SnapPath, snapsup.InstanceName(), snapsup.SideInfo, curInfo, snapsup.Flags, deviceCtx)
+		mylog.Check(checkSnap(st, snapsup.SnapPath, snapsup.InstanceName(), snapsup.SideInfo, curInfo, snapsup.Flags, deviceCtx))
 	})
-	if err != nil {
-		return err
-	}
 
 	cleanup := func() {
 		st.Lock()
 		defer st.Unlock()
 
-		otherInstances, err := hasOtherInstances(st, snapsup.InstanceName())
-		if err != nil {
-			t.Errorf("cannot cleanup partial setup snap %q: %v", snapsup.InstanceName(), err)
-			return
-		}
+		otherInstances := mylog.Check2(hasOtherInstances(st, snapsup.InstanceName()))
+		mylog.Check(
 
-		// remove snap dir is idempotent so it's ok to always call it in the cleanup path
-		if err := m.backend.RemoveSnapDir(snapsup.placeInfo(), otherInstances); err != nil {
-			t.Errorf("cannot cleanup partial setup snap %q: %v", snapsup.InstanceName(), err)
-		}
-
+			// remove snap dir is idempotent so it's ok to always call it in the cleanup path
+			m.backend.RemoveSnapDir(snapsup.placeInfo(), otherInstances))
 	}
 
 	setupOpts := &backend.SetupSnapOptions{
@@ -1206,12 +1037,8 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	var snapType snap.Type
 	var installRecord *backend.InstallRecord
 	timings.Run(perfTimings, "setup-snap", fmt.Sprintf("setup snap %q", snapsup.InstanceName()), func(timings.Measurer) {
-		snapType, installRecord, err = m.backend.SetupSnap(snapsup.SnapPath, snapsup.InstanceName(), snapsup.SideInfo, deviceCtx, setupOpts, pb)
+		snapType, installRecord = mylog.Check3(m.backend.SetupSnap(snapsup.SnapPath, snapsup.InstanceName(), snapsup.SideInfo, deviceCtx, setupOpts, pb))
 	})
-	if err != nil {
-		cleanup()
-		return err
-	}
 
 	// double check that the snap is mounted
 	var readInfoErr error
@@ -1234,13 +1061,8 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 	if readInfoErr != nil {
 		timings.Run(perfTimings, "undo-setup-snap", fmt.Sprintf("Undo setup of snap %q", snapsup.InstanceName()), func(timings.Measurer) {
-			err = m.backend.UndoSetupSnap(snapsup.placeInfo(), snapType, installRecord, deviceCtx, pb)
+			mylog.Check(m.backend.UndoSetupSnap(snapsup.placeInfo(), snapType, installRecord, deviceCtx, pb))
 		})
-		if err != nil {
-			st.Lock()
-			t.Errorf("cannot undo partial setup snap %q: %v", snapsup.InstanceName(), err)
-			st.Unlock()
-		}
 
 		cleanup()
 		return readInfoErr
@@ -1255,9 +1077,7 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	st.Unlock()
 
 	if snapsup.Flags.RemoveSnapPath {
-		if err := os.Remove(snapsup.SnapPath); err != nil {
-			logger.Noticef("Failed to cleanup %s: %s", snapsup.SnapPath, err)
-		}
+		mylog.Check(os.Remove(snapsup.SnapPath))
 	}
 
 	st.Lock()
@@ -1270,51 +1090,39 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
-	snapsup, err := TaskSnapSetup(t)
+	snapsup := mylog.Check2(TaskSnapSetup(t))
 	st.Unlock()
-	if err != nil {
-		return err
-	}
 
 	st.Lock()
-	deviceCtx, err := DeviceCtx(t.State(), t, nil)
+	deviceCtx := mylog.Check2(DeviceCtx(t.State(), t, nil))
 	st.Unlock()
-	if err != nil {
-		return err
-	}
 
 	st.Lock()
 	var typ snap.Type
-	err = t.Get("snap-type", &typ)
+	mylog.Check(t.Get("snap-type", &typ))
 	st.Unlock()
 	// backward compatibility
 	if errors.Is(err, state.ErrNoState) {
 		typ = "app"
-	} else if err != nil {
-		return err
 	}
 
 	var installRecord backend.InstallRecord
 	st.Lock()
-	// install-record is optional (e.g. not present in tasks from older snapd)
-	err = t.Get("install-record", &installRecord)
+	mylog.
+		// install-record is optional (e.g. not present in tasks from older snapd)
+		Check(t.Get("install-record", &installRecord))
 	st.Unlock()
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 
 	pb := NewTaskProgressAdapterUnlocked(t)
-	if err := m.backend.UndoSetupSnap(snapsup.placeInfo(), typ, &installRecord, deviceCtx, pb); err != nil {
-		return err
-	}
+	mylog.Check(m.backend.UndoSetupSnap(snapsup.placeInfo(), typ, &installRecord, deviceCtx, pb))
 
 	st.Lock()
 	defer st.Unlock()
 
-	otherInstances, err := hasOtherInstances(st, snapsup.InstanceName())
-	if err != nil {
-		return err
-	}
+	otherInstances := mylog.Check2(hasOtherInstances(st, snapsup.InstanceName()))
 
 	return m.backend.RemoveSnapDir(snapsup.placeInfo(), otherInstances)
 }
@@ -1339,27 +1147,22 @@ const (
 func (m *SnapManager) restoreUnlinkOnError(t *state.Task, info *snap.Info, tm timings.Measurer) error {
 	st := t.State()
 
-	deviceCtx, err := DeviceCtx(st, t, nil)
-	if err != nil {
-		return err
-	}
+	deviceCtx := mylog.Check2(DeviceCtx(st, t, nil))
 
-	opts, err := SnapServiceOptions(st, info, nil)
-	if err != nil {
-		return err
-	}
+	opts := mylog.Check2(SnapServiceOptions(st, info, nil))
+
 	linkCtx := backend.LinkContext{
 		FirstInstall:   false,
 		IsUndo:         true,
 		ServiceOptions: opts,
 	}
-	_, err = m.backend.LinkSnap(info, deviceCtx, linkCtx, tm)
+	_ = mylog.Check2(m.backend.LinkSnap(info, deviceCtx, linkCtx, tm))
 	return err
 }
 
 func onRefreshInhibitionTimeout(chg *state.Change, snapName string) error {
 	var data map[string]interface{}
-	err := chg.Get("api-data", &data)
+	mylog.Check(chg.Get("api-data", &data))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
@@ -1377,10 +1180,7 @@ func onRefreshInhibitionTimeout(chg *state.Change, snapName string) error {
 	opts := &state.AddNoticeOptions{
 		Data: map[string]string{"kind": chg.Kind()},
 	}
-	_, err = chg.State().AddNotice(nil, state.ChangeUpdateNotice, chg.ID(), opts)
-	if err != nil {
-		return err
-	}
+	_ = mylog.Check2(chg.State().AddNotice(nil, state.ChangeUpdateNotice, chg.ID(), opts))
 
 	return nil
 }
@@ -1395,18 +1195,12 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err erro
 	perfTimings := state.TimingsForTask(t)
 	defer perfTimings.Save(st)
 
-	snapsup, snapst, err := snapSetupAndState(t)
-	if err != nil {
-		return err
-	}
+	snapsup, snapst := mylog.Check3(snapSetupAndState(t))
 
-	oldInfo, err := snapst.CurrentInfo()
-	if err != nil {
-		return err
-	}
+	oldInfo := mylog.Check2(snapst.CurrentInfo())
 
 	tr := config.NewTransaction(st)
-	experimentalRefreshAppAwareness, err := features.Flag(tr, features.RefreshAppAwareness)
+	experimentalRefreshAppAwareness := mylog.Check2(features.Flag(tr, features.RefreshAppAwareness))
 	if err != nil && !config.IsNoOption(err) {
 		return err
 	}
@@ -1417,23 +1211,12 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err erro
 		// held to prevent snap-run from advancing until UnlinkSnap, executed
 		// below, completes.
 		// XXX: should we skip it if type is snap.TypeSnapd?
-		inhibitionTimeout, lock, err := hardEnsureNothingRunningDuringRefresh(m.backend, st, snapst, snapsup, oldInfo)
-		if err != nil {
-			var busyErr *timedBusySnapError
-			if errors.As(err, &busyErr) {
-				// notify user to close the snap and trigger the auto-refresh once it's closed
-				refreshInfo := busyErr.PendingSnapRefreshInfo()
-				if err := asyncRefreshOnSnapClose(m.state, snapsup.InstanceName(), refreshInfo); err != nil {
-					return err
-				}
-			}
+		inhibitionTimeout, lock := mylog.Check3(hardEnsureNothingRunningDuringRefresh(m.backend, st, snapst, snapsup, oldInfo))
 
-			return err
-		}
+		// notify user to close the snap and trigger the auto-refresh once it's closed
+
 		if inhibitionTimeout {
-			if err := onRefreshInhibitionTimeout(t.Change(), snapsup.InstanceName()); err != nil {
-				return err
-			}
+			mylog.Check(onRefreshInhibitionTimeout(t.Change(), snapsup.InstanceName()))
 		}
 
 		defer lock.Close()
@@ -1446,10 +1229,10 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err erro
 	// unlink if we're not working on the snapd snap
 	if oldInfo.Type() != snap.TypeSnapd {
 		var reason unlinkReason
-		if err := t.Get("unlink-reason", &reason); err != nil && !errors.Is(err, state.ErrNoState) {
+		if mylog.Check(t.Get("unlink-reason", &reason)); err != nil && !errors.Is(err, state.ErrNoState) {
 			return err
 		}
-		experimentalRefreshAppAwarenessUX, err := features.Flag(tr, features.RefreshAppAwarenessUX)
+		experimentalRefreshAppAwarenessUX := mylog.Check2(features.Flag(tr, features.RefreshAppAwarenessUX))
 		if err != nil && !config.IsNoOption(err) {
 			return err
 		}
@@ -1462,13 +1245,8 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err erro
 			RunInhibitHint: runinhibit.HintInhibitedForRefresh,
 			SkipBinaries:   skipBinaries,
 		}
-		err = m.backend.UnlinkSnap(oldInfo, linkCtx, NewTaskProgressAdapterLocked(t))
-		if err != nil {
-			if relinkErr := m.restoreUnlinkOnError(t, oldInfo, perfTimings); relinkErr != nil {
-				t.Errorf("cannot restore unlinked snap: %v", relinkErr)
-			}
-			return err
-		}
+		mylog.Check(m.backend.UnlinkSnap(oldInfo, linkCtx, NewTaskProgressAdapterLocked(t)))
+
 	}
 
 	// mark as inactive
@@ -1479,15 +1257,9 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err erro
 
 	// undo migration if appropriate
 	if snapsup.Flags.Revert {
-		opts, err := getDirMigrationOpts(st, snapst, snapsup)
-		if err != nil {
-			return err
-		}
+		opts := mylog.Check2(getDirMigrationOpts(st, snapst, snapsup))
 
-		newInfo, err := readInfo(snapsup.InstanceName(), snapsup.SideInfo, errorOnBroken)
-		if err != nil {
-			return err
-		}
+		newInfo := mylog.Check2(readInfo(snapsup.InstanceName(), snapsup.SideInfo, errorOnBroken))
 
 		action := triggeredMigration(oldInfo.Base, newInfo.Base, opts)
 		switch action {
@@ -1497,9 +1269,7 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err erro
 			snapsup.EnableExposedHome = true
 			fallthrough
 		case hidden:
-			if err := m.backend.HideSnapData(snapsup.InstanceName()); err != nil {
-				return err
-			}
+			mylog.Check(m.backend.HideSnapData(snapsup.InstanceName()))
 
 			snapsup.MigratedHidden = true
 		case home:
@@ -1511,18 +1281,14 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err erro
 			snapsup.DisableExposedHome = true
 			fallthrough
 		case revertHidden:
-			if err := m.backend.UndoHideSnapData(snapsup.InstanceName()); err != nil {
-				return err
-			}
+			mylog.Check(m.backend.UndoHideSnapData(snapsup.InstanceName()))
 
 			snapsup.UndidHiddenMigration = true
 		case disableHome:
 			snapsup.DisableExposedHome = true
 		}
+		mylog.Check(SetTaskSnapSetup(t, snapsup))
 
-		if err = SetTaskSnapSetup(t, snapsup); err != nil {
-			return err
-		}
 	}
 
 	return nil
@@ -1536,20 +1302,11 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	perfTimings := state.TimingsForTask(t)
 	defer perfTimings.Save(st)
 
-	snapsup, snapst, err := snapSetupAndState(t)
-	if err != nil {
-		return err
-	}
+	snapsup, snapst := mylog.Check3(snapSetupAndState(t))
 
-	oldInfo, err := snapst.CurrentInfo()
-	if err != nil {
-		return err
-	}
+	oldInfo := mylog.Check2(snapst.CurrentInfo())
 
-	deviceCtx, err := DeviceCtx(st, t, nil)
-	if err != nil {
-		return err
-	}
+	deviceCtx := mylog.Check2(DeviceCtx(st, t, nil))
 
 	// in a revert, the migration actions were done in doUnlinkCurrentSnap so we
 	// revert them here and set SnapSetup flags (which will be used to set the
@@ -1564,16 +1321,12 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 		}
 
 		if snapsup.MigratedHidden {
-			if err := m.backend.UndoHideSnapData(snapsup.InstanceName()); err != nil {
-				return err
-			}
+			mylog.Check(m.backend.UndoHideSnapData(snapsup.InstanceName()))
 
 			snapsup.UndidHiddenMigration = true
 			snapsup.MigratedHidden = false
 		} else if snapsup.UndidHiddenMigration {
-			if err := m.backend.HideSnapData(snapsup.InstanceName()); err != nil {
-				return err
-			}
+			mylog.Check(m.backend.HideSnapData(snapsup.InstanceName()))
 
 			snapsup.UndidHiddenMigration = false
 			snapsup.MigratedHidden = true
@@ -1584,26 +1337,18 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	// file migrations are undone either above or in undoCopySnapData. State
 	// should only be set in tasks that link the snap for safety and consistency.
 	setMigrationFlagsInState(snapst, snapsup)
-
-	if err := writeMigrationStatus(t, snapst, snapsup); err != nil {
-		return err
-	}
+	mylog.Check(writeMigrationStatus(t, snapst, snapsup))
 
 	snapst.Active = true
 
-	opts, err := SnapServiceOptions(st, oldInfo, nil)
-	if err != nil {
-		return err
-	}
+	opts := mylog.Check2(SnapServiceOptions(st, oldInfo, nil))
+
 	linkCtx := backend.LinkContext{
 		FirstInstall:   false,
 		IsUndo:         true,
 		ServiceOptions: opts,
 	}
-	reboot, err := m.backend.LinkSnap(oldInfo, deviceCtx, linkCtx, perfTimings)
-	if err != nil {
-		return err
-	}
+	reboot := mylog.Check2(m.backend.LinkSnap(oldInfo, deviceCtx, linkCtx, perfTimings))
 
 	// mark as active again
 	Set(st, snapsup.InstanceName(), snapst)
@@ -1619,35 +1364,23 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) (err error) {
 	st := t.State()
 	st.Lock()
-	snapsup, snapst, err := snapSetupAndState(t)
+	snapsup, snapst := mylog.Check3(snapSetupAndState(t))
 	st.Unlock()
-	if err != nil {
-		return err
-	}
 
-	newInfo, err := readInfo(snapsup.InstanceName(), snapsup.SideInfo, errorOnBroken)
-	if err != nil {
-		return err
-	}
+	newInfo := mylog.Check2(readInfo(snapsup.InstanceName(), snapsup.SideInfo, errorOnBroken))
 
-	oldInfo, err := snapst.CurrentInfo()
+	oldInfo := mylog.Check2(snapst.CurrentInfo())
 	if err != nil && err != ErrNoCurrent {
 		return err
 	}
 
 	st.Lock()
-	deviceCtx, err := DeviceCtx(st, t, nil)
+	deviceCtx := mylog.Check2(DeviceCtx(st, t, nil))
 	st.Unlock()
-	if err != nil {
-		return err
-	}
 
 	st.Lock()
-	opts, err := getDirMigrationOpts(st, snapst, snapsup)
+	opts := mylog.Check2(getDirMigrationOpts(st, snapst, snapsup))
 	st.Unlock()
-	if err != nil {
-		return err
-	}
 
 	dirOpts := opts.getSnapDirOpts()
 	pb := NewTaskProgressAdapterUnlocked(t)
@@ -1662,22 +1395,16 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) (err error) {
 		st.Lock()
 		defer st.Unlock()
 
-		otherInstances, err := hasOtherInstances(st, snapsup.InstanceName())
-		if err != nil {
-			t.Errorf("cannot undo partial snap %q data copy: %v", snapsup.InstanceName(), err)
-			return copyDataErr
-		}
-		// no other instances of this snap, shared data directory can be
-		// removed now too
-		if err := m.backend.RemoveSnapDataDir(newInfo, otherInstances, dirOpts); err != nil {
-			t.Errorf("cannot undo partial snap %q data copy, failed removing shared directory: %v", snapsup.InstanceName(), err)
-		}
+		otherInstances := mylog.Check2(hasOtherInstances(st, snapsup.InstanceName()))
+		mylog.Check(
+
+			// no other instances of this snap, shared data directory can be
+			// removed now too
+			m.backend.RemoveSnapDataDir(newInfo, otherInstances, dirOpts))
+
 		return copyDataErr
 	}
-
-	if err := m.backend.SetupSnapSaveData(newInfo, deviceCtx, pb); err != nil {
-		return err
-	}
+	mylog.Check(m.backend.SetupSnapSaveData(newInfo, deviceCtx, pb))
 
 	var oldBase string
 	if oldInfo != nil {
@@ -1687,39 +1414,31 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) (err error) {
 	snapName := snapsup.InstanceName()
 	switch triggeredMigration(oldBase, newInfo.Base, opts) {
 	case hidden:
-		if err := m.backend.HideSnapData(snapName); err != nil {
-			return err
-		}
+		mylog.Check(m.backend.HideSnapData(snapName))
 
 		snapsup.MigratedHidden = true
 	case revertHidden:
-		if err := m.backend.UndoHideSnapData(snapName); err != nil {
-			return err
-		}
+		mylog.Check(m.backend.UndoHideSnapData(snapName))
 
 		snapsup.UndidHiddenMigration = true
 	case full:
-		if err := m.backend.HideSnapData(snapName); err != nil {
-			return err
-		}
+		mylog.Check(m.backend.HideSnapData(snapName))
 
 		snapsup.MigratedHidden = true
 		fallthrough
 	case home:
-		undo, err := m.backend.InitExposedSnapHome(snapName, newInfo.Revision, opts.getSnapDirOpts())
-		if err != nil {
-			return err
-		}
+		undo := mylog.Check2(m.backend.InitExposedSnapHome(snapName, newInfo.Revision, opts.getSnapDirOpts()))
+
 		st.Lock()
 		t.Set("undo-exposed-home-init", undo)
 		st.Unlock()
 
 		snapsup.MigratedToExposedHome = true
+		mylog.Check(
 
-		// no specific undo action is needed since undoing the copy will undo this
-		if err := m.backend.InitXDGDirs(newInfo); err != nil {
-			return err
-		}
+			// no specific undo action is needed since undoing the copy will undo this
+			m.backend.InitXDGDirs(newInfo))
+
 	}
 
 	st.Lock()
@@ -1763,28 +1482,19 @@ func triggeredMigration(oldBase, newBase string, opts *dirMigrationOptions) migr
 func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
-	snapsup, snapst, err := snapSetupAndState(t)
+	snapsup, snapst := mylog.Check3(snapSetupAndState(t))
 	st.Unlock()
-	if err != nil {
-		return err
-	}
 
-	newInfo, err := readInfo(snapsup.InstanceName(), snapsup.SideInfo, 0)
-	if err != nil {
-		return err
-	}
+	newInfo := mylog.Check2(readInfo(snapsup.InstanceName(), snapsup.SideInfo, 0))
 
-	oldInfo, err := snapst.CurrentInfo()
+	oldInfo := mylog.Check2(snapst.CurrentInfo())
 	if err != nil && err != ErrNoCurrent {
 		return err
 	}
 
 	st.Lock()
-	deviceCtx, err := DeviceCtx(st, t, nil)
+	deviceCtx := mylog.Check2(DeviceCtx(st, t, nil))
 	st.Unlock()
-	if err != nil {
-		return err
-	}
 
 	// undo migration actions performed in doCopySnapData and set SnapSetup flags
 	// accordingly (they're used in undoUnlinkCurrentSnap to set SnapState)
@@ -1793,59 +1503,40 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 			var undoInfo backend.UndoInfo
 
 			st.Lock()
-			err := t.Get("undo-exposed-home-init", &undoInfo)
+			mylog.Check(t.Get("undo-exposed-home-init", &undoInfo))
 			st.Unlock()
-			if err != nil {
-				return err
-			}
-
-			if err := m.backend.UndoInitExposedSnapHome(snapsup.InstanceName(), &undoInfo); err != nil {
-				return err
-			}
+			mylog.Check(m.backend.UndoInitExposedSnapHome(snapsup.InstanceName(), &undoInfo))
 
 			snapsup.MigratedToExposedHome = false
 			snapsup.RemovedExposedHome = true
 		}
 
 		if snapsup.MigratedHidden {
-			if err := m.backend.UndoHideSnapData(snapsup.InstanceName()); err != nil {
-				return err
-			}
+			mylog.Check(m.backend.UndoHideSnapData(snapsup.InstanceName()))
 
 			snapsup.MigratedHidden = false
 			snapsup.UndidHiddenMigration = true
 		} else if snapsup.UndidHiddenMigration {
-			if err := m.backend.HideSnapData(snapsup.InstanceName()); err != nil {
-				return err
-			}
+			mylog.Check(m.backend.HideSnapData(snapsup.InstanceName()))
 
 			snapsup.MigratedHidden = true
 			snapsup.UndidHiddenMigration = false
 		}
 
 		st.Lock()
-		err = SetTaskSnapSetup(t, snapsup)
+		mylog.Check(SetTaskSnapSetup(t, snapsup))
 		st.Unlock()
-		if err != nil {
-			return err
-		}
+
 	}
 
 	st.Lock()
-	opts, err := getDirMigrationOpts(st, snapst, snapsup)
+	opts := mylog.Check2(getDirMigrationOpts(st, snapst, snapsup))
 	st.Unlock()
-	if err != nil {
-		return fmt.Errorf("failed to get snap dir options: %w", err)
-	}
 
 	dirOpts := opts.getSnapDirOpts()
 	pb := NewTaskProgressAdapterUnlocked(t)
-	if err := m.backend.UndoCopySnapData(newInfo, oldInfo, dirOpts, pb); err != nil {
-		return err
-	}
-	if err := m.backend.UndoSetupSnapSaveData(newInfo, oldInfo, deviceCtx, pb); err != nil {
-		return err
-	}
+	mylog.Check(m.backend.UndoCopySnapData(newInfo, oldInfo, dirOpts, pb))
+	mylog.Check(m.backend.UndoSetupSnapSaveData(newInfo, oldInfo, deviceCtx, pb))
 
 	if oldInfo != nil {
 		// there is other revision of this snap, cannot remove shared
@@ -1856,15 +1547,13 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	otherInstances, err := hasOtherInstances(st, snapsup.InstanceName())
-	if err != nil {
-		return err
-	}
-	// no other instances of this snap and no other revisions, shared data
-	// directory can be removed
-	if err := m.backend.RemoveSnapDataDir(newInfo, otherInstances, dirOpts); err != nil {
-		return err
-	}
+	otherInstances := mylog.Check2(hasOtherInstances(st, snapsup.InstanceName()))
+	mylog.Check(
+
+		// no other instances of this snap and no other revisions, shared data
+		// directory can be removed
+		m.backend.RemoveSnapDataDir(newInfo, otherInstances, dirOpts))
+
 	return nil
 }
 
@@ -1874,13 +1563,10 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 // locked by caller.
 func writeMigrationStatus(t *state.Task, snapst *SnapState, snapsup *SnapSetup) error {
 	st := t.State()
-
-	if err := SetTaskSnapSetup(t, snapsup); err != nil {
-		return err
-	}
+	mylog.Check(SetTaskSnapSetup(t, snapsup))
 
 	snapName := snapsup.InstanceName()
-	err := Get(st, snapName, &SnapState{})
+	mylog.Check(Get(st, snapName, &SnapState{}))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
@@ -1911,15 +1597,9 @@ func (m *SnapManager) cleanupCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return nil
 	}
 
-	_, snapst, err := snapSetupAndState(t)
-	if err != nil {
-		return err
-	}
+	_, snapst := mylog.Check3(snapSetupAndState(t))
 
-	info, err := snapst.CurrentInfo()
-	if err != nil {
-		return err
-	}
+	info := mylog.Check2(snapst.CurrentInfo())
 
 	// try to remove trashed any data in ~/snap and ~/.snap/data
 	m.backend.ClearTrashedData(info)
@@ -1930,11 +1610,9 @@ func (m *SnapManager) cleanupCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 // writeSeqFile writes the sequence file for failover handling
 func writeSeqFile(name string, snapst *SnapState) error {
 	p := filepath.Join(dirs.SnapSeqDir, name+".json")
-	if err := os.MkdirAll(filepath.Dir(p), 0755); err != nil {
-		return err
-	}
+	mylog.Check(os.MkdirAll(filepath.Dir(p), 0755))
 
-	b, err := json.Marshal(&struct {
+	b := mylog.Check2(json.Marshal(&struct {
 		Sequence              sequence.SnapSequence `json:"sequence"`
 		Current               string                `json:"current"`
 		MigratedHidden        bool                  `json:"migrated-hidden"`
@@ -1946,10 +1624,7 @@ func writeSeqFile(name string, snapst *SnapState) error {
 		// Reset the flags to false
 		MigratedHidden:        len(snapst.Sequence.Revisions) > 0 && snapst.MigratedHidden,
 		MigratedToExposedHome: len(snapst.Sequence.Revisions) > 0 && snapst.MigratedToExposedHome,
-	})
-	if err != nil {
-		return err
-	}
+	}))
 
 	return osutil.AtomicWriteFile(p, b, 0644, 0)
 }
@@ -2025,9 +1700,7 @@ func MockLinkSnapParticipants(ps []LinkSnapParticipant) (restore func()) {
 func notifyLinkParticipants(t *state.Task, snapsup *SnapSetup) {
 	st := t.State()
 	for _, p := range linkSnapParticipants {
-		if err := p.SnapLinkageChanged(st, snapsup); err != nil {
-			t.Errorf("%v", err)
-		}
+		mylog.Check(p.SnapLinkageChanged(st, snapsup))
 	}
 }
 
@@ -2066,17 +1739,11 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	perfTimings := state.TimingsForTask(t)
 	defer perfTimings.Save(st)
 
-	snapsup, snapst, err := snapSetupAndState(t)
-	if err != nil {
-		return err
-	}
+	snapsup, snapst := mylog.Check3(snapSetupAndState(t))
 
-	deviceCtx, err := DeviceCtx(st, t, nil)
-	if err != nil {
-		return err
-	}
+	deviceCtx := mylog.Check2(DeviceCtx(st, t, nil))
 
-	oldInfo, err := snapst.CurrentInfo()
+	oldInfo := mylog.Check2(snapst.CurrentInfo())
 	if err != nil && err != ErrNoCurrent {
 		return err
 	}
@@ -2107,10 +1774,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	snapst.Active = true
 	oldChannel := snapst.TrackingChannel
 	if snapsup.Channel != "" {
-		err := snapst.SetTrackingChannel(snapsup.Channel)
-		if err != nil {
-			return err
-		}
+		mylog.Check(snapst.SetTrackingChannel(snapsup.Channel))
 	}
 	oldIgnoreValidation := snapst.IgnoreValidation
 	snapst.IgnoreValidation = snapsup.IgnoreValidation
@@ -2134,7 +1798,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	if snapsup.UserID > 0 {
 		var user *auth.UserState
 		if snapst.UserID != 0 {
-			user, err = auth.User(st, snapst.UserID)
+			user = mylog.Check2(auth.User(st, snapst.UserID))
 			if err != nil && err != auth.ErrInvalidUser {
 				return err
 			}
@@ -2154,26 +1818,20 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	// migration related ops
 	setMigrationFlagsInState(snapst, snapsup)
 
-	newInfo, err := readInfo(snapsup.InstanceName(), cand.Snap, 0)
-	if err != nil {
-		return err
-	}
+	newInfo := mylog.Check2(readInfo(snapsup.InstanceName(), cand.Snap, 0))
 
 	// record type
 	snapst.SetType(newInfo.Type())
 
 	pb := NewTaskProgressAdapterLocked(t)
+	mylog.Check(
 
-	// Check for D-Bus service conflicts a second time to detect
-	// conflicts within a transaction.
-	if err := checkDBusServiceConflicts(st, newInfo); err != nil {
-		return err
-	}
+		// Check for D-Bus service conflicts a second time to detect
+		// conflicts within a transaction.
+		checkDBusServiceConflicts(st, newInfo))
 
-	opts, err := SnapServiceOptions(st, newInfo, nil)
-	if err != nil {
-		return err
-	}
+	opts := mylog.Check2(SnapServiceOptions(st, newInfo, nil))
+
 	firstInstall := oldCurrent.Unset()
 	linkCtx := backend.LinkContext{
 		FirstInstall:   firstInstall,
@@ -2184,11 +1842,10 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	if !deviceCtx.Classic() && deviceCtx.Model().Base() != "" {
 		linkCtx.RequireMountedSnapdSnap = true
 	}
+	mylog.Check(
 
-	// write sequence file for failover helpers
-	if err := writeSeqFile(snapsup.InstanceName(), snapst); err != nil {
-		return err
-	}
+		// write sequence file for failover helpers
+		writeSeqFile(snapsup.InstanceName(), snapst))
 
 	defer func() {
 		// if link snap fails and this is a first install, then we need to clean up
@@ -2196,21 +1853,14 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		if IsErrAndNotWait(err) && firstInstall {
 			snapst.MigratedHidden = false
 			snapst.MigratedToExposedHome = false
-			if err := writeSeqFile(snapsup.InstanceName(), snapst); err != nil {
-				st.Warnf("cannot update sequence file after failed install of %q: %v", snapsup.InstanceName(), err)
-			}
+			mylog.Check(writeSeqFile(snapsup.InstanceName(), snapst))
+
 		}
 	}()
+	mylog.Check(m.maybeDiscardNamespacesOnSnapdDowngrade(st, newInfo))
+	mylog.Check(m.maybeRemoveAppArmorProfilesOnSnapdDowngrade(st, newInfo))
 
-	if err := m.maybeDiscardNamespacesOnSnapdDowngrade(st, newInfo); err != nil {
-		return fmt.Errorf("cannot discard preserved namespaces: %v", err)
-	}
-
-	if err := m.maybeRemoveAppArmorProfilesOnSnapdDowngrade(st, newInfo); err != nil {
-		return fmt.Errorf("cannot discard apparmor profiles: %v", err)
-	}
-
-	rebootInfo, err := m.backend.LinkSnap(newInfo, deviceCtx, linkCtx, perfTimings)
+	rebootInfo := mylog.Check2(m.backend.LinkSnap(newInfo, deviceCtx, linkCtx, perfTimings))
 	// defer a cleanup helper which will unlink the snap if anything fails after
 	// this point
 	defer func() {
@@ -2234,30 +1884,22 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		}
 		notifyLinkParticipants(t, snapsup)
 	}()
-	if err != nil {
-		return err
-	}
 
 	// Restore configuration of the target revision (if available) on revert
 	if isInstalled {
-		// Make a copy of configuration of current snap revision
-		if err = config.SaveRevisionConfig(st, snapsup.InstanceName(), oldCurrent); err != nil {
-			return err
-		}
+		mylog.Check(
+			// Make a copy of configuration of current snap revision
+			config.SaveRevisionConfig(st, snapsup.InstanceName(), oldCurrent))
 	}
 
 	// Restore configuration of the target revision (if available; nothing happens if it's not).
 	// We only do this on reverts (and not on refreshes).
 	if snapsup.Revert {
-		if err = config.RestoreRevisionConfig(st, snapsup.InstanceName(), snapsup.Revision()); err != nil {
-			return err
-		}
+		mylog.Check(config.RestoreRevisionConfig(st, snapsup.InstanceName(), snapsup.Revision()))
 	}
 
 	if len(snapst.Sequence.Revisions) == 1 {
-		if err := m.createSnapCookie(st, snapsup.InstanceName()); err != nil {
-			return fmt.Errorf("cannot create snap cookie: %v", err)
-		}
+		mylog.Check(m.createSnapCookie(st, snapsup.InstanceName()))
 	}
 
 	// save for undoLinkSnap
@@ -2301,9 +1943,8 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 			Media:   snapsup.Media,
 			Website: snapsup.Website,
 		}
-		if err := keepAuxStoreInfo(cand.Snap.SnapID, aux); err != nil {
-			return err
-		}
+		mylog.Check(keepAuxStoreInfo(cand.Snap.SnapID, aux))
+
 		if len(snapst.Sequence.Revisions) == 1 {
 			defer func() {
 				if IsErrAndNotWait(err) {
@@ -2322,10 +1963,8 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		for _, other := range t.Change().Tasks() {
 			// Check if this is auto-connect task for same snap and we it's part of the change with setup-profiles task
 			if other.Kind() == "auto-connect" || other.Kind() == "setup-profiles" {
-				otherSnapsup, err := TaskSnapSetup(other)
-				if err != nil {
-					return err
-				}
+				otherSnapsup := mylog.Check2(TaskSnapSetup(other))
+
 				if snapsup.InstanceName() == otherSnapsup.InstanceName() {
 					if other.Kind() == "auto-connect" {
 						hasAutoConnect = true
@@ -2364,7 +2003,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		// If we were to do this in all scenarios (i.e just when it has the do), we would impact things like
 		// remodel.
 		needsReboot := isSingleRebootBoundary(t)
-		if err := t.Change().Get("gadget-restart-required", &needsReboot); err != nil && !errors.Is(err, state.ErrNoState) {
+		if mylog.Check(t.Change().Get("gadget-restart-required", &needsReboot)); err != nil && !errors.Is(err, state.ErrNoState) {
 			return err
 		}
 		rebootInfo.RebootRequired = needsReboot
@@ -2376,7 +2015,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	if rebootInfo.RebootRequired {
 		var cannotReboot bool
 		// system reboot is required, but can this task request that?
-		if err := t.Get("cannot-reboot", &cannotReboot); err != nil && !errors.Is(err, state.ErrNoState) {
+		if mylog.Check(t.Get("cannot-reboot", &cannotReboot)); err != nil && !errors.Is(err, state.ErrNoState) {
 			return err
 		}
 		if !cannotReboot {
@@ -2468,7 +2107,7 @@ func daemonRestartReason(st *state.State, typ snap.Type) string {
 
 	if typ == snap.TypeOS {
 		// ignore error here as we have no way to return to caller
-		snapdSnapInstalled, _ := isInstalled(st, "snapd")
+		snapdSnapInstalled := mylog.Check2(isInstalled(st, "snapd"))
 		if snapdSnapInstalled {
 			// this snap is the base, but snapd is running from the snapd snap
 			return ""
@@ -2492,19 +2131,16 @@ func (m *SnapManager) maybeDiscardNamespacesOnSnapdDowngrade(st *state.State, sn
 	}
 
 	// Support for "x-snapd.origin=rootfs" was introduced in snapd 2.57
-	if compare, err := strutil.VersionCompare(snapInfo.Version, "2.57"); err == nil && compare < 0 {
+	if compare := mylog.Check2(strutil.VersionCompare(snapInfo.Version, "2.57")); err == nil && compare < 0 {
 		logger.Noticef("Downgrading snapd to version %q, discarding preserved namespaces", snapInfo.Version)
-		allSnaps, err := All(st)
-		if err != nil {
-			return err
-		}
+		allSnaps := mylog.Check2(All(st))
+
 		for _, snap := range allSnaps {
 			logger.Debugf("Discarding namespace for snap %q", snap.InstanceName())
-			if err := m.backend.DiscardSnapNamespace(snap.InstanceName()); err != nil {
-				// We don't propagate the error as we don't want to block the
-				// downgrade for this. Let's just log it down.
-				logger.Noticef("WARNING: discarding namespace of snap %q failed, snap might be unusable until next reboot", snap.InstanceName())
-			}
+			mylog.Check(m.backend.DiscardSnapNamespace(snap.InstanceName()))
+			// We don't propagate the error as we don't want to block the
+			// downgrade for this. Let's just log it down.
+
 		}
 	}
 	return nil
@@ -2524,7 +2160,7 @@ func (m *SnapManager) maybeRemoveAppArmorProfilesOnSnapdDowngrade(st *state.Stat
 
 	// ignore if not seeded yet or if preseeding
 	var seeded bool
-	err := st.Get("seeded", &seeded)
+	mylog.Check(st.Get("seeded", &seeded))
 	if errors.Is(err, state.ErrNoState) || !seeded || snapdenv.Preseeding() {
 		return nil
 	}
@@ -2534,10 +2170,7 @@ func (m *SnapManager) maybeRemoveAppArmorProfilesOnSnapdDowngrade(st *state.Stat
 		return nil
 	}
 
-	feats, err := apparmor_sandbox.ParserFeatures()
-	if err != nil {
-		return err
-	}
+	feats := mylog.Check2(apparmor_sandbox.ParserFeatures())
 
 	// if we do not have a vendored AppArmor parser (ie the parser is not
 	// snapd-internal) then it is managed by the host and we don't have to
@@ -2553,18 +2186,17 @@ func (m *SnapManager) maybeRemoveAppArmorProfilesOnSnapdDowngrade(st *state.Stat
 	// that it is using - either because it also has a vendored AppArmor
 	// parser, or because it doesn't in which case it will be using the
 	// host's AppArmor parser)
-	if compare, err := strutil.VersionCompare(snapInfo.Version, snapdtool.Version); err == nil && compare < 0 {
+	if compare := mylog.Check2(strutil.VersionCompare(snapInfo.Version, snapdtool.Version)); err == nil && compare < 0 {
 		logger.Noticef("Downgrading snapd to version %q, discarding all existing snap AppArmor profiles", snapInfo.Version)
-		if err = m.backend.RemoveAllSnapAppArmorProfiles(); err != nil {
+		mylog.Check(m.backend.RemoveAllSnapAppArmorProfiles())
+		mylog.Check(
 			// We don't propagate the error as we don't want to block the
 			// downgrade for this. Let's just log it down.
-			logger.Noticef("WARNING: removing AppArmor profiles failed")
-		}
-		// also remove system-key to ensure the AppArmor profiles get
-		// regenerated when the new snapd starts up
-		if err = interfaces.RemoveSystemKey(); err != nil {
-			logger.Noticef("WARNING: failed to remove system-key")
-		}
+
+			// also remove system-key to ensure the AppArmor profiles get
+			// regenerated when the new snapd starts up
+			interfaces.RemoveSystemKey())
+
 	}
 	return nil
 }
@@ -2576,10 +2208,8 @@ func (m *SnapManager) maybeRemoveAppArmorProfilesOnSnapdDowngrade(st *state.Stat
 // It returns a non-nil *restartPossibility if a restart should be considered.
 func (m *SnapManager) maybeUndoRemodelBootChanges(t *state.Task) (*restartPossibility, error) {
 	// get the new and the old model
-	deviceCtx, err := DeviceCtx(t.State(), t, nil)
-	if err != nil {
-		return nil, err
-	}
+	deviceCtx := mylog.Check2(DeviceCtx(t.State(), t, nil))
+
 	// we only have an old model if we are in a remodel situation
 	if !deviceCtx.ForRemodeling() {
 		return nil, nil
@@ -2590,10 +2220,8 @@ func (m *SnapManager) maybeUndoRemodelBootChanges(t *state.Task) (*restartPossib
 
 	// check type of the snap we are undoing, only kernel/base/core are
 	// relevant
-	snapsup, _, err := snapSetupAndState(t)
-	if err != nil {
-		return nil, err
-	}
+	snapsup, _ := mylog.Check3(snapSetupAndState(t))
+
 	var newSnapName, snapName string
 	switch snapsup.Type {
 	case snap.TypeKernel:
@@ -2618,18 +2246,14 @@ func (m *SnapManager) maybeUndoRemodelBootChanges(t *state.Task) (*restartPossib
 	// get info for *old* kernel/base/core and see if we need to reboot
 	// TODO: we may need something like infoForDeviceSnap here
 	var snapst SnapState
-	if err = Get(t.State(), snapName, &snapst); err != nil {
-		return nil, err
-	}
-	info, err := snapst.CurrentInfo()
+	mylog.Check(Get(t.State(), snapName, &snapst))
+
+	info := mylog.Check2(snapst.CurrentInfo())
 	if err != nil && err != ErrNoCurrent {
 		return nil, err
 	}
 	bp := boot.Participant(info, info.Type(), groundDeviceCtx)
-	rebootInfo, err := bp.SetNextBoot(boot.NextBootContext{BootWithoutTry: true})
-	if err != nil {
-		return nil, err
-	}
+	rebootInfo := mylog.Check2(bp.SetNextBoot(boot.NextBootContext{BootWithoutTry: true}))
 
 	// we may just have switch back to the old kernel/base/core so
 	// we may need to restart
@@ -2641,91 +2265,67 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	deviceCtx, err := DeviceCtx(st, t, nil)
-	if err != nil {
-		return err
-	}
+	deviceCtx := mylog.Check2(DeviceCtx(st, t, nil))
 
 	perfTimings := state.TimingsForTask(t)
 	defer perfTimings.Save(st)
 
-	snapsup, snapst, err := snapSetupAndState(t)
-	if err != nil {
-		return err
-	}
+	snapsup, snapst := mylog.Check3(snapSetupAndState(t))
 
 	var oldChannel string
-	err = t.Get("old-channel", &oldChannel)
-	if err != nil {
-		return err
-	}
+	mylog.Check(t.Get("old-channel", &oldChannel))
+
 	var oldIgnoreValidation bool
-	err = t.Get("old-ignore-validation", &oldIgnoreValidation)
+	mylog.Check(t.Get("old-ignore-validation", &oldIgnoreValidation))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	var oldTryMode bool
-	err = t.Get("old-trymode", &oldTryMode)
-	if err != nil {
-		return err
-	}
+	mylog.Check(t.Get("old-trymode", &oldTryMode))
+
 	var oldDevMode bool
-	err = t.Get("old-devmode", &oldDevMode)
-	if err != nil {
-		return err
-	}
+	mylog.Check(t.Get("old-devmode", &oldDevMode))
+
 	var oldJailMode bool
-	err = t.Get("old-jailmode", &oldJailMode)
-	if err != nil {
-		return err
-	}
+	mylog.Check(t.Get("old-jailmode", &oldJailMode))
+
 	var oldClassic bool
-	err = t.Get("old-classic", &oldClassic)
-	if err != nil {
-		return err
-	}
+	mylog.Check(t.Get("old-classic", &oldClassic))
+
 	var oldCurrent snap.Revision
-	err = t.Get("old-current", &oldCurrent)
-	if err != nil {
-		return err
-	}
+	mylog.Check(t.Get("old-current", &oldCurrent))
+
 	var oldCandidateIndex int
-	if err := t.Get("old-candidate-index", &oldCandidateIndex); err != nil {
-		return err
-	}
+	mylog.Check(t.Get("old-candidate-index", &oldCandidateIndex))
+
 	var oldRefreshInhibitedTime *time.Time
-	if err := t.Get("old-refresh-inhibited-time", &oldRefreshInhibitedTime); err != nil && !errors.Is(err, state.ErrNoState) {
+	if mylog.Check(t.Get("old-refresh-inhibited-time", &oldRefreshInhibitedTime)); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	var oldLastRefreshTime *time.Time
-	if err := t.Get("old-last-refresh-time", &oldLastRefreshTime); err != nil && !errors.Is(err, state.ErrNoState) {
+	if mylog.Check(t.Get("old-last-refresh-time", &oldLastRefreshTime)); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	var oldCohortKey string
-	if err := t.Get("old-cohort-key", &oldCohortKey); err != nil && !errors.Is(err, state.ErrNoState) {
+	if mylog.Check(t.Get("old-cohort-key", &oldCohortKey)); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	var oldRevsBeforeCand []snap.Revision
-	if err := t.Get("old-revs-before-cand", &oldRevsBeforeCand); err != nil && !errors.Is(err, state.ErrNoState) {
+	if mylog.Check(t.Get("old-revs-before-cand", &oldRevsBeforeCand)); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 
 	if len(snapst.Sequence.Revisions) == 1 {
 		// XXX: shouldn't these two just log and carry on? this is an undo handler...
 		timings.Run(perfTimings, "discard-snap-namespace", fmt.Sprintf("discard the namespace of snap %q", snapsup.InstanceName()), func(tm timings.Measurer) {
-			err = m.backend.DiscardSnapNamespace(snapsup.InstanceName())
+			mylog.Check(m.backend.DiscardSnapNamespace(snapsup.InstanceName()))
 		})
-		if err != nil {
-			t.Errorf("cannot discard snap namespace %q, will retry in 3 mins: %s", snapsup.InstanceName(), err)
-			return &state.Retry{After: 3 * time.Minute}
-		}
-		if err := m.removeSnapCookie(st, snapsup.InstanceName()); err != nil {
-			return fmt.Errorf("cannot remove snap cookie: %v", err)
-		}
-		// try to remove the auxiliary store info
-		if err := discardAuxStoreInfo(snapsup.SideInfo.SnapID); err != nil {
-			return fmt.Errorf("cannot remove auxiliary store info: %v", err)
-		}
+		mylog.Check(m.removeSnapCookie(st, snapsup.InstanceName()))
+		mylog.Check(
+
+			// try to remove the auxiliary store info
+			discardAuxStoreInfo(snapsup.SideInfo.SnapID))
+
 	}
 
 	isRevert := snapsup.Revert
@@ -2761,7 +2361,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	if isRevert {
 		var oldRevertStatus map[int]RevertStatus
-		err := t.Get("old-revert-status", &oldRevertStatus)
+		mylog.Check(t.Get("old-revert-status", &oldRevertStatus))
 		if err != nil && !errors.Is(err, state.ErrNoState) {
 			return err
 		}
@@ -2769,10 +2369,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		snapst.RevertStatus = oldRevertStatus
 	}
 
-	newInfo, err := readInfo(snapsup.InstanceName(), snapsup.SideInfo, 0)
-	if err != nil {
-		return err
-	}
+	newInfo := mylog.Check2(readInfo(snapsup.InstanceName(), snapsup.SideInfo, 0))
 
 	// we need to undo potential changes to current snap configuration (e.g. if
 	// modified by post-refresh/install/configure hooks as part of failed
@@ -2780,15 +2377,11 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	// similarly, we need to re-save the disabled services if there is a
 	// revision for us to go back to, see comment below for full explanation
 	if len(snapst.Sequence.Revisions) > 0 {
-		if err = config.RestoreRevisionConfig(st, snapsup.InstanceName(), oldCurrent); err != nil {
-			return err
-		}
+		mylog.Check(config.RestoreRevisionConfig(st, snapsup.InstanceName(), oldCurrent))
 	} else {
-		// in the case of an install we need to clear any config
-		err = config.DeleteSnapConfig(st, snapsup.InstanceName())
-		if err != nil {
-			return err
-		}
+		mylog.
+			// in the case of an install we need to clear any config
+			Check(config.DeleteSnapConfig(st, snapsup.InstanceName()))
 	}
 
 	pb := NewTaskProgressAdapterLocked(t)
@@ -2802,10 +2395,8 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		// snapst has been updated and now is the old revision, since
 		// this is not the first install of snapd, it should exist
 		var oldInfo *snap.Info
-		oldInfo, err := snapst.CurrentInfo()
-		if err != nil {
-			return err
-		}
+		oldInfo := mylog.Check2(snapst.CurrentInfo())
+
 		// the snapd snap is special in the sense that we need to make
 		// sure that a sensible version is always linked as current,
 		// also we never reboot when updating snapd snap
@@ -2820,10 +2411,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	// restartPoss will be set if we should maybe schedule a restart
 	var restartPoss *restartPossibility
-	restartPoss, err = m.maybeUndoRemodelBootChanges(t)
-	if err != nil {
-		return err
-	}
+	restartPoss = mylog.Check2(m.maybeUndoRemodelBootChanges(t))
 
 	// restart only when snapd was installed for the first time and the rest of
 	// the cleanup is performed by snapd from core;
@@ -2832,11 +2420,11 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	if firstInstall && newInfo.Type() == snap.TypeSnapd {
 		restartPoss = &restartPossibility{info: newInfo, RebootInfo: boot.RebootInfo{RebootRequired: false}}
 	}
+	mylog.Check(
 
-	// write sequence file for failover helpers
-	if err := writeSeqFile(snapsup.InstanceName(), snapst); err != nil {
-		return err
-	}
+		// write sequence file for failover helpers
+		writeSeqFile(snapsup.InstanceName(), snapst))
+
 	// mark as inactive
 	Set(st, snapsup.InstanceName(), snapst)
 
@@ -2902,15 +2490,12 @@ func (m *SnapManager) genericDoSwitchSnap(t *state.Task, flags doSwitchFlags) er
 	st.Lock()
 	defer st.Unlock()
 
-	snapsup, snapst, err := snapSetupAndState(t)
-	if err != nil {
-		return err
-	}
+	snapsup, snapst := mylog.Check3(snapSetupAndState(t))
+	mylog.Check(
 
-	// switched the tracked channel
-	if err := snapst.SetTrackingChannel(snapsup.Channel); err != nil {
-		return err
-	}
+		// switched the tracked channel
+		snapst.SetTrackingChannel(snapsup.Channel))
+
 	snapst.CohortKey = snapsup.CohortKey
 	if flags.switchCurrentChannel {
 		// optionally support switching the current snap channel too, e.g.
@@ -2930,10 +2515,7 @@ func (m *SnapManager) doToggleSnapFlags(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	snapsup, snapst, err := snapSetupAndState(t)
-	if err != nil {
-		return err
-	}
+	snapsup, snapst := mylog.Check3(snapSetupAndState(t))
 
 	// for now we support toggling only ignore-validation
 	snapst.IgnoreValidation = snapsup.IgnoreValidation
@@ -2955,10 +2537,8 @@ func installModeDisabledServices(st *state.State, snapst *SnapState, currentInfo
 	prevCurrentSvcs := map[string]bool{}
 	if psi := snapst.previousSideInfo(); psi != nil {
 		var prevCurrentInfo *snap.Info
-		prevCurrentInfo, err = Info(st, snapst.InstanceName(), psi.Revision)
-		if err != nil {
-			return nil, err
-		}
+		prevCurrentInfo = mylog.Check2(Info(st, snapst.InstanceName(), psi.Revision))
+
 		if prevCurrentInfo != nil {
 			for _, prevSvc := range prevCurrentInfo.Services() {
 				prevCurrentSvcs[prevSvc.Name] = true
@@ -2989,14 +2569,9 @@ func (m *SnapManager) startSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	perfTimings := state.TimingsForTask(t)
 	defer perfTimings.Save(st)
 
-	snapsup, snapst, err := snapSetupAndState(t)
-	if err != nil {
-		return err
-	}
-	currentInfo, err := snapst.CurrentInfo()
-	if err != nil {
-		return err
-	}
+	snapsup, snapst := mylog.Check3(snapSetupAndState(t))
+
+	currentInfo := mylog.Check2(snapst.CurrentInfo())
 
 	// check if any previously disabled services are now no longer services and
 	// log messages about that
@@ -3013,16 +2588,11 @@ func (m *SnapManager) startSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	// as well as the services which are not present in this revision, but were
 	// present and disabled in a previous one and as such should be kept inside
 	// snapst for persistent storage
-	svcsToDisable, svcsToSave, err := missingDisabledServices(snapst.LastActiveDisabledServices, currentInfo)
-	if err != nil {
-		return err
-	}
+	svcsToDisable, svcsToSave := mylog.Check3(missingDisabledServices(snapst.LastActiveDisabledServices, currentInfo))
 
 	// check what services with "InstallMode: disable" need to be disabled
-	svcsToDisableFromInstallMode, err := installModeDisabledServices(st, snapst, currentInfo)
-	if err != nil {
-		return err
-	}
+	svcsToDisableFromInstallMode := mylog.Check2(installModeDisabledServices(st, snapst, currentInfo))
+
 	svcsToDisable = append(svcsToDisable, svcsToDisableFromInstallMode...)
 
 	// append services that were disabled by hooks (they should not get re-enabled)
@@ -3047,17 +2617,14 @@ func (m *SnapManager) startSnapServices(t *state.Task, _ *tomb.Tomb) error {
 		return nil
 	}
 
-	startupOrdered, err := snap.SortServices(svcs)
-	if err != nil {
-		return err
-	}
+	startupOrdered := mylog.Check2(snap.SortServices(svcs))
 
 	pb := NewTaskProgressAdapterUnlocked(t)
 
 	st.Unlock()
-	err = m.backend.StartServices(startupOrdered, &wrappers.DisabledServices{
+	mylog.Check(m.backend.StartServices(startupOrdered, &wrappers.DisabledServices{
 		SystemServices: svcsToDisable,
-	}, pb, perfTimings)
+	}, pb, perfTimings))
 	st.Lock()
 
 	return err
@@ -3071,18 +2638,12 @@ func (m *SnapManager) undoStartSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	perfTimings := state.TimingsForTask(t)
 	defer perfTimings.Save(st)
 
-	snapsup, snapst, err := snapSetupAndState(t)
-	if err != nil {
-		return err
-	}
+	snapsup, snapst := mylog.Check3(snapSetupAndState(t))
 
-	currentInfo, err := snapst.CurrentInfo()
-	if err != nil {
-		return err
-	}
+	currentInfo := mylog.Check2(snapst.CurrentInfo())
 
 	var oldLastActiveDisabledServices []string
-	if err := t.Get("old-last-active-disabled-services", &oldLastActiveDisabledServices); err != nil && !errors.Is(err, state.ErrNoState) {
+	if mylog.Check(t.Get("old-last-active-disabled-services", &oldLastActiveDisabledServices)); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	snapst.LastActiveDisabledServices = oldLastActiveDisabledServices
@@ -3098,11 +2659,8 @@ func (m *SnapManager) undoStartSnapServices(t *state.Task, _ *tomb.Tomb) error {
 
 	// stop the services
 	st.Unlock()
-	err = m.backend.StopServices(svcs, stopReason, progress.Null, perfTimings)
+	mylog.Check(m.backend.StopServices(svcs, stopReason, progress.Null, perfTimings))
 	st.Lock()
-	if err != nil {
-		return err
-	}
 
 	return nil
 }
@@ -3115,34 +2673,27 @@ func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	perfTimings := state.TimingsForTask(t)
 	defer perfTimings.Save(st)
 
-	snapsup, snapst, err := snapSetupAndState(t)
-	if err != nil {
-		return err
-	}
+	snapsup, snapst := mylog.Check3(snapSetupAndState(t))
 
-	currentInfo, err := snapst.CurrentInfo()
-	if err != nil {
-		return err
-	}
+	currentInfo := mylog.Check2(snapst.CurrentInfo())
+
 	svcs := currentInfo.Services()
 	if len(svcs) == 0 {
 		return nil
 	}
 
 	var stopReason snap.ServiceStopReason
-	if err := t.Get("stop-reason", &stopReason); err != nil && !errors.Is(err, state.ErrNoState) {
+	if mylog.Check(t.Get("stop-reason", &stopReason)); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 
 	pb := NewTaskProgressAdapterUnlocked(t)
 	st.Unlock()
 	defer st.Lock()
+	mylog.
 
-	// stop the services
-	err = m.backend.StopServices(svcs, stopReason, pb, perfTimings)
-	if err != nil {
-		return err
-	}
+		// stop the services
+		Check(m.backend.StopServices(svcs, stopReason, pb, perfTimings))
 
 	// get the disabled services after we stopped all the services.
 	// this list is not meant to save what services are disabled at any given
@@ -3150,10 +2701,7 @@ func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	// track of the services. this list is also used to determine what services are enabled
 	// when we start services of a new revision of the snap in
 	// start-snap-services handler.
-	disabledServices, err := m.queryDisabledServices(currentInfo, pb)
-	if err != nil {
-		return err
-	}
+	disabledServices := mylog.Check2(m.queryDisabledServices(currentInfo, pb))
 
 	st.Lock()
 	defer st.Unlock()
@@ -3191,43 +2739,32 @@ func (m *SnapManager) undoStopSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	perfTimings := state.TimingsForTask(t)
 	defer perfTimings.Save(st)
 
-	snapsup, snapst, err := snapSetupAndState(t)
-	if err != nil {
-		return err
-	}
-	currentInfo, err := snapst.CurrentInfo()
-	if err != nil {
-		return err
-	}
+	snapsup, snapst := mylog.Check3(snapSetupAndState(t))
+
+	currentInfo := mylog.Check2(snapst.CurrentInfo())
 
 	svcs := currentInfo.Services()
 	if len(svcs) == 0 {
 		return nil
 	}
 
-	startupOrdered, err := snap.SortServices(svcs)
-	if err != nil {
-		return err
-	}
+	startupOrdered := mylog.Check2(snap.SortServices(svcs))
 
 	var lastActiveDisabled []string
-	if err := t.Get("old-last-active-disabled-services", &lastActiveDisabled); err != nil && !errors.Is(err, state.ErrNoState) {
+	if mylog.Check(t.Get("old-last-active-disabled-services", &lastActiveDisabled)); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	snapst.LastActiveDisabledServices = lastActiveDisabled
 	Set(st, snapsup.InstanceName(), snapst)
 
 	var disabledServices wrappers.DisabledServices
-	if err := t.Get("disabled-services", &disabledServices); err != nil && !errors.Is(err, state.ErrNoState) {
+	if mylog.Check(t.Get("disabled-services", &disabledServices)); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 
 	st.Unlock()
-	err = m.backend.StartServices(startupOrdered, &disabledServices, progress.Null, perfTimings)
+	mylog.Check(m.backend.StartServices(startupOrdered, &disabledServices, progress.Null, perfTimings))
 	st.Lock()
-	if err != nil {
-		return err
-	}
 
 	return nil
 }
@@ -3242,24 +2779,15 @@ func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	snapsup, snapst, err := snapSetupAndState(t)
-	if err != nil {
-		return err
-	}
+	snapsup, snapst := mylog.Check3(snapSetupAndState(t))
 
-	info, err := Info(t.State(), snapsup.InstanceName(), snapsup.Revision())
-	if err != nil {
-		return err
-	}
+	info := mylog.Check2(Info(t.State(), snapsup.InstanceName(), snapsup.Revision()))
 
 	// do the final unlink
 	unlinkCtx := backend.LinkContext{
 		FirstInstall: false,
 	}
-	err = m.backend.UnlinkSnap(info, unlinkCtx, NewTaskProgressAdapterLocked(t))
-	if err != nil {
-		return err
-	}
+	mylog.Check(m.backend.UnlinkSnap(info, unlinkCtx, NewTaskProgressAdapterLocked(t)))
 
 	// mark as inactive
 	snapst.Active = false
@@ -3279,25 +2807,16 @@ func (m *SnapManager) undoUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	perfTimings := state.TimingsForTask(t)
 	defer perfTimings.Save(st)
 
-	snapsup, snapst, err := snapSetupAndState(t)
-	if err != nil {
-		return err
-	}
+	snapsup, snapst := mylog.Check3(snapSetupAndState(t))
 
 	isInstalled := snapst.IsInstalled()
 	if !isInstalled {
 		return fmt.Errorf("internal error: snap %q not installed anymore", snapsup.InstanceName())
 	}
 
-	info, err := snapst.CurrentInfo()
-	if err != nil {
-		return err
-	}
+	info := mylog.Check2(snapst.CurrentInfo())
 
-	deviceCtx, err := DeviceCtx(st, t, nil)
-	if err != nil {
-		return err
-	}
+	deviceCtx := mylog.Check2(DeviceCtx(st, t, nil))
 
 	// undo here may be part of failed snap remove change, in which case a later
 	// "clear-snap" task could have been executed and some or all of the
@@ -3317,19 +2836,14 @@ func (m *SnapManager) undoUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.Active = true
 	Set(st, snapsup.InstanceName(), snapst)
 
-	opts, err := SnapServiceOptions(st, info, nil)
-	if err != nil {
-		return err
-	}
+	opts := mylog.Check2(SnapServiceOptions(st, info, nil))
+
 	linkCtx := backend.LinkContext{
 		FirstInstall:   false,
 		IsUndo:         true,
 		ServiceOptions: opts,
 	}
-	reboot, err := m.backend.LinkSnap(info, deviceCtx, linkCtx, perfTimings)
-	if err != nil {
-		return err
-	}
+	reboot := mylog.Check2(m.backend.LinkSnap(info, deviceCtx, linkCtx, perfTimings))
 
 	// Notify link snap participants about link changes.
 	notifyLinkParticipants(t, snapsup)
@@ -3342,60 +2856,41 @@ func (m *SnapManager) undoUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
-	snapsup, snapst, err := snapSetupAndState(t)
+	snapsup, snapst := mylog.Check3(snapSetupAndState(t))
 	st.Unlock()
-	if err != nil {
-		return err
-	}
 
 	st.Lock()
-	info, err := Info(t.State(), snapsup.InstanceName(), snapsup.Revision())
+	info := mylog.Check2(Info(t.State(), snapsup.InstanceName(), snapsup.Revision()))
 	st.Unlock()
-	if err != nil {
-		return err
-	}
 
 	st.Lock()
-	opts, err := getDirMigrationOpts(st, snapst, snapsup)
+	opts := mylog.Check2(getDirMigrationOpts(st, snapst, snapsup))
 	st.Unlock()
-	if err != nil {
-		return err
-	}
 
 	dirOpts := opts.getSnapDirOpts()
-	if err = m.backend.RemoveSnapData(info, dirOpts); err != nil {
-		return err
-	}
+	mylog.Check(m.backend.RemoveSnapData(info, dirOpts))
 
 	if len(snapst.Sequence.Revisions) == 1 {
-		// Only remove data common between versions if this is the last version
-		if err = m.backend.RemoveSnapCommonData(info, dirOpts); err != nil {
-			return err
-		}
+		mylog.Check(
+			// Only remove data common between versions if this is the last version
+			m.backend.RemoveSnapCommonData(info, dirOpts))
 
 		// Same for the common snap save data directory, we only remove it if this
 		// is the last version.
 		st.Lock()
-		deviceCtx, err := DeviceCtx(t.State(), t, nil)
+		deviceCtx := mylog.Check2(DeviceCtx(t.State(), t, nil))
 		st.Unlock()
-		if err != nil {
-			return err
-		}
-		if err = m.backend.RemoveSnapSaveData(info, deviceCtx); err != nil {
-			return err
-		}
+		mylog.Check(m.backend.RemoveSnapSaveData(info, deviceCtx))
 
 		st.Lock()
 		defer st.Unlock()
 
-		otherInstances, err := hasOtherInstances(st, snapsup.InstanceName())
-		if err != nil {
-			return err
-		}
-		// Snap data directory can be removed now too
-		if err := m.backend.RemoveSnapDataDir(info, otherInstances, dirOpts); err != nil {
-			return err
-		}
+		otherInstances := mylog.Check2(hasOtherInstances(st, snapsup.InstanceName()))
+		mylog.Check(
+
+			// Snap data directory can be removed now too
+			m.backend.RemoveSnapDataDir(info, otherInstances, dirOpts))
+
 	}
 
 	return nil
@@ -3406,15 +2901,9 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	snapsup, snapst, err := snapSetupAndState(t)
-	if err != nil {
-		return err
-	}
+	snapsup, snapst := mylog.Check3(snapSetupAndState(t))
 
-	deviceCtx, err := DeviceCtx(st, t, nil)
-	if err != nil {
-		return err
-	}
+	deviceCtx := mylog.Check2(DeviceCtx(st, t, nil))
 
 	if snapst.Current == snapsup.Revision() && snapst.Active {
 		return fmt.Errorf("internal error: cannot discard snap %q: still active", snapsup.InstanceName())
@@ -3442,73 +2931,39 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	pb := NewTaskProgressAdapterLocked(t)
-	typ, err := snapst.Type()
-	if err != nil {
-		return err
-	}
-	err = m.backend.RemoveSnapFiles(snapsup.placeInfo(), typ, nil, deviceCtx, pb)
-	if err != nil {
-		t.Errorf("cannot remove snap file %q, will retry in 3 mins: %s", snapsup.InstanceName(), err)
-		return &state.Retry{After: 3 * time.Minute}
-	}
+	typ := mylog.Check2(snapst.Type())
+	mylog.Check(m.backend.RemoveSnapFiles(snapsup.placeInfo(), typ, nil, deviceCtx, pb))
+
 	if len(snapst.Sequence.Revisions) == 0 {
-		if err = m.backend.RemoveContainerMountUnits(snapsup.containerInfo(), nil); err != nil {
-			return err
-		}
+		mylog.Check(m.backend.RemoveContainerMountUnits(snapsup.containerInfo(), nil))
+		mylog.Check(pruneRefreshCandidates(st, snapsup.InstanceName()))
+		mylog.Check(pruneSnapsHold(st, snapsup.InstanceName()))
+		mylog.Check(
 
-		if err := pruneRefreshCandidates(st, snapsup.InstanceName()); err != nil {
-			return err
-		}
-		if err := pruneSnapsHold(st, snapsup.InstanceName()); err != nil {
-			return err
-		}
+			// Remove configuration associated with this snap.
+			config.DeleteSnapConfig(st, snapsup.InstanceName()))
+		mylog.Check(m.backend.DiscardSnapNamespace(snapsup.InstanceName()))
+		mylog.Check(m.backend.RemoveSnapInhibitLock(snapsup.InstanceName()))
+		mylog.Check(m.removeSnapCookie(st, snapsup.InstanceName()))
 
-		// Remove configuration associated with this snap.
-		err = config.DeleteSnapConfig(st, snapsup.InstanceName())
-		if err != nil {
-			return err
-		}
-		err = m.backend.DiscardSnapNamespace(snapsup.InstanceName())
-		if err != nil {
-			t.Errorf("cannot discard snap namespace %q, will retry in 3 mins: %s", snapsup.InstanceName(), err)
-			return &state.Retry{After: 3 * time.Minute}
-		}
-		err = m.backend.RemoveSnapInhibitLock(snapsup.InstanceName())
-		if err != nil {
-			return err
-		}
-		if err := m.removeSnapCookie(st, snapsup.InstanceName()); err != nil {
-			return fmt.Errorf("cannot remove snap cookie: %v", err)
-		}
+		otherInstances := mylog.Check2(hasOtherInstances(st, snapsup.InstanceName()))
+		mylog.Check(m.backend.RemoveSnapDir(snapsup.placeInfo(), otherInstances))
+		mylog.Check(
 
-		otherInstances, err := hasOtherInstances(st, snapsup.InstanceName())
-		if err != nil {
-			return err
-		}
+			// try to remove the auxiliary store info
+			discardAuxStoreInfo(snapsup.SideInfo.SnapID))
+		mylog.Check(
 
-		if err := m.backend.RemoveSnapDir(snapsup.placeInfo(), otherInstances); err != nil {
-			return fmt.Errorf("cannot remove snap directory: %v", err)
-		}
+			// XXX: also remove sequence files?
 
-		// try to remove the auxiliary store info
-		if err := discardAuxStoreInfo(snapsup.SideInfo.SnapID); err != nil {
-			logger.Noticef("Cannot remove auxiliary store info for %q: %v", snapsup.InstanceName(), err)
-		}
+			// remove the snap from any quota groups it may have been in, otherwise
+			// that quota group may get into an inconsistent state
+			EnsureSnapAbsentFromQuotaGroup(st, snapsup.InstanceName()))
 
-		// XXX: also remove sequence files?
-
-		// remove the snap from any quota groups it may have been in, otherwise
-		// that quota group may get into an inconsistent state
-		if err := EnsureSnapAbsentFromQuotaGroup(st, snapsup.InstanceName()); err != nil {
-			return err
-		}
 	}
-	if err = config.DiscardRevisionConfig(st, snapsup.InstanceName(), snapsup.Revision()); err != nil {
-		return err
-	}
-	if err = SecurityProfilesRemoveLate(snapsup.InstanceName(), snapsup.Revision(), snapsup.Type); err != nil {
-		return err
-	}
+	mylog.Check(config.DiscardRevisionConfig(st, snapsup.InstanceName(), snapsup.Revision()))
+	mylog.Check(SecurityProfilesRemoveLate(snapsup.InstanceName(), snapsup.Revision(), snapsup.Type))
+
 	Set(st, snapsup.InstanceName(), snapst)
 	return nil
 }
@@ -3555,15 +3010,10 @@ func (m *SnapManager) doSetAutoAliases(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
-	snapsup, snapst, err := snapSetupAndState(t)
-	if err != nil {
-		return err
-	}
+	snapsup, snapst := mylog.Check3(snapSetupAndState(t))
+
 	snapName := snapsup.InstanceName()
-	curInfo, err := snapst.CurrentInfo()
-	if err != nil {
-		return err
-	}
+	curInfo := mylog.Check2(snapst.CurrentInfo())
 
 	// --unaliased/--prefer
 	// auto aliased is disabled for --prefer to avoid conflicting with
@@ -3574,14 +3024,9 @@ func (m *SnapManager) doSetAutoAliases(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	curAliases := snapst.Aliases
-	newAliases, err := refreshAliases(st, curInfo, curAliases)
-	if err != nil {
-		return err
-	}
-	_, err = checkAliasesConflicts(st, snapName, snapst.AutoAliasesDisabled, newAliases, nil)
-	if err != nil {
-		return err
-	}
+	newAliases := mylog.Check2(refreshAliases(st, curInfo, curAliases))
+
+	_ = mylog.Check2(checkAliasesConflicts(st, snapName, snapst.AutoAliasesDisabled, newAliases, nil))
 
 	if !snapst.AliasesPending {
 		// set-auto-aliases can be invoked in both install and update, and
@@ -3619,11 +3064,11 @@ const (
 // during a refresh.
 func shouldSkipRemoveAliases(st *state.State, removeReason removeAliasesReason, snapType snap.Type) (skip bool, err error) {
 	tr := config.NewTransaction(st)
-	experimentalRefreshAppAwareness, err := features.Flag(tr, features.RefreshAppAwareness)
+	experimentalRefreshAppAwareness := mylog.Check2(features.Flag(tr, features.RefreshAppAwareness))
 	if err != nil && !config.IsNoOption(err) {
 		return false, err
 	}
-	experimentalRefreshAppAwarenessUX, err := features.Flag(tr, features.RefreshAppAwarenessUX)
+	experimentalRefreshAppAwarenessUX := mylog.Check2(features.Flag(tr, features.RefreshAppAwarenessUX))
 	if err != nil && !config.IsNoOption(err) {
 		return false, err
 	}
@@ -3648,30 +3093,22 @@ func (m *SnapManager) doRemoveAliases(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
-	snapsup, snapst, err := snapSetupAndState(t)
-	if err != nil {
-		return err
-	}
+	snapsup, snapst := mylog.Check3(snapSetupAndState(t))
+
 	snapName := snapsup.InstanceName()
 
 	var removeReason removeAliasesReason
-	if err := t.Get("remove-reason", &removeReason); err != nil && !errors.Is(err, state.ErrNoState) {
+	if mylog.Check(t.Get("remove-reason", &removeReason)); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 
-	skip, err := shouldSkipRemoveAliases(st, removeReason, snapsup.Type)
-	if err != nil {
-		return err
-	}
+	skip := mylog.Check2(shouldSkipRemoveAliases(st, removeReason, snapsup.Type))
+
 	if skip {
 		// skip removing aliases, setup-aliases will prune old aliases later.
 		return nil
 	}
-
-	err = m.backend.RemoveSnapAliases(snapName)
-	if err != nil {
-		return err
-	}
+	mylog.Check(m.backend.RemoveSnapAliases(snapName))
 
 	snapst.AliasesPending = true
 	Set(st, snapName, snapst)
@@ -3682,10 +3119,7 @@ func (m *SnapManager) undoRemoveAliases(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
-	snapsup, snapst, err := snapSetupAndState(t)
-	if err != nil {
-		return err
-	}
+	snapsup, snapst := mylog.Check3(snapSetupAndState(t))
 
 	if !snapst.AliasesPending {
 		// do nothing
@@ -3694,10 +3128,7 @@ func (m *SnapManager) undoRemoveAliases(t *state.Task, _ *tomb.Tomb) error {
 
 	snapName := snapsup.InstanceName()
 	curAliases := snapst.Aliases
-	_, _, err = applyAliasesChange(snapName, autoDis, nil, snapst.AutoAliasesDisabled, curAliases, m.backend, doApply)
-	if err != nil {
-		return err
-	}
+	_, _ = mylog.Check3(applyAliasesChange(snapName, autoDis, nil, snapst.AutoAliasesDisabled, curAliases, m.backend, doApply))
 
 	snapst.AliasesPending = false
 	Set(st, snapName, snapst)
@@ -3710,17 +3141,14 @@ func shouldPruneOldAliases(t *state.Task, snapst *SnapState) (prune bool, oldAli
 			continue
 		}
 
-		taskSetup, err := TaskSnapSetup(t)
-		if err != nil {
-			return false, nil, false, err
-		}
+		taskSetup := mylog.Check2(TaskSnapSetup(t))
 
 		if taskSetup.InstanceName() != snapst.InstanceName() {
 			continue
 		}
 
 		var pruneOldAliases bool
-		if err := t.Get("prune-old-aliases", &pruneOldAliases); err != nil && !errors.Is(err, state.ErrNoState) {
+		if mylog.Check(t.Get("prune-old-aliases", &pruneOldAliases)); err != nil && !errors.Is(err, state.ErrNoState) {
 			return false, nil, false, err
 		}
 
@@ -3730,12 +3158,12 @@ func shouldPruneOldAliases(t *state.Task, snapst *SnapState) (prune bool, oldAli
 		}
 
 		var oldAliases map[string]*AliasTarget
-		if err := t.Get("old-aliases-v2", &oldAliases); err != nil && !errors.Is(err, state.ErrNoState) {
+		if mylog.Check(t.Get("old-aliases-v2", &oldAliases)); err != nil && !errors.Is(err, state.ErrNoState) {
 			return false, nil, false, err
 		}
 
 		oldAutoDisabled := snapst.AutoAliasesDisabled
-		if err := t.Get("old-auto-aliases-disabled", &oldAutoDisabled); err != nil && !errors.Is(err, state.ErrNoState) {
+		if mylog.Check(t.Get("old-auto-aliases-disabled", &oldAutoDisabled)); err != nil && !errors.Is(err, state.ErrNoState) {
 			return false, nil, false, err
 		}
 
@@ -3749,27 +3177,20 @@ func (m *SnapManager) doSetupAliases(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
-	snapsup, snapst, err := snapSetupAndState(t)
-	if err != nil {
-		return err
-	}
+	snapsup, snapst := mylog.Check3(snapSetupAndState(t))
+
 	snapName := snapsup.InstanceName()
 	curAliases := snapst.Aliases
 	autoDisabled := snapst.AutoAliasesDisabled
 
-	prune, oldAliases, oldAutoDisabled, err := shouldPruneOldAliases(t, snapst)
-	if err != nil {
-		return err
-	}
+	prune, oldAliases, oldAutoDisabled := mylog.Check4(shouldPruneOldAliases(t, snapst))
 
 	// no need to check for conflicts as it was already checked in `set-auto-aliases`
-	_, _, err = applyAliasesChange(snapName, oldAutoDisabled, oldAliases, autoDisabled, curAliases, m.backend, doApply)
-	if err != nil {
-		// the undo for set-auto-aliases must revert aliases on disk since
-		// applyAliasesChange could have failed mid-way leaving disk in an
-		// inconsistent state.
-		return err
-	}
+	_, _ = mylog.Check3(applyAliasesChange(snapName, oldAutoDisabled, oldAliases, autoDisabled, curAliases, m.backend, doApply))
+
+	// the undo for set-auto-aliases must revert aliases on disk since
+	// applyAliasesChange could have failed mid-way leaving disk in an
+	// inconsistent state.
 
 	t.Set("old-aliases-pruned", prune)
 
@@ -3782,14 +3203,12 @@ func (m *SnapManager) undoSetupAliases(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
-	snapsup, snapst, err := snapSetupAndState(t)
-	if err != nil {
-		return err
-	}
+	snapsup, snapst := mylog.Check3(snapSetupAndState(t))
+
 	snapName := snapsup.InstanceName()
 
 	var oldAliasesPruned bool
-	if err := t.Get("old-aliases-pruned", &oldAliasesPruned); err != nil && !errors.Is(err, state.ErrNoState) {
+	if mylog.Check(t.Get("old-aliases-pruned", &oldAliasesPruned)); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if oldAliasesPruned {
@@ -3797,12 +3216,11 @@ func (m *SnapManager) undoSetupAliases(t *state.Task, _ *tomb.Tomb) error {
 		// can revert aliases on disk.
 		return nil
 	}
+	mylog.
 
-	// remove added aliases
-	err = m.backend.RemoveSnapAliases(snapName)
-	if err != nil {
-		return err
-	}
+		// remove added aliases
+		Check(m.backend.RemoveSnapAliases(snapName))
+
 	snapst.AliasesPending = true
 	Set(st, snapName, snapst)
 	return nil
@@ -3812,31 +3230,19 @@ func (m *SnapManager) doRefreshAliases(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
-	snapsup, snapst, err := snapSetupAndState(t)
-	if err != nil {
-		return err
-	}
+	snapsup, snapst := mylog.Check3(snapSetupAndState(t))
+
 	snapName := snapsup.InstanceName()
-	curInfo, err := snapst.CurrentInfo()
-	if err != nil {
-		return err
-	}
+	curInfo := mylog.Check2(snapst.CurrentInfo())
 
 	autoDisabled := snapst.AutoAliasesDisabled
 	curAliases := snapst.Aliases
-	newAliases, err := refreshAliases(st, curInfo, curAliases)
-	if err != nil {
-		return err
-	}
-	_, err = checkAliasesConflicts(st, snapName, autoDisabled, newAliases, nil)
-	if err != nil {
-		return err
-	}
+	newAliases := mylog.Check2(refreshAliases(st, curInfo, curAliases))
+
+	_ = mylog.Check2(checkAliasesConflicts(st, snapName, autoDisabled, newAliases, nil))
 
 	if !snapst.AliasesPending {
-		if _, _, err := applyAliasesChange(snapName, autoDisabled, curAliases, autoDisabled, newAliases, m.backend, doApply); err != nil {
-			return err
-		}
+		_, _ := mylog.Check3(applyAliasesChange(snapName, autoDisabled, curAliases, autoDisabled, newAliases, m.backend, doApply))
 	}
 
 	t.Set("old-aliases-v2", curAliases)
@@ -3850,44 +3256,38 @@ func (m *SnapManager) undoRefreshAliases(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 	var oldAliases map[string]*AliasTarget
-	err := t.Get("old-aliases-v2", &oldAliases)
+	mylog.Check(t.Get("old-aliases-v2", &oldAliases))
 	if errors.Is(err, state.ErrNoState) {
 		// nothing to do
 		return nil
 	}
-	if err != nil {
-		return err
-	}
-	snapsup, snapst, err := snapSetupAndState(t)
-	if err != nil {
-		return err
-	}
+
+	snapsup, snapst := mylog.Check3(snapSetupAndState(t))
+
 	snapName := snapsup.InstanceName()
 	curAutoDisabled := snapst.AutoAliasesDisabled
 	autoDisabled := curAutoDisabled
-	if err = t.Get("old-auto-aliases-disabled", &autoDisabled); err != nil && !errors.Is(err, state.ErrNoState) {
+	if mylog.Check(t.Get("old-auto-aliases-disabled", &autoDisabled)); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 
 	var otherSnapDisabled map[string]*otherDisabledAliases
-	if err = t.Get("other-disabled-aliases", &otherSnapDisabled); err != nil && !errors.Is(err, state.ErrNoState) {
+	if mylog.Check(t.Get("other-disabled-aliases", &otherSnapDisabled)); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 
 	// check if the old states creates conflicts now
-	_, err = checkAliasesConflicts(st, snapName, autoDisabled, oldAliases, nil)
+	_ = mylog.Check2(checkAliasesConflicts(st, snapName, autoDisabled, oldAliases, nil))
 	if _, ok := err.(*AliasConflictError); ok {
 		// best we can do is reinstate with all aliases disabled
 		t.Errorf("cannot reinstate alias state because of conflicts, disabling: %v", err)
 		oldAliases, _ = disableAliases(oldAliases)
 		autoDisabled = true
-	} else if err != nil {
-		return err
 	}
 
 	var setAutoAliasesInPruneMode bool
 	if t.Kind() == "set-auto-aliases" {
-		if err := t.Get("prune-old-aliases", &setAutoAliasesInPruneMode); err != nil && !errors.Is(err, state.ErrNoState) {
+		if mylog.Check(t.Get("prune-old-aliases", &setAutoAliasesInPruneMode)); err != nil && !errors.Is(err, state.ErrNoState) {
 			return err
 		}
 	}
@@ -3906,9 +3306,8 @@ func (m *SnapManager) undoRefreshAliases(t *state.Task, _ *tomb.Tomb) error {
 
 	if !snapst.AliasesPending {
 		curAliases := snapst.Aliases
-		if _, _, err := applyAliasesChange(snapName, curAutoDisabled, curAliases, autoDisabled, oldAliases, m.backend, doApply); err != nil {
-			return err
-		}
+		_, _ := mylog.Check3(applyAliasesChange(snapName, curAutoDisabled, curAliases, autoDisabled, oldAliases, m.backend, doApply))
+
 	}
 
 	snapst.AutoAliasesDisabled = autoDisabled
@@ -3921,14 +3320,9 @@ func (m *SnapManager) undoRefreshAliases(t *state.Task, _ *tomb.Tomb) error {
 	otherCurSnapStates := make(map[string]*SnapState, len(otherSnapDisabled))
 	for otherSnap, otherDisabled := range otherSnapDisabled {
 		var otherSnapState SnapState
-		err := Get(st, otherSnap, &otherSnapState)
-		if err != nil {
-			return err
-		}
-		otherCurInfo, err := otherSnapState.CurrentInfo()
-		if err != nil {
-			return err
-		}
+		mylog.Check(Get(st, otherSnap, &otherSnapState))
+
+		otherCurInfo := mylog.Check2(otherSnapState.CurrentInfo())
 
 		otherCurSnapStates[otherSnap] = &otherSnapState
 
@@ -3940,14 +3334,12 @@ func (m *SnapManager) undoRefreshAliases(t *state.Task, _ *tomb.Tomb) error {
 		otherAliases := reenableAliases(otherCurInfo, otherSnapState.Aliases, otherDisabled.Manual)
 		// check for conflicts taking into account
 		// re-enabled aliases
-		conflicts, err := checkAliasesConflicts(st, otherSnap, autoDisabled, otherAliases, newSnapStates)
+		conflicts := mylog.Check2(checkAliasesConflicts(st, otherSnap, autoDisabled, otherAliases, newSnapStates))
 		if _, ok := err.(*AliasConflictError); ok {
 			conflicting[otherSnap] = true
 			for conflictSnap := range conflicts {
 				conflicting[conflictSnap] = true
 			}
-		} else if err != nil {
-			return err
 		}
 
 		newSnapState := otherSnapState
@@ -3964,9 +3356,7 @@ func (m *SnapManager) undoRefreshAliases(t *state.Task, _ *tomb.Tomb) error {
 		}
 		newSnapSt := newSnapStates[otherSnap]
 		if !otherSnapState.AliasesPending {
-			if _, _, err := applyAliasesChange(otherSnap, otherSnapState.AutoAliasesDisabled, otherSnapState.Aliases, newSnapSt.AutoAliasesDisabled, newSnapSt.Aliases, m.backend, doApply); err != nil {
-				return err
-			}
+			_, _ := mylog.Check3(applyAliasesChange(otherSnap, otherSnapState.AutoAliasesDisabled, otherSnapState.Aliases, newSnapSt.AutoAliasesDisabled, newSnapSt.Aliases, m.backend, doApply))
 		}
 	}
 
@@ -3984,15 +3374,11 @@ func (m *SnapManager) doPruneAutoAliases(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
-	snapsup, snapst, err := snapSetupAndState(t)
-	if err != nil {
-		return err
-	}
+	snapsup, snapst := mylog.Check3(snapSetupAndState(t))
+
 	var which []string
-	err = t.Get("aliases", &which)
-	if err != nil {
-		return err
-	}
+	mylog.Check(t.Get("aliases", &which))
+
 	snapName := snapsup.InstanceName()
 	autoDisabled := snapst.AutoAliasesDisabled
 	curAliases := snapst.Aliases
@@ -4000,9 +3386,7 @@ func (m *SnapManager) doPruneAutoAliases(t *state.Task, _ *tomb.Tomb) error {
 	newAliases := pruneAutoAliases(curAliases, which)
 
 	if !snapst.AliasesPending {
-		if _, _, err := applyAliasesChange(snapName, autoDisabled, curAliases, autoDisabled, newAliases, m.backend, doApply); err != nil {
-			return err
-		}
+		_, _ := mylog.Check3(applyAliasesChange(snapName, autoDisabled, curAliases, autoDisabled, newAliases, m.backend, doApply))
 	}
 
 	t.Set("old-aliases-v2", curAliases)
@@ -4020,7 +3404,7 @@ type changedAlias struct {
 func aliasesTrace(t *state.Task, added, removed []*backend.Alias) error {
 	chg := t.Change()
 	var data map[string]interface{}
-	err := chg.Get("api-data", &data)
+	mylog.Check(chg.Get("api-data", &data))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
@@ -4058,44 +3442,23 @@ func (m *SnapManager) doAlias(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
-	snapsup, snapst, err := snapSetupAndState(t)
-	if err != nil {
-		return err
-	}
+	snapsup, snapst := mylog.Check3(snapSetupAndState(t))
+
 	var target, alias string
-	err = t.Get("target", &target)
-	if err != nil {
-		return err
-	}
-	err = t.Get("alias", &alias)
-	if err != nil {
-		return err
-	}
+	mylog.Check(t.Get("target", &target))
+	mylog.Check(t.Get("alias", &alias))
 
 	snapName := snapsup.InstanceName()
-	curInfo, err := snapst.CurrentInfo()
-	if err != nil {
-		return err
-	}
+	curInfo := mylog.Check2(snapst.CurrentInfo())
 
 	autoDisabled := snapst.AutoAliasesDisabled
 	curAliases := snapst.Aliases
-	newAliases, err := manualAlias(curInfo, curAliases, target, alias)
-	if err != nil {
-		return err
-	}
-	_, err = checkAliasesConflicts(st, snapName, autoDisabled, newAliases, nil)
-	if err != nil {
-		return err
-	}
+	newAliases := mylog.Check2(manualAlias(curInfo, curAliases, target, alias))
 
-	added, removed, err := applyAliasesChange(snapName, autoDisabled, curAliases, autoDisabled, newAliases, m.backend, snapst.AliasesPending)
-	if err != nil {
-		return err
-	}
-	if err := aliasesTrace(t, added, removed); err != nil {
-		return err
-	}
+	_ = mylog.Check2(checkAliasesConflicts(st, snapName, autoDisabled, newAliases, nil))
+
+	added, removed := mylog.Check3(applyAliasesChange(snapName, autoDisabled, curAliases, autoDisabled, newAliases, m.backend, snapst.AliasesPending))
+	mylog.Check(aliasesTrace(t, added, removed))
 
 	t.Set("old-aliases-v2", curAliases)
 	snapst.Aliases = newAliases
@@ -4107,23 +3470,16 @@ func (m *SnapManager) doDisableAliases(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
-	snapsup, snapst, err := snapSetupAndState(t)
-	if err != nil {
-		return err
-	}
+	snapsup, snapst := mylog.Check3(snapSetupAndState(t))
+
 	snapName := snapsup.InstanceName()
 
 	oldAutoDisabled := snapst.AutoAliasesDisabled
 	oldAliases := snapst.Aliases
 	newAliases, _ := disableAliases(oldAliases)
 
-	added, removed, err := applyAliasesChange(snapName, oldAutoDisabled, oldAliases, autoDis, newAliases, m.backend, snapst.AliasesPending)
-	if err != nil {
-		return err
-	}
-	if err := aliasesTrace(t, added, removed); err != nil {
-		return err
-	}
+	added, removed := mylog.Check3(applyAliasesChange(snapName, oldAutoDisabled, oldAliases, autoDis, newAliases, m.backend, snapst.AliasesPending))
+	mylog.Check(aliasesTrace(t, added, removed))
 
 	t.Set("old-auto-aliases-disabled", oldAutoDisabled)
 	snapst.AutoAliasesDisabled = true
@@ -4137,31 +3493,19 @@ func (m *SnapManager) doUnalias(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
-	snapsup, snapst, err := snapSetupAndState(t)
-	if err != nil {
-		return err
-	}
+	snapsup, snapst := mylog.Check3(snapSetupAndState(t))
+
 	var alias string
-	err = t.Get("alias", &alias)
-	if err != nil {
-		return err
-	}
+	mylog.Check(t.Get("alias", &alias))
+
 	snapName := snapsup.InstanceName()
 
 	autoDisabled := snapst.AutoAliasesDisabled
 	oldAliases := snapst.Aliases
-	newAliases, err := manualUnalias(oldAliases, alias)
-	if err != nil {
-		return err
-	}
+	newAliases := mylog.Check2(manualUnalias(oldAliases, alias))
 
-	added, removed, err := applyAliasesChange(snapName, autoDisabled, oldAliases, autoDisabled, newAliases, m.backend, snapst.AliasesPending)
-	if err != nil {
-		return err
-	}
-	if err := aliasesTrace(t, added, removed); err != nil {
-		return err
-	}
+	added, removed := mylog.Check3(applyAliasesChange(snapName, autoDisabled, oldAliases, autoDisabled, newAliases, m.backend, snapst.AliasesPending))
+	mylog.Check(aliasesTrace(t, added, removed))
 
 	t.Set("old-aliases-v2", oldAliases)
 	snapst.Aliases = newAliases
@@ -4183,10 +3527,8 @@ func (m *SnapManager) doPreferAliases(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
-	snapsup, snapst, err := snapSetupAndState(t)
-	if err != nil {
-		return err
-	}
+	snapsup, snapst := mylog.Check3(snapSetupAndState(t))
+
 	instanceName := snapsup.InstanceName()
 
 	if !snapst.AutoAliasesDisabled {
@@ -4195,7 +3537,7 @@ func (m *SnapManager) doPreferAliases(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	curAliases := snapst.Aliases
-	aliasConflicts, err := checkAliasesConflicts(st, instanceName, autoEn, curAliases, nil)
+	aliasConflicts := mylog.Check2(checkAliasesConflicts(st, instanceName, autoEn, curAliases, nil))
 	conflErr, isConflErr := err.(*AliasConflictError)
 	if err != nil && !isConflErr {
 		return err
@@ -4211,20 +3553,12 @@ func (m *SnapManager) doPreferAliases(t *state.Task, _ *tomb.Tomb) error {
 	otherSnapDisabled := make(map[string]*otherDisabledAliases, len(aliasConflicts))
 	for otherSnap := range aliasConflicts {
 		var otherSnapState SnapState
-		err := Get(st, otherSnap, &otherSnapState)
-		if err != nil {
-			return err
-		}
+		mylog.Check(Get(st, otherSnap, &otherSnapState))
 
 		otherAliases, disabledManual := disableAliases(otherSnapState.Aliases)
 
-		added, removed, err := applyAliasesChange(otherSnap, otherSnapState.AutoAliasesDisabled, otherSnapState.Aliases, autoDis, otherAliases, m.backend, otherSnapState.AliasesPending)
-		if err != nil {
-			return err
-		}
-		if err := aliasesTrace(t, added, removed); err != nil {
-			return err
-		}
+		added, removed := mylog.Check3(applyAliasesChange(otherSnap, otherSnapState.AutoAliasesDisabled, otherSnapState.Aliases, autoDis, otherAliases, m.backend, otherSnapState.AliasesPending))
+		mylog.Check(aliasesTrace(t, added, removed))
 
 		var otherDisabled otherDisabledAliases
 		otherDisabled.Manual = disabledManual
@@ -4239,13 +3573,8 @@ func (m *SnapManager) doPreferAliases(t *state.Task, _ *tomb.Tomb) error {
 		otherSnapStates[otherSnap] = &otherSnapState
 	}
 
-	added, removed, err := applyAliasesChange(instanceName, autoDis, curAliases, autoEn, curAliases, m.backend, snapst.AliasesPending)
-	if err != nil {
-		return err
-	}
-	if err := aliasesTrace(t, added, removed); err != nil {
-		return err
-	}
+	added, removed := mylog.Check3(applyAliasesChange(instanceName, autoDis, curAliases, autoEn, curAliases, m.backend, snapst.AliasesPending))
+	mylog.Check(aliasesTrace(t, added, removed))
 
 	for otherSnap, otherSnapState := range otherSnapStates {
 		Set(st, otherSnap, otherSnapState)
@@ -4321,9 +3650,8 @@ func refreshedSnaps(reTask *state.Task) (snapNames []string, failed bool, err er
 		var snapsup SnapSetup
 		switch task.Kind() {
 		case "download-snap":
-			if err := task.Get("snap-setup", &snapsup); err != nil {
-				return nil, false, fmt.Errorf("internal error: expected SnapSetup for %s: %v", task.Kind(), err)
-			}
+			mylog.Check(task.Get("snap-setup", &snapsup))
+
 		default:
 			continue
 		}
@@ -4363,10 +3691,8 @@ var reRefreshUpdateMany = updateManyFiltered
 // reRefreshFilter is an updateFilter that returns whether the given update
 // needs a re-refresh because of further epoch transitions available.
 func reRefreshFilter(update *snap.Info, snapst *SnapState) bool {
-	cur, err := snapst.CurrentInfo()
-	if err != nil {
-		return false
-	}
+	cur := mylog.Check2(snapst.CurrentInfo())
+
 	return !update.Epoch.Equal(&cur.Epoch)
 }
 
@@ -4393,24 +3719,18 @@ func (m *SnapManager) doCheckReRefresh(t *state.Task, tomb *tomb.Tomb) error {
 		return &state.Retry{After: reRefreshRetryTimeout, Reason: "pending refreshes"}
 	}
 
-	snaps, failed, err := refreshedSnaps(t)
-	if err != nil {
-		return err
-	}
+	snaps, failed := mylog.Check3(refreshedSnaps(t))
+
 	if len(snaps) > 0 {
-		if err := pruneRefreshCandidates(st, snaps...); err != nil {
-			return err
-		}
+		mylog.Check(pruneRefreshCandidates(st, snaps...))
 	}
 
 	chg := t.Change()
 
 	// if any snap failed to refresh, reconsider validation set tracking
 	if failed {
-		tasksets, err := maybeRestoreValidationSetsAndRevertSnaps(st, snaps, chg.ID())
-		if err != nil {
-			return err
-		}
+		tasksets := mylog.Check2(maybeRestoreValidationSetsAndRevertSnaps(st, snaps, chg.ID()))
+
 		if len(tasksets) > 0 {
 			chg := t.Change()
 			for _, taskset := range tasksets {
@@ -4438,20 +3758,13 @@ func (m *SnapManager) doCheckReRefresh(t *state.Task, tomb *tomb.Tomb) error {
 	// refresh succeeded and tracking got updated, then
 	// this creates a new copy of validation-sets tracking data.
 	if AddCurrentTrackingToValidationSetsStack != nil {
-		if err := AddCurrentTrackingToValidationSetsStack(st); err != nil {
-			return err
-		}
+		mylog.Check(AddCurrentTrackingToValidationSetsStack(st))
 	}
 
 	var re reRefreshSetup
-	if err := t.Get("rerefresh-setup", &re); err != nil {
-		return err
-	}
+	mylog.Check(t.Get("rerefresh-setup", &re))
 
-	updated, updateTss, err := reRefreshUpdateMany(tomb.Context(nil), st, snaps, nil, re.UserID, reRefreshFilter, re.Flags, chg.ID())
-	if err != nil {
-		return err
-	}
+	updated, updateTss := mylog.Check3(reRefreshUpdateMany(tomb.Context(nil), st, snaps, nil, re.UserID, reRefreshFilter, re.Flags, chg.ID()))
 
 	var newTasks bool
 	if len(updated) == 0 {
@@ -4465,7 +3778,7 @@ func (m *SnapManager) doCheckReRefresh(t *state.Task, tomb *tomb.Tomb) error {
 		}
 	}
 
-	if created, err := createPreDownloadChange(st, updateTss); err != nil {
+	if created := mylog.Check2(createPreDownloadChange(st, updateTss)); err != nil {
 		return err
 	} else if created {
 		newTasks = true
@@ -4484,24 +3797,15 @@ func (m *SnapManager) doConditionalAutoRefresh(t *state.Task, tomb *tomb.Tomb) e
 	st.Lock()
 	defer st.Unlock()
 
-	snaps, err := snapsToRefresh(t)
-	if err != nil {
-		return err
-	}
+	snaps := mylog.Check2(snapsToRefresh(t))
 
 	if len(snaps) == 0 {
 		logger.Debugf("refresh gating: no snaps to refresh")
 		return nil
 	}
 
-	updateTss, err := autoRefreshPhase2(context.TODO(), st, snaps, nil, t.Change().ID())
-	if err != nil {
-		return err
-	}
-
-	if _, err := createPreDownloadChange(st, updateTss); err != nil {
-		return err
-	}
+	updateTss := mylog.Check2(autoRefreshPhase2(context.TODO(), st, snaps, nil, t.Change().ID()))
+	mylog.Check2(createPreDownloadChange(st, updateTss))
 
 	if updateTss.Refresh != nil {
 		// update the map of refreshed snaps on the task, this affects
@@ -4529,24 +3833,15 @@ func (m *SnapManager) doConditionalAutoRefresh(t *state.Task, tomb *tomb.Tomb) e
 func (m *SnapManager) doMigrateSnapHome(t *state.Task, tomb *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
-	snapsup, snapst, err := snapSetupAndState(t)
+	snapsup, snapst := mylog.Check3(snapSetupAndState(t))
 	st.Unlock()
-	if err != nil {
-		return err
-	}
 
 	st.Lock()
-	opts, err := getDirMigrationOpts(st, snapst, snapsup)
+	opts := mylog.Check2(getDirMigrationOpts(st, snapst, snapsup))
 	st.Unlock()
-	if err != nil {
-		return err
-	}
 
 	dirOpts := opts.getSnapDirOpts()
-	undo, err := m.backend.InitExposedSnapHome(snapsup.InstanceName(), snapsup.Revision(), dirOpts)
-	if err != nil {
-		return err
-	}
+	undo := mylog.Check2(m.backend.InitExposedSnapHome(snapsup.InstanceName(), snapsup.Revision(), dirOpts))
 
 	st.Lock()
 	defer st.Unlock()
@@ -4559,24 +3854,15 @@ func (m *SnapManager) doMigrateSnapHome(t *state.Task, tomb *tomb.Tomb) error {
 func (m *SnapManager) undoMigrateSnapHome(t *state.Task, tomb *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
-	snapsup, snapst, err := snapSetupAndState(t)
+	snapsup, snapst := mylog.Check3(snapSetupAndState(t))
 	st.Unlock()
-	if err != nil {
-		return err
-	}
 
 	var undo backend.UndoInfo
 
 	st.Lock()
-	err = t.Get("undo-exposed-home-init", &undo)
+	mylog.Check(t.Get("undo-exposed-home-init", &undo))
 	st.Unlock()
-	if err != nil {
-		return err
-	}
-
-	if err := m.backend.UndoInitExposedSnapHome(snapsup.InstanceName(), &undo); err != nil {
-		return err
-	}
+	mylog.Check(m.backend.UndoInitExposedSnapHome(snapsup.InstanceName(), &undo))
 
 	snapsup.MigratedToExposedHome = false
 	snapst.MigratedToExposedHome = false
@@ -4588,16 +3874,11 @@ func (m *SnapManager) undoMigrateSnapHome(t *state.Task, tomb *tomb.Tomb) error 
 
 func (m *SnapManager) decodeValidationSets(t *state.Task) (map[string]*asserts.ValidationSet, error) {
 	encodedAsserts := make(map[string][]byte)
-	if err := t.Get("validation-sets", &encodedAsserts); err != nil {
-		return nil, err
-	}
+	mylog.Check(t.Get("validation-sets", &encodedAsserts))
 
 	decodedAsserts := make(map[string]*asserts.ValidationSet, len(encodedAsserts))
 	for vsStr, encAssert := range encodedAsserts {
-		decAssert, err := asserts.Decode(encAssert)
-		if err != nil {
-			return nil, err
-		}
+		decAssert := mylog.Check2(asserts.Decode(encAssert))
 
 		vsAssert, ok := decAssert.(*asserts.ValidationSet)
 		if !ok {
@@ -4614,14 +3895,9 @@ func (m *SnapManager) doEnforceValidationSets(t *state.Task, _ *tomb.Tomb) error
 	defer st.Unlock()
 
 	pinnedSeqs := make(map[string]int)
-	if err := t.Get("pinned-sequence-numbers", &pinnedSeqs); err != nil {
-		return err
-	}
+	mylog.Check(t.Get("pinned-sequence-numbers", &pinnedSeqs))
 
-	snaps, ignoreValidation, err := InstalledSnaps(st)
-	if err != nil {
-		return err
-	}
+	snaps, ignoreValidation := mylog.Check3(InstalledSnaps(st))
 
 	// 'validation-set-keys' determines which enforcement function to invoke. If provided
 	// then we should call EnforceLocalValidationSets, which does not
@@ -4630,7 +3906,7 @@ func (m *SnapManager) doEnforceValidationSets(t *state.Task, _ *tomb.Tomb) error
 	// store for any additional assertions.
 	var local bool
 	vsKeys := make(map[string][]string)
-	if err := t.Get("validation-set-keys", &vsKeys); err != nil && !errors.Is(err, &state.NoStateError{}) {
+	if mylog.Check(t.Get("validation-set-keys", &vsKeys)); err != nil && !errors.Is(err, &state.NoStateError{}) {
 		// we accept NoStateError, it simply means we use the normal version, however then
 		// 'userID' and 'validation-sets' must be present
 		return err
@@ -4640,23 +3916,14 @@ func (m *SnapManager) doEnforceValidationSets(t *state.Task, _ *tomb.Tomb) error
 	}
 
 	if local {
-		if err := EnforceLocalValidationSets(st, vsKeys, pinnedSeqs, snaps, ignoreValidation); err != nil {
-			return fmt.Errorf("cannot enforce validation sets: %v", err)
-		}
+		mylog.Check(EnforceLocalValidationSets(st, vsKeys, pinnedSeqs, snaps, ignoreValidation))
 	} else {
 		var userID int
-		if err := t.Get("userID", &userID); err != nil {
-			return err
-		}
+		mylog.Check(t.Get("userID", &userID))
 
-		decodedAsserts, err := m.decodeValidationSets(t)
-		if err != nil {
-			return err
-		}
+		decodedAsserts := mylog.Check2(m.decodeValidationSets(t))
+		mylog.Check(EnforceValidationSets(st, decodedAsserts, pinnedSeqs, snaps, ignoreValidation, userID))
 
-		if err := EnforceValidationSets(st, decodedAsserts, pinnedSeqs, snaps, ignoreValidation, userID); err != nil {
-			return fmt.Errorf("cannot enforce validation sets: %v", err)
-		}
 	}
 	return nil
 }
@@ -4667,31 +3934,24 @@ func (m *SnapManager) doEnforceValidationSets(t *state.Task, _ *tomb.Tomb) error
 // of the refreshed snaps to their previous revisions to satisfy the restored
 // validation sets tracking.
 var maybeRestoreValidationSetsAndRevertSnaps = func(st *state.State, refreshedSnaps []string, fromChange string) ([]*state.TaskSet, error) {
-	enforcedSets, err := EnforcedValidationSets(st)
-	if err != nil {
-		return nil, err
-	}
+	enforcedSets := mylog.Check2(EnforcedValidationSets(st))
 
 	if enforcedSets == nil {
 		// no enforced validation sets, nothing to do
 		return nil, nil
 	}
 
-	installedSnaps, ignoreValidation, err := InstalledSnaps(st)
-	if err != nil {
-		return nil, fmt.Errorf("internal error: cannot get installed snaps: %v", err)
-	}
+	installedSnaps, ignoreValidation := mylog.Check3(InstalledSnaps(st))
 
-	if err := enforcedSets.CheckInstalledSnaps(installedSnaps, ignoreValidation); err == nil {
+	if mylog.Check(enforcedSets.CheckInstalledSnaps(installedSnaps, ignoreValidation)); err == nil {
 		// validation sets are still correct, nothing to do
 		logger.Debugf("validation sets are still correct after partial refresh")
 		return nil, nil
 	}
+	mylog.Check(
 
-	// restore previous validation sets tracking state
-	if err := RestoreValidationSetsTracking(st); err != nil {
-		return nil, fmt.Errorf("cannot restore validation sets: %v", err)
-	}
+		// restore previous validation sets tracking state
+		RestoreValidationSetsTracking(st))
 
 	// no snaps were refreshed, after restoring validation sets tracking
 	// there is nothing else to do
@@ -4701,19 +3961,17 @@ var maybeRestoreValidationSetsAndRevertSnaps = func(st *state.State, refreshedSn
 	}
 
 	// we need to fetch enforced sets again because of RestoreValidationSetsTracking.
-	enforcedSets, err = EnforcedValidationSets(st)
-	if err != nil {
-		return nil, err
-	}
+	enforcedSets = mylog.Check2(EnforcedValidationSets(st))
 
 	if enforcedSets == nil {
 		return nil, fmt.Errorf("internal error: no enforced validation sets after restoring from the stack")
 	}
+	mylog.
 
-	// check installed snaps again against restored validation-sets.
-	// this may fail which is fine, but it tells us which snaps are
-	// at invalid revisions and need reverting.
-	err = enforcedSets.CheckInstalledSnaps(installedSnaps, ignoreValidation)
+		// check installed snaps again against restored validation-sets.
+		// this may fail which is fine, but it tells us which snaps are
+		// at invalid revisions and need reverting.
+		Check(enforcedSets.CheckInstalledSnaps(installedSnaps, ignoreValidation))
 	if err == nil {
 		// all fine after restoring validation sets: this can happen if previous
 		// validation sets only required a snap (regardless of its revision), then
@@ -4749,10 +4007,8 @@ var maybeRestoreValidationSetsAndRevertSnaps = func(st *state.State, refreshedSn
 		if verr.WrongRevisionSnaps[snapName] != nil {
 			// XXX: should we be extra paranoid and use RevertToRevision with
 			// the specific revision from verr.WrongRevisionSnaps?
-			ts, err := Revert(st, snapName, Flags{RevertStatus: NotBlocked}, fromChange)
-			if err != nil {
-				return nil, fmt.Errorf("cannot revert snap %q: %v", snapName, err)
-			}
+			ts := mylog.Check2(Revert(st, snapName, Flags{RevertStatus: NotBlocked}, fromChange))
+
 			tss = append(tss, ts)
 			delete(verr.WrongRevisionSnaps, snapName)
 		}
@@ -4820,14 +4076,11 @@ func (o *dirMigrationOptions) getSnapDirOpts() *dirs.SnapDirOptions {
 // GetSnapDirOpts returns the options required to get the correct snap dir.
 var GetSnapDirOpts = func(st *state.State, name string) (*dirs.SnapDirOptions, error) {
 	var snapst SnapState
-	if err := Get(st, name, &snapst); err != nil && !errors.Is(err, state.ErrNoState) {
+	if mylog.Check(Get(st, name, &snapst)); err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 
-	hiddenOpts, err := getDirMigrationOpts(st, &snapst, nil)
-	if err != nil {
-		return nil, err
-	}
+	hiddenOpts := mylog.Check2(getDirMigrationOpts(st, &snapst, nil))
 
 	return hiddenOpts.getSnapDirOpts(), nil
 }
@@ -4837,10 +4090,7 @@ var GetSnapDirOpts = func(st *state.State, name string) (*dirs.SnapDirOptions, e
 // the SnapState. The state must be locked by the caller.
 var getDirMigrationOpts = func(st *state.State, snapst *SnapState, snapsup *SnapSetup) (*dirMigrationOptions, error) {
 	tr := config.NewTransaction(st)
-	hiddenDir, err := features.Flag(tr, features.HiddenSnapDataHomeDir)
-	if err != nil {
-		return nil, fmt.Errorf("cannot read feature flag %q: %w", features.HiddenSnapDataHomeDir, err)
-	}
+	hiddenDir := mylog.Check2(features.Flag(tr, features.HiddenSnapDataHomeDir))
 
 	opts := &dirMigrationOptions{UseHidden: hiddenDir}
 
@@ -4886,31 +4136,23 @@ func (m *SnapManager) doSetupKernelSnap(t *state.Task, _ *tomb.Tomb) error {
 	defer st.Unlock()
 
 	perfTimings := state.TimingsForTask(t)
-	snapsup, snapSt, err := snapSetupAndState(t)
-	if err != nil {
-		return err
-	}
+	snapsup, snapSt := mylog.Check3(snapSetupAndState(t))
 
 	st.Unlock()
 	pm := NewTaskProgressAdapterUnlocked(t)
 	timings.Run(perfTimings, "prepare-kernel-snap",
 		fmt.Sprintf("preparing kernel snap %q", snapsup.InstanceName()),
 		func(timings.Measurer) {
-			err = m.backend.SetupKernelSnap(
-				snapsup.InstanceName(), snapsup.Revision(), pm)
+			mylog.Check(m.backend.SetupKernelSnap(
+				snapsup.InstanceName(), snapsup.Revision(), pm))
 		})
 	st.Lock()
-	if err != nil {
-		return err
-	}
 
 	perfTimings.Save(st)
 
 	// Needed so the old drivers tree can be removed later
-	setupTask, err := snapSetupTask(t)
-	if err != nil {
-		return err
-	}
+	setupTask := mylog.Check2(snapSetupTask(t))
+
 	setupTask.Set("previous-kernel-rev", snapSt.Current)
 
 	// Make sure we won't be rerun
@@ -4925,23 +4167,17 @@ func (m *SnapManager) undoSetupKernelSnap(t *state.Task, _ *tomb.Tomb) error {
 	defer st.Unlock()
 
 	perfTimings := state.TimingsForTask(t)
-	snapsup, _, err := snapSetupAndState(t)
-	if err != nil {
-		return err
-	}
+	snapsup, _ := mylog.Check3(snapSetupAndState(t))
 
 	st.Unlock()
 	pm := NewTaskProgressAdapterUnlocked(t)
 	timings.Run(perfTimings, "remove-kernel-snap-setup",
 		fmt.Sprintf("remove kernel snap setup %q", snapsup.InstanceName()),
 		func(timings.Measurer) {
-			err = m.backend.RemoveKernelSnapSetup(
-				snapsup.InstanceName(), snapsup.Revision(), pm)
+			mylog.Check(m.backend.RemoveKernelSnapSetup(
+				snapsup.InstanceName(), snapsup.Revision(), pm))
 		})
 	st.Lock()
-	if err != nil {
-		return err
-	}
 
 	perfTimings.Save(st)
 	// Make sure we won't be rerun
@@ -4956,24 +4192,16 @@ func (m *SnapManager) doCleanupOldKernelSnap(t *state.Task, _ *tomb.Tomb) error 
 	defer st.Unlock()
 
 	perfTimings := state.TimingsForTask(t)
-	_, snapst, err := snapSetupAndState(t)
-	if err != nil {
-		return err
-	}
+	_, snapst := mylog.Check3(snapSetupAndState(t))
 
-	currInfo, err := snapst.CurrentInfo()
-	if err != nil {
-		return err
-	}
+	currInfo := mylog.Check2(snapst.CurrentInfo())
 
 	// Now after the reboot triggered after linking the new snap, we can
 	// remove the old drivers tree if this was not the first installation.
-	setupTask, err := snapSetupTask(t)
-	if err != nil {
-		return err
-	}
+	setupTask := mylog.Check2(snapSetupTask(t))
+
 	var prevKernelRev snap.Revision
-	err = setupTask.Get("previous-kernel-rev", &prevKernelRev)
+	mylog.Check(setupTask.Get("previous-kernel-rev", &prevKernelRev))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
@@ -4984,13 +4212,11 @@ func (m *SnapManager) doCleanupOldKernelSnap(t *state.Task, _ *tomb.Tomb) error 
 		timings.Run(perfTimings, "discard-old-kernel-snap-setup",
 			fmt.Sprintf("discard previous kernel snap set-up %q", currInfo.InstanceName()),
 			func(timings.Measurer) {
-				err = m.backend.RemoveKernelSnapSetup(
-					currInfo.InstanceName(), prevKernelRev, pm)
+				mylog.Check(m.backend.RemoveKernelSnapSetup(
+					currInfo.InstanceName(), prevKernelRev, pm))
 			})
 		st.Lock()
-		if err != nil {
-			return err
-		}
+
 	}
 
 	perfTimings.Save(st)
@@ -5006,22 +4232,14 @@ func (m *SnapManager) undoCleanupOldKernelSnap(t *state.Task, _ *tomb.Tomb) erro
 	defer st.Unlock()
 
 	perfTimings := state.TimingsForTask(t)
-	_, snapst, err := snapSetupAndState(t)
-	if err != nil {
-		return err
-	}
+	_, snapst := mylog.Check3(snapSetupAndState(t))
 
-	currInfo, err := snapst.CurrentInfo()
-	if err != nil {
-		return err
-	}
+	currInfo := mylog.Check2(snapst.CurrentInfo())
 
-	setupTask, err := snapSetupTask(t)
-	if err != nil {
-		return err
-	}
+	setupTask := mylog.Check2(snapSetupTask(t))
+
 	var prevKernelRev snap.Revision
-	err = setupTask.Get("previous-kernel-rev", &prevKernelRev)
+	mylog.Check(setupTask.Get("previous-kernel-rev", &prevKernelRev))
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
@@ -5033,13 +4251,11 @@ func (m *SnapManager) undoCleanupOldKernelSnap(t *state.Task, _ *tomb.Tomb) erro
 		timings.Run(perfTimings, "undo-remove-old-kernel-snap-setup",
 			fmt.Sprintf("undo cleanup of previous kernel snap %q", currInfo.InstanceName()),
 			func(timings.Measurer) {
-				err = m.backend.SetupKernelSnap(
-					currInfo.InstanceName(), prevKernelRev, pm)
+				mylog.Check(m.backend.SetupKernelSnap(
+					currInfo.InstanceName(), prevKernelRev, pm))
 			})
 		st.Lock()
-		if err != nil {
-			return err
-		}
+
 	}
 
 	perfTimings.Save(st)

@@ -26,6 +26,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -36,15 +37,10 @@ import (
 	"github.com/snapcore/snapd/systemd"
 )
 
-var (
-	syscheckCheckSystem = syscheck.CheckSystem
-)
+var syscheckCheckSystem = syscheck.CheckSystem
 
 func init() {
-	err := logger.SimpleSetup(nil)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "WARNING: failed to activate logging: %s\n", err)
-	}
+	mylog.Check(logger.SimpleSetup(nil))
 }
 
 func main() {
@@ -57,18 +53,13 @@ func main() {
 
 	ch := make(chan os.Signal, 2)
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
-	if err := run(ch); err != nil {
-		if err == daemon.ErrRestartSocket {
-			// Note that we don't prepend: "error: " here because
-			// ErrRestartSocket is not an error as such.
-			fmt.Fprintf(os.Stdout, "%v\n", err)
-			// the exit code must be in sync with
-			// data/systemd/snapd.service.in:SuccessExitStatus=
-			os.Exit(42)
-		}
-		fmt.Fprintf(os.Stderr, "cannot run daemon: %v\n", err)
-		os.Exit(1)
-	}
+	mylog.Check(run(ch))
+
+	// Note that we don't prepend: "error: " here because
+	// ErrRestartSocket is not an error as such.
+
+	// the exit code must be in sync with
+	// data/systemd/snapd.service.in:SuccessExitStatus=
 }
 
 func runWatchdog(d *daemon.Daemon) (*time.Ticker, error) {
@@ -107,37 +98,21 @@ func run(ch chan os.Signal) error {
 	t0 := time.Now().Truncate(time.Millisecond)
 	snapdenv.SetUserAgentFromVersion(snapdtool.Version, sandbox.ForceDevMode)
 
-	d, err := daemon.New()
-	if err != nil {
-		return err
-	}
-	if err := d.Init(); err != nil {
-		return err
-	}
+	d := mylog.Check2(daemon.New())
+	mylog.Check(d.Init())
 
 	// Run syscheck check now, if anything goes wrong with the
 	// check we go into "degraded" mode where we always report
 	// the given error to any snap client.
 	var checkTicker <-chan time.Time
 	var tic *time.Ticker
-	if err := syscheckCheckSystem(); err != nil {
-		degradedErr := fmt.Errorf("system does not fully support snapd: %s", err)
-		logger.Noticef("%s", degradedErr)
-		d.SetDegradedMode(degradedErr)
-		tic = time.NewTicker(checkRunningConditionsRetryDelay)
-		checkTicker = tic.C
-	}
+	mylog.Check(syscheckCheckSystem())
 
 	d.Version = snapdtool.Version
+	mylog.Check(d.Start())
 
-	if err := d.Start(); err != nil {
-		return err
-	}
+	watchdog := mylog.Check2(runWatchdog(d))
 
-	watchdog, err := runWatchdog(d)
-	if err != nil {
-		return fmt.Errorf("cannot run software watchdog: %v", err)
-	}
 	if watchdog != nil {
 		defer watchdog.Stop()
 	}
@@ -154,7 +129,7 @@ out:
 			// something called Stop()
 			break out
 		case <-checkTicker:
-			if err := syscheckCheckSystem(); err == nil {
+			if mylog.Check(syscheckCheckSystem()); err == nil {
 				d.SetDegradedMode(nil)
 				tic.Stop()
 			}

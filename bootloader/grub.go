@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/bootloader/assets"
 	"github.com/snapcore/snapd/bootloader/grubenv"
@@ -118,9 +119,8 @@ func (g *grub) SetRecoverySystemEnv(recoverySystemDir string, values map[string]
 		return fmt.Errorf("internal error: recoverySystemDir unset")
 	}
 	recoverySystemGrubEnv := filepath.Join(g.rootdir, recoverySystemDir, "grubenv")
-	if err := os.MkdirAll(filepath.Dir(recoverySystemGrubEnv), 0755); err != nil {
-		return err
-	}
+	mylog.Check(os.MkdirAll(filepath.Dir(recoverySystemGrubEnv), 0755))
+
 	genv := grubenv.NewEnv(recoverySystemGrubEnv)
 	for k, v := range values {
 		genv.Set(k, v)
@@ -134,12 +134,8 @@ func (g *grub) GetRecoverySystemEnv(recoverySystemDir string, key string) (strin
 	}
 	recoverySystemGrubEnv := filepath.Join(g.rootdir, recoverySystemDir, "grubenv")
 	genv := grubenv.NewEnv(recoverySystemGrubEnv)
-	if err := genv.Load(); err != nil {
-		if os.IsNotExist(err) {
-			return "", nil
-		}
-		return "", err
-	}
+	mylog.Check(genv.Load())
+
 	return genv.Get(key), nil
 }
 
@@ -155,9 +151,7 @@ func (g *grub) GetBootVars(names ...string) (map[string]string, error) {
 	out := make(map[string]string)
 
 	env := grubenv.NewEnv(g.envFile())
-	if err := env.Load(); err != nil {
-		return nil, err
-	}
+	mylog.Check(env.Load())
 
 	for _, name := range names {
 		out[name] = env.Get(name)
@@ -168,7 +162,7 @@ func (g *grub) GetBootVars(names ...string) (map[string]string, error) {
 
 func (g *grub) SetBootVars(values map[string]string) error {
 	env := grubenv.NewEnv(g.envFile())
-	if err := env.Load(); err != nil && !os.IsNotExist(err) {
+	if mylog.Check(env.Load()); err != nil && !os.IsNotExist(err) {
 		return err
 	}
 	for k, v := range values {
@@ -198,7 +192,7 @@ func (g *grub) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error
 
 	// extraction can be forced through either a special file in the kernel snap
 	// or through an option in the bootloader
-	_, err := snapf.ReadFile("meta/force-kernel-extraction")
+	_ := mylog.Check2(snapf.ReadFile("meta/force-kernel-extraction"))
 	if g.uefiRunKernelExtraction || err == nil {
 		return extractKernelAssetsToBootDir(
 			g.extractedKernelDir(g.dir(), s),
@@ -248,7 +242,7 @@ func (g *grub) makeKernelEfiSymlink(s snap.PlaceInfo, name string) error {
 // was incorrectly created.
 func (g *grub) unlinkKernelEfiSymlink(name string) error {
 	symlink := filepath.Join(g.dir(), name)
-	err := os.Remove(symlink)
+	mylog.Check(os.Remove(symlink))
 	if err != nil && !os.IsNotExist(err) {
 		return err
 	}
@@ -266,20 +260,11 @@ func (g *grub) readKernelSymlink(name string) (snap.PlaceInfo, error) {
 		return nil, fmt.Errorf("cannot read dangling symlink %s", name)
 	}
 
-	targetKernelEfi, err := os.Readlink(link)
-	if err != nil {
-		return nil, fmt.Errorf("cannot read %s symlink: %v", link, err)
-	}
+	targetKernelEfi := mylog.Check2(os.Readlink(link))
 
 	kernelSnapFileName := filepath.Base(filepath.Dir(targetKernelEfi))
-	sn, err := snap.ParsePlaceInfoFromSnapFileName(kernelSnapFileName)
-	if err != nil {
-		return nil, fmt.Errorf(
-			"cannot parse kernel snap file name from symlink target %q: %v",
-			kernelSnapFileName,
-			err,
-		)
-	}
+	sn := mylog.Check2(snap.ParsePlaceInfoFromSnapFileName(kernelSnapFileName))
+
 	return sn, nil
 }
 
@@ -327,14 +312,12 @@ func (g *grub) TryKernel() (snap.PlaceInfo, error) {
 	// check that the _symlink_ exists, not that it points to something real
 	// we check for whether it is a dangling symlink inside readKernelSymlink,
 	// which returns an error when the symlink is dangling
-	_, err := os.Lstat(filepath.Join(g.dir(), "try-kernel.efi"))
+	_ := mylog.Check2(os.Lstat(filepath.Join(g.dir(), "try-kernel.efi")))
 	if err == nil {
-		p, err := g.readKernelSymlink("try-kernel.efi")
+		p := mylog.Check2(g.readKernelSymlink("try-kernel.efi"))
 		// if we failed to read the symlink, then the try kernel isn't usable,
 		// so return err because the symlink is there
-		if err != nil {
-			return nil, err
-		}
+
 		return p, nil
 	}
 	return nil, ErrNoTryKernelRef
@@ -366,9 +349,7 @@ func (g *grub) ManagedAssets() []string {
 }
 
 func (g *grub) commandLineForEdition(edition uint, pieces CommandLineComponents) (string, error) {
-	if err := pieces.Validate(); err != nil {
-		return "", err
-	}
+	mylog.Check(pieces.Validate())
 
 	var nonSnapdCmdline string
 	if pieces.FullArgs == "" {
@@ -380,10 +361,8 @@ func (g *grub) commandLineForEdition(edition uint, pieces CommandLineComponents)
 	} else {
 		nonSnapdCmdline = pieces.FullArgs
 	}
-	args, err := kcmdline.Split(nonSnapdCmdline)
-	if err != nil {
-		return "", fmt.Errorf("cannot use badly formatted kernel command line: %v", err)
-	}
+	args := mylog.Check2(kcmdline.Split(nonSnapdCmdline))
+
 	// join all argument with a single space, see
 	// grub-core/lib/cmdline.c:grub_create_loader_cmdline() for reference,
 	// arguments are separated by a single space, the space after last is
@@ -411,18 +390,13 @@ func (g *grub) defaultCommandLineForEdition(edition uint) string {
 }
 
 func editionFromDiskConfigAssetFallback(bootConfig string) (uint, error) {
-	edition, err := editionFromDiskConfigAsset(bootConfig)
-	if err != nil {
-		if err != errNoEdition {
-			return 0, err
-		}
-		// we were called using the TrustedAssetsBootloader interface
-		// meaning the caller expects to us to use the managed assets,
-		// since one on disk is not managed, use the initial edition of
-		// the internal boot asset which is compatible with grub.cfg
-		// used before we started writing out the files ourselves
-		edition = 1
-	}
+	edition := mylog.Check2(editionFromDiskConfigAsset(bootConfig))
+
+	// we were called using the TrustedAssetsBootloader interface
+	// meaning the caller expects to us to use the managed assets,
+	// since one on disk is not managed, use the initial edition of
+	// the internal boot asset which is compatible with grub.cfg
+	// used before we started writing out the files ourselves
 
 	return edition, nil
 }
@@ -438,10 +412,7 @@ func editionFromDiskConfigAssetFallback(bootConfig string) (uint, error) {
 func (g *grub) CommandLine(pieces CommandLineComponents) (string, error) {
 	currentBootConfig := filepath.Join(g.dir(), "grub.cfg")
 
-	edition, err := editionFromDiskConfigAssetFallback(currentBootConfig)
-	if err != nil {
-		return "", fmt.Errorf("cannot obtain edition number of current boot config: %v", err)
-	}
+	edition := mylog.Check2(editionFromDiskConfigAssetFallback(currentBootConfig))
 
 	return g.commandLineForEdition(edition, pieces)
 }
@@ -451,10 +422,8 @@ func (g *grub) CommandLine(pieces CommandLineComponents) (string, error) {
 //
 // Implements TrustedAssetsBootloader for the grub bootloader.
 func (g *grub) CandidateCommandLine(pieces CommandLineComponents) (string, error) {
-	edition, err := editionFromInternalConfigAsset(g.assetName())
-	if err != nil {
-		return "", err
-	}
+	edition := mylog.Check2(editionFromInternalConfigAsset(g.assetName()))
+
 	return g.commandLineForEdition(edition, pieces)
 }
 
@@ -468,19 +437,12 @@ func (g *grub) DefaultCommandLine(candidate bool) (string, error) {
 	// the boot/seed disk. This is needed to know the default
 	// command line before candidate boot assets are installed
 	if candidate {
-		var err error
-		edition, err = editionFromInternalConfigAsset(g.assetName())
-		if err != nil {
-			return "", err
-		}
+		edition = mylog.Check2(editionFromInternalConfigAsset(g.assetName()))
 	} else {
 		currentBootConfig := filepath.Join(g.dir(), "grub.cfg")
 
-		var err error
-		edition, err = editionFromDiskConfigAssetFallback(currentBootConfig)
-		if err != nil {
-			return "", fmt.Errorf("cannot obtain edition number of current boot config: %v", err)
-		}
+		edition = mylog.Check2(editionFromDiskConfigAssetFallback(currentBootConfig))
+
 	}
 
 	return g.defaultCommandLineForEdition(edition), nil
@@ -581,20 +543,16 @@ func (g *grub) getGrubBootAssetsForArch() (*grubBootAssetPath, error) {
 // chain for recovery mode, which are shim and grub from the seed
 // partition.
 func (g *grub) getGrubRecoveryModeTrustedAssets() ([][]taggedPath, error) {
-	assets, err := g.getGrubBootAssetsForArch()
-	if err != nil {
-		return nil, err
-	}
+	assets := mylog.Check2(g.getGrubBootAssetsForArch())
+
 	return [][]taggedPath{{assets.shimBinary, assets.grubBinary}, {assets.defaultShimBinary, assets.defaultGrubBinary}}, nil
 }
 
 // getGrubRunModeTrustedAssets returns the list of ordered asset
 // chains for run mode, which is grub from the boot partition.
 func (g *grub) getGrubRunModeTrustedAssets() ([][]taggedPath, error) {
-	assets, err := g.getGrubBootAssetsForArch()
-	if err != nil {
-		return nil, err
-	}
+	assets := mylog.Check2(g.getGrubBootAssetsForArch())
+
 	return [][]taggedPath{{assets.defaultGrubBinary}}, nil
 }
 
@@ -609,15 +567,13 @@ func (g *grub) TrustedAssets() (map[string]string, error) {
 	}
 	ret := make(map[string]string)
 	var chains [][]taggedPath
-	var err error
+
 	if g.recovery {
-		chains, err = g.getGrubRecoveryModeTrustedAssets()
+		chains = mylog.Check2(g.getGrubRecoveryModeTrustedAssets())
 	} else {
-		chains, err = g.getGrubRunModeTrustedAssets()
+		chains = mylog.Check2(g.getGrubRunModeTrustedAssets())
 	}
-	if err != nil {
-		return nil, err
-	}
+
 	for _, chain := range chains {
 		for _, asset := range chain {
 			ret[asset.path] = asset.Id()
@@ -634,10 +590,8 @@ func (g *grub) RecoveryBootChains(kernelPath string) ([][]BootFile, error) {
 	}
 
 	// add trusted assets to the recovery chain
-	assetsSet, err := g.getGrubRecoveryModeTrustedAssets()
-	if err != nil {
-		return nil, err
-	}
+	assetsSet := mylog.Check2(g.getGrubRecoveryModeTrustedAssets())
+
 	chains := make([][]BootFile, 0, len(assetsSet))
 	for _, assets := range assetsSet {
 		chain := make([]BootFile, 0, len(assets)+1)
@@ -664,14 +618,10 @@ func (g *grub) BootChains(runBl Bootloader, kernelPath string) ([][]BootFile, er
 	}
 
 	// add trusted assets to the recovery chain
-	recoveryModeAssetsSet, err := g.getGrubRecoveryModeTrustedAssets()
-	if err != nil {
-		return nil, err
-	}
-	runModeAssetsSet, err := g.getGrubRunModeTrustedAssets()
-	if err != nil {
-		return nil, err
-	}
+	recoveryModeAssetsSet := mylog.Check2(g.getGrubRecoveryModeTrustedAssets())
+
+	runModeAssetsSet := mylog.Check2(g.getGrubRunModeTrustedAssets())
+
 	chains := make([][]BootFile, 0, len(recoveryModeAssetsSet)*len(runModeAssetsSet))
 	for _, recoveryModeAssets := range recoveryModeAssetsSet {
 		for _, runModeAssets := range runModeAssetsSet {

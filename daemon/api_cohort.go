@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/overlord/auth"
 )
@@ -37,9 +38,8 @@ var cohortsCmd = &Command{
 func postCohorts(c *Command, r *http.Request, user *auth.UserState) Response {
 	var inst client.CohortAction
 	dec := json.NewDecoder(r.Body)
-	if err := dec.Decode(&inst); err != nil {
-		return BadRequest("cannot decode request body into cohort instruction: %v", err)
-	}
+	mylog.Check(dec.Decode(&inst))
+
 	if dec.More() {
 		return BadRequest("spurious content after cohort instruction")
 	}
@@ -53,9 +53,7 @@ func postCohorts(c *Command, r *http.Request, user *auth.UserState) Response {
 		return SyncResponse(map[string]string{})
 	}
 
-	cohorts, err := storeFrom(c.d).CreateCohorts(context.TODO(), inst.Snaps)
-	if err != nil {
-		return InternalError(err.Error())
-	}
+	cohorts := mylog.Check2(storeFrom(c.d).CreateCohorts(context.TODO(), inst.Snaps))
+
 	return SyncResponse(cohorts)
 }

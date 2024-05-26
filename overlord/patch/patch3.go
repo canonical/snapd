@@ -31,7 +31,6 @@ func init() {
 // patch3:
 // - migrates pending tasks and add {start,stop}-snap-services tasks
 func patch3(s *state.State) error {
-
 	// migrate all pending tasks and insert "{start,stop}-snap-server"
 	for _, t := range s.Tasks() {
 		if t.Status().Ready() {

@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/store"
@@ -48,14 +49,11 @@ func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
 	var opts client.BuyOptions
 
 	decoder := json.NewDecoder(r.Body)
-	err := decoder.Decode(&opts)
-	if err != nil {
-		return BadRequest("cannot decode buy options from request body: %v", err)
-	}
+	mylog.Check(decoder.Decode(&opts))
 
 	s := storeFrom(c.d)
 
-	buyResult, err := s.Buy(&opts, user)
+	buyResult := mylog.Check2(s.Buy(&opts, user))
 
 	if resp := convertBuyError(err); resp != nil {
 		return resp

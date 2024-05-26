@@ -24,9 +24,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-var (
-	NotifyAgentOnLinkageChange = notifyAgentOnLinkageChange
-)
+var NotifyAgentOnLinkageChange = notifyAgentOnLinkageChange
 
 func MockSendClientFinishRefreshNotification(f func(*snapstate.SnapSetup)) (restore func()) {
 	r := testutil.Backup(&sendClientFinishRefreshNotification)

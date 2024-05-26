@@ -23,6 +23,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts/internal"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -116,10 +117,10 @@ type TestOnly struct {
 }
 
 func assembleTestOnly(assert assertionBase) (Assertion, error) {
-	// for testing error cases
-	if _, err := checkIntWithDefault(assert.headers, "count", 0); err != nil {
-		return nil, err
-	}
+	mylog.Check2(
+		// for testing error cases
+		checkIntWithDefault(assert.headers, "count", 0))
+
 	return &TestOnly{assert}, nil
 }
 
@@ -207,10 +208,8 @@ func (seq *TestOnlySeq) Sequence() int {
 }
 
 func assembleTestOnlySeq(assert assertionBase) (Assertion, error) {
-	seq, err := checkSequence(assert.headers, "sequence")
-	if err != nil {
-		return nil, err
-	}
+	seq := mylog.Check2(checkSequence(assert.headers, "sequence"))
+
 	return &TestOnlySeq{
 		assertionBase: assert,
 		seq:           seq,
@@ -224,9 +223,8 @@ type TestOnlyNoAuthority struct {
 }
 
 func assembleTestOnlyNoAuthority(assert assertionBase) (Assertion, error) {
-	if _, err := checkNotEmptyString(assert.headers, "hdr"); err != nil {
-		return nil, err
-	}
+	mylog.Check2(checkNotEmptyString(assert.headers, "hdr"))
+
 	return &TestOnlyNoAuthority{assert}, nil
 }
 
@@ -317,10 +315,8 @@ func CompileAttrMatcher(constraints interface{}, allowedOperations []string) (fu
 			allowedOperations: allowedOperations,
 		},
 	}
-	matcher, err := compileAttrMatcher(cc, constraints)
-	if err != nil {
-		return nil, err
-	}
+	matcher := mylog.Check2(compileAttrMatcher(cc, constraints))
+
 	domatch := func(attrs map[string]interface{}, helper AttrMatchContext) error {
 		return matcher.match("", attrs, &attrMatchingContext{
 			attrWord: "field",
@@ -330,9 +326,7 @@ func CompileAttrMatcher(constraints interface{}, allowedOperations []string) (fu
 	return domatch, nil
 }
 
-var (
-	CompileDeviceScopeConstraint = compileDeviceScopeConstraint
-)
+var CompileDeviceScopeConstraint = compileDeviceScopeConstraint
 
 // ifacedecls tests
 var (

@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	snap "github.com/snapcore/snapd/cmd/snap"
 	"github.com/snapcore/snapd/osutil"
 )
@@ -36,8 +37,8 @@ func (s *SnapSuite) TestWhoamiLoggedInUser(c *C) {
 	s.Login(c)
 	defer s.Logout(c)
 
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"whoami"})
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"whoami"}))
+
 	c.Check(s.Stdout(), Equals, "email: hello@mail.com\n")
 }
 
@@ -46,23 +47,22 @@ func (s *SnapSuite) TestWhoamiNotLoggedInUser(c *C) {
 		panic("unexpected call to snapd API")
 	})
 
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"whoami"})
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"whoami"}))
+
 	c.Check(s.Stdout(), Equals, "email: -\n")
 }
 
 func (s *SnapSuite) TestWhoamiExtraParamError(c *C) {
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"whoami", "test"})
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"whoami", "test"}))
 	c.Check(err, ErrorMatches, "too many arguments for command")
 }
 
 func (s *SnapSuite) TestWhoamiEmptyAuthFile(c *C) {
 	s.Login(c)
 	defer s.Logout(c)
+	mylog.Check(osutil.AtomicWriteFile(s.AuthFile, []byte(``), 0600, 0))
 
-	err := osutil.AtomicWriteFile(s.AuthFile, []byte(``), 0600, 0)
-	c.Assert(err, IsNil)
 
-	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"whoami"})
+	_ = mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"whoami"}))
 	c.Check(err, ErrorMatches, "EOF")
 }

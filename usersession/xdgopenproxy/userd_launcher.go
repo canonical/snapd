@@ -22,6 +22,7 @@ package xdgopenproxy
 import (
 	"syscall"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/godbus/dbus"
 )
 
@@ -35,10 +36,8 @@ const (
 type userdLauncher struct{}
 
 func (s *userdLauncher) OpenFile(bus *dbus.Conn, filename string) error {
-	fd, err := syscall.Open(filename, syscall.O_RDONLY, 0)
-	if err != nil {
-		return err
-	}
+	fd := mylog.Check2(syscall.Open(filename, syscall.O_RDONLY, 0))
+
 	defer syscall.Close(fd)
 
 	launcher := bus.Object(userdLauncherBusName, userdLauncherObjectPath)

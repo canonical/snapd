@@ -28,6 +28,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
@@ -65,23 +66,21 @@ func switchDisableSSHService(sysd systemd.Systemd, serviceName string, disabled 
 	rootDir := dirs.GlobalRootDir
 	if opts != nil {
 		rootDir = opts.RootDir
-		if err := os.MkdirAll(filepath.Join(rootDir, "/etc/ssh"), 0755); err != nil {
-			return err
-		}
+		mylog.Check(os.MkdirAll(filepath.Join(rootDir, "/etc/ssh"), 0755))
+
 	}
 
 	sshCanary := filepath.Join(rootDir, "/etc/ssh/sshd_not_to_be_run")
 
 	units := []string{serviceName}
 	if disabled {
-		if err := os.WriteFile(sshCanary, []byte("SSH has been disabled by snapd system configuration\n"), 0644); err != nil {
-			return err
-		}
+		mylog.Check(os.WriteFile(sshCanary, []byte("SSH has been disabled by snapd system configuration\n"), 0644))
+
 		if opts == nil {
 			return sysd.Stop(units)
 		}
 	} else {
-		err := os.Remove(sshCanary)
+		mylog.Check(os.Remove(sshCanary))
 		if err != nil && !os.IsNotExist(err) {
 			return err
 		}
@@ -118,7 +117,7 @@ func switchDisableConsoleConfService(sysd systemd.Systemd, serviceName string, d
 		//      defaults and compare with the setting and exit if
 		//      they are the same but that requires some more changes.
 		// TODO: leverage sysconfig.Device instead
-		modeenv, err := boot.ReadModeenv(dirs.GlobalRootDir)
+		modeenv := mylog.Check2(boot.ReadModeenv(dirs.GlobalRootDir))
 		if err == nil && modeenv.Mode == boot.ModeInstall {
 			return nil
 		}
@@ -136,12 +135,8 @@ func switchDisableConsoleConfService(sysd systemd.Systemd, serviceName string, d
 
 	// disable console-conf at the gadget-defaults time
 	consoleConfDisabled = filepath.Join(opts.RootDir, consoleConfDisabled)
-	if err := os.MkdirAll(filepath.Dir(consoleConfDisabled), 0755); err != nil {
-		return err
-	}
-	if err := os.WriteFile(consoleConfDisabled, []byte("console-conf has been disabled by the snapd system configuration\n"), 0644); err != nil {
-		return err
-	}
+	mylog.Check(os.MkdirAll(filepath.Dir(consoleConfDisabled), 0755))
+	mylog.Check(os.WriteFile(consoleConfDisabled, []byte("console-conf has been disabled by the snapd system configuration\n"), 0644))
 
 	return nil
 }
@@ -167,10 +162,8 @@ func switchDisableService(serviceName string, disabled bool, opts *fsOnlyContext
 	units := []string{serviceName}
 	if opts == nil {
 		// ignore the service if not installed
-		status, err := sysd.Status(units)
-		if err != nil {
-			return err
-		}
+		status := mylog.Check2(sysd.Status(units))
+
 		if len(status) != 1 {
 			return fmt.Errorf("internal error: expected status of service %s, got %v", serviceName, status)
 		}
@@ -182,29 +175,24 @@ func switchDisableService(serviceName string, disabled bool, opts *fsOnlyContext
 
 	if disabled {
 		if opts == nil {
-			if err := sysd.DisableNoReload(units); err != nil {
-				return err
-			}
+			mylog.Check(sysd.DisableNoReload(units))
 		}
-		if err := sysd.Mask(serviceName); err != nil {
-			return err
-		}
+		mylog.Check(sysd.Mask(serviceName))
+
 		// mask triggered a reload already
 		if opts == nil {
 			return sysd.Stop(units)
 		}
 	} else {
-		if err := sysd.Unmask(serviceName); err != nil {
-			return err
-		}
+		mylog.Check(sysd.Unmask(serviceName))
+
 		if opts == nil {
-			if err := sysd.EnableNoReload(units); err != nil {
-				return err
-			}
-			// enable does not trigger reloads, so issue one now
-			if err := sysd.DaemonReload(); err != nil {
-				return err
-			}
+			mylog.Check(sysd.EnableNoReload(units))
+			mylog.Check(
+
+				// enable does not trigger reloads, so issue one now
+				sysd.DaemonReload())
+
 		}
 		if opts == nil {
 			return sysd.Start(units)
@@ -218,10 +206,8 @@ func handleServiceConfiguration(dev sysconfig.Device, tr ConfGetter, opts *fsOnl
 	// deal with service disable
 	for _, service := range services {
 		optionName := fmt.Sprintf("service.%s.disable", service.configName)
-		outputStr, err := coreCfg(tr, optionName)
-		if err != nil {
-			return err
-		}
+		outputStr := mylog.Check2(coreCfg(tr, optionName))
+
 		if outputStr != "" {
 			var disabled bool
 			switch outputStr {
@@ -232,16 +218,13 @@ func handleServiceConfiguration(dev sysconfig.Device, tr ConfGetter, opts *fsOnl
 			default:
 				return fmt.Errorf("option %q has invalid value %q", optionName, outputStr)
 			}
+			mylog.Check(switchDisableService(service.systemdName, disabled, opts))
 
-			if err := switchDisableService(service.systemdName, disabled, opts); err != nil {
-				return err
-			}
 		}
 	}
-	// configure ssh ports
-	if err := handleServiceConfigSSHListen(dev, tr, opts); err != nil {
-		return err
-	}
+	mylog.Check(
+		// configure ssh ports
+		handleServiceConfigSSHListen(dev, tr, opts))
 
 	return nil
 }
@@ -250,17 +233,14 @@ func parseOneSSHListenAddr(oneAddr string) (addrs []string, err error) {
 	// 1. check if it's something like "host:port", "[host]:port" etc
 	//    This will return an error if there is no port specified so
 	//    on error it's assume there is no port.
-	host, portStr, err := net.SplitHostPort(oneAddr)
-	if err != nil {
-		// for any error assume there is no port and continue
-		host = oneAddr
-	}
+	host, portStr := mylog.Check3(net.SplitHostPort(oneAddr))
+
+	// for any error assume there is no port and continue
+
 	// 2. valid port (if needed)
 	if portStr != "" {
-		port, err := strconv.Atoi(portStr)
-		if err != nil {
-			return nil, fmt.Errorf("port must be a number: %v", err)
-		}
+		port := mylog.Check2(strconv.Atoi(portStr))
+
 		if port > 65535 || port < 1 {
 			return nil, fmt.Errorf("port %v must be in the range 1-65535", port)
 		}
@@ -288,10 +268,8 @@ func parseOneSSHListenAddr(oneAddr string) (addrs []string, err error) {
 func parseSSHListenCfg(cfgStr string) ([]string, error) {
 	var listenAddrs []string
 	for _, hostAndPort := range strings.Split(cfgStr, ",") {
-		addrs, err := parseOneSSHListenAddr(hostAndPort)
-		if err != nil {
-			return nil, err
-		}
+		addrs := mylog.Check2(parseOneSSHListenAddr(hostAndPort))
+
 		listenAddrs = append(listenAddrs, addrs...)
 	}
 	return listenAddrs, nil
@@ -299,16 +277,12 @@ func parseSSHListenCfg(cfgStr string) ([]string, error) {
 
 func validateServiceConfiguration(tr ConfGetter) error {
 	// validate the ssh listen setting
-	output, err := coreCfg(tr, sshListenOpt)
-	if err != nil {
-		return err
-	}
+	output := mylog.Check2(coreCfg(tr, sshListenOpt))
+
 	if output == "" {
 		return nil
 	}
-	if _, err := parseSSHListenCfg(output); err != nil {
-		return fmt.Errorf("cannot validate ssh configuration: %v", err)
-	}
+	mylog.Check2(parseSSHListenCfg(output))
 
 	return nil
 }
@@ -317,10 +291,10 @@ func handleServiceConfigSSHListen(dev sysconfig.Device, tr ConfGetter, opts *fsO
 	// see if anything needs to happen
 	var pristineSSHListen, newSSHListen interface{}
 
-	if err := tr.GetPristine("core", sshListenOpt, &pristineSSHListen); err != nil && !config.IsNoOption(err) {
+	if mylog.Check(tr.GetPristine("core", sshListenOpt, &pristineSSHListen)); err != nil && !config.IsNoOption(err) {
 		return err
 	}
-	if err := tr.Get("core", sshListenOpt, &newSSHListen); err != nil && !config.IsNoOption(err) {
+	if mylog.Check(tr.Get("core", sshListenOpt, &newSSHListen)); err != nil && !config.IsNoOption(err) {
 		return err
 	}
 	if pristineSSHListen == newSSHListen {
@@ -344,16 +318,11 @@ func handleServiceConfigSSHListen(dev sysconfig.Device, tr ConfGetter, opts *fsO
 	name := "listen.conf"
 	dirContent := map[string]osutil.FileState{}
 	if newSSHListen != nil && newSSHListen != "" {
-		listenAddrs, err := parseSSHListenCfg(fmt.Sprintf("%v", newSSHListen))
-		if err != nil {
-			return fmt.Errorf("cannot set ssh configuration: %v", err)
-		}
+		listenAddrs := mylog.Check2(parseSSHListenCfg(fmt.Sprintf("%v", newSSHListen)))
 
 		var buf bytes.Buffer
 		for _, s := range listenAddrs {
-			if _, err := fmt.Fprintf(&buf, "ListenAddress %v\n", s); err != nil {
-				return fmt.Errorf("cannot create ssh option buffer: %v", err)
-			}
+			mylog.Check2(fmt.Fprintf(&buf, "ListenAddress %v\n", s))
 		}
 
 		dirContent[name] = &osutil.MemoryFileState{
@@ -362,19 +331,14 @@ func handleServiceConfigSSHListen(dev sysconfig.Device, tr ConfGetter, opts *fsO
 		}
 	}
 	dir := filepath.Join(root, "/etc/ssh/sshd_config.d/")
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return err
-	}
-	_, _, err := osutil.EnsureDirState(dir, name, dirContent)
-	if err != nil {
-		return err
-	}
+	mylog.Check(os.MkdirAll(dir, 0755))
+
+	_, _ := mylog.Check3(osutil.EnsureDirState(dir, name, dirContent))
 
 	if opts == nil {
 		sysd := systemd.New(systemd.SystemMode, &sysdLogger{})
-		if err := sysd.ReloadOrRestart([]string{"ssh.service"}); err != nil {
-			return err
-		}
+		mylog.Check(sysd.ReloadOrRestart([]string{"ssh.service"}))
+
 	}
 
 	return nil

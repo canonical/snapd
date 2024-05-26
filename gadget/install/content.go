@@ -26,6 +26,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/quantity"
@@ -49,34 +50,25 @@ type mkfsParams struct {
 // zero, automatic values are used instead.
 func makeFilesystem(params mkfsParams) error {
 	logger.Debugf("create %s filesystem on %s with label %q", params.Type, params.Device, params.Label)
-	if err := mkfsImpl(params.Type, params.Device, params.Label, params.Size, params.SectorSize); err != nil {
-		return err
-	}
+	mylog.Check(mkfsImpl(params.Type, params.Device, params.Label, params.Size, params.SectorSize))
+
 	return udevTrigger(params.Device)
 }
 
 // mountFilesystem mounts the filesystem on a given device with
 // filesystem type fs under the provided mount point directory.
 func mountFilesystem(fsDevice, fs, mountpoint string) error {
-	if err := os.MkdirAll(mountpoint, 0755); err != nil {
-		return fmt.Errorf("cannot create mountpoint: %v", err)
-	}
-	if err := sysMount(fsDevice, mountpoint, fs, 0, ""); err != nil {
-		return fmt.Errorf("cannot mount filesystem %q at %q: %v", fsDevice, mountpoint, err)
-	}
+	mylog.Check(os.MkdirAll(mountpoint, 0755))
+	mylog.Check(sysMount(fsDevice, mountpoint, fs, 0, ""))
 
 	return nil
 }
 
 func unmountWithFallbackToLazy(mntPt, operationMsg string) error {
-	if err := sysUnmount(mntPt, 0); err != nil {
-		logger.Noticef("cannot unmount %s after %s: %v (trying lazy unmount next)", mntPt, operationMsg, err)
-		// lazy umount on error, see LP:2025402
-		if err = sysUnmount(mntPt, syscall.MNT_DETACH); err != nil {
-			logger.Noticef("cannot lazy unmount %q: %v", mntPt, err)
-			return err
-		}
-	}
+	mylog.Check(sysUnmount(mntPt, 0))
+
+	// lazy umount on error, see LP:2025402
+
 	return nil
 }
 
@@ -85,30 +77,22 @@ func unmountWithFallbackToLazy(mntPt, operationMsg string) error {
 // gadget.
 func writeFilesystemContent(laidOut *gadget.LaidOutStructure, fsDevice string, observer gadget.ContentObserver) (err error) {
 	mountpoint := filepath.Join(dirs.SnapRunDir, "gadget-install", strings.ReplaceAll(strings.Trim(fsDevice, "/"), "/", "-"))
-	if err := os.MkdirAll(mountpoint, 0755); err != nil {
-		return err
-	}
+	mylog.Check(os.MkdirAll(mountpoint, 0755))
 
 	// temporarily mount the filesystem
 	logger.Debugf("mounting %q in %q (fs type %q)", fsDevice, mountpoint, laidOut.Filesystem())
-	if err := sysMount(fsDevice, mountpoint, laidOut.Filesystem(), 0, ""); err != nil {
-		return fmt.Errorf("cannot mount %q at %q: %v", fsDevice, mountpoint, err)
-	}
+	mylog.Check(sysMount(fsDevice, mountpoint, laidOut.Filesystem(), 0, ""))
+
 	defer func() {
 		errUnmount := unmountWithFallbackToLazy(mountpoint, "writing filesystem content")
 		if err == nil && errUnmount != nil {
-			err = fmt.Errorf("cannot unmount %v after writing filesystem content: %v", fsDevice, errUnmount)
+			mylog.Check(fmt.Errorf("cannot unmount %v after writing filesystem content: %v", fsDevice, errUnmount))
 		}
 	}()
-	fs, err := gadget.NewMountedFilesystemWriter(nil, laidOut, observer)
-	if err != nil {
-		return fmt.Errorf("cannot create filesystem image writer: %v", err)
-	}
+	fs := mylog.Check2(gadget.NewMountedFilesystemWriter(nil, laidOut, observer))
 
 	var noFilesToPreserve []string
-	if err := fs.Write(mountpoint, noFilesToPreserve); err != nil {
-		return fmt.Errorf("cannot create filesystem image: %v", err)
-	}
+	mylog.Check(fs.Write(mountpoint, noFilesToPreserve))
 
 	return nil
 }

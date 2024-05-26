@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/sysdb"
@@ -73,20 +74,19 @@ func (sdbs *sysDBSuite) SetUpTest(c *C) {
 
 	sdbs.extraGeneric = []asserts.Assertion{otherAcct}
 
-	a, err := signingDB.Sign(asserts.ModelType, map[string]interface{}{
+	a := mylog.Check2(signingDB.Sign(asserts.ModelType, map[string]interface{}{
 		"series":    "16",
 		"brand-id":  "can0nical",
 		"model":     "other-model",
 		"classic":   "true",
 		"timestamp": "2015-11-20T15:04:00Z",
-	}, nil, "")
-	c.Assert(err, IsNil)
+	}, nil, ""))
+
 	sdbs.otherModel = a.(*asserts.Model)
 
 	fakeRoot := filepath.Join(tmpdir, "root")
+	mylog.Check(os.Mkdir(fakeRoot, os.ModePerm))
 
-	err = os.Mkdir(fakeRoot, os.ModePerm)
-	c.Assert(err, IsNil)
 	dirs.SetRootDir(fakeRoot)
 
 	sdbs.probeAssert = assertstest.NewAccount(signingDB, "probe", nil, "")
@@ -135,48 +135,46 @@ func (sdbs *sysDBSuite) TestGenericClassicModel(c *C) {
 }
 
 func (sdbs *sysDBSuite) TestOpenSysDatabase(c *C) {
-	db, err := sysdb.Open()
-	c.Assert(err, IsNil)
+	db := mylog.Check2(sysdb.Open())
+
 	c.Check(db, NotNil)
 
 	// check trusted
-	_, err = db.Find(asserts.AccountKeyType, map[string]string{
+	_ = mylog.Check2(db.Find(asserts.AccountKeyType, map[string]string{
 		"account-id":          "canonical",
 		"public-key-sha3-384": "-CvQKAwRQ5h3Ffn10FILJoEZUXOv6km9FwA80-Rcj-f-6jadQ89VRswHNiEB9Lxk",
-	})
-	c.Assert(err, IsNil)
+	}))
 
-	trustedAcc, err := db.Find(asserts.AccountType, map[string]string{
+
+	trustedAcc := mylog.Check2(db.Find(asserts.AccountType, map[string]string{
 		"account-id": "canonical",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 
 	c.Check(trustedAcc.(*asserts.Account).Validation(), Equals, "verified")
-
-	err = db.Check(trustedAcc)
+	mylog.Check(db.Check(trustedAcc))
 	c.Check(err, IsNil)
 
 	// check generic
-	genericAcc, err := db.Find(asserts.AccountType, map[string]string{
+	genericAcc := mylog.Check2(db.Find(asserts.AccountType, map[string]string{
 		"account-id": "generic",
-	})
-	c.Assert(err, IsNil)
-	_, err = db.FindMany(asserts.AccountKeyType, map[string]string{
+	}))
+
+	_ = mylog.Check2(db.FindMany(asserts.AccountKeyType, map[string]string{
 		"account-id": "generic",
 		"name":       "models",
-	})
-	c.Assert(err, IsNil)
+	}))
+
 
 	c.Check(genericAcc.(*asserts.Account).Validation(), Equals, "verified")
-
-	err = db.Check(genericAcc)
+	mylog.Check(db.Check(genericAcc))
 	c.Check(err, IsNil)
-
-	err = db.Check(sysdb.GenericClassicModel())
+	mylog.Check(db.Check(sysdb.GenericClassicModel()))
 	c.Check(err, IsNil)
+	mylog.
 
-	// extraneous
-	err = db.Check(sdbs.probeAssert)
+		// extraneous
+		Check(db.Check(sdbs.probeAssert))
 	c.Check(err, ErrorMatches, "no matching public key.*")
 }
 
@@ -184,11 +182,10 @@ func (sdbs *sysDBSuite) TestOpenSysDatabaseExtras(c *C) {
 	restore := sysdb.InjectTrusted(sdbs.extraTrusted)
 	defer restore()
 
-	db, err := sysdb.Open()
-	c.Assert(err, IsNil)
-	c.Check(db, NotNil)
+	db := mylog.Check2(sysdb.Open())
 
-	err = db.Check(sdbs.probeAssert)
+	c.Check(db, NotNil)
+	mylog.Check(db.Check(sdbs.probeAssert))
 	c.Check(err, IsNil)
 }
 
@@ -198,7 +195,7 @@ func (sdbs *sysDBSuite) TestOpenSysDatabaseBackstoreOpenFail(c *C) {
 	os.MkdirAll(filepath.Join(dirs.SnapAssertsDBDir, "asserts-v0"), 0777)
 	syscall.Umask(oldUmask)
 
-	db, err := sysdb.Open()
+	db := mylog.Check2(sysdb.Open())
 	c.Assert(err, ErrorMatches, "assert storage root unexpectedly world-writable: .*")
 	c.Check(db, IsNil)
 }
@@ -209,7 +206,7 @@ func (sdbs *sysDBSuite) TestOpenSysDatabaseKeypairManagerOpenFail(c *C) {
 	os.MkdirAll(filepath.Join(dirs.SnapAssertsDBDir, "private-keys-v1"), 0777)
 	syscall.Umask(oldUmask)
 
-	db, err := sysdb.Open()
+	db := mylog.Check2(sysdb.Open())
 	c.Assert(err, ErrorMatches, "assert storage root unexpectedly world-writable: .*")
 	c.Check(db, IsNil)
 }

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 var (
@@ -42,12 +44,9 @@ func main() {
 
 	out := os.Stdout
 	if outFile != "" && outFile != "-" {
-		var err error
-		out, err = os.Create(outFile)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "error: %v", err)
-			os.Exit(1)
-		}
+
+		out = mylog.Check2(os.Create(outFile))
+
 		defer out.Close()
 	}
 

@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
@@ -57,14 +58,14 @@ func (s *piCfgSuite) SetUpTest(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc"), 0755), IsNil)
 
 	s.mockConfigPath = filepath.Join(dirs.GlobalRootDir, "/boot/uboot/config.txt")
-	err := os.MkdirAll(filepath.Dir(s.mockConfigPath), 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Dir(s.mockConfigPath), 0755))
+
 	s.mockConfig(c, mockConfigTxt)
 }
 
 func (s *piCfgSuite) mockConfig(c *C, txt string) {
-	err := os.WriteFile(s.mockConfigPath, []byte(txt), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(s.mockConfigPath, []byte(txt), 0644))
+
 }
 
 func (s *piCfgSuite) checkMockConfig(c *C, expected string) {
@@ -72,8 +73,8 @@ func (s *piCfgSuite) checkMockConfig(c *C, expected string) {
 }
 
 func (s *piCfgSuite) TestConfigurePiConfigUncommentExisting(c *C) {
-	err := configcore.UpdatePiConfig(s.mockConfigPath, map[string]string{"disable_overscan": "1"})
-	c.Assert(err, IsNil)
+	mylog.Check(configcore.UpdatePiConfig(s.mockConfigPath, map[string]string{"disable_overscan": "1"}))
+
 
 	expected := strings.Replace(mockConfigTxt, "#disable_overscan=1", "disable_overscan=1", -1)
 	s.checkMockConfig(c, expected)
@@ -81,81 +82,80 @@ func (s *piCfgSuite) TestConfigurePiConfigUncommentExisting(c *C) {
 
 func (s *piCfgSuite) TestConfigurePiConfigCommentExisting(c *C) {
 	s.mockConfig(c, mockConfigTxt+"avoid_warnings=1\n")
+	mylog.Check(configcore.UpdatePiConfig(s.mockConfigPath, map[string]string{"avoid_warnings": ""}))
 
-	err := configcore.UpdatePiConfig(s.mockConfigPath, map[string]string{"avoid_warnings": ""})
-	c.Assert(err, IsNil)
 
 	expected := mockConfigTxt + "#avoid_warnings=1\n"
 	s.checkMockConfig(c, expected)
 }
 
 func (s *piCfgSuite) TestConfigurePiConfigAddNewOption(c *C) {
-	err := configcore.UpdatePiConfig(s.mockConfigPath, map[string]string{"framebuffer_depth": "16"})
-	c.Assert(err, IsNil)
+	mylog.Check(configcore.UpdatePiConfig(s.mockConfigPath, map[string]string{"framebuffer_depth": "16"}))
+
 
 	expected := mockConfigTxt + "framebuffer_depth=16\n"
 	s.checkMockConfig(c, expected)
+	mylog.
 
-	// add again, verify its not added twice but updated
-	err = configcore.UpdatePiConfig(s.mockConfigPath, map[string]string{"framebuffer_depth": "32"})
-	c.Assert(err, IsNil)
+		// add again, verify its not added twice but updated
+		Check(configcore.UpdatePiConfig(s.mockConfigPath, map[string]string{"framebuffer_depth": "32"}))
+
 	expected = mockConfigTxt + "framebuffer_depth=32\n"
 	s.checkMockConfig(c, expected)
 }
 
 func (s *piCfgSuite) TestConfigurePiConfigNoChangeUnset(c *C) {
-	// ensure we cannot write to the dir to test that we really
-	// do not update the file
-	err := os.Chmod(filepath.Dir(s.mockConfigPath), 0500)
-	c.Assert(err, IsNil)
-	defer os.Chmod(filepath.Dir(s.mockConfigPath), 0755)
+	mylog.
+		// ensure we cannot write to the dir to test that we really
+		// do not update the file
+		Check(os.Chmod(filepath.Dir(s.mockConfigPath), 0500))
 
-	err = configcore.UpdatePiConfig(s.mockConfigPath, map[string]string{"hdmi_group": ""})
-	c.Assert(err, IsNil)
+	defer os.Chmod(filepath.Dir(s.mockConfigPath), 0755)
+	mylog.Check(configcore.UpdatePiConfig(s.mockConfigPath, map[string]string{"hdmi_group": ""}))
+
 }
 
 func (s *piCfgSuite) TestConfigurePiConfigNoChangeSet(c *C) {
-	// ensure we cannot write to the dir to test that we really
-	// do not update the file
-	err := os.Chmod(filepath.Dir(s.mockConfigPath), 0500)
-	c.Assert(err, IsNil)
-	defer os.Chmod(filepath.Dir(s.mockConfigPath), 0755)
+	mylog.
+		// ensure we cannot write to the dir to test that we really
+		// do not update the file
+		Check(os.Chmod(filepath.Dir(s.mockConfigPath), 0500))
 
-	err = configcore.UpdatePiConfig(s.mockConfigPath, map[string]string{"unrelated_options": "cannot-be-set"})
+	defer os.Chmod(filepath.Dir(s.mockConfigPath), 0755)
+	mylog.Check(configcore.UpdatePiConfig(s.mockConfigPath, map[string]string{"unrelated_options": "cannot-be-set"}))
 	c.Assert(err, ErrorMatches, `cannot set unsupported configuration value "unrelated_options"`)
 }
 
 func (s *piCfgSuite) TestConfigurePiConfigIntegration(c *C) {
-	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
+	mylog.Check(configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"pi-config.disable-overscan": 1,
 		},
-	})
-	c.Assert(err, IsNil)
+	}))
+
 
 	expected := strings.Replace(mockConfigTxt, "#disable_overscan=1", "disable_overscan=1", -1)
 	s.checkMockConfig(c, expected)
-
-	err = configcore.FilesystemOnlyRun(coreDev, &mockConf{
+	mylog.Check(configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"pi-config.disable-overscan": "",
 		},
-	})
-	c.Assert(err, IsNil)
+	}))
+
 
 	s.checkMockConfig(c, mockConfigTxt)
 }
 
 func (s *piCfgSuite) TestConfigurePiConfigRegression(c *C) {
-	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
+	mylog.Check(configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"pi-config.gpu-mem-512": true,
 		},
-	})
-	c.Assert(err, IsNil)
+	}))
+
 	expected := strings.Replace(mockConfigTxt, "#gpu_mem_512=true", "gpu_mem_512=true", -1)
 	s.checkMockConfig(c, expected)
 }
@@ -170,25 +170,24 @@ func (s *piCfgSuite) TestUpdateConfigUC20RunMode(c *C) {
 	// mode location to show that we only modify the uc20 one
 	piCfg := filepath.Join(boot.InitramfsUbuntuSeedDir, "config.txt")
 	uc18PiCfg := filepath.Join(dirs.GlobalRootDir, "/boot/uboot/config.txt")
+	mylog.Check(os.MkdirAll(filepath.Dir(piCfg), 0755))
 
-	err := os.MkdirAll(filepath.Dir(piCfg), 0755)
-	c.Assert(err, IsNil)
-	err = os.MkdirAll(filepath.Dir(uc18PiCfg), 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Dir(uc18PiCfg), 0755))
 
-	err = os.WriteFile(piCfg, []byte(mockConfigTxt), 0644)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(uc18PiCfg, []byte(mockConfigTxt), 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(piCfg, []byte(mockConfigTxt), 0644))
 
-	// apply the config
-	err = configcore.FilesystemOnlyRun(uc20DevRunMode, &mockConf{
-		state: s.state,
-		conf: map[string]interface{}{
-			"pi-config.gpu-mem-512": true,
-		},
-	})
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(uc18PiCfg, []byte(mockConfigTxt), 0644))
+
+	mylog.
+
+		// apply the config
+		Check(configcore.FilesystemOnlyRun(uc20DevRunMode, &mockConf{
+			state: s.state,
+			conf: map[string]interface{}{
+				"pi-config.gpu-mem-512": true,
+			},
+		}))
+
 
 	// make sure that the original pi config.txt in /boot/uboot/config.txt
 	// didn't change
@@ -206,21 +205,20 @@ func (s *piCfgSuite) testUpdateConfigUC20NonRunMode(c *C, mode string) {
 	}
 
 	piCfg := filepath.Join(boot.InitramfsUbuntuSeedDir, "config.txt")
+	mylog.Check(os.MkdirAll(filepath.Dir(piCfg), 0755))
 
-	err := os.MkdirAll(filepath.Dir(piCfg), 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(piCfg, []byte(mockConfigTxt), 0644))
 
-	err = os.WriteFile(piCfg, []byte(mockConfigTxt), 0644)
-	c.Assert(err, IsNil)
+	mylog.
 
-	// apply the config
-	err = configcore.FilesystemOnlyRun(uc20DevMode, &mockConf{
-		state: s.state,
-		conf: map[string]interface{}{
-			"pi-config.gpu-mem-512": true,
-		},
-	})
-	c.Assert(err, IsNil)
+		// apply the config
+		Check(configcore.FilesystemOnlyRun(uc20DevMode, &mockConf{
+			state: s.state,
+			conf: map[string]interface{}{
+				"pi-config.gpu-mem-512": true,
+			},
+		}))
+
 
 	// the config.txt didn't change at all
 	c.Check(piCfg, testutil.FileEquals, mockConfigTxt)
@@ -257,14 +255,13 @@ func (s *piCfgSuite) TestConfigurePiConfigSkippedOnAvnetKernel(c *C) {
 	defer r()
 
 	avnetDev := mockDev{classic: false, kernel: "avnet-avt-iiotg20-kernel"}
-
-	err := configcore.FilesystemOnlyRun(avnetDev, &mockConf{
+	mylog.Check(configcore.FilesystemOnlyRun(avnetDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"pi-config.disable-overscan": 1,
 		},
-	})
-	c.Assert(err, IsNil)
+	}))
+
 
 	c.Check(logbuf.String(), testutil.Contains, "ignoring pi-config settings: configuration cannot be applied: boot measures config.txt")
 	// change was ignored
@@ -280,14 +277,13 @@ func (s *piCfgSuite) TestConfigurePiConfigSkippedOnWrongMode(c *C) {
 		mode:    "install",
 		uc20:    true,
 	}
-
-	err := configcore.FilesystemOnlyRun(uc20DevInstallMode, &mockConf{
+	mylog.Check(configcore.FilesystemOnlyRun(uc20DevInstallMode, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"pi-config.disable-overscan": 1,
 		},
-	})
-	c.Assert(err, IsNil)
+	}))
+
 
 	c.Check(logbuf.String(), testutil.Contains, "ignoring pi-config settings: configuration cannot be applied: unsupported system mode")
 	// change was ignored
@@ -316,13 +312,13 @@ func (s *piCfgSuite) TestConfigurePiConfigSkippedOnIgnoreHeader(c *C) {
 	for _, tc := range tests {
 		mockConfigWithHeader := tc.header + mockConfigTxt
 		s.mockConfig(c, mockConfigWithHeader)
-		err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
+		mylog.Check(configcore.FilesystemOnlyRun(coreDev, &mockConf{
 			state: s.state,
 			conf: map[string]interface{}{
 				"pi-config.disable-overscan": 1,
 			},
-		})
-		c.Assert(err, IsNil)
+		}))
+
 
 		if tc.shouldIgnore {
 			c.Check(logbuf.String(), testutil.Contains, "ignoring pi-config settings: configuration cannot be applied: no-editing header found")

@@ -28,6 +28,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/image"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -86,9 +87,9 @@ func (s *imageSuite) TestWriteResolvedContentRelativePath(c *check.C) {
 
 	// chdir to prepareImage dir and run writeResolvedContent from
 	// this relative dir
-	cwd, err := os.Getwd()
+	cwd := mylog.Check2(os.Getwd())
 	c.Assert(err, check.IsNil)
-	err = os.Chdir(prepareImageDir)
+	mylog.Check(os.Chdir(prepareImageDir))
 	c.Assert(err, check.IsNil)
 	defer func() { os.Chdir(cwd) }()
 
@@ -101,6 +102,7 @@ type treeLines []string
 func (t treeLines) Len() int {
 	return len(t)
 }
+
 func (t treeLines) Less(i, j int) bool {
 	// strip off the first character of the two strings (assuming the strings
 	// are at least 1 character long)
@@ -114,15 +116,16 @@ func (t treeLines) Less(i, j int) bool {
 	}
 	return s1 < s2
 }
+
 func (t treeLines) Swap(i, j int) {
 	t[i], t[j] = t[j], t[i]
 }
 
 func (s *imageSuite) testWriteResolvedContent(c *check.C, prepareImageDir string) {
 	// on uc20 there is a "system-seed" under the <PrepareImageDir>
-	uc20systemSeed, err := filepath.Abs(filepath.Join(prepareImageDir, "system-seed"))
+	uc20systemSeed := mylog.Check2(filepath.Abs(filepath.Join(prepareImageDir, "system-seed")))
 	c.Assert(err, check.IsNil)
-	err = os.MkdirAll(uc20systemSeed, 0755)
+	mylog.Check(os.MkdirAll(uc20systemSeed, 0755))
 	c.Assert(err, check.IsNil)
 
 	// the resolved content is written here
@@ -138,16 +141,15 @@ func (s *imageSuite) testWriteResolvedContent(c *check.C, prepareImageDir string
 	kernelRoot := c.MkDir()
 
 	model := s.makeUC20Model(nil)
-	gadgetInfo, err := gadget.ReadInfoAndValidate(gadgetRoot, model, nil)
+	gadgetInfo := mylog.Check2(gadget.ReadInfoAndValidate(gadgetRoot, model, nil))
 	c.Assert(err, check.IsNil)
-
-	err = image.WriteResolvedContent(prepareImageDir, gadgetInfo, gadgetRoot, kernelRoot)
+	mylog.Check(image.WriteResolvedContent(prepareImageDir, gadgetInfo, gadgetRoot, kernelRoot))
 	c.Assert(err, check.IsNil)
 
 	// XXX: add testutil.DirEquals([][]string)
 	cmd := exec.Command("find", ".", "-printf", "%y %P\n")
 	cmd.Dir = prepareImageDir
-	tree, err := cmd.CombinedOutput()
+	tree := mylog.Check2(cmd.CombinedOutput())
 	c.Assert(err, check.IsNil)
 	// sort the tree output
 	lines := strings.Split(string(tree), "\n")
@@ -171,7 +173,7 @@ d system-seed/EFI/boot
 f system-seed/EFI/boot/system-seed.efi`)
 
 	// check symlink target for "ubuntu-seed" -> <prepareImageDir>/system-seed
-	t, err := os.Readlink(filepath.Join(prepareImageDir, "resolved-content/vol1/part1"))
+	t := mylog.Check2(os.Readlink(filepath.Join(prepareImageDir, "resolved-content/vol1/part1")))
 	c.Assert(err, check.IsNil)
 	c.Check(t, check.Equals, uc20systemSeed)
 }

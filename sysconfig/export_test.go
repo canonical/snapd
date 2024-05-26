@@ -19,23 +19,19 @@
 
 package sysconfig
 
-var (
-	FilterCloudCfgFile = filterCloudCfgFile
-)
+import "github.com/ddkwork/golibrary/mylog"
+
+var FilterCloudCfgFile = filterCloudCfgFile
 
 func CloudDatasourcesInUse(configFile string) (*CloudDatasourcesInUseResult, error) {
-	res, err := cloudDatasourcesInUse(configFile)
-	if err != nil {
-		return nil, err
-	}
+	res := mylog.Check2(cloudDatasourcesInUse(configFile))
+
 	return (*CloudDatasourcesInUseResult)(res), err
 }
 
 func CloudDatasourcesInUseForDir(dir string) (*CloudDatasourcesInUseResult, error) {
-	res, err := cloudDatasourcesInUseForDir(dir)
-	if err != nil {
-		return nil, err
-	}
+	res := mylog.Check2(cloudDatasourcesInUseForDir(dir))
+
 	return (*CloudDatasourcesInUseResult)(res), err
 }
 

@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	snap "github.com/snapcore/snapd/cmd/snap"
 )
 
@@ -32,8 +33,8 @@ func (s *SnapSuite) TestConfinement(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, `{"type": "sync", "result": {"confinement": "strict"}}`)
 	})
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "confinement"})
-	c.Assert(err, IsNil)
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"debug", "confinement"}))
+
 	c.Assert(s.Stdout(), Equals, "strict\n")
 	c.Assert(s.Stderr(), Equals, "")
 }

@@ -31,6 +31,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap/naming"
@@ -58,13 +59,10 @@ func ValidateDesktopPrefix(prefix string) bool {
 	if len(tokens) == 0 || len(tokens) > 2 {
 		return false
 	}
-	if err := ValidateName(tokens[0]); err != nil {
-		return false
-	}
+	mylog.Check(ValidateName(tokens[0]))
+
 	if len(tokens) == 2 {
-		if err := ValidateInstanceName(tokens[1]); err != nil {
-			return false
-		}
+		mylog.Check(ValidateInstanceName(tokens[1]))
 	}
 	return true
 }
@@ -95,10 +93,12 @@ func ValidateInterfaceName(name string) error {
 // NB keep this in sync with snapcraft and the review tools :-)
 var isValidVersion = regexp.MustCompile("^[a-zA-Z0-9](?:[a-zA-Z0-9:.+~-]{0,30}[a-zA-Z0-9+~])?$").MatchString
 
-var isNonGraphicalASCII = regexp.MustCompile("[^[:graph:]]").MatchString
-var isInvalidFirstVersionChar = regexp.MustCompile("^[^a-zA-Z0-9]").MatchString
-var isInvalidLastVersionChar = regexp.MustCompile("[^a-zA-Z0-9+~]$").MatchString
-var invalidMiddleVersionChars = regexp.MustCompile("[^a-zA-Z0-9:.+~-]+").FindAllString
+var (
+	isNonGraphicalASCII       = regexp.MustCompile("[^[:graph:]]").MatchString
+	isInvalidFirstVersionChar = regexp.MustCompile("^[^a-zA-Z0-9]").MatchString
+	isInvalidLastVersionChar  = regexp.MustCompile("[^a-zA-Z0-9+~]$").MatchString
+	invalidMiddleVersionChars = regexp.MustCompile("[^a-zA-Z0-9:.+~-]+").FindAllString
+)
 
 // ValidateVersion checks if a string is a valid snap version.
 func ValidateVersion(version string) error {
@@ -156,17 +156,14 @@ func ValidateVersion(version string) error {
 
 // ValidateLicense checks if a string is a valid SPDX expression.
 func ValidateLicense(license string) error {
-	if err := spdx.ValidateLicense(license); err != nil {
-		return fmt.Errorf("cannot validate license %q: %s", license, err)
-	}
+	mylog.Check(spdx.ValidateLicense(license))
+
 	return nil
 }
 
 func validateHooks(info *Info) error {
 	for _, hook := range info.Hooks {
-		if err := ValidateHook(hook); err != nil {
-			return err
-		}
+		mylog.Check(ValidateHook(hook))
 	}
 
 	hasDefaultConfigureHook := info.Hooks["default-configure"] != nil
@@ -180,9 +177,7 @@ func validateHooks(info *Info) error {
 
 // ValidateHook validates the content of the given HookInfo
 func ValidateHook(hook *HookInfo) error {
-	if err := naming.ValidateHook(hook.Name); err != nil {
-		return err
-	}
+	mylog.Check(naming.ValidateHook(hook.Name))
 
 	// Also validate the command chain
 	for _, value := range hook.CommandChain {
@@ -266,9 +261,8 @@ func validateSocketAddrAbstract(socket *SocketInfo, fieldName string, path strin
 func validateSocketAddrNet(socket *SocketInfo, fieldName string, address string) error {
 	lastIndex := strings.LastIndex(address, ":")
 	if lastIndex >= 0 {
-		if err := validateSocketAddrNetHost(fieldName, address[:lastIndex]); err != nil {
-			return err
-		}
+		mylog.Check(validateSocketAddrNetHost(fieldName, address[:lastIndex]))
+
 		return validateSocketAddrNetPort(fieldName, address[lastIndex+1:])
 	}
 
@@ -289,9 +283,9 @@ func validateSocketAddrNetHost(fieldName string, address string) error {
 
 func validateSocketAddrNetPort(fieldName string, port string) error {
 	var val uint64
-	var err error
+
 	retErr := fmt.Errorf("invalid %q port number %q", fieldName, port)
-	if val, err = strconv.ParseUint(port, 10, 16); err != nil {
+	if val = mylog.Check2(strconv.ParseUint(port, 10, 16)); err != nil {
 		return retErr
 	}
 	if val < 1 || val > 65535 {
@@ -339,115 +333,77 @@ func Validate(info *Info) error {
 	if name == "" {
 		return errors.New("snap name cannot be empty")
 	}
-
-	if err := validateProvenance(info.SnapProvenance); err != nil {
-		return err
-	}
-
-	if err := ValidateName(info.SnapName()); err != nil {
-		return err
-	}
-	if err := ValidateInstanceName(name); err != nil {
-		return err
-	}
+	mylog.Check(validateProvenance(info.SnapProvenance))
+	mylog.Check(ValidateName(info.SnapName()))
+	mylog.Check(ValidateInstanceName(name))
 
 	// validate component names, which follow the same rules as snap names
 	for cname, comp := range info.Components {
-		// component Type is validated when unmarshaling
-		if err := ValidateName(cname); err != nil {
-			return err
-		}
-		if err := ValidateSummary(comp.Summary); err != nil {
-			return err
-		}
-		if err := ValidateDescription(comp.Description); err != nil {
-			return err
-		}
+		mylog.Check(
+			// component Type is validated when unmarshaling
+			ValidateName(cname))
+		mylog.Check(ValidateSummary(comp.Summary))
+		mylog.Check(ValidateDescription(comp.Description))
+
 		for _, hook := range comp.ExplicitHooks {
-			if err := ValidateHook(hook); err != nil {
-				return err
-			}
+			mylog.Check(ValidateHook(hook))
 		}
 	}
+	mylog.Check(validateTitle(info.Title()))
+	mylog.Check(
 
-	if err := validateTitle(info.Title()); err != nil {
-		return err
-	}
+		// TODO for some reason we are not validating the summary for
+		// snap.yaml. What is the store checking?
 
-	// TODO for some reason we are not validating the summary for
-	// snap.yaml. What is the store checking?
-
-	if err := ValidateDescription(info.Description()); err != nil {
-		return err
-	}
-
-	if err := ValidateVersion(info.Version); err != nil {
-		return err
-	}
-
-	if err := info.Epoch.Validate(); err != nil {
-		return err
-	}
+		ValidateDescription(info.Description()))
+	mylog.Check(ValidateVersion(info.Version))
+	mylog.Check(info.Epoch.Validate())
 
 	if license := info.License; license != "" {
-		if err := ValidateLicense(license); err != nil {
-			return err
-		}
+		mylog.Check(ValidateLicense(license))
 	}
 
 	// validate app entries
 	for _, app := range info.Apps {
-		if err := ValidateApp(app); err != nil {
-			return fmt.Errorf("invalid definition of application %q: %v", app.Name, err)
-		}
+		mylog.Check(ValidateApp(app))
 	}
+	mylog.Check(
 
-	// validate apps ordering according to after/before
-	if err := validateAppOrderCycles(info.Services()); err != nil {
-		return err
-	}
+		// validate apps ordering according to after/before
+		validateAppOrderCycles(info.Services()))
 
 	// validate aliases
 	for alias, app := range info.LegacyAliases {
-		if err := naming.ValidateAlias(alias); err != nil {
-			return fmt.Errorf("cannot have %q as alias name for app %q - use only letters, digits, dash, underscore and dot characters", alias, app.Name)
-		}
+		mylog.Check(naming.ValidateAlias(alias))
 	}
+	mylog.Check(
 
-	// Validate hook entries
-	if err := validateHooks(info); err != nil {
-		return err
-	}
+		// Validate hook entries
+		validateHooks(info))
+	mylog.Check(
 
-	// Ensure that plugs and slots have appropriate names and interface names.
-	if err := plugsSlotsInterfacesNames(info); err != nil {
-		return err
-	}
+		// Ensure that plugs and slots have appropriate names and interface names.
+		plugsSlotsInterfacesNames(info))
+	mylog.Check(
 
-	// Ensure that plug and slot have unique names.
-	if err := plugsSlotsUniqueNames(info); err != nil {
-		return err
-	}
+		// Ensure that plug and slot have unique names.
+		plugsSlotsUniqueNames(info))
+	mylog.Check(
 
-	// Ensure that base field is valid
-	if err := ValidateBase(info); err != nil {
-		return err
-	}
+		// Ensure that base field is valid
+		ValidateBase(info))
+	mylog.Check(
 
-	// Ensure system usernames are valid
-	if err := ValidateSystemUsernames(info); err != nil {
-		return err
-	}
+		// Ensure system usernames are valid
+		ValidateSystemUsernames(info))
+	mylog.Check(
 
-	// Ensure links are valid
-	if err := ValidateLinks(info.OriginalLinks); err != nil {
-		return err
-	}
+		// Ensure links are valid
+		ValidateLinks(info.OriginalLinks))
+	mylog.Check(
 
-	// ensure that common-id(s) are unique
-	if err := ValidateCommonIDs(info); err != nil {
-		return err
-	}
+		// ensure that common-id(s) are unique
+		ValidateCommonIDs(info))
 
 	return ValidateLayoutAll(info)
 }
@@ -470,9 +426,8 @@ func ValidateBase(info *Info) error {
 		if instanceKey != "" {
 			return fmt.Errorf("base cannot specify a snap instance name: %q", info.Base)
 		}
-		if err := ValidateName(baseSnapName); err != nil {
-			return fmt.Errorf("invalid base name: %s", err)
-		}
+		mylog.Check(ValidateName(baseSnapName))
+
 	}
 	return nil
 }
@@ -488,9 +443,8 @@ func ValidateLayoutAll(info *Info) error {
 	// Validate that each source path is not a new top-level directory
 	for _, layout := range info.Layout {
 		cleanPathSrc := info.ExpandSnapVariables(filepath.Clean(layout.Path))
-		if err := apparmor.ValidateNoAppArmorRegexp(layout.Path); err != nil {
-			return fmt.Errorf("invalid layout path: %v", err)
-		}
+		mylog.Check(apparmor.ValidateNoAppArmorRegexp(layout.Path))
+
 		elems := strings.SplitN(cleanPathSrc, string(os.PathSeparator), 3)
 		switch len(elems) {
 		// len(1) is either relative path or empty string, will be validated
@@ -560,9 +514,8 @@ func ValidateLayoutAll(info *Info) error {
 	constraints := make([]LayoutConstraint, 0, len(info.Layout))
 	for _, path := range paths {
 		layout := info.Layout[path]
-		if err := ValidateLayout(layout, constraints); err != nil {
-			return err
-		}
+		mylog.Check(ValidateLayout(layout, constraints))
+
 		constraints = append(constraints, layout.constraint())
 	}
 	return nil
@@ -570,23 +523,18 @@ func ValidateLayoutAll(info *Info) error {
 
 func plugsSlotsInterfacesNames(info *Info) error {
 	for plugName, plug := range info.Plugs {
-		if err := ValidatePlugName(plugName); err != nil {
-			return err
-		}
-		if err := ValidateInterfaceName(plug.Interface); err != nil {
-			return fmt.Errorf("invalid interface name %q for plug %q", plug.Interface, plugName)
-		}
+		mylog.Check(ValidatePlugName(plugName))
+		mylog.Check(ValidateInterfaceName(plug.Interface))
+
 	}
 	for slotName, slot := range info.Slots {
-		if err := ValidateSlotName(slotName); err != nil {
-			return err
-		}
-		if err := ValidateInterfaceName(slot.Interface); err != nil {
-			return fmt.Errorf("invalid interface name %q for slot %q", slot.Interface, slotName)
-		}
+		mylog.Check(ValidateSlotName(slotName))
+		mylog.Check(ValidateInterfaceName(slot.Interface))
+
 	}
 	return nil
 }
+
 func plugsSlotsUniqueNames(info *Info) error {
 	// we could choose the smaller collection if we wanted to optimize this check
 	for plugName := range info.Plugs {
@@ -600,27 +548,21 @@ func plugsSlotsUniqueNames(info *Info) error {
 func validateField(name, cont string, whitelist *regexp.Regexp) error {
 	if !whitelist.MatchString(cont) {
 		return fmt.Errorf("app description field '%s' contains illegal %q (legal: '%s')", name, cont, whitelist)
-
 	}
 	return nil
 }
 
 func validateAppSocket(socket *SocketInfo) error {
-	if err := validateSocketName(socket.Name); err != nil {
-		return err
-	}
+	mylog.Check(validateSocketName(socket.Name))
+	mylog.Check(validateSocketMode(socket.SocketMode))
 
-	if err := validateSocketMode(socket.SocketMode); err != nil {
-		return err
-	}
 	return validateSocketAddr(socket, "listen-stream", socket.ListenStream)
 }
 
 // validateAppOrderCycles checks for cycles in app ordering dependencies
 func validateAppOrderCycles(apps []*AppInfo) error {
-	if _, err := SortServices(apps); err != nil {
-		return err
-	}
+	mylog.Check2(SortServices(apps))
+
 	return nil
 }
 
@@ -679,10 +621,7 @@ func validateAppTimer(app *AppInfo) error {
 	if !app.IsService() {
 		return errors.New("timer is only applicable to services")
 	}
-
-	if _, err := timeutil.ParseSchedule(app.Timer.Timer); err != nil {
-		return fmt.Errorf("timer has invalid format: %v", err)
-	}
+	mylog.Check2(timeutil.ParseSchedule(app.Timer.Timer))
 
 	return nil
 }
@@ -753,8 +692,10 @@ func validateAppActivatesOn(app *AppInfo) error {
 // section of snap.yaml. Do not allow any of [',",`] here or snap-exec
 // will get confused. chainContentWhitelist is the same, but for the
 // command-chain, which also doesn't allow whitespace.
-var appContentWhitelist = regexp.MustCompile(`^[A-Za-z0-9/. _#:$-]*$`)
-var commandChainContentWhitelist = regexp.MustCompile(`^[A-Za-z0-9/._#:$-]*$`)
+var (
+	appContentWhitelist          = regexp.MustCompile(`^[A-Za-z0-9/. _#:$-]*$`)
+	commandChainContentWhitelist = regexp.MustCompile(`^[A-Za-z0-9/._#:$-]*$`)
+)
 
 // ValidAppName tells whether a string is a valid application name.
 func ValidAppName(n string) bool {
@@ -798,16 +739,12 @@ func ValidateApp(app *AppInfo) error {
 	}
 
 	for name, value := range checks {
-		if err := validateField(name, value, appContentWhitelist); err != nil {
-			return err
-		}
+		mylog.Check(validateField(name, value, appContentWhitelist))
 	}
 
 	// Also validate the command chain
 	for _, value := range app.CommandChain {
-		if err := validateField("command-chain", value, commandChainContentWhitelist); err != nil {
-			return err
-		}
+		mylog.Check(validateField("command-chain", value, commandChainContentWhitelist))
 	}
 
 	// Socket activation requires the "network-bind" plug
@@ -818,33 +755,18 @@ func ValidateApp(app *AppInfo) error {
 	}
 
 	for _, socket := range app.Sockets {
-		if err := validateAppSocket(socket); err != nil {
-			return fmt.Errorf("invalid definition of socket %q: %v", socket.Name, err)
-		}
+		mylog.Check(validateAppSocket(socket))
 	}
+	mylog.Check(validateAppActivatesOn(app))
+	mylog.Check(validateAppRestart(app))
+	mylog.Check(validateAppOrderNames(app, app.Before))
+	mylog.Check(validateAppOrderNames(app, app.After))
+	mylog.Check(validateAppTimeouts(app))
+	mylog.Check(
 
-	if err := validateAppActivatesOn(app); err != nil {
-		return err
-	}
+		// validate stop-mode
+		app.StopMode.Validate())
 
-	if err := validateAppRestart(app); err != nil {
-		return err
-	}
-	if err := validateAppOrderNames(app, app.Before); err != nil {
-		return err
-	}
-	if err := validateAppOrderNames(app, app.After); err != nil {
-		return err
-	}
-
-	if err := validateAppTimeouts(app); err != nil {
-		return err
-	}
-
-	// validate stop-mode
-	if err := app.StopMode.Validate(); err != nil {
-		return err
-	}
 	// validate refresh-mode
 	switch app.RefreshMode {
 	case "", "endure", "restart", "ignore-running":
@@ -1025,10 +947,8 @@ func ValidateLayout(layout *Layout, constraints []LayoutConstraint) error {
 	if mountPoint == "" {
 		return errors.New("layout cannot use an empty path")
 	}
+	mylog.Check(ValidatePathVariables(mountPoint))
 
-	if err := ValidatePathVariables(mountPoint); err != nil {
-		return fmt.Errorf("layout %q uses invalid mount point: %s", layout.Path, err)
-	}
 	mountPoint = si.ExpandSnapVariables(mountPoint)
 	if !isAbsAndClean(mountPoint) {
 		return fmt.Errorf("layout %q uses invalid mount point: must be absolute and clean", layout.Path)
@@ -1066,9 +986,8 @@ func ValidateLayout(layout *Layout, constraints []LayoutConstraint) error {
 
 	if layout.Bind != "" || layout.BindFile != "" {
 		mountSource := layout.Bind + layout.BindFile
-		if err := ValidatePathVariables(mountSource); err != nil {
-			return fmt.Errorf("layout %q uses invalid bind mount source %q: %s", layout.Path, mountSource, err)
-		}
+		mylog.Check(ValidatePathVariables(mountSource))
+
 		mountSource = si.ExpandSnapVariables(mountSource)
 		if !isAbsAndClean(mountSource) {
 			return fmt.Errorf("layout %q uses invalid bind mount source %q: must be absolute and clean", layout.Path, mountSource)
@@ -1081,10 +1000,10 @@ func ValidateLayout(layout *Layout, constraints []LayoutConstraint) error {
 			!strings.HasPrefix(mountSource, si.ExpandSnapVariables("$SNAP_COMMON")) {
 			return fmt.Errorf("layout %q uses invalid bind mount source %q: must start with $SNAP, $SNAP_DATA or $SNAP_COMMON", layout.Path, mountSource)
 		}
-		// Ensure that the path does not express an AppArmor pattern
-		if err := apparmor.ValidateNoAppArmorRegexp(mountSource); err != nil {
-			return fmt.Errorf("layout %q uses invalid mount source: %s", layout.Path, err)
-		}
+		mylog.Check(
+			// Ensure that the path does not express an AppArmor pattern
+			apparmor.ValidateNoAppArmorRegexp(mountSource))
+
 	}
 
 	switch layout.Type {
@@ -1097,9 +1016,8 @@ func ValidateLayout(layout *Layout, constraints []LayoutConstraint) error {
 
 	if layout.Symlink != "" {
 		oldname := layout.Symlink
-		if err := ValidatePathVariables(oldname); err != nil {
-			return fmt.Errorf("layout %q uses invalid symlink old name %q: %s", layout.Path, oldname, err)
-		}
+		mylog.Check(ValidatePathVariables(oldname))
+
 		oldname = si.ExpandSnapVariables(oldname)
 		if !isAbsAndClean(oldname) {
 			return fmt.Errorf("layout %q uses invalid symlink old name %q: must be absolute and clean", layout.Path, oldname)
@@ -1112,10 +1030,10 @@ func ValidateLayout(layout *Layout, constraints []LayoutConstraint) error {
 			!strings.HasPrefix(oldname, si.ExpandSnapVariables("$SNAP_COMMON")) {
 			return fmt.Errorf("layout %q uses invalid symlink old name %q: must start with $SNAP, $SNAP_DATA or $SNAP_COMMON", layout.Path, oldname)
 		}
-		// Ensure that the path does not express an AppArmor pattern
-		if err := apparmor.ValidateNoAppArmorRegexp(oldname); err != nil {
-			return fmt.Errorf("layout %q uses invalid symlink: %s", layout.Path, err)
-		}
+		mylog.Check(
+			// Ensure that the path does not express an AppArmor pattern
+			apparmor.ValidateNoAppArmorRegexp(oldname))
+
 	}
 
 	// When new users and groups are supported those must be added to interfaces/mount/spec.go as well.
@@ -1396,8 +1314,10 @@ func ValidateBasesAndProviders(snapInfos []*Info) (warns, errors []error) {
 	return prqt.Check()
 }
 
-var isValidLinksKey = regexp.MustCompile("^[a-zA-Z](?:-?[a-zA-Z0-9])*$").MatchString
-var validLinkSchemes = []string{"http", "https"}
+var (
+	isValidLinksKey  = regexp.MustCompile("^[a-zA-Z](?:-?[a-zA-Z0-9])*$").MatchString
+	validLinkSchemes = []string{"http", "https"}
+)
 
 // ValidateLinks checks that links entries have valid keys and values that can be parsed as URLs or are email addresses possibly prefixed with mailto:.
 func ValidateLinks(links map[string][]string) error {
@@ -1415,10 +1335,8 @@ func ValidateLinks(links map[string][]string) error {
 			if link == "" {
 				return fmt.Errorf("empty %q link", linksKey)
 			}
-			u, err := url.Parse(link)
-			if err != nil {
-				return fmt.Errorf("invalid %q link %q", linksKey, link)
-			}
+			u := mylog.Check2(url.Parse(link))
+
 			if u.Scheme == "" || u.Scheme == "mailto" {
 				// minimal check
 				if !strings.Contains(link, "@") {

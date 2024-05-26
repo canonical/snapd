@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -49,26 +50,18 @@ type fdeSetupJSONStrictBase64 struct {
 }
 
 func runFdeSetup() error {
-	output, err := exec.Command("snapctl", "fde-setup-request").CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("cannot run snapctl fde-setup-request: %v", osutil.OutputErr(output, err))
-	}
+	output := mylog.Check2(exec.Command("snapctl", "fde-setup-request").CombinedOutput())
+
 	var js fdeSetupJSON
-	if err := json.Unmarshal(output, &js); err != nil {
-		return err
-	}
+	mylog.Check(json.Unmarshal(output, &js))
 
 	var jsStrict fdeSetupJSONStrictBase64
-	if err := json.Unmarshal(output, &jsStrict); err != nil {
-		return err
-	}
+	mylog.Check(json.Unmarshal(output, &jsStrict))
 
 	// verify that the two de-coding mechanisms agree on the key, manually
 	// decoding the base64 string in the stricter case
-	decodedBase64Key, err := base64.StdEncoding.DecodeString(jsStrict.Key)
-	if err != nil {
-		return fmt.Errorf("fde-setup-request is not valid base64: %v", err)
-	}
+	decodedBase64Key := mylog.Check2(base64.StdEncoding.DecodeString(jsStrict.Key))
+
 	if !bytes.Equal(decodedBase64Key, js.Key) {
 		return fmt.Errorf("fde-setup-request is not strictly the same base64 decoded as binary decoded")
 	}
@@ -88,10 +81,8 @@ func runFdeSetup() error {
 	}
 	cmd := exec.Command("snapctl", "fde-setup-result")
 	cmd.Stdin = bytes.NewBuffer(fdeSetupResult)
-	output, err = cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("cannot run snapctl fde-setup-result for op %q: %v", js.Op, osutil.OutputErr(output, err))
-	}
+	output = mylog.Check2(cmd.CombinedOutput())
+
 	return nil
 }
 
@@ -109,25 +100,14 @@ func runFdeRevealKey() error {
 	var js fdeRevealJSON
 	var jsStrict fdeRevealJSONStrict
 
-	b, err := io.ReadAll(os.Stdin)
-	if err != nil {
-		return err
-	}
-
-	if err := json.Unmarshal(b, &js); err != nil {
-		return err
-	}
-
-	if err := json.Unmarshal(b, &jsStrict); err != nil {
-		return err
-	}
+	b := mylog.Check2(io.ReadAll(os.Stdin))
+	mylog.Check(json.Unmarshal(b, &js))
+	mylog.Check(json.Unmarshal(b, &jsStrict))
 
 	// verify that the two de-coding mechanisms agree on the key, manually
 	// decoding the base64 string in the stricter case
-	decodedBase64Key, err := base64.StdEncoding.DecodeString(jsStrict.SealedKey)
-	if err != nil {
-		return fmt.Errorf("fde-reveal-key input is not valid base64: %v", err)
-	}
+	decodedBase64Key := mylog.Check2(base64.StdEncoding.DecodeString(jsStrict.SealedKey))
+
 	if !bytes.Equal(decodedBase64Key, js.SealedKey) {
 		return fmt.Errorf("fde-reveal-key input is not strictly the same base64 decoded as binary decoded")
 	}
@@ -154,20 +134,16 @@ func runFdeRevealKey() error {
 }
 
 func main() {
-	var err error
-
 	switch filepath.Base(os.Args[0]) {
 	case "fde-setup":
-		// run as regular hook
-		err = runFdeSetup()
+		mylog.
+			// run as regular hook
+			Check(runFdeSetup())
 	case "fde-reveal-key":
-		// run from initrd
-		err = runFdeRevealKey()
+		mylog.
+			// run from initrd
+			Check(runFdeRevealKey())
 	default:
-		err = fmt.Errorf("binary needs to be called as fde-setup or fde-reveal-key")
-	}
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(1)
+		mylog.Check(fmt.Errorf("binary needs to be called as fde-setup or fde-reveal-key"))
 	}
 }

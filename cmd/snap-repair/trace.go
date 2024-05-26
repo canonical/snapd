@@ -29,16 +29,14 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 )
 
 // newRepairTraces returns all repairTrace about the given "brand" and "seq"
 // that can be found. brand, seq can be filepath.Glob expressions.
 func newRepairTraces(brand, seq string) ([]*repairTrace, error) {
-	matches, err := filepath.Glob(filepath.Join(dirs.SnapRepairRunDir, brand, seq, "*"))
-	if err != nil {
-		return nil, err
-	}
+	matches := mylog.Check2(filepath.Glob(filepath.Join(dirs.SnapRepairRunDir, brand, seq, "*")))
 
 	var repairTraces []*repairTrace
 	for _, match := range matches {
@@ -80,22 +78,19 @@ func (rt *repairTrace) Repair() string {
 
 // Revision returns the revision of the repair
 func (rt *repairTrace) Revision() string {
-	rev, err := revFromFilepath(rt.path)
-	if err != nil {
-		// this can never happen because we check that path starts
-		// with the right prefix. However handle the case just in
-		// case.
-		return "-"
-	}
+	rev := mylog.Check2(revFromFilepath(rt.path))
+
+	// this can never happen because we check that path starts
+	// with the right prefix. However handle the case just in
+	// case.
+
 	return rev
 }
 
 // Summary returns the summary of the repair that was run
 func (rt *repairTrace) Summary() string {
-	f, err := os.Open(rt.path)
-	if err != nil {
-		return "-"
-	}
+	f := mylog.Check2(os.Open(rt.path))
+
 	defer f.Close()
 
 	needle := "summary: "
@@ -123,10 +118,8 @@ func indentPrefix(level int) string {
 // to the given writer w with the indent level given by indent.
 func (rt *repairTrace) WriteScriptIndented(w io.Writer, indent int) error {
 	scriptPath := rt.path[:strings.LastIndex(rt.path, ".")] + ".script"
-	f, err := os.Open(scriptPath)
-	if err != nil {
-		return err
-	}
+	f := mylog.Check2(os.Open(scriptPath))
+
 	defer f.Close()
 
 	scanner := bufio.NewScanner(f)
@@ -142,10 +135,8 @@ func (rt *repairTrace) WriteScriptIndented(w io.Writer, indent int) error {
 // WriteOutputIndented outputs the repair output to the given writer w
 // with the indent level given by indent.
 func (rt *repairTrace) WriteOutputIndented(w io.Writer, indent int) error {
-	f, err := os.Open(rt.path)
-	if err != nil {
-		return err
-	}
+	f := mylog.Check2(os.Open(rt.path))
+
 	defer f.Close()
 
 	scanner := bufio.NewScanner(f)
@@ -169,7 +160,7 @@ func (rt *repairTrace) WriteOutputIndented(w io.Writer, indent int) error {
 // filename of the repairTrace
 func revFromFilepath(name string) (string, error) {
 	var rev int
-	if _, err := fmt.Sscanf(filepath.Base(name), "r%d.", &rev); err == nil {
+	if _ := mylog.Check2(fmt.Sscanf(filepath.Base(name), "r%d.", &rev)); err == nil {
 		return strconv.Itoa(rev), nil
 	}
 	return "", fmt.Errorf("cannot find revision in %q", name)

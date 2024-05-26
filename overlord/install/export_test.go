@@ -26,9 +26,7 @@ import (
 	"github.com/snapcore/snapd/sysconfig"
 )
 
-var (
-	CheckFDEFeatures = checkFDEFeatures
-)
+var CheckFDEFeatures = checkFDEFeatures
 
 func MockTimeNow(f func() time.Time) (restore func()) {
 	old := timeNow

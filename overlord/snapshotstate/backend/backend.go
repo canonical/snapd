@@ -40,6 +40,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
@@ -74,14 +75,10 @@ var (
 // LastSnapshotSetID returns the highest set id number for the snapshots stored
 // in snapshots directory; set ids are inferred from the filenames.
 func LastSnapshotSetID() (uint64, error) {
-	dir, err := osOpen(dirs.SnapshotsDir)
-	if err != nil {
-		if osutil.IsDirNotExist(err) {
-			// no snapshots
-			return 0, nil
-		}
-		return 0, fmt.Errorf("cannot open snapshots directory: %v", err)
-	}
+	dir := mylog.Check2(osOpen(dirs.SnapshotsDir))
+
+	// no snapshots
+
 	defer dir.Close()
 
 	var maxSetID uint64
@@ -110,18 +107,12 @@ func LastSnapshotSetID() (uint64, error) {
 // the function returns an error, iteration is stopped (and if the error isn't
 // Stop, it's returned as the error of the iterator).
 func Iter(ctx context.Context, f func(*Reader) error) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
+	mylog.Check(ctx.Err())
 
-	dir, err := osOpen(dirs.SnapshotsDir)
-	if err != nil {
-		if osutil.IsDirNotExist(err) {
-			// no dir -> no snapshots
-			return nil
-		}
-		return fmt.Errorf("cannot open snapshots directory: %v", err)
-	}
+	dir := mylog.Check2(osOpen(dirs.SnapshotsDir))
+
+	// no dir -> no snapshots
+
 	defer dir.Close()
 
 	importsInProgress := map[uint64]bool{}
@@ -131,9 +122,7 @@ func Iter(ctx context.Context, f func(*Reader) error) error {
 		names, readErr = dirNames(dir, 100)
 		// note os.Readdirnames can return a non-empty names and a non-nil err
 		for _, name := range names {
-			if err = ctx.Err(); err != nil {
-				break
-			}
+			mylog.Check(ctx.Err())
 
 			// filter out non-snapshot directory entries
 			ok, setID := isSnapshotFilename(name)
@@ -170,7 +159,7 @@ func Iter(ctx context.Context, f func(*Reader) error) error {
 			// check and either ignore or return an error when
 			// finding a broken snapshot.
 			if reader != nil {
-				err = f(reader)
+				mylog.Check(f(reader))
 			} else {
 				// TODO: use warnings instead
 				logger.Noticef("Cannot open snapshot %q: %v.", name, openError)
@@ -181,9 +170,7 @@ func Iter(ctx context.Context, f func(*Reader) error) error {
 					err = closeError
 				}
 			}
-			if err != nil {
-				break
-			}
+
 		}
 	}
 
@@ -201,14 +188,14 @@ func Iter(ctx context.Context, f func(*Reader) error) error {
 // List valid snapshots sets.
 func List(ctx context.Context, setID uint64, snapNames []string) ([]client.SnapshotSet, error) {
 	setshots := map[uint64][]*client.Snapshot{}
-	err := Iter(ctx, func(reader *Reader) error {
+	mylog.Check(Iter(ctx, func(reader *Reader) error {
 		if setID == 0 || reader.SetID == setID {
 			if len(snapNames) == 0 || strutil.ListContains(snapNames, reader.Snap) {
 				setshots[reader.SetID] = append(setshots[reader.SetID], &reader.Snapshot)
 			}
 		}
 		return nil
-	})
+	}))
 
 	sets := make([]client.SnapshotSet, 0, len(setshots))
 	for id, shots := range setshots {
@@ -250,10 +237,8 @@ func isSnapshotFilename(filePath string) (ok bool, setID uint64) {
 	if parts[1] == ext {
 		return false, 0
 	}
-	id, err := strconv.Atoi(parts[0])
-	if err != nil {
-		return false, 0
-	}
+	id := mylog.Check2(strconv.Atoi(parts[0]))
+
 	return true, uint64(id)
 }
 
@@ -268,10 +253,8 @@ func EstimateSnapshotSize(si *snap.Info, usernames []string, dirOpts *dirs.SnapD
 	}
 
 	visitDir := func(dir string) error {
-		exists, isDir, err := osutil.DirExists(dir)
-		if err != nil {
-			return err
-		}
+		exists, isDir := mylog.Check3(osutil.DirExists(dir))
+
 		if !(exists && isDir) {
 			return nil
 		}
@@ -279,22 +262,15 @@ func EstimateSnapshotSize(si *snap.Info, usernames []string, dirOpts *dirs.SnapD
 	}
 
 	for _, dir := range []string{si.DataDir(), si.CommonDataDir()} {
-		if err := visitDir(dir); err != nil {
-			return 0, err
-		}
+		mylog.Check(visitDir(dir))
 	}
 
-	users, err := usersForUsernames(usernames, dirOpts)
-	if err != nil {
-		return 0, err
-	}
+	users := mylog.Check2(usersForUsernames(usernames, dirOpts))
+
 	for _, usr := range users {
-		if err := visitDir(si.UserDataDir(usr.HomeDir, dirOpts)); err != nil {
-			return 0, err
-		}
-		if err := visitDir(si.UserCommonDataDir(usr.HomeDir, dirOpts)); err != nil {
-			return 0, err
-		}
+		mylog.Check(visitDir(si.UserDataDir(usr.HomeDir, dirOpts)))
+		mylog.Check(visitDir(si.UserCommonDataDir(usr.HomeDir, dirOpts)))
+
 	}
 
 	// XXX: we could use a typical compression factor here
@@ -303,9 +279,7 @@ func EstimateSnapshotSize(si *snap.Info, usernames []string, dirOpts *dirs.SnapD
 
 // Save a snapshot
 func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, dynSnapshotOpts *snap.SnapshotOptions, dirOpts *dirs.SnapDirOptions) (*client.Snapshot, error) {
-	if err := os.MkdirAll(dirs.SnapshotsDir, 0700); err != nil {
-		return nil, err
-	}
+	mylog.Check(os.MkdirAll(dirs.SnapshotsDir, 0700))
 
 	snapshot := &client.Snapshot{
 		SetID:    id,
@@ -324,21 +298,14 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interfac
 		// Note: Auto is no longer set in the Snapshot.
 	}
 
-	snapshotOptions, err := snapReadSnapshotYaml(si)
-	if err != nil {
-		return nil, err
-	}
+	snapshotOptions := mylog.Check2(snapReadSnapshotYaml(si))
 
 	if dynSnapshotOpts != nil {
-		if err := snapshotOptions.MergeDynamicExcludes(dynSnapshotOpts.Exclude); err != nil {
-			return nil, err
-		}
+		mylog.Check(snapshotOptions.MergeDynamicExcludes(dynSnapshotOpts.Exclude))
 	}
 
-	aw, err := osutil.NewAtomicFile(Filename(snapshot), 0600, 0, osutil.NoChown, osutil.NoChown)
-	if err != nil {
-		return nil, err
-	}
+	aw := mylog.Check2(osutil.NewAtomicFile(Filename(snapshot), 0600, 0, osutil.NoChown, osutil.NoChown))
+
 	// if things worked, we'll commit (and Cancel becomes a NOP)
 	defer aw.Cancel()
 
@@ -346,50 +313,29 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interfac
 	defer w.Close() // note this does not close the file descriptor (that's done by hand on the atomic writer, above)
 	savingUserData := false
 	baseDataDir := snap.BaseDataDir(si.InstanceName())
-	if err := addSnapDirToZip(ctx, snapshot, w, "root", archiveName, baseDataDir, savingUserData, snapshotOptions.Exclude); err != nil {
-		return nil, err
-	}
+	mylog.Check(addSnapDirToZip(ctx, snapshot, w, "root", archiveName, baseDataDir, savingUserData, snapshotOptions.Exclude))
 
-	users, err := usersForUsernames(usernames, dirOpts)
-	if err != nil {
-		return nil, err
-	}
+	users := mylog.Check2(usersForUsernames(usernames, dirOpts))
 
 	savingUserData = true
 	for _, usr := range users {
 		snapDataDir := filepath.Dir(si.UserDataDir(usr.HomeDir, dirOpts))
-		if err := addSnapDirToZip(ctx, snapshot, w, usr.Username, userArchiveName(usr), snapDataDir, savingUserData, snapshotOptions.Exclude); err != nil {
-			return nil, err
-		}
+		mylog.Check(addSnapDirToZip(ctx, snapshot, w, usr.Username, userArchiveName(usr), snapDataDir, savingUserData, snapshotOptions.Exclude))
+
 	}
 
-	metaWriter, err := w.Create(metadataName)
-	if err != nil {
-		return nil, err
-	}
+	metaWriter := mylog.Check2(w.Create(metadataName))
 
 	hasher := crypto.SHA3_384.New()
 	enc := json.NewEncoder(io.MultiWriter(metaWriter, hasher))
-	if err := enc.Encode(snapshot); err != nil {
-		return nil, err
-	}
+	mylog.Check(enc.Encode(snapshot))
 
-	hashWriter, err := w.Create(metaHashName)
-	if err != nil {
-		return nil, err
-	}
+	hashWriter := mylog.Check2(w.Create(metaHashName))
+
 	fmt.Fprintf(hashWriter, "%x\n", hasher.Sum(nil))
-	if err := w.Close(); err != nil {
-		return nil, err
-	}
-
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-
-	if err := aw.Commit(); err != nil {
-		return nil, err
-	}
+	mylog.Check(w.Close())
+	mylog.Check(ctx.Err())
+	mylog.Check(aw.Commit())
 
 	return snapshot, nil
 }
@@ -400,10 +346,7 @@ var isTesting = snapdenv.Testing()
 // to the snapshot. If one doesn't exist, it's ignored. If none exists, the
 // operation is skipped.
 func addSnapDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, username, entry, snapDir string, savingUserData bool, excludePaths []string) error {
-	paths, err := pathsForSnapshot(snapDir, snapshot)
-	if err != nil {
-		return err
-	}
+	paths := mylog.Check2(pathsForSnapshot(snapDir, snapshot))
 
 	if len(paths) == 0 {
 		return nil
@@ -448,10 +391,7 @@ func addSnapDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writ
 // addToZip adds 'paths' to the snapshot. tar will change into the paths' parent
 // directory before creating the archive so that parent dirs are not added.
 func addToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, username, entry string, paths []string, excludePaths []string) error {
-	archiveWriter, err := w.CreateHeader(&zip.FileHeader{Name: entry})
-	if err != nil {
-		return err
-	}
+	archiveWriter := mylog.Check2(w.CreateHeader(&zip.FileHeader{Name: entry}))
 
 	tarArgs := []string{
 		"--create",
@@ -489,20 +429,9 @@ func addToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, use
 		matchCounter.N = -1
 		cmd.Stderr = io.MultiWriter(os.Stderr, matchCounter)
 	}
+	mylog.Check(osutil.RunWithContext(ctx, cmd))
 
-	if err := osutil.RunWithContext(ctx, cmd); err != nil {
-		matches, count := matchCounter.Matches()
-		if count > 0 {
-			note := ""
-			if count > 5 {
-				note = fmt.Sprintf(" (showing last 5 lines out of %d)", count)
-			}
-			// we have at most 5 matches here
-			errStr := strings.Join(matches, "\n")
-			return fmt.Errorf("cannot create archive%s:\n%s", note, errStr)
-		}
-		return fmt.Errorf("tar failed: %v", err)
-	}
+	// we have at most 5 matches here
 
 	snapshot.SHA3_384[entry] = fmt.Sprintf("%x", hasher.Sum(nil))
 	snapshot.Size += sz.Size()
@@ -514,10 +443,7 @@ func addToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, use
 // be included in the snapshot (based on what directories exist).
 func pathsForSnapshot(snapDir string, snapshot *client.Snapshot) ([]string, error) {
 	dirExists := func(path string) (bool, error) {
-		exists, isDir, err := osutil.DirExists(path)
-		if err != nil {
-			return false, err
-		}
+		exists, isDir := mylog.Check3(osutil.DirExists(path))
 
 		if exists && isDir {
 			return true, nil
@@ -535,7 +461,7 @@ func pathsForSnapshot(snapDir string, snapshot *client.Snapshot) ([]string, erro
 	var snapshotPaths []string
 	for _, subDir := range []string{snapshot.Revision.String(), "common"} {
 		subPath := filepath.Join(snapDir, subDir)
-		if ok, err := dirExists(subPath); err != nil {
+		if ok := mylog.Check2(dirExists(subPath)); err != nil {
 			return nil, err
 		} else if ok {
 			snapshotPaths = append(snapshotPaths, subPath)
@@ -632,10 +558,8 @@ func newImportTransactionFromImportFile(p string) (*importTransaction, error) {
 	if len(parts) != 2 {
 		return nil, fmt.Errorf("cannot determine snapshot id from %q", p)
 	}
-	setID, err := strconv.ParseUint(parts[1], 10, 64)
-	if err != nil {
-		return nil, err
-	}
+	setID := mylog.Check2(strconv.ParseUint(parts[1], 10, 64))
+
 	return newImportTransaction(setID), nil
 }
 
@@ -656,19 +580,14 @@ func (t *importTransaction) Cancel() error {
 	if t.committed {
 		return ErrCannotCancel
 	}
-	inProgressImports, err := filepath.Glob(filepath.Join(dirs.SnapshotsDir, fmt.Sprintf(importingForIDFmt, t.id)))
-	if err != nil {
-		return err
-	}
+	inProgressImports := mylog.Check2(filepath.Glob(filepath.Join(dirs.SnapshotsDir, fmt.Sprintf(importingForIDFmt, t.id))))
+
 	var errs []error
 	for _, p := range inProgressImports {
-		if err := os.Remove(p); err != nil {
-			errs = append(errs, err)
-		}
+		mylog.Check(os.Remove(p))
 	}
-	if err := t.unlock(); err != nil {
-		errs = append(errs, err)
-	}
+	mylog.Check(t.unlock())
+
 	if len(errs) > 0 {
 		return newMultiError(fmt.Sprintf("cannot cancel import for set id %d", t.id), errs)
 	}
@@ -677,9 +596,8 @@ func (t *importTransaction) Cancel() error {
 
 // Commit will commit a given transaction
 func (t *importTransaction) Commit() error {
-	if err := t.unlock(); err != nil {
-		return err
-	}
+	mylog.Check(t.unlock())
+
 	t.committed = true
 	return nil
 }
@@ -702,23 +620,13 @@ var filepathGlob = filepath.Glob
 // The amount of snapshots cleaned is returned and an error if one or
 // more cleanups did not succeed.
 func CleanupAbandonedImports() (cleaned int, err error) {
-	inProgressSnapshots, err := filepathGlob(filepath.Join(dirs.SnapshotsDir, importingFnGlob))
-	if err != nil {
-		return 0, err
-	}
+	inProgressSnapshots := mylog.Check2(filepathGlob(filepath.Join(dirs.SnapshotsDir, importingFnGlob)))
 
 	var errs []error
 	for _, p := range inProgressSnapshots {
-		tr, err := newImportTransactionFromImportFile(p)
-		if err != nil {
-			errs = append(errs, err)
-			continue
-		}
-		if err := tr.Cancel(); err != nil {
-			errs = append(errs, err)
-		} else {
-			cleaned++
-		}
+		tr := mylog.Check2(newImportTransactionFromImportFile(p))
+		mylog.Check(tr.Cancel())
+
 	}
 	if len(errs) > 0 {
 		return cleaned, newMultiError("cannot cleanup imports", errs)
@@ -735,9 +643,7 @@ type ImportFlags struct {
 
 // Import a snapshot from the export file format
 func Import(ctx context.Context, id uint64, r io.Reader, flags *ImportFlags) (snapNames []string, err error) {
-	if err := os.MkdirAll(dirs.SnapshotsDir, 0700); err != nil {
-		return nil, err
-	}
+	mylog.Check(os.MkdirAll(dirs.SnapshotsDir, 0700))
 
 	errPrefix := fmt.Sprintf("cannot import snapshot %d", id)
 
@@ -745,9 +651,8 @@ func Import(ctx context.Context, id uint64, r io.Reader, flags *ImportFlags) (sn
 	if tr.InProgress() {
 		return nil, fmt.Errorf("%s: already in progress for this set id", errPrefix)
 	}
-	if err := tr.Start(); err != nil {
-		return nil, err
-	}
+	mylog.Check(tr.Start())
+
 	// Cancel once Committed is a NOP
 	defer tr.Cancel()
 
@@ -756,30 +661,18 @@ func Import(ctx context.Context, id uint64, r io.Reader, flags *ImportFlags) (sn
 	// XXX: this will leak snapshot IDs, i.e. we allocate a new
 	// snapshot ID before but then we error here because of e.g.
 	// duplicated import attempts
-	snapNames, err = unpackVerifySnapshotImport(ctx, r, id, flags)
-	if err != nil {
-		if _, ok := err.(DuplicatedSnapshotImportError); ok {
-			return nil, err
-		}
-		return nil, fmt.Errorf("%s: %v", errPrefix, err)
-	}
-	if err := tr.Commit(); err != nil {
-		return nil, err
-	}
+	snapNames = mylog.Check2(unpackVerifySnapshotImport(ctx, r, id, flags))
+	mylog.Check(tr.Commit())
 
 	return snapNames, nil
 }
 
 func writeOneSnapshotFile(targetPath string, tr io.Reader) error {
-	t, err := os.OpenFile(targetPath, os.O_CREATE|os.O_RDWR, 0600)
-	if err != nil {
-		return fmt.Errorf("cannot create snapshot file %q: %v", targetPath, err)
-	}
-	defer t.Close()
+	t := mylog.Check2(os.OpenFile(targetPath, os.O_CREATE|os.O_RDWR, 0600))
 
-	if _, err := io.Copy(t, tr); err != nil {
-		return fmt.Errorf("cannot write snapshot file %q: %v", targetPath, err)
-	}
+	defer t.Close()
+	mylog.Check2(io.Copy(t, tr))
+
 	return nil
 }
 
@@ -794,25 +687,22 @@ func (e DuplicatedSnapshotImportError) Error() string {
 
 func checkDuplicatedSnapshotSetWithContentHash(ctx context.Context, contentHash []byte) error {
 	snapshotSetMap := map[uint64]client.SnapshotSet{}
+	mylog.
 
-	// XXX: deal with import in progress here
+		// XXX: deal with import in progress here
+		Check(
 
-	// get all current snapshotSets
-	err := Iter(ctx, func(reader *Reader) error {
-		ss := snapshotSetMap[reader.SetID]
-		ss.Snapshots = append(ss.Snapshots, &reader.Snapshot)
-		snapshotSetMap[reader.SetID] = ss
-		return nil
-	})
-	if err != nil {
-		return fmt.Errorf("cannot calculate snapshot set hashes: %v", err)
-	}
+			// get all current snapshotSets
+			Iter(ctx, func(reader *Reader) error {
+				ss := snapshotSetMap[reader.SetID]
+				ss.Snapshots = append(ss.Snapshots, &reader.Snapshot)
+				snapshotSetMap[reader.SetID] = ss
+				return nil
+			}))
 
 	for setID, ss := range snapshotSetMap {
-		h, err := ss.ContentHash()
-		if err != nil {
-			return fmt.Errorf("cannot calculate content hash for %v: %v", setID, err)
-		}
+		h := mylog.Check2(ss.ContentHash())
+
 		if bytes.Equal(h, contentHash) {
 			var snapNames []string
 			for _, snapshot := range ss.Snapshots {
@@ -858,16 +748,14 @@ func unpackVerifySnapshotImport(ctx context.Context, r io.Reader, realSetID uint
 		if header.Name == "content.json" {
 			var ej contentJSON
 			dec := json.NewDecoder(tr)
-			if err := dec.Decode(&ej); err != nil {
-				return nil, err
-			}
+			mylog.Check(dec.Decode(&ej))
+
 			if !flags.NoDuplicatedImportCheck {
-				// XXX: this is potentially slow as it needs
-				//      to open all snapshots files and read a
-				//      small amount of data from them
-				if err := checkDuplicatedSnapshotSetWithContentHash(ctx, ej.ContentHash); err != nil {
-					return nil, err
-				}
+				mylog.Check(
+					// XXX: this is potentially slow as it needs
+					//      to open all snapshots files and read a
+					//      small amount of data from them
+					checkDuplicatedSnapshotSetWithContentHash(ctx, ej.ContentHash))
 			}
 			continue
 		}
@@ -891,20 +779,13 @@ func unpackVerifySnapshotImport(ctx context.Context, r io.Reader, realSetID uint
 			return nil, fmt.Errorf("unexpected filename in import stream: %v", header.Name)
 		}
 		targetPath := path.Join(dirs.SnapshotsDir, fmt.Sprintf("%d_%s", realSetID, l[1]))
-		if err := writeOneSnapshotFile(targetPath, tr); err != nil {
-			return snapNames, err
-		}
+		mylog.Check(writeOneSnapshotFile(targetPath, tr))
 
-		r, err := backendOpen(targetPath, realSetID)
-		if err != nil {
-			return snapNames, fmt.Errorf("cannot open snapshot: %v", err)
-		}
-		err = r.Check(context.TODO(), nil)
+		r := mylog.Check2(backendOpen(targetPath, realSetID))
+		mylog.Check(r.Check(context.TODO(), nil))
 		r.Close()
 		snapNames = append(snapNames, r.Snap)
-		if err != nil {
-			return snapNames, fmt.Errorf("validation failed for %q: %v", targetPath, err)
-		}
+
 	}
 
 	if !exportFound {
@@ -943,49 +824,39 @@ func NewSnapshotExport(ctx context.Context, setID uint64) (se *SnapshotExport, e
 
 	defer func() {
 		// cleanup any open FDs if anything goes wrong
-		if err != nil {
-			for _, f := range snapshotFiles {
-				f.Close()
-			}
-		}
 	}()
+	mylog.
 
-	// Open all files first and keep the file descriptors
-	// open. The caller should have locked the state so that no
-	// delete/change snapshot operations can happen while the
-	// files are getting opened.
-	err = Iter(ctx, func(reader *Reader) error {
-		if reader.SetID == setID {
-			snapshotSet.Snapshots = append(snapshotSet.Snapshots, &reader.Snapshot)
+		// Open all files first and keep the file descriptors
+		// open. The caller should have locked the state so that no
+		// delete/change snapshot operations can happen while the
+		// files are getting opened.
+		Check(Iter(ctx, func(reader *Reader) error {
+			if reader.SetID == setID {
+				snapshotSet.Snapshots = append(snapshotSet.Snapshots, &reader.Snapshot)
 
-			// Duplicate the file descriptor of the reader
-			// we were handed as Iter() closes those as
-			// soon as this unnamed returns. We re-package
-			// the file descriptor into snapshotFiles
-			// below.
-			fd, err := syscall.Dup(int(reader.Fd()))
-			if err != nil {
-				return fmt.Errorf("cannot duplicate descriptor: %v", err)
+				// Duplicate the file descriptor of the reader
+				// we were handed as Iter() closes those as
+				// soon as this unnamed returns. We re-package
+				// the file descriptor into snapshotFiles
+				// below.
+				fd := mylog.Check2(syscall.Dup(int(reader.Fd())))
+
+				f := os.NewFile(uintptr(fd), reader.Name())
+				if f == nil {
+					return fmt.Errorf("cannot open file from descriptor %d", fd)
+				}
+				snapshotFiles = append(snapshotFiles, f)
 			}
-			f := os.NewFile(uintptr(fd), reader.Name())
-			if f == nil {
-				return fmt.Errorf("cannot open file from descriptor %d", fd)
-			}
-			snapshotFiles = append(snapshotFiles, f)
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, fmt.Errorf("cannot export snapshot %v: %v", setID, err)
-	}
+			return nil
+		}))
+
 	if len(snapshotFiles) == 0 {
 		return nil, fmt.Errorf("no snapshot data found for %v", setID)
 	}
 
-	h, err := snapshotSet.ContentHash()
-	if err != nil {
-		return nil, fmt.Errorf("cannot calculate content hash for snapshot export %v: %v", setID, err)
-	}
+	h := mylog.Check2(snapshotSet.ContentHash())
+
 	se = &SnapshotExport{snapshotFiles: snapshotFiles, setID: setID, contentHash: h}
 
 	// ensure we never leak FDs even if the user does not call close
@@ -1007,9 +878,8 @@ func (se *SnapshotExport) Init() error {
 	// to the client to a time after the year 2242. This is unlikely
 	// but a known issue with this approach here.
 	var sz osutil.Sizer
-	if err := se.StreamTo(&sz); err != nil {
-		return fmt.Errorf("cannot calculate the size for %v: %s", se.setID, err)
-	}
+	mylog.Check(se.StreamTo(&sz))
+
 	se.size = sz.Size()
 	return nil
 }
@@ -1036,10 +906,8 @@ func (se *SnapshotExport) StreamTo(w io.Writer) error {
 	defer tw.Close()
 
 	// export contentHash as content.json
-	h, err := json.Marshal(contentJSON{se.contentHash})
-	if err != nil {
-		return err
-	}
+	h := mylog.Check2(json.Marshal(contentJSON{se.contentHash}))
+
 	hdr := &tar.Header{
 		Typeflag: tar.TypeReg,
 		Name:     "content.json",
@@ -1047,36 +915,22 @@ func (se *SnapshotExport) StreamTo(w io.Writer) error {
 		Mode:     0640,
 		ModTime:  timeNow(),
 	}
-	if err := tw.WriteHeader(hdr); err != nil {
-		return err
-	}
-	if _, err := tw.Write(h); err != nil {
-		return err
-	}
+	mylog.Check(tw.WriteHeader(hdr))
+	mylog.Check2(tw.Write(h))
 
 	// write out the individual snapshots
 	for _, snapshotFile := range se.snapshotFiles {
-		stat, err := snapshotFile.Stat()
-		if err != nil {
-			return err
-		}
+		stat := mylog.Check2(snapshotFile.Stat())
+
 		if !stat.Mode().IsRegular() {
 			// should never happen
 			return fmt.Errorf("unexported special file %q in snapshot: %s", stat.Name(), stat.Mode())
 		}
-		if _, err := snapshotFile.Seek(0, 0); err != nil {
-			return fmt.Errorf("cannot seek on %v: %v", stat.Name(), err)
-		}
-		hdr, err := tar.FileInfoHeader(stat, "")
-		if err != nil {
-			return fmt.Errorf("symlink: %v", stat.Name())
-		}
-		if err = tw.WriteHeader(hdr); err != nil {
-			return fmt.Errorf("cannot write header for %v: %v", stat.Name(), err)
-		}
-		if _, err := io.Copy(tw, snapshotFile); err != nil {
-			return fmt.Errorf("cannot write data for %v: %v", stat.Name(), err)
-		}
+		mylog.Check2(snapshotFile.Seek(0, 0))
+
+		hdr := mylog.Check2(tar.FileInfoHeader(stat, ""))
+		mylog.Check(tw.WriteHeader(hdr))
+		mylog.Check2(io.Copy(tw, snapshotFile))
 
 		files = append(files, path.Base(snapshotFile.Name()))
 	}
@@ -1098,10 +952,8 @@ func (se *SnapshotExport) StreamTo(w io.Writer) error {
 		Date:   timeNow(),
 		Files:  files,
 	}
-	metaDataBuf, err := json.Marshal(&meta)
-	if err != nil {
-		return fmt.Errorf("cannot marshal meta-data: %v", err)
-	}
+	metaDataBuf := mylog.Check2(json.Marshal(&meta))
+
 	hdr = &tar.Header{
 		Typeflag: tar.TypeReg,
 		Name:     "export.json",
@@ -1109,12 +961,8 @@ func (se *SnapshotExport) StreamTo(w io.Writer) error {
 		Mode:     0640,
 		ModTime:  timeNow(),
 	}
-	if err := tw.WriteHeader(hdr); err != nil {
-		return err
-	}
-	if _, err := tw.Write(metaDataBuf); err != nil {
-		return err
-	}
+	mylog.Check(tw.WriteHeader(hdr))
+	mylog.Check2(tw.Write(metaDataBuf))
 
 	return nil
 }

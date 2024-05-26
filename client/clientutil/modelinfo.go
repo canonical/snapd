@@ -26,33 +26,32 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timeutil"
 )
 
-var (
-	// this list is a "nice" "human" "readable" "ordering" of headers to print.
-	// it also contains both serial and model assertion headers, but we
-	// follow the same code path for both assertion types and some of the
-	// headers are shared between the two, so it still works out correctly
-	niceOrdering = [...]string{
-		"architecture",
-		"base",
-		"classic",
-		"display-name",
-		"gadget",
-		"kernel",
-		"revision",
-		"store",
-		"system-user-authority",
-		"timestamp",
-		"required-snaps", // for uc16 and uc18 models
-		"snaps",          // for uc20 models
-		"device-key-sha3-384",
-		"device-key",
-	}
-)
+// this list is a "nice" "human" "readable" "ordering" of headers to print.
+// it also contains both serial and model assertion headers, but we
+// follow the same code path for both assertion types and some of the
+// headers are shared between the two, so it still works out correctly
+var niceOrdering = [...]string{
+	"architecture",
+	"base",
+	"classic",
+	"display-name",
+	"gadget",
+	"kernel",
+	"revision",
+	"store",
+	"system-user-authority",
+	"timestamp",
+	"required-snaps", // for uc16 and uc18 models
+	"snaps",          // for uc20 models
+	"device-key-sha3-384",
+	"device-key",
+}
 
 // ModelAssertJSON is used to represent a model assertion as-is in JSON.
 type ModelAssertJSON struct {
@@ -157,11 +156,11 @@ func printVerboseSnapsList(w *tabwriter.Writer, snaps []interface{}) error {
 				fmt.Fprintf(w, "    %s:\t%s\n", snKey, snStrValue)
 			}
 		}
+		mylog.Check(
 
-		// finally handle "modes" which is a list
-		if err := printModes(name, snMap); err != nil {
-			return err
-		}
+			// finally handle "modes" which is a list
+			printModes(name, snMap))
+
 	}
 	return nil
 }
@@ -215,10 +214,8 @@ func printVerboseModelAssertionHeaders(w *tabwriter.Writer, assertion asserts.As
 
 			// parse the time string as RFC3339, which is what the format is
 			// always in for assertions
-			t, err := time.Parse(time.RFC3339, timestamp)
-			if err != nil {
-				return err
-			}
+			t := mylog.Check2(time.Parse(time.RFC3339, timestamp))
+
 			fmt.Fprintf(w, "timestamp:\t%s\n", fmtTime(t, opts.AbsTime))
 
 		// long string key we don't want to rewrap but can safely handle
@@ -254,9 +251,7 @@ func printVerboseModelAssertionHeaders(w *tabwriter.Writer, assertion asserts.As
 			}
 
 			fmt.Fprintf(w, "snaps:\n")
-			if err := printVerboseSnapsList(w, snapsHeader); err != nil {
-				return err
-			}
+			mylog.Check(printVerboseSnapsList(w, snapsHeader))
 
 		// long base64 key we can rewrap safely
 		case "device-key":
@@ -288,7 +283,7 @@ func printVerboseModelAssertionHeaders(w *tabwriter.Writer, assertion asserts.As
 func PrintModelAssertion(w *tabwriter.Writer, modelAssertion asserts.Model, serialAssertion *asserts.Serial, modelFormatter ModelFormatter, opts PrintModelAssertionOptions) error {
 	// if assertion was requested we want it raw
 	if opts.Assertion {
-		_, err := w.Write(asserts.Encode(&modelAssertion))
+		_ := mylog.Check2(w.Write(asserts.Encode(&modelAssertion)))
 		return err
 	}
 
@@ -355,9 +350,7 @@ func PrintModelAssertion(w *tabwriter.Writer, modelAssertion asserts.Model, seri
 	fmt.Fprintf(w, "serial%s\t%s\n", separator, serial)
 
 	if opts.Verbose {
-		if err := printVerboseModelAssertionHeaders(w, &modelAssertion, opts); err != nil {
-			return err
-		}
+		mylog.Check(printVerboseModelAssertionHeaders(w, &modelAssertion, opts))
 	}
 	return w.Flush()
 }
@@ -367,7 +360,7 @@ func PrintModelAssertion(w *tabwriter.Writer, modelAssertion asserts.Model, seri
 func PrintSerialAssertionYAML(w *tabwriter.Writer, serialAssertion asserts.Serial, modelFormatter ModelFormatter, opts PrintModelAssertionOptions) error {
 	// if assertion was requested we want it raw
 	if opts.Assertion {
-		_, err := w.Write(asserts.Encode(&serialAssertion))
+		_ := mylog.Check2(w.Write(asserts.Encode(&serialAssertion)))
 		return err
 	}
 
@@ -384,9 +377,7 @@ func PrintSerialAssertionYAML(w *tabwriter.Writer, serialAssertion asserts.Seria
 	fmt.Fprintf(w, "serial:\t%s\n", serial)
 
 	if opts.Verbose {
-		if err := printVerboseModelAssertionHeaders(w, &serialAssertion, opts); err != nil {
-			return err
-		}
+		mylog.Check(printVerboseModelAssertionHeaders(w, &serialAssertion, opts))
 	}
 	return w.Flush()
 }
@@ -395,15 +386,10 @@ func PrintSerialAssertionYAML(w *tabwriter.Writer, serialAssertion asserts.Seria
 // JSON format. The output will be written to the provided io.Writer.
 func PrintModelAssertionJSON(w *tabwriter.Writer, modelAssertion asserts.Model, serialAssertion *asserts.Serial, opts PrintModelAssertionOptions) error {
 	serializeJSON := func(v interface{}) error {
-		marshalled, err := json.MarshalIndent(v, "", "  ")
-		if err != nil {
-			return err
-		}
+		marshalled := mylog.Check2(json.MarshalIndent(v, "", "  "))
 
-		_, err = w.Write(marshalled)
-		if err != nil {
-			return err
-		}
+		_ = mylog.Check2(w.Write(marshalled))
+
 		return w.Flush()
 	}
 

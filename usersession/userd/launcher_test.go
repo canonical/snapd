@@ -26,6 +26,7 @@ import (
 	"syscall"
 	"testing"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/godbus/dbus"
 	. "gopkg.in/check.v1"
 
@@ -72,7 +73,7 @@ func (s *launcherSuite) TestOpenURLWithNotAllowedScheme(c *C) {
 		{"invälid:%url", dbus.ErrMsgInvalidArg.Error(), ""},
 	} {
 		s.mockXdgMime.ForgetCalls()
-		err := s.launcher.OpenURL(t.url, ":some-dbus-sender")
+		mylog.Check(s.launcher.OpenURL(t.url, ":some-dbus-sender"))
 		c.Assert(err, ErrorMatches, t.errMatcher)
 		c.Assert(s.mockXdgOpen.Calls(), IsNil)
 		if t.scheme != "" {
@@ -87,8 +88,8 @@ func (s *launcherSuite) TestOpenURLWithNotAllowedScheme(c *C) {
 
 func (s *launcherSuite) TestOpenURLWithAllowedSchemeHappy(c *C) {
 	for _, schema := range []string{"http", "https", "mailto", "snap", "help", "apt", "zoommtg", "zoomus", "zoomphonecall", "slack", "msteams"} {
-		err := s.launcher.OpenURL(schema+"://snapcraft.io", ":some-dbus-sender")
-		c.Assert(err, IsNil)
+		mylog.Check(s.launcher.OpenURL(schema+"://snapcraft.io", ":some-dbus-sender"))
+
 		c.Assert(s.mockXdgOpen.Calls(), DeepEquals, [][]string{
 			{"xdg-open", schema + "://snapcraft.io"},
 		})
@@ -100,8 +101,8 @@ func (s *launcherSuite) testOpenURLWithFallbackHappy(c *C, desktopFileName strin
 	mockXdgMime := testutil.MockCommand(c, "xdg-mime", fmt.Sprintf(`echo "%s"`, desktopFileName))
 	defer mockXdgMime.Restore()
 	defer s.mockXdgOpen.ForgetCalls()
-	err := s.launcher.OpenURL("fallback-scheme://snapcraft.io", ":some-dbus-sender")
-	c.Assert(err, IsNil)
+	mylog.Check(s.launcher.OpenURL("fallback-scheme://snapcraft.io", ":some-dbus-sender"))
+
 	c.Assert(s.mockXdgOpen.Calls(), DeepEquals, [][]string{
 		{"xdg-open", "fallback-scheme://snapcraft.io"},
 	})
@@ -113,7 +114,7 @@ func (s *launcherSuite) testOpenURLWithFallbackHappy(c *C, desktopFileName strin
 func (s *launcherSuite) testOpenURLWithFallbackInvalidDesktopFile(c *C, desktopFileName string) {
 	mockXdgMime := testutil.MockCommand(c, "xdg-mime", fmt.Sprintf("echo %s", desktopFileName))
 	defer mockXdgMime.Restore()
-	err := s.launcher.OpenURL("fallback-scheme://snapcraft.io", ":some-dbus-sender")
+	mylog.Check(s.launcher.OpenURL("fallback-scheme://snapcraft.io", ":some-dbus-sender"))
 	c.Assert(err, ErrorMatches, `Supplied URL scheme "fallback-scheme" is not allowed`)
 	c.Assert(s.mockXdgOpen.Calls(), IsNil)
 	c.Assert(mockXdgMime.Calls(), DeepEquals, [][]string{
@@ -133,8 +134,7 @@ func (s *launcherSuite) TestOpenURLWithFallback(c *C) {
 func (s *launcherSuite) TestOpenURLWithFailingXdgOpen(c *C) {
 	cmd := testutil.MockCommand(c, "xdg-open", "false")
 	defer cmd.Restore()
-
-	err := s.launcher.OpenURL("https://snapcraft.io", ":some-dbus-sender")
+	mylog.Check(s.launcher.OpenURL("https://snapcraft.io", ":some-dbus-sender"))
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, "cannot open supplied URL")
 }
@@ -155,15 +155,14 @@ func (s *launcherSuite) TestOpenFileUserAccepts(c *C) {
 	path := filepath.Join(c.MkDir(), "test.txt")
 	c.Assert(os.WriteFile(path, []byte("Hello world"), 0644), IsNil)
 
-	file, err := os.Open(path)
-	c.Assert(err, IsNil)
+	file := mylog.Check2(os.Open(path))
+
 	defer file.Close()
 
-	dupFd, err := syscall.Dup(int(file.Fd()))
-	c.Assert(err, IsNil)
+	dupFd := mylog.Check2(syscall.Dup(int(file.Fd())))
 
-	err = s.launcher.OpenFile("", dbus.UnixFD(dupFd), ":some-dbus-sender")
-	c.Assert(err, IsNil)
+	mylog.Check(s.launcher.OpenFile("", dbus.UnixFD(dupFd), ":some-dbus-sender"))
+
 	c.Assert(s.mockXdgOpen.Calls(), DeepEquals, [][]string{
 		{"xdg-open", path},
 	})
@@ -176,14 +175,13 @@ func (s *launcherSuite) TestOpenFileUserDeclines(c *C) {
 	path := filepath.Join(c.MkDir(), "test.txt")
 	c.Assert(os.WriteFile(path, []byte("Hello world"), 0644), IsNil)
 
-	file, err := os.Open(path)
-	c.Assert(err, IsNil)
+	file := mylog.Check2(os.Open(path))
+
 	defer file.Close()
 
-	dupFd, err := syscall.Dup(int(file.Fd()))
-	c.Assert(err, IsNil)
+	dupFd := mylog.Check2(syscall.Dup(int(file.Fd())))
 
-	err = s.launcher.OpenFile("", dbus.UnixFD(dupFd), ":some-dbus-sender")
+	mylog.Check(s.launcher.OpenFile("", dbus.UnixFD(dupFd), ":some-dbus-sender"))
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, "permission denied")
 	c.Assert(s.mockXdgOpen.Calls(), IsNil)
@@ -194,15 +192,14 @@ func (s *launcherSuite) TestOpenFileSucceedsWithDirectory(c *C) {
 	defer restore()
 
 	dir := c.MkDir()
-	fd, err := syscall.Open(dir, syscall.O_RDONLY|syscall.O_DIRECTORY, 0755)
-	c.Assert(err, IsNil)
+	fd := mylog.Check2(syscall.Open(dir, syscall.O_RDONLY|syscall.O_DIRECTORY, 0755))
+
 	defer syscall.Close(fd)
 
-	dupFd, err := syscall.Dup(fd)
-	c.Assert(err, IsNil)
+	dupFd := mylog.Check2(syscall.Dup(fd))
 
-	err = s.launcher.OpenFile("", dbus.UnixFD(dupFd), ":some-dbus-sender")
-	c.Assert(err, IsNil)
+	mylog.Check(s.launcher.OpenFile("", dbus.UnixFD(dupFd), ":some-dbus-sender"))
+
 	c.Assert(s.mockXdgOpen.Calls(), DeepEquals, [][]string{
 		{"xdg-open", dir},
 	})
@@ -212,14 +209,13 @@ func (s *launcherSuite) TestOpenFileFailsWithDeviceFile(c *C) {
 	restore := mockUICommands(c, "true")
 	defer restore()
 
-	file, err := os.Open("/dev/null")
-	c.Assert(err, IsNil)
+	file := mylog.Check2(os.Open("/dev/null"))
+
 	defer file.Close()
 
-	dupFd, err := syscall.Dup(int(file.Fd()))
-	c.Assert(err, IsNil)
+	dupFd := mylog.Check2(syscall.Dup(int(file.Fd())))
 
-	err = s.launcher.OpenFile("", dbus.UnixFD(dupFd), ":some-dbus-sender")
+	mylog.Check(s.launcher.OpenFile("", dbus.UnixFD(dupFd), ":some-dbus-sender"))
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, "cannot open anything other than regular files or directories")
 	c.Assert(s.mockXdgOpen.Calls(), IsNil)
@@ -230,14 +226,13 @@ func (s *launcherSuite) TestOpenFileFailsWithPathDescriptor(c *C) {
 	defer restore()
 
 	dir := c.MkDir()
-	fd, err := syscall.Open(dir, sys.O_PATH, 0755)
-	c.Assert(err, IsNil)
+	fd := mylog.Check2(syscall.Open(dir, sys.O_PATH, 0755))
+
 	defer syscall.Close(fd)
 
-	dupFd, err := syscall.Dup(fd)
-	c.Assert(err, IsNil)
+	dupFd := mylog.Check2(syscall.Dup(fd))
 
-	err = s.launcher.OpenFile("", dbus.UnixFD(dupFd), ":some-dbus-sender")
+	mylog.Check(s.launcher.OpenFile("", dbus.UnixFD(dupFd), ":some-dbus-sender"))
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, "cannot use file descriptors opened using O_PATH")
 	c.Assert(s.mockXdgOpen.Calls(), IsNil)
@@ -249,16 +244,14 @@ func (s *launcherSuite) TestFailsOnUbuntuCore(c *C) {
 
 	path := filepath.Join(c.MkDir(), "test.txt")
 	c.Assert(os.WriteFile(path, []byte("Hello world"), 0644), IsNil)
-	file, err := os.Open(path)
-	c.Assert(err, IsNil)
+	file := mylog.Check2(os.Open(path))
+
 	defer file.Close()
-	dupFd, err := syscall.Dup(int(file.Fd()))
-	c.Assert(err, IsNil)
+	dupFd := mylog.Check2(syscall.Dup(int(file.Fd())))
 
-	err = s.launcher.OpenFile("", dbus.UnixFD(dupFd), ":some-dbus-sender")
+	mylog.Check(s.launcher.OpenFile("", dbus.UnixFD(dupFd), ":some-dbus-sender"))
 	c.Check(err, ErrorMatches, "not supported on Ubuntu Core")
-
-	err = s.launcher.OpenURL("https://snapcraft.io", ":some-dbus-sender")
+	mylog.Check(s.launcher.OpenURL("https://snapcraft.io", ":some-dbus-sender"))
 	c.Check(err, ErrorMatches, "not supported on Ubuntu Core")
 
 	c.Check(s.mockXdgOpen.Calls(), HasLen, 0)

@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/jsonutil/safejson"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
@@ -156,11 +157,11 @@ func (s *detailsV2Suite) TearDownTest(c *C) {
 
 func (s *detailsV2Suite) TestInfoFromStoreSnapSimpleAndLegacy(c *C) {
 	var snp storeSnap
-	err := json.Unmarshal([]byte(coreStoreJSON), &snp)
-	c.Assert(err, IsNil)
+	mylog.Check(json.Unmarshal([]byte(coreStoreJSON), &snp))
 
-	info, err := infoFromStoreSnap(&snp)
-	c.Assert(err, IsNil)
+
+	info := mylog.Check2(infoFromStoreSnap(&snp))
+
 	c.Check(snap.Validate(info), IsNil)
 
 	c.Check(info, DeepEquals, &snap.Info{
@@ -198,12 +199,13 @@ func (s *detailsV2Suite) TestInfoFromStoreSnapSimpleAndLegacy(c *C) {
 
 func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 	var snp storeSnap
-	// base, prices, media
-	err := json.Unmarshal([]byte(thingyStoreJSON), &snp)
-	c.Assert(err, IsNil)
+	mylog.
+		// base, prices, media
+		Check(json.Unmarshal([]byte(thingyStoreJSON), &snp))
 
-	info, err := infoFromStoreSnap(&snp)
-	c.Assert(err, IsNil)
+
+	info := mylog.Check2(infoFromStoreSnap(&snp))
+
 	c.Check(snap.Validate(info), IsNil)
 	c.Check(snap.ValidateLinks(info.EditedLinks), IsNil)
 
@@ -304,13 +306,14 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 	c.Check(info.Apps["user-svc"].Command, Equals, "bin/user-svc")
 	c.Check(info.Apps["user-svc"].Daemon, Equals, "simple")
 	c.Check(info.Apps["user-svc"].DaemonScope, Equals, snap.UserDaemon)
+	mylog.
 
-	// private
-	err = json.Unmarshal([]byte(strings.Replace(thingyStoreJSON, `"private": false`, `"private": true`, 1)), &snp)
-	c.Assert(err, IsNil)
+		// private
+		Check(json.Unmarshal([]byte(strings.Replace(thingyStoreJSON, `"private": false`, `"private": true`, 1)), &snp))
 
-	info, err = infoFromStoreSnap(&snp)
-	c.Assert(err, IsNil)
+
+	info = mylog.Check2(infoFromStoreSnap(&snp))
+
 	c.Check(snap.Validate(info), IsNil)
 
 	c.Check(info.Private, Equals, true)

@@ -30,6 +30,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/desktop/desktopentry"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -37,17 +38,12 @@ import (
 	"github.com/snapcore/snapd/systemd"
 )
 
-var (
-	currentDesktop = strings.Split(os.Getenv("XDG_CURRENT_DESKTOP"), ":")
-)
+var currentDesktop = strings.Split(os.Getenv("XDG_CURRENT_DESKTOP"), ":")
 
 func autostartCmd(snapName, desktopFilePath string) (*exec.Cmd, error) {
 	desktopFile := filepath.Base(desktopFilePath)
 
-	info, err := snap.ReadCurrentInfo(snapName)
-	if err != nil {
-		return nil, err
-	}
+	info := mylog.Check2(snap.ReadCurrentInfo(snapName))
 
 	var app *snap.AppInfo
 	for _, candidate := range info.Apps {
@@ -60,17 +56,13 @@ func autostartCmd(snapName, desktopFilePath string) (*exec.Cmd, error) {
 		return nil, fmt.Errorf("cannot match desktop file with snap %s applications", snapName)
 	}
 
-	de, err := desktopentry.Read(desktopFilePath)
-	if err != nil {
-		return nil, fmt.Errorf("cannot parse desktop file for application %s in snap %s: %v", app.Name, snapName, err)
-	}
+	de := mylog.Check2(desktopentry.Read(desktopFilePath))
+
 	if !de.ShouldAutostart(currentDesktop) {
 		return nil, fmt.Errorf("skipped")
 	}
-	args, err := de.ExpandExec(nil)
-	if err != nil {
-		return nil, fmt.Errorf("invalid application startup command: %v", err)
-	}
+	args := mylog.Check2(de.ExpandExec(nil))
+
 	logger.Debugf("exec line: %v", args)
 
 	// NOTE: Ignore the actual argv[0] in Exec=.. line and replace it with a
@@ -99,19 +91,9 @@ func (f failedAutostartError) Error() string {
 }
 
 func makeStdStreams(identifier string) (stdout *os.File, stderr *os.File) {
-	var err error
+	stdout = mylog.Check2(systemd.NewJournalStreamFile(identifier, syslog.LOG_INFO, false))
 
-	stdout, err = systemd.NewJournalStreamFile(identifier, syslog.LOG_INFO, false)
-	if err != nil {
-		logger.Noticef("failed to set up stdout journal stream for %q: %v", identifier, err)
-		stdout = os.Stdout
-	}
-
-	stderr, err = systemd.NewJournalStreamFile(identifier, syslog.LOG_WARNING, false)
-	if err != nil {
-		logger.Noticef("failed to set up stderr journal stream for %q: %v", identifier, err)
-		stderr = os.Stderr
-	}
+	stderr = mylog.Check2(systemd.NewJournalStreamFile(identifier, syslog.LOG_WARNING, false))
 
 	return stdout, stderr
 }
@@ -133,10 +115,7 @@ func MockUserCurrent(f func() (*user.User, error)) (restore func()) {
 // NOTE: By the spec, the actual path is $SNAP_USER_DATA/${XDG_CONFIG_DIR}/autostart
 func AutostartSessionApps(usrSnapDir string) error {
 	glob := filepath.Join(usrSnapDir, "*/current/.config/autostart/*.desktop")
-	matches, err := filepath.Glob(glob)
-	if err != nil {
-		return err
-	}
+	matches := mylog.Check2(filepath.Glob(glob))
 
 	failedApps := make(failedAutostartError)
 	for _, desktopFilePath := range matches {
@@ -151,19 +130,14 @@ func AutostartSessionApps(usrSnapDir string) error {
 
 		logger.Debugf("snap name: %q", snapName)
 
-		cmd, err := autostartCmd(snapName, desktopFilePath)
-		if err != nil {
-			failedApps[desktopFile] = err
-			continue
-		}
+		cmd := mylog.Check2(autostartCmd(snapName, desktopFilePath))
 
 		// similarly to gnome-session, use the desktop file name as
 		// identifier, see:
 		// https://github.com/GNOME/gnome-session/blob/099c19099de8e351f6cc0f2110ad27648780a0fe/gnome-session/gsm-autostart-app.c#L948
 		cmd.Stdout, cmd.Stderr = makeStdStreams(desktopFile)
-		if err := cmd.Start(); err != nil {
-			failedApps[desktopFile] = fmt.Errorf("cannot autostart %q: %v", desktopFile, err)
-		}
+		mylog.Check(cmd.Start())
+
 	}
 	if len(failedApps) > 0 {
 		return failedApps

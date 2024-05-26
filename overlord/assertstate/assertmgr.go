@@ -24,6 +24,7 @@ import (
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
@@ -43,10 +44,7 @@ func Manager(s *state.State, runner *state.TaskRunner) (*AssertManager, error) {
 
 	runner.AddHandler("validate-snap", doValidateSnap, nil)
 
-	db, err := sysdb.Open()
-	if err != nil {
-		return nil, err
-	}
+	db := mylog.Check2(sysdb.Open())
 
 	s.Lock()
 	ReplaceDB(s, db)
@@ -86,43 +84,30 @@ func doValidateSnap(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	snapsup, err := snapstate.TaskSnapSetup(t)
-	if err != nil {
-		return fmt.Errorf("internal error: cannot obtain snap setup: %s", err)
-	}
+	snapsup := mylog.Check2(snapstate.TaskSnapSetup(t))
 
-	sha3_384, snapSize, err := asserts.SnapFileSHA3_384(snapsup.SnapPath)
-	if err != nil {
-		return err
-	}
+	sha3_384, snapSize := mylog.Check3(asserts.SnapFileSHA3_384(snapsup.SnapPath))
 
-	deviceCtx, err := snapstate.DeviceCtx(st, t, nil)
-	if err != nil {
-		return err
-	}
+	deviceCtx := mylog.Check2(snapstate.DeviceCtx(st, t, nil))
 
 	modelAs := deviceCtx.Model()
 	expectedProv := snapsup.ExpectedProvenance
-
-	err = doFetch(st, snapsup.UserID, deviceCtx, nil, func(f asserts.Fetcher) error {
-		if err := snapasserts.FetchSnapAssertions(f, sha3_384, expectedProv); err != nil {
-			return err
-		}
+	mylog.Check(doFetch(st, snapsup.UserID, deviceCtx, nil, func(f asserts.Fetcher) error {
+		mylog.Check(snapasserts.FetchSnapAssertions(f, sha3_384, expectedProv))
 
 		// fetch store assertion if available
 		if modelAs.Store() != "" {
-			err := snapasserts.FetchStore(f, modelAs.Store())
+			mylog.Check(snapasserts.FetchStore(f, modelAs.Store()))
 			if notFound, ok := err.(*asserts.NotFoundError); ok {
 				if notFound.Type != asserts.StoreType {
 					return err
 				}
-			} else if err != nil {
-				return err
 			}
+
 		}
 
 		return nil
-	})
+	}))
 	if notFound, ok := err.(*asserts.NotFoundError); ok {
 		if notFound.Type == asserts.SnapRevisionType {
 			return fmt.Errorf("cannot verify snap %q, no matching signatures found", snapsup.InstanceName())
@@ -130,25 +115,19 @@ func doValidateSnap(t *state.Task, _ *tomb.Tomb) error {
 			return fmt.Errorf("cannot find supported signatures to verify snap %q and its hash (%v)", snapsup.InstanceName(), notFound)
 		}
 	}
-	if err != nil {
-		return err
-	}
 
 	db := DB(st)
-	verifiedRev, err := snapasserts.CrossCheck(snapsup.InstanceName(), sha3_384, expectedProv, snapSize, snapsup.SideInfo, modelAs, db)
-	if err != nil {
+	verifiedRev := mylog.Check2(snapasserts.CrossCheck(snapsup.InstanceName(), sha3_384, expectedProv, snapSize, snapsup.SideInfo, modelAs, db))
+	mylog.Check(
+
 		// TODO: trigger a global validity check
 		// that will generate the changes to deal with this
 		// for things like snap-decl revocation and renames?
-		return err
-	}
 
-	// we have an authorized snap-revision with matching hash for
-	// the blob, double check that the snap metadata provenance
-	// matches
-	if err := snapasserts.CheckProvenanceWithVerifiedRevision(snapsup.SnapPath, verifiedRev); err != nil {
-		return err
-	}
+		// we have an authorized snap-revision with matching hash for
+		// the blob, double check that the snap metadata provenance
+		// matches
+		snapasserts.CheckProvenanceWithVerifiedRevision(snapsup.SnapPath, verifiedRev))
 
 	// TODO: set DeveloperID from assertions
 	return nil

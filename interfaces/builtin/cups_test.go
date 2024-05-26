@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -124,8 +125,7 @@ func (s *cupsSuite) TestSanitizeInvalidSlot(c *C) {
 		yaml := fmt.Sprintf(invalidCupsProviderYamlFmt, t.snippet)
 
 		_, invalidSlotInfo := MockConnectedSlot(c, yaml, nil, "cups-socket")
-
-		err := interfaces.BeforePrepareSlot(s.iface, invalidSlotInfo)
+		mylog.Check(interfaces.BeforePrepareSlot(s.iface, invalidSlotInfo))
 		c.Assert(err, ErrorMatches, t.err)
 	}
 }
@@ -195,8 +195,8 @@ const expSnapUpdateNsSnippet = `  # Mount cupsd socket from cups snap to client 
 
 func (s *cupsSuite) TestAppArmorSpec(c *C) {
 	// consumer to provider on core for ConnectedPlug
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet := mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.providerSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
@@ -211,8 +211,8 @@ func (s *cupsSuite) TestAppArmorSpec(c *C) {
 	c.Assert(strings.Join(spec.UpdateNS(), ""), Equals, expSnapUpdateNsSnippet)
 
 	// consumer to legacy provider
-	appSet, err = interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
+	appSet = mylog.Check2(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+
 	specLegacy := apparmor.NewSpecification(appSet)
 	c.Assert(specLegacy.AddConnectedPlug(s.iface, s.plug, s.providerLegacySlot), IsNil)
 	c.Assert(specLegacy.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})

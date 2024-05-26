@@ -30,6 +30,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 	"golang.org/x/crypto/ssh/terminal"
 	"golang.org/x/xerrors"
@@ -256,10 +257,8 @@ func registerCommands(cli *client.Client, parser *flags.Parser, baseCmd *flags.C
 			x.setParser(parser)
 		}
 
-		cmd, err := baseCmd.AddCommand(c.name, c.shortHelp, strings.TrimSpace(c.longHelp), obj)
-		if err != nil {
-			logger.Panicf("cannot add command %q: %v", c.name, err)
-		}
+		cmd := mylog.Check2(baseCmd.AddCommand(c.name, c.shortHelp, strings.TrimSpace(c.longHelp), obj))
+
 		cmd.Hidden = c.hidden
 		if c.alias != "" {
 			cmd.Aliases = append(cmd.Aliases, c.alias)
@@ -343,20 +342,16 @@ func Parser(cli *client.Client) *flags.Parser {
 		checkUnique(ci, "")
 	})
 	// Add the debug command
-	debugCommand, err := parser.AddCommand("debug", shortDebugHelp, longDebugHelp, &cmdDebug{})
-	if err != nil {
-		logger.Panicf("cannot add command %q: %v", "debug", err)
-	}
+	debugCommand := mylog.Check2(parser.AddCommand("debug", shortDebugHelp, longDebugHelp, &cmdDebug{}))
+
 	// Add all the sub-commands of the debug command
 	registerCommands(cli, parser, debugCommand, debugCommands, func(ci *cmdInfo) {
 		checkUnique(ci, "debug ")
 	})
 	// Add the internal command
-	routineCommand, err := parser.AddCommand("routine", shortRoutineHelp, longRoutineHelp, &cmdRoutine{})
+	routineCommand := mylog.Check2(parser.AddCommand("routine", shortRoutineHelp, longRoutineHelp, &cmdRoutine{}))
 	routineCommand.Hidden = true
-	if err != nil {
-		logger.Panicf("cannot add command %q: %v", "internal", err)
-	}
+
 	// Add all the sub-commands of the routine command
 	registerCommands(cli, parser, routineCommand, routineCommands, func(ci *cmdInfo) {
 		checkUnique(ci, "routine ")
@@ -400,17 +395,12 @@ This command has been left available for documentation purposes only.
 }
 
 func init() {
-	err := logger.SimpleSetup(nil)
-	if err != nil {
-		fmt.Fprintf(Stderr, i18n.G("WARNING: failed to activate logging: %v\n"), err)
-	}
+	mylog.Check(logger.SimpleSetup(nil))
 }
 
 func resolveApp(snapApp string) (string, error) {
-	target, err := os.Readlink(filepath.Join(dirs.SnapBinariesDir, snapApp))
-	if err != nil {
-		return "", err
-	}
+	target := mylog.Check2(os.Readlink(filepath.Join(dirs.SnapBinariesDir, snapApp)))
+
 	if filepath.Base(target) == target { // alias pointing to an app command in /snap/bin
 		return target, nil
 	}
@@ -458,28 +448,25 @@ func main() {
 				break
 			}
 		}
-		if err := cmd.Execute(nil); err != nil {
-			fmt.Fprintln(Stderr, err)
-		}
+		mylog.Check(cmd.Execute(nil))
+
 		return
 	}
 
 	// 2. symlink from /snap/bin/$foo to /usr/bin/snap: run snapApp
 	snapApp := filepath.Base(os.Args[0])
 	if osutil.IsSymlink(filepath.Join(dirs.SnapBinariesDir, snapApp)) {
-		var err error
-		snapApp, err = resolveApp(snapApp)
-		if err != nil {
-			fmt.Fprintf(Stderr, i18n.G("cannot resolve snap app %q: %v"), snapApp, err)
-			os.Exit(46)
-		}
+
+		snapApp = mylog.Check2(resolveApp(snapApp))
+
 		cmd := &cmdRun{}
 		cmd.client = mkClient()
 		os.Args[0] = snapApp
-		// this will call syscall.Exec() so it does not return
-		// *unless* there is an error, i.e. we setup a wrong
-		// symlink (or syscall.Exec() fails for strange reasons)
-		err = cmd.Execute(os.Args)
+		mylog.
+			// this will call syscall.Exec() so it does not return
+			// *unless* there is an error, i.e. we setup a wrong
+			// symlink (or syscall.Exec() fails for strange reasons)
+			Check(cmd.Execute(os.Args))
 		fmt.Fprintf(Stderr, i18n.G("internal error, please report: running %q failed: %v\n"), snapApp, err)
 		os.Exit(46)
 	}
@@ -492,12 +479,10 @@ func main() {
 			panic(v)
 		}
 	}()
+	mylog.Check(
 
-	// no magic /o\
-	if err := run(); err != nil {
-		fmt.Fprintf(Stderr, errorPrefix, err)
-		os.Exit(exitCodeFromError(err))
-	}
+		// no magic /o\
+		run())
 }
 
 type exitStatus struct {
@@ -532,56 +517,11 @@ func (e unknownCommandError) Error() string {
 func run() error {
 	cli := mkClient()
 	parser := Parser(cli)
-	xtra, err := parser.Parse()
-	if err != nil {
-		if e, ok := err.(*flags.Error); ok {
-			switch e.Type {
-			case flags.ErrCommandRequired:
-				printShortHelp()
-				return nil
-			case flags.ErrHelp:
-				parser.WriteHelp(Stdout)
-				return nil
-			case flags.ErrUnknownCommand:
-				sub := os.Args[1]
-				sug := "snap help"
-				if len(xtra) > 0 {
-					sub = xtra[0]
-					if x := parser.Command.Active; x != nil && x.Name != "help" {
-						sug = "snap help " + x.Name
-					}
-				}
-				// TRANSLATORS: %q is the command the user entered; %s is 'snap help' or 'snap help <cmd>'
-				return unknownCommandError{fmt.Sprintf(i18n.G("unknown command %q, see '%s'."), sub, sug)}
-			}
-		}
+	xtra := mylog.Check2(parser.Parse())
 
-		var cmdName string
-		if parser.Active != nil {
-			cmdName = parser.Active.Name
-		}
+	// TRANSLATORS: %q is the command the user entered; %s is 'snap help' or 'snap help <cmd>'
 
-		msg, err := errorToCmdMessage("", cmdName, err, nil)
-
-		if cmdline := strings.Join(os.Args, " "); strings.ContainsAny(cmdline, wrongDashes) {
-			// TRANSLATORS: the %+q is the commandline (+q means quoted, with any non-ascii character called out). Please keep the lines to at most 80 characters.
-			fmt.Fprintf(Stderr, i18n.G(`Your command included some characters that look like dashes but are not:
-    %+q
-in some situations you might find that when copying from an online source such
-as a blog you need to replace “typographic” dashes and quotes with their ASCII
-equivalent.  Dashes in particular are homoglyphs on most terminals and in most
-fixed-width fonts, so it can be hard to tell.
-
-`), cmdline)
-		}
-
-		if err != nil {
-			return err
-		}
-
-		fmt.Fprintln(Stderr, msg)
-		return nil
-	}
+	// TRANSLATORS: the %+q is the commandline (+q means quoted, with any non-ascii character called out). Please keep the lines to at most 80 characters.
 
 	maybePresentWarnings(cli.WarningsSummary())
 

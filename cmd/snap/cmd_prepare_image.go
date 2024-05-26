@@ -25,6 +25,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/i18n"
@@ -112,8 +113,10 @@ For preparing classic images it supports a --classic mode`),
 		})
 }
 
-var imagePrepare = image.Prepare
-var seedwriterReadManifest = seedwriter.ReadManifest
+var (
+	imagePrepare           = image.Prepare
+	seedwriterReadManifest = seedwriter.ReadManifest
+)
 
 func (x *cmdPrepareImage) Execute(args []string) error {
 	// plug/slot sanitization is disabled (no-op) by default at the package
@@ -130,18 +133,14 @@ func (x *cmdPrepareImage) Execute(args []string) error {
 	}
 
 	if x.RevisionsFile != "" {
-		seedManifest, err := seedwriterReadManifest(x.RevisionsFile)
-		if err != nil {
-			return err
-		}
+		seedManifest := mylog.Check2(seedwriterReadManifest(x.RevisionsFile))
+
 		opts.SeedManifest = seedManifest
 	}
 
 	if x.Customize != "" {
-		custo, err := readImageCustomizations(x.Customize)
-		if err != nil {
-			return err
-		}
+		custo := mylog.Check2(readImageCustomizations(x.Customize))
+
 		opts.Customizations = *custo
 	}
 
@@ -187,15 +186,12 @@ func (x *cmdPrepareImage) Execute(args []string) error {
 }
 
 func readImageCustomizations(customizationsFile string) (*image.Customizations, error) {
-	f, err := os.Open(customizationsFile)
-	if err != nil {
-		return nil, fmt.Errorf("cannot read image customizations: %v", err)
-	}
+	f := mylog.Check2(os.Open(customizationsFile))
+
 	defer f.Close()
 	dec := json.NewDecoder(f)
 	var custo image.Customizations
-	if err := dec.Decode(&custo); err != nil {
-		return nil, fmt.Errorf("cannot parse customizations %q: %v", customizationsFile, err)
-	}
+	mylog.Check(dec.Decode(&custo))
+
 	return &custo, nil
 }

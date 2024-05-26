@@ -26,6 +26,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	main "github.com/snapcore/snapd/cmd/snap"
 )
 
@@ -45,7 +46,7 @@ func makeFakeValidationSetPostHandler(c *check.C, body, action string, sequence 
 		c.Check(r.URL.Path, check.Equals, "/v2/validation-sets/foo/bar")
 		c.Check(r.Method, check.Equals, "POST")
 
-		buf, err := io.ReadAll(r.Body)
+		buf := mylog.Check2(io.ReadAll(r.Body))
 		c.Assert(err, check.IsNil)
 		switch {
 		case sequence != 0 && action != "forget":
@@ -111,7 +112,7 @@ func (s *validateSuite) TestValidateInvalidArgs(c *check.C) {
 		s.stdout.Reset()
 		s.stderr.Reset()
 
-		_, err := main.Parser(main.Client()).ParseArgs(append([]string{"validate"}, args.args...))
+		_ := mylog.Check2(main.Parser(main.Client()).ParseArgs(append([]string{"validate"}, args.args...)))
 		c.Assert(err, check.ErrorMatches, args.err)
 	}
 }
@@ -119,7 +120,7 @@ func (s *validateSuite) TestValidateInvalidArgs(c *check.C) {
 func (s *validateSuite) TestValidateMonitor(c *check.C) {
 	s.RedirectClientToTestServer(makeFakeValidationSetPostHandler(c, `{"type": "sync", "status-code": 200, "result": {"account-id":"foo","name":"bar","mode":"monitor","sequence":3,"valid":false}}`, "monitor", 0))
 
-	rest, err := main.Parser(main.Client()).ParseArgs([]string{"validate", "--monitor", "foo/bar"})
+	rest := mylog.Check2(main.Parser(main.Client()).ParseArgs([]string{"validate", "--monitor", "foo/bar"}))
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
@@ -129,7 +130,7 @@ func (s *validateSuite) TestValidateMonitor(c *check.C) {
 func (s *validateSuite) TestValidateMonitorPinned(c *check.C) {
 	s.RedirectClientToTestServer(makeFakeValidationSetPostHandler(c, `{"type": "sync", "status-code": 200, "result": {"account-id":"foo","name":"bar","mode":"monitor","sequence":3,"valid":true}}}`, "monitor", 3))
 
-	rest, err := main.Parser(main.Client()).ParseArgs([]string{"validate", "--monitor", "foo/bar=3"})
+	rest := mylog.Check2(main.Parser(main.Client()).ParseArgs([]string{"validate", "--monitor", "foo/bar=3"}))
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
@@ -139,7 +140,7 @@ func (s *validateSuite) TestValidateMonitorPinned(c *check.C) {
 func (s *validateSuite) TestValidateEnforce(c *check.C) {
 	s.RedirectClientToTestServer(makeFakeValidationSetPostHandler(c, `{"type": "sync", "status-code": 200, "result": {"account-id":"foo","name":"bar","mode":"enforce","sequence":3,"valid":true}}}`, "enforce", 0))
 
-	rest, err := main.Parser(main.Client()).ParseArgs([]string{"validate", "--enforce", "foo/bar"})
+	rest := mylog.Check2(main.Parser(main.Client()).ParseArgs([]string{"validate", "--enforce", "foo/bar"}))
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
@@ -149,7 +150,7 @@ func (s *validateSuite) TestValidateEnforce(c *check.C) {
 func (s *validateSuite) TestValidateEnforcePinned(c *check.C) {
 	s.RedirectClientToTestServer(makeFakeValidationSetPostHandler(c, `{"type": "sync", "status-code": 200, "result": {"account-id":"foo","name":"bar","mode":"enforce","sequence":3,"valid":true}}}`, "enforce", 5))
 
-	rest, err := main.Parser(main.Client()).ParseArgs([]string{"validate", "--enforce", "foo/bar=5"})
+	rest := mylog.Check2(main.Parser(main.Client()).ParseArgs([]string{"validate", "--enforce", "foo/bar=5"}))
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
@@ -159,7 +160,7 @@ func (s *validateSuite) TestValidateEnforcePinned(c *check.C) {
 func (s *validateSuite) TestValidateForget(c *check.C) {
 	s.RedirectClientToTestServer(makeFakeValidationSetPostHandler(c, `{"type": "sync", "status-code": 200, "result": []}`, "forget", 0))
 
-	rest, err := main.Parser(main.Client()).ParseArgs([]string{"validate", "--forget", "foo/bar"})
+	rest := mylog.Check2(main.Parser(main.Client()).ParseArgs([]string{"validate", "--forget", "foo/bar"}))
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
@@ -169,7 +170,7 @@ func (s *validateSuite) TestValidateForget(c *check.C) {
 func (s *validateSuite) TestValidateForgetPinned(c *check.C) {
 	s.RedirectClientToTestServer(makeFakeValidationSetPostHandler(c, `{"type": "sync", "status-code": 200, "result": []}`, "forget", 5))
 
-	rest, err := main.Parser(main.Client()).ParseArgs([]string{"validate", "--forget", "foo/bar=5"})
+	rest := mylog.Check2(main.Parser(main.Client()).ParseArgs([]string{"validate", "--forget", "foo/bar=5"}))
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
@@ -182,7 +183,7 @@ func (s *validateSuite) TestValidateQueryOne(c *check.C) {
 
 	s.RedirectClientToTestServer(makeFakeValidationSetQueryHandler(c, `{"type": "sync", "status-code": 200, "result": {"account-id":"foo","name":"bar","mode":"monitor","sequence":3,"valid":true}}`))
 
-	rest, err := main.Parser(main.Client()).ParseArgs([]string{"validate", "foo/bar"})
+	rest := mylog.Check2(main.Parser(main.Client()).ParseArgs([]string{"validate", "foo/bar"}))
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
@@ -195,7 +196,7 @@ func (s *validateSuite) TestValidateQueryOneInvalid(c *check.C) {
 
 	s.RedirectClientToTestServer(makeFakeValidationSetQueryHandler(c, `{"type": "sync", "status-code": 200, "result": {"account-id":"foo","name":"bar","mode":"monitor","sequence":3,"valid":false}}`))
 
-	rest, err := main.Parser(main.Client()).ParseArgs([]string{"validate", "foo/bar"})
+	rest := mylog.Check2(main.Parser(main.Client()).ParseArgs([]string{"validate", "foo/bar"}))
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
@@ -211,7 +212,7 @@ func (s *validateSuite) TestValidationSetsList(c *check.C) {
 		{"account-id":"foo","name":"baz","mode":"enforce","sequence":1,"valid":false}
 	]}`))
 
-	rest, err := main.Parser(main.Client()).ParseArgs([]string{"validate"})
+	rest := mylog.Check2(main.Parser(main.Client()).ParseArgs([]string{"validate"}))
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
@@ -227,7 +228,7 @@ func (s *validateSuite) TestValidationSetsListEmpty(c *check.C) {
 
 	s.RedirectClientToTestServer(makeFakeListValidationsSetsHandler(c, `{"type": "sync", "status-code": 200, "result": []}`))
 
-	rest, err := main.Parser(main.Client()).ParseArgs([]string{"validate"})
+	rest := mylog.Check2(main.Parser(main.Client()).ParseArgs([]string{"validate"}))
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "No validations are available\n")
@@ -235,7 +236,7 @@ func (s *validateSuite) TestValidationSetsListEmpty(c *check.C) {
 }
 
 func (s *validateSuite) TestValidateRefreshOnlyUsedWithEnforce(c *check.C) {
-	rest, err := main.Parser(main.Client()).ParseArgs([]string{"validate", "--refresh", "--monitor", "foo/bar"})
+	rest := mylog.Check2(main.Parser(main.Client()).ParseArgs([]string{"validate", "--refresh", "--monitor", "foo/bar"}))
 	c.Assert(err, check.ErrorMatches, "--refresh can only be used together with --enforce")
 	c.Check(rest, check.HasLen, 1)
 	c.Check(s.Stderr(), check.Equals, "")
@@ -263,7 +264,7 @@ func (s *validateSuite) TestValidationSetsRefreshEnforce(c *check.C) {
 		n++
 	})
 
-	rest, err := main.Parser(main.Client()).ParseArgs([]string{"validate", "--refresh", "--enforce", "foo/bar"})
+	rest := mylog.Check2(main.Parser(main.Client()).ParseArgs([]string{"validate", "--refresh", "--enforce", "foo/bar"}))
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
@@ -291,7 +292,7 @@ func (s *validateSuite) TestValidationSetsRefreshEnforceNoUnmetConstraints(c *ch
 		n++
 	})
 
-	rest, err := main.Parser(main.Client()).ParseArgs([]string{"validate", "--refresh", "--enforce", "foo/bar"})
+	rest := mylog.Check2(main.Parser(main.Client()).ParseArgs([]string{"validate", "--refresh", "--enforce", "foo/bar"}))
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")

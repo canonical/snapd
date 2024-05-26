@@ -22,6 +22,8 @@ package osutil
 import (
 	"bytes"
 	"fmt"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // OutputErr formats an error based on output if its length is not zero,
@@ -30,9 +32,9 @@ func OutputErr(output []byte, err error) error {
 	output = bytes.TrimSpace(output)
 	if len(output) > 0 {
 		if bytes.Contains(output, []byte{'\n'}) {
-			err = fmt.Errorf("\n-----\n%s\n-----", output)
+			mylog.Check(fmt.Errorf("\n-----\n%s\n-----", output))
 		} else {
-			err = fmt.Errorf("%s", output)
+			mylog.Check(fmt.Errorf("%s", output))
 		}
 	}
 	return err

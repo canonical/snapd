@@ -26,6 +26,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/hotplug"
@@ -138,16 +139,13 @@ func (iface *serialPortInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 func (iface *serialPortInterface) UDevPermanentSlot(spec *udev.Specification, slot *snap.SlotInfo) error {
 	var usbVendor, usbProduct, usbInterfaceNumber int64
 	var path string
-	if err := slot.Attr("usb-vendor", &usbVendor); err != nil {
+	mylog.Check(slot.Attr("usb-vendor", &usbVendor))
+	mylog.Check(slot.Attr("usb-product", &usbProduct))
+
+	if mylog.Check(slot.Attr("path", &path)); err != nil || path == "" {
 		return nil
 	}
-	if err := slot.Attr("usb-product", &usbProduct); err != nil {
-		return nil
-	}
-	if err := slot.Attr("path", &path); err != nil || path == "" {
-		return nil
-	}
-	if err := slot.Attr("usb-interface-number", &usbInterfaceNumber); err == nil {
+	if mylog.Check(slot.Attr("usb-interface-number", &usbInterfaceNumber)); err == nil {
 		spec.AddSnippet(fmt.Sprintf(`# serial-port
 IMPORT{builtin}="usb_id"
 SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="%04x", ATTRS{idProduct}=="%04x", ENV{ID_USB_INTERFACE_NUM}=="%02x", SYMLINK+="%s"`, usbVendor, usbProduct, usbInterfaceNumber, strings.TrimPrefix(path, "/dev/")))
@@ -170,9 +168,8 @@ func (iface *serialPortInterface) AppArmorConnectedPlug(spec *apparmor.Specifica
 
 	// Path to fixed device node
 	var path string
-	if err := slot.Attr("path", &path); err != nil {
-		return nil
-	}
+	mylog.Check(slot.Attr("path", &path))
+
 	cleanedPath := filepath.Clean(path)
 	spec.AddSnippet(fmt.Sprintf("%s rwk,", cleanedPath))
 	return nil
@@ -184,13 +181,13 @@ func (iface *serialPortInterface) UDevConnectedPlug(spec *udev.Specification, pl
 	hasOnlyPath := !iface.hasUsbAttrs(slot)
 	var usbVendor, usbProduct int64
 	var path string
-	if err := slot.Attr("usb-vendor", &usbVendor); err != nil && !hasOnlyPath {
+	if mylog.Check(slot.Attr("usb-vendor", &usbVendor)); err != nil && !hasOnlyPath {
 		return nil
 	}
-	if err := slot.Attr("usb-product", &usbProduct); err != nil && !hasOnlyPath {
+	if mylog.Check(slot.Attr("usb-product", &usbProduct)); err != nil && !hasOnlyPath {
 		return nil
 	}
-	if err := slot.Attr("path", &path); err != nil && hasOnlyPath {
+	if mylog.Check(slot.Attr("path", &path)); err != nil && hasOnlyPath {
 		return nil
 	}
 
@@ -198,7 +195,7 @@ func (iface *serialPortInterface) UDevConnectedPlug(spec *udev.Specification, pl
 		spec.TagDevice(fmt.Sprintf(`SUBSYSTEM=="tty", KERNEL=="%s"`, strings.TrimPrefix(path, "/dev/")))
 	} else {
 		var usbInterfaceNumber int64
-		if err := slot.Attr("usb-interface-number", &usbInterfaceNumber); err == nil {
+		if mylog.Check(slot.Attr("usb-interface-number", &usbInterfaceNumber)); err == nil {
 			spec.TagDevice(fmt.Sprintf(`IMPORT{builtin}="usb_id"
 SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="%04x", ATTRS{idProduct}=="%04x", ENV{ID_USB_INTERFACE_NUM}=="%02x"`, usbVendor, usbProduct, usbInterfaceNumber))
 		} else {
@@ -240,24 +237,23 @@ func slotDeviceAttrEqual(di *hotplug.HotplugDeviceInfo, devinfoAttribute string,
 	if attr, ok = di.Attribute(devinfoAttribute); !ok {
 		return false
 	}
-	val, err := strconv.ParseInt(attr, 16, 64)
+	val := mylog.Check2(strconv.ParseInt(attr, 16, 64))
 	return err == nil && val == slotAttributeValue
 }
 
 func (iface *serialPortInterface) HandledByGadget(di *hotplug.HotplugDeviceInfo, slot *snap.SlotInfo) bool {
 	// if the slot has vendor, product and interface number set, check if they match
 	var usbVendor, usbProduct, usbInterfaceNumber int64
-	if err := slot.Attr("usb-vendor", &usbVendor); err == nil {
+	if mylog.Check(slot.Attr("usb-vendor", &usbVendor)); err == nil {
 		if !slotDeviceAttrEqual(di, "ID_VENDOR_ID", usbVendor) {
 			return false
 		}
-		if err := slot.Attr("usb-product", &usbProduct); err != nil {
-			return false
-		}
+		mylog.Check(slot.Attr("usb-product", &usbProduct))
+
 		if !slotDeviceAttrEqual(di, "ID_MODEL_ID", usbProduct) {
 			return false
 		}
-		if err := slot.Attr("usb-interface-number", &usbInterfaceNumber); err == nil {
+		if mylog.Check(slot.Attr("usb-interface-number", &usbInterfaceNumber)); err == nil {
 			if !slotDeviceAttrEqual(di, "ID_USB_INTERFACE_NUM", usbInterfaceNumber) {
 				return false
 			}
@@ -266,21 +262,20 @@ func (iface *serialPortInterface) HandledByGadget(di *hotplug.HotplugDeviceInfo,
 	}
 
 	var path string
-	if err := slot.Attr("path", &path); err != nil {
-		return false
-	}
+	mylog.Check(slot.Attr("path", &path))
+
 	return di.DeviceName() == path
 }
 
 func (iface *serialPortInterface) hasUsbAttrs(attrs interfaces.Attrer) bool {
 	var v int64
-	if err := attrs.Attr("usb-vendor", &v); err == nil {
+	if mylog.Check(attrs.Attr("usb-vendor", &v)); err == nil {
 		return true
 	}
-	if err := attrs.Attr("usb-product", &v); err == nil {
+	if mylog.Check(attrs.Attr("usb-product", &v)); err == nil {
 		return true
 	}
-	if err := attrs.Attr("usb-interface-number", &v); err == nil {
+	if mylog.Check(attrs.Attr("usb-interface-number", &v)); err == nil {
 		return true
 	}
 	return false

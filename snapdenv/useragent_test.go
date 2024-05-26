@@ -96,7 +96,6 @@ func (s *UASuite) TestStripUnsafeRunes(c *C) {
 	} {
 		c.Check(snapdenv.StripUnsafeRunes(t.orig), Equals, t.changed)
 	}
-
 }
 
 func (s *UASuite) TestSanitizeKernelVersion(c *C) {
@@ -104,5 +103,4 @@ func (s *UASuite) TestSanitizeKernelVersion(c *C) {
 	const in = "this-is-a-very-long-thing-that-pretends-to-be-a-kernel-version-string"
 	const out = "this-is-a-very-long-thing"
 	c.Check(snapdenv.SanitizeKernelVersion(in), Equals, out)
-
 }

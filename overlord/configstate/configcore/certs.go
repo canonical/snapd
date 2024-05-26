@@ -27,6 +27,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 )
 
@@ -39,20 +40,14 @@ func handleCertConfiguration(tr RunTransaction, opts *fsOnlyContext) error {
 	//      "snap revert" and config updates
 	//
 	// TODO: add ways to detect cleanly if tr is a patch, skip the sync code if it is
-	storeCerts, err := filepath.Glob(filepath.Join(dirs.SnapdStoreSSLCertsDir, "*.pem"))
-	if err != nil {
-		return fmt.Errorf("cannot get existing store certs: %v", err)
-	}
+	storeCerts := mylog.Check2(filepath.Glob(filepath.Join(dirs.SnapdStoreSSLCertsDir, "*.pem")))
+
 	for _, storeCertPath := range storeCerts {
 		optionName := strings.TrimSuffix(filepath.Base(storeCertPath), ".pem")
-		v, err := coreCfg(tr, "store-certs."+optionName)
-		if err != nil {
-			return err
-		}
+		v := mylog.Check2(coreCfg(tr, "store-certs."+optionName))
+
 		if v == "" {
-			if err := os.Remove(storeCertPath); err != nil {
-				return err
-			}
+			mylog.Check(os.Remove(storeCertPath))
 		}
 	}
 
@@ -63,25 +58,20 @@ func handleCertConfiguration(tr RunTransaction, opts *fsOnlyContext) error {
 		}
 
 		nameWithoutSnap := strings.SplitN(name, ".", 2)[1]
-		cert, err := coreCfg(tr, nameWithoutSnap)
-		if err != nil {
-			return fmt.Errorf("internal error: cannot get data for %s: %v", nameWithoutSnap, err)
-		}
+		cert := mylog.Check2(coreCfg(tr, nameWithoutSnap))
+
 		optionName := strings.SplitN(name, ".", 3)[2]
 		certPath := filepath.Join(dirs.SnapdStoreSSLCertsDir, optionName+".pem")
 		switch cert {
 		case "":
 			// remove
-			if err := os.Remove(certPath); err != nil && !os.IsNotExist(err) {
+			if mylog.Check(os.Remove(certPath)); err != nil && !os.IsNotExist(err) {
 				return fmt.Errorf("cannot remove store certificate: %v", err)
 			}
 		default:
-			if err := os.MkdirAll(dirs.SnapdStoreSSLCertsDir, 0755); err != nil {
-				return fmt.Errorf("cannot create store ssl certs dir: %v", err)
-			}
-			if err := os.WriteFile(certPath, []byte(cert), 0644); err != nil {
-				return fmt.Errorf("cannot write store certificate: %v", err)
-			}
+			mylog.Check(os.MkdirAll(dirs.SnapdStoreSSLCertsDir, 0755))
+			mylog.Check(os.WriteFile(certPath, []byte(cert), 0644))
+
 		}
 	}
 
@@ -95,10 +85,8 @@ func validateCertSettings(tr RunTransaction) error {
 		}
 
 		nameWithoutSnap := strings.SplitN(name, ".", 2)[1]
-		cert, err := coreCfg(tr, nameWithoutSnap)
-		if err != nil {
-			return fmt.Errorf("internal error: cannot get data for %s: %v", nameWithoutSnap, err)
-		}
+		cert := mylog.Check2(coreCfg(tr, nameWithoutSnap))
+
 		if cert != "" {
 			optionName := strings.SplitN(name, ".", 3)[2]
 			if !validCertName(optionName) {

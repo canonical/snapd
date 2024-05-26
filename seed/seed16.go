@@ -34,6 +34,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/osutil"
@@ -64,11 +65,8 @@ type seed16 struct {
 func (s *seed16) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Batch) error) error {
 	if db == nil {
 		// a db was not provided, create an internal temporary one
-		var err error
-		db, commitTo, err = newMemAssertionsDB(nil)
-		if err != nil {
-			return err
-		}
+
+		db, commitTo = mylog.Check3(newMemAssertionsDB(nil))
 	}
 
 	assertSeedDir := filepath.Join(s.seedDir, "assertions")
@@ -84,24 +82,15 @@ func (s *seed16) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Ba
 		return nil
 	}
 
-	batch, err := loadAssertions(assertSeedDir, checkForModel)
-	if err != nil {
-		return err
-	}
+	batch := mylog.Check2(loadAssertions(assertSeedDir, checkForModel))
 
 	// verify we have one model assertion
 	if modelRef == nil {
 		return fmt.Errorf("seed must have a model assertion")
 	}
+	mylog.Check(commitTo(batch))
 
-	if err := commitTo(batch); err != nil {
-		return err
-	}
-
-	a, err := modelRef.Resolve(db.Find)
-	if err != nil {
-		return fmt.Errorf("internal error: cannot find just added assertion %v: %v", modelRef, err)
-	}
+	a := mylog.Check2(modelRef.Resolve(db.Find))
 
 	// remember db for later use
 	s.db = db
@@ -137,12 +126,9 @@ func (s *seed16) addSnap(sn *internal.Snap16, essType snap.Type, pinnedTrack str
 	if seedSnap == nil || !defaultHandler {
 		snapChannel := sn.Channel
 		if pinnedTrack != "" {
-			var err error
-			snapChannel, err = channel.ResolvePinned(pinnedTrack, snapChannel)
-			if err != nil {
-				// fallback to using the pinned track directly
-				snapChannel = pinnedTrack
-			}
+			snapChannel = mylog.Check2(channel.ResolvePinned(pinnedTrack, snapChannel))
+
+			// fallback to using the pinned track directly
 		}
 		seedSnap = &Snap{
 			Channel: snapChannel,
@@ -153,42 +139,31 @@ func (s *seed16) addSnap(sn *internal.Snap16, essType snap.Type, pinnedTrack str
 		var sideInfo snap.SideInfo
 		var newPath string
 		if sn.Unasserted {
-			var err error
-			newPath, err = handler.HandleUnassertedSnap(sn.Name, path, tm)
-			if err != nil {
-				return nil, err
-			}
+
+			newPath = mylog.Check2(handler.HandleUnassertedSnap(sn.Name, path, tm))
+
 			sideInfo.RealName = sn.Name
 		} else {
 			var si *snap.SideInfo
-			var err error
 
 			deriveRev := func(snapSHA3_384 string, snapSize uint64) (snap.Revision, error) {
 				if si == nil {
-					var err error
-					si, err = snapasserts.DeriveSideInfoFromDigestAndSize(path, snapSHA3_384, snapSize, s.model, s.db)
-					if err != nil {
-						return snap.Revision{}, err
-					}
+					si = mylog.Check2(snapasserts.DeriveSideInfoFromDigestAndSize(path, snapSHA3_384, snapSize, s.model, s.db))
 				}
 				return si.Revision, nil
 			}
 			timings.Run(tm, "derive-side-info", fmt.Sprintf("hash and derive side info for snap %q", sn.Name), func(nested timings.Measurer) {
 				var snapSHA3_384 string
 				var snapSize uint64
-				newPath, snapSHA3_384, snapSize, err = handler.HandleAndDigestAssertedSnap(sn.Name, path, essType, nil, deriveRev, tm)
-				if err != nil {
-					return
-				}
+				newPath, snapSHA3_384, snapSize = mylog.Check4(handler.HandleAndDigestAssertedSnap(sn.Name, path, essType, nil, deriveRev, tm))
+
 				// sets si too
-				_, err = deriveRev(snapSHA3_384, snapSize)
+				_ = mylog.Check2(deriveRev(snapSHA3_384, snapSize))
 			})
 			if errors.Is(err, &asserts.NotFoundError{}) {
 				return nil, fmt.Errorf("cannot find signatures with metadata for snap %q (%q)", sn.Name, path)
 			}
-			if err != nil {
-				return nil, err
-			}
+
 			sideInfo = *si
 			sideInfo.Private = sn.Private
 			sideInfo.LegacyEditedContact = sn.Contact
@@ -228,10 +203,8 @@ func (s *seed16) loadYaml() error {
 		return ErrNoMeta
 	}
 
-	seedYaml, err := internal.ReadSeedYaml(seedYamlFile)
-	if err != nil {
-		return err
-	}
+	seedYaml := mylog.Check2(internal.ReadSeedYaml(seedYamlFile))
+
 	s.yamlSnaps = seedYaml.Snaps
 
 	return nil
@@ -299,10 +272,7 @@ func (s *seed16) loadEssentialMeta(essentialTypes []snap.Type, required *naming.
 			return nil, &essentialSnapMissingError{SnapName: snapName}
 		}
 
-		seedSnap, err := s.addSnap(yamlSnap, essType, pinnedTrack, handler, s.essCache, tm)
-		if err != nil {
-			return nil, err
-		}
+		seedSnap := mylog.Check2(s.addSnap(yamlSnap, essType, pinnedTrack, handler, s.essCache, tm))
 
 		if essType == snap.TypeBase && snapName == "core" {
 			essType = snap.TypeOS
@@ -320,36 +290,26 @@ func (s *seed16) loadEssentialMeta(essentialTypes []snap.Type, required *naming.
 	if len(s.yamlSnaps) != 0 {
 		// ensure "snapd" snap is installed first
 		if model.Base() != "" || classicWithSnapd {
-			if _, err := addEssential("snapd", "", snap.TypeSnapd); err != nil {
-				return err
-			}
+			mylog.Check2(addEssential("snapd", "", snap.TypeSnapd))
 		}
 		if !classicWithSnapd {
-			if _, err := addEssential(baseSnap, "", snap.TypeBase); err != nil {
-				return err
-			}
+			mylog.Check2(addEssential(baseSnap, "", snap.TypeBase))
 		}
 	}
 
 	if kernelName := model.Kernel(); kernelName != "" {
-		if _, err := addEssential(kernelName, model.KernelTrack(), snap.TypeKernel); err != nil {
-			return err
-		}
+		mylog.Check2(addEssential(kernelName, model.KernelTrack(), snap.TypeKernel))
 	}
 
 	if gadgetName := model.Gadget(); gadgetName != "" {
-		gadget, err := addEssential(gadgetName, model.GadgetTrack(), snap.TypeGadget)
-		if err != nil {
-			return err
-		}
+		gadget := mylog.Check2(addEssential(gadgetName, model.GadgetTrack(), snap.TypeGadget))
+
 		// not skipped
 		if gadget != nil {
 
 			// always make sure the base of gadget is installed first
-			info, err := readInfo(gadget.Path, gadget.SideInfo)
-			if err != nil {
-				return err
-			}
+			info := mylog.Check2(readInfo(gadget.Path, gadget.SideInfo))
+
 			gadgetBase := info.Base
 			if gadgetBase == "" {
 				gadgetBase = "core"
@@ -360,9 +320,8 @@ func (s *seed16) loadEssentialMeta(essentialTypes []snap.Type, required *naming.
 			if baseSnap != "" && gadgetBase != baseSnap {
 				return fmt.Errorf("cannot use gadget snap because its base %q is different from model base %q", gadgetBase, model.Base())
 			}
-			if _, err = addEssential(gadgetBase, "", snap.TypeBase); err != nil {
-				return err
-			}
+			mylog.Check2(addEssential(gadgetBase, "", snap.TypeBase))
+
 		}
 	}
 
@@ -377,10 +336,7 @@ func (s *seed16) LoadEssentialMeta(essentialTypes []snap.Type, tm timings.Measur
 
 func (s *seed16) LoadEssentialMetaWithSnapHandler(essentialTypes []snap.Type, handler SnapHandler, tm timings.Measurer) error {
 	model := s.Model()
-
-	if err := s.loadYaml(); err != nil {
-		return err
-	}
+	mylog.Check(s.loadYaml())
 
 	required := naming.NewSnapSet(model.RequiredWithEssentialSnaps())
 	added := make(map[string]bool, 3)
@@ -403,10 +359,7 @@ func (s *seed16) LoadMeta(mode string, handler SnapHandler, tm timings.Measurer)
 	}
 
 	model := s.Model()
-
-	if err := s.loadYaml(); err != nil {
-		return err
-	}
+	mylog.Check(s.loadYaml())
 
 	required := naming.NewSnapSet(model.RequiredWithEssentialSnaps())
 	added := make(map[string]bool, 3)
@@ -416,20 +369,15 @@ func (s *seed16) LoadMeta(mode string, handler SnapHandler, tm timings.Measurer)
 	if handler == nil {
 		handler = defaultSnapHandler{}
 	}
-
-	if err := s.loadEssentialMeta(nil, required, handler, added, tm); err != nil {
-		return err
-	}
+	mylog.Check(s.loadEssentialMeta(nil, required, handler, added, tm))
 
 	// the rest of the snaps
 	for _, sn := range s.yamlSnaps {
 		if added[sn.Name] {
 			continue
 		}
-		seedSnap, err := s.addSnap(sn, "", "", handler, nil, tm)
-		if err != nil {
-			return err
-		}
+		seedSnap := mylog.Check2(s.addSnap(sn, "", "", handler, nil, tm))
+
 		if required.Contains(seedSnap) {
 			seedSnap.Required = true
 		}
@@ -459,9 +407,7 @@ func (s *seed16) NumSnaps() int {
 
 func (s *seed16) Iter(f func(sn *Snap) error) error {
 	for _, sn := range s.snaps {
-		if err := f(sn); err != nil {
-			return err
-		}
+		mylog.Check(f(sn))
 	}
 	return nil
 }

@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -59,8 +60,8 @@ func (s *patchSuite) TestInit(c *C) {
 	st.Lock()
 	defer st.Unlock()
 	var patchLevel int
-	err := st.Get("patch-level", &patchLevel)
-	c.Assert(err, IsNil)
+	mylog.Check(st.Get("patch-level", &patchLevel))
+
 	c.Check(patchLevel, Equals, 2)
 
 	var patchSublevel int
@@ -76,8 +77,8 @@ func (s *patchSuite) TestNothingToDo(c *C) {
 	st.Lock()
 	st.Set("patch-level", 2)
 	st.Unlock()
-	err := patch.Apply(st)
-	c.Assert(err, IsNil)
+	mylog.Check(patch.Apply(st))
+
 }
 
 func (s *patchSuite) TestNoDowngrade(c *C) {
@@ -88,7 +89,7 @@ func (s *patchSuite) TestNoDowngrade(c *C) {
 	st.Lock()
 	st.Set("patch-level", 3)
 	st.Unlock()
-	err := patch.Apply(st)
+	mylog.Check(patch.Apply(st))
 	c.Assert(err, ErrorMatches, `cannot downgrade: snapd is too old for the current system state \(patch level 3\)`)
 }
 
@@ -123,15 +124,15 @@ func (s *patchSuite) TestApply(c *C) {
 	st.Lock()
 	st.Set("patch-level", 1)
 	st.Unlock()
-	err := patch.Apply(st)
-	c.Assert(err, IsNil)
+	mylog.Check(patch.Apply(st))
+
 
 	st.Lock()
 	defer st.Unlock()
 
 	var level int
-	err = st.Get("patch-level", &level)
-	c.Assert(err, IsNil)
+	mylog.Check(st.Get("patch-level", &level))
+
 	c.Check(level, Equals, 3)
 
 	var sublevel int
@@ -139,8 +140,8 @@ func (s *patchSuite) TestApply(c *C) {
 	c.Check(sublevel, Equals, 0)
 
 	var n, o int
-	err = st.Get("n", &n)
-	c.Assert(err, IsNil)
+	mylog.Check(st.Get("n", &n))
+
 	c.Check(n, Equals, 10)
 
 	c.Assert(st.Get("o", &o), IsNil)
@@ -240,7 +241,7 @@ func (s *patchSuite) TestMissing(c *C) {
 	st.Lock()
 	st.Set("patch-level", 1)
 	st.Unlock()
-	err := patch.Apply(st)
+	mylog.Check(patch.Apply(st))
 	c.Assert(err, ErrorMatches, `cannot upgrade: snapd is too new for the current system state \(patch level 1\)`)
 }
 
@@ -298,20 +299,20 @@ func (s *patchSuite) TestError(c *C) {
 	st.Lock()
 	st.Set("patch-level", 1)
 	st.Unlock()
-	err := patch.Apply(st)
+	mylog.Check(patch.Apply(st))
 	c.Assert(err, ErrorMatches, `cannot patch system state to level 3, sublevel 0: boom`)
 
 	st.Lock()
 	defer st.Unlock()
 
 	var level int
-	err = st.Get("patch-level", &level)
-	c.Assert(err, IsNil)
+	mylog.Check(st.Get("patch-level", &level))
+
 	c.Check(level, Equals, 2)
 
 	var n int
-	err = st.Get("n", &n)
-	c.Assert(err, IsNil)
+	mylog.Check(st.Get("n", &n))
+
 	c.Check(n, Equals, 10)
 }
 

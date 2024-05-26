@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	snap "github.com/snapcore/snapd/cmd/snap"
 	"github.com/snapcore/snapd/release"
 )
@@ -103,8 +104,8 @@ func (s *SnapSuite) TestRecovery(c *C) {
 
 		n++
 	})
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"recovery"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"recovery"}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	c.Check(s.Stdout(), Equals, `
 Label     Brand    Model       Notes
@@ -129,8 +130,8 @@ func (s *SnapSuite) TestNoRecoverySystems(c *C) {
 
 		n++
 	})
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"recovery"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"recovery"}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	c.Check(s.Stdout(), Equals, "")
 	c.Check(s.Stderr(), Equals, "No recovery systems available.\n")
@@ -151,7 +152,7 @@ func (s *SnapSuite) TestNoRecoverySystemsError(c *C) {
 
 		n++
 	})
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"recovery"})
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"recovery"}))
 	c.Check(err, ErrorMatches, `cannot list recovery systems: permission denied`)
 }
 
@@ -173,8 +174,8 @@ func (s *SnapSuite) TestRecoveryShowRecoveryKeyHappy(c *C) {
 
 		n++
 	})
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"recovery", "--show-keys"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"recovery", "--show-keys"}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	c.Check(s.Stdout(), Equals, `recovery:   61665-00531-54469-09783-47273-19035-40077-28287
 reinstall:  1234
@@ -201,8 +202,8 @@ func (s *SnapSuite) TestRecoveryShowRecoveryKeyAloneHappy(c *C) {
 
 		n++
 	})
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"recovery", "--show-keys"})
-	c.Assert(err, IsNil)
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"recovery", "--show-keys"}))
+
 	c.Assert(rest, DeepEquals, []string{})
 	c.Check(s.Stdout(), Equals, `recovery:  61665-00531-54469-09783-47273-19035-40077-28287
 `)

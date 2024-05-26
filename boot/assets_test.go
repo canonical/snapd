@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/arch/archtest"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
@@ -62,8 +63,8 @@ func (s *assetsSuite) SetUpTest(c *C) {
 }
 
 func checkContentGlob(c *C, glob string, expected []string) {
-	l, err := filepath.Glob(glob)
-	c.Assert(err, IsNil)
+	l := mylog.Check2(filepath.Glob(glob))
+
 	c.Check(l, DeepEquals, expected)
 }
 
@@ -76,9 +77,9 @@ func (s *assetsSuite) uc20UpdateObserverEncryptedSystemMockedBootloader(c *C) (*
 
 func (s *assetsSuite) uc20UpdateObserver(c *C, gadgetDir string) (*boot.TrustedAssetsUpdateObserver, *asserts.Model) {
 	uc20Model := boottest.MakeMockUC20Model()
-	obs, err := boot.TrustedAssetsUpdateObserverForModel(uc20Model, gadgetDir)
+	obs := mylog.Check2(boot.TrustedAssetsUpdateObserverForModel(uc20Model, gadgetDir))
 	c.Assert(obs, NotNil)
-	c.Assert(err, IsNil)
+
 	s.AddCleanup(obs.Done)
 	return obs, uc20Model
 }
@@ -100,18 +101,18 @@ func (s *assetsSuite) TestAssetsCacheAddRemove(c *C) {
 	data := []byte("foobar")
 	// SHA3-384
 	hash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
-	err := os.WriteFile(filepath.Join(d, "foobar"), data, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(d, "foobar"), data, 0644))
+
 
 	// add a new file
-	ta, err := cache.Add(filepath.Join(d, "foobar"), "grub", "grubx64.efi")
-	c.Assert(err, IsNil)
+	ta := mylog.Check2(cache.Add(filepath.Join(d, "foobar"), "grub", "grubx64.efi"))
+
 	c.Check(filepath.Join(cacheDir, "grub", fmt.Sprintf("grubx64.efi-%s", hash)), testutil.FileEquals, string(data))
 	c.Check(ta, NotNil)
 
 	// try the same file again
-	taAgain, err := cache.Add(filepath.Join(d, "foobar"), "grub", "grubx64.efi")
-	c.Assert(err, IsNil)
+	taAgain := mylog.Check2(cache.Add(filepath.Join(d, "foobar"), "grub", "grubx64.efi"))
+
 	// file already cached
 	c.Check(filepath.Join(cacheDir, "grub", fmt.Sprintf("grubx64.efi-%s", hash)), testutil.FileEquals, string(data))
 	// and there's just one entry in the cache
@@ -122,8 +123,8 @@ func (s *assetsSuite) TestAssetsCacheAddRemove(c *C) {
 	c.Check(taAgain, DeepEquals, ta)
 
 	// same data but different asset name
-	taDifferentAsset, err := cache.Add(filepath.Join(d, "foobar"), "grub", "bootx64.efi")
-	c.Assert(err, IsNil)
+	taDifferentAsset := mylog.Check2(cache.Add(filepath.Join(d, "foobar"), "grub", "bootx64.efi"))
+
 	// new entry in cache
 	c.Check(filepath.Join(cacheDir, "grub", fmt.Sprintf("bootx64.efi-%s", hash)), testutil.FileEquals, string(data))
 	// 2 files now
@@ -136,11 +137,11 @@ func (s *assetsSuite) TestAssetsCacheAddRemove(c *C) {
 	// same source, data (new hash), existing asset name
 	newData := []byte("new foobar")
 	newHash := "5aa87615f6613a37d63c9a29746ef57457286c37148a4ae78493b0face5976c1fea940a19486e6bef65d43aec6b8f5a2"
-	err = os.WriteFile(filepath.Join(d, "foobar"), newData, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(d, "foobar"), newData, 0644))
 
-	taExistingAssetName, err := cache.Add(filepath.Join(d, "foobar"), "grub", "bootx64.efi")
-	c.Assert(err, IsNil)
+
+	taExistingAssetName := mylog.Check2(cache.Add(filepath.Join(d, "foobar"), "grub", "bootx64.efi"))
+
 	// new entry in cache
 	c.Check(taExistingAssetName, NotNil)
 	// we have both new and old asset
@@ -152,17 +153,19 @@ func (s *assetsSuite) TestAssetsCacheAddRemove(c *C) {
 		filepath.Join(cacheDir, "grub", fmt.Sprintf("bootx64.efi-%s", newHash)),
 		filepath.Join(cacheDir, "grub", fmt.Sprintf("grubx64.efi-%s", hash)),
 	})
+	mylog.
 
-	// drop
-	err = cache.Remove("grub", "bootx64.efi", newHash)
-	c.Assert(err, IsNil)
+		// drop
+		Check(cache.Remove("grub", "bootx64.efi", newHash))
+
 	// asset bootx64.efi with given hash was dropped
 	c.Check(filepath.Join(cacheDir, "grub", fmt.Sprintf("bootx64.efi-%s", newHash)), testutil.FileAbsent)
 	// the other file still exists
 	c.Check(filepath.Join(cacheDir, "grub", fmt.Sprintf("bootx64.efi-%s", hash)), testutil.FileEquals, string(data))
-	// remove it too
-	err = cache.Remove("grub", "bootx64.efi", hash)
-	c.Assert(err, IsNil)
+	mylog.
+		// remove it too
+		Check(cache.Remove("grub", "bootx64.efi", hash))
+
 	c.Check(filepath.Join(cacheDir, "grub", fmt.Sprintf("bootx64.efi-%s", hash)), testutil.FileAbsent)
 
 	// what is left is the grub assets only
@@ -177,32 +180,33 @@ func (s *assetsSuite) TestAssetsCacheAddErr(c *C) {
 	cache := boot.NewTrustedAssetsCache(cacheDir)
 
 	defer os.Chmod(cacheDir, 0755)
-	err := os.Chmod(cacheDir, 0000)
-	c.Assert(err, IsNil)
+	mylog.Check(os.Chmod(cacheDir, 0000))
+
 
 	if os.Geteuid() != 0 {
-		err = os.WriteFile(filepath.Join(d, "foobar"), []byte("foo"), 0644)
-		c.Assert(err, IsNil)
+		mylog.Check(os.WriteFile(filepath.Join(d, "foobar"), []byte("foo"), 0644))
+
 		// cannot create bootloader subdirectory
-		ta, err := cache.Add(filepath.Join(d, "foobar"), "grub", "grubx64.efi")
+		ta := mylog.Check2(cache.Add(filepath.Join(d, "foobar"), "grub", "grubx64.efi"))
 		c.Assert(err, ErrorMatches, "cannot create cache directory: mkdir .*/grub: permission denied")
 		c.Check(ta, IsNil)
 	}
+	mylog.
 
-	// fix it now
-	err = os.Chmod(cacheDir, 0755)
-	c.Assert(err, IsNil)
+		// fix it now
+		Check(os.Chmod(cacheDir, 0755))
 
-	_, err = cache.Add(filepath.Join(d, "no-file"), "grub", "grubx64.efi")
+
+	_ = mylog.Check2(cache.Add(filepath.Join(d, "no-file"), "grub", "grubx64.efi"))
 	c.Assert(err, ErrorMatches, "cannot open asset file: open .*/no-file: no such file or directory")
 
 	if os.Geteuid() != 0 {
 		blDir := filepath.Join(cacheDir, "grub")
 		defer os.Chmod(blDir, 0755)
-		err = os.Chmod(blDir, 0000)
-		c.Assert(err, IsNil)
+		mylog.Check(os.Chmod(blDir, 0000))
 
-		_, err = cache.Add(filepath.Join(d, "foobar"), "grub", "grubx64.efi")
+
+		_ = mylog.Check2(cache.Add(filepath.Join(d, "foobar"), "grub", "grubx64.efi"))
 		c.Assert(err, ErrorMatches, `cannot create temporary cache file: open .*/grub/grubx64\.efi\.temp\.[a-zA-Z0-9]+~: permission denied`)
 	}
 }
@@ -214,20 +218,20 @@ func (s *assetsSuite) TestAssetsCacheRemoveErr(c *C) {
 
 	data := []byte("foobar")
 	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
-	err := os.WriteFile(filepath.Join(d, "foobar"), data, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(d, "foobar"), data, 0644))
+
 	// cannot create bootloader subdirectory
-	_, err = cache.Add(filepath.Join(d, "foobar"), "grub", "grubx64.efi")
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(cache.Add(filepath.Join(d, "foobar"), "grub", "grubx64.efi"))
+
 	// validity
 	c.Check(filepath.Join(cacheDir, "grub", fmt.Sprintf("grubx64.efi-%s", dataHash)), testutil.FileEquals, string(data))
+	mylog.Check(cache.Remove("grub", "no file", "some-hash"))
 
-	err = cache.Remove("grub", "no file", "some-hash")
-	c.Assert(err, IsNil)
+	mylog.
 
-	// different asset name but known hash
-	err = cache.Remove("grub", "different-name", dataHash)
-	c.Assert(err, IsNil)
+		// different asset name but known hash
+		Check(cache.Remove("grub", "different-name", dataHash))
+
 	c.Check(filepath.Join(cacheDir, "grub", fmt.Sprintf("grubx64.efi-%s", dataHash)), testutil.FileEquals, string(data))
 }
 
@@ -236,7 +240,7 @@ func (s *assetsSuite) TestInstallObserverNew(c *C) {
 	// bootloader in gadget cannot be identified
 	uc20Model := boottest.MakeMockUC20Model()
 	for _, encryption := range []bool{true, false} {
-		obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, encryption)
+		obs := mylog.Check2(boot.TrustedAssetsInstallObserverForModel(uc20Model, d, encryption))
 		c.Assert(err, ErrorMatches, "cannot find bootloader: cannot determine bootloader")
 		c.Assert(obs, IsNil)
 	}
@@ -245,14 +249,14 @@ func (s *assetsSuite) TestInstallObserverNew(c *C) {
 	c.Assert(os.WriteFile(filepath.Join(d, "grub.conf"), nil, 0755), IsNil)
 
 	for _, encryption := range []bool{true, false} {
-		obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, encryption)
-		c.Assert(err, IsNil)
+		obs := mylog.Check2(boot.TrustedAssetsInstallObserverForModel(uc20Model, d, encryption))
+
 		c.Assert(obs, NotNil)
 	}
 
 	// but nil for non UC20
 	nonUC20Model := boottest.MakeMockModel()
-	nonUC20obs, err := boot.TrustedAssetsInstallObserverForModel(nonUC20Model, d, false)
+	nonUC20obs := mylog.Check2(boot.TrustedAssetsInstallObserverForModel(nonUC20Model, d, false))
 	c.Assert(err, Equals, boot.ErrObserverNotApplicable)
 	c.Assert(nonUC20obs, IsNil)
 
@@ -261,7 +265,7 @@ func (s *assetsSuite) TestInstallObserverNew(c *C) {
 		"asset": "asset",
 	})
 	tab.TrustedAssetsErr = fmt.Errorf("fail")
-	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, true)
+	obs := mylog.Check2(boot.TrustedAssetsInstallObserverForModel(uc20Model, d, true))
 	c.Assert(err, ErrorMatches, `cannot list "trusted" bootloader trusted assets: fail`)
 	c.Assert(obs, IsNil)
 	// failed when listing run bootloader assets
@@ -269,34 +273,35 @@ func (s *assetsSuite) TestInstallObserverNew(c *C) {
 
 	// force an error
 	bootloader.ForceError(fmt.Errorf("fail bootloader"))
-	obs, err = boot.TrustedAssetsInstallObserverForModel(uc20Model, d, true)
+	obs = mylog.Check2(boot.TrustedAssetsInstallObserverForModel(uc20Model, d, true))
 	c.Assert(err, ErrorMatches, `cannot find bootloader: fail bootloader`)
 	c.Assert(obs, IsNil)
 }
 
 func (s *assetsSuite) TestInstallObserverObserveSystemBootRealGrub(c *C) {
 	d := c.MkDir()
+	mylog.
 
-	// mock a bootloader that uses trusted assets
-	err := os.WriteFile(filepath.Join(d, "grub.conf"), nil, 0644)
-	c.Assert(err, IsNil)
+		// mock a bootloader that uses trusted assets
+		Check(os.WriteFile(filepath.Join(d, "grub.conf"), nil, 0644))
+
 
 	// we get an observer for UC20
 	uc20Model := boottest.MakeMockUC20Model()
 	useEncryption := true
-	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption)
-	c.Assert(err, IsNil)
+	obs := mylog.Check2(boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption))
+
 	c.Assert(obs, NotNil)
 
 	data := []byte("foobar")
 	// SHA3-384
 	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
-	err = os.WriteFile(filepath.Join(d, "foobar"), data, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(d, "foobar"), data, 0644))
+
 
 	otherData := []byte("other foobar")
-	err = os.WriteFile(filepath.Join(d, "other-foobar"), otherData, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(d, "other-foobar"), otherData, 0644))
+
 
 	writeChange := &gadget.ContentChange{
 		// file that contains the data of the installed file
@@ -305,26 +310,26 @@ func (s *assetsSuite) TestInstallObserverObserveSystemBootRealGrub(c *C) {
 		Before: "",
 	}
 	// only grubx64.efi gets installed to system-boot
-	res, err := obs.Observe(gadget.ContentWrite, gadget.SystemBoot, boot.InitramfsUbuntuBootDir,
-		"EFI/boot/grubx64.efi", writeChange)
-	c.Assert(err, IsNil)
+	res := mylog.Check2(obs.Observe(gadget.ContentWrite, gadget.SystemBoot, boot.InitramfsUbuntuBootDir,
+		"EFI/boot/grubx64.efi", writeChange))
+
 	c.Check(res, Equals, gadget.ChangeApply)
 	// Observe is called when populating content, but one can freely specify
 	// overlapping content entries, so a same file may be observed more than
 	// once
-	res, err = obs.Observe(gadget.ContentWrite, gadget.SystemBoot, boot.InitramfsUbuntuBootDir,
-		"EFI/boot/grubx64.efi", writeChange)
-	c.Assert(err, IsNil)
+	res = mylog.Check2(obs.Observe(gadget.ContentWrite, gadget.SystemBoot, boot.InitramfsUbuntuBootDir,
+		"EFI/boot/grubx64.efi", writeChange))
+
 	c.Check(res, Equals, gadget.ChangeApply)
 	// try with one more file, which is not a trusted asset of a run mode, so it is ignored
-	res, err = obs.Observe(gadget.ContentWrite, gadget.SystemBoot, boot.InitramfsUbuntuBootDir,
-		"EFI/boot/bootx64.efi", writeChange)
-	c.Assert(err, IsNil)
+	res = mylog.Check2(obs.Observe(gadget.ContentWrite, gadget.SystemBoot, boot.InitramfsUbuntuBootDir,
+		"EFI/boot/bootx64.efi", writeChange))
+
 	c.Check(res, Equals, gadget.ChangeApply)
 	// a managed boot asset is to be held
-	res, err = obs.Observe(gadget.ContentWrite, gadget.SystemBoot, boot.InitramfsUbuntuBootDir,
-		"EFI/ubuntu/grub.cfg", writeChange)
-	c.Assert(err, IsNil)
+	res = mylog.Check2(obs.Observe(gadget.ContentWrite, gadget.SystemBoot, boot.InitramfsUbuntuBootDir,
+		"EFI/ubuntu/grub.cfg", writeChange))
+
 	c.Check(res, Equals, gadget.ChangeIgnore)
 
 	// a single file in cache
@@ -337,9 +342,9 @@ func (s *assetsSuite) TestInstallObserverObserveSystemBootRealGrub(c *C) {
 		After: filepath.Join(d, "other-foobar"),
 	}
 	// set a non system-boot structure, so the file is ignored
-	res, err = obs.Observe(gadget.ContentWrite, gadget.SystemSeed, boot.InitramfsUbuntuBootDir,
-		"EFI/boot/grubx64.efi", otherWriteChange)
-	c.Assert(err, IsNil)
+	res = mylog.Check2(obs.Observe(gadget.ContentWrite, gadget.SystemSeed, boot.InitramfsUbuntuBootDir,
+		"EFI/boot/grubx64.efi", otherWriteChange))
+
 	c.Check(res, Equals, gadget.ChangeApply)
 	// still, only one entry in the cache
 	checkContentGlob(c, filepath.Join(dirs.SnapBootAssetsDir, "grub", "*"), []string{
@@ -364,8 +369,8 @@ func (s *assetsSuite) TestInstallObserverObserveSystemBootMocked(c *C) {
 	// we get an observer for UC20
 	uc20Model := boottest.MakeMockUC20Model()
 	useEncryption := true
-	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption)
-	c.Assert(err, IsNil)
+	obs := mylog.Check2(boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption))
+
 	c.Assert(obs, NotNil)
 	// the list of trusted assets was asked for run and recovery bootloaders
 	c.Check(tab.TrustedAssetsCalls, Equals, 2)
@@ -373,8 +378,8 @@ func (s *assetsSuite) TestInstallObserverObserveSystemBootMocked(c *C) {
 	data := []byte("foobar")
 	// SHA3-384
 	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
-	err = os.WriteFile(filepath.Join(d, "foobar"), data, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(d, "foobar"), data, 0644))
+
 
 	writeChange := &gadget.ContentChange{
 		// file that contains the data of the installed file
@@ -382,24 +387,24 @@ func (s *assetsSuite) TestInstallObserverObserveSystemBootMocked(c *C) {
 		// there is no original file in place
 		Before: "",
 	}
-	res, err := obs.Observe(gadget.ContentWrite, gadget.SystemBoot, boot.InitramfsUbuntuBootDir,
-		"asset", writeChange)
-	c.Assert(err, IsNil)
+	res := mylog.Check2(obs.Observe(gadget.ContentWrite, gadget.SystemBoot, boot.InitramfsUbuntuBootDir,
+		"asset", writeChange))
+
 	c.Check(res, Equals, gadget.ChangeApply)
 	// observe same asset again
-	res, err = obs.Observe(gadget.ContentWrite, gadget.SystemBoot, boot.InitramfsUbuntuBootDir,
-		"asset", writeChange)
-	c.Assert(err, IsNil)
+	res = mylog.Check2(obs.Observe(gadget.ContentWrite, gadget.SystemBoot, boot.InitramfsUbuntuBootDir,
+		"asset", writeChange))
+
 	c.Check(res, Equals, gadget.ChangeApply)
 	// different one
-	res, err = obs.Observe(gadget.ContentWrite, gadget.SystemBoot, boot.InitramfsUbuntuBootDir,
-		"nested/other-asset", writeChange)
-	c.Assert(err, IsNil)
+	res = mylog.Check2(obs.Observe(gadget.ContentWrite, gadget.SystemBoot, boot.InitramfsUbuntuBootDir,
+		"nested/other-asset", writeChange))
+
 	c.Check(res, Equals, gadget.ChangeApply)
 	// a non trusted asset
-	res, err = obs.Observe(gadget.ContentWrite, gadget.SystemBoot, boot.InitramfsUbuntuBootDir,
-		"non-trusted", writeChange)
-	c.Assert(err, IsNil)
+	res = mylog.Check2(obs.Observe(gadget.ContentWrite, gadget.SystemBoot, boot.InitramfsUbuntuBootDir,
+		"non-trusted", writeChange))
+
 	c.Check(res, Equals, gadget.ChangeApply)
 	// a single file in cache
 	checkContentGlob(c, filepath.Join(dirs.SnapBootAssetsDir, "trusted", "*"), []string{
@@ -421,7 +426,7 @@ func (s *assetsSuite) TestInstallObserverObserveSystemBootMockedNoEncryption(c *
 	})
 	uc20Model := boottest.MakeMockUC20Model()
 	useEncryption := false
-	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption)
+	obs := mylog.Check2(boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption))
 	c.Assert(err, Equals, boot.ErrObserverNotApplicable)
 	c.Assert(obs, IsNil)
 }
@@ -434,8 +439,8 @@ func (s *assetsSuite) TestInstallObserverObserveSystemBootMockedUnencryptedWithM
 	tab.ManagedAssetsList = []string{"managed"}
 	uc20Model := boottest.MakeMockUC20Model()
 	useEncryption := false
-	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption)
-	c.Assert(err, IsNil)
+	obs := mylog.Check2(boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption))
+
 	c.Assert(obs, NotNil)
 
 	c.Assert(os.WriteFile(filepath.Join(d, "foobar"), nil, 0755), IsNil)
@@ -445,9 +450,9 @@ func (s *assetsSuite) TestInstallObserverObserveSystemBootMockedUnencryptedWithM
 		// there is no original file in place
 		Before: "",
 	}
-	res, err := obs.Observe(gadget.ContentWrite, gadget.SystemBoot, boot.InitramfsUbuntuBootDir,
-		"managed", writeChange)
-	c.Assert(err, IsNil)
+	res := mylog.Check2(obs.Observe(gadget.ContentWrite, gadget.SystemBoot, boot.InitramfsUbuntuBootDir,
+		"managed", writeChange))
+
 	c.Check(res, Equals, gadget.ChangeIgnore)
 }
 
@@ -464,8 +469,8 @@ func (s *assetsSuite) TestInstallObserverNonTrustedBootloader(c *C) {
 	// we get an observer for UC20
 	uc20Model := boottest.MakeMockUC20Model()
 	useEncryption := true
-	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption)
-	c.Assert(err, IsNil)
+	obs := mylog.Check2(boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption))
+
 	c.Assert(obs, NotNil)
 	obs.ChosenEncryptionKeys(keys.EncryptionKey{1, 2, 3, 4}, keys.EncryptionKey{5, 6, 7, 8})
 	c.Check(obs.CurrentDataEncryptionKey(), DeepEquals, keys.EncryptionKey{1, 2, 3, 4})
@@ -485,8 +490,8 @@ func (s *assetsSuite) TestInstallObserverTrustedButNoAssets(c *C) {
 	// we get an observer for UC20
 	uc20Model := boottest.MakeMockUC20Model()
 	useEncryption := true
-	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption)
-	c.Assert(err, IsNil)
+	obs := mylog.Check2(boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption))
+
 	c.Assert(obs, NotNil)
 	obs.ChosenEncryptionKeys(keys.EncryptionKey{1, 2, 3, 4}, keys.EncryptionKey{5, 6, 7, 8})
 	c.Check(obs.CurrentDataEncryptionKey(), DeepEquals, keys.EncryptionKey{1, 2, 3, 4})
@@ -504,23 +509,22 @@ func (s *assetsSuite) TestInstallObserverTrustedReuseNameErr(c *C) {
 	// we get an observer for UC20
 	uc20Model := boottest.MakeMockUC20Model()
 	useEncryption := true
-	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption)
-	c.Assert(err, IsNil)
+	obs := mylog.Check2(boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption))
+
 	c.Assert(obs, NotNil)
 	// the list of trusted assets was asked for run and recovery bootloaders
 	c.Check(tab.TrustedAssetsCalls, Equals, 2)
+	mylog.Check(os.WriteFile(filepath.Join(d, "foobar"), []byte("foobar"), 0644))
 
-	err = os.WriteFile(filepath.Join(d, "foobar"), []byte("foobar"), 0644)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(d, "other"), []byte("other"), 0644)
-	c.Assert(err, IsNil)
-	res, err := obs.Observe(gadget.ContentWrite, gadget.SystemBoot, boot.InitramfsUbuntuBootDir, "asset",
-		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(d, "other"), []byte("other"), 0644))
+
+	res := mylog.Check2(obs.Observe(gadget.ContentWrite, gadget.SystemBoot, boot.InitramfsUbuntuBootDir, "asset",
+		&gadget.ContentChange{After: filepath.Join(d, "foobar")}))
+
 	c.Check(res, Equals, gadget.ChangeApply)
 	// same asset name but different content
-	res, err = obs.Observe(gadget.ContentWrite, gadget.SystemBoot, boot.InitramfsUbuntuBootDir, "nested/asset",
-		&gadget.ContentChange{After: filepath.Join(d, "other")})
+	res = mylog.Check2(obs.Observe(gadget.ContentWrite, gadget.SystemBoot, boot.InitramfsUbuntuBootDir, "nested/asset",
+		&gadget.ContentChange{After: filepath.Join(d, "other")}))
 	c.Assert(err, ErrorMatches, `cannot reuse asset name "asset"`)
 	c.Check(res, Equals, gadget.ChangeAbort)
 }
@@ -537,8 +541,8 @@ func (s *assetsSuite) TestInstallObserverObserveExistingRecoveryMocked(c *C) {
 	// we get an observer for UC20
 	uc20Model := boottest.MakeMockUC20Model()
 	useEncryption := true
-	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption)
-	c.Assert(err, IsNil)
+	obs := mylog.Check2(boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption))
+
 	c.Assert(obs, NotNil)
 	// trusted assets for the run and recovery bootloaders were asked for
 	c.Check(tab.TrustedAssetsCalls, Equals, 2)
@@ -546,19 +550,18 @@ func (s *assetsSuite) TestInstallObserverObserveExistingRecoveryMocked(c *C) {
 	data := []byte("foobar")
 	// SHA3-384
 	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
-	err = os.WriteFile(filepath.Join(d, "asset"), data, 0644)
-	c.Assert(err, IsNil)
-	err = os.Mkdir(filepath.Join(d, "nested"), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(d, "nested/other-asset"), data, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(d, "asset"), data, 0644))
+
+	mylog.Check(os.Mkdir(filepath.Join(d, "nested"), 0755))
+
+	mylog.Check(os.WriteFile(filepath.Join(d, "nested/other-asset"), data, 0644))
+
 	shim := []byte("shim")
 	shimHash := "dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b"
-	err = os.WriteFile(filepath.Join(d, "shim"), shim, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(d, "shim"), shim, 0644))
 
-	err = obs.ObserveExistingTrustedRecoveryAssets(d)
-	c.Assert(err, IsNil)
+	mylog.Check(obs.ObserveExistingTrustedRecoveryAssets(d))
+
 	checkContentGlob(c, filepath.Join(dirs.SnapBootAssetsDir, "trusted", "*"), []string{
 		filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("asset-%s", dataHash)),
 		filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("other-asset-%s", dataHash)),
@@ -585,20 +588,20 @@ func (s *assetsSuite) TestInstallObserverObserveExistingRecoveryReuseNameErr(c *
 	// we get an observer for UC20
 	uc20Model := boottest.MakeMockUC20Model()
 	useEncryption := true
-	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption)
-	c.Assert(err, IsNil)
+	obs := mylog.Check2(boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption))
+
 	c.Assert(obs, NotNil)
 	// got the list of trusted assets for run and recovery bootloaders
 	c.Check(tab.TrustedAssetsCalls, Equals, 2)
+	mylog.Check(os.WriteFile(filepath.Join(d, "asset"), []byte("foobar"), 0644))
 
-	err = os.WriteFile(filepath.Join(d, "asset"), []byte("foobar"), 0644)
-	c.Assert(err, IsNil)
-	err = os.MkdirAll(filepath.Join(d, "nested"), 0755)
-	c.Assert(err, IsNil)
-	// same asset name but different content
-	err = os.WriteFile(filepath.Join(d, "nested/asset"), []byte("other"), 0644)
-	c.Assert(err, IsNil)
-	err = obs.ObserveExistingTrustedRecoveryAssets(d)
+	mylog.Check(os.MkdirAll(filepath.Join(d, "nested"), 0755))
+
+	mylog.
+		// same asset name but different content
+		Check(os.WriteFile(filepath.Join(d, "nested/asset"), []byte("other"), 0644))
+
+	mylog.Check(obs.ObserveExistingTrustedRecoveryAssets(d))
 	// same asset name but different content
 	c.Assert(err, ErrorMatches, `cannot reuse recovery asset name "asset"`)
 	// got the list of trusted assets for recovery bootloader
@@ -613,34 +616,34 @@ func (s *assetsSuite) TestUpdateObserverNew(c *C) {
 	gadgetDir := c.MkDir()
 
 	// no trusted or managed assets
-	obs, err := boot.TrustedAssetsUpdateObserverForModel(uc20Model, gadgetDir)
+	obs := mylog.Check2(boot.TrustedAssetsUpdateObserverForModel(uc20Model, gadgetDir))
 	c.Assert(err, Equals, boot.ErrObserverNotApplicable)
 	c.Check(obs, IsNil)
 
 	// no managed, some trusted assets, but we are not tracking them
 	tab.TrustedAssetsMap = map[string]string{"asset": "asset"}
-	obs, err = boot.TrustedAssetsUpdateObserverForModel(uc20Model, gadgetDir)
+	obs = mylog.Check2(boot.TrustedAssetsUpdateObserverForModel(uc20Model, gadgetDir))
 	c.Assert(err, Equals, boot.ErrObserverNotApplicable)
 	c.Check(obs, IsNil)
 
 	// let's see some managed assets, but not trusted assets
 	tab.ManagedAssetsList = []string{"managed"}
 	tab.TrustedAssetsMap = nil
-	obs, err = boot.TrustedAssetsUpdateObserverForModel(uc20Model, gadgetDir)
-	c.Assert(err, IsNil)
+	obs = mylog.Check2(boot.TrustedAssetsUpdateObserverForModel(uc20Model, gadgetDir))
+
 	c.Check(obs, NotNil)
 
 	// no managed, some trusted which we need to track
 	s.stampSealedKeys(c, dirs.GlobalRootDir)
 	tab.ManagedAssetsList = nil
 	tab.TrustedAssetsMap = map[string]string{"asset": "asset"}
-	obs, err = boot.TrustedAssetsUpdateObserverForModel(uc20Model, gadgetDir)
-	c.Assert(err, IsNil)
+	obs = mylog.Check2(boot.TrustedAssetsUpdateObserverForModel(uc20Model, gadgetDir))
+
 	c.Assert(obs, NotNil)
 
 	// but nil for non UC20
 	nonUC20Model := boottest.MakeMockModel()
-	nonUC20obs, err := boot.TrustedAssetsUpdateObserverForModel(nonUC20Model, gadgetDir)
+	nonUC20obs := mylog.Check2(boot.TrustedAssetsUpdateObserverForModel(nonUC20Model, gadgetDir))
 	c.Assert(err, Equals, boot.ErrObserverNotApplicable)
 	c.Assert(nonUC20obs, IsNil)
 }
@@ -664,18 +667,18 @@ func (s *assetsSuite) testUpdateObserverUpdateMockedWithReseal(c *C, seedRole st
 	// try to arrange the backups like the updater would do it
 	before := []byte("before")
 	beforeHash := "2df0976fd45ba2392dc7985cdfb7c2d096c1ea4917929dd7a0e9bffae90a443271e702663fc6a4189c1f4ab3ce7daee3"
-	err := os.WriteFile(filepath.Join(backups, "asset.backup"), before, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(backups, "asset.backup"), before, 0644))
+
 
 	data := []byte("foobar")
 	// SHA3-384
 	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
-	err = os.WriteFile(filepath.Join(d, "foobar"), data, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(d, "foobar"), data, 0644))
+
 	shim := []byte("shim")
 	shimHash := "dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b"
-	err = os.WriteFile(filepath.Join(d, "shim"), shim, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(d, "shim"), shim, 0644))
+
 
 	m := boot.Modeenv{
 		Mode: "run",
@@ -687,8 +690,8 @@ func (s *assetsSuite) testUpdateObserverUpdateMockedWithReseal(c *C, seedRole st
 			"asset": []string{beforeHash},
 		},
 	}
-	err = m.WriteTo("")
-	c.Assert(err, IsNil)
+	mylog.Check(m.WriteTo(""))
+
 
 	tab := s.bootloaderWithTrustedAssets(map[string]string{
 		"asset":              "asset",
@@ -704,34 +707,34 @@ func (s *assetsSuite) testUpdateObserverUpdateMockedWithReseal(c *C, seedRole st
 	// the list of trusted assets is obtained upfront
 	c.Check(tab.TrustedAssetsCalls, Equals, 2)
 
-	res, err := obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "asset",
+	res := mylog.Check2(obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "asset",
 		&gadget.ContentChange{
 			After: filepath.Join(d, "foobar"),
 			// original content would get backed up by the updater
 			Before: filepath.Join(backups, "asset.backup"),
-		})
-	c.Assert(err, IsNil)
+		}))
+
 	c.Check(res, Equals, gadget.ChangeApply)
-	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "shim",
-		&gadget.ContentChange{After: filepath.Join(d, "shim")})
-	c.Assert(err, IsNil)
+	res = mylog.Check2(obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "shim",
+		&gadget.ContentChange{After: filepath.Join(d, "shim")}))
+
 	c.Check(res, Equals, gadget.ChangeApply)
 	// observe the recovery struct
-	res, err = obs.Observe(gadget.ContentUpdate, seedRole, root, "shim",
-		&gadget.ContentChange{After: filepath.Join(d, "shim")})
-	c.Assert(err, IsNil)
+	res = mylog.Check2(obs.Observe(gadget.ContentUpdate, seedRole, root, "shim",
+		&gadget.ContentChange{After: filepath.Join(d, "shim")}))
+
 	c.Check(res, Equals, gadget.ChangeApply)
-	res, err = obs.Observe(gadget.ContentUpdate, seedRole, root, "asset",
+	res = mylog.Check2(obs.Observe(gadget.ContentUpdate, seedRole, root, "asset",
 		&gadget.ContentChange{
 			After: filepath.Join(d, "foobar"),
 			// original content
 			Before: filepath.Join(backups, "asset.backup"),
-		})
-	c.Assert(err, IsNil)
+		}))
+
 	c.Check(res, Equals, gadget.ChangeApply)
-	res, err = obs.Observe(gadget.ContentUpdate, seedRole, root, "nested/other-asset",
-		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
-	c.Assert(err, IsNil)
+	res = mylog.Check2(obs.Observe(gadget.ContentUpdate, seedRole, root, "nested/other-asset",
+		&gadget.ContentChange{After: filepath.Join(d, "foobar")}))
+
 	c.Check(res, Equals, gadget.ChangeApply)
 	// all files are in cache
 	checkContentGlob(c, filepath.Join(dirs.SnapBootAssetsDir, "trusted", "*"), []string{
@@ -741,8 +744,8 @@ func (s *assetsSuite) testUpdateObserverUpdateMockedWithReseal(c *C, seedRole st
 		filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("shim-%s", shimHash)),
 	})
 	// check modeenv
-	newM, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	newM := mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check(newM.CurrentTrustedBootAssets, DeepEquals, boot.BootAssetsMap{
 		"asset": []string{beforeHash, dataHash},
 		"shim":  []string{"shim-hash", shimHash},
@@ -754,9 +757,9 @@ func (s *assetsSuite) testUpdateObserverUpdateMockedWithReseal(c *C, seedRole st
 	})
 
 	// verify that managed assets are to be preserved
-	res, err = obs.Observe(gadget.ContentUpdate, seedRole, root, "managed-asset",
-		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
-	c.Assert(err, IsNil)
+	res = mylog.Check2(obs.Observe(gadget.ContentUpdate, seedRole, root, "managed-asset",
+		&gadget.ContentChange{After: filepath.Join(d, "foobar")}))
+
 	c.Check(res, Equals, gadget.ChangeIgnore)
 
 	// everything is set up, trigger a reseal
@@ -766,9 +769,8 @@ func (s *assetsSuite) testUpdateObserverUpdateMockedWithReseal(c *C, seedRole st
 		return nil
 	})
 	defer restore()
+	mylog.Check(obs.BeforeWrite())
 
-	err = obs.BeforeWrite()
-	c.Assert(err, IsNil)
 	c.Check(resealCalls, Equals, 1)
 }
 
@@ -788,18 +790,18 @@ func (s *assetsSuite) TestUpdateObserverUpdateExistingAssetMocked(c *C) {
 	data := []byte("foobar")
 	// SHA3-384
 	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
-	err := os.WriteFile(filepath.Join(d, "foobar"), data, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(d, "foobar"), data, 0644))
+
 	shim := []byte("shim")
 	shimHash := "dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b"
-	err = os.WriteFile(filepath.Join(d, "shim"), shim, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(d, "shim"), shim, 0644))
+
 
 	// add one file to the cache, as if the system got rebooted before
 	// modeenv got updated
 	cache := boot.NewTrustedAssetsCache(dirs.SnapBootAssetsDir)
-	_, err = cache.Add(filepath.Join(d, "foobar"), "trusted", "asset")
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(cache.Add(filepath.Join(d, "foobar"), "trusted", "asset"))
+
 	// file is in the cache
 	checkContentGlob(c, filepath.Join(dirs.SnapBootAssetsDir, "trusted", "*"), []string{
 		filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("asset-%s", dataHash)),
@@ -816,24 +818,24 @@ func (s *assetsSuite) TestUpdateObserverUpdateExistingAssetMocked(c *C) {
 			"shim": []string{shimHash},
 		},
 	}
-	err = m.WriteTo("")
-	c.Assert(err, IsNil)
+	mylog.Check(m.WriteTo(""))
+
 
 	// we get an observer for UC20
 	obs, _ := s.uc20UpdateObserverEncryptedSystemMockedBootloader(c)
 
 	// observe the updates
-	res, err := obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "asset",
-		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
-	c.Assert(err, IsNil)
+	res := mylog.Check2(obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "asset",
+		&gadget.ContentChange{After: filepath.Join(d, "foobar")}))
+
 	c.Check(res, Equals, gadget.ChangeApply)
-	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "asset",
-		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
-	c.Assert(err, IsNil)
+	res = mylog.Check2(obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "asset",
+		&gadget.ContentChange{After: filepath.Join(d, "foobar")}))
+
 	c.Check(res, Equals, gadget.ChangeApply)
-	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "shim",
-		&gadget.ContentChange{After: filepath.Join(d, "shim")})
-	c.Assert(err, IsNil)
+	res = mylog.Check2(obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "shim",
+		&gadget.ContentChange{After: filepath.Join(d, "shim")}))
+
 	c.Check(res, Equals, gadget.ChangeApply)
 	// trusted assets were asked for
 	c.Check(tab.TrustedAssetsCalls, Equals, 2)
@@ -844,8 +846,8 @@ func (s *assetsSuite) TestUpdateObserverUpdateExistingAssetMocked(c *C) {
 		filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("shim-%s", shimHash)),
 	})
 	// check modeenv
-	newM, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	newM := mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check(newM.CurrentTrustedBootAssets, DeepEquals, boot.BootAssetsMap{
 		"asset": []string{"asset-hash", dataHash},
 	})
@@ -855,13 +857,13 @@ func (s *assetsSuite) TestUpdateObserverUpdateExistingAssetMocked(c *C) {
 	})
 
 	// verify that managed assets are to be preserved
-	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "managed-asset",
-		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
-	c.Assert(err, IsNil)
+	res = mylog.Check2(obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "managed-asset",
+		&gadget.ContentChange{After: filepath.Join(d, "foobar")}))
+
 	c.Check(res, Equals, gadget.ChangeIgnore)
-	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "nested/managed-asset",
-		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
-	c.Assert(err, IsNil)
+	res = mylog.Check2(obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "nested/managed-asset",
+		&gadget.ContentChange{After: filepath.Join(d, "foobar")}))
+
 	c.Check(res, Equals, gadget.ChangeIgnore)
 
 	// everything is set up, trigger reseal
@@ -871,10 +873,11 @@ func (s *assetsSuite) TestUpdateObserverUpdateExistingAssetMocked(c *C) {
 		return nil
 	})
 	defer restore()
+	mylog.
 
-	// execute before-write action
-	err = obs.BeforeWrite()
-	c.Assert(err, IsNil)
+		// execute before-write action
+		Check(obs.BeforeWrite())
+
 	c.Check(resealCalls, Equals, 1)
 }
 
@@ -889,27 +892,27 @@ func (s *assetsSuite) TestUpdateObserverUpdateNothingTrackedMocked(c *C) {
 	data := []byte("foobar")
 	// SHA3-384
 	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
-	err := os.WriteFile(filepath.Join(d, "foobar"), data, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(d, "foobar"), data, 0644))
+
 
 	m := boot.Modeenv{
 		Mode: "run",
 		// nothing is tracked in modeenv yet
 	}
-	err = m.WriteTo("")
-	c.Assert(err, IsNil)
+	mylog.Check(m.WriteTo(""))
+
 
 	// we get an observer for UC20
 	obs, _ := s.uc20UpdateObserverEncryptedSystemMockedBootloader(c)
 
 	// observe the updates
-	res, err := obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "asset",
-		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
-	c.Assert(err, IsNil)
+	res := mylog.Check2(obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "asset",
+		&gadget.ContentChange{After: filepath.Join(d, "foobar")}))
+
 	c.Check(res, Equals, gadget.ChangeApply)
-	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "asset",
-		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
-	c.Assert(err, IsNil)
+	res = mylog.Check2(obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "asset",
+		&gadget.ContentChange{After: filepath.Join(d, "foobar")}))
+
 	c.Check(res, Equals, gadget.ChangeApply)
 	// trusted assets were asked for
 	c.Check(tab.TrustedAssetsCalls, Equals, 2)
@@ -918,18 +921,19 @@ func (s *assetsSuite) TestUpdateObserverUpdateNothingTrackedMocked(c *C) {
 		filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("asset-%s", dataHash)),
 	})
 	// check modeenv
-	newM, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	newM := mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check(newM.CurrentTrustedBootAssets, DeepEquals, boot.BootAssetsMap{
 		"asset": []string{dataHash},
 	})
 	c.Check(newM.CurrentTrustedRecoveryBootAssets, DeepEquals, boot.BootAssetsMap{
 		"asset": []string{dataHash},
 	})
+	mylog.
 
-	// reseal does nothing
-	err = obs.BeforeWrite()
-	c.Assert(err, IsNil)
+		// reseal does nothing
+		Check(obs.BeforeWrite())
+
 	c.Check(tab.RecoveryBootChainCalls, HasLen, 0)
 	c.Check(tab.BootChainKernelPath, HasLen, 0)
 }
@@ -950,9 +954,9 @@ func (s *assetsSuite) TestUpdateObserverUpdateOtherRoleStructMocked(c *C) {
 	c.Check(tab.TrustedAssetsCalls, Equals, 2)
 
 	// observe the updates (system-data gets ignored)
-	res, err := obs.Observe(gadget.ContentUpdate, gadget.SystemData, root, "asset",
-		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
-	c.Assert(err, IsNil)
+	res := mylog.Check2(obs.Observe(gadget.ContentUpdate, gadget.SystemData, root, "asset",
+		&gadget.ContentChange{After: filepath.Join(d, "foobar")}))
+
 	c.Check(res, Equals, gadget.ChangeApply)
 }
 
@@ -970,7 +974,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateTrivialErr(c *C) {
 	// first no bootloader
 	bootloader.ForceError(fmt.Errorf("bootloader fail"))
 
-	obs, err := boot.TrustedAssetsUpdateObserverForModel(uc20Model, gadgetDir)
+	obs := mylog.Check2(boot.TrustedAssetsUpdateObserverForModel(uc20Model, gadgetDir))
 	c.Assert(obs, IsNil)
 	c.Assert(err, ErrorMatches, "cannot find bootloader: bootloader fail")
 
@@ -980,7 +984,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateTrivialErr(c *C) {
 	defer bootloader.Force(nil)
 
 	bl.TrustedAssetsErr = fmt.Errorf("fail")
-	obs, err = boot.TrustedAssetsUpdateObserverForModel(uc20Model, gadgetDir)
+	obs = mylog.Check2(boot.TrustedAssetsUpdateObserverForModel(uc20Model, gadgetDir))
 	c.Assert(obs, IsNil)
 	c.Assert(err, ErrorMatches, `cannot list "trusted" bootloader trusted assets: fail`)
 	// failed listing trusted assets
@@ -991,39 +995,39 @@ func (s *assetsSuite) TestUpdateObserverUpdateTrivialErr(c *C) {
 	bootloader.Force(bl)
 	bl.TrustedAssetsMap = map[string]string{"asset": "asset"}
 
-	obs, err = boot.TrustedAssetsUpdateObserverForModel(uc20Model, gadgetDir)
-	c.Assert(err, IsNil)
+	obs = mylog.Check2(boot.TrustedAssetsUpdateObserverForModel(uc20Model, gadgetDir))
+
 	c.Assert(obs, NotNil)
 	c.Check(bl.TrustedAssetsCalls, Equals, 2)
 	defer obs.Done()
 
 	// no modeenv
-	res, err := obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "asset",
-		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
+	res := mylog.Check2(obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "asset",
+		&gadget.ContentChange{After: filepath.Join(d, "foobar")}))
 	c.Assert(err, ErrorMatches, `cannot load modeenv: .* no such file or directory`)
 	c.Check(res, Equals, gadget.ChangeAbort)
-	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "asset",
-		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
+	res = mylog.Check2(obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "asset",
+		&gadget.ContentChange{After: filepath.Join(d, "foobar")}))
 	c.Assert(err, ErrorMatches, `cannot load modeenv: .* no such file or directory`)
 	c.Check(res, Equals, gadget.ChangeAbort)
 
 	m := boot.Modeenv{
 		Mode: "run",
 	}
-	err = m.WriteTo("")
-	c.Assert(err, IsNil)
+	mylog.Check(m.WriteTo(""))
+
 
 	// no source file, hash will fail
-	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "asset",
-		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
+	res = mylog.Check2(obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "asset",
+		&gadget.ContentChange{After: filepath.Join(d, "foobar")}))
 	c.Assert(err, ErrorMatches, `cannot open asset file: .*/foobar: no such file or directory`)
 	c.Check(res, Equals, gadget.ChangeAbort)
-	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "asset",
-		&gadget.ContentChange{Before: filepath.Join(d, "before"), After: filepath.Join(d, "foobar")})
+	res = mylog.Check2(obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "asset",
+		&gadget.ContentChange{Before: filepath.Join(d, "before"), After: filepath.Join(d, "foobar")}))
 	c.Assert(err, ErrorMatches, `cannot open asset file: .*/before: no such file or directory`)
 	c.Check(res, Equals, gadget.ChangeAbort)
-	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "asset",
-		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
+	res = mylog.Check2(obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "asset",
+		&gadget.ContentChange{After: filepath.Join(d, "foobar")}))
 	c.Assert(err, ErrorMatches, `cannot open asset file: .*/foobar: no such file or directory`)
 	c.Check(res, Equals, gadget.ChangeAbort)
 }
@@ -1049,27 +1053,28 @@ func (s *assetsSuite) TestUpdateObserverUpdateRepeatedAssetErr(c *C) {
 			"asset": []string{"one", "two"},
 		},
 	}
-	err := m.WriteTo("")
-	c.Assert(err, IsNil)
+	mylog.Check(m.WriteTo(""))
 
-	// and the source file
-	err = os.WriteFile(filepath.Join(d, "foobar"), nil, 0644)
-	c.Assert(err, IsNil)
+	mylog.
 
-	res, err := obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "asset",
-		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
+		// and the source file
+		Check(os.WriteFile(filepath.Join(d, "foobar"), nil, 0644))
+
+
+	res := mylog.Check2(obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "asset",
+		&gadget.ContentChange{After: filepath.Join(d, "foobar")}))
 	c.Assert(err, ErrorMatches, `cannot reuse asset name "asset"`)
 	c.Check(res, Equals, gadget.ChangeAbort)
-	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "asset",
-		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
+	res = mylog.Check2(obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "asset",
+		&gadget.ContentChange{After: filepath.Join(d, "foobar")}))
 	c.Assert(err, ErrorMatches, `cannot reuse asset name "asset"`)
 	c.Check(res, Equals, gadget.ChangeAbort)
 }
 
 func (s *assetsSuite) TestUpdateObserverUpdateAfterSuccessfulBootMocked(c *C) {
-	//observe an update in a scenario when a mid-gadget-update reboot
-	//happened and we have successfully booted with new assets only, but the
-	//update is incomplete and gets started again
+	// observe an update in a scenario when a mid-gadget-update reboot
+	// happened and we have successfully booted with new assets only, but the
+	// update is incomplete and gets started again
 
 	d := c.MkDir()
 	backups := c.MkDir()
@@ -1078,20 +1083,20 @@ func (s *assetsSuite) TestUpdateObserverUpdateAfterSuccessfulBootMocked(c *C) {
 	// try to arrange the backups like the updater would do it
 	before := []byte("before")
 	beforeHash := "2df0976fd45ba2392dc7985cdfb7c2d096c1ea4917929dd7a0e9bffae90a443271e702663fc6a4189c1f4ab3ce7daee3"
-	err := os.WriteFile(filepath.Join(backups, "asset.backup"), before, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(backups, "asset.backup"), before, 0644))
+
 
 	data := []byte("foobar")
 	// SHA3-384
 	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
-	err = os.WriteFile(filepath.Join(d, "foobar"), data, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(d, "foobar"), data, 0644))
+
 
 	// pretend we rebooted mid update and have successfully booted with the
 	// new assets already, the old asset may have been dropped from the cache already
 	cache := boot.NewTrustedAssetsCache(dirs.SnapBootAssetsDir)
-	_, err = cache.Add(filepath.Join(d, "foobar"), "trusted", "asset")
-	c.Assert(err, IsNil)
+	_ = mylog.Check2(cache.Add(filepath.Join(d, "foobar"), "trusted", "asset"))
+
 	// file is in the cache
 	checkContentGlob(c, filepath.Join(dirs.SnapBootAssetsDir, "trusted", "*"), []string{
 		filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("asset-%s", dataHash)),
@@ -1106,8 +1111,8 @@ func (s *assetsSuite) TestUpdateObserverUpdateAfterSuccessfulBootMocked(c *C) {
 			"asset": []string{dataHash},
 		},
 	}
-	err = m.WriteTo("")
-	c.Assert(err, IsNil)
+	mylog.Check(m.WriteTo(""))
+
 
 	s.bootloaderWithTrustedAssets(map[string]string{
 		"asset": "asset",
@@ -1116,21 +1121,21 @@ func (s *assetsSuite) TestUpdateObserverUpdateAfterSuccessfulBootMocked(c *C) {
 	// we get an observer for UC20
 	obs, _ := s.uc20UpdateObserverEncryptedSystemMockedBootloader(c)
 
-	res, err := obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "asset",
+	res := mylog.Check2(obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "asset",
 		&gadget.ContentChange{
 			After: filepath.Join(d, "foobar"),
 			// original content would get backed up by the updater
 			Before: filepath.Join(backups, "asset.backup"),
-		})
-	c.Assert(err, IsNil)
+		}))
+
 	c.Check(res, Equals, gadget.ChangeApply)
-	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "asset",
+	res = mylog.Check2(obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "asset",
 		&gadget.ContentChange{
 			After: filepath.Join(d, "foobar"),
 			// original content
 			Before: filepath.Join(backups, "asset.backup"),
-		})
-	c.Assert(err, IsNil)
+		}))
+
 	c.Check(res, Equals, gadget.ChangeApply)
 
 	// all files are in cache
@@ -1139,8 +1144,8 @@ func (s *assetsSuite) TestUpdateObserverUpdateAfterSuccessfulBootMocked(c *C) {
 		filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("asset-%s", beforeHash)),
 	})
 	// check modeenv
-	newM, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	newM := mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check(newM.CurrentTrustedBootAssets, DeepEquals, boot.BootAssetsMap{
 		// original asset is restored, listed first
 		"asset": []string{beforeHash, dataHash},
@@ -1192,8 +1197,8 @@ func (s *assetsSuite) TestUpdateObserverRollbackModeenvManipulationMocked(c *C) 
 		"asset-newhash",
 		"other-asset-newotherhash",
 	} {
-		err := os.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "trusted", name), nil, 0644)
-		c.Assert(err, IsNil)
+		mylog.Check(os.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "trusted", name), nil, 0644))
+
 	}
 
 	// we get an observer for UC20
@@ -1216,43 +1221,43 @@ func (s *assetsSuite) TestUpdateObserverRollbackModeenvManipulationMocked(c *C) 
 			"other-asset": []string{"newotherhash"},
 		},
 	}
-	err := m.WriteTo("")
-	c.Assert(err, IsNil)
+	mylog.Check(m.WriteTo(""))
 
-	res, err := obs.Observe(gadget.ContentRollback, gadget.SystemBoot, root, "asset",
+
+	res := mylog.Check2(obs.Observe(gadget.ContentRollback, gadget.SystemBoot, root, "asset",
 		&gadget.ContentChange{
 			After:  filepath.Join(d, "asset"),
 			Before: filepath.Join(backups, "asset.backup"),
-		})
-	c.Assert(err, IsNil)
+		}))
+
 	c.Check(res, Equals, gadget.ChangeApply)
-	res, err = obs.Observe(gadget.ContentRollback, gadget.SystemBoot, root, "shim",
+	res = mylog.Check2(obs.Observe(gadget.ContentRollback, gadget.SystemBoot, root, "shim",
 		&gadget.ContentChange{
 			After: filepath.Join(d, "shim"),
 			// no before content, new file
-		})
-	c.Assert(err, IsNil)
+		}))
+
 	c.Check(res, Equals, gadget.ChangeApply)
 	// observe the recovery struct
-	res, err = obs.Observe(gadget.ContentRollback, gadget.SystemSeed, rootSeed, "shim",
+	res = mylog.Check2(obs.Observe(gadget.ContentRollback, gadget.SystemSeed, rootSeed, "shim",
 		&gadget.ContentChange{
 			After:  filepath.Join(d, "shim"),
 			Before: filepath.Join(backups, "shim.backup"),
-		})
-	c.Assert(err, IsNil)
+		}))
+
 	c.Check(res, Equals, gadget.ChangeApply)
-	res, err = obs.Observe(gadget.ContentRollback, gadget.SystemSeed, rootSeed, "asset",
+	res = mylog.Check2(obs.Observe(gadget.ContentRollback, gadget.SystemSeed, rootSeed, "asset",
 		&gadget.ContentChange{
 			After:  filepath.Join(d, "asset"),
 			Before: filepath.Join(backups, "asset.backup"),
-		})
-	c.Assert(err, IsNil)
+		}))
+
 	c.Check(res, Equals, gadget.ChangeApply)
-	res, err = obs.Observe(gadget.ContentRollback, gadget.SystemSeed, rootSeed, "nested/other-asset",
+	res = mylog.Check2(obs.Observe(gadget.ContentRollback, gadget.SystemSeed, rootSeed, "nested/other-asset",
 		&gadget.ContentChange{
 			After: filepath.Join(d, "asset"),
-		})
-	c.Assert(err, IsNil)
+		}))
+
 	c.Check(res, Equals, gadget.ChangeApply)
 	// all files are in cache
 	checkContentGlob(c, filepath.Join(dirs.SnapBootAssetsDir, "trusted", "*"), []string{
@@ -1260,8 +1265,8 @@ func (s *assetsSuite) TestUpdateObserverRollbackModeenvManipulationMocked(c *C) 
 		filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("shim-%s", shimHash)),
 	})
 	// check modeenv
-	newM, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	newM := mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check(newM.CurrentTrustedBootAssets, DeepEquals, boot.BootAssetsMap{
 		"asset": []string{dataHash},
 	})
@@ -1295,21 +1300,21 @@ func (s *assetsSuite) TestUpdateObserverRollbackFileValidity(c *C) {
 			"asset": []string{"newhash"},
 		},
 	}
-	err := m.WriteTo("")
-	c.Assert(err, IsNil)
+	mylog.Check(m.WriteTo(""))
+
 	// file does not exist on disk
-	res, err := obs.Observe(gadget.ContentRollback, gadget.SystemBoot, root, "asset",
-		&gadget.ContentChange{})
-	c.Assert(err, IsNil)
+	res := mylog.Check2(obs.Observe(gadget.ContentRollback, gadget.SystemBoot, root, "asset",
+		&gadget.ContentChange{}))
+
 	c.Check(res, Equals, gadget.ChangeApply)
 	// observe the recovery struct
-	res, err = obs.Observe(gadget.ContentRollback, gadget.SystemSeed, root, "asset",
-		&gadget.ContentChange{})
-	c.Assert(err, IsNil)
+	res = mylog.Check2(obs.Observe(gadget.ContentRollback, gadget.SystemSeed, root, "asset",
+		&gadget.ContentChange{}))
+
 	c.Check(res, Equals, gadget.ChangeApply)
 	// check modeenv
-	newM, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	newM := mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check(newM.CurrentTrustedBootAssets, HasLen, 0)
 	c.Check(newM.CurrentTrustedRecoveryBootAssets, HasLen, 0)
 	obs.Done()
@@ -1327,28 +1332,29 @@ func (s *assetsSuite) TestUpdateObserverRollbackFileValidity(c *C) {
 			"asset": []string{"newhash", "bogushash"},
 		},
 	}
-	err = m.WriteTo("")
-	c.Assert(err, IsNil)
-	// again, file does not exist on disk, but we expected it to be there
-	res, err = obs.Observe(gadget.ContentRollback, gadget.SystemBoot, root, "asset",
-		&gadget.ContentChange{})
-	c.Assert(err, ErrorMatches, `tracked asset "asset" is unexpectedly missing from disk`)
-	c.Check(res, Equals, gadget.ChangeAbort)
-	res, err = obs.Observe(gadget.ContentRollback, gadget.SystemSeed, root, "asset",
-		&gadget.ContentChange{})
-	c.Assert(err, ErrorMatches, `tracked asset "asset" is unexpectedly missing from disk`)
-	c.Check(res, Equals, gadget.ChangeAbort)
+	mylog.Check(m.WriteTo(""))
 
-	// create the file which will fail checksum check
-	err = os.WriteFile(filepath.Join(root, "asset"), nil, 0644)
-	c.Assert(err, IsNil)
+	// again, file does not exist on disk, but we expected it to be there
+	res = mylog.Check2(obs.Observe(gadget.ContentRollback, gadget.SystemBoot, root, "asset",
+		&gadget.ContentChange{}))
+	c.Assert(err, ErrorMatches, `tracked asset "asset" is unexpectedly missing from disk`)
+	c.Check(res, Equals, gadget.ChangeAbort)
+	res = mylog.Check2(obs.Observe(gadget.ContentRollback, gadget.SystemSeed, root, "asset",
+		&gadget.ContentChange{}))
+	c.Assert(err, ErrorMatches, `tracked asset "asset" is unexpectedly missing from disk`)
+	c.Check(res, Equals, gadget.ChangeAbort)
+	mylog.
+
+		// create the file which will fail checksum check
+		Check(os.WriteFile(filepath.Join(root, "asset"), nil, 0644))
+
 	// once more, the file exists on disk, but has unexpected checksum
-	res, err = obs.Observe(gadget.ContentRollback, gadget.SystemBoot, root, "asset",
-		&gadget.ContentChange{})
+	res = mylog.Check2(obs.Observe(gadget.ContentRollback, gadget.SystemBoot, root, "asset",
+		&gadget.ContentChange{}))
 	c.Assert(err, ErrorMatches, `unexpected content of existing asset "asset"`)
 	c.Check(res, Equals, gadget.ChangeAbort)
-	res, err = obs.Observe(gadget.ContentRollback, gadget.SystemSeed, root, "asset",
-		&gadget.ContentChange{})
+	res = mylog.Check2(obs.Observe(gadget.ContentRollback, gadget.SystemSeed, root, "asset",
+		&gadget.ContentChange{}))
 	c.Assert(err, ErrorMatches, `unexpected content of existing asset "asset"`)
 	c.Check(res, Equals, gadget.ChangeAbort)
 }
@@ -1382,7 +1388,8 @@ func (s *assetsSuite) TestUpdateObserverUpdateRollbackGrub(c *C) {
 				{"EFI/boot/grubx64.efi", "grub efi"},
 			},
 			addContentToCache: true,
-		}, {
+		},
+		{
 			// data of seed bootloader
 			root: seedDir,
 			fileWithContent: [][]string{
@@ -1392,7 +1399,8 @@ func (s *assetsSuite) TestUpdateObserverUpdateRollbackGrub(c *C) {
 				{"EFI/boot/bootx64.efi", "recovery shim efi"},
 			},
 			addContentToCache: true,
-		}, {
+		},
+		{
 			// gadget content
 			root: gadgetDir,
 			fileWithContent: [][]string{
@@ -1409,7 +1417,8 @@ func (s *assetsSuite) TestUpdateObserverUpdateRollbackGrub(c *C) {
 			fileWithContent: [][]string{
 				{"EFI/ubuntu/grub.cfg", "grub marker"},
 			},
-		}, {
+		},
+		{
 			root: seedDir,
 			fileWithContent: [][]string{
 				{"EFI/ubuntu/grub.cfg", "grub marker"},
@@ -1418,13 +1427,13 @@ func (s *assetsSuite) TestUpdateObserverUpdateRollbackGrub(c *C) {
 	} {
 		for _, f := range dir.fileWithContent {
 			p := filepath.Join(dir.root, f[0])
-			err := os.MkdirAll(filepath.Dir(p), 0755)
-			c.Assert(err, IsNil)
-			err = os.WriteFile(p, []byte(f[1]), 0644)
-			c.Assert(err, IsNil)
+			mylog.Check(os.MkdirAll(filepath.Dir(p), 0755))
+
+			mylog.Check(os.WriteFile(p, []byte(f[1]), 0644))
+
 			if dir.addContentToCache {
-				_, err = cache.Add(p, "grub", filepath.Base(p))
-				c.Assert(err, IsNil)
+				_ = mylog.Check2(cache.Add(p, "grub", filepath.Base(p)))
+
 			}
 		}
 	}
@@ -1448,30 +1457,30 @@ func (s *assetsSuite) TestUpdateObserverUpdateRollbackGrub(c *C) {
 			"bootx64.efi": []string{"c0437507ac094a7e9c699725cc0a4726cd10799af9eb79bbeaa136c2773163c80432295c2a04d3aa2ddd535ce8f1a12b"},
 		},
 	}
-	err := m.WriteTo("")
-	c.Assert(err, IsNil)
+	mylog.Check(m.WriteTo(""))
+
 
 	// updates first
-	res, err := obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, bootDir, "EFI/boot/grubx64.efi",
-		&gadget.ContentChange{After: filepath.Join(gadgetDir, "grubx64.efi")})
-	c.Assert(err, IsNil)
+	res := mylog.Check2(obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, bootDir, "EFI/boot/grubx64.efi",
+		&gadget.ContentChange{After: filepath.Join(gadgetDir, "grubx64.efi")}))
+
 	c.Check(res, Equals, gadget.ChangeApply)
-	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, seedDir, "EFI/boot/grubx64.efi",
-		&gadget.ContentChange{After: filepath.Join(gadgetDir, "grubx64.efi")})
-	c.Assert(err, IsNil)
+	res = mylog.Check2(obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, seedDir, "EFI/boot/grubx64.efi",
+		&gadget.ContentChange{After: filepath.Join(gadgetDir, "grubx64.efi")}))
+
 	c.Check(res, Equals, gadget.ChangeApply)
-	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, seedDir, "EFI/boot/bootx64.efi",
-		&gadget.ContentChange{After: filepath.Join(gadgetDir, "bootx64.efi")})
-	c.Assert(err, IsNil)
+	res = mylog.Check2(obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, seedDir, "EFI/boot/bootx64.efi",
+		&gadget.ContentChange{After: filepath.Join(gadgetDir, "bootx64.efi")}))
+
 	c.Check(res, Equals, gadget.ChangeApply)
 	// grub.cfg on ubuntu-seed and ubuntu-boot is managed by snapd
-	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, seedDir, "EFI/ubuntu/grub.cfg",
-		&gadget.ContentChange{After: filepath.Join(gadgetDir, "grub.conf")})
-	c.Assert(err, IsNil)
+	res = mylog.Check2(obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, seedDir, "EFI/ubuntu/grub.cfg",
+		&gadget.ContentChange{After: filepath.Join(gadgetDir, "grub.conf")}))
+
 	c.Check(res, Equals, gadget.ChangeIgnore)
-	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, seedDir, "EFI/ubuntu/grub.cfg",
-		&gadget.ContentChange{After: filepath.Join(gadgetDir, "grub.conf")})
-	c.Assert(err, IsNil)
+	res = mylog.Check2(obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, seedDir, "EFI/ubuntu/grub.cfg",
+		&gadget.ContentChange{After: filepath.Join(gadgetDir, "grub.conf")}))
+
 	c.Check(res, Equals, gadget.ChangeIgnore)
 
 	// verify cache contents
@@ -1489,8 +1498,8 @@ func (s *assetsSuite) TestUpdateObserverUpdateRollbackGrub(c *C) {
 	})
 
 	// and modeenv contents
-	newM, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	newM := mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check(newM.CurrentTrustedBootAssets, DeepEquals, boot.BootAssetsMap{
 		"grubx64.efi": []string{
 			// old hash
@@ -1517,22 +1526,22 @@ func (s *assetsSuite) TestUpdateObserverUpdateRollbackGrub(c *C) {
 	// hiya, update failed, pretend we do a rollback, files on disk are as
 	// if they were restored
 
-	res, err = obs.Observe(gadget.ContentRollback, gadget.SystemBoot, bootDir, "EFI/boot/grubx64.efi",
-		&gadget.ContentChange{})
-	c.Assert(err, IsNil)
+	res = mylog.Check2(obs.Observe(gadget.ContentRollback, gadget.SystemBoot, bootDir, "EFI/boot/grubx64.efi",
+		&gadget.ContentChange{}))
+
 	c.Check(res, Equals, gadget.ChangeApply)
-	res, err = obs.Observe(gadget.ContentRollback, gadget.SystemSeed, seedDir, "EFI/boot/grubx64.efi",
-		&gadget.ContentChange{})
-	c.Assert(err, IsNil)
+	res = mylog.Check2(obs.Observe(gadget.ContentRollback, gadget.SystemSeed, seedDir, "EFI/boot/grubx64.efi",
+		&gadget.ContentChange{}))
+
 	c.Check(res, Equals, gadget.ChangeApply)
-	res, err = obs.Observe(gadget.ContentRollback, gadget.SystemSeed, seedDir, "EFI/boot/bootx64.efi",
-		&gadget.ContentChange{})
-	c.Assert(err, IsNil)
+	res = mylog.Check2(obs.Observe(gadget.ContentRollback, gadget.SystemSeed, seedDir, "EFI/boot/bootx64.efi",
+		&gadget.ContentChange{}))
+
 	c.Check(res, Equals, gadget.ChangeApply)
 
 	// modeenv is back to the initial state
-	afterRollbackM, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	afterRollbackM := mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check(afterRollbackM.CurrentTrustedBootAssets, DeepEquals, m.CurrentTrustedBootAssets)
 	c.Check(afterRollbackM.CurrentTrustedRecoveryBootAssets, DeepEquals, m.CurrentTrustedRecoveryBootAssets)
 	// and cache is back to the same state as before
@@ -1553,8 +1562,8 @@ func (s *assetsSuite) TestUpdateObserverCanceledSimpleAfterBackupMocked(c *C) {
 			"asset": []string{"recoveryhash"},
 		},
 	}
-	err := m.WriteTo("")
-	c.Assert(err, IsNil)
+	mylog.Check(m.WriteTo(""))
+
 
 	// mock some files in cache
 	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapBootAssetsDir, "trusted"), 0755), IsNil)
@@ -1563,8 +1572,8 @@ func (s *assetsSuite) TestUpdateObserverCanceledSimpleAfterBackupMocked(c *C) {
 		"asset-assethash",
 		"asset-recoveryhash",
 	} {
-		err = os.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "trusted", name), nil, 0644)
-		c.Assert(err, IsNil)
+		mylog.Check(os.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "trusted", name), nil, 0644))
+
 	}
 
 	s.bootloaderWithTrustedAssets(map[string]string{
@@ -1578,29 +1587,29 @@ func (s *assetsSuite) TestUpdateObserverCanceledSimpleAfterBackupMocked(c *C) {
 	data := []byte("foobar")
 	// SHA3-384
 	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
-	err = os.WriteFile(filepath.Join(d, "foobar"), data, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(d, "foobar"), data, 0644))
+
 	shim := []byte("shim")
 	shimHash := "dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b"
-	err = os.WriteFile(filepath.Join(d, "shim"), shim, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(d, "shim"), shim, 0644))
 
-	res, err := obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "asset",
-		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
-	c.Assert(err, IsNil)
+
+	res := mylog.Check2(obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "asset",
+		&gadget.ContentChange{After: filepath.Join(d, "foobar")}))
+
 	c.Check(res, Equals, gadget.ChangeApply)
-	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "shim",
-		&gadget.ContentChange{After: filepath.Join(d, "shim")})
-	c.Assert(err, IsNil)
+	res = mylog.Check2(obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "shim",
+		&gadget.ContentChange{After: filepath.Join(d, "shim")}))
+
 	c.Check(res, Equals, gadget.ChangeApply)
 	// observe the recovery struct
-	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "shim",
-		&gadget.ContentChange{After: filepath.Join(d, "shim")})
-	c.Assert(err, IsNil)
+	res = mylog.Check2(obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "shim",
+		&gadget.ContentChange{After: filepath.Join(d, "shim")}))
+
 	c.Check(res, Equals, gadget.ChangeApply)
-	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "asset",
-		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
-	c.Assert(err, IsNil)
+	res = mylog.Check2(obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "asset",
+		&gadget.ContentChange{After: filepath.Join(d, "foobar")}))
+
 	c.Check(res, Equals, gadget.ChangeApply)
 	// files are in cache
 	checkContentGlob(c, filepath.Join(dirs.SnapBootAssetsDir, "trusted", "*"), []string{
@@ -1611,8 +1620,8 @@ func (s *assetsSuite) TestUpdateObserverCanceledSimpleAfterBackupMocked(c *C) {
 		filepath.Join(dirs.SnapBootAssetsDir, "trusted", "shim-shimhash"),
 	})
 	// check modeenv
-	newM, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	newM := mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check(newM.CurrentTrustedBootAssets, DeepEquals, boot.BootAssetsMap{
 		"asset": []string{"assethash", dataHash},
 		"shim":  []string{"shimhash", shimHash},
@@ -1627,13 +1636,14 @@ func (s *assetsSuite) TestUpdateObserverCanceledSimpleAfterBackupMocked(c *C) {
 		return nil
 	})
 	defer restore()
+	mylog.
 
-	// update is canceled
-	err = obs.Canceled()
-	c.Assert(err, IsNil)
+		// update is canceled
+		Check(obs.Canceled())
+
 	// modeenv is back to initial state
-	afterCancelM, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	afterCancelM := mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check(afterCancelM.CurrentTrustedBootAssets, DeepEquals, m.CurrentTrustedBootAssets)
 	c.Check(afterCancelM.CurrentTrustedRecoveryBootAssets, DeepEquals, m.CurrentTrustedRecoveryBootAssets)
 	// unused assets were dropped
@@ -1660,12 +1670,12 @@ func (s *assetsSuite) TestUpdateObserverCanceledPartiallyUsedMocked(c *C) {
 	data := []byte("foobar")
 	// SHA3-384
 	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
-	err := os.WriteFile(filepath.Join(d, "foobar"), data, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(d, "foobar"), data, 0644))
+
 	shim := []byte("shim")
 	shimHash := "dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b"
-	err = os.WriteFile(filepath.Join(d, "shim"), shim, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(d, "shim"), shim, 0644))
+
 
 	// mock some files in cache
 	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapBootAssetsDir, "trusted"), 0755), IsNil)
@@ -1674,8 +1684,8 @@ func (s *assetsSuite) TestUpdateObserverCanceledPartiallyUsedMocked(c *C) {
 		"asset-assethash",
 		fmt.Sprintf("shim-%s", shimHash),
 	} {
-		err = os.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "trusted", name), nil, 0644)
-		c.Assert(err, IsNil)
+		mylog.Check(os.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "trusted", name), nil, 0644))
+
 	}
 
 	// we get an observer for UC20
@@ -1691,22 +1701,22 @@ func (s *assetsSuite) TestUpdateObserverCanceledPartiallyUsedMocked(c *C) {
 			"shim": []string{shimHash},
 		},
 	}
-	err = m.WriteTo("")
-	c.Assert(err, IsNil)
+	mylog.Check(m.WriteTo(""))
 
-	res, err := obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "asset",
-		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
-	c.Assert(err, IsNil)
+
+	res := mylog.Check2(obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "asset",
+		&gadget.ContentChange{After: filepath.Join(d, "foobar")}))
+
 	c.Check(res, Equals, gadget.ChangeApply)
-	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "shim",
-		&gadget.ContentChange{After: filepath.Join(d, "shim")})
-	c.Assert(err, IsNil)
+	res = mylog.Check2(obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "shim",
+		&gadget.ContentChange{After: filepath.Join(d, "shim")}))
+
 	c.Check(res, Equals, gadget.ChangeApply)
 	// observe the recovery struct
 	// XXX: shim is not updated
-	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "asset",
-		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
-	c.Assert(err, IsNil)
+	res = mylog.Check2(obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "asset",
+		&gadget.ContentChange{After: filepath.Join(d, "foobar")}))
+
 	c.Check(res, Equals, gadget.ChangeApply)
 	// files are in cache
 	checkContentGlob(c, filepath.Join(dirs.SnapBootAssetsDir, "trusted", "*"), []string{
@@ -1716,8 +1726,8 @@ func (s *assetsSuite) TestUpdateObserverCanceledPartiallyUsedMocked(c *C) {
 		filepath.Join(dirs.SnapBootAssetsDir, "trusted", "shim-shimhash"),
 	})
 	// check modeenv
-	newM, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	newM := mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check(newM.CurrentTrustedBootAssets, DeepEquals, boot.BootAssetsMap{
 		"asset": []string{"assethash", dataHash},
 		"shim":  []string{"shimhash", shimHash},
@@ -1726,12 +1736,13 @@ func (s *assetsSuite) TestUpdateObserverCanceledPartiallyUsedMocked(c *C) {
 		"asset": []string{dataHash},
 		"shim":  []string{shimHash},
 	})
-	// update is canceled
-	err = obs.Canceled()
-	c.Assert(err, IsNil)
+	mylog.
+		// update is canceled
+		Check(obs.Canceled())
+
 	// modeenv is back to initial state
-	afterCancelM, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	afterCancelM := mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check(afterCancelM.CurrentTrustedBootAssets, DeepEquals, m.CurrentTrustedBootAssets)
 	c.Check(afterCancelM.CurrentTrustedRecoveryBootAssets, DeepEquals, m.CurrentTrustedRecoveryBootAssets)
 	// unused assets were dropped
@@ -1760,8 +1771,8 @@ func (s *assetsSuite) TestUpdateObserverCanceledNoActionsMocked(c *C) {
 			"asset": []string{"recoveryhash"},
 		},
 	}
-	err := m.WriteTo("")
-	c.Assert(err, IsNil)
+	mylog.Check(m.WriteTo(""))
+
 
 	// mock the files in cache
 	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapBootAssetsDir, "trusted"), 0755), IsNil)
@@ -1770,8 +1781,8 @@ func (s *assetsSuite) TestUpdateObserverCanceledNoActionsMocked(c *C) {
 		"asset-assethash",
 		"asset-recoveryhash",
 	} {
-		err = os.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "trusted", name), nil, 0644)
-		c.Assert(err, IsNil)
+		mylog.Check(os.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "trusted", name), nil, 0644))
+
 	}
 
 	s.bootloaderWithTrustedAssets(map[string]string{
@@ -1787,13 +1798,14 @@ func (s *assetsSuite) TestUpdateObserverCanceledNoActionsMocked(c *C) {
 		return nil
 	})
 	defer restore()
+	mylog.
 
-	// cancel the update
-	err = obs.Canceled()
-	c.Assert(err, IsNil)
+		// cancel the update
+		Check(obs.Canceled())
+
 	// modeenv is unchanged
-	afterCancelM, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	afterCancelM := mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check(afterCancelM.CurrentTrustedBootAssets, DeepEquals, m.CurrentTrustedBootAssets)
 	c.Check(afterCancelM.CurrentTrustedRecoveryBootAssets, DeepEquals, m.CurrentTrustedRecoveryBootAssets)
 	// unused assets were dropped
@@ -1804,19 +1816,19 @@ func (s *assetsSuite) TestUpdateObserverCanceledNoActionsMocked(c *C) {
 	})
 
 	c.Check(resealCalls, Equals, 0)
+	mylog.Check(os.WriteFile(filepath.Join(d, "shim"), []byte("shim"), 0644))
 
-	err = os.WriteFile(filepath.Join(d, "shim"), []byte("shim"), 0644)
-	c.Assert(err, IsNil)
 	// observe only recovery bootloader update, no action for run bootloader
-	res, err := obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "shim",
-		&gadget.ContentChange{After: filepath.Join(d, "shim")})
-	c.Assert(err, IsNil)
+	res := mylog.Check2(obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "shim",
+		&gadget.ContentChange{After: filepath.Join(d, "shim")}))
+
 	c.Check(res, Equals, gadget.ChangeApply)
-	// cancel again
-	err = obs.Canceled()
-	c.Assert(err, IsNil)
-	afterCancelM, err = boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	mylog.
+		// cancel again
+		Check(obs.Canceled())
+
+	afterCancelM = mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check(afterCancelM.CurrentTrustedBootAssets, DeepEquals, m.CurrentTrustedBootAssets)
 	c.Check(afterCancelM.CurrentTrustedRecoveryBootAssets, DeepEquals, m.CurrentTrustedRecoveryBootAssets)
 	checkContentGlob(c, filepath.Join(dirs.SnapBootAssetsDir, "trusted", "*"), []string{
@@ -1833,8 +1845,8 @@ func (s *assetsSuite) TestUpdateObserverCanceledEmptyModeenvAssets(c *C) {
 	m := boot.Modeenv{
 		Mode: "run",
 	}
-	err := m.WriteTo("")
-	c.Assert(err, IsNil)
+	mylog.Check(m.WriteTo(""))
+
 
 	s.bootloaderWithTrustedAssets(map[string]string{
 		"asset": "asset",
@@ -1842,36 +1854,39 @@ func (s *assetsSuite) TestUpdateObserverCanceledEmptyModeenvAssets(c *C) {
 	})
 	// we get an observer for UC20
 	obs, _ := s.uc20UpdateObserverEncryptedSystemMockedBootloader(c)
+	mylog.
 
-	// trigger loading modeenv and bootloader information
-	err = os.WriteFile(filepath.Join(d, "shim"), []byte("shim"), 0644)
-	c.Assert(err, IsNil)
+		// trigger loading modeenv and bootloader information
+		Check(os.WriteFile(filepath.Join(d, "shim"), []byte("shim"), 0644))
+
 	// observe an update only for the recovery bootloader, the run bootloader trusted assets remain empty
-	res, err := obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "shim",
-		&gadget.ContentChange{After: filepath.Join(d, "shim")})
-	c.Assert(err, IsNil)
-	c.Check(res, Equals, gadget.ChangeApply)
+	res := mylog.Check2(obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "shim",
+		&gadget.ContentChange{After: filepath.Join(d, "shim")}))
 
-	// cancel the update
-	err = obs.Canceled()
-	c.Assert(err, IsNil)
-	afterCancelM, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	c.Check(res, Equals, gadget.ChangeApply)
+	mylog.
+
+		// cancel the update
+		Check(obs.Canceled())
+
+	afterCancelM := mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check(afterCancelM.CurrentTrustedBootAssets, HasLen, 0)
 	c.Check(afterCancelM.CurrentTrustedRecoveryBootAssets, HasLen, 0)
 	obs.Done()
 
 	// get a new observer, and observe an update for run bootloader asset only
 	obs, _ = s.uc20UpdateObserverEncryptedSystemMockedBootloader(c)
-	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "shim",
-		&gadget.ContentChange{After: filepath.Join(d, "shim")})
-	c.Assert(err, IsNil)
+	res = mylog.Check2(obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "shim",
+		&gadget.ContentChange{After: filepath.Join(d, "shim")}))
+
 	c.Check(res, Equals, gadget.ChangeApply)
-	// cancel once more
-	err = obs.Canceled()
-	c.Assert(err, IsNil)
-	afterCancelM, err = boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	mylog.
+		// cancel once more
+		Check(obs.Canceled())
+
+	afterCancelM = mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check(afterCancelM.CurrentTrustedBootAssets, HasLen, 0)
 	c.Check(afterCancelM.CurrentTrustedRecoveryBootAssets, HasLen, 0)
 }
@@ -1891,8 +1906,8 @@ func (s *assetsSuite) TestUpdateObserverCanceledAfterRollback(c *C) {
 			"asset": []string{"assethash"},
 		},
 	}
-	err := m.WriteTo("")
-	c.Assert(err, IsNil)
+	mylog.Check(m.WriteTo(""))
+
 
 	s.bootloaderWithTrustedAssets(map[string]string{
 		"asset": "asset",
@@ -1900,17 +1915,18 @@ func (s *assetsSuite) TestUpdateObserverCanceledAfterRollback(c *C) {
 	})
 	// we get an observer for UC20
 	obs, _ := s.uc20UpdateObserverEncryptedSystemMockedBootloader(c)
+	mylog.
 
-	// trigger loading modeenv and bootloader information
-	err = os.WriteFile(filepath.Join(d, "shim"), []byte("shim"), 0644)
-	c.Assert(err, IsNil)
-	res, err := obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "shim",
-		&gadget.ContentChange{After: filepath.Join(d, "shim")})
-	c.Assert(err, IsNil)
+		// trigger loading modeenv and bootloader information
+		Check(os.WriteFile(filepath.Join(d, "shim"), []byte("shim"), 0644))
+
+	res := mylog.Check2(obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "shim",
+		&gadget.ContentChange{After: filepath.Join(d, "shim")}))
+
 	c.Check(res, Equals, gadget.ChangeApply)
-	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "shim",
-		&gadget.ContentChange{After: filepath.Join(d, "shim")})
-	c.Assert(err, IsNil)
+	res = mylog.Check2(obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "shim",
+		&gadget.ContentChange{After: filepath.Join(d, "shim")}))
+
 	c.Check(res, Equals, gadget.ChangeApply)
 
 	// procure the desired state by:
@@ -1921,12 +1937,13 @@ func (s *assetsSuite) TestUpdateObserverCanceledAfterRollback(c *C) {
 	obs.InjectChangedAsset("trusted", "asset", "changehash", recoveryAsset)
 	// completely unknown
 	obs.InjectChangedAsset("trusted", "unknown", "somehash", !recoveryAsset)
+	mylog.
 
-	// cancel the update
-	err = obs.Canceled()
-	c.Assert(err, IsNil)
-	afterCancelM, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+		// cancel the update
+		Check(obs.Canceled())
+
+	afterCancelM := mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check(afterCancelM.CurrentTrustedBootAssets, DeepEquals, m.CurrentTrustedBootAssets)
 	c.Check(afterCancelM.CurrentTrustedRecoveryBootAssets, DeepEquals, m.CurrentTrustedRecoveryBootAssets)
 }
@@ -1954,8 +1971,8 @@ func (s *assetsSuite) TestUpdateObserverCanceledUnhappyCacheStillProceeds(c *C) 
 			"asset": []string{"recoveryhash"},
 		},
 	}
-	err := m.WriteTo("")
-	c.Assert(err, IsNil)
+	mylog.Check(m.WriteTo(""))
+
 
 	// mock the files in cache
 	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapBootAssetsDir, "trusted"), 0755), IsNil)
@@ -1963,8 +1980,8 @@ func (s *assetsSuite) TestUpdateObserverCanceledUnhappyCacheStillProceeds(c *C) 
 		"asset-assethash",
 		"asset-recoveryhash",
 	} {
-		err = os.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "trusted", name), nil, 0644)
-		c.Assert(err, IsNil)
+		mylog.Check(os.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "trusted", name), nil, 0644))
+
 	}
 
 	s.bootloaderWithTrustedAssets(map[string]string{
@@ -1976,15 +1993,15 @@ func (s *assetsSuite) TestUpdateObserverCanceledUnhappyCacheStillProceeds(c *C) 
 
 	shim := []byte("shim")
 	shimHash := "dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b"
-	err = os.WriteFile(filepath.Join(d, "shim"), shim, 0644)
-	c.Assert(err, IsNil)
-	res, err := obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "shim",
-		&gadget.ContentChange{After: filepath.Join(d, "shim")})
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(d, "shim"), shim, 0644))
+
+	res := mylog.Check2(obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "shim",
+		&gadget.ContentChange{After: filepath.Join(d, "shim")}))
+
 	c.Check(res, Equals, gadget.ChangeApply)
-	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "shim",
-		&gadget.ContentChange{After: filepath.Join(d, "shim")})
-	c.Assert(err, IsNil)
+	res = mylog.Check2(obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "shim",
+		&gadget.ContentChange{After: filepath.Join(d, "shim")}))
+
 	c.Check(res, Equals, gadget.ChangeApply)
 	// make sure that the cache directory state is as expected
 	checkContentGlob(c, filepath.Join(dirs.SnapBootAssetsDir, "trusted", "*"), []string{
@@ -1993,8 +2010,8 @@ func (s *assetsSuite) TestUpdateObserverCanceledUnhappyCacheStillProceeds(c *C) 
 		filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("shim-%s", shimHash)),
 	})
 	// and the file is added to the assets map
-	newM, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	newM := mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check(newM.CurrentTrustedBootAssets, DeepEquals, boot.BootAssetsMap{
 		"asset": []string{"assethash"},
 		"shim":  []string{shimHash},
@@ -2007,12 +2024,13 @@ func (s *assetsSuite) TestUpdateObserverCanceledUnhappyCacheStillProceeds(c *C) 
 	// make cache directory read only and thus cache.Remove() fail
 	c.Assert(os.Chmod(filepath.Join(dirs.SnapBootAssetsDir, "trusted"), 0444), IsNil)
 	defer os.Chmod(filepath.Join(dirs.SnapBootAssetsDir, "trusted"), 0755)
+	mylog.
 
-	// cancel should not fail, even though files cannot be removed from cache
-	err = obs.Canceled()
-	c.Assert(err, IsNil)
-	afterCancelM, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+		// cancel should not fail, even though files cannot be removed from cache
+		Check(obs.Canceled())
+
+	afterCancelM := mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check(afterCancelM.CurrentTrustedBootAssets, DeepEquals, m.CurrentTrustedBootAssets)
 	c.Check(afterCancelM.CurrentTrustedRecoveryBootAssets, DeepEquals, m.CurrentTrustedRecoveryBootAssets)
 	checkContentGlob(c, filepath.Join(dirs.SnapBootAssetsDir, "trusted", "*"), []string{
@@ -2030,8 +2048,8 @@ func (s *assetsSuite) TestObserveSuccessfulBootNoTrusted(c *C) {
 		Mode: "run",
 		// no trusted assets
 	}
-	newM, drop, err := boot.ObserveSuccessfulBootWithAssets(m)
-	c.Assert(err, IsNil)
+	newM, drop := mylog.Check3(boot.ObserveSuccessfulBootWithAssets(m))
+
 	c.Check(drop, IsNil)
 	c.Check(newM, DeepEquals, m)
 }
@@ -2053,8 +2071,8 @@ func (s *assetsSuite) TestObserveSuccessfulBootNoAssetsOnDisk(c *C) {
 		},
 	}
 
-	newM, drop, err := boot.ObserveSuccessfulBootWithAssets(m)
-	c.Assert(err, IsNil)
+	newM, drop := mylog.Check3(boot.ObserveSuccessfulBootWithAssets(m))
+
 	c.Check(drop, IsNil)
 	// we booted without assets on disk nonetheless
 	c.Check(newM.CurrentTrustedBootAssets, HasLen, 0)
@@ -2092,8 +2110,8 @@ func (s *assetsSuite) TestObserveSuccessfulBootAfterUpdate(c *C) {
 		},
 	}
 
-	newM, drop, err := boot.ObserveSuccessfulBootWithAssets(m)
-	c.Assert(err, IsNil)
+	newM, drop := mylog.Check3(boot.ObserveSuccessfulBootWithAssets(m))
+
 	c.Assert(newM, NotNil)
 	c.Check(newM.CurrentTrustedBootAssets, DeepEquals, boot.BootAssetsMap{
 		"asset": []string{dataHash},
@@ -2145,7 +2163,7 @@ func (s *assetsSuite) TestObserveSuccessfulBootWithUnexpected(c *C) {
 		},
 	}
 
-	newM, drop, err := boot.ObserveSuccessfulBootWithAssets(m)
+	newM, drop := mylog.Check3(boot.ObserveSuccessfulBootWithAssets(m))
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`system booted with unexpected run mode bootloader asset "asset" hash %v`, unexpectedHash))
 	c.Assert(newM, IsNil)
 	c.Check(drop, HasLen, 0)
@@ -2154,7 +2172,7 @@ func (s *assetsSuite) TestObserveSuccessfulBootWithUnexpected(c *C) {
 	// on the recovery bootloader asset
 	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), data, 0644), IsNil)
 
-	newM, drop, err = boot.ObserveSuccessfulBootWithAssets(m)
+	newM, drop = mylog.Check3(boot.ObserveSuccessfulBootWithAssets(m))
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`system booted with unexpected recovery bootloader asset "asset" hash %v`, unexpectedHash))
 	c.Assert(newM, IsNil)
 	c.Check(drop, HasLen, 0)
@@ -2192,8 +2210,8 @@ func (s *assetsSuite) TestObserveSuccessfulBootSingleEntries(c *C) {
 	}
 
 	// nothing is changed
-	newM, drop, err := boot.ObserveSuccessfulBootWithAssets(m)
-	c.Assert(err, IsNil)
+	newM, drop := mylog.Check3(boot.ObserveSuccessfulBootWithAssets(m))
+
 	c.Assert(newM, NotNil)
 	c.Check(newM, DeepEquals, m)
 	c.Check(drop, HasLen, 0)
@@ -2229,8 +2247,8 @@ func (s *assetsSuite) TestObserveSuccessfulBootDropCandidateUsedByOtherBootloade
 	}
 
 	// nothing is changed
-	newM, drop, err := boot.ObserveSuccessfulBootWithAssets(m)
-	c.Assert(err, IsNil)
+	newM, drop := mylog.Check3(boot.ObserveSuccessfulBootWithAssets(m))
+
 	c.Assert(newM, NotNil)
 	c.Check(newM.CurrentTrustedBootAssets, DeepEquals, boot.BootAssetsMap{
 		"asset": []string{maybeDropHash},
@@ -2274,8 +2292,8 @@ func (s *assetsSuite) TestObserveSuccessfulBootParallelUpdate(c *C) {
 		},
 	}
 
-	newM, drop, err := boot.ObserveSuccessfulBootWithAssets(m)
-	c.Assert(err, IsNil)
+	newM, drop := mylog.Check3(boot.ObserveSuccessfulBootWithAssets(m))
+
 	c.Assert(newM, NotNil)
 	c.Check(newM.CurrentTrustedBootAssets, DeepEquals, boot.BootAssetsMap{
 		"asset": []string{dataHash},
@@ -2318,7 +2336,7 @@ func (s *assetsSuite) TestObserveSuccessfulBootHashErr(c *C) {
 	}
 
 	// nothing is changed
-	_, _, err := boot.ObserveSuccessfulBootWithAssets(m)
+	_, _ := mylog.Check3(boot.ObserveSuccessfulBootWithAssets(m))
 	c.Assert(err, ErrorMatches, "cannot calculate the digest of existing trusted asset: .*/asset: permission denied")
 }
 
@@ -2339,17 +2357,18 @@ func (s *assetsSuite) TestObserveSuccessfulBootDifferentMode(c *C) {
 
 	// if we were in run mode, this would error out because the assets don't
 	// exist, but we are not in run mode
-	newM, drop, err := boot.ObserveSuccessfulBootWithAssets(m)
-	c.Assert(err, IsNil)
+	newM, drop := mylog.Check3(boot.ObserveSuccessfulBootWithAssets(m))
+
 	c.Assert(newM, DeepEquals, m)
 	c.Assert(drop, IsNil)
 }
 
 func (s *assetsSuite) TestCopyBootAssetsCacheHappy(c *C) {
 	newRoot := c.MkDir()
-	// does not fail when dir does not exist
-	err := boot.CopyBootAssetsCacheToRoot(newRoot)
-	c.Assert(err, IsNil)
+	mylog.
+		// does not fail when dir does not exist
+		Check(boot.CopyBootAssetsCacheToRoot(newRoot))
+
 
 	// temporarily overide umask
 	oldUmask := syscall.Umask(0000)
@@ -2367,19 +2386,18 @@ func (s *assetsSuite) TestCopyBootAssetsCacheHappy(c *C) {
 
 	for _, entry := range entries {
 		p := filepath.Join(dirs.SnapBootAssetsDir, entry.name)
-		err = os.MkdirAll(filepath.Dir(p), 0755)
-		c.Assert(err, IsNil)
-		err = os.WriteFile(p, []byte(entry.content), os.FileMode(entry.mode))
-		c.Assert(err, IsNil)
-	}
+		mylog.Check(os.MkdirAll(filepath.Dir(p), 0755))
 
-	err = boot.CopyBootAssetsCacheToRoot(newRoot)
-	c.Assert(err, IsNil)
+		mylog.Check(os.WriteFile(p, []byte(entry.content), os.FileMode(entry.mode)))
+
+	}
+	mylog.Check(boot.CopyBootAssetsCacheToRoot(newRoot))
+
 	for _, entry := range entries {
 		p := filepath.Join(dirs.SnapBootAssetsDirUnder(newRoot), entry.name)
 		c.Check(p, testutil.FileEquals, entry.content)
-		fi, err := os.Stat(p)
-		c.Assert(err, IsNil)
+		fi := mylog.Check2(os.Stat(p))
+
 		c.Check(fi.Mode().Perm(), Equals, os.FileMode(entry.mode),
 			Commentf("unexpected mode of copied file %q: %v", entry.name, fi.Mode().Perm()))
 	}
@@ -2391,7 +2409,7 @@ func (s *assetsSuite) TestCopyBootAssetsCacheUnhappy(c *C) {
 	dirs.SnapBootAssetsDir = c.MkDir()
 	p := filepath.Join(dirs.SnapBootAssetsDir, "fifo")
 	syscall.Mkfifo(p, 0644)
-	err := boot.CopyBootAssetsCacheToRoot(newRoot)
+	mylog.Check(boot.CopyBootAssetsCacheToRoot(newRoot))
 	c.Assert(err, ErrorMatches, `unsupported non-file entry "fifo" mode prw-.*`)
 
 	if os.Geteuid() == 0 {
@@ -2402,37 +2420,37 @@ func (s *assetsSuite) TestCopyBootAssetsCacheUnhappy(c *C) {
 	// non-writable root
 	newRoot = c.MkDir()
 	nonWritableRoot := filepath.Join(newRoot, "non-writable")
-	err = os.MkdirAll(nonWritableRoot, 0000)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(nonWritableRoot, 0000))
+
 	dirs.SnapBootAssetsDir = c.MkDir()
-	err = os.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "file"), nil, 0644)
-	c.Assert(err, IsNil)
-	err = boot.CopyBootAssetsCacheToRoot(nonWritableRoot)
+	mylog.Check(os.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "file"), nil, 0644))
+
+	mylog.Check(boot.CopyBootAssetsCacheToRoot(nonWritableRoot))
 	c.Assert(err, ErrorMatches, `cannot create cache directory under new root: mkdir .*: permission denied`)
 
 	// file cannot be read
 	newRoot = c.MkDir()
 	dirs.SnapBootAssetsDir = c.MkDir()
-	err = os.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "file"), nil, 0000)
-	c.Assert(err, IsNil)
-	err = boot.CopyBootAssetsCacheToRoot(newRoot)
+	mylog.Check(os.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "file"), nil, 0000))
+
+	mylog.Check(boot.CopyBootAssetsCacheToRoot(newRoot))
 	c.Assert(err, ErrorMatches, `cannot copy boot asset cache file "file": failed to copy all: .*`)
 
 	// directory at destination cannot be recreated
 	newRoot = c.MkDir()
 	dirs.SnapBootAssetsDir = c.MkDir()
-	// make a directory at destination non writable
-	err = os.MkdirAll(dirs.SnapBootAssetsDirUnder(newRoot), 0755)
-	c.Assert(err, IsNil)
-	err = os.Chmod(dirs.SnapBootAssetsDirUnder(newRoot), 0000)
-	c.Assert(err, IsNil)
-	err = os.MkdirAll(filepath.Join(dirs.SnapBootAssetsDir, "dir"), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "dir", "file"), nil, 0000)
-	c.Assert(err, IsNil)
-	err = boot.CopyBootAssetsCacheToRoot(newRoot)
-	c.Assert(err, ErrorMatches, `cannot recreate cache directory "dir": .*: permission denied`)
+	mylog.
+		// make a directory at destination non writable
+		Check(os.MkdirAll(dirs.SnapBootAssetsDirUnder(newRoot), 0755))
 
+	mylog.Check(os.Chmod(dirs.SnapBootAssetsDirUnder(newRoot), 0000))
+
+	mylog.Check(os.MkdirAll(filepath.Join(dirs.SnapBootAssetsDir, "dir"), 0755))
+
+	mylog.Check(os.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "dir", "file"), nil, 0000))
+
+	mylog.Check(boot.CopyBootAssetsCacheToRoot(newRoot))
+	c.Assert(err, ErrorMatches, `cannot recreate cache directory "dir": .*: permission denied`)
 }
 
 func (s *assetsSuite) TestUpdateObserverReseal(c *C) {
@@ -2445,18 +2463,18 @@ func (s *assetsSuite) TestUpdateObserverReseal(c *C) {
 	// try to arrange the backups like the updater would do it
 	before := []byte("before")
 	beforeHash := "2df0976fd45ba2392dc7985cdfb7c2d096c1ea4917929dd7a0e9bffae90a443271e702663fc6a4189c1f4ab3ce7daee3"
-	err := os.WriteFile(filepath.Join(backups, "asset.backup"), before, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(backups, "asset.backup"), before, 0644))
+
 
 	data := []byte("foobar")
 	// SHA3-384
 	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
-	err = os.WriteFile(filepath.Join(d, "foobar"), data, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(d, "foobar"), data, 0644))
+
 	shim := []byte("shim")
 	shimHash := "dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b"
-	err = os.WriteFile(filepath.Join(d, "shim"), shim, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(d, "shim"), shim, 0644))
+
 
 	tab := s.bootloaderWithTrustedAssets(map[string]string{
 		"asset": "asset",
@@ -2482,33 +2500,33 @@ func (s *assetsSuite) TestUpdateObserverReseal(c *C) {
 		Grade:          string(uc20model.Grade()),
 		ModelSignKeyID: uc20model.SignKeyID(),
 	}
-	err = m.WriteTo("")
-	c.Assert(err, IsNil)
+	mylog.Check(m.WriteTo(""))
 
-	res, err := obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "asset",
+
+	res := mylog.Check2(obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "asset",
 		&gadget.ContentChange{
 			After: filepath.Join(d, "foobar"),
 			// original content would get backed up by the updater
 			Before: filepath.Join(backups, "asset.backup"),
-		})
-	c.Assert(err, IsNil)
+		}))
+
 	c.Check(res, Equals, gadget.ChangeApply)
-	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "shim",
-		&gadget.ContentChange{After: filepath.Join(d, "shim")})
-	c.Assert(err, IsNil)
+	res = mylog.Check2(obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "shim",
+		&gadget.ContentChange{After: filepath.Join(d, "shim")}))
+
 	c.Check(res, Equals, gadget.ChangeApply)
 	// observe the recovery struct
-	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "shim",
-		&gadget.ContentChange{After: filepath.Join(d, "shim")})
-	c.Assert(err, IsNil)
+	res = mylog.Check2(obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "shim",
+		&gadget.ContentChange{After: filepath.Join(d, "shim")}))
+
 	c.Check(res, Equals, gadget.ChangeApply)
-	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "asset",
+	res = mylog.Check2(obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "asset",
 		&gadget.ContentChange{
 			After: filepath.Join(d, "foobar"),
 			// original content
 			Before: filepath.Join(backups, "asset.backup"),
-		})
-	c.Assert(err, IsNil)
+		}))
+
 	c.Check(res, Equals, gadget.ChangeApply)
 	checkContentGlob(c, filepath.Join(dirs.SnapBootAssetsDir, "trusted", "*"), []string{
 		filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("asset-%s", dataHash)),
@@ -2578,9 +2596,8 @@ func (s *assetsSuite) TestUpdateObserverReseal(c *C) {
 		return nil
 	})
 	defer restore()
+	mylog.Check(obs.BeforeWrite())
 
-	err = obs.BeforeWrite()
-	c.Assert(err, IsNil)
 	c.Check(resealCalls, Equals, 2)
 }
 
@@ -2597,8 +2614,8 @@ func (s *assetsSuite) TestUpdateObserverCanceledReseal(c *C) {
 		"asset-assethash",
 		"asset-recoveryhash",
 	} {
-		err := os.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "trusted", name), nil, 0644)
-		c.Assert(err, IsNil)
+		mylog.Check(os.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "trusted", name), nil, 0644))
+
 	}
 
 	tab := s.bootloaderWithTrustedAssets(map[string]string{
@@ -2628,33 +2645,33 @@ func (s *assetsSuite) TestUpdateObserverCanceledReseal(c *C) {
 		Grade:          string(uc20model.Grade()),
 		ModelSignKeyID: uc20model.SignKeyID(),
 	}
-	err := m.WriteTo("")
-	c.Assert(err, IsNil)
+	mylog.Check(m.WriteTo(""))
+
 
 	data := []byte("foobar")
-	err = os.WriteFile(filepath.Join(d, "foobar"), data, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(d, "foobar"), data, 0644))
+
 	shim := []byte("shim")
-	err = os.WriteFile(filepath.Join(d, "shim"), shim, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(d, "shim"), shim, 0644))
+
 
 	// trigger a bunch of updates, so that we have things to cancel
-	res, err := obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "asset",
-		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
-	c.Assert(err, IsNil)
+	res := mylog.Check2(obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "asset",
+		&gadget.ContentChange{After: filepath.Join(d, "foobar")}))
+
 	c.Check(res, Equals, gadget.ChangeApply)
-	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "shim",
-		&gadget.ContentChange{After: filepath.Join(d, "shim")})
-	c.Assert(err, IsNil)
+	res = mylog.Check2(obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "shim",
+		&gadget.ContentChange{After: filepath.Join(d, "shim")}))
+
 	c.Check(res, Equals, gadget.ChangeApply)
 	// observe the recovery struct
-	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "shim",
-		&gadget.ContentChange{After: filepath.Join(d, "shim")})
-	c.Assert(err, IsNil)
+	res = mylog.Check2(obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "shim",
+		&gadget.ContentChange{After: filepath.Join(d, "shim")}))
+
 	c.Check(res, Equals, gadget.ChangeApply)
-	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "asset",
-		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
-	c.Assert(err, IsNil)
+	res = mylog.Check2(obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "asset",
+		&gadget.ContentChange{After: filepath.Join(d, "foobar")}))
+
 	c.Check(res, Equals, gadget.ChangeApply)
 
 	restore := boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
@@ -2708,13 +2725,14 @@ func (s *assetsSuite) TestUpdateObserverCanceledReseal(c *C) {
 		return nil
 	})
 	defer restore()
+	mylog.
 
-	// update is canceled
-	err = obs.Canceled()
-	c.Assert(err, IsNil)
+		// update is canceled
+		Check(obs.Canceled())
+
 	// modeenv is back to initial state
-	afterCancelM, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	afterCancelM := mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check(afterCancelM.CurrentTrustedBootAssets, DeepEquals, m.CurrentTrustedBootAssets)
 	c.Check(afterCancelM.CurrentTrustedRecoveryBootAssets, DeepEquals, m.CurrentTrustedRecoveryBootAssets)
 	// unused assets were dropped
@@ -2736,14 +2754,14 @@ func (s *assetsSuite) TestUpdateObserverUpdateMockedNonEncryption(c *C) {
 
 	// try to arrange the backups like the updater would do it
 	data := []byte("foobar")
-	err := os.WriteFile(filepath.Join(d, "foobar"), data, 0644)
-	c.Assert(err, IsNil)
+	mylog.Check(os.WriteFile(filepath.Join(d, "foobar"), data, 0644))
+
 
 	m := boot.Modeenv{
 		Mode: "run",
 	}
-	err = m.WriteTo("")
-	c.Assert(err, IsNil)
+	mylog.Check(m.WriteTo(""))
+
 
 	tab := s.bootloaderWithTrustedAssets(map[string]string{
 		"asset": "asset",
@@ -2761,30 +2779,30 @@ func (s *assetsSuite) TestUpdateObserverUpdateMockedNonEncryption(c *C) {
 		// original content would get backed up by the updater
 		Before: filepath.Join(backups, "asset.backup"),
 	}
-	res, err := obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "asset", change)
-	c.Assert(err, IsNil)
+	res := mylog.Check2(obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "asset", change))
+
 	c.Check(res, Equals, gadget.ChangeApply)
-	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "asset", change)
-	c.Assert(err, IsNil)
+	res = mylog.Check2(obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "asset", change))
+
 	c.Check(res, Equals, gadget.ChangeApply)
 	// trusted assets were asked for when setting up bootloader context
 	c.Check(tab.TrustedAssetsCalls, Equals, 2)
 	// but nothing is really tracked
 	checkContentGlob(c, filepath.Join(dirs.SnapBootAssetsDir, "trusted", "*"), nil)
 	// check modeenv
-	newM, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
+	newM := mylog.Check2(boot.ReadModeenv(""))
+
 	c.Check(newM.CurrentTrustedBootAssets, HasLen, 0)
 	c.Check(newM.CurrentTrustedRecoveryBootAssets, HasLen, 0)
 
 	// verify that managed assets are to be preserved
-	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "managed-asset",
-		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
-	c.Assert(err, IsNil)
+	res = mylog.Check2(obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "managed-asset",
+		&gadget.ContentChange{After: filepath.Join(d, "foobar")}))
+
 	c.Check(res, Equals, gadget.ChangeIgnore)
-	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "managed-asset",
-		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
-	c.Assert(err, IsNil)
+	res = mylog.Check2(obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "managed-asset",
+		&gadget.ContentChange{After: filepath.Join(d, "foobar")}))
+
 	c.Check(res, Equals, gadget.ChangeIgnore)
 
 	// make sure that no reseal is triggered
@@ -2794,12 +2812,10 @@ func (s *assetsSuite) TestUpdateObserverUpdateMockedNonEncryption(c *C) {
 		return nil
 	})
 	defer restore()
+	mylog.Check(obs.BeforeWrite())
 
-	err = obs.BeforeWrite()
-	c.Assert(err, IsNil)
 	c.Check(resealCalls, Equals, 0)
+	mylog.Check(obs.Canceled())
 
-	err = obs.Canceled()
-	c.Assert(err, IsNil)
 	c.Check(resealCalls, Equals, 0)
 }

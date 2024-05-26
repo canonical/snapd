@@ -19,7 +19,11 @@
 
 package client
 
-import "time"
+import (
+	"time"
+
+	"github.com/ddkwork/golibrary/mylog"
+)
 
 // InternalConsoleConfStartResponse is the response from console-conf start
 // support
@@ -39,6 +43,6 @@ func (client *Client) InternalConsoleConfStart() ([]string, []string, error) {
 		Timeout: 2 * time.Second,
 		Retry:   1 * time.Hour,
 	}
-	_, err := client.doSyncWithOpts("POST", "/v2/internal/console-conf-start", nil, nil, nil, resp, opts)
+	_ := mylog.Check2(client.doSyncWithOpts("POST", "/v2/internal/console-conf-start", nil, nil, nil, resp, opts))
 	return resp.ActiveAutoRefreshChanges, resp.ActiveAutoRefreshSnaps, err
 }

@@ -28,6 +28,7 @@ import (
 	"gopkg.in/check.v1"
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/aspects"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/daemon"
@@ -70,8 +71,8 @@ func (s *aspectsSuite) setFeatureFlag(c *C) {
 	defer s.st.Unlock()
 
 	tr := config.NewTransaction(s.st)
-	err := tr.Set("core", confOption, true)
-	c.Assert(err, IsNil)
+	mylog.Check(tr.Set("core", confOption, true))
+
 	tr.Commit()
 }
 
@@ -98,7 +99,7 @@ func (s *aspectsSuite) TestGetAspect(c *C) {
 
 			return map[string]interface{}{"ssid": t.value}, nil
 		})
-		req, err := http.NewRequest("GET", "/v2/aspects/system/network/wifi-setup?fields=ssid", nil)
+		req := mylog.Check2(http.NewRequest("GET", "/v2/aspects/system/network/wifi-setup?fields=ssid", nil))
 		c.Assert(err, IsNil, cmt)
 
 		rspe := s.syncReq(c, req, nil)
@@ -119,15 +120,15 @@ func (s *aspectsSuite) TestAspectGetMany(c *C) {
 		case 1:
 			return map[string]interface{}{"ssid": "foo", "password": "bar"}, nil
 		default:
-			err := fmt.Errorf("expected 1 call, now on %d", calls)
+			mylog.Check(fmt.Errorf("expected 1 call, now on %d", calls))
 			c.Error(err)
 			return nil, err
 		}
 	})
 	defer restore()
 
-	req, err := http.NewRequest("GET", "/v2/aspects/system/network/wifi-setup?fields=ssid,password", nil)
-	c.Assert(err, IsNil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/aspects/system/network/wifi-setup?fields=ssid,password", nil))
+
 
 	rspe := s.syncReq(c, req, nil)
 	c.Check(rspe.Status, Equals, 200)
@@ -144,15 +145,15 @@ func (s *aspectsSuite) TestAspectGetSomeFieldNotFound(c *C) {
 		case 1:
 			return map[string]interface{}{"ssid": "foo"}, nil
 		default:
-			err := fmt.Errorf("expected 1 call, now on %d", calls)
+			mylog.Check(fmt.Errorf("expected 1 call, now on %d", calls))
 			c.Error(err)
 			return nil, err
 		}
 	})
 	defer restore()
 
-	req, err := http.NewRequest("GET", "/v2/aspects/system/network/wifi-setup?fields=ssid,password", nil)
-	c.Assert(err, IsNil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/aspects/system/network/wifi-setup?fields=ssid,password", nil))
+
 
 	rspe := s.syncReq(c, req, nil)
 	c.Check(rspe.Status, Equals, 200)
@@ -176,15 +177,15 @@ func (s *aspectsSuite) TestGetAspectNoFieldsFound(c *C) {
 				Cause:      "mocked",
 			}
 		default:
-			err := fmt.Errorf("expected 1 call to Get, now on %d", calls)
+			mylog.Check(fmt.Errorf("expected 1 call to Get, now on %d", calls))
 			c.Error(err)
 			return nil, err
 		}
 	})
 	defer restore()
 
-	req, err := http.NewRequest("GET", "/v2/aspects/system/network/wifi-setup?fields=ssid,password", nil)
-	c.Assert(err, IsNil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/aspects/system/network/wifi-setup?fields=ssid,password", nil))
+
 
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe.Status, Equals, 404)
@@ -199,8 +200,8 @@ func (s *aspectsSuite) TestAspectGetDatabagNotFound(c *C) {
 	})
 	defer restore()
 
-	req, err := http.NewRequest("GET", "/v2/aspects/foo/network/wifi-setup?fields=ssid", nil)
-	c.Assert(err, IsNil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/aspects/foo/network/wifi-setup?fields=ssid", nil))
+
 
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe.Status, Equals, 404)
@@ -211,8 +212,8 @@ func (s *aspectsSuite) TestAspectSetManyWithExistingState(c *C) {
 	s.st.Lock()
 
 	databag := aspects.NewJSONDataBag()
-	err := databag.Set("wifi.ssid", "foo")
-	c.Assert(err, IsNil)
+	mylog.Check(databag.Set("wifi.ssid", "foo"))
+
 
 	databags := map[string]map[string]aspects.JSONDataBag{
 		"system": {"network": databag},
@@ -250,14 +251,14 @@ func (s *aspectsSuite) testAspectSetMany(c *C) {
 			c.Check(requests, DeepEquals, map[string]interface{}{"ssid": "foo", "password": nil})
 
 			bag := aspects.NewJSONDataBag()
-			err := bag.Set("wifi.ssid", "foo")
+			mylog.Check(bag.Set("wifi.ssid", "foo"))
 			c.Check(err, IsNil)
-			err = bag.Unset("wifi.psk")
+			mylog.Check(bag.Unset("wifi.psk"))
 			c.Check(err, IsNil)
 
 			st.Set("aspect-databags", map[string]map[string]aspects.JSONDataBag{account: {bundle: bag}})
 		default:
-			err := fmt.Errorf("expected 1 call, now on %d", calls)
+			mylog.Check(fmt.Errorf("expected 1 call, now on %d", calls))
 			c.Error(err)
 			return err
 		}
@@ -267,8 +268,8 @@ func (s *aspectsSuite) testAspectSetMany(c *C) {
 	defer restore()
 
 	buf := bytes.NewBufferString(`{"ssid": "foo", "password": null}`)
-	req, err := http.NewRequest("PUT", "/v2/aspects/system/network/wifi-setup", buf)
-	c.Assert(err, IsNil)
+	req := mylog.Check2(http.NewRequest("PUT", "/v2/aspects/system/network/wifi-setup", buf))
+
 
 	rspe := s.asyncReq(c, req, nil)
 	c.Check(rspe.Status, Equals, 202)
@@ -283,14 +284,14 @@ func (s *aspectsSuite) testAspectSetMany(c *C) {
 	c.Check(chg.Status(), Equals, state.DoneStatus)
 
 	var databags map[string]map[string]aspects.JSONDataBag
-	err = st.Get("aspect-databags", &databags)
-	c.Assert(err, IsNil)
+	mylog.Check(st.Get("aspect-databags", &databags))
 
-	value, err := databags["system"]["network"].Get("wifi.ssid")
-	c.Assert(err, IsNil)
+
+	value := mylog.Check2(databags["system"]["network"].Get("wifi.ssid"))
+
 	c.Assert(value, Equals, "foo")
 
-	value, err = databags["system"]["network"].Get("wifi.psk")
+	value = mylog.Check2(databags["system"]["network"].Get("wifi.psk"))
 	c.Assert(err, FitsTypeOf, aspects.PathError(""))
 	c.Assert(value, IsNil)
 }
@@ -312,7 +313,7 @@ func (s *aspectsSuite) TestGetAspectError(c *C) {
 			return nil, t.err
 		})
 
-		req, err := http.NewRequest("GET", "/v2/aspects/system/network/wifi-setup?fields=ssid", nil)
+		req := mylog.Check2(http.NewRequest("GET", "/v2/aspects/system/network/wifi-setup?fields=ssid", nil))
 		c.Assert(err, IsNil, Commentf("%s test", t.name))
 
 		rspe := s.errorReq(c, req, nil)
@@ -332,15 +333,15 @@ func (s *aspectsSuite) TestGetAspectMisshapenQuery(c *C) {
 			c.Check(fields, DeepEquals, []string{"foo.bar", "[1].foo", "foo"})
 			return map[string]interface{}{"a": 1}, nil
 		default:
-			err := fmt.Errorf("expected 1 call, now on %d", calls)
+			mylog.Check(fmt.Errorf("expected 1 call, now on %d", calls))
 			c.Error(err)
 			return nil, err
 		}
 	})
 	defer restore()
 
-	req, err := http.NewRequest("GET", "/v2/aspects/system/network/wifi-setup?fields=,foo.bar,,[1].foo,foo,", nil)
-	c.Assert(err, IsNil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/aspects/system/network/wifi-setup?fields=,foo.bar,,[1].foo,foo,", nil))
+
 
 	rsp := s.syncReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 200)
@@ -369,17 +370,17 @@ func (s *aspectsSuite) TestSetAspect(c *C) {
 			c.Check(requests, DeepEquals, map[string]interface{}{"ssid": t.value}, cmt)
 
 			bag := aspects.NewJSONDataBag()
-			err := bag.Set("wifi.ssid", t.value)
+			mylog.Check(bag.Set("wifi.ssid", t.value))
 			c.Check(err, IsNil)
 			st.Set("aspect-databags", map[string]map[string]aspects.JSONDataBag{acc: {bundleName: bag}})
 
 			return nil
 		})
-		jsonVal, err := json.Marshal(t.value)
+		jsonVal := mylog.Check2(json.Marshal(t.value))
 		c.Check(err, IsNil, cmt)
 
 		buf := bytes.NewBufferString(fmt.Sprintf(`{"ssid": %s}`, jsonVal))
-		req, err := http.NewRequest("PUT", "/v2/aspects/system/network/wifi-setup", buf)
+		req := mylog.Check2(http.NewRequest("PUT", "/v2/aspects/system/network/wifi-setup", buf))
 		c.Check(err, IsNil, cmt)
 		req.Header.Set("Content-Type", "application/json")
 
@@ -398,12 +399,12 @@ func (s *aspectsSuite) TestSetAspect(c *C) {
 		c.Check(chg.Status(), Equals, state.DoneStatus)
 
 		var databags map[string]map[string]aspects.JSONDataBag
-		err = st.Get("aspect-databags", &databags)
+		mylog.Check(st.Get("aspect-databags", &databags))
 		st.Unlock()
-		c.Assert(err, IsNil)
 
-		value, err := databags["system"]["network"].Get("wifi.ssid")
-		c.Assert(err, IsNil)
+
+		value := mylog.Check2(databags["system"]["network"].Get("wifi.ssid"))
+
 		c.Assert(value, DeepEquals, t.value)
 
 		restore()
@@ -423,8 +424,8 @@ func (s *aspectsSuite) TestUnsetAspect(c *C) {
 	defer restore()
 
 	buf := bytes.NewBufferString(`{"ssid": null}`)
-	req, err := http.NewRequest("PUT", "/v2/aspects/system/network/wifi-setup", buf)
-	c.Assert(err, IsNil)
+	req := mylog.Check2(http.NewRequest("PUT", "/v2/aspects/system/network/wifi-setup", buf))
+
 	req.Header.Set("Content-Type", "application/json")
 
 	rspe := s.asyncReq(c, req, nil)
@@ -459,7 +460,7 @@ func (s *aspectsSuite) TestSetAspectError(c *C) {
 		cmt := Commentf("%s test", t.name)
 
 		buf := bytes.NewBufferString(`{"ssid": null}`)
-		req, err := http.NewRequest("PUT", "/v2/aspects/system/network/wifi-setup", buf)
+		req := mylog.Check2(http.NewRequest("PUT", "/v2/aspects/system/network/wifi-setup", buf))
 		c.Assert(err, IsNil, cmt)
 		req.Header.Set("Content-Type", "application/json")
 
@@ -473,15 +474,15 @@ func (s *aspectsSuite) TestSetAspectEmptyBody(c *C) {
 	s.setFeatureFlag(c)
 
 	restore := daemon.MockAspectstateSet(func(*state.State, string, string, string, map[string]interface{}) error {
-		err := errors.New("unexpected call to aspectstate.Set")
+		mylog.Check(errors.New("unexpected call to aspectstate.Set"))
 		c.Error(err)
 		return err
 	})
 	defer restore()
 
-	req, err := http.NewRequest("PUT", "/v2/aspects/system/network/wifi-setup", &bytes.Buffer{})
+	req := mylog.Check2(http.NewRequest("PUT", "/v2/aspects/system/network/wifi-setup", &bytes.Buffer{}))
 	req.Header.Set("Content-Type", "application/json")
-	c.Assert(err, IsNil)
+
 
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe.Status, Equals, 400)
@@ -491,8 +492,8 @@ func (s *aspectsSuite) TestSetAspectBadRequest(c *C) {
 	s.setFeatureFlag(c)
 
 	buf := bytes.NewBufferString(`{`)
-	req, err := http.NewRequest("PUT", "/v2/aspects/system/network/wifi-setup", buf)
-	c.Assert(err, IsNil)
+	req := mylog.Check2(http.NewRequest("PUT", "/v2/aspects/system/network/wifi-setup", buf))
+
 
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe.Status, Equals, 400)
@@ -514,8 +515,8 @@ func (s *aspectsSuite) TestGetBadRequest(c *C) {
 	})
 	defer restore()
 
-	req, err := http.NewRequest("GET", "/v2/aspects/acc/bundle/foo?fields=foo", &bytes.Buffer{})
-	c.Assert(err, IsNil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/aspects/acc/bundle/foo?fields=foo", &bytes.Buffer{}))
+
 
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe.Status, Equals, 400)
@@ -539,9 +540,9 @@ func (s *aspectsSuite) TestSetBadRequest(c *C) {
 	defer restore()
 
 	buf := bytes.NewBufferString(`{"a.b.c": "foo"}`)
-	req, err := http.NewRequest("PUT", "/v2/aspects/acc/bundle/foo", buf)
+	req := mylog.Check2(http.NewRequest("PUT", "/v2/aspects/acc/bundle/foo", buf))
 	req.Header.Set("Content-Type", "application/json")
-	c.Assert(err, IsNil)
+
 
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe.Status, Equals, 400)
@@ -551,16 +552,16 @@ func (s *aspectsSuite) TestSetBadRequest(c *C) {
 
 func (s *aspectsSuite) TestSetFailUnsetFeatureFlag(c *C) {
 	restore := daemon.MockAspectstateSet(func(*state.State, string, string, string, map[string]interface{}) error {
-		err := fmt.Errorf("unexpected call to aspectstate")
+		mylog.Check(fmt.Errorf("unexpected call to aspectstate"))
 		c.Error(err)
 		return err
 	})
 	defer restore()
 
 	buf := bytes.NewBufferString(`{"a.b.c": "foo"}`)
-	req, err := http.NewRequest("PUT", "/v2/aspects/acc/bundle/foo", buf)
+	req := mylog.Check2(http.NewRequest("PUT", "/v2/aspects/acc/bundle/foo", buf))
 	req.Header.Set("Content-Type", "application/json")
-	c.Assert(err, IsNil)
+
 
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe.Status, Equals, 400)
@@ -570,14 +571,14 @@ func (s *aspectsSuite) TestSetFailUnsetFeatureFlag(c *C) {
 
 func (s *aspectsSuite) TestGetFailUnsetFeatureFlag(c *C) {
 	restore := daemon.MockAspectstateSet(func(*state.State, string, string, string, map[string]interface{}) error {
-		err := fmt.Errorf("unexpected call to aspectstate")
+		mylog.Check(fmt.Errorf("unexpected call to aspectstate"))
 		c.Error(err)
 		return err
 	})
 	defer restore()
 
-	req, err := http.NewRequest("GET", "/v2/aspects/acc/bundle/foo?fields=my-field", nil)
-	c.Assert(err, IsNil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/aspects/acc/bundle/foo?fields=my-field", nil))
+
 
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe.Status, Equals, 400)
@@ -595,8 +596,8 @@ func (s *aspectsSuite) TestGetNoFields(c *C) {
 	})
 	defer restore()
 
-	req, err := http.NewRequest("GET", "/v2/aspects/acc/bundle/foo", nil)
-	c.Assert(err, IsNil)
+	req := mylog.Check2(http.NewRequest("GET", "/v2/aspects/acc/bundle/foo", nil))
+
 
 	rspe := s.syncReq(c, req, nil)
 	c.Check(rspe.Status, Equals, 200)

@@ -30,6 +30,7 @@ import (
 	"golang.org/x/xerrors"
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/snap"
 )
@@ -124,7 +125,7 @@ func (cs *clientSuite) TestClientSnapsInvalidSnapsJSON(c *check.C) {
 		"type": "sync",
 		"result": "not a list of snaps"
 	}`
-	_, err := cs.cli.List(nil, nil)
+	_ := mylog.Check2(cs.cli.List(nil, nil))
 	c.Check(err, check.ErrorMatches, `.*cannot unmarshal.*`)
 }
 
@@ -134,14 +135,14 @@ func (cs *clientSuite) TestClientNoSnaps(c *check.C) {
 		"result": [],
 		"suggested-currency": "GBP"
 	}`
-	_, err := cs.cli.List(nil, nil)
+	_ := mylog.Check2(cs.cli.List(nil, nil))
 	c.Check(err, check.Equals, client.ErrNoSnapsInstalled)
-	_, err = cs.cli.List([]string{"foo"}, nil)
+	_ = mylog.Check2(cs.cli.List([]string{"foo"}, nil))
 	c.Check(err, check.Equals, client.ErrNoSnapsInstalled)
 }
 
 func (cs *clientSuite) TestClientSnaps(c *check.C) {
-	healthTimestamp, err := time.Parse(time.RFC3339Nano, "2019-05-13T16:27:01.475851677+01:00")
+	healthTimestamp := mylog.Check2(time.Parse(time.RFC3339Nano, "2019-05-13T16:27:01.475851677+01:00"))
 	c.Assert(err, check.IsNil)
 
 	// TODO: update this JSON as it's ancient
@@ -179,7 +180,7 @@ func (cs *clientSuite) TestClientSnaps(c *check.C) {
 		}],
 		"suggested-currency": "GBP"
 	}`
-	applications, err := cs.cli.List(nil, nil)
+	applications := mylog.Check2(cs.cli.List(nil, nil))
 	c.Check(err, check.IsNil)
 	c.Check(applications, check.DeepEquals, []*client.Snap{{
 		ID:           "funky-snap-id",
@@ -300,7 +301,7 @@ func (cs *clientSuite) testClientSnap(c *check.C, refreshInhibited bool) {
 	cs.rsp += `
 		}
 	}`
-	pkg, _, err := cs.cli.Snap(pkgName)
+	pkg, _ := mylog.Check3(cs.cli.Snap(pkgName))
 	c.Assert(cs.req.Method, check.Equals, "GET")
 	c.Assert(cs.req.URL.Path, check.Equals, fmt.Sprintf("/v2/snaps/%s", pkgName))
 	c.Assert(err, check.IsNil)
@@ -370,7 +371,7 @@ func (cs *clientSuite) TestClientSnapRefreshInhibited(c *check.C) {
 }
 
 func (cs *clientSuite) TestAppInfoNoServiceNoDaemon(c *check.C) {
-	buf, err := json.MarshalIndent(client.AppInfo{Name: "hello"}, "\t", "\t")
+	buf := mylog.Check2(json.MarshalIndent(client.AppInfo{Name: "hello"}, "\t", "\t"))
 	c.Assert(err, check.IsNil)
 	c.Check(string(buf), check.Equals, `{
 		"name": "hello"
@@ -378,13 +379,13 @@ func (cs *clientSuite) TestAppInfoNoServiceNoDaemon(c *check.C) {
 }
 
 func (cs *clientSuite) TestAppInfoServiceDaemon(c *check.C) {
-	buf, err := json.MarshalIndent(client.AppInfo{
+	buf := mylog.Check2(json.MarshalIndent(client.AppInfo{
 		Snap:    "foo",
 		Name:    "hello",
 		Daemon:  "daemon",
 		Enabled: true,
 		Active:  false,
-	}, "\t", "\t")
+	}, "\t", "\t"))
 	c.Assert(err, check.IsNil)
 	c.Check(string(buf), check.Equals, `{
 		"snap": "foo",
@@ -423,21 +424,21 @@ func (cs *clientSuite) TestAppInfoDaemonIsService(c *check.C) {
 
 func (cs *clientSuite) TestClientSectionsErrIsWrapped(c *check.C) {
 	cs.err = errors.New("boom")
-	_, err := cs.cli.Sections()
+	_ := mylog.Check2(cs.cli.Sections())
 	var e xerrors.Wrapper
 	c.Assert(err, check.Implements, &e)
 }
 
 func (cs *clientSuite) TestClientCategoriesErrIsWrapped(c *check.C) {
 	cs.err = errors.New("boom")
-	_, err := cs.cli.Categories()
+	_ := mylog.Check2(cs.cli.Categories())
 	var e xerrors.Wrapper
 	c.Assert(err, check.Implements, &e)
 }
 
 func (cs *clientSuite) TestClientFindOneErrIsWrapped(c *check.C) {
 	cs.err = errors.New("boom")
-	_, _, err := cs.cli.FindOne("snap")
+	_, _ := mylog.Check3(cs.cli.FindOne("snap"))
 	var e xerrors.Wrapper
 	c.Assert(err, check.Implements, &e)
 }
@@ -445,26 +446,27 @@ func (cs *clientSuite) TestClientFindOneErrIsWrapped(c *check.C) {
 func (cs *clientSuite) TestClientSnapErrIsWrapped(c *check.C) {
 	// setting cs.err will trigger a "client.ClientError"
 	cs.err = errors.New("boom")
-	_, _, err := cs.cli.Snap("snap")
+	_, _ := mylog.Check3(cs.cli.Snap("snap"))
 	var e xerrors.Wrapper
 	c.Assert(err, check.Implements, &e)
 }
 
 func (cs *clientSuite) TestClientFindFromPathErrIsWrapped(c *check.C) {
 	var e client.AuthorizationError
+	mylog.
 
-	// this will trigger a "client.AuthorizationError"
-	err := os.WriteFile(client.TestStoreAuthFilename(os.Getenv("HOME")), []byte("rubbish"), 0644)
+		// this will trigger a "client.AuthorizationError"
+		Check(os.WriteFile(client.TestStoreAuthFilename(os.Getenv("HOME")), []byte("rubbish"), 0644))
 	c.Assert(err, check.IsNil)
 
 	// check that all the functions that use snapsFromPath() get a
 	// wrapped error
-	_, _, err = cs.cli.FindOne("snap")
+	_, _ = mylog.Check3(cs.cli.FindOne("snap"))
 	c.Assert(xerrors.As(err, &e), check.Equals, true)
 
-	_, _, err = cs.cli.Find(nil)
+	_, _ = mylog.Check3(cs.cli.Find(nil))
 	c.Assert(xerrors.As(err, &e), check.Equals, true)
 
-	_, err = cs.cli.List([]string{"snap"}, nil)
+	_ = mylog.Check2(cs.cli.List([]string{"snap"}, nil))
 	c.Assert(xerrors.As(err, &e), check.Equals, true)
 }

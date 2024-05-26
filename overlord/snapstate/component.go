@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
@@ -38,23 +39,16 @@ import (
 // full metadata in which case the component will appear as installed from the
 // store.
 func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *snap.Info,
-	path string, flags Flags) (*state.TaskSet, error) {
+	path string, flags Flags,
+) (*state.TaskSet, error) {
 	var snapst SnapState
-	// owner snap must be already installed
-	err := Get(st, info.InstanceName(), &snapst)
-	if err != nil {
-		if errors.Is(err, state.ErrNoState) {
-			return nil, &snap.NotInstalledError{Snap: info.InstanceName()}
-		}
-		return nil, err
-	}
+	mylog.
+		// owner snap must be already installed
+		Check(Get(st, info.InstanceName(), &snapst))
 
 	// Read ComponentInfo and verify that the component is consistent with the
 	// data in the snap info
-	compInfo, _, err := backend.OpenComponentFile(path, info)
-	if err != nil {
-		return nil, err
-	}
+	compInfo, _ := mylog.Check3(backend.OpenComponentFile(path, info))
 
 	snapsup := &SnapSetup{
 		Base:        info.Base,
@@ -79,8 +73,8 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *sn
 
 // doInstallComponent might be called with the owner snap installed or not.
 func doInstallComponent(st *state.State, snapst *SnapState, compSetup *ComponentSetup,
-	snapsup *SnapSetup, path string, removeComponentPath bool, fromChange string) (*state.TaskSet, error) {
-
+	snapsup *SnapSetup, path string, removeComponentPath bool, fromChange string,
+) (*state.TaskSet, error) {
 	// TODO check for experimental flag that will hide temporarily components
 
 	snapSi := snapsup.SideInfo
@@ -90,13 +84,12 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup *Component
 		return nil, fmt.Errorf("cannot install component %q for disabled snap %q",
 			compSi.Component, snapSi.RealName)
 	}
+	mylog.Check(
 
-	// For the moment we consider the same conflicts as if the component
-	// was actually the snap.
-	if err := checkChangeConflictIgnoringOneChange(st, snapsup.InstanceName(),
-		snapst, fromChange); err != nil {
-		return nil, err
-	}
+		// For the moment we consider the same conflicts as if the component
+		// was actually the snap.
+		checkChangeConflictIgnoringOneChange(st, snapsup.InstanceName(),
+			snapst, fromChange))
 
 	// Check if we already have the revision in the snaps folder (alters tasks).
 	// Note that this will search for all snap revisions in the system.
@@ -138,14 +131,13 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup *Component
 		addTask(mount)
 	} else {
 		if removeComponentPath {
-			// If the revision is local, we will not need the
-			// temporary snap. This can happen when e.g.
-			// side-loading a local revision again. The path is
-			// only needed in the "mount-snap" handler and that is
-			// skipped for local revisions.
-			if err := os.Remove(path); err != nil {
-				return nil, err
-			}
+			mylog.Check(
+				// If the revision is local, we will not need the
+				// temporary snap. This can happen when e.g.
+				// side-loading a local revision again. The path is
+				// only needed in the "mount-snap" handler and that is
+				// skipped for local revisions.
+				os.Remove(path))
 		}
 	}
 

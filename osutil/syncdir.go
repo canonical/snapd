@@ -26,6 +26,8 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 // FileState is an interface for conveying the desired state of a some file.
@@ -49,14 +51,10 @@ type FileReference struct {
 
 // State returns a reader of the referenced file, along with other meta-data.
 func (fref FileReference) State() (io.ReadCloser, int64, os.FileMode, error) {
-	file, err := os.Open(fref.Path)
-	if err != nil {
-		return nil, 0, os.FileMode(0), err
-	}
-	fi, err := file.Stat()
-	if err != nil {
-		return nil, 0, os.FileMode(0), err
-	}
+	file := mylog.Check2(os.Open(fref.Path))
+
+	fi := mylog.Check2(file.Stat())
+
 	if !fi.Mode().IsRegular() {
 		return nil, 0, os.FileMode(0), fmt.Errorf("internal error: only regular files are supported, got %q instead", fi.Mode().Type())
 	}
@@ -71,10 +69,8 @@ type FileReferencePlusMode struct {
 
 // State returns a reader of the referenced file, substituting the mode.
 func (fcref FileReferencePlusMode) State() (io.ReadCloser, int64, os.FileMode, error) {
-	reader, size, _, err := fcref.FileReference.State()
-	if err != nil {
-		return nil, 0, os.FileMode(0), err
-	}
+	reader, size, _ := mylog.Check4(fcref.FileReference.State())
+
 	if !fcref.Mode.IsRegular() {
 		return nil, 0, os.FileMode(0), fmt.Errorf("internal error: only regular files are supported, got %q instead", fcref.Mode.Type())
 	}
@@ -126,14 +122,13 @@ var ErrSameState = fmt.Errorf("file state has not changed")
 // In all cases, the function returns the first error it has encountered.
 func EnsureDirStateGlobs(dir string, globs []string, content map[string]FileState) (changed, removed []string, err error) {
 	// Check syntax before doing anything.
-	if _, index, err := matchAny(globs, "foo"); err != nil {
-		return nil, nil, fmt.Errorf("internal error: EnsureDirState got invalid pattern %q: %s", globs[index], err)
-	}
+	_, index := mylog.Check3(matchAny(globs, "foo"))
+
 	for baseName := range content {
 		if filepath.Base(baseName) != baseName {
 			return nil, nil, fmt.Errorf("internal error: EnsureDirState got filename %q which has a path component", baseName)
 		}
-		if ok, _, _ := matchAny(globs, baseName); !ok {
+		if ok, _ := mylog.Check3(matchAny(globs, baseName)); !ok {
 			if len(globs) == 1 {
 				return nil, nil, fmt.Errorf("internal error: EnsureDirState got filename %q which doesn't match the glob pattern %q", baseName, globs[0])
 			}
@@ -144,30 +139,23 @@ func EnsureDirStateGlobs(dir string, globs []string, content map[string]FileStat
 	var firstErr error
 	for baseName, fileState := range content {
 		filePath := filepath.Join(dir, baseName)
-		err := EnsureFileState(filePath, fileState)
+		mylog.Check(EnsureFileState(filePath, fileState))
 		if err == ErrSameState {
 			continue
 		}
-		if err != nil {
-			// On write failure, switch to erase mode. Desired content is set
-			// to nothing (no content) changed files are forgotten and the
-			// writing loop stops. The subsequent erase loop will remove all
-			// the managed content.
-			firstErr = err
-			content = nil
-			changed = nil
-			break
-		}
+
+		// On write failure, switch to erase mode. Desired content is set
+		// to nothing (no content) changed files are forgotten and the
+		// writing loop stops. The subsequent erase loop will remove all
+		// the managed content.
+
 		changed = append(changed, baseName)
 	}
 	// Delete phase (remove files matching the glob that are not in content)
 	matches := make(map[string]bool)
 	for _, glob := range globs {
-		m, err := filepath.Glob(filepath.Join(dir, glob))
-		if err != nil {
-			sort.Strings(changed)
-			return changed, nil, err
-		}
+		m := mylog.Check2(filepath.Glob(filepath.Join(dir, glob)))
+
 		for _, path := range m {
 			matches[path] = true
 		}
@@ -178,13 +166,8 @@ func EnsureDirStateGlobs(dir string, globs []string, content map[string]FileStat
 		if content[baseName] != nil {
 			continue
 		}
-		err := os.Remove(path)
-		if err != nil {
-			if firstErr == nil {
-				firstErr = err
-			}
-			continue
-		}
+		mylog.Check(os.Remove(path))
+
 		removed = append(removed, baseName)
 	}
 	sort.Strings(changed)
@@ -194,7 +177,7 @@ func EnsureDirStateGlobs(dir string, globs []string, content map[string]FileStat
 
 func matchAny(globs []string, path string) (ok bool, index int, err error) {
 	for index, glob := range globs {
-		if ok, err := filepath.Match(glob, path); ok || err != nil {
+		if ok := mylog.Check2(filepath.Match(glob, path)); ok || err != nil {
 			return ok, index, err
 		}
 	}
@@ -213,20 +196,14 @@ func regularFileStateEqualTo(filePath string, state FileState) (bool, error) {
 	other := &FileReference{Path: filePath}
 
 	// Open views to both files so that we can compare them.
-	readerA, sizeA, modeA, err := state.State()
-	if err != nil {
-		return false, err
-	}
+	readerA, sizeA, modeA := mylog.Check4(state.State())
+
 	defer readerA.Close()
 
-	readerB, sizeB, modeB, err := other.State()
-	if err != nil {
-		if os.IsNotExist(err) {
-			// Not existing is not an error
-			return false, nil
-		}
-		return false, err
-	}
+	readerB, sizeB, modeB := mylog.Check4(other.State())
+
+	// Not existing is not an error
+
 	defer readerB.Close()
 
 	// If the files have different size or different mode they are not
@@ -241,70 +218,49 @@ func regularFileStateEqualTo(filePath string, state FileState) (bool, error) {
 }
 
 func ensureRegularFileState(filePath string, state FileState) error {
-	equal, err := regularFileStateEqualTo(filePath, state)
-	if err != nil {
-		return err
-	}
+	equal := mylog.Check2(regularFileStateEqualTo(filePath, state))
+
 	if equal {
 		// Return a special error if the file doesn't need to be changed
 		return ErrSameState
 	}
-	reader, _, mode, err := state.State()
-	if err != nil {
-		return err
-	}
+	reader, _, mode := mylog.Check4(state.State())
+
 	return AtomicWrite(filePath, reader, mode, 0)
 }
 
 // symlinkFileStateEqualTo returns whether the symlink exists in the expected state.
 func symlinkFileStateEqualTo(filePath string, state FileState) (bool, error) {
-	readerA, _, _, err := state.State()
-	if err != nil {
-		return false, err
-	}
+	readerA, _, _ := mylog.Check4(state.State())
+
 	defer readerA.Close()
-	buf, err := io.ReadAll(readerA)
-	if err != nil {
-		return false, err
-	}
+	buf := mylog.Check2(io.ReadAll(readerA))
+
 	targetA := string(buf)
 
-	other, err := os.Lstat(filePath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			// Not existing is not an error
-			return false, nil
-		}
-		return false, err
-	}
+	other := mylog.Check2(os.Lstat(filePath))
+
+	// Not existing is not an error
+
 	if other.Mode().Type() != os.ModeSymlink {
 		return false, nil
 	}
-	targetB, err := os.Readlink(filePath)
-	if err != nil {
-		return false, err
-	}
+	targetB := mylog.Check2(os.Readlink(filePath))
 
 	return targetA == targetB, nil
 }
 
 func ensureSymlinkFileState(filePath string, state FileState) error {
-	equal, err := symlinkFileStateEqualTo(filePath, state)
-	if err != nil {
-		return err
-	}
+	equal := mylog.Check2(symlinkFileStateEqualTo(filePath, state))
+
 	if equal {
 		// Return a special error if the file doesn't need to be changed
 		return ErrSameState
 	}
-	reader, _, _, err := state.State()
-	if err != nil {
-		return err
-	}
-	buf, err := io.ReadAll(reader)
-	if err != nil {
-		return err
-	}
+	reader, _, _ := mylog.Check4(state.State())
+
+	buf := mylog.Check2(io.ReadAll(reader))
+
 	target := string(buf)
 	return AtomicSymlink(target, filePath)
 }
@@ -312,10 +268,8 @@ func ensureSymlinkFileState(filePath string, state FileState) error {
 // EnsureFileState ensures that the file is in the expected state. It will not
 // attempt to remove the file if no content is provided.
 func EnsureFileState(filePath string, state FileState) error {
-	_, _, mode, err := state.State()
-	if err != nil {
-		return err
-	}
+	_, _, mode := mylog.Check4(state.State())
+
 	switch {
 	case mode.IsRegular():
 		return ensureRegularFileState(filePath, state)

@@ -25,6 +25,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"os"
+
+	"github.com/ddkwork/golibrary/mylog"
 )
 
 var osReadlink = os.Readlink
@@ -48,7 +50,7 @@ const (
 // ReadBuildID returns the build ID of a given binary. GNU BuildID is is
 // preferred over Go BuildID. Returns an error when neither is found.
 func ReadBuildID(fname string) (string, error) {
-	if buildId, err := readGenericBuildID(fname, gnuElfNote, gnuHdrType); err == nil {
+	if buildId := mylog.Check2(readGenericBuildID(fname, gnuElfNote, gnuHdrType)); err == nil {
 		return buildId, nil
 	}
 	return readGenericBuildID(fname, goElfNote, goHdrType)
@@ -56,10 +58,8 @@ func ReadBuildID(fname string) (string, error) {
 
 func readGenericBuildID(fname, elfNote string, hdrType uint32) (string, error) {
 	// Open the designated ELF file
-	f, err := elf.Open(fname)
-	if err != nil {
-		return "", err
-	}
+	f := mylog.Check2(elf.Open(fname))
+
 	defer f.Close()
 
 	for _, section := range f.Sections {
@@ -75,9 +75,7 @@ func readGenericBuildID(fname, elfNote string, hdrType uint32) (string, error) {
 
 		// Read the ELF Note header
 		nHdr := new(elfNoteHeader)
-		if err := binary.Read(sr, f.ByteOrder, nHdr); err != nil {
-			return "", err
-		}
+		mylog.Check(binary.Read(sr, f.ByteOrder, nHdr))
 
 		// We are looking for a specific type of note
 		if nHdr.Type != hdrType {
@@ -86,9 +84,7 @@ func readGenericBuildID(fname, elfNote string, hdrType uint32) (string, error) {
 
 		// Read note name
 		noteName := make([]byte, nHdr.Namesz)
-		if err := binary.Read(sr, f.ByteOrder, noteName); err != nil {
-			return "", err
-		}
+		mylog.Check(binary.Read(sr, f.ByteOrder, noteName))
 
 		// We are only interested in GNU build IDs
 		if string(noteName) != elfNote {
@@ -97,9 +93,7 @@ func readGenericBuildID(fname, elfNote string, hdrType uint32) (string, error) {
 
 		// Read note data
 		noteData := make([]byte, nHdr.Descsz)
-		if err := binary.Read(sr, f.ByteOrder, noteData); err != nil {
-			return "", err
-		}
+		mylog.Check(binary.Read(sr, f.ByteOrder, noteData))
 
 		// Return the first build-id we manage to find
 		return hex.EncodeToString(noteData), nil
@@ -109,10 +103,7 @@ func readGenericBuildID(fname, elfNote string, hdrType uint32) (string, error) {
 
 // MyBuildID return the build-id of the currently running executable
 func MyBuildID() (string, error) {
-	exe, err := osReadlink("/proc/self/exe")
-	if err != nil {
-		return "", err
-	}
+	exe := mylog.Check2(osReadlink("/proc/self/exe"))
 
 	return ReadBuildID(exe)
 }

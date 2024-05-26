@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/dbus"
@@ -81,7 +82,7 @@ func (s *TestInterfaceSuite) TestBeforeConnectPlugError(c *C) {
 			return fmt.Errorf("plug validation failed")
 		},
 	}
-	err := iface.BeforeConnectPlug(s.plug)
+	mylog.Check(iface.BeforeConnectPlug(s.plug))
 	c.Assert(err, ErrorMatches, "plug validation failed")
 }
 
@@ -92,7 +93,7 @@ func (s *TestInterfaceSuite) TestBeforeConnectSlotError(c *C) {
 			return fmt.Errorf("slot validation failed")
 		},
 	}
-	err := iface.BeforeConnectSlot(s.slot)
+	mylog.Check(iface.BeforeConnectSlot(s.slot))
 	c.Assert(err, ErrorMatches, "slot validation failed")
 }
 
@@ -183,7 +184,7 @@ func (s *TestInterfaceSuite) TestHotplugKeyError(c *C) {
 	c.Assert(iface.Name(), Equals, "test")
 
 	dev := &hotplug.HotplugDeviceInfo{}
-	key, err := iface.HotplugKey(dev)
+	key := mylog.Check2(iface.HotplugKey(dev))
 	c.Assert(err, ErrorMatches, "error")
 	c.Assert(key, DeepEquals, snap.HotplugKey(""))
 }
@@ -203,8 +204,8 @@ func (s *TestInterfaceSuite) TestHotplugKeyOK(c *C) {
 	c.Assert(ok, Equals, true)
 
 	dev := &hotplug.HotplugDeviceInfo{}
-	key, err := hotplugIface.HotplugKey(dev)
-	c.Assert(err, IsNil)
+	key := mylog.Check2(hotplugIface.HotplugKey(dev))
+
 	c.Assert(key, DeepEquals, snap.HotplugKey("key"))
 }
 
@@ -219,8 +220,8 @@ func (s *TestInterfaceSuite) TestHotplugDeviceDetectedOK(c *C) {
 	}
 
 	dev := &hotplug.HotplugDeviceInfo{}
-	slot, err := iface.HotplugDeviceDetected(dev)
-	c.Assert(err, IsNil)
+	slot := mylog.Check2(iface.HotplugDeviceDetected(dev))
+
 	c.Assert(slot.Name, Equals, "slot")
 }
 
@@ -234,6 +235,6 @@ func (s *TestInterfaceSuite) TestHotplugDeviceDetectedError(c *C) {
 		},
 	}
 	dev := &hotplug.HotplugDeviceInfo{}
-	_, err := iface.HotplugDeviceDetected(dev)
+	_ := mylog.Check2(iface.HotplugDeviceDetected(dev))
 	c.Assert(err, ErrorMatches, "error")
 }

@@ -29,6 +29,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/client"
 	snap "github.com/snapcore/snapd/cmd/snap"
 	snaplib "github.com/snapcore/snapd/snap"
@@ -37,21 +38,23 @@ import (
 	"github.com/snapcore/snapd/timeutil"
 )
 
-var cmdAppInfos = []client.AppInfo{{Name: "app1"}, {Name: "app2"}}
-var svcAppInfos = []client.AppInfo{
-	{
-		Name:    "svc1",
-		Daemon:  "simple",
-		Enabled: false,
-		Active:  true,
-	},
-	{
-		Name:    "svc2",
-		Daemon:  "simple",
-		Enabled: true,
-		Active:  false,
-	},
-}
+var (
+	cmdAppInfos = []client.AppInfo{{Name: "app1"}, {Name: "app2"}}
+	svcAppInfos = []client.AppInfo{
+		{
+			Name:    "svc1",
+			Daemon:  "simple",
+			Enabled: false,
+			Active:  true,
+		},
+		{
+			Name:    "svc2",
+			Daemon:  "simple",
+			Enabled: true,
+			Active:  false,
+		},
+	}
+)
 
 var mixedAppInfos = append(append([]client.AppInfo(nil), cmdAppInfos...), svcAppInfos...)
 
@@ -66,7 +69,7 @@ type flushBuffer struct{ bytes.Buffer }
 func (*flushBuffer) Flush() error { return nil }
 
 func isoDateTimeToLocalDate(c *check.C, textualTime string) string {
-	t, err := time.Parse(time.RFC3339Nano, textualTime)
+	t := mylog.Check2(time.Parse(time.RFC3339Nano, textualTime))
 	c.Assert(err, check.IsNil)
 	return t.Local().Format("2006-01-02")
 }
@@ -359,7 +362,7 @@ func (s *infoSuite) TestMaybePrintLinksContact(c *check.C) {
 func (s *infoSuite) TestMaybePrintHoldingInfo(c *check.C) {
 	var buf flushBuffer
 	iw := snap.NewInfoWriterWithFmtTime(&buf, timeutil.Human)
-	instant, err := time.Parse(time.RFC3339, "2000-01-01T00:00:00Z")
+	instant := mylog.Check2(time.Parse(time.RFC3339, "2000-01-01T00:00:00Z"))
 	c.Assert(err, check.IsNil)
 
 	restore := snap.MockTimeNow(func() time.Time {
@@ -394,7 +397,7 @@ func (s *infoSuite) TestMaybePrintHoldingInfo(c *check.C) {
 
 			var holdTime *time.Time
 			if hold != "" {
-				t, err := time.Parse(time.RFC3339, hold)
+				t := mylog.Check2(time.Parse(time.RFC3339, hold))
 				c.Assert(err, check.IsNil)
 				holdTime = &t
 			}
@@ -419,7 +422,7 @@ func (s *infoSuite) TestMaybePrintHoldingInfo(c *check.C) {
 func (s *infoSuite) TestMaybePrintHoldingNonUTCLocalTime(c *check.C) {
 	var buf flushBuffer
 	iw := snap.NewInfoWriterWithFmtTime(&buf, timeutil.Human)
-	instant, err := time.Parse(time.RFC3339, "2000-01-01T00:00:00Z")
+	instant := mylog.Check2(time.Parse(time.RFC3339, "2000-01-01T00:00:00Z"))
 	c.Assert(err, check.IsNil)
 
 	restore := snap.MockTimeNow(func() time.Time {
@@ -433,7 +436,7 @@ func (s *infoSuite) TestMaybePrintHoldingNonUTCLocalTime(c *check.C) {
 	defer restore()
 
 	hold := "2000-01-05T10:00:00Z"
-	holdTime, err := time.Parse(time.RFC3339, hold)
+	holdTime := mylog.Check2(time.Parse(time.RFC3339, hold))
 	c.Assert(err, check.IsNil)
 
 	// mock a local timezone other than UTC
@@ -527,7 +530,7 @@ func (s *infoSuite) TestClientSnapFromPath(c *check.C) {
 name: some-snap
 version: 9
 `, nil)
-	dSnap, err := snap.ClientSnapFromPath(fn)
+	dSnap := mylog.Check2(snap.ClientSnapFromPath(fn))
 	c.Assert(err, check.IsNil)
 	c.Check(dSnap.Version, check.Equals, "9")
 }
@@ -552,7 +555,7 @@ func (s *infoSuite) TestInfoPricedNarrowTerminal(c *check.C) {
 
 		n++
 	})
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"info", "hello"})
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"info", "hello"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `
@@ -589,7 +592,7 @@ func (s *infoSuite) TestInfoPriced(c *check.C) {
 
 		n++
 	})
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"info", "hello"})
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"info", "hello"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `name:      hello
@@ -711,7 +714,7 @@ func (s *infoSuite) TestInfoUnquoted(c *check.C) {
 
 		n++
 	})
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"info", "hello"})
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"info", "hello"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `name:      hello
@@ -760,6 +763,7 @@ const mockInfoJSONOtherLicense = `
     }
 }
 `
+
 const mockInfoJSONNoLicense = `
 {
   "type": "sync",
@@ -811,7 +815,7 @@ func (s *infoSuite) TestInfoWithLocalDifferentLicense(c *check.C) {
 
 		n++
 	})
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"info", "--abs-time", "hello"})
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"info", "--abs-time", "hello"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `
@@ -851,7 +855,7 @@ func (s *infoSuite) TestInfoNotFound(c *check.C) {
 
 		n++
 	})
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"info", "--verbose", "/x"})
+	_ := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"info", "--verbose", "/x"}))
 	c.Check(err, check.ErrorMatches, `no snap found for "/x"`)
 	c.Check(s.Stdout(), check.Equals, "")
 	c.Check(s.Stderr(), check.Equals, "")
@@ -875,7 +879,7 @@ func (s *infoSuite) TestInfoWithLocalNoLicense(c *check.C) {
 
 		n++
 	})
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"info", "--abs-time", "hello"})
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"info", "--abs-time", "hello"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `name:      hello
@@ -911,7 +915,7 @@ func (s *infoSuite) TestInfoWithChannelsAndLocal(c *check.C) {
 
 		n++
 	})
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"info", "--abs-time", "hello"})
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"info", "--abs-time", "hello"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `name:      hello
@@ -937,7 +941,7 @@ installed:     2.10                      (100)  1kB disabled
 
 	// now the same but without abs-time
 	s.ResetStdStreams()
-	rest, err = snap.Parser(snap.Client()).ParseArgs([]string{"info", "hello"})
+	rest = mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"info", "hello"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	refreshDate := isoDateTimeToLocalDate(c, "2006-01-02T22:04:07.123456789Z")
@@ -964,7 +968,7 @@ installed:     2.10            (100)  1kB disabled
 
 	// now the same but with unicode on
 	s.ResetStdStreams()
-	rest, err = snap.Parser(snap.Client()).ParseArgs([]string{"info", "--unicode=always", "hello"})
+	rest = mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"info", "--unicode=always", "hello"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, fmt.Sprintf(`name:      hello
@@ -1011,7 +1015,7 @@ func (s *infoSuite) TestInfoHumanTimes(c *check.C) {
 
 		n++
 	})
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"info", "hello"})
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"info", "hello"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `name:      hello
@@ -1171,7 +1175,7 @@ func (infoSuite) TestBug1828425(c *check.C) {
                                   indented.
 `
 	var buf bytes.Buffer
-	err := snap.PrintDescr(&buf, s, 30)
+	mylog.Check(snap.PrintDescr(&buf, s, 30))
 	c.Assert(err, check.IsNil)
 	c.Check(buf.String(), check.Equals, `  This is a description
     that has
@@ -1234,7 +1238,7 @@ func (s *infoSuite) TestInfoParllelInstance(c *check.C) {
 
 		n++
 	})
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"info", "hello_foo"})
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"info", "hello_foo"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	refreshDate := isoDateTimeToLocalDate(c, "2006-01-02T22:04:07.123456789Z")
@@ -1314,7 +1318,7 @@ func (s *infoSuite) TestInfoStoreURL(c *check.C) {
 
 		n++
 	})
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"info", "hello"})
+	rest := mylog.Check2(snap.Parser(snap.Client()).ParseArgs([]string{"info", "hello"}))
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	refreshDate := isoDateTimeToLocalDate(c, "2006-01-02T22:04:07.123456789Z")

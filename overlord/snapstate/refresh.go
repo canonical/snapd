@@ -25,6 +25,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
@@ -41,10 +42,7 @@ var pidsOfSnap = cgroup.PidsOfSnap
 // refreshAppsCheck returns an error if the snap has processes running that aren't
 // services and aren't marked to be ignored (refresh-mode: "ignore-running").
 var refreshAppsCheck = func(info *snap.Info) error {
-	knownPids, err := pidsOfSnap(info.InstanceName())
-	if err != nil {
-		return err
-	}
+	knownPids := mylog.Check2(pidsOfSnap(info.InstanceName()))
 
 	// Due to specific of the interaction with locking, all locking is performed by the caller.
 	var busyAppNames []string
@@ -175,15 +173,15 @@ func (err BusySnapError) Pids() []int {
 // the refresh change and continue running existing app processes.
 func hardEnsureNothingRunningDuringRefresh(backend managerBackend, st *state.State, snapst *SnapState, snapsup *SnapSetup, info *snap.Info) (bool, *osutil.FileLock, error) {
 	var inhibitionTimeout bool
-	lock, err := backend.RunInhibitSnapForUnlink(info, runinhibit.HintInhibitedForRefresh, func() error {
+	lock := mylog.Check2(backend.RunInhibitSnapForUnlink(info, runinhibit.HintInhibitedForRefresh, func() error {
 		// In case of successful refresh inhibition the snap state is modified
 		// to indicate when the refresh was first inhibited. If the first
 		// refresh inhibition is outside of a grace period then refresh
 		// proceeds regardless of the existing processes.
-		var err error
-		inhibitionTimeout, err = inhibitRefresh(st, snapst, snapsup, info)
+
+		inhibitionTimeout = mylog.Check2(inhibitRefresh(st, snapst, snapsup, info))
 		return err
-	})
+	}))
 	return inhibitionTimeout, lock, err
 }
 
@@ -207,7 +205,7 @@ func softCheckNothingRunningForRefresh(st *state.State, snapst *SnapState, snaps
 	return backend.WithSnapLock(info, func() error {
 		// Perform the soft refresh viability check, possibly writing to the state
 		// on failure.
-		_, err := inhibitRefresh(st, snapst, snapsup, info)
+		_ := mylog.Check2(inhibitRefresh(st, snapst, snapsup, info))
 		return err
 	})
 }

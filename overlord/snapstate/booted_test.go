@@ -29,6 +29,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
@@ -68,8 +69,7 @@ func (bs *bootedSuite) SetUpTest(c *C) {
 	bs.BaseTest.SetUpTest(c)
 
 	dirs.SetRootDir(c.MkDir())
-	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
-	c.Assert(err, IsNil)
+	mylog.Check(os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755))
 
 	bs.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 
@@ -85,11 +85,10 @@ func (bs *bootedSuite) SetUpTest(c *C) {
 	bs.o = overlord.Mock()
 	bs.state = bs.o.State()
 	bs.state.Lock()
-	_, err = restart.Manager(bs.state, "boot-id-0", nil)
+	_ = mylog.Check2(restart.Manager(bs.state, "boot-id-0", nil))
 	bs.state.Unlock()
-	c.Assert(err, IsNil)
-	bs.snapmgr, err = snapstate.Manager(bs.state, bs.o.TaskRunner())
-	c.Assert(err, IsNil)
+
+	bs.snapmgr = mylog.Check2(snapstate.Manager(bs.state, bs.o.TaskRunner()))
 
 	AddForeignTaskHandlers(bs.o.TaskRunner(), bs.fakeBackend)
 
@@ -126,10 +125,12 @@ func (bs *bootedSuite) TearDownTest(c *C) {
 	bootloader.Force(nil)
 }
 
-var osSI1 = &snap.SideInfo{RealName: "core", Revision: snap.R(1)}
-var osSI2 = &snap.SideInfo{RealName: "core", Revision: snap.R(2)}
-var kernelSI1 = &snap.SideInfo{RealName: "canonical-pc-linux", Revision: snap.R(1)}
-var kernelSI2 = &snap.SideInfo{RealName: "canonical-pc-linux", Revision: snap.R(2)}
+var (
+	osSI1     = &snap.SideInfo{RealName: "core", Revision: snap.R(1)}
+	osSI2     = &snap.SideInfo{RealName: "core", Revision: snap.R(2)}
+	kernelSI1 = &snap.SideInfo{RealName: "canonical-pc-linux", Revision: snap.R(1)}
+	kernelSI2 = &snap.SideInfo{RealName: "canonical-pc-linux", Revision: snap.R(2)}
+)
 
 func (bs *bootedSuite) settle() {
 	bs.o.Settle(5 * time.Second)
@@ -141,8 +142,10 @@ func (bs *bootedSuite) makeInstalledKernelOS(c *C, st *state.State) {
 	snapstate.Set(st, "core", &snapstate.SnapState{
 		SnapType: "os",
 		Active:   true,
-		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos([]*sequence.RevisionSideState{sequence.NewRevisionSideState(osSI1, nil),
-			sequence.NewRevisionSideState(osSI2, nil)}),
+		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos([]*sequence.RevisionSideState{
+			sequence.NewRevisionSideState(osSI1, nil),
+			sequence.NewRevisionSideState(osSI2, nil),
+		}),
 		Current: snap.R(2),
 	})
 
@@ -151,11 +154,12 @@ func (bs *bootedSuite) makeInstalledKernelOS(c *C, st *state.State) {
 	snapstate.Set(st, "canonical-pc-linux", &snapstate.SnapState{
 		SnapType: "kernel",
 		Active:   true,
-		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos([]*sequence.RevisionSideState{sequence.NewRevisionSideState(kernelSI1, nil),
-			sequence.NewRevisionSideState(kernelSI2, nil)}),
+		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos([]*sequence.RevisionSideState{
+			sequence.NewRevisionSideState(kernelSI1, nil),
+			sequence.NewRevisionSideState(kernelSI2, nil),
+		}),
 		Current: snap.R(2),
 	})
-
 }
 
 func (bs *bootedSuite) TestUpdateBootRevisionsOSSimple(c *C) {
@@ -166,8 +170,7 @@ func (bs *bootedSuite) TestUpdateBootRevisionsOSSimple(c *C) {
 	bs.makeInstalledKernelOS(c, st)
 
 	bs.bootloader.SetBootBase("core_1.snap")
-	err := snapstate.UpdateBootRevisions(st)
-	c.Assert(err, IsNil)
+	mylog.Check(snapstate.UpdateBootRevisions(st))
 
 	st.Unlock()
 	bs.settle()
@@ -181,13 +184,12 @@ func (bs *bootedSuite) TestUpdateBootRevisionsOSSimple(c *C) {
 
 	// core "current" got reverted but canonical-pc-linux did not
 	var snapst snapstate.SnapState
-	err = snapstate.Get(st, "core", &snapst)
-	c.Assert(err, IsNil)
+	mylog.Check(snapstate.Get(st, "core", &snapst))
+
 	c.Assert(snapst.Current, Equals, snap.R(1))
 	c.Assert(snapst.Active, Equals, true)
+	mylog.Check(snapstate.Get(st, "canonical-pc-linux", &snapst))
 
-	err = snapstate.Get(st, "canonical-pc-linux", &snapst)
-	c.Assert(err, IsNil)
 	c.Assert(snapst.Current, Equals, snap.R(2))
 	c.Assert(snapst.Active, Equals, true)
 }
@@ -200,8 +202,7 @@ func (bs *bootedSuite) TestUpdateBootRevisionsKernelSimple(c *C) {
 	bs.makeInstalledKernelOS(c, st)
 
 	bs.bootloader.SetBootKernel("canonical-pc-linux_1.snap")
-	err := snapstate.UpdateBootRevisions(st)
-	c.Assert(err, IsNil)
+	mylog.Check(snapstate.UpdateBootRevisions(st))
 
 	st.Unlock()
 	bs.settle()
@@ -215,13 +216,12 @@ func (bs *bootedSuite) TestUpdateBootRevisionsKernelSimple(c *C) {
 
 	// canonical-pc-linux "current" got reverted but core did not
 	var snapst snapstate.SnapState
-	err = snapstate.Get(st, "canonical-pc-linux", &snapst)
-	c.Assert(err, IsNil)
+	mylog.Check(snapstate.Get(st, "canonical-pc-linux", &snapst))
+
 	c.Assert(snapst.Current, Equals, snap.R(1))
 	c.Assert(snapst.Active, Equals, true)
+	mylog.Check(snapstate.Get(st, "core", &snapst))
 
-	err = snapstate.Get(st, "core", &snapst)
-	c.Assert(err, IsNil)
 	c.Assert(snapst.Current, Equals, snap.R(2))
 	c.Assert(snapst.Active, Equals, true)
 }
@@ -239,8 +239,7 @@ func (bs *bootedSuite) TestUpdateBootRevisionsDeviceCtxErrors(c *C) {
 		return nil, errBoom
 	})
 	defer r()
-
-	err := snapstate.UpdateBootRevisions(st)
+	mylog.Check(snapstate.UpdateBootRevisions(st))
 	c.Assert(err, Equals, errBoom)
 }
 
@@ -252,7 +251,7 @@ func (bs *bootedSuite) TestUpdateBootRevisionsKernelErrorsEarly(c *C) {
 	bs.makeInstalledKernelOS(c, st)
 
 	bs.bootloader.SetBootKernel("canonical-pc-linux_99.snap")
-	err := snapstate.UpdateBootRevisions(st)
+	mylog.Check(snapstate.UpdateBootRevisions(st))
 	c.Assert(err, ErrorMatches, `cannot find revision 99 for snap "canonical-pc-linux"`)
 }
 
@@ -264,7 +263,7 @@ func (bs *bootedSuite) TestUpdateBootRevisionsOSErrorsEarly(c *C) {
 	bs.makeInstalledKernelOS(c, st)
 
 	bs.bootloader.SetBootBase("core_99.snap")
-	err := snapstate.UpdateBootRevisions(st)
+	mylog.Check(snapstate.UpdateBootRevisions(st))
 	c.Assert(err, ErrorMatches, `cannot find revision 99 for snap "core"`)
 }
 
@@ -287,15 +286,16 @@ func (bs *bootedSuite) TestUpdateBootRevisionsOSErrorsLate(c *C) {
 	snapstate.Set(st, "core", &snapstate.SnapState{
 		SnapType: "os",
 		Active:   true,
-		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos([]*sequence.RevisionSideState{sequence.NewRevisionSideState(osSI1, nil),
-			sequence.NewRevisionSideState(osSI2, nil)}),
+		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos([]*sequence.RevisionSideState{
+			sequence.NewRevisionSideState(osSI1, nil),
+			sequence.NewRevisionSideState(osSI2, nil),
+		}),
 		Current: snap.R(2),
 	})
 	bs.fakeBackend.linkSnapFailTrigger = filepath.Join(dirs.SnapMountDir, "/core/1")
 
 	bs.bootloader.SetBootBase("core_1.snap")
-	err := snapstate.UpdateBootRevisions(st)
-	c.Assert(err, IsNil)
+	mylog.Check(snapstate.UpdateBootRevisions(st))
 
 	st.Unlock()
 	bs.settle()
@@ -318,7 +318,7 @@ func (bs *bootedSuite) TestFinishRestartCore(c *C) {
 	// not core snap
 	si := &snap.SideInfo{RealName: "some-app"}
 	snaptest.MockSnap(c, "name: some-app\nversion: 1", si)
-	err := snapstate.FinishRestart(task, &snapstate.SnapSetup{SideInfo: si})
+	mylog.Check(snapstate.FinishRestart(task, &snapstate.SnapSetup{SideInfo: si}))
 	c.Check(err, IsNil)
 
 	si = &snap.SideInfo{RealName: "core"}
@@ -327,13 +327,13 @@ func (bs *bootedSuite) TestFinishRestartCore(c *C) {
 	// core snap, restarting ... wait
 	restart.MockPending(st, restart.RestartSystem)
 	snaptest.MockSnap(c, "name: core\ntype: os\nversion: 1", si)
-	err = snapstate.FinishRestart(task, snapsup)
+	mylog.Check(snapstate.FinishRestart(task, snapsup))
 	c.Check(err, FitsTypeOf, &state.Retry{})
 
 	// core snap, restarted, waiting for current core revision
 	restart.MockPending(st, restart.RestartUnset)
 	bs.bootloader.BootVars["snap_mode"] = boot.TryingStatus
-	err = snapstate.FinishRestart(task, snapsup)
+	mylog.Check(snapstate.FinishRestart(task, snapsup))
 	c.Check(err, DeepEquals, &state.Retry{After: 5 * time.Second})
 
 	// core snap updated
@@ -342,12 +342,12 @@ func (bs *bootedSuite) TestFinishRestartCore(c *C) {
 
 	// core snap, restarted, right core revision, no rollback
 	bs.bootloader.BootVars["snap_mode"] = ""
-	err = snapstate.FinishRestart(task, snapsup)
+	mylog.Check(snapstate.FinishRestart(task, snapsup))
 	c.Check(err, IsNil)
 
 	// core snap, restarted, wrong core revision, rollback!
 	bs.bootloader.SetBootBase("core_1.snap")
-	err = snapstate.FinishRestart(task, snapsup)
+	mylog.Check(snapstate.FinishRestart(task, snapsup))
 	c.Check(err, ErrorMatches, `cannot finish core installation, there was a rollback across reboot`)
 }
 
@@ -364,13 +364,13 @@ func (bs *bootedSuite) TestFinishRestartBootableBase(c *C) {
 	// not core snap
 	si := &snap.SideInfo{RealName: "some-app", Revision: snap.R(1)}
 	snaptest.MockSnap(c, "name: some-app\nversion: 1", si)
-	err := snapstate.FinishRestart(task, &snapstate.SnapSetup{SideInfo: si})
+	mylog.Check(snapstate.FinishRestart(task, &snapstate.SnapSetup{SideInfo: si}))
 	c.Check(err, IsNil)
 
 	// core snap but we are on a model with a different base
 	si = &snap.SideInfo{RealName: "core"}
 	snaptest.MockSnap(c, "name: core\ntype: os\nversion: 1", si)
-	err = snapstate.FinishRestart(task, &snapstate.SnapSetup{SideInfo: si, Type: snap.TypeOS})
+	mylog.Check(snapstate.FinishRestart(task, &snapstate.SnapSetup{SideInfo: si, Type: snap.TypeOS}))
 	c.Check(err, IsNil)
 
 	si = &snap.SideInfo{RealName: "core18"}
@@ -378,13 +378,13 @@ func (bs *bootedSuite) TestFinishRestartBootableBase(c *C) {
 	snaptest.MockSnap(c, "name: core18\ntype: base\nversion: 1", si)
 	// core snap, restarting ... wait
 	restart.MockPending(st, restart.RestartSystem)
-	err = snapstate.FinishRestart(task, snapsup)
+	mylog.Check(snapstate.FinishRestart(task, snapsup))
 	c.Check(err, FitsTypeOf, &state.Retry{})
 
 	// core snap, restarted, waiting for current core revision
 	restart.MockPending(st, restart.RestartUnset)
 	bs.bootloader.BootVars["snap_mode"] = boot.TryingStatus
-	err = snapstate.FinishRestart(task, snapsup)
+	mylog.Check(snapstate.FinishRestart(task, snapsup))
 	c.Check(err, DeepEquals, &state.Retry{After: 5 * time.Second})
 
 	// core18 snap updated
@@ -394,12 +394,12 @@ func (bs *bootedSuite) TestFinishRestartBootableBase(c *C) {
 	// core snap, restarted, right core revision, no rollback
 	bs.bootloader.BootVars["snap_mode"] = ""
 	bs.bootloader.SetBootBase("core18_2.snap")
-	err = snapstate.FinishRestart(task, snapsup)
+	mylog.Check(snapstate.FinishRestart(task, snapsup))
 	c.Check(err, IsNil)
 
 	// core snap, restarted, wrong core revision, rollback!
 	bs.bootloader.SetBootBase("core18_1.snap")
-	err = snapstate.FinishRestart(task, snapsup)
+	mylog.Check(snapstate.FinishRestart(task, snapsup))
 	c.Check(err, ErrorMatches, `cannot finish core18 installation, there was a rollback across reboot`)
 }
 
@@ -416,13 +416,13 @@ func (bs *bootedSuite) TestFinishRestartKernel(c *C) {
 	// not kernel snap
 	si := &snap.SideInfo{RealName: "some-app", Revision: snap.R(1)}
 	snaptest.MockSnap(c, "name: some-app\nversion: 1", si)
-	err := snapstate.FinishRestart(task, &snapstate.SnapSetup{SideInfo: si})
+	mylog.Check(snapstate.FinishRestart(task, &snapstate.SnapSetup{SideInfo: si}))
 	c.Check(err, IsNil)
 
 	// different kernel (may happen with remodel)
 	si = &snap.SideInfo{RealName: "other-kernel"}
 	snaptest.MockSnap(c, "name: other-kernel\ntype: kernel\nversion: 1", si)
-	err = snapstate.FinishRestart(task, &snapstate.SnapSetup{SideInfo: si, Type: snap.TypeKernel})
+	mylog.Check(snapstate.FinishRestart(task, &snapstate.SnapSetup{SideInfo: si, Type: snap.TypeKernel}))
 	c.Check(err, IsNil)
 
 	si = &snap.SideInfo{RealName: "kernel"}
@@ -430,13 +430,13 @@ func (bs *bootedSuite) TestFinishRestartKernel(c *C) {
 	snaptest.MockSnap(c, "name: kernel\ntype: kernel\nversion: 1", si)
 	// kernel snap, restarting ... wait
 	restart.MockPending(st, restart.RestartSystem)
-	err = snapstate.FinishRestart(task, snapsup)
+	mylog.Check(snapstate.FinishRestart(task, snapsup))
 	c.Check(err, FitsTypeOf, &state.Retry{})
 
 	// kernel snap, restarted, waiting for current core revision
 	restart.MockPending(st, restart.RestartUnset)
 	bs.bootloader.BootVars["snap_mode"] = boot.TryingStatus
-	err = snapstate.FinishRestart(task, snapsup)
+	mylog.Check(snapstate.FinishRestart(task, snapsup))
 	c.Check(err, DeepEquals, &state.Retry{After: 5 * time.Second})
 
 	// kernel snap updated
@@ -446,12 +446,12 @@ func (bs *bootedSuite) TestFinishRestartKernel(c *C) {
 	// kernel snap, restarted, right kernel revision, no rollback
 	bs.bootloader.BootVars["snap_mode"] = ""
 	bs.bootloader.SetBootKernel("kernel_2.snap")
-	err = snapstate.FinishRestart(task, snapsup)
+	mylog.Check(snapstate.FinishRestart(task, snapsup))
 	c.Check(err, IsNil)
 
 	// kernel snap, restarted, wrong core revision, rollback!
 	bs.bootloader.SetBootKernel("kernel_1.snap")
-	err = snapstate.FinishRestart(task, snapsup)
+	mylog.Check(snapstate.FinishRestart(task, snapsup))
 	c.Check(err, ErrorMatches, `cannot finish kernel installation, there was a rollback across reboot`)
 }
 
@@ -463,8 +463,8 @@ func (bs *bootedSuite) TestFinishRestartKernelClassicWithModes(c *C) {
 
 	bl := boottest.MockUC20RunBootenv(bootloadertest.Mock("mock", c.MkDir()))
 	bootloader.Force(bl)
-	kernel, err := snap.ParsePlaceInfoFromSnapFileName("canonical-pc-linux_2.snap")
-	c.Assert(err, IsNil)
+	kernel := mylog.Check2(snap.ParsePlaceInfoFromSnapFileName("canonical-pc-linux_2.snap"))
+
 	bl.SetEnabledKernel(kernel)
 
 	st := bs.state
@@ -476,13 +476,13 @@ func (bs *bootedSuite) TestFinishRestartKernelClassicWithModes(c *C) {
 	// not kernel snap
 	si := &snap.SideInfo{RealName: "some-app", Revision: snap.R(1)}
 	snaptest.MockSnap(c, "name: some-app\nversion: 1", si)
-	err = snapstate.FinishRestart(task, &snapstate.SnapSetup{SideInfo: si})
+	mylog.Check(snapstate.FinishRestart(task, &snapstate.SnapSetup{SideInfo: si}))
 	c.Check(err, IsNil)
 
 	// different kernel (may happen with remodel)
 	si = &snap.SideInfo{RealName: "other-kernel"}
 	snaptest.MockSnap(c, "name: other-kernel\ntype: kernel\nversion: 1", si)
-	err = snapstate.FinishRestart(task, &snapstate.SnapSetup{SideInfo: si, Type: snap.TypeKernel})
+	mylog.Check(snapstate.FinishRestart(task, &snapstate.SnapSetup{SideInfo: si, Type: snap.TypeKernel}))
 	c.Check(err, IsNil)
 
 	si = &snap.SideInfo{RealName: "kernel"}
@@ -490,13 +490,13 @@ func (bs *bootedSuite) TestFinishRestartKernelClassicWithModes(c *C) {
 	snaptest.MockSnap(c, "name: kernel\ntype: kernel\nversion: 1", si)
 	// kernel snap, restarting ... wait
 	restart.MockPending(st, restart.RestartSystem)
-	err = snapstate.FinishRestart(task, snapsup)
+	mylog.Check(snapstate.FinishRestart(task, snapsup))
 	c.Check(err, FitsTypeOf, &state.Retry{})
 
 	// kernel snap, restarted, waiting for current core revision
 	restart.MockPending(st, restart.RestartUnset)
 	bl.BootVars["kernel_status"] = boot.TryingStatus
-	err = snapstate.FinishRestart(task, snapsup)
+	mylog.Check(snapstate.FinishRestart(task, snapsup))
 	c.Check(err, DeepEquals, &state.Retry{After: 5 * time.Second})
 
 	// kernel snap updated
@@ -505,17 +505,17 @@ func (bs *bootedSuite) TestFinishRestartKernelClassicWithModes(c *C) {
 
 	// kernel snap, restarted, right kernel revision, no rollback
 	bl.BootVars["kernel_status"] = ""
-	kernel, err = snap.ParsePlaceInfoFromSnapFileName("kernel_2.snap")
-	c.Assert(err, IsNil)
+	kernel = mylog.Check2(snap.ParsePlaceInfoFromSnapFileName("kernel_2.snap"))
+
 	bl.SetEnabledKernel(kernel)
-	err = snapstate.FinishRestart(task, snapsup)
+	mylog.Check(snapstate.FinishRestart(task, snapsup))
 	c.Check(err, IsNil)
 
 	// kernel snap, restarted, wrong core revision, rollback!
-	kernel, err = snap.ParsePlaceInfoFromSnapFileName("kernel_1.snap")
-	c.Assert(err, IsNil)
+	kernel = mylog.Check2(snap.ParsePlaceInfoFromSnapFileName("kernel_1.snap"))
+
 	bl.SetEnabledKernel(kernel)
-	err = snapstate.FinishRestart(task, snapsup)
+	mylog.Check(snapstate.FinishRestart(task, snapsup))
 	c.Check(err, ErrorMatches, `cannot finish kernel installation, there was a rollback across reboot`)
 }
 
@@ -534,14 +534,14 @@ func (bs *bootedSuite) TestFinishRestartEphemeralModeSkipsRollbackDetection(c *C
 	snaptest.MockSnap(c, "name: kernel\ntype: kernel\nversion: 1", si)
 	// kernel snap, restarted, wrong core revision, rollback detected!
 	bs.bootloader.SetBootKernel("kernel_1.snap")
-	err := snapstate.FinishRestart(task, snapsup)
+	mylog.Check(snapstate.FinishRestart(task, snapsup))
 	c.Check(err, ErrorMatches, `cannot finish kernel installation, there was a rollback across reboot`)
 
 	// but *not* in an ephemeral mode like "recover" - we skip the rollback
 	// detection here
 	r = snapstatetest.MockDeviceModelAndMode(DefaultModel(), "install")
 	defer r()
-	err = snapstate.FinishRestart(task, snapsup)
+	mylog.Check(snapstate.FinishRestart(task, snapsup))
 	c.Check(err, IsNil)
 }
 
@@ -560,8 +560,10 @@ func (bs *bootedSuite) TestFinishRestartClassicWithModesCoreIgnored(c *C) {
 	snapstate.Set(st, "canonical-pc-linux", &snapstate.SnapState{
 		SnapType: "kernel",
 		Active:   true,
-		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos([]*sequence.RevisionSideState{sequence.NewRevisionSideState(kernelSI1, nil),
-			sequence.NewRevisionSideState(kernelSI2, nil)}),
+		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos([]*sequence.RevisionSideState{
+			sequence.NewRevisionSideState(kernelSI1, nil),
+			sequence.NewRevisionSideState(kernelSI2, nil),
+		}),
 		Current: snap.R(2),
 	})
 	// we have core22 and current is r2
@@ -572,17 +574,17 @@ func (bs *bootedSuite) TestFinishRestartClassicWithModesCoreIgnored(c *C) {
 	snapstate.Set(st, "core22", &snapstate.SnapState{
 		SnapType: "base",
 		Active:   true,
-		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos([]*sequence.RevisionSideState{sequence.NewRevisionSideState(osSI1, nil),
-			sequence.NewRevisionSideState(osSI2, nil)}),
+		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos([]*sequence.RevisionSideState{
+			sequence.NewRevisionSideState(osSI1, nil),
+			sequence.NewRevisionSideState(osSI2, nil),
+		}),
 		Current: snap.R(2),
 	})
 	// now pretend that for whatever reason the modeenv reports that
 	// r1 was booted (which is a bug as on a classic+modes
 	// there is no boot base)
 	bs.bootloader.SetBootBase("core22_1.snap")
-
-	err := snapstate.UpdateBootRevisions(st)
-	c.Assert(err, IsNil)
+	mylog.Check(snapstate.UpdateBootRevisions(st))
 
 	st.Unlock()
 	bs.settle()

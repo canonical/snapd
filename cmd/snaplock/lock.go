@@ -26,6 +26,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 )
@@ -37,12 +38,9 @@ func lockFileName(snapName string) string {
 
 // OpenLock creates and opens a lock file associated with a particular snap.
 func OpenLock(snapName string) (*osutil.FileLock, error) {
-	if err := os.MkdirAll(dirs.SnapRunLockDir, 0700); err != nil {
-		return nil, fmt.Errorf("cannot create lock directory: %s", err)
-	}
-	flock, err := osutil.NewFileLock(lockFileName(snapName))
-	if err != nil {
-		return nil, err
-	}
+	mylog.Check(os.MkdirAll(dirs.SnapRunLockDir, 0700))
+
+	flock := mylog.Check2(osutil.NewFileLock(lockFileName(snapName)))
+
 	return flock, nil
 }

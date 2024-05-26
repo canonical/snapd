@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/jessevdk/go-flags"
 	"golang.org/x/xerrors"
 
@@ -45,12 +46,14 @@ type cmdKnown struct {
 	Direct bool `long:"direct"`
 }
 
-var shortKnownHelp = i18n.G("Show known assertions of the provided type")
-var longKnownHelp = i18n.G(`
+var (
+	shortKnownHelp = i18n.G("Show known assertions of the provided type")
+	longKnownHelp  = i18n.G(`
 The known command shows known assertions of the provided type.
 If header=value pairs are provided after the assertion type, the assertions
 shown must also have the specified headers matching the provided values.
 `)
+)
 
 func init() {
 	addCommand("known", shortKnownHelp, longKnownHelp, func() flags.Commander {
@@ -87,16 +90,10 @@ func downloadAssertion(typeName string, headers map[string]string) ([]asserts.As
 	if at == nil {
 		return nil, fmt.Errorf("cannot find assertion type %q", typeName)
 	}
-	primaryKeys, err := asserts.PrimaryKeyFromHeaders(at, headers)
-	if err != nil {
-		return nil, fmt.Errorf("cannot query remote assertion: %v", err)
-	}
+	primaryKeys := mylog.Check2(asserts.PrimaryKeyFromHeaders(at, headers))
 
 	sto := storeNew(nil, storeCtx)
-	as, err := sto.Assertion(at, primaryKeys, user)
-	if err != nil {
-		return nil, err
-	}
+	as := mylog.Check2(sto.Assertion(at, primaryKeys, user))
 
 	return []asserts.Assertion{as}, nil
 }
@@ -117,25 +114,22 @@ func (x *cmdKnown) Execute(args []string) error {
 	}
 
 	var assertions []asserts.Assertion
-	var err error
+
 	switch {
 	case x.Remote && !x.Direct:
 		// --remote will query snapd
-		assertions, err = x.client.Known(string(x.KnownOptions.AssertTypeName), headers, &client.KnownOptions{Remote: true})
+		assertions = mylog.Check2(x.client.Known(string(x.KnownOptions.AssertTypeName), headers, &client.KnownOptions{Remote: true}))
 		// if snapd is unavailable automatically fallback
 		var connErr client.ConnectionError
 		if xerrors.As(err, &connErr) {
-			assertions, err = downloadAssertion(string(x.KnownOptions.AssertTypeName), headers)
+			assertions = mylog.Check2(downloadAssertion(string(x.KnownOptions.AssertTypeName), headers))
 		}
 	case x.Direct:
 		// --direct implies remote
-		assertions, err = downloadAssertion(string(x.KnownOptions.AssertTypeName), headers)
+		assertions = mylog.Check2(downloadAssertion(string(x.KnownOptions.AssertTypeName), headers))
 	default:
 		// default is to look only local
-		assertions, err = x.client.Known(string(x.KnownOptions.AssertTypeName), headers, nil)
-	}
-	if err != nil {
-		return err
+		assertions = mylog.Check2(x.client.Known(string(x.KnownOptions.AssertTypeName), headers, nil))
 	}
 
 	enc := asserts.NewEncoder(Stdout)

@@ -31,6 +31,7 @@ import (
 
 	"gopkg.in/macaroon.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -97,10 +98,8 @@ func (u *UserState) HasExpired() bool {
 
 // MacaroonSerialize returns a store-compatible serialized representation of the given macaroon
 func MacaroonSerialize(m *macaroon.Macaroon) (string, error) {
-	marshalled, err := m.MarshalBinary()
-	if err != nil {
-		return "", err
-	}
+	marshalled := mylog.Check2(m.MarshalBinary())
+
 	encoded := base64.RawURLEncoding.EncodeToString(marshalled)
 	return encoded, nil
 }
@@ -108,23 +107,17 @@ func MacaroonSerialize(m *macaroon.Macaroon) (string, error) {
 // MacaroonDeserialize returns a deserialized macaroon from a given store-compatible serialization
 func MacaroonDeserialize(serializedMacaroon string) (*macaroon.Macaroon, error) {
 	var m macaroon.Macaroon
-	decoded, err := base64.RawURLEncoding.DecodeString(serializedMacaroon)
-	if err != nil {
-		return nil, err
-	}
-	err = m.UnmarshalBinary(decoded)
-	if err != nil {
-		return nil, err
-	}
+	decoded := mylog.Check2(base64.RawURLEncoding.DecodeString(serializedMacaroon))
+	mylog.Check(m.UnmarshalBinary(decoded))
+
 	return &m, nil
 }
 
 // generateMacaroonKey generates a random key to sign snapd macaroons
 func generateMacaroonKey() ([]byte, error) {
 	key := make([]byte, 32)
-	if _, err := rand.Read(key); err != nil {
-		return nil, err
-	}
+	mylog.Check2(rand.Read(key))
+
 	return key, nil
 }
 
@@ -132,15 +125,9 @@ const snapdMacaroonLocation = "snapd"
 
 // newUserMacaroon returns a snapd macaroon for the given username
 func newUserMacaroon(macaroonKey []byte, userID int) (string, error) {
-	userMacaroon, err := macaroon.New(macaroonKey, strconv.Itoa(userID), snapdMacaroonLocation)
-	if err != nil {
-		return "", fmt.Errorf("cannot create macaroon for snapd user: %s", err)
-	}
+	userMacaroon := mylog.Check2(macaroon.New(macaroonKey, strconv.Itoa(userID), snapdMacaroonLocation))
 
-	serializedMacaroon, err := MacaroonSerialize(userMacaroon)
-	if err != nil {
-		return "", fmt.Errorf("cannot serialize macaroon for snapd user: %s", err)
-	}
+	serializedMacaroon := mylog.Check2(MacaroonSerialize(userMacaroon))
 
 	return serializedMacaroon, nil
 }
@@ -164,27 +151,18 @@ type NewUserParams struct {
 // NewUser tracks a new authenticated user and saves its details in the state
 func NewUser(st *state.State, userParams NewUserParams) (*UserState, error) {
 	var authStateData AuthState
-
-	err := st.Get("auth", &authStateData)
+	mylog.Check(st.Get("auth", &authStateData))
 	if errors.Is(err, state.ErrNoState) {
 		authStateData = AuthState{}
-	} else if err != nil {
-		return nil, err
 	}
 
 	if authStateData.MacaroonKey == nil {
-		authStateData.MacaroonKey, err = generateMacaroonKey()
-		if err != nil {
-			return nil, err
-		}
+		authStateData.MacaroonKey = mylog.Check2(generateMacaroonKey())
 	}
 
 	authStateData.LastID++
 
-	localMacaroon, err := newUserMacaroon(authStateData.MacaroonKey, authStateData.LastID)
-	if err != nil {
-		return nil, err
-	}
+	localMacaroon := mylog.Check2(newUserMacaroon(authStateData.MacaroonKey, authStateData.LastID))
 
 	sort.Strings(userParams.Discharges)
 	authenticatedUser := UserState{
@@ -219,13 +197,9 @@ func RemoveUserByUsername(st *state.State, username string) (removed *UserState,
 // removeUser removes the first user matching given predicate.
 func removeUser(st *state.State, p func(*UserState) bool) (*UserState, error) {
 	var authStateData AuthState
-
-	err := st.Get("auth", &authStateData)
+	mylog.Check(st.Get("auth", &authStateData))
 	if errors.Is(err, state.ErrNoState) {
 		return nil, ErrInvalidUser
-	}
-	if err != nil {
-		return nil, err
 	}
 
 	for i := range authStateData.Users {
@@ -247,13 +221,9 @@ func removeUser(st *state.State, p func(*UserState) bool) (*UserState, error) {
 
 func Users(st *state.State) ([]*UserState, error) {
 	var authStateData AuthState
-
-	err := st.Get("auth", &authStateData)
+	mylog.Check(st.Get("auth", &authStateData))
 	if errors.Is(err, state.ErrNoState) {
 		return nil, nil
-	}
-	if err != nil {
-		return nil, err
 	}
 
 	users := make([]*UserState, len(authStateData.Users))
@@ -276,13 +246,9 @@ func UserByUsername(st *state.State, username string) (*UserState, error) {
 // findUser finds the first user matching given predicate.
 func findUser(st *state.State, p func(*UserState) bool) (*UserState, error) {
 	var authStateData AuthState
-
-	err := st.Get("auth", &authStateData)
+	mylog.Check(st.Get("auth", &authStateData))
 	if errors.Is(err, state.ErrNoState) {
 		return nil, ErrInvalidUser
-	}
-	if err != nil {
-		return nil, err
 	}
 
 	for i := range authStateData.Users {
@@ -297,13 +263,9 @@ func findUser(st *state.State, p func(*UserState) bool) (*UserState, error) {
 // UpdateUser updates user in state
 func UpdateUser(st *state.State, user *UserState) error {
 	var authStateData AuthState
-
-	err := st.Get("auth", &authStateData)
+	mylog.Check(st.Get("auth", &authStateData))
 	if errors.Is(err, state.ErrNoState) {
 		return ErrInvalidUser
-	}
-	if err != nil {
-		return err
 	}
 
 	for i := range authStateData.Users {
@@ -322,33 +284,23 @@ var ErrInvalidAuth = fmt.Errorf("invalid authentication")
 // CheckMacaroon returns the UserState for the given macaroon/discharges credentials
 func CheckMacaroon(st *state.State, macaroon string, discharges []string) (*UserState, error) {
 	var authStateData AuthState
-	err := st.Get("auth", &authStateData)
-	if err != nil {
-		return nil, ErrInvalidAuth
-	}
+	mylog.Check(st.Get("auth", &authStateData))
 
-	snapdMacaroon, err := MacaroonDeserialize(macaroon)
-	if err != nil {
-		return nil, ErrInvalidAuth
-	}
+	snapdMacaroon := mylog.Check2(MacaroonDeserialize(macaroon))
+
 	// attempt snapd macaroon verification
 	if snapdMacaroon.Location() == snapdMacaroonLocation {
 		// no caveats to check so far
 		check := func(caveat string) error { return nil }
-		// ignoring discharges, unused for snapd macaroons atm
-		err = snapdMacaroon.Verify(authStateData.MacaroonKey, check, nil)
-		if err != nil {
-			return nil, ErrInvalidAuth
-		}
+		mylog.
+			// ignoring discharges, unused for snapd macaroons atm
+			Check(snapdMacaroon.Verify(authStateData.MacaroonKey, check, nil))
+
 		macaroonID := snapdMacaroon.Id()
-		userID, err := strconv.Atoi(macaroonID)
-		if err != nil {
-			return nil, ErrInvalidAuth
-		}
-		user, err := User(st, userID)
-		if err != nil {
-			return nil, ErrInvalidAuth
-		}
+		userID := mylog.Check2(strconv.Atoi(macaroonID))
+
+		user := mylog.Check2(User(st, userID))
+
 		if macaroon != user.Macaroon {
 			return nil, ErrInvalidAuth
 		}

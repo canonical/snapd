@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ddkwork/golibrary/mylog"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
@@ -47,7 +48,7 @@ func (s *experimentalSuite) TestConfigureExperimentalSettingsInvalid(c *C) {
 			state:   s.state,
 			changes: map[string]interface{}{featureConf(feature): "foo"},
 		}
-		err := configcore.FilesystemOnlyRun(classicDev, conf)
+		mylog.Check(configcore.FilesystemOnlyRun(classicDev, conf))
 		c.Check(err, ErrorMatches, fmt.Sprintf(`%s can only be set to 'true' or 'false'`, featureConf(feature)))
 	}
 }
@@ -59,7 +60,7 @@ func (s *experimentalSuite) TestConfigureExperimentalSettingsHappy(c *C) {
 				state: s.state,
 				conf:  map[string]interface{}{featureConf(feature): t},
 			}
-			err := configcore.FilesystemOnlyRun(classicDev, conf)
+			mylog.Check(configcore.FilesystemOnlyRun(classicDev, conf))
 			c.Check(err, IsNil)
 		}
 	}
@@ -70,13 +71,13 @@ func (s *experimentalSuite) TestExportedFeatures(c *C) {
 		state: s.state,
 		conf:  map[string]interface{}{featureConf(features.PerUserMountNamespace): true},
 	}
-	err := configcore.FilesystemOnlyRun(classicDev, conf)
-	c.Assert(err, IsNil)
+	mylog.Check(configcore.FilesystemOnlyRun(classicDev, conf))
+
 	c.Check(features.PerUserMountNamespace.ControlFile(), testutil.FilePresent)
 
 	delete(conf.changes, "experimental.per-user-mount-namespace")
-	err = configcore.FilesystemOnlyRun(classicDev, conf)
-	c.Assert(err, IsNil)
+	mylog.Check(configcore.FilesystemOnlyRun(classicDev, conf))
+
 	c.Check(features.PerUserMountNamespace.ControlFile(), testutil.FilePresent)
 }
 
