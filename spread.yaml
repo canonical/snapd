@@ -246,12 +246,16 @@ backends:
         halt-timeout: 2h
         systems:
             - ubuntu-20.04-64:
+                  storage: 12G
                   workers: 8
             - ubuntu-22.04-64:
+                  storage: 12G
                   workers: 8
             - ubuntu-23.10-64:
+                  storage: 12G
                   workers: 8
             - ubuntu-24.04-64:
+                  storage: 12G
                   workers: 8
 
     google-nested:
