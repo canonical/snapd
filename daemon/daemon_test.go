@@ -1465,3 +1465,15 @@ func (s *daemonSuite) TestDegradedModeReply(c *check.C) {
 	rec = doTestReq(c, cmd, "POST")
 	c.Check(rec.Code, check.Equals, 200)
 }
+
+func (s *daemonSuite) TestHandleUnexpectedRestart(c *check.C) {
+	os.Setenv("SNAPD_REVERT_TO_REV", "999")
+	defer os.Unsetenv("SNAPD_REVERT_TO_REV")
+
+	d := s.newTestDaemon(c)
+
+	// mark as already seeded
+	s.markSeeded(d)
+
+	c.Assert(d.Start(), check.Equals, ErrNoRuntimeRecoveryNeeded)
+}
