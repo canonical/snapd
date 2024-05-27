@@ -30,6 +30,7 @@ import (
 
 	sb "github.com/snapcore/secboot"
 	sb_hooks "github.com/snapcore/secboot/hooks"
+	sb_scope "github.com/snapcore/secboot/bootscope"
 	"golang.org/x/xerrors"
 
 	"github.com/snapcore/snapd/kernel/fde"
@@ -38,6 +39,9 @@ import (
 )
 
 var fdeHasRevealKey = fde.HasRevealKey
+var sbSetModel = sb_scope.SetModel
+var sbSetBootMode = sb_scope.SetBootMode
+var sbSetKeyRevealer = sb_hooks.SetKeyRevealer
 
 const fdeHooksPlatformName = "fde-hook-v2"
 
@@ -192,6 +196,13 @@ func unlockVolumeUsingSealedKeyFDERevealKeyV2(sealedEncryptionKeyFile, sourceDev
 	options := activateVolOpts(opts.AllowRecoveryKey)
 	options.Model = model
 
+	sbSetModel(model)
+	//defer sbSetModel(nil)
+	sbSetBootMode("run")
+	//defer sbSetBootMode("")
+	sbSetKeyRevealer(&keyRevealerV3{})
+	defer sbSetKeyRevealer(nil)
+
 	authRequestor, err := newAuthRequestor()
 	if err != nil {
 		return res, fmt.Errorf("cannot build an auth requestor: %v", err)
@@ -244,4 +255,22 @@ func (fh *fdeHookV2DataHandler) ChangeAuthKey(data *sb.PlatformKeyData, old, new
 
 func (fh *fdeHookV2DataHandler) RecoverKeysWithAuthKey(data *sb.PlatformKeyData, encryptedPayload, key []byte) ([]byte, error) {
 	return nil, fmt.Errorf("cannot recover keys with auth keys yet")
+}
+
+type keyRevealerV3 struct {
+}
+
+func (kr *keyRevealerV3) RevealKey(data, ciphertext, aad []byte) (plaintext []byte, err error) {
+	logger.Noticef("Called reveal key")
+	var handle *json.RawMessage
+	if len(data) != 0 {
+		rawHandle := json.RawMessage(data)
+		handle = &rawHandle
+	}
+	p := fde.RevealParams{
+		SealedKey: ciphertext,
+		Handle:    handle,
+		V2Payload: true,
+	}
+	return fde.Reveal(&p)
 }

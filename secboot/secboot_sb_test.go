@@ -37,6 +37,7 @@ import (
 	sb "github.com/snapcore/secboot"
 	sb_efi "github.com/snapcore/secboot/efi"
 	sb_tpm2 "github.com/snapcore/secboot/tpm2"
+	sb_hooks "github.com/snapcore/secboot/hooks"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
@@ -68,6 +69,13 @@ func (s *secbootSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	dirs.SetRootDir(rootDir)
 	s.AddCleanup(func() { dirs.SetRootDir("/") })
+
+	s.AddCleanup(secboot.MockSbSetModel(func(model sb.SnapModel) {
+	}))
+	s.AddCleanup(secboot.MockSbSetBootMode(func(mode string) {
+	}))
+	s.AddCleanup(secboot.MockSbSetKeyRevealer(func(kr sb_hooks.KeyRevealer) {
+	}))
 }
 
 func (s *secbootSuite) TestCheckTPMKeySealingSupported(c *C) {

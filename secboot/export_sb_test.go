@@ -2,7 +2,7 @@
 //go:build !nosecboot
 
 /*
- * Copyright (C) 2021 Canonical Ltd
+ * Copyright (C) 2021, 2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -25,6 +25,7 @@ import (
 	sb "github.com/snapcore/secboot"
 	sb_efi "github.com/snapcore/secboot/efi"
 	sb_tpm2 "github.com/snapcore/secboot/tpm2"
+	sb_hooks "github.com/snapcore/secboot/hooks"
 
 	"github.com/snapcore/snapd/testutil"
 )
@@ -216,5 +217,29 @@ func MockSbNewTPMProtectedKey(f func(tpm *sb_tpm2.Connection, params *sb_tpm2.Pr
 	sbNewTPMProtectedKey = f
 	return func() {
 		sbNewTPMProtectedKey = old
+	}
+}
+
+func MockSbSetModel(f func(model sb.SnapModel)) (restore func()) {
+	old := sbSetModel
+	sbSetModel = f
+	return func() {
+		sbSetModel = old
+	}
+}
+
+func MockSbSetBootMode(f func(mode string)) (restore func()) {
+	old := sbSetBootMode
+	sbSetBootMode = f
+	return func() {
+		sbSetBootMode = old
+	}
+}
+
+func MockSbSetKeyRevealer(f func(kr sb_hooks.KeyRevealer)) (restore func()) {
+	old := sbSetKeyRevealer
+	sbSetKeyRevealer = f
+	return func() {
+		sbSetKeyRevealer = old
 	}
 }
