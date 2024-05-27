@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/state"
@@ -796,6 +797,12 @@ func (m *SnapManager) StartUp() error {
 	// register handler that records a refresh-inhibit notice when
 	// the set of inhibited snaps is changed.
 	m.changeCallbackID = m.state.AddChangeStatusChangedHandler(processInhibitedAutoRefresh)
+
+	if AssertRuntimeFailureRestart(m.state) == ErrUnexpectedRuntimeFailure {
+		logger.Noticef("detected a runtime failure without a corresponding snapd change")
+		// restart manager is added before snap manager
+		restart.Request(m.state, restart.StopDaemon, nil)
+	}
 
 	return nil
 }

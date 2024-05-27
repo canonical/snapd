@@ -915,6 +915,12 @@ var HasActiveConnection = func(st *state.State, iface string) (bool, error) {
 
 var generateSnapdWrappers = backend.GenerateSnapdWrappers
 
+// isInvokedWithRevert returns true if the current process was invoked in the
+// context of runtime failure handling, most likely by snap-failure.
+func isInvokedWithRevert() bool {
+	return os.Getenv("SNAPD_REVERT_TO_REV") != ""
+}
+
 // FinishRestart will return a Retry error if there is a pending restart
 // and a real error if anything went wrong (like a rollback across
 // restarts).
@@ -932,7 +938,7 @@ func FinishRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 	}
 
 	if snapsup.Type == snap.TypeSnapd {
-		if os.Getenv("SNAPD_REVERT_TO_REV") != "" {
+		if isInvokedWithRevert() {
 			return fmt.Errorf("there was a snapd rollback across the restart")
 		}
 
@@ -1068,6 +1074,50 @@ func FinishTaskWithRestart(task *state.Task, status state.Status, rt restart.Res
 	}
 
 	return restart.FinishTaskWithRestart(task, status, rt, rebootRequiredSnap, rebootInfo)
+}
+
+var ErrUnexpectedRuntimeFailure = errors.New("unexpected restart at runtime")
+
+// AssertRuntimeFailureRestart asserts whether the current process state
+// indicates a failure at runtime and depending on the current changes state
+// either returns ErrUnexpectedRuntimeFailure to indicate that the failure
+// handling was invoked due to an earlier unexpected process failure at runtime,
+// or nil indicating that snapd should proceed with execution.
+func AssertRuntimeFailureRestart(st *state.State) error {
+	if !isInvokedWithRevert() {
+		return nil
+	}
+	// we were invoked by snap-failure, there could be an ongoing
+	// refresh of the snapd snap which has failed and a revert is
+	// pending, but it could also be the case that the snapd process
+	// just failed at runtime, in which case systemd may have
+	// triggered an on-failure handling
+
+	foundChangeWhichMayTriggerRestart := false
+	for _, chg := range st.Changes() {
+		if chg.IsReady() {
+			continue
+		}
+
+		// TODO should this verify that link-snap is done, but we're
+		// waiting for auto-connect?
+		var snaps []string
+		if err := chg.Get("snap-names", &snaps); err == nil {
+			if strutil.ListContains(snaps, "snapd") {
+				foundChangeWhichMayTriggerRestart = true
+				break
+			}
+		} else if errors.Is(err, state.ErrNoState) {
+			// we're invoked in rollback scenario, things can be
+			// wrong in a way we cannot anticipate, so let's only
+			// log the error
+			logger.Noticef("cannot obtain snap-names from change %q: %v", chg.ID(), err)
+		}
+	}
+	if !foundChangeWhichMayTriggerRestart {
+		return ErrUnexpectedRuntimeFailure
+	}
+	return nil
 }
 
 // IsErrAndNotWait returns true if err is not nil and neither state.Wait, it is

@@ -10086,3 +10086,105 @@ func noticeToMap(c *C, notice *state.Notice) map[string]any {
 	c.Assert(err, IsNil)
 	return n
 }
+
+func (s *snapmgrTestSuite) TestAssertRuntimeFailureNoEnv(c *C) {
+	os.Unsetenv("SNAPD_REVERT_TO_REV")
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// no snapd related change in the state
+	err := snapstate.AssertRuntimeFailureRestart(st)
+	c.Assert(err, IsNil)
+
+	// procure a non-ready change for the snapd snap in the state
+	snapstate.Set(st, "snapd", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "snapd", Revision: snap.R(1), SnapID: "snapd-snap-id"},
+		}),
+		Current:  snap.R(1),
+		SnapType: "snapd",
+	})
+
+	chg := s.state.NewChange("refresh-snap", "snapd refresh")
+	ts, err := snapstate.Update(s.state, "snapd", nil, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.Set("snap-names", []string{"snapd"})
+	chg.AddAll(ts)
+
+	// but since the env variable is still unset, we just proceed with execution
+	err = snapstate.AssertRuntimeFailureRestart(st)
+	c.Assert(err, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestAssertRuntimeFailureFromSnapFailure(c *C) {
+	os.Setenv("SNAPD_REVERT_TO_REV", "1")
+	defer os.Unsetenv("SNAPD_REVERT_TO_REV")
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// no snapd related change in the state
+	err := snapstate.AssertRuntimeFailureRestart(st)
+	// indicating we should exit
+	c.Assert(err, Equals, snapstate.ErrUnexpectedRuntimeFailure)
+
+	// procure a non-ready change for the snapd snap in the state
+	snapstate.Set(st, "snapd", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "snapd", Revision: snap.R(1), SnapID: "snapd-snap-id"},
+		}),
+		Current:  snap.R(1),
+		SnapType: "snapd",
+	})
+
+	chg := s.state.NewChange("refresh-snap", "snapd refresh")
+	tss, err := snapstate.Update(s.state, "snapd", nil, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.Set("snap-names", []string{"snapd"})
+	chg.AddAll(tss)
+
+	err = snapstate.AssertRuntimeFailureRestart(st)
+	// snapd should proceed with execution (possibly rolling back)
+	c.Assert(err, IsNil)
+
+	// now mark each task as ready
+	for _, ts := range chg.Tasks() {
+		ts.SetStatus(state.DoneStatus)
+	}
+	c.Assert(chg.IsReady(), Equals, true)
+
+	// now there are no non-ready changes related to the snapd snap, which
+	// means restart with the env varialbe set would indicate a failure at
+	// runtime
+	err = snapstate.AssertRuntimeFailureRestart(st)
+	// snapd should proceed with execution (possibly rolling back)
+	c.Assert(err, Equals, snapstate.ErrUnexpectedRuntimeFailure)
+}
+
+func (s *snapmgrTestSuite) TestRuntimeFailureStartUpRequestsStop(c *C) {
+	os.Setenv("SNAPD_REVERT_TO_REV", "1")
+	defer os.Unsetenv("SNAPD_REVERT_TO_REV")
+
+	s.state.Lock()
+	// make sure we have an expected state
+	err := snapstate.AssertRuntimeFailureRestart(s.state)
+	c.Assert(err, Equals, snapstate.ErrUnexpectedRuntimeFailure)
+
+	var restartRequests []restart.RestartType
+	_, err = restart.Manager(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(t restart.RestartType) {
+		restartRequests = append(restartRequests, t)
+	}))
+	c.Assert(err, IsNil)
+	s.state.Unlock()
+
+	// startup asserts the runtime failure state
+	err = s.snapmgr.StartUp()
+	c.Check(err, IsNil)
+
+	c.Assert(restartRequests, DeepEquals, []restart.RestartType{restart.StopDaemon})
+}
