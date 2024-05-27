@@ -23,8 +23,6 @@ import (
 	"fmt"
 	"time"
 
-	sb "github.com/snapcore/secboot"
-
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/kernel"
@@ -103,20 +101,4 @@ func CheckEncryptionSetupData(encryptSetup *EncryptionSetupData, labelToEncDevic
 	}
 
 	return nil
-}
-
-func MockCryptsetupOpen(f func(key sb.DiskUnlockKey, node, name string) error) func() {
-	old := cryptsetupOpen
-	cryptsetupOpen = f
-	return func() {
-		cryptsetupOpen = old
-	}
-}
-
-func MockCryptsetupClose(f func(name string) error) func() {
-	old := cryptsetupClose
-	cryptsetupClose = f
-	return func() {
-		cryptsetupClose = old
-	}
 }

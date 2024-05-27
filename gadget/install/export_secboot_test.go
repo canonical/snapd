@@ -21,6 +21,8 @@
 package install
 
 import (
+	sb "github.com/snapcore/secboot"
+
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/secboot"
@@ -43,4 +45,20 @@ func MockBootRunFDESetupHook(f func(req *fde.SetupRequest) ([]byte, error)) (res
 	r := testutil.Backup(&boot.RunFDESetupHook)
 	boot.RunFDESetupHook = f
 	return r
+}
+
+func MockCryptsetupOpen(f func(key sb.DiskUnlockKey, node, name string) error) func() {
+	old := cryptsetupOpen
+	cryptsetupOpen = f
+	return func() {
+		cryptsetupOpen = old
+	}
+}
+
+func MockCryptsetupClose(f func(name string) error) func() {
+	old := cryptsetupClose
+	cryptsetupClose = f
+	return func() {
+		cryptsetupClose = old
+	}
 }
