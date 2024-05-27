@@ -29,8 +29,8 @@ import (
 	"os"
 
 	sb "github.com/snapcore/secboot"
-	sb_hooks "github.com/snapcore/secboot/hooks"
 	sb_scope "github.com/snapcore/secboot/bootscope"
+	sb_hooks "github.com/snapcore/secboot/hooks"
 	"golang.org/x/xerrors"
 
 	"github.com/snapcore/snapd/kernel/fde"
