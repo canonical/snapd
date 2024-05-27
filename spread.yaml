@@ -179,8 +179,6 @@ backends:
                   storage: 12G
                   workers: 6
 
-            - fedora-38-64:
-                  workers: 6
             - fedora-39-64:
                   workers: 6
 
