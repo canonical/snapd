@@ -14,7 +14,7 @@ prepare: |
     snap connect test-snapd-sh:mount-control
 
     mkdir -p /var/snap/test-snapd-sh/common/base-files
-    echo 'snapctl mount -o ro,bind,noatime,noexec /usr/share/base-files /var/snap/test-snapd-sh/common/base-files' | snap run --shell test-snapd-sh.sh
+    snap run --shell test-snapd-sh.sh -c 'snapctl mount -o ro,bind,noatime,noexec /usr/share/base-files /var/snap/test-snapd-sh/common/base-files'
     mountpoint /var/snap/test-snapd-sh/common/base-files
     tests.cleanup defer snap run --shell test-snapd-sh.sh -c \'snapctl umount /var/snap/test-snapd-sh/common/base-files\'
 
