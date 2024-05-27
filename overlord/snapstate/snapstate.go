@@ -1080,9 +1080,9 @@ var ErrUnexpectedRuntimeFailure = errors.New("unexpected restart at runtime")
 
 // AssertRuntimeFailureRestart asserts whether the current process state
 // indicates a failure at runtime and depending on the current changes state
-// either returns ErrUnexpectedRuntimeFailure to indicate that the failure
-// handling was invoked due to an earlier unexpected process failure at runtime,
-// or nil indicating that snapd should proceed with execution.
+// either returns ErrRecoveryFromUnexpectedRuntimeFailure to indicate that the
+// failure handling was invoked due to an earlier unexpected process failure at
+// runtime, or nil indicating that snapd should proceed with execution.
 func AssertRuntimeFailureRestart(st *state.State) error {
 	if !isInvokedWithRevert() {
 		return nil

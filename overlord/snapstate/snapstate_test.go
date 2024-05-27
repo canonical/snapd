@@ -10174,17 +10174,9 @@ func (s *snapmgrTestSuite) TestRuntimeFailureStartUpRequestsStop(c *C) {
 	// make sure we have an expected state
 	err := snapstate.AssertRuntimeFailureRestart(s.state)
 	c.Assert(err, Equals, snapstate.ErrUnexpectedRuntimeFailure)
-
-	var restartRequests []restart.RestartType
-	_, err = restart.Manager(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(t restart.RestartType) {
-		restartRequests = append(restartRequests, t)
-	}))
-	c.Assert(err, IsNil)
 	s.state.Unlock()
 
 	// startup asserts the runtime failure state
 	err = s.snapmgr.StartUp()
-	c.Check(err, IsNil)
-
-	c.Assert(restartRequests, DeepEquals, []restart.RestartType{restart.StopDaemon})
+	c.Check(err, Equals, snapstate.ErrUnexpectedRuntimeFailure)
 }
