@@ -60,7 +60,7 @@ execute: |
 
         # get the number of times that snapd.failure was started before we do 
         # anything
-        started_before="$("$TESTSTOOLS"/journal-state get-log -u snapd.failure | grep -c 'Started Failure handling of the snapd snap.' || true)"
+        started_before="$("$TESTSTOOLS"/journal-state get-log -u snapd.failure | grep -c 'Starting Failure handling of the snapd snap.' || true)"
 
         # test that random signals don't trigger snapd-failure
         current=$(readlink /snap/snapd/current)
@@ -87,7 +87,7 @@ execute: |
         # which could try to active the failure service, as we're essentially
         # testing that an event does not happen
         sleep 5
-        started_after_rand_sig="$("$TESTSTOOLS"/journal-state get-log -u snapd.failure | grep -c 'Started Failure handling of the snapd snap.' || true)"
+        started_after_rand_sig="$("$TESTSTOOLS"/journal-state get-log -u snapd.failure | grep -c 'Starting Failure handling of the snapd snap.' || true)"
 
         if [ "$started_after_rand_sig" -gt "$started_before" ] ; then
             echo "snapd.failure inadvertently started with a random signal!"
@@ -114,7 +114,7 @@ execute: |
         # it will be able to revert and fallback as many times as needed
         #shellcheck disable=SC2167
         for _ in $(seq 1 2); do
-            started_before="$("$TESTSTOOLS"/journal-state get-log -u snapd.failure | grep -c 'Started Failure handling of the snapd snap.' || true)"
+            started_before="$("$TESTSTOOLS"/journal-state get-log -u snapd.failure | grep -c 'Starting Failure handling of the snapd snap.' || true)"
 
             echo "Install the broken snapd"
             if snap install --dangerous ./snapd-broken/snapd_*.snap; then
@@ -126,7 +126,7 @@ execute: |
             #shellcheck disable=SC2165
             for _ in $(seq 60); do
                 # get the number of times that snapd.failure was started
-                started_after="$("$TESTSTOOLS"/journal-state get-log -u snapd.failure | grep -c 'Started Failure handling of the snapd snap.' || true)"
+                started_after="$("$TESTSTOOLS"/journal-state get-log -u snapd.failure | grep -c 'Starting Failure handling of the snapd snap.' || true)"
                 if [ "$started_after" -gt "$started_before" ] ; then
                     break
                 fi
