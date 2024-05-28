@@ -923,14 +923,15 @@ func (r *Repository) SnapSpecification(securitySystem SecuritySystem, appSet *Sn
 	return spec, nil
 }
 
-// AddAppSet adds plugs and slots declared by the given snap to the repository.
+// AddAppSet adds plugs and slots declared by the given app set (snap +
+// components) to the repository.
 //
 // This function can be used to implement snap install or, when used along with
 // RemoveSnap, snap upgrade.
 //
 // AddAppSet doesn't change existing plugs/slots. The caller is responsible for
-// ensuring that the snap is not present in the repository in any way prior to
-// calling this function. If this constraint is violated then no changes are
+// ensuring that the app set is not present in the repository in any way prior
+// to calling this function. If this constraint is violated then no changes are
 // made and an error is returned.
 //
 // Each added plug/slot is validated according to the corresponding interface.
