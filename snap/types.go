@@ -195,7 +195,8 @@ const (
 
 var validComponentTypes = [...]ComponentType{TestComponent, KernelModulesComponent}
 
-// ComponentTypeFromString returns true if the given component type is valid.
+// ComponentTypeFromString converts a string to a ComponentType. An error is
+// returned if the string is not a valid ComponentType.
 func ComponentTypeFromString(t string) (ComponentType, error) {
 	for _, valid := range validComponentTypes {
 		if t == string(valid) {
