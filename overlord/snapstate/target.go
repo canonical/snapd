@@ -63,12 +63,16 @@ type Installable struct {
 	Components []*ComponentSetup
 	// Info contains the snap.Info for the snap to be installed.
 	Info *snap.Info
+	// SnapState is the current state of the target snap, prior to installation.
+	// This must be retrieved prior to unlocking the state for any reason (for
+	// example, talking to the store).
+	SnapState SnapState
 }
 
 // Target represents a single snap or a group of snaps to be installed.
 type Target interface {
 	// Installables returns the data needed to setup the snaps for installation.
-	Installables(context.Context, *state.State, map[string]*SnapState, Options) ([]Installable, error)
+	Installables(context.Context, *state.State, Options) ([]Installable, error)
 }
 
 // OptionInitializer is an interface that can be implemented by a Target to
@@ -130,8 +134,13 @@ func validateRevisionOpts(opts RevisionOptions) error {
 
 // Installables returns the data needed to setup the snaps from the store for
 // installation.
-func (s *StoreTarget) Installables(ctx context.Context, st *state.State, installedSnaps map[string]*SnapState, opts Options) ([]Installable, error) {
-	if err := s.validateAndPrune(installedSnaps); err != nil {
+func (s *StoreTarget) Installables(ctx context.Context, st *state.State, opts Options) ([]Installable, error) {
+	allSnaps, err := All(st)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.validateAndPrune(allSnaps); err != nil {
 		return nil, err
 	}
 
@@ -197,6 +206,11 @@ func (s *StoreTarget) Installables(ctx context.Context, st *state.State, install
 			return nil, fmt.Errorf("store returned unsolicited snap action: %s", r.InstanceName())
 		}
 
+		snapst, ok := allSnaps[r.InstanceName()]
+		if !ok {
+			snapst = &SnapState{}
+		}
+
 		// TODO: extract components from resources
 
 		// TODO: is it safe to pull the channel from here? i'm not sure what
@@ -212,7 +226,8 @@ func (s *StoreTarget) Installables(ctx context.Context, st *state.State, install
 				Channel:      channel,
 				CohortKey:    sn.RevOpts.CohortKey,
 			},
-			Info: r.Info,
+			Info:      r.Info,
+			SnapState: *snapst,
 		})
 	}
 
@@ -367,12 +382,7 @@ func InstallTarget(ctx context.Context, st *state.State, target Target, opts Opt
 		}
 	}
 
-	snaps, err := All(st)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	installables, err := target.Installables(ctx, st, snaps, opts)
+	installables, err := target.Installables(ctx, st, opts)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -402,12 +412,7 @@ func InstallTarget(ctx context.Context, st *state.State, target Target, opts Opt
 
 		opts.PrereqTracker.Add(info)
 
-		snapst, ok := snaps[info.InstanceName()]
-		if !ok {
-			snapst = &SnapState{}
-		}
-
-		flags, err := earlyChecks(st, snapst, info, opts.Flags)
+		flags, err := earlyChecks(st, &inst.SnapState, info, opts.Flags)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -437,7 +442,7 @@ func InstallTarget(ctx context.Context, st *state.State, target Target, opts Opt
 			instFlags |= skipConfigure
 		}
 
-		ts, err := doInstall(st, snapst, snapsup, instFlags, opts.FromChange, inUseFor(opts.DeviceCtx))
+		ts, err := doInstall(st, &inst.SnapState, snapsup, instFlags, opts.FromChange, inUseFor(opts.DeviceCtx))
 		if err != nil {
 			return nil, nil, err
 		}
@@ -518,7 +523,7 @@ func (p *PathTarget) InitOptions(st *state.State, opts *Options) error {
 }
 
 // Installables returns the data needed to setup the snap from disk.
-func (p *PathTarget) Installables(ctx context.Context, st *state.State, installedSnaps map[string]*SnapState, opts Options) ([]Installable, error) {
+func (p *PathTarget) Installables(ctx context.Context, st *state.State, opts Options) ([]Installable, error) {
 	si := p.SideInfo
 
 	if si.RealName == "" {
@@ -558,8 +563,13 @@ func (p *PathTarget) Installables(ctx context.Context, st *state.State, installe
 	}
 	info.InstanceKey = instanceKey
 
+	var snapst SnapState
+	if err := Get(st, p.InstanceName, &snapst); err != nil && !errors.Is(err, state.ErrNoState) {
+		return nil, err
+	}
+
 	var trackingChannel string
-	if snapst, ok := installedSnaps[p.InstanceName]; ok && snapst.IsInstalled() {
+	if snapst.IsInstalled() {
 		trackingChannel = snapst.TrackingChannel
 	}
 
@@ -574,7 +584,8 @@ func (p *PathTarget) Installables(ctx context.Context, st *state.State, installe
 			Channel:   channel,
 			CohortKey: p.RevOpts.CohortKey,
 		},
-		Info: info,
+		Info:      info,
+		SnapState: snapst,
 	}
 
 	return []Installable{inst}, nil
