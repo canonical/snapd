@@ -172,6 +172,12 @@ func (s *StoreTarget) Installables(ctx context.Context, st *state.State, install
 	defer st.Lock()
 
 	results, _, err := str.SnapAction(context.TODO(), curSnaps, actions, nil, user, refreshOpts)
+	if err != nil {
+		if len(actions) == 1 {
+			return nil, singleActionResultErr(actions[0].InstanceName, actions[0].Action, err)
+		}
+		return nil, err
+	}
 
 	installs := make([]Installable, 0, len(results))
 	for _, r := range results {
