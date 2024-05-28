@@ -1315,13 +1315,14 @@ nested_start_core_vm_unit() {
         nested_prepare_tools
         # Wait for cloud init to be done if the system is using cloud-init
         if [ "$NESTED_USE_CLOUD_INIT" = true ]; then
-            if ! remote.exec "retry --wait 1 -n 5 sh -c 'cloud-init status --wait'"; then
                 # Error 2 means 'recoverable error', ignore that case
                 ret=0
                 remote.exec "cloud-init status" || ret=$?
                 if "$ret" -ne 0 && "$ret" -ne 2; then
                     echo "cloud-init finished with error $ret"
                     exit 1
+                fi
+                    remote.exec "cloud-init status" | MATCH "status: disabled"
                 fi
             fi
         fi
