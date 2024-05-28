@@ -32,12 +32,27 @@ import (
 	"github.com/snapcore/snapd/kernel"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/mkfs"
+	"github.com/snapcore/snapd/snap"
 )
 
 var (
 	mkfsImpl                      = mkfs.Make
 	kernelEnsureKernelDriversTree = kernel.EnsureKernelDriversTree
 )
+
+// KernelSnapInfo includes information from the kernel snap that is
+// needed to build a drivers tree. Defin
+type KernelSnapInfo struct {
+	Name     string
+	Revision snap.Revision
+	// MountPoint is the root of the files from the kernel snap
+	MountPoint string
+	// NeedsDriversTree will be set if a drivers tree needs to be
+	// build on installation
+	NeedsDriversTree bool
+	// IsCore is set if this is UC
+	IsCore bool
+}
 
 type mkfsParams struct {
 	Type       string

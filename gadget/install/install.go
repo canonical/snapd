@@ -36,7 +36,6 @@ import (
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
-	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
 )
@@ -323,20 +322,6 @@ func onDiskStructsSortedIdx(vss map[int]*gadget.OnDiskStructure) []int {
 	}
 	sort.Ints(yamlIdxSl)
 	return yamlIdxSl
-}
-
-// KernelSnapInfo includes information from the kernel snap that is
-// needed to build a drivers tree.
-type KernelSnapInfo struct {
-	Name     string
-	Revision snap.Revision
-	// MountPoint is the root of the files from the kernel snap
-	MountPoint string
-	// NeedsDriversTree will be set if a drivers tree needs to be
-	// build on installation
-	NeedsDriversTree bool
-	// IsCore is set if this is UC
-	IsCore bool
 }
 
 // Run creates partitions, encrypts them when expected, creates
