@@ -127,7 +127,7 @@ func (pdb *PromptDB) Prompts(user uint32) []*Prompt {
 	defer pdb.mutex.Unlock()
 	userEntry, exists := pdb.PerUser[user]
 	if !exists {
-		return make([]*Prompt, 0)
+		return []*Prompt{}
 	}
 	prompts := make([]*Prompt, 0, len(userEntry.ByID))
 	for _, prompt := range userEntry.ByID {
@@ -189,7 +189,7 @@ func (pdb *PromptDB) HandleNewRule(user uint32, snap string, iface string, const
 	if err != nil {
 		return nil, err
 	}
-	var satisfiedPromptIDs []string
+	satisfiedPromptIDs := []string{}
 	userEntry, exists := pdb.PerUser[user]
 	if !exists {
 		return satisfiedPromptIDs, nil

@@ -259,7 +259,7 @@ func (p *Prompting) PostPrompt(userID uint32, promptID string, reply *PromptRepl
 	}
 
 	if reply.Lifespan == common.LifespanSingle {
-		return make([]string, 0), nil
+		return []string{}, nil
 	}
 
 	// Add new rule based on the reply.
@@ -351,7 +351,6 @@ func (p *Prompting) PostRulesRemove(userID uint32, selector *RemoveRulesSelector
 	if !PromptingEnabled() {
 		return nil, fmt.Errorf("AppArmor Prompting is not enabled")
 	}
-	removedRules := make([]*requestrules.Rule, 0)
 	snap := selector.Snap
 	iface := selector.Interface
 	var rulesToRemove []*requestrules.Rule
@@ -361,6 +360,7 @@ func (p *Prompting) PostRulesRemove(userID uint32, selector *RemoveRulesSelector
 	} else {
 		rulesToRemove = p.rules.RulesForSnap(userID, snap)
 	}
+	removedRules := make([]*requestrules.Rule, 0, len(rulesToRemove))
 	for _, rule := range rulesToRemove {
 		removedRule, err := p.rules.RemoveRule(userID, rule.ID)
 		if err != nil {
