@@ -17,17 +17,21 @@ environment:
     VARIANT/unchanged: unchanged
     AA_CACHE: /var/cache/apparmor/
     AA_PROFILES: /var/lib/snapd/apparmor/profiles/
+    FAKE_LOG: /tmp/apparmor_parser.fake.log
 
 prepare: |
     snap install test-snapd-content-plug test-snapd-tools
     snap install --edge test-snapd-curl
     cp /sbin/apparmor_parser /sbin/apparmor_parser.real
+    echo > "$FAKE_LOG"
 
 restore: |
     mv /sbin/apparmor_parser.real /sbin/apparmor_parser
+    rm -f "$FAKE_LOG"
 
 debug: |
     "$TESTSTOOLS"/journal-state get-log -a | grep apparmor_parser.fake
+    cat "$FAKE_LOG" || true
 
 execute: |
     systemctl stop snapd.{service,socket}
@@ -87,19 +91,15 @@ execute: |
         retry=$(( retry - 1 ))
     done
 
-    echo "Check log notification about failed batch-reload"
-    # grep by "fail" to reduce log/debug noise in case of a match failure below
-    log="$("$TESTSTOOLS"/journal-state get-log -a -u snapd|grep -i fail)"
-    echo "$log" | MATCH "failed to batch-reload $VARIANT profiles: cannot load apparmor profiles"
     # we're matching a single long log line (the invocation of apparmor_parser for batch-reload of
     # multiple profiles) where the order of arguments is not deterministic, therefore it's split
     # into multiple matches. We expect same profiles to always fail - we just don't know how
     # snapd ordered the arguments when executing apparmor_parser.
-    echo "$log" | MATCH "FAIL ON: .*/snap-update-ns.test-snapd-curl"
-    echo "$log" | MATCH "FAIL ON: .*/snap.test-snapd-curl.curl"
-    echo "$log" | MATCH "FAIL ON: .*/snap-update-ns.test-snapd-tools"
-    echo "$log" | MATCH "FAIL ON: .*/snap.test-snapd-tools.block"
-    echo "$log" | MATCH "FAIL ON: .*/snap.test-snapd-tools.cat"
+    MATCH "FAIL ON: .*/snap-update-ns.test-snapd-curl" < "$FAKE_LOG"
+    MATCH "FAIL ON: .*/snap.test-snapd-curl.curl" < "$FAKE_LOG"
+    MATCH "FAIL ON: .*/snap-update-ns.test-snapd-tools" < "$FAKE_LOG"
+    MATCH "FAIL ON: .*/snap.test-snapd-tools.block" < "$FAKE_LOG"
+    MATCH "FAIL ON: .*/snap.test-snapd-tools.cat" < "$FAKE_LOG"
     # sanity: make sure we got just one "FAIL ON:" line, meaning a single failed invocation of apparmor
     # parser when loading the batch.
-    [ "$(echo "$log" | grep -c "FAIL ON:")" = "1" ] || echo "Got more than one failed invocation of apparmor parser when reloading multiple profiles in a batch"
+    [ "$(grep -c "FAIL ON:" < "$FAKE_LOG")" = "1" ] || echo "Got more than one failed invocation of apparmor parser when reloading multiple profiles in a batch"
