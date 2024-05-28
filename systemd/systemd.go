@@ -230,6 +230,12 @@ func getVersion() (int, error) {
 		}
 	}
 
+	// ignore the pre-release suffixes, since we otherwise we can't convert to an
+	// int and we only compare versions coarsely to check systemd is not too old
+	if i := strings.IndexRune(verstr, '~'); i != -1 {
+		verstr = verstr[:i]
+	}
+
 	ver, err := strconv.Atoi(verstr)
 	if err != nil {
 		return 0, fmt.Errorf("cannot convert systemd version to number: %s", verstr)
