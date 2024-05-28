@@ -36,8 +36,8 @@ import (
 	"github.com/canonical/go-tpm2/mu"
 	sb "github.com/snapcore/secboot"
 	sb_efi "github.com/snapcore/secboot/efi"
-	sb_tpm2 "github.com/snapcore/secboot/tpm2"
 	sb_hooks "github.com/snapcore/secboot/hooks"
+	sb_tpm2 "github.com/snapcore/secboot/tpm2"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
