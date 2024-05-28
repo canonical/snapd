@@ -76,6 +76,8 @@ var (
 
 	sbTPMDictionaryAttackLockReset = (*sb_tpm2.Connection).DictionaryAttackLockReset
 
+	sbUpdateKeyDataPCRProtectionPolicy = sb_tpm2.UpdateKeyDataPCRProtectionPolicy
+
 	// check whether the interfaces match
 	_ (sb.SnapModel) = ModelForSealing(nil)
 )
@@ -281,10 +283,10 @@ func newAuthRequestor() (sb.AuthRequestor, error) {
 	)
 }
 
-func readKeyFile(keyfile string) (*sb.KeyData, error) {
+func readKeyFileImpl(keyfile string) (*sb.KeyData, *sb_tpm2.SealedKeyObject, error) {
 	f, err := os.Open(keyfile)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer f.Close()
 
@@ -292,18 +294,30 @@ func readKeyFile(keyfile string) (*sb.KeyData, error) {
 
 	buf := make([]byte, len(rawPrefix))
 	if _, err := io.ReadFull(f, buf); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if bytes.HasPrefix(buf, rawPrefix) {
-		return sbNewKeyDataFromSealedKeyObjectFile(keyfile)
+		sealedObject, err := sbReadSealedKeyObjectFromFile(keyfile)
+		if err != nil {
+			return nil, nil, fmt.Errorf("cannot reda key object: %v", err)
+		}
+		keyData, err := sbNewKeyDataFromSealedKeyObjectFile(keyfile)
+		if err != nil {
+			return nil, nil, fmt.Errorf("cannot read key object as key data: %v", err)
+		}
+		return keyData, sealedObject, err
+
 	} else {
 		reader, err := sbNewFileKeyDataReader(keyfile)
 		if err != nil {
-			return nil, fmt.Errorf("cannot open key data: %v", err)
+			return nil, nil, fmt.Errorf("cannot open key data: %v", err)
 		}
-		return sbReadKeyData(reader)
+		keyData, err := sbReadKeyData(reader)
+		return keyData, nil, err
 	}
 }
+
+var readKeyFile = readKeyFileImpl
 
 // unlockEncryptedPartitionWithSealedKey unseals the keyfile and opens an encrypted
 // device. If activation with the sealed key fails, this function will attempt to
@@ -311,7 +325,7 @@ func readKeyFile(keyfile string) (*sb.KeyData, error) {
 func unlockEncryptedPartitionWithSealedKey(mapperName, sourceDevice, keyfile string, allowRecovery bool) (UnlockMethod, error) {
 	var keys []*sb.KeyData
 
-	keyData, err := readKeyFile(keyfile)
+	keyData, _, err := readKeyFile(keyfile)
 	if err != nil {
 		return NotUnlocked, fmt.Errorf("cannot read key data: %v", err)
 	}
