@@ -63,11 +63,8 @@ execute: |
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     for plugcmd in "$SNAP_MOUNT_DIR"/bin/"$CONSUMER_SNAP".* ; do
 
-        # Just connect 20% of the interfaces on debian 10, Otherwise connect 50%
-        # Debian 10 has bad performance disconnecting interfaces
-        # and the test fails (kill-timeout) trying either to remove
-        # interfaces or removing the snap
-        if (os.query is-debian 10 && [ "$((RANDOM % 5))" != 0 ]) || [ "$((RANDOM % 2))" != 0 ]; then
+        # Just connect 50% of the interfaces since this is quite slow otherwise
+        if [ "$((RANDOM % 2))" != 0 ]; then
             echo "skipping plug: $plugcmd"
             continue
         fi
