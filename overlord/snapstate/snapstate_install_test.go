@@ -248,6 +248,26 @@ func (s *snapmgrTestSuite) TestInstallTasks(c *C) {
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 }
 
+func (s *snapmgrTestSuite) TestInstallAlreadyInstalled(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "some-snap", Revision: snap.R(7)},
+		}),
+		Current:  snap.R(7),
+		SnapType: "app",
+	})
+
+	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
+	_, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, 0, snapstate.Flags{})
+	c.Assert(err, NotNil)
+	c.Check(err, ErrorMatches, `snap "some-snap" is already installed`)
+	c.Check(err, FitsTypeOf, &snap.AlreadyInstalledError{})
+}
+
 func (s *snapmgrTestSuite) TestInstallTaskEdgesForPreseeding(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
