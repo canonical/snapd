@@ -4282,7 +4282,8 @@ func changeReadyUpToTask(task *state.Task, considerTasks map[string]bool) bool {
 // true if any of the snaps failed to refresh.
 //
 // It does this by advancing through the given task's change's tasks, and keeping
-// track of the instance names from every SnapSetup in "download-snap" tasks it finds.
+// track of the instance names from every SnapSetup in "download-snap" tasks it
+// finds, ignoring tasks in considerTasks (e.g., unrelated tasks in split refresh).
 // It stops when finding the given task, and resetting things when finding a different
 // re-refresh task (that indicates the end of a batch that isn't the given one).
 func refreshedSnaps(reTask *state.Task, considerTasks map[string]bool) (snapNames []string, failed bool, err error) {
@@ -4408,7 +4409,7 @@ func (m *SnapManager) doCheckReRefresh(t *state.Task, tomb *tomb.Tomb) error {
 	// the restart to happen before proceeding, otherwise we will be blocking
 	// any restart that is waiting to occur. We handle this here as this
 	// task is dynamically added.
-	if restart.PendingForChangeConsidering(st, t.Change(), considerTasks) {
+	if restart.PendingForChangeTasks(st, t.Change(), considerTasks) {
 		return restart.TaskWaitForRestart(t)
 	}
 

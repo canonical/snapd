@@ -260,13 +260,13 @@ func (rm *RestartManager) rebootDidNotHappen() error {
 // pendingForSystemRestart returns true if the change has tasks that are set to
 // wait pending a manual system restart. It is registered with the prune logic.
 func (rm *RestartManager) pendingForSystemRestart(chg *state.Change) bool {
-	return rm.pendingForSystemRestartConsidering(chg, nil)
+	return rm.pendingForSystemRestartTasks(chg, nil)
 }
 
-// pendingForSystemRestart returns true if the change has tasks in the
-// considerTasks that are set to wait pending a manual system restart. It is
-// registered with the prune logic.
-func (rm *RestartManager) pendingForSystemRestartConsidering(chg *state.Change, considerTasks map[string]bool) bool {
+// pendingForSystemRestart returns true if the change has tasks set to wait,
+// if considerTasks is non-nil only those tasks are considered. It is registered
+// with the prune logic.
+func (rm *RestartManager) pendingForSystemRestartTasks(chg *state.Change, considerTasks map[string]bool) bool {
 	if chg.IsReady() {
 		return false
 	}
@@ -546,14 +546,14 @@ func FinishTaskWithRestart(t *state.Task, status state.Status, restartType Resta
 
 // PendingForChange checks if a system restart is pending for a change.
 func PendingForChange(st *state.State, chg *state.Change) bool {
-	return PendingForChangeConsidering(st, chg, nil)
+	return PendingForChangeTasks(st, chg, nil)
 }
 
-// PendingForChangeConsidering checks if a system restart is pending for a
+// PendingForChangeTasks checks if a system restart is pending for a
 // change, ignoring tasks other than the task IDs supplied.
-func PendingForChangeConsidering(st *state.State, chg *state.Change, considerTasks map[string]bool) bool {
+func PendingForChangeTasks(st *state.State, chg *state.Change, considerTasks map[string]bool) bool {
 	rm := restartManager(st, "internal error: cannot request a restart before RestartManager initialization")
-	return rm.pendingForSystemRestartConsidering(chg, considerTasks)
+	return rm.pendingForSystemRestartTasks(chg, considerTasks)
 }
 
 // TaskWaitForRestart can be used for tasks that need to wait for a pending
