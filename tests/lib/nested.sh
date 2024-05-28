@@ -1197,26 +1197,26 @@ nested_start_core_vm_unit() {
             PARAM_BIOS="-bios /usr/share/ovmf/OVMF.fd"
         fi
         local OVMF_CODE OVMF_VARS OVMF_SIZE
-        OVMF_CODE="secboot"
-        OVMF_VARS="ms"
+        OVMF_CODE=""
+        OVMF_VARS=""
         OVMF_SIZE=""
-        if nested_is_core_ge 24; then
-            OVMF_SIZE="_4M"
+
+        if nested_is_core_ge 22; then
+            wget -q https://storage.googleapis.com/snapd-spread-tests/dependencies/OVMF_CODE.secboot.fd
+            mv OVMF_CODE.secboot.fd /usr/share/OVMF/OVMF_CODE.secboot.fd
+            wget -q https://storage.googleapis.com/snapd-spread-tests/dependencies/OVMF_VARS.snakeoil.fd
+            mv OVMF_VARS.snakeoil.fd /usr/share/OVMF/OVMF_VARS.snakeoil.fd
         fi
 
         # In this case the kernel.efi is unsigned and signed with snaleoil certs
         if [ "$NESTED_FORCE_MS_KEYS" != "true" ] && [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "true" ]; then
             OVMF_VARS="snakeoil"
+        else
+            OVMF_VARS="ms"
         fi
 
-        if [ "${NESTED_ENABLE_OVMF:-}" = "true" ]; then
-            if os.query is-arm; then
-                PARAM_BIOS="-bios /usr/share/AAVMF/AAVMF_CODE.fd"
-            else
-                PARAM_BIOS="-bios /usr/share/OVMF/OVMF_CODE${OVMF_SIZE}.fd"
-            fi
-        fi
         if nested_is_secure_boot_enabled; then
+            OVMF_CODE="secboot"
             if os.query is-arm; then
                 cp -f "/usr/share/AAVMF/AAVMF_VARS.fd" "$NESTED_ASSETS_DIR/AAVMF_VARS.fd"
                 PARAM_BIOS="-drive file=/usr/share/AAVMF/AAVMF_CODE.fd,if=pflash,format=raw,unit=0,readonly=on -drive file=$NESTED_ASSETS_DIR/AAVMF_VARS.fd,if=pflash,format=raw"
