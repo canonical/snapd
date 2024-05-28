@@ -10,7 +10,9 @@ details: |
     and then verifies apparmor cache to ensure expected profiles were created by fallback
     logic.
 
-systems: [ubuntu-1*]
+systems:
+    - ubuntu-20.04-*
+    - ubuntu-24.04-*
 
 environment:
     VARIANT/changed: changed
