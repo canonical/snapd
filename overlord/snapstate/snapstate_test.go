@@ -10117,6 +10117,19 @@ func (s *snapmgrTestSuite) TestAssertRuntimeFailureNoEnv(c *C) {
 	// but since the env variable is still unset, we just proceed with execution
 	err = snapstate.AssertRuntimeFailureRestart(st)
 	c.Assert(err, IsNil)
+
+	// pretend everything up to auto-connect is done, as if daemon restart
+	// was requested
+	for _, tsk := range chg.Tasks() {
+		if tsk.Kind() == "auto-connect" {
+			break
+		}
+		tsk.SetStatus(state.DoneStatus)
+	}
+
+	// but even then we just proceed with execution
+	err = snapstate.AssertRuntimeFailureRestart(st)
+	c.Assert(err, IsNil)
 }
 
 func (s *snapmgrTestSuite) TestAssertRuntimeFailureFromSnapFailure(c *C) {
@@ -10150,6 +10163,20 @@ func (s *snapmgrTestSuite) TestAssertRuntimeFailureFromSnapFailure(c *C) {
 
 	err = snapstate.AssertRuntimeFailureRestart(st)
 	// snapd should proceed with execution (possibly rolling back)
+	c.Assert(err, Equals, snapstate.ErrUnexpectedRuntimeFailure)
+
+	// pretend everything up to auto-connect is done
+	for _, tsk := range chg.Tasks() {
+		if tsk.Kind() == "auto-connect" {
+			break
+		}
+		tsk.SetStatus(state.DoneStatus)
+	}
+
+	// if snap-failure was to call snapd now, the restart would not be
+	// unexpected
+	err = snapstate.AssertRuntimeFailureRestart(st)
+	// now a restart is not unexpected
 	c.Assert(err, IsNil)
 
 	// now mark each task as ready

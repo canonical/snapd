@@ -1076,6 +1076,54 @@ func FinishTaskWithRestart(task *state.Task, status state.Status, rt restart.Res
 	return restart.FinishTaskWithRestart(task, status, rt, rebootRequiredSnap, rebootInfo)
 }
 
+func isChangeRequestingSnapdRestart(chg *state.Change) bool {
+	// change touching the snapd snap
+	var haveSnapd, linkDone, autoConnectWaiting bool
+	for _, tsk := range chg.Tasks() {
+		kind := tsk.Kind()
+		switch kind {
+		case "link-snap", "auto-connect":
+			// we're only interested in link-snap and auto-connect
+		default:
+			continue
+		}
+
+		tss, err := TaskSnapSetup(tsk)
+		if err != nil {
+			// we're invoked in rollback scenario, things can be
+			// wrong in a way we cannot anticipate, so let's only
+			// log the error
+			logger.Noticef("cannot obtain task snap-setup from %q: %v", tsk.ID(), err)
+			continue
+		}
+
+		if tss.SnapName() != "snapd" {
+			// not the snap we are looking for
+			continue
+		}
+
+		haveSnapd = true
+
+		status := tsk.Status()
+
+		if kind == "link-snap" && status == state.DoneStatus {
+			linkDone = true
+		} else if kind == "auto-connect" && (status == state.DoStatus || status == state.DoingStatus) {
+			autoConnectWaiting = true
+		}
+	}
+
+	if haveSnapd && linkDone && autoConnectWaiting {
+		// a snapd snap, for which we have a link-snap task that is
+		// complete, and an auto-connect task that is waiting to
+		// execute, this is a scenario which requests a restart of the
+		// snapd daemon
+		return true
+	}
+
+	return false
+}
+
 var ErrUnexpectedRuntimeFailure = errors.New("unexpected restart at runtime")
 
 // AssertRuntimeFailureRestart asserts whether the current process state
@@ -1093,31 +1141,17 @@ func AssertRuntimeFailureRestart(st *state.State) error {
 	// just failed at runtime, in which case systemd may have
 	// triggered an on-failure handling
 
-	foundChangeWhichMayTriggerRestart := false
 	for _, chg := range st.Changes() {
 		if chg.IsReady() {
 			continue
 		}
 
-		// TODO should this verify that link-snap is done, but we're
-		// waiting for auto-connect?
-		var snaps []string
-		if err := chg.Get("snap-names", &snaps); err == nil {
-			if strutil.ListContains(snaps, "snapd") {
-				foundChangeWhichMayTriggerRestart = true
-				break
-			}
-		} else if errors.Is(err, state.ErrNoState) {
-			// we're invoked in rollback scenario, things can be
-			// wrong in a way we cannot anticipate, so let's only
-			// log the error
-			logger.Noticef("cannot obtain snap-names from change %q: %v", chg.ID(), err)
+		if isChangeRequestingSnapdRestart(chg) {
+			return nil
 		}
 	}
-	if !foundChangeWhichMayTriggerRestart {
-		return ErrUnexpectedRuntimeFailure
-	}
-	return nil
+
+	return ErrUnexpectedRuntimeFailure
 }
 
 // IsErrAndNotWait returns true if err is not nil and neither state.Wait, it is
