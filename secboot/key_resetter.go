@@ -1,5 +1,4 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-//go:build !nosecboot
 
 /*
  * Copyright (C) 2024 Canonical Ltd
@@ -22,59 +21,36 @@ package secboot
 
 import (
 	"fmt"
-
-	sb "github.com/snapcore/secboot"
 )
 
-type sbKeyResetter struct {
-	devicePath          string
-	oldKey              sb.DiskUnlockKey
-	oldContainerKeySlot string
-	finished            bool
+type MockKeyResetter struct {
+	finished bool
 }
 
-func createKeyResetterImpl(key sb.DiskUnlockKey, devicePath string) KeyResetter {
-	return &sbKeyResetter{
-		devicePath:          devicePath,
-		oldKey:              key,
-		oldContainerKeySlot: "installation-key",
-	}
+type MockKeyDataWriter struct {
 }
 
-var CreateKeyResetter = createKeyResetterImpl
+func (kdw *MockKeyDataWriter) Write(p []byte) (n int, err error) {
+	return len(p), nil
+}
 
-func (kr *sbKeyResetter) AddKey(slotName string, newKey []byte, token bool) (KeyDataWriter, error) {
+func (kdw *MockKeyDataWriter) Commit() error {
+	return nil
+}
+
+func (kr *MockKeyResetter) AddKey(slotName string, newKey []byte, token bool) (KeyDataWriter, error) {
 	if kr.finished {
 		return nil, fmt.Errorf("internal error: key resetter was a already finished")
 	}
-	if slotName == "" {
-		slotName = "default"
-	}
-	if err := sb.AddLUKS2ContainerUnlockKey(kr.devicePath, slotName, kr.oldKey, sb.DiskUnlockKey(newKey)); err != nil {
-		return nil, err
-	}
-	if !token {
+
+	if token {
+		return &MockKeyDataWriter{}, nil
+	} else {
 		return nil, nil
 	}
-	writer, err := sb.NewLUKS2KeyDataWriter(kr.devicePath, slotName)
-	if err != nil {
-		return nil, err
-	}
-	return writer, nil
 }
 
-func (kr *sbKeyResetter) RemoveInstallationKey() error {
-	if kr.finished {
-		return nil
-	}
+func (kr *MockKeyResetter) RemoveInstallationKey() error {
 	kr.finished = true
-	return sb.DeleteLUKS2ContainerKey(kr.devicePath, kr.oldContainerKeySlot)
-}
-
-func MockCreateKeyResetter(f func(key sb.DiskUnlockKey, devicePath string) KeyResetter) func() {
-	old := CreateKeyResetter
-	CreateKeyResetter = f
-	return func() {
-		CreateKeyResetter = old
-	}
+	return nil
 }
