@@ -442,7 +442,7 @@ func InstallTarget(ctx context.Context, st *state.State, target Target, opts Opt
 			return nil, nil, err
 		}
 
-		ts.JoinLane(laneGenerator(st, opts))
+		ts.JoinLane(generateLane(st, opts))
 
 		tasksets = append(tasksets, ts)
 		infos = append(infos, info)
@@ -451,7 +451,7 @@ func InstallTarget(ctx context.Context, st *state.State, target Target, opts Opt
 	return infos, tasksets, nil
 }
 
-func laneGenerator(st *state.State, opts Options) int {
+func generateLane(st *state.State, opts Options) int {
 	// If transactional, use a single lane for all snaps, so when
 	// one fails the changes for all affected snaps will be
 	// undone. Otherwise, have different lanes per snap so failures
