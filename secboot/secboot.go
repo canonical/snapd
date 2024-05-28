@@ -25,7 +25,7 @@ package secboot
 // Debian does run "go list" without any support for passing -tags.
 
 import (
-	sb "github.com/snapcore/secboot"
+	"io"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
@@ -65,8 +65,13 @@ func NewLoadChain(bf bootloader.BootFile, next ...*LoadChain) *LoadChain {
 	}
 }
 
+type KeyDataWriter interface {
+	io.Writer
+	Commit() error
+}
+
 type KeyResetter interface {
-	AddKey(slotName string, newKey sb.DiskUnlockKey, token bool) (sb.KeyDataWriter, error)
+	AddKey(slotName string, newKey []byte, token bool) (KeyDataWriter, error)
 	RemoveInstallationKey() error
 }
 

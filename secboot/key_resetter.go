@@ -43,14 +43,14 @@ func createKeyResetterImpl(key sb.DiskUnlockKey, devicePath string) KeyResetter 
 
 var CreateKeyResetter = createKeyResetterImpl
 
-func (kr *sbKeyResetter) AddKey(slotName string, newKey sb.DiskUnlockKey, token bool) (sb.KeyDataWriter, error) {
+func (kr *sbKeyResetter) AddKey(slotName string, newKey []byte, token bool) (KeyDataWriter, error) {
 	if kr.finished {
 		return nil, fmt.Errorf("internal error: key resetter was a already finished")
 	}
 	if slotName == "" {
 		slotName = "default"
 	}
-	if err := sb.AddLUKS2ContainerUnlockKey(kr.devicePath, slotName, kr.oldKey, newKey); err != nil {
+	if err := sb.AddLUKS2ContainerUnlockKey(kr.devicePath, slotName, kr.oldKey, sb.DiskUnlockKey(newKey)); err != nil {
 		return nil, err
 	}
 	if !token {
@@ -69,38 +69,6 @@ func (kr *sbKeyResetter) RemoveInstallationKey() error {
 	}
 	kr.finished = true
 	return sb.DeleteLUKS2ContainerKey(kr.devicePath, kr.oldContainerKeySlot)
-}
-
-type MockKeyResetter struct {
-	finished bool
-}
-
-type MockKeyDataWriter struct {
-}
-
-func (kdw *MockKeyDataWriter) Write(p []byte) (n int, err error) {
-	return len(p), nil
-}
-
-func (kdw *MockKeyDataWriter) Commit() error {
-	return nil
-}
-
-func (kr *MockKeyResetter) AddKey(slotName string, newKey sb.DiskUnlockKey, token bool) (sb.KeyDataWriter, error) {
-	if kr.finished {
-		return nil, fmt.Errorf("internal error: key resetter was a already finished")
-	}
-
-	if token {
-		return &MockKeyDataWriter{}, nil
-	} else {
-		return nil, nil
-	}
-}
-
-func (kr *MockKeyResetter) RemoveInstallationKey() error {
-	kr.finished = true
-	return nil
 }
 
 func MockCreateKeyResetter(f func(key sb.DiskUnlockKey, devicePath string) KeyResetter) func() {

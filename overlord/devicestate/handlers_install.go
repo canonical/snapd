@@ -31,7 +31,6 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	sb "github.com/snapcore/secboot"
 	_ "golang.org/x/crypto/sha3"
 	"gopkg.in/tomb.v2"
 
@@ -76,9 +75,6 @@ var (
 	secbootTransitionEncryptionKeyChange = secboot.TransitionEncryptionKeyChange
 
 	installLogicPrepareRunSystemData = installLogic.PrepareRunSystemData
-
-	sbGetDiskUnlockKeyFromKernel = sb.GetDiskUnlockKeyFromKernel
-	sbAddLUKS2ContainerUnlockKey = sb.AddLUKS2ContainerUnlockKey
 )
 
 func writeLogs(rootdir string, fromMode string) error {
@@ -598,30 +594,17 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 			return fmt.Errorf("cannot cleanup obsolete key file: %v", err)
 		}
 
-		// new encryption key for save
-		saveEncryptionKey, err := keys.NewEncryptionKey()
-		if err != nil {
-			return fmt.Errorf("cannot create encryption key: %v", err)
-		}
-
 		saveNode := installedSystem.DeviceForRole[gadget.SystemSave]
 		if saveNode == "" {
 			return fmt.Errorf("internal error: no system-save device")
 		}
 
-		unlockKey, err := sbGetDiskUnlockKeyFromKernel("", saveNode, false)
+		saveResetter, err := createSaveResetter(saveNode)
 		if err != nil {
-			return fmt.Errorf("cannot get key for unlocked disk: %v", err)
+			return err
 		}
 
-		if err := sbAddLUKS2ContainerUnlockKey(saveNode, "installation-key", sb.DiskUnlockKey(unlockKey), sb.DiskUnlockKey(saveEncryptionKey)); err != nil {
-			return fmt.Errorf("cannot enroll new installation key: %v", err)
-		}
-
-		//TODO: remove other keyslots?
-
-		// keep track of the new ubuntu-save encryption key
-		installedSystem.ResetterForRole[gadget.SystemSave] = secboot.CreateKeyResetter(sb.DiskUnlockKey(saveEncryptionKey), saveNode)
+		installedSystem.ResetterForRole[gadget.SystemSave] = saveResetter
 
 		if err := installLogic.PrepareEncryptedSystemData(model, installedSystem.ResetterForRole, trustedInstallObserver); err != nil {
 			return err

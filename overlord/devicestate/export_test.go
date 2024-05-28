@@ -26,8 +26,6 @@ import (
 	"os/user"
 	"time"
 
-	sb "github.com/snapcore/secboot"
-
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/gadget"
@@ -597,18 +595,10 @@ func CleanUpEncryptionSetupDataInCache(st *state.State, label string) {
 
 type UniqueSnapsInRecoverySystem = uniqueSnapsInRecoverySystem
 
-func MockGetDiskUnlockKeyFromKernel(f func(prefix string, devicePath string, remove bool) (sb.DiskUnlockKey, error)) func() {
-	old := sbGetDiskUnlockKeyFromKernel
-	sbGetDiskUnlockKeyFromKernel = f
+func MockCreateSaveResetter(f func(saveNode string) (secboot.KeyResetter, error)) func() {
+	old := createSaveResetter
+	createSaveResetter = f
 	return func() {
-		sbGetDiskUnlockKeyFromKernel = old
-	}
-}
-
-func MockAddLUKS2ContainerUnlockKey(f func(devicePath string, keyslotName string, existingKey, newKey sb.DiskUnlockKey) error) func() {
-	old := sbAddLUKS2ContainerUnlockKey
-	sbAddLUKS2ContainerUnlockKey = f
-	return func() {
-		sbAddLUKS2ContainerUnlockKey = old
+		createSaveResetter = old
 	}
 }

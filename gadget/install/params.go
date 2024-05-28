@@ -20,8 +20,6 @@
 package install
 
 import (
-	sb "github.com/snapcore/secboot"
-
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/secboot"
@@ -52,7 +50,7 @@ type partEncryptionData struct {
 	encryptedDevice string
 
 	volName       string
-	encryptionKey sb.DiskUnlockKey
+	encryptionKey []byte
 	// TODO: this is currently not used
 	encryptedSectorSize quantity.Size
 	encryptionParams    gadget.StructureEncryptionParameters
@@ -90,7 +88,7 @@ func MockEncryptionSetupData(labelToEncDevice map[string]*MockEncryptedDeviceAnd
 		esd.parts[label] = partEncryptionData{
 			role:                encryptData.Role,
 			encryptedDevice:     encryptData.EncryptedDevice,
-			encryptionKey:       sb.DiskUnlockKey([]byte{1, 2, 3}),
+			encryptionKey:       []byte{1, 2, 3},
 			encryptedSectorSize: 512,
 		}
 	}

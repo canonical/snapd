@@ -30,8 +30,6 @@ import (
 	. "gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
 
-	sb "github.com/snapcore/secboot"
-
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/sysdb"
@@ -1891,16 +1889,8 @@ echo "mock output of: $(basename "$0") $*"
 	logbuf, restore := logger.MockLogger()
 	defer restore()
 
-	defer devicestate.MockGetDiskUnlockKeyFromKernel(func(prefix string, devicePath string, remove bool) (sb.DiskUnlockKey, error) {
-		return sb.DiskUnlockKey{}, nil
-	})()
-
-	defer devicestate.MockAddLUKS2ContainerUnlockKey(func(devicePath string, keyslotName string, existingKey, newKey sb.DiskUnlockKey) error {
-		return nil
-	})()
-
-	defer secboot.MockCreateKeyResetter(func(key sb.DiskUnlockKey, devicePath string) secboot.KeyResetter {
-		return &secboot.MockKeyResetter{}
+	defer devicestate.MockCreateSaveResetter(func(saveNode string) (secboot.KeyResetter, error) {
+		return &secboot.MockKeyResetter{}, nil
 	})()
 
 	err = s.doRunFactoryResetChange(c, model, resetTestCase{
@@ -1967,16 +1957,8 @@ echo "mock output of: $(basename "$0") $*"
 	logbuf, restore := logger.MockLogger()
 	defer restore()
 
-	defer devicestate.MockGetDiskUnlockKeyFromKernel(func(prefix string, devicePath string, remove bool) (sb.DiskUnlockKey, error) {
-		return sb.DiskUnlockKey{}, nil
-	})()
-
-	defer devicestate.MockAddLUKS2ContainerUnlockKey(func(devicePath string, keyslotName string, existingKey, newKey sb.DiskUnlockKey) error {
-		return nil
-	})()
-
-	defer secboot.MockCreateKeyResetter(func(key sb.DiskUnlockKey, devicePath string) secboot.KeyResetter {
-		return &secboot.MockKeyResetter{}
+	defer devicestate.MockCreateSaveResetter(func(saveNode string) (secboot.KeyResetter, error) {
+		return &secboot.MockKeyResetter{}, nil
 	})()
 
 	err = s.doRunFactoryResetChange(c, model, resetTestCase{

@@ -33,8 +33,6 @@ import (
 	"path/filepath"
 	"time"
 
-	sb "github.com/snapcore/secboot"
-
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
@@ -270,7 +268,7 @@ func PrepareEncryptedSystemData(model *asserts.Model, resetterForRole map[string
 			return err
 		}
 		const token = false
-		if _, err := saveResetter.AddKey("save", sb.DiskUnlockKey(saveKey), token); err != nil {
+		if _, err := saveResetter.AddKey("save", saveKey, token); err != nil {
 			return err
 		}
 		if err := saveKeys(model, saveKey); err != nil {
