@@ -1,3 +1,22 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
+/*
+ * Copyright (C) 2024 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
 package requestprompts
 
 import (
@@ -19,12 +38,12 @@ import (
 // Prompt contains information about a request for which a user should be
 // prompted.
 type Prompt struct {
-	ID           string              `json:"id"`
-	Timestamp    time.Time           `json:"timestamp"`
-	Snap         string              `json:"snap"`
-	Interface    string              `json:"interface"`
-	Constraints  *promptConstraints  `json:"constraints"`
-	listenerReqs []*listener.Request `json:"-"`
+	ID           string             `json:"id"`
+	Timestamp    time.Time          `json:"timestamp"`
+	Snap         string             `json:"snap"`
+	Interface    string             `json:"interface"`
+	Constraints  *promptConstraints `json:"constraints"`
+	listenerReqs []*listener.Request
 }
 
 // promptConstraints are like prompting.Constraints, but have a "path" field
@@ -142,7 +161,7 @@ func (pdb *PromptDB) loadMaxID() error {
 //
 // The caller must ensure that the prompt DB mutex is held.
 func (pdb *PromptDB) nextID() string {
-	pdb.maxID += 1
+	pdb.maxID++
 	padded := pdb.paddedMaxIDString()
 	osutil.AtomicWriteFile(pdb.maxIDPath, []byte(padded), 0600, 0)
 	return padded
@@ -171,8 +190,8 @@ func (pdb *PromptDB) paddedMaxIDString() string {
 func (pdb *PromptDB) AddOrMerge(user uint32, snap string, iface string, path string, permissions []string, listenerReq *listener.Request) (*Prompt, bool) {
 	pdb.mutex.Lock()
 	defer pdb.mutex.Unlock()
-	userEntry, exists := pdb.perUser[user]
-	if !exists {
+	userEntry, ok := pdb.perUser[user]
+	if !ok {
 		pdb.perUser[user] = &userPromptDB{
 			ByID: make(map[string]*Prompt),
 		}
@@ -217,8 +236,8 @@ func (pdb *PromptDB) AddOrMerge(user uint32, snap string, iface string, path str
 func (pdb *PromptDB) Prompts(user uint32) []*Prompt {
 	pdb.mutex.Lock()
 	defer pdb.mutex.Unlock()
-	userEntry, exists := pdb.perUser[user]
-	if !exists {
+	userEntry, ok := pdb.perUser[user]
+	if !ok || len(userEntry.ByID) == 0 {
 		return []*Prompt{}
 	}
 	prompts := make([]*Prompt, 0, len(userEntry.ByID))
@@ -232,12 +251,12 @@ func (pdb *PromptDB) Prompts(user uint32) []*Prompt {
 func (pdb *PromptDB) PromptWithID(user uint32, id string) (*Prompt, error) {
 	pdb.mutex.Lock()
 	defer pdb.mutex.Unlock()
-	userEntry, exists := pdb.perUser[user]
-	if !exists {
-		return nil, fmt.Errorf("cannot find prompts for the given UID: %d", user)
+	userEntry, ok := pdb.perUser[user]
+	if !ok || len(userEntry.ByID) == 0 {
+		return nil, fmt.Errorf("cannot find prompt for UID %d with the given ID: %s", user, id)
 	}
-	prompt, exists := userEntry.ByID[id]
-	if !exists {
+	prompt, ok := userEntry.ByID[id]
+	if !ok {
 		return nil, fmt.Errorf("cannot find prompt for UID %d with the given ID: %s", user, id)
 	}
 	return prompt, nil
@@ -251,12 +270,12 @@ func (pdb *PromptDB) PromptWithID(user uint32, id string) (*Prompt, error) {
 func (pdb *PromptDB) Reply(user uint32, id string, outcome prompting.OutcomeType) (*Prompt, error) {
 	pdb.mutex.Lock()
 	defer pdb.mutex.Unlock()
-	userEntry, exists := pdb.perUser[user]
-	if !exists || len(userEntry.ByID) == 0 {
-		return nil, fmt.Errorf("cannot find prompts for the given UID: %d", user)
+	userEntry, ok := pdb.perUser[user]
+	if !ok || len(userEntry.ByID) == 0 {
+		return nil, fmt.Errorf("cannot find prompt for UID %d with the given ID: %s", user, id)
 	}
-	prompt, exists := userEntry.ByID[id]
-	if !exists {
+	prompt, ok := userEntry.ByID[id]
+	if !ok {
 		return nil, fmt.Errorf("cannot find prompt for UID %d with the given ID: %s", user, id)
 	}
 	allow, err := outcome.IsAllow()
@@ -301,8 +320,8 @@ func (pdb *PromptDB) HandleNewRule(user uint32, snap string, iface string, const
 		return nil, err
 	}
 	satisfiedPromptIDs := []string{}
-	userEntry, exists := pdb.perUser[user]
-	if !exists {
+	userEntry, ok := pdb.perUser[user]
+	if !ok {
 		return satisfiedPromptIDs, nil
 	}
 	for id, prompt := range userEntry.ByID {

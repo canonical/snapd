@@ -1,3 +1,22 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
+/*
+ * Copyright (C) 2024 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
 package requestprompts_test
 
 import (
@@ -261,7 +280,7 @@ func (s *requestpromptsSuite) TestPromptWithIDErrors(c *C) {
 	c.Check(result, IsNil)
 
 	result, err = pdb.PromptWithID(user+1, "foo")
-	c.Check(err, ErrorMatches, "cannot find prompts for the given UID:.*")
+	c.Check(err, ErrorMatches, "cannot find prompt for UID 1001 with the given ID:.*")
 	c.Check(result, IsNil)
 
 	// Looking up prompts (with or without errors) should not trigger notices
@@ -362,7 +381,7 @@ func (s *requestpromptsSuite) TestReplyErrors(c *C) {
 	c.Check(err, ErrorMatches, "cannot find prompt for UID 1000 with the given ID:.*")
 
 	_, err = pdb.Reply(user+1, "foo", outcome)
-	c.Check(err, ErrorMatches, "cannot find prompts for the given UID:.*")
+	c.Check(err, ErrorMatches, "cannot find prompt for UID 1001 with the given ID:.*")
 
 	_, err = pdb.Reply(user, prompt.ID, prompting.OutcomeUnset)
 	c.Check(err, ErrorMatches, `internal error: invalid outcome.*`)
