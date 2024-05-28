@@ -14,7 +14,7 @@ while [ -n "$1" ]; do
             ;;
         --write-cache)
             ;;
-        --quiet|--replace|--remove|--skip-read-cache)
+        --quiet|--replace|--remove|--skip-read-cache|-j*)
             # Ignore
             ;;
         -O|--config-file|--base|--policy-features)
