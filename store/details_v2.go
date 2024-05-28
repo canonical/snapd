@@ -369,7 +369,6 @@ func componentFromStoreResource(r storeResource) (*snap.Component, error) {
 
 	comp := &snap.Component{
 		Name:        r.Name,
-		Summary:     r.Description.Clean(),
 		Description: r.Description.Clean(),
 		Type:        compType,
 

@@ -171,7 +171,7 @@ const (
   },
   "revision": 21,
   "snap-id": "XYZEfjn4WJYnm0FzDKwqqRZZI77awQEV",
-  "snap-yaml": "name: test-snapd-content-plug\nversion: 1.0\nassumes: [snapd2.49]\napps:\n    user-svc:\n        command: bin/user-svc\n        daemon-scope: user\n        daemon: simple\n    content-plug:\n        command: bin/content-plug\n        plugs: [shared-content-plug]\nplugs:\n    shared-content-plug:\n        interface: content\n        target: import\n        content: mylib\n        default-provider: test-snapd-content-slot\nslots:\n    shared-content-slot:\n        interface: content\n        content: mylib\n        read:\n            - /\nprovenance: prov\ncomponents:\n  some-component:\n    type: kernel-modules\n    name: some-component\n    description: Some component\n    hooks:\n      install:",
+  "snap-yaml": "name: test-snapd-content-plug\nversion: 1.0\nassumes: [snapd2.49]\napps:\n    user-svc:\n        command: bin/user-svc\n        daemon-scope: user\n        daemon: simple\n    content-plug:\n        command: bin/content-plug\n        plugs: [shared-content-plug]\nplugs:\n    shared-content-plug:\n        interface: content\n        target: import\n        content: mylib\n        default-provider: test-snapd-content-slot\nslots:\n    shared-content-slot:\n        interface: content\n        content: mylib\n        read:\n            - /\nprovenance: prov\ncomponents:\n  some-component:\n    type: kernel-modules\n    name: some-component\n    description: Some component\n    summary: Component summary\n    hooks:\n      install:",
   "store-url": "https://snapcraft.io/thingy",
   "summary": "useful thingy",
   "title": "This Is The Most Fantastical Snap of Thingy",
@@ -271,7 +271,6 @@ func (s *detailsV2Suite) TestInfoFromStoreSnapSimpleAndLegacy(c *C) {
 				Name:        "some-component",
 				Type:        snap.KernelModulesComponent,
 				Description: "Some component",
-				Summary:     "Some component",
 			},
 		},
 	})
@@ -388,9 +387,19 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 	c.Check(info.Apps["user-svc"].DaemonScope, Equals, snap.UserDaemon)
 
 	// validate components
-	c.Check(info.Components["some-component"].Name, Equals, "some-component")
-	c.Check(info.Components["some-component"].Type, Equals, snap.KernelModulesComponent)
-	c.Check(info.Components["some-component"].ExplicitHooks["install"].Explicit, Equals, true)
+	someComponent := *info.Components["some-component"]
+	c.Assert(someComponent, NotNil)
+
+	c.Check(someComponent.ExplicitHooks["install"].Explicit, Equals, true)
+	// clear recursive bits
+	someComponent.ExplicitHooks = nil
+
+	c.Check(someComponent, DeepEquals, snap.Component{
+		Name:        "some-component",
+		Type:        snap.KernelModulesComponent,
+		Description: "Some component",
+		Summary:     "Component summary",
+	})
 
 	// private
 	err = json.Unmarshal([]byte(strings.Replace(thingyStoreJSON, `"private": false`, `"private": true`, 1)), &snp)
