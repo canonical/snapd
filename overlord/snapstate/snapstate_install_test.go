@@ -268,6 +268,23 @@ func (s *snapmgrTestSuite) TestInstallAlreadyInstalled(c *C) {
 	c.Check(err, FitsTypeOf, &snap.AlreadyInstalledError{})
 }
 
+func (s *snapmgrTestSuite) TestInstallInvalidOptions(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	t := snapstate.NewStoreTarget(snapstate.StoreSnap{
+		InstanceName: "some-snap",
+		RevOpts: snapstate.RevisionOptions{
+			CohortKey: "cohort",
+			Revision:  snap.R(7),
+		},
+	})
+
+	_, _, err := snapstate.InstallOne(context.Background(), s.state, t, snapstate.Options{})
+	c.Assert(err, NotNil)
+	c.Check(err, ErrorMatches, `invalid revision options for snap \"some-snap\": cannot specify revision and cohort`)
+}
+
 func (s *snapmgrTestSuite) TestInstallTaskEdgesForPreseeding(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
