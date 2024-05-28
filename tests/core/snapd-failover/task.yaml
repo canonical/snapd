@@ -60,10 +60,15 @@ execute: |
 
         # get the number of times that snapd.failure was started before we do 
         # anything
-        started_before="$("$TESTSTOOLS"/journal-state get-log -u snapd.failure | grep -c 'Started Failure handling of the snapd snap.' || true)"
+        started_before="$("$TESTSTOOLS"/journal-state get-log -u snapd.failure | grep -c 'Starting Failure handling of the snapd snap.' || true)"
 
         # test that random signals don't trigger snapd-failure
         current=$(readlink /snap/snapd/current)
+
+        # make sure that snapd is being executed within the cgroup assigned to snapd.service
+        echo "Ensure snapd is running as part of the snapd.service unit"
+        # shellcheck disable=SC2046,SC2002
+        cat /proc/$(pidof snapd)/cgroup | MATCH /snapd.service
 
         echo "Verify that a random signal does not trigger the failure handling"
         echo "and snapd is just restarted"
@@ -78,12 +83,36 @@ execute: |
             kill -9 $(cat /sys/fs/cgroup/system.slice/snapd.service/cgroup.procs)
         fi
 
-        started_after_rand_sig="$("$TESTSTOOLS"/journal-state get-log -u snapd.failure | grep -c 'Started Failure handling of the snapd snap.' || true)"
+        sleep 5
+        started_after_rand_sig="$("$TESTSTOOLS"/journal-state get-log -u snapd.failure | grep -c 'Starting Failure handling of the snapd snap.' || true)"
 
-        if [ "$started_after_rand_sig" -gt "$started_before" ] ; then
-            echo "snapd.failure inadvertently started with a random signal!"
-            exit 1
+        if os.query is-core16; then
+            # on UC16 systemd triggers OnFailure dependencies and snapd gets
+            # started by snap-failure
+            if [ "$started_after_rand_sig" -eq "$started_before" ] ; then
+                echo "snapd.failure did not start snapd"
+                exit 1
+            fi
+
+            # make sure that snapd is being executed within the cgroup assigned to snapd.service
+            echo "Verify behavior on UC16, where snapd process runs under snapd.failure.service unit"
+            # shellcheck disable=SC2046,SC2002
+            cat /proc/$(pidof snapd)/cgroup | MATCH /snapd.failure.service
+        else
+            # TODO this check is incorrect and is essentially racing with systemd
+            # which could try to active the failure service, as we're essentially
+            # testing that an event does not happen
+            if [ "$started_after_rand_sig" -gt "$started_before" ] ; then
+                echo "snapd.failure inadvertently started with a random signal!"
+                exit 1
+            fi
+
+            # make sure that snapd is being executed within the cgroup assigned to snapd.service
+            echo "Ensure snapd is still running as part of the snapd.service unit"
+            # shellcheck disable=SC2046,SC2002
+            cat /proc/$(pidof snapd)/cgroup | MATCH /snapd.service
         fi
+
 
         echo "Snap list is working still"
         snap list | MATCH "^snapd .* $current .*"
@@ -100,7 +129,7 @@ execute: |
         # it will be able to revert and fallback as many times as needed
         #shellcheck disable=SC2167
         for _ in $(seq 1 2); do
-            started_before="$("$TESTSTOOLS"/journal-state get-log -u snapd.failure | grep -c 'Started Failure handling of the snapd snap.' || true)"
+            started_before="$("$TESTSTOOLS"/journal-state get-log -u snapd.failure | grep -c 'Starting Failure handling of the snapd snap.' || true)"
 
             echo "Install the broken snapd"
             if snap install --dangerous ./snapd-broken/snapd_*.snap; then
@@ -112,7 +141,7 @@ execute: |
             #shellcheck disable=SC2165
             for _ in $(seq 60); do
                 # get the number of times that snapd.failure was started
-                started_after="$("$TESTSTOOLS"/journal-state get-log -u snapd.failure | grep -c 'Started Failure handling of the snapd snap.' || true)"
+                started_after="$("$TESTSTOOLS"/journal-state get-log -u snapd.failure | grep -c 'Starting Failure handling of the snapd snap.' || true)"
                 if [ "$started_after" -gt "$started_before" ] ; then
                     break
                 fi
@@ -129,6 +158,10 @@ execute: |
 
             echo "Double check the status of snapd.socket"
             systemctl is-active snapd.socket
+
+            echo "Ensure snapd is running as part of the snapd.service unit"
+            # shellcheck disable=SC2046,SC2002
+            cat /proc/$(pidof snapd)/cgroup | MATCH /snapd.service
 
             echo "restart snapd and ensure we can still talk to it"
             systemctl restart snapd.socket snapd.service
