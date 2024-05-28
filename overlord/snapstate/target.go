@@ -81,8 +81,8 @@ type OptionInitializer interface {
 
 // StoreSnap represents a snap that is to be installed from the store.
 type StoreSnap struct {
-	// Name is the name of snap to install.
-	Name string
+	// InstanceName is the name of snap to install.
+	InstanceName string
 	// Components is the list of components to install with this snap.
 	Components []string
 	// RevOpts contains options that apply to the installation of this snap.
@@ -104,7 +104,7 @@ var _ Target = &StoreTarget{}
 func NewStoreTarget(snaps ...StoreSnap) *StoreTarget {
 	mapping := make(map[string]StoreSnap, len(snaps))
 	for _, sn := range snaps {
-		if _, ok := mapping[sn.Name]; ok {
+		if _, ok := mapping[sn.InstanceName]; ok {
 			continue
 		}
 
@@ -112,7 +112,7 @@ func NewStoreTarget(snaps ...StoreSnap) *StoreTarget {
 			sn.RevOpts.Channel = "stable"
 		}
 
-		mapping[sn.Name] = sn
+		mapping[sn.InstanceName] = sn
 	}
 
 	return &StoreTarget{
@@ -222,7 +222,7 @@ func (s *StoreTarget) Installables(ctx context.Context, st *state.State, install
 func installActionForStoreTarget(t StoreSnap, opts Options, enforcedSets func() (*snapasserts.ValidationSets, error)) (*store.SnapAction, error) {
 	action := &store.SnapAction{
 		Action:       "install",
-		InstanceName: t.Name,
+		InstanceName: t.InstanceName,
 		Channel:      t.RevOpts.Channel,
 		Revision:     t.RevOpts.Revision,
 		CohortKey:    t.RevOpts.CohortKey,
@@ -244,7 +244,7 @@ func installActionForStoreTarget(t StoreSnap, opts Options, enforcedSets func() 
 
 		// if the caller didn't provide any validation sets, make sure that
 		// the snap is allowed by all of the enforced validation sets
-		invalidSets, err := vsets.CheckPresenceInvalid(naming.Snap(t.Name))
+		invalidSets, err := vsets.CheckPresenceInvalid(naming.Snap(t.InstanceName))
 		if err != nil {
 			if _, ok := err.(*snapasserts.PresenceConstraintError); !ok {
 				return nil, err
@@ -254,11 +254,11 @@ func installActionForStoreTarget(t StoreSnap, opts Options, enforcedSets func() 
 		if len(invalidSets) > 0 {
 			return nil, fmt.Errorf(
 				"cannot install snap %q due to enforcing rules of validation set %s",
-				t.Name, snapasserts.ValidationSetKeySlice(invalidSets).CommaSeparated(),
+				t.InstanceName, snapasserts.ValidationSetKeySlice(invalidSets).CommaSeparated(),
 			)
 		}
 
-		requiredSets, requiredRev, err := vsets.CheckPresenceRequired(naming.Snap(t.Name))
+		requiredSets, requiredRev, err := vsets.CheckPresenceRequired(naming.Snap(t.InstanceName))
 		if err != nil {
 			return nil, err
 		}
@@ -268,7 +268,7 @@ func installActionForStoreTarget(t StoreSnap, opts Options, enforcedSets func() 
 		if requiredRev.Set() && t.RevOpts.Revision.Set() && requiredRev != t.RevOpts.Revision {
 			return nil, fmt.Errorf(
 				"cannot install snap %q at requested revision %s without --ignore-validation, revision %s required by validation sets: %s",
-				t.Name, t.RevOpts.Revision, requiredRev, snapasserts.ValidationSetKeySlice(requiredSets).CommaSeparated(),
+				t.InstanceName, t.RevOpts.Revision, requiredRev, snapasserts.ValidationSetKeySlice(requiredSets).CommaSeparated(),
 			)
 		}
 
