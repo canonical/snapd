@@ -675,6 +675,29 @@ func (s *restartSuite) TestPendingForChangeWaitTasksButNotPending(c *C) {
 	c.Check(restart.PendingForChange(st, chg2), Equals, false)
 }
 
+func (s *restartSuite) TestPendingForChangeTasks(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	_, err := restart.Manager(st, "boot-id-1", nil)
+	c.Assert(err, IsNil)
+
+	chg1 := st.NewChange("pending", "...")
+	chg1.Set("wait-for-system-restart", true)
+	t1 := st.NewTask("waiting", "...")
+	t2 := st.NewTask("task-2", "...")
+	t2.WaitFor(t1)
+	chg1.AddTask(t1)
+	chg1.AddTask(t2)
+	t1.SetToWait(state.DoneStatus)
+	t1.Set("wait-for-system-restart-from-boot-id", "boot-id-1")
+
+	c.Check(restart.PendingForChangeTasks(st, chg1, nil), Equals, true)
+	c.Check(restart.PendingForChangeTasks(st, chg1, map[string]bool{t1.ID(): true, t2.ID(): true}), Equals, true)
+	c.Check(restart.PendingForChangeTasks(st, chg1, map[string]bool{}), Equals, false)
+}
+
 func (s *restartSuite) TestMarkTaskForRestartWait(c *C) {
 	st := state.New(nil)
 	st.Lock()

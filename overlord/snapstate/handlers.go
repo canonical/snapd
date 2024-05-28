@@ -4260,13 +4260,14 @@ func (m *SnapManager) doPreferAliases(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-// changeReadyUpToTask returns whether all other change's tasks are Ready.
-func changeReadyUpToTask(task *state.Task) bool {
+// changeReadyUpToTask returns whether all the tasks in considerTasks, or all
+// of the change's tasks if considerTasks is nil, are Ready.
+func changeReadyUpToTask(task *state.Task, considerTasks map[string]bool) bool {
 	me := task.ID()
 	change := task.Change()
 	for _, task := range change.Tasks() {
-		if me == task.ID() {
-			// ignore self
+		if me == task.ID() || (considerTasks != nil && !considerTasks[task.ID()]) {
+			// ignore self and tasks meant to be considered
 			continue
 		}
 		if !task.Status().Ready() {
@@ -4281,10 +4282,11 @@ func changeReadyUpToTask(task *state.Task) bool {
 // true if any of the snaps failed to refresh.
 //
 // It does this by advancing through the given task's change's tasks, and keeping
-// track of the instance names from every SnapSetup in "download-snap" tasks it finds.
+// track of the instance names from every SnapSetup in "download-snap" tasks it
+// finds, ignoring tasks in considerTasks (e.g., unrelated tasks in split refresh).
 // It stops when finding the given task, and resetting things when finding a different
 // re-refresh task (that indicates the end of a batch that isn't the given one).
-func refreshedSnaps(reTask *state.Task) (snapNames []string, failed bool, err error) {
+func refreshedSnaps(reTask *state.Task, considerTasks map[string]bool) (snapNames []string, failed bool, err error) {
 	// NOTE nothing requires reTask to be a check-rerefresh task, nor even to be in
 	// a refresh-ish change, but it doesn't make much sense to call this otherwise.
 	tid := reTask.ID()
@@ -4305,6 +4307,12 @@ func refreshedSnaps(reTask *state.Task) (snapNames []string, failed bool, err er
 		// Ignore tasks on '0' lane, they are not refreshes anyway.
 		taskLanes := task.Lanes()
 		if len(taskLanes) == 1 && taskLanes[0] == 0 {
+			continue
+		}
+
+		// ignore tasks that we're explicitly not considering (e.g., refreshes of
+		// essential tasks in hybrid systems, see splitRefresh in snapstate.go)
+		if considerTasks != nil && !considerTasks[task.ID()] {
 			continue
 		}
 
@@ -4354,6 +4362,9 @@ func refreshedSnaps(reTask *state.Task) (snapNames []string, failed bool, err er
 // reRefreshSetup holds the necessary details to re-refresh snaps that need it
 type reRefreshSetup struct {
 	UserID int `json:"user-id,omitempty"`
+	// TaskIDs holds the task IDs that the re-refresh task should wait for
+	// before running.
+	TaskIDs []string `json:"task-ids,omitempty"`
 	*Flags
 }
 
@@ -4381,19 +4392,32 @@ func (m *SnapManager) doCheckReRefresh(t *state.Task, tomb *tomb.Tomb) error {
 		logger.Panicf("Re-refresh task has %d tasks waiting for it.", numHaltTasks)
 	}
 
-	// Is there a restart pending for the current change? Then wait for
-	// restart to happen before proceeding, otherwise we will be blocking
+	var re reRefreshSetup
+	if err := t.Get("rerefresh-setup", &re); err != nil {
+		return err
+	}
+
+	var considerTasks map[string]bool
+	if re.TaskIDs != nil {
+		considerTasks = make(map[string]bool, len(re.TaskIDs))
+		for _, id := range re.TaskIDs {
+			considerTasks[id] = true
+		}
+	}
+
+	// Is there a restart pending for one of the relevant tasks? Then wait for
+	// the restart to happen before proceeding, otherwise we will be blocking
 	// any restart that is waiting to occur. We handle this here as this
 	// task is dynamically added.
-	if restart.PendingForChange(st, t.Change()) {
+	if restart.PendingForChangeTasks(st, t.Change(), considerTasks) {
 		return restart.TaskWaitForRestart(t)
 	}
 
-	if !changeReadyUpToTask(t) {
+	if !changeReadyUpToTask(t, considerTasks) {
 		return &state.Retry{After: reRefreshRetryTimeout, Reason: "pending refreshes"}
 	}
 
-	snaps, failed, err := refreshedSnaps(t)
+	snaps, failed, err := refreshedSnaps(t, considerTasks)
 	if err != nil {
 		return err
 	}
@@ -4441,11 +4465,6 @@ func (m *SnapManager) doCheckReRefresh(t *state.Task, tomb *tomb.Tomb) error {
 		if err := AddCurrentTrackingToValidationSetsStack(st); err != nil {
 			return err
 		}
-	}
-
-	var re reRefreshSetup
-	if err := t.Get("rerefresh-setup", &re); err != nil {
-		return err
 	}
 
 	updated, updateTss, err := reRefreshUpdateMany(tomb.Context(nil), st, snaps, nil, re.UserID, reRefreshFilter, re.Flags, chg.ID())
