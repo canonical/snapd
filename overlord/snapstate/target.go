@@ -37,18 +37,29 @@ import (
 // apply to all snaps that are part of an operation. Options that apply to
 // individual snaps can be found in RevisionOptions.
 type Options struct {
-	Flags         Flags
-	UserID        int
-	FromChange    string
+	// Flags contains flags that apply to the entire operation.
+	Flags Flags
+	// UserID is the ID of the user that is performing the operation.
+	UserID int
+	// DeviceCtx is an optional device context that will be used during the
+	// operation.
+	DeviceCtx DeviceContext
+	// PrereqTracker is an optional prereq tracker that will be used to keep
+	// track of all snaps (explicitly requested and implicitly required snaps)
+	// that might need to be installed during the operation.
 	PrereqTracker PrereqTracker
-	DeviceCtx     DeviceContext
+	// FromChange is the change that triggered the operation.
+	FromChange string
 }
 
 // Installable represents the data needed to setup a snap for installation.
 type Installable struct {
-	// Snap indicates how to find the snap to install.
+	// Snap is a partially initialized SnapSetup that contains the data needed
+	// to find the snap file that will be installed.
 	Snap *SnapSetup
-	// Components indicates how to find the components to install.
+	// Components is a list of partially initialized ComponentSetup structs that
+	// contain the data needed to find the component files that will be
+	// installed.
 	Components []*ComponentSetup
 	// Info contains the snap.Info for the snap to be installed.
 	Info *snap.Info
@@ -307,6 +318,9 @@ func (s *StoreTarget) validateAndPrune(installedSnaps map[string]*SnapState) err
 	return nil
 }
 
+// InstallOne is a wrapper for InstallTarget that ensures that the given Target
+// installs exactly one snap. If the Target does not install exactly one snap,
+// an error is returned.
 func InstallOne(ctx context.Context, st *state.State, target Target, opts Options) (*snap.Info, *state.TaskSet, error) {
 	infos, tasksets, err := InstallTarget(ctx, st, target, opts)
 	if err != nil {
@@ -320,6 +334,15 @@ func InstallOne(ctx context.Context, st *state.State, target Target, opts Option
 	return infos[0], tasksets[0], nil
 }
 
+// InstallTarget installs the snap/set of snaps specified by the given Target.
+//
+// The Target controls what snaps should be installed and where to source the
+// snaps from. The Options struct contains optional parameters that apply to the
+// installation operation.
+//
+// A slice of snap.Info structs is returned for each snap that is being
+// installed along with a slice of state.TaskSet structs that represent the
+// tasks that are part of the installation operation for each snap.
 func InstallTarget(ctx context.Context, st *state.State, target Target, opts Options) ([]*snap.Info, []*state.TaskSet, error) {
 	if opts.PrereqTracker == nil {
 		opts.PrereqTracker = snap.SimplePrereqTracker{}
