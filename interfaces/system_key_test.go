@@ -103,8 +103,11 @@ func (s *systemKeySuite) testInterfaceWriteSystemKey(c *C, remoteFSHome, overlay
 
 	promptingSupported := features.AppArmorPrompting.IsSupported()
 	promptingFlagEnabled := true
+	extraData := interfaces.SystemKeyExtraData{
+		PromptingFlagEnabled: promptingFlagEnabled,
+	}
 
-	err := interfaces.WriteSystemKey(promptingFlagEnabled)
+	err := interfaces.WriteSystemKey(extraData)
 	c.Assert(err, IsNil)
 
 	systemKey, err := os.ReadFile(dirs.SnapSystemKeyFile)
@@ -180,9 +183,9 @@ func (s *systemKeySuite) TestInterfaceWriteSystemKeyErrorOnBuildID(c *C) {
 	})
 	defer restore()
 
-	promptingFlagEnabled := false
+	extraData := interfaces.SystemKeyExtraData{}
 
-	err := interfaces.WriteSystemKey(promptingFlagEnabled)
+	err := interfaces.WriteSystemKey(extraData)
 	c.Assert(err, ErrorMatches, "no build ID for you")
 }
 
@@ -194,17 +197,19 @@ func (s *systemKeySuite) TestInterfaceSystemKeyMismatchHappy(c *C) {
 }
 `))
 
-	promptingFlagEnabled := true
+	extraData := interfaces.SystemKeyExtraData{
+		PromptingFlagEnabled: true,
+	}
 
 	// no system-key yet -> Error
 	c.Assert(osutil.FileExists(dirs.SnapSystemKeyFile), Equals, false)
-	_, err := interfaces.SystemKeyMismatch(promptingFlagEnabled)
+	_, err := interfaces.SystemKeyMismatch(extraData)
 	c.Assert(err, Equals, interfaces.ErrSystemKeyMissing)
 
 	// create a system-key -> no mismatch anymore
-	err = interfaces.WriteSystemKey(promptingFlagEnabled)
+	err = interfaces.WriteSystemKey(extraData)
 	c.Assert(err, IsNil)
-	mismatch, err := interfaces.SystemKeyMismatch(promptingFlagEnabled)
+	mismatch, err := interfaces.SystemKeyMismatch(extraData)
 	c.Assert(err, IsNil)
 	c.Check(mismatch, Equals, false)
 
@@ -215,7 +220,7 @@ func (s *systemKeySuite) TestInterfaceSystemKeyMismatchHappy(c *C) {
 "apparmor-features": ["caps", "dbus", "more", "and", "more"]
 }
 `))
-	mismatch, err = interfaces.SystemKeyMismatch(promptingFlagEnabled)
+	mismatch, err = interfaces.SystemKeyMismatch(extraData)
 	c.Assert(err, IsNil)
 	c.Check(mismatch, Equals, true)
 }
@@ -228,17 +233,17 @@ func (s *systemKeySuite) TestInterfaceSystemKeyMismatchParserMtimeHappy(c *C) {
 }
 `))
 
-	promptingFlagEnabled := false
+	extraData := interfaces.SystemKeyExtraData{}
 
 	// no system-key yet -> Error
 	c.Assert(osutil.FileExists(dirs.SnapSystemKeyFile), Equals, false)
-	_, err := interfaces.SystemKeyMismatch(promptingFlagEnabled)
+	_, err := interfaces.SystemKeyMismatch(extraData)
 	c.Assert(err, Equals, interfaces.ErrSystemKeyMissing)
 
 	// create a system-key -> no mismatch anymore
-	err = interfaces.WriteSystemKey(promptingFlagEnabled)
+	err = interfaces.WriteSystemKey(extraData)
 	c.Assert(err, IsNil)
-	mismatch, err := interfaces.SystemKeyMismatch(promptingFlagEnabled)
+	mismatch, err := interfaces.SystemKeyMismatch(extraData)
 	c.Assert(err, IsNil)
 	c.Check(mismatch, Equals, false)
 
@@ -249,7 +254,7 @@ func (s *systemKeySuite) TestInterfaceSystemKeyMismatchParserMtimeHappy(c *C) {
 "apparmor-parser-mtime": 5678
 }
 `))
-	mismatch, err = interfaces.SystemKeyMismatch(promptingFlagEnabled)
+	mismatch, err = interfaces.SystemKeyMismatch(extraData)
 	c.Assert(err, IsNil)
 	c.Check(mismatch, Equals, true)
 }
@@ -263,27 +268,29 @@ func (s *systemKeySuite) TestInterfaceSystemKeyMismatchAppArmorPromptingHappy(c 
 }
 `))
 
-	promptingFlagEnabled := true
+	extraData := interfaces.SystemKeyExtraData{
+		PromptingFlagEnabled: true,
+	}
 
 	// no system-key yet -> Error
 	c.Assert(osutil.FileExists(dirs.SnapSystemKeyFile), Equals, false)
-	_, err := interfaces.SystemKeyMismatch(promptingFlagEnabled)
+	_, err := interfaces.SystemKeyMismatch(extraData)
 	c.Assert(err, Equals, interfaces.ErrSystemKeyMissing)
 
 	// create a system-key -> no mismatch anymore
-	err = interfaces.WriteSystemKey(promptingFlagEnabled)
+	err = interfaces.WriteSystemKey(extraData)
 	c.Assert(err, IsNil)
 	// Even though prompting flag is enabled, since prompting unsupported,
 	// both prompting-related fields will still be false.
-	mismatch, err := interfaces.SystemKeyMismatch(promptingFlagEnabled)
+	mismatch, err := interfaces.SystemKeyMismatch(extraData)
 	c.Assert(err, IsNil)
 	c.Check(mismatch, Equals, false)
 
 	for _, testCase := range []struct {
-		supported           bool
-		supportedAndEnabled bool
-		flagEnabled         bool
-		mismatch            bool
+		supported           bool // previously (and currently) supported
+		supportedAndEnabled bool // previously supported and enabled
+		flagEnabled         bool // new "enabled" value
+		mismatch            bool // whether there should be a mismatch
 	}{
 		{
 			supported:           false,
@@ -330,10 +337,16 @@ func (s *systemKeySuite) TestInterfaceSystemKeyMismatchAppArmorPromptingHappy(c 
 }
 `, testCase.supported, testCase.supportedAndEnabled)))
 
-		err = interfaces.WriteSystemKey(testCase.supportedAndEnabled)
+		extraData = interfaces.SystemKeyExtraData{
+			PromptingFlagEnabled: testCase.supportedAndEnabled,
+		}
+		err = interfaces.WriteSystemKey(extraData)
 		c.Assert(err, IsNil)
 
-		mismatch, err = interfaces.SystemKeyMismatch(testCase.flagEnabled)
+		extraData = interfaces.SystemKeyExtraData{
+			PromptingFlagEnabled: testCase.flagEnabled,
+		}
+		mismatch, err = interfaces.SystemKeyMismatch(extraData)
 		c.Assert(err, IsNil)
 		c.Check(mismatch, Equals, testCase.mismatch, Commentf("test case: %+v", testCase))
 	}
@@ -354,10 +367,10 @@ func (s *systemKeySuite) TestInterfaceSystemKeyMismatchVersions(c *C) {
 }`), 0644)
 	c.Assert(err, IsNil)
 
-	promptingFlagEnabled := false
+	extraData := interfaces.SystemKeyExtraData{}
 
 	// when we encounter different versions we get the right error
-	_, err = interfaces.SystemKeyMismatch(promptingFlagEnabled)
+	_, err = interfaces.SystemKeyMismatch(extraData)
 	c.Assert(err, Equals, interfaces.ErrSystemKeyVersion)
 }
 
@@ -401,9 +414,9 @@ func (s *systemKeySuite) TestRecordedSystemKey(c *C) {
 `)
 	defer restore()
 
-	promptingFlagEnabled := false
+	extraData := interfaces.SystemKeyExtraData{}
 
-	c.Assert(interfaces.WriteSystemKey(promptingFlagEnabled), IsNil)
+	c.Assert(interfaces.WriteSystemKey(extraData), IsNil)
 
 	// just to ensure we really re-read it from the disk with RecordedSystemKey
 	interfaces.MockSystemKey(`{"build-id":"foo"}`)
@@ -462,6 +475,9 @@ func (s *systemKeySuite) TestSystemKeysMatch(c *C) {
 func (s *systemKeySuite) TestSystemKeysUnmarshalSame(c *C) {
 	promptingSupported := true
 	promptingSupportedAndEnabled := false
+	extraData := interfaces.SystemKeyExtraData{
+		PromptingFlagEnabled: promptingSupportedAndEnabled,
+	}
 
 	// whitespace here simulates the serialization across HTTP, etc. that should
 	// not trigger any differences
@@ -508,7 +524,7 @@ func (s *systemKeySuite) TestSystemKeysUnmarshalSame(c *C) {
 	// write the mocked system key to disk
 	restore := interfaces.MockSystemKey(systemKeyJSON)
 	defer restore()
-	err := interfaces.WriteSystemKey(promptingSupportedAndEnabled)
+	err := interfaces.WriteSystemKey(extraData)
 	c.Assert(err, IsNil)
 
 	// now unmarshal the specific json to a system key object
@@ -526,13 +542,13 @@ func (s *systemKeySuite) TestSystemKeysUnmarshalSame(c *C) {
 }
 
 func (s *systemKeySuite) TestRemoveSystemKey(c *C) {
-	promptingFlagEnabled := false
+	extraData := interfaces.SystemKeyExtraData{}
 	systemKeyJSON := `{}`
 
 	// write the mocked system key to disk
 	restore := interfaces.MockSystemKey(systemKeyJSON)
 	defer restore()
-	err := interfaces.WriteSystemKey(promptingFlagEnabled)
+	err := interfaces.WriteSystemKey(extraData)
 	c.Assert(err, IsNil)
 
 	c.Check(dirs.SnapSystemKeyFile, testutil.FilePresent)

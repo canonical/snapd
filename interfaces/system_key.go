@@ -175,8 +175,19 @@ func UnmarshalJSONSystemKey(r io.Reader) (interface{}, error) {
 	return sk, nil
 }
 
+// SystemKeyExtraData holds information about the current state of the system
+// key so that some values do not need to be re-checked and can thus be
+// guaranteed to be consistent across multiple uses of system key functions.
+type SystemKeyExtraData struct {
+	// PromptingFlagEnabled indicates whether the AppArmorPrompting feature
+	// flag is currently set to true. This value is ANDed with the prompting
+	// supported value, so setting this value to supported&&enabled results
+	// in an identical system key as would be generated using enabled alone.
+	PromptingFlagEnabled bool
+}
+
 // WriteSystemKey will write the current system-key to disk
-func WriteSystemKey(promptingFlagEnabled bool) error {
+func WriteSystemKey(extraData SystemKeyExtraData) error {
 	sk, err := generateSystemKey()
 	if err != nil {
 		return err
@@ -194,7 +205,7 @@ func WriteSystemKey(promptingFlagEnabled bool) error {
 		sk.AppArmorPromptingSupported = features.AppArmorPrompting.IsSupported()
 	}
 
-	sk.AppArmorPromptingSupportedAndEnabled = sk.AppArmorPromptingSupported && promptingFlagEnabled
+	sk.AppArmorPromptingSupportedAndEnabled = sk.AppArmorPromptingSupported && extraData.PromptingFlagEnabled
 
 	sks, err := json.Marshal(sk)
 	if err != nil {
@@ -235,7 +246,7 @@ func WriteSystemKey(promptingFlagEnabled bool) error {
 // to disk whenever apparmor-parser-mtime changes (in this manner
 // snap run only has to obtain the mtime of apparmor_parser and
 // doesn't have to invoke it)
-func SystemKeyMismatch(promptingFlagEnabled bool) (bool, error) {
+func SystemKeyMismatch(extraData SystemKeyExtraData) (bool, error) {
 	mySystemKey, err := generateSystemKey()
 	if err != nil {
 		return false, err
@@ -295,7 +306,7 @@ func SystemKeyMismatch(promptingFlagEnabled bool) (bool, error) {
 	// scenario in which prompting supported&&enabled is changed is if prompting
 	// is supported and the value of the AppArmorPrompting flag has changed.
 	if diskPromptingSupported {
-		return promptingFlagEnabled != diskPromptingSAndE, nil
+		return extraData.PromptingFlagEnabled != diskPromptingSAndE, nil
 	}
 
 	return false, nil

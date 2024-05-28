@@ -238,10 +238,10 @@ func (s *firstbootPreseedingClassic16Suite) SetUpTest(c *C) {
 	err := os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "assertions"), 0755)
 	c.Assert(err, IsNil)
 
-	promptingFlagEnabled := false
+	extraData := interfaces.SystemKeyExtraData{}
 
 	s.AddCleanup(interfaces.MockSystemKey(`{"core": "123"}`))
-	c.Assert(interfaces.WriteSystemKey(promptingFlagEnabled), IsNil)
+	c.Assert(interfaces.WriteSystemKey(extraData), IsNil)
 
 	restoreRelease := release.MockOnClassic(true)
 	s.AddCleanup(restoreRelease)

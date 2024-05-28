@@ -184,7 +184,7 @@ func MockProfilesNeedRegeneration(fn func(m *InterfaceManager) bool) func() {
 }
 
 // MockWriteSystemKey mocks the function responsible for writing the system key.
-func MockWriteSystemKey(fn func(promptingFlagEnabled bool) error) func() {
+func MockWriteSystemKey(fn func(extraData interfaces.SystemKeyExtraData) error) func() {
 	old := writeSystemKey
 	writeSystemKey = fn
 	return func() { writeSystemKey = old }
