@@ -162,18 +162,15 @@ func (pdb *PromptDB) loadMaxID() error {
 // The caller must ensure that the prompt DB mutex is held.
 func (pdb *PromptDB) nextID() string {
 	pdb.maxID++
-	padded := pdb.paddedMaxIDString()
-	osutil.AtomicWriteFile(pdb.maxIDPath, []byte(padded), 0600, 0)
-	return padded
+	idStr := pdb.maxIDString()
+	osutil.AtomicWriteFile(pdb.maxIDPath, []byte(idStr), 0600, 0)
+	return idStr
 }
 
-// paddedMaxIDString returns a 16-character string corresponding to the current
-// maxID. The ID string is the max ID in hexadecimal, padded by leading zeroes.
-func (pdb *PromptDB) paddedMaxIDString() string {
-	maxIDStr := strconv.FormatUint(pdb.maxID, 16)
-	// pad with leading zeros
-	padded := "0000000000000000"[:16-len(maxIDStr)] + maxIDStr
-	return padded
+// maxIDString returns a 16-character string corresponding to the current maxID.
+// The ID string is the max ID in hexadecimal, padded by leading zeroes.
+func (pdb *PromptDB) maxIDString() string {
+	return fmt.Sprintf("%016X", pdb.maxID)
 }
 
 // AddOrMerge checks if the given prompt contents are identical to an existing

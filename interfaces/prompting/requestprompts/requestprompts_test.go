@@ -24,7 +24,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"testing"
 	"time"
 
@@ -130,9 +129,8 @@ func (s *requestpromptsSuite) TestLoadMaxIDNextID(c *C) {
 	defer restore()
 
 	var prevMaxID uint64 = 42
-	maxIDStr := strconv.FormatUint(prevMaxID, 16)
-	padded := "0000000000000000"[:16-len(maxIDStr)] + maxIDStr
-	osutil.AtomicWriteFile(filepath.Join(s.tmpdir, "/tmp/snapd-request-prompt-max-id"), []byte(padded), 0600, 0)
+	maxIDStr := fmt.Sprintf("%016X", prevMaxID)
+	osutil.AtomicWriteFile(filepath.Join(s.tmpdir, "/tmp/snapd-request-prompt-max-id"), []byte(maxIDStr), 0600, 0)
 
 	pdb1 := requestprompts.New(s.defaultNotifyPrompt)
 	c.Check(pdb1.PerUser(), HasLen, 0)
@@ -150,9 +148,8 @@ func (s *requestpromptsSuite) TestLoadMaxIDNextID(c *C) {
 	s.checkWrittenMaxID(c, prompt.ID)
 
 	expectedID := prevMaxID + 1
-	expectedIDStr := strconv.FormatUint(expectedID, 16)
-	padded = "0000000000000000"[:16-len(expectedIDStr)] + expectedIDStr
-	s.checkWrittenMaxID(c, padded)
+	expectedIDStr := fmt.Sprintf("%016X", expectedID)
+	s.checkWrittenMaxID(c, expectedIDStr)
 
 	pdb2 := requestprompts.New(s.defaultNotifyPrompt)
 	// New prompt DB should not have existing prompts, but should start from previous max ID
