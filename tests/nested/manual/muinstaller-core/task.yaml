@@ -53,7 +53,7 @@ execute: |
   echo 'console=ttyS0' > pc-gadget/cmdline.extra
   cat <<EOF > pc-gadget/cloud.conf
   #cloud-config
-  datasource_list: [NoCloud,None]
+  datasource_list: [None]
   ssh_pwauth: True
   users:
    - name: user1
