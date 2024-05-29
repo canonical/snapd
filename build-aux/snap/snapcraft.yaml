@@ -225,6 +225,8 @@ parts:
       #    the main directory, and it fails.
       EXTRA_GO_FLAGS="-buildvcs=false"
 
+      VERSION="$(craftctl get version)"
+
       CMDS=(bin/snap
             lib/snapd/snapd
             lib/snapd/snap-exec
@@ -262,7 +264,7 @@ parts:
         case "${cmd}" in
           bin/snap)
             TAGS=(nomanagers)
-            case "$(craftctl get version)" in
+            case "${VERSION}" in
               1337.*)
                 TAGS+=(withtestkeys faultinject)
                 ;;
@@ -270,7 +272,7 @@ parts:
             ;;
           *)
             TAGS=()
-            case "$(craftctl get version)" in
+            case "${VERSION}" in
               1337.*)
                 TAGS+=(withtestkeys withbootassetstesting faultinject)
                 ;;
