@@ -10087,7 +10087,7 @@ func noticeToMap(c *C, notice *state.Notice) map[string]any {
 	return n
 }
 
-func (s *snapmgrTestSuite) TestAssertRuntimeFailureNoEnv(c *C) {
+func (s *snapmgrTestSuite) TestCheckExpectedRestartNoEnv(c *C) {
 	os.Unsetenv("SNAPD_REVERT_TO_REV")
 
 	st := s.state
@@ -10132,7 +10132,7 @@ func (s *snapmgrTestSuite) TestAssertRuntimeFailureNoEnv(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *snapmgrTestSuite) TestAssertRuntimeFailureFromSnapFailure(c *C) {
+func (s *snapmgrTestSuite) TestCheckExpectedRestartFromSnapFailure(c *C) {
 	os.Setenv("SNAPD_REVERT_TO_REV", "1")
 	defer os.Unsetenv("SNAPD_REVERT_TO_REV")
 
@@ -10193,7 +10193,7 @@ func (s *snapmgrTestSuite) TestAssertRuntimeFailureFromSnapFailure(c *C) {
 	c.Assert(err, Equals, snapstate.ErrUnexpectedRuntimeRestart)
 }
 
-func (s *snapmgrTestSuite) TestRuntimeFailureStartUpRequestsStop(c *C) {
+func (s *snapmgrTestSuite) TestCheckExpectedRestartFromStartUpRequestsStop(c *C) {
 	os.Setenv("SNAPD_REVERT_TO_REV", "1")
 	defer os.Unsetenv("SNAPD_REVERT_TO_REV")
 
