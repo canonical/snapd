@@ -272,7 +272,7 @@ func (s *snapmgrTestSuite) TestInstallInvalidOptions(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	t := snapstate.NewStoreTarget(snapstate.StoreSnap{
+	t := snapstate.StoreGoal(snapstate.StoreSnap{
 		InstanceName: "some-snap",
 		RevOpts: snapstate.RevisionOptions{
 			CohortKey: "cohort",
@@ -1045,8 +1045,8 @@ func (s *snapmgrTestSuite) TestInstallPathTooEarly(c *C) {
 	defer r()
 
 	mockSnap := makeTestSnap(c, "name: some-snap\nversion: 1.0")
-	t := snapstate.NewPathTarget("some-snap", mockSnap, &snap.SideInfo{RealName: "some-snap"}, snapstate.RevisionOptions{})
-	_, _, err := snapstate.InstallTarget(context.Background(), s.state, t, snapstate.Options{
+	t := snapstate.PathInstallGoal("some-snap", mockSnap, &snap.SideInfo{RealName: "some-snap"}, snapstate.RevisionOptions{})
+	_, _, err := snapstate.InstallWithGoal(context.Background(), s.state, t, snapstate.Options{
 		Seed: true,
 	})
 	c.Check(err, testutil.ErrorIs, &snapstate.ChangeConflictError{})

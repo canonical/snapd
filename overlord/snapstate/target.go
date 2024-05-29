@@ -56,8 +56,8 @@ type Options struct {
 	Seed bool
 }
 
-// Installable represents the data needed to setup a snap for installation.
-type Installable struct {
+// Target represents the data needed to setup a snap for installation.
+type Target struct {
 	// Snap is a partially initialized SnapSetup that contains the data needed
 	// to find the snap file that will be installed.
 	Snap *SnapSetup
@@ -73,10 +73,16 @@ type Installable struct {
 	SnapState SnapState
 }
 
-// Target represents a single snap or a group of snaps to be installed.
-type Target interface {
-	// Installables returns the data needed to setup the snaps for installation.
-	Installables(context.Context, *state.State, Options) ([]Installable, error)
+// InstallGoal represents a single snap or a group of snaps to be installed.
+type InstallGoal interface {
+	// Install returns the data needed to setup the snaps for installation.
+	Install(context.Context, *state.State, Options) ([]Target, error)
+}
+
+// storeInstallGoal implements the Target interface and represents a group of
+// snaps that are to be installed from the store.
+type storeInstallGoal struct {
+	snaps map[string]StoreSnap
 }
 
 // StoreSnap represents a snap that is to be installed from the store.
@@ -91,17 +97,12 @@ type StoreSnap struct {
 	SkipIfPresent bool
 }
 
-// StoreTarget implements the Target interface and represents a group of
-// snaps that are to be installed from the store.
-type StoreTarget struct {
-	snaps map[string]StoreSnap
-}
-
 // verify that StoreTarget implements the Target interface
-var _ Target = &StoreTarget{}
+var _ InstallGoal = &storeInstallGoal{}
 
-// NewStoreTarget creates a new StoreTarget from the given StoreSnaps.
-func NewStoreTarget(snaps ...StoreSnap) *StoreTarget {
+// StoreGoal creates a new storeInstallGoal, which implements InstallGoal to
+// install snaps from the store.
+func StoreGoal(snaps ...StoreSnap) *storeInstallGoal {
 	mapping := make(map[string]StoreSnap, len(snaps))
 	for _, sn := range snaps {
 		if _, ok := mapping[sn.InstanceName]; ok {
@@ -115,7 +116,7 @@ func NewStoreTarget(snaps ...StoreSnap) *StoreTarget {
 		mapping[sn.InstanceName] = sn
 	}
 
-	return &StoreTarget{
+	return &storeInstallGoal{
 		snaps: mapping,
 	}
 }
@@ -128,9 +129,9 @@ func validateRevisionOpts(opts RevisionOptions) error {
 	return nil
 }
 
-// Installables returns the data needed to setup the snaps from the store for
+// Install returns the data needed to setup the snaps from the store for
 // installation.
-func (s *StoreTarget) Installables(ctx context.Context, st *state.State, opts Options) ([]Installable, error) {
+func (s *storeInstallGoal) Install(ctx context.Context, st *state.State, opts Options) ([]Target, error) {
 	allSnaps, err := All(st)
 	if err != nil {
 		return nil, err
@@ -195,7 +196,7 @@ func (s *StoreTarget) Installables(ctx context.Context, st *state.State, opts Op
 		return nil, err
 	}
 
-	installs := make([]Installable, 0, len(results))
+	installs := make([]Target, 0, len(results))
 	for _, r := range results {
 		sn, ok := s.snaps[r.InstanceName()]
 		if !ok {
@@ -216,7 +217,7 @@ func (s *StoreTarget) Installables(ctx context.Context, st *state.State, opts Op
 			channel = sn.RevOpts.Channel
 		}
 
-		installs = append(installs, Installable{
+		installs = append(installs, Target{
 			Snap: &SnapSetup{
 				DownloadInfo: &r.DownloadInfo,
 				Channel:      channel,
@@ -308,7 +309,7 @@ func installActionForStoreTarget(t StoreSnap, opts Options, enforcedSets func() 
 	return action, nil
 }
 
-func (s *StoreTarget) validateAndPrune(installedSnaps map[string]*SnapState) error {
+func (s *storeInstallGoal) validateAndPrune(installedSnaps map[string]*SnapState) error {
 	for name, t := range s.snaps {
 		if err := snap.ValidateInstanceName(name); err != nil {
 			return fmt.Errorf("invalid instance name: %v", err)
@@ -332,8 +333,8 @@ func (s *StoreTarget) validateAndPrune(installedSnaps map[string]*SnapState) err
 // InstallOne is a wrapper for InstallTarget that ensures that the given Target
 // installs exactly one snap. If the Target does not install exactly one snap,
 // an error is returned.
-func InstallOne(ctx context.Context, st *state.State, target Target, opts Options) (*snap.Info, *state.TaskSet, error) {
-	infos, tasksets, err := InstallTarget(ctx, st, target, opts)
+func InstallOne(ctx context.Context, st *state.State, goal InstallGoal, opts Options) (*snap.Info, *state.TaskSet, error) {
+	infos, tasksets, err := InstallWithGoal(ctx, st, goal, opts)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -345,7 +346,7 @@ func InstallOne(ctx context.Context, st *state.State, target Target, opts Option
 	return infos[0], tasksets[0], nil
 }
 
-// InstallTarget installs the snap/set of snaps specified by the given Target.
+// InstallWithGoal installs the snap/set of snaps specified by the given Target.
 //
 // The Target controls what snaps should be installed and where to source the
 // snaps from. The Options struct contains optional parameters that apply to the
@@ -354,7 +355,10 @@ func InstallOne(ctx context.Context, st *state.State, target Target, opts Option
 // A slice of snap.Info structs is returned for each snap that is being
 // installed along with a slice of state.TaskSet structs that represent the
 // tasks that are part of the installation operation for each snap.
-func InstallTarget(ctx context.Context, st *state.State, target Target, opts Options) ([]*snap.Info, []*state.TaskSet, error) {
+//
+// TODO: rename this to Install once the API is settled, and we can rename or
+// remove the old Install function.
+func InstallWithGoal(ctx context.Context, st *state.State, goal InstallGoal, opts Options) ([]*snap.Info, []*state.TaskSet, error) {
 	if opts.PrereqTracker == nil {
 		opts.PrereqTracker = snap.SimplePrereqTracker{}
 	}
@@ -372,26 +376,25 @@ func InstallTarget(ctx context.Context, st *state.State, target Target, opts Opt
 		return nil, nil, err
 	}
 
-	installables, err := target.Installables(ctx, st, opts)
+	targets, err := goal.Install(ctx, st, opts)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	// TODO: should this be a field on the targets?
-	installInfos := make([]minimalInstallInfo, 0, len(installables))
-	for _, target := range installables {
-		installInfos = append(installInfos, installSnapInfo{target.Info})
+	installInfos := make([]minimalInstallInfo, 0, len(targets))
+	for _, t := range targets {
+		installInfos = append(installInfos, installSnapInfo{t.Info})
 	}
 
 	if err = checkDiskSpace(st, "install", installInfos, opts.UserID, opts.PrereqTracker); err != nil {
 		return nil, nil, err
 	}
 
-	tasksets := make([]*state.TaskSet, 0, len(installables))
-	infos := make([]*snap.Info, 0, len(installables))
-	for _, inst := range installables {
+	tasksets := make([]*state.TaskSet, 0, len(targets))
+	infos := make([]*snap.Info, 0, len(targets))
+	for _, inst := range targets {
 		if inst.Snap.SnapPath != "" && inst.Snap.DownloadInfo != nil {
-			return nil, nil, errors.New("internal error: installable cannot specify both a path and a download info")
+			return nil, nil, errors.New("internal error: target cannot specify both a path and a download info")
 		}
 
 		info := inst.Info
@@ -470,75 +473,75 @@ func setDefaultSnapstateOptions(st *state.State, opts *Options) error {
 	return err
 }
 
-// PathTarget represents a single snap to be installed from a path on disk.
-type PathTarget struct {
-	// Path is the path to the snap on disk.
-	Path string
-	// InstanceName is the name of the snap to install.
-	InstanceName string
-	// RevOpts contains options that apply to the installation of this snap.
-	RevOpts RevisionOptions
-	// SideInfo contains extra information about the snap.
-	SideInfo *snap.SideInfo
+// pathInstallGoal represents a single snap to be installed from a path on disk.
+type pathInstallGoal struct {
+	// path is the path to the snap on disk.
+	path string
+	// instanceName is the name of the snap to install.
+	instanceName string
+	// revOpts contains options that apply to the installation of this snap.
+	revOpts RevisionOptions
+	// sideInfo contains extra information about the snap.
+	sideInfo *snap.SideInfo
 }
 
-// verify that StoreTarget implements the Target interface
-var _ Target = &PathTarget{}
+// verify that pathInstallGoal implements the Target interface
+var _ InstallGoal = &pathInstallGoal{}
 
-// NewPathTarget creates a new PathTarget from the given name, path, and side
-// info.
-func NewPathTarget(name, path string, si *snap.SideInfo, opts RevisionOptions) *PathTarget {
-	return &PathTarget{
-		InstanceName: name,
-		Path:         path,
-		RevOpts:      opts,
-		SideInfo:     si,
+// PathInstallGoal creates a new pathInstallGoal from the given instance name,
+// path, and side info.
+func PathInstallGoal(instanceName, path string, si *snap.SideInfo, opts RevisionOptions) *pathInstallGoal {
+	return &pathInstallGoal{
+		instanceName: instanceName,
+		path:         path,
+		revOpts:      opts,
+		sideInfo:     si,
 	}
 }
 
-// Installables returns the data needed to setup the snap from disk.
-func (p *PathTarget) Installables(ctx context.Context, st *state.State, opts Options) ([]Installable, error) {
-	si := p.SideInfo
+// Install returns the data needed to setup the snap from disk.
+func (p *pathInstallGoal) Install(ctx context.Context, st *state.State, opts Options) ([]Target, error) {
+	si := p.sideInfo
 
 	if si.RealName == "" {
-		return nil, fmt.Errorf("internal error: snap name to install %q not provided", p.Path)
+		return nil, fmt.Errorf("internal error: snap name to install %q not provided", p.path)
 	}
 
 	if si.SnapID != "" {
 		if si.Revision.Unset() {
-			return nil, fmt.Errorf("internal error: snap id set to install %q but revision is unset", p.Path)
+			return nil, fmt.Errorf("internal error: snap id set to install %q but revision is unset", p.path)
 		}
 	}
 
-	if p.InstanceName == "" {
-		p.InstanceName = si.RealName
+	if p.instanceName == "" {
+		p.instanceName = si.RealName
 	}
 
-	if err := snap.ValidateInstanceName(p.InstanceName); err != nil {
+	if err := snap.ValidateInstanceName(p.instanceName); err != nil {
 		return nil, fmt.Errorf("invalid instance name: %v", err)
 	}
 
-	if err := validateRevisionOpts(p.RevOpts); err != nil {
-		return nil, fmt.Errorf("invalid revision options for snap %q: %w", p.InstanceName, err)
+	if err := validateRevisionOpts(p.revOpts); err != nil {
+		return nil, fmt.Errorf("invalid revision options for snap %q: %w", p.instanceName, err)
 	}
 
-	if p.RevOpts.Revision.Set() && p.RevOpts.Revision != si.Revision {
-		return nil, fmt.Errorf("cannot install local snap %q: %v != %v (revision mismatch)", p.InstanceName, p.RevOpts.Revision, si.Revision)
+	if p.revOpts.Revision.Set() && p.revOpts.Revision != si.Revision {
+		return nil, fmt.Errorf("cannot install local snap %q: %v != %v (revision mismatch)", p.instanceName, p.revOpts.Revision, si.Revision)
 	}
 
-	info, err := validatedInfoFromPathAndSideInfo(p.InstanceName, p.Path, si)
+	info, err := validatedInfoFromPathAndSideInfo(p.instanceName, p.path, si)
 	if err != nil {
 		return nil, err
 	}
 
-	snapName, instanceKey := snap.SplitInstanceName(p.InstanceName)
+	snapName, instanceKey := snap.SplitInstanceName(p.instanceName)
 	if info.SnapName() != snapName {
-		return nil, fmt.Errorf("cannot install snap %q, the name does not match the metadata %q", p.InstanceName, info.SnapName())
+		return nil, fmt.Errorf("cannot install snap %q, the name does not match the metadata %q", p.instanceName, info.SnapName())
 	}
 	info.InstanceKey = instanceKey
 
 	var snapst SnapState
-	if err := Get(st, p.InstanceName, &snapst); err != nil && !errors.Is(err, state.ErrNoState) {
+	if err := Get(st, p.instanceName, &snapst); err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 
@@ -547,20 +550,20 @@ func (p *PathTarget) Installables(ctx context.Context, st *state.State, opts Opt
 		trackingChannel = snapst.TrackingChannel
 	}
 
-	channel, err := resolveChannel(p.InstanceName, trackingChannel, p.RevOpts.Channel, opts.DeviceCtx)
+	channel, err := resolveChannel(p.instanceName, trackingChannel, p.revOpts.Channel, opts.DeviceCtx)
 	if err != nil {
 		return nil, err
 	}
 
-	inst := Installable{
+	inst := Target{
 		Snap: &SnapSetup{
-			SnapPath:  p.Path,
+			SnapPath:  p.path,
 			Channel:   channel,
-			CohortKey: p.RevOpts.CohortKey,
+			CohortKey: p.revOpts.CohortKey,
 		},
 		Info:      info,
 		SnapState: snapst,
 	}
 
-	return []Installable{inst}, nil
+	return []Target{inst}, nil
 }
