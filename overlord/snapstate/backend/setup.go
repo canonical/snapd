@@ -126,12 +126,15 @@ func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.Sid
 func (b Backend) SetupKernelSnap(instanceName string, rev snap.Revision, meter progress.Meter) (err error) {
 	// Build kernel tree that will be mounted from initramfs
 	cpi := snap.MinimalSnapContainerPlaceInfo(instanceName, rev)
-	return kernel.EnsureKernelDriversTree(instanceName, rev,
-		cpi.MountDir(), nil, &kernel.KernelDriversTreeOptions{KernelInstall: true})
+	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, instanceName, rev)
+
+	return kernel.EnsureKernelDriversTree(cpi.MountDir(), destDir, nil,
+		&kernel.KernelDriversTreeOptions{KernelInstall: true})
 }
 
 func (b Backend) RemoveKernelSnapSetup(instanceName string, rev snap.Revision, meter progress.Meter) error {
-	return kernel.RemoveKernelDriversTree(instanceName, rev)
+	kernelTree := kernel.DriversTreeDir(dirs.GlobalRootDir, instanceName, rev)
+	return kernel.RemoveKernelDriversTree(kernelTree)
 }
 
 // SetupComponent prepares and mounts a component for further processing.
@@ -300,26 +303,22 @@ func (b Backend) RemoveSnapInhibitLock(instanceName string) error {
 // compsToInstall. The components currently active are currentComps, while
 // ksnapName and ksnapRev identify the currently active kernel.
 func (b Backend) SetupKernelModulesComponents(compsToInstall, currentComps []*snap.ComponentSideInfo, ksnapName string, ksnapRev snap.Revision, meter progress.Meter) (err error) {
-	sysd := newSystemd(b.preseed, meter)
-
 	// newActiveComps will contain the new revisions of components, taken from compsToInstall
 	newActiveComps := mergeCompSideInfosUpdatingRev(currentComps, compsToInstall)
 
 	return moveKModsComponentsState(
-		currentComps, newActiveComps, ksnapName, ksnapRev, sysd,
+		currentComps, newActiveComps, ksnapName, ksnapRev,
 		"after failure to set-up kernel modules components")
 }
 
 // RemoveKernelModulesComponentsSetup changes kernel-modules configuration by
 // removing compsToRemove and making the final state consider only finalComps.
 func (b Backend) RemoveKernelModulesComponentsSetup(compsToRemove, finalComps []*snap.ComponentSideInfo, ksnapName string, ksnapRev snap.Revision, meter progress.Meter) (err error) {
-	sysd := newSystemd(b.preseed, meter)
-
 	// currentActiveComps will contain the current revision, taken from compsToRemove
 	currentActiveComps := mergeCompSideInfosUpdatingRev(finalComps, compsToRemove)
 
 	return moveKModsComponentsState(
-		currentActiveComps, finalComps, ksnapName, ksnapRev, sysd,
+		currentActiveComps, finalComps, ksnapName, ksnapRev,
 		"after failure to remove set-up of kernel modules components")
 }
 
@@ -347,17 +346,25 @@ func mergeCompSideInfosUpdatingRev(comps1, comps2 []*snap.ComponentSideInfo) (me
 
 // moveKModsComponentsState changes kernel-modules set-up from currentComps to
 // finalComps, for the kernel/revision specified by ksnapName/ksnapRev.
-func moveKModsComponentsState(currentComps, finalComps []*snap.ComponentSideInfo, ksnapName string, ksnapRev snap.Revision, sysd systemd.Systemd, cleanErrMsg string) (err error) {
+func moveKModsComponentsState(currentComps, finalComps []*snap.ComponentSideInfo, ksnapName string, ksnapRev snap.Revision, cleanErrMsg string) (err error) {
 	cpi := snap.MinimalSnapContainerPlaceInfo(ksnapName, ksnapRev)
-	if err := kernel.EnsureKernelDriversTree(ksnapName, ksnapRev,
-		cpi.MountDir(), finalComps,
+	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, ksnapName, ksnapRev)
+	finalCompsConts := make([]snap.ContainerPlaceInfo, len(finalComps))
+	for i, csi := range finalComps {
+		finalCompsConts[i] = snap.MinimalComponentContainerPlaceInfo(csi.Component.ComponentName,
+			csi.Revision, ksnapName)
+	}
+
+	if err := kernel.EnsureKernelDriversTree(cpi.MountDir(), destDir, finalCompsConts,
 		&kernel.KernelDriversTreeOptions{KernelInstall: false}); err != nil {
 
-		if e := kernel.EnsureKernelDriversTree(ksnapName, ksnapRev,
-			cpi.MountDir(),
-			currentComps,
-			&kernel.KernelDriversTreeOptions{
-				KernelInstall: false}); e != nil {
+		currentCompsConts := make([]snap.ContainerPlaceInfo, len(currentComps))
+		for i, csi := range currentComps {
+			currentCompsConts[i] = snap.MinimalComponentContainerPlaceInfo(
+				csi.Component.ComponentName, csi.Revision, ksnapName)
+		}
+		if e := kernel.EnsureKernelDriversTree(cpi.MountDir(), destDir, currentCompsConts,
+			&kernel.KernelDriversTreeOptions{KernelInstall: false}); e != nil {
 			logger.Noticef("while restoring kernel tree %s: %v", cleanErrMsg, e)
 		}
 

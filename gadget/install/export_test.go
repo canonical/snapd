@@ -25,6 +25,8 @@ import (
 
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/kernel"
+	"github.com/snapcore/snapd/snap"
 )
 
 type MkfsParams = mkfsParams
@@ -71,6 +73,14 @@ func MockMkfsMake(f func(typ, img, label string, devSize, sectorSize quantity.Si
 	mkfsImpl = f
 	return func() {
 		mkfsImpl = old
+	}
+}
+
+func MockKernelEnsureKernelDriversTree(f func(kSnapRoot, destDir string, kmodsConts []snap.ContainerPlaceInfo, opts *kernel.KernelDriversTreeOptions) (err error)) (restore func()) {
+	old := kernelEnsureKernelDriversTree
+	kernelEnsureKernelDriversTree = f
+	return func() {
+		kernelEnsureKernelDriversTree = old
 	}
 }
 

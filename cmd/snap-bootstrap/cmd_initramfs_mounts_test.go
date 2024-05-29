@@ -8150,7 +8150,7 @@ echo '{"features":[]}'
 	saveKey := keys.EncryptionKey{'s', 'a', 'v', 'e', 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
 
 	gadgetInstallCalled := false
-	restoreGadgetInstall := main.MockGadgetInstallRun(func(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options gadgetInstall.Options, observer gadget.ContentObserver, perfTimings timings.Measurer) (*gadgetInstall.InstalledSystemSideData, error) {
+	restoreGadgetInstall := main.MockGadgetInstallRun(func(model gadget.Model, gadgetRoot string, kernelSnapInfo *gadgetInstall.KernelSnapInfo, bootDevice string, options gadgetInstall.Options, observer gadget.ContentObserver, perfTimings timings.Measurer) (*gadgetInstall.InstalledSystemSideData, error) {
 		gadgetInstallCalled = true
 		c.Assert(options.Mount, Equals, true)
 		c.Assert(string(options.EncryptionType), Equals, "cryptsetup")
@@ -8158,7 +8158,7 @@ echo '{"features":[]}'
 		c.Assert(model.Classic(), Equals, false)
 		c.Assert(string(model.Grade()), Equals, "signed")
 		c.Assert(gadgetRoot, Equals, filepath.Join(boot.InitramfsRunMntDir, "gadget"))
-		c.Assert(kernelRoot, Equals, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
+		c.Assert(kernelSnapInfo.MountPoint, Equals, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
 
 		keyForRole := map[string]keys.EncryptionKey{
 			gadget.SystemData: dataKey,
@@ -8284,7 +8284,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallAndRunFdeSetupNotPresen
 	writeGadget(c, "ubuntu-seed", "system-seed", "")
 
 	gadgetInstallCalled := false
-	restoreGadgetInstall := main.MockGadgetInstallRun(func(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options gadgetInstall.Options, observer gadget.ContentObserver, perfTimings timings.Measurer) (*gadgetInstall.InstalledSystemSideData, error) {
+	restoreGadgetInstall := main.MockGadgetInstallRun(func(model gadget.Model, gadgetRoot string, kernelSnapInfo *gadgetInstall.KernelSnapInfo, bootDevice string, options gadgetInstall.Options, observer gadget.ContentObserver, perfTimings timings.Measurer) (*gadgetInstall.InstalledSystemSideData, error) {
 		gadgetInstallCalled = true
 		c.Assert(options.Mount, Equals, true)
 		c.Assert(string(options.EncryptionType), Equals, "")
@@ -8292,7 +8292,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallAndRunFdeSetupNotPresen
 		c.Assert(model.Classic(), Equals, false)
 		c.Assert(string(model.Grade()), Equals, "signed")
 		c.Assert(gadgetRoot, Equals, filepath.Join(boot.InitramfsRunMntDir, "gadget"))
-		c.Assert(kernelRoot, Equals, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
+		c.Assert(kernelSnapInfo.MountPoint, Equals, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
 		return &gadgetInstall.InstalledSystemSideData{}, nil
 	})
 	defer restoreGadgetInstall()

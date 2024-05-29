@@ -175,12 +175,12 @@ func createFilesystem(part *gadget.OnDiskStructure, fsParams *mkfsParams, partDi
 }
 
 // TODO probably we won't need to pass partDisp when we include storage in laidOut
-func writePartitionContent(laidOut *gadget.LaidOutStructure, fsDevice string, observer gadget.ContentObserver, partDisp string, perfTimings timings.Measurer) error {
+func writePartitionContent(laidOut *gadget.LaidOutStructure, kSnapInfo *KernelSnapInfo, fsDevice string, observer gadget.ContentObserver, partDisp string, perfTimings timings.Measurer) error {
 	var err error
 	timings.Run(perfTimings, fmt.Sprintf("write-content[%s]", partDisp),
 		fmt.Sprintf("Write content for %s", partDisp),
 		func(timings.Measurer) {
-			err = writeFilesystemContent(laidOut, fsDevice, observer)
+			err = writeFilesystemContent(laidOut, kSnapInfo, fsDevice, observer)
 		})
 	if err != nil {
 		return err
@@ -188,7 +188,11 @@ func writePartitionContent(laidOut *gadget.LaidOutStructure, fsDevice string, ob
 	return nil
 }
 
-func installOnePartition(dgpair *gadget.OnDiskAndGadgetStructurePair, kernelInfo *kernel.Info, gadgetRoot, kernelRoot string, encryptionType secboot.EncryptionType, sectorSize quantity.Size, observer gadget.ContentObserver, perfTimings timings.Measurer) (fsDevice string, encryptionKey keys.EncryptionKey, err error) {
+func installOnePartition(dgpair *gadget.OnDiskAndGadgetStructurePair,
+	kernelInfo *kernel.Info, kernelSnapInfo *KernelSnapInfo, gadgetRoot string,
+	encryptionType secboot.EncryptionType, sectorSize quantity.Size,
+	observer gadget.ContentObserver, perfTimings timings.Measurer,
+) (fsDevice string, encryptionKey keys.EncryptionKey, err error) {
 	// 1. Encrypt
 	diskPart := dgpair.DiskStructure
 	vs := dgpair.GadgetStructure
@@ -207,14 +211,14 @@ func installOnePartition(dgpair *gadget.OnDiskAndGadgetStructurePair, kernelInfo
 	// 3. Write content
 	opts := &gadget.LayoutOptions{
 		GadgetRootDir: gadgetRoot,
-		KernelRootDir: kernelRoot,
+		KernelRootDir: kernelSnapInfo.MountPoint,
 		EncType:       encryptionType,
 	}
 	los, err := gadget.LayoutVolumeStructure(dgpair, kernelInfo, opts)
 	if err != nil {
 		return "", nil, err
 	}
-	if err := writePartitionContent(los, fsDevice, observer, role, perfTimings); err != nil {
+	if err := writePartitionContent(los, kernelSnapInfo, fsDevice, observer, role, perfTimings); err != nil {
 		return "", nil, err
 	}
 
@@ -322,7 +326,7 @@ func onDiskStructsSortedIdx(vss map[int]*gadget.OnDiskStructure) []int {
 
 // Run creates partitions, encrypts them when expected, creates
 // filesystems, and finally writes content on them.
-func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options Options, observer gadget.ContentObserver, perfTimings timings.Measurer) (*InstalledSystemSideData, error) {
+func Run(model gadget.Model, gadgetRoot string, kernelSnapInfo *KernelSnapInfo, bootDevice string, options Options, observer gadget.ContentObserver, perfTimings timings.Measurer) (*InstalledSystemSideData, error) {
 	logger.Noticef("installing a new system")
 	logger.Noticef("        gadget data from: %v", gadgetRoot)
 	logger.Noticef("        encryption: %v", options.EncryptionType)
@@ -340,6 +344,7 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options 
 	}
 
 	// Step 1: create partitions
+	kernelRoot := kernelSnapInfo.MountPoint
 	bootVolGadgetName, created, bootVolSectorSize, err :=
 		createPartitions(model, info, gadgetRoot, kernelRoot, bootDevice, options, perfTimings)
 	if err != nil {
@@ -379,7 +384,7 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options 
 		// for encrypted device the filesystem device it will point to
 		// the mapper device otherwise it's the raw device node
 		fsDevice, encryptionKey, err := installOnePartition(dgpair,
-			kernelInfo, gadgetRoot, kernelRoot, options.EncryptionType,
+			kernelInfo, kernelSnapInfo, gadgetRoot, options.EncryptionType,
 			bootVolSectorSize, observer, perfTimings)
 		if err != nil {
 			return nil, err
@@ -493,7 +498,7 @@ func deviceForMaybeEncryptedVolume(volStruct *gadget.VolumeStructure, encSetupDa
 
 // WriteContent writes gadget content to the devices specified in
 // onVolumes. It returns the resolved on disk volumes.
-func WriteContent(onVolumes map[string]*gadget.Volume, allLaidOutVols map[string]*gadget.LaidOutVolume, encSetupData *EncryptionSetupData, observer gadget.ContentObserver, perfTimings timings.Measurer) ([]*gadget.OnDiskVolume, error) {
+func WriteContent(onVolumes map[string]*gadget.Volume, allLaidOutVols map[string]*gadget.LaidOutVolume, encSetupData *EncryptionSetupData, kSnapInfo *KernelSnapInfo, observer gadget.ContentObserver, perfTimings timings.Measurer) ([]*gadget.OnDiskVolume, error) {
 	// TODO this taking onVolumes and allLaidOutVols is odd,
 	// we should try to avoid this when we have partial
 
@@ -529,7 +534,7 @@ func WriteContent(onVolumes map[string]*gadget.Volume, allLaidOutVols map[string
 			device := deviceForMaybeEncryptedVolume(&volStruct, encSetupData)
 			logger.Debugf("writing content on partition %s", device)
 			partDisp := roleOrLabelOrName(laidOut.Role(), &laidOut.OnDiskStructure)
-			if err := writePartitionContent(laidOut, device, observer, partDisp, perfTimings); err != nil {
+			if err := writePartitionContent(laidOut, kSnapInfo, device, observer, partDisp, perfTimings); err != nil {
 				return nil, err
 			}
 		}
@@ -679,7 +684,7 @@ func KeysForRole(setupData *EncryptionSetupData) map[string]keys.EncryptionKey {
 	return keyForRole
 }
 
-func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options Options, observer gadget.ContentObserver, perfTimings timings.Measurer) (*InstalledSystemSideData, error) {
+func FactoryReset(model gadget.Model, gadgetRoot string, kernelSnapInfo *KernelSnapInfo, bootDevice string, options Options, observer gadget.ContentObserver, perfTimings timings.Measurer) (*InstalledSystemSideData, error) {
 	logger.Noticef("performing factory reset on an installed system")
 	logger.Noticef("        gadget data from: %v", gadgetRoot)
 	logger.Noticef("        encryption: %v", options.EncryptionType)
@@ -737,7 +742,7 @@ func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string,
 		return nil, fmt.Errorf("gadget and system-boot device %v partition table not compatible: %v", bootDevice, err)
 	}
 
-	kernelInfo, err := kernel.ReadInfo(kernelRoot)
+	kernelInfo, err := kernel.ReadInfo(kernelSnapInfo.MountPoint)
 	if err != nil {
 		return nil, err
 	}
@@ -769,7 +774,7 @@ func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string,
 		fsDevice, encryptionKey, err := installOnePartition(
 			&gadget.OnDiskAndGadgetStructurePair{
 				DiskStructure: onDiskStruct, GadgetStructure: vs},
-			kernelInfo, gadgetRoot, kernelRoot, options.EncryptionType,
+			kernelInfo, kernelSnapInfo, gadgetRoot, options.EncryptionType,
 			diskLayout.SectorSize, observer, perfTimings)
 		if err != nil {
 			return nil, err

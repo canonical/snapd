@@ -1,0 +1,68 @@
+summary: verify kernel modules components work as expected
+details: |
+  Install a kernel-modules component and verify that the shipped
+  kernel module is installed.
+
+systems: [ubuntu-24.04-64]
+environment:
+  NESTED_REPACK_KERNEL_SNAP: false
+  # TODO No FDE test for the moment (we would need to sign the built kernel)
+  NESTED_ENABLE_SECURE_BOOT: false
+  NESTED_ENABLE_TPM: false
+
+prepare: |
+  # Modify kernel and create a component
+  snap download --channel=24 pc-kernel
+  unsquashfs -d kernel pc-kernel_*.snap
+  kern_ver=$(find kernel/modules/* -maxdepth 0 -printf "%f\n")
+  comp_ko_dir=wifi-comp/modules/"$kern_ver"/wireless/
+  mkdir -p "$comp_ko_dir"
+  mkdir -p wifi-comp/meta/
+  cp component.yaml wifi-comp/meta/
+  hwsim_path=$(find kernel -name mac80211_hwsim.ko\*)
+  cp "$hwsim_path" "$comp_ko_dir"
+  snap pack wifi-comp
+
+  # Create kernel without the kernel module
+  rm "$hwsim_path"
+  # depmod wants a lib subdir, fake it and remove after invocation
+  mkdir kernel/lib
+  ln -s ../modules kernel/lib/modules
+  depmod -b kernel/ "$kern_ver"
+  rm -rf kernel/lib
+  rm pc-kernel_*.snap
+  # append component meta-information
+  printf 'components:\n  wifi-comp:\n    type: kernel-modules\n' >> kernel/meta/snap.yaml
+  snap pack kernel
+
+  cp pc-kernel_*.snap "$(tests.nested get extra-snaps-path)"
+  tests.nested build-image core
+  tests.nested create-vm core
+
+execute: |
+  # Compare times to check that drivers tree was created on
+  # installation, not on seeding
+  # shellcheck disable=SC2016
+  tree_birth=$(remote.exec 'date -d"$(stat --printf="%w\n" /var/lib/snapd/kernel/pc-kernel)" +%s')
+  reboot_time=$(remote.exec 'last reboot --time-format full | sed -n "s/wtmp begins //p"')
+  reboot_time=$(date -d"$reboot_time" +%s)
+  test "$reboot_time" -gt "$tree_birth"
+
+  # Loading the module fails
+  not remote.exec modprobe mac80211_hwsim
+
+  # install the component
+  comp_file=pc-kernel+wifi-comp_1.0.comp
+  remote.push "$comp_file"
+  remote.exec sudo snap install --dangerous "$comp_file"
+
+  # check that the component is in place
+  kern_ver=$(remote.exec uname -r)
+  comp_install_dir=/var/lib/snapd/kernel/pc-kernel/x1/lib/modules/"$kern_ver"/updates/wifi-comp
+  comp_dir=/snap/pc-kernel/components/mnt/wifi-comp/x1/modules/"$kern_ver"
+  test "$(remote.exec readlink -f "$comp_install_dir")" = "$comp_dir"
+
+  # TODO check that module can be loaded
+  # This can be done uncommented changes in initramfs are in the kernel snap
+  # remote.exec modprobe mac80211_hwsim
+
