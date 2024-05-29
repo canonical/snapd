@@ -31,13 +31,14 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snapdtool"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func Test(t *testing.T) { TestingT(t) }
 
 type toolSuite struct {
-	restoreExec   func()
-	restoreLogger func()
+	testutil.BaseTest
+
 	execCalled    int
 	lastExecArgv0 string
 	lastExecArgv  []string
@@ -50,22 +51,25 @@ type toolSuite struct {
 var _ = Suite(&toolSuite{})
 
 func (s *toolSuite) SetUpTest(c *C) {
-	s.restoreExec = snapdtool.MockSyscallExec(s.syscallExec)
-	_, s.restoreLogger = logger.MockLogger()
+	s.BaseTest.SetUpTest(c)
+
+	s.AddCleanup(snapdtool.MockSyscallExec(s.syscallExec))
+	_, restore := logger.MockLogger()
+	s.AddCleanup(restore)
+
+	s.AddCleanup(release.MockReleaseInfo(&release.OS{ID: "ubuntu"}))
+
 	s.execCalled = 0
 	s.lastExecArgv0 = ""
 	s.lastExecArgv = nil
 	s.lastExecEnvv = nil
 	s.fakeroot = c.MkDir()
 	dirs.SetRootDir(s.fakeroot)
+	s.AddCleanup(func() { dirs.SetRootDir("/") })
+
 	s.snapdPath = filepath.Join(dirs.SnapMountDir, "/snapd/42")
 	s.corePath = filepath.Join(dirs.SnapMountDir, "/core/21")
 	c.Assert(os.MkdirAll(filepath.Join(s.fakeroot, "proc/self"), 0755), IsNil)
-}
-
-func (s *toolSuite) TearDownTest(c *C) {
-	s.restoreExec()
-	s.restoreLogger()
 }
 
 func (s *toolSuite) syscallExec(argv0 string, argv []string, envv []string) (err error) {
@@ -100,7 +104,6 @@ func (s *toolSuite) fakeInternalTool(c *C, coreDir, toolName string) string {
 func (s *toolSuite) mockReExecingEnv() func() {
 	restore := []func(){
 		release.MockOnClassic(true),
-		release.MockReleaseInfo(&release.OS{ID: "ubuntu"}),
 		snapdtool.MockCoreSnapdPaths(s.corePath, s.snapdPath),
 		snapdtool.MockVersion("2"),
 	}
@@ -450,6 +453,36 @@ func (s *toolSuite) TestExecInSnapdOrCoreSnapDisabled(c *C) {
 
 	snapdtool.ExecInSnapdOrCoreSnap()
 	c.Check(s.execCalled, Equals, 0)
+}
+
+func (s *toolSuite) TestExecInSnapdOrCoreSnapOnUnsupportedDistro(c *C) {
+	// TODO pay attention to libexecdir when enabling reexec on non-Ubuntu
+	// with /usr/libexec/
+
+	// distro which does not support reexec
+	defer release.MockReleaseInfo(&release.OS{ID: "arch"})()
+
+	dirs.SetRootDir(s.fakeroot)
+	s.snapdPath = filepath.Join(dirs.SnapMountDir, "/snapd/42")
+	s.corePath = filepath.Join(dirs.SnapMountDir, "/core/21")
+	defer snapdtool.MockCoreSnapdPaths(s.corePath, s.snapdPath)()
+
+	defer s.mockReExecFor(c, s.snapdPath, "potato")()
+
+	// reexec does not happen
+	snapdtool.ExecInSnapdOrCoreSnap()
+	c.Check(s.execCalled, Equals, 0)
+
+	// unless explicitly requested through the environment
+	os.Setenv("SNAP_REEXEC", "1")
+	defer os.Unsetenv("SNAP_REEXEC")
+
+	// in which case we do reexec
+	c.Check(snapdtool.ExecInSnapdOrCoreSnap, PanicMatches, `>exec of "[^"]+/potato" in tests<`)
+	c.Check(s.execCalled, Equals, 1)
+	// and reexec uses the correct mount path
+	c.Check(s.lastExecArgv0, Equals, filepath.Join(s.fakeroot, "/var/lib/snapd/snap/snapd/42/usr/lib/snapd/potato"))
+	c.Check(s.lastExecArgv, DeepEquals, os.Args)
 }
 
 func (s *toolSuite) TestIsReexecd(c *C) {
