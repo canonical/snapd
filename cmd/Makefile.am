@@ -432,7 +432,9 @@ endif
 
 install-exec-hook::
 	install -d -m 755 $(DESTDIR)$(bindir)
+if BUILD_HOST_BINARIES
 	ln -sf $(libexecdir)/snap-confine $(DESTDIR)$(bindir)/ubuntu-core-launcher
+endif
 
 ##
 ## snap-device-helper
