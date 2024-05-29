@@ -137,6 +137,3 @@ execute: |
   remote.exec "test -f /etc/cloud/cloud-init.disabled"
   remote.exec "test -f /etc/cloud/cloud.cfg.d/80_device_gadget.cfg"
   remote.exec "! test -f /etc/cloud/cloud.cfg.d/zzzz_snapd.cfg"
-
-  # TODO: if we ever decide to leave NoCloud datasources enabled if the source
-  # is the gadget, check that here too
