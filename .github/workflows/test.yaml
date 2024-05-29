@@ -1,11 +1,11 @@
 name: Tests
 on:
   pull_request:
-    branches: [ "master", "release/**" ]
+    branches: [ "master", "release/**", "core-snap-security-release/**", "security-release/**" ]
   push:
     # we trigger runs on master branch, but we do not run spread on master 
     # branch, the master branch runs are just for unit tests + codecov.io
-    branches: [ "master","release/**" ]
+    branches: [ "master", "release/**", "core-snap-security-release/**", "security-release/**" ]
 
 concurrency:
   group: ${{ github.head_ref || github.run_id }}
@@ -599,9 +599,9 @@ jobs:
           fi
 
     - name: Run spread tests
-      # run if the commit is pushed to the release/* branch or there is a 'Run
-      # nested' label set on the PR
-      if: "contains(github.event.pull_request.labels.*.name, 'Run nested') || contains(github.event.pull_request.labels.*.name, 'Run nested -auto-') || contains(github.ref, 'refs/heads/release/')"
+      # run if there is a 'Run nested' label set on the PR or the commit is pushed to one of the recognised release branches
+      # "release/**", "core-snap-security-release/**" or "security-release/**"
+      if: "contains(github.event.pull_request.labels.*.name, 'Run nested') || contains(github.ref, 'refs/heads/release/') || contains(github.ref, 'refs/heads/core-snap-security-release/') || contains(github.ref, 'refs/heads/security-release/')"
       env:
           SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
       run: |
