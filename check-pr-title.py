@@ -29,7 +29,7 @@ class GithubTitleParser(HTMLParser):
             self.title = data
 
 
-def check_pr_title(pr_number: int):
+def check_pr_title(project_url: str, pr_number: int):
     # ideally we would use the github API - however we can't because:
     # a) its rate limiting and travis IPs hit the API a lot so we regularly
     #    get errors
@@ -39,7 +39,7 @@ def check_pr_title(pr_number: int):
     # radically
     parser = GithubTitleParser()
     with urllib.request.urlopen(
-        "https://github.com/snapcore/snapd/pull/{}".format(pr_number)
+        "{}/pull/{}".format(project_url, pr_number)
     ) as f:
         parser.feed(f.read().decode("utf-8"))
     # the title has the format:
@@ -60,11 +60,14 @@ def check_pr_title(pr_number: int):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
+        "project_url", metavar="Project url", help="the github project url to check"
+    )
+    parser.add_argument(
         "pr_number", metavar="PR number", help="the github PR number to check"
     )
     args = parser.parse_args()
     try:
-        check_pr_title(args.pr_number)
+        check_pr_title(args.project_url, args.pr_number)
     except InvalidPRTitle as e:
         print('Invalid PR title: "{}"\n'.format(e.invalid_title))
         print("Please provide a title in the following format:")

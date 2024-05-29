@@ -92,6 +92,7 @@ jobs:
       # version of go.
       PATH: /snap/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:${{ github.workspace }}/bin
       GOROOT: ""
+      GITHUB_PROJECT_URL: ${{ github.server_url }}/${{ github.repository }}
       GITHUB_PULL_REQUEST: ${{ github.event.number }}
 
     strategy:
