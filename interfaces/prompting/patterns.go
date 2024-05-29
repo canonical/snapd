@@ -64,6 +64,9 @@ func ValidatePathPattern(pattern string) error {
 		switch r {
 		case '{':
 			depth++
+			if depth >= maxExpandedPatterns {
+				return fmt.Errorf("invalid path pattern: nested group depth exceeded maximum number of expanded path patterns (%d): %q", maxExpandedPatterns, pattern)
+			}
 			currentGroupStack.push(currentGroupCount)
 			currentOptionStack.push(currentOptionCount)
 			currentGroupCount = 0

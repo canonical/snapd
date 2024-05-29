@@ -20,6 +20,8 @@
 package prompting_test
 
 import (
+	"strings"
+
 	. "gopkg.in/check.v1"
 
 	doublestar "github.com/bmatcuk/doublestar/v4"
@@ -126,6 +128,8 @@ func (s *patternsSuite) TestValidatePathPattern(c *C) {
 		"/foo/{{{{{{{{{{{{{{{a,b},c},d},e},f},g},h},i},j},k},l},m},n},o},p}",
 		"/foo/{a,b}{c,d}{e,f}{g,h,i,j,k}{l,m,n,o,p}{q,r,s,t,u}",       // expands to 1000
 		"/foo/{a,b}{c,d}{e,f}{g,h,i,j,k}{l,m,n,o,p}{q,r,s,t,u},1,2,3", // expands to 1000, with commas outside groups
+		"/" + strings.Repeat("{a,", 999) + "a" + strings.Repeat("}", 999),
+		"/" + strings.Repeat("{", 999) + "a" + strings.Repeat(",a}", 999),
 	} {
 		c.Check(prompting.ValidatePathPattern(pattern), IsNil, Commentf("valid path pattern %q was incorrectly not allowed", pattern))
 	}
@@ -144,6 +148,15 @@ func (s *patternsSuite) TestValidatePathPattern(c *C) {
 		"/foo/{a,b,c,d,e,f,g}{h,i,j,k,l,m,n,o,p,q,r}{s,t,u,v,w,x,y,z,1,2,3,4,5}", // expands to 1001
 	} {
 		c.Check(prompting.ValidatePathPattern(pattern), ErrorMatches, "invalid path pattern.*", Commentf("invalid path pattern %q was incorrectly allowed", pattern))
+	}
+
+	// Check that too-deeply-nested patterns throw an error before fully expanding
+	for _, pattern := range []string{
+		"/" + strings.Repeat("{a,", 1000) + "a" + strings.Repeat("}", 1000),
+		"/" + strings.Repeat("{", 1000) + "a" + strings.Repeat(",a}", 1000),
+		"/" + strings.Repeat("{", 10000),
+	} {
+		c.Check(prompting.ValidatePathPattern(pattern), ErrorMatches, "invalid path pattern: nested group depth exceeded maximum number of expanded path patterns.*")
 	}
 }
 
