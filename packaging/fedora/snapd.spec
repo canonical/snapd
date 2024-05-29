@@ -171,6 +171,7 @@ Provides:       %{name}-login-service%{?_isa} = 1.33
 
 %if ! 0%{?with_bundled}
 BuildRequires: golang(go.etcd.io/bbolt)
+BuildRequires: golang(github.com/bmatcuk/doublestar/v4)
 BuildRequires: golang(github.com/coreos/go-systemd/activation)
 BuildRequires: golang(github.com/godbus/dbus)
 BuildRequires: golang(github.com/godbus/dbus/introspect)
@@ -268,6 +269,7 @@ BuildArch:     noarch
 
 %if ! 0%{?with_bundled}
 Requires:      golang(go.etcd.io/bbolt)
+Requires:      golang(github.com/bmatcuk/doublestar/v4)
 Requires:      golang(github.com/coreos/go-systemd/activation)
 Requires:      golang(github.com/godbus/dbus)
 Requires:      golang(github.com/godbus/dbus/introspect)
@@ -297,6 +299,7 @@ Requires:      golang(gopkg.in/yaml.v3)
 # the bundled tarball are unversioned (they go by git commit)
 # *sigh*... I hate golang...
 Provides:      bundled(golang(go.etcd.io/bbolt))
+Provides:      bundled(golang(github.com/bmatcuk/doublestar/v4))
 Provides:      bundled(golang(github.com/coreos/go-systemd/activation))
 Provides:      bundled(golang(github.com/godbus/dbus))
 Provides:      bundled(golang(github.com/godbus/dbus/introspect))
