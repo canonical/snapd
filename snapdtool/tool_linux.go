@@ -153,6 +153,12 @@ func IsReexecEnabled() bool {
 	return osutil.GetenvBool(reExecKey, true)
 }
 
+// IsReexecExplicitlyEnabled is a stronger check than IsReexecEnabled as it
+// really expects the relevant environment variable to be set.
+func IsReexecExplicitlyEnabled() bool {
+	return os.Getenv(reExecKey) != "" && IsReexecEnabled()
+}
+
 // mustUnsetenv will unset the given environment key or panic if it
 // cannot do that
 func mustUnsetenv(key string) {
@@ -193,8 +199,15 @@ func ExecInSnapdOrCoreSnap() {
 
 	// If the distribution doesn't support re-exec or run-from-core then don't do it.
 	if !DistroSupportsReExec() {
-		return
+		if IsReexecExplicitlyEnabled() {
+			logger.Debugf("reexec explicitly enabled through environment")
+		} else {
+			return
+		}
 	}
+
+	// TODO pay attention to libexecdir when enabling reexec on non-Ubuntu
+	// with /usr/libexec/
 
 	// Is this executable in the core snap too?
 	coreOrSnapdPath := snapdSnap
