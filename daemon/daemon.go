@@ -53,7 +53,7 @@ import (
 )
 
 var ErrRestartSocket = fmt.Errorf("daemon stop requested to wait for socket activation")
-var ErrNoRuntimeRecoveryNeeded = fmt.Errorf("recovery not needed")
+var ErrNoFailureRecoveryNeeded = fmt.Errorf("no failure recovery needed")
 
 var systemdSdNotify = systemd.SdNotify
 
@@ -344,9 +344,9 @@ func (d *Daemon) Start() error {
 	}
 	// now perform expensive overlord/manages initialization
 	if err := d.overlord.StartUp(); err != nil {
-		if errors.Is(err, snapstate.ErrUnexpectedRuntimeFailure) {
-			logger.Noticef("detected recovery context, but no recovery needed, aborting startup")
-			return ErrNoRuntimeRecoveryNeeded
+		if errors.Is(err, snapstate.ErrUnexpectedRuntimeRestart) {
+			logger.Noticef("detected failure recovery context, but no recovery needed")
+			return ErrNoFailureRecoveryNeeded
 		}
 		return err
 	}

@@ -1077,7 +1077,10 @@ func FinishTaskWithRestart(task *state.Task, status state.Status, rt restart.Res
 }
 
 func isChangeRequestingSnapdRestart(chg *state.Change) bool {
-	// change touching the snapd snap
+	// during refresh of the snapd snap, after the services of new snapd
+	// have been set up in link-snap, daemon restart is requested, link-snap
+	// is marked as Done, and the auto-connect task is held off (in Do or
+	// Doing states) until the restart completes
 	var haveSnapd, linkDone, autoConnectWaiting bool
 	for _, tsk := range chg.Tasks() {
 		kind := tsk.Kind()
@@ -1124,22 +1127,23 @@ func isChangeRequestingSnapdRestart(chg *state.Change) bool {
 	return false
 }
 
-var ErrUnexpectedRuntimeFailure = errors.New("unexpected restart at runtime")
+var ErrUnexpectedRuntimeRestart = errors.New("unexpected restart at runtime")
 
-// AssertRuntimeFailureRestart asserts whether the current process state
-// indicates a failure at runtime and depending on the current changes state
-// either returns ErrRecoveryFromUnexpectedRuntimeFailure to indicate that the
-// failure handling was invoked due to an earlier unexpected process failure at
-// runtime, or nil indicating that snapd should proceed with execution.
-func AssertRuntimeFailureRestart(st *state.State) error {
+// CheckExpectedRestart check whether the current process state indicates that
+// it may have been started as a response to an unexpected restart at runtime
+// (most likely by snap-failure), and depending on the current changes state
+// either returns ErrRecoveryFromUnexpectedRuntimeFailure to indicate that no
+// failure handling is needed, or nil indicating that snapd should proceed with
+// execution.
+func CheckExpectedRestart(st *state.State) error {
 	if !isInvokedWithRevert() {
 		return nil
 	}
-	// we were invoked by snap-failure, there could be an ongoing
-	// refresh of the snapd snap which has failed and a revert is
-	// pending, but it could also be the case that the snapd process
-	// just failed at runtime, in which case systemd may have
-	// triggered an on-failure handling
+	// we were invoked by snap-failure, there could be an ongoing refresh of
+	// the snapd snap which has failed and a revert is pending, but it could
+	// also be the case that the snapd process just failed at runtime, in
+	// which case systemd may have triggered an on-failure handling, as such
+	// proceed with inspecting the state to identify the scenario
 
 	for _, chg := range st.Changes() {
 		if chg.IsReady() {
@@ -1151,7 +1155,7 @@ func AssertRuntimeFailureRestart(st *state.State) error {
 		}
 	}
 
-	return ErrUnexpectedRuntimeFailure
+	return ErrUnexpectedRuntimeRestart
 }
 
 // IsErrAndNotWait returns true if err is not nil and neither state.Wait, it is

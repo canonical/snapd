@@ -10095,7 +10095,7 @@ func (s *snapmgrTestSuite) TestAssertRuntimeFailureNoEnv(c *C) {
 	defer st.Unlock()
 
 	// no snapd related change in the state
-	err := snapstate.AssertRuntimeFailureRestart(st)
+	err := snapstate.CheckExpectedRestart(st)
 	c.Assert(err, IsNil)
 
 	// procure a non-ready change for the snapd snap in the state
@@ -10115,7 +10115,7 @@ func (s *snapmgrTestSuite) TestAssertRuntimeFailureNoEnv(c *C) {
 	chg.AddAll(ts)
 
 	// but since the env variable is still unset, we just proceed with execution
-	err = snapstate.AssertRuntimeFailureRestart(st)
+	err = snapstate.CheckExpectedRestart(st)
 	c.Assert(err, IsNil)
 
 	// pretend everything up to auto-connect is done, as if daemon restart
@@ -10128,7 +10128,7 @@ func (s *snapmgrTestSuite) TestAssertRuntimeFailureNoEnv(c *C) {
 	}
 
 	// but even then we just proceed with execution
-	err = snapstate.AssertRuntimeFailureRestart(st)
+	err = snapstate.CheckExpectedRestart(st)
 	c.Assert(err, IsNil)
 }
 
@@ -10141,9 +10141,9 @@ func (s *snapmgrTestSuite) TestAssertRuntimeFailureFromSnapFailure(c *C) {
 	defer st.Unlock()
 
 	// no snapd related change in the state
-	err := snapstate.AssertRuntimeFailureRestart(st)
+	err := snapstate.CheckExpectedRestart(st)
 	// indicating we should exit
-	c.Assert(err, Equals, snapstate.ErrUnexpectedRuntimeFailure)
+	c.Assert(err, Equals, snapstate.ErrUnexpectedRuntimeRestart)
 
 	// procure a non-ready change for the snapd snap in the state
 	snapstate.Set(st, "snapd", &snapstate.SnapState{
@@ -10161,9 +10161,9 @@ func (s *snapmgrTestSuite) TestAssertRuntimeFailureFromSnapFailure(c *C) {
 	chg.Set("snap-names", []string{"snapd"})
 	chg.AddAll(tss)
 
-	err = snapstate.AssertRuntimeFailureRestart(st)
+	err = snapstate.CheckExpectedRestart(st)
 	// snapd should proceed with execution (possibly rolling back)
-	c.Assert(err, Equals, snapstate.ErrUnexpectedRuntimeFailure)
+	c.Assert(err, Equals, snapstate.ErrUnexpectedRuntimeRestart)
 
 	// pretend everything up to auto-connect is done
 	for _, tsk := range chg.Tasks() {
@@ -10175,7 +10175,7 @@ func (s *snapmgrTestSuite) TestAssertRuntimeFailureFromSnapFailure(c *C) {
 
 	// if snap-failure was to call snapd now, the restart would not be
 	// unexpected
-	err = snapstate.AssertRuntimeFailureRestart(st)
+	err = snapstate.CheckExpectedRestart(st)
 	// now a restart is not unexpected
 	c.Assert(err, IsNil)
 
@@ -10188,9 +10188,9 @@ func (s *snapmgrTestSuite) TestAssertRuntimeFailureFromSnapFailure(c *C) {
 	// now there are no non-ready changes related to the snapd snap, which
 	// means restart with the env varialbe set would indicate a failure at
 	// runtime
-	err = snapstate.AssertRuntimeFailureRestart(st)
+	err = snapstate.CheckExpectedRestart(st)
 	// snapd should proceed with execution (possibly rolling back)
-	c.Assert(err, Equals, snapstate.ErrUnexpectedRuntimeFailure)
+	c.Assert(err, Equals, snapstate.ErrUnexpectedRuntimeRestart)
 }
 
 func (s *snapmgrTestSuite) TestRuntimeFailureStartUpRequestsStop(c *C) {
@@ -10199,11 +10199,11 @@ func (s *snapmgrTestSuite) TestRuntimeFailureStartUpRequestsStop(c *C) {
 
 	s.state.Lock()
 	// make sure we have an expected state
-	err := snapstate.AssertRuntimeFailureRestart(s.state)
-	c.Assert(err, Equals, snapstate.ErrUnexpectedRuntimeFailure)
+	err := snapstate.CheckExpectedRestart(s.state)
+	c.Assert(err, Equals, snapstate.ErrUnexpectedRuntimeRestart)
 	s.state.Unlock()
 
 	// startup asserts the runtime failure state
 	err = s.snapmgr.StartUp()
-	c.Check(err, Equals, snapstate.ErrUnexpectedRuntimeFailure)
+	c.Check(err, Equals, snapstate.ErrUnexpectedRuntimeRestart)
 }

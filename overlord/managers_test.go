@@ -14272,18 +14272,7 @@ type: snapd`
 		Model:  "my-model",
 		Serial: "serialserialserial",
 	})
-	// model := s.brands.Model("my-brand", "my-model", modelDefaults)
-	model := s.brands.Model("my-brand", "my-model", map[string]interface{}{
-		"type":         "model",
-		"authority-id": "my-brand",
-		"series":       "16",
-		"brand-id":     "my-brand",
-		"model":        "my-model",
-		"gadget":       "pc",
-		"kernel":       "kernel",
-		"architecture": "amd64",
-		"base":         "core18",
-	})
+	model := s.brands.Model("my-brand", "my-model", modelDefaults)
 	err = assertstate.Add(st, model)
 	c.Assert(err, IsNil)
 
@@ -14305,16 +14294,17 @@ type: snapd`
 	c.Check(restarting, Equals, true)
 	c.Assert(kind, Equals, restart.RestartDaemon)
 
-	// now verify whether the state would be correctly asserted, note that
-	// this isn't 100% realistic, as the check happens in overlord.StartUp()
-	// which we cannot fake here
+	// now verify whether the state would be correctly asserted as to
+	// whether the failure recovery is needed, note that this isn't 100%
+	// realistic, as the check happens in overlord.StartUp() which we cannot
+	// fake here
 
 	func() {
 		// simple case, the environment variable from snap-failure is
 		// unset
 		os.Unsetenv("SNAPD_REVERT_TO_REV")
 
-		err := snapstate.AssertRuntimeFailureRestart(st)
+		err := snapstate.CheckExpectedRestart(st)
 		c.Assert(err, IsNil)
 	}()
 
@@ -14323,7 +14313,7 @@ type: snapd`
 		os.Setenv("SNAPD_REVERT_TO_REV", "999")
 		defer os.Unsetenv("SNAPD_REVERT_TO_REV")
 
-		err := snapstate.AssertRuntimeFailureRestart(st)
+		err := snapstate.CheckExpectedRestart(st)
 		c.Assert(err, IsNil)
 	}()
 
@@ -14343,7 +14333,7 @@ type: snapd`
 		// systemd handled it
 		os.Unsetenv("SNAPD_REVERT_TO_REV")
 
-		err := snapstate.AssertRuntimeFailureRestart(st)
+		err := snapstate.CheckExpectedRestart(st)
 		c.Assert(err, Equals, nil)
 	}()
 
@@ -14353,7 +14343,7 @@ type: snapd`
 		os.Setenv("SNAPD_REVERT_TO_REV", "999")
 		defer os.Unsetenv("SNAPD_REVERT_TO_REV")
 
-		err := snapstate.AssertRuntimeFailureRestart(st)
-		c.Assert(err, Equals, snapstate.ErrUnexpectedRuntimeFailure)
+		err := snapstate.CheckExpectedRestart(st)
+		c.Assert(err, Equals, snapstate.ErrUnexpectedRuntimeRestart)
 	}()
 }

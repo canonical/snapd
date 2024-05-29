@@ -1475,5 +1475,5 @@ func (s *daemonSuite) TestHandleUnexpectedRestart(c *check.C) {
 	// mark as already seeded
 	s.markSeeded(d)
 
-	c.Assert(d.Start(), check.Equals, ErrNoRuntimeRecoveryNeeded)
+	c.Assert(d.Start(), check.Equals, ErrNoFailureRecoveryNeeded)
 }

@@ -66,7 +66,7 @@ func main() {
 			// the exit code must be in sync with
 			// data/systemd/snapd.service.in:SuccessExitStatus=
 			os.Exit(42)
-		} else if errors.Is(err, daemon.ErrNoRuntimeRecoveryNeeded) {
+		} else if errors.Is(err, daemon.ErrNoFailureRecoveryNeeded) {
 			// Similar consideration as above.
 			fmt.Fprintf(os.Stdout, "%v\n", err)
 			// We were invoked from a failure handler, but there is
