@@ -31,7 +31,6 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/device"
-	"github.com/snapcore/snapd/secboot/keys"
 )
 
 const (
@@ -138,8 +137,6 @@ type SealKeysParams struct {
 type SealKeysWithFDESetupHookParams struct {
 	// Initial model to bind sealed keys to.
 	Model ModelForSealing
-	// AuxKey is the auxiliary key used to bind models.
-	AuxKey keys.AuxKey
 	// The path to the aux key file (if empty the key will not be
 	// saved)
 	AuxKeyFile string
