@@ -148,7 +148,7 @@ if [ "$STATIC" = 1 ]; then
     #      details why we still use this script
     if [ -n "${GITHUB_PULL_REQUEST:-}" ] && [ "${GITHUB_PULL_REQUEST:-}" != "false" ]; then
         echo Checking pull request summary
-        ./check-pr-title.py "$GITHUB_PULL_REQUEST"
+        ./check-pr-title.py "${GITHUB_PROJECT_URL:-https://github.com/snapcore/snapd}" "$GITHUB_PULL_REQUEST"
     fi
 
     # check commit author/committer name for unicode
