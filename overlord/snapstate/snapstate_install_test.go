@@ -1045,7 +1045,10 @@ func (s *snapmgrTestSuite) TestInstallPathTooEarly(c *C) {
 	defer r()
 
 	mockSnap := makeTestSnap(c, "name: some-snap\nversion: 1.0")
-	_, _, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap"}, mockSnap, "", "", snapstate.Flags{}, nil)
+	t := snapstate.NewPathTarget("some-snap", mockSnap, &snap.SideInfo{RealName: "some-snap"}, snapstate.RevisionOptions{})
+	_, _, err := snapstate.InstallTarget(context.Background(), s.state, t, snapstate.Options{
+		Seed: true,
+	})
 	c.Check(err, testutil.ErrorIs, &snapstate.ChangeConflictError{})
 	c.Assert(err, ErrorMatches, `.*too early for operation, device model not yet acknowledged`)
 }

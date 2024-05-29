@@ -20,6 +20,7 @@
 package devicestate
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"runtime"
@@ -54,7 +55,17 @@ func installSeedSnap(st *state.State, sn *seed.Snap, flags snapstate.Flags, prqt
 		flags.DevMode = true
 	}
 
-	return snapstate.InstallPath(st, sn.SideInfo, sn.Path, "", sn.Channel, flags, prqt)
+	t := snapstate.NewPathTarget(sn.SideInfo.RealName, sn.Path, sn.SideInfo, snapstate.RevisionOptions{})
+	info, ts, err := snapstate.InstallOne(context.Background(), st, t, snapstate.Options{
+		Flags:         flags,
+		PrereqTracker: prqt,
+		Seed:          true,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return ts, info, nil
 }
 
 func criticalTaskEdges(ts *state.TaskSet) (beginEdge, beforeHooksEdge, hooksEdge *state.Task, err error) {

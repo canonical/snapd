@@ -50,6 +50,10 @@ type Options struct {
 	PrereqTracker PrereqTracker
 	// FromChange is the change that triggered the operation.
 	FromChange string
+	// Seed should be true while seeding the device. This indicates that we
+	// shouldn't require that the device is seeded before installing/updating
+	// snaps.
+	Seed bool
 }
 
 // Installable represents the data needed to setup a snap for installation.
@@ -73,14 +77,6 @@ type Installable struct {
 type Target interface {
 	// Installables returns the data needed to setup the snaps for installation.
 	Installables(context.Context, *state.State, Options) ([]Installable, error)
-}
-
-// OptionInitializer is an interface that can be implemented by a Target to
-// initialize the SnapstateOptions before the installation of the snaps.
-type OptionInitializer interface {
-	// InitOptions initializes the SnapstateOptions before the installation of
-	// the snaps.
-	InitOptions(*state.State, *Options) error
 }
 
 // StoreSnap represents a snap that is to be installed from the store.
@@ -372,14 +368,8 @@ func InstallTarget(ctx context.Context, st *state.State, target Target, opts Opt
 		opts.Flags.Lane = st.NewLane()
 	}
 
-	if initer, ok := target.(OptionInitializer); ok {
-		if err := initer.InitOptions(st, &opts); err != nil {
-			return nil, nil, err
-		}
-	} else {
-		if err := setDefaultSnapstateOptions(st, &opts); err != nil {
-			return nil, nil, err
-		}
+	if err := setDefaultSnapstateOptions(st, &opts); err != nil {
+		return nil, nil, err
 	}
 
 	installables, err := target.Installables(ctx, st, opts)
@@ -472,12 +462,12 @@ func generateLane(st *state.State, opts Options) int {
 
 func setDefaultSnapstateOptions(st *state.State, opts *Options) error {
 	var err error
-	opts.DeviceCtx, err = DevicePastSeeding(st, opts.DeviceCtx)
-	if err != nil {
-		return err
+	if opts.Seed {
+		opts.DeviceCtx, err = DeviceCtxFromState(st, opts.DeviceCtx)
+	} else {
+		opts.DeviceCtx, err = DevicePastSeeding(st, opts.DeviceCtx)
 	}
-
-	return nil
+	return err
 }
 
 // PathTarget represents a single snap to be installed from a path on disk.
@@ -492,12 +482,8 @@ type PathTarget struct {
 	SideInfo *snap.SideInfo
 }
 
-// verify that StoreTarget implements the Target and OptionInitializer
-// interfaces
-var (
-	_ Target            = &PathTarget{}
-	_ OptionInitializer = &PathTarget{}
-)
+// verify that StoreTarget implements the Target interface
+var _ Target = &PathTarget{}
 
 // NewPathTarget creates a new PathTarget from the given name, path, and side
 // info.
@@ -508,18 +494,6 @@ func NewPathTarget(name, path string, si *snap.SideInfo, opts RevisionOptions) *
 		RevOpts:      opts,
 		SideInfo:     si,
 	}
-}
-
-// InitOptions initializes the SnapstateOptions before the installation of the
-// snaps. Implements the OptionInitializer interface.
-func (p *PathTarget) InitOptions(st *state.State, opts *Options) error {
-	var err error
-	opts.DeviceCtx, err = DeviceCtxFromState(st, opts.DeviceCtx)
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 // Installables returns the data needed to setup the snap from disk.
