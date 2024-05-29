@@ -299,7 +299,7 @@ func readKeyFileImpl(keyfile string) (*sb.KeyData, *sb_tpm2.SealedKeyObject, err
 	if bytes.HasPrefix(buf, rawPrefix) {
 		sealedObject, err := sbReadSealedKeyObjectFromFile(keyfile)
 		if err != nil {
-			return nil, nil, fmt.Errorf("cannot reda key object: %v", err)
+			return nil, nil, fmt.Errorf("cannot read key object: %v", err)
 		}
 		keyData, err := sbNewKeyDataFromSealedKeyObjectFile(keyfile)
 		if err != nil {
@@ -500,37 +500,70 @@ func ResealKeys(params *ResealKeysParams) error {
 
 	pcrProfile, err := buildPCRProtectionProfile(params.ModelParams)
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot build new PCR protection profile: %w", err)
 	}
 
 	authKey, err := os.ReadFile(params.TPMPolicyAuthKeyFile)
 	if err != nil {
-		return fmt.Errorf("cannot read the policy auth key file: %v", err)
+		return fmt.Errorf("cannot read the policy auth key file %s: %w", params.TPMPolicyAuthKeyFile, err)
 	}
 
+	hasOldObject := false
+	hasNewData := false
+
+	keyDatas := make([]*sb.KeyData, 0, numSealedKeyObjects)
 	sealedKeyObjects := make([]*sb_tpm2.SealedKeyObject, 0, numSealedKeyObjects)
 	for _, keyfile := range params.KeyFiles {
-		sealedKeyObject, err := sbReadSealedKeyObjectFromFile(keyfile)
+		keyData, keyObject, err := readKeyFile(keyfile)
 		if err != nil {
-			return err
+			return fmt.Errorf("cannot read keyfile %s: %w", keyfile, err)
 		}
-		sealedKeyObjects = append(sealedKeyObjects, sealedKeyObject)
-	}
-
-	if err := sbUpdateKeyPCRProtectionPolicyMultiple(tpm, sealedKeyObjects, authKey, pcrProfile); err != nil {
-		return err
-	}
-
-	// write key files
-	for i, sko := range sealedKeyObjects {
-		w := sb_tpm2.NewFileSealedKeyObjectWriter(params.KeyFiles[i])
-		if err := sko.WriteAtomic(w); err != nil {
-			return fmt.Errorf("cannot write key data file: %v", err)
+		keyDatas = append(keyDatas, keyData)
+		sealedKeyObjects = append(sealedKeyObjects, keyObject)
+		if keyObject == nil {
+			hasNewData = true
+		} else {
+			hasOldObject = true
 		}
 	}
 
-	// revoke old policies via the primary key object
-	return sbSealedKeyObjectRevokeOldPCRProtectionPolicies(sealedKeyObjects[0], tpm, authKey)
+	if hasOldObject && hasNewData {
+		return fmt.Errorf("key files are different formats")
+	}
+
+	if hasOldObject {
+		if err := sbUpdateKeyPCRProtectionPolicyMultiple(tpm, sealedKeyObjects, authKey, pcrProfile); err != nil {
+			return fmt.Errorf("cannot update legacy PCR protection policy: %w", err)
+		}
+
+		// write key files
+		for i, sko := range sealedKeyObjects {
+			w := sb_tpm2.NewFileSealedKeyObjectWriter(params.KeyFiles[i])
+			if err := sko.WriteAtomic(w); err != nil {
+				return fmt.Errorf("cannot write key data file %s: %w", params.KeyFiles[i], err)
+			}
+		}
+
+		// revoke old policies via the primary key object
+		if err := sbSealedKeyObjectRevokeOldPCRProtectionPolicies(sealedKeyObjects[0], tpm, authKey); err != nil {
+			return fmt.Errorf("cannot revoke old PCR protection policies: %w", err)
+		}
+	} else {
+		if err := sbUpdateKeyDataPCRProtectionPolicy(tpm, authKey, pcrProfile, /*not sure*/sb_tpm2.NoNewPCRPolicyVersion, keyDatas...); err != nil {
+			return fmt.Errorf("cannot update PCR protection policy: %w", err)
+		}
+
+		for i, keyfile := range params.KeyFiles {
+			writer := sb.NewFileKeyDataWriter(keyfile)
+			if err := keyDatas[i].WriteAtomic(writer); err != nil {
+				return fmt.Errorf("cannot write key data in keyfile %s: %w", keyfile, err)
+			}
+		}
+
+		//TODO: revoke after writing? Not sure how.
+
+	}
+	return nil
 }
 
 func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb_tpm2.PCRProtectionProfile, error) {
