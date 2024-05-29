@@ -547,7 +547,7 @@ func (s *servicectlSuite) TestQueuedCommandsConfigureHook(c *C) {
 }
 
 func (s *servicectlSuite) TestQueuedCommandsDefaultConfigureHook(c *C) {
-	const hook = "configure"
+	const hook = "default-configure"
 	s.testQueuedCommands(c, hook)
 }
 
