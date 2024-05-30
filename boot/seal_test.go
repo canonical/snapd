@@ -270,7 +270,7 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 
 		// set mock key sealing
 		sealKeysCalls := 0
-		restore = boot.MockSecbootSealKeys(func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) error {
+		restore = boot.MockSecbootSealKeys(func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) ([]byte, error) {
 			c.Assert(provisionCalls, Equals, 1, Commentf("TPM must have been provisioned before"))
 			sealKeysCalls++
 			switch sealKeysCalls {
@@ -346,7 +346,7 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 			}
 			c.Assert(params.ModelParams[0].Model.Model(), Equals, "my-model-uc20")
 
-			return tc.sealErr
+			return nil, tc.sealErr
 		})
 		defer restore()
 

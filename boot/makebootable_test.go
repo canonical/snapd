@@ -694,7 +694,7 @@ version: 5.0
 
 	// set mock key sealing
 	sealKeysCalls := 0
-	restore = boot.MockSecbootSealKeys(func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) error {
+	restore = boot.MockSecbootSealKeys(func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) ([]byte, error) {
 		c.Assert(provisionCalls, Equals, 1, Commentf("TPM must have been provisioned before"))
 		sealKeysCalls++
 		switch sealKeysCalls {
@@ -778,7 +778,7 @@ version: 5.0
 
 		c.Assert(params.ModelParams[0].Model.Model(), Equals, "my-model-uc20")
 
-		return nil
+		return nil, nil
 	})
 	defer restore()
 
@@ -1170,7 +1170,7 @@ version: 5.0
 	defer restore()
 	// set mock key sealing
 	sealKeysCalls := 0
-	restore = boot.MockSecbootSealKeys(func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) error {
+	restore = boot.MockSecbootSealKeys(func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) ([]byte, error) {
 		sealKeysCalls++
 		switch sealKeysCalls {
 		case 1:
@@ -1207,7 +1207,7 @@ version: 5.0
 		})
 		c.Assert(params.ModelParams[0].Model.Model(), Equals, "my-model-uc20")
 
-		return fmt.Errorf("seal error")
+		return nil, fmt.Errorf("seal error")
 	})
 	defer restore()
 
@@ -1360,7 +1360,7 @@ version: 5.0
 	defer restore()
 	// set mock key sealing
 	sealKeysCalls := 0
-	restore = boot.MockSecbootSealKeys(func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) error {
+	restore = boot.MockSecbootSealKeys(func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) ([]byte, error) {
 		sealKeysCalls++
 		switch sealKeysCalls {
 		case 1, 2:
@@ -1384,7 +1384,7 @@ version: 5.0
 
 		c.Assert(params.ModelParams[0].Model.Model(), Equals, "my-model-uc20")
 
-		return nil
+		return nil, nil
 	})
 	defer restore()
 

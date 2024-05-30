@@ -127,6 +127,8 @@ const (
 type SealKeysParams struct {
 	// The parameters we're sealing the key to
 	ModelParams []*SealKeyModelParams
+	// The primary key to use, nil if needs to be generated
+	PrimaryKey []byte
 	// The handle at which to create a NV index for dynamic authorization policy revocation support
 	PCRPolicyCounterHandle uint32
 	// The path to the authorization policy update key file (only relevant for TPM,

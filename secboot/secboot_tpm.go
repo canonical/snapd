@@ -421,30 +421,33 @@ func ProvisionForCVM(initramfsUbuntuSeedDir string) error {
 // SealKeys seals the encryption keys according to the specified parameters. The
 // TPM must have already been provisioned. If sealed key already exists at the
 // PCR handle, SealKeys will fail and return an error.
-func SealKeys(keys []SealKeyRequest, params *SealKeysParams) error {
+func SealKeys(keys []SealKeyRequest, params *SealKeysParams) ([]byte, error) {
 	numModels := len(params.ModelParams)
 	if numModels < 1 {
-		return fmt.Errorf("at least one set of model-specific parameters is required")
+		return nil, fmt.Errorf("at least one set of model-specific parameters is required")
 	}
 
 	tpm, err := sbConnectToDefaultTPM()
 	if err != nil {
-		return fmt.Errorf("cannot connect to TPM: %v", err)
+		return nil, fmt.Errorf("cannot connect to TPM: %v", err)
 	}
 	defer tpm.Close()
 	if !isTPMEnabled(tpm) {
-		return fmt.Errorf("TPM device is not enabled")
+		return nil, fmt.Errorf("TPM device is not enabled")
 	}
 
 	pcrProfile, err := buildPCRProtectionProfile(params.ModelParams)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	pcrHandle := params.PCRPolicyCounterHandle
 	logger.Noticef("sealing with PCR handle %#x", pcrHandle)
 
 	var primaryKey sb.PrimaryKey
+	if params.PrimaryKey != nil {
+		primaryKey = params.PrimaryKey
+	}
 	for _, key := range keys {
 		creationParams := &sb_tpm2.ProtectKeyParams{
 			PCRProfile:             pcrProfile,
@@ -457,24 +460,24 @@ func SealKeys(keys []SealKeyRequest, params *SealKeysParams) error {
 			primaryKey = primaryKeyOut
 		}
 		if err != nil {
-			return err
+			return nil, err
 		}
 		const token = false
 		if _, err := key.Resetter.AddKey(key.SlotName, unlockKey, token); err != nil {
-			return err
+			return nil, err
 		}
 		writer := sb.NewFileKeyDataWriter(key.KeyFile)
 		if err := protectedKey.WriteAtomic(writer); err != nil {
-			return err
+			return nil, err
 		}
 	}
 	if primaryKey != nil && params.TPMPolicyAuthKeyFile != "" {
 		if err := osutil.AtomicWriteFile(params.TPMPolicyAuthKeyFile, primaryKey, 0600, 0); err != nil {
-			return fmt.Errorf("cannot write the policy auth key file: %v", err)
+			return nil, fmt.Errorf("cannot write the policy auth key file: %v", err)
 		}
 	}
 
-	return nil
+	return primaryKey, nil
 }
 
 // ResealKeys updates the PCR protection policy for the sealed encryption keys

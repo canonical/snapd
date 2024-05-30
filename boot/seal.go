@@ -317,12 +317,12 @@ func sealKeyToModeenvUsingSecboot(resetter, saveResetter secboot.KeyResetter, mo
 
 	// TODO: refactor sealing functions to take a struct instead of so many
 	// parameters
-	err = sealRunObjectKeys(resetter, pbc, roleToBlName, runObjectKeyPCRHandle)
+	primaryKey, err := sealRunObjectKeys(resetter, pbc, roleToBlName, runObjectKeyPCRHandle)
 	if err != nil {
 		return err
 	}
 
-	err = sealFallbackObjectKeys(resetter, saveResetter, rpbc, roleToBlName, flags.FactoryReset,
+	err = sealFallbackObjectKeys(resetter, saveResetter, rpbc, primaryKey, roleToBlName, flags.FactoryReset,
 		fallbackObjectKeyPCRHandle)
 	if err != nil {
 		return err
@@ -368,14 +368,15 @@ func usesAltPCRHandles() (bool, error) {
 	return handle == secboot.AltFallbackObjectPCRPolicyCounterHandle, nil
 }
 
-func sealRunObjectKeys(resetter secboot.KeyResetter, pbc predictableBootChains, roleToBlName map[bootloader.Role]string, pcrHandle uint32) error {
+func sealRunObjectKeys(resetter secboot.KeyResetter, pbc predictableBootChains, roleToBlName map[bootloader.Role]string, pcrHandle uint32) ([]byte, error)  {
 	modelParams, err := sealKeyModelParams(pbc, roleToBlName)
 	if err != nil {
-		return fmt.Errorf("cannot prepare for key sealing: %v", err)
+		return nil, fmt.Errorf("cannot prepare for key sealing: %v", err)
 	}
 
 	sealKeyParams := &secboot.SealKeysParams{
 		ModelParams:            modelParams,
+		PrimaryKey:             nil,
 		TPMPolicyAuthKeyFile:   filepath.Join(InstallHostFDESaveDir, "tpm-policy-auth-key"),
 		PCRPolicyCounterHandle: pcrHandle,
 	}
@@ -386,14 +387,15 @@ func sealRunObjectKeys(resetter secboot.KeyResetter, pbc predictableBootChains, 
 	// path only unseals one object because unsealing is expensive.
 	// Furthermore, the run object key is stored on ubuntu-boot so that we do not
 	// need to continually write/read keys from ubuntu-seed.
-	if err := secbootSealKeys(runKeySealRequests(resetter), sealKeyParams); err != nil {
-		return fmt.Errorf("cannot seal the encryption keys: %v", err)
+	primaryKey, err := secbootSealKeys(runKeySealRequests(resetter), sealKeyParams)
+	if err != nil {
+		return nil, fmt.Errorf("cannot seal the encryption keys: %v", err)
 	}
 
-	return nil
+	return primaryKey, nil
 }
 
-func sealFallbackObjectKeys(resetter, saveResetter secboot.KeyResetter, pbc predictableBootChains, roleToBlName map[bootloader.Role]string, factoryReset bool, pcrHandle uint32) error {
+func sealFallbackObjectKeys(resetter, saveResetter secboot.KeyResetter, pbc predictableBootChains, primaryKey []byte, roleToBlName map[bootloader.Role]string, factoryReset bool, pcrHandle uint32) error {
 	// also seal the keys to the recovery bootchains as a fallback
 	modelParams, err := sealKeyModelParams(pbc, roleToBlName)
 	if err != nil {
@@ -401,6 +403,7 @@ func sealFallbackObjectKeys(resetter, saveResetter secboot.KeyResetter, pbc pred
 	}
 	sealKeyParams := &secboot.SealKeysParams{
 		ModelParams:            modelParams,
+		PrimaryKey:             primaryKey,
 		PCRPolicyCounterHandle: pcrHandle,
 	}
 	logger.Debugf("sealing fallback key with PCR handle: %#x", sealKeyParams.PCRPolicyCounterHandle)
@@ -408,7 +411,7 @@ func sealFallbackObjectKeys(resetter, saveResetter secboot.KeyResetter, pbc pred
 	// key files are stored on ubuntu-seed, separate from ubuntu-data so they
 	// can be used if ubuntu-data and ubuntu-boot are corrupted or unavailable.
 
-	if err := secbootSealKeys(fallbackKeySealRequests(resetter, saveResetter, factoryReset), sealKeyParams); err != nil {
+	if _, err := secbootSealKeys(fallbackKeySealRequests(resetter, saveResetter, factoryReset), sealKeyParams); err != nil {
 		return fmt.Errorf("cannot seal the fallback encryption keys: %v", err)
 	}
 
