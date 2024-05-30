@@ -1196,10 +1196,9 @@ nested_start_core_vm_unit() {
         else
             PARAM_BIOS="-bios /usr/share/ovmf/OVMF.fd"
         fi
-        local OVMF_CODE OVMF_VARS OVMF_SIZE
+        local OVMF_CODE OVMF_VARS
         OVMF_CODE=""
         OVMF_VARS=""
-        OVMF_SIZE=""
 
         if nested_is_core_ge 22; then
             wget -q https://storage.googleapis.com/snapd-spread-tests/dependencies/OVMF_CODE.secboot.fd
@@ -1221,8 +1220,8 @@ nested_start_core_vm_unit() {
                 cp -f "/usr/share/AAVMF/AAVMF_VARS.fd" "$NESTED_ASSETS_DIR/AAVMF_VARS.fd"
                 PARAM_BIOS="-drive file=/usr/share/AAVMF/AAVMF_CODE.fd,if=pflash,format=raw,unit=0,readonly=on -drive file=$NESTED_ASSETS_DIR/AAVMF_VARS.fd,if=pflash,format=raw"
             else
-                cp -f "/usr/share/OVMF/OVMF_VARS${OVMF_SIZE}.${OVMF_VARS}.fd" "$NESTED_ASSETS_DIR/OVMF_VARS${OVMF_SIZE}.${OVMF_VARS}.fd"
-                PARAM_BIOS="-drive file=/usr/share/OVMF/OVMF_CODE${OVMF_SIZE}.${OVMF_CODE}.fd,if=pflash,format=raw,unit=0,readonly=on -drive file=$NESTED_ASSETS_DIR/OVMF_VARS${OVMF_SIZE}.${OVMF_VARS}.fd,if=pflash,format=raw"
+                cp -f "/usr/share/OVMF/OVMF_VARS.${OVMF_VARS}.fd" "$NESTED_ASSETS_DIR/OVMF_VARS.${OVMF_VARS}.fd"
+                PARAM_BIOS="-drive file=/usr/share/OVMF/OVMF_CODE.${OVMF_CODE}.fd,if=pflash,format=raw,unit=0,readonly=on -drive file=$NESTED_ASSETS_DIR/OVMF_VARS.${OVMF_VARS}.fd,if=pflash,format=raw"
                 PARAM_MACHINE="-machine q35${ATTR_KVM} -global ICH9-LPC.disable_s3=1"
             fi
         fi
