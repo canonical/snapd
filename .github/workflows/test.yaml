@@ -102,8 +102,7 @@ jobs:
       # version of go.
       PATH: /snap/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:${{ github.workspace }}/bin
       GOROOT: ""
-      GITHUB_PROJECT_URL: ${{ github.server_url }}/${{ github.repository }}
-      GITHUB_PULL_REQUEST: ${{ github.event.number }}
+      GITHUB_PULL_REQUEST_TITLE: ${{ github.event.pull_request.title }}
 
     strategy:
       # we cache successful runs so it's fine to keep going
@@ -269,7 +268,6 @@ jobs:
       # version of go.
       PATH: /snap/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:${{ github.workspace }}/bin
       GOROOT: ""
-      GITHUB_PULL_REQUEST: ${{ github.event.number }}
     strategy:
       # we cache successful runs so it's fine to keep going
       fail-fast: false      
@@ -364,7 +362,6 @@ jobs:
       # version of go.
       PATH: /snap/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:${{ github.workspace }}/bin
       GOROOT: ""
-      GITHUB_PULL_REQUEST: ${{ github.event.number }}
     strategy:
       # we cache successful runs so it's fine to keep going
       fail-fast: false
@@ -489,7 +486,6 @@ jobs:
       # snap in a step below. Without this we get the GitHub-controlled latest
       # version of go.
       PATH: /usr/sbin:/usr/bin:/sbin:/bin
-      GITHUB_PULL_REQUEST: ${{ github.event.number }}
 
     strategy:
       fail-fast: false
@@ -556,7 +552,6 @@ jobs:
       # version of go.
       PATH: /snap/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:${{ github.workspace }}/bin
       GOROOT: ""
-      GITHUB_PULL_REQUEST: ${{ github.event.number }}
     steps:
     - name: Download the coverage files
       uses: actions/download-artifact@v3
