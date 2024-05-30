@@ -82,14 +82,8 @@ var (
 	LabelExpr        = labelExpr
 )
 
-func MockApparmorSupportsPrompting(f func(features []string) bool) (restore func()) {
-	restoreKernel := testutil.Backup(&apparmorKernelFeaturesSupportPrompting)
-	apparmorKernelFeaturesSupportPrompting = f
-	restoreParser := testutil.Backup(&apparmorParserFeaturesSupportPrompting)
-	apparmorParserFeaturesSupportPrompting = f
-	restore = func() {
-		restoreKernel()
-		restoreParser()
-	}
+func MockApparmorPromptingSupportedByFeatures(f func(kernelFeatures []string, parserFeatures []string) (bool, string)) (restore func()) {
+	restore = testutil.Backup(&apparmorPromptingSupportedByFeatures)
+	apparmorPromptingSupportedByFeatures = f
 	return restore
 }

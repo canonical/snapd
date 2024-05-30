@@ -183,20 +183,20 @@ func (*featureSuite) TestAppArmorPromptingSupportedCallback(c *C) {
 			expectedReason: "apparmor parser does not support the prompt qualifier",
 		},
 		{
+			// Kernel error
+			kernelFeatures: []string{"foo", "bar", "policy:permstable32:prompt"},
+			kernelError:    fmt.Errorf("bad kernel"),
+			parserFeatures: []string{"baz", "qux", "prompt"},
+			parserError:    nil,
+			expectedReason: "cannot check apparmor kernel features: bad kernel",
+		},
+		{
 			// Parser error
 			kernelFeatures: []string{"foo", "bar", "policy:permstable32:prompt"},
 			kernelError:    nil,
 			parserFeatures: []string{"baz", "qux", "prompt"},
 			parserError:    fmt.Errorf("bad parser"),
 			expectedReason: "cannot check apparmor parser features: bad parser",
-		},
-		{
-			// Kernel error
-			kernelFeatures: []string{"foo", "bar", "policy:permstable32:prompt"},
-			kernelError:    fmt.Errorf("bad kernel"),
-			parserFeatures: []string{"baz", "qux", "prompt"},
-			parserError:    fmt.Errorf("bad parser"),
-			expectedReason: "cannot check apparmor kernel features: bad kernel",
 		},
 	} {
 		restore := apparmor.MockFeatures(t.kernelFeatures, t.kernelError, t.parserFeatures, t.parserError)

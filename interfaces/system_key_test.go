@@ -332,8 +332,8 @@ func (s *systemKeySuite) TestInterfaceSystemKeyMismatchAppArmorPromptingHappy(c 
 }
 `, testCase.prevValue)))
 
-		restore := interfaces.MockApparmorSupportsPrompting(func(features []string) bool {
-			return testCase.supported
+		restore := interfaces.MockApparmorPromptingSupportedByFeatures(func(kernelFeatures []string, parserFeatures []string) (bool, string) {
+			return testCase.supported, ""
 		})
 
 		extraData = interfaces.SystemKeyExtraData{
@@ -473,9 +473,10 @@ func (s *systemKeySuite) TestSystemKeysMatch(c *C) {
 }
 
 func (s *systemKeySuite) TestSystemKeysUnmarshalSame(c *C) {
-	interfaces.MockApparmorSupportsPrompting(func(features []string) bool {
-		return true
+	restore := interfaces.MockApparmorPromptingSupportedByFeatures(func(kernelFeatures []string, parserFeatures []string) (bool, string) {
+		return true, ""
 	})
+	defer restore()
 	appArmorPrompting := true
 	extraData := interfaces.SystemKeyExtraData{
 		AppArmorPrompting: appArmorPrompting,
@@ -523,7 +524,7 @@ func (s *systemKeySuite) TestSystemKeysUnmarshalSame(c *C) {
 	}`, appArmorPrompting)
 
 	// write the mocked system key to disk
-	restore := interfaces.MockSystemKey(systemKeyJSON)
+	restore = interfaces.MockSystemKey(systemKeyJSON)
 	defer restore()
 	err := interfaces.WriteSystemKey(extraData)
 	c.Assert(err, IsNil)

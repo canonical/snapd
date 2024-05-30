@@ -517,18 +517,18 @@ func (s *apparmorSuite) TestPromptingSupported(c *C) {
 			expectedReason: "cannot check apparmor kernel features: foo",
 		},
 		{
-			kernelFeatures: []string{"policy:permstable32:allow", "policy:permstable32:deny"},
-			kernelError:    nil,
-			parserFeatures: []string{},
-			parserError:    fmt.Errorf("bar"),
-			expectedReason: "apparmor kernel features do not support prompting",
-		},
-		{
 			kernelFeatures: []string{"policy:permstable32:allow", "policy:permstable32:deny", "policy:permstable32:prompt"},
 			kernelError:    nil,
 			parserFeatures: []string{},
 			parserError:    fmt.Errorf("bar"),
 			expectedReason: "cannot check apparmor parser features: bar",
+		},
+		{
+			kernelFeatures: []string{"policy:permstable32:allow", "policy:permstable32:deny"},
+			kernelError:    nil,
+			parserFeatures: []string{},
+			parserError:    nil,
+			expectedReason: "apparmor kernel features do not support prompting",
 		},
 		{
 			kernelFeatures: []string{"policy:permstable32:allow", "policy:permstable32:deny", "policy:permstable32:prompt"},
