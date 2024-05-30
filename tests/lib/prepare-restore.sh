@@ -481,7 +481,7 @@ prepare_project() {
     restart_logind=
     local systemd_ver
     systemd_ver="$(systemctl --version | awk '/systemd [0-9]+/ { print $2 }' | cut -f1 -d"~")"
-    if [ "$(systemd_ver)" -lt 246 ]; then
+    if [ "$systemd_ver" -lt 246 ]; then
         restart_logind=maybe
     fi
 
