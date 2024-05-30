@@ -552,7 +552,7 @@ func ResealKeys(params *ResealKeysParams) error {
 			return fmt.Errorf("cannot revoke old PCR protection policies: %w", err)
 		}
 	} else {
-		if err := sbUpdateKeyDataPCRProtectionPolicy(tpm, authKey, pcrProfile, /*not sure*/sb_tpm2.NoNewPCRPolicyVersion, keyDatas...); err != nil {
+		if err := sbUpdateKeyDataPCRProtectionPolicy(tpm, authKey, pcrProfile /*not sure*/, sb_tpm2.NoNewPCRPolicyVersion, keyDatas...); err != nil {
 			return fmt.Errorf("cannot update PCR protection policy: %w", err)
 		}
 

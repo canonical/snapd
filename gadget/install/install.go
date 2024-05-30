@@ -192,7 +192,7 @@ func writePartitionContent(laidOut *gadget.LaidOutStructure, kSnapInfo *KernelSn
 	return nil
 }
 
-	func installOnePartition(dgpair *gadget.OnDiskAndGadgetStructurePair,
+func installOnePartition(dgpair *gadget.OnDiskAndGadgetStructurePair,
 	kernelInfo *kernel.Info, kernelSnapInfo *KernelSnapInfo, gadgetRoot string,
 	encryptionType secboot.EncryptionType, sectorSize quantity.Size,
 	observer gadget.ContentObserver, perfTimings timings.Measurer,

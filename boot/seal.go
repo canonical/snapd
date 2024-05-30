@@ -368,7 +368,7 @@ func usesAltPCRHandles() (bool, error) {
 	return handle == secboot.AltFallbackObjectPCRPolicyCounterHandle, nil
 }
 
-func sealRunObjectKeys(resetter secboot.KeyResetter, pbc predictableBootChains, roleToBlName map[bootloader.Role]string, pcrHandle uint32) ([]byte, error)  {
+func sealRunObjectKeys(resetter secboot.KeyResetter, pbc predictableBootChains, roleToBlName map[bootloader.Role]string, pcrHandle uint32) ([]byte, error) {
 	modelParams, err := sealKeyModelParams(pbc, roleToBlName)
 	if err != nil {
 		return nil, fmt.Errorf("cannot prepare for key sealing: %v", err)
