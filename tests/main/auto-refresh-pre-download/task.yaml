@@ -7,7 +7,7 @@ details: |
 # Ubuntu 14.04's special version of systemd doesn't have StartTransientUnit API.
 systems: [-ubuntu-14.04-*]
 
-kill-timeout: 5m
+kill-timeout: 10m
 
 environment:
   # trigger the auto-refresh continuation by closing the snap
