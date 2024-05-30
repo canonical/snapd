@@ -2,7 +2,7 @@
 //go:build nosecboot
 
 /*
- * Copyright (C) 2021 Canonical Ltd
+ * Copyright (C) 2021, 2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -32,8 +32,8 @@ func CheckTPMKeySealingSupported(mode TPMProvisionMode) error {
 	return errBuildWithoutSecboot
 }
 
-func SealKeys(keys []SealKeyRequest, params *SealKeysParams) error {
-	return errBuildWithoutSecboot
+func SealKeys(keys []SealKeyRequest, params *SealKeysParams) ([]byte, error) {
+	return nil, errBuildWithoutSecboot
 }
 
 func SealKeysWithFDESetupHook(runHook fde.RunSetupHookFunc, keys []SealKeyRequest, params *SealKeysWithFDESetupHookParams) error {
