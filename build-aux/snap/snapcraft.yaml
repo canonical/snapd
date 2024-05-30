@@ -302,7 +302,7 @@ parts:
       install -Dm644 data/info "${CRAFT_PART_INSTALL}/usr/lib/snapd/info"
       install -Dm644 data/preseed.json "${CRAFT_PART_INSTALL}/usr/lib/snapd/preseed.json"
 
-      install -Dm644 -t "${CRAFT_PART_INSTALL}/usr/lib/snapd" data/completion/bash/complete.sh
+      install -Dm644 -t "${CRAFT_PART_INSTALL}/usr/lib/snapd" data/completion/bash/complete.sh data/completion/bash/etelpmoc.sh
       install -Dm644 -t "${CRAFT_PART_INSTALL}/usr/share/bash-completion/completions" ./data/completion/bash/snap
 
       # copy helper for collecting debug output
