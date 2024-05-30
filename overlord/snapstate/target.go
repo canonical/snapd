@@ -75,8 +75,8 @@ type Target struct {
 
 // InstallGoal represents a single snap or a group of snaps to be installed.
 type InstallGoal interface {
-	// Install returns the data needed to setup the snaps for installation.
-	Install(context.Context, *state.State, Options) ([]Target, error)
+	// ToInstall returns the data needed to setup the snaps for installation.
+	ToInstall(context.Context, *state.State, Options) ([]Target, error)
 }
 
 // storeInstallGoal implements the Target interface and represents a group of
@@ -129,9 +129,9 @@ func validateRevisionOpts(opts RevisionOptions) error {
 	return nil
 }
 
-// Install returns the data needed to setup the snaps from the store for
+// ToInstall returns the data needed to setup the snaps from the store for
 // installation.
-func (s *storeInstallGoal) Install(ctx context.Context, st *state.State, opts Options) ([]Target, error) {
+func (s *storeInstallGoal) ToInstall(ctx context.Context, st *state.State, opts Options) ([]Target, error) {
 	allSnaps, err := All(st)
 	if err != nil {
 		return nil, err
@@ -376,7 +376,7 @@ func InstallWithGoal(ctx context.Context, st *state.State, goal InstallGoal, opt
 		return nil, nil, err
 	}
 
-	targets, err := goal.Install(ctx, st, opts)
+	targets, err := goal.ToInstall(ctx, st, opts)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -499,8 +499,8 @@ func PathInstallGoal(instanceName, path string, si *snap.SideInfo, opts Revision
 	}
 }
 
-// Install returns the data needed to setup the snap from disk.
-func (p *pathInstallGoal) Install(ctx context.Context, st *state.State, opts Options) ([]Target, error) {
+// ToInstall returns the data needed to setup the snap from disk.
+func (p *pathInstallGoal) ToInstall(ctx context.Context, st *state.State, opts Options) ([]Target, error) {
 	si := p.sideInfo
 
 	if si.RealName == "" {
