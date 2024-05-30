@@ -142,6 +142,7 @@ func (c *userServiceClient) stopServices(services ...string) error {
 
 // startServices attempts to start the provided list of services on each available
 // system user. 'disabledServices' can be used to filter services that should be ignored on a per-user basis.
+// It will return an error if any of the services fail to start.
 func (c *userServiceClient) startServices(enable bool, disabledServices map[int][]string, services ...string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout.DefaultTimeout))
 	defer cancel()
@@ -151,13 +152,15 @@ func (c *userServiceClient) startServices(enable bool, disabledServices map[int]
 		DisabledServices: disabledServices,
 	})
 	for _, f := range startFailures {
+		// If we manage to not receive a comm error, but still receive an error for failing to start one of
+		// the services, then propagate the first one instead of ignoring any start errors.
 		if err == nil {
-			err = fmt.Errorf(fmt.Sprintf("Could not start service %q for uid %d: %s", f.Service, f.Uid, f.Error))
+			err = fmt.Errorf(fmt.Sprintf("could not start service %q for uid %d: %s", f.Service, f.Uid, f.Error))
 		}
-		c.inter.Notify(fmt.Sprintf("Could not start service %q for uid %d: %s", f.Service, f.Uid, f.Error))
+		c.inter.Notify(fmt.Sprintf("could not start service %q for uid %d: %s", f.Service, f.Uid, f.Error))
 	}
 	for _, f := range stopFailures {
-		c.inter.Notify(fmt.Sprintf("While trying to stop previously started service %q for uid %d: %s", f.Service, f.Uid, f.Error))
+		c.inter.Notify(fmt.Sprintf("while trying to stop previously started service %q for uid %d: %s", f.Service, f.Uid, f.Error))
 	}
 	return err
 }
