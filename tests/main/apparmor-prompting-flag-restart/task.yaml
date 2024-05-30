@@ -14,6 +14,7 @@ systems:
   - ubuntu-core-*
 
 prepare: |
+    snap install jq
     if ! command -v curl; then
         snap install --devmode --edge test-snapd-curl
         snap alias test-snapd-curl.curl curl
