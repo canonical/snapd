@@ -210,6 +210,12 @@ func (pdb *PromptDB) AddOrMerge(user uint32, snap string, iface string, path str
 	for _, prompt := range userEntry.ByID {
 		if prompt.Snap == snap && prompt.Interface == iface && prompt.Constraints.equals(constraints) {
 			prompt.listenerReqs = append(prompt.listenerReqs, listenerReq)
+			// Although the prompt itself has not changed, re-record a notice
+			// to re-notify clients to respond to this request. A client may
+			// have replied with a malformed response and not retried after
+			// receiving the error, so this notice encourages it to try again
+			// if the user retries the operation.
+			pdb.notifyPrompt(user, prompt.ID)
 			return prompt, true
 		}
 	}

@@ -199,8 +199,8 @@ func (s *requestpromptsSuite) TestAddOrMerge(c *C) {
 	c.Assert(merged, Equals, true)
 	c.Assert(prompt2, Equals, prompt1)
 
-	// Merged prompts should not trigger notice
-	s.checkNewNotices(c, []string{})
+	// Merged prompts should re-record notice
+	s.checkNewNotices(c, []string{prompt1.ID})
 	// Merged prompts should not advance the max ID
 	c.Check(pdb.MaxID(), Equals, uint64(1))
 	s.checkWrittenMaxID(c, prompt1.ID)
@@ -221,15 +221,15 @@ func (s *requestpromptsSuite) TestAddOrMerge(c *C) {
 	c.Check(err, IsNil)
 	c.Check(storedPrompt, Equals, prompt1)
 
-	// Looking up prompt should not trigger notice
+	// Looking up prompt should not record notice
 	s.checkNewNotices(c, []string{})
 
 	prompt3, merged := pdb.AddOrMerge(user, snap, iface, path, permissions, listenerReq3)
 	c.Check(merged, Equals, true)
 	c.Check(prompt3, Equals, prompt1)
 
-	// Merged prompts should not trigger notice
-	s.checkNewNotices(c, []string{})
+	// Merged prompts should re-record notice
+	s.checkNewNotices(c, []string{prompt1.ID})
 	// Merged prompts should not advance the max ID
 	c.Check(pdb.MaxID(), Equals, uint64(1))
 	s.checkWrittenMaxID(c, prompt1.ID)
@@ -280,7 +280,7 @@ func (s *requestpromptsSuite) TestPromptWithIDErrors(c *C) {
 	c.Check(err, ErrorMatches, "cannot find prompt for UID 1001 with the given ID:.*")
 	c.Check(result, IsNil)
 
-	// Looking up prompts (with or without errors) should not trigger notices
+	// Looking up prompts (with or without errors) should not record notices
 	s.checkNewNotices(c, []string{})
 }
 
@@ -315,8 +315,8 @@ func (s *requestpromptsSuite) TestReply(c *C) {
 		c.Check(merged, Equals, true)
 		c.Check(prompt2, Equals, prompt1)
 
-		// Merged prompts should not trigger notice
-		s.checkNewNotices(c, []string{})
+		// Merged prompts should re-record notice
+		s.checkNewNotices(c, []string{prompt1.ID})
 
 		repliedPrompt, err := pdb.Reply(user, prompt1.ID, outcome)
 		c.Check(err, IsNil)
@@ -386,7 +386,7 @@ func (s *requestpromptsSuite) TestReplyErrors(c *C) {
 	_, err = pdb.Reply(user, prompt.ID, outcome)
 	c.Check(err, Equals, fakeError)
 
-	// Failed replies should not trigger notice
+	// Failed replies should not record notice
 	s.checkNewNotices(c, []string{})
 }
 
