@@ -54,6 +54,13 @@ type Options struct {
 	// shouldn't require that the device is seeded before installing/updating
 	// snaps.
 	Seed bool
+	// RequireOneSnap is a boolean flag indicating that this operation is expected
+	// to only operate on one snap (excluding any prerequisite snaps that may be
+	// required). If this is true, then the operation will fail if more than one
+	// snap is being operated on. This flag primarily exists to support the
+	// pre-existing behavior of calling InstallMany with one snap vs calling
+	// Install.
+	RequireOneSnap bool
 }
 
 // Target represents the data needed to setup a snap for installation.
@@ -129,9 +136,15 @@ func validateRevisionOpts(opts RevisionOptions) error {
 	return nil
 }
 
+var ErrExpectedOneSnap = errors.New("expected exactly one snap to install")
+
 // ToInstall returns the data needed to setup the snaps from the store for
 // installation.
 func (s *storeInstallGoal) ToInstall(ctx context.Context, st *state.State, opts Options) ([]Target, error) {
+	if opts.RequireOneSnap && len(s.snaps) != 1 {
+		return nil, ErrExpectedOneSnap
+	}
+
 	allSnaps, err := All(st)
 	if err != nil {
 		return nil, err
@@ -190,7 +203,7 @@ func (s *storeInstallGoal) ToInstall(ctx context.Context, st *state.State, opts 
 
 	results, _, err := str.SnapAction(context.TODO(), curSnaps, actions, nil, user, refreshOpts)
 	if err != nil {
-		if len(actions) == 1 {
+		if opts.RequireOneSnap {
 			return nil, singleActionResultErr(actions[0].InstanceName, actions[0].Action, err)
 		}
 		return nil, err
@@ -330,17 +343,22 @@ func (s *storeInstallGoal) validateAndPrune(installedSnaps map[string]*SnapState
 	return nil
 }
 
-// InstallOne is a wrapper for InstallTarget that ensures that the given Target
-// installs exactly one snap. If the Target does not install exactly one snap,
-// an error is returned.
+// InstallOne is a convenience wrapper for InstallWithGoal that ensures that a
+// single snap is being installed and unwraps the results to return a single
+// snap.Info and state.TaskSet. If the InstallGoal does not request to install
+// exactly one snap, an error is returned.
 func InstallOne(ctx context.Context, st *state.State, goal InstallGoal, opts Options) (*snap.Info, *state.TaskSet, error) {
+	opts.RequireOneSnap = true
+
 	infos, tasksets, err := InstallWithGoal(ctx, st, goal, opts)
 	if err != nil {
 		return nil, nil, err
 	}
 
+	// this case is unexpected since InstallWithGoal verifies that we are
+	// operating on exactly one target
 	if len(infos) != 1 || len(tasksets) != 1 {
-		return nil, nil, errors.New("internal error: expected exactly one snap and taskset")
+		return nil, nil, errors.New("internal error: expected exactly one snap and task set")
 	}
 
 	return infos[0], tasksets[0], nil
@@ -379,6 +397,12 @@ func InstallWithGoal(ctx context.Context, st *state.State, goal InstallGoal, opt
 	targets, err := goal.ToInstall(ctx, st, opts)
 	if err != nil {
 		return nil, nil, err
+	}
+
+	// this might be checked earlier in the implementation of InstallGoal, but
+	// we should check it here as well to be safe
+	if opts.RequireOneSnap && len(targets) != 1 {
+		return nil, nil, ErrExpectedOneSnap
 	}
 
 	installInfos := make([]minimalInstallInfo, 0, len(targets))

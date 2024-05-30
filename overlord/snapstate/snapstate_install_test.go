@@ -6070,3 +6070,56 @@ func (s *snapmgrTestSuite) TestInstallManyNoResults(c *C) {
 	// error isn't wrapped
 	c.Check(err, FitsTypeOf, &store.SnapActionError{})
 }
+
+func (s *snapmgrTestSuite) TestInstallFromStoreOneSnap(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	t := snapstate.StoreGoal(
+		snapstate.StoreSnap{
+			InstanceName: "some-snap",
+		},
+		snapstate.StoreSnap{
+			InstanceName: "some-other-snap",
+		},
+	)
+
+	_, _, err := snapstate.InstallOne(context.Background(), s.state, t, snapstate.Options{
+		RequireOneSnap: true,
+	})
+	c.Check(err, testutil.ErrorIs, snapstate.ErrExpectedOneSnap)
+
+	// the store should never be contacted in this case
+	c.Check(s.fakeBackend.ops.Ops(), HasLen, 0)
+}
+
+type misbehavingGoal struct {
+	snaps []snapstate.StoreSnap
+}
+
+func (m *misbehavingGoal) ToInstall(context.Context, *state.State, snapstate.Options) ([]snapstate.Target, error) {
+	// this implementation returns many snaps, regardless of opts.RequireOneSnap
+	// being set
+
+	// the contents don't matter, we just need the list
+	return make([]snapstate.Target, len(m.snaps)), nil
+}
+
+func (s *snapmgrTestSuite) TestInstallOneSnapMisbehavingGoal(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	t := misbehavingGoal{snaps: []snapstate.StoreSnap{
+		{
+			InstanceName: "some-snap",
+		},
+		{
+			InstanceName: "some-other-snap",
+		},
+	}}
+
+	_, _, err := snapstate.InstallOne(context.Background(), s.state, &t, snapstate.Options{
+		RequireOneSnap: true,
+	})
+	c.Check(err, testutil.ErrorIs, snapstate.ErrExpectedOneSnap)
+}
