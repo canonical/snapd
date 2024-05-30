@@ -170,6 +170,40 @@ func ParserMtime() int64 {
 	return mtime
 }
 
+// PromptingSupported returns true if prompting is supported by the system.
+// Otherwise, returns false, along with a string explaining why prompting is
+// unsupported.
+func PromptingSupported() (bool, string) {
+	kernelFeatures, err := appArmorAssessment.KernelFeatures()
+	if err != nil {
+		return false, fmt.Sprintf("cannot check apparmor kernel features: %v", err)
+	}
+	if !KernelFeaturesSupportPrompting(kernelFeatures) {
+		return false, "apparmor kernel features do not support prompting"
+	}
+	parserFeatures, err := appArmorAssessment.ParserFeatures()
+	if err != nil {
+		return false, fmt.Sprintf("cannot check apparmor parser features: %v", err)
+	}
+	if !ParserFeaturesSupportPrompting(parserFeatures) {
+		return false, "apparmor parser does not support the prompt qualifier"
+	}
+	// TODO: return true once snapd supports prompting
+	return false, "requires newer version of snapd"
+}
+
+// KernelFeaturesSupportPrompting returns whether prompting is supported by the
+// given AppArmor kernel features.
+func KernelFeaturesSupportPrompting(kernelFeatures []string) bool {
+	return strutil.ListContains(kernelFeatures, "policy:permstable32:prompt")
+}
+
+// ParserFeaturesSupportPrompting returns whether prompting is supported by the
+// given AppArmor parser features.
+func ParserFeaturesSupportPrompting(parserFeatures []string) bool {
+	return strutil.ListContains(parserFeatures, "prompt")
+}
+
 // probe related code
 
 var (

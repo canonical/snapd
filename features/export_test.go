@@ -35,15 +35,3 @@ func MockReleaseSystemctlSupportsUserUnits(f func() bool) (restore func()) {
 	releaseSystemctlSupportsUserUnits = f
 	return r
 }
-
-func MockApparmorKernelFeatures(f func() ([]string, error)) (restore func()) {
-	r := testutil.Backup(&apparmorKernelFeatures)
-	apparmorKernelFeatures = f
-	return r
-}
-
-func MockApparmorParserFeatures(f func() ([]string, error)) (restore func()) {
-	r := testutil.Backup(&apparmorParserFeatures)
-	apparmorParserFeatures = f
-	return r
-}

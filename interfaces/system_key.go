@@ -31,7 +31,6 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sandbox/apparmor"
@@ -73,20 +72,19 @@ type systemKey struct {
 	//
 	// As an exception, the NFSHome is not renamed to RemoteFSHome
 	// to avoid needless re-computation.
-	AppArmorFeatures                     []string `json:"apparmor-features"`
-	AppArmorParserMtime                  int64    `json:"apparmor-parser-mtime"`
-	AppArmorParserFeatures               []string `json:"apparmor-parser-features"`
-	AppArmorPromptingSupported           bool     `json:"apparmor-prompting-supported"`
-	AppArmorPromptingSupportedAndEnabled bool     `json:"apparmor-prompting-supported-and-enabled"`
-	NFSHome                              bool     `json:"nfs-home"`
-	OverlayRoot                          string   `json:"overlay-root"`
-	SecCompActions                       []string `json:"seccomp-features"`
-	SeccompCompilerVersion               string   `json:"seccomp-compiler-version"`
-	CgroupVersion                        string   `json:"cgroup-version"`
+	AppArmorFeatures       []string `json:"apparmor-features"`
+	AppArmorParserMtime    int64    `json:"apparmor-parser-mtime"`
+	AppArmorParserFeatures []string `json:"apparmor-parser-features"`
+	AppArmorPrompting      bool     `json:"apparmor-prompting"`
+	NFSHome                bool     `json:"nfs-home"`
+	OverlayRoot            string   `json:"overlay-root"`
+	SecCompActions         []string `json:"seccomp-features"`
+	SeccompCompilerVersion string   `json:"seccomp-compiler-version"`
+	CgroupVersion          string   `json:"cgroup-version"`
 }
 
 // IMPORTANT: when adding/removing/changing inputs bump this
-const systemKeyVersion = 12
+const systemKeyVersion = 11
 
 var (
 	isHomeUsingRemoteFS   = osutil.IsHomeUsingRemoteFS
@@ -179,12 +177,16 @@ func UnmarshalJSONSystemKey(r io.Reader) (interface{}, error) {
 // key so that some values do not need to be re-checked and can thus be
 // guaranteed to be consistent across multiple uses of system key functions.
 type SystemKeyExtraData struct {
-	// PromptingFlagEnabled indicates whether the AppArmorPrompting feature
-	// flag is currently set to true. This value is ANDed with the prompting
-	// supported value, so setting this value to supported&&enabled results
-	// in an identical system key as would be generated using enabled alone.
-	PromptingFlagEnabled bool
+	// AppArmorPrompting indicates whether AppArmorPrompting should be set in
+	// the system key, assuming that prompting is supported. If prompting is
+	// unsupported, the value in the system key will be set to false.
+	AppArmorPrompting bool
 }
+
+var (
+	apparmorKernelFeaturesSupportPrompting = apparmor.KernelFeaturesSupportPrompting
+	apparmorParserFeaturesSupportPrompting = apparmor.ParserFeaturesSupportPrompting
+)
 
 // WriteSystemKey will write the current system-key to disk
 func WriteSystemKey(extraData SystemKeyExtraData) error {
@@ -201,11 +203,13 @@ func WriteSystemKey(extraData SystemKeyExtraData) error {
 		// Since we calculate the mtime() as part of generateSystemKey, we can
 		// simply unconditionally write this out here.
 		sk.AppArmorParserFeatures, _ = apparmor.ParserFeatures()
-		// AppArmorPrompting.IsSupported() depends on AA kernel and parser
-		sk.AppArmorPromptingSupported = features.AppArmorPrompting.IsSupported()
 	}
 
-	sk.AppArmorPromptingSupportedAndEnabled = sk.AppArmorPromptingSupported && extraData.PromptingFlagEnabled
+	// AppArmorPrompting should be true if the given extra data prompting value
+	// is true and if the AppArmor kernel and parser features support prompting.
+	sk.AppArmorPrompting = (extraData.AppArmorPrompting &&
+		apparmorKernelFeaturesSupportPrompting(sk.AppArmorFeatures) &&
+		apparmorParserFeaturesSupportPrompting(sk.AppArmorParserFeatures))
 
 	sks, err := json.Marshal(sk)
 	if err != nil {
@@ -277,6 +281,9 @@ func SystemKeyMismatch(extraData SystemKeyExtraData) (bool, error) {
 		}
 	}
 
+	// Store previous parser features so we can use them later, if unchanged
+	parserFeatures := diskSystemKey.AppArmorParserFeatures
+
 	// since we always write out apparmor-parser-feature when
 	// apparmor-parser-mtime changes, we don't need to compare it here
 	// (allowing snap run to only need to check the mtime of the parser)
@@ -284,29 +291,21 @@ func SystemKeyMismatch(extraData SystemKeyExtraData) (bool, error) {
 	diskSystemKey.AppArmorParserFeatures = nil
 	mySystemKey.AppArmorParserFeatures = nil
 
-	// We don't want to check AppArmorPrompting.IsSupported() unless absolutely
-	// necessary, since when called by `snap run`, there will be no AppArmor
-	// parser features cached, and we will need to exec the parser to check.
-	// Preserve disk prompting supported and supported&&enabled values
-	diskPromptingSupported := diskSystemKey.AppArmorPromptingSupported
-	diskPromptingSAndE := diskSystemKey.AppArmorPromptingSupportedAndEnabled
-	// Zero out both values for both system keys, then check them later.
-	diskSystemKey.AppArmorPromptingSupported = false
-	diskSystemKey.AppArmorPromptingSupportedAndEnabled = false
-	mySystemKey.AppArmorPromptingSupported = false
-	mySystemKey.AppArmorPromptingSupportedAndEnabled = false
+	// AppArmorPrompting should be true if the given extra data prompting value
+	// is true and if the AppArmor kernel and parser features support prompting.
+	// Since generateSystemKey() does not exec apparmor_parser to check parser
+	// features, we cannot use mySystemKey parser features to check prompting
+	// support. If parser features differ between mySystemKey and diskSystemKey,
+	// then parser mtime will differ and we'll return true anyway. If parser
+	// features are the same, then we can use the disk parser features to check
+	// if AppArmorPrompting should be set.
+	mySystemKey.AppArmorPrompting = (extraData.AppArmorPrompting &&
+		apparmorKernelFeaturesSupportPrompting(mySystemKey.AppArmorFeatures) &&
+		apparmorParserFeaturesSupportPrompting(parserFeatures))
 
 	ok, err := SystemKeysMatch(mySystemKey, diskSystemKey)
 	if err != nil || !ok {
 		return true, err
-	}
-
-	// System keys match, which means AppArmor kernel and parser features are
-	// unchanged, so prompting support is also unchanged. Thus, the only
-	// scenario in which prompting supported&&enabled is changed is if prompting
-	// is supported and the value of the AppArmorPrompting flag has changed.
-	if diskPromptingSupported {
-		return extraData.PromptingFlagEnabled != diskPromptingSAndE, nil
 	}
 
 	return false, nil

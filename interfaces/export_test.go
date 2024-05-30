@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2017-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -18,6 +18,10 @@
  */
 
 package interfaces
+
+import (
+	"github.com/snapcore/snapd/testutil"
+)
 
 type ByConnRef byConnRef
 
@@ -77,3 +81,15 @@ var (
 	SystemKeyVersion = systemKeyVersion
 	LabelExpr        = labelExpr
 )
+
+func MockApparmorSupportsPrompting(f func(features []string) bool) (restore func()) {
+	restoreKernel := testutil.Backup(&apparmorKernelFeaturesSupportPrompting)
+	apparmorKernelFeaturesSupportPrompting = f
+	restoreParser := testutil.Backup(&apparmorParserFeaturesSupportPrompting)
+	apparmorParserFeaturesSupportPrompting = f
+	restore = func() {
+		restoreKernel()
+		restoreParser()
+	}
+	return restore
+}

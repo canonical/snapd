@@ -150,13 +150,8 @@ func (m *InterfaceManager) profilesNeedRegeneration() bool {
 }
 
 var profilesNeedRegenerationImpl = func(m *InterfaceManager) bool {
-	// m.useAppArmorPrompting() is supported&&enabled, rather than simply
-	// enabled, but it is okay to use it in place of enabled, since if
-	// prompting is not supported, the system key values related to
-	// prompting will both be false anyway, and if it is supported, then
-	// supported&&enabled is equal to enabled.
 	extraData := interfaces.SystemKeyExtraData{
-		PromptingFlagEnabled: m.useAppArmorPrompting(),
+		AppArmorPrompting: m.useAppArmorPrompting(),
 	}
 	mismatch, err := interfaces.SystemKeyMismatch(extraData)
 	if err != nil {
@@ -257,13 +252,8 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer) er
 	}
 
 	if shouldWriteSystemKey {
-		// m.useAppArmorPrompting() is supported&&enabled, rather than simply
-		// enabled, but it is okay to use it in place of enabled, since if
-		// prompting is not supported, the system key values related to
-		// prompting will both be false anyway, and if it is supported, then
-		// supported&&enabled is equal to enabled.
 		extraData := interfaces.SystemKeyExtraData{
-			PromptingFlagEnabled: m.useAppArmorPrompting(),
+			AppArmorPrompting: m.useAppArmorPrompting(),
 		}
 		if err := writeSystemKey(extraData); err != nil {
 			logger.Noticef("cannot write system key: %v", err)

@@ -102,9 +102,9 @@ func (s *systemKeySuite) testInterfaceWriteSystemKey(c *C, remoteFSHome, overlay
 	defer restore()
 
 	promptingSupported := features.AppArmorPrompting.IsSupported()
-	promptingFlagEnabled := true
+	promptingEnabled := true
 	extraData := interfaces.SystemKeyExtraData{
-		PromptingFlagEnabled: promptingFlagEnabled,
+		AppArmorPrompting: promptingEnabled,
 	}
 
 	err := interfaces.WriteSystemKey(extraData)
@@ -125,9 +125,7 @@ func (s *systemKeySuite) testInterfaceWriteSystemKey(c *C, remoteFSHome, overlay
 	apparmorParserFeaturesStr, err := json.Marshal(parserFeatures)
 	c.Assert(err, IsNil)
 
-	apparmorPromptingSupportedStr, err := json.Marshal(promptingSupported)
-	c.Assert(err, IsNil)
-	apparmorPromptingSupportedAndEnabledStr, err := json.Marshal(promptingSupported && promptingFlagEnabled)
+	apparmorPromptingStr, err := json.Marshal(promptingSupported && promptingEnabled)
 	c.Assert(err, IsNil)
 
 	seccompActionsStr, err := json.Marshal(seccomp.Actions())
@@ -141,14 +139,13 @@ func (s *systemKeySuite) testInterfaceWriteSystemKey(c *C, remoteFSHome, overlay
 	c.Assert(err, IsNil)
 	c.Assert(seccompCompilerVersion, Equals, s.seccompCompilerVersion)
 
-	c.Check(string(systemKey), testutil.EqualsWrapped, fmt.Sprintf(`{"version":%d,"build-id":"%s","apparmor-features":%s,"apparmor-parser-mtime":%s,"apparmor-parser-features":%s,"apparmor-prompting-supported":%s,"apparmor-prompting-supported-and-enabled":%s,"nfs-home":%v,"overlay-root":%q,"seccomp-features":%s,"seccomp-compiler-version":"%s","cgroup-version":"1"}`,
+	c.Check(string(systemKey), testutil.EqualsWrapped, fmt.Sprintf(`{"version":%d,"build-id":"%s","apparmor-features":%s,"apparmor-parser-mtime":%s,"apparmor-parser-features":%s,"apparmor-prompting":%s,"nfs-home":%v,"overlay-root":%q,"seccomp-features":%s,"seccomp-compiler-version":"%s","cgroup-version":"1"}`,
 		interfaces.SystemKeyVersion,
 		s.buildID,
 		apparmorFeaturesStr,
 		apparmorParserMtime,
 		apparmorParserFeaturesStr,
-		apparmorPromptingSupportedStr,
-		apparmorPromptingSupportedAndEnabledStr,
+		apparmorPromptingStr,
 		remoteFSHome,
 		overlay,
 		seccompActionsStr,
@@ -198,7 +195,7 @@ func (s *systemKeySuite) TestInterfaceSystemKeyMismatchHappy(c *C) {
 `))
 
 	extraData := interfaces.SystemKeyExtraData{
-		PromptingFlagEnabled: true,
+		AppArmorPrompting: true,
 	}
 
 	// no system-key yet -> Error
@@ -263,13 +260,12 @@ func (s *systemKeySuite) TestInterfaceSystemKeyMismatchAppArmorPromptingHappy(c 
 	s.AddCleanup(interfaces.MockSystemKey(`
 {
 "build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
-"apparmor-prompting-supported": false,
-"apparmor-prompting-supported-and-enabled": false
+"apparmor-prompting": false
 }
 `))
 
 	extraData := interfaces.SystemKeyExtraData{
-		PromptingFlagEnabled: true,
+		AppArmorPrompting: true,
 	}
 
 	// no system-key yet -> Error
@@ -287,68 +283,73 @@ func (s *systemKeySuite) TestInterfaceSystemKeyMismatchAppArmorPromptingHappy(c 
 	c.Check(mismatch, Equals, false)
 
 	for _, testCase := range []struct {
-		supported           bool // previously (and currently) supported
-		supportedAndEnabled bool // previously supported and enabled
-		flagEnabled         bool // new "enabled" value
-		mismatch            bool // whether there should be a mismatch
+		supported bool // previously (and currently) supported
+		prevValue bool // previously supported and enabled
+		newValue  bool // new "enabled" value
+		mismatch  bool // whether there should be a mismatch
 	}{
 		{
-			supported:           false,
-			supportedAndEnabled: false,
-			flagEnabled:         false,
-			mismatch:            false,
+			supported: false,
+			prevValue: false,
+			newValue:  false,
+			mismatch:  false,
 		},
 		{
-			supported:           false,
-			supportedAndEnabled: false,
-			flagEnabled:         true,
-			mismatch:            false,
+			supported: false,
+			prevValue: false,
+			newValue:  true,
+			mismatch:  false,
 		},
 		{
-			supported:           true,
-			supportedAndEnabled: false,
-			flagEnabled:         false,
-			mismatch:            false,
+			supported: true,
+			prevValue: false,
+			newValue:  false,
+			mismatch:  false,
 		},
 		{
-			supported:           true,
-			supportedAndEnabled: true,
-			flagEnabled:         false,
-			mismatch:            true,
+			supported: true,
+			prevValue: true,
+			newValue:  false,
+			mismatch:  true,
 		},
 		{
-			supported:           true,
-			supportedAndEnabled: false,
-			flagEnabled:         true,
-			mismatch:            true,
+			supported: true,
+			prevValue: false,
+			newValue:  true,
+			mismatch:  true,
 		},
 		{
-			supported:           true,
-			supportedAndEnabled: true,
-			flagEnabled:         true,
-			mismatch:            false,
+			supported: true,
+			prevValue: true,
+			newValue:  true,
+			mismatch:  false,
 		},
 	} {
 		s.AddCleanup(interfaces.MockSystemKey(fmt.Sprintf(`
 {
 "build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
-"apparmor-prompting-supported": %t,
-"apparmor-prompting-supported-and-enabled": %t
+"apparmor-prompting": %t
 }
-`, testCase.supported, testCase.supportedAndEnabled)))
+`, testCase.prevValue)))
+
+		restore := interfaces.MockApparmorSupportsPrompting(func(features []string) bool {
+			return testCase.supported
+		})
 
 		extraData = interfaces.SystemKeyExtraData{
-			PromptingFlagEnabled: testCase.supportedAndEnabled,
+			AppArmorPrompting: testCase.prevValue,
 		}
 		err = interfaces.WriteSystemKey(extraData)
 		c.Assert(err, IsNil)
 
 		extraData = interfaces.SystemKeyExtraData{
-			PromptingFlagEnabled: testCase.flagEnabled,
+			AppArmorPrompting: testCase.newValue,
 		}
 		mismatch, err = interfaces.SystemKeyMismatch(extraData)
 		c.Assert(err, IsNil)
 		c.Check(mismatch, Equals, testCase.mismatch, Commentf("test case: %+v", testCase))
+
+		restore()
 	}
 }
 
@@ -392,8 +393,7 @@ func (s *systemKeySuite) TestStaticVersion(c *C) {
 		"AppArmorFeatures:[]",
 		"AppArmorParserMtime:0",
 		"AppArmorParserFeatures:[]",
-		"AppArmorPromptingSupported:false",
-		"AppArmorPromptingSupportedAndEnabled:false",
+		"AppArmorPrompting:false",
 		"NFSHome:false",
 		"OverlayRoot:",
 		"SecCompActions:[]",
@@ -473,10 +473,12 @@ func (s *systemKeySuite) TestSystemKeysMatch(c *C) {
 }
 
 func (s *systemKeySuite) TestSystemKeysUnmarshalSame(c *C) {
-	promptingSupported := true
-	promptingSupportedAndEnabled := false
+	interfaces.MockApparmorSupportsPrompting(func(features []string) bool {
+		return true
+	})
+	appArmorPrompting := true
 	extraData := interfaces.SystemKeyExtraData{
-		PromptingFlagEnabled: promptingSupportedAndEnabled,
+		AppArmorPrompting: appArmorPrompting,
 	}
 
 	// whitespace here simulates the serialization across HTTP, etc. that should
@@ -501,8 +503,7 @@ func (s *systemKeySuite) TestSystemKeysUnmarshalSame(c *C) {
 		],
 		"apparmor-parser-features": [],
 		"apparmor-parser-mtime": 1589907589,
-		"apparmor-prompting-supported": %t,
-		"apparmor-prompting-supported-and-enabled": %t,
+		"apparmor-prompting": %t,
 		"build-id": "cb94e5eeee4cf7ecda53f8308a984cb155b55732",
 		"cgroup-version": "1",
 		"nfs-home": false,
@@ -518,8 +519,8 @@ func (s *systemKeySuite) TestSystemKeysUnmarshalSame(c *C) {
 			"trap",
 			"user_notif"
 		],
-		"version": 12
-	}`, promptingSupported, promptingSupportedAndEnabled)
+		"version": 11
+	}`, appArmorPrompting)
 
 	// write the mocked system key to disk
 	restore := interfaces.MockSystemKey(systemKeyJSON)
