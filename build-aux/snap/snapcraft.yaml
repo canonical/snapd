@@ -244,7 +244,7 @@ parts:
            # FIXME: some binaries need to be run confined in apps. But
            # instead we should allow apps to access dynamic linkers
            # and libraries from snapd.
-           lib/snapd/snap-exec|lib/snapd/snapctl)
+           lib/snapd/snap-exec|lib/snapd/snapctl|lib/snapd/snap-preseed)
              export CGO_ENABLED=0
              GO_LD_FLAGS=()
              CHECK_STATIC=1
