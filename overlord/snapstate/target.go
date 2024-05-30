@@ -63,30 +63,30 @@ type Options struct {
 	RequireOneSnap bool
 }
 
-// Target represents the data needed to setup a snap for installation.
-type Target struct {
-	// Snap is a partially initialized SnapSetup that contains the data needed
+// target represents the data needed to setup a snap for installation.
+type target struct {
+	// setup is a partially initialized SnapSetup that contains the data needed
 	// to find the snap file that will be installed.
-	Snap *SnapSetup
-	// Components is a list of partially initialized ComponentSetup structs that
+	setup *SnapSetup
+	// components is a list of partially initialized ComponentSetup structs that
 	// contain the data needed to find the component files that will be
 	// installed.
-	Components []*ComponentSetup
-	// Info contains the snap.Info for the snap to be installed.
-	Info *snap.Info
-	// SnapState is the current state of the target snap, prior to installation.
+	components []*ComponentSetup
+	// info contains the snap.info for the snap to be installed.
+	info *snap.Info
+	// snapst is the current state of the target snap, prior to installation.
 	// This must be retrieved prior to unlocking the state for any reason (for
 	// example, talking to the store).
-	SnapState SnapState
+	snapst SnapState
 }
 
-// InstallGoal represents a single snap or a group of snaps to be installed.
-type InstallGoal interface {
-	// ToInstall returns the data needed to setup the snaps for installation.
-	ToInstall(context.Context, *state.State, Options) ([]Target, error)
+// installGoal represents a single snap or a group of snaps to be installed.
+type installGoal interface {
+	// toInstall returns the data needed to setup the snaps for installation.
+	toInstall(context.Context, *state.State, Options) ([]target, error)
 }
 
-// storeInstallGoal implements the Target interface and represents a group of
+// storeInstallGoal implements the installGoal interface and represents a group of
 // snaps that are to be installed from the store.
 type storeInstallGoal struct {
 	snaps map[string]StoreSnap
@@ -104,10 +104,10 @@ type StoreSnap struct {
 	SkipIfPresent bool
 }
 
-// verify that StoreTarget implements the Target interface
-var _ InstallGoal = &storeInstallGoal{}
+// verify that storeInstallGoal implements the installGoal interface
+var _ installGoal = &storeInstallGoal{}
 
-// StoreGoal creates a new storeInstallGoal, which implements InstallGoal to
+// StoreGoal creates a new storeInstallGoal, which implements installGoal to
 // install snaps from the store.
 func StoreGoal(snaps ...StoreSnap) *storeInstallGoal {
 	mapping := make(map[string]StoreSnap, len(snaps))
@@ -138,9 +138,9 @@ func validateRevisionOpts(opts RevisionOptions) error {
 
 var ErrExpectedOneSnap = errors.New("expected exactly one snap to install")
 
-// ToInstall returns the data needed to setup the snaps from the store for
+// toInstall returns the data needed to setup the snaps from the store for
 // installation.
-func (s *storeInstallGoal) ToInstall(ctx context.Context, st *state.State, opts Options) ([]Target, error) {
+func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts Options) ([]target, error) {
 	if opts.RequireOneSnap && len(s.snaps) != 1 {
 		return nil, ErrExpectedOneSnap
 	}
@@ -209,7 +209,7 @@ func (s *storeInstallGoal) ToInstall(ctx context.Context, st *state.State, opts 
 		return nil, err
 	}
 
-	installs := make([]Target, 0, len(results))
+	installs := make([]target, 0, len(results))
 	for _, r := range results {
 		sn, ok := s.snaps[r.InstanceName()]
 		if !ok {
@@ -230,14 +230,14 @@ func (s *storeInstallGoal) ToInstall(ctx context.Context, st *state.State, opts 
 			channel = sn.RevOpts.Channel
 		}
 
-		installs = append(installs, Target{
-			Snap: &SnapSetup{
+		installs = append(installs, target{
+			setup: &SnapSetup{
 				DownloadInfo: &r.DownloadInfo,
 				Channel:      channel,
 				CohortKey:    sn.RevOpts.CohortKey,
 			},
-			Info:      r.Info,
-			SnapState: *snapst,
+			info:   r.Info,
+			snapst: *snapst,
 		})
 	}
 
@@ -345,9 +345,9 @@ func (s *storeInstallGoal) validateAndPrune(installedSnaps map[string]*SnapState
 
 // InstallOne is a convenience wrapper for InstallWithGoal that ensures that a
 // single snap is being installed and unwraps the results to return a single
-// snap.Info and state.TaskSet. If the InstallGoal does not request to install
+// snap.Info and state.TaskSet. If the installGoal does not request to install
 // exactly one snap, an error is returned.
-func InstallOne(ctx context.Context, st *state.State, goal InstallGoal, opts Options) (*snap.Info, *state.TaskSet, error) {
+func InstallOne(ctx context.Context, st *state.State, goal installGoal, opts Options) (*snap.Info, *state.TaskSet, error) {
 	opts.RequireOneSnap = true
 
 	infos, tasksets, err := InstallWithGoal(ctx, st, goal, opts)
@@ -364,9 +364,10 @@ func InstallOne(ctx context.Context, st *state.State, goal InstallGoal, opts Opt
 	return infos[0], tasksets[0], nil
 }
 
-// InstallWithGoal installs the snap/set of snaps specified by the given Target.
+// InstallWithGoal installs the snap/set of snaps specified by the given
+// installGoal.
 //
-// The Target controls what snaps should be installed and where to source the
+// The installGoal controls what snaps should be installed and where to source the
 // snaps from. The Options struct contains optional parameters that apply to the
 // installation operation.
 //
@@ -376,7 +377,7 @@ func InstallOne(ctx context.Context, st *state.State, goal InstallGoal, opts Opt
 //
 // TODO: rename this to Install once the API is settled, and we can rename or
 // remove the old Install function.
-func InstallWithGoal(ctx context.Context, st *state.State, goal InstallGoal, opts Options) ([]*snap.Info, []*state.TaskSet, error) {
+func InstallWithGoal(ctx context.Context, st *state.State, goal installGoal, opts Options) ([]*snap.Info, []*state.TaskSet, error) {
 	if opts.PrereqTracker == nil {
 		opts.PrereqTracker = snap.SimplePrereqTracker{}
 	}
@@ -394,12 +395,12 @@ func InstallWithGoal(ctx context.Context, st *state.State, goal InstallGoal, opt
 		return nil, nil, err
 	}
 
-	targets, err := goal.ToInstall(ctx, st, opts)
+	targets, err := goal.toInstall(ctx, st, opts)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	// this might be checked earlier in the implementation of InstallGoal, but
+	// this might be checked earlier in the implementation of installGoal, but
 	// we should check it here as well to be safe
 	if opts.RequireOneSnap && len(targets) != 1 {
 		return nil, nil, ErrExpectedOneSnap
@@ -407,7 +408,7 @@ func InstallWithGoal(ctx context.Context, st *state.State, goal InstallGoal, opt
 
 	installInfos := make([]minimalInstallInfo, 0, len(targets))
 	for _, t := range targets {
-		installInfos = append(installInfos, installSnapInfo{t.Info})
+		installInfos = append(installInfos, installSnapInfo{t.info})
 	}
 
 	if err = checkDiskSpace(st, "install", installInfos, opts.UserID, opts.PrereqTracker); err != nil {
@@ -417,11 +418,11 @@ func InstallWithGoal(ctx context.Context, st *state.State, goal InstallGoal, opt
 	tasksets := make([]*state.TaskSet, 0, len(targets))
 	infos := make([]*snap.Info, 0, len(targets))
 	for _, inst := range targets {
-		if inst.Snap.SnapPath != "" && inst.Snap.DownloadInfo != nil {
+		if inst.setup.SnapPath != "" && inst.setup.DownloadInfo != nil {
 			return nil, nil, errors.New("internal error: target cannot specify both a path and a download info")
 		}
 
-		info := inst.Info
+		info := inst.info
 
 		if opts.Flags.RequireTypeBase && info.Type() != snap.TypeBase && info.Type() != snap.TypeOS {
 			return nil, nil, fmt.Errorf("unexpected snap type %q, instead of 'base'", info.Type())
@@ -429,17 +430,17 @@ func InstallWithGoal(ctx context.Context, st *state.State, goal InstallGoal, opt
 
 		opts.PrereqTracker.Add(info)
 
-		flags, err := earlyChecks(st, &inst.SnapState, info, opts.Flags)
+		flags, err := earlyChecks(st, &inst.snapst, info, opts.Flags)
 		if err != nil {
 			return nil, nil, err
 		}
 
 		providerContentAttrs := defaultProviderContentAttrs(st, info, opts.PrereqTracker)
 		snapsup := &SnapSetup{
-			Channel:      inst.Snap.Channel,
-			DownloadInfo: inst.Snap.DownloadInfo,
-			SnapPath:     inst.Snap.SnapPath,
-			CohortKey:    inst.Snap.CohortKey,
+			Channel:      inst.setup.Channel,
+			DownloadInfo: inst.setup.DownloadInfo,
+			SnapPath:     inst.setup.SnapPath,
+			CohortKey:    inst.setup.CohortKey,
 
 			Base:               info.Base,
 			Prereq:             getKeys(providerContentAttrs),
@@ -459,7 +460,7 @@ func InstallWithGoal(ctx context.Context, st *state.State, goal InstallGoal, opt
 			instFlags |= skipConfigure
 		}
 
-		ts, err := doInstall(st, &inst.SnapState, snapsup, instFlags, opts.FromChange, inUseFor(opts.DeviceCtx))
+		ts, err := doInstall(st, &inst.snapst, snapsup, instFlags, opts.FromChange, inUseFor(opts.DeviceCtx))
 		if err != nil {
 			return nil, nil, err
 		}
@@ -509,8 +510,8 @@ type pathInstallGoal struct {
 	sideInfo *snap.SideInfo
 }
 
-// verify that pathInstallGoal implements the Target interface
-var _ InstallGoal = &pathInstallGoal{}
+// verify that pathInstallGoal implements the installGoal interface
+var _ installGoal = &pathInstallGoal{}
 
 // PathInstallGoal creates a new pathInstallGoal from the given instance name,
 // path, and side info.
@@ -523,8 +524,8 @@ func PathInstallGoal(instanceName, path string, si *snap.SideInfo, opts Revision
 	}
 }
 
-// ToInstall returns the data needed to setup the snap from disk.
-func (p *pathInstallGoal) ToInstall(ctx context.Context, st *state.State, opts Options) ([]Target, error) {
+// toInstall returns the data needed to setup the snap from disk.
+func (p *pathInstallGoal) toInstall(ctx context.Context, st *state.State, opts Options) ([]target, error) {
 	si := p.sideInfo
 
 	if si.RealName == "" {
@@ -579,15 +580,15 @@ func (p *pathInstallGoal) ToInstall(ctx context.Context, st *state.State, opts O
 		return nil, err
 	}
 
-	inst := Target{
-		Snap: &SnapSetup{
+	inst := target{
+		setup: &SnapSetup{
 			SnapPath:  p.path,
 			Channel:   channel,
 			CohortKey: p.revOpts.CohortKey,
 		},
-		Info:      info,
-		SnapState: snapst,
+		info:   info,
+		snapst: snapst,
 	}
 
-	return []Target{inst}, nil
+	return []target{inst}, nil
 }

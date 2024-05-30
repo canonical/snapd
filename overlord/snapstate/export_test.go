@@ -46,6 +46,8 @@ type (
 	ReRefreshSetup = reRefreshSetup
 
 	TooSoonError = tooSoonError
+
+	Target = target
 )
 
 var ComponentSetupTask = componentSetupTask
@@ -590,4 +592,14 @@ func MockAffectedSnapsByKind(value map[string]AffectedSnapsFunc) (restore func()
 	return func() {
 		affectedSnapsByKind = old
 	}
+}
+
+// CustomInstallGoal allows us to define custom implementations of installGoal
+// to be used in tests.
+type CustomInstallGoal struct {
+	ToInstall func(context.Context, *state.State, Options) ([]Target, error)
+}
+
+func (c *CustomInstallGoal) toInstall(ctx context.Context, st *state.State, opts Options) ([]Target, error) {
+	return c.ToInstall(ctx, st, opts)
 }
