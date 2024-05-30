@@ -1,5 +1,5 @@
 Tests: integrationtests
-Restrictions: allow-stderr, rw-build-tree, needs-root, breaks-testbed, isolation-machine, needs-sudo
+Restrictions: allow-stderr, rw-build-tree, needs-root, breaks-testbed, isolation-machine, needs-sudo, needs-internet
 Depends: bzr,
          ca-certificates,
          git,
