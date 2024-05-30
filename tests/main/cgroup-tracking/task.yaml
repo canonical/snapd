@@ -70,7 +70,8 @@ execute: |
     echo "$service_tracking_cg_path" | MATCH '/system\.slice/snap\.test-snapd-tracking\.nap\.service'
 
     # The application tracking is tested below.
-    if [ "$USER" = test ] && "$TESTSTOOLS"/version-compare --strict "$(systemctl --version | head -n 1 | cut -d ' ' -f 2)" -lt 238; then
+    systemd_ver="$(systemctl --version | awk '/systemd [0-9]+/ { print $2 }' | cut -f1 -d"~")"
+    if [ "$USER" = test ] && "$TESTSTOOLS"/version-compare --strict "$systemd_ver" -lt 238; then
         echo "Systemd running as user session manager cannot start transient units"
         echo "that cross ownership boundary. This test effectively runs through root"
         echo "that is using ssh to connect to a test machine. Crossing the boundary"
@@ -168,7 +169,7 @@ execute: |
 
     wait "$session3_pid" || true  # same as above
     # When tests.session is used with systemd-run
-    if [ "$(systemctl --version | awk '/systemd [0-9]+/ { print $2 }')" -gt 252 ]; then
+    if [ "$systemd_ver" -gt 252 ]; then
         pid3_sleep="$(cat "$cgroup_procs_path")"
         test -e "${base_cg_path}${pid3_tracking_cg_path}"
         kill "$pid3_sleep"

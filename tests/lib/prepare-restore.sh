@@ -479,14 +479,16 @@ prepare_project() {
     esac
 
     restart_logind=
-    if [ "$(systemctl --version | awk '/systemd [0-9]+/ { print $2 }')" -lt 246 ]; then
+    local systemd_ver
+    systemd_ver="$(systemctl --version | awk '/systemd [0-9]+/ { print $2 }' | cut -f1 -d"~")"
+    if [ "$systemd_ver" -lt 246 ]; then
         restart_logind=maybe
     fi
 
     install_pkg_dependencies
 
     if [ "$restart_logind" = maybe ]; then
-        if [ "$(systemctl --version | awk '/systemd [0-9]+/ { print $2 }')" -ge 246 ]; then
+        if [ "$systemd_ver" -ge 246 ]; then
             restart_logind=yes
         else
             restart_logind=
