@@ -47,7 +47,7 @@ reverts if appropriate.
 )
 
 func init() {
-	err := logger.SimpleSetup()
+	err := logger.SimpleSetup(nil)
 	if err != nil {
 		fmt.Fprintf(Stderr, "WARNING: failed to activate logging: %v\n", err)
 	}

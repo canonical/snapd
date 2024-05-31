@@ -1,5 +1,12 @@
 summary: Check that command-chain is properly supported
 
+details: |
+    Verify the command-chain feature works as expected for hooks, apps, and
+    services. Rather than running the hook, app, or service directly, the
+    command-chain should be prefixed to the target command. Additionally verify
+    that the command-chain is executed when running a snap with `snap run
+    --shell`.
+
 environment:
     # Ensure that running purely from the deb (without re-exec) works
     # correctly

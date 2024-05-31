@@ -477,3 +477,47 @@ components:
 	_, err = snap.ReadComponentInfoFromContainer(compf, snapInfo)
 	c.Assert(err, ErrorMatches, `inconsistent component type \("kernel-modules" in snap, "test" in component\)`)
 }
+
+func (s *componentSuite) TestHooksForPlug(c *C) {
+	const snapYaml = `
+name: snap
+version: 1
+apps:
+ one:
+   command: one
+   plugs: [app-plug]
+components:
+  comp:
+    type: test
+    hooks:
+      install:
+        plugs: [scoped-plug]
+      pre-refresh:
+plugs:
+  unscoped-plug:
+  app-plug:
+`
+	const componentYaml = `
+component: snap+comp
+type: test
+version: 1
+`
+
+	info := snaptest.MockSnap(c, snapYaml, &snap.SideInfo{Revision: snap.R(1)})
+
+	componentInfo := snaptest.MockComponent(c, componentYaml, info, snap.ComponentSideInfo{
+		Revision: snap.R(1),
+	})
+
+	scoped := info.Plugs["scoped-plug"]
+	c.Assert(scoped, NotNil)
+
+	scopedHooks := componentInfo.HooksForPlug(scoped)
+	c.Assert(scopedHooks, testutil.DeepUnsortedMatches, []*snap.HookInfo{componentInfo.Hooks["install"]})
+
+	unscoped := info.Plugs["unscoped-plug"]
+	c.Assert(unscoped, NotNil)
+
+	unscopedHooks := componentInfo.HooksForPlug(unscoped)
+	c.Assert(unscopedHooks, testutil.DeepUnsortedMatches, []*snap.HookInfo{componentInfo.Hooks["install"], componentInfo.Hooks["pre-refresh"]})
+}

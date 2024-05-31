@@ -168,6 +168,11 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup *Component
 		addTask(unlink)
 	}
 
+	// security
+	setupSecurity := st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup component %q%s security profiles"), compSi.Component, revisionStr))
+	addTask(setupSecurity)
+	prev = setupSecurity
+
 	// finalize (sets SnapState)
 	linkSnap := st.NewTask("link-component",
 		fmt.Sprintf(i18n.G("Make component %q%s available to the system"),

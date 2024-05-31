@@ -109,3 +109,12 @@ execute: |
     log-parser all-successful.log.spread -pr successful | grep -q "Successful tasks: 434"
     log-parser all-successful.log.spread -pr failed | grep -v "Aborted tasks"
 
+    # Check filtering the debug output
+    log-parser with-debug-output.log.spread -c 1 -dr "executed_tests=EXECUTED_TESTS=(.*)" -dr "apparmor_version=AppArmor parser version .*"
+    test "$(jq -r '.[0].detail.executed_tests' spread-results.json | wc -w)" -eq 44
+    test "$(jq -r '.[0].detail.apparmor_version' spread-results.json)" = "AppArmor parser version 2.13.3"
+
+    # Check filtering the error output
+    log-parser with-error-output.log.spread -c 1 -er "executed_tests=EXECUTED_TESTS=(.*)" -er "apparmor_version=AppArmor parser version .*"
+    test "$(jq -r '.[0].detail.executed_tests' spread-results.json | wc -w)" -eq 44
+    test "$(jq -r '.[0].detail.apparmor_version' spread-results.json)" = "AppArmor parser version 2.13.3"

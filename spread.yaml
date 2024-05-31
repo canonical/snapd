@@ -45,6 +45,7 @@ environment:
     # TODO: Consider reverting to latest/candidate after Snapcraft compatibility with LXD 5.21 extended version string "5.21 LTS" is fixed
     LXD_SNAP_CHANNEL: "latest/candidate"
     UBUNTU_IMAGE_SNAP_CHANNEL: "2/stable"
+    SNAPCRAFT_SNAP_CHANNEL: "latest/candidate"
     # controls whether ubuntu-image is built using the current snapd tree as a
     # dependency or the one listed in its go.mod
     UBUNTU_IMAGE_ALLOW_API_BREAK: '$(HOST: echo "${SPREAD_UBUNTU_IMAGE_ALLOW_API_BREAK:-true}")'
@@ -110,7 +111,7 @@ environment:
 backends:
     google:
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
-        location: snapd-spread/us-east1-b
+        location: snapd-spread/europe-west2-b
         halt-timeout: 2h
         systems:
             - ubuntu-14.04-64:
@@ -126,6 +127,26 @@ backends:
             - ubuntu-20.04-64:
                   storage: 12G
                   workers: 8
+            - ubuntu-secboot-20.04-64:
+                  image: ubuntu-20.04-64
+                  workers: 1
+                  secure-boot: true
+            - ubuntu-22.04-64:
+                  storage: 12G
+                  workers: 8
+            - ubuntu-23.10-64:
+                  storage: 12G
+                  workers: 8
+            - ubuntu-24.04-64:
+                  storage: 12G
+                  workers: 8
+
+    google-core:
+        type: google
+        key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
+        location: snapd-spread/europe-west1-b
+        halt-timeout: 2h
+        systems:
             - ubuntu-core-16-64:
                   image: ubuntu-16.04-64
                   workers: 6
@@ -144,24 +165,11 @@ backends:
                   image: ubuntu-24.04-64
                   workers: 8
                   storage: 20G
-            - ubuntu-secboot-20.04-64:
-                  image: ubuntu-20.04-64
-                  workers: 1
-                  secure-boot: true
-            - ubuntu-22.04-64:
-                  storage: 12G
-                  workers: 8
-            - ubuntu-23.10-64:
-                  storage: 12G
-                  workers: 8
-            - ubuntu-24.04-64:
-                  storage: 12G
-                  workers: 8
 
-    google-central:
+    google-distro-1:
         type: google
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
-        location: snapd-spread/us-central1-b
+        location: snapd-spread/europe-west3-b
         halt-timeout: 2h
         systems:
             - debian-11-64:
@@ -172,20 +180,25 @@ backends:
                   storage: 12G
                   workers: 6
 
-            - fedora-38-64:
-                  workers: 6
             - fedora-39-64:
                   workers: 6
 
-            - arch-linux-64:
-                  workers: 6
-                  storage: 12G
             - amazon-linux-2-64:
                   workers: 6
                   storage: preserve-size
             - amazon-linux-2023-64:
                   workers: 6
                   storage: preserve-size
+
+    google-distro-2:
+        type: google
+        key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
+        location: snapd-spread/europe-west4-b
+        halt-timeout: 2h
+        systems:
+            - arch-linux-64:
+                  workers: 6
+                  storage: 12G
 
             - centos-7-64:
                   workers: 6
@@ -228,22 +241,26 @@ backends:
     google-sru:
         type: google
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
-        location: snapd-spread/us-east1-b
+        location: snapd-spread/us-central1-a
         halt-timeout: 2h
         systems:
             - ubuntu-20.04-64:
+                  storage: 12G
                   workers: 8
             - ubuntu-22.04-64:
+                  storage: 12G
                   workers: 8
             - ubuntu-23.10-64:
+                  storage: 12G
                   workers: 8
             - ubuntu-24.04-64:
+                  storage: 12G
                   workers: 8
 
     google-nested:
         type: google
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
-        location: snapd-spread/us-east1-b
+        location: snapd-spread/us-central1-a
         plan: n2-standard-2
         halt-timeout: 2h
         cpu-family: "Intel Cascade Lake"
@@ -793,17 +810,19 @@ prepare: |
         apt-get update && apt-get install -y eatmydata
     fi
 
+    # Enable EPEL see https://docs.fedoraproject.org/en-US/epel/
     case "$SPREAD_SYSTEM" in
         centos-7-*)
-            # make sure EPEL is enabled
             yum install -y epel-release
             ;;
         centos-8-*)
             # enable powertools repository
             dnf config-manager --set-enabled powertools
-            # CentOS Stream requires EPEL Next too, see https://docs.fedoraproject.org/en-US/epel/
             dnf install -y epel-release epel-next-release
             ;;
+        centos-9-*)
+            dnf config-manager --set-enabled crb
+            dnf install -y epel-release epel-next-release
     esac
 
     case "$SPREAD_SYSTEM" in
@@ -818,7 +837,7 @@ prepare: |
 
     # Make sure ssh service is restarted after it is killed by spread (pkill -o -HUP sshd)
     # during the machine setup in google systems. For more details see lp:2011458
-    if [ "$SPREAD_BACKEND" = "google" ] && [[ "$SPREAD_SYSTEM" == ubuntu-2* ]] && ! systemctl is-active ssh; then
+    if [[ "$SPREAD_BACKEND" =~ google ]] && [[ "$SPREAD_SYSTEM" == ubuntu-2* ]] && ! systemctl is-active ssh; then
         systemctl restart ssh
     fi
 

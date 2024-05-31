@@ -1,7 +1,9 @@
 summary: Ensure snapd builds as a snap
 
 details: |
-    Ensure snapd builds as a snap
+  This test verifies that snapd can be built with snapcraft with lxd
+  backend as well as host backend on matching version of the
+  build-base (currently 22.04)
 
 # TODO: we don't need to build the snapd snap in this test on as many systems
 # when we have a way to dynamically download the snapd snap that was built for a
@@ -53,8 +55,8 @@ prepare: |
     . "$TESTSLIB/systems.sh"
 
     # only run the destructive mode variant on xenial
-    if ! os.query is-xenial && [ "$SNAPCRAFT_BUILD_ENVIRONMENT" = "host" ]; then
-        echo "Skipping destructive mode build on non-xenial"
+    if ! os.query is-jammy && [ "$SNAPCRAFT_BUILD_ENVIRONMENT" = "host" ]; then
+        echo "Skipping destructive mode build on non-jammy"
         exit 0
     fi
 
@@ -73,8 +75,8 @@ prepare: |
         tests.cleanup defer rm -f /snap
     fi
 
-    echo "Install snapcraft from 4.x/candidate"
-    snap install snapcraft --channel=4.x/candidate --classic
+    echo "Install snapcraft from ${SNAPCRAFT_SNAP_CHANNEL}"
+    snap install snapcraft --channel="${SNAPCRAFT_SNAP_CHANNEL}" --classic
     tests.cleanup defer snap remove --purge snapcraft
 
     if [ "$SNAPCRAFT_BUILD_ENVIRONMENT" = "lxd" ]; then
@@ -140,8 +142,8 @@ execute: |
     . "$TESTSLIB/systems.sh"
 
     # only run the destructive mode variant on xenial
-    if ! os.query is-xenial && [ "$SNAPCRAFT_BUILD_ENVIRONMENT" = "host" ]; then
-        echo "Skipping destructive mode build on non-xenial"
+    if ! os.query is-jammy && [ "$SNAPCRAFT_BUILD_ENVIRONMENT" = "host" ]; then
+        echo "Skipping destructive mode build on non-jammy"
         exit 0
     fi
 
@@ -184,6 +186,8 @@ execute: |
       dch --changelog packaging/ubuntu-16.04/changelog --newversion "1337.$(dpkg-parsechangelog --show-field Version)" "testing build"
     fi
 
+    rm -rf c-vendor/squashfuse
+
     echo "Build the snap"
     snap run snapcraft snap --output=snapd_spread-test.snap
     popd
@@ -212,8 +216,6 @@ execute: |
 
     echo "Ensure we have libc"
     find squashfs-root | MATCH libc.so
-    echo "Ensure we have ld.so.conf"
-    test -f squashfs-root/etc/ld.so.conf
 
     echo "Ensure we have preseed.json"
     test -f squashfs-root/usr/lib/snapd/preseed.json

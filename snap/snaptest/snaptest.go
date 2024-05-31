@@ -90,14 +90,13 @@ func MockSnap(c *check.C, yamlText string, sideInfo *snap.SideInfo) *snap.Info {
 //
 // The caller is responsible for mocking root directory with dirs.SetRootDir()
 // and for altering the overlord state if required.
-func MockComponent(c *check.C, yamlText string, info *snap.Info) *snap.ComponentInfo {
+func MockComponent(c *check.C, yamlText string, info *snap.Info, csi snap.ComponentSideInfo) *snap.ComponentInfo {
 	infoForName, err := snap.InfoFromComponentYaml([]byte(yamlText))
 	c.Assert(err, check.IsNil)
 
-	componentName := infoForName.Component.ComponentName
-
-	// Put the YAML on disk, in the right spot.
-	metaDir := filepath.Join(snap.BaseDir(info.InstanceName()), "components", info.Revision.String(), componentName, "meta")
+	// Put the component.yaml on disk, in the right spot.
+	mountDir := snap.ComponentMountDir(infoForName.Component.ComponentName, csi.Revision, info.InstanceName())
+	metaDir := filepath.Join(mountDir, "meta")
 	err = os.MkdirAll(metaDir, 0755)
 	c.Assert(err, check.IsNil)
 

@@ -1,6 +1,30 @@
 summary: |
   Ensure `snap validate --enforce` works with validation-sets from the store.
 
+details: |
+  A validation set is an assertion that lists specific snaps that are either
+  required to be installed together or are permitted to be installed together
+  on a device or system.
+
+  When enforcing a validation set, snapd will ensure that: 
+  1. Snaps required by a validation set are both present and, if specified,
+  at the correct revision.
+  2. Snaps are only refreshed to newer revisions if they continue to satisfy
+  whatever validation sets are in use.
+  3. Invalid snaps are not allowed to be installed. Attempting to install them
+  will result in an error.
+
+  Enforcing can be disabled for select validation sets with the 
+  `snap validate --forget` command.
+
+  This test verifies that setting validation set in enforce mode fails when snap
+  is not installed. Then, once the validation set is enforced, it checks that
+  the validation set is listed and an invalid snap cannot be installed, but it can
+  be installed with --ignore-validation flag. It also verifies that a snap cannot
+  be removed when required until the validation set is forgotten.
+  Finally, it validates that a snap can be refreshed to a newer revision and
+  the validation set status remains valid.
+
 # This test uses validation set assertions from the store uploaded upfront
 # with my (stolowski) private store key (account-id: xSfWKGdLoQBoQx88vIM1MpbFNMq53t1f,
 # public-key-sha3: o_x83A3wpIvJznIHBJIK7jRmRZKLlqx5jOr30HUsloFfBseXNF0ztoj18EvNualy);

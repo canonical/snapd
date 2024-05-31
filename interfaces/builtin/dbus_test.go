@@ -289,8 +289,10 @@ plugs:
 }
 
 func (s *DbusInterfaceSuite) TestPermanentSlotAppArmorSession(c *C) {
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.sessionSlotInfo.Snap))
-	err := apparmorSpec.AddPermanentSlot(s.iface, s.sessionSlotInfo)
+	appSet, err := interfaces.NewSnapAppSet(s.sessionSlotInfo.Snap, nil)
+	c.Assert(err, IsNil)
+	apparmorSpec := apparmor.NewSpecification(appSet)
+	err = apparmorSpec.AddPermanentSlot(s.iface, s.sessionSlotInfo)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.test-dbus.test-session-provider"})
 	snippet := apparmorSpec.SnippetForTag("snap.test-dbus.test-session-provider")
@@ -316,8 +318,10 @@ func (s *DbusInterfaceSuite) TestPermanentSlotAppArmorSessionNative(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.sessionSlotInfo.Snap))
-	err := apparmorSpec.AddPermanentSlot(s.iface, s.sessionSlotInfo)
+	appSet, err := interfaces.NewSnapAppSet(s.sessionSlotInfo.Snap, nil)
+	c.Assert(err, IsNil)
+	apparmorSpec := apparmor.NewSpecification(appSet)
+	err = apparmorSpec.AddPermanentSlot(s.iface, s.sessionSlotInfo)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.test-dbus.test-session-provider"})
 
@@ -329,8 +333,10 @@ func (s *DbusInterfaceSuite) TestPermanentSlotAppArmorSessionClassic(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
 
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.sessionSlotInfo.Snap))
-	err := apparmorSpec.AddPermanentSlot(s.iface, s.sessionSlotInfo)
+	appSet, err := interfaces.NewSnapAppSet(s.sessionSlotInfo.Snap, nil)
+	c.Assert(err, IsNil)
+	apparmorSpec := apparmor.NewSpecification(appSet)
+	err = apparmorSpec.AddPermanentSlot(s.iface, s.sessionSlotInfo)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.test-dbus.test-session-provider"})
 
@@ -339,8 +345,10 @@ func (s *DbusInterfaceSuite) TestPermanentSlotAppArmorSessionClassic(c *C) {
 }
 
 func (s *DbusInterfaceSuite) TestPermanentSlotAppArmorSystem(c *C) {
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.systemSlotInfo.Snap))
-	err := apparmorSpec.AddPermanentSlot(s.iface, s.systemSlotInfo)
+	appSet, err := interfaces.NewSnapAppSet(s.systemSlotInfo.Snap, nil)
+	c.Assert(err, IsNil)
+	apparmorSpec := apparmor.NewSpecification(appSet)
+	err = apparmorSpec.AddPermanentSlot(s.iface, s.systemSlotInfo)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.test-dbus.test-system-provider"})
 	snippet := apparmorSpec.SnippetForTag("snap.test-dbus.test-system-provider")
@@ -363,15 +371,19 @@ func (s *DbusInterfaceSuite) TestPermanentSlotAppArmorSystem(c *C) {
 }
 
 func (s *DbusInterfaceSuite) TestPermanentSlotDBusSession(c *C) {
-	dbusSpec := dbus.NewSpecification(interfaces.NewSnapAppSet(s.sessionSlotInfo.Snap))
-	err := dbusSpec.AddPermanentSlot(s.iface, s.sessionSlotInfo)
+	appSet, err := interfaces.NewSnapAppSet(s.sessionSlotInfo.Snap, nil)
+	c.Assert(err, IsNil)
+	dbusSpec := dbus.NewSpecification(appSet)
+	err = dbusSpec.AddPermanentSlot(s.iface, s.sessionSlotInfo)
 	c.Assert(err, IsNil)
 	c.Assert(dbusSpec.SecurityTags(), HasLen, 0)
 }
 
 func (s *DbusInterfaceSuite) TestPermanentSlotDBusSystem(c *C) {
-	dbusSpec := dbus.NewSpecification(interfaces.NewSnapAppSet(s.systemSlotInfo.Snap))
-	err := dbusSpec.AddPermanentSlot(s.iface, s.systemSlotInfo)
+	appSet, err := interfaces.NewSnapAppSet(s.systemSlotInfo.Snap, nil)
+	c.Assert(err, IsNil)
+	dbusSpec := dbus.NewSpecification(appSet)
+	err = dbusSpec.AddPermanentSlot(s.iface, s.systemSlotInfo)
 	c.Assert(err, IsNil)
 	c.Assert(dbusSpec.SecurityTags(), DeepEquals, []string{"snap.test-dbus.test-system-provider"})
 	snippet := dbusSpec.SnippetForTag("snap.test-dbus.test-system-provider")
@@ -380,8 +392,10 @@ func (s *DbusInterfaceSuite) TestPermanentSlotDBusSystem(c *C) {
 }
 
 func (s *DbusInterfaceSuite) TestPermanentSlotSecCompSystem(c *C) {
-	seccompSpec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.systemSlotInfo.Snap))
-	err := seccompSpec.AddPermanentSlot(s.iface, s.systemSlotInfo)
+	appSet, err := interfaces.NewSnapAppSet(s.systemSlotInfo.Snap, nil)
+	c.Assert(err, IsNil)
+	seccompSpec := seccomp.NewSpecification(appSet)
+	err = seccompSpec.AddPermanentSlot(s.iface, s.systemSlotInfo)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.test-dbus.test-system-provider"})
 	snippet := seccompSpec.SnippetForTag("snap.test-dbus.test-system-provider")
@@ -389,8 +403,10 @@ func (s *DbusInterfaceSuite) TestPermanentSlotSecCompSystem(c *C) {
 }
 
 func (s *DbusInterfaceSuite) TestPermanentSlotSecCompSession(c *C) {
-	seccompSpec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.sessionSlotInfo.Snap))
-	err := seccompSpec.AddPermanentSlot(s.iface, s.sessionSlotInfo)
+	appSet, err := interfaces.NewSnapAppSet(s.sessionSlotInfo.Snap, nil)
+	c.Assert(err, IsNil)
+	seccompSpec := seccomp.NewSpecification(appSet)
+	err = seccompSpec.AddPermanentSlot(s.iface, s.sessionSlotInfo)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.test-dbus.test-session-provider"})
 	snippet := seccompSpec.SnippetForTag("snap.test-dbus.test-session-provider")
@@ -398,8 +414,10 @@ func (s *DbusInterfaceSuite) TestPermanentSlotSecCompSession(c *C) {
 }
 
 func (s *DbusInterfaceSuite) TestConnectedSlotAppArmorSession(c *C) {
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.connectedSessionSlot.Snap()))
-	err := apparmorSpec.AddConnectedSlot(s.iface, s.connectedSessionPlug, s.connectedSessionSlot)
+	appSet, err := interfaces.NewSnapAppSet(s.connectedSessionSlot.Snap(), nil)
+	c.Assert(err, IsNil)
+	apparmorSpec := apparmor.NewSpecification(appSet)
+	err = apparmorSpec.AddConnectedSlot(s.iface, s.connectedSessionPlug, s.connectedSessionSlot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.test-dbus.test-session-consumer", "snap.test-dbus.test-session-provider", "snap.test-dbus.test-system-consumer", "snap.test-dbus.test-system-provider"})
 	snippet := apparmorSpec.SnippetForTag("snap.test-dbus.test-session-provider")
@@ -418,8 +436,10 @@ func (s *DbusInterfaceSuite) TestConnectedSlotAppArmorSession(c *C) {
 }
 
 func (s *DbusInterfaceSuite) TestConnectedSlotAppArmorSystem(c *C) {
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.connectedSystemSlot.Snap()))
-	err := apparmorSpec.AddConnectedSlot(s.iface, s.connectedSystemPlug, s.connectedSystemSlot)
+	appSet, err := interfaces.NewSnapAppSet(s.connectedSystemSlot.Snap(), nil)
+	c.Assert(err, IsNil)
+	apparmorSpec := apparmor.NewSpecification(appSet)
+	err = apparmorSpec.AddConnectedSlot(s.iface, s.connectedSystemPlug, s.connectedSystemSlot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.test-dbus.test-session-consumer", "snap.test-dbus.test-session-provider", "snap.test-dbus.test-system-consumer", "snap.test-dbus.test-system-provider"})
 	snippet := apparmorSpec.SnippetForTag("snap.test-dbus.test-session-provider")
@@ -438,8 +458,10 @@ func (s *DbusInterfaceSuite) TestConnectedSlotAppArmorSystem(c *C) {
 }
 
 func (s *DbusInterfaceSuite) TestConnectedPlugAppArmorSession(c *C) {
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.connectedSessionPlug.Snap()))
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.connectedSessionPlug, s.connectedSessionSlot)
+	appSet, err := interfaces.NewSnapAppSet(s.connectedSessionPlug.Snap(), nil)
+	c.Assert(err, IsNil)
+	apparmorSpec := apparmor.NewSpecification(appSet)
+	err = apparmorSpec.AddConnectedPlug(s.iface, s.connectedSessionPlug, s.connectedSessionSlot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.test-dbus.test-session-consumer", "snap.test-dbus.test-session-provider", "snap.test-dbus.test-system-consumer", "snap.test-dbus.test-system-provider"})
 	snippet := apparmorSpec.SnippetForTag("snap.test-dbus.test-session-consumer")
@@ -463,8 +485,10 @@ func (s *DbusInterfaceSuite) TestConnectedPlugAppArmorSession(c *C) {
 }
 
 func (s *DbusInterfaceSuite) TestConnectedPlugAppArmorSystem(c *C) {
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.connectedSystemPlug.Snap()))
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.connectedSystemPlug, s.connectedSystemSlot)
+	appSet, err := interfaces.NewSnapAppSet(s.connectedSystemPlug.Snap(), nil)
+	c.Assert(err, IsNil)
+	apparmorSpec := apparmor.NewSpecification(appSet)
+	err = apparmorSpec.AddConnectedPlug(s.iface, s.connectedSystemPlug, s.connectedSystemSlot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.test-dbus.test-session-consumer", "snap.test-dbus.test-session-provider", "snap.test-dbus.test-system-consumer", "snap.test-dbus.test-system-provider"})
 	snippet := apparmorSpec.SnippetForTag("snap.test-dbus.test-session-consumer")
@@ -517,8 +541,10 @@ slots:
 	matchingSlot := interfaces.NewConnectedSlot(slotInfo.Slots["this"], nil, nil)
 	nonmatchingSlot := interfaces.NewConnectedSlot(slotInfo.Slots["that"], nil, nil)
 
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(matchingPlug.Snap()))
-	err := apparmorSpec.AddConnectedPlug(s.iface, matchingPlug, matchingSlot)
+	appSet, err := interfaces.NewSnapAppSet(matchingPlug.Snap(), nil)
+	c.Assert(err, IsNil)
+	apparmorSpec := apparmor.NewSpecification(appSet)
+	err = apparmorSpec.AddConnectedPlug(s.iface, matchingPlug, matchingSlot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.plugger.app"})
 	snippet := apparmorSpec.SnippetForTag("snap.plugger.app")
@@ -528,7 +554,9 @@ slots:
 	c.Check(snippet, Not(testutil.Contains), "org.slotter.other-session")
 	c.Check(snippet, Not(testutil.Contains), "bus=system")
 
-	apparmorSpec = apparmor.NewSpecification(interfaces.NewSnapAppSet(matchingPlug.Snap()))
+	appSet, err = interfaces.NewSnapAppSet(matchingPlug.Snap(), nil)
+	c.Assert(err, IsNil)
+	apparmorSpec = apparmor.NewSpecification(appSet)
 	err = apparmorSpec.AddConnectedPlug(s.iface, matchingPlug, nonmatchingSlot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), HasLen, 0)
@@ -566,8 +594,10 @@ slots:
 	matchingSlot := interfaces.NewConnectedSlot(slotInfo.Slots["that"], nil, nil)
 	nonmatchingSlot := interfaces.NewConnectedSlot(slotInfo.Slots["this"], nil, nil)
 
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(matchingPlug.Snap()))
-	err := apparmorSpec.AddConnectedPlug(s.iface, matchingPlug, matchingSlot)
+	appSet, err := interfaces.NewSnapAppSet(matchingPlug.Snap(), nil)
+	c.Assert(err, IsNil)
+	apparmorSpec := apparmor.NewSpecification(appSet)
+	err = apparmorSpec.AddConnectedPlug(s.iface, matchingPlug, matchingSlot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.plugger.app"})
 	snippet := apparmorSpec.SnippetForTag("snap.plugger.app")
@@ -577,7 +607,9 @@ slots:
 	c.Check(snippet, Not(testutil.Contains), "org.slotter.session")
 	c.Check(snippet, Not(testutil.Contains), "bus=session")
 
-	apparmorSpec = apparmor.NewSpecification(interfaces.NewSnapAppSet(matchingPlug.Snap()))
+	appSet, err = interfaces.NewSnapAppSet(matchingPlug.Snap(), nil)
+	c.Assert(err, IsNil)
+	apparmorSpec = apparmor.NewSpecification(appSet)
 	err = apparmorSpec.AddConnectedPlug(s.iface, matchingPlug, nonmatchingSlot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), HasLen, 0)
@@ -620,15 +652,19 @@ slots:
 	matchingSlot1 := interfaces.NewConnectedSlot(slotInfo.Slots["this"], nil, nil)
 	matchingSlot2 := interfaces.NewConnectedSlot(slotInfo.Slots["that"], nil, nil)
 
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(matchingPlug1.Snap()))
-	err := apparmorSpec.AddConnectedPlug(s.iface, matchingPlug1, matchingSlot1)
+	appSet, err := interfaces.NewSnapAppSet(matchingPlug1.Snap(), nil)
+	c.Assert(err, IsNil)
+	apparmorSpec := apparmor.NewSpecification(appSet)
+	err = apparmorSpec.AddConnectedPlug(s.iface, matchingPlug1, matchingSlot1)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.plugger.app"})
 	snippet := apparmorSpec.SnippetForTag("snap.plugger.app")
 	c.Check(snippet, testutil.Contains, "org.slotter.session")
 	c.Check(snippet, testutil.Contains, "bus=session")
 
-	apparmorSpec = apparmor.NewSpecification(interfaces.NewSnapAppSet(matchingPlug2.Snap()))
+	appSet, err = interfaces.NewSnapAppSet(matchingPlug2.Snap(), nil)
+	c.Assert(err, IsNil)
+	apparmorSpec = apparmor.NewSpecification(appSet)
 	err = apparmorSpec.AddConnectedPlug(s.iface, matchingPlug2, matchingSlot2)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.plugger.app"})
@@ -661,8 +697,10 @@ slots:
 	slotInfo := snaptest.MockInfo(c, slotYaml, nil)
 	slot := interfaces.NewConnectedSlot(slotInfo.Slots["this"], nil, nil)
 
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(plug.Snap()))
-	err := apparmorSpec.AddConnectedPlug(s.iface, plug, slot)
+	appSet, err := interfaces.NewSnapAppSet(plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	apparmorSpec := apparmor.NewSpecification(appSet)
+	err = apparmorSpec.AddConnectedPlug(s.iface, plug, slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), HasLen, 0)
 }
@@ -691,8 +729,10 @@ slots:
 	slotInfo := snaptest.MockInfo(c, slotYaml, nil)
 	slot := interfaces.NewConnectedSlot(slotInfo.Slots["this"], nil, nil)
 
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(plug.Snap()))
-	err := apparmorSpec.AddConnectedPlug(s.iface, plug, slot)
+	appSet, err := interfaces.NewSnapAppSet(plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	apparmorSpec := apparmor.NewSpecification(appSet)
+	err = apparmorSpec.AddConnectedPlug(s.iface, plug, slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), HasLen, 0)
 }

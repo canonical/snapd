@@ -790,6 +790,8 @@ func (s *SystemdTestSuite) TestVersion(c *C) {
 	s.outs = [][]byte{
 		[]byte("systemd 223\n+PAM\n"),
 		[]byte("systemd 245 (245.4-4ubuntu3)\n+PAM +AUDIT +SELINUX +IMA\n"),
+		[]byte("systemd 255~rc3\n+PAM"),
+		[]byte("systemd 256~rc3-foo\n+PAM"),
 		// error cases
 		[]byte("foo 223\n+PAM\n"),
 		[]byte(""),
@@ -804,6 +806,14 @@ func (s *SystemdTestSuite) TestVersion(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(v, Equals, 245)
 
+	v, err = Version()
+	c.Assert(err, IsNil)
+	c.Check(v, Equals, 255)
+
+	v, err = Version()
+	c.Assert(err, IsNil)
+	c.Check(v, Equals, 256)
+
 	_, err = Version()
 	c.Assert(err, ErrorMatches, `cannot parse systemd version: expected "systemd", got "foo"`)
 
@@ -814,6 +824,8 @@ func (s *SystemdTestSuite) TestVersion(c *C) {
 	c.Assert(err, ErrorMatches, `cannot convert systemd version to number: abc`)
 
 	c.Check(s.argses, DeepEquals, [][]string{
+		{"--version"},
+		{"--version"},
 		{"--version"},
 		{"--version"},
 		{"--version"},

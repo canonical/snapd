@@ -1,0 +1,13 @@
+name: "Static code analysis"
+on: [pull_request]
+
+jobs:
+  tiobe-static-analysis:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+      - name: TICS GitHub Action
+        uses: tiobe/tics-github-action@v2
+        with:
+          projectName: snapd
+          ticsConfiguration: https://canonical.tiobe.com/tiobeweb/TICS/api/cfg?name=default

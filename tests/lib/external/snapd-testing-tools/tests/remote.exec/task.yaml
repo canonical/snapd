@@ -1,6 +1,6 @@
 summary: smoke test for the remote.exec tool
 
-datails: |
+details: |
     Check the remote.exec tool is able to run commands in the
     remote instance through ssh.
 

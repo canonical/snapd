@@ -1,5 +1,9 @@
 summary: Check that users with homes in /var/lib can run *classic* snaps
 
+details: |
+    Some users have their home directories in /var/lib. This test verifies that
+    any such user can run classic snaps.
+
 systems: [ubuntu-2*]
 
 environment:

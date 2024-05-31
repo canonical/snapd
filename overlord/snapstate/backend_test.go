@@ -388,6 +388,9 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 	case "some-snap-with-new-base-id":
 		name = "some-snap-with-new-base"
 		base = "core22"
+	case "some-snap-with-core18-base":
+		name = "some-snap-with-core18-base"
+		base = "core18"
 	case "core-snap-id":
 		name = "core"
 		typ = snap.TypeOS
@@ -559,10 +562,10 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 	}
 
 	if len(currentSnaps) == 0 && len(actions) == 0 {
-		return nil, nil, nil
+		return nil, nil, &store.SnapActionError{NoResults: true}
 	}
-	if len(actions) > 4 {
-		panic("fake SnapAction unexpectedly called with more than 3 actions")
+	if len(actions) > 7 {
+		panic("fake SnapAction unexpectedly called with more than 7 actions")
 	}
 
 	curByInstanceName := make(map[string]*store.CurrentSnap, len(currentSnaps))

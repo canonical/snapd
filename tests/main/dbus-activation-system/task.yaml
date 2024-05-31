@@ -1,5 +1,10 @@
 summary: D-Bus system services support activation
 
+details: |
+    Verify that services that are activated via the D-Bus system bus are started
+    when a method call is made to them and that they are stopped when the snap
+    is removed.
+
 prepare: |
     snap set system experimental.user-daemons=true
 

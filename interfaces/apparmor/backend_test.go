@@ -321,6 +321,33 @@ func (s *backendSuite) TestInstallingSnapWithHookWritesAndLoadsProfiles(c *C) {
 	})
 }
 
+func (s *backendSuite) TestInstallingComponentWritesAndLoadsProfiles(c *C) {
+	const instanceName = ""
+	s.testInstallingComponentWritesAndLoadsProfiles(c, instanceName)
+}
+
+func (s *backendSuite) TestInstallingComponentWritesAndLoadsProfilesInstance(c *C) {
+	const instanceName = "snap_instance"
+	s.testInstallingComponentWritesAndLoadsProfiles(c, instanceName)
+}
+
+func (s *backendSuite) testInstallingComponentWritesAndLoadsProfiles(c *C, instanceName string) {
+	info := s.InstallSnapWithComponents(c, interfaces.ConfinementOptions{}, instanceName, ifacetest.SnapWithComponentsYaml, 1, []string{ifacetest.ComponentYaml})
+
+	expectedName := info.InstanceName()
+
+	componentHookProfile := filepath.Join(dirs.SnapAppArmorDir, fmt.Sprintf("snap.%s+comp.hook.install", expectedName))
+	// verify that profile for component hook was created
+	c.Check(componentHookProfile, testutil.FilePresent)
+
+	appProfile := filepath.Join(dirs.SnapAppArmorDir, fmt.Sprintf("snap.%s.app", expectedName))
+	updateNSProfile := filepath.Join(dirs.SnapAppArmorDir, fmt.Sprintf("snap-update-ns.%s", expectedName))
+	// apparmor_parser was used to load that file
+	c.Check(s.loadProfilesCalls, DeepEquals, []loadProfilesParams{
+		{[]string{updateNSProfile, componentHookProfile, appProfile}, fmt.Sprintf("%s/var/cache/apparmor", s.RootDir), apparmor_sandbox.SkipReadCache},
+	})
+}
+
 const layoutYaml = `name: myapp
 version: 1
 apps:
@@ -360,6 +387,43 @@ func (s *backendSuite) TestInstallingSnapWithoutAppsOrHooksDoesntAddProfiles(c *
 	c.Check(s.loadProfilesCalls, HasLen, 0)
 }
 
+func (s *backendSuite) TestInstallingSnapWithComponentButNotInstalledDoesntAddProfiles(c *C) {
+	// installing a snap that has no app or hooks, but does have components
+	// defined, but no components are installed, should't generate any profiles
+	var snapWithComponents = `
+name: snap
+version: 1
+components:
+  comp:
+    type: test
+    hooks:
+      install:
+plugs:
+  iface:
+`
+
+	s.InstallSnapWithComponents(c, interfaces.ConfinementOptions{}, "", snapWithComponents, 1, nil)
+	c.Check(s.loadProfilesCalls, HasLen, 0)
+}
+
+func (s *backendSuite) TestInstallingSnapWithComponentWithNoHooks(c *C) {
+	// installing a snap that has no app or hooks, but does have components
+	// defined, but the component doesn't have hooks, should't generate any
+	// profiles
+	var snapWithComponents = `
+name: snap
+version: 1
+components:
+  comp:
+    type: test
+plugs:
+  iface:
+`
+
+	s.InstallSnapWithComponents(c, interfaces.ConfinementOptions{}, "", snapWithComponents, 1, []string{ifacetest.ComponentYaml})
+	c.Check(s.loadProfilesCalls, HasLen, 0)
+}
+
 func (s *backendSuite) TestTimings(c *C) {
 	oldDurationThreshold := timings.DurationThreshold
 	defer func() {
@@ -372,7 +436,8 @@ func (s *backendSuite) TestTimings(c *C) {
 		meas := perf.StartSpan("", "")
 
 		snapInfo := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 1)
-		appSet := interfaces.NewSnapAppSet(snapInfo)
+		appSet, err := interfaces.NewSnapAppSet(snapInfo, nil)
+		c.Assert(err, IsNil)
 		c.Assert(s.Backend.Setup(appSet, opts, s.Repo, meas), IsNil)
 
 		st := state.New(nil)
@@ -402,8 +467,9 @@ func (s *backendSuite) TestProfilesAreAlwaysLoaded(c *C) {
 		snapInfo := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 1)
 		s.loadProfilesCalls = nil
 
-		appSet := interfaces.NewSnapAppSet(snapInfo)
-		err := s.Backend.Setup(appSet, opts, s.Repo, s.meas)
+		appSet, err := interfaces.NewSnapAppSet(snapInfo, nil)
+		c.Assert(err, IsNil)
+		err = s.Backend.Setup(appSet, opts, s.Repo, s.meas)
 		c.Assert(err, IsNil)
 		updateNSProfile := filepath.Join(dirs.SnapAppArmorDir, "snap-update-ns.samba")
 		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
@@ -432,6 +498,42 @@ func (s *backendSuite) TestRemovingSnapWithHookRemovesAndUnloadsProfiles(c *C) {
 		s.RemoveSnap(c, snapInfo)
 		c.Check(s.removeCachedProfilesCalls, DeepEquals, []removeCachedProfilesParams{
 			{[]string{"snap-update-ns.foo", "snap.foo.hook.configure"}, fmt.Sprintf("%s/var/cache/apparmor", s.RootDir)},
+		})
+	}
+}
+
+func (s *backendSuite) TestRemovingComponentRemovesAndUnloadsProfiles(c *C) {
+	const instanceName = ""
+	s.testRemovingComponentRemovesAndUnloadsProfiles(c, instanceName)
+}
+
+func (s *backendSuite) TestRemovingComponentRemovesAndUnloadsProfilesInstance(c *C) {
+	const instanceName = "snap_instance"
+	s.testRemovingComponentRemovesAndUnloadsProfiles(c, instanceName)
+}
+
+func (s *backendSuite) testRemovingComponentRemovesAndUnloadsProfiles(c *C, instanceName string) {
+	for _, opts := range testedConfinementOpts {
+		snapInfo := s.InstallSnapWithComponents(c, opts, instanceName, ifacetest.SnapWithComponentsYaml, 1, []string{ifacetest.ComponentYaml})
+		s.removeCachedProfilesCalls = nil
+		s.RemoveSnap(c, snapInfo)
+
+		expectedName := snapInfo.InstanceName()
+
+		componentHookProfileName := fmt.Sprintf("snap.%s+comp.hook.install", expectedName)
+		updateNSProfileName := fmt.Sprintf("snap-update-ns.%s", expectedName)
+		appProfileName := fmt.Sprintf("snap.%s.app", expectedName)
+
+		componentHookProfile := filepath.Join(dirs.SnapAppArmorDir, componentHookProfileName)
+		updateNSProfile := filepath.Join(dirs.SnapAppArmorDir, updateNSProfileName)
+		appProfile := filepath.Join(dirs.SnapAppArmorDir, appProfileName)
+
+		c.Check(componentHookProfile, testutil.FileAbsent)
+		c.Check(updateNSProfile, testutil.FileAbsent)
+		c.Check(appProfile, testutil.FileAbsent)
+
+		c.Check(s.removeCachedProfilesCalls, DeepEquals, []removeCachedProfilesParams{
+			{[]string{updateNSProfileName, componentHookProfileName, appProfileName}, fmt.Sprintf("%s/var/cache/apparmor", s.RootDir)},
 		})
 	}
 }
@@ -497,6 +599,81 @@ func (s *backendSuite) TestUpdatingSnapToOneWithMoreHooks(c *C) {
 	}
 }
 
+func (s *backendSuite) TestUpdatingSnapToOneWithMoreComponents(c *C) {
+	const instanceName = ""
+	s.testUpdatingSnapToOneWithMoreComponents(c, instanceName)
+}
+
+func (s *backendSuite) TestUpdatingSnapToOneWithMoreComponentsInstance(c *C) {
+	const instanceName = "snap_instance"
+	s.testUpdatingSnapToOneWithMoreComponents(c, instanceName)
+}
+
+func (s *backendSuite) testUpdatingSnapToOneWithMoreComponents(c *C, instanceName string) {
+	for _, opts := range testedConfinementOpts {
+		info := s.InstallSnap(c, opts, instanceName, ifacetest.SnapWithComponentsYaml, 1)
+		s.loadProfilesCalls = nil
+		info = s.UpdateSnapWithComponents(c, info, opts, ifacetest.SnapWithComponentsYaml, 1, []string{ifacetest.ComponentYaml})
+
+		expectedName := info.InstanceName()
+
+		updateNSProfile := filepath.Join(dirs.SnapAppArmorDir, fmt.Sprintf("snap-update-ns.%s", expectedName))
+		componentHookProfile := filepath.Join(dirs.SnapAppArmorDir, fmt.Sprintf("snap.%s+comp.hook.install", expectedName))
+		appProfile := filepath.Join(dirs.SnapAppArmorDir, fmt.Sprintf("snap.%s.app", expectedName))
+
+		// verify that profile "snap.snap+comp.hook.install" was created
+		c.Check(componentHookProfile, testutil.FilePresent)
+
+		// apparmor_parser was used to load all the profiles, the hook profile
+		// has changed so we force invalidate its cache.
+		c.Check(s.loadProfilesCalls, DeepEquals, []loadProfilesParams{
+			{[]string{componentHookProfile}, fmt.Sprintf("%s/var/cache/apparmor", s.RootDir), apparmor_sandbox.SkipReadCache},
+			{[]string{updateNSProfile, appProfile}, fmt.Sprintf("%s/var/cache/apparmor", s.RootDir), 0},
+		})
+		s.RemoveSnap(c, info)
+	}
+}
+
+func (s *backendSuite) TestUpdatingSnapToOneWithFewerComponents(c *C) {
+	const instanceName = ""
+	s.testUpdatingSnapToOneWithFewerComponents(c, instanceName)
+}
+
+func (s *backendSuite) TestUpdatingSnapToOneWithFewerComponentsInstance(c *C) {
+	const instanceName = "snap_instance"
+	s.testUpdatingSnapToOneWithFewerComponents(c, instanceName)
+}
+
+func (s *backendSuite) testUpdatingSnapToOneWithFewerComponents(c *C, instanceName string) {
+	for _, opts := range testedConfinementOpts {
+		info := s.InstallSnapWithComponents(c, opts, instanceName, ifacetest.SnapWithComponentsYaml, 1, []string{ifacetest.ComponentYaml})
+
+		fmt.Println(info.InstanceName())
+
+		s.loadProfilesCalls = nil
+		// NOTE: the revision is kept the same to just test on the application being removed
+		info = s.UpdateSnap(c, info, opts, ifacetest.SnapWithComponentsYaml, 1)
+
+		expectedName := info.InstanceName()
+
+		updateNSProfile := filepath.Join(dirs.SnapAppArmorDir, fmt.Sprintf("snap-update-ns.%s", expectedName))
+		hookProfile := filepath.Join(dirs.SnapAppArmorDir, fmt.Sprintf("snap.%s+comp.hook.install", expectedName))
+		appProfile := filepath.Join(dirs.SnapAppArmorDir, fmt.Sprintf("snap.%s.app", expectedName))
+
+		c.Check(appProfile, testutil.FilePresent)
+		c.Check(updateNSProfile, testutil.FilePresent)
+
+		// verify profile component hook profile was removed
+		c.Check(hookProfile, testutil.FileAbsent)
+
+		// apparmor_parser was used to remove the unused profile
+		c.Check(s.loadProfilesCalls, DeepEquals, []loadProfilesParams{
+			{[]string{updateNSProfile, appProfile}, fmt.Sprintf("%s/var/cache/apparmor", s.RootDir), 0},
+		})
+		s.RemoveSnap(c, info)
+	}
+}
+
 func (s *backendSuite) TestUpdatingSnapToOneWithFewerApps(c *C) {
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1WithNmbd, 1)
@@ -545,13 +722,15 @@ func (s *backendSuite) TestSetupManyProfilesAreAlwaysLoaded(c *C) {
 	for _, opts := range testedConfinementOpts {
 		snapInfo1 := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 1)
 		snapInfo2 := s.InstallSnap(c, opts, "", ifacetest.SomeSnapYamlV1, 1)
-		appSet1 := interfaces.NewSnapAppSet(snapInfo1)
-		appSet2 := interfaces.NewSnapAppSet(snapInfo2)
+		appSet1, err := interfaces.NewSnapAppSet(snapInfo1, nil)
+		c.Assert(err, IsNil)
+		appSet2, err := interfaces.NewSnapAppSet(snapInfo2, nil)
+		c.Assert(err, IsNil)
 		s.loadProfilesCalls = nil
 		setupManyInterface, ok := s.Backend.(interfaces.SecurityBackendSetupMany)
 		c.Assert(ok, Equals, true)
-		err := setupManyInterface.SetupMany([]*interfaces.SnapAppSet{appSet1, appSet2}, func(snapName string) interfaces.ConfinementOptions { return opts }, s.Repo, s.meas)
-		c.Assert(err, IsNil)
+		errs := setupManyInterface.SetupMany([]*interfaces.SnapAppSet{appSet1, appSet2}, func(snapName string) interfaces.ConfinementOptions { return opts }, s.Repo, s.meas)
+		c.Assert(errs, IsNil)
 		snap1nsProfile := filepath.Join(dirs.SnapAppArmorDir, "snap-update-ns.samba")
 		snap1AAprofile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
 		snap2nsProfile := filepath.Join(dirs.SnapAppArmorDir, "snap-update-ns.some-snap")
@@ -568,8 +747,10 @@ func (s *backendSuite) TestSetupManyProfilesWithChanged(c *C) {
 	for _, opts := range testedConfinementOpts {
 		snapInfo1 := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 1)
 		snapInfo2 := s.InstallSnap(c, opts, "", ifacetest.SomeSnapYamlV1, 1)
-		appSet1 := interfaces.NewSnapAppSet(snapInfo1)
-		appSet2 := interfaces.NewSnapAppSet(snapInfo2)
+		appSet1, err := interfaces.NewSnapAppSet(snapInfo1, nil)
+		c.Assert(err, IsNil)
+		appSet2, err := interfaces.NewSnapAppSet(snapInfo2, nil)
+		c.Assert(err, IsNil)
 		s.loadProfilesCalls = nil
 
 		snap1nsProfile := filepath.Join(dirs.SnapAppArmorDir, "snap-update-ns.samba")
@@ -583,8 +764,8 @@ func (s *backendSuite) TestSetupManyProfilesWithChanged(c *C) {
 
 		setupManyInterface, ok := s.Backend.(interfaces.SecurityBackendSetupMany)
 		c.Assert(ok, Equals, true)
-		err := setupManyInterface.SetupMany([]*interfaces.SnapAppSet{appSet1, appSet2}, func(snapName string) interfaces.ConfinementOptions { return opts }, s.Repo, s.meas)
-		c.Assert(err, IsNil)
+		errs := setupManyInterface.SetupMany([]*interfaces.SnapAppSet{appSet1, appSet2}, func(snapName string) interfaces.ConfinementOptions { return opts }, s.Repo, s.meas)
+		c.Assert(errs, IsNil)
 
 		// expect two batch executions - one for changed profiles, second for unchanged profiles.
 		c.Check(s.loadProfilesCalls, DeepEquals, []loadProfilesParams{
@@ -621,8 +802,10 @@ func (s *backendSuite) TestSetupManyApparmorBatchProcessingPermanentError(c *C) 
 		// note, InstallSnap here uses s.parserCmd which mocks happy apparmor_parser
 		snapInfo1 := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 1)
 		snapInfo2 := s.InstallSnap(c, opts, "", ifacetest.SomeSnapYamlV1, 1)
-		appSet1 := interfaces.NewSnapAppSet(snapInfo1)
-		appSet2 := interfaces.NewSnapAppSet(snapInfo2)
+		appSet1, err := interfaces.NewSnapAppSet(snapInfo1, nil)
+		c.Assert(err, IsNil)
+		appSet2, err := interfaces.NewSnapAppSet(snapInfo2, nil)
+		c.Assert(err, IsNil)
 		s.loadProfilesCalls = nil
 		setupManyInterface, ok := s.Backend.(interfaces.SecurityBackendSetupMany)
 		c.Assert(ok, Equals, true)
@@ -656,8 +839,10 @@ func (s *backendSuite) TestSetupManyApparmorBatchProcessingErrorWithFallbackOK(c
 		// note, InstallSnap here uses s.parserCmd which mocks happy apparmor_parser
 		snapInfo1 := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 1)
 		snapInfo2 := s.InstallSnap(c, opts, "", ifacetest.SomeSnapYamlV1, 1)
-		appSet1 := interfaces.NewSnapAppSet(snapInfo1)
-		appSet2 := interfaces.NewSnapAppSet(snapInfo2)
+		appSet1, err := interfaces.NewSnapAppSet(snapInfo1, nil)
+		c.Assert(err, IsNil)
+		appSet2, err := interfaces.NewSnapAppSet(snapInfo2, nil)
+		c.Assert(err, IsNil)
 		s.loadProfilesCalls = nil
 		setupManyInterface, ok := s.Backend.(interfaces.SecurityBackendSetupMany)
 		c.Assert(ok, Equals, true)
@@ -699,8 +884,10 @@ func (s *backendSuite) TestSetupManyApparmorBatchProcessingErrorWithFallbackPart
 		// note, InstallSnap here uses s.parserCmd which mocks happy apparmor_parser
 		snapInfo1 := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 1)
 		snapInfo2 := s.InstallSnap(c, opts, "", ifacetest.SomeSnapYamlV1, 1)
-		appSet1 := interfaces.NewSnapAppSet(snapInfo1)
-		appSet2 := interfaces.NewSnapAppSet(snapInfo2)
+		appSet1, err := interfaces.NewSnapAppSet(snapInfo1, nil)
+		c.Assert(err, IsNil)
+		appSet2, err := interfaces.NewSnapAppSet(snapInfo2, nil)
+		c.Assert(err, IsNil)
 		s.loadProfilesCalls = nil
 		setupManyInterface, ok := s.Backend.(interfaces.SecurityBackendSetupMany)
 		c.Assert(ok, Equals, true)
@@ -808,9 +995,10 @@ func (s *backendSuite) TestDefaultCoreRuntimesTemplateOnlyUsed(c *C) {
 		testYaml := ifacetest.SambaYamlV1 + base + "\n"
 
 		snapInfo := snaptest.MockInfo(c, testYaml, nil)
-		appSet := interfaces.NewSnapAppSet(snapInfo)
+		appSet, err := interfaces.NewSnapAppSet(snapInfo, nil)
+		c.Assert(err, IsNil)
 		// NOTE: we don't call apparmor.MockTemplate()
-		err := s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, s.Repo, s.meas)
+		err = s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, s.Repo, s.meas)
 		c.Assert(err, IsNil)
 		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
 		data, err := os.ReadFile(profile)
@@ -848,9 +1036,10 @@ func (s *backendSuite) TestBaseDefaultTemplateOnlyUsed(c *C) {
 	testYaml := ifacetest.SambaYamlV1 + "base: other\n"
 
 	snapInfo := snaptest.MockInfo(c, testYaml, nil)
-	appSet := interfaces.NewSnapAppSet(snapInfo)
+	appSet, err := interfaces.NewSnapAppSet(snapInfo, nil)
+	c.Assert(err, IsNil)
 	// NOTE: we don't call apparmor.MockTemplate()
-	err := s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, s.Repo, s.meas)
+	err = s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, s.Repo, s.meas)
 	c.Assert(err, IsNil)
 	profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
 	data, err := os.ReadFile(profile)
@@ -1344,6 +1533,43 @@ profile "snap.foo.hook.configure" flags=(attach_disconnected,mediate_deleted) {
 	s.RemoveSnap(c, snapInfo)
 }
 
+func (s *backendSuite) TestTemplateVarsWithComponentHook(c *C) {
+	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
+	defer restore()
+	restore = osutil.MockIsHomeUsingRemoteFS(func() (bool, error) { return false, nil })
+	defer restore()
+	restore = osutil.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
+	defer restore()
+	// NOTE: replace the real template with a shorter variant
+	restoreTemplate := apparmor.MockTemplate("\n" +
+		"###VAR###\n" +
+		"###PROFILEATTACH### ###FLAGS### {\n" +
+		"###SNIPPETS###\n" +
+		"}\n")
+	defer restoreTemplate()
+
+	expected := `
+# This is a snap name without the instance key
+@{SNAP_NAME}="snap"
+# This is a snap name with instance key
+@{SNAP_INSTANCE_NAME}="snap"
+@{SNAP_INSTANCE_DESKTOP}="snap"
+@{SNAP_COMMAND_NAME}="snap+comp.hook.install"
+@{SNAP_REVISION}="1"
+@{PROFILE_DBUS}="snap_2esnap_2bcomp_2ehook_2einstall"
+@{INSTALL_DIR}="/{,var/lib/snapd/}snap"
+profile "snap.snap+comp.hook.install" flags=(attach_disconnected,mediate_deleted) {
+
+}
+`
+	info := s.InstallSnapWithComponents(c, interfaces.ConfinementOptions{}, "", ifacetest.SnapWithComponentsYaml, 1, []string{ifacetest.ComponentYaml})
+
+	profile := filepath.Join(dirs.SnapAppArmorDir, "snap.snap+comp.hook.install")
+	c.Check(profile, testutil.FileEquals, expected)
+
+	s.RemoveSnap(c, info)
+}
+
 const coreYaml = `name: core
 version: 1
 type: os
@@ -1569,9 +1795,10 @@ func (s *backendSuite) TestSnapConfineProfileDiscardedLateSnapd(c *C) {
 	defer restorer()
 	// snapd snap at revision 222.
 	snapdInfo := snaptest.MockInfo(c, snapdYaml, &snap.SideInfo{Revision: snap.R(222)})
-	appSet := interfaces.NewSnapAppSet(snapdInfo)
+	appSet, err := interfaces.NewSnapAppSet(snapdInfo, nil)
+	c.Assert(err, IsNil)
 	s.writeVanillaSnapConfineProfile(c, snapdInfo)
-	err := s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, s.Repo, s.perf)
+	err = s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, s.Repo, s.perf)
 	c.Assert(err, IsNil)
 	// precondition
 	c.Assert(filepath.Join(dirs.SnapAppArmorDir, "snap-confine.snapd.222"), testutil.FilePresent)
@@ -2212,7 +2439,7 @@ func (s *backendSuite) TestCasperOverlaySnippets(c *C) {
 
 func (s *backendSuite) TestProfileGlobs(c *C) {
 	globs := apparmor.ProfileGlobs("foo")
-	c.Assert(globs, DeepEquals, []string{"snap.foo.*", "snap-update-ns.foo"})
+	c.Assert(globs, DeepEquals, []string{"snap.foo.*", "snap.foo+*.hook.*", "snap-update-ns.foo"})
 }
 
 func (s *backendSuite) TestNsProfile(c *C) {
@@ -2399,9 +2626,10 @@ func (s *backendSuite) TestPtraceTraceRule(c *C) {
 		}
 
 		snapInfo := s.InstallSnap(c, tc.opts, "", ifacetest.SambaYamlV1, 1)
-		appSet := interfaces.NewSnapAppSet(snapInfo)
+		appSet, err := interfaces.NewSnapAppSet(snapInfo, nil)
+		c.Assert(err, IsNil)
 
-		err := s.Backend.Setup(appSet, tc.opts, s.Repo, s.meas)
+		err = s.Backend.Setup(appSet, tc.opts, s.Repo, s.meas)
 		c.Assert(err, IsNil)
 
 		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
@@ -2600,8 +2828,10 @@ func (s *backendSuite) TestSetupManyInPreseedMode(c *C) {
 	for _, opts := range testedConfinementOpts {
 		snapInfo1 := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 1)
 		snapInfo2 := s.InstallSnap(c, opts, "", ifacetest.SomeSnapYamlV1, 1)
-		appSet1 := interfaces.NewSnapAppSet(snapInfo1)
-		appSet2 := interfaces.NewSnapAppSet(snapInfo2)
+		appSet1, err := interfaces.NewSnapAppSet(snapInfo1, nil)
+		c.Assert(err, IsNil)
+		appSet2, err := interfaces.NewSnapAppSet(snapInfo2, nil)
+		c.Assert(err, IsNil)
 		s.loadProfilesCalls = nil
 
 		snap1nsProfile := filepath.Join(dirs.SnapAppArmorDir, "snap-update-ns.samba")
@@ -2615,8 +2845,8 @@ func (s *backendSuite) TestSetupManyInPreseedMode(c *C) {
 
 		setupManyInterface, ok := s.Backend.(interfaces.SecurityBackendSetupMany)
 		c.Assert(ok, Equals, true)
-		err := setupManyInterface.SetupMany([]*interfaces.SnapAppSet{appSet1, appSet2}, func(snapName string) interfaces.ConfinementOptions { return opts }, s.Repo, s.meas)
-		c.Assert(err, IsNil)
+		errs := setupManyInterface.SetupMany([]*interfaces.SnapAppSet{appSet1, appSet2}, func(snapName string) interfaces.ConfinementOptions { return opts }, s.Repo, s.meas)
+		c.Assert(errs, IsNil)
 
 		// expect two batch executions - one for changed profiles, second for unchanged profiles.
 		c.Check(s.loadProfilesCalls, DeepEquals, []loadProfilesParams{

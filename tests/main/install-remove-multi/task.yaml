@@ -1,5 +1,11 @@
 summary: Check that install/remove of multiple snaps works
 
+details: |
+    Check that installing multiple snaps and removing them with and without
+    `--purge` results in snapshots being saved or not, accordingly. Check that
+    installing a snap with a desktop file creates a corresponding desktop file
+    and that it's deleted once the snap is removed.
+
 execute: |
     echo "Install multiple snaps from the store"
     snap install test-snapd-sh test-snapd-control-consumer

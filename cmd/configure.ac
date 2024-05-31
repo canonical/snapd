@@ -274,6 +274,20 @@ struct { const char* a; int b; } b[] = { {.a = ""}, {} };
   CFLAGS="${save_CFLAGS}"
 ])
 
+AC_ARG_ENABLE([host-binaries],
+    AS_HELP_STRING([--enable-host-binaries], [Build binaries needed on host (not in snap)]),
+    [case "$enableval" in
+        yes)
+          build_host_binaries=yes
+          ;;
+        no)
+          build_host_binaries=no
+          ;;
+        *) AC_MSG_ERROR([bad value ${enableval} for --enable-host-binaries])
+    esac],
+    [build_host_binaries=yes])
+AM_CONDITIONAL([BUILD_HOST_BINARIES], [test "x$build_host_binaries" = "xyes"])
+
 AX_APPEND_COMPILE_FLAGS([ dnl
   -Wall dnl
   -Wextra dnl

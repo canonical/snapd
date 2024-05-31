@@ -1,11 +1,11 @@
 name: Tests
 on:
   pull_request:
-    branches: [ "master", "release/**" ]
+    branches: [ "master", "release/**", "core-snap-security-release/**", "security-release/**" ]
   push:
     # we trigger runs on master branch, but we do not run spread on master 
     # branch, the master branch runs are just for unit tests + codecov.io
-    branches: [ "master","release/**" ]
+    branches: [ "master", "release/**", "core-snap-security-release/**", "security-release/**" ]
 
   # XXX we suspect that the whenever the labeler workflow executes successfully
   # it will trigger another workflow of tests on master, temporarily disable to
@@ -32,7 +32,7 @@ jobs:
     - name: Build snapd snap
       uses: snapcore/action-build@v1
       with:
-        snapcraft-channel: 4.x/candidate
+        snapcraft-channel: 8.x/stable
 
     - name: Check built artifact
       run: |
@@ -102,7 +102,7 @@ jobs:
       # version of go.
       PATH: /snap/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:${{ github.workspace }}/bin
       GOROOT: ""
-      GITHUB_PULL_REQUEST: ${{ github.event.number }}
+      GITHUB_PULL_REQUEST_TITLE: ${{ github.event.pull_request.title }}
 
     strategy:
       # we cache successful runs so it's fine to keep going
@@ -268,7 +268,6 @@ jobs:
       # version of go.
       PATH: /snap/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:${{ github.workspace }}/bin
       GOROOT: ""
-      GITHUB_PULL_REQUEST: ${{ github.event.number }}
     strategy:
       # we cache successful runs so it's fine to keep going
       fail-fast: false      
@@ -363,7 +362,6 @@ jobs:
       # version of go.
       PATH: /snap/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:${{ github.workspace }}/bin
       GOROOT: ""
-      GITHUB_PULL_REQUEST: ${{ github.event.number }}
     strategy:
       # we cache successful runs so it's fine to keep going
       fail-fast: false
@@ -488,7 +486,6 @@ jobs:
       # snap in a step below. Without this we get the GitHub-controlled latest
       # version of go.
       PATH: /usr/sbin:/usr/bin:/sbin:/bin
-      GITHUB_PULL_REQUEST: ${{ github.event.number }}
 
     strategy:
       fail-fast: false
@@ -555,7 +552,6 @@ jobs:
       # version of go.
       PATH: /snap/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:${{ github.workspace }}/bin
       GOROOT: ""
-      GITHUB_PULL_REQUEST: ${{ github.event.number }}
     steps:
     - name: Download the coverage files
       uses: actions/download-artifact@v3
@@ -592,25 +588,25 @@ jobs:
       matrix:
         include:
           - group: amazon-linux
-            backend: google-central
+            backend: google-distro-1
             systems: 'amazon-linux-2-64 amazon-linux-2023-64'
           - group: arch-linux
-            backend: google-central
+            backend: google-distro-2
             systems: 'arch-linux-64'
           - group: centos
-            backend: google-central
+            backend: google-distro-2
             systems: 'centos-7-64 centos-8-64 centos-9-64'
           - group: debian-req
-            backend: google-central
+            backend: google-distro-1
             systems: 'debian-11-64'
           - group: debian-no-req
-            backend: google-central
+            backend: google-distro-1
             systems: 'debian-12-64 debian-sid-64'
           - group: fedora
-            backend: google-central
+            backend: google-distro-1
             systems: 'fedora-38-64 fedora-39-64'
           - group: opensuse
-            backend: google-central
+            backend: google-distro-2
             systems: 'opensuse-15.5-64 opensuse-tumbleweed-64'
           - group: ubuntu-trusty-xenial
             backend: google
@@ -628,19 +624,19 @@ jobs:
             backend: google
             systems: 'ubuntu-24.04-64'
           - group: ubuntu-core-16
-            backend: google
+            backend: google-core
             systems: 'ubuntu-core-16-64'
           - group: ubuntu-core-18
-            backend: google
+            backend: google-core
             systems: 'ubuntu-core-18-64'
           - group: ubuntu-core-20
-            backend: google
+            backend: google-core
             systems: 'ubuntu-core-20-64'
           - group: ubuntu-core-22
-            backend: google
+            backend: google-core
             systems: 'ubuntu-core-22-64'
           - group: ubuntu-core-24
-            backend: google
+            backend: google-core
             systems: 'ubuntu-core-24-64'
           - group: ubuntu-arm
             backend: google-arm
@@ -880,9 +876,9 @@ jobs:
       shell: bash
 
     - name: Run spread tests
-      # run if the commit is pushed to the release/* branch or there is a 'Run
-      # nested' label set on the PR
-      if: "contains(steps.collect-pr-labels.outputs.labels, 'Run nested') || contains(github.ref, 'refs/heads/release/')"
+      # run if there is a 'Run nested' label set on the PR or the commit is pushed to one of the recognised release branches
+      # "release/**", "core-snap-security-release/**" or "security-release/**"
+      if: "contains(steps.collect-pr-labels.outputs.labels, 'Run nested') || contains(github.ref, 'refs/heads/release/') || contains(github.ref, 'refs/heads/core-snap-security-release/') || contains(github.ref, 'refs/heads/security-release/')"
       env:
           SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
       run: |

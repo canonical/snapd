@@ -273,10 +273,19 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	var installedSystem *install.InstalledSystemSideData
 	// run the create partition code
 	logger.Noticef("create and deploy partitions")
+	kSnapInfo := &install.KernelSnapInfo{
+		Name:       kernelInfo.SnapName(),
+		MountPoint: kernelDir,
+		Revision:   kernelInfo.Revision,
+		IsCore:     !deviceCtx.Classic(),
+	}
+	if snapstate.NeedsKernelSetup(deviceCtx) {
+		kSnapInfo.NeedsDriversTree = true
+	}
 	timings.Run(perfTimings, "install-run", "Install the run system", func(tm timings.Measurer) {
 		st.Unlock()
 		defer st.Lock()
-		installedSystem, err = installRun(model, gadgetDir, kernelDir, "", bopts, installObserver, tm)
+		installedSystem, err = installRun(model, gadgetDir, kSnapInfo, "", bopts, installObserver, tm)
 	})
 	if err != nil {
 		return fmt.Errorf("cannot install system: %v", err)
@@ -537,10 +546,19 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 	var installedSystem *install.InstalledSystemSideData
 	// run the create partition code
 	logger.Noticef("create and deploy partitions")
+	kSnapInfo := &install.KernelSnapInfo{
+		Name:       kernelInfo.SnapName(),
+		MountPoint: kernelDir,
+		Revision:   kernelInfo.Revision,
+		IsCore:     !deviceCtx.Classic(),
+	}
+	if snapstate.NeedsKernelSetup(deviceCtx) {
+		kSnapInfo.NeedsDriversTree = true
+	}
 	timings.Run(perfTimings, "factory-reset", "Factory reset", func(tm timings.Measurer) {
 		st.Unlock()
 		defer st.Lock()
-		installedSystem, err = installFactoryReset(model, gadgetDir, kernelDir, "", bopts, installObserver, tm)
+		installedSystem, err = installFactoryReset(model, gadgetDir, kSnapInfo, "", bopts, installObserver, tm)
 	})
 	if err != nil {
 		return fmt.Errorf("cannot perform factory reset: %v", err)
@@ -988,18 +1006,36 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	if useEncryption {
 		encType = secboot.EncryptionTypeLUKS
 	}
+	kernMntPoint := mntPtForType[snap.TypeKernel]
 	allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(mergedVols,
-		mntPtForType[snap.TypeGadget], mntPtForType[snap.TypeKernel],
+		mntPtForType[snap.TypeGadget], kernMntPoint,
 		encType, volToGadgetToDiskStruct)
 	if err != nil {
 		return fmt.Errorf("on finish install: cannot layout volumes: %v", err)
 	}
 
+	snapInfos := systemAndSnaps.InfosByType
+	snapSeeds := systemAndSnaps.SeedSnapsByType
+	kernInfo := snapInfos[snap.TypeKernel]
+	deviceCtx, err := DeviceCtx(st, t, nil)
+	if err != nil {
+		return fmt.Errorf("cannot get device context: %v", err)
+	}
+
 	logger.Debugf("writing content to partitions")
+	kSnapInfo := &install.KernelSnapInfo{
+		Name:       kernInfo.SnapName(),
+		Revision:   kernInfo.Revision,
+		MountPoint: kernMntPoint,
+		IsCore:     !deviceCtx.Classic(),
+	}
+	if snapstate.NeedsKernelSetup(deviceCtx) {
+		kSnapInfo.NeedsDriversTree = true
+	}
 	timings.Run(perfTimings, "install-content", "Writing content to partitions", func(tm timings.Measurer) {
 		st.Unlock()
 		defer st.Lock()
-		_, err = installWriteContent(mergedVols, allLaidOutVols, encryptSetupData, installObserver, perfTimings)
+		_, err = installWriteContent(mergedVols, allLaidOutVols, encryptSetupData, kSnapInfo, installObserver, perfTimings)
 	})
 	if err != nil {
 		return fmt.Errorf("cannot write content: %v", err)
@@ -1035,9 +1071,6 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 			}
 		}
 	}
-
-	snapInfos := systemAndSnaps.InfosByType
-	snapSeeds := systemAndSnaps.SeedSnapsByType
 
 	bootWith := &boot.BootableSet{
 		Base:              snapInfos[snap.TypeBase],

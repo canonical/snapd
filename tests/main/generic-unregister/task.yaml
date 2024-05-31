@@ -1,5 +1,10 @@
-summary: |
-    Ensure that unregistration API works.
+summary: Ensure that unregistration API works.
+
+details: |
+   This test verifies that a device can be unregistered through the
+   snapd API. Also it is checked that it is possible to configure
+   the unregister to be performed immediately and after snapd is
+   restarted.
 
 # ubuntu-14.04: curl does not have --unix-socket option
 systems: [-ubuntu-core-*, -ubuntu-14.04-*]

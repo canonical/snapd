@@ -1,5 +1,15 @@
 summary: Check that default tracks work
 
+details: |
+    A snap publisher can set a default track for their snap that is different from latest.
+    This default track can change over time. With this a snap publisher can have versioned
+    tracks, with default pointing to whatever is the most recent stable (meaning somebody
+    doing snap install will always get that most recent stable version).
+
+    This test verifies by checking in the state.json file that when we install a snap with
+    a default track called 'default' it is properly installed from that track . It is also
+    checked the default track is used when parallel installs are performed.
+
 environment:
     A_SNAP: test-snapd-default-track
     A_TRACK: default

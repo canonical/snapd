@@ -202,7 +202,7 @@ func MockWaitFile(f func(string, time.Duration, int) error) (restore func()) {
 
 var WaitFile = waitFile
 
-func MockGadgetInstallRun(f func(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options gadgetInstall.Options, observer gadget.ContentObserver, perfTimings timings.Measurer) (*gadgetInstall.InstalledSystemSideData, error)) (restore func()) {
+func MockGadgetInstallRun(f func(model gadget.Model, gadgetRoot string, kernelSnapInfo *gadgetInstall.KernelSnapInfo, bootDevice string, options gadgetInstall.Options, observer gadget.ContentObserver, perfTimings timings.Measurer) (*gadgetInstall.InstalledSystemSideData, error)) (restore func()) {
 	old := gadgetInstallRun
 	gadgetInstallRun = f
 	return func() {

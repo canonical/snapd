@@ -1,5 +1,11 @@
 summary: Test that snap-confine is run from core on re-exec
 
+details: |
+    This test verifies that snap-confine is executed from core snap on re-exec.
+    First, it is checked we re-exec by default, then that the profiles in
+    /var/lib/snapd/apparmor/profiles/snap-confine.* are regenerated when the snapd
+    system-key is updated and snapd is restarted.
+
 # Disable for Fedora, openSUSE, Arch and Amazon Linux 2 as re-exec is not support there yet
 systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*]
 
@@ -27,7 +33,6 @@ execute: |
 
     echo "Ensure snap-confine from the core snap is run"
     test-snapd-sh.sh -c 'echo hello'
-
 
     echo "Check if snap-confine profile generation test is applicable"
     if [ "$(aa-enabled)" != "Yes" ]; then

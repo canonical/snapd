@@ -1,5 +1,11 @@
 summary: Ensure that the core.proxy.* settings are honored
 
+details: |
+  Snapd provides the core.proxy.* config which can be used to setup the proxy used.
+
+  This test verifies that when a proxy config is set, the snapd commands go through
+  the proxy.
+
 # ubuntu-14.04 does not have systemd-run
 systems: [-ubuntu-14.04-*]
 

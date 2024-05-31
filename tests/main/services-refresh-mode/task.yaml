@@ -1,4 +1,14 @@
-summary: "Check that refresh-modes works"
+summary: Check that refresh-modes works
+
+details: |
+    Snapd services can be configured to control whether should be restarted
+    during a snap refresh through the refresh-mode option. The available options
+    to configure are: restart , endure, (do not restart) or ignore-running 
+    (does not refresh running services to facilitate the refresh app awareness feature)
+    
+    This test refreshes the test-snapd-service snap and checks the service
+    test-snapd-endure-service which is configured with 'refresh-mode: endure'
+    is not restarted during the refresh (keeps the same pid).
 
 # takes >1.5min to run
 backends: [-autopkgtest]

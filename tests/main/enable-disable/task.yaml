@@ -1,5 +1,18 @@
 summary: Check that enable/disable works
 
+details: |
+    Snapd allows enabling and disabling snaps through the `snap enable` and
+    `snap disable` commands. When a snap is disabled, the binaries and services
+    of the snap will no longer be available, but all the data is still available
+    and the snap can easily be enabled again.
+
+    This test verifies that when a snap is disabled, it is listed as disabled and
+    the command and the security profiles are no longer there. Then it checks
+    that the snap runs normally after it is enabled.
+
+    It also checks that the important snaps (core, gadget and kernel) can't
+    be disabled.    
+
 prepare: |
     echo "Install test-snapd-sh and ensure it runs"
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh

@@ -1,5 +1,9 @@
 summary: Check that `snapctl stop --disable` actually stops services on install
 
+details: |
+    This test verifies that in install hook it is possible to stop and disable
+    snap services by running `snapctl stop --disable`.
+
 execute: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-svcs-disable-install-hook
 

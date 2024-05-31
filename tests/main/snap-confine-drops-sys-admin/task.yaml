@@ -1,5 +1,10 @@
 summary: ensure that snap-confine drops CAP_SYS_ADMIN for non-root
 
+details: |
+    snap-confine must drop CAP_SYS_ADMIN capability when running from
+    and only from a non-root user. This test verifies that fact. It
+    also verifies it when running through sudo.
+
 # This test is not executed on a core system simply because of the hassle of
 # building the support C program. In the future it might be improved with the
 # use of the classic snap where we just use classic to build the helper.

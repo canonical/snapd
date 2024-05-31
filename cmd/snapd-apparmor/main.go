@@ -138,7 +138,7 @@ func validateArgs(args []string) error {
 }
 
 func init() {
-	if err := logger.SimpleSetup(); err != nil {
+	if err := logger.SimpleSetup(nil); err != nil {
 		fmt.Fprintf(os.Stderr, "WARNING: failed to activate logging: %v\n", err)
 	}
 }

@@ -213,7 +213,7 @@ var snapActionFields = jsonutil.StructFields((*storeSnap)(nil))
 // SnapAction queries the store for snap information for the given
 // install/refresh actions, given the context information about
 // current installed snaps in currentSnaps. If the request was overall
-// successul (200) but there were reported errors it will return both
+// successful (200) but there were reported errors it will return both
 // the snap infos and an SnapActionError.
 // Orthogonally and at the same time it can be used to fetch or update
 // assertions by passing an AssertionQuery whose ToResolve specifies

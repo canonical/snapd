@@ -49,7 +49,7 @@ var opts struct {
 func init() {
 	// plug/slot sanitization not used nor possible from snap-exec, make it no-op
 	snap.SanitizePlugsSlots = func(snapInfo *snap.Info) {}
-	logger.SimpleSetup()
+	logger.SimpleSetup(nil)
 }
 
 func main() {

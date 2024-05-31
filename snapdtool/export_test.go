@@ -20,7 +20,6 @@
 package snapdtool
 
 var (
-	DistroSupportsReExec     = distroSupportsReExec
 	SystemSnapSupportsReExec = systemSnapSupportsReExec
 )
 

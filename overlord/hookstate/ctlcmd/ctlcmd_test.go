@@ -121,6 +121,13 @@ func (s *ctlcmdSuite) TestRootRequiredCommandFailure(c *C) {
 	c.Check(err.Error(), Equals, `cannot use "start" with uid 1000, try with sudo`)
 }
 
+func (s *ctlcmdSuite) TestRootRequiredCommandFailureParsingTweak(c *C) {
+	_, _, err := ctlcmd.Run(s.mockContext, []string{"start", "--", "--help"}, 1000)
+
+	c.Check(err, FitsTypeOf, &ctlcmd.ForbiddenCommandError{})
+	c.Check(err.Error(), Equals, `cannot use "start" with uid 1000, try with sudo`)
+}
+
 func (s *ctlcmdSuite) TestRunNoArgsFailure(c *C) {
 	_, _, err := ctlcmd.Run(s.mockContext, []string{}, 0)
 	c.Check(err, NotNil)
