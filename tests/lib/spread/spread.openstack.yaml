@@ -1,0 +1,13 @@
+    openstack:
+        key: '$(HOST: echo "$SPREAD_OPENSTACK_ENV")'
+        plan: staging-cpu2-ram4-disk20
+        halt-timeout: 2h
+        groups: [default]
+        systems:
+            - fedora-40-64:
+                image: fedora-40-64-v20240528
+                workers: 8
+    
+            - opensuse-15.5-64:
+                image: opensuse-15.5-64-v20240529
+                workers: 8
