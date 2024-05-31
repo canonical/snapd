@@ -294,9 +294,9 @@ prepare_project() {
 
     if [ "$SPREAD_BACKEND" = "testflinger" ]; then
         if os.query is-core-ge 24; then
-            useradd --uid 12345 -m --extrausers test
+            useradd --uid 12345 --create-home --extrausers test
         else
-            adduser --uid 12345 --extrausers --quiet --disabled-password --gecos '' test
+            adduser --uid 12345 --extrausers --quiet --disabled-password --comment '' test
         fi
         echo test:ubuntu | sudo chpasswd
         echo 'test ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/create-user-test
