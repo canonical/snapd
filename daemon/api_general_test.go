@@ -615,6 +615,20 @@ func (s *generalSuite) TestStateChange(c *check.C) {
 	chg.Set("api-data", map[string]int{"n": 42})
 	st.Unlock()
 
+	restore = daemon.MockSnapstateSnapsAffectedByTask(func(t *state.Task) ([]string, error) {
+		switch t.Kind() {
+		case "download":
+			// Mock affected snaps
+			return []string{"some-snap"}, nil
+		case "activate":
+			// Error should be ignored
+			return nil, fmt.Errorf("boom")
+		default:
+			return nil, nil
+		}
+	})
+	defer restore()
+
 	// Execute
 	req, err := http.NewRequest("GET", "/v2/changes/"+ids[0], nil)
 	c.Assert(err, check.IsNil)
@@ -646,6 +660,7 @@ func (s *generalSuite) TestStateChange(c *check.C) {
 				"log":        []interface{}{"2016-04-21T01:02:03Z INFO l11", "2016-04-21T01:02:03Z INFO l12"},
 				"progress":   map[string]interface{}{"label": "", "done": 0., "total": 1.},
 				"spawn-time": "2016-04-21T01:02:03Z",
+				"data":       map[string]interface{}{"affected-snaps": []interface{}{"some-snap"}},
 			},
 			map[string]interface{}{
 				"id":         ids[3],

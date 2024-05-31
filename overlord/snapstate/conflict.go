@@ -76,7 +76,8 @@ func RegisterAffectedSnapsByKind(kind string, f AffectedSnapsFunc) {
 	affectedSnapsByKind[kind] = f
 }
 
-func affectedSnaps(t *state.Task) ([]string, error) {
+// SnapsAffectedByTask returns a list of names of snaps affected by the given task.
+func SnapsAffectedByTask(t *state.Task) ([]string, error) {
 	// snapstate's own styled tasks
 	if t.Has("snap-setup") || t.Has("snap-setup-task") {
 		snapsup, err := TaskSnapSetup(t)
@@ -281,7 +282,7 @@ func CheckChangeConflictMany(st *state.State, instanceNames []string, ignoreChan
 			continue
 		}
 
-		snaps, err := affectedSnaps(task)
+		snaps, err := SnapsAffectedByTask(task)
 		if err != nil {
 			return err
 		}
