@@ -413,7 +413,7 @@ func (s *patternsSuite) TestPathPatternNext(c *C) {
 	} {
 		pathPattern, err := prompting.ParsePathPattern(testCase.pattern)
 		c.Check(err, IsNil, Commentf("testcase: %+v", testCase))
-		expanded := make([]string, 0, pathPattern.NumConfigurations())
+		expanded := make([]string, 0, pathPattern.NumExpansions())
 		for {
 			pattern, final := pathPattern.Next()
 			expanded = append(expanded, pattern)
