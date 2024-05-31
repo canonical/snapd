@@ -167,11 +167,11 @@ nested_uc20_transition_to_system_mode() {
 
 nested_prepare_ssh() {
     if nested_is_core_ge 24; then
-        remote.exec "sudo useradd --uid 12345 --extrausers test"
-        remote.exec "sudo useradd --extrausers external"
+        remote.exec "sudo useradd --uid 12345 --create-home --extrausers test"
+        remote.exec "sudo useradd --create-home --extrausers external"
     else 
-        remote.exec "sudo adduser --uid 12345 --extrausers --quiet --disabled-password --gecos '' test"
-        remote.exec "sudo adduser --extrausers --quiet --disabled-password --gecos '' external"
+        remote.exec "sudo adduser --uid 12345 --extrausers --quiet --disabled-password --comment '' test"
+        remote.exec "sudo adduser --extrausers --quiet --disabled-password --comment '' external"
     fi
     
     remote.exec "echo test:ubuntu123 | sudo chpasswd"
