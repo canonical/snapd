@@ -762,7 +762,7 @@ jobs:
           fi
 
     - name: Run spread tests
-      if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread') || ( ${{ matrix.nested == 'true' }} && !contains(steps.collect-pr-labels.outputs.labels, 'Run nested') )"
+      if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread') || ( ${{ matrix.nested == 'true' }} && contains(steps.collect-pr-labels.outputs.labels, 'Run nested') )"
       env:
           SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
       run: |
