@@ -55,7 +55,11 @@ execute: |
   prev_system=$(remote.exec 'sudo snap recovery' | awk 'NR != 1 { print $1 }')
 
   # create the system
-  change_id=$(post_json_data /v2/systems '{"action": "create", "label": "new-system", "validation-sets": ["test-snapd/test-snapd-pinned-essential-snaps=1"], "mark-default": true, "test-system": true}')
+  # Note: each time we have to pin different revisions of snaps on
+  # validation set test-snapd-pinned-essential-snaps, we have to use a
+  # new sequence number not to break other branches. The value of the
+  # sequence number just corresponds to the generation of this test.
+  change_id=$(post_json_data /v2/systems '{"action": "create", "label": "new-system", "validation-sets": ["test-snapd/test-snapd-pinned-essential-snaps=2"], "mark-default": true, "test-system": true}')
 
   # wait for reboot since we tested the system
   remote.wait-for reboot "${boot_id}"
@@ -130,6 +134,6 @@ execute: |
   remote.exec 'snap list pc-kernel'
 
   # however, we can check that the seed contains the correct revisions
-  remote.exec "test -f /var/lib/snapd/seed/snaps/core22_1033.snap"
+  remote.exec "test -f /var/lib/snapd/seed/snaps/core22_1380.snap"
   remote.exec "test -f /var/lib/snapd/seed/snaps/pc-kernel_1606.snap"
   remote.exec "test -f /var/lib/snapd/seed/snaps/pc_145.snap"
