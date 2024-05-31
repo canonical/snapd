@@ -1,0 +1,67 @@
+summary: Test refreshing from old snapd and base prior to required symlink
+
+details: |
+    Base snaps used to not initialize /snap/snapd/current symlink to seed.
+    However the question is what happen when starting with an old image,
+    and updating snapd before the base. This makes sure that this initial
+    symlink is not involved with updates.
+
+systems:
+  - ubuntu-22.04-64
+
+environment:
+  NESTED_BUILD_SNAPD_FROM_CURRENT: false
+  NESTED_REPACK_BASE_SNAP: false
+  NESTED_FORCE_SNAKEOIL_KEYS: true
+
+prepare: |
+    snap download --channel="latest/${BASE_CHANNEL}" core22 --basename=core22-new
+
+    # shellcheck source=tests/lib/prepare.sh
+    . "$TESTSLIB"/prepare.sh
+    [ -d new-snap/ ] || mkdir -p new-snap/
+    build_snapd_snap new-snap/
+    for f in new-snap/snapd_*.snap; do
+        mv "${f}" snapd-new.snap
+    done
+    rm -rf new-snap
+
+    snap download --revision=1033 core22 --basename=core22-old
+    unsquashfs -d core22-old core22-old.snap
+    rm core22-old.snap
+    snap pack core22-old/ "$(tests.nested get extra-snaps-path)"
+    rm -r core22-old
+
+    snap download --revision=21465 snapd --basename=snapd-old
+    unsquashfs -d snapd-old snapd-old.snap
+    rm snapd-old.snap
+    sed -i "s/\(version: \).*/\1'2.62.old'/" snapd-old/meta/snap.yaml
+    snap pack snapd-old/ "$(tests.nested get extra-snaps-path)"
+    rm -r snapd-old
+
+    tests.nested prepare-essential-snaps
+
+    tests.nested build-image core
+    tests.nested create-vm core
+
+restore: |
+    rm -rf {snapd,core22}-old new-snap
+    rm -f {snapd,core22}-{old,new}.snap
+
+execute: |
+    remote.exec "sudo snap wait system seed.loaded"
+
+    remote.exec "snap list snapd" | MATCH "snapd  *2.62.old "
+    remote.exec "snap list core22" | MATCH "core22  *20231123 "
+
+    remote.push snapd-new.snap
+    remote.push core22-new.snap
+
+    chg_id=$(remote.exec "sudo snap install --dangerous --no-wait snapd-new.snap")
+    remote.exec sudo snap watch "$chg_id"
+
+    boot_id="$(tests.nested boot-id)"
+    chg_id=$(remote.exec "sudo snap install --dangerous --no-wait core22-new.snap")
+    remote.wait-for reboot "${boot_id}"
+
+    remote.exec sudo snap watch "$chg_id"
