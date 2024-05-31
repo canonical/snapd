@@ -27,5 +27,4 @@ execute: |
       echo "expected error code 46 but got $err"
       exit 1
     fi
-    MATCH "internal error, please report: running \"xxx\" failed: race condition detected, snap-run can only retry once" < output.txt
-    MATCH "cannot find current revision for snap xxx: readlink $SNAP_MOUNT_DIR/xxx/current: no such file or directory" < output.txt
+    MATCH "snap \"xxx\" is not installed" < output.txt
