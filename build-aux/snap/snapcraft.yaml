@@ -305,6 +305,11 @@ parts:
       install -Dm644 -t "${CRAFT_PART_INSTALL}/usr/lib/snapd" data/completion/bash/complete.sh
       install -Dm644 -t "${CRAFT_PART_INSTALL}/usr/share/bash-completion/completions" ./data/completion/bash/snap
 
+      # TODO: For now snapd expects a renamed apparmor profile to
+      # work-around LP#1673247. We should fix that since the snapd
+      # should not need that work-around.
+      mv "${CRAFT_PART_INSTALL}/etc/apparmor.d/usr.lib.snapd.snap-confine" "${CRAFT_PART_INSTALL}/etc/apparmor.d/usr.lib.snapd.snap-confine.real"
+
       # copy helper for collecting debug output
       cp -av debug-tools/snap-debug-info.sh ${CRAFT_PART_INSTALL}/usr/lib/snapd/
 
