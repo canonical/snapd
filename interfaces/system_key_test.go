@@ -332,7 +332,7 @@ func (s *systemKeySuite) TestInterfaceSystemKeyMismatchAppArmorPromptingHappy(c 
 }
 `, testCase.prevValue)))
 
-		restore := interfaces.MockApparmorPromptingSupportedByFeatures(func(kernelFeatures []string, parserFeatures []string) (bool, string) {
+		restore := interfaces.MockApparmorPromptingSupportedByFeatures(func(apparmorFeatures *apparmor.FeaturesSupported) (bool, string) {
 			return testCase.supported, ""
 		})
 
@@ -473,7 +473,7 @@ func (s *systemKeySuite) TestSystemKeysMatch(c *C) {
 }
 
 func (s *systemKeySuite) TestSystemKeysUnmarshalSame(c *C) {
-	restore := interfaces.MockApparmorPromptingSupportedByFeatures(func(kernelFeatures []string, parserFeatures []string) (bool, string) {
+	restore := interfaces.MockApparmorPromptingSupportedByFeatures(func(apparmorFeatures *apparmor.FeaturesSupported) (bool, string) {
 		return true, ""
 	})
 	defer restore()

@@ -204,7 +204,11 @@ func WriteSystemKey(extraData SystemKeyExtraData) error {
 
 	// AppArmorPrompting should be true if the given extra data prompting value
 	// is true and if the AppArmor kernel and parser features support prompting.
-	promptingSupported, _ := apparmorPromptingSupportedByFeatures(sk.AppArmorFeatures, sk.AppArmorParserFeatures)
+	apparmorFeatures := apparmor.FeaturesSupported{
+		KernelFeatures: sk.AppArmorFeatures,
+		ParserFeatures: sk.AppArmorParserFeatures,
+	}
+	promptingSupported, _ := apparmorPromptingSupportedByFeatures(&apparmorFeatures)
 	sk.AppArmorPrompting = extraData.AppArmorPrompting && promptingSupported
 
 	sks, err := json.Marshal(sk)
@@ -295,7 +299,11 @@ func SystemKeyMismatch(extraData SystemKeyExtraData) (bool, error) {
 	// then parser mtime will differ and we'll return true anyway. If parser
 	// features are the same, then we can use the disk parser features to check
 	// if AppArmorPrompting should be set.
-	promptingSupported, _ := apparmorPromptingSupportedByFeatures(mySystemKey.AppArmorFeatures, parserFeatures)
+	apparmorFeatures := apparmor.FeaturesSupported{
+		KernelFeatures: mySystemKey.AppArmorFeatures,
+		ParserFeatures: parserFeatures,
+	}
+	promptingSupported, _ := apparmorPromptingSupportedByFeatures(&apparmorFeatures)
 	mySystemKey.AppArmorPrompting = extraData.AppArmorPrompting && promptingSupported
 
 	ok, err := SystemKeysMatch(mySystemKey, diskSystemKey)

@@ -170,6 +170,13 @@ func ParserMtime() int64 {
 	return mtime
 }
 
+// FeaturesSupported contains information about supported AppArmor kernel and
+// parser features.
+type FeaturesSupported struct {
+	KernelFeatures []string
+	ParserFeatures []string
+}
+
 // PromptingSupported returns true if prompting is supported by the system.
 // Otherwise, returns false, along with a string explaining why prompting is
 // unsupported.
@@ -182,16 +189,23 @@ func PromptingSupported() (bool, string) {
 	if err != nil {
 		return false, fmt.Sprintf("cannot check apparmor parser features: %v", err)
 	}
-	return PromptingSupportedByFeatures(kernelFeatures, parserFeatures)
+	apparmorFeatures := FeaturesSupported{
+		KernelFeatures: kernelFeatures,
+		ParserFeatures: parserFeatures,
+	}
+	return PromptingSupportedByFeatures(&apparmorFeatures)
 }
 
 // PromptingSupportedByFeatures returns whether prompting is supported by the
 // given AppArmor kernel and parser features.
-func PromptingSupportedByFeatures(kernelFeatures []string, parserFeatures []string) (bool, string) {
-	if !strutil.ListContains(kernelFeatures, "policy:permstable32:prompt") {
+func PromptingSupportedByFeatures(apparmorFeatures *FeaturesSupported) (bool, string) {
+	if apparmorFeatures == nil {
+		return false, "no apparmor features provided"
+	}
+	if !strutil.ListContains(apparmorFeatures.KernelFeatures, "policy:permstable32:prompt") {
 		return false, "apparmor kernel features do not support prompting"
 	}
-	if !strutil.ListContains(parserFeatures, "prompt") {
+	if !strutil.ListContains(apparmorFeatures.ParserFeatures, "prompt") {
 		return false, "apparmor parser does not support the prompt qualifier"
 	}
 	// TODO: return true once the prompting API is merged and ready

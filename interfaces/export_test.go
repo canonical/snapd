@@ -20,6 +20,7 @@
 package interfaces
 
 import (
+	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -82,7 +83,7 @@ var (
 	LabelExpr        = labelExpr
 )
 
-func MockApparmorPromptingSupportedByFeatures(f func(kernelFeatures []string, parserFeatures []string) (bool, string)) (restore func()) {
+func MockApparmorPromptingSupportedByFeatures(f func(apparmorFeatures *apparmor.FeaturesSupported) (bool, string)) (restore func()) {
 	restore = testutil.Backup(&apparmorPromptingSupportedByFeatures)
 	apparmorPromptingSupportedByFeatures = f
 	return restore
