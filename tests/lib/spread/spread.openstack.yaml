@@ -1,3 +1,10 @@
+environment:
+    HTTP_PROXY: 'http://squid.internal:3128'
+    HTTPS_PROXY: 'http://squid.internal:3128'
+    http_proxy: 'http://squid.internal:3128'
+    https_proxy: 'http://squid.internal:3128'
+
+backends:
     openstack:
         key: '$(HOST: echo "$SPREAD_OPENSTACK_ENV")'
         plan: staging-cpu2-ram4-disk20
