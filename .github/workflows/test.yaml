@@ -591,99 +591,123 @@ jobs:
             backend: google-distro-1
             systems: 'amazon-linux-2-64 amazon-linux-2023-64'
             tests: 'tests/...'
+            nested: false
           - group: arch-linux
             backend: google-distro-2
             systems: 'arch-linux-64'
             tests: 'tests/...'
+            nested: false
           - group: centos
             backend: google-distro-2
             systems: 'centos-7-64 centos-8-64 centos-9-64'
             tests: 'tests/...'
+            nested: false
           - group: debian-req
             backend: google-distro-1
             systems: 'debian-11-64'
             tests: 'tests/...'
+            nested: false
           - group: debian-no-req
             backend: google-distro-1
             systems: 'debian-12-64 debian-sid-64'
             tests: 'tests/...'
+            nested: false
           - group: fedora
             backend: google-distro-1
             systems: 'fedora-38-64 fedora-39-64'
             tests: 'tests/...'
+            nested: false
           - group: opensuse
             backend: google-distro-2
             systems: 'opensuse-15.5-64 opensuse-tumbleweed-64'
             tests: 'tests/...'
+            nested: false
           - group: ubuntu-trusty-xenial
             backend: google
             systems: 'ubuntu-14.04-64 ubuntu-16.04-64'
             tests: 'tests/...'
+            nested: false
           - group: ubuntu-bionic
             backend: google
             systems: 'ubuntu-18.04-32 ubuntu-18.04-64'
             tests: 'tests/...'
+            nested: false
           - group: ubuntu-focal-jammy
             backend: google
             systems: 'ubuntu-20.04-64 ubuntu-22.04-64'
             tests: 'tests/...'
+            nested: false
           - group: ubuntu-no-lts
             backend: google
             systems: 'ubuntu-23.10-64'
             tests: 'tests/...'
+            nested: false
           - group: ubuntu-daily
             backend: google
             systems: 'ubuntu-24.04-64'
             tests: 'tests/...'
+            nested: false
           - group: ubuntu-core-16
             backend: google-core
             systems: 'ubuntu-core-16-64'
             tests: 'tests/...'
+            nested: false
           - group: ubuntu-core-18
             backend: google-core
             systems: 'ubuntu-core-18-64'
             tests: 'tests/...'
+            nested: false
           - group: ubuntu-core-20
             backend: google-core
             systems: 'ubuntu-core-20-64'
             tests: 'tests/...'
+            nested: false
           - group: ubuntu-core-22
             backend: google-core
             systems: 'ubuntu-core-22-64'
             tests: 'tests/...'
+            nested: false
           - group: ubuntu-core-24
             backend: google-core
             systems: 'ubuntu-core-24-64'
             tests: 'tests/...'
+            nested: false
           - group: ubuntu-arm
             backend: google-arm
             systems: 'ubuntu-20.04-arm-64 ubuntu-core-22-arm-64'
             tests: 'tests/...'
+            nested: false
           - group: ubuntu-secboot
             backend: google
             systems: 'ubuntu-secboot-20.04-64'
             tests: 'tests/...'
+            nested: false
 
           - group: nested-ubuntu-16.04
             backend: google-nested
             systems: 'ubuntu-16.04-64'
             tests: 'tests/nested/...'
+            nested: true
           - group: nested-ubuntu-18.04
             backend: google-nested
             systems: 'ubuntu-18.04-64'
             tests: 'tests/nested/...'
+            nested: true
           - group: nested-ubuntu-20.04
             backend: google-nested
             systems: 'ubuntu-20.04-64'
             tests: 'tests/nested/...'
+            nested: true
           - group: nested-ubuntu-22.04
             backend: google-nested
             systems: 'ubuntu-22.04-64'
             tests: 'tests/nested/...'
+            nested: true
           - group: nested-ubuntu-24.04
             backend: google-nested
             systems: 'ubuntu-24.04-64'
             tests: 'tests/nested/...'
+            nested: true
     steps:
     - name: Cleanup job workspace
       id: cleanup-job-workspace
@@ -738,7 +762,7 @@ jobs:
           fi
 
     - name: Run spread tests
-      if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread') && ( !startsWith(matrix.group, 'nested-') || contains(github.event.pull_request.labels.*.name, 'Run nested') )"
+      if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread') || ( ${{ matrix.nested == 'true' }} && !contains(steps.collect-pr-labels.outputs.labels, 'Run nested') )"
       env:
           SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
       run: |
@@ -747,6 +771,11 @@ jobs:
           set -x
           SPREAD=spread
           if [[ "${{ matrix.group }}" =~ nested- ]]; then
+            export NESTED_BUILD_SNAPD_FROM_CURRENT=true
+            export NESTED_ENABLE_KVM=true
+          fi
+
+          if [ "${{ matrix.nested }}" = true ]; then
             export NESTED_BUILD_SNAPD_FROM_CURRENT=true
             export NESTED_ENABLE_KVM=true
           fi
