@@ -156,7 +156,7 @@ func (s componentStack) peek() patternComponent {
 // PathPattern is an iterator which yields expanded path patterns.
 type PathPattern struct {
 	original   string
-	components patternComponent // really a patternSequence
+	components patternSequence
 	renderBuf  bytes.Buffer
 }
 
@@ -184,13 +184,12 @@ func (p *PathPattern) parse(pattern string) error {
 	}
 	// Whenever a new group is encountered, it will be the next item in the
 	// current sequence, but we won't be finished with this sequence until the
-	// group has been fully handled, pushed to the sequence, and any future
-	// components are pushed to the sequence, so save the sequence on a stack.
+	// group has been completed and any future components are pushed to the
+	// sequence, so save the sequence on a stack.
 	stack := componentStack{}
-	// Need currentSequence to be patternComponent so this variable can be used
-	// to refer to sequences which have been popped off the stack.
-	var currentSequence patternComponent
-	currentSequence = &patternSequence{}
+	// Create the root sequence and push it to the stack.
+	rootSequence := &patternSequence{}
+	stack.push(rootSequence)
 	depth := 0
 	reader := strings.NewReader(pattern)
 	// index of first non-special rune after most recent special rune
@@ -204,9 +203,9 @@ func (p *PathPattern) parse(pattern string) error {
 		r, size, err := reader.ReadRune()
 		if err != nil {
 			// No more runes.
-			// Append final literal, which may be empty.
-			currentLiteral := patternLiteral(pattern[currentStartIndex:])
-			currentSequence.add(currentLiteral)
+			// Append final literal to the last sequence.
+			literal := patternLiteral(pattern[currentStartIndex:])
+			stack.peek().add(literal)
 			break
 		}
 		nextIndex += size
@@ -216,53 +215,49 @@ func (p *PathPattern) parse(pattern string) error {
 			if depth >= maxExpandedPatterns {
 				return fmt.Errorf("invalid path pattern: nested group depth exceeded maximum number of expanded path patterns (%d): %q", maxExpandedPatterns, pattern)
 			}
-			// Get literal between the last special character and the '{'
+			// A new group has been spotted, so add the last literal to the
+			// current sequence, then create and push a new group, then create
+			// and push a new sequence, the latter of which will be the first
+			// option in the new group.
 			literal := patternLiteral(pattern[currentStartIndex:currentIndex])
 			currentStartIndex = nextIndex
-			// Add the literal to the current sequence
-			currentSequence.add(literal)
-			// Add the current sequence to the stack, since we're about to enter
-			// a new group
-			stack.push(currentSequence)
-			// Create a new group and add it to the stack
-			newGroup := &patternGroup{}
-			stack.push(newGroup)
-			// Prepare an empty sequence to be the first in the new group
-			currentSequence = &patternSequence{}
+			stack.peek().add(literal)
+			stack.push(&patternGroup{})
+			stack.push(&patternSequence{})
 		case ',':
 			if depth == 0 {
 				// Ignore commas outside of groups
 				break
 			}
-			// Get literal between the last special character and the ','
+			// A ',' marks the end of the current option in the group (the top
+			// sequence on the stack), so add the last literal to it, then
+			// complete that sequence by popping it and adding it to its parent
+			// group, which is now the top of the stack, and start a new sequence
+			// to represent the next option in the group.
 			literal := patternLiteral(pattern[currentStartIndex:currentIndex])
 			currentStartIndex = nextIndex
-			// Add the literal to the current sequence
-			currentSequence.add(literal)
-			// The current sequence is now complete, add it to the group we're
-			// currently inside of
-			stack.peek().add(currentSequence)
-			// Prepare an empty sequence to be the next in the group
-			currentSequence = &patternSequence{}
+			stack.peek().add(literal)
+			completedSequence := stack.pop()
+			stack.peek().add(completedSequence)
+			stack.push(&patternSequence{})
 		case '}':
 			depth--
 			if depth < 0 {
 				return fmt.Errorf("invalid path pattern: unmatched '}' character: %q", pattern)
 			}
-			// Get literal from the last special character to the '}'
-			currentLiteral := patternLiteral(pattern[currentStartIndex:currentIndex])
+			// A '}' marks the end of the current group (and its final option)
+			// so add the last literal to the top sequence on the stack, then
+			// complete that sequence by popping it and adding it to its parent
+			// group, which is now the top of the stack, the complete that group
+			// by popping it and adding it to its parent sequence, which is
+			// itself now the top of the stack.
+			literal := patternLiteral(pattern[currentStartIndex:currentIndex])
 			currentStartIndex = nextIndex
-			// Add the literal to the current sequence
-			currentSequence.add(currentLiteral)
-			// The current sequence and group we're inside of are both now
-			// complete, so pop the group off the stack
+			stack.peek().add(literal)
+			completedSequence := stack.pop()
+			stack.peek().add(completedSequence)
 			completedGroup := stack.pop()
-			// Add the completed sequence to the group we're completing
-			completedGroup.add(currentSequence)
-			// Pop the sequence that the completed group was inside of
-			currentSequence = stack.pop()
-			// Add the completed group to the containing sequence
-			currentSequence.add(completedGroup)
+			stack.peek().add(completedGroup)
 		case '\\':
 			// Skip next rune, already verified can't have trailing '/'
 			_, size, _ = reader.ReadRune()
@@ -274,15 +269,15 @@ func (p *PathPattern) parse(pattern string) error {
 	if depth != 0 {
 		return fmt.Errorf("invalid path pattern: unmatched '{' character: %q", pattern)
 	}
-	// currentSequence is sequence for complete path
-	if count := currentSequence.NumExpansions(); count > maxExpandedPatterns {
+	// The rootSequence is not the only component on the stack
+	if count := rootSequence.NumExpansions(); count > maxExpandedPatterns {
 		return fmt.Errorf("invalid path pattern: exceeded maximum number of expanded path patterns (%d): %q expands to %d patterns", maxExpandedPatterns, pattern, count)
 	}
 	if !doublestar.ValidatePattern(pattern) {
 		return fmt.Errorf("invalid path pattern: %q", pattern)
 	}
 	p.original = pattern
-	p.components = currentSequence
+	p.components = *rootSequence
 	return nil
 }
 
