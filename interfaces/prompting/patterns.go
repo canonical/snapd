@@ -79,7 +79,7 @@ type patternSequence []patternComponent
 
 func (s patternSequence) Next() bool {
 	for i := len(s) - 1; i >= 0; i-- {
-		if !(s)[i].Next() {
+		if !s[i].Next() {
 			return false
 		}
 	}
