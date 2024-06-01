@@ -41,12 +41,11 @@ type Constraints struct {
 // ValidateForInterface returns nil if the constraints are valid for the given
 // interface, otherwise returns an error.
 func (c *Constraints) ValidateForInterface(iface string) error {
-	prefix := "invalid constraints"
 	if c.PathPattern == nil {
-		return fmt.Errorf("%s: no path pattern", prefix)
+		return fmt.Errorf("invalid constraints: no path pattern")
 	}
 	if err := c.validatePermissions(iface); err != nil {
-		return fmt.Errorf("%s: %w", prefix, err)
+		return fmt.Errorf("invalid constraints: %w", err)
 	}
 	return nil
 }
@@ -87,7 +86,11 @@ func (c *Constraints) Match(path string) (bool, error) {
 	if c.PathPattern == nil {
 		return false, fmt.Errorf("invalid constraints: no path pattern")
 	}
-	return PathPatternMatch(c.PathPattern.String(), path)
+	match, err := PathPatternMatch(c.PathPattern.String(), path)
+	if err != nil {
+		return false, fmt.Errorf("invalid constraints: %w", err)
+	}
+	return match, nil
 }
 
 // RemovePermission removes every instance of the given permission from the
