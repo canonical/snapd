@@ -751,7 +751,7 @@ jobs:
             export NESTED_ENABLE_KVM=true
           fi
 
-          if [ "${{ matrix.nested }}" = true ]; then
+          if [[ "${{ matrix.group }}" =~ nested- ]]; then
             export NESTED_BUILD_SNAPD_FROM_CURRENT=true
             export NESTED_ENABLE_KVM=true
           fi
