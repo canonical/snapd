@@ -744,8 +744,7 @@ func CloudInitStatus() (CloudInitState, error) {
 	}
 
 	// if it was explicitly disabled via the kernel commandline, then
-	// return special status for that, if commandline is unavailable,
-	// assume not disabled
+	// return special status for that
 	cmdline, err := kcmdline.KeyValues("cloud-init")
 	if err != nil {
 		logger.Noticef("WARNING: cannot obtain cloud-init from kernel command line: %v", err)
