@@ -245,7 +245,7 @@ func (s *State) AddNotice(userID *uint32, noticeType NoticeType, key string, opt
 	if now.IsZero() {
 		now = timeNow()
 		/**
-		 *Ensure that two notices never have the same sent time.
+		 * Ensure that two notices never have the same sent time.
 		 *
 		 * Since the Notices API receives an "after:" parameter with the
 		 * date and time of the last received notice to filter all the
