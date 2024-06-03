@@ -26,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -48,6 +49,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/storetest"
@@ -526,7 +528,7 @@ version: %d
 	return snaptest.MakeTestSnapWithFiles(c, yaml, nil)
 }
 
-func (s *assertMgrSuite) prereqSnapAssertions(c *C, revisions ...int) (paths map[int]string, digests map[int]string) {
+func (s *assertMgrSuite) prereqSnapAssertions(c *C, provenance string, revisions ...int) (paths map[int]string, digests map[int]string) {
 	headers := map[string]interface{}{
 		"series":       "16",
 		"snap-id":      "snap-id-1",
@@ -534,6 +536,17 @@ func (s *assertMgrSuite) prereqSnapAssertions(c *C, revisions ...int) (paths map
 		"publisher-id": s.dev1Acct.AccountID(),
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}
+	if provenance != "" {
+		headers["revision-authority"] = []interface{}{
+			map[string]interface{}{
+				"account-id": s.dev1Acct.AccountID(),
+				"provenance": []interface{}{
+					provenance,
+				},
+			},
+		}
+	}
+
 	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
 	c.Assert(err, IsNil)
 	err = s.storeSigning.Add(snapDecl)
@@ -557,7 +570,13 @@ func (s *assertMgrSuite) prereqSnapAssertions(c *C, revisions ...int) (paths map
 			"developer-id":  s.dev1Acct.AccountID(),
 			"timestamp":     time.Now().Format(time.RFC3339),
 		}
-		snapRev, err := s.storeSigning.Sign(asserts.SnapRevisionType, headers, nil, "")
+		signer := assertstest.SignerDB(s.storeSigning)
+		if provenance != "" {
+			headers["provenance"] = provenance
+			signer = s.dev1Signing
+		}
+
+		snapRev, err := signer.Sign(asserts.SnapRevisionType, headers, nil, "")
 		c.Assert(err, IsNil)
 		err = s.storeSigning.Add(snapRev)
 		c.Assert(err, IsNil)
@@ -566,8 +585,64 @@ func (s *assertMgrSuite) prereqSnapAssertions(c *C, revisions ...int) (paths map
 	return paths, digests
 }
 
+func (s *assertMgrSuite) prereqComponentAssertions(c *C, provenance string, snapRev, compRev snap.Revision) (compPath string, digest string) {
+	const (
+		resourceName  = "test-component"
+		snapID        = "snap-id-1"
+		componentYaml = `component: snap+test-component
+type: test
+version: 1.0.2
+`
+	)
+
+	compPath = snaptest.MakeTestComponentWithFiles(c, resourceName+".comp", componentYaml, nil)
+
+	digest, size, err := asserts.SnapFileSHA3_384(compPath)
+	c.Assert(err, IsNil)
+
+	revHeaders := map[string]interface{}{
+		"snap-id":           snapID,
+		"resource-name":     resourceName,
+		"resource-sha3-384": digest,
+		"resource-revision": compRev.String(),
+		"resource-size":     strconv.Itoa(int(size)),
+		"developer-id":      s.dev1Acct.AccountID(),
+		"timestamp":         time.Now().Format(time.RFC3339),
+	}
+
+	signer := assertstest.SignerDB(s.storeSigning)
+	if provenance != "" {
+		revHeaders["provenance"] = provenance
+		signer = s.dev1Signing
+	}
+
+	resourceRev, err := signer.Sign(asserts.SnapResourceRevisionType, revHeaders, nil, "")
+	c.Assert(err, IsNil)
+	err = s.storeSigning.Add(resourceRev)
+	c.Assert(err, IsNil)
+
+	pairHeaders := map[string]interface{}{
+		"snap-id":           snapID,
+		"resource-name":     resourceName,
+		"resource-revision": compRev.String(),
+		"snap-revision":     snapRev.String(),
+		"developer-id":      s.dev1Acct.AccountID(),
+		"timestamp":         time.Now().Format(time.RFC3339),
+	}
+	if provenance != "" {
+		pairHeaders["provenance"] = provenance
+	}
+
+	resourcePair, err := signer.Sign(asserts.SnapResourcePairType, pairHeaders, nil, "")
+	c.Assert(err, IsNil)
+	err = s.storeSigning.Add(resourcePair)
+	c.Assert(err, IsNil)
+
+	return compPath, digest
+}
+
 func (s *assertMgrSuite) TestDoFetch(c *C) {
-	_, digests := s.prereqSnapAssertions(c, 10)
+	_, digests := s.prereqSnapAssertions(c, "", 10)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -588,7 +663,7 @@ func (s *assertMgrSuite) TestDoFetch(c *C) {
 }
 
 func (s *assertMgrSuite) TestFetchIdempotent(c *C) {
-	_, digests := s.prereqSnapAssertions(c, 10, 11)
+	_, digests := s.prereqSnapAssertions(c, "", 10, 11)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -744,7 +819,7 @@ func (s *assertMgrSuite) setupModelAndStore(c *C) *asserts.Store {
 }
 
 func (s *assertMgrSuite) TestValidateSnap(c *C) {
-	paths, digests := s.prereqSnapAssertions(c, 10)
+	paths, digests := s.prereqSnapAssertions(c, "", 10)
 	snapPath := paths[10]
 
 	s.state.Lock()
@@ -791,7 +866,7 @@ func (s *assertMgrSuite) TestValidateSnap(c *C) {
 }
 
 func (s *assertMgrSuite) TestValidateSnapStoreNotFound(c *C) {
-	paths, digests := s.prereqSnapAssertions(c, 10)
+	paths, digests := s.prereqSnapAssertions(c, "", 10)
 
 	snapPath := paths[10]
 
@@ -883,7 +958,7 @@ func (s *assertMgrSuite) TestValidateSnapNotFound(c *C) {
 }
 
 func (s *assertMgrSuite) TestValidateSnapCrossCheckFail(c *C) {
-	paths, _ := s.prereqSnapAssertions(c, 10)
+	paths, _ := s.prereqSnapAssertions(c, "", 10)
 
 	snapPath := paths[10]
 
@@ -5215,4 +5290,83 @@ func (s *assertMgrSuite) TestAspectBundle(c *C) {
 	c.Check(bundle.Account, Equals, s.dev1AcctKey.AccountID())
 	c.Check(bundle.Name, Equals, "foo")
 	c.Check(bundle.Schema, NotNil)
+}
+
+func (s *assertMgrSuite) TestValidateComponent(c *C) {
+	const provenance = ""
+	s.testValidateComponent(c, provenance)
+}
+
+func (s *assertMgrSuite) TestValidateComponentProvenance(c *C) {
+	const provenance = "provenance"
+	s.testValidateComponent(c, provenance)
+}
+
+func (s *assertMgrSuite) testValidateComponent(c *C, provenance string) {
+	snapRev, compRev := snap.R(10), snap.R(20)
+
+	paths, _ := s.prereqSnapAssertions(c, provenance, 10)
+	snapPath := paths[10]
+
+	compPath, compDigest := s.prereqComponentAssertions(c, provenance, snapRev, compRev)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// have a model and the store assertion available
+	storeAs := s.setupModelAndStore(c)
+	err := s.storeSigning.Add(storeAs)
+	c.Assert(err, IsNil)
+
+	chg := s.state.NewChange("install", "...")
+	t := s.state.NewTask("validate-component", "Fetch and check snap assertions")
+	snapsup := snapstate.SnapSetup{
+		SnapPath:           snapPath,
+		UserID:             0,
+		ExpectedProvenance: provenance,
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			SnapID:   "snap-id-1",
+			Revision: snapRev,
+		},
+	}
+	compsup := snapstate.ComponentSetup{
+		CompPath: compPath,
+		CompSideInfo: &snap.ComponentSideInfo{
+			Component: naming.NewComponentRef("foo", "test-component"),
+			Revision:  compRev,
+		},
+	}
+	t.Set("snap-setup", snapsup)
+	t.Set("component-setup", compsup)
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	defer s.se.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+
+	db := assertstate.DB(s.state)
+
+	headers := map[string]string{
+		"resource-sha3-384": compDigest,
+		"resource-name":     "test-component",
+		"snap-id":           "snap-id-1",
+	}
+	if provenance != "" {
+		headers["provenance"] = provenance
+	}
+
+	a, err := db.Find(asserts.SnapResourceRevisionType, headers)
+	c.Assert(err, IsNil)
+	c.Check(a.(*asserts.SnapResourceRevision).ResourceRevision(), Equals, 20)
+
+	// TODO: remove this check if we decide we don't need it
+	// store assertion was also fetched
+	_, err = db.Find(asserts.StoreType, map[string]string{
+		"store": "my-brand-store",
+	})
+	c.Assert(err, IsNil)
 }
