@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2020 Canonical Ltd
+ * Copyright (C) 2014-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -435,6 +435,14 @@ type MockTrustedAssetsMixin struct {
 	CommandLineErr             error
 }
 
+type MockEfiLoadOptionMixin struct {
+	EfiLoadOptionErr  error
+	EfiLoadOptionDesc string
+	EfiLoadOptionPath string
+	EfiLoadOptionData []byte
+	SeenUpdatedAssets [][]string
+}
+
 // MockTrustedAssetsBootloader mocks a bootloader implementing the
 // bootloader.TrustedAssetsBootloader interface.
 type MockTrustedAssetsBootloader struct {
@@ -443,9 +451,31 @@ type MockTrustedAssetsBootloader struct {
 	MockTrustedAssetsMixin
 }
 
+type MockTrustedAssetsBootloaderWithEfi struct {
+	*MockBootloader
+
+	MockTrustedAssetsMixin
+	MockEfiLoadOptionMixin
+}
+
 func (b *MockBootloader) WithTrustedAssets() *MockTrustedAssetsBootloader {
 	return &MockTrustedAssetsBootloader{
 		MockBootloader: b,
+	}
+}
+
+func (b *MockBootloader) WithTrustedAssetsAndEfi() *MockTrustedAssetsBootloaderWithEfi {
+	return &MockTrustedAssetsBootloaderWithEfi{
+		MockBootloader: b,
+	}
+}
+
+func (b *MockEfiLoadOptionMixin) ParametersForEfiLoadOption(updatedAssets []string) (string, string, []byte, error) {
+	b.SeenUpdatedAssets = append(b.SeenUpdatedAssets, updatedAssets)
+	if b.EfiLoadOptionErr != nil {
+		return "", "", nil, b.EfiLoadOptionErr
+	} else {
+		return b.EfiLoadOptionDesc, b.EfiLoadOptionPath, b.EfiLoadOptionData, nil
 	}
 }
 

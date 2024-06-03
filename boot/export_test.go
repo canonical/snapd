@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2019 Canonical Ltd
+ * Copyright (C) 2014-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -22,6 +22,9 @@ package boot
 import (
 	"fmt"
 	"sync/atomic"
+
+	"github.com/canonical/go-efilib"
+	"github.com/canonical/go-efilib/linux"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
@@ -94,19 +97,21 @@ func (t *TrackedAsset) GetHash() string {
 	return t.hash
 }
 
-func (o *TrustedAssetsInstallObserver) CurrentTrustedBootAssetsMap() BootAssetsMap {
+type TrustedAssetsInstallObserverImpl = trustedAssetsInstallObserverImpl
+
+func (o *trustedAssetsInstallObserverImpl) CurrentTrustedBootAssetsMap() BootAssetsMap {
 	return o.currentTrustedBootAssetsMap()
 }
 
-func (o *TrustedAssetsInstallObserver) CurrentTrustedRecoveryBootAssetsMap() BootAssetsMap {
+func (o *trustedAssetsInstallObserverImpl) CurrentTrustedRecoveryBootAssetsMap() BootAssetsMap {
 	return o.currentTrustedRecoveryBootAssetsMap()
 }
 
-func (o *TrustedAssetsInstallObserver) CurrentDataEncryptionKey() keys.EncryptionKey {
+func (o *trustedAssetsInstallObserverImpl) CurrentDataEncryptionKey() keys.EncryptionKey {
 	return o.dataEncryptionKey
 }
 
-func (o *TrustedAssetsInstallObserver) CurrentSaveEncryptionKey() keys.EncryptionKey {
+func (o *trustedAssetsInstallObserverImpl) CurrentSaveEncryptionKey() keys.EncryptionKey {
 	return o.saveEncryptionKey
 }
 
@@ -284,4 +289,34 @@ func MockWriteModelToUbuntuBoot(mock func(*asserts.Model) error) (restore func()
 func EnableTestingRebootFunction() (restore func()) {
 	testingRebootItself = true
 	return func() { testingRebootItself = false }
+}
+
+var (
+	ConstructLoadOption      = constructLoadOption
+	SetEfiBootOptionVariable = setEfiBootOptionVariable
+	SetEfiBootOrderVariable  = setEfiBootOrderVariable
+)
+
+func MockEfiListVariables(f func() ([]efi.VariableDescriptor, error)) (restore func()) {
+	restore = testutil.Backup(&efiListVariables)
+	efiListVariables = f
+	return restore
+}
+
+func MockEfiReadVariable(f func(name string, guid efi.GUID) ([]byte, efi.VariableAttributes, error)) (restore func()) {
+	restore = testutil.Backup(&efiReadVariable)
+	efiReadVariable = f
+	return restore
+}
+
+func MockEfiWriteVariable(f func(name string, guid efi.GUID, attrs efi.VariableAttributes, data []byte) error) (restore func()) {
+	restore = testutil.Backup(&efiWriteVariable)
+	efiWriteVariable = f
+	return restore
+}
+
+func MockLinuxFilePathToDevicePath(f func(path string, mode linux.FilePathToDevicePathMode) (out efi.DevicePath, err error)) (restore func()) {
+	restore = testutil.Backup(&linuxFilePathToDevicePath)
+	linuxFilePathToDevicePath = f
+	return restore
 }
