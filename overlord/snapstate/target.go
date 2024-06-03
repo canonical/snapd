@@ -104,12 +104,9 @@ type StoreSnap struct {
 	SkipIfPresent bool
 }
 
-// verify that storeInstallGoal implements the installGoal interface
-var _ installGoal = &storeInstallGoal{}
-
 // StoreGoal creates a new storeInstallGoal, which implements installGoal to
 // install snaps from the store.
-func StoreGoal(snaps ...StoreSnap) *storeInstallGoal {
+func StoreGoal(snaps ...StoreSnap) installGoal {
 	mapping := make(map[string]StoreSnap, len(snaps))
 	for _, sn := range snaps {
 		if _, ok := mapping[sn.InstanceName]; ok {
@@ -510,12 +507,9 @@ type pathInstallGoal struct {
 	sideInfo *snap.SideInfo
 }
 
-// verify that pathInstallGoal implements the installGoal interface
-var _ installGoal = &pathInstallGoal{}
-
 // PathInstallGoal creates a new pathInstallGoal from the given instance name,
 // path, and side info.
-func PathInstallGoal(instanceName, path string, si *snap.SideInfo, opts RevisionOptions) *pathInstallGoal {
+func PathInstallGoal(instanceName, path string, si *snap.SideInfo, opts RevisionOptions) installGoal {
 	return &pathInstallGoal{
 		instanceName: instanceName,
 		path:         path,
