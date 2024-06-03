@@ -220,11 +220,6 @@ func (m *InterfaceManager) setupProfilesForAppSet(task *state.Task, appSet *inte
 	snapInfo := appSet.Info()
 	snapName := appSet.InstanceName()
 
-	appSet, err := appSetForTask(task, snapInfo)
-	if err != nil {
-		return fmt.Errorf("building app set for snap %q: %v", snapName, err)
-	}
-
 	// The snap may have been updated so perform the following operation to
 	// ensure that we are always working on the correct state:
 	//
