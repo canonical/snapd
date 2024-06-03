@@ -6,7 +6,7 @@ go 1.18
 replace maze.io/x/crypto => github.com/snapcore/maze.io-x-crypto v0.0.0-20190131090603-9b94c9afe066
 
 require (
-	github.com/canonical/go-efilib v0.3.1-0.20220815143333-7e5151412e93 // indirect
+	github.com/canonical/go-efilib v0.4.0
 	github.com/canonical/go-sp800.90a-drbg v0.0.0-20210314144037-6eeb1040d6c3 // indirect
 	github.com/canonical/go-tpm2 v0.0.0-20210827151749-f80ff5afff61
 	github.com/coreos/go-systemd v0.0.0-20180511133405-39ca1b05acc7
@@ -24,6 +24,7 @@ require (
 	golang.org/x/crypto v0.0.0-20220829220503-c86fa9a7ed90
 	golang.org/x/net v0.9.0 // indirect
 	golang.org/x/sys v0.7.0
+	golang.org/x/text v0.9.0
 	golang.org/x/xerrors v0.0.0-20220609144429-65e65417b02f
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
 	gopkg.in/macaroon.v1 v1.0.0-20150121114231-ab3940c6c165

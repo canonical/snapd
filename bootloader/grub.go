@@ -690,3 +690,47 @@ func (g *grub) BootChains(runBl Bootloader, kernelPath string) ([][]BootFile, er
 
 	return chains, nil
 }
+
+// ParametersForEfiLoadOption returns a serialized load option for the
+// shim binary. It should be called on a UefiBootloader.
+// updatedAssets is a list of assets that were installed/updated. This
+// only expects trusted assets.
+func (g *grub) ParametersForEfiLoadOption(updatedAssets []string) (description string, assetPath string, optionalData []byte, err error) {
+	if !g.recovery {
+		return "", "", nil, fmt.Errorf("internal error: run grub does not provide a boot entry")
+	}
+
+	knownAssets, err := g.getGrubBootAssetsForArch()
+	if err != nil {
+		return "", "", nil, err
+	}
+
+	foundFallbackShim := false
+	foundShim := false
+	// XXX: it would be nice to also check for fb.efi. However it
+	// is not part of a trusted boot chain, so we will not appear
+	// in updatedAssets
+
+	// Let's look for the shim binary
+	for _, updated := range updatedAssets {
+		if updated == knownAssets.shimBinary.Id() {
+			foundShim = true
+		}
+		if updated == knownAssets.defaultShimBinary.Id() {
+			foundFallbackShim = true
+		}
+	}
+
+	if foundShim {
+		assetPath = filepath.Join(g.rootdir, knownAssets.shimBinary.path)
+	} else if foundFallbackShim {
+		assetPath = filepath.Join(g.rootdir, knownAssets.defaultShimBinary.path)
+	} else {
+		return "", "", nil, ErrNoBootChainFound
+	}
+
+	description = "ubuntu"
+	optionalData = nil
+
+	return description, assetPath, optionalData, nil
+}

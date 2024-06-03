@@ -44,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/restart"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/standby"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snapdenv"
@@ -52,6 +53,7 @@ import (
 )
 
 var ErrRestartSocket = fmt.Errorf("daemon stop requested to wait for socket activation")
+var ErrNoFailureRecoveryNeeded = fmt.Errorf("no failure recovery needed")
 
 var systemdSdNotify = systemd.SdNotify
 
@@ -342,6 +344,10 @@ func (d *Daemon) Start() error {
 	}
 	// now perform expensive overlord/manages initialization
 	if err := d.overlord.StartUp(); err != nil {
+		if errors.Is(err, snapstate.ErrUnexpectedRuntimeRestart) {
+			logger.Noticef("detected failure recovery context, but no recovery needed")
+			return ErrNoFailureRecoveryNeeded
+		}
 		return err
 	}
 

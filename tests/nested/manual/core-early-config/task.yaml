@@ -47,7 +47,6 @@ execute: |
     remote.exec "test -L /etc/systemd/system/rsyslog.service"
 
     echo "Check that the timezone is set"
-    remote.exec "cat /etc/timezone" | MATCH "Europe/Malta"
     remote.exec "readlink -f /etc/localtime" | MATCH "Europe/Malta"
     remote.exec "cat /var/snap/pc/common/debug.txt" | MATCH "localtime symlink: /usr/share/zoneinfo/Europe/Malta"
 

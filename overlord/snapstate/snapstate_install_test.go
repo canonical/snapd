@@ -6018,3 +6018,42 @@ func (s *snapmgrTestSuite) TestInstallPathManySplitEssentialWithoutSharedBased(c
 	c.Check(chg.IsReady(), Equals, true)
 	c.Check(chg.Status(), Equals, state.DoneStatus)
 }
+
+func (s *snapmgrTestSuite) TestInstallManyNoSnaps(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// try to install an empty list of snaps
+	_, _, err := snapstate.InstallMany(s.state, nil, nil, s.user.ID, nil)
+	c.Check(err, ErrorMatches, "no install/refresh information results from the store")
+	c.Check(err, FitsTypeOf, &store.SnapActionError{})
+}
+
+func (s *snapmgrTestSuite) TestInstallNoResults(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.ReplaceStore(s.state, noResultsStore{fakeStore: s.fakeStore})
+
+	_, err := snapstate.Install(context.Background(), s.state, "snap", nil, 0, snapstate.Flags{})
+	c.Check(err, ErrorMatches, `unexpectedly empty response from the server \(try again later\)`)
+
+	// note that this error is different than the one returned by InstallMany
+	// under the same conditions
+	c.Check(err, testutil.ErrorIs, snapstate.ErrMissingExpectedResult)
+}
+
+func (s *snapmgrTestSuite) TestInstallManyNoResults(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.ReplaceStore(s.state, noResultsStore{fakeStore: s.fakeStore})
+
+	_, _, err := snapstate.InstallMany(s.state, []string{"snap"}, nil, 0, nil)
+	c.Check(err, ErrorMatches, "no install/refresh information results from the store")
+
+	// normally using errors.Is would be preferred, but the daemon package
+	// contains a large switch on the error type, so we need to ensure that the
+	// error isn't wrapped
+	c.Check(err, FitsTypeOf, &store.SnapActionError{})
+}

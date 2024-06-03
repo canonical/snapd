@@ -797,6 +797,11 @@ func (m *SnapManager) StartUp() error {
 	// the set of inhibited snaps is changed.
 	m.changeCallbackID = m.state.AddChangeStatusChangedHandler(processInhibitedAutoRefresh)
 
+	if CheckExpectedRestart(m.state) == ErrUnexpectedRuntimeRestart {
+		logger.Noticef("detected a restart at runtime without a corresponding snapd change")
+		return ErrUnexpectedRuntimeRestart
+	}
+
 	return nil
 }
 

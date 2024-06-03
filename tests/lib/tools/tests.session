@@ -249,7 +249,7 @@ main() {
 
 	# When systemd version is higher than 252 we use systemd-run to execute
 	# In other scenarios we use the older approach: bustctl with the dbus monitor
-	if [ "$(systemctl --version | awk '/systemd [0-9]+/ { print $2 }')" -gt 252 ]; then
+	if [ "$(systemctl --version | awk '/systemd [0-9]+/ { print $2 }' | cut -f1 -d"~")" -gt 252 ]; then
 		local selinux_context_arg=""
 		if os.query is-fedora || os.query is-centos; then
 			selinux_context_arg="--property SELinuxContext=unconfined_u:unconfined_r:unconfined_t:s0"
@@ -354,7 +354,9 @@ BEGIN {
 	selinux_context_arg=
 	case $SPREAD_SYSTEM in
 		fedora-*|centos-*)
-			if [ "$(systemctl --version | head -n 1 | awk '{ print $2 }')" -gt 219 ]; then
+			local systemd_ver
+			systemd_ver="$(systemctl --version | awk '/systemd [0-9]+/ { print $2 }' | cut -f1 -d"~")"
+			if [ "$systemd_ver" -gt 219 ]; then
 				selinux_context_arg="SELinuxContext s unconfined_u:unconfined_r:unconfined_t:s0"
 			fi
 			;;

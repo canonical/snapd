@@ -87,7 +87,8 @@ execute: |
     fi
 
     tags_are_sticky=0
-    if [ "$(systemctl --version | awk '/systemd [0-9]+/ { print $2 }')" -ge 247 ]; then
+    systemd_ver="$(systemctl --version | awk '/systemd [0-9]+/ { print $2 }' | cut -f1 -d"~")"
+    if [ "$systemd_ver" -ge 247 ]; then
         # with systemd versions 247+, the TAGS are sticky, but CURRENT_TAGS is
         # updated to reflect the latest state of DB
         tags_are_sticky=1

@@ -294,11 +294,19 @@ func (s *deviceMgrGadgetSuite) testUpdateGadgetSimple(c *C, grade string, encryp
 	var updateCalled bool
 	var passedRollbackDir string
 
+	defer boot.MockSetEfiBootVariables(func(description string, assetPath string, optionalData []byte) error {
+		c.Check(description, Equals, "ubuntu-test")
+		return nil
+	})()
+
 	if grade != "" {
 		bootDir := c.MkDir()
-		tbl := bootloadertest.Mock("trusted", bootDir).WithTrustedAssets()
+		tbl := bootloadertest.Mock("trusted", bootDir).WithTrustedAssetsAndEfi()
 		tbl.TrustedAssetsMap = map[string]string{"trusted-asset": "trusted-asset"}
 		tbl.ManagedAssetsList = []string{"managed-asset"}
+		tbl.EfiLoadOptionDesc = "ubuntu-test"
+		tbl.EfiLoadOptionPath = "/some/path"
+		tbl.EfiLoadOptionData = nil
 		bootloader.Force(tbl)
 		defer func() { bootloader.Force(nil) }()
 	}
@@ -335,16 +343,9 @@ func (s *deviceMgrGadgetSuite) testUpdateGadgetSimple(c *C, grade string, encryp
 			// check that the behavior is correct
 			m, err := boot.ReadModeenv("")
 			c.Assert(err, IsNil)
-			if encryption {
-				// with encryption enabled, trusted asset would
-				// have been picked up by the the observer and
-				// added to modenv
-				c.Assert(m.CurrentTrustedRecoveryBootAssets, NotNil)
-				c.Check(m.CurrentTrustedRecoveryBootAssets["trusted-asset"], DeepEquals,
-					[]string{"88478d8afe6925b348b9cd00085f3535959fde7029a64d7841b031acc39415c690796757afab1852a9e09da913a0151b"})
-			} else {
-				c.Check(m.CurrentTrustedRecoveryBootAssets, HasLen, 0)
-			}
+			c.Assert(m.CurrentTrustedRecoveryBootAssets, NotNil)
+			c.Check(m.CurrentTrustedRecoveryBootAssets["trusted-asset"], DeepEquals,
+				[]string{"88478d8afe6925b348b9cd00085f3535959fde7029a64d7841b031acc39415c690796757afab1852a9e09da913a0151b"})
 		}
 		return nil
 	})

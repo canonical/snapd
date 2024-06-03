@@ -20,6 +20,7 @@
 package overlord
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 
@@ -92,6 +93,17 @@ type startupError struct {
 
 func (e *startupError) Error() string {
 	return fmt.Sprintf("state startup errors: %v", e.errs)
+}
+
+// Is returns true if errors.Is(target) evaluates to true for any of the
+// underlying startup errors.
+func (e *startupError) Is(target error) bool {
+	for _, err := range e.errs {
+		if errors.Is(err, target) {
+			return true
+		}
+	}
+	return false
 }
 
 // StartUp asks all managers to perform any expensive initialization. It is a noop after the first invocation.

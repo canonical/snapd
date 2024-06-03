@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/kcmdline"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -739,6 +740,15 @@ func CloudInitStatus() (CloudInitState, error) {
 	// return special status for that
 	disabledFile := filepath.Join(dirs.GlobalRootDir, cloudInitDisabledFile)
 	if osutil.FileExists(disabledFile) {
+		return CloudInitDisabledPermanently, nil
+	}
+
+	// if it was explicitly disabled via the kernel commandline, then
+	// return special status for that
+	cmdline, err := kcmdline.KeyValues("cloud-init")
+	if err != nil {
+		logger.Noticef("WARNING: cannot obtain cloud-init from kernel command line: %v", err)
+	} else if cmdline["cloud-init"] == "disabled" {
 		return CloudInitDisabledPermanently, nil
 	}
 

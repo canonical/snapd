@@ -34,6 +34,12 @@ debug: |
   cat /home/test/notif.log || true
 
 execute: |
+  err_and_exit(){
+    echo "$1"
+    tests.cleanup restore
+    exit 1
+  }
+
   changeAfterID() {
     local OLD_CHANGE="$1"
     local NEW_CHANGE
@@ -49,8 +55,7 @@ execute: |
     done
 
     if [ "$NEW_CHANGE" -le "$OLD_CHANGE" ]; then
-      echo "expected a change with an id greater than $OLD_CHANGE"
-      exit 1
+      err_and_exit "expected a change with an id greater than $OLD_CHANGE"
     fi
   }
 
@@ -78,8 +83,7 @@ execute: |
   # check that a change was triggered and it's a pre-download
   changeAfterID "$OLD_CHANGE"
   if ! retry -n 15 sh -c 'snap changes | tail -n 2 | grep "Done.*Pre-download \"test-snapd-sh\" for auto-refresh"'; then
-    echo "expected a completed pre-download change"
-    exit 1
+    err_and_exit "expected a completed pre-download change"
   fi
 
   if os.query is-ubuntu && os.query is-classic; then
@@ -104,8 +108,7 @@ execute: |
     # check the refresh was completed
     changeAfterID "$OLD_CHANGE"
     if ! retry -n 15 sh -c 'snap changes | tail -n 2 | grep "Done.*Refresh \"test-snapd-sh\" snap"'; then
-      echo "expected test-snapd-sh to be refreshed"
-      exit 1
+      err_and_exit "expected test-snapd-sh to be refreshed"
     fi
 
     # stop the snap and check no auto-refresh was triggered
@@ -113,8 +116,7 @@ execute: |
     wait "$APP_PID"
 
     if retry -n 5 sh -c 'snap changes | tail -n 2 | grep "Done.*Auto-refresh.*snap.*test-snapd-sh"'; then
-      echo "unexpected auto-refresh of test-snapd-sh"
-      exit 1
+      err_and_exit "unexpected auto-refresh of test-snapd-sh"
     fi
   elif [ "$VARIANT" == "restart" ]; then
     systemctl stop snapd.{service,socket}
@@ -131,6 +133,5 @@ execute: |
 
     "$TESTSTOOLS"/snapd-state wait-for-snap-autorefresh "test-snapd-sh" "$OLD_CHANGE"
   else
-    echo "unrecognized test variant"
-    exit 1
+    err_and_exit "unrecognized test variant"
   fi

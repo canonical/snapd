@@ -14212,3 +14212,138 @@ waitLoop:
 	c.Assert(chg, NotNil, Commentf("cannot find a ready change of kind %s", kind))
 	return chg
 }
+
+func (s *mgrsSuite) TestSnapdRefreshAssertRuntimeFailure(c *C) {
+	// set up a refresh of snapd snap, such that we get the right set of
+	// tasks that actually reflect what would happen in reality and next
+	// check whether the detection of unexpected runtime failure is behaving
+	// as expected
+
+	restore := release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
+	defer restore()
+	// reload directories
+	dirs.SetRootDir(dirs.GlobalRootDir)
+	restore = release.MockOnClassic(false)
+	defer restore()
+	bl := bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(bl)
+	defer bootloader.Force(nil)
+	const snapdSnap = `
+name: snapd
+version: 1.0
+type: snapd`
+	snapPath := snaptest.MakeTestSnapWithFiles(c, snapdSnap, nil)
+	si := &snap.SideInfo{RealName: "snapd"}
+
+	st := s.o.State()
+	st.Lock()
+
+	// we must be seeded
+	st.Set("seeded", true)
+
+	// we also need to setup the usr-lib-snapd.mount file too
+	usrLibSnapdMountFile := filepath.Join(dirs.SnapServicesDir, wrappers.SnapdToolingMountUnit)
+	err := os.WriteFile(usrLibSnapdMountFile, nil, 0644)
+	c.Assert(err, IsNil)
+
+	systemctlCalls := 0
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		systemctlCalls++
+		return []byte("ActiveState=inactive"), nil
+	})
+	s.AddCleanup(r)
+	// make sure that we get the expected number of systemctl calls
+	s.AddCleanup(func() { c.Assert(systemctlCalls, Equals, 8) })
+
+	// also add the snapd snap to state which we will refresh
+	si1 := &snap.SideInfo{RealName: "snapd", Revision: snap.R(1)}
+	snapstate.Set(st, "snapd", &snapstate.SnapState{
+		SnapType: "snapd",
+		Active:   true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si1}),
+		Current:  si1.Revision,
+	})
+	snaptest.MockSnapWithFiles(c, "name: snapd\ntype: snapd\nversion: 123", si1, nil)
+
+	// setup model assertion
+	assertstatetest.AddMany(st, s.brands.AccountsAndKeys("my-brand")...)
+	devicestatetest.SetDevice(st, &auth.DeviceState{
+		Brand:  "my-brand",
+		Model:  "my-model",
+		Serial: "serialserialserial",
+	})
+	model := s.brands.Model("my-brand", "my-model", modelDefaults)
+	err = assertstate.Add(st, model)
+	c.Assert(err, IsNil)
+
+	ts, _, err := snapstate.InstallPath(st, si, snapPath, "", "", snapstate.Flags{}, nil)
+	c.Assert(err, IsNil)
+
+	chg := st.NewChange("install-snap", "...")
+	chg.AddAll(ts)
+
+	// run, this will trigger wait for restart
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	// check the snapd task state
+	c.Check(chg.Status(), Equals, state.DoingStatus)
+	restarting, kind := restart.Pending(st)
+	c.Check(restarting, Equals, true)
+	c.Assert(kind, Equals, restart.RestartDaemon)
+
+	// now verify whether the state would be correctly asserted as to
+	// whether the failure recovery is needed, note that this isn't 100%
+	// realistic, as the check happens in overlord.StartUp() which we cannot
+	// fake here
+
+	func() {
+		// simple case, the environment variable from snap-failure is
+		// unset
+		os.Unsetenv("SNAPD_REVERT_TO_REV")
+
+		err := snapstate.CheckExpectedRestart(st)
+		c.Assert(err, IsNil)
+	}()
+
+	func() {
+		// environment variable from snap-failure is set
+		os.Setenv("SNAPD_REVERT_TO_REV", "999")
+		defer os.Unsetenv("SNAPD_REVERT_TO_REV")
+
+		err := snapstate.CheckExpectedRestart(st)
+		c.Assert(err, IsNil)
+	}()
+
+	// pretend auto connect is done
+	for _, tsk := range chg.Tasks() {
+		if tsk.Kind() == "auto-connect" {
+			tsk.SetStatus(state.DoneStatus)
+			break
+		}
+	}
+
+	dumpTasks(c, "after manipulation", chg.Tasks())
+
+	func() {
+		// the environment variable from snap-failure is unset, snapd
+		// could have restated at runtime for whatever reason and
+		// systemd handled it
+		os.Unsetenv("SNAPD_REVERT_TO_REV")
+
+		err := snapstate.CheckExpectedRestart(st)
+		c.Assert(err, Equals, nil)
+	}()
+
+	func() {
+		// environment variable from snap-failure is set, but we did not
+		// expect a restart
+		os.Setenv("SNAPD_REVERT_TO_REV", "999")
+		defer os.Unsetenv("SNAPD_REVERT_TO_REV")
+
+		err := snapstate.CheckExpectedRestart(st)
+		c.Assert(err, Equals, snapstate.ErrUnexpectedRuntimeRestart)
+	}()
+}

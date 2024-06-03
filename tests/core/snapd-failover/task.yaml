@@ -95,9 +95,11 @@ execute: |
             fi
 
             # make sure that snapd is being executed within the cgroup assigned to snapd.service
-            echo "Verify behavior on UC16, where snapd process runs under snapd.failure.service unit"
-            # shellcheck disable=SC2046,SC2002
-            cat /proc/$(pidof snapd)/cgroup | MATCH /snapd.failure.service
+            echo "Verify behavior on UC16, where snapd process eventually becomes"
+            # snap-failure only starts the socket unit, but we want to verify
+            # that the snapd runs
+            # shellcheck disable=SC2046,SC2002,SC2016
+            retry -n 60 --wait 1 sh -e -c 'snap list ; cat /proc/$(pidof snapd)/cgroup | MATCH /snapd.service'
         else
             # TODO this check is incorrect and is essentially racing with systemd
             # which could try to active the failure service, as we're essentially

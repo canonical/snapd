@@ -293,7 +293,11 @@ prepare_project() {
     fi
 
     if [ "$SPREAD_BACKEND" = "testflinger" ]; then
-        adduser --uid 12345 --extrausers --quiet --disabled-password --gecos '' test
+        if os.query is-core-ge 24; then
+            useradd --uid 12345 --create-home --extrausers test
+        else
+            adduser --uid 12345 --extrausers --quiet --disabled-password --comment '' test
+        fi
         echo test:ubuntu | sudo chpasswd
         echo 'test ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/create-user-test
         chown test.test -R "$PROJECT_PATH"
@@ -479,14 +483,16 @@ prepare_project() {
     esac
 
     restart_logind=
-    if [ "$(systemctl --version | awk '/systemd [0-9]+/ { print $2 }')" -lt 246 ]; then
+    local systemd_ver
+    systemd_ver="$(systemctl --version | awk '/systemd [0-9]+/ { print $2 }' | cut -f1 -d"~")"
+    if [ "$systemd_ver" -lt 246 ]; then
         restart_logind=maybe
     fi
 
     install_pkg_dependencies
 
     if [ "$restart_logind" = maybe ]; then
-        if [ "$(systemctl --version | awk '/systemd [0-9]+/ { print $2 }')" -ge 246 ]; then
+        if [ "$systemd_ver" -ge 246 ]; then
             restart_logind=yes
         else
             restart_logind=
