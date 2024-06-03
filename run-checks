@@ -113,6 +113,15 @@ missing_interface_spread_test() {
     core_snap_yaml="tests/main/interfaces-many-snap-provided/test-snapd-policy-app-provider-core/meta/snap.yaml"
     classic_snap_yaml="tests/main/interfaces-many-snap-provided/test-snapd-policy-app-provider-classic/meta/snap.yaml"
     for iface in $(go run ./tests/lib/list-interfaces.go) ; do
+        # check if a standalone test already exists and that it at least
+        # connects and disconnects the interface
+        dedicated_test=$(find tests/main/ -maxdepth 1 -name "interfaces-$iface")
+        if [ -n "$dedicated_test" ] && grep -q "snap connect .*:$iface" "$dedicated_test/task.yaml" && grep -q "snap disconnect .*:$iface" "$dedicated_test/task.yaml"; then
+            # standalone test already exists, skip high-level test check below
+            continue
+        fi
+
+        # check if high-level minimal test exists for interface
         search="plugs: \\[ $iface \\]"
         case "$iface" in
             bool-file|gpio|pwm|dsp|netlink-driver|hidraw|i2c|iio|serial-port|spi)
