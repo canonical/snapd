@@ -8086,7 +8086,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallAndRunMissingFdeSetup(c
 type MockObserver struct {
 	BootLoaderSupportsEfiVariablesFunc       func() bool
 	ObserveExistingTrustedRecoveryAssetsFunc func(recoveryRootDir string) error
-	ChosenEncryptionKeysFunc                 func(key, saveKey keys.EncryptionKey)
+	ChosenEncryptionKeysFunc                 func(resetter, saveResetter secboot.KeyResetter)
 	UpdateBootEntryFunc                      func() error
 	ObserveFunc                              func(op gadget.ContentOperation, partRole, root, relativeTarget string, data *gadget.ContentChange) (gadget.ContentChangeAction, error)
 }
@@ -8099,8 +8099,8 @@ func (m *MockObserver) ObserveExistingTrustedRecoveryAssets(recoveryRootDir stri
 	return m.ObserveExistingTrustedRecoveryAssetsFunc(recoveryRootDir)
 }
 
-func (m *MockObserver) ChosenEncryptionKeys(key, saveKey keys.EncryptionKey) {
-	m.ChosenEncryptionKeysFunc(key, saveKey)
+func (m *MockObserver) ChosenEncryptionKeys(resetter, saveResetter secboot.KeyResetter) {
+	m.ChosenEncryptionKeysFunc(resetter, saveResetter)
 }
 
 func (m *MockObserver) UpdateBootEntry() error {
@@ -8236,7 +8236,7 @@ echo '{"features":[]}'
 			observeExistingTrustedRecoveryAssetsCalled += 1
 			return nil
 		},
-		ChosenEncryptionKeysFunc: func(key, saveKey keys.EncryptionKey) {
+		ChosenEncryptionKeysFunc: func(resetter, saveResetter secboot.KeyResetter) {
 		},
 		UpdateBootEntryFunc: func() error {
 			return nil
@@ -8287,7 +8287,7 @@ echo '{"features":[]}'
 	c.Assert(makeRunnableCalled, Equals, true)
 	c.Assert(gadgetInstallCalled, Equals, true)
 	c.Assert(nextBooEnsured, Equals, true)
-	c.Check(observeExistingTrustedRecoveryAssetsCalled, Equals, 1)
+	c.Check(observeExistingTrustedRecoveryAssetsCalled, Equals, 2)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallAndRunFdeSetupNotPresent(c *C) {
@@ -8393,7 +8393,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallAndRunFdeSetupNotPresen
 			observeExistingTrustedRecoveryAssetsCalled += 1
 			return nil
 		},
-		ChosenEncryptionKeysFunc: func(key, saveKey keys.EncryptionKey) {
+		ChosenEncryptionKeysFunc: func(resetter, saveResetter secboot.KeyResetter) {
 		},
 		UpdateBootEntryFunc: func() error {
 			return nil
