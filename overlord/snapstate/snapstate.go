@@ -1091,7 +1091,7 @@ func isChangeRequestingSnapdRestart(chg *state.Change) bool {
 			continue
 		}
 
-		tss, err := TaskSnapSetup(tsk)
+		snapsup, err := TaskSnapSetup(tsk)
 		if err != nil {
 			// we're invoked in rollback scenario, things can be
 			// wrong in a way we cannot anticipate, so let's only
@@ -1100,7 +1100,7 @@ func isChangeRequestingSnapdRestart(chg *state.Change) bool {
 			continue
 		}
 
-		if tss.SnapName() != "snapd" {
+		if snapsup.SnapName() != "snapd" {
 			// not the snap we are looking for
 			continue
 		}
