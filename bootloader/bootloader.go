@@ -26,7 +26,6 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/bootloader/assets"
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/kcmdline"
 	"github.com/snapcore/snapd/snap"
@@ -332,58 +331,9 @@ func InstallBootConfig(gadgetDir, rootDir string, opts *Options) error {
 type bootloaderNewFunc func(rootdir string, opts *Options) Bootloader
 
 var (
-	//  bootloaders list all possible bootloaders by their constructor
-	//  function.
-	bootloaders = []bootloaderNewFunc{
-		newUboot,
-		newGrub,
-		newAndroidBoot,
-		newLk,
-		newPiboot,
-	}
-)
-
-var (
 	forcedBootloader Bootloader
 	forcedError      error
 )
-
-// Find returns the bootloader for the system
-// or an error if no bootloader is found.
-//
-// The rootdir option is useful for image creation operations. It
-// can also be used to find the recovery bootloader, e.g. on uc20:
-//
-//	bootloader.Find("/run/mnt/ubuntu-seed")
-func Find(rootdir string, opts *Options) (Bootloader, error) {
-	if err := opts.validate(); err != nil {
-		return nil, err
-	}
-	if forcedBootloader != nil || forcedError != nil {
-		return forcedBootloader, forcedError
-	}
-
-	if rootdir == "" {
-		rootdir = dirs.GlobalRootDir
-	}
-	if opts == nil {
-		opts = &Options{}
-	}
-
-	// note that the order of this is not deterministic
-	for _, blNew := range bootloaders {
-		bl := blNew(rootdir, opts)
-		present, err := bl.Present()
-		if err != nil {
-			return nil, fmt.Errorf("bootloader %q found but not usable: %v", bl.Name(), err)
-		}
-		if present {
-			return bl, nil
-		}
-	}
-	// no, weeeee
-	return nil, ErrBootloader
-}
 
 // Force can be used to force Find to always find the specified bootloader; use
 // nil to reset to normal lookup.
@@ -430,26 +380,6 @@ func removeKernelAssetsFromBootDir(bootDir string, s snap.PlaceInfo) error {
 	}
 
 	return nil
-}
-
-// ForGadget returns a bootloader matching a given gadget by inspecting the
-// contents of gadget directory or an error if no matching bootloader is found.
-func ForGadget(gadgetDir, rootDir string, opts *Options) (Bootloader, error) {
-	if err := opts.validate(); err != nil {
-		return nil, err
-	}
-	if forcedBootloader != nil || forcedError != nil {
-		return forcedBootloader, forcedError
-	}
-	for _, blNew := range bootloaders {
-		bl := blNew(rootDir, opts)
-		markerConf := filepath.Join(gadgetDir, bl.Name()+".conf")
-		// do we have a marker file?
-		if osutil.FileExists(markerConf) {
-			return bl, nil
-		}
-	}
-	return nil, ErrBootloader
 }
 
 // BootFile represents each file in the chains of trusted assets and
