@@ -20,6 +20,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -58,13 +59,20 @@ func main() {
 	ch := make(chan os.Signal, 2)
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
 	if err := run(ch); err != nil {
-		if err == daemon.ErrRestartSocket {
+		if errors.Is(err, daemon.ErrRestartSocket) {
 			// Note that we don't prepend: "error: " here because
 			// ErrRestartSocket is not an error as such.
-			fmt.Fprintf(os.Stdout, "%v\n", err)
+			fmt.Fprintln(os.Stdout, err)
 			// the exit code must be in sync with
 			// data/systemd/snapd.service.in:SuccessExitStatus=
 			os.Exit(42)
+		} else if errors.Is(err, daemon.ErrNoFailureRecoveryNeeded) {
+			// Similar consideration as above.
+			fmt.Fprintln(os.Stdout, err)
+			// We were invoked from a failure handler, but there is
+			// nothing to recover from in the state, as such the
+			// failure handling was successful.
+			return
 		}
 		fmt.Fprintf(os.Stderr, "cannot run daemon: %v\n", err)
 		os.Exit(1)

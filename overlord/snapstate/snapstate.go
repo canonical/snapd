@@ -915,6 +915,12 @@ var HasActiveConnection = func(st *state.State, iface string) (bool, error) {
 
 var generateSnapdWrappers = backend.GenerateSnapdWrappers
 
+// isInvokedWithRevert returns true if the current process was invoked in the
+// context of runtime failure handling, most likely by snap-failure.
+func isInvokedWithRevert() bool {
+	return os.Getenv("SNAPD_REVERT_TO_REV") != ""
+}
+
 // FinishRestart will return a Retry error if there is a pending restart
 // and a real error if anything went wrong (like a rollback across
 // restarts).
@@ -932,7 +938,7 @@ func FinishRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 	}
 
 	if snapsup.Type == snap.TypeSnapd {
-		if os.Getenv("SNAPD_REVERT_TO_REV") != "" {
+		if isInvokedWithRevert() {
 			return fmt.Errorf("there was a snapd rollback across the restart")
 		}
 
@@ -1068,6 +1074,88 @@ func FinishTaskWithRestart(task *state.Task, status state.Status, rt restart.Res
 	}
 
 	return restart.FinishTaskWithRestart(task, status, rt, rebootRequiredSnap, rebootInfo)
+}
+
+func isChangeRequestingSnapdRestart(chg *state.Change) bool {
+	// during refresh of the snapd snap, after the services of new snapd
+	// have been set up in link-snap, daemon restart is requested, link-snap
+	// is marked as Done, and the auto-connect task is held off (in Do or
+	// Doing states) until the restart completes
+	var haveSnapd, linkDone, autoConnectWaiting bool
+	for _, tsk := range chg.Tasks() {
+		kind := tsk.Kind()
+		switch kind {
+		case "link-snap", "auto-connect":
+			// we're only interested in link-snap and auto-connect
+		default:
+			continue
+		}
+
+		snapsup, err := TaskSnapSetup(tsk)
+		if err != nil {
+			// we're invoked in rollback scenario, things can be
+			// wrong in a way we cannot anticipate, so let's only
+			// log the error
+			logger.Noticef("cannot obtain task snap-setup from %q: %v", tsk.ID(), err)
+			continue
+		}
+
+		if snapsup.SnapName() != "snapd" {
+			// not the snap we are looking for
+			continue
+		}
+
+		haveSnapd = true
+
+		status := tsk.Status()
+
+		if kind == "link-snap" && status == state.DoneStatus {
+			linkDone = true
+		} else if kind == "auto-connect" && (status == state.DoStatus || status == state.DoingStatus) {
+			autoConnectWaiting = true
+		}
+	}
+
+	if haveSnapd && linkDone && autoConnectWaiting {
+		// a snapd snap, for which we have a link-snap task that is
+		// complete, and an auto-connect task that is waiting to
+		// execute, this is a scenario which requests a restart of the
+		// snapd daemon
+		return true
+	}
+
+	return false
+}
+
+var ErrUnexpectedRuntimeRestart = errors.New("unexpected restart at runtime")
+
+// CheckExpectedRestart check whether the current process state indicates that
+// it may have been started as a response to an unexpected restart at runtime
+// (most likely by snap-failure), and depending on the current changes state
+// either returns ErrRecoveryFromUnexpectedRuntimeFailure to indicate that no
+// failure handling is needed, or nil indicating that snapd should proceed with
+// execution.
+func CheckExpectedRestart(st *state.State) error {
+	if !isInvokedWithRevert() {
+		return nil
+	}
+	// we were invoked by snap-failure, there could be an ongoing refresh of
+	// the snapd snap which has failed and a revert is pending, but it could
+	// also be the case that the snapd process just failed at runtime, in
+	// which case systemd may have triggered an on-failure handling, as such
+	// proceed with inspecting the state to identify the scenario
+
+	for _, chg := range st.Changes() {
+		if chg.IsReady() {
+			continue
+		}
+
+		if isChangeRequestingSnapdRestart(chg) {
+			return nil
+		}
+	}
+
+	return ErrUnexpectedRuntimeRestart
 }
 
 // IsErrAndNotWait returns true if err is not nil and neither state.Wait, it is
