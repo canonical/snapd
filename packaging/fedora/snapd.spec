@@ -545,9 +545,9 @@ export GO111MODULE=off
 # see https://github.com/gofed/go-macros/blob/master/rpm/macros.d/macros.go-compilers-golang
 BUILDTAGS=
 %if 0%{?with_test_keys}
-BUILDTAGS="withtestkeys nosecboot"
+BUILDTAGS="withtestkeys nosecboot nobootloader"
 %else
-BUILDTAGS="nosecboot"
+BUILDTAGS="nosecboot nobootloader"
 %endif
 
 %if ! 0%{?with_bundled}

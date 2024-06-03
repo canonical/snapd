@@ -52,11 +52,11 @@ build() {
   # GOFLAGS may be modified by CI tools
   # GOFLAGS are the go build flags for all binaries, GOFLAGS_SNAP are for snap
   # build only.
-  GOFLAGS=""
-  GOFLAGS_SNAP="-tags nomanagers"
+  GOFLAGS="-tags nosecboot,nobootloader"
+  GOFLAGS_SNAP="-tags nomanagers,nosecboot,nobootloader"
   if [[ "$WITH_TEST_KEYS" == 1 ]]; then
-      GOFLAGS="$GOFLAGS -tags withtestkeys"
-      GOFLAGS_SNAP="-tags nomanagers,withtestkeys"
+      GOFLAGS="$GOFLAGS -tags nosecboot,nobootloader,withtestkeys"
+      GOFLAGS_SNAP="-tags nomanagers,nosecboot,nobootloader,withtestkeys"
   fi
 
   export CGO_ENABLED="1"

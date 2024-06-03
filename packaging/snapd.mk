@@ -55,7 +55,7 @@ endif
 # The list of go binaries we are expected to build.
 go_binaries = $(addprefix $(builddir)/, snap snapctl snap-seccomp snap-update-ns snap-exec snapd snapd-apparmor)
 
-GO_TAGS = nosecboot
+GO_TAGS = nosecboot nobootloader
 ifeq ($(with_testkeys),1)
 GO_TAGS += withtestkeys
 endif
