@@ -108,6 +108,10 @@ type SnapAction struct {
 	// ValidationSets is an optional array of validation set primary keys
 	// (relevant for install and refresh actions).
 	ValidationSets []snapasserts.ValidationSetKey
+	// Resources is an optional array of component names. If non-empty, this
+	// indicates that we should request that the store include snap resource
+	// information in responses.
+	Resources []string
 }
 
 func isValidAction(action string) bool {
@@ -208,7 +212,7 @@ type snapActionResultList struct {
 	ErrorList []errorListEntry    `json:"error-list"`
 }
 
-var snapActionFields = jsonutil.StructFields((*storeSnap)(nil))
+var snapActionFields = jsonutil.StructFields((*storeSnap)(nil), "resources")
 
 // SnapAction queries the store for snap information for the given
 // install/refresh actions, given the context information about
@@ -300,7 +304,17 @@ func genInstanceKey(curSnap *CurrentSnap, salt string) (string, error) {
 // action of the SnapAction call.
 type SnapActionResult struct {
 	*snap.Info
+	Resources       []SnapResourceResult
 	RedirectChannel string
+}
+
+type SnapResourceResult struct {
+	DownloadInfo snap.DownloadInfo
+	Type         string
+	Name         string
+	Revision     int
+	Version      string
+	CreatedAt    string
 }
 
 // AssertionResult encapsulates the non-error result for one assertion
@@ -527,11 +541,21 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		}
 	}
 
+	// include resources field if any action has requested resources
+	fields := make([]string, len(snapActionFields))
+	copy(fields, snapActionFields)
+	for _, a := range actions {
+		if len(a.Resources) > 0 {
+			fields = append(fields, "resources")
+			break
+		}
+	}
+
 	// build input for the install/refresh endpoint
 	jsonData, err := json.Marshal(snapActionRequest{
 		Context:             curSnapJSONs,
 		Actions:             actionJSONs,
-		Fields:              snapActionFields,
+		Fields:              fields,
 		AssertionMaxFormats: assertMaxFormats,
 	})
 	if err != nil {
@@ -673,7 +697,23 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		_, instanceKey := snap.SplitInstanceName(instanceName)
 		snapInfo.InstanceKey = instanceKey
 
-		sars = append(sars, SnapActionResult{Info: snapInfo, RedirectChannel: res.RedirectChannel})
+		resources := make([]SnapResourceResult, 0, len(res.Snap.Resources))
+		for _, r := range res.Snap.Resources {
+			resources = append(resources, SnapResourceResult{
+				DownloadInfo: downloadInfoFromStoreDownload(r.Download),
+				Type:         r.Type,
+				Name:         r.Name,
+				Version:      r.Version,
+				CreatedAt:    r.CreatedAt,
+				Revision:     r.Revision,
+			})
+		}
+
+		sars = append(sars, SnapActionResult{
+			Info:            snapInfo,
+			RedirectChannel: res.RedirectChannel,
+			Resources:       resources,
+		})
 	}
 
 	for _, errObj := range results.ErrorList {

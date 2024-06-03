@@ -323,7 +323,7 @@ func init() {
 	defaultConfig.DetailFields = jsonutil.StructFields((*snapDetails)(nil), "snap_yaml_raw")
 	defaultConfig.InfoFields = jsonutil.StructFields((*storeSnap)(nil), "snap-yaml")
 	defaultConfig.FindFields = append(jsonutil.StructFields((*storeSnap)(nil),
-		"architectures", "created-at", "epoch", "name", "snap-id", "snap-yaml"),
+		"architectures", "created-at", "epoch", "name", "snap-id", "snap-yaml", "resources"),
 		"channel")
 }
 
@@ -1560,7 +1560,7 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 
 // abbreviated info structs just for the download info
 type storeInfoChannelAbbrev struct {
-	Download storeSnapDownload `json:"download"`
+	Download storeDownload `json:"download"`
 }
 
 type storeInfoAbbrev struct {
