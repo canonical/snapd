@@ -1,13 +1,21 @@
-# Up for discussion whether we should use this directory on Debian, or
-# patch snap to use some different mountpoint; in the meantime, override to
-# pass the NEW queue.
-snapd: non-standard-toplevel-dir snap/
-# Up for discussion whether we should use this directory on Debian, or
-# patch snap to use some different mountpoint; in the meantime, override.
-snapd: non-standard-dir-in-var var/snap/
-# snapd is a very special case which needs to tear out its self-managed
-# units on purge, we certainly would not be able to use the Debian
-# abstractions for this
-snapd: maintainer-script-calls-systemctl postrm:9
-# fortify functions aren't here because we use none of the libc functions.
-snapd: hardening-no-fortify-functions *
+# Snapd uses /var/snap for all snap-specific data and /snap for the mount points and launchers.
+snapd: non-standard-dir-in-var [var/snap/]
+snapd: non-standard-toplevel-dir [snap/]
+# The Exec= line is /bin/false and the whole thing relies on bus activation.
+snapd: desktop-command-not-in-package bin/false [usr/share/applications/io.snapcraft.SessionAgent.desktop]
+# Snapd uses setuid-root helper to launch programs.
+snapd: elevated-privileges 4755 root/root [usr/lib/snapd/snap-confine]
+# Snapd has a tailored removal script that does quite a bit of complex stuff
+# and precision as to what the actions mean is very important.
+snapd: maintainer-script-calls-systemctl [postrm:9]
+snapd: maintainer-script-calls-systemctl [prerm:9]
+# This could be possibly removed or migrated to a specific mechanism.
+snapd: maintscript-calls-ldconfig [postinst]
+# FIXME: Yes this one is missing but it is a programmatic interface that lives
+# in this location for complex reasons. We should write one and remove this
+# override.
+snapd: no-manual-page [usr/bin/snapctl]
+# TODO: ubuntu-core-launcher can be removed and is entirely obsolete.
+snapd: no-manual-page [usr/bin/ubuntu-core-launcher]
+# This is intentional.
+snapd: systemd-service-file-refers-to-unusual-wantedby-target cloud-final.service [lib/systemd/system/snapd.seeded.service]
