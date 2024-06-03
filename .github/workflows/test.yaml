@@ -819,7 +819,7 @@ jobs:
               echo "Determining which tests were executed"
               RUN_TESTS=""
               for SYSTEM in ${{ matrix.systems }}; do
-                  RUN_TESTS="$RUN_TESTS ${{ matrix.backend }}:$SYSTEM:tests/..."
+                  RUN_TESTS="$RUN_TESTS ${{ matrix.backend }}:$SYSTEM:${{ matrix.tests }}"
               done
               if [ -n "$FAILED_TESTS" ]; then
                   RUN_TESTS="$FAILED_TESTS"
