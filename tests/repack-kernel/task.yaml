@@ -1,5 +1,10 @@
 summary: tests for the repack-kernel tool
 
+details: |
+    Check the repack-kernel tools properly handles extraction of the
+    kernel snap to a workspace directory, and then repacks it back
+    to a snap
+
 backends: [google]
 
 # ubuntu-core-initramfs seems to be only available on ubuntu-20.04

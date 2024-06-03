@@ -1,5 +1,10 @@
 summary: smoke test for the remote.setup tool
 
+details: |
+    Check the remote.setup tool properly sets up up the
+    information required to allow connecting to the remote
+    instance through ssh.
+
 backends: [google]
 
 restore: |
