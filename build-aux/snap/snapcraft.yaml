@@ -209,6 +209,8 @@ parts:
       craftctl set version="$(./mkversion.sh --output-only)"
       ./get-deps.sh --skip-unused-check
     override-build: |
+      echo "--- go is at $(which go)"
+      echo "--- go version $(go version)"
       ./mkversion.sh
       cd "${CRAFT_PART_BUILD}/cmd"
 
