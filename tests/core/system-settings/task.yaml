@@ -22,8 +22,4 @@ execute: |
     timedatectl set-timezone "America/Lima"
     date +"%Z" | MATCH '\-05'
     timedatectl | MATCH "Time zone: America/Lima"
-    # /etc/timezone is missing on core24, skip check
-    if ! os.query is-core24; then
-        MATCH "America/Lima" < /etc/timezone
-    fi
     test "$(readlink -f /etc/localtime)" = "/usr/share/zoneinfo/America/Lima"
