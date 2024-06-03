@@ -468,6 +468,11 @@ gen_require(`
 ')
 allow snappy_t devicekit_power_exec_t:file { getattr };
 
+# go-efilib probes for efivars
+gen_require(`
+    type efivarfs_t;
+')
+allow snappy_t efivarfs_t:filesystem { getattr };
 
 
 ########################################
@@ -880,6 +885,12 @@ systemd_exec_systemctl(snappy_cli_t)
 
 # allow snap to read SSL certs
 miscfiles_read_all_certs(snappy_cli_t)
+
+# go-efilib which is included through snap debug command probes for efivars
+gen_require(`
+    type efivarfs_t;
+')
+allow snappy_cli_t efivarfs_t:filesystem { getattr };
 
 ########################################
 #
