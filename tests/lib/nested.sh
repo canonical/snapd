@@ -170,8 +170,8 @@ nested_prepare_ssh() {
         remote.exec "sudo useradd --uid 12345 --create-home --extrausers test"
         remote.exec "sudo useradd --create-home --extrausers external"
     else 
-        remote.exec "sudo adduser --uid 12345 --extrausers --quiet --disabled-password --comment '' test"
-        remote.exec "sudo adduser --extrausers --quiet --disabled-password --comment '' external"
+        remote.exec "sudo adduser --uid 12345 --extrausers --quiet --disabled-password --gecos '' test"
+        remote.exec "sudo adduser --extrausers --quiet --disabled-password --gecos '' external"
     fi
     
     remote.exec "echo test:ubuntu123 | sudo chpasswd"
