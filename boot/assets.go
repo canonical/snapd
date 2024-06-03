@@ -256,7 +256,7 @@ func isAssetHashTrackedInMap(bam bootAssetsMap, assetName, assetHash string) boo
 type TrustedAssetsInstallObserver interface {
 	BootLoaderSupportsEfiVariables() bool
 	ObserveExistingTrustedRecoveryAssets(recoveryRootDir string) error
-	ChosenEncryptionKeys(key, saveKey keys.EncryptionKey)
+	ChosenEncryptionKeys(resetter, saveResetter secboot.KeyResetter)
 	UpdateBootEntry() error
 	Observe(op gadget.ContentOperation, partRole, root, relativeTarget string, data *gadget.ContentChange) (gadget.ContentChangeAction, error)
 }
@@ -368,7 +368,7 @@ func (o *trustedAssetsInstallObserverImpl) currentTrustedRecoveryBootAssetsMap()
 	return o.trackedRecoveryAssets
 }
 
-func (o *TrustedAssetsInstallObserver) ChosenEncryptionKeys(resetter, saveResetter secboot.KeyResetter) {
+func (o *TrustedAssetsInstallObserverImpl) ChosenEncryptionKeys(resetter, saveResetter secboot.KeyResetter) {
 	o.useEncryption = true
 	o.dataKeyResetter = resetter
 	o.saveKeyResetter = saveResetter

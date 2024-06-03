@@ -1340,7 +1340,9 @@ version: 5.0
 	err = obs.ObserveExistingTrustedRecoveryAssets(boot.InitramfsUbuntuSeedDir)
 	c.Assert(err, IsNil)
 
-	obs.ChosenEncryptionKeys(keys.EncryptionKey{}, keys.EncryptionKey{})
+	dataResetter := &secboot.MockKeyResetter{}
+	saveResetter := &secboot.MockKeyResetter{}
+	obs.ChosenEncryptionKeys(dataResetter, saveResetter)
 
 	// set a mock recovery kernel
 	readSystemEssentialCalls := 0
