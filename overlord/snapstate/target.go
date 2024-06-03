@@ -104,9 +104,9 @@ type StoreSnap struct {
 	SkipIfPresent bool
 }
 
-// StoreGoal creates a new storeInstallGoal, which implements installGoal to
+// StoreInstallGoal creates a new storeInstallGoal, which implements installGoal to
 // install snaps from the store.
-func StoreGoal(snaps ...StoreSnap) installGoal {
+func StoreInstallGoal(snaps ...StoreSnap) installGoal {
 	mapping := make(map[string]StoreSnap, len(snaps))
 	for _, sn := range snaps {
 		if _, ok := mapping[sn.InstanceName]; ok {

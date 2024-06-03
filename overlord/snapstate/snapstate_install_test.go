@@ -272,7 +272,7 @@ func (s *snapmgrTestSuite) TestInstallInvalidOptions(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	t := snapstate.StoreGoal(snapstate.StoreSnap{
+	t := snapstate.StoreInstallGoal(snapstate.StoreSnap{
 		InstanceName: "some-snap",
 		RevOpts: snapstate.RevisionOptions{
 			CohortKey: "cohort",
@@ -6075,7 +6075,7 @@ func (s *snapmgrTestSuite) TestInstallFromStoreOneSnap(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	t := snapstate.StoreGoal(
+	t := snapstate.StoreInstallGoal(
 		snapstate.StoreSnap{
 			InstanceName: "some-snap",
 		},
