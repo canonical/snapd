@@ -111,7 +111,7 @@ func MockComponent(c *check.C, yamlText string, info *snap.Info, csi snap.Compon
 	// MockSnap
 
 	container := snapdir.New(filepath.Dir(metaDir))
-	component, err := snap.ReadComponentInfoFromContainer(container, info)
+	component, err := snap.ReadComponentInfoFromContainer(container, info, &csi)
 	c.Assert(err, check.IsNil)
 
 	return component

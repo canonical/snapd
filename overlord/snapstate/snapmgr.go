@@ -257,7 +257,7 @@ func ComponentInfoFromComponentSetup(compsup *ComponentSetup, info *snap.Info) (
 	)
 
 	container := snapdir.New(cpi.MountDir())
-	return snap.ReadComponentInfoFromContainer(container, info)
+	return snap.ReadComponentInfoFromContainer(container, info, compsup.CompSideInfo)
 }
 
 // RevertStatus is a status of a snap revert; anything other than DefaultStatus
@@ -584,7 +584,7 @@ func (snapst *SnapState) ComponentInfosForRevision(rev snap.Revision) ([]*snap.C
 		cpi := snap.MinimalComponentContainerPlaceInfo(comp.SideInfo.Component.ComponentName,
 			comp.SideInfo.Revision, si.InstanceName())
 
-		compInfo, err := readComponentInfo(cpi.MountDir(), si)
+		compInfo, err := readComponentInfo(cpi.MountDir(), si, comp.SideInfo)
 		if err != nil {
 			return nil, err
 		}
@@ -611,7 +611,7 @@ func (snapst *SnapState) CurrentComponentInfo(cref naming.ComponentRef) (*snap.C
 
 	cpi := snap.MinimalComponentContainerPlaceInfo(csi.Component.ComponentName,
 		csi.Revision, si.InstanceName())
-	return readComponentInfo(cpi.MountDir(), si)
+	return readComponentInfo(cpi.MountDir(), si, csi)
 }
 
 func (snapst *SnapState) InstanceName() string {

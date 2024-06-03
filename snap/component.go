@@ -41,16 +41,25 @@ type ComponentInfo struct {
 	// component is associated with. This field may be empty if the
 	// ComponentInfo was not created with the help of a snap.Info.
 	Hooks map[string]*HookInfo `yaml:"-"`
+
+	// ComponentSideInfo contains information for which the source of truth is
+	// not the component blob itself.
+	ComponentSideInfo
 }
 
 // NewComponentInfo creates a new ComponentInfo.
-func NewComponentInfo(cref naming.ComponentRef, ctype ComponentType, version, summary, description string) *ComponentInfo {
+func NewComponentInfo(cref naming.ComponentRef, ctype ComponentType, version, summary, description string, csi *ComponentSideInfo) *ComponentInfo {
+	if csi == nil {
+		csi = &ComponentSideInfo{}
+	}
+
 	return &ComponentInfo{
-		Component:   cref,
-		Type:        ctype,
-		Version:     version,
-		Summary:     summary,
-		Description: description,
+		Component:         cref,
+		Type:              ctype,
+		Version:           version,
+		Summary:           summary,
+		Description:       description,
+		ComponentSideInfo: *csi,
 	}
 }
 
@@ -137,9 +146,11 @@ func (c *componentPlaceInfo) MountDescription() string {
 // ReadComponentInfoFromContainer reads ComponentInfo from a snap component
 // container. If snapInfo is not nil, it is used to complete the ComponentInfo
 // information about the component's implicit and explicit hooks, and their
-// associated plugs. If snapInfo is not nil, consistency checks are performed
-// to ensure that the component is a component of the provided snap.
-func ReadComponentInfoFromContainer(compf Container, snapInfo *Info) (*ComponentInfo, error) {
+// associated plugs. If snapInfo is not nil, consistency checks are performed to
+// ensure that the component is a component of the provided snap. Additionally,
+// an optional ComponentSideInfo can be passed to fill in the ComponentInfo's
+// ComponentSideInfo field.
+func ReadComponentInfoFromContainer(compf Container, snapInfo *Info, csi *ComponentSideInfo) (*ComponentInfo, error) {
 	yamlData, err := compf.ReadFile("meta/component.yaml")
 	if err != nil {
 		return nil, err
@@ -148,6 +159,10 @@ func ReadComponentInfoFromContainer(compf Container, snapInfo *Info) (*Component
 	componentInfo, err := InfoFromComponentYaml(yamlData)
 	if err != nil {
 		return nil, err
+	}
+
+	if csi != nil {
+		componentInfo.ComponentSideInfo = *csi
 	}
 
 	// if snapInfo is nil, then we can't complete the component info with
