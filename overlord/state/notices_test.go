@@ -679,6 +679,59 @@ func (s *noticesSuite) TestValidateNotice(c *C) {
 	c.Check(id, Equals, "")
 }
 
+func (s *noticesSuite) TestAvoidTwoNoticesWithSameDateTime(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	testDate := time.Date(2024, time.April, 11, 11, 24, 5, 21, time.UTC)
+	restore := state.MockTime(testDate)
+	defer restore()
+
+	id1, err := st.AddNotice(nil, state.ChangeUpdateNotice, "123", nil)
+	c.Assert(err, IsNil)
+	notice1 := noticeToMap(c, st.Notice(id1))
+	c.Assert(notice1, NotNil)
+
+	id2, err := st.AddNotice(nil, state.ChangeUpdateNotice, "456", nil)
+	c.Assert(err, IsNil)
+	notice2 := noticeToMap(c, st.Notice(id2))
+	c.Assert(notice2, NotNil)
+
+	id3, err := st.AddNotice(nil, state.ChangeUpdateNotice, "789", nil)
+	c.Assert(err, IsNil)
+	notice3 := noticeToMap(c, st.Notice(id3))
+	c.Assert(notice3, NotNil)
+
+	testDate2 := time.Date(2024, time.April, 11, 11, 24, 5, 40, time.UTC)
+	restore2 := state.MockTime(testDate2)
+	defer restore2()
+
+	id4, err := st.AddNotice(nil, state.ChangeUpdateNotice, "ABC", nil)
+	c.Assert(err, IsNil)
+	notice4 := noticeToMap(c, st.Notice(id4))
+	c.Assert(notice4, NotNil)
+
+	// ensure that the notices are ordered in time
+	lastOccurred1, err := time.Parse(time.RFC3339, notice1["last-occurred"].(string))
+	c.Assert(err, IsNil)
+	lastOccurred2, err := time.Parse(time.RFC3339, notice2["last-occurred"].(string))
+	c.Assert(err, IsNil)
+	lastOccurred3, err := time.Parse(time.RFC3339, notice3["last-occurred"].(string))
+	c.Assert(err, IsNil)
+	lastOccurred4, err := time.Parse(time.RFC3339, notice4["last-occurred"].(string))
+	c.Assert(err, IsNil)
+
+	c.Assert(lastOccurred1.Equal(testDate), Equals, true)
+	c.Assert(lastOccurred2.Equal(testDate), Equals, false)
+	c.Assert(lastOccurred3.Equal(testDate), Equals, false)
+	c.Assert(lastOccurred1.Before(lastOccurred2), Equals, true)
+	c.Assert(lastOccurred1.Before(lastOccurred3), Equals, true)
+	c.Assert(lastOccurred2.Before(lastOccurred3), Equals, true)
+	c.Assert(lastOccurred4.Equal(testDate2), Equals, true)
+	c.Assert(lastOccurred4.After(lastOccurred3), Equals, true)
+}
+
 // noticeToMap converts a Notice to a map using a JSON marshal-unmarshal round trip.
 func noticeToMap(c *C, notice *state.Notice) map[string]any {
 	buf, err := json.Marshal(notice)
