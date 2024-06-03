@@ -12573,6 +12573,41 @@ func (s *snapmgrTestSuite) TestUpdateManySplitEssentialWithSharedBase(c *C) {
 
 	s.settle(c)
 
+	checkRerefresh := true
+	s.checkSplitRefreshWithSharedBase(c, chg, checkRerefresh)
+}
+
+func (s *snapmgrTestSuite) TestOldStyleAutoRefreshSplitEssentialWithSharedBase(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	sharedBase := true
+	_, infos, restore := s.setupSplitRefreshAppDependsOnModelBase(c, sharedBase)
+	defer restore()
+
+	var snaps []string
+	for _, info := range infos {
+		snaps = append(snaps, info.RealName)
+	}
+
+	chg := s.state.NewChange("auto-refresh", fmt.Sprintf("auto-refresh %v", snaps))
+	affected, tss, err := snapstate.AutoRefresh(context.Background(), s.state)
+	c.Assert(err, IsNil)
+	c.Assert(affected, testutil.DeepUnsortedMatches, snaps)
+
+	for _, ts := range tss.Refresh {
+		chg.AddAll(ts)
+	}
+
+	c.Check(chg.CheckTaskDependencies(), IsNil)
+
+	s.settle(c)
+
+	checkRerefresh := true
+	s.checkSplitRefreshWithSharedBase(c, chg, checkRerefresh)
+}
+
+func (s *snapmgrTestSuite) checkSplitRefreshWithSharedBase(c *C, chg *state.Change, checkRerefresh bool) {
 	for _, snap := range []string{"snapd", "some-base", "some-base-snap"} {
 		t := findTaskForSnap(c, chg, "auto-connect", snap)
 		c.Assert(t.Status(), Equals, state.DoneStatus, Commentf("expected task %q for %q to be \"Done\": %s", t.Kind(), snap, t.Status()))
@@ -12584,17 +12619,13 @@ func (s *snapmgrTestSuite) TestUpdateManySplitEssentialWithSharedBase(c *C) {
 		c.Assert(t.Status(), Equals, state.DoStatus, Commentf("expected task %q for %q to be \"Do\": %s", t.Kind(), snap, t.Status()))
 	}
 
-	// check that the rerefresh task is waiting because one of the non-essential
-	// snap related refreshes depends on an essential snap that is pending on a reboot
-	var rerefreshTask *state.Task
-	for _, ts := range tss {
-		if len(ts.Tasks()) == 1 && ts.Tasks()[0].Kind() == "check-rerefresh" {
-			rerefreshTask = ts.Tasks()[0]
-			break
-		}
+	if checkRerefresh {
+		// check that the rerefresh task is waiting because one of the non-essential
+		// snap related refreshes depends on an essential snap that is pending on a reboot
+		rerefreshTask := findLastTask(chg, "check-rerefresh")
+		c.Assert(rerefreshTask, NotNil, Commentf("cannot find check-rerefresh task"))
+		c.Assert(rerefreshTask.Status(), Equals, state.WaitStatus)
 	}
-	c.Assert(rerefreshTask, NotNil, Commentf("cannot find check-rerefresh task"))
-	c.Assert(rerefreshTask.Status(), Equals, state.WaitStatus)
 
 	t := findTaskForSnap(c, chg, "link-snap", "kernel")
 	c.Assert(t.Status(), Equals, state.WaitStatus, Commentf("expected kernel's link-snap to be waiting for restart"))

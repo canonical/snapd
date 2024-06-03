@@ -1729,7 +1729,7 @@ func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.Sid
 	}
 
 	var updateTss *UpdateTaskSets
-	if essential, nonEssential, ok := canSplitRefresh(deviceCtx, updates, flags); ok {
+	if essential, nonEssential, ok := canSplitRefresh(deviceCtx, updates); ok {
 		// if we're on classic with a kernel/gadget, split installs with essential
 		// snaps and apps so that the apps don't have to wait for a reboot
 		updateFunc := func(updates []minimalInstallInfo) ([]string, *UpdateTaskSets, error) {
@@ -2071,7 +2071,7 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, re
 
 	var updated []string
 	var updateTss *UpdateTaskSets
-	if essential, nonEssential, ok := canSplitRefresh(deviceCtx, toUpdate, flags); ok {
+	if essential, nonEssential, ok := canSplitRefresh(deviceCtx, toUpdate); ok {
 		// if we're on classic with a kernel/gadget, split refreshes with essential
 		// snaps and apps so that the apps don't have to wait for a reboot
 		updateFunc := func(updates []minimalInstallInfo) ([]string, *UpdateTaskSets, error) {
@@ -2100,9 +2100,8 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, re
 // canSplitRefresh returns whether the refresh is a standard refresh of a mix
 // of essential and non-essential snaps on a hybrid system. If the refresh
 // can be split, it also returns the two split update groups.
-func canSplitRefresh(deviceCtx DeviceContext, infos []minimalInstallInfo, flags *Flags) (essential, nonEssential []minimalInstallInfo, split bool) {
-	// TODO: support split refresh for auto-refresh as well
-	if !deviceCtx.IsCoreBoot() || !release.OnClassic || flags.IsAutoRefresh {
+func canSplitRefresh(deviceCtx DeviceContext, infos []minimalInstallInfo) (essential, nonEssential []minimalInstallInfo, split bool) {
+	if !deviceCtx.IsCoreBoot() || !release.OnClassic {
 		return nil, nil, false
 	}
 
@@ -3242,7 +3241,20 @@ func autoRefreshPhase2(ctx context.Context, st *state.State, updates []*refreshC
 		return nil, err
 	}
 
-	updated, updateTss, err := doUpdate(ctx, st, nil, toUpdate, nil, userID, flags, nil, deviceCtx, fromChange)
+	var updateTss *UpdateTaskSets
+	var updated []string
+	if essential, nonEssential, ok := canSplitRefresh(deviceCtx, toUpdate); ok {
+		// if we're on classic with a kernel/gadget, split installs with essential
+		// snaps and apps so that the apps don't have to wait for a reboot
+		updateFunc := func(updates []minimalInstallInfo) ([]string, *UpdateTaskSets, error) {
+			// extra names are ignored so it's fine to passed all of them in each call
+			return doUpdate(ctx, st, nil, toUpdate, nil, userID, flags, nil, deviceCtx, fromChange)
+		}
+		updated, updateTss, err = splitRefresh(st, essential, nonEssential, userID, flags, updateFunc)
+	} else {
+		updated, updateTss, err = doUpdate(ctx, st, nil, toUpdate, nil, userID, flags, nil, deviceCtx, fromChange)
+	}
+
 	if err != nil {
 		return nil, err
 	}
