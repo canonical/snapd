@@ -88,7 +88,11 @@ execute: |
   # keep original blob just so we can find the assertion later
   cp pc-kernel.snap pc-kernel.snap.orig
   # Build kernel with initramfs with the compiled snap-bootstrap
-  uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
+  if os.query is-ubuntu-ge 24.04; then
+    uc24_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
+  else
+    uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
+  fi
   mv "${NESTED_ASSETS_DIR}"/pc-kernel_*.snap pc-kernel.snap
 
   version="$(nested_get_version)"

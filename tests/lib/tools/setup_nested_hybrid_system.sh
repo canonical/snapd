@@ -129,6 +129,7 @@ run_muinstaller() {
     tests.nested create-vm core --extra-param "${NESTED_PARAM_EXTRA}"
 
     # bind mount new seed
+    remote.exec "sudo mkdir -p /var/lib/snapd/seed"
     remote.exec "sudo mount -o bind /var/lib/snapd/install-seed /var/lib/snapd/seed"
     # push and install muinstaller
     remote.push "${muinstaller_snap}"
