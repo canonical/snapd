@@ -6,7 +6,7 @@ details: |
 
 prepare: |
     hostname > hostname.bak
-    cp /etc/timezone timezone.bak
+    readlink -f /etc/localtime | sed "s/\/usr\/share\/zoneinfo\///" > timezone.bak
 
 restore: |
     hostnamectl set-hostname "$(cat hostname.bak)" || true
@@ -22,5 +22,8 @@ execute: |
     timedatectl set-timezone "America/Lima"
     date +"%Z" | MATCH '\-05'
     timedatectl | MATCH "Time zone: America/Lima"
-    MATCH "America/Lima" < /etc/timezone
+    # /etc/timezone is missing on core24, skip check
+    if ! os.query is-core24; then
+        MATCH "America/Lima" < /etc/timezone
+    fi
     test "$(readlink -f /etc/localtime)" = "/usr/share/zoneinfo/America/Lima"
