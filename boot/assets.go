@@ -279,7 +279,7 @@ type trustedAssetsInstallObserverImpl struct {
 	trustedRecoveryAssets map[string]string
 	trackedRecoveryAssets bootAssetsMap
 
-	useEncryption     bool
+	useEncryption   bool
 	dataKeyResetter secboot.KeyResetter
 	saveKeyResetter secboot.KeyResetter
 
@@ -368,7 +368,7 @@ func (o *trustedAssetsInstallObserverImpl) currentTrustedRecoveryBootAssetsMap()
 	return o.trackedRecoveryAssets
 }
 
-func (o *TrustedAssetsInstallObserverImpl) ChosenEncryptionKeys(resetter, saveResetter secboot.KeyResetter) {
+func (o *trustedAssetsInstallObserverImpl) ChosenEncryptionKeys(resetter, saveResetter secboot.KeyResetter) {
 	o.useEncryption = true
 	o.dataKeyResetter = resetter
 	o.saveKeyResetter = saveResetter
