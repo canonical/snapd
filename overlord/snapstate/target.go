@@ -125,7 +125,7 @@ func StoreInstallGoal(snaps ...StoreSnap) installGoal {
 }
 
 func validateRevisionOpts(opts RevisionOptions) error {
-	if opts.CohortKey != "" && opts.Revision.Set() {
+	if opts.CohortKey != "" && !opts.Revision.Unset() {
 		return errors.New("cannot specify revision and cohort")
 	}
 
@@ -286,7 +286,7 @@ func installActionForStoreTarget(t StoreSnap, opts Options, enforcedSets func() 
 
 		// make sure that the caller-requested revision matches the revision
 		// required by the enforced validation sets
-		if requiredRev.Set() && t.RevOpts.Revision.Set() && requiredRev != t.RevOpts.Revision {
+		if !requiredRev.Unset() && !t.RevOpts.Revision.Unset() && requiredRev != t.RevOpts.Revision {
 			return nil, fmt.Errorf(
 				"cannot install snap %q at requested revision %s without --ignore-validation, revision %s required by validation sets: %s",
 				t.InstanceName, t.RevOpts.Revision, requiredRev, snapasserts.ValidationSetKeySlice(requiredSets).CommaSeparated(),
@@ -297,7 +297,7 @@ func installActionForStoreTarget(t StoreSnap, opts Options, enforcedSets func() 
 
 		action.ValidationSets = requiredSets
 
-		if requiredRev.Set() {
+		if !requiredRev.Unset() {
 			// make sure that we use the revision required by the enforced
 			// validation sets
 			action.Revision = requiredRev
@@ -311,7 +311,7 @@ func installActionForStoreTarget(t StoreSnap, opts Options, enforcedSets func() 
 	// clear out the channel if we're requesting a specific revision, which
 	// could be because the user requested a specific revision or because a
 	// validation set requires it
-	if action.Revision.Set() {
+	if !action.Revision.Unset() {
 		action.Channel = ""
 	}
 
@@ -543,7 +543,7 @@ func (p *pathInstallGoal) toInstall(ctx context.Context, st *state.State, opts O
 		return nil, fmt.Errorf("invalid revision options for snap %q: %w", p.instanceName, err)
 	}
 
-	if p.revOpts.Revision.Set() && p.revOpts.Revision != si.Revision {
+	if !p.revOpts.Revision.Unset() && p.revOpts.Revision != si.Revision {
 		return nil, fmt.Errorf("cannot install local snap %q: %v != %v (revision mismatch)", p.instanceName, p.revOpts.Revision, si.Revision)
 	}
 

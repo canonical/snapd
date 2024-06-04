@@ -44,10 +44,6 @@ func (r Revision) Unset() bool {
 	return r.N == 0
 }
 
-func (r Revision) Set() bool {
-	return r.N != 0
-}
-
 func (r Revision) Local() bool {
 	return r.N < 0
 }

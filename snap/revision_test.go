@@ -47,12 +47,6 @@ func (s revisionSuite) TestUnset(c *C) {
 	c.Assert(snap.R(-9).Unset(), Equals, false)
 }
 
-func (s revisionSuite) TestSet(c *C) {
-	c.Assert(snap.R(0).Set(), Equals, false)
-	c.Assert(snap.R(10).Set(), Equals, true)
-	c.Assert(snap.R(-9).Set(), Equals, true)
-}
-
 func (s revisionSuite) TestLocal(c *C) {
 	c.Assert(snap.R(0).Local(), Equals, false)
 	c.Assert(snap.R(10).Local(), Equals, false)
