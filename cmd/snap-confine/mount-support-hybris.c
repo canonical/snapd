@@ -100,7 +100,7 @@ static void sc_hybris_mount_android_rootfs(const char *rootfs_dir)
 	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
 	int res = mkdir(android_rootfs_dir, 0755);
 	if (res != 0 && errno != EEXIST) {
-		die("cannot create tmpfs target %s", android_rootfs_dir);
+		die("cannot create bind-mount target %s", android_rootfs_dir);
 	}
 	if (res == 0 && (chown(android_rootfs_dir, 0, 0) < 0)) {
 		// Adjust the ownership only if we created the directory.
@@ -108,7 +108,9 @@ static void sc_hybris_mount_android_rootfs(const char *rootfs_dir)
 	}
 	(void)sc_set_effective_identity(old);
 
-	(void)mount(SC_HYBRIS_ROOTFS, android_rootfs_dir, NULL, MS_BIND | MS_REC | MS_RDONLY, NULL);
+	if (mount(SC_HYBRIS_ROOTFS, android_rootfs_dir, NULL, MS_BIND | MS_REC | MS_RDONLY, NULL)) {
+		die("Cannot mount Halium environment into target");
+	}
 
 	sc_must_snprintf(path_buf, sizeof(path_buf), "%s%s", rootfs_dir, SC_HYBRIS_SYSTEM_SYMLINK);
 	const char *android_system_symlink = path_buf;
