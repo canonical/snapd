@@ -15,24 +15,30 @@ import sys
 import log_helper as helper
 
 # Printable names
-ALL = 'all'
-NONE = 'none'
-ACTION = 'action'
-OPERATION = 'operation'
-INFO = 'info'
-ERROR = 'error'
-ERROR_DEBUG = 'error-debug'
+ALL = "all"
+NONE = "none"
+ACTION = "action"
+OPERATION = "operation"
+INFO = "info"
+ERROR = "error"
+ERROR_DEBUG = "error-debug"
 
-RESULT = 'result'
-START = 'Found'
-SPREAD_FILE = 'spread.yaml'
+RESULT = "result"
+START = "Found"
+SPREAD_FILE = "spread.yaml"
 
 EXEC_VERBS = [helper.PREPARING, helper.EXECUTING, helper.RESTORING]
 INFO_TYPES = [helper.ERROR, helper.DEBUG, helper.WARNING]
 LIFECYCLE_VERBS = [
-    helper.ALLOCATING, helper.CONNECTING, helper.WAITING, helper.REBOOTING,
-    helper.DISCARDING, helper.SENDING, helper.ALLOCATED, helper.CONNECTED
-    ]
+    helper.ALLOCATING,
+    helper.CONNECTING,
+    helper.WAITING,
+    helper.REBOOTING,
+    helper.DISCARDING,
+    helper.SENDING,
+    helper.ALLOCATED,
+    helper.CONNECTED,
+]
 RESULTS = [helper.SUCCESSFUL, helper.ABORTED, helper.FAILED]
 FAILED_LEVELS = [helper.TASK, helper.SUITE, helper.PROJECT]
 
@@ -56,12 +62,12 @@ class Action:
 
     def __dict__(self):
         return {
-            'type': self.type,
-            'date': self.date,
-            'time': self.time,
-            'verb': self.verb,
-            'task': self.task
-            }
+            "type": self.type,
+            "date": self.date,
+            "time": self.time,
+            "verb": self.verb,
+            "task": self.task,
+        }
 
 
 class Result:
@@ -70,8 +76,9 @@ class Result:
     The results can be: Successful, failed and aborted
     """
 
-    def __init__(self, result_type, level, stage, number, date, time,
-                 detail, source_line):
+    def __init__(
+        self, result_type, level, stage, number, date, time, detail, source_line
+    ):
         self.type = RESULT
         self.result_type = result_type
         self.level = level
@@ -84,7 +91,7 @@ class Result:
 
     def __repr__(self):
         if self.detail:
-            return '{}{}'.format(self.source_line, str(self.detail))
+            return "{}{}".format(self.source_line, str(self.detail))
         return self.source_line
 
     def __dict__(self):
@@ -92,15 +99,15 @@ class Result:
         if self.detail:
             prepared_detail = self.detail.__dict__()
         return {
-            'type': self.type,
-            'date': self.date,
-            'time': self.time,
-            'result_type': self.result_type,
-            'level': self.level,
-            'stage': self.stage,
-            'number': self.number,
-            'detail': prepared_detail
-            }
+            "type": self.type,
+            "date": self.date,
+            "time": self.time,
+            "result_type": self.result_type,
+            "level": self.level,
+            "stage": self.stage,
+            "number": self.number,
+            "detail": prepared_detail,
+        }
 
 
 class Info:
@@ -109,8 +116,7 @@ class Info:
     spread log. The info can be: Error, Debug and Warning
     """
 
-    def __init__(self, info_type, verb, task, extra, date, time,
-                 detail, source_line):
+    def __init__(self, info_type, verb, task, extra, date, time, detail, source_line):
         self.type = INFO
         self.info_type = info_type
         self.verb = verb
@@ -123,7 +129,7 @@ class Info:
 
     def __repr__(self):
         if self.detail:
-            return '{}{}'.format(self.source_line, self.detail)
+            return "{}{}".format(self.source_line, self.detail)
         return self.source_line
 
     def __dict__(self):
@@ -131,15 +137,15 @@ class Info:
         if self.detail:
             prepared_detail = self.detail.__dict__()
         return {
-            'type': self.type,
-            'date': self.date,
-            'time': self.time,
-            'info_type': self.info_type,
-            'verb': self.verb,
-            'task': self.task,
-            'extra': self.extra,
-            'detail': prepared_detail
-            }
+            "type": self.type,
+            "date": self.date,
+            "time": self.time,
+            "info_type": self.info_type,
+            "verb": self.verb,
+            "task": self.task,
+            "extra": self.extra,
+            "detail": prepared_detail,
+        }
 
 
 class Rule:
@@ -148,9 +154,11 @@ class Rule:
     """
 
     def __init__(self, rule):
-        parts = rule.split('=',1)
+        parts = rule.split("=", 1)
         if len(parts) != 2:
-            raise ValueError("Error: Rule '{}' does not follow the KEY=PATTERN format".format(rule))
+            raise ValueError(
+                "Error: Rule '{}' does not follow the KEY=PATTERN format".format(rule)
+            )
 
         self.key = parts[0]
         self.pattern = parts[1]
@@ -158,7 +166,9 @@ class Rule:
         try:
             re.compile(self.pattern)
         except re.error as err:
-            raise ValueError("Error: pattern '{}' cannot be compiled: {}".format(self.pattern, err))
+            raise ValueError(
+                "Error: pattern '{}' cannot be compiled: {}".format(self.pattern, err)
+            )
 
     def filter(self, lines):
         regex = re.compile(self.pattern)
@@ -170,6 +180,7 @@ class Rule:
                     all_matches.append(match)
 
         return all_matches
+
 
 class Detail:
     """
@@ -188,19 +199,19 @@ class Detail:
 
         # Use self.lines_limit-1 because the last line is a '.' and we don't
         # want to count it as a line in the log details
-        return self.lines[-self.lines_limit-1:]
+        return self.lines[-self.lines_limit - 1 :]
 
     def _process_rules(self, rules):
         for rule in rules:
             key = rule.key
             matches = rule.filter(self.lines)
-            self.data[key] = '\n'.join(matches)
+            self.data[key] = "\n".join(matches)
 
     def __repr__(self):
-        return ''.join(self._get_lines())
+        return "".join(self._get_lines())
 
     def __dict__(self):
-        details_dict = {'lines': self.lines[-self.lines_limit-1:]}
+        details_dict = {"lines": self.lines[-self.lines_limit - 1 :]}
         for key in self.data.keys():
             details_dict[key] = self.data[key]
 
@@ -228,20 +239,23 @@ class Operation:
 
     def __dict__(self):
         return {
-            'type': self.type,
-            'date': self.date,
-            'time': self.time,
-            'verb': self.verb,
-            'task': self.task,
-            'extra': self.extra
-            }
+            "type": self.type,
+            "date": self.date,
+            "time": self.time,
+            "verb": self.verb,
+            "task": self.task,
+            "extra": self.extra,
+        }
 
 
 class LogReader:
     """
     LogReader manages the spread log, it allows to read, export and print
     """
-    def __init__(self, filepath, output_type, lines_limit, store_setup, error_rules, debug_rules):
+
+    def __init__(
+        self, filepath, output_type, lines_limit, store_setup, error_rules, debug_rules
+    ):
         self.filepath = filepath
         self.output_type = output_type
         self.lines_limit = lines_limit
@@ -256,7 +270,7 @@ class LogReader:
         return str(self.__dict__())
 
     def __dict__(self):
-        return {'full_log': self.full_log}
+        return {"full_log": self.full_log}
 
     def print_log(self, details, results):
         if not self.full_log:
@@ -264,32 +278,58 @@ class LogReader:
 
         # Print the details
         if details == ALL:
-            print(''.join(str(x) for x in self.full_log))
+            print("".join(str(x) for x in self.full_log))
         elif details == NONE:
             pass
         elif details == ERROR:
-            print(''.join(str(x) for x in self.full_log if x.type == INFO and
-                  x.info_type == helper.ERROR))
+            print(
+                "".join(
+                    str(x)
+                    for x in self.full_log
+                    if x.type == INFO and x.info_type == helper.ERROR
+                )
+            )
         elif details == ERROR_DEBUG:
-            print(''.join(str(x) for x in self.full_log if x.type == INFO and
-                  (x.info_type == helper.ERROR or x.info_type == helper.DEBUG)))
+            print(
+                "".join(
+                    str(x)
+                    for x in self.full_log
+                    if x.type == INFO
+                    and (x.info_type == helper.ERROR or x.info_type == helper.DEBUG)
+                )
+            )
         else:
-            print(''.join(str(x) for x in self.full_log if x.type == details))
+            print("".join(str(x) for x in self.full_log if x.type == details))
 
         # Print the results
         if results == ALL:
-            print(''.join(str(x) for x in self.full_log if x.type == RESULT))
+            print("".join(str(x) for x in self.full_log if x.type == RESULT))
         elif results == NONE:
             pass
         elif results == helper.FAILED.lower():
-            print(''.join(str(x) for x in self.full_log if x.type == RESULT and
-                  x.result_type == helper.FAILED))
+            print(
+                "".join(
+                    str(x)
+                    for x in self.full_log
+                    if x.type == RESULT and x.result_type == helper.FAILED
+                )
+            )
         elif results == helper.ABORTED.lower():
-            print(''.join(str(x) for x in self.full_log if x.type == RESULT and
-                  x.result_type == helper.ABORTED))
+            print(
+                "".join(
+                    str(x)
+                    for x in self.full_log
+                    if x.type == RESULT and x.result_type == helper.ABORTED
+                )
+            )
         else:
-            print(''.join(str(x) for x in self.full_log if x.type == RESULT and
-                  x.result_type == helper.SUCCESSFUL))
+            print(
+                "".join(
+                    str(x)
+                    for x in self.full_log
+                    if x.type == RESULT and x.result_type == helper.SUCCESSFUL
+                )
+            )
 
     def export_log(self, filepath):
         prepared_log = []
@@ -298,22 +338,22 @@ class LogReader:
                 prepared_log.append(item)
             else:
                 prepared_log.append(item.__dict__())
-        with open(filepath, 'w') as json_file:
+        with open(filepath, "w") as json_file:
             json.dump(prepared_log, json_file, indent=4)
 
     def _next_line(self):
         self.iter = self.iter + 1
-        return self.lines[self.iter-1]
+        return self.lines[self.iter - 1]
 
     def check_log_exists(self):
         return os.path.exists(self.filepath)
 
     def read_spread_log(self):
         try:
-            with open(self.filepath, 'r', encoding='utf-8') as filepath:
+            with open(self.filepath, "r", encoding="utf-8") as filepath:
                 self.lines = filepath.readlines()
         except UnicodeDecodeError:
-            with open(self.filepath, 'r', encoding='latin-1') as filepath:
+            with open(self.filepath, "r", encoding="latin-1") as filepath:
                 self.lines = filepath.readlines()
 
         # Find the start of the log, the log file could include
@@ -322,7 +362,7 @@ class LogReader:
         if self.store_setup:
             while self.iter < len(self.lines):
                 line = self._next_line()
-                if helper.is_start_line(line):
+                if helper.is_initial_line(line):
                     break
                 self.full_log.append(line)
 
@@ -364,16 +404,23 @@ class LogReader:
                 continue
 
     def _match_info(self, line):
-        return helper.is_operation(line) and helper.get_operation(line) in INFO_TYPES
+        return (
+            helper.is_any_operation(line) and helper.get_operation(line) in INFO_TYPES
+        )
 
     def _match_task(self, line):
-        return helper.is_operation(line) and helper.get_operation(line) in EXEC_VERBS
+        return (
+            helper.is_any_operation(line) and helper.get_operation(line) in EXEC_VERBS
+        )
 
     def _match_operation(self, line):
-        return helper.is_operation(line) and helper.get_operation(line) in LIFECYCLE_VERBS
+        return (
+            helper.is_any_operation(line)
+            and helper.get_operation(line) in LIFECYCLE_VERBS
+        )
 
     def _match_result(self, line):
-        return helper.is_operation(line) and helper.get_operation(line) in RESULTS
+        return helper.is_any_operation(line) and helper.get_operation(line) in RESULTS
 
     def _get_detail(self, rules, results=False, other_limit=None):
         """
@@ -382,18 +429,18 @@ class LogReader:
         a limit of lines to tail the log and show the last lines.
         It returns a Detail object included all the lines.
         """
-        detail=[]
-        while self.iter < len(self.lines):            
-            previous_line = self.lines[self.iter-1]
+        detail = []
+        while self.iter < len(self.lines):
+            previous_line = self.lines[self.iter - 1]
             line = self._next_line()
             if helper.is_detail_finished(line):
                 # This is needed because it could happen that in the details there is a spread log
                 # because sometimes we run nested spread
                 # The is not valid when the details are for failed tests in results section
-                if results or previous_line.strip() == '.':
+                if results or previous_line.strip() == ".":
                     break
-            
-            detail.append(line)            
+
+            detail.append(line)
 
         # We leave the iter in the last line in case the log has finished
         if not self.iter == len(self.lines):
@@ -417,20 +464,20 @@ class LogReader:
         task = None
         if info_type == helper.WARNING:
             # Removing the : from WARNING:
-            info_type = info_type.split(':')[0]
+            info_type = info_type.split(":")[0]
             verb = None
             task = None
             extra = info_extra
         elif info_type == helper.ERROR:
-            verb = info_extra.split(' ')[0]
-            task = info_extra.split(' ')[1]
+            verb = info_extra.split(" ")[0]
+            task = info_extra.split(" ")[1]
             extra = None
         elif info_type == helper.DEBUG:
             verb = None
-            task = info_extra.split(' ')[2]
+            task = info_extra.split(" ")[2]
             extra = None
         else:
-            print('log-processor: detail type not recognized: {}'.format(info_type))
+            print("log-processor: detail type not recognized: {}".format(info_type))
 
         # Pass the rules according to the info type
         rules = self.debug_rules
@@ -444,19 +491,19 @@ class LogReader:
         return Info(info_type, verb, task, extra, date, time, detail, line)
 
     def _get_result(self, line):
-        """ Get the Result object including the details for the result """
+        """Get the Result object including the details for the result"""
         date = helper.get_date(line)
         time = helper.get_time(line)
         result_type = helper.get_operation(line)
         result_extra = helper.get_operation_info(line)
-        level = result_extra.split(' ')[0].split(':')[0]
-        number = result_extra.split(' ')[-1]
+        level = result_extra.split(" ")[0].split(":")[0]
+        number = result_extra.split(" ")[-1]
 
         stage = None
         detail = None
         if result_type == helper.FAILED:
             if level in FAILED_LEVELS:
-                stage = result_extra.split(' ')[1].split(':')[0]
+                stage = result_extra.split(" ")[1].split(":")[0]
             detail = self._get_detail([], results=True, other_limit=-1)
 
         return Result(result_type, level, stage, number, date, time, detail, line)
@@ -469,11 +516,11 @@ class LogReader:
         date = helper.get_date(line)
         time = helper.get_time(line)
         verb = helper.get_operation(line)
-        task = helper.get_operation_info(line).split(' ')[0]
-        return Action(verb, task.split('...')[0], date, time, line)
+        task = helper.get_operation_info(line).split(" ")[0]
+        return Action(verb, task.split("...")[0], date, time, line)
 
     def _get_operation(self, line):
-        """ Get the Operation object for lines rebooting, allocating, etc """
+        """Get the Operation object for lines rebooting, allocating, etc"""
 
         date = helper.get_date(line)
         time = helper.get_time(line)
@@ -504,7 +551,7 @@ for the error/debug/warning output.
         "--format",
         type=str,
         default="json",
-        choices=['json'],
+        choices=["json"],
         help="format for the output",
     )
     parser.add_argument(
@@ -520,7 +567,13 @@ for the error/debug/warning output.
         "--print-results",
         type=str,
         default=NONE,
-        choices=[ALL, helper.FAILED.lower(), helper.ABORTED.lower(), helper.SUCCESSFUL.lower(), NONE],
+        choices=[
+            ALL,
+            helper.FAILED.lower(),
+            helper.ABORTED.lower(),
+            helper.SUCCESSFUL.lower(),
+            NONE,
+        ],
         help="Filter which results to print",
     )
     parser.add_argument(
@@ -537,17 +590,17 @@ for the error/debug/warning output.
     )
     parser.add_argument(
         "-er",
-        "--error-rule", 
+        "--error-rule",
         action="append",
         default=[],
-        help="A KEY=PATTERN used to extract and store specific data from errors"
+        help="A KEY=PATTERN used to extract and store specific data from errors",
     )
     parser.add_argument(
         "-dr",
-        "--debug-rule", 
+        "--debug-rule",
         action="append",
         default=[],
-        help="A KEY=PATTERN used to extract and store specific data from debug output"
+        help="A KEY=PATTERN used to extract and store specific data from debug output",
     )
     parser.add_argument(
         "log_path", metavar="PATH", help="path to the log to be analyzed"
@@ -564,7 +617,14 @@ def main():
         parser.print_usage()
         parser.exit(0)
 
-    reader = LogReader(args.log_path, args.format, args.cut, args.store_setup, args.error_rule, args.debug_rule)
+    reader = LogReader(
+        args.log_path,
+        args.format,
+        args.cut,
+        args.store_setup,
+        args.error_rule,
+        args.debug_rule,
+    )
     if not reader.check_log_exists():
         print("log-processor: log not found")
         sys.exit(1)
