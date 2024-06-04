@@ -22,9 +22,11 @@ package devicestate
 
 import (
 	"fmt"
+	"path/filepath"
 
 	sb "github.com/snapcore/secboot"
 
+	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
 )
@@ -51,8 +53,42 @@ func createSaveResetterImpl(saveNode string) (secboot.KeyResetter, error) {
 		return nil, fmt.Errorf("cannot enroll new installation key: %v", err)
 	}
 
-	// TODO: we have to remove old keys (could be done in the resetter)
+	// FIXME: if the key has already be renamed, that is "default"
+	// does not exist, but "factory-reset-old" does, then we
+	// should ignore it.
+	if err := sb.RenameLUKS2ContainerKey(saveNode, "default", "factory-reset-old"); err != nil {
+		return nil, fmt.Errorf("cannot rename container key: %v", err)
+	}
+
 	return secboot.CreateKeyResetter(sb.DiskUnlockKey(saveEncryptionKey), saveNode), nil
 }
 
 var createSaveResetter = createSaveResetterImpl
+
+func deleteOldSaveKeyImpl(saveMntPnt string) error {
+	// FIXME: maybe there is better if we had a function returning the devname instead.
+	partUUID, err := disks.PartitionUUIDFromMountPoint(saveMntPnt, &disks.Options{
+		IsDecryptedDevice: true,
+	})
+	if err != nil {
+		return fmt.Errorf("cannot partition save partition: %v", err)
+	}
+
+	slots, err := sb.ListLUKS2ContainerUnlockKeyNames(filepath.Join("/dev/disk/by-partuuid", partUUID))
+	if err != nil {
+		return fmt.Errorf("cannot list slots in partition save partition: %v", err)
+	}
+
+	for _, slot := range slots {
+		if slot == "factory-reset-old" {
+			if err := sb.DeleteLUKS2ContainerKey(filepath.Join("/dev/disk/by-partuuid", partUUID), "factory-reset-old"); err != nil {
+				return fmt.Errorf("cannot remove old container key: %v", err)
+			}
+			return nil
+		}
+	}
+
+	return nil
+}
+
+var deleteOldSaveKey = deleteOldSaveKeyImpl

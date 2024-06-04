@@ -50,7 +50,6 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/secboot"
-	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
@@ -829,18 +828,6 @@ func verifyFactoryResetMarkerInRun(marker string, hasEncryption bool) error {
 		if frm.FallbackSaveKeyHash != "" {
 			return fmt.Errorf("unexpected non-empty fallback key digest")
 		}
-	}
-	return nil
-}
-
-func rotateEncryptionKeys() error {
-	kd, err := os.ReadFile(filepath.Join(dirs.SnapFDEDir, "ubuntu-save.key"))
-	if err != nil {
-		return fmt.Errorf("cannot open encryption key file: %v", err)
-	}
-	// does the right thing if the key has already been transitioned
-	if err := secbootTransitionEncryptionKeyChange(boot.InitramfsUbuntuSaveDir, keys.EncryptionKey(kd)); err != nil {
-		return fmt.Errorf("cannot transition the encryption key: %v", err)
 	}
 	return nil
 }

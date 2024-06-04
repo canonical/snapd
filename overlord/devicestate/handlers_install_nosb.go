@@ -31,3 +31,9 @@ func createSaveResetterImpl(saveNode string) (secboot.KeyResetter, error) {
 }
 
 var createSaveResetter = createSaveResetterImpl
+
+func deleteOldSaveKeyImpl(saveMntPt string) error {
+	return fmt.Errorf("not implemented")
+}
+
+var deleteOldSaveKey = deleteOldSaveKeyImpl

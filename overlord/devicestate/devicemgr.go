@@ -1712,8 +1712,8 @@ func (m *DeviceManager) ensurePostFactoryReset() error {
 	}
 
 	if encrypted {
-		if err := rotateEncryptionKeys(); err != nil {
-			return fmt.Errorf("cannot transition encryption keys: %v", err)
+		if err := deleteOldSaveKey(boot.InitramfsUbuntuSaveDir); err != nil {
+			return fmt.Errorf("cannot remove old encryption keys: %v", err)
 		}
 	}
 

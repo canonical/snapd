@@ -602,3 +602,11 @@ func MockCreateSaveResetter(f func(saveNode string) (secboot.KeyResetter, error)
 		createSaveResetter = old
 	}
 }
+
+func MockDeleteOldSaveKey(f func(saveMntPnt string) error) func() {
+	old := deleteOldSaveKey
+	deleteOldSaveKey = f
+	return func() {
+		deleteOldSaveKey = old
+	}
+}
