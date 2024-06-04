@@ -206,9 +206,6 @@ apps:
   qualcomm-ipc-router:
     command: bin/run
     plugs: [ qualcomm-ipc-router ]
-  raw-input:
-    command: bin/run
-    plugs: [ raw-input ]
   raw-volume:
     command: bin/run
     plugs: [ raw-volume ]
