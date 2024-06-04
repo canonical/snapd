@@ -86,6 +86,7 @@ parts:
       - libbrotli1
       - libc6
       - libcap2
+      - libssl3
       - libexpat1
       - libfreetype6
       - libgcc-s1
