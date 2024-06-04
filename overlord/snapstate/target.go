@@ -104,8 +104,7 @@ type StoreSnap struct {
 	SkipIfPresent bool
 }
 
-// StoreInstallGoal creates a new storeInstallGoal, which implements installGoal to
-// install snaps from the store.
+// StoreInstallGoal creates a new InstallGoal to install snaps from the store.
 func StoreInstallGoal(snaps ...StoreSnap) installGoal {
 	mapping := make(map[string]StoreSnap, len(snaps))
 	for _, sn := range snaps {
@@ -507,8 +506,8 @@ type pathInstallGoal struct {
 	sideInfo *snap.SideInfo
 }
 
-// PathInstallGoal creates a new pathInstallGoal from the given instance name,
-// path, and side info.
+// PathInstallGoal creates a new InstallGoal to install a snap from a given from
+// a path on disk. If instanceName is not provided, si.RealName will be used.
 func PathInstallGoal(instanceName, path string, si *snap.SideInfo, opts RevisionOptions) installGoal {
 	return &pathInstallGoal{
 		instanceName: instanceName,
