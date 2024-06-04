@@ -615,13 +615,13 @@ jobs:
             backend: google-distro-2
             systems: 'opensuse-15.5-64 opensuse-tumbleweed-64'
             tests: 'tests/...'
-          - group: ubuntu-trusty-xenial
+          - group: ubuntu-trusty
             backend: google
-            systems: 'ubuntu-14.04-64 ubuntu-16.04-64'
-            tests: 'tests/...'
-          - group: ubuntu-bionic
+            systems: 'ubuntu-14.04-64'
+            tests: 'tests/smoke/ tests/main/canonical-livepatch tests/main/canonical-livepatch-14.04'
+          - group: ubuntu-xenial-bionic
             backend: google
-            systems: 'ubuntu-18.04-32 ubuntu-18.04-64'
+            systems: 'ubuntu-16.04-64 ubuntu-18.04-32 ubuntu-18.04-64'
             tests: 'tests/...'
           - group: ubuntu-focal-jammy
             backend: google
@@ -771,7 +771,9 @@ jobs:
               RUN_TESTS="$FAILED_TESTS"
           else
               for SYSTEM in ${{ matrix.systems }}; do
-                  RUN_TESTS="$RUN_TESTS ${{ matrix.backend }}:$SYSTEM:${{ matrix.tests }}"
+                  for TESTS in ${{ matrix.tests }}; do
+                      RUN_TESTS="$RUN_TESTS ${{ matrix.backend }}:$SYSTEM:$TESTS"
+                  done
               done
           fi
           # Run spread tests
@@ -824,7 +826,9 @@ jobs:
               echo "Determining which tests were executed"
               RUN_TESTS=""
               for SYSTEM in ${{ matrix.systems }}; do
-                  RUN_TESTS="$RUN_TESTS ${{ matrix.backend }}:$SYSTEM:${{ matrix.tests }}"
+                  for TESTS in ${{ matrix.tests }}; do
+                      RUN_TESTS="$RUN_TESTS ${{ matrix.backend }}:$SYSTEM:$TESTS"
+                  done                  
               done
               if [ -n "$FAILED_TESTS" ]; then
                   RUN_TESTS="$FAILED_TESTS"
