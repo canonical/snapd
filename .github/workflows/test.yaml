@@ -38,13 +38,10 @@ jobs:
       run: |
         case "${{ matrix.toolchain }}" in
             default)
+                rm -f fips-build
                 ;;
             FIPS)
-                sed -i -e \
-                's|- go/\(.*\)/stable # XXX Go toolchain|- go/\1-fips/stable # toolchain channel patched|' \
-                build-aux/snap/snapcraft.yaml
-                # this should be true now
-                grep '# toolchain channel patched' build-aux/snap/snapcraft.yaml
+                touch fips-build
                 ;;
             *)
                 echo "unknown toolchain ${{ matrix.toolchain }}"
