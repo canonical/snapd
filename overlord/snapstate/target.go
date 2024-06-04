@@ -54,13 +54,13 @@ type Options struct {
 	// shouldn't require that the device is seeded before installing/updating
 	// snaps.
 	Seed bool
-	// RequireOneSnap is a boolean flag indicating that this operation is expected
+	// ExpectOneSnap is a boolean flag indicating that this operation is expected
 	// to only operate on one snap (excluding any prerequisite snaps that may be
 	// required). If this is true, then the operation will fail if more than one
 	// snap is being operated on. This flag primarily exists to support the
 	// pre-existing behavior of calling InstallMany with one snap vs calling
 	// Install.
-	RequireOneSnap bool
+	ExpectOneSnap bool
 }
 
 // target represents the data needed to setup a snap for installation.
@@ -138,7 +138,7 @@ var ErrExpectedOneSnap = errors.New("expected exactly one snap to install")
 // toInstall returns the data needed to setup the snaps from the store for
 // installation.
 func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts Options) ([]target, error) {
-	if opts.RequireOneSnap && len(s.snaps) != 1 {
+	if opts.ExpectOneSnap && len(s.snaps) != 1 {
 		return nil, ErrExpectedOneSnap
 	}
 
@@ -200,7 +200,7 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 
 	results, _, err := str.SnapAction(context.TODO(), curSnaps, actions, nil, user, refreshOpts)
 	if err != nil {
-		if opts.RequireOneSnap {
+		if opts.ExpectOneSnap {
 			return nil, singleActionResultErr(actions[0].InstanceName, actions[0].Action, err)
 		}
 		return nil, err
@@ -345,7 +345,7 @@ func (s *storeInstallGoal) validateAndPrune(installedSnaps map[string]*SnapState
 // snap.Info and state.TaskSet. If the installGoal does not request to install
 // exactly one snap, an error is returned.
 func InstallOne(ctx context.Context, st *state.State, goal installGoal, opts Options) (*snap.Info, *state.TaskSet, error) {
-	opts.RequireOneSnap = true
+	opts.ExpectOneSnap = true
 
 	infos, tasksets, err := InstallWithGoal(ctx, st, goal, opts)
 	if err != nil {
@@ -399,7 +399,7 @@ func InstallWithGoal(ctx context.Context, st *state.State, goal installGoal, opt
 
 	// this might be checked earlier in the implementation of installGoal, but
 	// we should check it here as well to be safe
-	if opts.RequireOneSnap && len(targets) != 1 {
+	if opts.ExpectOneSnap && len(targets) != 1 {
 		return nil, nil, ErrExpectedOneSnap
 	}
 
