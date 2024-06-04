@@ -9,14 +9,11 @@ volumes:
         update:
           edition: 1
         content:
-          - image: pc-boot.img
+          - image: mbr.img
       - name: BIOS Boot
         type: DA,21686148-6449-6E6F-744E-656564454649
         size: 1M
         offset: 1M
-        offset-write: mbr+92
-        update:
-          edition: 2
         content:
           - image: pc-core.img
       - name: ubuntu-seed
