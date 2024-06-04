@@ -13025,6 +13025,108 @@ func (s *snapmgrTestSuite) TestSplitRefreshWithDefaultProviderDependingOnModelBa
 	c.Check(chg.Status(), Equals, state.DoneStatus)
 }
 
+func (s *snapmgrTestSuite) TestAutoRefreshSplitRefresh(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	restore = snapstatetest.MockDeviceModel(ModelWithBase("core18"))
+	defer restore()
+
+	snaps := []string{"snapd", "kernel", "core18", "gadget", "some-base", "some-base-snap", "some-snap-with-core18-base"}
+	types := map[string]string{
+		"snapd":                      "snapd",
+		"core18":                     "base",
+		"gadget":                     "gadget",
+		"kernel":                     "kernel",
+		"some-base":                  "base",
+		"some-base-snap":             "app",
+		"some-snap-with-core18-base": "app",
+	}
+	snapIds := map[string]string{
+		"snapd":                      "snapd-snap-id",
+		"core18":                     "core18-snap-id",
+		"gadget":                     "gadget-core18-id",
+		"kernel":                     "kernel-id",
+		"some-base":                  "some-base-id",
+		"some-snap-with-core18-base": "some-snap-with-core18-base",
+		"some-base-snap":             "some-base-snap-id",
+	}
+	bases := map[string]string{
+		// create a dependency between the two task sets
+		"some-snap-with-core18-base": "core18",
+		"some-base-snap":             "some-base",
+	}
+
+	chg := s.state.NewChange("auto-refresh", "test change")
+	task := s.state.NewTask("conditional-auto-refresh", "test task")
+	chg.AddTask(task)
+
+	cands := make(map[string]*snapstate.RefreshCandidate, len(snaps))
+	var paths []string
+	for _, sn := range snaps {
+		yaml := fmt.Sprintf("name: %s\nversion: 1.0\nepoch: 1\ntype: %s", sn, types[sn])
+		if base, ok := bases[sn]; ok {
+			yaml += fmt.Sprintf("\nbase: %s", base)
+		}
+
+		oldSi := &snap.SideInfo{RealName: sn, SnapID: snapIds[sn], Revision: snap.R(1)}
+		newSi := &snap.SideInfo{RealName: sn, SnapID: snapIds[sn], Revision: snap.R(11)}
+
+		path, _ := snaptest.MakeTestSnapInfoWithFiles(c, yaml, nil, newSi)
+		paths = append(paths, path)
+
+		snaptest.MockSnap(c, yaml, oldSi)
+		snapstate.Set(s.state, sn, &snapstate.SnapState{
+			Active:          true,
+			Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{oldSi}),
+			Current:         oldSi.Revision,
+			TrackingChannel: "latest/stable",
+			SnapType:        types[sn],
+		})
+
+		cands[sn] = &snapstate.RefreshCandidate{
+			SnapSetup: snapstate.SnapSetup{
+				SideInfo: newSi,
+				Version:  sn + "Ver",
+				Base:     bases[sn],
+				Type:     snap.Type(types[sn]),
+				Flags:    snapstate.Flags{IsAutoRefresh: true},
+			},
+		}
+	}
+
+	s.fakeBackend.linkSnapRebootFor = map[string]bool{
+		"core18": true,
+		"kernel": true,
+		"gadget": true,
+	}
+	s.fakeBackend.linkSnapMaybeReboot = true
+
+	s.o.TaskRunner().AddHandler("update-gadget-assets",
+		func(task *state.Task, tomb *tomb.Tomb) error {
+			task.State().Lock()
+			defer task.State().Unlock()
+			chg := task.Change()
+			chg.Set("gadget-restart-required", true)
+			return nil
+		},
+		func(task *state.Task, tomb *tomb.Tomb) error { return nil })
+
+	s.o.TaskRunner().AddHandler("update-gadget-cmdline",
+		func(task *state.Task, tomb *tomb.Tomb) error { return nil },
+		func(task *state.Task, tomb *tomb.Tomb) error { return nil })
+
+	task.Set("snaps", cands)
+
+	s.settle(c)
+
+	checkRerefresh := true
+	s.checkSplitRefreshWithSharedBase(c, chg, checkRerefresh)
+}
+
 func findTaskForSnap(c *C, chg *state.Change, kind, snap string) *state.Task {
 	for _, t := range chg.Tasks() {
 		if t.Kind() != kind {

@@ -3248,13 +3248,13 @@ func autoRefreshPhase2(ctx context.Context, st *state.State, updates []*refreshC
 		// snaps and apps so that the apps don't have to wait for a reboot
 		updateFunc := func(updates []minimalInstallInfo) ([]string, *UpdateTaskSets, error) {
 			// extra names are ignored so it's fine to passed all of them in each call
-			return doUpdate(ctx, st, nil, toUpdate, nil, userID, flags, nil, deviceCtx, fromChange)
+			return doUpdate(ctx, st, nil, updates, nil, userID, flags, nil, deviceCtx, fromChange)
 		}
-		updated, updateTss, err = splitRefresh(st, essential, nonEssential, userID, flags, updateFunc)
-	} else {
-		updated, updateTss, err = doUpdate(ctx, st, nil, toUpdate, nil, userID, flags, nil, deviceCtx, fromChange)
+		_, updateTss, err = splitRefresh(st, essential, nonEssential, userID, flags, updateFunc)
+		return updateTss, err
 	}
 
+	updated, updateTss, err = doUpdate(ctx, st, nil, toUpdate, nil, userID, flags, nil, deviceCtx, fromChange)
 	if err != nil {
 		return nil, err
 	}
