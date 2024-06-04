@@ -24,7 +24,7 @@ import (
 )
 
 // KernelSnapInfo includes information from the kernel snap that is
-// needed to build a drivers tree. Defin
+// needed to build a drivers tree.
 type KernelSnapInfo struct {
 	Name     string
 	Revision snap.Revision

@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/kernel"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/mkfs"
+	"github.com/snapcore/snapd/snap"
 )
 
 var (
@@ -124,7 +125,14 @@ func writeFilesystemContent(laidOut *gadget.LaidOutStructure, kSnapInfo *KernelS
 		destDir := kernel.DriversTreeDir(destRoot, kSnapInfo.Name, kSnapInfo.Revision)
 		logger.Noticef("building drivers tree in %s", destDir)
 
-		if err := kernelEnsureKernelDriversTree(kSnapInfo.MountPoint, destDir, nil,
+		kTargetSysMntPt := snap.MinimalSnapContainerPlaceInfo(kSnapInfo.Name, kSnapInfo.Revision)
+		if err := kernelEnsureKernelDriversTree(
+			kernel.MountPoints{
+				Current: kSnapInfo.MountPoint,
+				Target:  kTargetSysMntPt.MountDir(),
+			},
+			nil,
+			destDir,
 			&kernel.KernelDriversTreeOptions{KernelInstall: true}); err != nil {
 			return err
 		}
