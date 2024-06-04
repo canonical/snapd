@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2023-2024 Canonical Ltd
+ * Copyright (C) 2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -19,8 +19,20 @@
 
 package boot
 
-import "github.com/snapcore/snapd/osutil"
+import (
+	"errors"
+)
 
-func SetEfiBootVariables(description string, assetPath string, optionalData []byte) error {
-	return osutil.ErrDarwin
+func setEfiBootVariablesNotImpl(description string, assetPath string, optionalData []byte) error {
+	return errors.New("not implemented without secboot")
+}
+
+var SetEfiBootVariables = setEfiBootVariablesNotImpl
+
+func MockSetEfiBootVariables(f func(description string, assetPath string, optionalData []byte) error) func() {
+	old := SetEfiBootVariables
+	SetEfiBootVariables = f
+	return func() {
+		SetEfiBootVariables = old
+	}
 }

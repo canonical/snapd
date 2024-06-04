@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+//go:build !nosecboot
 
 /*
  * Copyright (C) 2023-2024 Canonical Ltd
@@ -199,12 +200,6 @@ func setEfiBootVariablesImpl(description string, assetPath string, optionalData 
 	return setEfiBootOrderVariable(bootNum)
 }
 
-var SetEfiBootVariables = setEfiBootVariablesImpl
-
-func MockSetEfiBootVariables(f func(description string, assetPath string, optionalData []byte) error) func() {
-	old := SetEfiBootVariables
-	SetEfiBootVariables = f
-	return func() {
-		SetEfiBootVariables = old
-	}
+func init() {
+	SetEfiBootVariables = setEfiBootVariablesImpl
 }
