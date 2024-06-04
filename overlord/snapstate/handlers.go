@@ -1381,7 +1381,7 @@ func (m *SnapManager) restoreUnlinkOnError(t *state.Task, info *snap.Info, tm ti
 	return err
 }
 
-func onRefreshInhibitionTimeout(chg *state.Change, snapName string) error {
+var onRefreshInhibitionTimeout = func(chg *state.Change, snapName string) error {
 	var data map[string]interface{}
 	err := chg.Get("api-data", &data)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
@@ -1454,13 +1454,12 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err erro
 
 			return err
 		}
+		defer lock.Close()
 		if inhibitionTimeout {
 			if err := onRefreshInhibitionTimeout(t.Change(), snapsup.InstanceName()); err != nil {
 				return err
 			}
 		}
-
-		defer lock.Close()
 	}
 
 	snapst.Active = false

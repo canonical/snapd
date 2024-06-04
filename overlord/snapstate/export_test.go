@@ -290,6 +290,14 @@ func MockHasActiveConnection(fn func(st *state.State, iface string) (bool, error
 	}
 }
 
+func MockOnRefreshInhibitionTimeout(fn func(chg *state.Change, snapName string) error) (restore func()) {
+	old := onRefreshInhibitionTimeout
+	onRefreshInhibitionTimeout = fn
+	return func() {
+		onRefreshInhibitionTimeout = old
+	}
+}
+
 // re-refresh related
 var (
 	RefreshedSnaps     = refreshedSnaps
