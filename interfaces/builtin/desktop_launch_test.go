@@ -20,6 +20,9 @@
 package builtin_test
 
 import (
+	"strings"
+
+	"gopkg.in/check.v1"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -100,4 +103,28 @@ func (s *desktopLaunchSuite) TestStaticInfo(c *C) {
 	c.Assert(si.BaseDeclarationPlugs, testutil.Contains, "desktop-launch")
 	c.Assert(si.BaseDeclarationPlugs, testutil.Contains, "deny-auto-connection: true")
 	c.Assert(si.BaseDeclarationPlugs, testutil.Contains, "allow-installation: false")
+}
+
+func (s *desktopLaunchSuite) TestDesktopLaunchAndDesktopLegacy(c *C) {
+	const desktopLaunchConsumerYamlWithLaunchAndLegacy = `
+name: other
+version: 0
+apps:
+ app:
+    command: foo
+    plugs: [desktop-launch, desktop-legacy]
+`
+
+	plug, _ := MockConnectedPlug(c, desktopLaunchConsumerYamlWithLaunchAndLegacy, nil, "desktop-launch")
+	slot, _ := MockConnectedSlot(c, desktopLaunchCoreYaml, nil, "desktop-launch")
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	apparmorSpec := apparmor.NewSpecification(appSet)
+	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	c.Assert(err, IsNil)
+	err = apparmorSpec.AddConnectedPlug(builtin.MustInterface("desktop-legacy"), plug, slot)
+	c.Assert(err, IsNil)
+	c.Assert(strings.Contains(apparmorSpec.SnippetForTag("snap.other.app"), "# Explicitly deny access to other snap's desktop files"), check.Equals, false)
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "Description: Can access common desktop legacy methods.")
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "Description: Can identify and launch other snaps.")
 }
