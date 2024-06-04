@@ -5,36 +5,7 @@ import io
 import re
 import sys
 
-OPERATIONS = [
-    'Preparing', 'Executing', 'Restoring',
-    'Rebooting', 'Discarding', 'Allocating', 'Waiting',
-    'Allocated', 'Connecting', 'Connected', 'Sending',
-    'Error', 'Debug', 'WARNING'
-    ]
-
-def match_date(date):
-    return re.match(r'\d{4}-\d{2}-\d{2}', date)
-
-def match_time(time):
-    return re.match(r'\d{2}:\d{2}:\d{2}', time)
-
-# Debug line starts with 
-def is_debug_start(line):
-    parts = line.strip().split(' ')
-    return len(parts) > 5 and \
-        match_date(parts[0]) and \
-        match_time(parts[1]) and \
-        parts[2] == 'Debug' and \
-        parts[3] == 'output' and \
-        parts[4] == 'for'
-
-# Debug output finishes when a new other line starts
-def is_debug_finished(line: str) -> bool:
-    parts = line.strip().split(' ')
-    return len(parts) > 3 and \
-        match_date(parts[0]) and \
-        match_time(parts[1]) and \
-        parts[2] in OPERATIONS
+import log_helper as helper
 
 def get_debug_tag(debug_num):
     return "###DEBUG-{}###".format(debug_num)
@@ -56,7 +27,7 @@ def process_debug(from_stream: io.TextIOWrapper, start_line: str, debug_count: i
         myfile.write(get_debug_tag(debug_count) + '\n')
         myfile.write(start_line.strip())
         for line in from_stream:
-            if is_debug_finished(line):
+            if helper.is_detail_finished(line):
                 myfile.write('\n')
                 return line
             
@@ -67,7 +38,7 @@ def process_spread_output(debug_file):
     debug_num = 0
     for line in sys.stdin:
         # A Debug section starts
-        if is_debug_start(line):
+        if helper.is_line(line, helper.DEBUG):
             debug_num += 1
             print_debug_line(line.strip(), debug_num)
             line = process_debug(sys.stdin, line, debug_num, debug_file)
