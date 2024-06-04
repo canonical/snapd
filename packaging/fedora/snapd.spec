@@ -122,7 +122,7 @@ ExclusiveArch:  %{ix86} x86_64 %{arm} aarch64 ppc64le s390x
 
 # If go_compiler is not set to 1, there is no virtual provide. Use golang instead.
 BuildRequires: make
-BuildRequires:  %{?go_compiler:compiler(go-compiler)}%{!?go_compiler:golang >= 1.9}
+BuildRequires:  %{?go_compiler:compiler(go-compiler)}%{!?go_compiler:golang >= 1.21}
 BuildRequires:  systemd
 %if ! 0%{?amzn2}
 BuildRequires:  fakeroot
