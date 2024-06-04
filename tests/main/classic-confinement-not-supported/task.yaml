@@ -1,5 +1,10 @@
 summary: Ensure that classic confinement works
 
+details: |
+    Validate the errors with classic confinement. Check that it is
+    necessary to install the snap with `--classic` and a snap with
+    classic confinement cannot be installed in fedora.
+
 systems: [ubuntu-core-*, fedora-*]
 
 environment:

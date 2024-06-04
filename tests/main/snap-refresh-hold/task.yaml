@@ -1,5 +1,13 @@
 summary: Check snap refresh hold and unhold
 
+details: |
+  Check that running `snap refresh --hold` without specifying snaps prevents
+  auto-refreshes for a configurable amount of time (even indefinitely) but not
+  general refreshes (i.e., refreshes triggered by a `snap refresh` without
+  specifying arguments). Check that holding refreshes for specific snaps
+  prevents general refreshes as well as auto-refreshes but not specific snap
+  refreshes.
+
 prepare: |
   snap install test-snapd-tools
   snap set system experimental.parallel-instances=true

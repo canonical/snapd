@@ -21,7 +21,7 @@ package snap
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 
 	"github.com/snapcore/snapd/osutil"
 )
@@ -37,7 +37,7 @@ func addImplicitHooks(snapInfo *Info, hooksDir string) error {
 		return nil
 	}
 
-	fileInfos, err := ioutil.ReadDir(hooksDir)
+	fileInfos, err := os.ReadDir(hooksDir)
 	if err != nil {
 		return fmt.Errorf("unable to read hooks directory: %s", err)
 	}
@@ -49,11 +49,11 @@ func addImplicitHooks(snapInfo *Info, hooksDir string) error {
 	return nil
 }
 
-// addImplicitHooksFromContainer adds hooks from the snap file's hookdir to the snap info.
+// AddImplicitHooksFromContainer adds hooks from the snap file's hookdir to the snap info.
 //
 // Existing hooks (i.e. ones defined in the YAML) are not changed; only missing
 // hooks are added.
-func addImplicitHooksFromContainer(snapInfo *Info, snapf Container) {
+func AddImplicitHooksFromContainer(snapInfo *Info, snapf Container) {
 	// Read the hooks directory. If this fails we assume the hooks directory
 	// doesn't exist, which means there are no implicit hooks to load (not an
 	// error).

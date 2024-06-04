@@ -1,4 +1,11 @@
-summary: Check error handling in symlinks to /usr/bin/snap
+summary: Check error handling in symlinks to /usr/bin/snap"
+
+details: |
+ Check that missing current symlinks are detected by snap run and
+ does not cause an infinite retry loop.
+
+environment:
+    SNAPD_DEBUG: "1"
 
 restore: |
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
@@ -11,14 +18,13 @@ execute: |
     ln -s /usr/bin/snap "$SNAP_MOUNT_DIR/bin/xxx"
 
     echo Running unknown command
-    output="$("$SNAP_MOUNT_DIR/bin/xxx" 2>&1 )" && exit 1
+    "$SNAP_MOUNT_DIR/bin/xxx" > output.txt 2>&1 && exit 1
     err=$?
-    echo "$output"
+    cat output.txt
 
     echo Verifying error message
     if [[ $err -ne 46 ]]; then
       echo "expected error code 46 but got $err"
       exit 1
     fi
-    expected="internal error, please report: running \"xxx\" failed: cannot find current revision for snap xxx: readlink $SNAP_MOUNT_DIR/xxx/current: no such file or directory"
-    test "$output" = "$expected"
+    MATCH "snap \"xxx\" is not installed" < output.txt

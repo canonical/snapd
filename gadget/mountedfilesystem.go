@@ -25,7 +25,7 @@ import (
 	_ "crypto/sha1"
 	"fmt"
 	"io"
-	"io/ioutil"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -77,13 +77,14 @@ func observe(observer ContentObserver, op ContentOperation, partRole, root, dst 
 // MountedFilesystemWriter assists in writing contents of a structure to a
 // mounted filesystem.
 type MountedFilesystemWriter struct {
+	fromPs   *LaidOutStructure
 	ps       *LaidOutStructure
 	observer ContentObserver
 }
 
 // NewMountedFilesystemWriter returns a writer capable of writing provided
 // structure, with content of the structure stored in the given root directory.
-func NewMountedFilesystemWriter(ps *LaidOutStructure, observer ContentObserver) (*MountedFilesystemWriter, error) {
+func NewMountedFilesystemWriter(fromPs, ps *LaidOutStructure, observer ContentObserver) (*MountedFilesystemWriter, error) {
 	if ps == nil {
 		return nil, fmt.Errorf("internal error: *LaidOutStructure is nil")
 	}
@@ -91,6 +92,7 @@ func NewMountedFilesystemWriter(ps *LaidOutStructure, observer ContentObserver) 
 		return nil, fmt.Errorf("structure %v has no filesystem", ps)
 	}
 	fw := &MountedFilesystemWriter{
+		fromPs:   fromPs,
 		ps:       ps,
 		observer: observer,
 	}
@@ -153,7 +155,7 @@ func (m *MountedFilesystemWriter) writeDirectory(volumeRoot, src, dst string, pr
 		dst = filepath.Join(dst, filepath.Base(src))
 	}
 
-	fis, err := ioutil.ReadDir(src)
+	fis, err := os.ReadDir(src)
 	if err != nil {
 		return fmt.Errorf("cannot list directory entries: %v", err)
 	}
@@ -306,9 +308,9 @@ type mountedFilesystemUpdater struct {
 // structure, with structure content coming from provided root directory. The
 // mount is located by calling a mount lookup helper. The backup directory
 // contains backup state information for use during rollback.
-func newMountedFilesystemUpdater(ps *LaidOutStructure, backupDir string, mountLookup mountLookupFunc, observer ContentObserver) (*mountedFilesystemUpdater, error) {
+func newMountedFilesystemUpdater(fromPs, ps *LaidOutStructure, backupDir string, mountLookup mountLookupFunc, observer ContentObserver) (*mountedFilesystemUpdater, error) {
 	// avoid passing observer, writes will not be observed
-	fw, err := NewMountedFilesystemWriter(ps, nil)
+	fw, err := NewMountedFilesystemWriter(fromPs, ps, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -354,6 +356,24 @@ func (f *mountedFilesystemUpdater) entryDestPaths(dstRoot, source, target, backu
 	return dstPath, backupPath
 }
 
+func getDestinationPath(content VolumeContent) (dst string) {
+	dst = content.Target
+	if strings.HasSuffix(dst, "/") {
+		dst = filepath.Join(dst, filepath.Base(content.UnresolvedSource))
+	}
+
+	return dst
+}
+
+func (f *mountedFilesystemUpdater) getKnownContent() (knownContent map[string]bool) {
+	knownContent = make(map[string]bool)
+	for _, c := range f.ps.VolumeStructure.Content {
+		knownContent[getDestinationPath(c)] = true
+	}
+
+	return knownContent
+}
+
 // Update applies an update to a mounted filesystem. The caller must have
 // executed a Backup() before, to prepare a data set for rollback purpose.
 func (f *mountedFilesystemUpdater) Update() error {
@@ -365,6 +385,7 @@ func (f *mountedFilesystemUpdater) Update() error {
 	backupRoot := fsStructBackupPath(f.backupDir, f.ps)
 
 	skipped := 0
+
 	for _, c := range f.ps.ResolvedContent {
 		if err := f.updateVolumeContent(f.mountPoint, &c, preserveInDst, backupRoot); err != nil {
 			if err == ErrNoUpdate {
@@ -375,14 +396,48 @@ func (f *mountedFilesystemUpdater) Update() error {
 		}
 	}
 
-	if skipped == len(f.ps.ResolvedContent) {
+	knownContent := f.getKnownContent()
+	deleted := false
+	if f.fromPs != nil {
+		for _, c := range f.fromPs.VolumeStructure.Content {
+			if knownContent[getDestinationPath(c)] {
+				continue
+			}
+			destPath, backupPath := f.entryDestPaths(f.mountPoint, c.UnresolvedSource, c.Target, backupRoot)
+			preserveStamp := backupPath + ".preserve"
+
+			// We skip directory because we do not know
+			// exactly the content that is supposed to be
+			// in there.
+			// XXX: it might be possible to recursively compare
+			// directories from mounted snaps to detect
+			// what files are removed.
+			if osutil.IsDirectory(destPath) {
+				continue
+			}
+
+			if strutil.SortedListContains(preserveInDst, destPath) || osutil.FileExists(preserveStamp) {
+				continue
+			}
+
+			if err := os.Remove(destPath); err != nil {
+				if os.IsNotExist(err) {
+					continue
+				}
+				return fmt.Errorf("cannot remove content: %v", err)
+			}
+			deleted = true
+		}
+	}
+
+	if !deleted && skipped == len(f.ps.ResolvedContent) {
 		return ErrNoUpdate
 	}
 
 	return nil
 }
 
-func (f *mountedFilesystemUpdater) sourceDirectoryEntries(srcPath string) ([]os.FileInfo, error) {
+func (f *mountedFilesystemUpdater) sourceDirectoryEntries(srcPath string) ([]fs.DirEntry, error) {
 	if err := checkSourceIsDir(srcPath); err != nil {
 		return nil, err
 	}
@@ -392,7 +447,7 @@ func (f *mountedFilesystemUpdater) sourceDirectoryEntries(srcPath string) ([]os.
 		return nil, fmt.Errorf("source is a symbolic link")
 	}
 
-	return ioutil.ReadDir(srcPath)
+	return os.ReadDir(srcPath)
 }
 
 // targetInSourceDir resolves the actual target for given source directory name
@@ -547,6 +602,35 @@ func (f *mountedFilesystemUpdater) Backup() error {
 	for _, c := range f.ps.ResolvedContent {
 		if err := f.backupVolumeContent(f.mountPoint, &c, preserveInDst, backupRoot); err != nil {
 			return fmt.Errorf("cannot backup content: %v", err)
+		}
+	}
+
+	knownContent := f.getKnownContent()
+	if f.fromPs != nil {
+		for _, c := range f.fromPs.VolumeStructure.Content {
+			if knownContent[getDestinationPath(c)] {
+				continue
+			}
+
+			destPath, backupPath := f.entryDestPaths(f.mountPoint, c.UnresolvedSource, c.Target, backupRoot)
+			// We skip directory because we do not know
+			// exactly the content that is supposed to be
+			// in there.
+			// XXX: it might be possible to recursively compare
+			// directories from mounted snaps to detect
+			// what files are removed.
+			if osutil.IsDirectory(destPath) {
+				continue
+			}
+			backupName := backupPath + ".backup"
+
+			if !osutil.FileExists(destPath) {
+				continue
+			}
+
+			if err := writeFileOrSymlink(destPath, backupName, nil); err != nil {
+				return fmt.Errorf("cannot create backup file: %v", err)
+			}
 		}
 	}
 
@@ -799,6 +883,33 @@ func (f *mountedFilesystemUpdater) Rollback() error {
 	preserveInDst, err := mapPreserve(f.mountPoint, f.ps.VolumeStructure.Update.Preserve)
 	if err != nil {
 		return fmt.Errorf("cannot map preserve entries for mount location %q: %v", f.mountPoint, err)
+	}
+
+	knownContent := f.getKnownContent()
+	if f.fromPs != nil {
+		for _, c := range f.fromPs.VolumeStructure.Content {
+			if knownContent[getDestinationPath(c)] {
+				continue
+			}
+
+			destPath, backupPath := f.entryDestPaths(f.mountPoint, c.UnresolvedSource, c.Target, backupRoot)
+
+			if osutil.IsDirectory(destPath) {
+				continue
+			}
+
+			if err := os.Remove(destPath); err != nil {
+				if !os.IsNotExist(err) {
+					return fmt.Errorf("cannot rollback %s: %v", destPath, err)
+				}
+			}
+
+			backupName := backupPath + ".backup"
+
+			if err := writeFileOrSymlink(backupName, destPath, nil); err != nil {
+				return fmt.Errorf("cannot rollback %s: %v", destPath, err)
+			}
+		}
 	}
 
 	for _, c := range f.ps.ResolvedContent {

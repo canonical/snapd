@@ -5,6 +5,7 @@ show_help() {
     echo "       tests.pkgs remove [PACKAGE...]"
     echo "       tests.pkgs is-installed [PACKAGE]"
     echo "       tests.pkgs query [PACKAGE]"
+    echo "       tests.pkgs list-installed"
     echo
     echo "Package names are standardized based on Debian package names"
     echo "internally, package names are re-mapped to fit the convention"

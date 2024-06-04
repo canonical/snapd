@@ -24,6 +24,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"sync"
 
 	"github.com/godbus/dbus"
 	. "gopkg.in/check.v1"
@@ -46,7 +47,9 @@ type documentPortalSuite struct {
 
 	getMountPointError *dbus.Error
 	mountPointResponse string
-	calls              []string
+
+	m     sync.Mutex
+	calls []string
 }
 
 var _ = Suite(&documentPortalSuite{})
@@ -87,9 +90,18 @@ func (s *documentPortalSuite) SetUpTest(c *C) {
 	os.RemoveAll(s.userRuntimePath)
 	err := os.MkdirAll(s.userRuntimePath, 0777)
 	c.Assert(err, IsNil)
-	s.getMountPointError = nil
-	s.mountPointResponse = ""
-	s.calls = nil
+	s.withLocked(func() {
+		s.getMountPointError = nil
+		s.mountPointResponse = ""
+		s.calls = nil
+	})
+}
+
+func (s *documentPortalSuite) withLocked(f func()) {
+	s.m.Lock()
+	defer s.m.Unlock()
+
+	f()
 }
 
 func (s *documentPortalSuite) TestGetDefaultMountPointWithUserError(c *C) {
@@ -114,27 +126,35 @@ func (s *documentPortalSuite) TestGetDefaultMountPointHappy(c *C) {
 }
 
 func (s *documentPortalSuite) TestGetMountPointResponseError(c *C) {
-	s.getMountPointError = dbus.MakeFailedError(errors.New("something went wrong"))
+	s.withLocked(func() {
+		s.getMountPointError = dbus.MakeFailedError(errors.New("something went wrong"))
+	})
 
 	document := &portal.Document{}
 	mountPoint, err := document.GetMountPoint()
 	c.Check(err, FitsTypeOf, dbus.Error{})
 	c.Check(err, ErrorMatches, `something went wrong`)
 	c.Check(mountPoint, Equals, "")
-	c.Check(s.calls, DeepEquals, []string{
-		"GetMountPoint",
+	s.withLocked(func() {
+		c.Check(s.calls, DeepEquals, []string{
+			"GetMountPoint",
+		})
 	})
 }
 
 func (s *documentPortalSuite) TestGetMountPointHappy(c *C) {
-	s.mountPointResponse = filepath.Join(s.userRuntimePath, "doc")
+	s.withLocked(func() {
+		s.mountPointResponse = filepath.Join(s.userRuntimePath, "doc")
+	})
 
 	document := &portal.Document{}
 	mountPoint, err := document.GetMountPoint()
 	c.Check(err, IsNil)
 	c.Check(mountPoint, Equals, s.mountPointResponse)
-	c.Check(s.calls, DeepEquals, []string{
-		"GetMountPoint",
+	s.withLocked(func() {
+		c.Check(s.calls, DeepEquals, []string{
+			"GetMountPoint",
+		})
 	})
 }
 
@@ -143,6 +163,8 @@ type fakeDocumentPortal struct {
 }
 
 func (p *fakeDocumentPortal) GetMountPoint() ([]byte, *dbus.Error) {
+	p.m.Lock()
+	defer p.m.Unlock()
 	p.calls = append(p.calls, "GetMountPoint")
 
 	return []byte(p.mountPointResponse), p.getMountPointError

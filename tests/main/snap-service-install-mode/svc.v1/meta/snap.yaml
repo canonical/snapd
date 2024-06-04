@@ -12,3 +12,8 @@ apps:
     command: sleep infinity
     daemon: simple
     install-mode: disable
+  svc-enabled-by-timer:
+    command: sleep infinity
+    daemon: simple
+    install-mode: disable
+    timer: 0:00~24:00/96 # every 15m

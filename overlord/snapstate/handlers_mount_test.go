@@ -84,7 +84,7 @@ func (s *mountSnapSuite) TestDoUndoMountSnap(c *C) {
 		Revision: snap.R(2),
 	}
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{si1},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si1}),
 		Current:  si1.Revision,
 		SnapType: "os",
 	})
@@ -152,7 +152,7 @@ func (s *mountSnapSuite) TestDoMountSnapErrorReadInfo(c *C) {
 		Revision: snap.R(2),
 	}
 	snapstate.Set(s.state, "borken", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{si1},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si1}),
 		Current:  si1.Revision,
 		SnapType: "app",
 	})
@@ -216,7 +216,7 @@ func (s *mountSnapSuite) TestDoMountSnapEpochError(c *C) {
 		Revision: snap.R(2),
 	}
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{si1},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si1}),
 		Current:  si1.Revision,
 		SnapType: "app",
 	})
@@ -311,7 +311,7 @@ func (s *mountSnapSuite) TestDoMountSnapUndoError(c *C) {
 		Revision: snap.R(2),
 	}
 	snapstate.Set(s.state, "borken-undo-setup", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{si1},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si1}),
 		Current:  si1.Revision,
 		SnapType: "app",
 	})
@@ -378,7 +378,7 @@ func (s *mountSnapSuite) TestDoMountSnapErrorNotFound(c *C) {
 		Revision: snap.R(2),
 	}
 	snapstate.Set(s.state, "not-there", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{si1},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si1}),
 		Current:  si1.Revision,
 		SnapType: "app",
 	})
@@ -458,7 +458,7 @@ func (s *mountSnapSuite) TestDoMountNotMountedRetryRetry(c *C) {
 		Revision: snap.R(2),
 	}
 	snapstate.Set(s.state, "not-there", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{si1},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si1}),
 		Current:  si1.Revision,
 		SnapType: "app",
 	})

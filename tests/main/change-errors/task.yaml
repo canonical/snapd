@@ -1,5 +1,9 @@
 summary: Checks for cli errors of the tasks / change command.
 
+details: |
+    Verify that `snap tasks` and `snap change` return an error
+    when the provided ID is invalid.
+
 execute: |
     echo "When an invalid ID is given to the tasks command it shows an error"
     if snap tasks 10000000; then

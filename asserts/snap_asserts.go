@@ -419,22 +419,21 @@ type RevisionAuthority struct {
 	DeviceScope *DeviceScopeConstraint
 }
 
-// Check tests whether rev matches the revision authority constraints.
-// Optional model and store must be provided to cross-check device-specific
-// constraints.
-func (ra *RevisionAuthority) Check(rev *SnapRevision, model *Model, store *Store) error {
-	if !strutil.ListContains(ra.Provenance, rev.Provenance()) {
+func (ra *RevisionAuthority) checkProvenanceAndRevision(a interface {
+	Assertion
+	Provenance() string
+}, what string, revno int, model *Model, store *Store) error {
+	if !strutil.ListContains(ra.Provenance, a.Provenance()) {
 		return fmt.Errorf("provenance mismatch")
 	}
-	if rev.AuthorityID() != ra.AccountID {
+	if a.AuthorityID() != ra.AccountID {
 		return fmt.Errorf("authority-id mismatch")
 	}
-	revno := rev.SnapRevision()
 	if revno < ra.MinRevision {
-		return fmt.Errorf("snap revision %d is less than min-revision %d", revno, ra.MinRevision)
+		return fmt.Errorf("%s revision %d is less than min-revision %d", what, revno, ra.MinRevision)
 	}
 	if ra.MaxRevision != 0 && revno > ra.MaxRevision {
-		return fmt.Errorf("snap revision %d is greater than max-revision %d", revno, ra.MaxRevision)
+		return fmt.Errorf("%s revision %d is greater than max-revision %d", what, revno, ra.MaxRevision)
 	}
 	if ra.DeviceScope != nil && model != nil {
 		opts := DeviceScopeConstraintCheckOptions{UseFriendlyStores: true}
@@ -443,6 +442,20 @@ func (ra *RevisionAuthority) Check(rev *SnapRevision, model *Model, store *Store
 		}
 	}
 	return nil
+}
+
+// Check tests whether rev matches the revision authority constraints.
+// Optional model and store must be provided to cross-check device-specific
+// constraints.
+func (ra *RevisionAuthority) Check(rev *SnapRevision, model *Model, store *Store) error {
+	return ra.checkProvenanceAndRevision(rev, "snap", rev.SnapRevision(), model, store)
+}
+
+// CheckResourceRevision tests whether resrev matches the revision authority
+// constraints. Optional model and store must be provided to cross-check
+// device-specific constraints.
+func (ra *RevisionAuthority) CheckResourceRevision(resrev *SnapResourceRevision, model *Model, store *Store) error {
+	return ra.checkProvenanceAndRevision(resrev, "resource", resrev.ResourceRevision(), model, store)
 }
 
 // SnapIntegrity holds information about integrity data included in a revision
@@ -701,6 +714,7 @@ func assembleSnapRevision(assert assertionBase) (Assertion, error) {
 	var snapIntegrity *SnapIntegrity
 
 	if integrityMap != nil {
+		// TODO: this will change again to support format agility
 		_, err := checkDigestWhat(integrityMap, "sha3-384", crypto.SHA3_384, "of integrity header")
 		if err != nil {
 			return nil, err

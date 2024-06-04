@@ -20,7 +20,6 @@
 package bootloader
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -28,8 +27,8 @@ import (
 
 	"github.com/snapcore/snapd/bootloader/lkenv"
 	"github.com/snapcore/snapd/bootloader/ubootenv"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
+	"github.com/snapcore/snapd/osutil/kcmdline"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -42,7 +41,7 @@ func MockAndroidBootFile(c *C, rootdir string, mode os.FileMode) {
 	f := &androidboot{rootdir: rootdir}
 	err := os.MkdirAll(f.dir(), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(f.configFile(), nil, mode)
+	err = os.WriteFile(f.configFile(), nil, mode)
 	c.Assert(err, IsNil)
 }
 
@@ -71,7 +70,7 @@ func NewGrub(rootdir string, opts *Options) RecoveryAwareBootloader {
 func MockGrubFiles(c *C, rootdir string) {
 	err := os.MkdirAll(filepath.Join(rootdir, "/boot/grub"), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(rootdir, "/boot/grub/grub.cfg"), nil, 0644)
+	err = os.WriteFile(filepath.Join(rootdir, "/boot/grub/grub.cfg"), nil, 0644)
 	c.Assert(err, IsNil)
 }
 
@@ -174,8 +173,8 @@ func MockLkFiles(c *C, rootdir string, opts *Options) (restore func()) {
 
 		// now mock the kernel command line
 		cmdLine := filepath.Join(c.MkDir(), "cmdline")
-		ioutil.WriteFile(cmdLine, []byte("snapd_lk_boot_disk=lk-boot-disk"), 0644)
-		r = osutil.MockProcCmdline(cmdLine)
+		os.WriteFile(cmdLine, []byte("snapd_lk_boot_disk=lk-boot-disk"), 0644)
+		r = kcmdline.MockProcCmdline(cmdLine)
 		cleanups = append(cleanups, r)
 	}
 
@@ -185,7 +184,7 @@ func MockLkFiles(c *C, rootdir string, opts *Options) (restore func()) {
 	c.Assert(err, IsNil)
 
 	c.Assert(os.MkdirAll(filepath.Dir(f), 0755), IsNil)
-	err = ioutil.WriteFile(f, buf, 0660)
+	err = os.WriteFile(f, buf, 0660)
 	c.Assert(err, IsNil)
 
 	// now write env in it with correct crc
@@ -211,7 +210,7 @@ func MockLkFiles(c *C, rootdir string, opts *Options) (restore func()) {
 			c.Assert(err, IsNil)
 			bootFile := filepath.Join(rootdir, "/dev/disk/by-partuuid", partUUID)
 			c.Assert(os.MkdirAll(filepath.Dir(bootFile), 0755), IsNil)
-			c.Assert(ioutil.WriteFile(bootFile, nil, 0755), IsNil)
+			c.Assert(os.WriteFile(bootFile, nil, 0755), IsNil)
 		}
 	} else {
 		// for non-uc20 roles just mock the files in /dev/disk/by-partlabel
@@ -219,7 +218,7 @@ func MockLkFiles(c *C, rootdir string, opts *Options) (restore func()) {
 			mockPart := filepath.Join(rootdir, "/dev/disk/by-partlabel/", partName)
 			err := os.MkdirAll(filepath.Dir(mockPart), 0755)
 			c.Assert(err, IsNil)
-			err = ioutil.WriteFile(mockPart, nil, 0600)
+			err = os.WriteFile(mockPart, nil, 0600)
 			c.Assert(err, IsNil)
 		}
 	}

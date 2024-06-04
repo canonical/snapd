@@ -20,6 +20,7 @@
 package configcore
 
 import (
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/sysconfig"
@@ -33,9 +34,11 @@ var (
 	UpdateKeyValueStream = updateKeyValueStream
 	AddFSOnlyHandler     = addFSOnlyHandler
 	FilesystemOnlyApply  = filesystemOnlyApply
+	UpdateHomedirsConfig = updateHomedirsConfig
 )
 
 type PlainCoreConfig = plainCoreConfig
+type RepairConfig = repairConfig
 
 // FilesystemOnlyRun is used for tests that run also when nomanagers flag is
 // set, that is, for config groups that do not need access to the
@@ -87,5 +90,11 @@ func MockApparmorSetupSnapConfineSnippets(f func() (bool, error)) func() {
 func MockApparmorReloadAllSnapProfiles(f func() error) func() {
 	r := testutil.Backup(&apparmorReloadAllSnapProfiles)
 	apparmorReloadAllSnapProfiles = f
+	return r
+}
+
+func MockLoggerSimpleSetup(f func(opts *logger.LoggerOptions) error) func() {
+	r := testutil.Backup(&loggerSimpleSetup)
+	loggerSimpleSetup = f
 	return r
 }

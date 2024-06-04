@@ -33,6 +33,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type execSuite struct{}
@@ -159,4 +160,74 @@ func (s *execSuite) TestStreamCommandSad(c *C) {
 	// Depending on golang version the error is one of the two.
 	c.Check(wrf.(*os.File).Close(), ErrorMatches, "invalid argument|file already closed")
 	c.Check(wrc.ProcessState, NotNil) // i.e. already waited for
+}
+
+func (s *execSuite) TestRunCmdHappy(c *C) {
+	mc := testutil.MockCommand(c, "testcmd", `echo "happy output"`)
+	defer mc.Restore()
+
+	cmd := exec.Command("testcmd")
+	sout, serr, err := osutil.RunCmd(cmd)
+	c.Check(err, IsNil)
+	c.Check(string(sout), Equals, "happy output\n")
+	c.Check(serr, DeepEquals, []byte{})
+
+	c.Check(mc.Calls(), DeepEquals, [][]string{{"testcmd"}})
+}
+
+func (s *execSuite) TestRunCmdHappySplitOutput(c *C) {
+	mc := testutil.MockCommand(c, "testcmd", `echo "happy output" && >&2 echo "to stderr"`)
+	defer mc.Restore()
+
+	cmd := exec.Command("testcmd")
+	sout, serr, err := osutil.RunCmd(cmd)
+	c.Check(err, IsNil)
+	c.Check(string(sout), Equals, "happy output\n")
+	c.Check(string(serr), Equals, "to stderr\n")
+
+	c.Check(mc.Calls(), DeepEquals, [][]string{{"testcmd"}})
+}
+
+func (s *execSuite) TestRunCmdStdoutSet(c *C) {
+	mc := testutil.MockCommand(c, "testcmd", `echo "happy output"`)
+	defer mc.Restore()
+
+	cmd := exec.Command("testcmd")
+	cmd.Stdout = &bytes.Buffer{}
+	sout, serr, err := osutil.RunCmd(cmd)
+	c.Check(err.Error(), Equals, "osutil.Run: Stdout already set")
+	c.Check(sout, IsNil)
+	c.Check(serr, IsNil)
+
+	cmd = exec.Command("testcmd")
+	cmd.Stderr = &bytes.Buffer{}
+	sout, serr, err = osutil.RunCmd(cmd)
+	c.Check(err.Error(), Equals, "osutil.Run: Stderr already set")
+	c.Check(sout, IsNil)
+	c.Check(serr, IsNil)
+
+	c.Check(len(mc.Calls()), Equals, 0)
+}
+
+func (s *execSuite) TestRunSplitOutput(c *C) {
+	mc := testutil.MockCommand(c, "testcmd", `
+if [ $# != 2 ]
+then exit 1
+fi
+echo "happy output" && >&2 echo "to stderr"`)
+	defer mc.Restore()
+
+	sout, serr, err := osutil.RunSplitOutput("testcmd", "arg1", "arg2")
+	c.Check(err, IsNil)
+	c.Check(string(sout), Equals, "happy output\n")
+	c.Check(string(serr), Equals, "to stderr\n")
+
+	sout, serr, err = osutil.RunSplitOutput("testcmd")
+	c.Check(err.Error(), Equals, "exit status 1")
+	c.Check(len(sout), Equals, 0)
+	c.Check(len(serr), Equals, 0)
+
+	c.Check(mc.Calls(), DeepEquals, [][]string{
+		{"testcmd", "arg1", "arg2"},
+		{"testcmd"}})
 }

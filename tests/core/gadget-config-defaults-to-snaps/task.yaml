@@ -1,7 +1,9 @@
-summary: |
-   Test that config defaults specified in the gadget are picked up
-   for first boot snaps with either configure hook only, or combination
-   of default-configure and configure hooks
+summary: Test that config defaults are applied correctly
+
+details: |
+    Test that config defaults specified in the gadget are picked up
+    for first boot snaps with either configure hook only, or combination
+    of default-configure and configure hooks
 
 # the test is only meaningful on core devices
 # TODO:UC20: enable for UC20, it assumes /var/lib/snapd/seed/assertions/model
@@ -116,6 +118,11 @@ restore: |
     systemctl enable "$SERVICE.service" || true
     systemctl start "$SERVICE.service" || true
 
+    # remove the default configure snap before snapd lib is cleaned
+    if snap list "test-snapd-with-default-configure${SUFFIX}"; then
+        snap remove --purge "test-snapd-with-default-configure${SUFFIX}"
+    fi
+
     systemctl stop snapd.service snapd.socket
     clean_snapd_lib
 
@@ -144,6 +151,10 @@ restore: |
 
     # wait for first boot to be done
     wait_for_first_boot_change
+
+    # clean leftovers of test-snapd-with-configure snap
+    rm -rf "/snap/test-snapd-with-configure${SUFFIX}"
+    rm -rf "/var/snap/test-snapd-with-configure${SUFFIX}"
 
 execute: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then

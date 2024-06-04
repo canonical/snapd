@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"encoding/hex"
 	"errors"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -56,13 +55,13 @@ func mockSystemRecoveryKeys(c *C) {
 	rkeyPath := filepath.Join(dirs.SnapFDEDir, "recovery.key")
 	err = os.MkdirAll(filepath.Dir(rkeyPath), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(rkeyPath, []byte(rkeystr), 0644)
+	err = os.WriteFile(rkeyPath, []byte(rkeystr), 0644)
 	c.Assert(err, IsNil)
 
 	skeystr := "1234567890123456"
 	c.Assert(err, IsNil)
 	skeyPath := filepath.Join(dirs.SnapFDEDir, "reinstall.key")
-	err = ioutil.WriteFile(skeyPath, []byte(skeystr), 0644)
+	err = os.WriteFile(skeyPath, []byte(skeystr), 0644)
 	c.Assert(err, IsNil)
 }
 

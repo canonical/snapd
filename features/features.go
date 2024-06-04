@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2018-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -25,6 +25,10 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/sandbox/apparmor"
+	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/systemd"
 )
 
 // SnapdFeature is a named feature that may be on or off.
@@ -68,6 +72,12 @@ const (
 	//  * journal quotas are still experimental
 	// while guota groups creation and management and memory, cpu, quotas are no longer experimental.
 	QuotaGroups
+	// RefreshAppAwarenessUX enables experimental UX improvements for refresh-app-awareness.
+	RefreshAppAwarenessUX
+	// AspectsConfiguration enables experimental aspect-based configuration.
+	AspectsConfiguration
+	// AppArmorPrompting enables AppArmor to prompt the user for permission when apps perform certain operations.
+	AppArmorPrompting
 
 	// lastFeature is the final known feature, it is only used for testing.
 	lastFeature
@@ -108,6 +118,11 @@ var featureNames = map[SnapdFeature]string{
 	GateAutoRefreshHook: "gate-auto-refresh-hook",
 
 	QuotaGroups: "quota-groups",
+
+	RefreshAppAwarenessUX: "refresh-app-awareness-ux",
+	AspectsConfiguration:  "aspects-configuration",
+
+	AppArmorPrompting: "apparmor-prompting",
 }
 
 // featuresEnabledWhenUnset contains a set of features that are enabled when not explicitly configured.
@@ -129,7 +144,58 @@ var featuresExported = map[SnapdFeature]bool{
 	RobustMountNamespaceUpdates:   true,
 	HiddenSnapDataHomeDir:         true,
 	MoveSnapHomeDir:               true,
+
+	RefreshAppAwarenessUX: true,
+	AspectsConfiguration:  true,
 }
+
+// featuresSupportedCallbacks maps features to a callback function which may be
+// run to determine if the feature is supported and, if not, return false along
+// with a reason why the feature is unsupported. If a function has no callback
+// defined, it should be assumed to be supported.
+var featuresSupportedCallbacks = map[SnapdFeature]func() (bool, string){
+	// QuotaGroups requires systemd version 230 or higher
+	QuotaGroups: func() (bool, string) {
+		if err := systemd.EnsureAtLeast(230); err != nil {
+			return false, err.Error()
+		}
+		return true, ""
+	},
+	// UserDaemons requires user units
+	UserDaemons: func() (bool, string) {
+		if !releaseSystemctlSupportsUserUnits() {
+			return false, "user session daemons are not supported on this system's distribution version"
+		}
+		return true, ""
+	},
+	// AppArmorPrompting requires AppArmor parser and kernel support for
+	// prompting, as well as a newer version of snapd with all the
+	// prompting components in place. TODO: change this callback once ready.
+	AppArmorPrompting: func() (bool, string) {
+		kernelFeatures, err := apparmorKernelFeatures()
+		if err != nil {
+			return false, fmt.Sprintf("error checking apparmor kernel features: %v", err)
+		}
+		if !strutil.ListContains(kernelFeatures, "policy:permstable32:prompt") {
+			return false, "apparmor kernel features do not support prompting"
+		}
+		parserFeatures, err := apparmorParserFeatures()
+		if err != nil {
+			return false, fmt.Sprintf("error checking apparmor parser features: %v", err)
+		}
+		if !strutil.ListContains(parserFeatures, "prompt") {
+			return false, "apparmor parser does not support the prompt qualifier"
+		}
+		return false, "requires newer version of snapd"
+		// TODO: return true once snapd supports prompting
+	},
+}
+
+var (
+	releaseSystemctlSupportsUserUnits = release.SystemctlSupportsUserUnits
+	apparmorKernelFeatures            = apparmor.KernelFeatures
+	apparmorParserFeatures            = apparmor.ParserFeatures
+)
 
 // String returns the name of a snapd feature.
 // The function panics for bogus feature values.
@@ -209,4 +275,50 @@ func Flag(tr confGetter, feature SnapdFeature) (bool, error) {
 		return feature.IsEnabledWhenUnset(), nil
 	}
 	return false, fmt.Errorf("%s can only be set to 'true' or 'false', got %q", feature, isEnabled)
+}
+
+// FeatureInfo records whether a particular feature is supported and/or enabled.
+//
+// If the feature is not supported, it should also contain a reason describing
+// why the feature is not supported. A feature is enabled if its feature flag is
+// set to true, regardless of whether or not it is supported.
+type FeatureInfo struct {
+	Supported         bool   `json:"supported"`
+	UnsupportedReason string `json:"unsupported-reason,omitempty"`
+	Enabled           bool   `json:"enabled"`
+}
+
+// All returns a map from feature flags to information about that feature.
+//
+// In particular, the information contains whether the feature is supported
+// and/or enabled. If the feature is not supported, it should also contain a
+// reason describing why the feature is not supported. If a feature's value is
+// not set to true or false, it is excluded from the list, since it is not in
+// this case considered to be a feature flag.
+func All(tr confGetter) map[string]FeatureInfo {
+	knownFeatures := KnownFeatures()
+	allFeaturesInfo := make(map[string]FeatureInfo, len(knownFeatures))
+	for _, feature := range knownFeatures {
+		enabled, err := Flag(tr, feature)
+		if err != nil {
+			// Skip features with values other than true or false
+			continue
+		}
+		// Features implicitly supported if no callback exists
+		supported := true
+		var unsupportedReason string
+		if callback, exists := featuresSupportedCallbacks[feature]; exists {
+			supported, unsupportedReason = callback()
+		}
+		name := feature.String()
+		info := FeatureInfo{
+			Supported: supported,
+			Enabled:   enabled,
+		}
+		if !supported {
+			info.UnsupportedReason = unsupportedReason
+		}
+		allFeaturesInfo[name] = info
+	}
+	return allFeaturesInfo
 }

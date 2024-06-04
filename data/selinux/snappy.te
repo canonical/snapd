@@ -257,7 +257,7 @@ gen_require(`
 	type usr_t;
 ')
 allow snappy_t usr_t:dir { write remove_name add_name };
-allow snappy_t usr_t:lnk_file { create unlink };
+allow snappy_t usr_t:lnk_file { create unlink rename };
 
 # Allow snapd to use ssh-keygen
 ssh_exec_keygen(snappy_t)
@@ -402,6 +402,16 @@ allow snappy_t var_t:sock_file unlink;
 allow snappy_t unconfined_t:dir search;
 allow snappy_t unconfined_t:file { open read };
 
+# Allow snapd to get file attributes in policykit{,_auth}_exec_t domain
+gen_require(`
+    type policykit_auth_exec_t;
+    type policykit_exec_t;
+')
+allow snappy_t policykit_exec_t:file { getattr };
+allow snappy_t policykit_auth_exec_t:file { getattr };
+allow snappy_cli_t policykit_exec_t:file { getattr };
+allow snappy_cli_t policykit_auth_exec_t:file { getattr };
+
 # the release package calls stat() on /proc/sys/fs/binfmt_misc/WSLInterop to
 # detect WSL
 gen_require(`
@@ -457,6 +467,8 @@ gen_require(`
     type devicekit_power_exec_t;
 ')
 allow snappy_t devicekit_power_exec_t:file { getattr };
+
+
 
 ########################################
 #
@@ -749,6 +761,10 @@ kernel_unmount_proc(snappy_confine_t)
 seutil_read_file_contexts(snappy_confine_t)
 term_mount_pty_fs(snappy_confine_t)
 
+# check if /run/systemd/container
+# note, it's unlikely we're ever going to need to read that file on Fedora
+init_search_pid_dirs(snappy_confine_t)
+
 # device group
 fs_manage_cgroup_dirs(snappy_confine_t)
 fs_manage_cgroup_files(snappy_confine_t)
@@ -806,6 +822,8 @@ allow snappy_cli_t snappy_snap_t:lnk_file { read_lnk_file_perms };
 allow snappy_cli_t snappy_var_lib_t:dir { list_dir_perms };
 allow snappy_cli_t snappy_var_lib_t:file { read_file_perms };
 allow snappy_cli_t snappy_var_lib_t:lnk_file { read_lnk_file_perms };
+
+allow snappy_cli_t snappy_var_t:dir { search getattr };
 
 # the release package calls stat() on /proc/sys/fs/binfmt_misc/WSLInterop to
 # detect WSL

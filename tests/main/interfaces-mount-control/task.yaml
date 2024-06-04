@@ -1,5 +1,11 @@
 summary: Test for the mount-control interface
 
+details: |
+    The mount-control interface allows a snap to request creation or removal of
+    a mount point with certain constraints. The test checks that requests to
+    snapd, with "snapctl mount" observe the restrictions set in the plug
+    attributes. The test also checks that persistent mounts survive reboots.
+
 environment:
     MOUNT_SRC: /var/tmp/test-snapd-mount-control
     SNAP_COMMON: /var/snap/test-snapd-mount-control/common
@@ -12,11 +18,16 @@ environment:
     MOUNT_DEST3: $SNAP_COMMON/target3/path/subpath
 
 prepare: |
+    if ! [ -f /etc/audit/auditd.conf ] && os.query is-ubuntu && os.query is-classic; then
+        #shellcheck source=tests/lib/pkgdb.sh
+        . "$TESTSLIB/pkgdb.sh"
+        distro_install_package auditd
+    fi
     mkdir -p "$MOUNT_SRC/dir1"
     echo "Something" > "$MOUNT_SRC/file1"
 
 restore: |
-    rm connect_error.log
+    rm -f connect_error.log
     rm -rf "$MOUNT_SRC"
 
 execute: |
@@ -105,7 +116,9 @@ execute: |
             echo "Mount succeeded despite not matching the allowed FS type"
             exit 1
         fi
-        journalctl -t audit | grep 'fstype="debugfs"' | MATCH 'info="failed type match"'
+        if os.query is-ubuntu && os.query is-classic; then
+            grep 'fstype="debugfs"' /var/log/audit/audit.log | MATCH 'info="failed type match"'
+        fi
         rmdir /media/somedir
 
         echo "Verify that a maliciously crafted path cannot bypass the allowed pattern"

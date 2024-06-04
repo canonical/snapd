@@ -1,4 +1,6 @@
-summary: |
+summary: Test the customized device registration through a gadget hook
+
+details: |
     Test that device initialisation and registration can be customized
     with the prepare-device gadget hook and this can set request headers,
     a proposed serial and the body of the serial assertion

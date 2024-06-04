@@ -1,6 +1,10 @@
 summary: Test that gadget config defaults are applied early on core20.
 
-systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+details: |
+    Check that defaults are applied early when the Ubuntu Core image is
+    booted and also after transition to recovery mode.
+
+systems: [ubuntu-2*]
 
 environment:
     NESTED_ENABLE_TPM: true
@@ -36,7 +40,7 @@ prepare: |
     tests.nested create-vm core
 
 restore: |
-    remote.exec "sudo rm -f /etc/netplan/90-snapd-config.yaml" || true
+    remote.exec "sudo rm -f /etc/netplan/00-snapd-config.yaml" || true
 
 debug: |
     # show if anything went wrong during seeding
@@ -68,7 +72,7 @@ execute: |
         remote.exec "cat /var/snap/pc/common/debug.txt" | MATCH "backlight symlink: /dev/null"
 
         # timezone is set
-        remote.exec "cat /etc/timezone" | MATCH "Europe/Malta"
+        remote.exec "timedatectl show -p Timezone --value" | MATCH "Europe/Malta"
         remote.exec "readlink -f /etc/localtime" | MATCH "Europe/Malta"
         remote.exec "cat /var/snap/pc/common/debug.txt" | MATCH "localtime symlink: /usr/share/zoneinfo/Europe/Malta"
 
@@ -80,11 +84,15 @@ execute: |
         remote.exec "cat /etc/hostname" | MATCH "foo"
         remote.exec "hostname" | MATCH "foo"
 
+        # Should not have all-* snippets from the base
+        not remote.exec "sudo snap get system system.network.netplan.network.ethernets.all-en"
+        not remote.exec "sudo snap get system system.network.netplan.network.ethernets.all-eth"
+
         # netplan config defaults are applied
-        remote.exec "sudo cat /etc/netplan/0-snapd-defaults.yaml" | MATCH br54
+        remote.exec "sudo cat /etc/netplan/00-snapd-config.yaml" | MATCH br54
         remote.exec "sudo netplan get bridges.br54.dhcp4" | MATCH true
         remote.exec "sudo snap get system system.network.netplan.network.bridges.br54.dhcp4" | MATCH true
-        remote.exec "sudo netplan get ethernets.ens3.dhcp4" | MATCH false
+        remote.exec "sudo netplan get ethernets.any.dhcp6" | MATCH true
         # and updating netplan works
         remote.exec "sudo snap set system system.network.netplan.network.bridges.br54.dhcp4=false"
         remote.exec "sudo netplan get bridges.br54.dhcp4" | MATCH false

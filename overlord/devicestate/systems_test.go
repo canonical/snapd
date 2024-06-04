@@ -142,7 +142,7 @@ func validateCore20Seed(c *C, name string, expectedModel *asserts.Model, trusted
 func (s *createSystemSuite) TestCreateSystemFromAssertedSnaps(c *C) {
 	bl := bootloadertest.Mock("trusted", c.MkDir()).WithRecoveryAwareTrustedAssets()
 	// make it simple for now, no assets
-	bl.TrustedAssetsList = nil
+	bl.TrustedAssetsMap = nil
 	bl.StaticCommandLine = "mock static"
 	bl.CandidateStaticCommandLine = "unused"
 	bootloader.Force(bl)
@@ -211,10 +211,13 @@ func (s *createSystemSuite) TestCreateSystemFromAssertedSnaps(c *C) {
 	})
 	expectedDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234")
 
-	infoGetter := func(name string) (*snap.Info, bool, error) {
+	infoGetter := func(name string) (*snap.Info, string, bool, error) {
 		c.Logf("called for: %q", name)
 		info, present := infos[name]
-		return info, present, nil
+		if !present {
+			return info, "", false, nil
+		}
+		return info, info.MountFile(), true, nil
 	}
 	var newFiles []string
 	snapWriteObserver := func(dir, where string) error {
@@ -246,8 +249,8 @@ func (s *createSystemSuite) TestCreateSystemFromAssertedSnaps(c *C) {
 	// recovery system bootenv was set
 	c.Check(bl.RecoverySystemDir, Equals, "/systems/1234")
 	c.Check(bl.RecoverySystemBootVars, DeepEquals, map[string]string{
-		"snapd_full_cmdline_args":  "",
-		"snapd_extra_cmdline_args": "args from gadget",
+		"snapd_full_cmdline_args":  "mock static args from gadget",
+		"snapd_extra_cmdline_args": "",
 		"snapd_recovery_kernel":    "/snaps/pc-kernel_1.snap",
 	})
 	// load the seed
@@ -258,7 +261,7 @@ func (s *createSystemSuite) TestCreateSystemFromAssertedSnaps(c *C) {
 func (s *createSystemSuite) TestCreateSystemFromUnassertedSnaps(c *C) {
 	bl := bootloadertest.Mock("trusted", c.MkDir()).WithRecoveryAwareTrustedAssets()
 	// make it simple for now, no assets
-	bl.TrustedAssetsList = nil
+	bl.TrustedAssetsMap = nil
 	bl.StaticCommandLine = "mock static"
 	bl.CandidateStaticCommandLine = "unused"
 	bootloader.Force(bl)
@@ -301,10 +304,13 @@ func (s *createSystemSuite) TestCreateSystemFromUnassertedSnaps(c *C) {
 	})
 	expectedDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234")
 
-	infoGetter := func(name string) (*snap.Info, bool, error) {
+	infoGetter := func(name string) (*snap.Info, string, bool, error) {
 		c.Logf("called for: %q", name)
 		info, present := infos[name]
-		return info, present, nil
+		if !present {
+			return info, "", false, nil
+		}
+		return info, info.MountFile(), true, nil
 	}
 	var newFiles []string
 	snapWriteObserver := func(dir, where string) error {
@@ -378,10 +384,13 @@ func (s *createSystemSuite) TestCreateSystemWithSomeSnapsAlreadyExisting(c *C) {
 	})
 	expectedDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234")
 
-	infoGetter := func(name string) (*snap.Info, bool, error) {
+	infoGetter := func(name string) (*snap.Info, string, bool, error) {
 		c.Logf("called for: %q", name)
 		info, present := infos[name]
-		return info, present, nil
+		if !present {
+			return info, "", false, nil
+		}
+		return info, info.MountFile(), true, nil
 	}
 	var newFiles []string
 	snapWriteObserver := func(dir, where string) error {
@@ -417,8 +426,8 @@ func (s *createSystemSuite) TestCreateSystemWithSomeSnapsAlreadyExisting(c *C) {
 	// recovery system bootenv was set
 	c.Check(bl.RecoverySystemDir, Equals, "/systems/1234")
 	c.Check(bl.RecoverySystemBootVars, DeepEquals, map[string]string{
-		"snapd_full_cmdline_args":  "",
-		"snapd_extra_cmdline_args": "args from gadget",
+		"snapd_full_cmdline_args":  "args from gadget",
+		"snapd_extra_cmdline_args": "",
 		"snapd_recovery_kernel":    "/snaps/pc-kernel_1.snap",
 	})
 	// load the seed
@@ -518,10 +527,13 @@ func (s *createSystemSuite) TestCreateSystemInfoAndAssertsChecks(c *C) {
 		},
 	})
 
-	infoGetter := func(name string) (*snap.Info, bool, error) {
+	infoGetter := func(name string) (*snap.Info, string, bool, error) {
 		c.Logf("called for: %q", name)
 		info, present := infos[name]
-		return info, present, nil
+		if !present {
+			return info, "", false, nil
+		}
+		return info, info.MountFile(), true, nil
 	}
 	var observerCalls int
 	snapWriteObserver := func(dir, where string) error {
@@ -614,13 +626,16 @@ func (s *createSystemSuite) TestCreateSystemGetInfoErr(c *C) {
 
 	failOn := map[string]bool{}
 
-	infoGetter := func(name string) (*snap.Info, bool, error) {
+	infoGetter := func(name string) (*snap.Info, string, bool, error) {
 		c.Logf("called for: %q", name)
 		if failOn[name] {
-			return nil, false, fmt.Errorf("mock failure for snap %q", name)
+			return nil, "", false, fmt.Errorf("mock failure for snap %q", name)
 		}
 		info, present := infos[name]
-		return info, present, nil
+		if !present {
+			return info, "", false, nil
+		}
+		return info, info.MountFile(), true, nil
 	}
 	var observerCalls int
 	snapWriteObserver := func(dir, where string) error {
@@ -665,9 +680,9 @@ func (s *createSystemSuite) TestCreateSystemNonUC20(c *C) {
 		"gadget":       "pc",
 	})
 
-	infoGetter := func(name string) (*snap.Info, bool, error) {
+	infoGetter := func(name string) (*snap.Info, string, bool, error) {
 		c.Fatalf("unexpected call")
-		return nil, false, fmt.Errorf("unexpected call")
+		return nil, "", false, fmt.Errorf("unexpected call")
 	}
 	snapWriteObserver := func(dir, where string) error {
 		c.Fatalf("unexpected call")
@@ -711,10 +726,13 @@ func (s *createSystemSuite) TestCreateSystemImplicitSnaps(c *C) {
 	})
 	expectedDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234")
 
-	infoGetter := func(name string) (*snap.Info, bool, error) {
+	infoGetter := func(name string) (*snap.Info, string, bool, error) {
 		c.Logf("called for: %q", name)
 		info, present := infos[name]
-		return info, present, nil
+		if !present {
+			return info, "", false, nil
+		}
+		return info, info.MountFile(), true, nil
 	}
 	var newFiles []string
 	snapWriteObserver := func(dir, where string) error {
@@ -768,9 +786,12 @@ func (s *createSystemSuite) TestCreateSystemObserverErr(c *C) {
 		},
 	})
 
-	infoGetter := func(name string) (*snap.Info, bool, error) {
+	infoGetter := func(name string) (*snap.Info, string, bool, error) {
 		info, present := infos[name]
-		return info, present, nil
+		if !present {
+			return info, "", false, nil
+		}
+		return info, info.MountFile(), true, nil
 	}
 	var newFiles []string
 	snapWriteObserver := func(dir, where string) error {

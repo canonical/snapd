@@ -20,7 +20,6 @@
 package mount_test
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -80,7 +79,7 @@ func (s *nsSuite) TestDiscardNamespaceMnt(c *C) {
 
 		if t.mnt {
 			c.Assert(os.MkdirAll(dirs.SnapRunNsDir, 0755), IsNil)
-			c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapRunNsDir, "snap-name.mnt"), nil, 0644), IsNil)
+			c.Assert(os.WriteFile(filepath.Join(dirs.SnapRunNsDir, "snap-name.mnt"), nil, 0644), IsNil)
 		} else {
 			c.Assert(os.RemoveAll(dirs.SnapRunNsDir), IsNil)
 		}
@@ -128,7 +127,7 @@ func (s *nsSuite) TestUpdateNamespaceMnt(c *C) {
 
 		if t.mnt {
 			c.Assert(os.MkdirAll(dirs.SnapRunNsDir, 0755), IsNil)
-			c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapRunNsDir, "snap-name.mnt"), nil, 0644), IsNil)
+			c.Assert(os.WriteFile(filepath.Join(dirs.SnapRunNsDir, "snap-name.mnt"), nil, 0644), IsNil)
 		} else {
 			c.Assert(os.RemoveAll(dirs.SnapRunNsDir), IsNil)
 		}

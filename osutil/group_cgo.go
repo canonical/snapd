@@ -1,6 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 //go:build cgo
-// +build cgo
 
 /*
  * Copyright (C) 2017-2019 Canonical Ltd

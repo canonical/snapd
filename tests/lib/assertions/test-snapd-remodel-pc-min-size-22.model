@@ -9,8 +9,8 @@ grade: dangerous
 snaps:
   -
     default-channel: latest/edge
-    id: tTs9DVS01mt4L11PGqbrSiKcIxFHpUJq
-    name: test-snapd-remodel-pc-min-size
+    id: hZwlp9iRUQE4nLHRXnavvDygTIpfOOwj
+    name: test-snapd-remodel-pc-snakeoil
     type: gadget
   -
     default-channel: 22/stable
@@ -32,13 +32,13 @@ system-user-authority: *
 timestamp: 2023-04-14T10:05:00+00:00
 sign-key-sha3-384: rrP2xy5LOU-OjnYtfHm7h8QSOkySgyrZoJKT_YqlTKJrWMA8j-0SoClorTN6XR9Z
 
-AcLBcwQAAQoAHRYhBMEAb2Q1SgOrrGcnJ4b6Yn/LKbBXBQJkOW59AAoJEIb6Yn/LKbBX7/MQAKJj
-3Kw2xRGT4dzNqUBEeuyAjRSPbREIjI2IqTCVnXvbbbiLUcPS3v6cZNZMo94rR48nkIxPjArgvKnw
-rZWFXgAkg5mMg+IgJDLccHj8hnG/KkE1rpQB4INmgRY/J90V8arYhLQQz9la4+TliYvIZ9VbU8Py
-hduXSu8ENK4wJltuty7TGczX+uM3gT3YNMGSvgknTLPFMJ1DzPMrua5KuFirkDbyxaH05fuJ+J5U
-8cqS2mW6f+EM54ssPeWNkRZqpnXKUWMOkBTPnpjC9Oz6HI/DKEZRzyNj96PKaSr4zMUb/LJATuwy
-rUy4SoHKFBcOwbRjGx+tdyCsRiWuO1A8aoYDzjkyyvk2fmeNiQnBI6rd08RfYjbDgdFhrOpoUh5E
-iwtJjhLQCtVJ/ILJzc6jPk9L7skqDdTaZUQhDyiWYMvqznlQ14brTL1iicpu3kKpnBOuzFS0xbTy
-WJnKD/OR3+jOBrwCw2ft1gWrIRmUIfG/dYh+V/CDfLRxn+g2+wFbZfy/SkTeextaHL0bP2dCT7cQ
-dZU9pwM9mWvQBEQUNmgRybLWLCVodgGTVs5kPwI3HB3y9m4wf77CHaa32Q2gx6uIH/o+zT2yOzCt
-HvudE0RelvPAdC7/yaYlw1OgcUCSCngZORW/pf89mf180BK2supJqojp29KF/iY9N1E55kiI
+AcLBcwQAAQoAHRYhBMEAb2Q1SgOrrGcnJ4b6Yn/LKbBXBQJlFbkPAAoJEIb6Yn/LKbBXnrkQAMWG
+yWiPGYxhfTVlloN50KDAaedE467walFLQVstE9/GMBf4TeHcHcvWFQhBuQ12OeW8siWTYGunLOkU
+zorKqiMcFp/2p2htCzQwe1a0FtFoTEM5B2p/fmT7iDN/7LncLiAhkihJwm28GWwQ8smLkj2Vudvk
+RWkhLJIRwIcyeKLoMjrkon4u9yKUOBEzGFQFioN0HEsCgFEkqbwoZFAeUM0FU96p+Rv7OSMlC8Vj
+HayL3rQ55BojrsCx1gcohaAN9HRWjCaRkpXtYvy9DpRoJYbKItRi+STk4F98mSJkXYO9X4IsMXBA
+9KAE7EGOCp9bzNkBZLhafEsovWAvZB3Imh1JaVVD5DILH4Zikw0Y0rahRsPa376yofEXFpiMG82w
+5Gq73ZKRmsAmYLD1OXmxZkp0i6lLYzk8qorAjS5/m6ZqJy4E3dYiqmb2n8ksrMYULrAsuLoQBCIX
+GySGXbCkaaw7/cqZ70c+/CPscFHiqHtf2UbBWa6l8G11eHrcSFgbAKn79k6S03J79qyU3FJsSHU7
+fR+Leaq0ENR6CGKJo4K5nVFtSxkjfX+/RFqRcawjxlUXLZA31DanscrYQ0AQMvIwhmlXh7NmqIo/
+XAa1459Ay12GwJFCcKS7OA4xZXrCKFxs7+PHrEJ146omhLbattLvO8ntKU/XPLQ6GhNIibNx

@@ -20,7 +20,7 @@
 package client_test
 
 import (
-	"io/ioutil"
+	"io"
 	"time"
 
 	"gopkg.in/check.v1"
@@ -227,7 +227,7 @@ func (cs *clientSuite) TestClientAbort(c *check.C) {
 		ReadyTime: time.Date(2016, 04, 21, 1, 2, 4, 0, time.UTC),
 	})
 
-	body, err := ioutil.ReadAll(cs.req.Body)
+	body, err := io.ReadAll(cs.req.Body)
 	c.Assert(err, check.IsNil)
 
 	c.Assert(string(body), check.Equals, "{\"action\":\"abort\"}\n")

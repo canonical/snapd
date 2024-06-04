@@ -53,7 +53,7 @@ func (x *cmdWatch) Execute(args []string) error {
 
 	// this is the only valid use of wait without a waitMixin (ie
 	// without --no-wait), so we fake it here.
-	wmx := &waitMixin{skipAbort: true}
+	wmx := &waitMixin{skipAbort: true, waitForTasksInWaitStatus: true}
 	wmx.client = x.client
 	_, err = wmx.wait(id)
 

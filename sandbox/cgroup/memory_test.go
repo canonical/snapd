@@ -19,7 +19,7 @@
 package cgroup_test
 
 import (
-	"io/ioutil"
+	"os"
 	"path/filepath"
 
 	. "gopkg.in/check.v1"
@@ -54,7 +54,7 @@ func (s *memorySuite) TestCheckMemoryCgroupHappy(c *C) {
 	extra := "memory	2	223	1"
 	content := cgroupContentCommon + "\n" + extra
 
-	err := ioutil.WriteFile(s.mockCgroupsFile, []byte(content), 0644)
+	err := os.WriteFile(s.mockCgroupsFile, []byte(content), 0644)
 	c.Assert(err, IsNil)
 	err = cgroup.CheckMemoryCgroup()
 	c.Assert(err, IsNil)
@@ -70,7 +70,7 @@ func (s *memorySuite) TestCheckMemoryCgroupMissing(c *C) {
 func (s *memorySuite) TestCheckMemoryCgroupNoMemoryEntry(c *C) {
 	content := cgroupContentCommon
 
-	err := ioutil.WriteFile(s.mockCgroupsFile, []byte(content), 0644)
+	err := os.WriteFile(s.mockCgroupsFile, []byte(content), 0644)
 	c.Assert(err, IsNil)
 	err = cgroup.CheckMemoryCgroup()
 	c.Assert(err, ErrorMatches, "cannot find memory cgroup in .*/cgroups")
@@ -80,7 +80,7 @@ func (s *memorySuite) TestCheckMemoryCgroupInvalidMemoryEntry(c *C) {
 	extra := "memory	invalid line"
 	content := cgroupContentCommon + "\n" + extra
 
-	err := ioutil.WriteFile(s.mockCgroupsFile, []byte(content), 0644)
+	err := os.WriteFile(s.mockCgroupsFile, []byte(content), 0644)
 	c.Assert(err, IsNil)
 	err = cgroup.CheckMemoryCgroup()
 	c.Assert(err, ErrorMatches, `cannot parse cgroups file: invalid line "memory\\tinvalid line"`)
@@ -90,7 +90,7 @@ func (s *memorySuite) TestCheckMemoryCgroupDisabled(c *C) {
 	extra := "memory	2	223	0"
 	content := cgroupContentCommon + "\n" + extra
 
-	err := ioutil.WriteFile(s.mockCgroupsFile, []byte(content), 0644)
+	err := os.WriteFile(s.mockCgroupsFile, []byte(content), 0644)
 	c.Assert(err, IsNil)
 	err = cgroup.CheckMemoryCgroup()
 	c.Assert(err, ErrorMatches, "memory cgroup is disabled on this system")

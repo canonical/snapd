@@ -20,7 +20,7 @@
 package builtin
 
 import (
-	"io/ioutil"
+	"os"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -37,9 +37,9 @@ import (
 // applicable for testing.
 var evalSymlinks = filepath.EvalSymlinks
 
-// readDir is either ioutil.ReadDir or a mocked function applicable for
+// readDir is either os.ReadDir or a mocked function applicable for
 // testing.
-var readDir = ioutil.ReadDir
+var readDir = os.ReadDir
 
 type commonInterface struct {
 	name    string
@@ -51,7 +51,18 @@ type commonInterface struct {
 
 	affectsPlugOnRefresh bool
 
+	appArmorUnconfinedPlugs bool
+	appArmorUnconfinedSlots bool
+
+	// baseDeclarationPlugs defines optional plug-side rules in the
+	// base-declaration assertion relevant for this interface. See
+	// interfaces/builtin/README.md, especially "Base declaration policy
+	// patterns".
 	baseDeclarationPlugs string
+	// baseDeclarationSlots defines optional slot-side rules in the
+	// base-declaration assertion relevant for this interface. See
+	// interfaces/builtin/README.md, especially "Base declaration policy
+	// patterns".
 	baseDeclarationSlots string
 
 	connectedPlugAppArmor  string
@@ -69,6 +80,7 @@ type commonInterface struct {
 
 	usesPtraceTrace             bool
 	suppressPtraceTrace         bool
+	suppressPycacheDeny         bool
 	suppressHomeIx              bool
 	usesSysModuleCapability     bool
 	suppressSysModuleCapability bool
@@ -93,7 +105,9 @@ func (iface *commonInterface) StaticInfo() interfaces.StaticInfo {
 		BaseDeclarationPlugs: iface.baseDeclarationPlugs,
 		BaseDeclarationSlots: iface.baseDeclarationSlots,
 		// affects the plug snap because of mount backend
-		AffectsPlugOnRefresh: iface.affectsPlugOnRefresh,
+		AffectsPlugOnRefresh:    iface.affectsPlugOnRefresh,
+		AppArmorUnconfinedPlugs: iface.appArmorUnconfinedPlugs,
+		AppArmorUnconfinedSlots: iface.appArmorUnconfinedSlots,
 	}
 }
 
@@ -109,6 +123,9 @@ func (iface *commonInterface) AppArmorConnectedPlug(spec *apparmor.Specification
 	}
 	if iface.suppressHomeIx {
 		spec.SetSuppressHomeIx()
+	}
+	if iface.suppressPycacheDeny {
+		spec.SetSuppressPycacheDeny()
 	}
 	if iface.usesSysModuleCapability {
 		spec.SetUsesSysModuleCapability()

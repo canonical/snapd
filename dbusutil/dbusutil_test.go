@@ -21,7 +21,6 @@ package dbusutil_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
 	"path/filepath"
@@ -74,7 +73,7 @@ func (*dbusutilSuite) TestIsSessionBusLikelyPresentEnvVar(c *C) {
 func (*dbusutilSuite) TestIsSessionBusLikelyPresentAddrFile(c *C) {
 	f := fmt.Sprintf("%s/%d/dbus-session", dirs.XdgRuntimeDirBase, os.Getuid())
 	c.Assert(os.MkdirAll(filepath.Dir(f), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(f, []byte("address"), 0644), IsNil)
+	c.Assert(os.WriteFile(f, []byte("address"), 0644), IsNil)
 
 	c.Assert(dbusutil.IsSessionBusLikelyPresent(), Equals, true)
 }

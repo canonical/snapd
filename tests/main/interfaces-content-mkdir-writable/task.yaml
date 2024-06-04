@@ -2,12 +2,12 @@ summary: check that snap-update-ns can create mkdir in $SNAP_{DATA,COMMON}
 
 details: |
     When snap-update-ns is invoked by snap-confine to construct a mount
-    namespace it will create missing directories for the mount target.
-    This will succeed in specific writable locations, such as $SNAP_DATA and
-    $SNAP_COMMON. The $SNAP location is read only but thanks to overalyfs it
-    too can be modified for the calling snap. The test is divided into variants
-    for one of each $SNAP, $SNAP_DATA and $SNAP_COMMON. There's a slight
-    variation for the $SNAP variable, see below for details.
+    namespace it will create missing directories for the mount target. This will
+    succeed in specific writable locations, such as $SNAP_DATA and $SNAP_COMMON.
+    The $SNAP location is read only but thanks to overalyfs it too can be
+    modified for the calling snap. The test is divided into variants for one of
+    each $SNAP, $SNAP_DATA and $SNAP_COMMON. There's a slight variation for the
+    $SNAP variable, see below for details.
 
 environment:
     PLUG/data: test-snapd-content-advanced-plug:data

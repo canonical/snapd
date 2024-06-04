@@ -3,7 +3,7 @@ summary: Verify reinstallation of a UC20 system
 details: |
     This test checks that UC20 can be reinstalled
 
-systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+systems: [ubuntu-2*]
 
 environment:
     # TODO: figure out a way to do this test where we reset the swtpm after the

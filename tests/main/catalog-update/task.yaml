@@ -1,5 +1,9 @@
 summary: Ensure catalog update works
 
+details: |
+    Verify that catalog refresh happens on snapd startup. Also check
+    unnecessary catalog body data is not logged.
+
 environment:
     # on core systems, the catalog update is not performed when memory limit is
     # in place

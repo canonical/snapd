@@ -262,8 +262,14 @@ func (rc *baseRemodelContext) setRecoverySystemLabel(label string) {
 // updateRunModeSystem updates the device context used during boot and makes a
 // record of the new seeded system.
 func (rc *baseRemodelContext) updateRunModeSystem() error {
-	if rc.model.Grade() == asserts.ModelGradeUnset {
-		// nothing special for non-UC20 systems
+	hasSystemSeed, err := checkForSystemSeed(rc.st, &rc.groundDeviceContext)
+	if err != nil {
+		return fmt.Errorf("cannot look up ubuntu seed role: %w", err)
+	}
+
+	if rc.model.Grade() == asserts.ModelGradeUnset || !hasSystemSeed {
+		// nothing special for non-UC20 systems or systems without a real seed
+		// partition
 		return nil
 	}
 	if rc.recoverySystemLabel == "" {
@@ -273,19 +279,31 @@ func (rc *baseRemodelContext) updateRunModeSystem() error {
 	// booting and consider a new recovery system as as seeded
 	oldDeviceContext := rc.GroundContext()
 	newDeviceContext := &rc.groundDeviceContext
-	if err := boot.DeviceChange(oldDeviceContext, newDeviceContext); err != nil {
+	err = boot.DeviceChange(oldDeviceContext, newDeviceContext, rc.st.Unlocker())
+	if err != nil {
 		return fmt.Errorf("cannot switch device: %v", err)
 	}
+	now := time.Now()
 	if err := rc.deviceMgr.recordSeededSystem(rc.st, &seededSystem{
 		System:    rc.recoverySystemLabel,
 		Model:     rc.model.Model(),
 		BrandID:   rc.model.BrandID(),
 		Revision:  rc.model.Revision(),
 		Timestamp: rc.model.Timestamp(),
-		SeedTime:  time.Now(),
+		SeedTime:  now,
 	}); err != nil {
 		return fmt.Errorf("cannot record a new seeded system: %v", err)
 	}
+
+	rc.st.Set("default-recovery-system", DefaultRecoverySystem{
+		System:          rc.recoverySystemLabel,
+		Model:           rc.model.Model(),
+		BrandID:         rc.model.BrandID(),
+		Revision:        rc.model.Revision(),
+		Timestamp:       rc.model.Timestamp(),
+		TimeMadeDefault: now,
+	})
+
 	if err := boot.MarkRecoveryCapableSystem(rc.recoverySystemLabel); err != nil {
 		return fmt.Errorf("cannot mark system %q as recovery capable", rc.recoverySystemLabel)
 	}

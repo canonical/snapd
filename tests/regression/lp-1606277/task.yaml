@@ -1,8 +1,13 @@
 summary: Regression check for https://bugs.launchpad.net/snap-confine/+bug/1606277
 
 details: |
-    A missing bind mount for /var/log prevents access to system log files
-    even if the log-observe interface is being used.
+    During construction of the snap execution environment, the snap-confine
+    program runs under apparmor confinement and needs to have permission to
+    mount the /var/log directory from the host system into the snap execution
+    environment being constructed. If snap-confine lacks permission to mount
+    that directory a snap carrying a connected plug of the log-observe interface
+    would not be able to see any files in the /var/log directory as seen from
+    the perspective of the running snap application.
 
 prepare: |
     echo "Having installed a test snap"

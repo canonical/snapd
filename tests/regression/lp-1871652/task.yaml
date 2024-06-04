@@ -1,5 +1,19 @@
 summary: system key mismatch is ignored on reboot/shutdown
 
+details: |
+    Snapd uses the system key concept to know when the outside environment has
+    changed in an important way, that requires security profiles to be
+    re-compiled. Certain parts of the snap-{run,confine,exec} toolchain are able
+    to detect system key mismatch and wait for the system key to match before
+    proceeding.
+
+    We found that in certain cases, this can block shutdown of the system, where
+    the system is shutting down, snapd has shut down but we are attempting to
+    shut down a service, which may have additional commands to run on stop.
+
+    The test creates this scenario and makes sure that the system key logic is
+    aware of the shutdown.
+
 # Run on a system matching the guest container.
 systems: [ubuntu-18.04-64]
 

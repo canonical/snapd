@@ -1,18 +1,35 @@
 summary: |
   Ensure `snap validate --enforce --refresh` resolves validation set enforcement errors automatically.
 
+details: |
+  Check that snapd enforces validation sets, preventing snaps from being
+  installed or removed if it would violate a constraint. Check that the
+  `snap validate --refresh --enforce` command automatically resolves unmet
+  validation set constraints except when it would require removing snaps.
+
 environment:
-  ACCOUNT_ID: NI7Jstuu8gffcoXr02i1kYt898p6Co0A
+  ACCOUNT_ID: test-snapd
 
 restore: |
-  snap validate --forget "$ACCOUNT_ID"/refresh-enforce-set || true
+  snap validate --forget "$ACCOUNT_ID"/refresh-enforce-set-pinned-test || true
+  snap validate --forget "$ACCOUNT_ID"/refresh-enforce-set-test || true
 
 execute: |
+  # pin a validation set, this should remained pinned once the other validation
+  # set is enforced
+  snap validate --refresh --enforce "$ACCOUNT_ID"/refresh-enforce-set-pinned-test=1
+
   echo "Check that --enforce --refresh installs required snaps"
   # TODO: test the auto-resolution for wrong revisions by installing revision 2
   # and checking it's moved to revision 1
   snap install --channel=latest/stable test-snapd-public | MATCH "test-snapd-public 1\.0.+"
-  snap validate --refresh --enforce "$ACCOUNT_ID"/refresh-enforce-set
+  snap validate --refresh --enforce "$ACCOUNT_ID"/refresh-enforce-set-test
+
+  # enforcing the new set should not have unpinned the previous set
+  snap validate | MATCH "${ACCOUNT_ID}/refresh-enforce-set-pinned-test=1"
+
+  # we can remove it now, as it is no longer needed
+  snap validate --forget "$ACCOUNT_ID"/refresh-enforce-set-pinned-test
 
   snap list | MATCH "test-snapd-tools +1\.0 +[0-9]+ +latest/stable"
   snap list | MATCH "test-snapd-public +1\.0 +1 +latest/stable"
@@ -23,7 +40,7 @@ execute: |
     exit 1
   fi
 
-  "$TESTSTOOLS"/to-one-line "$(cat log.txt)" | MATCH "error: cannot install \"hello-world\": cannot install snap \"hello-world\" due to enforcing rules of validation set 16/$ACCOUNT_ID/refresh-enforce-set/1"
+  "$TESTSTOOLS"/to-one-line "$(cat log.txt)" | MATCH "error: cannot install \"hello-world\": cannot install snap \"hello-world\" due to enforcing rules of validation set 16/$ACCOUNT_ID/refresh-enforce-set-test/1"
 
   echo "Check that a required snap or revision cannot be removed"
   if snap remove --purge test-snapd-tools > log.txt 2>&1; then
@@ -31,13 +48,13 @@ execute: |
     exit 1
   fi
 
-  "$TESTSTOOLS"/to-one-line "$(cat log.txt)" | MATCH "error: cannot remove \"test-snapd-tools\": snap \"test-snapd-tools\" is not removable: snap \"test-snapd-tools\" is required by validation sets: 16/$ACCOUNT_ID/refresh-enforce-set/1"
+  "$TESTSTOOLS"/to-one-line "$(cat log.txt)" | MATCH "error: cannot remove \"test-snapd-tools\": snap \"test-snapd-tools\" is not removable: snap \"test-snapd-tools\" is required by validation sets: 16/$ACCOUNT_ID/refresh-enforce-set-test/1"
 
   echo "Check that --enforce --refresh can't auto-resolve if it requires removing snaps"
-  snap validate --forget "$ACCOUNT_ID"/refresh-enforce-set
+  snap validate --forget "$ACCOUNT_ID"/refresh-enforce-set-test
   snap install hello-world
 
-  if snap validate --refresh --enforce "$ACCOUNT_ID"/refresh-enforce-set > log.txt 2>&1; then
+  if snap validate --refresh --enforce "$ACCOUNT_ID"/refresh-enforce-set-test > log.txt 2>&1; then
     echo "Expected snap validate --refresh --enforce to fail"
     exit 1
   fi

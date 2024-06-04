@@ -2,7 +2,6 @@ package main_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -29,7 +28,20 @@ func makeSnapDirForPack(c *check.C, snapYaml string) string {
 	metaDir := filepath.Join(tempdir, "meta")
 	err := os.Mkdir(metaDir, 0755)
 	c.Assert(err, check.IsNil)
-	err = ioutil.WriteFile(filepath.Join(metaDir, "snap.yaml"), []byte(snapYaml), 0644)
+	err = os.WriteFile(filepath.Join(metaDir, "snap.yaml"), []byte(snapYaml), 0644)
+	c.Assert(err, check.IsNil)
+
+	return tempdir
+}
+
+func makeComponentDirForPack(c *check.C, compYaml string) string {
+	tempdir := c.MkDir()
+	c.Assert(os.Chmod(tempdir, 0755), check.IsNil)
+
+	metaDir := filepath.Join(tempdir, "meta")
+	err := os.Mkdir(metaDir, 0755)
+	c.Assert(err, check.IsNil)
+	err = os.WriteFile(filepath.Join(metaDir, "component.yaml"), []byte(compYaml), 0644)
 	c.Assert(err, check.IsNil)
 
 	return tempdir
@@ -108,7 +120,7 @@ printf "hello world"
 	binDir := filepath.Join(snapDir, "bin")
 	err := os.Mkdir(binDir, 0755)
 	c.Assert(err, check.IsNil)
-	err = ioutil.WriteFile(filepath.Join(binDir, "hello"), []byte(helloBinContent), 0755)
+	err = os.WriteFile(filepath.Join(binDir, "hello"), []byte(helloBinContent), 0755)
 	c.Assert(err, check.IsNil)
 
 	_, err = snaprun.Parser(snaprun.Client()).ParseArgs([]string{"pack", snapDir, snapDir})
@@ -184,4 +196,36 @@ esac
 	c.Assert(matches, check.HasLen, 1)
 	err = os.Remove(matches[0])
 	c.Assert(err, check.IsNil)
+}
+
+func (s *SnapSuite) TestPackComponentHappy(c *check.C) {
+	const compYaml = `component: snap+comp
+version: 12a
+type: test
+`
+	_, r := logger.MockLogger()
+	defer r()
+
+	snapDir := makeComponentDirForPack(c, compYaml)
+
+	// check-skeleton does not fail due to missing files
+	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"pack", snapDir})
+	c.Assert(err, check.IsNil)
+	err = os.Remove("snap+comp_12a.comp")
+	c.Assert(err, check.IsNil)
+}
+
+func (s *SnapSuite) TestPackComponentBadName(c *check.C) {
+	const compYaml = `component: snapcomp
+version: 12a
+type: test
+`
+	_, r := logger.MockLogger()
+	defer r()
+
+	snapDir := makeComponentDirForPack(c, compYaml)
+
+	// check-skeleton does not fail due to missing files
+	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"pack", snapDir})
+	c.Assert(err, check.ErrorMatches, `.*: cannot parse component.yaml: incorrect component name "snapcomp"`)
 }

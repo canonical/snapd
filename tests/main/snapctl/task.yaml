@@ -1,5 +1,9 @@
 summary: Check that `snapctl` can be run from within hooks
 
+details: |
+    Verifies the `snapctl` command can be invoked by regular users, check some
+    error messages and that the snapd API is only available via the snapd socket.
+
 prepare: |
     snap pack "$TESTSLIB"/snaps/snapctl-hooks
     snap install --dangerous snapctl-hooks_1.0_all.snap

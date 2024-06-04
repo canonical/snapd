@@ -1,5 +1,15 @@
 summary: Integration tests for the bootstrap.Run
 
+details: |
+    When working on a core system, snapd contains logic to install the system
+    from scratch, creating partitions and file systems as necessary. The test
+    uses snapd internal API loaded through a helper Go program, to exercise that
+    in a hybrid unit/integration test, and observe the outcome.
+
+    This test focuses on the first installation scenario. A similar test looks
+    at the re-installation scenario and yet another test looks at creating
+    encrypted file systems.
+
 # use the same system and tooling as uc20/uc22
 systems: [ubuntu-2*]
 
@@ -43,7 +53,7 @@ prepare: |
     echo "Get the UC20 gadget"
     if os.query is-focal; then
         snap download --channel=20/edge pc
-    elif os.query is-ubuntu 22.04 || os.query is-ubuntu 22.10 || os.query is-ubuntu 23.04; then
+    elif os.query is-ubuntu-ge 22.04; then
         snap download --channel=22/edge pc
     fi
     unsquashfs -d gadget-dir pc_*.snap
@@ -102,7 +112,7 @@ execute: |
     # TODO:UC20: make kernel-dir non-empty once we have a gadget that has a
     #            "$kernel:" style ref in the meta/gadget.yaml
     kerneldir=""
-    uc20-create-partitions ./gadget-dir "$kerneldir" "$LOOP"
+    uc20-create-partitions ./gadget-dir pc-kernel "$kerneldir" x1 "$LOOP"
 
     echo "And check that the partitions are created"
     sfdisk -l "$LOOP" | MATCH '750M Linux filesystem'
@@ -162,7 +172,6 @@ execute: |
     echo "Check that the filesystem content was deployed"
     mount "${LOOP}p3" ./mnt
     ls ./mnt/EFI/boot/grubx64.efi
-    ls ./mnt/EFI/boot/bootx64.efi
     # remove a file
     rm ./mnt/EFI/boot/grubx64.efi
     umount ./mnt
@@ -176,14 +185,14 @@ execute: |
             filesystem-label: other-ext4
             size: 110M
     EOF
-    uc20-create-partitions ./gadget-dir "$kerneldir" "$LOOP" 2>&1 |
+    uc20-create-partitions ./gadget-dir pc-kernel "$kerneldir" x1 "$LOOP" 2>&1 |
         MATCH "panic: gadget and system-boot device ${LOOP} partition table not compatible: cannot find gadget structure \"Other ext4\" on disk"
 
     # replace the gadget.yaml without the extra partition
     cp gadget.yaml.backup gadget-dir/meta/gadget.yaml
 
     echo "Ensure we can deploy with mounting"
-    uc20-create-partitions --mount ./gadget-dir "$kerneldir" "$LOOP"
+    uc20-create-partitions --mount ./gadget-dir pc-kernel "$kerneldir" x1 "$LOOP"
     sfdisk -l "$LOOP" | MATCH "${LOOP}p1 .* 1M\s* BIOS boot"
     sfdisk -l "$LOOP" | MATCH "${LOOP}p2 .* 1\.2G\s* EFI System"
     sfdisk -l "$LOOP" | MATCH "${LOOP}p3 .* 750M\s* Linux filesystem"

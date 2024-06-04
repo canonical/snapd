@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2022 Canonical Ltd
+ * Copyright (C) 2016-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -1295,7 +1295,7 @@ func (ts *taskRunnerSuite) TestErrorCallbackCalledOnError(c *C) {
 	c.Check(strings.Join(t1.Log(), ""), Matches, `.*handler error for "foo"`)
 	c.Check(called, Equals, true)
 
-	c.Check(logbuf.String(), Matches, `(?m).*: \[change 1 "task summary" task\] failed: handler error for "foo".*`)
+	c.Check(logbuf.String(), Matches, `(?m).*: Change 1 task \(task summary\) failed: handler error for "foo".*`)
 }
 
 func (ts *taskRunnerSuite) TestErrorCallbackNotCalled(c *C) {

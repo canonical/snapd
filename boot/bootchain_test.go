@@ -21,7 +21,6 @@ package boot_test
 
 import (
 	"encoding/json"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -69,28 +68,6 @@ func (s *bootchainSuite) TestBootAssetLess(c *C) {
 	}
 }
 
-func (s *bootchainSuite) TestBootAssetsPredictable(c *C) {
-	// by role
-	ba := boot.BootAsset{
-		Role: bootloader.RoleRunMode, Name: "list", Hashes: []string{"b", "a"},
-	}
-	pred := boot.ToPredictableBootAsset(&ba)
-	c.Check(pred, DeepEquals, &boot.BootAsset{
-		Role: bootloader.RoleRunMode, Name: "list", Hashes: []string{"a", "b"},
-	})
-	// original structure is not changed
-	c.Check(ba, DeepEquals, boot.BootAsset{
-		Role: bootloader.RoleRunMode, Name: "list", Hashes: []string{"b", "a"},
-	})
-
-	// try to make a predictable struct predictable once more
-	predAgain := boot.ToPredictableBootAsset(pred)
-	c.Check(predAgain, DeepEquals, pred)
-
-	baNil := boot.ToPredictableBootAsset(nil)
-	c.Check(baNil, IsNil)
-}
-
 func (s *bootchainSuite) TestBootChainMarshalOnlyAssets(c *C) {
 	pbNil := boot.ToPredictableBootChain(nil)
 	c.Check(pbNil, IsNil)
@@ -112,10 +89,10 @@ func (s *bootchainSuite) TestBootChainMarshalOnlyAssets(c *C) {
 		AssetChain: []boot.BootAsset{
 			// hash lists are sorted
 			{Role: bootloader.RoleRecovery, Name: "shim", Hashes: []string{"b"}},
-			{Role: bootloader.RoleRecovery, Name: "loader", Hashes: []string{"d", "e"}},
-			{Role: bootloader.RoleRunMode, Name: "loader", Hashes: []string{"c", "d"}},
-			{Role: bootloader.RoleRunMode, Name: "1oader", Hashes: []string{"d", "e"}},
-			{Role: bootloader.RoleRunMode, Name: "0oader", Hashes: []string{"x", "z"}},
+			{Role: bootloader.RoleRecovery, Name: "loader", Hashes: []string{"e", "d"}},
+			{Role: bootloader.RoleRunMode, Name: "loader", Hashes: []string{"d", "c"}},
+			{Role: bootloader.RoleRunMode, Name: "1oader", Hashes: []string{"e", "d"}},
+			{Role: bootloader.RoleRunMode, Name: "0oader", Hashes: []string{"z", "x"}},
 		},
 	})
 
@@ -163,7 +140,7 @@ func (s *bootchainSuite) TestBootChainMarshalFull(c *C) {
 		// assets are not reordered
 		AssetChain: []boot.BootAsset{
 			// hash lists are sorted
-			{Role: bootloader.RoleRecovery, Name: "shim", Hashes: []string{"a", "b"}},
+			{Role: bootloader.RoleRecovery, Name: "shim", Hashes: []string{"b", "a"}},
 			{Role: bootloader.RoleRecovery, Name: "loader", Hashes: []string{"d"}},
 			{Role: bootloader.RoleRunMode, Name: "loader", Hashes: []string{"c", "d"}},
 		},
@@ -179,7 +156,7 @@ func (s *bootchainSuite) TestBootChainMarshalFull(c *C) {
 
 	d, err := json.Marshal(predictableBc)
 	c.Assert(err, IsNil)
-	c.Check(string(d), Equals, `{"brand-id":"mybrand","model":"foo","grade":"dangerous","model-sign-key-id":"my-key-id","asset-chain":[{"role":"recovery","name":"shim","hashes":["a","b"]},{"role":"recovery","name":"loader","hashes":["d"]},{"role":"run-mode","name":"loader","hashes":["c","d"]}],"kernel":"pc-kernel","kernel-revision":"1234","kernel-cmdlines":["a=1","foo=bar baz=0x123"]}`)
+	c.Check(string(d), Equals, `{"brand-id":"mybrand","model":"foo","grade":"dangerous","model-sign-key-id":"my-key-id","asset-chain":[{"role":"recovery","name":"shim","hashes":["b","a"]},{"role":"recovery","name":"loader","hashes":["d"]},{"role":"run-mode","name":"loader","hashes":["c","d"]}],"kernel":"pc-kernel","kernel-revision":"1234","kernel-cmdlines":["a=1","foo=bar baz=0x123"]}`)
 	expectedOriginal := &boot.BootChain{
 		BrandID:        "mybrand",
 		Model:          "foo",
@@ -357,7 +334,7 @@ func (s *bootchainSuite) TestPredictableBootChainsFullMarshal(c *C) {
 				`snapd_recovery_mode=recover snapd_recovery_system=23 foo`,
 			},
 			"asset-chain": []interface{}{
-				map[string]interface{}{"role": "recovery", "name": "shim", "hashes": []interface{}{"x", "y"}},
+				map[string]interface{}{"role": "recovery", "name": "shim", "hashes": []interface{}{"y", "x"}},
 				map[string]interface{}{"role": "recovery", "name": "loader", "hashes": []interface{}{"c", "d"}},
 			},
 		}, {
@@ -369,9 +346,9 @@ func (s *bootchainSuite) TestPredictableBootChainsFullMarshal(c *C) {
 			"kernel-revision":   "1234",
 			"kernel-cmdlines":   []interface{}{"snapd_recovery_mode=run foo"},
 			"asset-chain": []interface{}{
-				map[string]interface{}{"role": "recovery", "name": "shim", "hashes": []interface{}{"x", "y"}},
+				map[string]interface{}{"role": "recovery", "name": "shim", "hashes": []interface{}{"y", "x"}},
 				map[string]interface{}{"role": "recovery", "name": "loader", "hashes": []interface{}{"c", "d"}},
-				map[string]interface{}{"role": "run-mode", "name": "loader", "hashes": []interface{}{"a", "b"}},
+				map[string]interface{}{"role": "run-mode", "name": "loader", "hashes": []interface{}{"b", "a"}},
 			},
 		}, {
 			"model":             "foo",
@@ -384,7 +361,7 @@ func (s *bootchainSuite) TestPredictableBootChainsFullMarshal(c *C) {
 			"asset-chain": []interface{}{
 				map[string]interface{}{"role": "recovery", "name": "shim", "hashes": []interface{}{"x", "y"}},
 				map[string]interface{}{"role": "recovery", "name": "loader", "hashes": []interface{}{"c", "d"}},
-				map[string]interface{}{"role": "run-mode", "name": "loader", "hashes": []interface{}{"x", "z"}},
+				map[string]interface{}{"role": "run-mode", "name": "loader", "hashes": []interface{}{"z", "x"}},
 			},
 		},
 	})
@@ -618,7 +595,7 @@ func (s *bootchainSuite) TestPredictableBootChainsFields(c *C) {
 			Grade:          "dangerous",
 			ModelSignKeyID: "key-1",
 			AssetChain: []boot.BootAsset{
-				{Hashes: []string{"a", "b"}},
+				{Hashes: []string{"b", "a"}},
 			},
 			Kernel:         "foo",
 			KernelCmdlines: []string{`panic=1`},
@@ -644,7 +621,7 @@ func (s *bootchainSuite) TestPredictableBootChainsFields(c *C) {
 			},
 		}, {
 			AssetChain: []boot.BootAsset{
-				{Hashes: []string{"a", "b"}},
+				{Hashes: []string{"b", "a"}},
 				{Hashes: []string{"c", "d"}},
 			},
 		},
@@ -995,7 +972,7 @@ var nbf = bootloader.NewBootFile
 func (s *bootchainSuite) TestBootAssetsToLoadChainTrivialKernel(c *C) {
 	kbl := bootloader.NewBootFile("pc-kernel", "kernel.efi", bootloader.RoleRunMode)
 
-	chains, err := boot.BootAssetsToLoadChains(nil, kbl, nil)
+	chains, err := boot.BootAssetsToLoadChains(nil, kbl, nil, false)
 	c.Assert(err, IsNil)
 
 	c.Check(chains, DeepEquals, []*secboot.LoadChain{
@@ -1017,23 +994,23 @@ func (s *bootchainSuite) TestBootAssetsToLoadChainErr(c *C) {
 		// missing bootloader name for role "run-mode"
 	}
 	// fails when probing the shim asset in the cache
-	chains, err := boot.BootAssetsToLoadChains(assets, kbl, blNames)
+	chains, err := boot.BootAssetsToLoadChains(assets, kbl, blNames, false)
 	c.Assert(err, ErrorMatches, "file .*/recovery-bl/shim-hash0 not found in boot assets cache")
 	c.Check(chains, IsNil)
 	// make it work now
 	c.Assert(os.MkdirAll(filepath.Dir(cPath("recovery-bl/shim-hash0")), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(cPath("recovery-bl/shim-hash0"), nil, 0644), IsNil)
+	c.Assert(os.WriteFile(cPath("recovery-bl/shim-hash0"), nil, 0644), IsNil)
 
 	// nested error bubbled up
-	chains, err = boot.BootAssetsToLoadChains(assets, kbl, blNames)
+	chains, err = boot.BootAssetsToLoadChains(assets, kbl, blNames, false)
 	c.Assert(err, ErrorMatches, "file .*/recovery-bl/loader-recovery-hash0 not found in boot assets cache")
 	c.Check(chains, IsNil)
 	// again, make it work
 	c.Assert(os.MkdirAll(filepath.Dir(cPath("recovery-bl/loader-recovery-hash0")), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(cPath("recovery-bl/loader-recovery-hash0"), nil, 0644), IsNil)
+	c.Assert(os.WriteFile(cPath("recovery-bl/loader-recovery-hash0"), nil, 0644), IsNil)
 
 	// fails on missing bootloader name for role "run-mode"
-	chains, err = boot.BootAssetsToLoadChains(assets, kbl, blNames)
+	chains, err = boot.BootAssetsToLoadChains(assets, kbl, blNames, false)
 	c.Assert(err, ErrorMatches, `internal error: no bootloader name for boot asset role "run-mode"`)
 	c.Check(chains, IsNil)
 }
@@ -1055,7 +1032,7 @@ func (s *bootchainSuite) TestBootAssetsToLoadChainSimpleChain(c *C) {
 	} {
 		p := filepath.Join(dirs.SnapBootAssetsDir, name)
 		c.Assert(os.MkdirAll(filepath.Dir(p), 0755), IsNil)
-		c.Assert(ioutil.WriteFile(p, nil, 0644), IsNil)
+		c.Assert(os.WriteFile(p, nil, 0644), IsNil)
 	}
 
 	blNames := map[bootloader.Role]string{
@@ -1063,7 +1040,7 @@ func (s *bootchainSuite) TestBootAssetsToLoadChainSimpleChain(c *C) {
 		bootloader.RoleRunMode:  "run-bl",
 	}
 
-	chains, err := boot.BootAssetsToLoadChains(assets, kbl, blNames)
+	chains, err := boot.BootAssetsToLoadChains(assets, kbl, blNames, false)
 	c.Assert(err, IsNil)
 
 	c.Logf("got:")
@@ -1105,7 +1082,7 @@ func (s *bootchainSuite) TestBootAssetsToLoadChainWithAlternativeChains(c *C) {
 		bootloader.RoleRecovery: "recovery-bl",
 		bootloader.RoleRunMode:  "run-bl",
 	}
-	chains, err := boot.BootAssetsToLoadChains(assets, kbl, blNames)
+	chains, err := boot.BootAssetsToLoadChains(assets, kbl, blNames, false)
 	c.Assert(err, IsNil)
 
 	c.Logf("got:")
@@ -1121,19 +1098,10 @@ func (s *bootchainSuite) TestBootAssetsToLoadChainWithAlternativeChains(c *C) {
 				secboot.NewLoadChain(nbf("", cPath("run-bl/loader-run-hash1"), bootloader.RoleRunMode),
 					secboot.NewLoadChain(nbf("pc-kernel", "kernel.efi", bootloader.RoleRunMode)))),
 			secboot.NewLoadChain(nbf("", cPath("recovery-bl/loader-recovery-hash1"), bootloader.RoleRecovery),
-				secboot.NewLoadChain(nbf("", cPath("run-bl/loader-run-hash0"), bootloader.RoleRunMode),
-					secboot.NewLoadChain(nbf("pc-kernel", "kernel.efi", bootloader.RoleRunMode))),
 				secboot.NewLoadChain(nbf("", cPath("run-bl/loader-run-hash1"), bootloader.RoleRunMode),
 					secboot.NewLoadChain(nbf("pc-kernel", "kernel.efi", bootloader.RoleRunMode))))),
 		secboot.NewLoadChain(nbf("", cPath("recovery-bl/shim-hash1"), bootloader.RoleRecovery),
-			secboot.NewLoadChain(nbf("", cPath("recovery-bl/loader-recovery-hash0"), bootloader.RoleRecovery),
-				secboot.NewLoadChain(nbf("", cPath("run-bl/loader-run-hash0"), bootloader.RoleRunMode),
-					secboot.NewLoadChain(nbf("pc-kernel", "kernel.efi", bootloader.RoleRunMode))),
-				secboot.NewLoadChain(nbf("", cPath("run-bl/loader-run-hash1"), bootloader.RoleRunMode),
-					secboot.NewLoadChain(nbf("pc-kernel", "kernel.efi", bootloader.RoleRunMode)))),
 			secboot.NewLoadChain(nbf("", cPath("recovery-bl/loader-recovery-hash1"), bootloader.RoleRecovery),
-				secboot.NewLoadChain(nbf("", cPath("run-bl/loader-run-hash0"), bootloader.RoleRunMode),
-					secboot.NewLoadChain(nbf("pc-kernel", "kernel.efi", bootloader.RoleRunMode))),
 				secboot.NewLoadChain(nbf("", cPath("run-bl/loader-run-hash1"), bootloader.RoleRunMode),
 					secboot.NewLoadChain(nbf("pc-kernel", "kernel.efi", bootloader.RoleRunMode))))),
 	}
@@ -1180,7 +1148,7 @@ func (s *sealSuite) TestReadWriteBootChains(c *C) {
 
 	rootdir := c.MkDir()
 
-	expected := `{"reseal-count":0,"boot-chains":[{"brand-id":"mybrand","model":"foo","grade":"dangerous","model-sign-key-id":"my-key-id","asset-chain":[{"role":"recovery","name":"shim","hashes":["x","y"]},{"role":"recovery","name":"loader","hashes":["c","d"]}],"kernel":"pc-kernel-recovery","kernel-revision":"1234","kernel-cmdlines":["snapd_recovery_mode=recover foo"]},{"brand-id":"mybrand","model":"foo","grade":"signed","model-sign-key-id":"my-key-id","asset-chain":[{"role":"recovery","name":"shim","hashes":["x","y"]},{"role":"recovery","name":"loader","hashes":["c","d"]},{"role":"run-mode","name":"loader","hashes":["x","z"]}],"kernel":"pc-kernel-other","kernel-revision":"2345","kernel-cmdlines":["snapd_recovery_mode=run foo"]}]}
+	expected := `{"reseal-count":0,"boot-chains":[{"brand-id":"mybrand","model":"foo","grade":"dangerous","model-sign-key-id":"my-key-id","asset-chain":[{"role":"recovery","name":"shim","hashes":["y","x"]},{"role":"recovery","name":"loader","hashes":["c","d"]}],"kernel":"pc-kernel-recovery","kernel-revision":"1234","kernel-cmdlines":["snapd_recovery_mode=recover foo"]},{"brand-id":"mybrand","model":"foo","grade":"signed","model-sign-key-id":"my-key-id","asset-chain":[{"role":"recovery","name":"shim","hashes":["x","y"]},{"role":"recovery","name":"loader","hashes":["c","d"]},{"role":"run-mode","name":"loader","hashes":["z","x"]}],"kernel":"pc-kernel-other","kernel-revision":"2345","kernel-cmdlines":["snapd_recovery_mode=run foo"]}]}
 `
 	// creates a complete tree and writes a file
 	err := boot.WriteBootChains(pbc, filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), 0)

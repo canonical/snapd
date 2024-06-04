@@ -1,5 +1,15 @@
 summary: Check that `snap run --command=reload` works
 
+details: |
+    A snap application may have more than one command associated with it. For
+    example the shell completion program is another command for a given
+    application. Services may have more commands, for instance when the service
+    is started or when the service is stopped or reloaded.
+
+    The test installs a service, reloads it and looks at the system log to
+    observe the text emitted by the reload command, which sends a SIGHUP to the
+    main process, but this is internal to the test.
+
 kill-timeout: 10m
 
 execute: |

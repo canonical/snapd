@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -90,7 +90,21 @@ dbus (send)
      path="/org/freedesktop/resolve1"
      interface="org.freedesktop.resolve1.Manager"
      member="SetLink{DefaultRoute,DNSOverTLS,DNS,DNSEx,DNSSEC,DNSSECNegativeTrustAnchors,MulticastDNS,Domains,LLMNR}"
-     peer=(label=unconfined),
+     peer=(name="org.freedesktop.resolve1", label=unconfined),
+
+dbus (send)
+     bus=system
+     path="/org/freedesktop/resolve1"
+     interface="org.freedesktop.resolve1.Manager"
+     member="FlushCaches"
+     peer=(name="org.freedesktop.resolve1", label=unconfined),
+
+dbus (send)
+     bus=system
+     path="/org/freedesktop/resolve1"
+     interface="org.freedesktop.DBus.Peer"
+     member="Ping"
+     peer=(name="org.freedesktop.resolve1", label=unconfined),
 
 # required by resolvectl command
 dbus (send)
@@ -233,8 +247,7 @@ capability setuid,
 
 # resolvconf
 /{,usr/}sbin/resolvconf ixr,
-/run/resolvconf/{,**} rk,
-/run/resolvconf/** w,
+/run/resolvconf/{,**} rwk,
 /etc/resolvconf/{,**} r,
 /{,usr/}lib/resolvconf/* ix,
 # Required by resolvconf
@@ -286,7 +299,7 @@ capability sys_admin, # for setns()
 network netlink raw,
 
 / r,
-/run/netns/ r,     # only 'r' since snap-confine will create this for us
+/run/netns/ rk,     # no 'w' since snap-confine will create this for us
 /run/netns/* rw,
 mount options=(rw, rshared) -> /run/netns/,
 mount options=(rw, bind) /run/netns/ -> /run/netns/,

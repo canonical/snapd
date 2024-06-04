@@ -214,6 +214,22 @@ func (strutilSuite) TestCommaSeparatedList(c *check.C) {
 	}
 }
 
+func (strutilSuite) TestMultiCommaSeparatedList(c *check.C) {
+	table := []struct {
+		in  []string
+		out []string
+	}{
+		{[]string{}, nil},
+		{[]string{"", ",,", ""}, nil},
+		{[]string{"foo", "bar"}, []string{"foo", "bar"}},
+		{[]string{"foo,bar", "bazz,buzz", "x"}, []string{"foo", "bar", "bazz", "buzz", "x"}},
+	}
+
+	for _, test := range table {
+		c.Check(strutil.MultiCommaSeparatedList(test.in), check.DeepEquals, test.out, check.Commentf("%q", test.in))
+	}
+}
+
 func (strutilSuite) TestEllipt(c *check.C) {
 	type T struct {
 		in    string

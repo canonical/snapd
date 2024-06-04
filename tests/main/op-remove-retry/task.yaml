@@ -1,5 +1,13 @@
 summary: Check that a remove operation is working even if the mount point is busy.
 
+details: |
+    This test is a specific variant of the op-remove test, where a snap
+    application (which is not a service), keeps running while the snap is being
+    removed. In the past there was a problem with unmounting a directory where
+    another process holds a reference through the current working directory.
+    This was fixed, over time, with a detach instead of an unmount. The test
+    below talks about retry but that is incorrect.
+
 # ubuntu-14.04: systemd-run not supported
 systems: [-ubuntu-14.04*]
 

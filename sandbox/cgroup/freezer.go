@@ -22,7 +22,6 @@ package cgroup
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -85,7 +84,7 @@ var ThawSnapProcesses = thawSnapProcessesImplV1
 // originate from.
 func freezeSnapProcessesImplV1(snapName string) error {
 	fname := filepath.Join(freezerCgroupV1Dir, fmt.Sprintf("snap.%s", snapName), "freezer.state")
-	if err := ioutil.WriteFile(fname, []byte("FROZEN"), 0644); err != nil && os.IsNotExist(err) {
+	if err := os.WriteFile(fname, []byte("FROZEN"), 0644); err != nil && os.IsNotExist(err) {
 		// When there's no freezer cgroup we don't have to freeze anything.
 		// This can happen when no process belonging to a given snap has been
 		// started yet.
@@ -94,7 +93,7 @@ func freezeSnapProcessesImplV1(snapName string) error {
 		return fmt.Errorf("cannot freeze processes of snap %q, %v", snapName, err)
 	}
 	for i := 0; i < 30; i++ {
-		data, err := ioutil.ReadFile(fname)
+		data, err := os.ReadFile(fname)
 		if err != nil {
 			return fmt.Errorf("cannot determine the freeze state of processes of snap %q, %v", snapName, err)
 		}
@@ -112,7 +111,7 @@ func freezeSnapProcessesImplV1(snapName string) error {
 
 func thawSnapProcessesImplV1(snapName string) error {
 	fname := filepath.Join(freezerCgroupV1Dir, fmt.Sprintf("snap.%s", snapName), "freezer.state")
-	if err := ioutil.WriteFile(fname, []byte("THAWED"), 0644); err != nil && os.IsNotExist(err) {
+	if err := os.WriteFile(fname, []byte("THAWED"), 0644); err != nil && os.IsNotExist(err) {
 		// When there's no freezer cgroup we don't have to thaw anything.
 		// This can happen when no process belonging to a given snap has been
 		// started yet.
@@ -163,7 +162,7 @@ func applyToSnap(snapName string, action func(groupName string) error, skipError
 	})
 }
 
-// writeExistingFile can be used as a drop-in replacement for ioutil.WriteFile,
+// writeExistingFile can be used as a drop-in replacement for os.WriteFile,
 // but does not create a file when it does not exist
 func writeExistingFile(where string, data []byte, mode os.FileMode) error {
 	f, err := os.OpenFile(where, os.O_WRONLY|os.O_TRUNC, mode)
@@ -206,7 +205,7 @@ func freezeSnapProcessesImplV2(snapName string) error {
 			return fmt.Errorf("cannot freeze processes of snap %q, %v", snapName, err)
 		}
 		for i := 0; i < 30; i++ {
-			data, err := ioutil.ReadFile(fname)
+			data, err := os.ReadFile(fname)
 			if err != nil {
 				if os.IsNotExist(err) {
 					// group may be gone

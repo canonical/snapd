@@ -111,8 +111,10 @@ func (s *OpticalDriveInterfaceSuite) TestAppArmorSpec(c *C) {
 		excludeSnippets []string
 	}
 	checkConnectedPlugSnippet := func(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot, opts *options) {
-		apparmorSpec := &apparmor.Specification{}
-		err := apparmorSpec.AddConnectedPlug(s.iface, plug, slot)
+		appSet, err := interfaces.NewSnapAppSet(plug.Snap(), nil)
+		c.Assert(err, IsNil)
+		apparmorSpec := apparmor.NewSpecification(appSet)
+		err = apparmorSpec.AddConnectedPlug(s.iface, plug, slot)
 		c.Assert(err, IsNil)
 		c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{opts.appName})
 		for _, expectedSnippet := range opts.includeSnippets {
@@ -144,7 +146,9 @@ func (s *OpticalDriveInterfaceSuite) TestAppArmorSpec(c *C) {
 }
 
 func (s *OpticalDriveInterfaceSuite) TestUDevSpec(c *C) {
-	spec := &udev.Specification{}
+	appSet, err := interfaces.NewSnapAppSet(s.testPlugDefault.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := udev.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugDefault, s.slot), IsNil)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugReadonly, s.slot), IsNil)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugWritable, s.slot), IsNil)

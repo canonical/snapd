@@ -152,34 +152,82 @@ wait_for_device_initialized() {
     echo "remote.wait-for: device initialized"
 }
 
+wait_for_refresh_reboot() {
+    echo "remote.wait-for: waiting for refresh reboot"
+
+    local change_id=${1:-}
+    local boot_id=${2:-}
+    if [ -z "$change_id" ] || [ -z "$boot_id" ]; then
+        echo "remote.wait-for: either change_id or boot_id not provided"
+        return 1
+    fi
+
+    wait_for_ssh "$DEFAULT_WAIT_FOR_SSH_ATTEMPTS" "$DEFAULT_WAIT_FOR_SSH_WAIT"
+    for _ in $(seq 5); do
+        # The refresh is being executed
+        # It checks a that refresh is in state either Do or Doing (and not Done)
+        if remote.exec "snap changes" | grep -Eq "$change_id.*( Do | Doing ).*(Auto-refresh|Refresh)"; then
+            # The systems is waiting for reboot
+            if remote.exec "sudo journalctl -u snapd -n 30" | grep -q "Waiting for system reboot"; then
+                echo "remote.wait-for: waiting for system reboot"
+                remote.exec "sudo reboot" || true
+                wait_for_no_ssh "$DEFAULT_WAIT_FOR_NO_SSH_ATTEMPTS" "$DEFAULT_WAIT_FOR_NO_SSH_WAIT"
+                break
+            fi
+            echo "remote.wait-for: either auto-refresh or refresh in progress"
+        fi
+
+        # when the refresh has finished and no reboot needed, the function returns
+        if remote.exec "snap changes" | grep -Eq "$change_id.*Done.*(Auto-refresh|Refresh)"; then
+            echo "remote.wait-for: refresh completed, reboot not required"
+            return
+        fi
+
+        if remote.exec "snap changes" | grep -Eq "$change_id.*Error.*(Auto-refresh|Refresh)"; then
+            echo "remote.wait-for: refresh finished with error"
+            return 1
+        fi
+
+        echo "remote.wait-for: system reboot not detected"
+        sleep 1
+    done
+    wait_for_ssh "$DEFAULT_WAIT_FOR_SSH_ATTEMPTS" "$DEFAULT_WAIT_FOR_SSH_WAIT"
+    if [ "$(remote.exec "cat /proc/sys/kernel/random/boot_id")" == "$boot_id" ]; then
+        echo "remote.wait-for: boot id did not change"
+        return 1
+    else
+        echo "remote.wait-for: boot id changed, refresh completed with reboot"
+    fi
+}
+
 wait_for_refresh(){
     echo "remote.wait-for: waiting for either auto-refresh or refresh"
 
-    change_line="$(remote.exec 'snap changes' | grep -E 'Doing.*(Auto-refresh|Refresh)' || true)"
+    # It checks a that refresh is in state either Do or Doing (and not Done)
+    change_line="$(remote.exec 'snap changes' | grep -E '( Do | Doing ).*(Auto-refresh|Refresh)' || true)"
     if [ -n "$change_line" ]; then
-        echo "remote.wait-for: Refresh in progress"
+        echo "remote.wait-for: refresh in progress"
         change_id="$(echo "$change_line" | awk '{ print $1 }')"
+        boot_id="$(remote.exec "cat /proc/sys/kernel/random/boot_id")"
 
-        while remote.exec "snap changes" | grep -Eq "$change_id.*Doing.*(Auto-refresh|Refresh)"; do
-            echo -n '.'
-            if remote.exec "true" &>/dev/null; then
-                sleep 1
+        for _ in $(seq 20); do
+            if wait_for_refresh_reboot "$change_id" "$boot_id"; then
+                break
             fi
         done
         echo ""
 
-        if ! remote.exec "true" &>/dev/null; then
-            wait_for_ssh "$DEFAULT_WAIT_FOR_SSH_ATTEMPTS" "$DEFAULT_WAIT_FOR_SSH_WAIT"
-        fi
-
-        if remote.exec "snap changes" | grep -Eq "$change_id.*Doing.*(Auto-refresh|Refresh)"; then
+        changes="$(remote.exec 'snap changes')"
+        # It checks a that refresh is in state either Do or Doing (and not Done)
+        if echo "$changes" | grep -Eq "$change_id.*( Do | Doing ).*(Auto-refresh|Refresh)"; then
             echo "remote.wait-for: still doing refresh, exiting"
-        elif remote.exec "snap changes" | grep -Eq "$change_id.*Error.*(Auto-refresh|Refresh)"; then
+        elif echo "$changes" | grep -Eq "$change_id.*Error.*(Auto-refresh|Refresh)"; then
             echo "remote.wait-for: refresh failed"
-        elif remote.exec "snap changes" | grep -Eq "$change_id.*Done.*(Auto-refresh|Refresh)"; then
+        elif echo "$changes" | grep -Eq "$change_id.*Done.*(Auto-refresh|Refresh)"; then
             echo "remote.wait-for: refresh completed"
         else
             echo "remote.wait-for: refresh results unknown"
+            echo "$changes"
             return 1
         fi
     else

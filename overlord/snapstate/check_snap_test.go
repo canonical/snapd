@@ -320,7 +320,7 @@ version: 1
 	snapstate.Set(st, "gadget", &snapstate.SnapState{
 		SnapType: "gadget",
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 	})
 
@@ -362,7 +362,7 @@ version: 1
 	snapstate.Set(st, "gadget", &snapstate.SnapState{
 		SnapType: "gadget",
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 	})
 
@@ -404,7 +404,7 @@ version: 1
 	snapstate.Set(st, "gadget", &snapstate.SnapState{
 		SnapType: "gadget",
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 	})
 
@@ -437,7 +437,7 @@ func (s *checkSnapSuite) setupKernelGadgetSnaps(st *state.State) {
 	snapstate.Set(st, "gadget", &snapstate.SnapState{
 		SnapType: string(snap.TypeGadget),
 		Active:   true,
-		Sequence: []*snap.SideInfo{gadgetInfo},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{gadgetInfo}),
 		Current:  gadgetInfo.Revision,
 	})
 
@@ -449,7 +449,7 @@ func (s *checkSnapSuite) setupKernelGadgetSnaps(st *state.State) {
 	snapstate.Set(st, "kernel", &snapstate.SnapState{
 		SnapType: string(snap.TypeKernel),
 		Active:   true,
-		Sequence: []*snap.SideInfo{kernelInfo},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{kernelInfo}),
 		Current:  kernelInfo.Revision,
 	})
 }
@@ -558,7 +558,7 @@ version: 1
 	snapstate.Set(st, "gadget", &snapstate.SnapState{
 		SnapType: "gadget",
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 	})
 
@@ -599,7 +599,7 @@ version: 1
 	snapstate.Set(st, "gadget", &snapstate.SnapState{
 		SnapType: "gadget",
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 	})
 
@@ -759,7 +759,7 @@ version: 1
 	snapstate.Set(st, "kernel", &snapstate.SnapState{
 		SnapType: "kernel",
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 	})
 
@@ -801,7 +801,7 @@ version: 1
 	snapstate.Set(st, "kernel", &snapstate.SnapState{
 		SnapType: "kernel",
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 	})
 
@@ -845,7 +845,7 @@ version: 1
 	snapstate.Set(st, "other-kernel", &snapstate.SnapState{
 		SnapType: "kernel",
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 	})
 
@@ -933,7 +933,7 @@ version: 1
 	snapstate.Set(st, "some-base", &snapstate.SnapState{
 		SnapType: "base",
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 	})
 
@@ -969,7 +969,7 @@ version: 1
 `, si)
 	snapstate.Set(st, "foo", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 	})
 
@@ -1075,7 +1075,7 @@ version: 1
 	snapstate.Set(st, "core", &snapstate.SnapState{
 		SnapType: "os",
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 	})
 
@@ -1267,21 +1267,21 @@ func (s *checkSnapSuite) TestCheckSnapSystemUsernames(c *C) {
 		restore = release.MockOnClassic(test.classic)
 		defer restore()
 
-		var osutilEnsureUserGroupCalls int
+		var osutilEnsureSnapUserGroupCalls int
 		if test.noRangeUser {
-			restore = snapstate.MockOsutilEnsureUserGroup(func(name string, id uint32, extraUsers bool) error {
+			restore = snapstate.MockOsutilEnsureSnapUserGroup(func(name string, id uint32, extraUsers bool) error {
 				return fmt.Errorf(`cannot add user/group "%s", group exists and user does not`, name)
 			})
 		} else if test.noUser {
-			restore = snapstate.MockOsutilEnsureUserGroup(func(name string, id uint32, extraUsers bool) error {
+			restore = snapstate.MockOsutilEnsureSnapUserGroup(func(name string, id uint32, extraUsers bool) error {
 				if name == "snapd-range-524288-root" {
 					return nil
 				}
 				return fmt.Errorf(`cannot add user/group "%s", group exists and user does not`, name)
 			})
 		} else {
-			restore = snapstate.MockOsutilEnsureUserGroup(func(name string, id uint32, extraUsers bool) error {
-				osutilEnsureUserGroupCalls++
+			restore = snapstate.MockOsutilEnsureSnapUserGroup(func(name string, id uint32, extraUsers bool) error {
+				osutilEnsureSnapUserGroupCalls++
 				return nil
 			})
 		}
@@ -1301,11 +1301,11 @@ func (s *checkSnapSuite) TestCheckSnapSystemUsernames(c *C) {
 		err = snapstate.CheckSnap(s.st, "snap-path", "foo", nil, nil, snapstate.Flags{}, nil)
 		if test.error != "" {
 			c.Check(err, ErrorMatches, test.error)
-			c.Check(osutilEnsureUserGroupCalls, Equals, 0)
+			c.Check(osutilEnsureSnapUserGroupCalls, Equals, 0)
 		} else {
 			c.Assert(err, IsNil)
 			// one call for the range user, one for the system user
-			c.Check(osutilEnsureUserGroupCalls, Equals, 2)
+			c.Check(osutilEnsureSnapUserGroupCalls, Equals, 2)
 		}
 	}
 }
@@ -1410,7 +1410,7 @@ version: 1
 	snapstate.Set(st, "kernel", &snapstate.SnapState{
 		SnapType: "kernel",
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 	})
 
@@ -1461,7 +1461,7 @@ version: 1
 	snapstate.Set(st, "gadget", &snapstate.SnapState{
 		SnapType: "gadget",
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 	})
 

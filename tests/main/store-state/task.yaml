@@ -1,5 +1,10 @@
 summary: smoke test for the store-state tool
 
+details: |
+    Verify the functionality of the store-state tool. The tool is used to setup
+    and teardown a fake store, setup and teardown a staging store, to make snaps
+    installable in the fake store, and to initialize fake refreshes.
+
 # cannot work with the staging store without a testing build with compiled-in staging keys
 backends: [-external]
 
@@ -77,4 +82,4 @@ execute: |
 
     # Test setup and teardown errors
     "$TESTSTOOLS"/store-state setup-fake-store 2>&1 | MATCH "store-state: the provided dir cannot be empty"
-    "$TESTSTOOLS"/store-state teardown-fake-store "noexist" 2>&1 | MATCH 'store-state: the provided top dir does not exist "noexist"'
+    "$TESTSTOOLS"/store-state teardown-fake-store "noexist" | MATCH 'store-state: the provided top dir does not exist "noexist"'

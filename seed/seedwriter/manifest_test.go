@@ -20,7 +20,7 @@
 package seedwriter_test
 
 import (
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -50,7 +50,7 @@ func (s *manifestSuite) SetUpTest(c *C) {
 
 func (s *manifestSuite) writeManifest(c *C, contents string) string {
 	manifestFile := filepath.Join(s.root, "seed.manifest")
-	err := ioutil.WriteFile(manifestFile, []byte(contents), 0644)
+	err := os.WriteFile(manifestFile, []byte(contents), 0644)
 	c.Assert(err, IsNil)
 	return manifestFile
 }
@@ -148,7 +148,7 @@ func (s *manifestSuite) TestWriteManifest(c *C) {
 			},
 		},
 	)
-	contents, err := ioutil.ReadFile(filePath)
+	contents, err := os.ReadFile(filePath)
 	c.Assert(err, IsNil)
 	c.Check(string(contents), Equals, `canonical/base-set=4
 canonical/opt-set 1
@@ -323,7 +323,7 @@ func (s *manifestSuite) TestManifestMarkValidationSetSeededUsedHappy(c *C) {
 	manifest.Write(manifestFile)
 
 	// Read it back in and verify contents
-	data, err := ioutil.ReadFile(manifestFile)
+	data, err := os.ReadFile(manifestFile)
 	c.Assert(err, IsNil)
 	c.Assert(string(data), Equals, "canonical/base-set=1\n")
 

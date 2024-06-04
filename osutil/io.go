@@ -221,7 +221,7 @@ func (aw *AtomicFile) CommitAs(filename string) error {
 	return aw.commit()
 }
 
-// The AtomicWrite* family of functions work like ioutil.WriteFile(), but the
+// The AtomicWrite* family of functions work like os.WriteFile(), but the
 // file created is an AtomicWriter, which is Committed before returning.
 //
 // AtomicWriteChown and AtomicWriteFileChown take an uid and a gid that can be
@@ -262,7 +262,7 @@ func AtomicWriteChown(filename string, reader io.Reader, perm os.FileMode, flags
 }
 
 // AtomicRename attempts to rename a path from oldName to newName atomically.
-func AtomicRename(oldName, newName string) error {
+func AtomicRename(oldName, newName string) (err error) {
 	var oldDir, newDir *os.File
 
 	// snapdUnsafeIO controls the ability to ignore expensive disk
@@ -276,13 +276,13 @@ func AtomicRename(oldName, newName string) error {
 		oldDirPath := filepath.Dir(oldName)
 		newDirPath := filepath.Dir(newName)
 
-		oldDir, err := os.Open(oldDirPath)
+		oldDir, err = os.Open(oldDirPath)
 		if err != nil {
 			return err
 		}
 		defer oldDir.Close()
 
-		newDir, err := os.Open(newDirPath)
+		newDir, err = os.Open(newDirPath)
 		if err != nil {
 			return err
 		}

@@ -70,6 +70,7 @@ var (
 
 	SearchVolumeWithTraitsAndMatchParts = searchVolumeWithTraitsAndMatchParts
 	OrderStructuresByOffset             = orderStructuresByOffset
+	LayoutVolumePartially               = layoutVolumePartially
 )
 
 func MockEvalSymlinks(mock func(path string) (string, error)) (restore func()) {
@@ -91,4 +92,8 @@ func (s *StructureEncryptionParameters) SetUnknownKeys(m map[string]string) {
 
 func NewInvalidOffsetError(offset, lowerBound, upperBound quantity.Offset) *InvalidOffsetError {
 	return &invalidOffsetError{offset: offset, lowerBound: lowerBound, upperBound: upperBound}
+}
+
+func (v *Volume) YamlIdxToStructureIdx(yamlIdx int) (int, error) {
+	return v.yamlIdxToStructureIdx(yamlIdx)
 }

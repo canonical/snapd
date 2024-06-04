@@ -1,5 +1,9 @@
 summary: Check that the system is not in "degraded" state
 
+details: |
+    This checks that in the current system there are no failed systemd
+    service units.
+
 # run this early to ensure no test created failed units yet
 priority: 500
 

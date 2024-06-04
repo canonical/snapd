@@ -21,7 +21,6 @@ package configcore
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -136,7 +135,7 @@ func handlesystemSwapConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOn
 	fileContent := fmt.Sprintf("FILE=%s\nSIZE=%d\n", location, szBytes/quantity.SizeMiB)
 
 	// write the swap config file
-	if err := ioutil.WriteFile(swapConfigPath, []byte(fileContent), 0644); err != nil {
+	if err := os.WriteFile(swapConfigPath, []byte(fileContent), 0644); err != nil {
 		return err
 	}
 

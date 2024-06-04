@@ -33,6 +33,34 @@ const localeControlBaseDeclarationSlots = `
 const localeControlConnectedPlugAppArmor = `
 # Description: Can manage locales directly separate from 'config ubuntu-core'.
 
+#include <abstractions/dbus-strict>
+
+# Introspection of org.freedesktop.locale1
+dbus (send)
+	bus=system
+	path=/org/freedesktop/locale1
+	interface=org.freedesktop.DBus.Introspectable
+	member=Introspect,
+# Properties of org.freedesktop.locale1
+dbus (send)
+	bus=system
+	path=/org/freedesktop/locale1
+	interface=org.freedesktop.DBus.Properties
+	member=Get{,All},
+# do not use peer=(label=unconfined) here since this is DBus activated
+dbus (send)
+	bus=system
+	path=/org/freedesktop/locale1
+	interface=org.freedesktop.locale1
+	member={SetLocale,SetX11Keyboard,SetVConsoleKeyboard}
+	peer=(name=org.freedesktop.locale1),
+# Receive Accounts property changed events
+dbus (receive)
+	bus=system
+	path=/org/freedesktop/locale1
+	interface=org.freedesktop.DBus.Properties
+	member=PropertiesChanged,
+
 # TODO: this won't work until snappy exposes this configurability
 /etc/default/locale rw,
 `

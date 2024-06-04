@@ -4,7 +4,7 @@ details: |
   This test creates a classic image that looks like what the installer
   would create and we boot into it.
 
-systems: [ubuntu-22.04-64]
+systems: [ubuntu-22.04-64, ubuntu-24.04-64]
 
 environment:
   NESTED_ENABLE_SECURE_BOOT: false
@@ -52,7 +52,7 @@ execute: |
   done
   # Bump edition of ubuntu-boot content
   gadget_p=pc-gadget/meta/gadget.yaml
-  yq -i '(.volumes.pc.structure | with_entries(select(.value.name == "ubuntu-boot")) | .[].update.edition) |= . + 1' "$gadget_p"
+  yq -i '(.volumes.pc.structure[] | select(.name == "ubuntu-boot") | .update.edition) |= . + 1' "$gadget_p"
   # Re-pack snaps we want to update
   snap pack --filename=pc-new.snap pc-gadget
   snap pack --filename=pc-kernel-new.snap "$CACHE_D"/snap-pc-kernel
@@ -87,9 +87,9 @@ execute: |
       printf "Test installing snap from file %s\n" "$snap_filename"
       remote.push "$snap_filename"
       boot_id=$(tests.nested boot-id)
-      REMOTE_CHG_ID=$(remote.exec sudo snap install --dangerous "$snap_filename" --no-wait)
-      # Wait until we stall in the connection of interface as we wait for a reboot
-      retry --wait 1 -n 60 sh -c "remote.exec \"snap change $REMOTE_CHG_ID | grep -E 'Wait .*(Make snap .* available to the system|Update assets from gadget .*)'\""
+      # install will exit when waiting for the reboot
+      remote.exec sudo snap install --dangerous "$snap_filename" | MATCH "Task set to wait until a system restart allows to continue"
+
       # Check that a reboot notification was setup
       remote.exec test -f /run/reboot-required
       remote.exec cat /run/reboot-required.pkgs | MATCH "snap:${snap_name}"
@@ -99,7 +99,7 @@ execute: |
       if [ "$reboot_action" = "reboot" ]; then
           remote.exec sudo reboot || true
           remote.wait-for reboot "$boot_id"
-          remote.exec sudo snap watch "$REMOTE_CHG_ID"
+          remote.exec sudo snap watch --last=install
       fi
   }
 
@@ -125,7 +125,8 @@ execute: |
 
   # Test aborting a kernel installation before a reboot
   refresh_rebooting_snap pc-kernel-new.snap pc-kernel no-reboot
-  remote.exec sudo snap abort "$REMOTE_CHG_ID"
+  remote.exec sudo snap abort --last=install
+  remote.exec sudo snap watch --last=install || true
   # Make sure everything is in the same state
   not remote.exec stat /run/mnt/ubuntu-boot/EFI/ubuntu/try-kernel.efi
   remote.exec cat /var/lib/snapd/modeenv | MATCH "^current_kernels=$current_kernel_file$"
@@ -136,7 +137,7 @@ execute: |
 
   echo "Refresh pc gadget and assert assets got updated"
   refresh_rebooting_snap pc-new.snap pc reboot
-  for f in /boot/grub/kernel.efi /run/mnt/ubuntu-boot/EFI/boot/bootx64.efi /run/mnt/ubuntu-boot/EFI/boot/grubx64.efi; do
+  for f in /boot/grub/kernel.efi /run/mnt/ubuntu-boot/EFI/boot/grubx64.efi; do
       remote.exec sudo grep -q -a '"This program cannot be run in XXX mode"' "$f"
   done
 

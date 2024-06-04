@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2022 Canonical Ltd
+ * Copyright (C) 2016-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -31,6 +31,15 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
+// ModelComponent holds details for components specified by a model assertion.
+type ModelComponent struct {
+	// Presence can be optional or required
+	Presence string
+	// Modes is an optional list of modes, which must be a subset
+	// of the ones for the snap
+	Modes []string
+}
+
 // TODO: for ModelSnap
 //  * consider moving snap.Type out of snap and using it in ModelSnap
 //    but remember assertions use "core" (never "os") for TypeOS
@@ -55,6 +64,8 @@ type ModelSnap struct {
 	// Classic indicates that this classic snap is intentionally
 	// included in a classic model
 	Classic bool
+	// Components is a map of component names to ModelComponent
+	Components map[string]ModelComponent
 }
 
 // SnapName implements naming.SnapRef.
@@ -119,7 +130,7 @@ func checkExtendedSnaps(extendedSnaps interface{}, base string, grade ModelGrade
 		if !ok {
 			return nil, fmt.Errorf(wrongHeaderType)
 		}
-		modelSnap, err := checkModelSnap(snap, grade, modelIsClassic)
+		modelSnap, err := checkModelSnap(snap, base, grade, modelIsClassic)
 		if err != nil {
 			return nil, err
 		}
@@ -137,54 +148,31 @@ func checkExtendedSnaps(extendedSnaps interface{}, base string, grade ModelGrade
 			seenIDs[snapID] = modelSnap.Name
 		}
 
-		essential := false
 		switch {
 		case modelSnap.SnapType == "snapd":
 			// TODO: allow to be explicit only in grade: dangerous?
-			essential = true
 			if modelSnaps.snapd != nil {
 				return nil, fmt.Errorf("cannot specify multiple snapd snaps: %q and %q", modelSnaps.snapd.Name, modelSnap.Name)
 			}
 			modelSnaps.snapd = modelSnap
 		case modelSnap.SnapType == "kernel":
-			essential = true
 			if modelSnaps.kernel != nil {
 				return nil, fmt.Errorf("cannot specify multiple kernel snaps: %q and %q", modelSnaps.kernel.Name, modelSnap.Name)
 			}
 			modelSnaps.kernel = modelSnap
 		case modelSnap.SnapType == "gadget":
-			essential = true
 			if modelSnaps.gadget != nil {
 				return nil, fmt.Errorf("cannot specify multiple gadget snaps: %q and %q", modelSnaps.gadget.Name, modelSnap.Name)
 			}
 			modelSnaps.gadget = modelSnap
 		case modelSnap.Name == base:
-			essential = true
 			if modelSnap.SnapType != "base" {
 				return nil, fmt.Errorf(`boot base %q must specify type "base", not %q`, base, modelSnap.SnapType)
 			}
 			modelSnaps.base = modelSnap
 		}
 
-		if essential {
-			if len(modelSnap.Modes) != 0 || modelSnap.Presence != "" {
-				return nil, fmt.Errorf("essential snaps are always available, cannot specify modes or presence for snap %q", modelSnap.Name)
-			}
-			modelSnap.Modes = essentialSnapModes
-		}
-
-		if len(modelSnap.Modes) == 0 {
-			modelSnap.Modes = defaultModes
-		}
-		if modelSnap.Classic && (len(modelSnap.Modes) != 1 || modelSnap.Modes[0] != "run") {
-			return nil, fmt.Errorf("classic snap %q not allowed outside of run mode: %v", modelSnap.Name, modelSnap.Modes)
-		}
-
-		if modelSnap.Presence == "" {
-			modelSnap.Presence = "required"
-		}
-
-		if !essential {
+		if !isEssentialSnap(modelSnap.Name, modelSnap.SnapType, base) {
 			modelSnaps.snapsNoEssential = append(modelSnaps.snapsNoEssential, modelSnap)
 		}
 	}
@@ -198,7 +186,38 @@ var (
 	validSnapPresences = []string{"required", "optional"}
 )
 
-func checkModelSnap(snap map[string]interface{}, grade ModelGrade, modelIsClassic bool) (*ModelSnap, error) {
+func isEssentialSnap(snapName, snapType, modelBase string) bool {
+	switch snapType {
+	case "snapd", "kernel", "gadget":
+		return true
+	}
+	if snapName == modelBase {
+		return true
+	}
+	return false
+}
+
+func checkModesForSnap(snap map[string]interface{}, isEssential bool, what string) ([]string, error) {
+	modes, err := checkStringListInMap(snap, "modes", fmt.Sprintf("%q %s", "modes", what),
+		validSnapMode)
+	if err != nil {
+		return nil, err
+	}
+	if isEssential {
+		if len(modes) != 0 {
+			return nil, fmt.Errorf("essential snaps are always available, cannot specify modes %s", what)
+		}
+		modes = essentialSnapModes
+	}
+
+	if len(modes) == 0 {
+		modes = defaultModes
+	}
+
+	return modes, nil
+}
+
+func checkModelSnap(snap map[string]interface{}, modelBase string, grade ModelGrade, modelIsClassic bool) (*ModelSnap, error) {
 	name, err := checkNotEmptyStringWhat(snap, "name", "of snap")
 	if err != nil {
 		return nil, err
@@ -236,7 +255,22 @@ func checkModelSnap(snap map[string]interface{}, grade ModelGrade, modelIsClassi
 		return nil, fmt.Errorf("type of snap %q must be one of %s", name, strings.Join(validSnapTypes, "|"))
 	}
 
-	modes, err := checkStringListInMap(snap, "modes", fmt.Sprintf("%q %s", "modes", what), validSnapMode)
+	presence, err := checkOptionalStringWhat(snap, "presence", what)
+	if err != nil {
+		return nil, err
+	}
+	if presence != "" && !strutil.ListContains(validSnapPresences, presence) {
+		return nil, fmt.Errorf("presence of snap %q must be one of required|optional", name)
+	}
+	essential := isEssentialSnap(name, typ, modelBase)
+	if essential && presence != "" {
+		return nil, fmt.Errorf("essential snaps are always available, cannot specify presence for snap %q", name)
+	}
+	if presence == "" {
+		presence = "required"
+	}
+
+	modes, err := checkModesForSnap(snap, essential, what)
 	if err != nil {
 		return nil, err
 	}
@@ -256,14 +290,6 @@ func checkModelSnap(snap map[string]interface{}, grade ModelGrade, modelIsClassi
 		return nil, fmt.Errorf("default channel for snap %q must specify a track", name)
 	}
 
-	presence, err := checkOptionalStringWhat(snap, "presence", what)
-	if err != nil {
-		return nil, err
-	}
-	if presence != "" && !strutil.ListContains(validSnapPresences, presence) {
-		return nil, fmt.Errorf("presence of snap %q must be one of required|optional", name)
-	}
-
 	isClassic, err := checkOptionalBoolWhat(snap, "classic", what)
 	if err != nil {
 		return nil, err
@@ -274,6 +300,15 @@ func checkModelSnap(snap map[string]interface{}, grade ModelGrade, modelIsClassi
 	if isClassic && typ != "app" {
 		return nil, fmt.Errorf("snap %q cannot be classic with type %q instead of app", name, typ)
 	}
+	if isClassic && (len(modes) != 1 || modes[0] != "run") {
+		return nil, fmt.Errorf("classic snap %q not allowed outside of run mode: %v",
+			name, modes)
+	}
+
+	components, err := checkComponentsForMaps(snap, modes, what)
+	if err != nil {
+		return nil, err
+	}
 
 	return &ModelSnap{
 		Name:           name,
@@ -283,7 +318,94 @@ func checkModelSnap(snap map[string]interface{}, grade ModelGrade, modelIsClassi
 		DefaultChannel: defaultChannel,
 		Presence:       presence, // can be empty
 		Classic:        isClassic,
+		Components:     components, // can be empty
 	}, nil
+}
+
+// This is what we expect for components:
+/**
+snaps:
+ - name: <snap-name>
+   ...
+   presence: "optional"|"required" # optional, defaults to "required"
+   modes:    [<mode-specifier>]    # list of modes
+   components:             	     # optional
+      <component-name-1>:
+         presence: "optional"|"required"
+         modes:    [<mode-specifier>] # list of modes, optional
+                                      # must be a subset of snap modes
+                                      # defaults to the same modes
+                                      # as the snap
+      <component-name-2>: "required"|"optional" # presence, shortcut syntax
+**/
+func checkComponentsForMaps(m map[string]interface{}, validModes []string, what string) (map[string]ModelComponent, error) {
+	const compsField = "components"
+	value, ok := m[compsField]
+	if !ok {
+		return nil, nil
+	}
+	comps, ok := value.(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("%q %s must be a map from strings to components",
+			compsField, what)
+	}
+
+	res := make(map[string]ModelComponent, len(comps))
+	for name, comp := range comps {
+		// Name of component follows the same rules as snap components
+		if err := naming.ValidateSnap(name); err != nil {
+			return nil, fmt.Errorf("invalid component name %s", name)
+		}
+
+		// "comp: required|optional" case
+		compWhat := fmt.Sprintf("of component %q %s", name, what)
+		presence, ok := comp.(string)
+		if ok {
+			if !strutil.ListContains(validSnapPresences, presence) {
+				return nil, fmt.Errorf("presence %s must be one of required|optional", compWhat)
+			}
+			res[name] = ModelComponent{Presence: presence,
+				Modes: append([]string(nil), validModes...)}
+			continue
+		}
+
+		// try map otherwise
+		compFields, ok := comp.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("%s must be a map of strings to components or one of required|optional",
+				compWhat)
+		}
+		// Error out if unexpected entry
+		for key := range compFields {
+			if !strutil.ListContains([]string{"presence", "modes"}, key) {
+				return nil, fmt.Errorf("entry %q %s is unknown", key, compWhat)
+			}
+		}
+		presence, err := checkNotEmptyStringWhat(compFields, "presence", compWhat)
+		if err != nil {
+			return nil, err
+		}
+		if !strutil.ListContains(validSnapPresences, presence) {
+			return nil, fmt.Errorf("presence %s must be one of required|optional", compWhat)
+		}
+		modes, err := checkStringListInMap(compFields, "modes",
+			fmt.Sprintf("modes %s", compWhat), validSnapMode)
+		if err != nil {
+			return nil, err
+		}
+		if len(modes) == 0 {
+			modes = append([]string(nil), validModes...)
+		} else {
+			for _, m := range modes {
+				if !strutil.ListContains(validModes, m) {
+					return nil, fmt.Errorf("mode %q %s is incompatible with the snap modes", m, compWhat)
+				}
+			}
+		}
+		res[name] = ModelComponent{Presence: presence, Modes: modes}
+	}
+
+	return res, nil
 }
 
 // unextended case support
@@ -433,6 +555,11 @@ type ModelValidationSet struct {
 	Mode ModelValidationSetMode
 }
 
+// SequenceKey returns the sequence key for this validation set.
+func (mvs *ModelValidationSet) SequenceKey() string {
+	return vsSequenceKey(release.Series, mvs.AccountID, mvs.Name)
+}
+
 func (mvs *ModelValidationSet) AtSequence() *AtSequence {
 	return &AtSequence{
 		Type:        ValidationSetType,
@@ -467,6 +594,7 @@ type Model struct {
 
 	serialAuthority  []string
 	sysUserAuthority []string
+	preseedAuthority []string
 	timestamp        time.Time
 }
 
@@ -607,6 +735,15 @@ func (mod *Model) SnapsWithoutEssential() []*ModelSnap {
 	return mod.allSnaps[mod.numEssentialSnaps:]
 }
 
+// AllSnaps returns all the snaps listed by the model, across all modes.
+// Essential snaps are at the front of the slice, followed by the non-essential
+// snaps. The essential snaps follow the same order as returned by
+// EssentialSnaps. The non-essential snaps are returned in the order they are
+// mentioned in the model.
+func (mod *Model) AllSnaps() []*ModelSnap {
+	return mod.allSnaps
+}
+
 // ValidationSets returns all the validation-sets listed by the model.
 func (mod *Model) ValidationSets() []*ModelValidationSet {
 	return mod.validationSets
@@ -624,6 +761,13 @@ func (mod *Model) SerialAuthority() []string {
 // any, otherwise it always includes the brand of the model.
 func (mod *Model) SystemUserAuthority() []string {
 	return mod.sysUserAuthority
+}
+
+// PreseedAuthority returns the authority ids that are accepted as
+// signers of the preseed binary blob for this model. It always includes the
+// brand of the model.
+func (mod *Model) PreseedAuthority() []string {
+	return mod.preseedAuthority
 }
 
 // Timestamp returns the time when the model assertion was issued.
@@ -666,31 +810,15 @@ func checkAuthorityMatchesBrand(a Assertion) error {
 	return nil
 }
 
-func checkOptionalSerialAuthority(headers map[string]interface{}, brandID string) ([]string, error) {
+func checkOptionalAuthority(headers map[string]interface{}, name string, brandID string, acceptsWildcard bool) ([]string, error) {
 	ids := []string{brandID}
-	const name = "serial-authority"
-	if _, ok := headers[name]; !ok {
-		return ids, nil
-	}
-	if lst, err := checkStringListMatches(headers, name, validAccountID); err == nil {
-		if !strutil.ListContains(lst, brandID) {
-			lst = append(ids, lst...)
-		}
-		return lst, nil
-	}
-	return nil, fmt.Errorf("%q header must be a list of account ids", name)
-}
-
-func checkOptionalSystemUserAuthority(headers map[string]interface{}, brandID string) ([]string, error) {
-	ids := []string{brandID}
-	const name = "system-user-authority"
 	v, ok := headers[name]
 	if !ok {
 		return ids, nil
 	}
 	switch x := v.(type) {
 	case string:
-		if x == "*" {
+		if acceptsWildcard && x == "*" {
 			return nil, nil
 		}
 	case []interface{}:
@@ -702,7 +830,27 @@ func checkOptionalSystemUserAuthority(headers map[string]interface{}, brandID st
 			return lst, nil
 		}
 	}
-	return nil, fmt.Errorf("%q header must be '*' or a list of account ids", name)
+
+	if acceptsWildcard {
+		return nil, fmt.Errorf("%q header must be '*' or a list of account ids", name)
+	} else {
+		return nil, fmt.Errorf("%q header must be a list of account ids", name)
+	}
+}
+
+func checkOptionalSerialAuthority(headers map[string]interface{}, brandID string) ([]string, error) {
+	const acceptsWildcard = false
+	return checkOptionalAuthority(headers, "serial-authority", brandID, acceptsWildcard)
+}
+
+func checkOptionalSystemUserAuthority(headers map[string]interface{}, brandID string) ([]string, error) {
+	const acceptsWildcard = true
+	return checkOptionalAuthority(headers, "system-user-authority", brandID, acceptsWildcard)
+}
+
+func checkOptionalPreseedAuthority(headers map[string]interface{}, brandID string) ([]string, error) {
+	const acceptsWildcard = false
+	return checkOptionalAuthority(headers, "preseed-authority", brandID, acceptsWildcard)
 }
 
 func checkModelValidationSetAccountID(headers map[string]interface{}, what, brandID string) (string, error) {
@@ -1028,6 +1176,11 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
+	preseedAuthority, err := checkOptionalPreseedAuthority(assert.headers, brandID)
+	if err != nil {
+		return nil, err
+	}
+
 	timestamp, err := checkRFC3339Date(assert.headers, "timestamp")
 	if err != nil {
 		return nil, err
@@ -1062,6 +1215,7 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 		validationSets:             valSets,
 		serialAuthority:            serialAuthority,
 		sysUserAuthority:           sysUserAuthority,
+		preseedAuthority:           preseedAuthority,
 		timestamp:                  timestamp,
 	}, nil
 }

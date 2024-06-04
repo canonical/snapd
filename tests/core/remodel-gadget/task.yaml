@@ -1,5 +1,12 @@
 summary: Test a remodel that switches to a new gadget
 
+details: |
+    Check that is it possible to `snap remodel` to a new gadget.
+    Verify after the reboot the new gadget is installed, the new
+    model assertion is being used and it is not possible to remove
+    the new gadget snap. Finally check it is possible to remodel
+    back to the initial model.
+
 # TODO:UC20: enable for UC20
 systems: [ubuntu-core-18-64]
 
@@ -12,6 +19,10 @@ prepare: |
     . "$TESTSLIB"/core-config.sh
 
     if [ "$SPREAD_REBOOT" = 0 ]; then
+        # enable the shutdown delay for this test in /etc/environment to properly persist it
+        # in this test
+        echo "SNAPD_SHUTDOWN_DELAY=1" >> /etc/environment
+
         REBOOT_NEEDED=false
         if os.query is-core18 && snap list snapd | NOMATCH ' x1 '; then
             REBOOT_NEEDED=true
@@ -81,6 +92,10 @@ restore: |
         find /var/snap
         exit 1
     fi
+
+    # remove SNAPD_SHUTDOWN_DELAY from /etc/environment again
+    #shellcheck disable=SC2005
+    echo "$(grep -v 'SNAPD_SHUTDOWN_DELAY=1' /etc/environment)" > /etc/environment
 
 execute: |
     #shellcheck source=tests/lib/core-config.sh

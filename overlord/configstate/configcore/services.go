@@ -22,7 +22,6 @@ package configcore
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
 	"path/filepath"
@@ -75,7 +74,7 @@ func switchDisableSSHService(sysd systemd.Systemd, serviceName string, disabled 
 
 	units := []string{serviceName}
 	if disabled {
-		if err := ioutil.WriteFile(sshCanary, []byte("SSH has been disabled by snapd system configuration\n"), 0644); err != nil {
+		if err := os.WriteFile(sshCanary, []byte("SSH has been disabled by snapd system configuration\n"), 0644); err != nil {
 			return err
 		}
 		if opts == nil {
@@ -140,7 +139,7 @@ func switchDisableConsoleConfService(sysd systemd.Systemd, serviceName string, d
 	if err := os.MkdirAll(filepath.Dir(consoleConfDisabled), 0755); err != nil {
 		return err
 	}
-	if err := ioutil.WriteFile(consoleConfDisabled, []byte("console-conf has been disabled by the snapd system configuration\n"), 0644); err != nil {
+	if err := os.WriteFile(consoleConfDisabled, []byte("console-conf has been disabled by the snapd system configuration\n"), 0644); err != nil {
 		return err
 	}
 

@@ -10,13 +10,10 @@ details: |
 systems: [-ubuntu-core-*, -debian-*, -ubuntu-14.04-*, -fedora-*, -arch-*, -amazon-*, -centos-*]
 
 restore: |
-    #shellcheck source=tests/lib/pkgdb.sh
-    . "$TESTSLIB/pkgdb.sh"
     if [ "$REMOTE_STORE" = staging ]; then
         echo "skip upgrade tests while talking to the staging store"
         exit 0
     fi
-    distro_purge_package snapd-xdg-open || true
 
 execute: |
     #shellcheck source=tests/lib/pkgdb.sh

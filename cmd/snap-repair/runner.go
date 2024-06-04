@@ -27,7 +27,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
@@ -45,7 +44,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/errtracker"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -59,8 +57,6 @@ var (
 	// TODO: move inside the repairs themselves?
 	defaultRepairTimeout = 30 * time.Minute
 )
-
-var errtrackerReportRepair = errtracker.ReportRepair
 
 // Repair is a runnable repair.
 type Repair struct {
@@ -219,10 +215,8 @@ func (r *Repair) Run() error {
 	// if the script had an error exit status still honor what we
 	// read from the status-pipe, however report the error
 	if scriptErr != nil {
+		// TODO: telemetry about errors here
 		scriptErr = fmt.Errorf("repair %s revision %d failed: %s", r, r.Revision(), scriptErr)
-		if err := r.errtrackerReport(scriptErr, status, logPath); err != nil {
-			logger.Noticef("cannot report error to errtracker: %s", err)
-		}
 		// ensure the error is present in the output log
 		fmt.Fprintf(logf, "\n%s", scriptErr)
 	}
@@ -250,28 +244,6 @@ func readStatus(r io.Reader) RepairStatus {
 		return RetryStatus
 	}
 	return status
-}
-
-// errtrackerReport reports an repairErr with the given logPath to the
-// snap error tracker.
-func (r *Repair) errtrackerReport(repairErr error, status RepairStatus, logPath string) error {
-	errMsg := repairErr.Error()
-
-	scriptOutput, err := ioutil.ReadFile(logPath)
-	if err != nil {
-		logger.Noticef("cannot read %s", logPath)
-	}
-	s := fmt.Sprintf("%s/%d", r.BrandID(), r.RepairID())
-
-	dupSig := fmt.Sprintf("%s\n%s\noutput:\n%s", s, errMsg, scriptOutput)
-	extra := map[string]string{
-		"Revision": strconv.Itoa(r.Revision()),
-		"BrandID":  r.BrandID(),
-		"RepairID": strconv.Itoa(r.RepairID()),
-		"Status":   status.String(),
-	}
-	_, err = errtrackerReportRepair(s, errMsg, dupSig, extra)
-	return err
 }
 
 // Runner implements fetching, tracking and running repairs.
@@ -330,11 +302,40 @@ var (
 	maxRepairScriptSize = 24 * 1024 * 1024
 )
 
+// repairConfig is a set of configuration data that is consumed by the
+// snap-repair command. This struct is duplicated in o/c/configcore.
+type repairConfig struct {
+	// StoreOffline is true if the store is marked as offline and should not be
+	// accessed.
+	StoreOffline bool `json:"store-offline"`
+}
+
+func isStoreOffline(path string) bool {
+	f, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+
+	var repairConfig repairConfig
+	if err := json.NewDecoder(f).Decode(&repairConfig); err != nil {
+		return false
+	}
+
+	return repairConfig.StoreOffline
+}
+
+var errStoreOffline = errors.New("snap store is marked offline")
+
 // Fetch retrieves a stream with the repair with the given ids and any
 // auxiliary assertions. If revision>=0 the request will include an
 // If-None-Match header with an ETag for the revision, and
 // ErrRepairNotModified is returned if the revision is still current.
 func (run *Runner) Fetch(brandID string, repairID int, revision int) (*asserts.Repair, []asserts.Assertion, error) {
+	if isStoreOffline(dirs.SnapRepairConfigFile) {
+		return nil, nil, errStoreOffline
+	}
+
 	u, err := run.BaseURL.Parse(fmt.Sprintf("repairs/%s/%d", brandID, repairID))
 	if err != nil {
 		return nil, nil, err
@@ -441,6 +442,10 @@ type peekResp struct {
 
 // Peek retrieves the headers for the repair with the given ids.
 func (run *Runner) Peek(brandID string, repairID int) (headers map[string]interface{}, err error) {
+	if isStoreOffline(dirs.SnapRepairConfigFile) {
+		return nil, errStoreOffline
+	}
+
 	u, err := run.BaseURL.Parse(fmt.Sprintf("repairs/%s/%d", brandID, repairID))
 	if err != nil {
 		return nil, err
@@ -744,7 +749,7 @@ func findDevInfo20() (*deviceInfo, error) {
 func findDevInfo16() (*deviceInfo, error) {
 	workBS := asserts.NewMemoryBackstore()
 	assertSeedDir := filepath.Join(dirs.SnapSeedDir, "assertions")
-	dc, err := ioutil.ReadDir(assertSeedDir)
+	dc, err := os.ReadDir(assertSeedDir)
 	if err != nil {
 		return nil, err
 	}

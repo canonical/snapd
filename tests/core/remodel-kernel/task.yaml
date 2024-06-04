@@ -1,5 +1,11 @@
-summary: |
-    Test a remodel that switches to a new kernel
+summary: Test a remodel that switches to a new kernel
+
+details: |
+    Check that is it possible to `snap remodel` to a new kernel.
+    Verify after the reboot the new kernel is installed, the new
+    model assertion is being used and it is not possible to remove
+    the new kernel snap. Finally check it is possible to remodel
+    back to the initial model.
 
 # FIXME: add core18 test as well
 # TODO:UC20: enable for UC20

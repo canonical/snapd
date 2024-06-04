@@ -23,9 +23,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
+	"strings"
 	"time"
 
 	"gopkg.in/check.v1"
@@ -41,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 )
 
 var modelDefaults = map[string]interface{}{
@@ -70,7 +75,35 @@ func (s *modelSuite) TestPostRemodelUnhappy(c *check.C) {
 	c.Check(rspe.Message, check.Matches, "cannot decode new model assertion: .*")
 }
 
+func (s *modelSuite) TestPostRemodelUnhappyWrongAssertion(c *check.C) {
+	s.daemon(c)
+
+	s.expectRootAccess()
+
+	acct := assertstest.NewAccount(s.StoreSigning, "developer1", nil, "")
+	buf := bytes.NewBuffer(asserts.Encode(acct))
+
+	data, err := json.Marshal(daemon.PostModelData{NewModel: buf.String()})
+	c.Check(err, check.IsNil)
+
+	req, err := http.NewRequest("POST", "/v2/model", bytes.NewBuffer(data))
+	c.Assert(err, check.IsNil)
+	rspe := s.errorReq(c, req, nil)
+	c.Assert(rspe.Status, check.Equals, 400)
+	c.Check(rspe.Message, check.Matches, "new model is not a model assertion: .*")
+}
+
 func (s *modelSuite) TestPostRemodel(c *check.C) {
+	const offline = false
+	s.testPostRemodel(c, offline)
+}
+
+func (s *modelSuite) TestPostRemodelOffline(c *check.C) {
+	const offline = true
+	s.testPostRemodel(c, offline)
+}
+
+func (s *modelSuite) testPostRemodel(c *check.C, offline bool) {
 	s.expectRootAccess()
 
 	oldModel := s.Brands.Model("my-brand", "my-old-model", modelDefaults)
@@ -100,7 +133,8 @@ func (s *modelSuite) TestPostRemodel(c *check.C) {
 	defer restore()
 
 	var devicestateRemodelGotModel *asserts.Model
-	defer daemon.MockDevicestateRemodel(func(st *state.State, nm *asserts.Model) (*state.Change, error) {
+	defer daemon.MockDevicestateRemodel(func(st *state.State, nm *asserts.Model, localSnaps []*snap.SideInfo, paths []string, opts devicestate.RemodelOptions) (*state.Change, error) {
+		c.Check(opts.Offline, check.Equals, offline)
 		devicestateRemodelGotModel = nm
 		chg := st.NewChange("remodel", "...")
 		return chg, nil
@@ -109,7 +143,10 @@ func (s *modelSuite) TestPostRemodel(c *check.C) {
 	// create a valid model assertion
 	c.Assert(err, check.IsNil)
 	modelEncoded := string(asserts.Encode(newModel))
-	data, err := json.Marshal(daemon.PostModelData{NewModel: modelEncoded})
+	data, err := json.Marshal(daemon.PostModelData{
+		NewModel: modelEncoded,
+		Offline:  offline,
+	})
 	c.Check(err, check.IsNil)
 
 	// set it and validate that this is what we was passed to
@@ -192,7 +229,7 @@ func (s *modelSuite) TestPostRemodelWrongContentType(c *check.C) {
 	c.Assert(rspe.Status, check.Equals, 400)
 	c.Assert(rspe.Kind, check.Equals, client.ErrorKind(""))
 	c.Assert(rspe.Value, check.IsNil)
-	c.Assert(rspe.Message, check.Equals, `media type "multipart/form-data" not implemented yet`)
+	c.Assert(rspe.Message, check.Equals, `cannot read POST form: multipart: boundary is empty`)
 }
 
 func (s *modelSuite) TestGetModelNoModelAssertion(c *check.C) {
@@ -498,4 +535,139 @@ func (s *userSuite) TestPostSerialForgetError(c *check.C) {
 
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe, check.DeepEquals, daemon.InternalError(`forgetting serial failed: boom`))
+}
+
+func multipartBody(c *check.C, model, snap, assertion string) (bytes.Buffer, string) {
+	var b bytes.Buffer
+	w := multipart.NewWriter(&b)
+
+	err := w.WriteField("new-model", model)
+	c.Assert(err, check.IsNil)
+	part, err := w.CreateFormFile("snap", "snap_1.snap")
+	c.Assert(err, check.IsNil)
+	_, err = part.Write([]byte(snap))
+	c.Assert(err, check.IsNil)
+	err = w.WriteField("assertion", assertion)
+	c.Assert(err, check.IsNil)
+	err = w.Close()
+	c.Assert(err, check.IsNil)
+
+	return b, w.Boundary()
+}
+
+func (s *modelSuite) TestPostOfflineRemodelOk(c *check.C) {
+	s.testPostOfflineRemodel(c, &testPostOfflineRemodelParams{badModel: false})
+}
+
+func (s *modelSuite) TestPostOfflineRemodelBadModel(c *check.C) {
+	s.testPostOfflineRemodel(c, &testPostOfflineRemodelParams{badModel: true})
+}
+
+type testPostOfflineRemodelParams struct {
+	badModel bool
+}
+
+func (s *modelSuite) testPostOfflineRemodel(c *check.C, params *testPostOfflineRemodelParams) {
+	s.expectRootAccess()
+
+	oldModel := s.Brands.Model("my-brand", "my-old-model", modelDefaults)
+	newModel := s.Brands.Model("my-brand", "my-old-model", modelDefaults, map[string]interface{}{
+		"revision": "2",
+	})
+
+	d := s.daemonWithOverlordMockAndStore()
+	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
+	c.Assert(err, check.IsNil)
+	deviceMgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
+	c.Assert(err, check.IsNil)
+	d.Overlord().AddManager(deviceMgr)
+	st := d.Overlord().State()
+	st.Lock()
+	assertstatetest.AddMany(st, s.StoreSigning.StoreAccountKey(""))
+	assertstatetest.AddMany(st, s.Brands.AccountsAndKeys("my-brand")...)
+	s.mockModel(st, oldModel)
+	st.Unlock()
+
+	soon := 0
+	var origEnsureStateSoon func(*state.State)
+	origEnsureStateSoon, restore := daemon.MockEnsureStateSoon(func(st *state.State) {
+		soon++
+		origEnsureStateSoon(st)
+	})
+	defer restore()
+
+	snapName := "snap1"
+	snapRev := 1001
+	var devicestateRemodelGotModel *asserts.Model
+	defer daemon.MockDevicestateRemodel(func(st *state.State, nm *asserts.Model,
+		localSnaps []*snap.SideInfo, paths []string, opts devicestate.RemodelOptions) (*state.Change, error) {
+		c.Check(opts.Offline, check.Equals, true)
+		c.Check(len(localSnaps), check.Equals, 1)
+		c.Check(localSnaps[0].RealName, check.Equals, snapName)
+		c.Check(localSnaps[0].Revision, check.Equals, snap.Revision{N: snapRev})
+		c.Check(strings.HasSuffix(paths[0],
+			"/var/lib/snapd/snaps/"+snapName+"_"+strconv.Itoa(snapRev)+".snap"),
+			check.Equals, true)
+
+		devicestateRemodelGotModel = nm
+		chg := st.NewChange("remodel", "...")
+		return chg, nil
+	})()
+
+	sis := []*snap.SideInfo{{RealName: snapName, Revision: snap.Revision{N: snapRev}}}
+	defer daemon.MockSideloadSnapsInfo(sis)()
+
+	// create a valid model assertion
+	c.Assert(err, check.IsNil)
+	var modelEncoded string
+	if params.badModel {
+		modelEncoded = "garbage"
+	} else {
+		modelEncoded = string(asserts.Encode(newModel))
+	}
+
+	// valid revision assertion to make it part of the arguments
+	revAssert := assertstest.FakeAssertion(map[string]interface{}{
+		"type":          "snap-revision",
+		"authority-id":  "can0nical",
+		"snap-id":       "snap-id-1",
+		"snap-sha3-384": "1111111111111111111111111111111111111111111111111111111111111111",
+		"snap-size":     fmt.Sprintf("%d", 100),
+		"snap-revision": strconv.Itoa(snapRev),
+		"developer-id":  "mydev",
+		"timestamp":     time.Now().Format(time.RFC3339),
+	}).(*asserts.SnapRevision)
+
+	// create multipart data
+	body, boundary := multipartBody(c, modelEncoded, "snap_data", string(revAssert.Body()))
+
+	// set it and validate that this is what we passed to devicestateRemodel
+	req, err := http.NewRequest("POST", "/v2/model", &body)
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "multipart/form-data; boundary="+boundary)
+	req.Header.Set("Content-Length", strconv.Itoa(body.Len()))
+
+	if params.badModel {
+		rsp := s.errorReq(c, req, nil)
+		c.Assert(rsp.Status, check.Equals, 400)
+		c.Check(rsp.Error(), check.Equals, "cannot decode new model assertion: assertion content/signature separator not found (api)")
+	} else {
+		rsp := s.asyncReq(c, req, nil)
+		c.Assert(rsp.Status, check.Equals, 202)
+		c.Check(rsp.Change, check.DeepEquals, "1")
+		c.Check(devicestateRemodelGotModel, check.DeepEquals, newModel)
+
+		st.Lock()
+		defer st.Unlock()
+		chg := st.Change(rsp.Change)
+		c.Assert(chg, check.NotNil)
+
+		c.Assert(st.Changes(), check.HasLen, 1)
+		chg1 := st.Changes()[0]
+		c.Assert(chg, check.DeepEquals, chg1)
+		c.Assert(chg.Kind(), check.Equals, "remodel")
+		c.Assert(chg.Err(), check.IsNil)
+
+		c.Assert(soon, check.Equals, 1)
+	}
 }

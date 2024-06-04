@@ -138,7 +138,9 @@ func (s *X11InterfaceSuite) TestAppArmorSpec(c *C) {
 	defer restore()
 
 	// Plug side connection permissions
-	spec := &apparmor.Specification{}
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.classicSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "fontconfig")
@@ -150,7 +152,9 @@ func (s *X11InterfaceSuite) TestAppArmorSpec(c *C) {
 	defer restore()
 
 	// Plug side connection permissions
-	spec = &apparmor.Specification{}
+	appSet, err = interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec = apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "fontconfig")
@@ -158,21 +162,27 @@ func (s *X11InterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.UpdateNS()[0], testutil.Contains, `mount options=(rw, bind) /var/lib/snapd/hostfs/tmp/snap-private-tmp/snap.x11/tmp/.X11-unix/ -> /tmp/.X11-unix/,`)
 
 	// Slot side connection permissions
-	spec = &apparmor.Specification{}
+	appSet, err = interfaces.NewSnapAppSet(s.coreSlot.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec = apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.x11.app"})
 	c.Assert(spec.SnippetForTag("snap.x11.app"), testutil.Contains, `peer=(label="snap.consumer.app"),`)
 	c.Assert(spec.UpdateNS(), HasLen, 0)
 
 	// Slot side permantent permissions
-	spec = &apparmor.Specification{}
+	appSet, err = interfaces.NewSnapAppSet(s.coreSlotInfo.Snap, nil)
+	c.Assert(err, IsNil)
+	spec = apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.x11.app"})
 	c.Assert(spec.SnippetForTag("snap.x11.app"), testutil.Contains, "capability sys_tty_config,")
 	c.Assert(spec.UpdateNS(), HasLen, 0)
 
 	// case C: x11 slot is both provided and consumed by a snap on the system.
-	spec = &apparmor.Specification{}
+	appSet, err = interfaces.NewSnapAppSet(s.corePlug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec = apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.corePlug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.x11.app"})
 	c.Assert(spec.SnippetForTag("snap.x11.app"), testutil.Contains, "fontconfig")
@@ -186,18 +196,24 @@ func (s *X11InterfaceSuite) TestAppArmorSpecOnClassic(c *C) {
 	defer restore()
 
 	// connected plug to classic slot
-	spec := &apparmor.Specification{}
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.classicSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "owner /run/user/[0-9]*/.Xauthority r,")
 
 	// connected classic slot to plug
-	spec = &apparmor.Specification{}
+	appSet, err = interfaces.NewSnapAppSet(s.classicSlot.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec = apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.classicSlot), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 
 	// permanent classic slot
-	spec = &apparmor.Specification{}
+	appSet, err = interfaces.NewSnapAppSet(s.classicSlotInfo.Snap, nil)
+	c.Assert(err, IsNil)
+	spec = apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddPermanentSlot(s.iface, s.classicSlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 }
@@ -207,9 +223,9 @@ func (s *X11InterfaceSuite) TestSecCompOnClassic(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
 
-	seccompSpec := &seccomp.Specification{}
-	err := seccompSpec.AddPermanentSlot(s.iface, s.classicSlotInfo)
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
 	c.Assert(err, IsNil)
+	seccompSpec := seccomp.NewSpecification(appSet)
 	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.classicSlot)
 	c.Assert(err, IsNil)
 
@@ -223,15 +239,22 @@ func (s *X11InterfaceSuite) TestSecCompOnCore(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	seccompSpec := &seccomp.Specification{}
-	err := seccompSpec.AddPermanentSlot(s.iface, s.coreSlotInfo)
+	appSet, err := interfaces.NewSnapAppSet(s.coreSlotInfo.Snap, nil)
 	c.Assert(err, IsNil)
+	seccompSpec := seccomp.NewSpecification(appSet)
+	err = seccompSpec.AddPermanentSlot(s.iface, s.coreSlotInfo)
+	c.Assert(err, IsNil)
+
+	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.x11.app"})
+	c.Assert(seccompSpec.SnippetForTag("snap.x11.app"), testutil.Contains, "listen\n")
+
+	appSet, err = interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	seccompSpec = seccomp.NewSpecification(appSet)
 	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.coreSlot)
 	c.Assert(err, IsNil)
 
-	// both app and x11 have secomp rules set
-	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.consumer.app", "snap.x11.app"})
-	c.Assert(seccompSpec.SnippetForTag("snap.x11.app"), testutil.Contains, "listen\n")
+	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(seccompSpec.SnippetForTag("snap.consumer.app"), testutil.Contains, "bind\n")
 }
 
@@ -240,7 +263,9 @@ func (s *X11InterfaceSuite) TestUDev(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	spec := &udev.Specification{}
+	appSet, err := interfaces.NewSnapAppSet(s.coreSlotInfo.Snap, nil)
+	c.Assert(err, IsNil)
+	spec := udev.NewSpecification(appSet)
 	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 6)
 	c.Assert(spec.Snippets(), testutil.Contains, `# x11
@@ -260,7 +285,9 @@ KERNEL=="tty[0-9]*", TAG+="snap_x11_app"`)
 	restore = release.MockOnClassic(true)
 	defer restore()
 
-	spec = &udev.Specification{}
+	appSet, err = interfaces.NewSnapAppSet(s.classicSlotInfo.Snap, nil)
+	c.Assert(err, IsNil)
+	spec = udev.NewSpecification(appSet)
 	c.Assert(spec.AddPermanentSlot(s.iface, s.classicSlotInfo), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 0)
 	c.Assert(spec.TriggeredSubsystems(), IsNil)

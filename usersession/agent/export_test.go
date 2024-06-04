@@ -21,13 +21,18 @@ package agent
 
 import (
 	"syscall"
+
+	"github.com/snapcore/snapd/i18n"
 )
 
 var (
-	SessionInfoCmd                = sessionInfoCmd
-	ServiceControlCmd             = serviceControlCmd
-	PendingRefreshNotificationCmd = pendingRefreshNotificationCmd
-	FinishRefreshNotificationCmd  = finishRefreshNotificationCmd
+	SessionInfoCmd                     = sessionInfoCmd
+	ServiceControlCmd                  = serviceControlCmd
+	ServiceStatusCmd                   = serviceStatusCmd
+	PendingRefreshNotificationCmd      = pendingRefreshNotificationCmd
+	FinishRefreshNotificationCmd       = finishRefreshNotificationCmd
+	GuessAppData                       = guessAppData
+	GetLocalizedAppNameFromDesktopFile = getLocalizedAppNameFromDesktopFile
 )
 
 func MockUcred(ucred *syscall.Ucred, err error) (restore func()) {
@@ -46,5 +51,14 @@ func MockNoBus(agent *SessionAgent) (restore func()) {
 	agent.bus = nil
 	return func() {
 		agent.bus = bus
+	}
+}
+
+func MockCurrentLocale(newLocale string) (restore func()) {
+	currentLocale = func() string {
+		return newLocale
+	}
+	return func() {
+		currentLocale = i18n.CurrentLocale
 	}
 }

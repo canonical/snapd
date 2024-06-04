@@ -259,7 +259,13 @@ ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	$(MAKE) -C cmd check
 endif
 
-override_dh_install:
+
+debian/snapd.install: SYSTEMD_LIBDIR=$(shell pkg-config --variable=systemdutildir systemd)
+debian/snapd.install: debian/snapd.install.in
+	sed 's,@systemd-lib@,$(SYSTEMD_LIBDIR),g' $< >$@.tmp
+	mv $@.tmp $@
+
+override_dh_install: debian/snapd.install
 	# we do not need this in the package, its just needed during build
 	rm -rf ${CURDIR}/debian/tmp/usr/bin/xgettext-go
 	# toolbelt is not shippable

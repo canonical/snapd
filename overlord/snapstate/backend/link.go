@@ -20,9 +20,12 @@
 package backend
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
@@ -57,50 +60,69 @@ type LinkContext struct {
 	// RequireMountedSnapdSnap indicates that the apps and services
 	// generated when linking need to use tooling from the snapd snap mount.
 	RequireMountedSnapdSnap bool
+
+	// SkipBinaries indicates that we should skip removing snap binaries,
+	// icons and desktop files in UnlinkSnap
+	SkipBinaries bool
 }
 
-func updateCurrentSymlinks(info *snap.Info) (e error) {
+func updateCurrentSymlinks(info *snap.Info) (revert func(), e error) {
 	mountDir := info.MountDir()
-
-	currentActiveSymlink := filepath.Join(mountDir, "..", "current")
-	if err := os.Remove(currentActiveSymlink); err != nil && !os.IsNotExist(err) {
-		logger.Noticef("Cannot remove %q: %v", currentActiveSymlink, err)
-	}
-
 	dataDir := info.DataDir()
-	currentDataSymlink := filepath.Join(dataDir, "..", "current")
-	if err := os.Remove(currentDataSymlink); err != nil && !os.IsNotExist(err) {
-		logger.Noticef("Cannot remove %q: %v", currentDataSymlink, err)
+
+	var previousActiveSymlinkTarget string
+	var previousDataSymlinkTarget string
+	currentActiveSymlink := filepath.Join(filepath.Dir(mountDir), "current")
+	currentDataSymlink := filepath.Join(filepath.Dir(dataDir), "current")
+	revertFunc := func() {
+		if previousActiveSymlinkTarget != "" {
+			if err := osutil.AtomicSymlink(previousActiveSymlinkTarget, currentActiveSymlink); err != nil {
+				logger.Noticef("Cannot restore symlink %q: %v", currentActiveSymlink, err)
+			}
+		}
+		if previousDataSymlinkTarget != "" {
+			if err := osutil.AtomicSymlink(previousDataSymlinkTarget, currentDataSymlink); err != nil {
+				logger.Noticef("Cannot restore symlink %q: %v", currentDataSymlink, err)
+			}
+		}
+	}
+	defer func() {
+		if e != nil {
+			revertFunc()
+		}
+	}()
+
+	if info.Type() == snap.TypeSnapd {
+		var err error
+		previousActiveSymlinkTarget, err = os.Readlink(currentActiveSymlink)
+		if err != nil && !errors.Is(err, fs.ErrNotExist) {
+			logger.Noticef("Cannot read %q: %v", currentActiveSymlink, err)
+		}
+		previousDataSymlinkTarget, err = os.Readlink(currentDataSymlink)
+		if err != nil && !errors.Is(err, fs.ErrNotExist) {
+			logger.Noticef("Cannot read %q: %v", currentDataSymlink, err)
+		}
 	}
 
 	if err := os.MkdirAll(dataDir, 0755); err != nil {
-		return err
+		return nil, err
 	}
-	cleanup := []string{dataDir, ""}[:1] // cleanup has cap(2)
 	defer func() {
-		if e == nil {
-			return
-		}
-		for _, d := range cleanup {
-			if err := os.Remove(d); err != nil {
-				logger.Noticef("Cannot clean up %q: %v", d, err)
+		if e != nil {
+			if err := os.Remove(dataDir); err != nil {
+				logger.Noticef("Cannot clean up %q: %v", dataDir, err)
 			}
 		}
 	}()
 
-	if err := os.Symlink(filepath.Base(dataDir), currentDataSymlink); err != nil {
-		return err
+	if err := osutil.AtomicSymlink(filepath.Base(dataDir), currentDataSymlink); err != nil {
+		return nil, err
 	}
-	cleanup = append(cleanup, currentDataSymlink)
-
-	return os.Symlink(filepath.Base(mountDir), currentActiveSymlink)
-}
-
-func hasFontConfigCache(info *snap.Info) bool {
-	if info.Type() == snap.TypeOS || info.Type() == snap.TypeSnapd {
-		return true
+	if err := osutil.AtomicSymlink(filepath.Base(mountDir), currentActiveSymlink); err != nil {
+		return nil, err
 	}
-	return false
+
+	return revertFunc, nil
 }
 
 // LinkSnap makes the snap available by generating wrappers and setting the current symlinks.
@@ -112,8 +134,9 @@ func (b Backend) LinkSnap(info *snap.Info, dev snap.Device, linkCtx LinkContext,
 	osutil.MaybeInjectFault("link-snap")
 
 	var err error
+	var restart wrappers.SnapdRestart
 	timings.Run(tm, "generate-wrappers", fmt.Sprintf("generate wrappers for snap %s", info.InstanceName()), func(timings.Measurer) {
-		err = b.generateWrappers(info, linkCtx)
+		restart, err = b.generateWrappers(info, linkCtx)
 	})
 	if err != nil {
 		return boot.RebootInfo{}, err
@@ -123,22 +146,9 @@ func (b Backend) LinkSnap(info *snap.Info, dev snap.Device, linkCtx LinkContext,
 			return
 		}
 		timings.Run(tm, "remove-wrappers", fmt.Sprintf("remove wrappers of snap %s", info.InstanceName()), func(timings.Measurer) {
-			removeGeneratedWrappers(info, linkCtx.FirstInstall, progress.Null)
+			removeGeneratedWrappers(info, linkCtx, progress.Null)
 		})
 	}()
-
-	// fontconfig is only relevant on classic and is carried by 'core' or
-	// 'snapd' snaps
-	// for non-core snaps, fontconfig cache needs to be updated before the
-	// snap applications are runnable
-	if dev.Classic() && !hasFontConfigCache(info) {
-		timings.Run(tm, "update-fc-cache", "update font config caches", func(timings.Measurer) {
-			// XXX: does this need cleaning up? (afaict no)
-			if err := updateFontconfigCaches(); err != nil {
-				logger.Noticef("cannot update fontconfig cache: %v", err)
-			}
-		})
-	}
 
 	var rebootInfo boot.RebootInfo
 	if !b.preseed {
@@ -150,20 +160,21 @@ func (b Backend) LinkSnap(info *snap.Info, dev snap.Device, linkCtx LinkContext,
 		}
 	}
 
-	if err := updateCurrentSymlinks(info); err != nil {
+	revertSymlinks, err := updateCurrentSymlinks(info)
+	if err != nil {
 		return boot.RebootInfo{}, err
 	}
 	// if anything below here could return error, you need to
 	// somehow clean up whatever updateCurrentSymlinks did
 
-	// for core snap, fontconfig cache can be updated after the snap has
-	// been made available
-	if dev.Classic() && hasFontConfigCache(info) {
-		timings.Run(tm, "update-fc-cache", "update font config caches", func(timings.Measurer) {
-			if err := updateFontconfigCaches(); err != nil {
-				logger.Noticef("cannot update fontconfig cache: %v", err)
-			}
-		})
+	if restart != nil {
+		if err := restart.Restart(); err != nil {
+			logger.Noticef("WARNING: cannot restart services: %v", err)
+			revertSymlinks()
+
+			return boot.RebootInfo{}, err
+		}
+
 	}
 
 	// Stop inhibiting application startup by removing the inhibitor file.
@@ -174,7 +185,33 @@ func (b Backend) LinkSnap(info *snap.Info, dev snap.Device, linkCtx LinkContext,
 	return rebootInfo, nil
 }
 
-func (b Backend) StartServices(apps []*snap.AppInfo, disabledSvcs []string, meter progress.Meter, tm timings.Measurer) error {
+func componentLinkPath(cpi snap.ContainerPlaceInfo, snapRev snap.Revision) string {
+	instanceName, compName, _ := strings.Cut(cpi.ContainerName(), "+")
+	compBase := snap.ComponentsBaseDir(instanceName)
+	return filepath.Join(compBase, snapRev.String(), compName)
+}
+
+func (b Backend) LinkComponent(cpi snap.ContainerPlaceInfo, snapRev snap.Revision) error {
+	mountDir := cpi.MountDir()
+	linkPath := componentLinkPath(cpi, snapRev)
+
+	// Create components directory
+	compsDir := filepath.Dir(linkPath)
+	if err := os.MkdirAll(compsDir, 0755); err != nil {
+		return fmt.Errorf("while linking component: %v", err)
+	}
+
+	// Work out relative path to go from the dir where the symlink lives to
+	// the mount dir
+	linkTarget, err := filepath.Rel(compsDir, mountDir)
+	if err != nil {
+		return err
+	}
+
+	return osutil.AtomicSymlink(linkTarget, linkPath)
+}
+
+func (b Backend) StartServices(apps []*snap.AppInfo, disabledSvcs *wrappers.DisabledServices, meter progress.Meter, tm timings.Measurer) error {
 	flags := &wrappers.StartServicesFlags{Enable: true}
 	return wrappers.StartServices(apps, disabledSvcs, flags, meter, tm)
 }
@@ -183,7 +220,7 @@ func (b Backend) StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReaso
 	return wrappers.StopServices(apps, nil, reason, meter, tm)
 }
 
-func (b Backend) generateWrappers(s *snap.Info, linkCtx LinkContext) error {
+func (b Backend) generateWrappers(s *snap.Info, linkCtx LinkContext) (wrappers.SnapdRestart, error) {
 	var err error
 	var cleanupFuncs []func(*snap.Info) error
 	defer func() {
@@ -200,8 +237,8 @@ func (b Backend) generateWrappers(s *snap.Info, linkCtx LinkContext) error {
 	}
 
 	// add the CLI apps from the snap.yaml
-	if err = wrappers.AddSnapBinaries(s); err != nil {
-		return err
+	if err = wrappers.EnsureSnapBinaries(s); err != nil {
+		return nil, err
 	}
 	cleanupFuncs = append(cleanupFuncs, wrappers.RemoveSnapBinaries)
 
@@ -213,7 +250,7 @@ func (b Backend) generateWrappers(s *snap.Info, linkCtx LinkContext) error {
 	if err = wrappers.EnsureSnapServices(map[*snap.Info]*wrappers.SnapServiceOptions{
 		s: linkCtx.ServiceOptions,
 	}, ensureOpts, nil, progress.Null); err != nil {
-		return err
+		return nil, err
 	}
 	cleanupFuncs = append(cleanupFuncs, func(s *snap.Info) error {
 		return wrappers.RemoveSnapServices(s, progress.Null)
@@ -221,53 +258,56 @@ func (b Backend) generateWrappers(s *snap.Info, linkCtx LinkContext) error {
 
 	// add D-Bus service activation files
 	if err = wrappers.AddSnapDBusActivationFiles(s); err != nil {
-		return err
+		return nil, err
 	}
 	cleanupFuncs = append(cleanupFuncs, wrappers.RemoveSnapDBusActivationFiles)
 
 	// add the desktop files
-	if err = wrappers.AddSnapDesktopFiles(s); err != nil {
-		return err
+	if err = wrappers.EnsureSnapDesktopFiles([]*snap.Info{s}); err != nil {
+		return nil, err
 	}
 	cleanupFuncs = append(cleanupFuncs, wrappers.RemoveSnapDesktopFiles)
 
 	// add the desktop icons
-	if err = wrappers.AddSnapIcons(s); err != nil {
-		return err
+	if err = wrappers.EnsureSnapIcons(s); err != nil {
+		return nil, err
 	}
 	cleanupFuncs = append(cleanupFuncs, wrappers.RemoveSnapIcons)
 
-	return nil
+	return nil, nil
 }
 
-func removeGeneratedWrappers(s *snap.Info, firstInstallUndo bool, meter progress.Meter) error {
+func removeGeneratedWrappers(s *snap.Info, linkCtx LinkContext, meter progress.Meter) error {
 	if s.Type() == snap.TypeSnapd {
-		return removeGeneratedSnapdWrappers(s, firstInstallUndo, progress.Null)
+		return removeGeneratedSnapdWrappers(s, linkCtx.FirstInstall, progress.Null)
 	}
 
-	err1 := wrappers.RemoveSnapBinaries(s)
-	if err1 != nil {
-		logger.Noticef("Cannot remove binaries for %q: %v", s.InstanceName(), err1)
+	var err1, err2, err3 error
+	if !linkCtx.SkipBinaries {
+		err1 = wrappers.RemoveSnapBinaries(s)
+		if err1 != nil {
+			logger.Noticef("Cannot remove binaries for %q: %v", s.InstanceName(), err1)
+		}
+
+		err2 = wrappers.RemoveSnapDesktopFiles(s)
+		if err2 != nil {
+			logger.Noticef("Cannot remove desktop files for %q: %v", s.InstanceName(), err2)
+		}
+
+		err3 = wrappers.RemoveSnapIcons(s)
+		if err3 != nil {
+			logger.Noticef("Cannot remove desktop icons for %q: %v", s.InstanceName(), err3)
+		}
 	}
 
-	err2 := wrappers.RemoveSnapDBusActivationFiles(s)
-	if err2 != nil {
-		logger.Noticef("Cannot remove D-Bus activation for %q: %v", s.InstanceName(), err2)
-	}
-
-	err3 := wrappers.RemoveSnapServices(s, meter)
-	if err3 != nil {
-		logger.Noticef("Cannot remove services for %q: %v", s.InstanceName(), err3)
-	}
-
-	err4 := wrappers.RemoveSnapDesktopFiles(s)
+	err4 := wrappers.RemoveSnapDBusActivationFiles(s)
 	if err4 != nil {
-		logger.Noticef("Cannot remove desktop files for %q: %v", s.InstanceName(), err4)
+		logger.Noticef("Cannot remove D-Bus activation for %q: %v", s.InstanceName(), err4)
 	}
 
-	err5 := wrappers.RemoveSnapIcons(s)
+	err5 := wrappers.RemoveSnapServices(s, meter)
 	if err5 != nil {
-		logger.Noticef("Cannot remove desktop icons for %q: %v", s.InstanceName(), err5)
+		logger.Noticef("Cannot remove services for %q: %v", s.InstanceName(), err5)
 	}
 
 	return firstErr(err1, err2, err3, err4, err5)
@@ -278,7 +318,7 @@ type GenerateSnapdWrappersOptions struct {
 	Preseeding bool
 }
 
-func GenerateSnapdWrappers(s *snap.Info, opts *GenerateSnapdWrappersOptions) error {
+func GenerateSnapdWrappers(s *snap.Info, opts *GenerateSnapdWrappersOptions) (wrappers.SnapdRestart, error) {
 	wrappersOpts := &wrappers.AddSnapdSnapServicesOptions{}
 	if opts != nil {
 		wrappersOpts.Preseeding = opts.Preseeding
@@ -304,11 +344,12 @@ func (b Backend) UnlinkSnap(info *snap.Info, linkCtx LinkContext, meter progress
 	var err0 error
 	if hint := linkCtx.RunInhibitHint; hint != runinhibit.HintNotInhibited {
 		// inhibit startup of new programs
-		err0 = runinhibit.LockWithHint(info.InstanceName(), hint)
+		inhibitInfo := runinhibit.InhibitInfo{Previous: info.SnapRevision()}
+		err0 = runinhibit.LockWithHint(info.InstanceName(), hint, inhibitInfo)
 	}
 
 	// remove generated services, binaries etc
-	err1 := removeGeneratedWrappers(info, linkCtx.FirstInstall, meter)
+	err1 := removeGeneratedWrappers(info, linkCtx, meter)
 
 	// and finally remove current symlinks
 	err2 := removeCurrentSymlinks(info)
@@ -317,13 +358,7 @@ func (b Backend) UnlinkSnap(info *snap.Info, linkCtx LinkContext, meter progress
 	return firstErr(err0, err1, err2)
 }
 
-// ServicesEnableState returns the current enabled/disabled states of a snap's
-// services, primarily for committing before snap removal/disable/revert.
-func (b Backend) ServicesEnableState(info *snap.Info, meter progress.Meter) (map[string]bool, error) {
-	return wrappers.ServicesEnableState(info, meter)
-}
-
-func (b Backend) QueryDisabledServices(info *snap.Info, pb progress.Meter) ([]string, error) {
+func (b Backend) QueryDisabledServices(info *snap.Info, pb progress.Meter) (*wrappers.DisabledServices, error) {
 	return wrappers.QueryDisabledServices(info, pb)
 }
 
@@ -355,6 +390,25 @@ func removeCurrentSymlinks(info snap.PlaceInfo) error {
 	} else if err2 != nil {
 		return fmt.Errorf("cannot remove snap current symlink: %v", err2)
 	}
+
+	return nil
+}
+
+func (b Backend) UnlinkComponent(cpi snap.ContainerPlaceInfo, snapRev snap.Revision) error {
+	linkPath := componentLinkPath(cpi, snapRev)
+
+	err := os.Remove(linkPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			logger.Noticef("cannot remove symlink %q: %v", linkPath, err)
+		} else {
+			return err
+		}
+	}
+
+	// Try also to remove the <snap_rev>/ subdirectory, as this might be
+	// the only installed component. But simply ignore if not empty.
+	os.Remove(filepath.Dir(linkPath))
 
 	return nil
 }

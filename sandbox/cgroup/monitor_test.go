@@ -20,7 +20,7 @@
 package cgroup_test
 
 import (
-	"io/ioutil"
+	"context"
 	"os"
 	"path"
 	"path/filepath"
@@ -29,6 +29,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -36,6 +37,7 @@ import (
 type monitorSuite struct {
 	testutil.BaseTest
 
+	tempDir  string
 	eventsCh chan string
 
 	inotifyWait time.Duration
@@ -44,72 +46,55 @@ type monitorSuite struct {
 var _ = Suite(&monitorSuite{})
 
 func (s *monitorSuite) SetUpTest(c *C) {
+	logger.SimpleSetup(nil)
 	s.BaseTest.SetUpTest(c)
 
 	dirs.SetRootDir(c.MkDir())
 	s.AddCleanup(func() { dirs.SetRootDir("/") })
 
+	s.tempDir = c.MkDir()
+
 	s.eventsCh = make(chan string)
 	s.AddCleanup(func() { close(s.eventsCh) })
-
-	s.calibrateInotifyDelay(c)
 }
 
-func (s *monitorSuite) calibrateInotifyDelay(c *C) {
-	folder1 := s.makeTestFolder(c, "folder1")
-	filelist := []string{folder1}
-	err := cgroup.MonitorDelete(filelist, "test1", s.eventsCh)
-	c.Assert(err, IsNil)
-	var start time.Time
-	go func() {
-		start = time.Now()
-		err = os.Remove(folder1)
-		c.Assert(err, IsNil)
-	}()
-	<-s.eventsCh
-	d := time.Now().Sub(start)
-	// On a modern machine the duration "d" for inotify delivery is
-	// around 30-100µs so even the very conservative multiplication means
-	// the delay is typically 3ms-10ms.
-	s.inotifyWait = 100 * d
-	switch {
-	case s.inotifyWait > 1*time.Second:
-		s.inotifyWait = 1 * time.Second
-	case s.inotifyWait < 10*time.Millisecond:
-		s.inotifyWait = 10 * time.Millisecond
-	}
-}
-
-func (s *monitorSuite) makeTestFolder(c *C, name string) (fullPath string) {
-	fullPath = path.Join(c.MkDir(), name)
+func makeTestFolder(c *C, root string, name string) (fullPath string) {
+	fullPath = path.Join(root, name)
 	err := os.Mkdir(fullPath, 0755)
 	c.Assert(err, IsNil)
 	return fullPath
 }
 
 func (s *monitorSuite) TestMonitorSnapBasicWork(c *C) {
-	folder1 := s.makeTestFolder(c, "folder1")
-	folder2 := s.makeTestFolder(c, "folder2")
+	cb := 0
+	monitorAdded := make(chan struct{})
+	s.AddCleanup(cgroup.MockInotifyWatcher(context.Background(), func(w *cgroup.InotifyWatcher, name string) {
+		cb++
+		switch cb {
+		case 1:
+			close(monitorAdded)
+			c.Check(name, Equals, "test1")
+		case 2, 3:
+		default:
+			c.Fatalf("unexpected callback: %v %q", cb, name)
+		}
+
+	}))
+	defer cgroup.MockInitWatcherClose()
+
+	folder1 := makeTestFolder(c, s.tempDir, "folder1")
+	// canary
+	folder2 := makeTestFolder(c, s.tempDir, "folder2")
 
 	filelist := []string{folder1}
 	err := cgroup.MonitorDelete(filelist, "test1", s.eventsCh)
 	c.Assert(err, IsNil)
 
-	time.Sleep(s.inotifyWait)
+	<-monitorAdded
 
+	// removing an unwatched directory does not trigger an event
 	err = os.Remove(folder2)
 	c.Assert(err, IsNil)
-
-	// Wait for bit to ensure that nothing spurious
-	// is received from the channel due to removing folder2
-	// Wait for a bit to ensure that nothing spurious
-	// is received from the channel due to creating or
-	// removing folder3
-	select {
-	case event := <-s.eventsCh:
-		c.Fatalf("unexpected channel read of event %q", event)
-	case <-time.After(s.inotifyWait):
-	}
 
 	err = os.Remove(folder1)
 	c.Assert(err, IsNil)
@@ -118,39 +103,54 @@ func (s *monitorSuite) TestMonitorSnapBasicWork(c *C) {
 }
 
 func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
-	folder1 := s.makeTestFolder(c, "folder1")
-	folder2 := s.makeTestFolder(c, "folder2")
-
+	folder1 := makeTestFolder(c, s.tempDir, "folder1")
+	folder2 := makeTestFolder(c, s.tempDir, "folder2")
 	filelist := []string{folder1, folder2}
+	cb := 0
+	monitorAdded := make(chan struct{})
+	allDone := make(chan struct{})
+	s.AddCleanup(cgroup.MockInotifyWatcher(context.Background(), func(w *cgroup.InotifyWatcher, name string) {
+		cb++
+		switch cb {
+		case 1:
+			// add for folder1 and folder2
+			close(monitorAdded)
+			// paths we track + the parent dir is referenced twice
+			c.Assert(w.MonitoredDirs(), DeepEquals, map[string]uint{
+				s.tempDir: uint(2),
+				folder1:   uint(1),
+				folder2:   uint(1),
+			})
+			fallthrough
+		case 2, 3, 4:
+			// removal of folder1, folder2, folder3
+			c.Check(name, Equals, "test2")
+			if cb == 4 {
+				close(allDone)
+				c.Assert(w.MonitoredDirs(), DeepEquals, map[string]uint{})
+			}
+		default:
+			c.Fatalf("unexpected callback: %v %q", cb, name)
+		}
+
+	}))
+	defer cgroup.MockInitWatcherClose()
+
 	err := cgroup.MonitorDelete(filelist, "test2", s.eventsCh)
 	c.Assert(err, Equals, nil)
 
-	time.Sleep(s.inotifyWait)
+	<-monitorAdded
 
-	folder3 := s.makeTestFolder(c, "folder3")
+	folder3 := makeTestFolder(c, s.tempDir, "folder3")
 
 	time.Sleep(s.inotifyWait)
 
 	err = os.Remove(folder3)
 	c.Assert(err, IsNil)
 
-	// Wait for a bit to ensure that nothing spurious
-	// is received from the channel due to creating or
-	// removing folder3
-	select {
-	case event := <-s.eventsCh:
-		c.Fatalf("unexpected channel read of event %q", event)
-	case <-time.After(s.inotifyWait):
-	}
 	err = os.Remove(folder1)
 	c.Assert(err, IsNil)
-	// Only one file has been removed, so wait a bit to ensure
-	// that nothing spurious is received from the channel
-	select {
-	case event := <-s.eventsCh:
-		c.Fatalf("unexpected channel read of event %q", event)
-	case <-time.After(s.inotifyWait):
-	}
+
 	err = os.Remove(folder2)
 	c.Assert(err, IsNil)
 
@@ -158,11 +158,91 @@ func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
 	// something from the channel
 	event := <-s.eventsCh
 	c.Assert(event, Equals, "test2")
+
+	// wait for all events to be processed
+	<-allDone
+}
+
+func (s *monitorSuite) TestMonitorOverlap(c *C) {
+	// add 2 groups with different notification channels monitoring the same
+	// set of paths
+
+	folder1 := makeTestFolder(c, s.tempDir, "folder1")
+	folder2 := makeTestFolder(c, s.tempDir, "folder2")
+	filelist := []string{folder1, folder2}
+	cb := 0
+	monitorAdded := make(chan struct{}, 2)
+	allDone := make(chan struct{})
+	s.AddCleanup(cgroup.MockInotifyWatcher(context.Background(), func(w *cgroup.InotifyWatcher, name string) {
+		cb++
+		switch cb {
+		case 1, 2:
+			// add for set1 and set2
+			monitorAdded <- struct{}{}
+			if cb == 1 {
+				// paths we track + the parent dir is referenced twice
+				c.Assert(w.MonitoredDirs(), DeepEquals, map[string]uint{
+					s.tempDir: uint(2),
+					folder1:   uint(1),
+					folder2:   uint(1),
+				})
+			} else {
+				// previous ref counts + a new full set
+				c.Assert(w.MonitoredDirs(), DeepEquals, map[string]uint{
+					s.tempDir: uint(4),
+					folder1:   uint(2),
+					folder2:   uint(2),
+				})
+			}
+			fallthrough
+		case 3, 4, 5, 6, 7, 8:
+			// removal of folder1, folder2 and then group, for both groups
+			if cb == 8 {
+				close(allDone)
+				c.Assert(w.MonitoredDirs(), DeepEquals, map[string]uint{})
+			}
+		default:
+			c.Fatalf("unexpected callback: %v %q", cb, name)
+		}
+
+	}))
+	defer cgroup.MockInitWatcherClose()
+
+	set1Ch := make(chan string, 1)
+	set2Ch := make(chan string, 1)
+	err := cgroup.MonitorDelete(filelist, "set1", set1Ch)
+	c.Assert(err, Equals, nil)
+
+	err = cgroup.MonitorDelete(filelist, "set2", set2Ch)
+	c.Assert(err, Equals, nil)
+
+	<-monitorAdded
+	<-monitorAdded
+
+	err = os.Remove(folder1)
+	c.Assert(err, IsNil)
+
+	err = os.Remove(folder2)
+	c.Assert(err, IsNil)
+
+	// both sets are notified
+	event := <-set1Ch
+	c.Assert(event, Equals, "set1")
+
+	event = <-set2Ch
+	c.Assert(event, Equals, "set2")
+
+	// wait for all events to be processed
+	<-allDone
 }
 
 func (s *monitorSuite) TestMonitorSnapSnapAlreadyStopped(c *C) {
+	ctx, cancel := context.WithCancel(context.Background())
+	s.AddCleanup(cgroup.MockInotifyWatcher(ctx, nil))
+	defer cancel()
+
 	// Note that there is no dir created in this test so
-	// this checks that the monitoring is correct is there
+	// this checks that the monitoring is correct when there
 	// is no dir
 	nonExistingFolder := path.Join(c.MkDir(), "non-exiting-dir")
 
@@ -175,8 +255,32 @@ func (s *monitorSuite) TestMonitorSnapSnapAlreadyStopped(c *C) {
 }
 
 func (s *monitorSuite) TestMonitorSnapTwoProcessesAtTheSameTime(c *C) {
-	folder1 := s.makeTestFolder(c, "folder1")
-	folder2 := s.makeTestFolder(c, "folder2")
+	folder1 := makeTestFolder(c, s.tempDir, "folder1")
+	folder2 := makeTestFolder(c, s.tempDir, "folder2")
+	folder3 := makeTestFolder(c, s.tempDir, "folder3")
+
+	events := 0
+	monitorAdded := make(chan string)
+	s.AddCleanup(cgroup.MockInotifyWatcher(context.Background(), func(w *cgroup.InotifyWatcher, name string) {
+		events++
+		switch events {
+		case 1, 2:
+			// notify about snap monitoring being added
+			monitorAdded <- name
+			if events == 2 {
+				c.Assert(w.MonitoredDirs(), DeepEquals, map[string]uint{
+					s.tempDir: uint(2),
+					folder1:   uint(1),
+					folder2:   uint(1),
+				})
+			}
+		case 3, 4, 5, 6:
+			// remove folder3, folder1, folder2
+		default:
+			c.Fatalf("unexpected callback: %d %q", events, name)
+		}
+	}))
+	defer cgroup.MockInitWatcherClose()
 
 	filelist1 := []string{folder1}
 	filelist2 := []string{folder2}
@@ -189,57 +293,46 @@ func (s *monitorSuite) TestMonitorSnapTwoProcessesAtTheSameTime(c *C) {
 
 	err := cgroup.MonitorDelete(filelist1, "test4a", channel1)
 	c.Assert(err, Equals, nil)
+
+	c.Assert(<-monitorAdded, Equals, "test4a")
+
 	err = cgroup.MonitorDelete(filelist2, "test4b", channel2)
 	c.Assert(err, Equals, nil)
 
-	time.Sleep(s.inotifyWait)
-
-	folder3 := s.makeTestFolder(c, "folder3")
+	c.Assert(<-monitorAdded, Equals, "test4b")
 
 	time.Sleep(s.inotifyWait)
 
 	err = os.Remove(folder3)
 	c.Assert(err, IsNil)
 
-	// Wait for a bit to ensure that nothing spurious
-	// is received from the channel due to creating or
-	// removing folder3
-	select {
-	case event := <-channel1:
-		c.Fatalf("unexpected channel read of event %q", event)
-	case event := <-channel2:
-		c.Fatalf("unexpected channel read of event %q", event)
-	case <-time.After(s.inotifyWait):
-	}
 	err = os.Remove(folder1)
 	c.Assert(err, IsNil)
-	// Only one file has been removed, so wait a bit to ensure
-	// that nothing spurious is received from the channel
+	// Expect to receive an event about the first snap
 	var receivedEvent string
 	select {
 	case receivedEvent = <-channel1:
-	case event := <-channel2:
-		c.Fatalf("unexpected channel read of event %q", event)
-	case <-time.After(s.inotifyWait):
+	case <-time.After(time.Minute):
 	}
 
 	c.Assert(receivedEvent, Equals, "test4a")
 	err = os.Remove(folder2)
 	c.Assert(err, IsNil)
 
-	// All files have been deleted, so NOW we must receive
-	// something from the channel
+	// Expect to receive an event about the second snap
 	receivedEvent = ""
 	select {
 	case receivedEvent = <-channel2:
-	case event := <-channel1:
-		c.Fatalf("unexpected channel read of event %q", event)
-	case <-time.After(s.inotifyWait):
+	case <-time.After(time.Minute):
 	}
 	c.Assert(receivedEvent, Equals, "test4b")
 }
 
 func (s *monitorSuite) TestMonitorSnapEndedNonExisting(c *C) {
+	ctx, cancel := context.WithCancel(context.Background())
+	s.AddCleanup(cgroup.MockInotifyWatcher(ctx, nil))
+	defer cancel()
+
 	err := cgroup.MonitorSnapEnded("non-existing-snap", s.eventsCh)
 	c.Assert(err, IsNil)
 
@@ -248,6 +341,10 @@ func (s *monitorSuite) TestMonitorSnapEndedNonExisting(c *C) {
 }
 
 func (s *monitorSuite) TestMonitorSnapEndedIntegration(c *C) {
+	ctx, cancel := context.WithCancel(context.Background())
+	s.AddCleanup(cgroup.MockInotifyWatcher(ctx, nil))
+	defer cancel()
+
 	restore := cgroup.MockVersion(cgroup.V2, nil)
 	s.AddCleanup(restore)
 
@@ -255,18 +352,14 @@ func (s *monitorSuite) TestMonitorSnapEndedIntegration(c *C) {
 	mockProcsFile := filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/snap.firefox.firefox-fa61f25b-92e1-4316-8acb-2b95af841855.scope/cgroup.procs")
 	err := os.MkdirAll(filepath.Dir(mockProcsFile), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(mockProcsFile, []byte("57003\n57004"), 0644)
+	err = os.WriteFile(mockProcsFile, []byte("57003\n57004"), 0644)
 	c.Assert(err, IsNil)
 
 	// wait for firefox to end
 	err = cgroup.MonitorSnapEnded("firefox", s.eventsCh)
 	c.Assert(err, IsNil)
 
-	select {
-	case snapName := <-s.eventsCh:
-		c.Fatalf("unexpected stop reported for snap %v", snapName)
-	case <-time.After(s.inotifyWait):
-	}
+	// TODO observe
 
 	// simulate cgroup getting removed because firefox stopped
 	err = os.RemoveAll(filepath.Dir(mockProcsFile))
@@ -277,31 +370,30 @@ func (s *monitorSuite) TestMonitorSnapEndedIntegration(c *C) {
 	c.Check(snapName, Equals, "firefox")
 }
 
-func (s *monitorSuite) TestMonitorCloseChannel(c *C) {
-	folder1 := s.makeTestFolder(c, "folder1")
-	folder2 := s.makeTestFolder(c, "folder2")
-
-	filelist := []string{folder1}
+func (s *monitorSuite) TestMonitorClose(c *C) {
+	w := cgroup.NewInotifyWatcher(context.Background())
+	f := makeTestFolder(c, s.tempDir, "foo")
 	ch := make(chan string)
-	err := cgroup.MonitorDelete(filelist, "test1", ch)
+
+	err := w.MonitorDelete([]string{f}, "test", ch)
 	c.Assert(err, IsNil)
 
-	time.Sleep(s.inotifyWait)
+	w.Close()
 
-	err = os.Remove(folder2)
-	c.Assert(err, IsNil)
-
-	// Wait for a bit to ensure that
-	// nothing spurious is received from the channel
 	select {
-	case event := <-ch:
-		c.Fatalf("unexpected channel read of event %q", event)
-	case <-time.After(2 * s.inotifyWait):
+	case <-ch:
+		c.Fatalf("unexpected event")
+	default:
 	}
+}
 
-	close(ch)
-	err = os.Remove(folder1)
+func (s *monitorSuite) TestMonitorError(c *C) {
+	w := cgroup.NewInotifyWatcher(context.Background())
+	ch := make(chan string)
+
+	// XXX note the error isn't propagated back to the caller
+	err := w.MonitorDelete([]string{filepath.Join(s.tempDir, "foo/bar/baz")}, "test", ch)
 	c.Assert(err, IsNil)
-	event := <-ch
-	c.Assert(event, Equals, "")
+
+	w.Close()
 }

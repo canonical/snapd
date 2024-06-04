@@ -1,5 +1,7 @@
 summary: Ensure systemd environment generator works
 
+details: Test that the snapd-env-generator works as expected
+
 # systemd environment generators are only supported on 17.10+
 systems: [ubuntu-18.04-*, ubuntu-19*, ubuntu-2*]
 
@@ -20,7 +22,12 @@ execute: |
     systemd-run --pty --wait '/usr/bin/env' | MATCH 'PATH=.*/local/.*'
     systemd-run --pty --wait '/usr/bin/env' > env.out
     # ensure PATH is updated (and check full PATH, see LP: #1814355)
-    MATCH 'PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin' < env.out
+
+    if os.query is-ubuntu-ge 24.04; then
+      MATCH 'PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/snap/bin' < env.out
+    else
+      MATCH 'PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin' < env.out
+    fi
 
     # some unit tests
     SENV=/usr/lib/systemd/system-environment-generators/snapd-env-generator

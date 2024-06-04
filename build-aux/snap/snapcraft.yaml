@@ -8,15 +8,16 @@ description: |
   cloud, servers, desktops and the internet of things.
 
   Start with 'snap list' to see installed snaps.
-adopt-info: snapd-deb
+adopt-info: snapd
 # build-base is needed here for snapcraft to build this snap as with "modern"
 # snapcraft
-build-base: core
+build-base: core22
 package-repositories:
   - type: apt
     ppa: snappy-dev/image
 grade: stable
 license: GPL-3.0
+confinement: strict
 
 # Note that this snap is unusual in that it has no "apps" section.
 #
@@ -28,149 +29,114 @@ license: GPL-3.0
 #
 # See the comments from jdstrand in
 # https://forum.snapcraft.io/t/5547/10
-parts:
-  snapd-deb:
-    plugin: nil
-    source: .
-    build-snaps: [go/1.18/stable]
-    # these packages are needed to call mkversion.sh in override-pull, all other
-    # dependencies are installed using apt-get build-dep
-    build-packages:
-      - git
-      - dpkg-dev
-    after: [apparmor]
-    override-pull: |
-      snapcraftctl pull
-      # set version, this needs dpkg-parsechangelog (from dpkg-dev) and git
-      snapcraftctl set-version "$(./mkversion.sh --output-only)"
-      # Ensure that ./debian/ packaging which we are about to use
-      # matches the current `build-base` release. I.e. ubuntu-16.04
-      # for build-base:core, etc.
-      ./generate-packaging-dir
-      # install build dependencies
-      export DEBIAN_FRONTEND=noninteractive
-      export DEBCONF_NONINTERACTIVE_SEEN=true
-      sudo -E apt-get build-dep -y ./
-      ./get-deps.sh --skip-unused-check
-    override-build: |
-      # unset the LD_FLAGS and LD_LIBRARY_PATH vars that snapcraft sets for us
-      # as those will point to the $SNAPCRAFT_STAGE which on re-builds will 
-      # contain things like libc and friends that confuse the debian package
-      # build system
-      # TODO: should we unset $PATH to not include $SNAPCRAFT_STAGE too?
-      unset LD_FLAGS
-      unset LD_LIBRARY_PATH
-      # if we are root, disable tests because a number of them fail when run as
-      # root
-      if [ "$(id -u)" = "0" ]; then
-        DEB_BUILD_OPTIONS=nocheck
-        export DEB_BUILD_OPTIONS
-      fi
-      # run the real build (but just build the binary package, and don't
-      # bother compressing it too much)
-      dpkg-buildpackage -b -Zgzip -zfast -uc -us
-      dpkg-deb -x $(pwd)/../snapd_*.deb $SNAPCRAFT_PART_INSTALL
-      # not included in the deb as it's only used with UC20 preseeding.
-      cp -a data/preseed.json $SNAPCRAFT_PART_INSTALL/usr/lib/snapd/
-      # Note that this check should run *after* dpkg-buildpackage was run
-      # as this will re-run "go generate" which may cause a dirty tree
-      #
-      # TODO: when something like "craftctl get-version" is ready, then we can
-      # use that, but until then, we have to re-run mkversion.sh to check if the
-      # version number was set as "dirty" from the override-pull step or during
-      # the build step
-      if sh -x ./mkversion.sh --output-only | grep "dirty"; then
-        mkdir -p $SNAPCRAFT_PART_INSTALL/usr/lib/snapd
-        (
-          echo "dirty git tree during build detected:"
-          git status
-          git diff
-        ) > $SNAPCRAFT_PART_INSTALL/usr/lib/snapd/dirty-git-tree-info.txt
-      fi
 
-  # xdelta is used to enable delta downloads (even if the host does not have it)
-  xdelta3:
+parts:
+  dynamic-linker:
     plugin: nil
-    stage-packages:
-      - xdelta3
+    build-packages:
+      - gawk
+      - bison
+      - quilt
+      - python3-pyelftools
+    source: https://git.launchpad.net/ubuntu/+source/glibc
+    source-branch: ubuntu/jammy-updates
+    source-type: git
+    <<:
+      - &dynamic-linker
+        build-environment:
+          - to amd64:
+              - DYNAMIC_LINKER: ld-linux-x86-64.so.2
+          - to s390x:
+              - DYNAMIC_LINKER: ld64.so.1
+          - to arm64:
+              - DYNAMIC_LINKER: ld-linux-aarch64.so.1
+          - to armhf:
+              - DYNAMIC_LINKER: ld-linux-armhf.so.3
+          - to riscv64:
+              - DYNAMIC_LINKER: ld-linux-riscv64-lp64d.so.1
+          - to ppc64el:
+              - DYNAMIC_LINKER: ld64.so.2
+    override-pull: |
+      craftctl default
+      QUILT_PATCHES=debian/patches quilt push -a
+
+    override-build: |
+      rm -rf build
+      mkdir -p build
+      cd build
+      unset LDFLAGS
+      unset CPPFLAGS
+      export CFLAGS="-pipe -O2 -g"
+      cat <<EOF >configparms
+      libdir=/snap/snapd/current/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}
+      slibdir=/snap/snapd/current/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}
+      rtldir=/snap/snapd/current/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}
+      EOF
+      "${CRAFT_PART_SRC_WORK}/configure" --prefix=/snap/snapd/current/usr
+      make -j"${CRAFT_PARALLEL_BUILD_COUNT}" -C .. objdir="${PWD}" "${PWD}/linkobj/libc_pic.a"
+      make elf/ldso_install DESTDIR="${CRAFT_PART_INSTALL}"
+      strip "${CRAFT_PART_INSTALL}/snap/snapd/current/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/${DYNAMIC_LINKER}"
+      install -Dm755 -t "${CRAFT_PART_INSTALL}/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}" "${CRAFT_PART_INSTALL}/snap/snapd/current/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/${DYNAMIC_LINKER}"
     stage:
-      - usr/bin/*
-      - usr/lib/*
-      - lib/*
-  # squashfs-tools are used by `snap pack`
-  squashfs-tools:
+      - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/ld*.so*
+
+  runtime:
     plugin: nil
     stage-packages:
-      - squashfs-tools
-    stage:
-      - usr/bin/*
-      - usr/lib/*
-      - lib/*
-  # liblzma5 is part of core but the snapd snap needs to run even without core
-  liblzma5:
-    plugin: nil
-    stage-packages:
-      - liblzma5
-    stage:
-      - lib/*
-  # Needed by squashfs-tools and fc-cache
-  zlib:
-    plugin: nil
-    stage-packages:
-      - zlib1g
-    stage:
-      - lib/*
-  # libc6 is part of core but we need it in the snapd snap for
-  # CommandFromSystemSnap
-  libc6:
-    plugin: nil
-    stage-packages:
+      - libbrotli1
       - libc6
-      - libc-bin
-      - libgcc1
+      - libcap2
+      - libexpat1
+      - libfreetype6
+      - libgcc-s1
+      - liblz4-1
+      - liblzma5
+      - liblzo2-2
+      - libpng16-16
+      - libseccomp2
+      - libudev1
+      - libzstd1
+      - squashfs-tools
+      - xdelta3
+      - zlib1g
+      # This is needed for using os/user on Ubuntu Core
+      # TODO: do not use os/user, but io.systemd.NameServiceSwitch through dbus
+      - libnss-extrausers
     stage:
-      - lib/*
-      - usr/lib/*
-      - lib64/*
-      - etc/ld.so.conf
-      - etc/ld.so.conf.d/*
-    override-stage: |
-      snapcraftctl stage
-      # fix symlinks of ld.so to be relative
-      if [ "$(readlink -f lib64/ld-linux-x86-64.so.2)" = "/lib/x86_64-linux-gnu/ld-2.23.so" ]; then
-          ln -f -s ../lib/x86_64-linux-gnu/ld-2.23.so lib64/ld-linux-x86-64.so.2
-      fi
-      if [ "$(readlink -f lib64/ld64.so.2)" = "/lib/powerpc64le-linux-gnu/ld-2.23.so" ]; then
-          ln -f -s ../lib/powerpc64le-linux-gnu/ld-2.23.so lib64/ld64.so.2
-      fi
-  # the version in Ubuntu 16.04 (cache v6)
-  fontconfig-xenial:
-    plugin: nil
-    build-packages: [python3-apt]
-    source: https://github.com/snapcore/fc-cache-static-builder.git
+      - -usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/ld*.so*
+      - -lib32
+      - -lib64
+      - -usr/lib32
+      - -usr/lib64
+      - -etc/ld.so.conf.d
+      - -usr/share/man
+      - -usr/share/lintian
+      - -usr/share/lintian/**
     override-build: |
-      ./build-from-security.py xenial
-      mkdir -p $SNAPCRAFT_PART_INSTALL/bin
-      cp -a fc-cache-xenial $SNAPCRAFT_PART_INSTALL/bin/fc-cache-v6
-    prime:
-      - bin/fc-cache-v6
-  # the version in Ubuntu 18.04 (cache v7)
-  fontconfig-bionic:
-    plugin: nil
-    build-packages: [python3-apt]
-    source: https://github.com/snapcore/fc-cache-static-builder.git
-    override-build: |
-      ./build-from-security.py bionic
-      mkdir -p $SNAPCRAFT_PART_INSTALL/bin
-      cp -a fc-cache-bionic $SNAPCRAFT_PART_INSTALL/bin/fc-cache-v7
-    prime:
-      - bin/fc-cache-v7
+      craftctl default
+      mv "${CRAFT_PART_INSTALL}/usr/lib/libnss_extrausers.so.2" "${CRAFT_PART_INSTALL}/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/"
+      cp -rT "${CRAFT_PART_INSTALL}/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}" "${CRAFT_PART_INSTALL}/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}"
+      rm -rf "${CRAFT_PART_INSTALL}/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}"
+      rm -f "${CRAFT_PART_INSTALL}/lib/${DYNAMIC_LINKER}"
+      find "${CRAFT_PART_INSTALL}/usr/share/doc" \( -not -type d -not -name "copyright" -delete \) -o \( -type d -empty -delete \)
+    <<:
+      - *dynamic-linker
+    override-prime: |
+      craftctl default
+      python3 "${CRAFT_PROJECT_DIR}/build-aux/snap/local/patch-dl.py" "/snap/snapd/current/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/${DYNAMIC_LINKER}"
+
   apparmor:
     plugin: autotools
-    build-packages: [bison, flex, gettext, g++, pkg-config, wget]
+    build-packages:
+      - bison
+      - flex
+      - gettext
+      - g++
+      - pkg-config
+      - wget
     source: https://launchpad.net/apparmor/3.0/3.0.8/+download/apparmor-3.0.8.tar.gz
     override-pull: |
-      snapcraftctl pull
+      craftctl default
       # add support for mediating posix mqueue's and userns - these come from
       # the ubuntu source package for lunar
       # https://git.launchpad.net/ubuntu/+source/apparmor/tree/debian/patches/ubuntu?h=ubuntu/lunar
@@ -178,36 +144,202 @@ parts:
         wget https://git.launchpad.net/ubuntu/+source/apparmor/plain/debian/patches/ubuntu/add-${feature}-support.patch?h=ubuntu/lunar -O - | patch -p1
       done
       # apply local apparmor patches
-      for patch in $SNAPCRAFT_PROJECT_DIR/build-aux/snap/patches/apparmor/*; do
+      for patch in "${CRAFT_PROJECT_DIR}"/build-aux/snap/local/patches/apparmor/*; do
           patch -p1 < $patch
       done
     override-build: |
-      cd $SNAPCRAFT_PART_BUILD/libraries/libapparmor
+      cd "${CRAFT_PART_BUILD}"/libraries/libapparmor
       ./autogen.sh
-      ./configure --prefix=/usr --disable-man-pages --disable-perl --disable-python --disable-ruby
-      make -j$(nproc)
-      # place libapparmor into staging area for use by snap-confine
-      make -C src install DESTDIR=$SNAPCRAFT_STAGE
-      cd $SNAPCRAFT_PART_BUILD/parser
+      ./configure --prefix=/usr --libdir="/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}" --disable-man-pages --disable-perl --disable-python --disable-ruby
+      make -j"${CRAFT_PARALLEL_BUILD_COUNT}"
+      make -C src install DESTDIR="${CRAFT_PART_INSTALL}"
+      make -C include install DESTDIR="${CRAFT_PART_INSTALL}"
+      cd ${CRAFT_PART_BUILD}/parser
       # copy in a pregenerated list of network address families so that the
       # parser gets built to support as many as possible even if glibc in
       # the current build environment does not support them
       # For some reason, some snapcraft version remove the "build-aux" folder
       # and move the contents up when the data is uploaded; this conditional
       # manages it.
-      if [ -d "$SNAPCRAFT_PROJECT_DIR/build-aux" ]; then
-        cp $SNAPCRAFT_PROJECT_DIR/build-aux/snap/local/apparmor/af_names.h .
+      if [ -d "${CRAFT_PROJECT_DIR}/build-aux" ]; then
+        cp "${CRAFT_PROJECT_DIR}"/build-aux/snap/local/apparmor/af_names.h .
       else
-        cp $SNAPCRAFT_PROJECT_DIR/snap/local/apparmor/af_names.h .
+        cp "${CRAFT_PROJECT_DIR}"/snap/local/apparmor/af_names.h .
       fi
-      make -j$(nproc)
-      mkdir -p $SNAPCRAFT_PART_INSTALL/usr/lib/snapd
-      cp -a apparmor_parser $SNAPCRAFT_PART_INSTALL/usr/lib/snapd/
-      mkdir -p $SNAPCRAFT_PART_INSTALL/usr/lib/snapd/apparmor
-      cp -a parser.conf $SNAPCRAFT_PART_INSTALL/usr/lib/snapd/apparmor/
-      cd $SNAPCRAFT_PART_BUILD/profiles
-      make -j$(nproc)
-      mkdir -p $SNAPCRAFT_PART_INSTALL/usr/lib/snapd/apparmor.d
-      cp -a apparmor.d/abi $SNAPCRAFT_PART_INSTALL/usr/lib/snapd/apparmor.d/
-      cp -a apparmor.d/abstractions $SNAPCRAFT_PART_INSTALL/usr/lib/snapd/apparmor.d/
-      cp -a apparmor.d/tunables $SNAPCRAFT_PART_INSTALL/usr/lib/snapd/apparmor.d/
+      make -j"${CRAFT_PARALLEL_BUILD_COUNT}"
+      install -Dm755 -t "${CRAFT_PART_INSTALL}/usr/lib/snapd" apparmor_parser
+      install -Dm644 -t "${CRAFT_PART_INSTALL}/usr/lib/snapd/apparmor" parser.conf
+      cd "${CRAFT_PART_BUILD}/profiles"
+      make -j"${CRAFT_PARALLEL_BUILD_COUNT}"
+      mkdir -p "${CRAFT_PART_INSTALL}/usr/lib/snapd/apparmor.d"
+      cp -a apparmor.d/abi "${CRAFT_PART_INSTALL}/usr/lib/snapd/apparmor.d"
+      cp -a apparmor.d/abstractions "${CRAFT_PART_INSTALL}/usr/lib/snapd/apparmor.d"
+      cp -a apparmor.d/tunables "${CRAFT_PART_INSTALL}/usr/lib/snapd/apparmor.d"
+    prime:
+      # We are statically linked
+      - -usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/**
+      - -usr/include
+    <<:
+      - *dynamic-linker
+    override-prime: |
+      craftctl default
+      python3 "${CRAFT_PROJECT_DIR}/build-aux/snap/local/patch-dl.py" "/snap/snapd/current/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/${DYNAMIC_LINKER}"
+
+  snapd:
+    plugin: nil
+    source: .
+    build-snaps:
+      - go/1.18/stable
+    after:
+      - apparmor
+    build-packages:
+      - git
+      - dpkg-dev
+      - autoconf
+      - autoconf-archive
+      - automake
+      - xfslibs-dev
+      - libudev-dev
+      - libcap-dev
+      - libseccomp-dev
+      - pkg-config
+    override-pull: |
+      craftctl default
+      # set version, this needs dpkg-parsechangelog (from dpkg-dev) and git
+      craftctl set version="$(./mkversion.sh --output-only)"
+      ./get-deps.sh --skip-unused-check
+    override-build: |
+      ./mkversion.sh
+      cd "${CRAFT_PART_BUILD}/cmd"
+
+      autoreconf -fvi
+      ./configure --prefix=/usr --libexec=/usr/lib/snapd --without-unit-tests --enable-static-libapparmor --disable-host-binaries
+      make -j"${CRAFT_PARALLEL_BUILD_COUNT}"
+      make DESTDIR="${CRAFT_PART_INSTALL}" install
+
+      cd "${CRAFT_PART_BUILD}"
+
+      # Disable buildvcs:
+      #  * We do not use it
+      #  * When building in a git worktree, snapcraft does not share
+      #    the main directory, and it fails.
+      EXTRA_GO_FLAGS="-buildvcs=false"
+
+      VERSION="$(craftctl get version)"
+
+      CMDS=(bin/snap
+            lib/snapd/snapd
+            lib/snapd/snap-exec
+            lib/snapd/snap-failure
+            lib/snapd/snap-fde-keymgr
+            lib/snapd/snap-preseed
+            lib/snapd/snap-recovery-chooser
+            lib/snapd/snap-repair
+            lib/snapd/snap-seccomp
+            lib/snapd/snap-update-ns
+            lib/snapd/snapctl
+            lib/snapd/snapd-apparmor)
+      for cmd in "${CMDS[@]}"; do
+        case "${cmd}" in
+           # FIXME: some binaries need to be run confined in apps. But
+           # instead we should allow apps to access dynamic linkers
+           # and libraries from snapd.
+           lib/snapd/snap-exec|lib/snapd/snapctl)
+             export CGO_ENABLED=0
+             GO_LD_FLAGS=()
+             CHECK_STATIC=1
+             ;;
+           lib/snapd/snap-update-ns)
+             export CGO_ENABLED=1
+             GO_LD_FLAGS=(-ldflags '-extldflags "-static"')
+             CHECK_STATIC=1
+             ;;
+           *)
+             export CGO_ENABLED=1
+             GO_LD_FLAGS=()
+             unset CHECK_STATIC
+             ;;
+        esac
+
+        case "${cmd}" in
+          bin/snap)
+            TAGS=(nomanagers)
+            case "${VERSION}" in
+              1337.*)
+                TAGS+=(withtestkeys faultinject)
+                ;;
+            esac
+            ;;
+          *)
+            TAGS=()
+            case "${VERSION}" in
+              1337.*)
+                TAGS+=(withtestkeys withbootassetstesting faultinject)
+                ;;
+            esac
+            ;;
+        esac
+
+        output="${CRAFT_PART_INSTALL}/usr/${cmd}"
+        go build -mod=vendor -tags "${TAGS[*]}" "${GO_LD_FLAGS[@]}" ${EXTRA_GO_FLAGS-} -o "${output}" "github.com/snapcore/snapd/cmd/$(basename ${cmd})"
+        if [ "${CHECK_STATIC-}" = 1 ]; then
+          if objdump -p "${output}" | grep INTERP; then
+            echo "${output} is not static!" 1>&2
+            exit 1
+          fi
+        fi
+        unset CGO_ENABLED
+      done
+
+      make -C data -j"${CRAFT_PARALLEL_BUILD_COUNT}" all
+      # wrappers/core18.go expects units in fixed paths so even when
+      # systemd package will those, they have to continue to match our
+      # paths. We force the value here in case we change the default.
+      make -C data install DESTDIR="${CRAFT_PART_INSTALL}" SYSTEMDUSERUNITDIR=/usr/lib/systemd/user SYSTEMDSYSTEMUNITDIR=/lib/systemd/system
+      # UC depends on this name (symlink)
+      mv "${CRAFT_PART_INSTALL}/etc/profile.d/snapd.sh" "${CRAFT_PART_INSTALL}/etc/profile.d/apps-bin-path.sh"
+
+      install -Dm644 data/info "${CRAFT_PART_INSTALL}/usr/lib/snapd/info"
+      install -Dm644 data/preseed.json "${CRAFT_PART_INSTALL}/usr/lib/snapd/preseed.json"
+
+      install -Dm644 -t "${CRAFT_PART_INSTALL}/usr/lib/snapd" data/completion/bash/complete.sh data/completion/bash/etelpmoc.sh
+      install -Dm644 -t "${CRAFT_PART_INSTALL}/usr/share/bash-completion/completions" ./data/completion/bash/snap
+
+      # TODO: For now snapd expects a renamed apparmor profile to
+      # work-around LP#1673247. We should fix that since the snapd
+      # should not need that work-around.
+      mv "${CRAFT_PART_INSTALL}/etc/apparmor.d/usr.lib.snapd.snap-confine" "${CRAFT_PART_INSTALL}/etc/apparmor.d/usr.lib.snapd.snap-confine.real"
+
+      # copy helper for collecting debug output
+      cp -av debug-tools/snap-debug-info.sh ${CRAFT_PART_INSTALL}/usr/lib/snapd/
+
+      if sh -x ./mkversion.sh --output-only | grep "dirty"; then
+        mkdir -p "${CRAFT_PART_INSTALL}/usr/lib/snapd"
+        (
+          echo "dirty git tree during build detected:"
+          git status
+          git diff
+        ) > "${CRAFT_PART_INSTALL}/usr/lib/snapd/dirty-git-tree-info.txt"
+      fi
+
+      find "${CRAFT_PART_INSTALL}/usr/lib/snapd" "${CRAFT_PART_INSTALL}/usr/bin" -type f -exec strip {} ";"
+    <<:
+      - *dynamic-linker
+    override-prime: |
+      craftctl default
+      python3 "${CRAFT_PROJECT_DIR}/build-aux/snap/local/patch-dl.py" "/snap/snapd/current/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/${DYNAMIC_LINKER}"
+
+  check-linker:
+    plugin: nil
+    build-packages:
+      - patchelf
+    after:
+      # Must run after everything else
+      - snapd
+      - runtime
+      - apparmor
+      - dynamic-linker
+    <<:
+      - *dynamic-linker
+    override-prime: |
+      python3 "${CRAFT_PROJECT_DIR}/build-aux/snap/local/verify-dl.py" "${CRAFT_PRIME}" "/snap/snapd/current/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/${DYNAMIC_LINKER}" ";"

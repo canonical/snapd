@@ -219,7 +219,7 @@ func (s *snapTestSuite) TestMockSnapWithFiles(c *C) {
 
 func (s *snapTestSuite) TestMockContainerMinimal(c *C) {
 	cont := snaptest.MockContainer(c, nil)
-	err := snap.ValidateContainer(cont, &snap.Info{}, nil)
+	err := snap.ValidateSnapContainer(cont, &snap.Info{}, nil)
 	c.Check(err, IsNil)
 }
 
@@ -239,7 +239,7 @@ version: 1.0`
 	info, err := snap.ReadInfoFromSnapFile(cont, nil)
 	c.Assert(err, IsNil)
 	c.Check(info.SnapName(), Equals, "gadget")
-	err = snap.ValidateContainer(cont, info, nil)
+	err = snap.ValidateSnapContainer(cont, info, nil)
 	c.Assert(err, IsNil)
 	readGadgetYaml, err := cont.ReadFile("meta/gadget.yaml")
 	c.Assert(err, IsNil)

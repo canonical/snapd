@@ -132,7 +132,7 @@ func (s *modelSuite) SetUpTest(c *C) {
 	})
 
 	mtbl := bootloadertest.Mock("trusted", s.bootdir).WithTrustedAssets()
-	mtbl.TrustedAssetsList = []string{"asset-1"}
+	mtbl.TrustedAssetsMap = map[string]string{"asset": "asset"}
 	mtbl.StaticCommandLine = "static cmdline"
 	mtbl.BootChainList = []bootloader.BootFile{
 		bootloader.NewBootFile("", "asset", bootloader.RoleRunMode),
@@ -255,9 +255,12 @@ func (s *modelSuite) TestDeviceChangeHappy(c *C) {
 	})
 	defer restore()
 
-	err = boot.DeviceChange(s.oldUc20dev, s.newUc20dev)
+	u := mockUnlocker{}
+
+	err = boot.DeviceChange(s.oldUc20dev, s.newUc20dev, u.unlocker)
 	c.Assert(err, IsNil)
 	c.Assert(resealKeysCalls, Equals, 4)
+	c.Check(u.unlocked, Equals, 2)
 
 	c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"), testutil.FileContains,
 		"model: my-new-model-uc20\n")
@@ -313,7 +316,7 @@ func (s *modelSuite) TestDeviceChangeUnhappyFirstReseal(c *C) {
 	})
 	defer restore()
 
-	err = boot.DeviceChange(s.oldUc20dev, s.newUc20dev)
+	err = boot.DeviceChange(s.oldUc20dev, s.newUc20dev, nil)
 	c.Assert(err, ErrorMatches, "cannot reseal the encryption key: fail on first try")
 	c.Assert(resealKeysCalls, Equals, 1)
 	// still the old model file
@@ -382,7 +385,7 @@ func (s *modelSuite) TestDeviceChangeUnhappyFirstSwapModelFile(c *C) {
 	})
 	defer restore()
 
-	err = boot.DeviceChange(s.oldUc20dev, s.newUc20dev)
+	err = boot.DeviceChange(s.oldUc20dev, s.newUc20dev, nil)
 	c.Assert(err, ErrorMatches, `cannot write new model file: open .*/run/mnt/ubuntu-boot/device/model\..*: no such file or directory`)
 	c.Assert(resealKeysCalls, Equals, 2)
 
@@ -473,7 +476,7 @@ func (s *modelSuite) TestDeviceChangeUnhappySecondReseal(c *C) {
 	})
 	defer restore()
 
-	err = boot.DeviceChange(s.oldUc20dev, s.newUc20dev)
+	err = boot.DeviceChange(s.oldUc20dev, s.newUc20dev, nil)
 	c.Assert(err, ErrorMatches, `cannot reseal the encryption key: fail on second try`)
 	c.Assert(resealKeysCalls, Equals, 3)
 	// old model file was restored
@@ -580,7 +583,7 @@ func (s *modelSuite) TestDeviceChangeRebootBeforeNewModel(c *C) {
 	})
 	defer restore()
 
-	c.Assert(func() { boot.DeviceChange(s.oldUc20dev, s.newUc20dev) }, PanicMatches,
+	c.Assert(func() { boot.DeviceChange(s.oldUc20dev, s.newUc20dev, nil) }, PanicMatches,
 		`mock reboot after first complete reseal`)
 	c.Assert(resealKeysCalls, Equals, 2)
 	// still old model in place
@@ -596,7 +599,7 @@ func (s *modelSuite) TestDeviceChangeRebootBeforeNewModel(c *C) {
 	c.Assert(tryForSealing, Equals, "canonical/my-new-model-uc20,secured,"+s.keyID)
 
 	// let's try again
-	err = boot.DeviceChange(s.oldUc20dev, s.newUc20dev)
+	err = boot.DeviceChange(s.oldUc20dev, s.newUc20dev, nil)
 	c.Assert(err, IsNil)
 	c.Assert(resealKeysCalls, Equals, 5)
 	// got new model now
@@ -703,7 +706,7 @@ func (s *modelSuite) TestDeviceChangeRebootAfterNewModelFileWrite(c *C) {
 	})
 	defer restore()
 
-	c.Assert(func() { boot.DeviceChange(s.oldUc20dev, s.newUc20dev) }, PanicMatches,
+	c.Assert(func() { boot.DeviceChange(s.oldUc20dev, s.newUc20dev, nil) }, PanicMatches,
 		`mock reboot before second complete reseal`)
 	c.Assert(resealKeysCalls, Equals, 3)
 	// model file has already been replaced
@@ -719,7 +722,7 @@ func (s *modelSuite) TestDeviceChangeRebootAfterNewModelFileWrite(c *C) {
 	c.Assert(tryForSealing, Equals, "/,,")
 
 	// let's try again (post reboot)
-	err = boot.DeviceChange(s.oldUc20dev, s.newUc20dev)
+	err = boot.DeviceChange(s.oldUc20dev, s.newUc20dev, nil)
 	c.Assert(err, IsNil)
 	c.Assert(resealKeysCalls, Equals, 5)
 	// got new model now
@@ -833,7 +836,7 @@ func (s *modelSuite) TestDeviceChangeRebootPostSameModel(c *C) {
 	defer restore()
 
 	// as if called by device manager in task handler
-	c.Assert(func() { boot.DeviceChange(s.oldUc20dev, s.newUc20dev) }, PanicMatches,
+	c.Assert(func() { boot.DeviceChange(s.oldUc20dev, s.newUc20dev, nil) }, PanicMatches,
 		`mock reboot before second complete reseal`)
 	c.Assert(resealKeysCalls, Equals, 4)
 	// model file has already been replaced
@@ -842,7 +845,7 @@ func (s *modelSuite) TestDeviceChangeRebootPostSameModel(c *C) {
 
 	// as if called by device manager, after the model has been changed, but
 	// the set-model task isn't marked as done
-	err = boot.DeviceChange(s.newUc20dev, s.newUc20dev)
+	err = boot.DeviceChange(s.newUc20dev, s.newUc20dev, nil)
 	c.Assert(err, IsNil)
 	c.Assert(resealKeysCalls, Equals, 7)
 
@@ -942,7 +945,7 @@ func (s *modelSuite) testDeviceChangeUnhappyMockedWriteModelToBoot(c *C, tc unha
 	})
 	defer restore()
 
-	err = boot.DeviceChange(s.oldUc20dev, s.newUc20dev)
+	err = boot.DeviceChange(s.oldUc20dev, s.newUc20dev, nil)
 	c.Assert(err, ErrorMatches, tc.expectedErr)
 	c.Assert(resealKeysCalls, Equals, 2)
 	if tc.breakModeenvAfterFirstWrite {
@@ -1067,7 +1070,7 @@ func (s *modelSuite) TestDeviceChangeUnhappyFailReseaWithSwappedModelMockedWrite
 	})
 	defer restore()
 
-	err = boot.DeviceChange(s.oldUc20dev, s.newUc20dev)
+	err = boot.DeviceChange(s.oldUc20dev, s.newUc20dev, nil)
 	c.Assert(err, ErrorMatches, `cannot reseal the encryption key: mock reseal failure`)
 	c.Assert(resealKeysCalls, Equals, 3)
 	c.Assert(writeModelToBootCalls, Equals, 2)
@@ -1210,12 +1213,12 @@ func (s *modelSuite) TestDeviceChangeRebootRestoreModelKeyChangeMockedWriteModel
 	defer restore()
 
 	// as if called by device manager in task handler
-	c.Assert(func() { boot.DeviceChange(s.oldUc20dev, s.newUc20dev) }, PanicMatches,
+	c.Assert(func() { boot.DeviceChange(s.oldUc20dev, s.newUc20dev, nil) }, PanicMatches,
 		`mock reboot before second complete reseal`)
 	c.Assert(resealKeysCalls, Equals, 4)
 	c.Assert(writeModelToBootCalls, Equals, 1)
 
-	err := boot.DeviceChange(s.oldUc20dev, s.newUc20dev)
+	err := boot.DeviceChange(s.oldUc20dev, s.newUc20dev, nil)
 	c.Assert(err, IsNil)
 	c.Assert(resealKeysCalls, Equals, 7)
 	c.Assert(writeModelToBootCalls, Equals, 2)

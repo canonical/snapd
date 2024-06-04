@@ -26,7 +26,6 @@ import (
 	"fmt"
 	"hash/crc32"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -246,12 +245,12 @@ func (l *lkenvTestSuite) TestSave(c *C) {
 			if makeBackup {
 				// create the backup file too
 				buf := make([]byte, 4096)
-				err := ioutil.WriteFile(testFileBackup, buf, 0644)
+				err := os.WriteFile(testFileBackup, buf, 0644)
 				c.Assert(err, IsNil, comment)
 			}
 
 			buf := make([]byte, 4096)
-			err := ioutil.WriteFile(testFile, buf, 0644)
+			err := os.WriteFile(testFile, buf, 0644)
 			c.Assert(err, IsNil, comment)
 
 			env := lkenv.NewEnv(testFile, "", t.version)
@@ -342,7 +341,7 @@ func (l *lkenvTestSuite) TestLoadValidatesCRC32(c *C) {
 		// we write it out so that the checksum is invalid
 		expCrc32 := crc32.ChecksumIEEE(buf.Bytes()[:ss-4])
 
-		err = ioutil.WriteFile(testFile, buf.Bytes(), 0644)
+		err = os.WriteFile(testFile, buf.Bytes(), 0644)
 		c.Assert(err, IsNil)
 
 		// now try importing the file with LoadEnv()
@@ -366,9 +365,9 @@ func (l *lkenvTestSuite) TestNewBackupFileLocation(c *C) {
 		c.Assert(testFile, testutil.FileAbsent)
 		c.Assert(testFile+"bak", testutil.FileAbsent)
 		// make empty files for Save() to overwrite
-		err := ioutil.WriteFile(testFile, nil, 0644)
+		err := os.WriteFile(testFile, nil, 0644)
 		c.Assert(err, IsNil)
-		err = ioutil.WriteFile(testFile+"bak", nil, 0644)
+		err = os.WriteFile(testFile+"bak", nil, 0644)
 		c.Assert(err, IsNil)
 		env := lkenv.NewEnv(testFile, "", version)
 		c.Assert(env, NotNil)
@@ -395,9 +394,9 @@ func (l *lkenvTestSuite) TestNewBackupFileLocation(c *C) {
 		defer restore()
 		testFile := filepath.Join(c.MkDir(), "lk.bin")
 		testFileBackup := filepath.Join(c.MkDir(), "lkbackup.bin")
-		err := ioutil.WriteFile(testFile, nil, 0644)
+		err := os.WriteFile(testFile, nil, 0644)
 		c.Assert(err, IsNil)
-		err = ioutil.WriteFile(testFileBackup, nil, 0644)
+		err = os.WriteFile(testFileBackup, nil, 0644)
 		c.Assert(err, IsNil)
 
 		env := lkenv.NewEnv(testFile, testFileBackup, version)
@@ -507,7 +506,7 @@ func (l *lkenvTestSuite) TestLoadValidatesVersionSignatureConsistency(c *C) {
 		buf.Truncate(ss - 4)
 		binary.Write(buf, binary.LittleEndian, &newCrc32)
 
-		err = ioutil.WriteFile(testFile, buf.Bytes(), 0644)
+		err = os.WriteFile(testFile, buf.Bytes(), 0644)
 		c.Assert(err, IsNil)
 
 		// now try importing the file with LoadEnv()
@@ -557,12 +556,12 @@ func (l *lkenvTestSuite) TestLoad(c *C) {
 			testFileBackup := testFile + "bak"
 			if makeBackup {
 				buf := make([]byte, 100000)
-				err := ioutil.WriteFile(testFileBackup, buf, 0644)
+				err := os.WriteFile(testFileBackup, buf, 0644)
 				c.Assert(err, IsNil)
 			}
 
 			buf := make([]byte, 100000)
-			err := ioutil.WriteFile(testFile, buf, 0644)
+			err := os.WriteFile(testFile, buf, 0644)
 			c.Assert(err, IsNil)
 
 			// create an env for this file and try to load it
@@ -700,7 +699,7 @@ func (l *lkenvTestSuite) TestGetAndSetAndFindBootPartition(c *C) {
 		c.Assert(t.bootMatrixKeys, HasLen, len(t.bootMatrixValues), comment)
 
 		buf := make([]byte, 4096)
-		err := ioutil.WriteFile(l.envPath, buf, 0644)
+		err := os.WriteFile(l.envPath, buf, 0644)
 		c.Assert(err, IsNil, comment)
 
 		env := lkenv.NewEnv(l.envPath, "", t.version)
@@ -889,9 +888,9 @@ func (l *lkenvTestSuite) TestZippedDataSample(c *C) {
 	// uncompress test data to sample env file
 	rawData, err := unpackTestData(gzipedData)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(l.envPath, rawData, 0644)
+	err = os.WriteFile(l.envPath, rawData, 0644)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(l.envPathbak, rawData, 0644)
+	err = os.WriteFile(l.envPathbak, rawData, 0644)
 	c.Assert(err, IsNil)
 
 	env := lkenv.NewEnv(l.envPath, "", lkenv.V1)

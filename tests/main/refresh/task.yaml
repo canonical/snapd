@@ -108,11 +108,8 @@ execute: |
 
     #shellcheck source=tests/lib/pkgdb.sh
     if os.query is-classic && not os.query is-trusty && not os.query is-amazon-linux && not os.query is-centos 9; then
-      . "$TESTSLIB/pkgdb.sh"
-      distro_install_package inotify-tools
-      # XXX: probably a bug in defer, this fails without ' ' quotes around the rest.
-      # shellcheck disable=SC2016
-      tests.cleanup defer 'bash -c ". $TESTSLIB/pkgdb.sh; distro_purge_package inotify-tools"'
+      tests.pkgs install --no-install-recommends inotify-tools
+      tests.cleanup defer "tests.pkgs remove inotify-tools"
       systemd-run \
         --unit test-snapd-watch-inhibit.service \
         -- \
@@ -132,6 +129,12 @@ execute: |
       MATCH "/var/lib/snapd/inhibit/ OPEN $SNAP_NAME.lock" /tmp/inhibit.events
       MATCH "/var/lib/snapd/inhibit/ MODIFY $SNAP_NAME.lock" /tmp/inhibit.events
       MATCH "/var/lib/snapd/inhibit/ CLOSE_WRITE,CLOSE $SNAP_NAME.lock" /tmp/inhibit.events
+
+      MATCH "/var/lib/snapd/inhibit/ CREATE $SNAP_NAME.refresh" /tmp/inhibit.events
+      MATCH "/var/lib/snapd/inhibit/ OPEN $SNAP_NAME.refresh" /tmp/inhibit.events
+      MATCH "/var/lib/snapd/inhibit/ MODIFY $SNAP_NAME.refresh" /tmp/inhibit.events
+      MATCH "/var/lib/snapd/inhibit/ CLOSE_WRITE,CLOSE $SNAP_NAME.refresh" /tmp/inhibit.events
+      MATCH "/var/lib/snapd/inhibit/ DELETE $SNAP_NAME.refresh" /tmp/inhibit.events
       tests.cleanup pop  # stop the inotifywait unit
       tests.cleanup pop  # remove inotify-tools
     fi

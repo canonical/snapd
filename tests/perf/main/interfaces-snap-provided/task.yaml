@@ -1,0 +1,58 @@
+summary: Ensure the system handles properly a big number of snap provided connections
+
+details: |
+    Install a test snap that plugs as many snap provided interfaces as is
+    possible and verify the command can run. This will help catch performance
+    issues in snapd, AppArmor,seccomp policy parsing, etc.
+
+environment:
+    CONSUMER_SNAP: test-snapd-policy-app-consumer
+
+execute: |
+    PROVIDER_SNAP="test-snapd-policy-app-provider-classic"    
+    if os.query is-core; then
+        PROVIDER_SNAP="test-snapd-policy-app-provider-core"
+    fi
+
+    echo "Given a snap is installed"
+    "$TESTSTOOLS"/snaps-state install-local "$PROVIDER_SNAP"
+    "$TESTSTOOLS"/snaps-state install-local "$CONSUMER_SNAP"
+
+    echo "For each snap-provided slot from $PROVIDER_SNAP"
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+    for slotcmd in "$SNAP_MOUNT_DIR"/bin/"$PROVIDER_SNAP".* ; do
+        slotcmd_bn=$(basename "$slotcmd")
+        slot_iface=$(echo "$slotcmd_bn" | tr '.' ':')
+
+        #shellcheck disable=SC2001
+        plugcmd=$(echo "$slotcmd" | sed "s/$PROVIDER_SNAP/$CONSUMER_SNAP/")
+        plugcmd_bn=$(basename "$plugcmd")
+        plug_iface=$(echo "$plugcmd_bn" | tr '.' ':')
+
+        CONNECTED_PATTERN="$slot_iface +$CONSUMER_SNAP"
+
+        echo "When slot $slot_iface is connected"
+        snap connect "$plug_iface" "$slot_iface"
+        snap interfaces | MATCH "$CONNECTED_PATTERN"
+
+        echo "Then $slotcmd should succeed"
+        "$slotcmd" | MATCH PASS
+
+        echo "Then $plugcmd should succeed"
+        "$plugcmd" | MATCH PASS
+
+        echo "Finally disconnect the interface"
+        if [ "$DISCONNECT_INTERFACES" == true ]; then
+            snap disconnect "$plug_iface" "$slot_iface"
+        fi
+    done
+
+    echo "Removing the consumer snap"
+    # When DISCONNECT_INTERFACES = false, then all the interfaces are connected and 
+    # are disconnected suring the snap removal
+    PROVIDER_SNAP="test-snapd-policy-app-provider-classic"
+    if os.query is-core; then
+        PROVIDER_SNAP="test-snapd-policy-app-provider-core"
+    fi
+    snap remove --purge "$PROVIDER_SNAP"
+    snap remove --purge "$CONSUMER_SNAP"

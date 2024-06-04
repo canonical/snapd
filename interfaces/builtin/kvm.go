@@ -21,7 +21,7 @@ package builtin
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"regexp"
 	"strings"
 
@@ -67,7 +67,7 @@ var procCpuinfo = "/proc/cpuinfo"
 var flagsMatcher = regexp.MustCompile(`(?m)^flags\s+:\s+(.*)$`).FindSubmatch
 
 func getCpuFlags() (flags []string, err error) {
-	buf, err := ioutil.ReadFile(procCpuinfo)
+	buf, err := os.ReadFile(procCpuinfo)
 	if err != nil {
 		// if we can't read cpuinfo, we want to know _why_
 		return nil, fmt.Errorf("unable to read %v: %v", procCpuinfo, err)
@@ -104,7 +104,7 @@ func (iface *kvmInterface) KModConnectedPlug(spec *kmod.Specification, plug *int
 	}
 
 	if err := spec.AddModule(m); err != nil {
-		return nil
+		return err
 	}
 	return nil
 }

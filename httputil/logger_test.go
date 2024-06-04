@@ -22,7 +22,7 @@ package httputil_test
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -113,7 +113,7 @@ func (s loggerSuite) TestNotLoggingOctetStream(c *check.C) {
 		Header: http.Header{
 			"Content-Type": []string{"application/octet-stream"},
 		},
-		Body: ioutil.NopCloser(strings.NewReader(needle)),
+		Body: io.NopCloser(strings.NewReader(needle)),
 	}
 	tr := &httputil.LoggedTransport{
 		Transport: &fakeTransport{

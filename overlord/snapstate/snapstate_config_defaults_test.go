@@ -47,9 +47,9 @@ func (s *snapmgrTestSuite) TestConfigDefaults(c *C) {
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "some-snap", Revision: snap.R(11), SnapID: "somesnapidididididididididididid"},
-		},
+		}),
 		Current:  snap.R(11),
 		SnapType: "app",
 	})
@@ -61,9 +61,9 @@ func (s *snapmgrTestSuite) TestConfigDefaults(c *C) {
 
 	snapstate.Set(s.state, "local-snap", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "local-snap", Revision: snap.R(5)},
-		},
+		}),
 		Current:  snap.R(5),
 		SnapType: "app",
 	})
@@ -107,9 +107,9 @@ func (s *snapmgrTestSuite) TestConfigDefaultsSmokeUC20(c *C) {
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "some-snap", Revision: snap.R(11), SnapID: "somesnapidididididididididididid"},
-		},
+		}),
 		Current:  snap.R(11),
 		SnapType: "app",
 	})
@@ -134,9 +134,9 @@ func (s *snapmgrTestSuite) TestConfigDefaultsNoGadget(c *C) {
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "some-snap", Revision: snap.R(11), SnapID: "somesnapidididididididididididid"},
-		},
+		}),
 		Current:  snap.R(11),
 		SnapType: "app",
 	})
@@ -166,9 +166,9 @@ defaults:
 
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "some-snap", Revision: snap.R(11), SnapID: "the-core-ididididididididididid"},
-		},
+		}),
 		Current:  snap.R(11),
 		SnapType: "os",
 	})
@@ -211,9 +211,9 @@ defaults:
 	snapstate.Set(s.state, "core", nil)
 	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "snapd", SnapID: "the-snapd-snapidididididididididi", Revision: snap.R(1)},
-		},
+		}),
 		Current:  snap.R(1),
 		SnapType: "snapd",
 	})
@@ -251,9 +251,9 @@ defaults:
 
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "core", SnapID: "thecoresnapididididididididididi", Revision: snap.R(1)},
-		},
+		}),
 		Current:  snap.R(1),
 		SnapType: "os",
 	})
@@ -272,7 +272,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreTasksNoUbuntuCore(c *C) {
 
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{{RealName: "core", SnapID: "core-snap-id", Revision: snap.R(1)}},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{RealName: "core", SnapID: "core-snap-id", Revision: snap.R(1)}}),
 		Current:  snap.R(1),
 		SnapType: "os",
 	})

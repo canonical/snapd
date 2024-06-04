@@ -21,7 +21,6 @@ package asserts
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -66,7 +65,7 @@ func entryExists(top string, subpath ...string) bool {
 
 func readEntry(top string, subpath ...string) ([]byte, error) {
 	fpath := filepath.Join(top, filepath.Join(subpath...))
-	return ioutil.ReadFile(fpath)
+	return os.ReadFile(fpath)
 }
 
 func removeEntry(top string, subpath ...string) error {

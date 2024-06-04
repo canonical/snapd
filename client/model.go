@@ -38,12 +38,21 @@ import (
 
 type remodelData struct {
 	NewModel string `json:"new-model"`
+	Offline  bool   `json:"offline,omitempty"`
+}
+
+// RemodelOpts defines options to be used when remodeling the system.
+type RemodelOpts struct {
+	// Offline indicates whether the remodel should be done offline. If true,
+	// the remodel will be attempted to be done without contacting the store.
+	Offline bool
 }
 
 // Remodel tries to remodel the system with the given assertion data
-func (client *Client) Remodel(b []byte) (changeID string, err error) {
+func (client *Client) Remodel(b []byte, opts RemodelOpts) (changeID string, err error) {
 	data, err := json.Marshal(&remodelData{
 		NewModel: string(b),
+		Offline:  opts.Offline,
 	})
 	if err != nil {
 		return "", fmt.Errorf("cannot marshal remodel data: %v", err)
@@ -55,9 +64,10 @@ func (client *Client) Remodel(b []byte) (changeID string, err error) {
 	return client.doAsync("POST", "/v2/model", nil, headers, bytes.NewReader(data))
 }
 
-// RemodelOffline tries to remodel the system with the given model assertion
-// and local snaps and assertion files.
-func (client *Client) RemodelOffline(
+// RemodelWithLocalSnaps tries to remodel the system with the given model
+// assertion and local snaps and assertion files. Remodeling using this method
+// will ensure that snapd does not contact the store.
+func (client *Client) RemodelWithLocalSnaps(
 	model []byte, snapPaths, assertPaths []string) (changeID string, err error) {
 
 	// Check if all files exist before starting the go routine

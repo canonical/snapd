@@ -1,5 +1,15 @@
 summary: Test that read-only filesystem on /etc/dbus-1/session.d doesn't prevent snapd refresh.
 
+details: |
+  One of the snapd security backends is responsible for managing dbus rules for
+  installed snap applications. Such rules are stored, among others, in the
+  /etc/dbus-1/session.d directory.
+
+  On core systems that directory may be read-only. Snapd should not fail to
+  refresh itself if that condition is true. In essence this test checks that
+  snapd can refresh even if the base snap without special provisions to make
+  /etc/dbus-1/session.d writable has been installed yet.
+
 systems: [ubuntu-core-18-64]
 
 prepare: |

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2022 Canonical Ltd
+ * Copyright (C) 2016-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -87,15 +87,20 @@ type State struct {
 	lastTaskId   int
 	lastChangeId int
 	lastLaneId   int
+	lastNoticeId int
 	// lastHandlerId is not serialized, it's only used during runtime
 	// for registering runtime callbacks
-	lastHandlerId int
+	lastHandlerId       int
+	lastNoticeTimestamp time.Time
 
 	backend  Backend
 	data     customData
 	changes  map[string]*Change
 	tasks    map[string]*Task
 	warnings map[string]*Warning
+	notices  map[noticeKey]*Notice
+
+	noticeCond *sync.Cond
 
 	modified bool
 
@@ -110,18 +115,21 @@ type State struct {
 
 // New returns a new empty state.
 func New(backend Backend) *State {
-	return &State{
+	st := &State{
 		backend:             backend,
 		data:                make(customData),
 		changes:             make(map[string]*Change),
 		tasks:               make(map[string]*Task),
 		warnings:            make(map[string]*Warning),
+		notices:             make(map[noticeKey]*Notice),
 		modified:            true,
 		cache:               make(map[interface{}]interface{}),
 		pendingChangeByAttr: make(map[string]func(*Change) bool),
 		taskHandlers:        make(map[int]func(t *Task, old Status, new Status)),
 		changeHandlers:      make(map[int]func(chg *Change, old Status, new Status)),
 	}
+	st.noticeCond = sync.NewCond(st) // use State.Lock and State.Unlock
+	return st
 }
 
 // Modified returns whether the state was modified since the last checkpoint.
@@ -158,10 +166,14 @@ type marshalledState struct {
 	Changes  map[string]*Change          `json:"changes"`
 	Tasks    map[string]*Task            `json:"tasks"`
 	Warnings []*Warning                  `json:"warnings,omitempty"`
+	Notices  []*Notice                   `json:"notices,omitempty"`
 
 	LastChangeId int `json:"last-change-id"`
 	LastTaskId   int `json:"last-task-id"`
 	LastLaneId   int `json:"last-lane-id"`
+	LastNoticeId int `json:"last-notice-id"`
+
+	LastNoticeTimestamp time.Time `json:"last-notice-timestamp,omitempty"`
 }
 
 // MarshalJSON makes State a json.Marshaller
@@ -172,10 +184,14 @@ func (s *State) MarshalJSON() ([]byte, error) {
 		Changes:  s.changes,
 		Tasks:    s.tasks,
 		Warnings: s.flattenWarnings(),
+		Notices:  s.flattenNotices(nil),
 
 		LastTaskId:   s.lastTaskId,
 		LastChangeId: s.lastChangeId,
 		LastLaneId:   s.lastLaneId,
+		LastNoticeId: s.lastNoticeId,
+
+		LastNoticeTimestamp: s.lastNoticeTimestamp,
 	})
 }
 
@@ -191,9 +207,12 @@ func (s *State) UnmarshalJSON(data []byte) error {
 	s.changes = unmarshalled.Changes
 	s.tasks = unmarshalled.Tasks
 	s.unflattenWarnings(unmarshalled.Warnings)
+	s.unflattenNotices(unmarshalled.Notices)
 	s.lastChangeId = unmarshalled.LastChangeId
 	s.lastTaskId = unmarshalled.LastTaskId
 	s.lastLaneId = unmarshalled.LastLaneId
+	s.lastNoticeId = unmarshalled.LastNoticeId
+	s.lastNoticeTimestamp = unmarshalled.LastNoticeTimestamp
 	// backlink state again
 	for _, t := range s.tasks {
 		t.state = s
@@ -219,6 +238,15 @@ var (
 	unlockCheckpointRetryMaxTime  = 5 * time.Minute
 	unlockCheckpointRetryInterval = 3 * time.Second
 )
+
+// Unlocker returns a closure that will unlock and checkpoint the state and
+// in turn return a function to relock it.
+func (s *State) Unlocker() (unlock func() (relock func())) {
+	return func() func() {
+		s.Unlock()
+		return s.Lock
+	}
+}
 
 // Unlock releases the state lock and checkpoints the state.
 // It does not return until the state is correctly checkpointed.
@@ -321,6 +349,11 @@ func (s *State) NewChange(kind, summary string) *Change {
 	id := strconv.Itoa(s.lastChangeId)
 	chg := newChange(s, id, kind, summary)
 	s.changes[id] = chg
+	// Add change-update notice for newly spawned change
+	// NOTE: Implies State.writing()
+	if err := chg.addNotice(); err != nil {
+		logger.Panicf(`internal error: failed to add "change-update" notice for new change: %v`, err)
+	}
 	return chg
 }
 
@@ -414,7 +447,7 @@ func (s *State) RegisterPendingChangeByAttr(attr string, f func(*Change) bool) {
 //     changes than the limit set via "maxReadyChanges" those changes in ready
 //     state will also removed even if they are below the pruneWait duration.
 //
-//   - it removes expired warnings.
+//   - it removes expired warnings and notices.
 func (s *State) Prune(startOfOperation time.Time, pruneWait, abortWait time.Duration, maxReadyChanges int) {
 	now := time.Now()
 	pruneLimit := now.Add(-pruneWait)
@@ -439,6 +472,12 @@ func (s *State) Prune(startOfOperation time.Time, pruneWait, abortWait time.Dura
 	for k, w := range s.warnings {
 		if w.ExpiredBefore(now) {
 			delete(s.warnings, k)
+		}
+	}
+
+	for k, n := range s.notices {
+		if n.expired(now) {
+			delete(s.notices, k)
 		}
 	}
 
@@ -563,8 +602,11 @@ func ReadState(backend Backend, r io.Reader) (*State, error) {
 		return nil, fmt.Errorf("cannot read state: %s", err)
 	}
 	s.backend = backend
+	s.noticeCond = sync.NewCond(s)
 	s.modified = false
 	s.cache = make(map[interface{}]interface{})
 	s.pendingChangeByAttr = make(map[string]func(*Change) bool)
+	s.changeHandlers = make(map[int]func(chg *Change, old Status, new Status))
+	s.taskHandlers = make(map[int]func(t *Task, old Status, new Status))
 	return s, err
 }

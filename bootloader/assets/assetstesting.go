@@ -1,6 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 //go:build withbootassetstesting
-// +build withbootassetstesting
 
 /*
  * Copyright (C) 2021 Canonical Ltd

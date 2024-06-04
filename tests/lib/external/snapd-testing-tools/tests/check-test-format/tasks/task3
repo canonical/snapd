@@ -1,5 +1,0 @@
-summary: this is the summary
-
-systems: [ ubuntu-20.04-64 ]
-
-backends: [ google ]

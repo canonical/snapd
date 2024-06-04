@@ -1,5 +1,14 @@
 summary: verify the output of 'snap services' command
 
+details: |
+    The "snap services" command shows all the services provided by all the
+    snaps, their state at present, their automatic startup as well as auxiliary
+    properties such as being bus-activated or belonging to the user session
+    instead of the system.
+
+    The test installs a number of snaps and observers the output of the
+    aforementioned command.
+
 systems:
   # TODO: dbus issue
   - -ubuntu-core-22-*

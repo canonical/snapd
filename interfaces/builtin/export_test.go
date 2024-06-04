@@ -34,11 +34,10 @@ var (
 	ResolveSpecialVariable      = resolveSpecialVariable
 	ImplicitSystemPermanentSlot = implicitSystemPermanentSlot
 	ImplicitSystemConnectedSlot = implicitSystemConnectedSlot
-	LabelExpr                   = labelExpr
-	PlugAppLabelExpr            = plugAppLabelExpr
-	SlotAppLabelExpr            = slotAppLabelExpr
 	AareExclusivePatterns       = aareExclusivePatterns
 	GetDesktopFileRules         = getDesktopFileRules
+	StringListAttribute         = stringListAttribute
+	IsPathMountedWritable       = isPathMountedWritable
 )
 
 func MprisGetName(iface interfaces.Interface, attribs map[string]interface{}) (string, error) {
@@ -113,6 +112,16 @@ func MockProcCpuinfo(filename string) (restore func()) {
 		procCpuinfo = old
 	}
 	procCpuinfo = filename
+
+	return restore
+}
+
+func MockDirsToEnsure(fn func(paths []string) ([]*interfaces.EnsureDirSpec, error)) (restore func()) {
+	old := dirsToEnsure
+	restore = func() {
+		dirsToEnsure = old
+	}
+	dirsToEnsure = fn
 
 	return restore
 }

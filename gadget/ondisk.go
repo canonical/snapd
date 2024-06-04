@@ -21,6 +21,8 @@ package gadget
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/logger"
@@ -91,6 +93,11 @@ type OnDiskVolume struct {
 	UsableSectorsEnd uint64
 	// sector size in bytes
 	SectorSize quantity.Size
+}
+
+type OnDiskAndGadgetStructurePair struct {
+	DiskStructure   *OnDiskStructure
+	GadgetStructure *VolumeStructure
 }
 
 // OnDiskVolumeFromDevice obtains the partitioning and filesystem information from
@@ -187,4 +194,99 @@ func OnDiskStructureFromPartition(p disks.Partition) (OnDiskStructure, error) {
 		Size:             quantity.Size(p.SizeInBytes),
 		Node:             p.KernelDeviceNode,
 	}, nil
+}
+
+// OnDiskVolumeFromGadgetVol returns the disk volume matching a gadget volume
+// that has the Device field set, which implies that this should be called only
+// in the context of an installer that set the device in the gadget and
+// returned it to snapd.
+func OnDiskVolumeFromGadgetVol(vol *Volume) (*OnDiskVolume, error) {
+	var diskVol *OnDiskVolume
+	for _, vs := range vol.Structure {
+		if vs.Device == "" || vs.Role == "mbr" || vs.Type == "bare" {
+			continue
+		}
+
+		partSysfsPath, err := sysfsPathForBlockDevice(vs.Device)
+		if err != nil {
+			return nil, err
+		}
+
+		// Volume needs to be resolved only once
+		diskVol, err = onDiskVolumeFromPartitionSysfsPath(partSysfsPath)
+		if err != nil {
+			return nil, err
+		}
+		break
+	}
+
+	if diskVol == nil {
+		return nil, fmt.Errorf("volume %q has no device assigned", vol.Name)
+	}
+
+	return diskVol, nil
+}
+
+// sysfsPathForBlockDevice returns the sysfs path for a block device.
+var sysfsPathForBlockDevice = func(device string) (string, error) {
+	syfsLink := filepath.Join("/sys/class/block", filepath.Base(device))
+	partPath, err := os.Readlink(syfsLink)
+	if err != nil {
+		return "", fmt.Errorf("cannot read link %q: %v", syfsLink, err)
+	}
+	// Remove initial ../../ from partPath, and make path absolute
+	return filepath.Join("/sys/class/block", partPath), nil
+}
+
+// onDiskVolumeFromPartitionSysfsPath creates an OnDiskVolume that
+// matches the disk that contains the given partition sysfs path
+func onDiskVolumeFromPartitionSysfsPath(partPath string) (*OnDiskVolume, error) {
+	// Removing the last component will give us the disk path
+	diskPath := filepath.Dir(partPath)
+	disk, err := disks.DiskFromDevicePath(diskPath)
+	if err != nil {
+		return nil, fmt.Errorf("cannot retrieve disk information for %q: %v", partPath, err)
+	}
+	onDiskVol, err := OnDiskVolumeFromDisk(disk)
+	if err != nil {
+		return nil, fmt.Errorf("cannot retrieve on disk volume for %q: %v", partPath, err)
+	}
+
+	return onDiskVol, nil
+}
+
+func MockSysfsPathForBlockDevice(f func(device string) (string, error)) (restore func()) {
+	old := sysfsPathForBlockDevice
+	sysfsPathForBlockDevice = f
+	return func() {
+		sysfsPathForBlockDevice = old
+	}
+}
+
+// OnDiskStructsFromGadget builds a map of gadget yaml index to OnDiskStructure
+// by assuming that the gadget will match exactly one of the disks of the
+// installation device. This is used only at disk image build time as we do not
+// know yet the target disk.
+func OnDiskStructsFromGadget(volume *Volume) (structures map[int]*OnDiskStructure) {
+	structures = map[int]*OnDiskStructure{}
+	offset := quantity.Offset(0)
+	for idx, vs := range volume.Structure {
+		// Offset is end of previous struct unless explicit.
+		if volume.Structure[idx].Offset != nil {
+			offset = *volume.Structure[idx].Offset
+		}
+		ods := OnDiskStructure{
+			Name:        vs.Name,
+			Type:        vs.Type,
+			StartOffset: offset,
+			Size:        vs.Size,
+		}
+
+		// Note that structures are ordered by offset as volume.Structure
+		// was ordered when reading the gadget information.
+		offset += quantity.Offset(volume.Structure[idx].Size)
+		structures[vs.YamlIndex] = &ods
+	}
+
+	return structures
 }

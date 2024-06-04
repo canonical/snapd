@@ -1,5 +1,22 @@
 summary: certain layout configuration prevents snapd from removing a snap
 
+details: |
+    Snapd attempts to update preserved mount namespaces when the per-snap mount
+    profile is changed by interface connection changes, snap refreshes or even
+    base snap refreshes. The exact way in which this is done is very complex and
+    over time, a simpler method was devised, where bulk of the changes are
+    undone and the namespace is re-constructed with the minimal attempt to
+    reuse.
+
+    Even with the simpler method we realized that part of the tear-down logic
+    would possibly attempt to remove a directory or file that is coming from
+    a squashfs - failing with EROFS. The part of snapd responsible for mount
+    namespace updates was made aware of that corner-case and the error would
+    not longer cause issues with snap package removal.
+
+    Historically this test also enabled the robust-mount-namespace-updates feature,
+    but it is now enabled by default.
+
 systems: [ubuntu-18.04-64] # tight coupling with container guest
 
 prepare: |

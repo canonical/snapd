@@ -22,7 +22,7 @@ package client_test
 import (
 	"bytes"
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"time"
 
 	"gopkg.in/check.v1"
@@ -79,7 +79,7 @@ func (cs *clientSuite) TestEnsureQuotaGroup(c *check.C) {
 	c.Assert(chgID, check.Equals, "42")
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/quotas")
-	body, err := ioutil.ReadAll(cs.req.Body)
+	body, err := io.ReadAll(cs.req.Body)
 	c.Assert(err, check.IsNil)
 	var req map[string]interface{}
 	err = jsonutil.DecodeWithNumber(bytes.NewReader(body), &req)
@@ -175,7 +175,7 @@ func (cs *clientSuite) TestRemoveQuotaGroup(c *check.C) {
 	c.Assert(chgID, check.Equals, "42")
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/quotas")
-	body, err := ioutil.ReadAll(cs.req.Body)
+	body, err := io.ReadAll(cs.req.Body)
 	c.Assert(err, check.IsNil)
 	var req map[string]interface{}
 	err = json.Unmarshal(body, &req)

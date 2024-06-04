@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2021 Canonical Ltd
+ * Copyright (C) 2021-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,7 +20,10 @@
 package daemon
 
 import (
+	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 
 	"github.com/snapcore/snapd/client"
@@ -31,11 +34,14 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/polkit"
 	"github.com/snapcore/snapd/sandbox/cgroup"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var polkitCheckAuthorization = polkit.CheckAuthorization
 
 var checkPolkitAction = checkPolkitActionImpl
+
+var osReadlink = os.Readlink
 
 func checkPolkitActionImpl(r *http.Request, ucred *ucrednet, action string) *apiError {
 	var flags polkit.CheckFlags
@@ -156,11 +162,11 @@ func (ac snapAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, us
 }
 
 var (
-	cgroupSnapNameFromPid = cgroup.SnapNameFromPid
-	requireThemeApiAccess = requireThemeApiAccessImpl
+	cgroupSnapNameFromPid     = cgroup.SnapNameFromPid
+	requireInterfaceApiAccess = requireInterfaceApiAccessImpl
 )
 
-func requireThemeApiAccessImpl(d *Daemon, ucred *ucrednet) *apiError {
+func requireInterfaceApiAccessImpl(d *Daemon, r *http.Request, ucred *ucrednet, interfaceNames []string) *apiError {
 	if ucred == nil {
 		return Forbidden("access denied")
 	}
@@ -176,8 +182,7 @@ func requireThemeApiAccessImpl(d *Daemon, ucred *ucrednet) *apiError {
 		return Forbidden("access denied")
 	}
 
-	// Access on snapd-snap.socket requires a connected
-	// snap-themes-control plug.
+	// Access on snapd-snap.socket requires a connected plug.
 	snapName, err := cgroupSnapNameFromPid(int(ucred.Pid))
 	if err != nil {
 		return Forbidden("could not determine snap name for pid: %s", err)
@@ -190,8 +195,9 @@ func requireThemeApiAccessImpl(d *Daemon, ucred *ucrednet) *apiError {
 	if err != nil {
 		return Forbidden("internal error: cannot get connections: %s", err)
 	}
+	foundMatchingInterface := false
 	for refStr, connState := range conns {
-		if !connState.Active() || connState.Interface != "snap-themes-control" {
+		if !connState.Active() || !strutil.ListContains(interfaceNames, connState.Interface) {
 			continue
 		}
 		connRef, err := interfaces.ParseConnRef(refStr)
@@ -199,34 +205,44 @@ func requireThemeApiAccessImpl(d *Daemon, ucred *ucrednet) *apiError {
 			return Forbidden("internal error: %s", err)
 		}
 		if connRef.PlugRef.Snap == snapName {
-			return nil
+			r.RemoteAddr = ucrednetAttachInterface(r.RemoteAddr, connState.Interface)
+			// Do not return here, but keep processing connections for the side
+			// effect of attaching all connected interfaces we asked for to the
+			// remote address.
+			foundMatchingInterface = true
 		}
+	}
+	if foundMatchingInterface {
+		return nil
 	}
 	return Forbidden("access denied")
 }
 
-// themesOpenAccess behaves like openAccess, but allows requests from
-// snapd-snap.socket for snaps that plug snap-themes-control.
-type themesOpenAccess struct{}
-
-func (ac themesOpenAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
-	return requireThemeApiAccess(d, ucred)
+// interfaceOpenAccess behaves like openAccess, but allows requests from
+// snapd-snap.socket for snaps that plug one of the provided interfaces.
+type interfaceOpenAccess struct {
+	Interfaces []string
 }
 
-// themesAuthenticatedAccess behaves like authenticatedAccess, but
-// allows requests from snapd-snap.socket for snaps that plug
-// snap-themes-control.
-type themesAuthenticatedAccess struct {
-	Polkit string
+func (ac interfaceOpenAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+	return requireInterfaceApiAccess(d, r, ucred, ac.Interfaces)
 }
 
-func (ac themesAuthenticatedAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
-	if rspe := requireThemeApiAccess(d, ucred); rspe != nil {
+// interfaceAuthenticatedAccess behaves like authenticatedAccess, but
+// allows requests from snapd-snap.socket that plug one of the provided
+// interfaces.
+type interfaceAuthenticatedAccess struct {
+	Interfaces []string
+	Polkit     string
+}
+
+func (ac interfaceAuthenticatedAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+	if rspe := requireInterfaceApiAccess(d, r, ucred, ac.Interfaces); rspe != nil {
 		return rspe
 	}
 
 	// check as well that we have admin permission to proceed with
-	// the theme operation
+	// the operation
 	if user != nil {
 		return nil
 	}
@@ -243,4 +259,42 @@ func (ac themesAuthenticatedAccess) CheckAccess(d *Daemon, r *http.Request, ucre
 	}
 
 	return Unauthorized("access denied")
+}
+
+// isRequestFromSnapCmd checks that the request is coming from snap command.
+//
+// It checks that the request process "/proc/PID/exe" points to one of the
+// known locations of the snap command. This not a security-oriented check.
+func isRequestFromSnapCmd(r *http.Request) (bool, error) {
+	ucred, err := ucrednetGet(r.RemoteAddr)
+	if err != nil {
+		return false, err
+	}
+	exe, err := osReadlink(fmt.Sprintf("/proc/%d/exe", ucred.Pid))
+	if err != nil {
+		return false, err
+	}
+
+	// SNAP_REEXEC=0
+	if exe == filepath.Join(dirs.GlobalRootDir, "/usr/bin/snap") {
+		return true, nil
+	}
+
+	// Check if re-exec in snapd
+	path := filepath.Join(dirs.SnapMountDir, "snapd/*/usr/bin/snap")
+	if matched, err := filepath.Match(path, exe); err != nil {
+		return false, err
+	} else if matched {
+		return true, nil
+	}
+
+	// Check if re-exec in core
+	path = filepath.Join(dirs.SnapMountDir, "core/*/usr/bin/snap")
+	if matched, err := filepath.Match(path, exe); err != nil {
+		return false, err
+	} else if matched {
+		return true, nil
+	}
+
+	return false, nil
 }

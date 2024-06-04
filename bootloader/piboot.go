@@ -22,7 +22,6 @@ package bootloader
 import (
 	"encoding/binary"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -238,7 +237,7 @@ func (p *piboot) loadAndApplyConfig(env *ubootenv.Env) error {
 
 // Writes os_prefix in RPi config.txt or tryboot.txt
 func (p *piboot) writeRPiCfgWithOsPrefix(prefix, inFile, outFile string) error {
-	buf, err := ioutil.ReadFile(inFile)
+	buf, err := os.ReadFile(inFile)
 	if err != nil {
 		return err
 	}
@@ -268,7 +267,7 @@ func (p *piboot) writeRPiCfgWithOsPrefix(prefix, inFile, outFile string) error {
 }
 
 func (p *piboot) writeCmdline(env *ubootenv.Env, defaultsFile, outFile string) error {
-	buf, err := ioutil.ReadFile(defaultsFile)
+	buf, err := os.ReadFile(defaultsFile)
 	if err != nil {
 		return err
 	}
@@ -390,7 +389,7 @@ func (p *piboot) eepromVersionSupportsTryboot() (bool, error) {
 	// To find out the EEPROM version we do the same as the
 	// rpi-eeprom-update script (see
 	// https://github.com/raspberrypi/rpi-eeprom/blob/master/rpi-eeprom-update)
-	buf, err := ioutil.ReadFile(rpi4EepromTimeStampPath)
+	buf, err := os.ReadFile(rpi4EepromTimeStampPath)
 	if err != nil {
 		return false, err
 	}
@@ -408,7 +407,7 @@ func (p *piboot) eepromVersionSupportsTryboot() (bool, error) {
 func (p *piboot) isRaspberryPi4() bool {
 	// For RPi4 detection we do the same as the rpi-eeprom-update script (see
 	// https://github.com/raspberrypi/rpi-eeprom/blob/master/rpi-eeprom-update)
-	buf, err := ioutil.ReadFile(rpi4RevisionCodesPath)
+	buf, err := os.ReadFile(rpi4RevisionCodesPath)
 	if err != nil {
 		return false
 	}

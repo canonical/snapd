@@ -154,33 +154,41 @@ func (s *errorsSuite) TestErrToResponse(c *C) {
 	tests := []struct {
 		err         error
 		expectedRsp daemon.Response
+		isMany      bool
 	}{
-		{store.ErrSnapNotFound, daemon.SnapNotFound("foo", store.ErrSnapNotFound)},
-		{store.ErrNoUpdateAvailable, makeErrorRsp(client.ErrorKindSnapNoUpdateAvailable, store.ErrNoUpdateAvailable, "")},
-		{store.ErrLocalSnap, makeErrorRsp(client.ErrorKindSnapLocal, store.ErrLocalSnap, "")},
-		{aie, makeErrorRsp(client.ErrorKindSnapAlreadyInstalled, aie, "foo")},
-		{nie, makeErrorRsp(client.ErrorKindSnapNotInstalled, nie, "foo")},
-		{ndme, makeErrorRsp(client.ErrorKindSnapNeedsDevMode, ndme, "foo")},
-		{nc, makeErrorRsp(client.ErrorKindSnapNotClassic, nc, "foo")},
-		{nce, makeErrorRsp(client.ErrorKindSnapNeedsClassic, nce, "foo")},
-		{ncse, makeErrorRsp(client.ErrorKindSnapNeedsClassicSystem, ncse, "foo")},
-		{cce, daemon.SnapChangeConflict(cce)},
-		{nettoute, makeErrorRsp(client.ErrorKindNetworkTimeout, nettoute, "")},
-		{netoe, daemon.BadRequest("ERR: %v", netoe)},
-		{nettmpe, daemon.BadRequest("ERR: %v", nettmpe)},
-		{e, daemon.BadRequest("ERR: %v", e)},
+		{store.ErrSnapNotFound, daemon.SnapNotFound("foo", store.ErrSnapNotFound), false},
+		{store.ErrNoUpdateAvailable, makeErrorRsp(client.ErrorKindSnapNoUpdateAvailable, store.ErrNoUpdateAvailable, ""), false},
+		{store.ErrLocalSnap, makeErrorRsp(client.ErrorKindSnapLocal, store.ErrLocalSnap, ""), false},
+		{aie, makeErrorRsp(client.ErrorKindSnapAlreadyInstalled, aie, "foo"), false},
+		{nie, daemon.SnapNotInstalled("foo", nie), false},
+		{ndme, makeErrorRsp(client.ErrorKindSnapNeedsDevMode, ndme, "foo"), false},
+		{nc, makeErrorRsp(client.ErrorKindSnapNotClassic, nc, "foo"), false},
+		{nce, makeErrorRsp(client.ErrorKindSnapNeedsClassic, nce, "foo"), false},
+		{ncse, makeErrorRsp(client.ErrorKindSnapNeedsClassicSystem, ncse, "foo"), false},
+		{cce, daemon.SnapChangeConflict(cce), false},
+		{nettoute, makeErrorRsp(client.ErrorKindNetworkTimeout, nettoute, ""), false},
+		{netoe, daemon.BadRequest("ERR: %v", netoe), false},
+		{nettmpe, daemon.BadRequest("ERR: %v", nettmpe), false},
+		{e, daemon.BadRequest("ERR: %v", e), false},
 
 		// action error unwrapping:
-		{sa1e, daemon.SnapNotFound("foo", store.ErrSnapNotFound)},
-		{saXe, daemon.SnapNotFound("foo", store.ErrSnapNotFound)},
+		{sa1e, daemon.SnapNotFound("foo", store.ErrSnapNotFound), false},
+		// simulates one snap not found (foo) and another one found (bar)
+		// for context see: https://bugs.launchpad.net/snapd/+bug/2024858
+		{sa1e, daemon.SnapNotFound("foo", store.ErrSnapNotFound), true},
+		{saXe, daemon.SnapNotFound("foo", store.ErrSnapNotFound), false},
 		// action errors, unwrapped:
-		{sa2e, daemon.BadRequest(`ERR: cannot refresh: snap not found: "bar", "foo"`)},
-		{saOe, daemon.BadRequest("ERR: cannot refresh, install, or download: other error")},
+		{sa2e, daemon.BadRequest(`ERR: cannot refresh: snap not found: "bar", "foo"`), true},
+		{saOe, daemon.BadRequest("ERR: cannot refresh, install, or download: other error"), false},
 	}
 
 	for _, t := range tests {
 		com := Commentf("%v", t.err)
-		rspe := daemon.ErrToResponse(t.err, []string{"foo"}, daemon.BadRequest, "%s: %v", "ERR")
+		snaps := []string{"foo"}
+		if t.isMany {
+			snaps = append(snaps, "bar")
+		}
+		rspe := daemon.ErrToResponse(t.err, snaps, daemon.BadRequest, "%s: %v", "ERR")
 		c.Check(rspe, DeepEquals, t.expectedRsp, com)
 	}
 }

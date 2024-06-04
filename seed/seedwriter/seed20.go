@@ -107,13 +107,6 @@ func (pol *policy20) checkBase(info *snap.Info, modes []string, availableByMode 
 	}
 
 	whichBase := fmt.Sprintf("its base %q", base)
-	if base == "core16" {
-		if pol.checkAvailable(naming.Snap("core"), modes, availableByMode) {
-			return nil
-		}
-		whichBase += ` (or "core")`
-	}
-
 	return fmt.Errorf("cannot add snap %q without also adding %s explicitly%s", info.SnapName(), whichBase, errorMsgForModesSuffix(modes))
 }
 

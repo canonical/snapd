@@ -1,0 +1,29 @@
+summary: Ensure that commands run when their core provided interfaces are connected
+
+details: |
+    Install a test snap that plugs as many core provided interfaces as is 
+    possible and verify the command can run (ie, don't test the interface 
+    functionality itself). This will help catch things like AppArmor 
+    policy syntax errors, seccomp policy parsing, udev querying bugs, etc.
+
+systems: [ubuntu-18*, ubuntu-2*]
+
+environment:
+    TEST: install-many-snaps
+    NUM_SNAPS: 100
+
+execute: |
+    # Get the nested system to use
+    NESTED_SPREAD_SYSTEM="$(tests.nested nested-system)"
+
+    # Get spread
+    SPREAD="$(tests.nested download spread)"
+
+    # Run spread test
+    export SPREAD_EXTERNAL_ADDRESS=localhost:8022
+    export PERF_NUM_SNAPS="$NUM_SNAPS"
+    "$SPREAD" external:"$NESTED_SPREAD_SYSTEM":tests/perf/main/"$TEST" |& tee spread.log
+
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+    nested_check_spread_results spread.log

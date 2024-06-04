@@ -75,7 +75,7 @@ var u2fDevices = []u2fDevice{
 	{
 		Name:             "JaCarta U2F",
 		VendorIDPattern:  "24dc",
-		ProductIDPattern: "0101",
+		ProductIDPattern: "0101|0501",
 	},
 	{
 		Name:             "U2F Zero",
@@ -115,7 +115,7 @@ var u2fDevices = []u2fDevice{
 	{
 		Name:             "Google Titan U2F",
 		VendorIDPattern:  "18d1",
-		ProductIDPattern: "5026",
+		ProductIDPattern: "5026|9470",
 	},
 	{
 		Name:             "Tomu board + chopstx U2F + SoloKeys + Flipper zero",
@@ -143,14 +143,14 @@ var u2fDevices = []u2fDevice{
 		ProductIDPattern: "a2ac",
 	},
 	{
-		Name:             "Ledger Blue + Nano S + Nano X",
+		Name:             "Ledger Blue + Nano S + Nano X + Nano S+ + Ledger Stax",
 		VendorIDPattern:  "2c97",
-		ProductIDPattern: "0000|0001|0004|0005|0015|1005|1015|4005|4015",
+		ProductIDPattern: "0000|0001|0004|0005|0015|1005|1015|4005|4015|5005|5015|6005|6015",
 	},
 	{
 		Name:             "GoTrust Idem Key",
 		VendorIDPattern:  "32a3",
-		ProductIDPattern: "3201",
+		ProductIDPattern: "3201|3203",
 	},
 	{
 		Name:             "Trezor",
@@ -166,6 +166,31 @@ var u2fDevices = []u2fDevice{
 		Name:             "U2F-TOKEN (Tomu et al.)",
 		VendorIDPattern:  "16d0",
 		ProductIDPattern: "0e90",
+	},
+	{
+		Name:             "Token2 FIDO2 key",
+		VendorIDPattern:  "349e",
+		ProductIDPattern: "0010|0011|0012|0020|0021|0022|0200|0201|0202",
+	},
+	{
+		Name:             "Swissbit iShield Key",
+		VendorIDPattern:  "1370",
+		ProductIDPattern: "0911",
+	},
+	{
+		Name:             "RSA DS100",
+		VendorIDPattern:  "15e1",
+		ProductIDPattern: "2019",
+	},
+	{
+		Name:             "Kensington VeriMark Guard Fingerprint Key",
+		VendorIDPattern:  "047d",
+		ProductIDPattern: "8055",
+	},
+	{
+		Name:             "TrustKey TrustKey G310H",
+		VendorIDPattern:  "311f",
+		ProductIDPattern: "4a2a",
 	},
 }
 

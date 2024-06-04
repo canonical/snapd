@@ -1,6 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 //go:build linux
-// +build linux
 
 /*
  * Copyright (C) 2017 Canonical Ltd
@@ -22,7 +21,6 @@
 package polkit
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -63,7 +61,7 @@ func (s *polkitSuite) TestGetStartTimeBadPid(c *check.C) {
 func (s *polkitSuite) TestProcStatParsing(c *check.C) {
 	filename := filepath.Join(c.MkDir(), "stat")
 	contents := []byte("18433 (cat) R 9732 18433 9732 34818 18433 4194304 96 0 1 0 0 0 0 0 20 0 1 0 123104764 7602176 182 18446744073709551615 94902526107648 94902526138492 140734457666896 0 0 0 0 0 0 0 0 0 17 5 0 0 0 0 0 94902528236168 94902528237760 94902542680064 140734457672267 140734457672287 140734457672287 140734457675759 0")
-	err := ioutil.WriteFile(filename, contents, 0644)
+	err := os.WriteFile(filename, contents, 0644)
 	c.Assert(err, check.IsNil)
 
 	startTime, err := getStartTimeForProcStatFile(filename)

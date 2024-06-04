@@ -1,7 +1,6 @@
 package snapdtool_test
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -89,7 +88,7 @@ VERSION=42
 `
 
 func benchmarkCSRE(b *testing.B, data string) {
-	tempdir, err := ioutil.TempDir("", "")
+	tempdir, err := os.MkdirTemp("", "")
 	if err != nil {
 		b.Fatalf("tempdir: %v", err)
 	}
@@ -98,7 +97,7 @@ func benchmarkCSRE(b *testing.B, data string) {
 		b.Fatalf("mkdirall: %v", err)
 	}
 
-	if err = ioutil.WriteFile(filepath.Join(tempdir, dirs.CoreLibExecDir, "info"), []byte(data), 0600); err != nil {
+	if err = os.WriteFile(filepath.Join(tempdir, dirs.CoreLibExecDir, "info"), []byte(data), 0600); err != nil {
 		b.Fatalf("%v", err)
 	}
 	b.ResetTimer()

@@ -86,9 +86,13 @@ build_deb(){
 build_rpm() {
     distro=$(echo "$SPREAD_SYSTEM" | awk '{split($0,a,"-");print a[1]}')
     release=$(echo "$SPREAD_SYSTEM" | awk '{split($0,a,"-");print a[2]}')
-    if os.query is-amazon-linux; then
+    if os.query is-amazon-linux 2; then
         distro=amzn
         release=2
+    fi
+    if os.query is-amazon-linux 2023; then
+        distro=amzn
+        release=2023
     fi
     arch=x86_64
     base_version="$(head -1 debian/changelog | awk -F '[()]' '{print $2}')"
@@ -97,11 +101,11 @@ build_rpm() {
     rpm_dir=$(rpm --eval "%_topdir")
     pack_args=
     case "$SPREAD_SYSTEM" in
-        fedora-*|amazon-*|centos-*)
-            ;;
         opensuse-*)
             # use bundled snapd*.vendor.tar.xz archive
             pack_args=-s
+            ;;
+        fedora-*|amazon-*|centos-*)
             ;;
         *)
             echo "ERROR: RPM build for system $SPREAD_SYSTEM is not yet supported"
@@ -118,13 +122,17 @@ build_rpm() {
 
     # Cleanup all artifacts from previous builds
     rm -rf "$rpm_dir"/BUILD/*
+    # Install build dependencies
+    distro_install_package rpmdevtools
+    # XXX we should pass --with testkeys for completeness, but older versions of
+    # rpmspec do not support it, and in any case testkeys does not result in any
+    # additional build packages
+    # shellcheck disable=SC2046
+    distro_install_package $(rpmspec -q --buildrequires "$packaging_path/snapd.spec")
 
     # Build our source package
     unshare -n -- \
             rpmbuild --with testkeys -bs "$rpm_dir/SOURCES/snapd.spec"
-
-    # .. and we need all necessary build dependencies available
-    install_snapd_rpm_dependencies "$rpm_dir"/SRPMS/snapd-1337.*.src.rpm
 
     # And now build our binary package
     unshare -n -- \
@@ -279,7 +287,19 @@ prepare_project() {
 
     # declare the "quiet" wrapper
 
-    if [ "$SPREAD_BACKEND" = external ]; then
+    if [ "$SPREAD_BACKEND" = "external" ]; then
+        chown test.test -R "$PROJECT_PATH"
+        exit 0
+    fi
+
+    if [ "$SPREAD_BACKEND" = "testflinger" ]; then
+        if os.query is-core-ge 24; then
+            useradd --uid 12345 --create-home --extrausers test
+        else
+            adduser --uid 12345 --extrausers --quiet --disabled-password --gecos '' test
+        fi
+        echo test:ubuntu | sudo chpasswd
+        echo 'test ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/create-user-test
         chown test.test -R "$PROJECT_PATH"
         exit 0
     fi
@@ -307,6 +327,9 @@ prepare_project() {
     create_test_user
 
     distro_update_package_db
+    # XXX this should be part of the image update in spread-images
+    # remove any packages that are marked for auto removal before running any tests
+    distro_auto_remove_packages
 
     if os.query is-arch-linux; then
         # perform system upgrade on Arch so that we run with most recent kernel
@@ -460,14 +483,16 @@ prepare_project() {
     esac
 
     restart_logind=
-    if [ "$(systemctl --version | awk '/systemd [0-9]+/ { print $2 }')" -lt 246 ]; then
+    local systemd_ver
+    systemd_ver="$(systemctl --version | awk '/systemd [0-9]+/ { print $2 }' | cut -f1 -d"~")"
+    if [ "$systemd_ver" -lt 246 ]; then
         restart_logind=maybe
     fi
 
     install_pkg_dependencies
 
     if [ "$restart_logind" = maybe ]; then
-        if [ "$(systemctl --version | awk '/systemd [0-9]+/ { print $2 }')" -ge 246 ]; then
+        if [ "$systemd_ver" -ge 246 ]; then
             restart_logind=yes
         else
             restart_logind=
@@ -535,7 +560,7 @@ prepare_project() {
 
     # Retry go mod vendor to minimize the number of connection errors during the sync
     for _ in $(seq 10); do
-        if quiet go mod vendor; then
+        if go mod vendor; then
             break
         fi
         sleep 1
@@ -614,7 +639,9 @@ prepare_project_each() {
 prepare_suite() {
     # shellcheck source=tests/lib/prepare.sh
     . "$TESTSLIB"/prepare.sh
-    if os.query is-core; then
+    # os.query cannot be used because first time the suite is prepared, the current system
+    # is classic ubuntu, so it is needed to check the system set in $SPREAD_SYSTEM
+    if is_test_target_core; then
         prepare_ubuntu_core
     else
         prepare_classic
@@ -649,7 +676,7 @@ prepare_suite_each() {
     tests.backup prepare
 
     # save the job which is going to be executed in the system
-    echo -n "$SPREAD_JOB " >> "$RUNTIME_STATE_PATH/runs"
+    echo -n "${SPREAD_JOB:-} " >> "$RUNTIME_STATE_PATH/runs"
 
     # Restart journal log and reset systemd journal cursor.
     systemctl reset-failed systemd-journald.service

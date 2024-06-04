@@ -36,6 +36,7 @@ var Series = "16"
 type OS struct {
 	ID        string   `json:"id"`
 	IDLike    []string `json:"-"`
+	VariantID string   `json:"variant-id,omitempty"`
 	VersionID string   `json:"version-id,omitempty"`
 }
 
@@ -96,6 +97,8 @@ func readOSRelease() OS {
 		case "ID_LIKE":
 			// This is like ID, except it's a space separated list... hooray?
 			osRelease.IDLike = strings.Fields(strings.ToLower(v))
+		case "VARIANT_ID":
+			osRelease.VariantID = v
 		case "VERSION_ID":
 			osRelease.VersionID = v
 		}
@@ -181,6 +184,9 @@ func SystemctlSupportsUserUnits() bool {
 // classic Ubuntu system or a native Ubuntu Core image.
 var OnClassic bool
 
+// OnCoreDesktop states whether the process is running inside a Core Desktop image.
+var OnCoreDesktop bool
+
 // OnTouch states whether the process is running inside a Touch image
 // with a classic (but mostly read-only) filesystem layout.
 // It is a narrowed down variant of OnClassic
@@ -202,6 +208,8 @@ func init() {
 
 	OnClassic = (ReleaseInfo.ID != "ubuntu-core")
 
+	OnCoreDesktop = (ReleaseInfo.ID == "ubuntu-core" && ReleaseInfo.VariantID == "desktop")
+
 	OnTouch = (OnClassic && ReleaseInfo.VariantID == "touch")
 
 	WSLVersion = getWSLVersion()
@@ -214,6 +222,14 @@ func MockOnClassic(onClassic bool) (restore func()) {
 	old := OnClassic
 	OnClassic = onClassic
 	return func() { OnClassic = old }
+}
+
+// MockOnCoreDesktop forces the process to appear inside a core desktop
+// system for testing purposes.
+func MockOnCoreDesktop(onCoreDesktop bool) (restore func()) {
+	old := OnCoreDesktop
+	OnCoreDesktop = onCoreDesktop
+	return func() { OnCoreDesktop = old }
 }
 
 // MockReleaseInfo fakes a given information to appear in ReleaseInfo,

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -22,7 +22,9 @@ package main
 import (
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/seed"
+	"github.com/snapcore/snapd/snap"
 )
 
 type cmdValidateSeed struct {
@@ -45,6 +47,10 @@ func (x *cmdValidateSeed) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
+	// plug/slot sanitization is disabled (no-op) by default at the package
+	// level for "snap" command, for seed package use here however we want
+	// real validation.
+	snap.SanitizePlugsSlots = builtin.SanitizePlugsSlots
 
 	return seed.ValidateFromYaml(string(x.Positionals.SeedYamlPath))
 }

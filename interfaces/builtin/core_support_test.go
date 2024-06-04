@@ -75,10 +75,14 @@ func (s *CoreSupportInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *CoreSupportInterfaceSuite) TestNoSecuritySystems(c *C) {
-	apparmorSpec := &apparmor.Specification{}
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	apparmorSpec := apparmor.NewSpecification(appSet)
 	c.Assert(apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), HasLen, 0)
-	seccompSpec := &seccomp.Specification{}
+	appSet, err = interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	seccompSpec := seccomp.NewSpecification(appSet)
 	c.Assert(seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(seccompSpec.SecurityTags(), HasLen, 0)
 }

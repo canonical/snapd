@@ -23,9 +23,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -47,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/release"
@@ -244,6 +245,8 @@ type testDauthContext struct {
 
 	storeID string
 
+	storeOffline bool
+
 	cloudInfo *auth.CloudInfo
 }
 
@@ -312,6 +315,10 @@ func (dac *testDauthContext) ProxyStoreParams(defaultURL *url.URL) (string, *url
 		return dac.proxyStoreID, dac.proxyStoreURL, nil
 	}
 	return "", defaultURL, nil
+}
+
+func (dac *testDauthContext) StoreOffline() (bool, error) {
+	return dac.storeOffline, nil
 }
 
 func (dac *testDauthContext) CloudInfo() (*auth.CloudInfo, error) {
@@ -467,7 +474,7 @@ func (s *storeTestSuite) TestDoRequestSetsAuth(c *C) {
 	defer response.Body.Close()
 	c.Assert(err, IsNil)
 
-	responseData, err := ioutil.ReadAll(response.Body)
+	responseData, err := io.ReadAll(response.Body)
 	c.Assert(err, IsNil)
 	c.Check(string(responseData), Equals, "response-data")
 }
@@ -503,7 +510,7 @@ func (s *storeTestSuite) TestDoRequestDoesNotSetAuthForLocalOnlyUser(c *C) {
 	defer response.Body.Close()
 	c.Assert(err, IsNil)
 
-	responseData, err := ioutil.ReadAll(response.Body)
+	responseData, err := io.ReadAll(response.Body)
 	c.Assert(err, IsNil)
 	c.Check(string(responseData), Equals, "response-data")
 }
@@ -536,7 +543,7 @@ func (s *storeTestSuite) TestDoRequestAuthNoSerial(c *C) {
 	defer response.Body.Close()
 	c.Assert(err, IsNil)
 
-	responseData, err := ioutil.ReadAll(response.Body)
+	responseData, err := io.ReadAll(response.Body)
 	c.Assert(err, IsNil)
 	c.Check(string(responseData), Equals, "response-data")
 }
@@ -581,7 +588,7 @@ func (s *storeTestSuite) TestDoRequestRefreshesAuth(c *C) {
 	defer response.Body.Close()
 	c.Assert(err, IsNil)
 
-	responseData, err := ioutil.ReadAll(response.Body)
+	responseData, err := io.ReadAll(response.Body)
 	c.Assert(err, IsNil)
 	c.Check(string(responseData), Equals, "response-data")
 	c.Check(refreshDischargeEndpointHit, Equals, true)
@@ -633,7 +640,7 @@ func (s *storeTestSuite) TestEnsureDeviceSession(c *C) {
 			io.WriteString(w, `{"nonce": "1234567890:9876543210"}`)
 		case authSessionPath:
 			// validity of request
-			jsonReq, err := ioutil.ReadAll(r.Body)
+			jsonReq, err := io.ReadAll(r.Body)
 			c.Assert(err, IsNil)
 			var req map[string]string
 			err = json.Unmarshal(jsonReq, &req)
@@ -679,7 +686,7 @@ func (s *storeTestSuite) TestEnsureDeviceSessionSerialisation(c *C) {
 			io.WriteString(w, `{"nonce": "1234567890:9876543210"}`)
 		case authSessionPath:
 			// validity of request
-			jsonReq, err := ioutil.ReadAll(r.Body)
+			jsonReq, err := io.ReadAll(r.Body)
 			c.Assert(err, IsNil)
 			var req map[string]string
 			err = json.Unmarshal(jsonReq, &req)
@@ -767,7 +774,7 @@ func (s *storeTestSuite) TestDoRequestSetsAndRefreshesDeviceAuth(c *C) {
 			io.WriteString(w, `{"nonce": "1234567890:9876543210"}`)
 		case authSessionPath:
 			// validity of request
-			jsonReq, err := ioutil.ReadAll(r.Body)
+			jsonReq, err := io.ReadAll(r.Body)
 			c.Assert(err, IsNil)
 			var req map[string]string
 			err = json.Unmarshal(jsonReq, &req)
@@ -807,7 +814,7 @@ func (s *storeTestSuite) TestDoRequestSetsAndRefreshesDeviceAuth(c *C) {
 	c.Assert(err, IsNil)
 	defer response.Body.Close()
 
-	responseData, err := ioutil.ReadAll(response.Body)
+	responseData, err := io.ReadAll(response.Body)
 	c.Assert(err, IsNil)
 	c.Check(string(responseData), Equals, "response-data")
 	c.Check(deviceSessionRequested, Equals, true)
@@ -858,7 +865,7 @@ func (s *storeTestSuite) TestDoRequestSetsAndRefreshesBothAuths(c *C) {
 			io.WriteString(w, `{"nonce": "1234567890:9876543210"}`)
 		case authSessionPath:
 			// validity of request
-			jsonReq, err := ioutil.ReadAll(r.Body)
+			jsonReq, err := io.ReadAll(r.Body)
 			c.Assert(err, IsNil)
 			var req map[string]string
 			err = json.Unmarshal(jsonReq, &req)
@@ -899,7 +906,7 @@ func (s *storeTestSuite) TestDoRequestSetsAndRefreshesBothAuths(c *C) {
 
 	c.Check(resp.StatusCode, Equals, 200)
 
-	responseData, err := ioutil.ReadAll(resp.Body)
+	responseData, err := io.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
 	c.Check(string(responseData), Equals, "response-data")
 	c.Check(refreshDischargeEndpointHit, Equals, true)
@@ -933,7 +940,7 @@ func (s *storeTestSuite) TestDoRequestSetsExtraHeaders(c *C) {
 	defer response.Body.Close()
 	c.Assert(err, IsNil)
 
-	responseData, err := ioutil.ReadAll(response.Body)
+	responseData, err := io.ReadAll(response.Body)
 	c.Assert(err, IsNil)
 	c.Check(string(responseData), Equals, "response-data")
 }
@@ -2531,6 +2538,9 @@ func (s *storeTestSuite) testSnapCommands(c *C, onClassic bool) {
 	sto := store.New(&store.Config{StoreBaseURL: serverURL}, dauthCtx)
 
 	db, err := advisor.Create()
+	if errors.Is(err, advisor.ErrNotSupported) {
+		c.Skip("bolt support is disabled")
+	}
 	c.Assert(err, IsNil)
 	defer db.Rollback()
 
@@ -2576,6 +2586,9 @@ func (s *storeTestSuite) TestSnapCommandsTooMany(c *C) {
 	sto := store.New(&store.Config{StoreBaseURL: serverURL}, dauthCtx)
 
 	db, err := advisor.Create()
+	if errors.Is(err, advisor.ErrNotSupported) {
+		c.Skip("bolt support is disabled")
+	}
 	c.Assert(err, IsNil)
 	defer db.Rollback()
 
@@ -3994,7 +4007,7 @@ func (s *storeTestSuite) TestBuy(c *C) {
 				c.Check(r.Header.Get("Accept"), Equals, store.JsonContentType)
 				c.Check(r.Header.Get("Content-Type"), Equals, store.JsonContentType)
 				c.Check(r.URL.Path, Equals, buyPath)
-				jsonReq, err := ioutil.ReadAll(r.Body)
+				jsonReq, err := io.ReadAll(r.Body)
 				c.Assert(err, IsNil)
 				c.Check(string(jsonReq), Equals, test.expectedInput)
 				if test.buyErrorCode == "" {
@@ -4406,4 +4419,76 @@ func (s *storeTestSuite) TestCreateCohort(c *C) {
 	c.Assert(cohorts, DeepEquals, map[string]string{
 		"potato": "U3VwZXIgc2VjcmV0IHN0dWZmIGVuY3J5cHRlZCBoZXJlLg==",
 	})
+}
+
+func (s *storeTestSuite) TestStoreNoAccess(c *C) {
+	nowhereURL, err := url.Parse("http://nowhere.invalid")
+	c.Assert(err, IsNil)
+
+	dauthCtx := &testDauthContext{storeOffline: true, device: &auth.DeviceState{
+		Serial: "serial",
+	}}
+
+	sto := store.New(&store.Config{
+		StoreBaseURL: nowhereURL,
+	}, dauthCtx)
+
+	_, err = sto.Categories(s.ctx, s.user)
+	c.Check(err, testutil.ErrorIs, store.ErrStoreOffline)
+
+	_, err = sto.ConnectivityCheck()
+	c.Check(err, testutil.ErrorIs, store.ErrStoreOffline)
+
+	_, err = sto.CreateCohorts(s.ctx, nil)
+	c.Check(err, testutil.ErrorIs, store.ErrStoreOffline)
+
+	err = sto.Download(s.ctx, "name", c.MkDir(), nil, nil, s.user, nil)
+	c.Check(err, testutil.ErrorIs, store.ErrStoreOffline)
+
+	err = sto.DownloadAssertions([]string{nowhereURL.String()}, nil, s.user)
+	c.Check(err, testutil.ErrorIs, store.ErrStoreOffline)
+
+	_, _, err = sto.DownloadStream(s.ctx, "name", nil, 0, s.user)
+	c.Check(err, testutil.ErrorIs, store.ErrStoreOffline)
+
+	err = sto.EnsureDeviceSession()
+	c.Check(err, testutil.ErrorIs, store.ErrStoreOffline)
+
+	_, err = sto.Find(s.ctx, &store.Search{Query: "foo", Private: true}, s.user)
+	c.Check(err, testutil.ErrorIs, store.ErrStoreOffline)
+
+	_, _, err = sto.LoginUser("username", "password", "otp")
+	c.Check(err, testutil.ErrorIs, store.ErrStoreOffline)
+
+	err = sto.ReadyToBuy(s.user)
+	c.Check(err, testutil.ErrorIs, store.ErrStoreOffline)
+
+	_, err = sto.Sections(s.ctx, s.user)
+	c.Check(err, testutil.ErrorIs, store.ErrStoreOffline)
+
+	_, err = sto.SeqFormingAssertion(asserts.RepairType, nil, 0, s.user)
+	c.Check(err, testutil.ErrorIs, store.ErrStoreOffline)
+
+	_, _, err = sto.SnapExists(s.ctx, store.SnapSpec{Name: "snap"}, s.user)
+	c.Check(err, testutil.ErrorIs, store.ErrStoreOffline)
+
+	_, _, err = sto.SnapAction(s.ctx, nil, []*store.SnapAction{{
+		Action:       "download",
+		InstanceName: "example",
+		Channel:      "stable",
+	}}, nil, s.user, nil)
+	c.Check(err, testutil.ErrorIs, store.ErrStoreOffline)
+
+	_, err = sto.SnapInfo(s.ctx, store.SnapSpec{Name: "snap"}, s.user)
+	c.Check(err, testutil.ErrorIs, store.ErrStoreOffline)
+
+	_, err = sto.UserInfo("me@example.com")
+	c.Check(err, testutil.ErrorIs, store.ErrStoreOffline)
+
+	err = sto.WriteCatalogs(s.ctx, io.Discard, nil)
+	c.Check(err, testutil.ErrorIs, store.ErrStoreOffline)
+}
+
+func (s *storeTestSuite) TestStoreNoRetryStoreOffline(c *C) {
+	c.Assert(httputil.ShouldRetryError(store.ErrStoreOffline), Equals, false)
 }

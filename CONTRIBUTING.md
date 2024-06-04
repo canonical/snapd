@@ -21,11 +21,11 @@ Contributors can help us by observing the following guidelines:
 
 - Commit messages should be well structured.
 - Commit emails should not include non-ASCII characters.
-- Try to open several smaller PRs, rather than one large PR.
+- Several smaller PRs are better than one large PR.
 - Try not to mix potentially controversial and trivial changes together.
   (Proposing trivial changes separately makes landing them easier and 
   makes reviewing controversial changes simpler)
-- Try not to [force push][git-force] to a PR after it has received reviews. It is
+- Do not [force push][git-force] a PR after it has received reviews. It is
   acceptable to force push when a PR is ready to merge, however.
 - Try to write tests to cover the contributed changes (see below)
 
@@ -102,14 +102,12 @@ The following labels are commonly used:
   * For internal documentation in this repository, it's expected that 
     documentation changes are delivered in the same branch.
     Please don't abuse this tag.
-- `need-architecture-review`: is added to request a quick high-level green
-  light about a chosen approach before continuing the implementation. Also, use
-  a [draft PR][github-draft] to avoid the risk of other reviewers wasting time
-  on something that has not been agreed upon.
 - `Needs Samuele review`: Samuele (@pedronis) is our architect, and this label
   will summon his attention. Do not use it unless you want @pedronis to review
   your branch. If making big or deep changes, then ping Samuele in advance. The
-  tag will then be added if necessary.
+  tag will then be added if necessary. When requesting a quick high-level green
+  light about a chosen approach use a [draft PR][github-draft] to avoid the risk
+  of other reviewers wasting time on something that has not been agreed upon.
 - `Needs security review`: similar to above, but with a security focus. If your
   changes touch code in snap-confine or code related to AppArmor, Seccomp,
   Cgroup management, then someone from the security team will be alerted and
@@ -142,20 +140,27 @@ review all the changes.
 
 Two approvals are required for a PR to be merged. A PR can then be merged into the main branch.
 
-On merging, you can rework the branch history as you see fit. Consider
+After approval, you can rework the branch history as you see fit. Consider
 squashing commits from the original PR with those made during the review
-process, for example. A [force push][git-force] will be required if you do
-this.
+process, for example. Commit messages should follow the format described in
+[CODING.md](CODING.md). A [force push][git-force] will be required if you
+rework the history.
 
 Start a [rebase][github-rebase] from the original parent commit of your first
 commit. Ensure you do not rebase on top of the current main as this means
 changes from the _main_ branch will be shown in the GitHub UI as part of your
 changes, making the verification more confusing.
 
-Merging using GitHub's [Rebase and merge][github-rebase-merge] command will
-replay your commits on top of the current main. This ensures a linear git
-history.
-
+Merge using Github's [Squash and Merge][github-squash-merge] or [Rebase and merge][github-rebase-merge],
+never [Create a merge commit][github-merge-commit].
+* [Squash and Merge][github-squash-merge] is preferred because it simplifies cherry-picking of PR
+content.
+  * Also for single commits
+  * This merge will use the title as commit message so double check that it is accurate and concise
+* [Rebase and merge][github-rebase-merge] is required when it is important to be able to distinguish
+different parts of a solution in the future.
+  * Keep commits to a minimum
+  * Squash uninteresting commits such as review improvements after review approval
 
 [1]: http://www.ubuntu.com/legal/contributors
 [pull-request]: https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/creating-a-pull-request-from-a-fork
@@ -170,3 +175,5 @@ history.
 [github-rebase]: https://docs.github.com/en/get-started/using-git/about-git-rebase
 [git-force]: https://git-scm.com/docs/git-push#Documentation/git-push.txt---force
 [github-rebase-merge]: https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/incorporating-changes-from-a-pull-request/about-pull-request-merges#rebase-and-merge-your-commits
+[github-squash-merge]: https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/incorporating-changes-from-a-pull-request/about-pull-request-merges#squash-and-merge-your-commits
+[github-merge-commit]: https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/incorporating-changes-from-a-pull-request/about-pull-request-merges#merge-your-commits

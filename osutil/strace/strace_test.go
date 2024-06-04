@@ -20,7 +20,6 @@
 package strace_test
 
 import (
-	"io/ioutil"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -74,6 +73,30 @@ func (s *straceSuite) TestStraceCommandHappy(c *C) {
 	})
 }
 
+func (s *straceSuite) TestStraceCommandHappyFromSnap(c *C) {
+	u, err := user.Current()
+	c.Assert(err, IsNil)
+
+	straceStaticPath := filepath.Join(dirs.SnapMountDir, "strace-static", "current", "bin", "strace")
+	err = os.MkdirAll(filepath.Dir(straceStaticPath), 0755)
+	c.Assert(err, IsNil)
+	mockStraceStatic := testutil.MockCommand(c, straceStaticPath, "")
+	defer mockStraceStatic.Restore()
+
+	cmd, err := strace.Command(nil, "foo")
+	c.Assert(err, IsNil)
+	c.Check(cmd.Path, Equals, s.mockSudo.Exe())
+	c.Check(cmd.Args, DeepEquals, []string{
+		s.mockSudo.Exe(), "-E",
+		mockStraceStatic.Exe(),
+		"-u", u.Uid + ":" + u.Gid,
+		"-f",
+		"-e", strace.ExcludedSyscalls,
+		// the command
+		"foo",
+	})
+}
+
 func (s *straceSuite) TestStraceCommandNoSudo(c *C) {
 	origPath := os.Getenv("PATH")
 	defer func() { os.Setenv("PATH", origPath) }()
@@ -89,7 +112,7 @@ func (s *straceSuite) TestStraceCommandNoStrace(c *C) {
 
 	tmp := c.MkDir()
 	os.Setenv("PATH", tmp)
-	err := ioutil.WriteFile(filepath.Join(tmp, "sudo"), nil, 0755)
+	err := os.WriteFile(filepath.Join(tmp, "sudo"), nil, 0755)
 	c.Assert(err, IsNil)
 
 	_, err = strace.Command(nil, "foo")

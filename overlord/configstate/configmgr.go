@@ -1,6 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 //go:build !nomanagers
-// +build !nomanagers
 
 /*
  * Copyright (C) 2016-2017 Canonical Ltd
@@ -24,6 +23,8 @@ package configstate
 import (
 	"regexp"
 
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -43,6 +44,16 @@ func MockConfigcoreRun(f func(sysconfig.Device, configcore.RunTransaction) error
 
 func Init(st *state.State, hookManager *hookstate.HookManager) error {
 	delayedCrossMgrInit()
+
+	// Retrieve home directories
+	st.Lock()
+	defer st.Unlock()
+	tr := config.NewTransaction(st)
+	var homedirs string
+	if err := tr.GetMaybe("core", "homedirs", &homedirs); err != nil {
+		return err
+	}
+	dirs.SetSnapHomeDirs(homedirs)
 
 	// Default configuration is handled via the "default-configure" hook
 	hookManager.Register(regexp.MustCompile("^default-configure$"), newDefaultConfigureHandler)

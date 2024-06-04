@@ -20,22 +20,21 @@
 package gadget_test
 
 import (
-	"io/ioutil"
+	"fmt"
+	"os"
 
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/quantity"
-	"github.com/snapcore/snapd/secboot"
 	. "gopkg.in/check.v1"
 )
 
-func (s *gadgetYamlTestSuite) newCleanLovs(c *C) map[string]*gadget.LaidOutVolume {
-	_, lovs, err := gadget.LaidOutVolumesFromGadget(
-		s.dir, "", uc20Mod, secboot.EncryptionTypeNone)
+func (s *gadgetYamlTestSuite) readGadgetVols(c *C) map[string]*gadget.Volume {
+	info, err := gadget.ReadInfoAndValidate(s.dir, uc20Mod, nil)
 	c.Assert(err, IsNil)
-	return lovs
+	return info.Volumes
 }
 
-func (s *gadgetYamlTestSuite) TestApplyInstallerVolumesToGadgetPartialSchema(c *C) {
+func (s *gadgetYamlTestSuite) TestApplyInstallerVolumesToGadgetDeviceAndPartialSchema(c *C) {
 	var yaml = []byte(`
 volumes:
   vol0:
@@ -61,32 +60,55 @@ volumes:
         type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
         role: system-data
 `)
-	err := ioutil.WriteFile(s.gadgetYamlPath, yaml, 0644)
+	err := os.WriteFile(s.gadgetYamlPath, yaml, 0644)
 	c.Assert(err, IsNil)
 
 	installerVols := map[string]*gadget.Volume{
 		"vol0": {
 			Name:   "vol0",
 			Schema: "gpt",
+			Structure: []gadget.VolumeStructure{
+				{
+					Name:   "ubuntu-seed",
+					Device: "/dev/vda1",
+				},
+				{
+					Name:   "ubuntu-boot",
+					Device: "/dev/vda2",
+				},
+				{
+					Name:   "ubuntu-save",
+					Device: "/dev/vda3",
+				},
+				{
+					Name:   "ubuntu-data",
+					Device: "/dev/vda4",
+				},
+			},
 		},
 	}
 
-	// New schema is set
-	lovs := s.newCleanLovs(c)
-	err = gadget.ApplyInstallerVolumesToGadget(installerVols, lovs)
+	// New schema and devices are set
+	gVols := s.readGadgetVols(c)
+	mergedVols, err := gadget.ApplyInstallerVolumesToGadget(installerVols, gVols)
 	c.Assert(err, IsNil)
-	c.Assert(lovs["vol0"].Schema, Equals, "gpt")
+	c.Assert(mergedVols["vol0"].Schema, Equals, "gpt")
+	for i, vs := range mergedVols["vol0"].Structure {
+		c.Assert(vs.Device, Equals, fmt.Sprintf("/dev/vda%d", i+1))
+	}
 
 	// Invalid schema is detected
 	installerVols["vol0"].Schema = "nextbigthing"
-	err = gadget.ApplyInstallerVolumesToGadget(installerVols, s.newCleanLovs(c))
+	mergedVols, err = gadget.ApplyInstallerVolumesToGadget(installerVols, gVols)
 	c.Assert(err.Error(), Equals,
 		`finalized volume "vol0" is wrong: invalid schema "nextbigthing"`)
+	c.Assert(mergedVols, IsNil)
 
 	// No schema set case
 	installerVols["vol0"].Schema = ""
-	err = gadget.ApplyInstallerVolumesToGadget(installerVols, s.newCleanLovs(c))
+	mergedVols, err = gadget.ApplyInstallerVolumesToGadget(installerVols, gVols)
 	c.Assert(err.Error(), Equals, `installer did not provide schema for volume "vol0"`)
+	c.Assert(mergedVols, IsNil)
 }
 
 func (s *gadgetYamlTestSuite) TestApplyInstallerVolumesToGadgetPartialFilesystem(c *C) {
@@ -114,7 +136,7 @@ volumes:
         type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
         role: system-data
 `)
-	err := ioutil.WriteFile(s.gadgetYamlPath, yaml, 0644)
+	err := os.WriteFile(s.gadgetYamlPath, yaml, 0644)
 	c.Assert(err, IsNil)
 
 	installerVols := map[string]*gadget.Volume{
@@ -141,20 +163,22 @@ volumes:
 		},
 	}
 
-	lovs := s.newCleanLovs(c)
-	err = gadget.ApplyInstallerVolumesToGadget(installerVols, lovs)
+	gVols := s.readGadgetVols(c)
+	mergedVols, err := gadget.ApplyInstallerVolumesToGadget(installerVols, gVols)
 	c.Assert(err, IsNil)
-	c.Assert(lovs["vol0"].Structure[0].Filesystem, Equals, "vfat")
-	c.Assert(lovs["vol0"].Structure[2].Filesystem, Equals, "ext4")
-	c.Assert(lovs["vol0"].Structure[3].Filesystem, Equals, "ext4")
+	c.Assert(mergedVols["vol0"].Structure[0].Filesystem, Equals, "vfat")
+	c.Assert(mergedVols["vol0"].Structure[2].Filesystem, Equals, "ext4")
+	c.Assert(mergedVols["vol0"].Structure[3].Filesystem, Equals, "ext4")
 
 	installerVols["vol0"].Structure[0].Filesystem = ""
-	err = gadget.ApplyInstallerVolumesToGadget(installerVols, s.newCleanLovs(c))
+	mergedVols, err = gadget.ApplyInstallerVolumesToGadget(installerVols, gVols)
 	c.Assert(err.Error(), Equals, `installer did not provide filesystem for structure "ubuntu-seed" in volume "vol0"`)
+	c.Assert(mergedVols, IsNil)
 
 	installerVols["vol0"].Structure[0].Filesystem = "ext44"
-	err = gadget.ApplyInstallerVolumesToGadget(installerVols, s.newCleanLovs(c))
+	mergedVols, err = gadget.ApplyInstallerVolumesToGadget(installerVols, gVols)
 	c.Assert(err.Error(), Equals, `finalized volume "vol0" is wrong: invalid structure #0 ("ubuntu-seed"): invalid filesystem "ext44"`)
+	c.Assert(mergedVols, IsNil)
 }
 
 func (s *gadgetYamlTestSuite) TestApplyInstallerVolumesToGadgetPartialSize(c *C) {
@@ -185,7 +209,7 @@ volumes:
         type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
         role: system-data
 `)
-	err := ioutil.WriteFile(s.gadgetYamlPath, yaml, 0644)
+	err := os.WriteFile(s.gadgetYamlPath, yaml, 0644)
 	c.Assert(err, IsNil)
 
 	installerVols := map[string]*gadget.Volume{
@@ -213,26 +237,29 @@ volumes:
 		},
 	}
 
-	lovs := s.newCleanLovs(c)
-	err = gadget.ApplyInstallerVolumesToGadget(installerVols, lovs)
+	gVols := s.readGadgetVols(c)
+	mergedVols, err := gadget.ApplyInstallerVolumesToGadget(installerVols, gVols)
 	c.Assert(err, IsNil)
-	c.Assert(*lovs["vol0"].Structure[2].Offset, Equals, 1001*quantity.OffsetMiB)
-	c.Assert(*lovs["vol0"].Structure[3].Offset, Equals, 1003*quantity.OffsetMiB)
-	c.Assert(lovs["vol0"].Structure[2].Size, Equals, 2*quantity.SizeMiB)
-	c.Assert(lovs["vol0"].Structure[3].Size, Equals, 2000*quantity.SizeMiB)
+	c.Assert(*mergedVols["vol0"].Structure[2].Offset, Equals, 1001*quantity.OffsetMiB)
+	c.Assert(*mergedVols["vol0"].Structure[3].Offset, Equals, 1003*quantity.OffsetMiB)
+	c.Assert(mergedVols["vol0"].Structure[2].Size, Equals, 2*quantity.SizeMiB)
+	c.Assert(mergedVols["vol0"].Structure[3].Size, Equals, 2000*quantity.SizeMiB)
 
 	installerVols["vol0"].Structure[2].Offset = nil
-	err = gadget.ApplyInstallerVolumesToGadget(installerVols, s.newCleanLovs(c))
+	mergedVols, err = gadget.ApplyInstallerVolumesToGadget(installerVols, gVols)
 	c.Assert(err.Error(), Equals, `installer did not provide offset for structure "ubuntu-save" in volume "vol0"`)
+	c.Assert(mergedVols, IsNil)
 
 	installerVols["vol0"].Structure[2].Offset = asOffsetPtr(1001 * quantity.OffsetMiB)
 	installerVols["vol0"].Structure[2].Size = 0
-	err = gadget.ApplyInstallerVolumesToGadget(installerVols, s.newCleanLovs(c))
+	mergedVols, err = gadget.ApplyInstallerVolumesToGadget(installerVols, gVols)
 	c.Assert(err.Error(), Equals, `installer did not provide size for structure "ubuntu-save" in volume "vol0"`)
+	c.Assert(mergedVols, IsNil)
 
 	installerVols["vol0"].Structure[2].Size = 500 * quantity.SizeKiB
-	err = gadget.ApplyInstallerVolumesToGadget(installerVols, s.newCleanLovs(c))
+	mergedVols, err = gadget.ApplyInstallerVolumesToGadget(installerVols, gVols)
 	c.Assert(err.Error(), Equals, `finalized volume "vol0" is wrong: invalid structure #2 ("ubuntu-save"): min-size (1048576) is bigger than size (512000)`)
+	c.Assert(mergedVols, IsNil)
 }
 
 func (s *gadgetYamlTestSuite) TestApplyInstallerVolumesToGadgetBadInstallerVol(c *C) {
@@ -260,7 +287,7 @@ volumes:
         type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
         role: system-data
 `)
-	err := ioutil.WriteFile(s.gadgetYamlPath, yaml, 0644)
+	err := os.WriteFile(s.gadgetYamlPath, yaml, 0644)
 	c.Assert(err, IsNil)
 
 	installerVols := map[string]*gadget.Volume{
@@ -269,8 +296,10 @@ volumes:
 			Schema: "gpt",
 		},
 	}
-	err = gadget.ApplyInstallerVolumesToGadget(installerVols, s.newCleanLovs(c))
+	gVols := s.readGadgetVols(c)
+	mergedVols, err := gadget.ApplyInstallerVolumesToGadget(installerVols, gVols)
 	c.Assert(err.Error(), Equals, `installer did not provide information for volume "vol0"`)
+	c.Assert(mergedVols, IsNil)
 
 	installerVols = map[string]*gadget.Volume{
 		"vol0": {
@@ -278,6 +307,7 @@ volumes:
 			Schema: "gpt",
 		},
 	}
-	err = gadget.ApplyInstallerVolumesToGadget(installerVols, s.newCleanLovs(c))
+	mergedVols, err = gadget.ApplyInstallerVolumesToGadget(installerVols, gVols)
 	c.Assert(err.Error(), Equals, `cannot find structure "ubuntu-seed"`)
+	c.Assert(mergedVols, IsNil)
 }

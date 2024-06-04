@@ -56,3 +56,15 @@ func MockDevicestateInstallSetupStorageEncryption(f func(*state.State, string, m
 	devicestateInstallSetupStorageEncryption = f
 	return restore
 }
+
+func MockDevicestateCreateRecoverySystem(f func(*state.State, string, devicestate.CreateRecoverySystemOptions) (*state.Change, error)) (restore func()) {
+	restore = testutil.Backup(&devicestateCreateRecoverySystem)
+	devicestateCreateRecoverySystem = f
+	return restore
+}
+
+func MockDevicestateRemoveRecoverySystem(f func(*state.State, string) (*state.Change, error)) (restore func()) {
+	restore = testutil.Backup(&devicestateRemoveRecoverySystem)
+	devicestateRemoveRecoverySystem = f
+	return restore
+}

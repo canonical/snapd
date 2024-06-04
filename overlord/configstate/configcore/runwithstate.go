@@ -1,6 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 //go:build !nomanagers
-// +build !nomanagers
 
 /*
  * Copyright (C) 2020-2022 Canonical Ltd
@@ -67,6 +66,12 @@ func init() {
 
 	// kernel.{,dangerous-}cmdline-append
 	addWithStateHandler(validateCmdlineAppend, handleCmdlineAppend, &flags{modeenvOnlyConfig: true})
+
+	// debug.snapd.log
+	addWithStateHandler(validateDebugSnapdLogSetting, handleDebugSnapdLogConfiguration, nil)
+
+	// debug.systemd.log-level
+	addWithStateHandler(validateDebugSystemdLogLevelSetting, handleDebugSystemdLogLevelConfiguration, coreOnly)
 }
 
 // RunTransaction is an interface describing how to access

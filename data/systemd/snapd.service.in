@@ -17,9 +17,13 @@ OnFailure=snapd.failure.service
 OOMScoreAdjust=-900
 ExecStart=@libexecdir@/snapd/snapd
 EnvironmentFile=-@SNAPD_ENVIRONMENT_FILE@
+EnvironmentFile=-/var/lib/snapd/environment/snapd.conf
 Restart=always
+# with systemd v254+, skip going through failed state during restart
+RestartMode=direct
 WatchdogSec=5m
 Type=notify
+NotifyAccess=all
 SuccessExitStatus=42
 RestartPreventExitStatus=42
 KillMode=process

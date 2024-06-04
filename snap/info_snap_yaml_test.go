@@ -22,6 +22,7 @@ package snap_test
 import (
 	"fmt"
 	"regexp"
+	"sort"
 	"testing"
 	"time"
 
@@ -140,6 +141,7 @@ plugs:
 		Snap:      info,
 		Name:      "network-client",
 		Interface: "network-client",
+		Unscoped:  true,
 	})
 }
 
@@ -158,6 +160,7 @@ plugs:
 		Snap:      info,
 		Name:      "net",
 		Interface: "network-client",
+		Unscoped:  true,
 	})
 }
 
@@ -177,6 +180,7 @@ plugs:
 		Snap:      info,
 		Name:      "net",
 		Interface: "network-client",
+		Unscoped:  true,
 	})
 }
 
@@ -198,6 +202,7 @@ plugs:
 		Name:      "net",
 		Interface: "network-client",
 		Attrs:     map[string]interface{}{"ipv6-aware": true},
+		Unscoped:  true,
 	})
 }
 
@@ -227,6 +232,7 @@ plugs:
 			"l": []interface{}{int64(1), int64(2), int64(3)},
 			"m": map[string]interface{}{"a": "A", "b": "B"},
 		},
+		Unscoped: true,
 	})
 }
 
@@ -251,6 +257,7 @@ plugs:
 		Name:      "net",
 		Interface: "network-client",
 		Attrs:     map[string]interface{}{"attr": int64(2)},
+		Unscoped:  true,
 	})
 }
 
@@ -276,6 +283,7 @@ apps:
 		Name:      "network-client",
 		Interface: "network-client",
 		Apps:      map[string]*snap.AppInfo{app.Name: app},
+		Unscoped:  true,
 	})
 	c.Assert(app, DeepEquals, &snap.AppInfo{
 		Snap:  info,
@@ -398,6 +406,7 @@ plugs:
 		Name:      "network-client",
 		Interface: "network-client",
 		Attrs:     map[string]interface{}{"ipv6-aware": true},
+		Unscoped:  true,
 	})
 }
 
@@ -419,6 +428,7 @@ plugs:
 		Name:      "bool-file",
 		Interface: "bool-file",
 		Label:     "Disk I/O indicator",
+		Unscoped:  true,
 	})
 }
 
@@ -532,6 +542,7 @@ slots:
 		Snap:      info,
 		Name:      "network-client",
 		Interface: "network-client",
+		Unscoped:  true,
 	})
 }
 
@@ -550,6 +561,7 @@ slots:
 		Snap:      info,
 		Name:      "net",
 		Interface: "network-client",
+		Unscoped:  true,
 	})
 }
 
@@ -569,6 +581,7 @@ slots:
 		Snap:      info,
 		Name:      "net",
 		Interface: "network-client",
+		Unscoped:  true,
 	})
 }
 
@@ -590,6 +603,7 @@ slots:
 		Name:      "net",
 		Interface: "network-client",
 		Attrs:     map[string]interface{}{"ipv6-aware": true},
+		Unscoped:  true,
 	})
 }
 
@@ -618,6 +632,7 @@ slots:
 			"l": []interface{}{int64(1), int64(2)},
 			"m": map[string]interface{}{"a": "A"},
 		},
+		Unscoped: true,
 	})
 }
 
@@ -642,6 +657,7 @@ slots:
 		Name:      "net",
 		Interface: "network-client",
 		Attrs:     map[string]interface{}{"attr": int64(2)},
+		Unscoped:  true,
 	})
 }
 
@@ -666,6 +682,7 @@ apps:
 		Name:      "network-client",
 		Interface: "network-client",
 		Apps:      map[string]*snap.AppInfo{app.Name: app},
+		Unscoped:  true,
 	})
 	c.Assert(app, DeepEquals, &snap.AppInfo{
 		Snap:  info,
@@ -750,6 +767,7 @@ slots:
 		Name:      "network-client",
 		Interface: "network-client",
 		Attrs:     map[string]interface{}{"ipv6-aware": true},
+		Unscoped:  true,
 	})
 }
 
@@ -772,6 +790,7 @@ slots:
 		Name:      "led0",
 		Interface: "bool-file",
 		Label:     "Front panel LED (red)",
+		Unscoped:  true,
 	})
 }
 
@@ -800,7 +819,7 @@ hooks:
 		Snap:      info,
 		Name:      "test-slot",
 		Interface: "test-slot",
-		Hooks:     map[string]*snap.HookInfo{hook.Name: hook},
+		Unscoped:  true,
 	})
 	c.Check(hook, DeepEquals, &snap.HookInfo{
 		Snap:  info,
@@ -835,7 +854,6 @@ hooks:
 		Snap:      info,
 		Name:      "test-slot",
 		Interface: "test-slot",
-		Hooks:     map[string]*snap.HookInfo{hook.Name: hook},
 	})
 	c.Check(hook, DeepEquals, &snap.HookInfo{
 		Snap:  info,
@@ -1025,7 +1043,6 @@ hooks:
 		Snap:      info,
 		Name:      "test-plug",
 		Interface: "test-plug",
-		Hooks:     map[string]*snap.HookInfo{hook.Name: hook},
 	})
 	c.Check(hook, DeepEquals, &snap.HookInfo{
 		Snap:  info,
@@ -1061,7 +1078,7 @@ hooks:
 		Snap:      info,
 		Name:      "test-plug",
 		Interface: "test-plug",
-		Hooks:     map[string]*snap.HookInfo{hook.Name: hook},
+		Unscoped:  true,
 	})
 	c.Check(hook, DeepEquals, &snap.HookInfo{
 		Snap:  info,
@@ -1097,7 +1114,6 @@ hooks:
 		Snap:      info,
 		Name:      "test-plug",
 		Interface: "test-plug",
-		Hooks:     map[string]*snap.HookInfo{withPlugHook.Name: withPlugHook},
 	})
 	c.Assert(withPlugHook, DeepEquals, &snap.HookInfo{
 		Snap:  info,
@@ -1141,7 +1157,6 @@ hooks:
 		Snap:      info,
 		Name:      "test-plug",
 		Interface: "test-interface",
-		Hooks:     map[string]*snap.HookInfo{hook.Name: hook},
 	})
 	c.Check(hook, DeepEquals, &snap.HookInfo{
 		Snap:  info,
@@ -1179,7 +1194,6 @@ apps:
 		Name:      "test-plug",
 		Interface: "test-plug",
 		Apps:      map[string]*snap.AppInfo{},
-		Hooks:     map[string]*snap.HookInfo{hook.Name: hook},
 	})
 	c.Assert(hook, DeepEquals, &snap.HookInfo{
 		Snap:  info,
@@ -2159,4 +2173,190 @@ links:
 		_, err := snap.InfoFromSnapYaml([]byte(fmt.Sprintf(yLinks, k)))
 		c.Check(err, ErrorMatches, fmt.Sprintf(`links key is invalid: %s`, k))
 	}
+}
+
+func (s *YamlSuite) TestUnmarshalComponents(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+components:
+  test1:
+    type: test
+    summary: test component
+    description: long component description
+  test2:
+    type: test
+    summary: test component 2
+    description: long component description 2
+`))
+	c.Assert(err, IsNil)
+	c.Check(info.InstanceName(), Equals, "snap")
+	c.Check(info.Components, DeepEquals, map[string]*snap.Component{
+		"test1": {
+			Type:        "test",
+			Summary:     "test component",
+			Description: "long component description",
+			Name:        "test1",
+		},
+		"test2": {
+			Type:        "test",
+			Summary:     "test component 2",
+			Description: "long component description 2",
+			Name:        "test2",
+		},
+	})
+}
+
+func (s *YamlSuite) TestUnmarshalComponentsHook(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+components:
+  test1:
+    type: test
+    summary: test component
+    description: long component description
+    hooks:
+      install:
+        plugs: [network]
+        command-chain: [chain1, chain2]
+        environment:
+          k1: v1
+          k2: v2
+`))
+	c.Assert(err, IsNil)
+	c.Check(info.InstanceName(), Equals, "snap")
+
+	component := info.Components["test1"]
+	c.Assert(component, NotNil)
+
+	hook := component.ExplicitHooks["install"]
+	c.Assert(hook, NotNil)
+	c.Check(hook.CommandChain, DeepEquals, []string{"chain1", "chain2"})
+	c.Check(hook.Environment, DeepEquals, *strutil.NewOrderedMap("k1", "v1", "k2", "v2"))
+}
+
+func (s *YamlSuite) TestUnmarshalComponentsHooksWithPlugs(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+components:
+  test1:
+    type: test
+    summary: test component
+    description: long component description
+    hooks:
+      install:
+        plugs: [network, network-bind]
+      pre-refresh:
+        plugs: [test-plug]
+      post-refresh:
+      remove:
+  test2:
+    hooks:
+      pre-refresh:
+        plugs: [test-plug, test2-plug]
+plugs:
+  network-client:
+`))
+	c.Assert(err, IsNil)
+	c.Check(info.InstanceName(), Equals, "snap")
+
+	type hook struct {
+		plugs []string
+	}
+
+	type component struct {
+		hooks map[string]hook
+	}
+
+	expectedComponents := map[string]component{
+		"test1": {
+			hooks: map[string]hook{
+				"install": {
+					plugs: []string{"network", "network-bind", "network-client"},
+				},
+				"pre-refresh": {
+					plugs: []string{"network-client", "test-plug"},
+				},
+				"post-refresh": {
+					plugs: []string{"network-client"},
+				},
+				"remove": {
+					plugs: []string{"network-client"},
+				},
+			},
+		},
+		"test2": {
+			hooks: map[string]hook{
+				"pre-refresh": {
+					plugs: []string{"network-client", "test-plug", "test2-plug"},
+				},
+			},
+		},
+	}
+
+	foundComponents := make(map[string]component, len(info.Components))
+	for _, foundComponent := range info.Components {
+		foundHooks := make(map[string]hook)
+		for _, foundHook := range foundComponent.ExplicitHooks {
+			c.Check(foundHook.Explicit, Equals, true)
+
+			foundPlugs := make([]string, 0, len(foundHook.Plugs))
+			for _, foundPlug := range foundHook.Plugs {
+				foundPlugs = append(foundPlugs, foundPlug.Name)
+			}
+
+			sort.Strings(foundPlugs)
+
+			foundHooks[foundHook.Name] = hook{
+				plugs: foundPlugs,
+			}
+		}
+
+		foundComponents[foundComponent.Name] = component{
+			hooks: foundHooks,
+		}
+	}
+
+	c.Check(foundComponents, DeepEquals, expectedComponents)
+}
+
+func (s *YamlSuite) TestUnmarshalComponentsHooksUnsupported(c *C) {
+	_, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+components:
+  test1:
+    type: test
+    summary: test component
+    description: long component description
+    hooks:
+      unsupported:
+        plugs: [plug-for-unsupported]
+plugs:
+  network-client:
+`))
+	c.Assert(err, ErrorMatches, `unsupported component hook: "unsupported"`)
+}
+
+func (s *YamlSuite) TestUnmarshalComponentsError(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+components:
+  test1:
+    type: badtype
+`))
+	c.Assert(err.Error(), Equals, `cannot parse snap.yaml: unknown component type "badtype"`)
+	c.Assert(info, IsNil)
+}
+
+func (s *YamlSuite) TestUnmarshalComponentsHookSlotsError(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+components:
+  test1:
+    type: test
+    hooks:
+      install:
+        slots: [slot-for-install]
+`))
+	c.Assert(err.Error(), Equals, `component hooks cannot have slots`)
+	c.Assert(info, IsNil)
 }

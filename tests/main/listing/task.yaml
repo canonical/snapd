@@ -1,5 +1,8 @@
 summary: Check snap listings
 
+details: |
+    Check the output of command `snap list` is the expected based on the current systems
+
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
 
@@ -32,12 +35,12 @@ execute: |
     NOTES=core
 
     #shellcheck disable=SC2166
-    if [ "$SPREAD_BACKEND" = "google" -o "$SPREAD_BACKEND" == "qemu" ] && [ "$SPREAD_SYSTEM" = "ubuntu-core-16-64" ]; then
+    if [[ "$SPREAD_BACKEND" =~ google ]] || [ "$SPREAD_BACKEND" == "qemu" ] && os.query is-core16; then
         echo "With customized images the core snap is sideloaded"
         REV=$SIDELOAD_REV
         PUBLISHER=-
 
-    elif [ "$SPREAD_BACKEND" = "google" -o "$SPREAD_BACKEND" = "google-arm" -o "$SPREAD_BACKEND" == "qemu" ] && [ "$SPREAD_SYSTEM" = "ubuntu-core-18-64" -o "$SPREAD_SYSTEM" = "ubuntu-core-20-64" -o "$SPREAD_SYSTEM" = "ubuntu-core-22-64" -o "$SPREAD_SYSTEM" = "ubuntu-core-22-arm-64" ]; then
+    elif [[ "$SPREAD_BACKEND" =~ google ]] || [ "$SPREAD_BACKEND" == "qemu" ] && os.query is-core-ge 18; then
         echo "With customized images the snapd snap is sideloaded"
         NAME=snapd
         VERSION=$SNAPD_GIT_VERSION
@@ -54,7 +57,7 @@ execute: |
         echo "On the external device the core snap tested could be in any track"
         TRACKING="(latest/)?(edge|beta|candidate|stable)"
 
-    elif [ "$SPREAD_BACKEND" = "external" ] && { os.query is-core18 || os.query is-core20 || os.query is-core22; }; then
+    elif [ "$SPREAD_BACKEND" = "external" ] && os.query is-core-ge 18; then
         echo "On the external device the snapd snap tested could be in any track"
         NAME=snapd
         VERSION=$SNAPD_GIT_VERSION

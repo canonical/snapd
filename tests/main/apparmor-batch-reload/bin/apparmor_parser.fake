@@ -1,7 +1,7 @@
 #!/bin/sh
 # shellcheck disable=SC2124
 args=$@
-echo "$0:" "$@" > /dev/kmsg
+echo "NEW CALL $(date): $0:" "$@" >> /tmp/apparmor_parser.fake.log
 
 profiles=0
 while [ -n "$1" ]; do
@@ -14,7 +14,7 @@ while [ -n "$1" ]; do
             ;;
         --write-cache)
             ;;
-        --quiet|--replace|--remove|--skip-read-cache)
+        --quiet|--replace|--remove|--skip-read-cache|-j*)
             # Ignore
             ;;
         -O|--config-file|--base|--policy-features)
@@ -31,11 +31,13 @@ while [ -n "$1" ]; do
     shift
 done
 
+# NOTE this relies on a single snap not having more than 10 apps
 if [ "$profiles" -gt 10 ]; then
-    echo "FAIL ON: $args"
+    echo "FAIL ON: $args" >> /tmp/apparmor_parser.fake.log
+    echo "MOCK FAIL BATCH of $profiles profiles" >&2
     exit 1
 fi
 
 # otherwise run real apparmor parser
 # shellcheck disable=SC2086
-/sbin/apparmor_parser.real $args
+exec /sbin/apparmor_parser.real $args

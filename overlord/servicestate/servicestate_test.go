@@ -21,10 +21,12 @@ package servicestate_test
 
 import (
 	"bytes"
+	"context"
+	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
+	"os/user"
 	"path/filepath"
 	"strings"
 
@@ -37,22 +39,48 @@ import (
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/servicestate/servicestatetest"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
+	"github.com/snapcore/snapd/usersession/agent"
 	"github.com/snapcore/snapd/wrappers"
 )
 
-type statusDecoratorSuite struct{}
+type statusDecoratorSuite struct {
+	testutil.DBusTest
+	tempdir string
+	agent   *agent.SessionAgent
+}
 
 var _ = Suite(&statusDecoratorSuite{})
 
+func (s *statusDecoratorSuite) SetUpTest(c *C) {
+	s.DBusTest.SetUpTest(c)
+	s.tempdir = c.MkDir()
+	dirs.SetRootDir(s.tempdir)
+
+	xdgRuntimeDir := fmt.Sprintf("%s/%d", dirs.XdgRuntimeDirBase, os.Getuid())
+	err := os.MkdirAll(xdgRuntimeDir, 0700)
+	c.Assert(err, IsNil)
+	s.agent, err = agent.New()
+	c.Assert(err, IsNil)
+	s.agent.Start()
+}
+
+func (s *statusDecoratorSuite) TearDownTest(c *C) {
+	if s.agent != nil {
+		err := s.agent.Stop()
+		c.Check(err, IsNil)
+	}
+	dirs.SetRootDir("")
+	s.DBusTest.TearDownTest(c)
+}
+
 func (s *statusDecoratorSuite) TestDecorateWithStatus(c *C) {
-	dirs.SetRootDir(c.MkDir())
-	defer dirs.SetRootDir("")
 	snp := &snap.Info{
 		SideInfo: snap.SideInfo{
 			RealName: "foo",
@@ -193,7 +221,8 @@ NeedDaemonReload=no
 			{Name: "socket1", Type: "socket", Active: enabled, Enabled: enabled},
 		})
 
-		// service with D-Bus activation
+		// service with slot activation will always be enabled as we cannot
+		// disable/enable slot activation at the moment.
 		app = &client.AppInfo{
 			Snap:   snp.InstanceName(),
 			Name:   "svc",
@@ -220,12 +249,13 @@ NeedDaemonReload=no
 		err = sd.DecorateWithStatus(app, snapApp)
 		c.Assert(err, IsNil)
 		c.Check(app.Active, Equals, enabled)
-		c.Check(app.Enabled, Equals, enabled)
+		c.Check(app.Enabled, Equals, true)
 		c.Check(app.Activators, DeepEquals, []client.AppActivator{
 			{Name: "org.example.Svc", Type: "dbus", Active: true, Enabled: true},
 		})
 
-		// No state is currently extracted for user daemons
+		// When using a decorator without any uid provided, the global status is
+		// fetched, which is only enablement
 		app = &client.AppInfo{
 			Snap:   snp.InstanceName(),
 			Name:   "svc",
@@ -263,13 +293,295 @@ NeedDaemonReload=no
 		err = sd.DecorateWithStatus(app, snapApp)
 		c.Assert(err, IsNil)
 		c.Check(app.Active, Equals, false)
-		c.Check(app.Enabled, Equals, enabled)
+		c.Check(app.Enabled, Equals, true) // when a service is slot activated its always enabled
 		c.Check(app.Activators, DeepEquals, []client.AppActivator{
 			{Name: "socket1", Type: "socket", Active: false, Enabled: enabled},
 			{Name: "svc", Type: "timer", Active: false, Enabled: enabled},
 			{Name: "org.example.Svc", Type: "dbus", Active: true, Enabled: true},
 		})
 	}
+}
+
+func (s *statusDecoratorSuite) TestUserServiceDecorateWithStatus(c *C) {
+	snp := &snap.Info{
+		SideInfo: snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(1),
+		},
+	}
+	err := os.MkdirAll(snp.MountDir(), 0755)
+	c.Assert(err, IsNil)
+	err = os.Symlink(snp.Revision.String(), filepath.Join(filepath.Dir(snp.MountDir()), "current"))
+	c.Assert(err, IsNil)
+
+	disabled := false
+	r := systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
+		c.Check(args[0], Equals, "--user")
+		c.Check(args[1], Equals, "show")
+		unit := args[3]
+
+		activeState, unitState := "active", "enabled"
+		if disabled {
+			activeState = "inactive"
+			unitState = "disabled"
+		}
+
+		if strings.HasSuffix(unit, ".timer") || strings.HasSuffix(unit, ".socket") || strings.HasSuffix(unit, ".target") {
+			// Units using the baseProperties query
+			return []byte(fmt.Sprintf(`Id=%s
+Names=%[1]s
+ActiveState=%s
+UnitFileState=%s
+`, unit, activeState, unitState)), nil
+		} else {
+			// Units using the extendedProperties query
+			return []byte(fmt.Sprintf(`Id=%s
+Names=%[1]s
+Type=simple
+ActiveState=%s
+UnitFileState=%s
+NeedDaemonReload=no
+`, unit, activeState, unitState)), nil
+		}
+	})
+	defer r()
+
+	curr, err := user.Current()
+	c.Assert(err, IsNil)
+
+	sd := servicestate.NewStatusDecoratorForUid(nil, context.Background(), curr.Uid)
+
+	// not a service
+	app := &client.AppInfo{
+		Snap: "foo",
+		Name: "app",
+	}
+	snapApp := &snap.AppInfo{Snap: snp, Name: "app"}
+
+	err = sd.DecorateWithStatus(app, snapApp)
+	c.Assert(err, IsNil)
+
+	for _, enabled := range []bool{true, false} {
+		disabled = !enabled
+
+		app = &client.AppInfo{
+			Snap:   snp.InstanceName(),
+			Name:   "svc",
+			Daemon: "simple",
+		}
+		snapApp = &snap.AppInfo{
+			Snap:        snp,
+			Name:        "svc",
+			Daemon:      "simple",
+			DaemonScope: snap.UserDaemon,
+		}
+		snapApp.Sockets = map[string]*snap.SocketInfo{
+			"socket1": {
+				App:          snapApp,
+				Name:         "socket1",
+				ListenStream: "a.socket",
+			},
+		}
+		snapApp.Timer = &snap.TimerInfo{
+			App:   snapApp,
+			Timer: "10:00",
+		}
+		snapApp.ActivatesOn = []*snap.SlotInfo{
+			{
+				Snap:      snp,
+				Name:      "dbus-slot",
+				Interface: "dbus",
+				Attrs: map[string]interface{}{
+					"bus":  "session",
+					"name": "org.example.Svc",
+				},
+			},
+		}
+
+		err = sd.DecorateWithStatus(app, snapApp)
+		c.Assert(err, IsNil)
+		c.Check(app.Active, Equals, enabled)
+		c.Check(app.Enabled, Equals, true) // when a service is slot activated its always enabled
+		c.Check(app.Activators, DeepEquals, []client.AppActivator{
+			{Name: "socket1", Type: "socket", Active: enabled, Enabled: enabled},
+			{Name: "svc", Type: "timer", Active: enabled, Enabled: enabled},
+			{Name: "org.example.Svc", Type: "dbus", Active: true, Enabled: true},
+		})
+	}
+}
+
+type instructionSuite struct {
+	rootUser       *user.User
+	defaultUser    *user.User
+	systemServices []*snap.AppInfo
+	mixServices    []*snap.AppInfo
+}
+
+var _ = Suite(&instructionSuite{})
+
+func (s *instructionSuite) SetUpTest(c *C) {
+	s.rootUser = &user.User{
+		Username: "my-root",
+		Uid:      "0",
+	}
+	s.defaultUser = &user.User{
+		Username: "my-user",
+		Uid:      "1000",
+	}
+
+	s.systemServices = []*snap.AppInfo{
+		{
+			Name:        "foo",
+			Daemon:      "simple",
+			DaemonScope: snap.SystemDaemon,
+		},
+		{
+			Name:        "bar",
+			Daemon:      "simple",
+			DaemonScope: snap.SystemDaemon,
+		},
+	}
+	s.mixServices = []*snap.AppInfo{
+		{
+			Name:        "foo",
+			Daemon:      "simple",
+			DaemonScope: snap.UserDaemon,
+		},
+		{
+			Name:        "bar",
+			Daemon:      "simple",
+			DaemonScope: snap.SystemDaemon,
+		},
+	}
+}
+
+func (s *instructionSuite) TestUnmarshalEmpty(c *C) {
+	const instJson = `{}`
+	var us servicestate.Instruction
+	err := json.Unmarshal([]byte(instJson), &us)
+	c.Assert(err, IsNil)
+	c.Check(us, DeepEquals, servicestate.Instruction{})
+
+	// Scope and users has custom unmarshal logic, test they are set
+	// to expected empty values
+	c.Check(us.Scope, HasLen, 0)
+	c.Check(us.Users.Selector, Equals, client.UserSelectionList)
+	c.Check(us.Users.Names, HasLen, 0)
+}
+
+func (s *instructionSuite) TestUnmarshalSimple(c *C) {
+	const instJson = `{"action":"start", "names":["svc1", "svc2"], "enable": true}`
+	var us servicestate.Instruction
+	err := json.Unmarshal([]byte(instJson), &us)
+	c.Assert(err, IsNil)
+	c.Check(us, DeepEquals, servicestate.Instruction{
+		Action: "start",
+		Names:  []string{"svc1", "svc2"},
+		StartOptions: client.StartOptions{
+			Enable: true,
+		},
+	})
+
+	// Scope and users has custom unmarshal logic, test they are set
+	// to expected empty values
+	c.Check(us.Scope, HasLen, 0)
+	c.Check(us.Users.Selector, Equals, client.UserSelectionList)
+	c.Check(us.Users.Names, HasLen, 0)
+}
+
+func (s *instructionSuite) TestUnmarshalWithScopes(c *C) {
+	const instJson = `{"action":"restart", "names":["svc1"], "reload": true, "scope": ["user"], "users": "all"}`
+	var us servicestate.Instruction
+	err := json.Unmarshal([]byte(instJson), &us)
+	c.Assert(err, IsNil)
+	c.Check(us, DeepEquals, servicestate.Instruction{
+		Action: "restart",
+		Names:  []string{"svc1"},
+		RestartOptions: client.RestartOptions{
+			Reload: true,
+		},
+		Scope: []string{"user"},
+		Users: client.UserSelector{
+			Selector: client.UserSelectionAll,
+		},
+	})
+}
+
+func (s *instructionSuite) TestEnsureDefaultScopeForUserDefaultRoot(c *C) {
+	inst := &servicestate.Instruction{}
+	inst.EnsureDefaultScopeForUser(s.rootUser)
+	c.Check(inst.Scope, DeepEquals, client.ScopeSelector{"system", "user"})
+}
+
+func (s *instructionSuite) TestEnsureDefaultScopeForUserAlreadySetDoesNothingRoot(c *C) {
+	inst := &servicestate.Instruction{Scope: client.ScopeSelector{"system"}}
+	inst.EnsureDefaultScopeForUser(s.rootUser)
+	c.Check(inst.Scope, DeepEquals, client.ScopeSelector{"system"})
+}
+
+func (s *instructionSuite) TestEnsureDefaultScopeForUserDefaultNonRoot(c *C) {
+	inst := &servicestate.Instruction{}
+	inst.EnsureDefaultScopeForUser(s.defaultUser)
+	c.Check(inst.Scope, DeepEquals, client.ScopeSelector{"system"})
+}
+
+func (s *instructionSuite) TestEnsureDefaultScopeForUserAlreadySetDoesNothingNonRoot(c *C) {
+	inst := &servicestate.Instruction{Scope: client.ScopeSelector{"user"}}
+	inst.EnsureDefaultScopeForUser(s.defaultUser)
+	c.Check(inst.Scope, DeepEquals, client.ScopeSelector{"user"})
+}
+
+func (s *instructionSuite) TestValidateNoScopesForRootOnlySystemServicesHappy(c *C) {
+	inst := &servicestate.Instruction{}
+	c.Check(inst.Validate(s.rootUser, s.systemServices), IsNil)
+}
+
+func (s *instructionSuite) TestValidateNoScopesForRootMixServicesHappy(c *C) {
+	inst := &servicestate.Instruction{}
+	c.Check(inst.Validate(s.rootUser, s.mixServices), IsNil)
+}
+
+func (s *instructionSuite) TestValidateNoScopesForNonRootOnlySystemServicesHappy(c *C) {
+	inst := &servicestate.Instruction{}
+	c.Check(inst.Validate(s.defaultUser, s.systemServices), IsNil)
+}
+
+func (s *instructionSuite) TestValidateNoScopesForNonRootMixServicesFails(c *C) {
+	inst := &servicestate.Instruction{}
+	c.Check(inst.Validate(s.defaultUser, s.mixServices), ErrorMatches, `non-root users must specify service scope when targeting user services`)
+}
+
+func (s *instructionSuite) TestValidateNoUsersForRootOnlySystemServicesHappy(c *C) {
+	// Provide scopes to avoid hitting any checks in validateScope
+	inst := &servicestate.Instruction{Scope: client.ScopeSelector{"system", "user"}}
+	c.Check(inst.Validate(s.rootUser, s.systemServices), IsNil)
+}
+
+func (s *instructionSuite) TestValidateNoUsersForRootMixServicesHappy(c *C) {
+	// Provide scopes to avoid hitting any checks in validateScope
+	inst := &servicestate.Instruction{Scope: client.ScopeSelector{"system", "user"}}
+	c.Check(inst.Validate(s.rootUser, s.mixServices), IsNil)
+}
+
+func (s *instructionSuite) TestValidateNoUsersForNonRootOnlySystemServicesHappy(c *C) {
+	// Provide scopes to avoid hitting any checks in validateScope
+	inst := &servicestate.Instruction{Scope: client.ScopeSelector{"system", "user"}}
+	c.Check(inst.Validate(s.defaultUser, s.systemServices), IsNil)
+}
+
+func (s *instructionSuite) TestValidateAllUsersForNonRootHappy(c *C) {
+	// Provide scopes to avoid hitting any checks in validateScope
+	inst := &servicestate.Instruction{
+		Scope: client.ScopeSelector{"system", "user"},
+		Users: client.UserSelector{Selector: client.UserSelectionAll},
+	}
+	c.Check(inst.Validate(s.defaultUser, s.mixServices), IsNil)
+}
+
+func (s *instructionSuite) TestValidateNoUsersForNonRootMixServicesFails(c *C) {
+	// Provide scopes to avoid hitting any checks in validateScope
+	inst := &servicestate.Instruction{Scope: client.ScopeSelector{"system", "user"}}
+	c.Check(inst.Validate(s.defaultUser, s.mixServices), ErrorMatches, `non-root users must specify users when targeting user services`)
 }
 
 type snapServiceOptionsSuite struct {
@@ -402,7 +714,7 @@ func (s *snapServiceOptionsSuite) TestServiceControlTaskSummaries(c *C) {
 	snp := &snap.Info{SideInfo: si}
 	snapstate.Set(st, "foo", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{&si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
@@ -456,12 +768,151 @@ func (s *snapServiceOptionsSuite) TestServiceControlTaskSummaries(c *C) {
 			`Run service command "stop" for services ["svc1"] of snap "foo"`,
 		},
 	} {
-		taskSet, err := servicestate.ServiceControlTs(st, appInfos, tc.instruction)
+		taskSet, err := servicestate.ServiceControlTs(st, appInfos, tc.instruction, nil)
 		c.Check(err, IsNil)
 		tasks := taskSet.Tasks()
 		c.Assert(tasks, HasLen, 1)
 		task := tasks[0]
 		c.Check(task.Summary(), Equals, tc.expectedSummary)
+	}
+}
+
+func (s *snapServiceOptionsSuite) checkServiceAction(c *C, ts *state.TaskSet, expected *servicestate.ServiceAction) {
+	c.Assert(ts.Tasks(), HasLen, 1)
+	t := ts.Tasks()[0]
+
+	var obtained servicestate.ServiceAction
+	c.Assert(t.Get("service-action", &obtained), IsNil)
+	c.Check(&obtained, DeepEquals, expected)
+}
+
+func (s *snapServiceOptionsSuite) TestServiceControlServiceAction(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	si := snap.SideInfo{RealName: "foo", Revision: snap.R(1)}
+	snp := &snap.Info{SideInfo: si}
+	snapstate.Set(st, "foo", &snapstate.SnapState{
+		Active:   true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si}),
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+	appInfos := []*snap.AppInfo{
+		{
+			Snap:        snp,
+			Name:        "svc1",
+			Daemon:      "simple",
+			DaemonScope: snap.UserDaemon,
+		},
+		{
+			Snap:        snp,
+			Name:        "svc2",
+			Daemon:      "simple",
+			DaemonScope: snap.UserDaemon,
+		},
+	}
+
+	for _, tc := range []struct {
+		instruction    *servicestate.Instruction
+		expectedAction *servicestate.ServiceAction
+	}{
+		{
+			&servicestate.Instruction{
+				Action: "start",
+				Scope:  client.ScopeSelector{"user"},
+				Users:  client.UserSelector{Names: []string{"my-user"}},
+				StartOptions: client.StartOptions{
+					Enable: true,
+				},
+			},
+			&servicestate.ServiceAction{
+				SnapName:       "foo",
+				Action:         "start",
+				ActionModifier: "enable",
+				Services:       []string{"svc1", "svc2"},
+				ScopeOptions: wrappers.ScopeOptions{
+					Scope: "user",
+					Users: []string{"my-user"},
+				},
+			},
+		},
+		{
+			&servicestate.Instruction{
+				Action: "restart",
+				Scope:  client.ScopeSelector{"user"},
+				Users:  client.UserSelector{Names: []string{"foo"}},
+			},
+			&servicestate.ServiceAction{
+				SnapName:                "foo",
+				Action:                  "restart",
+				Services:                []string{"svc1", "svc2"},
+				RestartEnabledNonActive: true,
+				ScopeOptions: wrappers.ScopeOptions{
+					Scope: "user",
+					Users: []string{"foo"},
+				},
+			},
+		},
+		{
+			&servicestate.Instruction{
+				Action: "restart",
+				Scope:  client.ScopeSelector{"system"},
+				Names:  []string{"foo.svc2"},
+			},
+			&servicestate.ServiceAction{
+				SnapName:                "foo",
+				Action:                  "restart",
+				Services:                []string{"svc1", "svc2"},
+				ExplicitServices:        []string{"svc2"},
+				RestartEnabledNonActive: true,
+				ScopeOptions: wrappers.ScopeOptions{
+					Scope: "system",
+				},
+			},
+		},
+		{
+			&servicestate.Instruction{
+				Action:         "restart",
+				RestartOptions: client.RestartOptions{Reload: true},
+				Names:          []string{"foo.svc2", "foo.svc1"},
+				Scope:          client.ScopeSelector{"system", "user"},
+				Users:          client.UserSelector{Names: []string{"foo"}},
+			},
+			&servicestate.ServiceAction{
+				SnapName:                "foo",
+				Action:                  "reload-or-restart",
+				Services:                []string{"svc1", "svc2"},
+				ExplicitServices:        []string{"svc1", "svc2"},
+				RestartEnabledNonActive: true,
+				ScopeOptions: wrappers.ScopeOptions{
+					Users: []string{"foo"},
+				},
+			},
+		},
+		{
+			&servicestate.Instruction{
+				Action: "stop",
+				Names:  []string{"foo.svc1"},
+				Scope:  client.ScopeSelector{"user"},
+				Users:  client.UserSelector{Names: []string{"baz"}},
+			},
+			&servicestate.ServiceAction{
+				SnapName:         "foo",
+				Action:           "stop",
+				Services:         []string{"svc1", "svc2"},
+				ExplicitServices: []string{"svc1"},
+				ScopeOptions: wrappers.ScopeOptions{
+					Scope: "user",
+					Users: []string{"baz"},
+				},
+			},
+		},
+	} {
+		ts, err := servicestate.ServiceControlTs(st, appInfos, tc.instruction, nil)
+		c.Assert(err, IsNil)
+		s.checkServiceAction(c, ts, tc.expectedAction)
 	}
 }
 
@@ -474,7 +925,7 @@ func (s *snapServiceOptionsSuite) TestLogReader(c *C) {
 	snp := &snap.Info{SideInfo: si}
 	snapstate.Set(st, "foo", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{&si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
@@ -503,7 +954,7 @@ func (s *snapServiceOptionsSuite) TestLogReader(c *C) {
 		c.Check(n, Equals, 100)
 		c.Check(follow, Equals, false)
 		c.Check(namespaces, Equals, false)
-		return ioutil.NopCloser(strings.NewReader("")), nil
+		return io.NopCloser(strings.NewReader("")), nil
 	})
 	defer restore()
 
@@ -521,7 +972,7 @@ func (s *snapServiceOptionsSuite) TestLogReaderFailsWithNonServices(c *C) {
 	snp := &snap.Info{SideInfo: si}
 	snapstate.Set(st, "foo", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{&si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
@@ -552,7 +1003,7 @@ func (s *snapServiceOptionsSuite) TestLogReaderNamespaces(c *C) {
 	snp := &snap.Info{SideInfo: si}
 	snapstate.Set(st, "foo", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{&si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
@@ -581,7 +1032,7 @@ func (s *snapServiceOptionsSuite) TestLogReaderNamespaces(c *C) {
 		c.Check(n, Equals, 100)
 		c.Check(follow, Equals, false)
 		c.Check(namespaces, Equals, true)
-		return ioutil.NopCloser(strings.NewReader("")), nil
+		return io.NopCloser(strings.NewReader("")), nil
 	})
 	defer restore()
 

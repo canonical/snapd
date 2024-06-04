@@ -57,10 +57,10 @@ func (s *discardSnapSuite) SetUpTest(c *C) {
 func (s *discardSnapSuite) TestDoDiscardSnapSuccess(c *C) {
 	s.state.Lock()
 	snapstate.Set(s.state, "foo", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "foo", Revision: snap.R(3)},
 			{RealName: "foo", Revision: snap.R(33)},
-		},
+		}),
 		Current:  snap.R(33),
 		SnapType: "app",
 	})
@@ -84,7 +84,7 @@ func (s *discardSnapSuite) TestDoDiscardSnapSuccess(c *C) {
 	err := snapstate.Get(s.state, "foo", &snapst)
 	c.Assert(err, IsNil)
 
-	c.Check(snapst.Sequence, HasLen, 1)
+	c.Check(snapst.Sequence.Revisions, HasLen, 1)
 	c.Check(snapst.Current, Equals, snap.R(3))
 	c.Check(t.Status(), Equals, state.DoneStatus)
 }
@@ -106,9 +106,9 @@ func (s *discardSnapSuite) TestDoDiscardSnapInQuotaGroup(c *C) {
 	defer func() { c.Assert(ensureSnapAbsentFromQuotaGroupCalls, Equals, 1) }()
 
 	snapstate.Set(s.state, "foo", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "foo", Revision: snap.R(3)},
-		},
+		}),
 		Current:  snap.R(3),
 		SnapType: "app",
 	})
@@ -138,9 +138,9 @@ func (s *discardSnapSuite) TestDoDiscardSnapInQuotaGroup(c *C) {
 func (s *discardSnapSuite) TestDoDiscardSnapToEmpty(c *C) {
 	s.state.Lock()
 	snapstate.Set(s.state, "foo", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "foo", Revision: snap.R(3)},
-		},
+		}),
 		Current:  snap.R(3),
 		SnapType: "app",
 	})
@@ -168,9 +168,9 @@ func (s *discardSnapSuite) TestDoDiscardSnapToEmpty(c *C) {
 func (s *discardSnapSuite) TestDoDiscardSnapErrorsForActive(c *C) {
 	s.state.Lock()
 	snapstate.Set(s.state, "foo", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "foo", Revision: snap.R(3)},
-		},
+		}),
 		Current:  snap.R(3),
 		Active:   true,
 		SnapType: "app",
@@ -200,10 +200,10 @@ func (s *discardSnapSuite) TestDoDiscardSnapErrorsForActive(c *C) {
 func (s *discardSnapSuite) TestDoDiscardSnapNoErrorsForActive(c *C) {
 	s.state.Lock()
 	snapstate.Set(s.state, "foo", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "foo", Revision: snap.R(3)},
 			{RealName: "foo", Revision: snap.R(33)},
-		},
+		}),
 		Current:  snap.R(33),
 		Active:   true,
 		SnapType: "app",
@@ -231,7 +231,7 @@ func (s *discardSnapSuite) TestDoDiscardSnapNoErrorsForActive(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(chg.Err(), IsNil)
-	c.Check(snapst.Sequence, HasLen, 1)
+	c.Check(snapst.Sequence.Revisions, HasLen, 1)
 	c.Check(snapst.Current, Equals, snap.R(33))
 	c.Check(t.Status(), Equals, state.DoneStatus)
 }
@@ -249,10 +249,10 @@ func (s *discardSnapSuite) TestDoDiscardSnapdRemovesLate(c *C) {
 	s.state.Lock()
 
 	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "snapd", Revision: snap.R(3)},
 			{RealName: "snapd", Revision: snap.R(33)},
-		},
+		}),
 		Current:  snap.R(33),
 		SnapType: "snapd",
 	})
@@ -277,7 +277,7 @@ func (s *discardSnapSuite) TestDoDiscardSnapdRemovesLate(c *C) {
 	err := snapstate.Get(s.state, "snapd", &snapst)
 	c.Assert(err, IsNil)
 
-	c.Check(snapst.Sequence, HasLen, 1)
+	c.Check(snapst.Sequence.Revisions, HasLen, 1)
 	c.Check(snapst.Current, Equals, snap.R(3))
 	c.Check(t.Status(), Equals, state.DoneStatus)
 	c.Check(removeLateCalledFor, DeepEquals, [][]string{

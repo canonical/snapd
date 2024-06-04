@@ -21,7 +21,6 @@ package boot_test
 
 import (
 	"errors"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -170,7 +169,12 @@ func (s *bootenv20Suite) TestSetNextBoot20ForKernel(c *C) {
 		"kernel_status": boot.TryStatus,
 	})
 
-	c.Check(rebootInfo, Equals, boot.RebootInfo{RebootRequired: true})
+	c.Check(rebootInfo, DeepEquals, boot.RebootInfo{
+		RebootRequired: true,
+		BootloaderOptions: &bootloader.Options{
+			Role: bootloader.RoleRunMode,
+		},
+	})
 
 	// check that SetNextBoot enabled kernel2 as a TryKernel
 	actual, _ := s.bootloader.GetRunKernelImageFunctionSnapCalls("EnableTryKernel")
@@ -213,7 +217,12 @@ func (s *bootenv20EnvRefKernelSuite) TestSetNextBoot20ForKernel(c *C) {
 		"snap_kernel":     s.kern1.Filename(),
 	})
 
-	c.Check(rebootInfo, Equals, boot.RebootInfo{RebootRequired: true})
+	c.Check(rebootInfo, DeepEquals, boot.RebootInfo{
+		RebootRequired: true,
+		BootloaderOptions: &bootloader.Options{
+			Role: bootloader.RoleRunMode,
+		},
+	})
 
 	// and that the modeenv now has this kernel listed
 	m2, err := boot.ReadModeenv("")
@@ -458,7 +467,7 @@ func (s *ubootSuite) forceUbootBootloader(c *C) {
 	mockGadgetDir := c.MkDir()
 	// this is testing the uc16/uc18 style uboot bootloader layout, the file
 	// must be non-empty for uc16/uc18 gadget config install behavior
-	err := ioutil.WriteFile(filepath.Join(mockGadgetDir, "uboot.conf"), []byte{1}, 0644)
+	err := os.WriteFile(filepath.Join(mockGadgetDir, "uboot.conf"), []byte{1}, 0644)
 	c.Assert(err, IsNil)
 	err = bootloader.InstallBootConfig(mockGadgetDir, dirs.GlobalRootDir, nil)
 	c.Assert(err, IsNil)
@@ -488,7 +497,7 @@ func (s *ubootSuite) forceUC20UbootBootloader(c *C) {
 	mockGadgetDir := c.MkDir()
 	// this must be empty for uc20 behavior
 	// TODO:UC20: update this test for the new behavior when that is implemented
-	err := ioutil.WriteFile(filepath.Join(mockGadgetDir, "uboot.conf"), nil, 0644)
+	err := os.WriteFile(filepath.Join(mockGadgetDir, "uboot.conf"), nil, 0644)
 	c.Assert(err, IsNil)
 	err = bootloader.InstallBootConfig(mockGadgetDir, dirs.GlobalRootDir, installOpts)
 	c.Assert(err, IsNil)
@@ -598,7 +607,7 @@ func (s *grubSuite) forceGrubBootloader(c *C) bootloader.Bootloader {
 
 	// make mock grub bootenv dir
 	mockGadgetDir := c.MkDir()
-	err := ioutil.WriteFile(filepath.Join(mockGadgetDir, "grub.conf"), nil, 0644)
+	err := os.WriteFile(filepath.Join(mockGadgetDir, "grub.conf"), nil, 0644)
 	c.Assert(err, IsNil)
 	err = bootloader.InstallBootConfig(mockGadgetDir, dirs.GlobalRootDir, nil)
 	c.Assert(err, IsNil)
@@ -716,8 +725,8 @@ func (s *bootenv20RebootBootloaderSuite) TestSetNextBoot20ForKernel(c *C) {
 	})
 
 	c.Assert(rebootInfo.RebootRequired, Equals, true)
-	// Test that we retrieve a RebootBootloader interface
-	c.Assert(rebootInfo.RebootBootloader, NotNil)
+	// Test that we get the bootloader options
+	c.Assert(rebootInfo.BootloaderOptions, DeepEquals, &bootloader.Options{Role: bootloader.RoleRunMode})
 
 	// and that the modeenv now has this kernel listed
 	m2, err := boot.ReadModeenv("")

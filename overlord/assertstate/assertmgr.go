@@ -20,6 +20,7 @@
 package assertstate
 
 import (
+	"errors"
 	"fmt"
 
 	"gopkg.in/tomb.v2"
@@ -42,6 +43,7 @@ func Manager(s *state.State, runner *state.TaskRunner) (*AssertManager, error) {
 	delayedCrossMgrInit()
 
 	runner.AddHandler("validate-snap", doValidateSnap, nil)
+	runner.AddHandler("validate-component", doValidateComponent, nil)
 
 	db, err := sysdb.Open()
 	if err != nil {
@@ -151,5 +153,70 @@ func doValidateSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// TODO: set DeveloperID from assertions
+	return nil
+}
+
+func doValidateComponent(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	compsup, snapsup, err := snapstate.TaskComponentSetup(t)
+	if err != nil {
+		return fmt.Errorf("internal error: cannot obtain snap setup: %s", err)
+	}
+
+	sha3_384, compSize, err := asserts.SnapFileSHA3_384(compsup.CompPath)
+	if err != nil {
+		return err
+	}
+
+	deviceCtx, err := snapstate.DeviceCtx(st, t, nil)
+	if err != nil {
+		return err
+	}
+
+	modelAs := deviceCtx.Model()
+
+	// the provenance of the snap is the expected provenance for the component
+	expectedProv := snapsup.ExpectedProvenance
+
+	err = doFetch(st, snapsup.UserID, deviceCtx, nil, func(f asserts.Fetcher) error {
+		if err := snapasserts.FetchComponentAssertions(f, snapsup.SideInfo, compsup.CompSideInfo, sha3_384, expectedProv); err != nil {
+			return err
+		}
+
+		// TODO: do we want this part here? it happens in doValidateSnap
+		// fetch store assertion if available
+		if modelAs.Store() != "" {
+			err := snapasserts.FetchStore(f, modelAs.Store())
+			if notFound, ok := err.(*asserts.NotFoundError); ok {
+				if notFound.Type != asserts.StoreType {
+					return err
+				}
+			} else if err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+	if errors.Is(err, &asserts.NotFoundError{}) {
+		return fmt.Errorf("cannot find supported signatures to verify component %q and its hash (%v)", compsup.ComponentName(), err)
+	}
+	if err != nil {
+		return err
+	}
+
+	db := DB(st)
+	err = snapasserts.CrossCheckResource(compsup.ComponentName(), sha3_384, expectedProv, compSize, compsup.CompSideInfo, snapsup.SideInfo, modelAs, db)
+	if err != nil {
+		return err
+	}
+
+	// TODO: check the provenance stored inside the component blob against what
+	// we expect from the assertion (similar to
+	// snapasserts.CheckProvenanceWithVerifiedRevision)
+
 	return nil
 }

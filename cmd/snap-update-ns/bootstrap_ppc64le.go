@@ -1,7 +1,6 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 //
 //go:build ppc64le && go1.7 && !go1.8
-// +build ppc64le,go1.7,!go1.8
 
 /*
  * Copyright (C) 2017 Canonical Ltd

@@ -1,5 +1,9 @@
 summary: Test snapd install on a UC16 system
 
+details: |
+    Check that snapd can be install and removed in
+    Ubuntu Core 16.
+
 # snapd snap is already installed by default on uc18+
 systems: [ubuntu-core-16-*]
 
@@ -69,7 +73,7 @@ execute: |
         systemctl status snapd|MATCH " /usr/lib/snapd/snapd"
         snap wait system seed.loaded
 
-        umount /snap/snapd/x2
+        retry -n 3 --wait 1 umount /snap/snapd/x2
         rm /etc/systemd/system/snap-snapd-x2.mount
         systemctl daemon-reload
         snap list

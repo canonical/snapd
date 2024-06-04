@@ -21,7 +21,6 @@ package cgroup_test
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -77,6 +76,7 @@ func (s *scanningSuite) TestSecurityTagFromCgroupPath(c *C) {
 	c.Check(cgroup.SecurityTagFromCgroupPath("snap.test-snapd-refresh.hook.configure-d854bd35-2457-4ac8-b494-06061d74df33.scope"), DeepEquals, mustParseTag("snap.test-snapd-refresh.hook.configure"))
 	// Trailing slashes are automatically handled.
 	c.Check(cgroup.SecurityTagFromCgroupPath("/a/b/snap.foo.foo.service/"), DeepEquals, mustParseTag("snap.foo.foo"))
+	c.Check(cgroup.SecurityTagFromCgroupPath("/a/b/snap.foo\\x2bcomp.hook.install.54b38acc-3ba2-4c6d-b284-7ac07e1159e5.scope"), DeepEquals, mustParseTag("snap.foo+comp.hook.install"))
 }
 
 // Returns the number of occurrences of 'needle' in the array 'arr'
@@ -109,7 +109,7 @@ func (s *scanningSuite) writePids(c *C, dir string, pids []int) string {
 
 	c.Assert(os.MkdirAll(path, 0755), IsNil)
 	finalPath := filepath.Join(path, "cgroup.procs")
-	c.Assert(ioutil.WriteFile(finalPath, buf.Bytes(), 0644), IsNil)
+	c.Assert(os.WriteFile(finalPath, buf.Bytes(), 0644), IsNil)
 	return finalPath
 }
 
@@ -353,7 +353,7 @@ func (s *scanningSuite) TestPidsOfSnapUnrelated(c *C) {
 		// We want to ensure this is not read by accident.
 		f := filepath.Join(s.rootDir, "/sys/fs/cgroup/unrelated.txt")
 		c.Assert(os.MkdirAll(filepath.Dir(f), 0755), IsNil)
-		c.Assert(ioutil.WriteFile(f, []byte("666"), 0644), IsNil)
+		c.Assert(os.WriteFile(f, []byte("666"), 0644), IsNil)
 
 		pids, err := cgroup.PidsOfSnap("pkg")
 		c.Assert(err, IsNil, comment)
@@ -383,7 +383,7 @@ func (s *scanningSuite) TestPathsOfSnapUnrelated(c *C) {
 		// We want to ensure this is not read by accident.
 		f := filepath.Join(s.rootDir, "/sys/fs/cgroup/unrelated.txt")
 		c.Assert(os.MkdirAll(filepath.Dir(f), 0755), IsNil)
-		c.Assert(ioutil.WriteFile(f, []byte("666"), 0644), IsNil)
+		c.Assert(os.WriteFile(f, []byte("666"), 0644), IsNil)
 
 		paths, err := cgroup.InstancePathsOfSnap("pkg", options)
 		c.Assert(err, IsNil, comment)

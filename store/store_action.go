@@ -26,6 +26,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
@@ -59,6 +60,9 @@ type CurrentSnap struct {
 	CohortKey        string
 	// ValidationSets is an optional array of validation set primary keys.
 	ValidationSets []snapasserts.ValidationSetKey
+	// HeldBy is an optional array of snaps with holds on the current snap's
+	// refreshes. The "system" snap represents a hold placed by the user.
+	HeldBy []string
 }
 
 type AssertionQuery interface {
@@ -80,6 +84,9 @@ type currentSnapV2JSON struct {
 	CohortKey        string     `json:"cohort-key,omitempty"`
 	// ValidationSets is an optional array of validation set primary keys.
 	ValidationSets [][]string `json:"validation-sets,omitempty"`
+	// Held is an optional map that can contain a "by" key mapping to a list of
+	// snaps with holds on the current snap (see CurrentSnap#Held).
+	Held map[string][]string `json:"held,omitempty"`
 }
 
 type SnapActionFlags int
@@ -101,6 +108,10 @@ type SnapAction struct {
 	// ValidationSets is an optional array of validation set primary keys
 	// (relevant for install and refresh actions).
 	ValidationSets []snapasserts.ValidationSetKey
+	// Resources is an optional array of component names. If non-empty, this
+	// indicates that we should request that the store include snap resource
+	// information in responses.
+	Resources []string
 }
 
 func isValidAction(action string) bool {
@@ -201,12 +212,12 @@ type snapActionResultList struct {
 	ErrorList []errorListEntry    `json:"error-list"`
 }
 
-var snapActionFields = jsonutil.StructFields((*storeSnap)(nil))
+var snapActionFields = jsonutil.StructFields((*storeSnap)(nil), "resources")
 
 // SnapAction queries the store for snap information for the given
 // install/refresh actions, given the context information about
 // current installed snaps in currentSnaps. If the request was overall
-// successul (200) but there were reported errors it will return both
+// successful (200) but there were reported errors it will return both
 // the snap infos and an SnapActionError.
 // Orthogonally and at the same time it can be used to fetch or update
 // assertions by passing an AssertionQuery whose ToResolve specifies
@@ -234,7 +245,7 @@ func (s *Store) SnapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 
 	authRefreshes := 0
 	for {
-		sars, ars, err := s.snapAction(ctx, currentSnaps, actions, assertQuery, toResolve, toResolveSeq, user, opts)
+		sars, ars, err := s.snapAction(ctx, currentSnaps, actions, assertQuery, toResolve, toResolveSeq, user, opts, 0)
 
 		if saErr, ok := err.(*SnapActionError); ok && authRefreshes < 2 && len(saErr.Other) > 0 {
 			// do we need to try to refresh auths?, 2 tries
@@ -293,7 +304,17 @@ func genInstanceKey(curSnap *CurrentSnap, salt string) (string, error) {
 // action of the SnapAction call.
 type SnapActionResult struct {
 	*snap.Info
+	Resources       []SnapResourceResult
 	RedirectChannel string
+}
+
+type SnapResourceResult struct {
+	DownloadInfo snap.DownloadInfo
+	Type         string
+	Name         string
+	Revision     int
+	Version      string
+	CreatedAt    string
 }
 
 // AssertionResult encapsulates the non-error result for one assertion
@@ -303,7 +324,7 @@ type AssertionResult struct {
 	StreamURLs []string
 }
 
-func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, actions []*SnapAction, assertQuery AssertionQuery, toResolve map[asserts.Grouping][]*asserts.AtRevision, toResolveSeq map[asserts.Grouping][]*asserts.AtSequence, user *auth.UserState, opts *RefreshOptions) ([]SnapActionResult, []AssertionResult, error) {
+func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, actions []*SnapAction, assertQuery AssertionQuery, toResolve map[asserts.Grouping][]*asserts.AtRevision, toResolveSeq map[asserts.Grouping][]*asserts.AtSequence, user *auth.UserState, opts *RefreshOptions, storeVer int) ([]SnapActionResult, []AssertionResult, error) {
 	requestSalt := ""
 	if opts != nil {
 		requestSalt = opts.PrivacyKey
@@ -346,6 +367,10 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			Epoch:            curSnap.Epoch,
 			CohortKey:        curSnap.CohortKey,
 			ValidationSets:   valsetKeys,
+		}
+		// `held` field was introduced in version 55 https://api.snapcraft.io/docs/
+		if len(curSnap.HeldBy) > 0 && (storeVer <= 0 || storeVer >= 55) {
+			curSnapJSONs[i].Held = map[string][]string{"by": curSnap.HeldBy}
 		}
 	}
 
@@ -516,20 +541,35 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		}
 	}
 
+	// include resources field if any action has requested resources
+	fields := make([]string, len(snapActionFields))
+	copy(fields, snapActionFields)
+	for _, a := range actions {
+		if len(a.Resources) > 0 {
+			fields = append(fields, "resources")
+			break
+		}
+	}
+
 	// build input for the install/refresh endpoint
 	jsonData, err := json.Marshal(snapActionRequest{
 		Context:             curSnapJSONs,
 		Actions:             actionJSONs,
-		Fields:              snapActionFields,
+		Fields:              fields,
 		AssertionMaxFormats: assertMaxFormats,
 	})
 	if err != nil {
 		return nil, nil, err
 	}
 
+	u, err := s.endpointURL(snapActionEndpPath, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	reqOptions := &requestOptions{
 		Method:      "POST",
-		URL:         s.endpointURL(snapActionEndpPath, nil),
+		URL:         u,
 		Accept:      jsonContentType,
 		ContentType: jsonContentType,
 		Data:        jsonData,
@@ -556,6 +596,18 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 	}
 
 	if resp.StatusCode != 200 {
+		// some fields might not be supported on proxies with old versions.
+		// we should retry with the snap store version known as we can now
+		// get it from the response header.
+		if resp.StatusCode == 400 && storeVer <= 0 {
+			verstr := resp.Header.Get("Snap-Store-Version")
+			ver, err := strconv.Atoi(verstr)
+			if err != nil || ver <= 0 {
+				logger.Debugf("cannot parse header value of Snap-Store-Version: expected positive int got %q", verstr)
+			} else {
+				return s.snapAction(ctx, currentSnaps, actions, assertQuery, toResolve, toResolveSeq, user, opts, ver)
+			}
+		}
 		return nil, nil, respToError(resp, "query the store for updates")
 	}
 
@@ -645,7 +697,23 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		_, instanceKey := snap.SplitInstanceName(instanceName)
 		snapInfo.InstanceKey = instanceKey
 
-		sars = append(sars, SnapActionResult{Info: snapInfo, RedirectChannel: res.RedirectChannel})
+		resources := make([]SnapResourceResult, 0, len(res.Snap.Resources))
+		for _, r := range res.Snap.Resources {
+			resources = append(resources, SnapResourceResult{
+				DownloadInfo: downloadInfoFromStoreDownload(r.Download),
+				Type:         r.Type,
+				Name:         r.Name,
+				Version:      r.Version,
+				CreatedAt:    r.CreatedAt,
+				Revision:     r.Revision,
+			})
+		}
+
+		sars = append(sars, SnapActionResult{
+			Info:            snapInfo,
+			RedirectChannel: res.RedirectChannel,
+			Resources:       resources,
+		})
 	}
 
 	for _, errObj := range results.ErrorList {

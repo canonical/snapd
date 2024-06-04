@@ -105,3 +105,17 @@ slots:
 	c.Check(info.Slots["slot"].Snap, Equals, info)
 
 }
+
+func (s *backendSuite) TestOpenComponentFile(c *C) {
+	const componentYaml = `component: snap+comp
+type: test
+version: 33
+`
+
+	compPath := snaptest.MakeTestComponent(c, componentYaml)
+	compInfo, cont, err := backend.OpenComponentFile(compPath, nil, nil)
+	c.Assert(err, IsNil)
+
+	c.Assert(cont, FitsTypeOf, &squashfs.Snap{})
+	c.Check(compInfo.FullName(), Equals, "snap+comp")
+}

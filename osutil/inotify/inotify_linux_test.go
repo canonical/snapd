@@ -1,5 +1,4 @@
 //go:build linux
-// +build linux
 
 // Copyright 2010 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
@@ -8,7 +7,6 @@
 package inotify_test
 
 import (
-	"io/ioutil"
 	"os"
 	"sync/atomic"
 	"testing"
@@ -24,7 +22,7 @@ func TestInotifyEvents(t *testing.T) {
 		t.Fatalf("NewWatcher failed: %s", err)
 	}
 
-	dir, err := ioutil.TempDir("", "inotify")
+	dir, err := os.MkdirTemp("", "inotify")
 	if err != nil {
 		t.Fatalf("TempDir failed: %s", err)
 	}
@@ -116,7 +114,7 @@ func TestLockOnEvent(t *testing.T) {
 		t.Fatalf("NewWatcher failed: %s", err)
 	}
 
-	dir, err := ioutil.TempDir("", "inotify")
+	dir, err := os.MkdirTemp("", "inotify")
 	if err != nil {
 		t.Fatalf("TempDir failed: %s", err)
 	}

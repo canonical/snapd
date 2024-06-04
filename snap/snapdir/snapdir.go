@@ -22,7 +22,6 @@ package snapdir
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -85,12 +84,21 @@ func (s *SnapDir) RandomAccessFile(file string) (interface {
 }
 
 func (s *SnapDir) ReadFile(file string) (content []byte, err error) {
-	return ioutil.ReadFile(filepath.Join(s.path, file))
+	return os.ReadFile(filepath.Join(s.path, file))
+}
+
+func (s *SnapDir) ReadLink(file string) (string, error) {
+	return os.Readlink(filepath.Join(s.path, file))
+}
+
+func (s *SnapDir) Lstat(file string) (os.FileInfo, error) {
+	return os.Lstat(filepath.Join(s.path, file))
 }
 
 func littleWalk(dirPath string, dirHandle *os.File, dirstack *[]string, walkFn filepath.WalkFunc) error {
 	const numSt = 100
 
+	// XXX: check if os.ReadDir is more efficient
 	sts, err := dirHandle.Readdir(numSt)
 	if err != nil {
 		return err
@@ -187,7 +195,7 @@ func (s *SnapDir) Walk(relative string, walkFn filepath.WalkFunc) error {
 }
 
 func (s *SnapDir) ListDir(path string) ([]string, error) {
-	fileInfos, err := ioutil.ReadDir(filepath.Join(s.path, path))
+	fileInfos, err := os.ReadDir(filepath.Join(s.path, path))
 	if err != nil {
 		return nil, err
 	}

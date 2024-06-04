@@ -1,5 +1,8 @@
 summary: Ensure that service activation files are installed on Core systems
 
+details: |
+     Check that D-Bus daemon configuration files are present on Ubuntu Core systems 
+
 execute: |
     echo "D-Bus daemon configuration files are present on Ubuntu Core systems"
     test -f /etc/dbus-1/system.d/snapd.system-services.conf -o \

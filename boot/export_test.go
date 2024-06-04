@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2019 Canonical Ltd
+ * Copyright (C) 2014-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -21,6 +21,10 @@ package boot
 
 import (
 	"fmt"
+	"sync/atomic"
+
+	"github.com/canonical/go-efilib"
+	"github.com/canonical/go-efilib/linux"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
@@ -67,6 +71,7 @@ var (
 	SealKeyToModeenv                = sealKeyToModeenvImpl
 	ResealKeyToModeenv              = resealKeyToModeenv
 	RecoveryBootChainsForSystems    = recoveryBootChainsForSystems
+	RunModeBootChains               = runModeBootChains
 	SealKeyModelParams              = sealKeyModelParams
 
 	BootVarsForTrustedCommandLineFromGadget = bootVarsForTrustedCommandLineFromGadget
@@ -88,19 +93,25 @@ func (t *TrackedAsset) Equals(blName, name, hash string) error {
 	return nil
 }
 
-func (o *TrustedAssetsInstallObserver) CurrentTrustedBootAssetsMap() BootAssetsMap {
+func (t *TrackedAsset) GetHash() string {
+	return t.hash
+}
+
+type TrustedAssetsInstallObserverImpl = trustedAssetsInstallObserverImpl
+
+func (o *trustedAssetsInstallObserverImpl) CurrentTrustedBootAssetsMap() BootAssetsMap {
 	return o.currentTrustedBootAssetsMap()
 }
 
-func (o *TrustedAssetsInstallObserver) CurrentTrustedRecoveryBootAssetsMap() BootAssetsMap {
+func (o *trustedAssetsInstallObserverImpl) CurrentTrustedRecoveryBootAssetsMap() BootAssetsMap {
 	return o.currentTrustedRecoveryBootAssetsMap()
 }
 
-func (o *TrustedAssetsInstallObserver) CurrentDataEncryptionKey() keys.EncryptionKey {
+func (o *trustedAssetsInstallObserverImpl) CurrentDataEncryptionKey() keys.EncryptionKey {
 	return o.dataEncryptionKey
 }
 
-func (o *TrustedAssetsInstallObserver) CurrentSaveEncryptionKey() keys.EncryptionKey {
+func (o *trustedAssetsInstallObserverImpl) CurrentSaveEncryptionKey() keys.EncryptionKey {
 	return o.saveEncryptionKey
 }
 
@@ -170,7 +181,6 @@ const (
 )
 
 var (
-	ToPredictableBootAsset              = toPredictableBootAsset
 	ToPredictableBootChain              = toPredictableBootChain
 	ToPredictableBootChains             = toPredictableBootChains
 	PredictableBootChainsEqualForReseal = predictableBootChainsEqualForReseal
@@ -225,6 +235,12 @@ func MockRebootArgsPath(argsPath string) (restore func()) {
 	return func() { rebootArgsPath = oldRebootArgsPath }
 }
 
+func MockBootloaderFind(f func(rootdir string, opts *bootloader.Options) (bootloader.Bootloader, error)) (restore func()) {
+	r := testutil.Backup(&bootloaderFind)
+	bootloaderFind = f
+	return r
+}
+
 func MockHasFDESetupHook(f func(*snap.Info) (bool, error)) (restore func()) {
 	oldHasFDESetupHook := HasFDESetupHook
 	HasFDESetupHook = f
@@ -247,6 +263,13 @@ func MockResealKeyToModeenvUsingFDESetupHook(f func(string, *Modeenv, bool) erro
 	}
 }
 
+func MockModeenvLocked() (restore func()) {
+	atomic.AddInt32(&modeenvLocked, 1)
+	return func() {
+		atomic.AddInt32(&modeenvLocked, -1)
+	}
+}
+
 func MockAdditionalBootFlags(bootFlags []string) (restore func()) {
 	old := understoodBootFlags
 	understoodBootFlags = append(understoodBootFlags, bootFlags...)
@@ -266,4 +289,34 @@ func MockWriteModelToUbuntuBoot(mock func(*asserts.Model) error) (restore func()
 func EnableTestingRebootFunction() (restore func()) {
 	testingRebootItself = true
 	return func() { testingRebootItself = false }
+}
+
+var (
+	ConstructLoadOption      = constructLoadOption
+	SetEfiBootOptionVariable = setEfiBootOptionVariable
+	SetEfiBootOrderVariable  = setEfiBootOrderVariable
+)
+
+func MockEfiListVariables(f func() ([]efi.VariableDescriptor, error)) (restore func()) {
+	restore = testutil.Backup(&efiListVariables)
+	efiListVariables = f
+	return restore
+}
+
+func MockEfiReadVariable(f func(name string, guid efi.GUID) ([]byte, efi.VariableAttributes, error)) (restore func()) {
+	restore = testutil.Backup(&efiReadVariable)
+	efiReadVariable = f
+	return restore
+}
+
+func MockEfiWriteVariable(f func(name string, guid efi.GUID, attrs efi.VariableAttributes, data []byte) error) (restore func()) {
+	restore = testutil.Backup(&efiWriteVariable)
+	efiWriteVariable = f
+	return restore
+}
+
+func MockLinuxFilePathToDevicePath(f func(path string, mode linux.FilePathToDevicePathMode) (out efi.DevicePath, err error)) (restore func()) {
+	restore = testutil.Backup(&linuxFilePathToDevicePath)
+	linuxFilePathToDevicePath = f
+	return restore
 }

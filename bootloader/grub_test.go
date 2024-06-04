@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2021 Canonical Ltd
+ * Copyright (C) 2014-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -21,7 +21,6 @@ package bootloader_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -253,7 +252,16 @@ func (s *grubTestSuite) grubEFINativeDir() string {
 func (s *grubTestSuite) makeFakeGrubEFINativeEnv(c *C, content []byte) {
 	err := os.MkdirAll(s.grubEFINativeDir(), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(s.grubEFINativeDir(), "grub.cfg"), content, 0644)
+	err = os.WriteFile(filepath.Join(s.grubEFINativeDir(), "grub.cfg"), content, 0644)
+	c.Assert(err, IsNil)
+}
+
+func (s *grubTestSuite) makeFakeShimFallback(c *C) {
+	err := os.MkdirAll(filepath.Join(s.rootdir, "/EFI/boot"), 0755)
+	c.Assert(err, IsNil)
+	_, err = os.Create(filepath.Join(s.rootdir, "/EFI/boot/fbx64.efi"))
+	c.Assert(err, IsNil)
+	_, err = os.Create(filepath.Join(s.rootdir, "/EFI/boot/fbaa64.efi"))
 	c.Assert(err, IsNil)
 }
 
@@ -357,7 +365,7 @@ func (s *grubTestSuite) makeKernelAssetSnap(c *C, snapFileName string) snap.Plac
 	err = os.MkdirAll(kernelSnapExtractedAssetsDir, 0755)
 	c.Assert(err, IsNil)
 
-	err = ioutil.WriteFile(filepath.Join(kernelSnapExtractedAssetsDir, "kernel.efi"), nil, 0644)
+	err = os.WriteFile(filepath.Join(kernelSnapExtractedAssetsDir, "kernel.efi"), nil, 0644)
 	c.Assert(err, IsNil)
 
 	return kernelSnap
@@ -408,7 +416,7 @@ func (s *grubTestSuite) TestGrubExtractedRunKernelImageTryKernel(c *C) {
 	err = os.MkdirAll(kernelSnapExtractedAssetsDir, 0755)
 	c.Assert(err, IsNil)
 
-	err = ioutil.WriteFile(badKernelSnapPath, nil, 0644)
+	err = os.WriteFile(badKernelSnapPath, nil, 0644)
 	c.Assert(err, IsNil)
 
 	err = os.Symlink("bad_snap_rev_name/kernel.efi", tryKernelSymlink)
@@ -1179,8 +1187,8 @@ func (s *grubTestSuite) TestTrustedAssetsNativePartitionLayout(c *C) {
 
 	ta, err := tab.TrustedAssets()
 	c.Assert(err, IsNil)
-	c.Check(ta, DeepEquals, []string{
-		"EFI/boot/grubx64.efi",
+	c.Check(ta, DeepEquals, map[string]string{
+		"EFI/boot/grubx64.efi": "grubx64.efi",
 	})
 
 	// recovery bootloader
@@ -1190,11 +1198,26 @@ func (s *grubTestSuite) TestTrustedAssetsNativePartitionLayout(c *C) {
 
 	ta, err = tarb.TrustedAssets()
 	c.Assert(err, IsNil)
-	c.Check(ta, DeepEquals, []string{
-		"EFI/boot/bootx64.efi",
-		"EFI/boot/grubx64.efi",
+	c.Check(ta, DeepEquals, map[string]string{
+		"EFI/boot/bootx64.efi":   "bootx64.efi",
+		"EFI/boot/grubx64.efi":   "grubx64.efi",
+		"EFI/ubuntu/shimx64.efi": "ubuntu:shimx64.efi",
+		"EFI/ubuntu/grubx64.efi": "ubuntu:grubx64.efi",
 	})
 
+	// recovery bootloader, with fallback implemented
+	s.makeFakeShimFallback(c)
+	tarb = bootloader.NewGrub(s.rootdir, recoveryOpts).(bootloader.TrustedAssetsBootloader)
+	c.Assert(tarb, NotNil)
+
+	ta, err = tarb.TrustedAssets()
+	c.Assert(err, IsNil)
+	c.Check(ta, DeepEquals, map[string]string{
+		"EFI/ubuntu/shimx64.efi": "ubuntu:shimx64.efi",
+		"EFI/ubuntu/grubx64.efi": "ubuntu:grubx64.efi",
+		"EFI/boot/bootx64.efi":   "bootx64.efi",
+		"EFI/boot/grubx64.efi":   "grubx64.efi",
+	})
 }
 
 func (s *grubTestSuite) TestTrustedAssetsRoot(c *C) {
@@ -1234,9 +1257,37 @@ func (s *grubTestSuite) TestRecoveryBootChains(c *C) {
 	tab, ok := g.(bootloader.TrustedAssetsBootloader)
 	c.Assert(ok, Equals, true)
 
-	chain, err := tab.RecoveryBootChain("kernel.snap")
+	chains, err := tab.RecoveryBootChains("kernel.snap")
 	c.Assert(err, IsNil)
-	c.Assert(chain, DeepEquals, []bootloader.BootFile{
+	c.Assert(chains, HasLen, 2)
+	c.Assert(chains[0], DeepEquals, []bootloader.BootFile{
+		{Path: "EFI/ubuntu/shimx64.efi", Role: bootloader.RoleRecovery},
+		{Path: "EFI/ubuntu/grubx64.efi", Role: bootloader.RoleRecovery},
+		{Snap: "kernel.snap", Path: "kernel.efi", Role: bootloader.RoleRecovery},
+	})
+	c.Assert(chains[1], DeepEquals, []bootloader.BootFile{
+		{Path: "EFI/boot/bootx64.efi", Role: bootloader.RoleRecovery},
+		{Path: "EFI/boot/grubx64.efi", Role: bootloader.RoleRecovery},
+		{Snap: "kernel.snap", Path: "kernel.efi", Role: bootloader.RoleRecovery},
+	})
+}
+
+func (s *grubTestSuite) TestRecoveryBootChainsWithFallback(c *C) {
+	s.makeFakeShimFallback(c)
+	s.makeFakeGrubEFINativeEnv(c, nil)
+	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Role: bootloader.RoleRecovery})
+	tab, ok := g.(bootloader.TrustedAssetsBootloader)
+	c.Assert(ok, Equals, true)
+
+	chains, err := tab.RecoveryBootChains("kernel.snap")
+	c.Assert(err, IsNil)
+	c.Assert(chains, HasLen, 2)
+	c.Assert(chains[0], DeepEquals, []bootloader.BootFile{
+		{Path: "EFI/ubuntu/shimx64.efi", Role: bootloader.RoleRecovery},
+		{Path: "EFI/ubuntu/grubx64.efi", Role: bootloader.RoleRecovery},
+		{Snap: "kernel.snap", Path: "kernel.efi", Role: bootloader.RoleRecovery},
+	})
+	c.Assert(chains[1], DeepEquals, []bootloader.BootFile{
 		{Path: "EFI/boot/bootx64.efi", Role: bootloader.RoleRecovery},
 		{Path: "EFI/boot/grubx64.efi", Role: bootloader.RoleRecovery},
 		{Snap: "kernel.snap", Path: "kernel.efi", Role: bootloader.RoleRecovery},
@@ -1249,7 +1300,7 @@ func (s *grubTestSuite) TestRecoveryBootChainsNotRecoveryBootloader(c *C) {
 	tab, ok := g.(bootloader.TrustedAssetsBootloader)
 	c.Assert(ok, Equals, true)
 
-	_, err := tab.RecoveryBootChain("kernel.snap")
+	_, err := tab.RecoveryBootChains("kernel.snap")
 	c.Assert(err, ErrorMatches, "not a recovery bootloader")
 }
 
@@ -1261,9 +1312,42 @@ func (s *grubTestSuite) TestBootChains(c *C) {
 
 	g2 := bootloader.NewGrub(s.rootdir, &bootloader.Options{Role: bootloader.RoleRunMode})
 
-	chain, err := tab.BootChain(g2, "kernel.snap")
+	chains, err := tab.BootChains(g2, "kernel.snap")
 	c.Assert(err, IsNil)
-	c.Assert(chain, DeepEquals, []bootloader.BootFile{
+	c.Assert(chains, HasLen, 2)
+	c.Assert(chains[0], DeepEquals, []bootloader.BootFile{
+		{Path: "EFI/ubuntu/shimx64.efi", Role: bootloader.RoleRecovery},
+		{Path: "EFI/ubuntu/grubx64.efi", Role: bootloader.RoleRecovery},
+		{Path: "EFI/boot/grubx64.efi", Role: bootloader.RoleRunMode},
+		{Snap: "kernel.snap", Path: "kernel.efi", Role: bootloader.RoleRunMode},
+	})
+	c.Assert(chains[1], DeepEquals, []bootloader.BootFile{
+		{Path: "EFI/boot/bootx64.efi", Role: bootloader.RoleRecovery},
+		{Path: "EFI/boot/grubx64.efi", Role: bootloader.RoleRecovery},
+		{Path: "EFI/boot/grubx64.efi", Role: bootloader.RoleRunMode},
+		{Snap: "kernel.snap", Path: "kernel.efi", Role: bootloader.RoleRunMode},
+	})
+}
+
+func (s *grubTestSuite) TestBootChainsWithFallback(c *C) {
+	s.makeFakeShimFallback(c)
+	s.makeFakeGrubEFINativeEnv(c, nil)
+	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Role: bootloader.RoleRecovery})
+	tab, ok := g.(bootloader.TrustedAssetsBootloader)
+	c.Assert(ok, Equals, true)
+
+	g2 := bootloader.NewGrub(s.rootdir, &bootloader.Options{Role: bootloader.RoleRunMode})
+
+	chains, err := tab.BootChains(g2, "kernel.snap")
+	c.Assert(err, IsNil)
+	c.Assert(chains, HasLen, 2)
+	c.Assert(chains[0], DeepEquals, []bootloader.BootFile{
+		{Path: "EFI/ubuntu/shimx64.efi", Role: bootloader.RoleRecovery},
+		{Path: "EFI/ubuntu/grubx64.efi", Role: bootloader.RoleRecovery},
+		{Path: "EFI/boot/grubx64.efi", Role: bootloader.RoleRunMode},
+		{Snap: "kernel.snap", Path: "kernel.efi", Role: bootloader.RoleRunMode},
+	})
+	c.Assert(chains[1], DeepEquals, []bootloader.BootFile{
 		{Path: "EFI/boot/bootx64.efi", Role: bootloader.RoleRecovery},
 		{Path: "EFI/boot/grubx64.efi", Role: bootloader.RoleRecovery},
 		{Path: "EFI/boot/grubx64.efi", Role: bootloader.RoleRunMode},
@@ -1281,9 +1365,44 @@ func (s *grubTestSuite) TestBootChainsArm64(c *C) {
 
 	g2 := bootloader.NewGrub(s.rootdir, &bootloader.Options{Role: bootloader.RoleRunMode})
 
-	chain, err := tab.BootChain(g2, "kernel.snap")
+	chains, err := tab.BootChains(g2, "kernel.snap")
 	c.Assert(err, IsNil)
-	c.Assert(chain, DeepEquals, []bootloader.BootFile{
+	c.Assert(chains, HasLen, 2)
+	c.Assert(chains[0], DeepEquals, []bootloader.BootFile{
+		{Path: "EFI/ubuntu/shimaa64.efi", Role: bootloader.RoleRecovery},
+		{Path: "EFI/ubuntu/grubaa64.efi", Role: bootloader.RoleRecovery},
+		{Path: "EFI/boot/grubaa64.efi", Role: bootloader.RoleRunMode},
+		{Snap: "kernel.snap", Path: "kernel.efi", Role: bootloader.RoleRunMode},
+	})
+	c.Assert(chains[1], DeepEquals, []bootloader.BootFile{
+		{Path: "EFI/boot/bootaa64.efi", Role: bootloader.RoleRecovery},
+		{Path: "EFI/boot/grubaa64.efi", Role: bootloader.RoleRecovery},
+		{Path: "EFI/boot/grubaa64.efi", Role: bootloader.RoleRunMode},
+		{Snap: "kernel.snap", Path: "kernel.efi", Role: bootloader.RoleRunMode},
+	})
+}
+
+func (s *grubTestSuite) TestBootChainsArm64WithFallback(c *C) {
+	s.makeFakeGrubEFINativeEnv(c, nil)
+	s.makeFakeShimFallback(c)
+	r := archtest.MockArchitecture("arm64")
+	defer r()
+	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Role: bootloader.RoleRecovery})
+	tab, ok := g.(bootloader.TrustedAssetsBootloader)
+	c.Assert(ok, Equals, true)
+
+	g2 := bootloader.NewGrub(s.rootdir, &bootloader.Options{Role: bootloader.RoleRunMode})
+
+	chains, err := tab.BootChains(g2, "kernel.snap")
+	c.Assert(err, IsNil)
+	c.Assert(chains, HasLen, 2)
+	c.Assert(chains[0], DeepEquals, []bootloader.BootFile{
+		{Path: "EFI/ubuntu/shimaa64.efi", Role: bootloader.RoleRecovery},
+		{Path: "EFI/ubuntu/grubaa64.efi", Role: bootloader.RoleRecovery},
+		{Path: "EFI/boot/grubaa64.efi", Role: bootloader.RoleRunMode},
+		{Snap: "kernel.snap", Path: "kernel.efi", Role: bootloader.RoleRunMode},
+	})
+	c.Assert(chains[1], DeepEquals, []bootloader.BootFile{
 		{Path: "EFI/boot/bootaa64.efi", Role: bootloader.RoleRecovery},
 		{Path: "EFI/boot/grubaa64.efi", Role: bootloader.RoleRecovery},
 		{Path: "EFI/boot/grubaa64.efi", Role: bootloader.RoleRunMode},
@@ -1299,6 +1418,32 @@ func (s *grubTestSuite) TestBootChainsNotRecoveryBootloader(c *C) {
 
 	g2 := bootloader.NewGrub(s.rootdir, &bootloader.Options{NoSlashBoot: true, Role: bootloader.RoleRunMode})
 
-	_, err := tab.BootChain(g2, "kernel.snap")
+	_, err := tab.BootChains(g2, "kernel.snap")
 	c.Assert(err, ErrorMatches, "not a recovery bootloader")
+}
+
+func (s *grubTestSuite) TestConstructShimEfiLoadOption(c *C) {
+	s.makeFakeGrubEFINativeEnv(c, nil)
+	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Role: bootloader.RoleRecovery})
+	ubl, ok := g.(bootloader.UefiBootloader)
+	c.Assert(ok, Equals, true)
+
+	description, assetPath, optionalData, err := ubl.ParametersForEfiLoadOption([]string{"bootx64.efi", "boot:fbx64.efi", "ubuntu:shimx64.efi"})
+	c.Assert(err, IsNil)
+	c.Assert(description, Equals, "ubuntu")
+	c.Assert(assetPath, Equals, fmt.Sprintf("%s/EFI/ubuntu/shimx64.efi", s.rootdir))
+	c.Assert(optionalData, HasLen, 0)
+}
+
+func (s *grubTestSuite) TestConstructShimEfiLoadOptionOldBootchain(c *C) {
+	s.makeFakeGrubEFINativeEnv(c, nil)
+	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Role: bootloader.RoleRecovery})
+	ubl, ok := g.(bootloader.UefiBootloader)
+	c.Assert(ok, Equals, true)
+
+	description, assetPath, optionalData, err := ubl.ParametersForEfiLoadOption([]string{"bootx64.efi"})
+	c.Assert(err, IsNil)
+	c.Assert(description, Equals, "ubuntu")
+	c.Assert(assetPath, Equals, fmt.Sprintf("%s/EFI/boot/bootx64.efi", s.rootdir))
+	c.Assert(optionalData, HasLen, 0)
 }

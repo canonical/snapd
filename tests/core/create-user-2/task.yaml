@@ -1,5 +1,9 @@
 summary: Ensure create-user functionality
 
+details: |
+    Check the command `snap create-user` succeeds when run as non-root user with sudo. 
+    Ensure the ssh keys are imported for the user and that it can be created as a sudoer.
+
 environment:
     USER_EMAIL: mvo@ubuntu.com
     USER_NAME: mvo

@@ -60,9 +60,8 @@ func (s *transactionTestSuite) TestSet(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(witness.writeCalled, Equals, 0)
 
-	var value interface{}
-	err = witness.writtenDatabag.Get("foo", &value)
-	c.Assert(err, FitsTypeOf, &aspects.FieldNotFoundError{})
+	_, err = witness.writtenDatabag.Get("foo")
+	c.Assert(err, FitsTypeOf, aspects.PathError(""))
 }
 
 func (s *transactionTestSuite) TestCommit(c *C) {
@@ -81,10 +80,8 @@ func (s *transactionTestSuite) TestCommit(c *C) {
 	err = tx.Commit()
 	c.Assert(err, IsNil)
 
-	var value interface{}
-	err = witness.writtenDatabag.Get("foo", &value)
+	value, err := witness.writtenDatabag.Get("foo")
 	c.Assert(err, IsNil)
-
 	c.Assert(value, Equals, "bar")
 	c.Assert(witness.writeCalled, Equals, 1)
 }
@@ -105,8 +102,7 @@ func (s *transactionTestSuite) TestGetReadsUncommitted(c *C) {
 	c.Assert(witness.writeCalled, Equals, 0)
 	c.Assert(txData(c, tx), Equals, "{}")
 
-	var val string
-	err = tx.Get("foo", &val)
+	val, err := tx.Get("foo")
 	c.Assert(err, IsNil)
 	c.Assert(val, Equals, "baz")
 }
@@ -117,6 +113,14 @@ type failingSchema struct {
 
 func (f *failingSchema) Validate([]byte) error {
 	return f.err
+}
+
+func (f *failingSchema) SchemaAt(path []string) ([]aspects.Schema, error) {
+	return []aspects.Schema{f}, nil
+}
+
+func (f *failingSchema) Type() aspects.SchemaType {
+	return aspects.Any
 }
 
 func (s *transactionTestSuite) TestRollBackOnCommitError(c *C) {
@@ -137,8 +141,7 @@ func (s *transactionTestSuite) TestRollBackOnCommitError(c *C) {
 	c.Assert(txData(c, tx), Equals, "{}")
 
 	// but subsequent Gets still read the uncommitted values
-	var val string
-	err = tx.Get("foo", &val)
+	val, err := tx.Get("foo")
 	c.Assert(err, IsNil)
 	c.Assert(val, Equals, "bar")
 }
@@ -162,8 +165,7 @@ func (s *transactionTestSuite) TestManyWrites(c *C) {
 	// writes are applied in chronological order
 	c.Assert(txData(c, tx), Equals, `{"foo":"baz"}`)
 
-	var value interface{}
-	err = witness.writtenDatabag.Get("foo", &value)
+	value, err := witness.writtenDatabag.Get("foo")
 	c.Assert(err, IsNil)
 	c.Assert(value, Equals, "baz")
 }
@@ -189,13 +191,12 @@ func (s *transactionTestSuite) TestCommittedIncludesRecentWrites(c *C) {
 	c.Assert(witness.writeCalled, Equals, 1)
 
 	// writes are applied in chronological order
-	var value interface{}
-	err = witness.writtenDatabag.Get("foo", &value)
+	value, err := witness.writtenDatabag.Get("foo")
 	c.Assert(err, IsNil)
 	c.Assert(value, Equals, "bar")
 
 	// contains recent values not written by the transaction
-	err = witness.writtenDatabag.Get("bar", &value)
+	value, err = witness.writtenDatabag.Get("bar")
 	c.Assert(err, IsNil)
 	c.Assert(value, Equals, "baz")
 }
@@ -230,23 +231,22 @@ func (s *transactionTestSuite) TestCommittedIncludesPreviousCommit(c *C) {
 	err = txOne.Commit()
 	c.Assert(err, IsNil)
 
-	var value interface{}
-	err = databag.Get("foo", &value)
+	value, err := databag.Get("foo")
 	c.Assert(err, IsNil)
 	c.Assert(value, Equals, "bar")
 
-	err = databag.Get("bar", &value)
-	c.Assert(err, FitsTypeOf, &aspects.FieldNotFoundError{})
+	value, err = databag.Get("bar")
+	c.Assert(err, FitsTypeOf, aspects.PathError(""))
+	c.Assert(value, IsNil)
 
 	err = txTwo.Commit()
 	c.Assert(err, IsNil)
 
-	value = nil
-	err = databag.Get("foo", &value)
+	value, err = databag.Get("foo")
 	c.Assert(err, IsNil)
 	c.Assert(value, Equals, "bar")
 
-	err = databag.Get("bar", &value)
+	value, err = databag.Get("bar")
 	c.Assert(err, IsNil)
 	c.Assert(value, Equals, "baz")
 }
@@ -309,9 +309,8 @@ func (s *transactionTestSuite) TestTransactionReadsIsolated(c *C) {
 	err = databag.Set("foo", "bar")
 	c.Assert(err, IsNil)
 
-	var value interface{}
-	err = tx.Get("foo", &value)
-	c.Assert(err, FitsTypeOf, &aspects.FieldNotFoundError{})
+	_, err = tx.Get("foo")
+	c.Assert(err, FitsTypeOf, aspects.PathError(""))
 }
 
 func (s *transactionTestSuite) TestReadDatabagsAreCopiedForIsolation(c *C) {
@@ -329,8 +328,7 @@ func (s *transactionTestSuite) TestReadDatabagsAreCopiedForIsolation(c *C) {
 	err = tx.Set("foo", "baz")
 	c.Assert(err, IsNil)
 
-	var value interface{}
-	err = witness.writtenDatabag.Get("foo", &value)
+	value, err := witness.writtenDatabag.Get("foo")
 	c.Assert(err, IsNil)
 	c.Assert(value, Equals, "bar")
 
@@ -338,9 +336,34 @@ func (s *transactionTestSuite) TestReadDatabagsAreCopiedForIsolation(c *C) {
 	err = tx.Commit()
 	c.Assert(err, ErrorMatches, "expected error")
 
-	err = witness.writtenDatabag.Get("foo", &value)
+	value, err = witness.writtenDatabag.Get("foo")
 	c.Assert(err, IsNil)
 	c.Assert(value, Equals, "bar")
+}
+
+func (s *transactionTestSuite) TestUnset(c *C) {
+	witness := &witnessReadWriter{bag: aspects.NewJSONDataBag()}
+	tx, err := aspects.NewTransaction(witness.read, witness.write, aspects.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	err = tx.Set("foo", "bar")
+	c.Assert(err, IsNil)
+
+	err = tx.Commit()
+	c.Assert(err, IsNil)
+
+	val, err := witness.writtenDatabag.Get("foo")
+	c.Assert(err, IsNil)
+	c.Assert(val, Equals, "bar")
+
+	err = tx.Unset("foo")
+	c.Assert(err, IsNil)
+
+	err = tx.Commit()
+	c.Assert(err, IsNil)
+
+	_, err = witness.writtenDatabag.Get("foo")
+	c.Assert(err, FitsTypeOf, aspects.PathError(""))
 }
 
 func txData(c *C, tx *aspects.Transaction) string {

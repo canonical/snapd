@@ -28,7 +28,6 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"io"
-	"io/ioutil"
 	"math/big"
 	"net"
 	"net/http"
@@ -98,6 +97,12 @@ func (s *clientSuite) TestClientProxyTakesUserAgent(c *check.C) {
 	c.Check(err, check.NotNil) // because we didn't do anything in the handler
 
 	c.Assert(called, check.Equals, true)
+}
+
+func (s *clientSuite) TestClientCheckRedirect(c *check.C) {
+	cli := httputil.NewHTTPClient(&httputil.ClientOptions{})
+	c.Assert(cli, check.NotNil)
+	c.Assert(cli.CheckRedirect, check.NotNil)
 }
 
 var privKey, _ = rsa.GenerateKey(rand.Reader, 768)
@@ -205,7 +210,7 @@ func (s *tlsSuite) TestClientEmptyExtraSSLCertsDirWorks(c *check.C) {
 }
 
 func (s *tlsSuite) TestClientExtraSSLCertInvalidCertWarnsAndRefuses(c *check.C) {
-	err := ioutil.WriteFile(filepath.Join(dirs.SnapdStoreSSLCertsDir, "garbage.pem"), []byte("garbage"), 0644)
+	err := os.WriteFile(filepath.Join(dirs.SnapdStoreSSLCertsDir, "garbage.pem"), []byte("garbage"), 0644)
 	c.Assert(err, check.IsNil)
 
 	cli := httputil.NewHTTPClient(&httputil.ClientOptions{

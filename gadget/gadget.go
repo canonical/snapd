@@ -25,7 +25,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"math"
 	"os"
 	"path/filepath"
@@ -42,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/metautil"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
+	"github.com/snapcore/snapd/osutil/kcmdline"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
@@ -107,11 +107,13 @@ var (
 )
 
 type KernelCmdline struct {
-	// TODO: add append and remove slices that will replace the cmdline*.txt
-	// files that can be included nowadays in the gadget.
 	// Allow is the list of allowed parameters for the system.kernel.cmdline-append
 	// system option
-	Allow []osutil.KernelArgument `yaml:"allow"`
+	Allow []kcmdline.ArgumentPattern `yaml:"allow"`
+	// Append are kernel parameters added by the gadget
+	Append []kcmdline.Argument `yaml:"append"`
+	// Remove are patterns to be removed from default command line
+	Remove []kcmdline.ArgumentPattern `yaml:"remove"`
 }
 
 type Info struct {
@@ -123,6 +125,19 @@ type Info struct {
 	Connections []Connection `yaml:"connections"`
 
 	KernelCmdline KernelCmdline `yaml:"kernel-cmdline"`
+}
+
+// HasRole returns true if any of the volume structures in this Info has the
+// given role.
+func (i *Info) HasRole(role string) bool {
+	for _, v := range i.Volumes {
+		for _, s := range v.Structure {
+			if s.Role == role {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // PartialProperty is a gadget property that can be partially defined.
@@ -185,6 +200,18 @@ func (v *Volume) MinSize() quantity.Size {
 	return quantity.Size(endVol)
 }
 
+// StructFromYamlIndex returns the structure defined at a given yaml index from
+// the original yaml file.
+func (v *Volume) StructFromYamlIndex(yamlIdx int) *VolumeStructure {
+	i, err := v.yamlIdxToStructureIdx(yamlIdx)
+	if err != nil {
+		return nil
+	}
+	return &v.Structure[i]
+}
+
+// yamlIdxToStructureIdx returns the index to Volume.Structure that matches the
+// yaml index from the original yaml file.
 func (v *Volume) yamlIdxToStructureIdx(yamlIdx int) (int, error) {
 	for i := range v.Structure {
 		if v.Structure[i].YamlIndex == yamlIdx {
@@ -193,6 +220,47 @@ func (v *Volume) yamlIdxToStructureIdx(yamlIdx int) (int, error) {
 	}
 
 	return -1, fmt.Errorf("structure with yaml index %d not found", yamlIdx)
+}
+
+// Copy makes a deep copy of the volume structure.
+func (vs *VolumeStructure) Copy() *VolumeStructure {
+	newVs := *vs
+	if vs.Offset != nil {
+		newVs.Offset = asOffsetPtr(*vs.Offset)
+	}
+	if vs.OffsetWrite != nil {
+		offsetWr := *vs.OffsetWrite
+		newVs.OffsetWrite = &offsetWr
+	}
+	if vs.Content != nil {
+		newVs.Content = make([]VolumeContent, len(vs.Content))
+		copy(newVs.Content, vs.Content)
+		for i, c := range vs.Content {
+			if c.Offset != nil {
+				newC := &newVs.Content[i]
+				newC.Offset = asOffsetPtr(*c.Offset)
+			}
+		}
+	}
+	return &newVs
+}
+
+// Copy makes a deep copy of the volume.
+func (v *Volume) Copy() *Volume {
+	newV := *v
+	if v.Partial != nil {
+		newV.Partial = make([]PartialProperty, len(v.Partial))
+		copy(newV.Partial, v.Partial)
+	}
+	if v.Structure != nil {
+		newV.Structure = make([]VolumeStructure, len(v.Structure))
+		for i, vs := range v.Structure {
+			newVs := vs.Copy()
+			newVs.EnclosingVolume = &newV
+			newV.Structure[i] = *newVs
+		}
+	}
+	return &newV
 }
 
 const GPTPartitionGUIDESP = "C12A7328-F81F-11D2-BA4B-00A0C93EC93B"
@@ -239,8 +307,8 @@ type VolumeStructure struct {
 	// ID is the GPT partition ID, this should always be made upper case for
 	// comparison purposes.
 	ID string `yaml:"id" json:"id"`
-	// Filesystem used for the partition, 'vfat', 'ext4' or 'none' for
-	// structures of type 'bare'
+	// Filesystem used for the partition, 'vfat', 'vfat-{16,32}', 'ext4' or 'none' for
+	// structures of type 'bare'. 'vfat' is a synonymous for 'vfat-32'.
 	Filesystem string `yaml:"filesystem" json:"filesystem"`
 	// Content of the structure
 	Content []VolumeContent `yaml:"content" json:"content"`
@@ -292,10 +360,21 @@ func (vs *VolumeStructure) IsPartition() bool {
 	return vs.Type != "bare" && vs.Role != schemaMBR
 }
 
+// LinuxFilesystem returns the linux filesystem that corresponds to the
+// one specified in the gadget.
+func (vs *VolumeStructure) LinuxFilesystem() string {
+	switch vs.Filesystem {
+	case "vfat-16", "vfat-32":
+		return "vfat"
+	default:
+		return vs.Filesystem
+	}
+}
+
 // HasLabel checks if label matches the VolumeStructure label. It ignores
-// capitals if the structure has a vfat filesystem.
+// capitals if the structure has a fat filesystem.
 func (vs *VolumeStructure) HasLabel(label string) bool {
-	if vs.Filesystem == "vfat" {
+	if vs.LinuxFilesystem() == "vfat" {
 		return strings.EqualFold(vs.Label, label)
 	}
 	return vs.Label == label
@@ -599,9 +678,15 @@ func LoadDiskVolumesDeviceTraits(dir string) (map[string]DiskVolumeDeviceTraits,
 		return nil, nil
 	}
 
-	b, err := ioutil.ReadFile(filename)
+	b, err := os.ReadFile(filename)
 	if err != nil {
 		return nil, err
+	}
+
+	if len(b) == 0 {
+		// if the file is empty, it is safe to ignore it
+		logger.Noticef("WARNING: ignoring zero sized device traits file\n")
+		return nil, nil
 	}
 
 	if err := json.Unmarshal(b, &mapping); err != nil {
@@ -611,25 +696,25 @@ func LoadDiskVolumesDeviceTraits(dir string) (map[string]DiskVolumeDeviceTraits,
 	return mapping, nil
 }
 
-// AllDiskVolumeDeviceTraits takes a mapping of volume name to LaidOutVolume and
-// produces a map of volume name to DiskVolumeDeviceTraits. Since doing so uses
-// DiskVolumeDeviceTraitsForDevice, it will also validate that disk devices
-// identified for the laid out volume are compatible and matching before
-// returning.
-func AllDiskVolumeDeviceTraits(allLaidOutVols map[string]*LaidOutVolume, optsPerVolume map[string]*DiskVolumeValidationOptions) (map[string]DiskVolumeDeviceTraits, error) {
+// AllDiskVolumeDeviceTraits takes a mapping of volume name to Volume
+// and produces a map of volume name to DiskVolumeDeviceTraits. Since
+// doing so uses DiskVolumeDeviceTraitsForDevice, it will also
+// validate that disk devices identified for the volume are compatible
+// and matching before returning.
+func AllDiskVolumeDeviceTraits(allVols map[string]*Volume, optsPerVolume map[string]*DiskVolumeValidationOptions) (map[string]DiskVolumeDeviceTraits, error) {
 	// build up the mapping of volumes to disk device traits
 
-	allVols := map[string]DiskVolumeDeviceTraits{}
+	allTraits := map[string]DiskVolumeDeviceTraits{}
 
 	// find all devices which map to volumes to save the current state of the
 	// system
-	for name, vol := range allLaidOutVols {
+	for name, vol := range allVols {
 		// try to find a device for a structure inside the volume, we have a
 		// loop to attempt to use all structures in the volume in case there are
 		// partitions we can't map to a device directly at first using the
 		// device symlinks that FindDeviceForStructure uses
 		dev := ""
-		for _, ls := range vol.LaidOutStructure {
+		for _, vs := range vol.Structure {
 			// TODO: This code works for volumes that have at least one
 			// partition (i.e. not type: bare structure), but does not work for
 			// volumes which contain only type: bare structures with no other
@@ -641,12 +726,12 @@ func AllDiskVolumeDeviceTraits(allLaidOutVols map[string]*LaidOutVolume, optsPer
 			// at the expected locations, but that is probably fragile and very
 			// non-performant.
 
-			if !ls.IsPartition() {
+			if !vs.IsPartition() {
 				// skip trying to find non-partitions on disk, it won't work
 				continue
 			}
 
-			structureDevice, err := FindDeviceForStructure(ls.VolumeStructure)
+			structureDevice, err := FindDeviceForStructure(&vs)
 			if err != nil && err != ErrDeviceNotFound {
 				return nil, err
 			}
@@ -679,10 +764,10 @@ func AllDiskVolumeDeviceTraits(allLaidOutVols map[string]*LaidOutVolume, optsPer
 			return nil, fmt.Errorf("cannot gather disk traits for device %s to use with volume %s: %v", dev, name, err)
 		}
 
-		allVols[name] = traits
+		allTraits[name] = traits
 	}
 
-	return allVols, nil
+	return allTraits, nil
 }
 
 // GadgetConnect describes an interface connection requested by the gadget
@@ -982,7 +1067,7 @@ func setKnownLabel(label, filesystem string, knownFsLabels, knownVfatFsLabels ma
 	}
 	if filesystem == "vfat" {
 		// labels with same name (ignoring capitals) as an already
-		// existing vfat label are not allowed
+		// existing fat label are not allowed
 		for knownLabel := range knownFsLabels {
 			if lowerLabel == strings.ToLower(knownLabel) {
 				return false
@@ -1019,7 +1104,7 @@ func setImplicitForVolume(vol *Volume, model Model) error {
 	knownVfatFsLabels := make(map[string]bool, len(vol.Structure))
 	for _, s := range vol.Structure {
 		if s.Label != "" {
-			if !setKnownLabel(s.Label, s.Filesystem, knownFsLabels, knownVfatFsLabels) {
+			if !setKnownLabel(s.Label, s.LinuxFilesystem(), knownFsLabels, knownVfatFsLabels) {
 				return fmt.Errorf("filesystem label %q is not unique", s.Label)
 			}
 		}
@@ -1095,7 +1180,7 @@ func setImplicitForVolumeStructure(vs *VolumeStructure, rs volRuleset, knownFsLa
 			implicitLabel = ubuntuSaveLabel
 		}
 		if implicitLabel != "" {
-			if !setKnownLabel(implicitLabel, vs.Filesystem, knownFsLabels, knownVfatFsLabels) {
+			if !setKnownLabel(implicitLabel, vs.LinuxFilesystem(), knownFsLabels, knownVfatFsLabels) {
 				return fmt.Errorf("filesystem label %q is implied by %s role but was already set elsewhere", implicitLabel, vs.Role)
 			}
 			vs.Label = implicitLabel
@@ -1123,7 +1208,7 @@ func readInfo(f func(string) ([]byte, error), gadgetYamlFn string, model Model) 
 // validation like Validate.
 func ReadInfo(gadgetSnapRootDir string, model Model) (*Info, error) {
 	gadgetYamlFn := filepath.Join(gadgetSnapRootDir, "meta", "gadget.yaml")
-	ginfo, err := readInfo(ioutil.ReadFile, gadgetYamlFn, model)
+	ginfo, err := readInfo(os.ReadFile, gadgetYamlFn, model)
 	if err != nil {
 		return nil, err
 	}
@@ -1330,7 +1415,7 @@ func validateVolumeStructure(vs *VolumeStructure, vol *Volume) error {
 		}
 		return fmt.Errorf("invalid %s: %v", what, err)
 	}
-	if vs.Filesystem != "" && !strutil.ListContains([]string{"ext4", "vfat", "none"}, vs.Filesystem) {
+	if vs.Filesystem != "" && !strutil.ListContains([]string{"ext4", "vfat", "vfat-16", "vfat-32", "none"}, vs.Filesystem) {
 		return fmt.Errorf("invalid filesystem %q", vs.Filesystem)
 	}
 
@@ -1617,26 +1702,12 @@ func checkCompatibleSchema(old, new *Volume) error {
 	return nil
 }
 
-// LaidOutVolumesFromGadget takes a gadget rootdir and lays out the partitions
-// on all volumes as specified. It returns the specific volume on which system-*
-// roles/partitions exist, as well as all volumes mentioned in the gadget.yaml
-// and their laid out representations. Those volumes are assumed to already be
-// flashed and managed separately at image build/flash time, while the system
-// volume with all the system-* roles on it can be manipulated during install
-// mode.
-func LaidOutVolumesFromGadget(gadgetRoot, kernelRoot string, model Model, encType secboot.EncryptionType) (system *LaidOutVolume, all map[string]*LaidOutVolume, err error) {
-	all = make(map[string]*LaidOutVolume)
-	// model should never be nil here
-	if model == nil {
-		return nil, nil, fmt.Errorf("internal error: must have model to lay out system volumes from a gadget")
-	}
-	// rely on the basic validation from ReadInfo to ensure that the system-*
-	// roles are all on the same volume for example
-	info, err := ReadInfoAndValidate(gadgetRoot, model, nil)
-	if err != nil {
-		return nil, nil, err
-	}
+// LaidOutVolumesFromGadget takes gadget volumes, gadget and kernel rootdirs
+// and lays out the partitions on all volumes as specified. It returns the
+// volumes mentioned in the gadget.yaml and their laid out representations.
+func LaidOutVolumesFromGadget(vols map[string]*Volume, gadgetRoot, kernelRoot string, encType secboot.EncryptionType, volToGadgetToDiskStruct map[string]map[int]*OnDiskStructure) (all map[string]*LaidOutVolume, err error) {
 
+	all = make(map[string]*LaidOutVolume)
 	// layout all volumes saving them
 	opts := &LayoutOptions{
 		GadgetRootDir: gadgetRoot,
@@ -1644,35 +1715,31 @@ func LaidOutVolumesFromGadget(gadgetRoot, kernelRoot string, model Model, encTyp
 		EncType:       encType,
 	}
 
-	// find the volume with the system-boot role on it, we already validated
-	// that the system-* roles are all on the same volume
-	for name, vol := range info.Volumes {
-		lvol, err := LayoutVolume(vol, opts)
+	for name, vol := range vols {
+		gadgetToDiskStruct, ok := volToGadgetToDiskStruct[name]
+		if !ok {
+			return nil, fmt.Errorf("internal error: volume %q does not have a map of gadget to disk partitions", name)
+		}
+		lvol, err := LayoutVolume(vol, gadgetToDiskStruct, opts)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		all[name] = lvol
-		// check if this volume is the boot volume using the system-boot volume
-		// to identify it
+	}
+
+	return all, nil
+}
+
+// FindBootVolume returns the volume that contains the system-boot partition.
+func FindBootVolume(vols map[string]*Volume) (*Volume, error) {
+	for _, vol := range vols {
 		for _, structure := range vol.Structure {
 			if structure.Role == SystemBoot {
-				if system != nil {
-					// this should be impossible, the validation above should
-					// ensure there are not multiple volumes with the same role
-					// on them
-					return nil, nil, fmt.Errorf("internal error: gadget passed validation but duplicated system-* roles across multiple volumes")
-				}
-				system = lvol
+				return vol, nil
 			}
 		}
 	}
-
-	if system == nil {
-		// this should be impossible, the validation above should ensure this
-		return nil, nil, fmt.Errorf("internal error: gadget passed validation but does not have system-* roles on any volume")
-	}
-
-	return system, all, nil
+	return nil, fmt.Errorf("no volume has system-boot role")
 }
 
 func flatten(path string, cfg interface{}, out map[string]interface{}) {
@@ -1729,34 +1796,52 @@ func isKernelArgumentAllowed(arg string) bool {
 	return true
 }
 
-var ErrNoKernelCommandline = errors.New("no kernel command line in the gadget")
-
 // KernelCommandLineFromGadget returns the desired kernel command line provided by the
 // gadget. The full flag indicates whether the gadget provides a full command
 // line or just the extra parameters that will be appended to the static ones.
-// An ErrNoKernelCommandline is returned when thea gadget does not set any
-// kernel command line.
-func KernelCommandLineFromGadget(gadgetDirOrSnapPath string) (cmdline string, full bool, err error) {
+// A model is neededed to know how to interpret the gadget yaml from the gadget.
+func KernelCommandLineFromGadget(gadgetDirOrSnapPath string, model Model) (cmdline string, full bool, removeArgs []kcmdline.ArgumentPattern, err error) {
 	sf, err := snapfile.Open(gadgetDirOrSnapPath)
 	if err != nil {
-		return "", false, fmt.Errorf("cannot open gadget snap: %v", err)
+		return "", false, []kcmdline.ArgumentPattern{}, fmt.Errorf("cannot open gadget snap: %v", err)
 	}
+
+	info, err := ReadInfoFromSnapFileNoValidate(sf, model)
+	if err != nil {
+		return "", false, []kcmdline.ArgumentPattern{}, fmt.Errorf("Cannot read snap info: %v", err)
+	}
+
+	if len(info.KernelCmdline.Append) > 0 || len(info.KernelCmdline.Remove) > 0 {
+		var asStr []string
+		for _, cmd := range info.KernelCmdline.Append {
+			value := cmd.String()
+			split := strings.SplitN(value, "=", 2)
+			if !isKernelArgumentAllowed(split[0]) {
+				return "", false, []kcmdline.ArgumentPattern{}, fmt.Errorf("kernel parameter '%s' is not allowed", value)
+			}
+			asStr = append(asStr, value)
+		}
+
+		return strutil.JoinNonEmpty(asStr, " "), false, info.KernelCmdline.Remove, nil
+	}
+
+	// Backward compatibility
 	contentExtra, err := sf.ReadFile("cmdline.extra")
 	if err != nil && !os.IsNotExist(err) {
-		return "", false, err
+		return "", false, []kcmdline.ArgumentPattern{}, err
 	}
 	// TODO: should we enforce the maximum kernel command line for cmdline.full?
 	contentFull, err := sf.ReadFile("cmdline.full")
 	if err != nil && !os.IsNotExist(err) {
-		return "", false, err
+		return "", false, []kcmdline.ArgumentPattern{}, err
 	}
 	content := contentExtra
 	whichFile := "cmdline.extra"
 	switch {
 	case contentExtra != nil && contentFull != nil:
-		return "", false, fmt.Errorf("cannot support both extra and full kernel command lines")
+		return "", false, []kcmdline.ArgumentPattern{}, fmt.Errorf("cannot support both extra and full kernel command lines")
 	case contentExtra == nil && contentFull == nil:
-		return "", false, ErrNoKernelCommandline
+		return "", false, []kcmdline.ArgumentPattern{}, nil
 	case contentFull != nil:
 		content = contentFull
 		whichFile = "cmdline.full"
@@ -1764,9 +1849,9 @@ func KernelCommandLineFromGadget(gadgetDirOrSnapPath string) (cmdline string, fu
 	}
 	parsed, err := parseCommandLineFromGadget(content)
 	if err != nil {
-		return "", full, fmt.Errorf("invalid kernel command line in %v: %v", whichFile, err)
+		return "", full, []kcmdline.ArgumentPattern{}, fmt.Errorf("invalid kernel command line in %v: %v", whichFile, err)
 	}
-	return parsed, full, nil
+	return parsed, full, []kcmdline.ArgumentPattern{}, nil
 }
 
 // parseCommandLineFromGadget parses the command line file and returns a
@@ -1799,7 +1884,7 @@ func parseCommandLineFromGadget(content []byte) (string, error) {
 	if err := s.Err(); err != nil {
 		return "", err
 	}
-	kargs, err := osutil.KernelCommandLineSplit(filtered.String())
+	kargs, err := kcmdline.Split(filtered.String())
 	if err != nil {
 		return "", err
 	}
@@ -1823,7 +1908,7 @@ func parseCommandLineFromGadget(content []byte) (string, error) {
 // but could be used on any known to be properly installed gadget.
 func HasRole(gadgetSnapRootDir string, roles []string) (foundRole string, err error) {
 	gadgetYamlFn := filepath.Join(gadgetSnapRootDir, "meta", "gadget.yaml")
-	gadgetYaml, err := ioutil.ReadFile(gadgetYamlFn)
+	gadgetYaml, err := os.ReadFile(gadgetYamlFn)
 	if err != nil {
 		return "", err
 	}

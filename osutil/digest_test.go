@@ -22,7 +22,7 @@ package osutil_test
 import (
 	"crypto"
 	"crypto/sha512"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 
 	. "gopkg.in/check.v1"
@@ -39,7 +39,7 @@ func (ts *FileDigestSuite) TestFileDigest(c *C) {
 
 	tempdir := c.MkDir()
 	fn := filepath.Join(tempdir, "ex.file")
-	err := ioutil.WriteFile(fn, exData, 0644)
+	err := os.WriteFile(fn, exData, 0644)
 	c.Assert(err, IsNil)
 
 	digest, size, err := osutil.FileDigest(fn, crypto.SHA512)

@@ -21,6 +21,7 @@ package builtin
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
@@ -34,11 +35,28 @@ import (
 
 const desktopSummary = `allows access to basic graphical desktop resources`
 
+// The weird allow-installation/deny-installation construct is
+// intended to prevent app snaps from the store that provide this slot
+// from installing without an override, while allowing an unpublished
+// snap to still be installed.
+//
+// The deny-connection and deny-auto-connection rules should ideally
+// use a slot-snap-type constraint when that is supported.
 const desktopBaseDeclarationSlots = `
   desktop:
     allow-installation:
       slot-snap-type:
+        - app
         - core
+    deny-installation:
+      slot-snap-type:
+        - app
+    deny-auto-connection:
+      slot-snap-type:
+        - app
+    deny-connection:
+      slot-snap-type:
+        - app
 `
 
 const desktopConnectedPlugAppArmor = `
@@ -63,6 +81,64 @@ owner @{HOME}/.local/share/fonts/{,**} r,
 # some applications are known to mmap fonts
 /usr/{,local/}share/fonts/** m,
 
+# Allow access to xdg-document-portal file system.  Access control is
+# handled by bind mounting a snap-specific sub-tree to this location
+# (ie, this is /run/user/<uid>/doc/by-app/snap.@{SNAP_INSTANCE_NAME}
+# on the host).
+owner /run/user/[0-9]*/doc/{,*/} r,
+# Allow rw access without owner match to the documents themselves since
+# the user guided the access and can specify anything DAC allows.
+/run/user/[0-9]*/doc/*/** rw,
+
+# Allow access to xdg-desktop-portal and xdg-document-portal
+dbus (receive, send)
+    bus=session
+    interface=org.freedesktop.portal.*
+    path=/org/freedesktop/portal/{desktop,documents}{,/**}
+    peer=(label=unconfined),
+
+dbus (receive, send)
+    bus=session
+    interface=org.freedesktop.DBus.Properties
+    path=/org/freedesktop/portal/{desktop,documents}{,/**}
+    peer=(label=unconfined),
+
+# The portals service is normally running and newer versions of
+# xdg-desktop-portal include AssumedAppArmor=unconfined. Since older
+# systems don't have this and because gtkfilechoosernativeportal.c relies on
+# service activation, allow sends to peer=(name=org.freedesktop.portal.{Desktop,Documents})
+# for service activation.
+dbus (send)
+    bus=session
+    interface=org.freedesktop.portal.*
+    path=/org/freedesktop/portal/desktop{,/**}
+    peer=(name=org.freedesktop.portal.Desktop),
+dbus (send)
+    bus=session
+    interface=org.freedesktop.DBus.Properties
+    path=/org/freedesktop/portal/desktop{,/**}
+    peer=(name=org.freedesktop.portal.Desktop),
+dbus (send)
+    bus=session
+    interface=org.freedesktop.portal.*
+    path=/org/freedesktop/portal/documents{,/**}
+    peer=(name=org.freedesktop.portal.Documents),
+dbus (send)
+    bus=session
+    interface=org.freedesktop.DBus.Properties
+    path=/org/freedesktop/portal/documents{,/**}
+    peer=(name=org.freedesktop.portal.Documents),
+
+# Allow to get the current idle time only from Mutter
+dbus (send)
+    bus=session
+    path="/org/gnome/Mutter/IdleMonitor/Core"
+    interface="org.gnome.Mutter.IdleMonitor"
+    member="GetIdletime"
+    peer=(label=###SLOT_SECURITY_TAGS###),
+`
+
+const desktopConnectedPlugAppArmorClassic = `
 # subset of gnome abstraction
 /etc/gtk-3.0/settings.ini r,
 owner @{HOME}/.config/gtk-3.0/settings.ini r,
@@ -105,14 +181,14 @@ dbus (send)
     path=/org/freedesktop/Notifications
     interface=org.freedesktop.Notifications
     member="{GetCapabilities,GetServerInformation,Notify,CloseNotification}"
-    peer=(label=unconfined),
+    peer=(label="{plasmashell,unconfined}"),
 
 dbus (receive)
     bus=session
     path=/org/freedesktop/Notifications
     interface=org.freedesktop.Notifications
     member={ActionInvoked,NotificationClosed,NotificationReplied}
-    peer=(label=unconfined),
+    peer=(label="{plasmashell,unconfined}"),
 
 # KDE Plasma's Inhibited property indicating "do not disturb" mode
 # https://invent.kde.org/plasma/plasma-workspace/-/blob/master/libnotificationmanager/dbus/org.freedesktop.Notifications.xml#L42
@@ -121,14 +197,14 @@ dbus (send)
     path=/org/freedesktop/Notifications
     interface=org.freedesktop.DBus.Properties
     member="Get{,All}"
-    peer=(label=unconfined),
+    peer=(label="{plasmashell,unconfined}"),
 
 dbus (receive)
     bus=session
     path=/org/freedesktop/Notifications
     interface=org.freedesktop.DBus.Properties
     member=PropertiesChanged
-    peer=(label=unconfined),
+    peer=(label="{plasmashell,unconfined}"),
 
 # DesktopAppInfo Launched
 dbus (send)
@@ -237,54 +313,6 @@ dbus (send)
     member={Check,CheckSub,Get,GetSub,Set,SetSub}
     peer=(label=unconfined),
 
-# Allow access to xdg-document-portal file system.  Access control is
-# handled by bind mounting a snap-specific sub-tree to this location
-# (ie, this is /run/user/<uid>/doc/by-app/snap.@{SNAP_INSTANCE_NAME}
-# on the host).
-owner /run/user/[0-9]*/doc/{,*/} r,
-# Allow rw access without owner match to the documents themselves since
-# the user guided the access and can specify anything DAC allows.
-/run/user/[0-9]*/doc/*/** rw,
-
-# Allow access to xdg-desktop-portal and xdg-document-portal
-dbus (receive, send)
-    bus=session
-    interface=org.freedesktop.portal.*
-    path=/org/freedesktop/portal/{desktop,documents}{,/**}
-    peer=(label=unconfined),
-
-dbus (receive, send)
-    bus=session
-    interface=org.freedesktop.DBus.Properties
-    path=/org/freedesktop/portal/{desktop,documents}{,/**}
-    peer=(label=unconfined),
-
-# The portals service is normally running and newer versions of
-# xdg-desktop-portal include AssumedAppArmor=unconfined. Since older
-# systems don't have this and because gtkfilechoosernativeportal.c relies on
-# service activation, allow sends to peer=(name=org.freedesktop.portal.{Desktop,Documents})
-# for service activation.
-dbus (send)
-    bus=session
-    interface=org.freedesktop.portal.*
-    path=/org/freedesktop/portal/desktop{,/**}
-    peer=(name=org.freedesktop.portal.Desktop),
-dbus (send)
-    bus=session
-    interface=org.freedesktop.DBus.Properties
-    path=/org/freedesktop/portal/desktop{,/**}
-    peer=(name=org.freedesktop.portal.Desktop),
-dbus (send)
-    bus=session
-    interface=org.freedesktop.portal.*
-    path=/org/freedesktop/portal/documents{,/**}
-    peer=(name=org.freedesktop.portal.Documents),
-dbus (send)
-    bus=session
-    interface=org.freedesktop.DBus.Properties
-    path=/org/freedesktop/portal/documents{,/**}
-    peer=(name=org.freedesktop.portal.Documents),
-
 # These accesses are noisy and applications can't do anything with the found
 # icon files, so explicitly deny to silence the denials
 deny /var/lib/snapd/desktop/icons/{,**/} r,
@@ -308,6 +336,126 @@ dbus (send, receive)
       path=/org/freedesktop/IBus/InputContext_[0-9]*
       interface=org.freedesktop.IBus.InputContext
       peer=(label=unconfined),
+
+# Allow access to the Fcitx portal, supported by fcitx/fcitx5
+dbus (send)
+      bus=session
+      path=/{,org/freedesktop/portal/}inputmethod
+      interface=org.fcitx.Fcitx.InputMethod1
+      member={CreateInputContext,Version}
+      peer=(name=org.freedesktop.portal.Fcitx),
+
+dbus (send, receive)
+      bus=session
+      path=/{,org/freedesktop/portal/}inputcontext/**
+      interface=org.fcitx.Fcitx.InputContext1
+      peer=(label=unconfined),
+`
+
+const desktopPermanentSlotAppArmor = `
+# Description: Can provide various desktop services
+
+#include <abstractions/dbus-session-strict>
+
+# Able to provide notifications
+dbus (receive)
+    bus=session
+    path=/org/freedesktop/Notifications
+    interface=org.freedesktop.Notifications
+    member="{GetCapabilities,GetServerInformation,Notify,CloseNotification}"
+    peer=(label=unconfined),
+
+dbus (send)
+    bus=session
+    path=/org/freedesktop/Notifications
+    interface=org.freedesktop.Notifications
+    member={ActionInvoked,NotificationClosed,NotificationReplied}
+    peer=(label=unconfined),
+
+# Able to provide GTK notifications
+dbus (receive)
+    bus=session
+    path=/org/gtk/Notifications
+    interface=org.gtk.Notifications
+    member="{AddNotification,RemoveNotification}"
+    peer=(label=unconfined),
+
+# Allow registering session with GDM, necessary for screen locking
+dbus (send)
+    bus=system
+    path=/org/gnome/DisplayManager/Manager
+    interface=org.gnome.DisplayManager.Manager
+    member={RegisterSession,OpenReauthenticationChannel}
+    peer=(label=unconfined),
+dbus (send)
+    bus=system
+    path=/org/gnome/DisplayManager/Manager
+    interface=org.freedesktop.DBus.Properties
+    member="Get{,All}"
+    peer=(label=unconfined),
+
+# Allow access to GDM's private reauthentication channel socket
+/run/gdm3/dbus/dbus-* rw,
+
+# Allow gnome-shell to bind to its various D-Bus names
+dbus (bind)
+    bus=session
+    name=org.gnome.Mutter.*,
+dbus (bind)
+    bus=session
+    name=org.gnome.Shell{,.*},
+
+# Allow gnome-settings-daemon to bind its various D-Bus names
+dbus (bind)
+    bus=session
+    name=org.gnome.SettingsDaemon{,.*},
+dbus (bind)
+    bus=session
+    name=org.gtk.Settings,
+
+# Allow the shell to communicate with colord
+dbus (send, receive)
+    bus=system
+    path=/org/freedesktop/ColorManager{,/**}
+    interface=org.freedesktop.ColorManager*
+    peer=(label=unconfined),
+dbus (send, receive)
+    bus=system
+    path=/org/freedesktop/ColorManager{,/**}
+    interface=org.freedesktop.DBus.Properties
+    member={Get,GetAll,PropertiesChanged}
+    peer=(label=unconfined),
+
+# Allow unconfined xdg-desktop-portal to communicate with impl
+# services provided by the snap.
+dbus (receive, send)
+    bus=session
+    path=/org/freedesktop/portal/desktop{,/**}
+    interface=org.freedesktop.impl.portal.*
+    peer=(label=unconfined),
+dbus (receive, send)
+    bus=session
+    path=/org/freedesktop/portal/desktop{,/**}
+    interface=org.freedesktop.DBus.Properties
+    peer=(label=unconfined),
+
+# Allow access to the regular xdg-desktop-portal APIs
+dbus (send)
+    bus=session
+    interface=org.freedesktop.portal.*
+    path=/org/freedesktop/portal/desktop{,/**}
+    peer=(label=unconfined),
+
+# Allow access to various paths gnome-session and gnome-shell need.
+/etc/fonts{,/**} r,
+/etc/glvnd{,/**} r,
+/etc/gnome/defaults.list r,
+/etc/gtk-3.0{,/**} r,
+/etc/shells r,
+/etc/xdg/autostart{,/**} r,
+/etc/xdg/user-dirs.conf r,
+/etc/xdg/user-dirs.defaults r,
+/run/udev/tags/seat{,/**} r,
 `
 
 type desktopInterface struct {
@@ -345,7 +493,22 @@ func (iface *desktopInterface) fontconfigDirs(plug *interfaces.ConnectedPlug) ([
 }
 
 func (iface *desktopInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	spec.AddSnippet(desktopConnectedPlugAppArmor)
+	old := "###SLOT_SECURITY_TAGS###"
+	var new string
+	if implicitSystemConnectedSlot(slot) {
+		// we are running on a system that has the desktop slot
+		// provided by the OS snap and so will run unconfined
+		new = "unconfined"
+	} else {
+		new = spec.SnapAppSet().SlotLabelExpression(slot)
+	}
+	snippet := strings.Replace(desktopConnectedPlugAppArmor, old, new, -1)
+	spec.AddSnippet(snippet)
+	if implicitSystemConnectedSlot(slot) {
+		// Extra rules that have not been ported to work with
+		// a desktop slot provided by a snap.
+		spec.AddSnippet(desktopConnectedPlugAppArmorClassic)
+	}
 
 	// Allow mounting document portal
 	emit := spec.AddUpdateNSf
@@ -353,12 +516,9 @@ func (iface *desktopInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 	emit("  mount options=(bind) /run/user/[0-9]*/doc/by-app/snap.%s/ -> /run/user/[0-9]*/doc/,\n", plug.Snap().InstanceName())
 	emit("  umount /run/user/[0-9]*/doc/,\n\n")
 
-	if !release.OnClassic {
-		// We only need the font mount rules on classic systems
-		return nil
-	}
-
-	// Allow mounting fonts
+	// Allow mounting fonts. For the app-provided slot case, we
+	// assume that the slot snap is using the boot base snap as
+	// its base, and that base contains fonts.
 	fontDirs, err := iface.fontconfigDirs(plug)
 	if err != nil {
 		return err
@@ -382,11 +542,6 @@ func (iface *desktopInterface) MountConnectedPlug(spec *mount.Specification, plu
 		Dir:     "$XDG_RUNTIME_DIR/doc",
 		Options: []string{"bind", "rw", osutil.XSnapdIgnoreMissing()},
 	})
-
-	if !release.OnClassic {
-		// We only need the font mount rules on classic systems
-		return nil
-	}
 
 	fontDirs, err := iface.fontconfigDirs(plug)
 	if err != nil {
@@ -420,6 +575,13 @@ func (iface *desktopInterface) MountConnectedPlug(spec *mount.Specification, plu
 		})
 	}
 
+	return nil
+}
+
+func (iface *desktopInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
+	if !implicitSystemPermanentSlot(slot) {
+		spec.AddSnippet(desktopPermanentSlotAppArmor)
+	}
 	return nil
 }
 

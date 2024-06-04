@@ -317,6 +317,11 @@ apps:
 hooks:
     install:
         plugs: [iface]
+components:
+    comp:
+        hooks:
+            install:
+                plugs: [iface]
 `
 
 func (s *AllSuite) TestSanitizeErrorsOnInvalidSlotNames(c *C) {
@@ -363,10 +368,12 @@ func (s *AllSuite) TestSanitizeErrorsOnInvalidPlugInterface(c *C) {
 	snapInfo := snaptest.MockInfo(c, testInvalidPlugInterfaceYaml, nil)
 	c.Check(snapInfo.Apps["app"].Plugs, HasLen, 1)
 	c.Check(snapInfo.Hooks["install"].Plugs, HasLen, 1)
+	c.Check(snapInfo.Components["comp"].ExplicitHooks["install"].Plugs, HasLen, 1)
 	c.Assert(snapInfo.Plugs, HasLen, 1)
 	snap.SanitizePlugsSlots(snapInfo)
 	c.Assert(snapInfo.Apps["app"].Plugs, HasLen, 0)
 	c.Check(snapInfo.Hooks["install"].Plugs, HasLen, 0)
+	c.Check(snapInfo.Components["comp"].ExplicitHooks["install"].Plugs, HasLen, 0)
 	c.Assert(snapInfo.BadInterfaces, HasLen, 1)
 	c.Assert(snap.BadInterfacesSummary(snapInfo), Matches, `snap "testsnap" has bad plugs or slots: iface \(unknown interface "iface"\)`)
 	c.Assert(snapInfo.Plugs, HasLen, 0)
@@ -436,5 +443,25 @@ func (s *AllSuite) TestUnexpectedSpecSignatures(c *C) {
 				c.Assert(methType.Out(i).String(), Equals, expected, Commentf("expected %s's %s method %dth return value type to be different", ifaceType, meth.Name, i))
 			}
 		}
+	}
+}
+
+var appArmorUnconfinedPlugs = map[string]bool{
+	"lxd-support": true,
+}
+
+var appArmorUnconfinedSlots = map[string]bool{}
+
+func (s *AllSuite) TestAppArmorUnconfinedPlugs(c *C) {
+	all := builtin.Interfaces()
+	for _, iface := range all {
+		c.Assert(interfaces.StaticInfoOf(iface).AppArmorUnconfinedPlugs, Equals, appArmorUnconfinedPlugs[iface.Name()])
+	}
+}
+
+func (s *AllSuite) TestAppArmorUnconfinedSlots(c *C) {
+	all := builtin.Interfaces()
+	for _, iface := range all {
+		c.Assert(interfaces.StaticInfoOf(iface).AppArmorUnconfinedSlots, Equals, appArmorUnconfinedSlots[iface.Name()])
 	}
 }

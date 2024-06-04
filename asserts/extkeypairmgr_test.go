@@ -24,7 +24,6 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -55,16 +54,16 @@ func (s *extKeypairMgrSuite) SetUpSuite(c *C) {
 
 	derPub1, err := x509.MarshalPKIXPublicKey(&k1.PublicKey)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(tmpdir, "default.pub"), derPub1, 0644)
+	err = os.WriteFile(filepath.Join(tmpdir, "default.pub"), derPub1, 0644)
 	c.Assert(err, IsNil)
 	derPub2, err := x509.MarshalPKIXPublicKey(&k2.PublicKey)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(tmpdir, "models.pub"), derPub2, 0644)
+	err = os.WriteFile(filepath.Join(tmpdir, "models.pub"), derPub2, 0644)
 	c.Assert(err, IsNil)
 
-	err = ioutil.WriteFile(filepath.Join(tmpdir, "default.key"), x509.MarshalPKCS1PrivateKey(k1), 0600)
+	err = os.WriteFile(filepath.Join(tmpdir, "default.key"), x509.MarshalPKCS1PrivateKey(k1), 0600)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(tmpdir, "models.key"), x509.MarshalPKCS1PrivateKey(k2), 0600)
+	err = os.WriteFile(filepath.Join(tmpdir, "models.key"), x509.MarshalPKCS1PrivateKey(k2), 0600)
 	c.Assert(err, IsNil)
 
 	s.defaultPub = &k1.PublicKey

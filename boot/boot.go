@@ -24,9 +24,15 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/bootloader"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
 )
+
+// Unlocker functions are passed from code using boot to indicate that global
+// state should be unlocked during slow operations, e.g sealing/unsealing.
+// Boot code is then expected to call the unlocker around the slow section and
+// relock using the returned function. Unlocker being nil indicates not to do
+// this.
+type Unlocker func() (relock func())
 
 const (
 	// DefaultStatus is the value of a status boot variable when nothing is
@@ -42,13 +48,13 @@ const (
 )
 
 // RebootInfo contains information about how to perform a reboot if
-// required
+// required.
 type RebootInfo struct {
-	// RebootRequired is true if we need to reboot after an update
+	// RebootRequired is true if we need to reboot after an update.
 	RebootRequired bool
-	// RebootBootloader will not be nil if the bootloader has something to say on
-	// how to perform the reboot
-	RebootBootloader bootloader.RebootBootloader
+	// BootloaderOptions will be used to find the correct bootloader when
+	// checking for any set reboot arguments.
+	BootloaderOptions *bootloader.Options
 }
 
 // NextBootContext carries additional significative information used when
@@ -269,6 +275,9 @@ func fixedInUse(inUse bool) InUseFunc {
 // InUse returns a checker for whether a given name/revision is used in the
 // boot environment for snaps of the relevant snap type.
 func InUse(typ snap.Type, dev snap.Device) (InUseFunc, error) {
+	modeenvLock()
+	defer modeenvUnlock()
+
 	if !dev.RunMode() {
 		// ephemeral mode, block manipulations for now
 		return fixedInUse(true), nil
@@ -310,6 +319,9 @@ var (
 // type of snap, which can be snap.TypeBase (or snap.TypeOS), or snap.TypeKernel.
 // Returns ErrBootNameAndRevisionNotReady if the values are temporarily not established.
 func GetCurrentBoot(t snap.Type, dev snap.Device) (snap.PlaceInfo, error) {
+	modeenvLock()
+	defer modeenvUnlock()
+
 	s, err := bootStateFor(t, dev)
 	if err != nil {
 		return nil, err
@@ -354,6 +366,9 @@ type bootStateUpdate interface {
 //     will set snap_mode="" and the system will boot with the known good
 //     values from snap_{core,kernel}
 func MarkBootSuccessful(dev snap.Device) error {
+	modeenvLock()
+	defer modeenvUnlock()
+
 	const errPrefix = "cannot mark boot successful: %s"
 
 	var u bootStateUpdate
@@ -443,7 +458,28 @@ func UpdateManagedBootConfigs(dev snap.Device, gadgetSnapOrDir, cmdlineAppend st
 	if !dev.RunMode() {
 		return false, fmt.Errorf("internal error: boot config can only be updated in run mode")
 	}
+	modeenvLock()
+	defer modeenvUnlock()
+
 	return updateManagedBootConfigForBootloader(dev, ModeRun, gadgetSnapOrDir, cmdlineAppend)
+}
+
+func updateCmdlineVars(tbl bootloader.TrustedAssetsBootloader, gadgetSnapOrDir, cmdlineAppend string, candidate bool, dev snap.Device) error {
+	defaultCmdLine, err := tbl.DefaultCommandLine(candidate)
+	if err != nil {
+		return err
+	}
+
+	cmdlineVars, err := bootVarsForTrustedCommandLineFromGadget(gadgetSnapOrDir, cmdlineAppend, defaultCmdLine, dev.Model())
+	if err != nil {
+		return fmt.Errorf("cannot prepare bootloader variables for kernel command line: %v", err)
+	}
+
+	if err := tbl.SetBootVars(cmdlineVars); err != nil {
+		return fmt.Errorf("cannot set run system kernel command line arguments: %v", err)
+	}
+
+	return nil
 }
 
 func updateManagedBootConfigForBootloader(dev snap.Device, mode, gadgetSnapOrDir, cmdlineAppend string) (updated bool, err error) {
@@ -463,12 +499,26 @@ func updateManagedBootConfigForBootloader(dev snap.Device, mode, gadgetSnapOrDir
 		}
 		return false, err
 	}
+
 	// boot config update can lead to a change of kernel command line
-	_, err = observeCommandLineUpdate(dev.Model(), commandLineUpdateReasonSnapd, gadgetSnapOrDir, cmdlineAppend)
+	cmdlineChange, err := observeCommandLineUpdate(dev.Model(), commandLineUpdateReasonSnapd, gadgetSnapOrDir, cmdlineAppend)
 	if err != nil {
 		return false, err
 	}
-	return tbl.UpdateBootConfig()
+
+	if cmdlineChange {
+		candidate := true
+		if err := updateCmdlineVars(tbl, gadgetSnapOrDir, cmdlineAppend, candidate, dev); err != nil {
+			return false, err
+		}
+	}
+
+	assetChange, err := tbl.UpdateBootConfig()
+	if err != nil {
+		return false, err
+	}
+
+	return assetChange || cmdlineChange, nil
 }
 
 // UpdateCommandLineForGadgetComponent handles the update of a gadget
@@ -482,6 +532,9 @@ func UpdateCommandLineForGadgetComponent(dev snap.Device, gadgetSnapOrDir, cmdli
 		// only UC20 devices are supported
 		return false, fmt.Errorf("internal error: command line component cannot be updated on pre-UC20 devices")
 	}
+	modeenvLock()
+	defer modeenvUnlock()
+
 	opts := &bootloader.Options{
 		Role: bootloader.RoleRunMode,
 	}
@@ -501,18 +554,14 @@ func UpdateCommandLineForGadgetComponent(dev snap.Device, gadgetSnapOrDir, cmdli
 	if err != nil {
 		return false, err
 	}
+
 	if !cmdlineChange {
 		return false, nil
 	}
-	// update the bootloader environment, maybe clearing the relevant
-	// variables
-	cmdlineVars, err := bootVarsForTrustedCommandLineFromGadget(gadgetSnapOrDir, cmdlineAppend)
-	if err != nil {
-		return false, fmt.Errorf("cannot prepare bootloader variables for kernel command line: %v", err)
-	}
-	logger.Debugf("updating boot vars: %v", cmdlineVars)
-	if err := tbl.SetBootVars(cmdlineVars); err != nil {
-		return false, fmt.Errorf("cannot set run system kernel command line arguments: %v", err)
+
+	candidate := false
+	if err := updateCmdlineVars(tbl, gadgetSnapOrDir, cmdlineAppend, candidate, dev); err != nil {
+		return false, err
 	}
 	return cmdlineChange, nil
 }

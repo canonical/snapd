@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
@@ -520,9 +521,9 @@ func (s *aliasesSuite) TestAliases(c *check.C) {
 	st := d.Overlord().State()
 	st.Lock()
 	snapstate.Set(st, "alias-snap1", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "alias-snap1", Revision: snap.R(11)},
-		},
+		}),
 		Current: snap.R(11),
 		Active:  true,
 		Aliases: map[string]*snapstate.AliasTarget{
@@ -531,9 +532,9 @@ func (s *aliasesSuite) TestAliases(c *check.C) {
 		},
 	})
 	snapstate.Set(st, "alias-snap2", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "alias-snap2", Revision: snap.R(12)},
-		},
+		}),
 		Current:             snap.R(12),
 		Active:              true,
 		AutoAliasesDisabled: true,
@@ -638,4 +639,30 @@ func (s *aliasesSuite) TestInstallIgnoreRunning(c *check.C) {
 	c.Check(err, check.IsNil)
 
 	c.Check(calledFlags.IgnoreRunning, check.Equals, true)
+}
+
+func (s *aliasesSuite) TestInstallPrefer(c *check.C) {
+	var calledFlags snapstate.Flags
+
+	defer daemon.MockSnapstateInstall(func(ctx context.Context, s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+		calledFlags = flags
+
+		t := s.NewTask("fake-install-snap", "Doing a fake install")
+		return state.NewTaskSet(t), nil
+	})()
+
+	d := s.daemon(c)
+	inst := &daemon.SnapInstruction{
+		Action: "install",
+		Prefer: true,
+		Snaps:  []string{"fake"},
+	}
+
+	st := d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+	_, _, err := inst.Dispatch()(inst, st)
+	c.Check(err, check.IsNil)
+
+	c.Check(calledFlags.Prefer, check.Equals, true)
 }

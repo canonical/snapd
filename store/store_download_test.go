@@ -25,7 +25,6 @@ import (
 	"crypto"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -126,7 +125,7 @@ func (s *storeDownloadSuite) TestDownloadRangeRequest(c *C) {
 	snap.Size = int64(len(expectedContentStr))
 
 	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
-	err := ioutil.WriteFile(targetFn+".partial", []byte(partialContentStr), 0644)
+	err := os.WriteFile(targetFn+".partial", []byte(partialContentStr), 0644)
 	c.Assert(err, IsNil)
 
 	err = s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, nil, nil)
@@ -145,7 +144,7 @@ func (s *storeDownloadSuite) TestResumeOfCompleted(c *C) {
 	snap.Size = int64(len(expectedContentStr))
 
 	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
-	err := ioutil.WriteFile(targetFn+".partial", []byte(expectedContentStr), 0644)
+	err := os.WriteFile(targetFn+".partial", []byte(expectedContentStr), 0644)
 	c.Assert(err, IsNil)
 
 	err = s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, nil, nil)
@@ -269,7 +268,7 @@ func (s *storeDownloadSuite) TestResumeOfCompletedRetriedOnHashFailure(c *C) {
 	snap.Size = 50000
 
 	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
-	c.Assert(ioutil.WriteFile(targetFn+".partial", badbuf, 0644), IsNil)
+	c.Assert(os.WriteFile(targetFn+".partial", badbuf, 0644), IsNil)
 	err := s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, nil, nil)
 	c.Assert(err, IsNil)
 
@@ -304,7 +303,7 @@ func (s *storeDownloadSuite) TestResumeOfTooMuchDataWorks(c *C) {
 	snap.Size = int64(len(snapContent))
 
 	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
-	c.Assert(ioutil.WriteFile(targetFn+".partial", []byte(tooMuchLocalData), 0644), IsNil)
+	c.Assert(os.WriteFile(targetFn+".partial", []byte(tooMuchLocalData), 0644), IsNil)
 	err := s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 1)
@@ -365,7 +364,7 @@ func (s *storeDownloadSuite) TestDownloadRangeRequestRetryOnHashError(c *C) {
 	snap.Size = int64(len(expectedContentStr))
 
 	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
-	err := ioutil.WriteFile(targetFn+".partial", []byte(partialContentStr), 0644)
+	err := os.WriteFile(targetFn+".partial", []byte(partialContentStr), 0644)
 	c.Assert(err, IsNil)
 
 	err = s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, nil, nil)
@@ -392,7 +391,7 @@ func (s *storeDownloadSuite) TestDownloadRangeRequestFailOnHashError(c *C) {
 	snap.Size = int64(len(partialContentStr) + 1)
 
 	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
-	err := ioutil.WriteFile(targetFn+".partial", []byte(partialContentStr), 0644)
+	err := os.WriteFile(targetFn+".partial", []byte(partialContentStr), 0644)
 	c.Assert(err, IsNil)
 
 	err = s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, nil, nil)
@@ -599,7 +598,7 @@ func (s *storeDownloadSuite) TestDownloadDelta(c *C) {
 		})
 		defer restore()
 
-		w, err := ioutil.TempFile("", "")
+		w, err := os.CreateTemp("", "")
 		c.Assert(err, IsNil)
 		defer os.Remove(w.Name())
 
@@ -649,16 +648,16 @@ func (s *storeDownloadSuite) TestApplyDelta(c *C) {
 		targetSnapPath := filepath.Join(dirs.SnapBlobDir, targetSnapName)
 		err := os.MkdirAll(filepath.Dir(currentSnapPath), 0755)
 		c.Assert(err, IsNil)
-		err = ioutil.WriteFile(currentSnapPath, nil, 0644)
+		err = os.WriteFile(currentSnapPath, nil, 0644)
 		c.Assert(err, IsNil)
 		deltaPath := filepath.Join(dirs.SnapBlobDir, "the.delta")
-		err = ioutil.WriteFile(deltaPath, nil, 0644)
+		err = os.WriteFile(deltaPath, nil, 0644)
 		c.Assert(err, IsNil)
 		// When testing a case where the call to the external
 		// xdelta3 is successful,
 		// simulate the resulting .partial.
 		if testCase.error == "" {
-			err = ioutil.WriteFile(targetSnapPath+".partial", nil, 0644)
+			err = os.WriteFile(targetSnapPath+".partial", nil, 0644)
 			c.Assert(err, IsNil)
 		}
 
@@ -764,7 +763,7 @@ func (s *storeDownloadSuite) TestDownloadStreamOK(c *C) {
 	restore := store.MockDoDownloadReq(func(ctx context.Context, url *url.URL, cdnHeader string, resume int64, s *store.Store, user *auth.UserState) (*http.Response, error) {
 		c.Check(url.String(), Equals, "URL")
 		r := &http.Response{
-			Body: ioutil.NopCloser(bytes.NewReader(expectedContent[resume:])),
+			Body: io.NopCloser(bytes.NewReader(expectedContent[resume:])),
 		}
 		if resume > 0 {
 			r.StatusCode = 206
@@ -805,7 +804,7 @@ func (s *storeDownloadSuite) TestDownloadStreamCachedOK(c *C) {
 	})()
 
 	c.Assert(os.MkdirAll(dirs.SnapDownloadCacheDir, 0700), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapDownloadCacheDir, "sha3_384-of-foo"), expectedContent, 0600), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapDownloadCacheDir, "sha3_384-of-foo"), expectedContent, 0600), IsNil)
 
 	cache := store.NewCacheManager(dirs.SnapDownloadCacheDir, 1)
 	defer s.store.MockCacher(cache)()
@@ -884,6 +883,10 @@ func (s *storeDownloadSuite) TestDownloadTimeout(c *C) {
 }
 
 func (s *storeDownloadSuite) TestTransferSpeedMonitoringWriterHappy(c *C) {
+	if os.Getenv("SNAPD_SKIP_SLOW_TESTS") != "" {
+		c.Skip("skipping slow test")
+	}
+
 	origCtx := context.TODO()
 	w, ctx := store.NewTransferSpeedMonitoringWriterAndContext(origCtx, 50*time.Millisecond, 1)
 
@@ -908,6 +911,10 @@ func (s *storeDownloadSuite) TestTransferSpeedMonitoringWriterHappy(c *C) {
 }
 
 func (s *storeDownloadSuite) TestTransferSpeedMonitoringWriterUnhappy(c *C) {
+	if os.Getenv("SNAPD_SKIP_SLOW_TESTS") != "" {
+		c.Skip("skipping slow test")
+	}
+
 	origCtx := context.TODO()
 	w, ctx := store.NewTransferSpeedMonitoringWriterAndContext(origCtx, 50*time.Millisecond, 1000)
 
@@ -959,4 +966,75 @@ func (s *storeDownloadSuite) TestDownloadTimeoutOnHeaders(c *C) {
 	err := s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, nil, nil)
 	close(quit)
 	c.Assert(err, ErrorMatches, `.*net/http: timeout awaiting response headers`)
+}
+
+func (s *storeDownloadSuite) TestDownloadRedirectHideAuthHeaders(c *C) {
+	var mockStoreServer, mockCdnServer *httptest.Server
+
+	mockStoreServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Header.Get("Authorization"), Equals, expectedAuthorization(c, s.user))
+		c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+		http.Redirect(w, r, mockCdnServer.URL, 302)
+	}))
+	c.Assert(mockStoreServer, NotNil)
+	defer mockStoreServer.Close()
+
+	mockCdnServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, exists := r.Header["Authorization"]
+		c.Check(exists, Equals, false)
+		_, exists = r.Header["X-Device-Authorization"]
+		c.Check(exists, Equals, false)
+		io.WriteString(w, "test-download")
+	}))
+	c.Assert(mockCdnServer, NotNil)
+	defer mockCdnServer.Close()
+
+	snap := &snap.Info{}
+	snap.DownloadURL = mockStoreServer.URL
+
+	dauthCtx := &testDauthContext{c: c, device: s.device, user: s.user}
+	sto := store.New(&store.Config{}, dauthCtx)
+
+	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
+	err := sto.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, s.user, nil)
+	c.Assert(err, Equals, nil)
+	c.Assert(targetFn, testutil.FileEquals, "test-download")
+}
+
+func (s *storeDownloadSuite) TestDownloadNoCheckRedirectPanic(c *C) {
+	restore := store.MockHttputilNewHTTPClient(func(opts *httputil.ClientOptions) *http.Client {
+		client := httputil.NewHTTPClient(opts)
+		client.CheckRedirect = nil
+		return client
+	})
+	defer restore()
+
+	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
+	downloadFunc := func() {
+		s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo{}, nil, nil, nil)
+	}
+	c.Assert(downloadFunc, PanicMatches, "internal error: the httputil.NewHTTPClient-produced http.Client must have CheckRedirect defined")
+}
+
+func (s *storeDownloadSuite) TestDownloadInfiniteRedirect(c *C) {
+	n := 0
+	var mockServer *httptest.Server
+
+	mockServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// n = 0  -> initial request
+		// n = 10 -> max redirects
+		// n = 11 -> exceeded max redirects
+		c.Assert(n, testutil.IntNotEqual, 11)
+		n++
+		http.Redirect(w, r, mockServer.URL, 302)
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	snap := &snap.Info{}
+	snap.DownloadURL = mockServer.URL
+
+	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
+	err := s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, s.user, nil)
+	c.Assert(err, ErrorMatches, fmt.Sprintf("Get %q: stopped after 10 redirects", mockServer.URL))
 }

@@ -70,16 +70,16 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 // setupModules creates a conf file with list of kernel modules required by
 // given snap, writes it in /etc/modules-load.d/ directory and immediately
 // loads the modules using /sbin/modprobe. The devMode is ignored.
-func (b *Backend) setupModules(snapInfo *snap.Info, spec *Specification) error {
-	content, modules := deriveContent(spec, snapInfo)
+func (b *Backend) setupModules(appSet *interfaces.SnapAppSet, spec *Specification) error {
+	content, modules := deriveContent(spec, appSet)
 	// synchronize the content with the filesystem
-	glob := interfaces.SecurityTagGlob(snapInfo.InstanceName())
+	globs := interfaces.SecurityTagGlobs(appSet.InstanceName())
 	dir := dirs.SnapKModModulesDir
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("cannot create directory for kmod files %q: %s", dir, err)
 	}
 
-	changed, _, err := osutil.EnsureDirState(dirs.SnapKModModulesDir, glob, content)
+	changed, _, err := osutil.EnsureDirStateGlobs(dirs.SnapKModModulesDir, globs, content)
 	if err != nil {
 		return err
 	}
@@ -96,15 +96,15 @@ func (b *Backend) setupModules(snapInfo *snap.Info, spec *Specification) error {
 // TODO: consider whether
 // - a newly blocklisted module should get unloaded
 // - a module whose option change should get reloaded
-func (b *Backend) setupModprobe(snapInfo *snap.Info, spec *Specification) error {
+func (b *Backend) setupModprobe(appSet *interfaces.SnapAppSet, spec *Specification) error {
 	dir := dirs.SnapKModModprobeDir
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("cannot create directory for kmod files %q: %s", dir, err)
 	}
 
-	glob := interfaces.SecurityTagGlob(snapInfo.InstanceName())
-	dirContents := prepareModprobeDirContents(spec, snapInfo)
-	_, _, err := osutil.EnsureDirState(dirs.SnapKModModprobeDir, glob, dirContents)
+	globs := interfaces.SecurityTagGlobs(appSet.InstanceName())
+	dirContents := prepareModprobeDirContents(spec, appSet)
+	_, _, err := osutil.EnsureDirStateGlobs(dirs.SnapKModModprobeDir, globs, dirContents)
 	if err != nil {
 		return err
 	}
@@ -119,20 +119,20 @@ func (b *Backend) setupModprobe(snapInfo *snap.Info, spec *Specification) error 
 // The devMode is ignored.
 //
 // If the method fails it should be re-tried (with a sensible strategy) by the caller.
-func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
-	snapName := snapInfo.InstanceName()
+func (b *Backend) Setup(appSet *interfaces.SnapAppSet, confinement interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
+	snapName := appSet.InstanceName()
 	// Get the snippets that apply to this snap
-	spec, err := repo.SnapSpecification(b.Name(), snapName)
+	spec, err := repo.SnapSpecification(b.Name(), appSet)
 	if err != nil {
 		return fmt.Errorf("cannot obtain kmod specification for snap %q: %s", snapName, err)
 	}
 
-	err = b.setupModprobe(snapInfo, spec.(*Specification))
+	err = b.setupModprobe(appSet, spec.(*Specification))
 	if err != nil {
 		return err
 	}
 
-	err = b.setupModules(snapInfo, spec.(*Specification))
+	err = b.setupModules(appSet, spec.(*Specification))
 	if err != nil {
 		return err
 	}
@@ -146,13 +146,13 @@ func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementO
 //
 // If the method fails it should be re-tried (with a sensible strategy) by the caller.
 func (b *Backend) Remove(snapName string) error {
-	glob := interfaces.SecurityTagGlob(snapName)
+	globs := interfaces.SecurityTagGlobs(snapName)
 	var errors []error
-	if _, _, err := osutil.EnsureDirState(dirs.SnapKModModulesDir, glob, nil); err != nil {
+	if _, _, err := osutil.EnsureDirStateGlobs(dirs.SnapKModModulesDir, globs, nil); err != nil {
 		errors = append(errors, err)
 	}
 
-	if _, _, err := osutil.EnsureDirState(dirs.SnapKModModprobeDir, glob, nil); err != nil {
+	if _, _, err := osutil.EnsureDirStateGlobs(dirs.SnapKModModprobeDir, globs, nil); err != nil {
 		errors = append(errors, err)
 	}
 
@@ -163,7 +163,7 @@ func (b *Backend) Remove(snapName string) error {
 	return nil
 }
 
-func deriveContent(spec *Specification, snapInfo *snap.Info) (map[string]osutil.FileState, []string) {
+func deriveContent(spec *Specification, appSet *interfaces.SnapAppSet) (map[string]osutil.FileState, []string) {
 	if len(spec.modules) == 0 {
 		return nil, nil
 	}
@@ -180,14 +180,14 @@ func deriveContent(spec *Specification, snapInfo *snap.Info) (map[string]osutil.
 		buffer.WriteString(module)
 		buffer.WriteRune('\n')
 	}
-	content[fmt.Sprintf("%s.conf", snap.SecurityTag(snapInfo.InstanceName()))] = &osutil.MemoryFileState{
+	content[fmt.Sprintf("%s.conf", snap.SecurityTag(appSet.InstanceName()))] = &osutil.MemoryFileState{
 		Content: buffer.Bytes(),
 		Mode:    0644,
 	}
 	return content, modules
 }
 
-func prepareModprobeDirContents(spec *Specification, snapInfo *snap.Info) map[string]osutil.FileState {
+func prepareModprobeDirContents(spec *Specification, appSet *interfaces.SnapAppSet) map[string]osutil.FileState {
 	disallowedModules := spec.DisallowedModules()
 	if len(disallowedModules) == 0 && len(spec.moduleOptions) == 0 {
 		return nil
@@ -203,7 +203,7 @@ func prepareModprobeDirContents(spec *Specification, snapInfo *snap.Info) map[st
 		contents += fmt.Sprintf("options %s %s\n", module, options)
 	}
 
-	fileName := fmt.Sprintf("%s.conf", snap.SecurityTag(snapInfo.InstanceName()))
+	fileName := fmt.Sprintf("%s.conf", snap.SecurityTag(appSet.InstanceName()))
 	return map[string]osutil.FileState{
 		fileName: &osutil.MemoryFileState{
 			Content: []byte(contents),
@@ -212,7 +212,7 @@ func prepareModprobeDirContents(spec *Specification, snapInfo *snap.Info) map[st
 	}
 }
 
-func (b *Backend) NewSpecification() interfaces.Specification {
+func (b *Backend) NewSpecification(*interfaces.SnapAppSet) interfaces.Specification {
 	return &Specification{}
 }
 

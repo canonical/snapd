@@ -7,7 +7,7 @@
     "model": "test-snapd-remodel-pc-just-model",
     "system-user-authority": "*",
     "architecture": "amd64",
-    "timestamp": "2022-04-25T01:00:00+00:00",
+    "timestamp": "2023-06-11T01:00:00+00:00",
     "grade": "dangerous",
     "base": "core22",
     "snaps": [

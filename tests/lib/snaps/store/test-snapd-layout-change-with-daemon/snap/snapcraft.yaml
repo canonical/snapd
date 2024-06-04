@@ -1,0 +1,131 @@
+name: test-snapd-layout-change-with-daemon
+version: "0.2"
+summary: Triggers a bug detected in steam when changing a bind with a symlink
+description: |
+  A bug was detected during a Steam update when replacing a binded directory
+  with symlinks inside that binded directory. These snaps trigger this bug
+  to allow to test the patch, but this one contains a daemon to ensure that
+  the patch isn't triggered in this case.
+grade: stable
+confinement: strict
+architectures:
+  - build-on: amd64
+base: core22
+compression: lzo
+assumes:
+  - snapd2.55.4
+
+lint:
+  # Snapcraft's `ldd` lint can't handle 32-bit things,
+  # So just make it quiet and also make builds a surprising amount faster
+  ignore:
+    - library:
+        - lib/i386-linux-gnu/**
+        - usr/lib/i386-linux-gnu/**
+        - lib32/**
+        - usr/lib32/**
+
+package-repositories:
+  - type: apt
+    url: http://repo.steampowered.com/steam/
+    suites: [stable]
+    components: [steam]
+    architectures: [amd64, i386]
+    key-id: BA1816EF8E75005FCF5E27A1F24AEA9FB05498B7
+
+layout:
+  /usr/lib/steam:
+    bind: $SNAP/usr/lib/steam
+  /usr/share/zenity:
+    bind: $SNAP/usr/share/zenity
+  # https://discourse.ubuntu.com/t/the-graphics-core20-snap-interface/23000
+  /usr/share/libdrm:
+    bind: $SNAP/graphics/usr/share/libdrm
+  /usr/share/drirc.d:
+    bind: $SNAP/graphics/usr/share/drirc.d
+  /usr/share/glvnd/egl_vendor.d:
+    bind: $SNAP/graphics/usr/share/glvnd/egl_vendor.d
+  /usr/lib/x86_64-linux-gnu/alsa-lib:
+    bind: $SNAP/usr/lib/x86_64-linux-gnu/alsa-lib
+  /usr/share/alsa:
+    bind: $SNAP/usr/share/alsa
+  /usr/share/X11/xkb:
+    bind: $SNAP/usr/share/X11/xkb
+  /usr/lib/x86_64-linux-gnu/libvulkan_intel.so:
+    symlink: $SNAP/graphics/usr/lib/x86_64-linux-gnu/libvulkan_intel.so
+  /usr/lib/i386-linux-gnu/libvulkan_intel.so:
+    symlink: $SNAP/graphics/usr/lib/i386-linux-gnu/libvulkan_intel.so
+  /usr/lib/x86_64-linux-gnu/libvulkan_lvp.so:
+    symlink: $SNAP/graphics/usr/lib/x86_64-linux-gnu/libvulkan_lvp.so
+  /usr/lib/i386-linux-gnu/libvulkan_lvp.so:
+    symlink: $SNAP/graphics/usr/lib/i386-linux-gnu/libvulkan_lvp.so
+  /usr/lib/x86_64-linux-gnu/libvulkan_radeon.so:
+    symlink: $SNAP/graphics/usr/lib/x86_64-linux-gnu/libvulkan_radeon.so
+  /usr/lib/i386-linux-gnu/libvulkan_radeon.so:
+    symlink: $SNAP/graphics/usr/lib/i386-linux-gnu/libvulkan_radeon.so
+  /usr/lib/x86_64-linux-gnu/libxcb-dri3.so.0.0.0:
+    symlink: $SNAP/graphics/usr/lib/x86_64-linux-gnu/libxcb-dri3.so.0.0.0
+  /usr/lib/x86_64-linux-gnu/libxcb-dri3.so.0:
+    symlink: $SNAP/graphics/usr/lib/x86_64-linux-gnu/libxcb-dri3.so.0.0.0
+  /usr/lib/x86_64-linux-gnu/libxcb.so.1.1.0:
+    symlink: $SNAP/graphics/usr/lib/x86_64-linux-gnu/libxcb.so.1.1.0
+  /usr/lib/x86_64-linux-gnu/libxcb.so:
+    symlink: $SNAP/graphics/usr/lib/x86_64-linux-gnu/libxcb.so.1.1.0
+  /usr/lib/x86_64-linux-gnu/libxcb.so.1:
+    symlink: $SNAP/graphics/usr/lib/x86_64-linux-gnu/libxcb.so.1.1.0
+  /etc/ld.so.cache:
+    bind-file: $SNAP_DATA/etc/ld.so.cache
+
+plugs:
+  gaming-mesa:
+    interface: content
+    target: $SNAP/graphics
+    default-provider: gaming-graphics-core22
+  gtk-3-themes:
+    interface: content
+    target: $SNAP/share/themes
+    default-provider: gtk-common-themes
+  icon-themes:
+    interface: content
+    target: $SNAP/share/icons
+    default-provider: gtk-common-themes
+  sound-themes:
+    interface: content
+    target: $SNAP/share/sounds
+    default-provider: gtk-common-themes
+
+
+hooks:
+  configure:
+    plugs:
+      - opengl
+
+parts:
+  test-snapd-layout-change-with-daemon:
+    plugin: nil
+    stage-packages:
+      - dash
+      - steam-libs-i386
+      - libxcb-dri3-0:i386
+      - libvulkan1:i386
+      - libxml2:i386
+      - libicu70:i386
+      - zlib1g:i386
+      - fontconfig:i386
+    build-snaps: [core22]
+    override-stage: |
+      mkdir -p $CRAFT_PART_INSTALL/bin
+      cp $CRAFT_PROJECT_DIR/daemon.sh $CRAFT_PART_INSTALL/bin/
+      craftctl default
+    stage:
+      - bin/dash
+      - bin/daemon.sh
+
+
+apps:
+  test-snapd-layout-change-with-daemon:
+    command: bin/dash
+
+  test-daemon:
+    command: bin/daemon.sh
+    daemon: simple

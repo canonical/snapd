@@ -1,5 +1,8 @@
 summary: Files inside the core snap are not owned by test.test
 
+details: |
+    Verify that the files inside the core snap are not owned by the test user.
+
 debug: |
     find /snap/core/current/ -user test || true
 

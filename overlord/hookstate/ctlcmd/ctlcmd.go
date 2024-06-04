@@ -24,6 +24,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"strconv"
 
 	"github.com/jessevdk/go-flags"
 
@@ -45,10 +46,15 @@ type baseCommand struct {
 	stderr io.Writer
 	c      *hookstate.Context
 	name   string
+	uid    string
 }
 
 func (c *baseCommand) setName(name string) {
 	c.name = name
+}
+
+func (c *baseCommand) setUid(uid uint32) {
+	c.uid = strconv.FormatUint(uint64(uid), 10)
 }
 
 func (c *baseCommand) setStdout(w io.Writer) {
@@ -88,6 +94,7 @@ func (c *baseCommand) ensureContext() (context *hookstate.Context, err error) {
 
 type command interface {
 	setName(name string)
+	setUid(uid uint32)
 
 	setStdout(w io.Writer)
 	setStderr(w io.Writer)
@@ -157,6 +164,7 @@ func Run(context *hookstate.Context, args []string, uid uint32) (stdout, stderr 
 	for name, cmdInfo := range commands {
 		cmd := cmdInfo.generator()
 		cmd.setName(name)
+		cmd.setUid(uid)
 		cmd.setStdout(&stdoutBuffer)
 		cmd.setStderr(&stderrBuffer)
 		cmd.setContext(context)
@@ -172,14 +180,36 @@ func Run(context *hookstate.Context, args []string, uid uint32) (stdout, stderr 
 	return stdoutBuffer.Bytes(), stderrBuffer.Bytes(), err
 }
 
+// isAllowedToRun returns true if the user with the given UID can run the given snapctl command vector.
+//
+// Commands still need valid context and snaps can only access own config.
 func isAllowedToRun(uid uint32, args []string) bool {
-	// A command can run if any of the following are true:
-	//	* It runs as root
-	//	* It's contained in nonRootAllowed
-	//	* It's used with the -h or --help flags
-	// note: commands still need valid context and snaps can only access own config.
-	return uid == 0 ||
-		strutil.ListContains(nonRootAllowed, args[0]) ||
-		strutil.ListContains(args, "-h") ||
-		strutil.ListContains(args, "--help")
+	// Root can run all snapctl commands.
+	if uid == 0 {
+		return true
+	}
+
+	for idx, arg := range args {
+		// A number of sub-commands are allowed to be executed by non-root users.
+		if idx == 0 && strutil.ListContains(nonRootAllowed, arg) {
+			return true
+		}
+
+		// Invoking help is always allowed.
+		if arg == "-h" || arg == "--help" {
+			return true
+		}
+
+		// Note that we are not interrupting parsing after the first non-option
+		// argument (POSIX style), because we want to cater to the use case of
+		// the user appending --help or -h at the end of the command and still
+		// getting something useful. The only exception is the condition below.
+
+		// The explicit termination argument terminates parsing.
+		if arg == "--" {
+			break
+		}
+	}
+
+	return false
 }

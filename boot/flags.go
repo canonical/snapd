@@ -22,7 +22,6 @@ package boot
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -204,7 +203,7 @@ func InitramfsExposeBootFlagsForSystem(flags []string) error {
 		return err
 	}
 
-	return ioutil.WriteFile(snapBootFlagsFile, []byte(s), 0644)
+	return os.WriteFile(snapBootFlagsFile, []byte(s), 0644)
 }
 
 // BootFlags returns the current set of boot flags active for this boot. It uses
@@ -224,7 +223,7 @@ func BootFlags(dev snap.Device) ([]string, error) {
 	// bootenv are for this boot or the next one, but the initramfs will always
 	// copy the flags that were set into /run, so we always know the current
 	// boot's flags are written in /run
-	b, err := ioutil.ReadFile(snapBootFlagsFile)
+	b, err := os.ReadFile(snapBootFlagsFile)
 	if err != nil {
 		return nil, err
 	}
@@ -269,6 +268,8 @@ func setNextBootFlags(dev snap.Device, rootDir string, flags []string) error {
 		return errNotUC20
 	}
 
+	// XXX take the modeenv lock?
+
 	m, err := ReadModeenv(rootDir)
 	if err != nil {
 		return err
@@ -312,7 +313,7 @@ func HostUbuntuDataForMode(mode string, mod gadget.Model) ([]string, error) {
 		// host mount is snap-bootstrap's /run/snapd/snap-bootstrap/degraded.json, so
 		// we have to go parse that
 		degradedJSONFile := filepath.Join(dirs.SnapBootstrapRunDir, "degraded.json")
-		b, err := ioutil.ReadFile(degradedJSONFile)
+		b, err := os.ReadFile(degradedJSONFile)
 		if err != nil {
 			return nil, err
 		}

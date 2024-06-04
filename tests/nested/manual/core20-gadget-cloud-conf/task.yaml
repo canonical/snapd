@@ -1,7 +1,12 @@
 summary: Test that UC2* can boot with gadget provided cloud.conf for all grades
 
+details: |
+  Check that it is possible to create a user through the gadget provided cloud.conf.
+  Verify that initial cloud-init user was created and we can run things as the normal
+  user
+
 # TODO: enable similar test for UC18 and UC16 gadgets that use cloud.conf?
-systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+systems: [ubuntu-2*]
 
 environment:
   # use tpm + secure boot to get full disk encryption, this is explicitly needed
@@ -132,6 +137,3 @@ execute: |
   remote.exec "test -f /etc/cloud/cloud-init.disabled"
   remote.exec "test -f /etc/cloud/cloud.cfg.d/80_device_gadget.cfg"
   remote.exec "! test -f /etc/cloud/cloud.cfg.d/zzzz_snapd.cfg"
-
-  # TODO: if we ever decide to leave NoCloud datasources enabled if the source
-  # is the gadget, check that here too

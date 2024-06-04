@@ -43,7 +43,7 @@ var opts struct {
 // snap-confine.
 
 func main() {
-	logger.SimpleSetup()
+	logger.SimpleSetup(nil)
 	if err := run(); err != nil {
 		fmt.Printf("cannot update snap namespace: %s\n", err)
 		os.Exit(1)
@@ -89,7 +89,11 @@ func run() error {
 
 	var upCtx MountProfileUpdateContext
 	if opts.UserMounts {
-		upCtx = NewUserProfileUpdateContext(opts.Positionals.SnapName, opts.FromSnapConfine, os.Getuid())
+		userUpCtx, err := NewUserProfileUpdateContext(opts.Positionals.SnapName, opts.FromSnapConfine, os.Getuid())
+		if err != nil {
+			return fmt.Errorf("cannot create user profile update context: %v", err)
+		}
+		upCtx = userUpCtx
 	} else {
 		upCtx = NewSystemProfileUpdateContext(opts.Positionals.SnapName, opts.FromSnapConfine)
 	}

@@ -1,5 +1,11 @@
 summary: Reproduce a known issue of snap try failure with hooks
 
+details: |
+  This regression test shows an existing issue, that has not been fixed, with
+  the meaning of pre-refresh hooks when used in a "snap try" installed snap
+  package, where the difference between old and new revisions is lost due to the
+  nature of the technical implementation of try.
+
 prepare: |
   cp -a "$TESTSLIB"/snaps/basic ./
   # in case the snap is modified to have the hook

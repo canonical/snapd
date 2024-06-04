@@ -1,6 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 //go:build !nosecboot
-// +build !nosecboot
 
 /*
  * Copyright (C) 2020 Canonical Ltd
@@ -26,7 +25,6 @@ import (
 	"fmt"
 	"os/exec"
 
-	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
@@ -44,7 +42,7 @@ type encryptedDevice interface {
 
 // encryptedDeviceLUKS represents a LUKS-backed encrypted block device.
 type encryptedDeviceLUKS struct {
-	parent *gadget.OnDiskStructure
+	parent string
 	name   string
 	node   string
 }
@@ -54,24 +52,24 @@ var _ = encryptedDevice(&encryptedDeviceLUKS{})
 
 // newEncryptedDeviceLUKS creates an encrypted device in the existing
 // partition using the specified key with the LUKS backend.
-func newEncryptedDeviceLUKS(part *gadget.OnDiskStructure, encType secboot.EncryptionType, key keys.EncryptionKey, label, name string) (encryptedDevice, error) {
+func newEncryptedDeviceLUKS(devNode string, encType secboot.EncryptionType, key keys.EncryptionKey, label, name string) (encryptedDevice, error) {
+	encLabel := label + "-enc"
+	if err := secbootFormatEncryptedDevice(key, encType, encLabel, devNode); err != nil {
+		return nil, fmt.Errorf("cannot format encrypted device: %v", err)
+	}
+
+	if err := cryptsetupOpen(key, devNode, name); err != nil {
+		return nil, fmt.Errorf("cannot open encrypted device on %s: %s", devNode, err)
+	}
+
 	dev := &encryptedDeviceLUKS{
-		parent: part,
+		parent: devNode,
 		name:   name,
 		// A new block device is used to access the encrypted data. Note that
 		// you can't open an encrypted device under different names and a name
 		// can't be used in more than one device at the same time.
 		node: fmt.Sprintf("/dev/mapper/%s", name),
 	}
-
-	if err := secbootFormatEncryptedDevice(key, encType, label, part.Node); err != nil {
-		return nil, fmt.Errorf("cannot format encrypted device: %v", err)
-	}
-
-	if err := cryptsetupOpen(key, part.Node, name); err != nil {
-		return nil, fmt.Errorf("cannot open encrypted device on %s: %s", part.Node, err)
-	}
-
 	return dev, nil
 }
 

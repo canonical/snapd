@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -19,7 +19,7 @@
 
 package builtin
 
-// Only allow raw disk devices; not loop, ram, CDROM, generic SCSI, network,
+// Only allow raw disk devices; not ram, CDROM, generic SCSI, network,
 // tape, raid, etc devices or disk partitions. For some devices, allow controller
 // character devices since they are used to configure the corresponding block
 // device.
@@ -68,6 +68,8 @@ const blockDevicesConnectedPlugAppArmor = `
 /dev/vd[a-z] rwk,                                          # virtio
 /dev/loop[0-9]{,[0-9],[0-9][0-9]} rwk,                     # loopback (up to 1000 devices)
 /dev/loop-control rw,                                      # loopback control
+/dev/zd[0-9]{,[0-9],[0-9][0-9]} rwk,                       # ZFS volumes (up to 1000 devices)
+/dev/zfs rw,                                               # ZFS control
 
 # Allow /dev/nvmeXnY namespace block devices. Please note this grants access to all
 # NVMe namespace block devices and that the numeric suffix on the character device

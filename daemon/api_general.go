@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2020 Canonical Ltd
+ * Copyright (C) 2015-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -24,18 +24,20 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"os/exec"
 	"sort"
 	"time"
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/sandbox"
@@ -60,14 +62,14 @@ var (
 		Path:        "/v2/changes/{id}",
 		GET:         getChange,
 		POST:        abortChange,
-		ReadAccess:  openAccess{},
+		ReadAccess:  interfaceOpenAccess{Interfaces: []string{"snap-refresh-observe"}},
 		WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
 	}
 
 	stateChangesCmd = &Command{
 		Path:       "/v2/changes",
 		GET:        getChanges,
-		ReadAccess: openAccess{},
+		ReadAccess: interfaceOpenAccess{Interfaces: []string{"snap-refresh-observe"}},
 	}
 
 	warningsCmd = &Command{
@@ -91,7 +93,7 @@ func init() {
 		buildID = bid
 	}
 	// cache systemd-detect-virt output as it's unlikely to change :-)
-	if buf, err := exec.Command("systemd-detect-virt").CombinedOutput(); err == nil {
+	if buf, _, err := osutil.RunSplitOutput("systemd-detect-virt"); err == nil {
 		systemdVirt = string(bytes.TrimSpace(buf))
 	}
 }
@@ -106,6 +108,7 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	deviceMgr := c.d.overlord.DeviceManager()
 	st.Lock()
 	defer st.Unlock()
+	tr := config.NewTransaction(st)
 	nextRefresh := snapMgr.NextRefresh()
 	lastRefresh, _ := snapMgr.LastRefresh()
 	refreshHold, _ := snapMgr.EffectiveRefreshHold()
@@ -144,6 +147,7 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		"refresh":      refreshInfo,
 		"architecture": arch.DpkgArchitecture(),
 		"system-mode":  deviceMgr.SystemMode(devicestate.SysAny),
+		"features":     features.All(tr),
 	}
 	if systemdVirt != "" {
 		m["virtualization"] = systemdVirt
@@ -333,6 +337,8 @@ type taskInfo struct {
 
 	SpawnTime time.Time  `json:"spawn-time,omitempty"`
 	ReadyTime *time.Time `json:"ready-time,omitempty"`
+
+	Data map[string]*json.RawMessage `json:"data,omitempty"`
 }
 
 type taskInfoProgress struct {
@@ -382,6 +388,9 @@ func change2changeInfo(chg *state.Change) *changeInfo {
 		if !readyTime.IsZero() {
 			taskInfo.ReadyTime = &readyTime
 		}
+		if data, err := taskApiData(t); err == nil {
+			taskInfo.Data = data
+		}
 		taskInfos[j] = taskInfo
 	}
 	chgInfo.Tasks = taskInfos
@@ -392,6 +401,33 @@ func change2changeInfo(chg *state.Change) *changeInfo {
 	}
 
 	return chgInfo
+}
+
+var snapstateSnapsAffectedByTask = snapstate.SnapsAffectedByTask
+
+// taskApiData returns a map similar to change data which is currently
+// only filled with affected snap names.
+// Example: {"snap-names": ["snap-1", "snap-2"]}
+//
+// Note: This helper could be extended if needed to allow per-task custom
+// data similar to change "api-data".
+func taskApiData(t *state.Task) (map[string]*json.RawMessage, error) {
+	affectedSnaps, err := snapstateSnapsAffectedByTask(t)
+	if err != nil {
+		return nil, err
+	}
+	if len(affectedSnaps) == 0 {
+		return nil, nil
+	}
+	raw, err := json.Marshal(affectedSnaps)
+	if err != nil {
+		return nil, err
+	}
+	var affected json.RawMessage = raw
+	data := map[string]*json.RawMessage{
+		"affected-snaps": &affected,
+	}
+	return data, nil
 }
 
 var (

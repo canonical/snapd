@@ -1,5 +1,9 @@
 summary: Check that the docker snap works basically
 
+details: |
+  Verify the docker snap can be installed and run a hello-world.
+  Also check it can be installed with --devmode.
+
 systems: [ubuntu-*]
 
 environment:
@@ -10,27 +14,37 @@ debug: |
   "$TESTSTOOLS"/journal-state get-log -u snap.docker.dockerd
 
 execute: |
-  # ubuntu trusty is not supported anymore
-  if os.query is-trusty; then
-      exit
+  if [ "$SPREAD_REBOOT" = 0 ]; then
+    # ubuntu trusty is not supported anymore
+    if os.query is-trusty; then
+        exit
+    fi
+
+    CHANNEL=latest/stable
+    if os.query is-pc-i386; then
+        # on i386 only the "base: core18" version is available
+        CHANNEL=core18/stable
+    fi
+
+    if ! snap install --channel="$CHANNEL" docker; then
+      echo "failed to install the docker snap!"
+      exit 1
+    fi
+
+    # the retry here is because there's a race between installing the docker snap
+    # and dockerd to be "ready" enough such that docker can talk to it properly
+    retry -n 30 --wait 1 docker run hello-world | MATCH "installation appears to be working correctly"
+
+    # also check that the docker snap can be installed in devmode for some 
+    # specific customer use cases related to microk8s
+    snap remove docker --purge
+    snap install --channel="$CHANNEL" docker --devmode
+
+    # Interface docker0 is not removed when docker is uninstalled
+    # This problem is reproduced with docker snap and deb packages
+    # Rules added in iptables also are not working properly after
+    # docker is removed. A reboot is recommended.
+    snap remove docker --purge
+
+    REBOOT
   fi
-
-  CHANNEL=latest/stable
-  if os.query is-pc-i386; then
-      # on i386 only the "base: core18" version is available
-      CHANNEL=core18/stable
-  fi
-
-  if ! snap install --channel="$CHANNEL" docker; then
-    echo "failed to install the docker snap!"
-    exit 1
-  fi
-
-  # the retry here is because there's a race between installing the docker snap
-  # and dockerd to be "ready" enough such that docker can talk to it properly
-  retry -n 30 --wait 1 docker run hello-world | MATCH "installation appears to be working correctly"
-
-  # also check that the docker snap can be installed in devmode for some 
-  # specific customer use cases related to microk8s
-  snap remove docker --purge
-  snap install --channel="$CHANNEL" docker --devmode

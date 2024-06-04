@@ -1,13 +1,15 @@
 summary: Ensure that netplan config integration works
 
+details: |
+    Check the netplan configuration is correct in Ubuntu Core 20+. Verify
+    that is is possible to add a br54 interface via netplan, including the
+    configuration for dhcp4 and dhcp6. Verify that `snap unset` works for the whole
+    br54 subtree
+
 # TODO: enable for all ubuntu core versions once netplan.io got SRUed
 #       into the older versions of ubuntu
 systems:
-  - ubuntu-core-20-*
-  - ubuntu-core-22-*
-
-# TODO: re-enable the test once https://bugs.launchpad.net/ubuntu/+source/netplan.io/+bug/1967084 is fixed
-manual: true
+  - ubuntu-core-2*
 
 prepare: |
     snap install jq

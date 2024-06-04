@@ -1,6 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 //go:build !nomanagers
-// +build !nomanagers
 
 /*
  * Copyright (C) 2016 Canonical Ltd
@@ -89,9 +88,9 @@ var configureTests = []struct {
 func (s *tasksetsSuite) TestConfigureInstalled(c *C) {
 	s.state.Lock()
 	snapstate.Set(s.state, "test-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "test-snap", Revision: snap.R(1)},
-		},
+		}),
 		Current:  snap.R(1),
 		Active:   true,
 		SnapType: "app",
@@ -162,9 +161,9 @@ func (s *tasksetsSuite) TestConfigureInstalledConflict(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	snapstate.Set(s.state, "test-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "test-snap", Revision: snap.R(1)},
-		},
+		}),
 		Current:  snap.R(1),
 		Active:   true,
 		SnapType: "app",
@@ -198,9 +197,9 @@ func (s *tasksetsSuite) TestConfigureInstalledDenyBases(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	snapstate.Set(s.state, "test-base", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "test-base", Revision: snap.R(1)},
-		},
+		}),
 		Current:  snap.R(1),
 		Active:   true,
 		SnapType: "base",
@@ -215,9 +214,9 @@ func (s *tasksetsSuite) TestConfigureInstalledDenySnapd(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "snapd", Revision: snap.R(1)},
-		},
+		}),
 		Current:  snap.R(1),
 		Active:   true,
 		SnapType: "snapd",
@@ -230,9 +229,9 @@ func (s *tasksetsSuite) TestConfigureInstalledDenySnapd(c *C) {
 func (s *tasksetsSuite) TestDefaultConfigure(c *C) {
 	s.state.Lock()
 	snapstate.Set(s.state, "test-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "test-snap", Revision: snap.R(1)},
-		},
+		}),
 		Current:  snap.R(1),
 		Active:   true,
 		SnapType: "app",
@@ -260,7 +259,6 @@ func (s *tasksetsSuite) TestDefaultConfigure(c *C) {
 		Optional:    true,
 		Always:      false,
 		IgnoreError: false,
-		TrackError:  false,
 	}
 	c.Assert(hooksup, DeepEquals, expectedHookSetup)
 
@@ -308,6 +306,22 @@ func (s *configcoreHijackSuite) SetUpTest(c *C) {
 	r = snapstatetest.MockDeviceModel(makeModel(nil))
 	s.AddCleanup(r)
 
+}
+
+func (s *configcoreHijackSuite) TestConfigMngrInitHomeDirs(c *C) {
+	s.o = overlord.Mock()
+	s.state = s.o.State()
+	hookMgr, err := hookstate.Manager(s.state, s.o.TaskRunner())
+	c.Assert(err, IsNil)
+	s.state.Lock()
+	t := config.NewTransaction(s.state)
+	c.Assert(t.Set("core", "homedirs", "/home,/home/department,/users,/users/seniors"), IsNil)
+	t.Commit()
+	s.state.Unlock()
+	err = configstate.Init(s.state, hookMgr)
+	c.Assert(err, IsNil)
+	snapHomeDirs := []string{"/home", "/home/department", "/users", "/users/seniors"}
+	c.Check(dirs.SnapHomeDirs(), DeepEquals, snapHomeDirs)
 }
 
 type witnessManager struct {

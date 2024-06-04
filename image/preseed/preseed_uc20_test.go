@@ -23,7 +23,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -169,7 +168,13 @@ func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir, 
 	dirs.SetRootDir(tmpDir)
 	defer mockChrootDirs(c, tmpDir, true)()
 
-	mockChootCmd := testutil.MockCommand(c, "chroot", "")
+	writableTmpDir := filepath.Join(tmpDir, "writable-tmp")
+
+	mockChootCmd := testutil.MockCommand(c, "chroot", fmt.Sprintf(`#!/bin/sh
+	set -eux
+	[ -L %[1]s/system-data/snap/snapd/current ]
+	[ "$(readlink %[1]s/system-data/snap/snapd/current)" = preseeding ]
+`, writableTmpDir))
 	defer mockChootCmd.Restore()
 
 	mockMountCmd := testutil.MockCommand(c, "mount", "")
@@ -184,15 +189,14 @@ func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir, 
 	})
 	defer restoreMakePreseedTmpDir()
 
-	writableTmpDir := filepath.Join(tmpDir, "writable-tmp")
 	restoreMakeWritableTempDir := preseed.MockMakeWritableTempDir(func() (string, error) {
 		return writableTmpDir, nil
 	})
 	defer restoreMakeWritableTempDir()
 
 	c.Assert(os.MkdirAll(filepath.Join(writableTmpDir, "system-data/etc/bar"), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(writableTmpDir, "system-data/etc/bar/a"), nil, 0644), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(writableTmpDir, "system-data/etc/bar/b"), nil, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(writableTmpDir, "system-data/etc/bar/a"), nil, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(writableTmpDir, "system-data/etc/bar/b"), nil, 0644), IsNil)
 
 	mockTar := testutil.MockCommand(c, "tar", "")
 	defer mockTar.Restore()
@@ -203,7 +207,7 @@ func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir, 
 }`
 
 	c.Assert(os.MkdirAll(filepath.Join(preseedTmpDir, "usr/lib/snapd"), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(preseedTmpDir, "usr/lib/snapd/preseed.json"), []byte(exportFileContents), 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(preseedTmpDir, "usr/lib/snapd/preseed.json"), []byte(exportFileContents), 0644), IsNil)
 
 	mockWritablePaths := testutil.MockCommand(c, filepath.Join(preseedTmpDir, "/usr/lib/core/handle-writable-paths"), "")
 	defer mockWritablePaths.Restore()
@@ -220,7 +224,7 @@ func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir, 
 	defer restoreSystemSnapFromSeed()
 
 	c.Assert(os.MkdirAll(filepath.Join(tmpDir, "system-seed/systems/20220203"), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(tmpDir, "system-seed/systems/20220203/preseed.tgz"), []byte(`hello world`), 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(tmpDir, "system-seed/systems/20220203/preseed.tgz"), []byte(`hello world`), 0644), IsNil)
 
 	opts := &preseed.CoreOptions{
 		PrepareImageDir:           tmpDir,
@@ -254,11 +258,13 @@ func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir, 
 		{"mount", "--bind", filepath.Join(writableTmpDir, "system-data/etc/udev/rules.d"), filepath.Join(preseedTmpDir, "etc/udev/rules.d")},
 		{"mount", "--bind", filepath.Join(writableTmpDir, "system-data/var/lib/extrausers"), filepath.Join(preseedTmpDir, "var/lib/extrausers")},
 		{"mount", "--bind", filepath.Join(targetSnapdRoot, "/usr/lib/snapd"), filepath.Join(preseedTmpDir, "usr/lib/snapd")},
+		{"mount", "--bind", targetSnapdRoot, filepath.Join(preseedTmpDir, "snap/snapd/preseeding")},
 		{"mount", "--bind", filepath.Join(tmpDir, "system-seed"), filepath.Join(preseedTmpDir, "var/lib/snapd/seed")},
 	}
 
 	expectedUmountCalls := [][]string{
 		{"umount", filepath.Join(preseedTmpDir, "var/lib/snapd/seed")},
+		{"umount", filepath.Join(preseedTmpDir, "snap/snapd/preseeding")},
 		{"umount", filepath.Join(preseedTmpDir, "usr/lib/snapd")},
 		{"umount", filepath.Join(preseedTmpDir, "var/lib/extrausers")},
 		{"umount", filepath.Join(preseedTmpDir, "etc/udev/rules.d")},
@@ -289,7 +295,7 @@ func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir, 
 			expectedMountCalls = append(expectedMountCalls[:sysFsMountFirstIndex+i+1], expectedMountCalls[sysFsMountFirstIndex+i:]...)
 			expectedMountCalls[sysFsMountFirstIndex+i] = []string{"mount", "--bind", filepath.Join(sysfsOverlay, "sys", dir), filepath.Join(preseedTmpDir, "sys", dir)}
 			// order of umounts is reversed, prepend
-			const sysFsUmountFirstIndex = 11
+			const sysFsUmountFirstIndex = 12
 			expectedUmountCalls = append(expectedUmountCalls[:sysFsUmountFirstIndex+1], expectedUmountCalls[sysFsUmountFirstIndex:]...)
 			expectedUmountCalls[sysFsUmountFirstIndex] = []string{"umount", filepath.Join(preseedTmpDir, "sys", dir)}
 		}
@@ -424,7 +430,7 @@ func (s *preseedSuite) TestRunPreseedUC20ExecFormatError(c *C) {
 	// not the image target architecture.
 	mockChrootCmd := testutil.MockCommand(c, "chroot", "")
 	defer mockChrootCmd.Restore()
-	err := ioutil.WriteFile(mockChrootCmd.Exe(), []byte("invalid-exe"), 0755)
+	err := os.WriteFile(mockChrootCmd.Exe(), []byte("invalid-exe"), 0755)
 	c.Check(err, IsNil)
 
 	popts := &preseed.PreseedCoreOptions{

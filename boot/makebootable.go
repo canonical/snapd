@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2022 Canonical Ltd
+ * Copyright (C) 2014-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -300,14 +300,19 @@ func MakeRecoverySystemBootable(model *asserts.Model, rootdir string, relativeRe
 	recoveryBlVars := map[string]string{
 		"snapd_recovery_kernel": filepath.Join("/", kernelPath),
 	}
-	if _, ok := bl.(bootloader.TrustedAssetsBootloader); ok {
+	if tbl, ok := bl.(bootloader.TrustedAssetsBootloader); ok {
 		// Look at gadget default values for system.kernel.*cmdline-append options
 		cmdlineAppend, err := buildOptionalKernelCommandLine(model, bootWith.GadgetSnapOrDir)
 		if err != nil {
 			return fmt.Errorf("while retrieving system.kernel.*cmdline-append defaults: %v", err)
 		}
+		candidate := false
+		defaultCmdLine, err := tbl.DefaultCommandLine(candidate)
+		if err != nil {
+			return err
+		}
 		// to set cmdlineAppend.
-		recoveryCmdlineArgs, err := bootVarsForTrustedCommandLineFromGadget(bootWith.GadgetSnapOrDir, cmdlineAppend)
+		recoveryCmdlineArgs, err := bootVarsForTrustedCommandLineFromGadget(bootWith.GadgetSnapOrDir, cmdlineAppend, defaultCmdLine, model)
 		if err != nil {
 			return fmt.Errorf("cannot obtain recovery system command line: %v", err)
 		}
@@ -326,6 +331,7 @@ type makeRunnableOptions struct {
 	Standalone     bool
 	AfterDataReset bool
 	SeedDir        string
+	StateUnlocker  Unlocker
 }
 
 func copyBootSnap(orig string, dstInfo *snap.Info, dstSnapBlobDir string) error {
@@ -351,13 +357,15 @@ func copyBootSnap(orig string, dstInfo *snap.Info, dstSnapBlobDir string) error 
 	return nil
 }
 
-func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *TrustedAssetsInstallObserver, makeOpts makeRunnableOptions) error {
+func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, observer TrustedAssetsInstallObserver, makeOpts makeRunnableOptions) error {
 	if model.Grade() == asserts.ModelGradeUnset {
 		return fmt.Errorf("internal error: cannot make pre-UC20 system runnable")
 	}
 	if bootWith.RecoverySystemDir != "" {
 		return fmt.Errorf("internal error: RecoverySystemDir unexpectedly set for MakeRunnableSystem")
 	}
+	modeenvLock()
+	defer modeenvUnlock()
 
 	// TODO:UC20:
 	// - figure out what to do for uboot gadgets, currently we require them to
@@ -388,9 +396,15 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 
 	var currentTrustedBootAssets bootAssetsMap
 	var currentTrustedRecoveryBootAssets bootAssetsMap
-	if sealer != nil {
-		currentTrustedBootAssets = sealer.currentTrustedBootAssetsMap()
-		currentTrustedRecoveryBootAssets = sealer.currentTrustedRecoveryBootAssetsMap()
+	var observerImpl *trustedAssetsInstallObserverImpl
+	if observer != nil {
+		impl, ok := observer.(*trustedAssetsInstallObserverImpl)
+		if !ok {
+			return fmt.Errorf("internal error: expected a trustedAssetsInstallObserverImpl")
+		}
+		observerImpl = impl
+		currentTrustedBootAssets = observerImpl.currentTrustedBootAssetsMap()
+		currentTrustedRecoveryBootAssets = observerImpl.currentTrustedRecoveryBootAssetsMap()
 	}
 	recoverySystemLabel := bootWith.RecoverySystemLabel
 	// write modeenv on the ubuntu-data partition
@@ -481,7 +495,7 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 		return fmt.Errorf("cannot set run system environment: %v", err)
 	}
 
-	_, ok = bl.(bootloader.TrustedAssetsBootloader)
+	tbl, ok := bl.(bootloader.TrustedAssetsBootloader)
 	if ok {
 		// the bootloader can manage its boot config
 
@@ -502,7 +516,14 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 		if err != nil {
 			return fmt.Errorf("while retrieving system.kernel.*cmdline-append defaults: %v", err)
 		}
-		cmdlineVars, err := bootVarsForTrustedCommandLineFromGadget(bootWith.UnpackedGadgetDir, cmdlineAppend)
+
+		candidate := false
+		defaultCmdLine, err := tbl.DefaultCommandLine(candidate)
+		if err != nil {
+			return err
+		}
+
+		cmdlineVars, err := bootVarsForTrustedCommandLineFromGadget(bootWith.UnpackedGadgetDir, cmdlineAppend, defaultCmdLine, model)
 		if err != nil {
 			return fmt.Errorf("cannot prepare bootloader variables for kernel command line: %v", err)
 		}
@@ -517,7 +538,7 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 		return fmt.Errorf("cannot write modeenv: %v", err)
 	}
 
-	if sealer != nil {
+	if observer != nil && observerImpl.useEncryption {
 		hasHook, err := HasFDESetupHook(bootWith.Kernel)
 		if err != nil {
 			return fmt.Errorf("cannot check for fde-setup hook: %v", err)
@@ -527,12 +548,13 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 			HasFDESetupHook: hasHook,
 			FactoryReset:    makeOpts.AfterDataReset,
 			SeedDir:         makeOpts.SeedDir,
+			StateUnlocker:   makeOpts.StateUnlocker,
 		}
 		if makeOpts.Standalone {
 			flags.SnapsDir = snapBlobDir
 		}
 		// seal the encryption key to the parameters specified in modeenv
-		if err := sealKeyToModeenv(sealer.dataEncryptionKey, sealer.saveEncryptionKey, model, modeenv, flags); err != nil {
+		if err := sealKeyToModeenv(observerImpl.dataEncryptionKey, observerImpl.saveEncryptionKey, model, modeenv, flags); err != nil {
 			return err
 		}
 	}
@@ -542,6 +564,13 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 	if err := MarkRecoveryCapableSystem(recoverySystemLabel); err != nil {
 		return fmt.Errorf("cannot record %q as a recovery capable system: %v", recoverySystemLabel, err)
 	}
+
+	if observer != nil {
+		if err := observer.UpdateBootEntry(); err != nil {
+			logger.Debugf("WARNING: %v", err)
+		}
+	}
+
 	return nil
 }
 
@@ -596,30 +625,31 @@ func buildOptionalKernelCommandLine(model *asserts.Model, gadgetSnapOrDir string
 // something like boot.EnsureNextBootToRunMode(). This is to enable separately
 // setting up a run system and actually transitioning to it, with hooks, etc.
 // running in between.
-func MakeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *TrustedAssetsInstallObserver) error {
-	return makeRunnableSystem(model, bootWith, sealer, makeRunnableOptions{
+func MakeRunnableSystem(model *asserts.Model, bootWith *BootableSet, observer TrustedAssetsInstallObserver) error {
+	return makeRunnableSystem(model, bootWith, observer, makeRunnableOptions{
 		SeedDir: dirs.SnapSeedDir,
 	})
 }
 
 // MakeRunnableStandaloneSystem operates like MakeRunnableSystem but does
-// assume that the run system being set up is related to the current
+// not assume that the run system being set up is related to the current
 // system. This is appropriate e.g when installing from a classic installer.
-func MakeRunnableStandaloneSystem(model *asserts.Model, bootWith *BootableSet, sealer *TrustedAssetsInstallObserver) error {
+func MakeRunnableStandaloneSystem(model *asserts.Model, bootWith *BootableSet, observer TrustedAssetsInstallObserver, unlocker Unlocker) error {
 	// TODO consider merging this back into MakeRunnableSystem but need
 	// to consider the properties of the different input used for sealing
-	return makeRunnableSystem(model, bootWith, sealer, makeRunnableOptions{
-		Standalone: true,
-		SeedDir:    dirs.SnapSeedDir,
+	return makeRunnableSystem(model, bootWith, observer, makeRunnableOptions{
+		Standalone:    true,
+		SeedDir:       dirs.SnapSeedDir,
+		StateUnlocker: unlocker,
 	})
 }
 
 // MakeRunnableStandaloneSystemFromInitrd is the same as MakeRunnableStandaloneSystem
 // but uses seed dir path expected in initrd.
-func MakeRunnableStandaloneSystemFromInitrd(model *asserts.Model, bootWith *BootableSet, sealer *TrustedAssetsInstallObserver) error {
+func MakeRunnableStandaloneSystemFromInitrd(model *asserts.Model, bootWith *BootableSet, observer TrustedAssetsInstallObserver) error {
 	// TODO consider merging this back into MakeRunnableSystem but need
 	// to consider the properties of the different input used for sealing
-	return makeRunnableSystem(model, bootWith, sealer, makeRunnableOptions{
+	return makeRunnableSystem(model, bootWith, observer, makeRunnableOptions{
 		Standalone: true,
 		SeedDir:    filepath.Join(InitramfsRunMntDir, "ubuntu-seed"),
 	})
@@ -628,8 +658,8 @@ func MakeRunnableStandaloneSystemFromInitrd(model *asserts.Model, bootWith *Boot
 // MakeRunnableSystemAfterDataReset sets up the system to be able to boot, but it is
 // intended to be called from UC20 factory reset mode right before switching
 // back to the new run system.
-func MakeRunnableSystemAfterDataReset(model *asserts.Model, bootWith *BootableSet, sealer *TrustedAssetsInstallObserver) error {
-	return makeRunnableSystem(model, bootWith, sealer, makeRunnableOptions{
+func MakeRunnableSystemAfterDataReset(model *asserts.Model, bootWith *BootableSet, observer TrustedAssetsInstallObserver) error {
+	return makeRunnableSystem(model, bootWith, observer, makeRunnableOptions{
 		AfterDataReset: true,
 		SeedDir:        dirs.SnapSeedDir,
 	})

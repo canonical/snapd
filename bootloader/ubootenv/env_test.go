@@ -22,7 +22,7 @@ package ubootenv_test
 import (
 	"bytes"
 	"hash/crc32"
-	"io/ioutil"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -83,7 +83,7 @@ func (u *uenvTestSuite) TestOpenEnvNoHeaderFlagByte(c *C) {
 func (u *uenvTestSuite) TestOpenEnvBadEmpty(c *C) {
 	empty := filepath.Join(c.MkDir(), "empty.env")
 
-	err := ioutil.WriteFile(empty, nil, 0644)
+	err := os.WriteFile(empty, nil, 0644)
 	c.Assert(err, IsNil)
 
 	_, err = ubootenv.Open(empty)
@@ -94,7 +94,7 @@ func (u *uenvTestSuite) TestOpenEnvBadCRC(c *C) {
 	corrupted := filepath.Join(c.MkDir(), "corrupted.env")
 
 	buf := make([]byte, 4096)
-	err := ioutil.WriteFile(corrupted, buf, 0644)
+	err := os.WriteFile(corrupted, buf, 0644)
 	c.Assert(err, IsNil)
 
 	_, err = ubootenv.Open(corrupted)
@@ -302,7 +302,7 @@ func (u *uenvTestSuite) TestWritesEmptyFileWithDoubleNewline(c *C) {
 	r, err := os.Open(u.envFile)
 	c.Assert(err, IsNil)
 	defer r.Close()
-	content, err := ioutil.ReadAll(r)
+	content, err := io.ReadAll(r)
 	c.Assert(err, IsNil)
 	c.Assert(content, DeepEquals, []byte{
 		// crc
@@ -330,7 +330,7 @@ func (u *uenvTestSuite) TestWritesEmptyFileWithDoubleNewlineNoHeaderFlagByte(c *
 	r, err := os.Open(u.envFile)
 	c.Assert(err, IsNil)
 	defer r.Close()
-	content, err := ioutil.ReadAll(r)
+	content, err := io.ReadAll(r)
 	c.Assert(err, IsNil)
 	c.Assert(content, DeepEquals, []byte{
 		// crc
@@ -360,7 +360,7 @@ func (u *uenvTestSuite) TestWritesContentCorrectly(c *C) {
 	r, err := os.Open(u.envFile)
 	c.Assert(err, IsNil)
 	defer r.Close()
-	content, err := ioutil.ReadAll(r)
+	content, err := io.ReadAll(r)
 	c.Assert(err, IsNil)
 	c.Assert(content, DeepEquals, []byte{
 		// crc
@@ -399,7 +399,7 @@ func (u *uenvTestSuite) TestWritesContentCorrectlyNoHeaderFlagByte(c *C) {
 	r, err := os.Open(u.envFile)
 	c.Assert(err, IsNil)
 	defer r.Close()
-	content, err := ioutil.ReadAll(r)
+	content, err := io.ReadAll(r)
 	c.Assert(err, IsNil)
 	c.Assert(content, DeepEquals, []byte{
 		// crc

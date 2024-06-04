@@ -154,14 +154,45 @@ class Info:
             }
 
 
+class Rule:
+    """
+    Rule represent the KEY=PATTERN used to extract information from a set of lines
+    """
+
+    def __init__(self, rule):
+        parts = rule.split('=',1)
+        if len(parts) != 2:
+            raise ValueError("Error: Rule '{}' does not follow the KEY=PATTERN format".format(rule))
+
+        self.key = parts[0]
+        self.pattern = parts[1]
+
+        try:
+            re.compile(self.pattern)
+        except re.error as err:
+            raise ValueError("Error: pattern '{}' cannot be compiled: {}".format(pattern, err))
+
+    def filter(self, lines):
+        regex = re.compile(self.pattern)
+        all_matches = []
+        for line in lines:
+            matches = regex.findall(line)
+            for match in matches:
+                if match:
+                    all_matches.append(match)
+
+        return all_matches
+
 class Detail:
     """
     Detail represents the extra lines which are displayed after the info
     """
 
-    def __init__(self, lines_limit, lines):
+    def __init__(self, lines_limit, lines, rules):
         self.lines_limit = lines_limit
         self.lines = lines
+        self.data = {}
+        self._process_rules(rules)
 
     def _get_lines(self):
         if self.lines_limit < 0 or self.lines_limit > len(self.lines):
@@ -171,11 +202,21 @@ class Detail:
         # want to count it as a line in the log details
         return self.lines[-self.lines_limit-1:]
 
+    def _process_rules(self, rules):
+        for rule in rules:
+            key = rule.key
+            matches = rule.filter(self.lines)
+            self.data[key] = '\n'.join(matches)
+
     def __repr__(self):
         return ''.join(self._get_lines())
 
     def __dict__(self):
-        return {'lines': self.lines[-self.lines_limit-1:]}
+        details_dict = {'lines': self.lines[-self.lines_limit-1:]}
+        for key in self.data.keys():
+            details_dict[key] = self.data[key]
+
+        return details_dict
 
 
 class Operation:
@@ -212,7 +253,7 @@ class LogReader:
     """
     LogReader manages the spread log, it allows to read, export and print
     """
-    def __init__(self, filepath, output_type, lines_limit, store_setup):
+    def __init__(self, filepath, output_type, lines_limit, store_setup, error_rules, debug_rules):
         self.filepath = filepath
         self.output_type = output_type
         self.lines_limit = lines_limit
@@ -220,6 +261,8 @@ class LogReader:
         self.lines = []
         self.iter = 0
         self.full_log = []
+        self.error_rules = [Rule(rule) for rule in error_rules]
+        self.debug_rules = [Rule(rule) for rule in debug_rules]
 
     def __repr__(self):
         return str(self.__dict__())
@@ -278,8 +321,12 @@ class LogReader:
         return os.path.exists(self.filepath)
 
     def read_spread_log(self):
-        with open(self.filepath) as filepath:
-            self.lines = filepath.readlines()
+        try:
+            with open(self.filepath, 'r', encoding='utf-8') as filepath:
+                self.lines = filepath.readlines()
+        except UnicodeDecodeError:
+            with open(self.filepath, 'r', encoding='latin-1') as filepath:
+                self.lines = filepath.readlines()
 
         # Find the start of the log, the log file could include
         # initial lines which are not part of the spread log itself
@@ -370,7 +417,7 @@ class LogReader:
             self._match_date(parts[0]) and \
             self._match_time(parts[1])
 
-    def _get_detail(self, results=False, other_limit=None):
+    def _get_detail(self, rules, results=False, other_limit=None):
         """
         This function is used to get the piece of log which is after the
         info lines (error, debug, warning). The detail could also include
@@ -420,7 +467,7 @@ class LogReader:
         if not other_limit:
             other_limit = self.lines_limit
 
-        return Detail(other_limit, detail)
+        return Detail(other_limit, detail, rules)
 
     def _get_info(self, line):
         """
@@ -452,7 +499,12 @@ class LogReader:
         else:
             print('log-parser: detail type not recognized: {}'.format(info_type))
 
-        detail = self._get_detail(results=False)
+        # Pass the rules according to the info type
+        rules = self.debug_rules
+        if info_type == ERROR_TYPE:
+            rules = self.error_rules
+
+        detail = self._get_detail(rules, results=False)
         return Info(info_type, verb, task, extra, date, time, detail, line)
 
     def _get_result(self, line):
@@ -471,7 +523,7 @@ class LogReader:
         if result_type == FAILED_TYPE:
             if level in FAILED_LEVELS:
                 stage = parts[4].split(':')[0]
-            detail = self._get_detail(results=True, other_limit=-1)
+            detail = self._get_detail([], results=True, other_limit=-1)
 
         return Result(result_type, level, stage, number.strip(), date, time, detail,
                       line)
@@ -555,6 +607,20 @@ for the error/debug/warning output.
         help="will save all the text before the spread run is started",
     )
     parser.add_argument(
+        "-er",
+        "--error-rule", 
+        action="append",
+        default=[],
+        help="A KEY=PATTERN used to extract and store specific data from errors"
+    )
+    parser.add_argument(
+        "-dr",
+        "--debug-rule", 
+        action="append",
+        default=[],
+        help="A KEY=PATTERN used to extract and store specific data from debug output"
+    )
+    parser.add_argument(
         "logpath", metavar="PATH", help="path to the log to be analyzed"
     )
     return parser
@@ -569,7 +635,7 @@ def main():
         parser.print_usage()
         parser.exit(0)
 
-    reader = LogReader(args.logpath, args.format, args.cut, args.store_setup)
+    reader = LogReader(args.logpath, args.format, args.cut, args.store_setup, args.error_rule, args.debug_rule)
     if not reader.check_log_exists():
         print("log-parser: log not found")
         sys.exit(1)

@@ -353,14 +353,14 @@ func splitKernelRef(kernelRef string) (asset, content string, err error) {
 	return asset, content, nil
 }
 
-func validateVolumeContentsPresence(gadgetSnapRootDir string, vol *LaidOutVolume) error {
+func validateVolumeContentsPresence(gadgetSnapRootDir string, vol *Volume) error {
 	// bare structure content is checked to exist during layout
 	// make sure that filesystem content source paths exist as well
-	for _, s := range vol.LaidOutStructure {
+	for _, s := range vol.Structure {
 		if !s.HasFilesystem() {
 			continue
 		}
-		for _, c := range s.VolumeStructure.Content {
+		for _, c := range s.Content {
 			// TODO: detect and skip Content with "$kernel:" style
 			// refs if there is no kernelSnapRootDir passed in as
 			// well
@@ -374,12 +374,12 @@ func validateVolumeContentsPresence(gadgetSnapRootDir string, vol *LaidOutVolume
 			}
 			realSource := filepath.Join(gadgetSnapRootDir, c.UnresolvedSource)
 			if !osutil.FileExists(realSource) {
-				return fmt.Errorf("structure %v, content %v: source path does not exist", s, c)
+				return fmt.Errorf("structure #%d (%q), content %v: source path does not exist", s.YamlIndex, s.Name, c)
 			}
 			if strings.HasSuffix(c.UnresolvedSource, "/") {
 				// expecting a directory
 				if err := checkSourceIsDir(realSource + "/"); err != nil {
-					return fmt.Errorf("structure %v, content %v: %v", s, c, err)
+					return fmt.Errorf("structure #%d (%q), content %v: %v", s.YamlIndex, s.Name, c, err)
 				}
 			}
 		}
@@ -394,35 +394,40 @@ func ValidateContent(info *Info, gadgetSnapRootDir, kernelSnapRootDir string) er
 	// "<bl-name>.conf" file indicates precisely which bootloader
 	// the gadget uses and as such there cannot be more than one
 	// such bootloader
-	for name, vol := range info.Volumes {
-		opts := &LayoutOptions{
-			GadgetRootDir: gadgetSnapRootDir,
-			KernelRootDir: kernelSnapRootDir,
-		}
-		// At this point we may not know what kernel will be used
-		// with the gadget yet. Skip this check in this case.
-		if kernelSnapRootDir == "" {
-			opts.SkipResolveContent = true
-		}
-		lv, err := LayoutVolume(vol, opts)
+	var kernelInfo *kernel.Info
+	if kernelSnapRootDir != "" {
+		var err error
+		kernelInfo, err = kernel.ReadInfo(kernelSnapRootDir)
 		if err != nil {
-			return fmt.Errorf("invalid layout of volume %q: %v", name, err)
+			return err
 		}
-		if err := validateVolumeContentsPresence(gadgetSnapRootDir, lv); err != nil {
+	}
+	for name, vol := range info.Volumes {
+		// Check that files shipped in the gadget have the expected sizes
+		for idx := range vol.Structure {
+			if err := checkGadgetContentImages(gadgetSnapRootDir, &vol.Structure[idx]); err != nil {
+				return err
+			}
+		}
+		// Make sure that content can be resolved if the kernel snap is known.
+		if kernelInfo != nil {
+			for idx := range vol.Structure {
+				if _, err := resolveVolumeContent(gadgetSnapRootDir, kernelSnapRootDir, kernelInfo, &vol.Structure[idx], nil); err != nil {
+					return err
+				}
+			}
+		}
+		if err := validateVolumeContentsPresence(gadgetSnapRootDir, vol); err != nil {
 			return fmt.Errorf("invalid volume %q: %v", name, err)
 		}
 	}
 
 	// Ensure that at least one kernel.yaml reference can be resolved
 	// by the gadget
-	if kernelSnapRootDir != "" {
-		kinfo, err := kernel.ReadInfo(kernelSnapRootDir)
-		if err != nil {
-			return err
-		}
+	if kernelInfo != nil {
 		resolvedOnce := false
 		for _, vol := range info.Volumes {
-			err := gadgetVolumeConsumesOneKernelUpdateAsset(vol, kinfo)
+			err := gadgetVolumeConsumesOneKernelUpdateAsset(vol, kernelInfo)
 			if err == nil {
 				resolvedOnce = true
 			}

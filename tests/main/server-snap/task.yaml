@@ -1,5 +1,9 @@
 summary: Check snap web servers
 
+details: |
+    This test verifies that snaps web servers (written in go and python)
+    can be installed and are able to handle requests.
+
 # arch: there is no ip6-localhost
 systems: [-fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*]
 

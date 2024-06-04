@@ -1,5 +1,4 @@
 //go:build !nosecboot
-// +build !nosecboot
 
 package main
 

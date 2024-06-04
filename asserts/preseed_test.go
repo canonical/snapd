@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2022 Canonical Ltd
+ * Copyright (C) 2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -138,7 +138,6 @@ func (ps *preseedSuite) TestDecodeInvalid(c *C) {
 		{"model: baz-3000\n", "model: -\n", `"model" header contains invalid characters: "-"`},
 		{"brand-id: brand-id1\n", "", `"brand-id" header is mandatory`},
 		{"brand-id: brand-id1\n", "brand-id: \n", `"brand-id" header should not be empty`},
-		{"brand-id: brand-id1\n", "brand-id: brand-id2\n", `authority-id and brand-id must match, preseed assertions are expected to be signed by the brand: "brand-id1" != "brand-id2"`},
 		{"system-label: 20220210\n", "system-label: \n", `"system-label" header should not be empty`},
 		{"system-label: 20220210\n", "system-label: -x\n", `"system-label" header contains invalid characters: "-x"`},
 		{ps.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},

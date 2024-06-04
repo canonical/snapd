@@ -1,6 +1,10 @@
 summary: Update boot assets through gadgets in secure boot
 
-systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+details: |
+  Check that Ubuntu Core image boots properly with updated boot assets
+  through gadget in secure boot
+
+systems: [ubuntu-2*]
 
 environment:
   NESTED_ENABLE_SECURE_BOOT: true
@@ -87,17 +91,14 @@ prepare: |
   fi
 
   cat <<EOF >>expected-before
-  ${old_shim_sha} */run/mnt/ubuntu-boot/EFI/boot/bootx64.efi
   ${old_grub_sha} */run/mnt/ubuntu-boot/EFI/boot/grubx64.efi
   EOF
   if [ "${UPDATE_BOOT}" = true ]; then
     cat <<EOF >>expected-after
-  ${new_shim_sha} */run/mnt/ubuntu-boot/EFI/boot/bootx64.efi
   ${new_grub_sha} */run/mnt/ubuntu-boot/EFI/boot/grubx64.efi
   EOF
   else
     cat <<EOF >>expected-after
-  ${old_shim_sha} */run/mnt/ubuntu-boot/EFI/boot/bootx64.efi
   ${old_grub_sha} */run/mnt/ubuntu-boot/EFI/boot/grubx64.efi
   EOF
   fi

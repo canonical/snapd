@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -81,12 +80,12 @@ func (s *systemKeySuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
 }
 
-func (s *systemKeySuite) testInterfaceWriteSystemKey(c *C, nfsHome, overlayRoot bool) {
+func (s *systemKeySuite) testInterfaceWriteSystemKey(c *C, remoteFSHome, overlayRoot bool) {
 	var overlay string
 	if overlayRoot {
 		overlay = "overlay"
 	}
-	restore := interfaces.MockIsHomeUsingNFS(func() (bool, error) { return nfsHome, nil })
+	restore := interfaces.MockIsHomeUsingRemoteFS(func() (bool, error) { return remoteFSHome, nil })
 	defer restore()
 
 	restore = interfaces.MockReadBuildID(func(p string) (string, error) {
@@ -104,7 +103,7 @@ func (s *systemKeySuite) testInterfaceWriteSystemKey(c *C, nfsHome, overlayRoot 
 	err := interfaces.WriteSystemKey()
 	c.Assert(err, IsNil)
 
-	systemKey, err := ioutil.ReadFile(dirs.SnapSystemKeyFile)
+	systemKey, err := os.ReadFile(dirs.SnapSystemKeyFile)
 	c.Assert(err, IsNil)
 
 	kernelFeatures, _ := apparmor.KernelFeatures()
@@ -136,18 +135,18 @@ func (s *systemKeySuite) testInterfaceWriteSystemKey(c *C, nfsHome, overlayRoot 
 		apparmorFeaturesStr,
 		apparmorParserMtime,
 		apparmorParserFeaturesStr,
-		nfsHome,
+		remoteFSHome,
 		overlay,
 		seccompActionsStr,
 		seccompCompilerVersion,
 	))
 }
 
-func (s *systemKeySuite) TestInterfaceWriteSystemKeyNoNFS(c *C) {
+func (s *systemKeySuite) TestInterfaceWriteSystemKeyNoRemoteFS(c *C) {
 	s.testInterfaceWriteSystemKey(c, false, false)
 }
 
-func (s *systemKeySuite) TestInterfaceWriteSystemKeyWithNFS(c *C) {
+func (s *systemKeySuite) TestInterfaceWriteSystemKeyWithRemoteFS(c *C) {
 	s.testInterfaceWriteSystemKey(c, true, false)
 }
 
@@ -156,12 +155,12 @@ func (s *systemKeySuite) TestInterfaceWriteSystemKeyWithOverlayRoot(c *C) {
 }
 
 // bonus points to someone who actually runs this
-func (s *systemKeySuite) TestInterfaceWriteSystemKeyWithNFSWithOverlayRoot(c *C) {
+func (s *systemKeySuite) TestInterfaceWriteSystemKeyWithRemoteFSWithOverlayRoot(c *C) {
 	s.testInterfaceWriteSystemKey(c, true, true)
 }
 
 func (s *systemKeySuite) TestInterfaceWriteSystemKeyErrorOnBuildID(c *C) {
-	restore := interfaces.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
+	restore := interfaces.MockIsHomeUsingRemoteFS(func() (bool, error) { return false, nil })
 	defer restore()
 
 	restore = interfaces.MockReadBuildID(func(p string) (string, error) {
@@ -239,14 +238,14 @@ func (s *systemKeySuite) TestInterfaceSystemKeyMismatchParserMtimeHappy(c *C) {
 }
 
 func (s *systemKeySuite) TestInterfaceSystemKeyMismatchVersions(c *C) {
-	// we calculcate v1
+	// we calculate v1
 	s.AddCleanup(interfaces.MockSystemKey(`
 {
 "version":1,
 "build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0"
 }`))
 	// and the on-disk version is v2
-	err := ioutil.WriteFile(dirs.SnapSystemKeyFile, []byte(`
+	err := os.WriteFile(dirs.SnapSystemKeyFile, []byte(`
 {
 "version":2,
 "build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0"

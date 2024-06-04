@@ -45,6 +45,10 @@ const networkSetupControlConnectedPlugAppArmor = `
 # Netplan uses busctl internally, so allow using that as well
 /usr/bin/busctl ixr,
 
+# from systemd 254 onward, busctl binds to a unix socket upon startup to
+# facilitate debugging
+unix (bind) type=stream addr="@[0-9a-fA-F]*/bus/busctl/*",
+
 /etc/netplan/{,**} rw,
 /etc/network/{,**} rw,
 /etc/systemd/network/{,**} rw,
@@ -61,29 +65,21 @@ const networkSetupControlConnectedPlugAppArmor = `
 
 #include <abstractions/dbus-strict>
 
-# Allow use of Netplan Generate API, used to generate network configuration
-dbus (send)
-	bus=system
-	interface=io.netplan.Netplan
-	path=/io/netplan/Netplan
-	member=Generate
-	peer=(label=unconfined),
-
-# Allow use of Netplan Apply API, used to apply network configuration
+# Allow use of Netplan API, used to configure network using dbus
+# (see https://netplan.readthedocs.io/en/stable/netplan-dbus/)
 dbus (send)
     bus=system
     interface=io.netplan.Netplan
     path=/io/netplan/Netplan
-	member=Apply
+	member={Generate,Apply,Info,Config}
 	peer=(label=unconfined),
 
-# Allow use of Netplan Info API, used to get information on available netplan
-# features and version
+# This is the interface for configuration objects
 dbus (send)
-	bus=system
-	interface=io.netplan.Netplan
-	path=/io/netplan/Netplan
-	member=Info
+    bus=system
+    interface=io.netplan.Netplan.Config
+    path=/io/netplan/Netplan/config/*
+	member={Get,Set,Try,Cancel,Apply}
 	peer=(label=unconfined),
 `
 

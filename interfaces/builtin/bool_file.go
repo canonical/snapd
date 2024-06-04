@@ -62,6 +62,8 @@ func (iface *boolFileInterface) StaticInfo() interfaces.StaticInfo {
 
 var boolFileGPIOValuePattern = regexp.MustCompile(
 	"^/sys/class/gpio/gpio[0-9]+/value$")
+var boolFileLedPattern = regexp.MustCompile(
+	"^/sys/devices/platform/leds/[^/]+/[^/]+/brightness$")
 var boolFileAllowedPathPatterns = []*regexp.Regexp{
 	// The brightness of standard LED class device
 	regexp.MustCompile("^/sys/class/leds/[^/]+/brightness$"),
@@ -95,7 +97,6 @@ func (iface *boolFileInterface) AppArmorPermanentSlot(spec *apparmor.Specificati
 /sys/class/gpio/unexport rw,
 /sys/class/gpio/gpio[0-9]+/direction rw,
 `
-
 	if iface.isGPIO(slot) {
 		spec.AddSnippet(gpioSnippet)
 	}
@@ -112,6 +113,14 @@ func (iface *boolFileInterface) AppArmorConnectedPlug(spec *apparmor.Specificati
 		return fmt.Errorf("cannot compute plug security snippet: %v", err)
 	}
 	spec.AddSnippet(fmt.Sprintf("%s rwk,", path))
+	// Provide read/write access to trigger, delay_on and delay_off kernel files
+	if boolFileLedPattern.MatchString(path) {
+		pathDir := filepath.Dir(path)
+		spec.AddSnippet(fmt.Sprintf("%s/trigger rw,", pathDir))
+		spec.AddSnippet(fmt.Sprintf("%s/delay_on rw,", pathDir))
+		spec.AddSnippet(fmt.Sprintf("%s/delay_off rw,", pathDir))
+	}
+
 	return nil
 }
 

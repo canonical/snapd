@@ -28,6 +28,7 @@ import (
 	failure "github.com/snapcore/snapd/cmd/snap-failure"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -42,6 +43,8 @@ type failureSuite struct {
 	stderr *bytes.Buffer
 	stdout *bytes.Buffer
 	log    *bytes.Buffer
+
+	systemctlCmd *testutil.MockCmd
 }
 
 func (r *failureSuite) SetUpTest(c *C) {
@@ -57,6 +60,8 @@ func (r *failureSuite) SetUpTest(c *C) {
 	failure.Stderr = r.stderr
 	failure.Stdout = r.stdout
 
+	r.AddCleanup(release.MockReleaseInfo(&release.OS{ID: "ubuntu"}))
+
 	r.rootdir = c.MkDir()
 	dirs.SetRootDir(r.rootdir)
 	r.AddCleanup(func() { dirs.SetRootDir("/") })
@@ -64,6 +69,9 @@ func (r *failureSuite) SetUpTest(c *C) {
 	log, restore := logger.MockLogger()
 	r.log = log
 	r.AddCleanup(restore)
+
+	r.systemctlCmd = testutil.MockCommand(c, "systemctl", "")
+	r.AddCleanup(r.systemctlCmd.Restore)
 }
 
 func (r *failureSuite) Stderr() string {

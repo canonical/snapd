@@ -1,5 +1,13 @@
 summary: Check that refreshing snapd in the worst case reboots if things go sideways
 
+details: |
+  Old snapd used to add Requires=usr-lib-snapd.mount to generated snap service
+  files which caused issued during snapd refresh by stopping all services, see 
+  LP#1924805 for details. The test uses an old  snapd version which would generates
+  such service units and proceeds to install an app and next refresh the snapd snap.
+  As expected, the app will be stopped during the refresh, but the service unit will have
+  been regenerated and contains Wants=usr-lib-snapd.mount, such that after a reboot
+  the service will become active.
 # TODO: move this test to tests/regression/lp-1924805 ?
 
 systems:

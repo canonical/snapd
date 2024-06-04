@@ -1,5 +1,12 @@
 summary: Ensure remove with unmounted base dir works
 
+details: |
+    The snap try command can be used to install a snap without creating the
+    squashfs file, which for large snaps is very costly. The test simulates what
+    happens when a system with a try-mode snap is rebooted, and the files
+    originally backing the snap are gone. The test ensures that even in this
+    state the broken snap can be correctly removed without breaking snapd.
+
 execute: |
     cp -ar "$TESTSLIB"/snaps/test-snapd-tools /tmp
     snap try /tmp/test-snapd-tools

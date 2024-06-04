@@ -3,15 +3,15 @@ summary: Ensure that the firewall-control interface works.
 details: |
     The firewall-control interface allows a snap to configure the firewall.
 
-    A snap which defines the firewall-control plug must be shown in the interfaces list.
-    The plug must not be autoconnected on install and, as usual, must be able to be
-    reconnected.
+    A snap which defines the firewall-control plug must be shown in the
+    interfaces list. The plug must not be auto-connected on install and, as
+    usual, must be able to be reconnected.
 
-    For this test we use a snap that declares a plug on this interface and that adds and
-    removes iptables entries. With the plug connected the test checks that a rule to map
-    localhost to a given IP can be added by the snap, ensuring that a generic client can
-    access a generic service listening on localhost through the IP set up in the firewall
-    rule.
+    For this test we use a snap that declares a plug on this interface and that
+    adds and removes iptables entries. With the plug connected the test checks
+    that a rule to map localhost to a given IP can be added by the snap,
+    ensuring that a generic client can access a generic service listening on
+    localhost through the IP set up in the firewall rule.
 
 # ubuntu-14.04: systemd-run not supported
 systems: [-fedora-*, -opensuse-*, -arch-*, -ubuntu-14.04*]

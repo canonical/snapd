@@ -1,0 +1,41 @@
+summary: Check that gadget.yaml can remove/add kernel command lines
+
+details: |
+  Gadget snaps have influence over the boot process, and subsequently, 
+  can control the kernel command line - a critical resource in many ways. This
+  test verifies that an updated gadget snap can effectively add or remove kernel
+  command line arguments.
+
+systems: [ubuntu-2*]
+
+prepare: |
+  VERSION="$(tests.nested show version)"
+  snap download --basename=pc --channel="$VERSION/edge" pc
+  unsquashfs -d pc-gadget pc.snap
+
+  cat <<EOF >>pc-gadget/meta/gadget.yaml
+  kernel-cmdline:
+    remove:
+      - 'panic=*'
+    append:
+      - 'console=ttyS0'
+      - 'systemd.journald.forward_to_console=1'
+      - 'panic=10'
+  EOF
+
+  KEYNAME=$(tests.nested download snakeoil-key)
+  SNAKEOIL_KEY="${PWD}/${KEYNAME}.key"
+  SNAKEOIL_CERT="${PWD}/${KEYNAME}.pem"
+
+  tests.nested secboot-sign gadget pc-gadget "${SNAKEOIL_KEY}" "${SNAKEOIL_CERT}"
+
+  snap pack pc-gadget/ "$(tests.nested get extra-snaps-path)"
+
+  tests.nested build-image core
+  tests.nested create-vm core
+
+execute: |
+  remote.exec "cat /proc/cmdline" | MATCH panic=10
+  remote.exec "cat /proc/cmdline" | NOMATCH panic=-1
+  remote.exec "cat /proc/cmdline" | MATCH console=ttyS0
+  remote.exec "cat /proc/cmdline" | MATCH systemd.journald.forward_to_console=1

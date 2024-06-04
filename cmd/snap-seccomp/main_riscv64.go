@@ -1,7 +1,6 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 //
 //go:build riscv64
-// +build riscv64
 
 /*
  * Copyright (C) 2021 Canonical Ltd

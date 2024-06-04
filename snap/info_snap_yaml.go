@@ -34,27 +34,28 @@ import (
 )
 
 type snapYaml struct {
-	Name            string                 `yaml:"name"`
-	Version         string                 `yaml:"version"`
-	Type            Type                   `yaml:"type"`
-	Architectures   []string               `yaml:"architectures,omitempty"`
-	Assumes         []string               `yaml:"assumes"`
-	Title           string                 `yaml:"title"`
-	Description     string                 `yaml:"description"`
-	Summary         string                 `yaml:"summary"`
-	Provenance      string                 `yaml:"provenance"`
-	License         string                 `yaml:"license,omitempty"`
-	Epoch           Epoch                  `yaml:"epoch,omitempty"`
-	Base            string                 `yaml:"base,omitempty"`
-	Confinement     ConfinementType        `yaml:"confinement,omitempty"`
-	Environment     strutil.OrderedMap     `yaml:"environment,omitempty"`
-	Plugs           map[string]interface{} `yaml:"plugs,omitempty"`
-	Slots           map[string]interface{} `yaml:"slots,omitempty"`
-	Apps            map[string]appYaml     `yaml:"apps,omitempty"`
-	Hooks           map[string]hookYaml    `yaml:"hooks,omitempty"`
-	Layout          map[string]layoutYaml  `yaml:"layout,omitempty"`
-	SystemUsernames map[string]interface{} `yaml:"system-usernames,omitempty"`
-	Links           map[string][]string    `yaml:"links,omitempty"`
+	Name            string                   `yaml:"name"`
+	Version         string                   `yaml:"version"`
+	Type            Type                     `yaml:"type"`
+	Architectures   []string                 `yaml:"architectures,omitempty"`
+	Assumes         []string                 `yaml:"assumes"`
+	Title           string                   `yaml:"title"`
+	Description     string                   `yaml:"description"`
+	Summary         string                   `yaml:"summary"`
+	Provenance      string                   `yaml:"provenance"`
+	License         string                   `yaml:"license,omitempty"`
+	Epoch           Epoch                    `yaml:"epoch,omitempty"`
+	Base            string                   `yaml:"base,omitempty"`
+	Confinement     ConfinementType          `yaml:"confinement,omitempty"`
+	Environment     strutil.OrderedMap       `yaml:"environment,omitempty"`
+	Plugs           map[string]interface{}   `yaml:"plugs,omitempty"`
+	Slots           map[string]interface{}   `yaml:"slots,omitempty"`
+	Apps            map[string]appYaml       `yaml:"apps,omitempty"`
+	Hooks           map[string]hookYaml      `yaml:"hooks,omitempty"`
+	Layout          map[string]layoutYaml    `yaml:"layout,omitempty"`
+	SystemUsernames map[string]interface{}   `yaml:"system-usernames,omitempty"`
+	Links           map[string][]string      `yaml:"links,omitempty"`
+	Components      map[string]componentYaml `yaml:"components,omitempty"`
 
 	// TypoLayouts is used to detect the use of the incorrect plural form of "layout"
 	TypoLayouts typoDetector `yaml:"layouts,omitempty"`
@@ -114,6 +115,13 @@ type hookYaml struct {
 	SlotNames    []string           `yaml:"slots,omitempty"`
 	Environment  strutil.OrderedMap `yaml:"environment,omitempty"`
 	CommandChain []string           `yaml:"command-chain,omitempty"`
+}
+
+type componentYaml struct {
+	Type        ComponentType       `yaml:"type"`
+	Summary     string              `yaml:"summary"`
+	Description string              `yaml:"description"`
+	Hooks       map[string]hookYaml `yaml:"hooks,omitempty"`
 }
 
 type layoutYaml struct {
@@ -184,6 +192,10 @@ func infoFromSnapYaml(yamlData []byte, strk *scopedTracker) (*Info, error) {
 	}
 
 	strk.init(len(y.Apps) + len(y.Hooks))
+
+	if err := setComponentsFromSnapYaml(y, snap, strk); err != nil {
+		return nil, err
+	}
 
 	// Collect all apps, their aliases and hooks
 	if err := setAppsFromSnapYaml(y, snap, strk); err != nil {
@@ -301,6 +313,57 @@ func infoSkeletonFromSnapYaml(y snapYaml) *Info {
 	return snap
 }
 
+func setComponentsFromSnapYaml(y snapYaml, snap *Info, strk *scopedTracker) error {
+	if len(y.Components) > 0 {
+		snap.Components = make(map[string]*Component, len(y.Components))
+	}
+
+	for name, data := range y.Components {
+		component := Component{
+			Name:        name,
+			Type:        data.Type,
+			Summary:     data.Summary,
+			Description: data.Description,
+		}
+
+		if len(data.Hooks) > 0 {
+			component.ExplicitHooks = make(map[string]*HookInfo, len(data.Hooks))
+		}
+
+		for hookName, hookData := range data.Hooks {
+			if !IsComponentHookSupported(hookName) {
+				return fmt.Errorf("unsupported component hook: %q", hookName)
+			}
+
+			componentHook := &HookInfo{
+				Snap:         snap,
+				Name:         hookName,
+				Environment:  hookData.Environment,
+				CommandChain: hookData.CommandChain,
+				Component:    &component,
+				Explicit:     true,
+			}
+
+			// TODO: this might need to change one day
+			if len(hookData.SlotNames) > 0 {
+				return fmt.Errorf("component hooks cannot have slots")
+			}
+
+			if len(hookData.PlugNames) > 0 {
+				componentHook.Plugs = make(map[string]*PlugInfo, len(hookData.PlugNames))
+			}
+
+			bindPlugsToHook(componentHook, hookData.PlugNames, snap, strk)
+
+			component.ExplicitHooks[hookName] = componentHook
+		}
+
+		snap.Components[name] = &component
+	}
+
+	return nil
+}
+
 func setPlugsFromSnapYaml(y snapYaml, snap *Info) error {
 	for name, data := range y.Plugs {
 		iface, label, attrs, err := convertToSlotOrPlugData("plug", name, data)
@@ -316,9 +379,6 @@ func setPlugsFromSnapYaml(y snapYaml, snap *Info) error {
 		}
 		if len(y.Apps) > 0 {
 			snap.Plugs[name].Apps = make(map[string]*AppInfo)
-		}
-		if len(y.Hooks) > 0 {
-			snap.Plugs[name].Hooks = make(map[string]*HookInfo)
 		}
 	}
 
@@ -340,9 +400,6 @@ func setSlotsFromSnapYaml(y snapYaml, snap *Info) error {
 		}
 		if len(y.Apps) > 0 {
 			snap.Slots[name].Apps = make(map[string]*AppInfo)
-		}
-		if len(y.Hooks) > 0 {
-			snap.Slots[name].Hooks = make(map[string]*HookInfo)
 		}
 	}
 
@@ -492,47 +549,50 @@ func setHooksFromSnapYaml(y snapYaml, snap *Info, strk *scopedTracker) {
 		}
 
 		snap.Hooks[hookName] = hook
+
 		// Bind all plugs/slots listed in this hook
-		for _, plugName := range yHook.PlugNames {
-			plug, ok := snap.Plugs[plugName]
-			if !ok {
-				// Create implicit plug definitions if required
-				plug = &PlugInfo{
-					Snap:      snap,
-					Name:      plugName,
-					Interface: plugName,
-					Hooks:     make(map[string]*HookInfo),
-				}
-				snap.Plugs[plugName] = plug
+		bindPlugsToHook(hook, yHook.PlugNames, snap, strk)
+		bindSlotsToHook(hook, yHook.SlotNames, snap, strk)
+	}
+}
+
+func bindSlotsToHook(hook *HookInfo, slotNames []string, snap *Info, strk *scopedTracker) {
+	for _, slotName := range slotNames {
+		slot, ok := snap.Slots[slotName]
+		if !ok {
+			// Create implicit slot definitions if required
+			slot = &SlotInfo{
+				Snap:      snap,
+				Name:      slotName,
+				Interface: slotName,
 			}
-			// Mark the plug as scoped.
-			strk.markPlug(plug)
-			if plug.Hooks == nil {
-				plug.Hooks = make(map[string]*HookInfo)
-			}
-			hook.Plugs[plugName] = plug
-			plug.Hooks[hookName] = hook
+			snap.Slots[slotName] = slot
 		}
-		for _, slotName := range yHook.SlotNames {
-			slot, ok := snap.Slots[slotName]
-			if !ok {
-				// Create implicit slot definitions if required
-				slot = &SlotInfo{
-					Snap:      snap,
-					Name:      slotName,
-					Interface: slotName,
-					Hooks:     make(map[string]*HookInfo),
-				}
-				snap.Slots[slotName] = slot
+
+		// Mark the slot as scoped.
+		strk.markSlot(slot)
+
+		hook.Slots[slotName] = slot
+	}
+}
+
+func bindPlugsToHook(hook *HookInfo, plugNames []string, snap *Info, strk *scopedTracker) {
+	for _, plugName := range plugNames {
+		plug, ok := snap.Plugs[plugName]
+		if !ok {
+			// Create implicit plug definitions if required
+			plug = &PlugInfo{
+				Snap:      snap,
+				Name:      plugName,
+				Interface: plugName,
 			}
-			// Mark the slot as scoped.
-			strk.markSlot(slot)
-			if slot.Hooks == nil {
-				slot.Hooks = make(map[string]*HookInfo)
-			}
-			hook.Slots[slotName] = slot
-			slot.Hooks[hookName] = hook
+			snap.Plugs[plugName] = plug
 		}
+
+		// Mark the plug as scoped.
+		strk.markPlug(plug)
+
+		hook.Plugs[plug.Name] = plug
 	}
 }
 
@@ -576,14 +636,25 @@ func bindUnscopedPlugs(snap *Info, strk *scopedTracker) {
 		if strk.plug(plug) {
 			continue
 		}
+
+		plug.Unscoped = true
+
 		for appName, app := range snap.Apps {
 			app.Plugs[plugName] = plug
 			plug.Apps[appName] = app
 		}
 
-		for hookName, hook := range snap.Hooks {
+		for _, hook := range snap.Hooks {
 			hook.Plugs[plugName] = plug
-			plug.Hooks[hookName] = hook
+		}
+
+		for _, component := range snap.Components {
+			for _, componentHook := range component.ExplicitHooks {
+				if componentHook.Plugs == nil {
+					componentHook.Plugs = make(map[string]*PlugInfo)
+				}
+				componentHook.Plugs[plugName] = plug
+			}
 		}
 	}
 }
@@ -593,20 +664,22 @@ func bindUnscopedSlots(snap *Info, strk *scopedTracker) {
 		if strk.slot(slot) {
 			continue
 		}
+
+		slot.Unscoped = true
+
 		for appName, app := range snap.Apps {
 			app.Slots[slotName] = slot
 			slot.Apps[appName] = app
 		}
-		for hookName, hook := range snap.Hooks {
+		for _, hook := range snap.Hooks {
 			hook.Slots[slotName] = slot
-			slot.Hooks[hookName] = hook
 		}
 	}
 }
 
 // bindImplicitHooks binds all global plugs and slots to implicit hooks
 func bindImplicitHooks(snap *Info, strk *scopedTracker) {
-	for hookName, hook := range snap.Hooks {
+	for _, hook := range snap.Hooks {
 		if hook.Explicit {
 			continue
 		}
@@ -618,10 +691,6 @@ func bindImplicitHooks(snap *Info, strk *scopedTracker) {
 				hook.Plugs = make(map[string]*PlugInfo)
 			}
 			hook.Plugs[plug.Name] = plug
-			if plug.Hooks == nil {
-				plug.Hooks = make(map[string]*HookInfo)
-			}
-			plug.Hooks[hookName] = hook
 		}
 		for _, slot := range snap.Slots {
 			if strk.slot(slot) {
@@ -631,10 +700,6 @@ func bindImplicitHooks(snap *Info, strk *scopedTracker) {
 				hook.Slots = make(map[string]*SlotInfo)
 			}
 			hook.Slots[slot.Name] = slot
-			if slot.Hooks == nil {
-				slot.Hooks = make(map[string]*HookInfo)
-			}
-			slot.Hooks[hookName] = hook
 		}
 	}
 }

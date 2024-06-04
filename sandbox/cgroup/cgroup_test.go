@@ -20,7 +20,6 @@ package cgroup_test
 
 import (
 	"errors"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -147,7 +146,7 @@ var mockCgroup = []byte(`
 func (s *cgroupSuite) TestProgGroupHappy(c *C) {
 	err := os.MkdirAll(filepath.Join(s.rootDir, "proc/333"), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(s.rootDir, "proc/333/cgroup"), mockCgroup, 0755)
+	err = os.WriteFile(filepath.Join(s.rootDir, "proc/333/cgroup"), mockCgroup, 0755)
 	c.Assert(err, IsNil)
 
 	group, err := cgroup.ProcGroup(333, cgroup.MatchV1Controller("freezer"))
@@ -187,7 +186,7 @@ func (s *cgroupSuite) TestProgGroupMissingGroup(c *C) {
 
 	err := os.MkdirAll(filepath.Join(s.rootDir, "proc/333"), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(s.rootDir, "proc/333/cgroup"), noFreezerCgroup, 0755)
+	err = os.WriteFile(filepath.Join(s.rootDir, "proc/333/cgroup"), noFreezerCgroup, 0755)
 	c.Assert(err, IsNil)
 
 	group, err := cgroup.ProcGroup(333, cgroup.MatchV1Controller("freezer"))
@@ -211,7 +210,7 @@ var mockCgroupConfusingCpu = []byte(`
 func (s *cgroupSuite) TestProgGroupConfusingCpu(c *C) {
 	err := os.MkdirAll(filepath.Join(s.rootDir, "proc/333"), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(s.rootDir, "proc/333/cgroup"), mockCgroupConfusingCpu, 0755)
+	err = os.WriteFile(filepath.Join(s.rootDir, "proc/333/cgroup"), mockCgroupConfusingCpu, 0755)
 	c.Assert(err, IsNil)
 
 	group, err := cgroup.ProcGroup(333, cgroup.MatchV1Controller("cpu"))
@@ -273,7 +272,7 @@ func (s *cgroupSuite) TestProcessPathInTrackingCgroup(c *C) {
 	} {
 		restoreCGVersion := cgroup.MockVersion(scenario.cgVersion, nil)
 
-		c.Assert(ioutil.WriteFile(f, []byte(scenario.cgroups), 0644), IsNil)
+		c.Assert(os.WriteFile(f, []byte(scenario.cgroups), 0644), IsNil)
 		path, err := cgroup.ProcessPathInTrackingCgroup(1234)
 		if scenario.errMsg != "" {
 			c.Assert(err, ErrorMatches, scenario.errMsg)
@@ -300,7 +299,7 @@ func (s *cgroupSuite) TestProcessPathInTrackingCgroupV2SpecialCase(c *C) {
 	f := filepath.Join(d, "proc", "1234", "cgroup")
 	c.Assert(os.MkdirAll(filepath.Dir(f), 0755), IsNil)
 
-	c.Assert(ioutil.WriteFile(f, []byte(text), 0644), IsNil)
+	c.Assert(os.WriteFile(f, []byte(text), 0644), IsNil)
 	path, err := cgroup.ProcessPathInTrackingCgroup(1234)
 	c.Assert(err, IsNil)
 	// Because v2 is not really mounted, we ignore the entry 0::/

@@ -21,7 +21,7 @@ package main_test
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 
@@ -40,11 +40,11 @@ recovery system.
 When called without a system label and without a mode it will just
 trigger a regular reboot.
 
-When called without a system label but with a mode it will use the
-current system to enter the given mode.
+When called without a label, the current system will be used for "run" mode. The
+default recovery system will be used for "recover", "factory-reset" and
+"install" modes.
 
-Note that "recover", "factory-reset" and "run" modes are only available for the
-current system.
+Note that the "run" mode is only available for the current system.
 
 [reboot command options]
       --run              Boot into run mode
@@ -107,7 +107,7 @@ func (s *SnapSuite) TestRebootHappy(c *C) {
 				c.Check(r.Method, Equals, "POST")
 				c.Check(r.URL.Path, Equals, tc.expectedEndpoint, Commentf("%v", tc.cmdline))
 				c.Check(r.URL.RawQuery, Equals, "")
-				body, err := ioutil.ReadAll(r.Body)
+				body, err := io.ReadAll(r.Body)
 				c.Check(err, IsNil)
 				c.Check(string(body), Equals, tc.expectedJSON+"\n")
 				fmt.Fprintln(w, `{"type": "sync", "result": {}}`)

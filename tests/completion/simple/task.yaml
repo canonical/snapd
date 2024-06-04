@@ -1,5 +1,24 @@
 summary: simple completion
 
+details: |
+  Snapd contains a special system for tab-completion of snap applications, where
+  the bulk of the completion logic runs under confinement, and communicates with
+  a trusted, unconfined helper provided by snapd.
+
+  Like all the other completion tests, this test relies on a set of files
+  $variant.{complete,sh,vars} where foo $variant is one of the many variants of
+  the tests/complete suite: plain, plain_plusdirs, funky, files, hosts,
+  hosts_n_dirs, func, funkyfunc, funcarg. In each case the .vars file adds
+  environment variables needed by the test, the .sh script is executed during
+  test setup and the .complete script replaces the bash completer in the
+  test-snapd-complexion snap.
+
+  Like all the other completion tests this test is mostly implemented with
+  expect(1) to interact with bash, send and receive snippets of text.
+
+  This test relies bypasses the complete.sh/etelpmoc.sh pair of scripts and does
+  not communicate across the barrier created by the snap execution sandbox.
+
 execute: |
   d="$PWD"
   #shellcheck disable=SC1090

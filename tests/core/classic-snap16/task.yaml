@@ -1,5 +1,10 @@
 summary: Ensure classic dimension works correctly
 
+details: |
+    Validates classic snap can be installed in uc16. Check that classic can 
+    run commands inside classic and sudo works without a password inside
+    classic.
+
 # classic snap is not maintained for UC18+, for these releases the lxd snaps is
 # recommended instead of the classic snap
 systems: [ubuntu-core-16-*]

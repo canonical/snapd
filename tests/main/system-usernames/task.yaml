@@ -1,5 +1,20 @@
 summary: ensure seccomp rules for snap_daemon user work correctly
 
+details: |
+    Snapd has limited capability to create a non-root accounts, so that certain
+    services that would normally run as root, perform initial configuration as
+    root but then drop to a less privileged user.
+
+    The test attempts to install a snap declaring to use a non-root user called
+    "snap_daemon". This name is allowed so the installation finishes
+    successfully and the new account is created on the system.
+
+    The test then continues to show that the resulting snap application indeed
+    has permissions to drop from the root user to the newly created account, by
+    effectively calling a number of related system calls with precise arguments,
+    checking both expected success and looking for violations where application
+    should stay contained.
+
 environment:
     # This is used to abbreviate some of the paths below.
     P1: /var/snap/test-snapd-sh/common/test.chown
@@ -9,10 +24,24 @@ environment:
     # being too old. This should only reduce with time since new systems should
     # have newer libseccomp and golang-seccomp
     EXFAIL: "centos-7-64 ubuntu-14"
+    SNAP_USER/snap_daemon: snap_daemon
+    SNAP_USER/_daemon_: _daemon_
+    SNAP_USER_UID/snap_daemon: 584788
+    SNAP_USER_UID/_daemon_: 584792
 
 prepare: |
     echo "Install helper snaps with default confinement"
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
+    echo "Downloading test-snapd-daemon-user snap"
+    snap download --edge test-snapd-daemon-user
+    unsquashfs -d test-snapd-daemon-user ./test-snapd-daemon-user_*.snap
+    # The "test-snapd-daemon-user" snap uses the (old) snap_daemon user
+    # for historic reasons. To test other daemon users we need to modify
+    # the yaml.
+    if [ "$SNAP_USER" != "snap_daemon" ]; then
+        echo "Prepare test-snapd-daemon-user for have $SNAP_USER system-username"
+        sed -i "s/snap_daemon: shared/$SNAP_USER: shared/" test-snapd-daemon-user/meta/snap.yaml
+    fi
 
 restore: |
     # make sure this snap is removed in case it was installed
@@ -20,7 +49,7 @@ restore: |
 
     # snapd will create this for us, but we'll remove it for consistency in
     # test runs
-    "$TESTSTOOLS"/user-state remove-with-group snap_daemon
+    "$TESTSTOOLS"/user-state remove-with-group $SNAP_USER
 
 execute: |
     # to accommodate different distros, we pick the LSB required 'daemon' user
@@ -78,38 +107,38 @@ execute: |
     # Now try to install the test snap. If we don't have support, we expect an
     # error, if we do, then we can proceed
     if [ "$supported" = "yes" ]; then
-        snap install --edge test-snapd-daemon-user
+        "$TESTSTOOLS"/snaps-state install-local test-snapd-daemon-user
     else
-        snap install --edge test-snapd-daemon-user 2>&1 | MATCH 'require a snapd built against (libseccomp >= 2.4|golang-seccomp >= 0.9.1)'
+        "$TESTSTOOLS"/snaps-state install-local test-snapd-daemon-user 2>&1 | MATCH 'require a snapd built against (libseccomp >= 2.4|golang-seccomp >= 0.9.1)'
         exit 0
     fi
 
-    echo "Verify the snap_daemon user and group was created with the expected uid/gid"
-    user=$(getent passwd snap_daemon | cut -d : -f 3)
-    test "$user" -eq "584788" || exit 1
-    group=$(getent group snap_daemon | cut -d : -f 3)
-    test "$group" -eq "584788" || exit 1
+    echo "Verify the $SNAP_USER user and group was created with the expected uid/gid"
+    user=$(getent passwd $SNAP_USER | cut -d : -f 3)
+    test "$user" -eq "$SNAP_USER_UID" || exit 1
+    group=$(getent group $SNAP_USER | cut -d : -f 3)
+    test "$group" -eq "$SNAP_USER_UID" || exit 1
 
     #
     # Test typical drop operations though libc and raw syscalls
     #
-    echo "Running 'drop' with system-usernames: [ snap_daemon ] as non-root"
+    echo "Running 'drop' with system-usernames: [ $SNAP_USER ] as non-root"
     # CAP_SETGID is dropped before running
-    su -l -c "snap run test-snapd-daemon-user.drop snap_daemon" test 2>&1   | MATCH 'Operation not permitted'
-    su -l -c "snap run test-snapd-daemon-user.drop32 snap_daemon" test 2>&1 | MATCH 'Operation not permitted'
+    su -l -c "snap run test-snapd-daemon-user.drop $SNAP_USER" test 2>&1   | MATCH 'Operation not permitted'
+    su -l -c "snap run test-snapd-daemon-user.drop32 $SNAP_USER" test 2>&1 | MATCH 'Operation not permitted'
 
-    echo "Running 'drop' with system-usernames: [ snap_daemon ] as root"
-    snap run test-snapd-daemon-user.drop snap_daemon 2>&1   | MATCH "After: ruid=$user, euid=$user, suid=$user, rgid=$group, egid=$group, sgid=$group, groups=$"
-    snap run test-snapd-daemon-user.drop32 snap_daemon 2>&1 | MATCH "After: ruid=$user, euid=$user, suid=$user, rgid=$group, egid=$group, sgid=$group, groups=$"
+    echo "Running 'drop' with system-usernames: [ $SNAP_USER ] as root"
+    snap run test-snapd-daemon-user.drop $SNAP_USER 2>&1   | MATCH "After: ruid=$user, euid=$user, suid=$user, rgid=$group, egid=$group, sgid=$group, groups=$"
+    snap run test-snapd-daemon-user.drop32 $SNAP_USER 2>&1 | MATCH "After: ruid=$user, euid=$user, suid=$user, rgid=$group, egid=$group, sgid=$group, groups=$"
 
-    echo "Running 'drop-syscall' with system-usernames: [ snap_daemon ] as non-root"
+    echo "Running 'drop-syscall' with system-usernames: [ $SNAP_USER ] as non-root"
     # CAP_SETGID is dropped before running
-    su -l -c "snap run test-snapd-daemon-user.drop-syscall snap_daemon" test 2>&1   | MATCH 'Operation not permitted'
-    su -l -c "snap run test-snapd-daemon-user.drop-syscall32 snap_daemon" test 2>&1 | MATCH 'Operation not permitted'
+    su -l -c "snap run test-snapd-daemon-user.drop-syscall $SNAP_USER" test 2>&1   | MATCH 'Operation not permitted'
+    su -l -c "snap run test-snapd-daemon-user.drop-syscall32 $SNAP_USER" test 2>&1 | MATCH 'Operation not permitted'
 
-    echo "Running 'drop-syscall' with system-usernames: [ snap_daemon ] as root"
-    snap run test-snapd-daemon-user.drop-syscall snap_daemon 2>&1   | MATCH "After: ruid=$user, euid=$user, suid=$user, rgid=$group, egid=$group, sgid=$group, groups=$"
-    snap run test-snapd-daemon-user.drop-syscall32 snap_daemon 2>&1 | MATCH "After: ruid=$user, euid=$user, suid=$user, rgid=$group, egid=$group, sgid=$group, groups=$"
+    echo "Running 'drop-syscall' with system-usernames: [ $SNAP_USER ] as root"
+    snap run test-snapd-daemon-user.drop-syscall $SNAP_USER 2>&1   | MATCH "After: ruid=$user, euid=$user, suid=$user, rgid=$group, egid=$group, sgid=$group, groups=$"
+    snap run test-snapd-daemon-user.drop-syscall32 $SNAP_USER 2>&1 | MATCH "After: ruid=$user, euid=$user, suid=$user, rgid=$group, egid=$group, sgid=$group, groups=$"
 
     #
     # test individual seccomp rules
@@ -121,9 +150,9 @@ execute: |
     snap run test-snapd-daemon-user.setgid root 2>&1       | MATCH "After: ruid=0, euid=0, suid=0, rgid=0, egid=0, sgid=0, groups="
     snap run test-snapd-daemon-user.setgid32 root 2>&1     | MATCH "After: ruid=0, euid=0, suid=0, rgid=0, egid=0, sgid=0, groups="
 
-    echo "'setgid g:snap_daemon' allowed"
-    snap run test-snapd-daemon-user.setgid snap_daemon 2>&1   | MATCH "After: ruid=0, euid=0, suid=0, rgid=$group, egid=$group, sgid=$group, groups="
-    snap run test-snapd-daemon-user.setgid32 snap_daemon 2>&1 | MATCH "After: ruid=0, euid=0, suid=0, rgid=$group, egid=$group, sgid=$group, groups="
+    echo "'setgid g:$SNAP_USER' allowed"
+    snap run test-snapd-daemon-user.setgid $SNAP_USER 2>&1   | MATCH "After: ruid=0, euid=0, suid=0, rgid=$group, egid=$group, sgid=$group, groups="
+    snap run test-snapd-daemon-user.setgid32 $SNAP_USER 2>&1 | MATCH "After: ruid=0, euid=0, suid=0, rgid=$group, egid=$group, sgid=$group, groups="
 
     echo "'setgid g:test' denied"
     snap run test-snapd-daemon-user.setgid test 2>&1     | MATCH "Operation not permitted"
@@ -143,25 +172,25 @@ execute: |
     snap run test-snapd-daemon-user.setregid root -1 2>&1         | MATCH "After: ruid=0, euid=0, suid=0, rgid=0, egid=0, sgid=0, groups="
     snap run test-snapd-daemon-user.setregid32 root -1 2>&1       | MATCH "After: ruid=0, euid=0, suid=0, rgid=0, egid=0, sgid=0, groups="
 
-    echo "'setregid g:snap_daemon g:snap_daemon' allowed"
-    snap run test-snapd-daemon-user.setregid snap_daemon snap_daemon 2>&1   | MATCH "After: ruid=0, euid=0, suid=0, rgid=$group, egid=$group, sgid=$group, groups="
-    snap run test-snapd-daemon-user.setregid32 snap_daemon snap_daemon 2>&1 | MATCH "After: ruid=0, euid=0, suid=0, rgid=$group, egid=$group, sgid=$group, groups="
+    echo "'setregid g:$SNAP_USER g:$SNAP_USER' allowed"
+    snap run test-snapd-daemon-user.setregid $SNAP_USER $SNAP_USER 2>&1   | MATCH "After: ruid=0, euid=0, suid=0, rgid=$group, egid=$group, sgid=$group, groups="
+    snap run test-snapd-daemon-user.setregid32 $SNAP_USER $SNAP_USER 2>&1 | MATCH "After: ruid=0, euid=0, suid=0, rgid=$group, egid=$group, sgid=$group, groups="
 
-    echo "'setregid -1 g:snap_daemon' allowed"
-    snap run test-snapd-daemon-user.setregid -1 snap_daemon 2>&1       | MATCH "After: ruid=0, euid=0, suid=0, rgid=0, egid=$group, sgid=$group, groups="
-    snap run test-snapd-daemon-user.setregid32 -1 snap_daemon 2>&1     | MATCH "After: ruid=0, euid=0, suid=0, rgid=0, egid=$group, sgid=$group, groups="
+    echo "'setregid -1 g:$SNAP_USER' allowed"
+    snap run test-snapd-daemon-user.setregid -1 $SNAP_USER 2>&1       | MATCH "After: ruid=0, euid=0, suid=0, rgid=0, egid=$group, sgid=$group, groups="
+    snap run test-snapd-daemon-user.setregid32 -1 $SNAP_USER 2>&1     | MATCH "After: ruid=0, euid=0, suid=0, rgid=0, egid=$group, sgid=$group, groups="
 
-    echo "'setregid g:snap_daemon -1' allowed"
-    snap run test-snapd-daemon-user.setregid snap_daemon -1 2>&1       | MATCH "After: ruid=0, euid=0, suid=0, rgid=$group, egid=0, sgid=0, groups="
-    snap run test-snapd-daemon-user.setregid32 snap_daemon -1 2>&1     | MATCH "After: ruid=0, euid=0, suid=0, rgid=$group, egid=0, sgid=0, groups="
+    echo "'setregid g:$SNAP_USER -1' allowed"
+    snap run test-snapd-daemon-user.setregid $SNAP_USER -1 2>&1       | MATCH "After: ruid=0, euid=0, suid=0, rgid=$group, egid=0, sgid=0, groups="
+    snap run test-snapd-daemon-user.setregid32 $SNAP_USER -1 2>&1     | MATCH "After: ruid=0, euid=0, suid=0, rgid=$group, egid=0, sgid=0, groups="
 
-    echo "'setregid g:root g:snap_daemon' allowed"
-    snap run test-snapd-daemon-user.setregid root snap_daemon 2>&1     | MATCH "After: ruid=0, euid=0, suid=0, rgid=0, egid=$group, sgid=$group, groups="
-    snap run test-snapd-daemon-user.setregid32 root snap_daemon 2>&1   | MATCH "After: ruid=0, euid=0, suid=0, rgid=0, egid=$group, sgid=$group, groups="
+    echo "'setregid g:root g:$SNAP_USER' allowed"
+    snap run test-snapd-daemon-user.setregid root $SNAP_USER 2>&1     | MATCH "After: ruid=0, euid=0, suid=0, rgid=0, egid=$group, sgid=$group, groups="
+    snap run test-snapd-daemon-user.setregid32 root $SNAP_USER 2>&1   | MATCH "After: ruid=0, euid=0, suid=0, rgid=0, egid=$group, sgid=$group, groups="
 
-    echo "'setregid g:snap_daemon g:root' allowed"
-    snap run test-snapd-daemon-user.setregid snap_daemon root 2>&1     | MATCH "After: ruid=0, euid=0, suid=0, rgid=$group, egid=0, sgid=0, groups="
-    snap run test-snapd-daemon-user.setregid32 snap_daemon root 2>&1   | MATCH "After: ruid=0, euid=0, suid=0, rgid=$group, egid=0, sgid=0, groups="
+    echo "'setregid g:$SNAP_USER g:root' allowed"
+    snap run test-snapd-daemon-user.setregid $SNAP_USER root 2>&1     | MATCH "After: ruid=0, euid=0, suid=0, rgid=$group, egid=0, sgid=0, groups="
+    snap run test-snapd-daemon-user.setregid32 $SNAP_USER root 2>&1   | MATCH "After: ruid=0, euid=0, suid=0, rgid=$group, egid=0, sgid=0, groups="
 
     echo "'setregid g:test g:test' denied"
     snap run test-snapd-daemon-user.setregid test test 2>&1       | MATCH "Operation not permitted"
@@ -183,13 +212,13 @@ execute: |
     snap run test-snapd-daemon-user.setregid test root 2>&1       | MATCH "Operation not permitted"
     snap run test-snapd-daemon-user.setregid32 test root 2>&1     | MATCH "Operation not permitted"
 
-    echo "'setregid g:snap_daemon g:test' denied"
-    snap run test-snapd-daemon-user.setregid snap_daemon test 2>&1     | MATCH "Operation not permitted"
-    snap run test-snapd-daemon-user.setregid32 snap_daemon test 2>&1   | MATCH "Operation not permitted"
+    echo "'setregid g:$SNAP_USER g:test' denied"
+    snap run test-snapd-daemon-user.setregid $SNAP_USER test 2>&1     | MATCH "Operation not permitted"
+    snap run test-snapd-daemon-user.setregid32 $SNAP_USER test 2>&1   | MATCH "Operation not permitted"
 
-    echo "'setregid g:test g:snap_daemon' denied"
-    snap run test-snapd-daemon-user.setregid test snap_daemon 2>&1     | MATCH "Operation not permitted"
-    snap run test-snapd-daemon-user.setregid32 test snap_daemon 2>&1   | MATCH "Operation not permitted"
+    echo "'setregid g:test g:$SNAP_USER' denied"
+    snap run test-snapd-daemon-user.setregid test $SNAP_USER 2>&1     | MATCH "Operation not permitted"
+    snap run test-snapd-daemon-user.setregid32 test $SNAP_USER 2>&1   | MATCH "Operation not permitted"
 
 
     # setresgid
@@ -205,25 +234,25 @@ execute: |
     snap run test-snapd-daemon-user.setresgid root root -1 2>&1           | MATCH "After: ruid=0, euid=0, suid=0, rgid=0, egid=0, sgid=0, groups="
     snap run test-snapd-daemon-user.setresgid32 root root -1 2>&1         | MATCH "After: ruid=0, euid=0, suid=0, rgid=0, egid=0, sgid=0, groups="
 
-    echo "'setresgid g:snap_daemon g:snap_daemon g:snap_daemon' allowed"
-    snap run test-snapd-daemon-user.setresgid snap_daemon snap_daemon snap_daemon 2>&1   | MATCH "After: ruid=0, euid=0, suid=0, rgid=$group, egid=$group, sgid=$group, groups="
-    snap run test-snapd-daemon-user.setresgid32 snap_daemon snap_daemon snap_daemon 2>&1 | MATCH "After: ruid=0, euid=0, suid=0, rgid=$group, egid=$group, sgid=$group, groups="
+    echo "'setresgid g:$SNAP_USER g:$SNAP_USER g:$SNAP_USER' allowed"
+    snap run test-snapd-daemon-user.setresgid $SNAP_USER $SNAP_USER $SNAP_USER 2>&1   | MATCH "After: ruid=0, euid=0, suid=0, rgid=$group, egid=$group, sgid=$group, groups="
+    snap run test-snapd-daemon-user.setresgid32 $SNAP_USER $SNAP_USER $SNAP_USER 2>&1 | MATCH "After: ruid=0, euid=0, suid=0, rgid=$group, egid=$group, sgid=$group, groups="
 
-    echo "'setresgid -1 g:snap_daemon -1' allowed"
-    snap run test-snapd-daemon-user.setresgid -1 snap_daemon -1 2>&1           | MATCH "After: ruid=0, euid=0, suid=0, rgid=0, egid=$group, sgid=0, groups="
-    snap run test-snapd-daemon-user.setresgid32 -1 snap_daemon -1 2>&1         | MATCH "After: ruid=0, euid=0, suid=0, rgid=0, egid=$group, sgid=0, groups="
+    echo "'setresgid -1 g:$SNAP_USER -1' allowed"
+    snap run test-snapd-daemon-user.setresgid -1 $SNAP_USER -1 2>&1           | MATCH "After: ruid=0, euid=0, suid=0, rgid=0, egid=$group, sgid=0, groups="
+    snap run test-snapd-daemon-user.setresgid32 -1 $SNAP_USER -1 2>&1         | MATCH "After: ruid=0, euid=0, suid=0, rgid=0, egid=$group, sgid=0, groups="
 
-    echo "'setresgid g:snap_daemon g:snap_daemon -1' allowed"
-    snap run test-snapd-daemon-user.setresgid snap_daemon snap_daemon -1 2>&1       | MATCH "After: ruid=0, euid=0, suid=0, rgid=$group, egid=$group, sgid=0, groups="
-    snap run test-snapd-daemon-user.setresgid32 snap_daemon snap_daemon -1 2>&1     | MATCH "After: ruid=0, euid=0, suid=0, rgid=$group, egid=$group, sgid=0, groups="
+    echo "'setresgid g:$SNAP_USER g:$SNAP_USER -1' allowed"
+    snap run test-snapd-daemon-user.setresgid $SNAP_USER $SNAP_USER -1 2>&1       | MATCH "After: ruid=0, euid=0, suid=0, rgid=$group, egid=$group, sgid=0, groups="
+    snap run test-snapd-daemon-user.setresgid32 $SNAP_USER $SNAP_USER -1 2>&1     | MATCH "After: ruid=0, euid=0, suid=0, rgid=$group, egid=$group, sgid=0, groups="
 
-    echo "'setresgid g:snap_daemon g:snap_daemon g:root' allowed"
-    snap run test-snapd-daemon-user.setresgid snap_daemon snap_daemon root 2>&1     | MATCH "After: ruid=0, euid=0, suid=0, rgid=$group, egid=$group, sgid=0, groups="
-    snap run test-snapd-daemon-user.setresgid32 snap_daemon snap_daemon root 2>&1   | MATCH "After: ruid=0, euid=0, suid=0, rgid=$group, egid=$group, sgid=0, groups="
+    echo "'setresgid g:$SNAP_USER g:$SNAP_USER g:root' allowed"
+    snap run test-snapd-daemon-user.setresgid $SNAP_USER $SNAP_USER root 2>&1     | MATCH "After: ruid=0, euid=0, suid=0, rgid=$group, egid=$group, sgid=0, groups="
+    snap run test-snapd-daemon-user.setresgid32 $SNAP_USER $SNAP_USER root 2>&1   | MATCH "After: ruid=0, euid=0, suid=0, rgid=$group, egid=$group, sgid=0, groups="
 
-    echo "'setresgid g:snap_daemon g:root g:root' allowed"
-    snap run test-snapd-daemon-user.setresgid snap_daemon root root 2>&1       | MATCH "After: ruid=0, euid=0, suid=0, rgid=$group, egid=0, sgid=0, groups="
-    snap run test-snapd-daemon-user.setregid32 snap_daemon root root 2>&1      | MATCH "After: ruid=0, euid=0, suid=0, rgid=$group, egid=0, sgid=0, groups="
+    echo "'setresgid g:$SNAP_USER g:root g:root' allowed"
+    snap run test-snapd-daemon-user.setresgid $SNAP_USER root root 2>&1       | MATCH "After: ruid=0, euid=0, suid=0, rgid=$group, egid=0, sgid=0, groups="
+    snap run test-snapd-daemon-user.setregid32 $SNAP_USER root root 2>&1      | MATCH "After: ruid=0, euid=0, suid=0, rgid=$group, egid=0, sgid=0, groups="
 
     echo "'setresgid -1 -1 g:test' denied"
     snap run test-snapd-daemon-user.setresgid -1 -1 test 2>&1             | MATCH "Operation not permitted"
@@ -277,29 +306,29 @@ execute: |
     snap run test-snapd-daemon-user.setresgid test test root 2>&1         | MATCH "Operation not permitted"
     snap run test-snapd-daemon-user.setresgid32 test test root 2>&1       | MATCH "Operation not permitted"
 
-    echo "'setresgid g:snap_daemon g:snap_daemon g:test' denied"
-    snap run test-snapd-daemon-user.setresgid snap_daemon snap_daemon test 2>&1     | MATCH "Operation not permitted"
-    snap run test-snapd-daemon-user.setresgid32 snap_daemon snap_daemon test 2>&1   | MATCH "Operation not permitted"
+    echo "'setresgid g:$SNAP_USER g:$SNAP_USER g:test' denied"
+    snap run test-snapd-daemon-user.setresgid $SNAP_USER $SNAP_USER test 2>&1     | MATCH "Operation not permitted"
+    snap run test-snapd-daemon-user.setresgid32 $SNAP_USER $SNAP_USER test 2>&1   | MATCH "Operation not permitted"
 
-    echo "'setresgid g:snap_daemon g:test g:snap_daemon' denied"
-    snap run test-snapd-daemon-user.setresgid snap_daemon test snap_daemon 2>&1     | MATCH "Operation not permitted"
-    snap run test-snapd-daemon-user.setresgid32 snap_daemon test snap_daemon 2>&1   | MATCH "Operation not permitted"
+    echo "'setresgid g:$SNAP_USER g:test g:$SNAP_USER' denied"
+    snap run test-snapd-daemon-user.setresgid $SNAP_USER test $SNAP_USER 2>&1     | MATCH "Operation not permitted"
+    snap run test-snapd-daemon-user.setresgid32 $SNAP_USER test $SNAP_USER 2>&1   | MATCH "Operation not permitted"
 
-    echo "'setresgid g:snap_daemon g:test g:test' denied"
-    snap run test-snapd-daemon-user.setresgid snap_daemon test test 2>&1       | MATCH "Operation not permitted"
-    snap run test-snapd-daemon-user.setresgid32 snap_daemon test test 2>&1     | MATCH "Operation not permitted"
+    echo "'setresgid g:$SNAP_USER g:test g:test' denied"
+    snap run test-snapd-daemon-user.setresgid $SNAP_USER test test 2>&1       | MATCH "Operation not permitted"
+    snap run test-snapd-daemon-user.setresgid32 $SNAP_USER test test 2>&1     | MATCH "Operation not permitted"
 
-    echo "'setresgid g:test g:snap_daemon g:snap_daemon' denied"
-    snap run test-snapd-daemon-user.setresgid test snap_daemon snap_daemon 2>&1     | MATCH "Operation not permitted"
-    snap run test-snapd-daemon-user.setresgid32 test snap_daemon snap_daemon 2>&1   | MATCH "Operation not permitted"
+    echo "'setresgid g:test g:$SNAP_USER g:$SNAP_USER' denied"
+    snap run test-snapd-daemon-user.setresgid test $SNAP_USER $SNAP_USER 2>&1     | MATCH "Operation not permitted"
+    snap run test-snapd-daemon-user.setresgid32 test $SNAP_USER $SNAP_USER 2>&1   | MATCH "Operation not permitted"
 
-    echo "'setresgid g:test g:snap_daemon g:test' denied"
-    snap run test-snapd-daemon-user.setresgid test snap_daemon test 2>&1       | MATCH "Operation not permitted"
-    snap run test-snapd-daemon-user.setresgid32 test snap_daemon test 2>&1     | MATCH "Operation not permitted"
+    echo "'setresgid g:test g:$SNAP_USER g:test' denied"
+    snap run test-snapd-daemon-user.setresgid test $SNAP_USER test 2>&1       | MATCH "Operation not permitted"
+    snap run test-snapd-daemon-user.setresgid32 test $SNAP_USER test 2>&1     | MATCH "Operation not permitted"
 
-    echo "'setresgid g:test g:test g:snap_daemon' denied"
-    snap run test-snapd-daemon-user.setresgid test test snap_daemon 2>&1       | MATCH "Operation not permitted"
-    snap run test-snapd-daemon-user.setresgid32 test test snap_daemon 2>&1     | MATCH "Operation not permitted"
+    echo "'setresgid g:test g:test g:$SNAP_USER' denied"
+    snap run test-snapd-daemon-user.setresgid test test $SNAP_USER 2>&1       | MATCH "Operation not permitted"
+    snap run test-snapd-daemon-user.setresgid32 test test $SNAP_USER 2>&1     | MATCH "Operation not permitted"
 
 
     # setuid
@@ -307,9 +336,9 @@ execute: |
     snap run test-snapd-daemon-user.setuid root 2>&1       | MATCH "After: ruid=0, euid=0, suid=0, rgid=0, egid=0, sgid=0, groups="
     snap run test-snapd-daemon-user.setuid32 root 2>&1     | MATCH "After: ruid=0, euid=0, suid=0, rgid=0, egid=0, sgid=0, groups="
 
-    echo "'setuid u:snap_daemon' allowed"
-    snap run test-snapd-daemon-user.setuid snap_daemon 2>&1   | MATCH "After: ruid=$user, euid=$user, suid=$user, rgid=0, egid=0, sgid=0, groups="
-    snap run test-snapd-daemon-user.setuid32 snap_daemon 2>&1 | MATCH "After: ruid=$user, euid=$user, suid=$user, rgid=0, egid=0, sgid=0, groups="
+    echo "'setuid u:$SNAP_USER' allowed"
+    snap run test-snapd-daemon-user.setuid $SNAP_USER 2>&1   | MATCH "After: ruid=$user, euid=$user, suid=$user, rgid=0, egid=0, sgid=0, groups="
+    snap run test-snapd-daemon-user.setuid32 $SNAP_USER 2>&1 | MATCH "After: ruid=$user, euid=$user, suid=$user, rgid=0, egid=0, sgid=0, groups="
 
     echo "'setuid u:test' denied"
     snap run test-snapd-daemon-user.setuid test 2>&1     | MATCH "Operation not permitted"
@@ -329,25 +358,25 @@ execute: |
     snap run test-snapd-daemon-user.setreuid root -1 2>&1         | MATCH "After: ruid=0, euid=0, suid=0, rgid=0, egid=0, sgid=0, groups="
     snap run test-snapd-daemon-user.setreuid32 root -1 2>&1       | MATCH "After: ruid=0, euid=0, suid=0, rgid=0, egid=0, sgid=0, groups="
 
-    echo "'setreuid u:snap_daemon u:snap_daemon' allowed"
-    snap run test-snapd-daemon-user.setreuid snap_daemon snap_daemon 2>&1   | MATCH "After: ruid=$user, euid=$user, suid=$user, rgid=0, egid=0, sgid=0, groups="
-    snap run test-snapd-daemon-user.setreuid32 snap_daemon snap_daemon 2>&1 | MATCH "After: ruid=$user, euid=$user, suid=$user, rgid=0, egid=0, sgid=0, groups="
+    echo "'setreuid u:$SNAP_USER u:$SNAP_USER' allowed"
+    snap run test-snapd-daemon-user.setreuid $SNAP_USER $SNAP_USER 2>&1   | MATCH "After: ruid=$user, euid=$user, suid=$user, rgid=0, egid=0, sgid=0, groups="
+    snap run test-snapd-daemon-user.setreuid32 $SNAP_USER $SNAP_USER 2>&1 | MATCH "After: ruid=$user, euid=$user, suid=$user, rgid=0, egid=0, sgid=0, groups="
 
-    echo "'setreuid -1 u:snap_daemon' allowed"
-    snap run test-snapd-daemon-user.setreuid -1 snap_daemon 2>&1       | MATCH "After: ruid=0, euid=$user, suid=$user, rgid=0, egid=0, sgid=0, groups="
-    snap run test-snapd-daemon-user.setreuid32 -1 snap_daemon 2>&1     | MATCH "After: ruid=0, euid=$user, suid=$user, rgid=0, egid=0, sgid=0, groups="
+    echo "'setreuid -1 u:$SNAP_USER' allowed"
+    snap run test-snapd-daemon-user.setreuid -1 $SNAP_USER 2>&1       | MATCH "After: ruid=0, euid=$user, suid=$user, rgid=0, egid=0, sgid=0, groups="
+    snap run test-snapd-daemon-user.setreuid32 -1 $SNAP_USER 2>&1     | MATCH "After: ruid=0, euid=$user, suid=$user, rgid=0, egid=0, sgid=0, groups="
 
-    echo "'setreuid u:snap_daemon -1' allowed"
-    snap run test-snapd-daemon-user.setreuid snap_daemon -1 2>&1       | MATCH "After: ruid=$user, euid=0, suid=0, rgid=0, egid=0, sgid=0, groups="
-    snap run test-snapd-daemon-user.setreuid32 snap_daemon -1 2>&1     | MATCH "After: ruid=$user, euid=0, suid=0, rgid=0, egid=0, sgid=0, groups="
+    echo "'setreuid u:$SNAP_USER -1' allowed"
+    snap run test-snapd-daemon-user.setreuid $SNAP_USER -1 2>&1       | MATCH "After: ruid=$user, euid=0, suid=0, rgid=0, egid=0, sgid=0, groups="
+    snap run test-snapd-daemon-user.setreuid32 $SNAP_USER -1 2>&1     | MATCH "After: ruid=$user, euid=0, suid=0, rgid=0, egid=0, sgid=0, groups="
 
-    echo "'setreuid u:root u:snap_daemon' allowed"
-    snap run test-snapd-daemon-user.setreuid root snap_daemon 2>&1     | MATCH "After: ruid=0, euid=$user, suid=$user, rgid=0, egid=0, sgid=0, groups="
-    snap run test-snapd-daemon-user.setreuid32 root snap_daemon 2>&1   | MATCH "After: ruid=0, euid=$user, suid=$user, rgid=0, egid=0, sgid=0, groups="
+    echo "'setreuid u:root u:$SNAP_USER' allowed"
+    snap run test-snapd-daemon-user.setreuid root $SNAP_USER 2>&1     | MATCH "After: ruid=0, euid=$user, suid=$user, rgid=0, egid=0, sgid=0, groups="
+    snap run test-snapd-daemon-user.setreuid32 root $SNAP_USER 2>&1   | MATCH "After: ruid=0, euid=$user, suid=$user, rgid=0, egid=0, sgid=0, groups="
 
-    echo "'setreuid u:snap_daemon u:root' allowed"
-    snap run test-snapd-daemon-user.setreuid snap_daemon root 2>&1     | MATCH "After: ruid=$user, euid=0, suid=0, rgid=0, egid=0, sgid=0, groups="
-    snap run test-snapd-daemon-user.setreuid32 snap_daemon root 2>&1   | MATCH "After: ruid=$user, euid=0, suid=0, rgid=0, egid=0, sgid=0, groups="
+    echo "'setreuid u:$SNAP_USER u:root' allowed"
+    snap run test-snapd-daemon-user.setreuid $SNAP_USER root 2>&1     | MATCH "After: ruid=$user, euid=0, suid=0, rgid=0, egid=0, sgid=0, groups="
+    snap run test-snapd-daemon-user.setreuid32 $SNAP_USER root 2>&1   | MATCH "After: ruid=$user, euid=0, suid=0, rgid=0, egid=0, sgid=0, groups="
 
     echo "'setreuid u:test u:test' denied"
     snap run test-snapd-daemon-user.setreuid test test 2>&1       | MATCH "Operation not permitted"
@@ -369,13 +398,13 @@ execute: |
     snap run test-snapd-daemon-user.setreuid test root 2>&1       | MATCH "Operation not permitted"
     snap run test-snapd-daemon-user.setreuid32 test root 2>&1     | MATCH "Operation not permitted"
 
-    echo "'setreuid u:snap_daemon u:test' denied"
-    snap run test-snapd-daemon-user.setreuid snap_daemon test 2>&1     | MATCH "Operation not permitted"
-    snap run test-snapd-daemon-user.setreuid32 snap_daemon test 2>&1   | MATCH "Operation not permitted"
+    echo "'setreuid u:$SNAP_USER u:test' denied"
+    snap run test-snapd-daemon-user.setreuid $SNAP_USER test 2>&1     | MATCH "Operation not permitted"
+    snap run test-snapd-daemon-user.setreuid32 $SNAP_USER test 2>&1   | MATCH "Operation not permitted"
 
-    echo "'setreuid u:test u:snap_daemon' denied"
-    snap run test-snapd-daemon-user.setreuid test snap_daemon 2>&1     | MATCH "Operation not permitted"
-    snap run test-snapd-daemon-user.setreuid32 test snap_daemon 2>&1   | MATCH "Operation not permitted"
+    echo "'setreuid u:test u:$SNAP_USER' denied"
+    snap run test-snapd-daemon-user.setreuid test $SNAP_USER 2>&1     | MATCH "Operation not permitted"
+    snap run test-snapd-daemon-user.setreuid32 test $SNAP_USER 2>&1   | MATCH "Operation not permitted"
 
 
     # setresuid
@@ -391,25 +420,25 @@ execute: |
     snap run test-snapd-daemon-user.setresuid root root -1 2>&1           | MATCH "After: ruid=0, euid=0, suid=0, rgid=0, egid=0, sgid=0, groups="
     snap run test-snapd-daemon-user.setresuid32 root root -1 2>&1         | MATCH "After: ruid=0, euid=0, suid=0, rgid=0, egid=0, sgid=0, groups="
 
-    echo "'setresuid u:snap_daemon u:snap_daemon u:snap_daemon' allowed"
-    snap run test-snapd-daemon-user.setresuid snap_daemon snap_daemon snap_daemon 2>&1   | MATCH "After: ruid=$user, euid=$user, suid=$user, rgid=0, egid=0, sgid=0, groups="
-    snap run test-snapd-daemon-user.setresuid32 snap_daemon snap_daemon snap_daemon 2>&1 | MATCH "After: ruid=$user, euid=$user, suid=$user, rgid=0, egid=0, sgid=0, groups="
+    echo "'setresuid u:$SNAP_USER u:$SNAP_USER u:$SNAP_USER' allowed"
+    snap run test-snapd-daemon-user.setresuid $SNAP_USER $SNAP_USER $SNAP_USER 2>&1   | MATCH "After: ruid=$user, euid=$user, suid=$user, rgid=0, egid=0, sgid=0, groups="
+    snap run test-snapd-daemon-user.setresuid32 $SNAP_USER $SNAP_USER $SNAP_USER 2>&1 | MATCH "After: ruid=$user, euid=$user, suid=$user, rgid=0, egid=0, sgid=0, groups="
 
-    echo "'setresuid -1 u:snap_daemon -1' allowed"
-    snap run test-snapd-daemon-user.setresuid -1 snap_daemon -1 2>&1           | MATCH "After: ruid=0, euid=$user, suid=0, rgid=0, egid=0, sgid=0, groups="
-    snap run test-snapd-daemon-user.setresuid32 -1 snap_daemon -1 2>&1         | MATCH "After: ruid=0, euid=$user, suid=0, rgid=0, egid=0, sgid=0, groups="
+    echo "'setresuid -1 u:$SNAP_USER -1' allowed"
+    snap run test-snapd-daemon-user.setresuid -1 $SNAP_USER -1 2>&1           | MATCH "After: ruid=0, euid=$user, suid=0, rgid=0, egid=0, sgid=0, groups="
+    snap run test-snapd-daemon-user.setresuid32 -1 $SNAP_USER -1 2>&1         | MATCH "After: ruid=0, euid=$user, suid=0, rgid=0, egid=0, sgid=0, groups="
 
-    echo "'setresuid u:snap_daemon u:snap_daemon -1' allowed"
-    snap run test-snapd-daemon-user.setresuid snap_daemon snap_daemon -1 2>&1       | MATCH "After: ruid=$user, euid=$user, suid=0, rgid=0, egid=0, sgid=0, groups="
-    snap run test-snapd-daemon-user.setresuid32 snap_daemon snap_daemon -1 2>&1     | MATCH "After: ruid=$user, euid=$user, suid=0, rgid=0, egid=0, sgid=0, groups="
+    echo "'setresuid u:$SNAP_USER u:$SNAP_USER -1' allowed"
+    snap run test-snapd-daemon-user.setresuid $SNAP_USER $SNAP_USER -1 2>&1       | MATCH "After: ruid=$user, euid=$user, suid=0, rgid=0, egid=0, sgid=0, groups="
+    snap run test-snapd-daemon-user.setresuid32 $SNAP_USER $SNAP_USER -1 2>&1     | MATCH "After: ruid=$user, euid=$user, suid=0, rgid=0, egid=0, sgid=0, groups="
 
-    echo "'setresuid u:snap_daemon u:snap_daemon u:root' allowed"
-    snap run test-snapd-daemon-user.setresuid snap_daemon snap_daemon root 2>&1     | MATCH "After: ruid=$user, euid=$user, suid=0, rgid=0, egid=0, sgid=0, groups="
-    snap run test-snapd-daemon-user.setresuid32 snap_daemon snap_daemon root 2>&1   | MATCH "After: ruid=$user, euid=$user, suid=0, rgid=0, egid=0, sgid=0, groups="
+    echo "'setresuid u:$SNAP_USER u:$SNAP_USER u:root' allowed"
+    snap run test-snapd-daemon-user.setresuid $SNAP_USER $SNAP_USER root 2>&1     | MATCH "After: ruid=$user, euid=$user, suid=0, rgid=0, egid=0, sgid=0, groups="
+    snap run test-snapd-daemon-user.setresuid32 $SNAP_USER $SNAP_USER root 2>&1   | MATCH "After: ruid=$user, euid=$user, suid=0, rgid=0, egid=0, sgid=0, groups="
 
-    echo "'setresuid u:snap_daemon u:root u:root' allowed"
-    snap run test-snapd-daemon-user.setresuid snap_daemon root root 2>&1       | MATCH "After: ruid=$user, euid=0, suid=0, rgid=0, egid=0, sgid=0, groups="
-    snap run test-snapd-daemon-user.setreuid32 snap_daemon root root 2>&1      | MATCH "After: ruid=$user, euid=0, suid=0, rgid=0, egid=0, sgid=0, groups="
+    echo "'setresuid u:$SNAP_USER u:root u:root' allowed"
+    snap run test-snapd-daemon-user.setresuid $SNAP_USER root root 2>&1       | MATCH "After: ruid=$user, euid=0, suid=0, rgid=0, egid=0, sgid=0, groups="
+    snap run test-snapd-daemon-user.setreuid32 $SNAP_USER root root 2>&1      | MATCH "After: ruid=$user, euid=0, suid=0, rgid=0, egid=0, sgid=0, groups="
 
     echo "'setresuid -1 -1 u:test' denied"
     snap run test-snapd-daemon-user.setresuid -1 -1 test 2>&1             | MATCH "Operation not permitted"
@@ -463,29 +492,29 @@ execute: |
     snap run test-snapd-daemon-user.setresuid test test root 2>&1         | MATCH "Operation not permitted"
     snap run test-snapd-daemon-user.setresuid32 test test root 2>&1       | MATCH "Operation not permitted"
 
-    echo "'setresuid u:snap_daemon u:snap_daemon u:test' denied"
-    snap run test-snapd-daemon-user.setresuid snap_daemon snap_daemon test 2>&1     | MATCH "Operation not permitted"
-    snap run test-snapd-daemon-user.setresuid32 snap_daemon snap_daemon test 2>&1   | MATCH "Operation not permitted"
+    echo "'setresuid u:$SNAP_USER u:$SNAP_USER u:test' denied"
+    snap run test-snapd-daemon-user.setresuid $SNAP_USER $SNAP_USER test 2>&1     | MATCH "Operation not permitted"
+    snap run test-snapd-daemon-user.setresuid32 $SNAP_USER $SNAP_USER test 2>&1   | MATCH "Operation not permitted"
 
-    echo "'setresuid u:snap_daemon u:test u:snap_daemon' denied"
-    snap run test-snapd-daemon-user.setresuid snap_daemon test snap_daemon 2>&1     | MATCH "Operation not permitted"
-    snap run test-snapd-daemon-user.setresuid32 snap_daemon test snap_daemon 2>&1   | MATCH "Operation not permitted"
+    echo "'setresuid u:$SNAP_USER u:test u:$SNAP_USER' denied"
+    snap run test-snapd-daemon-user.setresuid $SNAP_USER test $SNAP_USER 2>&1     | MATCH "Operation not permitted"
+    snap run test-snapd-daemon-user.setresuid32 $SNAP_USER test $SNAP_USER 2>&1   | MATCH "Operation not permitted"
 
-    echo "'setresuid u:snap_daemon u:test u:test' denied"
-    snap run test-snapd-daemon-user.setresuid snap_daemon test test 2>&1       | MATCH "Operation not permitted"
-    snap run test-snapd-daemon-user.setresuid32 snap_daemon test test 2>&1     | MATCH "Operation not permitted"
+    echo "'setresuid u:$SNAP_USER u:test u:test' denied"
+    snap run test-snapd-daemon-user.setresuid $SNAP_USER test test 2>&1       | MATCH "Operation not permitted"
+    snap run test-snapd-daemon-user.setresuid32 $SNAP_USER test test 2>&1     | MATCH "Operation not permitted"
 
-    echo "'setresuid u:test u:snap_daemon u:snap_daemon' denied"
-    snap run test-snapd-daemon-user.setresuid test snap_daemon snap_daemon 2>&1     | MATCH "Operation not permitted"
-    snap run test-snapd-daemon-user.setresuid32 test snap_daemon snap_daemon 2>&1   | MATCH "Operation not permitted"
+    echo "'setresuid u:test u:$SNAP_USER u:$SNAP_USER' denied"
+    snap run test-snapd-daemon-user.setresuid test $SNAP_USER $SNAP_USER 2>&1     | MATCH "Operation not permitted"
+    snap run test-snapd-daemon-user.setresuid32 test $SNAP_USER $SNAP_USER 2>&1   | MATCH "Operation not permitted"
 
-    echo "'setresuid u:test u:snap_daemon u:test' denied"
-    snap run test-snapd-daemon-user.setresuid test snap_daemon test 2>&1       | MATCH "Operation not permitted"
-    snap run test-snapd-daemon-user.setresuid32 test snap_daemon test 2>&1     | MATCH "Operation not permitted"
+    echo "'setresuid u:test u:$SNAP_USER u:test' denied"
+    snap run test-snapd-daemon-user.setresuid test $SNAP_USER test 2>&1       | MATCH "Operation not permitted"
+    snap run test-snapd-daemon-user.setresuid32 test $SNAP_USER test 2>&1     | MATCH "Operation not permitted"
 
-    echo "'setresuid u:test u:test u:snap_daemon' denied"
-    snap run test-snapd-daemon-user.setresuid test test snap_daemon 2>&1       | MATCH "Operation not permitted"
-    snap run test-snapd-daemon-user.setresuid32 test test snap_daemon 2>&1     | MATCH "Operation not permitted"
+    echo "'setresuid u:test u:test u:$SNAP_USER' denied"
+    snap run test-snapd-daemon-user.setresuid test test $SNAP_USER 2>&1       | MATCH "Operation not permitted"
+    snap run test-snapd-daemon-user.setresuid32 test test $SNAP_USER 2>&1     | MATCH "Operation not permitted"
 
 
     # chown
@@ -506,30 +535,30 @@ execute: |
     snap run test-snapd-daemon-user.chown "$P2" -1 root 2>&1         | MATCH "After: .* uid=0, gid=0"
     snap run test-snapd-daemon-user.chown32 "$P3" -1 root 2>&1       | MATCH "After: .* uid=0, gid=0"
 
-    echo "'chown - u:snap_daemon g:snap_daemon' allowed"
+    echo "'chown - u:$SNAP_USER g:$SNAP_USER' allowed"
     chown root:root "$P2" "$P3"
-    snap run test-snapd-daemon-user.chown "$P2" snap_daemon snap_daemon 2>&1   | MATCH "After: .* uid=$user, gid=$group"
-    snap run test-snapd-daemon-user.chown32 "$P3" snap_daemon snap_daemon 2>&1 | MATCH "After: .* uid=$user, gid=$group"
+    snap run test-snapd-daemon-user.chown "$P2" $SNAP_USER $SNAP_USER 2>&1   | MATCH "After: .* uid=$user, gid=$group"
+    snap run test-snapd-daemon-user.chown32 "$P3" $SNAP_USER $SNAP_USER 2>&1 | MATCH "After: .* uid=$user, gid=$group"
 
-    echo "'chown - u:snap_daemon -1' allowed"
+    echo "'chown - u:$SNAP_USER -1' allowed"
     chown root:root "$P2" "$P3"
-    snap run test-snapd-daemon-user.chown "$P2" snap_daemon -1 2>&1       | MATCH "After: .* uid=$user, gid=0"
-    snap run test-snapd-daemon-user.chown32 "$P3" snap_daemon -1 2>&1     | MATCH "After: .* uid=$user, gid=0"
+    snap run test-snapd-daemon-user.chown "$P2" $SNAP_USER -1 2>&1       | MATCH "After: .* uid=$user, gid=0"
+    snap run test-snapd-daemon-user.chown32 "$P3" $SNAP_USER -1 2>&1     | MATCH "After: .* uid=$user, gid=0"
 
-    echo "'chown - -1 g:snap_daemon' allowed"
+    echo "'chown - -1 g:$SNAP_USER' allowed"
     chown root:root "$P2" "$P3"
-    snap run test-snapd-daemon-user.chown "$P2" -1 snap_daemon 2>&1       | MATCH "After: .* uid=0, gid=$group"
-    snap run test-snapd-daemon-user.chown32 "$P3" -1 snap_daemon 2>&1     | MATCH "After: .* uid=0, gid=$group"
+    snap run test-snapd-daemon-user.chown "$P2" -1 $SNAP_USER 2>&1       | MATCH "After: .* uid=0, gid=$group"
+    snap run test-snapd-daemon-user.chown32 "$P3" -1 $SNAP_USER 2>&1     | MATCH "After: .* uid=0, gid=$group"
 
-    echo "'chown - u:snap_daemon g:root' allowed"
+    echo "'chown - u:$SNAP_USER g:root' allowed"
     chown root:root "$P2" "$P3"
-    snap run test-snapd-daemon-user.chown "$P2" snap_daemon root 2>&1     | MATCH "After: .* uid=$user, gid=0"
-    snap run test-snapd-daemon-user.chown32 "$P3" snap_daemon root 2>&1   | MATCH "After: .* uid=$user, gid=0"
+    snap run test-snapd-daemon-user.chown "$P2" $SNAP_USER root 2>&1     | MATCH "After: .* uid=$user, gid=0"
+    snap run test-snapd-daemon-user.chown32 "$P3" $SNAP_USER root 2>&1   | MATCH "After: .* uid=$user, gid=0"
 
-    echo "'chown - u:root g:snap_daemon' allowed"
+    echo "'chown - u:root g:$SNAP_USER' allowed"
     chown root:root "$P2" "$P3"
-    snap run test-snapd-daemon-user.chown "$P2" root snap_daemon 2>&1     | MATCH "After: .* uid=0, gid=$group"
-    snap run test-snapd-daemon-user.chown32 "$P3" root snap_daemon 2>&1   | MATCH "After: .* uid=0, gid=$group"
+    snap run test-snapd-daemon-user.chown "$P2" root $SNAP_USER 2>&1     | MATCH "After: .* uid=0, gid=$group"
+    snap run test-snapd-daemon-user.chown32 "$P3" root $SNAP_USER 2>&1   | MATCH "After: .* uid=0, gid=$group"
 
     echo "'chown - u:test g:test' denied"
     chown root:root "$P2" "$P3"
@@ -556,15 +585,15 @@ execute: |
     snap run test-snapd-daemon-user.chown "$P2" root test 2>&1       | MATCH "Operation not permitted"
     snap run test-snapd-daemon-user.chown32 "$P3" root test 2>&1     | MATCH "Operation not permitted"
 
-    echo "'chown - u:test g:snap_daemon' denied"
+    echo "'chown - u:test g:$SNAP_USER' denied"
     chown root:root "$P2" "$P3"
-    snap run test-snapd-daemon-user.chown "$P2" test snap_daemon 2>&1     | MATCH "Operation not permitted"
-    snap run test-snapd-daemon-user.chown32 "$P3" test snap_daemon 2>&1   | MATCH "Operation not permitted"
+    snap run test-snapd-daemon-user.chown "$P2" test $SNAP_USER 2>&1     | MATCH "Operation not permitted"
+    snap run test-snapd-daemon-user.chown32 "$P3" test $SNAP_USER 2>&1   | MATCH "Operation not permitted"
 
-    echo "'chown - u:snap_daemon g:test' denied"
+    echo "'chown - u:$SNAP_USER g:test' denied"
     chown root:root "$P2" "$P3"
-    snap run test-snapd-daemon-user.chown "$P2" snap_daemon test 2>&1     | MATCH "Operation not permitted"
-    snap run test-snapd-daemon-user.chown32 "$P3" snap_daemon test 2>&1   | MATCH "Operation not permitted"
+    snap run test-snapd-daemon-user.chown "$P2" $SNAP_USER test 2>&1     | MATCH "Operation not permitted"
+    snap run test-snapd-daemon-user.chown32 "$P3" $SNAP_USER test 2>&1   | MATCH "Operation not permitted"
 
 
     # lchown
@@ -583,30 +612,30 @@ execute: |
     snap run test-snapd-daemon-user.lchown "$P2" -1 root 2>&1         | MATCH "After: .* uid=0, gid=0"
     snap run test-snapd-daemon-user.lchown32 "$P3" -1 root 2>&1       | MATCH "After: .* uid=0, gid=0"
 
-    echo "'lchown - u:snap_daemon g:snap_daemon' allowed"
+    echo "'lchown - u:$SNAP_USER g:$SNAP_USER' allowed"
     chown root:root "$P2" "$P3"
-    snap run test-snapd-daemon-user.lchown "$P2" snap_daemon snap_daemon 2>&1   | MATCH "After: .* uid=$user, gid=$group"
-    snap run test-snapd-daemon-user.lchown32 "$P3" snap_daemon snap_daemon 2>&1 | MATCH "After: .* uid=$user, gid=$group"
+    snap run test-snapd-daemon-user.lchown "$P2" $SNAP_USER $SNAP_USER 2>&1   | MATCH "After: .* uid=$user, gid=$group"
+    snap run test-snapd-daemon-user.lchown32 "$P3" $SNAP_USER $SNAP_USER 2>&1 | MATCH "After: .* uid=$user, gid=$group"
 
-    echo "'lchown - u:snap_daemon -1' allowed"
+    echo "'lchown - u:$SNAP_USER -1' allowed"
     chown root:root "$P2" "$P3"
-    snap run test-snapd-daemon-user.lchown "$P2" snap_daemon -1 2>&1       | MATCH "After: .* uid=$user, gid=0"
-    snap run test-snapd-daemon-user.lchown32 "$P3" snap_daemon -1 2>&1     | MATCH "After: .* uid=$user, gid=0"
+    snap run test-snapd-daemon-user.lchown "$P2" $SNAP_USER -1 2>&1       | MATCH "After: .* uid=$user, gid=0"
+    snap run test-snapd-daemon-user.lchown32 "$P3" $SNAP_USER -1 2>&1     | MATCH "After: .* uid=$user, gid=0"
 
-    echo "'lchown - -1 g:snap_daemon' allowed"
+    echo "'lchown - -1 g:$SNAP_USER' allowed"
     chown root:root "$P2" "$P3"
-    snap run test-snapd-daemon-user.lchown "$P2" -1 snap_daemon 2>&1       | MATCH "After: .* uid=0, gid=$group"
-    snap run test-snapd-daemon-user.lchown32 "$P3" -1 snap_daemon 2>&1     | MATCH "After: .* uid=0, gid=$group"
+    snap run test-snapd-daemon-user.lchown "$P2" -1 $SNAP_USER 2>&1       | MATCH "After: .* uid=0, gid=$group"
+    snap run test-snapd-daemon-user.lchown32 "$P3" -1 $SNAP_USER 2>&1     | MATCH "After: .* uid=0, gid=$group"
 
-    echo "'lchown - u:snap_daemon g:root' allowed"
+    echo "'lchown - u:$SNAP_USER g:root' allowed"
     chown root:root "$P2" "$P3"
-    snap run test-snapd-daemon-user.lchown "$P2" snap_daemon root 2>&1     | MATCH "After: .* uid=$user, gid=0"
-    snap run test-snapd-daemon-user.lchown32 "$P3" snap_daemon root 2>&1   | MATCH "After: .* uid=$user, gid=0"
+    snap run test-snapd-daemon-user.lchown "$P2" $SNAP_USER root 2>&1     | MATCH "After: .* uid=$user, gid=0"
+    snap run test-snapd-daemon-user.lchown32 "$P3" $SNAP_USER root 2>&1   | MATCH "After: .* uid=$user, gid=0"
 
-    echo "'lchown - u:root g:snap_daemon' allowed"
+    echo "'lchown - u:root g:$SNAP_USER' allowed"
     chown root:root "$P2" "$P3"
-    snap run test-snapd-daemon-user.lchown "$P2" root snap_daemon 2>&1     | MATCH "After: .* uid=0, gid=$group"
-    snap run test-snapd-daemon-user.lchown32 "$P3" root snap_daemon 2>&1   | MATCH "After: .* uid=0, gid=$group"
+    snap run test-snapd-daemon-user.lchown "$P2" root $SNAP_USER 2>&1     | MATCH "After: .* uid=0, gid=$group"
+    snap run test-snapd-daemon-user.lchown32 "$P3" root $SNAP_USER 2>&1   | MATCH "After: .* uid=0, gid=$group"
 
     echo "'lchown - u:test g:test' denied"
     chown root:root "$P2" "$P3"
@@ -633,15 +662,15 @@ execute: |
     snap run test-snapd-daemon-user.lchown "$P2" root test 2>&1       | MATCH "Operation not permitted"
     snap run test-snapd-daemon-user.lchown32 "$P3" root test 2>&1     | MATCH "Operation not permitted"
 
-    echo "'lchown - u:test g:snap_daemon' denied"
+    echo "'lchown - u:test g:$SNAP_USER' denied"
     chown root:root "$P2" "$P3"
-    snap run test-snapd-daemon-user.lchown "$P2" test snap_daemon 2>&1     | MATCH "Operation not permitted"
-    snap run test-snapd-daemon-user.lchown32 "$P3" test snap_daemon 2>&1   | MATCH "Operation not permitted"
+    snap run test-snapd-daemon-user.lchown "$P2" test $SNAP_USER 2>&1     | MATCH "Operation not permitted"
+    snap run test-snapd-daemon-user.lchown32 "$P3" test $SNAP_USER 2>&1   | MATCH "Operation not permitted"
 
-    echo "'lchown - u:snap_daemon g:test' denied"
+    echo "'lchown - u:$SNAP_USER g:test' denied"
     chown root:root "$P2" "$P3"
-    snap run test-snapd-daemon-user.lchown "$P2" snap_daemon test 2>&1     | MATCH "Operation not permitted"
-    snap run test-snapd-daemon-user.lchown32 "$P3" snap_daemon test 2>&1   | MATCH "Operation not permitted"
+    snap run test-snapd-daemon-user.lchown "$P2" $SNAP_USER test 2>&1     | MATCH "Operation not permitted"
+    snap run test-snapd-daemon-user.lchown32 "$P3" $SNAP_USER test 2>&1   | MATCH "Operation not permitted"
 
 
     # fchown
@@ -660,30 +689,30 @@ execute: |
     snap run test-snapd-daemon-user.fchown "$P2" -1 root 2>&1         | MATCH "After: .* uid=0, gid=0"
     snap run test-snapd-daemon-user.fchown32 "$P3" -1 root 2>&1       | MATCH "After: .* uid=0, gid=0"
 
-    echo "'fchown - u:snap_daemon g:snap_daemon' allowed"
+    echo "'fchown - u:$SNAP_USER g:$SNAP_USER' allowed"
     chown root:root "$P2" "$P3"
-    snap run test-snapd-daemon-user.fchown "$P2" snap_daemon snap_daemon 2>&1   | MATCH "After: .* uid=$user, gid=$group"
-    snap run test-snapd-daemon-user.fchown32 "$P3" snap_daemon snap_daemon 2>&1 | MATCH "After: .* uid=$user, gid=$group"
+    snap run test-snapd-daemon-user.fchown "$P2" $SNAP_USER $SNAP_USER 2>&1   | MATCH "After: .* uid=$user, gid=$group"
+    snap run test-snapd-daemon-user.fchown32 "$P3" $SNAP_USER $SNAP_USER 2>&1 | MATCH "After: .* uid=$user, gid=$group"
 
-    echo "'fchown - u:snap_daemon -1' allowed"
+    echo "'fchown - u:$SNAP_USER -1' allowed"
     chown root:root "$P2" "$P3"
-    snap run test-snapd-daemon-user.fchown "$P2" snap_daemon -1 2>&1       | MATCH "After: .* uid=$user, gid=0"
-    snap run test-snapd-daemon-user.fchown32 "$P3" snap_daemon -1 2>&1     | MATCH "After: .* uid=$user, gid=0"
+    snap run test-snapd-daemon-user.fchown "$P2" $SNAP_USER -1 2>&1       | MATCH "After: .* uid=$user, gid=0"
+    snap run test-snapd-daemon-user.fchown32 "$P3" $SNAP_USER -1 2>&1     | MATCH "After: .* uid=$user, gid=0"
 
-    echo "'fchown - -1 g:snap_daemon' allowed"
+    echo "'fchown - -1 g:$SNAP_USER' allowed"
     chown root:root "$P2" "$P3"
-    snap run test-snapd-daemon-user.fchown "$P2" -1 snap_daemon 2>&1       | MATCH "After: .* uid=0, gid=$group"
-    snap run test-snapd-daemon-user.fchown32 "$P3" -1 snap_daemon 2>&1     | MATCH "After: .* uid=0, gid=$group"
+    snap run test-snapd-daemon-user.fchown "$P2" -1 $SNAP_USER 2>&1       | MATCH "After: .* uid=0, gid=$group"
+    snap run test-snapd-daemon-user.fchown32 "$P3" -1 $SNAP_USER 2>&1     | MATCH "After: .* uid=0, gid=$group"
 
-    echo "'fchown - u:snap_daemon g:root' allowed"
+    echo "'fchown - u:$SNAP_USER g:root' allowed"
     chown root:root "$P2" "$P3"
-    snap run test-snapd-daemon-user.fchown "$P2" snap_daemon root 2>&1     | MATCH "After: .* uid=$user, gid=0"
-    snap run test-snapd-daemon-user.fchown32 "$P3" snap_daemon root 2>&1   | MATCH "After: .* uid=$user, gid=0"
+    snap run test-snapd-daemon-user.fchown "$P2" $SNAP_USER root 2>&1     | MATCH "After: .* uid=$user, gid=0"
+    snap run test-snapd-daemon-user.fchown32 "$P3" $SNAP_USER root 2>&1   | MATCH "After: .* uid=$user, gid=0"
 
-    echo "'fchown - u:root g:snap_daemon' allowed"
+    echo "'fchown - u:root g:$SNAP_USER' allowed"
     chown root:root "$P2" "$P3"
-    snap run test-snapd-daemon-user.fchown "$P2" root snap_daemon 2>&1     | MATCH "After: .* uid=0, gid=$group"
-    snap run test-snapd-daemon-user.fchown32 "$P3" root snap_daemon 2>&1   | MATCH "After: .* uid=0, gid=$group"
+    snap run test-snapd-daemon-user.fchown "$P2" root $SNAP_USER 2>&1     | MATCH "After: .* uid=0, gid=$group"
+    snap run test-snapd-daemon-user.fchown32 "$P3" root $SNAP_USER 2>&1   | MATCH "After: .* uid=0, gid=$group"
 
     echo "'fchown - u:test g:test' denied"
     chown root:root "$P2" "$P3"
@@ -710,15 +739,15 @@ execute: |
     snap run test-snapd-daemon-user.fchown "$P2" root test 2>&1       | MATCH "Operation not permitted"
     snap run test-snapd-daemon-user.fchown32 "$P3" root test 2>&1     | MATCH "Operation not permitted"
 
-    echo "'fchown - u:test g:snap_daemon' denied"
+    echo "'fchown - u:test g:$SNAP_USER' denied"
     chown root:root "$P2" "$P3"
-    snap run test-snapd-daemon-user.fchown "$P2" test snap_daemon 2>&1     | MATCH "Operation not permitted"
-    snap run test-snapd-daemon-user.fchown32 "$P3" test snap_daemon 2>&1   | MATCH "Operation not permitted"
+    snap run test-snapd-daemon-user.fchown "$P2" test $SNAP_USER 2>&1     | MATCH "Operation not permitted"
+    snap run test-snapd-daemon-user.fchown32 "$P3" test $SNAP_USER 2>&1   | MATCH "Operation not permitted"
 
-    echo "'fchown - u:snap_daemon g:test' denied"
+    echo "'fchown - u:$SNAP_USER g:test' denied"
     chown root:root "$P2" "$P3"
-    snap run test-snapd-daemon-user.fchown "$P2" snap_daemon test 2>&1     | MATCH "Operation not permitted"
-    snap run test-snapd-daemon-user.fchown32 "$P3" snap_daemon test 2>&1   | MATCH "Operation not permitted"
+    snap run test-snapd-daemon-user.fchown "$P2" $SNAP_USER test 2>&1     | MATCH "Operation not permitted"
+    snap run test-snapd-daemon-user.fchown32 "$P3" $SNAP_USER test 2>&1   | MATCH "Operation not permitted"
 
 
     # fchownat
@@ -737,30 +766,30 @@ execute: |
     snap run test-snapd-daemon-user.fchownat "$P2" -1 root 2>&1         | MATCH "After: .* uid=0, gid=0"
     snap run test-snapd-daemon-user.fchownat32 "$P3" -1 root 2>&1       | MATCH "After: .* uid=0, gid=0"
 
-    echo "'fchownat - u:snap_daemon g:snap_daemon' allowed"
+    echo "'fchownat - u:$SNAP_USER g:$SNAP_USER' allowed"
     chown root:root "$P2" "$P3"
-    snap run test-snapd-daemon-user.fchownat "$P2" snap_daemon snap_daemon 2>&1   | MATCH "After: .* uid=$user, gid=$group"
-    snap run test-snapd-daemon-user.fchownat32 "$P3" snap_daemon snap_daemon 2>&1 | MATCH "After: .* uid=$user, gid=$group"
+    snap run test-snapd-daemon-user.fchownat "$P2" $SNAP_USER $SNAP_USER 2>&1   | MATCH "After: .* uid=$user, gid=$group"
+    snap run test-snapd-daemon-user.fchownat32 "$P3" $SNAP_USER $SNAP_USER 2>&1 | MATCH "After: .* uid=$user, gid=$group"
 
-    echo "'fchownat - u:snap_daemon -1' allowed"
+    echo "'fchownat - u:$SNAP_USER -1' allowed"
     chown root:root "$P2" "$P3"
-    snap run test-snapd-daemon-user.fchownat "$P2" snap_daemon -1 2>&1       | MATCH "After: .* uid=$user, gid=0"
-    snap run test-snapd-daemon-user.fchownat32 "$P3" snap_daemon -1 2>&1     | MATCH "After: .* uid=$user, gid=0"
+    snap run test-snapd-daemon-user.fchownat "$P2" $SNAP_USER -1 2>&1       | MATCH "After: .* uid=$user, gid=0"
+    snap run test-snapd-daemon-user.fchownat32 "$P3" $SNAP_USER -1 2>&1     | MATCH "After: .* uid=$user, gid=0"
 
-    echo "'fchownat - -1 g:snap_daemon' allowed"
+    echo "'fchownat - -1 g:$SNAP_USER' allowed"
     chown root:root "$P2" "$P3"
-    snap run test-snapd-daemon-user.fchownat "$P2" -1 snap_daemon 2>&1       | MATCH "After: .* uid=0, gid=$group"
-    snap run test-snapd-daemon-user.fchownat32 "$P3" -1 snap_daemon 2>&1     | MATCH "After: .* uid=0, gid=$group"
+    snap run test-snapd-daemon-user.fchownat "$P2" -1 $SNAP_USER 2>&1       | MATCH "After: .* uid=0, gid=$group"
+    snap run test-snapd-daemon-user.fchownat32 "$P3" -1 $SNAP_USER 2>&1     | MATCH "After: .* uid=0, gid=$group"
 
-    echo "'fchownat - u:snap_daemon g:root' allowed"
+    echo "'fchownat - u:$SNAP_USER g:root' allowed"
     chown root:root "$P2" "$P3"
-    snap run test-snapd-daemon-user.fchownat "$P2" snap_daemon root 2>&1     | MATCH "After: .* uid=$user, gid=0"
-    snap run test-snapd-daemon-user.fchownat32 "$P3" snap_daemon root 2>&1   | MATCH "After: .* uid=$user, gid=0"
+    snap run test-snapd-daemon-user.fchownat "$P2" $SNAP_USER root 2>&1     | MATCH "After: .* uid=$user, gid=0"
+    snap run test-snapd-daemon-user.fchownat32 "$P3" $SNAP_USER root 2>&1   | MATCH "After: .* uid=$user, gid=0"
 
-    echo "'fchownat - u:root g:snap_daemon' allowed"
+    echo "'fchownat - u:root g:$SNAP_USER' allowed"
     chown root:root "$P2" "$P3"
-    snap run test-snapd-daemon-user.fchownat "$P2" root snap_daemon 2>&1     | MATCH "After: .* uid=0, gid=$group"
-    snap run test-snapd-daemon-user.fchownat32 "$P3" root snap_daemon 2>&1   | MATCH "After: .* uid=0, gid=$group"
+    snap run test-snapd-daemon-user.fchownat "$P2" root $SNAP_USER 2>&1     | MATCH "After: .* uid=0, gid=$group"
+    snap run test-snapd-daemon-user.fchownat32 "$P3" root $SNAP_USER 2>&1   | MATCH "After: .* uid=0, gid=$group"
 
     echo "'fchownat - u:test g:test' denied"
     chown root:root "$P2" "$P3"
@@ -787,12 +816,12 @@ execute: |
     snap run test-snapd-daemon-user.fchownat "$P2" root test 2>&1       | MATCH "Operation not permitted"
     snap run test-snapd-daemon-user.fchownat32 "$P3" root test 2>&1     | MATCH "Operation not permitted"
 
-    echo "'fchownat - u:test g:snap_daemon' denied"
+    echo "'fchownat - u:test g:$SNAP_USER' denied"
     chown root:root "$P2" "$P3"
-    snap run test-snapd-daemon-user.fchownat "$P2" test snap_daemon 2>&1     | MATCH "Operation not permitted"
-    snap run test-snapd-daemon-user.fchownat32 "$P3" test snap_daemon 2>&1   | MATCH "Operation not permitted"
+    snap run test-snapd-daemon-user.fchownat "$P2" test $SNAP_USER 2>&1     | MATCH "Operation not permitted"
+    snap run test-snapd-daemon-user.fchownat32 "$P3" test $SNAP_USER 2>&1   | MATCH "Operation not permitted"
 
-    echo "'fchownat - u:snap_daemon g:test' denied"
+    echo "'fchownat - u:$SNAP_USER g:test' denied"
     chown root:root "$P2" "$P3"
-    snap run test-snapd-daemon-user.fchownat "$P2" snap_daemon test 2>&1     | MATCH "Operation not permitted"
-    snap run test-snapd-daemon-user.fchownat32 "$P3" snap_daemon test 2>&1   | MATCH "Operation not permitted"
+    snap run test-snapd-daemon-user.fchownat "$P2" $SNAP_USER test 2>&1     | MATCH "Operation not permitted"
+    snap run test-snapd-daemon-user.fchownat32 "$P3" $SNAP_USER test 2>&1   | MATCH "Operation not permitted"

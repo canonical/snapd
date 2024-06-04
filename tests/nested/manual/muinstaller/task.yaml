@@ -1,8 +1,12 @@
 summary: Check that the /system/<label> API works via fake installer
 
+details: |
+  Check that the fake installed works properly using the /system/<label> API
+  Verify the instance created is a classic ubuntu with the kernel snap installed
+
 # this is a UC20+ specific test
 # TODO this currently fails on ubuntu-20.04-64 timing out
-systems: [ubuntu-22.04-64]
+systems: [ubuntu-22.04-64, ubuntu-24.04-64]
 
 environment:
     # nested test so that we can test encryted installs eventually
@@ -112,7 +116,7 @@ execute: |
   truncate --size=4G fake-disk.img
   loop_device=$(losetup --show -f ./fake-disk.img)
   # and "install" the current seed to the fake disk
-  ./muinstaller "$LABEL" "$TESTSLIB"/muinstaller/mk-classic-rootfs.sh "$loop_device"
+  ./muinstaller "$LABEL" "$loop_device" "$TESTSLIB"/muinstaller/mk-classic-rootfs.sh
   # validate that the fake installer created the expected partitions
   sfdisk -d "$loop_device" > fdisk_output
   MATCH "${loop_device}p1 .* name=\"BIOS Boot\""   < fdisk_output

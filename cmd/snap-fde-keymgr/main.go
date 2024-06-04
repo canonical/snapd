@@ -23,7 +23,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"strings"
 
@@ -125,7 +124,7 @@ func (c *cmdAddRecoveryKey) Execute(args []string) error {
 	}
 	if alreadyExists {
 		// we already have the recovery key, read it back
-		maybeKey, err := ioutil.ReadFile(c.KeyFile)
+		maybeKey, err := os.ReadFile(c.KeyFile)
 		if err != nil {
 			return fmt.Errorf("cannot read existing recovery key file: %v", err)
 		}
@@ -149,7 +148,7 @@ func (c *cmdAddRecoveryKey) Execute(args []string) error {
 				}
 			}
 		case strings.HasPrefix(authz, "file:"):
-			authzKey, err := ioutil.ReadFile(authz[len("file:"):])
+			authzKey, err := os.ReadFile(authz[len("file:"):])
 			if err != nil {
 				return fmt.Errorf("cannot load authorization key: %v", err)
 			}
@@ -178,7 +177,7 @@ func (c *cmdRemoveRecoveryKey) Execute(args []string) error {
 				return fmt.Errorf("cannot remove recovery key from LUKS device: %v", err)
 			}
 		case strings.HasPrefix(authz, "file:"):
-			authzKey, err := ioutil.ReadFile(authz[len("file:"):])
+			authzKey, err := os.ReadFile(authz[len("file:"):])
 			if err != nil {
 				return fmt.Errorf("cannot load authorization key: %v", err)
 			}

@@ -1,5 +1,10 @@
 summary: Check that try command works
 
+details: |
+    The snap try command can be used to install a snap without creating the
+    squashfs file, which for large snaps is very costly. The test shows that
+    snap try works for snaps using strict, devmode and classic confinement.
+
 # s390x does not have /dev/kmsg
 # ubuntu-14.04: systemd-run not supported
 systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*, -ubuntu-*-s390x, -centos-*, -ubuntu-14.04*]

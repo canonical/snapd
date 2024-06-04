@@ -24,7 +24,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"sync"
@@ -83,7 +82,7 @@ func (rn *AuthRefreshNeed) needed() bool {
 type deviceAuthorizer struct {
 	UserAuthorizer
 
-	endpointURL func(p string, query url.Values) *url.URL
+	endpointURL func(p string, query url.Values) (*url.URL, error)
 
 	sessionMu sync.Mutex
 }
@@ -102,6 +101,13 @@ func (a *deviceAuthorizer) Authorize(r *http.Request, dauthCtx DeviceAndAuthCont
 		firstError = err
 	}
 	return firstError
+}
+
+func dropAuthorization(r *http.Request, opts *AuthorizeOptions) {
+	if opts.deviceAuth {
+		r.Header.Del(hdrSnapDeviceAuthorization[opts.apiLevel])
+	}
+	r.Header.Del("Authorization")
 }
 
 func (a *deviceAuthorizer) EnsureDeviceSession(dauthCtx DeviceAndAuthContext, client *http.Client) error {
@@ -146,7 +152,12 @@ func (a *deviceAuthorizer) refreshDeviceSession(device *auth.DeviceState, dauthC
 		return nil
 	}
 
-	nonce, err := requestStoreDeviceNonce(client, a.endpointURL(deviceNonceEndpPath, nil).String())
+	nonceEndpoint, err := a.endpointURL(deviceNonceEndpPath, nil)
+	if err != nil {
+		return err
+	}
+
+	nonce, err := requestStoreDeviceNonce(client, nonceEndpoint.String())
 	if err != nil {
 		return err
 	}
@@ -156,7 +167,12 @@ func (a *deviceAuthorizer) refreshDeviceSession(device *auth.DeviceState, dauthC
 		return err
 	}
 
-	session, err := requestDeviceSession(client, a.endpointURL(deviceSessionEndpPath, nil).String(), devSessReqParams, device1.SessionMacaroon)
+	deviceSessionEndpoint, err := a.endpointURL(deviceSessionEndpPath, nil)
+	if err != nil {
+		return err
+	}
+
+	session, err := requestDeviceSession(client, deviceSessionEndpoint.String(), devSessReqParams, device1.SessionMacaroon)
 	if err != nil {
 		return err
 	}
@@ -252,7 +268,7 @@ func requestDeviceSession(httpClient *http.Client, deviceSessionEndpoint string,
 		if resp.StatusCode == 200 || resp.StatusCode == 202 {
 			return json.NewDecoder(resp.Body).Decode(&responseData)
 		}
-		body, _ := ioutil.ReadAll(io.LimitReader(resp.Body, 1e6)) // do our best to read the body
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1e6)) // do our best to read the body
 		return fmt.Errorf("store server returned status %d and body %q", resp.StatusCode, body)
 	})
 	if err != nil {

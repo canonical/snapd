@@ -1,6 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 //go:build !nomanagers
-// +build !nomanagers
 
 /*
  * Copyright (C) 2018 Canonical Ltd
@@ -24,7 +23,6 @@ package configcore
 import (
 	"encoding/json"
 	"errors"
-	"io/ioutil"
 	"os"
 
 	"github.com/snapcore/snapd/dirs"
@@ -92,7 +90,7 @@ func setCloudInfoWhenSeeding(tr RunTransaction, opts *fsOnlyContext) error {
 		return nil
 	}
 
-	data, err := ioutil.ReadFile(dirs.CloudInstanceDataFile)
+	data, err := os.ReadFile(dirs.CloudInstanceDataFile)
 	if os.IsNotExist(err) {
 		// nothing to do
 		return nil

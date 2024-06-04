@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2021 Canonical Ltd
+ * Copyright (C) 2014-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -29,7 +29,9 @@ import (
 	"github.com/snapcore/snapd/bootloader/assets"
 	"github.com/snapcore/snapd/bootloader/grubenv"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/kcmdline"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // grub implements the required interfaces
@@ -364,23 +366,21 @@ func (g *grub) ManagedAssets() []string {
 }
 
 func (g *grub) commandLineForEdition(edition uint, pieces CommandLineComponents) (string, error) {
-	assetName := "grub.cfg"
-	if g.recovery {
-		assetName = "grub-recovery.cfg"
-	}
-
 	if err := pieces.Validate(); err != nil {
 		return "", err
 	}
 
 	var nonSnapdCmdline string
 	if pieces.FullArgs == "" {
-		staticCmdline := staticCommandLineForGrubAssetEdition(assetName, edition)
-		nonSnapdCmdline = staticCmdline + " " + pieces.ExtraArgs
+		staticCmdline := g.defaultCommandLineForEdition(edition)
+
+		keepDefaultArgs := kcmdline.RemoveMatchingFilter(staticCmdline, pieces.RemoveArgs)
+
+		nonSnapdCmdline = strutil.JoinNonEmpty(append(keepDefaultArgs, pieces.ExtraArgs), " ")
 	} else {
 		nonSnapdCmdline = pieces.FullArgs
 	}
-	args, err := osutil.KernelCommandLineSplit(nonSnapdCmdline)
+	args, err := kcmdline.Split(nonSnapdCmdline)
 	if err != nil {
 		return "", fmt.Errorf("cannot use badly formatted kernel command line: %v", err)
 	}
@@ -398,6 +398,35 @@ func (g *grub) commandLineForEdition(edition uint, pieces CommandLineComponents)
 	return strings.Join(append(snapdArgs, args...), " "), nil
 }
 
+func (g *grub) assetName() string {
+	if g.recovery {
+		return "grub-recovery.cfg"
+	}
+
+	return "grub.cfg"
+}
+
+func (g *grub) defaultCommandLineForEdition(edition uint) string {
+	return staticCommandLineForGrubAssetEdition(g.assetName(), edition)
+}
+
+func editionFromDiskConfigAssetFallback(bootConfig string) (uint, error) {
+	edition, err := editionFromDiskConfigAsset(bootConfig)
+	if err != nil {
+		if err != errNoEdition {
+			return 0, err
+		}
+		// we were called using the TrustedAssetsBootloader interface
+		// meaning the caller expects to us to use the managed assets,
+		// since one on disk is not managed, use the initial edition of
+		// the internal boot asset which is compatible with grub.cfg
+		// used before we started writing out the files ourselves
+		edition = 1
+	}
+
+	return edition, nil
+}
+
 // CommandLine returns the kernel command line composed of mode and
 // system arguments, followed by either a built-in bootloader specific
 // static arguments corresponding to the on-disk boot asset edition, and
@@ -408,18 +437,12 @@ func (g *grub) commandLineForEdition(edition uint, pieces CommandLineComponents)
 // Implements TrustedAssetsBootloader for the grub bootloader.
 func (g *grub) CommandLine(pieces CommandLineComponents) (string, error) {
 	currentBootConfig := filepath.Join(g.dir(), "grub.cfg")
-	edition, err := editionFromDiskConfigAsset(currentBootConfig)
+
+	edition, err := editionFromDiskConfigAssetFallback(currentBootConfig)
 	if err != nil {
-		if err != errNoEdition {
-			return "", fmt.Errorf("cannot obtain edition number of current boot config: %v", err)
-		}
-		// we were called using the TrustedAssetsBootloader interface
-		// meaning the caller expects to us to use the managed assets,
-		// since one on disk is not managed, use the initial edition of
-		// the internal boot asset which is compatible with grub.cfg
-		// used before we started writing out the files ourselves
-		edition = 1
+		return "", fmt.Errorf("cannot obtain edition number of current boot config: %v", err)
 	}
+
 	return g.commandLineForEdition(edition, pieces)
 }
 
@@ -428,15 +451,39 @@ func (g *grub) CommandLine(pieces CommandLineComponents) (string, error) {
 //
 // Implements TrustedAssetsBootloader for the grub bootloader.
 func (g *grub) CandidateCommandLine(pieces CommandLineComponents) (string, error) {
-	assetName := "grub.cfg"
-	if g.recovery {
-		assetName = "grub-recovery.cfg"
-	}
-	edition, err := editionFromInternalConfigAsset(assetName)
+	edition, err := editionFromInternalConfigAsset(g.assetName())
 	if err != nil {
 		return "", err
 	}
 	return g.commandLineForEdition(edition, pieces)
+}
+
+// DefaultCommandLine returns the default kernel command-line used by
+// the bootloader excluding the recovery mode and system parameters.
+func (g *grub) DefaultCommandLine(candidate bool) (string, error) {
+	var edition uint
+
+	// if "candidate", we look for the managed boot assets
+	// (current snapd) rather than the ones currently installed on
+	// the boot/seed disk. This is needed to know the default
+	// command line before candidate boot assets are installed
+	if candidate {
+		var err error
+		edition, err = editionFromInternalConfigAsset(g.assetName())
+		if err != nil {
+			return "", err
+		}
+	} else {
+		currentBootConfig := filepath.Join(g.dir(), "grub.cfg")
+
+		var err error
+		edition, err = editionFromDiskConfigAssetFallback(currentBootConfig)
+		if err != nil {
+			return "", fmt.Errorf("cannot obtain edition number of current boot config: %v", err)
+		}
+	}
+
+	return g.defaultCommandLineForEdition(edition), nil
 }
 
 // staticCommandLineForGrubAssetEdition fetches a static command line for given
@@ -449,21 +496,73 @@ func staticCommandLineForGrubAssetEdition(asset string, edition uint) string {
 	return string(cmdline)
 }
 
+type taggedPath struct {
+	tag  string
+	path string
+}
+
+func (t taggedPath) Id() string {
+	basename := filepath.Base(t.path)
+	if t.tag == "" {
+		return basename
+	}
+	return fmt.Sprintf("%s:%s", t.tag, basename)
+}
+
 // grubBootAssetPath contains the paths for assets in the boot chain.
 type grubBootAssetPath struct {
-	shimBinary string
-	grubBinary string
+	defaultShimBinary taggedPath
+	defaultGrubBinary taggedPath
+	fallbackBinary    taggedPath
+	shimBinary        taggedPath
+	grubBinary        taggedPath
 }
 
 // grubBootAssetsForArch contains the paths for assets for different
-// architectures in a map
+// architectures in a map.
+// For backward compliance, we do not have tags
+// for asset paths that used to exist before usage of tags.
 var grubBootAssetsForArch = map[string]grubBootAssetPath{
 	"amd64": {
-		shimBinary: filepath.Join("EFI/boot/", "bootx64.efi"),
-		grubBinary: filepath.Join("EFI/boot/", "grubx64.efi")},
+		defaultShimBinary: taggedPath{
+			path: filepath.Join("EFI/boot/", "bootx64.efi"),
+		},
+		defaultGrubBinary: taggedPath{
+			path: filepath.Join("EFI/boot/", "grubx64.efi"),
+		},
+		fallbackBinary: taggedPath{
+			tag:  "boot",
+			path: filepath.Join("EFI/boot/", "fbx64.efi"),
+		},
+		shimBinary: taggedPath{
+			tag:  "ubuntu",
+			path: filepath.Join("EFI/ubuntu/", "shimx64.efi"),
+		},
+		grubBinary: taggedPath{
+			tag:  "ubuntu",
+			path: filepath.Join("EFI/ubuntu/", "grubx64.efi"),
+		},
+	},
 	"arm64": {
-		shimBinary: filepath.Join("EFI/boot/", "bootaa64.efi"),
-		grubBinary: filepath.Join("EFI/boot/", "grubaa64.efi")},
+		defaultShimBinary: taggedPath{
+			path: filepath.Join("EFI/boot/", "bootaa64.efi"),
+		},
+		defaultGrubBinary: taggedPath{
+			path: filepath.Join("EFI/boot/", "grubaa64.efi"),
+		},
+		fallbackBinary: taggedPath{
+			tag:  "boot",
+			path: filepath.Join("EFI/boot/", "fbaa64.efi"),
+		},
+		shimBinary: taggedPath{
+			tag:  "ubuntu",
+			path: filepath.Join("EFI/ubuntu/", "shimaa64.efi"),
+		},
+		grubBinary: taggedPath{
+			tag:  "ubuntu",
+			path: filepath.Join("EFI/ubuntu/", "grubaa64.efi"),
+		},
+	},
 }
 
 func (g *grub) getGrubBootAssetsForArch() (*grubBootAssetPath, error) {
@@ -478,65 +577,85 @@ func (g *grub) getGrubBootAssetsForArch() (*grubBootAssetPath, error) {
 	return &assets, nil
 }
 
-// getGrubRecoveryModeTrustedAssets returns the assets for recovery mode,
-// which are shim and grub from the seed partition.
-func (g *grub) getGrubRecoveryModeTrustedAssets() ([]string, error) {
+// getGrubRecoveryModeTrustedAssets returns the list of ordered asset
+// chain for recovery mode, which are shim and grub from the seed
+// partition.
+func (g *grub) getGrubRecoveryModeTrustedAssets() ([][]taggedPath, error) {
 	assets, err := g.getGrubBootAssetsForArch()
 	if err != nil {
 		return nil, err
 	}
-	return []string{assets.shimBinary, assets.grubBinary}, nil
+	return [][]taggedPath{{assets.shimBinary, assets.grubBinary}, {assets.defaultShimBinary, assets.defaultGrubBinary}}, nil
 }
 
-// getGrubRunModeTrustedAssets returns the assets for run mode, which is
-// grub from the boot partition.
-func (g *grub) getGrubRunModeTrustedAssets() ([]string, error) {
+// getGrubRunModeTrustedAssets returns the list of ordered asset
+// chains for run mode, which is grub from the boot partition.
+func (g *grub) getGrubRunModeTrustedAssets() ([][]taggedPath, error) {
 	assets, err := g.getGrubBootAssetsForArch()
 	if err != nil {
 		return nil, err
 	}
-	return []string{assets.grubBinary}, nil
+	return [][]taggedPath{{assets.defaultGrubBinary}}, nil
 }
 
-// TrustedAssets returns the list of relative paths to assets inside
-// the bootloader's rootdir that are measured in the boot process in the
-// order of loading during the boot.
-func (g *grub) TrustedAssets() ([]string, error) {
+// TrustedAssets returns the map of relative paths to asset
+// identifers. The relative paths are relative to the bootloader's
+// rootdir. The asset identifiers correspond to the backward
+// compatible names recorded in the modeenv (CurrentTrustedBootAssets
+// and CurrentTrustedRecoveryBootAssets).
+func (g *grub) TrustedAssets() (map[string]string, error) {
 	if !g.nativePartitionLayout {
 		return nil, fmt.Errorf("internal error: trusted assets called without native host-partition layout")
 	}
+	ret := make(map[string]string)
+	var chains [][]taggedPath
+	var err error
 	if g.recovery {
-		return g.getGrubRecoveryModeTrustedAssets()
+		chains, err = g.getGrubRecoveryModeTrustedAssets()
+	} else {
+		chains, err = g.getGrubRunModeTrustedAssets()
 	}
-	return g.getGrubRunModeTrustedAssets()
+	if err != nil {
+		return nil, err
+	}
+	for _, chain := range chains {
+		for _, asset := range chain {
+			ret[asset.path] = asset.Id()
+		}
+	}
+	return ret, nil
 }
 
-// RecoveryBootChain returns the load chain for recovery modes.
+// RecoveryBootChains returns the list of load chains for recovery modes.
 // It should be called on a RoleRecovery bootloader.
-func (g *grub) RecoveryBootChain(kernelPath string) ([]BootFile, error) {
+func (g *grub) RecoveryBootChains(kernelPath string) ([][]BootFile, error) {
 	if !g.recovery {
 		return nil, fmt.Errorf("not a recovery bootloader")
 	}
 
 	// add trusted assets to the recovery chain
-	assets, err := g.getGrubRecoveryModeTrustedAssets()
+	assetsSet, err := g.getGrubRecoveryModeTrustedAssets()
 	if err != nil {
 		return nil, err
 	}
-	chain := make([]BootFile, 0, len(assets)+1)
-	for _, ta := range assets {
-		chain = append(chain, NewBootFile("", ta, RoleRecovery))
+	chains := make([][]BootFile, 0, len(assetsSet))
+	for _, assets := range assetsSet {
+		chain := make([]BootFile, 0, len(assets)+1)
+		for _, ta := range assets {
+			chain = append(chain, NewBootFile("", ta.path, RoleRecovery))
+		}
+		// add recovery kernel to the recovery chain
+		chain = append(chain, NewBootFile(kernelPath, "kernel.efi", RoleRecovery))
+		chains = append(chains, chain)
 	}
-	// add recovery kernel to the recovery chain
-	chain = append(chain, NewBootFile(kernelPath, "kernel.efi", RoleRecovery))
 
-	return chain, nil
+	return chains, nil
 }
 
-// BootChain returns the load chain for run mode.
+// BootChains returns the list of load chains for run mode.
 // It should be called on a RoleRecovery bootloader passing the
 // RoleRunMode bootloader.
-func (g *grub) BootChain(runBl Bootloader, kernelPath string) ([]BootFile, error) {
+func (g *grub) BootChains(runBl Bootloader, kernelPath string) ([][]BootFile, error) {
 	if !g.recovery {
 		return nil, fmt.Errorf("not a recovery bootloader")
 	}
@@ -545,23 +664,73 @@ func (g *grub) BootChain(runBl Bootloader, kernelPath string) ([]BootFile, error
 	}
 
 	// add trusted assets to the recovery chain
-	recoveryModeAssets, err := g.getGrubRecoveryModeTrustedAssets()
+	recoveryModeAssetsSet, err := g.getGrubRecoveryModeTrustedAssets()
 	if err != nil {
 		return nil, err
 	}
-	runModeAssets, err := g.getGrubRunModeTrustedAssets()
+	runModeAssetsSet, err := g.getGrubRunModeTrustedAssets()
 	if err != nil {
 		return nil, err
 	}
-	chain := make([]BootFile, 0, len(recoveryModeAssets)+len(runModeAssets)+1)
-	for _, ta := range recoveryModeAssets {
-		chain = append(chain, NewBootFile("", ta, RoleRecovery))
+	chains := make([][]BootFile, 0, len(recoveryModeAssetsSet)*len(runModeAssetsSet))
+	for _, recoveryModeAssets := range recoveryModeAssetsSet {
+		for _, runModeAssets := range runModeAssetsSet {
+			chain := make([]BootFile, 0, len(recoveryModeAssets)+len(runModeAssets)+1)
+			for _, ta := range recoveryModeAssets {
+				chain = append(chain, NewBootFile("", ta.path, RoleRecovery))
+			}
+			for _, ta := range runModeAssets {
+				chain = append(chain, NewBootFile("", ta.path, RoleRunMode))
+			}
+			// add kernel to the boot chain
+			chain = append(chain, NewBootFile(kernelPath, "kernel.efi", RoleRunMode))
+			chains = append(chains, chain)
+		}
 	}
-	for _, ta := range runModeAssets {
-		chain = append(chain, NewBootFile("", ta, RoleRunMode))
-	}
-	// add kernel to the boot chain
-	chain = append(chain, NewBootFile(kernelPath, "kernel.efi", RoleRunMode))
 
-	return chain, nil
+	return chains, nil
+}
+
+// ParametersForEfiLoadOption returns a serialized load option for the
+// shim binary. It should be called on a UefiBootloader.
+// updatedAssets is a list of assets that were installed/updated. This
+// only expects trusted assets.
+func (g *grub) ParametersForEfiLoadOption(updatedAssets []string) (description string, assetPath string, optionalData []byte, err error) {
+	if !g.recovery {
+		return "", "", nil, fmt.Errorf("internal error: run grub does not provide a boot entry")
+	}
+
+	knownAssets, err := g.getGrubBootAssetsForArch()
+	if err != nil {
+		return "", "", nil, err
+	}
+
+	foundFallbackShim := false
+	foundShim := false
+	// XXX: it would be nice to also check for fb.efi. However it
+	// is not part of a trusted boot chain, so we will not appear
+	// in updatedAssets
+
+	// Let's look for the shim binary
+	for _, updated := range updatedAssets {
+		if updated == knownAssets.shimBinary.Id() {
+			foundShim = true
+		}
+		if updated == knownAssets.defaultShimBinary.Id() {
+			foundFallbackShim = true
+		}
+	}
+
+	if foundShim {
+		assetPath = filepath.Join(g.rootdir, knownAssets.shimBinary.path)
+	} else if foundFallbackShim {
+		assetPath = filepath.Join(g.rootdir, knownAssets.defaultShimBinary.path)
+	} else {
+		return "", "", nil, ErrNoBootChainFound
+	}
+
+	description = "ubuntu"
+	optionalData = nil
+
+	return description, assetPath, optionalData, nil
 }

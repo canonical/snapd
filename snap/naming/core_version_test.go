@@ -38,6 +38,8 @@ func (s *CoreVersionTestSuite) TestCoreVersion(c *C) {
 		{"core20", 20},
 		{"core22", 22},
 		{"core24", 24},
+		{"core24-desktop", 24},
+		{"core24-server", 24},
 	} {
 		v, err := naming.CoreVersion(tst.name)
 		c.Check(err, IsNil)
@@ -46,7 +48,7 @@ func (s *CoreVersionTestSuite) TestCoreVersion(c *C) {
 }
 
 func (s *CoreVersionTestSuite) TestCoreOther(c *C) {
-	for _, tst := range []string{"bare", "coreXX"} {
+	for _, tst := range []string{"bare", "coreXX", "coreXX-desktop", "core24_desktop"} {
 		_, err := naming.CoreVersion(tst)
 		c.Check(err, ErrorMatches, "not a core base")
 	}

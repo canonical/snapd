@@ -1,5 +1,11 @@
 summary: Check that snap-mgmt.sh works
 
+details: |
+    Check that "snap-mgmt.sh --purge" removes all data installed by snapd.
+    This includes /var/snap, some writable parts of /var/lib/snapd.
+    /run/snapd/ns should be unmounted. Systemd and dbus configuration
+    managed in /etc should also be removed.
+
 # slow in autopkgtest (>1m)
 backends: [-autopkgtest]
 

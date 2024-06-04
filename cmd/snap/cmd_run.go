@@ -1,6 +1,6 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 /*
- * Copyright (C) 2014-2022 Canonical Ltd
+ * Copyright (C) 2014-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,11 +20,11 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"os"
 	"os/exec"
@@ -40,6 +40,7 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/desktop/portal"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
@@ -259,16 +260,6 @@ func (x *cmdRun) Execute(args []string) error {
 	return x.snapRunApp(snapApp, args)
 }
 
-func maybeWaitWhileInhibited(snapName string) error {
-	// If the snap is inhibited from being used then postpone running it until
-	// that condition passes. Inhibition UI can be dismissed by the user, in
-	// which case we don't run the application at all.
-	if features.RefreshAppAwareness.IsEnabled() {
-		return waitWhileInhibited(snapName)
-	}
-	return nil
-}
-
 // antialias changes snapApp and args if snapApp is actually an alias
 // for something else. If not, or if the args aren't what's expected
 // for completion, it returns them unchanged.
@@ -473,13 +464,41 @@ func (x *cmdRun) straceOpts() (opts []string, raw bool, err error) {
 
 	opts = make([]string, 0, len(split))
 	for _, opt := range split {
-		if opt == "--raw" {
+		switch {
+		case opt == "--raw":
 			raw = true
 			continue
+
+		case opt == "--output" || opt == "-o" ||
+			strings.HasPrefix(opt, "--output=") ||
+			strings.HasPrefix(opt, "-o="):
+			// the user may have redirected strace output to a file,
+			// in which case we cannot filter out
+			// strace-confine/strace-exec call chain
+			raw = true
 		}
+
 		opts = append(opts, opt)
 	}
 	return opts, raw, nil
+}
+
+// isSnapRefreshConflictDetected detects if snap refreshed was started while not
+// holding the inhibition hint file lock.
+//
+// For context, on snap first install, the inhibition hint lock file is not created
+// so we cannot hold it. It is created after the first refresh. This allows for a
+// window where we don't hold the lock before the tracking cgroup is created where
+// a snap refresh could start.
+func isSnapRefreshConflictDetected(app *snap.AppInfo, hintFlock *osutil.FileLock) bool {
+	if !features.RefreshAppAwareness.IsEnabled() || app.IsService() || hintFlock != nil {
+		// Skip check
+		return false
+	}
+
+	// We started without a hint lock file, if it exists now this means that a
+	// refresh was started.
+	return osutil.FileExists(runinhibit.HintFile(app.Snap.InstanceName()))
 }
 
 func (x *cmdRun) snapRunApp(snapApp string, args []string) error {
@@ -488,23 +507,73 @@ func (x *cmdRun) snapRunApp(snapApp string, args []string) error {
 		logger.Debugf("enabled debug logging of early snap startup")
 	}
 	snapName, appName := snap.SplitSnapApp(snapApp)
-	info, err := getSnapInfo(snapName, snap.R(0))
-	if err != nil {
-		return err
-	}
 
-	app := info.Apps[appName]
-	if app == nil {
-		return fmt.Errorf(i18n.G("cannot find app %q in %q"), appName, snapName)
-	}
+	var retryCnt int
+	for {
+		if retryCnt > 1 {
+			// This should never happen, but it is better to fail instead
+			// of retrying forever.
+			return fmt.Errorf("race condition detected, snap-run can only retry once")
+		}
 
-	if !app.IsService() {
-		if err := maybeWaitWhileInhibited(snapName); err != nil {
+		info, app, hintFlock, err := maybeWaitWhileInhibited(context.Background(), x.client, snapName, appName)
+		if errors.Is(err, errSnapRefreshConflict) {
+			// Possible race condition detected, let's retry.
+
+			// This will not retry infinitely because this can only be caused by
+			// a missing inhibition hint initially which is now created due to a
+			// refresh.
+			retryCnt++
+			logger.Debugf("retry due to possible snap refresh conflict detected")
+			continue
+		}
+		if err != nil {
 			return err
 		}
-	}
 
-	return x.runSnapConfine(info, app.SecurityTag(), snapApp, "", args)
+		closeFlockOrRetry := func() error {
+			// This needs to run inside the transient cgroup created for a snap
+			// such that any pending refresh of the snap will get blocked after
+			// we release the lock.
+			if hintFlock != nil {
+				// It is okay to release the lock here (beforeExec) because snapd unless forced
+				// will not inhibit the snap and do a refresh anymore because it detects app
+				// processes are running for via the established transient cgroup cgroup.
+
+				// Note: We cannot rely on O_CLOEXEC to unlock because might run in
+				// fork + exec mode like when running under gdb or strace.
+				hintFlock.Close()
+				return nil
+			}
+			// hintFlock might be nil if the hint file did not exist
+			if isSnapRefreshConflictDetected(app, hintFlock) {
+				return errSnapRefreshConflict
+			}
+			return nil
+		}
+
+		err = x.runSnapConfine(info, app.SecurityTag(), snapApp, "", closeFlockOrRetry, args)
+		if errors.Is(err, errSnapRefreshConflict) {
+			// Possible race condition detected, let's retry.
+			//
+			// This will not retry infinitely because this can only be caused by
+			// a missing inhibition hint initially which is now created due to a
+			// refresh.
+			retryCnt++
+			logger.Debugf("retry due to possible snap refresh conflict detected")
+			continue
+		}
+		if err != nil {
+			// Make sure we release the lock in case runSnapConfine fails before
+			// closing hint lock file, it is fine if we double close.
+			if hintFlock != nil {
+				hintFlock.Close()
+			}
+			return err
+		}
+
+		return nil
+	}
 }
 
 func (x *cmdRun) snapRunHook(snapName string) error {
@@ -523,7 +592,7 @@ func (x *cmdRun) snapRunHook(snapName string) error {
 		return fmt.Errorf(i18n.G("cannot find hook %q in %q"), x.HookName, snapName)
 	}
 
-	return x.runSnapConfine(info, hook.SecurityTag(), snapName, hook.Name, nil)
+	return x.runSnapConfine(info, hook.SecurityTag(), snapName, hook.Name, nil, nil)
 }
 
 func (x *cmdRun) snapRunTimer(snapApp, timer string, args []string) error {
@@ -779,7 +848,7 @@ func activateXdgDocumentPortal(info *snap.Info, snapApp, hook string) error {
 			// We ignore errors here: if writing the file
 			// fails, we'll just try connecting to D-Bus
 			// again next time.
-			if err = ioutil.WriteFile(portalsUnavailableFile, []byte(""), 0644); err != nil {
+			if err = os.WriteFile(portalsUnavailableFile, []byte(""), 0644); err != nil {
 				logger.Noticef("WARNING: cannot write file at %s: %s", portalsUnavailableFile, err)
 			}
 			return nil
@@ -882,7 +951,7 @@ func (x *cmdRun) runCmdUnderGdb(origCmd []string, envForExec envForExecFunc) err
 
 func (x *cmdRun) runCmdWithTraceExec(origCmd []string, envForExec envForExecFunc) error {
 	// setup private tmp dir with strace fifo
-	straceTmp, err := ioutil.TempDir("", "exec-trace")
+	straceTmp, err := os.MkdirTemp("", "exec-trace")
 	if err != nil {
 		return err
 	}
@@ -948,23 +1017,30 @@ func (x *cmdRun) runCmdUnderStrace(origCmd []string, envForExec envForExecFunc) 
 	// run with filter
 	cmd.Env = envForExec(nil)
 	cmd.Stdin = Stdin
-	cmd.Stdout = Stdout
+	if raw {
+		// no output filtering, we can pass the child's stdout/stderr
+		// directly
+		cmd.Stdout = Stdout
+		cmd.Stderr = Stderr
+
+		return cmd.Run()
+	}
+
+	// note hijacking stdout, means it is no longer a tty and programs
+	// expecting stdout to be on a terminal (eg. bash) may misbehave at this
+	// point
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return err
+	}
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
 		return err
 	}
-	filterDone := make(chan bool, 1)
+	filterDone := make(chan struct{})
+	stdoutProxyDone := make(chan struct{})
 	go func() {
-		defer func() { filterDone <- true }()
-
-		if raw {
-			// Passing --strace='--raw' disables the filtering of
-			// early strace output. This is useful when tracking
-			// down issues with snap helpers such as snap-confine,
-			// snap-exec ...
-			io.Copy(Stderr, stderr)
-			return
-		}
+		defer close(filterDone)
 
 		r := bufio.NewReader(stderr)
 
@@ -1013,15 +1089,22 @@ func (x *cmdRun) runCmdUnderStrace(origCmd []string, envForExec envForExecFunc) 
 		}
 		io.Copy(Stderr, r)
 	}()
+
+	go func() {
+		defer close(stdoutProxyDone)
+		io.Copy(Stdout, stdout)
+	}()
+
 	if err := cmd.Start(); err != nil {
 		return err
 	}
 	<-filterDone
+	<-stdoutProxyDone
 	err = cmd.Wait()
 	return err
 }
 
-func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook string, args []string) error {
+func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook string, beforeExec func() error, args []string) error {
 	snapConfine, err := snapdHelperPath("snap-confine")
 	if err != nil {
 		return err
@@ -1036,7 +1119,7 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 
 	logger.Debugf("executing snap-confine from %s", snapConfine)
 
-	snapName, _ := snap.SplitSnapApp(snapApp)
+	snapName, appName := snap.SplitSnapApp(snapApp)
 	opts, err := getSnapDirOptions(snapName)
 	if err != nil {
 		return fmt.Errorf("cannot get snap dir options: %w", err)
@@ -1184,7 +1267,6 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	//
 	// For more information about systemd cgroups, including unit types, see:
 	// https://www.freedesktop.org/wiki/Software/systemd/ControlGroupInterface/
-	_, appName := snap.SplitSnapApp(snapApp)
 	needsTracking := true
 	if app := info.Apps[appName]; hook == "" && app != nil && app.IsService() {
 		// If we are running a service app then we do not need to use
@@ -1212,6 +1294,17 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	// Allow using the session bus for all apps but not for hooks.
 	allowSessionBus := hook == ""
 	// Track, or confirm existing tracking from systemd.
+	if err := cgroupConfirmSystemdAppTracking(securityTag); err != nil {
+		if err != cgroup.ErrCannotTrackProcess {
+			return err
+		}
+	} else {
+		// A transient scope was already created in a previous attempt. Skip creating
+		// another transient scope to avoid leaking cgroups.
+		//
+		// Note: This could happen if beforeExec fails and triggers a retry.
+		needsTracking = false
+	}
 	if needsTracking {
 		opts := &cgroup.TrackingOptions{AllowSessionBus: allowSessionBus}
 		if err = cgroupCreateTransientScopeForTracking(securityTag, opts); err != nil {
@@ -1225,6 +1318,13 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 			logger.Debugf("snap refreshes will not be postponed by this process")
 		}
 	}
+
+	if beforeExec != nil {
+		if err := beforeExec(); err != nil {
+			return err
+		}
+	}
+
 	logger.StartupStageTimestamp("snap to snap-confine")
 	if x.TraceExec {
 		return x.runCmdWithTraceExec(cmd, envForExec)
@@ -1252,7 +1352,7 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 func getSnapDirOptions(snap string) (*dirs.SnapDirOptions, error) {
 	var opts dirs.SnapDirOptions
 
-	data, err := ioutil.ReadFile(filepath.Join(dirs.SnapSeqDir, snap+".json"))
+	data, err := os.ReadFile(filepath.Join(dirs.SnapSeqDir, snap+".json"))
 	if errors.Is(err, os.ErrNotExist) {
 		return &opts, nil
 	} else if err != nil {
@@ -1275,3 +1375,4 @@ func getSnapDirOptions(snap string) (*dirs.SnapDirOptions, error) {
 
 var cgroupCreateTransientScopeForTracking = cgroup.CreateTransientScopeForTracking
 var cgroupConfirmSystemdServiceTracking = cgroup.ConfirmSystemdServiceTracking
+var cgroupConfirmSystemdAppTracking = cgroup.ConfirmSystemdAppTracking

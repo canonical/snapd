@@ -48,6 +48,20 @@ func getExcludedSyscalls() string {
 // testsuites
 var ExcludedSyscalls = getExcludedSyscalls()
 
+func findStrace(u *user.User) (stracePath string, userOpts []string, err error) {
+	if path := filepath.Join(dirs.SnapMountDir, "strace-static", "current", "bin", "strace"); osutil.FileExists(path) {
+		// Strace v6.9 supports -u UID:GID which avoids the need to resolve usernames with nss.
+		return path, []string{"-u", fmt.Sprintf("%s:%s", u.Uid, u.Gid)}, nil
+	}
+
+	stracePath, err = exec.LookPath("strace")
+	if err != nil {
+		return "", nil, fmt.Errorf("cannot find an installed strace, please try 'snap install strace-static'")
+	}
+
+	return stracePath, []string{"-u", u.Username}, nil
+}
+
 // Command returns how to run strace in the users context with the
 // right set of excluded system calls.
 func Command(extraStraceOpts []string, traceeCmd ...string) (*exec.Cmd, error) {
@@ -60,36 +74,26 @@ func Command(extraStraceOpts []string, traceeCmd ...string) (*exec.Cmd, error) {
 		return nil, fmt.Errorf("cannot use strace without sudo: %s", err)
 	}
 
-	// Try strace from the snap first, we use new syscalls like
-	// "_newselect" that are known to not work with the strace of e.g.
-	// ubuntu 14.04.
+	// Try strace from the snap first, we use new syscalls like "_newselect"
+	// that are known to not work with the strace of e.g. Ubuntu 14.04.
 	//
-	// TODO: some architectures do not have some syscalls (e.g.
-	// s390x does not have _newselect). In
-	// https://github.com/strace/strace/issues/57 options are
-	// discussed.  We could use "-e trace=?syscall" but that is
-	// only available since strace 4.17 which is not even in
-	// ubutnu 17.10.
-	var stracePath string
-	cand := filepath.Join(dirs.SnapMountDir, "strace-static", "current", "bin", "strace")
-	if osutil.FileExists(cand) {
-		stracePath = cand
-	}
-	if stracePath == "" {
-		stracePath, err = exec.LookPath("strace")
-		if err != nil {
-			return nil, fmt.Errorf("cannot find an installed strace, please try 'snap install strace-static'")
-		}
+	// TODO: some architectures do not have some syscalls (e.g. s390x does not
+	// have _newselect). In https://github.com/strace/strace/issues/57 options
+	// are discussed. We could use "-e trace=?syscall" but that is only
+	// available since strace 4.17 which is not even in Ubuntu 17.10.
+	stracePath, userOpts, err := findStrace(current)
+	if err != nil {
+		return nil, fmt.Errorf("cannot find an installed strace, please try 'snap install strace-static'")
 	}
 
 	args := []string{
 		sudoPath,
 		"-E",
 		stracePath,
-		"-u", current.Username,
-		"-f",
-		"-e", ExcludedSyscalls,
 	}
+
+	args = append(args, userOpts...)
+	args = append(args, "-f", "-e", ExcludedSyscalls)
 	args = append(args, extraStraceOpts...)
 	args = append(args, traceeCmd...)
 

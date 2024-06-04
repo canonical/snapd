@@ -182,3 +182,51 @@ func (daemonScope *DaemonScope) fromString(str string) error {
 	*daemonScope = d
 	return nil
 }
+
+// ComponentType is a type to represent the possible types of snap components.
+type ComponentType string
+
+const (
+	// TestComponent is just for testing purposes.
+	TestComponent ComponentType = "test"
+	// KernelModulesComponent is for components containing modules/firmware
+	KernelModulesComponent ComponentType = "kernel-modules"
+)
+
+var validComponentTypes = [...]ComponentType{TestComponent, KernelModulesComponent}
+
+// ComponentTypeFromString converts a string to a ComponentType. An error is
+// returned if the string is not a valid ComponentType.
+func ComponentTypeFromString(t string) (ComponentType, error) {
+	for _, valid := range validComponentTypes {
+		if t == string(valid) {
+			return valid, nil
+		}
+	}
+	return "", fmt.Errorf("invalid component type %q", t)
+}
+
+// Component represents a snap component.
+type Component struct {
+	Type          ComponentType
+	Summary       string
+	Description   string
+	Name          string
+	ExplicitHooks map[string]*HookInfo
+}
+
+func (ct *ComponentType) UnmarshalYAML(unmarshall func(interface{}) error) error {
+	typeStr := ""
+	if err := unmarshall(&typeStr); err != nil {
+		return err
+	}
+
+	for _, t := range validComponentTypes {
+		if string(t) == typeStr {
+			*ct = t
+			return nil
+		}
+	}
+
+	return fmt.Errorf("unknown component type %q", typeStr)
+}

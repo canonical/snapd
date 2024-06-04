@@ -1,5 +1,10 @@
 summary: Ensure that the accounts-service interface works
 
+details: |
+    Verify that a snap using the accounts-service interface can access
+    the accounts service. Also check that the interface is not
+    connected by default.
+
 # Only test on classic systems with AppArmor DBus mediation
 # Don't test on ubuntu-14.04, since it's gnome-online-accounts daemon
 # seems to be incompatible.

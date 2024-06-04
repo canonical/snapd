@@ -1,0 +1,67 @@
+-d#!/usr/bin/env python3
+
+import argparse
+import list_reserve
+import time
+
+from cpu_load_generator import load_all_cores, load_single_core
+
+def _make_parser():
+    # type: () -> argparse.ArgumentParser
+    parser = argparse.ArgumentParser(
+        description="""
+        mem-load-generator is used to reserve a specific amount of memory
+        during a period of time
+	"""
+    )
+    parser.add_argument(
+        "-m",
+        "--mem",
+        metavar="N",
+        type=int,
+        default=0,
+        help="megabytes to reserve (default %(default)sMB)",
+    )
+    parser.add_argument(
+        "-l",
+        "--cpu_load",
+        metavar="N",
+        type=float,
+        default=0.2,
+        help="cpu target load. The value goes from 0 to 1 (default is %(default)s)",
+    )
+    parser.add_argument(
+        "-c",
+        "--cpu_core",
+        metavar="N",
+        type=int,
+        default=-1,
+        help="the CPU number on which generate the load (default is all the cores)",
+    )
+    parser.add_argument(
+    	"-d",
+        "--duration",
+        metavar="SECONDS",
+        type=int,
+        default=10,
+        help="seconds to hold the memory reservation (default %(default)ss)",
+    )
+    return parser
+
+def reserve_mem(mem):
+	l = []
+	if mem > 0:
+		list_reserve.reserve(l, int(mem*1024*1024/8))
+	return l
+
+def load_cpu(cpu_load, cpu_core, duration):
+	if cpu_core >= 0:
+		load_single_core(core_num=cpu_core, duration_s=duration, target_load=cpu_load)
+	else:
+		load_all_cores(duration_s=duration, target_load=cpu_load)
+
+if __name__ == "__main__":
+    parser = _make_parser()
+    ns = parser.parse_args()
+    mem = reserve_mem(ns.mem)
+    load_cpu(ns.cpu_load, ns.cpu_core, ns.duration)

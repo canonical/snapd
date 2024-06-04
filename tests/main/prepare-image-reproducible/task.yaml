@@ -1,5 +1,14 @@
 summary: Verify that we are able to request specific revisions of snaps from the store through prepare-image 
 
+details: |
+    The `snap prepare-image` command performs some of the steps necessary for
+    creating device images.
+
+    This test verifies that the prepare-image command prepares properly an
+    ubuntu-core 16 image when specific revisions of snaps are used. Check that
+    the expected revisions set in the seed.manifest are retrieve and the
+    generated manifest in the working directory contains correct content.
+
 # autopkgtest run only a subset of tests that deals with the integration
 # with the distro
 backends: [-autopkgtest]
@@ -8,10 +17,12 @@ backends: [-autopkgtest]
 # ubuntu-14, lack of systemd-run
 # ubuntu-20.04-arm*, because we use pc kernel and gadget.
 # ubuntu-core-*-arm-*, because image generade is not amd64
+# ubuntu-18.04-32, lack of pc-kernel snap for pc-i386
 systems:
 - -ubuntu-14.04-*
 - -ubuntu-20.04-arm-*
 - -ubuntu-core-*-arm-*
+- -ubuntu-18.04-32
 
 environment:
     ROOT: /home/test/tmp/
@@ -144,7 +155,7 @@ execute: |
     journalctl -u fakestore | grep 'requested snap "test-snapd-sh" revision 23'
 
     # The generated seed.manifest will be in working directory.
-    echo Verifying the generated manifest has correct contents
+    echo Verifying the generated manifest has correct content
     MATCH "core\s1+$" < seed.manifest
     MATCH "pc\s1+$" < seed.manifest
     MATCH "pc-kernel\s1+$" < seed.manifest

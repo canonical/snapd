@@ -1,8 +1,14 @@
 summary: Ensure that the security rules related to device cgroups work.
 
+details: |
+    This test checks the when an udev rule assigning a device to a snap is added,
+    then just that device is assigned to that snap and other devices are not shown
+    as assigned to the snap
+
 systems:
-  #TODO: bpftool is not available on core22 and tests.device-cgroup needs it for cgroups v2
+  #TODO: bpftool is not available on core22+ and tests.device-cgroup needs it for cgroups v2
   - -ubuntu-core-22-*
+  - -ubuntu-core-24-*
 
 environment:
     DEVICE_NAME/kmsg: kmsg
@@ -81,7 +87,8 @@ execute: |
     fi
 
     tags_are_sticky=0
-    if [ "$(systemctl --version | awk '/systemd [0-9]+/ { print $2 }')" -ge 247 ]; then
+    systemd_ver="$(systemctl --version | awk '/systemd [0-9]+/ { print $2 }' | cut -f1 -d"~")"
+    if [ "$systemd_ver" -ge 247 ]; then
         # with systemd versions 247+, the TAGS are sticky, but CURRENT_TAGS is
         # updated to reflect the latest state of DB
         tags_are_sticky=1

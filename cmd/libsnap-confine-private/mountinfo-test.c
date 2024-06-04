@@ -256,6 +256,29 @@ static void test_parse_mountinfo_entry__unescaped_whitespace(void)
 	g_assert_null(entry->next);
 }
 
+static void test_parse_mountinfo_entry__broken_9p_superblock(void)
+{
+	// Spaces in superblock options
+	const char *line =
+	    "1146 77 0:149 / /Docker/host rw,noatime - 9p drvfs rw,dirsync,aname=drvfs;path=C:\\Program Files\\Docker\\Docker\\resources;symlinkroot=/mnt/,mmap,access=client,msize=262144,trans=virtio";
+	struct sc_mountinfo_entry *entry = sc_parse_mountinfo_entry(line);
+	g_assert_nonnull(entry);
+	g_test_queue_destroy((GDestroyNotify) sc_free_mountinfo_entry, entry);
+	g_assert_cmpint(entry->mount_id, ==, 1146);
+	g_assert_cmpint(entry->parent_id, ==, 77);
+	g_assert_cmpint(entry->dev_major, ==, 0);
+	g_assert_cmpint(entry->dev_minor, ==, 149);
+	g_assert_cmpstr(entry->root, ==, "/");
+	g_assert_cmpstr(entry->mount_dir, ==, "/Docker/host");
+	g_assert_cmpstr(entry->mount_opts, ==, "rw,noatime");
+	g_assert_cmpstr(entry->optional_fields, ==, "");
+	g_assert_cmpstr(entry->fs_type, ==, "9p");
+	g_assert_cmpstr(entry->mount_source, ==, "drvfs");
+	g_assert_cmpstr(entry->super_opts, ==,
+			"rw,dirsync,aname=drvfs;path=C:\\Program Files\\Docker\\Docker\\resources;symlinkroot=/mnt/,mmap,access=client,msize=262144,trans=virtio");
+	g_assert_null(entry->next);
+}
+
 static void __attribute__((constructor)) init(void)
 {
 	g_test_add_func("/mountinfo/parse_mountinfo_entry/sysfs",
@@ -282,4 +305,6 @@ static void __attribute__((constructor)) init(void)
 	     test_parse_mountinfo_entry__broken_octal_escaping);
 	g_test_add_func("/mountinfo/parse_mountinfo_entry/unescaped_whitespace",
 			test_parse_mountinfo_entry__unescaped_whitespace);
+	g_test_add_func("/mountinfo/parse_mountinfo_entry/broken_9p_superblock",
+			test_parse_mountinfo_entry__broken_9p_superblock);
 }

@@ -1,6 +1,10 @@
 summary: Check that the boot config is correctly updated when snapd is refreshed
 
-systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+details: |
+  Verify that when snapd is refreshed with new boot config assets, then boot assets
+  have been updated
+
+systems: [ubuntu-2*]
 
 environment:
   VARIANT/nogadget: "no-gadget"
@@ -92,15 +96,11 @@ execute: |
   echo "Install new (unasserted) snapd and wait for reboot/change finishing"
   boot_id="$( tests.nested boot-id )"
   REMOTE_CHG_ID=$(remote.exec sudo snap install --dangerous snapd-boot-config-update.snap --no-wait)
+  # reboot is automatically requested by snapd in case grub.cfg changes
+  remote.wait-for reboot "${boot_id}"
+
   remote.exec sudo snap watch "${REMOTE_CHG_ID}"
-  if [ "$VARIANT" != "gadget-full" ]; then
-    # reboot is automatically requested by snapd only if part of the command
-    # line is changed, in case of gadget overriding the command line fully
-    # (gadget-full variant) the static part of the command line from new snapd
-    # is not used, hence there is no resealing and no reboot
-    remote.wait-for reboot "${boot_id}"
-  fi
-  
+
   echo "check boot assets have been updated"
   remote.exec "sudo cat /boot/grub/grub.cfg" | MATCH "Snapd-Boot-Config-Edition: 4"
   remote.exec "sudo cat /boot/grub/grub.cfg" | MATCH "set snapd_static_cmdline_args='.*bootassetstesting'"

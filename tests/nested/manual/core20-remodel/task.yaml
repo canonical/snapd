@@ -1,6 +1,14 @@
 summary: verify a simple UC2* remodel
 
-systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+details: |
+  This test verifies that we can remodel a UC2* system to a new model. The test
+  performs a few remodels to exercise various scenarios.
+
+  Notably, we validate that we can remodel to a model that requires a snap that
+  requires a base that was not previously installed on the system. A remodel of
+  this kind requires snaps to be installed in a specific order.
+
+systems: [ubuntu-2*]
 
 environment:
   NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/valid-for-testing-pc-{VERSION}.model
@@ -54,12 +62,20 @@ execute: |
     MATCH "good_recovery_systems=.*,${revno2_label}" < modeenv
     remote.exec "sudo snap debug boot-vars --root-dir=/run/mnt/ubuntu-seed" | MATCH "snapd_good_recovery_systems=${label_base},${revno2_label}"
 
-    # the revision pulls in test-snapd-tools-core2* snap
+    # the revision pulls in test-snapd-tools-core2*, hello-world, and core
+    # snaps. the snaps are listed in the model with apps prior to bases so that
+    # we verify that the installation happens in the correct order (bases before
+    # snaps)
     echo "Verify new model revision snaps"
     remote.exec snap list "test-snapd-tools-core$VERSION"
-    # the snap is pulled in from the store, so it should be located in shared
+    remote.exec snap list "hello-world"
+    remote.exec snap list "core"
+
+    # the snaps are pulled in from the store, so they should be located in shared
     # snaps directory
     remote.exec find /run/mnt/ubuntu-seed/snaps -name "test-snapd-tools-core${VERSION}_*.snap" | MATCH "test-snapd-tools-core$VERSION"
+    remote.exec find /run/mnt/ubuntu-seed/snaps -name "core_*.snap" | MATCH "core"
+    remote.exec find /run/mnt/ubuntu-seed/snaps -name "hello-world_*.snap" | MATCH "hello-world"
 
     boot_id="$(tests.nested boot-id)"
 

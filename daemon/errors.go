@@ -140,6 +140,17 @@ func SnapNotFound(snapName string, err error) *apiError {
 	}
 }
 
+// SnapNotInstalled is an error responder used when an operation is
+// requested on a snap that is not in the system but expected to be.
+func SnapNotInstalled(snapName string, err error) *apiError {
+	return &apiError{
+		Status:  400,
+		Message: err.Error(),
+		Kind:    client.ErrorKindSnapNotInstalled,
+		Value:   snapName,
+	}
+}
+
 // SnapRevisionNotAvailable is an error responder used when an
 // operation is requested for which no revivision can be found
 // in the given context (e.g. request an install from a stable
@@ -339,10 +350,10 @@ func errToResponse(err error, snaps []string, fallback errorResponder, format st
 			}
 		case *store.SnapActionError:
 			// we only handle a few specific cases
-			_, _, e := err.SingleOpError()
+			_, name, e := err.SingleOpError()
 			if e != nil {
 				// 👉😎👉
-				return errToResponse(e, snaps, fallback, format)
+				return errToResponse(e, []string{name}, fallback, format)
 			}
 			handled = false
 		default:

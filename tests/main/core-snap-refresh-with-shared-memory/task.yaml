@@ -1,0 +1,82 @@
+summary: Check that the core and snapd snaps can be refreshed having snaps using the shared memory interface
+
+details: |
+    This test checks that the core and snapd snaps can be refreshed from an installed
+    revision to a new one having snaps using the shared memory interface.
+
+systems: [ ubuntu-core-16-*,  ubuntu-core-18-*]
+
+prepare: |
+    "$TESTSTOOLS"/snaps-state install-local shm-slot
+    "$TESTSTOOLS"/snaps-state install-local shm-plug
+
+execute: |
+    if os.query is-core16; then
+        SNAP=core
+    else
+        SNAP=snapd
+    fi
+
+    if [ "$SPREAD_REBOOT" = 0 ]; then
+        # Connect the interfaces
+        snap connect shm-plug:shmem shm-slot:shmem
+        snap connect shm-plug:shmem
+        snap connect shm-plug:shmem-without-sm shm-slot:shmem
+        snap connect shm-plug:shmem-private-false shm-slot:shmem
+        snap connect shm-plug:shmem-private-wrong-without-sm shm-slot:shmem
+
+        not snap connect shm-plug:shmem-private-true shm-slot:shmem
+        not snap connect shm-plug:shmem-private-true
+        
+        echo "Save current revision"
+        snap list | awk "/^$SNAP / {print(\$3)}" > prevBoot
+        snap info "$SNAP" | grep "latest/stable:" | awk "{print(\$4)}" | sed -e 's/(\(.*\))/\1/' > nextBoot
+
+
+        # Check connections
+        snap connections | MATCH "shared-memory +shm-plug:shmem +:shared-memory +manual"
+        snap connections | MATCH "shared-memory +shm-plug:shmem +shm-slot:shmem +manual"
+
+        echo "Refresh to stable channel" 
+        snap refresh "$SNAP" --stable --amend 
+
+        #"$TESTSTOOLS"/journal-state get-log -u snapd | NOMATCH "panic:"
+
+        REBOOT
+    fi
+    
+    if [ "$SPREAD_REBOOT" = 1 ]; then
+
+        echo "And check there are no errors in the changes list"
+        snap changes | NOMATCH '^[0-9]+ +Error'
+
+        # Check connections
+        snap connections | MATCH "shared-memory +shm-plug:shmem +:shared-memory +manual"
+        snap connections | MATCH "shared-memory +shm-plug:shmem +shm-slot:shmem +manual"
+
+        retry -n 60 --wait 1 sh -c "snap changes | grep -qE "Done.*Refresh \"$SNAP\" snap""
+
+        snap revert "$SNAP"
+
+        #"$TESTSTOOLS"/journal-state get-log -u snapd | NOMATCH "panic:"
+
+        REBOOT
+    fi
+
+    # Check no changes with error
+    snap changes | NOMATCH '^[0-9]+ +Error'
+    #"$TESTSTOOLS"/journal-state get-log -u snapd | NOMATCH "panic:"
+
+    # Check connections
+    snap connections | MATCH "shared-memory +shm-plug:shmem +:shared-memory +manual"
+    snap connections | MATCH "shared-memory +shm-plug:shmem +shm-slot:shmem +manual"
+
+    # Check shared memory    
+    shm-slot.cmd sh -c 'echo "writable area" > /dev/shm/any-writable-1'
+    shm-plug.cmd cat /dev/shm/any-writable-1 | MATCH "writable area"
+
+    echo "Plug can also write to it"
+    shm-plug.cmd sh -c 'echo "client can also write" > /dev/shm/any-writable-2'
+    shm-slot.cmd cat /dev/shm/any-writable-2 | MATCH "client can also write"
+
+

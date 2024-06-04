@@ -21,7 +21,6 @@ package cgroup_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -135,7 +134,7 @@ func (s *freezerV2Suite) TestFreezeSnapProcessesV2OtherGroups(c *C) {
 
 	procPidCgroup := filepath.Join(dirs.GlobalRootDir, fmt.Sprintf("proc/%v/cgroup", pid))
 	c.Assert(os.MkdirAll(filepath.Dir(procPidCgroup), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(procPidCgroup, []byte("0::/foo/bar"), 0755), IsNil)
+	c.Assert(os.WriteFile(procPidCgroup, []byte("0::/foo/bar"), 0755), IsNil)
 
 	// When the freezer cgroup filesystem doesn't exist we do nothing at all.
 	c.Assert(cgroup.FreezeSnapProcesses("foo"), IsNil)
@@ -154,7 +153,7 @@ func (s *freezerV2Suite) TestFreezeSnapProcessesV2OtherGroups(c *C) {
 		canaryOther, canarySubgroup, canaryUserSocket, canaryServiceSocket, canaryMount, canarySlice,
 	} {
 		c.Assert(os.MkdirAll(filepath.Dir(p), 0755), IsNil)
-		c.Assert(ioutil.WriteFile(p, []byte("0"), 0644), IsNil)
+		c.Assert(os.WriteFile(p, []byte("0"), 0644), IsNil)
 	}
 
 	c.Assert(cgroup.FreezeSnapProcesses("foo"), IsNil)
@@ -182,7 +181,7 @@ func (s *freezerV2Suite) TestFreezeSnapProcessesV2OtherGroups(c *C) {
 
 	// unfreeze some groups
 	for _, p := range []string{g2, g3} {
-		c.Assert(ioutil.WriteFile(p, []byte("0"), 0644), IsNil)
+		c.Assert(os.WriteFile(p, []byte("0"), 0644), IsNil)
 	}
 	c.Assert(cgroup.FreezeSnapProcesses("foo"), IsNil)
 	// all are frozen again
@@ -218,11 +217,11 @@ func (s *freezerV2Suite) TestFreezeSnapProcessesV2OwnGroup(c *C) {
 	procPidCgroup := filepath.Join(dirs.GlobalRootDir, fmt.Sprintf("proc/%v/cgroup", pid))
 	c.Assert(os.MkdirAll(filepath.Dir(procPidCgroup), 0755), IsNil)
 	// mock our own group
-	c.Assert(ioutil.WriteFile(procPidCgroup, []byte("0::/system.slice/snap.foo.app.own-own-own.scope"), 0755), IsNil)
+	c.Assert(os.WriteFile(procPidCgroup, []byte("0::/system.slice/snap.foo.app.own-own-own.scope"), 0755), IsNil)
 	// prepare the stage
 	for _, p := range []string{gOwn, g1, g2, g3, g4, canary} {
 		c.Assert(os.MkdirAll(filepath.Dir(p), 0755), IsNil)
-		c.Assert(ioutil.WriteFile(p, []byte("0"), 0644), IsNil)
+		c.Assert(os.WriteFile(p, []byte("0"), 0644), IsNil)
 	}
 
 	c.Assert(cgroup.FreezeSnapProcesses("foo"), IsNil)
@@ -276,7 +275,7 @@ func (s *freezerV2Suite) TestThawSnapProcessesV2(c *C) {
 	} {
 		c.Assert(os.MkdirAll(filepath.Dir(p), 0755), IsNil)
 		// well known, but invalid status of canaries
-		c.Assert(ioutil.WriteFile(p, []byte("99"), 0644), IsNil)
+		c.Assert(os.WriteFile(p, []byte("99"), 0644), IsNil)
 	}
 
 	c.Assert(cgroup.ThawSnapProcesses("foo"), IsNil)
@@ -295,7 +294,7 @@ func (s *freezerV2Suite) TestThawSnapProcessesV2(c *C) {
 		canaryOther, canarySubgroup, canaryUserSocket, canaryServiceSocket, canaryMount, canarySlice,
 	} {
 		// make them appear frozen
-		c.Assert(ioutil.WriteFile(p, []byte("1"), 0644), IsNil)
+		c.Assert(os.WriteFile(p, []byte("1"), 0644), IsNil)
 	}
 	c.Assert(cgroup.ThawSnapProcesses("foo"), IsNil)
 	for _, p := range []string{g1, g2, g3, g4} {
@@ -310,7 +309,7 @@ func (s *freezerV2Suite) TestThawSnapProcessesV2(c *C) {
 
 	// freeze only some the groups groups
 	for _, p := range []string{g2, g3} {
-		c.Assert(ioutil.WriteFile(p, []byte("1"), 0644), IsNil)
+		c.Assert(os.WriteFile(p, []byte("1"), 0644), IsNil)
 	}
 	c.Assert(cgroup.ThawSnapProcesses("foo"), IsNil)
 	// all are frozen again
@@ -335,12 +334,12 @@ func (s *freezerV2Suite) TestFreezeThawSnapProcessesV2ErrWalking(c *C) {
 	procPidCgroup := filepath.Join(dirs.GlobalRootDir, fmt.Sprintf("proc/%v/cgroup", pid))
 	c.Assert(os.MkdirAll(filepath.Dir(procPidCgroup), 0755), IsNil)
 	// mock our own group
-	c.Assert(ioutil.WriteFile(procPidCgroup, []byte("0::/system.slice/snap.foo.app.own-own-own.scope"), 0755), IsNil)
+	c.Assert(os.WriteFile(procPidCgroup, []byte("0::/system.slice/snap.foo.app.own-own-own.scope"), 0755), IsNil)
 	// prepare the stage
 	c.Assert(os.MkdirAll(filepath.Dir(g), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(g, []byte("0"), 0644), IsNil)
+	c.Assert(os.WriteFile(g, []byte("0"), 0644), IsNil)
 	c.Assert(os.MkdirAll(filepath.Dir(gUnfreeze), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(gUnfreeze, []byte("1"), 0644), IsNil)
+	c.Assert(os.WriteFile(gUnfreeze, []byte("1"), 0644), IsNil)
 
 	c.Assert(os.Chmod(filepath.Dir(g), 0000), IsNil)
 	// make the cleanup happy
@@ -354,7 +353,7 @@ func (s *freezerV2Suite) TestFreezeThawSnapProcessesV2ErrWalking(c *C) {
 	// other group was unfrozen
 	c.Check(gUnfreeze, testutil.FileEquals, "0")
 
-	c.Assert(ioutil.WriteFile(gUnfreeze, []byte("1"), 0644), IsNil)
+	c.Assert(os.WriteFile(gUnfreeze, []byte("1"), 0644), IsNil)
 	// make file access fail
 	c.Assert(os.Chmod(filepath.Dir(g), 0755), IsNil)
 	c.Assert(os.Chmod(g, 0000), IsNil)
@@ -371,7 +370,7 @@ func (s *freezerV2Suite) TestFreezeThawSnapProcessesV2ErrWalking(c *C) {
 	c.Check(gUnfreeze, testutil.FileEquals, "0")
 
 	// make unfreezing fail
-	c.Assert(ioutil.WriteFile(gUnfreeze, []byte("1"), 0644), IsNil)
+	c.Assert(os.WriteFile(gUnfreeze, []byte("1"), 0644), IsNil)
 	c.Assert(os.Chmod(filepath.Dir(gUnfreeze), 0000), IsNil)
 	defer os.Chmod(filepath.Dir(gUnfreeze), 0755)
 
@@ -396,7 +395,7 @@ func (s *freezerV2Suite) TestFreezeThawSnapProcessesV2ErrNotFound(c *C) {
 	procPidCgroup := filepath.Join(dirs.GlobalRootDir, fmt.Sprintf("proc/%v/cgroup", pid))
 	c.Assert(os.MkdirAll(filepath.Dir(procPidCgroup), 0755), IsNil)
 	// mock our own group
-	c.Assert(ioutil.WriteFile(procPidCgroup, []byte("0::/system.slice/snap.foo.app.own-own-own.scope"), 0755), IsNil)
+	c.Assert(os.WriteFile(procPidCgroup, []byte("0::/system.slice/snap.foo.app.own-own-own.scope"), 0755), IsNil)
 	// prepare the directories, but not the files, those should trigger ENOENT
 	c.Assert(os.MkdirAll(filepath.Dir(g1), 0755), IsNil)
 	c.Assert(os.MkdirAll(filepath.Dir(g2), 0755), IsNil)
@@ -428,7 +427,7 @@ func (s *freezerV2Suite) TestApplyToSnapCallbacks(c *C) {
 	for _, p := range []string{g, gErr} {
 		c.Assert(os.MkdirAll(filepath.Dir(p), 0755), IsNil)
 		// groups aren't frozen
-		c.Assert(ioutil.WriteFile(p, []byte("0"), 0644), IsNil)
+		c.Assert(os.WriteFile(p, []byte("0"), 0644), IsNil)
 	}
 
 	var visited []string

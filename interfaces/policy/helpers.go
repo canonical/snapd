@@ -167,6 +167,9 @@ func checkSlotConnectionConstraints1(connc *ConnectCandidate, constraints *asser
 	if err := constraints.SlotAttributes.Check(connc.Slot, connc); err != nil {
 		return err
 	}
+	if err := checkSnapType(connc.Slot.Snap(), constraints.SlotSnapTypes); err != nil {
+		return err
+	}
 	if err := checkSnapType(connc.Plug.Snap(), constraints.PlugSnapTypes); err != nil {
 		return err
 	}

@@ -85,10 +85,8 @@ func printTaskTiming(w io.Writer, t *Timing, verbose, doing bool) {
 		doingTimeStr = formatDuration(t.Duration)
 		undoingTimeStr = "-"
 	} else {
-		if doing {
-			doingTimeStr = "-"
-			undoingTimeStr = formatDuration(t.Duration)
-		}
+		doingTimeStr = "-"
+		undoingTimeStr = formatDuration(t.Duration)
 	}
 	printTiming(w, verbose, t.Level+1, "", "", doingTimeStr, undoingTimeStr, t.Label, t.Summary)
 }

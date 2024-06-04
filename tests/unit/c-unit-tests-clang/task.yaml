@@ -1,5 +1,12 @@
 summary: Build the test suite for C code using clang and run it
 
+details: |
+    Parts of snapd are implemented in C. Historically the default C compiler is
+    from the GNU Compiler Collection project. Over time the LLVM/Clang project
+    has matured and is now a high-performance, viable compiler that offers
+    additional diagnostic messages not found in GCC. We want to make sure that
+    snapd can be built with CC=clang, and that all the C-based unit tests pass.
+
 prepare: |
     # Precondition check, the core snap is installed
     snap info core | MATCH "installed:"

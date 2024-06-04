@@ -45,6 +45,10 @@ import (
 	"github.com/snapcore/snapd/timings"
 )
 
+func init() {
+	snapstate.HasActiveConnection = hasActiveConnection
+}
+
 var (
 	snapdAppArmorServiceIsDisabled = snapdAppArmorServiceIsDisabledImpl
 	profilesNeedRegeneration       = profilesNeedRegenerationImpl
@@ -168,6 +172,16 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer) er
 		return err
 	}
 
+	// TODO: should snapsWithSecurityProfiles return app sets instead of snap infos?
+	appSets := make([]*interfaces.SnapAppSet, 0, len(snaps))
+	for _, sn := range snaps {
+		set, err := appSetForSnapRevision(m.state, sn)
+		if err != nil {
+			return fmt.Errorf("cannot build app set for snap %q: %v", sn.InstanceName(), err)
+		}
+		appSets = append(appSets, set)
+	}
+
 	// Add implicit slots to all snaps
 	for _, snapInfo := range snaps {
 		if err := addImplicitSlots(m.state, snapInfo); err != nil {
@@ -208,7 +222,7 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer) er
 		if backend.Name() == "" {
 			continue // Test backends have no name, skip them to simplify testing.
 		}
-		if errors := interfaces.SetupMany(m.repo, backend, snaps, confinementOpts, tm); len(errors) > 0 {
+		if errors := interfaces.SetupMany(m.repo, backend, appSets, confinementOpts, tm); len(errors) > 0 {
 			logger.Noticef("cannot regenerate %s profiles", backend.Name())
 			for _, err := range errors {
 				logger.Noticef(err.Error())
@@ -455,13 +469,13 @@ func (m *InterfaceManager) removeConnections(snapName string) error {
 	return nil
 }
 
-func (m *InterfaceManager) setupSecurityByBackend(task *state.Task, snaps []*snap.Info, opts []interfaces.ConfinementOptions, tm timings.Measurer) error {
-	if len(snaps) != len(opts) {
-		return fmt.Errorf("internal error: setupSecurityByBackend received an unexpected number of snaps (expected: %d, got %d)", len(opts), len(snaps))
+func (m *InterfaceManager) setupSecurityByBackend(task *state.Task, appSets []*interfaces.SnapAppSet, opts []interfaces.ConfinementOptions, tm timings.Measurer) error {
+	if len(appSets) != len(opts) {
+		return fmt.Errorf("internal error: setupSecurityByBackend received an unexpected number of snaps (expected: %d, got %d)", len(opts), len(appSets))
 	}
-	confOpts := make(map[string]interfaces.ConfinementOptions, len(snaps))
-	for i, snapInfo := range snaps {
-		confOpts[snapInfo.InstanceName()] = opts[i]
+	confOpts := make(map[string]interfaces.ConfinementOptions, len(appSets))
+	for i, set := range appSets {
+		confOpts[set.InstanceName()] = opts[i]
 	}
 
 	st := task.State()
@@ -471,7 +485,7 @@ func (m *InterfaceManager) setupSecurityByBackend(task *state.Task, snaps []*sna
 	// Setup all affected snaps, start with the most important security
 	// backend and run it for all snaps. See LP: 1802581
 	for _, backend := range m.repo.Backends() {
-		errs := interfaces.SetupMany(m.repo, backend, snaps, func(snapName string) interfaces.ConfinementOptions {
+		errs := interfaces.SetupMany(m.repo, backend, appSets, func(snapName string) interfaces.ConfinementOptions {
 			return confOpts[snapName]
 		}, tm)
 		if len(errs) > 0 {
@@ -483,8 +497,8 @@ func (m *InterfaceManager) setupSecurityByBackend(task *state.Task, snaps []*sna
 	return nil
 }
 
-func (m *InterfaceManager) setupSnapSecurity(task *state.Task, snapInfo *snap.Info, opts interfaces.ConfinementOptions, tm timings.Measurer) error {
-	return m.setupSecurityByBackend(task, []*snap.Info{snapInfo}, []interfaces.ConfinementOptions{opts}, tm)
+func (m *InterfaceManager) setupSnapSecurity(task *state.Task, appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, tm timings.Measurer) error {
+	return m.setupSecurityByBackend(task, []*interfaces.SnapAppSet{appSet}, []interfaces.ConfinementOptions{opts}, tm)
 }
 
 func (m *InterfaceManager) removeSnapSecurity(task *state.Task, instanceName string) error {
@@ -1363,4 +1377,72 @@ func (m *InterfaceManager) discardSecurityProfilesLate(name string, rev snap.Rev
 		}
 	}
 	return nil
+}
+
+func hasActiveConnection(st *state.State, iface string) (bool, error) {
+	conns, err := getConns(st)
+	if err != nil {
+		return false, err
+	}
+	for _, cstate := range conns {
+		// look for connected interface
+		if !cstate.Undesired && !cstate.HotplugGone && cstate.Interface == iface {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func appSetForTask(t *state.Task, info *snap.Info) (*interfaces.SnapAppSet, error) {
+	compsups, err := snapstate.ComponentSetupsForTask(t)
+	if err != nil {
+		return nil, err
+	}
+
+	compInfos := make([]*snap.ComponentInfo, 0, len(compsups))
+	for _, compsup := range compsups {
+		compInfo, err := snapstate.ComponentInfoFromComponentSetup(compsup, info)
+		if err != nil {
+			return nil, err
+		}
+		compInfos = append(compInfos, compInfo)
+	}
+
+	st := t.State()
+
+	var snapst snapstate.SnapState
+	if err := snapstate.Get(st, info.InstanceName(), &snapst); err != nil {
+		// if the snap isn't in the state, then we know that there aren't any
+		// pre-existing components to consider
+		if errors.Is(err, state.ErrNoState) {
+			return interfaces.NewSnapAppSet(info, compInfos)
+		}
+		return nil, err
+	}
+
+	// if we're installing/refreshing a component then we need to consider the
+	// components that are already installed
+	if snapst.LastIndex(info.Revision) != -1 {
+		compsForRevision, err := snapst.ComponentInfosForRevision(info.Revision)
+		if err != nil {
+			return nil, err
+		}
+		compInfos = append(compInfos, compsForRevision...)
+	}
+
+	return interfaces.NewSnapAppSet(info, compInfos)
+}
+
+func appSetForSnapRevision(st *state.State, info *snap.Info) (*interfaces.SnapAppSet, error) {
+	var snapst snapstate.SnapState
+	if err := snapstate.Get(st, info.InstanceName(), &snapst); err != nil {
+		return nil, err
+	}
+
+	compInfos, err := snapst.ComponentInfosForRevision(info.Revision)
+	if err != nil {
+		return nil, err
+	}
+
+	return interfaces.NewSnapAppSet(info, compInfos)
 }

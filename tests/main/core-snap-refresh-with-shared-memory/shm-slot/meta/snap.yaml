@@ -1,0 +1,12 @@
+name: shm-slot
+version: 1.0
+apps:
+  cmd:
+    command: bin/cmd
+    slots: [shmem]
+slots:
+  shmem:
+    interface: shared-memory
+    shared-memory: super-foo
+    write: [any-writable-*]
+    read: [any-readable-*]

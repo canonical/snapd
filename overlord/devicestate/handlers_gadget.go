@@ -84,6 +84,11 @@ var (
 	gadgetUpdate = gadget.Update
 )
 
+func setGadgetRestartRequired(t *state.Task) {
+	chg := t.Change()
+	chg.Set("gadget-restart-required", true)
+}
+
 func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
@@ -182,19 +187,28 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 		updatePolicy = gadget.RemodelUpdatePolicy
 	}
 
-	var updateObserver gadget.ContentUpdateObserver
-	observeTrustedBootAssets, err := boot.TrustedAssetsUpdateObserverForModel(model, updateData.RootDir)
-	if err != nil && err != boot.ErrObserverNotApplicable {
-		return fmt.Errorf("cannot setup asset update observer: %v", err)
-	}
-	if err == nil {
-		updateObserver = observeTrustedBootAssets
-	}
-	// do not release the state lock, the update observer may attempt to
-	// modify modeenv inside, which implicitly is guarded by the state lock;
-	// on top of that we do not expect the update to be moving large amounts
-	// of data
-	err = gadgetUpdate(model, *currentData, *updateData, snapRollbackDir, updatePolicy, updateObserver)
+	err = func() error {
+		var updateObserver gadget.ContentUpdateObserver
+		observeTrustedBootAssets, err := boot.TrustedAssetsUpdateObserverForModel(model, updateData.RootDir)
+		if err != nil && err != boot.ErrObserverNotApplicable {
+			return fmt.Errorf("cannot setup asset update observer: %v", err)
+		}
+		if err == nil {
+			updateObserver = observeTrustedBootAssets
+			defer observeTrustedBootAssets.Done()
+		}
+		// do not release the state lock, the update observer may
+		// attempt to modify modeenv inside, which implicitly is
+		// guarded by the state lock; on top of that we do not expect
+		// the update to be moving large amounts of data
+		if err := gadgetUpdate(model, *currentData, *updateData, snapRollbackDir, updatePolicy, updateObserver); err != nil {
+			return err
+		}
+		if updateObserver == nil {
+			return nil
+		}
+		return observeTrustedBootAssets.UpdateBootEntry()
+	}()
 	if err != nil {
 		if err == gadget.ErrNoUpdate {
 			// no update needed
@@ -210,6 +224,7 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 
 	// TODO: consider having the option to do this early via recovery in
 	// core20, have fallback code as well there
+	setGadgetRestartRequired(t)
 	return snapstate.FinishTaskWithRestart(t, state.DoneStatus, restart.RestartSystem, nil)
 }
 
@@ -331,6 +346,9 @@ func (m *DeviceManager) updateGadgetCommandLine(t *state.Task, st *state.State, 
 	updated, err = boot.UpdateCommandLineForGadgetComponent(devCtx, gadgetData.RootDir, cmdlineAppend)
 	if err != nil {
 		return false, fmt.Errorf("cannot update kernel command line from gadget: %v", err)
+	}
+	if updated {
+		setGadgetRestartRequired(t)
 	}
 	return updated, nil
 }

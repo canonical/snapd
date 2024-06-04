@@ -250,3 +250,55 @@ bool sc_is_expected_path(const char *path)
 	regfree(&re);
 	return status == 0;
 }
+
+bool sc_wait_for_file(const char *path, size_t timeout_sec)
+{
+	for (size_t i = 0; i < timeout_sec; ++i) {
+		if (access(path, F_OK) == 0) {
+			return true;
+		}
+		sleep(1);
+	}
+	return false;
+}
+
+const char *run_systemd_container = "/run/systemd/container";
+
+static bool _sc_is_in_container(const char *p)
+{
+	// see what systemd-detect-virt --container does in, see:
+	// https://github.com/systemd/systemd/blob/5dcd6b1d55a1cfe247621d70f0e25d020de6e0ed/src/basic/virt.c#L749-L755
+	// https://systemd.io/CONTAINER_INTERFACE/
+	FILE *in SC_CLEANUP(sc_cleanup_file) = fopen(p, "r");
+	if (in == NULL) {
+		return false;
+	}
+
+	char container[128] = { 0 };
+
+	if (fgets(container, sizeof(container), in) == NULL) {
+		/* nothing read or other error? */
+		return false;
+	}
+
+	size_t r = strnlen(container, sizeof container);
+	// TODO add sc_str_chomp()?
+	if (r > 0 && container[r - 1] == '\n') {
+		/* replace trailing newline */
+		container[r - 1] = 0;
+		r--;
+	}
+
+	if (r == 0) {
+		/* empty or just a newline */
+		return false;
+	}
+
+	debug("detected container environment: %s", container);
+	return true;
+}
+
+bool sc_is_in_container(void)
+{
+	return _sc_is_in_container(run_systemd_container);
+}

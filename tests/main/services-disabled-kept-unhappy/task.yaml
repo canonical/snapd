@@ -2,9 +2,25 @@ summary: Check that disabled snap services stay disabled across unhappy
   refreshes, reverts, and disable/enable cycles where undos are triggered (there
   is a separate tests for happy ops without undos, etc.)
 
-# This test is for the "happy" paths for disabled services, where nothing goes
-# wrong and is undone, but there are still a lot of cases here for that. This
-# test covers the following cases:
+details: |
+  Snapd allows disabling snap services via the `snap stop --disable` command.
+
+  This test is for the "unhappy" paths where, after the service is disabled,
+  there is a refresh, revert or disable/enable cycle which fails and triggers
+  an undo. Generally, tests that the service stays disabled. The following list
+  shows the scenarios validated as part of this test:
+
+  1. install snap, disable services, attempt refresh which gets undone
+  2. install snap, disable services, attempt refresh with svc renames which gets undone
+  3. install snap, refresh, disable services, attempt revert which gets undone
+  4. install snap, disable services, refresh snap with svc changed into app, attempt revert which is undone
+  5. install snap, disable services, refresh snap with svc renamed, disable services, attempt revert which is undone
+  6. install snap, disable services, refresh snap with svc renamed, disable services, attempt refresh to revision without services which is undone
+  7. install snap, disable services, refresh snap with svc renamed, disable services, attempt a refresh snap with new svc changed into app which is undone
+
+# This test is for the "unhappy" paths for disabled services, where attempted
+# refreshes, reverts, and disable/enable cycles fail and undos are triggered.
+# This test covers the following cases:
 
 # 1. install snap, disable services, attempt refresh which gets undone
 #    => the services are disabled

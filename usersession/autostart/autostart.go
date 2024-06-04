@@ -20,7 +20,6 @@
 package autostart
 
 import (
-	"bufio"
 	"bytes"
 	"fmt"
 	"log/syslog"
@@ -31,122 +30,16 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/snapcore/snapd/desktop/desktopentry"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/strutil"
-	"github.com/snapcore/snapd/strutil/shlex"
 	"github.com/snapcore/snapd/systemd"
 )
 
 var (
-	currentDesktop = splitSkippingEmpty(os.Getenv("XDG_CURRENT_DESKTOP"), ':')
+	currentDesktop = strings.Split(os.Getenv("XDG_CURRENT_DESKTOP"), ":")
 )
-
-func splitSkippingEmpty(s string, sep rune) []string {
-	return strings.FieldsFunc(s, func(r rune) bool { return r == sep })
-}
-
-// expandDesktopFields processes the input string and expands any %<char>
-// patterns. '%%' expands to '%', all other patterns expand to empty strings.
-func expandDesktopFields(in string) string {
-	raw := []rune(in)
-	out := make([]rune, 0, len(raw))
-
-	var hasKey bool
-	for _, r := range raw {
-		if hasKey {
-			hasKey = false
-			// only allow %% -> % expansion, drop other keys
-			if r == '%' {
-				out = append(out, r)
-			}
-			continue
-		} else if r == '%' {
-			hasKey = true
-			continue
-		}
-		out = append(out, r)
-	}
-	return string(out)
-}
-
-type skipDesktopFileError struct {
-	reason string
-}
-
-func (s *skipDesktopFileError) Error() string {
-	return s.reason
-}
-
-func isOneOfIn(of []string, other []string) bool {
-	for _, one := range of {
-		if strutil.ListContains(other, one) {
-			return true
-		}
-	}
-	return false
-}
-
-func loadAutostartDesktopFile(path string) (command string, err error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return "", err
-	}
-	defer f.Close()
-
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		bline := scanner.Bytes()
-		if bytes.HasPrefix(bline, []byte("#")) {
-			continue
-		}
-		split := bytes.SplitN(bline, []byte("="), 2)
-		if len(split) != 2 {
-			continue
-		}
-		// See https://standards.freedesktop.org/autostart-spec/autostart-spec-latest.html
-		// for details on how Hidden, OnlyShowIn, NotShownIn are handled.
-		switch string(split[0]) {
-		case "Exec":
-			command = strings.TrimSpace(expandDesktopFields(string(split[1])))
-		case "Hidden":
-			if bytes.Equal(split[1], []byte("true")) {
-				return "", &skipDesktopFileError{"desktop file is hidden"}
-			}
-		case "OnlyShowIn":
-			onlyIn := splitSkippingEmpty(string(split[1]), ';')
-			if !isOneOfIn(currentDesktop, onlyIn) {
-				return "", &skipDesktopFileError{fmt.Sprintf("current desktop %q not included in %q", currentDesktop, onlyIn)}
-			}
-		case "NotShownIn":
-			notIn := splitSkippingEmpty(string(split[1]), ';')
-			if isOneOfIn(currentDesktop, notIn) {
-				return "", &skipDesktopFileError{fmt.Sprintf("current desktop %q excluded by %q", currentDesktop, notIn)}
-			}
-		case "X-GNOME-Autostart-enabled":
-			// GNOME specific extension, see gnome-session:
-			// https://github.com/GNOME/gnome-session/blob/c449df5269e02c59ae83021a3110ec1b338a2bba/gnome-session/gsm-autostart-app.c#L110..L145
-			if !strutil.ListContains(currentDesktop, "GNOME") {
-				// not GNOME
-				continue
-			}
-			if !bytes.Equal(split[1], []byte("true")) {
-				return "", &skipDesktopFileError{"desktop file is hidden by X-GNOME-Autostart-enabled extension"}
-			}
-		}
-	}
-	if err := scanner.Err(); err != nil {
-		return "", err
-	}
-
-	command = strings.TrimSpace(command)
-	if command == "" {
-		return "", fmt.Errorf("Exec not found or invalid")
-	}
-	return command, nil
-
-}
 
 func autostartCmd(snapName, desktopFilePath string) (*exec.Cmd, error) {
 	desktopFile := filepath.Base(desktopFilePath)
@@ -167,24 +60,23 @@ func autostartCmd(snapName, desktopFilePath string) (*exec.Cmd, error) {
 		return nil, fmt.Errorf("cannot match desktop file with snap %s applications", snapName)
 	}
 
-	command, err := loadAutostartDesktopFile(desktopFilePath)
+	de, err := desktopentry.Read(desktopFilePath)
 	if err != nil {
-		if _, ok := err.(*skipDesktopFileError); ok {
-			return nil, fmt.Errorf("skipped: %v", err)
-		}
-		return nil, fmt.Errorf("cannot determine startup command for application %s in snap %s: %v", app.Name, snapName, err)
+		return nil, fmt.Errorf("cannot parse desktop file for application %s in snap %s: %v", app.Name, snapName, err)
 	}
-	logger.Debugf("exec line: %v", command)
-
-	split, err := shlex.Split(command)
+	if !de.ShouldAutostart(currentDesktop) {
+		return nil, fmt.Errorf("skipped")
+	}
+	args, err := de.ExpandExec(nil)
 	if err != nil {
 		return nil, fmt.Errorf("invalid application startup command: %v", err)
 	}
+	logger.Debugf("exec line: %v", args)
 
 	// NOTE: Ignore the actual argv[0] in Exec=.. line and replace it with a
 	// command of the snap application. Any arguments passed in the Exec=..
 	// line to the original command are preserved.
-	cmd := exec.Command(app.WrapperPath(), split[1:]...)
+	cmd := exec.Command(app.WrapperPath(), args[1:]...)
 	return cmd, nil
 }
 

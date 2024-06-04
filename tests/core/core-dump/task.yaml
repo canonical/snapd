@@ -1,0 +1,31 @@
+summary: Make sure we can generate core dumps on UC
+
+details: |
+  Check it is possible to generate core dumps on UC. Make sure that dumps
+  are produced in little time in a place writable from snap context.
+
+execute: |
+  # To get VERSION_ID defined
+  . /etc/os-release
+  if [ "$VERSION_ID" = 16 ]; then
+      sed -i '/base: ##BASE##/d' core-dump-snap/meta/snap.yaml
+  else
+      BASE=core"$VERSION_ID"
+      sed -i "s/##BASE##/$BASE/" core-dump-snap/meta/snap.yaml
+  fi
+
+  # Install snap with a service that simply waits
+  DUMP_SNAP_FILE=core-dump-snap.snap
+  snap pack core-dump-snap --filename="$DUMP_SNAP_FILE"
+  snap install --dangerous "$DUMP_SNAP_FILE"
+
+  # Allow suid programs like snap-confine to produce a core dump
+  echo 1 > /proc/sys/fs/suid_dumpable
+  # Make sure that dumps are produced in a place writable from snap context
+  echo "/tmp/core.%p" > /proc/sys/kernel/core_pattern
+
+  CRASH_PID=$(retry --wait 1 -n 5 pgrep crash.sh)
+  kill -ABRT "$CRASH_PID"
+
+  # A core dump file should be generated in little time
+  retry --wait 1 -n 5 sh -c "stat /tmp/snap-private-tmp/snap.core-dump-snap/tmp/core.$CRASH_PID"

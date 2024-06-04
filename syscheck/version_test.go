@@ -20,7 +20,6 @@
 package syscheck_test
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -104,14 +103,14 @@ func (s *syscheckSuite) TestRHEL7x(c *C) {
 	c.Assert(err, IsNil)
 
 	// the knob is there, but disabled
-	err = ioutil.WriteFile(p, []byte("0\n"), 0644)
+	err = os.WriteFile(p, []byte("0\n"), 0644)
 	c.Assert(err, IsNil)
 
 	err = syscheck.CheckKernelVersion()
 	c.Assert(err, ErrorMatches, "fs.may_detach_mounts kernel parameter is supported but disabled")
 
 	// actually enabled
-	err = ioutil.WriteFile(p, []byte("1\n"), 0644)
+	err = os.WriteFile(p, []byte("1\n"), 0644)
 	c.Assert(err, IsNil)
 
 	err = syscheck.CheckKernelVersion()
@@ -152,14 +151,14 @@ func (s *syscheckSuite) TestCentOS7x(c *C) {
 	c.Assert(err, IsNil)
 
 	// the knob there, but disabled
-	err = ioutil.WriteFile(p, []byte("0\n"), 0644)
+	err = os.WriteFile(p, []byte("0\n"), 0644)
 	c.Assert(err, IsNil)
 
 	err = syscheck.CheckKernelVersion()
 	c.Assert(err, ErrorMatches, "fs.may_detach_mounts kernel parameter is supported but disabled")
 
 	// actually enabled
-	err = ioutil.WriteFile(p, []byte("1\n"), 0644)
+	err = os.WriteFile(p, []byte("1\n"), 0644)
 	c.Assert(err, IsNil)
 
 	err = syscheck.CheckKernelVersion()

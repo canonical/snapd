@@ -496,6 +496,8 @@ func submitSerialRequest(t *state.Task, serialRequest string, client *http.Clien
 
 var httputilNewHTTPClient = httputil.NewHTTPClient
 
+var errStoreOffline = errors.New("snap store is marked offline")
+
 func getSerial(t *state.Task, regCtx registrationContext, privKey asserts.PrivateKey, device *auth.DeviceState, tm timings.Measurer) (serial *asserts.Serial, ancillaryBatch *asserts.Batch, err error) {
 	var serialSup serialSetup
 	err = t.Get("serial-setup", &serialSup)
@@ -513,6 +515,16 @@ func getSerial(t *state.Task, regCtx registrationContext, privKey asserts.Privat
 	}
 
 	st := t.State()
+
+	shouldRequest, err := shouldRequestSerial(st, regCtx.GadgetForSerialRequestConfig())
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if !shouldRequest {
+		return nil, nil, errStoreOffline
+	}
+
 	proxyConf := proxyconf.New(st)
 	client := httputilNewHTTPClient(&httputil.ClientOptions{
 		Timeout:            30 * time.Second,
@@ -679,6 +691,45 @@ func getSerialRequestConfig(t *state.Task, regCtx registrationContext, client *h
 	return &cfg, nil
 }
 
+func shouldRequestSerial(s *state.State, gadgetName string) (bool, error) {
+	tr := config.NewTransaction(s)
+
+	var storeAccess string
+	if err := tr.GetMaybe("core", "store.access", &storeAccess); err != nil {
+		return false, err
+	}
+
+	// if there isn't a gadget, just use store.access to determine if we should
+	// request
+	if gadgetName == "" {
+		return storeAccess != "offline", nil
+	}
+
+	var deviceServiceAccess string
+	if err := tr.GetMaybe(gadgetName, "device-service.access", &deviceServiceAccess); err != nil {
+		return false, err
+	}
+
+	// if we have a gadget and device-service.access is set to offline, then we
+	// will not request a serial
+	if deviceServiceAccess == "offline" {
+		return false, nil
+	}
+
+	var deviceServiceURL string
+	if err := tr.GetMaybe(gadgetName, "device-service.url", &deviceServiceURL); err != nil {
+		return false, err
+	}
+
+	// if we'd be using the fallback device-service.url (which is the store),
+	// then use store.access to determine if we should request
+	if deviceServiceURL == "" {
+		return storeAccess != "offline", nil
+	}
+
+	return true, nil
+}
+
 func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
@@ -769,8 +820,11 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 		return &state.Retry{After: retryInterval}
 	}
 	if err != nil { // errors & retries
+		if errors.Is(err, errStoreOffline) {
+			t.Logf("skipping getting serial, store is marked as offline")
+			return nil
+		}
 		return err
-
 	}
 
 	// TODO: the accept* helpers put the serial directly in the

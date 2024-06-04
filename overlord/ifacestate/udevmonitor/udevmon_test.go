@@ -33,11 +33,23 @@ import (
 
 func TestHotplug(t *testing.T) { TestingT(t) }
 
-type udevMonitorSuite struct{}
+type udevMonitorSuite struct {
+	testutil.BaseTest
+}
 
 var _ = Suite(&udevMonitorSuite{})
 
+func (s *udevMonitorSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+
+	cmd := testutil.MockCommand(c, "udevadm", `echo "udev not mocked in tests"; exit 1`)
+	s.AddCleanup(cmd.Restore)
+}
+
 func (s *udevMonitorSuite) TestSmoke(c *C) {
+	cmd := testutil.MockCommand(c, "udevadm", `exit 0`)
+	s.AddCleanup(cmd.Restore)
+
 	mon := udevmonitor.New(nil, nil, nil)
 	c.Assert(mon, NotNil)
 	c.Assert(mon.Connect(), IsNil)

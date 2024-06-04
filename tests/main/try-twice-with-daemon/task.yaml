@@ -1,5 +1,9 @@
 summary: Check that try command works when daemon line is added to snap.yaml
 
+details: |
+    This test shows that a snap application can be converted from an app to a
+    service between one revision of a snap installed with "snap try", and another.
+
 systems: [-ubuntu-core-*]
 
 environment:

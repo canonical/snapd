@@ -21,7 +21,6 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 
 	"github.com/jessevdk/go-flags"
@@ -33,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -43,9 +43,11 @@ type cmdCreatePartitions struct {
 	Encrypt bool `long:"encrypt" description:"Encrypt the data partition"`
 
 	Positional struct {
-		GadgetRoot string `positional-arg-name:"<gadget-root>"`
-		KernelRoot string `positional-arg-name:"<kernel-root>"`
-		Device     string `positional-arg-name:"<device>"`
+		GadgetRoot     string `positional-arg-name:"<gadget-root>"`
+		KernelName     string `positional-arg-name:"<kernel-name>"`
+		KernelRoot     string `positional-arg-name:"<kernel-root>"`
+		KernelRevision string `positional-arg-name:"<kernel-revision>"`
+		Device         string `positional-arg-name:"<device>"`
 	} `positional-args:"yes"`
 }
 
@@ -63,7 +65,7 @@ func (c uc20Constraints) Classic() bool             { return false }
 func (c uc20Constraints) Grade() asserts.ModelGrade { return asserts.ModelSigned }
 
 func main() {
-	if err := logger.SimpleSetup(); err != nil {
+	if err := logger.SimpleSetup(nil); err != nil {
 		fmt.Fprintf(os.Stderr, i18n.G("WARNING: failed to activate logging: %v\n"), err)
 	}
 
@@ -83,7 +85,13 @@ func main() {
 		Mount:          args.Mount,
 		EncryptionType: encryptionType,
 	}
-	installSideData, err := installRun(uc20Constraints{}, args.Positional.GadgetRoot, args.Positional.KernelRoot, args.Positional.Device, options, obs, timings.New(nil))
+	kernelSnapInfo := &install.KernelSnapInfo{
+		Name:       args.Positional.KernelName,
+		MountPoint: args.Positional.KernelRoot,
+		Revision:   snap.R(args.Positional.KernelRevision),
+		IsCore:     true,
+	}
+	installSideData, err := installRun(uc20Constraints{}, args.Positional.GadgetRoot, kernelSnapInfo, args.Positional.Device, options, obs, timings.New(nil))
 	if err != nil {
 		panic(err)
 	}
@@ -105,7 +113,7 @@ func main() {
 			"save-key":     saveKey[:],
 		}
 		for keyFileName, keyData := range toWrite {
-			if err := ioutil.WriteFile(keyFileName, keyData, 0644); err != nil {
+			if err := os.WriteFile(keyFileName, keyData, 0644); err != nil {
 				panic(err)
 			}
 		}

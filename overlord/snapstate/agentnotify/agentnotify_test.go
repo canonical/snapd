@@ -26,6 +26,7 @@ import (
 
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/agentnotify"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
@@ -66,9 +67,9 @@ func (s *agentNotifySuite) TestNotifyAgentOnLinkChange(c *C) {
 		callCount = 0
 		snapstate.Set(s.st, "some-snap", &snapstate.SnapState{
 			Active: tc.active,
-			Sequence: []*snap.SideInfo{{
+			Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{
 				RealName: "some-snap", Revision: snap.R(1)},
-			},
+			}),
 			Current: snap.R(1),
 		})
 		snapsup := &snapstate.SnapSetup{

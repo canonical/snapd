@@ -1,5 +1,10 @@
 summary: Smoke test for tests.pkgs tool
 
+details: |
+    Check the tests.pkgs tool allows managing native packages independently
+    of the system being used. Verify that packages can be installed, queried
+    and removed among other operations.
+
 backends: [google]
 
 execute: |
@@ -13,8 +18,6 @@ execute: |
     tests.pkgs | MATCH 'usage: tests.pkgs install \[--no-install-recommends\] \[PACKAGE...\]'
     tests.pkgs -h | MATCH 'usage: tests.pkgs install \[--no-install-recommends\] \[PACKAGE...\]'
     tests.pkgs --help | MATCH 'usage: tests.pkgs install \[--no-install-recommends\] \[PACKAGE...\]'
-
-    # Update the packages db
 
     # Check the test pkg is not installed
     not tests.pkgs is-installed test-snapd-pkg-1

@@ -1,6 +1,10 @@
 summary: Ensure that snap create-user works in ubuntu-core
 # FIXME: combine this test with tests/core/create-user-2?
 
+details: |
+    Check that the command `snap create-user` works in ubuntu core.
+    Ensure that the keys are imported for the user and it can be created as a sudoer.
+
 environment:
     USER_EMAIL: mvo@ubuntu.com
     USER_NAME: mvo

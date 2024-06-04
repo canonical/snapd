@@ -62,6 +62,9 @@ apps:
   camera:
     command: bin/run
     plugs: [ camera ]
+  can-bus:
+    command: bin/run
+    plugs: [ can-bus ]
   cifs-mount:
     command: bin/run
     plugs: [ cifs-mount ]
@@ -182,12 +185,6 @@ apps:
   home:
     command: bin/run
     plugs: [ home ]
-  system-packages-doc:
-    command: bin/run
-    plugs: [ system-packages-doc ]
-  system-source-code:
-    command: bin/run
-    plugs: [ system-source-code ]
   hostname-control:
     command: bin/run
     plugs: [ hostname-control ]
@@ -215,6 +212,9 @@ apps:
   kernel-crypto-api:
     command: bin/run
     plugs: [ kernel-crypto-api ]
+  kernel-firmware-control:
+    command: bin/run
+    plugs: [ kernel-firmware-control ]
   kernel-module-control:
     command: bin/run
     plugs: [ kernel-module-control ]
@@ -269,6 +269,9 @@ apps:
   microceph:
     command: bin/run
     plugs: [ microceph ]
+  microceph-support:
+    command: bin/run
+    plugs: [ microceph-support ]
   microovn:
     command: bin/run
     plugs: [ microovn ]
@@ -326,6 +329,9 @@ apps:
   network-status:
     command: bin/run
     plugs: [ network-status ]
+  nfs-mount:
+    command: bin/run
+    plugs: [ nfs-mount ]
   nvidia-drivers-support:
     command: bin/run
     plugs: [ nvidia-drivers-support ]
@@ -368,6 +374,9 @@ apps:
   polkit:
     command: bin/run
     plugs: [ polkit ]
+  polkit-agent:
+    command: bin/run
+    plugs: [ polkit-agent ]
   posix-mq:
     command: bin/run
     plugs: [ posix-mq ]
@@ -398,9 +407,15 @@ apps:
   raw-volume:
     command: bin/run
     plugs: [ raw-volume ]
+  remoteproc:
+    command: bin/run
+    plugs: [ remoteproc ]
   removable-media:
     command: bin/run
     plugs: [ removable-media ]
+  ros-opt-data:
+    command: bin/run
+    plugs: [ ros-opt-data ]
   screen-inhibit-control:
     command: bin/run
     plugs: [ screen-inhibit-control ]
@@ -422,12 +437,12 @@ apps:
   snap-themes-control:
     command: bin/run
     plugs: [ snap-themes-control ]
+  snap-refresh-observe:
+    command: bin/run
+    plugs: [ snap-refresh-observe ]
   service-watchdog:
     command: bin/run
     plugs: [ daemon-notify ]
-  can-bus:
-    command: bin/run
-    plugs: [ can-bus ]
   sd-control:
     command: bin/run
     plugs: [ sd-control ]
@@ -452,6 +467,12 @@ apps:
   system-observe:
     command: bin/run
     plugs: [ system-observe ]
+  system-packages-doc:
+    command: bin/run
+    plugs: [ system-packages-doc ]
+  system-source-code:
+    command: bin/run
+    plugs: [ system-source-code ]
   system-trace:
     command: bin/run
     plugs: [ system-trace ]

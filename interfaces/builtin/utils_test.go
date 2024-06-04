@@ -65,83 +65,6 @@ func (s *utilsSuite) TestImplicitSystemConnectedSlot(c *C) {
 	c.Assert(builtin.ImplicitSystemConnectedSlot(s.conSlotSnapd), Equals, true)
 }
 
-const yaml = `name: test-snap
-version: 1
-plugs:
- x11:
-slots:
- opengl:
-apps:
- app1:
-  command: bin/test1
-  plugs: [home]
-  slots: [unity8]
- app2:
-  command: bin/test2
-  plugs: [home]
-hooks:
- install:
-  plugs: [network,network-manager]
- post-refresh:
-  plugs: [network,network-manager]
-`
-
-func (s *utilsSuite) TestLabelExpr(c *C) {
-	info := snaptest.MockInfo(c, yaml, nil)
-
-	// all apps and all hooks
-	label := builtin.LabelExpr(info.Apps, info.Hooks, info)
-	c.Check(label, Equals, `"snap.test-snap.*"`)
-
-	// all apps, no hooks
-	label = builtin.LabelExpr(info.Apps, nil, info)
-	c.Check(label, Equals, `"snap.test-snap.{app1,app2}"`)
-
-	// one app, no hooks
-	label = builtin.LabelExpr(map[string]*snap.AppInfo{"app1": info.Apps["app1"]}, nil, info)
-	c.Check(label, Equals, `"snap.test-snap.app1"`)
-
-	// no apps, one hook
-	label = builtin.LabelExpr(nil, map[string]*snap.HookInfo{"install": info.Hooks["install"]}, info)
-	c.Check(label, Equals, `"snap.test-snap.hook.install"`)
-
-	// one app, all hooks
-	label = builtin.LabelExpr(map[string]*snap.AppInfo{"app1": info.Apps["app1"]}, info.Hooks, info)
-	c.Check(label, Equals, `"snap.test-snap.{app1,hook.install,hook.post-refresh}"`)
-
-	// only hooks
-	label = builtin.LabelExpr(nil, info.Hooks, info)
-	c.Check(label, Equals, `"snap.test-snap.{hook.install,hook.post-refresh}"`)
-
-	// nothing
-	label = builtin.LabelExpr(nil, nil, info)
-	c.Check(label, Equals, `"snap.test-snap."`)
-}
-
-func (s *utilsSuite) TestPlugLabelExpr(c *C) {
-	connectedPlug, _ := MockConnectedPlug(c, yaml, nil, "network")
-	label := builtin.PlugAppLabelExpr(connectedPlug)
-	c.Check(label, Equals, `"snap.test-snap.{hook.install,hook.post-refresh}"`)
-
-	connectedPlug, _ = MockConnectedPlug(c, yaml, nil, "home")
-	label = builtin.PlugAppLabelExpr(connectedPlug)
-	c.Check(label, Equals, `"snap.test-snap.{app1,app2}"`)
-
-	connectedPlug, _ = MockConnectedPlug(c, yaml, nil, "x11")
-	label = builtin.PlugAppLabelExpr(connectedPlug)
-	c.Check(label, Equals, `"snap.test-snap.*"`)
-}
-
-func (s *utilsSuite) TestSlotLabelExpr(c *C) {
-	connectedSlot, _ := MockConnectedSlot(c, yaml, nil, "unity8")
-	label := builtin.SlotAppLabelExpr(connectedSlot)
-	c.Check(label, Equals, `"snap.test-snap.app1"`)
-
-	connectedSlot, _ = MockConnectedSlot(c, yaml, nil, "opengl")
-	label = builtin.SlotAppLabelExpr(connectedSlot)
-	c.Check(label, Equals, `"snap.test-snap.*"`)
-}
-
 func (s *utilsSuite) TestAareExclusivePatterns(c *C) {
 	res := builtin.AareExclusivePatterns("foo-bar")
 	c.Check(res, DeepEquals, []string{
@@ -306,4 +229,45 @@ func MockHotplugSlot(c *C, yaml string, si *snap.SideInfo, hotplugKey snap.Hotpl
 		Attrs:      staticAttrs,
 		HotplugKey: hotplugKey,
 	}
+}
+
+func (s *utilsSuite) TestStringListAttributeHappy(c *C) {
+	const snapYaml = `name: consumer
+version: 0
+plugs:
+ personal-files:
+  write: ["$HOME/dir1", "/etc/.hidden2"]
+slots:
+ shared-memory:
+  write: ["foo", "bar"]
+`
+	snap := snaptest.MockInfo(c, snapYaml, nil)
+	plugInfo := snap.Plugs["personal-files"]
+	slotInfo := snap.Slots["shared-memory"]
+	plug := interfaces.NewConnectedPlug(plugInfo, nil, nil)
+	slot := interfaces.NewConnectedSlot(slotInfo, nil, nil)
+	list, err := builtin.StringListAttribute(plug, "write")
+	c.Assert(err, IsNil)
+	c.Check(list, DeepEquals, []string{"$HOME/dir1", "/etc/.hidden2"})
+	list, err = builtin.StringListAttribute(plug, "read")
+	c.Assert(err, IsNil)
+	c.Check(list, IsNil)
+	list, err = builtin.StringListAttribute(slot, "write")
+	c.Assert(err, IsNil)
+	c.Check(list, DeepEquals, []string{"foo", "bar"})
+}
+
+func (s *utilsSuite) TestStringListAttributeErrorNotListStrings(c *C) {
+	const snapYaml = `name: consumer
+version: 0
+plugs:
+ personal-files:
+  write: [1, "two"]
+`
+	snap := snaptest.MockInfo(c, snapYaml, nil)
+	plugInfo := snap.Plugs["personal-files"]
+	plug := interfaces.NewConnectedPlug(plugInfo, nil, nil)
+	list, err := builtin.StringListAttribute(plug, "write")
+	c.Assert(list, IsNil)
+	c.Assert(err, ErrorMatches, `"write" attribute must be a list of strings, not "\[1 two\]"`)
 }

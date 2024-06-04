@@ -22,7 +22,6 @@ package main_test
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -257,7 +256,7 @@ func (s *SnapSuite) TestRoutineConsoleConfStartSnapdRefreshMaintenanceJSON(c *C)
 	c.Assert(err, IsNil)
 	err = os.MkdirAll(filepath.Dir(dirs.SnapdMaintenanceFile), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(dirs.SnapdMaintenanceFile, b, 0644)
+	err = os.WriteFile(dirs.SnapdMaintenanceFile, b, 0644)
 	c.Assert(err, IsNil)
 
 	n := 0
@@ -323,7 +322,7 @@ func (s *SnapSuite) TestRoutineConsoleConfStartSystemRebootMaintenanceJSON(c *C)
 	c.Assert(err, IsNil)
 	err = os.MkdirAll(filepath.Dir(dirs.SnapdMaintenanceFile), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(dirs.SnapdMaintenanceFile, b, 0644)
+	err = os.WriteFile(dirs.SnapdMaintenanceFile, b, 0644)
 	c.Assert(err, IsNil)
 
 	n := 0

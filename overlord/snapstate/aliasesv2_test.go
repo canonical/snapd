@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -159,9 +160,9 @@ func (s *snapmgrTestSuite) TestAutoAliasesDelta(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "alias-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "alias-snap", Revision: snap.R(11)},
-		},
+		}),
 		Current: snap.R(11),
 		Active:  true,
 		Aliases: map[string]*snapstate.AliasTarget{
@@ -208,23 +209,23 @@ func (s *snapmgrTestSuite) TestAutoAliasesDeltaAll(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "alias-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "alias-snap", Revision: snap.R(11)},
-		},
+		}),
 		Current: snap.R(11),
 		Active:  true,
 	})
 	snapstate.Set(s.state, "other-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "other-snap", Revision: snap.R(2)},
-		},
+		}),
 		Current: snap.R(2),
 		Active:  true,
 	})
 	snapstate.Set(s.state, "alias-snap-apps-go-away", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "alias-snap-apps-go-away", Revision: snap.R(1)},
-		},
+		}),
 		Current: snap.R(1),
 		Active:  true,
 		Aliases: map[string]*snapstate.AliasTarget{
@@ -266,9 +267,9 @@ func (s *snapmgrTestSuite) TestAutoAliasesDeltaOverManual(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "alias-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "alias-snap", Revision: snap.R(11)},
-		},
+		}),
 		Current: snap.R(11),
 		Active:  true,
 		Aliases: map[string]*snapstate.AliasTarget{
@@ -340,9 +341,9 @@ func (s *snapmgrTestSuite) TestCheckAliasesConflictsAgainstAliases(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "other-snap1", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "other-snap", Revision: snap.R(2)},
-		},
+		}),
 		Current:             snap.R(2),
 		Active:              true,
 		AutoAliasesDisabled: true,
@@ -353,9 +354,9 @@ func (s *snapmgrTestSuite) TestCheckAliasesConflictsAgainstAliases(c *C) {
 	})
 
 	snapstate.Set(s.state, "other-snap2", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "other-snap", Revision: snap.R(2)},
-		},
+		}),
 		Current:             snap.R(2),
 		Active:              true,
 		AutoAliasesDisabled: false,
@@ -366,9 +367,9 @@ func (s *snapmgrTestSuite) TestCheckAliasesConflictsAgainstAliases(c *C) {
 	})
 
 	snapst3 := snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "other-snap", Revision: snap.R(2)},
-		},
+		}),
 		Current:             snap.R(2),
 		Active:              true,
 		AutoAliasesDisabled: true,
@@ -456,7 +457,7 @@ func (s *snapmgrTestSuite) TestCheckAliasesConflictsAgainstSnaps(c *C) {
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}}),
 		Current:  snap.R(7),
 		SnapType: "app",
 	})
@@ -525,16 +526,16 @@ func (s *snapmgrTestSuite) TestAliasTasks(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "some-snap", Revision: snap.R(11)},
-		},
+		}),
 		Current: snap.R(11),
 		Active:  true,
 	})
 	snapstate.Set(s.state, "some-snap_instance", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "some-snap", Revision: snap.R(11)},
-		},
+		}),
 		Current:     snap.R(11),
 		Active:      true,
 		InstanceKey: "instance",
@@ -581,9 +582,9 @@ func (s *snapmgrTestSuite) TestAliasRunThrough(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "alias-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "alias-snap", Revision: snap.R(11)},
-		},
+		}),
 		Current: snap.R(11),
 		Active:  true,
 	})
@@ -593,7 +594,6 @@ func (s *snapmgrTestSuite) TestAliasRunThrough(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%v", chg.Err()))
@@ -630,16 +630,16 @@ func (s *snapmgrTestSuite) TestParallelInstanceAliasRunThrough(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "alias-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "alias-snap", Revision: snap.R(11)},
-		},
+		}),
 		Current: snap.R(11),
 		Active:  true,
 	})
 	snapstate.Set(s.state, "alias-snap_foo", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "alias-snap", Revision: snap.R(11)},
-		},
+		}),
 		Current:     snap.R(11),
 		Active:      true,
 		InstanceKey: "foo",
@@ -650,7 +650,6 @@ func (s *snapmgrTestSuite) TestParallelInstanceAliasRunThrough(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%v", chg.Err()))
@@ -692,9 +691,9 @@ func (s *snapmgrTestSuite) TestAliasNoTarget(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "some-snap", Revision: snap.R(11)},
-		},
+		}),
 		Current: snap.R(11),
 		Active:  true,
 	})
@@ -718,9 +717,9 @@ func (s *snapmgrTestSuite) TestAliasTargetIsDaemon(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "alias-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "alias-snap", Revision: snap.R(11)},
-		},
+		}),
 		Current: snap.R(11),
 		Active:  true,
 	})
@@ -752,9 +751,9 @@ func (s *snapmgrTestSuite) TestAliasOverAutoRunThrough(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "alias-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "alias-snap", Revision: snap.R(11)},
-		},
+		}),
 		Current: snap.R(11),
 		Active:  true,
 		Aliases: map[string]*snapstate.AliasTarget{
@@ -768,7 +767,6 @@ func (s *snapmgrTestSuite) TestAliasOverAutoRunThrough(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%v", chg.Err()))
@@ -801,7 +799,7 @@ func (s *snapmgrTestSuite) TestAliasUpdateChangeConflict(c *C) {
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}}),
 		Current:  snap.R(7),
 		SnapType: "app",
 	})
@@ -821,7 +819,7 @@ func (s *snapmgrTestSuite) TestUpdateAliasChangeConflict(c *C) {
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}}),
 		Current:  snap.R(7),
 		SnapType: "app",
 	})
@@ -840,16 +838,16 @@ func (s *snapmgrTestSuite) TestAliasAliasConflict(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "alias-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "alias-snap", Revision: snap.R(11)},
-		},
+		}),
 		Current: snap.R(11),
 		Active:  true,
 	})
 	snapstate.Set(s.state, "other-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "other-snap", Revision: snap.R(2)},
-		},
+		}),
 		Current: snap.R(2),
 		Active:  true,
 		Aliases: map[string]*snapstate.AliasTarget{
@@ -876,9 +874,9 @@ func (s *snapmgrTestSuite) TestParallelInstanceAliasConflict(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "alias-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "alias-snap", Revision: snap.R(11)},
-		},
+		}),
 		Current: snap.R(11),
 		Active:  true,
 		Aliases: map[string]*snapstate.AliasTarget{
@@ -886,9 +884,9 @@ func (s *snapmgrTestSuite) TestParallelInstanceAliasConflict(c *C) {
 		},
 	})
 	snapstate.Set(s.state, "alias-snap_foo", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "alias-snap", Revision: snap.R(11)},
-		},
+		}),
 		Current:     snap.R(11),
 		Active:      true,
 		InstanceKey: "foo",
@@ -931,9 +929,9 @@ func (s *snapmgrTestSuite) TestDisableAllAliasesTasks(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
-			{RealName: "some-snap", Revision: snap.R(11)},
-		},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "alias-snap", Revision: snap.R(11)},
+		}),
 		Current: snap.R(11),
 		Active:  true,
 	})
@@ -952,9 +950,9 @@ func (s *snapmgrTestSuite) TestDisableAllAliasesRunThrough(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "alias-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "alias-snap", Revision: snap.R(11)},
-		},
+		}),
 		Current: snap.R(11),
 		Active:  true,
 		Aliases: map[string]*snapstate.AliasTarget{
@@ -969,7 +967,6 @@ func (s *snapmgrTestSuite) TestDisableAllAliasesRunThrough(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%v", chg.Err()))
@@ -1010,9 +1007,9 @@ func (s *snapmgrTestSuite) TestParallelInstanceDisableAllAliasesRunThrough(c *C)
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "alias-snap_instance", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "alias-snap", Revision: snap.R(11)},
-		},
+		}),
 		Current: snap.R(11),
 		Active:  true,
 		Aliases: map[string]*snapstate.AliasTarget{
@@ -1023,9 +1020,9 @@ func (s *snapmgrTestSuite) TestParallelInstanceDisableAllAliasesRunThrough(c *C)
 		InstanceKey: "instance",
 	})
 	snapstate.Set(s.state, "alias-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "alias-snap", Revision: snap.R(11)},
-		},
+		}),
 		Current: snap.R(11),
 		Active:  true,
 		Aliases: map[string]*snapstate.AliasTarget{
@@ -1039,7 +1036,6 @@ func (s *snapmgrTestSuite) TestParallelInstanceDisableAllAliasesRunThrough(c *C)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%v", chg.Err()))
@@ -1089,9 +1085,9 @@ func (s *snapmgrTestSuite) TestRemoveManualAliasTasks(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "alias-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "alias-snap", Revision: snap.R(11)},
-		},
+		}),
 		Current: snap.R(11),
 		Active:  true,
 		Aliases: map[string]*snapstate.AliasTarget{
@@ -1119,9 +1115,9 @@ func (s *snapmgrTestSuite) TestRemoveManualAliasRunThrough(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "alias-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "alias-snap", Revision: snap.R(11)},
-		},
+		}),
 		Current: snap.R(11),
 		Active:  true,
 		Aliases: map[string]*snapstate.AliasTarget{
@@ -1134,7 +1130,6 @@ func (s *snapmgrTestSuite) TestRemoveManualAliasRunThrough(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%v", chg.Err()))
@@ -1169,9 +1164,9 @@ func (s *snapmgrTestSuite) TestRemoveManualAliasOverAutoRunThrough(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "alias-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "alias-snap", Revision: snap.R(11)},
-		},
+		}),
 		Current: snap.R(11),
 		Active:  true,
 		Aliases: map[string]*snapstate.AliasTarget{
@@ -1184,7 +1179,6 @@ func (s *snapmgrTestSuite) TestRemoveManualAliasOverAutoRunThrough(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%v", chg.Err()))
@@ -1215,9 +1209,9 @@ func (s *snapmgrTestSuite) TestParallelInstanceRemoveManualAliasRunThrough(c *C)
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "alias-snap_instance", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "alias-snap", Revision: snap.R(11)},
-		},
+		}),
 		Current: snap.R(11),
 		Active:  true,
 		Aliases: map[string]*snapstate.AliasTarget{
@@ -1231,7 +1225,6 @@ func (s *snapmgrTestSuite) TestParallelInstanceRemoveManualAliasRunThrough(c *C)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%v", chg.Err()))
@@ -1271,7 +1264,7 @@ func (s *snapmgrTestSuite) TestUpdateDisableAllAliasesChangeConflict(c *C) {
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}}),
 		Current:  snap.R(7),
 		SnapType: "app",
 		Aliases: map[string]*snapstate.AliasTarget{
@@ -1294,7 +1287,7 @@ func (s *snapmgrTestSuite) TestUpdateRemoveManualAliasChangeConflict(c *C) {
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}}),
 		Current:  snap.R(7),
 		SnapType: "app",
 		Aliases: map[string]*snapstate.AliasTarget{
@@ -1317,7 +1310,7 @@ func (s *snapmgrTestSuite) TestDisableAllAliasesUpdateChangeConflict(c *C) {
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}}),
 		Current:  snap.R(7),
 		SnapType: "app",
 	})
@@ -1337,7 +1330,7 @@ func (s *snapmgrTestSuite) TestRemoveManualAliasUpdateChangeConflict(c *C) {
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}}),
 		Current:  snap.R(7),
 		SnapType: "app",
 		Aliases: map[string]*snapstate.AliasTarget{
@@ -1359,9 +1352,9 @@ func (s *snapmgrTestSuite) TestPreferTasks(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
-			{RealName: "some-snap", Revision: snap.R(11)},
-		},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "alias-snap", Revision: snap.R(11)},
+		}),
 		Current: snap.R(11),
 		Active:  true,
 	})
@@ -1380,9 +1373,9 @@ func (s *snapmgrTestSuite) TestPreferRunThrough(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "alias-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "alias-snap", Revision: snap.R(11)},
-		},
+		}),
 		Current:             snap.R(11),
 		Active:              true,
 		AutoAliasesDisabled: true,
@@ -1397,7 +1390,6 @@ func (s *snapmgrTestSuite) TestPreferRunThrough(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%v", chg.Err()))
@@ -1431,9 +1423,9 @@ func (s *snapmgrTestSuite) TestParallelInstancePreferRunThrough(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "alias-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "alias-snap", Revision: snap.R(11)},
-		},
+		}),
 		Current: snap.R(11),
 		Active:  true,
 		Aliases: map[string]*snapstate.AliasTarget{
@@ -1442,9 +1434,9 @@ func (s *snapmgrTestSuite) TestParallelInstancePreferRunThrough(c *C) {
 		},
 	})
 	snapstate.Set(s.state, "alias-snap_instance", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "alias-snap", Revision: snap.R(11)},
-		},
+		}),
 		Current:             snap.R(11),
 		Active:              true,
 		AutoAliasesDisabled: true,
@@ -1459,7 +1451,6 @@ func (s *snapmgrTestSuite) TestParallelInstancePreferRunThrough(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%v", chg.Err()))
@@ -1511,7 +1502,7 @@ func (s *snapmgrTestSuite) TestUpdatePreferChangeConflict(c *C) {
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:              true,
-		Sequence:            []*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}},
+		Sequence:            snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}}),
 		Current:             snap.R(7),
 		SnapType:            "app",
 		AutoAliasesDisabled: true,
@@ -1535,7 +1526,7 @@ func (s *snapmgrTestSuite) TestPreferUpdateChangeConflict(c *C) {
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:              true,
-		Sequence:            []*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}},
+		Sequence:            snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}}),
 		Current:             snap.R(7),
 		SnapType:            "app",
 		AutoAliasesDisabled: true,

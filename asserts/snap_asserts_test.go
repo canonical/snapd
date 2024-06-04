@@ -21,7 +21,7 @@ package asserts_test
 
 import (
 	"encoding/base64"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -786,7 +786,7 @@ func (s *snapFileDigestSuite) TestSnapFileSHA3_384(c *C) {
 
 	tempdir := c.MkDir()
 	snapFn := filepath.Join(tempdir, "ex.snap")
-	err := ioutil.WriteFile(snapFn, exData, 0644)
+	err := os.WriteFile(snapFn, exData, 0644)
 	c.Assert(err, IsNil)
 
 	encDgst, size, err := asserts.SnapFileSHA3_384(snapFn)

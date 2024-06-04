@@ -21,156 +21,191 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"os"
+	"path/filepath"
 	"time"
 
-	"github.com/godbus/dbus"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
-	"github.com/snapcore/snapd/dbusutil"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/progress"
-	"github.com/snapcore/snapd/usersession/client"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap"
 )
 
-func waitWhileInhibited(snapName string) error {
-	hint, err := runinhibit.IsLocked(snapName)
-	if err != nil {
-		return err
-	}
-	if hint == runinhibit.HintNotInhibited {
-		return nil
+var runinhibitWaitWhileInhibited = runinhibit.WaitWhileInhibited
+
+// errSnapRefreshConflict indicates that a retry is needed because snap-run
+// might have started without a hint lock file and now there is an ongoing refresh
+// which could alter the current snap revision.
+var errSnapRefreshConflict = fmt.Errorf("snap refresh conflict detected")
+
+// maybeWaitWhileInhibited is a wrapper for waitWhileInhibited that skips waiting
+// if refresh-app-awareness flag is disabled.
+func maybeWaitWhileInhibited(ctx context.Context, cli *client.Client, snapName string, appName string) (info *snap.Info, app *snap.AppInfo, hintFlock *osutil.FileLock, err error) {
+	// wait only if refresh-app-awareness flag is enabled
+	if features.RefreshAppAwareness.IsEnabled() {
+		return waitWhileInhibited(ctx, cli, snapName, appName)
 	}
 
-	// wait for HintInhibitedForRefresh set by gate-auto-refresh hook handler
-	// when it has finished; the hook starts with HintInhibitedGateRefresh lock
-	// and then either unlocks it or changes to HintInhibitedForRefresh (see
-	// gateAutoRefreshHookHandler in hooks.go).
-	// waitInhibitUnlock will return also on HintNotInhibited.
-	notInhibited, err := waitInhibitUnlock(snapName, runinhibit.HintInhibitedForRefresh)
+	info, app, err = getInfoAndApp(snapName, appName, snap.R(0))
 	if err != nil {
-		return err
+		return nil, nil, nil, err
 	}
-	if notInhibited {
-		return nil
-	}
+	return info, app, nil, nil
+}
 
-	if isGraphicalSession() {
-		notifiedDesktopIntegration, err := tryNotifyRefreshViaSnapDesktopIntegrationFlow(snapName)
-		if err != nil {
-			return err
+// waitWhileInhibited blocks until snap is not inhibited for refresh anymore and then
+// returns a locked hint file lock along with the latest snap and app information.
+// If the snap is inhibited for refresh, a notification flow is initiated during
+// the inhibition period.
+//
+// NOTE: A snap without a hint file is considered not inhibited and a nil FileLock is returned.
+//
+// NOTE: It is the caller's responsibility to release the returned file lock.
+func waitWhileInhibited(ctx context.Context, cli *client.Client, snapName string, appName string) (info *snap.Info, app *snap.AppInfo, hintFlock *osutil.FileLock, err error) {
+	var flow inhibitionFlow
+	notified := false
+	notInhibited := func(ctx context.Context) (err error) {
+		// Get updated "current" snap info.
+		info, app, err = getInfoAndApp(snapName, appName, snap.R(0))
+		// We might have started without a hint lock file and we have an
+		// ongoing refresh which removed current symlink.
+		if errors.As(err, &snap.NotFoundError{}) {
+			// Race condition detected
+			logger.Debugf("%v", err)
+			return errSnapRefreshConflict
 		}
-		if notifiedDesktopIntegration {
-			return nil
-		}
-		return graphicalSessionFlow(snapName, hint)
-	}
-	// terminal and headless
-	return textFlow(snapName, hint)
-}
-
-func inhibitMessage(snapName string, hint runinhibit.Hint) string {
-	switch hint {
-	case runinhibit.HintInhibitedForRefresh:
-		return fmt.Sprintf(i18n.G("snap package %q is being refreshed, please wait"), snapName)
-	default:
-		return fmt.Sprintf(i18n.G("snap package cannot be used now: %s"), string(hint))
-	}
-}
-
-var isGraphicalSession = func() bool {
-	// TODO: uncomment once there is a proper UX review
-	//return os.Getenv("DISPLAY") != "" || os.Getenv("WAYLAND_DISPLAY") != ""
-	return false
-}
-
-var pendingRefreshNotification = func(refreshInfo *client.PendingSnapRefreshInfo) error {
-	userclient := client.NewForUids(os.Getuid())
-	if err := userclient.PendingRefreshNotification(context.TODO(), refreshInfo); err != nil {
 		return err
 	}
-	return nil
-}
-
-var finishRefreshNotification = func(refreshInfo *client.FinishedSnapRefreshInfo) error {
-	userclient := client.NewForUids(os.Getuid())
-	if err := userclient.FinishRefreshNotification(context.TODO(), refreshInfo); err != nil {
-		return err
-	}
-	return nil
-}
-
-var tryNotifyRefreshViaSnapDesktopIntegrationFlow = func(snapName string) (bool, error) {
-	// Check if Snapd-Desktop-Integration is available
-	conn, err := dbusutil.SessionBus()
-	if err != nil {
-		logger.Noticef("unable to connect dbus session: %v", err)
-		return false, nil
-	}
-	obj := conn.Object("io.snapcraft.SnapDesktopIntegration", "/io/snapcraft/SnapDesktopIntegration")
-	extraParams := make(map[string]dbus.Variant)
-	err = obj.Call("io.snapcraft.SnapDesktopIntegration.ApplicationIsBeingRefreshed", 0, snapName, runinhibit.HintFile(snapName), extraParams).Store()
-	if err != nil {
-		logger.Noticef("unable to successfully call io.snapcraft.SnapDesktopIntegration.ApplicationIsBeingRefreshed: %v", err)
-		return false, nil
-	}
-	if _, err := waitInhibitUnlock(snapName, runinhibit.HintNotInhibited); err != nil {
-		return false, err
-	}
-	return true, nil
-}
-
-func graphicalSessionFlow(snapName string, hint runinhibit.Hint) error {
-	refreshInfo := client.PendingSnapRefreshInfo{
-		InstanceName: snapName,
-		// Remaining time = 0 results in "Snap .. is refreshing now" message from
-		// usersession agent.
-		TimeRemaining: 0,
-	}
-
-	if err := pendingRefreshNotification(&refreshInfo); err != nil {
-		return err
-	}
-	if _, err := waitInhibitUnlock(snapName, runinhibit.HintNotInhibited); err != nil {
-		return err
-	}
-
-	finishRefreshInfo := client.FinishedSnapRefreshInfo{InstanceName: snapName}
-	return finishRefreshNotification(&finishRefreshInfo)
-}
-
-func textFlow(snapName string, hint runinhibit.Hint) error {
-	fmt.Fprintf(Stdout, "%s\n", inhibitMessage(snapName, hint))
-	pb := progress.MakeProgressBar(Stdout)
-	pb.Spin(i18n.G("please wait..."))
-	_, err := waitInhibitUnlock(snapName, runinhibit.HintNotInhibited)
-	pb.Finished()
-	return err
-}
-
-var isLocked = runinhibit.IsLocked
-
-// waitInhibitUnlock waits until the runinhibit lock hint has a specific waitFor value
-// or isn't inhibited anymore.
-var waitInhibitUnlock = func(snapName string, waitFor runinhibit.Hint) (notInhibited bool, err error) {
-	// Every 0.5s check if the inhibition file is still present.
-	ticker := time.NewTicker(500 * time.Millisecond)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ticker.C:
-			// Half a second has elapsed, let's check again.
-			hint, err := isLocked(snapName)
+	inhibited := func(ctx context.Context, hint runinhibit.Hint, inhibitInfo *runinhibit.InhibitInfo) (cont bool, err error) {
+		if !notified {
+			flow = newInhibitionFlow(cli, snapName)
+			info, app, err = getInfoAndApp(snapName, appName, inhibitInfo.Previous)
 			if err != nil {
 				return false, err
 			}
-			if hint == runinhibit.HintNotInhibited {
+			// Don't wait, continue with old revision.
+			if app.IsService() {
 				return true, nil
 			}
-			if hint == waitFor {
+			// Don't start flow if we are not inhibited for refresh.
+			if hint != runinhibit.HintInhibitedForRefresh {
 				return false, nil
 			}
+			// Start notification flow.
+			if err := flow.StartInhibitionNotification(ctx); err != nil {
+				return true, err
+			}
+			// Make sure we call notification flow only once.
+			notified = true
+		}
+		return false, nil
+	}
+
+	// If the snap is inhibited from being used then postpone running it until
+	// that condition passes.
+	hintFlock, err = runinhibitWaitWhileInhibited(ctx, snapName, notInhibited, inhibited, 500*time.Millisecond)
+	if err != nil {
+		// It is fine to return an error here without finishing the notification
+		// flow because we either failed because of it or before it, so it
+		// should not have started in the first place.
+		return nil, nil, nil, err
+	}
+
+	if notified {
+		if err := flow.FinishInhibitionNotification(ctx); err != nil {
+			hintFlock.Close()
+			return nil, nil, nil, err
 		}
 	}
+
+	return info, app, hintFlock, nil
+}
+
+func getInfoAndApp(snapName, appName string, rev snap.Revision) (*snap.Info, *snap.AppInfo, error) {
+	info, err := getSnapInfo(snapName, rev)
+	// Differentiate between snap not existing and missing current symlink.
+	if errors.As(err, &snap.NotFoundError{}) {
+		exists, isDir, dirErr := osutil.DirExists(filepath.Join(dirs.SnapMountDir, snapName))
+		if dirErr != nil {
+			return nil, nil, dirErr
+		}
+		if !exists || !isDir {
+			return nil, nil, fmt.Errorf(i18n.G("snap %q is not installed"), snapName)
+		}
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+
+	app, exists := info.Apps[appName]
+	if !exists {
+		return nil, nil, fmt.Errorf(i18n.G("cannot find app %q in %q"), appName, snapName)
+	}
+
+	return info, app, nil
+}
+
+type inhibitionFlow interface {
+	StartInhibitionNotification(ctx context.Context) error
+	FinishInhibitionNotification(ctx context.Context) error
+}
+
+var newInhibitionFlow = func(cli *client.Client, instanceName string) inhibitionFlow {
+	return &noticesFlow{instanceName: instanceName, cli: cli}
+}
+
+type noticesFlow struct {
+	instanceName string
+
+	cli *client.Client
+}
+
+func (gf *noticesFlow) StartInhibitionNotification(ctx context.Context) error {
+	opts := client.NotifyOptions{
+		Type: client.SnapRunInhibitNotice,
+		Key:  gf.instanceName,
+	}
+	_, err := gf.cli.Notify(&opts)
+	if err != nil {
+		return err
+	}
+
+	// Fallback to text notification if marker "snap-refresh-observe"
+	// interface is not connected and a terminal is detected.
+	if isStdoutTTY && !markerInterfaceConnected(gf.cli) {
+		fmt.Fprintf(Stderr, i18n.G("snap package %q is being refreshed, please wait\n"), gf.instanceName)
+	}
+
+	return nil
+}
+
+func (gf *noticesFlow) FinishInhibitionNotification(ctx context.Context) error {
+	// snapd-desktop-integration (or any other client) should detect that the
+	// snap is no longer inhibited by itself, do nothing.
+	return nil
+}
+
+func markerInterfaceConnected(cli *client.Client) bool {
+	// Check if marker interface "snap-refresh-observe" is connected.
+	connOpts := client.ConnectionOptions{
+		Interface: "snap-refresh-observe",
+	}
+	connections, err := cli.Connections(&connOpts)
+	if err != nil {
+		// Ignore error (maybe snapd is being updated) and fallback to
+		// text flow instead.
+		return false
+	}
+	if len(connections.Established) == 0 {
+		// Marker interface is not connected.
+		// No snap (i.e. snapd-desktop-integration) is listening, let's fallback
+		// to text flow.
+		return false
+	}
+	return true
 }

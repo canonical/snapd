@@ -21,7 +21,7 @@ package client_test
 
 import (
 	"crypto/sha256"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -143,6 +143,16 @@ func (cs *clientSuite) TestClientRestoreSnapshots(c *check.C) {
 	cs.testClientSnapshotAction(c, "restore", cs.cli.RestoreSnapshots)
 }
 
+func (cs *clientSuite) TestClientExportSnapshotSpecificErr(c *check.C) {
+	content := `{"type":"error","status-code":400,"result":{"message":"boom","kind":"err-kind","value":"err-value"}}`
+	cs.contentLength = int64(len(content))
+	cs.rsp = content
+	cs.status = 400
+	cs.header = http.Header{"Content-Type": []string{"application/json"}}
+	_, _, err := cs.cli.SnapshotExport(42)
+	c.Check(err, check.ErrorMatches, "boom")
+}
+
 func (cs *clientSuite) TestClientExportSnapshot(c *check.C) {
 	type tableT struct {
 		content     string
@@ -175,7 +185,7 @@ func (cs *clientSuite) TestClientExportSnapshot(c *check.C) {
 		}
 
 		if t.status == 200 {
-			buf, err := ioutil.ReadAll(r)
+			buf, err := io.ReadAll(r)
 			c.Assert(err, check.IsNil)
 			c.Assert(string(buf), check.Equals, t.content)
 		}
@@ -213,7 +223,7 @@ func (cs *clientSuite) TestClientSnapshotImport(c *check.C) {
 		c.Assert(cs.req.Header.Get("Content-Length"), check.Equals, strconv.Itoa(len(fakeSnapshotData)))
 		c.Check(importSet.ID, check.Equals, t.setID, comm)
 		c.Check(importSet.Snaps, check.DeepEquals, []string{"baz", "bar", "foo"}, comm)
-		d, err := ioutil.ReadAll(cs.req.Body)
+		d, err := io.ReadAll(cs.req.Body)
 		c.Assert(err, check.IsNil)
 		c.Check(string(d), check.Equals, fakeSnapshotData)
 	}

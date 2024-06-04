@@ -21,7 +21,6 @@ package bootloader_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -89,7 +88,7 @@ func (s *lkTestSuite) TestNewLkPresentChecksBackupStorageToo(c *C) {
 	err = os.MkdirAll(filepath.Dir(f), 0755)
 	c.Assert(err, IsNil)
 
-	err = ioutil.WriteFile(f+"bak", nil, 0644)
+	err = os.WriteFile(f+"bak", nil, 0644)
 	c.Assert(err, IsNil)
 
 	// now the bootloader is present because the backup exists
@@ -259,7 +258,7 @@ func (s *lkTestSuite) TestExtractKernelAssetsUnpacksBootimgImageBuilding(c *C) {
 		c.Assert(err, IsNil)
 
 		// just boot.img and snapbootsel.bin are there, no kernel.img
-		infos, err := ioutil.ReadDir(filepath.Join(s.rootdir, "boot", "lk", ""))
+		infos, err := os.ReadDir(filepath.Join(s.rootdir, "boot", "lk", ""))
 		c.Assert(err, IsNil)
 		var fnames []string
 		for _, info := range infos {
@@ -367,13 +366,13 @@ func (s *lkTestSuite) TestExtractKernelAssetsUnpacksAndRemoveInRuntimeMode(c *C)
 
 	// and validate it went to the "boot_a" partition
 	bootA := filepath.Join(s.rootdir, "/dev/disk/by-partlabel/boot_a")
-	content, err := ioutil.ReadFile(bootA)
+	content, err := os.ReadFile(bootA)
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Equals, "I'm the default boot image name")
 
 	// also validate that bootB is empty
 	bootB := filepath.Join(s.rootdir, "/dev/disk/by-partlabel/boot_b")
-	content, err = ioutil.ReadFile(bootB)
+	content, err = os.ReadFile(bootB)
 	c.Assert(err, IsNil)
 	c.Assert(content, HasLen, 0)
 
@@ -451,7 +450,7 @@ func (s *lkTestSuite) TestExtractKernelAssetsUnpacksAndRemoveInRuntimeModeUC20(c
 	bootAPartUUID, err := disk.FindMatchingPartitionUUIDWithPartLabel("boot_a")
 	c.Assert(err, IsNil)
 	bootA := filepath.Join(s.rootdir, "/dev/disk/by-partuuid", bootAPartUUID)
-	content, err := ioutil.ReadFile(bootA)
+	content, err := os.ReadFile(bootA)
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Equals, "I'm the default boot image name")
 
@@ -459,7 +458,7 @@ func (s *lkTestSuite) TestExtractKernelAssetsUnpacksAndRemoveInRuntimeModeUC20(c
 	bootBPartUUID, err := disk.FindMatchingPartitionUUIDWithPartLabel("boot_b")
 	c.Assert(err, IsNil)
 	bootB := filepath.Join(s.rootdir, "/dev/disk/by-partuuid", bootBPartUUID)
-	content, err = ioutil.ReadFile(bootB)
+	content, err = os.ReadFile(bootB)
 	c.Assert(err, IsNil)
 	c.Assert(content, HasLen, 0)
 

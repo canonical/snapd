@@ -7,6 +7,9 @@ details: |
     Ensure that post-refresh hook has permissions to query upower-observe slot
     and enumerate upower devices.
 
+# amazon-linux-2023: upower package is not available
+systems: [-amazon-linux-2023-*]
+
 prepare: |
     if os.query is-core; then
         snap install test-snapd-upower --edge

@@ -17,7 +17,7 @@ Signed-off-by: Maciej Borzecki <maciej.zenon.borzecki@canonical.com>
  2 files changed, 11 insertions(+), 201 deletions(-)
 
 diff --git a/i18n/i18n.go b/i18n/i18n.go
-index 352e9a65d3c9ff802c18c8dbac613668aa23064d..12885f7149ff005e189762ae93f7eb9897e20db3 100644
+index 352e9a65d3..12885f7149 100644
 --- a/i18n/i18n.go
 +++ b/i18n/i18n.go
 @@ -19,76 +19,11 @@
@@ -135,14 +135,13 @@ index 352e9a65d3c9ff802c18c8dbac613668aa23064d..12885f7149ff005e189762ae93f7eb98
 +	}
  }
 diff --git a/i18n/i18n_test.go b/i18n/i18n_test.go
-index 81cb050a76b824d1b83e97e02c08628520329d96..86b59f3b439e9c27d37cfb35e21d84724c4cd52f 100644
+index b8b0b1ea57..86b59f3b43 100644
 --- a/i18n/i18n_test.go
 +++ b/i18n/i18n_test.go
-@@ -20,143 +20,28 @@
+@@ -20,142 +20,28 @@
  package i18n
  
  import (
--	"io/ioutil"
 -	"os"
 -	"os/exec"
 -	"path/filepath"
@@ -184,7 +183,7 @@ index 81cb050a76b824d1b83e97e02c08628520329d96..86b59f3b439e9c27d37cfb35e21d8472
 -
 -	po := filepath.Join(fullLocaleDir, "snappy-test.po")
 -	mo := filepath.Join(fullLocaleDir, "snappy-test.mo")
--	err = ioutil.WriteFile(po, mockLocalePo, 0644)
+-	err = os.WriteFile(po, mockLocalePo, 0644)
 -	c.Assert(err, IsNil)
 -
 -	cmd := exec.Command("msgfmt", po, "--output-file", mo)

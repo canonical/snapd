@@ -1,5 +1,9 @@
 summary: Ensure that the fwupd interface grants access to the host fwupd
 
+details: |
+    Verify the fwupd interface grants access to the host fwupd. Check the
+    plug is not connected by default.
+
 systems:
     # The fwupd interface is only implicit on classic distros
     - -ubuntu-core-*
@@ -7,6 +11,7 @@ systems:
     - -ubuntu-14.04-*
     # Amazon Linux does not appear to have a functional fwupd
     - -amazon-linux-2-*
+    - -amazon-linux-2023-*
 
 execute: |
     echo "Install the test-snapd-fwupd" interface
@@ -31,6 +36,11 @@ execute: |
     VERSION_PREFIX=""
     if os.query is-debian; then
         # In Debian we might see "debian/" prepended to the version
+        # shellcheck disable=SC2034
         VERSION_PREFIX="(debian/)?"
     fi
-    test-snapd-fwupd.get-version | MATCH "variant +string \"${VERSION_PREFIX}[0-9.]+(-[0-9a-g-]+)?\""
+
+    # Retry to get reply from fwupd to deal with a delay in the response
+    # Error org.freedesktop.DBus.Error.NoReply: Did not receive a reply.
+    # shellcheck disable=SC2016
+    retry -n 3 --wait 1 sh -c 'test-snapd-fwupd.get-version | MATCH "variant +string \"${VERSION_PREFIX}[0-9.]+(-[0-9a-g-]+)?\""'

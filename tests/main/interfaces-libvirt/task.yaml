@@ -1,16 +1,17 @@
 summary: Ensure that the libvirt interface works.
 
 details: |
-    The libvirt interface allows a snap to access the libvirtd socket in order to manage
-    libvirt domains and other resources.
+    The libvirt interface allows a snap to access the libvirtd socket in order
+    to manage libvirt domains and other resources.
 
     A snap which defines a libvirt plug must be shown in the interfaces list.
-    The plug must not be autoconnected on install and, as usual, must be able to be
-    reconnected.
+    The plug must not be auto-connected on install and, as usual, must be able
+    to be reconnected.
 
-    A snap declaring a plug on this interface must be able to create and destroy a domain.
-    The test uses a snap that carries a unikernel built to be run on top of qemu, boot and
-    respond to ping. Once the domain is created, the test checks connectivity to the unikernel.
+    A snap declaring a plug on this interface must be able to create and destroy
+    a domain. The test uses a snap that carries a unikernel built to be run on
+    top of qemu, boot and respond to ping. Once the domain is created, the test
+    checks connectivity to the unikernel.
 
 systems: [ubuntu-2*]
 

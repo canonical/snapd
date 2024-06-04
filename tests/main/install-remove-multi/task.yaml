@@ -1,15 +1,39 @@
 summary: Check that install/remove of multiple snaps works
 
+details: |
+    Check that installing multiple snaps and removing them with and without
+    `--purge` results in snapshots being saved or not, accordingly. Check that
+    installing a snap with a desktop file creates a corresponding desktop file
+    and that it's deleted once the snap is removed.
+
 execute: |
     echo "Install multiple snaps from the store"
     snap install test-snapd-sh test-snapd-control-consumer
     snap list | MATCH test-snapd-sh
     snap list | MATCH test-snapd-control-consumer
 
-    echo "Remove of multiple snaps works"
+    echo "Remove of multiple snaps works with --purge"
+    snap set core snapshots.automatic.retention=30h
+    snap remove --purge test-snapd-sh test-snapd-control-consumer
+    not snap list test-snapd-sh
+    not snap list test-snapd-control-consumer
+    echo "No snapshots were created"
+    snap saved | NOMATCH test-snapd-sh
+    snap saved | NOMATCH test-snapd-control-consumer
+
+    echo "Install multiple snaps from the store again"
+    snap install test-snapd-sh test-snapd-control-consumer
+    snap list | MATCH test-snapd-sh
+    snap list | MATCH test-snapd-control-consumer
+
+    echo "Remove of multiple snaps works without --purge"
+    snap set core snapshots.automatic.retention=30h
     snap remove test-snapd-sh test-snapd-control-consumer
     not snap list test-snapd-sh
     not snap list test-snapd-control-consumer
+    echo "Snapshots were created"
+    snap saved | MATCH test-snapd-sh
+    snap saved | MATCH test-snapd-control-consumer
 
     echo "Installing of a snap with a desktop file creates the desktop file"
     "$TESTSTOOLS"/snaps-state install-local basic-desktop

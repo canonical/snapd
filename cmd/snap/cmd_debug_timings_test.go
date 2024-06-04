@@ -132,7 +132,12 @@ var timingsTests = []timingsCmdArgs{{
 		" ^                        8ms            -    baz summary\n" +
 		"ifacemgr                  9ms            -  \n" +
 		" ^                        9ms            -    baz summary\n\n",
-}}
+}, {
+	args: "debug timings 2",
+	stdout: "ID   Status        Doing      Undoing  Summary\n" +
+		"41   Undone            -        210ms  lane 0 task bar summary\n\n",
+},
+}
 
 func (s *SnapSuite) TestGetDebugTimings(c *C) {
 	s.mockCmdTimingsAPI(c)
@@ -184,6 +189,12 @@ func (s *SnapSuite) mockCmdTimingsAPI(c *C) {
 							{"level":1, "label":"bar", "summary": "bar summary", "duration": 1000002}
 						]},
 					"42":{"doing-time":310000000, "status": "Done", "lane": 1, "ready-time": "2016-04-23T01:02:04Z", "kind": "boo", "summary": "lane 1 task boo summary"}
+				}}]}`)
+			case changeID == "2":
+				// lane 0 tasks, interleaved
+				fmt.Fprintln(w, `{"type":"sync","status-code":200,"status":"OK","result":[
+				{"change-id":"1", "change-timings":{
+					"41":{"undoing-time":210000000, "status": "Undone", "lane": 0, "ready-time": "2016-04-22T01:02:04Z", "kind": "baz", "summary": "lane 0 task bar summary"}
 				}}]}`)
 			case ensure == "seed" && all == "false":
 				fmt.Fprintln(w, `{"type":"sync","status-code":200,"status":"OK","result":[

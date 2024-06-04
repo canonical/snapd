@@ -1,10 +1,11 @@
-summary: verify a simple UC20 remodel
+summary: verify a simple UC18+ remodel
 details: |
-  Execute a simple remodel scenario under the test-snapd brand. Both models use
-  the same test-snapd-from device view store. The new model requires
-  additional snaps that are present in the test-snapd-from store.
+  Execute a simple remodel scenario under the test-snapd brand. Both
+  models use the same test-snapd-from device view store. The new model
+  requires additional snaps that are present in the test-snapd-from
+  store.
 
-systems: [ubuntu-18.04-64, ubuntu-20.04-64]
+systems: [ubuntu-18.04-64, ubuntu-2*]
 
 environment:
     NESTED_CUSTOM_AUTO_IMPORT_ASSERTION: $TESTSLIB/assertions/test-snapd-remodel-auto-import.assert
@@ -20,6 +21,8 @@ environment:
     # device serial, this should match the sub-store mapping rules in the serial
     # vault
     SERIAL: 1234-snapd-remodel-testing
+    OFFLINE_REMODEL: false
+    OFFLINE_REMODEL/offline: true
 
 prepare: |
     variant="$(tests.nested show version)"
@@ -67,12 +70,42 @@ execute: |
     remote.exec "snap install core"
 
     remote.push "$TESTSLIB/assertions/test-snapd-remodel-pc-just-model-$variant.model"
-    CHANGE_ID="$(remote.exec "sudo snap remodel --no-wait test-snapd-remodel-pc-just-model-$variant.model")"
+    remodel_options="--no-wait"
+    if [ "$OFFLINE_REMODEL" = true ]; then
+        remote.exec "snap download --basename=hello-world hello-world"
+        remote.exec "snap download --basename=core core"
+        # We need coreXX and pc-kernel too as the active track on the device is
+        # {latest,XX}/edge while the model assertion requires
+        # {latest,XX}/stable. Therefore a track change is detected. Note that
+        # snapd and the gadget are on local revisions (x1).
+        base=core$variant
+        remote.exec "snap download --basename=$base $base"
+        remote.exec "snap download --basename=pc-kernel --channel=$variant/stable pc-kernel"
+        # TODO provide serial assertion so no connection is needed
+        remodel_options="$remodel_options --snap hello-world.snap --assertion hello-world.assert \
+            --snap core.snap --assertion core.assert \
+            --snap $base.snap --assertion $base.assert \
+            --snap pc-kernel.snap --assertion pc-kernel.assert"
+    fi
+    if ! CHANGE_ID=$(remote.exec "sudo snap remodel $remodel_options \
+                     test-snapd-remodel-pc-just-model-$variant.model" 2> error.log); then
+        if [ "$OFFLINE_REMODEL" = true ]; then
+            # We cannot change offline the model yet, check the error and
+            # consider successful the test for the moment.
+            # TODO as a first step we need to provide the new serial assertion from a file
+            MATCH "cannot remodel offline to different brand ID / model yet" < error.log
+            exit 0
+        fi
+        printf "Error while running snap remodel command\n"
+        exit 1
+    fi
+
     test -n "$CHANGE_ID"
     # very long retry wait for the change to be in stable state, where stable
     # means that it's done or failed in which case we fail the test on the next
     # check just below
-    retry -n 100 --wait 5 sh -c "remote.exec sudo snap changes | MATCH '^${CHANGE_ID}\s+(Done|Undone|Error)'"
+    retry -n 100 --wait 5 sh -c "remote.exec sudo snap changes |
+        MATCH '^${CHANGE_ID}\s+(Done|Undone|Error)'"
     # check that the change was successful
     remote.exec "sudo snap changes" | MATCH "^${CHANGE_ID}\s+Done"
 

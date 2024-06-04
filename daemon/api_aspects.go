@@ -25,8 +25,10 @@ import (
 	"net/http"
 
 	"github.com/snapcore/snapd/aspects"
-	"github.com/snapcore/snapd/overlord/aspectstate"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -41,48 +43,40 @@ var (
 )
 
 func getAspect(c *Command, r *http.Request, _ *auth.UserState) Response {
-	vars := muxVars(r)
-	account, bundleName, aspect := vars["account"], vars["bundle"], vars["aspect"]
-	fields := strutil.CommaSeparatedList(r.URL.Query().Get("fields"))
-
-	if len(fields) == 0 {
-		return BadRequest("missing aspect fields")
-	}
-	results := make(map[string]interface{})
-
 	st := c.d.state
 	st.Lock()
 	defer st.Unlock()
 
-	tx, err := aspectstate.NewTransaction(st, account, bundleName)
+	if err := validateAspectFeatureFlag(st); err != nil {
+		return err
+	}
+
+	vars := muxVars(r)
+	account, bundleName, aspect := vars["account"], vars["bundle"], vars["aspect"]
+	fieldStr := r.URL.Query().Get("fields")
+
+	var fields []string
+	if fieldStr != "" {
+		fields = strutil.CommaSeparatedList(fieldStr)
+	}
+
+	results, err := aspectstateGetAspect(st, account, bundleName, aspect, fields)
 	if err != nil {
 		return toAPIError(err)
-	}
-
-	for _, field := range fields {
-		var value interface{}
-		err := aspectstateGetAspect(tx, account, bundleName, aspect, field, &value)
-		if err != nil {
-			if errors.Is(err, &aspects.FieldNotFoundError{}) {
-				// keep looking; return partial result, if only some fields are found
-				continue
-			} else {
-				return toAPIError(err)
-			}
-		}
-
-		results[field] = value
-	}
-
-	// no results were found, return 404
-	if len(results) == 0 {
-		return NotFound("no fields were found")
 	}
 
 	return SyncResponse(results)
 }
 
 func setAspect(c *Command, r *http.Request, _ *auth.UserState) Response {
+	st := c.d.state
+	st.Lock()
+	defer st.Unlock()
+
+	if err := validateAspectFeatureFlag(st); err != nil {
+		return err
+	}
+
 	vars := muxVars(r)
 	account, bundleName, aspect := vars["account"], vars["bundle"], vars["aspect"]
 
@@ -92,29 +86,15 @@ func setAspect(c *Command, r *http.Request, _ *auth.UserState) Response {
 		return BadRequest("cannot decode aspect request body: %v", err)
 	}
 
-	st := c.d.state
-	st.Lock()
-	defer st.Unlock()
-
-	tx, err := aspectstate.NewTransaction(st, account, bundleName)
+	err := aspectstateSetAspect(st, account, bundleName, aspect, values)
 	if err != nil {
-		return toAPIError(err)
-	}
-
-	for field, value := range values {
-		err := aspectstateSetAspect(tx, account, bundleName, aspect, field, value)
-		if err != nil {
-			return toAPIError(err)
-		}
-	}
-
-	if err := tx.Commit(); err != nil {
 		return toAPIError(err)
 	}
 
 	// NOTE: could be sync but this is closer to the final version and the conf API
 	summary := fmt.Sprintf("Set aspect %s/%s/%s", account, bundleName, aspect)
 	chg := newChange(st, "set-aspect", summary, nil, nil)
+	chg.SetStatus(state.DoneStatus)
 	ensureStateSoon(st)
 
 	return AsyncResponse(nil, chg.ID())
@@ -122,16 +102,27 @@ func setAspect(c *Command, r *http.Request, _ *auth.UserState) Response {
 
 func toAPIError(err error) *apiError {
 	switch {
-	case aspects.IsNotFound(err):
+	case errors.Is(err, &aspects.NotFoundError{}):
 		return NotFound(err.Error())
 
-	case errors.Is(err, &aspects.InvalidAccessError{}):
-		return &apiError{
-			Status:  403,
-			Message: err.Error(),
-		}
+	case errors.Is(err, &aspects.BadRequestError{}):
+		return BadRequest(err.Error())
 
 	default:
 		return InternalError(err.Error())
 	}
+}
+
+func validateAspectFeatureFlag(st *state.State) *apiError {
+	tr := config.NewTransaction(st)
+	enabled, err := features.Flag(tr, features.AspectsConfiguration)
+	if err != nil && !config.IsNoOption(err) {
+		return InternalError(fmt.Sprintf("internal error: cannot check aspect configuration flag: %s", err))
+	}
+
+	if !enabled {
+		_, confName := features.AspectsConfiguration.ConfigOption()
+		return BadRequest(fmt.Sprintf("aspect-based configuration disabled: you must set '%s' to true", confName))
+	}
+	return nil
 }

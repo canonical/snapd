@@ -27,6 +27,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"os/user"
 	"strconv"
 	"strings"
 	"time"
@@ -74,6 +75,11 @@ type AppOptions struct {
 	// If Service is true, only return apps that are services
 	// (app.IsService() is true); otherwise, return all.
 	Service bool
+	// Global if set, returns only the global status of the services. This
+	// is only relevant for user services, where we either return the status
+	// of the services for the current user, or the global enable status.
+	// For root-users, global is always implied.
+	Global bool
 }
 
 // Apps returns information about all matching apps. Each name can be
@@ -86,6 +92,9 @@ func (client *Client) Apps(names []string, opts AppOptions) ([]*AppInfo, error) 
 	}
 	if opts.Service {
 		q.Add("select", "service")
+	}
+	if opts.Global {
+		q.Add("global", fmt.Sprintf("%t", opts.Global))
 	}
 
 	var appInfos []*AppInfo
@@ -183,13 +192,119 @@ func (client *Client) Logs(names []string, opts LogOptions) (<-chan Log, error) 
 	return ch, nil
 }
 
+type UserSelection int
+
+const (
+	UserSelectionList UserSelection = iota
+	UserSelectionSelf
+	UserSelectionAll
+)
+
+// UserSelector is a support structure for correctly translating a way of
+// representing both a list of user-names, and specific keywords like "self"
+// and "all" for JSON marshalling.
+//
+// When "Selector == UserSelectionList" then Names is used as the data source and
+// the data is treated like a list of strings.
+// When "Selector == UserSelectionSelf|UserSelectionAll", then the data source will
+// be a single string that represent this in the form of "self|all".
+type UserSelector struct {
+	Names    []string
+	Selector UserSelection
+}
+
+// UserList returns a decoded list of users which takes any keyword into account.
+// Takes the current user to be able to handle special keywords like 'user'.
+func (us *UserSelector) UserList(currentUser *user.User) ([]string, error) {
+	switch us.Selector {
+	case UserSelectionList:
+		return us.Names, nil
+	case UserSelectionSelf:
+		if currentUser == nil {
+			return nil, fmt.Errorf(`internal error: for "self" the current user must be provided`)
+		}
+		if currentUser.Uid == "0" {
+			return nil, fmt.Errorf(`cannot use "self" for root user`)
+		}
+		return []string{currentUser.Username}, nil
+	case UserSelectionAll:
+		// Empty list indicates all.
+		return nil, nil
+	}
+	return nil, fmt.Errorf("internal error: unsupported selector %d specified", us.Selector)
+}
+
+func (us UserSelector) MarshalJSON() ([]byte, error) {
+	switch us.Selector {
+	case UserSelectionList:
+		return json.Marshal(us.Names)
+	case UserSelectionSelf:
+		return json.Marshal("self")
+	case UserSelectionAll:
+		return json.Marshal("all")
+	default:
+		return nil, fmt.Errorf("internal error: unsupported selector %d specified", us.Selector)
+	}
+}
+
+func (us *UserSelector) UnmarshalJSON(b []byte) error {
+	// Try treating it as a list of usernames first
+	var users []string
+	if err := json.Unmarshal(b, &users); err == nil {
+		us.Names = users
+		us.Selector = UserSelectionList
+		return nil
+	}
+
+	// Fallback to string, which would indicate a keyword
+	var s string
+	if err := json.Unmarshal(b, &s); err != nil {
+		return fmt.Errorf("cannot unmarshal, expected a string or a list of strings")
+	}
+
+	switch s {
+	case "self":
+		us.Selector = UserSelectionSelf
+	case "all":
+		us.Selector = UserSelectionAll
+	default:
+		return fmt.Errorf(`cannot unmarshal, expected one of: "self", "all"`)
+	}
+	return nil
+}
+
+type ScopeSelector []string
+
+func (ss *ScopeSelector) UnmarshalJSON(b []byte) error {
+	var scopes []string
+	if err := json.Unmarshal(b, &scopes); err != nil {
+		return fmt.Errorf("cannot unmarshal, expected a list of strings")
+	}
+
+	if len(scopes) > 2 {
+		return fmt.Errorf("unexpected number of scopes: %v", scopes)
+	}
+
+	for _, s := range scopes {
+		switch s {
+		case "system", "user":
+		default:
+			return fmt.Errorf(`cannot unmarshal, expected one of: "system", "user"`)
+		}
+	}
+	*ss = scopes
+	return nil
+}
+
 // ErrNoNames is returned by Start, Stop, or Restart, when the given
 // list of things on which to operate is empty.
 var ErrNoNames = errors.New(`"names" must not be empty`)
 
 type appInstruction struct {
-	Action string   `json:"action"`
-	Names  []string `json:"names"`
+	Action string        `json:"action"`
+	Names  []string      `json:"names"`
+	Scope  ScopeSelector `json:"scope,omitempty"`
+	Users  UserSelector  `json:"users,omitempty"`
 	StartOptions
 	StopOptions
 	RestartOptions
@@ -207,7 +322,7 @@ type StartOptions struct {
 // It takes a list of names that can be snaps, of which all their
 // services are started, or snap.service which are individual
 // services to start; it shouldn't be empty.
-func (client *Client) Start(names []string, opts StartOptions) (changeID string, err error) {
+func (client *Client) Start(names []string, scope ScopeSelector, users UserSelector, opts StartOptions) (changeID string, err error) {
 	if len(names) == 0 {
 		return "", ErrNoNames
 	}
@@ -215,6 +330,8 @@ func (client *Client) Start(names []string, opts StartOptions) (changeID string,
 	buf, err := json.Marshal(appInstruction{
 		Action:       "start",
 		Names:        names,
+		Scope:        scope,
+		Users:        users,
 		StartOptions: opts,
 	})
 	if err != nil {
@@ -235,7 +352,7 @@ type StopOptions struct {
 // It takes a list of names that can be snaps, of which all their
 // services are stopped, or snap.service which are individual
 // services to stop; it shouldn't be empty.
-func (client *Client) Stop(names []string, opts StopOptions) (changeID string, err error) {
+func (client *Client) Stop(names []string, scope ScopeSelector, users UserSelector, opts StopOptions) (changeID string, err error) {
 	if len(names) == 0 {
 		return "", ErrNoNames
 	}
@@ -243,6 +360,8 @@ func (client *Client) Stop(names []string, opts StopOptions) (changeID string, e
 	buf, err := json.Marshal(appInstruction{
 		Action:      "stop",
 		Names:       names,
+		Scope:       scope,
+		Users:       users,
 		StopOptions: opts,
 	})
 	if err != nil {
@@ -264,7 +383,7 @@ type RestartOptions struct {
 // services are restarted, or snap.service which are individual
 // services to restart; it shouldn't be empty. If the service is not
 // running, starts it.
-func (client *Client) Restart(names []string, opts RestartOptions) (changeID string, err error) {
+func (client *Client) Restart(names []string, scope ScopeSelector, users UserSelector, opts RestartOptions) (changeID string, err error) {
 	if len(names) == 0 {
 		return "", ErrNoNames
 	}
@@ -272,6 +391,8 @@ func (client *Client) Restart(names []string, opts RestartOptions) (changeID str
 	buf, err := json.Marshal(appInstruction{
 		Action:         "restart",
 		Names:          names,
+		Scope:          scope,
+		Users:          users,
 		RestartOptions: opts,
 	})
 	if err != nil {

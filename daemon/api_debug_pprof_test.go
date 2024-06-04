@@ -21,9 +21,10 @@ package daemon_test
 
 import (
 	"bytes"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 
 	"gopkg.in/check.v1"
 )
@@ -49,10 +50,10 @@ func (s *pprofDebugSuite) TestGetPprofCmdline(c *check.C) {
 	c.Assert(rsp, check.NotNil)
 
 	c.Assert(rsp.StatusCode, check.Equals, 200)
-	data, err := ioutil.ReadAll(rsp.Body)
+	data, err := io.ReadAll(rsp.Body)
 	c.Assert(err, check.IsNil)
 
-	cmdline, err := ioutil.ReadFile("/proc/self/cmdline")
+	cmdline, err := os.ReadFile("/proc/self/cmdline")
 	c.Assert(err, check.IsNil)
 	cmdline = bytes.TrimRight(cmdline, "\x00")
 	c.Assert(string(data), check.DeepEquals, string(cmdline))

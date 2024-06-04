@@ -1,5 +1,23 @@
 summary: Regression test for https://bugs.launchpad.net/snapd/+bug/1803542
 
+details: |
+    Snap applications execute in a different mount namespace that is specific to
+    a given snap but shared between various processes of that snap, even if they
+    have no parent-child relationship. This is done by preserving prepared mount
+    namespaces in a special bind-mounted files under /var/lib/snapd/ns.
+
+    The mount namespace is unique in the fact that is has strong relationship to
+    other namespaces. A mount event (mount, umount or option change) can
+    propagate between namespaces according to complex propagation rules.
+    Propagation may be bidirectional, unidirectional or disabled. Propagation
+    settings are also a property of a specific relation of two mount namespaces,
+    so the effective rules are even more complex.
+
+    If the directory /var/lib/snapd/ns is, for whatever reason, not privately
+    shared, snap-confine will misbehave. The test checks ensures that various
+    scenarios, where that directory is or is not a mount point, and according to
+    different sharing scenarios.
+
 environment:
     VARIANT/absent: absent
     VARIANT/present: present

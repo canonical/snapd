@@ -20,7 +20,7 @@
 package state_test
 
 import (
-	"io/ioutil"
+	"os"
 	"path/filepath"
 
 	. "gopkg.in/check.v1"
@@ -32,7 +32,7 @@ func (ss *stateSuite) TestCopyStateAlreadyExists(c *C) {
 	srcStateFile := filepath.Join(c.MkDir(), "src-state.json")
 
 	dstStateFile := filepath.Join(c.MkDir(), "dst-state.json")
-	err := ioutil.WriteFile(dstStateFile, nil, 0644)
+	err := os.WriteFile(dstStateFile, nil, 0644)
 	c.Assert(err, IsNil)
 
 	err = state.CopyState(srcStateFile, dstStateFile, []string{"some-data"})
@@ -79,12 +79,12 @@ var srcStateContent = []byte(`
 }
 `)
 
-const stateSuffix = `,"changes":{},"tasks":{},"last-change-id":0,"last-task-id":0,"last-lane-id":0}`
+const stateSuffix = `,"changes":{},"tasks":{},"last-change-id":0,"last-task-id":0,"last-lane-id":0,"last-notice-id":0,"last-notice-timestamp":"0001-01-01T00:00:00Z"}`
 
 func (ss *stateSuite) TestCopyStateIntegration(c *C) {
 	// create a mock srcState
 	srcStateFile := filepath.Join(c.MkDir(), "src-state.json")
-	err := ioutil.WriteFile(srcStateFile, srcStateContent, 0644)
+	err := os.WriteFile(srcStateFile, srcStateContent, 0644)
 	c.Assert(err, IsNil)
 
 	// copy
@@ -93,7 +93,7 @@ func (ss *stateSuite) TestCopyStateIntegration(c *C) {
 	c.Assert(err, IsNil)
 
 	// and check that the right bits got copied
-	dstContent, err := ioutil.ReadFile(dstStateFile)
+	dstContent, err := os.ReadFile(dstStateFile)
 	c.Assert(err, IsNil)
 	c.Check(string(dstContent), Equals, `{"data":{"auth":{"last-id":1,"users":[{"id":1,"email":"some@user.com","macaroon":"1234","store-macaroon":"5678","store-discharges":["9012345"]}]}}`+stateSuffix)
 }
@@ -109,21 +109,21 @@ var srcStateContent1 = []byte(`{
 
 func (ss *stateSuite) TestCopyState(c *C) {
 	srcStateFile := filepath.Join(c.MkDir(), "src-state.json")
-	err := ioutil.WriteFile(srcStateFile, srcStateContent1, 0644)
+	err := os.WriteFile(srcStateFile, srcStateContent1, 0644)
 	c.Assert(err, IsNil)
 
 	dstStateFile := filepath.Join(c.MkDir(), "dst-state.json")
 	err = state.CopyState(srcStateFile, dstStateFile, []string{"A.B", "no-existing-does-not-error", "E.F", "E", "I", "E.non-existing"})
 	c.Assert(err, IsNil)
 
-	dstContent, err := ioutil.ReadFile(dstStateFile)
+	dstContent, err := os.ReadFile(dstStateFile)
 	c.Assert(err, IsNil)
 	c.Check(string(dstContent), Equals, `{"data":{"A":{"B":[{"C":1},{"D":2}]},"E":{"F":2,"G":3},"I":null}`+stateSuffix)
 }
 
 func (ss *stateSuite) TestCopyStateUnmarshalNotMap(c *C) {
 	srcStateFile := filepath.Join(c.MkDir(), "src-state.json")
-	err := ioutil.WriteFile(srcStateFile, srcStateContent1, 0644)
+	err := os.WriteFile(srcStateFile, srcStateContent1, 0644)
 	c.Assert(err, IsNil)
 
 	dstStateFile := filepath.Join(c.MkDir(), "dst-state.json")
@@ -133,14 +133,14 @@ func (ss *stateSuite) TestCopyStateUnmarshalNotMap(c *C) {
 
 func (ss *stateSuite) TestCopyStateDuplicatesInDataEntriesAreFine(c *C) {
 	srcStateFile := filepath.Join(c.MkDir(), "src-state.json")
-	err := ioutil.WriteFile(srcStateFile, srcStateContent1, 0644)
+	err := os.WriteFile(srcStateFile, srcStateContent1, 0644)
 	c.Assert(err, IsNil)
 
 	dstStateFile := filepath.Join(c.MkDir(), "dst-state.json")
 	err = state.CopyState(srcStateFile, dstStateFile, []string{"E", "E"})
 	c.Assert(err, IsNil)
 
-	dstContent, err := ioutil.ReadFile(dstStateFile)
+	dstContent, err := os.ReadFile(dstStateFile)
 	c.Assert(err, IsNil)
 	c.Check(string(dstContent), Equals, `{"data":{"E":{"F":2,"G":3}}`+stateSuffix)
 }

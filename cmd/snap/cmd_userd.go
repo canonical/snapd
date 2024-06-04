@@ -1,6 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 //go:build !darwin
-// +build !darwin
 
 /*
  * Copyright (C) 2017-2022 Canonical Ltd

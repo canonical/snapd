@@ -1,0 +1,7 @@
+name: daemon-user
+summary: Snap requesting snap system users
+version: '1.0'
+
+apps:
+  sh:
+    command: bin/sh

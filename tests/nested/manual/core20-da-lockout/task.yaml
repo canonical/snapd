@@ -4,7 +4,7 @@ details: |
     This test checks that an unclean shutdown of a UC20 device does
     not cause an eventual DA lockout (LP: 1979185)
 
-systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+systems: [ubuntu-2*]
 
 environment:
   NESTED_ENABLE_TPM/encrypted: "true"

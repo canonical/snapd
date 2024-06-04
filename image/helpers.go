@@ -90,7 +90,7 @@ func writeResolvedContentImpl(prepareDir string, info *gadget.Info, gadgetUnpack
 		KernelRootDir: kernelUnpackDir,
 	}
 	for volName, vol := range info.Volumes {
-		pvol, err := gadget.LayoutVolume(vol, opts)
+		pvol, err := gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts)
 		if err != nil {
 			return err
 		}
@@ -98,7 +98,7 @@ func writeResolvedContentImpl(prepareDir string, info *gadget.Info, gadgetUnpack
 			if !ps.HasFilesystem() {
 				continue
 			}
-			mw, err := gadget.NewMountedFilesystemWriter(&ps, nil)
+			mw, err := gadget.NewMountedFilesystemWriter(nil, &ps, nil)
 			if err != nil {
 				return err
 			}

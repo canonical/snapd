@@ -22,7 +22,6 @@ package logger_test
 import (
 	"bytes"
 	"encoding/json"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -34,7 +33,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/kcmdline"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -78,13 +77,13 @@ func (s *LogSuite) TestDefault(c *C) {
 	c.Check(logger.GetLogger(), IsNil)
 
 	os.Setenv("TERM", "dumb")
-	err := logger.SimpleSetup()
+	err := logger.SimpleSetup(nil)
 	c.Assert(err, IsNil)
 	c.Check(logger.GetLogger(), NotNil)
 	c.Check(logger.GetLoggerFlags(), Equals, logger.DefaultFlags)
 
 	os.Unsetenv("TERM")
-	err = logger.SimpleSetup()
+	err = logger.SimpleSetup(nil)
 	c.Assert(err, IsNil)
 	c.Check(logger.GetLogger(), NotNil)
 	c.Check(logger.GetLoggerFlags(), Equals, log.Lshortfile)
@@ -110,9 +109,9 @@ func (s *LogSuite) TestBootSetup(c *C) {
 	c.Check(logger.GetLogger(), IsNil)
 
 	cmdlineFile := filepath.Join(c.MkDir(), "cmdline")
-	err := ioutil.WriteFile(cmdlineFile, []byte("mocked panic=-1"), 0644)
+	err := os.WriteFile(cmdlineFile, []byte("mocked panic=-1"), 0644)
 	c.Assert(err, IsNil)
-	restore := osutil.MockProcCmdline(cmdlineFile)
+	restore := kcmdline.MockProcCmdline(cmdlineFile)
 	defer restore()
 	os.Setenv("TERM", "dumb")
 	err = logger.BootSetup()
@@ -122,9 +121,9 @@ func (s *LogSuite) TestBootSetup(c *C) {
 	c.Check(logger.GetQuiet(), Equals, false)
 
 	cmdlineFile = filepath.Join(c.MkDir(), "cmdline")
-	err = ioutil.WriteFile(cmdlineFile, []byte("mocked panic=-1 quiet"), 0644)
+	err = os.WriteFile(cmdlineFile, []byte("mocked panic=-1 quiet"), 0644)
 	c.Assert(err, IsNil)
-	restore = osutil.MockProcCmdline(cmdlineFile)
+	restore = kcmdline.MockProcCmdline(cmdlineFile)
 	defer restore()
 	os.Unsetenv("TERM")
 	err = logger.BootSetup()
@@ -136,7 +135,7 @@ func (s *LogSuite) TestBootSetup(c *C) {
 
 func (s *LogSuite) TestNew(c *C) {
 	var buf bytes.Buffer
-	l, err := logger.New(&buf, logger.DefaultFlags)
+	l, err := logger.New(&buf, logger.DefaultFlags, nil)
 	c.Assert(err, IsNil)
 	c.Assert(l, NotNil)
 }
@@ -197,13 +196,13 @@ func (s *LogSuite) TestIntegrationDebugFromKernelCmdline(c *C) {
 	defer restore()
 
 	mockProcCmdline := filepath.Join(c.MkDir(), "proc-cmdline")
-	err := ioutil.WriteFile(mockProcCmdline, []byte("console=tty panic=-1 snapd.debug=1\n"), 0644)
+	err := os.WriteFile(mockProcCmdline, []byte("console=tty panic=-1 snapd.debug=1\n"), 0644)
 	c.Assert(err, IsNil)
-	restore = osutil.MockProcCmdline(mockProcCmdline)
+	restore = kcmdline.MockProcCmdline(mockProcCmdline)
 	defer restore()
 
 	var buf bytes.Buffer
-	l, err := logger.New(&buf, logger.DefaultFlags)
+	l, err := logger.New(&buf, logger.DefaultFlags, nil)
 	c.Assert(err, IsNil)
 	l.Debug("xyzzy")
 	c.Check(buf.String(), testutil.Contains, `DEBUG: xyzzy`)
@@ -236,4 +235,12 @@ func (s *LogSuite) TestStartupTimestampMsg(c *C) {
 		Stage: "foo to bar",
 		Time:  "1652697792.022312",
 	})
+}
+
+func (s *LogSuite) TestForceDebug(c *C) {
+	var buf bytes.Buffer
+	l, err := logger.New(&buf, logger.DefaultFlags, &logger.LoggerOptions{ForceDebug: true})
+	c.Assert(err, IsNil)
+	l.Debug("xyzzy")
+	c.Check(buf.String(), testutil.Contains, `DEBUG: xyzzy`)
 }

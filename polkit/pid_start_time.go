@@ -1,6 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 //go:build linux
-// +build linux
 
 /*
  * Copyright (C) 2017 Canonical Ltd
@@ -23,7 +22,7 @@ package polkit
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"strconv"
 	"strings"
 )
@@ -40,7 +39,7 @@ func getStartTimeForPid(pid int32) (uint64, error) {
 //
 //	https://cgit.freedesktop.org/polkit/tree/src/polkit/polkitunixprocess.c
 func getStartTimeForProcStatFile(filename string) (uint64, error) {
-	data, err := ioutil.ReadFile(filename)
+	data, err := os.ReadFile(filename)
 	if err != nil {
 		return 0, err
 	}

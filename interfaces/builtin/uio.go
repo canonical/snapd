@@ -21,12 +21,15 @@ package builtin
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -100,6 +103,19 @@ func (iface *uioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 	// device node in /dev. Use AddDeduplicatedSnippet() for clarity
 	// in the resulting rules.
 	spec.AddDeduplicatedSnippet("/sys/devices/platform/**/uio/uio[0-9]** r,  # common rule for all uio connections")
+
+	// Allow uio configuration
+	uioConfigPath := filepath.Join("/sys/class/uio/", strings.TrimPrefix(path, "/dev/"), "/device/config")
+	dereferencedPath, err := evalSymlinks(uioConfigPath)
+	if err != nil && os.IsNotExist(err) {
+		// This should not block the interface connection operation
+		logger.Noticef("cannot configure not existing uio device config file %s", uioConfigPath)
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	spec.AddSnippet(fmt.Sprintf("%s rwk,", dereferencedPath))
 	return nil
 }
 

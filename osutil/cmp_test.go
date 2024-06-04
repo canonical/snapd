@@ -21,7 +21,6 @@ package osutil_test
 
 import (
 	"bytes"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -79,7 +78,7 @@ func (ts *CmpTestSuite) TestCmpEmptyNeqNonEmpty(c *C) {
 	f, err := os.Create(foo)
 	c.Assert(err, IsNil)
 	defer f.Close()
-	c.Assert(ioutil.WriteFile(bar, []byte("x"), 0644), IsNil)
+	c.Assert(os.WriteFile(bar, []byte("x"), 0644), IsNil)
 	c.Assert(osutil.FilesAreEqual(foo, bar), Equals, false)
 	c.Assert(osutil.FilesAreEqual(bar, foo), Equals, false)
 }

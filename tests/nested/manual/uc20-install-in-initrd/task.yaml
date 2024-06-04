@@ -1,6 +1,10 @@
 summary: Check installation in initrd
 
-systems: [ubuntu-20.04-64]
+details: |
+  This test checks that we are able to perform a single-boot installation in
+  various scenarios.
+
+systems: [ubuntu-20.04-64, ubuntu-22.04-64, ubuntu-24.04-64]
 
 environment:
   # There are 4 modes:
@@ -9,29 +13,26 @@ environment:
   #  * both: fde-setup hook, secure boot and TPM2 are available
   #  * none: none of them are available
   INSTALL_MODE/hook: "hook"
-  # TODO: enable when non hook mode works
-  # INSTALL_MODE/secureboot: "secureboot"
-  # INSTALL_MODE/none: "none"
+  INSTALL_MODE/secureboot: "secureboot"
+  INSTALL_MODE/none: "none"
   INSTALL_MODE/both: "both"
 
-  NESTED_UBUNTU_IMAGE_PRESEED_KEY/hook: "\" (test)\""
   NESTED_ENABLE_TPM/hook: false
   NESTED_ENABLE_SECURE_BOOT/hook: false
 
-  # TODO: enable when non hook mode works
-  # NESTED_ENABLE_TPM/none: false
-  # NESTED_ENABLE_SECURE_BOOT/none: false
+  NESTED_ENABLE_TPM/none: false
+  NESTED_ENABLE_SECURE_BOOT/none: false
 
-  NESTED_UBUNTU_IMAGE_PRESEED_KEY/both: "\" (test)\""
   NESTED_ENABLE_TPM/both: true
   NESTED_ENABLE_SECURE_BOOT/both: true
 
-  # TODO: enable when non hook mode works
-  # NESTED_ENABLE_TPM/secureboot: true
-  # NESTED_ENABLE_SECURE_BOOT/secureboot: true
+  NESTED_ENABLE_TPM/secureboot: true
+  NESTED_ENABLE_SECURE_BOOT/secureboot: true
 
+  # TODO: single boot install currently requires the system to be preseeded
+  NESTED_UBUNTU_IMAGE_PRESEED_KEY: "\" (test)\""
   NESTED_FAKESTORE_BLOB_DIR: $(pwd)/fake-store-blobdir
-  NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/developer1-20-dangerous.model
+  NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/developer1-{VERSION}-dangerous.model
   NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL: http://localhost:11028
   NESTED_SNAPD_DEBUG_TO_SERIAL: true
 
@@ -54,12 +55,6 @@ prepare: |
     go build -o ./extra-kernel-snap/meta/hooks/fde-setup "$TESTSLIB"/fde-setup-hook/fde-setup.go
   fi
 
-  # TODO: remove these when initrd will have what it needs to install
-  apt install -y cryptsetup
-  install -Dm755 -t ./extra-initrd/usr/bin /usr/bin/tar /usr/bin/partx /usr/sbin/mkfs.ext4 /sbin/sfdisk /sbin/cryptsetup
-  install -Dm755 -t ./extra-initrd/usr/lib/x86_64-linux-gnu /usr/lib/x86_64-linux-gnu/libfdisk.so.* /usr/lib/x86_64-linux-gnu/libsmartcols.so.* /usr/lib/x86_64-linux-gnu/libtinfo.so.* /usr/lib/x86_64-linux-gnu/libpopt.so.*
-  install -Dm755 -t ./extra-initrd/usr/lib ./the-modeenv
-
   # This key is needed for preseeding
   mkdir -p ~/.snap/gnupg
   gendeveloper1 show-key | gpg --homedir=~/.snap/gnupg --import
@@ -75,26 +70,32 @@ restore: |
   rm -rf ~/.snap/gnupg
 
 execute: |
-  # TODO: in a normal run, ubuntu-data-<someid> is used instead of
-  # just "ubuntu-data". We need to figure out if this is OK.
-  remote.exec "ls /dev/mapper/ubuntu-data*"
-  remote.exec "ls /dev/mapper/ubuntu-save*"
   remote.exec "cat /proc/cmdline" | MATCH "snapd_recovery_mode=install"
-
   remote.exec "cat /var/lib/snapd/modeenv" > modeenv
 
   MATCH "mode=run" <modeenv
 
-  boot_grub_sha3="$(remote.exec "cat /run/mnt/ubuntu-boot/EFI/boot/grubx64.efi" | "$TESTSLIB"/tools/sha3-384)"
-  seed_grub_sha3="$(remote.exec "cat /run/mnt/ubuntu-seed/EFI/boot/grubx64.efi" | "$TESTSLIB"/tools/sha3-384)"
-  seed_shim_sha3="$(remote.exec "cat /run/mnt/ubuntu-seed/EFI/boot/bootx64.efi" | "$TESTSLIB"/tools/sha3-384)"
+  if [ "${INSTALL_MODE}" != none ]; then
+    # TODO: in a normal run, ubuntu-data-<someid> is used instead of
+    # just "ubuntu-data". We need to figure out if this is OK.
+    remote.exec "ls /dev/mapper/ubuntu-data*"
+    remote.exec "ls /dev/mapper/ubuntu-save*"
 
-  boot_grub_asset_sha3="$(remote.exec "cat /var/lib/snapd/boot-assets/grub/grubx64.efi-${boot_grub_sha3}" | "$TESTSLIB"/tools/sha3-384)"
-  seed_grub_asset_sha3="$(remote.exec "cat /var/lib/snapd/boot-assets/grub/grubx64.efi-${seed_grub_sha3}" | "$TESTSLIB"/tools/sha3-384)"
-  seed_shim_asset_sha3="$(remote.exec "cat /var/lib/snapd/boot-assets/grub/bootx64.efi-${seed_shim_sha3}" | "$TESTSLIB"/tools/sha3-384)"
+    boot_grub_sha3="$(remote.exec "cat /run/mnt/ubuntu-boot/EFI/boot/grubx64.efi" | "$TESTSLIB"/tools/sha3-384)"
+    seed_grub_sha3="$(remote.exec "cat /run/mnt/ubuntu-seed/EFI/boot/grubx64.efi" | "$TESTSLIB"/tools/sha3-384)"
+    seed_shim_sha3="$(remote.exec "cat /run/mnt/ubuntu-seed/EFI/boot/bootx64.efi" | "$TESTSLIB"/tools/sha3-384)"
 
-  [ "${boot_grub_sha3}" = "${boot_grub_asset_sha3}" ]
-  [ "${seed_grub_sha3}" = "${seed_grub_asset_sha3}" ]
-  [ "${seed_shim_sha3}" = "${seed_shim_asset_sha3}" ]
+    boot_grub_asset_sha3="$(remote.exec "cat /var/lib/snapd/boot-assets/grub/grubx64.efi-${boot_grub_sha3}" | "$TESTSLIB"/tools/sha3-384)"
+    seed_grub_asset_sha3="$(remote.exec "cat /var/lib/snapd/boot-assets/grub/grubx64.efi-${seed_grub_sha3}" | "$TESTSLIB"/tools/sha3-384)"
+    seed_shim_asset_sha3="$(remote.exec "cat /var/lib/snapd/boot-assets/grub/bootx64.efi-${seed_shim_sha3}" | "$TESTSLIB"/tools/sha3-384)"
 
-  # TODO: When testing with NESTED_ENABLE_TPM=true, check /var/lib/snapd/device/fde/boot-chains
+    [ "${boot_grub_sha3}" = "${boot_grub_asset_sha3}" ]
+    [ "${seed_grub_sha3}" = "${seed_grub_asset_sha3}" ]
+    [ "${seed_shim_sha3}" = "${seed_shim_asset_sha3}" ]
+  fi
+
+  if [ "${INSTALL_MODE}" = secureboot ]; then
+    remote.exec test -f /var/lib/snapd/device/fde/boot-chains
+  else
+    remote.exec not test -f /var/lib/snapd/device/fde/boot-chains
+  fi

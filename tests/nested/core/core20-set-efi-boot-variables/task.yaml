@@ -1,0 +1,70 @@
+summary: Tests for the code that sets EFI boot variables, as if it were a library separate from snapd
+
+details: >
+    This test uses snapd as a library to set UEFI boot entries. This
+    is useful for installers.
+
+systems:
+  - -ubuntu-1*
+
+prepare: |
+    "$(command -v go)" build -o setefivars setefivars.go
+
+    echo "Wait for the system to be seeded"
+    remote.exec "sudo snap wait system seed.loaded"
+
+    echo "Wait for device initialization to be done"
+    remote.exec "retry --wait 5 -n 10 sh -c 'snap changes | MATCH \"Done.*Initialize device\"'"
+
+debug: |
+    if [ -f debug_orig_vars.txt ]; then
+        echo "Original EFI boot variables:"
+        cat debug_orig_vars.txt
+
+        rm -rf BootVars/
+        "${TESTSLIB}/pull_uefi_boot_entries.sh" BootVars/
+        echo "Current EFI boot variables:"
+        echo "First boot entry:"
+        "${TESTSLIB}/get_uefi_boot_entry.py" BootVars/
+        "${TESTSLIB}/get_uefi_boot_entry.py" --path BootVars/
+        echo "Current boot entry"
+        "${TESTSLIB}/get_uefi_boot_entry.py" --current BootVars/
+        "${TESTSLIB}/get_uefi_boot_entry.py" --current --path BootVars/
+    else
+        echo "Original EFI variables were never recorded"
+    fi
+
+execute: |
+    echo "Store original variables"
+    rm -rf BootVars.orig/
+    "${TESTSLIB}/pull_uefi_boot_entries.sh" BootVars.orig/
+
+    # Save original variables for debugging
+    (
+      echo "First boot entry:"
+      "${TESTSLIB}/get_uefi_boot_entry.py" BootVars.orig/
+      "${TESTSLIB}/get_uefi_boot_entry.py" --path BootVars.orig/
+      echo "Current boot entry"
+      "${TESTSLIB}/get_uefi_boot_entry.py" --current BootVars.orig/
+      "${TESTSLIB}/get_uefi_boot_entry.py" --current --path BootVars.orig/
+    ) >debug_orig_vars.txt
+
+    echo "Push locally-built setefivars binary"
+    remote.push setefivars
+
+    echo "Execute setefivars binary"
+    remote.exec "sudo ./setefivars"
+
+    rm -rf BootVars.after/
+    "${TESTSLIB}/pull_uefi_boot_entries.sh" BootVars.after/
+
+    "${TESTSLIB}/get_uefi_boot_entry.py" BootVars.after/ | MATCH 'spread-test-var'
+
+    echo "Check that running the code again results does not modify boot vars again"
+    remote.exec "sudo ./setefivars"
+
+    rm -rf BootVars.repeat/
+    "${TESTSLIB}/pull_uefi_boot_entries.sh" BootVars.repeat/
+    for var in BootVars.repeat/*; do
+      cmp "BootVars.after/$(basename "${var}")" "${var}"
+    done

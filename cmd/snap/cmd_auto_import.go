@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2020 Canonical Ltd
+ * Copyright (C) 2014-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -23,7 +23,6 @@ import (
 	"crypto"
 	"encoding/base64"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -130,7 +129,7 @@ func queueFile(src string) error {
 }
 
 func autoImportFromSpool(cli *client.Client) (added int, err error) {
-	files, err := ioutil.ReadDir(dirs.SnapAssertsSpoolDir)
+	files, err := os.ReadDir(dirs.SnapAssertsSpoolDir)
 	if os.IsNotExist(err) {
 		return 0, nil
 	}
@@ -185,10 +184,10 @@ func autoImportFromAllMounts(cli *client.Client) (int, error) {
 	return added, nil
 }
 
-var ioutilTempDir = ioutil.TempDir
+var osMkdirTemp = os.MkdirTemp
 
 func tryMount(deviceName string) (string, error) {
-	tmpMountTarget, err := ioutilTempDir("", "snapd-auto-import-mount-")
+	tmpMountTarget, err := osMkdirTemp("", "snapd-auto-import-mount-")
 	if err != nil {
 		err = fmt.Errorf("cannot create temporary mount point: %v", err)
 		logger.Noticef("error: %v", err)
@@ -275,7 +274,7 @@ func removableBlockDevices() (removableDevices []string) {
 		return nil
 	}
 	for _, removableAttr := range removable {
-		val, err := ioutil.ReadFile(removableAttr)
+		val, err := os.ReadFile(removableAttr)
 		if err != nil || string(val) != "1\n" {
 			// non removable
 			continue
@@ -294,7 +293,7 @@ func removableBlockDevices() (removableDevices []string) {
 		}
 
 		for _, partAttr := range partitionAttrs {
-			val, err := ioutil.ReadFile(partAttr)
+			val, err := os.ReadFile(partAttr)
 			if err != nil || string(val) != "1\n" {
 				// non partition?
 				continue
@@ -308,13 +307,13 @@ func removableBlockDevices() (removableDevices []string) {
 	return removableDevices
 }
 
-// inInstallmode returns true if it's UC20 system in install mode
+// inInstallmode returns true if it's UC20 system in install/factory-reset modes
 func inInstallMode() bool {
 	modeenv, err := boot.ReadModeenv(dirs.GlobalRootDir)
 	if err != nil {
 		return false
 	}
-	return modeenv.Mode == "install"
+	return modeenv.Mode == "install" || modeenv.Mode == "factory-reset"
 }
 
 func (x *cmdAutoImport) Execute(args []string) error {
@@ -328,7 +327,7 @@ func (x *cmdAutoImport) Execute(args []string) error {
 	}
 	// TODO:UC20: workaround for LP: #1860231
 	if inInstallMode() {
-		fmt.Fprintf(Stderr, "auto-import is disabled in install-mode\n")
+		fmt.Fprintf(Stderr, "auto-import is disabled in install modes\n")
 		return nil
 	}
 

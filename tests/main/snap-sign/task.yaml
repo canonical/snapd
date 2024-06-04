@@ -1,4 +1,9 @@
-summary: Run snap sign to sign a model assertion
+summary: Run `snap sign` to sign a model assertion
+
+details: |
+    Check that `snap sign` command can sign a model assertion using
+    keys created manually through `snap create-key`. Also check that the
+    model can be passed to `snap sign` as a file or piped through stdin.
 
 # ppc64el disabled because of https://bugs.launchpad.net/snappy/+bug/1655594
 # amazon: requires extra gpg-agent setup

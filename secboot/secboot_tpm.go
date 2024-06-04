@@ -1,6 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 //go:build !nosecboot
-// +build !nosecboot
 
 /*
  * Copyright (C) 2021 Canonical Ltd
@@ -25,7 +24,6 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -442,7 +440,7 @@ func ResealKeys(params *ResealKeysParams) error {
 		return err
 	}
 
-	authKey, err := ioutil.ReadFile(params.TPMPolicyAuthKeyFile)
+	authKey, err := os.ReadFile(params.TPMPolicyAuthKeyFile)
 	if err != nil {
 		return fmt.Errorf("cannot read the policy auth key file: %v", err)
 	}
@@ -550,7 +548,7 @@ func tpmProvision(tpm *sb_tpm2.Connection, mode TPMProvisionMode, lockoutAuthFil
 	var currentLockoutAuth []byte
 	if mode == TPMPartialReprovision {
 		logger.Debugf("using existing lockout authorization")
-		d, err := ioutil.ReadFile(lockoutAuthFile)
+		d, err := os.ReadFile(lockoutAuthFile)
 		if err != nil {
 			return fmt.Errorf("cannot read existing lockout auth: %v", err)
 		}
@@ -704,7 +702,7 @@ func resetLockoutCounter(lockoutAuthFile string) error {
 	}
 	defer tpm.Close()
 
-	lockoutAuth, err := ioutil.ReadFile(lockoutAuthFile)
+	lockoutAuth, err := os.ReadFile(lockoutAuthFile)
 	if err != nil {
 		return fmt.Errorf("cannot read existing lockout auth: %v", err)
 	}

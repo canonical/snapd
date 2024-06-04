@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -38,8 +37,8 @@ import (
 	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
+	"github.com/snapcore/snapd/osutil/kcmdline"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
@@ -260,7 +259,7 @@ volumes:
           - image: pc-core.img
       - name: ubuntu-seed
         role: system-seed
-        filesystem: vfat
+        filesystem: vfat-32
         # UEFI will boot the ESP partition by default first
         type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
         size: 1200M
@@ -684,7 +683,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlOnClassicOptional(c *C) {
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlOnClassicEmptyIsValid(c *C) {
-	err := ioutil.WriteFile(s.gadgetYamlPath, nil, 0644)
+	err := os.WriteFile(s.gadgetYamlPath, nil, 0644)
 	c.Assert(err, IsNil)
 
 	ginfo, err := gadget.ReadInfo(s.dir, &gadgettest.ModelCharacteristics{IsClassic: true})
@@ -693,7 +692,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlOnClassicEmptyIsValid(c *C) {
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlOnClassicOnylDefaultsIsValid(c *C) {
-	err := ioutil.WriteFile(s.gadgetYamlPath, mockClassicGadgetYaml, 0644)
+	err := os.WriteFile(s.gadgetYamlPath, mockClassicGadgetYaml, 0644)
 	c.Assert(err, IsNil)
 
 	ginfo, err := gadget.ReadInfo(s.dir, &gadgettest.ModelCharacteristics{IsClassic: true})
@@ -730,7 +729,7 @@ func (s *gadgetYamlTestSuite) TestFlatten(c *C) {
 }
 
 func (s *gadgetYamlTestSuite) TestCoreConfigDefaults(c *C) {
-	err := ioutil.WriteFile(s.gadgetYamlPath, mockClassicGadgetCoreDefaultsYaml, 0644)
+	err := os.WriteFile(s.gadgetYamlPath, mockClassicGadgetCoreDefaultsYaml, 0644)
 	c.Assert(err, IsNil)
 
 	ginfo, err := gadget.ReadInfo(s.dir, &gadgettest.ModelCharacteristics{IsClassic: true})
@@ -745,7 +744,7 @@ func (s *gadgetYamlTestSuite) TestCoreConfigDefaults(c *C) {
     something: true
 `
 
-	err = ioutil.WriteFile(s.gadgetYamlPath, []byte(yaml), 0644)
+	err = os.WriteFile(s.gadgetYamlPath, []byte(yaml), 0644)
 	c.Assert(err, IsNil)
 	ginfo, err = gadget.ReadInfo(s.dir, &gadgettest.ModelCharacteristics{IsClassic: true})
 	c.Assert(err, IsNil)
@@ -762,7 +761,7 @@ volumes:
 `
 
 func (s *gadgetYamlTestSuite) TestRegressionGadgetWithEmptyVolume(c *C) {
-	err := ioutil.WriteFile(s.gadgetYamlPath, []byte(mockGadgetWithEmptyVolumes), 0644)
+	err := os.WriteFile(s.gadgetYamlPath, []byte(mockGadgetWithEmptyVolumes), 0644)
 	c.Assert(err, IsNil)
 
 	_, err = gadget.ReadInfo(s.dir, nil)
@@ -770,7 +769,7 @@ func (s *gadgetYamlTestSuite) TestRegressionGadgetWithEmptyVolume(c *C) {
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetDefaultsMultiline(c *C) {
-	err := ioutil.WriteFile(s.gadgetYamlPath, mockClassicGadgetMultilineDefaultsYaml, 0644)
+	err := os.WriteFile(s.gadgetYamlPath, mockClassicGadgetMultilineDefaultsYaml, 0644)
 	c.Assert(err, IsNil)
 
 	ginfo, err := gadget.ReadInfo(s.dir, &gadgettest.ModelCharacteristics{IsClassic: true})
@@ -817,7 +816,7 @@ func checkEnclosingPointsToVolume(c *C, vols map[string]*gadget.Volume) {
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlValid(c *C) {
-	err := ioutil.WriteFile(s.gadgetYamlPath, mockGadgetYaml, 0644)
+	err := os.WriteFile(s.gadgetYamlPath, mockGadgetYaml, 0644)
 	c.Assert(err, IsNil)
 
 	ginfo, err := gadget.ReadInfo(s.dir, coreMod)
@@ -871,7 +870,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlValid(c *C) {
 }
 
 func (s *gadgetYamlTestSuite) TestReadMultiVolumeGadgetYamlValid(c *C) {
-	err := ioutil.WriteFile(s.gadgetYamlPath, mockMultiVolumeGadgetYaml, 0644)
+	err := os.WriteFile(s.gadgetYamlPath, mockMultiVolumeGadgetYaml, 0644)
 	c.Assert(err, IsNil)
 
 	ginfo, err := gadget.ReadInfo(s.dir, nil)
@@ -949,7 +948,7 @@ volumes:
   bootloader: silo
 `)
 
-	err := ioutil.WriteFile(s.gadgetYamlPath, mockGadgetYamlBroken, 0644)
+	err := os.WriteFile(s.gadgetYamlPath, mockGadgetYamlBroken, 0644)
 	c.Assert(err, IsNil)
 
 	_, err = gadget.ReadInfo(s.dir, nil)
@@ -963,7 +962,7 @@ volumes:
   bootloader:
 `)
 
-	err := ioutil.WriteFile(s.gadgetYamlPath, mockGadgetYamlBroken, 0644)
+	err := os.WriteFile(s.gadgetYamlPath, mockGadgetYamlBroken, 0644)
 	c.Assert(err, IsNil)
 
 	_, err = gadget.ReadInfo(s.dir, &gadgettest.ModelCharacteristics{IsClassic: false})
@@ -971,7 +970,7 @@ volumes:
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlMissingBootloader(c *C) {
-	err := ioutil.WriteFile(s.gadgetYamlPath, nil, 0644)
+	err := os.WriteFile(s.gadgetYamlPath, nil, 0644)
 	c.Assert(err, IsNil)
 
 	_, err = gadget.ReadInfo(s.dir, &gadgettest.ModelCharacteristics{IsClassic: false})
@@ -985,7 +984,7 @@ defaults:
   x: 1
 `)
 
-	err := ioutil.WriteFile(s.gadgetYamlPath, mockGadgetYamlBroken, 0644)
+	err := os.WriteFile(s.gadgetYamlPath, mockGadgetYamlBroken, 0644)
 	c.Assert(err, IsNil)
 
 	_, err = gadget.ReadInfo(s.dir, nil)
@@ -1012,7 +1011,7 @@ connections:
 	for _, t := range tests {
 		mockGadgetYamlBroken := strings.Replace(mockGadgetYamlBroken, "@INVALID@", t.invalidConn, 1)
 
-		err := ioutil.WriteFile(s.gadgetYamlPath, []byte(mockGadgetYamlBroken), 0644)
+		err := os.WriteFile(s.gadgetYamlPath, []byte(mockGadgetYamlBroken), 0644)
 		c.Assert(err, IsNil)
 
 		_, err = gadget.ReadInfo(s.dir, nil)
@@ -1021,7 +1020,7 @@ connections:
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlVolumeUpdate(c *C) {
-	err := ioutil.WriteFile(s.gadgetYamlPath, mockVolumeUpdateGadgetYaml, 0644)
+	err := os.WriteFile(s.gadgetYamlPath, mockVolumeUpdateGadgetYaml, 0644)
 	c.Assert(err, IsNil)
 
 	ginfo, err := gadget.ReadInfo(s.dir, coreMod)
@@ -1068,14 +1067,14 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlVolumeUpdate(c *C) {
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlVolumeUpdateUnhappy(c *C) {
 	broken := bytes.Replace(mockVolumeUpdateGadgetYaml, []byte("edition: 5"), []byte("edition: borked"), 1)
-	err := ioutil.WriteFile(s.gadgetYamlPath, broken, 0644)
+	err := os.WriteFile(s.gadgetYamlPath, broken, 0644)
 	c.Assert(err, IsNil)
 
 	_, err = gadget.ReadInfo(s.dir, nil)
 	c.Check(err, ErrorMatches, `cannot parse gadget metadata: "edition" must be a positive number, not "borked"`)
 
 	broken = bytes.Replace(mockVolumeUpdateGadgetYaml, []byte("edition: 5"), []byte("edition: -5"), 1)
-	err = ioutil.WriteFile(s.gadgetYamlPath, broken, 0644)
+	err = os.WriteFile(s.gadgetYamlPath, broken, 0644)
 	c.Assert(err, IsNil)
 
 	_, err = gadget.ReadInfo(s.dir, nil)
@@ -1129,7 +1128,7 @@ var classicModelCharacteristics = []gadget.Model{
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlPCHappy(c *C) {
-	err := ioutil.WriteFile(s.gadgetYamlPath, gadgetYamlPC, 0644)
+	err := os.WriteFile(s.gadgetYamlPath, gadgetYamlPC, 0644)
 	c.Assert(err, IsNil)
 
 	for _, mod := range classicModelCharacteristics {
@@ -1139,7 +1138,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlPCHappy(c *C) {
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlRPiHappy(c *C) {
-	err := ioutil.WriteFile(s.gadgetYamlPath, gadgetYamlRPi, 0644)
+	err := os.WriteFile(s.gadgetYamlPath, gadgetYamlRPi, 0644)
 	c.Assert(err, IsNil)
 
 	for _, mod := range classicModelCharacteristics {
@@ -1149,7 +1148,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlRPiHappy(c *C) {
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlLkHappy(c *C) {
-	err := ioutil.WriteFile(s.gadgetYamlPath, gadgetYamlLk, 0644)
+	err := os.WriteFile(s.gadgetYamlPath, gadgetYamlLk, 0644)
 	c.Assert(err, IsNil)
 
 	for _, mod := range classicModelCharacteristics {
@@ -1159,7 +1158,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlLkHappy(c *C) {
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlLkUC20Happy(c *C) {
-	err := ioutil.WriteFile(s.gadgetYamlPath, gadgetYamlLkUC20, 0644)
+	err := os.WriteFile(s.gadgetYamlPath, gadgetYamlLkUC20, 0644)
 	c.Assert(err, IsNil)
 
 	uc20Model := &gadgettest.ModelCharacteristics{
@@ -1172,7 +1171,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlLkUC20Happy(c *C) {
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlLkLegacyHappy(c *C) {
-	err := ioutil.WriteFile(s.gadgetYamlPath, gadgetYamlLkLegacy, 0644)
+	err := os.WriteFile(s.gadgetYamlPath, gadgetYamlLkLegacy, 0644)
 	c.Assert(err, IsNil)
 
 	for _, mod := range classicModelCharacteristics {
@@ -1368,6 +1367,8 @@ func (s *gadgetYamlTestSuite) TestValidateFilesystem(c *C) {
 		err string
 	}{
 		{"vfat", ""},
+		{"vfat-16", ""},
+		{"vfat-32", ""},
 		{"ext4", ""},
 		{"none", ""},
 		{"btrfs", `invalid filesystem "btrfs"`},
@@ -1555,6 +1556,9 @@ volumes:
 		err              string
 	}{
 		{"foo", "FOO", "vfat", "vfat", `invalid volume "minimal": filesystem label "FOO" is not unique`},
+		{"foo", "FOO", "vfat", "vfat-16", `invalid volume "minimal": filesystem label "FOO" is not unique`},
+		{"foo", "FOO", "vfat-16", "vfat-16", `invalid volume "minimal": filesystem label "FOO" is not unique`},
+		{"foo", "FOO", "vfat-16", "vfat-32", `invalid volume "minimal": filesystem label "FOO" is not unique`},
 		{"foo", "FOO", "ext4", "ext4", ""},
 		{"foo", "FOO", "vfat", "ext4", `invalid volume "minimal": filesystem label "FOO" is not unique`},
 		{"FOO", "foo", "vfat", "ext4", `invalid volume "minimal": filesystem label "foo" is not unique`},
@@ -1708,7 +1712,7 @@ volumes:
           - image: pc-core.img
 `
 
-	err := ioutil.WriteFile(s.gadgetYamlPath, []byte(gadgetYamlBadStructureName), 0644)
+	err := os.WriteFile(s.gadgetYamlPath, []byte(gadgetYamlBadStructureName), 0644)
 	c.Assert(err, IsNil)
 
 	_, err = gadget.ReadInfo(s.dir, nil)
@@ -1823,7 +1827,7 @@ volumes:
         content:
           - image: pc-core.img
 `
-	err := ioutil.WriteFile(s.gadgetYamlPath, []byte(overlappingGadgetYaml), 0644)
+	err := os.WriteFile(s.gadgetYamlPath, []byte(overlappingGadgetYaml), 0644)
 	c.Assert(err, IsNil)
 
 	_, err = gadget.ReadInfo(s.dir, nil)
@@ -1848,7 +1852,7 @@ volumes:
         offset: 100
         filesystem: vfat
 `
-	err := ioutil.WriteFile(s.gadgetYamlPath, []byte(outOfOrderGadgetYaml), 0644)
+	err := os.WriteFile(s.gadgetYamlPath, []byte(outOfOrderGadgetYaml), 0644)
 	c.Assert(err, IsNil)
 
 	_, err = gadget.ReadInfo(s.dir, nil)
@@ -1874,7 +1878,7 @@ volumes:
         size: 1M
         offset: 3M
 `
-	err := ioutil.WriteFile(s.gadgetYamlPath, []byte(overlappingGadgetYaml), 0644)
+	err := os.WriteFile(s.gadgetYamlPath, []byte(overlappingGadgetYaml), 0644)
 	c.Assert(err, IsNil)
 
 	_, err = gadget.ReadInfo(s.dir, nil)
@@ -1900,7 +1904,7 @@ volumes:
         content:
           - image: pc-boot.img
 `
-	err := ioutil.WriteFile(s.gadgetYamlPath, []byte(gadgetYaml), 0644)
+	err := os.WriteFile(s.gadgetYamlPath, []byte(gadgetYaml), 0644)
 	c.Assert(err, IsNil)
 
 	_, err = gadget.ReadInfo(s.dir, nil)
@@ -1925,7 +1929,7 @@ volumes:
         content:
           - image: pc-boot.img
 `
-	err := ioutil.WriteFile(s.gadgetYamlPath, []byte(gadgetYaml), 0644)
+	err := os.WriteFile(s.gadgetYamlPath, []byte(gadgetYaml), 0644)
 	c.Assert(err, IsNil)
 
 	_, err = gadget.ReadInfo(s.dir, nil)
@@ -1968,7 +1972,7 @@ volumes:
         role: system-data
         filesystem-label: %s`, tc.label)
 
-		err := ioutil.WriteFile(s.gadgetYamlPath, b.Bytes(), 0644)
+		err := os.WriteFile(s.gadgetYamlPath, b.Bytes(), 0644)
 		c.Assert(err, IsNil)
 
 		_, err = gadget.ReadInfoAndValidate(s.dir, nil, nil)
@@ -1984,7 +1988,7 @@ volumes:
     schema: mbr
     structure:`
 
-	err := ioutil.WriteFile(s.gadgetYamlPath, []byte(bloader), 0644)
+	err := os.WriteFile(s.gadgetYamlPath, []byte(bloader), 0644)
 	c.Assert(err, IsNil)
 	mod := &gadgettest.ModelCharacteristics{
 		HasModes: true,
@@ -1995,7 +1999,7 @@ volumes:
 }
 
 func (s *gadgetYamlTestSuite) TestGadgetReadInfoVsFromMeta(c *C) {
-	err := ioutil.WriteFile(s.gadgetYamlPath, gadgetYamlPC, 0644)
+	err := os.WriteFile(s.gadgetYamlPath, gadgetYamlPC, 0644)
 	c.Assert(err, IsNil)
 
 	mod := &gadgettest.ModelCharacteristics{
@@ -2080,7 +2084,8 @@ volumes:
 
 		// also layout the volume and check that when laying out the MBR
 		// structure it retains the role of MBR, as validated by IsRoleMBR
-		ls, err := gadget.LayoutVolumePartially(giMeta.Volumes[volName])
+		vol := giMeta.Volumes[volName]
+		ls, err := gadget.LayoutVolumePartially(vol, gadget.OnDiskStructsFromGadget(vol))
 		c.Assert(err, IsNil)
 		c.Check(ls.LaidOutStructure[0].VolumeStructure.IsRoleMBR(), Equals, true)
 	}
@@ -2342,99 +2347,124 @@ func (s *gadgetYamlTestSuite) TestGadgetFromMetaEmpty(c *C) {
 }
 
 func (s *gadgetYamlTestSuite) TestLaidOutVolumesFromGadgetMultiVolume(c *C) {
-	err := ioutil.WriteFile(s.gadgetYamlPath, mockMultiVolumeUC20GadgetYaml, 0644)
+	err := os.WriteFile(s.gadgetYamlPath, mockMultiVolumeUC20GadgetYaml, 0644)
 	c.Assert(err, IsNil)
 
-	err = ioutil.WriteFile(filepath.Join(s.dir, "u-boot.imz"), nil, 0644)
+	err = os.WriteFile(filepath.Join(s.dir, "u-boot.imz"), nil, 0644)
 	c.Assert(err, IsNil)
 
-	systemLv, all, err := gadget.LaidOutVolumesFromGadget(s.dir, "", uc20Mod, secboot.EncryptionTypeNone)
+	all, err := gadgettest.LaidOutVolumesFromGadget(s.dir, "", uc20Mod, secboot.EncryptionTypeNone, nil)
 	c.Assert(err, IsNil)
 
 	c.Assert(all, HasLen, 2)
-	c.Assert(all["frobinator-image"], DeepEquals, systemLv)
-	c.Assert(all["u-boot-frobinator"].LaidOutStructure, DeepEquals, []gadget.LaidOutStructure{
-		{
-			OnDiskStructure: gadget.OnDiskStructure{
-				Name:        "u-boot",
-				Type:        "bare",
-				Size:        quantity.Size(623000),
+	c.Assert(all["u-boot-frobinator"].LaidOutStructure[0], DeepEquals, gadget.LaidOutStructure{
+		OnDiskStructure: gadget.OnDiskStructure{
+			Name:        "u-boot",
+			Type:        "bare",
+			StartOffset: 24576,
+			Size:        623000,
+		},
+		VolumeStructure: &gadget.VolumeStructure{
+			VolumeName: "u-boot-frobinator",
+			Name:       "u-boot",
+			Offset:     asOffsetPtr(24576),
+			Size:       quantity.Size(623000),
+			MinSize:    quantity.Size(623000),
+			Type:       "bare",
+			Content: []gadget.VolumeContent{
+				{Image: "u-boot.imz"},
+			},
+			EnclosingVolume: all["u-boot-frobinator"].Volume,
+		},
+		LaidOutContent: []gadget.LaidOutContent{
+			{
+				VolumeContent: &gadget.VolumeContent{
+					Image: "u-boot.imz",
+				},
 				StartOffset: 24576,
-			},
-			VolumeStructure: &gadget.VolumeStructure{
-				VolumeName: "u-boot-frobinator",
-				Name:       "u-boot",
-				Offset:     asOffsetPtr(24576),
-				Size:       quantity.Size(623000),
-				MinSize:    quantity.Size(623000),
-				Type:       "bare",
-				Content: []gadget.VolumeContent{
-					{Image: "u-boot.imz"},
-				},
-				EnclosingVolume: all["u-boot-frobinator"].Volume,
-			},
-			LaidOutContent: []gadget.LaidOutContent{
-				{
-					VolumeContent: &gadget.VolumeContent{
-						Image: "u-boot.imz",
-					},
-					StartOffset: 24576,
-				},
 			},
 		},
 	})
-
-	c.Assert(systemLv.Volume.Bootloader, Equals, "u-boot")
-	// ubuntu-seed, ubuntu-save, ubuntu-boot and ubuntu-data
-	c.Assert(systemLv.LaidOutStructure, HasLen, 4)
 }
 
 func (s *gadgetYamlTestSuite) TestLaidOutVolumesFromGadgetHappy(c *C) {
-	err := ioutil.WriteFile(s.gadgetYamlPath, gadgetYamlPC, 0644)
+	err := os.WriteFile(s.gadgetYamlPath, gadgetYamlPC, 0644)
 	c.Assert(err, IsNil)
 	for _, fn := range []string{"pc-boot.img", "pc-core.img"} {
-		err = ioutil.WriteFile(filepath.Join(s.dir, fn), nil, 0644)
+		err = os.WriteFile(filepath.Join(s.dir, fn), nil, 0644)
 		c.Assert(err, IsNil)
 	}
 
-	systemLv, all, err := gadget.LaidOutVolumesFromGadget(s.dir, "", coreMod, secboot.EncryptionTypeNone)
+	all, err := gadgettest.LaidOutVolumesFromGadget(s.dir, "", coreMod, secboot.EncryptionTypeNone, nil)
 	c.Assert(err, IsNil)
 	c.Assert(all, HasLen, 1)
-	c.Assert(all["pc"], DeepEquals, systemLv)
-	c.Assert(systemLv.Volume.Bootloader, Equals, "grub")
+	c.Assert(all["pc"].Volume.Bootloader, Equals, "grub")
 	// mbr, bios-boot, efi-system
-	c.Assert(systemLv.LaidOutStructure, HasLen, 3)
+	c.Assert(all["pc"].LaidOutStructure, HasLen, 3)
 }
 
-func (s *gadgetYamlTestSuite) TestLaidOutVolumesFromGadgetNeedsModel(c *C) {
-	err := ioutil.WriteFile(s.gadgetYamlPath, gadgetYamlPC, 0644)
+func (s *gadgetYamlTestSuite) TestLaidOutVolumesFromGadgetAndDiskHappy(c *C) {
+	err := os.WriteFile(s.gadgetYamlPath, gadgetYamlUC20PC, 0644)
 	c.Assert(err, IsNil)
 	for _, fn := range []string{"pc-boot.img", "pc-core.img"} {
-		err = ioutil.WriteFile(filepath.Join(s.dir, fn), nil, 0644)
+		err = os.WriteFile(filepath.Join(s.dir, fn), nil, 0644)
 		c.Assert(err, IsNil)
 	}
 
-	// need the model in order to lay out system volumes due to the verification
-	// and other metadata we use with the gadget
-	_, _, err = gadget.LaidOutVolumesFromGadget(s.dir, "", nil, secboot.EncryptionTypeNone)
-	c.Assert(err, ErrorMatches, "internal error: must have model to lay out system volumes from a gadget")
+	gadgetToDiskStruct := map[int]*gadget.OnDiskStructure{
+		0: {Name: "mbr"},
+		1: {Name: "BIOS Boot"},
+		2: {Name: "ubuntu-seed"},
+		3: {Name: "ubuntu-boot"},
+		4: {Name: "ubuntu-save"},
+		5: {Name: "ubuntu-data"},
+	}
+	all, err := gadgettest.LaidOutVolumesFromGadget(s.dir, "", uc20Mod, secboot.EncryptionTypeNone, nil)
+	c.Assert(err, IsNil)
+	c.Assert(all, HasLen, 1)
+	c.Assert(all["pc"].Volume.Bootloader, Equals, "grub")
+	// mbr, bios-boot, seed, boot, save, data
+	c.Assert(all["pc"].LaidOutStructure, HasLen, len(gadgetToDiskStruct))
+	for i, los := range all["pc"].LaidOutStructure {
+		c.Check(los.OnDiskStructure.Name, Equals, gadgetToDiskStruct[i].Name)
+		c.Check(los.VolumeStructure.Name, Equals, gadgetToDiskStruct[i].Name)
+	}
+}
+
+func (s *gadgetYamlTestSuite) TestLaidOutVolumesFromGadgetAndDiskFail(c *C) {
+	err := os.WriteFile(s.gadgetYamlPath, gadgetYamlUC20PC, 0644)
+	c.Assert(err, IsNil)
+	for _, fn := range []string{"pc-boot.img", "pc-core.img"} {
+		err = os.WriteFile(filepath.Join(s.dir, fn), nil, 0644)
+		c.Assert(err, IsNil)
+	}
+
+	gadgetToDiskStruct := map[int]*gadget.OnDiskStructure{
+		0: {Name: "mbr"},
+		1: {Name: "BIOS Boot"},
+	}
+	volToGadgetToDiskStruct := map[string]map[int]*gadget.OnDiskStructure{
+		"pc": gadgetToDiskStruct,
+	}
+	all, err := gadgettest.LaidOutVolumesFromGadget(s.dir, "", uc20Mod, secboot.EncryptionTypeNone, volToGadgetToDiskStruct)
+	c.Assert(err.Error(), Equals, `internal error: partition "ubuntu-seed" not in disk map`)
+	c.Assert(all, IsNil)
 }
 
 func (s *gadgetYamlTestSuite) testLaidOutVolumesFromGadgetUCHappy(c *C, gadgetYaml []byte) {
-	err := ioutil.WriteFile(s.gadgetYamlPath, gadgetYaml, 0644)
+	err := os.WriteFile(s.gadgetYamlPath, gadgetYaml, 0644)
 	c.Assert(err, IsNil)
 	for _, fn := range []string{"pc-boot.img", "pc-core.img"} {
-		err = ioutil.WriteFile(filepath.Join(s.dir, fn), nil, 0644)
+		err = os.WriteFile(filepath.Join(s.dir, fn), nil, 0644)
 		c.Assert(err, IsNil)
 	}
 
-	systemLv, all, err := gadget.LaidOutVolumesFromGadget(s.dir, "", uc20Mod, secboot.EncryptionTypeNone)
+	all, err := gadgettest.LaidOutVolumesFromGadget(s.dir, "", uc20Mod, secboot.EncryptionTypeNone, nil)
 	c.Assert(err, IsNil)
 	c.Assert(all, HasLen, 1)
-	c.Assert(all["pc"], DeepEquals, systemLv)
-	c.Assert(systemLv.Volume.Bootloader, Equals, "grub")
+	c.Assert(all["pc"].Volume.Bootloader, Equals, "grub")
 	// mbr, bios-boot, ubuntu-seed, ubuntu-save, ubuntu-boot, and ubuntu-data
-	c.Assert(systemLv.LaidOutStructure, HasLen, 6)
+	c.Assert(all["pc"].LaidOutStructure, HasLen, 6)
 }
 
 func (s *gadgetYamlTestSuite) TestLaidOutVolumesFromGadgetUCHappy(c *C) {
@@ -2754,6 +2784,15 @@ memmap=100M@2G,100M#3G,1G!1024G
 `
 
 func (s *gadgetYamlTestSuite) TestKernelCommandLineBasic(c *C) {
+	model := &gadgettest.ModelCharacteristics{}
+
+	mockGadgetYaml := `
+volumes:
+  volumename:
+    schema: gpt
+    bootloader: grub
+`
+
 	for _, tc := range []struct {
 		files [][]string
 
@@ -2763,61 +2802,79 @@ func (s *gadgetYamlTestSuite) TestKernelCommandLineBasic(c *C) {
 	}{{
 		files: [][]string{
 			{"cmdline.extra", "   foo bar baz just-extra\n"},
+			{"meta/gadget.yaml", mockGadgetYaml},
 		},
 		cmdline: "foo bar baz just-extra", full: false,
 	}, {
 		files: [][]string{
 			{"cmdline.full", "    foo bar baz full\n"},
+			{"meta/gadget.yaml", mockGadgetYaml},
 		},
 		cmdline: "foo bar baz full", full: true,
 	}, {
 		files: [][]string{
 			{"cmdline.full", cmdlineMultiLineWithComments},
+			{"meta/gadget.yaml", mockGadgetYaml},
 		},
 		cmdline: "panic=5 reserve=0x300,32 foo=bar baz=baz random=op debug snapd.debug=1 memmap=100M@2G,100M#3G,1G!1024G",
 		full:    true,
 	}, {
 		files: [][]string{
 			{"cmdline.full", ""},
+			{"meta/gadget.yaml", mockGadgetYaml},
 		},
 		cmdline: "",
 		full:    true,
 	}, {
 		// no cmdline
-		files: nil,
-		err:   "no kernel command line in the gadget",
+		files: [][]string{
+			{"meta/gadget.yaml", mockGadgetYaml},
+		},
+		full:    false,
+		cmdline: "",
 	}, {
 		// not what we are looking for
 		files: [][]string{
 			{"cmdline.other", `ignored`},
+			{"meta/gadget.yaml", mockGadgetYaml},
 		},
-		err: "no kernel command line in the gadget",
+		full:    false,
+		cmdline: "",
 	}, {
-		files: [][]string{{"cmdline.full", " # error"}},
-		full:  true, err: `invalid kernel command line in cmdline\.full: unexpected or invalid use of # in argument "#"`,
+		files: [][]string{
+			{"cmdline.full", " # error"},
+			{"meta/gadget.yaml", mockGadgetYaml},
+		},
+		full: true, err: `invalid kernel command line in cmdline\.full: unexpected or invalid use of # in argument "#"`,
 	}, {
-		files: [][]string{{"cmdline.full", "foo bar baz #error"}},
-		full:  true, err: `invalid kernel command line in cmdline\.full: unexpected or invalid use of # in argument "#error"`,
+		files: [][]string{
+			{"cmdline.full", "foo bar baz #error"},
+			{"meta/gadget.yaml", mockGadgetYaml},
+		},
+		full: true, err: `invalid kernel command line in cmdline\.full: unexpected or invalid use of # in argument "#error"`,
 	}, {
 		files: [][]string{
 			{"cmdline.full", "foo bad =\n"},
+			{"meta/gadget.yaml", mockGadgetYaml},
 		},
 		full: true, err: `invalid kernel command line in cmdline\.full: unexpected assignment`,
 	}, {
 		files: [][]string{
 			{"cmdline.extra", "foo bad ="},
+			{"meta/gadget.yaml", mockGadgetYaml},
 		},
 		full: false, err: `invalid kernel command line in cmdline\.extra: unexpected assignment`,
 	}, {
 		files: [][]string{
 			{"cmdline.extra", `extra`},
 			{"cmdline.full", `full`},
+			{"meta/gadget.yaml", mockGadgetYaml},
 		},
 		err: "cannot support both extra and full kernel command lines",
 	}} {
 		c.Logf("files: %q", tc.files)
 		snapPath := snaptest.MakeTestSnapWithFiles(c, string(mockSnapYaml), tc.files)
-		cmdline, full, err := gadget.KernelCommandLineFromGadget(snapPath)
+		cmdline, full, _, err := gadget.KernelCommandLineFromGadget(snapPath, model)
 		if tc.err != "" {
 			c.Assert(err, ErrorMatches, tc.err)
 			c.Check(cmdline, Equals, "")
@@ -2831,6 +2888,8 @@ func (s *gadgetYamlTestSuite) TestKernelCommandLineBasic(c *C) {
 }
 
 func (s *gadgetYamlTestSuite) testKernelCommandLineArgs(c *C, whichCmdline string) {
+	model := &gadgettest.ModelCharacteristics{}
+
 	c.Logf("checking %v", whichCmdline)
 	// mock test snap creates a snap directory
 	info := snaptest.MockSnapWithFiles(c, string(mockSnapYaml),
@@ -2846,12 +2905,15 @@ func (s *gadgetYamlTestSuite) testKernelCommandLineArgs(c *C, whichCmdline strin
 		"snapd_system_disk=somedisk",
 	}
 
+	err := os.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockGadgetYaml, 0644)
+	c.Assert(err, IsNil)
+
 	for _, arg := range allowedArgs {
 		c.Logf("trying allowed arg: %q", arg)
-		err := ioutil.WriteFile(filepath.Join(info.MountDir(), whichCmdline), []byte(arg), 0644)
+		err := os.WriteFile(filepath.Join(info.MountDir(), whichCmdline), []byte(arg), 0644)
 		c.Assert(err, IsNil)
 
-		cmdline, _, err := gadget.KernelCommandLineFromGadget(info.MountDir())
+		cmdline, _, _, err := gadget.KernelCommandLineFromGadget(info.MountDir(), model)
 		c.Assert(err, IsNil)
 		c.Check(cmdline, Equals, arg)
 	}
@@ -2867,10 +2929,10 @@ func (s *gadgetYamlTestSuite) testKernelCommandLineArgs(c *C, whichCmdline strin
 
 	for _, arg := range disallowedArgs {
 		c.Logf("trying disallowed arg: %q", arg)
-		err := ioutil.WriteFile(filepath.Join(info.MountDir(), whichCmdline), []byte(arg), 0644)
+		err := os.WriteFile(filepath.Join(info.MountDir(), whichCmdline), []byte(arg), 0644)
 		c.Assert(err, IsNil)
 
-		cmdline, _, err := gadget.KernelCommandLineFromGadget(info.MountDir())
+		cmdline, _, _, err := gadget.KernelCommandLineFromGadget(info.MountDir(), model)
 		c.Assert(err, ErrorMatches, fmt.Sprintf(`invalid kernel command line in %v: disallowed kernel argument ".*"`, whichCmdline))
 		c.Check(cmdline, Equals, "")
 	}
@@ -3582,6 +3644,12 @@ func (s *gadgetYamlTestSuite) TestCompatibilityWithMinSizePartitions(c *C) {
 	match, err := gadget.EnsureVolumeCompatibility(gadgetVolume, &diskVol, nil)
 	c.Assert(err, IsNil)
 	c.Assert(match, DeepEquals, map[int]*gadget.OnDiskStructure{
+		0: {
+			Name:        "mbr",
+			Type:        "mbr",
+			StartOffset: 0,
+			Size:        440,
+		},
 		1: &mockDiskVolDataAndSaveParts.Structure[0],
 		2: &mockDiskVolDataAndSaveParts.Structure[1],
 		3: &mockDiskVolDataAndSaveParts.Structure[2],
@@ -3592,6 +3660,12 @@ func (s *gadgetYamlTestSuite) TestCompatibilityWithMinSizePartitions(c *C) {
 	match, err = gadget.EnsureVolumeCompatibility(gadgetVolume, &diskVol, nil)
 	c.Assert(err, IsNil)
 	c.Assert(match, DeepEquals, map[int]*gadget.OnDiskStructure{
+		0: {
+			Name:        "mbr",
+			Type:        "mbr",
+			StartOffset: 0,
+			Size:        440,
+		},
 		1: &mockDiskVolDataAndSaveParts.Structure[0],
 		2: &mockDiskVolDataAndSaveParts.Structure[1],
 		3: &mockDiskVolDataAndSaveParts.Structure[2],
@@ -3614,6 +3688,101 @@ func (s *gadgetYamlTestSuite) TestCompatibilityWithMinSizePartitions(c *C) {
 	match, err = gadget.EnsureVolumeCompatibility(gadgetVolume, &diskVol, nil)
 	c.Assert(err.Error(), Equals, `cannot find disk partition /dev/node2 (starting at 2097152) in gadget: on disk size 104857600 (100 MiB) is larger than gadget size 102760448 (98 MiB) (and the role should not be expanded)`)
 	c.Assert(match, IsNil)
+}
+
+const mockMinSizeGadgetYamlWithBare = `volumes:
+  pc:
+    bootloader: grub
+    structure:
+      - name: mbr
+        type: mbr
+        size: 440
+      - name: ubuntu-save
+        role: system-save
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        min-size: 8M
+        size: 98M
+      - name: empty-slice
+        type: bare
+        size: 1M
+      # Offset could be between 10M and 100M
+      - name: ubuntu-data
+        role: system-data
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 100M
+`
+
+func (s *gadgetYamlTestSuite) TestCompatibilityWithMinSizePartitionsWithBare(c *C) {
+	var mockDiskVolDataAndSaveParts = gadget.OnDiskVolume{
+		Structure: []gadget.OnDiskStructure{
+			// Note that the first ondisk structure we have is BIOS
+			// Boot, even though in reality the first ondisk
+			// structure is MBR, but the MBR doesn't actually show
+			// up in /dev at all, so we don't ever measure it as
+			// existing on the disk - the code and test accounts for
+			// the MBR structure not being present in the
+			// OnDiskVolume
+			{
+				Node:             "/dev/node2",
+				Name:             "ubuntu-save",
+				Size:             8 * quantity.SizeMiB,
+				PartitionFSType:  "ext4",
+				PartitionFSLabel: "ubuntu-save",
+				StartOffset:      quantity.OffsetMiB,
+			},
+			{
+				Node:             "/dev/node3",
+				Name:             "ubuntu-data",
+				Size:             100 * quantity.SizeMiB,
+				PartitionFSType:  "ext4",
+				PartitionFSLabel: "ubuntu-data",
+				StartOffset:      10 * quantity.OffsetMiB,
+			},
+		},
+		ID:         "anything",
+		Device:     "/dev/node",
+		Schema:     "gpt",
+		Size:       2 * quantity.SizeGiB,
+		SectorSize: 512,
+
+		// ( 2 GB / 512 B sector size ) - 33 typical GPT header backup sectors +
+		// 1 sector to get the exclusive end
+		UsableSectorsEnd: uint64((2*quantity.SizeGiB/512)-33) + 1,
+	}
+
+	gadgetVolume, err := gadgettest.VolumeFromYaml(c.MkDir(),
+		mockMinSizeGadgetYamlWithBare, nil)
+	c.Assert(err, IsNil)
+	diskVol := mockDiskVolDataAndSaveParts
+
+	match, err := gadget.EnsureVolumeCompatibility(gadgetVolume, &diskVol, nil)
+	c.Assert(err, IsNil)
+	expected := map[int]*gadget.OnDiskStructure{
+		0: {
+			Name:        "mbr",
+			Type:        "mbr",
+			StartOffset: 0,
+			Size:        440,
+		},
+		1: &mockDiskVolDataAndSaveParts.Structure[0],
+		2: {
+			Name:        "empty-slice",
+			Type:        "bare",
+			StartOffset: 9 * quantity.OffsetMiB,
+			Size:        quantity.SizeMiB,
+		},
+		3: &mockDiskVolDataAndSaveParts.Structure[1],
+	}
+	c.Assert(match, DeepEquals, expected)
+
+	diskVol.Structure[0].Size = 98 * quantity.SizeMiB
+	diskVol.Structure[1].StartOffset = 100 * quantity.OffsetMiB
+	expected[2].StartOffset = 99 * quantity.OffsetMiB
+	match, err = gadget.EnsureVolumeCompatibility(gadgetVolume, &diskVol, nil)
+	c.Assert(err, IsNil)
+	c.Assert(match, DeepEquals, expected)
 }
 
 const mockPartialGadgetYaml = `volumes:
@@ -3723,7 +3892,7 @@ func (s *gadgetYamlTestSuite) TestSaveLoadDiskVolumeDeviceTraits(c *C) {
 		"pi": gadgettest.ExpectedRaspiDiskVolumeDeviceTraits,
 	}
 
-	err = ioutil.WriteFile(
+	err = os.WriteFile(
 		filepath.Join(dirs.SnapDeviceDir, "disk-mapping.json"),
 		[]byte(gadgettest.ExpectedRaspiDiskVolumeDeviceTraitsJSON),
 		0644,
@@ -3740,7 +3909,7 @@ func (s *gadgetYamlTestSuite) TestSaveLoadDiskVolumeDeviceTraits(c *C) {
 		"pi": gadgettest.ExpectedLUKSEncryptedRaspiDiskVolumeDeviceTraits,
 	}
 
-	err = ioutil.WriteFile(
+	err = os.WriteFile(
 		filepath.Join(dirs.SnapDeviceDir, "disk-mapping.json"),
 		[]byte(gadgettest.ExpectedLUKSEncryptedRaspiDiskVolumeDeviceTraitsJSON),
 		0644,
@@ -3751,6 +3920,15 @@ func (s *gadgetYamlTestSuite) TestSaveLoadDiskVolumeDeviceTraits(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(m4, DeepEquals, expPiLUKSMap)
+
+	// if disk-mapping.jso is empty file (zero size), we should handle this as device traits are not
+	// available
+	f, err := os.Create(filepath.Join(dirs.SnapDeviceDir, "disk-mapping.json"))
+	c.Assert(err, IsNil)
+	f.Close()
+	mAbsent, err = gadget.LoadDiskVolumesDeviceTraits(dirs.SnapDeviceDir)
+	c.Assert(err, IsNil)
+	c.Assert(mAbsent, HasLen, 0)
 }
 
 func (s *gadgetYamlTestSuite) TestOnDiskStructureIsLikelyImplicitSystemDataRoleUC16Implicit(c *C) {
@@ -3842,8 +4020,8 @@ func (s *gadgetYamlTestSuite) TestAllDiskVolumeDeviceTraitsUnhappy(c *C) {
 	c.Assert(err, IsNil)
 
 	// don't setup the expected/needed symlinks in /dev
-	m := map[string]*gadget.LaidOutVolume{
-		"foo": vol,
+	m := map[string]*gadget.Volume{
+		"foo": vol.Volume,
 	}
 	_, err = gadget.AllDiskVolumeDeviceTraits(m, nil)
 	c.Assert(err, ErrorMatches, `cannot find disk for volume foo from gadget`)
@@ -3857,7 +4035,7 @@ func (s *gadgetYamlTestSuite) TestAllDiskVolumeDeviceTraitsHappy(c *C) {
 	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/foo1")
 	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel/nofspart"))
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(fakedevicepart, nil, 0644)
+	err = os.WriteFile(fakedevicepart, nil, 0644)
 	c.Assert(err, IsNil)
 
 	// mock the device name
@@ -3875,8 +4053,8 @@ func (s *gadgetYamlTestSuite) TestAllDiskVolumeDeviceTraitsHappy(c *C) {
 	vol, err := gadgettest.LayoutFromYaml(c.MkDir(), gadgettest.MockExtraVolumeYAML, nil)
 	c.Assert(err, IsNil)
 
-	m := map[string]*gadget.LaidOutVolume{
-		"foo": vol,
+	m := map[string]*gadget.Volume{
+		"foo": vol.Volume,
 	}
 	traitsMap, err := gadget.AllDiskVolumeDeviceTraits(m, nil)
 	c.Assert(err, IsNil)
@@ -3899,7 +4077,7 @@ func (s *gadgetYamlTestSuite) TestAllDiskVolumeDeviceTraitsTriesAllStructures(c 
 	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/foo2")
 	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label/some-filesystem"))
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(fakedevicepart, nil, 0644)
+	err = os.WriteFile(fakedevicepart, nil, 0644)
 	c.Assert(err, IsNil)
 
 	// mock the device name
@@ -3917,8 +4095,8 @@ func (s *gadgetYamlTestSuite) TestAllDiskVolumeDeviceTraitsTriesAllStructures(c 
 	vol, err := gadgettest.LayoutFromYaml(c.MkDir(), gadgettest.MockExtraVolumeYAML, nil)
 	c.Assert(err, IsNil)
 
-	m := map[string]*gadget.LaidOutVolume{
-		"foo": vol,
+	m := map[string]*gadget.Volume{
+		"foo": vol.Volume,
 	}
 	traitsMap, err := gadget.AllDiskVolumeDeviceTraits(m, nil)
 	c.Assert(err, IsNil)
@@ -3937,14 +4115,14 @@ func (s *gadgetYamlTestSuite) TestAllDiskVolumeDeviceTraitsMultipleGPTVolumes(c 
 	fooVolDevicePart := filepath.Join(dirs.GlobalRootDir, "/dev/vdb1")
 	err = os.Symlink(fooVolDevicePart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel/nofspart"))
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(fooVolDevicePart, nil, 0644)
+	err = os.WriteFile(fooVolDevicePart, nil, 0644)
 	c.Assert(err, IsNil)
 
 	// make a symlink for the partition label for "BIOS Boot" to /dev/vda1
 	fakepcdevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/vda1")
 	err = os.Symlink(fakepcdevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel/BIOS\\x20Boot"))
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(fakepcdevicepart, nil, 0644)
+	err = os.WriteFile(fakepcdevicepart, nil, 0644)
 	c.Assert(err, IsNil)
 
 	// mock the device name
@@ -3964,7 +4142,8 @@ func (s *gadgetYamlTestSuite) TestAllDiskVolumeDeviceTraitsMultipleGPTVolumes(c 
 	mod := &gadgettest.ModelCharacteristics{
 		HasModes: true,
 	}
-	vols, err := gadgettest.LayoutMultiVolumeFromYaml(
+
+	laidOutVols, err := gadgettest.LayoutMultiVolumeFromYaml(
 		c.MkDir(),
 		"",
 		gadgettest.MultiVolumeUC20GadgetYaml,
@@ -3972,6 +4151,10 @@ func (s *gadgetYamlTestSuite) TestAllDiskVolumeDeviceTraitsMultipleGPTVolumes(c 
 	)
 	c.Assert(err, IsNil)
 
+	vols := map[string]*gadget.Volume{}
+	for name, lov := range laidOutVols {
+		vols[name] = lov.Volume
+	}
 	traitsMap, err := gadget.AllDiskVolumeDeviceTraits(vols, nil)
 	c.Assert(err, IsNil)
 
@@ -3981,7 +4164,7 @@ func (s *gadgetYamlTestSuite) TestAllDiskVolumeDeviceTraitsMultipleGPTVolumes(c 
 	// constructed
 	err = os.MkdirAll(dirs.SnapDeviceDir, 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(
+	err = os.WriteFile(
 		filepath.Join(dirs.SnapDeviceDir, "disk-mapping.json"),
 		[]byte(gadgettest.VMMultiVolumeUC20DiskTraitsJSON),
 		0644,
@@ -4002,7 +4185,7 @@ func (s *gadgetYamlTestSuite) TestAllDiskVolumeDeviceTraitsImplicitSystemDataHap
 	biosBootPart := filepath.Join(dirs.GlobalRootDir, "/dev/sda1")
 	err = os.Symlink(biosBootPart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel/BIOS\\x20Boot"))
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(biosBootPart, nil, 0644)
+	err = os.WriteFile(biosBootPart, nil, 0644)
 	c.Assert(err, IsNil)
 
 	// mock the device name
@@ -4020,8 +4203,8 @@ func (s *gadgetYamlTestSuite) TestAllDiskVolumeDeviceTraitsImplicitSystemDataHap
 	vol, err := gadgettest.LayoutFromYaml(c.MkDir(), gadgettest.UC16YAMLImplicitSystemData, nil)
 	c.Assert(err, IsNil)
 
-	m := map[string]*gadget.LaidOutVolume{
-		"pc": vol,
+	m := map[string]*gadget.Volume{
+		"pc": vol.Volume,
 	}
 
 	// the volume cannot be found with no opts set
@@ -4147,21 +4330,20 @@ func (s *gadgetYamlTestSuite) TestGadgetInfoVolumeStructureInternalFieldsNoJSON(
 }
 
 func (s *gadgetYamlTestSuite) TestLaidOutVolumesFromClassicWithModesGadgetHappy(c *C) {
-	err := ioutil.WriteFile(s.gadgetYamlPath, gadgetYamlClassicWithModes, 0644)
+	err := os.WriteFile(s.gadgetYamlPath, gadgetYamlClassicWithModes, 0644)
 	c.Assert(err, IsNil)
 	for _, fn := range []string{"pc-boot.img", "pc-core.img"} {
-		err = ioutil.WriteFile(filepath.Join(s.dir, fn), nil, 0644)
+		err = os.WriteFile(filepath.Join(s.dir, fn), nil, 0644)
 		c.Assert(err, IsNil)
 	}
 
-	systemLv, all, err := gadget.LaidOutVolumesFromGadget(s.dir, "", classicWithModesMod, secboot.EncryptionTypeNone)
+	all, err := gadgettest.LaidOutVolumesFromGadget(s.dir, "", classicWithModesMod, secboot.EncryptionTypeNone, nil)
 	c.Assert(err, IsNil)
 	c.Assert(all, HasLen, 1)
-	c.Assert(all["pc"], DeepEquals, systemLv)
-	c.Assert(systemLv.Volume.Bootloader, Equals, "grub")
-	c.Assert(systemLv.LaidOutStructure, HasLen, 6)
-	c.Assert(systemLv.Structure[2].Role, Equals, gadget.SystemSeedNull)
-	c.Assert(systemLv.Structure[2].Label, Equals, "ubuntu-seed")
+	c.Assert(all["pc"].Volume.Bootloader, Equals, "grub")
+	c.Assert(all["pc"].LaidOutStructure, HasLen, 6)
+	c.Assert(all["pc"].Structure[2].Role, Equals, gadget.SystemSeedNull)
+	c.Assert(all["pc"].Structure[2].Label, Equals, "ubuntu-seed")
 }
 
 func (s *gadgetYamlTestSuite) TestHasRole(c *C) {
@@ -4177,7 +4359,7 @@ func (s *gadgetYamlTestSuite) TestHasRole(c *C) {
 	}
 
 	for _, t := range tests {
-		err := ioutil.WriteFile(s.gadgetYamlPath, t.yaml, 0644)
+		err := os.WriteFile(s.gadgetYamlPath, t.yaml, 0644)
 		c.Assert(err, IsNil)
 
 		found, err := gadget.HasRole(s.dir, t.roles)
@@ -4190,7 +4372,7 @@ func (s *gadgetYamlTestSuite) TestHasRoleUnhappy(c *C) {
 	_, err := gadget.HasRole("bogus-path", []string{gadget.SystemData})
 	c.Check(err, ErrorMatches, `.*meta/gadget.yaml: no such file or directory`)
 
-	err = ioutil.WriteFile(s.gadgetYamlPath, []byte(`{`), 0644)
+	err = os.WriteFile(s.gadgetYamlPath, []byte(`{`), 0644)
 	c.Assert(err, IsNil)
 	_, err = gadget.HasRole(s.dir, []string{gadget.SystemData})
 	c.Check(err, ErrorMatches, `cannot minimally parse gadget metadata: yaml:.*`)
@@ -4230,11 +4412,12 @@ kernel-cmdline:
 			c.Assert(err, ErrorMatches, t.err)
 			c.Assert(gi, IsNil)
 		} else {
-			allowed := []osutil.KernelArgument{}
+			allowed := []kcmdline.ArgumentPattern{}
 			for _, arg := range t.allowList {
-				parsed := osutil.ParseKernelCommandline(arg)
+				parsed := kcmdline.Parse(arg)
 				c.Assert(len(parsed), Equals, 1)
-				allowed = append(allowed, parsed[0])
+				pattern := kcmdline.NewConstantPattern(parsed[0].Param, parsed[0].Value)
+				allowed = append(allowed, pattern)
 			}
 
 			c.Assert(gi.KernelCmdline.Allow, DeepEquals, allowed)
@@ -4903,4 +5086,164 @@ func (s *gadgetCompatibilityTestSuite) TestPartialGadgetIsCompatible(c *C) {
 	gi2.Volumes["pc"].Structure[0].Size = quantity.SizeMiB
 	err = gadget.IsCompatible(gi1, gi2)
 	c.Check(err, IsNil)
+}
+
+func (s *gadgetCompatibilityTestSuite) TestStructFromYamlIndex(c *C) {
+	gi, err := gadget.InfoFromGadgetYaml(gadgetYamlUC20PC, nil)
+	c.Assert(err, IsNil)
+
+	vol := gi.Volumes["pc"]
+	for _, st := range vol.Structure {
+		stFromIdx := vol.StructFromYamlIndex(st.YamlIndex)
+		c.Check(stFromIdx, DeepEquals, &st)
+	}
+
+	// Error cases
+	c.Check(vol.StructFromYamlIndex(100), IsNil)
+	idx, err := vol.YamlIdxToStructureIdx(100)
+	c.Check(idx, Equals, -1)
+	c.Check(err.Error(), Equals, "structure with yaml index 100 not found")
+}
+
+func (s *gadgetYamlTestSuite) TestFindBootVolumeHappy(c *C) {
+	gi, err := gadget.InfoFromGadgetYaml(mockMultiVolumeGadgetYaml, nil)
+	c.Assert(err, IsNil)
+
+	bootVol, err := gadget.FindBootVolume(gi.Volumes)
+	c.Assert(err, IsNil)
+	c.Assert(bootVol, DeepEquals, gi.Volumes["frobinator-image"])
+}
+
+func (s *gadgetYamlTestSuite) TestFindBootVolumeFail(c *C) {
+	gi, err := gadget.InfoFromGadgetYaml([]byte(`volumes:
+  volumename:
+    schema: mbr
+    bootloader: u-boot
+    id:     0C
+    structure:
+      - filesystem-label: system-data
+        offset: 12345
+        offset-write: 777
+        size: 88888
+        type: 0C
+        filesystem: vfat
+        content:
+          - source: subdir/
+            target: /
+            unpack: false
+          - source: foo
+            target: /
+`), nil)
+	c.Assert(err, IsNil)
+
+	bootVol, err := gadget.FindBootVolume(gi.Volumes)
+	c.Assert(err.Error(), Equals, "no volume has system-boot role")
+	c.Assert(bootVol, IsNil)
+}
+
+var yamlContentWithOffset = []byte(`
+volumes:
+  pc:
+    bootloader: grub
+    structure:
+      - name: mbr
+        type: mbr
+        size: 440
+        content:
+          - image: pc-boot.img
+      - name: BIOS Boot
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 1M
+        offset-write: mbr+92
+        content:
+          - image: pc-core.img
+            offset: 1M
+`)
+
+func (s *gadgetYamlTestSuite) TestVolumeCopy(c *C) {
+	for _, yaml := range [][]byte{
+		mockMultiVolumeUC20GadgetYaml,
+		[]byte(mockPartialGadgetYaml),
+		gadgetYamlUC20PC,
+		yamlContentWithOffset} {
+
+		gi, err := gadget.InfoFromGadgetYaml(yaml, nil)
+		c.Assert(err, IsNil)
+
+		for _, v := range gi.Volumes {
+			newV := v.Copy()
+			c.Assert(newV, DeepEquals, v)
+		}
+	}
+}
+
+func (s *gadgetYamlTestSuite) TestLayoutCompatibilityVfatPartitions(c *C) {
+	const mockFat16Structure = `
+      - name: Writable
+        role: system-data
+        filesystem-label: writable
+        filesystem: vfat-16
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 64M
+`
+
+	gadgetVolumeWithExtras, err := gadgettest.VolumeFromYaml(c.MkDir(), mockSimpleGadgetYaml+mockFat16Structure, nil)
+	c.Assert(err, IsNil)
+	deviceLayout := mockDeviceLayout
+
+	// device matches gadget except for the filesystem type
+	deviceLayout.Structure = append(deviceLayout.Structure,
+		gadget.OnDiskStructure{
+			Node:             "/dev/node2",
+			Name:             "Writable",
+			Size:             64 * quantity.SizeMiB,
+			PartitionFSLabel: "writable",
+			PartitionFSType:  "vfat",
+			StartOffset:      2 * quantity.OffsetMiB,
+		},
+	)
+
+	// strict compatibility check, assuming that the creatable partitions
+	// have already been created will fail
+	opts := &gadget.VolumeCompatibilityOptions{AssumeCreatablePartitionsCreated: true}
+	_, err = gadget.EnsureVolumeCompatibility(gadgetVolumeWithExtras, &deviceLayout, opts)
+	c.Assert(err, IsNil)
+}
+
+func (s *gadgetYamlTestSuite) TestGadgetToLinuxFilesystem(c *C) {
+
+	for i, tc := range []struct {
+		vs    *gadget.VolumeStructure
+		linFs string
+	}{
+		{&gadget.VolumeStructure{Filesystem: "ext4"}, "ext4"},
+		{&gadget.VolumeStructure{Filesystem: "vfat"}, "vfat"},
+		{&gadget.VolumeStructure{Filesystem: "vfat-16"}, "vfat"},
+		{&gadget.VolumeStructure{Filesystem: "vfat-32"}, "vfat"},
+	} {
+		c.Logf("case %d: %s", i, tc.linFs)
+		c.Check(tc.vs.LinuxFilesystem(), Equals, tc.linFs)
+	}
+}
+
+func (s *gadgetYamlTestSuite) TestGadgetInfoHasRole(c *C) {
+	info := gadget.Info{
+		Volumes: map[string]*gadget.Volume{
+			"name": {
+				Structure: []gadget.VolumeStructure{
+					{Role: gadget.SystemSeed},
+				},
+			},
+			"other-name": {
+				Structure: []gadget.VolumeStructure{
+					{Role: gadget.SystemBoot},
+				},
+			},
+		},
+	}
+
+	c.Check(info.HasRole(gadget.SystemSeed), Equals, true)
+	c.Check(info.HasRole(gadget.SystemBoot), Equals, true)
+	c.Check(info.HasRole(gadget.SystemSeedNull), Equals, false)
 }
