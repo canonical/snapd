@@ -184,7 +184,8 @@ func (s *utilsSuite) TestAareExclusivePatternsInvalid(c *C) {
 func (s *utilsSuite) TestGetDesktopFileRules(c *C) {
 	// fake apparmor.Specification
 	info := snap.Info{}
-	snapSet := interfaces.NewSnapAppSet(&info)
+	snapSet, err := interfaces.NewSnapAppSet(&info, nil)
+	c.Assert(err, IsNil)
 	plugInfo := snap.PlugInfo{
 		Name: "test-plug",
 	}
@@ -217,7 +218,8 @@ func (s *utilsSuite) TestGetDesktopFileRules(c *C) {
 func (s *utilsSuite) TestGetDesktopFileRulesWithDesktopLaunchPlug(c *C) {
 	// fake apparmor.Specification
 	info := snap.Info{}
-	snapSet := interfaces.NewSnapAppSet(&info)
+	snapSet, err := interfaces.NewSnapAppSet(&info, nil)
+	c.Assert(err, IsNil)
 	// although usually the name is equal to the interface, this is not
 	// guaranteed, so to test it right we must try with a name that is
 	// different than the interface.
