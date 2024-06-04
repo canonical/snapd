@@ -7,8 +7,10 @@ import sys
 
 import log_helper as helper
 
+
 def get_debug_tag(debug_num):
     return "###DEBUG-{}###".format(debug_num)
+
 
 # Prints the debug line and the tag that helps for cross-referencing
 def print_debug_line(line: str, debug_num: int):
@@ -17,33 +19,37 @@ def print_debug_line(line: str, debug_num: int):
     print(get_debug_tag(debug_num))
     print("-----")
 
-def process_debug(from_stream: io.TextIOWrapper, start_line: str, debug_count: int, debug_file) -> str:
+
+def process_debug(
+    from_stream: io.TextIOWrapper, start_line: str, debug_count: int, debug_file
+) -> str:
     """Process lines from the start of the debug section until the last line,
     returns the first line right after the debug section
     """
     with open(debug_file, "a+") as myfile:
         # Writes in the file the debug output lines including the tag that
         # helps for cross-referencing
-        myfile.write(get_debug_tag(debug_count) + '\n')
+        myfile.write(get_debug_tag(debug_count) + "\n")
         myfile.write(start_line.strip())
         for line in from_stream:
             if helper.is_detail_finished(line):
-                myfile.write('\n')
+                myfile.write("\n")
                 return line
-            
+
             myfile.write(line.strip())
-        
+
 
 def process_spread_output(debug_file):
     debug_num = 0
     for line in sys.stdin:
         # A Debug section starts
-        if helper.is_line(line, helper.DEBUG):
+        if helper.is_operation(line, helper.DEBUG):
             debug_num += 1
             print_debug_line(line.strip(), debug_num)
             line = process_debug(sys.stdin, line, debug_num, debug_file)
 
         print(line.strip())
+
 
 def _make_parser():
     # type: () -> argparse.ArgumentParser
@@ -52,13 +58,14 @@ def _make_parser():
 This tool is used to reduce the size of the spread output. It parses the spread output and sends 
 the Debug Output to the file passed as parameter. When a file is not provided
 the debug output is sent to debug.log
-""")
+"""
+    )
     parser.add_argument(
         "-f",
-        "--debug-file", 
+        "--debug-file",
         metavar="PATH",
         default="debug.log",
-        help="path to the debug output file"
+        help="path to the debug output file",
     )
     return parser
 
