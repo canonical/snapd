@@ -2,7 +2,7 @@
 //go:build !nosecboot
 
 /*
- * Copyright (C) 2022 Canonical Ltd
+ * Copyright (C) 2022-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -25,6 +25,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 
 	sb "github.com/snapcore/secboot"
@@ -344,6 +345,47 @@ done
 func (s *keymgrSuite) TestEnsureRecoveryKey(c *C) {
 	udevadmCmd := s.mocksForDeviceMounts(c)
 
+	defer secboot.MockListLUKS2ContainerUnlockKeyNames(func(devicePath string) ([]string, error) {
+		return []string{"default"}, nil
+	})()
+	defer secboot.MockGetDiskUnlockKeyFromKernel(func(prefix string, devicePath string, remove bool) (sb.DiskUnlockKey, error) {
+		return []byte{1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4}, nil
+	})()
+	defer secboot.MockAddLUKS2ContainerRecoveryKey(func(devicePath string, keyslotName string, existingKey sb.DiskUnlockKey, recoveryKey sb.RecoveryKey) error {
+		return nil
+	})()
+
+	keyFilePath := filepath.Join(c.MkDir(), "key.file")
+	err := os.WriteFile(keyFilePath, []byte{}, 0644)
+	c.Assert(err, IsNil)
+	_, err = secboot.EnsureRecoveryKey(filepath.Join(s.d, "recovery.key"), []secboot.RecoveryKeyDevice{
+		{Mountpoint: "/foo"},
+		{Mountpoint: "/bar", AuthorizingKeyFile: keyFilePath},
+	})
+	c.Assert(err, IsNil)
+	c.Check(udevadmCmd.Calls(), DeepEquals, [][]string{
+		{"udevadm", "info", "--query", "property", "--name", "/dev/mapper/foo"},
+		{"udevadm", "info", "--query", "property", "--name", "/dev/disk/by-uuid/5a522809-c87e-4dfa-81a8-8dc5667d1304"},
+		{"udevadm", "info", "--query", "property", "--name", "/dev/mapper/bar"},
+		{"udevadm", "info", "--query", "property", "--name", "/dev/disk/by-uuid/5a522809-c87e-4dfa-81a8-8dc5667d1305"},
+	})
+
+}
+
+func (s *keymgrSuite) TestEnsureRecoveryKeyLegacy(c *C) {
+	udevadmCmd := s.mocksForDeviceMounts(c)
+
+	defer secboot.MockListLUKS2ContainerUnlockKeyNames(func(devicePath string) ([]string, error) {
+		return []string{}, nil
+	})()
+	defer secboot.MockGetDiskUnlockKeyFromKernel(func(prefix string, devicePath string, remove bool) (sb.DiskUnlockKey, error) {
+		c.Errorf("unexpected call")
+		return sb.DiskUnlockKey{}, nil
+	})()
+	defer secboot.MockAddLUKS2ContainerRecoveryKey(func(devicePath string, keyslotName string, existingKey sb.DiskUnlockKey, recoveryKey sb.RecoveryKey) error {
+		c.Errorf("unexpected call")
+		return nil
+	})()
 	rkey, err := secboot.EnsureRecoveryKey(filepath.Join(s.d, "recovery.key"), []secboot.RecoveryKeyDevice{
 		{Mountpoint: "/foo"},
 		{Mountpoint: "/bar", AuthorizingKeyFile: "/authz/key.file"},
@@ -381,6 +423,49 @@ func (s *keymgrSuite) TestEnsureRecoveryKey(c *C) {
 
 func (s *keymgrSuite) TestRemoveRecoveryKey(c *C) {
 	udevadmCmd := s.mocksForDeviceMounts(c)
+
+	defer secboot.MockListLUKS2ContainerUnlockKeyNames(func(devicePath string) ([]string, error) {
+		return []string{"default", "default-recovery"}, nil
+	})()
+	defer secboot.MockRemoveLUKS2ContainerKey(func(devicePath string, keyslotName string) error {
+		c.Assert(keyslotName, Equals, "default-recovery")
+		return nil
+	})()
+
+	snaptest.PopulateDir(s.d, [][]string{
+		{"recovery.key", "foobar"},
+	})
+	// only one of the key files exists
+	err := secboot.RemoveRecoveryKeys(map[secboot.RecoveryKeyDevice]string{
+		{Mountpoint: "/foo"}: filepath.Join(s.d, "recovery.key"),
+		{Mountpoint: "/bar", AuthorizingKeyFile: "/authz/key.file"}: filepath.Join(s.d, "missing-recovery.key"),
+	})
+	c.Assert(err, IsNil)
+
+	expectedUdevCalls := [][]string{
+		// order can change depending on map iteration
+		{"udevadm", "info", "--query", "property", "--name", "/dev/mapper/foo"},
+		{"udevadm", "info", "--query", "property", "--name", "/dev/disk/by-uuid/5a522809-c87e-4dfa-81a8-8dc5667d1304"},
+		{"udevadm", "info", "--query", "property", "--name", "/dev/mapper/bar"},
+		{"udevadm", "info", "--query", "property", "--name", "/dev/disk/by-uuid/5a522809-c87e-4dfa-81a8-8dc5667d1305"},
+	}
+
+	udevCalls := udevadmCmd.Calls()
+	c.Assert(udevCalls, HasLen, len(expectedUdevCalls))
+	// iteration order can be different though
+	c.Assert(udevCalls[0], HasLen, 6)
+}
+
+func (s *keymgrSuite) TestRemoveRecoveryKeyLegacy(c *C) {
+	udevadmCmd := s.mocksForDeviceMounts(c)
+
+	defer secboot.MockListLUKS2ContainerUnlockKeyNames(func(devicePath string) ([]string, error) {
+		return []string{}, nil
+	})()
+	defer secboot.MockRemoveLUKS2ContainerKey(func(devicePath string, keyslotName string) error {
+		c.Errorf("unexpected call")
+		return nil
+	})()
 
 	snaptest.PopulateDir(s.d, [][]string{
 		{"recovery.key", "foobar"},

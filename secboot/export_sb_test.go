@@ -251,3 +251,35 @@ func MockReadKeyFile(f func(keyfile string) (*sb.KeyData, *sb_tpm2.SealedKeyObje
 		readKeyFile = old
 	}
 }
+
+func MockListLUKS2ContainerUnlockKeyNames(f func(devicePath string) ([]string, error)) (restore func()) {
+	old := sbListLUKS2ContainerUnlockKeyNames
+	sbListLUKS2ContainerUnlockKeyNames = f
+	return func() {
+		sbListLUKS2ContainerUnlockKeyNames = old
+	}
+}
+
+func MockGetDiskUnlockKeyFromKernel(f func(prefix string, devicePath string, remove bool) (sb.DiskUnlockKey, error)) (restore func()) {
+	old := sbGetDiskUnlockKeyFromKernel
+	sbGetDiskUnlockKeyFromKernel = f
+	return func() {
+		sbGetDiskUnlockKeyFromKernel = old
+	}
+}
+
+func MockAddLUKS2ContainerRecoveryKey(f func(devicePath string, keyslotName string, existingKey sb.DiskUnlockKey, recoveryKey sb.RecoveryKey) error) (restore func()) {
+	old := sbAddLUKS2ContainerRecoveryKey
+	sbAddLUKS2ContainerRecoveryKey = f
+	return func() {
+		sbAddLUKS2ContainerRecoveryKey = old
+	}
+}
+
+func MockRemoveLUKS2ContainerKey(f func(devicePath string, keyslotName string) error) (restore func()) {
+	old := sbDeleteLUKS2ContainerKey
+	sbDeleteLUKS2ContainerKey = f
+	return func() {
+		sbDeleteLUKS2ContainerKey = old
+	}
+}

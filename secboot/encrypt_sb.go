@@ -2,7 +2,7 @@
 //go:build !nosecboot
 
 /*
- * Copyright (C) 2022 Canonical Ltd
+ * Copyright (C) 2022-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -25,6 +25,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 
 	sb "github.com/snapcore/secboot"
@@ -38,7 +39,11 @@ import (
 )
 
 var (
-	sbInitializeLUKS2Container = sb.InitializeLUKS2Container
+	sbInitializeLUKS2Container         = sb.InitializeLUKS2Container
+	sbGetDiskUnlockKeyFromKernel       = sb.GetDiskUnlockKeyFromKernel
+	sbAddLUKS2ContainerRecoveryKey     = sb.AddLUKS2ContainerRecoveryKey
+	sbListLUKS2ContainerUnlockKeyNames = sb.ListLUKS2ContainerUnlockKeyNames
+	sbDeleteLUKS2ContainerKey          = sb.DeleteLUKS2ContainerKey
 )
 
 const keyslotsAreaKiBSize = 2560 // 2.5MB
@@ -95,36 +100,84 @@ func runSnapFDEKeymgr(args []string, stdin io.Reader) error {
 // EnsureRecoveryKey makes sure the encrypted block devices have a recovery key.
 // It takes the path where to store the key and encrypted devices to operate on.
 func EnsureRecoveryKey(keyFile string, rkeyDevs []RecoveryKeyDevice) (keys.RecoveryKey, error) {
-	// support multiple devices with the same key
-	command := []string{
-		"add-recovery-key",
-		"--key-file", keyFile,
+	var legacyCmdline []string
+	var newDevices []struct {
+		node    string
+		keyFile string
 	}
 	for _, rkeyDev := range rkeyDevs {
 		dev, err := devByPartUUIDFromMount(rkeyDev.Mountpoint)
 		if err != nil {
 			return keys.RecoveryKey{}, fmt.Errorf("cannot find matching device for: %v", err)
 		}
-		logger.Debugf("ensuring recovery key on device: %v", dev)
-		authzMethod := "keyring"
-		if rkeyDev.AuthorizingKeyFile != "" {
-			authzMethod = "file:" + rkeyDev.AuthorizingKeyFile
+		slots, err := sbListLUKS2ContainerUnlockKeyNames(dev)
+		if err != nil {
+			return keys.RecoveryKey{}, fmt.Errorf("cannot find list keys for: %v", err)
 		}
-		command = append(command, []string{
-			"--devices", dev,
-			"--authorizations", authzMethod,
-		}...)
+		if len(slots) == 0 {
+			authzMethod := "keyring"
+			if rkeyDev.AuthorizingKeyFile != "" {
+				authzMethod = "file:" + rkeyDev.AuthorizingKeyFile
+			}
+			legacyCmdline = append(legacyCmdline, []string{
+				"--devices", dev,
+				"--authorizations", authzMethod,
+			}...)
+		} else {
+			newDevices = append(newDevices, struct {
+				node    string
+				keyFile string
+			}{dev, rkeyDev.AuthorizingKeyFile})
+		}
 	}
+	if len(legacyCmdline) != 0 && len(newDevices) != 0 {
+		return keys.RecoveryKey{}, fmt.Errorf("some encrypted partitions use new slots, whereas other use legacy slots")
+	}
+	if len(legacyCmdline) == 0 {
+		recoveryKey, err := keys.NewRecoveryKey()
+		if err != nil {
+			return keys.RecoveryKey{}, fmt.Errorf("cannot create new recovery key: %v", err)
+		}
+		for _, device := range newDevices {
+			var unlockKey []byte
+			if device.keyFile != "" {
+				key, err := os.ReadFile(device.keyFile)
+				if err != nil {
+					return keys.RecoveryKey{}, fmt.Errorf("cannot get key from '%s': %v", device.keyFile, err)
+				}
+				unlockKey = key
+			} else {
+				const defaultPrefix = "ubuntu-fde"
+				key, err := sbGetDiskUnlockKeyFromKernel(defaultPrefix, device.node, false)
+				if err != nil {
+					return keys.RecoveryKey{}, fmt.Errorf("cannot get key for unlocked disk: %v", err)
+				}
+				unlockKey = key
+			}
 
-	if err := runSnapFDEKeymgr(command, nil); err != nil {
-		return keys.RecoveryKey{}, fmt.Errorf("cannot run keymgr tool: %v", err)
-	}
+			if err := sbAddLUKS2ContainerRecoveryKey(device.node, "default-recovery", sb.DiskUnlockKey(unlockKey), sb.RecoveryKey(recoveryKey)); err != nil {
+				return keys.RecoveryKey{}, fmt.Errorf("cannot enroll new recovery key: %v", err)
+			}
+		}
 
-	rk, err := keys.RecoveryKeyFromFile(keyFile)
-	if err != nil {
-		return keys.RecoveryKey{}, fmt.Errorf("cannot read recovery key: %v", err)
+		return recoveryKey, nil
+	} else {
+		command := []string{
+			"add-recovery-key",
+			"--key-file", keyFile,
+		}
+		command = append(command, legacyCmdline...)
+
+		if err := runSnapFDEKeymgr(command, nil); err != nil {
+			return keys.RecoveryKey{}, fmt.Errorf("cannot run keymgr tool: %v", err)
+		}
+
+		rk, err := keys.RecoveryKeyFromFile(keyFile)
+		if err != nil {
+			return keys.RecoveryKey{}, fmt.Errorf("cannot read recovery key: %v", err)
+		}
+		return *rk, nil
 	}
-	return *rk, nil
 }
 
 func devByPartUUIDFromMount(mp string) (string, error) {
@@ -142,31 +195,57 @@ func devByPartUUIDFromMount(mp string) (string, error) {
 // It takes a map from the recovery key device to where their recovery key is
 // stored, mount points might share the latter.
 func RemoveRecoveryKeys(rkeyDevToKey map[RecoveryKeyDevice]string) error {
-	// support multiple devices and key files
-	command := []string{
-		"remove-recovery-key",
-	}
+	var legacyCmdline []string
+	var newDevices []string
 	for rkeyDev, keyFile := range rkeyDevToKey {
 		dev, err := devByPartUUIDFromMount(rkeyDev.Mountpoint)
 		if err != nil {
 			return fmt.Errorf("cannot find matching device for: %v", err)
 		}
-		logger.Debugf("removing recovery key from device: %v", dev)
-		authzMethod := "keyring"
-		if rkeyDev.AuthorizingKeyFile != "" {
-			authzMethod = "file:" + rkeyDev.AuthorizingKeyFile
+		slots, err := sbListLUKS2ContainerUnlockKeyNames(dev)
+		if err != nil {
+			return fmt.Errorf("cannot find list keys for: %v", err)
 		}
-		command = append(command, []string{
-			"--devices", dev,
-			"--authorizations", authzMethod,
-			"--key-files", keyFile,
-		}...)
+		if len(slots) == 0 {
+			logger.Debugf("removing recovery key from device: %v", dev)
+			authzMethod := "keyring"
+			if rkeyDev.AuthorizingKeyFile != "" {
+				authzMethod = "file:" + rkeyDev.AuthorizingKeyFile
+			}
+			legacyCmdline = append(legacyCmdline, []string{
+				"--devices", dev,
+				"--authorizations", authzMethod,
+				"--key-files", keyFile,
+			}...)
+		} else {
+			newDevices = append(newDevices, dev)
+		}
 	}
 
-	if err := runSnapFDEKeymgr(command, nil); err != nil {
-		return fmt.Errorf("cannot run keymgr tool: %v", err)
+	if len(legacyCmdline) != 0 && len(newDevices) != 0 {
+		return fmt.Errorf("some encrypted partitions use new slots, whereas other use legacy slots")
 	}
-	return nil
+	if len(legacyCmdline) == 0 {
+		for _, device := range newDevices {
+			if err := sbDeleteLUKS2ContainerKey(device, "default-recovery"); err != nil {
+				return fmt.Errorf("cannot remove recovery key: %v", err)
+			}
+		}
+
+		return nil
+
+	} else {
+		// support multiple devices and key files
+		command := []string{
+			"remove-recovery-key",
+		}
+		command = append(command, legacyCmdline...)
+
+		if err := runSnapFDEKeymgr(command, nil); err != nil {
+			return fmt.Errorf("cannot run keymgr tool: %v", err)
+		}
+		return nil
+	}
 }
 
 // StageEncryptionKeyChange stages a new encryption key for a given encrypted
