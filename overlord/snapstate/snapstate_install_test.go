@@ -5928,8 +5928,7 @@ func (s *snapmgrTestSuite) TestInstallPathManySplitEssentialWithSharedBase(c *C)
 	defer s.state.Unlock()
 
 	sharedBase := true
-	paths, infos, restore := s.setupSplitRefreshAppDependsOnModelBase(c, sharedBase)
-	defer restore()
+	paths, infos := s.setupSplitRefreshAppDependsOnModelBase(c, sharedBase)
 
 	chg := s.state.NewChange("install", "")
 	tss, err := snapstate.InstallPathMany(context.Background(), s.state,
@@ -5944,28 +5943,8 @@ func (s *snapmgrTestSuite) TestInstallPathManySplitEssentialWithSharedBase(c *C)
 
 	s.settle(c)
 
-	for _, snap := range []string{"snapd", "some-base", "some-base-snap"} {
-		t := findTaskForSnap(c, chg, "auto-connect", snap)
-		c.Assert(t.Status(), Equals, state.DoneStatus, Commentf("expected task %q for %q to be \"Done\": %s", t.Kind(), snap, t.Status()))
-	}
-
-	// the some-snap-* is also not done because it depends on the base
-	for _, snap := range []string{"kernel", "gadget", "core18", "some-snap-with-core18-base"} {
-		t := findTaskForSnap(c, chg, "auto-connect", snap)
-		c.Assert(t.Status(), Equals, state.DoStatus, Commentf("expected task %q for %q to be \"Do\": %s", t.Kind(), snap, t.Status()))
-	}
-
-	t := findTaskForSnap(c, chg, "link-snap", "kernel")
-	c.Assert(t.Status(), Equals, state.WaitStatus, Commentf("expected kernel's link-snap to be waiting for restart"))
-	s.mockRestartAndSettle(c, chg)
-
-	for _, snap := range []string{"kernel", "gadget", "core18", "some-snap-with-core18-base"} {
-		t := findTaskForSnap(c, chg, "auto-connect", snap)
-		c.Assert(t.Status(), Equals, state.DoneStatus, Commentf("expected task %q for %q to be in \"Done\": %s", t.Kind(), snap, t.Status()))
-	}
-
-	c.Check(chg.IsReady(), Equals, true)
-	c.Check(chg.Status(), Equals, state.DoneStatus)
+	checkRerefresh := false
+	s.checkSplitRefreshWithSharedBase(c, chg, checkRerefresh)
 }
 
 func (s *snapmgrTestSuite) TestInstallPathManySplitEssentialWithoutSharedBased(c *C) {
@@ -5973,8 +5952,7 @@ func (s *snapmgrTestSuite) TestInstallPathManySplitEssentialWithoutSharedBased(c
 	defer s.state.Unlock()
 
 	sharedBase := false
-	paths, infos, restore := s.setupSplitRefreshAppDependsOnModelBase(c, sharedBase)
-	defer restore()
+	paths, infos := s.setupSplitRefreshAppDependsOnModelBase(c, sharedBase)
 
 	chg := s.state.NewChange("install", "install path many")
 	tss, err := snapstate.InstallPathMany(context.Background(), s.state,

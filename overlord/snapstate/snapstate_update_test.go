@@ -6402,7 +6402,7 @@ func (s *snapmgrTestSuite) TestUpdatePrereqDetectConflictWithPrereq(c *C) {
 	updateChg.AddAll(updateTasks)
 
 	s.state.Unlock()
-	_ = s.o.Settle(testutil.HostScaledTimeout(3 * time.Second))
+	_ = s.o.Settle(3 * time.Second)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -6455,7 +6455,7 @@ func (s *snapmgrTestSuite) TestUpdatePrereqWithConflictingTask(c *C) {
 	updateChg.AddAll(updateTasks)
 
 	s.state.Unlock()
-	_ = s.o.Settle(testutil.HostScaledTimeout(3 * time.Second))
+	_ = s.o.Settle(3 * time.Second)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -6551,7 +6551,7 @@ func (s *snapmgrTestSuite) TestUpdatePrereqIgnoreDuplOpInSameChange(c *C) {
 	s.state.Unlock()
 	// the tasks won't converge because the re-refresh waits for all tasks
 	// in the change, including our 'conflicting-task'
-	_ = s.o.Settle(testutil.HostScaledTimeout(3 * time.Second))
+	_ = s.o.Settle(3 * time.Second)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -12527,18 +12527,19 @@ type: snapd
 // prepare a refresh/install of essential and non-essential snaps, optionally
 // with an app depending on the model base, to test that the update doesn't make
 // apps wait for the reboot required by the essential snaps.
-func (s *snapmgrTestSuite) setupSplitRefreshAppDependsOnModelBase(c *C, core18BasedApp bool) (names []string, infos []*snap.SideInfo, restore func()) {
-	restoreClassic := release.MockOnClassic(true)
-	modelRestore := snapstatetest.MockDeviceModel(ModelWithBase("core18"))
-	restore = func() {
-		restoreClassic()
-		modelRestore()
-	}
+func (s *snapmgrTestSuite) setupSplitRefreshAppDependsOnModelBase(c *C, core18BasedApp bool) (names []string, infos []*snap.SideInfo) {
+	restore := release.MockOnClassic(true)
+	s.AddCleanup(restore)
+	restore = snapstatetest.MockDeviceModel(ModelWithBase("core18"))
+	s.AddCleanup(restore)
 
 	snaps := []string{"snapd", "kernel", "core18", "gadget", "some-base", "some-base-snap"}
 	if core18BasedApp {
 		// add an app that depends on the model base so test a cross set dependency
 		snaps = append(snaps, "some-snap-with-core18-base")
+		// we expect an app to have to wait for a base, shorten the retry timeout
+		restore = snapstate.MockPrerequisitesRetryTimeout(time.Second)
+		s.AddCleanup(restore)
 	} else {
 		snaps = append(snaps, "some-snap")
 	}
@@ -12614,7 +12615,7 @@ func (s *snapmgrTestSuite) setupSplitRefreshAppDependsOnModelBase(c *C, core18Ba
 		func(task *state.Task, tomb *tomb.Tomb) error { return nil },
 		func(task *state.Task, tomb *tomb.Tomb) error { return nil })
 
-	return paths, infos, restore
+	return paths, infos
 }
 
 func (s *snapmgrTestSuite) TestUpdateManySplitEssentialWithSharedBase(c *C) {
@@ -12622,8 +12623,7 @@ func (s *snapmgrTestSuite) TestUpdateManySplitEssentialWithSharedBase(c *C) {
 	defer s.state.Unlock()
 
 	sharedBase := true
-	_, infos, restore := s.setupSplitRefreshAppDependsOnModelBase(c, sharedBase)
-	defer restore()
+	_, infos := s.setupSplitRefreshAppDependsOnModelBase(c, sharedBase)
 
 	var snaps []string
 	for _, info := range infos {
@@ -12652,8 +12652,7 @@ func (s *snapmgrTestSuite) TestOldStyleAutoRefreshSplitEssentialWithSharedBase(c
 	defer s.state.Unlock()
 
 	sharedBase := true
-	_, infos, restore := s.setupSplitRefreshAppDependsOnModelBase(c, sharedBase)
-	defer restore()
+	_, infos := s.setupSplitRefreshAppDependsOnModelBase(c, sharedBase)
 
 	var snaps []string
 	for _, info := range infos {
@@ -12678,23 +12677,24 @@ func (s *snapmgrTestSuite) TestOldStyleAutoRefreshSplitEssentialWithSharedBase(c
 }
 
 func (s *snapmgrTestSuite) checkSplitRefreshWithSharedBase(c *C, chg *state.Change, checkRerefresh bool) {
-	for _, snap := range []string{"snapd", "some-base", "some-base-snap"} {
+	// some-snap-with-core18-base depends on the base but the prereq code only waits
+	// for the base link-snap so it can complete before the reboot
+	for _, snap := range []string{"snapd", "some-base", "some-base-snap", "some-snap-with-core18-base"} {
 		t := findTaskForSnap(c, chg, "auto-connect", snap)
 		c.Assert(t.Status(), Equals, state.DoneStatus, Commentf("expected task %q for %q to be \"Done\": %s", t.Kind(), snap, t.Status()))
 	}
 
-	// the some-snap-* is also not done because it depends on the base
-	for _, snap := range []string{"kernel", "gadget", "core18", "some-snap-with-core18-base"} {
+	for _, snap := range []string{"kernel", "gadget", "core18"} {
 		t := findTaskForSnap(c, chg, "auto-connect", snap)
 		c.Assert(t.Status(), Equals, state.DoStatus, Commentf("expected task %q for %q to be \"Do\": %s", t.Kind(), snap, t.Status()))
 	}
 
 	if checkRerefresh {
-		// check that the rerefresh task is waiting because one of the non-essential
-		// snap related refreshes depends on an essential snap that is pending on a reboot
+		// check that the rerefresh task is done because the essential tasks are
+		// ignored
 		rerefreshTask := findLastTask(chg, "check-rerefresh")
 		c.Assert(rerefreshTask, NotNil, Commentf("cannot find check-rerefresh task"))
-		c.Assert(rerefreshTask.Status(), Equals, state.WaitStatus)
+		c.Assert(rerefreshTask.Status(), Equals, state.DoneStatus)
 	}
 
 	t := findTaskForSnap(c, chg, "link-snap", "kernel")
@@ -12715,8 +12715,7 @@ func (s *snapmgrTestSuite) TestUpdateManySplitEssentialWithoutSharedBase(c *C) {
 	defer s.state.Unlock()
 
 	sharedBase := false
-	_, infos, restore := s.setupSplitRefreshAppDependsOnModelBase(c, sharedBase)
-	defer restore()
+	_, infos := s.setupSplitRefreshAppDependsOnModelBase(c, sharedBase)
 
 	var snaps []string
 	for _, info := range infos {
@@ -13103,6 +13102,9 @@ func (s *snapmgrTestSuite) TestAutoRefreshSplitRefresh(c *C) {
 	defer restore()
 
 	restore = snapstatetest.MockDeviceModel(ModelWithBase("core18"))
+	defer restore()
+
+	restore = snapstate.MockPrerequisitesRetryTimeout(time.Second)
 	defer restore()
 
 	snaps := []string{"snapd", "kernel", "core18", "gadget", "some-base", "some-base-snap", "some-snap-with-core18-base"}

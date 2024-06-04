@@ -2140,10 +2140,10 @@ func canSplitRefresh(deviceCtx DeviceContext, infos []minimalInstallInfo) (essen
 	return essential, nonEssential, true
 }
 
-// splitRefresh creates two separate tasksets for the essential and non-essential
-// snap refresh groups, creating dependencies between specific tasks when
-// appropriate (e.g., snapd is present and should go first or an app uses the
-// model base as its base and must wait for its update).
+// splitRefresh creates independent refresh task chains for the essential and
+// non-essential snaps, so that the latter can refresh independently without
+// waiting for the reboot that the essential snaps require. The only cross-set
+// dependency is snapd which, if present, must refresh before all other snaps.
 func splitRefresh(st *state.State, essential, nonEssential []minimalInstallInfo, userID int, flags *Flags, updateFunc func([]minimalInstallInfo) ([]string, *UpdateTaskSets, error)) ([]string, *UpdateTaskSets, error) {
 	// taskset with essential snaps (snapd, kernel, gadget and the model base)
 	essentialUpdated, essentialTss, err := updateFunc(essential)
@@ -2181,60 +2181,15 @@ func splitRefresh(st *state.State, essential, nonEssential []minimalInstallInfo,
 		}
 	}
 
-	// add dependencies between apps and the boot base, if required
-	var crossSetDependency bool
-	for _, base := range essential {
-		if base.Type() != snap.TypeBase {
-			continue
-		}
-
-		for _, app := range nonEssential {
-			if app.SnapBase() != base.InstanceName() {
-				continue
-			}
-
-			baseTaskset, err := maybeFindTasksetForSnap(essentialTss.Refresh, base.InstanceName())
-			if err != nil {
-				return nil, nil, err
-			}
-
-			appTaskset, err := maybeFindTasksetForSnap(nonEssentialTss.Refresh, app.InstanceName())
-			if err != nil {
-				return nil, nil, err
-			}
-
-			if baseTaskset == nil || appTaskset == nil {
-				// one of the snaps is not being updated
-				continue
-			}
-
-			// make the app wait for the base
-			baseEndTask := baseTaskset.MaybeEdge(EndEdge)
-			if baseEndTask == nil {
-				return nil, nil, fmt.Errorf("internal error: cannot find last task in base's update taskset")
-			}
-			appStartTask := appTaskset.MaybeEdge(BeginEdge)
-			if appStartTask == nil {
-				return nil, nil, fmt.Errorf("internal error: cannot find first task in snap's taskset")
-			}
-
-			appStartTask.WaitFor(baseEndTask)
-			crossSetDependency = true
-		}
-	}
-
-	// essential snaps don't use epochs at the moment so we only need to consider
-	// re-refreshes for the non-essential refreshes
+	// essential snaps don't use epochs at the moment so we can run a check-rerefresh
+	// task with the non-essential set (before the reboot). Note that even if some
+	// app depends on the model base, the prerequisites code will only wait for it
+	// to link and therefore doesn't need to wait for the reboot
 	if len(nonEssentialTss.Refresh) > 0 && !flags.NoReRefresh {
-		// if there are no cross-set dependencies, the rerefresh can be done
-		// before the reboot. If some app does need to wait for the reboot, the
-		// rerefresh check needs to wait for it so we do it at the end as usual
 		var considerTasks []string
-		if !crossSetDependency {
-			for _, ts := range nonEssentialTss.Refresh {
-				for _, t := range ts.Tasks() {
-					considerTasks = append(considerTasks, t.ID())
-				}
+		for _, ts := range nonEssentialTss.Refresh {
+			for _, t := range ts.Tasks() {
+				considerTasks = append(considerTasks, t.ID())
 			}
 		}
 

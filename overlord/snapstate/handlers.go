@@ -250,7 +250,7 @@ func isInstalled(st *state.State, snapName string) (bool, error) {
 }
 
 // timeout for tasks to check if the prerequisites are ready
-var prerequisitesRetryTimeout = 30 * time.Second
+var prerequisitesRetryTimeout = 10 * time.Second
 
 func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
