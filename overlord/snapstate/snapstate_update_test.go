@@ -11307,6 +11307,76 @@ func (s *snapmgrTestSuite) TestRefreshForcedOnRefreshInhibitionTimeout(c *C) {
 	c.Check(check["some-other-snap"], Equals, 2)
 }
 
+func (s *snapmgrTestSuite) TestRefreshForcedOnRefreshInhibitionTimeoutError(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	instant := time.Now()
+	pastInstant := instant.Add(-snapstate.MaxInhibition * 2)
+	// Add snap
+	si1 := &snap.SideInfo{
+		RealName: "some-snap",
+		SnapID:   "some-snap-id",
+		Revision: snap.R(1),
+	}
+	snaptest.MockSnap(c, `name: some-snap`, si1)
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si1}),
+		Current:  si1.Revision,
+		// Pretend inhibition is overdue.
+		RefreshInhibitedTime: &pastInstant,
+	})
+
+	s.fakeStore.downloads = []fakeDownload{
+		{
+			macaroon: s.user.StoreMacaroon,
+			name:     "some-snap",
+			target:   filepath.Join(dirs.SnapBlobDir, "some-snap_instance_11.snap"),
+		},
+	}
+
+	restore := snapstate.MockAsyncPendingRefreshNotification(func(_ context.Context, pendingInfo *userclient.PendingSnapRefreshInfo) {})
+	defer restore()
+
+	var checkAppRunning int
+	restore = snapstate.MockRefreshAppsCheck(func(info *snap.Info) error {
+		checkAppRunning++
+		// pass on soft-check, fail on hard-check in unlink-current-snap
+		if checkAppRunning > 1 {
+			return snapstate.NewBusySnapError(info, []int{123}, nil, nil)
+		}
+		return nil
+	})
+	defer restore()
+
+	updated, tss, err := snapstate.AutoRefresh(context.Background(), s.state)
+	c.Assert(err, IsNil)
+	c.Check(updated, DeepEquals, []string{"some-snap"})
+	c.Assert(tss, NotNil)
+	c.Check(tss.Refresh, NotNil)
+	c.Check(tss.PreDownload, IsNil)
+
+	chg := s.state.NewChange("refresh", "test refresh")
+	for _, ts := range tss.Refresh {
+		chg.AddAll(ts)
+	}
+
+	restore = snapstate.MockOnRefreshInhibitionTimeout(func(chg *state.Change, snapName string) error {
+		return fmt.Errorf("boom!")
+	})
+	defer restore()
+
+	s.settle(c)
+	c.Assert(chg.Status(), Equals, state.ErrorStatus)
+	c.Assert(checkAppRunning, Equals, 2)
+
+	lock, err := osutil.NewFileLock(filepath.Join(s.fakeBackend.lockDir, "some-snap.lock"))
+	c.Assert(err, IsNil)
+	defer lock.Close()
+	c.Assert(lock.TryLock(), IsNil)
+}
+
 func (s *snapmgrTestSuite) TestDeletedMonitoredMapIsCorrectlyDeleted(c *C) {
 	s.state.Lock()
 	si := &snap.SideInfo{

@@ -1478,7 +1478,12 @@ func (f *fakeSnappyBackend) RunInhibitSnapForUnlink(info *snap.Info, hint runinh
 		f.lockDir = os.TempDir()
 	}
 	// XXX: returning a real lock is somewhat annoying
-	return osutil.NewFileLock(filepath.Join(f.lockDir, info.InstanceName()+".lock"))
+	lock, err = osutil.NewFileLock(filepath.Join(f.lockDir, info.InstanceName()+".lock"))
+	if err != nil {
+		return nil, err
+	}
+	lock.Lock()
+	return lock, err
 }
 
 func (f *fakeSnappyBackend) HideSnapData(snapName string) error {
