@@ -5,15 +5,9 @@ description: Test policy app matching snapd version
 confinement: strict
 
 apps:
-  account-control:
-    command: bin/run
-    plugs: [ account-control ]
   acrn-support:
     command: bin/run
     plugs: [ acrn-support ]
-  adb-support:
-    command: bin/run
-    plugs: [ adb-support ]
   allegro-vcu:
     command: bin/run
     plugs: [ allegro-vcu ]
@@ -23,21 +17,12 @@ apps:
   audio-record:
     command: bin/run
     plugs: [ audio-record ]
-  appstream-metadata:
-    command: bin/run
-    plugs: [ appstream-metadata ]
   avahi-control:
     command: bin/run
     plugs: [ avahi-control ]
   block-devices:
     command: bin/run
     plugs: [ block-devices ]
-  bluez:
-    command: bin/run
-    plugs: [ bluez ]
-  calendar-service:
-    command: bin/run
-    plugs: [ calendar-service ]
   camera:
     command: bin/run
     plugs: [ camera ]
@@ -50,12 +35,6 @@ apps:
   classic-support:
     command: bin/run
     plugs: [ classic-support ]
-  contacts-service:
-    command: bin/run
-    plugs: [ contacts-service ]
-  content-read:
-    command: bin/run
-    plugs: [ content-read ]
   core-support:
     command: bin/run
     plugs: [ core-support ]
@@ -68,12 +47,6 @@ apps:
   dcdbas-control:
     command: bin/run
     plugs: [ dcdbas-control ]
-  desktop:
-    command: bin/run
-    plugs: [ desktop ]
-  desktop-launch:
-    command: bin/run
-    plugs: [ desktop-launch ]
   desktop-legacy:
     command: bin/run
     plugs: [ desktop-legacy ]
@@ -92,15 +65,9 @@ apps:
   fpga:
     command: bin/run
     plugs: [ fpga ]
-  fuse-support:
-    command: bin/run
-    plugs: [ fuse-support ]
   fwupd:
     command: bin/run
     plugs: [ fwupd ]
-  accounts-service:
-    command: bin/run
-    plugs: [ accounts-service ]
   gconf:
     command: bin/run
     plugs: [ gconf ]
@@ -143,9 +110,6 @@ apps:
   location-observe:
     command: bin/run
     plugs: [ location-observe ]
-  log-observe:
-    command: bin/run
-    plugs: [ log-observe ]
   login-session-control:
     command: bin/run
     plugs: [ login-session-control ]
@@ -176,27 +140,18 @@ apps:
   microovn:
     command: bin/run
     plugs: [ microovn ]
-  microstack-support:
-    command: bin/run
-    plugs: [ microstack-support ]
   mir:
     command: bin/run
     plugs: [ mir ]
   modem-manager:
     command: bin/run
     plugs: [ modem-manager ]
-  mount-control:
-    command: bin/run
-    plugs: [ mount-control ]
   mpris:
     command: bin/run
     plugs: [ mpris ]
   multipass-support:
     command: bin/run
     plugs: [ multipass-support ]
-  network-manager:
-    command: bin/run
-    plugs: [ network-manager ]
   network-manager-observe:
     command: bin/run
     plugs: [ network-manager-observe ]
@@ -224,9 +179,6 @@ apps:
   optical-drive:
     command: bin/run
     plugs: [ optical-drive ]
-  packagekit-control:
-    command: bin/run
-    plugs: [ packagekit-control ]
   pcscd:
     command: bin/run
     plugs: [ pcscd ]
@@ -236,9 +188,6 @@ apps:
   pkcs11:
     command: bin/run
     plugs: [ pkcs11 ]
-  polkit:
-    command: bin/run
-    plugs: [ polkit ]
   polkit-agent:
     command: bin/run
     plugs: [ polkit-agent ]
@@ -266,9 +215,6 @@ apps:
   remoteproc:
     command: bin/run
     plugs: [ remoteproc ]
-  ros-opt-data:
-    command: bin/run
-    plugs: [ ros-opt-data ]
   screen-inhibit-control:
     command: bin/run
     plugs: [ screen-inhibit-control ]
@@ -281,9 +227,6 @@ apps:
   shutdown:
     command: bin/run
     plugs: [ shutdown ]
-  snapd-control:
-    command: bin/run
-    plugs: [ snapd-control ]
   snap-refresh-control:
     command: bin/run
     plugs: [ snap-refresh-control ]
@@ -293,9 +236,6 @@ apps:
   sd-control:
     command: bin/run
     plugs: [ sd-control ]
-  shared-memory:
-    command: bin/run
-    plugs: [ shared-memory ]
   steam-support:
     command: bin/run
     plugs: [ steam-support ]
@@ -347,12 +287,6 @@ apps:
   unity8-contacts:
     command: bin/run
     plugs: [ unity8-contacts ]
-  upower-observe:
-    command: bin/run
-    plugs: [ upower-observe ]
-  userns:
-    command: bin/run
-    plugs: [ userns ]
   vcio:
     command: bin/run
     plugs: [ vcio ]
@@ -364,30 +298,9 @@ apps:
     plugs: [ xilinx-dma ]
 
 plugs:
-  content-read:
-    interface: content
-    content: test-content
-    target: $SNAP/content
   custom-device:
     interface: custom-device
     custom-device: mydevice
-  kernel-module-load:
-    interface: kernel-module-load
-    modules:
-      - name: mymodule
-        load: denied
-  mount-control:
-    interface: mount-control
-    mount:
-      - what: /dev/sda1
-        where: /media/myfiles
-        options: [rw]
-  polkit:
-    interface: polkit
-    action-prefix: io.snapcraft.example
-  shared-memory:
-    interface: shared-memory
-    private: true
   empty:
     interface: empty
   sd-control:
