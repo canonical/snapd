@@ -53,7 +53,6 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snapdenv"
-	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -579,7 +578,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	}
 
 	// This task is necessary only for UC20+ and hybrid
-	if snapsup.Type == snap.TypeKernel && NeedsKernelSetup(deviceCtx) {
+	if snapsup.Type == snap.TypeKernel && NeedsKernelSetup(deviceCtx.Model()) {
 		setupKernel := st.NewTask("prepare-kernel-snap", fmt.Sprintf(i18n.G("Prepare kernel driver tree for %q%s"), snapsup.InstanceName(), revisionStr))
 		addTask(setupKernel)
 		prev = setupKernel
@@ -643,7 +642,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	addTask(autoConnect)
 	prev = autoConnect
 
-	if snapsup.Type == snap.TypeKernel && NeedsKernelSetup(deviceCtx) {
+	if snapsup.Type == snap.TypeKernel && NeedsKernelSetup(deviceCtx.Model()) {
 		// This task needs to run after we're back and running the new
 		// kernel after a reboot was requested in link-snap handler.
 		setupKernel := st.NewTask("discard-old-kernel-snap-setup", fmt.Sprintf(i18n.G("Discard previous kernel driver tree for %q%s"), snapsup.InstanceName(), revisionStr))
@@ -821,52 +820,22 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	return installSet, nil
 }
 
-func NeedsKernelSetup(devCtx DeviceContext) bool {
-	// Must be UC20+ or hybrid
-	if !devCtx.HasModeenv() {
+func NeedsKernelSetup(model *asserts.Model) bool {
+	// Checkinf if it has modeenv - it must be UC20+ or hybrid
+	if model.Grade() == asserts.ModelGradeUnset {
 		return false
 	}
 
-	// Check that we have a snapd-generator that will create mount
-	// units for the drivers tree, for both classic & UC
-	if devCtx.Classic() {
-		// We run the generator from the deb package, so check its version
-		snapdInfoDir := filepath.Join(dirs.GlobalRootDir, dirs.CoreLibExecDir)
-		debVersion, _, err := snapdtool.SnapdVersionFromInfoFile(snapdInfoDir)
-		if err != nil {
-			return false
-		}
-
-		res, err := strutil.VersionCompare(debVersion, "2.62")
-		if err != nil {
-			logger.Noticef("cannot compare %q to 2.62: %v", debVersion, err)
-			return false
-		}
-		if res >= 0 {
-			return true
-		}
-	} else {
-		// We assume core24 onwards has the generator, for older boot bases
-		// we return false.
-		// TODO this won't work for a UC2{0,2} -> UC24+ remodel as we
-		// need the context created from the new model. Get to this
-		// ASAP after snapd 2.62 release.
-		baseSn := devCtx.Model().BaseSnap()
-		if baseSn == nil {
-			logger.Noticef("internal error: no base in model")
-			return false
-		}
-		// TODO in remodeling we are not getting the right answer,
-		// how to fix that?
-		switch baseSn.SnapName() {
-		case "core20", "core22", "core22-desktop":
-			return false
-		default:
-			return true
-		}
+	// We assume core24/hybrid 24.04 onwards have the generator, for older
+	// boot bases we return false.
+	// TODO this won't work for a UC2{0,2} -> UC24+ remodel as we need the
+	// new model here. Get to this ASAP after snapd 2.62 release.
+	switch model.Base() {
+	case "core20", "core22", "core22-desktop":
+		return false
+	default:
+		return true
 	}
-
-	return false
 }
 
 func findTasksMatchingKindAndSnap(st *state.State, kind string, snapName string, revision snap.Revision) ([]*state.Task, error) {
@@ -3486,7 +3455,7 @@ func LinkNewBaseOrKernel(st *state.State, name string, fromChange string) (*stat
 		if err != nil {
 			return nil, err
 		}
-		if NeedsKernelSetup(deviceCtx) {
+		if NeedsKernelSetup(deviceCtx.Model()) {
 			setupKernel := st.NewTask("prepare-kernel-snap", fmt.Sprintf(i18n.G("Prepare kernel driver tree for %q (%s) for remodel"), snapsup.InstanceName(), snapst.Current))
 			ts.AddTask(setupKernel)
 			setupKernel.Set("snap-setup-task", prepareSnap.ID())
@@ -3545,7 +3514,7 @@ func AddLinkNewBaseOrKernel(st *state.State, ts *state.TaskSet) (*state.TaskSet,
 		if err != nil {
 			return nil, err
 		}
-		if NeedsKernelSetup(deviceCtx) {
+		if NeedsKernelSetup(deviceCtx.Model()) {
 			setupKernel := st.NewTask("prepare-kernel-snap", fmt.Sprintf(i18n.G("Prepare kernel driver tree for %q (%s) for remodel"), snapsup.InstanceName(), snapsup.Revision()))
 			setupKernel.Set("snap-setup-task", snapSetupTask.ID())
 			setupKernel.WaitFor(prev)
