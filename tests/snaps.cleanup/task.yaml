@@ -1,5 +1,10 @@
 summary: smoke test for the snaps.cleanup tool
 
+details: |
+    Check the snaps.cleanup tool handles properly the
+    removal of the installed snaps in the current system.
+    The test also verifies the fundamental snaps are not removed
+
 backends: [google]
 
 systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64, ubuntu-22.04-64]

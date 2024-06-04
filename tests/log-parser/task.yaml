@@ -1,9 +1,14 @@
 summary: test for the log parser tool
 
+details: |
+    This test checks the log-parser tool is able to read different spread
+    logs and produce a json file with the logs info. This json file contains
+    all the information from the log but structured in json format.
+
 backends: [google]
 
-# Github actions agents are just running in bionic and focal
-systems: [ubuntu-18.04-64, ubuntu-20.04-64]
+# Github actions agents are just running ubuntu jammy
+systems: [ubuntu-22.04-64]
 
 execute: |
     log-parser --help | MATCH 'usage: log-parser \[-h\] \[-c CUT\]'
@@ -104,3 +109,12 @@ execute: |
     log-parser all-successful.log.spread -pr successful | grep -q "Successful tasks: 434"
     log-parser all-successful.log.spread -pr failed | grep -v "Aborted tasks"
 
+    # Check filtering the debug output
+    log-parser with-debug-output.log.spread -c 1 -dr "executed_tests=EXECUTED_TESTS=(.*)" -dr "apparmor_version=AppArmor parser version .*"
+    test "$(jq -r '.[0].detail.executed_tests' spread-results.json | wc -w)" -eq 44
+    test "$(jq -r '.[0].detail.apparmor_version' spread-results.json)" = "AppArmor parser version 2.13.3"
+
+    # Check filtering the error output
+    log-parser with-error-output.log.spread -c 1 -er "executed_tests=EXECUTED_TESTS=(.*)" -er "apparmor_version=AppArmor parser version .*"
+    test "$(jq -r '.[0].detail.executed_tests' spread-results.json | wc -w)" -eq 44
+    test "$(jq -r '.[0].detail.apparmor_version' spread-results.json)" = "AppArmor parser version 2.13.3"
