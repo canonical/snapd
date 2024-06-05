@@ -10096,6 +10096,10 @@ func noticeToMap(c *C, notice *state.Notice) map[string]any {
 func (s *snapmgrTestSuite) TestCheckExpectedRestartNoEnv(c *C) {
 	os.Unsetenv("SNAPD_REVERT_TO_REV")
 
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
 	// no snapd related change in the state
 	err := snapstate.CheckExpectedRestart(st)
 	c.Assert(err, IsNil)
