@@ -1,6 +1,6 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 /*
- * Copyright (C) 2023 Canonical Ltd
+ * Copyright (C) 2023-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -25,27 +25,26 @@ import (
 	"fmt"
 	"net/http"
 
-	"gopkg.in/check.v1"
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/aspects"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/registry"
 )
 
-type aspectsSuite struct {
+type registrySuite struct {
 	apiBaseSuite
 
 	st *state.State
 }
 
-var _ = Suite(&aspectsSuite{})
+var _ = Suite(&registrySuite{})
 
-func (s *aspectsSuite) SetUpTest(c *C) {
+func (s *registrySuite) SetUpTest(c *C) {
 	s.apiBaseSuite.SetUpTest(c)
 
 	s.expectReadAccess(daemon.AuthenticatedAccess{Polkit: "io.snapcraft.snapd.manage"})
@@ -56,15 +55,15 @@ func (s *aspectsSuite) SetUpTest(c *C) {
 	s.d = daemon.NewWithOverlord(o)
 
 	s.st.Lock()
-	databags := map[string]map[string]aspects.JSONDataBag{
-		"system": {"network": aspects.NewJSONDataBag()},
+	databags := map[string]map[string]registry.JSONDataBag{
+		"system": {"network": registry.NewJSONDataBag()},
 	}
-	s.st.Set("aspect-databags", databags)
+	s.st.Set("registry-databags", databags)
 	s.st.Unlock()
 }
 
-func (s *aspectsSuite) setFeatureFlag(c *C) {
-	_, confOption := features.AspectsConfiguration.ConfigOption()
+func (s *registrySuite) setFeatureFlag(c *C) {
+	_, confOption := features.Registries.ConfigOption()
 
 	s.st.Lock()
 	defer s.st.Unlock()
@@ -75,7 +74,7 @@ func (s *aspectsSuite) setFeatureFlag(c *C) {
 	tr.Commit()
 }
 
-func (s *aspectsSuite) TestGetAspect(c *C) {
+func (s *registrySuite) TestGetView(c *C) {
 	s.setFeatureFlag(c)
 
 	type test struct {
@@ -90,15 +89,15 @@ func (s *aspectsSuite) TestGetAspect(c *C) {
 		{name: "map", value: map[string]int{"foo": 123}},
 	} {
 		cmt := Commentf("%s test", t.name)
-		restore := daemon.MockAspectstateGet(func(_ *state.State, acc, bundleName, aspect string, fields []string) (interface{}, error) {
+		restore := daemon.MockRegistrystateGetViaView(func(_ *state.State, acc, registry, view string, fields []string) (interface{}, error) {
 			c.Check(acc, Equals, "system", cmt)
-			c.Check(bundleName, Equals, "network", cmt)
-			c.Check(aspect, Equals, "wifi-setup", cmt)
+			c.Check(registry, Equals, "network", cmt)
+			c.Check(view, Equals, "wifi-setup", cmt)
 			c.Check(fields, DeepEquals, []string{"ssid"}, cmt)
 
 			return map[string]interface{}{"ssid": t.value}, nil
 		})
-		req, err := http.NewRequest("GET", "/v2/aspects/system/network/wifi-setup?fields=ssid", nil)
+		req, err := http.NewRequest("GET", "/v2/registry/system/network/wifi-setup?fields=ssid", nil)
 		c.Assert(err, IsNil, cmt)
 
 		rspe := s.syncReq(c, req, nil)
@@ -109,11 +108,11 @@ func (s *aspectsSuite) TestGetAspect(c *C) {
 	}
 }
 
-func (s *aspectsSuite) TestAspectGetMany(c *C) {
+func (s *registrySuite) TestViewGetMany(c *C) {
 	s.setFeatureFlag(c)
 
 	var calls int
-	restore := daemon.MockAspectstateGet(func(_ *state.State, _, _, _ string, _ []string) (interface{}, error) {
+	restore := daemon.MockRegistrystateGetViaView(func(_ *state.State, _, _, _ string, _ []string) (interface{}, error) {
 		calls++
 		switch calls {
 		case 1:
@@ -126,7 +125,7 @@ func (s *aspectsSuite) TestAspectGetMany(c *C) {
 	})
 	defer restore()
 
-	req, err := http.NewRequest("GET", "/v2/aspects/system/network/wifi-setup?fields=ssid,password", nil)
+	req, err := http.NewRequest("GET", "/v2/registry/system/network/wifi-setup?fields=ssid,password", nil)
 	c.Assert(err, IsNil)
 
 	rspe := s.syncReq(c, req, nil)
@@ -134,11 +133,11 @@ func (s *aspectsSuite) TestAspectGetMany(c *C) {
 	c.Check(rspe.Result, DeepEquals, map[string]interface{}{"ssid": "foo", "password": "bar"})
 }
 
-func (s *aspectsSuite) TestAspectGetSomeFieldNotFound(c *C) {
+func (s *registrySuite) TestViewGetSomeFieldNotFound(c *C) {
 	s.setFeatureFlag(c)
 
 	var calls int
-	restore := daemon.MockAspectstateGet(func(_ *state.State, acc, bundle, aspect string, _ []string) (interface{}, error) {
+	restore := daemon.MockRegistrystateGetViaView(func(_ *state.State, acc, registry, view string, _ []string) (interface{}, error) {
 		calls++
 		switch calls {
 		case 1:
@@ -151,7 +150,7 @@ func (s *aspectsSuite) TestAspectGetSomeFieldNotFound(c *C) {
 	})
 	defer restore()
 
-	req, err := http.NewRequest("GET", "/v2/aspects/system/network/wifi-setup?fields=ssid,password", nil)
+	req, err := http.NewRequest("GET", "/v2/registry/system/network/wifi-setup?fields=ssid,password", nil)
 	c.Assert(err, IsNil)
 
 	rspe := s.syncReq(c, req, nil)
@@ -159,21 +158,21 @@ func (s *aspectsSuite) TestAspectGetSomeFieldNotFound(c *C) {
 	c.Check(rspe.Result, DeepEquals, map[string]interface{}{"ssid": "foo"})
 }
 
-func (s *aspectsSuite) TestGetAspectNoFieldsFound(c *C) {
+func (s *registrySuite) TestGetViewNoFieldsFound(c *C) {
 	s.setFeatureFlag(c)
 
 	var calls int
-	restore := daemon.MockAspectstateGet(func(_ *state.State, _, _, _ string, fields []string) (interface{}, error) {
+	restore := daemon.MockRegistrystateGetViaView(func(_ *state.State, _, _, _ string, fields []string) (interface{}, error) {
 		calls++
 		switch calls {
 		case 1:
-			return nil, &aspects.NotFoundError{
-				Account:    "system",
-				BundleName: "network",
-				Aspect:     "wifi-setup",
-				Operation:  "get",
-				Requests:   []string{"ssid", "password"},
-				Cause:      "mocked",
+			return nil, &registry.NotFoundError{
+				Account:      "system",
+				RegistryName: "network",
+				View:         "wifi-setup",
+				Operation:    "get",
+				Requests:     []string{"ssid", "password"},
+				Cause:        "mocked",
 			}
 		default:
 			err := fmt.Errorf("expected 1 call to Get, now on %d", calls)
@@ -183,79 +182,79 @@ func (s *aspectsSuite) TestGetAspectNoFieldsFound(c *C) {
 	})
 	defer restore()
 
-	req, err := http.NewRequest("GET", "/v2/aspects/system/network/wifi-setup?fields=ssid,password", nil)
+	req, err := http.NewRequest("GET", "/v2/registry/system/network/wifi-setup?fields=ssid,password", nil)
 	c.Assert(err, IsNil)
 
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe.Status, Equals, 404)
-	c.Check(rspe.Error(), Equals, `cannot get "ssid", "password" in aspect system/network/wifi-setup: mocked (api 404)`)
+	c.Check(rspe.Error(), Equals, `cannot get "ssid", "password" in registry view system/network/wifi-setup: mocked (api 404)`)
 }
 
-func (s *aspectsSuite) TestAspectGetDatabagNotFound(c *C) {
+func (s *registrySuite) TestViewGetDatabagNotFound(c *C) {
 	s.setFeatureFlag(c)
 
-	restore := daemon.MockAspectstateGet(func(_ *state.State, _, _, _ string, _ []string) (interface{}, error) {
-		return nil, &aspects.NotFoundError{Account: "foo", BundleName: "network", Aspect: "wifi-setup", Operation: "get", Requests: []string{"ssid"}, Cause: "mocked"}
+	restore := daemon.MockRegistrystateGetViaView(func(_ *state.State, _, _, _ string, _ []string) (interface{}, error) {
+		return nil, &registry.NotFoundError{Account: "foo", RegistryName: "network", View: "wifi-setup", Operation: "get", Requests: []string{"ssid"}, Cause: "mocked"}
 	})
 	defer restore()
 
-	req, err := http.NewRequest("GET", "/v2/aspects/foo/network/wifi-setup?fields=ssid", nil)
+	req, err := http.NewRequest("GET", "/v2/registry/foo/network/wifi-setup?fields=ssid", nil)
 	c.Assert(err, IsNil)
 
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe.Status, Equals, 404)
-	c.Check(rspe.Message, Equals, `cannot get "ssid" in aspect foo/network/wifi-setup: mocked`)
+	c.Check(rspe.Message, Equals, `cannot get "ssid" in registry view foo/network/wifi-setup: mocked`)
 }
 
-func (s *aspectsSuite) TestAspectSetManyWithExistingState(c *C) {
+func (s *registrySuite) TestViewSetManyWithExistingState(c *C) {
 	s.st.Lock()
 
-	databag := aspects.NewJSONDataBag()
+	databag := registry.NewJSONDataBag()
 	err := databag.Set("wifi.ssid", "foo")
 	c.Assert(err, IsNil)
 
-	databags := map[string]map[string]aspects.JSONDataBag{
+	databags := map[string]map[string]registry.JSONDataBag{
 		"system": {"network": databag},
 	}
-	s.st.Set("aspect-databags", databags)
+	s.st.Set("registry-databags", databags)
 	s.st.Unlock()
 
-	s.testAspectSetMany(c)
+	s.testViewSetMany(c)
 }
 
-func (s *aspectsSuite) TestAspectSetManyWithExistingEmptyState(c *C) {
+func (s *registrySuite) TestViewSetManyWithExistingEmptyState(c *C) {
 	s.st.Lock()
 
-	databags := map[string]map[string]aspects.JSONDataBag{
-		"system": {"network": aspects.NewJSONDataBag()},
+	databags := map[string]map[string]registry.JSONDataBag{
+		"system": {"network": registry.NewJSONDataBag()},
 	}
-	s.st.Set("aspect-databags", databags)
+	s.st.Set("registry-databags", databags)
 	s.st.Unlock()
 
-	s.testAspectSetMany(c)
+	s.testViewSetMany(c)
 }
 
-func (s *aspectsSuite) TestAspectSetMany(c *C) {
-	s.testAspectSetMany(c)
+func (s *registrySuite) TestViewSetMany(c *C) {
+	s.testViewSetMany(c)
 }
 
-func (s *aspectsSuite) testAspectSetMany(c *C) {
+func (s *registrySuite) testViewSetMany(c *C) {
 	s.setFeatureFlag(c)
 
 	var calls int
-	restore := daemon.MockAspectstateSet(func(st *state.State, account, bundle, aspect string, requests map[string]interface{}) error {
+	restore := daemon.MockRegistrystateSetViaView(func(st *state.State, account, registryName, viewName string, requests map[string]interface{}) error {
 		calls++
 		switch calls {
 		case 1:
 			c.Check(requests, DeepEquals, map[string]interface{}{"ssid": "foo", "password": nil})
 
-			bag := aspects.NewJSONDataBag()
+			bag := registry.NewJSONDataBag()
 			err := bag.Set("wifi.ssid", "foo")
 			c.Check(err, IsNil)
 			err = bag.Unset("wifi.psk")
 			c.Check(err, IsNil)
 
-			st.Set("aspect-databags", map[string]map[string]aspects.JSONDataBag{account: {bundle: bag}})
+			st.Set("registry-databags", map[string]map[string]registry.JSONDataBag{account: {registryName: bag}})
 		default:
 			err := fmt.Errorf("expected 1 call, now on %d", calls)
 			c.Error(err)
@@ -267,7 +266,7 @@ func (s *aspectsSuite) testAspectSetMany(c *C) {
 	defer restore()
 
 	buf := bytes.NewBufferString(`{"ssid": "foo", "password": null}`)
-	req, err := http.NewRequest("PUT", "/v2/aspects/system/network/wifi-setup", buf)
+	req, err := http.NewRequest("PUT", "/v2/registry/system/network/wifi-setup", buf)
 	c.Assert(err, IsNil)
 
 	rspe := s.asyncReq(c, req, nil)
@@ -278,12 +277,12 @@ func (s *aspectsSuite) testAspectSetMany(c *C) {
 	defer st.Unlock()
 
 	chg := st.Change(rspe.Change)
-	c.Check(chg.Kind(), check.Equals, "set-aspect")
-	c.Check(chg.Summary(), check.Equals, `Set aspect system/network/wifi-setup`)
+	c.Check(chg.Kind(), Equals, "set-registry-view")
+	c.Check(chg.Summary(), Equals, `Set registry view system/network/wifi-setup`)
 	c.Check(chg.Status(), Equals, state.DoneStatus)
 
-	var databags map[string]map[string]aspects.JSONDataBag
-	err = st.Get("aspect-databags", &databags)
+	var databags map[string]map[string]registry.JSONDataBag
+	err = st.Get("registry-databags", &databags)
 	c.Assert(err, IsNil)
 
 	value, err := databags["system"]["network"].Get("wifi.ssid")
@@ -291,11 +290,11 @@ func (s *aspectsSuite) testAspectSetMany(c *C) {
 	c.Assert(value, Equals, "foo")
 
 	value, err = databags["system"]["network"].Get("wifi.psk")
-	c.Assert(err, FitsTypeOf, aspects.PathError(""))
+	c.Assert(err, FitsTypeOf, registry.PathError(""))
 	c.Assert(value, IsNil)
 }
 
-func (s *aspectsSuite) TestGetAspectError(c *C) {
+func (s *registrySuite) TestGetViewError(c *C) {
 	s.setFeatureFlag(c)
 
 	type test struct {
@@ -305,14 +304,14 @@ func (s *aspectsSuite) TestGetAspectError(c *C) {
 	}
 
 	for _, t := range []test{
-		{name: "aspect not found", err: &aspects.NotFoundError{}, code: 404},
+		{name: "registry not found", err: &registry.NotFoundError{}, code: 404},
 		{name: "internal", err: errors.New("internal"), code: 500},
 	} {
-		restore := daemon.MockAspectstateGet(func(_ *state.State, _, _, _ string, _ []string) (interface{}, error) {
+		restore := daemon.MockRegistrystateGetViaView(func(_ *state.State, _, _, _ string, _ []string) (interface{}, error) {
 			return nil, t.err
 		})
 
-		req, err := http.NewRequest("GET", "/v2/aspects/system/network/wifi-setup?fields=ssid", nil)
+		req, err := http.NewRequest("GET", "/v2/registry/system/network/wifi-setup?fields=ssid", nil)
 		c.Assert(err, IsNil, Commentf("%s test", t.name))
 
 		rspe := s.errorReq(c, req, nil)
@@ -321,11 +320,11 @@ func (s *aspectsSuite) TestGetAspectError(c *C) {
 	}
 }
 
-func (s *aspectsSuite) TestGetAspectMisshapenQuery(c *C) {
+func (s *registrySuite) TestGetViewMisshapenQuery(c *C) {
 	s.setFeatureFlag(c)
 
 	var calls int
-	restore := daemon.MockAspectstateGet(func(_ *state.State, _, _, _ string, fields []string) (interface{}, error) {
+	restore := daemon.MockRegistrystateGetViaView(func(_ *state.State, _, _, _ string, fields []string) (interface{}, error) {
 		calls++
 		switch calls {
 		case 1:
@@ -339,7 +338,7 @@ func (s *aspectsSuite) TestGetAspectMisshapenQuery(c *C) {
 	})
 	defer restore()
 
-	req, err := http.NewRequest("GET", "/v2/aspects/system/network/wifi-setup?fields=,foo.bar,,[1].foo,foo,", nil)
+	req, err := http.NewRequest("GET", "/v2/registry/system/network/wifi-setup?fields=,foo.bar,,[1].foo,foo,", nil)
 	c.Assert(err, IsNil)
 
 	rsp := s.syncReq(c, req, nil)
@@ -347,7 +346,7 @@ func (s *aspectsSuite) TestGetAspectMisshapenQuery(c *C) {
 	c.Check(rsp.Result, DeepEquals, map[string]interface{}{"a": 1})
 }
 
-func (s *aspectsSuite) TestSetAspect(c *C) {
+func (s *registrySuite) TestSetView(c *C) {
 	s.setFeatureFlag(c)
 
 	type test struct {
@@ -362,16 +361,16 @@ func (s *aspectsSuite) TestSetAspect(c *C) {
 		{name: "map", value: map[string]interface{}{"foo": "bar"}},
 	} {
 		cmt := Commentf("%s test", t.name)
-		restore := daemon.MockAspectstateSet(func(st *state.State, acc, bundleName, aspect string, requests map[string]interface{}) error {
+		restore := daemon.MockRegistrystateSetViaView(func(st *state.State, acc, registryName, view string, requests map[string]interface{}) error {
 			c.Check(acc, Equals, "system", cmt)
-			c.Check(bundleName, Equals, "network", cmt)
-			c.Check(aspect, Equals, "wifi-setup", cmt)
+			c.Check(registryName, Equals, "network", cmt)
+			c.Check(view, Equals, "wifi-setup", cmt)
 			c.Check(requests, DeepEquals, map[string]interface{}{"ssid": t.value}, cmt)
 
-			bag := aspects.NewJSONDataBag()
+			bag := registry.NewJSONDataBag()
 			err := bag.Set("wifi.ssid", t.value)
 			c.Check(err, IsNil)
-			st.Set("aspect-databags", map[string]map[string]aspects.JSONDataBag{acc: {bundleName: bag}})
+			st.Set("registry-databags", map[string]map[string]registry.JSONDataBag{acc: {registryName: bag}})
 
 			return nil
 		})
@@ -379,7 +378,7 @@ func (s *aspectsSuite) TestSetAspect(c *C) {
 		c.Check(err, IsNil, cmt)
 
 		buf := bytes.NewBufferString(fmt.Sprintf(`{"ssid": %s}`, jsonVal))
-		req, err := http.NewRequest("PUT", "/v2/aspects/system/network/wifi-setup", buf)
+		req, err := http.NewRequest("PUT", "/v2/registry/system/network/wifi-setup", buf)
 		c.Check(err, IsNil, cmt)
 		req.Header.Set("Content-Type", "application/json")
 
@@ -391,14 +390,14 @@ func (s *aspectsSuite) TestSetAspect(c *C) {
 		chg := st.Change(rspe.Change)
 		st.Unlock()
 
-		c.Check(chg.Kind(), Equals, "set-aspect", cmt)
-		c.Check(chg.Summary(), Equals, `Set aspect system/network/wifi-setup`, cmt)
+		c.Check(chg.Kind(), Equals, "set-registry-view", cmt)
+		c.Check(chg.Summary(), Equals, `Set registry view system/network/wifi-setup`, cmt)
 
 		st.Lock()
 		c.Check(chg.Status(), Equals, state.DoneStatus)
 
-		var databags map[string]map[string]aspects.JSONDataBag
-		err = st.Get("aspect-databags", &databags)
+		var databags map[string]map[string]registry.JSONDataBag
+		err = st.Get("registry-databags", &databags)
 		st.Unlock()
 		c.Assert(err, IsNil)
 
@@ -410,20 +409,20 @@ func (s *aspectsSuite) TestSetAspect(c *C) {
 	}
 }
 
-func (s *aspectsSuite) TestUnsetAspect(c *C) {
+func (s *registrySuite) TestUnsetView(c *C) {
 	s.setFeatureFlag(c)
 
-	restore := daemon.MockAspectstateSet(func(_ *state.State, acc, bundleName, aspect string, requests map[string]interface{}) error {
+	restore := daemon.MockRegistrystateSetViaView(func(_ *state.State, acc, registryName, view string, requests map[string]interface{}) error {
 		c.Check(acc, Equals, "system")
-		c.Check(bundleName, Equals, "network")
-		c.Check(aspect, Equals, "wifi-setup")
+		c.Check(registryName, Equals, "network")
+		c.Check(view, Equals, "wifi-setup")
 		c.Check(requests, DeepEquals, map[string]interface{}{"ssid": nil})
 		return nil
 	})
 	defer restore()
 
 	buf := bytes.NewBufferString(`{"ssid": null}`)
-	req, err := http.NewRequest("PUT", "/v2/aspects/system/network/wifi-setup", buf)
+	req, err := http.NewRequest("PUT", "/v2/registry/system/network/wifi-setup", buf)
 	c.Assert(err, IsNil)
 	req.Header.Set("Content-Type", "application/json")
 
@@ -434,13 +433,13 @@ func (s *aspectsSuite) TestUnsetAspect(c *C) {
 	st.Lock()
 	chg := st.Change(rspe.Change)
 
-	c.Check(chg.Kind(), check.Equals, "set-aspect")
-	c.Check(chg.Summary(), check.Equals, `Set aspect system/network/wifi-setup`)
+	c.Check(chg.Kind(), Equals, "set-registry-view")
+	c.Check(chg.Summary(), Equals, `Set registry view system/network/wifi-setup`)
 	c.Check(chg.Status(), Equals, state.DoneStatus)
 	st.Unlock()
 }
 
-func (s *aspectsSuite) TestSetAspectError(c *C) {
+func (s *registrySuite) TestSetViewError(c *C) {
 	s.setFeatureFlag(c)
 
 	type test struct {
@@ -450,16 +449,16 @@ func (s *aspectsSuite) TestSetAspectError(c *C) {
 	}
 
 	for _, t := range []test{
-		{name: "not found", err: &aspects.NotFoundError{}, code: 404},
+		{name: "not found", err: &registry.NotFoundError{}, code: 404},
 		{name: "internal", err: errors.New("internal"), code: 500},
 	} {
-		restore := daemon.MockAspectstateSet(func(*state.State, string, string, string, map[string]interface{}) error {
+		restore := daemon.MockRegistrystateSetViaView(func(*state.State, string, string, string, map[string]interface{}) error {
 			return t.err
 		})
 		cmt := Commentf("%s test", t.name)
 
 		buf := bytes.NewBufferString(`{"ssid": null}`)
-		req, err := http.NewRequest("PUT", "/v2/aspects/system/network/wifi-setup", buf)
+		req, err := http.NewRequest("PUT", "/v2/registry/system/network/wifi-setup", buf)
 		c.Assert(err, IsNil, cmt)
 		req.Header.Set("Content-Type", "application/json")
 
@@ -469,17 +468,17 @@ func (s *aspectsSuite) TestSetAspectError(c *C) {
 	}
 }
 
-func (s *aspectsSuite) TestSetAspectEmptyBody(c *C) {
+func (s *registrySuite) TestSetViewEmptyBody(c *C) {
 	s.setFeatureFlag(c)
 
-	restore := daemon.MockAspectstateSet(func(*state.State, string, string, string, map[string]interface{}) error {
-		err := errors.New("unexpected call to aspectstate.Set")
+	restore := daemon.MockRegistrystateSetViaView(func(*state.State, string, string, string, map[string]interface{}) error {
+		err := errors.New("unexpected call to registrystate.Set")
 		c.Error(err)
 		return err
 	})
 	defer restore()
 
-	req, err := http.NewRequest("PUT", "/v2/aspects/system/network/wifi-setup", &bytes.Buffer{})
+	req, err := http.NewRequest("PUT", "/v2/registry/system/network/wifi-setup", &bytes.Buffer{})
 	req.Header.Set("Content-Type", "application/json")
 	c.Assert(err, IsNil)
 
@@ -487,115 +486,115 @@ func (s *aspectsSuite) TestSetAspectEmptyBody(c *C) {
 	c.Check(rspe.Status, Equals, 400)
 }
 
-func (s *aspectsSuite) TestSetAspectBadRequest(c *C) {
+func (s *registrySuite) TestSetViewBadRequest(c *C) {
 	s.setFeatureFlag(c)
 
 	buf := bytes.NewBufferString(`{`)
-	req, err := http.NewRequest("PUT", "/v2/aspects/system/network/wifi-setup", buf)
+	req, err := http.NewRequest("PUT", "/v2/registry/system/network/wifi-setup", buf)
 	c.Assert(err, IsNil)
 
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe.Status, Equals, 400)
-	c.Check(rspe.Message, Equals, "cannot decode aspect request body: unexpected EOF")
+	c.Check(rspe.Message, Equals, "cannot decode registry request body: unexpected EOF")
 }
 
-func (s *aspectsSuite) TestGetBadRequest(c *C) {
+func (s *registrySuite) TestGetBadRequest(c *C) {
 	s.setFeatureFlag(c)
 
-	restore := daemon.MockAspectstateGet(func(_ *state.State, acc, bundleName, aspect string, fields []string) (interface{}, error) {
-		return nil, &aspects.BadRequestError{
-			Account:    "acc",
-			BundleName: "bundle",
-			Aspect:     "foo",
-			Operation:  "get",
-			Request:    "foo",
-			Cause:      "bad request",
+	restore := daemon.MockRegistrystateGetViaView(func(_ *state.State, acc, registryName, view string, fields []string) (interface{}, error) {
+		return nil, &registry.BadRequestError{
+			Account:      "acc",
+			RegistryName: "reg",
+			View:         "foo",
+			Operation:    "get",
+			Request:      "foo",
+			Cause:        "bad request",
 		}
 	})
 	defer restore()
 
-	req, err := http.NewRequest("GET", "/v2/aspects/acc/bundle/foo?fields=foo", &bytes.Buffer{})
+	req, err := http.NewRequest("GET", "/v2/registry/acc/reg/foo?fields=foo", &bytes.Buffer{})
 	c.Assert(err, IsNil)
 
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe.Status, Equals, 400)
-	c.Check(rspe.Message, Equals, `cannot get "foo" in aspect acc/bundle/foo: bad request`)
+	c.Check(rspe.Message, Equals, `cannot get "foo" in registry view acc/reg/foo: bad request`)
 	c.Check(rspe.Kind, Equals, client.ErrorKind(""))
 }
 
-func (s *aspectsSuite) TestSetBadRequest(c *C) {
+func (s *registrySuite) TestSetBadRequest(c *C) {
 	s.setFeatureFlag(c)
 
-	restore := daemon.MockAspectstateSet(func(*state.State, string, string, string, map[string]interface{}) error {
-		return &aspects.BadRequestError{
-			Account:    "acc",
-			BundleName: "bundle",
-			Aspect:     "foo",
-			Operation:  "set",
-			Request:    "foo",
-			Cause:      "bad request",
+	restore := daemon.MockRegistrystateSetViaView(func(*state.State, string, string, string, map[string]interface{}) error {
+		return &registry.BadRequestError{
+			Account:      "acc",
+			RegistryName: "reg",
+			View:         "foo",
+			Operation:    "set",
+			Request:      "foo",
+			Cause:        "bad request",
 		}
 	})
 	defer restore()
 
 	buf := bytes.NewBufferString(`{"a.b.c": "foo"}`)
-	req, err := http.NewRequest("PUT", "/v2/aspects/acc/bundle/foo", buf)
+	req, err := http.NewRequest("PUT", "/v2/registry/acc/reg/foo", buf)
 	req.Header.Set("Content-Type", "application/json")
 	c.Assert(err, IsNil)
 
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe.Status, Equals, 400)
-	c.Check(rspe.Message, Equals, `cannot set "foo" in aspect acc/bundle/foo: bad request`)
+	c.Check(rspe.Message, Equals, `cannot set "foo" in registry view acc/reg/foo: bad request`)
 	c.Check(rspe.Kind, Equals, client.ErrorKind(""))
 }
 
-func (s *aspectsSuite) TestSetFailUnsetFeatureFlag(c *C) {
-	restore := daemon.MockAspectstateSet(func(*state.State, string, string, string, map[string]interface{}) error {
-		err := fmt.Errorf("unexpected call to aspectstate")
+func (s *registrySuite) TestSetFailUnsetFeatureFlag(c *C) {
+	restore := daemon.MockRegistrystateSetViaView(func(*state.State, string, string, string, map[string]interface{}) error {
+		err := fmt.Errorf("unexpected call to registrystate")
 		c.Error(err)
 		return err
 	})
 	defer restore()
 
 	buf := bytes.NewBufferString(`{"a.b.c": "foo"}`)
-	req, err := http.NewRequest("PUT", "/v2/aspects/acc/bundle/foo", buf)
+	req, err := http.NewRequest("PUT", "/v2/registry/acc/reg/foo", buf)
 	req.Header.Set("Content-Type", "application/json")
 	c.Assert(err, IsNil)
 
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe.Status, Equals, 400)
-	c.Check(rspe.Message, Equals, `aspect-based configuration disabled: you must set 'experimental.aspects-configuration' to true`)
+	c.Check(rspe.Message, Equals, `"registries" feature flag is disabled: set 'experimental.registries' to true`)
 	c.Check(rspe.Kind, Equals, client.ErrorKind(""))
 }
 
-func (s *aspectsSuite) TestGetFailUnsetFeatureFlag(c *C) {
-	restore := daemon.MockAspectstateSet(func(*state.State, string, string, string, map[string]interface{}) error {
-		err := fmt.Errorf("unexpected call to aspectstate")
+func (s *registrySuite) TestGetFailUnsetFeatureFlag(c *C) {
+	restore := daemon.MockRegistrystateSetViaView(func(*state.State, string, string, string, map[string]interface{}) error {
+		err := fmt.Errorf("unexpected call to registrystate")
 		c.Error(err)
 		return err
 	})
 	defer restore()
 
-	req, err := http.NewRequest("GET", "/v2/aspects/acc/bundle/foo?fields=my-field", nil)
+	req, err := http.NewRequest("GET", "/v2/registry/acc/reg/foo?fields=my-field", nil)
 	c.Assert(err, IsNil)
 
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe.Status, Equals, 400)
-	c.Check(rspe.Message, Equals, `aspect-based configuration disabled: you must set 'experimental.aspects-configuration' to true`)
+	c.Check(rspe.Message, Equals, `"registries" feature flag is disabled: set 'experimental.registries' to true`)
 	c.Check(rspe.Kind, Equals, client.ErrorKind(""))
 }
 
-func (s *aspectsSuite) TestGetNoFields(c *C) {
+func (s *registrySuite) TestGetNoFields(c *C) {
 	s.setFeatureFlag(c)
 
 	value := map[string]interface{}{"foo": 1, "bar": "baz", "nested": map[string]interface{}{"a": []interface{}{1, 2}}}
-	restore := daemon.MockAspectstateGet(func(_ *state.State, _, _, _ string, fields []string) (interface{}, error) {
+	restore := daemon.MockRegistrystateGetViaView(func(_ *state.State, _, _, _ string, fields []string) (interface{}, error) {
 		c.Check(fields, IsNil)
 		return value, nil
 	})
 	defer restore()
 
-	req, err := http.NewRequest("GET", "/v2/aspects/acc/bundle/foo", nil)
+	req, err := http.NewRequest("GET", "/v2/registry/acc/reg/foo", nil)
 	c.Assert(err, IsNil)
 
 	rspe := s.syncReq(c, req, nil)

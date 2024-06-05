@@ -1,9 +1,9 @@
 {
-	"type": "aspect-bundle",
+	"type": "registry",
 	"account-id": "developer1",
 	"authority-id": "developer1",
 	"name": "network",
-	"aspects": {
+	"views": {
 		"wifi-setup": {
 			"rules": [
 				{"request": "ssids", "storage": "wifi.ssids"},
@@ -14,6 +14,6 @@
 			]
 		}
 	},
-	"body": "{\n  \"storage\": {\n    \"schema\": {\n      \"wifi\": {\n        \"values\": \"any\"\n      }\n    }\n  }\n}\n",
+	"body": "{\n  \"storage\": {\n    \"schema\": {\n      \"wifi\": {\n        \"values\": \"any\"\n      }\n    }\n  }\n}",
 	"timestamp": "2024-02-09T17:11:32Z"
 }

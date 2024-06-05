@@ -49,21 +49,21 @@ func (s *snapSetSuite) TestSnapUnset(c *check.C) {
 	c.Check(s.setConfApiCalls, check.Equals, 1)
 }
 
-func (s *aspectsSuite) TestAspectUnset(c *check.C) {
-	restore := s.mockAspectsFlag(c)
+func (s *registrySuite) TestRegistryUnset(c *check.C) {
+	restore := s.mockRegistryFlag(c)
 	defer restore()
 
-	s.mockAspectServer(c, `{"abc":null}`, false)
+	s.mockRegistryServer(c, `{"abc":null}`, false)
 
 	_, err := snapunset.Parser(snapunset.Client()).ParseArgs([]string{"unset", "foo/bar/baz", "abc"})
 	c.Assert(err, check.IsNil)
 }
 
-func (s *aspectsSuite) TestAspectUnsetNoWait(c *check.C) {
-	restore := s.mockAspectsFlag(c)
+func (s *registrySuite) TestRegistryUnsetNoWait(c *check.C) {
+	restore := s.mockRegistryFlag(c)
 	defer restore()
 
-	s.mockAspectServer(c, `{"abc":null}`, true)
+	s.mockRegistryServer(c, `{"abc":null}`, true)
 
 	rest, err := snapunset.Parser(snapunset.Client()).ParseArgs([]string{"unset", "--no-wait", "foo/bar/baz", "abc"})
 	c.Assert(err, check.IsNil)
@@ -73,7 +73,7 @@ func (s *aspectsSuite) TestAspectUnsetNoWait(c *check.C) {
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
-func (s *aspectsSuite) TestAspectUnsetDisabledFlag(c *check.C) {
+func (s *registrySuite) TestRegistryUnsetDisabledFlag(c *check.C) {
 	var reqs int
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch reqs {
@@ -88,14 +88,14 @@ func (s *aspectsSuite) TestAspectUnsetDisabledFlag(c *check.C) {
 	})
 
 	_, err := snapunset.Parser(snapunset.Client()).ParseArgs([]string{"unset", "foo/bar/baz", "abc"})
-	c.Assert(err, check.ErrorMatches, "aspect-based configuration is disabled: you must set 'experimental.aspects-configuration' to true")
+	c.Assert(err, check.ErrorMatches, `the "registries" feature is disabled: set 'experimental.registries' to true`)
 }
 
-func (s *aspectsSuite) TestAspectUnsetInvalidAspectID(c *check.C) {
-	restore := s.mockAspectsFlag(c)
+func (s *registrySuite) TestRegistryUnsetInvalidRegistryID(c *check.C) {
+	restore := s.mockRegistryFlag(c)
 	defer restore()
 
 	_, err := snapunset.Parser(snapunset.Client()).ParseArgs([]string{"unset", "foo//bar", "abc"})
 	c.Assert(err, check.NotNil)
-	c.Check(err.Error(), check.Equals, "aspect identifier must conform to format: <account-id>/<bundle>/<aspect>")
+	c.Check(err.Error(), check.Equals, "registry identifier must conform to format: <account-id>/<registry>/<view>")
 }

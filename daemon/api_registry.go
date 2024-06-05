@@ -1,6 +1,6 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 /*
- * Copyright (C) 2023 Canonical Ltd
+ * Copyright (C) 2023-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -24,35 +24,35 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/snapcore/snapd/aspects"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/registry"
 	"github.com/snapcore/snapd/strutil"
 )
 
 var (
-	aspectsCmd = &Command{
-		Path:        "/v2/aspects/{account}/{bundle}/{aspect}",
-		GET:         getAspect,
-		PUT:         setAspect,
+	registryCmd = &Command{
+		Path:        "/v2/registry/{account}/{registry}/{view}",
+		GET:         getView,
+		PUT:         setView,
 		ReadAccess:  authenticatedAccess{Polkit: polkitActionManage},
 		WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
 	}
 )
 
-func getAspect(c *Command, r *http.Request, _ *auth.UserState) Response {
+func getView(c *Command, r *http.Request, _ *auth.UserState) Response {
 	st := c.d.state
 	st.Lock()
 	defer st.Unlock()
 
-	if err := validateAspectFeatureFlag(st); err != nil {
+	if err := validateRegistryFeatureFlag(st); err != nil {
 		return err
 	}
 
 	vars := muxVars(r)
-	account, bundleName, aspect := vars["account"], vars["bundle"], vars["aspect"]
+	account, registryName, view := vars["account"], vars["registry"], vars["view"]
 	fieldStr := r.URL.Query().Get("fields")
 
 	var fields []string
@@ -60,7 +60,7 @@ func getAspect(c *Command, r *http.Request, _ *auth.UserState) Response {
 		fields = strutil.CommaSeparatedList(fieldStr)
 	}
 
-	results, err := aspectstateGetAspect(st, account, bundleName, aspect, fields)
+	results, err := registrystateGetViaView(st, account, registryName, view, fields)
 	if err != nil {
 		return toAPIError(err)
 	}
@@ -68,32 +68,32 @@ func getAspect(c *Command, r *http.Request, _ *auth.UserState) Response {
 	return SyncResponse(results)
 }
 
-func setAspect(c *Command, r *http.Request, _ *auth.UserState) Response {
+func setView(c *Command, r *http.Request, _ *auth.UserState) Response {
 	st := c.d.state
 	st.Lock()
 	defer st.Unlock()
 
-	if err := validateAspectFeatureFlag(st); err != nil {
+	if err := validateRegistryFeatureFlag(st); err != nil {
 		return err
 	}
 
 	vars := muxVars(r)
-	account, bundleName, aspect := vars["account"], vars["bundle"], vars["aspect"]
+	account, registryName, view := vars["account"], vars["registry"], vars["view"]
 
 	decoder := json.NewDecoder(r.Body)
 	var values map[string]interface{}
 	if err := decoder.Decode(&values); err != nil {
-		return BadRequest("cannot decode aspect request body: %v", err)
+		return BadRequest("cannot decode registry request body: %v", err)
 	}
 
-	err := aspectstateSetAspect(st, account, bundleName, aspect, values)
+	err := registrystateSetViaView(st, account, registryName, view, values)
 	if err != nil {
 		return toAPIError(err)
 	}
 
 	// NOTE: could be sync but this is closer to the final version and the conf API
-	summary := fmt.Sprintf("Set aspect %s/%s/%s", account, bundleName, aspect)
-	chg := newChange(st, "set-aspect", summary, nil, nil)
+	summary := fmt.Sprintf("Set registry view %s/%s/%s", account, registryName, view)
+	chg := newChange(st, "set-registry-view", summary, nil, nil)
 	chg.SetStatus(state.DoneStatus)
 	ensureStateSoon(st)
 
@@ -102,10 +102,10 @@ func setAspect(c *Command, r *http.Request, _ *auth.UserState) Response {
 
 func toAPIError(err error) *apiError {
 	switch {
-	case errors.Is(err, &aspects.NotFoundError{}):
+	case errors.Is(err, &registry.NotFoundError{}):
 		return NotFound(err.Error())
 
-	case errors.Is(err, &aspects.BadRequestError{}):
+	case errors.Is(err, &registry.BadRequestError{}):
 		return BadRequest(err.Error())
 
 	default:
@@ -113,16 +113,16 @@ func toAPIError(err error) *apiError {
 	}
 }
 
-func validateAspectFeatureFlag(st *state.State) *apiError {
+func validateRegistryFeatureFlag(st *state.State) *apiError {
 	tr := config.NewTransaction(st)
-	enabled, err := features.Flag(tr, features.AspectsConfiguration)
+	enabled, err := features.Flag(tr, features.Registries)
 	if err != nil && !config.IsNoOption(err) {
-		return InternalError(fmt.Sprintf("internal error: cannot check aspect configuration flag: %s", err))
+		return InternalError(fmt.Sprintf("internal error: cannot check registries feature flag: %s", err))
 	}
 
 	if !enabled {
-		_, confName := features.AspectsConfiguration.ConfigOption()
-		return BadRequest(fmt.Sprintf("aspect-based configuration disabled: you must set '%s' to true", confName))
+		_, confName := features.Registries.ConfigOption()
+		return BadRequest(fmt.Sprintf(`"registries" feature flag is disabled: set '%s' to true`, confName))
 	}
 	return nil
 }

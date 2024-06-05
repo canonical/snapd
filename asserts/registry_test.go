@@ -28,25 +28,25 @@ import (
 	"github.com/snapcore/snapd/asserts"
 )
 
-type aspectBundleSuite struct {
+type registrySuite struct {
 	ts     time.Time
 	tsLine string
 }
 
-var _ = Suite(&aspectBundleSuite{})
+var _ = Suite(&registrySuite{})
 
-func (s *aspectBundleSuite) SetUpSuite(c *C) {
+func (s *registrySuite) SetUpSuite(c *C) {
 	s.ts = time.Now().Truncate(time.Second).UTC()
 	s.tsLine = "timestamp: " + s.ts.Format(time.RFC3339) + "\n"
 }
 
 const (
-	aspectBundleExample = `type: aspect-bundle
+	registryExample = `type: registry
 authority-id: brand-id1
 account-id: brand-id1
 name: my-network
-summary: aspect-bundle description
-aspects:
+summary: registry description
+views:
   wifi-setup:
     rules:
       -
@@ -87,42 +87,42 @@ const schema = `{
   }
 }`
 
-func (s *aspectBundleSuite) TestDecodeOK(c *C) {
-	encoded := strings.Replace(aspectBundleExample, "TSLINE", s.tsLine, 1)
+func (s *registrySuite) TestDecodeOK(c *C) {
+	encoded := strings.Replace(registryExample, "TSLINE", s.tsLine, 1)
 
 	a, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
 	c.Check(a, NotNil)
-	c.Check(a.Type(), Equals, asserts.AspectBundleType)
-	ab := a.(*asserts.AspectBundle)
-	c.Check(ab.AuthorityID(), Equals, "brand-id1")
-	c.Check(ab.AccountID(), Equals, "brand-id1")
-	c.Check(ab.Name(), Equals, "my-network")
-	bundle := ab.Bundle()
-	c.Assert(bundle, NotNil)
-	c.Check(bundle.Aspect("wifi-setup"), NotNil)
+	c.Check(a.Type(), Equals, asserts.RegistryType)
+	ar := a.(*asserts.Registry)
+	c.Check(ar.AuthorityID(), Equals, "brand-id1")
+	c.Check(ar.AccountID(), Equals, "brand-id1")
+	c.Check(ar.Name(), Equals, "my-network")
+	registry := ar.Registry()
+	c.Assert(registry, NotNil)
+	c.Check(registry.View("wifi-setup"), NotNil)
 }
 
-func (s *aspectBundleSuite) TestDecodeInvalid(c *C) {
-	const validationSetErrPrefix = "assertion aspect-bundle: "
+func (s *registrySuite) TestDecodeInvalid(c *C) {
+	const validationSetErrPrefix = "assertion registry: "
 
-	encoded := strings.Replace(aspectBundleExample, "TSLINE", s.tsLine, 1)
+	encoded := strings.Replace(registryExample, "TSLINE", s.tsLine, 1)
 
-	aspectsStanza := encoded[strings.Index(encoded, "aspects:") : strings.Index(encoded, "timestamp:")+1]
+	viewsStanza := encoded[strings.Index(encoded, "views:") : strings.Index(encoded, "timestamp:")+1]
 	body := encoded[strings.Index(encoded, "body-length:"):strings.Index(encoded, "\n\nAXN")]
 
 	invalidTests := []struct{ original, invalid, expectedErr string }{
 		{"account-id: brand-id1\n", "", `"account-id" header is mandatory`},
 		{"account-id: brand-id1\n", "account-id: \n", `"account-id" header should not be empty`},
-		{"account-id: brand-id1\n", "account-id: random\n", `authority-id and account-id must match, aspect-bundle assertions are expected to be signed by the issuer account: "brand-id1" != "random"`},
+		{"account-id: brand-id1\n", "account-id: random\n", `authority-id and account-id must match, registry assertions are expected to be signed by the issuer account: "brand-id1" != "random"`},
 		{"name: my-network\n", "", `"name" header is mandatory`},
 		{"name: my-network\n", "name: \n", `"name" header should not be empty`},
 		{"name: my-network\n", "name: my/network\n", `"name" primary key header cannot contain '/'`},
 		{"name: my-network\n", "name: my+network\n", `"name" header contains invalid characters: "my\+network"`},
 		{s.tsLine, "", `"timestamp" header is mandatory`},
-		{aspectsStanza, "aspects: foo\n", `"aspects" header must be a map`},
-		{aspectsStanza, "", `"aspects" stanza is mandatory`},
-		{"read-write", "update", `cannot define aspect "wifi-setup": cannot create aspect rule:.*`},
+		{viewsStanza, "views: foo\n", `"views" header must be a map`},
+		{viewsStanza, "", `"views" stanza is mandatory`},
+		{"read-write", "update", `cannot define view "wifi-setup": cannot create view rule:.*`},
 		{body, "body-length: 0", `body must contain JSON`},
 		{body, "body-length: 8\n\n  - foo\n", `invalid JSON in body: invalid character ' ' in numeric literal`},
 		{body, "body-length: 2\n\n{}", `body must contain a "storage" stanza`},
@@ -148,12 +148,12 @@ func (s *aspectBundleSuite) TestDecodeInvalid(c *C) {
 	}
 }
 
-func (s *aspectBundleSuite) TestAssembleAndSignChecksSchemaFormatOK(c *C) {
+func (s *registrySuite) TestAssembleAndSignChecksSchemaFormatOK(c *C) {
 	headers := map[string]interface{}{
 		"authority-id": "brand-id1",
 		"account-id":   "brand-id1",
 		"name":         "my-network",
-		"aspects": map[string]interface{}{
+		"views": map[string]interface{}{
 			"foo": map[string]interface{}{
 				"rules": []interface{}{
 					map[string]interface{}{"request": "wifi", "storage": "wifi"},
@@ -174,17 +174,17 @@ func (s *aspectBundleSuite) TestAssembleAndSignChecksSchemaFormatOK(c *C) {
     }
   }
 }`
-	acct1, err := asserts.AssembleAndSignInTest(asserts.AspectBundleType, headers, []byte(schema), testPrivKey0)
+	acct1, err := asserts.AssembleAndSignInTest(asserts.RegistryType, headers, []byte(schema), testPrivKey0)
 	c.Assert(err, IsNil)
 	c.Assert(string(acct1.Body()), Equals, schema)
 }
 
-func (s *aspectBundleSuite) TestAssembleAndSignChecksSchemaFormatFail(c *C) {
+func (s *registrySuite) TestAssembleAndSignChecksSchemaFormatFail(c *C) {
 	headers := map[string]interface{}{
 		"authority-id": "brand-id1",
 		"account-id":   "brand-id1",
 		"name":         "my-network",
-		"aspects": map[string]interface{}{
+		"views": map[string]interface{}{
 			"foo": map[string]interface{}{
 				"rules": []interface{}{
 					map[string]interface{}{"request": "wifi", "storage": "wifi"},
@@ -196,6 +196,6 @@ func (s *aspectBundleSuite) TestAssembleAndSignChecksSchemaFormatFail(c *C) {
 	}
 
 	schema := `{ "storage": { "schema": { "foo": "any" } } }`
-	_, err := asserts.AssembleAndSignInTest(asserts.AspectBundleType, headers, []byte(schema), testPrivKey0)
-	c.Assert(err, ErrorMatches, `assertion aspect-bundle: JSON in body must be indented with 2 spaces and sort object entries by key`)
+	_, err := asserts.AssembleAndSignInTest(asserts.RegistryType, headers, []byte(schema), testPrivKey0)
+	c.Assert(err, ErrorMatches, `assertion registry: JSON in body must be indented with 2 spaces and sort object entries by key`)
 }

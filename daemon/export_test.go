@@ -355,19 +355,19 @@ var (
 	MaxReadBuflen = maxReadBuflen
 )
 
-func MockAspectstateGet(f func(st *state.State, account, bundleName, aspect string, field []string) (interface{}, error)) (restore func()) {
-	old := aspectstateGetAspect
-	aspectstateGetAspect = f
+func MockRegistrystateGetViaView(f func(_ *state.State, _, _, _ string, _ []string) (interface{}, error)) (restore func()) {
+	old := registrystateGetViaView
+	registrystateGetViaView = f
 	return func() {
-		aspectstateGetAspect = old
+		registrystateGetViaView = old
 	}
 }
 
-func MockAspectstateSet(f func(st *state.State, account, bundleName, aspect string, requests map[string]interface{}) error) (restore func()) {
-	old := aspectstateSetAspect
-	aspectstateSetAspect = f
+func MockRegistrystateSetViaView(f func(_ *state.State, _, _, _ string, _ map[string]interface{}) error) (restore func()) {
+	old := registrystateSetViaView
+	registrystateSetViaView = f
 	return func() {
-		aspectstateSetAspect = old
+		registrystateSetViaView = old
 	}
 }
 

@@ -16,7 +16,7 @@
  *
  */
 
-package aspectstate_test
+package registrystate_test
 
 import (
 	"fmt"
@@ -24,27 +24,27 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/aspects"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/overlord"
-	"github.com/snapcore/snapd/overlord/aspectstate"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
+	"github.com/snapcore/snapd/overlord/registrystate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/registry"
 )
 
-type aspectTestSuite struct {
+type registryTestSuite struct {
 	state *state.State
 
 	devAccID string
 }
 
-var _ = Suite(&aspectTestSuite{})
+var _ = Suite(&registryTestSuite{})
 
 func Test(t *testing.T) { TestingT(t) }
 
-func (s *aspectTestSuite) SetUpTest(c *C) {
+func (s *registryTestSuite) SetUpTest(c *C) {
 	s.state = overlord.Mock().State()
 
 	s.state.Lock()
@@ -76,7 +76,7 @@ func (s *aspectTestSuite) SetUpTest(c *C) {
 		"authority-id": devAccKey.AccountID(),
 		"account-id":   devAccKey.AccountID(),
 		"name":         "network",
-		"aspects": map[string]interface{}{
+		"views": map[string]interface{}{
 			"wifi-setup": map[string]interface{}{
 				"rules": []interface{}{
 					map[string]interface{}{"request": "ssids", "storage": "wifi.ssids"},
@@ -110,56 +110,56 @@ func (s *aspectTestSuite) SetUpTest(c *C) {
   }
 }`)
 
-	as, err := signingDB.Sign(asserts.AspectBundleType, headers, body, "")
+	as, err := signingDB.Sign(asserts.RegistryType, headers, body, "")
 	c.Assert(err, IsNil)
 	c.Assert(assertstate.Add(s.state, as), IsNil)
 
 	s.devAccID = devAccKey.AccountID()
 }
 
-func (s *aspectTestSuite) TestGetAspect(c *C) {
+func (s *registryTestSuite) TestGetView(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	databag := aspects.NewJSONDataBag()
+	databag := registry.NewJSONDataBag()
 	err := databag.Set("wifi.ssid", "foo")
 	c.Assert(err, IsNil)
-	s.state.Set("aspect-databags", map[string]map[string]aspects.JSONDataBag{s.devAccID: {"network": databag}})
+	s.state.Set("registry-databags", map[string]map[string]registry.JSONDataBag{s.devAccID: {"network": databag}})
 
-	res, err := aspectstate.GetAspect(s.state, s.devAccID, "network", "wifi-setup", []string{"ssid"})
+	res, err := registrystate.GetViaView(s.state, s.devAccID, "network", "wifi-setup", []string{"ssid"})
 	c.Assert(err, IsNil)
 	c.Assert(res, DeepEquals, map[string]interface{}{"ssid": "foo"})
 }
 
-func (s *aspectTestSuite) TestGetNotFound(c *C) {
+func (s *registryTestSuite) TestGetNotFound(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	res, err := aspectstate.GetAspect(s.state, s.devAccID, "network", "other-aspect", []string{"ssid"})
-	c.Assert(err, FitsTypeOf, &aspects.NotFoundError{})
-	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot get "ssid" in aspect %s/network/other-aspect: aspect not found`, s.devAccID))
+	res, err := registrystate.GetViaView(s.state, s.devAccID, "network", "other-view", []string{"ssid"})
+	c.Assert(err, FitsTypeOf, &registry.NotFoundError{})
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot get "ssid" in registry view %s/network/other-view: not found`, s.devAccID))
 	c.Check(res, IsNil)
 
-	res, err = aspectstate.GetAspect(s.state, s.devAccID, "network", "wifi-setup", []string{"ssid"})
-	c.Assert(err, FitsTypeOf, &aspects.NotFoundError{})
-	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot get "ssid" in aspect %s/network/wifi-setup: matching rules don't map to any values`, s.devAccID))
+	res, err = registrystate.GetViaView(s.state, s.devAccID, "network", "wifi-setup", []string{"ssid"})
+	c.Assert(err, FitsTypeOf, &registry.NotFoundError{})
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot get "ssid" in registry view %s/network/wifi-setup: matching rules don't map to any values`, s.devAccID))
 	c.Check(res, IsNil)
 
-	res, err = aspectstate.GetAspect(s.state, s.devAccID, "network", "wifi-setup", []string{"other-field"})
-	c.Assert(err, FitsTypeOf, &aspects.NotFoundError{})
-	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot get "other-field" in aspect %s/network/wifi-setup: no matching read rule`, s.devAccID))
+	res, err = registrystate.GetViaView(s.state, s.devAccID, "network", "wifi-setup", []string{"other-field"})
+	c.Assert(err, FitsTypeOf, &registry.NotFoundError{})
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot get "other-field" in registry view %s/network/wifi-setup: no matching read rule`, s.devAccID))
 	c.Check(res, IsNil)
 }
 
-func (s *aspectTestSuite) TestSetAspect(c *C) {
+func (s *registryTestSuite) TestSetView(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	err := aspectstate.SetAspect(s.state, s.devAccID, "network", "wifi-setup", map[string]interface{}{"ssid": "foo"})
+	err := registrystate.SetViaView(s.state, s.devAccID, "network", "wifi-setup", map[string]interface{}{"ssid": "foo"})
 	c.Assert(err, IsNil)
 
-	var databags map[string]map[string]aspects.JSONDataBag
-	err = s.state.Get("aspect-databags", &databags)
+	var databags map[string]map[string]registry.JSONDataBag
+	err = s.state.Get("registry-databags", &databags)
 	c.Assert(err, IsNil)
 
 	val, err := databags[s.devAccID]["network"].Get("wifi.ssid")
@@ -167,81 +167,82 @@ func (s *aspectTestSuite) TestSetAspect(c *C) {
 	c.Assert(val, DeepEquals, "foo")
 }
 
-func (s *aspectTestSuite) TestSetNotFound(c *C) {
+func (s *registryTestSuite) TestSetNotFound(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	err := aspectstate.SetAspect(s.state, s.devAccID, "network", "wifi-setup", map[string]interface{}{"foo": "bar"})
-	c.Assert(err, FitsTypeOf, &aspects.NotFoundError{})
-	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot set "foo" in aspect %s/network/wifi-setup: no matching write rule`, s.devAccID))
+	err := registrystate.SetViaView(s.state, s.devAccID, "network", "wifi-setup", map[string]interface{}{"foo": "bar"})
+	c.Assert(err, FitsTypeOf, &registry.NotFoundError{})
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot set "foo" in registry view %s/network/wifi-setup: no matching write rule`, s.devAccID))
 
-	err = aspectstate.SetAspect(s.state, s.devAccID, "network", "other-aspect", map[string]interface{}{"foo": "bar"})
-	c.Assert(err, FitsTypeOf, &aspects.NotFoundError{})
-	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot set "foo" in aspect %s/network/other-aspect: aspect not found`, s.devAccID))
+	err = registrystate.SetViaView(s.state, s.devAccID, "network", "other-view", map[string]interface{}{"foo": "bar"})
+	c.Assert(err, FitsTypeOf, &registry.NotFoundError{})
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot set "foo" in registry view %s/network/other-view: not found`, s.devAccID))
 }
 
-func (s *aspectTestSuite) TestUnsetAspect(c *C) {
+func (s *registryTestSuite) TestUnsetView(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	databag := aspects.NewJSONDataBag()
-	err := aspectstate.SetAspect(s.state, s.devAccID, "network", "wifi-setup", map[string]interface{}{"ssid": "foo"})
+	databag := registry.NewJSONDataBag()
+	err := registrystate.SetViaView(s.state, s.devAccID, "network", "wifi-setup", map[string]interface{}{"ssid": "foo"})
 	c.Assert(err, IsNil)
 
-	err = aspectstate.SetAspect(s.state, s.devAccID, "network", "wifi-setup", map[string]interface{}{"ssid": nil})
+	err = registrystate.SetViaView(s.state, s.devAccID, "network", "wifi-setup", map[string]interface{}{"ssid": nil})
 	c.Assert(err, IsNil)
 
 	val, err := databag.Get("wifi.ssid")
-	c.Assert(err, FitsTypeOf, aspects.PathError(""))
+	c.Assert(err, FitsTypeOf, registry.PathError(""))
 	c.Assert(val, Equals, nil)
 }
 
-func (s *aspectTestSuite) TestAspectstateSetWithExistingState(c *C) {
+func (s *registryTestSuite) TestRegistrystateSetWithExistingState(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	bag := aspects.NewJSONDataBag()
+	bag := registry.NewJSONDataBag()
 	err := bag.Set("wifi.ssid", "bar")
 	c.Assert(err, IsNil)
-	databags := map[string]map[string]aspects.JSONDataBag{
+	databags := map[string]map[string]registry.JSONDataBag{
 		s.devAccID: {"network": bag},
 	}
-	s.state.Set("aspect-databags", databags)
 
-	results, err := aspectstate.GetAspect(s.state, s.devAccID, "network", "wifi-setup", []string{"ssid"})
+	s.state.Set("registry-databags", databags)
+
+	results, err := registrystate.GetViaView(s.state, s.devAccID, "network", "wifi-setup", []string{"ssid"})
 	c.Assert(err, IsNil)
 	resultsMap, ok := results.(map[string]interface{})
 	c.Assert(ok, Equals, true)
 	c.Assert(resultsMap["ssid"], Equals, "bar")
 
-	err = aspectstate.SetAspect(s.state, s.devAccID, "network", "wifi-setup", map[string]interface{}{"ssid": "baz"})
+	err = registrystate.SetViaView(s.state, s.devAccID, "network", "wifi-setup", map[string]interface{}{"ssid": "baz"})
 	c.Assert(err, IsNil)
 
-	err = s.state.Get("aspect-databags", &databags)
+	err = s.state.Get("registry-databags", &databags)
 	c.Assert(err, IsNil)
 	value, err := databags[s.devAccID]["network"].Get("wifi.ssid")
 	c.Assert(err, IsNil)
 	c.Assert(value, Equals, "baz")
 }
 
-func (s *aspectTestSuite) TestAspectstateSetWithNoState(c *C) {
+func (s *registryTestSuite) TestRegistrystateSetWithNoState(c *C) {
 	type testcase struct {
-		state map[string]map[string]aspects.JSONDataBag
+		state map[string]map[string]registry.JSONDataBag
 	}
 
 	testcases := []testcase{
 		{
-			state: map[string]map[string]aspects.JSONDataBag{
+			state: map[string]map[string]registry.JSONDataBag{
 				s.devAccID: {"network": nil},
 			},
 		},
 		{
-			state: map[string]map[string]aspects.JSONDataBag{
+			state: map[string]map[string]registry.JSONDataBag{
 				s.devAccID: nil,
 			},
 		},
 		{
-			state: map[string]map[string]aspects.JSONDataBag{},
+			state: map[string]map[string]registry.JSONDataBag{},
 		},
 		{
 			state: nil,
@@ -251,13 +252,13 @@ func (s *aspectTestSuite) TestAspectstateSetWithNoState(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	for _, tc := range testcases {
-		s.state.Set("aspect-databags", tc.state)
+		s.state.Set("registry-databags", tc.state)
 
-		err := aspectstate.SetAspect(s.state, s.devAccID, "network", "wifi-setup", map[string]interface{}{"ssid": "bar"})
+		err := registrystate.SetViaView(s.state, s.devAccID, "network", "wifi-setup", map[string]interface{}{"ssid": "bar"})
 		c.Assert(err, IsNil)
 
-		var databags map[string]map[string]aspects.JSONDataBag
-		err = s.state.Get("aspect-databags", &databags)
+		var databags map[string]map[string]registry.JSONDataBag
+		err = s.state.Get("registry-databags", &databags)
 		c.Assert(err, IsNil)
 
 		value, err := databags[s.devAccID]["network"].Get("wifi.ssid")
@@ -266,11 +267,11 @@ func (s *aspectTestSuite) TestAspectstateSetWithNoState(c *C) {
 	}
 }
 
-func (s *aspectTestSuite) TestAspectstateGetEntireAspect(c *C) {
+func (s *registryTestSuite) TestRegistrystateGetEntireView(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	err := aspectstate.SetAspect(s.state, s.devAccID, "network", "wifi-setup", map[string]interface{}{
+	err := registrystate.SetViaView(s.state, s.devAccID, "network", "wifi-setup", map[string]interface{}{
 		"ssids":    []interface{}{"foo", "bar"},
 		"password": "pass",
 		"private": map[string]interface{}{
@@ -280,7 +281,7 @@ func (s *aspectTestSuite) TestAspectstateGetEntireAspect(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	res, err := aspectstate.GetAspect(s.state, s.devAccID, "network", "wifi-setup", nil)
+	res, err := registrystate.GetViaView(s.state, s.devAccID, "network", "wifi-setup", nil)
 	c.Assert(err, IsNil)
 	c.Assert(res, DeepEquals, map[string]interface{}{
 		"ssids": []interface{}{"foo", "bar"},

@@ -17,7 +17,7 @@
  *
  */
 
-package aspects
+package registry
 
 var GetValuesThroughPaths = getValuesThroughPaths
 

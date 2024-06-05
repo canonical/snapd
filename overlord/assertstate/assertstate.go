@@ -1228,17 +1228,17 @@ func resolveValidationSetAssertion(seq *asserts.AtSequence, db asserts.RODatabas
 	return seq.Resolve(db.Find)
 }
 
-// AspectBundle returns the aspect-bundle for the given account and bundle name,
+// Registry returns the registry for the given account and registry name,
 // if it's present in the system assertion database.
-func AspectBundle(s *state.State, account, bundleName string) (*asserts.AspectBundle, error) {
+func Registry(s *state.State, account, registryName string) (*asserts.Registry, error) {
 	db := DB(s)
-	as, err := db.Find(asserts.AspectBundleType, map[string]string{
+	as, err := db.Find(asserts.RegistryType, map[string]string{
 		"account-id": account,
-		"name":       bundleName,
+		"name":       registryName,
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	return as.(*asserts.AspectBundle), nil
+	return as.(*asserts.Registry), nil
 }
