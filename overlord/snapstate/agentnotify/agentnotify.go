@@ -48,27 +48,24 @@ func notifyAgentOnLinkageChange(st *state.State, snapsup *snapstate.SnapSetup) e
 	// the only use-case right now is snaps going from inactive->active
 	// for continued-auto-refreshes
 	if snapst.Active {
-		return notifyLinkSnap(snapsup)
+		return notifyLinkSnap(st, snapsup)
 	}
 	return nil
 }
 
-func notifyLinkSnap(snapsup *snapstate.SnapSetup) error {
+func notifyLinkSnap(st *state.State, snapsup *snapstate.SnapSetup) error {
 	// Note that we only show a notification here if the refresh was
 	// triggered by a "continued-auto-refresh", i.e. when the user
 	// closed an application that had a auto-refresh ready.
 	if snapsup.Flags.IsContinuedAutoRefresh {
 		logger.Debugf("notifying user client about continued refresh for %q", snapsup.InstanceName())
-		sendClientFinishRefreshNotification(snapsup)
+		maybeSendClientFinishRefreshNotification(st, snapsup)
 	}
 
 	return nil
 }
 
-var sendClientFinishRefreshNotification = func(snapsup *snapstate.SnapSetup) {
-	refreshInfo := &userclient.FinishedSnapRefreshInfo{
-		InstanceName: snapsup.InstanceName(),
-	}
+var asyncFinishRefreshNotification = func(refreshInfo *userclient.FinishedSnapRefreshInfo) {
 	client := userclient.New()
 	// run in a go-routine to avoid potentially slow operation
 	go func() {
@@ -76,4 +73,19 @@ var sendClientFinishRefreshNotification = func(snapsup *snapstate.SnapSetup) {
 			logger.Noticef("cannot send finish refresh notification: %v", err)
 		}
 	}()
+}
+
+var maybeSendClientFinishRefreshNotification = func(st *state.State, snapsup *snapstate.SnapSetup) {
+	sendNotification, err := snapstate.ShouldSendNotificationsToTheUser(st)
+	if err != nil {
+		logger.Noticef("Cannot send notification about finished refresh: %v", err)
+		return
+	}
+	if !sendNotification {
+		return
+	}
+	refreshInfo := &userclient.FinishedSnapRefreshInfo{
+		InstanceName: snapsup.InstanceName(),
+	}
+	asyncFinishRefreshNotification(refreshInfo)
 }
