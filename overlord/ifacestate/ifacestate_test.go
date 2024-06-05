@@ -6017,6 +6017,71 @@ func (s *interfaceManagerSuite) TestAutoConnectDuringCoreTransition(c *C) {
 		SlotRef: interfaces.SlotRef{Snap: "core", Name: "network"}}})
 }
 
+func (s *interfaceManagerSuite) TestAutoConnectSnapdAndCore(c *C) {
+	s.MockModel(c, nil)
+
+	const snapdSnapYaml = `
+name: snapd
+version: 1
+type: snapd
+`
+
+	// we don't actually need to mock the mapper (since the test replaces it),
+	// but we do need to put it back once the test is over
+	restore := ifacestate.MockSnapMapper(&ifacestate.CoreCoreSystemMapper{})
+	defer restore()
+
+	// mock both core and snapd, since these will both provide the network slot.
+	// when they are added to the repo, only the snapd snap should have gotten
+	// implicit slots added to it. this test ensures that, since the auto
+	// connection will only succeed if the plug has one connection candidate.
+	s.mockSnap(c, snapdSnapYaml)
+	s.mockSnap(c, coreSnapYaml)
+
+	mgr := s.manager(c)
+
+	// mock a snap with a network plug, this should connect to snapd, since core
+	// shouldn't get any implicit slots added to it
+	snapInfo := s.mockSnap(c, sampleSnapYaml)
+
+	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: snapInfo.SnapName(),
+			Revision: snapInfo.Revision,
+		},
+	})
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Assert(change.Status(), Equals, state.DoneStatus)
+
+	// make sure that network is connected, note that it is still recorded as
+	// connected to core, even though the is is actually connected to snapd
+	var conns map[string]interface{}
+	err := s.state.Get("conns", &conns)
+	c.Assert(err, IsNil)
+	c.Check(conns, DeepEquals, map[string]interface{}{
+		"snap:network core:network": map[string]interface{}{
+			"interface": "network", "auto": true,
+		},
+	})
+
+	// check the connection in the repo
+	repo := mgr.Repository()
+	plug := repo.Plug("snap", "network")
+	c.Assert(plug, NotNil)
+
+	ifaces := repo.Interfaces()
+	c.Assert(ifaces.Connections, HasLen, 1)
+	c.Check(ifaces.Connections[0], DeepEquals, &interfaces.ConnRef{
+		PlugRef: interfaces.PlugRef{Snap: "snap", Name: "network"},
+		SlotRef: interfaces.SlotRef{Snap: "snapd", Name: "network"},
+	})
+}
+
 func makeAutoConnectChange(st *state.State, plugSnap, plug, slotSnap, slot string, delayedSetupProfiles bool) *state.Change {
 	chg := st.NewChange("connect...", "...")
 

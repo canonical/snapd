@@ -134,6 +134,10 @@ func (m *InterfaceManager) addBackends(extra []interfaces.SecurityBackend) error
 
 func (m *InterfaceManager) addAppSets(appSets []*interfaces.SnapAppSet) error {
 	for _, set := range appSets {
+		if err := addImplicitSlots(m.state, set.Info()); err != nil {
+			return err
+		}
+
 		if err := m.repo.AddAppSet(set); err != nil {
 			logger.Noticef("cannot add app set for snap %q to interface repository: %s", set.Info().InstanceName(), err)
 		}
@@ -167,6 +171,12 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer) er
 	appSets, err := snapsWithSecurityProfiles(m.state)
 	if err != nil {
 		return err
+	}
+
+	for _, set := range appSets {
+		if err := addImplicitSlots(m.state, set.Info()); err != nil {
+			return err
+		}
 	}
 
 	// The reason the system key is unlinked is to prevent snapd from believing
@@ -1006,10 +1016,6 @@ func snapsWithSecurityProfiles(st *state.State) ([]*interfaces.SnapAppSet, error
 				continue
 			}
 
-			if err := addImplicitSlots(st, snapInfo); err != nil {
-				return nil, err
-			}
-
 			set, err := appSetForSnapRevision(st, snapInfo)
 			if err != nil {
 				logger.Noticef("cannot build app set for snap %q: %s", instanceName, err)
@@ -1030,10 +1036,6 @@ func snapsWithSecurityProfiles(st *state.State) ([]*interfaces.SnapAppSet, error
 			if err != nil {
 				logger.Noticef("cannot retrieve info for snap %q: %s", instanceName, err)
 				continue
-			}
-
-			if err := addImplicitSlots(st, snapInfo); err != nil {
-				return nil, err
 			}
 
 			// TODO: add components to SnapState.PendingSecurity
@@ -1085,10 +1087,6 @@ func snapsWithSecurityProfiles(st *state.State) ([]*interfaces.SnapAppSet, error
 		if err != nil {
 			logger.Noticef("cannot retrieve info for snap %q: %s", instanceName, err)
 			continue
-		}
-
-		if err := addImplicitSlots(st, snapInfo); err != nil {
-			return nil, err
 		}
 
 		// this should find any component setups that exist on the task and add
