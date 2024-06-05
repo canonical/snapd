@@ -195,9 +195,9 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 	str := Store(st, opts.DeviceCtx)
 
 	st.Unlock() // calls to the store should be done without holding the state lock
-	defer st.Lock()
-
 	results, _, err := str.SnapAction(context.TODO(), curSnaps, actions, nil, user, refreshOpts)
+	st.Lock()
+
 	if err != nil {
 		if opts.ExpectOneSnap {
 			return nil, singleActionResultErr(actions[0].InstanceName, actions[0].Action, err)
@@ -232,8 +232,9 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 				Channel:      channel,
 				CohortKey:    sn.RevOpts.CohortKey,
 			},
-			info:   r.Info,
-			snapst: *snapst,
+			info:       r.Info,
+			snapst:     *snapst,
+			components: nil,
 		})
 	}
 
