@@ -7,7 +7,7 @@ environment:
 backends:
     openstack:
         key: '$(HOST: echo "$SPREAD_OPENSTACK_ENV")'
-        plan: staging-cpu2-ram4-disk20
+        plan: staging-cpu2-ram4-disk50
         halt-timeout: 2h
         groups: [default]
         systems:
