@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2022 Canonical Ltd
+ * Copyright (C) 2022-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,7 +17,7 @@
  *
  */
 
-package aspects
+package registry
 
 import (
 	"bytes"
@@ -60,12 +60,12 @@ func newAccessType(access string) (accessType, error) {
 }
 
 type NotFoundError struct {
-	Account    string
-	BundleName string
-	Aspect     string
-	Operation  string
-	Requests   []string
-	Cause      string
+	Account      string
+	RegistryName string
+	View         string
+	Operation    string
+	Requests     []string
+	Cause        string
 }
 
 func (e *NotFoundError) Error() string {
@@ -75,7 +75,7 @@ func (e *NotFoundError) Error() string {
 	} else {
 		reqStr = strutil.Quoted(e.Requests)
 	}
-	return fmt.Sprintf("cannot %s %s in aspect %s/%s/%s: %s", e.Operation, reqStr, e.Account, e.BundleName, e.Aspect, e.Cause)
+	return fmt.Sprintf("cannot %s %s in registry view %s/%s/%s: %s", e.Operation, reqStr, e.Account, e.RegistryName, e.View, e.Cause)
 }
 
 func (e *NotFoundError) Is(err error) bool {
@@ -83,28 +83,28 @@ func (e *NotFoundError) Is(err error) bool {
 	return ok
 }
 
-func notFoundErrorFrom(a *Aspect, op, request, errMsg string) *NotFoundError {
+func notFoundErrorFrom(v *View, op, request, errMsg string) *NotFoundError {
 	return &NotFoundError{
-		Account:    a.bundle.Account,
-		BundleName: a.bundle.Name,
-		Aspect:     a.Name,
-		Operation:  op,
-		Requests:   []string{request},
-		Cause:      errMsg,
+		Account:      v.registry.Account,
+		RegistryName: v.registry.Name,
+		View:         v.Name,
+		Operation:    op,
+		Requests:     []string{request},
+		Cause:        errMsg,
 	}
 }
 
 type BadRequestError struct {
-	Account    string
-	BundleName string
-	Aspect     string
-	Operation  string
-	Request    string
-	Cause      string
+	Account      string
+	RegistryName string
+	View         string
+	Operation    string
+	Request      string
+	Cause        string
 }
 
 func (e *BadRequestError) Error() string {
-	return fmt.Sprintf("cannot %s %q in aspect %s/%s/%s: %s", e.Operation, e.Request, e.Account, e.BundleName, e.Aspect, e.Cause)
+	return fmt.Sprintf("cannot %s %q in registry view %s/%s/%s: %s", e.Operation, e.Request, e.Account, e.RegistryName, e.View, e.Cause)
 }
 
 func (e *BadRequestError) Is(err error) bool {
@@ -112,18 +112,18 @@ func (e *BadRequestError) Is(err error) bool {
 	return ok
 }
 
-func badRequestErrorFrom(a *Aspect, operation, request, errMsg string, v ...interface{}) *BadRequestError {
+func badRequestErrorFrom(v *View, operation, request, errMsg string, args ...interface{}) *BadRequestError {
 	return &BadRequestError{
-		Account:    a.bundle.Account,
-		BundleName: a.bundle.Name,
-		Aspect:     a.Name,
-		Operation:  operation,
-		Request:    request,
-		Cause:      fmt.Sprintf(errMsg, v...),
+		Account:      v.registry.Account,
+		RegistryName: v.registry.Name,
+		View:         v.Name,
+		Operation:    operation,
+		Request:      request,
+		Cause:        fmt.Sprintf(errMsg, args...),
 	}
 }
 
-// DataBag controls access to the aspect data storage.
+// DataBag controls access to the registry data storage.
 type DataBag interface {
 	Get(path string) (interface{}, error)
 	Set(path string, value interface{}) error
@@ -167,73 +167,73 @@ const (
 
 var typeStrings = [...]string{"int", "number", "string", "bool", "map", "array", "any", "alt"}
 
-// Bundle holds a series of related aspects.
-type Bundle struct {
+// Registry holds a series of related views.
+type Registry struct {
 	Account string
 	Name    string
 	Schema  Schema
-	aspects map[string]*Aspect
+	views   map[string]*View
 }
 
-// NewBundle returns a new aspect bundle with the specified aspects and their rules.
-func NewBundle(account string, bundleName string, aspects map[string]interface{}, schema Schema) (*Bundle, error) {
-	if len(aspects) == 0 {
-		return nil, errors.New(`cannot define aspects bundle: no aspects`)
+// New returns a new registry with the specified views and their rules.
+func New(account string, registryName string, views map[string]interface{}, schema Schema) (*Registry, error) {
+	if len(views) == 0 {
+		return nil, errors.New(`cannot define registry: no views`)
 	}
 
-	aspectBundle := &Bundle{
+	registry := &Registry{
 		Account: account,
-		Name:    bundleName,
+		Name:    registryName,
 		Schema:  schema,
-		aspects: make(map[string]*Aspect, len(aspects)),
+		views:   make(map[string]*View, len(views)),
 	}
 
-	for name, v := range aspects {
-		aspectMap, ok := v.(map[string]interface{})
-		if !ok || len(aspectMap) == 0 {
-			return nil, fmt.Errorf("cannot define aspect %q: aspect must be non-empty map", name)
+	for name, v := range views {
+		viewMap, ok := v.(map[string]interface{})
+		if !ok || len(viewMap) == 0 {
+			return nil, fmt.Errorf("cannot define view %q: view must be non-empty map", name)
 		}
 
-		if summary, ok := aspectMap["summary"]; ok {
+		if summary, ok := viewMap["summary"]; ok {
 			if _, ok = summary.(string); !ok {
-				return nil, fmt.Errorf("cannot define aspect %q: aspect summary must be a string but got %T", name, summary)
+				return nil, fmt.Errorf("cannot define view %q: view summary must be a string but got %T", name, summary)
 			}
 		}
 
-		rules, ok := aspectMap["rules"].([]interface{})
+		rules, ok := viewMap["rules"].([]interface{})
 		if !ok || len(rules) == 0 {
-			return nil, fmt.Errorf("cannot define aspect %q: aspect rules must be non-empty list", name)
+			return nil, fmt.Errorf("cannot define view %q: view rules must be non-empty list", name)
 		}
 
-		aspect, err := newAspect(aspectBundle, name, rules)
+		view, err := newView(registry, name, rules)
 		if err != nil {
-			return nil, fmt.Errorf("cannot define aspect %q: %w", name, err)
+			return nil, fmt.Errorf("cannot define view %q: %w", name, err)
 		}
 
-		aspectBundle.aspects[name] = aspect
+		registry.views[name] = view
 	}
 
-	return aspectBundle, nil
+	return registry, nil
 }
 
-func newAspect(bundle *Bundle, name string, aspectRules []interface{}) (*Aspect, error) {
-	aspect := &Aspect{
-		Name:   name,
-		rules:  make([]*aspectRule, 0, len(aspectRules)),
-		bundle: bundle,
+func newView(registry *Registry, name string, viewRules []interface{}) (*View, error) {
+	view := &View{
+		Name:     name,
+		rules:    make([]*viewRule, 0, len(viewRules)),
+		registry: registry,
 	}
 
-	for _, ruleRaw := range aspectRules {
+	for _, ruleRaw := range viewRules {
 		rules, err := parseRule(nil, ruleRaw)
 		if err != nil {
 			return nil, err
 		}
 
-		aspect.rules = append(aspect.rules, rules...)
+		view.rules = append(view.rules, rules...)
 	}
 
 	readRequests := make(map[string]bool)
-	for _, rule := range aspect.rules {
+	for _, rule := range view.rules {
 		switch rule.access {
 		case read, readWrite:
 			if readRequests[rule.originalRequest] {
@@ -246,8 +246,8 @@ func newAspect(bundle *Bundle, name string, aspectRules []interface{}) (*Aspect,
 
 	// check that the rules matching a given request can be satisfied with some
 	// data type (otherwise, no data can ever be written there)
-	pathToRules := make(map[string][]*aspectRule)
-	for _, rule := range aspect.rules {
+	pathToRules := make(map[string][]*viewRule)
+	for _, rule := range view.rules {
 		// TODO: once the paths support list index placeholders, also add mapping
 		// for the prefixes of each path and their implied types (Map or Array)
 		path := rule.originalRequest
@@ -255,23 +255,23 @@ func newAspect(bundle *Bundle, name string, aspectRules []interface{}) (*Aspect,
 	}
 
 	for _, rules := range pathToRules {
-		if err := checkSchemaMismatch(bundle.Schema, rules); err != nil {
+		if err := checkSchemaMismatch(registry.Schema, rules); err != nil {
 			return nil, err
 		}
 	}
 
-	return aspect, nil
+	return view, nil
 }
 
-func parseRule(parent *aspectRule, ruleRaw interface{}) ([]*aspectRule, error) {
+func parseRule(parent *viewRule, ruleRaw interface{}) ([]*viewRule, error) {
 	ruleMap, ok := ruleRaw.(map[string]interface{})
 	if !ok {
-		return nil, errors.New("each aspect rule should be a map")
+		return nil, errors.New("each view rule should be a map")
 	}
 
 	storageRaw, ok := ruleMap["storage"]
 	if !ok || storageRaw == "" {
-		return nil, errors.New(`aspect rules must have a "storage" field`)
+		return nil, errors.New(`view rules must have a "storage" field`)
 	}
 
 	storage, ok := storageRaw.(string)
@@ -284,7 +284,7 @@ func parseRule(parent *aspectRule, ruleRaw interface{}) ([]*aspectRule, error) {
 		// if omitted the "request" field defaults to the same as the "storage"
 		requestRaw = storage
 	} else if requestRaw == "" {
-		return nil, errors.New(`aspect rules' "request" field must be non-empty, if it exists`)
+		return nil, errors.New(`view rules' "request" field must be non-empty, if it exists`)
 	}
 
 	request, ok := requestRaw.(string)
@@ -310,12 +310,12 @@ func parseRule(parent *aspectRule, ruleRaw interface{}) ([]*aspectRule, error) {
 		storage = parent.originalStorage + "." + storage
 	}
 
-	rule, err := newAspectRule(request, storage, access)
+	rule, err := newViewRule(request, storage, access)
 	if err != nil {
 		return nil, err
 	}
 
-	rules := []*aspectRule{rule}
+	rules := []*viewRule{rule}
 	if contentRaw, ok := ruleMap["content"]; ok {
 		contentRulesRaw, ok := contentRaw.([]interface{})
 		if !ok || len(contentRulesRaw) == 0 {
@@ -336,15 +336,15 @@ func parseRule(parent *aspectRule, ruleRaw interface{}) ([]*aspectRule, error) {
 }
 
 // validateRequestStoragePair checks that:
-//   - request and storage are composed of valid subkeys (see: validateAspectString)
+//   - request and storage are composed of valid subkeys (see: validateViewString)
 //   - all placeholders in a request are in the storage and vice-versa
 func validateRequestStoragePair(request, storage string) error {
 	opts := &validationOptions{allowPlaceholder: true}
-	if err := validateAspectDottedPath(request, opts); err != nil {
+	if err := validateViewDottedPath(request, opts); err != nil {
 		return fmt.Errorf("invalid request %q: %w", request, err)
 	}
 
-	if err := validateAspectDottedPath(storage, opts); err != nil {
+	if err := validateViewDottedPath(storage, opts); err != nil {
 		return fmt.Errorf("invalid storage %q: %w", storage, err)
 	}
 
@@ -376,13 +376,13 @@ type validationOptions struct {
 	allowPlaceholder bool
 }
 
-// validateAspectDottedPath validates that request/storage strings in an aspect definition are:
+// validateViewDottedPath validates that request/storage strings in a view definition are:
 //   - composed of non-empty, dot-separated subkeys with optional placeholders ("foo.{bar}"),
 //     if allowed by the validationOptions
 //   - non-placeholder subkeys are made up of lowercase alphanumeric ASCII characters,
 //     optionally with dashes between alphanumeric characters (e.g., "a-b-c")
 //   - placeholder subkeys are composed of non-placeholder subkeys wrapped in curly brackets
-func validateAspectDottedPath(path string, opts *validationOptions) (err error) {
+func validateViewDottedPath(path string, opts *validationOptions) (err error) {
 	if opts == nil {
 		opts = &validationOptions{}
 	}
@@ -403,10 +403,10 @@ func validateAspectDottedPath(path string, opts *validationOptions) (err error) 
 
 // getPlaceholders returns the set of placeholders in the string or nil, if
 // there is none.
-func getPlaceholders(aspectStr string) map[string]bool {
+func getPlaceholders(viewStr string) map[string]bool {
 	var placeholders map[string]bool
 
-	subkeys := strings.Split(aspectStr, ".")
+	subkeys := strings.Split(viewStr, ".")
 	for _, subkey := range subkeys {
 		if isPlaceholder(subkey) {
 			if placeholders == nil {
@@ -420,16 +420,16 @@ func getPlaceholders(aspectStr string) map[string]bool {
 	return placeholders
 }
 
-// Aspect returns an aspect from the aspect bundle.
-func (d *Bundle) Aspect(aspect string) *Aspect {
-	return d.aspects[aspect]
+// View returns an view from the registry.
+func (d *Registry) View(view string) *View {
+	return d.views[view]
 }
 
-// Aspect carries access rules for a particular aspect in a bundle.
-type Aspect struct {
-	Name   string
-	rules  []*aspectRule
-	bundle *Bundle
+// View carries access rules for a particular view in a registry.
+type View struct {
+	Name     string
+	rules    []*viewRule
+	registry *Registry
 }
 
 type expandedMatch struct {
@@ -485,28 +485,28 @@ func validateSetValue(v interface{}, depth int) error {
 	return nil
 }
 
-// Set sets the named aspect to a specified non-nil value.
-func (a *Aspect) Set(databag DataBag, request string, value interface{}) error {
-	if err := validateAspectDottedPath(request, nil); err != nil {
-		return badRequestErrorFrom(a, "set", request, err.Error())
+// Set sets the named view to a specified non-nil value.
+func (v *View) Set(databag DataBag, request string, value interface{}) error {
+	if err := validateViewDottedPath(request, nil); err != nil {
+		return badRequestErrorFrom(v, "set", request, err.Error())
 	}
 
 	depth := 1
 	if err := validateSetValue(value, depth); err != nil {
-		return badRequestErrorFrom(a, "set", request, err.Error())
+		return badRequestErrorFrom(v, "set", request, err.Error())
 	}
 
 	if value == nil {
 		return fmt.Errorf("internal error: Set value cannot be nil")
 	}
 
-	matches, err := a.matchWriteRequest(request)
+	matches, err := v.matchWriteRequest(request)
 	if err != nil {
 		return err
 	}
 
 	if len(matches) == 0 {
-		return notFoundErrorFrom(a, "set", request, "no matching write rule")
+		return notFoundErrorFrom(v, "set", request, "no matching write rule")
 	}
 
 	// sort less nested paths before more nested ones so that writes aren't overwritten
@@ -519,7 +519,7 @@ func (a *Aspect) Set(databag DataBag, request string, value interface{}) error {
 	for _, match := range matches {
 		pathsToValues, err := getValuesThroughPaths(match.storagePath, match.suffixParts, value)
 		if err != nil {
-			return badRequestErrorFrom(a, "set", request, err.Error())
+			return badRequestErrorFrom(v, "set", request, err.Error())
 		}
 
 		for path, val := range pathsToValues {
@@ -538,7 +538,7 @@ func (a *Aspect) Set(databag DataBag, request string, value interface{}) error {
 	// check if value is entirely used. If not, we fail so this is consistent
 	// with doing the same write individually (one branch at a time)
 	if err := checkForUnusedBranches(value, suffixes); err != nil {
-		return badRequestErrorFrom(a, "set", request, err.Error())
+		return badRequestErrorFrom(v, "set", request, err.Error())
 	}
 
 	for _, match := range expandedMatches {
@@ -553,8 +553,8 @@ func (a *Aspect) Set(databag DataBag, request string, value interface{}) error {
 
 		// TODO: when using a transaction, the data only changes on commit so
 		// this is a bit of a waste. Maybe cache the result so we only do the first
-		// validation and then in aspectstate on Commit
-		if err := a.bundle.Schema.Validate(data); err != nil {
+		// validation and then in registrystate on Commit
+		if err := v.registry.Schema.Validate(data); err != nil {
 			return fmt.Errorf(`cannot write data: %w`, err)
 		}
 	}
@@ -562,18 +562,18 @@ func (a *Aspect) Set(databag DataBag, request string, value interface{}) error {
 	return nil
 }
 
-func (a *Aspect) Unset(databag DataBag, request string) error {
-	if err := validateAspectDottedPath(request, nil); err != nil {
-		return badRequestErrorFrom(a, "unset", request, err.Error())
+func (v *View) Unset(databag DataBag, request string) error {
+	if err := validateViewDottedPath(request, nil); err != nil {
+		return badRequestErrorFrom(v, "unset", request, err.Error())
 	}
 
-	matches, err := a.matchWriteRequest(request)
+	matches, err := v.matchWriteRequest(request)
 	if err != nil {
 		return err
 	}
 
 	if len(matches) == 0 {
-		return notFoundErrorFrom(a, "unset", request, "no matching write rule")
+		return notFoundErrorFrom(v, "unset", request, "no matching write rule")
 	}
 
 	for _, match := range matches {
@@ -588,8 +588,8 @@ func (a *Aspect) Unset(databag DataBag, request string) error {
 
 		// TODO: when using a transaction, the data only changes on commit so
 		// this is a bit of a waste. Maybe cache the result so we only do the first
-		// validation and then in aspectstate on Commit
-		if err := a.bundle.Schema.Validate(data); err != nil {
+		// validation and then in viewstate on Commit
+		if err := v.registry.Schema.Validate(data); err != nil {
 			return fmt.Errorf(`cannot unset data: %w`, err)
 		}
 	}
@@ -597,10 +597,10 @@ func (a *Aspect) Unset(databag DataBag, request string) error {
 	return nil
 }
 
-func (a *Aspect) matchWriteRequest(request string) ([]requestMatch, error) {
+func (v *View) matchWriteRequest(request string) ([]requestMatch, error) {
 	var matches []requestMatch
 	subkeys := strings.Split(request, ".")
-	for _, rule := range a.rules {
+	for _, rule := range v.rules {
 		placeholders, suffixParts, ok := rule.match(subkeys)
 		if !ok {
 			continue
@@ -626,8 +626,8 @@ func (a *Aspect) matchWriteRequest(request string) ([]requestMatch, error) {
 }
 
 // checkSchemaMismatch checks whether the rules accept compatible schema types.
-// If not, then no data can satisfy these rules and the aspect should be rejected.
-func checkSchemaMismatch(schema Schema, rules []*aspectRule) error {
+// If not, then no data can satisfy these rules and the view should be rejected.
+func checkSchemaMismatch(schema Schema, rules []*viewRule) error {
 	pathTypes := make(map[string][]SchemaType)
 out:
 	for _, rule := range rules {
@@ -661,7 +661,6 @@ out:
 			default:
 				newTypes = append(newTypes, t)
 			}
-
 		}
 
 		for oldPath, oldTypes := range pathTypes {
@@ -912,7 +911,7 @@ func namespaceResult(res interface{}, suffixParts []string) (interface{}, error)
 	if isPlaceholder(part) {
 		values, ok := res.(map[string]interface{})
 		if !ok {
-			return nil, fmt.Errorf("internal error: expected databag to return map for unmatched placeholder")
+			return nil, fmt.Errorf("internal error: expected storage to return map for unmatched placeholder")
 		}
 
 		level := make(map[string]interface{}, len(values))
@@ -936,16 +935,16 @@ func namespaceResult(res interface{}, suffixParts []string) (interface{}, error)
 	return map[string]interface{}{part: nested}, nil
 }
 
-// Get returns the aspect value identified by the request. If either the named
-// aspect or the corresponding value can't be found, a NotFoundError is returned.
-func (a *Aspect) Get(databag DataBag, request string) (interface{}, error) {
+// Get returns the view value identified by the request. If either the named
+// view or the corresponding value can't be found, a NotFoundError is returned.
+func (v *View) Get(databag DataBag, request string) (interface{}, error) {
 	if request != "" {
-		if err := validateAspectDottedPath(request, nil); err != nil {
-			return nil, badRequestErrorFrom(a, "get", request, err.Error())
+		if err := validateViewDottedPath(request, nil); err != nil {
+			return nil, badRequestErrorFrom(v, "get", request, err.Error())
 		}
 	}
 
-	matches, err := a.matchGetRequest(request)
+	matches, err := v.matchGetRequest(request)
 	if err != nil {
 		return nil, err
 	}
@@ -974,7 +973,7 @@ func (a *Aspect) Get(databag DataBag, request string) (interface{}, error) {
 	}
 
 	if merged == nil {
-		return nil, notFoundErrorFrom(a, "get", request, "matching rules don't map to any values")
+		return nil, notFoundErrorFrom(v, "get", request, "matching rules don't map to any values")
 	}
 
 	return merged, nil
@@ -1028,13 +1027,13 @@ type requestMatch struct {
 // matchGetRequest either returns the first exact match for the request or, if
 // no entry is an exact match, one or more entries that the request matches a
 // prefix of. If no match is found, a NotFoundError is returned.
-func (a *Aspect) matchGetRequest(request string) (matches []requestMatch, err error) {
+func (v *View) matchGetRequest(request string) (matches []requestMatch, err error) {
 	var subkeys []string
 	if request != "" {
 		subkeys = strings.Split(request, ".")
 	}
 
-	for _, rule := range a.rules {
+	for _, rule := range v.rules {
 		placeholders, restSuffix, ok := rule.match(subkeys)
 		if !ok {
 			continue
@@ -1058,7 +1057,7 @@ func (a *Aspect) matchGetRequest(request string) (matches []requestMatch, err er
 	}
 
 	if len(matches) == 0 {
-		return nil, notFoundErrorFrom(a, "get", request, "no matching read rule")
+		return nil, notFoundErrorFrom(v, "get", request, "no matching read rule")
 	}
 
 	// sort matches by namespace (unmatched suffix) to ensure that nested matches
@@ -1080,10 +1079,10 @@ func (a *Aspect) matchGetRequest(request string) (matches []requestMatch, err er
 	return matches, nil
 }
 
-func newAspectRule(request, storage, accesstype string) (*aspectRule, error) {
+func newViewRule(request, storage, accesstype string) (*viewRule, error) {
 	accType, err := newAccessType(accesstype)
 	if err != nil {
-		return nil, fmt.Errorf("cannot create aspect rule: %w", err)
+		return nil, fmt.Errorf("cannot create view rule: %w", err)
 	}
 
 	requestSubkeys := strings.Split(request, ".")
@@ -1112,7 +1111,7 @@ func newAspectRule(request, storage, accesstype string) (*aspectRule, error) {
 		pathWriters = append(pathWriters, patt)
 	}
 
-	return &aspectRule{
+	return &viewRule{
 		originalRequest: request,
 		originalStorage: storage,
 		request:         requestMatchers,
@@ -1125,10 +1124,10 @@ func isPlaceholder(part string) bool {
 	return part[0] == '{' && part[len(part)-1] == '}'
 }
 
-// aspectRule represents an individual aspect rule. It can be used to match a
+// viewRule represents an individual view rule. It can be used to match a
 // request and map it into a corresponding storage path, potentially with
 // placeholders filled in.
-type aspectRule struct {
+type viewRule struct {
 	originalRequest string
 	originalStorage string
 
@@ -1140,7 +1139,7 @@ type aspectRule struct {
 // match returns true if the subkeys match the pattern exactly or as a prefix.
 // If placeholders are "filled in" when matching, those are returned in a map.
 // If the subkeys match as a prefix, the remaining suffix is returned.
-func (p *aspectRule) match(reqSubkeys []string) (placeholders map[string]string, restSuffix []string, match bool) {
+func (p *viewRule) match(reqSubkeys []string) (placeholders map[string]string, restSuffix []string, match bool) {
 	if len(p.request) < len(reqSubkeys) {
 		return nil, nil, false
 	}
@@ -1160,9 +1159,9 @@ func (p *aspectRule) match(reqSubkeys []string) (placeholders map[string]string,
 	return placeholders, restSuffix, true
 }
 
-// storagePath takes a map of placeholders to their values in the aspect name and
+// storagePath takes a map of placeholders to their values in the view name and
 // returns the path with its placeholder values filled in with the map's values.
-func (p *aspectRule) storagePath(placeholders map[string]string) (string, error) {
+func (p *viewRule) storagePath(placeholders map[string]string) (string, error) {
 	sb := &strings.Builder{}
 
 	for _, subkey := range p.storage {
@@ -1181,11 +1180,11 @@ func (p *aspectRule) storagePath(placeholders map[string]string) (string, error)
 	return sb.String(), nil
 }
 
-func (p aspectRule) isReadable() bool {
+func (p viewRule) isReadable() bool {
 	return p.access == readWrite || p.access == read
 }
 
-func (p aspectRule) isWriteable() bool {
+func (p viewRule) isWriteable() bool {
 	return p.access == readWrite || p.access == write
 }
 

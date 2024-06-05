@@ -27,29 +27,29 @@ import (
 	. "gopkg.in/check.v1"
 )
 
-func (cs *clientSuite) TestAspectGet(c *C) {
+func (cs *clientSuite) TestRegistryGet(c *C) {
 	cs.rsp = `{"type": "sync", "result":{"foo":"baz","bar":1}}`
 
-	res, err := cs.cli.AspectGet("a/b/c", []string{"foo", "bar"})
+	res, err := cs.cli.RegistryGetViaView("a/b/c", []string{"foo", "bar"})
 	c.Check(err, IsNil)
 	c.Check(res, DeepEquals, map[string]interface{}{"foo": "baz", "bar": json.Number("1")})
 	c.Assert(cs.reqs, HasLen, 1)
 	c.Check(cs.reqs[0].Method, Equals, "GET")
-	c.Check(cs.reqs[0].URL.Path, Equals, "/v2/aspects/a/b/c")
+	c.Check(cs.reqs[0].URL.Path, Equals, "/v2/registry/a/b/c")
 	c.Check(cs.reqs[0].URL.Query(), DeepEquals, url.Values{"fields": []string{"foo,bar"}})
 }
 
-func (cs *clientSuite) TestAspectSet(c *C) {
+func (cs *clientSuite) TestRegistrySet(c *C) {
 	cs.status = 202
 	cs.rsp = `{"type": "async", "status-code": 202, "change": "123"}`
 
-	chgID, err := cs.cli.AspectSet("a/b/c", map[string]interface{}{"foo": "bar", "baz": json.Number("1")})
+	chgID, err := cs.cli.RegistrySetViaView("a/b/c", map[string]interface{}{"foo": "bar", "baz": json.Number("1")})
 	c.Check(err, IsNil)
 	c.Check(chgID, Equals, "123")
 	c.Assert(cs.reqs, HasLen, 1)
 	c.Check(cs.reqs[0].Method, Equals, "PUT")
 	c.Check(cs.reqs[0].Header.Get("Content-Type"), Equals, "application/json")
-	c.Check(cs.reqs[0].URL.Path, Equals, "/v2/aspects/a/b/c")
+	c.Check(cs.reqs[0].URL.Path, Equals, "/v2/registry/a/b/c")
 	data, err := io.ReadAll(cs.reqs[0].Body)
 	c.Assert(err, IsNil)
 

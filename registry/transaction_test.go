@@ -16,14 +16,13 @@
  *
  */
 
-package aspects_test
+package registry_test
 
 import (
 	"errors"
 
+	"github.com/snapcore/snapd/registry"
 	. "gopkg.in/check.v1"
-
-	"github.com/snapcore/snapd/aspects"
 )
 
 type transactionTestSuite struct{}
@@ -33,26 +32,26 @@ var _ = Suite(&transactionTestSuite{})
 type witnessReadWriter struct {
 	readCalled     int
 	writeCalled    int
-	bag            aspects.JSONDataBag
-	writtenDatabag aspects.JSONDataBag
+	bag            registry.JSONDataBag
+	writtenDatabag registry.JSONDataBag
 }
 
-func (w *witnessReadWriter) read() (aspects.JSONDataBag, error) {
+func (w *witnessReadWriter) read() (registry.JSONDataBag, error) {
 	w.readCalled++
 	return w.bag, nil
 }
 
-func (w *witnessReadWriter) write(bag aspects.JSONDataBag) error {
+func (w *witnessReadWriter) write(bag registry.JSONDataBag) error {
 	w.writeCalled++
 	w.writtenDatabag = bag
 	return nil
 }
 
 func (s *transactionTestSuite) TestSet(c *C) {
-	bag := aspects.NewJSONDataBag()
+	bag := registry.NewJSONDataBag()
 	witness := &witnessReadWriter{bag: bag}
-	schema := aspects.NewJSONSchema()
-	tx, err := aspects.NewTransaction(witness.read, witness.write, schema)
+	schema := registry.NewJSONSchema()
+	tx, err := registry.NewTransaction(witness.read, witness.write, schema)
 	c.Assert(err, IsNil)
 	c.Assert(witness.readCalled, Equals, 1)
 
@@ -61,13 +60,13 @@ func (s *transactionTestSuite) TestSet(c *C) {
 	c.Assert(witness.writeCalled, Equals, 0)
 
 	_, err = witness.writtenDatabag.Get("foo")
-	c.Assert(err, FitsTypeOf, aspects.PathError(""))
+	c.Assert(err, FitsTypeOf, registry.PathError(""))
 }
 
 func (s *transactionTestSuite) TestCommit(c *C) {
-	witness := &witnessReadWriter{bag: aspects.NewJSONDataBag()}
-	schema := aspects.NewJSONSchema()
-	tx, err := aspects.NewTransaction(witness.read, witness.write, schema)
+	witness := &witnessReadWriter{bag: registry.NewJSONDataBag()}
+	schema := registry.NewJSONSchema()
+	tx, err := registry.NewTransaction(witness.read, witness.write, schema)
 	c.Assert(err, IsNil)
 	c.Assert(witness.readCalled, Equals, 1)
 
@@ -87,10 +86,10 @@ func (s *transactionTestSuite) TestCommit(c *C) {
 }
 
 func (s *transactionTestSuite) TestGetReadsUncommitted(c *C) {
-	databag := aspects.NewJSONDataBag()
+	databag := registry.NewJSONDataBag()
 	witness := &witnessReadWriter{bag: databag}
-	schema := aspects.NewJSONSchema()
-	tx, err := aspects.NewTransaction(witness.read, witness.write, schema)
+	schema := registry.NewJSONSchema()
+	tx, err := registry.NewTransaction(witness.read, witness.write, schema)
 	c.Assert(err, IsNil)
 
 	err = databag.Set("foo", "bar")
@@ -115,19 +114,19 @@ func (f *failingSchema) Validate([]byte) error {
 	return f.err
 }
 
-func (f *failingSchema) SchemaAt(path []string) ([]aspects.Schema, error) {
-	return []aspects.Schema{f}, nil
+func (f *failingSchema) SchemaAt(path []string) ([]registry.Schema, error) {
+	return []registry.Schema{f}, nil
 }
 
-func (f *failingSchema) Type() aspects.SchemaType {
-	return aspects.Any
+func (f *failingSchema) Type() registry.SchemaType {
+	return registry.Any
 }
 
 func (s *transactionTestSuite) TestRollBackOnCommitError(c *C) {
-	databag := aspects.NewJSONDataBag()
+	databag := registry.NewJSONDataBag()
 	witness := &witnessReadWriter{bag: databag}
 	schema := &failingSchema{err: errors.New("expected error")}
-	tx, err := aspects.NewTransaction(witness.read, witness.write, schema)
+	tx, err := registry.NewTransaction(witness.read, witness.write, schema)
 	c.Assert(err, IsNil)
 
 	err = tx.Set("foo", "bar")
@@ -147,10 +146,10 @@ func (s *transactionTestSuite) TestRollBackOnCommitError(c *C) {
 }
 
 func (s *transactionTestSuite) TestManyWrites(c *C) {
-	databag := aspects.NewJSONDataBag()
+	databag := registry.NewJSONDataBag()
 	witness := &witnessReadWriter{bag: databag}
-	schema := aspects.NewJSONSchema()
-	tx, err := aspects.NewTransaction(witness.read, witness.write, schema)
+	schema := registry.NewJSONSchema()
+	tx, err := registry.NewTransaction(witness.read, witness.write, schema)
 	c.Assert(err, IsNil)
 
 	err = tx.Set("foo", "bar")
@@ -171,10 +170,10 @@ func (s *transactionTestSuite) TestManyWrites(c *C) {
 }
 
 func (s *transactionTestSuite) TestCommittedIncludesRecentWrites(c *C) {
-	databag := aspects.NewJSONDataBag()
+	databag := registry.NewJSONDataBag()
 	witness := &witnessReadWriter{bag: databag}
-	schema := aspects.NewJSONSchema()
-	tx, err := aspects.NewTransaction(witness.read, witness.write, schema)
+	schema := registry.NewJSONSchema()
+	tx, err := registry.NewTransaction(witness.read, witness.write, schema)
 	c.Assert(err, IsNil)
 	c.Assert(witness.readCalled, Equals, 1)
 
@@ -202,24 +201,24 @@ func (s *transactionTestSuite) TestCommittedIncludesRecentWrites(c *C) {
 }
 
 func (s *transactionTestSuite) TestCommittedIncludesPreviousCommit(c *C) {
-	var databag aspects.JSONDataBag
-	readBag := func() (aspects.JSONDataBag, error) {
+	var databag registry.JSONDataBag
+	readBag := func() (registry.JSONDataBag, error) {
 		if databag == nil {
-			return aspects.NewJSONDataBag(), nil
+			return registry.NewJSONDataBag(), nil
 		}
 		return databag, nil
 	}
 
-	writeBag := func(bag aspects.JSONDataBag) error {
+	writeBag := func(bag registry.JSONDataBag) error {
 		databag = bag
 		return nil
 	}
 
-	schema := aspects.NewJSONSchema()
-	txOne, err := aspects.NewTransaction(readBag, writeBag, schema)
+	schema := registry.NewJSONSchema()
+	txOne, err := registry.NewTransaction(readBag, writeBag, schema)
 	c.Assert(err, IsNil)
 
-	txTwo, err := aspects.NewTransaction(readBag, writeBag, schema)
+	txTwo, err := registry.NewTransaction(readBag, writeBag, schema)
 	c.Assert(err, IsNil)
 
 	err = txOne.Set("foo", "bar")
@@ -236,7 +235,7 @@ func (s *transactionTestSuite) TestCommittedIncludesPreviousCommit(c *C) {
 	c.Assert(value, Equals, "bar")
 
 	value, err = databag.Get("bar")
-	c.Assert(err, FitsTypeOf, aspects.PathError(""))
+	c.Assert(err, FitsTypeOf, registry.PathError(""))
 	c.Assert(value, IsNil)
 
 	err = txTwo.Commit()
@@ -253,15 +252,15 @@ func (s *transactionTestSuite) TestCommittedIncludesPreviousCommit(c *C) {
 
 func (s *transactionTestSuite) TestTransactionBagReadError(c *C) {
 	var readErr error
-	readBag := func() (aspects.JSONDataBag, error) {
+	readBag := func() (registry.JSONDataBag, error) {
 		return nil, readErr
 	}
-	writeBag := func(_ aspects.JSONDataBag) error {
+	writeBag := func(_ registry.JSONDataBag) error {
 		return nil
 	}
 
-	schema := aspects.NewJSONSchema()
-	txOne, err := aspects.NewTransaction(readBag, writeBag, schema)
+	schema := registry.NewJSONSchema()
+	txOne, err := registry.NewTransaction(readBag, writeBag, schema)
 	c.Assert(err, IsNil)
 
 	readErr = errors.New("expected")
@@ -270,21 +269,21 @@ func (s *transactionTestSuite) TestTransactionBagReadError(c *C) {
 	c.Assert(err, ErrorMatches, "expected")
 
 	// NewTransaction()'s databag read fails
-	txOne, err = aspects.NewTransaction(readBag, writeBag, schema)
+	txOne, err = registry.NewTransaction(readBag, writeBag, schema)
 	c.Assert(err, ErrorMatches, "expected")
 }
 
 func (s *transactionTestSuite) TestTransactionBagWriteError(c *C) {
-	readBag := func() (aspects.JSONDataBag, error) {
+	readBag := func() (registry.JSONDataBag, error) {
 		return nil, nil
 	}
 	var writeErr error
-	writeBag := func(_ aspects.JSONDataBag) error {
+	writeBag := func(_ registry.JSONDataBag) error {
 		return writeErr
 	}
 
-	schema := aspects.NewJSONSchema()
-	txOne, err := aspects.NewTransaction(readBag, writeBag, schema)
+	schema := registry.NewJSONSchema()
+	txOne, err := registry.NewTransaction(readBag, writeBag, schema)
 	c.Assert(err, IsNil)
 
 	writeErr = errors.New("expected")
@@ -294,29 +293,29 @@ func (s *transactionTestSuite) TestTransactionBagWriteError(c *C) {
 }
 
 func (s *transactionTestSuite) TestTransactionReadsIsolated(c *C) {
-	databag := aspects.NewJSONDataBag()
-	readBag := func() (aspects.JSONDataBag, error) {
+	databag := registry.NewJSONDataBag()
+	readBag := func() (registry.JSONDataBag, error) {
 		return databag, nil
 	}
-	writeBag := func(aspects.JSONDataBag) error {
+	writeBag := func(registry.JSONDataBag) error {
 		return nil
 	}
 
-	schema := aspects.NewJSONSchema()
-	tx, err := aspects.NewTransaction(readBag, writeBag, schema)
+	schema := registry.NewJSONSchema()
+	tx, err := registry.NewTransaction(readBag, writeBag, schema)
 	c.Assert(err, IsNil)
 
 	err = databag.Set("foo", "bar")
 	c.Assert(err, IsNil)
 
 	_, err = tx.Get("foo")
-	c.Assert(err, FitsTypeOf, aspects.PathError(""))
+	c.Assert(err, FitsTypeOf, registry.PathError(""))
 }
 
 func (s *transactionTestSuite) TestReadDatabagsAreCopiedForIsolation(c *C) {
-	witness := &witnessReadWriter{bag: aspects.NewJSONDataBag()}
+	witness := &witnessReadWriter{bag: registry.NewJSONDataBag()}
 	schema := &failingSchema{}
-	tx, err := aspects.NewTransaction(witness.read, witness.write, schema)
+	tx, err := registry.NewTransaction(witness.read, witness.write, schema)
 	c.Assert(err, IsNil)
 
 	err = tx.Set("foo", "bar")
@@ -342,8 +341,8 @@ func (s *transactionTestSuite) TestReadDatabagsAreCopiedForIsolation(c *C) {
 }
 
 func (s *transactionTestSuite) TestUnset(c *C) {
-	witness := &witnessReadWriter{bag: aspects.NewJSONDataBag()}
-	tx, err := aspects.NewTransaction(witness.read, witness.write, aspects.NewJSONSchema())
+	witness := &witnessReadWriter{bag: registry.NewJSONDataBag()}
+	tx, err := registry.NewTransaction(witness.read, witness.write, registry.NewJSONSchema())
 	c.Assert(err, IsNil)
 
 	err = tx.Set("foo", "bar")
@@ -363,10 +362,10 @@ func (s *transactionTestSuite) TestUnset(c *C) {
 	c.Assert(err, IsNil)
 
 	_, err = witness.writtenDatabag.Get("foo")
-	c.Assert(err, FitsTypeOf, aspects.PathError(""))
+	c.Assert(err, FitsTypeOf, registry.PathError(""))
 }
 
-func txData(c *C, tx *aspects.Transaction) string {
+func txData(c *C, tx *registry.Transaction) string {
 	data, err := tx.Data()
 	c.Assert(err, IsNil)
 	return string(data)

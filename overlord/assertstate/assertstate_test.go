@@ -5230,7 +5230,7 @@ func (s *assertMgrSuite) TestValidationSetsFromModelConflict(c *C) {
 	c.Check(err, testutil.ErrorIs, &snapasserts.ValidationSetsConflictError{})
 }
 
-func (s *assertMgrSuite) aspectBundle(c *C, name string, extraHeaders map[string]interface{}, body string) *asserts.AspectBundle {
+func (s *assertMgrSuite) registry(c *C, name string, extraHeaders map[string]interface{}, body string) *asserts.Registry {
 	headers := map[string]interface{}{
 		"series":       "16",
 		"account-id":   s.dev1AcctKey.AccountID(),
@@ -5242,13 +5242,13 @@ func (s *assertMgrSuite) aspectBundle(c *C, name string, extraHeaders map[string
 		headers[h] = v
 	}
 
-	as, err := s.dev1Signing.Sign(asserts.AspectBundleType, headers, []byte(body), "")
+	as, err := s.dev1Signing.Sign(asserts.RegistryType, headers, []byte(body), "")
 	c.Assert(err, IsNil)
 
-	return as.(*asserts.AspectBundle)
+	return as.(*asserts.Registry)
 }
 
-func (s *assertMgrSuite) TestAspectBundle(c *C) {
+func (s *assertMgrSuite) TestRegistry(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -5259,9 +5259,9 @@ func (s *assertMgrSuite) TestAspectBundle(c *C) {
 	err = assertstate.Add(s.state, s.dev1AcctKey)
 	c.Assert(err, IsNil)
 
-	aspectBundleFoo := s.aspectBundle(c, "foo", map[string]interface{}{
-		"aspects": map[string]interface{}{
-			"an-aspect": map[string]interface{}{
+	registryFoo := s.registry(c, "foo", map[string]interface{}{
+		"views": map[string]interface{}{
+			"a-view": map[string]interface{}{
 				"rules": []interface{}{
 					map[string]interface{}{"request": "a", "storage": "a"},
 					map[string]interface{}{"request": "b", "storage": "b"},
@@ -5277,19 +5277,19 @@ func (s *assertMgrSuite) TestAspectBundle(c *C) {
     }
   }
 }`)
-	err = assertstate.Add(s.state, aspectBundleFoo)
+	err = assertstate.Add(s.state, registryFoo)
 	c.Assert(err, IsNil)
 
-	_, err = assertstate.AspectBundle(s.state, "no-account", "foo")
+	_, err = assertstate.Registry(s.state, "no-account", "foo")
 	c.Assert(err, testutil.ErrorIs, &asserts.NotFoundError{})
 
-	bundleAs, err := assertstate.AspectBundle(s.state, s.dev1AcctKey.AccountID(), "foo")
+	registryAs, err := assertstate.Registry(s.state, s.dev1AcctKey.AccountID(), "foo")
 	c.Assert(err, IsNil)
 
-	bundle := bundleAs.Bundle()
-	c.Check(bundle.Account, Equals, s.dev1AcctKey.AccountID())
-	c.Check(bundle.Name, Equals, "foo")
-	c.Check(bundle.Schema, NotNil)
+	registry := registryAs.Registry()
+	c.Check(registry.Account, Equals, s.dev1AcctKey.AccountID())
+	c.Check(registry.Name, Equals, "foo")
+	c.Check(registry.Schema, NotNil)
 }
 
 func (s *assertMgrSuite) TestValidateComponent(c *C) {

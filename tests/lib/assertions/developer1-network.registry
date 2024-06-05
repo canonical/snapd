@@ -1,3 +1,53 @@
+type: registry
+authority-id: developer1
+account-id: developer1
+name: network
+timestamp: 2024-02-09T17:11:32Z
+views:
+  wifi-setup:
+    rules:
+      -
+        request: ssids
+        storage: wifi.ssids
+      -
+        access: read-write
+        request: ssid
+        storage: wifi.ssid
+      -
+        access: write
+        request: password
+        storage: wifi.psk
+      -
+        access: read
+        request: status
+        storage: wifi.status
+      -
+        request: private.{placeholder}
+        storage: wifi.{placeholder}
+body-length: 92
+sign-key-sha3-384: EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu
+
+{
+  "storage": {
+    "schema": {
+      "wifi": {
+        "values": "any"
+      }
+    }
+  }
+}
+
+AcLBUgQAAQoABgUCZmA+IAAAkTYQAC7pqJqLxxRnjVfl1hAsNvk2WIG/mJScddnsnyybibA4jIiL
+/FOJvcV0qEVIgtLKPGO3rfkLB/TlCPmNuEG7NsYGoL+zmk6AqLbK3sC+c92bRP4p7OqF4HHgdTR3
+o4NyoeO3z03sIKIsJlSKajtT/hI8WZe4ZkfykYwmf5DYFJ/iIThIQtNuR0xAW2BWyULBour1s2i3
+6wyaljfo9qMExPSsJ8uK7S7JBA/APTv4KuejhSZNEWRcnJEVPsy7wtF0nI/ESDhbCZ1ZBU6rVQop
+5FOKXj50uyAfXrf+d3tUV2FMb8xTtIPQ+q6As2T+xgjwE1GOfL/KcaYBCntAQXlZDrzpFep0BRz2
+wEanoJKMQKY/dj067HJg20hhNmTdJGdnb2H35zkK3ouoz3dd9n5slQINKSrrl9INHzx5csPcXU0b
+GAcFS5gsUh5BYWWkSWrlILaHthyAUTTH0GQrN6d07ZgRSE0lJ9PtXVvQ/E4s1l4iPX57yFUE3qli
+SmgbB0mqOkMK8a4ETTHTAFzPyM+o5i23E9tlOsokT8cyfvHolBcZF1/24G8ockm9B4d6QI441JSZ
+oEUJSm7/A1yT6TzzNO5CssnDmEpffYd/tfQRwkr1Tjn2As+8oB1g7nRI1GaDeNSsk8Ta9/B6Dct9
+RZurSvl2CpNMWWeDC/WcTA1kKT2q
+
 type: account
 authority-id: testrootorg
 account-id: developer1
@@ -49,11 +99,12 @@ AqHJYdx/mNU1/N9FeUbzgESjSY6OydjWhAB6F/T5S8O/K8SExF2+wQIOw+A+D80QbrpbcsL5Yzcb
 gqS5rFAxK1vPvMUk/t7pXpcoR9t+KGqsNhMiG0AsFqckZi0A2F5XzUztF2MtDLUdNaxmEC7ZITB/
 tgWXS3ChGQqx9v3dl0VqKP/Pkad/
 
-type: aspect-bundle
+type: registry
 authority-id: developer1
 account-id: developer1
 name: network
-aspects:
+timestamp: 2024-02-09T17:11:32Z
+views:
   wifi-setup:
     rules:
       -
@@ -74,7 +125,6 @@ aspects:
       -
         request: private.{placeholder}
         storage: wifi.{placeholder}
-timestamp: 2024-02-09T17:11:32Z
 body-length: 92
 sign-key-sha3-384: EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu
 
@@ -88,13 +138,13 @@ sign-key-sha3-384: EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11m
   }
 }
 
-AcLBUgQAAQoABgUCZen+ywAA8mAQADL8tlQHe2QKIqK7Mt3CkXfAOsG8lRoTOulPIzctYpJu7XOG
-kFW1BGrRPwDZSKFf4qZXwO0SH4QbuQ4ykuw1qMO+JTFTmUcEw5JLrdSrGG21fGaZjfK/XXVsmUXA
-d1IzGTa3PYWwBptt1x4D1f/mXidxt26e8WBWzNJ1eih9q5XeOsvXuA7r4ekGjHr2epkNE8TO1wc6
-7j4QDs3KvN/jz6ivtH+fV9jY+23cVO1L45k+Odwgh/O0/hQIg9VxPZYvQIJi8FQTQabFJ1ncRdwp
-kZjP/Az053D8IuQLecFRJ7vpa2/plbtg1qLm/ptnGEmPa1szehJfH4tLjQXXukjwuTTryVjv+525
-OQYXHCcdtmqhh/0u2AAXz7VJj0M3sxCzBX16nEbSB0oErBSBrBFGl41htCzByFp3lGSkCSYVqwSH
-+8oMyp7ucu3EQyaIt/qLPvgFP1pXABFi9ho2b4hRxojbsMvZs/cuLDhUCA86qQ2UmG/yinPH88JV
-xTumdsfzOUy+NjVe5x8Ag/VBEEHLNpM1mXFR8k3C85eh81EzSGPjXIOALM3z+xIV3jKQ3SFoSmjX
-M550G/Vagy2H/ue+vzqltawuJ+iInIcjXs5jhHNH6ekcfvaRciKHov1RayhQ2+D2mzVOUBKSkO64
-yTDDkGYoI+VuKP/pFxiZZ1gBIOh+
+AcLBUgQAAQoABgUCZmBRxwAAx/MQAAYM0qM5WBGFCdBk4XQxfgdVlnKx7jOP0Isu0g/fUhX5M+FJ
+SBxaia7hGtwJVzQG1vqOgqOqPE0+9jpqFU+EQ1r2nm/Sj23e9J6N9+XfMYON1C80sJaHPlQ4be5/
+GsGZnyjO7SyxHOs43cPSy2bJOZAo43ehZOR+J6uW9Z3CmBihch8qawn5VMwSH/BGSenm9OpexsRY
+YgW1sQtOhOkbtTO81M7oZdLHrmXqJ6/RCSkeUHYsGR7DxEOJJsBCBisD37/Bup9UlXwWfr6+XRfh
+H3Lc7D8UkX/8EsYPGkDKEup9/OTmzWRlGmnMcz/SI17v1PAYIktgVF95JddIS9psXZgwS8Mj7ZYb
+hssa7npCLsOpgUHJ2clUQHkbL1jDk2TBDFZkX1nUTxYgPFYpzcmSTOeVa5+xgPjOnV2/mfmTN9cU
+53dCHR2MCcoODnfwIlbHUoxzTg8aE43RbgOqt5k6iwxZj2TZmRdlSLaUOQg/QkyE5iTqvvOvWdjf
+ZUy8hOhXxOb0SNL6fxDI4rvjLvS7AjmCLEV33c+pwt2nO+0IN5+rSK9F7gWTL1F5OTadPaaWzc7D
+zTsyhMadcR+IU+TSMLr8chR9rCkkkkeDM8QUQMYGoTIuXptJzX5CYyefxhlfniPGB5yZOreeb+gn
+a++cFqYj0rTzy6m6g6cy0tiqiqq9

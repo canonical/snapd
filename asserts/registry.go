@@ -25,57 +25,57 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/snapcore/snapd/aspects"
+	"github.com/snapcore/snapd/registry"
 )
 
-// AspectBundle holds an aspect-bundle assertion, which is a definition by an
-// account of access aspects ("views") and a storage schema for a set of
-// related configuration options under the purview of the account.
-type AspectBundle struct {
+// Registry holds a registry assertion, which is a definition by an account of
+// access views and a storage schema for a set of related configuration options
+// under the purview of the account.
+type Registry struct {
 	assertionBase
 
-	bundle    *aspects.Bundle
+	registry  *registry.Registry
 	timestamp time.Time
 }
 
 // AccountID returns the identifier of the account that signed this assertion.
-func (ab *AspectBundle) AccountID() string {
-	return ab.HeaderString("account-id")
+func (ar *Registry) AccountID() string {
+	return ar.HeaderString("account-id")
 }
 
-// Name returns the name for the bundle.
-func (ab *AspectBundle) Name() string {
-	return ab.HeaderString("name")
+// Name returns the name for the registry.
+func (ar *Registry) Name() string {
+	return ar.HeaderString("name")
 }
 
-// Bundle returns a aspects.Bundle implementing the aspect bundle configuration
-// handling.
-func (ab *AspectBundle) Bundle() *aspects.Bundle {
-	return ab.bundle
+// Registry returns a Registry assembled from the assertion that can be used
+// to access registry views.
+func (ar *Registry) Registry() *registry.Registry {
+	return ar.registry
 }
 
 var (
-	validAspectBundleName = regexp.MustCompile("^[a-z0-9](?:-?[a-z0-9])*$")
+	validRegistryName = regexp.MustCompile("^[a-z0-9](?:-?[a-z0-9])*$")
 )
 
-func assembleAspectBundle(assert assertionBase) (Assertion, error) {
+func assembleRegistry(assert assertionBase) (Assertion, error) {
 	authorityID := assert.AuthorityID()
 	accountID := assert.HeaderString("account-id")
 	if accountID != authorityID {
-		return nil, fmt.Errorf("authority-id and account-id must match, aspect-bundle assertions are expected to be signed by the issuer account: %q != %q", authorityID, accountID)
+		return nil, fmt.Errorf("authority-id and account-id must match, registry assertions are expected to be signed by the issuer account: %q != %q", authorityID, accountID)
 	}
 
-	name, err := checkStringMatches(assert.headers, "name", validAspectBundleName)
+	name, err := checkStringMatches(assert.headers, "name", validRegistryName)
 	if err != nil {
 		return nil, err
 	}
 
-	aspectsMap, err := checkMap(assert.headers, "aspects")
+	viewsMap, err := checkMap(assert.headers, "views")
 	if err != nil {
 		return nil, err
 	}
-	if aspectsMap == nil {
-		return nil, fmt.Errorf(`"aspects" stanza is mandatory`)
+	if viewsMap == nil {
+		return nil, fmt.Errorf(`"views" stanza is mandatory`)
 	}
 
 	if _, err := checkOptionalString(assert.headers, "summary"); err != nil {
@@ -92,12 +92,12 @@ func assembleAspectBundle(assert assertionBase) (Assertion, error) {
 		return nil, fmt.Errorf(`body must contain a "storage" stanza`)
 	}
 
-	schema, err := aspects.ParseSchema(schemaRaw)
+	schema, err := registry.ParseSchema(schemaRaw)
 	if err != nil {
 		return nil, fmt.Errorf(`invalid schema: %w`, err)
 	}
 
-	bundle, err := aspects.NewBundle(accountID, name, aspectsMap, schema)
+	registry, err := registry.New(accountID, name, viewsMap, schema)
 	if err != nil {
 		return nil, err
 	}
@@ -107,9 +107,9 @@ func assembleAspectBundle(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
-	return &AspectBundle{
+	return &Registry{
 		assertionBase: assert,
-		bundle:        bundle,
+		registry:      registry,
 		timestamp:     timestamp,
 	}, nil
 }

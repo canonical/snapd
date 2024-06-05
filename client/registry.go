@@ -27,11 +27,11 @@ import (
 	"strings"
 )
 
-func (c *Client) AspectGet(aspectID string, requests []string) (result map[string]interface{}, err error) {
+func (c *Client) RegistryGetViaView(viewID string, requests []string) (result map[string]interface{}, err error) {
 	query := url.Values{}
 	query.Add("fields", strings.Join(requests, ","))
 
-	endpoint := fmt.Sprintf("/v2/aspects/%s", aspectID)
+	endpoint := fmt.Sprintf("/v2/registry/%s", viewID)
 	_, err = c.doSync("GET", endpoint, query, nil, nil, &result)
 	if err != nil {
 		return nil, err
@@ -40,7 +40,7 @@ func (c *Client) AspectGet(aspectID string, requests []string) (result map[strin
 	return result, nil
 }
 
-func (c *Client) AspectSet(aspectID string, requestValues map[string]interface{}) (changeID string, err error) {
+func (c *Client) RegistrySetViaView(viewID string, requestValues map[string]interface{}) (changeID string, err error) {
 	body, err := json.Marshal(requestValues)
 	if err != nil {
 		return "", err
@@ -49,6 +49,6 @@ func (c *Client) AspectSet(aspectID string, requestValues map[string]interface{}
 	headers := make(map[string]string)
 	headers["Content-Type"] = "application/json"
 
-	endpoint := fmt.Sprintf("/v2/aspects/%s", aspectID)
+	endpoint := fmt.Sprintf("/v2/registry/%s", viewID)
 	return c.doAsync("PUT", endpoint, nil, headers, bytes.NewReader(body))
 }

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2023 Canonical Ltd
+ * Copyright (C) 2023-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,7 +17,7 @@
  *
  */
 
-package aspects
+package registry
 
 import (
 	"encoding/json"
@@ -42,8 +42,8 @@ type parser interface {
 	parseConstraints(map[string]json.RawMessage) error
 }
 
-// ParseSchema parses a JSON aspect schema and returns a Schema that can be
-// used to validate aspects.
+// ParseSchema parses a JSON registry schema and returns a Schema that can be
+// used to validate storage.
 func ParseSchema(raw []byte) (*StorageSchema, error) {
 	var schemaDef map[string]json.RawMessage
 	err := json.Unmarshal(raw, &schemaDef)
@@ -129,8 +129,8 @@ func (u *aliasRefParser) isStringBased() bool {
 	return u.stringBased
 }
 
-// StorageSchema represents an aspect schema and can be used to validate JSON
-// aspects against it.
+// StorageSchema represents a registry schema and can be used to validate the
+// storage.
 type StorageSchema struct {
 	// topLevel is the schema for the top level map.
 	topLevel Schema
@@ -409,8 +409,8 @@ type mapSchema struct {
 	requiredCombs [][]string
 }
 
-// Validate that raw is a valid aspect map and meets the constraints set by the
-// aspect schema.
+// Validate that raw is a valid map and meets the constraints set by the
+// registry schema.
 func (v *mapSchema) Validate(raw []byte) error {
 	var mapValue map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &mapValue); err != nil {
@@ -703,7 +703,7 @@ type stringSchema struct {
 	choices []string
 }
 
-// Validate that raw is a valid aspect string and meets the schema's constraints.
+// Validate that raw is a valid string and meets the schema's constraints.
 func (v *stringSchema) Validate(raw []byte) (err error) {
 	defer func() {
 		if err != nil {

@@ -73,8 +73,8 @@ const (
 	QuotaGroups
 	// RefreshAppAwarenessUX enables experimental UX improvements for refresh-app-awareness.
 	RefreshAppAwarenessUX
-	// AspectsConfiguration enables experimental aspect-based configuration.
-	AspectsConfiguration
+	// Registries enables experimental configuration based on registries and views.
+	Registries
 	// AppArmorPrompting enables AppArmor to prompt the user for permission when apps perform certain operations.
 	AppArmorPrompting
 
@@ -119,7 +119,7 @@ var featureNames = map[SnapdFeature]string{
 	QuotaGroups: "quota-groups",
 
 	RefreshAppAwarenessUX: "refresh-app-awareness-ux",
-	AspectsConfiguration:  "aspects-configuration",
+	Registries:            "registries",
 
 	AppArmorPrompting: "apparmor-prompting",
 }
@@ -145,7 +145,7 @@ var featuresExported = map[SnapdFeature]bool{
 	MoveSnapHomeDir:               true,
 
 	RefreshAppAwarenessUX: true,
-	AspectsConfiguration:  true,
+	Registries:            true,
 	AppArmorPrompting:     true,
 }
 
