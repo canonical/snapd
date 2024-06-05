@@ -624,7 +624,7 @@ func (snapst *SnapState) InstanceName() string {
 
 // RefreshInhibitProceedTime is the time after which a pending refresh is forced
 // for a running snap in the next auto-refresh. Zero time indicates that there
-// are no pending refreshes. St must be locked.
+// are no pending refreshes. st must be locked.
 //
 // The provided state must be locked by the caller.
 func (snapst *SnapState) RefreshInhibitProceedTime(st *state.State) time.Time {
