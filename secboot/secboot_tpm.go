@@ -283,6 +283,7 @@ func newAuthRequestor() (sb.AuthRequestor, error) {
 	)
 }
 
+// TODO: consider moving this to secboot
 func readKeyFileImpl(keyfile string) (*sb.KeyData, *sb_tpm2.SealedKeyObject, error) {
 	f, err := os.Open(keyfile)
 	if err != nil {
@@ -552,7 +553,8 @@ func ResealKeys(params *ResealKeysParams) error {
 			return fmt.Errorf("cannot revoke old PCR protection policies: %w", err)
 		}
 	} else {
-		if err := sbUpdateKeyDataPCRProtectionPolicy(tpm, authKey, pcrProfile /*not sure*/, sb_tpm2.NoNewPCRPolicyVersion, keyDatas...); err != nil {
+		// TODO: find out which context when revocation should happen
+		if err := sbUpdateKeyDataPCRProtectionPolicy(tpm, authKey, pcrProfile, sb_tpm2.NoNewPCRPolicyVersion, keyDatas...); err != nil {
 			return fmt.Errorf("cannot update PCR protection policy: %w", err)
 		}
 

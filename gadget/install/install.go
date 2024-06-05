@@ -775,6 +775,11 @@ func FactoryReset(model gadget.Model, gadgetRoot string, kernelSnapInfo *KernelS
 		// device) for each role
 		deviceForRole[vs.Role] = onDiskStruct.Node
 
+		// TODO: when save partition does not have slots, then
+		// we need to create new partition the old fashion
+		// way.  Or, we should upgrade the save partition
+		// (which should be safe since the seed should not be
+		// considered safe to downgrade).
 		fsDevice, encryptionKey, err := installOnePartition(
 			&gadget.OnDiskAndGadgetStructurePair{
 				DiskStructure: onDiskStruct, GadgetStructure: vs},
