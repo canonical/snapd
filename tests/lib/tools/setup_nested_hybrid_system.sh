@@ -156,7 +156,11 @@ run_muinstaller() {
     image_path="${NESTED_IMAGES_DIR}/${image_name}"
     kpartx -asv "${image_path}"
     fatlabel /dev/disk/by-label/ubuntu-seed UBUNTU-SEED
-    kpartx -d "${image_path}"
+    if ! kpartx -d "${image_path}"; then
+        # Some times there are random failures, let's wait and re-try
+        sleep 1
+        kpartx -d "${image_path}"
+    fi
 
     if [ -n "${store_dir}" ]; then
         # if we had a store setup, then we should bring it back up
