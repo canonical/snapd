@@ -20,8 +20,27 @@ prepare: |
         snap alias test-snapd-curl.curl curl
     fi
 
+restore: |
+    echo "Restore: Reset start limit so that other queries can succeed"
+    systemctl stop snapd.service snapd.socket || true
+    systemctl reset-failed snapd.service snapd.socket || true
+    systemctl start snapd.service || systemctl status snapd.service || true
+    retry --wait 1 -n 100 sh -x -c 'systemctl is-active snapd.service snapd.socket'
+
 debug: |
-    # Report system-info
+    echo "Debug: Check if snapd service and socket are running"
+    systemctl is-active snapd.service snapd.socket || true
+    systemctl status snapd.service || true
+    echo "Debug: Check if snapd has start-limit-hit"
+    systemctl show --property=Result snapd.service snapd.socket || true
+
+    echo "Debug: Reset start limit so that other queries can succeed"
+    systemctl stop snapd.service snapd.socket || true
+    systemctl reset-failed snapd.service snapd.socket || true
+    systemctl start snapd.service || systemctl status snapd.service || true
+    retry --wait 1 -n 100 sh -x -c 'systemctl is-active snapd.service snapd.socket'
+
+    echo "Debug: Report system info"
     curl -sS --unix-socket /run/snapd.socket http://localhost/v2/system-info | jq
 
 execute: |
@@ -32,9 +51,10 @@ execute: |
         if systemctl show --property=Result snapd.service | grep "start-limit-hit" ; then
             systemctl stop snapd.service snapd.socket
             systemctl reset-failed snapd.service snapd.socket
-            systemctl start snapd.service
+            systemctl start snapd.service || systemctl status snapd.service
             retry --wait 1 -n 100 sh -x -c 'systemctl is-active snapd.service snapd.socket'
         else
+            echo "Called reset_start_limit but start limit was not hit"
             false
         fi
     }
@@ -42,17 +62,16 @@ execute: |
     # Check that snapd has restarted and now has a new PID, then set SNAPD_PID to that new PID.
     check_snapd_restarted() {
         #shellcheck disable=SC2016
-        retry --wait 1 -n 300 --env SNAPD_PID="$SNAPD_PID" sh -x -c 'if systemctl show --property=Result snapd.service | grep "start-limit-hit" ; then systemctl stop snapd.service snapd.socket ; systemctl reset-failed snapd.service snapd.socket ; systemctl start snapd.service ; fi ; NEW_PID="$(systemctl show --property MainPID snapd.service | cut -f2 -d=)" ; test ! "$NEW_PID" = "0" && test ! "$NEW_PID" = "$SNAPD_PID" && systemctl is-active snapd.service snapd.socket'
-        # Set SNAPD_PID so future checks use most recent PID
+        retry --wait 1 -n 100 --env SNAPD_PID="$SNAPD_PID" sh -x -c 'if systemctl show --property=Result snapd.service snapd.socket | grep "start-limit-hit" ; then systemctl stop snapd.service snapd.socket ; systemctl reset-failed snapd.service snapd.socket ; systemctl restart snapd.service ; fi ; NEW_PID="$(systemctl show --property MainPID snapd.service | cut -f2 -d=)" ; test ! "$NEW_PID" = "0" && test ! "$NEW_PID" = "$SNAPD_PID" && systemctl is-active snapd.service snapd.socket && systemctl status snapd.service'
         SNAPD_PID="$(systemctl show --property MainPID snapd.service | cut -f2 -d=)"
     }
 
     check_prompting_setting() {
-        # Check that snap CLI reports prompting flag set correctly
+        echo "Check that snap CLI reports prompting flag set correctly"
         snap get system experimental.apparmor-prompting | MATCH "$1"
-        # Check that /v2/snaps/system/conf reports prompting flag set correctly
+        echo "Check that /v2/snaps/system/conf reports prompting flag set correctly"
         curl -sS --unix-socket /run/snapd.socket http://localhost/v2/snaps/system/conf | jq -r '.result.experimental."apparmor-prompting"' | MATCH "$1"
-        # Check that /v2/system-info reports prompting correctly
+        echo "Check that /v2/system-info reports prompting correctly"
         curl -sS --unix-socket /run/snapd.socket http://localhost/v2/system-info | jq -r '.result.features."apparmor-prompting".enabled' | MATCH "$1"
     }
 
@@ -95,14 +114,14 @@ execute: |
     check_snapd_restarted
     check_prompting_setting "false"
 
-    # Check that setting the same value multiple times does not restart snapd
+    echo "Check that setting the same value multiple times does not restart snapd"
     for value in true false; do
         echo "Initially set value, which will trigger a restart"
         snap set system experimental.apparmor-prompting="$value" || reset_start_limit
         check_snapd_restarted
         check_prompting_setting "$value"
 
-        echo "Set same value again, which should not trigger a restart"
+        echo "Set same value a second time, which should not trigger a restart"
         snap set system experimental.apparmor-prompting="$value"
         # snap changes blocks until the change is done, or errors if snapd is restarting
         snap changes
@@ -111,7 +130,7 @@ execute: |
         test "$SNAPD_PID" = "$(systemctl show --property MainPID snapd.service | cut -f2 -d=)"
         check_prompting_setting "$value"
 
-        echo "Set same value again, which should not trigger a restart"
+        echo "Set same value a third time, which should again not trigger a restart"
         snap set system experimental.apparmor-prompting="$value"
         # snap changes blocks until the change is done, or errors if snapd is restarting
         snap changes
