@@ -80,6 +80,39 @@ type target struct {
 	snapst SnapState
 }
 
+// snapsup returns the completed SnapSetup for the target snap.
+func (t *target) snapsup(st *state.State, opts Options) (SnapSetup, error) {
+	snapUserID, err := userIDForSnap(st, &t.snapst, opts.UserID)
+	if err != nil {
+		return SnapSetup{}, err
+	}
+
+	flags, err := earlyChecks(st, &t.snapst, t.info, opts.Flags)
+	if err != nil {
+		return SnapSetup{}, err
+	}
+
+	providerContentAttrs := defaultProviderContentAttrs(st, t.info, opts.PrereqTracker)
+	return SnapSetup{
+		Channel:      t.setup.Channel,
+		CohortKey:    t.setup.CohortKey,
+		DownloadInfo: t.setup.DownloadInfo,
+		SnapPath:     t.setup.SnapPath,
+
+		Base:               t.info.Base,
+		Prereq:             getKeys(providerContentAttrs),
+		PrereqContentAttrs: providerContentAttrs,
+		UserID:             snapUserID,
+		Flags:              flags.ForSnapSetup(),
+		SideInfo:           &t.info.SideInfo,
+		Type:               t.info.Type(),
+		Version:            t.info.Version,
+		PlugsOnly:          len(t.info.Slots) == 0,
+		InstanceKey:        t.info.InstanceKey,
+		ExpectedProvenance: t.info.SnapProvenance,
+	}, nil
+}
+
 // installGoal represents a single snap or a group of snaps to be installed.
 type installGoal interface {
 	// toInstall returns the data needed to setup the snaps for installation.
@@ -414,42 +447,20 @@ func InstallWithGoal(ctx context.Context, st *state.State, goal installGoal, opt
 
 	tasksets := make([]*state.TaskSet, 0, len(targets))
 	infos := make([]*snap.Info, 0, len(targets))
-	for _, inst := range targets {
-		if inst.setup.SnapPath != "" && inst.setup.DownloadInfo != nil {
+	for _, t := range targets {
+		if t.setup.SnapPath != "" && t.setup.DownloadInfo != nil {
 			return nil, nil, errors.New("internal error: target cannot specify both a path and a download info")
 		}
 
-		info := inst.info
-
-		if opts.Flags.RequireTypeBase && info.Type() != snap.TypeBase && info.Type() != snap.TypeOS {
-			return nil, nil, fmt.Errorf("unexpected snap type %q, instead of 'base'", info.Type())
+		if opts.Flags.RequireTypeBase && t.info.Type() != snap.TypeBase && t.info.Type() != snap.TypeOS {
+			return nil, nil, fmt.Errorf("unexpected snap type %q, instead of 'base'", t.info.Type())
 		}
 
-		opts.PrereqTracker.Add(info)
+		opts.PrereqTracker.Add(t.info)
 
-		flags, err := earlyChecks(st, &inst.snapst, info, opts.Flags)
+		snapsup, err := t.snapsup(st, opts)
 		if err != nil {
 			return nil, nil, err
-		}
-
-		providerContentAttrs := defaultProviderContentAttrs(st, info, opts.PrereqTracker)
-		snapsup := &SnapSetup{
-			Channel:      inst.setup.Channel,
-			DownloadInfo: inst.setup.DownloadInfo,
-			SnapPath:     inst.setup.SnapPath,
-			CohortKey:    inst.setup.CohortKey,
-
-			Base:               info.Base,
-			Prereq:             getKeys(providerContentAttrs),
-			PrereqContentAttrs: providerContentAttrs,
-			UserID:             opts.UserID,
-			Flags:              flags.ForSnapSetup(),
-			SideInfo:           &info.SideInfo,
-			Type:               info.Type(),
-			Version:            info.Version,
-			PlugsOnly:          len(info.Slots) == 0,
-			InstanceKey:        info.InstanceKey,
-			ExpectedProvenance: info.SnapProvenance,
 		}
 
 		var instFlags int
@@ -457,7 +468,7 @@ func InstallWithGoal(ctx context.Context, st *state.State, goal installGoal, opt
 			instFlags |= skipConfigure
 		}
 
-		ts, err := doInstall(st, &inst.snapst, snapsup, instFlags, opts.FromChange, inUseFor(opts.DeviceCtx))
+		ts, err := doInstall(st, &t.snapst, &snapsup, instFlags, opts.FromChange, inUseFor(opts.DeviceCtx))
 		if err != nil {
 			return nil, nil, err
 		}
@@ -465,7 +476,7 @@ func InstallWithGoal(ctx context.Context, st *state.State, goal installGoal, opt
 		ts.JoinLane(generateLane(st, opts))
 
 		tasksets = append(tasksets, ts)
-		infos = append(infos, info)
+		infos = append(infos, t.info)
 	}
 
 	return infos, tasksets, nil
