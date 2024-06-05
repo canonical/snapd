@@ -157,7 +157,7 @@ run_muinstaller() {
     kpartx -asv "${image_path}"
     fatlabel /dev/disk/by-label/ubuntu-seed UBUNTU-SEED
     if ! kpartx -d "${image_path}"; then
-        # Some times there are random failures, let's wait and re-try
+        # Sometimes there are random failures, let's wait and re-try
         sleep 1
         kpartx -d "${image_path}"
     fi
