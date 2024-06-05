@@ -278,6 +278,7 @@ prepare_project() {
     # we want to run as pristine as possible
     if [ "$SPREAD_BACKEND" = autopkgtest ]; then
         create_test_user
+        systemctl enable --now snapd.socket
         exit 0
     fi
 
