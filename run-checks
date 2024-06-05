@@ -126,6 +126,21 @@ missing_interface_spread_test() {
                 search='plugs: \[ autopilot-introspection \]'
                 ;;
         esac
+
+        # check if a standalone test already exists and that it at least
+        # connects and disconnects the interface
+        dedicated_test=$(find tests/main/ -maxdepth 1 -name "interfaces-$iface")
+        if [ -n "$dedicated_test" ]; then
+            if grep -q "$search" "$snap_yaml" ; then
+                echo "Dedicated test '$dedicated_test' found for '$iface'."
+                echo "Please remove '$iface' from '$snap_yaml'."
+                exit 1
+            fi
+            # dedicated test already exists, skip high-level test check below
+            continue
+        fi
+
+        # check if high-level minimal test exists for interface
         if ! grep -q "$search" "$snap_yaml" ; then
             echo "Missing high-level test for interface '$iface'. Please add to:"
             echo "* $snap_yaml"
@@ -318,7 +333,7 @@ if [ "$STATIC" = 1 ]; then
         fi
     fi
 
-    echo "Checking all interfaces have minimal spread test"
+    echo "Checking all interfaces have a spread test"
     missing_interface_spread_test
 
     echo "Checking for incorrect multiline strings in spread tests"

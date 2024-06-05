@@ -5,20 +5,6 @@ description: Test policy app for non-implicitOnClassic slots
 confinement: strict
 
 slots:
-  content-read:
-    interface: content
-    content: test-content
-    read:
-    - $SNAP/content
-  dbus-session:
-    interface: dbus
-    bus: session
-    name: test.session
-  dbus-system:
-    interface: dbus
-    bus: system
-    name: test.system
-  location-control: null
   location-observe: null
   lxd: null
   maliit: null
@@ -37,24 +23,12 @@ slots:
   unity8-contacts: null
 
 apps:
-  content-read:
-    command: bin/run
-    slots: [ content-read ]
-  dbus-session:
-    command: bin/run
-    slots: [ dbus-session ]
-  dbus-system:
-    command: bin/run
-    slots: [ dbus-system ]
   docker:
     command: bin/run
     slots: [ docker ]
   fwupd:
     command: bin/run
     slots: [ fwupd ]
-  location-control:
-    command: bin/run
-    slots: [ location-control ]
   location-observe:
     command: bin/run
     slots: [ location-observe ]
