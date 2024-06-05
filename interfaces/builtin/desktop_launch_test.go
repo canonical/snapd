@@ -20,9 +20,6 @@
 package builtin_test
 
 import (
-	"strings"
-
-	"gopkg.in/check.v1"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -124,7 +121,7 @@ apps:
 	c.Assert(err, IsNil)
 	err = apparmorSpec.AddConnectedPlug(builtin.MustInterface("desktop-legacy"), plug, slot)
 	c.Assert(err, IsNil)
-	c.Assert(strings.Contains(apparmorSpec.SnippetForTag("snap.other.app"), "# Explicitly deny access to other snap's desktop files"), check.Equals, false)
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), Not(testutil.Contains), "# Explicitly deny access to other snap's desktop files")
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "Description: Can access common desktop legacy methods.")
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "Description: Can identify and launch other snaps.")
 }
