@@ -205,6 +205,10 @@ execute: |
     su -c 'sudo snap list' test 2>&1 |MATCH EOF
     su -c 'sg systemd-journal -c "snap list"' test 2>&1 |MATCH EOF
 
+    # Ensure snap remove/install with user-data works when `root_squash` is enabled with NFSv3.
+    snap remove test-snapd-sh
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
+
     # Unmount /home and restart snapd so that we can check another thing.
     umount_with_retry /home
     restart_snapd
@@ -260,6 +264,10 @@ execute: |
     su -c 'snap list' test 2>&1 |MATCH EOF
     su -c 'sudo snap list' test 2>&1 |MATCH EOF
     su -c 'sg systemd-journal -c "snap list"' test 2>&1 |MATCH EOF
+
+    # Ensure snap remove/install with user-data works when `root_squash` is enabled with NFSv4.
+    snap remove test-snapd-sh
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
 
     # Unmount /home and restart snapd so that we can check another thing.
     umount_with_retry /home
