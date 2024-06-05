@@ -43,8 +43,12 @@ execute: |
     fi
 
     # single key for ubuntu-data and ubuntu-save
-    test "$(remote.exec "sudo cryptsetup luksDump /dev/vda4 |grep Key:" | wc -l)" = "1"
-    test "$(remote.exec "sudo cryptsetup luksDump /dev/vda5 |grep Key:" | wc -l)" = "1"
+    # FIXME: for now save partition has 2 keys, one which is sealed in
+    # tpm, one that is data partition plain.
+    test "$(remote.exec "sudo cryptsetup luksDump /dev/vda4 |grep Key:" | wc -l)" = "2"
+    # FIXME: for now data partition has 2 keys, default, and
+    # default-fallback. Both are sealed in tpm.
+    test "$(remote.exec "sudo cryptsetup luksDump /dev/vda5 |grep Key:" | wc -l)" = "2"
 
     echo "Ensure 'snap debug show-keys' works as root"
     remote.exec "sudo snap recovery --show-keys" > show-keys.out
@@ -59,8 +63,16 @@ execute: |
     remote.exec "test -f /var/lib/snapd/device/fde/recovery.key"
     remote.exec "test ! -f /var/lib/snapd/device/fde/reinstall.key"
     # and each partition has 2 keys now
-    test "$(remote.exec "sudo cryptsetup luksDump /dev/vda4 |grep Key:" | wc -l)" = "2"
-    test "$(remote.exec "sudo cryptsetup luksDump /dev/vda5 |grep Key:" | wc -l)" = "2"
+    echo "luksDump for /dev/vda4"
+    remote.exec "sudo cryptsetup luksDump /dev/vda4"
+    echo "luksDump for /dev/vda5"
+    remote.exec "sudo cryptsetup luksDump /dev/vda5"
+    # FIXME: for now save partition has 3 keys, one which is sealed in
+    # tpm, one that is data partition plain. Then one recovery key.
+    test "$(remote.exec "sudo cryptsetup luksDump /dev/vda4 |grep Key:" | wc -l)" = "3"
+    # FIXME: for now data partition has 3 keys, default, and
+    # default-fallback. Both are sealed in tpm. Then one that is recovery.
+    test "$(remote.exec "sudo cryptsetup luksDump /dev/vda5 |grep Key:" | wc -l)" = "3"
 
     echo "But not as user (normal file permissions prevent this)"
     if remote.exec "snap recovery --show-keys"; then
@@ -76,8 +88,8 @@ execute: |
     remote.exec "test ! -f /var/lib/snapd/device/fde/recovery.key"
     remote.exec "test ! -f /var/lib/snapd/device/fde/reinstall.key"
     # back to having just one key
-    test "$(remote.exec "sudo cryptsetup luksDump /dev/vda4 |grep Key:" | wc -l)" = "1"
-    test "$(remote.exec "sudo cryptsetup luksDump /dev/vda5 |grep Key:" | wc -l)" = "1"
+    test "$(remote.exec "sudo cryptsetup luksDump /dev/vda4 |grep Key:" | wc -l)" = "2"
+    test "$(remote.exec "sudo cryptsetup luksDump /dev/vda5 |grep Key:" | wc -l)" = "2"
 
     echo "Check that the serial backed up to save is as expected"
     remote.exec 'cat /var/lib/snapd/save/device/asserts-v0/serial/'"$(tests.nested get model-authority)"'/pc/*/active' >serial.saved

@@ -260,6 +260,14 @@ func MockListLUKS2ContainerUnlockKeyNames(f func(devicePath string) ([]string, e
 	}
 }
 
+func MockListLUKS2ContainerRecoveryKeyNames(f func(devicePath string) ([]string, error)) (restore func()) {
+	old := sbListLUKS2ContainerRecoveryKeyNames
+	sbListLUKS2ContainerRecoveryKeyNames = f
+	return func() {
+		sbListLUKS2ContainerRecoveryKeyNames = old
+	}
+}
+
 func MockGetDiskUnlockKeyFromKernel(f func(prefix string, devicePath string, remove bool) (sb.DiskUnlockKey, error)) (restore func()) {
 	old := sbGetDiskUnlockKeyFromKernel
 	sbGetDiskUnlockKeyFromKernel = f

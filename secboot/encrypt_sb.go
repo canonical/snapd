@@ -39,11 +39,12 @@ import (
 )
 
 var (
-	sbInitializeLUKS2Container         = sb.InitializeLUKS2Container
-	sbGetDiskUnlockKeyFromKernel       = sb.GetDiskUnlockKeyFromKernel
-	sbAddLUKS2ContainerRecoveryKey     = sb.AddLUKS2ContainerRecoveryKey
-	sbListLUKS2ContainerUnlockKeyNames = sb.ListLUKS2ContainerUnlockKeyNames
-	sbDeleteLUKS2ContainerKey          = sb.DeleteLUKS2ContainerKey
+	sbInitializeLUKS2Container           = sb.InitializeLUKS2Container
+	sbGetDiskUnlockKeyFromKernel         = sb.GetDiskUnlockKeyFromKernel
+	sbAddLUKS2ContainerRecoveryKey       = sb.AddLUKS2ContainerRecoveryKey
+	sbListLUKS2ContainerUnlockKeyNames   = sb.ListLUKS2ContainerUnlockKeyNames
+	sbDeleteLUKS2ContainerKey            = sb.DeleteLUKS2ContainerKey
+	sbListLUKS2ContainerRecoveryKeyNames = sb.ListLUKS2ContainerRecoveryKeyNames
 )
 
 const keyslotsAreaKiBSize = 2560 // 2.5MB
@@ -134,10 +135,31 @@ func EnsureRecoveryKey(keyFile string, rkeyDevs []RecoveryKeyDevice) (keys.Recov
 		return keys.RecoveryKey{}, fmt.Errorf("some encrypted partitions use new slots, whereas other use legacy slots")
 	}
 	if len(legacyCmdline) == 0 {
-		recoveryKey, err := keys.NewRecoveryKey()
+		var recoveryKey keys.RecoveryKey
+
+		f, err := os.OpenFile(keyFile, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
 		if err != nil {
-			return keys.RecoveryKey{}, fmt.Errorf("cannot create new recovery key: %v", err)
+			if os.IsExist(err) {
+				readKey, err := keys.RecoveryKeyFromFile(keyFile)
+				if err != nil {
+					return keys.RecoveryKey{}, fmt.Errorf("cannot read recovery key file %s: %v", keyFile, err)
+				}
+				recoveryKey = *readKey
+			} else {
+				return keys.RecoveryKey{}, fmt.Errorf("cannot open recovery key file %s: %v", keyFile, err)
+			}
+		} else {
+			defer f.Close()
+			newKey, err := keys.NewRecoveryKey()
+			if err != nil {
+				return keys.RecoveryKey{}, fmt.Errorf("cannot create new recovery key: %v", err)
+			}
+			recoveryKey = newKey
+			if _, err := f.Write(recoveryKey[:]); err != nil {
+				return keys.RecoveryKey{}, fmt.Errorf("cannot create write recovery key %s: %v", keyFile, err)
+			}
 		}
+
 		for _, device := range newDevices {
 			var unlockKey []byte
 			if device.keyFile != "" {
@@ -155,8 +177,22 @@ func EnsureRecoveryKey(keyFile string, rkeyDevs []RecoveryKeyDevice) (keys.Recov
 				unlockKey = key
 			}
 
-			if err := sbAddLUKS2ContainerRecoveryKey(device.node, "default-recovery", sb.DiskUnlockKey(unlockKey), sb.RecoveryKey(recoveryKey)); err != nil {
-				return keys.RecoveryKey{}, fmt.Errorf("cannot enroll new recovery key: %v", err)
+			// FIXME: we should try to enroll the key and check the error instead of verifying the key is there
+			slots, err := sbListLUKS2ContainerRecoveryKeyNames(device.node)
+			if err != nil {
+				return keys.RecoveryKey{}, fmt.Errorf("cannot list keys on disk %s: %v", device.node, err)
+			}
+			keyExists := false
+			for _, slot := range slots {
+				if slot == "default-recovery" {
+					keyExists = true
+					break
+				}
+			}
+			if !keyExists {
+				if err := sbAddLUKS2ContainerRecoveryKey(device.node, "default-recovery", sb.DiskUnlockKey(unlockKey), sb.RecoveryKey(recoveryKey)); err != nil {
+					return keys.RecoveryKey{}, fmt.Errorf("cannot enroll new recovery key for %s: %v", device.node, err)
+				}
 			}
 		}
 
@@ -197,6 +233,8 @@ func devByPartUUIDFromMount(mp string) (string, error) {
 func RemoveRecoveryKeys(rkeyDevToKey map[RecoveryKeyDevice]string) error {
 	var legacyCmdline []string
 	var newDevices []string
+	var keyFiles []string
+
 	for rkeyDev, keyFile := range rkeyDevToKey {
 		dev, err := devByPartUUIDFromMount(rkeyDev.Mountpoint)
 		if err != nil {
@@ -219,6 +257,7 @@ func RemoveRecoveryKeys(rkeyDevToKey map[RecoveryKeyDevice]string) error {
 			}...)
 		} else {
 			newDevices = append(newDevices, dev)
+			keyFiles = append(keyFiles, keyFile)
 		}
 	}
 
@@ -229,6 +268,11 @@ func RemoveRecoveryKeys(rkeyDevToKey map[RecoveryKeyDevice]string) error {
 		for _, device := range newDevices {
 			if err := sbDeleteLUKS2ContainerKey(device, "default-recovery"); err != nil {
 				return fmt.Errorf("cannot remove recovery key: %v", err)
+			}
+		}
+		for _, keyFile := range keyFiles {
+			if err := os.Remove(keyFile); err != nil && !os.IsNotExist(err) {
+				return fmt.Errorf("cannot remove key file %s: %v", keyFile, err)
 			}
 		}
 

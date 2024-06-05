@@ -348,6 +348,9 @@ func (s *keymgrSuite) TestEnsureRecoveryKey(c *C) {
 	defer secboot.MockListLUKS2ContainerUnlockKeyNames(func(devicePath string) ([]string, error) {
 		return []string{"default"}, nil
 	})()
+	defer secboot.MockListLUKS2ContainerRecoveryKeyNames(func(devicePath string) ([]string, error) {
+		return []string{}, nil
+	})()
 	defer secboot.MockGetDiskUnlockKeyFromKernel(func(prefix string, devicePath string, remove bool) (sb.DiskUnlockKey, error) {
 		return []byte{1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4}, nil
 	})()
