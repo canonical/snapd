@@ -113,13 +113,12 @@ apps:
 `
 
 	plug, _ := MockConnectedPlug(c, desktopLaunchConsumerYamlWithLaunchAndLegacy, nil, "desktop-launch")
-	slot, _ := MockConnectedSlot(c, desktopLaunchCoreYaml, nil, "desktop-launch")
 	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
 	c.Assert(err, IsNil)
 	apparmorSpec := apparmor.NewSpecification(appSet)
 	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	err = apparmorSpec.AddConnectedPlug(builtin.MustInterface("desktop-legacy"), plug, slot)
+	err = apparmorSpec.AddConnectedPlug(builtin.MustInterface("desktop-legacy"), plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), Not(testutil.Contains), "# Explicitly deny access to other snap's desktop files")
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "Description: Can access common desktop legacy methods.")
