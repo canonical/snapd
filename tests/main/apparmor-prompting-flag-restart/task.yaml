@@ -23,6 +23,7 @@ prepare: |
 restore: |
     echo "Restore: Reset start limit so that other queries can succeed"
     systemctl stop snapd.service snapd.socket || true
+    systemctl stop snapd.failure.service || true
     systemctl reset-failed snapd.service snapd.socket || true
     systemctl start snapd.service || systemctl status snapd.service || true
     retry --wait 1 -n 100 sh -x -c 'systemctl is-active snapd.service snapd.socket'
@@ -36,6 +37,7 @@ debug: |
 
     echo "Debug: Reset start limit so that other queries can succeed"
     systemctl stop snapd.service snapd.socket || true
+    systemctl stop snapd.failure.service || true
     systemctl reset-failed snapd.service snapd.socket || true
     systemctl start snapd.service || systemctl status snapd.service || true
     retry --wait 1 -n 100 sh -x -c 'systemctl is-active snapd.service snapd.socket'
@@ -50,6 +52,10 @@ execute: |
     reset_start_limit() {
         if systemctl show --property=Result snapd.service | grep "start-limit-hit" ; then
             systemctl stop snapd.service snapd.socket
+            # On core18, snapd.failure.service holds the state lock after a failure
+            # due to start-limit-hit, preventing snapd from progressing from
+            # "activating" to "active".
+            systemctl stop snapd.failure.service || true
             systemctl reset-failed snapd.service snapd.socket
             systemctl start snapd.service || systemctl status snapd.service
             retry --wait 1 -n 100 sh -x -c 'systemctl is-active snapd.service snapd.socket'
@@ -62,7 +68,15 @@ execute: |
     # Check that snapd has restarted and now has a new PID, then set SNAPD_PID to that new PID.
     check_snapd_restarted() {
         #shellcheck disable=SC2016
-        retry --wait 1 -n 100 --env SNAPD_PID="$SNAPD_PID" sh -x -c 'if systemctl show --property=Result snapd.service snapd.socket | grep "start-limit-hit" ; then systemctl stop snapd.service snapd.socket ; systemctl reset-failed snapd.service snapd.socket ; systemctl restart snapd.service ; fi ; NEW_PID="$(systemctl show --property MainPID snapd.service | cut -f2 -d=)" ; test ! "$NEW_PID" = "0" && test ! "$NEW_PID" = "$SNAPD_PID" && systemctl is-active snapd.service snapd.socket && systemctl status snapd.service'
+        retry --wait 1 -n 100 --env SNAPD_PID="$SNAPD_PID" sh -x -c '
+            if systemctl show --property=Result snapd.service snapd.socket | grep "start-limit-hit" || systemctl is-active snapd.service | grep "activating"; then
+                systemctl stop snapd.service snapd.socket;
+                systemctl stop snapd.failure.service;
+                systemctl reset-failed snapd.service snapd.socket;
+                systemctl restart snapd.service;
+            fi;
+            NEW_PID="$(systemctl show --property MainPID snapd.service | cut -f2 -d=)";
+            test ! "$NEW_PID" = "0" && test ! "$NEW_PID" = "$SNAPD_PID" && systemctl is-active snapd.service snapd.socket && systemctl status snapd.service'
         SNAPD_PID="$(systemctl show --property MainPID snapd.service | cut -f2 -d=)"
     }
 
