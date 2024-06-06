@@ -80,16 +80,27 @@ type target struct {
 	components []ComponentTarget
 }
 
-// snapsup returns the completed SnapSetup for the target snap.
-func (t *target) snapsup(st *state.State, opts Options) (SnapSetup, error) {
+// setups returns the completed SnapSetup and slice of ComponentSetup structs
+// for the target snap.
+func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSetup, error) {
 	snapUserID, err := userIDForSnap(st, &t.snapst, opts.UserID)
 	if err != nil {
-		return SnapSetup{}, err
+		return SnapSetup{}, nil, err
 	}
 
 	flags, err := earlyChecks(st, &t.snapst, t.info, opts.Flags)
 	if err != nil {
-		return SnapSetup{}, err
+		return SnapSetup{}, nil, err
+	}
+
+	compsups := make([]ComponentSetup, 0, len(t.components))
+	for _, comp := range t.components {
+		compsups = append(compsups, ComponentSetup{
+			DownloadInfo: comp.Setup.DownloadInfo,
+			CompPath:     comp.Setup.CompPath,
+			CompSideInfo: &comp.Info.ComponentSideInfo,
+			CompType:     comp.Info.Type,
+		})
 	}
 
 	providerContentAttrs := defaultProviderContentAttrs(st, t.info, opts.PrereqTracker)
@@ -110,7 +121,7 @@ func (t *target) snapsup(st *state.State, opts Options) (SnapSetup, error) {
 		PlugsOnly:          len(t.info.Slots) == 0,
 		InstanceKey:        t.info.InstanceKey,
 		ExpectedProvenance: t.info.SnapProvenance,
-	}, nil
+	}, compsups, nil
 }
 
 // InstallGoal represents a single snap or a group of snaps to be installed.
@@ -556,20 +567,9 @@ func InstallWithGoal(ctx context.Context, st *state.State, goal InstallGoal, opt
 
 		opts.PrereqTracker.Add(t.info)
 
-		snapsup, err := t.snapsup(st, opts)
+		snapsup, compsups, err := t.setups(st, opts)
 		if err != nil {
 			return nil, nil, err
-		}
-
-		compsups := make([]*ComponentSetup, 0, len(t.components))
-		for _, comp := range t.components {
-			compsups = append(compsups, &ComponentSetup{
-				DownloadInfo: comp.Setup.DownloadInfo,
-				CompPath:     comp.Setup.CompPath,
-
-				CompSideInfo: &comp.Info.ComponentSideInfo,
-				CompType:     comp.Info.Type,
-			})
 		}
 
 		var instFlags int
@@ -577,7 +577,7 @@ func InstallWithGoal(ctx context.Context, st *state.State, goal InstallGoal, opt
 			instFlags |= skipConfigure
 		}
 
-		ts, err := doInstall(st, &t.snapst, &snapsup, compsups, instFlags, opts.FromChange, inUseFor(opts.DeviceCtx))
+		ts, err := doInstall(st, &t.snapst, snapsup, compsups, instFlags, opts.FromChange, inUseFor(opts.DeviceCtx))
 		if err != nil {
 			return nil, nil, err
 		}

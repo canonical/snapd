@@ -397,7 +397,7 @@ func componentTasksForInstallWithSnap(ts *state.TaskSet) (beforeLink []*state.Ta
 	return beforeLink, linkAndAfter, nil
 }
 
-func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, compsups []*ComponentSetup, flags int, fromChange string, inUseCheck func(snap.Type) (boot.InUseFunc, error)) (*state.TaskSet, error) {
+func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups []ComponentSetup, flags int, fromChange string, inUseCheck func(snap.Type) (boot.InUseFunc, error)) (*state.TaskSet, error) {
 	tr := config.NewTransaction(st)
 	experimentalRefreshAppAwareness, err := features.Flag(tr, features.RefreshAppAwareness)
 	if err != nil && !config.IsNoOption(err) {
@@ -434,7 +434,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, compsups 
 		}
 	}
 
-	if err := isParallelInstallable(snapsup); err != nil {
+	if err := isParallelInstallable(&snapsup); err != nil {
 		return nil, err
 	}
 
@@ -471,7 +471,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, compsups 
 			// Note that because we are modifying the snap state inside
 			// softCheckNothingRunningForRefresh, this block must be located
 			// after the conflict check done above.
-			if err := softCheckNothingRunningForRefresh(st, snapst, snapsup, info); err != nil {
+			if err := softCheckNothingRunningForRefresh(st, snapst, &snapsup, info); err != nil {
 				// snap is running; schedule its downloading before notifying to close
 				var busyErr *timedBusySnapError
 				if errors.As(err, &busyErr) && snapsup.IsAutoRefresh {
@@ -627,7 +627,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, compsups 
 
 	tasksAfterLinkSnap := make([]*state.Task, 0, len(compsups))
 	for _, compsup := range compsups {
-		compTaskSet, err := doInstallComponent(st, snapst, compsup, snapsup, componentInstallFlags{
+		compTaskSet, err := doInstallComponent(st, snapst, &compsup, &snapsup, componentInstallFlags{
 			// if we are removing the snap, we can assume that we should remove
 			// the component too
 			RemoveComponentPath: snapsup.RemoveSnapPath,
@@ -736,7 +736,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, compsups 
 
 	// only run default-configure hook if installing the snap for the first time and
 	// default-configure is allowed
-	if !snapst.IsInstalled() && isDefaultConfigureAllowed(snapsup) {
+	if !snapst.IsInstalled() && isDefaultConfigureAllowed(&snapsup) {
 		defaultConfigureSet := DefaultConfigure(st, snapsup.InstanceName())
 		addTasksFromTaskSet(defaultConfigureSet)
 	}
@@ -838,8 +838,8 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, compsups 
 		return installSet, nil
 	}
 
-	if isConfigureAllowed(snapsup) {
-		confFlags := configureSnapFlags(snapst, snapsup)
+	if isConfigureAllowed(&snapsup) {
+		confFlags := configureSnapFlags(snapst, &snapsup)
 		configSet := ConfigureSnap(st, snapsup.InstanceName(), confFlags)
 		configSet.WaitAll(installSet)
 		installSet.AddAll(configSet)
@@ -2124,7 +2124,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 
 		// Do not set any default restart boundaries, we do it when we have access to all
 		// the task-sets in preparation for single-reboot.
-		ts, err := doInstall(st, snapst, snapsup, nil, noRestartBoundaries, fromChange, inUseFor(deviceCtx))
+		ts, err := doInstall(st, snapst, *snapsup, nil, noRestartBoundaries, fromChange, inUseFor(deviceCtx))
 		if err != nil {
 			if errors.Is(err, &timedBusySnapError{}) && ts != nil {
 				// snap is busy and pre-download tasks were made for it
@@ -3938,7 +3938,7 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 		PlugsOnly:   len(info.Slots) == 0,
 		InstanceKey: snapst.InstanceKey,
 	}
-	return doInstall(st, &snapst, snapsup, nil, 0, fromChange, nil)
+	return doInstall(st, &snapst, *snapsup, nil, 0, fromChange, nil)
 }
 
 // TransitionCore transitions from an old core snap name to a new core
@@ -3974,7 +3974,7 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 		}
 
 		// start by installing the new snap
-		tsInst, err := doInstall(st, &newSnapst, &SnapSetup{
+		tsInst, err := doInstall(st, &newSnapst, SnapSetup{
 			Channel:      oldSnapst.TrackingChannel,
 			DownloadInfo: &newInfo.DownloadInfo,
 			SideInfo:     &newInfo.SideInfo,
