@@ -518,7 +518,7 @@ type pathInstallGoal struct {
 	sideInfo *snap.SideInfo
 }
 
-// PathInstallGoal creates a new InstallGoal to install a snap from a given from
+// PathInstallGoal creates a new installGoal to install a snap from a given from
 // a path on disk. If instanceName is not provided, si.RealName will be used.
 func PathInstallGoal(instanceName, path string, si *snap.SideInfo, opts RevisionOptions) installGoal {
 	return &pathInstallGoal{
