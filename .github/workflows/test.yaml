@@ -708,10 +708,6 @@ jobs:
           set -x
 
           SPREAD=spread
-          if [[ "${{ matrix.systems }}" =~ -arm- ]]; then
-              SPREAD=spread-arm
-          fi
-
           if [[ "${{ matrix.systems }}" =~ amazon-linux-2023 ]]; then
               # Amazon Linux 2023 has no xdelta, however we cannot disable
               # xdelta on a per-target basis as it's used in the repack section
