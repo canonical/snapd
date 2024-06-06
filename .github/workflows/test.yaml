@@ -553,12 +553,7 @@ jobs:
           echo "::add-matcher::.github/spread-problem-matcher.json"
 
           set -x
-
           SPREAD=spread
-          if [[ "${{ matrix.systems }}" =~ -arm- ]]; then
-              SPREAD=spread-arm
-          fi
-
           if [[ "${{ matrix.systems }}" =~ amazon-linux-2023 ]]; then
               # Amazon Linux 2023 has no xdelta, however we cannot disable
               # xdelta on a per-target basis as it's used in the repack section
@@ -582,7 +577,15 @@ jobs:
           # propagated; and we use a subshell as this option could trigger
           # undesired changes elsewhere
           echo "Running command: $SPREAD $RUN_TESTS"
-          (set -o pipefail; $SPREAD $RUN_TESTS | tee spread.log)
+          (set -o pipefail; $SPREAD -no-debug-output -logs .logs $RUN_TESTS | tee spread.log)
+
+
+    - name: Uploading spread logs
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: spread-logs-${{ matrix.systems }}
+        path: ".logs/*.log"
 
     - name: Discard spread workers
       if: always()
