@@ -44,6 +44,11 @@ func (*genericCVMModel) Grade() asserts.ModelGrade {
 	return "signed"
 }
 
+type partitionMount struct {
+	Partition disks.Partition
+	Opts      *systemdMountOptions
+}
+
 // generateMountsModeRunCVM is used to generate mounts for the special "cloudimg-rootfs" mode which
 // mounts the rootfs from a partition on the disk rather than a base snap. It supports TPM-backed FDE
 // for the rootfs partition using a sealed key from the seed partition.
@@ -60,42 +65,56 @@ func generateMountsModeRunCVM(mst *initramfsMountsState) error {
 		return err
 	}
 
+	partitionMounts := []partitionMount{
+		{
+			Partition: disks.Partition{
+				PartitionLabel: "cloudimg-rootfs",
+			},
+			Opts: &systemdMountOptions{
+				NeedsFsck: true,
+				Ephemeral: true,
+			},
+		},
+	}
+
 	// Mount rootfs
 	if err := secbootProvisionForCVM(boot.InitramfsUbuntuSeedDir); err != nil {
 		return err
 	}
-	runModeCVMKey := filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "cloudimg-rootfs.sealed-key")
-	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{
-		AllowRecoveryKey: true,
-	}
-	unlockRes, err := secbootUnlockVolumeUsingSealedKeyIfEncrypted(disk, "cloudimg-rootfs", runModeCVMKey, opts)
-	if err != nil {
-		return err
-	}
-	fsckSystemdOpts := &systemdMountOptions{
-		NeedsFsck: true,
-		Ephemeral: true,
-	}
-	if err := doSystemdMount(unlockRes.FsDevice, boot.InitramfsDataDir, fsckSystemdOpts); err != nil {
-		return err
-	}
 
-	// Verify that cloudimg-rootfs comes from where we expect it to
-	diskOpts := &disks.Options{}
-	if unlockRes.IsEncrypted {
-		// then we need to specify that the data mountpoint is
-		// expected to be a decrypted device
-		diskOpts.IsDecryptedDevice = true
-	}
+	for _, p := range partitionMounts {
+		if true {
+			runModeCVMKey := filepath.Join(boot.InitramfsSeedEncryptionKeyDir, p.Partition.PartitionLabel+".sealed-key")
+			opts := &secboot.UnlockVolumeUsingSealedKeyOptions{
+				AllowRecoveryKey: true,
+			}
+			unlockRes, err := secbootUnlockVolumeUsingSealedKeyIfEncrypted(disk, p.Partition.PartitionLabel, runModeCVMKey, opts)
+			if err != nil {
+				return err
+			}
 
-	matches, err := disk.MountPointIsFromDisk(boot.InitramfsDataDir, diskOpts)
-	if err != nil {
-		return err
-	}
-	if !matches {
-		// failed to verify that cloudimg-rootfs mountpoint
-		// comes from the same disk as ESP
-		return fmt.Errorf("cannot validate boot: cloudimg-rootfs mountpoint is expected to be from disk %s but is not", disk.Dev())
+			if err := doSystemdMount(unlockRes.FsDevice, boot.InitramfsDataDir, p.Opts); err != nil {
+				return err
+			}
+
+			// Verify that cloudimg-rootfs comes from where we expect it to
+			diskOpts := &disks.Options{}
+			if unlockRes.IsEncrypted {
+				// then we need to specify that the data mountpoint is
+				// expected to be a decrypted device
+				diskOpts.IsDecryptedDevice = true
+			}
+
+			matches, err := disk.MountPointIsFromDisk(boot.InitramfsDataDir, diskOpts)
+			if err != nil {
+				return err
+			}
+			if !matches {
+				// failed to verify that cloudimg-rootfs mountpoint
+				// comes from the same disk as ESP
+				return fmt.Errorf("cannot validate boot: %s mountpoint is expected to be from disk %s but is not", p.Partition.PartitionLabel, disk.Dev())
+			}
+		}
 	}
 
 	// Unmount ESP because otherwise unmounting is racy and results in booted systems without ESP
