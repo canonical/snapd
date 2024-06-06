@@ -706,7 +706,6 @@ jobs:
           echo "::add-matcher::.github/spread-problem-matcher.json"
 
           set -x
-
           SPREAD=spread
           if [[ "${{ matrix.systems }}" =~ amazon-linux-2023 ]]; then
               # Amazon Linux 2023 has no xdelta, however we cannot disable
@@ -733,7 +732,8 @@ jobs:
           echo "Running command: $SPREAD $RUN_TESTS"
           (set -o pipefail; $SPREAD -no-debug-output -logs .logs $RUN_TESTS | tee spread.log)
 
-   - name: Uploading spread logs
+
+    - name: Uploading spread logs
       if: always()
       uses: actions/upload-artifact@v3
       with:
