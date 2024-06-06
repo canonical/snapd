@@ -140,16 +140,27 @@ func (c *userServiceClient) stopServices(services ...string) error {
 	return err
 }
 
-func (c *userServiceClient) startServices(services ...string) error {
+// startServices attempts to start the provided list of services on each available
+// system user. 'disabledServices' can be used to filter services that should be ignored on a per-user basis.
+// It will return an error if any of the services fail to start.
+func (c *userServiceClient) startServices(enable bool, disabledServices map[int][]string, services ...string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout.DefaultTimeout))
 	defer cancel()
 
-	startFailures, stopFailures, err := c.cli.ServicesStart(ctx, services, client.ClientServicesStartOptions{})
+	startFailures, stopFailures, err := c.cli.ServicesStart(ctx, services, client.ClientServicesStartOptions{
+		Enable:           enable,
+		DisabledServices: disabledServices,
+	})
 	for _, f := range startFailures {
-		c.inter.Notify(fmt.Sprintf("Could not start service %q for uid %d: %s", f.Service, f.Uid, f.Error))
+		// If we manage to not receive a comm error, but still receive an error for failing to start one of
+		// the services, then propagate the first one instead of ignoring any start errors.
+		if err == nil {
+			err = fmt.Errorf(fmt.Sprintf("could not start service %q for uid %d: %s", f.Service, f.Uid, f.Error))
+		}
+		c.inter.Notify(fmt.Sprintf("could not start service %q for uid %d: %s", f.Service, f.Uid, f.Error))
 	}
 	for _, f := range stopFailures {
-		c.inter.Notify(fmt.Sprintf("While trying to stop previously started service %q for uid %d: %s", f.Service, f.Uid, f.Error))
+		c.inter.Notify(fmt.Sprintf("while trying to stop previously started service %q for uid %d: %s", f.Service, f.Uid, f.Error))
 	}
 	return err
 }
@@ -382,8 +393,13 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs *DisabledServices, flags *
 	}
 
 	if len(userServices) != 0 {
+		var disabledUserSvcs map[int][]string
+		if disabledSvcs != nil {
+			disabledUserSvcs = disabledSvcs.UserServices
+		}
+
 		timings.Run(tm, "start-user-services", "start user services", func(nested timings.Measurer) {
-			err = cli.startServices(userServices...)
+			err = cli.startServices(flags.Enable, disabledUserSvcs, userServices...)
 		})
 		// let the cleanup know some services may have been started
 		servicesStarted = true
