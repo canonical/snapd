@@ -122,6 +122,8 @@ type installGoal interface {
 // storeInstallGoal implements the installGoal interface and represents a group of
 // snaps that are to be installed from the store.
 type storeInstallGoal struct {
+	// snaps is a mapping from snap instance names to a StoreSnap struct that
+	// contains details about the snap to install.
 	snaps map[string]StoreSnap
 }
 
@@ -137,14 +139,12 @@ type StoreSnap struct {
 	SkipIfPresent bool
 }
 
-// StoreInstallGoal creates a new InstallGoal to install snaps from the store.
+// StoreInstallGoal creates a new installGoal to install snaps from the store.
+// If a snap is provided more than once in the list, the last snap instance of
+// it will be used to provide the installation options.
 func StoreInstallGoal(snaps ...StoreSnap) installGoal {
 	mapping := make(map[string]StoreSnap, len(snaps))
 	for _, sn := range snaps {
-		if _, ok := mapping[sn.InstanceName]; ok {
-			continue
-		}
-
 		if sn.RevOpts.Channel == "" {
 			sn.RevOpts.Channel = "stable"
 		}
