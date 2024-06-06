@@ -75,6 +75,13 @@ type systemdMountOptions struct {
 	Private bool
 	// Umount the mountpoint
 	Umount bool
+	// dm-verity hash device
+	VerityHashDevice string
+	// dm-verity root hash
+	VerityRootHash string
+	// dm-verity hash offset. Need to be specified if only verity data are
+	// appended to the snap. Defaults to 0 in mount command
+	VerityHashOffset uint64
 }
 
 // doSystemdMount will mount "what" at "where" using systemd-mount(1) with
@@ -148,6 +155,11 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 	}
 	if opts.Private {
 		options = append(options, "private")
+	}
+	if len(opts.VerityHashDevice) > 0 && len(opts.VerityRootHash) > 0 {
+		options = append(options, fmt.Sprintf("verity.roothash=%s", opts.VerityRootHash))
+		options = append(options, fmt.Sprintf("verity.hashdevice=%s", opts.VerityHashDevice))
+		options = append(options, fmt.Sprintf("verity.hashoffset=%d", opts.VerityHashOffset))
 	}
 	if len(options) > 0 {
 		args = append(args, "--options="+strings.Join(options, ","))
