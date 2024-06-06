@@ -182,6 +182,19 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			isMountedReturns: []bool{true},
 			comment:          "happy ro",
 		},
+		{
+			what:  "overlay",
+			where: "/merged",
+			opts: &main.SystemdMountOptions{
+				Overlayfs: true,
+				LowerDir:  "/lower",
+				UpperDir:  "/upper",
+				WorkDir:   "/work",
+			},
+			timeNowTimes:     []time.Time{testStart, testStart},
+			isMountedReturns: []bool{true},
+			comment:          "happy overlay mount",
+		},
 	}
 
 	for _, t := range tt {
@@ -255,6 +268,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			c.Assert(call[:len(args)], DeepEquals, args)
 
 			foundTypeTmpfs := false
+			foundTypeOverlayfs := false
 			foundFsckYes := false
 			foundFsckNo := false
 			foundNoBlock := false
@@ -263,11 +277,16 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			foundBind := false
 			foundReadOnly := false
 			foundPrivate := false
+			foundOverlayLowerDir := false
+			foundOverlayUpperDir := false
+			foundOverlayWorkDir := false
 
 			for _, arg := range call[len(args):] {
 				switch {
 				case arg == "--type=tmpfs":
 					foundTypeTmpfs = true
+				case arg == "--type=overlay":
+					foundTypeOverlayfs = true
 				case arg == "--fsck=yes":
 					foundFsckYes = true
 				case arg == "--fsck=no":
@@ -278,15 +297,21 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 					foundBeforeInitrdfsTarget = true
 				case strings.HasPrefix(arg, "--options="):
 					for _, opt := range strings.Split(strings.TrimPrefix(arg, "--options="), ",") {
-						switch opt {
-						case "nosuid":
+						switch opt := opt; {
+						case opt == "nosuid":
 							foundNoSuid = true
-						case "bind":
+						case opt == "bind":
 							foundBind = true
-						case "ro":
+						case opt == "ro":
 							foundReadOnly = true
-						case "private":
+						case opt == "private":
 							foundPrivate = true
+						case strings.HasPrefix(opt, "lowerdir"):
+							foundOverlayLowerDir = true
+						case strings.HasPrefix(opt, "upperdir"):
+							foundOverlayUpperDir = true
+						case strings.HasPrefix(opt, "workdir"):
+							foundOverlayWorkDir = true
 						default:
 							c.Logf("Option '%s' unexpected", opt)
 							c.Fail()
@@ -298,6 +323,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 				}
 			}
 			c.Assert(foundTypeTmpfs, Equals, opts.Tmpfs)
+			c.Assert(foundTypeOverlayfs, Equals, opts.Overlayfs)
 			c.Assert(foundFsckYes, Equals, opts.NeedsFsck)
 			c.Assert(foundFsckNo, Equals, !opts.NeedsFsck)
 			c.Assert(foundNoBlock, Equals, opts.NoWait)
@@ -306,6 +332,9 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			c.Assert(foundBind, Equals, opts.Bind)
 			c.Assert(foundReadOnly, Equals, opts.ReadOnly)
 			c.Assert(foundPrivate, Equals, opts.Private)
+			c.Assert(foundOverlayLowerDir, Equals, len(opts.LowerDir) > 0)
+			c.Assert(foundOverlayUpperDir, Equals, len(opts.UpperDir) > 0)
+			c.Assert(foundOverlayWorkDir, Equals, len(opts.WorkDir) > 0)
 
 			// check that the overrides are present if opts.Ephemeral is false,
 			// or check the overrides are not present if opts.Ephemeral is true

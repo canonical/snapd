@@ -75,6 +75,17 @@ type systemdMountOptions struct {
 	Private bool
 	// Umount the mountpoint
 	Umount bool
+	// Overlayfs indicates an overlay filesystem.
+	Overlayfs bool
+	// A directory to be used as the lower layer of an overlay mount.
+	// It does not need to be on a writable filesystem.
+	LowerDir string
+	// A directory to be used as the upper layer of an overlay mount.
+	// This is normally on a writable filesystem.
+	UpperDir string
+	// A directory to be used as the workdir of an overlay mount.
+	// This needs to be an empty directory on the same filesystem as upperdir.
+	WorkDir string
 }
 
 // doSystemdMount will mount "what" at "where" using systemd-mount(1) with
@@ -103,6 +114,10 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 
 	if opts.Tmpfs {
 		args = append(args, "--type=tmpfs")
+	}
+
+	if opts.Overlayfs {
+		args = append(args, "--type=overlay")
 	}
 
 	if opts.NeedsFsck {
@@ -148,6 +163,11 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 	}
 	if opts.Private {
 		options = append(options, "private")
+	}
+	if opts.Overlayfs {
+		options = append(options, fmt.Sprintf("lowerdir=%s", opts.LowerDir))
+		options = append(options, fmt.Sprintf("upperdir=%s", opts.UpperDir))
+		options = append(options, fmt.Sprintf("workdir=%s", opts.WorkDir))
 	}
 	if len(options) > 0 {
 		args = append(args, "--options="+strings.Join(options, ","))
