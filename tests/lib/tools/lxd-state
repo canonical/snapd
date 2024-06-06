@@ -5,7 +5,7 @@ show_help() {
     echo "       lxd-state prepare-snap"
 }
 
-prepare_snap(){    
+prepare_snap(){
     echo "lxd-state: installing lxd snap"
     snap install lxd --channel="$LXD_SNAP_CHANNEL"
 
