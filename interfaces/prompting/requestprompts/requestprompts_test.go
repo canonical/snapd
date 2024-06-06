@@ -136,14 +136,16 @@ func (s *requestpromptsSuite) TestLoadMaxIDNextID(c *C) {
 	c.Check(pdb1.PerUser(), HasLen, 0)
 	c.Check(pdb1.MaxID(), Equals, prevMaxID)
 
-	user := s.defaultUser
-	snap := "nextcloud"
-	iface := "home"
+	metadata := &prompting.Metadata{
+		User:      s.defaultUser,
+		Snap:      "nextcloud",
+		Interface: "home",
+	}
 	path := "/home/test/Documents/foo.txt"
 	permissions := []string{"read", "write", "execute"}
 
 	listenerReq := &listener.Request{}
-	prompt, merged := pdb1.AddOrMerge(user, snap, iface, path, permissions, listenerReq)
+	prompt, merged := pdb1.AddOrMerge(metadata, path, permissions, listenerReq)
 	c.Assert(merged, Equals, false)
 	s.checkWrittenMaxID(c, prompt.ID)
 
@@ -173,9 +175,11 @@ func (s *requestpromptsSuite) TestAddOrMerge(c *C) {
 
 	pdb := requestprompts.New(s.defaultNotifyPrompt)
 
-	user := s.defaultUser
-	snap := "nextcloud"
-	iface := "home"
+	metadata := &prompting.Metadata{
+		User:      s.defaultUser,
+		Snap:      "nextcloud",
+		Interface: "home",
+	}
 	path := "/home/test/Documents/foo.txt"
 	permissions := []string{"read", "write", "execute"}
 
@@ -183,11 +187,11 @@ func (s *requestpromptsSuite) TestAddOrMerge(c *C) {
 	listenerReq2 := &listener.Request{}
 	listenerReq3 := &listener.Request{}
 
-	stored := pdb.Prompts(user)
+	stored := pdb.Prompts(metadata.User)
 	c.Assert(stored, HasLen, 0)
 
 	before := time.Now()
-	prompt1, merged := pdb.AddOrMerge(user, snap, iface, path, permissions, listenerReq1)
+	prompt1, merged := pdb.AddOrMerge(metadata, path, permissions, listenerReq1)
 	after := time.Now()
 	c.Assert(merged, Equals, false)
 
@@ -195,7 +199,7 @@ func (s *requestpromptsSuite) TestAddOrMerge(c *C) {
 	c.Check(pdb.MaxID(), Equals, uint64(1))
 	s.checkWrittenMaxID(c, prompt1.ID)
 
-	prompt2, merged := pdb.AddOrMerge(user, snap, iface, path, permissions, listenerReq2)
+	prompt2, merged := pdb.AddOrMerge(metadata, path, permissions, listenerReq2)
 	c.Assert(merged, Equals, true)
 	c.Assert(prompt2, Equals, prompt1)
 
@@ -208,23 +212,23 @@ func (s *requestpromptsSuite) TestAddOrMerge(c *C) {
 	c.Check(prompt1.Timestamp.After(before), Equals, true)
 	c.Check(prompt1.Timestamp.Before(after), Equals, true)
 
-	c.Check(prompt1.Snap, Equals, snap)
-	c.Check(prompt1.Interface, Equals, iface)
+	c.Check(prompt1.Snap, Equals, metadata.Snap)
+	c.Check(prompt1.Interface, Equals, metadata.Interface)
 	c.Check(prompt1.Constraints.Path, Equals, path)
 	c.Check(prompt1.Constraints.Permissions, DeepEquals, permissions)
 
-	stored = pdb.Prompts(user)
+	stored = pdb.Prompts(metadata.User)
 	c.Assert(stored, HasLen, 1)
 	c.Check(stored[0], Equals, prompt1)
 
-	storedPrompt, err := pdb.PromptWithID(user, prompt1.ID)
+	storedPrompt, err := pdb.PromptWithID(metadata.User, prompt1.ID)
 	c.Check(err, IsNil)
 	c.Check(storedPrompt, Equals, prompt1)
 
 	// Looking up prompt should not record notice
 	s.checkNewNotices(c, []string{})
 
-	prompt3, merged := pdb.AddOrMerge(user, snap, iface, path, permissions, listenerReq3)
+	prompt3, merged := pdb.AddOrMerge(metadata, path, permissions, listenerReq3)
 	c.Check(merged, Equals, true)
 	c.Check(prompt3, Equals, prompt1)
 
@@ -255,28 +259,30 @@ func (s *requestpromptsSuite) TestPromptWithIDErrors(c *C) {
 
 	pdb := requestprompts.New(s.defaultNotifyPrompt)
 
-	user := s.defaultUser
-	snap := "nextcloud"
-	iface := "system-files"
+	metadata := &prompting.Metadata{
+		User:      s.defaultUser,
+		Snap:      "nextcloud",
+		Interface: "home",
+	}
 	path := "/home/test/Documents/foo.txt"
 	permissions := []string{"read", "write", "execute"}
 
 	listenerReq := &listener.Request{}
 
-	prompt, merged := pdb.AddOrMerge(user, snap, iface, path, permissions, listenerReq)
+	prompt, merged := pdb.AddOrMerge(metadata, path, permissions, listenerReq)
 	c.Check(merged, Equals, false)
 
 	s.checkNewNotices(c, []string{prompt.ID})
 
-	result, err := pdb.PromptWithID(user, prompt.ID)
+	result, err := pdb.PromptWithID(metadata.User, prompt.ID)
 	c.Check(err, IsNil)
 	c.Check(result, Equals, prompt)
 
-	result, err = pdb.PromptWithID(user, "foo")
+	result, err = pdb.PromptWithID(metadata.User, "foo")
 	c.Check(err, Equals, requestprompts.ErrNotFound)
 	c.Check(result, IsNil)
 
-	result, err = pdb.PromptWithID(user+1, "foo")
+	result, err = pdb.PromptWithID(metadata.User+1, "foo")
 	c.Check(err, Equals, requestprompts.ErrNotFound)
 	c.Check(result, IsNil)
 
@@ -296,9 +302,11 @@ func (s *requestpromptsSuite) TestReply(c *C) {
 
 	pdb := requestprompts.New(s.defaultNotifyPrompt)
 
-	user := s.defaultUser
-	snap := "nextcloud"
-	iface := "personal-files"
+	metadata := &prompting.Metadata{
+		User:      s.defaultUser,
+		Snap:      "nextcloud",
+		Interface: "home",
+	}
 	path := "/home/test/Documents/foo.txt"
 	permissions := []string{"read", "write", "execute"}
 
@@ -306,19 +314,19 @@ func (s *requestpromptsSuite) TestReply(c *C) {
 		listenerReq1 := &listener.Request{}
 		listenerReq2 := &listener.Request{}
 
-		prompt1, merged := pdb.AddOrMerge(user, snap, iface, path, permissions, listenerReq1)
+		prompt1, merged := pdb.AddOrMerge(metadata, path, permissions, listenerReq1)
 		c.Check(merged, Equals, false)
 
 		s.checkNewNotices(c, []string{prompt1.ID})
 
-		prompt2, merged := pdb.AddOrMerge(user, snap, iface, path, permissions, listenerReq2)
+		prompt2, merged := pdb.AddOrMerge(metadata, path, permissions, listenerReq2)
 		c.Check(merged, Equals, true)
 		c.Check(prompt2, Equals, prompt1)
 
 		// Merged prompts should re-record notice
 		s.checkNewNotices(c, []string{prompt1.ID})
 
-		repliedPrompt, err := pdb.Reply(user, prompt1.ID, outcome)
+		repliedPrompt, err := pdb.Reply(metadata.User, prompt1.ID, outcome)
 		c.Check(err, IsNil)
 		c.Check(repliedPrompt, Equals, prompt1)
 		for _, listenerReq := range []*listener.Request{listenerReq1, listenerReq2} {
@@ -359,31 +367,33 @@ func (s *requestpromptsSuite) TestReplyErrors(c *C) {
 
 	pdb := requestprompts.New(s.defaultNotifyPrompt)
 
-	user := s.defaultUser
-	snap := "nextcloud"
-	iface := "removable-media"
+	metadata := &prompting.Metadata{
+		User:      s.defaultUser,
+		Snap:      "nextcloud",
+		Interface: "removable-media",
+	}
 	path := "/home/test/Documents/foo.txt"
 	permissions := []string{"read", "write", "execute"}
 
 	listenerReq := &listener.Request{}
 
-	prompt, merged := pdb.AddOrMerge(user, snap, iface, path, permissions, listenerReq)
+	prompt, merged := pdb.AddOrMerge(metadata, path, permissions, listenerReq)
 	c.Check(merged, Equals, false)
 
 	s.checkNewNotices(c, []string{prompt.ID})
 
 	outcome := prompting.OutcomeAllow
 
-	_, err := pdb.Reply(user, "foo", outcome)
+	_, err := pdb.Reply(metadata.User, "foo", outcome)
 	c.Check(err, Equals, requestprompts.ErrNotFound)
 
-	_, err = pdb.Reply(user+1, "foo", outcome)
+	_, err = pdb.Reply(metadata.User+1, "foo", outcome)
 	c.Check(err, Equals, requestprompts.ErrNotFound)
 
-	_, err = pdb.Reply(user, prompt.ID, prompting.OutcomeUnset)
+	_, err = pdb.Reply(metadata.User, prompt.ID, prompting.OutcomeUnset)
 	c.Check(err, ErrorMatches, `internal error: invalid outcome.*`)
 
-	_, err = pdb.Reply(user, prompt.ID, outcome)
+	_, err = pdb.Reply(metadata.User, prompt.ID, outcome)
 	c.Check(err, Equals, fakeError)
 
 	// Failed replies should not record notice
@@ -402,34 +412,36 @@ func (s *requestpromptsSuite) TestHandleNewRuleAllowPermissions(c *C) {
 
 	pdb := requestprompts.New(s.defaultNotifyPrompt)
 
-	user := s.defaultUser
-	snap := "nextcloud"
-	iface := "home"
+	metadata := &prompting.Metadata{
+		User:      s.defaultUser,
+		Snap:      "nextcloud",
+		Interface: "home",
+	}
 	path := "/home/test/Documents/foo.txt"
 
 	permissions := []string{"read", "write", "execute"}
 	listenerReq1 := &listener.Request{}
-	prompt1, merged := pdb.AddOrMerge(user, snap, iface, path, permissions, listenerReq1)
+	prompt1, merged := pdb.AddOrMerge(metadata, path, permissions, listenerReq1)
 	c.Check(merged, Equals, false)
 
 	permissions = []string{"read", "write"}
 	listenerReq2 := &listener.Request{}
-	prompt2, merged := pdb.AddOrMerge(user, snap, iface, path, permissions, listenerReq2)
+	prompt2, merged := pdb.AddOrMerge(metadata, path, permissions, listenerReq2)
 	c.Check(merged, Equals, false)
 
 	permissions = []string{"read"}
 	listenerReq3 := &listener.Request{}
-	prompt3, merged := pdb.AddOrMerge(user, snap, iface, path, permissions, listenerReq3)
+	prompt3, merged := pdb.AddOrMerge(metadata, path, permissions, listenerReq3)
 	c.Check(merged, Equals, false)
 
 	permissions = []string{"open"}
 	listenerReq4 := &listener.Request{}
-	prompt4, merged := pdb.AddOrMerge(user, snap, iface, path, permissions, listenerReq4)
+	prompt4, merged := pdb.AddOrMerge(metadata, path, permissions, listenerReq4)
 	c.Check(merged, Equals, false)
 
 	s.checkNewNotices(c, []string{prompt1.ID, prompt2.ID, prompt3.ID, prompt4.ID})
 
-	stored := pdb.Prompts(user)
+	stored := pdb.Prompts(metadata.User)
 	c.Assert(stored, HasLen, 4)
 
 	pathPattern, err := patterns.ParsePathPattern("/home/test/Documents/**")
@@ -441,7 +453,7 @@ func (s *requestpromptsSuite) TestHandleNewRuleAllowPermissions(c *C) {
 	}
 	outcome := prompting.OutcomeAllow
 
-	satisfied, err := pdb.HandleNewRule(user, snap, iface, constraints, outcome)
+	satisfied, err := pdb.HandleNewRule(metadata, constraints, outcome)
 	c.Assert(err, IsNil)
 	c.Check(satisfied, HasLen, 2)
 	c.Check(strutil.ListContains(satisfied, prompt2.ID), Equals, true)
@@ -462,7 +474,7 @@ func (s *requestpromptsSuite) TestHandleNewRuleAllowPermissions(c *C) {
 		c.Check(allowed, Equals, true)
 	}
 
-	stored = pdb.Prompts(user)
+	stored = pdb.Prompts(metadata.User)
 	c.Assert(stored, HasLen, 2)
 
 	// Check that allowing the final missing permission allows the prompt.
@@ -471,7 +483,7 @@ func (s *requestpromptsSuite) TestHandleNewRuleAllowPermissions(c *C) {
 		PathPattern: pathPattern,
 		Permissions: permissions,
 	}
-	satisfied, err = pdb.HandleNewRule(user, snap, iface, constraints, outcome)
+	satisfied, err = pdb.HandleNewRule(metadata, constraints, outcome)
 
 	c.Assert(err, IsNil)
 	c.Check(satisfied, HasLen, 1)
@@ -499,34 +511,36 @@ func (s *requestpromptsSuite) TestHandleNewRuleDenyPermissions(c *C) {
 
 	pdb := requestprompts.New(s.defaultNotifyPrompt)
 
-	user := s.defaultUser
-	snap := "nextcloud"
-	iface := "home"
+	metadata := &prompting.Metadata{
+		User:      s.defaultUser,
+		Snap:      "nextcloud",
+		Interface: "home",
+	}
 	path := "/home/test/Documents/foo.txt"
 
 	permissions := []string{"read", "write", "execute"}
 	listenerReq1 := &listener.Request{}
-	prompt1, merged := pdb.AddOrMerge(user, snap, iface, path, permissions, listenerReq1)
+	prompt1, merged := pdb.AddOrMerge(metadata, path, permissions, listenerReq1)
 	c.Check(merged, Equals, false)
 
 	permissions = []string{"read", "write"}
 	listenerReq2 := &listener.Request{}
-	prompt2, merged := pdb.AddOrMerge(user, snap, iface, path, permissions, listenerReq2)
+	prompt2, merged := pdb.AddOrMerge(metadata, path, permissions, listenerReq2)
 	c.Check(merged, Equals, false)
 
 	permissions = []string{"read"}
 	listenerReq3 := &listener.Request{}
-	prompt3, merged := pdb.AddOrMerge(user, snap, iface, path, permissions, listenerReq3)
+	prompt3, merged := pdb.AddOrMerge(metadata, path, permissions, listenerReq3)
 	c.Check(merged, Equals, false)
 
 	permissions = []string{"open"}
 	listenerReq4 := &listener.Request{}
-	prompt4, merged := pdb.AddOrMerge(user, snap, iface, path, permissions, listenerReq4)
+	prompt4, merged := pdb.AddOrMerge(metadata, path, permissions, listenerReq4)
 	c.Check(merged, Equals, false)
 
 	s.checkNewNotices(c, []string{prompt1.ID, prompt2.ID, prompt3.ID, prompt4.ID})
 
-	stored := pdb.Prompts(user)
+	stored := pdb.Prompts(metadata.User)
 	c.Assert(stored, HasLen, 4)
 
 	pathPattern, err := patterns.ParsePathPattern("/home/test/Documents/**")
@@ -539,7 +553,7 @@ func (s *requestpromptsSuite) TestHandleNewRuleDenyPermissions(c *C) {
 	outcome := prompting.OutcomeDeny
 
 	// If one or more permissions denied each for prompts 1-3, so each is denied
-	satisfied, err := pdb.HandleNewRule(user, snap, iface, constraints, outcome)
+	satisfied, err := pdb.HandleNewRule(metadata, constraints, outcome)
 	c.Assert(err, IsNil)
 	c.Check(satisfied, HasLen, 3)
 	c.Check(strutil.ListContains(satisfied, prompt1.ID), Equals, true)
@@ -559,7 +573,7 @@ func (s *requestpromptsSuite) TestHandleNewRuleDenyPermissions(c *C) {
 		c.Check(allowed, Equals, false)
 	}
 
-	stored = pdb.Prompts(user)
+	stored = pdb.Prompts(metadata.User)
 	c.Check(stored, HasLen, 1)
 }
 
@@ -578,10 +592,15 @@ func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 	user := s.defaultUser
 	snap := "nextcloud"
 	iface := "home"
+	metadata := &prompting.Metadata{
+		User:      user,
+		Snap:      snap,
+		Interface: iface,
+	}
 	path := "/home/test/Documents/foo.txt"
 	permissions := []string{"read"}
 	listenerReq := &listener.Request{}
-	prompt, merged := pdb.AddOrMerge(user, snap, iface, path, permissions, listenerReq)
+	prompt, merged := pdb.AddOrMerge(metadata, path, permissions, listenerReq)
 	c.Check(merged, Equals, false)
 
 	s.checkNewNotices(c, []string{prompt.ID})
@@ -605,41 +624,56 @@ func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 	}
 	badOutcome := prompting.OutcomeType("foo")
 
-	stored := pdb.Prompts(user)
+	stored := pdb.Prompts(metadata.User)
 	c.Assert(stored, HasLen, 1)
 	c.Assert(stored[0], Equals, prompt)
 
-	satisfied, err := pdb.HandleNewRule(user, snap, iface, constraints, badOutcome)
+	satisfied, err := pdb.HandleNewRule(metadata, constraints, badOutcome)
 	c.Check(err, ErrorMatches, `internal error: invalid outcome.*`)
 	c.Check(satisfied, HasLen, 0)
 
 	s.checkNewNotices(c, []string{})
 
-	satisfied, err = pdb.HandleNewRule(otherUser, snap, iface, constraints, outcome)
+	otherUserMetadata := &prompting.Metadata{
+		User:      otherUser,
+		Snap:      snap,
+		Interface: iface,
+	}
+	satisfied, err = pdb.HandleNewRule(otherUserMetadata, constraints, outcome)
 	c.Check(err, IsNil)
 	c.Check(satisfied, HasLen, 0)
 
 	s.checkNewNotices(c, []string{})
 
-	satisfied, err = pdb.HandleNewRule(user, otherSnap, iface, constraints, outcome)
+	otherSnapMetadata := &prompting.Metadata{
+		User:      user,
+		Snap:      otherSnap,
+		Interface: iface,
+	}
+	satisfied, err = pdb.HandleNewRule(otherSnapMetadata, constraints, outcome)
 	c.Check(err, IsNil)
 	c.Check(satisfied, HasLen, 0)
 
 	s.checkNewNotices(c, []string{})
 
-	satisfied, err = pdb.HandleNewRule(user, snap, otherInterface, constraints, outcome)
+	otherInterfaceMetadata := &prompting.Metadata{
+		User:      user,
+		Snap:      snap,
+		Interface: otherInterface,
+	}
+	satisfied, err = pdb.HandleNewRule(otherInterfaceMetadata, constraints, outcome)
 	c.Check(err, IsNil)
 	c.Check(satisfied, HasLen, 0)
 
 	s.checkNewNotices(c, []string{})
 
-	satisfied, err = pdb.HandleNewRule(user, snap, iface, otherConstraints, outcome)
+	satisfied, err = pdb.HandleNewRule(metadata, otherConstraints, outcome)
 	c.Check(err, IsNil)
 	c.Check(satisfied, HasLen, 0)
 
 	s.checkNewNotices(c, []string{})
 
-	satisfied, err = pdb.HandleNewRule(user, snap, iface, constraints, outcome)
+	satisfied, err = pdb.HandleNewRule(metadata, constraints, outcome)
 	c.Check(err, IsNil)
 	c.Assert(satisfied, HasLen, 1)
 
@@ -652,7 +686,7 @@ func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 	c.Check(ok, Equals, true)
 	c.Check(allowed, Equals, true)
 
-	stored = pdb.Prompts(user)
+	stored = pdb.Prompts(metadata.User)
 	c.Check(stored, HasLen, 0)
 }
 
@@ -665,9 +699,11 @@ func (s *requestpromptsSuite) TestClose(c *C) {
 
 	pdb := requestprompts.New(s.defaultNotifyPrompt)
 
-	user := s.defaultUser
-	snap := "nextcloud"
-	iface := "home"
+	metadata := &prompting.Metadata{
+		User:      s.defaultUser,
+		Snap:      "nextcloud",
+		Interface: "home",
+	}
 	permissions := []string{"read", "write", "execute"}
 
 	paths := []string{
@@ -679,7 +715,7 @@ func (s *requestpromptsSuite) TestClose(c *C) {
 	prompts := make([]*requestprompts.Prompt, 0, 3)
 	for _, path := range paths {
 		listenerReq := &listener.Request{}
-		prompt, merged := pdb.AddOrMerge(user, snap, iface, path, permissions, listenerReq)
+		prompt, merged := pdb.AddOrMerge(metadata, path, permissions, listenerReq)
 		c.Assert(merged, Equals, false)
 		prompts = append(prompts, prompt)
 	}

@@ -25,6 +25,17 @@ import (
 	"time"
 )
 
+// Metadata stores information about the origin or applicability of a prompt or
+// rule.
+type Metadata struct {
+	// User is the UID of the subject (user) triggering the applicable requests.
+	User uint32
+	// Snap is the instance name of the snap for which the prompt or rule applies.
+	Snap string
+	// Interface is the interface for which the prompt or rule applies.
+	Interface string
+}
+
 // OutcomeType describes the outcome associated with a reply or rule.
 type OutcomeType string
 

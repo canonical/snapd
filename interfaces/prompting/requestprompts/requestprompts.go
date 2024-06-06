@@ -181,18 +181,18 @@ func (pdb *PromptDB) nextID() string {
 //
 // The caller must ensure that the given permissions are in the order in which
 // they appear in the available permissions list for the given interface.
-func (pdb *PromptDB) AddOrMerge(user uint32, snap string, iface string, path string, permissions []string, listenerReq *listener.Request) (*Prompt, bool) {
+func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, permissions []string, listenerReq *listener.Request) (*Prompt, bool) {
 	pdb.mutex.Lock()
 	defer pdb.mutex.Unlock()
-	userEntry, ok := pdb.perUser[user]
+	userEntry, ok := pdb.perUser[metadata.User]
 	if !ok {
-		pdb.perUser[user] = &userPromptDB{
+		pdb.perUser[metadata.User] = &userPromptDB{
 			ByID: make(map[string]*Prompt),
 		}
-		userEntry = pdb.perUser[user]
+		userEntry = pdb.perUser[metadata.User]
 	}
 
-	availablePermissions, _ := prompting.AvailablePermissions(iface)
+	availablePermissions, _ := prompting.AvailablePermissions(metadata.Interface)
 	// Error should be impossible, since caller has already validated that iface
 	// is valid, and tests check that all valid interfaces have valid available
 	// permissions returned by AvailablePermissions.
@@ -205,14 +205,14 @@ func (pdb *PromptDB) AddOrMerge(user uint32, snap string, iface string, path str
 
 	// Search for an identical existing prompt, merge if found
 	for _, prompt := range userEntry.ByID {
-		if prompt.Snap == snap && prompt.Interface == iface && prompt.Constraints.equals(constraints) {
+		if prompt.Snap == metadata.Snap && prompt.Interface == metadata.Interface && prompt.Constraints.equals(constraints) {
 			prompt.listenerReqs = append(prompt.listenerReqs, listenerReq)
 			// Although the prompt itself has not changed, re-record a notice
 			// to re-notify clients to respond to this request. A client may
 			// have replied with a malformed response and not retried after
 			// receiving the error, so this notice encourages it to try again
 			// if the user retries the operation.
-			pdb.notifyPrompt(user, prompt.ID)
+			pdb.notifyPrompt(metadata.User, prompt.ID)
 			return prompt, true
 		}
 	}
@@ -222,13 +222,13 @@ func (pdb *PromptDB) AddOrMerge(user uint32, snap string, iface string, path str
 	prompt := &Prompt{
 		ID:           id,
 		Timestamp:    timestamp,
-		Snap:         snap,
-		Interface:    iface,
+		Snap:         metadata.Snap,
+		Interface:    metadata.Interface,
 		Constraints:  constraints,
 		listenerReqs: []*listener.Request{listenerReq},
 	}
 	userEntry.ByID[id] = prompt
-	pdb.notifyPrompt(user, id)
+	pdb.notifyPrompt(metadata.User, id)
 	return prompt, false
 }
 
@@ -317,7 +317,7 @@ var sendReply = func(listenerReq *listener.Request, reply interface{}) error {
 //
 // Returns the IDs of any prompts which were fully satisfied by the given rule
 // contents.
-func (pdb *PromptDB) HandleNewRule(user uint32, snap string, iface string, constraints *prompting.Constraints, outcome prompting.OutcomeType) ([]string, error) {
+func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *prompting.Constraints, outcome prompting.OutcomeType) ([]string, error) {
 	pdb.mutex.Lock()
 	defer pdb.mutex.Unlock()
 	allow, err := outcome.IsAllow()
@@ -325,12 +325,12 @@ func (pdb *PromptDB) HandleNewRule(user uint32, snap string, iface string, const
 		return nil, err
 	}
 	satisfiedPromptIDs := []string{}
-	userEntry, ok := pdb.perUser[user]
+	userEntry, ok := pdb.perUser[metadata.User]
 	if !ok {
 		return satisfiedPromptIDs, nil
 	}
 	for id, prompt := range userEntry.ByID {
-		if !(prompt.Snap == snap && prompt.Interface == iface) {
+		if !(prompt.Snap == metadata.Snap && prompt.Interface == metadata.Interface) {
 			continue
 		}
 		matched, err := constraints.Match(prompt.Constraints.Path)
@@ -344,7 +344,7 @@ func (pdb *PromptDB) HandleNewRule(user uint32, snap string, iface string, const
 		if !modified {
 			continue
 		}
-		pdb.notifyPrompt(user, id)
+		pdb.notifyPrompt(metadata.User, id)
 		if len(prompt.Constraints.Permissions) > 0 && allow == true {
 			continue
 		}
