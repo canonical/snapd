@@ -124,6 +124,10 @@ setup_systemd_snapd_overrides() {
 [Service]
 Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_REBOOT_DELAY=10m SNAPD_CONFIGURE_HOOK_TIMEOUT=30s SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE
 ExecStartPre=/bin/touch /dev/iio:device0
+# The default limit is usually 5, which can be easily hit in 
+# a fast system with few systemd units
+StartLimitBurst=10
+StartLimitIntervalSec=10s
 EOF
 
     # We change the service configuration so reload and restart
