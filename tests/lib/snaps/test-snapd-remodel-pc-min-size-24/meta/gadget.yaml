@@ -3,13 +3,6 @@ volumes:
     # bootloader configuration is shipped and managed by snapd
     bootloader: grub
     structure:
-      - name: mbr
-        type: mbr
-        size: 440
-        update:
-          edition: 1
-        content:
-          - image: pc-boot.img
       - name: BIOS Boot
         type: DA,21686148-6449-6E6F-744E-656564454649
         size: 1M
@@ -30,8 +23,6 @@ volumes:
         content:
           - source: grubx64.efi
             target: EFI/boot/grubx64.efi
-          - source: shim.efi.signed
-            target: EFI/boot/bootx64.efi
       - name: ubuntu-boot
         role: system-boot
         filesystem: ext4
@@ -43,8 +34,6 @@ volumes:
         content:
           - source: grubx64.efi
             target: EFI/boot/grubx64.efi
-          - source: shim.efi.signed
-            target: EFI/boot/bootx64.efi
       - name: ubuntu-save
         role: system-save
         filesystem: ext4
