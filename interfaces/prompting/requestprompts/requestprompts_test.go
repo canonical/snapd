@@ -60,7 +60,7 @@ func (s *requestpromptsSuite) SetUpTest(c *C) {
 	s.noticePromptIDs = make([]string, 0)
 	s.tmpdir = c.MkDir()
 	dirs.SetRootDir(s.tmpdir)
-	c.Assert(os.Mkdir(filepath.Join(s.tmpdir, "/tmp"), 0700), IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapRunDir, 0700), IsNil)
 }
 
 func (s *requestpromptsSuite) TestNew(c *C) {
@@ -115,7 +115,7 @@ func (s *requestpromptsSuite) TestLoadMaxID(c *C) {
 			0,
 		},
 	} {
-		osutil.AtomicWriteFile(filepath.Join(s.tmpdir, "/tmp/snapd-request-prompt-max-id"), testCase.fileContents, 0600, 0)
+		osutil.AtomicWriteFile(filepath.Join(dirs.SnapRunDir, "/request-prompt-max-id"), testCase.fileContents, 0600, 0)
 		pdb := requestprompts.New(notifyPrompt)
 		c.Check(pdb.MaxID(), Equals, testCase.initialMaxID)
 	}
@@ -130,7 +130,7 @@ func (s *requestpromptsSuite) TestLoadMaxIDNextID(c *C) {
 
 	var prevMaxID uint64 = 42
 	maxIDStr := fmt.Sprintf("%016X", prevMaxID)
-	osutil.AtomicWriteFile(filepath.Join(s.tmpdir, "/tmp/snapd-request-prompt-max-id"), []byte(maxIDStr), 0600, 0)
+	osutil.AtomicWriteFile(filepath.Join(dirs.SnapRunDir, "/request-prompt-max-id"), []byte(maxIDStr), 0600, 0)
 
 	pdb1 := requestprompts.New(s.defaultNotifyPrompt)
 	c.Check(pdb1.PerUser(), HasLen, 0)
@@ -158,7 +158,7 @@ func (s *requestpromptsSuite) TestLoadMaxIDNextID(c *C) {
 }
 
 func (s *requestpromptsSuite) checkWrittenMaxID(c *C, id string) {
-	maxIDPath := filepath.Join(s.tmpdir, "/tmp/snapd-request-prompt-max-id")
+	maxIDPath := filepath.Join(dirs.SnapRunDir, "/request-prompt-max-id")
 	data, err := os.ReadFile(maxIDPath)
 	c.Assert(err, IsNil)
 	c.Assert(string(data), Equals, id)
@@ -273,11 +273,11 @@ func (s *requestpromptsSuite) TestPromptWithIDErrors(c *C) {
 	c.Check(result, Equals, prompt)
 
 	result, err = pdb.PromptWithID(user, "foo")
-	c.Check(err, ErrorMatches, "cannot find prompt for UID 1000 with the given ID:.*")
+	c.Check(err, Equals, requestprompts.ErrNotFound)
 	c.Check(result, IsNil)
 
 	result, err = pdb.PromptWithID(user+1, "foo")
-	c.Check(err, ErrorMatches, "cannot find prompt for UID 1001 with the given ID:.*")
+	c.Check(err, Equals, requestprompts.ErrNotFound)
 	c.Check(result, IsNil)
 
 	// Looking up prompts (with or without errors) should not record notices
@@ -375,10 +375,10 @@ func (s *requestpromptsSuite) TestReplyErrors(c *C) {
 	outcome := prompting.OutcomeAllow
 
 	_, err := pdb.Reply(user, "foo", outcome)
-	c.Check(err, ErrorMatches, "cannot find prompt for UID 1000 with the given ID:.*")
+	c.Check(err, Equals, requestprompts.ErrNotFound)
 
 	_, err = pdb.Reply(user+1, "foo", outcome)
-	c.Check(err, ErrorMatches, "cannot find prompt for UID 1001 with the given ID:.*")
+	c.Check(err, Equals, requestprompts.ErrNotFound)
 
 	_, err = pdb.Reply(user, prompt.ID, prompting.OutcomeUnset)
 	c.Check(err, ErrorMatches, `internal error: invalid outcome.*`)
@@ -656,7 +656,7 @@ func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 	c.Check(stored, HasLen, 0)
 }
 
-func (s *requestpromptsSuite) TestCleanUp(c *C) {
+func (s *requestpromptsSuite) TestClose(c *C) {
 	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, reply interface{}) error {
 		c.Fatalf("should not have called sendReply")
 		return nil
@@ -693,7 +693,7 @@ func (s *requestpromptsSuite) TestCleanUp(c *C) {
 	// One notice for each prompt when created
 	s.checkNewNotices(c, expectedPromptIDs)
 
-	pdb.CleanUp()
+	pdb.Close()
 
 	// Once notice for each prompt when cleaned up
 	s.checkNewNoticesUnordered(c, expectedPromptIDs)

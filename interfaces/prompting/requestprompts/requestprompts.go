@@ -20,6 +20,7 @@
 package requestprompts
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -35,6 +36,10 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
+var (
+	ErrNotFound = errors.New("cannot find prompt with the given ID for the given user")
+)
+
 // Prompt contains information about a request for which a user should be
 // prompted.
 type Prompt struct {
@@ -42,21 +47,21 @@ type Prompt struct {
 	Timestamp    time.Time          `json:"timestamp"`
 	Snap         string             `json:"snap"`
 	Interface    string             `json:"interface"`
-	Constraints  *promptConstraints `json:"constraints"`
+	Constraints  *PromptConstraints `json:"constraints"`
 	listenerReqs []*listener.Request
 }
 
-// promptConstraints are like prompting.Constraints, but have a "path" field
+// PromptConstraints are like prompting.Constraints, but have a "path" field
 // instead of a "path-pattern", and include the available permissions for the
 // interface corresponding to the prompt.
-type promptConstraints struct {
+type PromptConstraints struct {
 	Path                 string   `json:"path"`
 	Permissions          []string `json:"permissions"`
 	AvailablePermissions []string `json:"available-permissions"`
 }
 
 // equals returns true if the two prompt constraints are identical.
-func (pc *promptConstraints) equals(other *promptConstraints) bool {
+func (pc *PromptConstraints) equals(other *PromptConstraints) bool {
 	if pc.Path != other.Path || len(pc.Permissions) != len(other.Permissions) {
 		return false
 	}
@@ -71,7 +76,7 @@ func (pc *promptConstraints) equals(other *promptConstraints) bool {
 
 // subtractPermissions removes all of the given permissions from the list of
 // permissions in the constraints.
-func (pc *promptConstraints) subtractPermissions(permissions []string) bool {
+func (pc *PromptConstraints) subtractPermissions(permissions []string) (modified bool) {
 	newPermissions := make([]string, 0, len(pc.Permissions))
 	for _, perm := range pc.Permissions {
 		if !strutil.ListContains(permissions, perm) {
@@ -90,8 +95,8 @@ type userPromptDB struct {
 	ByID map[string]*Prompt
 }
 
-// PromptDB stores outstanding prompts and ensures that new prompts are created
-// with a unique ID.
+// PromptDB stores outstanding prompts in memory and ensures that new prompts
+// are created with a unique ID.
 type PromptDB struct {
 	perUser   map[uint32]*userPromptDB
 	maxID     uint64
@@ -112,9 +117,7 @@ func New(notifyPrompt func(userID uint32, promptID string) error) *PromptDB {
 		notifyPrompt: notifyPrompt,
 	}
 	// Importantly, set maxIDPath before attempting to load max ID
-	pdb.maxIDPath = filepath.Join(dirs.GlobalRootDir, "/tmp/snapd-request-prompt-max-id")
-	// XXX: is /tmp guaranteed to exist, and if not, should we create it here?
-	// Otherwise, should a non-/tmp location be used?
+	pdb.maxIDPath = filepath.Join(dirs.SnapRunDir, "/request-prompt-max-id")
 	err := pdb.loadMaxID()
 	if err != nil {
 		// If cannot read max existing prompt ID, start again from 0.
@@ -162,15 +165,9 @@ func (pdb *PromptDB) loadMaxID() error {
 // The caller must ensure that the prompt DB mutex is held.
 func (pdb *PromptDB) nextID() string {
 	pdb.maxID++
-	idStr := pdb.maxIDString()
+	idStr := fmt.Sprintf("%016X", pdb.maxID)
 	osutil.AtomicWriteFile(pdb.maxIDPath, []byte(idStr), 0600, 0)
 	return idStr
-}
-
-// maxIDString returns a 16-character string corresponding to the current maxID.
-// The ID string is the max ID in hexadecimal, padded by leading zeroes.
-func (pdb *PromptDB) maxIDString() string {
-	return fmt.Sprintf("%016X", pdb.maxID)
 }
 
 // AddOrMerge checks if the given prompt contents are identical to an existing
@@ -200,7 +197,7 @@ func (pdb *PromptDB) AddOrMerge(user uint32, snap string, iface string, path str
 	// is valid, and tests check that all valid interfaces have valid available
 	// permissions returned by AvailablePermissions.
 
-	constraints := &promptConstraints{
+	constraints := &PromptConstraints{
 		Path:                 path,
 		Permissions:          permissions,
 		AvailablePermissions: availablePermissions,
@@ -254,15 +251,24 @@ func (pdb *PromptDB) Prompts(user uint32) []*Prompt {
 func (pdb *PromptDB) PromptWithID(user uint32, id string) (*Prompt, error) {
 	pdb.mutex.Lock()
 	defer pdb.mutex.Unlock()
+	_, prompt, err := pdb.promptWithID(user, id)
+	return prompt, err
+}
+
+// promptWithID returns the user entry for the given user and the prompt with
+// the given ID for the that user.
+//
+// The caller should hold the prompt DB lock.
+func (pdb *PromptDB) promptWithID(user uint32, id string) (*userPromptDB, *Prompt, error) {
 	userEntry, ok := pdb.perUser[user]
 	if !ok || len(userEntry.ByID) == 0 {
-		return nil, fmt.Errorf("cannot find prompt for UID %d with the given ID: %s", user, id)
+		return nil, nil, ErrNotFound
 	}
 	prompt, ok := userEntry.ByID[id]
 	if !ok {
-		return nil, fmt.Errorf("cannot find prompt for UID %d with the given ID: %s", user, id)
+		return nil, nil, ErrNotFound
 	}
-	return prompt, nil
+	return userEntry, prompt, nil
 }
 
 // Reply resolves the prompt with the given ID using the given outcome by
@@ -271,17 +277,13 @@ func (pdb *PromptDB) PromptWithID(user uint32, id string) (*Prompt, error) {
 //
 // Records a notice for the prompt, and returns the prompt's former contents.
 func (pdb *PromptDB) Reply(user uint32, id string, outcome prompting.OutcomeType) (*Prompt, error) {
+	allow, err := outcome.IsAllow()
+	if err != nil {
+		return nil, err
+	}
 	pdb.mutex.Lock()
 	defer pdb.mutex.Unlock()
-	userEntry, ok := pdb.perUser[user]
-	if !ok || len(userEntry.ByID) == 0 {
-		return nil, fmt.Errorf("cannot find prompt for UID %d with the given ID: %s", user, id)
-	}
-	prompt, ok := userEntry.ByID[id]
-	if !ok {
-		return nil, fmt.Errorf("cannot find prompt for UID %d with the given ID: %s", user, id)
-	}
-	allow, err := outcome.IsAllow()
+	userEntry, prompt, err := pdb.promptWithID(user, id)
 	if err != nil {
 		return nil, err
 	}
@@ -356,11 +358,11 @@ func (pdb *PromptDB) HandleNewRule(user uint32, snap string, iface string, const
 	return satisfiedPromptIDs, nil
 }
 
-// CleanUp removes all outstanding prompts and records a notice for each one.
+// Close removes all outstanding prompts and records a notice for each one.
 //
 // This should be called when snapd is shutting down, to notify prompt clients
 // that the given prompts are no longer awaiting a reply.
-func (pdb *PromptDB) CleanUp() {
+func (pdb *PromptDB) Close() {
 	pdb.mutex.Lock()
 	defer pdb.mutex.Unlock()
 	for user, userEntry := range pdb.perUser {
@@ -369,5 +371,5 @@ func (pdb *PromptDB) CleanUp() {
 		}
 	}
 	// Clear all outstanding prompts
-	pdb.perUser = make(map[uint32]*userPromptDB)
+	pdb.perUser = nil
 }
