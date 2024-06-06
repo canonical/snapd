@@ -117,6 +117,9 @@ func getDesktopFileRules(snapInstanceName string, spec *apparmor.Specification) 
 	// Also, for security reasons, all these rules are removed if the desktop-launch interface
 	// is listed, thus only if it is really connected will the snap have any kind of access to
 	// these folders/files.
+	//
+	// FIXME: this is really an ugly trick, so a better and more general mechanism is required
+	// in the future to define priorities between AppArmor rules blocks.
 	if spec != nil {
 		for _, plug := range spec.SnapAppSet().Info().Plugs {
 			if plug.Interface == "desktop-launch" {
