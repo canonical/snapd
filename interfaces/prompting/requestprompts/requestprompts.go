@@ -103,7 +103,7 @@ type PromptDB struct {
 	maxIDPath string
 	mutex     sync.Mutex
 	// Function to issue a notice for a change in a prompt
-	notifyPrompt func(userID uint32, promptID string) error
+	notifyPrompt func(userID uint32, promptID string, data map[string]string) error
 }
 
 // New creates and returns a new prompt database.
@@ -111,7 +111,7 @@ type PromptDB struct {
 // The given notifyPrompt closure should record a notice of type
 // "interfaces-requests-prompt" for the given user with the given
 // promptID as its key.
-func New(notifyPrompt func(userID uint32, promptID string) error) *PromptDB {
+func New(notifyPrompt func(userID uint32, promptID string, data map[string]string) error) *PromptDB {
 	pdb := PromptDB{
 		perUser:      make(map[uint32]*userPromptDB),
 		notifyPrompt: notifyPrompt,
@@ -212,7 +212,7 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, permi
 			// have replied with a malformed response and not retried after
 			// receiving the error, so this notice encourages it to try again
 			// if the user retries the operation.
-			pdb.notifyPrompt(metadata.User, prompt.ID)
+			pdb.notifyPrompt(metadata.User, prompt.ID, nil)
 			return prompt, true
 		}
 	}
@@ -228,7 +228,7 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, permi
 		listenerReqs: []*listener.Request{listenerReq},
 	}
 	userEntry.ByID[id] = prompt
-	pdb.notifyPrompt(metadata.User, id)
+	pdb.notifyPrompt(metadata.User, id, nil)
 	return prompt, false
 }
 
@@ -293,7 +293,9 @@ func (pdb *PromptDB) Reply(user uint32, id string, outcome prompting.OutcomeType
 		}
 	}
 	delete(userEntry.ByID, id)
-	pdb.notifyPrompt(user, id)
+	data := make(map[string]string)
+	data["resolved"] = "replied"
+	pdb.notifyPrompt(user, id, data)
 	return prompt, nil
 }
 
@@ -344,8 +346,8 @@ func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *pr
 		if !modified {
 			continue
 		}
-		pdb.notifyPrompt(metadata.User, id)
 		if len(prompt.Constraints.Permissions) > 0 && allow == true {
+			pdb.notifyPrompt(metadata.User, id, nil)
 			continue
 		}
 		// All permissions of prompt satisfied, or any permission denied
@@ -354,6 +356,9 @@ func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *pr
 		}
 		delete(userEntry.ByID, id)
 		satisfiedPromptIDs = append(satisfiedPromptIDs, id)
+		data := make(map[string]string)
+		data["resolved"] = "satisfied"
+		pdb.notifyPrompt(metadata.User, id, data)
 	}
 	return satisfiedPromptIDs, nil
 }
@@ -363,11 +368,13 @@ func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *pr
 // This should be called when snapd is shutting down, to notify prompt clients
 // that the given prompts are no longer awaiting a reply.
 func (pdb *PromptDB) Close() {
+	data := make(map[string]string)
+	data["resolved"] = "cancelled"
 	pdb.mutex.Lock()
 	defer pdb.mutex.Unlock()
 	for user, userEntry := range pdb.perUser {
 		for id := range userEntry.ByID {
-			pdb.notifyPrompt(user, id)
+			pdb.notifyPrompt(user, id, data)
 		}
 	}
 	// Clear all outstanding prompts
