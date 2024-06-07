@@ -3,7 +3,7 @@ summary: The jq command
 description: The jq command
 version: 1.6-3
 confinement: strict 
-base: devel
+base: core24
 
 apps:
   jq:
