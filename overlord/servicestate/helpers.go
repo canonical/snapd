@@ -51,6 +51,12 @@ func usernamesToUids(usernames []string) ([]int, error) {
 	return uids, nil
 }
 
+// affectedUids is used to determine the currently active user-sessions.
+// This is primarily used to determine which users are going to be affected
+// by user service changes. This is inherently racy, i. e this can easily become
+// out of sync by the time we actually invoke the user-session agents, where
+// a user may have gone offline, or one come online (i. e worst case we may miss
+// a user, if someone goes offline the user is ignored).
 func affectedUids(users []string) (map[int]bool, error) {
 	var uids []int
 	var err error
@@ -142,6 +148,12 @@ func updateSnapstateSystemServices(snapst *snapstate.SnapState, apps []*snap.App
 	return true
 }
 
+// updateSnapstateUserServices performs a best-effort to keep track of service changes
+// during hooks for user services. The weakness in this approach is that we can only keep
+// track of users that are currently logged in. Due to the inherent need of communicating with
+// the per-user service agent, we cannot deal with users that are not currently online.
+// In practice, this may pose limited challenges, and most likely it will result in a service
+// not being started/stopped for that user correctly, which can be corrected by the user.
 func updateSnapstateUserServices(snapst *snapstate.SnapState, apps []*snap.AppInfo, enable bool, uids map[int]bool) bool {
 	// populate helper lookups of already enabled/disabled services from
 	// snapst.
@@ -252,26 +264,26 @@ func updateSnapstateServices(snapst *snapstate.SnapState, enable, disable []*sna
 		sys, usr = splitServicesIntoSystemAndUser(disable)
 	}
 
+	// Currently, because the default is to only affect system services, it's unlikely
+	// that user code paths are hit by hooks.
 	isEnable := len(enable) > 0
 	switch scopeOpts.Scope {
 	case wrappers.ServiceScopeAll:
-		// Retrieve the uids affected
-		affectedUids, err := affectedUids(scopeOpts.Users)
+		uids, err := affectedUids(scopeOpts.Users)
 		if err != nil {
 			return false, err
 		}
 		sysChanged := updateSnapstateSystemServices(snapst, sys, isEnable)
-		usrChanged := updateSnapstateUserServices(snapst, usr, isEnable, affectedUids)
+		usrChanged := updateSnapstateUserServices(snapst, usr, isEnable, uids)
 		return sysChanged || usrChanged, nil
 	case wrappers.ServiceScopeSystem:
 		return updateSnapstateSystemServices(snapst, sys, isEnable), nil
 	case wrappers.ServiceScopeUser:
-		// Retrieve the uids affected
-		affectedUids, err := affectedUids(scopeOpts.Users)
+		uids, err := affectedUids(scopeOpts.Users)
 		if err != nil {
 			return false, err
 		}
-		return updateSnapstateUserServices(snapst, sys, isEnable, affectedUids), nil
+		return updateSnapstateUserServices(snapst, sys, isEnable, uids), nil
 	}
 	return false, nil
 }
