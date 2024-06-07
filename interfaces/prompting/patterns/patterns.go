@@ -17,7 +17,7 @@
  *
  */
 
-package prompting
+package patterns
 
 import (
 	"bytes"

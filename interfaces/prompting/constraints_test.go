@@ -25,6 +25,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces/prompting"
+	"github.com/snapcore/snapd/interfaces/prompting/patterns"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 )
 
@@ -33,7 +34,7 @@ type constraintsSuite struct{}
 var _ = Suite(&constraintsSuite{})
 
 func (s *constraintsSuite) TestConstraintsValidateForInterface(c *C) {
-	validPathPattern, err := prompting.ParsePathPattern("/path/to/foo")
+	validPathPattern, err := patterns.ParsePathPattern("/path/to/foo")
 	c.Assert(err, IsNil)
 
 	// Happy
@@ -169,7 +170,7 @@ func (*constraintsSuite) TestConstraintsMatch(c *C) {
 		},
 	}
 	for _, testCase := range cases {
-		pattern, err := prompting.ParsePathPattern(testCase.pattern)
+		pattern, err := patterns.ParsePathPattern(testCase.pattern)
 		c.Check(err, IsNil)
 		constraints := &prompting.Constraints{
 			PathPattern: pattern,
@@ -248,7 +249,7 @@ func (s *constraintsSuite) TestConstraintsRemovePermission(c *C) {
 		},
 	}
 	for _, testCase := range cases {
-		pathPattern, err := prompting.ParsePathPattern("/path/to/foo")
+		pathPattern, err := patterns.ParsePathPattern("/path/to/foo")
 		c.Check(err, IsNil)
 		constraints := &prompting.Constraints{
 			PathPattern: pathPattern,
@@ -308,7 +309,7 @@ func (s *constraintsSuite) TestConstraintsContainPermissions(c *C) {
 		},
 	}
 	for _, testCase := range cases {
-		pathPattern, err := prompting.ParsePathPattern("/arbitrary")
+		pathPattern, err := patterns.ParsePathPattern("/arbitrary")
 		c.Check(err, IsNil)
 		constraints := &prompting.Constraints{
 			PathPattern: pathPattern,

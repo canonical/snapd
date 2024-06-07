@@ -17,17 +17,20 @@
  *
  */
 
-package prompting_test
+package patterns_test
 
 import (
 	"strings"
+	"testing"
 
 	. "gopkg.in/check.v1"
 
 	doublestar "github.com/bmatcuk/doublestar/v4"
 
-	"github.com/snapcore/snapd/interfaces/prompting"
+	"github.com/snapcore/snapd/interfaces/prompting/patterns"
 )
+
+func Test(t *testing.T) { TestingT(t) }
 
 type patternsSuite struct{}
 
@@ -131,7 +134,7 @@ func (s *patternsSuite) TestParsePathPatternHappy(c *C) {
 		"/" + strings.Repeat("{a,", 999) + "a" + strings.Repeat("}", 999),
 		"/" + strings.Repeat("{", 999) + "a" + strings.Repeat(",a}", 999),
 	} {
-		_, err := prompting.ParsePathPattern(pattern)
+		_, err := patterns.ParsePathPattern(pattern)
 		c.Check(err, IsNil, Commentf("valid path pattern %q was incorrectly not allowed", pattern))
 	}
 }
@@ -206,7 +209,7 @@ func (s *patternsSuite) TestParsePathPatternUnhappy(c *C) {
 			`invalid path pattern: nested group depth exceeded maximum number of expanded path patterns.*`,
 		},
 	} {
-		pathPattern, err := prompting.ParsePathPattern(testCase.pattern)
+		pathPattern, err := patterns.ParsePathPattern(testCase.pattern)
 		c.Check(err, ErrorMatches, testCase.errStr, Commentf("testCase: %+v", testCase))
 		c.Check(pathPattern, IsNil)
 	}
@@ -218,7 +221,7 @@ func (s *patternsSuite) TestPathPatternString(c *C) {
 		"/foo/ba{r,s}/**",
 		"/{a,b}{c,d}{e,f}{g,h}",
 	} {
-		pathPattern, err := prompting.ParsePathPattern(pattern)
+		pathPattern, err := patterns.ParsePathPattern(pattern)
 		c.Check(err, IsNil)
 		c.Check(pathPattern.String(), Equals, pattern)
 	}
@@ -230,7 +233,7 @@ func (s *patternsSuite) TestPathPatternMarshalJSON(c *C) {
 		"/foo/ba{r,s}/**",
 		"/{a,b}{c,d}{e,f}{g,h}",
 	} {
-		pathPattern, err := prompting.ParsePathPattern(pattern)
+		pathPattern, err := patterns.ParsePathPattern(pattern)
 		c.Check(err, IsNil)
 		marshalled, err := pathPattern.MarshalJSON()
 		c.Check(err, IsNil)
@@ -244,7 +247,7 @@ func (s *patternsSuite) TestPathPatternUnmarshalJSONHappy(c *C) {
 		[]byte(`"/foo/ba{r,s}/**"`),
 		[]byte(`"/{a,b}{c,d}{e,f}{g,h}"`),
 	} {
-		pathPattern := prompting.PathPattern{}
+		pathPattern := patterns.PathPattern{}
 		err := pathPattern.UnmarshalJSON(pattern)
 		c.Check(err, IsNil)
 		marshalled, err := pathPattern.MarshalJSON()
@@ -268,7 +271,7 @@ func (s *patternsSuite) TestPathPatternUnmarshalJSONUnhappy(c *C) {
 			`invalid character '\\x00' in string literal`,
 		},
 	} {
-		pathPattern := prompting.PathPattern{}
+		pathPattern := patterns.PathPattern{}
 		err := pathPattern.UnmarshalJSON(testCase.json)
 		c.Check(err, ErrorMatches, testCase.err)
 	}
@@ -411,7 +414,7 @@ func (s *patternsSuite) TestPathPatternNext(c *C) {
 			[]string{"/foo,bar,baz"},
 		},
 	} {
-		pathPattern, err := prompting.ParsePathPattern(testCase.pattern)
+		pathPattern, err := patterns.ParsePathPattern(testCase.pattern)
 		c.Check(err, IsNil, Commentf("testcase: %+v", testCase))
 		expanded := make([]string, 0, pathPattern.NumExpansions())
 		for {
@@ -757,7 +760,7 @@ func (s *patternsSuite) TestPathPatternMatch(c *C) {
 		},
 	}
 	for _, testCase := range cases {
-		matches, err := prompting.PathPatternMatch(testCase.pattern, testCase.path)
+		matches, err := patterns.PathPatternMatch(testCase.pattern, testCase.path)
 		c.Check(err, IsNil, Commentf("test case: %+v", testCase))
 		c.Check(matches, Equals, testCase.matches, Commentf("test case: %+v", testCase))
 	}
@@ -765,7 +768,7 @@ func (s *patternsSuite) TestPathPatternMatch(c *C) {
 
 func (s *patternsSuite) TestPathPatternMatchErrors(c *C) {
 	badPattern := `badpattern\`
-	matches, err := prompting.PathPatternMatch(badPattern, "foo")
+	matches, err := patterns.PathPatternMatch(badPattern, "foo")
 	c.Check(err, Equals, doublestar.ErrBadPattern)
 	c.Check(matches, Equals, false)
 }
