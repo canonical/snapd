@@ -41,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
@@ -1892,6 +1893,14 @@ echo "mock output of: $(basename "$0") $*"
 	defer devicestate.MockCreateSaveResetter(func(saveNode string) (secboot.KeyResetter, error) {
 		return &secboot.MockKeyResetter{}, nil
 	})()
+	defer devicestate.MockDeleteOldSaveKey(func(saveMntPnt string) error {
+		return nil
+	})()
+	defer disks.MockUdevPropertiesForDevice(func(string, string) (map[string]string, error) {
+		return map[string]string{
+			"ID_PART_ENTRY_UUID": "fbbb94fb-46ea-4e00-b830-afc72d202449",
+		}, nil
+	})()
 
 	err = s.doRunFactoryResetChange(c, model, resetTestCase{
 		tpm: true, encrypt: true, trustedBootloader: true,
@@ -1959,6 +1968,14 @@ echo "mock output of: $(basename "$0") $*"
 
 	defer devicestate.MockCreateSaveResetter(func(saveNode string) (secboot.KeyResetter, error) {
 		return &secboot.MockKeyResetter{}, nil
+	})()
+	defer devicestate.MockDeleteOldSaveKey(func(saveMntPnt string) error {
+		return nil
+	})()
+	defer disks.MockUdevPropertiesForDevice(func(string, string) (map[string]string, error) {
+		return map[string]string{
+			"ID_PART_ENTRY_UUID": "fbbb94fb-46ea-4e00-b830-afc72d202449",
+		}, nil
 	})()
 
 	err = s.doRunFactoryResetChange(c, model, resetTestCase{
