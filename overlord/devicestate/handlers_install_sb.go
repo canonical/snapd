@@ -72,8 +72,9 @@ func createSaveResetterImpl(saveNode string) (secboot.KeyResetter, error) {
 					if err := sb.DeleteLUKS2ContainerKey(saveNode, slot); err != nil {
 						return nil, fmt.Errorf("cannot remove old container key: %v", err)
 					}
+				} else {
+					return nil, fmt.Errorf("cannot rename container key: %v", err)
 				}
-				return nil, fmt.Errorf("cannot rename container key: %v", err)
 			}
 		}
 	}
