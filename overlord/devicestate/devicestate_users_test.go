@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2022-2023 Canonical Ltd
+ * Copyright (C) 2022-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -749,6 +749,31 @@ func (s *usersSuite) TestCreateUserFromAssertionNoSerial(c *check.C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
+	s.makeSystemUsers(c, []map[string]interface{}{serialUser})
+
+	s.state.Lock()
+	err := devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "my-brand",
+		Model: "my-model",
+	})
+	s.state.Unlock()
+	c.Assert(err, check.IsNil)
+
+	// create user
+	s.state.Lock()
+	createdUsers, userErr := devicestate.CreateKnownUsers(s.state, true, "serial@bar.com")
+	s.state.Unlock()
+
+	c.Check(userErr, check.NotNil)
+	c.Check(userErr.Error(), check.Matches, `cannot create user "serial@bar.com": bound to serial assertion but device not yet registered`)
+	c.Check(s.errorIsInternal(userErr), check.Equals, false)
+	c.Assert(createdUsers, check.IsNil)
+}
+
+func (s *usersSuite) TestCreateUserFromAssertionDelayedAfterSerialAcquisition(c *check.C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
 	// initialize device, and add system-user assertion for serialUser
 	s.makeSystemUsers(c, []map[string]interface{}{serialUser})
 
@@ -794,19 +819,27 @@ func (s *usersSuite) TestCreateUserFromAssertionNoSerial(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(waitingOnSerial, check.Equals, true)
 
-	// restore seed, and mark as seeded
+	// mark seeded, no serial, ensure will still do nothing
 	s.state.Lock()
 	s.state.Set("seeded", true)
+	s.state.Unlock()
+	err = devicestate.EnsureSerialBoundSystemUserAssertionsProcessed(s.mgr)
+	c.Check(err, check.IsNil)
+	c.Assert(createdUsers, check.IsNil)
+
+	// have a serial now
+	s.state.Lock()
 	err = devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand:  "my-brand",
 		Model:  "my-model",
 		Serial: "serialserial",
 	})
-	c.Assert(err, check.IsNil)
 	s.state.Unlock()
+	c.Assert(err, check.IsNil)
 
 	// ensure, thereby creating pending users
-	s.mgr.Ensure()
+	err = devicestate.EnsureSerialBoundSystemUserAssertionsProcessed(s.mgr)
+	c.Check(err, check.IsNil)
 
 	// make sure that system-user-waiting-on-serial has been set to false
 	s.state.Lock()

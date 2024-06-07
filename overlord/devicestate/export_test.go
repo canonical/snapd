@@ -199,6 +199,10 @@ func EnsureCloudInitRestricted(m *DeviceManager) error {
 	return m.ensureCloudInitRestricted()
 }
 
+func EnsureSerialBoundSystemUserAssertionsProcessed(m *DeviceManager) error {
+	return m.ensureSerialBoundSystemUserAssertionsProcessed()
+}
+
 func ImportAssertionsFromSeed(m *DeviceManager, isCoreBoot bool) (seed.Seed, error) {
 	return m.importAssertionsFromSeed(isCoreBoot)
 }
