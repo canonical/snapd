@@ -590,60 +590,100 @@ jobs:
           - group: amazon-linux
             backend: google-distro-1
             systems: 'amazon-linux-2-64 amazon-linux-2023-64'
+            tests: 'tests/...'
           - group: arch-linux
             backend: google-distro-2
             systems: 'arch-linux-64'
+            tests: 'tests/...'
           - group: centos
             backend: google-distro-2
             systems: 'centos-7-64 centos-8-64 centos-9-64'
+            tests: 'tests/...'
           - group: debian-req
             backend: google-distro-1
             systems: 'debian-11-64'
+            tests: 'tests/...'
           - group: debian-no-req
             backend: google-distro-1
             systems: 'debian-12-64 debian-sid-64'
+            tests: 'tests/...'
           - group: fedora
             backend: google-distro-1
             systems: 'fedora-38-64 fedora-39-64'
+            tests: 'tests/...'
           - group: opensuse
             backend: google-distro-2
             systems: 'opensuse-15.5-64 opensuse-tumbleweed-64'
+            tests: 'tests/...'
           - group: ubuntu-trusty-xenial
             backend: google
             systems: 'ubuntu-14.04-64 ubuntu-16.04-64'
+            tests: 'tests/...'
           - group: ubuntu-bionic
             backend: google
             systems: 'ubuntu-18.04-32 ubuntu-18.04-64'
+            tests: 'tests/...'
           - group: ubuntu-focal-jammy
             backend: google
             systems: 'ubuntu-20.04-64 ubuntu-22.04-64'
+            tests: 'tests/...'
           - group: ubuntu-no-lts
             backend: google
             systems: 'ubuntu-23.10-64'
+            tests: 'tests/...'
           - group: ubuntu-daily
             backend: google
             systems: 'ubuntu-24.04-64'
+            tests: 'tests/...'
           - group: ubuntu-core-16
             backend: google-core
             systems: 'ubuntu-core-16-64'
+            tests: 'tests/...'
           - group: ubuntu-core-18
             backend: google-core
             systems: 'ubuntu-core-18-64'
+            tests: 'tests/...'
           - group: ubuntu-core-20
             backend: google-core
             systems: 'ubuntu-core-20-64'
+            tests: 'tests/...'
           - group: ubuntu-core-22
             backend: google-core
             systems: 'ubuntu-core-22-64'
+            tests: 'tests/...'
           - group: ubuntu-core-24
             backend: google-core
             systems: 'ubuntu-core-24-64'
+            tests: 'tests/...'
           - group: ubuntu-arm
             backend: google-arm
             systems: 'ubuntu-20.04-arm-64 ubuntu-core-22-arm-64'
+            tests: 'tests/...'
           - group: ubuntu-secboot
             backend: google
             systems: 'ubuntu-secboot-20.04-64'
+            tests: 'tests/...'
+
+          - group: nested-ubuntu-16.04
+            backend: google-nested
+            systems: 'ubuntu-16.04-64'
+            tests: 'tests/nested/...'
+          - group: nested-ubuntu-18.04
+            backend: google-nested
+            systems: 'ubuntu-18.04-64'
+            tests: 'tests/nested/...'
+          - group: nested-ubuntu-20.04
+            backend: google-nested
+            systems: 'ubuntu-20.04-64'
+            tests: 'tests/nested/...'
+          - group: nested-ubuntu-22.04
+            backend: google-nested
+            systems: 'ubuntu-22.04-64'
+            tests: 'tests/nested/...'
+          - group: nested-ubuntu-24.04
+            backend: google-nested
+            systems: 'ubuntu-24.04-64'
+            tests: 'tests/nested/...'
     steps:
     - name: Cleanup job workspace
       id: cleanup-job-workspace
@@ -698,15 +738,19 @@ jobs:
           fi
 
     - name: Run spread tests
-      if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread')"
+      if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread') && ( !startsWith(matrix.group, 'nested-') || contains(github.event.pull_request.labels.*.name, 'Run nested') )"
       env:
           SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
       run: |
           # Register a problem matcher to highlight spread failures
           echo "::add-matcher::.github/spread-problem-matcher.json"
-
           set -x
           SPREAD=spread
+          if [[ "${{ matrix.group }}" =~ nested- ]]; then
+            export NESTED_BUILD_SNAPD_FROM_CURRENT=true
+            export NESTED_ENABLE_KVM=true
+          fi
+
           if [[ "${{ matrix.systems }}" =~ amazon-linux-2023 ]]; then
               # Amazon Linux 2023 has no xdelta, however we cannot disable
               # xdelta on a per-target basis as it's used in the repack section
@@ -722,7 +766,7 @@ jobs:
               RUN_TESTS="$FAILED_TESTS"
           else
               for SYSTEM in ${{ matrix.systems }}; do
-                  RUN_TESTS="$RUN_TESTS ${{ matrix.backend }}:$SYSTEM:tests/..."
+                  RUN_TESTS="$RUN_TESTS ${{ matrix.backend }}:$SYSTEM:${{ matrix.tests }}"
               done
           fi
           # Run spread tests
@@ -775,7 +819,7 @@ jobs:
               echo "Determining which tests were executed"
               RUN_TESTS=""
               for SYSTEM in ${{ matrix.systems }}; do
-                  RUN_TESTS="$RUN_TESTS ${{ matrix.backend }}:$SYSTEM:tests/..."
+                  RUN_TESTS="$RUN_TESTS ${{ matrix.backend }}:$SYSTEM:${{ matrix.tests }}"
               done
               if [ -n "$FAILED_TESTS" ]; then
                   RUN_TESTS="$FAILED_TESTS"
@@ -797,168 +841,3 @@ jobs:
       with:
         path: "${{ github.workspace }}/.test-results"
         key: "${{ github.job }}-results-${{ github.run_id }}-${{ matrix.group }}-${{ github.run_attempt }}"
-
-  spread-nested:
-    needs: [unit-tests]
-    # have spread jobs run on master on PRs only, but on both PRs and pushes to
-    # release branches
-    if: ${{ github.event_name != 'push' || github.ref != 'refs/heads/master' }}
-    runs-on: self-hosted
-    strategy:
-      # FIXME: enable fail-fast mode once spread can cancel an executing job.
-      # Disable fail-fast mode as it doesn't function with spread. It seems
-      # that cancelling tasks requires short, interruptible actions and
-      # interrupting spread, notably, does not work today. As such disable
-      # fail-fast while we tackle that problem upstream.
-      fail-fast: false
-      matrix:
-        system:
-        - ubuntu-16.04-64
-        - ubuntu-18.04-64
-        - ubuntu-20.04-64
-        - ubuntu-22.04-64
-        - ubuntu-24.04-64
-    steps:
-    - name: Cleanup job workspace
-      id: cleanup-job-workspace
-      run: |
-          rm -rf "${{ github.workspace }}"
-          mkdir "${{ github.workspace }}"
-
-    - name: Checkout code
-      uses: actions/checkout@v3
-
-    - name: Get previous attempt
-      id: get-previous-attempt
-      run: |
-        echo "previous_attempt=$(( ${{ github.run_attempt }} - 1 ))" >> $GITHUB_OUTPUT
-      shell: bash
-
-    - name: Get previous cache
-      uses: actions/cache@v3
-      with:
-        path: "${{ github.workspace }}/.test-results"
-        key: "${{ github.job }}-results-${{ github.run_id }}-${{ matrix.system }}-${{ steps.get-previous-attempt.outputs.previous_attempt }}"
-
-    - name: Prepare test results env and vars
-      id: prepare-test-results-env
-      run: |
-          # Create test results directories and save vars
-          TEST_RESULTS_DIR="${{ github.workspace }}/.test-results"
-          echo "TEST_RESULTS_DIR=$TEST_RESULTS_DIR" >> $GITHUB_ENV
-
-          # Save the var with the failed tests file
-          echo "FAILED_TESTS_FILE=$TEST_RESULTS_DIR/failed-tests" >> $GITHUB_ENV
-
-          # Make sure the test results dirs are created
-          # This step has to be after the cache is restored
-          mkdir -p "$TEST_RESULTS_DIR"
-
-    - name: Check failed tests to run
-      if: "!contains(github.event.pull_request.labels.*.name, 'Run all')"
-      run: |
-          # Save previous failed test results in FAILED_TESTS env var
-          FAILED_TESTS=""
-          if [ -f "$FAILED_TESTS_FILE" ]; then
-              echo "Failed tests file found"
-              FAILED_TESTS="$(cat $FAILED_TESTS_FILE)"
-              if [ -n "$FAILED_TESTS" ]; then
-                  echo "Failed tests to run: $FAILED_TESTS"
-                  echo "FAILED_TESTS=$FAILED_TESTS" >> $GITHUB_ENV
-              fi
-          fi
-
-    - name: Collect PR labels
-      id: collect-pr-labels
-      env:
-        GH_TOKEN: ${{ github.token }}
-      run: |
-          LABELS="$(gh api -H 'Accept: application/vnd.github+json' /repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/labels | jq '[.[].name] | join(",")')"
-          echo "labels=$LABELS" >> $GITHUB_OUTPUT
-          echo "Collected labels: $LABELS"
-      shell: bash
-
-    - name: Run spread tests
-      # run if there is a 'Run nested' label set on the PR or the commit is pushed to one of the recognised release branches
-      # "release/**", "core-snap-security-release/**" or "security-release/**"
-      if: "contains(steps.collect-pr-labels.outputs.labels, 'Run nested') || contains(github.ref, 'refs/heads/release/') || contains(github.ref, 'refs/heads/core-snap-security-release/') || contains(github.ref, 'refs/heads/security-release/')"
-      env:
-          SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
-      run: |
-          # Register a problem matcher to highlight spread failures
-          echo "::add-matcher::.github/spread-problem-matcher.json"
-          export NESTED_BUILD_SNAPD_FROM_CURRENT=true
-          export NESTED_ENABLE_KVM=true
-
-          BACKEND=google-nested
-          SPREAD=spread
-          if [[ "${{ matrix.system }}" =~ -arm- ]]; then
-              BACKEND=google-nested-arm
-              SPREAD=spread-arm
-          fi
-
-          RUN_TESTS="$BACKEND:${{ matrix.system }}:tests/nested/..."
-          if [ -n "$FAILED_TESTS" ]; then
-              RUN_TESTS="$FAILED_TESTS"
-          fi
-
-          # Run spread tests
-          # "pipefail" ensures that a non-zero status from the spread is
-          # propagated; and we use a subshell as this option could trigger
-          # undesired changes elsewhere
-          (set -o pipefail; spread $RUN_TESTS | tee spread.log)
-
-    - name: Discard spread workers
-      if: always()
-      run: |
-        shopt -s nullglob;
-        for r in .spread-reuse.*.yaml; do
-          spread -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
-        done
-
-    - name: report spread errors
-      if: always()
-      run: |
-        if [ -e spread.log ]; then
-            echo "Running spread log analyzer"
-            issues_metadata='{"source_url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"}'
-            ./tests/lib/external/snapd-testing-tools/utils/log-parser spread.log --print-detail error --output spread-results.json --cut 100
-            while IFS= read -r line; do
-                if [ ! -z "$line" ]; then
-                    echo "Reporting spread error..."
-                    ./tests/lib/tools/report-mongodb --db-name snapd --db-collection spread_errors --metadata "$issues_metadata" "$line"
-                fi
-            done <<< $(jq -cr '.[] | select( .type == "info") | select( .info_type == "Error")' spread-results.json)
-        else
-            echo "No spread log found, skipping errors reporting"
-        fi
-
-    - name: analyze spread test results
-      if: always()
-      run: |
-          if [ -f spread.log ]; then
-              echo "Running spread log parser"
-              ./tests/lib/external/snapd-testing-tools/utils/log-parser spread.log --output spread-results.json
-    
-              echo "Determining which tests were executed"
-              RUN_TESTS="google-nested:${{ matrix.system }}:tests/nested/..."
-              if [ -n "$FAILED_TESTS" ]; then
-                  RUN_TESTS="$FAILED_TESTS"
-              fi
-
-              echo "Running spread log analyzer"
-              ./tests/lib/external/snapd-testing-tools/utils/log-analyzer list-reexecute-tasks "$RUN_TESTS" spread-results.json > "$FAILED_TESTS_FILE"
-
-              echo "List of failed tests saved"
-              cat "$FAILED_TESTS_FILE"
-          else
-              echo "No spread log found, saving empty list of failed tests"
-              touch "$FAILED_TESTS_FILE"
-          fi
-
-    - name: save spread test results to cache
-      if: always()
-      uses: actions/cache/save@v3
-      with:
-        path: "${{ github.workspace }}/.test-results"
-        key: "${{ github.job }}-results-${{ github.run_id }}-${{ matrix.system }}-${{ github.run_attempt }}"
