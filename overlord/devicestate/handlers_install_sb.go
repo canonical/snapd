@@ -59,24 +59,22 @@ func createSaveResetterImpl(saveNode string) (secboot.KeyResetter, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot list slots in partition save partition: %v", err)
 	}
+	renames := map[string]string{
+		"default":          "factory-reset-old",
+		"default-fallback": "factory-reset-old-fallback",
+		"save":             "factory-reset-old-save",
+	}
 	for _, slot := range slots {
-		if slot == "default" {
-			if err := sb.RenameLUKS2ContainerKey(saveNode, "default", "factory-reset-old"); err != nil {
+		renameTo, found := renames[slot]
+		if found {
+			if err := sb.RenameLUKS2ContainerKey(saveNode, slot, renameTo); err != nil {
+				if err == sb.ErrMissingCryptsetupFeature {
+					if err := sb.DeleteLUKS2ContainerKey(saveNode, slot); err != nil {
+						return nil, fmt.Errorf("cannot remove old container key: %v", err)
+					}
+				}
 				return nil, fmt.Errorf("cannot rename container key: %v", err)
 			}
-			continue
-		}
-		if slot == "default-fallback" {
-			if err := sb.RenameLUKS2ContainerKey(saveNode, "default-fallback", "factory-reset-old-fallback"); err != nil {
-				return nil, fmt.Errorf("cannot rename container key: %v", err)
-			}
-			continue
-		}
-		if slot == "save" {
-			if err := sb.RenameLUKS2ContainerKey(saveNode, "save", "factory-reset-old-save"); err != nil {
-				return nil, fmt.Errorf("cannot rename container key: %v", err)
-			}
-			continue
 		}
 	}
 
@@ -100,24 +98,17 @@ func deleteOldSaveKeyImpl(saveMntPnt string) error {
 		return fmt.Errorf("cannot list slots in partition save partition: %v", err)
 	}
 
+	toDelete := map[string]bool{
+		"factory-reset-old":          true,
+		"factory-reset-old-fallback": true,
+		"factory-reset-old-save":     true,
+	}
+
 	for _, slot := range slots {
-		if slot == "factory-reset-old" {
-			if err := sb.DeleteLUKS2ContainerKey(diskPath, "factory-reset-old"); err != nil {
+		if toDelete[slot] {
+			if err := sb.DeleteLUKS2ContainerKey(diskPath, slot); err != nil {
 				return fmt.Errorf("cannot remove old container key: %v", err)
 			}
-			return nil
-		}
-		if slot == "factory-reset-old-fallback" {
-			if err := sb.DeleteLUKS2ContainerKey(diskPath, "factory-reset-old-fallback"); err != nil {
-				return fmt.Errorf("cannot remove old container key: %v", err)
-			}
-			return nil
-		}
-		if slot == "factory-reset-old-save" {
-			if err := sb.DeleteLUKS2ContainerKey(diskPath, "factory-reset-old-save"); err != nil {
-				return fmt.Errorf("cannot remove old container key: %v", err)
-			}
-			return nil
 		}
 	}
 
