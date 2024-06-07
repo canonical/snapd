@@ -46,18 +46,35 @@ func createSaveResetterImpl(saveNode string) (secboot.KeyResetter, error) {
 	const defaultPrefix = "ubuntu-fde"
 	unlockKey, err := sbGetDiskUnlockKeyFromKernel(defaultPrefix, saveNode, false)
 	if err != nil {
-		return nil, fmt.Errorf("cannot get key for unlocked disk: %v", err)
+		return nil, fmt.Errorf("cannot get key for unlocked disk %s: %v", saveNode, err)
 	}
 
 	if err := sbAddLUKS2ContainerUnlockKey(saveNode, "installation-key", sb.DiskUnlockKey(unlockKey), sb.DiskUnlockKey(saveEncryptionKey)); err != nil {
 		return nil, fmt.Errorf("cannot enroll new installation key: %v", err)
 	}
 
-	// FIXME: if the key has already be renamed, that is "default"
-	// does not exist, but "factory-reset-old" does, then we
-	// should ignore it.
-	if err := sb.RenameLUKS2ContainerKey(saveNode, "default", "factory-reset-old"); err != nil {
-		return nil, fmt.Errorf("cannot rename container key: %v", err)
+	// FIXME: listing keys, then modifying could be a TOCTOU issue.
+	// we expect here nothing else is messing with the key slots.
+	slots, err := sb.ListLUKS2ContainerUnlockKeyNames(saveNode)
+	for _, slot := range slots {
+		if slot == "default" {
+			if err := sb.RenameLUKS2ContainerKey(saveNode, "default", "factory-reset-old"); err != nil {
+				return nil, fmt.Errorf("cannot rename container key: %v", err)
+			}
+			continue
+		}
+		if slot == "default-fallback" {
+			if err := sb.RenameLUKS2ContainerKey(saveNode, "default-fallback", "factory-reset-old-fallback"); err != nil {
+				return nil, fmt.Errorf("cannot rename container key: %v", err)
+			}
+			continue
+		}
+		if slot == "save" {
+			if err := sb.RenameLUKS2ContainerKey(saveNode, "save", "factory-reset-old-save"); err != nil {
+				return nil, fmt.Errorf("cannot rename container key: %v", err)
+			}
+			continue
+		}
 	}
 
 	return secboot.CreateKeyResetter(sb.DiskUnlockKey(saveEncryptionKey), saveNode), nil
@@ -74,14 +91,27 @@ func deleteOldSaveKeyImpl(saveMntPnt string) error {
 		return fmt.Errorf("cannot partition save partition: %v", err)
 	}
 
-	slots, err := sb.ListLUKS2ContainerUnlockKeyNames(filepath.Join("/dev/disk/by-partuuid", partUUID))
+	diskPath := filepath.Join("/dev/disk/by-partuuid", partUUID)
+	slots, err := sb.ListLUKS2ContainerUnlockKeyNames(diskPath)
 	if err != nil {
 		return fmt.Errorf("cannot list slots in partition save partition: %v", err)
 	}
 
 	for _, slot := range slots {
 		if slot == "factory-reset-old" {
-			if err := sb.DeleteLUKS2ContainerKey(filepath.Join("/dev/disk/by-partuuid", partUUID), "factory-reset-old"); err != nil {
+			if err := sb.DeleteLUKS2ContainerKey(diskPath, "factory-reset-old"); err != nil {
+				return fmt.Errorf("cannot remove old container key: %v", err)
+			}
+			return nil
+		}
+		if slot == "factory-reset-old-fallback" {
+			if err := sb.DeleteLUKS2ContainerKey(diskPath, "factory-reset-old-fallback"); err != nil {
+				return fmt.Errorf("cannot remove old container key: %v", err)
+			}
+			return nil
+		}
+		if slot == "factory-reset-old-save" {
+			if err := sb.DeleteLUKS2ContainerKey(diskPath, "factory-reset-old-save"); err != nil {
 				return fmt.Errorf("cannot remove old container key: %v", err)
 			}
 			return nil

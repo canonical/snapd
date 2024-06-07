@@ -44,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/disks"
 	installLogic "github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -597,6 +598,11 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 		if saveNode == "" {
 			return fmt.Errorf("internal error: no system-save device")
 		}
+		uuid, err := disks.PartitionUUID(saveNode)
+		if err != nil {
+			return fmt.Errorf("cannot find uuid for partition %s: %v", saveNode, err)
+		}
+		saveNode = fmt.Sprintf("/dev/disk/by-partuuid/%s", uuid)
 
 		saveResetter, err := createSaveResetter(saveNode)
 		if err != nil {
