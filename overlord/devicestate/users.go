@@ -1,6 +1,6 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 /*
- * Copyright (C) 2022-2023 Canonical Ltd
+ * Copyright (C) 2022-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -186,9 +186,8 @@ func createKnownSystemUser(state *state.State, userAssertion *asserts.SystemUser
 	username, expiration, addUserOpts, err := getUserDetailsFromAssertion(assertDb, model, serial, email)
 	if err != nil {
 		if errors.Is(err, errSystemUserBoundToSerialButTooEarly) {
-			state.Set("system-user-waiting-on-serial", true)
-			logger.Noticef("waiting for serial to add user %q: %s", email, err)
-			return nil, nil
+			// let callers decide how to proceed
+			return nil, err
 		}
 		logger.Noticef("ignoring system-user assertion for %q: %s", email, err)
 		return nil, nil
@@ -215,8 +214,14 @@ var createAllKnownSystemUsers = func(state *state.State, assertDb asserts.ROData
 
 	var createdUsers []*CreatedUser
 	for _, as := range assertions {
-		createdUser, err := createKnownSystemUser(state, as.(*asserts.SystemUser), assertDb, model, serial, sudoer)
+		userAs := as.(*asserts.SystemUser)
+		createdUser, err := createKnownSystemUser(state, userAs, assertDb, model, serial, sudoer)
 		if err != nil {
+			if errors.Is(err, errSystemUserBoundToSerialButTooEarly) {
+				state.Set("system-user-waiting-on-serial", true)
+				logger.Noticef("waiting for serial to add user %q: %s", userAs.Email(), err)
+				continue
+			}
 			return nil, err
 		}
 		if createdUser == nil {
