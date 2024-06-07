@@ -56,6 +56,9 @@ func createSaveResetterImpl(saveNode string) (secboot.KeyResetter, error) {
 	// FIXME: listing keys, then modifying could be a TOCTOU issue.
 	// we expect here nothing else is messing with the key slots.
 	slots, err := sb.ListLUKS2ContainerUnlockKeyNames(saveNode)
+	if err != nil {
+		return nil, fmt.Errorf("cannot list slots in partition save partition: %v", err)
+	}
 	for _, slot := range slots {
 		if slot == "default" {
 			if err := sb.RenameLUKS2ContainerKey(saveNode, "default", "factory-reset-old"); err != nil {
