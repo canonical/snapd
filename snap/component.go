@@ -19,7 +19,10 @@ package snap
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
+	"strings"
+	"time"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
@@ -37,7 +40,7 @@ type ComponentInfo struct {
 	ComponentProvenance string              `yaml:"provenance,omitempty"`
 
 	// Hooks contains information about implicit and explicit hooks that this
-	// component has. This information is derived from a combination of the
+	// component has. This information is derived from a combination on the
 	// component itself and the snap.Info that represents the snap this
 	// component is associated with. This field may be empty if the
 	// ComponentInfo was not created with the help of a snap.Info.
@@ -153,6 +156,40 @@ func (c *componentPlaceInfo) MountFile() string {
 // MountDescription returns the mount unit Description field.
 func (c *componentPlaceInfo) MountDescription() string {
 	return fmt.Sprintf("Mount unit for %s, revision %s", c.ContainerName(), c.compRevision)
+}
+
+// ComponentLinkPath returns the path for the symlink for a component for a
+// given snap revision.
+func ComponentLinkPath(cpi ContainerPlaceInfo, snapRev Revision) string {
+	instanceName, compName, _ := strings.Cut(cpi.ContainerName(), "+")
+	compBase := ComponentsBaseDir(instanceName)
+	return filepath.Join(compBase, snapRev.String(), compName)
+}
+
+// ComponentInstallDate returns the "install date" of the component by checking
+// when its symlink was created. We cannot use the mount directory as lstat
+// returns the date of the root of the container instead of the date when the
+// mount directory was created.
+func ComponentInstallDate(cpi ContainerPlaceInfo, snapRev Revision) *time.Time {
+	symLn := ComponentLinkPath(cpi, snapRev)
+	if st, err := os.Lstat(symLn); err == nil {
+		modTime := st.ModTime()
+		return &modTime
+	}
+	return nil
+}
+
+// ComponentSize returns the file size of a component.
+func ComponentSize(cpi ContainerPlaceInfo) (int64, error) {
+	st, err := os.Lstat(cpi.MountFile())
+	if err != nil {
+		return 0, fmt.Errorf("error while looking for component file %q: %v",
+			cpi.MountFile(), err)
+	}
+	if !st.Mode().IsRegular() {
+		return 0, fmt.Errorf("unexpected file type for component file %q", cpi.MountFile())
+	}
+	return st.Size(), nil
 }
 
 // ReadComponentInfoFromContainer reads ComponentInfo from a snap component
