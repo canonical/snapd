@@ -116,6 +116,7 @@ func (s *snapmgrBaseTest) logTasks(c *C) {
 
 		for _, t := range chg.Tasks() {
 			c.Logf("  %s - %s", t.Summary(), t.Status())
+
 			if t.Status() == state.ErrorStatus {
 				c.Logf("    %s", strings.Join(t.Log(), "    \n"))
 			}
