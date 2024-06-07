@@ -787,6 +787,12 @@ func (s *usersSuite) TestCreateUserFromAssertionNoSerial(c *check.C) {
 	// make sure that no users were created
 	c.Check(userErr, check.IsNil)
 	c.Assert(createdUsers, check.IsNil)
+	var waitingOnSerial bool
+	s.state.Lock()
+	err = s.state.Get("system-user-waiting-on-serial", &waitingOnSerial)
+	s.state.Unlock()
+	c.Assert(err, check.IsNil)
+	c.Check(waitingOnSerial, check.Equals, true)
 
 	// restore seed, and mark as seeded
 	s.state.Lock()
@@ -803,7 +809,6 @@ func (s *usersSuite) TestCreateUserFromAssertionNoSerial(c *check.C) {
 	s.mgr.Ensure()
 
 	// make sure that system-user-waiting-on-serial has been set to false
-	var waitingOnSerial bool
 	s.state.Lock()
 	err = s.state.Get("system-user-waiting-on-serial", &waitingOnSerial)
 	s.state.Unlock()

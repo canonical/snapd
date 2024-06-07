@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2023 Canonical Ltd
+ * Copyright (C) 2016-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -1066,7 +1066,11 @@ func (m *DeviceManager) ensureAutoImportAssertions() error {
 	return nil
 }
 
-func (m *DeviceManager) ensureSerialBoundAssertionsProcessed() error {
+func (m *DeviceManager) ensureSerialBoundSystemUserAssertionsProcessed() error {
+	if release.OnClassic {
+		return nil
+	}
+
 	m.state.Lock()
 	defer m.state.Unlock()
 
@@ -1075,10 +1079,6 @@ func (m *DeviceManager) ensureSerialBoundAssertionsProcessed() error {
 		return err
 	}
 	if !seeded {
-		return nil
-	}
-
-	if release.OnClassic {
 		return nil
 	}
 
@@ -1825,7 +1825,7 @@ func (m *DeviceManager) Ensure() error {
 			errs = append(errs, err)
 		}
 
-		if err := m.ensureSerialBoundAssertionsProcessed(); err != nil {
+		if err := m.ensureSerialBoundSystemUserAssertionsProcessed(); err != nil {
 			errs = append(errs, err)
 		}
 
