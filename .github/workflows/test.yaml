@@ -461,12 +461,15 @@ jobs:
           - group: ubuntu-focal-jammy
             backend: google
             systems: 'ubuntu-20.04-64 ubuntu-22.04-64'
+          - group: ubuntu-noble
+            backend: google
+            systems: 'ubuntu-24.04-64'
           - group: ubuntu-no-lts
             backend: google
             systems: 'ubuntu-23.10-64'
           - group: ubuntu-daily
             backend: google
-            systems: 'ubuntu-24.04-64'
+            systems: 'ubuntu-24.10-64'
           - group: ubuntu-core-16
             backend: google
             systems: 'ubuntu-core-16-64'
