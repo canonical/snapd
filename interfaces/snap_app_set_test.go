@@ -257,7 +257,7 @@ components:
 	set, err := interfaces.NewSnapAppSet(info, []*snap.ComponentInfo{compInfo})
 	c.Assert(err, IsNil)
 
-	c.Check(set.Runnables(), testutil.DeepUnsortedMatches, []interfaces.Runnable{
+	c.Check(set.Runnables(), testutil.DeepUnsortedMatches, []snap.Runnable{
 		{
 			CommandName: "app1",
 			SecurityTag: "snap.name.app1",

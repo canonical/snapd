@@ -1822,7 +1822,7 @@ components:
 
 	producerAppSet := s.secBackend.SetupCalls[2].AppSet
 	c.Check(producerAppSet.InstanceName(), Equals, "producer")
-	c.Check(producerAppSet.Runnables(), testutil.DeepUnsortedMatches, []interfaces.Runnable{
+	c.Check(producerAppSet.Runnables(), testutil.DeepUnsortedMatches, []snap.Runnable{
 		{
 			CommandName: "producer+comp.hook.install",
 			SecurityTag: "snap.producer+comp.hook.install",
@@ -1831,7 +1831,7 @@ components:
 
 	consumerAppSet := s.secBackend.SetupCalls[3].AppSet
 	c.Check(consumerAppSet.InstanceName(), Equals, "consumer")
-	c.Check(consumerAppSet.Runnables(), testutil.DeepUnsortedMatches, []interfaces.Runnable{
+	c.Check(consumerAppSet.Runnables(), testutil.DeepUnsortedMatches, []snap.Runnable{
 		{
 			CommandName: "consumer+comp.hook.install",
 			SecurityTag: "snap.consumer+comp.hook.install",
@@ -2534,7 +2534,7 @@ components:
       install:
 `
 
-var consumerRunnablesFullSet = []interfaces.Runnable{
+var consumerRunnablesFullSet = []snap.Runnable{
 	{
 		CommandName: "hook.connect-plug-otherplug",
 		SecurityTag: "snap.consumer.hook.connect-plug-otherplug",
@@ -2618,7 +2618,7 @@ components:
       install:
 `
 
-var producerRunnablesFullSet = []interfaces.Runnable{
+var producerRunnablesFullSet = []snap.Runnable{
 	{
 		CommandName: "hook.connect-slot-slot",
 		SecurityTag: "snap.producer.hook.connect-slot-slot",
@@ -4051,7 +4051,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesInstallComponent(c *C) {
 
 	// the snap defines another component, comp2. note that it is not listed
 	// here because it is not installed.
-	c.Check(appSet.Runnables(), testutil.DeepUnsortedMatches, []interfaces.Runnable{
+	c.Check(appSet.Runnables(), testutil.DeepUnsortedMatches, []snap.Runnable{
 		{
 			CommandName: "app",
 			SecurityTag: "snap.snap.app",
@@ -4128,7 +4128,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesInstallComponentSnapHasPreexist
 
 	// the snap defines another component, comp2. note that it is not listed
 	// here because it is not installed.
-	c.Check(appSet.Runnables(), testutil.DeepUnsortedMatches, []interfaces.Runnable{
+	c.Check(appSet.Runnables(), testutil.DeepUnsortedMatches, []snap.Runnable{
 		{
 			CommandName: "app",
 			SecurityTag: "snap.snap.app",
@@ -4186,7 +4186,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesUpdateSnapWithComponents(c *C) 
 
 	// the snap defines another component, comp2. note that it is not listed
 	// here because it is not installed.
-	c.Check(appSet.Runnables(), testutil.DeepUnsortedMatches, []interfaces.Runnable{
+	c.Check(appSet.Runnables(), testutil.DeepUnsortedMatches, []snap.Runnable{
 		{
 			CommandName: "app",
 			SecurityTag: "snap.snap.app",
@@ -4291,7 +4291,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesOfAffectedSnapWithComponents(c 
 
 	// the snap defines another component, comp2. note that it is not listed
 	// here because it is not installed.
-	c.Check(firstAppSet.Runnables(), testutil.DeepUnsortedMatches, []interfaces.Runnable{
+	c.Check(firstAppSet.Runnables(), testutil.DeepUnsortedMatches, []snap.Runnable{
 		{
 			CommandName: "app",
 			SecurityTag: "snap.snap.app",
@@ -4306,7 +4306,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesOfAffectedSnapWithComponents(c 
 		},
 	})
 
-	c.Check(secondAppSet.Runnables(), testutil.DeepUnsortedMatches, []interfaces.Runnable{
+	c.Check(secondAppSet.Runnables(), testutil.DeepUnsortedMatches, []snap.Runnable{
 		{
 			CommandName: "app",
 			SecurityTag: "snap.snap.app",
@@ -4321,7 +4321,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesOfAffectedSnapWithComponents(c 
 		},
 	})
 
-	c.Check(thirdAppSet.Runnables(), testutil.DeepUnsortedMatches, []interfaces.Runnable{
+	c.Check(thirdAppSet.Runnables(), testutil.DeepUnsortedMatches, []snap.Runnable{
 		{
 			CommandName: "ubuntu-core+comp.hook.install",
 			SecurityTag: "snap.ubuntu-core+comp.hook.install",
@@ -5757,7 +5757,7 @@ func (s *interfaceManagerSuite) TestUndoSetupProfilesOnComponentInstall(c *C) {
 	// pertaining to the components
 	c.Assert(s.secBackend.SetupCalls, HasLen, 2)
 	appSetAfterRemoval := s.secBackend.SetupCalls[1].AppSet
-	c.Check(appSetAfterRemoval.Runnables(), DeepEquals, []interfaces.Runnable{
+	c.Check(appSetAfterRemoval.Runnables(), DeepEquals, []snap.Runnable{
 		{
 			CommandName: "app",
 			SecurityTag: "snap.snap.app",

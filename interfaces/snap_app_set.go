@@ -128,63 +128,21 @@ func (a *SnapAppSet) slotLabelExpression(slot *ConnectedSlot) string {
 	return labelExpr(apps, hooks, a)
 }
 
-// RunnableType is an enumeration of the different types of runnables that can
-// be present in a snap.
-type RunnableType int
-
-const (
-	RunnableApp RunnableType = iota
-	RunnableHook
-	RunnableComponentHook
-)
-
-// Runnable represents a runnable element of a snap.
-type Runnable struct {
-	// CommandName is the name of the command that is run when this runnable
-	// runs.
-	CommandName string
-	// SecurityTag is the security tag associated with the runnable. Security
-	// tags are used by various security subsystems as "profile names" and
-	// sometimes also as a part of the file name.
-	SecurityTag string
-}
-
-func appRunnable(app *snap.AppInfo) Runnable {
-	return Runnable{
-		CommandName: app.Name,
-		SecurityTag: app.SecurityTag(),
-	}
-}
-
-func hookRunnable(hook *snap.HookInfo) Runnable {
-	if hook.Component == nil {
-		return Runnable{
-			CommandName: fmt.Sprintf("hook.%s", hook.Name),
-			SecurityTag: hook.SecurityTag(),
-		}
-	}
-
-	return Runnable{
-		CommandName: fmt.Sprintf("%s+%s.hook.%s", hook.Snap.SnapName(), hook.Component.Name, hook.Name),
-		SecurityTag: hook.SecurityTag(),
-	}
-}
-
 // Runnables returns a list of all runnables known by the app set.
-func (a *SnapAppSet) Runnables() []Runnable {
-	var runnables []Runnable
+func (a *SnapAppSet) Runnables() []snap.Runnable {
+	var runnables []snap.Runnable
 
 	for _, app := range a.info.Apps {
-		runnables = append(runnables, appRunnable(app))
+		runnables = append(runnables, snap.AppRunnable(app))
 	}
 
 	for _, hook := range a.info.Hooks {
-		runnables = append(runnables, hookRunnable(hook))
+		runnables = append(runnables, snap.HookRunnable(hook))
 	}
 
 	for _, component := range a.components {
 		for _, hook := range component.Hooks {
-			runnables = append(runnables, hookRunnable(hook))
+			runnables = append(runnables, snap.HookRunnable(hook))
 		}
 	}
 
