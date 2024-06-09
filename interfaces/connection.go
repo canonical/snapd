@@ -54,7 +54,7 @@ type ConnectedSlot struct {
 	dynamicAttrs map[string]interface{}
 }
 
-// Apps returns all the apps associated with this plug.
+// AppSet return the app set that this slot is associated with.
 func (slot *ConnectedSlot) AppSet() *SnapAppSet {
 	return slot.appSet
 }
@@ -155,7 +155,7 @@ func (plug *ConnectedPlug) Snap() *snap.Info {
 	return plug.plugInfo.Snap
 }
 
-// Apps returns all the apps associated with this plug.
+// AppSet return the app set that this plug is associated with.
 func (plug *ConnectedPlug) AppSet() *SnapAppSet {
 	return plug.appSet
 }
