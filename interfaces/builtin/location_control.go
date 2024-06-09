@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/dbus"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -35,6 +36,7 @@ const locationControlBaseDeclarationSlots = `
     allow-installation:
       slot-snap-type:
         - app
+        - core
     deny-connection: true
     deny-auto-connection: true
 `
@@ -62,11 +64,11 @@ dbus (send)
 # Allow binding the service to the requested connection name
 dbus (bind)
     bus=system
-    name="com.ubuntu.location.Service",
+    name="com.lomiri.location.Service",
 
 dbus (receive, send)
     bus=system
-    path=/com/ubuntu/location/Service{,/**}
+    path=/com/lomiri/location/Service{,/**}
     interface=org.freedesktop.DBus**
     peer=(label=unconfined),
 `
@@ -77,15 +79,15 @@ const locationControlConnectedSlotAppArmor = `
 # Allow clients to register providers
 dbus (receive)
     bus=system
-    path=/com/ubuntu/location/Service
-    interface=com.ubuntu.location.Service
+    path=/com/lomiri/location/Service
+    interface=com.lomiri.location.Service
     member="AddProvider"
     peer=(label=###PLUG_SECURITY_TAGS###),
 
 dbus (send)
     bus=system
     path=/providers/{,**}
-    interface=com.ubuntu.location.Service.Provider
+    interface=com.lomiri.location.Service.Provider
     member="{Satisfies,Enable,Disable,Activate,Deactivate,OnNewEvent}"
     peer=(label=###PLUG_SECURITY_TAGS###),
 
@@ -106,14 +108,14 @@ dbus (receive)
 # Allow clients to query/modify service properties
 dbus (receive)
     bus=system
-    path=/com/ubuntu/location/Service
+    path=/com/lomiri/location/Service
     interface=org.freedesktop.DBus.Properties
     member="{Get,Set}"
     peer=(label=###PLUG_SECURITY_TAGS###),
 
 dbus (send)
     bus=system
-    path=/com/ubuntu/location/Service
+    path=/com/lomiri/location/Service
     interface=org.freedesktop.DBus.Properties
     member=PropertiesChanged
     peer=(label=###PLUG_SECURITY_TAGS###),
@@ -128,15 +130,15 @@ const locationControlConnectedPlugAppArmor = `
 # Allow clients to register providers
 dbus (send)
     bus=system
-    path=/com/ubuntu/location/Service
-    interface=com.ubuntu.location.Service
+    path=/com/lomiri/location/Service
+    interface=com.lomiri.location.Service
     member="AddProvider"
     peer=(label=###SLOT_SECURITY_TAGS###),
 
 dbus (receive)
     bus=system
     path=/providers/{,**}
-    interface=com.ubuntu.location.Service.Provider
+    interface=com.lomiri.location.Service.Provider
     member="{Satisfies,Enable,Disable,Activate,Deactivate,OnNewEvent}"
     peer=(label=###SLOT_SECURITY_TAGS###),
 
@@ -157,14 +159,14 @@ dbus (send)
 # Allow clients to query service properties
 dbus (send)
     bus=system
-    path=/com/ubuntu/location/Service
+    path=/com/lomiri/location/Service
     interface=org.freedesktop.DBus.Properties
     member="{Get,Set}"
     peer=(label=###SLOT_SECURITY_TAGS###),
 
 dbus (receive)
    bus=system
-   path=/com/ubuntu/location/Service
+   path=/com/lomiri/location/Service
    interface=org.freedesktop.DBus.Properties
    member=PropertiesChanged
    peer=(label=###SLOT_SECURITY_TAGS###),
@@ -178,7 +180,7 @@ dbus (receive)
 # Allow clients to introspect the service
 dbus (send)
     bus=system
-    path=/com/ubuntu/location/Service
+    path=/com/lomiri/location/Service
     interface=org.freedesktop.DBus.Introspectable
     member=Introspect
     peer=(label=###SLOT_SECURITY_TAGS###),
@@ -186,38 +188,38 @@ dbus (send)
 
 const locationControlPermanentSlotDBus = `
 <policy user="root">
-    <allow own="com.ubuntu.location.Service"/>
-    <allow send_destination="com.ubuntu.location.Service"/>
-    <allow send_interface="com.ubuntu.location.Service"/>
-    <allow send_interface="com.ubuntu.location.Service.Provider"/>
+    <allow own="com.lomiri.location.Service"/>
+    <allow send_destination="com.lomiri.location.Service"/>
+    <allow send_interface="com.lomiri.location.Service"/>
+    <allow send_interface="com.lomiri.location.Service.Provider"/>
 </policy>
 `
 
 const locationControlConnectedPlugDBus = `
 <policy context="default">
-    <deny own="com.ubuntu.location.Service"/>
-    <allow send_destination="com.ubuntu.location.Service"/>
-    <allow send_interface="com.ubuntu.location.Service"/>
-    <allow receive_interface="com.ubuntu.location.Service.Provider"/>
+    <deny own="com.lomiri.location.Service"/>
+    <allow send_destination="com.lomiri.location.Service"/>
+    <allow send_interface="com.lomiri.location.Service"/>
+    <allow receive_interface="com.lomiri.location.Service.Provider"/>
 </policy>
 `
 
-type locationControlInterface struct{}
+type locationControlInterface struct{
+	commonInterface
+}
 
 func (iface *locationControlInterface) Name() string {
 	return "location-control"
 }
 
-func (iface *locationControlInterface) StaticInfo() interfaces.StaticInfo {
-	return interfaces.StaticInfo{
-		Summary:              locationControlSummary,
-		BaseDeclarationSlots: locationControlBaseDeclarationSlots,
-	}
-}
-
 func (iface *locationControlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slot.LabelExpression()
+
+	if release.OnTouch {
+		new = "unconfined"
+	}
+
 	snippet := strings.Replace(locationControlConnectedPlugAppArmor, old, new, -1)
 	spec.AddSnippet(snippet)
 	return nil
@@ -252,5 +254,9 @@ func (iface *locationControlInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInf
 }
 
 func init() {
-	registerIface(&locationControlInterface{})
+	registerIface(&locationControlInterface{commonInterface{
+		name:			"location-control",
+		summary:		locationControlSummary,
+		baseDeclarationSlots:	locationControlBaseDeclarationSlots,
+	}})
 }
