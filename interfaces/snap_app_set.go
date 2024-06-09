@@ -107,10 +107,6 @@ func (a *SnapAppSet) SecurityTagsForSlot(slot *snap.SlotInfo) ([]string, error) 
 // plugLabelExpression returns the label expression for the given plug. It is
 // constructed from the apps and hooks that are associated with the plug.
 func (a *SnapAppSet) plugLabelExpression(plug *ConnectedPlug) string {
-	// TODO: this is a hack that will not continue to work once component hooks
-	// are introduced. the methods on SnapAppSet should only be called on
-	// slots/hooks that originated from the snap that the SnapAppSet was derived
-	// from.
 	if a.info.InstanceName() != plug.plugInfo.Snap.InstanceName() {
 		panic("internal error: connected plug must be from the same snap as the SnapAppSet")
 	}
@@ -123,10 +119,6 @@ func (a *SnapAppSet) plugLabelExpression(plug *ConnectedPlug) string {
 // slotLabelExpression returns the label expression for the given slot. It is
 // constructed from the apps and hooks that are associated with the slot.
 func (a *SnapAppSet) slotLabelExpression(slot *ConnectedSlot) string {
-	// TODO: this is a hack that will not continue to work once component hooks
-	// are introduced. the methods on SnapAppSet should only be called on
-	// slots/hooks that originated from the snap that the SnapAppSet was derived
-	// from.
 	if a.info.InstanceName() != slot.slotInfo.Snap.InstanceName() {
 		panic("internal error: connected slot must be from the same snap as the SnapAppSet")
 	}
