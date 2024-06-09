@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/dbus"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -35,6 +36,7 @@ const locationObserveBaseDeclarationSlots = `
     allow-installation:
       slot-snap-type:
         - app
+        - core
     deny-connection: true
     deny-auto-connection: true
 `
@@ -62,11 +64,11 @@ dbus (send)
 # Allow binding the service to the requested connection name
 dbus (bind)
     bus=system
-    name="com.ubuntu.location.Service",
+    name="com.lomiri.location.Service",
 
 dbus (receive, send)
     bus=system
-    path=/com/ubuntu/location/Service{,/**}
+    path=/com/lomiri/location/Service{,/**}
     interface=org.freedesktop.DBus**
     peer=(label=unconfined),
 `
@@ -77,20 +79,20 @@ const locationObserveConnectedSlotAppArmor = `
 # Allow the service to host sessions
 dbus (bind)
     bus=system
-    name="com.ubuntu.location.Service.Session",
+    name="com.lomiri.location.Service.Session",
 
 # Allow clients to create a session
 dbus (receive)
     bus=system
-    path=/com/ubuntu/location/Service
-    interface=com.ubuntu.location.Service
+    path=/com/lomiri/location/Service
+    interface=com.lomiri.location.Service
     member=CreateSessionForCriteria
     peer=(label=###PLUG_SECURITY_TAGS###),
 
 # Allow clients to query service properties
 dbus (receive)
     bus=system
-    path=/com/ubuntu/location/Service
+    path=/com/lomiri/location/Service
     interface=org.freedesktop.DBus.Properties
     member=Get
     peer=(label=###PLUG_SECURITY_TAGS###),
@@ -99,21 +101,21 @@ dbus (receive)
 dbus (receive)
     bus=system
     path=/sessions/*
-    interface=com.ubuntu.location.Service.Session
+    interface=com.lomiri.location.Service.Session
     member="{Start,Stop}PositionUpdates"
     peer=(label=###PLUG_SECURITY_TAGS###),
 
 dbus (receive)
     bus=system
     path=/sessions/*
-    interface=com.ubuntu.location.Service.Session
+    interface=com.lomiri.location.Service.Session
     member="{Start,Stop}HeadingUpdates"
     peer=(label=###PLUG_SECURITY_TAGS###),
 
 dbus (receive)
     bus=system
     path=/sessions/*
-    interface=com.ubuntu.location.Service.Session
+    interface=com.lomiri.location.Service.Session
     member="{Start,Stop}VelocityUpdates"
     peer=(label=###PLUG_SECURITY_TAGS###),
 
@@ -121,13 +123,13 @@ dbus (receive)
 dbus (send)
     bus=system
     path=/sessions/*
-    interface=com.ubuntu.location.Service.Session
+    interface=com.lomiri.location.Service.Session
     member="Update{Position,Heading,Velocity}"
     peer=(label=###PLUG_SECURITY_TAGS###),
 
 dbus (send)
     bus=system
-    path=/com/ubuntu/location/Service
+    path=/com/lomiri/location/Service
     interface=org.freedesktop.DBus.Properties
     member=PropertiesChanged
     peer=(label=###PLUG_SECURITY_TAGS###),
@@ -142,7 +144,7 @@ const locationObserveConnectedPlugAppArmor = `
 # Allow clients to query service properties
 dbus (send)
     bus=system
-    path=/com/ubuntu/location/Service
+    path=/com/lomiri/location/Service
     interface=org.freedesktop.DBus.Properties
     member=Get
     peer=(label=###SLOT_SECURITY_TAGS###),
@@ -150,8 +152,8 @@ dbus (send)
 # Allow clients to create a session
 dbus (send)
     bus=system
-    path=/com/ubuntu/location/Service
-    interface=com.ubuntu.location.Service
+    path=/com/lomiri/location/Service
+    interface=com.lomiri.location.Service
     member=CreateSessionForCriteria
     peer=(label=###SLOT_SECURITY_TAGS###),
 
@@ -159,42 +161,42 @@ dbus (send)
 dbus (send)
     bus=system
     path=/sessions/*
-    interface=com.ubuntu.location.Service.Session
+    interface=com.lomiri.location.Service.Session
     member="{Start,Stop}PositionUpdates"
     peer=(label=###SLOT_SECURITY_TAGS###),
 
 dbus (send)
     bus=system
     path=/sessions/*
-    interface=com.ubuntu.location.Service.Session
+    interface=com.lomiri.location.Service.Session
     member="{Start,Stop}HeadingUpdates"
     peer=(label=###SLOT_SECURITY_TAGS###),
 
 dbus (send)
     bus=system
     path=/sessions/*
-    interface=com.ubuntu.location.Service.Session
+    interface=com.lomiri.location.Service.Session
     member="{Start,Stop}VelocityUpdates"
     peer=(label=###SLOT_SECURITY_TAGS###),
 
 dbus (send)
     bus=system
-    path=/com/ubuntu/location/Service/sessions/*
-    interface=com.ubuntu.location.Service.Session
+    path=/com/lomiri/location/Service/sessions/*
+    interface=com.lomiri.location.Service.Session
     member="{Start,Stop}PositionUpdates"
     peer=(label=###SLOT_SECURITY_TAGS###),
 
 dbus (send)
     bus=system
-    path=/com/ubuntu/location/Service/sessions/*
-    interface=com.ubuntu.location.Service.Session
+    path=/com/lomiri/location/Service/sessions/*
+    interface=com.lomiri.location.Service.Session
     member="{Start,Stop}HeadingUpdates"
     peer=(label=###SLOT_SECURITY_TAGS###),
 
 dbus (send)
     bus=system
-    path=/com/ubuntu/location/Service/sessions/*
-    interface=com.ubuntu.location.Service.Session
+    path=/com/lomiri/location/Service/sessions/*
+    interface=com.lomiri.location.Service.Session
     member="{Start,Stop}VelocityUpdates"
     peer=(label=###SLOT_SECURITY_TAGS###),
 
@@ -202,20 +204,20 @@ dbus (send)
 dbus (receive)
     bus=system
     path=/sessions/*
-    interface=com.ubuntu.location.Service.Session
+    interface=com.lomiri.location.Service.Session
     member="Update{Position,Heading,Velocity}"
     peer=(label=###SLOT_SECURITY_TAGS###),
 
 dbus (receive)
     bus=system
-    path=/com/ubuntu/location/Service/sessions/*
-    interface=com.ubuntu.location.Service.Session
+    path=/com/lomiri/location/Service/sessions/*
+    interface=com.lomiri.location.Service.Session
     member="Update{Position,Heading,Velocity}"
     peer=(label=###SLOT_SECURITY_TAGS###),
 
 dbus (receive)
    bus=system
-   path=/com/ubuntu/location/Service
+   path=/com/lomiri/location/Service
    interface=org.freedesktop.DBus.Properties
    member=PropertiesChanged
    peer=(label=###SLOT_SECURITY_TAGS###),
@@ -229,7 +231,7 @@ dbus (receive)
 # Allow clients to introspect the service
 dbus (send)
     bus=system
-    path=/com/ubuntu/location/Service
+    path=/com/lomiri/location/Service
     interface=org.freedesktop.DBus.Introspectable
     member=Introspect
     peer=(label=###SLOT_SECURITY_TAGS###),
@@ -237,36 +239,31 @@ dbus (send)
 
 const locationObservePermanentSlotDBus = `
 <policy user="root">
-    <allow own="com.ubuntu.location.Service"/>
-    <allow own="com.ubuntu.location.Service.Session"/>
-    <allow send_destination="com.ubuntu.location.Service"/>
-    <allow send_destination="com.ubuntu.location.Service.Session"/>
-    <allow send_interface="com.ubuntu.location.Service"/>
-    <allow send_interface="com.ubuntu.location.Service.Session"/>
+    <allow own="com.lomiri.location.Service"/>
+    <allow own="com.lomiri.location.Service.Session"/>
+    <allow send_destination="com.lomiri.location.Service"/>
+    <allow send_destination="com.lomiri.location.Service.Session"/>
+    <allow send_interface="com.lomiri.location.Service"/>
+    <allow send_interface="com.lomiri.location.Service.Session"/>
 </policy>
 `
 
 const locationObserveConnectedPlugDBus = `
 <policy context="default">
-    <deny own="com.ubuntu.location.Service"/>
-    <allow send_destination="com.ubuntu.location.Service"/>
-    <allow send_destination="com.ubuntu.location.Service.Session"/>
-    <allow send_interface="com.ubuntu.location.Service"/>
-    <allow send_interface="com.ubuntu.location.Service.Session"/>
+    <deny own="com.lomiri.location.Service"/>
+    <allow send_destination="com.lomiri.location.Service"/>
+    <allow send_destination="com.lomiri.location.Service.Session"/>
+    <allow send_interface="com.lomiri.location.Service"/>
+    <allow send_interface="com.lomiri.location.Service.Session"/>
 </policy>
 `
 
-type locationObserveInterface struct{}
+type locationObserveInterface struct{
+	commonInterface
+}
 
 func (iface *locationObserveInterface) Name() string {
 	return "location-observe"
-}
-
-func (iface *locationObserveInterface) StaticInfo() interfaces.StaticInfo {
-	return interfaces.StaticInfo{
-		Summary:              locationObserveSummary,
-		BaseDeclarationSlots: locationObserveBaseDeclarationSlots,
-	}
 }
 
 func (iface *locationObserveInterface) DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
@@ -282,6 +279,12 @@ func (iface *locationObserveInterface) DBusPermanentSlot(spec *dbus.Specificatio
 func (iface *locationObserveInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slot.LabelExpression()
+
+	// Ubuntu Touch hosts this service already
+	if release.OnTouch {
+		new = "unconfined"
+	}
+
 	snippet := strings.Replace(locationObserveConnectedPlugAppArmor, old, new, -1)
 	spec.AddSnippet(snippet)
 	return nil
@@ -306,5 +309,9 @@ func (iface *locationObserveInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInf
 }
 
 func init() {
-	registerIface(&locationObserveInterface{})
+	registerIface(&locationObserveInterface{commonInterface{
+		name:			"location-observe",
+		summary:		locationObserveSummary,
+		baseDeclarationSlots:	locationObserveBaseDeclarationSlots,
+	}})
 }
