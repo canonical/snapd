@@ -272,7 +272,60 @@ func mapLocal(about aboutSnap, sd clientutil.StatusDecorator) *client.Snap {
 	if !about.gatingHold.IsZero() {
 		result.GatingHold = &about.gatingHold
 	}
+
+	if len(about.info.Components) > 0 {
+		result.Components = fillComponentInfo(about)
+	}
+
 	return result
+}
+
+func fillComponentInfo(about aboutSnap) []client.Component {
+	localSnap, snapst := about.info, about.snapst
+	comps := make([]client.Component, 0, len(about.info.Components))
+
+	// First present installed components
+	currentComps, err := snapst.CurrentComponentInfos()
+	if err != nil {
+		logger.Noticef("cannot retrieve installed components: %v", err)
+	}
+	currentCompsSet := map[string]bool{}
+	for _, comp := range currentComps {
+		currentCompsSet[comp.Component.ComponentName] = true
+		csi := snapst.CurrentComponentSideInfo(comp.Component)
+		cpi := snap.MinimalComponentContainerPlaceInfo(
+			comp.Component.ComponentName, csi.Revision, localSnap.InstanceName())
+		compSz, err := snap.ComponentSize(cpi)
+		if err != nil {
+			logger.Noticef("cannot get size of %s: %v", comp.Component, err)
+			compSz = 0
+		}
+		comps = append(comps, client.Component{
+			Name:          comp.Component.ComponentName,
+			Type:          comp.Type,
+			Version:       comp.Version,
+			Summary:       comp.Summary,
+			Description:   comp.Description,
+			Revision:      csi.Revision,
+			InstallDate:   snap.ComponentInstallDate(cpi, localSnap.Revision),
+			InstalledSize: compSz,
+		})
+	}
+
+	// Then, non-installed components
+	for name, comp := range about.info.Components {
+		if _, ok := currentCompsSet[name]; ok {
+			continue
+		}
+		comps = append(comps, client.Component{
+			Name:        name,
+			Type:        comp.Type,
+			Summary:     comp.Summary,
+			Description: comp.Description,
+		})
+	}
+
+	return comps
 }
 
 // snapIcon tries to find the icon inside the snap
