@@ -859,7 +859,9 @@ ptrace (read, trace) peer=unconfined,
 	c.Assert(err, IsNil)
 
 	// Profile generated using GenerateAAREExclusionPatterns
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.privContainersPlug.Snap()))
+	appSet, err := interfaces.NewSnapAppSet(s.privContainersPlug.Snap(), nil)
+	c.Assert(err, IsNil)
+	apparmorSpec := apparmor.NewSpecification(appSet)
 	c.Assert(apparmorSpec.AddConnectedPlug(s.iface, s.privContainersPlug, s.slot), IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.docker.app"})
 	resHash, err := testutil.AppArmorParseAndHashHelper("#include <tunables/global> \nprofile docker_support {" + apparmorSpec.SnippetForTag("snap.docker.app") + "}")
