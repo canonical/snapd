@@ -126,6 +126,21 @@ missing_interface_spread_test() {
                 search='plugs: \[ autopilot-introspection \]'
                 ;;
         esac
+
+        # check if a standalone test already exists and that it at least
+        # connects and disconnects the interface
+        dedicated_test=$(find tests/main/ -maxdepth 1 -name "interfaces-$iface")
+        if [ -n "$dedicated_test" ]; then
+            if grep -q "$search" "$snap_yaml" ; then
+                echo "Dedicated test '$dedicated_test' found for '$iface'."
+                echo "Please remove '$iface' from '$snap_yaml'."
+                exit 1
+            fi
+            # dedicated test already exists, skip high-level test check below
+            continue
+        fi
+
+        # check if high-level minimal test exists for interface
         if ! grep -q "$search" "$snap_yaml" ; then
             echo "Missing high-level test for interface '$iface'. Please add to:"
             echo "* $snap_yaml"
@@ -146,9 +161,11 @@ if [ "$STATIC" = 1 ]; then
 
     # XXX: remove once we can use an action, see workflows/test.yaml for
     #      details why we still use this script
-    if [ -n "${GITHUB_PULL_REQUEST:-}" ] && [ "${GITHUB_PULL_REQUEST:-}" != "false" ]; then
+    if [ -n "${GITHUB_PULL_REQUEST_TITLE:-}" ]; then
         echo Checking pull request summary
-        ./check-pr-title.py "$GITHUB_PULL_REQUEST"
+        ./check-pr-title.py "${GITHUB_PULL_REQUEST_TITLE}"
+    else
+	echo Skipping pull request summary check: not a pull request
     fi
 
     # check commit author/committer name for unicode
@@ -316,7 +333,7 @@ if [ "$STATIC" = 1 ]; then
         fi
     fi
 
-    echo "Checking all interfaces have minimal spread test"
+    echo "Checking all interfaces have a spread test"
     missing_interface_spread_test
 
     echo "Checking for incorrect multiline strings in spread tests"
@@ -385,20 +402,25 @@ if [ "$UNIT" = 1 ]; then
     go version
 
     tags=
+    race=
     if [ -n "${GO_BUILD_TAGS-}" ]; then
         echo "Using build tags: $GO_BUILD_TAGS"
         tags="-tags $GO_BUILD_TAGS"
     fi
+    if [ -n "${GO_TEST_RACE-}" ]; then
+        echo "Using go test -race"
+        race="-race"
+    fi
 
     echo Building
     # shellcheck disable=SC2086
-    go build -v $tags github.com/snapcore/snapd/...
+    go build -v $tags $race github.com/snapcore/snapd/...
 
     # tests
     echo Running tests from "$PWD"
     if [ "$short" = 1 ]; then
             # shellcheck disable=SC2046,SC2086
-            GOTRACEBACK=1 $goctest $tags -short -timeout 5m $(go list ./... | grep -v '/vendor/' )
+            GOTRACEBACK=1 $goctest $tags $race -short -timeout 5m $(go list ./... | grep -v '/vendor/' )
     else
         coverage=""
         if [ -z "${SKIP_COVERAGE-}" ]; then
@@ -411,7 +433,7 @@ if [ "$UNIT" = 1 ]; then
         fi
 
         # shellcheck disable=SC2046,SC2086
-        GOTRACEBACK=1 $goctest $tags -timeout 5m $coverage $(go list ./... | grep -v '/vendor/' )
+        GOTRACEBACK=1 $goctest $tags $race -timeout 5m $coverage $(go list ./... | grep -v '/vendor/' )
     fi
 
     # python unit test for mountinfo.query and version-compare

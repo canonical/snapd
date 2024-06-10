@@ -44,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/snap/snapdir"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/store"
@@ -53,7 +54,7 @@ import (
 )
 
 var (
-	snapdTransitionDelayWithRandomess = 3*time.Hour + randutil.RandomDuration(4*time.Hour)
+	snapdTransitionDelayWithRandomness = 3*time.Hour + randutil.RandomDuration(4*time.Hour)
 )
 
 // SnapManager is responsible for the installation and removal of snaps.
@@ -215,6 +216,50 @@ func (compsu *ComponentSetup) Revision() snap.Revision {
 	return compsu.CompSideInfo.Revision
 }
 
+// ComponentSetupFromSnapSetup returns a list of ComponentSetup structs for the
+// given task. Since the task could originate from one of a few different
+// scenarios, we inspect the task for various keys to determine how to find the
+// component setups.
+//
+// The task could originate from:
+// * Installing a singular component for an already installed snap
+// * Installing multiple components for an already installed snap
+// * Installing/refreshing a snap with components
+// * Installing/refreshing a snap without any components
+func ComponentSetupsForTask(t *state.Task) ([]*ComponentSetup, error) {
+	// TODO: handle remaining cases in this switch:
+	// * installing multiple components for an already installed snap
+	// * installing/refreshing a snap with components
+	switch {
+	case t.Has("component-setup") || t.Has("component-setup-task"):
+		// task comes from a singular component installation for an already
+		// installed snap
+		compsup, _, err := TaskComponentSetup(t)
+		if err != nil {
+			return nil, err
+		}
+		return []*ComponentSetup{compsup}, nil
+	default:
+		// task comes from a snap installation that doesn't contain any
+		// components
+		return nil, nil
+	}
+}
+
+// ComponentInfoFromComponentSetup returns a snap.ComponentInfo for the given
+// ComponentSetup and snap.Info. It is assumed that the component represented by
+// compsup has already been mounted.
+func ComponentInfoFromComponentSetup(compsup *ComponentSetup, info *snap.Info) (*snap.ComponentInfo, error) {
+	cpi := snap.MinimalComponentContainerPlaceInfo(
+		compsup.ComponentName(),
+		compsup.CompSideInfo.Revision,
+		info.InstanceName(),
+	)
+
+	container := snapdir.New(cpi.MountDir())
+	return snap.ReadComponentInfoFromContainer(container, info, compsup.CompSideInfo)
+}
+
 // RevertStatus is a status of a snap revert; anything other than DefaultStatus
 // denotes a reverted snap revision that needs special handling in terms of
 // refresh blocking.
@@ -274,7 +319,7 @@ type SnapState struct {
 	InstanceKey string `json:"instance-key,omitempty"`
 	CohortKey   string `json:"cohort-key,omitempty"`
 
-	// RefreshInhibitedime records the time when the refresh was first
+	// RefreshInhibitedTime records the time when the refresh was first
 	// attempted but inhibited because the snap was busy. This value is
 	// reset on each successful refresh.
 	RefreshInhibitedTime *time.Time `json:"refresh-inhibited-time,omitempty"`
@@ -506,6 +551,50 @@ func (snapst *SnapState) CurrentInfo() (*snap.Info, error) {
 	return readInfo(name, cur, withAuxStoreInfo)
 }
 
+// CurrentComponentInfos return a snap.ComponentInfo slice that contains all of
+// the components for the current active revision or the last active revision.
+// It returns the ErrNoCurrent error if snapst.Current is unset.
+func (snapst *SnapState) CurrentComponentInfos() ([]*snap.ComponentInfo, error) {
+	if !snapst.IsInstalled() {
+		return nil, ErrNoCurrent
+	}
+
+	return snapst.ComponentInfosForRevision(snapst.Current)
+}
+
+// CurrentComponentInfos return a snap.ComponentInfo slice that contains all of
+// the components for the last appearance of the specified revision. Returns an
+// error if the revision is not found in the sequence of snaps.
+func (snapst *SnapState) ComponentInfosForRevision(rev snap.Revision) ([]*snap.ComponentInfo, error) {
+	index := snapst.LastIndex(rev)
+	if index == -1 {
+		return nil, fmt.Errorf("revision %s not found in sequence", rev)
+	}
+
+	revState := snapst.Sequence.Revisions[index]
+
+	instanceName := snap.InstanceName(revState.Snap.RealName, snapst.InstanceKey)
+	si, err := readInfo(instanceName, revState.Snap, withAuxStoreInfo)
+	if err != nil {
+		return nil, err
+	}
+
+	compInfos := make([]*snap.ComponentInfo, 0, len(revState.Components))
+	for _, comp := range revState.Components {
+		cpi := snap.MinimalComponentContainerPlaceInfo(comp.SideInfo.Component.ComponentName,
+			comp.SideInfo.Revision, si.InstanceName())
+
+		compInfo, err := readComponentInfo(cpi.MountDir(), si, comp.SideInfo)
+		if err != nil {
+			return nil, err
+		}
+
+		compInfos = append(compInfos, compInfo)
+	}
+
+	return compInfos, nil
+}
+
 // CurrentComponentInfo returns the information about the current active
 // revision or the last active revision (if the component is inactive). It
 // returns the ErrNoCurrent error if the component is not found.
@@ -522,7 +611,7 @@ func (snapst *SnapState) CurrentComponentInfo(cref naming.ComponentRef) (*snap.C
 
 	cpi := snap.MinimalComponentContainerPlaceInfo(csi.Component.ComponentName,
 		csi.Revision, si.InstanceName())
-	return readComponentInfo(cpi.MountDir())
+	return readComponentInfo(cpi.MountDir(), si, csi)
 }
 
 func (snapst *SnapState) InstanceName() string {
@@ -681,6 +770,9 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	runner.AddHandler("mount-component", m.doMountComponent, m.undoMountComponent)
 	runner.AddHandler("unlink-current-component", m.doUnlinkCurrentComponent, m.undoUnlinkCurrentComponent)
 	runner.AddHandler("link-component", m.doLinkComponent, m.undoLinkComponent)
+	// We cannot undo much after a component file is removed. And it is the
+	// last task anyway.
+	runner.AddHandler("discard-component", m.doDiscardComponent, nil)
 	runner.AddHandler("prepare-kernel-modules-components", m.doSetupKernelModules, m.doRemoveKernelModulesSetup)
 
 	// control serialisation
@@ -704,6 +796,11 @@ func (m *SnapManager) StartUp() error {
 	// register handler that records a refresh-inhibit notice when
 	// the set of inhibited snaps is changed.
 	m.changeCallbackID = m.state.AddChangeStatusChangedHandler(processInhibitedAutoRefresh)
+
+	if CheckExpectedRestart(m.state) == ErrUnexpectedRuntimeRestart {
+		logger.Noticef("detected a restart at runtime without a corresponding snapd change")
+		return ErrUnexpectedRuntimeRestart
+	}
 
 	return nil
 }
@@ -818,7 +915,7 @@ func (m *SnapManager) ensureVulnerableSnapRemoved(name string) error {
 	// circumvention for the issue where vulnerable snaps are left in place, we
 	// do not intend to ever do this again and instead will unmount or remount
 	// vulnerable old snaps as nosuid to prevent the suid snap-confine binaries
-	// in them from being available to abuse for fixed vulnerabilies that are
+	// in them from being available to abuse for fixed vulnerabilities that are
 	// not exploitable in the current versions of snapd/core snaps.
 	var alreadyRemoved bool
 	key := fmt.Sprintf("%s-snap-cve-2022-3328-vuln-removed", name)
@@ -1048,7 +1145,7 @@ func (m *SnapManager) ensureSnapdSnapTransition() error {
 
 	// get current core snap and use same channel/user for the snapd snap
 	err = Get(m.state, "core", &snapst)
-	// Note that state.ErrNoState should never happen in practise. However
+	// Note that state.ErrNoState should never happen in practice. However
 	// if it *does* happen we still want to fix those systems by installing
 	// the snapd snap.
 	if err != nil && !errors.Is(err, state.ErrNoState) {
@@ -1072,7 +1169,7 @@ func (m *SnapManager) ensureSnapdSnapTransition() error {
 		return err
 	}
 	now := time.Now()
-	if !lastSnapdTransitionAttempt.IsZero() && lastSnapdTransitionAttempt.Add(snapdTransitionDelayWithRandomess).After(now) {
+	if !lastSnapdTransitionAttempt.IsZero() && lastSnapdTransitionAttempt.Add(snapdTransitionDelayWithRandomness).After(now) {
 		return nil
 	}
 	m.state.Set("snapd-transition-last-retry-time", now)
@@ -1111,7 +1208,7 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 		return err
 	}
 
-	// Wait for the system to be seeded before transtioning
+	// Wait for the system to be seeded before transitioning
 	var seeded bool
 	err = m.state.Get("seeded", &seeded)
 	if err != nil {
@@ -1294,6 +1391,11 @@ func (m *SnapManager) ensureMountsUpdated() error {
 			if err != nil {
 				return err
 			}
+			dev, err := DeviceCtx(m.state, nil, nil)
+			// Ignore error if model assertion not yet known
+			if err != nil && !errors.Is(err, state.ErrNoState) {
+				return err
+			}
 			squashfsPath := dirs.StripRootDir(info.MountFile())
 			whereDir := dirs.StripRootDir(info.MountDir())
 			// Ensure mount files, but do not restart mount units
@@ -1307,11 +1409,19 @@ func (m *SnapManager) ensureMountsUpdated() error {
 			// TODO refactor so the check for kernel type is not repeated
 			// in the installation case
 			snapType, _ := snapSt.Type()
+			// We cannot ensure for this type yet as the mount unit
+			// flags depend on the model in this case.
+			if snapType == snap.TypeKernel && dev == nil {
+				continue
+			}
 			if _, err = sysd.EnsureMountUnitFile(info.MountDescription(),
 				squashfsPath, whereDir, "squashfs",
 				systemd.EnsureMountUnitFlags{
 					PreventRestartIfModified: true,
-					StartBeforeDriversLoad:   snapType == snap.TypeKernel}); err != nil {
+					// We need early mounts only for UC20+/hybrid, also 16.04
+					// systemd seems to be buggy if we enable this.
+					StartBeforeDriversLoad: snapType == snap.TypeKernel &&
+						dev.HasModeenv()}); err != nil {
 				return err
 			}
 		}

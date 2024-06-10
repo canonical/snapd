@@ -1,0 +1,50 @@
+{
+    "type": "model",
+    "series": "16",
+    "authority-id": "test-snapd",
+    "brand-id": "test-snapd",
+    "store": "CQvkdMjgbapk821Po2cF",
+    "model": "test-snapd-remodel-pc-just-model",
+    "system-user-authority": "*",
+    "architecture": "amd64",
+    "timestamp": "2024-04-24T00:00:00+00:00",
+    "grade": "dangerous",
+    "base": "core24",
+    "snaps": [
+        {
+            "default-channel": "latest/edge",
+            "id": "tTs9DVS01mt4L11PGqbrSiKcIxFHpUJq",
+            "name": "test-snapd-remodel-pc",
+            "type": "gadget"
+        },
+        {
+            "default-channel": "24/edge",
+            "id": "pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza",
+            "name": "pc-kernel",
+            "type": "kernel"
+        },
+        {
+            "default-channel": "latest/edge",
+            "id": "dwTAh7MZZ01zyriOZErqd1JynQLiOGvM",
+            "name": "core24",
+            "type": "base"
+        },
+        {
+            "default-channel": "latest/stable",
+            "id": "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4",
+            "name": "snapd",
+            "type": "snapd"
+        },
+        {
+            "default-channel": "latest/stable",
+            "id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+            "name": "hello-world"
+        },
+        {
+            "default-channel": "latest/stable",
+            "id": "99T7MUlRhtI3U0QFgl5mXXESAiSwt776",
+            "name": "core",
+            "type": "core"
+        }
+    ]
+}

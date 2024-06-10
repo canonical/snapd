@@ -1,5 +1,14 @@
 summary: Test that snapd reexecs itself into core
 
+details: |
+    This test ensures that snapd and the snap cli reexecs themselves into the
+    core snap under the right conditions. This includes ensuring that snapd
+    reexecs itself when SNAP_REEXEC is set, that it does not reexec into older
+    versions of snapd, and that it does not reexec when SNAP_REEXEC is set to 0.
+
+    The test also ensures that snapd restarts itself when the core snap is
+    refreshed, and that the right snapd is running after the refresh.
+
 # Disable for Fedora, openSUSE and Arch as re-exec is not support there yet
 systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*]
 

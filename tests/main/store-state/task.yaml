@@ -1,5 +1,10 @@
 summary: smoke test for the store-state tool
 
+details: |
+    Verify the functionality of the store-state tool. The tool is used to setup
+    and teardown a fake store, setup and teardown a staging store, to make snaps
+    installable in the fake store, and to initialize fake refreshes.
+
 # cannot work with the staging store without a testing build with compiled-in staging keys
 backends: [-external]
 

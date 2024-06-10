@@ -387,12 +387,15 @@ func readSideInfo(st *state.State, tempPath string, origPath string, flags sidel
 
 var readComponentInfoFromCont = readComponentInfoFromContImpl
 
-func readComponentInfoFromContImpl(tempPath string) (*snap.ComponentInfo, error) {
+func readComponentInfoFromContImpl(tempPath string, csi *snap.ComponentSideInfo) (*snap.ComponentInfo, error) {
 	compf, err := snapfile.Open(tempPath)
 	if err != nil {
 		return nil, fmt.Errorf("cannot open container: %w", err)
 	}
-	return snap.ReadComponentInfoFromContainer(compf)
+
+	// hook information isn't loaded here, but it shouldn't be needed in this
+	// context
+	return snap.ReadComponentInfoFromContainer(compf, nil, csi)
 }
 
 // readComponentInfo reads ComponentInfo from a snap component file and the
@@ -405,7 +408,10 @@ func readComponentInfo(st *state.State, tempPath, instanceName string, flags sid
 		return nil, nil, BadRequest("only unasserted installation of local component with --dangerous is supported at the moment")
 	}
 
-	ci, err := readComponentInfoFromCont(tempPath)
+	// TODO: will this need to take a non-nil snap.ComponentSideInfo? not sure
+	// where it would get it from, i guess whatever assertion we end up
+	// receiving
+	ci, err := readComponentInfoFromCont(tempPath, nil)
 	if err != nil {
 		return nil, nil, BadRequest("cannot read component metadata: %v", err)
 	}

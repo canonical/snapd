@@ -1,5 +1,11 @@
 summary: Check that snap apps and services can write to writable areas.
 
+details: |
+    The confinement system allows snap applications to write to four locations:
+    snap data specific to the current revision, snap data common across
+    revisions, snap user data specific to the current revision and lastly snap
+    user data common across revisions.
+
 environment:
     # Ensure that running purely from the deb (without re-exec) works
     # correctly
@@ -17,9 +23,7 @@ execute: |
     [ -f /var/snap/data-writer/x1/from-app ]
     [ -f /var/snap/data-writer/common/from-app ]
     [ -f /root/snap/data-writer/x1/from-app ]
-    # TODO: As soon as `snap run` is used (which creates this directory),
-    # uncomment the following line:
-    #[ -f /root/snap/data-writer/common/from-app ]
+    [ -f /root/snap/data-writer/common/from-app ]
 
     echo "Waiting for data writer service to finish..."
     retry -n 20 --wait 1 sh -c 'test -f /root/snap/data-writer/x1/from-service'
@@ -27,6 +31,4 @@ execute: |
     echo "Services can write to writable areas"
     [ -f /var/snap/data-writer/x1/from-service ]
     [ -f /var/snap/data-writer/common/from-service ]
-    # TODO: As soon as `snap run` is used (which creates this directory),
-    # uncomment the following line:
-    #[ -f /root/snap/data-writer/common/from-service ]
+    [ -f /root/snap/data-writer/common/from-service ]

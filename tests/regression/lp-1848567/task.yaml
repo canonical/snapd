@@ -20,7 +20,8 @@ prepare: |
   snap connect test-snapd-app:sound-themes test-snapd-gtk-common-themes:sound-themes
 
 execute: |
-  if snap debug sandbox-features --required apparmor:kernel:mount; then
+  # When using the internal parser, the profile may include features which are not yet supported by the host parser.
+  if snap debug sandbox-features --required apparmor:kernel:mount && ! snap debug sandbox-features --required apparmor:parser:snapd-internal; then
     # Re-compile the apparmor profile for snap-update-ns for the
     # test-snapd-app snap while ensuring that the profile is not loaded
     # into kernel memory and that the compiler is not using any existing

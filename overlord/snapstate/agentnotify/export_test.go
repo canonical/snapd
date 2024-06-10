@@ -21,15 +21,32 @@ package agentnotify
 
 import (
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/testutil"
+	userclient "github.com/snapcore/snapd/usersession/client"
 )
 
 var (
-	NotifyAgentOnLinkageChange = notifyAgentOnLinkageChange
+	NotifyAgentOnLinkageChange                 = notifyAgentOnLinkageChange
+	MaybeSendClientFinishedRefreshNotification = maybeSendClientFinishRefreshNotification
 )
 
-func MockSendClientFinishRefreshNotification(f func(*snapstate.SnapSetup)) (restore func()) {
-	r := testutil.Backup(&sendClientFinishRefreshNotification)
-	sendClientFinishRefreshNotification = f
+func MockMaybeSendClientFinishRefreshNotification(f func(*state.State, *snapstate.SnapSetup)) (restore func()) {
+	r := testutil.Backup(&maybeSendClientFinishRefreshNotification)
+	maybeSendClientFinishRefreshNotification = f
 	return r
+}
+
+func MockAsyncFinishRefreshNotification(f func(*userclient.FinishedSnapRefreshInfo)) (restore func()) {
+	r := testutil.Backup(&asyncFinishRefreshNotification)
+	asyncFinishRefreshNotification = f
+	return r
+}
+
+func MockHasActiveConnection(fn func(st *state.State, iface string) (bool, error)) (restore func()) {
+	old := snapstate.HasActiveConnection
+	snapstate.HasActiveConnection = fn
+	return func() {
+		snapstate.HasActiveConnection = old
+	}
 }

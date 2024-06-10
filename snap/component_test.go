@@ -40,6 +40,7 @@ var _ = Suite(&componentSuite{})
 
 func (s *componentSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
+	s.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 	dirs.SetRootDir(c.MkDir())
 }
 
@@ -61,16 +62,23 @@ description: long description
 	compf, err := snapfile.Open(testComp)
 	c.Assert(err, IsNil)
 
-	ci, err := snap.ReadComponentInfoFromContainer(compf)
+	ci, err := snap.ReadComponentInfoFromContainer(compf, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(ci, DeepEquals, snap.NewComponentInfo(
 		naming.NewComponentRef("mysnap", "test-info"),
-		"test",
+		snap.ComponentType("test"),
 		"1.0",
 		"short description",
 		"long description",
+		nil,
 	))
 	c.Assert(ci.FullName(), Equals, compName)
+
+	// since we didn't pass a side info, then ComponentSideInfo should be empty
+	c.Assert(ci.ComponentSideInfo, Equals, snap.ComponentSideInfo{})
+
+	// since we didn't pass a snap.Info, then Hooks should be empty
+	c.Assert(ci.Hooks, HasLen, 0)
 }
 
 func (s *componentSuite) TestReadComponentInfoMinimal(c *C) {
@@ -84,11 +92,13 @@ version: 1.0.2
 	compf, err := snapfile.Open(testComp)
 	c.Assert(err, IsNil)
 
-	ci, err := snap.ReadComponentInfoFromContainer(compf)
+	ci, err := snap.ReadComponentInfoFromContainer(compf, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(ci, DeepEquals, snap.NewComponentInfo(
 		naming.NewComponentRef("mysnap", "test-info"),
-		"test", "1.0.2", "", "",
+		snap.ComponentType("test"),
+		"1.0.2",
+		"", "", nil,
 	))
 	c.Assert(ci.FullName(), Equals, compName)
 }
@@ -105,7 +115,7 @@ description: long description
 	compf, err := snapfile.Open(testComp)
 	c.Assert(err, IsNil)
 
-	ci, err := snap.ReadComponentInfoFromContainer(compf)
+	ci, err := snap.ReadComponentInfoFromContainer(compf, nil, nil)
 	c.Assert(err.Error(), Equals, `cannot parse component.yaml: incorrect component name "mysnap-test-info"`)
 	c.Assert(ci, IsNil)
 }
@@ -121,7 +131,7 @@ foo: bar
 	compf, err := snapfile.Open(testComp)
 	c.Assert(err, IsNil)
 
-	ci, err := snap.ReadComponentInfoFromContainer(compf)
+	ci, err := snap.ReadComponentInfoFromContainer(compf, nil, nil)
 	c.Assert(err, ErrorMatches, `.*\n.*: field foo not found in type snap.ComponentInfo`)
 	c.Assert(ci, IsNil)
 }
@@ -146,7 +156,7 @@ version: 1.0
 		compf, err := snapfile.Open(testComp)
 		c.Assert(err, IsNil)
 
-		ci, err := snap.ReadComponentInfoFromContainer(compf)
+		ci, err := snap.ReadComponentInfoFromContainer(compf, nil, nil)
 		c.Assert(err, ErrorMatches, tc.error)
 		c.Assert(ci, IsNil)
 	}
@@ -161,7 +171,7 @@ version: 1.0
 	compf, err := snapfile.Open(testComp)
 	c.Assert(err, IsNil)
 
-	ci, err := snap.ReadComponentInfoFromContainer(compf)
+	ci, err := snap.ReadComponentInfoFromContainer(compf, nil, nil)
 	c.Assert(err.Error(), Equals, `component type cannot be empty`)
 	c.Assert(ci, IsNil)
 }
@@ -176,7 +186,7 @@ version: 1.0
 	compf, err := snapfile.Open(testComp)
 	c.Assert(err, IsNil)
 
-	ci, err := snap.ReadComponentInfoFromContainer(compf)
+	ci, err := snap.ReadComponentInfoFromContainer(compf, nil, nil)
 	c.Assert(err.Error(), Equals, `cannot parse component.yaml: unknown component type "unknowntype"`)
 	c.Assert(ci, IsNil)
 }
@@ -204,7 +214,7 @@ version: %s
 		compf, err := snapfile.Open(testComp)
 		c.Assert(err, IsNil)
 
-		ci, err := snap.ReadComponentInfoFromContainer(compf)
+		ci, err := snap.ReadComponentInfoFromContainer(compf, nil, nil)
 		if tc.error != "" {
 			c.Check(err, ErrorMatches, tc.error)
 			c.Check(ci, IsNil)
@@ -233,7 +243,7 @@ version: 1.0
 		compf, err := snapfile.Open(testComp)
 		c.Assert(err, IsNil)
 
-		ci, err := snap.ReadComponentInfoFromContainer(compf)
+		ci, err := snap.ReadComponentInfoFromContainer(compf, nil, nil)
 		c.Check(err, ErrorMatches, tc.error)
 		c.Assert(ci, IsNil)
 	}
@@ -253,7 +263,7 @@ description: 👹👺👻👽👾🤖
 	compf, err := snapfile.Open(testComp)
 	c.Assert(err, IsNil)
 
-	ci, err := snap.ReadComponentInfoFromContainer(compf)
+	ci, err := snap.ReadComponentInfoFromContainer(compf, nil, nil)
 	c.Assert(err, ErrorMatches, "summary can have up to 128 codepoints, got 130")
 	c.Assert(ci, IsNil)
 }
@@ -271,7 +281,7 @@ description: %s
 	compf, err := snapfile.Open(testComp)
 	c.Assert(err, IsNil)
 
-	ci, err := snap.ReadComponentInfoFromContainer(compf)
+	ci, err := snap.ReadComponentInfoFromContainer(compf, nil, nil)
 	c.Assert(err, ErrorMatches, "description can have up to 4096 codepoints, got 4098")
 	c.Assert(ci, IsNil)
 }
@@ -306,4 +316,223 @@ func (s *componentSuite) TestComponentSideInfoEqual(c *C) {
 	} {
 		c.Check(csi.Equal(tc.csi), Equals, tc.equal)
 	}
+}
+
+func (s *componentSuite) TestReadComponentInfoFinishedWithSnapInfoAndComponentSideInfo(c *C) {
+	restore := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {
+		// remove the "*-bad" interfaces, this helps us test that sanitized plugs
+		// do not end up in the plugs for any hooks in a ComponentInfo
+		delete(snapInfo.Plugs, "implicit-bad")
+		delete(snapInfo.Plugs, "explicit-bad")
+		for _, comp := range snapInfo.Components {
+			for _, hook := range comp.ExplicitHooks {
+				delete(hook.Plugs, "explicit-bad")
+				delete(hook.Plugs, "implicit-bad")
+			}
+		}
+	})
+	defer restore()
+
+	const componentYaml = `component: snap+component
+type: test
+version: 1.0
+summary: short description
+description: long description
+`
+	const compName = "snap+component"
+	testComp := snaptest.MakeTestComponentWithFiles(c, compName+".comp", componentYaml, [][]string{
+		{"meta/hooks/install", "echo 'explicit hook'"},
+		{"meta/hooks/pre-refresh", "echo 'implicit hook'"},
+	})
+
+	compf, err := snapfile.Open(testComp)
+	c.Assert(err, IsNil)
+
+	const snapYaml = `
+name: snap
+components:
+  component:
+    type: test
+    hooks:
+      install:
+        plugs: [network, implicit-bad]
+      remove:
+plugs:
+  network-client:
+  explicit-bad:
+`
+
+	snapInfo, err := snap.InfoFromSnapYaml([]byte(snapYaml))
+	c.Assert(err, IsNil)
+
+	ci, err := snap.ReadComponentInfoFromContainer(compf, snapInfo, &snap.ComponentSideInfo{
+		Component: naming.NewComponentRef("snap", "component"),
+		Revision:  snap.R(1),
+	})
+	c.Assert(err, IsNil)
+
+	c.Check(ci.Component.ComponentName, Equals, "component")
+	c.Check(ci.Component.SnapName, Equals, "snap")
+	c.Check(ci.Type, Equals, snap.TestComponent)
+	c.Check(ci.Version, Equals, "1.0")
+	c.Check(ci.Summary, Equals, "short description")
+	c.Check(ci.Description, Equals, "long description")
+	c.Check(ci.FullName(), Equals, compName)
+	c.Check(ci.ComponentSideInfo.Component.ComponentName, Equals, "component")
+	c.Check(ci.ComponentSideInfo.Component.SnapName, Equals, "snap")
+	c.Check(ci.Revision, Equals, snap.R(1))
+
+	c.Check(ci.Hooks, HasLen, 3)
+
+	installHook := ci.Hooks["install"]
+	c.Assert(installHook, NotNil)
+	c.Check(installHook.Name, Equals, "install")
+	c.Check(installHook.Explicit, Equals, true)
+	c.Check(installHook.Plugs, HasLen, 2)
+	c.Check(installHook.Plugs["network-client"], NotNil)
+	c.Check(installHook.Plugs["network"], NotNil)
+
+	// should be missing, since it was removed as a from the plugs on all
+	// ExplicitHooks
+	c.Check(installHook.Plugs["implicit-bad"], IsNil)
+	c.Check(installHook.Plugs["explicit-bad"], IsNil)
+
+	preRefreshHook := ci.Hooks["pre-refresh"]
+	c.Assert(preRefreshHook, NotNil)
+	c.Check(preRefreshHook.Name, Equals, "pre-refresh")
+	c.Check(preRefreshHook.Explicit, Equals, false)
+	c.Check(preRefreshHook.Plugs, HasLen, 1)
+	c.Check(preRefreshHook.Plugs["network-client"], NotNil)
+
+	removeHook := ci.Hooks["remove"]
+	c.Assert(removeHook, NotNil)
+	c.Check(removeHook.Name, Equals, "remove")
+	c.Check(removeHook.Explicit, Equals, true)
+	c.Check(removeHook.Plugs, HasLen, 1)
+	c.Check(removeHook.Plugs["network-client"], NotNil)
+}
+
+func (s *componentSuite) TestReadComponentInfoFinishedWithSnapInfoMissingComponentError(c *C) {
+	const componentYaml = `component: snap+component
+type: test
+version: 1.0
+summary: short description
+description: long description
+`
+	const compName = "snap+component"
+	testComp := snaptest.MakeTestComponentWithFiles(c, compName+".comp", componentYaml, nil)
+
+	compf, err := snapfile.Open(testComp)
+	c.Assert(err, IsNil)
+
+	const snapYaml = `
+name: snap
+components:
+  other-component:
+    type: test
+`
+
+	snapInfo, err := snap.InfoFromSnapYaml([]byte(snapYaml))
+	c.Assert(err, IsNil)
+
+	_, err = snap.ReadComponentInfoFromContainer(compf, snapInfo, nil)
+	c.Assert(err, ErrorMatches, `"component" is not a component for snap "snap"`)
+}
+
+func (s *componentSuite) TestReadComponentInfoFinishedWithDifferentSnapInfoError(c *C) {
+	const componentYaml = `component: snap+component
+type: test
+version: 1.0
+summary: short description
+description: long description
+`
+	const compName = "snap+component"
+	testComp := snaptest.MakeTestComponentWithFiles(c, compName+".comp", componentYaml, nil)
+
+	compf, err := snapfile.Open(testComp)
+	c.Assert(err, IsNil)
+
+	const snapYaml = `
+name: other-snap
+components:
+  component:
+    type: test
+`
+
+	snapInfo, err := snap.InfoFromSnapYaml([]byte(snapYaml))
+	c.Assert(err, IsNil)
+
+	_, err = snap.ReadComponentInfoFromContainer(compf, snapInfo, nil)
+	c.Assert(err, ErrorMatches, `component "snap\+component" is not a component for snap "other-snap"`)
+}
+
+func (s *componentSuite) TestReadComponentInfoInconsistentTypes(c *C) {
+	const componentYaml = `component: snap+component
+type: test
+version: 1.0
+summary: short description
+description: long description
+`
+	const compName = "snap+component"
+	testComp := snaptest.MakeTestComponentWithFiles(c, compName+".comp", componentYaml, nil)
+
+	compf, err := snapfile.Open(testComp)
+	c.Assert(err, IsNil)
+
+	const snapYaml = `
+name: snap
+components:
+  component:
+    type: kernel-modules
+`
+
+	snapInfo, err := snap.InfoFromSnapYaml([]byte(snapYaml))
+	c.Assert(err, IsNil)
+
+	_, err = snap.ReadComponentInfoFromContainer(compf, snapInfo, nil)
+	c.Assert(err, ErrorMatches, `inconsistent component type \("kernel-modules" in snap, "test" in component\)`)
+}
+
+func (s *componentSuite) TestHooksForPlug(c *C) {
+	const snapYaml = `
+name: snap
+version: 1
+apps:
+ one:
+   command: one
+   plugs: [app-plug]
+components:
+  comp:
+    type: test
+    hooks:
+      install:
+        plugs: [scoped-plug]
+      pre-refresh:
+plugs:
+  unscoped-plug:
+  app-plug:
+`
+	const componentYaml = `
+component: snap+comp
+type: test
+version: 1
+`
+
+	info := snaptest.MockSnap(c, snapYaml, &snap.SideInfo{Revision: snap.R(1)})
+
+	componentInfo := snaptest.MockComponent(c, componentYaml, info, snap.ComponentSideInfo{
+		Revision: snap.R(1),
+	})
+
+	scoped := info.Plugs["scoped-plug"]
+	c.Assert(scoped, NotNil)
+
+	scopedHooks := componentInfo.HooksForPlug(scoped)
+	c.Assert(scopedHooks, testutil.DeepUnsortedMatches, []*snap.HookInfo{componentInfo.Hooks["install"]})
+
+	unscoped := info.Plugs["unscoped-plug"]
+	c.Assert(unscoped, NotNil)
+
+	unscopedHooks := componentInfo.HooksForPlug(unscoped)
+	c.Assert(unscopedHooks, testutil.DeepUnsortedMatches, []*snap.HookInfo{componentInfo.Hooks["install"], componentInfo.Hooks["pre-refresh"]})
 }

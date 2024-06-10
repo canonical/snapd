@@ -30,12 +30,7 @@ execute: |
     timezone2=$(test-snapd-timedate-control-consumer.timedatectl-timezone list-timezones | sed -n 2p)
 
     # Save the default timezone to be restored at the end
-    # The file /etc/timezone is checked to workaround issue on ubuntu core lp: #1733881
-    if [ -f /etc/timezone ]; then
-        cp /etc/timezone timezone.txt
-    else
-        test-snapd-timedate-control-consumer.timedatectl-timezone status | grep -oP 'Time zone: \K(.*)(?= \()' > timezone.txt
-    fi
+    "${TESTSLIB}"/get-timezone.sh >timezone.txt
 
     # Set the timezone1 as timezone and check the status
     test-snapd-timedate-control-consumer.timedatectl-timezone set-timezone "$timezone1"

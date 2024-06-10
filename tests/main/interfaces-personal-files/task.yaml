@@ -1,9 +1,9 @@
 summary: Ensure that the personal-files interface works.
 
 details: |
-    The personal-files interface allows access specific personal files or directories.
-    Missing parent directories of write paths are created when a snap application is run
-    by a non-root user.
+    The personal-files interface allows access specific personal files or
+    directories. Missing parent directories of write paths are created when a
+    snap application is run by a non-root user.
 
 environment:
     TEST_USER_HOME: /home/test

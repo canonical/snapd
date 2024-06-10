@@ -1,5 +1,9 @@
 summary: Regression test that ensures that $HOME/snap is not root owned for sudo commands
 
+details: |
+   Check that snapd uses a snap's data directory under /root and not under
+   /home/$USER when running a snap with sudo.
+
 systems:
     - -ubuntu-14.04-*  # no support for tests.session
 

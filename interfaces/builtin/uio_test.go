@@ -102,12 +102,14 @@ slots:
 }
 
 func (s *uioInterfaceSuite) TestUDevSpec(c *C) {
-	spec := udev.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := udev.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slotGadget0), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets(), testutil.Contains, `# uio
 SUBSYSTEM=="uio", KERNEL=="uio0", TAG+="snap_consumer_app"`)
-	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_consumer_app", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_consumer_app"`, dirs.DistroLibExecDir))
+	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_consumer_app", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`, dirs.DistroLibExecDir))
 }
 
 func (s *uioInterfaceSuite) TestAppArmorConnectedPlugIgnoresMissingConfigFile(c *C) {
@@ -119,7 +121,9 @@ func (s *uioInterfaceSuite) TestAppArmorConnectedPlugIgnoresMissingConfigFile(c 
 		return "", os.ErrNotExist
 	})
 
-	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := apparmor.NewSpecification(appSet)
 	// Simulate two UIO connections.
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slotGadget0), IsNil)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slotGadget1), IsNil)
@@ -145,7 +149,9 @@ func (s *uioInterfaceSuite) TestAppArmorConnectedPlug(c *C) {
 		return target, nil
 	})
 
-	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := apparmor.NewSpecification(appSet)
 	// Simulate two UIO connections.
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slotGadget0), IsNil)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slotGadget1), IsNil)

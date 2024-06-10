@@ -512,6 +512,7 @@ func (s *linkSuite) TestLinkSnapdSnapOnCore(c *C) {
 	mountUnit := fmt.Sprintf(`[Unit]
 Description=Make the snapd snap tooling available for the system
 Before=snapd.service
+Before=systemd-udevd.service
 
 [Mount]
 What=%s/usr/lib/snapd
@@ -1028,8 +1029,42 @@ func (s *linkSuite) TestUnlinkComponentIdempotent(c *C) {
 
 	err := s.be.UnlinkComponent(cpi, snapRev)
 	c.Assert(err, IsNil)
-	c.Assert(linkPath, testutil.FileAbsent)
 	c.Assert(cpi.MountDir(), testutil.FilePresent)
+	// <snap_rev>/<comp_name>/ should be gone
+	c.Assert(linkPath, testutil.FileAbsent)
+	c.Assert(filepath.Dir(linkPath), testutil.FileAbsent)
+
+	err = s.be.UnlinkComponent(cpi, snapRev)
+	c.Assert(err, IsNil)
+}
+
+func (s *linkSuite) TestUnlinkTwoComponents(c *C) {
+	compName := "mycomp"
+	compRev := snap.R(-2)
+	snapName := "mysnap"
+	snapRev := snap.R(2)
+	cpi := snap.MinimalComponentContainerPlaceInfo(compName, compRev, snapName)
+	compRevPath := filepath.Join(dirs.SnapMountDir, snapName,
+		"components", snapRev.String())
+	linkPath := filepath.Join(compRevPath, compName)
+	target := filepath.Join("../mnt", compName, compRev.String())
+
+	c.Assert(os.MkdirAll(cpi.MountDir(), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(linkPath), 0755), IsNil)
+	c.Assert(osutil.AtomicSymlink(target, linkPath), IsNil)
+
+	// Simulate another component installed (dangling symlink, but
+	// that does not matter)
+	target2 := filepath.Join("../mnt", "other-comp", "1")
+	c.Assert(osutil.AtomicSymlink(target2,
+		filepath.Join(compRevPath, "other-comp")), IsNil)
+
+	err := s.be.UnlinkComponent(cpi, snapRev)
+	c.Assert(err, IsNil)
+	c.Assert(cpi.MountDir(), testutil.FilePresent)
+	// Only last subdir of <snap_rev>/<comp_name>/ should be gone
+	c.Assert(linkPath, testutil.FileAbsent)
+	c.Assert(filepath.Dir(linkPath), testutil.FilePresent)
 
 	err = s.be.UnlinkComponent(cpi, snapRev)
 	c.Assert(err, IsNil)

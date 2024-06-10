@@ -260,6 +260,13 @@ func (rm *RestartManager) rebootDidNotHappen() error {
 // pendingForSystemRestart returns true if the change has tasks that are set to
 // wait pending a manual system restart. It is registered with the prune logic.
 func (rm *RestartManager) pendingForSystemRestart(chg *state.Change) bool {
+	return rm.pendingForSystemRestartTasks(chg, nil)
+}
+
+// pendingForSystemRestart returns true if the change has tasks set to wait,
+// if considerTasks is non-nil only those tasks are considered. It is registered
+// with the prune logic.
+func (rm *RestartManager) pendingForSystemRestartTasks(chg *state.Change, considerTasks map[string]bool) bool {
 	if chg.IsReady() {
 		return false
 	}
@@ -268,6 +275,11 @@ func (rm *RestartManager) pendingForSystemRestart(chg *state.Change) bool {
 	}
 	for _, t := range chg.Tasks() {
 		if t.Status() != state.WaitStatus {
+			continue
+		}
+
+		// if we're considering only a subset, ignore tasks not in it
+		if considerTasks != nil && !considerTasks[t.ID()] {
 			continue
 		}
 
@@ -534,8 +546,14 @@ func FinishTaskWithRestart(t *state.Task, status state.Status, restartType Resta
 
 // PendingForChange checks if a system restart is pending for a change.
 func PendingForChange(st *state.State, chg *state.Change) bool {
+	return PendingForChangeTasks(st, chg, nil)
+}
+
+// PendingForChangeTasks checks if a system restart is pending for a
+// change, ignoring tasks other than the task IDs supplied.
+func PendingForChangeTasks(st *state.State, chg *state.Change, considerTasks map[string]bool) bool {
 	rm := restartManager(st, "internal error: cannot request a restart before RestartManager initialization")
-	return rm.pendingForSystemRestart(chg)
+	return rm.pendingForSystemRestartTasks(chg, considerTasks)
 }
 
 // TaskWaitForRestart can be used for tasks that need to wait for a pending

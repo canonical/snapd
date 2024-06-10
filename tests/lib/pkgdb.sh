@@ -794,11 +794,12 @@ pkg_dependencies_opensuse(){
         man-pages
         nfs-kernel-server
         nss-mdns
+        osc
         PackageKit
         python3-yaml
         strace
         netcat-openbsd
-        osc
+        rpm-build
         udisks2
         upower
         uuidd

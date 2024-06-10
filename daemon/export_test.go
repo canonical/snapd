@@ -39,7 +39,10 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-var CreateQuotaValues = createQuotaValues
+var (
+	CreateQuotaValues = createQuotaValues
+	ParseOptionalTime = parseOptionalTime
+)
 
 func APICommands() []*Command {
 	return api
@@ -114,7 +117,7 @@ func MockUnsafeReadSnapInfo(mock func(string) (*snap.Info, error)) (restore func
 	}
 }
 
-func MockReadComponentInfoFromCont(mock func(tempPath string) (*snap.ComponentInfo, error)) (restore func()) {
+func MockReadComponentInfoFromCont(mock func(tempPath string, csi *snap.ComponentSideInfo) (*snap.ComponentInfo, error)) (restore func()) {
 	oldUnsafeReadSnapInfo := readComponentInfoFromCont
 	readComponentInfoFromCont = mock
 	return func() {

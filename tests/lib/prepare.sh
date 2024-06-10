@@ -124,6 +124,10 @@ setup_systemd_snapd_overrides() {
 [Service]
 Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_REBOOT_DELAY=10m SNAPD_CONFIGURE_HOOK_TIMEOUT=30s SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE
 ExecStartPre=/bin/touch /dev/iio:device0
+# The default limit is usually 5, which can be easily hit in 
+# a fast system with few systemd units
+StartLimitBurst=10
+StartLimitIntervalSec=10s
 EOF
 
     # We change the service configuration so reload and restart
@@ -1017,9 +1021,6 @@ setup_reflash_magic() {
         core_name="core22"
     elif is_test_target_core 24; then
         core_name="core24"
-        # TODO: revert this once snaps are ready in target channel
-        KERNEL_CHANNEL=beta
-        GADGET_CHANNEL=edge    
     fi
     # XXX: we get "error: too early for operation, device not yet
     # seeded or device model not acknowledged" here sometimes. To
@@ -1161,15 +1162,9 @@ EOF
 
         # also add debug command line parameters to the kernel command line via
         # the gadget in case things go side ways and we need to debug
-        if is_test_target_core 24; then
-            # TODO: remove this once pc snap is available in beta channel
-            snap download --basename=pc --channel="${BRANCH}/edge" pc
-        else
-            snap download --basename=pc --channel="${BRANCH}/${KERNEL_CHANNEL}" pc
-        fi
+        snap download --basename=pc --channel="${BRANCH}/${KERNEL_CHANNEL}" pc
         test -e pc.snap
         unsquashfs -d pc-gadget pc.snap
-
         # TODO: it would be desirable when we need to do in-depth debugging of
         # UC20 runs in google to have snapd.debug=1 always on the kernel command
         # line, but we can't do this universally because the logic for the env
@@ -1180,7 +1175,7 @@ EOF
         # so for now, don't include snapd.debug=1, but eventually it would be
         # nice to have this on
 
-        if [ "$SPREAD_BACKEND" = "google" ]; then
+        if [[ "$SPREAD_BACKEND" =~ google ]]; then
             # the default console settings for snapd aren't super useful in GCE,
             # instead it's more useful to have all console go to ttyS0 which we 
             # can read more easily than tty1 for example

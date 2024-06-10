@@ -79,20 +79,24 @@ func (s *ScsiGenericInterfaceSuite) TestSanitizePlug(c *C) {
 
 func (s *ScsiGenericInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	apparmorSpec := apparmor.NewSpecification(appSet)
+	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "/dev/sg[0-9]* rw")
 }
 
 func (s *ScsiGenericInterfaceSuite) TestUDevSpec(c *C) {
-	udevSpec := udev.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	udevSpec := udev.NewSpecification(appSet)
 	c.Assert(udevSpec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(udevSpec.Snippets(), HasLen, 2)
 	c.Assert(udevSpec.Snippets(), testutil.Contains, `# scsi-generic
 KERNEL=="sg[0-9]*", TAG+="snap_other_app"`)
-	c.Assert(udevSpec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_other_app", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_other_app"`, dirs.DistroLibExecDir))
+	c.Assert(udevSpec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_other_app", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_other_app $devpath $major:$minor"`, dirs.DistroLibExecDir))
 }
 
 func (s *ScsiGenericInterfaceSuite) TestInterfaces(c *C) {

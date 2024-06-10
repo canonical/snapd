@@ -39,6 +39,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/squashfs"
 	"github.com/snapcore/snapd/sandbox/selinux"
@@ -227,6 +228,12 @@ func getVersion() (int, error) {
 		if i == 1 {
 			verstr = strings.TrimSpace(s)
 		}
+	}
+
+	// ignore the pre-release suffixes, since we otherwise we can't convert to an
+	// int and we only compare versions coarsely to check systemd is not too old
+	if i := strings.IndexRune(verstr, '~'); i != -1 {
+		verstr = verstr[:i]
 	}
 
 	ver, err := strconv.Atoi(verstr)
@@ -440,6 +447,8 @@ type Systemd interface {
 	CurrentTasksCount(unit string) (uint64, error)
 	// Run a command
 	Run(command []string, opts *RunOptions) ([]byte, error)
+	// Set log level for the system
+	SetLogLevel(logLevel string) error
 }
 
 // KeyringMode describes how the kernel keyring is setup, see systemd.exec(5)
@@ -1744,4 +1753,21 @@ func (s *systemd) Run(command []string, opts *RunOptions) ([]byte, error) {
 		return nil, fmt.Errorf("cannot run %q: %v", command, osutil.OutputErrCombine(stdout, stderr, err))
 	}
 	return stdout, nil
+}
+
+func (s *systemd) SetLogLevel(logLevel string) error {
+	_, err := s.systemctl("log-level", logLevel)
+
+	// Older systemd versions used systemd-analyze instead, try that if error
+	if err != nil {
+		if stdout, stderr, err2 := osutil.RunSplitOutput(
+			"systemd-analyze", "set-log-level", logLevel); err2 == nil {
+			return nil
+		} else {
+			logger.Noticef("while running systemd-analyze: %v",
+				osutil.OutputErrCombine(stdout, stderr, err2))
+		}
+	}
+
+	return err
 }

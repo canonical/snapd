@@ -50,7 +50,7 @@ which are used to do emergency repairs on the device.
 )
 
 func init() {
-	err := logger.SimpleSetup()
+	err := logger.SimpleSetup(nil)
 	if err != nil {
 		fmt.Fprintf(Stderr, "WARNING: failed to activate logging: %v\n", err)
 	}

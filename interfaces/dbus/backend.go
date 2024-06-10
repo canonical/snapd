@@ -176,26 +176,36 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 	}
 
 	// Get the files that this snap should have
-	content := b.deriveContent(spec.(*Specification), snapInfo)
+	content := b.deriveContent(spec.(*Specification), appSet)
 
-	glob := fmt.Sprintf("%s.conf", interfaces.SecurityTagGlob(snapName))
+	globs := profileGlobs(snapName)
+
 	dir := dirs.SnapDBusSystemPolicyDir
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("cannot create directory for DBus configuration files %q: %s", dir, err)
 	}
-	_, _, err = osutil.EnsureDirState(dir, glob, content)
+
+	_, _, err = osutil.EnsureDirStateGlobs(dir, globs, content)
 	if err != nil {
 		return fmt.Errorf("cannot synchronize DBus configuration files for snap %q: %s", snapName, err)
 	}
 	return nil
 }
 
+func profileGlobs(snapName string) []string {
+	var globs []string
+	for _, g := range interfaces.SecurityTagGlobs(snapName) {
+		globs = append(globs, fmt.Sprintf("%s.conf", g))
+	}
+	return globs
+}
+
 // Remove removes dbus configuration files of a given snap.
 //
 // This method should be called after removing a snap.
 func (b *Backend) Remove(snapName string) error {
-	glob := fmt.Sprintf("%s.conf", interfaces.SecurityTagGlob(snapName))
-	_, _, err := osutil.EnsureDirState(dirs.SnapDBusSystemPolicyDir, glob, nil)
+	globs := profileGlobs(snapName)
+	_, _, err := osutil.EnsureDirStateGlobs(dirs.SnapDBusSystemPolicyDir, globs, nil)
 	if err != nil {
 		return fmt.Errorf("cannot synchronize DBus configuration files for snap %q: %s", snapName, err)
 	}
@@ -204,10 +214,9 @@ func (b *Backend) Remove(snapName string) error {
 
 // deriveContent combines security snippets collected from all the interfaces
 // affecting a given snap into a content map applicable to EnsureDirState.
-func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info) (content map[string]osutil.FileState) {
-	for _, appInfo := range snapInfo.Apps {
-		securityTag := appInfo.SecurityTag()
-		appSnippets := spec.SnippetForTag(securityTag)
+func (b *Backend) deriveContent(spec *Specification, appSet *interfaces.SnapAppSet) (content map[string]osutil.FileState) {
+	for _, r := range appSet.Runnables() {
+		appSnippets := spec.SnippetForTag(r.SecurityTag)
 		if appSnippets == "" {
 			continue
 		}
@@ -215,24 +224,8 @@ func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info) (conte
 			content = make(map[string]osutil.FileState)
 		}
 
-		addContent(securityTag, appSnippets, content)
+		addContent(r.SecurityTag, appSnippets, content)
 	}
-
-	for _, hookInfo := range snapInfo.Hooks {
-		securityTag := hookInfo.SecurityTag()
-		hookSnippets := spec.SnippetForTag(securityTag)
-		if hookSnippets == "" {
-			continue
-		}
-		if content == nil {
-			content = make(map[string]osutil.FileState)
-		}
-
-		addContent(securityTag, hookSnippets, content)
-	}
-
-	// TODO: something with component hooks will need to happen here, the param
-	// to this method should probably be a SnapAppSet, rather than a snap.Info
 
 	return content
 }

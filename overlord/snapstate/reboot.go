@@ -348,7 +348,7 @@ func arrangeSnapTaskSetsLinkageAndRestart(st *state.State, providedDeviceCtx Dev
 	lanesByTsToMerge := make(map[*state.TaskSet][]int)
 	beforeTss := make(map[snap.Type]*state.TaskSet)
 	afterTss := make(map[snap.Type]*state.TaskSet)
-	// chainEssentialTs takes a task-set that needs to be 'chained' unto the previous (unless its the first),
+	// chainEssentialTs takes a task-set that needs to be 'chained' unto the previous (unless it's the first),
 	// a snap type to specify which type of snap is being chained, and two operational flags.
 	// <transactional>: If set, means that the task-set should be part of the essential snap transaction. Lanes
 	// from the task-set will be merged. This behaviour is disabled for UC16 to not introduce any new changes.
@@ -398,7 +398,7 @@ func arrangeSnapTaskSetsLinkageAndRestart(st *state.State, providedDeviceCtx Dev
 
 	bootSnapType := bootBaseSnapType(byTypeTss)
 
-	// Then we link in the boot-base, to run after snapd, it could run in it's
+	// Then we link in the boot-base, to run after snapd, it could run in its
 	// entirety before a reboot, as we expect boot-bases to be 'simple' and not
 	// have any hooks.
 	if ts := byTypeTss[bootSnapType]; ts != nil {

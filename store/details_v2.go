@@ -22,6 +22,7 @@ package store
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/jsonutil/safejson"
@@ -40,7 +41,7 @@ type storeSnap struct {
 	Contact       string              `json:"contact"`
 	CreatedAt     string              `json:"created-at"` // revision timestamp
 	Description   safejson.Paragraph  `json:"description"`
-	Download      storeSnapDownload   `json:"download"`
+	Download      storeDownload       `json:"download"`
 	Epoch         snap.Epoch          `json:"epoch"`
 	License       string              `json:"license"`
 	Name          string              `json:"name"`
@@ -56,6 +57,7 @@ type storeSnap struct {
 	Version       string              `json:"version"`
 	Website       string              `json:"website"`
 	StoreURL      string              `json:"store-url"`
+	Resources     []storeResource     `json:"resources"`
 
 	// TODO: not yet defined: channel map
 
@@ -67,11 +69,21 @@ type storeSnap struct {
 	Categories []storeSnapCategory `json:"categories"`
 }
 
-type storeSnapDownload struct {
+type storeDownload struct {
 	Sha3_384 string           `json:"sha3-384"`
 	Size     int64            `json:"size"`
 	URL      string           `json:"url"`
 	Deltas   []storeSnapDelta `json:"deltas"`
+}
+
+type storeResource struct {
+	Download    storeDownload      `json:"download"`
+	Type        string             `json:"type"`
+	Name        string             `json:"name"`
+	Revision    int                `json:"revision"`
+	Version     string             `json:"version"`
+	CreatedAt   string             `json:"created-at"`
+	Description safejson.Paragraph `json:"description"`
 }
 
 type storeSnapDelta struct {
@@ -265,6 +277,9 @@ func copyNonZeroFrom(src, dst *storeSnap) {
 	if len(src.Website) > 0 {
 		dst.Website = src.Website
 	}
+	if len(src.Resources) > 0 {
+		dst.Resources = src.Resources
+	}
 }
 
 func infoFromStoreSnap(d *storeSnap) (*snap.Info, error) {
@@ -302,23 +317,7 @@ func infoFromStoreSnap(d *storeSnap) (*snap.Info, error) {
 	info.Base = d.Base
 	info.License = d.License
 	info.Publisher = d.Publisher
-	info.DownloadURL = d.Download.URL
-	info.Size = d.Download.Size
-	info.Sha3_384 = d.Download.Sha3_384
-	if len(d.Download.Deltas) > 0 {
-		deltas := make([]snap.DeltaInfo, len(d.Download.Deltas))
-		for i, d := range d.Download.Deltas {
-			deltas[i] = snap.DeltaInfo{
-				FromRevision: d.Source,
-				ToRevision:   d.Target,
-				Format:       d.Format,
-				DownloadURL:  d.URL,
-				Size:         d.Size,
-				Sha3_384:     d.Sha3_384,
-			}
-		}
-		info.Deltas = deltas
-	}
+	info.DownloadInfo = downloadInfoFromStoreDownload(d.Download)
 	info.CommonIDs = d.CommonIDs
 	if len(info.EditedLinks) == 0 {
 		// if non empty links was provided, no need to set this
@@ -341,12 +340,83 @@ func infoFromStoreSnap(d *storeSnap) (*snap.Info, error) {
 		info.Prices = prices
 	}
 
+	// if snap-yaml is not available, try to fill in components from the
+	// resources available
+	if d.SnapYAML == "" {
+		addComponents(info, d.Resources)
+	}
+
 	// media
 	addMedia(info, d.Media)
 
 	addCategories(info, d.Categories)
 
 	return info, nil
+}
+
+func componentFromStoreResource(r storeResource) (*snap.Component, error) {
+	typeString := strings.TrimPrefix(r.Type, "component/")
+
+	// nothing was trimmed, so the type must not be a component
+	if typeString == r.Type {
+		return nil, fmt.Errorf("resource is not a component: %s", r.Type)
+	}
+
+	compType, err := snap.ComponentTypeFromString(typeString)
+	if err != nil {
+		return nil, err
+	}
+
+	comp := &snap.Component{
+		Name:        r.Name,
+		Description: r.Description.Clean(),
+		Type:        compType,
+
+		// unable to fill the rest of the struct from a store resource
+	}
+
+	return comp, nil
+}
+
+func addComponents(info *snap.Info, resources []storeResource) {
+	for _, r := range resources {
+		comp, err := componentFromStoreResource(r)
+		if err != nil {
+			continue
+		}
+
+		if info.Components == nil {
+			info.Components = make(map[string]*snap.Component)
+		}
+
+		info.Components[comp.Name] = comp
+	}
+}
+
+func downloadInfoFromStoreDownload(d storeDownload) snap.DownloadInfo {
+	downloadInfo := snap.DownloadInfo{
+		DownloadURL: d.URL,
+		Size:        d.Size,
+		Sha3_384:    d.Sha3_384,
+	}
+
+	// resources don't have deltas right now, so this slice will always be empty
+	// for them
+	if len(d.Deltas) > 0 {
+		downloadInfo.Deltas = make([]snap.DeltaInfo, 0, len(d.Deltas))
+		for _, d := range d.Deltas {
+			downloadInfo.Deltas = append(downloadInfo.Deltas, snap.DeltaInfo{
+				FromRevision: d.Source,
+				ToRevision:   d.Target,
+				Format:       d.Format,
+				DownloadURL:  d.URL,
+				Size:         d.Size,
+				Sha3_384:     d.Sha3_384,
+			})
+		}
+	}
+
+	return downloadInfo
 }
 
 func addMedia(info *snap.Info, media []storeSnapMedia) {

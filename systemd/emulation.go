@@ -238,3 +238,7 @@ func (s *emulation) Umount(whatOrWhere string) error {
 func (s *emulation) Run(command []string, opts *RunOptions) ([]byte, error) {
 	return nil, &notImplementedError{"Run"}
 }
+
+func (s *emulation) SetLogLevel(logLevel string) error {
+	return &notImplementedError{"SetLogLevel"}
+}

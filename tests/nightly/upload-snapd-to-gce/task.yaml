@@ -68,6 +68,9 @@ execute: |
         ubuntu-22.04-64)
             CORE_PACKAGES_FILE=ubuntu-core-22-64.tar
             ;;
+        ubuntu-24.04-64)
+            CORE_PACKAGES_FILE=ubuntu-core-24-64.tar
+            ;;
         *)            
             exit
             ;;

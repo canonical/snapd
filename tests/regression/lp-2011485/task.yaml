@@ -1,5 +1,18 @@
 summary: docker-support should have access to /etc/apparmor.d/abi/
 
+details: |
+    The docker-support interface allows snap applications to interact with
+    apparmor. Over time, apparmor introduced the ABI concept and created the new
+    directory where sets of ABIs can be referenced, pinning behavior of a
+    profile to what is supported by that specific ABI, preventing "floating"
+    behavior that changes from one kernel version to another, where future
+    kernel can reject something that was allowed by a past kernel.
+
+    To access this functionality, the snap application process must have access
+    to read files from the /etc/apparmor.d/abi directory. The test constructs an
+    environment where this property can be tested and ensures that files are
+    indeed readable.
+
 # This test case is only interesting on modern classic systems with
 # apparmor in enforcing mode by default
 systems: [ubuntu-2*]

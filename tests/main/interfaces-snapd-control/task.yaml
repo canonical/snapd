@@ -1,17 +1,19 @@
 summary: Ensure that the snapd-control interface works.
 
 details: |
-    The snapd-control interface allows a snap to access the locale configuration.
+    The snapd-control interface allows a snap to access the locale
+    configuration.
 
-    A snap which defines the snapd-control plug must be shown in the interfaces list.
-    The plug must not be autoconnected on install and, as usual, must be able to be
-    reconnected.
+    A snap which defines the snapd-control plug must be shown in the interfaces
+    list. The plug must not be auto-connected on install and, as usual, must be
+    able to be reconnected.
 
-    A snap declaring a plug on this interface must be able to control the snapd daemon
-    through the socket, the test snap used has a command to install a snap (exercising
-    the write capability on the socket) and a command to list the installed snaps (which
-    checks the read capability). A network plug must be defined and connected for the
-    snap to be able to talk to the socket, the snapd-control is not enough by itself.
+    A snap declaring a plug on this interface must be able to control the snapd
+    daemon through the socket, the test snap used has a command to install a
+    snap (exercising the write capability on the socket) and a command to list
+    the installed snaps (which checks the read capability). A network plug must
+    be defined and connected for the snap to be able to talk to the socket, the
+    snapd-control is not enough by itself.
 
 
 prepare: |

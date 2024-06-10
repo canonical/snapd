@@ -1,5 +1,10 @@
 summary: Check that snaps can not access the session agent
 
+details: |
+    This test demonstrates that the session-agent service unit cannot
+    be accessed by confined applications or confined apps running as
+    root.
+
 systems:
     # Ubuntu 14.04 does not have a complete systemd implementation
     - -ubuntu-14.04-*

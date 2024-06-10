@@ -1,5 +1,10 @@
 summary: Ensure that the password-manager-service interface works
 
+details: |
+    The password-manager interface allows access to one of several password
+    manager services, such as KDE's kwallet and the freedesktop secret-service
+    library.
+
 systems:
     - ubuntu-16.04-*
     - ubuntu-18.04-*

@@ -1,5 +1,20 @@
 summary: Check auto-aliases mechanism
 
+details: |
+    The alias feature of snapd lets snaps declare their own aliases, for users
+    to manually enable after install or for snap stores to declare as “auto-aliases”
+    that will be enabled upon install.
+
+    The prefer command enables all aliases of the given snap in preference
+    to conflicting aliases of other snaps whose aliases will be disabled.
+
+    This test verifies that when we install a snap with auto-aliases defined
+    in the store, the aliases are automatically applied (check using `snap aliases`
+    command). Then it is checked that removing the snap also removes the aliases.
+
+    Finally, it is verified that the `snap prefer` command works with a snap
+    installed with `snap install --unaliased`.
+
 execute: |
     echo "Install the snap with auto-aliases"
     snap install test-snapd-auto-aliases

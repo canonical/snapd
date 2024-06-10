@@ -432,7 +432,9 @@ endif
 
 install-exec-hook::
 	install -d -m 755 $(DESTDIR)$(bindir)
+if BUILD_HOST_BINARIES
 	ln -sf $(libexecdir)/snap-confine $(DESTDIR)$(bindir)/ubuntu-core-launcher
+endif
 
 ##
 ## snap-device-helper
@@ -543,7 +545,11 @@ snap_gdb_shim_snap_gdbserver_shim_LDFLAGS = -static
 ##
 
 systemdsystemgeneratordir = $(SYSTEMD_SYSTEM_GENERATOR_DIR)
+EXTRA_PROGRAMS = snapd-generator/snapd-generator
+
+if BUILD_HOST_BINARIES
 systemdsystemgenerator_PROGRAMS = snapd-generator/snapd-generator
+endif
 
 snapd_generator_snapd_generator_SOURCES = snapd-generator/main.c
 snapd_generator_snapd_generator_LDADD = libsnap-confine-private.a
@@ -553,16 +559,23 @@ snapd_generator_snapd_generator_LDADD = libsnap-confine-private.a
 ##
 
 systemdsystemenvgeneratordir=$(SYSTEMD_SYSTEM_ENV_GENERATOR_DIR)
+
+EXTRA_PROGRAMS += snapd-env-generator/snapd-env-generator
+
+if BUILD_HOST_BINARIES
 systemdsystemenvgenerator_PROGRAMS = snapd-env-generator/snapd-env-generator
+endif
 
 snapd_env_generator_snapd_env_generator_SOURCES = snapd-env-generator/main.c
 snapd_env_generator_snapd_env_generator_LDADD = libsnap-confine-private.a
 EXTRA_DIST += snapd-env-generator/snapd-env-generator.rst
 
+if BUILD_HOST_BINARIES
 if HAVE_RST2MAN
 dist_man_MANS += snapd-env-generator/snapd-env-generator.8
-CLEANFILES += snapd-env-generator/snapd-env-generator.8
 endif
+endif
+CLEANFILES += snapd-env-generator/snapd-env-generator.8
 
 install-exec-local::
 	install -d -m 755 $(DESTDIR)$(libexecdir)

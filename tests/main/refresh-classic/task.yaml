@@ -1,5 +1,9 @@
 summary: Check that refresh from classic->strict works
 
+details: |
+    Check that a snap can be refreshed from a revision with classic
+    confinement to a revision with strict confinement.
+
 # ubuntu-core does not support classic confinement
 systems: [-ubuntu-core-*]
 

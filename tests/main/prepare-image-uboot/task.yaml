@@ -1,5 +1,14 @@
 summary: Check that prepare-image works for uboot-systems
 
+details: |
+    The `snap prepare-image` command performs some of the steps necessary for
+    creating device images.
+
+    This test verifies that in classic and Ubuntu Core systems, the prepare-image
+    command prepares properly an ubuntu-core 16 image with uboot as boot loader.
+    It is checked that the kernel and gadget are available unpacked, the snap
+    assertions are retrieved and the generated seed.yaml looks good.
+
 # autopkgtest run only a subset of tests that deals with the integration
 # with the distro
 backends: [-autopkgtest]

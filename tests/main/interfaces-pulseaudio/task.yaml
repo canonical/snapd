@@ -1,5 +1,12 @@
 summary: Ensure that the pulseaudio interface works
 
+details: |
+    Historically snapd offered the pulseaudio interface which allowed both
+    playback and recording capabilities.
+
+    The test exercises that both audio playback and recording are really governed
+    by the interface connection.
+
 # Only classic Ubuntu has the pulseaudio mediation patches. Ubuntu 14.04 is unsupported on the desktop.
 # TODO: extend tests.session and run this test on 14.04 as well.
 systems: [ubuntu-16.04-*, ubuntu-18.04-*, ubuntu-2*]

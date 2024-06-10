@@ -73,13 +73,13 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 func (b *Backend) setupModules(appSet *interfaces.SnapAppSet, spec *Specification) error {
 	content, modules := deriveContent(spec, appSet)
 	// synchronize the content with the filesystem
-	glob := interfaces.SecurityTagGlob(appSet.InstanceName())
+	globs := interfaces.SecurityTagGlobs(appSet.InstanceName())
 	dir := dirs.SnapKModModulesDir
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("cannot create directory for kmod files %q: %s", dir, err)
 	}
 
-	changed, _, err := osutil.EnsureDirState(dirs.SnapKModModulesDir, glob, content)
+	changed, _, err := osutil.EnsureDirStateGlobs(dirs.SnapKModModulesDir, globs, content)
 	if err != nil {
 		return err
 	}
@@ -102,9 +102,9 @@ func (b *Backend) setupModprobe(appSet *interfaces.SnapAppSet, spec *Specificati
 		return fmt.Errorf("cannot create directory for kmod files %q: %s", dir, err)
 	}
 
-	glob := interfaces.SecurityTagGlob(appSet.InstanceName())
+	globs := interfaces.SecurityTagGlobs(appSet.InstanceName())
 	dirContents := prepareModprobeDirContents(spec, appSet)
-	_, _, err := osutil.EnsureDirState(dirs.SnapKModModprobeDir, glob, dirContents)
+	_, _, err := osutil.EnsureDirStateGlobs(dirs.SnapKModModprobeDir, globs, dirContents)
 	if err != nil {
 		return err
 	}
@@ -146,13 +146,13 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, confinement interfaces.Co
 //
 // If the method fails it should be re-tried (with a sensible strategy) by the caller.
 func (b *Backend) Remove(snapName string) error {
-	glob := interfaces.SecurityTagGlob(snapName)
+	globs := interfaces.SecurityTagGlobs(snapName)
 	var errors []error
-	if _, _, err := osutil.EnsureDirState(dirs.SnapKModModulesDir, glob, nil); err != nil {
+	if _, _, err := osutil.EnsureDirStateGlobs(dirs.SnapKModModulesDir, globs, nil); err != nil {
 		errors = append(errors, err)
 	}
 
-	if _, _, err := osutil.EnsureDirState(dirs.SnapKModModprobeDir, glob, nil); err != nil {
+	if _, _, err := osutil.EnsureDirStateGlobs(dirs.SnapKModModprobeDir, globs, nil); err != nil {
 		errors = append(errors, err)
 	}
 

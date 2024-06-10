@@ -1,5 +1,11 @@
 summary: Check that install/remove works
 
+details: |
+    Snapd installs packages by mounting them in a structure under /snap or
+    /var/lib/snapd/snap directories, depending on distribution policy. Ensure
+    that a trivial test snap can be installed and removed, and that after
+    removal no leftovers remain in the mounting area.
+
 execute: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
 

@@ -2,7 +2,7 @@ summary: End-to-end test for install via muinstaller
 
 details: End-to-end test for install via muinstaller
 
-systems: [ubuntu-22.04-64]
+systems: [ubuntu-22.04-64, ubuntu-24.04-64]
 
 environment:
   # No partial gadget by default
@@ -91,7 +91,8 @@ execute: |
   uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
   mv "${NESTED_ASSETS_DIR}"/pc-kernel_*.snap pc-kernel.snap
 
-  gendeveloper1 sign-model < "$TESTSLIB"/assertions/developer1-22-classic-dangerous.json > classic.model
+  version="$(nested_get_version)"
+  gendeveloper1 sign-model < "$TESTSLIB"/assertions/developer1-"$version"-classic-dangerous.json > classic.model
 
   # create new disk for the installer to work on and attach to VM
   truncate --size=4G disk.img
@@ -225,8 +226,6 @@ execute: |
 
   unsquashfs -d pc-kernel pc-kernel.snap
   refresh_rebooting_snap pc-kernel pc-kernel.snap.orig ./pc-kernel
-
-  version="$(nested_get_version)"
 
   # test that core22+ refreshes fine and does not revert after a reboot
   # (see https://github.com/snapcore/snapd/pull/12532)

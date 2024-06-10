@@ -65,10 +65,15 @@ endif
 .PHONY: all
 all: $(go_binaries) 
 
+# FIXME: not all Go toolchains we build with support '-B gobuildid', replace a
+# random GNU build ID with something more predictable, use something similar to
+# https://pagure.io/go-rpm-macros/c/1980932bf3a21890a9571effaa23fbe034fd388d
 $(builddir)/snap: GO_TAGS += nomanagers
 $(builddir)/snap $(builddir)/snap-seccomp $(builddir)/snapd-apparmor:
 	go build -o $@ $(if $(GO_TAGS),-tags "$(GO_TAGS)") \
-		-buildmode=pie -ldflags=-w -mod=vendor \
+		-buildmode=pie \
+		-ldflags="-w -B 0x$$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \n')" \
+		-mod=vendor \
 		$(import_path)/cmd/$(notdir $@)
 
 # Those three need to be built as static binaries. They run on the inside of a
@@ -82,10 +87,13 @@ $(builddir)/snap-update-ns $(builddir)/snap-exec $(builddir)/snapctl:
 		-ldflags '-linkmode external -extldflags "-static"' \
 		$(import_path)/cmd/$(notdir $@)
 
+# XXX see the note about build ID in rule for building 'snap'
 # Snapd can be built with test keys. This is only used by the internal test
 # suite to add test assertions. Do not enable this in distribution packages.
 $(builddir)/snapd:
-	go build -o $@ -buildmode=pie -ldflags=-w -mod=vendor \
+	go build -o $@ -buildmode=pie \
+		-ldflags="-w -B 0x$$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \n')" \
+		-mod=vendor \
 		$(if $(GO_TAGS),-tags "$(GO_TAGS)") \
 		$(import_path)/cmd/$(notdir $@)
 
@@ -123,6 +131,7 @@ install::
 	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/dbus-1/system-services
 	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/desktop/applications
 	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/device
+	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/environment
 	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/hostfs
 	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/inhibit
 	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/lib/gl

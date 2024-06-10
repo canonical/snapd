@@ -116,6 +116,8 @@ func IsTransferSpeedError(err error) (ok bool, speed float64) {
 }
 
 func (w *TransferSpeedMonitoringWriter) MeasuredWindowsCount() int {
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	return w.measuredWindows
 }
 

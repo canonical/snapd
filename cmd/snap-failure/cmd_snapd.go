@@ -31,6 +31,8 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snapdtool"
 )
 
 func init() {
@@ -112,6 +114,16 @@ var (
 )
 
 func (c *cmdSnapd) Execute(args []string) error {
+	if release.OnClassic {
+		// snap failure was invoked in a classic system, while there are
+		// scenarios in which it may make sense, they are limited to a
+		// case when snapd is being reexec'd from the snapd snap
+		if !snapdtool.DistroSupportsReExec() || !snapdtool.IsReexecEnabled() {
+			logger.Noticef("re-exec unsupported or disabled")
+			return nil
+		}
+	}
+
 	var snapdPath string
 	// find previous the snapd snap
 	prevRev, err := prevRevision("snapd")

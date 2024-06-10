@@ -227,22 +227,28 @@ func (s *I2cInterfaceSuite) TestSanitizeBadGadgetSnapSlot(c *C) {
 }
 
 func (s *I2cInterfaceSuite) TestUDevSpec(c *C) {
-	spec := udev.NewSpecification(interfaces.NewSnapAppSet(s.testPlugPort1.Snap()))
+	appSet, err := interfaces.NewSnapAppSet(s.testPlugPort1.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := udev.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUDev1), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets(), testutil.Contains, `# i2c
 KERNEL=="i2c-1", TAG+="snap_client-snap_app-accessing-1-port"`)
-	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-1-port", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_client-snap_app-accessing-1-port"`, dirs.DistroLibExecDir))
+	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-1-port", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_client-snap_app-accessing-1-port $devpath $major:$minor"`, dirs.DistroLibExecDir))
 }
 
 func (s *I2cInterfaceSuite) TestUDevSpecSysfsName(c *C) {
-	spec := udev.NewSpecification(interfaces.NewSnapAppSet(s.testPlugPort1.Snap()))
+	appSet, err := interfaces.NewSnapAppSet(s.testPlugPort1.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := udev.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testSysfsName1), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 0)
 }
 
 func (s *I2cInterfaceSuite) TestAppArmorSpecPath(c *C) {
-	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.testPlugPort1.Snap()))
+	appSet, err := interfaces.NewSnapAppSet(s.testPlugPort1.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUDev1), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-1-port"})
 	c.Assert(spec.SnippetForTag("snap.client-snap.app-accessing-1-port"), testutil.Contains, `/dev/i2c-1 rw,`)
@@ -250,7 +256,9 @@ func (s *I2cInterfaceSuite) TestAppArmorSpecPath(c *C) {
 }
 
 func (s *I2cInterfaceSuite) TestAppArmorSpecPathMany(c *C) {
-	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.testPlugPort1.Snap()))
+	appSet, err := interfaces.NewSnapAppSet(s.testPlugPort1.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUDev1), IsNil)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUDev2), IsNil)
 	// NOTE: the snap name is misleading.
@@ -261,7 +269,9 @@ func (s *I2cInterfaceSuite) TestAppArmorSpecPathMany(c *C) {
 }
 
 func (s *I2cInterfaceSuite) TestAppArmorSpecSysfsName(c *C) {
-	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.testPlugPort1.Snap()))
+	appSet, err := interfaces.NewSnapAppSet(s.testPlugPort1.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testSysfsName1), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-1-port"})
 	c.Assert(spec.SnippetForTag("snap.client-snap.app-accessing-1-port"), Equals, `

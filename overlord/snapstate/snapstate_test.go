@@ -7484,9 +7484,11 @@ func (s *snapmgrTestSuite) TestStopSnapServicesUndo(c *C) {
 	c.Check(t.Get("old-last-active-disabled-services", &oldDisabledSvcs), IsNil)
 	c.Check(oldDisabledSvcs, DeepEquals, []string{"old-svc"})
 
-	var disabled []string
+	var disabled wrappers.DisabledServices
 	c.Check(t.Get("disabled-services", &disabled), IsNil)
-	c.Check(disabled, DeepEquals, []string{"svc1"})
+	c.Check(disabled, DeepEquals, wrappers.DisabledServices{
+		SystemServices: []string{"svc1"},
+	})
 }
 
 func (s *snapmgrTestSuite) TestStopSnapServicesErrInUndo(c *C) {
@@ -10083,4 +10085,125 @@ func noticeToMap(c *C, notice *state.Notice) map[string]any {
 	err = json.Unmarshal(buf, &n)
 	c.Assert(err, IsNil)
 	return n
+}
+
+func (s *snapmgrTestSuite) TestCheckExpectedRestartNoEnv(c *C) {
+	os.Unsetenv("SNAPD_REVERT_TO_REV")
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// no snapd related change in the state
+	err := snapstate.CheckExpectedRestart(st)
+	c.Assert(err, IsNil)
+
+	// procure a non-ready change for the snapd snap in the state
+	snapstate.Set(st, "snapd", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "snapd", Revision: snap.R(1), SnapID: "snapd-snap-id"},
+		}),
+		Current:  snap.R(1),
+		SnapType: "snapd",
+	})
+
+	chg := s.state.NewChange("refresh-snap", "snapd refresh")
+	ts, err := snapstate.Update(s.state, "snapd", nil, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.Set("snap-names", []string{"snapd"})
+	chg.AddAll(ts)
+
+	// but since the env variable is still unset, we just proceed with execution
+	err = snapstate.CheckExpectedRestart(st)
+	c.Assert(err, IsNil)
+
+	// pretend everything up to auto-connect is done, as if daemon restart
+	// was requested
+	for _, tsk := range chg.Tasks() {
+		if tsk.Kind() == "auto-connect" {
+			break
+		}
+		tsk.SetStatus(state.DoneStatus)
+	}
+
+	// but even then we just proceed with execution
+	err = snapstate.CheckExpectedRestart(st)
+	c.Assert(err, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestCheckExpectedRestartFromSnapFailure(c *C) {
+	os.Setenv("SNAPD_REVERT_TO_REV", "1")
+	defer os.Unsetenv("SNAPD_REVERT_TO_REV")
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// no snapd related change in the state
+	err := snapstate.CheckExpectedRestart(st)
+	// indicating we should exit
+	c.Assert(err, Equals, snapstate.ErrUnexpectedRuntimeRestart)
+
+	// procure a non-ready change for the snapd snap in the state
+	snapstate.Set(st, "snapd", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "snapd", Revision: snap.R(1), SnapID: "snapd-snap-id"},
+		}),
+		Current:  snap.R(1),
+		SnapType: "snapd",
+	})
+
+	chg := s.state.NewChange("refresh-snap", "snapd refresh")
+	tss, err := snapstate.Update(s.state, "snapd", nil, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.Set("snap-names", []string{"snapd"})
+	chg.AddAll(tss)
+
+	err = snapstate.CheckExpectedRestart(st)
+	// snapd should proceed with execution (possibly rolling back)
+	c.Assert(err, Equals, snapstate.ErrUnexpectedRuntimeRestart)
+
+	// pretend everything up to auto-connect is done
+	for _, tsk := range chg.Tasks() {
+		if tsk.Kind() == "auto-connect" {
+			break
+		}
+		tsk.SetStatus(state.DoneStatus)
+	}
+
+	// if snap-failure was to call snapd now, the restart would not be
+	// unexpected
+	err = snapstate.CheckExpectedRestart(st)
+	// now a restart is not unexpected
+	c.Assert(err, IsNil)
+
+	// now mark each task as ready
+	for _, ts := range chg.Tasks() {
+		ts.SetStatus(state.DoneStatus)
+	}
+	c.Assert(chg.IsReady(), Equals, true)
+
+	// now there are no non-ready changes related to the snapd snap, which
+	// means restart with the env varialbe set would indicate a failure at
+	// runtime
+	err = snapstate.CheckExpectedRestart(st)
+	// snapd should proceed with execution (possibly rolling back)
+	c.Assert(err, Equals, snapstate.ErrUnexpectedRuntimeRestart)
+}
+
+func (s *snapmgrTestSuite) TestCheckExpectedRestartFromStartUpRequestsStop(c *C) {
+	os.Setenv("SNAPD_REVERT_TO_REV", "1")
+	defer os.Unsetenv("SNAPD_REVERT_TO_REV")
+
+	s.state.Lock()
+	// make sure we have an expected state
+	err := snapstate.CheckExpectedRestart(s.state)
+	c.Assert(err, Equals, snapstate.ErrUnexpectedRuntimeRestart)
+	s.state.Unlock()
+
+	// startup asserts the runtime failure state
+	err = s.snapmgr.StartUp()
+	c.Check(err, Equals, snapstate.ErrUnexpectedRuntimeRestart)
 }

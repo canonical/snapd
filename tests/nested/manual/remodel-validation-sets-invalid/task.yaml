@@ -7,7 +7,7 @@ details: |
   the case that the model declares a snap that is marked as invalid in any of
   the validation sets that the model declares.
 
-systems: [ubuntu-22.04-64]
+systems: [ubuntu-22.04-64, ubuntu-24.04-64]
 
 environment:
   NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/test-snapd-remodel-without-vset-pc-{VERSION}.model

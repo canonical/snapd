@@ -1,5 +1,9 @@
 summary: Check that sockets for user services are created correctly
 
+details: |
+    Check that socket activiations for snap user services are created
+    correctly when the experimental user-daemons flag is enabled.
+
 systems:
     # Ubuntu 14.04's systemd doesn't have user@.service
     - -ubuntu-14.04-*

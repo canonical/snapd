@@ -1,5 +1,11 @@
 summary: Check that `snap wait` works
 
+details: |
+    The wait command waits until a configuration becomes true.
+
+    This test verifies the `snap wait` command works for seeding
+    (seed.loaded) and for an arbitrary configuration.
+
 kill-timeout: 10m
 
 prepare: |

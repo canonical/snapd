@@ -1,8 +1,12 @@
 summary: System settings work
 
+details: |
+    Check that in Ubuntu Core systems, setting the hostname and
+    timezone works through the hostnamectl command.
+
 prepare: |
     hostname > hostname.bak
-    cp /etc/timezone timezone.bak
+    "${TESTSLIB}"/get-timezone.sh >timezone.bak
 
 restore: |
     hostnamectl set-hostname "$(cat hostname.bak)" || true
@@ -18,5 +22,4 @@ execute: |
     timedatectl set-timezone "America/Lima"
     date +"%Z" | MATCH '\-05'
     timedatectl | MATCH "Time zone: America/Lima"
-    MATCH "America/Lima" < /etc/timezone
     test "$(readlink -f /etc/localtime)" = "/usr/share/zoneinfo/America/Lima"

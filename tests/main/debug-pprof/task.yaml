@@ -1,5 +1,11 @@
 summary: Verify pprof endpoints are accessible to the tooling
 
+details: |
+    pprof is go a tool for visualization and analysis of profiling data.
+
+    This test checks that the pprof profiles can be accessed through
+    the http://localhost/v2/debug/pprof/ API
+
 # ubuntu-core: no curl
 # ubuntu-14.04: curl does not have --unix-socket option
 systems: [-ubuntu-core-*, -ubuntu-14.04-*]

@@ -1,7 +1,12 @@
 summary: Regression check for https://bugs.launchpad.net/snapd/+bug/1813365
 
 details: |
-    Check security issue related to local privilege escalation via snapd socket
+    Check security issue related to local privilege escalation via snapd socket.
+    The snapd API has an endpoint for creating user accounts. That endpoint is
+    protected with a permission check, so that only root is allowed to manage
+    users. A flaw in snapd allowed an unprivileged user to craft a malformed URL
+    which would trick snapd into thinking that the user has the necessary
+    permission.
 
 systems: [ubuntu-1*, ubuntu-2*, ubuntu-core-*, debian-*]
 

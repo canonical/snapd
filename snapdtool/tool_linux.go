@@ -55,12 +55,12 @@ var (
 	osReadlink  = os.Readlink
 )
 
-// distroSupportsReExec returns true if the distribution we are running on can use re-exec.
+// DistroSupportsReExec returns true if the distribution we are running on can use re-exec.
 //
 // This is true by default except for a "core/all" snap system where it makes
 // no sense and in certain distributions that we don't want to enable re-exec
 // yet because of missing validation or other issues.
-func distroSupportsReExec() bool {
+func DistroSupportsReExec() bool {
 	if !release.OnClassic {
 		return false
 	}
@@ -142,6 +142,16 @@ func InternalToolPath(tool string) (string, error) {
 	return distroTool, nil
 }
 
+// IsReexecEnabled checks the environment and configuration to assert whether
+// reexec has been explicitly enabled/disabled.
+func IsReexecEnabled() bool {
+	// XXX for now we are only checking environment variables
+
+	// If we are asked not to re-execute use distribution packages. This is
+	// "spiritual" re-exec so use the same environment variable to decide.
+	return osutil.GetenvBool(reExecKey, true)
+}
+
 // mustUnsetenv will unset the given environment key or panic if it
 // cannot do that
 func mustUnsetenv(key string) {
@@ -170,9 +180,7 @@ func ExecInSnapdOrCoreSnap() {
 		return
 	}
 
-	// If we are asked not to re-execute use distribution packages. This is
-	// "spiritual" re-exec so use the same environment variable to decide.
-	if !osutil.GetenvBool(reExecKey, true) {
+	if !IsReexecEnabled() {
 		logger.Debugf("re-exec disabled by user")
 		return
 	}
@@ -183,7 +191,7 @@ func ExecInSnapdOrCoreSnap() {
 	}
 
 	// If the distribution doesn't support re-exec or run-from-core then don't do it.
-	if !distroSupportsReExec() {
+	if !DistroSupportsReExec() {
 		return
 	}
 

@@ -59,23 +59,30 @@ slots:
 		name:              "common",
 		connectedPlugUDev: []string{`KERNEL=="foo"`},
 	}
-	spec := udev.NewSpecification(interfaces.NewSnapAppSet(plug.Snap()))
+	appSet, err := interfaces.NewSnapAppSet(plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := udev.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(iface, plug, slot), IsNil)
 	c.Assert(spec.Snippets(), DeepEquals, []string{
 		`# common
 KERNEL=="foo", TAG+="snap_consumer_app-a"`,
-		fmt.Sprintf(`TAG=="snap_consumer_app-a", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_consumer_app-a"`, dirs.DistroLibExecDir),
+		fmt.Sprintf(`TAG=="snap_consumer_app-a", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_consumer_app-a $devpath $major:$minor"`, dirs.DistroLibExecDir),
 		// NOTE: app-b is unaffected as it doesn't have a plug reference.
 		`# common
 KERNEL=="foo", TAG+="snap_consumer_app-c"`,
-		fmt.Sprintf(`TAG=="snap_consumer_app-c", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_consumer_app-c"`, dirs.DistroLibExecDir),
+		fmt.Sprintf(`TAG=="snap_consumer_app-c", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_consumer_app-c $devpath $major:$minor"`, dirs.DistroLibExecDir),
 	})
 
 	// connected plug udev rules are optional
 	iface = &commonInterface{
 		name: "common",
 	}
-	spec = udev.NewSpecification(interfaces.NewSnapAppSet(plug.Snap()))
+
+	appSet, err = interfaces.NewSnapAppSet(plug.Snap(), nil)
+	c.Assert(err, IsNil)
+
+	spec = udev.NewSpecification(appSet)
+
 	c.Assert(spec.AddConnectedPlug(iface, plug, slot), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 0)
 }
@@ -221,7 +228,9 @@ slots:
 	}
 
 	for _, test := range tests {
-		spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(plug.Snap()))
+		appSet, err := interfaces.NewSnapAppSet(plug.Snap(), nil)
+		c.Assert(err, IsNil)
+		spec := apparmor.NewSpecification(appSet)
 		iface := test.iface
 		// before connection, everything should be set to false
 		for _, check := range test.checks {
@@ -254,7 +263,9 @@ slots:
 		name:                 "common",
 		controlsDeviceCgroup: false,
 	}
-	spec := udev.NewSpecification(interfaces.NewSnapAppSet(plug.Snap()))
+	appSet, err := interfaces.NewSnapAppSet(plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := udev.NewSpecification(appSet)
 	c.Assert(spec.ControlsDeviceCgroup(), Equals, false)
 	c.Assert(spec.AddConnectedPlug(iface, plug, slot), IsNil)
 	c.Assert(spec.ControlsDeviceCgroup(), Equals, false)
@@ -263,7 +274,11 @@ slots:
 		name:                 "common",
 		controlsDeviceCgroup: true,
 	}
-	spec = udev.NewSpecification(interfaces.NewSnapAppSet(plug.Snap()))
+	appSet, err = interfaces.NewSnapAppSet(plug.Snap(), nil)
+	c.Assert(err, IsNil)
+
+	spec = udev.NewSpecification(appSet)
+
 	c.Assert(spec.ControlsDeviceCgroup(), Equals, false)
 	c.Assert(spec.AddConnectedPlug(iface, plug, slot), IsNil)
 	c.Assert(spec.ControlsDeviceCgroup(), Equals, true)

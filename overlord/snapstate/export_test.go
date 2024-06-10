@@ -48,6 +48,8 @@ type (
 	TooSoonError = tooSoonError
 )
 
+var ComponentSetupTask = componentSetupTask
+
 const (
 	None         = none
 	Full         = full
@@ -68,7 +70,7 @@ func MockSnapReadInfo(mock func(name string, si *snap.SideInfo) (*snap.Info, err
 	return func() { snapReadInfo = old }
 }
 
-func MockReadComponentInfo(mock func(compMntDir string) (*snap.ComponentInfo, error)) (restore func()) {
+func MockReadComponentInfo(mock func(compMntDir string, snapInfo *snap.Info, csi *snap.ComponentSideInfo) (*snap.ComponentInfo, error)) (restore func()) {
 	old := readComponentInfo
 	readComponentInfo = mock
 	return func() { readComponentInfo = old }
@@ -137,6 +139,8 @@ var (
 	ArrangeSnapToWaitForBaseIfPresent    = arrangeSnapToWaitForBaseIfPresent
 	ArrangeSnapTaskSetsLinkageAndRestart = arrangeSnapTaskSetsLinkageAndRestart
 	ReRefreshSummary                     = reRefreshSummary
+
+	MaybeFindTasksetForSnap = maybeFindTasksetForSnap
 )
 
 const (
@@ -283,6 +287,14 @@ func MockHasActiveConnection(fn func(st *state.State, iface string) (bool, error
 	HasActiveConnection = fn
 	return func() {
 		HasActiveConnection = old
+	}
+}
+
+func MockOnRefreshInhibitionTimeout(fn func(chg *state.Change, snapName string) error) (restore func()) {
+	old := onRefreshInhibitionTimeout
+	onRefreshInhibitionTimeout = fn
+	return func() {
+		onRefreshInhibitionTimeout = old
 	}
 }
 
@@ -558,4 +570,24 @@ func SetRestoredMonitoring(snapmgr *SnapManager, value bool) {
 
 func SetPreseed(snapmgr *SnapManager, value bool) {
 	snapmgr.preseed = value
+}
+
+func SplitEssentialUpdates(deviceCtx DeviceContext, updates []minimalInstallInfo) (essential, nonEssential []MinimalInstallInfo) {
+	return splitEssentialUpdates(deviceCtx, updates)
+}
+
+func MockAffectedSnapsByAttr(value map[string]AffectedSnapsFunc) (restore func()) {
+	old := affectedSnapsByAttr
+	affectedSnapsByAttr = value
+	return func() {
+		affectedSnapsByAttr = old
+	}
+}
+
+func MockAffectedSnapsByKind(value map[string]AffectedSnapsFunc) (restore func()) {
+	old := affectedSnapsByKind
+	affectedSnapsByKind = value
+	return func() {
+		affectedSnapsByKind = old
+	}
 }

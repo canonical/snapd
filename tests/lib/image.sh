@@ -115,7 +115,7 @@ get_ubuntu_image_url_for_vm() {
 
 # shellcheck disable=SC2120
 get_image_url_for_vm() {
-    if [[ "$SPREAD_BACKEND" == google* ]]; then
+    if [[ "$SPREAD_BACKEND" =~ google ]]; then
         get_google_image_url_for_vm "$@"
     else
         get_ubuntu_image_url_for_vm "$@"

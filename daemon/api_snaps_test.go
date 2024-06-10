@@ -970,6 +970,7 @@ func (s *snapsSuite) TestRemoveManyWithPurge(c *check.C) {
 	c.Check(res.Affected, check.DeepEquals, inst.Snaps)
 }
 func (s *snapsSuite) TestSnapInfoOneIntegration(c *check.C) {
+	s.expectSnapsReadAccess()
 	d := s.daemon(c)
 
 	// we have v0 [r5] installed
@@ -1226,6 +1227,7 @@ UnitFileState=enabled
 }
 
 func (s *snapsSuite) TestSnapInfoNotFound(c *check.C) {
+	s.expectSnapsReadAccess()
 	s.daemon(c)
 
 	req, err := http.NewRequest("GET", "/v2/snaps/gfoo", nil)
@@ -1234,6 +1236,7 @@ func (s *snapsSuite) TestSnapInfoNotFound(c *check.C) {
 }
 
 func (s *snapsSuite) TestSnapInfoNoneFound(c *check.C) {
+	s.expectSnapsReadAccess()
 	s.daemon(c)
 
 	req, err := http.NewRequest("GET", "/v2/snaps/gfoo", nil)
@@ -1242,6 +1245,7 @@ func (s *snapsSuite) TestSnapInfoNoneFound(c *check.C) {
 }
 
 func (s *snapsSuite) TestSnapInfoIgnoresRemoteErrors(c *check.C) {
+	s.expectSnapsReadAccess()
 	s.daemon(c)
 	s.err = errors.New("weird")
 
@@ -1253,6 +1257,7 @@ func (s *snapsSuite) TestSnapInfoIgnoresRemoteErrors(c *check.C) {
 }
 
 func (s *snapsSuite) TestSnapInfoReturnsHolds(c *check.C) {
+	s.expectSnapsReadAccess()
 	d := s.daemon(c)
 	s.mkInstalledInState(c, d, "foo", "bar", "v0", snap.R(5), true, "")
 
@@ -1331,6 +1336,7 @@ func (s *snapsSuite) TestSnapManyInfosReturnsHolds(c *check.C) {
 }
 
 func (s *snapsSuite) TestSnapInfoReturnsRefreshInhibitProceedTime(c *check.C) {
+	s.expectSnapsReadAccess()
 	d := s.daemon(c)
 	s.mkInstalledInState(c, d, "foo", "bar", "v0", snap.R(5), true, "")
 
@@ -2831,6 +2837,114 @@ func (s *snapsSuite) TestRefreshEnforce(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(res.Summary, check.Equals, `Enforce validation sets "foo/bar=2", "foo/baz" for snaps "install-snap", "update-snap"`)
 	c.Check(res.Affected, check.DeepEquals, []string{"install-snap", "update-snap"})
+}
+
+func (s *snapsSuite) TestRefreshEnforceWithPreexistingSet(c *check.C) {
+	unpinned := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "foo",
+		"series":       "16",
+		"account-id":   "foo",
+		"name":         "preexisting-unpinned",
+		"sequence":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "install-snap",
+				"id":       "mysnapdddddddddddddddddddddddddd",
+				"presence": "required",
+			},
+		},
+	}).(*asserts.ValidationSet)
+
+	pinned := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "foo",
+		"series":       "16",
+		"account-id":   "foo",
+		"name":         "preexisting-pinned",
+		"sequence":     "3",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "install-snap",
+				"id":       "mysnapdddddddddddddddddddddddddd",
+				"presence": "required",
+			},
+		},
+	}).(*asserts.ValidationSet)
+
+	d := s.daemon(c)
+	st := d.Overlord().State()
+
+	// start tracking these already, the pinned one should end up still pinned
+	// after everything is done
+	st.Lock()
+	assertstate.UpdateValidationSet(st, &assertstate.ValidationSetTracking{
+		AccountID: "foo",
+		Mode:      assertstate.Enforce,
+		Name:      "preexisting-pinned",
+		PinnedAt:  3,
+		Current:   3,
+	})
+	assertstate.UpdateValidationSet(st, &assertstate.ValidationSetTracking{
+		AccountID: "foo",
+		Mode:      assertstate.Enforce,
+		Name:      "preexisting-unpinned",
+		Current:   1,
+	})
+	st.Unlock()
+
+	vset := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "foo",
+		"series":       "16",
+		"account-id":   "foo",
+		"name":         "new",
+		"sequence":     "2",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "install-snap",
+				"id":       "mysnapcccccccccccccccccccccccccc",
+				"presence": "required",
+			},
+		},
+	}).(*asserts.ValidationSet)
+
+	restore := daemon.MockAssertstateTryEnforceValidationSets(func(st *state.State, validationSets []string, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) error {
+		return &snapasserts.ValidationSetsValidationError{
+			MissingSnaps: map[string]map[snap.Revision][]string{
+				"install-snap": {snap.R(1): []string{"foo/new=2"}},
+			},
+			Sets: map[string]*asserts.ValidationSet{
+				"foo/preexisting-unpinned": unpinned,
+				"foo/preexisting-pinned":   pinned,
+				"foo/new":                  vset,
+			},
+		}
+	})
+	defer restore()
+
+	restore = daemon.MockSnapstateResolveValSetEnforcementError(func(_ context.Context, st *state.State, validErr *snapasserts.ValidationSetsValidationError, pinnedSeqs map[string]int, _ int) ([]*state.TaskSet, []string, error) {
+		// note that the unpinned set is not present here
+		c.Assert(pinnedSeqs, check.DeepEquals, map[string]int{
+			"foo/new":                2,
+			"foo/preexisting-pinned": 3,
+		})
+		c.Assert(validErr, check.Not(check.IsNil))
+
+		t := st.NewTask("fake-enforce-snaps", "...")
+		return []*state.TaskSet{state.NewTaskSet(t)}, []string{"install-snap"}, nil
+	})
+	defer restore()
+
+	inst := &daemon.SnapInstruction{Action: "refresh", ValidationSets: []string{"foo/new=2"}}
+
+	st.Lock()
+	defer st.Unlock()
+
+	res, err := inst.DispatchForMany()(inst, st)
+	c.Assert(err, check.IsNil)
+	c.Check(res.Summary, check.Equals, `Enforce validation sets "foo/new=2" for snaps "install-snap"`)
+	c.Check(res.Affected, check.DeepEquals, []string{"install-snap"})
 }
 
 func (s *snapsSuite) TestRefreshEnforceTryEnforceValidationSetsError(c *check.C) {

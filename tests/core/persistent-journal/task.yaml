@@ -1,5 +1,13 @@
 summary: Test journal.persistent core config option
 
+details: |
+  In Ubuntu Core systems journal.persistent core config option can be used to
+  enable and disable the journal persistence. If persistent journals were previously
+  enabled by this setting, changing the value to false will delete all saved logs.
+
+  This test verifies that when journal.persistent core config is set to true, the
+  journal logs are written and those are deleted when the config is set to false.
+
 prepare: |
     systemctl status snapd > before.txt
 

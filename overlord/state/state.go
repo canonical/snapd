@@ -90,7 +90,8 @@ type State struct {
 	lastNoticeId int
 	// lastHandlerId is not serialized, it's only used during runtime
 	// for registering runtime callbacks
-	lastHandlerId int
+	lastHandlerId       int
+	lastNoticeTimestamp time.Time
 
 	backend  Backend
 	data     customData
@@ -171,6 +172,8 @@ type marshalledState struct {
 	LastTaskId   int `json:"last-task-id"`
 	LastLaneId   int `json:"last-lane-id"`
 	LastNoticeId int `json:"last-notice-id"`
+
+	LastNoticeTimestamp time.Time `json:"last-notice-timestamp,omitempty"`
 }
 
 // MarshalJSON makes State a json.Marshaller
@@ -187,6 +190,8 @@ func (s *State) MarshalJSON() ([]byte, error) {
 		LastChangeId: s.lastChangeId,
 		LastLaneId:   s.lastLaneId,
 		LastNoticeId: s.lastNoticeId,
+
+		LastNoticeTimestamp: s.lastNoticeTimestamp,
 	})
 }
 
@@ -207,6 +212,7 @@ func (s *State) UnmarshalJSON(data []byte) error {
 	s.lastTaskId = unmarshalled.LastTaskId
 	s.lastLaneId = unmarshalled.LastLaneId
 	s.lastNoticeId = unmarshalled.LastNoticeId
+	s.lastNoticeTimestamp = unmarshalled.LastNoticeTimestamp
 	// backlink state again
 	for _, t := range s.tasks {
 		t.state = s

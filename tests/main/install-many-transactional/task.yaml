@@ -1,5 +1,16 @@
 summary: Check that transactional install/refresh of multiple snaps works
 
+details: |
+    A transactional update is an install or refresh operation on a set of snaps that either
+    succeeds for all the snaps, or, if even one snap encounters an error, fails for all the
+    entire set. If the process fails, all affected snaps revert to their state before the
+    process started, even snaps that successfully updated.
+
+    This test verifies that multiple snaps can be installed with the command 
+    `snap install --transaction`. It is checked that when --transaction=all-snaps is used, the
+    full transaction is reverted, and when --transaction=per-snap is used, only the one that
+    failed is reverted.
+
 execute: |
     echo "Install multiple snaps from the store"
     snap install --transaction=all-snaps test-snapd-sh test-snapd-control-consumer

@@ -189,6 +189,26 @@ apps:
     someapp:
 `
 
+var SnapWithComponentsYaml = `
+name: snap
+version: 1
+apps:
+  app:
+components:
+  comp:
+    type: test
+    hooks:
+      install:
+plugs:
+  iface:
+`
+
+var ComponentYaml = `
+component: snap+comp
+type: test
+version: 1
+`
+
 // Support code for tests
 
 // InstallSnap "installs" a snap from YAML.
@@ -197,7 +217,8 @@ func (s *BackendSuite) InstallSnap(c *C, opts interfaces.ConfinementOptions, ins
 		Revision: snap.R(revision),
 	})
 
-	appSet := interfaces.NewSnapAppSet(snapInfo)
+	appSet, err := interfaces.NewSnapAppSet(snapInfo, nil)
+	c.Assert(err, IsNil)
 
 	if instanceName != "" {
 		_, instanceKey := snap.SplitInstanceName(instanceName)
@@ -206,7 +227,58 @@ func (s *BackendSuite) InstallSnap(c *C, opts interfaces.ConfinementOptions, ins
 	}
 
 	s.addPlugsSlots(c, snapInfo)
-	err := s.Backend.Setup(appSet, opts, s.Repo, s.meas)
+	err = s.Backend.Setup(appSet, opts, s.Repo, s.meas)
+	c.Assert(err, IsNil)
+	return snapInfo
+}
+
+func (s *BackendSuite) InstallSnapWithComponents(c *C, opts interfaces.ConfinementOptions, instanceName, snapYaml string, revision int, componentYamls []string) *snap.Info {
+	snapInfo := snaptest.MockInfo(c, snapYaml, &snap.SideInfo{
+		Revision: snap.R(revision),
+	})
+
+	if instanceName != "" {
+		_, instanceKey := snap.SplitInstanceName(instanceName)
+		snapInfo.InstanceKey = instanceKey
+		c.Assert(snapInfo.InstanceName(), Equals, instanceName)
+	}
+
+	componentInfos := make([]*snap.ComponentInfo, 0, len(componentYamls))
+	for _, componentYaml := range componentYamls {
+		componentInfos = append(componentInfos, snaptest.MockComponent(c, componentYaml, snapInfo, snap.ComponentSideInfo{
+			Revision: snap.R(1),
+		}))
+	}
+
+	appSet, err := interfaces.NewSnapAppSet(snapInfo, componentInfos)
+	c.Assert(err, IsNil)
+
+	s.addPlugsSlots(c, snapInfo)
+	err = s.Backend.Setup(appSet, opts, s.Repo, s.meas)
+	c.Assert(err, IsNil)
+	return snapInfo
+}
+
+func (s *BackendSuite) UpdateSnapWithComponents(c *C, oldSnapInfo *snap.Info, opts interfaces.ConfinementOptions, snapYaml string, revision int, componentYamls []string) *snap.Info {
+	snapInfo := snaptest.MockInfo(c, snapYaml, &snap.SideInfo{
+		Revision: snap.R(revision),
+	})
+
+	snapInfo.InstanceKey = oldSnapInfo.InstanceKey
+
+	componentInfos := make([]*snap.ComponentInfo, 0, len(componentYamls))
+	for _, componentYaml := range componentYamls {
+		componentInfos = append(componentInfos, snaptest.MockComponent(c, componentYaml, snapInfo, snap.ComponentSideInfo{
+			Revision: snap.R(1),
+		}))
+	}
+
+	appSet, err := interfaces.NewSnapAppSet(snapInfo, componentInfos)
+	c.Assert(err, IsNil)
+
+	s.removePlugsSlots(c, oldSnapInfo)
+	s.addPlugsSlots(c, snapInfo)
+	err = s.Backend.Setup(appSet, opts, s.Repo, s.meas)
 	c.Assert(err, IsNil)
 	return snapInfo
 }
@@ -223,11 +295,16 @@ func (s *BackendSuite) UpdateSnapMaybeErr(c *C, oldSnapInfo *snap.Info, opts int
 	newSnapInfo := snaptest.MockInfo(c, snapYaml, &snap.SideInfo{
 		Revision: snap.R(revision),
 	})
-	appSet := interfaces.NewSnapAppSet(newSnapInfo)
+
+	newSnapInfo.InstanceKey = oldSnapInfo.InstanceKey
+
+	appSet, err := interfaces.NewSnapAppSet(newSnapInfo, nil)
+	c.Assert(err, IsNil)
+
 	c.Assert(newSnapInfo.InstanceName(), Equals, oldSnapInfo.InstanceName())
 	s.removePlugsSlots(c, oldSnapInfo)
 	s.addPlugsSlots(c, newSnapInfo)
-	err := s.Backend.Setup(appSet, opts, s.Repo, s.meas)
+	err = s.Backend.Setup(appSet, opts, s.Repo, s.meas)
 	return newSnapInfo, err
 }
 

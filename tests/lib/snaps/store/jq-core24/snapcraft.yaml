@@ -1,0 +1,18 @@
+name: jq-core24
+summary: The jq command
+description: The jq command
+version: 1.6-3
+confinement: strict 
+base: core24
+
+apps:
+  jq:
+    command: usr/bin/jq
+
+
+parts:
+  copy:
+    plugin: dump
+    source: .
+    stage-packages:
+      - jq

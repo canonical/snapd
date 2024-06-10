@@ -1,6 +1,10 @@
 summary: Check that a kernel refresh reseals
 
-systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+details: |
+  Verifies that after installing a new (unasserted) kernel, we are using the new
+  kernel, ubuntu-data.sealed-key mtime is newer and we have boot chains.
+
+systems: [ubuntu-2*]
 
 prepare: |
   # we cannot use the kernel from store as it may have a version of

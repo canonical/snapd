@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2018 Canonical Ltd
+ * Copyright (C) 2016-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -347,13 +347,13 @@ func MockGadgetIsCompatible(mock func(current, update *gadget.Info) error) (rest
 	}
 }
 
-func MockBootMakeSystemRunnable(f func(model *asserts.Model, bootWith *boot.BootableSet, seal *boot.TrustedAssetsInstallObserver) error) (restore func()) {
+func MockBootMakeSystemRunnable(f func(model *asserts.Model, bootWith *boot.BootableSet, obs boot.TrustedAssetsInstallObserver) error) (restore func()) {
 	restore = testutil.Backup(&bootMakeRunnable)
 	bootMakeRunnable = f
 	return restore
 }
 
-func MockBootMakeSystemRunnableAfterDataReset(f func(model *asserts.Model, bootWith *boot.BootableSet, seal *boot.TrustedAssetsInstallObserver) error) (restore func()) {
+func MockBootMakeSystemRunnableAfterDataReset(f func(model *asserts.Model, bootWith *boot.BootableSet, obs boot.TrustedAssetsInstallObserver) error) (restore func()) {
 	restore = testutil.Backup(&bootMakeRunnableAfterDataReset)
 	bootMakeRunnableAfterDataReset = f
 	return restore
@@ -381,7 +381,7 @@ func MockInstallLogicPrepareRunSystemData(f func(mod *asserts.Model, gadgetDir s
 	return r
 }
 
-func MockInstallRun(f func(model gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, observer gadget.ContentObserver, perfTimings timings.Measurer) (*install.InstalledSystemSideData, error)) (restore func()) {
+func MockInstallRun(f func(model gadget.Model, gadgetRoot string, kernelSnapInfo *install.KernelSnapInfo, device string, options install.Options, observer gadget.ContentObserver, perfTimings timings.Measurer) (*install.InstalledSystemSideData, error)) (restore func()) {
 	old := installRun
 	installRun = f
 	return func() {
@@ -389,13 +389,13 @@ func MockInstallRun(f func(model gadget.Model, gadgetRoot, kernelRoot, device st
 	}
 }
 
-func MockInstallFactoryReset(f func(model gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, observer gadget.ContentObserver, perfTimings timings.Measurer) (*install.InstalledSystemSideData, error)) (restore func()) {
+func MockInstallFactoryReset(f func(model gadget.Model, gadgetRoot string, kernelSnapInfo *install.KernelSnapInfo, device string, options install.Options, observer gadget.ContentObserver, perfTimings timings.Measurer) (*install.InstalledSystemSideData, error)) (restore func()) {
 	restore = testutil.Backup(&installFactoryReset)
 	installFactoryReset = f
 	return restore
 }
 
-func MockInstallWriteContent(f func(onVolumes map[string]*gadget.Volume, allLaidOutVols map[string]*gadget.LaidOutVolume, encSetupData *install.EncryptionSetupData, observer gadget.ContentObserver, perfTimings timings.Measurer) ([]*gadget.OnDiskVolume, error)) (restore func()) {
+func MockInstallWriteContent(f func(onVolumes map[string]*gadget.Volume, allLaidOutVols map[string]*gadget.LaidOutVolume, encSetupData *install.EncryptionSetupData, kSnapInfo *install.KernelSnapInfo, observer gadget.ContentObserver, perfTimings timings.Measurer) ([]*gadget.OnDiskVolume, error)) (restore func()) {
 	old := installWriteContent
 	installWriteContent = f
 	return func() {

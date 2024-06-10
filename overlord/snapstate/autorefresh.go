@@ -744,24 +744,13 @@ var asyncPendingRefreshNotification = func(ctx context.Context, refreshInfo *use
 // The notification is sent only if no snap has the marker "snap-refresh-observe"
 // interface connected and the "refresh-app-awareness-ux" experimental flag is disabled.
 func maybeAsyncPendingRefreshNotification(ctx context.Context, st *state.State, refreshInfo *userclient.PendingSnapRefreshInfo) {
-	tr := config.NewTransaction(st)
-	experimentalRefreshAppAwarenessUX, err := features.Flag(tr, features.RefreshAppAwarenessUX)
-	if err != nil && !config.IsNoOption(err) {
-		logger.Noticef("Cannot send notification about pending refresh: %v", err)
-		return
-	}
-	if experimentalRefreshAppAwarenessUX {
-		// use notices + warnings fallback flow instead
-		return
-	}
 
-	markerExists, err := HasActiveConnection(st, "snap-refresh-observe")
+	sendNotification, err := ShouldSendNotificationsToTheUser(st)
 	if err != nil {
 		logger.Noticef("Cannot send notification about pending refresh: %v", err)
 		return
 	}
-	if markerExists {
-		// found snap with marker interface, skip notification
+	if !sendNotification {
 		return
 	}
 	asyncPendingRefreshNotification(ctx, refreshInfo)
@@ -905,9 +894,9 @@ func maybeAddRefreshInhibitNotice(st *state.State) error {
 // inhibited snaps was changed since the last notice.
 //
 // The warning is recorded only if:
-// 	1. There is at least 1 inhibited snap.
-// 	2. The "refresh-app-awareness-ux" experimental flag is enabled.
-// 	3. No snap exists with the marker "snap-refresh-observe" interface connected.
+//  1. There is at least 1 inhibited snap.
+//  2. The "refresh-app-awareness-ux" experimental flag is enabled.
+//  3. No snap exists with the marker "snap-refresh-observe" interface connected.
 //
 // Note: If no snaps are inhibited then existing inhibition warning
 // will be removed.

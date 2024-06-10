@@ -1,6 +1,10 @@
 summary: Test that gadget config defaults are applied early on core20.
 
-systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+details: |
+    Check that defaults are applied early when the Ubuntu Core image is
+    booted and also after transition to recovery mode.
+
+systems: [ubuntu-2*]
 
 environment:
     NESTED_ENABLE_TPM: true
@@ -68,7 +72,7 @@ execute: |
         remote.exec "cat /var/snap/pc/common/debug.txt" | MATCH "backlight symlink: /dev/null"
 
         # timezone is set
-        remote.exec "cat /etc/timezone" | MATCH "Europe/Malta"
+        remote.exec "timedatectl show -p Timezone --value" | MATCH "Europe/Malta"
         remote.exec "readlink -f /etc/localtime" | MATCH "Europe/Malta"
         remote.exec "cat /var/snap/pc/common/debug.txt" | MATCH "localtime symlink: /usr/share/zoneinfo/Europe/Malta"
 
@@ -119,7 +123,7 @@ execute: |
     echo "Check that switching the ssh port works"
     remote.exec "sudo snap set system service.ssh.listen-address=:9022" || true
     # we need to connect to 9022 now
-    remote.setup config --host localhost --port 9022 --user user1 --pass ubuntu
+    remote.setup config --host localhost --port 9022 --user user1 --pass ubuntu123
     "$TESTSLIB"/external/snapd-testing-tools/remote/remote.wait-for ssh
     remote.exec "sudo snap get system service.ssh.listen-address" | MATCH :9022
     remote.exec "sudo cat /etc/ssh/sshd_config.d/listen.conf" | MATCH "ListenAddress 0\.0\.0\.0:9022"
@@ -127,6 +131,6 @@ execute: |
     echo "Check that unsetting the ssh port works"
     remote.exec "sudo snap unset system service.ssh.listen-address" || true
     # 8022 is the default port that is forwarded to "22" in the guest
-    remote.setup config --host localhost --port 8022 --user user1 --pass ubuntu
+    remote.setup config --host localhost --port 8022 --user user1 --pass ubuntu123
     "$TESTSLIB"/external/snapd-testing-tools/remote/remote.wait-for ssh
     remote.exec "sudo test ! -f /etc/ssh/sshd_config.d/listen.conf"

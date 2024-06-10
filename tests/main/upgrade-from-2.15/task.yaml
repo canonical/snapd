@@ -1,5 +1,12 @@
 summary: Ensure upgrades from snapd 2.15 work
 
+details: |
+    The test ensures that users starting with that snapd 2.15 can successfully
+    update to a locally built Debian package, and end up with functioning snapd.
+    This checks the transition of so-called conf-files handling application
+    permission profiles for snap-confine, which could end up outdated if the
+    version from snapd 2.15 is retained after the update.
+
 systems: [ubuntu-16.04-64]
 
 prepare: |
@@ -52,7 +59,7 @@ execute: |
 
     echo "Install a test snap"
     snap install test-snapd-sh
-    
+
     echo "upgrade to current snapd"
     apt install -y "$GOHOME"/snapd*.deb
 

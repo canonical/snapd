@@ -10,7 +10,7 @@ details: |
     A snap declaring a plug on this interface must be able to access to raw ALSA
     devices, for this test we check the low level security rules by creating
     specific devices under /dev/snd, a cgroup if needed and the ALSA state dir,
-    exercising in each caase the read or read-write permissions that must be in
+    exercising in each case the read or read-write permissions that must be in
     place.
 
 # Spread system for Fedora, openSUSE and AMZN2 don't seem to provide any /dev/snd entries

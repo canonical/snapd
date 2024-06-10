@@ -4,7 +4,7 @@ details: |
   This test checks that we are able to perform a single-boot installation in
   various scenarios.
 
-systems: [ubuntu-20.04-64]
+systems: [ubuntu-20.04-64, ubuntu-22.04-64, ubuntu-24.04-64]
 
 environment:
   # There are 4 modes:
@@ -32,7 +32,7 @@ environment:
   # TODO: single boot install currently requires the system to be preseeded
   NESTED_UBUNTU_IMAGE_PRESEED_KEY: "\" (test)\""
   NESTED_FAKESTORE_BLOB_DIR: $(pwd)/fake-store-blobdir
-  NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/developer1-20-dangerous.model
+  NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/developer1-{VERSION}-dangerous.model
   NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL: http://localhost:11028
   NESTED_SNAPD_DEBUG_TO_SERIAL: true
 

@@ -1,5 +1,11 @@
 summary: Check that snap info works
 
+details: |
+    This test verifies command `snap info`. Correct error messages is
+    expected when calling on non-existent or invalid snaps. A name,
+    path to snap or directory can be given as parameter. The output
+    should contain some correct key information.
+
 # core18 has no python3-yaml
 # amazon: no PyYAML is not packaged for python3
 systems: [-amazon-*, -centos-*]

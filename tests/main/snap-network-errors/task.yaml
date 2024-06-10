@@ -1,5 +1,10 @@
 summary: Ensure network errors are handled gracefully
 
+details: |
+    Check that snapd handles and logs network errors correctly. The test does
+    this by rejecting DNS queries with iptables, flushing the DNS cache and
+    then forcing snapd to trigger a query.
+
 # no iptables on core18+
 systems: [-ubuntu-core-18-*, -ubuntu-core-2*]
 

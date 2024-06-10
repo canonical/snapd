@@ -11307,6 +11307,76 @@ func (s *snapmgrTestSuite) TestRefreshForcedOnRefreshInhibitionTimeout(c *C) {
 	c.Check(check["some-other-snap"], Equals, 2)
 }
 
+func (s *snapmgrTestSuite) TestRefreshForcedOnRefreshInhibitionTimeoutError(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	instant := time.Now()
+	pastInstant := instant.Add(-snapstate.MaxInhibition * 2)
+	// Add snap
+	si1 := &snap.SideInfo{
+		RealName: "some-snap",
+		SnapID:   "some-snap-id",
+		Revision: snap.R(1),
+	}
+	snaptest.MockSnap(c, `name: some-snap`, si1)
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si1}),
+		Current:  si1.Revision,
+		// Pretend inhibition is overdue.
+		RefreshInhibitedTime: &pastInstant,
+	})
+
+	s.fakeStore.downloads = []fakeDownload{
+		{
+			macaroon: s.user.StoreMacaroon,
+			name:     "some-snap",
+			target:   filepath.Join(dirs.SnapBlobDir, "some-snap_instance_11.snap"),
+		},
+	}
+
+	restore := snapstate.MockAsyncPendingRefreshNotification(func(_ context.Context, pendingInfo *userclient.PendingSnapRefreshInfo) {})
+	defer restore()
+
+	var checkAppRunning int
+	restore = snapstate.MockRefreshAppsCheck(func(info *snap.Info) error {
+		checkAppRunning++
+		// pass on soft-check, fail on hard-check in unlink-current-snap
+		if checkAppRunning > 1 {
+			return snapstate.NewBusySnapError(info, []int{123}, nil, nil)
+		}
+		return nil
+	})
+	defer restore()
+
+	updated, tss, err := snapstate.AutoRefresh(context.Background(), s.state)
+	c.Assert(err, IsNil)
+	c.Check(updated, DeepEquals, []string{"some-snap"})
+	c.Assert(tss, NotNil)
+	c.Check(tss.Refresh, NotNil)
+	c.Check(tss.PreDownload, IsNil)
+
+	chg := s.state.NewChange("refresh", "test refresh")
+	for _, ts := range tss.Refresh {
+		chg.AddAll(ts)
+	}
+
+	restore = snapstate.MockOnRefreshInhibitionTimeout(func(chg *state.Change, snapName string) error {
+		return fmt.Errorf("boom!")
+	})
+	defer restore()
+
+	s.settle(c)
+	c.Assert(chg.Status(), Equals, state.ErrorStatus)
+	c.Assert(checkAppRunning, Equals, 2)
+
+	lock, err := osutil.NewFileLock(filepath.Join(s.fakeBackend.lockDir, "some-snap.lock"))
+	c.Assert(err, IsNil)
+	defer lock.Close()
+	c.Assert(lock.TryLock(), IsNil)
+}
+
 func (s *snapmgrTestSuite) TestDeletedMonitoredMapIsCorrectlyDeleted(c *C) {
 	s.state.Lock()
 	si := &snap.SideInfo{
@@ -12452,4 +12522,694 @@ type: snapd
 	}
 
 	c.Assert(didDownloadCore22, Equals, true, Commentf("core22 was *not* downloaded"))
+}
+
+// prepare a refresh/install of essential and non-essential snaps, optionally
+// with an app depending on the model base, to test that the update doesn't make
+// apps wait for the reboot required by the essential snaps.
+func (s *snapmgrTestSuite) setupSplitRefreshAppDependsOnModelBase(c *C, core18BasedApp bool) (names []string, infos []*snap.SideInfo, restore func()) {
+	restoreClassic := release.MockOnClassic(true)
+	modelRestore := snapstatetest.MockDeviceModel(ModelWithBase("core18"))
+	restore = func() {
+		restoreClassic()
+		modelRestore()
+	}
+
+	snaps := []string{"snapd", "kernel", "core18", "gadget", "some-base", "some-base-snap"}
+	if core18BasedApp {
+		// add an app that depends on the model base so test a cross set dependency
+		snaps = append(snaps, "some-snap-with-core18-base")
+	} else {
+		snaps = append(snaps, "some-snap")
+	}
+
+	types := map[string]string{
+		"snapd":                      "snapd",
+		"core18":                     "base",
+		"gadget":                     "gadget",
+		"kernel":                     "kernel",
+		"some-base":                  "base",
+		"some-base-snap":             "app",
+		"some-snap-with-core18-base": "app",
+		"some-snap":                  "app",
+	}
+	snapIds := map[string]string{
+		"snapd":                      "snapd-snap-id",
+		"core18":                     "core18-snap-id",
+		"gadget":                     "gadget-core18-id",
+		"kernel":                     "kernel-id",
+		"some-base":                  "some-base-id",
+		"some-snap-with-core18-base": "some-snap-with-core18-base",
+		"some-base-snap":             "some-base-snap-id",
+		"some-snap":                  "some-snap-id",
+	}
+	bases := map[string]string{
+		// create a dependency between the two task sets
+		"some-snap-with-core18-base": "core18",
+		"some-base-snap":             "some-base",
+	}
+
+	var paths []string
+	for _, sn := range snaps {
+		yaml := fmt.Sprintf("name: %s\nversion: 1.0\nepoch: 1\ntype: %s", sn, types[sn])
+		if base, ok := bases[sn]; ok {
+			yaml += fmt.Sprintf("\nbase: %s", base)
+		}
+
+		oldSi := &snap.SideInfo{RealName: sn, SnapID: snapIds[sn], Revision: snap.R(1)}
+		newSi := &snap.SideInfo{RealName: sn, SnapID: snapIds[sn], Revision: snap.R(11)}
+
+		path, _ := snaptest.MakeTestSnapInfoWithFiles(c, yaml, nil, newSi)
+		paths = append(paths, path)
+		infos = append(infos, newSi)
+
+		snaptest.MockSnap(c, yaml, oldSi)
+		snapstate.Set(s.state, sn, &snapstate.SnapState{
+			Active:          true,
+			Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{oldSi}),
+			Current:         oldSi.Revision,
+			TrackingChannel: "latest/stable",
+			SnapType:        types[sn],
+		})
+	}
+
+	s.fakeBackend.linkSnapRebootFor = map[string]bool{
+		"core18": true,
+		"kernel": true,
+		"gadget": true,
+	}
+	s.fakeBackend.linkSnapMaybeReboot = true
+
+	s.o.TaskRunner().AddHandler("update-gadget-assets",
+		func(task *state.Task, tomb *tomb.Tomb) error {
+			task.State().Lock()
+			defer task.State().Unlock()
+			chg := task.Change()
+			chg.Set("gadget-restart-required", true)
+			return nil
+		},
+		func(task *state.Task, tomb *tomb.Tomb) error { return nil })
+
+	s.o.TaskRunner().AddHandler("update-gadget-cmdline",
+		func(task *state.Task, tomb *tomb.Tomb) error { return nil },
+		func(task *state.Task, tomb *tomb.Tomb) error { return nil })
+
+	return paths, infos, restore
+}
+
+func (s *snapmgrTestSuite) TestUpdateManySplitEssentialWithSharedBase(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	sharedBase := true
+	_, infos, restore := s.setupSplitRefreshAppDependsOnModelBase(c, sharedBase)
+	defer restore()
+
+	var snaps []string
+	for _, info := range infos {
+		snaps = append(snaps, info.RealName)
+	}
+
+	chg := s.state.NewChange("refresh", fmt.Sprintf("refresh %v", snaps))
+	affected, tss, err := snapstate.UpdateMany(context.Background(), s.state, snaps, nil, s.user.ID, nil)
+	c.Assert(err, IsNil)
+	c.Assert(affected, testutil.DeepUnsortedMatches, snaps)
+
+	for _, ts := range tss {
+		chg.AddAll(ts)
+	}
+
+	c.Check(chg.CheckTaskDependencies(), IsNil)
+
+	s.settle(c)
+
+	checkRerefresh := true
+	s.checkSplitRefreshWithSharedBase(c, chg, checkRerefresh)
+}
+
+func (s *snapmgrTestSuite) TestOldStyleAutoRefreshSplitEssentialWithSharedBase(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	sharedBase := true
+	_, infos, restore := s.setupSplitRefreshAppDependsOnModelBase(c, sharedBase)
+	defer restore()
+
+	var snaps []string
+	for _, info := range infos {
+		snaps = append(snaps, info.RealName)
+	}
+
+	chg := s.state.NewChange("auto-refresh", fmt.Sprintf("auto-refresh %v", snaps))
+	affected, tss, err := snapstate.AutoRefresh(context.Background(), s.state)
+	c.Assert(err, IsNil)
+	c.Assert(affected, testutil.DeepUnsortedMatches, snaps)
+
+	for _, ts := range tss.Refresh {
+		chg.AddAll(ts)
+	}
+
+	c.Check(chg.CheckTaskDependencies(), IsNil)
+
+	s.settle(c)
+
+	checkRerefresh := true
+	s.checkSplitRefreshWithSharedBase(c, chg, checkRerefresh)
+}
+
+func (s *snapmgrTestSuite) checkSplitRefreshWithSharedBase(c *C, chg *state.Change, checkRerefresh bool) {
+	for _, snap := range []string{"snapd", "some-base", "some-base-snap"} {
+		t := findTaskForSnap(c, chg, "auto-connect", snap)
+		c.Assert(t.Status(), Equals, state.DoneStatus, Commentf("expected task %q for %q to be \"Done\": %s", t.Kind(), snap, t.Status()))
+	}
+
+	// the some-snap-* is also not done because it depends on the base
+	for _, snap := range []string{"kernel", "gadget", "core18", "some-snap-with-core18-base"} {
+		t := findTaskForSnap(c, chg, "auto-connect", snap)
+		c.Assert(t.Status(), Equals, state.DoStatus, Commentf("expected task %q for %q to be \"Do\": %s", t.Kind(), snap, t.Status()))
+	}
+
+	if checkRerefresh {
+		// check that the rerefresh task is waiting because one of the non-essential
+		// snap related refreshes depends on an essential snap that is pending on a reboot
+		rerefreshTask := findLastTask(chg, "check-rerefresh")
+		c.Assert(rerefreshTask, NotNil, Commentf("cannot find check-rerefresh task"))
+		c.Assert(rerefreshTask.Status(), Equals, state.WaitStatus)
+	}
+
+	t := findTaskForSnap(c, chg, "link-snap", "kernel")
+	c.Assert(t.Status(), Equals, state.WaitStatus, Commentf("expected kernel's link-snap to be waiting for restart"))
+	s.mockRestartAndSettle(c, chg)
+
+	for _, snap := range []string{"kernel", "gadget", "core18", "some-snap-with-core18-base"} {
+		t := findTaskForSnap(c, chg, "auto-connect", snap)
+		c.Assert(t.Status(), Equals, state.DoneStatus, Commentf("expected task %q for %q to be in \"Done\": %s", t.Kind(), snap, t.Status()))
+	}
+
+	c.Check(chg.IsReady(), Equals, true)
+	c.Check(chg.Status(), Equals, state.DoneStatus)
+}
+
+func (s *snapmgrTestSuite) TestUpdateManySplitEssentialWithoutSharedBase(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	sharedBase := false
+	_, infos, restore := s.setupSplitRefreshAppDependsOnModelBase(c, sharedBase)
+	defer restore()
+
+	var snaps []string
+	for _, info := range infos {
+		snaps = append(snaps, info.RealName)
+	}
+
+	chg := s.state.NewChange("refresh", fmt.Sprintf("refresh %v", snaps))
+	affected, tss, err := snapstate.UpdateMany(context.Background(), s.state, snaps, nil, s.user.ID, nil)
+	c.Assert(err, IsNil)
+	c.Assert(affected, testutil.DeepUnsortedMatches, snaps)
+
+	for _, ts := range tss {
+		chg.AddAll(ts)
+	}
+
+	c.Check(chg.CheckTaskDependencies(), IsNil)
+
+	s.settle(c)
+
+	for _, snap := range []string{"snapd", "some-snap", "some-base", "some-base-snap"} {
+		t := findTaskForSnap(c, chg, "auto-connect", snap)
+		c.Assert(t.Status(), Equals, state.DoneStatus, Commentf("expected task %q for snap %q to be done: %s", t.Kind(), snap, t.Status()))
+	}
+
+	for _, snap := range []string{"kernel", "gadget", "core18"} {
+		t := findTaskForSnap(c, chg, "auto-connect", snap)
+		c.Assert(t.Status(), Equals, state.DoStatus, Commentf("expected task %q for snap %q to be do: %s", t.Kind(), snap, t.Status()))
+	}
+
+	// check that the check-rerefresh task completed because it only considers
+	// non-essential snap refreshes and those can finish before the reboot
+	var rerefreshTask *state.Task
+	for _, ts := range tss {
+		if len(ts.Tasks()) == 1 && ts.Tasks()[0].Kind() == "check-rerefresh" {
+			rerefreshTask = ts.Tasks()[0]
+			break
+		}
+	}
+	c.Assert(rerefreshTask, NotNil, Commentf("cannot find check-rerefresh task"))
+	c.Assert(rerefreshTask.Status(), Equals, state.DoneStatus)
+
+	t := findTaskForSnap(c, chg, "link-snap", "kernel")
+	c.Assert(t.Status(), Equals, state.WaitStatus, Commentf("expected kernel's link-snap to be waiting for restart"))
+
+	// waiting for reboot
+	for _, snap := range []string{"kernel", "gadget", "core18"} {
+		t := findTaskForSnap(c, chg, "auto-connect", snap)
+		c.Assert(t.Status(), Equals, state.DoStatus, Commentf("expected task %q for snap %q to be do: %s", t.Kind(), snap, t.Status()))
+	}
+	s.mockRestartAndSettle(c, chg)
+
+	// completed after restart
+	for _, snap := range []string{"kernel", "gadget", "core18"} {
+		t := findTaskForSnap(c, chg, "auto-connect", snap)
+		c.Assert(t.Status(), Equals, state.DoneStatus, Commentf("expected task %q for snap %q to be done: %s", t.Kind(), snap, t.Status()))
+	}
+
+	c.Check(chg.IsReady(), Equals, true)
+	c.Check(chg.Status(), Equals, state.DoneStatus)
+}
+
+func (s *snapmgrTestSuite) TestSplitRefreshUsesSameTransaction(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	restore := snapstatetest.MockDeviceModel(ModelWithBase("core18"))
+	defer restore()
+
+	restore = release.MockOnClassic(true)
+	defer restore()
+
+	s.fakeBackend.linkSnapRebootFor = map[string]bool{"kernel": true}
+	s.fakeBackend.linkSnapMaybeReboot = true
+
+	s.o.TaskRunner().AddHandler("fail", func(*state.Task, *tomb.Tomb) error {
+		return fmt.Errorf("expected error")
+	}, nil)
+
+	snaps := []string{"kernel", "some-snap"}
+	types := map[string]string{
+		"kernel":    "kernel",
+		"some-snap": "app",
+	}
+	snapIds := map[string]string{
+		"kernel":    "kernel-id",
+		"some-snap": "some-snap-id",
+	}
+
+	for _, sn := range snaps {
+		si := &snap.SideInfo{RealName: sn, Revision: snap.R(1), SnapID: snapIds[sn]}
+		snapYaml := fmt.Sprintf("name: %s\nversion: 1.2.3\ntype: %s", sn, types[sn])
+		snaptest.MockSnap(c, snapYaml, si)
+		snapstate.Set(s.state, sn, &snapstate.SnapState{
+			Active:          true,
+			Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+			Current:         si.Revision,
+			TrackingChannel: "latest/stable",
+			SnapType:        types[sn],
+		})
+	}
+
+	affected, tss, err := snapstate.UpdateMany(context.Background(), s.state,
+		snaps, nil, s.user.ID, &snapstate.Flags{NoReRefresh: true, Transaction: client.TransactionAllSnaps})
+	c.Assert(err, IsNil)
+	c.Assert(affected, testutil.DeepUnsortedMatches, snaps)
+
+	// fail the kernel refresh at the end
+	ts, err := snapstate.MaybeFindTasksetForSnap(tss, "kernel")
+	c.Assert(err, IsNil)
+	lastTask := ts.MaybeEdge(snapstate.EndEdge)
+	failTask := s.state.NewTask("fail", "")
+	failTask.JoinLane(tss[0].Tasks()[0].Lanes()[0])
+	failTask.WaitFor(lastTask)
+	ts.AddTask(failTask)
+
+	chg := s.state.NewChange("refresh", fmt.Sprintf("refresh %v", snaps))
+	for _, ts := range tss {
+		chg.AddAll(ts)
+	}
+
+	for _, ts := range tss {
+		for _, t := range ts.Tasks() {
+			c.Assert(t.Lanes(), DeepEquals, []int{1})
+		}
+	}
+
+	s.settle(c)
+
+	t := findTaskForSnap(c, chg, "auto-connect", "some-snap")
+	c.Assert(t.Status(), Equals, state.DoneStatus)
+
+	t = findTaskForSnap(c, chg, "link-snap", "kernel")
+	c.Assert(t.Status(), Equals, state.WaitStatus)
+
+	s.mockRestartAndSettle(c, chg)
+
+	for _, name := range []string{"kernel", "some-snap"} {
+		t := findTaskForSnap(c, chg, "auto-connect", name)
+		c.Assert(t.Status(), Equals, state.UndoneStatus)
+	}
+
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+}
+
+func (s *snapmgrTestSuite) TestSplitEssentialSnapUpdates(c *C) {
+	infosToNames := func(infos []snapstate.MinimalInstallInfo) []string {
+		names := make([]string, 0, len(infos))
+		for _, info := range infos {
+			names = append(names, info.InstanceName())
+		}
+		return names
+	}
+
+	types := map[string]string{
+		"snapd":          "snapd",
+		"core18":         "base",
+		"gadget":         "gadget",
+		"kernel":         "kernel",
+		"some-base":      "base",
+		"some-base-snap": "app",
+		"some-snap":      "app",
+	}
+
+	type testcase struct {
+		modelBase         string
+		snaps             []string
+		bases             map[string]string
+		essentialSnaps    []string
+		nonEssentialSnaps []string
+	}
+
+	tcs := []testcase{
+		{
+			modelBase: "core18",
+			snaps:     []string{"snapd", "kernel", "core18", "gadget", "some-snap", "some-base", "some-base-snap"},
+			bases:     map[string]string{"some-base-snap": "some-base", "some-snap": "core18"},
+			// core18 is in the essential group because it's the model base
+			essentialSnaps:    []string{"snapd", "kernel", "core18", "gadget"},
+			nonEssentialSnaps: []string{"some-snap", "some-base", "some-base-snap"},
+		},
+		{
+			modelBase:      "core22",
+			snaps:          []string{"snapd", "kernel", "core18", "gadget", "some-snap", "some-base", "some-base-snap"},
+			bases:          map[string]string{"some-base-snap": "some-base", "some-snap": "core18"},
+			essentialSnaps: []string{"snapd", "kernel", "gadget"},
+			// core18 is in the non-essential group w/ its dependency bc it's not the model base
+			nonEssentialSnaps: []string{"some-snap", "some-base", "some-base-snap", "core18"},
+		},
+		{
+			modelBase: "core18",
+			snaps:     []string{"snapd", "some-snap", "some-base", "some-base-snap"},
+			bases:     map[string]string{"some-base-snap": "some-base", "some-snap": "core18"},
+			// snapd is in the non-essential taskset because there are no other essential snaps
+			nonEssentialSnaps: []string{"some-snap", "some-base", "some-base-snap", "snapd"},
+		},
+		{
+			modelBase: "core18",
+			snaps:     []string{"snapd", "some-snap", "core18"},
+			bases:     map[string]string{"some-snap": "core18"},
+			// no kernel/gadget so snapd and core18 can be refreshed with the app
+			nonEssentialSnaps: []string{"some-snap", "core18", "snapd"},
+		},
+	}
+
+	for _, tc := range tcs {
+		var updates []snapstate.MinimalInstallInfo
+		for _, sn := range tc.snaps {
+			updates = append(updates, snapstate.InstallSnapInfo{
+				&snap.Info{
+					SideInfo: snap.SideInfo{RealName: sn, Revision: snap.R(1), SnapID: sn + "-id"},
+					SnapType: snap.Type(types[sn]),
+					Base:     tc.bases[sn],
+				},
+			})
+		}
+
+		ctx := &snapstatetest.TrivialDeviceContext{DeviceModel: ModelWithBase(tc.modelBase)}
+		essential, nonEssential := snapstate.SplitEssentialUpdates(ctx, updates)
+		c.Assert(infosToNames(essential), testutil.DeepUnsortedMatches, tc.essentialSnaps)
+		c.Assert(infosToNames(nonEssential), testutil.DeepUnsortedMatches, tc.nonEssentialSnaps)
+	}
+}
+
+type hybridContentStore struct {
+	*fakeStore
+	state *state.State
+}
+
+func (s hybridContentStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, assertQuery store.AssertionQuery, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {
+	sars, _, err := s.fakeStore.SnapAction(ctx, currentSnaps, actions, assertQuery, user, opts)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var res []store.SnapActionResult
+	for _, s := range sars {
+		info := s.Info
+		switch info.InstanceName() {
+		case "snap-content-plug":
+			info.Plugs = map[string]*snap.PlugInfo{
+				"some-plug": {
+					Snap:      info,
+					Name:      "shared-content",
+					Interface: "content",
+					Attrs: map[string]interface{}{
+						"default-provider": "snap-content-slot",
+						"content":          "shared-content",
+					},
+				},
+			}
+		case "snap-content-slot":
+			info.Slots = map[string]*snap.SlotInfo{
+				"some-slot": {
+					Snap:      info,
+					Name:      "shared-content",
+					Interface: "content",
+					Attrs: map[string]interface{}{
+						"content": "shared-content",
+					},
+				},
+			}
+			// default provider depends on the model base
+			info.Base = "core18"
+		}
+		res = append(res, store.SnapActionResult{Info: info})
+	}
+	return res, nil, err
+}
+
+func (s *snapmgrTestSuite) TestSplitRefreshWithDefaultProviderDependingOnModelBase(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.ReplaceStore(s.state, hybridContentStore{fakeStore: s.fakeStore, state: s.state})
+	repo := interfaces.NewRepository()
+	ifacerepo.Replace(s.state, repo)
+
+	restore := release.MockOnClassic(true)
+	defer restore()
+	restore = snapstatetest.MockDeviceModel(ModelWithBase("core18"))
+	defer restore()
+	restore = snapstate.MockPrerequisitesRetryTimeout(time.Second)
+	defer restore()
+
+	snaps := []string{"snapd", "kernel", "core18", "gadget", "snap-content-plug"}
+	types := map[string]string{
+		"snapd":             "snapd",
+		"core18":            "base",
+		"gadget":            "gadget",
+		"kernel":            "kernel",
+		"snap-content-plug": "app",
+	}
+	snapIds := map[string]string{
+		"snapd":             "snapd-snap-id",
+		"core18":            "core18-snap-id",
+		"gadget":            "gadget-core18-id",
+		"kernel":            "kernel-id",
+		"snap-content-plug": "snap-content-plug-id",
+	}
+
+	for _, sn := range snaps {
+		yaml := fmt.Sprintf("name: %s\nversion: 1.0\nepoch: 1\ntype: %s", sn, types[sn])
+
+		oldSi := &snap.SideInfo{RealName: sn, SnapID: snapIds[sn], Revision: snap.R(1)}
+		newSi := &snap.SideInfo{RealName: sn, SnapID: snapIds[sn], Revision: snap.R(11)}
+
+		snaptest.MakeTestSnapInfoWithFiles(c, yaml, nil, newSi)
+
+		snaptest.MockSnap(c, yaml, oldSi)
+		snapstate.Set(s.state, sn, &snapstate.SnapState{
+			Active:          true,
+			Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{oldSi}),
+			Current:         oldSi.Revision,
+			TrackingChannel: "latest/stable",
+			SnapType:        types[sn],
+		})
+	}
+
+	s.fakeBackend.linkSnapRebootFor = map[string]bool{
+		"core18": true,
+		"kernel": true,
+		"gadget": true,
+	}
+	s.fakeBackend.linkSnapMaybeReboot = true
+
+	s.o.TaskRunner().AddHandler("update-gadget-assets",
+		func(task *state.Task, tomb *tomb.Tomb) error {
+			task.State().Lock()
+			defer task.State().Unlock()
+			chg := task.Change()
+			chg.Set("gadget-restart-required", true)
+			return nil
+		},
+		func(task *state.Task, tomb *tomb.Tomb) error { return nil })
+
+	s.o.TaskRunner().AddHandler("update-gadget-cmdline",
+		func(task *state.Task, tomb *tomb.Tomb) error { return nil },
+		func(task *state.Task, tomb *tomb.Tomb) error { return nil })
+
+	chg := s.state.NewChange("refresh", fmt.Sprintf("refresh %v", snaps))
+	affected, tss, err := snapstate.UpdateMany(context.Background(), s.state, snaps, nil, s.user.ID, &snapstate.Flags{NoReRefresh: true})
+	c.Assert(err, IsNil)
+	c.Assert(affected, testutil.DeepUnsortedMatches, snaps)
+
+	for _, ts := range tss {
+		chg.AddAll(ts)
+	}
+
+	s.settle(c)
+
+	// the plug waits for the default provider which in turn waits for core18 to complete its link-snap (but not reboot)
+	// that needs to wait for a reboot (not tested here, but in ifacestate)
+	for _, snap := range []string{"snapd", "snap-content-plug", "snap-content-slot"} {
+		t := findTaskForSnap(c, chg, "auto-connect", snap)
+		c.Assert(t.Status(), Equals, state.DoneStatus, Commentf("expected task %q for snap %q to be done: %s", t.Kind(), snap, t.Status()))
+	}
+
+	// waiting for reboot
+	for _, snap := range []string{"kernel", "gadget", "core18"} {
+		t := findTaskForSnap(c, chg, "auto-connect", snap)
+		c.Assert(t.Status(), Equals, state.DoStatus, Commentf("expected task %q for snap %q to be do: %s", t.Kind(), snap, t.Status()))
+	}
+
+	t := findTaskForSnap(c, chg, "link-snap", "kernel")
+	c.Assert(t.Status(), Equals, state.WaitStatus, Commentf("expected kernel's link-snap to be waiting for restart"))
+
+	s.mockRestartAndSettle(c, chg)
+
+	// completed after restart
+	for _, snap := range []string{"kernel", "gadget", "core18", "snap-content-slot"} {
+		t := findTaskForSnap(c, chg, "auto-connect", snap)
+		c.Assert(t.Status(), Equals, state.DoneStatus, Commentf("expected task %q for snap %q to be done: %s", t.Kind(), snap, t.Status()))
+	}
+
+	c.Check(chg.IsReady(), Equals, true)
+	c.Check(chg.Status(), Equals, state.DoneStatus)
+}
+
+func (s *snapmgrTestSuite) TestAutoRefreshSplitRefresh(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	restore = snapstatetest.MockDeviceModel(ModelWithBase("core18"))
+	defer restore()
+
+	snaps := []string{"snapd", "kernel", "core18", "gadget", "some-base", "some-base-snap", "some-snap-with-core18-base"}
+	types := map[string]string{
+		"snapd":                      "snapd",
+		"core18":                     "base",
+		"gadget":                     "gadget",
+		"kernel":                     "kernel",
+		"some-base":                  "base",
+		"some-base-snap":             "app",
+		"some-snap-with-core18-base": "app",
+	}
+	snapIds := map[string]string{
+		"snapd":                      "snapd-snap-id",
+		"core18":                     "core18-snap-id",
+		"gadget":                     "gadget-core18-id",
+		"kernel":                     "kernel-id",
+		"some-base":                  "some-base-id",
+		"some-snap-with-core18-base": "some-snap-with-core18-base",
+		"some-base-snap":             "some-base-snap-id",
+	}
+	bases := map[string]string{
+		// create a dependency between the two task sets
+		"some-snap-with-core18-base": "core18",
+		"some-base-snap":             "some-base",
+	}
+
+	chg := s.state.NewChange("auto-refresh", "test change")
+	task := s.state.NewTask("conditional-auto-refresh", "test task")
+	chg.AddTask(task)
+
+	cands := make(map[string]*snapstate.RefreshCandidate, len(snaps))
+	var paths []string
+	for _, sn := range snaps {
+		yaml := fmt.Sprintf("name: %s\nversion: 1.0\nepoch: 1\ntype: %s", sn, types[sn])
+		if base, ok := bases[sn]; ok {
+			yaml += fmt.Sprintf("\nbase: %s", base)
+		}
+
+		oldSi := &snap.SideInfo{RealName: sn, SnapID: snapIds[sn], Revision: snap.R(1)}
+		newSi := &snap.SideInfo{RealName: sn, SnapID: snapIds[sn], Revision: snap.R(11)}
+
+		path, _ := snaptest.MakeTestSnapInfoWithFiles(c, yaml, nil, newSi)
+		paths = append(paths, path)
+
+		snaptest.MockSnap(c, yaml, oldSi)
+		snapstate.Set(s.state, sn, &snapstate.SnapState{
+			Active:          true,
+			Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{oldSi}),
+			Current:         oldSi.Revision,
+			TrackingChannel: "latest/stable",
+			SnapType:        types[sn],
+		})
+
+		cands[sn] = &snapstate.RefreshCandidate{
+			SnapSetup: snapstate.SnapSetup{
+				SideInfo: newSi,
+				Version:  sn + "Ver",
+				Base:     bases[sn],
+				Type:     snap.Type(types[sn]),
+				Flags:    snapstate.Flags{IsAutoRefresh: true},
+			},
+		}
+	}
+
+	s.fakeBackend.linkSnapRebootFor = map[string]bool{
+		"core18": true,
+		"kernel": true,
+		"gadget": true,
+	}
+	s.fakeBackend.linkSnapMaybeReboot = true
+
+	s.o.TaskRunner().AddHandler("update-gadget-assets",
+		func(task *state.Task, tomb *tomb.Tomb) error {
+			task.State().Lock()
+			defer task.State().Unlock()
+			chg := task.Change()
+			chg.Set("gadget-restart-required", true)
+			return nil
+		},
+		func(task *state.Task, tomb *tomb.Tomb) error { return nil })
+
+	s.o.TaskRunner().AddHandler("update-gadget-cmdline",
+		func(task *state.Task, tomb *tomb.Tomb) error { return nil },
+		func(task *state.Task, tomb *tomb.Tomb) error { return nil })
+
+	task.Set("snaps", cands)
+
+	s.settle(c)
+
+	checkRerefresh := true
+	s.checkSplitRefreshWithSharedBase(c, chg, checkRerefresh)
+}
+
+func findTaskForSnap(c *C, chg *state.Change, kind, snap string) *state.Task {
+	for _, t := range chg.Tasks() {
+		if t.Kind() != kind {
+			continue
+		}
+
+		snapsup, err := snapstate.TaskSnapSetup(t)
+		c.Assert(err, IsNil)
+		if snapsup.SnapName() == snap {
+			return t
+		}
+	}
+
+	c.Fatalf("couldn't find %q task for %q", kind, snap)
+	return nil
 }

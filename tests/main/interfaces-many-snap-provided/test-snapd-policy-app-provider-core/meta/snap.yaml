@@ -8,27 +8,8 @@ slots:
   audio-playback: null
   audio-record: null
   avahi-control: null
-  avahi-observe: null
-  bluez: null
-  content-read:
-    interface: content
-    content: test-content
-    read:
-    - $SNAP/content
-  cups: null
-  cups-control: null
-  dbus-session:
-    interface: dbus
-    bus: session
-    name: test.session
-  dbus-system:
-    interface: dbus
-    bus: system
-    name: test.system
-  desktop: null
   docker: null
   fwupd: null
-  location-control: null
   location-observe: null
   lxd: null
   maliit: null
@@ -41,16 +22,12 @@ slots:
   network-manager-observe: null
   ofono: null
   online-accounts-service: null
-  pulseaudio: null
   storage-framework-service: null
   thumbnailer-service: null
   ubuntu-download-manager: null
-  udisks2: null
   unity8: null
   unity8-calendar: null
   unity8-contacts: null
-  upower-observe: null
-  wayland: null
   x11: null
 
 apps:
@@ -63,36 +40,12 @@ apps:
   avahi-control:
     command: bin/run
     slots: [ avahi-control ]
-  avahi-observe:
-    command: bin/run
-    slots: [ avahi-observe ]
-  bluez:
-    command: bin/run
-    slots: [ bluez ]
-  content-read:
-    command: bin/run
-    slots: [ content-read ]
-  cups:
-    command: bin/run
-    slots: [ cups ]
-  cups-control:
-    command: bin/run
-    slots: [ cups-control ]
-  dbus-session:
-    command: bin/run
-    slots: [ dbus-session ]
-  dbus-system:
-    command: bin/run
-    slots: [ dbus-system ]
   docker:
     command: bin/run
     slots: [ docker ]
   fwupd:
     command: bin/run
     slots: [ fwupd ]
-  location-control:
-    command: bin/run
-    slots: [ location-control ]
   location-observe:
     command: bin/run
     slots: [ location-observe ]
@@ -117,9 +70,6 @@ apps:
   modem-manager:
     command: bin/run
     slots: [ modem-manager ]
-  network-manager:
-    command: bin/run
-    slots: [ network-manager ]
   network-manager-observe:
     command: bin/run
     slots: [ network-manager-observe ]
@@ -129,9 +79,6 @@ apps:
   online-accounts-service:
     command: bin/run
     slots: [ online-accounts-service ]
-  pulseaudio:
-    command: bin/run
-    slots: [ pulseaudio ]
   storage-framework-service:
     command: bin/run
     slots: [ storage-framework-service ]
@@ -141,9 +88,6 @@ apps:
   ubuntu-download-manager:
     command: bin/run
     slots: [ ubuntu-download-manager ]
-  udisks2:
-    command: bin/run
-    slots: [ udisks2 ]
   unity8:
     command: bin/run
     slots: [ unity8 ]
@@ -153,12 +97,6 @@ apps:
   unity8-contacts:
     command: bin/run
     slots: [ unity8-contacts ]
-  upower-observe:
-    command: bin/run
-    slots: [ upower-observe ]
-  wayland:
-    command: bin/run
-    slots: [ wayland ]
   x11:
     command: bin/run
     slots: [ x11 ]

@@ -1,4 +1,8 @@
-summary: Ensure core can be configure before being installed
+summary: Ensure core can be configured before being installed
+
+details: |
+   Check that we can configure system/core options without core being
+   installed since core configurations are handled in a special manner.
 
 systems: [-ubuntu-core-*]
 

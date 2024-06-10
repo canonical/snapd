@@ -414,6 +414,12 @@ func SnapRepairConfigFileUnder(rootdir string) string {
 	return filepath.Join(rootdir, snappyDir, "repair.json")
 }
 
+// SnapKernelTreesDirUnder returns the path to the snap kernel drivers trees
+// dir under rootdir.
+func SnapKernelDriversTreesDirUnder(rootdir string) string {
+	return filepath.Join(rootdir, snappyDir, "kernel")
+}
+
 // AddRootDirCallback registers a callback for whenever the global root
 // directory (set by SetRootDir) is changed to enable updates to variables in
 // other packages that depend on its location.

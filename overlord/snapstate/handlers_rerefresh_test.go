@@ -281,7 +281,7 @@ func (s *reRefreshSuite) TestDoCheckReRefreshWaitOnPendingRestart(c *C) {
 
 // wrapper around snapstate.RefreshedSnaps for easier testing
 func refreshedSnaps(c *C, task *state.Task) string {
-	snaps, _, err := snapstate.RefreshedSnaps(task)
+	snaps, _, err := snapstate.RefreshedSnaps(task, nil)
 	c.Assert(err, IsNil)
 	sort.Strings(snaps)
 	return strings.Join(snaps, ",")
@@ -440,7 +440,7 @@ func (s *reRefreshSuite) TestLaneSnapsInvalidSetup(c *C) {
 	task := s.state.NewTask("check-rerefresh", "...")
 	chg.AddTask(task)
 
-	snaps, _, err := snapstate.RefreshedSnaps(task)
+	snaps, _, err := snapstate.RefreshedSnaps(task, nil)
 	c.Check(snaps, HasLen, 0)
 	c.Check(err, ErrorMatches, `internal error: expected SnapSetup for download-snap: no state entry for key "snap-setup"`)
 }

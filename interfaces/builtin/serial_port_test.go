@@ -455,24 +455,30 @@ func (s *SerialPortInterfaceSuite) TestSanitizeBadGadgetSnapSlots(c *C) {
 }
 
 func (s *SerialPortInterfaceSuite) TestPermanentSlotUDevSnippets(c *C) {
-	spec := udev.NewSpecification(interfaces.NewSnapAppSet(s.osSnapInfo))
+	appSet, err := interfaces.NewSnapAppSet(s.osSnapInfo, nil)
+	c.Assert(err, IsNil)
+	spec := udev.NewSpecification(appSet)
 	for _, slot := range []*snap.SlotInfo{s.testSlot1Info, s.testSlot2Info, s.testSlot3Info, s.testSlot4Info} {
 		err := spec.AddPermanentSlot(s.iface, slot)
 		c.Assert(err, IsNil)
 		c.Assert(spec.Snippets(), HasLen, 0)
 	}
 
-	spec = udev.NewSpecification(interfaces.NewSnapAppSet(s.gadgetSnapInfo))
+	appSet, err = interfaces.NewSnapAppSet(s.gadgetSnapInfo, nil)
+	c.Assert(err, IsNil)
+	spec = udev.NewSpecification(appSet)
 	expectedSnippet1 := `# serial-port
 IMPORT{builtin}="usb_id"
 SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="0001", ATTRS{idProduct}=="0001", SYMLINK+="serial-port-zigbee"`
-	err := spec.AddPermanentSlot(s.iface, s.testUDev1Info)
+	err = spec.AddPermanentSlot(s.iface, s.testUDev1Info)
 	c.Assert(err, IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
 	snippet := spec.Snippets()[0]
 	c.Assert(snippet, Equals, expectedSnippet1)
 
-	spec = udev.NewSpecification(interfaces.NewSnapAppSet(s.gadgetSnapInfo))
+	appSet, err = interfaces.NewSnapAppSet(s.gadgetSnapInfo, nil)
+	c.Assert(err, IsNil)
+	spec = udev.NewSpecification(appSet)
 	expectedSnippet2 := `# serial-port
 IMPORT{builtin}="usb_id"
 SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="ffff", ATTRS{idProduct}=="ffff", SYMLINK+="serial-port-mydevice"`
@@ -482,7 +488,9 @@ SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="ffff", ATTRS{idProduct}==
 	snippet = spec.Snippets()[0]
 	c.Assert(snippet, Equals, expectedSnippet2)
 
-	spec = udev.NewSpecification(interfaces.NewSnapAppSet(s.gadgetSnapInfo))
+	appSet, err = interfaces.NewSnapAppSet(s.gadgetSnapInfo, nil)
+	c.Assert(err, IsNil)
+	spec = udev.NewSpecification(appSet)
 	// The ENV{ID_USB_INTERFACE_NUM} is set to two hex digits
 	// For instance, the expectedSnippet3 is set to 00
 	expectedSnippet3 := `# serial-port
@@ -497,8 +505,10 @@ SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="abcd", ATTRS{idProduct}==
 
 func (s *SerialPortInterfaceSuite) TestConnectedPlugUDevSnippets(c *C) {
 	// add the plug for the slot with just path
-	spec := udev.NewSpecification(interfaces.NewSnapAppSet(s.testPlugPort1.Snap()))
-	err := spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testSlot1)
+	appSet, err := interfaces.NewSnapAppSet(s.testPlugPort1.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := udev.NewSpecification(appSet)
+	err = spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testSlot1)
 	c.Assert(err, IsNil)
 	c.Assert(spec.Snippets(), HasLen, 2)
 	snippet := spec.Snippets()[0]
@@ -506,11 +516,13 @@ func (s *SerialPortInterfaceSuite) TestConnectedPlugUDevSnippets(c *C) {
 SUBSYSTEM=="tty", KERNEL=="ttyS0", TAG+="snap_client-snap_app-accessing-2-ports"`
 	c.Assert(snippet, Equals, expectedSnippet1)
 	extraSnippet := spec.Snippets()[1]
-	expectedExtraSnippet1 := fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-2-ports", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_client-snap_app-accessing-2-ports"`, dirs.DistroLibExecDir)
+	expectedExtraSnippet1 := fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-2-ports", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_client-snap_app-accessing-2-ports $devpath $major:$minor"`, dirs.DistroLibExecDir)
 	c.Assert(extraSnippet, Equals, expectedExtraSnippet1)
 
 	// add plug for the first slot with product and vendor ids
-	spec = udev.NewSpecification(interfaces.NewSnapAppSet(s.testPlugPort1.Snap()))
+	appSet, err = interfaces.NewSnapAppSet(s.testPlugPort1.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec = udev.NewSpecification(appSet)
 	err = spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUDev1)
 	c.Assert(err, IsNil)
 	c.Assert(spec.Snippets(), HasLen, 2)
@@ -520,11 +532,13 @@ IMPORT{builtin}="usb_id"
 SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="0001", ATTRS{idProduct}=="0001", TAG+="snap_client-snap_app-accessing-2-ports"`
 	c.Assert(snippet, Equals, expectedSnippet2)
 	extraSnippet = spec.Snippets()[1]
-	expectedExtraSnippet2 := fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-2-ports", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_client-snap_app-accessing-2-ports"`, dirs.DistroLibExecDir)
+	expectedExtraSnippet2 := fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-2-ports", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_client-snap_app-accessing-2-ports $devpath $major:$minor"`, dirs.DistroLibExecDir)
 	c.Assert(extraSnippet, Equals, expectedExtraSnippet2)
 
 	// add plug for the first slot with product and vendor ids
-	spec = udev.NewSpecification(interfaces.NewSnapAppSet(s.testPlugPort2.Snap()))
+	appSet, err = interfaces.NewSnapAppSet(s.testPlugPort2.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec = udev.NewSpecification(appSet)
 	err = spec.AddConnectedPlug(s.iface, s.testPlugPort2, s.testUDev2)
 	c.Assert(err, IsNil)
 	c.Assert(spec.Snippets(), HasLen, 2)
@@ -534,11 +548,13 @@ IMPORT{builtin}="usb_id"
 SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="ffff", ATTRS{idProduct}=="ffff", TAG+="snap_client-snap_app-accessing-2-ports"`
 	c.Assert(snippet, Equals, expectedSnippet3)
 	extraSnippet = spec.Snippets()[1]
-	expectedExtraSnippet3 := fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-2-ports", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_client-snap_app-accessing-2-ports"`, dirs.DistroLibExecDir)
+	expectedExtraSnippet3 := fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-2-ports", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_client-snap_app-accessing-2-ports $devpath $major:$minor"`, dirs.DistroLibExecDir)
 	c.Assert(extraSnippet, Equals, expectedExtraSnippet3)
 
 	// add plug for the first slot with product and vendor ids and usb interface number
-	spec = udev.NewSpecification(interfaces.NewSnapAppSet(s.testPlugPort2.Snap()))
+	appSet, err = interfaces.NewSnapAppSet(s.testPlugPort2.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec = udev.NewSpecification(appSet)
 	err = spec.AddConnectedPlug(s.iface, s.testPlugPort2, s.testUDev3)
 	c.Assert(err, IsNil)
 	c.Assert(spec.Snippets(), HasLen, 2)
@@ -548,14 +564,16 @@ IMPORT{builtin}="usb_id"
 SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="abcd", ATTRS{idProduct}=="1234", ENV{ID_USB_INTERFACE_NUM}=="00", TAG+="snap_client-snap_app-accessing-2-ports"`
 	c.Assert(snippet, Equals, expectedSnippet4)
 	extraSnippet = spec.Snippets()[1]
-	expectedExtraSnippet4 := fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-2-ports", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_client-snap_app-accessing-2-ports"`, dirs.DistroLibExecDir)
+	expectedExtraSnippet4 := fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-2-ports", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_client-snap_app-accessing-2-ports $devpath $major:$minor"`, dirs.DistroLibExecDir)
 	c.Assert(extraSnippet, Equals, expectedExtraSnippet4)
 }
 
 func (s *SerialPortInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
 	checkConnectedPlugSnippet := func(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot, expectedSnippet string) {
-		apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(plug.Snap()))
-		err := apparmorSpec.AddConnectedPlug(s.iface, plug, slot)
+		appSet, err := interfaces.NewSnapAppSet(plug.Snap(), nil)
+		c.Assert(err, IsNil)
+		apparmorSpec := apparmor.NewSpecification(appSet)
+		err = apparmorSpec.AddConnectedPlug(s.iface, plug, slot)
 		c.Assert(err, IsNil)
 
 		c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-2-ports"})
@@ -613,8 +631,10 @@ func (s *SerialPortInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
 
 func (s *SerialPortInterfaceSuite) TestConnectedPlugUDevSnippetsForPath(c *C) {
 	checkConnectedPlugSnippet := func(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot, expectedSnippet string, expectedExtraSnippet string) {
-		udevSpec := udev.NewSpecification(interfaces.NewSnapAppSet(plug.Snap()))
-		err := udevSpec.AddConnectedPlug(s.iface, plug, slot)
+		appSet, err := interfaces.NewSnapAppSet(plug.Snap(), nil)
+		c.Assert(err, IsNil)
+		udevSpec := udev.NewSpecification(appSet)
+		err = udevSpec.AddConnectedPlug(s.iface, plug, slot)
 		c.Assert(err, IsNil)
 
 		c.Assert(udevSpec.Snippets(), HasLen, 2)
@@ -627,80 +647,80 @@ func (s *SerialPortInterfaceSuite) TestConnectedPlugUDevSnippetsForPath(c *C) {
 	// these have only path
 	expectedSnippet1 := `# serial-port
 SUBSYSTEM=="tty", KERNEL=="ttyS0", TAG+="snap_client-snap_app-accessing-3rd-port"`
-	expectedExtraSnippet1 := fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-3rd-port", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_client-snap_app-accessing-3rd-port"`, dirs.DistroLibExecDir)
+	expectedExtraSnippet1 := fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-3rd-port", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_client-snap_app-accessing-3rd-port $devpath $major:$minor"`, dirs.DistroLibExecDir)
 	checkConnectedPlugSnippet(s.testPlugPort3, s.testSlot1, expectedSnippet1, expectedExtraSnippet1)
 
 	expectedSnippet2 := `# serial-port
 SUBSYSTEM=="tty", KERNEL=="ttyUSB927", TAG+="snap_client-snap_app-accessing-3rd-port"`
-	expectedExtraSnippet2 := fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-3rd-port", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_client-snap_app-accessing-3rd-port"`, dirs.DistroLibExecDir)
+	expectedExtraSnippet2 := fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-3rd-port", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_client-snap_app-accessing-3rd-port $devpath $major:$minor"`, dirs.DistroLibExecDir)
 	checkConnectedPlugSnippet(s.testPlugPort3, s.testSlot2, expectedSnippet2, expectedExtraSnippet2)
 
 	expectedSnippet3 := `# serial-port
 SUBSYSTEM=="tty", KERNEL=="ttyS42", TAG+="snap_client-snap_app-accessing-3rd-port"`
-	expectedExtraSnippet3 := fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-3rd-port", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_client-snap_app-accessing-3rd-port"`, dirs.DistroLibExecDir)
+	expectedExtraSnippet3 := fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-3rd-port", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_client-snap_app-accessing-3rd-port $devpath $major:$minor"`, dirs.DistroLibExecDir)
 	checkConnectedPlugSnippet(s.testPlugPort3, s.testSlot3, expectedSnippet3, expectedExtraSnippet3)
 
 	expectedSnippet4 := `# serial-port
 SUBSYSTEM=="tty", KERNEL=="ttyO0", TAG+="snap_client-snap_app-accessing-3rd-port"`
-	expectedExtraSnippet4 := fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-3rd-port", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_client-snap_app-accessing-3rd-port"`, dirs.DistroLibExecDir)
+	expectedExtraSnippet4 := fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-3rd-port", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_client-snap_app-accessing-3rd-port $devpath $major:$minor"`, dirs.DistroLibExecDir)
 	checkConnectedPlugSnippet(s.testPlugPort3, s.testSlot4, expectedSnippet4, expectedExtraSnippet4)
 
 	expectedSnippet5 := `# serial-port
 SUBSYSTEM=="tty", KERNEL=="ttyACM0", TAG+="snap_client-snap_app-accessing-3rd-port"`
-	expectedExtraSnippet5 := fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-3rd-port", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_client-snap_app-accessing-3rd-port"`, dirs.DistroLibExecDir)
+	expectedExtraSnippet5 := fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-3rd-port", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_client-snap_app-accessing-3rd-port $devpath $major:$minor"`, dirs.DistroLibExecDir)
 	checkConnectedPlugSnippet(s.testPlugPort3, s.testSlot5, expectedSnippet5, expectedExtraSnippet5)
 
 	expectedSnippet6 := `# serial-port
 SUBSYSTEM=="tty", KERNEL=="ttyAMA0", TAG+="snap_client-snap_app-accessing-3rd-port"`
-	expectedExtraSnippet6 := fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-3rd-port", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_client-snap_app-accessing-3rd-port"`, dirs.DistroLibExecDir)
+	expectedExtraSnippet6 := fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-3rd-port", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_client-snap_app-accessing-3rd-port $devpath $major:$minor"`, dirs.DistroLibExecDir)
 	checkConnectedPlugSnippet(s.testPlugPort3, s.testSlot6, expectedSnippet6, expectedExtraSnippet6)
 
 	expectedSnippet7 := `# serial-port
 SUBSYSTEM=="tty", KERNEL=="ttyXRUSB0", TAG+="snap_client-snap_app-accessing-3rd-port"`
-	expectedExtraSnippet7 := fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-3rd-port", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_client-snap_app-accessing-3rd-port"`, dirs.DistroLibExecDir)
+	expectedExtraSnippet7 := fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-3rd-port", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_client-snap_app-accessing-3rd-port $devpath $major:$minor"`, dirs.DistroLibExecDir)
 	checkConnectedPlugSnippet(s.testPlugPort3, s.testSlot7, expectedSnippet7, expectedExtraSnippet7)
 
 	expectedSnippet8 := `# serial-port
 SUBSYSTEM=="tty", KERNEL=="ttymxc2", TAG+="snap_client-snap_app-accessing-3rd-port"`
-	expectedExtraSnippet8 := fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-3rd-port", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_client-snap_app-accessing-3rd-port"`, dirs.DistroLibExecDir)
+	expectedExtraSnippet8 := fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-3rd-port", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_client-snap_app-accessing-3rd-port $devpath $major:$minor"`, dirs.DistroLibExecDir)
 	checkConnectedPlugSnippet(s.testPlugPort3, s.testSlot8, expectedSnippet8, expectedExtraSnippet8)
 
 	expectedSnippet9 := `# serial-port
 SUBSYSTEM=="tty", KERNEL=="ttySC0", TAG+="snap_client-snap_app-accessing-3rd-port"`
-	expectedExtraSnippet9 := fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-3rd-port", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_client-snap_app-accessing-3rd-port"`, dirs.DistroLibExecDir)
+	expectedExtraSnippet9 := fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-3rd-port", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_client-snap_app-accessing-3rd-port $devpath $major:$minor"`, dirs.DistroLibExecDir)
 	checkConnectedPlugSnippet(s.testPlugPort3, s.testSlot9, expectedSnippet9, expectedExtraSnippet9)
 
 	expectedSnippet10 := `# serial-port
 SUBSYSTEM=="tty", KERNEL=="ttyMSM0", TAG+="snap_client-snap_app-accessing-3rd-port"`
-	expectedExtraSnippet10 := fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-3rd-port", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_client-snap_app-accessing-3rd-port"`, dirs.DistroLibExecDir)
+	expectedExtraSnippet10 := fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-3rd-port", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_client-snap_app-accessing-3rd-port $devpath $major:$minor"`, dirs.DistroLibExecDir)
 	checkConnectedPlugSnippet(s.testPlugPort3, s.testSlot10, expectedSnippet10, expectedExtraSnippet10)
 
 	expectedSnippet11 := `# serial-port
 SUBSYSTEM=="tty", KERNEL=="ttyHS0", TAG+="snap_client-snap_app-accessing-3rd-port"`
-	expectedExtraSnippet11 := fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-3rd-port", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_client-snap_app-accessing-3rd-port"`, dirs.DistroLibExecDir)
+	expectedExtraSnippet11 := fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-3rd-port", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_client-snap_app-accessing-3rd-port $devpath $major:$minor"`, dirs.DistroLibExecDir)
 	checkConnectedPlugSnippet(s.testPlugPort3, s.testSlot11, expectedSnippet11, expectedExtraSnippet11)
 
 	expectedSnippet12 := `# serial-port
 SUBSYSTEM=="tty", KERNEL=="ttyGS0", TAG+="snap_client-snap_app-accessing-3rd-port"`
-	expectedExtraSnippet12 := fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-3rd-port", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_client-snap_app-accessing-3rd-port"`, dirs.DistroLibExecDir)
+	expectedExtraSnippet12 := fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-3rd-port", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_client-snap_app-accessing-3rd-port $devpath $major:$minor"`, dirs.DistroLibExecDir)
 	checkConnectedPlugSnippet(s.testPlugPort3, s.testSlot12, expectedSnippet12, expectedExtraSnippet12)
 
 	expectedSnippet13 := `# serial-port
 SUBSYSTEM=="tty", KERNEL=="ttyLP0", TAG+="snap_client-snap_app-accessing-3rd-port"`
-	expectedExtraSnippet13 := fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-3rd-port", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_client-snap_app-accessing-3rd-port"`, dirs.DistroLibExecDir)
+	expectedExtraSnippet13 := fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-3rd-port", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_client-snap_app-accessing-3rd-port $devpath $major:$minor"`, dirs.DistroLibExecDir)
 	checkConnectedPlugSnippet(s.testPlugPort3, s.testSlot13, expectedSnippet13, expectedExtraSnippet13)
 
 	// these have product and vendor ids
 	expectedSnippet100 := `# serial-port
 IMPORT{builtin}="usb_id"
 SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="0001", ATTRS{idProduct}=="0001", TAG+="snap_client-snap_app-accessing-3rd-port"`
-	expectedExtraSnippet100 := fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-3rd-port", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_client-snap_app-accessing-3rd-port"`, dirs.DistroLibExecDir)
+	expectedExtraSnippet100 := fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-3rd-port", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_client-snap_app-accessing-3rd-port $devpath $major:$minor"`, dirs.DistroLibExecDir)
 	checkConnectedPlugSnippet(s.testPlugPort3, s.testUDev1, expectedSnippet100, expectedExtraSnippet100)
 
 	expectedSnippet101 := `# serial-port
 IMPORT{builtin}="usb_id"
 SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="ffff", ATTRS{idProduct}=="ffff", TAG+="snap_client-snap_app-accessing-3rd-port"`
-	expectedExtraSnippet101 := fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-3rd-port", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_client-snap_app-accessing-3rd-port"`, dirs.DistroLibExecDir)
+	expectedExtraSnippet101 := fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-3rd-port", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_client-snap_app-accessing-3rd-port $devpath $major:$minor"`, dirs.DistroLibExecDir)
 	checkConnectedPlugSnippet(s.testPlugPort3, s.testUDev2, expectedSnippet101, expectedExtraSnippet101)
 }
 

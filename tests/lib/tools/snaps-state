@@ -119,7 +119,7 @@ is_confinement_supported() {
     snap debug sandbox-features --required=confinement-options:"$confinement"
 }
 
-# The function will re-pack either core or snpad snap using the assets
+# The function will re-pack either core or snapd snap using the assets
 # from the snapd deb installed on the system
 repack_snapd_deb_into_snap() {
     local snap_name="$1"

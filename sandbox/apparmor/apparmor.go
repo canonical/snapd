@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2018 Canonical Ltd
+ * Copyright (C) 2014-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -589,6 +589,14 @@ func probeKernelFeatures() ([]string, error) {
 			}
 		}
 	}
+	if data, err := os.ReadFile(filepath.Join(rootPath, featuresSysPath, "policy", "permstable32")); err == nil {
+		permstableFeatures := strings.Fields(string(data))
+		for _, feat := range permstableFeatures {
+			features = append(features, fmt.Sprintf("policy:permstable32:%s", feat))
+		}
+	}
+	// Features must be sorted
+	sort.Strings(features)
 	return features, nil
 }
 
@@ -634,6 +642,10 @@ func probeParserFeatures() ([]string, error) {
 			feature: "unconfined",
 			flags:   []string{"unconfined"},
 			probe:   "# test unconfined",
+		},
+		{
+			feature: "prompt",
+			probe:   "prompt /foo r,",
 		},
 	}
 	_, internal, err := AppArmorParser()

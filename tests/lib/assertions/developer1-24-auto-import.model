@@ -1,0 +1,26 @@
+type: system-user
+authority-id: developer1
+brand-id: developer1
+email: snappy-dev@lists.launchpad.net
+models:
+  - testkeys-snapd-signed-core-24-amd64
+  - testkeys-snapd-secured-core-24-amd64
+name: user1
+password: $6$o5er943Y$cngsJHutSgACVbR65WAnhaUPC9.vENj8locb50hvMdMRMK8cQ3Zbu6WPh5Al2JrnHzpR63osPCwE/IFG/2s6K1
+series:
+  - 16
+since: 2024-04-09T01:00:00+00:00
+until: 2064-05-16T18:06:04+00:00
+username: user1
+sign-key-sha3-384: EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu
+
+AcLBUgQAAQoABgUCZhWbpwAAPz8QAH40mhDPKDDo/M0C5iuxGg+ceRnMse3fhuArv9kv5RsYnBoS
+ZFzboluii9Li1i+77WMvPBkGVWKCzcqKUKhl8VEiGwoMHF6xEi5xRH0Tq5MtBbir4PKlu88gkomL
+HZ+Ekgzxr0/C15dLnz+uGMUFqnyjLGnRGvQ9kxegwK57bVMEjkIeaUE1dCf0eiIsd2c5/BVeRfnC
+U9Sujc73GZsnhFSk07Rjf7pz8BICrtiJGftgsMabCgqGQd0U3//Qveti6ACt0HIJM6zJZ2wwiwbQ
+lr4aj+Ur/KrGWfQqaCMnnHF/Zrej8+ADtpcYWNMC/Jkdcs1feTjNtBXJ+v7c16xa4pmDaYXMnT22
+QnSEG9OOKAgFBy4vAYiDf/u2axqpy/h1SM01mTFB/x0jFJIFlTlt8+/aTDeQVMW+cQLxg5Pr35NQ
+I+LZy2VwiSDYc9H78SKW68y7fRKAaupjiLtt8i7u01PrI2nmHP4t77AAhdEa8fya+OtdpjxnZSis
+n7rV//3SmoVQkXLXOxnBWIkrn5+huNd7Lj4dexjrZwMnA4VHY414/kQi4RFrglEVcltJXlESl60F
+DH6nHjeTmrYFKQVhCThoCwRb9aOemkkCvu0zHjvqbkiSX6CiHn0/6zTeq7v6a4+N1WvknmJrUzxH
+Qd8a/0sguueQqkvZ57fUse1Tkxlk

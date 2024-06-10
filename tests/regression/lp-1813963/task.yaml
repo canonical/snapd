@@ -1,5 +1,16 @@
 summary: "regression test for LP: #1813963"
 
+details: |
+    During startup of snap application processes, the snap-confine helper forks
+    to perform exploratory actions without clobbering important state in the
+    main processes. The two processes communicate, among other, with a pipe. A
+    specific version of snapd contained a flaw, where one of the forked
+    processes could be killed with SIGPIPE instead of handling EPIPE errno
+    value. The code was adjusted to handle this correctly and this integration
+    test was crafted to ensure a timeout is hit, and that one of the helper
+    processes dies in a specific way, then snap-confine itself handles this
+    possibility correctly.
+
 backends: [-external]
 
 systems: [ubuntu-16.04-64, ubuntu-18.04-64]

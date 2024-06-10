@@ -49,30 +49,11 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *sn
 		return nil, err
 	}
 
-	// Read ComponentInfo
-	compInfo, _, err := backend.OpenComponentFile(path)
+	// Read ComponentInfo and verify that the component is consistent with the
+	// data in the snap info
+	compInfo, _, err := backend.OpenComponentFile(path, info, csi)
 	if err != nil {
 		return nil, err
-	}
-
-	// Check snap name matches
-	if compInfo.Component.SnapName != info.SnapName() {
-		return nil, fmt.Errorf(
-			"component snap name %q does not match snap name %q",
-			compInfo.Component.SnapName, info.RealName)
-	}
-
-	// Check that the component is specified in snap metadata
-	comp, ok := info.Components[csi.Component.ComponentName]
-	if !ok {
-		return nil, fmt.Errorf("%q is not a component for snap %q",
-			csi.Component.ComponentName, info.RealName)
-	}
-	// and that types in snap and component match
-	if comp.Type != compInfo.Type {
-		return nil,
-			fmt.Errorf("inconsistent component type (%q in snap, %q in component)",
-				comp.Type, compInfo.Type)
 	}
 
 	snapsup := &SnapSetup{
@@ -187,11 +168,24 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup *Component
 		addTask(unlink)
 	}
 
+	// security
+	setupSecurity := st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup component %q%s security profiles"), compSi.Component, revisionStr))
+	addTask(setupSecurity)
+	prev = setupSecurity
+
 	// finalize (sets SnapState)
 	linkSnap := st.NewTask("link-component",
 		fmt.Sprintf(i18n.G("Make component %q%s available to the system"),
 			compSi.Component, revisionStr))
 	addTask(linkSnap)
+
+	// clean-up previous revision of the component if present
+	if compInstalled {
+		discardComp := st.NewTask("discard-component", fmt.Sprintf(i18n.G(
+			"Discard previous revision for component %q"),
+			compSi.Component))
+		addTask(discardComp)
+	}
 
 	installSet := state.NewTaskSet(tasks...)
 	installSet.MarkEdge(prepare, BeginEdge)

@@ -6,7 +6,7 @@ details: |
   We test both the encrypted and unencrypted cases. We also verify that the
   system has properly installed system seed post-installation.
 
-systems: [ubuntu-22.04-64]
+systems: [ubuntu-22.04-64, ubuntu-24.04-64]
 
 environment:
   # Test both encrypted and unencrypted install using the muinstaller
@@ -53,7 +53,7 @@ execute: |
   echo 'console=ttyS0' > pc-gadget/cmdline.extra
   cat <<EOF > pc-gadget/cloud.conf
   #cloud-config
-  datasource_list: [NoCloud]
+  datasource_list: [None]
   ssh_pwauth: True
   users:
    - name: user1
@@ -97,8 +97,7 @@ execute: |
   cp -a ./"$SEED_DIR"/system-seed/ /var/lib/snapd/seed
 
   # build the muinstaller snap
-  # TODO: Consider reverting to latest/candidate when Snapcraft 8.0.5, which includes the fix to deal with LXD 5.21.0 version naming change, becomes available
-  snap install snapcraft --edge --classic
+  snap install snapcraft --candidate --classic
   "$TESTSTOOLS"/lxd-state prepare-snap
   (cd "$TESTSLIB"/muinstaller && snapcraft)
   MUINSTALLER_SNAP="$(find "$TESTSLIB"/muinstaller/ -maxdepth 1 -name '*.snap')"

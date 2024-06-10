@@ -1,5 +1,7 @@
 summary: Check that the refresh command uses deltas
 
+details: Check that the refresh command uses deltas when downloading a snap.
+
 environment:
     SNAP_NAME: test-snapd-delta-refresh
     SNAP_VERSION_PATTERN: \d+\.\d+\+fake1

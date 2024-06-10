@@ -67,3 +67,48 @@ func EscapeUnitNamePath(in string) string {
 
 	return buf.String()
 }
+
+// SecurityTagToUnitName converts a security tag to a unit name. It also
+// verifies that no unhandled characters are present in the security tag. Valid
+// characters are: a-z, A-Z, 0-9, '_', '-', '.' and '+'. All characters are
+// passed through, except for the '+' character, which is converted to '\x2b'.
+//
+// Note that this is not the same as systemd-escape, since systemd-escape
+// escapes the '-' character. Due to historical reasons, snapd uses the '-'
+// character in unit names. Note that these are still valid unit names, since
+// '-' is used by systemd-escape to represent the '/' character.
+//
+// To allow us to correctly convert between security tags and unit names (and to
+// maintain snapd's usage of '-' in unit names), this implementation only
+// escapes the '+' character, which was introduced with snap components.
+//
+// Examples of conversion:
+//   - "snap.name.app" -> "snap.name.app"
+//   - "snap.some-name.some-app" -> "snap.some-name.some-app"
+//   - "snap.name+comp.hook.install" -> "snap.name\x2bcomp.hook.install"
+func SecurityTagToUnitName(tag string) (string, error) {
+	var builder strings.Builder
+	for _, c := range tag {
+		switch {
+		case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z', c >= '0' && c <= '9', c == '_', c == '-', c == '.':
+			builder.WriteRune(c)
+		case c == '+':
+			builder.WriteString(`\x2b`)
+		default:
+			return "", fmt.Errorf("invalid character in security tag: %q", c)
+		}
+	}
+	return builder.String(), nil
+}
+
+// UnitNameToSecurityTag converts a unit name to a security tag. Currently,
+// the only character that is unescaped is the '+' character.
+//
+// See UnitNameFromSecurityTag for more information.
+//
+// Examples of conversion:
+//   - "snap.name.app" -> "snap.name.app"
+//   - "snap.name\x2bcomp.hook.install" -> "snap.name+comp.hook.install"
+func UnitNameToSecurityTag(unitName string) string {
+	return strings.ReplaceAll(unitName, `\x2b`, "+")
+}

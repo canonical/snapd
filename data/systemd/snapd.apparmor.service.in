@@ -24,6 +24,7 @@ RequiresMountsFor=/var/cache/apparmor /var/lib/snapd/apparmor/profiles
 [Service]
 Type=oneshot
 ExecStart=@libexecdir@/snapd/snapd-apparmor start
+EnvironmentFile=-/var/lib/snapd/environment/snapd.conf
 RemainAfterExit=yes
 
 [Install]

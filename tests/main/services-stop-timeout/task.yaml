@@ -1,5 +1,13 @@
 summary: Check that snaps can use stop-timeout
 
+details: |
+     A service from a snap may define a stop command as well as a stop
+     timeout. When stopping a service, if the stop command takes more
+     time than the defined stop timeout, then the stop command will be
+     stopped and the service killed. This test verifies that the stop
+     timeout works correctly by running a stop command for longer than
+     the timeout.
+
 # this test is expected to fail once we run the tests for SELinux
 # distros in Enforce mode
 # systemd on 14.04 does not really honour TimeoutStopSec

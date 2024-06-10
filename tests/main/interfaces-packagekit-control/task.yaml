@@ -1,5 +1,10 @@
 summary: The packagekit-control interface grants access to PackageKit
 
+details: |
+    The packagekit-control interface allows access to the now-deprecated Package
+    Kit service, which exposes D-Bus methods for managing classic packages on
+    the host.
+
 systems:
     # Ubuntu Core does not provide a packagekitd implementation
     - -ubuntu-core-*

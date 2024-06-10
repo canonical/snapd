@@ -111,8 +111,10 @@ func (s *OpticalDriveInterfaceSuite) TestAppArmorSpec(c *C) {
 		excludeSnippets []string
 	}
 	checkConnectedPlugSnippet := func(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot, opts *options) {
-		apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(plug.Snap()))
-		err := apparmorSpec.AddConnectedPlug(s.iface, plug, slot)
+		appSet, err := interfaces.NewSnapAppSet(plug.Snap(), nil)
+		c.Assert(err, IsNil)
+		apparmorSpec := apparmor.NewSpecification(appSet)
+		err = apparmorSpec.AddConnectedPlug(s.iface, plug, slot)
 		c.Assert(err, IsNil)
 		c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{opts.appName})
 		for _, expectedSnippet := range opts.includeSnippets {
@@ -144,14 +146,16 @@ func (s *OpticalDriveInterfaceSuite) TestAppArmorSpec(c *C) {
 }
 
 func (s *OpticalDriveInterfaceSuite) TestUDevSpec(c *C) {
-	spec := udev.NewSpecification(interfaces.NewSnapAppSet(s.testPlugDefault.Snap()))
+	appSet, err := interfaces.NewSnapAppSet(s.testPlugDefault.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := udev.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugDefault, s.slot), IsNil)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugReadonly, s.slot), IsNil)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugWritable, s.slot), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 12) // four rules multiplied by three apps
 	c.Assert(spec.Snippets(), testutil.Contains, `# optical-drive
 KERNEL=="sr[0-9]*", TAG+="snap_consumer_app"`)
-	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_consumer_app", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_consumer_app"`, dirs.DistroLibExecDir))
+	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_consumer_app", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`, dirs.DistroLibExecDir))
 }
 
 func (s *OpticalDriveInterfaceSuite) TestStaticInfo(c *C) {

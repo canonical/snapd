@@ -566,7 +566,7 @@ func (me *multiError) Error() string {
 	return me.nestedError(0)
 }
 
-// helper to ensure formating of nested multiErrors works.
+// helper to ensure formatting of nested multiErrors works.
 func (me *multiError) nestedError(level int) string {
 	indent := strings.Repeat(" ", level)
 	buf := bytes.NewBufferString(fmt.Sprintf("%s:\n", me.header))
@@ -694,14 +694,14 @@ func (t *importTransaction) unlock() error {
 
 var filepathGlob = filepath.Glob
 
-// CleanupAbandondedImports will clean any import that is in progress.
+// CleanupAbandonedImports will clean any import that is in progress.
 // This is meant to be called at startup of snapd before any real imports
 // happen. It is not safe to run this concurrently with any other snapshot
 // operation.
 //
 // The amount of snapshots cleaned is returned and an error if one or
 // more cleanups did not succeed.
-func CleanupAbandondedImports() (cleaned int, err error) {
+func CleanupAbandonedImports() (cleaned int, err error) {
 	inProgressSnapshots, err := filepathGlob(filepath.Join(dirs.SnapshotsDir, importingFnGlob))
 	if err != nil {
 		return 0, err
@@ -1008,7 +1008,7 @@ func (se *SnapshotExport) Init() error {
 	// but a known issue with this approach here.
 	var sz osutil.Sizer
 	if err := se.StreamTo(&sz); err != nil {
-		return fmt.Errorf("cannot calculcate the size for %v: %s", se.setID, err)
+		return fmt.Errorf("cannot calculate the size for %v: %s", se.setID, err)
 	}
 	se.size = sz.Size()
 	return nil

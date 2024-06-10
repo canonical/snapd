@@ -1,5 +1,11 @@
 summary: Check that `snap connect` runs interface hooks
 
+details: |
+    Snapd hooks are programs that run in response to certain actions. The test
+    exercises the full suite of hooks that correspond to interface connections.
+    One important detail is that interface hooks can interact with plug and slot
+    attributes, both static and dynamically created.
+
 environment:
     CONSUMER_DATA: /var/snap/basic-iface-hooks-consumer/common
     PRODUCER_DATA: /var/snap/basic-iface-hooks-producer/common

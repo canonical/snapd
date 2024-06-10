@@ -2,19 +2,13 @@ summary: |
   Test that devmode confined snaps can execute other snaps.
 
 details: |
-  For xenial the test covers running core and non-core based devmode snaps from core based strict snap and
-  and for boinic the test covers running a non-core based devmode snap from a non-core based strict snap as
+  For Xenial, the test covers running core and non-core based devmode snaps from core based strict snaps. 
+  For Bionic, the test covers running a non-core based devmode snap from a non-core based strict snap as
   well as running core and non-core based devmode snaps from a core based strict snap.
 
-systems:
-  - ubuntu-18.04-64
-  - ubuntu-16.04-64
+systems: [ubuntu-1*]
 
 environment:
-  # not needed to build snapd from source to use here, we have to manually
-  # build it ourselves anyways
-  NESTED_BUILD_SNAPD_FROM_CURRENT: false
-
   # TODO: we should probably have a smaller / simpler test-snapd-* snap for
   # testing devmode confinement with base: core
   BASE_CORE_DEVMODE_SNAP: godd
@@ -26,16 +20,13 @@ environment:
   # build the snap with lxd
   SNAPCRAFT_BUILD_ENVIRONMENT: lxd
 
-  # pin LXD to 5.20/stable to ensure to prevent snapcraft problem with handling new version naming that may include "LTS"
-  LXD_SNAP_CHANNEL: 5.20/stable
-
 prepare: |
   # load the fuse kernel module before installing lxd
   modprobe fuse
 
   # install lxd so we can build the snapd snap
   "$TESTSTOOLS"/lxd-state prepare-snap
-  snap install snapcraft --channel=4.x/candidate --classic
+  snap install snapcraft --channel="${SNAPCRAFT_SNAP_CHANNEL}" --classic
 
   # TODO: do we need to address the spread system prepare shenanigans as 
   # mentioned in tests/main/snapd-snap ?
@@ -58,8 +49,13 @@ prepare: |
   chmod +x snapcraft-cleanup.sh
   tests.cleanup defer sh -c "$PWD/snapcraft-cleanup.sh"
 
-  unsquashfs -d snapd-from-branch snapd-from-branch.snap
+  snapdsnapdir=snapd-snap-from-branch
+  unsquashfs -d "${snapdsnapdir}" "$PWD/snapd-from-branch.snap"
+
+  # core should still be built from snapd snap. In theory from xenial,
+  # but here we build with the current one.
   snapddir=snapd-from-branch
+  dpkg-deb -x "${SPREAD_PATH}"/../snapd_*.deb "${snapddir}"
 
   # now repack the core snap with this snapd snap
   snap download core --edge --basename=core-from-edge
@@ -72,19 +68,20 @@ prepare: |
   cp -ar "$snapddir"/* "$coredir"
 
   # restore the meta dir
-  rm -r "$coredir/meta"
+  rm -rf "$coredir/meta"
   mv "$coredir/meta-backup" "$coredir/meta" 
 
   # set the version for the core snap to be the version from the snapd snap
-  SNAPD_SNAP_VERSION=$(grep -Po "version: \K.*" "$snapddir/meta/snap.yaml")
+  SNAPD_SNAP_VERSION=$(grep -Po "version: \K.*" "$snapdsnapdir/meta/snap.yaml")
   CORE_SNAP_VERSION=$(grep -Po "version: \K.*" "$coredir/meta/snap.yaml")
   sed -i -e "s/$CORE_SNAP_VERSION/$SNAPD_SNAP_VERSION/" "$coredir/meta/snap.yaml"
 
   # pack the core snap
   snap pack --filename=core-from-branch.snap "$coredir"
 
-  rm -r "$coredir"
-  rm -r "$snapddir"
+  rm -r "${coredir}"
+  rm -r "${snapddir}"
+  rm -r "${snapdsnapdir}"
 
   tests.nested build-image core 
   tests.nested create-vm core

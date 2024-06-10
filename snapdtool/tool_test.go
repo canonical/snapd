@@ -483,3 +483,17 @@ func (s *toolSuite) TestIsReexecd(c *C) {
 	c.Assert(err, ErrorMatches, ".*/proc/self/exe: no such file or directory")
 	c.Assert(is, Equals, false)
 }
+
+func (s *toolSuite) TestInReexecEnabled(c *C) {
+	defer os.Unsetenv("SNAP_REEXEC")
+
+	// explicitly disabled
+	os.Setenv("SNAP_REEXEC", "0")
+	c.Assert(snapdtool.IsReexecEnabled(), Equals, false)
+	// default to true
+	os.Unsetenv("SNAP_REEXEC")
+	c.Assert(snapdtool.IsReexecEnabled(), Equals, true)
+	// explicitly enabled
+	os.Setenv("SNAP_REEXEC", "1")
+	c.Assert(snapdtool.IsReexecEnabled(), Equals, true)
+}

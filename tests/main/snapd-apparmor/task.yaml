@@ -1,5 +1,10 @@
 summary: Ensure snapd-apparmor works as expected
 
+details: |
+    This test verifies that snapd.apparmor is able to reload apparmor profiles
+    in the absence of snapd. It also checks that snapd.apparmor.service fails
+    when a profile is invalid.
+
 environment:
     CONSUMER_SNAP: test-snapd-policy-app-consumer
 

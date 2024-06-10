@@ -89,7 +89,9 @@ slots:
 }
 
 func (s *specSuite) SetUpTest(c *C) {
-	s.spec = udev.NewSpecification(interfaces.NewSnapAppSet(s.plugInfo.Snap))
+	appSet, err := interfaces.NewSnapAppSet(s.plugInfo.Snap, nil)
+	c.Assert(err, IsNil)
+	s.spec = udev.NewSpecification(appSet)
 }
 
 func (s *specSuite) TestAddSnippte(c *C) {
@@ -124,12 +126,12 @@ func (s *specSuite) testTagDevice(c *C, helperDir string) {
 kernel="voodoo", TAG+="snap_snap1_foo"`,
 		`# iface-2
 kernel="hoodoo", TAG+="snap_snap1_foo"`,
-		fmt.Sprintf(`TAG=="snap_snap1_foo", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%s/snap-device-helper snap_snap1_foo"`, helperDir),
+		fmt.Sprintf(`TAG=="snap_snap1_foo", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%s/snap-device-helper $env{ACTION} snap_snap1_foo $devpath $major:$minor"`, helperDir),
 		`# iface-1
 kernel="voodoo", TAG+="snap_snap1_hook_configure"`,
 		`# iface-2
 kernel="hoodoo", TAG+="snap_snap1_hook_configure"`,
-		fmt.Sprintf(`TAG=="snap_snap1_hook_configure", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%[1]s/snap-device-helper snap_snap1_hook_configure"`, helperDir),
+		fmt.Sprintf(`TAG=="snap_snap1_hook_configure", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%[1]s/snap-device-helper $env{ACTION} snap_snap1_hook_configure $devpath $major:$minor"`, helperDir),
 	})
 }
 
@@ -153,13 +155,17 @@ func (s *specSuite) TestTagDeviceAltLibexecdir(c *C) {
 
 // The spec.Specification can be used through the interfaces.Specification interface
 func (s *specSuite) TestSpecificationIface(c *C) {
-	spec := udev.NewSpecification(interfaces.NewSnapAppSet(s.plugInfo.Snap))
+	appSet, err := interfaces.NewSnapAppSet(s.plugInfo.Snap, nil)
+	c.Assert(err, IsNil)
+	spec := udev.NewSpecification(appSet)
 	var r interfaces.Specification = spec
 	c.Assert(r.AddPermanentPlug(s.iface, s.plugInfo), IsNil)
 	c.Assert(r.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.Snippets(), DeepEquals, []string{"connected-plug", "permanent-plug"})
 
-	spec = udev.NewSpecification(interfaces.NewSnapAppSet(s.slotInfo.Snap))
+	appSet, err = interfaces.NewSnapAppSet(s.slotInfo.Snap, nil)
+	c.Assert(err, IsNil)
+	spec = udev.NewSpecification(appSet)
 	r = spec
 	c.Assert(r.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(r.AddPermanentSlot(s.iface, s.slotInfo), IsNil)

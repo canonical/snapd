@@ -10,14 +10,19 @@ import (
 
 // SnapAppSet is a helper that provides information about executable elements of
 // a snap. This currently includes snap apps and hooks.
-// TODO: include component hooks when they are implemented
 type SnapAppSet struct {
-	info *snap.Info
+	info       *snap.Info
+	components []*snap.ComponentInfo
 }
 
 // NewSnapAppSet returns a new SnapAppSet for the given snap.Info.
-func NewSnapAppSet(info *snap.Info) *SnapAppSet {
-	return &SnapAppSet{info: info}
+func NewSnapAppSet(info *snap.Info, components []*snap.ComponentInfo) (*SnapAppSet, error) {
+	for _, c := range components {
+		if c.Component.SnapName != info.SnapName() {
+			return nil, fmt.Errorf("internal error: snap %q does not own component %q", info.SnapName(), c.Component)
+		}
+	}
+	return &SnapAppSet{info: info, components: components}, nil
 }
 
 // Info returns the snap.Info that this SnapAppSet is based on.
@@ -48,6 +53,10 @@ func (a *SnapAppSet) SecurityTagsForPlug(plug *snap.PlugInfo) ([]string, error) 
 
 	apps := a.info.AppsForPlug(plug)
 	hooks := a.info.HooksForPlug(plug)
+
+	for _, component := range a.components {
+		hooks = append(hooks, component.HooksForPlug(plug)...)
+	}
 
 	tags := make([]string, 0, len(apps)+len(hooks))
 	for _, app := range apps {
@@ -127,6 +136,57 @@ func (a *SnapAppSet) SlotLabelExpression(slot *ConnectedSlot) string {
 	apps := info.AppsForSlot(slot.slotInfo)
 	hooks := info.HooksForSlot(slot.slotInfo)
 	return labelExpr(apps, hooks, info)
+}
+
+// RunnableType is an enumeration of the different types of runnables that can
+// be present in a snap.
+type RunnableType int
+
+const (
+	RunnableApp RunnableType = iota
+	RunnableHook
+	RunnableComponentHook
+)
+
+// Runnable represents a runnable element of a snap.
+type Runnable struct {
+	// CommandName is the name of the command that is run when this runnable
+	// runs.
+	CommandName string
+	// SecurityTag is the security tag associated with the runnable. Security
+	// tags are used by various security subsystems as "profile names" and
+	// sometimes also as a part of the file name.
+	SecurityTag string
+}
+
+// Runnables returns a list of all runnables known by the app set.
+func (a *SnapAppSet) Runnables() []Runnable {
+	var runnables []Runnable
+
+	for _, app := range a.info.Apps {
+		runnables = append(runnables, Runnable{
+			CommandName: app.Name,
+			SecurityTag: app.SecurityTag(),
+		})
+	}
+
+	for _, hook := range a.info.Hooks {
+		runnables = append(runnables, Runnable{
+			CommandName: fmt.Sprintf("hook.%s", hook.Name),
+			SecurityTag: hook.SecurityTag(),
+		})
+	}
+
+	for _, component := range a.components {
+		for _, hook := range component.Hooks {
+			runnables = append(runnables, Runnable{
+				CommandName: fmt.Sprintf("%s.hook.%s", component.Component, hook.Name),
+				SecurityTag: hook.SecurityTag(),
+			})
+		}
+	}
+
+	return runnables
 }
 
 // labelExpr returns the specification of the apparmor label describing given

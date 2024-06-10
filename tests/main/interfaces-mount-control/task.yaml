@@ -1,5 +1,11 @@
 summary: Test for the mount-control interface
 
+details: |
+    The mount-control interface allows a snap to request creation or removal of
+    a mount point with certain constraints. The test checks that requests to
+    snapd, with "snapctl mount" observe the restrictions set in the plug
+    attributes. The test also checks that persistent mounts survive reboots.
+
 environment:
     MOUNT_SRC: /var/tmp/test-snapd-mount-control
     SNAP_COMMON: /var/snap/test-snapd-mount-control/common

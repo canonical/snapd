@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/godbus/dbus"
+	"github.com/mvo5/goconfigparser"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/desktop/notification"
@@ -180,6 +181,74 @@ func (s *restSuite) TestServiceControlStart(c *C) {
 	})
 }
 
+func (s *restSuite) TestServiceControlStartEnable(c *C) {
+	req := httptest.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"start", "enable":true,"services":["snap.foo.service", "snap.bar.service"]}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	agent.ServiceControlCmd.POST(agent.ServiceControlCmd, req).ServeHTTP(rec, req)
+	c.Check(rec.Code, Equals, 200)
+	c.Check(rec.Header().Get("Content-Type"), Equals, "application/json")
+
+	var rsp resp
+	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
+	c.Check(rsp.Type, Equals, agent.ResponseTypeSync)
+	c.Check(rsp.Result, Equals, nil)
+
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"--user", "--no-reload", "enable", "snap.foo.service", "snap.bar.service"},
+		{"--user", "daemon-reload"},
+		{"--user", "start", "snap.foo.service"},
+		{"--user", "start", "snap.bar.service"},
+	})
+}
+
+func (s *restSuite) TestServiceControlStartEnableFailsAndDisables(c *C) {
+	var sysdLog [][]string
+	restore := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		sysdLog = append(sysdLog, cmd)
+		if cmd[1] == "start" && cmd[2] == "snap.bar.service" {
+			return []byte("ActiveState=active\n"), errors.New("mock systemctl error")
+		}
+		return []byte("ActiveState=inactive\n"), nil
+	})
+	defer restore()
+
+	req := httptest.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"start", "enable":true,"services":["snap.foo.service", "snap.bar.service"]}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	agent.ServiceControlCmd.POST(agent.ServiceControlCmd, req).ServeHTTP(rec, req)
+	c.Check(rec.Code, Equals, 500)
+	c.Check(rec.Header().Get("Content-Type"), Equals, "application/json")
+
+	var rsp resp
+	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
+	c.Check(rsp.Type, Equals, agent.ResponseTypeError)
+	c.Check(rsp.Result, DeepEquals, map[string]interface{}{
+		"kind": "service-control", "message": "some user services failed to start",
+		"value": map[string]interface{}{
+			"start-errors": map[string]interface{}{"snap.bar.service": "mock systemctl error"},
+			"stop-errors":  map[string]interface{}{},
+		},
+	})
+
+	c.Check(sysdLog, DeepEquals, [][]string{
+		// Enable them as the first step
+		{"--user", "--no-reload", "enable", "snap.foo.service", "snap.bar.service"},
+		{"--user", "daemon-reload"},
+		{"--user", "start", "snap.foo.service"},
+
+		// Game is rigged, this will fail, and we should stop the first service
+		// we managed to start
+		{"--user", "start", "snap.bar.service"},
+		{"--user", "stop", "snap.foo.service"},
+		{"--user", "show", "--property=ActiveState", "snap.foo.service"},
+
+		// And because it fails, we re-disable services.
+		{"--user", "--no-reload", "disable", "snap.foo.service", "snap.bar.service"},
+		{"--user", "daemon-reload"},
+	})
+}
+
 func (s *restSuite) TestServicesStartNonSnap(c *C) {
 	req := httptest.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"start","services":["snap.foo.service", "not-snap.bar.service"]}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -302,6 +371,94 @@ func (s *restSuite) TestServicesStop(c *C) {
 		{"--user", "show", "--property=ActiveState", "snap.foo.service"},
 		{"--user", "stop", "snap.bar.service"},
 		{"--user", "show", "--property=ActiveState", "snap.bar.service"},
+	})
+}
+
+func (s *restSuite) TestServicesStopDisable(c *C) {
+	req := httptest.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"stop", "disable":true,"services":["snap.foo.service", "snap.bar.service"]}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	agent.ServiceControlCmd.POST(agent.ServiceControlCmd, req).ServeHTTP(rec, req)
+	c.Check(rec.Code, Equals, 200)
+	c.Check(rec.Header().Get("Content-Type"), Equals, "application/json")
+
+	var rsp resp
+	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
+	c.Check(rsp.Type, Equals, agent.ResponseTypeSync)
+	c.Check(rsp.Result, Equals, nil)
+
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"--user", "stop", "snap.foo.service"},
+		{"--user", "show", "--property=ActiveState", "snap.foo.service"},
+		{"--user", "stop", "snap.bar.service"},
+		{"--user", "show", "--property=ActiveState", "snap.bar.service"},
+		{"--user", "--no-reload", "disable", "snap.foo.service", "snap.bar.service"},
+		{"--user", "daemon-reload"},
+	})
+}
+
+func (s *restSuite) TestServicesStopDisableFailsOnDisable(c *C) {
+	var sysdLog [][]string
+	restore := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		sysdLog = append(sysdLog, cmd)
+		if cmd[1] == "--no-reload" && cmd[2] == "disable" {
+			return []byte("ActiveState=active\n"), errors.New("mock systemctl error")
+		}
+		return []byte("ActiveState=inactive\n"), nil
+	})
+	defer restore()
+
+	req := httptest.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"stop", "disable":true,"services":["snap.foo.service"]}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	agent.ServiceControlCmd.POST(agent.ServiceControlCmd, req).ServeHTTP(rec, req)
+	c.Check(rec.Code, Equals, 500)
+	c.Check(rec.Header().Get("Content-Type"), Equals, "application/json")
+
+	var rsp resp
+	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
+	c.Check(rsp.Type, Equals, agent.ResponseTypeError)
+	c.Check(rsp.Result, DeepEquals, map[string]interface{}{
+		"message": "cannot disable services [\"snap.foo.service\"]: mock systemctl error",
+	})
+
+	c.Check(sysdLog, DeepEquals, [][]string{
+		{"--user", "stop", "snap.foo.service"},
+		{"--user", "show", "--property=ActiveState", "snap.foo.service"},
+		{"--user", "--no-reload", "disable", "snap.foo.service"},
+	})
+}
+
+func (s *restSuite) TestServicesStopDisableFailsOnReload(c *C) {
+	var sysdLog [][]string
+	restore := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		sysdLog = append(sysdLog, cmd)
+		if cmd[1] == "daemon-reload" {
+			return []byte("ActiveState=active\n"), errors.New("mock systemctl error")
+		}
+		return []byte("ActiveState=inactive\n"), nil
+	})
+	defer restore()
+
+	req := httptest.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"stop", "disable":true,"services":["snap.foo.service"]}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	agent.ServiceControlCmd.POST(agent.ServiceControlCmd, req).ServeHTTP(rec, req)
+	c.Check(rec.Code, Equals, 500)
+	c.Check(rec.Header().Get("Content-Type"), Equals, "application/json")
+
+	var rsp resp
+	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
+	c.Check(rsp.Type, Equals, agent.ResponseTypeError)
+	c.Check(rsp.Result, DeepEquals, map[string]interface{}{
+		"message": "cannot reload systemd: mock systemctl error",
+	})
+
+	c.Check(sysdLog, DeepEquals, [][]string{
+		{"--user", "stop", "snap.foo.service"},
+		{"--user", "show", "--property=ActiveState", "snap.foo.service"},
+		{"--user", "--no-reload", "disable", "snap.foo.service"},
+		{"--user", "daemon-reload"},
 	})
 }
 
@@ -907,13 +1064,24 @@ func (s *restSuite) TestPostCloseRefreshNotification(c *C) {
 	})
 }
 
-func createDesktopFile(c *C, info *snap.AppInfo, icon string) {
-	data := []byte("[Desktop Entry]\nName=" + info.Name + "\n")
+func createDesktopFile(c *C, desktopFilePath string, icon string, name string, localizedNames map[string]string) {
+	data := []byte("[Desktop Entry]\nName=" + name + "\n")
 	if icon != "" {
 		data = append(data, []byte("Icon="+icon+"\n")...)
 	}
-	c.Assert(os.MkdirAll(path.Dir(info.DesktopFile()), 0755), IsNil)
-	c.Assert(os.WriteFile(info.DesktopFile(), data, 0644), IsNil)
+	for key, value := range localizedNames {
+		data = append(data, []byte("Name["+key+"]="+value+"\n")...)
+	}
+	c.Assert(os.MkdirAll(path.Dir(desktopFilePath), 0755), IsNil)
+	c.Assert(os.WriteFile(desktopFilePath, data, 0644), IsNil)
+}
+
+func createLocalizedDesktopFile(c *C, name string, localizedNames map[string]string) *goconfigparser.ConfigParser {
+	tmpFile := filepath.Join(c.MkDir(), "desktop.desktop")
+	createDesktopFile(c, tmpFile, "", name, localizedNames)
+	parser := goconfigparser.New()
+	c.Assert(parser.ReadFile(tmpFile), IsNil)
+	return parser
 }
 
 func createSnapInfo(snapName string) *snap.Info {
@@ -926,7 +1094,7 @@ func createSnapInfo(snapName string) *snap.Info {
 	return &si
 }
 
-func addAppToSnap(c *C, snapinfo *snap.Info, app string, isService bool, icon string) {
+func addAppToSnap(c *C, snapinfo *snap.Info, app string, isService bool, icon string, name string) {
 	newInfo := snap.AppInfo{
 		Snap: snapinfo,
 		Name: app,
@@ -935,84 +1103,107 @@ func addAppToSnap(c *C, snapinfo *snap.Info, app string, isService bool, icon st
 		newInfo.Daemon = "daemon"
 	}
 	snapinfo.Apps[app] = &newInfo
-	createDesktopFile(c, &newInfo, icon)
+	createDesktopFile(c, newInfo.DesktopFile(), icon, name, nil)
 }
 
-func (s *restSuite) TestGuessAppIconNoIconPrefixEqualApp(c *C) {
+func (s *restSuite) TestGuessAppDataNoIconPrefixEqualApp(c *C) {
 	si := createSnapInfo("app1")
-	addAppToSnap(c, si, "app1", false, "")
-	icon := agent.GuessAppIcon(si)
+	addAppToSnap(c, si, "app1", false, "", "")
+	icon, name := agent.GuessAppData(si, "", "")
 	c.Check(icon, Equals, "")
+	c.Check(name, Equals, "")
 }
 
-func (s *restSuite) TestGuessAppIconNoIconPrefixDifferentApp(c *C) {
+func (s *restSuite) TestGuessAppDataNoIconPrefixDifferentApp(c *C) {
 	si := createSnapInfo("snap1")
-	addAppToSnap(c, si, "app1", false, "")
-	icon := agent.GuessAppIcon(si)
+	addAppToSnap(c, si, "app1", false, "", "")
+	icon, name := agent.GuessAppData(si, "", "")
 	c.Check(icon, Equals, "")
+	c.Check(name, Equals, "")
 }
 
-func (s *restSuite) TestGuessAppIconPrefixDifferentApp(c *C) {
+func (s *restSuite) TestGuessAppDataPrefixDifferentApp(c *C) {
 	si := createSnapInfo("snap1")
-	addAppToSnap(c, si, "app1", false, "iconname")
-	icon := agent.GuessAppIcon(si)
+	addAppToSnap(c, si, "app1", false, "iconname", "appname")
+	icon, name := agent.GuessAppData(si, "", "")
 	c.Check(icon, Equals, "iconname")
+	c.Check(name, Equals, "appname")
 }
 
-func (s *restSuite) TestGuessAppIconPrefixEqualApp(c *C) {
+func (s *restSuite) TestGuessAppDataPrefixEqualApp(c *C) {
 	si := createSnapInfo("app1")
-	addAppToSnap(c, si, "app1", false, "iconname1")
-	addAppToSnap(c, si, "app2", false, "iconname2")
-	icon := agent.GuessAppIcon(si)
+	addAppToSnap(c, si, "app1", false, "iconname1", "appname1")
+	addAppToSnap(c, si, "app2", false, "iconname2", "appname2")
+	icon, name := agent.GuessAppData(si, "", "")
 	c.Check(icon, Equals, "iconname1")
+	c.Check(name, Equals, "appname1")
 }
 
-func (s *restSuite) TestGuessAppIconServicePrefixEqualApp(c *C) {
+func (s *restSuite) TestGuessAppDataServicePrefixEqualApp(c *C) {
 	si := createSnapInfo("app1")
-	addAppToSnap(c, si, "app1", true, "iconname")
-	icon := agent.GuessAppIcon(si)
+	addAppToSnap(c, si, "app1", true, "iconname", "appname")
+	icon, name := agent.GuessAppData(si, "", "")
 	c.Check(icon, Equals, "")
+	c.Check(name, Equals, "")
 }
 
-func (s *restSuite) TestGuessAppIconServicePrefixDifferentApp(c *C) {
+func (s *restSuite) TestGuessAppDataServicePrefixDifferentApp(c *C) {
 	si := createSnapInfo("snap1")
-	addAppToSnap(c, si, "app1", true, "iconname")
-	icon := agent.GuessAppIcon(si)
+	addAppToSnap(c, si, "app1", true, "iconname", "appname")
+	icon, name := agent.GuessAppData(si, "", "")
 	c.Check(icon, Equals, "")
+	c.Check(name, Equals, "")
 }
 
-func (s *restSuite) TestGuessAppIconServiceTwoApps(c *C) {
+func (s *restSuite) TestGuessAppDataServiceTwoApps(c *C) {
 	si := createSnapInfo("app1")
-	addAppToSnap(c, si, "app1", true, "iconname1")
-	addAppToSnap(c, si, "app2", false, "iconname2")
-	icon := agent.GuessAppIcon(si)
+	addAppToSnap(c, si, "app1", true, "iconname1", "appname1")
+	addAppToSnap(c, si, "app2", false, "iconname2", "appname2")
+	icon, name := agent.GuessAppData(si, "", "")
 	c.Check(icon, Equals, "iconname2")
+	c.Check(name, Equals, "appname2")
 }
 
-func (s *restSuite) TestGuessAppIconServiceTwoAppsServices(c *C) {
+func (s *restSuite) TestGuessAppDataServiceTwoAppsServices(c *C) {
 	si := createSnapInfo("app1")
-	addAppToSnap(c, si, "app1", true, "iconname1")
-	addAppToSnap(c, si, "app2", true, "iconname2")
-	icon := agent.GuessAppIcon(si)
+	addAppToSnap(c, si, "app1", true, "iconname1", "appname1")
+	addAppToSnap(c, si, "app2", true, "iconname2", "appname2")
+	icon, name := agent.GuessAppData(si, "", "")
 	c.Check(icon, Equals, "")
+	c.Check(name, Equals, "")
 }
 
-func (s *restSuite) TestGuessAppIconServiceTwoAppsOneServicePrefixDifferent(c *C) {
+func (s *restSuite) TestGuessAppDataServiceTwoAppsOneServicePrefixDifferent(c *C) {
 	si := createSnapInfo("snap1")
-	addAppToSnap(c, si, "app1", true, "iconname1")
-	addAppToSnap(c, si, "app2", false, "iconname2")
-	icon := agent.GuessAppIcon(si)
+	addAppToSnap(c, si, "app1", true, "iconname1", "appname1")
+	addAppToSnap(c, si, "app2", false, "iconname2", "appname2")
+	icon, name := agent.GuessAppData(si, "", "")
 	c.Check(icon, Equals, "iconname2")
+	c.Check(name, Equals, "appname2")
 }
 
-func (s *restSuite) TestGuessAppIconTwoAppsPrefixDifferent(c *C) {
+func (s *restSuite) TestGuessAppDataTwoAppsPrefixDifferent(c *C) {
 	si := createSnapInfo("snap1")
-	addAppToSnap(c, si, "app1", false, "iconname1")
-	addAppToSnap(c, si, "app2", false, "iconname2")
-	icon := agent.GuessAppIcon(si)
+	addAppToSnap(c, si, "app1", false, "iconname1", "appname1")
+	addAppToSnap(c, si, "app2", false, "iconname2", "appname2")
+	icon, name := agent.GuessAppData(si, "", "")
 	if (icon != "iconname1") && (icon != "iconname2") {
 		c.Fail()
 	}
+	if (icon == "iconname1") && (name != "appname1") {
+		c.Fail()
+	}
+	if (icon == "iconname2") && (name != "appname2") {
+		c.Fail()
+	}
+}
+
+func (s *restSuite) TestGuessAppDataWithKey(c *C) {
+	si := createSnapInfo("snap1")
+	addAppToSnap(c, si, "app1", false, "iconname", "appname")
+	icon, name := agent.GuessAppData(si, "", "akey")
+	c.Check(icon, Equals, "iconname")
+	c.Check(name, Equals, "appname (akey)")
 }
 
 func (s *restSuite) TestPostCloseRefreshNotificationWithIconDefault(c *C) {
@@ -1050,4 +1241,161 @@ Icon=foo.png
 	})
 	// boring stuff is checked above
 	c.Check(n.Icon, Equals, "foo.png")
+}
+
+func (s *restSuite) TestLocalizedDesktopNameNoLocale(c *C) {
+	restore := agent.MockCurrentLocale("")
+	s.AddCleanup(restore)
+	localizedNames := map[string]string{
+		"es":    "testapp_es",
+		"es_ES": "testapp_es_ES",
+		"es_AR": "testapp_es_AR",
+		"en_US": "testapp_en_US",
+		"en":    "testapp_en",
+	}
+	parser := createLocalizedDesktopFile(c, "testapp", localizedNames)
+	name := agent.GetLocalizedAppNameFromDesktopFile(parser, "defaultName")
+	c.Assert(name, Equals, "testapp")
+}
+
+func (s *restSuite) TestLocalizedDesktopNameFullLocale(c *C) {
+	restore := agent.MockCurrentLocale("es_ES")
+	s.AddCleanup(restore)
+	localizedNames := map[string]string{
+		"es":    "testapp_es",
+		"es_ES": "testapp_es_ES",
+		"es_AR": "testapp_es_AR",
+		"en_US": "testapp_en_US",
+		"en":    "testapp_en",
+	}
+	parser := createLocalizedDesktopFile(c, "testapp", localizedNames)
+	name := agent.GetLocalizedAppNameFromDesktopFile(parser, "defaultName")
+	c.Assert(name, Equals, "testapp_es_ES")
+}
+
+func (s *restSuite) TestLocalizedDesktopNamePartialLocale(c *C) {
+	restore := agent.MockCurrentLocale("es_ES")
+	s.AddCleanup(restore)
+	localizedNames := map[string]string{
+		"es":    "testapp_es",
+		"es_AR": "testapp_es_AR",
+		"en_US": "testapp_en_US",
+		"en":    "testapp_en",
+	}
+	parser := createLocalizedDesktopFile(c, "testapp", localizedNames)
+	name := agent.GetLocalizedAppNameFromDesktopFile(parser, "defaultName")
+	c.Assert(name, Equals, "testapp_es")
+}
+
+func (s *restSuite) TestLocalizedDesktopNameLocaleNotFound(c *C) {
+	restore := agent.MockCurrentLocale("es_ES")
+	s.AddCleanup(restore)
+	localizedNames := map[string]string{
+		"es_AR": "testapp_es_AR",
+		"en_US": "testapp_en_US",
+		"en":    "testapp_en",
+	}
+	parser := createLocalizedDesktopFile(c, "testapp", localizedNames)
+	name := agent.GetLocalizedAppNameFromDesktopFile(parser, "defaultName")
+	c.Assert(name, Equals, "testapp")
+}
+
+func (s *restSuite) TestPostPendingRefreshNotificationTestInstanceKeyHappeningNow(c *C) {
+	refreshInfo := &client.PendingSnapRefreshInfo{InstanceName: "pkg_devel"}
+	s.testPostPendingRefreshNotificationBody(c, refreshInfo)
+	notifications := s.notify.GetAll()
+	c.Assert(notifications, HasLen, 1)
+	n := notifications[0]
+	c.Check(n.AppName, Equals, "")
+	c.Check(n.Icon, Equals, "")
+	c.Check(n.Summary, Equals, `pkg (devel) is updating now!`)
+	c.Check(n.Body, Equals, "")
+	c.Check(n.Actions, DeepEquals, []string{})
+	c.Check(n.Hints, DeepEquals, map[string]dbus.Variant{
+		"urgency":       dbus.MakeVariant(byte(notification.CriticalUrgency)),
+		"desktop-entry": dbus.MakeVariant("io.snapcraft.SessionAgent"),
+	})
+	c.Check(n.Expires, Equals, int32(0))
+}
+
+func (s *restSuite) TestPostPendingRefreshNotificationTestInstanceKeyWithDesktopFileHappeningNow(c *C) {
+	restore := agent.MockCurrentLocale("es_ES")
+	s.AddCleanup(restore)
+	localizedNames := map[string]string{
+		"es":    "pkg_es",
+		"es_ES": "pkg_es_ES",
+		"es_AR": "pkg_es_AR",
+		"en_US": "pkg_en_US",
+		"en":    "pkg_en",
+	}
+	tmpFile := filepath.Join(dirs.SnapDesktopFilesDir, "desktop.desktop")
+	createDesktopFile(c, tmpFile, "", "pkg", localizedNames)
+
+	refreshInfo := &client.PendingSnapRefreshInfo{
+		InstanceName:        "pkg_devel",
+		BusyAppDesktopEntry: "desktop",
+	}
+	s.testPostPendingRefreshNotificationBody(c, refreshInfo)
+	notifications := s.notify.GetAll()
+	c.Assert(notifications, HasLen, 1)
+	n := notifications[0]
+	c.Check(n.AppName, Equals, "")
+	c.Check(n.Icon, Equals, "")
+	c.Check(n.Summary, Equals, `pkg_es_ES (devel) is updating now!`)
+	c.Check(n.Body, Equals, "")
+	c.Check(n.Actions, DeepEquals, []string{})
+	c.Check(n.Hints, DeepEquals, map[string]dbus.Variant{
+		"urgency":       dbus.MakeVariant(byte(notification.CriticalUrgency)),
+		"desktop-entry": dbus.MakeVariant("io.snapcraft.SessionAgent"),
+	})
+	c.Check(n.Expires, Equals, int32(0))
+}
+
+func (s *restSuite) TestPostPendingRefreshNotificationTestInstanceKeyFewDays(c *C) {
+	refreshInfo := &client.PendingSnapRefreshInfo{
+		InstanceName:  "pkg_devel",
+		TimeRemaining: time.Hour * 72,
+	}
+	s.testPostPendingRefreshNotificationBody(c, refreshInfo)
+	notifications := s.notify.GetAll()
+	c.Assert(notifications, HasLen, 1)
+	n := notifications[0]
+	// boring stuff is checked above
+	c.Check(n.Summary, Equals, `Update available for pkg (devel).`)
+	c.Check(n.Body, Equals, "Close the application to update now. It will update automatically in 3 days.")
+	c.Check(n.Hints, DeepEquals, map[string]dbus.Variant{
+		"urgency":       dbus.MakeVariant(byte(notification.LowUrgency)),
+		"desktop-entry": dbus.MakeVariant("io.snapcraft.SessionAgent"),
+	})
+}
+
+func (s *restSuite) TestPostPendingRefreshNotificationTestInstanceKeyWithDesktopFileFewDays(c *C) {
+	restore := agent.MockCurrentLocale("es_ES")
+	s.AddCleanup(restore)
+	localizedNames := map[string]string{
+		"es":    "pkg_es",
+		"es_ES": "pkg_es_ES",
+		"es_AR": "pkg_es_AR",
+		"en_US": "pkg_en_US",
+		"en":    "pkg_en",
+	}
+	tmpFile := filepath.Join(dirs.SnapDesktopFilesDir, "desktop.desktop")
+	createDesktopFile(c, tmpFile, "", "pkg", localizedNames)
+
+	refreshInfo := &client.PendingSnapRefreshInfo{
+		InstanceName:        "pkg_devel",
+		TimeRemaining:       time.Hour * 72,
+		BusyAppDesktopEntry: "desktop",
+	}
+	s.testPostPendingRefreshNotificationBody(c, refreshInfo)
+	notifications := s.notify.GetAll()
+	c.Assert(notifications, HasLen, 1)
+	n := notifications[0]
+	// boring stuff is checked above
+	c.Check(n.Summary, Equals, `Update available for pkg_es_ES (devel).`)
+	c.Check(n.Body, Equals, "Close the application to update now. It will update automatically in 3 days.")
+	c.Check(n.Hints, DeepEquals, map[string]dbus.Variant{
+		"urgency":       dbus.MakeVariant(byte(notification.LowUrgency)),
+		"desktop-entry": dbus.MakeVariant("io.snapcraft.SessionAgent"),
+	})
 }

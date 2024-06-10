@@ -1,5 +1,11 @@
 summary: Check the debug command migrate-home migrates snaps' homes
 
+details: |
+  The `snap debug migrate-home` command can be used to migrate snaps'
+  directory to ~/Snap. This test verifies that a snap with home in
+  $HOME/foo is migrated to "$HOME"/Snap, and the snap's environment
+  variables and AppArmor rules are correct after the migration.
+
 prepare: |
   "$TESTSTOOLS"/snaps-state install-local "test-snapd-tools"
   "$TESTSTOOLS"/snaps-state install-local basic

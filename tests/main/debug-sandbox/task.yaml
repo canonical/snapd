@@ -1,5 +1,13 @@
 summary: Verify sandbox is correctly reported
 
+details: |
+    The sandbox command prints tags describing features of individual sandbox
+    components used by snapd on a given system.
+
+    This test checks that in the supported systems the command 
+    `snap debug sandbox-feature` reports the proper information like
+    the supported features for: apparmor, seccomp, udev, etc.
+
 execute: |
     case "$SPREAD_SYSTEM" in
     ubuntu-core*)

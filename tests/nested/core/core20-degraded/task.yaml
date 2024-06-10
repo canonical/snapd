@@ -1,6 +1,11 @@
 summary: Transition to recover mode with things missing so we use degraded mode
 
-systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+details: |
+  Checks the transition to degraded mode can be done trough a transition with missing
+  ubuntu-save key. Verifies degraded.json exists and has the unlock-key for ubuntu-save
+  as the fallback key.
+
+systems: [ubuntu-2*]
 
 environment:
   DEGRADED_JSON: /run/snapd/snap-bootstrap/degraded.json

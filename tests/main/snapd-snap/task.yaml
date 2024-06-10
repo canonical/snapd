@@ -1,7 +1,9 @@
 summary: Ensure snapd builds as a snap
 
 details: |
-    Ensure snapd builds as a snap
+  This test verifies that snapd can be built with snapcraft with lxd
+  backend as well as host backend on matching version of the
+  build-base (currently 22.04)
 
 # TODO: we don't need to build the snapd snap in this test on as many systems
 # when we have a way to dynamically download the snapd snap that was built for a
@@ -32,6 +34,9 @@ systems:
     # TODO: enable i386 by using lxd 3.0, currently snapcraft is failing to get the
     #       lxd image when it is trying to build snapd
     - -ubuntu-18.04-32
+    # Not very useful to build snapd snap from 14.04 given it has to use lxd.
+    # The VMs for 14.04 do not have enough. So let's disable the test anyway.
+    - -ubuntu-14.04-*
 
 # Start early as it takes a long time.
 priority: 100
@@ -49,8 +54,8 @@ prepare: |
     . "$TESTSLIB/systems.sh"
 
     # only run the destructive mode variant on xenial
-    if ! os.query is-xenial && [ "$SNAPCRAFT_BUILD_ENVIRONMENT" = "host" ]; then
-        echo "Skipping destructive mode build on non-xenial"
+    if ! os.query is-jammy && [ "$SNAPCRAFT_BUILD_ENVIRONMENT" = "host" ]; then
+        echo "Skipping destructive mode build on non-jammy"
         exit 0
     fi
 
@@ -69,8 +74,8 @@ prepare: |
         tests.cleanup defer rm -f /snap
     fi
 
-    echo "Install snapcraft from 4.x/candidate"
-    snap install snapcraft --channel=4.x/candidate --classic
+    echo "Install snapcraft from ${SNAPCRAFT_SNAP_CHANNEL}"
+    snap install snapcraft --channel="${SNAPCRAFT_SNAP_CHANNEL}" --classic
     tests.cleanup defer snap remove --purge snapcraft
 
     if [ "$SNAPCRAFT_BUILD_ENVIRONMENT" = "lxd" ]; then
@@ -136,8 +141,8 @@ execute: |
     . "$TESTSLIB/systems.sh"
 
     # only run the destructive mode variant on xenial
-    if ! os.query is-xenial && [ "$SNAPCRAFT_BUILD_ENVIRONMENT" = "host" ]; then
-        echo "Skipping destructive mode build on non-xenial"
+    if ! os.query is-jammy && [ "$SNAPCRAFT_BUILD_ENVIRONMENT" = "host" ]; then
+        echo "Skipping destructive mode build on non-jammy"
         exit 0
     fi
 
@@ -149,13 +154,9 @@ execute: |
     fi
 
     if [ "$SPREAD_REBOOT" != "0" ]; then
-      if os.query is-trusty; then
-        # seems we have to kick trusty along
-        systemctl restart snapd
-      fi
       snap list | MATCH snapd
       systemctl status snapd.service
-      if ! os.query is-trusty && ! os.query is-xenial; then
+      if ! os.query is-xenial; then
         systemctl status snapd.apparmor.service
       fi
       if os.query is-ubuntu; then
@@ -169,16 +170,7 @@ execute: |
     # shellcheck disable=SC2164
     pushd "$PROJECT_PATH"
 
-    echo "Ensure we use the correct version when host is 14.04"
-    if os.query is-trusty; then
-      # prepare-restore.sh will only have updated
-      # packaging/ubuntu-14.04/changelog so make sure this is also done for
-      # the ubuntu-16.04 packaging as well as this is what will be used to
-      # build the snapd snap
-
-      # Use fake version to ensure we are always bigger than anything else
-      dch --changelog packaging/ubuntu-16.04/changelog --newversion "1337.$(dpkg-parsechangelog --show-field Version)" "testing build"
-    fi
+    rm -rf c-vendor/squashfuse
 
     echo "Build the snap"
     snap run snapcraft snap --output=snapd_spread-test.snap
@@ -208,8 +200,6 @@ execute: |
 
     echo "Ensure we have libc"
     find squashfs-root | MATCH libc.so
-    echo "Ensure we have ld.so.conf"
-    test -f squashfs-root/etc/ld.so.conf
 
     echo "Ensure we have preseed.json"
     test -f squashfs-root/usr/lib/snapd/preseed.json
@@ -278,14 +268,6 @@ execute: |
     # Replicate the tests from tests/main/interfaces-many-core-provided so
     # we can exercise the vendored appamor_parser etc within the snapd snap
 
-    # We remove the shared-memory plug and interface in trusty because it fails with the
-    # following error since adding private /dev/shm support to shared-memory interface:
-    # shared-memory plug with "private: true" cannot be connected if "/dev/shm" is a symlink)
-    if os.query is-trusty; then
-        cp -r "$TESTSLIB/snaps/$CONSUMER_SNAP" .
-        sed -e '/shared-memory:/,+2d' -i "$CONSUMER_SNAP"/meta/snap.yaml
-    fi
-
     echo "Given a snap is installed"
     "$TESTSTOOLS"/snaps-state install-local "$CONSUMER_SNAP"
     tests.cleanup defer snap remove --purge "$CONSUMER_SNAP"
@@ -340,12 +322,6 @@ execute: |
             continue
         fi
 
-        if [ "$plug_iface" = "$CONSUMER_SNAP:mount-control" ] && os.query is-trusty ; then
-            # systemd version is too old, skipping
-            snap connect "$plug_iface" "$slot_iface" 2>&1 | MATCH "systemd version 204 is too old \\(expected at least 209\\)"
-            continue
-        fi
-
         echo "When slot $slot_iface is connected"
         if snap interfaces | grep -E -q "$DISCONNECTED_PATTERN"; then
             if [ "$SNAPCRAFT_BUILD_ENVIRONMENT" = "lxd" ]; then
@@ -395,7 +371,7 @@ execute: |
     done
 
     # also check that snapd-apparmor service works
-    if ! os.query is-trusty && ! os.query is-xenial; then
+    if ! os.query is-xenial; then
       systemctl status snapd.apparmor.service
     fi
 
@@ -407,12 +383,12 @@ execute: |
         # this fails on ubuntu-16.04 and 14.04 since the distro installed
         # version of snapd comes from esm.ubuntu.com but the spread instances do
         # not have credentials for esm.ubuntu.com
-        if ! os.query is-trusty && ! os.query is-xenial; then
+        if ! os.query is-xenial; then
             apt install -y --allow-downgrades "snapd/$(lsb_release -sc)"
             tests.cleanup defer apt install -y "$PROJECT_PATH/../"snapd_1337.*_"$(dpkg-architecture -qDEB_HOST_ARCH)".deb
 
             # check snapd.apparmor is still working after downgrade
-            if ! os.query is-trusty && ! os.query is-xenial; then
+            if ! os.query is-xenial; then
                 systemctl status snapd.apparmor.service
             fi
             echo "Rebooting to re-generate system-key..."

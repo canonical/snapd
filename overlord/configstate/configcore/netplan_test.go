@@ -181,8 +181,10 @@ func (s *netplanSuite) TestNetplanGetFromDBusHappy(c *C) {
 			"version":  json.Number("2"),
 		},
 	})
-	// the config snapshot is discarded after it was read
-	c.Check(s.backend.ConfigApiCancelCalls, Equals, 1)
+	s.backend.WithLocked(func() {
+		// the config snapshot is discarded after it was read
+		c.Check(s.backend.ConfigApiCancelCalls, Equals, 1)
+	})
 
 	// only the "network" subset
 	netplanCfg = make(map[string]interface{})
@@ -192,8 +194,10 @@ func (s *netplanSuite) TestNetplanGetFromDBusHappy(c *C) {
 		"renderer": "NetworkManager",
 		"version":  json.Number("2"),
 	})
-	// the config snapshot is discarded after it was read
-	c.Check(s.backend.ConfigApiCancelCalls, Equals, 2)
+	s.backend.WithLocked(func() {
+		// the config snapshot is discarded after it was read
+		c.Check(s.backend.ConfigApiCancelCalls, Equals, 2)
+	})
 
 	// only the "network.version" subset
 	var ver json.Number
@@ -201,11 +205,13 @@ func (s *netplanSuite) TestNetplanGetFromDBusHappy(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(ver, Equals, json.Number("2"))
 
-	// the config snapshot is discarded after it was read
-	c.Check(s.backend.ConfigApiCancelCalls, Equals, 3)
-	// but nothing was applied
-	c.Check(s.backend.ConfigApiTryCalls, Equals, 0)
-	c.Check(s.backend.ConfigApiApplyCalls, Equals, 0)
+	s.backend.WithLocked(func() {
+		// the config snapshot is discarded after it was read
+		c.Check(s.backend.ConfigApiCancelCalls, Equals, 3)
+		// but nothing was applied
+		c.Check(s.backend.ConfigApiTryCalls, Equals, 0)
+		c.Check(s.backend.ConfigApiApplyCalls, Equals, 0)
+	})
 }
 
 func (s *netplanSuite) TestNetplanGetFromDBusCancelFails(c *C) {
@@ -215,9 +221,9 @@ func (s *netplanSuite) TestNetplanGetFromDBusCancelFails(c *C) {
 	logbuf, restore := logger.MockLogger()
 	defer restore()
 
+	s.backend.ConfigApiCancelRet = false
 	// export the V2 api, things work with that
 	s.backend.ExportApiV2()
-	s.backend.ConfigApiCancelRet = false
 
 	tr := config.NewTransaction(s.state)
 	netplanCfg := make(map[string]interface{})
@@ -239,9 +245,9 @@ func (s *netplanSuite) TestNetplanGetFromDBusCancelErr(c *C) {
 	logbuf, restore := logger.MockLogger()
 	defer restore()
 
+	s.backend.ConfigApiCancelErr = dbus.MakeFailedError(fmt.Errorf("netplan failed with some error"))
 	// export the V2 api, things work with that
 	s.backend.ExportApiV2()
-	s.backend.ConfigApiCancelErr = dbus.MakeFailedError(fmt.Errorf("netplan failed with some error"))
 
 	tr := config.NewTransaction(s.state)
 	netplanCfg := make(map[string]interface{})
@@ -300,9 +306,10 @@ func (s *netplanSuite) TestNetplanConnectivityCheck(c *C) {
 }
 
 func (s *netplanSuite) TestNetplanWriteConfigSetReturnsFalse(c *C) {
-	s.backend.ExportApiV2()
 	s.backend.ConfigApiSetRet = false
 	s.backend.ConfigApiCancelRet = true
+
+	s.backend.ExportApiV2()
 
 	s.state.Lock()
 	rt := configcore.NewRunTransaction(config.NewTransaction(s.state), nil)
@@ -316,9 +323,9 @@ func (s *netplanSuite) TestNetplanWriteConfigSetReturnsFalse(c *C) {
 
 func (s *netplanSuite) TestNetplanWriteConfigSetFailsDBusErr(c *C) {
 	s.backend.ConfigApiCancelRet = true
+	s.backend.ConfigApiSetErr = dbus.MakeFailedError(fmt.Errorf("netplan failed with some error"))
 
 	s.backend.ExportApiV2()
-	s.backend.ConfigApiSetErr = dbus.MakeFailedError(fmt.Errorf("netplan failed with some error"))
 
 	s.state.Lock()
 	rt := configcore.NewRunTransaction(config.NewTransaction(s.state), nil)
@@ -330,10 +337,11 @@ func (s *netplanSuite) TestNetplanWriteConfigSetFailsDBusErr(c *C) {
 }
 
 func (s *netplanSuite) TestNetplanWriteConfigTryReturnsFalse(c *C) {
-	s.backend.ExportApiV2()
 	s.backend.ConfigApiSetRet = true
 	s.backend.ConfigApiTryRet = false
 	s.backend.ConfigApiCancelRet = true
+
+	s.backend.ExportApiV2()
 
 	s.state.Lock()
 	rt := configcore.NewRunTransaction(config.NewTransaction(s.state), nil)
@@ -345,10 +353,11 @@ func (s *netplanSuite) TestNetplanWriteConfigTryReturnsFalse(c *C) {
 }
 
 func (s *netplanSuite) TestNetplanWriteConfigTryFailsDBusErr(c *C) {
-	s.backend.ExportApiV2()
 	s.backend.ConfigApiSetRet = true
 	s.backend.ConfigApiTryErr = dbus.MakeFailedError(fmt.Errorf("netplan failed with some error"))
 	s.backend.ConfigApiCancelRet = true
+
+	s.backend.ExportApiV2()
 
 	s.state.Lock()
 	rt := configcore.NewRunTransaction(config.NewTransaction(s.state), nil)
@@ -372,14 +381,14 @@ func (s *netplanSuite) testNetplanWriteConfigHappy(c *C, seeded bool, expectedOr
 	s.state.Set("seeded", seeded)
 	s.state.Unlock()
 
-	// export the V2 api, things work with that
-	s.backend.ExportApiV2()
-
 	// and everything is fine
 	s.fakestore.status = map[string]bool{"host1": true}
 	s.backend.ConfigApiSetRet = true
 	s.backend.ConfigApiTryRet = true
 	s.backend.ConfigApiApplyRet = true
+
+	// export the V2 api, things work with that
+	s.backend.ExportApiV2()
 
 	s.state.Lock()
 	rt := configcore.NewRunTransaction(config.NewTransaction(s.state), nil)
@@ -390,24 +399,25 @@ func (s *netplanSuite) testNetplanWriteConfigHappy(c *C, seeded bool, expectedOr
 	err := configcore.Run(coreDev, rt)
 	c.Assert(err, IsNil)
 
-	c.Check(s.backend.ConfigApiSetCalls, DeepEquals, []string{
-		fmt.Sprintf(`network=null/%s`, expectedOriginHint),
-		fmt.Sprintf(`network={"ethernets":{"eth0":{"dhcp4":true}},"renderer":"NetworkManager","version":2,"wifi":{"wlan0":{"dhcp4":true}}}/%s`, expectedOriginHint),
+	s.backend.WithLocked(func() {
+		c.Check(s.backend.ConfigApiSetCalls, DeepEquals, []string{
+			fmt.Sprintf(`network=null/%s`, expectedOriginHint),
+			fmt.Sprintf(`network={"ethernets":{"eth0":{"dhcp4":true}},"renderer":"NetworkManager","version":2,"wifi":{"wlan0":{"dhcp4":true}}}/%s`, expectedOriginHint),
+		})
+		c.Check(s.backend.ConfigApiTryCalls, Equals, 1)
+		c.Check(s.backend.ConfigApiApplyCalls, Equals, 1)
 	})
-	c.Check(s.backend.ConfigApiTryCalls, Equals, 1)
-	c.Check(s.backend.ConfigApiApplyCalls, Equals, 1)
 }
 
 func (s *netplanSuite) TestNetplanApplyConfigFails(c *C) {
-	s.backend.ConfigApiCancelRet = true
-
-	// export the V2 api, things work with that
-	s.backend.ExportApiV2()
-
 	s.fakestore.status = map[string]bool{"host1": true}
 	s.backend.ConfigApiSetRet = true
 	s.backend.ConfigApiTryRet = true
+	s.backend.ConfigApiCancelRet = true
 	s.backend.ConfigApiApplyRet = false
+
+	// export the V2 api, things work with that
+	s.backend.ExportApiV2()
 
 	s.state.Lock()
 	rt := configcore.NewRunTransaction(config.NewTransaction(s.state), nil)
@@ -420,15 +430,14 @@ func (s *netplanSuite) TestNetplanApplyConfigFails(c *C) {
 }
 
 func (s *netplanSuite) TestNetplanApplyConfigErr(c *C) {
-	s.backend.ConfigApiCancelRet = true
-
-	// export the V2 api, things work with that
-	s.backend.ExportApiV2()
-
 	s.fakestore.status = map[string]bool{"host1": true}
 	s.backend.ConfigApiSetRet = true
 	s.backend.ConfigApiTryRet = true
+	s.backend.ConfigApiCancelRet = true
 	s.backend.ConfigApiApplyErr = dbus.MakeFailedError(fmt.Errorf("netplan failed with some error"))
+
+	// export the V2 api, things work with that
+	s.backend.ExportApiV2()
 
 	s.state.Lock()
 	rt := configcore.NewRunTransaction(config.NewTransaction(s.state), nil)
@@ -441,9 +450,6 @@ func (s *netplanSuite) TestNetplanApplyConfigErr(c *C) {
 }
 
 func (s *netplanSuite) TestNetplanWriteConfigNoNetworkAfterTry(c *C) {
-	// export the V2 api, things work with that
-	s.backend.ExportApiV2()
-
 	// we have connectivity but it stops
 	s.fakestore.statusSeq = []map[string]bool{
 		{"host1": true},
@@ -459,6 +465,9 @@ func (s *netplanSuite) TestNetplanWriteConfigNoNetworkAfterTry(c *C) {
 	s.backend.ConfigApiApplyRet = true
 	s.backend.ConfigApiCancelRet = true
 
+	// export the V2 api, things work with that
+	s.backend.ExportApiV2()
+
 	s.state.Lock()
 	rt := configcore.NewRunTransaction(config.NewTransaction(s.state), nil)
 	s.state.Unlock()
@@ -467,16 +476,17 @@ func (s *netplanSuite) TestNetplanWriteConfigNoNetworkAfterTry(c *C) {
 	err := configcore.Run(coreDev, rt)
 	c.Assert(err, ErrorMatches, `cannot set netplan config: store no longer reachable`)
 
-	c.Check(s.backend.ConfigApiTryCalls, Equals, 1)
-	// one cancel for the initial "Get()" and one after the Try failed
-	c.Check(s.backend.ConfigApiCancelCalls, Equals, 2)
-	c.Check(s.backend.ConfigApiApplyCalls, Equals, 0)
-	// 1 initial call and 10 retries
-	c.Check(s.fakestore.seq, Equals, 6)
+	s.backend.WithLocked(func() {
+		c.Check(s.backend.ConfigApiTryCalls, Equals, 1)
+		// one cancel for the initial "Get()" and one after the Try failed
+		c.Check(s.backend.ConfigApiCancelCalls, Equals, 2)
+		c.Check(s.backend.ConfigApiApplyCalls, Equals, 0)
+		// 1 initial call and 10 retries
+		c.Check(s.fakestore.seq, Equals, 6)
+	})
 }
 
 func (s *netplanSuite) TestNetplanWriteConfigCancelFails(c *C) {
-	s.backend.ExportApiV2()
 	s.fakestore.statusSeq = []map[string]bool{
 		{"host1": true},
 		// and is retried 5 times
@@ -490,6 +500,8 @@ func (s *netplanSuite) TestNetplanWriteConfigCancelFails(c *C) {
 	s.backend.ConfigApiTryRet = true
 	s.backend.ConfigApiCancelRet = false
 
+	s.backend.ExportApiV2()
+
 	s.state.Lock()
 	rt := configcore.NewRunTransaction(config.NewTransaction(s.state), nil)
 	s.state.Unlock()
@@ -500,9 +512,6 @@ func (s *netplanSuite) TestNetplanWriteConfigCancelFails(c *C) {
 }
 
 func (s *netplanSuite) TestNetplanWriteConfigCancelFailsWithDbusErr(c *C) {
-	s.backend.ConfigApiCancelRet = true
-
-	s.backend.ExportApiV2()
 	s.fakestore.statusSeq = []map[string]bool{
 		{"host1": true},
 		// and is retried 5 times
@@ -512,9 +521,12 @@ func (s *netplanSuite) TestNetplanWriteConfigCancelFailsWithDbusErr(c *C) {
 		{"host1": false},
 		{"host1": false},
 	}
+	s.backend.ConfigApiCancelRet = true
 	s.backend.ConfigApiSetRet = true
 	s.backend.ConfigApiTryRet = true
 	s.backend.ConfigApiCancelErr = dbus.MakeFailedError(fmt.Errorf("netplan failed with some error"))
+
+	s.backend.ExportApiV2()
 
 	s.state.Lock()
 	rt := configcore.NewRunTransaction(config.NewTransaction(s.state), nil)
@@ -535,13 +547,14 @@ network:
     br54:
       dhcp4: true
       dhcp6: true`
-	s.backend.ExportApiV2()
 
 	// we have connectivity
 	s.fakestore.status = map[string]bool{"host1": true}
 	s.backend.ConfigApiSetRet = true
 	s.backend.ConfigApiTryRet = true
 	s.backend.ConfigApiApplyRet = true
+
+	s.backend.ExportApiV2()
 
 	// we cannot use mockConf because we need the external config
 	// integration from the config.Transaction
@@ -553,9 +566,11 @@ network:
 	err := configcore.Run(coreDev, rt)
 	c.Assert(err, IsNil)
 
-	c.Check(s.backend.ConfigApiSetCalls, DeepEquals, []string{
-		`network=null/90-snapd-config`,
-		`network={"bridges":{"br54":{"dhcp6":true}},"renderer":"networkd","version":2}/90-snapd-config`,
+	s.backend.WithLocked(func() {
+		c.Check(s.backend.ConfigApiSetCalls, DeepEquals, []string{
+			`network=null/90-snapd-config`,
+			`network={"bridges":{"br54":{"dhcp6":true}},"renderer":"networkd","version":2}/90-snapd-config`,
+		})
 	})
 }
 
