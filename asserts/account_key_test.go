@@ -1049,7 +1049,7 @@ func (aks *accountKeySuite) TestDecodeConstraintsInvalid(c *C) {
 		{constr, "\n  -\n    headers:\n      t: x\n", "type header constraint mandatory in asserions constraints"},
 		{constr, "\n  -\n    headers:\n      type:\n        - foo\n", "type header constraint must be a string"},
 		{constr, "\n  -\n    headers:\n      type: preseed|model\n", "type header constraint must be a precise string and not a regexp"},
-		{constr, "\n  -\n    headers:\n      type: foo\n      model: $X\n", `cannot compile headers constraint: cannot compile "model" constraint "\$X": no \$OP\(\) constraints supported`},
+		{constr, "\n  -\n    headers:\n      type: foo\n      model: $X\n", `cannot compile headers constraint: cannot compile "model" constraint "\$X": no \$OP\(\) or \$REF constraints supported`},
 	}
 	for _, test := range invalidHeaderTests {
 		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
