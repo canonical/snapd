@@ -21,6 +21,7 @@
 package devicestate
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 
@@ -68,7 +69,7 @@ func createSaveResetterImpl(saveNode string) (secboot.KeyResetter, error) {
 		renameTo, found := renames[slot]
 		if found {
 			if err := sb.RenameLUKS2ContainerKey(saveNode, slot, renameTo); err != nil {
-				if err == sb.ErrMissingCryptsetupFeature {
+				if errors.Is(err, sb.ErrMissingCryptsetupFeature) {
 					if err := sb.DeleteLUKS2ContainerKey(saveNode, slot); err != nil {
 						return nil, fmt.Errorf("cannot remove old container key: %v", err)
 					}
