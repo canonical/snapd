@@ -1,0 +1,61 @@
+type: model
+authority-id: test-snapd
+revision: 1
+series: 16
+brand-id: test-snapd
+model: my-model
+architecture: amd64
+base: core24
+grade: dangerous
+serial-authority:
+  - generic
+snaps:
+  -
+    default-channel: 24/edge
+    id: UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH
+    name: pc
+    type: gadget
+  -
+    default-channel: 24/edge
+    id: pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza
+    name: pc-kernel
+    type: kernel
+  -
+    default-channel: latest/edge
+    id: dwTAh7MZZ01zyriOZErqd1JynQLiOGvM
+    name: core24
+    type: base
+  -
+    default-channel: latest/edge
+    id: PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4
+    name: snapd
+    type: snapd
+  -
+    default-channel: latest/stable
+    id: 99T7MUlRhtI3U0QFgl5mXXESAiSwt776
+    modes:
+      - run
+      - ephemeral
+    name: core
+    type: core
+  -
+    default-channel: latest/stable
+    id: buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ
+    modes:
+      - run
+      - ephemeral
+    name: hello-world
+    type: app
+timestamp: 2024-04-24T00:00:00+00:00
+sign-key-sha3-384: z5UoZNBNRc6KXRIg96L6tZ723_CDbUu45bRC-wcINgigB2S9GGGe6DWJqlzI6p0S
+
+AcLBcwQAAQoAHRYhBJwYfdLgNpH0AbmOCVr7utGyRTi5BQJmY0IPAAoJEFr7utGyRTi51ZMP/24y
+Is/CJ/K9hK/LC56K3qjVF5JUd0D+GWMTl8pJD3YgKePUlPLX0NDwm+G3KpmDX2Vqn9MzmjfGmdym
+9A4JhiR8G6CPFYT0yNiapUovJxdCD6O5RrW2SH7FLbpRTAgnVyt/V0q/gpFtmFTjTs/+55/m048B
+/Mx9L9UdYC2oBnC7b68oOm1zYbvGNgslNbsv/j0xTa5C3JEFQUvub4rLnmiiHl3EqT4mOg1j9JGV
+mSvysHKl6ryefe3gM5bRsHuUPpChDK8aoXOLjfeqepYjL5rNc0DoCYNZGmg7FeoapMdi/a5a5h85
+8ZyCCgw1zCkxa1SIWup22gHiqjiPlTewIE9ZLk+Q6Cg1Fho8G4RAZpHUDD5UJQlyobdoZbO8gqRD
+vAaAYiRJjor760E7GL/GQ3RQ13tiiLBI9NzDkYlT63wuwchKrBbD/Ye88Wy1cdvhTDh0SEi9cUJj
+hkbDiBbri7PDpg5daHEp125oUj/4B1TfcqDdcsV6yvzpW7Z7vfijRM0bME+twNNJnAaiuAYs/m9h
+5KrU94DuKhJ3l23IOJheqY5p/tg5jZGi3RubJU+2hDZxVzyB+tCnWGjJVoGlxEFk1+F9neajWBSW
+f0oS+DpHgjbjS/7ETZ6rg1oYD+qHJh/tUYnYIcQxgVN8gOqAttnTsioaH3Jmkx4xoamWpq9W

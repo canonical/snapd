@@ -1,4 +1,5 @@
 {
+    "revision": "3",
     "type": "model",
     "authority-id": "test-snapd",
     "series": "16",

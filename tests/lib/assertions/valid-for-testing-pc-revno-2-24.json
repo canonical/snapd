@@ -1,4 +1,5 @@
 {
+    "revision": "2",
     "type": "model",
     "authority-id": "test-snapd",
     "series": "16",
@@ -10,6 +11,17 @@
     "base": "core24",
     "serial-authority": ["generic"],
     "snaps": [
+        {
+            "default-channel": "latest/stable",
+            "id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+            "name": "hello-world",
+            "type": "app"
+        },
+        {
+            "default-channel": "latest/stable",
+            "name": "test-snapd-tools-core24",
+            "type": "app"
+        },
         {
             "default-channel": "24/edge",
             "id": "UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH",
@@ -33,6 +45,12 @@
             "id": "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4",
             "name": "snapd",
             "type": "snapd"
+        },
+        {
+            "default-channel": "latest/stable",
+            "id": "99T7MUlRhtI3U0QFgl5mXXESAiSwt776",
+            "name": "core",
+            "type": "core"
         }
     ]
 }

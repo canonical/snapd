@@ -1,19 +1,20 @@
 {
     "type": "model",
-    "authority-id": "test-snapd",
     "series": "16",
+    "authority-id": "test-snapd",
     "brand-id": "test-snapd",
-    "model": "my-model",
+    "store": "CQvkdMjgbapk821Po2cF",
+    "model": "test-snapd-remodel-pc",
+    "system-user-authority": "*",
     "architecture": "amd64",
     "timestamp": "2024-04-24T00:00:00+00:00",
     "grade": "dangerous",
     "base": "core24",
-    "serial-authority": ["generic"],
     "snaps": [
         {
-            "default-channel": "24/edge",
-            "id": "UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH",
-            "name": "pc",
+            "default-channel": "latest/edge",
+            "id": "bfwFXAeMCr9x5jt0WYhCe3rT5ueri0oE",
+            "name": "test-snapd-remodel-pc",
             "type": "gadget"
         },
         {

@@ -45,3 +45,7 @@ execute: |
     echo "Running $SPREAD -v $RUN_TESTS"
     # shellcheck disable=SC2086
     "$SPREAD" -v $RUN_TESTS |& tee spread.log
+
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+    nested_check_spread_results spread.log
