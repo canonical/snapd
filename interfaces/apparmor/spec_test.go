@@ -20,7 +20,6 @@
 package apparmor_test
 
 import (
-	"slices"
 	"strings"
 
 	. "gopkg.in/check.v1"
@@ -607,6 +606,15 @@ func (s *specSuite) TestSetSuppressPycacheDeny(c *C) {
 	c.Assert(s.spec.SuppressPycacheDeny(), Equals, true)
 }
 
+func contains(slice []string, needle string) bool {
+	for item := range slice {
+		if slice[item] == needle {
+			return true
+		}
+	}
+	return false
+}
+
 func (s *specSuite) TestPrioritySnippets(c *C) {
 	restore := apparmor.SetSpecScope(s.spec, []string{"snap.demo.scope1"})
 
@@ -646,6 +654,6 @@ func (s *specSuite) TestPrioritySnippets(c *C) {
 	c.Assert(snippets, Not(testutil.Contains), "Prioritized snippet 10")
 
 	tags := s.spec.SecurityTags()
-	c.Assert(slices.Contains(tags, "snap.demo.scope1"), Equals, true)
-	c.Assert(slices.Contains(tags, "snap.demo.scope2"), Equals, true)
+	c.Assert(contains(tags, "snap.demo.scope1"), Equals, true)
+	c.Assert(contains(tags, "snap.demo.scope2"), Equals, true)
 }
