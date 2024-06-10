@@ -199,7 +199,7 @@ func generateAAREExclusionPatternsGenericImpl(excludePatterns []string, opts *AA
 	// (charInd = 1..size), generating an apparmor rule on each iteration
 	// for the corresponding subpatterns, understanding as such, the first
 	// (charInd+1) characters of the excludePatterns.
-	builder := &strings.Builder{}
+	var builder strings.Builder
 	for charInd := 1; charInd < size; charInd++ {
 		// This loop will group the subpatterns properly, generating the subpatterns map, where:
 		//     - the key would be the subpatternPrefix, considering as such the subpattern except
@@ -244,22 +244,38 @@ func generateAAREExclusionPatternsGenericImpl(excludePatterns []string, opts *AA
 		}
 
 		// Write patterns
-		if len(subpatterns) == 0 {
-			continue
-		} else if len(subpatterns) == 1 {
-			res := fmt.Sprintf("%s%s[^%s]**%s\n", opts.Prefix, subpatternPrefix, subpatterns[subpatternPrefix], opts.Suffix)
-			builder.WriteString(res)
-		} else {
-			var aux []string
-			for prefix, charset := range subpatterns {
-				aux = append(aux, prefix[len(commonPrefix):]+"[^"+charset+"]")
+		if len(subpatterns) > 0 {
+			// <prefix><common-prefix><exp><suffix>
+			// eg. /squashfs-root/usr/lib/[^a]**			if len(subpatterns) == 1
+			// eg. /squashfs-root/usr/lib/{[^a],[^b]}**		if len(subpatterns) > 1
+			builder.WriteString(opts.Prefix)
+			if charInd < len(commonPrefix) {
+				builder.WriteString(commonPrefix[:charInd])
+			} else {
+				builder.WriteString(commonPrefix)
 			}
-			res := fmt.Sprintf("%s%s{%s}**%s\n", opts.Prefix, commonPrefix, strings.Join(aux[:], ","), opts.Suffix)
-			builder.WriteString(res)
+			if len(subpatterns) > 1 {
+				builder.WriteRune('{')
+			}
+			firstSubpattern := true
+			for prefix, charset := range subpatterns {
+				if !firstSubpattern {
+					builder.WriteRune(',')
+				}
+				firstSubpattern = false
+				if len(commonPrefix) < len(prefix) {
+					builder.WriteString(prefix[len(commonPrefix):])
+				}
+				builder.WriteString("[^" + charset + "]")
+			}
+			if len(subpatterns) > 1 {
+				builder.WriteRune('}')
+			}
+			builder.WriteString("**")
+			builder.WriteString(opts.Suffix)
+			builder.WriteRune('\n')
 		}
-
 	}
-
 	return builder.String(), nil
 }
 
