@@ -20,6 +20,7 @@
 package apparmor_test
 
 import (
+	"slices"
 	"strings"
 
 	. "gopkg.in/check.v1"
@@ -604,4 +605,47 @@ func (s *specSuite) TestSetSuppressPycacheDeny(c *C) {
 	c.Assert(s.spec.SuppressPycacheDeny(), Equals, false)
 	s.spec.SetSuppressPycacheDeny()
 	c.Assert(s.spec.SuppressPycacheDeny(), Equals, true)
+}
+
+func (s *specSuite) TestPrioritySnippets(c *C) {
+	restore := apparmor.SetSpecScope(s.spec, []string{"snap.demo.scope1"})
+
+	// Test a scope with a normal snippet and prioritized ones
+	s.spec.AddSnippet("Test snippet 1")
+	s.spec.AddPrioritizedSnippet("Prioritized snippet 1", "uid1", 0)
+	s.spec.AddPrioritizedSnippet("Prioritized snippet 2", "uid1", 0)
+	s.spec.AddPrioritizedSnippet("Prioritized snippet 3", "uid2", 1)
+	s.spec.AddPrioritizedSnippet("Prioritized snippet 4", "uid2", 2)
+	s.spec.AddPrioritizedSnippet("Prioritized snippet 5", "uid2", 0)
+
+	restore()
+
+	// Test a scope with only prioritized snippets
+	restore = apparmor.SetSpecScope(s.spec, []string{"snap.demo.scope2"})
+	defer restore()
+
+	s.spec.AddPrioritizedSnippet("Prioritized snippet 6", "uid1", 0)
+	s.spec.AddPrioritizedSnippet("Prioritized snippet 7", "uid1", 0)
+	s.spec.AddPrioritizedSnippet("Prioritized snippet 8", "uid2", 1)
+	s.spec.AddPrioritizedSnippet("Prioritized snippet 9", "uid2", 2)
+	s.spec.AddPrioritizedSnippet("Prioritized snippet 10", "uid2", 0)
+
+	snippets := s.spec.SnippetForTag("snap.demo.scope1")
+	c.Assert(snippets, testutil.Contains, "Test snippet 1")
+	c.Assert(snippets, testutil.Contains, "Prioritized snippet 1")
+	c.Assert(snippets, testutil.Contains, "Prioritized snippet 2")
+	c.Assert(snippets, Not(testutil.Contains), "Prioritized snippet 3")
+	c.Assert(snippets, testutil.Contains, "Prioritized snippet 4")
+	c.Assert(snippets, Not(testutil.Contains), "Prioritized snippet 5")
+
+	snippets = s.spec.SnippetForTag("snap.demo.scope2")
+	c.Assert(snippets, testutil.Contains, "Prioritized snippet 6")
+	c.Assert(snippets, testutil.Contains, "Prioritized snippet 7")
+	c.Assert(snippets, Not(testutil.Contains), "Prioritized snippet 8")
+	c.Assert(snippets, testutil.Contains, "Prioritized snippet 9")
+	c.Assert(snippets, Not(testutil.Contains), "Prioritized snippet 10")
+
+	tags := s.spec.SecurityTags()
+	c.Assert(slices.Contains(tags, "snap.demo.scope1"), Equals, true)
+	c.Assert(slices.Contains(tags, "snap.demo.scope2"), Equals, true)
 }

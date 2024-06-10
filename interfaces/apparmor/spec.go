@@ -42,6 +42,11 @@ const (
 	UnconfinedEnabled
 )
 
+type prioritizedSnippetsType struct {
+	priority uint
+	snippets []string
+}
+
 // Specification assists in collecting apparmor entries associated with an interface.
 type Specification struct {
 	// appSet is the set of snap applications and hooks that the specification
@@ -55,6 +60,15 @@ type Specification struct {
 	// for snap application and hook processes. The security tag encodes the identity
 	// of the application or hook.
 	snippets map[string][]string
+
+	// prioritizedSnippets are just like snippets, but they have a priority value
+	// and an UID. An interface can add a snippet with a specific UID and a priority.
+	// If there doesn't exist any snippet with that UID, the passed snippet will be
+	// added as-is. But if it does exist, the new snippet will replace the old one if
+	// the new priority is bigger than the old one; will be appended if the new
+	// priority is the same than the old one, and will be discarded if the new priority
+	// is smaller than the old one.
+	prioritizedSnippets map[string]map[string]prioritizedSnippetsType
 
 	// dedupSnippets are just like snippets but are added only once to the
 	// resulting policy in an effort to avoid certain expensive to de-duplicate
@@ -147,6 +161,55 @@ func (spec *Specification) AddSnippet(snippet string) {
 		spec.snippets[tag] = append(spec.snippets[tag], snippet)
 		sort.Strings(spec.snippets[tag])
 	}
+}
+
+// AddPrioritizedSnippet adds a new apparmor snippet to all applications and hooks using the interface,
+// but identified with an UID and a priority. If no other snippet exists with that UID, the snippet is
+// added like with AddSnippet, but if there is already another snippet with that UID, the priority of
+// both will be taken into account to decide whether the new snippet replaces the old one, is appended
+// to it, or is just ignored.
+func (spec *Specification) AddPrioritizedSnippet(snippet string, uid string, priority uint) {
+	if len(spec.securityTags) == 0 {
+		return
+	}
+	if spec.prioritizedSnippets == nil {
+		spec.prioritizedSnippets = make(map[string]map[string]prioritizedSnippetsType)
+	}
+	for _, tag := range spec.securityTags {
+		if _, exists := spec.prioritizedSnippets[tag]; !exists {
+			spec.prioritizedSnippets[tag] = make(map[string]prioritizedSnippetsType)
+		}
+		if snippets, exists := spec.prioritizedSnippets[tag][uid]; exists {
+			if snippets.priority == priority {
+				// if priority is the same, append the snippet to the already existing snippets
+				spec.prioritizedSnippets[tag][uid] = prioritizedSnippetsType{
+					priority: priority,
+					snippets: append(snippets.snippets, snippet),
+				}
+			} else if snippets.priority < priority {
+				// if priority is greater, replace the snippets with the new one
+				spec.prioritizedSnippets[tag][uid] = prioritizedSnippetsType{
+					priority: priority,
+					snippets: append([]string(nil), snippet),
+				}
+			} // if priority is smaller, do nothing
+		} else {
+			spec.prioritizedSnippets[tag][uid] = prioritizedSnippetsType{
+				priority: priority,
+				snippets: append([]string(nil), snippet),
+			}
+		}
+	}
+}
+
+func (spec *Specification) composeSnippetsForTag(tag string) []string {
+	// Compose the normal and the prioritized snippets in a single string array
+	composedSnippets := append([]string(nil), spec.snippets[tag]...)
+	for uid := range spec.prioritizedSnippets[tag] {
+		composedSnippets = append(composedSnippets, spec.prioritizedSnippets[tag][uid].snippets...)
+	}
+	sort.Strings(composedSnippets)
+	return composedSnippets
 }
 
 // AddDeduplicatedSnippet adds a new apparmor snippet to all applications and hooks using the interface.
@@ -532,10 +595,16 @@ func (spec *Specification) SnippetForTag(tag string) string {
 // SecurityTags returns a list of security tags which have a snippet.
 func (spec *Specification) SecurityTags() []string {
 	var tags []string
-	seen := make(map[string]bool, len(spec.snippets))
+	seen := make(map[string]bool)
 	for t := range spec.snippets {
 		tags = append(tags, t)
 		seen[t] = true
+	}
+	for t := range spec.prioritizedSnippets {
+		if !seen[t] {
+			tags = append(tags, t)
+			seen[t] = true
+		}
 	}
 	for t := range spec.dedupSnippets {
 		if !seen[t] {
@@ -552,7 +621,7 @@ func (spec *Specification) SecurityTags() []string {
 }
 
 func (spec *Specification) snippetsForTag(tag string) []string {
-	snippets := append([]string(nil), spec.snippets[tag]...)
+	snippets := append([]string(nil), spec.composeSnippetsForTag(tag)...)
 	// First add any deduplicated snippets
 	if bag := spec.dedupSnippets[tag]; bag != nil {
 		snippets = append(snippets, bag.Items()...)
