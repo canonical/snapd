@@ -22,7 +22,6 @@ package strutil
 import "errors"
 
 func FindCommonPrefix(patterns []string) (string, error) {
-
 	if len(patterns) == 0 {
 		return "", errors.New("no patterns provided")
 	}
