@@ -20,6 +20,7 @@
 package policy_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -529,6 +530,22 @@ plugs:
      interface: plugs-name-bound
    plugs-name-bound-p2:
      interface: plugs-name-bound
+   plug-publisher-mismatch:
+     interface: attr-match-plug-pub
+     attr: "other-publisher"
+   plug-publisher-match:
+     interface: attr-match-plug-pub
+     attr: "plug-publisher"
+   slot-publisher-mismatch:
+     interface: attr-match-slot-pub
+     attr: "other-publisher"
+   slot-publisher-match:
+     interface: attr-match-slot-pub
+     attr: "slot-publisher"
+   plug-publisher-empty:
+     interface: attr-match-plug-pub-2
+   slot-publisher-empty:
+     interface: attr-match-slot-pub-2
 `, nil, nil)
 	s.plugSnap = s.plugAppSet.Info()
 
@@ -712,6 +729,22 @@ slots:
      interface: plugs-name-bound
    plugs-name-bound-s2:
      interface: plugs-name-bound
+   slot-publisher-mismatch:
+     interface: attr-match-slot-pub-2
+     attr: "other-publisher"
+   slot-publisher-match:
+     interface: attr-match-slot-pub-2
+     attr: "slot-publisher"
+   plug-publisher-mismatch:
+     interface: attr-match-plug-pub-2
+     attr: "other-publisher"
+   plug-publisher-match:
+     interface: attr-match-plug-pub-2
+     attr: "plug-publisher"
+   plug-publisher-empty:
+     interface: attr-match-plug-pub
+   slot-publisher-empty:
+     interface: attr-match-slot-pub
 
 `, nil, nil)
 	s.slotSnap = s.slotAppSet.Info()
@@ -796,6 +829,14 @@ plugs:
           - plugs-name-bound-p1
         slot-names:
           - plugs-name-bound-s2
+  attr-match-plug-pub:
+    allow-auto-connection:
+      plug-attributes:
+        attr: $PLUG_PUBLISHER_ID
+  attr-match-slot-pub:
+    allow-auto-connection:
+      plug-attributes:
+        attr: $SLOT_PUBLISHER_ID
 timestamp: 2016-09-30T12:00:00Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
@@ -882,6 +923,14 @@ slots:
           - slots-name-bound-p2
         slot-names:
           - slots-name-bound-s2
+  attr-match-slot-pub-2:
+    allow-auto-connection:
+      slot-attributes:
+        attr: $SLOT_PUBLISHER_ID
+  attr-match-plug-pub-2:
+    allow-auto-connection:
+      slot-attributes:
+        attr: $PLUG_PUBLISHER_ID
 timestamp: 2016-09-30T12:00:00Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
@@ -2281,6 +2330,135 @@ func (s *policySuite) TestPlugDollarPlugAttrConnection(c *C) {
 		BaseDeclaration: s.baseDecl,
 	}
 	c.Check(cand.Check(), IsNil)
+}
+
+func (s *policySuite) TestPlugAttributeMatchPlugPublisher(c *C) {
+	cand := policy.ConnectCandidate{
+		Plug:                interfaces.NewConnectedPlug(s.plugSnap.Plugs["plug-publisher-mismatch"], s.plugAppSet, nil, nil),
+		Slot:                interfaces.NewConnectedSlot(s.slotSnap.Slots["plug-publisher-empty"], s.slotAppSet, nil, nil),
+		PlugSnapDeclaration: s.plugDecl,
+		SlotSnapDeclaration: s.slotDecl,
+		BaseDeclaration:     s.baseDecl,
+	}
+	_, err := cand.CheckAutoConnect()
+	c.Check(err, ErrorMatches, "auto-connection not allowed.*")
+
+	cand = policy.ConnectCandidate{
+		Plug:                interfaces.NewConnectedPlug(s.plugSnap.Plugs["plug-publisher-match"], s.plugAppSet, nil, nil),
+		Slot:                interfaces.NewConnectedSlot(s.slotSnap.Slots["plug-publisher-empty"], s.slotAppSet, nil, nil),
+		PlugSnapDeclaration: s.plugDecl,
+		SlotSnapDeclaration: s.slotDecl,
+		BaseDeclaration:     s.baseDecl,
+	}
+	_, err = cand.CheckAutoConnect()
+	c.Check(err, IsNil)
+}
+
+func (s *policySuite) TestPlugAttributeMatchSlotPublisher(c *C) {
+	cand := policy.ConnectCandidate{
+		Plug:                interfaces.NewConnectedPlug(s.plugSnap.Plugs["slot-publisher-mismatch"], s.plugAppSet, nil, nil),
+		Slot:                interfaces.NewConnectedSlot(s.slotSnap.Slots["slot-publisher-empty"], s.slotAppSet, nil, nil),
+		PlugSnapDeclaration: s.plugDecl,
+		SlotSnapDeclaration: s.slotDecl,
+		BaseDeclaration:     s.baseDecl,
+	}
+	_, err := cand.CheckAutoConnect()
+	c.Check(err, ErrorMatches, "auto-connection not allowed.*")
+
+	cand = policy.ConnectCandidate{
+		Plug:                interfaces.NewConnectedPlug(s.plugSnap.Plugs["slot-publisher-match"], s.plugAppSet, nil, nil),
+		Slot:                interfaces.NewConnectedSlot(s.slotSnap.Slots["slot-publisher-empty"], s.slotAppSet, nil, nil),
+		PlugSnapDeclaration: s.plugDecl,
+		SlotSnapDeclaration: s.slotDecl,
+		BaseDeclaration:     s.baseDecl,
+	}
+	_, err = cand.CheckAutoConnect()
+	c.Check(err, IsNil)
+}
+
+func (s *policySuite) TestSlotAttributeMatchPlugPublisher(c *C) {
+	cand := policy.ConnectCandidate{
+		Plug:                interfaces.NewConnectedPlug(s.plugSnap.Plugs["plug-publisher-empty"], s.plugAppSet, nil, nil),
+		Slot:                interfaces.NewConnectedSlot(s.slotSnap.Slots["plug-publisher-mismatch"], s.slotAppSet, nil, nil),
+		PlugSnapDeclaration: s.plugDecl,
+		SlotSnapDeclaration: s.slotDecl,
+		BaseDeclaration:     s.baseDecl,
+	}
+	_, err := cand.CheckAutoConnect()
+	c.Check(err, ErrorMatches, "auto-connection not allowed.*")
+
+	cand = policy.ConnectCandidate{
+		Plug:                interfaces.NewConnectedPlug(s.plugSnap.Plugs["plug-publisher-empty"], s.plugAppSet, nil, nil),
+		Slot:                interfaces.NewConnectedSlot(s.slotSnap.Slots["plug-publisher-match"], s.slotAppSet, nil, nil),
+		PlugSnapDeclaration: s.plugDecl,
+		SlotSnapDeclaration: s.slotDecl,
+		BaseDeclaration:     s.baseDecl,
+	}
+	_, err = cand.CheckAutoConnect()
+	c.Check(err, IsNil)
+}
+
+func (s *policySuite) TestSlotAttributeMatchSlotPublisher(c *C) {
+	cand := policy.ConnectCandidate{
+		Plug:                interfaces.NewConnectedPlug(s.plugSnap.Plugs["slot-publisher-empty"], s.plugAppSet, nil, nil),
+		Slot:                interfaces.NewConnectedSlot(s.slotSnap.Slots["slot-publisher-mismatch"], s.slotAppSet, nil, nil),
+		PlugSnapDeclaration: s.plugDecl,
+		SlotSnapDeclaration: s.slotDecl,
+		BaseDeclaration:     s.baseDecl,
+	}
+	_, err := cand.CheckAutoConnect()
+	c.Check(err, ErrorMatches, "auto-connection not allowed.*")
+
+	cand = policy.ConnectCandidate{
+		Plug:                interfaces.NewConnectedPlug(s.plugSnap.Plugs["slot-publisher-empty"], s.plugAppSet, nil, nil),
+		Slot:                interfaces.NewConnectedSlot(s.slotSnap.Slots["slot-publisher-match"], s.slotAppSet, nil, nil),
+		PlugSnapDeclaration: s.plugDecl,
+		SlotSnapDeclaration: s.slotDecl,
+		BaseDeclaration:     s.baseDecl,
+	}
+	_, err = cand.CheckAutoConnect()
+	c.Check(err, IsNil)
+}
+
+func (s *policySuite) TestPlugInstallationAttrPublisherID(c *C) {
+	a, err := asserts.Decode([]byte(`type: snap-declaration
+authority-id: canonical
+series: 16
+snap-name: install-snap
+snap-id: installsnap6idididididididididid
+publisher-id: my-pub
+plugs:
+  publisher-match:
+    allow-installation:
+      plug-attributes:
+        my-attr: $PLUG_PUBLISHER_ID
+timestamp: 2016-09-30T12:00:00Z
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw==`))
+	c.Assert(err, IsNil)
+	snapDecl := a.(*asserts.SnapDeclaration)
+
+	for _, pub := range []string{"my-pub", "other-pub"} {
+		yaml := fmt.Sprintf(`name: install-snap
+version: 0
+plugs:
+  pub-attr:
+    interface: publisher-match
+    my-attr: %s
+`, pub)
+		installSnap := snaptest.MockInfo(c, yaml, nil)
+		cand := policy.InstallCandidate{
+			Snap:            installSnap,
+			SnapDeclaration: snapDecl,
+			BaseDeclaration: s.baseDecl,
+		}
+
+		err = cand.Check()
+		// evaluated constraints can't be used in allow-installation (see:
+		// checkPlugInstallationConstraints1)
+		c.Assert(err, ErrorMatches, "installation not allowed.*")
+	}
 }
 
 func (s *policySuite) TestPlugDollarSlotAttrConnection(c *C) {

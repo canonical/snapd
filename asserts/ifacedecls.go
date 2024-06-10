@@ -33,6 +33,8 @@ import (
 type AttrMatchContext interface {
 	PlugAttr(arg string) (interface{}, error)
 	SlotAttr(arg string) (interface{}, error)
+	PlugPublisherID() string
+	SlotPublisherID() string
 }
 
 const (
@@ -57,6 +59,7 @@ func compileAttributeConstraints(constraints interface{}) (*AttributeConstraints
 	cc := compileContext{
 		opts: &compileAttrMatcherOptions{
 			allowedOperations: []string{"SLOT", "PLUG"},
+			allowedRefs:       []string{"PLUG_PUBLISHER_ID", "SLOT_PUBLISHER_ID"},
 		},
 	}
 	matcher, err := compileAttrMatcher(cc, constraints)

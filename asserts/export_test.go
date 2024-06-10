@@ -310,11 +310,12 @@ func (gkm *GPGKeypairManager) ParametersForGenerate(passphrase string, name stri
 
 // constraint tests
 
-func CompileAttrMatcher(constraints interface{}, allowedOperations []string) (func(attrs map[string]interface{}, helper AttrMatchContext) error, error) {
+func CompileAttrMatcher(constraints interface{}, allowedOperations, allowedRefs []string) (func(attrs map[string]interface{}, helper AttrMatchContext) error, error) {
 	// XXX adjust
 	cc := compileContext{
 		opts: &compileAttrMatcherOptions{
 			allowedOperations: allowedOperations,
+			allowedRefs:       allowedRefs,
 		},
 	}
 	matcher, err := compileAttrMatcher(cc, constraints)

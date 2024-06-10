@@ -34,6 +34,8 @@ const (
 	dollarAttrConstraintsFeature = "dollar-attr-constraints"
 	// feature label for alt attribute matcher usage
 	altAttrMatcherFeature = "alt-attr-matcher"
+	// feature label for $PLUG_PUBLISHER_ID/$SLOT_PUBLISHER_ID
+	publisherIDConstraintsFeature = "publisher-id-constraints"
 )
 
 type attrMatchingContext struct {
@@ -58,6 +60,7 @@ func chain(path, k string) string {
 
 type compileAttrMatcherOptions struct {
 	allowedOperations []string
+	allowedRefs       []string
 }
 
 type compileContext struct {
@@ -108,7 +111,7 @@ func compileAttrMatcher(cc compileContext, constraints interface{}) (attrMatcher
 			if x == "$MISSING" {
 				return missingAttrMatcher{}, nil
 			}
-			return compileEvalAttrMatcher(cc, x)
+			return compileEvalOrRefAttrMatcher(cc, x)
 		}
 		return compileRegexpAttrMatcher(cc, x)
 	default:
@@ -217,15 +220,26 @@ var (
 	}
 )
 
-func compileEvalAttrMatcher(cc compileContext, s string) (attrMatcher, error) {
-	if len(cc.opts.allowedOperations) == 0 {
-		return nil, fmt.Errorf("cannot compile %q constraint %q: no $OP() constraints supported", cc, s)
+func compileEvalOrRefAttrMatcher(cc compileContext, s string) (attrMatcher, error) {
+	if len(cc.opts.allowedOperations) == 0 && len(cc.opts.allowedRefs) == 0 {
+		return nil, fmt.Errorf("cannot compile %q constraint %q: no $OP() or $REF constraints supported", cc, s)
 	}
+
+	// check if constraint matches an allowed $REF constraint since the regexp
+	// below only matches $OP(...) strings
+	if strutil.ListContains(cc.opts.allowedRefs, s[1:]) {
+		return refAttrMatcher{ref: s[1:]}, nil
+	}
+
 	ops := validEvalAttrMatcher.FindStringSubmatch(s)
 	if len(ops) == 0 || !validEvalAttrMatcherOps[ops[1]] || !strutil.ListContains(cc.opts.allowedOperations, ops[1]) {
-		oplst := make([]string, 0, len(cc.opts.allowedOperations))
+		// attribute doesn't match any allowed $OP() constraint, build err message
+		oplst := make([]string, 0, len(cc.opts.allowedOperations)+len(cc.opts.allowedRefs))
 		for _, op := range cc.opts.allowedOperations {
 			oplst = append(oplst, fmt.Sprintf("$%s()", op))
+		}
+		for _, ref := range cc.opts.allowedRefs {
+			oplst = append(oplst, fmt.Sprintf("$%s", ref))
 		}
 		return nil, fmt.Errorf("cannot compile %q constraint %q: not a valid %s constraint", cc, s, strings.Join(oplst, "/"))
 	}
@@ -259,6 +273,40 @@ func (matcher evalAttrMatcher) match(apath string, v interface{}, ctx *attrMatch
 	}
 	if !reflect.DeepEqual(v, v1) {
 		return fmt.Errorf("%s %q does not match $%s(%s): %v != %v", ctx.attrWord, apath, matcher.op, matcher.arg, v, v1)
+	}
+	return nil
+}
+
+type refAttrMatcher struct {
+	// supports $PLUG_PUBLISHER_ID and $SLOT_PUBLISHER_ID
+	ref string
+}
+
+func (m refAttrMatcher) feature(flabel string) bool {
+	return flabel == publisherIDConstraintsFeature
+}
+
+func (m refAttrMatcher) match(apath string, v interface{}, ctx *attrMatchingContext) error {
+	if ctx.helper == nil {
+		return fmt.Errorf("%s %q cannot be matched without context", ctx.attrWord, apath)
+	}
+
+	var getRef func() string
+	switch m.ref {
+	case "PLUG_PUBLISHER_ID":
+		getRef = ctx.helper.PlugPublisherID
+	case "SLOT_PUBLISHER_ID":
+		getRef = ctx.helper.SlotPublisherID
+	}
+
+	attrVal, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("%s %q is not expected string type: %T", ctx.attrWord, apath, v)
+	}
+
+	refVal := getRef()
+	if attrVal != refVal {
+		return fmt.Errorf("%s %q does not match $%s: %v != %v", ctx.attrWord, apath, m.ref, attrVal, refVal)
 	}
 	return nil
 }

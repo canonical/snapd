@@ -714,6 +714,26 @@ func (sds *snapDeclSuite) TestSuggestedFormat(c *C) {
 		c.Assert(err, IsNil)
 		c.Check(fmtnum, Equals, 5)
 	}
+
+	for _, cstr := range []string{"$PLUG_PUBLISHER_ID", "$SLOT_PUBLISHER_ID"} {
+		for _, sidePrefix := range []string{"plug", "slot"} {
+			headers = map[string]interface{}{
+				sidePrefix + "s": map[string]interface{}{
+					"interface6": map[string]interface{}{
+						"allow-auto-connection": map[string]interface{}{
+							sidePrefix + "-attributes": map[string]interface{}{
+								"x": cstr,
+							},
+						},
+					},
+				},
+			}
+
+			fmtnum, err = asserts.SuggestFormat(asserts.SnapDeclarationType, headers, nil)
+			c.Assert(err, IsNil)
+			c.Check(fmtnum, Equals, 6)
+		}
+	}
 }
 
 func prereqDevAccount(c *C, storeDB assertstest.SignerDB, db *asserts.Database) {

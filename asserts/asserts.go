@@ -207,7 +207,8 @@ func init() {
 	// 3: support for on-store/on-brand/on-model device scope constraints
 	// 4: support for plug-names/slot-names constraints
 	// 5: alt attr matcher usage (was unused before, has new behavior now)
-	maxSupportedFormat[SnapDeclarationType.Name] = 5
+	// 6: support for $PLUG_PUBLISHER_ID/$SLOT_PUBLISHER_ID in attr constraints
+	maxSupportedFormat[SnapDeclarationType.Name] = 6
 
 	// 1: support to limit to device serials
 	// 2: support for user-presence constraint
