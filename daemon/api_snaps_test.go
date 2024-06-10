@@ -46,10 +46,13 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/healthstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/sequence"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
@@ -1600,6 +1603,207 @@ func (s *snapsSuite) TestMapLocalFields(c *check.C) {
 		Apps: []client.AppInfo{
 			{Snap: "some-snap_instance", Name: "bar"},
 			{Snap: "some-snap_instance", Name: "foo"},
+		},
+	}
+	c.Check(daemon.MapLocal(about, nil), check.DeepEquals, expected)
+}
+
+func (s *snapsSuite) TestMapLocalFieldsWithComponents(c *check.C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir(dirs.GlobalRootDir)
+
+	media := snap.MediaInfos{
+		{
+			Type: "screenshot",
+			URL:  "https://example.com/shot1.svg",
+		}, {
+			Type: "icon",
+			URL:  "https://example.com/icon.png",
+		}, {
+			Type: "screenshot",
+			URL:  "https://example.com/shot2.svg",
+		},
+	}
+
+	publisher := snap.StoreAccount{
+		ID:          "some-dev-id",
+		Username:    "some-dev",
+		DisplayName: "Some Developer",
+		Validation:  "poor",
+	}
+	info := &snap.Info{
+		SideInfo: snap.SideInfo{
+			SnapID:            "some-snap-id",
+			RealName:          "some-snap",
+			EditedTitle:       "A Title",
+			EditedSummary:     "a summary",
+			EditedDescription: "the\nlong\ndescription",
+			Channel:           "bleeding/edge",
+			EditedLinks: map[string][]string{
+				"contact": {"mailto:alice@example.com"},
+			},
+			LegacyEditedContact: "mailto:alice@example.com",
+			Revision:            snap.R(7),
+			Private:             true,
+		},
+		SnapType:    "app",
+		Base:        "the-base",
+		Version:     "v1.0",
+		License:     "MIT",
+		Broken:      "very",
+		Confinement: "very strict",
+		CommonIDs:   []string{"foo", "bar"},
+		Media:       media,
+		DownloadInfo: snap.DownloadInfo{
+			Size:     42,
+			Sha3_384: "some-sum",
+		},
+		Publisher: publisher,
+		Components: map[string]*snap.Component{
+			"comp-1": {
+				Name: "comp-1",
+				Type: "test",
+			},
+			"comp-2": {
+				Name:        "comp-2",
+				Type:        "test",
+				Summary:     "summary 2",
+				Description: "description 2",
+			},
+			"comp-3": {
+				Name:        "comp-3",
+				Type:        "test",
+				Summary:     "summary 3",
+				Description: "description 3",
+			},
+			"comp-4": {
+				Name: "comp-4",
+				Type: "test",
+			},
+		},
+	}
+
+	// make InstallDate work
+	c.Assert(os.MkdirAll(info.MountDir(), 0755), check.IsNil)
+	c.Assert(os.Symlink("7", filepath.Join(info.MountDir(), "..", "current")), check.IsNil)
+
+	info.Apps = map[string]*snap.AppInfo{
+		"foo": {Snap: info, Name: "foo", Command: "foo"},
+		"bar": {Snap: info, Name: "bar", Command: "bar"},
+	}
+
+	const comp1yaml = `
+component: some-snap+comp-1
+type: test
+version: 1.0
+`
+	const comp2yaml = `
+component: some-snap+comp-2
+type: test
+version: 1.0
+summary: summary 2
+description: description 2
+`
+	// We need just enough info for components in snap.yaml
+	const snapYaml = `
+name: some-snap
+version: 1
+components:
+  comp-1:
+    type: test
+  comp-2:
+    type: test
+`
+
+	// Mock snap.yaml/component.yaml files for installed components
+	ssi := &snap.SideInfo{RealName: "some-snap", Revision: snap.R(7),
+		SnapID: "some-snap-id"}
+	snaptest.MockSnap(c, snapYaml, ssi)
+	csi := snap.NewComponentSideInfo(naming.NewComponentRef("some-snap", "comp-1"), snap.R(33))
+	snaptest.MockComponent(c, comp1yaml, info, *csi)
+	csi2 := snap.NewComponentSideInfo(naming.NewComponentRef("some-snap", "comp-2"), snap.R(34))
+	snaptest.MockComponent(c, comp2yaml, info, *csi2)
+	comps := []*sequence.ComponentState{
+		sequence.NewComponentState(csi, snap.TestComponent),
+		sequence.NewComponentState(csi2, snap.TestComponent),
+	}
+
+	// make InstallDate/InstalledSize work for comp1 and comp2
+	cpi := snap.MinimalComponentContainerPlaceInfo(
+		csi.Component.ComponentName, csi.Revision, "some-snap")
+	symLn := snap.ComponentLinkPath(cpi, snap.R(7))
+	c.Assert(os.MkdirAll(cpi.MountDir(), 0755), check.IsNil)
+	os.WriteFile(cpi.MountFile(), []byte{0, 0}, 0644)
+	c.Assert(os.MkdirAll(filepath.Dir(symLn), 0755), check.IsNil)
+	c.Assert(os.Symlink(cpi.MountDir(), symLn), check.IsNil)
+	cpi2 := snap.MinimalComponentContainerPlaceInfo(
+		csi2.Component.ComponentName, csi2.Revision, "some-snap")
+	symLn2 := snap.ComponentLinkPath(cpi2, snap.R(7))
+	c.Assert(os.MkdirAll(cpi2.MountDir(), 0755), check.IsNil)
+	os.WriteFile(cpi2.MountFile(), []byte{0, 0, 0}, 0644)
+	c.Assert(os.MkdirAll(filepath.Dir(symLn2), 0755), check.IsNil)
+	c.Assert(os.Symlink(cpi2.MountDir(), symLn2), check.IsNil)
+
+	about := daemon.MakeAboutSnap(info, &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
+			[]*sequence.RevisionSideState{
+				sequence.NewRevisionSideState(ssi, comps)}),
+		Active:          true,
+		TrackingChannel: "flaky/beta",
+		Current:         snap.R(7),
+		Flags: snapstate.Flags{
+			IgnoreValidation: true,
+			DevMode:          true,
+			JailMode:         true,
+		},
+	},
+	)
+
+	expected := &client.Snap{
+		ID:               "some-snap-id",
+		Name:             "some-snap",
+		Summary:          "a summary",
+		Description:      "the\nlong\ndescription",
+		Developer:        "some-dev",
+		Publisher:        &publisher,
+		Icon:             "https://example.com/icon.png",
+		Type:             "app",
+		Base:             "the-base",
+		Version:          "v1.0",
+		Revision:         snap.R(7),
+		Channel:          "bleeding/edge",
+		TrackingChannel:  "flaky/beta",
+		InstallDate:      info.InstallDate(),
+		InstalledSize:    42,
+		Status:           "active",
+		Confinement:      "very strict",
+		IgnoreValidation: true,
+		DevMode:          true,
+		JailMode:         true,
+		Private:          true,
+		Broken:           "very",
+		Links: map[string][]string{
+			"contact": {"mailto:alice@example.com"},
+		},
+		Contact:     "mailto:alice@example.com",
+		Title:       "A Title",
+		License:     "MIT",
+		CommonIDs:   []string{"foo", "bar"},
+		MountedFrom: filepath.Join(dirs.SnapBlobDir, "some-snap_7.snap"),
+		Media:       media,
+		Apps: []client.AppInfo{
+			{Snap: "some-snap", Name: "bar"},
+			{Snap: "some-snap", Name: "foo"},
+		},
+		Components: []client.Component{
+			{Name: "comp-1", Type: "test", Version: "1.0", Revision: snap.R(33),
+				InstallDate: snap.ComponentInstallDate(cpi, snap.R(7)), InstalledSize: 2},
+			{Name: "comp-2", Type: "test", Version: "1.0", Revision: snap.R(34),
+				Summary: "summary 2", Description: "description 2",
+				InstallDate: snap.ComponentInstallDate(cpi, snap.R(7)), InstalledSize: 3},
+			{Name: "comp-3", Type: "test",
+				Summary: "summary 3", Description: "description 3"},
+			{Name: "comp-4", Type: "test"},
 		},
 	}
 	c.Check(daemon.MapLocal(about, nil), check.DeepEquals, expected)
