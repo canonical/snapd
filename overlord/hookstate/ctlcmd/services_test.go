@@ -464,7 +464,7 @@ var (
 	}
 )
 
-func (s *servicectlSuite) testQueuedCommands(c *C, hook string) {
+func (s *servicectlSuite) TestQueuedCommands(c *C) {
 	s.st.Lock()
 
 	chg := s.st.NewChange("install change", "install change")
@@ -481,32 +481,13 @@ func (s *servicectlSuite) testQueuedCommands(c *C, hook string) {
 
 	for _, ts := range tts {
 		tsTasks := ts.Tasks()
-		var task *state.Task
-		switch hook {
-		case "default-configure":
-			// default-configure hook task is the 4th to last task (check installTaskKinds)
-			task = tsTasks[len(tsTasks)-4]
-		case "configure":
-			// configure hook is 2nd to last task (check installTaskKinds)
-			task = tsTasks[len(tsTasks)-2]
-		default:
-			c.Errorf("unexpected hook %q", hook)
-		}
+		// assumes configure task is last
+		task := tsTasks[len(tsTasks)-1]
 		c.Assert(task.Kind(), Equals, "run-hook")
-
-		s.st.Lock()
-		var setup *hookstate.HookSetup
-		c.Assert(task.Get("hook-setup", &setup), IsNil)
-		s.st.Unlock()
-
-		c.Assert(setup.Hook, Equals, hook)
-
-		// reuse existing services
-		setup = &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: hook}
+		setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "configure"}
 		context, err := hookstate.NewContext(task, task.State(), setup, s.mockHandler, "")
 		c.Assert(err, IsNil)
 
-		// simulate running service commands inside the default-configure hook
 		_, _, err = ctlcmd.Run(context, []string{"stop", "test-snap.test-service"}, 0)
 		c.Check(err, IsNil)
 		_, _, err = ctlcmd.Run(context, []string{"start", "test-snap.test-service"}, 0)
@@ -518,21 +499,11 @@ func (s *servicectlSuite) testQueuedCommands(c *C, hook string) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	// service command tasks are queued after all installs tasks, most
-	// importantly after start-snap-services.
 	expectedTaskKinds := append(installTaskKinds, "exec-command", "service-control", "exec-command", "service-control", "exec-command", "service-control")
 	checkLaneTasks := func(lane int) {
 		laneTasks := chg.LaneTasks(lane)
 		c.Assert(taskKinds(laneTasks), DeepEquals, expectedTaskKinds)
-		// default-configure hook runs before services are started
-		c.Check(laneTasks[11].Summary(), Matches, "Run default-configure hook of .* snap if present")
-		c.Check(laneTasks[12].Summary(), Matches, "Start snap .* services")
-		// configure hook runs after services are started
 		c.Check(laneTasks[13].Summary(), Matches, `Run configure hook of .* snap if present`)
-		// health-check hook is last in installTaskKinds
-		c.Check(laneTasks[14].Summary(), Matches, `Run health check of .* snap`)
-		// service command tasks are queued after all installs tasks, most
-		// importantly after start-snap-services.
 		c.Check(laneTasks[15].Summary(), Equals, "stop of [test-snap.test-service]")
 		c.Check(laneTasks[17].Summary(), Equals, "start of [test-snap.test-service]")
 		c.Check(laneTasks[19].Summary(), Equals, "restart of [test-snap.test-service]")
@@ -541,17 +512,107 @@ func (s *servicectlSuite) testQueuedCommands(c *C, hook string) {
 	checkLaneTasks(2)
 }
 
-func (s *servicectlSuite) TestQueuedCommandsConfigureHook(c *C) {
-	const hook = "configure"
-	s.testQueuedCommands(c, hook)
+func (s *servicectlSuite) testQueuedCommandsOrdering(c *C, hook string) {
+	s.st.Lock()
+
+	chg := s.st.NewChange("install change", "install change")
+	ts, err := snapstate.Install(context.Background(), s.st, "one", &snapstate.RevisionOptions{Revision: snap.R(1)}, 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	c.Assert(taskKinds(ts.Tasks()), DeepEquals, installTaskKinds)
+	chg.AddAll(ts)
+
+	s.st.Unlock()
+
+	tsTasks := ts.Tasks()
+	var task *state.Task
+	switch hook {
+	case "default-configure":
+		// default-configure hook task is the 4th to last task (check installTaskKinds)
+		task = tsTasks[len(tsTasks)-4]
+	case "configure":
+		// configure hook is 2nd to last task (check installTaskKinds)
+		task = tsTasks[len(tsTasks)-2]
+	default:
+		c.Errorf("unexpected hook %q", hook)
+	}
+	c.Assert(task.Kind(), Equals, "run-hook")
+
+	s.st.Lock()
+	var setup *hookstate.HookSetup
+	c.Assert(task.Get("hook-setup", &setup), IsNil)
+	s.st.Unlock()
+
+	c.Assert(setup.Hook, Equals, hook)
+
+	// reuse existing services
+	setup = &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: hook}
+	context, err := hookstate.NewContext(task, task.State(), setup, s.mockHandler, "")
+	c.Assert(err, IsNil)
+
+	// simulate running service commands inside the default-configure hook
+	_, _, err = ctlcmd.Run(context, []string{"stop", "test-snap.test-service"}, 0)
+	c.Check(err, IsNil)
+	_, _, err = ctlcmd.Run(context, []string{"start", "test-snap.test-service"}, 0)
+	c.Check(err, IsNil)
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	var cmdTasks []*state.Task
+	for _, t := range chg.Tasks() {
+		if t.Kind() != "exec-command" && t.Kind() != "service-control" {
+			continue
+		}
+		cmdTasks = append(cmdTasks, t)
+	}
+
+	c.Assert(taskKinds(cmdTasks), DeepEquals, []string{"exec-command", "service-control", "exec-command", "service-control"})
+	c.Check(cmdTasks[0].Summary(), Equals, "stop of [test-snap.test-service]")
+	c.Check(cmdTasks[2].Summary(), Equals, "start of [test-snap.test-service]")
+
+	var expectedHaltTaskKinds, expectedWaitTaskKinds []string
+	switch hook {
+	case "default-configure":
+		// service command tasks are injected after start-snap-services
+		expectedWaitTaskKinds = []string{"start-snap-services"}
+		expectedHaltTaskKinds = []string{"run-hook[configure]", "run-hook[check-health]"}
+	case "configure":
+		// service command tasks are queued after all tasks
+		expectedWaitTaskKinds = installTaskKinds
+		expectedHaltTaskKinds = []string{}
+	}
+	for _, t := range cmdTasks {
+		var filteredHaltTasks, filteredWaitTasks []*state.Task
+		for _, wt := range t.WaitTasks() {
+			// filter out command tasks
+			if wt.Kind() == "exec-command" || wt.Kind() == "service-control" {
+				continue
+			}
+			filteredWaitTasks = append(filteredWaitTasks, wt)
+		}
+		for _, ht := range t.HaltTasks() {
+			// filter out command tasks
+			if ht.Kind() == "exec-command" || ht.Kind() == "service-control" {
+				continue
+			}
+			filteredHaltTasks = append(filteredHaltTasks, ht)
+		}
+		c.Assert(taskKinds(filteredWaitTasks), DeepEquals, expectedWaitTaskKinds)
+		c.Assert(taskKinds(filteredHaltTasks), DeepEquals, expectedHaltTaskKinds)
+	}
 }
 
-func (s *servicectlSuite) TestQueuedCommandsDefaultConfigureHook(c *C) {
+func (s *servicectlSuite) TestQueuedCommandsDefaultConfigureHookOrdering(c *C) {
 	const hook = "default-configure"
-	s.testQueuedCommands(c, hook)
+	s.testQueuedCommandsOrdering(c, hook)
 }
 
-func (s *servicectlSuite) testQueueCommandsOrdering(c *C, finalTaskKind string) {
+func (s *servicectlSuite) TestQueuedCommandsConfigureHookOrdering(c *C) {
+	const hook = "configure"
+	s.testQueuedCommandsOrdering(c, hook)
+}
+
+func (s *servicectlSuite) testQueueCommandsConfigureHookFinalTask(c *C, finalTaskKind string) {
 	s.st.Lock()
 
 	chg := s.st.NewChange("seeding change", "seeding change")
@@ -634,11 +695,11 @@ func (s *servicectlSuite) testQueueCommandsOrdering(c *C, finalTaskKind string) 
 }
 
 func (s *servicectlSuite) TestQueuedCommandsRunBeforeMarkSeeded(c *C) {
-	s.testQueueCommandsOrdering(c, "mark-seeded")
+	s.testQueueCommandsConfigureHookFinalTask(c, "mark-seeded")
 }
 
 func (s *servicectlSuite) TestQueuedCommandsRunBeforeSetModel(c *C) {
-	s.testQueueCommandsOrdering(c, "set-model")
+	s.testQueueCommandsConfigureHookFinalTask(c, "set-model")
 }
 
 func (s *servicectlSuite) TestQueuedCommandsUpdateMany(c *C) {

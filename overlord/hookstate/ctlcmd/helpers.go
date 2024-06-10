@@ -85,19 +85,20 @@ func getServiceInfos(st *state.State, snapName string, serviceNames []string) ([
 
 var servicestateControl = servicestate.Control
 
-func queueCommand(context *hookstate.Context, tts []*state.TaskSet) error {
-	hookTask, ok := context.Task()
-	if !ok {
-		return fmt.Errorf("attempted to queue command with ephemeral context")
+func prepareQueueCommand(context *hookstate.Context, tts []*state.TaskSet) (change *state.Change, tasks []*state.Task, err error) {
+	hookName := context.HookName()
+	if hookName != "configure" && hookName != "default-configure" {
+		return nil, nil, fmt.Errorf(`internal error: unexpected %q hook`, hookName)
 	}
 
-	st := context.State()
-	st.Lock()
-	defer st.Unlock()
+	hookTask, ok := context.Task()
+	if !ok {
+		return nil, nil, fmt.Errorf("attempted to queue command with ephemeral context")
+	}
 
-	change := hookTask.Change()
+	change = hookTask.Change()
 	hookTaskLanes := hookTask.Lanes()
-	tasks := change.LaneTasks(hookTaskLanes...)
+	tasks = change.LaneTasks(hookTaskLanes...)
 
 	// When installing or updating multiple snaps, there is one lane per snap.
 	// We want service command to join respective lane (it's the lane the hook belongs to).
@@ -111,9 +112,22 @@ func queueCommand(context *hookstate.Context, tts []*state.TaskSet) error {
 		}
 	}
 
+	return change, tasks, err
+}
+
+// queueConfigureHookCommand queues service command after all tasks, except for final tasks which must come after service commands.
+func queueConfigureHookCommand(context *hookstate.Context, tts []*state.TaskSet) error {
+	st := context.State()
+	st.Lock()
+	defer st.Unlock()
+
+	change, tasks, err := prepareQueueCommand(context, tts)
+	if err != nil {
+		return err
+	}
+
 	for _, ts := range tts {
 		for _, t := range tasks {
-			// queue service command after all tasks, except for final tasks which must come after service commands
 			if finalTasks[t.Kind()] {
 				t.WaitAll(ts)
 			} else {
@@ -122,6 +136,38 @@ func queueCommand(context *hookstate.Context, tts []*state.TaskSet) error {
 		}
 		change.AddAll(ts)
 	}
+
+	// As this can be run from what was originally the last task of a change,
+	// make sure the tasks added to the change are considered immediately.
+	st.EnsureBefore(0)
+
+	return nil
+}
+
+// queueDefaultConfigureHookCommand queues service command exactly after start-snap-services.
+//
+// This is possible because the default-configure hook is run on first-install only and right
+// after start-snap-services is the nearest we can queue the service commands safely to make
+// sure all the needed state is setup properly.
+func queueDefaultConfigureHookCommand(context *hookstate.Context, tts []*state.TaskSet) error {
+	st := context.State()
+	st.Lock()
+	defer st.Unlock()
+
+	_, tasks, err := prepareQueueCommand(context, tts)
+	if err != nil {
+		return err
+	}
+
+	for _, t := range tasks {
+		if t.Kind() == "start-snap-services" {
+			for _, ts := range tts {
+				snapstate.InjectTasks(t, ts)
+			}
+			break
+		}
+	}
+
 	// As this can be run from what was originally the last task of a change,
 	// make sure the tasks added to the change are considered immediately.
 	st.EnsureBefore(0)
@@ -149,8 +195,14 @@ func runServiceCommand(context *hookstate.Context, inst *servicestate.Instructio
 		return err
 	}
 
-	if !context.IsEphemeral() && (context.HookName() == "configure" || context.HookName() == "default-configure") {
-		return queueCommand(context, tts)
+	if !context.IsEphemeral() {
+		// queue service command for default-configure and configure hooks.
+		switch context.HookName() {
+		case "configure":
+			return queueConfigureHookCommand(context, tts)
+		case "default-configure":
+			return queueDefaultConfigureHookCommand(context, tts)
+		}
 	}
 
 	st.Lock()
