@@ -192,10 +192,6 @@ backends:
                   workers: 6
                   storage: preserve-size
                   image: centos-7-64
-            - centos-8-64:
-                  workers: 6
-                  storage: preserve-size
-                  image: centos-8-64
             - centos-9-64:
                   workers: 6
                   storage: preserve-size
@@ -722,13 +718,6 @@ prepare: |
         restorecon -v /etc/gai.conf
     fi
 
-    if [[ "$SPREAD_SYSTEM" == centos-8-* ]]; then
-        # the default image of CentOS 8 Stream is set up in enforcing mode,
-        # which may break some tests. Note that there are tests targeting
-        # SELinux which explicitly enable enforcing mode.
-        setenforce 0
-    fi
-
     # Note that os.query or any other tool cannot be used here before the current.delta file is unpacked
     if [[ "$SPREAD_SYSTEM" == fedora-* ]]; then
         # The Fedora archive mirror seems to be unreliable.
@@ -783,10 +772,8 @@ prepare: |
             # make sure EPEL is enabled
             yum install -y epel-release
             ;;
-        centos-8-*)
-            # enable powertools repository
-            dnf config-manager --set-enabled powertools
-            # CentOS Stream requires EPEL Next too, see https://docs.fedoraproject.org/en-US/epel/
+        centos-9-*)
+            dnf config-manager --set-enabled crb
             dnf install -y epel-release epel-next-release
             ;;
     esac
