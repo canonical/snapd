@@ -324,29 +324,35 @@ func sideloadSnap(st *state.State, snapFile *uploadedSnap, flags sideloadFlags) 
 	}
 
 	var tset *state.TaskSet
-	container := "snap"
+	contType := "snap"
 	message := fmt.Sprintf("%q snap", instanceName)
 	if compInfo == nil {
 		tset, _, err = snapstateInstallPath(st, sideInfo, snapFile.tmpPath, instanceName, "", flags.Flags, nil)
 	} else {
 		// It is a component
-		container = "component"
+		contType = "component"
 		message = fmt.Sprintf("%q component for %q snap",
 			compInfo.Component.ComponentName, instanceName)
 		tset, err = snapstateInstallComponentPath(st, snap.NewComponentSideInfo(compInfo.Component, snap.Revision{}), snapInfo, snapFile.tmpPath, flags.Flags)
 	}
 	if err != nil {
-		return nil, errToResponse(err, []string{sideInfo.RealName}, InternalError, "cannot install %s file: %v", container)
+		return nil, errToResponse(err, []string{sideInfo.RealName}, InternalError, "cannot install %s file: %v", contType)
 	}
 
 	msg := fmt.Sprintf(i18n.G("Install %s from file %q"), message, snapFile.filename)
-	chg := newChange(st, "install-"+container, msg, []*state.TaskSet{tset}, []string{instanceName})
-	apiData := map[string]interface{}{
-		"snap-name":  instanceName,
-		"snap-names": []string{instanceName},
-	}
-	if compInfo != nil {
-		apiData["component-name"] = compInfo.Component.ComponentName
+	chg := newChange(st, "install-"+contType, msg, []*state.TaskSet{tset}, []string{instanceName})
+	apiData := map[string]interface{}{}
+	if compInfo == nil {
+		apiData = map[string]interface{}{
+			"snap-name":  instanceName,
+			"snap-names": []string{instanceName},
+		}
+	} else {
+		// Installing only a component, so snap name is inside components entry
+		// (snap-name would be included if installing snap+components)
+		apiData["components"] = map[string][]string{
+			instanceName: {compInfo.Component.ComponentName},
+		}
 	}
 	chg.Set("api-data", apiData)
 
