@@ -520,7 +520,7 @@ func ResealKeys(params *ResealKeysParams) error {
 	for _, keyfile := range params.KeyFiles {
 		keyData, keyObject, err := readKeyFile(keyfile)
 		if err != nil {
-			return fmt.Errorf("cannot read keyfile %s: %w", keyfile, err)
+			return fmt.Errorf("cannot read key file %s: %w", keyfile, err)
 		}
 		keyDatas = append(keyDatas, keyData)
 		sealedKeyObjects = append(sealedKeyObjects, keyObject)
@@ -726,16 +726,21 @@ func efiImageFromBootFile(b *bootloader.BootFile) (sb_efi.Image, error) {
 // PCRHandleOfSealedKey retunrs the PCR handle which was used when sealing a
 // given key object.
 func PCRHandleOfSealedKey(p string) (uint32, error) {
-	r, err := sb_tpm2.NewFileSealedKeyObjectReader(p)
+	keyData, keyObject, err := readKeyFile(p)
 	if err != nil {
-		return 0, fmt.Errorf("cannot open key file: %v", err)
+		return 0, fmt.Errorf("cannot read key file %s: %w", p, err)
 	}
-	sko, err := sb_tpm2.ReadSealedKeyObject(r)
-	if err != nil {
-		return 0, fmt.Errorf("cannot read sealed key file: %v", err)
+	if keyObject != nil {
+		handle := uint32(keyObject.PCRPolicyCounterHandle())
+		return handle, nil
+	} else {
+		sealedKeyData, err := sb_tpm2.NewSealedKeyData(keyData)
+		if err != nil {
+			return 0, fmt.Errorf("cannot read key data in keyfile %s: %w", p, err)
+		}
+		handle := uint32(sealedKeyData.PCRPolicyCounterHandle())
+		return handle, nil
 	}
-	handle := uint32(sko.PCRPolicyCounterHandle())
-	return handle, nil
 }
 
 func tpmReleaseResourcesImpl(tpm *sb_tpm2.Connection, handle tpm2.Handle) error {

@@ -1066,7 +1066,7 @@ func (s *secbootSuite) TestResealKey(c *C) {
 		{tpmEnabled: true, addPCRProfileErr: mockErr, expectedErr: "cannot build new PCR protection profile: cannot add EFI secure boot and boot manager policy profiles: some error"},
 		{tpmEnabled: true, addSystemdEFIStubErr: mockErr, expectedErr: "cannot build new PCR protection profile: cannot add systemd EFI stub profile: some error"},
 		{tpmEnabled: true, addSnapModelErr: mockErr, expectedErr: "cannot build new PCR protection profile: cannot add snap model profile: some error"},
-		{tpmEnabled: true, readSealedKeyObjectErr: mockErr, expectedErr: "cannot read keyfile .*: some error"},
+		{tpmEnabled: true, readSealedKeyObjectErr: mockErr, expectedErr: "cannot read key file .*: some error"},
 		{tpmEnabled: true, resealErr: mockErr, resealCalls: 1, expectedErr: "cannot update legacy PCR protection policy: some error"},
 		{tpmEnabled: true, revokeErr: errors.New("revoke error"), resealCalls: 1, revokeCalls: 1, expectedErr: "cannot revoke old PCR protection policies: revoke error"},
 	} {
@@ -2003,14 +2003,14 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyBadJ
 func (s *secbootSuite) TestPCRHandleOfSealedKey(c *C) {
 	d := c.MkDir()
 	h, err := secboot.PCRHandleOfSealedKey(filepath.Join(d, "not-found"))
-	c.Assert(err, ErrorMatches, "cannot open key file: .*/not-found: no such file or directory")
+	c.Assert(err, ErrorMatches, "cannot read key file .*/not-found:.* no such file or directory")
 	c.Assert(h, Equals, uint32(0))
 
 	skf := filepath.Join(d, "sealed-key")
 	// partially valid sealed key with correct header magic
 	c.Assert(os.WriteFile(skf, []byte{0x55, 0x53, 0x4b, 0x24, 1, 1, 1, 'k', 'e', 'y', 1, 1, 1}, 0644), IsNil)
 	h, err = secboot.PCRHandleOfSealedKey(skf)
-	c.Assert(err, ErrorMatches, "(?s)cannot open key file: invalid key data: cannot unmarshal AFIS header: .*")
+	c.Assert(err, ErrorMatches, "(?s)cannot read key file .*: invalid key data: cannot unmarshal AFIS header: .*")
 	c.Check(h, Equals, uint32(0))
 
 	// TODO simulate the happy case, which needs a real (or at least
