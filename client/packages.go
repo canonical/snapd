@@ -91,6 +91,9 @@ type Snap struct {
 	GatingHold *time.Time `json:"gating-hold,omitempty"`
 	// if RefreshInhibit is nil, then there is no pending refresh.
 	RefreshInhibit *SnapRefreshInhibit `json:"refresh-inhibit,omitempty"`
+
+	// Components is a list of the snap components
+	Components []Component `json:"components,omitempty"`
 }
 
 type SnapHealth struct {
