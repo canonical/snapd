@@ -60,14 +60,13 @@ func changedKernelConfigs(c RunTransaction) []string {
 }
 
 func validateCmdlineParamsAreAllowed(st *state.State, devCtx snapstate.DeviceContext, cmdline string) error {
+	if devCtx.IsClassicBoot() {
+		return fmt.Errorf("changing the kernel command line is not supported on a classic system")
+	}
+
 	gd, err := devicestate.CurrentGadgetData(st, devCtx)
 	if err != nil {
 		return err
-	}
-	if gd == nil {
-		// no gadget data currently, so we cannot check against the allow-list
-		// this can happen on classic systems
-		return fmt.Errorf("changing the kernel command line is not supported on a classic system")
 	}
 
 	logger.Debugf("gadget data read from %s", gd.RootDir)
