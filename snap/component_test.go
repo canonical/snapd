@@ -55,6 +55,7 @@ type: test
 version: 1.0
 summary: short description
 description: long description
+provenance: prov
 `
 	compName := "mysnap+test-info"
 	testComp := snaptest.MakeTestComponentWithFiles(c, compName+".comp", componentYaml, nil)
@@ -70,9 +71,11 @@ description: long description
 		"1.0",
 		"short description",
 		"long description",
+		"prov",
 		nil,
 	))
 	c.Assert(ci.FullName(), Equals, compName)
+	c.Assert(ci.Provenance(), Equals, "prov")
 
 	// since we didn't pass a side info, then ComponentSideInfo should be empty
 	c.Assert(ci.ComponentSideInfo, Equals, snap.ComponentSideInfo{})
@@ -98,9 +101,10 @@ version: 1.0.2
 		naming.NewComponentRef("mysnap", "test-info"),
 		snap.ComponentType("test"),
 		"1.0.2",
-		"", "", nil,
+		"", "", "", nil,
 	))
 	c.Assert(ci.FullName(), Equals, compName)
+	c.Assert(ci.Provenance(), Equals, naming.DefaultProvenance)
 }
 
 func (s *componentSuite) TestReadComponentInfoFromFileBadName(c *C) {
