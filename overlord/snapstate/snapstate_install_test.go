@@ -4652,7 +4652,11 @@ func (s *snapmgrTestSuite) TestHasAllContentAttributes(c *C) {
 	c.Assert(repo.AddInterface(&ifacetest.TestInterface{InterfaceName: "content"}), IsNil)
 	c.Assert(repo.AddInterface(&ifacetest.TestInterface{InterfaceName: "diff"}), IsNil)
 	ifacerepo.Replace(s.state, repo)
-	c.Assert(repo.AddSnap(mySnap), IsNil)
+
+	mySnapAppSet, err := interfaces.NewSnapAppSet(mySnap, nil)
+	c.Assert(err, IsNil)
+
+	c.Assert(repo.AddAppSet(mySnapAppSet), IsNil)
 
 	// check snap provides all content tags required
 	ok, err := snapstate.HasAllContentAttrs(s.state, "some-snap", []string{"some"})

@@ -240,7 +240,7 @@ func (m *InterfaceManager) setupProfilesForAppSet(task *state.Task, appSet *inte
 	if err := m.repo.RemoveSnap(snapName); err != nil {
 		return err
 	}
-	if err := m.repo.AddSnap(snapInfo); err != nil {
+	if err := m.repo.AddAppSet(appSet); err != nil {
 		return err
 	}
 	if len(snapInfo.BadInterfaces) > 0 {
@@ -762,8 +762,6 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 			return err
 		}
 
-		// TODO: we do this a lot, would it be possible for something like a
-		// SnapState.CurrentAppSet()?
 		appSet, err := appSetForSnapRevision(st, snapInfo)
 		if err != nil {
 			return fmt.Errorf("building app set for snap %q: %v", snapInfo.InstanceName(), err)

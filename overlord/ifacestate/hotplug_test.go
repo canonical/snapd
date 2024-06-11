@@ -439,10 +439,10 @@ func (s *hotplugSuite) TestHotplugAddWithAutoconnect(c *C) {
 	st.Lock()
 	// mock the consumer snap/plug
 	si := &snap.SideInfo{RealName: "consumer", Revision: snap.R(1)}
-	testSnap := snaptest.MockSnapInstance(c, "", testSnapYaml, si)
-	c.Assert(testSnap.Plugs, HasLen, 1)
-	c.Assert(testSnap.Plugs["plug"], NotNil)
-	c.Assert(repo.AddPlug(testSnap.Plugs["plug"]), IsNil)
+	testSnap := ifacetest.MockSnapAndAppSet(c, testSnapYaml, nil, si)
+	c.Assert(testSnap.Info().Plugs, HasLen, 1)
+	c.Assert(testSnap.Info().Plugs["plug"], NotNil)
+	c.Assert(repo.AddAppSet(testSnap), IsNil)
 	snapstate.Set(s.state, "consumer", &snapstate.SnapState{
 		Active:   true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
@@ -510,13 +510,8 @@ func (s *hotplugSuite) TestHotplugRemove(c *C) {
 
 	repo := s.mgr.Repository()
 	si := &snap.SideInfo{RealName: "consumer", Revision: snap.R(1)}
-	testSnap := snaptest.MockSnapInstance(c, "", testSnapYaml, si)
-	c.Assert(repo.AddPlug(&snap.PlugInfo{
-		Interface: "test-a",
-		Name:      "plug",
-		Attrs:     map[string]interface{}{},
-		Snap:      testSnap,
-	}), IsNil)
+	testSnap := ifacetest.MockSnapAndAppSet(c, testSnapYaml, nil, si)
+	c.Assert(repo.AddAppSet(testSnap), IsNil)
 	snapstate.Set(s.state, "consumer", &snapstate.SnapState{
 		Active:   true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
@@ -595,13 +590,8 @@ func (s *hotplugSuite) TestHotplugEnumerationDone(c *C) {
 	repo := s.mgr.Repository()
 
 	si := &snap.SideInfo{RealName: "consumer", Revision: snap.R(1)}
-	testSnap := snaptest.MockSnapInstance(c, "", testSnapYaml, si)
-	c.Assert(repo.AddPlug(&snap.PlugInfo{
-		Interface: "test-a",
-		Name:      "plug",
-		Attrs:     map[string]interface{}{},
-		Snap:      testSnap,
-	}), IsNil)
+	testSnap := ifacetest.MockSnapAndAppSet(c, testSnapYaml, nil, si)
+	c.Assert(repo.AddAppSet(testSnap), IsNil)
 	snapstate.Set(s.state, "consumer", &snapstate.SnapState{
 		Active:   true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
@@ -697,13 +687,8 @@ func (s *hotplugSuite) TestHotplugDeviceUpdate(c *C) {
 
 	repo := s.mgr.Repository()
 	si := &snap.SideInfo{RealName: "consumer", Revision: snap.R(1)}
-	testSnap := snaptest.MockSnapInstance(c, "", testSnapYaml, si)
-	c.Assert(repo.AddPlug(&snap.PlugInfo{
-		Interface: "test-a",
-		Name:      "plug",
-		Attrs:     map[string]interface{}{},
-		Snap:      testSnap,
-	}), IsNil)
+	testSnap := ifacetest.MockSnapAndAppSet(c, testSnapYaml, nil, si)
+	c.Assert(repo.AddAppSet(testSnap), IsNil)
 	snapstate.Set(s.state, "consumer", &snapstate.SnapState{
 		Active:   true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
