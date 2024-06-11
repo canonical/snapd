@@ -609,13 +609,17 @@ func (s *specSuite) TestSetSuppressPycacheDeny(c *C) {
 func (s *specSuite) TestPrioritySnippets(c *C) {
 	restore := apparmor.SetSpecScope(s.spec, []string{"snap.demo.scope1"})
 
+	key1 := interfaces.NewPriorityKey("key1")
+	key2 := interfaces.NewPriorityKey("key2")
+	s.spec.RegisterPriorityKey(key1)
+	s.spec.RegisterPriorityKey(key2)
 	// Test a scope with a normal snippet and prioritized ones
 	s.spec.AddSnippet("Test snippet 1")
-	s.spec.AddPrioritizedSnippet("Prioritized snippet 1", "uid1", 0)
-	s.spec.AddPrioritizedSnippet("Prioritized snippet 2", "uid1", 0)
-	s.spec.AddPrioritizedSnippet("Prioritized snippet 3", "uid2", 1)
-	s.spec.AddPrioritizedSnippet("Prioritized snippet 4", "uid2", 2)
-	s.spec.AddPrioritizedSnippet("Prioritized snippet 5", "uid2", 0)
+	s.spec.AddPrioritizedSnippet("Prioritized snippet 1", key1, 0)
+	s.spec.AddPrioritizedSnippet("Prioritized snippet 2", key1, 0)
+	s.spec.AddPrioritizedSnippet("Prioritized snippet 3", key2, 1)
+	s.spec.AddPrioritizedSnippet("Prioritized snippet 4", key2, 2)
+	s.spec.AddPrioritizedSnippet("Prioritized snippet 5", key2, 0)
 
 	restore()
 
@@ -623,11 +627,11 @@ func (s *specSuite) TestPrioritySnippets(c *C) {
 	restore = apparmor.SetSpecScope(s.spec, []string{"snap.demo.scope2"})
 	defer restore()
 
-	s.spec.AddPrioritizedSnippet("Prioritized snippet 6", "uid1", 0)
-	s.spec.AddPrioritizedSnippet("Prioritized snippet 7", "uid1", 0)
-	s.spec.AddPrioritizedSnippet("Prioritized snippet 8", "uid2", 1)
-	s.spec.AddPrioritizedSnippet("Prioritized snippet 9", "uid2", 2)
-	s.spec.AddPrioritizedSnippet("Prioritized snippet 10", "uid2", 0)
+	s.spec.AddPrioritizedSnippet("Prioritized snippet 6", key1, 0)
+	s.spec.AddPrioritizedSnippet("Prioritized snippet 7", key1, 0)
+	s.spec.AddPrioritizedSnippet("Prioritized snippet 8", key2, 1)
+	s.spec.AddPrioritizedSnippet("Prioritized snippet 9", key2, 2)
+	s.spec.AddPrioritizedSnippet("Prioritized snippet 10", key2, 0)
 
 	snippets := s.spec.SnippetForTag("snap.demo.scope1")
 	c.Assert(snippets, testutil.Contains, "Test snippet 1")
@@ -647,4 +651,38 @@ func (s *specSuite) TestPrioritySnippets(c *C) {
 	tags := s.spec.SecurityTags()
 	c.Assert(tags, testutil.Contains, "snap.demo.scope1")
 	c.Assert(tags, testutil.Contains, "snap.demo.scope2")
+}
+
+func (s *specSuite) TestPrioritySnippetsNoRegisteredKey(c *C) {
+	currentStep := 0
+	defer func() {
+		r := recover()
+		// the test must panic when calling AddPrioritizedSnippet
+		c.Assert(r, NotNil)
+		c.Assert(currentStep, Equals, 1)
+	}()
+
+	key1 := interfaces.NewPriorityKey("key1")
+	currentStep = 1
+	s.spec.AddPrioritizedSnippet("Prioritized snippet 1", key1, 0)
+	currentStep = 2
+}
+
+func (s *specSuite) TestRegisterSamePriorityKeyTwice(c *C) {
+	currentStep := 0
+	defer func() {
+		r := recover()
+		// the test must panic when calling RegisterPriorityKey the second time
+		c.Assert(r, NotNil)
+		c.Assert(currentStep, Equals, 3)
+	}()
+
+	key1 := interfaces.NewPriorityKey("key")
+	currentStep = 1
+	key2 := interfaces.NewPriorityKey("key")
+	currentStep = 2
+	s.spec.RegisterPriorityKey(key1)
+	currentStep = 3
+	s.spec.RegisterPriorityKey(key2)
+	currentStep = 4
 }

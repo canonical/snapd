@@ -23,10 +23,12 @@ import (
 	"bytes"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -69,6 +71,11 @@ type Specification struct {
 	// priority is the same as the old one, and will be discarded if the new priority
 	// is smaller than the old one.
 	prioritizedSnippets map[string]map[string]prioritizedSnippetsType
+
+	// PriorityKeys is a list of allowed keys for prioritized snippets.
+	// Trying to add a prioritized snippet with an unregistered key is
+	// an error. Trying to register the same key twice is also an error.
+	priorityKeys []string
 
 	// dedupSnippets are just like snippets but are added only once to the
 	// resulting policy in an effort to avoid certain expensive to de-duplicate
@@ -163,43 +170,56 @@ func (spec *Specification) AddSnippet(snippet string) {
 	}
 }
 
+// RegisterPriorityKey adds a key to the list of valid keys
+func (spec *Specification) RegisterPriorityKey(key interfaces.PriorityKey) {
+	if slices.Contains(spec.priorityKeys, key.GetValue()) {
+		logger.Panicf("priority key %s is already registered", key)
+	}
+	spec.priorityKeys = append(spec.priorityKeys, key.GetValue())
+}
+
 // AddPrioritizedSnippet adds a new apparmor snippet to all applications and hooks using the interface,
 // but identified with a key and a priority. If no other snippet exists with that key, the snippet is
 // added like with AddSnippet, but if there is already another snippet with that key, the priority of
 // both will be taken into account to decide whether the new snippet replaces the old one, is appended
-// to it, or is just ignored.
-func (spec *Specification) AddPrioritizedSnippet(snippet string, key string, priority uint) {
+// to it, or is just ignored. The key must have been previously registered using RegisterPriorityKey().
+func (spec *Specification) AddPrioritizedSnippet(snippet string, key interfaces.PriorityKey, priority uint) {
+	if !slices.Contains(spec.priorityKeys, key.GetValue()) {
+		logger.Panicf("priority key %s is not registered", key)
+	}
 	if len(spec.securityTags) == 0 {
 		return
 	}
 	if spec.prioritizedSnippets == nil {
 		spec.prioritizedSnippets = make(map[string]map[string]prioritizedSnippetsType)
 	}
+
 	for _, tag := range spec.securityTags {
 		if _, exists := spec.prioritizedSnippets[tag]; !exists {
 			spec.prioritizedSnippets[tag] = make(map[string]prioritizedSnippetsType)
 		}
-		if snippets, exists := spec.prioritizedSnippets[tag][key]; exists {
+		if snippets, exists := spec.prioritizedSnippets[tag][key.GetValue()]; exists {
 			if snippets.priority == priority {
 				// if priority is the same, append the snippet to the already existing snippets
-				spec.prioritizedSnippets[tag][key] = prioritizedSnippetsType{
+				spec.prioritizedSnippets[tag][key.GetValue()] = prioritizedSnippetsType{
 					priority: priority,
 					snippets: append(snippets.snippets, snippet),
 				}
 			} else if snippets.priority < priority {
 				// if priority is greater, replace the snippets with the new one
-				spec.prioritizedSnippets[tag][key] = prioritizedSnippetsType{
+				spec.prioritizedSnippets[tag][key.GetValue()] = prioritizedSnippetsType{
 					priority: priority,
 					snippets: append([]string(nil), snippet),
 				}
 			} // if priority is smaller, do nothing
 		} else {
-			spec.prioritizedSnippets[tag][key] = prioritizedSnippetsType{
+			spec.prioritizedSnippets[tag][key.GetValue()] = prioritizedSnippetsType{
 				priority: priority,
 				snippets: append([]string(nil), snippet),
 			}
 		}
 	}
+	return
 }
 
 func (spec *Specification) composeSnippetsForTag(tag string) []string {

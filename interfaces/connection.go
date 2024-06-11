@@ -87,6 +87,18 @@ type Attrer interface {
 	Lookup(path string) (value interface{}, ok bool)
 }
 
+type PriorityKey struct {
+	key string
+}
+
+func (pk *PriorityKey) GetValue() string {
+	return pk.key
+}
+
+func NewPriorityKey(key string) PriorityKey {
+	return PriorityKey{key: key}
+}
+
 func lookupAttr(staticAttrs map[string]interface{}, dynamicAttrs map[string]interface{}, path string) (interface{}, bool) {
 	var v interface{}
 	comps := strings.FieldsFunc(path, func(r rune) bool { return r == '.' })
