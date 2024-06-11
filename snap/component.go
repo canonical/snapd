@@ -309,5 +309,8 @@ func (ci *ComponentInfo) validate() error {
 	if err := ValidateDescription(ci.Description); err != nil {
 		return err
 	}
+	if err := validateProvenance(ci.ComponentProvenance); err != nil {
+		return err
+	}
 	return nil
 }

@@ -195,6 +195,21 @@ version: 1.0
 	c.Assert(ci, IsNil)
 }
 
+func (s *componentSuite) TestReadComponentBadProvenance(c *C) {
+	const componentYaml = `component: mysnap+extra
+type: test
+version: 1.0
+provenance: invalid-prov-
+`
+	testComp := snaptest.MakeTestComponentWithFiles(c, "mysnap+extra.comp", componentYaml, nil)
+
+	compf, err := snapfile.Open(testComp)
+	c.Assert(err, IsNil)
+
+	_, err = snap.ReadComponentInfoFromContainer(compf, nil, nil)
+	c.Assert(err.Error(), Equals, `invalid provenance: "invalid-prov-"`)
+}
+
 func (s *componentSuite) TestReadComponentVersion(c *C) {
 	const componentYamlTmpl = `component: snap+comp
 type: test
