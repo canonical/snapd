@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"fmt"
 	"path/filepath"
-	"slices"
 	"sort"
 	"strings"
 
@@ -75,7 +74,7 @@ type Specification struct {
 	// SnippetKeys is a list of allowed keys for prioritized snippets.
 	// Trying to add a prioritized snippet with an unregistered key is
 	// an error. Trying to register the same key twice is also an error.
-	snippetKeys []string
+	snippetKeys map[string]bool
 
 	// dedupSnippets are just like snippets but are added only once to the
 	// resulting policy in an effort to avoid certain expensive to de-duplicate
@@ -172,10 +171,13 @@ func (spec *Specification) AddSnippet(snippet string) {
 
 // RegisterSnippetKey adds a key to the list of valid keys
 func (spec *Specification) RegisterSnippetKey(key interfaces.SnippetKey) {
-	if slices.Contains(spec.snippetKeys, key.GetValue()) {
+	if spec.snippetKeys == nil {
+		spec.snippetKeys = make(map[string]bool)
+	}
+	if _, ok := spec.snippetKeys[key.GetValue()]; ok {
 		logger.Panicf("priority key %s is already registered", key)
 	}
-	spec.snippetKeys = append(spec.snippetKeys, key.GetValue())
+	spec.snippetKeys[key.GetValue()] = true
 }
 
 // AddPrioritizedSnippet adds a new apparmor snippet to all applications and hooks using the interface,
@@ -184,7 +186,7 @@ func (spec *Specification) RegisterSnippetKey(key interfaces.SnippetKey) {
 // both will be taken into account to decide whether the new snippet replaces the old one, is appended
 // to it, or is just ignored. The key must have been previously registered using RegisterSnippetKey().
 func (spec *Specification) AddPrioritizedSnippet(snippet string, key interfaces.SnippetKey, priority uint) {
-	if !slices.Contains(spec.snippetKeys, key.GetValue()) {
+	if _, ok := spec.snippetKeys[key.GetValue()]; !ok {
 		logger.Panicf("priority key %s is not registered", key)
 	}
 	if len(spec.securityTags) == 0 {
