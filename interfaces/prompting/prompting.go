@@ -64,9 +64,9 @@ func (outcome *OutcomeType) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// IsAllow returns true if the outcome is OutcomeAllow, false if the outcome is
+// AsBool returns true if the outcome is OutcomeAllow, false if the outcome is
 // OutcomeDeny, or an error if it cannot be parsed.
-func (outcome OutcomeType) IsAllow() (bool, error) {
+func (outcome OutcomeType) AsBool() (bool, error) {
 	switch outcome {
 	case OutcomeAllow:
 		return true, nil

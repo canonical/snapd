@@ -385,7 +385,7 @@ func (s *requestpromptsSuite) TestReply(c *C) {
 			c.Check(receivedReq, Equals, listenerReq)
 			allowed, ok := result.(bool)
 			c.Check(ok, Equals, true)
-			expected, err := outcome.IsAllow()
+			expected, err := outcome.AsBool()
 			c.Check(err, IsNil)
 			c.Check(allowed, Equals, expected)
 		}

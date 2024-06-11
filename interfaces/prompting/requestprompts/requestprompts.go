@@ -279,7 +279,7 @@ func (pdb *PromptDB) promptWithID(user uint32, id string) (*userPromptDB, *Promp
 //
 // Records a notice for the prompt, and returns the prompt's former contents.
 func (pdb *PromptDB) Reply(user uint32, id string, outcome prompting.OutcomeType) (*Prompt, error) {
-	allow, err := outcome.IsAllow()
+	allow, err := outcome.AsBool()
 	if err != nil {
 		return nil, err
 	}
@@ -322,12 +322,12 @@ var sendReply = func(listenerReq *listener.Request, reply interface{}) error {
 // Returns the IDs of any prompts which were fully satisfied by the given rule
 // contents.
 func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *prompting.Constraints, outcome prompting.OutcomeType) ([]string, error) {
-	pdb.mutex.Lock()
-	defer pdb.mutex.Unlock()
-	allow, err := outcome.IsAllow()
+	allow, err := outcome.AsBool()
 	if err != nil {
 		return nil, err
 	}
+	pdb.mutex.Lock()
+	defer pdb.mutex.Unlock()
 	satisfiedPromptIDs := []string{}
 	userEntry, ok := pdb.perUser[metadata.User]
 	if !ok {

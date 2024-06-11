@@ -36,16 +36,16 @@ type promptingSuite struct{}
 
 var _ = Suite(&promptingSuite{})
 
-func (s *promptingSuite) TestOutcomeIsAllow(c *C) {
-	result, err := prompting.OutcomeAllow.IsAllow()
+func (s *promptingSuite) TestOutcomeAsBool(c *C) {
+	result, err := prompting.OutcomeAllow.AsBool()
 	c.Check(err, IsNil)
 	c.Check(result, Equals, true)
-	result, err = prompting.OutcomeDeny.IsAllow()
+	result, err = prompting.OutcomeDeny.AsBool()
 	c.Check(err, IsNil)
 	c.Check(result, Equals, false)
-	_, err = prompting.OutcomeUnset.IsAllow()
+	_, err = prompting.OutcomeUnset.AsBool()
 	c.Check(err, ErrorMatches, `internal error: invalid outcome.*`)
-	_, err = prompting.OutcomeType("foo").IsAllow()
+	_, err = prompting.OutcomeType("foo").AsBool()
 	c.Check(err, ErrorMatches, `internal error: invalid outcome.*`)
 }
 
