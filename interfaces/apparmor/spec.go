@@ -174,10 +174,10 @@ func (spec *Specification) RegisterSnippetKey(key interfaces.SnippetKey) {
 	if spec.snippetKeys == nil {
 		spec.snippetKeys = make(map[string]bool)
 	}
-	if _, ok := spec.snippetKeys[key.GetValue()]; ok {
+	if _, ok := spec.snippetKeys[key.String()]; ok {
 		logger.Panicf("priority key %s is already registered", key)
 	}
-	spec.snippetKeys[key.GetValue()] = true
+	spec.snippetKeys[key.String()] = true
 }
 
 // AddPrioritizedSnippet adds a new apparmor snippet to all applications and hooks using the interface,
@@ -186,7 +186,7 @@ func (spec *Specification) RegisterSnippetKey(key interfaces.SnippetKey) {
 // both will be taken into account to decide whether the new snippet replaces the old one, is appended
 // to it, or is just ignored. The key must have been previously registered using RegisterSnippetKey().
 func (spec *Specification) AddPrioritizedSnippet(snippet string, key interfaces.SnippetKey, priority uint) {
-	if _, ok := spec.snippetKeys[key.GetValue()]; !ok {
+	if _, ok := spec.snippetKeys[key.String()]; !ok {
 		logger.Panicf("priority key %s is not registered", key)
 	}
 	if len(spec.securityTags) == 0 {
@@ -200,22 +200,22 @@ func (spec *Specification) AddPrioritizedSnippet(snippet string, key interfaces.
 		if _, exists := spec.prioritizedSnippets[tag]; !exists {
 			spec.prioritizedSnippets[tag] = make(map[string]prioritizedSnippetsType)
 		}
-		if snippets, exists := spec.prioritizedSnippets[tag][key.GetValue()]; exists {
+		if snippets, exists := spec.prioritizedSnippets[tag][key.String()]; exists {
 			if snippets.priority == priority {
 				// if priority is the same, append the snippet to the already existing snippets
-				spec.prioritizedSnippets[tag][key.GetValue()] = prioritizedSnippetsType{
+				spec.prioritizedSnippets[tag][key.String()] = prioritizedSnippetsType{
 					priority: priority,
 					snippets: append(snippets.snippets, snippet),
 				}
 			} else if snippets.priority < priority {
 				// if priority is greater, replace the snippets with the new one
-				spec.prioritizedSnippets[tag][key.GetValue()] = prioritizedSnippetsType{
+				spec.prioritizedSnippets[tag][key.String()] = prioritizedSnippetsType{
 					priority: priority,
 					snippets: append([]string(nil), snippet),
 				}
 			} // if priority is smaller, do nothing
 		} else {
-			spec.prioritizedSnippets[tag][key.GetValue()] = prioritizedSnippetsType{
+			spec.prioritizedSnippets[tag][key.String()] = prioritizedSnippetsType{
 				priority: priority,
 				snippets: append([]string(nil), snippet),
 			}

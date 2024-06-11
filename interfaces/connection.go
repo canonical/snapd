@@ -91,7 +91,7 @@ type SnippetKey struct {
 	key string
 }
 
-func (pk *SnippetKey) GetValue() string {
+func (pk *SnippetKey) String() string {
 	return pk.key
 }
 
