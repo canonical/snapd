@@ -11312,7 +11312,7 @@ func (s *snapmgrTestSuite) TestRefreshForcedOnRefreshInhibitionTimeoutError(c *C
 	defer s.state.Unlock()
 
 	instant := time.Now()
-	pastInstant := instant.Add(-snapstate.MaxInhibition * 2)
+	pastInstant := instant.Add(-snapstate.MaxInhibitionDuration(s.state) * 2)
 	// Add snap
 	si1 := &snap.SideInfo{
 		RealName: "some-snap",
