@@ -35,6 +35,8 @@ enum {
 	SC_SNAP_INVALID_INSTANCE_KEY = 2,
 	/** The instance of the snap is not valid. */
 	SC_SNAP_INVALID_INSTANCE_NAME = 3,
+	/** System configuration is not supported. */
+	SC_SNAP_MOUNT_DIR_UNSUPPORTED = 4,
 };
 
 /* SNAP_NAME_LEN is the maximum length of a snap name, enforced by snapd and the
