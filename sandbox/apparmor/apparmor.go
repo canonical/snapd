@@ -245,6 +245,14 @@ func generateAAREExclusionPatternsGenericImpl(excludePatterns []string, opts *AA
 
 		// Write patterns
 		if len(subpatterns) > 0 {
+			// First order keys to ensure profiles are always the same
+			// Sort key in map to ensure consistency in results
+			prefixes := make([]string, 0, len(subpatterns))
+			for prefix := range subpatterns {
+				prefixes = append(prefixes, prefix)
+			}
+			sort.Strings(prefixes)
+
 			// <prefix><common-prefix><exp><suffix>
 			// eg. /squashfs-root/usr/lib/[^a]**			if len(subpatterns) == 1
 			// eg. /squashfs-root/usr/lib/{[^a],[^b]}**		if len(subpatterns) > 1
@@ -257,16 +265,14 @@ func generateAAREExclusionPatternsGenericImpl(excludePatterns []string, opts *AA
 			if len(subpatterns) > 1 {
 				builder.WriteRune('{')
 			}
-			firstSubpattern := true
-			for prefix, charset := range subpatterns {
-				if !firstSubpattern {
+			for i := range prefixes {
+				if i > 0 {
 					builder.WriteRune(',')
 				}
-				firstSubpattern = false
-				if len(commonPrefix) < len(prefix) {
-					builder.WriteString(prefix[len(commonPrefix):])
+				if len(commonPrefix) < len(prefixes[i]) {
+					builder.WriteString(prefixes[i][len(commonPrefix):])
 				}
-				builder.WriteString("[^" + charset + "]")
+				builder.WriteString("[^" + subpatterns[prefixes[i]] + "]")
 			}
 			if len(subpatterns) > 1 {
 				builder.WriteRune('}')
