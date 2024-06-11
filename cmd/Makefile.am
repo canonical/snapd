@@ -68,6 +68,9 @@ new_format = \
 	 libsnap-confine-private/panic-test.h \
 	 libsnap-confine-private/panic.c \
 	 libsnap-confine-private/panic.h \
+	 libsnap-confine-private/snap-dir-test.c \
+	 libsnap-confine-private/snap-dir.c \
+	 libsnap-confine-private/snap-dir.h \
 	 snap-confine/seccomp-support-ext.c \
 	 snap-confine/seccomp-support-ext.h \
 	 snap-confine/selinux-support.c \
@@ -152,6 +155,8 @@ libsnap_confine_private_a_SOURCES = \
 	libsnap-confine-private/privs.h \
 	libsnap-confine-private/secure-getenv.c \
 	libsnap-confine-private/secure-getenv.h \
+	libsnap-confine-private/snap-dir.c \
+	libsnap-confine-private/snap-dir.h \
 	libsnap-confine-private/snap.c \
 	libsnap-confine-private/snap.h \
 	libsnap-confine-private/string-utils.c \
@@ -187,6 +192,7 @@ libsnap_confine_private_unit_tests_SOURCES = \
 	libsnap-confine-private/panic-test.c \
 	libsnap-confine-private/privs-test.c \
 	libsnap-confine-private/secure-getenv-test.c \
+	libsnap-confine-private/snap-dir-test.c \
 	libsnap-confine-private/snap-test.c \
 	libsnap-confine-private/string-utils-test.c \
 	libsnap-confine-private/test-utils-test.c \
