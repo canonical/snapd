@@ -4340,7 +4340,6 @@ apps:
 		{"stop", filepath.Base(survivorFile)},
 		{"show", "--property=ActiveState", "snap.survive-snap.survivor.service"},
 	})
-
 }
 
 func (s *servicesTestSuite) TestStopServiceSigs(c *C) {
@@ -4423,6 +4422,144 @@ apps:
 		}
 	}
 
+}
+
+func (s *servicesTestSuite) TestStopServiceFailsButServiceIsStopped(c *C) {
+	fooUnitFile := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.basic-snap.foo.service")
+	gooUnitFile := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.basic-snap.goo.service")
+
+	// Override the systemctl handler so we can inject an error when attempting to stop
+	// foo service. We then make sure to report the foo service stopped, so the service
+	// code continues
+	var sysdLog [][]string
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		sysdLog = append(sysdLog, cmd)
+		switch cmd[0] {
+		case "daemon-reload":
+			return nil, nil
+		case "stop":
+			switch cmd[1] {
+			case filepath.Base(fooUnitFile):
+				return nil, fmt.Errorf("failed")
+			default:
+				return nil, nil
+			}
+		case "show":
+			switch cmd[2] {
+			case filepath.Base(fooUnitFile):
+				if cmd[1] == "--property=ActiveState" {
+					return []byte("ActiveState=inactive\n"), nil
+				}
+				return systemdtest.HandleMockAllUnitsActiveOutput(cmd, map[string]systemdtest.ServiceState{
+					filepath.Base(fooUnitFile): {ActiveState: "inactive", UnitFileState: "enabled"},
+				}), nil
+			case filepath.Base(gooUnitFile):
+				return []byte("ActiveState=inactive\n"), nil
+			}
+		}
+		return nil, fmt.Errorf("unexpected command %v", cmd)
+	})
+	defer r()
+
+	const snapYaml = `name: basic-snap
+version: 1.0
+apps:
+ foo:
+  command: bin/hello
+  daemon: simple
+ goo:
+  command: bin/hello
+  daemon: simple
+`
+	info := snaptest.MockSnap(c, snapYaml, &snap.SideInfo{Revision: snap.R(1)})
+
+	err := s.addSnapServices(info, false)
+	c.Assert(err, IsNil)
+	c.Check(sysdLog, DeepEquals, [][]string{
+		{"daemon-reload"},
+	})
+
+	services := info.Services()
+	sort.Sort(snap.AppInfoBySnapApp(services))
+
+	sysdLog = nil
+	err = wrappers.StopServices(services, nil, snap.StopReasonRemove, progress.Null, s.perfTimings)
+	c.Assert(err, IsNil)
+	c.Check(sysdLog, DeepEquals, [][]string{
+		{"stop", filepath.Base(fooUnitFile)},
+		{"show", "--property=ActiveState", filepath.Base(fooUnitFile)},
+		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", filepath.Base(fooUnitFile)},
+		{"stop", filepath.Base(gooUnitFile)},
+		{"show", "--property=ActiveState", filepath.Base(gooUnitFile)},
+	})
+}
+
+func (s *servicesTestSuite) TestStopServiceFailsAndServiceStillRunsSoMustFail(c *C) {
+	fooUnitFile := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.basic-snap.foo.service")
+	gooUnitFile := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.basic-snap.goo.service")
+
+	// Override the systemctl handler so we can inject an error when attempting to stop
+	// foo service. We then make sure to report the foo service stopped, so the service
+	// code continues
+	var sysdLog [][]string
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		sysdLog = append(sysdLog, cmd)
+		switch cmd[0] {
+		case "daemon-reload":
+			return nil, nil
+		case "stop":
+			switch cmd[1] {
+			case filepath.Base(fooUnitFile):
+				return nil, fmt.Errorf("really failed to stop service")
+			default:
+				return nil, nil
+			}
+		case "show":
+			switch cmd[2] {
+			case filepath.Base(fooUnitFile):
+				if cmd[1] == "--property=ActiveState" {
+					return []byte("ActiveState=active\n"), nil
+				}
+				return systemdtest.HandleMockAllUnitsActiveOutput(cmd, map[string]systemdtest.ServiceState{
+					filepath.Base(fooUnitFile): {ActiveState: "active", UnitFileState: "enabled"},
+				}), nil
+			case filepath.Base(gooUnitFile):
+				return []byte("ActiveState=inactive\n"), nil
+			}
+		}
+		return nil, fmt.Errorf("unexpected command %v", cmd)
+	})
+	defer r()
+
+	const snapYaml = `name: basic-snap
+version: 1.0
+apps:
+ foo:
+  command: bin/hello
+  daemon: simple
+ goo:
+  command: bin/hello
+  daemon: simple
+`
+	info := snaptest.MockSnap(c, snapYaml, &snap.SideInfo{Revision: snap.R(1)})
+
+	err := s.addSnapServices(info, false)
+	c.Assert(err, IsNil)
+	c.Check(sysdLog, DeepEquals, [][]string{
+		{"daemon-reload"},
+	})
+
+	services := info.Services()
+	sort.Sort(snap.AppInfoBySnapApp(services))
+
+	sysdLog = nil
+	err = wrappers.StopServices(services, nil, snap.StopReasonRemove, progress.Null, s.perfTimings)
+	c.Assert(err, ErrorMatches, `really failed to stop service`)
+	c.Check(sysdLog, DeepEquals, [][]string{
+		{"stop", filepath.Base(fooUnitFile)},
+		{"show", "--property=ActiveState", filepath.Base(fooUnitFile)},
+		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", filepath.Base(fooUnitFile)},
+	})
 }
 
 func (s *servicesTestSuite) TestStartSnapSocketEnableStart(c *C) {

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2018 Canonical Ltd
+ * Copyright (C) 2016-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate/udevmonitor"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
@@ -63,8 +64,19 @@ var (
 
 	BatchConnectTasks                = batchConnectTasks
 	FirstTaskAfterBootWhenPreseeding = firstTaskAfterBootWhenPreseeding
-	BuildConfinementOptions          = buildConfinementOptions
 )
+
+func NewInterfaceManagerWithAppArmorPrompting(useAppArmorPrompting bool) *InterfaceManager {
+	m := &InterfaceManager{}
+	m.useAppArmorPromptingChecker.Do(func() {
+		m.useAppArmorPromptingValue = useAppArmorPrompting
+	})
+	return m
+}
+
+func (m *InterfaceManager) BuildConfinementOptions(st *state.State, snapInfo *snap.Info, flags snapstate.Flags) (interfaces.ConfinementOptions, error) {
+	return m.buildConfinementOptions(st, snapInfo, flags)
+}
 
 type ConnectOpts = connectOpts
 
@@ -165,14 +177,14 @@ func (m *IdentityMapper) SystemSnapName() string {
 }
 
 // MockProfilesNeedRegeneration mocks the function checking if profiles need regeneration.
-func MockProfilesNeedRegeneration(fn func() bool) func() {
-	old := profilesNeedRegeneration
-	profilesNeedRegeneration = fn
-	return func() { profilesNeedRegeneration = old }
+func MockProfilesNeedRegeneration(fn func(m *InterfaceManager) bool) func() {
+	old := profilesNeedRegenerationImpl
+	profilesNeedRegenerationImpl = fn
+	return func() { profilesNeedRegenerationImpl = old }
 }
 
 // MockWriteSystemKey mocks the function responsible for writing the system key.
-func MockWriteSystemKey(fn func() error) func() {
+func MockWriteSystemKey(fn func(extraData interfaces.SystemKeyExtraData) error) func() {
 	old := writeSystemKey
 	writeSystemKey = fn
 	return func() { writeSystemKey = old }

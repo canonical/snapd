@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2017-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -18,6 +18,11 @@
  */
 
 package interfaces
+
+import (
+	"github.com/snapcore/snapd/sandbox/apparmor"
+	"github.com/snapcore/snapd/testutil"
+)
 
 type ByConnRef byConnRef
 
@@ -77,3 +82,9 @@ var (
 	SystemKeyVersion = systemKeyVersion
 	LabelExpr        = labelExpr
 )
+
+func MockApparmorPromptingSupportedByFeatures(f func(apparmorFeatures *apparmor.FeaturesSupported) (bool, string)) (restore func()) {
+	restore = testutil.Backup(&apparmorPromptingSupportedByFeatures)
+	apparmorPromptingSupportedByFeatures = f
+	return restore
+}

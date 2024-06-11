@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/interfaces"
 	. "github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/snap"
@@ -1273,12 +1274,14 @@ func (s *RepositorySuite) TestSnapSpecification(c *C) {
 	c.Assert(repo.AddAppSet(s.consumer), IsNil)
 	c.Assert(repo.AddAppSet(s.producer), IsNil)
 
+	emptyOpts := interfaces.ConfinementOptions{}
+
 	// Snaps should get static security now
-	spec, err := repo.SnapSpecification(testSecurity, s.consumer)
+	spec, err := repo.SnapSpecification(testSecurity, s.consumer, emptyOpts)
 	c.Assert(err, IsNil)
 	c.Check(spec.(*ifacetest.Specification).Snippets, DeepEquals, []string{"static plug snippet"})
 
-	spec, err = repo.SnapSpecification(testSecurity, s.producer)
+	spec, err = repo.SnapSpecification(testSecurity, s.producer, emptyOpts)
 	c.Assert(err, IsNil)
 	c.Check(spec.(*ifacetest.Specification).Snippets, DeepEquals, []string{"static slot snippet", "static plug snippet"})
 
@@ -1288,14 +1291,14 @@ func (s *RepositorySuite) TestSnapSpecification(c *C) {
 	c.Assert(err, IsNil)
 
 	// Snaps should get static and connection-specific security now
-	spec, err = repo.SnapSpecification(testSecurity, s.consumer)
+	spec, err = repo.SnapSpecification(testSecurity, s.consumer, emptyOpts)
 	c.Assert(err, IsNil)
 	c.Check(spec.(*ifacetest.Specification).Snippets, DeepEquals, []string{
 		"static plug snippet",
 		"connection-specific plug snippet",
 	})
 
-	spec, err = repo.SnapSpecification(testSecurity, s.producer)
+	spec, err = repo.SnapSpecification(testSecurity, s.producer, emptyOpts)
 	c.Assert(err, IsNil)
 	c.Check(spec.(*ifacetest.Specification).Snippets, DeepEquals, []string{
 		"static slot snippet",
@@ -1329,14 +1332,16 @@ func (s *RepositorySuite) TestSnapSpecificationFailureWithConnectionSnippets(c *
 	plugAppSet, err := NewSnapAppSet(s.consumerPlug.Snap, nil)
 	c.Assert(err, IsNil)
 
-	spec, err := repo.SnapSpecification(testSecurity, plugAppSet)
+	emptyOpts := interfaces.ConfinementOptions{}
+
+	spec, err := repo.SnapSpecification(testSecurity, plugAppSet, emptyOpts)
 	c.Assert(err, ErrorMatches, "cannot compute snippet for consumer")
 	c.Assert(spec, IsNil)
 
 	slotAppSet, err := NewSnapAppSet(s.producerSlot.Snap, nil)
 	c.Assert(err, IsNil)
 
-	spec, err = repo.SnapSpecification(testSecurity, slotAppSet)
+	spec, err = repo.SnapSpecification(testSecurity, slotAppSet, emptyOpts)
 	c.Assert(err, ErrorMatches, "cannot compute snippet for provider")
 	c.Assert(spec, IsNil)
 }
@@ -1365,14 +1370,16 @@ func (s *RepositorySuite) TestSnapSpecificationFailureWithPermanentSnippets(c *C
 	appSet, err := NewSnapAppSet(s.consumerPlug.Snap, nil)
 	c.Assert(err, IsNil)
 
-	spec, err := repo.SnapSpecification(testSecurity, appSet)
+	emptyOpts := interfaces.ConfinementOptions{}
+
+	spec, err := repo.SnapSpecification(testSecurity, appSet, emptyOpts)
 	c.Assert(err, ErrorMatches, "cannot compute snippet for consumer")
 	c.Assert(spec, IsNil)
 
 	appSet, err = NewSnapAppSet(s.producerSlot.Snap, nil)
 	c.Assert(err, IsNil)
 
-	spec, err = repo.SnapSpecification(testSecurity, appSet)
+	spec, err = repo.SnapSpecification(testSecurity, appSet, emptyOpts)
 	c.Assert(err, ErrorMatches, "cannot compute snippet for provider")
 	c.Assert(spec, IsNil)
 }
