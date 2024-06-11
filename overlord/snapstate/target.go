@@ -113,13 +113,13 @@ func (t *target) snapsup(st *state.State, opts Options) (SnapSetup, error) {
 	}, nil
 }
 
-// installGoal represents a single snap or a group of snaps to be installed.
-type installGoal interface {
+// InstallGoal represents a single snap or a group of snaps to be installed.
+type InstallGoal interface {
 	// toInstall returns the data needed to setup the snaps for installation.
 	toInstall(context.Context, *state.State, Options) ([]target, error)
 }
 
-// storeInstallGoal implements the installGoal interface and represents a group of
+// storeInstallGoal implements the InstallGoal interface and represents a group of
 // snaps that are to be installed from the store.
 type storeInstallGoal struct {
 	// snaps is a mapping from snap instance names to a StoreSnap struct that
@@ -139,10 +139,10 @@ type StoreSnap struct {
 	SkipIfPresent bool
 }
 
-// StoreInstallGoal creates a new installGoal to install snaps from the store.
+// StoreInstallGoal creates a new InstallGoal to install snaps from the store.
 // If a snap is provided more than once in the list, the last snap instance of
 // it will be used to provide the installation options.
-func StoreInstallGoal(snaps ...StoreSnap) installGoal {
+func StoreInstallGoal(snaps ...StoreSnap) InstallGoal {
 	mapping := make(map[string]StoreSnap, len(snaps))
 	for _, sn := range snaps {
 		if sn.RevOpts.Channel == "" {
@@ -375,9 +375,9 @@ func (s *storeInstallGoal) validateAndPrune(installedSnaps map[string]*SnapState
 
 // InstallOne is a convenience wrapper for InstallWithGoal that ensures that a
 // single snap is being installed and unwraps the results to return a single
-// snap.Info and state.TaskSet. If the installGoal does not request to install
+// snap.Info and state.TaskSet. If the InstallGoal does not request to install
 // exactly one snap, an error is returned.
-func InstallOne(ctx context.Context, st *state.State, goal installGoal, opts Options) (*snap.Info, *state.TaskSet, error) {
+func InstallOne(ctx context.Context, st *state.State, goal InstallGoal, opts Options) (*snap.Info, *state.TaskSet, error) {
 	opts.ExpectOneSnap = true
 
 	infos, tasksets, err := InstallWithGoal(ctx, st, goal, opts)
@@ -395,9 +395,9 @@ func InstallOne(ctx context.Context, st *state.State, goal installGoal, opts Opt
 }
 
 // InstallWithGoal installs the snap/set of snaps specified by the given
-// installGoal.
+// InstallGoal.
 //
-// The installGoal controls what snaps should be installed and where to source the
+// The InstallGoal controls what snaps should be installed and where to source the
 // snaps from. The Options struct contains optional parameters that apply to the
 // installation operation.
 //
@@ -407,7 +407,7 @@ func InstallOne(ctx context.Context, st *state.State, goal installGoal, opts Opt
 //
 // TODO: rename this to Install once the API is settled, and we can rename or
 // remove the old Install function.
-func InstallWithGoal(ctx context.Context, st *state.State, goal installGoal, opts Options) ([]*snap.Info, []*state.TaskSet, error) {
+func InstallWithGoal(ctx context.Context, st *state.State, goal InstallGoal, opts Options) ([]*snap.Info, []*state.TaskSet, error) {
 	if opts.PrereqTracker == nil {
 		opts.PrereqTracker = snap.SimplePrereqTracker{}
 	}
@@ -430,7 +430,7 @@ func InstallWithGoal(ctx context.Context, st *state.State, goal installGoal, opt
 		return nil, nil, err
 	}
 
-	// this might be checked earlier in the implementation of installGoal, but
+	// this might be checked earlier in the implementation of InstallGoal, but
 	// we should check it here as well to be safe
 	if opts.ExpectOneSnap && len(targets) != 1 {
 		return nil, nil, ErrExpectedOneSnap
@@ -518,9 +518,9 @@ type pathInstallGoal struct {
 	sideInfo *snap.SideInfo
 }
 
-// PathInstallGoal creates a new installGoal to install a snap from a given from
+// PathInstallGoal creates a new InstallGoal to install a snap from a given from
 // a path on disk. If instanceName is not provided, si.RealName will be used.
-func PathInstallGoal(instanceName, path string, si *snap.SideInfo, opts RevisionOptions) installGoal {
+func PathInstallGoal(instanceName, path string, si *snap.SideInfo, opts RevisionOptions) InstallGoal {
 	return &pathInstallGoal{
 		instanceName: instanceName,
 		path:         path,
