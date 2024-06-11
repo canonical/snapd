@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2018-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -393,9 +393,9 @@ apps:
 
 	// Pretend that security profiles are out of date and mock the
 	// function that writes the new system key with one always panics.
-	restore = ifacestate.MockProfilesNeedRegeneration(func() bool { return true })
+	restore = ifacestate.MockProfilesNeedRegeneration(func(m *ifacestate.InterfaceManager) bool { return true })
 	defer restore()
-	restore = ifacestate.MockWriteSystemKey(func() error { panic("should not attempt to write system key") })
+	restore = ifacestate.MockWriteSystemKey(func(extraData interfaces.SystemKeyExtraData) error { panic("should not attempt to write system key") })
 	defer restore()
 	// Put a fake system key in place, we just want to see that file being removed.
 	err := os.MkdirAll(filepath.Dir(dirs.SnapSystemKeyFile), 0755)
@@ -468,9 +468,9 @@ func (s *helpersSuite) TestProfileRegenerationSetupMany(c *C) {
 	mockSnaps(c, st)
 
 	// Pretend that security profiles are out of date.
-	restore = ifacestate.MockProfilesNeedRegeneration(func() bool { return true })
+	restore = ifacestate.MockProfilesNeedRegeneration(func(m *ifacestate.InterfaceManager) bool { return true })
 	defer restore()
-	restore = ifacestate.MockWriteSystemKey(func() error {
+	restore = ifacestate.MockWriteSystemKey(func(extraData interfaces.SystemKeyExtraData) error {
 		writeKey = true
 		return nil
 	})
@@ -516,9 +516,9 @@ func (s *helpersSuite) TestProfileRegenerationSetupManyFailsSystemKeyNotWritten(
 	mockSnaps(c, st)
 
 	// Pretend that security profiles are out of date.
-	restore = ifacestate.MockProfilesNeedRegeneration(func() bool { return true })
+	restore = ifacestate.MockProfilesNeedRegeneration(func(m *ifacestate.InterfaceManager) bool { return true })
 	defer restore()
-	restore = ifacestate.MockWriteSystemKey(func() error {
+	restore = ifacestate.MockWriteSystemKey(func(extraData interfaces.SystemKeyExtraData) error {
 		writeKey = true
 		return nil
 	})
@@ -736,7 +736,7 @@ func (s *helpersSuite) TestDiscardLateBackendViaSnapstate(c *C) {
 	defer dirs.SetRootDir("")
 
 	// security profiles do not need regeneration when crating the manager
-	restore := ifacestate.MockProfilesNeedRegeneration(func() bool { return false })
+	restore := ifacestate.MockProfilesNeedRegeneration(func(m *ifacestate.InterfaceManager) bool { return false })
 	defer restore()
 
 	backend := &ifacetest.TestSecurityBackendDiscardingLate{

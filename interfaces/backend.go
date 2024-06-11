@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -69,6 +69,9 @@ type ConfinementOptions struct {
 	// as systemd provides a mount namespace which will clash with the
 	// one snapd sets up.
 	ExtraLayouts []snap.Layout
+	// AppArmorPrompting indicates whether the prompt prefix should be used in
+	// relevant rules when generating AppArmor security profiles.
+	AppArmorPrompting bool
 }
 
 // SecurityBackendOptions carries extra flags that affect initialization of the
@@ -110,7 +113,7 @@ type SecurityBackend interface {
 	Remove(snapName string) error
 
 	// NewSpecification returns a new specification associated with this backend.
-	NewSpecification(*SnapAppSet) Specification
+	NewSpecification(*SnapAppSet, ConfinementOptions) Specification
 
 	// SandboxFeatures returns a list of tags that identify sandbox features.
 	SandboxFeatures() []string

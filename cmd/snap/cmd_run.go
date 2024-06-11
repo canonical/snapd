@@ -148,9 +148,12 @@ func isStopping() (bool, error) {
 }
 
 func maybeWaitForSecurityProfileRegeneration(cli *client.Client) error {
+	extraData := interfaces.SystemKeyExtraData{
+		AppArmorPrompting: features.AppArmorPrompting.IsEnabled(),
+	}
 	// check if the security profiles key has changed, if so, we need
 	// to wait for snapd to re-generate all profiles
-	mismatch, err := interfaces.SystemKeyMismatch()
+	mismatch, err := interfaces.SystemKeyMismatch(extraData)
 	if err == nil && !mismatch {
 		return nil
 	}

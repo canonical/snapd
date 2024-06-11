@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2020 Canonical Ltd
+ * Copyright (C) 2016-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -2674,6 +2674,42 @@ func (s *backendSuite) TestHomeIxRule(c *C) {
 				spec.SetSuppressHomeIx()
 			}
 			spec.AddSnippet("needle rwkl###HOME_IX###,")
+			return nil
+		}
+
+		snapInfo := s.InstallSnap(c, tc.opts, "", ifacetest.SambaYamlV1, 1)
+		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
+		data, err := os.ReadFile(profile)
+		c.Assert(err, IsNil)
+
+		c.Assert(string(data), testutil.Contains, tc.expected)
+		s.RemoveSnap(c, snapInfo)
+	}
+}
+
+func (s *backendSuite) TestPromptPrefix(c *C) {
+	restoreTemplate := apparmor.MockTemplate("template\n###SNIPPETS###\n")
+	defer restoreTemplate()
+	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
+	defer restore()
+	restore = osutil.MockIsHomeUsingRemoteFS(func() (bool, error) { return false, nil })
+	defer restore()
+
+	for _, tc := range []struct {
+		opts     interfaces.ConfinementOptions
+		expected string
+	}{
+		{
+			opts:     interfaces.ConfinementOptions{},
+			expected: "\nneedle rwkl,",
+		},
+		{
+			opts:     interfaces.ConfinementOptions{AppArmorPrompting: true},
+			expected: "\nprompt needle rwkl,",
+		},
+	} {
+		s.Iface.AppArmorPermanentSlotCallback = func(spec *apparmor.Specification, slot *snap.SlotInfo) error {
+			spec.AddSnippet("###PROMPT### needle rwkl,")
 			return nil
 		}
 
