@@ -66,7 +66,7 @@ type Specification struct {
 	// If there doesn't exist any snippet with that UID, the passed snippet will be
 	// added as-is. But if it does exist, the new snippet will replace the old one if
 	// the new priority is bigger than the old one; will be appended if the new
-	// priority is the same than the old one, and will be discarded if the new priority
+	// priority is the same as the old one, and will be discarded if the new priority
 	// is smaller than the old one.
 	prioritizedSnippets map[string]map[string]prioritizedSnippetsType
 
