@@ -346,7 +346,7 @@ func (s *packSuite) TestDebArchitecture(c *C) {
 	c.Check(pack.DebArchitecture(&snap.Info{Architectures: nil}), Equals, "all")
 }
 
-func (s *packSuite) TestPackSimple(c *C) {
+func (s *packSuite) TestPackComponentSimple(c *C) {
 	sourceDir := makeExampleComponentSourceDir(c, `component: hello+test
 type: test
 version: 1.0.1
@@ -395,7 +395,29 @@ version: 1.0.1
 	}
 }
 
-func (s *packSuite) TestPackComponentSimple(c *C) {
+func (s *packSuite) TestPackComponentProvenance(c *C) {
+	sourceDir := makeExampleComponentSourceDir(c, `component: hello+test
+type: test
+version: 1.0.1
+provenance: prov
+`)
+
+	result, err := pack.Pack(sourceDir, nil)
+	c.Assert(err, IsNil)
+
+	// check that there is result
+	_, err = os.Stat(result)
+	c.Assert(err, IsNil)
+	c.Assert(result, Equals, "hello+test_1.0.1.comp")
+
+	// check that the content looks sane
+	output, err := exec.Command("unsquashfs", "-ll", result).CombinedOutput()
+	c.Assert(err, IsNil)
+	expr := fmt.Sprintf(`(?ms).*%s.*`, regexp.QuoteMeta("meta/component.yaml"))
+	c.Assert(string(output), Matches, expr)
+}
+
+func (s *packSuite) TestPackSimple(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, `name: hello
 version: 1.0.1
 architectures: ["i386", "amd64"]
