@@ -88,14 +88,18 @@ execute: |
   # keep original blob just so we can find the assertion later
   cp pc-kernel.snap pc-kernel.snap.orig
   # Build kernel with initramfs with the compiled snap-bootstrap
-  uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
+  if os.query is-ubuntu-ge 24.04; then
+    uc24_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
+  else
+    uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
+  fi
   mv "${NESTED_ASSETS_DIR}"/pc-kernel_*.snap pc-kernel.snap
 
   version="$(nested_get_version)"
   gendeveloper1 sign-model < "$TESTSLIB"/assertions/developer1-"$version"-classic-dangerous.json > classic.model
 
   # create new disk for the installer to work on and attach to VM
-  truncate --size=4G disk.img
+  truncate --size=6G disk.img
   if [ "$PARTIAL_GADGET" = true ]; then
       # create gpt volume and add a partition that should be ignored by snapd
       cat << 'EOF' | sfdisk disk.img
@@ -115,10 +119,16 @@ execute: |
      --kernel-assertion pc-kernel.assert \
      --disk disk.img
 
-  # things look fine
+  # basic things look fine
   remote.exec "cat /etc/os-release" | MATCH 'NAME="Ubuntu"'
   remote.exec "snap changes" | MATCH "Done.* Initialize system state"
   remote.exec "snap list" | MATCH pc-kernel
+  if os.query is-ubuntu-ge 24.04; then
+      # kernel drivers tree has been created
+      remote.exec test -d /var/lib/snapd/kernel/pc-kernel/x1
+      # TODO check the drivers tree has been mounted (depends on
+      # https://github.com/snapcore/core-initrd/pull/238 being present in initramfs)
+  fi
 
   # check encryption
   if [ "$NESTED_ENABLE_TPM" = true ]; then

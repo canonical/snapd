@@ -248,9 +248,11 @@ func (s *contentTestSuite) TestWriteFilesystemContent(c *C) {
 	}
 }
 
-func (s *contentTestSuite) testWriteFilesystemContentDriversTree(c *C, isCore bool) {
+func (s *contentTestSuite) testWriteFilesystemContentDriversTree(c *C, kMntPoint string, isCore bool) {
 	defer dirs.SetRootDir(dirs.GlobalRootDir)
 	dirs.SetRootDir(c.MkDir())
+
+	kMntPoint = filepath.Join(dirs.GlobalRootDir, kMntPoint)
 
 	dataMntPoint := filepath.Join(dirs.SnapRunDir, "gadget-install/dev-node2")
 	restore := install.MockSysMount(func(source, target, fstype string, flags uintptr, data string) error {
@@ -281,7 +283,6 @@ func (s *contentTestSuite) testWriteFilesystemContentDriversTree(c *C, isCore bo
 	someFile := filepath.Join(modsDir, "modules.alias")
 	c.Assert(os.WriteFile(someFile, []byte("blah"), 0644), IsNil)
 
-	kMntPoint := filepath.Join(dirs.GlobalRootDir, "snap/pc-kernel/111")
 	kInfo := &install.KernelSnapInfo{
 		Name:             "pc-kernel",
 		Revision:         snap.R(111),
@@ -290,8 +291,11 @@ func (s *contentTestSuite) testWriteFilesystemContentDriversTree(c *C, isCore bo
 		IsCore:           isCore,
 	}
 
-	restore = install.MockKernelEnsureKernelDriversTree(func(kSnapRoot, destDir string, kmodsConts []snap.ContainerPlaceInfo, opts *kernel.KernelDriversTreeOptions) (err error) {
-		c.Check(kSnapRoot, Equals, kMntPoint)
+	restore = install.MockKernelEnsureKernelDriversTree(func(kMntPts kernel.MountPoints, compsMntPts []kernel.ModulesCompMountPoints, destDir string, opts *kernel.KernelDriversTreeOptions) (err error) {
+		c.Check(kMntPts, Equals,
+			kernel.MountPoints{
+				Current: kMntPoint,
+				Target:  filepath.Join(dirs.SnapMountDir, "/pc-kernel/111")})
 		if isCore {
 			c.Check(destDir, Equals, filepath.Join(dataMntPoint,
 				"system-data/var/lib/snapd/kernel/pc-kernel/111"))
@@ -310,12 +314,17 @@ func (s *contentTestSuite) testWriteFilesystemContentDriversTree(c *C, isCore bo
 
 func (s *contentTestSuite) TestWriteFilesystemContentDriversTreeCore(c *C) {
 	isCore := true
-	s.testWriteFilesystemContentDriversTree(c, isCore)
+	s.testWriteFilesystemContentDriversTree(c, filepath.Join(dirs.SnapMountDir, "pc-kernel/111"), isCore)
+}
+
+func (s *contentTestSuite) TestWriteFilesystemContentDriversTreeCoreUnusualMntPt(c *C) {
+	isCore := true
+	s.testWriteFilesystemContentDriversTree(c, "/somewhere/pc-kernel/111", isCore)
 }
 
 func (s *contentTestSuite) TestWriteFilesystemContentDriversTreeHybrid(c *C) {
 	isCore := false
-	s.testWriteFilesystemContentDriversTree(c, isCore)
+	s.testWriteFilesystemContentDriversTree(c, filepath.Join(dirs.SnapMountDir, "pc-kernel/111"), isCore)
 }
 
 func (s *contentTestSuite) TestWriteFilesystemContentUnmountErrHandling(c *C) {
