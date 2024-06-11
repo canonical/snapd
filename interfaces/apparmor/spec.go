@@ -164,11 +164,11 @@ func (spec *Specification) AddSnippet(snippet string) {
 }
 
 // AddPrioritizedSnippet adds a new apparmor snippet to all applications and hooks using the interface,
-// but identified with an UID and a priority. If no other snippet exists with that UID, the snippet is
-// added like with AddSnippet, but if there is already another snippet with that UID, the priority of
+// but identified with a key and a priority. If no other snippet exists with that key, the snippet is
+// added like with AddSnippet, but if there is already another snippet with that key, the priority of
 // both will be taken into account to decide whether the new snippet replaces the old one, is appended
 // to it, or is just ignored.
-func (spec *Specification) AddPrioritizedSnippet(snippet string, uid string, priority uint) {
+func (spec *Specification) AddPrioritizedSnippet(snippet string, key string, priority uint) {
 	if len(spec.securityTags) == 0 {
 		return
 	}
@@ -179,22 +179,22 @@ func (spec *Specification) AddPrioritizedSnippet(snippet string, uid string, pri
 		if _, exists := spec.prioritizedSnippets[tag]; !exists {
 			spec.prioritizedSnippets[tag] = make(map[string]prioritizedSnippetsType)
 		}
-		if snippets, exists := spec.prioritizedSnippets[tag][uid]; exists {
+		if snippets, exists := spec.prioritizedSnippets[tag][key]; exists {
 			if snippets.priority == priority {
 				// if priority is the same, append the snippet to the already existing snippets
-				spec.prioritizedSnippets[tag][uid] = prioritizedSnippetsType{
+				spec.prioritizedSnippets[tag][key] = prioritizedSnippetsType{
 					priority: priority,
 					snippets: append(snippets.snippets, snippet),
 				}
 			} else if snippets.priority < priority {
 				// if priority is greater, replace the snippets with the new one
-				spec.prioritizedSnippets[tag][uid] = prioritizedSnippetsType{
+				spec.prioritizedSnippets[tag][key] = prioritizedSnippetsType{
 					priority: priority,
 					snippets: append([]string(nil), snippet),
 				}
 			} // if priority is smaller, do nothing
 		} else {
-			spec.prioritizedSnippets[tag][uid] = prioritizedSnippetsType{
+			spec.prioritizedSnippets[tag][key] = prioritizedSnippetsType{
 				priority: priority,
 				snippets: append([]string(nil), snippet),
 			}
