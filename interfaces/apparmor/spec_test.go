@@ -674,15 +674,18 @@ func (s *specSuite) TestRegisterSameSnippetKeyTwice(c *C) {
 		r := recover()
 		// the test must panic when calling RegisterSnippetKey the second time
 		c.Assert(r, NotNil)
-		c.Assert(currentStep, Equals, 3)
+		c.Assert(currentStep, Equals, 4)
 	}()
 
 	key1 := interfaces.NewSnippetKey("key")
 	currentStep = 1
 	key2 := interfaces.NewSnippetKey("key")
 	currentStep = 2
-	s.spec.RegisterSnippetKey(key1)
+	// ensure that both keys are detected as the same
+	c.Assert(key1 == key2, Equals, true)
 	currentStep = 3
-	s.spec.RegisterSnippetKey(key2)
+	s.spec.RegisterSnippetKey(key1)
 	currentStep = 4
+	s.spec.RegisterSnippetKey(key2)
+	currentStep = 5
 }

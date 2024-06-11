@@ -43,7 +43,7 @@ const (
 	UnconfinedEnabled
 )
 
-type prioritizedSnippetsType struct {
+type prioritizedSnippets struct {
 	priority uint
 	snippets []string
 }
@@ -69,12 +69,12 @@ type Specification struct {
 	// the new priority is bigger than the old one; will be appended if the new
 	// priority is the same as the old one, and will be discarded if the new priority
 	// is smaller than the old one.
-	prioritizedSnippets map[string]map[string]prioritizedSnippetsType
+	prioritizedSnippets map[string]map[interfaces.SnippetKey]prioritizedSnippets
 
 	// SnippetKeys is a list of allowed keys for prioritized snippets.
 	// Trying to add a prioritized snippet with an unregistered key is
 	// an error. Trying to register the same key twice is also an error.
-	snippetKeys map[string]bool
+	snippetKeys map[interfaces.SnippetKey]bool
 
 	// dedupSnippets are just like snippets but are added only once to the
 	// resulting policy in an effort to avoid certain expensive to de-duplicate
@@ -172,12 +172,12 @@ func (spec *Specification) AddSnippet(snippet string) {
 // RegisterSnippetKey adds a key to the list of valid keys
 func (spec *Specification) RegisterSnippetKey(key interfaces.SnippetKey) {
 	if spec.snippetKeys == nil {
-		spec.snippetKeys = make(map[string]bool)
+		spec.snippetKeys = make(map[interfaces.SnippetKey]bool)
 	}
-	if _, ok := spec.snippetKeys[key.String()]; ok {
-		logger.Panicf("priority key %s is already registered", key)
+	if _, ok := spec.snippetKeys[key]; ok {
+		logger.Panicf("priority key %s is already registered", key.String())
 	}
-	spec.snippetKeys[key.String()] = true
+	spec.snippetKeys[key] = true
 }
 
 // AddPrioritizedSnippet adds a new apparmor snippet to all applications and hooks using the interface,
@@ -186,36 +186,36 @@ func (spec *Specification) RegisterSnippetKey(key interfaces.SnippetKey) {
 // both will be taken into account to decide whether the new snippet replaces the old one, is appended
 // to it, or is just ignored. The key must have been previously registered using RegisterSnippetKey().
 func (spec *Specification) AddPrioritizedSnippet(snippet string, key interfaces.SnippetKey, priority uint) {
-	if _, ok := spec.snippetKeys[key.String()]; !ok {
-		logger.Panicf("priority key %s is not registered", key)
+	if _, ok := spec.snippetKeys[key]; !ok {
+		logger.Panicf("priority key %s is not registered", key.String())
 	}
 	if len(spec.securityTags) == 0 {
 		return
 	}
 	if spec.prioritizedSnippets == nil {
-		spec.prioritizedSnippets = make(map[string]map[string]prioritizedSnippetsType)
+		spec.prioritizedSnippets = make(map[string]map[interfaces.SnippetKey]prioritizedSnippets)
 	}
 
 	for _, tag := range spec.securityTags {
 		if _, exists := spec.prioritizedSnippets[tag]; !exists {
-			spec.prioritizedSnippets[tag] = make(map[string]prioritizedSnippetsType)
+			spec.prioritizedSnippets[tag] = make(map[interfaces.SnippetKey]prioritizedSnippets)
 		}
-		if snippets, exists := spec.prioritizedSnippets[tag][key.String()]; exists {
+		if snippets, exists := spec.prioritizedSnippets[tag][key]; exists {
 			if snippets.priority == priority {
 				// if priority is the same, append the snippet to the already existing snippets
-				spec.prioritizedSnippets[tag][key.String()] = prioritizedSnippetsType{
+				spec.prioritizedSnippets[tag][key] = prioritizedSnippets{
 					priority: priority,
 					snippets: append(snippets.snippets, snippet),
 				}
 			} else if snippets.priority < priority {
 				// if priority is greater, replace the snippets with the new one
-				spec.prioritizedSnippets[tag][key.String()] = prioritizedSnippetsType{
+				spec.prioritizedSnippets[tag][key] = prioritizedSnippets{
 					priority: priority,
 					snippets: append([]string(nil), snippet),
 				}
 			} // if priority is smaller, do nothing
 		} else {
-			spec.prioritizedSnippets[tag][key.String()] = prioritizedSnippetsType{
+			spec.prioritizedSnippets[tag][key] = prioritizedSnippets{
 				priority: priority,
 				snippets: append([]string(nil), snippet),
 			}
@@ -226,8 +226,8 @@ func (spec *Specification) AddPrioritizedSnippet(snippet string, key interfaces.
 func (spec *Specification) composeSnippetsForTag(tag string) []string {
 	// Compose the normal and the prioritized snippets in a single string array
 	composedSnippets := append([]string(nil), spec.snippets[tag]...)
-	for uid := range spec.prioritizedSnippets[tag] {
-		composedSnippets = append(composedSnippets, spec.prioritizedSnippets[tag][uid].snippets...)
+	for key := range spec.prioritizedSnippets[tag] {
+		composedSnippets = append(composedSnippets, spec.prioritizedSnippets[tag][key].snippets...)
 	}
 	sort.Strings(composedSnippets)
 	return composedSnippets
