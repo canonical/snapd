@@ -122,9 +122,19 @@ type InstallGoal interface {
 // storeInstallGoal implements the InstallGoal interface and represents a group of
 // snaps that are to be installed from the store.
 type storeInstallGoal struct {
-	// snaps is a mapping from snap instance names to a StoreSnap struct that
-	// contains details about the snap to install.
-	snaps map[string]StoreSnap
+	// snaps is a slice of StoreSnap structs that contains details about the
+	// snap to install. It maintains the order of the snaps as they were
+	// provided.
+	snaps []StoreSnap
+}
+
+func (s *storeInstallGoal) find(name string) (StoreSnap, bool) {
+	for _, sn := range s.snaps {
+		if sn.InstanceName == name {
+			return sn, true
+		}
+	}
+	return StoreSnap{}, false
 }
 
 // StoreSnap represents a snap that is to be installed from the store.
@@ -140,20 +150,26 @@ type StoreSnap struct {
 }
 
 // StoreInstallGoal creates a new InstallGoal to install snaps from the store.
-// If a snap is provided more than once in the list, the last snap instance of
-// it will be used to provide the installation options.
+// If a snap is provided more than once in the list, the first instance of it
+// will be used to provide the installation options.
 func StoreInstallGoal(snaps ...StoreSnap) InstallGoal {
-	mapping := make(map[string]StoreSnap, len(snaps))
+	seen := make(map[string]bool, len(snaps))
+	unique := make([]StoreSnap, 0, len(snaps))
 	for _, sn := range snaps {
+		if _, ok := seen[sn.InstanceName]; ok {
+			continue
+		}
+
 		if sn.RevOpts.Channel == "" {
 			sn.RevOpts.Channel = "stable"
 		}
 
-		mapping[sn.InstanceName] = sn
+		seen[sn.InstanceName] = true
+		unique = append(unique, sn)
 	}
 
 	return &storeInstallGoal{
-		snaps: mapping,
+		snaps: unique,
 	}
 }
 
@@ -240,7 +256,7 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 
 	installs := make([]target, 0, len(results))
 	for _, r := range results {
-		sn, ok := s.snaps[r.InstanceName()]
+		sn, ok := s.find(r.InstanceName())
 		if !ok {
 			return nil, fmt.Errorf("store returned unsolicited snap action: %s", r.InstanceName())
 		}
@@ -353,23 +369,29 @@ func installActionForStoreTarget(t StoreSnap, opts Options, enforcedSets func() 
 }
 
 func (s *storeInstallGoal) validateAndPrune(installedSnaps map[string]*SnapState) error {
-	for name, t := range s.snaps {
-		if err := snap.ValidateInstanceName(name); err != nil {
+	uninstalled := s.snaps[:0]
+	for _, t := range s.snaps {
+		if err := snap.ValidateInstanceName(t.InstanceName); err != nil {
 			return fmt.Errorf("invalid instance name: %v", err)
 		}
 
 		if err := validateRevisionOpts(t.RevOpts); err != nil {
-			return fmt.Errorf("invalid revision options for snap %q: %w", name, err)
+			return fmt.Errorf("invalid revision options for snap %q: %w", t.InstanceName, err)
 		}
 
-		snapst, ok := installedSnaps[name]
+		snapst, ok := installedSnaps[t.InstanceName]
 		if ok && snapst.IsInstalled() {
 			if !t.SkipIfPresent {
-				return &snap.AlreadyInstalledError{Snap: name}
+				return &snap.AlreadyInstalledError{Snap: t.InstanceName}
 			}
-			delete(s.snaps, name)
+			continue
 		}
+
+		uninstalled = append(uninstalled, t)
 	}
+
+	s.snaps = uninstalled
+
 	return nil
 }
 
