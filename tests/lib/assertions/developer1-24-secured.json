@@ -3,7 +3,7 @@
     "authority-id": "developer1",
     "series": "16",
     "brand-id": "developer1",
-    "model": "developer1-24-secured",
+    "model": "testkeys-snapd-secured-core-24-amd64",
     "architecture": "amd64",
     "timestamp": "2024-04-09T22:00:00+00:00",
     "grade": "secured",

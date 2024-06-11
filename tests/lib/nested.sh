@@ -1205,6 +1205,8 @@ nested_start_core_vm_unit() {
             mv OVMF_CODE.secboot.fd /usr/share/OVMF/OVMF_CODE.secboot.fd
             wget -q https://storage.googleapis.com/snapd-spread-tests/dependencies/OVMF_VARS.snakeoil.fd
             mv OVMF_VARS.snakeoil.fd /usr/share/OVMF/OVMF_VARS.snakeoil.fd
+            wget -q https://storage.googleapis.com/snapd-spread-tests/dependencies/OVMF_VARS.ms.fd
+            mv OVMF_VARS.ms.fd /usr/share/OVMF/OVMF_VARS.ms.fd
         fi
 
         # In this case the kernel.efi is unsigned and signed with snaleoil certs
