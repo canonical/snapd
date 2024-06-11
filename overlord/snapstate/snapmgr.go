@@ -632,8 +632,6 @@ func (snapst *SnapState) RefreshInhibitProceedTime(st *state.State) time.Time {
 		// Zero time, no pending refreshes.
 		return time.Time{}
 	}
-	// TODO: state is needed for when configurable max inhibition
-	// is introduced (i.e. "core.refresh.max-inhibition-days").
 	proceedTime := snapst.RefreshInhibitedTime.Add(maxInhibitionDuration(st))
 	return proceedTime
 }
