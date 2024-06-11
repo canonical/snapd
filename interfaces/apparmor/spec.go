@@ -219,7 +219,6 @@ func (spec *Specification) AddPrioritizedSnippet(snippet string, key interfaces.
 			}
 		}
 	}
-	return
 }
 
 func (spec *Specification) composeSnippetsForTag(tag string) []string {
