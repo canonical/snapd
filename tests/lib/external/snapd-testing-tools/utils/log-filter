@@ -12,7 +12,7 @@ import log_helper as helper
 # DEBUG: The debug includes the output of the debug script for task/suite errors
 # WARNING: The last lines from the task execution output
 # FAILED: Include a list of failed tests in the results section
-SUPPORTED_RULES = [helper.ERROR, helper.DEBUG, helper.WARNING, helper.FAILED]
+SUPPORTED_RULES = [helper.Result.FAILED.value] + helper.ExecutionInfo.list()
 
 
 def print_line(line: str):
@@ -24,9 +24,9 @@ def print_line(line: str):
 
 def write_line(line: str, to_stream: io.TextIOWrapper):
     if not line:
-        to_stream.write("\n")
+        print('\n', file=to_stream)
     else:
-        to_stream.write(line.strip() + "\n")
+        print(line.strip(), file=to_stream, end='\n')
 
 
 def compile_rules(rules, operation):
@@ -109,10 +109,10 @@ def skip_detail(from_stream: io.TextIOWrapper) -> str:
 
 
 def process_spread_output(output_file, exclude_lines, filter_rules):
-    error_regex = compile_rules(filter_rules, helper.ERROR)
-    debug_regex = compile_rules(filter_rules, helper.DEBUG)
-    failed_regex = compile_rules(filter_rules, helper.FAILED)
-    warning_regex = compile_rules(filter_rules, helper.WARNING)
+    error_regex = compile_rules(filter_rules, helper.ExecutionInfo.ERROR.value)
+    debug_regex = compile_rules(filter_rules, helper.ExecutionInfo.DEBUG.value)
+    failed_regex = compile_rules(filter_rules, helper.Result.FAILED.value)
+    warning_regex = compile_rules(filter_rules, helper.ExecutionInfo.WARNING.value)
 
     with open(output_file, "w") as myfile:
         for line in sys.stdin:
@@ -120,29 +120,29 @@ def process_spread_output(output_file, exclude_lines, filter_rules):
 
             while helper.is_detail_start(line):
                 regex_list = []
-                if helper.is_operation(line, helper.DEBUG):
-                    if helper.DEBUG in exclude_lines:
+                if helper.is_operation(line, helper.ExecutionInfo.DEBUG):
+                    if helper.ExecutionInfo.DEBUG.value in exclude_lines:
                         line = skip_detail(sys.stdin)
                         continue
                     else:
                         regex_list = debug_regex
 
-                if helper.is_operation(line, helper.ERROR):
-                    if helper.ERROR in exclude_lines:
+                if helper.is_operation(line, helper.ExecutionInfo.ERROR):
+                    if helper.ExecutionInfo.ERROR.value in exclude_lines:
                         line = skip_detail(sys.stdin)
                         continue
                     else:
                         regex_list = error_regex
 
-                if helper.is_operation(line, helper.WARNING):
-                    if helper.WARNING in exclude_lines:
+                if helper.is_operation(line, helper.ExecutionInfo.WARNING):
+                    if helper.ExecutionInfo.WARNING.value in exclude_lines:
                         line = skip_detail(sys.stdin)
                         continue
                     else:
                         regex_list = warning_regex
 
-                if helper.is_operation(line, helper.FAILED):
-                    if helper.FAILED in exclude_lines:
+                if helper.is_operation(line, helper.Result.FAILED):
+                    if helper.Result.FAILED.value in exclude_lines:
                         line = skip_detail(sys.stdin)
                         continue
                     else:

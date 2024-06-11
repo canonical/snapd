@@ -5,60 +5,64 @@ process the spread output.
 
 import re
 
-# Tasks status
-PREPARING = "Preparing"
-EXECUTING = "Executing"
-RESTORING = "Restoring"
+from enum import Enum
 
-# Tasks info
-DEBUG = "Debug"
-ERROR = "Error"
-WARNING = "WARNING:"
 
-# General actions
-REBOOTING = "Rebooting"
-DISCARDING = "Discarding"
-ALLOCATING = "Allocating"
-WAITING = "Waiting"
-CONNECTING = "Connecting"
-SENDING = "Sending"
+class ListedEnum(Enum):
+    @classmethod
+    def list(cls):
+        return list(map(lambda c: c.value, cls))
 
-# Actions status
-ALLOCATED = "Allocated"
-CONNECTED = "Connected"
 
-# Results
-FAILED = "Failed"
-SUCCESSFUL = "Successful"
-ABORTED = "Aborted"
+class ExecutionPhase(ListedEnum):
+    PREPARING = "Preparing"
+    EXECUTING = "Executing"
+    RESTORING = "Restoring"
 
-# Tasks levels
-TASK = "task"
-SUITE = "suite"
-PROJECT = "project"
+
+class ExecutionInfo(ListedEnum):
+    DEBUG = "Debug"
+    ERROR = "Error"
+    WARNING = "WARNING:"
+
+
+class ExecutionLevel(ListedEnum):
+    TASK = "task"
+    SUITE = "suite"
+    PROJECT = "project"
+
+
+class GeneralAction(ListedEnum):
+    REBOOTING = "Rebooting"
+    DISCARDING = "Discarding"
+    ALLOCATING = "Allocating"
+    WAITING = "Waiting"
+    CONNECTING = "Connecting"
+    SENDING = "Sending"
+
+
+class GeneralActionStatus(ListedEnum):
+    ALLOCATED = "Allocated"
+    CONNECTED = "Connected"
+
+
+class Result(ListedEnum):
+    FAILED = "Failed"
+    SUCCESSFUL = "Successful"
+    ABORTED = "Aborted"
+
+
+OPERATIONS = (
+    ExecutionPhase.list()
+    + GeneralAction.list()
+    + GeneralActionStatus.list()
+    + ExecutionInfo.list()
+    + Result.list()
+)
+
 
 # Start line
 START_LINE = ".*Project content is packed for delivery.*"
-
-OPERATIONS = [
-    PREPARING,
-    EXECUTING,
-    RESTORING,
-    REBOOTING,
-    DISCARDING,
-    ALLOCATING,
-    WAITING,
-    ALLOCATED,
-    CONNECTING,
-    CONNECTED,
-    SENDING,
-    ERROR,
-    DEBUG,
-    WARNING,
-    FAILED,
-    SUCCESSFUL,
-    ABORTED,
-]
 
 
 def _match_date(date):
@@ -84,7 +88,7 @@ def is_initial_line(line: str) -> bool:
 
 
 # Debug line starts with the operation
-def is_operation(line: str, operation: str) -> bool:
+def is_operation(line: str, operation: Enum) -> bool:
     if not line:
         return False
 
@@ -93,7 +97,7 @@ def is_operation(line: str, operation: str) -> bool:
         len(parts) > 2
         and _match_date(parts[0])
         and _match_time(parts[1])
-        and parts[2] == operation
+        and parts[2] == operation.value
     )
 
 
@@ -162,21 +166,21 @@ def get_operation_info(line: str) -> str:
 # Details are displayed after Error/Debug/Failed/Warning operations
 def is_detail_start(line: str) -> bool:
     return (
-        is_operation(line, DEBUG)
-        or is_operation(line, ERROR)
-        or is_operation(line, WARNING)
-        or is_operation(line, FAILED)
+        is_operation(line, ExecutionInfo.DEBUG)
+        or is_operation(line, ExecutionInfo.ERROR)
+        or is_operation(line, ExecutionInfo.WARNING)
+        or is_operation(line, Result.FAILED)
     )
 
 
-# Error/Debug/Failed output sometimes finish witr EOF error
-def is_detail_eof(line: str) -> bool:
-    parts = line.strip().split(" ")
+# Error/Debug/Failed output sometimes finish with either EOF error or a log file
+# and no detail displayed
+def is_detail(line: str) -> bool:
     return (
-        is_operation(line, DEBUG)
-        or is_operation(line, ERROR)
-        or is_operation(line, WARNING)
-    ) and parts[-1].strip() == "EOF"
+        is_operation(line, ExecutionInfo.DEBUG)
+        or is_operation(line, ExecutionInfo.ERROR)
+        or is_operation(line, ExecutionInfo.WARNING)
+    ) and line.strip()[-1:] == ":"
 
 
 # Error/Debug/Failed output finishes when a new other line starts
