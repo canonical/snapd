@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -66,6 +66,11 @@ type InterfaceManager struct {
 	// extras
 	extraInterfaces []interfaces.Interface
 	extraBackends   []interfaces.SecurityBackend
+
+	// AppArmor Prompting -- these values should never be used directly.
+	// Always check useAppArmorPrompting().
+	useAppArmorPromptingValue   bool
+	useAppArmorPromptingChecker sync.Once
 
 	preseed bool
 }
@@ -177,7 +182,7 @@ func (m *InterfaceManager) StartUp() error {
 	if _, err := m.reloadConnections(""); err != nil {
 		return err
 	}
-	if profilesNeedRegeneration() {
+	if m.profilesNeedRegeneration() {
 		if err := m.regenerateAllSecurityProfiles(perfTimings); err != nil {
 			return err
 		}

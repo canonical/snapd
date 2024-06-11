@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2018 Canonical Ltd
+ * Copyright (C) 2016-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -78,7 +78,7 @@ func snapDeviceCgroupSelfManageFilePath(snapName string) string {
 // If the method fails it should be re-tried (with a sensible strategy) by the caller.
 func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
 	snapName := appSet.InstanceName()
-	spec, err := repo.SnapSpecification(b.Name(), appSet)
+	spec, err := repo.SnapSpecification(b.Name(), appSet, opts)
 	if err != nil {
 		return fmt.Errorf("cannot obtain udev specification for snap %q: %w", snapName, err)
 	}
@@ -214,7 +214,7 @@ func (b *Backend) deriveContent(spec *Specification) (content []string) {
 	return content
 }
 
-func (b *Backend) NewSpecification(appSet *interfaces.SnapAppSet) interfaces.Specification {
+func (b *Backend) NewSpecification(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions) interfaces.Specification {
 	return &Specification{appSet: appSet}
 }
 

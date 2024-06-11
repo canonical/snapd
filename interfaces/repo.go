@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -912,7 +912,7 @@ func (r *Repository) Interfaces() *Interfaces {
 }
 
 // SnapSpecification returns the specification of a given snap in a given security system.
-func (r *Repository) SnapSpecification(securitySystem SecuritySystem, appSet *SnapAppSet) (Specification, error) {
+func (r *Repository) SnapSpecification(securitySystem SecuritySystem, appSet *SnapAppSet, opts ConfinementOptions) (Specification, error) {
 	r.m.Lock()
 	defer r.m.Unlock()
 
@@ -929,7 +929,7 @@ func (r *Repository) SnapSpecification(securitySystem SecuritySystem, appSet *Sn
 		return nil, fmt.Errorf("cannot handle interfaces of snap %q, security system %q is not known", snapName, securitySystem)
 	}
 
-	spec := backend.NewSpecification(appSet)
+	spec := backend.NewSpecification(appSet, opts)
 
 	// XXX: If either of the AddConnected{Plug,Slot} methods for a connection
 	// fail resiliently as-in they can never succeed (such as the case where a
