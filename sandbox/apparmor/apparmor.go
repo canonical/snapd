@@ -85,7 +85,7 @@ func InsertAAREExclusionPatterns(aaRules string, excludePatterns []string, opts 
 	if !strings.Contains(aaRules, placeHolder) {
 		return "", fmt.Errorf("placeholder pattern %q not found", placeHolder)
 	}
-	return strings.Replace(aaRules, placeHolder, exclussionPatterns, -1), nil
+	return strings.Replace(aaRules, placeHolder, strings.TrimSuffix(exclussionPatterns, "\n"), -1), nil
 }
 
 // GenerateAAREExclusionPatterns generates a series of valid AppArmor
