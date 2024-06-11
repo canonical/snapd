@@ -68,7 +68,6 @@ func validateCmdlineParamsAreAllowed(st *state.State, devCtx snapstate.DeviceCon
 	if err != nil {
 		return err
 	}
-
 	logger.Debugf("gadget data read from %s", gd.RootDir)
 
 	if _, forbidden := gadget.FilterKernelCmdline(cmdline, gd.Info.KernelCmdline.Allow); forbidden != "" {
