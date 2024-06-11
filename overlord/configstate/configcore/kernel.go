@@ -64,6 +64,12 @@ func validateCmdlineParamsAreAllowed(st *state.State, devCtx snapstate.DeviceCon
 	if err != nil {
 		return err
 	}
+	if gd == nil {
+		// no gadget data currently, so we cannot check against the allow-list
+		// this can happen on classic systems
+		return fmt.Errorf("changing the kernel command line is not supported on a classic system")
+	}
+
 	logger.Debugf("gadget data read from %s", gd.RootDir)
 
 	if _, forbidden := gadget.FilterKernelCmdline(cmdline, gd.Info.KernelCmdline.Allow); forbidden != "" {
