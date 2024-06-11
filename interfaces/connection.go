@@ -87,16 +87,16 @@ type Attrer interface {
 	Lookup(path string) (value interface{}, ok bool)
 }
 
-type PriorityKey struct {
+type SnippetKey struct {
 	key string
 }
 
-func (pk *PriorityKey) GetValue() string {
+func (pk *SnippetKey) GetValue() string {
 	return pk.key
 }
 
-func NewPriorityKey(key string) PriorityKey {
-	return PriorityKey{key: key}
+func NewSnippetKey(key string) SnippetKey {
+	return SnippetKey{key: key}
 }
 
 func lookupAttr(staticAttrs map[string]interface{}, dynamicAttrs map[string]interface{}, path string) (interface{}, bool) {
