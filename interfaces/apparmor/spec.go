@@ -63,7 +63,7 @@ type Specification struct {
 	snippets map[string][]string
 
 	// prioritizedSnippets are just like snippets, but they have a priority value
-	// and an UID. An interface can add a snippet with a specific UID and a priority.
+	// and a snippet key. An interface can add a snippet with a specific key and a priority.
 	// If there doesn't exist any snippet with that UID, the passed snippet will be
 	// added as-is. But if it does exist, the new snippet will replace the old one if
 	// the new priority is bigger than the old one; will be appended if the new
