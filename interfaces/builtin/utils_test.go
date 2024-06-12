@@ -42,15 +42,24 @@ type utilsSuite struct {
 	conSlotApp   *interfaces.ConnectedSlot
 }
 
+func connectedSlotFromInfo(info *snap.Info) *interfaces.ConnectedSlot {
+	appSet, err := interfaces.NewSnapAppSet(info, nil)
+	if err != nil {
+		panic(fmt.Sprintf("cannot create snap app set: %v", err))
+	}
+
+	return interfaces.NewConnectedSlot(&snap.SlotInfo{Snap: info}, appSet, nil, nil)
+}
+
 var _ = Suite(&utilsSuite{
 	iface:        &ifacetest.TestInterface{InterfaceName: "iface"},
 	slotOS:       &snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeOS}},
 	slotApp:      &snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeApp}},
 	slotSnapd:    &snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeSnapd, SuggestedName: "snapd"}},
 	slotGadget:   &snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeGadget}},
-	conSlotOS:    interfaces.NewConnectedSlot(&snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeOS}}, nil, nil, nil),
-	conSlotSnapd: interfaces.NewConnectedSlot(&snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeSnapd}}, nil, nil, nil),
-	conSlotApp:   interfaces.NewConnectedSlot(&snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeApp}}, nil, nil, nil),
+	conSlotOS:    connectedSlotFromInfo(&snap.Info{SnapType: snap.TypeOS, SuggestedName: "core"}),
+	conSlotSnapd: connectedSlotFromInfo(&snap.Info{SnapType: snap.TypeSnapd, SuggestedName: "snapd"}),
+	conSlotApp:   connectedSlotFromInfo(&snap.Info{SnapType: snap.TypeApp, SuggestedName: "app"}),
 })
 
 func (s *utilsSuite) TestIsSlotSystemSlot(c *C) {
@@ -249,11 +258,9 @@ slots:
  shared-memory:
   write: ["foo", "bar"]
 `
-	set := ifacetest.MockInfoAndAppSet(c, snapYaml, nil, nil)
-	plugInfo := set.Info().Plugs["personal-files"]
-	slotInfo := set.Info().Slots["shared-memory"]
-	plug := interfaces.NewConnectedPlug(plugInfo, set, nil, nil)
-	slot := interfaces.NewConnectedSlot(slotInfo, set, nil, nil)
+	plug, _ := MockConnectedPlug(c, snapYaml, nil, "personal-files")
+	slot, _ := MockConnectedSlot(c, snapYaml, nil, "shared-memory")
+
 	list, err := builtin.StringListAttribute(plug, "write")
 	c.Assert(err, IsNil)
 	c.Check(list, DeepEquals, []string{"$HOME/dir1", "/etc/.hidden2"})
@@ -272,9 +279,7 @@ plugs:
  personal-files:
   write: [1, "two"]
 `
-	set := ifacetest.MockInfoAndAppSet(c, snapYaml, nil, nil)
-	plugInfo := set.Info().Plugs["personal-files"]
-	plug := interfaces.NewConnectedPlug(plugInfo, nil, nil, nil)
+	plug, _ := MockConnectedPlug(c, snapYaml, nil, "personal-files")
 	list, err := builtin.StringListAttribute(plug, "write")
 	c.Assert(list, IsNil)
 	c.Assert(err, ErrorMatches, `"write" attribute must be a list of strings, not "\[1 two\]"`)

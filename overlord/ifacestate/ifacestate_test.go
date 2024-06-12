@@ -7749,8 +7749,8 @@ func (s *interfaceManagerSuite) TestAttributesRestoredFromConns(c *C) {
 	// create connection in conns state
 	dynamicAttrs := map[string]interface{}{"dynamic-number": 7}
 	conn := &interfaces.Connection{
-		Plug: interfaces.NewConnectedPlug(plug, slotAppSet, nil, nil),
-		Slot: interfaces.NewConnectedSlot(slot, plugAppSet, nil, dynamicAttrs),
+		Plug: interfaces.NewConnectedPlug(plug, plugAppSet, nil, nil),
+		Slot: interfaces.NewConnectedSlot(slot, slotAppSet, nil, dynamicAttrs),
 	}
 
 	var number, dynnumber int64

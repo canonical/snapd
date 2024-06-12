@@ -110,6 +110,10 @@ func getAttribute(snapName string, ifaceName string, staticAttrs map[string]inte
 
 // NewConnectedSlot creates an object representing a connected slot.
 func NewConnectedSlot(slot *snap.SlotInfo, appSet *SnapAppSet, staticAttrs, dynamicAttrs map[string]interface{}) *ConnectedSlot {
+	if slot.Snap.InstanceName() != appSet.Info().InstanceName() {
+		panic(fmt.Sprintf("internal error: slot must be from the same snap as the app set: %s != %s", slot.Snap.InstanceName(), appSet.Info().InstanceName()))
+	}
+
 	var static map[string]interface{}
 	if staticAttrs != nil {
 		static = staticAttrs
@@ -126,6 +130,10 @@ func NewConnectedSlot(slot *snap.SlotInfo, appSet *SnapAppSet, staticAttrs, dyna
 
 // NewConnectedPlug creates an object representing a connected plug.
 func NewConnectedPlug(plug *snap.PlugInfo, appSet *SnapAppSet, staticAttrs, dynamicAttrs map[string]interface{}) *ConnectedPlug {
+	if plug.Snap.InstanceName() != appSet.Info().InstanceName() {
+		panic(fmt.Sprintf("internal error: plug must be from the same snap as the app set: %s != %s", plug.Snap.InstanceName(), appSet.Info().InstanceName()))
+	}
+
 	var static map[string]interface{}
 	if staticAttrs != nil {
 		static = staticAttrs
