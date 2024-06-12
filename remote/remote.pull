@@ -45,7 +45,7 @@ remote_pull() {
     SSH_CERT="$(_get_cert)"
 
     LEGACY_PARAM=""
-    # We check if the scp version is greated than 9, then -O option is supported
+    # We check if the scp version is greater than 9, so -O option is supported
     if [ "$(ssh -V 2>&1 | awk -F'[_,]' '{print $2+0}')" -ge 9 ]; then
         LEGACY_PARAM="-O"
     fi
