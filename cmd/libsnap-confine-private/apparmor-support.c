@@ -52,6 +52,10 @@ void sc_init_apparmor_support(struct sc_apparmor *apparmor)
 			debug
 			    ("apparmor extensions to the system are not available");
 			break;
+		case EBUSY:
+			debug
+			    ("apparmor is enabled but the interface is private");
+			break;
 		case ECANCELED:
 			debug
 			    ("apparmor is available on the system but has been disabled at boot");
