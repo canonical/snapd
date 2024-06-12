@@ -20,7 +20,10 @@
 package main
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/asserts"
@@ -45,8 +48,157 @@ func (*genericCVMModel) Grade() asserts.ModelGrade {
 }
 
 type partitionMount struct {
-	Partition disks.Partition
-	Opts      *systemdMountOptions
+	FsLabel string
+	Where   string
+	Opts    *systemdMountOptions
+}
+
+type ImageManifestPartition struct {
+	FsLabel  string `json:"label"`
+	RootHash string `json:"root_hash"`
+	Overlay  string `json:"overlay"`
+}
+
+type ImageManifest struct {
+	Partitions []ImageManifestPartition `json:"partitions"`
+}
+
+type ManifestError struct{}
+
+func (e *ManifestError) Error() string {
+	return fmt.Sprintf("")
+}
+
+func parseImageManifest() (ImageManifest, error) {
+	imageManifestFilePath := filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/ubuntu", "manifest.json")
+	imageManifestFile, err := os.ReadFile(imageManifestFilePath)
+	if err != nil {
+		return ImageManifest{}, err
+	}
+
+	var im ImageManifest
+	err = json.Unmarshal(imageManifestFile, &im)
+	if err != nil {
+		return ImageManifest{}, err
+	}
+
+	if len(im.Partitions) < 1 {
+		return ImageManifest{}, fmt.Errorf("Invalid manifest: root partition not specified.")
+	}
+
+	if im.Partitions[0].Overlay != "lowerdir" {
+		return ImageManifest{}, fmt.Errorf("Invalid manifest: expected first partition to be used as lowerdir, %s was found instead.", im.Partitions[0].Overlay)
+	}
+
+	return im, nil
+}
+
+func generateMounts(disk disks.Disk) ([]partitionMount, error) {
+	im, err := parseImageManifest()
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			// XXX: if a manifest file is not found fall-back to CVM v1 behaviour
+			partitionMounts := []partitionMount{
+				{
+					Where:   boot.InitramfsDataDir,
+					FsLabel: "cloudimg-rootfs",
+					Opts: &systemdMountOptions{
+						NeedsFsck: true,
+					},
+				},
+			}
+
+			return partitionMounts, nil
+		} else {
+			return []partitionMount{}, err
+		}
+	}
+
+	foundReadOnlyPartition := ""
+	foundWritablePartition := ""
+
+	partitionMounts := []partitionMount{}
+
+	// Configure the overlay filesystems mounts from the manifest.
+	for _, p := range im.Partitions {
+		pm := partitionMount{
+			Opts: &systemdMountOptions{},
+		}
+
+		pm.FsLabel = p.FsLabel
+
+		// All detected partitions are mounted by default under /run/mnt/<FsLabel of partition>
+		pm.Where = filepath.Join(boot.InitramfsRunMntDir, p.FsLabel)
+
+		if p.Overlay == "lowerdir" {
+			// XXX: currently only one lower layer is permitted. The rest, if found, are ignored.
+			if foundReadOnlyPartition != "" {
+				continue
+			}
+			foundReadOnlyPartition = pm.FsLabel
+
+			// systemd-mount will run fsck by default when attempting to mount the partition and potentially corrupt it.
+			// This will cause dm-verity to fail when attempting to set up the dm-verity mount.
+			// fsck should be/is run by the encrypt-cloud-image tool prior to generating dm-verity data.
+			pm.Opts.NeedsFsck = false
+			pm.Opts.VerityRootHash = p.RootHash
+
+			// Auto-discover verity device from disk for partition types meant to be used as lowerdir
+			verityPartition, err := disk.FindMatchingPartitionWithFsLabel(p.FsLabel + "-verity")
+			if err != nil {
+				return []partitionMount{}, err
+			}
+			pm.Opts.VerityHashDevice = verityPartition.KernelDeviceNode
+		} else {
+			// Only one writable partition is permitted.
+			if foundWritablePartition != "" {
+				continue
+			}
+			// Manifest contains a partition meant to be used as a writable overlay for the non-ephemeral vm case.
+			// If it is encrypted, its key will be autodiscovered based on its FsLabel later.
+			foundWritablePartition = p.FsLabel
+			pm.Opts.NeedsFsck = true
+		}
+
+		partitionMounts = append(partitionMounts, pm)
+	}
+
+	if foundReadOnlyPartition == "" {
+		return nil, fmt.Errorf("manifest doesn't contain any partition with Overlay type lowerdir")
+	}
+
+	// If no writable partitions were found in the manifest, Configure a tmpfs filesystem for the upper and workdir layers
+	// of the final rootfs mount.
+	if foundWritablePartition == "" {
+		foundWritablePartition = "cloudimg-rootfs-writable"
+
+		pm := partitionMount{
+			Where:   filepath.Join(boot.InitramfsRunMntDir, "cloudimg-rootfs-writable"),
+			FsLabel: "cloudimg-rootfs-writable",
+			Opts: &systemdMountOptions{
+				Tmpfs: true,
+			},
+		}
+
+		partitionMounts = append(partitionMounts, pm)
+	}
+
+	// Configure the merged overlay filesystem mount.
+	pm := partitionMount{
+		Where:   boot.InitramfsDataDir,
+		FsLabel: "cloudimg-rootfs",
+		Opts: &systemdMountOptions{
+			Overlayfs: true,
+			LowerDirs: []string{filepath.Join(boot.InitramfsRunMntDir, partitionMounts[0].FsLabel)},
+		},
+	}
+
+	pm.Opts.UpperDir = filepath.Join(boot.InitramfsRunMntDir, foundWritablePartition, "upper")
+	pm.Opts.WorkDir = filepath.Join(boot.InitramfsRunMntDir, foundWritablePartition, "work")
+
+	partitionMounts = append(partitionMounts, pm)
+
+	return partitionMounts, nil
 }
 
 // generateMountsModeRunCVM is used to generate mounts for the special "cloudimg-rootfs" mode which
@@ -65,39 +217,58 @@ func generateMountsModeRunCVM(mst *initramfsMountsState) error {
 		return err
 	}
 
-	partitionMounts := []partitionMount{
-		{
-			Partition: disks.Partition{
-				PartitionLabel: "cloudimg-rootfs",
-			},
-			Opts: &systemdMountOptions{
-				NeedsFsck: true,
-				Ephemeral: true,
-			},
-		},
+	partitionMounts, err := generateMounts(disk)
+	if err != nil {
+		return err
 	}
 
-	// Mount rootfs
+	// Provision TPM TODO: should become "try and provision TPM" to support the unencrypted root fs case
 	if err := secbootProvisionForCVM(boot.InitramfsUbuntuSeedDir); err != nil {
 		return err
 	}
 
-	for _, p := range partitionMounts {
-		if true {
-			runModeCVMKey := filepath.Join(boot.InitramfsSeedEncryptionKeyDir, p.Partition.PartitionLabel+".sealed-key")
+	// Mount rootfs
+	for _, pm := range partitionMounts {
+		var what string
+		var unlockRes secboot.UnlockResult
+
+		if !pm.Opts.Tmpfs {
+			runModeCVMKey := filepath.Join(boot.InitramfsSeedEncryptionKeyDir, pm.FsLabel+".sealed-key")
 			opts := &secboot.UnlockVolumeUsingSealedKeyOptions{
 				AllowRecoveryKey: true,
 			}
-			unlockRes, err := secbootUnlockVolumeUsingSealedKeyIfEncrypted(disk, p.Partition.PartitionLabel, runModeCVMKey, opts)
+			// UnlovkVolumeUsingSealedKeyIfEncrypted is searching for partitions based on their filesystem label and
+			// not the GPT label. Images that are created for CVM mode set both to the same label. The GPT label
+			// is used for partition discovery and the filesystem label for auto-discovery of a potentially encrypted
+			// partition.
+			unlockRes, err = secbootUnlockVolumeUsingSealedKeyIfEncrypted(disk, pm.FsLabel, runModeCVMKey, opts)
 			if err != nil {
 				return err
 			}
 
-			if err := doSystemdMount(unlockRes.FsDevice, boot.InitramfsDataDir, p.Opts); err != nil {
+			what = unlockRes.FsDevice
+		}
+
+		if err := doSystemdMount(what, pm.Where, pm.Opts); err != nil {
+			return err
+		}
+
+		// Create overlayfs' upperdir and workdir in the writable layer (tmpfs or not).
+		if pm.FsLabel == "cloudimg-rootfs-writable" {
+			fi, err := os.Stat(pm.Where)
+			if err != nil {
 				return err
 			}
+			if err := os.Mkdir(filepath.Join(pm.Where, "upper"), fi.Mode()); err != nil && !os.IsExist(err) {
+				return err
+			}
+			if err := os.Mkdir(filepath.Join(pm.Where, "work"), fi.Mode()); err != nil && !os.IsExist(err) {
+				return err
+			}
+		}
 
-			// Verify that cloudimg-rootfs comes from where we expect it to
+		// Verify that detected non tmpfs partitions come from where we expect them to
+		if !pm.Opts.Tmpfs {
 			diskOpts := &disks.Options{}
 			if unlockRes.IsEncrypted {
 				// then we need to specify that the data mountpoint is
@@ -105,14 +276,14 @@ func generateMountsModeRunCVM(mst *initramfsMountsState) error {
 				diskOpts.IsDecryptedDevice = true
 			}
 
-			matches, err := disk.MountPointIsFromDisk(boot.InitramfsDataDir, diskOpts)
+			matches, err := disk.MountPointIsFromDisk(pm.Where, diskOpts)
 			if err != nil {
 				return err
 			}
 			if !matches {
-				// failed to verify that cloudimg-rootfs mountpoint
+				// failed to verify that manifest partition mountpoint
 				// comes from the same disk as ESP
-				return fmt.Errorf("cannot validate boot: %s mountpoint is expected to be from disk %s but is not", p.Partition.PartitionLabel, disk.Dev())
+				return fmt.Errorf("cannot validate boot: %s mountpoint is expected to be from disk %s but is not", pm.FsLabel, disk.Dev())
 			}
 		}
 	}
